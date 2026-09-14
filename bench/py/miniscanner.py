@@ -32,11 +32,33 @@ from typing import Dict, List, Optional, Tuple
 
 # 数学环境族 → [[MATH_n]] (含 * 变体)
 MATH_ENVS = {
-    "equation", "align", "gather", "multline", "flalign", "alignat",
-    "eqnarray", "subequations", "IEEEeqnarray", "dmath", "empheq",
-    "math", "displaymath", "cases", "split", "gathered", "aligned",
-    "alignedat", "array", "matrix", "pmatrix", "bmatrix", "vmatrix",
-    "Bmatrix", "smallmatrix", "equationarray", "xxalignat",
+    "equation",
+    "align",
+    "gather",
+    "multline",
+    "flalign",
+    "alignat",
+    "eqnarray",
+    "subequations",
+    "IEEEeqnarray",
+    "dmath",
+    "empheq",
+    "math",
+    "displaymath",
+    "cases",
+    "split",
+    "gathered",
+    "aligned",
+    "alignedat",
+    "array",
+    "matrix",
+    "pmatrix",
+    "bmatrix",
+    "vmatrix",
+    "Bmatrix",
+    "smallmatrix",
+    "equationarray",
+    "xxalignat",
 }
 MATH_ENVS |= {e + "*" for e in list(MATH_ENVS)}
 
@@ -46,72 +68,223 @@ VERBATIM_ENVS |= {e + "*" for e in list(VERBATIM_ENVS)}
 
 # 保护环境: 整段 → [[ENV_n]], 但内部递归挖 \caption/\footnote 为 chunk
 PROTECTED_ENVS = {
-    "figure", "figure*", "table", "table*", "tabular", "tabularx",
-    "tabulary", "longtable", "sidewaystable", "wraptable", "wrapfigure",
-    "algorithm", "algorithm2e", "algorithmic", "algorithmicx",
-    "tikzpicture", "pgfpicture", "picture", "pspicture",
+    "figure",
+    "figure*",
+    "table",
+    "table*",
+    "tabular",
+    "tabularx",
+    "tabulary",
+    "longtable",
+    "sidewaystable",
+    "wraptable",
+    "wrapfigure",
+    "algorithm",
+    "algorithm2e",
+    "algorithmic",
+    "algorithmicx",
+    "tikzpicture",
+    "pgfpicture",
+    "picture",
+    "pspicture",
 }
 
 # 参数挖为独立 chunk 的命令 (不受 20 字符阈值限制)
 CHUNK_ARG_NAMES = {
-    "section", "subsection", "subsubsection", "paragraph", "subparagraph",
-    "chapter", "part", "sect", "subsect",   # ptptex 旧式
-    "caption", "subcaption", "captionof",
-    "title", "subtitle", "thanks", "footnote", "footnotetext",
-    "abst", "keywords",
+    "section",
+    "subsection",
+    "subsubsection",
+    "paragraph",
+    "subparagraph",
+    "chapter",
+    "part",
+    "sect",
+    "subsect",  # ptptex 旧式
+    "caption",
+    "subcaption",
+    "captionof",
+    "title",
+    "subtitle",
+    "thanks",
+    "footnote",
+    "footnotetext",
+    "abst",
+    "keywords",
 }
 
 # 整块保护命令 (\author{..} 等 → [[AUTHOR_n]])
 PROTECT_BLOCK_NAMES = {
-    "author", "inst", "address", "affiliation", "date", "markboth",
-    "markright", "preprintnumber", "recdate", "publishedin", "institute",
-    "email", "orcid",
+    "author",
+    "inst",
+    "address",
+    "affiliation",
+    "date",
+    "markboth",
+    "markright",
+    "preprintnumber",
+    "recdate",
+    "publishedin",
+    "institute",
+    "email",
+    "orcid",
 }
 
 # cite/ref 两族 (词族匹配见 _dispatch_cmd)
 CITE_NAMES = {
-    "cite", "citep", "citet", "citealp", "citealt", "citeauthor",
-    "citeyear", "citeyearpar", "citetext", "citeonline", "parencite",
-    "textcite", "footcite", "smartcite", "supercite", "autocite",
-    "fullcite", "shortcite", "citeN", "citeasnoun", "citenum",
-    "nocite", "upcite", "citeyearnp",
+    "cite",
+    "citep",
+    "citet",
+    "citealp",
+    "citealt",
+    "citeauthor",
+    "citeyear",
+    "citeyearpar",
+    "citetext",
+    "citeonline",
+    "parencite",
+    "textcite",
+    "footcite",
+    "smartcite",
+    "supercite",
+    "autocite",
+    "fullcite",
+    "shortcite",
+    "citeN",
+    "citeasnoun",
+    "citenum",
+    "nocite",
+    "upcite",
+    "citeyearnp",
 }
 REF_NAMES = {
-    "ref", "eqref", "autoref", "cref", "Cref", "crefrange", "cpageref",
-    "pageref", "nameref", "vref", "vpageref", "fref", "Fref", "subref",
-    "labelcref", "labelpageref",
+    "ref",
+    "eqref",
+    "autoref",
+    "cref",
+    "Cref",
+    "crefrange",
+    "cpageref",
+    "pageref",
+    "nameref",
+    "vref",
+    "vpageref",
+    "fref",
+    "Fref",
+    "subref",
+    "labelcref",
+    "labelpageref",
 }
 PROTECT_NAMES = {
-    "label", "url", "includegraphics", "bibliography", "bibliographystyle",
-    "index", "gls", "Gls", "doi", "path", "includepdf", "bibitem",
-    "inputminted", "lstinputlisting", "verbatiminput", "lstinline",
+    "label",
+    "url",
+    "includegraphics",
+    "bibliography",
+    "bibliographystyle",
+    "index",
+    "gls",
+    "Gls",
+    "doi",
+    "path",
+    "includepdf",
+    "bibitem",
+    "inputminted",
+    "lstinputlisting",
+    "verbatiminput",
+    "lstinline",
 }
 
 # 透明命令: 参数内联扫描 (inner text 进入当前 run/chunk)
 TRANSPARENT_NAMES = {
-    "emph", "textbf", "textit", "textsc", "textsl", "textsf", "texttt",
-    "textrm", "textmd", "textup", "textnormal", "underline",
-    "mbox", "hbox", "fbox", "makebox", "framebox",
-    "textcolor", "colorbox", "hl", "sout", "uline", "uwave",
-    "noindent", "hspace", "vspace", "footnote", "footnotemark",
+    "emph",
+    "textbf",
+    "textit",
+    "textsc",
+    "textsl",
+    "textsf",
+    "texttt",
+    "textrm",
+    "textmd",
+    "textup",
+    "textnormal",
+    "underline",
+    "mbox",
+    "hbox",
+    "fbox",
+    "makebox",
+    "framebox",
+    "textcolor",
+    "colorbox",
+    "hl",
+    "sout",
+    "uline",
+    "uwave",
+    "noindent",
+    "hspace",
+    "vspace",
+    "footnote",
+    "footnotemark",
 }
-TRANSPARENT_NAMES.discard("footnote")   # footnote 是 chunk-arg 命令
+TRANSPARENT_NAMES.discard("footnote")  # footnote 是 chunk-arg 命令
 TRANSPARENT_NAMES.discard("hspace")
 TRANSPARENT_NAMES.discard("vspace")
 
 # 行级字面命令: 文本 run 的硬边界, 本体逐字保留
 BOUNDARY_NAMES = {
-    "item", "maketitle", "centering", "centerline", "hline", "toprule",
-    "midrule", "bottomrule", "cline", "cmidrule", "newpage", "clearpage",
-    "cleardoublepage", "pagebreak", "linebreak", "nopagebreak",
-    "tableofcontents", "listoffigures", "listoftables", "appendix",
-    "vspace", "hspace", "vfill", "hfill", "vskip", "hskip", "smallskip",
-    "medskip", "bigskip", "indent", "par", "newline", "columnbreak",
-    "balance", "onecolumn", "twocolumn", "newcounter", "setcounter",
-    "addtocounter", "setlength", "addtolength", "setstretch", "pagestyle",
-    "thispagestyle", "pagenumbering", "makeatletter", "makeatother",
-    "frontmatter", "mainmatter", "backmatter", "bibliographystyle_",
-    "documentclass", "documentstyle", "usepackage", "RequirePackage",
+    "item",
+    "maketitle",
+    "centering",
+    "centerline",
+    "hline",
+    "toprule",
+    "midrule",
+    "bottomrule",
+    "cline",
+    "cmidrule",
+    "newpage",
+    "clearpage",
+    "cleardoublepage",
+    "pagebreak",
+    "linebreak",
+    "nopagebreak",
+    "tableofcontents",
+    "listoffigures",
+    "listoftables",
+    "appendix",
+    "vspace",
+    "hspace",
+    "vfill",
+    "hfill",
+    "vskip",
+    "hskip",
+    "smallskip",
+    "medskip",
+    "bigskip",
+    "indent",
+    "par",
+    "newline",
+    "columnbreak",
+    "balance",
+    "onecolumn",
+    "twocolumn",
+    "newcounter",
+    "setcounter",
+    "addtocounter",
+    "setlength",
+    "addtolength",
+    "setstretch",
+    "pagestyle",
+    "thispagestyle",
+    "pagenumbering",
+    "makeatletter",
+    "makeatother",
+    "frontmatter",
+    "mainmatter",
+    "backmatter",
+    "bibliographystyle_",
+    "documentclass",
+    "documentstyle",
+    "usepackage",
+    "RequirePackage",
     "newtheorem",
 }
 BOUNDARY_NAMES.discard("bibliographystyle_")
@@ -119,28 +292,99 @@ BOUNDARY_NAMES.discard("bibliographystyle_")
 # 零参/单字符安全字面命令 (行内, 不破 run): 重音、符号、品牌名
 ACCENT_CHARS = set("'`^\"~=.uvHtcdbkz")
 INLINE_LITERAL_CMDS = {
-    "LaTeX", "TeX", "LaTeXe", "today", "quad", "qquad", "ldots", "dots",
-    "dotsb", "dotsc", "dotsm", "textasciitilde", "textasciicircum",
-    "textbackslash", "textdegree", "dag", "dagger", "ddag", "ddagger",
-    "S", "P", "copyright", "pounds", "aa", "AA", "ae", "AE", "oe", "OE",
-    "o", "O", "l", "L", "ss", "i", "j", "enspace", "thinspace",
-    "negthinspace", "enskip", "hline_", "textquoteright",
+    "LaTeX",
+    "TeX",
+    "LaTeXe",
+    "today",
+    "quad",
+    "qquad",
+    "ldots",
+    "dots",
+    "dotsb",
+    "dotsc",
+    "dotsm",
+    "textasciitilde",
+    "textasciicircum",
+    "textbackslash",
+    "textdegree",
+    "dag",
+    "dagger",
+    "ddag",
+    "ddagger",
+    "S",
+    "P",
+    "copyright",
+    "pounds",
+    "aa",
+    "AA",
+    "ae",
+    "AE",
+    "oe",
+    "OE",
+    "o",
+    "O",
+    "l",
+    "L",
+    "ss",
+    "i",
+    "j",
+    "enspace",
+    "thinspace",
+    "negthinspace",
+    "enskip",
+    "hline_",
+    "textquoteright",
 }
 INLINE_LITERAL_CMDS.discard("hline_")
 
 # 旧式 2.09 字体开关: 无参, 行内字面
 FONT_SWITCHES = {
-    "rm", "bf", "it", "sl", "sf", "tt", "sc", "em", "cal", "mit",
-    "tiny", "scriptsize", "footnotesize", "small", "normalsize", "large",
-    "Large", "LARGE", "huge", "Huge", "HUGE", "normalfont", "bfseries",
-    "mdseries", "itshape", "slshape", "scshape", "upshape", "ttfamily",
-    "sffamily", "rmfamily",
+    "rm",
+    "bf",
+    "it",
+    "sl",
+    "sf",
+    "tt",
+    "sc",
+    "em",
+    "cal",
+    "mit",
+    "tiny",
+    "scriptsize",
+    "footnotesize",
+    "small",
+    "normalsize",
+    "large",
+    "Large",
+    "LARGE",
+    "huge",
+    "Huge",
+    "HUGE",
+    "normalfont",
+    "bfseries",
+    "mdseries",
+    "itshape",
+    "slshape",
+    "scshape",
+    "upshape",
+    "ttfamily",
+    "sffamily",
+    "rmfamily",
 }
 
 # \begin 后要吞掉强制 {arg} 的环境 (宽/格式参数, 非文本)
 ENV_MANDATORY_ARG = {
-    "minipage", "parbox", "tabular", "tabularx", "tabulary", "array",
-    "list", "thebibliography", "subfigure", "wrapfigure", "wraptable",
+    "minipage",
+    "parbox",
+    "tabular",
+    "tabularx",
+    "tabulary",
+    "array",
+    "list",
+    "thebibliography",
+    "subfigure",
+    "wrapfigure",
+    "wraptable",
 }
 
 COND_RX = re.compile(r"^(if[a-zA-Z@]*|else|fi|or)$")
@@ -156,7 +400,7 @@ class Macro:
     name: str
     nargs: int = 0
     has_opt: bool = False
-    kind: str = "transparent"      # env_begin/env_end/opaque/transparent/literal
+    kind: str = "transparent"  # env_begin/env_end/opaque/transparent/literal
     target_env: str = ""
     protect_args: Tuple[bool, ...] = ()
     body: str = ""
@@ -165,7 +409,7 @@ class Macro:
 @dataclass
 class Chunk:
     id: int
-    content: str                   # 原文区间 verbatim (含内嵌 [[TYPE_n]])
+    content: str  # 原文区间 verbatim (含内嵌 [[TYPE_n]])
     context: str = "paragraph"
 
 
@@ -188,10 +432,10 @@ class Scanner:
         self.ph_map: Dict[str, str] = {}
         self.pieces: List[Tuple[str, object]] = []
         self.inputs: List[Tuple[int, str]] = []
-        self._ctr = [0]             # 占位符计数器 (子扫描器共享, 防编号冲突)
-        self._mined_only = False    # 保护环境内部: 只挖 caption/footnote
-        self._arg_inline = False    # chunk 参数内部: 嵌套 chunk-arg 内联化
-        self._force_chunk = False   # \item 后: 下一 run 不受 20 字符阈值限制
+        self._ctr = [0]  # 占位符计数器 (子扫描器共享, 防编号冲突)
+        self._mined_only = False  # 保护环境内部: 只挖 caption/footnote
+        self._arg_inline = False  # chunk 参数内部: 嵌套 chunk-arg 内联化
+        self._force_chunk = False  # \item 后: 下一 run 不受 20 字符阈值限制
 
     # ------------------------------------------------------------ 小工具
     def _ph(self, typ: str, body: str) -> str:
@@ -216,8 +460,7 @@ class Scanner:
             i += 1
         return i
 
-    def _match_brace(self, tex: str, i: int,
-                     verbatim: bool = False) -> Optional[int]:
+    def _match_brace(self, tex: str, i: int, verbatim: bool = False) -> Optional[int]:
         """tex[i]=='{' → 匹配 '}' 的后一位. verbatim=False 时 %..EOL 内括号不计."""
         if i >= len(tex) or tex[i] != "{":
             return None
@@ -267,8 +510,9 @@ class Scanner:
             j += 1
         return None
 
-    def _args(self, tex: str, i: int, nargs: int, has_opt: bool = False
-              ) -> Tuple[List[Tuple[int, int, int, int]], int]:
+    def _args(
+        self, tex: str, i: int, nargs: int, has_opt: bool = False
+    ) -> Tuple[List[Tuple[int, int, int, int]], int]:
         """从 i 起读 [opt]?{a1}..{an}.
         返回 ([(cs,ce,fs,fe)], end) — cs:ce 内容区间, fs:fe 含括号整段."""
         pos = self._ws(tex, i)
@@ -303,7 +547,7 @@ class Scanner:
         if pos < len(tex) and tex[pos] == "{":
             e = self._match_brace(tex, pos)
             if e:
-                return tex[pos + 1:e - 1].strip(), e
+                return tex[pos + 1 : e - 1].strip(), e
         return None, i
 
     def _find_env_end(self, tex: str, i: int, env: str) -> Optional[int]:
@@ -358,8 +602,7 @@ class Scanner:
         return "", j
 
     # ------------------------------------------------------------ 宏表
-    def _register_macro(self, name: str, nargs: int, has_opt: bool,
-                        body: str) -> None:
+    def _register_macro(self, name: str, nargs: int, has_opt: bool, body: str) -> None:
         if not name:
             return
         m = Macro(name=name, nargs=nargs, has_opt=has_opt, body=body)
@@ -399,8 +642,9 @@ class Scanner:
                 flags[int(tok[1]) - 1] = flags[int(tok[1]) - 1] or cur_protect
             else:
                 name = tok.lstrip("\\").rstrip("*")
-                cur_protect = name in (CITE_NAMES | REF_NAMES
-                                       | {"label", "url", "includegraphics"})
+                cur_protect = name in (
+                    CITE_NAMES | REF_NAMES | {"label", "url", "includegraphics"}
+                )
         return tuple(flags)
 
     def _scan_macro_def(self, tex: str, i: int, name: str) -> int:
@@ -417,19 +661,23 @@ class Scanner:
                     e2 = self._match_bracket(tex, p)
                     if e2:
                         try:
-                            nargs = int(tex[p + 1:e2 - 1].strip() or 0)
+                            nargs = int(tex[p + 1 : e2 - 1].strip() or 0)
                         except ValueError:
                             nargs = 0
                         p = e2
                 bb = self._ws(tex, p)
                 eb = self._match_brace(tex, bb)
                 if eb:
-                    body_b = tex[bb + 1:eb - 1]
+                    body_b = tex[bb + 1 : eb - 1]
                     ee = self._match_brace(tex, self._ws(tex, eb))
-                    kind = ("protect_env" if self._env_kind_of(
-                        body_b) == "protected" else "custom_env")
+                    kind = (
+                        "protect_env"
+                        if self._env_kind_of(body_b) == "protected"
+                        else "custom_env"
+                    )
                     self.macros["env:" + envname] = Macro(
-                        name=envname, nargs=nargs, kind=kind)
+                        name=envname, nargs=nargs, kind=kind
+                    )
                     return ee if ee else eb
             return pos
         if name in ("newcommand", "renewcommand", "providecommand"):
@@ -441,7 +689,7 @@ class Scanner:
             if pos < n and tex[pos] == "{":
                 e2 = self._match_brace(tex, pos)
                 if e2:
-                    mname = tex[pos + 1:e2 - 1].strip().lstrip("\\")
+                    mname = tex[pos + 1 : e2 - 1].strip().lstrip("\\")
                     pos = e2
             elif pos < n and tex[pos] == "\\":
                 mname, pos = self._read_cmd_name(tex, pos)
@@ -456,7 +704,7 @@ class Scanner:
                         break
                     if k == 0:
                         try:
-                            nargs = int(tex[p2 + 1:e2 - 1].strip() or 0)
+                            nargs = int(tex[p2 + 1 : e2 - 1].strip() or 0)
                         except ValueError:
                             nargs = 0
                     else:
@@ -468,8 +716,7 @@ class Scanner:
             if p2 < n and tex[p2] == "{":
                 e2 = self._match_brace(tex, p2)
                 if e2:
-                    self._register_macro(mname, nargs, has_opt,
-                                         tex[p2 + 1:e2 - 1])
+                    self._register_macro(mname, nargs, has_opt, tex[p2 + 1 : e2 - 1])
                     return e2
             return pos
         if name == "def":
@@ -480,7 +727,7 @@ class Scanner:
             elif pos < n and tex[pos] == "{":
                 e2 = self._match_brace(tex, pos)
                 if e2:
-                    mname = tex[pos + 1:e2 - 1].strip().lstrip("\\")
+                    mname = tex[pos + 1 : e2 - 1].strip().lstrip("\\")
                     pos = e2
             if mname is None:
                 return pos
@@ -497,18 +744,21 @@ class Scanner:
             if pos < n and tex[pos] == "{":
                 e2 = self._match_brace(tex, pos)
                 if e2:
-                    self._register_macro(mname, nargs, False,
-                                         tex[pos + 1:e2 - 1])
+                    self._register_macro(mname, nargs, False, tex[pos + 1 : e2 - 1])
                     return e2
             return pos
-        if name in ("NewDocumentCommand", "RenewDocumentCommand",
-                    "ProvideDocumentCommand", "DeclareDocumentCommand"):
+        if name in (
+            "NewDocumentCommand",
+            "RenewDocumentCommand",
+            "ProvideDocumentCommand",
+            "DeclareDocumentCommand",
+        ):
             pos = self._ws(tex, pos)
             mname = None
             if pos < n and tex[pos] == "{":
                 e2 = self._match_brace(tex, pos)
                 if e2:
-                    mname = tex[pos + 1:e2 - 1].strip().lstrip("\\")
+                    mname = tex[pos + 1 : e2 - 1].strip().lstrip("\\")
                     pos = e2
             elif pos < n and tex[pos] == "\\":
                 mname, pos = self._read_cmd_name(tex, pos)
@@ -519,7 +769,7 @@ class Scanner:
             if pos < n and tex[pos] == "{":
                 e2 = self._match_brace(tex, pos)
                 if e2:
-                    for ch in tex[pos + 1:e2 - 1]:
+                    for ch in tex[pos + 1 : e2 - 1]:
                         if ch == "m":
                             nargs += 1
                         elif ch in "oO":
@@ -529,8 +779,7 @@ class Scanner:
             if pos < n and tex[pos] == "{":
                 e2 = self._match_brace(tex, pos)
                 if e2:
-                    self._register_macro(mname, nargs, has_opt,
-                                         tex[pos + 1:e2 - 1])
+                    self._register_macro(mname, nargs, has_opt, tex[pos + 1 : e2 - 1])
                     return e2
             return pos
         return pos
@@ -550,10 +799,16 @@ class Scanner:
                 continue
             if c == "\\":
                 name, j = self._read_cmd_name(tex, i)
-                if name in ("newcommand", "renewcommand", "providecommand",
-                            "def", "NewDocumentCommand",
-                            "RenewDocumentCommand", "DeclareDocumentCommand",
-                            "newenvironment"):
+                if name in (
+                    "newcommand",
+                    "renewcommand",
+                    "providecommand",
+                    "def",
+                    "NewDocumentCommand",
+                    "RenewDocumentCommand",
+                    "DeclareDocumentCommand",
+                    "newenvironment",
+                ):
                     end = self._scan_macro_def(tex, i, name)
                     i = max(end, j)
                     continue
@@ -562,8 +817,9 @@ class Scanner:
             i += 1
 
     # ------------------------------------------------------------ 主扫描
-    def scan(self, tex: str, preamble_end: int = 0,
-             mined_only: bool = False) -> ScanResult:
+    def scan(
+        self, tex: str, preamble_end: int = 0, mined_only: bool = False
+    ) -> ScanResult:
         """扫 tex → pieces. preamble_end: \\begin{document} 的后一位 (0=无)."""
         self._mined_only = mined_only
         n = len(tex)
@@ -587,7 +843,7 @@ class Scanner:
                 return
             lead = re.match(r"\s*", s).group(0)
             trail = re.search(r"\s*$", s).group(0)
-            core = s[len(lead):len(s) - len(trail) if trail else len(s)]
+            core = s[len(lead) : len(s) - len(trail) if trail else len(s)]
             clean = re.sub(r"\[\[[A-Z_]+_\d+\]\]", " ", core)
             clean = re.sub(r"\\[a-zA-Z@]+\*?|\\[^a-zA-Z]", " ", clean)
             clean = re.sub(r"[^a-zA-Z]", " ", clean).strip()
@@ -608,7 +864,7 @@ class Scanner:
             if c == "%":
                 flush_run()
                 k = tex.find("\n", i)
-                self._emit(tex[i:n if k < 0 else k])
+                self._emit(tex[i : n if k < 0 else k])
                 i = n if k < 0 else k
                 continue
 
@@ -623,7 +879,7 @@ class Scanner:
                 if tex.startswith("$$", i):
                     e = tex.find("$$", i + 2)
                     if e >= 0 and "\n\n" not in tex[i:e]:
-                        run.append(self._ph("MATH", tex[i:e + 2]))
+                        run.append(self._ph("MATH", tex[i : e + 2]))
                         i = e + 2
                         continue
                     run.append("$")
@@ -641,8 +897,8 @@ class Scanner:
                     if tex[j] == "\n" and j + 1 < n and tex[j + 1] == "\n":
                         break
                     j += 1
-                if ok and "\n\n" not in tex[i:j + 1]:
-                    run.append(self._ph("MATH", tex[i:j + 1]))
+                if ok and "\n\n" not in tex[i : j + 1]:
+                    run.append(self._ph("MATH", tex[i : j + 1]))
                     i = j + 1
                 else:
                     run.append("$")
@@ -670,15 +926,20 @@ class Scanner:
         flush_run()
         return ScanResult(
             protected_tex=self._render(),
-            chunks=self.chunks, ph_map=self.ph_map, macros=self.macros,
-            pieces=self.pieces, inputs=self.inputs)
+            chunks=self.chunks,
+            ph_map=self.ph_map,
+            macros=self.macros,
+            pieces=self.pieces,
+            inputs=self.inputs,
+        )
 
     def _render(self) -> str:
         return "".join(v for _, v in self.pieces)
 
     # ------------------------------------------------------------ 命令分派
-    def _dispatch_cmd(self, tex: str, i: int, name: str, j: int,
-                      run: list, flush_run) -> int:
+    def _dispatch_cmd(
+        self, tex: str, i: int, name: str, j: int, run: list, flush_run
+    ) -> int:
         n = len(tex)
 
         # \verb|..| / \verb*X..X
@@ -690,15 +951,22 @@ class Scanner:
                 d = tex[k]
                 e = tex.find(d, k + 1)
                 if e > 0:
-                    run.append(self._ph("VERB", tex[i:e + 1]))
+                    run.append(self._ph("VERB", tex[i : e + 1]))
                     return e + 1
             run.append(tex[i:j])
             return j
 
         # 定义命令: 逐字保留, 登记宏表
-        if name in ("newcommand", "renewcommand", "providecommand", "def",
-                    "NewDocumentCommand", "RenewDocumentCommand",
-                    "DeclareDocumentCommand", "newenvironment"):
+        if name in (
+            "newcommand",
+            "renewcommand",
+            "providecommand",
+            "def",
+            "NewDocumentCommand",
+            "RenewDocumentCommand",
+            "DeclareDocumentCommand",
+            "newenvironment",
+        ):
             flush_run()
             end = self._scan_macro_def(tex, i, name)
             self._emit(tex[i:end])
@@ -710,10 +978,12 @@ class Scanner:
             if cond.startswith("if"):
                 base = cond[2:]
                 self.macros.setdefault(
-                    base + "true", Macro(base + "true", kind="literal"))
+                    base + "true", Macro(base + "true", kind="literal")
+                )
                 self.macros.setdefault(
-                    base + "false", Macro(base + "false", kind="literal"))
-            self._emit(tex[i:e2 if e2 else j])
+                    base + "false", Macro(base + "false", kind="literal")
+                )
+            self._emit(tex[i : e2 if e2 else j])
             return e2 if e2 else j
 
         # \begin{env}
@@ -729,24 +999,29 @@ class Scanner:
             env, e2 = self._env_name_at(tex, j)
             flush_run()
             if env == "document" and e2:
-                self._emit(tex[i:e2])    # \end{document} 本体
-                self._emit(tex[e2:])     # 之后全逐字
+                self._emit(tex[i:e2])  # \end{document} 本体
+                self._emit(tex[e2:])  # 之后全逐字
                 return n
-            self._emit(tex[i:e2 if e2 else j])
+            self._emit(tex[i : e2 if e2 else j])
             return e2 if e2 else j
 
         # 保护命令族 (整调用 → [[TYPE_n]])
         if name in CITE_NAMES or name.startswith("cite"):
             return self._protect_call(tex, i, j, "CITE", run)
-        if name in REF_NAMES or (name.endswith("ref")
-                                 and name not in TRANSPARENT_NAMES
-                                 and name != "href"):
+        if name in REF_NAMES or (
+            name.endswith("ref") and name not in TRANSPARENT_NAMES and name != "href"
+        ):
             return self._protect_call(tex, i, j, "REF", run)
         if name in PROTECT_NAMES:
-            typ = {"includegraphics": "GRAPHICS", "url": "URL",
-                   "path": "URL", "label": "LABEL",
-                   "bibliography": "BIB", "bibliographystyle": "BIB",
-                   "bibitem": "BIB"}.get(name, "CMD")
+            typ = {
+                "includegraphics": "GRAPHICS",
+                "url": "URL",
+                "path": "URL",
+                "label": "LABEL",
+                "bibliography": "BIB",
+                "bibliographystyle": "BIB",
+                "bibitem": "BIB",
+            }.get(name, "CMD")
             vb = name in ("url", "path")
             return self._protect_call(tex, i, j, typ, run, verbatim=vb)
 
@@ -767,7 +1042,7 @@ class Scanner:
             if pos < n and tex[pos] == "{":
                 e = self._match_brace(tex, pos)
                 if e:
-                    self.inputs.append((i, tex[pos + 1:e - 1].strip()))
+                    self.inputs.append((i, tex[pos + 1 : e - 1].strip()))
                     flush_run()
                     self._emit(tex[i:e])
                     return e
@@ -804,7 +1079,7 @@ class Scanner:
             flush_run()
             self._emit(tex[i:j])
             if name == "item":
-                self._force_chunk = True   # item 文本恒可译
+                self._force_chunk = True  # item 文本恒可译
             return j
 
         # 条件命令 / \newif 注册的字面宏
@@ -822,14 +1097,14 @@ class Scanner:
         if name == "[":
             e = tex.find("\\]", j)
             if e > 0 and "\n\n" not in tex[i:e]:
-                run.append(self._ph("MATH", tex[i:e + 2]))
+                run.append(self._ph("MATH", tex[i : e + 2]))
                 return e + 2
             run.append(tex[i:j])
             return j
         if name == "(":
             e = tex.find("\\)", j)
             if e > 0 and "\n\n" not in tex[i:e]:
-                run.append(self._ph("MATH", tex[i:e + 2]))
+                run.append(self._ph("MATH", tex[i : e + 2]))
                 return e + 2
             run.append(tex[i:j])
             return j
@@ -838,9 +1113,11 @@ class Scanner:
             return j
 
         # 行内字面 (重音/符号/品牌/旧式字体开关/单字符命令)
-        if name in INLINE_LITERAL_CMDS or name in FONT_SWITCHES or \
-                (len(name) == 1 and (name in ACCENT_CHARS
-                                     or not name.isalpha())):
+        if (
+            name in INLINE_LITERAL_CMDS
+            or name in FONT_SWITCHES
+            or (len(name) == 1 and (name in ACCENT_CHARS or not name.isalpha()))
+        ):
             run.append(tex[i:j])
             return j
 
@@ -859,8 +1136,9 @@ class Scanner:
         run.append(tex[i:j])
         return j
 
-    def _protect_call(self, tex: str, i: int, j: int, typ: str, run: list,
-                      verbatim: bool = False) -> int:
+    def _protect_call(
+        self, tex: str, i: int, j: int, typ: str, run: list, verbatim: bool = False
+    ) -> int:
         """命令 + *? + [opt]* + {args}* 整段 → [[typ_n]]. 返回 end."""
         n = len(tex)
         pos = j
@@ -887,8 +1165,9 @@ class Scanner:
         run.append(self._ph(typ, tex[i:end]))
         return end
 
-    def _handle_chunk_arg(self, tex: str, i: int, j: int, name: str,
-                          run: list, flush_run) -> int:
+    def _handle_chunk_arg(
+        self, tex: str, i: int, j: int, name: str, run: list, flush_run
+    ) -> int:
         """\\section[opt]{arg}: 前缀逐字, arg → 独立 chunk (内联递归保护)."""
         n = len(tex)
         pos = self._ws(tex, j)
@@ -902,7 +1181,7 @@ class Scanner:
         if pos < n and tex[pos] == "{":
             e = self._match_brace(tex, pos)
             if e:
-                inner = tex[pos + 1:e - 1]
+                inner = tex[pos + 1 : e - 1]
                 if not inner.strip():
                     run.append(tex[i:e])
                     return e
@@ -912,19 +1191,19 @@ class Scanner:
                 rendered = r.protected_tex
                 if self._arg_inline:
                     # 嵌套 chunk-arg 内联化: 文本并入父 chunk
-                    run.append(tex[i:pos + 1] + rendered + "}")
+                    run.append(tex[i : pos + 1] + rendered + "}")
                 else:
                     flush_run()
-                    self._emit(tex[i:pos + 1])
-                    self.pieces.append(
-                        ("chunkph", self._chunk(rendered, name)))
+                    self._emit(tex[i : pos + 1])
+                    self.pieces.append(("chunkph", self._chunk(rendered, name)))
                     self._emit("}")
                 return e
         run.append(tex[i:j])
         return j
 
-    def _handle_macro(self, tex: str, i: int, j: int, name: str, m: Macro,
-                      run: list, flush_run) -> int:
+    def _handle_macro(
+        self, tex: str, i: int, j: int, name: str, m: Macro, run: list, flush_run
+    ) -> int:
         if m.kind == "env_begin":
             env = m.target_env
             end = self._find_env_end(tex, j, env)
@@ -957,21 +1236,22 @@ class Scanner:
         run.append(tex[i:j])
         prev = j
         for k, (cs, ce, fs, fe) in enumerate(args):
-            run.append(tex[prev:fs])       # 参数间空白逐字
-            run.append(tex[fs:cs])         # 开括号 (单 token 参数为 '')
+            run.append(tex[prev:fs])  # 参数间空白逐字
+            run.append(tex[fs:cs])  # 开括号 (单 token 参数为 '')
             if k < len(m.protect_args) and m.protect_args[k]:
                 run.append(self._ph("KEY", tex[cs:ce]))
             else:
                 sub = self._spawn()
                 r = sub.scan(tex[cs:ce], preamble_end=0, mined_only=True)
                 run.append(r.protected_tex)
-            run.append(tex[ce:fe])         # 闭括号
+            run.append(tex[ce:fe])  # 闭括号
             prev = fe
         run.append(tex[prev:end])
         return end
 
-    def _handle_env(self, tex: str, i: int, env: str, j: int,
-                    run: list, flush_run) -> int:
+    def _handle_env(
+        self, tex: str, i: int, env: str, j: int, run: list, flush_run
+    ) -> int:
         """\\begin{env} 已读到 j (env 名 } 后)."""
         n = len(tex)
         if env in VERBATIM_ENVS:
@@ -981,7 +1261,7 @@ class Scanner:
             if k < 0:
                 run.append(tex[i:j])
                 return j
-            self._emit(self._ph("VERB", tex[i:k + len(pat)]))
+            self._emit(self._ph("VERB", tex[i : k + len(pat)]))
             return k + len(pat)
         if env in MATH_ENVS:
             end = self._find_env_end(tex, j, env)
@@ -1013,12 +1293,10 @@ class Scanner:
         self._emit(tex[i:pos])
         return pos
 
-    def _env_with_mined(self, tex: str, i: int, j: int, env: str,
-                        end: int) -> str:
+    def _env_with_mined(self, tex: str, i: int, j: int, env: str, end: int) -> str:
         """保护环境 → [[ENV_n]]; 内部 mined_only 扫描挖 caption/footnote."""
         tag = "\\end{" + env + "}"
-        inner_end = end - len(tag) if tex.startswith(tag, end - len(tag)) \
-            else end
+        inner_end = end - len(tag) if tex.startswith(tag, end - len(tag)) else end
         inner = tex[j:inner_end]
         sub = self._spawn()
         r = sub.scan(inner, preamble_end=0, mined_only=True)
@@ -1048,9 +1326,9 @@ def parse_tex(tex: str) -> ScanResult:
     return sc.scan(tex, preamble_end=preamble_end)
 
 
-def reconstruct(res: ScanResult,
-                translations: Optional[Dict[int, str]] = None,
-                max_iter: int = 20) -> str:
+def reconstruct(
+    res: ScanResult, translations: Optional[Dict[int, str]] = None, max_iter: int = 20
+) -> str:
     """译文 splice: pieces 渲染 → 占位符统一不动点展开.
 
     chunk 占位符 ([[CHUNK_n]]) 可出现在任意位置: 顶层 piece、字面 run
@@ -1060,8 +1338,7 @@ def reconstruct(res: ScanResult,
     trans_map = {}
     for c in res.chunks:
         t = translations.get(c.id) if translations else None
-        trans_map[_cname(f"CHUNK_{c.id}")] = \
-            t if t is not None else c.content
+        trans_map[_cname(f"CHUNK_{c.id}")] = t if t is not None else c.content
     all_map = dict(res.ph_map)
     all_map.update(trans_map)
     for _ in range(max_iter):
@@ -1075,9 +1352,13 @@ def reconstruct(res: ScanResult,
     return s
 
 
-def flatten_inputs(tex: str, file_dir: str, root_dir: Optional[str] = None,
-                   depth: int = 0,
-                   _seen: Optional[set] = None) -> str:
+def flatten_inputs(
+    tex: str,
+    file_dir: str,
+    root_dir: Optional[str] = None,
+    depth: int = 0,
+    _seen: Optional[set] = None,
+) -> str:
     r"""展开 \input/\include: 先相对当前文件目录, 再相对主文件目录
     (LaTeX/TEXINPUTS 语义 — 修 ieeA 只按被包含文件目录解析的 bug).
     注释掉的 \input 不展开 (逐字符扫, % 行不判命令)."""
@@ -1090,7 +1371,7 @@ def flatten_inputs(tex: str, file_dir: str, root_dir: Optional[str] = None,
     out = []
     i, n = 0, len(tex)
     sc = Scanner()
-    verb_env: Optional[str] = None       # verbatim 类环境内不展开
+    verb_env: Optional[str] = None  # verbatim 类环境内不展开
     while i < n:
         c = tex[i]
         if verb_env is not None:
@@ -1099,13 +1380,13 @@ def flatten_inputs(tex: str, file_dir: str, root_dir: Optional[str] = None,
             if k < 0:
                 out.append(tex[i:])
                 break
-            out.append(tex[i:k + len(pat)])
+            out.append(tex[i : k + len(pat)])
             i = k + len(pat)
             verb_env = None
             continue
         if c == "%":
             k = tex.find("\n", i)
-            out.append(tex[i:n if k < 0 else k])
+            out.append(tex[i : n if k < 0 else k])
             i = n if k < 0 else k
             continue
         if c == "\\":
@@ -1114,7 +1395,7 @@ def flatten_inputs(tex: str, file_dir: str, root_dir: Optional[str] = None,
                 env, e2 = sc._env_name_at(tex, j)
                 if env in VERBATIM_ENVS:
                     verb_env = env
-                out.append(tex[i:e2 if e2 else j])
+                out.append(tex[i : e2 if e2 else j])
                 i = e2 if e2 else j
                 continue
             if name == "verb":
@@ -1122,7 +1403,7 @@ def flatten_inputs(tex: str, file_dir: str, root_dir: Optional[str] = None,
                 if k < n:
                     e = tex.find(tex[k], k + 1)
                     if e > 0:
-                        out.append(tex[i:e + 1])
+                        out.append(tex[i : e + 1])
                         i = e + 1
                         continue
             if name in ("input", "include"):
@@ -1130,9 +1411,12 @@ def flatten_inputs(tex: str, file_dir: str, root_dir: Optional[str] = None,
                 if pos < n and tex[pos] == "{":
                     e = sc._match_brace(tex, pos)
                     if e:
-                        fname = tex[pos + 1:e - 1].strip()
-                        cand = [fname] if fname.endswith(".tex") \
+                        fname = tex[pos + 1 : e - 1].strip()
+                        cand = (
+                            [fname]
+                            if fname.endswith(".tex")
                             else [fname, fname + ".tex"]
+                        )
                         hit = None
                         for cdir in (file_dir, root_dir):
                             for cf in cand:
@@ -1144,19 +1428,23 @@ def flatten_inputs(tex: str, file_dir: str, root_dir: Optional[str] = None,
                                 break
                         if hit is None:
                             for cdir in (file_dir, root_dir):
-                                p = os.path.join(
-                                    cdir, os.path.basename(fname) + ".tex")
+                                p = os.path.join(cdir, os.path.basename(fname) + ".tex")
                                 if os.path.exists(p):
                                     hit = p
                                     break
                         if hit and os.path.abspath(hit) not in _seen:
                             _seen.add(os.path.abspath(hit))
-                            with open(hit, encoding="utf-8",
-                                      errors="replace") as f:
+                            with open(hit, encoding="utf-8", errors="replace") as f:
                                 sub = f.read()
-                            out.append(flatten_inputs(
-                                sub, os.path.dirname(hit), root_dir,
-                                depth + 1, _seen))
+                            out.append(
+                                flatten_inputs(
+                                    sub,
+                                    os.path.dirname(hit),
+                                    root_dir,
+                                    depth + 1,
+                                    _seen,
+                                )
+                            )
                             i = e
                             continue
             out.append(c)

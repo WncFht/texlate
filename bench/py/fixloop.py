@@ -18,6 +18,7 @@ fixloop.py — LaTeX 编译自动修复循环 spike.
 不继承 ~/Library/texmf 里已装的 300+ 包 —— 复现 basic TeXLive 裸环境。
 tlmgr search 结果(file->pkg)全局缓存, 因为远端仓库知识与环境冷热无关。
 """
+
 import argparse
 import json
 import os
@@ -38,11 +39,12 @@ SEARCH_CACHE = RESULTS / "fixloop-tlmgr-search-cache.json"
 XELATEX = "xelatex"
 TIMEOUT = 120
 MAX_ROUNDS = 8
-CLEAN_ERR_MAX = 3          # "干净"阈值: pdf 且 '!' 错误 <= 3
+CLEAN_ERR_MAX = 3  # "干净"阈值: pdf 且 '!' 错误 <= 3
 
 # =====================================================================
 # 1. log 解析器
 # =====================================================================
+
 
 def first_error(log_path: Path):
     """返回 (首个'!'行, 其后≤8行上下文 blob, '!'行总数, 全文tail)。"""
@@ -58,7 +60,7 @@ def first_error(log_path: Path):
             nerr += 1
             if first is None:
                 first = ln.strip()
-                ctx = "\n".join(lines[i:i + 8])
+                ctx = "\n".join(lines[i : i + 8])
     tail = "\n".join(lines[-30:])
     return first, ctx, nerr, tail
 
@@ -70,31 +72,34 @@ def classify(err, ctx, tail, timed_out):
     head = "\n".join(x for x in (err, ctx) if x)
     RULES = [
         # —— 文件缺失类: 统一抓文件名, 走 tlmgr search --file ——
-        ("missing_file",  r"File `([^']+\.[a-zA-Z0-9]+)' not found"),
-        ("missing_file",  r"I can't find file `([^']+)'"),
+        ("missing_file", r"File `([^']+\.[a-zA-Z0-9]+)' not found"),
+        ("missing_file", r"I can't find file `([^']+)'"),
         # —— TFM 字体: 抓字体名(=文件名) ——
-        ("missing_tfm",   r"Font \\?\S*?=?\s*([a-zA-Z0-9]+) at [0-9.]+pt not loadable"),
-        ("missing_tfm",   r"Metric \(TFM\) file[^\n]*?(\w+)\.(tfm)"),
+        ("missing_tfm", r"Font \\?\S*?=?\s*([a-zA-Z0-9]+) at [0-9.]+pt not loadable"),
+        ("missing_tfm", r"Metric \(TFM\) file[^\n]*?(\w+)\.(tfm)"),
         # —— fontspec 时代错配 ——
         ("xetexglyph_tfm", r"Cannot use XeTeXglyph with (\S+)"),
-        ("missing_pfb",   r"Cannot proceed without .vf|physical font"),
+        ("missing_pfb", r"Cannot proceed without .vf|physical font"),
         ("fontspec_missing", r'font [“"]([^”"]+)[”"] cannot be found'),
         # —— 源码级 ——
-        ("illegal_unit",  r"Illegal unit of measure"),
-        ("option_clash",  r"Option clash for package ([\w-]+)"),
-        ("already_def",   r"Command \\?([\w@]+) already defined"),
-        ("soul_err",      r"Package soul Error|Reconstruction failed"),
-        ("hyphenation",   r"Not a letter"),
-        ("minted_froz",   r"frozencache|Cannot highlight code"),
-        ("latex209",      r"documentstyle|LaTeX ?2\.09|LaTeX2e command .* in LaTeX 2\.09"),
-        ("undefined_cs",  r"Undefined control sequence"),
-        ("capacity",      r"TeX capacity exceeded"),
-        ("emergency",     r"Emergency stop|cannot \\read|Fatal error|job aborted"),
-        ("env_mismatch",  r"begin\{[^}]*\}.*ended by|Extra \\end"),
-        ("syntax",        r"Missing|Runaway|Paragraph ended|Misplaced|Double subscript|"
-                          r"Illegal|There's no line|Lonely|Bad math|Something's wrong|"
-                          r"not in outer par|allowed only in math|improper"),
-        ("other",         r"^!"),
+        ("illegal_unit", r"Illegal unit of measure"),
+        ("option_clash", r"Option clash for package ([\w-]+)"),
+        ("already_def", r"Command \\?([\w@]+) already defined"),
+        ("soul_err", r"Package soul Error|Reconstruction failed"),
+        ("hyphenation", r"Not a letter"),
+        ("minted_froz", r"frozencache|Cannot highlight code"),
+        ("latex209", r"documentstyle|LaTeX ?2\.09|LaTeX2e command .* in LaTeX 2\.09"),
+        ("undefined_cs", r"Undefined control sequence"),
+        ("capacity", r"TeX capacity exceeded"),
+        ("emergency", r"Emergency stop|cannot \\read|Fatal error|job aborted"),
+        ("env_mismatch", r"begin\{[^}]*\}.*ended by|Extra \\end"),
+        (
+            "syntax",
+            r"Missing|Runaway|Paragraph ended|Misplaced|Double subscript|"
+            r"Illegal|There's no line|Lonely|Bad math|Something's wrong|"
+            r"not in outer par|allowed only in math|improper",
+        ),
+        ("other", r"^!"),
     ]
     if err:
         for name, pat in RULES:
@@ -108,7 +113,7 @@ def classify(err, ctx, tail, timed_out):
                         return "pdftex_prim", pm.group(1)
                 return name, pay
     # —— 无 '!' 行或首错是 emergency: 回溯找文件名提示符 ——
-    blob = (tail or "")
+    blob = tail or ""
     m = re.search(r"File `([^']+\.[a-zA-Z0-9]+)' not found", blob)
     if m and ("Enter file name" in blob or "Emergency" in blob):
         return "missing_file", m.group(1)
@@ -123,29 +128,39 @@ def classify(err, ctx, tail, timed_out):
 # 2. 修复动作原语
 # =====================================================================
 
+
 class Ctx:
     """每格运行上下文: 工作目录、沙箱texmf、已应用规则、tlmgr缓存。"""
+
     def __init__(self, wdir, main_rel, env, log):
         self.wdir = wdir
         self.main_rel = main_rel
-        self.env = env            # 子进程 env(含 TEXMF* 沙箱)
-        self.log = log            # 事件记录 list
-        self.applied = set()      # (rule_id, key) 防重复
+        self.env = env  # 子进程 env(含 TEXMF* 沙箱)
+        self.log = log  # 事件记录 list
+        self.applied = set()  # (rule_id, key) 防重复
         self.installed_pkgs = []  # 本格装过的包
         self.search_cache = _load_cache()
 
     def tex_files(self):
-        return [p for p in self.wdir.rglob("*")
-                if p.suffix in (".tex", ".sty", ".cls") and p.is_file()]
+        return [
+            p
+            for p in self.wdir.rglob("*")
+            if p.suffix in (".tex", ".sty", ".cls") and p.is_file()
+        ]
 
     def run(self, cmd, timeout=TIMEOUT, cwd=None):
         t0 = time.time()
         try:
-            p = subprocess.run(cmd, cwd=str(cwd or self.wdir),
-                               env=self.env, timeout=timeout,
-                               stdout=subprocess.PIPE,
-                               stderr=subprocess.STDOUT,
-                               text=True, errors="replace")
+            p = subprocess.run(
+                cmd,
+                cwd=str(cwd or self.wdir),
+                env=self.env,
+                timeout=timeout,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                errors="replace",
+            )
             return p.returncode, p.stdout, time.time() - t0, False
         except subprocess.TimeoutExpired as e:
             out = e.stdout or ""
@@ -163,8 +178,8 @@ class Ctx:
         if key in self.search_cache:
             return self.search_cache[key]
         rc, out, _, to = self.run(
-            ["tlmgr", "search", "--global", "--file", key],
-            timeout=60)
+            ["tlmgr", "search", "--global", "--file", key], timeout=60
+        )
         pkgs = []
         if not to:
             for ln in out.splitlines():
@@ -173,9 +188,16 @@ class Ctx:
                     p = m.group(1)
                     # 滤掉平台特定条目(tlgs.windows 等)与 tlmgr 自身输出
                     if "." in p and p.split(".")[-1] in (
-                            "windows", "win32", "macosx", "linux",
-                            "x86_64", "aarch64", "amd64", "i386",
-                            "universal"):
+                        "windows",
+                        "win32",
+                        "macosx",
+                        "linux",
+                        "x86_64",
+                        "aarch64",
+                        "amd64",
+                        "i386",
+                        "universal",
+                    ):
                         continue
                     if p.startswith(("tlmgr", "tlgs")):
                         continue
@@ -194,10 +216,12 @@ class Ctx:
             self.run(["tlmgr", "--usermode", "init-usertree"], timeout=60)
             self.log.append("    tlmgr init-usertree")
         rc, out, _, to = self.run(
-            ["tlmgr", "--usermode", "install"] + pkgs, timeout=180)
+            ["tlmgr", "--usermode", "install"] + pkgs, timeout=180
+        )
         ok = rc == 0 and not to
-        self.log.append(f"    tlmgr install {' '.join(pkgs)} -> rc={rc} "
-                        f"{'TIMEOUT' if to else ''}")
+        self.log.append(
+            f"    tlmgr install {' '.join(pkgs)} -> rc={rc} {'TIMEOUT' if to else ''}"
+        )
         if ok:
             self.installed_pkgs.extend(pkgs)
             if font_related:
@@ -257,10 +281,21 @@ def install_missing_file(ctx, fname, font_related=False):
 #    每条返回 (applied, note); applied=False 表示该规则放弃, 试下一条
 # =====================================================================
 
-PDFTEX_PRIMS = ("pdfoutput", "pdfminorversion", "pdfcompresslevel",
-                "pdfinfo", "pdfpagewidth", "pdfpageheight",
-                "pdfhorigin", "pdfvorigin", "pdfsuppressptexinfo",
-                "pdftrailer", "pdfpxdimen", "pdflastxpos", "pdflastypos")
+PDFTEX_PRIMS = (
+    "pdfoutput",
+    "pdfminorversion",
+    "pdfcompresslevel",
+    "pdfinfo",
+    "pdfpagewidth",
+    "pdfpageheight",
+    "pdfhorigin",
+    "pdfvorigin",
+    "pdfsuppressptexinfo",
+    "pdftrailer",
+    "pdfpxdimen",
+    "pdflastxpos",
+    "pdflastypos",
+)
 
 
 def r_install_file(ctx, cat, pay, **_):
@@ -268,10 +303,9 @@ def r_install_file(ctx, cat, pay, **_):
     if cat not in ("missing_file",):
         return False, ""
     fname = pay or ""
-    ok, note = install_missing_file(ctx, fname,
-                                    font_related=bool(
-                                        re.search(r"\.(tfm|pfb|vf|fd|map|enc)$",
-                                                  fname)))
+    ok, note = install_missing_file(
+        ctx, fname, font_related=bool(re.search(r"\.(tfm|pfb|vf|fd|map|enc)$", fname))
+    )
     if not ok:
         return False, note
     return True, f"install for {fname}"
@@ -314,17 +348,13 @@ def r_pdftex_prim(ctx, cat, pay, **_):
     if cat != "pdftex_prim":
         return False, ""
     prims = "|".join(PDFTEX_PRIMS)
-    assign = re.compile(
-        r"(?<!ifdefined)(\\(" + prims + r"))(\s*=\s*[^\n%]*)")
-    brace = re.compile(
-        r"(?<!ifdefined)(\\(" + prims + r"))(\s*\{[^\n]*\})")
+    assign = re.compile(r"(?<!ifdefined)(\\(" + prims + r"))(\s*=\s*[^\n%]*)")
+    brace = re.compile(r"(?<!ifdefined)(\\(" + prims + r"))(\s*\{[^\n]*\})")
     n = 0
     for f in ctx.tex_files():
         t = f.read_text(encoding="utf-8", errors="replace")
-        nt = assign.sub(
-            lambda m: f"\\ifdefined{m.group(1)}{m.group(0)}\\fi", t)
-        nt = brace.sub(
-            lambda m: f"\\ifdefined{m.group(1)}{m.group(0)}\\fi", nt)
+        nt = assign.sub(lambda m: f"\\ifdefined{m.group(1)}{m.group(0)}\\fi", t)
+        nt = brace.sub(lambda m: f"\\ifdefined{m.group(1)}{m.group(0)}\\fi", nt)
         if nt != t:
             f.write_text(nt, encoding="utf-8")
             n += 1
@@ -335,10 +365,12 @@ def r_px_to_bp(ctx, cat, pay, **_):
     """非法单位 px → bp 换算 (CSS 96dpi: 1px = 0.75bp)"""
     if cat != "illegal_unit":
         return False, ""
+
     def cvt(m):
         v = float(m.group(1)) * 0.75
         s = f"{v:.2f}".rstrip("0").rstrip(".")
         return s + "bp"
+
     n = patch_files(ctx, r"(\d*\.?\d+)\s*px\b", cvt, exts=(".tex", ".sty"))
     return (n > 0), f"px->bp in {n} files"
 
@@ -351,8 +383,10 @@ def r_microtype_off(ctx, cat, pay, **_):
     n = 0
     for f in ctx.tex_files():
         t = f.read_text(encoding="utf-8", errors="replace")
-        nt = pat.sub(lambda m: f"\\{m.group(1)}[protrusion=false,expansion=false]"
-                               f"{{microtype}}", t)
+        nt = pat.sub(
+            lambda m: f"\\{m.group(1)}[protrusion=false,expansion=false]{{microtype}}",
+            t,
+        )
         if nt != t:
             f.write_text(nt, encoding="utf-8")
             n += 1
@@ -363,10 +397,12 @@ def r_times_to_newtx(ctx, cat, pay, **_):
     """times/mathptmx (T1 TFM) → newtx (xelatex 下走 OTF)"""
     if cat != "xetexglyph_tfm":
         return False, ""
-    n = patch_files(ctx, r"\{(times|mathptmx|mathptm)\}",
-                    lambda m: "{newtxtext,newtxmath}"
-                    if m.group(1) != "times" else "{newtxtext}",
-                    exts=(".tex", ".sty"))
+    n = patch_files(
+        ctx,
+        r"\{(times|mathptmx|mathptm)\}",
+        lambda m: "{newtxtext,newtxmath}" if m.group(1) != "times" else "{newtxtext}",
+        exts=(".tex", ".sty"),
+    )
     return (n > 0), f"times-family -> newtx in {n} files"
 
 
@@ -378,9 +414,11 @@ def r_hyphenation(ctx, cat, pay, **_):
     n = 0
     for f in ctx.tex_files():
         t = f.read_text(encoding="utf-8", errors="replace")
+
         def sane(m):
             toks = re.findall(r"[a-zA-Z][a-zA-Z-]*", m.group(1))
             return "\\hyphenation{" + " ".join(toks) + "}"
+
         nt = pat.sub(sane, t)
         if nt != t:
             f.write_text(nt, encoding="utf-8")
@@ -395,7 +433,8 @@ def r_soul_cjk(ctx, cat, pay, **_):
     pat = re.compile(
         r"\\(hl|ul|st|so|caps)\{((?:[^{}]|\{[^{}]*\})*"
         r"[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]"
-        r"(?:[^{}]|\{[^{}]*\})*)\}")
+        r"(?:[^{}]|\{[^{}]*\})*)\}"
+    )
     n = 0
     for f in ctx.tex_files():
         t = f.read_text(encoding="utf-8", errors="replace")
@@ -410,8 +449,7 @@ def r_already_def(ctx, cat, pay, **_):
     """thmtools sibling 选项弃用冲突 → 剥掉 sibling= 让各定理独立编号"""
     if cat != "already_def":
         return False, ""
-    n = patch_files(ctx, r"sibling\s*=\s*\w+\s*,?\s*", "",
-                    exts=(".tex", ".sty"))
+    n = patch_files(ctx, r"sibling\s*=\s*\w+\s*,?\s*", "", exts=(".tex", ".sty"))
     if n == 0:
         # 泛化: 同名 \\newtheorem/\\declaretheorem 去重(留首个)
         return False, "no sibling= found; generic dedup not attempted"
@@ -424,25 +462,32 @@ def r_option_clash(ctx, cat, pay, **_):
         return False, ""
     pkg = pay
     use = re.compile(
-        r"^(\s*)\\(usepackage|RequirePackage)\s*(\[([^\]]*)\])?\s*\{([^}]*)\}",
-        re.M)
+        r"^(\s*)\\(usepackage|RequirePackage)\s*(\[([^\]]*)\])?\s*\{([^}]*)\}", re.M
+    )
     changed = 0
     for f in ctx.tex_files():
         t = f.read_text(encoding="utf-8", errors="replace")
-        hits = [m for m in use.finditer(t)
-                if pkg in [x.strip() for x in m.group(5).split(",")]]
+        hits = [
+            m
+            for m in use.finditer(t)
+            if pkg in [x.strip() for x in m.group(5).split(",")]
+        ]
         if len(hits) < 2:
             continue
         first, later = hits[0], hits[-1]
         opts1 = first.group(4) or ""
         opts2 = later.group(4) or ""
-        merged = ",".join(dict.fromkeys(
-            [o for o in (opts1 + "," + opts2).split(",") if o]))
-        t = (t[:first.start()] + first.group(0).replace(
-            first.group(3) or "", f"[{merged}]") +
-            t[first.end():later.start()] +
-            "% fixloop: merged into earlier \\usepackage\n% " +
-            later.group(0).replace("\n", "\n% ") + t[later.end():])
+        merged = ",".join(
+            dict.fromkeys([o for o in (opts1 + "," + opts2).split(",") if o])
+        )
+        t = (
+            t[: first.start()]
+            + first.group(0).replace(first.group(3) or "", f"[{merged}]")
+            + t[first.end() : later.start()]
+            + "% fixloop: merged into earlier \\usepackage\n% "
+            + later.group(0).replace("\n", "\n% ")
+            + t[later.end() :]
+        )
         f.write_text(t, encoding="utf-8")
         changed += 1
     return (changed > 0), f"merge \\usepackage{{{pkg}}} opts in {changed} files"
@@ -482,20 +527,20 @@ def r_undefined_cs_guess(ctx, cat, pay, **_):
 
 
 RULES = [
-    ("install_file",      r_install_file),
-    ("install_tfm",       r_install_tfm),
-    ("install_sysfont",   r_install_sysfont),
+    ("install_file", r_install_file),
+    ("install_tfm", r_install_tfm),
+    ("install_sysfont", r_install_sysfont),
     ("missing_pfb_updmap", r_missing_pfb),
     ("pdftex_prim_guard", r_pdftex_prim),
-    ("px_to_bp",          r_px_to_bp),
-    ("microtype_off",     r_microtype_off),
-    ("times_to_newtx",    r_times_to_newtx),
-    ("hyphenation_sane",  r_hyphenation),
-    ("soul_cjk_mbox",     r_soul_cjk),
+    ("px_to_bp", r_px_to_bp),
+    ("microtype_off", r_microtype_off),
+    ("times_to_newtx", r_times_to_newtx),
+    ("hyphenation_sane", r_hyphenation),
+    ("soul_cjk_mbox", r_soul_cjk),
     ("thm_sibling_strip", r_already_def),
     ("option_clash_merge", r_option_clash),
     ("minted_frozencache", r_minted_froz),
-    ("latex209_reject",   r_latex209),
+    ("latex209_reject", r_latex209),
     ("undefined_cs_guess", r_undefined_cs_guess),
 ]
 
@@ -525,6 +570,7 @@ def pick_and_apply(ctx, cat, pay):
 
 DOC_RE = re.compile(r"\\document(class|style)")
 
+
 def find_main_tex(proj: Path):
     cands = []
     for f in sorted(proj.rglob("*.tex")):
@@ -542,8 +588,7 @@ def find_main_tex(proj: Path):
     return Path(cands[0][2])
 
 
-USE_RE = re.compile(
-    r"\\(?:usepackage|RequirePackage)\s*(?:\[[^\]]*\])?\s*\{([^}]+)\}")
+USE_RE = re.compile(r"\\(?:usepackage|RequirePackage)\s*(?:\[[^\]]*\])?\s*\{([^}]+)\}")
 CLS_RE = re.compile(r"\\documentclass\s*(?:\[[^\]]*\])?\s*\{([^}]+)\}")
 
 
@@ -583,8 +628,7 @@ def compile_pass(ctx):
     for p in (1, 2):
         if p == 2 and not pdf.exists():
             break
-        rc, out, s, to = ctx.run([XELATEX, "-interaction=nonstopmode",
-                                  name], cwd=cwd)
+        rc, out, s, to = ctx.run([XELATEX, "-interaction=nonstopmode", name], cwd=cwd)
         sec += s
         e, c, n, tail = first_error(log)
         nerr += n
@@ -603,15 +647,32 @@ def prep_sandbox(proj_name, cond, texmf_mode, precheck):
     dst = FIXWORK / proj_name / cond
     if dst.exists():
         shutil.rmtree(dst)
-    shutil.copytree(src, dst, ignore=shutil.ignore_patterns(
-        "_tect_out", "*.aux", "*.log", "*.out", "*.toc", "*.lof", "*.lot",
-        "*.fls", "*.fdb_latexmk", "*.synctex*", "*.blg", "texput.*",
-        "missfont.log", ".DS_Store", "__pycache__"))
+    shutil.copytree(
+        src,
+        dst,
+        ignore=shutil.ignore_patterns(
+            "_tect_out",
+            "*.aux",
+            "*.log",
+            "*.out",
+            "*.toc",
+            "*.lof",
+            "*.lot",
+            "*.fls",
+            "*.fdb_latexmk",
+            "*.synctex*",
+            "*.blg",
+            "texput.*",
+            "missfont.log",
+            ".DS_Store",
+            "__pycache__",
+        ),
+    )
     main = find_main_tex(dst)
     if main:
         stem_pdf = main.parent / (main.stem + ".pdf")
         if stem_pdf.exists():
-            stem_pdf.unlink()      # 上次跑出的输出, 防"躺着成功"
+            stem_pdf.unlink()  # 上次跑出的输出, 防"躺着成功"
     if texmf_mode == "cold":
         tag = "" if precheck else "_np"
         tm = FIXWORK / proj_name / f"_texmf{tag}_{cond}"
@@ -631,9 +692,16 @@ def run_cell(proj_name, cond, texmf_mode="cold", precheck=True):
     """跑一格修复循环。返回 cell 结果 dict。"""
     log = []
     wdir, main_rel, env = prep_sandbox(proj_name, cond, texmf_mode, precheck)
-    cell = {"project": proj_name, "cond": cond, "main": main_rel,
-            "texmf": texmf_mode, "precheck": precheck,
-            "rounds": [], "actions": [], "verdict": None}
+    cell = {
+        "project": proj_name,
+        "cond": cond,
+        "main": main_rel,
+        "texmf": texmf_mode,
+        "precheck": precheck,
+        "rounds": [],
+        "actions": [],
+        "verdict": None,
+    }
     if not main_rel:
         cell["verdict"] = "no_main_tex"
         return cell
@@ -643,10 +711,14 @@ def run_cell(proj_name, cond, texmf_mode="cold", precheck=True):
     if precheck:
         t0 = time.time()
         missing, pkgs = static_precheck(ctx)
-        cell["actions"].append({
-            "round": 0, "rule": "static_precheck",
-            "detail": f"missing files={missing} -> install {pkgs}",
-            "sec": round(time.time() - t0, 1)})
+        cell["actions"].append(
+            {
+                "round": 0,
+                "rule": "static_precheck",
+                "detail": f"missing files={missing} -> install {pkgs}",
+                "sec": round(time.time() - t0, 1),
+            }
+        )
 
     prev_sig, sig_count = None, 0
     for rnd in range(1, MAX_ROUNDS + 1):
@@ -655,12 +727,17 @@ def run_cell(proj_name, cond, texmf_mode="cold", precheck=True):
         p = wdir / Path(main_rel).parent / f"{stem}.pdf"
         if pdf:
             pdf_bytes = p.stat().st_size
-        entry = {"round": rnd, "pdf": pdf, "pdf_bytes": pdf_bytes,
-                 "n_errors": nerr, "category": cat, "payload": pay,
-                 "sec": round(sec, 1)}
+        entry = {
+            "round": rnd,
+            "pdf": pdf,
+            "pdf_bytes": pdf_bytes,
+            "n_errors": nerr,
+            "category": cat,
+            "payload": pay,
+            "sec": round(sec, 1),
+        }
         cell["rounds"].append(entry)
-        log.append(f"  r{rnd}: pdf={pdf} err={nerr} cat={cat} pay={pay} "
-                   f"({sec:.1f}s)")
+        log.append(f"  r{rnd}: pdf={pdf} err={nerr} cat={cat} pay={pay} ({sec:.1f}s)")
         # —— 终止判据 ——
         if pdf and nerr == 0:
             cell["verdict"] = "clean"
@@ -669,9 +746,11 @@ def run_cell(proj_name, cond, texmf_mode="cold", precheck=True):
             cell["verdict"] = "clean" if pdf else "no_errors_no_pdf"
             break
         if cat == "latex209" or (
-                cat == "missing_file" and main_rel and
-                "\\documentstyle" in
-                (wdir / main_rel).read_text(errors="replace")[:3000]):
+            cat == "missing_file"
+            and main_rel
+            and "\\documentstyle"
+            in (wdir / main_rel).read_text(errors="replace")[:3000]
+        ):
             cell["verdict"] = "reject_latex209"
             break
         sig = f"{cat}:{pay}"
@@ -683,8 +762,7 @@ def run_cell(proj_name, cond, texmf_mode="cold", precheck=True):
         # —— 规则匹配+应用 ——
         rid, note = pick_and_apply(ctx, cat, pay)
         if rid is None:
-            cell["verdict"] = ("unfixable:" + str(cat)) if not pdf \
-                else "dirty_pdf"
+            cell["verdict"] = ("unfixable:" + str(cat)) if not pdf else "dirty_pdf"
             break
         if note.startswith("REJECT"):
             cell["verdict"] = "reject_latex209"
@@ -705,9 +783,12 @@ def run_cell(proj_name, cond, texmf_mode="cold", precheck=True):
     cell["started_fail"] = started_fail
     if cell["verdict"] in (None, "max_rounds", "stuck") and cell["final_pdf"]:
         cell["verdict"] = "dirty_pdf" if (last.get("n_errors") or 9) > 0 else "clean"
-    if cell["final_pdf"] and (cell["final_errors"] or 0) <= CLEAN_ERR_MAX \
-            and cell["verdict"] == "dirty_pdf":
-        cell["verdict"] = "acceptable_pdf"   # pdf 且错误数 <= 阈值
+    if (
+        cell["final_pdf"]
+        and (cell["final_errors"] or 0) <= CLEAN_ERR_MAX
+        and cell["verdict"] == "dirty_pdf"
+    ):
+        cell["verdict"] = "acceptable_pdf"  # pdf 且错误数 <= 阈值
     return cell
 
 
@@ -727,16 +808,21 @@ def main():
         projects = [p for p in projects if any(x in p for x in pats)]
 
     out_path = Path(args.out)
-    data = {"meta": {
-        "date": time.strftime("%Y-%m-%d %H:%M"),
-        "texmf_mode": args.texmf, "precheck": not args.no_precheck,
-        "max_rounds": MAX_ROUNDS, "clean_err_max": CLEAN_ERR_MAX,
-        "xelatex": subprocess.run([XELATEX, "--version"],
-                                  capture_output=True, text=True
-                                  ).stdout.splitlines()[0],
-        "engine": "xelatex -interaction=nonstopmode, ≤2 pass",
-        "rules": [r[0] for r in RULES],
-    }, "cells": []}
+    data = {
+        "meta": {
+            "date": time.strftime("%Y-%m-%d %H:%M"),
+            "texmf_mode": args.texmf,
+            "precheck": not args.no_precheck,
+            "max_rounds": MAX_ROUNDS,
+            "clean_err_max": CLEAN_ERR_MAX,
+            "xelatex": subprocess.run(
+                [XELATEX, "--version"], capture_output=True, text=True
+            ).stdout.splitlines()[0],
+            "engine": "xelatex -interaction=nonstopmode, ≤2 pass",
+            "rules": [r[0] for r in RULES],
+        },
+        "cells": [],
+    }
     if out_path.exists():
         try:
             data["cells"] = json.loads(out_path.read_text())["cells"]
@@ -748,23 +834,29 @@ def main():
             if not (WORK / pn / cond).exists():
                 continue
             # 已跑过的格跳过(增量续跑)
-            if any(c["project"] == pn and c["cond"] == cond
-                   and c.get("texmf") == args.texmf
-                   and c.get("precheck") == (not args.no_precheck)
-                   for c in data["cells"]):
+            if any(
+                c["project"] == pn
+                and c["cond"] == cond
+                and c.get("texmf") == args.texmf
+                and c.get("precheck") == (not args.no_precheck)
+                for c in data["cells"]
+            ):
                 print(f"[skip] {pn}/{cond}", flush=True)
                 continue
             print(f"===== {pn} / {cond} =====", flush=True)
-            cell = run_cell(pn, cond, texmf_mode=args.texmf,
-                            precheck=not args.no_precheck)
+            cell = run_cell(
+                pn, cond, texmf_mode=args.texmf, precheck=not args.no_precheck
+            )
             data["cells"].append(cell)
             r0 = cell["rounds"][0] if cell["rounds"] else {}
-            print(f"  start: pdf={r0.get('pdf')} err={r0.get('n_errors')} "
-                  f"cat={r0.get('category')} | verdict={cell['verdict']} "
-                  f"rounds={len(cell['rounds'])} "
-                  f"pkgs={len(cell['installed'])}", flush=True)
-            out_path.write_text(json.dumps(data, ensure_ascii=False,
-                                           indent=1))
+            print(
+                f"  start: pdf={r0.get('pdf')} err={r0.get('n_errors')} "
+                f"cat={r0.get('category')} | verdict={cell['verdict']} "
+                f"rounds={len(cell['rounds'])} "
+                f"pkgs={len(cell['installed'])}",
+                flush=True,
+            )
+            out_path.write_text(json.dumps(data, ensure_ascii=False, indent=1))
 
     # —— 汇总 ——
     cells = data["cells"]
@@ -772,15 +864,19 @@ def main():
     rescued = sum(1 for c in cells if c["started_fail"] and c["final_pdf"])
     clean = sum(1 for c in cells if c["verdict"] == "clean")
     print("\n==== SUMMARY ====")
-    print(f"cells={len(cells)} started_fail={n_fail} "
-          f"rescued_pdf={rescued} clean_final={clean}")
+    print(
+        f"cells={len(cells)} started_fail={n_fail} "
+        f"rescued_pdf={rescued} clean_final={clean}"
+    )
     for c in cells:
         r0 = c["rounds"][0] if c["rounds"] else {}
-        print(f"  {c['project']:12} {c['cond']:8} "
-              f"start={'FAIL' if c['started_fail'] else 'pdf~':4} "
-              f"({r0.get('category')}) -> {c['verdict']:18} "
-              f"err {r0.get('n_errors')}->{c.get('final_errors')} "
-              f"r={len(c['rounds'])}")
+        print(
+            f"  {c['project']:12} {c['cond']:8} "
+            f"start={'FAIL' if c['started_fail'] else 'pdf~':4} "
+            f"({r0.get('category')}) -> {c['verdict']:18} "
+            f"err {r0.get('n_errors')}->{c.get('final_errors')} "
+            f"r={len(c['rounds'])}"
+        )
     print(f"json -> {out_path}")
 
 

@@ -44,7 +44,10 @@ def parse_one(path: Path, timeout_s: int = 30) -> dict:
     signal.signal(signal.SIGALRM, _alarm)
     signal.alarm(timeout_s)
     try:
-        with warnings.catch_warnings(record=True) as ws, contextlib.redirect_stdout(out):
+        with (
+            warnings.catch_warnings(record=True) as ws,
+            contextlib.redirect_stdout(out),
+        ):
             warnings.simplefilter("always")
             doc = parser.parse_file(str(path))
         ms = (time.perf_counter() - t0) * 1000
@@ -140,9 +143,7 @@ def fake_translation(chunk, idx):
 
 def rebuild_metrics(doc):
     recon_identity = doc.reconstruct()
-    translated = {
-        c.id: fake_translation(c, i) for i, c in enumerate(doc.chunks)
-    }
+    translated = {c.id: fake_translation(c, i) for i, c in enumerate(doc.chunks)}
     recon_fake = doc.reconstruct(translated)
     residue_chunk = len(re.findall(r"\{\{CHUNK_", recon_fake))
     residue_prot = len(re.findall(r"\[\[[A-Z_]+_\d+\]\]", recon_fake))
@@ -198,8 +199,15 @@ def assert_tricky(doc, recon, recon_fake):
 
     # T04 natbib family + ref family: keys must not appear in chunks
     fam = [
-        "citep", "citet", "citealp", "citeauthor", "citeyear",
-        "autoref", "cref", "pageref", "nameref",
+        "citep",
+        "citet",
+        "citealp",
+        "citeauthor",
+        "citeyear",
+        "autoref",
+        "cref",
+        "pageref",
+        "nameref",
     ]
     leaked_cmds = [c for c in fam if re.search(r"\\" + c + r"(?![a-zA-Z])", chunks)]
     leaked_keys = [
@@ -267,13 +275,18 @@ def assert_tricky(doc, recon, recon_fake):
     # T10 subequations / align / flalign protected
     fl_leak = leak(r"x\s*&=\s*y") or leak(r"a\s*&=\s*b")
     envs_in_recon = "\\begin{subequations}" in recon and "\\begin{flalign}" in recon
-    subeq_placeholder = any("subequations" in v or "flalign" in v for v in doc.global_placeholders.values())
+    subeq_placeholder = any(
+        "subequations" in v or "flalign" in v for v in doc.global_placeholders.values()
+    )
     if fl_leak:
         st, d = "fail", f"math rows leaked into chunk: {fl_leak!r}"
     elif subeq_placeholder:
         st, d = "pass", "envs placeholder-protected"
     elif envs_in_recon:
-        st, d = "partial", "subequations/flalign NOT in protected list; contents survive only as literal lines (would leak if >20 chars)"
+        st, d = (
+            "partial",
+            "subequations/flalign NOT in protected list; contents survive only as literal lines (would leak if >20 chars)",
+        )
     else:
         st, d = "fail", "env structure lost"
     res["T10"] = {"status": st, "detail": d}
@@ -330,13 +343,22 @@ def assert_tricky(doc, recon, recon_fake):
 
     # T19 abstract
     res["T19"] = {
-        "status": "pass" if any(c.context == "abstract" for c in doc.chunks) else "fail",
+        "status": "pass"
+        if any(c.context == "abstract" for c in doc.chunks)
+        else "fail",
         "detail": "abstract env chunked",
     }
 
     # T20 list envs
-    has_items = "First item" in chunks and "Numbered one" in chunks and "Its definition" in chunks
-    res["T20"] = {"status": "pass" if has_items else "fail", "detail": "item texts chunked"}
+    has_items = (
+        "First item" in chunks
+        and "Numbered one" in chunks
+        and "Its definition" in chunks
+    )
+    res["T20"] = {
+        "status": "pass" if has_items else "fail",
+        "detail": "item texts chunked",
+    }
 
     # T21 includegraphics protected
     gfx = "figs/plot.pdf" in ph_vals and "figs/plot.pdf" not in chunks
@@ -388,7 +410,9 @@ def assert_tricky(doc, recon, recon_fake):
 
     # T29 standalone footnote translatable
     res["T29"] = {
-        "status": "pass" if "This footnote text should be translated" in chunks else "fail",
+        "status": "pass"
+        if "This footnote text should be translated" in chunks
+        else "fail",
         "detail": "footnote chunk extracted",
     }
 
@@ -415,7 +439,9 @@ def assert_209(res_parse, recon):
             "detail": f"\\beq..\\eeq leaked: {beq_leak.group(0) if beq_leak else None}",
         },
         "documentstyle": {
-            "status": "pass" if res_parse["ok"] and "\\documentstyle" in recon else "fail",
+            "status": "pass"
+            if res_parse["ok"] and "\\documentstyle" in recon
+            else "fail",
             "detail": "2.09 preamble survives",
         },
         "def_macros": {
@@ -439,8 +465,11 @@ def main():
     }
 
     corpus_files = sorted(CORPUS.rglob("*.tex"))
-    fixture_files = [FIXTURES / "tricky.tex", FIXTURES / "tricky-209.tex",
-                     FIXTURES / "tricky-multi" / "main.tex"]
+    fixture_files = [
+        FIXTURES / "tricky.tex",
+        FIXTURES / "tricky-209.tex",
+        FIXTURES / "tricky-multi" / "main.tex",
+    ]
 
     parsed = {}  # path -> result dict (with doc)
     all_files = [(p, "corpus") for p in corpus_files] + [
@@ -502,7 +531,11 @@ def main():
             "has_begin_document": "\\begin{document}" in orig,
         }
         report["parse"].append(entry)
-        parsed[rel] = {**r, "recon_identity": rb["recon_identity"], "recon_fake": rb["recon_fake"]}
+        parsed[rel] = {
+            **r,
+            "recon_identity": rb["recon_identity"],
+            "recon_fake": rb["recon_fake"],
+        }
 
     report["leak_summary"] = {
         "total_translatable_chunks": total_chunks,
@@ -538,12 +571,22 @@ def main():
         "T14_nested_input": {
             "status": "pass" if "Nested paragraph content" in recon_multi else "fail",
             "detail": "nested \\input resolved relative to including file's dir (sub/sub/nested) -> "
-            + ("found" if "Nested paragraph content" in recon_multi else "NOT found; literal \\input left in chunk"),
+            + (
+                "found"
+                if "Nested paragraph content" in recon_multi
+                else "NOT found; literal \\input left in chunk"
+            ),
         },
         "T14_commented_input": {
-            "status": "pass" if "THIS FILE MUST NOT APPEAR" not in recon_multi else "fail",
+            "status": "pass"
+            if "THIS FILE MUST NOT APPEAR" not in recon_multi
+            else "fail",
             "detail": "commented \\input expanded? "
-            + ("yes -> FAIL" if "THIS FILE MUST NOT APPEAR" in recon_multi else "content removed by comment stripping (single-line file => survives by accident)"),
+            + (
+                "yes -> FAIL"
+                if "THIS FILE MUST NOT APPEAR" in recon_multi
+                else "content removed by comment stripping (single-line file => survives by accident)"
+            ),
         },
         "commented_input_leak_into_chunk": {
             "status": "info",
@@ -558,8 +601,10 @@ def main():
     print(f"wrote {out_path}")
     n_ok = sum(1 for e in report["parse"] if e["ok"])
     print(f"parse ok {n_ok}/{len(report['parse'])}")
-    print(f"leak rate {report['leak_summary']['leak_rate']} "
-          f"({total_leaked}/{total_chunks})")
+    print(
+        f"leak rate {report['leak_summary']['leak_rate']} "
+        f"({total_leaked}/{total_chunks})"
+    )
     for tid, v in report["fixtures"]["tricky.tex"].items():
         print(f"  {tid}: {v['status']}  {v['detail'][:100]}")
     print("  --209--")
