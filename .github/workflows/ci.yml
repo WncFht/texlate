@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+# 与 pre-commit 同源：本地不过 CI 必挂。format 门控（prettier check +
+# markdownlint + eslint + actionlint）、python（ruff）、shell（shfmt +
+# shellcheck）。工具版本：npm 锁 package.json，brew 随源浮动。
+jobs:
+  format:
+    name: Format & Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install toolchain
+        run: npm ci
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint:md
+
+      - name: ESLint
+        run: npm run lint:js
+
+      - name: actionlint
+        run: |
+          brew install actionlint
+          actionlint
+
+      - name: taplo (toml)
+        run: |
+          brew install taplo
+          git ls-files '*.toml' | xargs taplo fmt --check
+
+  python:
+    name: Python
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install ruff
+        run: brew install ruff
+
+      - name: ruff
+        run: ruff format --check . && ruff check .
+
+  shell:
+    name: Shell
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install tools
+        run: brew install shfmt shellcheck
+
+      - name: shfmt + shellcheck
+        run: |
+          for f in $(git ls-files '*.sh'); do
+            head -1 "$f" | grep -q "zsh" || shfmt -d -i 2 "$f"
+            head -1 "$f" | grep -q "zsh" || shellcheck -S warning "$f"
+          done

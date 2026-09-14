@@ -1,0 +1,49 @@
+# select=ALL 全开；ignore 只放与 ruff format 冲突的必选项和对本仓性质
+# 为真的豁免，逐条注明。本仓是调研/bench 代码（bench/**/*.py）：脚本式、
+# 无发布 API、中文注释、进程即死的一次性驱动。
+target-version = "py312"
+# bench/results/ 是脚本产出目录——与 .prettierignore 同一条线，不进链
+extend-exclude = ["bench/results"]
+
+[lint]
+select = ["ALL"]
+ignore = [
+  "COM812",
+  "ISC001",  # 官方列名与 ruff format 冲突，必关
+  "D",       # bench/research 脚本无发布 API，docstring 门无收益
+  "ANN",     # 同上：一次性分析脚本不铺类型标注
+  "T201",    # CLI bench 脚本，print 即输出
+  "CPY001",  # 无 copyright 头惯例
+  "RUF001",
+  "RUF002",
+  "RUF003",  # 中文注释/字符串的 CJK unicode 歧义，全仓皆是
+  "ERA001",  # bench 脚本注释掉的替代实现/对照代码是常态
+  "BLE001",  # “解析器崩了即记录”正是 bench 语义，blind except 是特性
+  "PTH",     # os.path 贯串存量，pathlib 迁移是纯 churn
+  "UP031",   # % 格式化在 bench 输出代码里无问题
+  "E501",    # ruff format 不重排字符串/注释；行宽交给 formatter
+  "C901",
+  "PLR0911",
+  "PLR0912",
+  "PLR0913",
+  "PLR0915",
+  "PLR0917", # 复杂度/参数量阈值对一次性 bench 驱动是噪声
+  "PLR2004", # bench 阈值/次数等字面量是常态
+  "S101",    # assert 是脚本内测试断言（无 pytest）
+  "INP001",  # bench/py/scratch 等是脚本目录不是包
+  "FBT001",
+  "FBT002",
+  "FBT003",  # 内部脚本 API 的 bool flag
+  "ARG001",
+  "ARG002",  # worker/接口适配签名里 unused 参数常见
+  "SIM115",  # 脚本式 open().read() 一次性读，进程即死
+  "SLF001",  # bench 就是要探 parser 私有内部
+  "S603",
+  "PLW1510", # subprocess 跑 xelatex 等、捕获非零退出正是 bench 语义
+  "PLC0415", # 可选依赖/进程隔离的局部 import 是 bench 惯用法
+  "E402",    # 脚本式 sys.path/条件处理后的模块级 import
+  "N801",
+  "N818",    # bench 哨兵异常命名（ParseTimeout/TO/TimeoutError_）
+  "D203",    # 与 D211 互斥（select=ALL 双开时 ruff 告警）
+  "D213",    # 与 D212 互斥，同上
+]

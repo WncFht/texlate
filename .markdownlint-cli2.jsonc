@@ -1,0 +1,11 @@
+{
+    // 生成物与依赖不进 lint 扫描；规则本身在 .markdownlint.jsonc
+    // bench/results/ 是脚本产出目录；corpus 子目录与 work_* 是 gitignored 重产物
+    "ignores": [
+        "**/node_modules/**",
+        "bench/results/**",
+        "bench/corpus/*/**",
+        "bench/work_*/**",
+        "**/.venv*/**",
+    ],
+}

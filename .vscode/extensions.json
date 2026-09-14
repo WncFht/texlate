@@ -1,0 +1,13 @@
+{
+    "recommendations": [
+        "esbenp.prettier-vscode",
+        "davidanson.vscode-markdownlint",
+        "huacnlee.autocorrect",
+        "editorconfig.editorconfig",
+        "timonwong.shellcheck",
+        "mkhl.shfmt",
+        "charliermarsh.ruff",
+        "dbaeumer.vscode-eslint",
+        "shd101wyy.markdown-preview-enhanced"
+    ]
+}

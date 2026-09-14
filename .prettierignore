@@ -1,0 +1,15 @@
+node_modules/
+# 生成物、运行时缓存、大型二进制资源按需追加
+
+# bench 脚本产出目录——report/walkthrough/json 全部由脚本重写，格式化会 churn
+bench/results/
+# arXiv 语料子目录（gitignored 重产物；顶层 MANIFEST.md 仍进格式化）
+bench/corpus/*/
+bench/work_*/
+# python venv
+**/.venv*/
+# 本机 agent 软链层
+/.claude/
+/.crossnote/
+# lockfile 由 npm 生成——格式化会让每次 regen 出全文件 diff
+**/package-lock.json

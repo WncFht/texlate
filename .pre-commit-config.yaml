@@ -1,0 +1,74 @@
+repos:
+  # 顺序即语义：原地改写型 fixer（markdownlint --fix）在前，改了就 fail 一次
+  # 让你 re-add；git-format-staged 链式 formatter 只写 index 收尾——commit
+  # 永远成功，混合暂存时未暂存的编辑不受污染。
+  # prettier / markdownlint-cli2 / gfs 版本以 package.json 为唯一事实源；
+  # autocorrect 等系统工具走 brew。
+  #
+  # 本文件是通用 base：每个仓库都有 markdown + yaml + gitleaks。
+  # 其他文件类型的 hook 块按 census 结果从 skill 的 references/recipes.md
+  # 逐卡追加到下面的 hooks: 列表（缩进与现有条目一致）。
+  - repo: local
+    hooks:
+      - id: markdownlint-cli2
+        name: markdownlint-cli2 --fix
+        entry: ./node_modules/.bin/markdownlint-cli2 --fix
+        language: system
+        types: [markdown]
+      - id: prettier-md
+        name: autocorrect + prettier (staged content)
+        entry: ./node_modules/.bin/git-format-staged --formatter "autocorrect --stdin | ./node_modules/.bin/prettier --stdin-filepath {}"
+        language: system
+        types: [markdown]
+      - id: prettier-yaml
+        name: prettier (staged content)
+        entry: ./node_modules/.bin/git-format-staged --formatter "./node_modules/.bin/prettier --stdin-filepath {}"
+        language: system
+        types: [yaml]
+      - id: prettier-js
+        name: prettier (staged content)
+        entry: ./node_modules/.bin/git-format-staged --formatter "./node_modules/.bin/prettier --stdin-filepath {}"
+        language: system
+        files: '\.(jsx?|mjs|cjs|json)$'
+      - id: shfmt
+        name: shfmt (staged content; zsh passthrough)
+        entry: ./node_modules/.bin/git-format-staged --formatter "bash scripts/fmt-shell.sh"
+        language: system
+        types: [shell]
+      - id: ruff-format
+        name: ruff format (staged content)
+        entry: ./node_modules/.bin/git-format-staged --formatter "ruff format -"
+        language: system
+        types: [python]
+      - id: taplo
+        name: taplo fmt (staged content)
+        entry: ./node_modules/.bin/git-format-staged --formatter "taplo fmt -"
+        language: system
+        types: [toml]
+      - id: shellcheck
+        name: shellcheck (bash only; zsh skipped)
+        entry: bash -c 'for f in "$@"; do head -1 "$f" | grep -q "zsh" || shellcheck -S warning "$f"; done' --
+        language: system
+        types: [shell]
+      - id: ruff-check
+        name: ruff check
+        entry: ruff check
+        language: system
+        types: [python]
+      - id: eslint
+        name: eslint
+        entry: ./node_modules/.bin/eslint --max-warnings 0
+        language: system
+        files: '\.(jsx?|mjs|cjs)$'
+      - id: actionlint
+        name: actionlint
+        entry: actionlint
+        language: system
+        files: '\.github/workflows/.*\.(yml|yaml)$'
+  # secret 门控：默认规则 + .gitleaks.toml 自定义（本仓自有凭据格式、
+  # 历史已提交值的精确放行）。GitHub push protection 只认标准 pattern，
+  # 自有格式靠这里的自定义规则拦。
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
