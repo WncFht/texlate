@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 r"""compile_report.py — 汇总 compile-bench.json, 重分类错误, 写 compile-report.md."""
 
 import json
-import re
 import sys
-from collections import Counter, defaultdict
+from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -79,10 +77,10 @@ def main():
     projs = data["projects"]
 
     # —— 重分类 ——
-    for name, p in projs.items():
+    for p in projs.values():
         for cond in CONDS:
             rec = p["runs"].get(cond, {})
-            for key in ["xelatex", "tectonic"] + ROUNDS:
+            for key in ["xelatex", "tectonic", *ROUNDS]:
                 r = rec.get(key)
                 if r:
                     r["cat2"], r["pkg2"] = recat(r)
@@ -103,7 +101,7 @@ def main():
         for cond in CONDS:
             rec = p["runs"].get(cond, {})
             row[(cond, "tectonic")] = cell(rec.get("tectonic"))
-            r, rnd = best_xelatex(rec)
+            r, _rnd = best_xelatex(rec)
             row[(cond, "xelatex")] = (
                 cell(r) if cell(r) != "-" else cell(rec.get("xelatex"))
             )
@@ -112,7 +110,7 @@ def main():
 
     def rate(engine, cond, use_final=True):
         ok = cl = 0
-        for name, row in matrix.items():
+        for row in matrix.values():
             k = (
                 (cond, engine)
                 if (engine != "xelatex" or use_final)
@@ -128,7 +126,7 @@ def main():
     for name, p in projs.items():
         for cond in CONDS:
             rec = p["runs"].get(cond, {})
-            for key in ["xelatex", "tectonic"] + ROUNDS:
+            for key in ["xelatex", "tectonic", *ROUNDS]:
                 r = rec.get(key)
                 if r and r.get("cat2") and not r.get("pdf"):
                     cat_counter[r["cat2"]].append(
@@ -153,24 +151,24 @@ def main():
 
     # —— 写报告 ——
     out = []
-    A = out.append
+    emit = out.append
     m = data["meta"]
-    A("# 编译 Benchmark 报告: 真实 arXiv 源码注入 ctex 重编译成功率\n")
-    A(f"- 语料: `{m['corpus']}` — 12 个 arXiv 项目")
-    A(f"- 引擎: {m['tectonic']} vs {m['xelatex']}")
-    A(
+    emit("# 编译 Benchmark 报告: 真实 arXiv 源码注入 ctex 重编译成功率\n")
+    emit(f"- 语料: `{m['corpus']}` — 12 个 arXiv 项目")
+    emit(f"- 引擎: {m['tectonic']} vs {m['xelatex']}")
+    emit(
         f"- 条件: baseline(原文) / ctex(注入 `{m['ctex_line']}`) / zh(英文段落→中文+ctex)"
     )
-    A(
+    emit(
         f"- 判据: 超时 {m['timeout_s']}s; **pdf**=产出PDF; **clean**=全程无 `!` 错误; "
         "xelatex `-interaction=nonstopmode` 最多2遍; "
         "tectonic `-Z continue-on-errors` (≈nonstopmode)"
     )
-    A("- 日期: " + m["date"] + "\n")
+    emit("- 日期: " + m["date"] + "\n")
 
-    A("## 1. 总成功率 (12 项目)\n")
-    A("| 引擎 | 条件 | pdf 产出 | clean |")
-    A("|---|---|---|---|")
+    emit("## 1. 总成功率 (12 项目)\n")
+    emit("| 引擎 | 条件 | pdf 产出 | clean |")
+    emit("|---|---|---|---|")
     for eng, lbl in (
         ("tectonic", "tectonic"),
         ("xelatex_raw", "xelatex (原始环境)"),
@@ -183,51 +181,51 @@ def main():
                 ok, cl = rate("xelatex", c)
             else:
                 ok, cl = rate("tectonic", c)
-            A(f"| {lbl} | {c} | {ok}/12 | {cl}/12 |")
-    A("")
+            emit(f"| {lbl} | {c} | {ok}/12 | {cl}/12 |")
+    emit("")
 
-    A("## 2. 逐项目矩阵\n")
-    A("PDF=干净出pdf, pdf~=带错误出pdf, FAIL=无pdf; xelatex 列为修复后最终态\n")
-    A("| 项目 | base-t | base-x | ctex-t | ctex-x | zh-t | zh-x |")
-    A("|---|---|---|---|---|---|---|")
+    emit("## 2. 逐项目矩阵\n")
+    emit("PDF=干净出pdf, pdf~=带错误出pdf, FAIL=无pdf; xelatex 列为修复后最终态\n")
+    emit("| 项目 | base-t | base-x | ctex-t | ctex-x | zh-t | zh-x |")
+    emit("|---|---|---|---|---|---|---|")
     for name, row in matrix.items():
-        A(
+        emit(
             f"| {name} | "
             + " | ".join(row[(c, e)] for c in CONDS for e in ("tectonic", "xelatex"))
             + " |"
         )
-    A("")
+    emit("")
 
-    A("## 3. 失败分类学\n")
-    A("| 类别 | 次数(失败) | 代表错误 | 涉及项目 |")
-    A("|---|---|---|---|")
+    emit("## 3. 失败分类学\n")
+    emit("| 类别 | 次数(失败) | 代表错误 | 涉及项目 |")
+    emit("|---|---|---|---|")
     for cat, items in sorted(cat_counter.items(), key=lambda kv: -len(kv[1])):
         if cat.endswith("·dirty"):
             continue
         ex = items[0][3][:70]
-        ps = sorted(set(i[0] for i in items))
-        A(f"| {cat} | {len(items)} | `{ex}` | {', '.join(ps[:4])} |")
-    A("\n### 带错误但出 pdf 的类别\n")
-    A("| 类别 | 次数 | 代表错误 | 涉及项目 |")
-    A("|---|---|---|---|")
+        ps = sorted({i[0] for i in items})
+        emit(f"| {cat} | {len(items)} | `{ex}` | {', '.join(ps[:4])} |")
+    emit("\n### 带错误但出 pdf 的类别\n")
+    emit("| 类别 | 次数 | 代表错误 | 涉及项目 |")
+    emit("|---|---|---|---|")
     for cat, items in sorted(cat_counter.items(), key=lambda kv: -len(kv[1])):
         if not cat.endswith("·dirty"):
             continue
         ex = items[0][3][:70]
-        ps = sorted(set(i[0] for i in items))
-        A(f"| {cat[:-6]} | {len(items)} | `{ex}` | {', '.join(ps[:4])} |")
-    A("")
+        ps = sorted({i[0] for i in items})
+        emit(f"| {cat[:-6]} | {len(items)} | `{ex}` | {', '.join(ps[:4])} |")
+    emit("")
 
-    A("## 4. ctex/zh 注入新增错误 (首错与 baseline 不同)\n")
+    emit("## 4. ctex/zh 注入新增错误 (首错与 baseline 不同)\n")
     for cond in ("ctex", "zh"):
-        A(f"### {cond}\n")
+        emit(f"### {cond}\n")
         if not added[cond]:
-            A("(无)")
+            emit("(无)")
         for name, eng, e in added[cond]:
-            A(f"- `{name}` {eng}: `{e}`")
-        A("")
+            emit(f"- `{name}` {eng}: `{e}`")
+        emit("")
 
-    A("## 5. 原始记录\n```json")
+    emit("## 5. 原始记录\n```json")
     # 精简 JSON: 每 run 只留关键字段
     slim = {}
     for name, p in projs.items():
@@ -249,8 +247,8 @@ def main():
                 for k, r in p["runs"][cond].items()
                 if isinstance(r, dict)
             }
-    A(json.dumps(slim, ensure_ascii=False, indent=1)[:6000])
-    A("```\n")
+    emit(json.dumps(slim, ensure_ascii=False, indent=1)[:6000])
+    emit("```\n")
 
     MD.write_text("\n".join(out))
     JP.write_text(json.dumps(data, ensure_ascii=False, indent=1))

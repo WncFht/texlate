@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 r"""
 fixloop.py — LaTeX 编译自动修复循环 spike.
 
@@ -20,12 +19,12 @@ tlmgr search 结果(file->pkg)全局缓存, 因为远端仓库知识与环境冷
 """
 
 import argparse
+import contextlib
 import json
 import os
 import re
 import shutil
 import subprocess
-import sys
 import time
 from pathlib import Path
 
@@ -70,7 +69,7 @@ def classify(err, ctx, tail, timed_out):
     if timed_out:
         return "timeout", None
     head = "\n".join(x for x in (err, ctx) if x)
-    RULES = [
+    rules = [
         # —— 文件缺失类: 统一抓文件名, 走 tlmgr search --file ——
         ("missing_file", r"File `([^']+\.[a-zA-Z0-9]+)' not found"),
         ("missing_file", r"I can't find file `([^']+)'"),
@@ -95,15 +94,17 @@ def classify(err, ctx, tail, timed_out):
         ("env_mismatch", r"begin\{[^}]*\}.*ended by|Extra \\end"),
         (
             "syntax",
-            r"Missing|Runaway|Paragraph ended|Misplaced|Double subscript|"
-            r"Illegal|There's no line|Lonely|Bad math|Something's wrong|"
-            r"not in outer par|allowed only in math|improper",
+            (
+                r"Missing|Runaway|Paragraph ended|Misplaced|Double subscript|"
+                r"Illegal|There's no line|Lonely|Bad math|Something's wrong|"
+                r"not in outer par|allowed only in math|improper"
+            ),
         ),
         ("other", r"^!"),
     ]
     if err:
-        for name, pat in RULES:
-            m = re.search(pat, head, re.I)
+        for name, pat in rules:
+            m = re.search(pat, head, re.IGNORECASE)
             if m:
                 pay = next((g for g in m.groups() if g), None)
                 # undefined_cs 里再细分 pdfTeX 原语
@@ -177,7 +178,7 @@ class Ctx:
         key = "/" + fname
         if key in self.search_cache:
             return self.search_cache[key]
-        rc, out, _, to = self.run(
+        _rc, out, _, to = self.run(
             ["tlmgr", "search", "--global", "--file", key], timeout=60
         )
         pkgs = []
@@ -216,7 +217,7 @@ class Ctx:
             self.run(["tlmgr", "--usermode", "init-usertree"], timeout=60)
             self.log.append("    tlmgr init-usertree")
         rc, out, _, to = self.run(
-            ["tlmgr", "--usermode", "install"] + pkgs, timeout=180
+            ["tlmgr", "--usermode", "install", *pkgs], timeout=180
         )
         ok = rc == 0 and not to
         self.log.append(
@@ -232,10 +233,8 @@ class Ctx:
 
 def _load_cache():
     if SEARCH_CACHE.exists():
-        try:
+        with contextlib.suppress(Exception):
             return json.loads(SEARCH_CACHE.read_text())
-        except Exception:
-            pass
     return {}
 
 
@@ -250,9 +249,10 @@ def patch_files(ctx, regex, repl, exts=(".tex", ".sty")):
     for f in ctx.tex_files():
         if f.suffix not in exts:
             continue
-        try:
+        t = None
+        with contextlib.suppress(Exception):
             t = f.read_text(encoding="utf-8", errors="replace")
-        except Exception:
+        if t is None:
             continue
         nt = pat.sub(repl, t)
         if nt != t:
@@ -300,7 +300,7 @@ PDFTEX_PRIMS = (
 
 def r_install_file(ctx, cat, pay, **_):
     """missing_file/missing_package/missing_class → tlmgr search --file → install"""
-    if cat not in ("missing_file",):
+    if cat != "missing_file":
         return False, ""
     fname = pay or ""
     ok, note = install_missing_file(
@@ -326,7 +326,7 @@ def r_install_sysfont(ctx, cat, pay, **_):
     if cat != "fontspec_missing" or not pay:
         return False, ""
     for ext in (".otf", ".ttf", ".ttc"):
-        ok, note = install_missing_file(ctx, pay + ext, font_related=True)
+        ok, _note = install_missing_file(ctx, pay + ext, font_related=True)
         if ok:
             return True, f"install font {pay}{ext}"
     return False, f"no TL package ships {pay}.(otf|ttf)"
@@ -336,7 +336,7 @@ def r_missing_pfb(ctx, cat, pay, **_):
     """xdvipdfmx 物理字体缺失 → updmap-user 重建 map; 已做过则放弃"""
     if cat != "missing_pfb":
         return False, ""
-    rc, out, _, _ = ctx.run(["updmap-user"], timeout=120)
+    rc, _out, _, _ = ctx.run(["updmap-user"], timeout=120)
     ctx.log.append(f"    updmap-user rc={rc}")
     return True, "updmap-user rebuild"
 
@@ -410,7 +410,7 @@ def r_hyphenation(ctx, cat, pay, **_):
     """\\hyphenation{} 参数含非拉丁 → 剥离非 [a-zA-Z-] token"""
     if cat != "hyphenation":
         return False, ""
-    pat = re.compile(r"\\hyphenation\{([^}]*)\}", re.S)
+    pat = re.compile(r"\\hyphenation\{([^}]*)\}", re.DOTALL)
     n = 0
     for f in ctx.tex_files():
         t = f.read_text(encoding="utf-8", errors="replace")
@@ -462,7 +462,8 @@ def r_option_clash(ctx, cat, pay, **_):
         return False, ""
     pkg = pay
     use = re.compile(
-        r"^(\s*)\\(usepackage|RequirePackage)\s*(\[([^\]]*)\])?\s*\{([^}]*)\}", re.M
+        r"^(\s*)\\(usepackage|RequirePackage)\s*(\[([^\]]*)\])?\s*\{([^}]*)\}",
+        re.MULTILINE,
     )
     changed = 0
     for f in ctx.tex_files():
@@ -551,7 +552,7 @@ def pick_and_apply(ctx, cat, pay):
         key = (rid, str(pay))
         if key in ctx.applied:
             continue
-        kw = dict(cat=cat, pay=pay, wdir=ctx.wdir, main=ctx.main_rel)
+        kw = {"cat": cat, "pay": pay, "wdir": ctx.wdir, "main": ctx.main_rel}
         try:
             applied, note = fn(ctx, **kw)
         except Exception as e:
@@ -574,14 +575,12 @@ DOC_RE = re.compile(r"\\document(class|style)")
 def find_main_tex(proj: Path):
     cands = []
     for f in sorted(proj.rglob("*.tex")):
-        try:
+        with contextlib.suppress(Exception):
             head = f.read_text(errors="replace")[:60000]
-        except Exception:
-            continue
-        if DOC_RE.search(head):
-            has_body = "\\begin{document}" in head
-            depth = len(f.relative_to(proj).parts)
-            cands.append((depth, 0 if has_body else 1, str(f)))
+            if DOC_RE.search(head):
+                has_body = "\\begin{document}" in head
+                depth = len(f.relative_to(proj).parts)
+                cands.append((depth, 0 if has_body else 1, str(f)))
     if not cands:
         return None
     cands.sort()
@@ -597,15 +596,16 @@ def static_precheck(ctx):
     kpsewhich 验证 → 批量 tlmgr install。返回装了的包列表。"""
     need = set()
     for f in ctx.tex_files():
-        try:
+        t = None
+        with contextlib.suppress(Exception):
             t = f.read_text(encoding="utf-8", errors="replace")
-        except Exception:
+        if t is None:
             continue
         for m in USE_RE.finditer(t):
             for p in m.group(1).split(","):
-                p = p.strip()
-                if p:
-                    need.add(p + ".sty")
+                pkg = p.strip()
+                if pkg:
+                    need.add(pkg + ".sty")
         for m in CLS_RE.finditer(t):
             need.add(m.group(1).strip() + ".cls")
     missing = sorted(f for f in need if not ctx.kpsewhich(f))
@@ -628,7 +628,7 @@ def compile_pass(ctx):
     for p in (1, 2):
         if p == 2 and not pdf.exists():
             break
-        rc, out, s, to = ctx.run([XELATEX, "-interaction=nonstopmode", name], cwd=cwd)
+        _rc, _out, s, to = ctx.run([XELATEX, "-interaction=nonstopmode", name], cwd=cwd)
         sec += s
         e, c, n, tail = first_error(log)
         nerr += n
@@ -824,10 +824,8 @@ def main():
         "cells": [],
     }
     if out_path.exists():
-        try:
+        with contextlib.suppress(Exception):
             data["cells"] = json.loads(out_path.read_text())["cells"]
-        except Exception:
-            pass
 
     for pn in projects:
         for cond in conds:

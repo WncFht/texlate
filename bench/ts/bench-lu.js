@@ -42,9 +42,6 @@ function nodesInRange(ast, start, end) {
     });
     return out;
 }
-function serialize(node) {
-    return latexParser.stringify(Array.isArray(node) ? node : [node]);
-}
 
 // ---------- 1. corpus robustness ----------
 function benchCorpus() {
@@ -220,9 +217,6 @@ function benchTraps() {
         const nodes = nodesIn("T08");
         const pct = nodes.some((n) => n.kind === "command" && n.name === "%");
         const lb = nodes.some((n) => n.kind === "linebreak");
-        const commentNodes = (ast.comment || []).concat(
-            nodesIn("T08").flatMap((n) => n.comment || []),
-        );
         rec(
             "T08",
             pct && lb,

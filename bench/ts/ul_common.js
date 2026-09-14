@@ -118,42 +118,6 @@ const PARTIAL_PROTECT = {
     hyperref: new Set([0]), // [url]{text}: idx0 = url? signature 'o m' varies; treat arg0 as url
     url: "all",
 };
-// Macros whose args ARE translatable text (explicit list, else default-descend)
-const TEXT_ARG_MACROS = new Set([
-    "emph",
-    "textbf",
-    "textit",
-    "textsl",
-    "textsc",
-    "textrm",
-    "texttt",
-    "textmd",
-    "textup",
-    "underline",
-    "section",
-    "subsection",
-    "subsubsection",
-    "paragraph",
-    "subparagraph",
-    "chapter",
-    "part",
-    "caption",
-    "footnote",
-    "thanks",
-    "title",
-    "author",
-    "date",
-    "item",
-    "frametitle",
-    "text",
-    "mbox",
-    "marginpar",
-    "authornote",
-    "subtitle",
-    "subcaption",
-    "headline",
-]);
-
 // Environments whose whole content is protected (non-prose or math)
 const PROTECTED_ENVS = new Set([
     "tabular",

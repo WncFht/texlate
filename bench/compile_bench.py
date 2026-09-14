@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 r"""
 compile_bench.py — 真实 arXiv 源码注入 ctex 后重编译成功率 benchmark.
 
@@ -24,6 +23,7 @@ import shutil
 import subprocess
 import sys
 import time
+from contextlib import suppress
 from pathlib import Path
 
 CORPUS = Path(os.path.expanduser("~/src/texlate/bench/corpus")).resolve()
@@ -45,14 +45,12 @@ def find_main_tex(proj: Path):
     r"""找含 \documentclass/\documentstyle 且含 \begin{document} 的最浅 .tex"""
     cands = []
     for f in sorted(proj.rglob("*.tex")):
-        try:
+        with suppress(Exception):
             head = f.read_text(errors="replace")[:60000]
-        except Exception:
-            continue
-        if DOC_RE.search(head):
-            has_body = "\\begin{document}" in head
-            depth = len(f.relative_to(proj).parts)
-            cands.append((depth, 0 if has_body else 1, str(f)))
+            if DOC_RE.search(head):
+                has_body = "\\begin{document}" in head
+                depth = len(f.relative_to(proj).parts)
+                cands.append((depth, 0 if has_body else 1, str(f)))
     if not cands:
         return None
     cands.sort()
@@ -165,9 +163,10 @@ def mock_translate(proj: Path):
     end_re = re.compile(r"\\end\{(.*?)\}")
     for f in sorted(proj.rglob("*.tex")):
         verb_on = None
-        try:
+        txt = None
+        with suppress(Exception):
             txt = f.read_text(encoding="utf-8", errors="replace")
-        except Exception:
+        if txt is None:
             continue
         new_lines = []
         for ln in txt.splitlines():
@@ -226,17 +225,19 @@ def classify(err: str, ctx: str, timed_out: bool, stderr: str = ""):
     if timed_out:
         return "timeout", None
     # —— 优先在错误行本身匹配 ——
-    RULES = [
+    rules = [
         ("capacity", r"TeX capacity exceeded|main memory size|pool size|save size"),
         ("missing_class", r"File `([^']+\.cls)' not found"),
         ("missing_package", r"File `([^']+\.sty)' not found"),
         (
             "missing_font",
-            r"Font [^\n]{0,80}?not loadable|Metric \(TFM\) file|"
-            r"Cannot use XeTeXglyph with (\S+)|"
-            r"fontspec[^']*?(?:not found|cannot)|"
-            r"Cannot proceed without \.vf|physical font|"
-            r"Cannot find font|Font .* not found",
+            (
+                r"Font [^\n]{0,80}?not loadable|Metric \(TFM\) file|"
+                r"Cannot use XeTeXglyph with (\S+)|"
+                r"fontspec[^']*?(?:not found|cannot)|"
+                r"Cannot proceed without \.vf|physical font|"
+                r"Cannot find font|Font .* not found"
+            ),
         ),
         (
             "missing_graphic",
@@ -270,8 +271,8 @@ def classify(err: str, ctx: str, timed_out: bool, stderr: str = ""):
             r"unrecoverable error|halted on|Emergency stop|Fatal error|job aborted",
         ),
     ]
-    for name, pat in RULES:
-        m = re.search(pat, head, re.I)
+    for name, pat in rules:
+        m = re.search(pat, head, re.IGNORECASE)
         if m:
             pkg = next((g for g in m.groups() if g), None)
             return name, pkg
@@ -280,18 +281,22 @@ def classify(err: str, ctx: str, timed_out: bool, stderr: str = ""):
     for name, pat in [
         (
             "missing_font",
-            r"Cannot proceed without \.vf|physical font|"
-            r"Cannot find font|Font .* not found",
+            (
+                r"Cannot proceed without \.vf|physical font|"
+                r"Cannot find font|Font .* not found"
+            ),
         ),
         ("dvipdf", r"xdvipdfmx|dvipdfmx"),
         (
             "engine_halt",
-            r"unrecoverable error|halted on|Emergency stop|"
-            r"Fatal error|job aborted|cannot \read",
+            (
+                r"unrecoverable error|halted on|Emergency stop|"
+                r"Fatal error|job aborted|cannot \read"
+            ),
         ),
         ("missing_file", r"File `([^']+)' not found|I can't find file"),
     ]:
-        m = re.search(pat, blob, re.I)
+        m = re.search(pat, blob, re.IGNORECASE)
         if m:
             pkg = next((g for g in m.groups() if g), None)
             return name, pkg
@@ -333,7 +338,7 @@ def run_xelatex(work: Path, rel_main: str):
     for p in range(1, 3):
         if p == 2 and not pdf.exists():
             break
-        rc, out, sec, to = run_cmd([XELATEX, "-interaction=nonstopmode", name], cwd)
+        rc, _out, sec, to = run_cmd([XELATEX, "-interaction=nonstopmode", name], cwd)
         rec["passes"] = p
         rec["seconds"] += sec
         rec["exit"] = rc
@@ -367,7 +372,7 @@ def run_tectonic(work: Path, rel_main: str):
     pdf = outdir / f"{stem}.pdf"
     log = outdir / f"{stem}.log"
     rec = {"engine": "tectonic", "passes": None, "seconds": 0.0, "retried": False}
-    for attempt in (1, 2):
+    for _attempt in (1, 2):
         rc, out, sec, to = run_cmd(
             [
                 TECTONIC,
@@ -392,7 +397,7 @@ def run_tectonic(work: Path, rel_main: str):
     e, c, n = _first_error_from_log(log)
     if not e:
         # tectonic 有时不产 .log 就崩了 (e.g. \documentstyle), 从 stderr 找
-        m = re.search(r"^error: (.+)$", rec.get("stderr_tail", ""), re.M)
+        m = re.search(r"^error: (.+)$", rec.get("stderr_tail", ""), re.MULTILINE)
         if m:
             e = "! " + m.group(1)
     rec["pdf"] = pdf.exists()
@@ -487,7 +492,7 @@ def main():
             if nzh is not None:
                 crec["zh_files"], crec["zh_lines"] = nzh
             for eng, fn in (("tectonic", run_tectonic), ("xelatex", run_xelatex)):
-                t0 = time.time()
+                time.time()
                 r = fn(wdir, rel_main)
                 tag = "OK " if r["pdf"] else "FAIL"
                 print(

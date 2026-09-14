@@ -2,22 +2,16 @@
 // the construct correctly for a translate/protect pipeline.
 const fs = require("fs");
 const path = require("path");
-const {
-    parse,
-    parseMinimal,
-    getParser,
-} = require("@unified-latex/unified-latex-util-parse/index.cjs");
+const { parse } = require("@unified-latex/unified-latex-util-parse/index.cjs");
 const {
     printRaw,
 } = require("@unified-latex/unified-latex-util-print-raw/index.cjs");
 const {
     listNewcommands,
     expandMacrosExcludingDefinitions,
-    expandMacros,
 } = require("@unified-latex/unified-latex-util-macros/index.cjs");
 const {
     extractTranslatableBlocks,
-    walk,
     findAll,
     envName,
 } = require("./ul_common.js");
@@ -121,7 +115,6 @@ if (!T) {
     process.exit(1);
 }
 
-const blocks = extractTranslatableBlocks(T);
 const flat = allText(T);
 
 // ---- T01: \be..\ee macro-expanded equation ----
@@ -150,8 +143,6 @@ const flat = allText(T);
 }
 // ---- T03: \def ----
 {
-    const defs = macroNodes(T, "def");
-    const leak = blocksContaining(T, /\\def|\\widetilde|Tr/);
     R.T03 = {
         expect: "recognized as macro definition, not translated",
         status: "partial",
@@ -214,13 +205,7 @@ const flat = allText(T);
 }
 // ---- T06: verbatim/lstlisting with % ----
 {
-    const verbs = envNodes(T).filter(
-        (n) =>
-            ["verbatim", "lstlisting"].includes(envName(n)) ||
-            n.type === "verbatim",
-    );
     const verbatimNodes = findAll(T, (n) => n.type === "verbatim");
-    const vtxt = verbatimNodes.map((n) => printRaw(n).slice(0, 80));
     const pctLeak = blocksContaining(T, /100%|code%with%percent/);
     const lstEnv = envNodes(T).find((n) => envName(n) === "lstlisting");
     R.T06 = {
@@ -305,7 +290,6 @@ const flat = allText(T);
 {
     const caps = macroNodes(T, "caption");
     const capText = caps.map((c) => printRaw(c).slice(0, 90));
-    const fn = macroNodes(T, "footnote");
     const fnInCap = caps.some(
         (c) =>
             findAll(c, (n) => n.type === "macro" && n.content === "footnote")
@@ -344,7 +328,6 @@ const flat = allText(T);
 // ---- T16: \NewDocumentCommand ----
 {
     const ndc = macroNodes(T, "NewDocumentCommand")[0];
-    const vectUse = macroNodes(T, "vect");
     const vLeak = blocksContaining(T, /\\vect|\bv\b/);
     R.T16 = {
         expect: "no leak, no crash",
@@ -467,7 +450,6 @@ const flat = allText(T);
             n.type === "macro" &&
             ["'", '"', "~", "`", "^", "c", "u", "v"].includes(n.content),
     );
-    const ok = flat.includes("e") || true;
     R.T27 = {
         expect: "kept as text",
         status: "pass",
@@ -556,21 +538,14 @@ R["T-209"] = {
     const nc = listNewcommands(T);
     const names = nc.map((x) => `${x.name}:${x.signature}`);
     // expand all newcommand-defined macros then re-parse → does \be..\ee become mathenv?
-    let expanded = null,
-        expErr = null,
-        reprinted = null,
-        reparsed = null,
-        reparseMath = false;
     try {
-        expanded = JSON.parse(JSON.stringify(T)); // work on a copy
+        const expanded = JSON.parse(JSON.stringify(T)); // work on a copy
         expandMacrosExcludingDefinitions(
             expanded,
             nc.map((x) => ({ name: x.name, body: x.body })),
         );
-        reprinted = printRaw(expanded);
-        reparsed = parse(reprinted);
-        const menvs = findAll(reparsed, (n) => n.type === "mathenv");
-        reparseMath = menvs.length > 0;
+        const reprinted = printRaw(expanded);
+        parse(reprinted);
         R.expansion = {
             newcommandsFound: names,
             expandOk: true,
@@ -592,8 +567,8 @@ R["T-209"] = {
                     failed.push(x.name + ":" + e2.message.slice(0, 60));
                 }
             }
-            reprinted = printRaw(T3);
-            reparsed = parse(reprinted);
+            const reprinted = printRaw(T3);
+            const reparsed = parse(reprinted);
             const menvs = findAll(reparsed, (n) => n.type === "mathenv");
             R.expansion = {
                 newcommandsFound: names,
@@ -608,7 +583,7 @@ R["T-209"] = {
                 })(),
                 note: "\\def-defined macros (\\wt,\\Tr) not collected by listNewcommands → stay unexpanded (fine inside mathenv). '#1' param bodies crash the expander — per-macro try/catch needed.",
             };
-        } catch (e3) {
+        } catch {
             R.expansion = {
                 newcommandsFound: names,
                 expandOk: false,

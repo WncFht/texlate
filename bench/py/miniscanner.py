@@ -26,7 +26,6 @@ from __future__ import annotations
 import os
 import re
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
 
 # ---------------------------------------------------------------- 命令族表
 
@@ -402,7 +401,7 @@ class Macro:
     has_opt: bool = False
     kind: str = "transparent"  # env_begin/env_end/opaque/transparent/literal
     target_env: str = ""
-    protect_args: Tuple[bool, ...] = ()
+    protect_args: tuple[bool, ...] = ()
     body: str = ""
 
 
@@ -416,22 +415,22 @@ class Chunk:
 @dataclass
 class ScanResult:
     protected_tex: str
-    chunks: List[Chunk]
-    ph_map: Dict[str, str]
-    macros: Dict[str, Macro]
-    pieces: List[Tuple[str, object]] = field(default_factory=list)
-    inputs: List[Tuple[int, str]] = field(default_factory=list)
+    chunks: list[Chunk]
+    ph_map: dict[str, str]
+    macros: dict[str, Macro]
+    pieces: list[tuple[str, object]] = field(default_factory=list)
+    inputs: list[tuple[int, str]] = field(default_factory=list)
 
 
 class Scanner:
     """单次正向扫描器. pos 单调递增, 永不回退."""
 
-    def __init__(self, macros: Optional[Dict[str, Macro]] = None):
-        self.macros: Dict[str, Macro] = macros if macros is not None else {}
-        self.chunks: List[Chunk] = []
-        self.ph_map: Dict[str, str] = {}
-        self.pieces: List[Tuple[str, object]] = []
-        self.inputs: List[Tuple[int, str]] = []
+    def __init__(self, macros: dict[str, Macro] | None = None):
+        self.macros: dict[str, Macro] = macros if macros is not None else {}
+        self.chunks: list[Chunk] = []
+        self.ph_map: dict[str, str] = {}
+        self.pieces: list[tuple[str, object]] = []
+        self.inputs: list[tuple[int, str]] = []
         self._ctr = [0]  # 占位符计数器 (子扫描器共享, 防编号冲突)
         self._mined_only = False  # 保护环境内部: 只挖 caption/footnote
         self._arg_inline = False  # chunk 参数内部: 嵌套 chunk-arg 内联化
@@ -460,7 +459,7 @@ class Scanner:
             i += 1
         return i
 
-    def _match_brace(self, tex: str, i: int, verbatim: bool = False) -> Optional[int]:
+    def _match_brace(self, tex: str, i: int, verbatim: bool = False) -> int | None:
         """tex[i]=='{' → 匹配 '}' 的后一位. verbatim=False 时 %..EOL 内括号不计."""
         if i >= len(tex) or tex[i] != "{":
             return None
@@ -483,7 +482,7 @@ class Scanner:
             j += 1
         return None
 
-    def _match_bracket(self, tex: str, i: int) -> Optional[int]:
+    def _match_bracket(self, tex: str, i: int) -> int | None:
         """tex[i]=='[' → 匹配 ']'. 允许内嵌 {..} 组与注释."""
         if i >= len(tex) or tex[i] != "[":
             return None
@@ -495,11 +494,11 @@ class Scanner:
                 continue
             if c == "{":
                 e = self._match_brace(tex, j)
-                j = e if e else j + 1
+                j = e or j + 1
                 continue
             if c == "[":
                 e = self._match_bracket(tex, j)
-                j = e if e else j + 1
+                j = e or j + 1
                 continue
             if c == "%":
                 k = tex.find("\n", j)
@@ -512,11 +511,11 @@ class Scanner:
 
     def _args(
         self, tex: str, i: int, nargs: int, has_opt: bool = False
-    ) -> Tuple[List[Tuple[int, int, int, int]], int]:
+    ) -> tuple[list[tuple[int, int, int, int]], int]:
         """从 i 起读 [opt]?{a1}..{an}.
         返回 ([(cs,ce,fs,fe)], end) — cs:ce 内容区间, fs:fe 含括号整段."""
         pos = self._ws(tex, i)
-        out: List[Tuple[int, int, int, int]] = []
+        out: list[tuple[int, int, int, int]] = []
         if has_opt and pos < len(tex) and tex[pos] == "[":
             e = self._match_bracket(tex, pos)
             if e:
@@ -542,7 +541,7 @@ class Scanner:
                 break
         return out, pos
 
-    def _env_name_at(self, tex: str, i: int) -> Tuple[Optional[str], int]:
+    def _env_name_at(self, tex: str, i: int) -> tuple[str | None, int]:
         pos = self._ws(tex, i)
         if pos < len(tex) and tex[pos] == "{":
             e = self._match_brace(tex, pos)
@@ -550,7 +549,7 @@ class Scanner:
                 return tex[pos + 1 : e - 1].strip(), e
         return None, i
 
-    def _find_env_end(self, tex: str, i: int, env: str) -> Optional[int]:
+    def _find_env_end(self, tex: str, i: int, env: str) -> int | None:
         """找 env 的匹配 \\end (含宏端点 \\ee). 注释安全. 返回 end 后一位."""
         depth, n = 1, len(tex)
         while i < n:
@@ -565,7 +564,7 @@ class Scanner:
                     sub, e2 = self._env_name_at(tex, j)
                     if sub == env:
                         depth += 1
-                    i = e2 if e2 else j
+                    i = e2 or j
                     continue
                 if name == "end":
                     sub, e2 = self._env_name_at(tex, j)
@@ -573,7 +572,7 @@ class Scanner:
                         depth -= 1
                         if depth == 0:
                             return e2
-                    i = e2 if e2 else j
+                    i = e2 or j
                     continue
                 m = self.macros.get(name)
                 if m and m.kind == "env_begin" and m.target_env == env:
@@ -588,7 +587,7 @@ class Scanner:
         return None
 
     @staticmethod
-    def _read_cmd_name(tex: str, i: int) -> Tuple[str, int]:
+    def _read_cmd_name(tex: str, i: int) -> tuple[str, int]:
         """tex[i]=='\\' → (名字, 命令后一位). 字母串或非字母单字符."""
         j = i + 1
         n = len(tex)
@@ -630,7 +629,7 @@ class Scanner:
         return bool(re.search(r"[a-zA-Z]{2,}", s))
 
     @staticmethod
-    def _protected_param_positions(body: str, nargs: int) -> Tuple[bool, ...]:
+    def _protected_param_positions(body: str, nargs: int) -> tuple[bool, ...]:
         """#i 落在 \\ref/\\cite/\\label/\\url 等命令参数位 → 该参数保护."""
         flags = [False] * nargs
         if nargs == 0:
@@ -678,14 +677,14 @@ class Scanner:
                     self.macros["env:" + envname] = Macro(
                         name=envname, nargs=nargs, kind=kind
                     )
-                    return ee if ee else eb
+                    return ee or eb
             return pos
         if name in ("newcommand", "renewcommand", "providecommand"):
             pos = self._ws(tex, pos)
             if pos < n and tex[pos] == "*":
                 pos += 1
             pos = self._ws(tex, pos)
-            mname: Optional[str] = None
+            mname: str | None = None
             if pos < n and tex[pos] == "{":
                 e2 = self._match_brace(tex, pos)
                 if e2:
@@ -830,7 +829,7 @@ class Scanner:
             i = preamble_end
         else:
             i = 0
-        run: List[str] = []
+        run: list[str] = []
 
         def flush_run() -> None:
             s = "".join(run)
@@ -983,8 +982,8 @@ class Scanner:
                 self.macros.setdefault(
                     base + "false", Macro(base + "false", kind="literal")
                 )
-            self._emit(tex[i : e2 if e2 else j])
-            return e2 if e2 else j
+            self._emit(tex[i : e2 or j])
+            return e2 or j
 
         # \begin{env}
         if name == "begin":
@@ -1002,8 +1001,8 @@ class Scanner:
                 self._emit(tex[i:e2])  # \end{document} 本体
                 self._emit(tex[e2:])  # 之后全逐字
                 return n
-            self._emit(tex[i : e2 if e2 else j])
-            return e2 if e2 else j
+            self._emit(tex[i : e2 or j])
+            return e2 or j
 
         # 保护命令族 (整调用 → [[TYPE_n]])
         if name in CITE_NAMES or name.startswith("cite"):
@@ -1303,7 +1302,7 @@ class Scanner:
         body = tex[i:j] + r.protected_tex + tex[inner_end:end]
         return self._ph("ENV", body)
 
-    def _spawn(self) -> "Scanner":
+    def _spawn(self) -> Scanner:
         """子扫描器: 共享宏表/chunks/ph_map/计数器 (递归保护→占位符连续编号)."""
         sub = Scanner(self.macros)
         sub._ctr = self._ctr
@@ -1327,7 +1326,7 @@ def parse_tex(tex: str) -> ScanResult:
 
 
 def reconstruct(
-    res: ScanResult, translations: Optional[Dict[int, str]] = None, max_iter: int = 20
+    res: ScanResult, translations: dict[int, str] | None = None, max_iter: int = 20
 ) -> str:
     """译文 splice: pieces 渲染 → 占位符统一不动点展开.
 
@@ -1355,9 +1354,9 @@ def reconstruct(
 def flatten_inputs(
     tex: str,
     file_dir: str,
-    root_dir: Optional[str] = None,
+    root_dir: str | None = None,
     depth: int = 0,
-    _seen: Optional[set] = None,
+    _seen: set | None = None,
 ) -> str:
     r"""展开 \input/\include: 先相对当前文件目录, 再相对主文件目录
     (LaTeX/TEXINPUTS 语义 — 修 ieeA 只按被包含文件目录解析的 bug).
@@ -1371,7 +1370,7 @@ def flatten_inputs(
     out = []
     i, n = 0, len(tex)
     sc = Scanner()
-    verb_env: Optional[str] = None  # verbatim 类环境内不展开
+    verb_env: str | None = None  # verbatim 类环境内不展开
     while i < n:
         c = tex[i]
         if verb_env is not None:
@@ -1395,8 +1394,8 @@ def flatten_inputs(
                 env, e2 = sc._env_name_at(tex, j)
                 if env in VERBATIM_ENVS:
                     verb_env = env
-                out.append(tex[i : e2 if e2 else j])
-                i = e2 if e2 else j
+                out.append(tex[i : e2 or j])
+                i = e2 or j
                 continue
             if name == "verb":
                 k = j + (1 if j < n and tex[j] == "*" else 0)

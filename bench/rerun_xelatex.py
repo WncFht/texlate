@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 r"""rerun_xelatex.py — 修复循环第 1 轮: tlmgr usermode 补包后重跑 xelatex 失败项.
 
 读取 compile-bench.json, 对 xelatex pdf=False 的 (project,cond) 在既有 work 目录
@@ -11,7 +10,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from compile_bench import WORK, RESULTS, run_xelatex
+from compile_bench import RESULTS, WORK, run_xelatex
 
 FIXES = ["tlmgr --usermode install ifmtarg sttools silence"]
 ROUND = "xelatex_r4"

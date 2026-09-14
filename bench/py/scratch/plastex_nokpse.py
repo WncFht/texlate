@@ -1,10 +1,12 @@
 """Test: block real .sty/.cls loading entirely via kpsewhich monkeypatch."""
 
-import sys, time, signal
+import signal
+import sys
+import time
 
 sys.setrecursionlimit(20000)
-from plasTeX.TeX import TeX
 from plasTeX.Logging import disableLogging
+from plasTeX.TeX import TeX
 
 disableLogging()
 
@@ -40,7 +42,7 @@ class TO(Exception):
 
 
 def h(s, f):
-    raise TO()
+    raise TO
 
 
 signal.signal(signal.SIGALRM, h)
@@ -55,7 +57,7 @@ for f in FILES:
         doc = tex.parse()
         n = [0]
 
-        def w(x):
+        def w(x, n=n):
             for c in getattr(x, "childNodes", []) or []:
                 n[0] += 1
                 w(c)

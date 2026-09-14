@@ -1,8 +1,6 @@
 """Minimal repro probes for TexSoup findings."""
 
 import TexSoup
-from TexSoup.utils import TC
-from TexSoup.data import TexText
 
 cases = {
     "verb-oneline-%": "\\begin{verbatim}100% real\\end{verbatim}",

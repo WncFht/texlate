@@ -3,7 +3,7 @@ import TexSoup
 src = open("/Users/fanghaotian/src/texlate/bench/fixtures/tricky-209.tex").read()
 soup = TexSoup.TexSoup(src)
 out = str(soup)
-for i, (a, b) in enumerate(zip(src, out)):
+for i, (a, b) in enumerate(zip(src, out, strict=False)):
     if a != b:
         print("diff@%d SRC %r" % (i, src[max(0, i - 30) : i + 30]))
         print("       OUT %r" % (out[max(0, i - 30) : i + 30],))

@@ -1,10 +1,12 @@
 """Time plasTeX on a few representative corpus files."""
 
-import sys, time, signal
+import signal
+import sys
+import time
 
 sys.setrecursionlimit(10000)
-from plasTeX.TeX import TeX
 from plasTeX.Logging import disableLogging
+from plasTeX.TeX import TeX
 
 disableLogging()
 
@@ -26,7 +28,7 @@ class TO(Exception):
 
 
 def h(s, f):
-    raise TO()
+    raise TO
 
 
 signal.signal(signal.SIGALRM, h)

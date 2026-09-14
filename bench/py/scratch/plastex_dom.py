@@ -1,11 +1,11 @@
 """Inspect plasTeX DOM structure on real + fixture docs."""
 
-import sys, time
+import sys
+import time
 
 sys.setrecursionlimit(10000)
-from plasTeX.TeX import TeX
 from plasTeX.Logging import disableLogging
-from plasTeX.DOM import Node
+from plasTeX.TeX import TeX
 
 disableLogging()
 

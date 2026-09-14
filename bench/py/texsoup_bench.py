@@ -6,27 +6,29 @@ Outputs:
   stdout                       fixtures 断言表 + round-trip + 泄漏率汇总
 """
 
-import json, os, signal, sys, time, traceback
+import json
+import os
+import signal
+import time
 from collections import Counter
 
 import TexSoup
 from TexSoup.data import (
-    TexExpr,
-    TexNode,
-    TexNamedEnv,
-    TexUnNamedEnv,
-    TexCmd,
-    TexText,
-    TexArgs,
-    TexMathModeEnv,
-    TexDisplayMathModeEnv,
-    TexMathEnv,
-    TexDisplayMathEnv,
     BraceGroup,
     BracketGroup,
+    TexCmd,
+    TexDisplayMathEnv,
+    TexDisplayMathModeEnv,
+    TexExpr,
+    TexMathEnv,
+    TexMathModeEnv,
+    TexNamedEnv,
+    TexNode,
+    TexText,
+    TexUnNamedEnv,
 )
-from TexSoup.utils import TC
 from TexSoup.tokens import MATH_ENV_NAMES, SKIP_ENV_NAMES
+from TexSoup.utils import TC
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # bench/
 CORPUS = os.path.join(ROOT, "corpus")
@@ -40,7 +42,7 @@ class TimeoutError_(Exception):
 
 
 def _alarm(signum, frame):
-    raise TimeoutError_()
+    raise TimeoutError_
 
 
 signal.signal(signal.SIGALRM, _alarm)
@@ -49,9 +51,9 @@ signal.signal(signal.SIGALRM, _alarm)
 def corpus_files():
     out = []
     for dirpath, _, files in os.walk(CORPUS):
-        for f in sorted(files):
-            if f.endswith(".tex"):
-                out.append(os.path.join(dirpath, f))
+        out.extend(
+            os.path.join(dirpath, f) for f in sorted(files) if f.endswith(".tex")
+        )
     return sorted(out)
 
 
@@ -128,56 +130,202 @@ def text_of_arg(arg):
 # ---------------------------------------------------------------------------
 
 # 整族不译命令: 参数与命令本身都不进可译块
-PROTECTED_CMDS = set(
-    """
-    citep citet citealp citeauthor citeyear cite citealt citealp* citep*
-    citet* citeyearpar nocite
-    ref eqref autoref cref Cref pageref nameref label vref fref
-    url path includegraphics input include includeonly
-    documentclass documentstyle usepackage RequirePackage LoadClass
-    bibliography bibliographystyle addbibresource
-    newcommand renewcommand providecommand DeclareRobustCommand
-    NewDocumentCommand RenewDocumentCommand DeclareDocumentCommand
-    newenvironment renewenvironment newtheorem def edef gdef xdef let
-    makeatletter makeatother newif ifdraft fi else drafttrue draftfalse
-    begin end item[never] setcounter addtocounter setlength
-    hspace vspace vspace* hspace* newline linebreak pagebreak
-    noindent indent centering hline cline rule
-    usetikzlibrary DeclareMathOperator DeclareMathOperator*
-    DeclareUnicodeCharacter pdfoutput jobname
-    tableofcontents listoffigures listoftables maketitle title author
-    date thanks and footnotemark footnotetext affiliation institute
-    hypersetup definecolor colorlet graphicspath
-    selectlanguage setmainfont mathversion
-    captionof subcaptionbox phantomsubcaption
-    printbibliography medskip bigskip smallskip
-    columnwidth textwidth textheight linewidth oddsidemargin
-    newcounter newlength newsavebox newenvironment
-    ensuremath mathds mathbb mathbf mathrm mathit mathsf mathtt mathcal
-    mathop operatorname limits nolimits displaylimits
-    """.split()
-)
+PROTECTED_CMDS = {
+    "citep",
+    "citet",
+    "citealp",
+    "citeauthor",
+    "citeyear",
+    "cite",
+    "citealt",
+    "citealp*",
+    "citep*",
+    "citet*",
+    "citeyearpar",
+    "nocite",
+    "ref",
+    "eqref",
+    "autoref",
+    "cref",
+    "Cref",
+    "pageref",
+    "nameref",
+    "label",
+    "vref",
+    "fref",
+    "url",
+    "path",
+    "includegraphics",
+    "input",
+    "include",
+    "includeonly",
+    "documentclass",
+    "documentstyle",
+    "usepackage",
+    "RequirePackage",
+    "LoadClass",
+    "bibliography",
+    "bibliographystyle",
+    "addbibresource",
+    "newcommand",
+    "renewcommand",
+    "providecommand",
+    "DeclareRobustCommand",
+    "NewDocumentCommand",
+    "RenewDocumentCommand",
+    "DeclareDocumentCommand",
+    "newenvironment",
+    "renewenvironment",
+    "newtheorem",
+    "def",
+    "edef",
+    "gdef",
+    "xdef",
+    "let",
+    "makeatletter",
+    "makeatother",
+    "newif",
+    "ifdraft",
+    "fi",
+    "else",
+    "drafttrue",
+    "draftfalse",
+    "begin",
+    "end",
+    "item[never]",
+    "setcounter",
+    "addtocounter",
+    "setlength",
+    "hspace",
+    "vspace",
+    "vspace*",
+    "hspace*",
+    "newline",
+    "linebreak",
+    "pagebreak",
+    "noindent",
+    "indent",
+    "centering",
+    "hline",
+    "cline",
+    "rule",
+    "usetikzlibrary",
+    "DeclareMathOperator",
+    "DeclareMathOperator*",
+    "DeclareUnicodeCharacter",
+    "pdfoutput",
+    "jobname",
+    "tableofcontents",
+    "listoffigures",
+    "listoftables",
+    "maketitle",
+    "title",
+    "author",
+    "date",
+    "thanks",
+    "and",
+    "footnotemark",
+    "footnotetext",
+    "affiliation",
+    "institute",
+    "hypersetup",
+    "definecolor",
+    "colorlet",
+    "graphicspath",
+    "selectlanguage",
+    "setmainfont",
+    "mathversion",
+    "captionof",
+    "subcaptionbox",
+    "phantomsubcaption",
+    "printbibliography",
+    "medskip",
+    "bigskip",
+    "smallskip",
+    "columnwidth",
+    "textwidth",
+    "textheight",
+    "linewidth",
+    "oddsidemargin",
+    "newcounter",
+    "newlength",
+    "newsavebox",
+    "ensuremath",
+    "mathds",
+    "mathbb",
+    "mathbf",
+    "mathrm",
+    "mathit",
+    "mathsf",
+    "mathtt",
+    "mathcal",
+    "mathop",
+    "operatorname",
+    "limits",
+    "nolimits",
+    "displaylimits",
+}
 
 # 内部文本可译的 inline 命令 (取最后一个 brace 参数或全部文本)
-INLINE_TEXT_CMDS = set(
-    """
-    emph textbf textit textsl textsc texttt textrm textsf textmd textup
-    underline uppercas e lowercase text footnote footnotemark
-    caption subcaption paragraph subparagraph
-    section subsection subsubsection chapter part
-    title author thanks
-    """.split()
-)
+INLINE_TEXT_CMDS = {
+    "emph",
+    "textbf",
+    "textit",
+    "textsl",
+    "textsc",
+    "texttt",
+    "textrm",
+    "textsf",
+    "textmd",
+    "textup",
+    "underline",
+    "uppercas",
+    "e",
+    "lowercase",
+    "text",
+    "footnote",
+    "footnotemark",
+    "caption",
+    "subcaption",
+    "paragraph",
+    "subparagraph",
+    "section",
+    "subsection",
+    "subsubsection",
+    "chapter",
+    "part",
+    "title",
+    "author",
+    "thanks",
+}
 
 # 结构内文本可译的环境
-TRANSLATABLE_ENVS = set(
-    """
-    document abstract itemize enumerate description theorem proof
-    lemma corollary proposition definition remark example figure table
-    quote quotation verse center flushleft flushright minipage
-    subequations comment
-    """.split()
-)
+TRANSLATABLE_ENVS = {
+    "document",
+    "abstract",
+    "itemize",
+    "enumerate",
+    "description",
+    "theorem",
+    "proof",
+    "lemma",
+    "corollary",
+    "proposition",
+    "definition",
+    "remark",
+    "example",
+    "figure",
+    "table",
+    "quote",
+    "quotation",
+    "verse",
+    "center",
+    "flushleft",
+    "flushright",
+    "minipage",
+    "subequations",
+    "comment",
+}
 
 VERBATIM_ENVS = set(SKIP_ENV_NAMES) | {"minted", "lstlisting*"}
 
@@ -282,9 +430,7 @@ def extract_blocks(soup, src=""):
                 flush()
             cur.append(p)
 
-    root_children = []
-    for c in soup.expr.contents:
-        root_children.append(c)
+    root_children = list(soup.expr.contents)
 
     for c in root_children:
         if isinstance(c, TexExpr):
@@ -326,8 +472,8 @@ def run_fixture_assertions():
     src_full = open(os.path.join(FIXTURES, "tricky.tex")).read()
     results = []
 
-    soup0, _, err0 = timed_parse(src_full, 0)
-    soup_full, _, err1 = timed_parse(src_full, 1)
+    _soup0, _, err0 = timed_parse(src_full, 0)
+    _soup_full, _, err1 = timed_parse(src_full, 1)
     results.append(("parse t=0", err0 is None, str(err0)[:120] if err0 else ""))
     results.append(("parse t=1", err1 is None, str(err1)[:120] if err1 else ""))
 
@@ -388,15 +534,15 @@ def run_fixture_assertions():
         return None, src, results
 
     def find_cmd(name):
-        return [n for n in soup.find_all(name)]
+        return list(soup.find_all(name))
 
     def check(tid, ok, note=""):
         results.append((tid, bool(ok), note))
 
     # T01: \be..\ee — 无宏展开, 内容应为普通文本(泄漏) — 记录 TexSoup 实际行为
     be = find_cmd("be")
-    ee = find_cmd("ee")
-    eq_envs = [n for n in soup.descendants if is_math_node(n) and "wt" in str(n)]
+    find_cmd("ee")
+    [n for n in soup.descendants if is_math_node(n) and "wt" in str(n)]
     leak_region = False
     if be:
         # 检查 \be 与 \ee 之间是否产生了可译文本 (= (M^2) 之类)
@@ -677,8 +823,8 @@ def main():
         per_file.append((row["file"], len(blocks), n, nc, leaks[:2]))
         if n:
             print("  %-50s blocks=%d leak=%d" % (row["file"], len(blocks), n))
-            for l in leaks[:2]:
-                print("      | %s" % l.replace("\n", " "))
+            for leak in leaks[:2]:
+                print("      | %s" % leak.replace("\n", " "))
     print(
         "TOTAL: %d blocks, protocol-leak=%d (%.1f%%), cmd-in-text=%d (%.1f%%)"
         % (

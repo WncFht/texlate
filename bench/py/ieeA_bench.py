@@ -16,7 +16,6 @@ import io
 import json
 import re
 import signal
-import sys
 import time
 import warnings
 from pathlib import Path
@@ -26,7 +25,7 @@ CORPUS = BENCH / "corpus"
 FIXTURES = BENCH / "fixtures"
 RESULTS = BENCH / "results"
 
-from ieeA.parser import LaTeXParser  # noqa: E402
+from ieeA.parser import LaTeXParser
 
 
 class ParseTimeout(Exception):
@@ -34,7 +33,7 @@ class ParseTimeout(Exception):
 
 
 def _alarm(signum, frame):
-    raise ParseTimeout()
+    raise ParseTimeout
 
 
 def parse_one(path: Path, timeout_s: int = 30) -> dict:
@@ -60,7 +59,7 @@ def parse_one(path: Path, timeout_s: int = 30) -> dict:
         }
     except ParseTimeout:
         return {"ok": False, "error": "Timeout(>30s)", "ms": timeout_s * 1000}
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         ms = (time.perf_counter() - t0) * 1000
         return {"ok": False, "error": f"{type(e).__name__}: {e}", "ms": round(ms, 1)}
     finally:
@@ -81,7 +80,7 @@ LEAK_PATTERNS = {
 def scan_chunks(doc):
     """Return per-chunk leak info + aggregate counts."""
     per_chunk = []
-    hits = {k: 0 for k in LEAK_PATTERNS}
+    hits = dict.fromkeys(LEAK_PATTERNS, 0)
     leaked = 0
     for c in doc.chunks:
         if c.context == "protected":
@@ -123,7 +122,10 @@ def orphan_chunk_ids(doc) -> int:
 def classify_recon(orig: str, recon: str):
     if orig == recon:
         return "identical", 1.0, -1
-    norm = lambda s: re.sub(r"\s+", " ", s).strip()
+
+    def norm(s):
+        return re.sub(r"\s+", " ", s).strip()
+
     if norm(orig) == norm(recon):
         return "normalized", 1.0, -1
     # first diff position (cheap)
@@ -478,7 +480,7 @@ def main():
 
     total_chunks = 0
     total_leaked = 0
-    hits_total = {k: 0 for k in LEAK_PATTERNS}
+    hits_total = dict.fromkeys(LEAK_PATTERNS, 0)
     t_all = time.perf_counter()
 
     for path, group in all_files:

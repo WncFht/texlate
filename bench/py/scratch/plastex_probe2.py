@@ -1,8 +1,10 @@
 """Probe plasTeX part 2: find the recursion culprit in tricky.tex."""
 
-import sys, time
-from plasTeX.TeX import TeX
+import sys
+import time
+
 from plasTeX.Logging import disableLogging
+from plasTeX.TeX import TeX
 
 disableLogging()
 

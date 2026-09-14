@@ -1,8 +1,10 @@
 """Probe plasTeX behavior on individual tricky constructs."""
 
-import sys, time
-from plasTeX.TeX import TeX
+import sys
+import time
+
 from plasTeX.Logging import disableLogging
+from plasTeX.TeX import TeX
 
 disableLogging()
 

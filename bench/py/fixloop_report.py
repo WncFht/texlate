@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 r"""
 fixloop_report.py — 汇总 fixloop-results.json × compile-bench.json,
 出 bench/results/fixloop-spike-report.md (中文)。
@@ -12,8 +11,8 @@ fixloop_report.py — 汇总 fixloop-results.json × compile-bench.json,
 
 import json
 import os
-from pathlib import Path
 from collections import Counter, defaultdict
+from pathlib import Path
 
 BENCH = Path(os.path.expanduser("~/src/texlate/bench")).resolve()
 RES = BENCH / "results"
@@ -59,23 +58,23 @@ def main():
             orig[(pn, cond)] = x
 
     lines = []
-    A = lines.append
-    A("# 编译自动修复循环 spike 报告")
-    A("")
+    emit = lines.append
+    emit("# 编译自动修复循环 spike 报告")
+    emit("")
     m = fix["meta"]
-    A(f"- 日期: {m['date']}  |  引擎: {m['engine']}  |  最大轮数: {m['max_rounds']}")
-    A(
+    emit(f"- 日期: {m['date']}  |  引擎: {m['engine']}  |  最大轮数: {m['max_rounds']}")
+    emit(
         f"- 环境: `{m['texmf_mode']}` TEXMFHOME (每格独立沙箱, 复现 TeXLive basic 裸环境)  "
         f"|  静态预检: {m['precheck']}"
     )
-    A(f"- clean 阈值: pdf 且 '!' 错误 ≤ {m['clean_err_max']}")
-    A(f"- 脚本: `bench/py/fixloop.py`  数据: `bench/results/fixloop-results.json`")
-    A(f"- 对照组: `compile-bench.json` 原始 xelatex(暖环境) 结果")
-    A("")
+    emit(f"- clean 阈值: pdf 且 '!' 错误 ≤ {m['clean_err_max']}")
+    emit("- 脚本: `bench/py/fixloop.py`  数据: `bench/results/fixloop-results.json`")
+    emit("- 对照组: `compile-bench.json` 原始 xelatex(暖环境) 结果")
+    emit("")
 
     # ---------- 总表 ----------
-    A("## 1. 自动救回率")
-    A("")
+    emit("## 1. 自动救回率")
+    emit("")
     n = len(cells)
     n_orig_fail = sum(
         1 for c in cells if not orig.get((c["project"], c["cond"]), {}).get("pdf")
@@ -87,49 +86,49 @@ def main():
     ]
     rescued_clean = [c for c in rescued if (c["final_errors"] or 0) <= 3]
     rejects = [c for c in cells if c["verdict"] == "reject_latex209"]
-    A("| 口径 | 数 | 率 |")
-    A("|---|---|---|")
-    A(f"| 总格数 (12项目×3条件) | {n} | |")
-    A(f"| 原始 xelatex 即失败(无pdf) | {n_orig_fail} | |")
-    A(
+    emit("| 口径 | 数 | 率 |")
+    emit("|---|---|---|")
+    emit(f"| 总格数 (12项目×3条件) | {n} | |")
+    emit(f"| 原始 xelatex 即失败(无pdf) | {n_orig_fail} | |")
+    emit(
         f"| **循环救回 pdf** | **{len(rescued)}** | "
         f"**{len(rescued)}/{n_orig_fail} = {len(rescued) / max(n_orig_fail, 1) * 100:.0f}%** |"
     )
-    A(
+    emit(
         f"| 救回且干净(≤3错) | {len(rescued_clean)} | "
         f"{len(rescued_clean) / max(n_orig_fail, 1) * 100:.0f}% |"
     )
-    A(f"| 路由拒绝(hep-th, 不算救回) | {len(rejects)} | |")
+    emit(f"| 路由拒绝(hep-th, 不算救回) | {len(rejects)} | |")
     n_pdf = sum(1 for c in cells if c["final_pdf"])
     n_clean = sum(1 for c in cells if c["verdict"] == "clean")
     n_ok = sum(1 for c in cells if c["verdict"] in ("clean", "acceptable_pdf"))
-    A(f"| 终态出pdf总格 | {n_pdf} | {n_pdf}/{n} |")
-    A(f"| 终态 clean(0错) | {n_clean} | |")
-    A(f"| 终态可接受(≤3错) | {n_ok} | |")
-    A("")
+    emit(f"| 终态出pdf总格 | {n_pdf} | {n_pdf}/{n} |")
+    emit(f"| 终态 clean(0错) | {n_clean} | |")
+    emit(f"| 终态可接受(≤3错) | {n_ok} | |")
+    emit("")
 
     # ---------- 逐格矩阵 ----------
-    A("## 2. 逐格矩阵")
-    A("")
-    A("| 项目 | 条件 | 原始xelatex | 首错类别 | 轮数 | 装包 | 终态 | 错误数 |")
-    A("|---|---|---|---|---|---|---|---|")
+    emit("## 2. 逐格矩阵")
+    emit("")
+    emit("| 项目 | 条件 | 原始xelatex | 首错类别 | 轮数 | 装包 | 终态 | 错误数 |")
+    emit("|---|---|---|---|---|---|---|---|")
     for c in cells:
         key = (c["project"], c["cond"])
         o = orig.get(key, {})
         otag = "FAIL" if not o.get("pdf") else ("clean" if o.get("clean") else "pdf~")
         r0 = c["rounds"][0] if c["rounds"] else {}
         v = VERDICT_CN.get(c["verdict"], c["verdict"] or "?")
-        A(
+        emit(
             f"| {c['project']} | {c['cond']} | {otag} | "
             f"{r0.get('category')}:{r0.get('payload') or ''} | "
             f"{len(c['rounds'])} | {len(c.get('installed', []))} | {v} | "
             f"{r0.get('n_errors')}→{c.get('final_errors')} |"
         )
-    A("")
+    emit("")
 
     # ---------- 分类统计 ----------
-    A("## 3. 按首错类别的修复成功率")
-    A("")
+    emit("## 3. 按首错类别的修复成功率")
+    emit("")
     by_cat = defaultdict(list)
     for c in cells:
         r0 = c["rounds"][0] if c["rounds"] else {}
@@ -139,19 +138,19 @@ def main():
             ext = str(r0["payload"]).rsplit(".", 1)[-1]
             cat0 = f"missing_{ext}"
         by_cat[cat0].append(c)
-    A("| 首错类别 | 格数 | 救回pdf | 干净(≤3错) | 主要动作 |")
-    A("|---|---|---|---|---|")
+    emit("| 首错类别 | 格数 | 救回pdf | 干净(≤3错) | 主要动作 |")
+    emit("|---|---|---|---|---|")
     for cat, cs in sorted(by_cat.items()):
         nr = sum(1 for c in cs if c["final_pdf"])
         nc = sum(1 for c in cs if (c["final_errors"] or 0) <= 3)
         rules = Counter(a["rule"] for c in cs for a in c["actions"] if a["round"] > 0)
         top = ", ".join(f"{k}×{v}" for k, v in rules.most_common(3))
-        A(f"| {cat} | {len(cs)} | {nr} | {nc} | {top} |")
-    A("")
+        emit(f"| {cat} | {len(cs)} | {nr} | {nc} | {top} |")
+    emit("")
 
     # ---------- 规则触发统计 ----------
-    A("## 4. 规则表与触发统计")
-    A("")
+    emit("## 4. 规则表与触发统计")
+    emit("")
     fire = Counter()
     success = defaultdict(set)
     for c in cells:
@@ -159,41 +158,41 @@ def main():
             fire[a["rule"]] += 1
             if c["final_pdf"]:
                 success[a["rule"]].add((c["project"], c["cond"]))
-    A("| 规则 | 触发次数 | 所在格最终出pdf | 说明 |")
-    A("|---|---|---|---|")
+    emit("| 规则 | 触发次数 | 所在格最终出pdf | 说明 |")
+    emit("|---|---|---|---|")
     for rid, doc in RULE_DOC.items():
         f = fire.get(rid, 0)
         s = len(success.get(rid, ()))
-        A(f"| `{rid}` | {f} | {s} | {doc} |")
-    A("")
+        emit(f"| `{rid}` | {f} | {s} | {doc} |")
+    emit("")
 
     # ---------- 修不动 ----------
-    A("## 5. 修不动的 case")
-    A("")
+    emit("## 5. 修不动的 case")
+    emit("")
     bad = [c for c in cells if not c["final_pdf"] and c["verdict"] != "reject_latex209"]
     if not bad:
-        A("(除路由拒绝对象外全部出pdf)")
+        emit("(除路由拒绝对象外全部出pdf)")
     for c in bad:
         r0 = c["rounds"][0] if c["rounds"] else {}
         last = c["rounds"][-1] if c["rounds"] else {}
-        A(
+        emit(
             f"- **{c['project']}/{c['cond']}** verdict=`{c['verdict']}` "
             f"首错 `{r0.get('category')}:{r0.get('payload')}` → "
             f"终错 `{last.get('category')}:{last.get('payload')}` "
             f"({last.get('n_errors')} errs)"
         )
-        for l in (c.get("log") or [])[-4:]:
-            A(f"  - `{l}`")
+        for logln in (c.get("log") or [])[-4:]:
+            emit(f"  - `{logln}`")
     dirty = [c for c in cells if c["final_pdf"] and (c["final_errors"] or 0) > 3]
     if dirty:
-        A("")
-        A("带错出pdf (>3错, 未达 clean 阈值):")
+        emit("")
+        emit("带错出pdf (>3错, 未达 clean 阈值):")
         for c in dirty:
-            A(
+            emit(
                 f"- {c['project']}/{c['cond']}: {c['final_errors']} errs "
                 f"终错 `{c.get('final_cat')}`"
             )
-    A("")
+    emit("")
     (RES / "fixloop-spike-report.md").write_text("\n".join(lines), encoding="utf-8")
     print("wrote", RES / "fixloop-spike-report.md")
 

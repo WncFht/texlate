@@ -1,6 +1,9 @@
 """Analyze TexSoup round-trip divergences and parse failures on corpus."""
 
-import json, os, sys
+import json
+import os
+from contextlib import suppress
+
 import TexSoup
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -18,8 +21,8 @@ def first_diffs(a, b, k=5):
             continue
         # find resync: scan ahead in both
         found = None
-        for di in range(0, 80):
-            for dj in range(0, 80):
+        for di in range(80):
+            for dj in range(80):
                 if a[i + di : i + di + 20] == b[j + dj : j + dj + 20] and di + dj > 0:
                     found = (di, dj)
                     break
@@ -41,13 +44,14 @@ for r in rows:
         continue
     f = os.path.join(ROOT, r["file"])
     src = open(f, encoding="utf-8", errors="replace").read()
-    try:
+    soup = None
+    with suppress(Exception):
         soup = TexSoup.TexSoup(src)
-    except Exception:
-        try:
+    if soup is None:
+        with suppress(Exception):
             soup = TexSoup.TexSoup(src, tolerance=1)
-        except Exception:
-            continue
+    if soup is None:
+        continue
     out = str(soup)
     diffs, la, lb = first_diffs(src, out)
     print(

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 pylatexenc benchmark per bench/PROTOCOL.md.
 
@@ -12,14 +11,12 @@ Usage:
     python bench_pylatexenc.py all        # everything -> results/pylatexenc-parse.json
 """
 
+import json
+import multiprocessing as mp
 import os
 import re
 import sys
-import json
 import time
-import signal
-import traceback
-import multiprocessing as mp
 
 BENCH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CORPUS = os.path.join(BENCH, "corpus")
@@ -27,21 +24,18 @@ FIXTURES = os.path.join(BENCH, "fixtures")
 RESULTS = os.path.join(BENCH, "results")
 
 import pylatexenc
+from pylatexenc import macrospec
 from pylatexenc.latexwalker import (
-    LatexWalker,
     LatexCharsNode,
-    LatexGroupNode,
     LatexCommentNode,
-    LatexMacroNode,
     LatexEnvironmentNode,
-    LatexSpecialsNode,
+    LatexGroupNode,
+    LatexMacroNode,
     LatexMathNode,
-    LatexWalkerError,
-    LatexWalkerParseError,
-    LatexWalkerEndOfStream,
+    LatexSpecialsNode,
+    LatexWalker,
     get_default_latex_context_db,
 )
-from pylatexenc import macrospec
 
 PYLATEXENC_VERSION = pylatexenc.__version__
 
@@ -273,19 +267,19 @@ def parse_string(s, tolerant_parsing=True, strict_braces=False, latex_context=No
 
 def _parse_worker(path, q):
     try:
-        with open(path, "r", encoding="utf-8", errors="replace") as f:
+        with open(path, encoding="utf-8", errors="replace") as f:
             s = f.read()
     except Exception as e:
         q.put({"ok": False, "error": "READ:" + repr(e)})
         return
     res = {"size": len(s)}
     for mode, kw in (
-        ("tol", dict(tolerant_parsing=True)),
-        ("strict", dict(tolerant_parsing=False, strict_braces=True)),
+        ("tol", {"tolerant_parsing": True}),
+        ("strict", {"tolerant_parsing": False, "strict_braces": True}),
     ):
         t0 = time.perf_counter()
         try:
-            nodelist, pos, nlen = parse_string(s, **kw)
+            nodelist, _pos, nlen = parse_string(s, **kw)
             res[mode + "_ok"] = True
             res[mode + "_ms"] = round((time.perf_counter() - t0) * 1000, 1)
             res[mode + "_nodes"] = len(nodelist)
@@ -339,8 +333,7 @@ def run_parse(files, timeout=30):
 
 def marker_spans(s):
     """Return list of (tag, start_pos) for each % @Tnn marker + EOF."""
-    marks = [(m.group(1), m.end()) for m in re.finditer(r"% @(T\d+\w*)", s)]
-    return marks
+    return [(m.group(1), m.end()) for m in re.finditer(r"% @(T\d+\w*)", s)]
 
 
 def nodes_in_span(nodelist, a, b):
@@ -402,7 +395,7 @@ def check_fixtures():
 
     # T02: \dR — math macro used inside $..$ and in text
     a, b = span("T02")
-    dR = find_macros(nodelist, s, a, b, {"dR"})
+    dr = find_macros(nodelist, s, a, b, {"dR"})
     checks["T02"] = {
         "desc": r"\dR = \mathbb{R} newcommand",
         "occurrences": [
@@ -414,7 +407,7 @@ def check_fixtures():
                     else None
                 ),
             }
-            for n, c, p in dR
+            for n, c, p in dr
         ],
         "parsed_as": "MacroNode, no args (unknown-macro spec)",
         "verdict": "info",
@@ -453,7 +446,7 @@ def check_fixtures():
     ref_names = {"ref", "eqref", "autoref", "cref", "pageref", "nameref", "label"}
     key_in_args = {}
     key_leaks = []
-    for n, cont, parent in find_macros(nodelist, s, a, b, cite_names | ref_names):
+    for n, _cont, _parent in find_macros(nodelist, s, a, b, cite_names | ref_names):
         args = arg_nodes(n)
         last = args[-1] if args else None
         key = (
@@ -475,7 +468,7 @@ def check_fixtures():
     keyre = re.compile(
         r"(vaswani2017|kingma2015|he2016|devlin2019|fig:x|eq:main|sec:a|thm:main)"
     )
-    for n, parent, cont in walk(nodes_in_span(nodelist, a, b)):
+    for n, _parent, cont in walk(nodes_in_span(nodelist, a, b)):
         if cont == "marg":
             continue  # inside a macro argument -> protected
         if isinstance(n, LatexCharsNode) and n.chars and keyre.search(n.chars):
@@ -497,7 +490,7 @@ def check_fixtures():
     a, b = span("T05")
     secs = find_macros(nodelist, s, a, b, {"section"})
     info = []
-    for n, cont, p in secs:
+    for n, _cont, _p in secs:
         args = arg_nodes(n)
         info.append(
             {
@@ -556,7 +549,7 @@ def check_fixtures():
     urls = find_macros(nodelist, s, a, b, {"url"})
     verbs = find_macros(nodelist, s, a, b, {"verb"})
     uinfo = []
-    for n, cont, p in urls:
+    for n, _cont, _p in urls:
         args = arg_nodes(n)
         g = args[-1] if args else None
         uinfo.append(
@@ -600,7 +593,7 @@ def check_fixtures():
     a, b = span("T09")
     auth = find_macros(nodelist, s, a, b, {"author", "thanks", "and"})
     ainfo = []
-    for n, cont, p in auth:
+    for n, cont, _p in auth:
         args = arg_nodes(n)
         ainfo.append(
             {
@@ -740,7 +733,7 @@ def check_fixtures():
     a, b = span("T22")
     href = find_macros(nodelist, s, a, b, {"href"})
     hinfo = []
-    for n, c, p in href:
+    for n, _c, _p in href:
         hinfo.append(
             {
                 "n_args": len(arg_nodes(n)),
@@ -788,7 +781,7 @@ def check_fixtures():
     }
 
     # T19 abstract, T21 includegraphics, T26 \[ \(, T29 footnote
-    for tag, names in (
+    for tag, _names in (
         ("T19", None),
         ("T21", {"includegraphics"}),
         ("T26", None),
@@ -869,7 +862,7 @@ def check_roundtrip(path):
     s = open(path, encoding="utf-8", errors="replace").read()
     rec = {"file": os.path.relpath(path, BENCH), "size": len(s)}
     try:
-        nodelist, pos, nlen = parse_string(s)
+        nodelist, _pos, _nlen = parse_string(s)
     except Exception as e:
         rec["status"] = "parse_error"
         rec["error"] = repr(e)[:200]
@@ -911,7 +904,7 @@ def check_roundtrip(path):
 # ---------------------------------------------------------------------------
 
 
-class Extractor(object):
+class Extractor:
     r"""paragraph-level translatable block extraction on top of pylatexenc AST.
 
     Produces blocks: list of {'text': str-with-placeholders, 'protected': {...},
@@ -981,7 +974,7 @@ class Extractor(object):
             self.flush()
             self.protect(n)
             return
-        if name in TEXT_ENVS or True:
+        if True:
             # translatable env: keep \begin..\end markers out, process body
             self.flush()
             self.process(n.nodelist, "env")
@@ -1133,12 +1126,13 @@ def check_newcommand():
                     "user:" + macname, macros=[spec], prepend=True
                 )
                 newps = parsing_state.sub_context(latex_context=newctx)
-                return (argd, apos, alen, {"new_parsing_state": newps})
             except Exception as e:
                 import sys as _s
 
                 print("hook exc", e, file=_s.stderr)
                 return (argd, apos, alen, {})
+            else:
+                return (argd, apos, alen, {"new_parsing_state": newps})
 
     ctx = get_default_latex_context_db()
     ctx.add_context_category(
@@ -1184,34 +1178,36 @@ def run_damage(files):
             out.append(rec)
             continue
         dmg = []
-        for n, p, c in walk(nl):
+        for n, _p, c in walk(nl):
             end = node_end(n)
-            if isinstance(n, LatexEnvironmentNode) and c in ("marg", "group"):
-                if n.len > 2000 or end >= len(s) - 2:
-                    dmg.append(
-                        {
-                            "kind": "env_in_arg",
-                            "env": n.environmentname,
-                            "pos": n.pos,
-                            "len": end - n.pos,
-                            "pct": round(100 * (end - n.pos) / len(s), 1),
-                        }
-                    )
+            if (
+                isinstance(n, LatexEnvironmentNode)
+                and c in ("marg", "group")
+                and (n.len > 2000 or end >= len(s) - 2)
+            ):
+                dmg.append(
+                    {
+                        "kind": "env_in_arg",
+                        "env": n.environmentname,
+                        "pos": n.pos,
+                        "len": end - n.pos,
+                        "pct": round(100 * (end - n.pos) / len(s), 1),
+                    }
+                )
             if (
                 isinstance(n, LatexGroupNode)
                 and end >= len(s) - 1
                 and not s.rstrip().endswith("}")
-            ):
-                if end - n.pos > 200:
-                    dmg.append(
-                        {
-                            "kind": "group_to_eof",
-                            "pos": n.pos,
-                            "len": end - n.pos,
-                            "pct": round(100 * (end - n.pos) / len(s), 1),
-                            "head": s[n.pos : n.pos + 50],
-                        }
-                    )
+            ) and end - n.pos > 200:
+                dmg.append(
+                    {
+                        "kind": "group_to_eof",
+                        "pos": n.pos,
+                        "len": end - n.pos,
+                        "pct": round(100 * (end - n.pos) / len(s), 1),
+                        "head": s[n.pos : n.pos + 50],
+                    }
+                )
         if dmg:
             rec["damage"] = dmg
         out.append(rec)
@@ -1225,9 +1221,7 @@ def corpus_files():
     fs = []
     for root, dirs, names in os.walk(CORPUS):
         dirs.sort()
-        for nm in sorted(names):
-            if nm.endswith(".tex"):
-                fs.append(os.path.join(root, nm))
+        fs.extend(os.path.join(root, nm) for nm in sorted(names) if nm.endswith(".tex"))
     return fs
 
 

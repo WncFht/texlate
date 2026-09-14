@@ -23,7 +23,7 @@ FIXTURES = BENCH / "fixtures"
 RESULTS = BENCH / "results"
 
 sys.path.insert(0, str(Path(__file__).parent))
-import miniscanner as ms  # noqa: E402
+import miniscanner as ms
 
 
 class ParseTimeout(Exception):
@@ -31,7 +31,7 @@ class ParseTimeout(Exception):
 
 
 def _alarm(signum, frame):
-    raise ParseTimeout()
+    raise ParseTimeout
 
 
 def parse_one(path: Path, timeout_s: int = 30, flatten: bool = True) -> dict:
@@ -44,7 +44,7 @@ def parse_one(path: Path, timeout_s: int = 30, flatten: bool = True) -> dict:
         return {"ok": True, "res": res, "ms": round(ms_, 1)}
     except ParseTimeout:
         return {"ok": False, "error": "Timeout(>30s)", "ms": timeout_s * 1000}
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         ms_ = (time.perf_counter() - t0) * 1000
         return {"ok": False, "error": f"{type(e).__name__}: {e}", "ms": round(ms_, 1)}
     finally:
@@ -64,7 +64,7 @@ LEAK_PATTERNS = {
 
 def scan_chunks(res: ms.ScanResult):
     per_chunk = []
-    hits = {k: 0 for k in LEAK_PATTERNS}
+    hits = dict.fromkeys(LEAK_PATTERNS, 0)
     leaked = 0
     for c in res.chunks:
         found = [name for name, rx in LEAK_PATTERNS.items() if rx.search(c.content)]
@@ -103,7 +103,10 @@ def orphan_chunk_ids(res: ms.ScanResult) -> int:
 def classify_recon(orig: str, recon: str):
     if orig == recon:
         return "identical", 1.0, -1
-    norm = lambda s: re.sub(r"\s+", " ", s).strip()
+
+    def norm(s):
+        return re.sub(r"\s+", " ", s).strip()
+
     if norm(orig) == norm(recon):
         return "normalized", 1.0, -1
     i = 0
@@ -431,7 +434,7 @@ def main():
 
     parsed = {}
     total_chunks = total_leaked = 0
-    hits_total = {k: 0 for k in LEAK_PATTERNS}
+    hits_total = dict.fromkeys(LEAK_PATTERNS, 0)
     recon_stats = {"identical": 0, "normalized": 0, "diverged": 0}
     t_all = time.perf_counter()
 

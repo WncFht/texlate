@@ -6,13 +6,16 @@ Outputs:
   stdout                       fixtures/DOM 断言 + 速度 + 文本提取
 """
 
-import json, os, re, signal, sys, time
-from collections import Counter
+import json
+import os
+import signal
+import sys
+import time
 
 sys.setrecursionlimit(20000)
-from plasTeX.TeX import TeX
+from plasTeX.DOM import Text
 from plasTeX.Logging import disableLogging
-from plasTeX.DOM import Node, Text
+from plasTeX.TeX import TeX
 
 disableLogging()
 
@@ -28,7 +31,7 @@ class TimeoutError_(Exception):
 
 
 def _alarm(signum, frame):
-    raise TimeoutError_()
+    raise TimeoutError_
 
 
 signal.signal(signal.SIGALRM, _alarm)
@@ -37,9 +40,9 @@ signal.signal(signal.SIGALRM, _alarm)
 def corpus_files():
     out = []
     for dirpath, _, files in os.walk(CORPUS):
-        for f in sorted(files):
-            if f.endswith(".tex"):
-                out.append(os.path.join(dirpath, f))
+        out.extend(
+            os.path.join(dirpath, f) for f in sorted(files) if f.endswith(".tex")
+        )
     return sorted(out)
 
 
@@ -76,33 +79,95 @@ def timed_parse_str(src):
 # DOM helpers
 # ---------------------------------------------------------------------------
 
-MATH_TAGS = set(
-    """
-    math displaymath equation equation* eqnarray eqnarray* align align*
-    alignat alignat* array displaymath flalign flalign* gather gather*
-    multline multline* split dmath mathmode inlineequation subequations
-    """.split()
-)
+MATH_TAGS = {
+    "math",
+    "displaymath",
+    "equation",
+    "equation*",
+    "eqnarray",
+    "eqnarray*",
+    "align",
+    "align*",
+    "alignat",
+    "alignat*",
+    "array",
+    "flalign",
+    "flalign*",
+    "gather",
+    "gather*",
+    "multline",
+    "multline*",
+    "split",
+    "dmath",
+    "mathmode",
+    "inlineequation",
+    "subequations",
+}
 
-VERBATIM_TAGS = set(
-    "verbatim lstlisting minted listing Verbatim alltt filecontents".split()
-)
+VERBATIM_TAGS = {
+    "verbatim",
+    "lstlisting",
+    "minted",
+    "listing",
+    "Verbatim",
+    "alltt",
+    "filecontents",
+}
 
 # 命令节点: 其渲染文本不算可译正文 (key/label/结构)
-PROTECTED_TAGS = set(
-    """
-    cite citep citet citealp citeauthor citeyear citealt citeyearpar
-    citenum citeonline nocite
-    ref eqref autoref cref Cref pageref nameref label vref
-    url path hyperref includegraphics input include bibliography
-    bibliographystyle documentclass documentstyle usepackage
-    newcommand renewcommand providecommand def edef gdef xdef
-    NewDocumentCommand newtheorem newenvironment let
-    makeatletter makeatother begin end par
-    footnotemark footnotetext label refstepcounter
-    documentclass usetikzlibrary
-    """.split()
-)
+PROTECTED_TAGS = {
+    "cite",
+    "citep",
+    "citet",
+    "citealp",
+    "citeauthor",
+    "citeyear",
+    "citealt",
+    "citeyearpar",
+    "citenum",
+    "citeonline",
+    "nocite",
+    "ref",
+    "eqref",
+    "autoref",
+    "cref",
+    "Cref",
+    "pageref",
+    "nameref",
+    "label",
+    "vref",
+    "url",
+    "path",
+    "hyperref",
+    "includegraphics",
+    "input",
+    "include",
+    "bibliography",
+    "bibliographystyle",
+    "documentclass",
+    "documentstyle",
+    "usepackage",
+    "newcommand",
+    "renewcommand",
+    "providecommand",
+    "def",
+    "edef",
+    "gdef",
+    "xdef",
+    "NewDocumentCommand",
+    "newtheorem",
+    "newenvironment",
+    "let",
+    "makeatletter",
+    "makeatother",
+    "begin",
+    "end",
+    "par",
+    "footnotemark",
+    "footnotetext",
+    "refstepcounter",
+    "usetikzlibrary",
+}
 
 
 def walk_dom(node):
@@ -360,7 +425,7 @@ def main():
             nodes = list(walk_dom(doc))
             row["nodes"] = len(nodes)
             row["equations"] = sum(1 for n in nodes if tag_of(n) in MATH_TAGS)
-            src_out = getattr(doc, "source", "")
+            getattr(doc, "source", "")
             row["textlen"] = len(doc.textContent or "")
         rows.append(row)
         print(
@@ -391,7 +456,7 @@ def main():
 
     # ---------- fixtures ----------
     print("\n== fixtures ==")
-    doc_fx, fx_rows = fixture_assertions()
+    _doc_fx, fx_rows = fixture_assertions()
     for tid, ok, note in fx_rows:
         print("  %-18s %-4s %s" % (tid, "PASS" if ok else "FAIL", note))
 
@@ -451,8 +516,8 @@ def main():
         tot_l += n
         if n:
             print("  %-50s blocks=%d leak=%d" % (row["file"], len(blocks), n))
-            for l in leaks[:2]:
-                print("      | %s" % l.replace("\n", " ")[:100])
+            for leak in leaks[:2]:
+                print("      | %s" % leak.replace("\n", " ")[:100])
     print(
         "TOTAL: %d blocks, leak=%d (%.1f%%)"
         % (tot_b, tot_l, 100.0 * tot_l / max(tot_b, 1))

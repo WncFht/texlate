@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 macro_scan.py — 统计 arXiv 语料中 LaTeX 高级构造使用频率.
 输出 results/macro-stats.json
 """
 
-import os, re, json, sys
-from collections import defaultdict, Counter
+import json
+import os
+import re
+from collections import Counter, defaultdict
 
 CORPUS = os.path.expanduser("~/src/texlate/bench/corpus")
 OUT = os.path.expanduser("~/src/texlate/bench/results/macro-stats.json")
@@ -43,12 +44,11 @@ def blank_literal_bodies(text):
                 out.append(line)
                 continue
             out.append(line)
+        elif re.search(r"\\end\s*\{%s\}" % re.escape(lit_env), line):
+            lit_env = None
+            out.append(line)
         else:
-            if re.search(r"\\end\s*\{%s\}" % re.escape(lit_env), line):
-                lit_env = None
-                out.append(line)
-            else:
-                out.append("")
+            out.append("")
     return "\n".join(out)
 
 
@@ -162,13 +162,19 @@ def extract_defs(text):
         i = skip_ws(text, m.end())
         name, i = read_group_or_name(text, i)
         nargs, i = read_bracket(text, i)
-        default, i = read_bracket(text, i)
+        _default, i = read_bracket(text, i)
         i2 = skip_ws(text, i)
         body = ""
         if i2 < n and text[i2] == "{":
             body, i = read_balanced(text, i2)
         defs.append(
-            dict(kind=m.group(1), name=name, nargs=nargs, body=body, pos=m.start())
+            {
+                "kind": m.group(1),
+                "name": name,
+                "nargs": nargs,
+                "body": body,
+                "pos": m.start(),
+            }
         )
 
     # 2) \newenvironment / \renewenvironment
@@ -176,7 +182,7 @@ def extract_defs(text):
         i = skip_ws(text, m.end())
         name, i = read_group_or_name(text, i)
         nargs, i = read_bracket(text, i)
-        default, i = read_bracket(text, i)
+        _default, i = read_bracket(text, i)
         i2 = skip_ws(text, i)
         beg = end = ""
         if i2 < n and text[i2] == "{":
@@ -185,13 +191,13 @@ def extract_defs(text):
             if i2 < n and text[i2] == "{":
                 end, i = read_balanced(text, i2)
         defs.append(
-            dict(
-                kind=m.group(1),
-                name=name,
-                nargs=nargs,
-                body=beg + "\x00" + end,
-                pos=m.start(),
-            )
+            {
+                "kind": m.group(1),
+                "name": name,
+                "nargs": nargs,
+                "body": beg + "\x00" + end,
+                "pos": m.start(),
+            }
         )
 
     # 3) xparse \NewDocumentCommand 等
@@ -210,7 +216,13 @@ def extract_defs(text):
         if i2 < n and text[i2] == "{":
             body, i = read_balanced(text, i2)
         defs.append(
-            dict(kind=m.group(1), name=name, nargs=spec, body=body, pos=m.start())
+            {
+                "kind": m.group(1),
+                "name": name,
+                "nargs": spec,
+                "body": body,
+                "pos": m.start(),
+            }
         )
 
     # 4) \DeclareMathOperator / \DeclareMathOperator*
@@ -222,7 +234,13 @@ def extract_defs(text):
         if i2 < n and text[i2] == "{":
             body, i = read_balanced(text, i2)
         defs.append(
-            dict(kind=m.group(1), name=name, nargs=None, body=body, pos=m.start())
+            {
+                "kind": m.group(1),
+                "name": name,
+                "nargs": None,
+                "body": body,
+                "pos": m.start(),
+            }
         )
 
     # 5) \def / \gdef / \edef / \xdef (含 \long\def)
@@ -253,23 +271,33 @@ def extract_defs(text):
         if j < n and text[j] == "{":
             body, _ = read_balanced(text, j)
         defs.append(
-            dict(
-                kind=m.group(1), name=m.group(2), nargs=params, body=body, pos=m.start()
-            )
+            {
+                "kind": m.group(1),
+                "name": m.group(2),
+                "nargs": params,
+                "body": body,
+                "pos": m.start(),
+            }
         )
 
     # 6) \let / \newif / \newtheorem / \newcount 等 (无体或特殊)
-    for m in re.finditer(r"\\let\s*\\([a-zA-Z@]+|.)", text):
-        defs.append(
-            dict(kind="let", name=m.group(1), nargs=None, body="", pos=m.start())
+    defs.extend(
+        {"kind": "let", "name": m.group(1), "nargs": None, "body": "", "pos": m.start()}
+        for m in re.finditer(r"\\let\s*\\([a-zA-Z@]+|.)", text)
+    )
+    defs.extend(
+        {
+            "kind": m.group(1),
+            "name": m.group(2),
+            "nargs": None,
+            "body": "",
+            "pos": m.start(),
+        }
+        for m in re.finditer(
+            r"\\(newif|newcount|newlength|newtoks|newbox|newdimen|newskip|newcounter|newsavebox|newread|newwrite|newmuskip)\s*\\([a-zA-Z@]+)",
+            text,
         )
-    for m in re.finditer(
-        r"\\(newif|newcount|newlength|newtoks|newbox|newdimen|newskip|newcounter|newsavebox|newread|newwrite|newmuskip)\s*\\([a-zA-Z@]+)",
-        text,
-    ):
-        defs.append(
-            dict(kind=m.group(1), name=m.group(2), nargs=None, body="", pos=m.start())
-        )
+    )
     for m in re.finditer(r"\\newtheorem\s*\*?", text):
         i = skip_ws(text, m.end())
         name, i = read_group_or_name(text, i)
@@ -279,7 +307,13 @@ def extract_defs(text):
         if i2 < n and text[i2] == "{":
             title, i = read_balanced(text, i2)
         defs.append(
-            dict(kind="newtheorem", name=name, nargs=None, body=title, pos=m.start())
+            {
+                "kind": "newtheorem",
+                "name": name,
+                "nargs": None,
+                "body": title,
+                "pos": m.start(),
+            }
         )
     # 7) \newlist / \DeclarePairedDelimiter 等杂项声明
     for m in re.finditer(
@@ -288,7 +322,15 @@ def extract_defs(text):
     ):
         if m.group(1) == "DeclareRobustCommand":
             continue  # 已在(1)
-        defs.append(dict(kind=m.group(1), name="", nargs=None, body="", pos=m.start()))
+        defs.append(
+            {
+                "kind": m.group(1),
+                "name": "",
+                "nargs": None,
+                "body": "",
+                "pos": m.start(),
+            }
+        )
 
     defs.sort(key=lambda d: d["pos"])
     return defs
@@ -407,7 +449,7 @@ CMD_PATTERNS = {
     "twooptarg_cmds": re.compile(r"\\(subcaption|sidecaption)\b"),
     "customflags": re.compile(
         r"\\(ifdraft|iffinal|ifsubmission|ifarxiv|ifpreprint|ifshort|iflong|ifcamready|ifcamera|ifnotes|ifcomments|ifappendix|ifsupp|ifrebuttal|ifanonym|ifanonymous|ifextended|iffull|ifconf|ifjournal|ifacmlarge|ifsoc|\w*@draft|@\w*if)\b",
-        re.I,
+        re.IGNORECASE,
     ),
 }
 
@@ -477,9 +519,7 @@ def scan_file(path):
     # 特征
     feats = {}
     for k, pat in CMD_PATTERNS.items():
-        if k == "cite_tokens":
-            feats[k] = Counter(m.group(1) for m in pat.finditer(clean))
-        elif k == "if_tokens":
+        if k in {"cite_tokens", "if_tokens"}:
             feats[k] = Counter(m.group(1) for m in pat.finditer(clean))
         elif k == "begin_env":
             feats[k] = Counter(
@@ -494,11 +534,7 @@ def scan_file(path):
                 for p in m.group(2).split(","):
                     cnt[p.strip()] += 1
             feats[k] = cnt
-        elif k == "sec_opt":
-            feats[k] = Counter(m.group(1) for m in pat.finditer(clean))
-        elif k == "input_inc":
-            feats[k] = Counter(m.group(1) for m in pat.finditer(clean))
-        elif k == "bibliography":
+        elif k in {"sec_opt", "input_inc", "bibliography"}:
             feats[k] = Counter(m.group(1) for m in pat.finditer(clean))
         else:
             feats[k] = len(pat.findall(clean))
@@ -520,7 +556,13 @@ def scan_file(path):
     )
     # \begin{document} 位置 → 定义在正文中的比例
     docpos = clean.find("\\begin{document}")
-    return dict(defs=defs, feats=feats, docpos=docpos, raw=raw, clean=clean), None
+    return {
+        "defs": defs,
+        "feats": feats,
+        "docpos": docpos,
+        "raw": raw,
+        "clean": clean,
+    }, None
 
 
 def line_of(text, pos):
@@ -529,7 +571,7 @@ def line_of(text, pos):
 
 def main():
     papers = defaultdict(list)  # paper_id -> [relpath]
-    for root, dirs, files in os.walk(CORPUS):
+    for root, _dirs, files in os.walk(CORPUS):
         for fn in files:
             if fn.endswith(".tex"):
                 full = os.path.join(root, fn)
@@ -567,18 +609,18 @@ def main():
                 d["body_snip"] = (d.get("body") or "")[:300]
                 d["cleaned_snip"] = cleaned[:200]
                 for f in flags:
-                    ex = dict(
-                        paper=paper,
-                        file=rel,
-                        line=d["line"],
-                        kind=d["kind"],
-                        name=d["name"],
-                        body=d["body_snip"],
-                        cleaned=d["cleaned_snip"],
-                    )
+                    ex = {
+                        "paper": paper,
+                        "file": rel,
+                        "line": d["line"],
+                        "kind": d["kind"],
+                        "name": d["name"],
+                        "body": d["body_snip"],
+                        "cleaned": d["cleaned_snip"],
+                    }
                     if len(all_def_examples.setdefault(f, [])) < 60:
                         all_def_examples[f].append(ex)
-            p["files"][rel] = dict(feats=data["feats"], defs=data["defs"])
+            p["files"][rel] = {"feats": data["feats"], "defs": data["defs"]}
         per_paper[paper] = p
 
     def aggregate(exclude_impl):
@@ -591,7 +633,7 @@ def main():
         input_hist = Counter()
         bib_hist = Counter()
         lit_hist = Counter()
-        kind_cov = Counter()
+        Counter()
         kind_tot = Counter()
         kind_papers = defaultdict(set)
         flag_totals = Counter()
@@ -731,7 +773,7 @@ def main():
             files_per_paper[pp] = nfiles
             # defs
             ndefs = 0
-            for rel, fr in p["files"].items():
+            for fr in p["files"].values():
                 feats = fr["feats"]
                 if exclude_impl and feats["is_impl"]:
                     continue
@@ -751,7 +793,7 @@ def main():
                 papers_with_any_def += 1
             # cites
             c = Counter()
-            for rel, fr in p["files"].items():
+            for fr in p["files"].values():
                 if exclude_impl and fr["feats"]["is_impl"]:
                     continue
                 c.update(fr["feats"].get("cite_tokens", {}))
@@ -764,7 +806,7 @@ def main():
                 papers_biblatex += 1
             if bs:
                 papers_basic += 1
-            cite_pp[pp] = dict(natbib=nb, biblatex=bl, basic=bs, raw=dict(c))
+            cite_pp[pp] = {"natbib": nb, "biblatex": bl, "basic": bs, "raw": dict(c)}
             # sec opt
             so = sum(
                 fr["feats"].get("sec_opt", {}).get("section", 0)
@@ -777,7 +819,7 @@ def main():
                 sec_opt_papers += 1
             # ifs
             iftok = Counter()
-            for rel, fr in p["files"].items():
+            for fr in p["files"].values():
                 if exclude_impl and fr["feats"]["is_impl"]:
                     continue
                 iftok.update(fr["feats"].get("if_tokens", {}))
@@ -823,7 +865,7 @@ def main():
             if nfiles > 1:
                 papers_gt1 += 1
             ii = Counter()
-            for rel, fr in p["files"].items():
+            for fr in p["files"].values():
                 if exclude_impl and fr["feats"]["is_impl"]:
                     continue
                 ii.update(fr["feats"].get("input_inc", {}))
@@ -831,7 +873,7 @@ def main():
                 papers_input += 1
             # math longtail
             envs = Counter()
-            for rel, fr in p["files"].items():
+            for fr in p["files"].values():
                 if exclude_impl and fr["feats"]["is_impl"]:
                     continue
                 envs.update(fr["feats"].get("begin_env", {}))
@@ -864,68 +906,68 @@ def main():
             ):
                 fontspec_papers.append(pp)
             # odd
-            for k in odd:
+            for k, ov in odd.items():
                 v = sum(
                     fr["feats"].get(k, 0)
                     for fr in p["files"].values()
                     if not (exclude_impl and fr["feats"]["is_impl"])
                 )
-                odd[k][1] += v
+                ov[1] += v
                 if v:
-                    odd[k][0] += 1
+                    ov[0] += 1
 
-        return dict(
-            n_papers=len(per_paper),
-            n_tex=ntex,
-            tot_lines=tot_lines,
-            impl_files=sorted(set(impl_files)),
-            files_per_paper=files_per_paper,
-            def_kind_tot=dict(kind_tot),
-            def_kind_papers={k: len(v) for k, v in kind_papers.items()},
-            papers_with_any_def=papers_with_any_def,
-            total_defs=total_defs,
-            defs_in_body=defs_in_body,
-            defs_per_paper=defs_per_paper,
-            flag_totals=dict(flag_totals),
-            flag_papers={k: len(v) for k, v in flag_papers.items()},
-            flag_kind={"%s|%s" % k: v for k, v in flag_kind.items()},
-            cite=dict(
-                natbib_papers=papers_natbib,
-                biblatex_papers=papers_biblatex,
-                basic_papers=papers_basic,
-                hist=dict(cite_hist.most_common(40)),
-                per_paper=cite_pp,
-            ),
-            sec_opt=dict(
-                hist=dict(sec_opt_hist),
-                total=sum(sec_opt_hist.values()),
-                papers=sec_opt_papers,
-            ),
-            if_hist=dict(if_hist.most_common(80)),
-            if_papers=if_papers,
-            else_papers=else_papers,
-            fi_papers=fi_papers,
-            makeatletter_papers=mal_papers,
-            makeatletter_total=mal_total,
-            verb_papers=verb_papers,
-            verb_total=verb_total,
-            literal_envs=dict(lit_hist),
-            literal_env_papers=litenv_papers,
-            minted_papers=minted_papers,
-            papers_gt1file=papers_gt1,
-            papers_input_include=papers_input,
-            input_hist=dict(input_hist),
-            math_env_hist=dict(sorted(math_env_hist.items(), key=lambda x: -x[1])),
-            papers_math_longtail=papers_longtail,
-            env_hist_top=dict(env_hist_all.most_common(60)),
-            documentstyle_papers=docstyle_papers,
-            inputenc_papers=inputenc_papers,
-            fontenc_papers=fontenc_papers,
-            fontspec_papers=fontspec_papers,
-            odd={k: dict(papers=v[0], total=v[1]) for k, v in odd.items()},
-            bib_hist=dict(bib_hist),
-            pkg_top=dict(pkg_hist.most_common(60)),
-        )
+        return {
+            "n_papers": len(per_paper),
+            "n_tex": ntex,
+            "tot_lines": tot_lines,
+            "impl_files": sorted(set(impl_files)),
+            "files_per_paper": files_per_paper,
+            "def_kind_tot": dict(kind_tot),
+            "def_kind_papers": {k: len(v) for k, v in kind_papers.items()},
+            "papers_with_any_def": papers_with_any_def,
+            "total_defs": total_defs,
+            "defs_in_body": defs_in_body,
+            "defs_per_paper": defs_per_paper,
+            "flag_totals": dict(flag_totals),
+            "flag_papers": {k: len(v) for k, v in flag_papers.items()},
+            "flag_kind": {"%s|%s" % k: v for k, v in flag_kind.items()},
+            "cite": {
+                "natbib_papers": papers_natbib,
+                "biblatex_papers": papers_biblatex,
+                "basic_papers": papers_basic,
+                "hist": dict(cite_hist.most_common(40)),
+                "per_paper": cite_pp,
+            },
+            "sec_opt": {
+                "hist": dict(sec_opt_hist),
+                "total": sum(sec_opt_hist.values()),
+                "papers": sec_opt_papers,
+            },
+            "if_hist": dict(if_hist.most_common(80)),
+            "if_papers": if_papers,
+            "else_papers": else_papers,
+            "fi_papers": fi_papers,
+            "makeatletter_papers": mal_papers,
+            "makeatletter_total": mal_total,
+            "verb_papers": verb_papers,
+            "verb_total": verb_total,
+            "literal_envs": dict(lit_hist),
+            "literal_env_papers": litenv_papers,
+            "minted_papers": minted_papers,
+            "papers_gt1file": papers_gt1,
+            "papers_input_include": papers_input,
+            "input_hist": dict(input_hist),
+            "math_env_hist": dict(sorted(math_env_hist.items(), key=lambda x: -x[1])),
+            "papers_math_longtail": papers_longtail,
+            "env_hist_top": dict(env_hist_all.most_common(60)),
+            "documentstyle_papers": docstyle_papers,
+            "inputenc_papers": inputenc_papers,
+            "fontenc_papers": fontenc_papers,
+            "fontspec_papers": fontspec_papers,
+            "odd": {k: {"papers": v[0], "total": v[1]} for k, v in odd.items()},
+            "bib_hist": dict(bib_hist),
+            "pkg_top": dict(pkg_hist.most_common(60)),
+        }
 
     summary_all = aggregate(False)
     summary_clean = aggregate(True)
@@ -936,12 +978,12 @@ def main():
     # per-paper defs 明细(轻量)
     result["papers"] = {}
     for pp, p in per_paper.items():
-        result["papers"][pp] = dict(
-            files={
-                rel: dict(is_impl=fr["feats"]["is_impl"], lines=fr["feats"]["lines"])
+        result["papers"][pp] = {
+            "files": {
+                rel: {"is_impl": fr["feats"]["is_impl"], "lines": fr["feats"]["lines"]}
                 for rel, fr in p["files"].items()
             },
-            defs=[
+            "defs": [
                 {
                     k: d[k]
                     for k in (
@@ -960,12 +1002,12 @@ def main():
                 for fr in p["files"].values()
                 for d in fr["defs"]
             ],
-            errors=p["errors"],
-        )
+            "errors": p["errors"],
+        }
 
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "w", encoding="utf-8") as f:
-        json.dump(result, f, ensure_ascii=False, indent=1, default=lambda o: dict(o))
+        json.dump(result, f, ensure_ascii=False, indent=1, default=dict)
     print("wrote", OUT)
     for name, s in (("ALL", summary_all), ("CLEAN(no impl)", summary_clean)):
         print("========", name)

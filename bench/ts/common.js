@@ -39,7 +39,7 @@ function markerLines(src) {
 
 // Region (byte range) belonging to a trap: from the marker line to the next marker line.
 function trapRegions(src) {
-    const { markers, lineOffsets, lines } = markerLines(src);
+    const { markers, lines } = markerLines(src);
     const regions = [];
     for (let i = 0; i < markers.length; i++) {
         const start = markers[i].offset;

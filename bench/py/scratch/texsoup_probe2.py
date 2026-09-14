@@ -1,8 +1,7 @@
 """Find which node kind carries the %% comment text in iclr2016."""
 
 import TexSoup
-from TexSoup.utils import TC
-from TexSoup.data import TexText, TexExpr
+from TexSoup.data import TexExpr
 
 src = open(
     "/Users/fanghaotian/src/texlate/bench/corpus/1511.06432/iclr2016_conference.tex"
@@ -17,14 +16,16 @@ def walk(e, path):
     s = None
     for c in getattr(e, "contents", []) or []:
         if isinstance(c, TexExpr):
-            walk(c, path + [type(e).__name__ + ":" + str(getattr(e, "name", ""))])
+            walk(c, [*path, type(e).__name__ + ":" + str(getattr(e, "name", ""))])
     for a in getattr(e, "args", []) or []:
         for c in getattr(a, "contents", []) or []:
             if isinstance(c, TexExpr):
                 walk(
                     c,
-                    path
-                    + [type(e).__name__ + ":" + str(getattr(e, "name", "")) + "/arg"],
+                    [
+                        *path,
+                        type(e).__name__ + ":" + str(getattr(e, "name", "")) + "/arg",
+                    ],
                 )
     try:
         s = str(e)
