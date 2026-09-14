@@ -20,6 +20,9 @@ repos:
         entry: ./node_modules/.bin/git-format-staged --formatter "autocorrect --stdin | ./node_modules/.bin/prettier --stdin-filepath {}"
         language: system
         types: [markdown]
+        # bench/results/ 是脚本产出目录：gfs 走 stdin 不吃 .prettierignore，
+        # 显式划出防 regen-commit 循环格式化 churn
+        exclude: "^bench/results/"
       - id: prettier-yaml
         name: prettier (staged content)
         entry: ./node_modules/.bin/git-format-staged --formatter "./node_modules/.bin/prettier --stdin-filepath {}"
@@ -30,6 +33,7 @@ repos:
         entry: ./node_modules/.bin/git-format-staged --formatter "./node_modules/.bin/prettier --stdin-filepath {}"
         language: system
         files: '\.(jsx?|mjs|cjs|json)$'
+        exclude: "^bench/results/"
       - id: shfmt
         name: shfmt (staged content; zsh passthrough)
         entry: ./node_modules/.bin/git-format-staged --formatter "bash scripts/fmt-shell.sh"
