@@ -1,0 +1,452 @@
+[
+ {
+  "file": "1412.6980/arxiv.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "1511.06432/iclr2016_conference.tex",
+  "status": "diverged",
+  "detail": "first-diff@byte24 out.len=36720 src.len=41199 out[\"\\\\usepackage{iclr2016_conferenc\"] src[\"% For LaTeX2e\\n\\\\usepackage{iclr\"]"
+ },
+ {
+  "file": "1512.03385/residual_v1_arxiv_release.tex",
+  "status": "diverged",
+  "detail": "first-diff@byte19 out.len=66147 src.len=69687 out[\" , twocolumn , letterpaper]{ar\"] src[\",twocolumn,letterpaper]{articl\"]"
+ },
+ {
+  "file": "1706.03762/background.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "1706.03762/introduction.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "1706.03762/model_architecture.tex",
+  "status": "serializer-bug",
+  "detail": ""
+ },
+ {
+  "file": "1706.03762/ms.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "1706.03762/parameter_attention.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "1706.03762/results.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "1706.03762/sqrt_d_trick.tex",
+  "status": "serializer-bug",
+  "detail": ""
+ },
+ {
+  "file": "1706.03762/training.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "1706.03762/visualizations.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "1706.03762/why_self_attention.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "1810.04805/ablation.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "1810.04805/abstract.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "1810.04805/appendix_main.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "1810.04805/bert.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "1810.04805/bert_details.tex",
+  "status": "serializer-bug",
+  "detail": ""
+ },
+ {
+  "file": "1810.04805/conclusion.tex",
+  "status": "normalized-nocomments",
+  "detail": ""
+ },
+ {
+  "file": "1810.04805/direction_ablation_tab.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "1810.04805/experiment.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "1810.04805/experiments_details.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "1810.04805/glue_official_tab.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "1810.04805/intro.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "1810.04805/main.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "1810.04805/mask_procedure_ablation_tab.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "1810.04805/more_ablation.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "1810.04805/pretrained_embeddings_tab.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "1810.04805/related.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "1810.04805/size_ablation_tab.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "1810.04805/squad_tab.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "1810.04805/steps_ablation_fig.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "1810.04805/swag_official_tab.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "1906.08237/abstract.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "1906.08237/appendix.tex",
+  "status": "serializer-bug",
+  "detail": ""
+ },
+ {
+  "file": "1906.08237/conc.tex",
+  "status": "normalized-nocomments",
+  "detail": ""
+ },
+ {
+  "file": "1906.08237/custom.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "1906.08237/exp.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "1906.08237/intro.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "1906.08237/model.tex",
+  "status": "serializer-bug",
+  "detail": ""
+ },
+ {
+  "file": "1906.08237/neurips_2019.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "1906.08237/related.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "1906.08237/symbol.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "2005.11401/abstract.tex",
+  "status": "normalized-nocomments",
+  "detail": ""
+ },
+ {
+  "file": "2005.11401/appendix.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "2005.11401/comment_engine.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "2005.11401/experiments.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "2005.11401/intro.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "2005.11401/methods.tex",
+  "status": "serializer-bug",
+  "detail": ""
+ },
+ {
+  "file": "2005.11401/neurips_2020.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "2005.11401/related.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "2005.11401/results.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "2005.11401/tables/main_results.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "2106.09685/expt.tex",
+  "status": "serializer-bug",
+  "detail": ""
+ },
+ {
+  "file": "2106.09685/iclr2022_conference.tex",
+  "status": "serializer-bug",
+  "detail": ""
+ },
+ {
+  "file": "2106.09685/math_commands.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "2203.02155/automatic-eval-prompts.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "2203.02155/automatic_evals_table.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "2203.02155/model-samples.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "2203.02155/neurips_2021.tex",
+  "status": "diverged",
+  "detail": "first-diff@byte23 out.len=138929 src.len=149181 out[\"\\\\par\\\\usepackage[final]{neurips\"] src[\"\\n\\n\\\\usepackage[final]{neurips_2\"]"
+ },
+ {
+  "file": "2203.02155/usecases-gpt.tex",
+  "status": "diverged",
+  "detail": "first-diff@byte50 out.len=4237 src.len=9840 out[\"\\\\toprule Use Case & Example\\\\\\\\\\\\\"] src[\"\\n\\\\toprule\\n      Use Case &    \"]"
+ },
+ {
+  "file": "2203.02155/usecases-if.tex",
+  "status": "diverged",
+  "detail": "first-diff@byte50 out.len=5767 src.len=17979 out[\"\\\\toprule Use Case & Example\\\\\\\\\\\\\"] src[\"\\n\\\\toprule\\n      Use Case &    \"]"
+ },
+ {
+  "file": "2305.14335/0_abstract.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "2305.14335/1_introduction_IEEE.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "2305.14335/2_relatedworks.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "2305.14335/3_methods.tex",
+  "status": "serializer-bug",
+  "detail": ""
+ },
+ {
+  "file": "2305.14335/4_experiments.tex",
+  "status": "serializer-bug",
+  "detail": ""
+ },
+ {
+  "file": "2305.14335/5_conclusion.tex",
+  "status": "identical",
+  "detail": ""
+ },
+ {
+  "file": "2305.14335/main.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "2501.14787/lectures/0-Introduction.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "2501.14787/lectures/01-Overview.tex",
+  "status": "serializer-bug",
+  "detail": ""
+ },
+ {
+  "file": "2501.14787/lectures/02-Derivatives-LinearOperators.tex",
+  "status": "serializer-bug",
+  "detail": ""
+ },
+ {
+  "file": "2501.14787/lectures/03-TwobyTwoJacobians.tex",
+  "status": "serializer-bug",
+  "detail": ""
+ },
+ {
+  "file": "2501.14787/lectures/04-FiniteDifferences.tex",
+  "status": "serializer-bug",
+  "detail": ""
+ },
+ {
+  "file": "2501.14787/lectures/05-Derivatives-GeneralVectorSpaces.tex",
+  "status": "serializer-bug",
+  "detail": ""
+ },
+ {
+  "file": "2501.14787/lectures/06-RootFinding-Optimization-Adjoints.tex",
+  "status": "serializer-bug",
+  "detail": ""
+ },
+ {
+  "file": "2501.14787/lectures/07-Derivative-MatrixDet-Inverse.tex",
+  "status": "diverged",
+  "detail": "first-diff@byte28 out.len=6071 src.len=6367 out[\"\\\\par This section of notes fol\"] src[\"\\n\\nThis section of notes follow\"]"
+ },
+ {
+  "file": "2501.14787/lectures/08-Forward-Reverse-AD.tex",
+  "status": "serializer-bug",
+  "detail": ""
+ },
+ {
+  "file": "2501.14787/lectures/09-DifferentiatingODESolutions.tex",
+  "status": "serializer-bug",
+  "detail": ""
+ },
+ {
+  "file": "2501.14787/lectures/10-CalculusofVariations.tex",
+  "status": "diverged",
+  "detail": "first-diff@byte186 out.len=11096 src.len=11473 out[\" , which form a perfectly good\"] src[\", which form a perfectly good \"]"
+ },
+ {
+  "file": "2501.14787/lectures/11-Derivatives-RandomFunctions.tex",
+  "status": "serializer-bug",
+  "detail": ""
+ },
+ {
+  "file": "2501.14787/lectures/12-SecondDerivatives-BilinearMaps-Hessian.tex",
+  "status": "serializer-bug",
+  "detail": ""
+ },
+ {
+  "file": "2501.14787/lectures/13-Derivatives-Eigenproblems.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "2501.14787/lectures/14-WhereWeGoFromHere.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "2501.14787/main.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "2501.14787/psets/Pset1.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ },
+ {
+  "file": "2501.14787/psets/Pset1sol.tex",
+  "status": "parse-error",
+  "detail": "SyntaxError: Expected \"Big\", \"Bigg\", \"\\\\\", \"autoref\", \"begin\", \"big\", \"bigg\", \"cref\", \"eqref\", \"label\", \"left\", \"linebreak\", \"newline"
+ },
+ {
+  "file": "2501.14787/psets/Pset2.tex",
+  "status": "serializer-bug",
+  "detail": ""
+ },
+ {
+  "file": "2501.14787/psets/Pset2sol.tex",
+  "status": "serializer-bug",
+  "detail": ""
+ },
+ {
+  "file": "hep-th/9901001/imamura2.tex",
+  "status": "ws+comment+par-only",
+  "detail": ""
+ }
+]

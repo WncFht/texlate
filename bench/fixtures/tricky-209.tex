@@ -1,0 +1,15 @@
+% LaTeX 2.09 old-style fixture (pre-1994 format, still on arXiv e.g. hep-th/9901001)
+\documentstyle[epsf,seceq,preprint]{ptptex}
+\def\Im{\mathop{\rm Im}\nolimits}
+\def\Tr{\mathop{\rm Tr}\nolimits}
+\newcommand{\wt}{\widetilde}
+\newcommand{\beq}{\begin{equation}}
+\newcommand{\eeq}{\end{equation}}
+\begin{document}
+\title{Old Style Paper}
+\author{Some Author}
+\maketitle
+Text with old \def macros and \rm roman font switches.
+\beq \Im z = \Tr \wt{M} \eeq
+Old font commands like {\bf bold} and {\it italic} without braces-arg.
+\end{document}

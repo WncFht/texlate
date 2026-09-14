@@ -1,0 +1,175 @@
+{
+  "T01": {
+    "expect": "macro-expanded math env protected",
+    "status": "FAIL(leak)",
+    "evidence": "\\be nodes=2, \\ee nodes=2 as bare macros (no env). mathenv count=2. leaked blocks: [\"\\\\def\\\\wt\\\\widetilde \\\\def\\\\Tr\\\\mathop\\\\rm Tr\\\\nolimits\",\"The key result is \\\\be \\\\wtA = \\\\Tr(M^2) \\\\ee which uses \\\\dR and \\\\vectv macros inside text too.\"]"
+  },
+  "T02": {
+    "expect": "protected (math-producing macro)",
+    "status": "partial",
+    "evidence": "\\dR use sites=3; not expandable-aware — bare macro node; empty {} group leaks nothing text-wise; in-math use protected by inlinemath node. leak blocks w/ \\dR token: 1"
+  },
+  "T03": {
+    "expect": "recognized as macro definition, not translated",
+    "status": "partial",
+    "evidence": "\\def parsed as bare macro (no signature in ctan). \\def\\Tr{\\mathop{\\rm Tr}\\nolimits}: body group holds string 'Tr' -> leaks to translatable text: [\"\\\\def\\\\wt\\\\widetilde \\\\def\\\\Tr\\\\mathop\\\\rm Tr\\\\nolimits\",\"A Tricky Test supported by nobody1Alice Smithalice@x.org \\\\and Bob Jones \\\\today\",\"ShortA Very Long Section Title That Should Still Translate\",\"The key result is \\\\be \\\\wtA = \\\\Tr(M^2) \\\\ee which uses \\\\dR and \\\\vectv macros inside text too.\"]"
+  },
+  "T04": {
+    "expect": "all cite/ref keys protected",
+    "status": "FAIL(keys leak)",
+    "evidence": "arg counts per macro {citep:[0] citet:[0] citealp:[0] citeauthor:[0] citeyear:[0] cite:[] ref:[2] eqref:[1] autoref:[2] cref:[2] pageref:[2] nameref:[0] label:[3,3]}. keys leaked into translatable text: [\"vaswani2017\",\"kingma2015\",\"he2016\",\"devlin2019\",\"sec:a\"]. Also optional args of unattached macros leak: [\"P"
+  },
+  "T05": {
+    "expect": "long title translatable, optional short also text",
+    "status": "pass",
+    "evidence": "\\section args (4): [\"\",\"\",\"[Short]\",\"{A Very Long Section Title That}\"]; title arg reaches translatable: true"
+  },
+  "T06": {
+    "expect": "verbatim content protected, % not comment",
+    "status": "pass(caveat)",
+    "evidence": "\\begin{verbatim} → node.type='verbatim' raw content '100% real data'; \\begin{lstlisting} → PEG verbatim rule matched BUT processEnvironment retagged as node.type='environment' (lstlisting has ctan envInfo sig 'o'); content still raw string [\"\\ncode%with%percent\\n\"] — protect by ENV NAME not node.type. % leaked: true"
+  },
+  "T07": {
+    "expect": "url protected % not truncated; verb protected",
+    "status": "FAIL",
+    "evidence": "\\url arg content='{'; verb nodes=1 content=[\"\\\\verb|a%b|\"]"
+  },
+  "T08": {
+    "expect": "comments excluded, \\% kept, no crash",
+    "status": "pass",
+    "evidence": "comment nodes=33: [\" Tricky LaTeX constructs benchmark fixture.\",\" Each case marked % @Tnn — parser benchmark asserts per mark\",\" Design goal: should still compile under xelatex (except not\",\" @T01 \\\\newcommand expanding to a math ENVIRONMENT (the \\\\be/\\\\\",\" @T02 \\\\newcommand producing math content inline\",\" @T03 \\\\def macro (TeX primitive)\",\" @T16 xparse \\\\NewDocumentCommand\",\" @T25 \\\\makeatletter region with @-macros\",\" @T09 author block with optional arg + \\\\and + \\\\thanks\",\" @T19 abstract environment\",\" @T05 section with optional short title\",\" @T04 natbib citation family (all must be protected, keys mu\",\" @T26 display math \\\\[ \\\\] and inline \\\\( \\\\)\",\" @T01 usage: macro-expanded math env — a naive parser sees r\",\" @T10 less-common math environments\",\" @T11 theorem with optional name bracket\",\" @T23 inline formatting commands — inner text SHOULD transla\",\" @T22 \\\\href — url protected, anchor text translatable\",\" @T21 includegraphics with options\",\" @T18 caption inside protected figure env — caption SHOULD t\",\" @T12 footnote inside caption\",\" @T20 translatable environments\",\" @T07 url containing literal percent (comment-stripper trap)\",\"20b%20c.pdf} now.\",\" @T06 single-line verbatim containing % (breaks naive commen\",\" @T08 comment edge cases\",\" a comment with { unbalanced brace and $x^2$ math\",\" followed by real comment\",\" @T13 conditional compilation\",\" @T27 accents and unicode-ish commands\",\" @T17 math \\\\text{} contains real text\",\" @T29 footnote standalone\",\" @T24 bibliography variants\"]; \\% as macro nodes=1; comments in translatable flat: false"
+  },
+  "T09": {
+    "expect": "protected or configurable",
+    "status": "info",
+    "evidence": "\\author args=2: [\"[1]\",\"{Alice Smith\\\\thanks{alice@x.org} \\\\and Bob Jones}\"]. thanks nodes=2, \\and=1 (bare). Author text currently goes to translatable (config-dependent)."
+  },
+  "T10": {
+    "expect": "protected",
+    "status": "pass",
+    "evidence": "env list: [\"environment:document\",\"environment:abstract\",\"environment:subequations\",\"mathenv:align\",\"mathenv:flalign\",\"environment:theorem\",\"environment:figure\",\"environment:table\",\"environment:tabular\",\"environment:itemize\",\"environment:enumerate\",\"environment:description\",\"verbatim:verbatim\",\"environment:lstlisting\"]. align node type=mathenv (mathenv=parsed-in-math). flalign type=mathenv. subequations type=environment (generic env, content regular-mode)"
+  },
+  "T11": {
+    "expect": "body translatable, env preserved, opt arg handled",
+    "status": "pass",
+    "evidence": "theorem env found=true args=[\"[Main Result]\"] bodyTranslatable=true"
+  },
+  "T12": {
+    "expect": "footnote text translatable",
+    "status": "pass",
+    "evidence": "captions=[\"\\\\caption{A figure with \\\\emph{emphasis} and math $x^{2}$.}\",\"\\\\caption{Results table\\\\footnote{computed by hand}}\"]; footnote-in-caption=true; footnote arg reachable=true"
+  },
+  "T13": {
+    "expect": "no crash; inner text translatable = bonus",
+    "status": "pass",
+    "evidence": "\\newif=1 \\ifdraft=2 \\else=1 \\fi=1 all bare macros; draftText translatable=true, finalText translatable=true (BOTH branches extracted — pipeline must decide semantics)"
+  },
+  "T14": {
+    "expect": "flatten recursively; commented \\input not expanded",
+    "status": "info",
+    "evidence": "tricky.tex has no \\input/\\include use sites (nodes: 0/0); see T14-multi for the real test. Library performs NO file IO — flattening must be done by caller before or after parse (arg positions allow source-level substitution)."
+  },
+  "T16": {
+    "expect": "no leak, no crash",
+    "status": "partial",
+    "evidence": "\\NewDocumentCommand args=3 (m m m attached); use-site \\vect bare macro + {v} group → 'v' leaks as text: [\"The key result is \\\\be \\\\wtA = \\\\Tr(M^2) \\\\ee which uses \\\\dR and \\\\vectv macros inside text too.\"]"
+  },
+  "T17": {
+    "expect": "protected with math",
+    "status": "pass",
+    "evidence": "inlinemath containing \\text: true; 'if and only if' in translatable blocks: false []"
+  },
+  "T18": {
+    "expect": "caption translatable, figure structure kept",
+    "status": "pass",
+    "evidence": "figure env found=true, caption inside=1, caption text translatable=true; \\label inside figure protected=true"
+  },
+  "T20": {
+    "expect": "item text translatable",
+    "status": "pass",
+    "evidence": "\\item count=5 args=[[\"\",\"\",\"\",\" First item with $x$\"],[\"\",\"\",\"\",\" Second item.\"],[\"\",\"\",\"\",\" Numbered one.\"],[\"\",\"\",\"\",\" Numbered two.\"],[\"\",\"[Term]\",\"\",\" Its definition here\"]]; item bodies translatable=true; [Term] opt arg: [\"\",\"\",\"\",\" Numbered one.\"]"
+  },
+  "T22": {
+    "expect": "url protected, text translatable",
+    "status": "pass",
+    "evidence": "\\href args=[\"\",\"{https://example.com}\",\"{the documentation}\"] (sig 'o m m' → opt,url,text); url in translatable=false; anchor text translatable=true"
+  },
+  "T23": {
+    "expect": "inner text translatable",
+    "status": "pass",
+    "evidence": "emph/textbf/textit args reach blocks: emph=true textbf=true textit=true"
+  },
+  "T24": {
+    "expect": "no crash",
+    "status": "pass",
+    "evidence": "\\bibliography args=1 arg=refs; 'refs' in translatable=false"
+  },
+  "T25": {
+    "expect": "no crash",
+    "status": "pass",
+    "evidence": "@-macros reparsed inside \\makeatletter region: [\"@ifnextchar\",\"@with\",\"@without\"] (reparseExpl3AndAtLetterRegions detects the region)"
+  },
+  "T26": {
+    "expect": "protected",
+    "status": "pass",
+    "evidence": "displaymath nodes=1 (\\[...\\] → displaymath type), inlinemath=6 (\\(...\\) → inlinemath); leaked math text: []"
+  },
+  "T27": {
+    "expect": "kept as text",
+    "status": "pass",
+    "evidence": "accent macros=[\"^\",\"^\",\"^\",\"'\",\"\\\"\",\"~\",\"'\"]; \\'e → macro ' + string 'e' (letter NOT swallowed). printRaw round-trips: true"
+  },
+  "T29": {
+    "expect": "footnote text translatable",
+    "status": "pass",
+    "evidence": "footnote arg translatable=true"
+  },
+  "T19": {
+    "expect": "abstract text translatable",
+    "status": "pass",
+    "evidence": "abstract env node=true (generic env type, no ctan info); text translatable=true"
+  },
+  "T21": {
+    "expect": "protected",
+    "status": "pass",
+    "evidence": "\\includegraphics args=[\"\",\"[width=0.5\\\\textwidth]\",\"\",\"{figs/plot.pdf}\"]; path in translatable=false"
+  },
+  "T-209": {
+    "parse": "ok",
+    "documentstyle": "\\documentstyle bare macro + args unattached: [\"\\\\documentstyle[epsf,seceq,preprint]ptptex \\\\def\\\\Im\\\\mathop\\\\rm Im\\\\nolimits \\\\def\\\\Tr\\\\mathop\\\\rm Tr\\\\nolimits    \"]",
+    "defHandling": "\\def nodes=3 (bare); \\beq usage leaks: [\"\\\\documentstyle[epsf,seceq,preprint]ptptex \\\\def\\\\Im\\\\mathop\\\\rm Im\\\\nolimits \\\\def\\\\Tr\\\\mathop\\\\rm Tr\\\\nolimits    \",\"Old Style Paper Some Author \\\\maketitle Text with old \\\\def macros and \\\\rm roman font switches. \\\\beq \\\\Im z = \\\\Tr \\\\wtM \\\\eeq Old font commands like \\\\bf bold and \\\\it italic without braces-arg.\"]",
+    "oldFontSwitches": "{\\bf bold} group → 'bold' translatable=true; \\rm/\\bf/\\it bare macros=3,1,1"
+  },
+  "T14-multi": {
+    "expect": "flatten input/include recursively; commented \\input not expanded",
+    "status": "info",
+    "evidence": "\\input=1 arg=sub/intro, \\include=1 arg=sub/methods; commented \\input inside comment node=true. Library performs NO filesystem expansion — caller must pre-flatten or post-process `input` args."
+  },
+  "expansion": {
+    "newcommandsFound": [
+      "be:",
+      "ee:",
+      "dR:",
+      "vect:m",
+      "secretmacro:"
+    ],
+    "expandOk": "partial",
+    "expandedMacros": [
+      "be",
+      "ee",
+      "dR",
+      "secretmacro"
+    ],
+    "failedMacros": [
+      "vect:Cannot read properties of undefined (reading 'charCodeAt')"
+    ],
+    "mathenvAfterReparse": 3,
+    "mathenvNames": [
+      "equation",
+      "align",
+      "flalign"
+    ],
+    "eqContent": "\\wt{A}= \\Tr(M^{2})",
+    "note": "\\def-defined macros (\\wt,\\Tr) not collected by listNewcommands → stay unexpanded (fine inside mathenv). '#1' param bodies crash the expander — per-macro try/catch needed."
+  }
+}

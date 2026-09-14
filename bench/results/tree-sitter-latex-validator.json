@@ -1,0 +1,114 @@
+[
+ {
+  "case": "delete-}",
+  "corruptedAt": 60,
+  "hasError": true,
+  "errorCount": 1,
+  "errors": [
+   {
+    "type": "ERROR",
+    "start": 0,
+    "end": 132,
+    "row": 0
+   }
+  ],
+  "localizedNearCorruption": true
+ },
+ {
+  "case": "env-name-mismatch",
+  "corruptedAt": 108,
+  "hasError": false,
+  "errorCount": 0,
+  "errors": [],
+  "localizedNearCorruption": false
+ },
+ {
+  "case": "unclosed-$",
+  "corruptedAt": 25,
+  "hasError": true,
+  "errorCount": 1,
+  "errors": [
+   {
+    "type": "MISSING",
+    "start": 56,
+    "end": 56,
+    "row": 3
+   }
+  ],
+  "localizedNearCorruption": true
+ },
+ {
+  "case": "dangling-end",
+  "corruptedAt": 69,
+  "hasError": false,
+  "errorCount": 0,
+  "errors": [],
+  "localizedNearCorruption": false
+ },
+ {
+  "case": "missing-end",
+  "corruptedAt": 103,
+  "hasError": true,
+  "errorCount": 1,
+  "errors": [
+   {
+    "type": "ERROR",
+    "start": 24,
+    "end": 117,
+    "row": 1
+   }
+  ],
+  "localizedNearCorruption": true
+ },
+ {
+  "case": "unclosed-group",
+  "corruptedAt": 21,
+  "hasError": true,
+  "errorCount": 1,
+  "errors": [
+   {
+    "type": "ERROR",
+    "start": 21,
+    "end": 51,
+    "row": 1
+   }
+  ],
+  "localizedNearCorruption": true
+ },
+ {
+  "case": "cite-unclosed",
+  "corruptedAt": 30,
+  "hasError": true,
+  "errorCount": 1,
+  "errors": [
+   {
+    "type": "MISSING",
+    "start": 49,
+    "end": 49,
+    "row": 2
+   }
+  ],
+  "localizedNearCorruption": true
+ },
+ {
+  "case": "tricky-minus-brace",
+  "corruptedAt": 2662,
+  "hasError": true,
+  "errorCount": 2,
+  "errors": [
+   {
+    "type": "ERROR",
+    "start": 0,
+    "end": 4455,
+    "row": 0
+   },
+   {
+    "type": "ERROR",
+    "start": 556,
+    "end": 557,
+    "row": 16
+   }
+  ],
+  "localizedNearCorruption": true
+ }
+]

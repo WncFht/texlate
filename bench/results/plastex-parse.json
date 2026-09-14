@@ -1,0 +1,791 @@
+[
+ {
+  "file": "corpus/1412.6980/arxiv.tex",
+  "ok": true,
+  "error": null,
+  "ms": 410.3,
+  "nodes": 24,
+  "equations": 0,
+  "textlen": 107
+ },
+ {
+  "file": "corpus/1511.06432/iclr2016_conference.tex",
+  "ok": false,
+  "error": "ValueError: I/O operation on closed file.",
+  "ms": 225.0
+ },
+ {
+  "file": "corpus/1512.03385/residual_v1_arxiv_release.tex",
+  "ok": false,
+  "error": "TimeoutError_: ",
+  "ms": 30004.2
+ },
+ {
+  "file": "corpus/1706.03762/background.tex",
+  "ok": true,
+  "error": null,
+  "ms": 3.9,
+  "nodes": 1796,
+  "equations": 0,
+  "textlen": 1956
+ },
+ {
+  "file": "corpus/1706.03762/introduction.tex",
+  "ok": true,
+  "error": null,
+  "ms": 2.3,
+  "nodes": 1888,
+  "equations": 3,
+  "textlen": 2098
+ },
+ {
+  "file": "corpus/1706.03762/model_architecture.tex",
+  "ok": true,
+  "error": null,
+  "ms": 18.6,
+  "nodes": 1232,
+  "equations": 60,
+  "textlen": 9255
+ },
+ {
+  "file": "corpus/1706.03762/ms.tex",
+  "ok": true,
+  "error": null,
+  "ms": 300.0,
+  "nodes": 12,
+  "equations": 0,
+  "textlen": 25
+ },
+ {
+  "file": "corpus/1706.03762/parameter_attention.tex",
+  "ok": true,
+  "error": null,
+  "ms": 8.2,
+  "nodes": 337,
+  "equations": 21,
+  "textlen": 2646
+ },
+ {
+  "file": "corpus/1706.03762/results.tex",
+  "ok": true,
+  "error": null,
+  "ms": 24.2,
+  "nodes": 1389,
+  "equations": 39,
+  "textlen": 7136
+ },
+ {
+  "file": "corpus/1706.03762/sqrt_d_trick.tex",
+  "ok": true,
+  "error": null,
+  "ms": 2.8,
+  "nodes": 65,
+  "equations": 11,
+  "textlen": 451
+ },
+ {
+  "file": "corpus/1706.03762/training.tex",
+  "ok": true,
+  "error": null,
+  "ms": 4.1,
+  "nodes": 178,
+  "equations": 8,
+  "textlen": 2082
+ },
+ {
+  "file": "corpus/1706.03762/visualizations.tex",
+  "ok": true,
+  "error": null,
+  "ms": 2.9,
+  "nodes": 65,
+  "equations": 0,
+  "textlen": 1200
+ },
+ {
+  "file": "corpus/1706.03762/why_self_attention.tex",
+  "ok": true,
+  "error": null,
+  "ms": 5.2,
+  "nodes": 3367,
+  "equations": 30,
+  "textlen": 3760
+ },
+ {
+  "file": "corpus/1810.04805/ablation.tex",
+  "ok": true,
+  "error": null,
+  "ms": 143.6,
+  "nodes": 625,
+  "equations": 0,
+  "textlen": 7988
+ },
+ {
+  "file": "corpus/1810.04805/abstract.tex",
+  "ok": true,
+  "error": null,
+  "ms": 3.0,
+  "nodes": 1023,
+  "equations": 0,
+  "textlen": 1009
+ },
+ {
+  "file": "corpus/1810.04805/appendix_main.tex",
+  "ok": true,
+  "error": null,
+  "ms": 80.6,
+  "nodes": 1001,
+  "equations": 15,
+  "textlen": 14026
+ },
+ {
+  "file": "corpus/1810.04805/bert.tex",
+  "ok": true,
+  "error": null,
+  "ms": 33.0,
+  "nodes": 441,
+  "equations": 20,
+  "textlen": 11551
+ },
+ {
+  "file": "corpus/1810.04805/bert_details.tex",
+  "ok": true,
+  "error": null,
+  "ms": 42.1,
+  "nodes": 411,
+  "equations": 12,
+  "textlen": 7437
+ },
+ {
+  "file": "corpus/1810.04805/conclusion.tex",
+  "ok": true,
+  "error": null,
+  "ms": 2.6,
+  "nodes": 7,
+  "equations": 0,
+  "textlen": 487
+ },
+ {
+  "file": "corpus/1810.04805/direction_ablation_tab.tex",
+  "ok": true,
+  "error": null,
+  "ms": 2.5,
+  "nodes": 142,
+  "equations": 0,
+  "textlen": 565
+ },
+ {
+  "file": "corpus/1810.04805/experiment.tex",
+  "ok": true,
+  "error": null,
+  "ms": 70.6,
+  "nodes": 1224,
+  "equations": 25,
+  "textlen": 8703
+ },
+ {
+  "file": "corpus/1810.04805/experiments_details.tex",
+  "ok": true,
+  "error": null,
+  "ms": 5.4,
+  "nodes": 104,
+  "equations": 0,
+  "textlen": 2626
+ },
+ {
+  "file": "corpus/1810.04805/glue_official_tab.tex",
+  "ok": true,
+  "error": null,
+  "ms": 4.0,
+  "nodes": 295,
+  "equations": 0,
+  "textlen": 1088
+ },
+ {
+  "file": "corpus/1810.04805/intro.tex",
+  "ok": true,
+  "error": null,
+  "ms": 6.2,
+  "nodes": 97,
+  "equations": 0,
+  "textlen": 3561
+ },
+ {
+  "file": "corpus/1810.04805/main.tex",
+  "ok": true,
+  "error": null,
+  "ms": 77.5,
+  "nodes": 4,
+  "equations": 0,
+  "textlen": 1
+ },
+ {
+  "file": "corpus/1810.04805/mask_procedure_ablation_tab.tex",
+  "ok": true,
+  "error": null,
+  "ms": 5.4,
+  "nodes": 244,
+  "equations": 0,
+  "textlen": 301
+ },
+ {
+  "file": "corpus/1810.04805/more_ablation.tex",
+  "ok": true,
+  "error": null,
+  "ms": 29.4,
+  "nodes": 403,
+  "equations": 3,
+  "textlen": 3480
+ },
+ {
+  "file": "corpus/1810.04805/pretrained_embeddings_tab.tex",
+  "ok": true,
+  "error": null,
+  "ms": 3.4,
+  "nodes": 190,
+  "equations": 0,
+  "textlen": 528
+ },
+ {
+  "file": "corpus/1810.04805/related.tex",
+  "ok": true,
+  "error": null,
+  "ms": 6.9,
+  "nodes": 126,
+  "equations": 0,
+  "textlen": 3361
+ },
+ {
+  "file": "corpus/1810.04805/size_ablation_tab.tex",
+  "ok": true,
+  "error": null,
+  "ms": 2.6,
+  "nodes": 197,
+  "equations": 0,
+  "textlen": 466
+ },
+ {
+  "file": "corpus/1810.04805/squad_tab.tex",
+  "ok": true,
+  "error": null,
+  "ms": 6.5,
+  "nodes": 441,
+  "equations": 0,
+  "textlen": 950
+ },
+ {
+  "file": "corpus/1810.04805/steps_ablation_fig.tex",
+  "ok": true,
+  "error": null,
+  "ms": 1.9,
+  "nodes": 71,
+  "equations": 2,
+  "textlen": 845
+ },
+ {
+  "file": "corpus/1810.04805/swag_official_tab.tex",
+  "ok": true,
+  "error": null,
+  "ms": 2.1,
+  "nodes": 122,
+  "equations": 3,
+  "textlen": 278
+ },
+ {
+  "file": "corpus/1906.08237/abstract.tex",
+  "ok": true,
+  "error": null,
+  "ms": 2.0,
+  "nodes": 12,
+  "equations": 0,
+  "textlen": 1093
+ },
+ {
+  "file": "corpus/1906.08237/appendix.tex",
+  "ok": true,
+  "error": null,
+  "ms": 65.0,
+  "nodes": 1668,
+  "equations": 62,
+  "textlen": 12753
+ },
+ {
+  "file": "corpus/1906.08237/conc.tex",
+  "ok": true,
+  "error": null,
+  "ms": 1.4,
+  "nodes": 5,
+  "equations": 0,
+  "textlen": 427
+ },
+ {
+  "file": "corpus/1906.08237/custom.tex",
+  "ok": false,
+  "error": "TypeError: sequence item 12: expected str instance, @enumctr found",
+  "ms": 20512.4
+ },
+ {
+  "file": "corpus/1906.08237/exp.tex",
+  "ok": true,
+  "error": null,
+  "ms": 56.6,
+  "nodes": 1558,
+  "equations": 27,
+  "textlen": 10036
+ },
+ {
+  "file": "corpus/1906.08237/intro.tex",
+  "ok": true,
+  "error": null,
+  "ms": 18.2,
+  "nodes": 124,
+  "equations": 3,
+  "textlen": 5609
+ },
+ {
+  "file": "corpus/1906.08237/model.tex",
+  "ok": true,
+  "error": null,
+  "ms": 54.3,
+  "nodes": 1466,
+  "equations": 128,
+  "textlen": 14455
+ },
+ {
+  "file": "corpus/1906.08237/neurips_2019.tex",
+  "ok": true,
+  "error": null,
+  "ms": 425.4,
+  "nodes": 5,
+  "equations": 0,
+  "textlen": 1
+ },
+ {
+  "file": "corpus/1906.08237/related.tex",
+  "ok": true,
+  "error": null,
+  "ms": 1.2,
+  "nodes": 2,
+  "equations": 0,
+  "textlen": 0
+ },
+ {
+  "file": "corpus/1906.08237/symbol.tex",
+  "ok": true,
+  "error": null,
+  "ms": 166.9,
+  "nodes": 764,
+  "equations": 0,
+  "textlen": 374
+ },
+ {
+  "file": "corpus/2005.11401/abstract.tex",
+  "ok": true,
+  "error": null,
+  "ms": 2.5,
+  "nodes": 1613,
+  "equations": 0,
+  "textlen": 1611
+ },
+ {
+  "file": "corpus/2005.11401/appendix.tex",
+  "ok": true,
+  "error": null,
+  "ms": 18.9,
+  "nodes": 303,
+  "equations": 4,
+  "textlen": 8422
+ },
+ {
+  "file": "corpus/2005.11401/comment_engine.tex",
+  "ok": true,
+  "error": null,
+  "ms": 6.3,
+  "nodes": 42,
+  "equations": 0,
+  "textlen": 9
+ },
+ {
+  "file": "corpus/2005.11401/experiments.tex",
+  "ok": true,
+  "error": null,
+  "ms": 11.1,
+  "nodes": 773,
+  "equations": 4,
+  "textlen": 5444
+ },
+ {
+  "file": "corpus/2005.11401/intro.tex",
+  "ok": true,
+  "error": null,
+  "ms": 6.1,
+  "nodes": 3653,
+  "equations": 0,
+  "textlen": 3885
+ },
+ {
+  "file": "corpus/2005.11401/methods.tex",
+  "ok": true,
+  "error": null,
+  "ms": 24.8,
+  "nodes": 1854,
+  "equations": 35,
+  "textlen": 5792
+ },
+ {
+  "file": "corpus/2005.11401/neurips_2020.tex",
+  "ok": true,
+  "error": null,
+  "ms": 194.6,
+  "nodes": 12,
+  "equations": 0,
+  "textlen": 25
+ },
+ {
+  "file": "corpus/2005.11401/related.tex",
+  "ok": true,
+  "error": null,
+  "ms": 88.0,
+  "nodes": 89,
+  "equations": 0,
+  "textlen": 3510
+ },
+ {
+  "file": "corpus/2005.11401/results.tex",
+  "ok": true,
+  "error": null,
+  "ms": 69.0,
+  "nodes": 1545,
+  "equations": 3,
+  "textlen": 11279
+ },
+ {
+  "file": "corpus/2005.11401/tables/main_results.tex",
+  "ok": true,
+  "error": null,
+  "ms": 10.1,
+  "nodes": 357,
+  "equations": 0,
+  "textlen": 571
+ },
+ {
+  "file": "corpus/2106.09685/expt.tex",
+  "ok": true,
+  "error": null,
+  "ms": 86.1,
+  "nodes": 2425,
+  "equations": 167,
+  "textlen": 11454
+ },
+ {
+  "file": "corpus/2106.09685/iclr2022_conference.tex",
+  "ok": false,
+  "error": "ValueError: I/O operation on closed file.",
+  "ms": 768.0
+ },
+ {
+  "file": "corpus/2106.09685/math_commands.tex",
+  "ok": true,
+  "error": null,
+  "ms": 285.3,
+  "nodes": 921,
+  "equations": 0,
+  "textlen": 446
+ },
+ {
+  "file": "corpus/2203.02155/automatic-eval-prompts.tex",
+  "ok": true,
+  "error": null,
+  "ms": 80.6,
+  "nodes": 1015,
+  "equations": 2,
+  "textlen": 8432
+ },
+ {
+  "file": "corpus/2203.02155/automatic_evals_table.tex",
+  "ok": true,
+  "error": null,
+  "ms": 31.6,
+  "nodes": 1641,
+  "equations": 1,
+  "textlen": 3475
+ },
+ {
+  "file": "corpus/2203.02155/model-samples.tex",
+  "ok": true,
+  "error": null,
+  "ms": 49.0,
+  "nodes": 742,
+  "equations": 0,
+  "textlen": 19356
+ },
+ {
+  "file": "corpus/2203.02155/neurips_2021.tex",
+  "ok": true,
+  "error": null,
+  "ms": 517.5,
+  "nodes": 5,
+  "equations": 0,
+  "textlen": 1
+ },
+ {
+  "file": "corpus/2203.02155/usecases-gpt.tex",
+  "ok": true,
+  "error": null,
+  "ms": 11.9,
+  "nodes": 3526,
+  "equations": 0,
+  "textlen": 3256
+ },
+ {
+  "file": "corpus/2203.02155/usecases-if.tex",
+  "ok": true,
+  "error": null,
+  "ms": 14.9,
+  "nodes": 4946,
+  "equations": 0,
+  "textlen": 4604
+ },
+ {
+  "file": "corpus/2305.14335/0_abstract.tex",
+  "ok": true,
+  "error": null,
+  "ms": 2.9,
+  "nodes": 1862,
+  "equations": 0,
+  "textlen": 1935
+ },
+ {
+  "file": "corpus/2305.14335/1_introduction_IEEE.tex",
+  "ok": true,
+  "error": null,
+  "ms": 16.0,
+  "nodes": 83,
+  "equations": 0,
+  "textlen": 6860
+ },
+ {
+  "file": "corpus/2305.14335/2_relatedworks.tex",
+  "ok": true,
+  "error": null,
+  "ms": 13.8,
+  "nodes": 101,
+  "equations": 0,
+  "textlen": 5756
+ },
+ {
+  "file": "corpus/2305.14335/3_methods.tex",
+  "ok": true,
+  "error": null,
+  "ms": 74.0,
+  "nodes": 1449,
+  "equations": 127,
+  "textlen": 13505
+ },
+ {
+  "file": "corpus/2305.14335/4_experiments.tex",
+  "ok": true,
+  "error": null,
+  "ms": 220.3,
+  "nodes": 3229,
+  "equations": 71,
+  "textlen": 22431
+ },
+ {
+  "file": "corpus/2305.14335/5_conclusion.tex",
+  "ok": true,
+  "error": null,
+  "ms": 2.8,
+  "nodes": 4,
+  "equations": 0,
+  "textlen": 1161
+ },
+ {
+  "file": "corpus/2305.14335/main.tex",
+  "ok": true,
+  "error": null,
+  "ms": 151.3,
+  "nodes": 3,
+  "equations": 0,
+  "textlen": 0
+ },
+ {
+  "file": "corpus/2501.14787/lectures/0-Introduction.tex",
+  "ok": true,
+  "error": null,
+  "ms": 4.0,
+  "nodes": 788,
+  "equations": 0,
+  "textlen": 1862
+ },
+ {
+  "file": "corpus/2501.14787/lectures/01-Overview.tex",
+  "ok": true,
+  "error": null,
+  "ms": 29.8,
+  "nodes": 2741,
+  "equations": 65,
+  "textlen": 10467
+ },
+ {
+  "file": "corpus/2501.14787/lectures/02-Derivatives-LinearOperators.tex",
+  "ok": true,
+  "error": null,
+  "ms": 163.0,
+  "nodes": 3394,
+  "equations": 386,
+  "textlen": 21667
+ },
+ {
+  "file": "corpus/2501.14787/lectures/03-TwobyTwoJacobians.tex",
+  "ok": true,
+  "error": null,
+  "ms": 87.1,
+  "nodes": 4321,
+  "equations": 297,
+  "textlen": 18714
+ },
+ {
+  "file": "corpus/2501.14787/lectures/04-FiniteDifferences.tex",
+  "ok": true,
+  "error": null,
+  "ms": 35.8,
+  "nodes": 1032,
+  "equations": 106,
+  "textlen": 11717
+ },
+ {
+  "file": "corpus/2501.14787/lectures/05-Derivatives-GeneralVectorSpaces.tex",
+  "ok": true,
+  "error": null,
+  "ms": 39.0,
+  "nodes": 2425,
+  "equations": 127,
+  "textlen": 9925
+ },
+ {
+  "file": "corpus/2501.14787/lectures/06-RootFinding-Optimization-Adjoints.tex",
+  "ok": true,
+  "error": null,
+  "ms": 295.7,
+  "nodes": 1925,
+  "equations": 190,
+  "textlen": 18006
+ },
+ {
+  "file": "corpus/2501.14787/lectures/07-Derivative-MatrixDet-Inverse.tex",
+  "ok": true,
+  "error": null,
+  "ms": 30.1,
+  "nodes": 828,
+  "equations": 70,
+  "textlen": 4596
+ },
+ {
+  "file": "corpus/2501.14787/lectures/08-Forward-Reverse-AD.tex",
+  "ok": true,
+  "error": null,
+  "ms": 145.1,
+  "nodes": 4659,
+  "equations": 307,
+  "textlen": 35010
+ },
+ {
+  "file": "corpus/2501.14787/lectures/09-DifferentiatingODESolutions.tex",
+  "ok": true,
+  "error": null,
+  "ms": 98.6,
+  "nodes": 3608,
+  "equations": 338,
+  "textlen": 25015
+ },
+ {
+  "file": "corpus/2501.14787/lectures/10-CalculusofVariations.tex",
+  "ok": false,
+  "error": "AttributeError: 'NoneType' object has no attribute 'textContent'",
+  "ms": 16.1
+ },
+ {
+  "file": "corpus/2501.14787/lectures/11-Derivatives-RandomFunctions.tex",
+  "ok": true,
+  "error": null,
+  "ms": 51.5,
+  "nodes": 1301,
+  "equations": 174,
+  "textlen": 18433
+ },
+ {
+  "file": "corpus/2501.14787/lectures/12-SecondDerivatives-BilinearMaps-Hessian.tex",
+  "ok": true,
+  "error": null,
+  "ms": 85.0,
+  "nodes": 3590,
+  "equations": 338,
+  "textlen": 26708
+ },
+ {
+  "file": "corpus/2501.14787/lectures/13-Derivatives-Eigenproblems.tex",
+  "ok": false,
+  "error": "AttributeError: 'NoneType' object has no attribute 'textContent'",
+  "ms": 6.3
+ },
+ {
+  "file": "corpus/2501.14787/lectures/14-WhereWeGoFromHere.tex",
+  "ok": true,
+  "error": null,
+  "ms": 11.7,
+  "nodes": 698,
+  "equations": 23,
+  "textlen": 4798
+ },
+ {
+  "file": "corpus/2501.14787/main.tex",
+  "ok": false,
+  "error": "TypeError: ord() expected a character, but string of length 8 found",
+  "ms": 403.6
+ },
+ {
+  "file": "corpus/2501.14787/psets/Pset1.tex",
+  "ok": true,
+  "error": null,
+  "ms": 155.8,
+  "nodes": 569,
+  "equations": 75,
+  "textlen": 2454
+ },
+ {
+  "file": "corpus/2501.14787/psets/Pset1sol.tex",
+  "ok": true,
+  "error": null,
+  "ms": 350.1,
+  "nodes": 2113,
+  "equations": 200,
+  "textlen": 9166
+ },
+ {
+  "file": "corpus/2501.14787/psets/Pset2.tex",
+  "ok": true,
+  "error": null,
+  "ms": 248.8,
+  "nodes": 798,
+  "equations": 111,
+  "textlen": 4547
+ },
+ {
+  "file": "corpus/2501.14787/psets/Pset2sol.tex",
+  "ok": true,
+  "error": null,
+  "ms": 352.0,
+  "nodes": 1507,
+  "equations": 154,
+  "textlen": 6918
+ },
+ {
+  "file": "corpus/hep-th/9901001/imamura2.tex",
+  "ok": true,
+  "error": null,
+  "ms": 248.5,
+  "nodes": 3187,
+  "equations": 341,
+  "textlen": 18950
+ }
+]

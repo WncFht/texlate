@@ -1,0 +1,676 @@
+[
+ {
+  "file": "corpus/1412.6980/arxiv.tex",
+  "ok": true,
+  "error": null,
+  "ms": 3.87,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/1511.06432/iclr2016_conference.tex",
+  "ok": true,
+  "error": null,
+  "ms": 375.82,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/1512.03385/residual_v1_arxiv_release.tex",
+  "ok": true,
+  "error": null,
+  "ms": 711.83,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/1706.03762/background.tex",
+  "ok": true,
+  "error": null,
+  "ms": 44.05,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/1706.03762/introduction.tex",
+  "ok": true,
+  "error": null,
+  "ms": 22.89,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/1706.03762/model_architecture.tex",
+  "ok": true,
+  "error": null,
+  "ms": 113.6,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/1706.03762/ms.tex",
+  "ok": true,
+  "error": null,
+  "ms": 240.15,
+  "roundtrip": "diverged",
+  "rt_len_delta": -30
+ },
+ {
+  "file": "corpus/1706.03762/parameter_attention.tex",
+  "ok": true,
+  "error": null,
+  "ms": 30.75,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/1706.03762/results.tex",
+  "ok": true,
+  "error": null,
+  "ms": 116.99,
+  "roundtrip": "diverged",
+  "rt_len_delta": -1
+ },
+ {
+  "file": "corpus/1706.03762/sqrt_d_trick.tex",
+  "ok": true,
+  "error": null,
+  "ms": 27.49,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/1706.03762/training.tex",
+  "ok": true,
+  "error": null,
+  "ms": 30.44,
+  "roundtrip": "diverged",
+  "rt_len_delta": -1
+ },
+ {
+  "file": "corpus/1706.03762/visualizations.tex",
+  "ok": true,
+  "error": null,
+  "ms": 15.35,
+  "roundtrip": "diverged",
+  "rt_len_delta": -5
+ },
+ {
+  "file": "corpus/1706.03762/why_self_attention.tex",
+  "ok": true,
+  "error": null,
+  "ms": 50.4,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/1810.04805/ablation.tex",
+  "ok": true,
+  "error": null,
+  "ms": 40.65,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/1810.04805/abstract.tex",
+  "ok": true,
+  "error": null,
+  "ms": 7.62,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/1810.04805/appendix_main.tex",
+  "ok": true,
+  "error": null,
+  "ms": 11.26,
+  "roundtrip": "diverged",
+  "rt_len_delta": -1
+ },
+ {
+  "file": "corpus/1810.04805/bert.tex",
+  "ok": true,
+  "error": null,
+  "ms": 95.06,
+  "roundtrip": "diverged",
+  "rt_len_delta": -10
+ },
+ {
+  "file": "corpus/1810.04805/bert_details.tex",
+  "ok": true,
+  "error": null,
+  "ms": 78.67,
+  "roundtrip": "diverged",
+  "rt_len_delta": -19
+ },
+ {
+  "file": "corpus/1810.04805/conclusion.tex",
+  "ok": true,
+  "error": null,
+  "ms": 2.57,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/1810.04805/direction_ablation_tab.tex",
+  "ok": true,
+  "error": null,
+  "ms": 9.23,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/1810.04805/experiment.tex",
+  "ok": true,
+  "error": null,
+  "ms": 61.68,
+  "roundtrip": "diverged",
+  "rt_len_delta": -7
+ },
+ {
+  "file": "corpus/1810.04805/experiments_details.tex",
+  "ok": true,
+  "error": null,
+  "ms": 71.22,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/1810.04805/glue_official_tab.tex",
+  "ok": true,
+  "error": null,
+  "ms": 41.62,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/1810.04805/intro.tex",
+  "ok": true,
+  "error": null,
+  "ms": 29.61,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/1810.04805/main.tex",
+  "ok": true,
+  "error": null,
+  "ms": 33.19,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/1810.04805/mask_procedure_ablation_tab.tex",
+  "ok": true,
+  "error": null,
+  "ms": 15.56,
+  "roundtrip": "diverged",
+  "rt_len_delta": -1
+ },
+ {
+  "file": "corpus/1810.04805/more_ablation.tex",
+  "ok": true,
+  "error": null,
+  "ms": 20.02,
+  "roundtrip": "diverged",
+  "rt_len_delta": -2
+ },
+ {
+  "file": "corpus/1810.04805/pretrained_embeddings_tab.tex",
+  "ok": true,
+  "error": null,
+  "ms": 10.95,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/1810.04805/related.tex",
+  "ok": true,
+  "error": null,
+  "ms": 32.95,
+  "roundtrip": "diverged",
+  "rt_len_delta": -2
+ },
+ {
+  "file": "corpus/1810.04805/size_ablation_tab.tex",
+  "ok": true,
+  "error": null,
+  "ms": 10.45,
+  "roundtrip": "diverged",
+  "rt_len_delta": -1
+ },
+ {
+  "file": "corpus/1810.04805/squad_tab.tex",
+  "ok": true,
+  "error": null,
+  "ms": 30.65,
+  "roundtrip": "diverged",
+  "rt_len_delta": -2
+ },
+ {
+  "file": "corpus/1810.04805/steps_ablation_fig.tex",
+  "ok": true,
+  "error": null,
+  "ms": 11.53,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/1810.04805/swag_official_tab.tex",
+  "ok": true,
+  "error": null,
+  "ms": 10.25,
+  "roundtrip": "diverged",
+  "rt_len_delta": -1
+ },
+ {
+  "file": "corpus/1906.08237/abstract.tex",
+  "ok": true,
+  "error": null,
+  "ms": 33.99,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/1906.08237/appendix.tex",
+  "ok": true,
+  "error": null,
+  "ms": 254.96,
+  "roundtrip": "diverged",
+  "rt_len_delta": -2
+ },
+ {
+  "file": "corpus/1906.08237/conc.tex",
+  "ok": true,
+  "error": null,
+  "ms": 2.64,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/1906.08237/custom.tex",
+  "ok": false,
+  "error": "TypeError: [Line: 0, Offset 1321] Malformed argument. First and last elements must match a valid argument format. In this case, TexSoup could not find matching punctuation",
+  "ms": 82.08,
+  "ok_t1": true,
+  "error_t1": null,
+  "ms_t1": 114.25,
+  "roundtrip": "diverged",
+  "rt_len_delta": -5
+ },
+ {
+  "file": "corpus/1906.08237/exp.tex",
+  "ok": true,
+  "error": null,
+  "ms": 322.13,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/1906.08237/intro.tex",
+  "ok": true,
+  "error": null,
+  "ms": 82.1,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/1906.08237/model.tex",
+  "ok": true,
+  "error": null,
+  "ms": 408.92,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/1906.08237/neurips_2019.tex",
+  "ok": true,
+  "error": null,
+  "ms": 38.27,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/1906.08237/related.tex",
+  "ok": true,
+  "error": null,
+  "ms": 9.21,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/1906.08237/symbol.tex",
+  "ok": true,
+  "error": null,
+  "ms": 408.96,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/2005.11401/abstract.tex",
+  "ok": true,
+  "error": null,
+  "ms": 7.02,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/2005.11401/appendix.tex",
+  "ok": true,
+  "error": null,
+  "ms": 67.46,
+  "roundtrip": "diverged",
+  "rt_len_delta": -1
+ },
+ {
+  "file": "corpus/2005.11401/comment_engine.tex",
+  "ok": true,
+  "error": null,
+  "ms": 53.59,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/2005.11401/experiments.tex",
+  "ok": true,
+  "error": null,
+  "ms": 41.54,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/2005.11401/intro.tex",
+  "ok": true,
+  "error": null,
+  "ms": 27.94,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/2005.11401/methods.tex",
+  "ok": true,
+  "error": null,
+  "ms": 106.4,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/2005.11401/neurips_2020.tex",
+  "ok": true,
+  "error": null,
+  "ms": 72.07,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/2005.11401/related.tex",
+  "ok": true,
+  "error": null,
+  "ms": 26.49,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/2005.11401/results.tex",
+  "ok": true,
+  "error": null,
+  "ms": 367.65,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/2005.11401/tables/main_results.tex",
+  "ok": true,
+  "error": null,
+  "ms": 52.13,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/2106.09685/expt.tex",
+  "ok": true,
+  "error": null,
+  "ms": 379.23,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/2106.09685/iclr2022_conference.tex",
+  "ok": true,
+  "error": null,
+  "ms": 2405.37,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/2106.09685/math_commands.tex",
+  "ok": true,
+  "error": null,
+  "ms": 2830.53,
+  "roundtrip": "diverged",
+  "rt_len_delta": 48
+ },
+ {
+  "file": "corpus/2203.02155/automatic-eval-prompts.tex",
+  "ok": true,
+  "error": null,
+  "ms": 1216.7,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/2203.02155/automatic_evals_table.tex",
+  "ok": true,
+  "error": null,
+  "ms": 136.56,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/2203.02155/model-samples.tex",
+  "ok": true,
+  "error": null,
+  "ms": 461.8,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/2203.02155/neurips_2021.tex",
+  "ok": true,
+  "error": null,
+  "ms": 3013.93,
+  "roundtrip": "diverged",
+  "rt_len_delta": -1
+ },
+ {
+  "file": "corpus/2203.02155/usecases-gpt.tex",
+  "ok": true,
+  "error": null,
+  "ms": 127.21,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/2203.02155/usecases-if.tex",
+  "ok": true,
+  "error": null,
+  "ms": 157.04,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/2305.14335/0_abstract.tex",
+  "ok": true,
+  "error": null,
+  "ms": 13.65,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/2305.14335/1_introduction_IEEE.tex",
+  "ok": true,
+  "error": null,
+  "ms": 56.98,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/2305.14335/2_relatedworks.tex",
+  "ok": true,
+  "error": null,
+  "ms": 59.28,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/2305.14335/3_methods.tex",
+  "ok": true,
+  "error": null,
+  "ms": 502.51,
+  "roundtrip": "diverged",
+  "rt_len_delta": -5
+ },
+ {
+  "file": "corpus/2305.14335/4_experiments.tex",
+  "ok": true,
+  "error": null,
+  "ms": 2057.47,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/2305.14335/5_conclusion.tex",
+  "ok": true,
+  "error": null,
+  "ms": 26.86,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/2305.14335/main.tex",
+  "ok": true,
+  "error": null,
+  "ms": 595.71,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/2501.14787/lectures/0-Introduction.tex",
+  "ok": true,
+  "error": null,
+  "ms": 32.58,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/2501.14787/lectures/01-Overview.tex",
+  "ok": true,
+  "error": null,
+  "ms": 379.81,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/2501.14787/lectures/02-Derivatives-LinearOperators.tex",
+  "ok": true,
+  "error": null,
+  "ms": 2297.66,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/2501.14787/lectures/03-TwobyTwoJacobians.tex",
+  "ok": true,
+  "error": null,
+  "ms": 2845.07,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/2501.14787/lectures/04-FiniteDifferences.tex",
+  "ok": false,
+  "error": "TypeError: [Line: 0, Offset 51] Malformed argument. First and last elements must match a valid argument format. In this case, TexSoup could not find matching punctuation f",
+  "ms": 1245.66,
+  "ok_t1": true,
+  "error_t1": null,
+  "ms_t1": 2016.41,
+  "roundtrip": "diverged",
+  "rt_len_delta": 1
+ },
+ {
+  "file": "corpus/2501.14787/lectures/05-Derivatives-GeneralVectorSpaces.tex",
+  "ok": true,
+  "error": null,
+  "ms": 1297.84,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/2501.14787/lectures/06-RootFinding-Optimization-Adjoints.tex",
+  "ok": false,
+  "error": "TypeError: [Line: 0, Offset 11074] Malformed argument. First and last elements must match a valid argument format. In this case, TexSoup could not find matching punctuatio",
+  "ms": 1128.6,
+  "ok_t1": true,
+  "error_t1": null,
+  "ms_t1": 698.5,
+  "roundtrip": "diverged",
+  "rt_len_delta": 2
+ },
+ {
+  "file": "corpus/2501.14787/lectures/07-Derivative-MatrixDet-Inverse.tex",
+  "ok": true,
+  "error": null,
+  "ms": 186.9,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/2501.14787/lectures/08-Forward-Reverse-AD.tex",
+  "ok": true,
+  "error": null,
+  "ms": 1516.77,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/2501.14787/lectures/09-DifferentiatingODESolutions.tex",
+  "ok": true,
+  "error": null,
+  "ms": 605.71,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/2501.14787/lectures/10-CalculusofVariations.tex",
+  "ok": false,
+  "error": "TypeError: [Line: 0, Offset 10198] Malformed argument. First and last elements must match a valid argument format. In this case, TexSoup could not find matching punctuatio",
+  "ms": 292.52,
+  "ok_t1": true,
+  "error_t1": null,
+  "ms_t1": 519.11,
+  "roundtrip": "diverged",
+  "rt_len_delta": 1
+ },
+ {
+  "file": "corpus/2501.14787/lectures/11-Derivatives-RandomFunctions.tex",
+  "ok": true,
+  "error": null,
+  "ms": 357.66,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/2501.14787/lectures/12-SecondDerivatives-BilinearMaps-Hessian.tex",
+  "ok": false,
+  "error": "TypeError: [Line: 0, Offset 29862] Malformed argument. First and last elements must match a valid argument format. In this case, TexSoup could not find matching punctuatio",
+  "ms": 907.69,
+  "ok_t1": true,
+  "error_t1": null,
+  "ms_t1": 720.51,
+  "roundtrip": "diverged",
+  "rt_len_delta": 1
+ },
+ {
+  "file": "corpus/2501.14787/lectures/13-Derivatives-Eigenproblems.tex",
+  "ok": true,
+  "error": null,
+  "ms": 148.27,
+  "roundtrip": "diverged",
+  "rt_len_delta": -5
+ },
+ {
+  "file": "corpus/2501.14787/lectures/14-WhereWeGoFromHere.tex",
+  "ok": true,
+  "error": null,
+  "ms": 62.62,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/2501.14787/main.tex",
+  "ok": true,
+  "error": null,
+  "ms": 116.02,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/2501.14787/psets/Pset1.tex",
+  "ok": true,
+  "error": null,
+  "ms": 129.75,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/2501.14787/psets/Pset1sol.tex",
+  "ok": false,
+  "error": "EOFError: [Line: 0, Offset: 1883] \"multline*\" env expecting \\end{multline*}. Instead got \\end{multline}\nwhere ",
+  "ms": 245.07,
+  "ok_t1": false,
+  "error_t1": "EOFError: [Line: 0, Offset: 1883] \"multline*\" env expecting \\end{multline*}. Instead got \\end{multline}\nwhere ",
+  "ms_t1": 215.93
+ },
+ {
+  "file": "corpus/2501.14787/psets/Pset2.tex",
+  "ok": true,
+  "error": null,
+  "ms": 145.88,
+  "roundtrip": "identical"
+ },
+ {
+  "file": "corpus/2501.14787/psets/Pset2sol.tex",
+  "ok": true,
+  "error": null,
+  "ms": 195.16,
+  "roundtrip": "diverged",
+  "rt_len_delta": -1
+ },
+ {
+  "file": "corpus/hep-th/9901001/imamura2.tex",
+  "ok": true,
+  "error": null,
+  "ms": 797.0,
+  "roundtrip": "diverged",
+  "rt_len_delta": -18
+ }
+]

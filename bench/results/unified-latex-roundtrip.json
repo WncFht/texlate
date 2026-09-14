@@ -1,0 +1,98 @@
+{
+  "1412.6980/arxiv.tex": {
+    "cls": "diverged",
+    "firstDiffPos": 32,
+    "firstDiffLine": 1,
+    "origLen": 298,
+    "printedLen": 284,
+    "ctx": "\"\\\\documentclass[a4paper]{article}\\n\\\\pdfoutput=1\\n\\\\usepackage{hyperref}\\n\\\\hyp\" ||VS|| \"\\\\documentclass[a4paper]{article} \\\\pdfoutput=1 \\\\usepackage{hyperref} \\\\hyp\""
+  },
+  "1511.06432/iclr2016_conference.tex": {
+    "cls": "diverged",
+    "firstDiffPos": 76,
+    "firstDiffLine": 2,
+    "origLen": 41199,
+    "printedLen": 41076,
+    "ctx": "\"e\\n\\\\usepackage{iclr2016_conference,times}\\n\\\\usepackage{hyperref}\\n\\\\usepackage{url}\\n\" ||VS|| \"e\\n\\\\usepackage{iclr2016_conference,times} \\\\usepackage{hyperref} \\\\usepackage{url} \""
+  },
+  "1512.03385/residual_v1_arxiv_release.tex": {
+    "cls": "diverged",
+    "firstDiffPos": 70,
+    "firstDiffLine": 3,
+    "origLen": 69687,
+    "printedLen": 69467,
+    "ctx": "\"letterpaper]{article}\\n\\n\\\\usepackage{cvpr}\\n\\\\usepackage{times}\\n\\\\usepackage{epsfig}\\n\" ||VS|| \"letterpaper]{article}\\n\\n\\\\usepackage{cvpr} \\\\usepackage{times} \\\\usepackage{epsfig} \""
+  },
+  "1706.03762/ms.tex": {
+    "cls": "diverged",
+    "firstDiffPos": 25,
+    "firstDiffLine": 3,
+    "origLen": 17611,
+    "printedLen": 17470,
+    "ctx": "\"\\\\documentclass{article}\\n\\n% if you need to pass options to natbib,\" ||VS|| \"\\\\documentclass{article}\\n\\n\\n% if you need to pass options to natbib\""
+  },
+  "1810.04805/main.tex": {
+    "cls": "diverged",
+    "firstDiffPos": 37,
+    "firstDiffLine": 1,
+    "origLen": 1719,
+    "printedLen": 1678,
+    "ctx": "\"\\\\documentclass[11pt,a4paper]{article}\\n\\\\usepackage[hyperref]{naaclhlt2019}\\n\\\\us\" ||VS|| \"\\\\documentclass[11pt,a4paper]{article} \\\\usepackage[hyperref]{naaclhlt2019} \\\\us\""
+  },
+  "1906.08237/neurips_2019.tex": {
+    "cls": "diverged",
+    "firstDiffPos": 25,
+    "firstDiffLine": 3,
+    "origLen": 3995,
+    "printedLen": 3997,
+    "ctx": "\"\\\\documentclass{article}\\n\\n% if you need to pass options to natbib,\" ||VS|| \"\\\\documentclass{article}\\n\\n\\n% if you need to pass options to natbib\""
+  },
+  "2005.11401/neurips_2020.tex": {
+    "cls": "diverged",
+    "firstDiffPos": 26,
+    "firstDiffLine": 4,
+    "origLen": 9360,
+    "printedLen": 9331,
+    "ctx": "\"\\\\documentclass{article}\\n\\n\\n\\n% if you need to pass options to natbib\" ||VS|| \"\\\\documentclass{article}\\n\\n\\n% if you need to pass options to natbib,\""
+  },
+  "2106.09685/iclr2022_conference.tex": {
+    "cls": "diverged",
+    "firstDiffPos": 114,
+    "firstDiffLine": 6,
+    "origLen": 78753,
+    "printedLen": 73274,
+    "ctx": "\"ath_commands.tex}\\n\\n\\\\usepackage{hyperref}\\n\\\\usepackage{url}\\n\\\\usepackage{tcolorbox}\" ||VS|| \"ath_commands.tex}\\n\\n\\\\usepackage{hyperref} \\\\usepackage{url} \\\\usepackage{tcolorbox}\""
+  },
+  "2203.02155/neurips_2021.tex": {
+    "cls": "diverged",
+    "firstDiffPos": 132,
+    "firstDiffLine": 6,
+    "origLen": 149181,
+    "printedLen": 144221,
+    "ctx": "\"ow utf-8 input\\n\\\\usepackage[T1]{fontenc}    % use 8-bit T1 fonts\\n\\\\usepackage{hype\" ||VS|| \"ow utf-8 input\\n\\\\usepackage[T1]{fontenc} % use 8-bit T1 fonts\\n\\\\usepackage{hyperre\""
+  },
+  "2305.14335/main.tex": {
+    "cls": "diverged",
+    "firstDiffPos": 18,
+    "firstDiffLine": 3,
+    "origLen": 25082,
+    "printedLen": 25371,
+    "ctx": "\"\\n%% bare_jrnl.tex\\n%% V1.4b\\n%% 2015/08/26\\n%% by Michael She\" ||VS|| \"\\n%% bare_jrnl.tex\\n\\n%% V1.4b\\n\\n%% 2015/08/26\\n\\n%% by Michael \""
+  },
+  "2501.14787/main.tex": {
+    "cls": "diverged",
+    "firstDiffPos": 23,
+    "firstDiffLine": 1,
+    "origLen": 3567,
+    "printedLen": 3564,
+    "ctx": "\"\\\\documentclass{article}\\n\\\\pdfoutput=1\\n\\\\usepackage[utf8]{inputenc\" ||VS|| \"\\\\documentclass{article} \\\\pdfoutput=1 \\\\usepackage[utf8]{inputenc\""
+  },
+  "hep-th/9901001/imamura2.tex": {
+    "cls": "diverged",
+    "firstDiffPos": 0,
+    "firstDiffLine": 1,
+    "origLen": 29049,
+    "printedLen": 29136,
+    "ctx": "\"%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\" ||VS|| \"\\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\""
+  }
+}

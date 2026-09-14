@@ -1,0 +1,27 @@
+{
+  "name": "ts",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@pfoerster/tree-sitter-latex": "^0.6.0",
+    "@unified-latex/unified-latex-ctan": "^1.8.4",
+    "@unified-latex/unified-latex-util-arguments": "^1.8.4",
+    "@unified-latex/unified-latex-util-environments": "^1.8.4",
+    "@unified-latex/unified-latex-util-macros": "^1.8.4",
+    "@unified-latex/unified-latex-util-packages": "^1.8.4",
+    "@unified-latex/unified-latex-util-parse": "^1.8.4",
+    "@unified-latex/unified-latex-util-print-raw": "^1.8.4",
+    "latex-utensils": "^7.0.0",
+    "node-tree-sitter": "^0.0.1",
+    "tree-sitter": "^0.25.1",
+    "web-tree-sitter": "^0.27.0"
+  }
+}

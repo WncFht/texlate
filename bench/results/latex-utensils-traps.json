@@ -1,0 +1,158 @@
+[
+ {
+  "id": "T01",
+  "pass": "partial",
+  "expect": "macro-expanded math env should stay protected",
+  "got": "\\be def parsed as command=true; usage line classified as math=false; raw \"=...\" leaked as text.string=true (parser does no macro expansion)"
+ },
+ {
+  "id": "T02",
+  "pass": true,
+  "expect": "\\dR def recognized; usage sites protected",
+  "got": "def=command/newcommand:true; in-math \\dR is math content (protected), bare-text \\dR is generic command (see T01-usage node kinds)"
+ },
+ {
+  "id": "T03",
+  "pass": true,
+  "expect": "kind command.def",
+  "got": "[\"command.def:\",\"command:widetilde\",\"command.def:\",\"command:mathop\"]"
+ },
+ {
+  "id": "T04",
+  "pass": "partial",
+  "expect": "all cite/ref keys protected",
+  "got": "cites are generic command x5 (keys appear as plain text.string in args: 5 hits -> naive text extractor WILL leak keys); command.label kinds=[ref,eqref,autoref,cref,label]; \\pageref/\\nameref are generic commands x2 (grammar only knows label/ref/eqref/autoref/cref)"
+ },
+ {
+  "id": "T05",
+  "pass": true,
+  "expect": "long title = translatable text.string inside arg.group",
+  "got": "section args kinds=[arg.optional,arg.group]"
+ },
+ {
+  "id": "T06",
+  "pass": true,
+  "expect": "env.verbatim + env.lstlisting, % preserved verbatim",
+  "got": "env.verbatim=true env.lstlisting=true"
+ },
+ {
+  "id": "T07",
+  "pass": true,
+  "expect": "command.url + verb node; % not treated as comment",
+  "got": "command.url=true verb=true"
+ },
+ {
+  "id": "T08",
+  "pass": true,
+  "expect": "no crash; \\% command, \\\\ linebreak, comment excluded from content",
+  "got": "\\%=true linebreak=true commentsAttached=32 (unbalanced { and math inside comment ignored)"
+ },
+ {
+  "id": "T09",
+  "pass": true,
+  "expect": "author block protectable",
+  "got": "author=command w/ args[arg.optional,arg.group]; \"Alice\" is text.string inside group -> policy must protect (same shape as translatable text)"
+ },
+ {
+  "id": "T10",
+  "pass": true,
+  "expect": "align/flalign = env.math.align (protected); subequations = generic env wrapper",
+  "got": "[\"env:document\",\"env:subequations\",\"env.math.align:align\",\"env.math.align:flalign\"]"
+ },
+ {
+  "id": "T11",
+  "pass": true,
+  "expect": "generic env; body text translatable; optional arg separate",
+  "got": "theorem env args=[arg.optional] bodyText=true"
+ },
+ {
+  "id": "T12",
+  "pass": true,
+  "expect": "footnote arg text translatable",
+  "got": "footnote found=true argText=true"
+ },
+ {
+  "id": "T13",
+  "pass": true,
+  "expect": "no crash; branch text remains text.string",
+  "got": "inner text.string present=true; \\ifdraft/\\else/\\fi are generic commands"
+ },
+ {
+  "id": "T16",
+  "pass": true,
+  "expect": "generic command; #1 = commandParameter node (not text)",
+  "got": "NewDocumentCommand=true commandParameter=true"
+ },
+ {
+  "id": "T17",
+  "pass": true,
+  "expect": "kind command.text inside inlineMath",
+  "got": "[\"env\",\"parbreak\",\"inlineMath\",\"math.math_delimiters\",\"command\",\"command.text\"]"
+ },
+ {
+  "id": "T18",
+  "pass": true,
+  "expect": "figure=generic env preserved; caption arg translatable",
+  "got": "figure=true captionText=true"
+ },
+ {
+  "id": "T19",
+  "pass": true,
+  "expect": "abstract=generic env; body translatable",
+  "got": "abstract env=true"
+ },
+ {
+  "id": "T20",
+  "pass": true,
+  "expect": "generic envs; \\item command; item text translatable (word-level text.string)",
+  "got": "envs=[document,itemize,enumerate,description] items=5 itemText=true"
+ },
+ {
+  "id": "T21",
+  "pass": true,
+  "expect": "generic command",
+  "got": "includegraphics=command (options arg.optional + path arg.group)"
+ },
+ {
+  "id": "T22",
+  "pass": true,
+  "expect": "command.href: url field protected, content nodes translatable",
+  "got": "url=https://example.com contentKinds=[text.string,space,text.string]"
+ },
+ {
+  "id": "T23",
+  "pass": true,
+  "expect": "generic commands; inner text.string translatable",
+  "got": "emph/textbf/textit all commands w/ text args=true"
+ },
+ {
+  "id": "T24",
+  "pass": true,
+  "expect": "no crash; generic command",
+  "got": "bibliography=command"
+ },
+ {
+  "id": "T25",
+  "pass": true,
+  "expect": "no crash on @-macros",
+  "got": "commands in region: [\"@\",\"@\",\"@\"] (parser accepts @ in csname)"
+ },
+ {
+  "id": "T26",
+  "pass": true,
+  "expect": "displayMath + inlineMath",
+  "got": "displayMath=true inlineMath(e^i pi)=true"
+ },
+ {
+  "id": "T27",
+  "pass": true,
+  "expect": "accent commands parse as command(' \" ~ ...) + following char",
+  "got": "accent commands=[',\",~,']"
+ },
+ {
+  "id": "T29",
+  "pass": true,
+  "expect": "footnote arg translatable",
+  "got": "footnote=true"
+ }
+]

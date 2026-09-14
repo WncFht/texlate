@@ -18,18 +18,47 @@
 └────────────────────────────────────────────────────┘
 ```
 
-## 调研证据 (2026-09 实测)
+## 调研证据 (2026-09 实测, 20 份报告见 `bench/results/`)
 
-### LaTeX 解析: 所有语言都必须自写
+### LaTeX 解析: 8 库实测全灭于宏展开,自研半解析器已实证
 
-- 没有任何现成库完成「段落级提取 + 宏展开 + 保真回填」全链路。hjfy (~2万行TS)、ieeA (~15k行Python)、MathTranslate、LaTeXTrans、texlab、pandoc、LaTeXML 全部自写解析器。
-- 现成最接近的三个:
-  - **unified-latex** (TS, 127★, MIT, 39万下载/月): 36 包 AST 工具集, 明确不保 round-trip, 不做 \def 展开; **其 CTAN 宏签名表可移植复用**
-  - **pylatexenc 3** (Python, 427★, MIT): 真实节点模型+宏签名表(natbib 有类别)+pos 信息; ieeA 曾用其 AST 后弃用 —— 严格按签名表挂参数遇到 spec 外宏会断, 翻译场景要"宁粗勿断"的容错分割
-  - **TexSoup** (Python, 330★, BSD): 容错最强, README 自报 50/50 arXiv 论文全解析成功 (plasTeX 11/50, LaTeXML 29/50), 但语义浅
-- 真做宏展开的只有渲染引擎 (plasTeX/LaTeX.js/LaTeXML/pandoc), 都不保源码
-- **正确架构共识**: 任务本质是 segment-protect-reconstruct —— scanner 记录每个可译段的 byte range, 译文按区间 splice, 不做 AST 全量重建
-- **tree-sitter-latex** (latex-lsp, 173★, MIT, 移植自 texlab): 错误容忍强, 四语言绑定齐全 —— 用作**辅助校验层**而非主解析器
+**Benchmark (39 项目/256 tex + 30 陷阱, `bench/results/00-grand-comparison.md`)**:
+
+| 库 | 语料 | 陷阱 | 泄漏率 | identity | 结论 |
+|---|---|---|---|---|---|
+| **miniscanner (自研 spike)** | 259/259 | **32/32** | **0.11%** | **259/259** | **主解析器路线实证** |
+| latex-utensils (TS) | 89/90 | 24/2/0 | 低 | — | 命令族表参考;错误位置不可信 |
+| unified-latex (TS) | 90/90 | 19/4/3 | 中 | 差 | **CTAN 签名表(404宏+128环境)+受限展开参考** |
+| tree-sitter-latex (TS) | 90/90 不崩 | — | — | — | **译文校验器**(1.15ms,ERROR/MISSING+env配对) |
+| TexSoup (PY) | 84→89/90 | 4 fails | 中 | 62/89 | tokenizer 内核参考 |
+| plasTeX (PY) | ~75/90 | — | — | — | **展开层设计 oracle**;真.sty 加载=静默截断须屏蔽 |
+| pylatexenc (PY) | 假 90/90 | 静默截断 | — | — | **REJECTED**:组内`\begin`吞至EOF/`%`吃`}`,99%损失零报错 |
+| ieeA (PY) | 93/93 | 16/3/7 | 10.24% | 0/93 | 反面基线 |
+
+- **T01 (`\be→\begin{equation}`) 8/8 库全灭**;真实语料 12/39 篇存在结构性宏 —— 半解析器+宏表是唯一正确路线,已被 miniscanner 验证(1176 行达 M1 级指标)。
+- **"能 parse"≠"parse 对"**: pylatexenc 90/90 假象(静默截断零报错);tree-sitter `\verb|a%b|` 静默错。**校验器必须独立于解析器。**
+- **AST round-trip 不可行,区间 splice 唯一保真**: 严格解析器在真实脏语料必破(语料含真·缺`$`文件);pieces 覆盖全文+identity 逐字节一致证明"宁粗勿断"。
+- **piece 边界纪律**根治 ieeA 死 token: 块级结构必须独立 piece,边界 token 不得并入 chunk。
+- **宏展开层=blocker**(macro-stats 39篇实测): 95% 论文有宏(median 47),51% 在正文内定义,49% 宏体藏可译文本。最小范围: 六类定义语法+参数代入+不动点展开+`\input`展平+`\if`结构化;catcode/halign 可弃(≤1/39)。
+
+### 编译: 自动修复循环实证(fixloop spike)
+
+- **救回率 16/16 = 100%**(94% clean),冷环境 TEXMF 沙箱实测 12 项目×3 条件。四招承担全部修复: `static_precheck`(kpsewhich 预检+批量 tlmgr)+`install_file`+`install_tfm`+`install_sysfont`。
+- **tectonic 陷阱确认**: 静默降级,"出PDF"≠成功 —— 判定须用 `'!'错误数≤3` 的 clean 阈值。
+- **ctex 注入 0% 破坏**(compile-bench): hjfy 同款 `\usepackage[fontset=windows,UTF8]{ctex}` 实测安全。
+- hjfy 人肉固化修复库 → 我们规则表(yaml 可贡献)+ LLM 修复器(log+源文件→最小patch),白盒可复现。
+
+### 覆盖率与降级链(60 篇实测抽样)
+
+- e-print 源码 **86.7%**;arXiv HTML 覆盖 **=源码覆盖**(LaTeXML 从源码生成,救不了 13.3% PDF 直投)。
+- 84.6% 多文件 tar(中位7文件),38.5% 自带 .cls/.sty,**42.5% 有.bbl无.bib → 编译直接消费 .bbl**。
+- 降级链定案: `e-print → arXiv HTML → MinerU/BabelDOC PDF`。
+
+### BabelDOC sidecar(冒烟实测可行)
+
+- 0.6.4 独立 venv(702MB 无 Torch),Adam 15页 60s,~$0.02–0.05/篇,峰值 1.1GB;质量高(图内矢量文字也翻)。
+- 两坑: 网关拒绝 `temperature=0`→`--no-send-temperature`;**翻译失败静默 fallback 原文**→sidecar 须校验 token 数防假成功。
+- subprocess CLI + FastAPI 封装 ~200行,解决 AGPL+崩溃隔离。**禁止 import 进主进程**。
 
 ### 支撑生态
 
@@ -62,12 +91,12 @@
 | 组件 | 选择 | 备注 |
 |---|---|---|
 | 语言/运行时 | Python 3.12+, uv 管理 | `uv tool install texlate` |
-| LaTeX 半解析器 | **自写 scanner + 递归下降** (~3-5k行) | byte-range 区间替换模型; 参考 ieeA/TexSoup 容错思路 + unified-latex CTAN 签名表移植 |
-| 宏展开层 | 自写 \newcommand/\def/\newenvironment 建表 + 受限展开 | 只对"含可翻译文本"的宏展开 (MathTranslate 思路) |
-| 校验 | 自写规则 + **tree-sitter-latex 辅助 AST 校验** | brace token-diff/cite-ref key diff/环境配对/占位符修复(Levenshtein) |
+| LaTeX 半解析器 | **自写 scanner + pieces 区间 splice**(miniscanner 已实证 1176 行达 M1 指标) | 单次正向逐字符扫描→pieces→占位符+不动点展开;参考 unified-latex CTAN 签名表 + latex-utensils 命令族 |
+| 宏展开层 | 自写六类定义建表 + 参数代入 + 不动点受限展开 | 含正文内定义(51% 论文);plasTeX mouth/gullet 设计 + MathTranslate 受限展开规则 |
+| 校验 | 自写规则 + **tree-sitter-latex CST 校验**(独立解析器,防"能parse但错") | ERROR/MISSING+env配对(~35行)+brace/cite key diff+占位符修复(Levenshtein) |
 | LLM 编排 | 自写 ~500行: OpenAI兼容 + Anthropic, asyncio+Semaphore | 参考 ieeA provider 缓存策略 (cache_control/Context API) |
-| 编译 | **tectonic 便携二进制子进程** (校验和验证下载) + xelatex/TeXLive 可选 | texglot 已验证三平台; ctex 注入 |
-| 编译修复 | **log 解析 → 规则表 → 修复执行 → 重试** 循环 + LLM 辅助修复 | hjfy 最大壁垒的开源解法 |
+| 编译 | **xelatex/TeXLive 主 + tectonic 便携二进制降级** + ctex 注入 | fixloop 实测: 判定用 clean 阈值非"出pdf" |
+| 编译修复 | **log 解析 → 规则表(16条已实证) → 修复执行 → 重试** + LLM 辅助修复 | fixloop spike 救回率 100%;hjfy 最大壁垒的开源解法 |
 | Web 后端 | FastAPI + SSE + SQLite 队列 (huey 或自写) | 服务端可换 Redis |
 | 前端 | Vite + TS + pdfslick 双栏对照 + marked/KaTeX | hjfy 同款阅读形态 |
 | 存储 | 本地: 文件系统缓存; 服务端: S3 + Postgres | arXiv ID → 译文缓存 (产品壁垒) |

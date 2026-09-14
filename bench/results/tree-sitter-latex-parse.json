@@ -1,0 +1,1211 @@
+[
+ {
+  "file": "1412.6980/arxiv.tex",
+  "bytes": 298,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 9.2,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "1511.06432/iclr2016_conference.tex",
+  "bytes": 41199,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 3,
+  "missingNodes": 0,
+  "errorBytes": 40348,
+  "errorPct": 97.93,
+  "ms": 12.22,
+  "firstErrorSpan": [
+   852,
+   41198
+  ]
+ },
+ {
+  "file": "1512.03385/residual_v1_arxiv_release.tex",
+  "bytes": 69687,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 44,
+  "missingNodes": 44,
+  "errorBytes": 44,
+  "errorPct": 0.06,
+  "ms": 18.36,
+  "firstErrorSpan": [
+   1490,
+   1491
+  ]
+ },
+ {
+  "file": "1706.03762/background.tex",
+  "bytes": 8376,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 0.41,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "1706.03762/introduction.tex",
+  "bytes": 5300,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 0.4,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "1706.03762/model_architecture.tex",
+  "bytes": 17109,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 2.82,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "1706.03762/ms.tex",
+  "bytes": 17611,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 1,
+  "missingNodes": 2,
+  "errorBytes": 1,
+  "errorPct": 0.01,
+  "ms": 3.56,
+  "firstErrorSpan": [
+   4297,
+   4298
+  ]
+ },
+ {
+  "file": "1706.03762/parameter_attention.tex",
+  "bytes": 3489,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 3,
+  "missingNodes": 3,
+  "errorBytes": 3,
+  "errorPct": 0.09,
+  "ms": 0.72,
+  "firstErrorSpan": [
+   103,
+   104
+  ]
+ },
+ {
+  "file": "1706.03762/results.tex",
+  "bytes": 11800,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 2.47,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "1706.03762/sqrt_d_trick.tex",
+  "bytes": 2226,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 0.19,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "1706.03762/training.tex",
+  "bytes": 4444,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 0.63,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "1706.03762/visualizations.tex",
+  "bytes": 1543,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 0.23,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "1706.03762/why_self_attention.tex",
+  "bytes": 7867,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 2,
+  "missingNodes": 2,
+  "errorBytes": 2,
+  "errorPct": 0.03,
+  "ms": 0.75,
+  "firstErrorSpan": [
+   2097,
+   2098
+  ]
+ },
+ {
+  "file": "1810.04805/ablation.tex",
+  "bytes": 7157,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 7,
+  "missingNodes": 7,
+  "errorBytes": 7,
+  "errorPct": 0.1,
+  "ms": 1.26,
+  "firstErrorSpan": [
+   291,
+   292
+  ]
+ },
+ {
+  "file": "1810.04805/abstract.tex",
+  "bytes": 1138,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 0.18,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "1810.04805/appendix_main.tex",
+  "bytes": 860,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 3,
+  "missingNodes": 3,
+  "errorBytes": 3,
+  "errorPct": 0.35,
+  "ms": 0.21,
+  "firstErrorSpan": [
+   334,
+   335
+  ]
+ },
+ {
+  "file": "1810.04805/bert.tex",
+  "bytes": 14009,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 12,
+  "missingNodes": 12,
+  "errorBytes": 12,
+  "errorPct": 0.09,
+  "ms": 2.48,
+  "firstErrorSpan": [
+   718,
+   719
+  ]
+ },
+ {
+  "file": "1810.04805/bert_details.tex",
+  "bytes": 9287,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 12,
+  "missingNodes": 12,
+  "errorBytes": 12,
+  "errorPct": 0.13,
+  "ms": 1.97,
+  "firstErrorSpan": [
+   87,
+   88
+  ]
+ },
+ {
+  "file": "1810.04805/conclusion.tex",
+  "bytes": 527,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 0.1,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "1810.04805/direction_ablation_tab.tex",
+  "bytes": 910,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 1,
+  "missingNodes": 1,
+  "errorBytes": 1,
+  "errorPct": 0.11,
+  "ms": 0.21,
+  "firstErrorSpan": [
+   893,
+   894
+  ]
+ },
+ {
+  "file": "1810.04805/experiment.tex",
+  "bytes": 8214,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 6,
+  "missingNodes": 6,
+  "errorBytes": 6,
+  "errorPct": 0.07,
+  "ms": 1.3,
+  "firstErrorSpan": [
+   2249,
+   2250
+  ]
+ },
+ {
+  "file": "1810.04805/experiments_details.tex",
+  "bytes": 3382,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 2,
+  "missingNodes": 2,
+  "errorBytes": 2,
+  "errorPct": 0.06,
+  "ms": 0.49,
+  "firstErrorSpan": [
+   82,
+   83
+  ]
+ },
+ {
+  "file": "1810.04805/glue_official_tab.tex",
+  "bytes": 2082,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 1,
+  "missingNodes": 1,
+  "errorBytes": 1,
+  "errorPct": 0.05,
+  "ms": 0.48,
+  "firstErrorSpan": [
+   1991,
+   1992
+  ]
+ },
+ {
+  "file": "1810.04805/intro.tex",
+  "bytes": 4116,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 1,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "1810.04805/main.tex",
+  "bytes": 1719,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 0.29,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "1810.04805/mask_procedure_ablation_tab.tex",
+  "bytes": 865,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 1,
+  "missingNodes": 1,
+  "errorBytes": 1,
+  "errorPct": 0.12,
+  "ms": 0.42,
+  "firstErrorSpan": [
+   850,
+   851
+  ]
+ },
+ {
+  "file": "1810.04805/more_ablation.tex",
+  "bytes": 2894,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 6,
+  "missingNodes": 6,
+  "errorBytes": 6,
+  "errorPct": 0.21,
+  "ms": 0.63,
+  "firstErrorSpan": [
+   93,
+   94
+  ]
+ },
+ {
+  "file": "1810.04805/pretrained_embeddings_tab.tex",
+  "bytes": 997,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 2,
+  "missingNodes": 2,
+  "errorBytes": 2,
+  "errorPct": 0.2,
+  "ms": 0.23,
+  "firstErrorSpan": [
+   942,
+   943
+  ]
+ },
+ {
+  "file": "1810.04805/related.tex",
+  "bytes": 4662,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 1,
+  "missingNodes": 1,
+  "errorBytes": 1,
+  "errorPct": 0.02,
+  "ms": 0.65,
+  "firstErrorSpan": [
+   2095,
+   2096
+  ]
+ },
+ {
+  "file": "1810.04805/size_ablation_tab.tex",
+  "bytes": 841,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 1,
+  "missingNodes": 1,
+  "errorBytes": 1,
+  "errorPct": 0.12,
+  "ms": 0.22,
+  "firstErrorSpan": [
+   827,
+   828
+  ]
+ },
+ {
+  "file": "1810.04805/squad_tab.tex",
+  "bytes": 2030,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 2,
+  "missingNodes": 2,
+  "errorBytes": 2,
+  "errorPct": 0.1,
+  "ms": 0.48,
+  "firstErrorSpan": [
+   1172,
+   1173
+  ]
+ },
+ {
+  "file": "1810.04805/steps_ablation_fig.tex",
+  "bytes": 1289,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 1,
+  "missingNodes": 1,
+  "errorBytes": 1,
+  "errorPct": 0.08,
+  "ms": 0.41,
+  "firstErrorSpan": [
+   1275,
+   1276
+  ]
+ },
+ {
+  "file": "1810.04805/swag_official_tab.tex",
+  "bytes": 647,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 1,
+  "missingNodes": 1,
+  "errorBytes": 1,
+  "errorPct": 0.15,
+  "ms": 0.15,
+  "firstErrorSpan": [
+   621,
+   622
+  ]
+ },
+ {
+  "file": "1906.08237/abstract.tex",
+  "bytes": 6824,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 0.2,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "1906.08237/appendix.tex",
+  "bytes": 24129,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 18,
+  "missingNodes": 18,
+  "errorBytes": 18,
+  "errorPct": 0.07,
+  "ms": 3.52,
+  "firstErrorSpan": [
+   18704,
+   18705
+  ]
+ },
+ {
+  "file": "1906.08237/conc.tex",
+  "bytes": 651,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 0.14,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "1906.08237/custom.tex",
+  "bytes": 3524,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 3,
+  "missingNodes": 0,
+  "errorBytes": 59,
+  "errorPct": 1.67,
+  "ms": 1.17,
+  "firstErrorSpan": [
+   1042,
+   1065
+  ]
+ },
+ {
+  "file": "1906.08237/exp.tex",
+  "bytes": 25308,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 1,
+  "missingNodes": 1,
+  "errorBytes": 1,
+  "errorPct": 0,
+  "ms": 2.83,
+  "firstErrorSpan": [
+   8707,
+   8708
+  ]
+ },
+ {
+  "file": "1906.08237/intro.tex",
+  "bytes": 11347,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 0.85,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "1906.08237/model.tex",
+  "bytes": 31402,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 1,
+  "missingNodes": 1,
+  "errorBytes": 1,
+  "errorPct": 0,
+  "ms": 3.19,
+  "firstErrorSpan": [
+   9047,
+   9048
+  ]
+ },
+ {
+  "file": "1906.08237/neurips_2019.tex",
+  "bytes": 3995,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 1,
+  "missingNodes": 0,
+  "errorBytes": 1,
+  "errorPct": 0.03,
+  "ms": 0.6,
+  "firstErrorSpan": [
+   2022,
+   2023
+  ]
+ },
+ {
+  "file": "1906.08237/related.tex",
+  "bytes": 1843,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 0.03,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "1906.08237/symbol.tex",
+  "bytes": 8505,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 1.15,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "2005.11401/abstract.tex",
+  "bytes": 1632,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 0.26,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "2005.11401/appendix.tex",
+  "bytes": 9763,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 3,
+  "missingNodes": 3,
+  "errorBytes": 3,
+  "errorPct": 0.03,
+  "ms": 1.77,
+  "firstErrorSpan": [
+   2993,
+   2994
+  ]
+ },
+ {
+  "file": "2005.11401/comment_engine.tex",
+  "bytes": 1993,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 0.34,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "2005.11401/experiments.tex",
+  "bytes": 6283,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 0.81,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "2005.11401/intro.tex",
+  "bytes": 4517,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 1,
+  "missingNodes": 1,
+  "errorBytes": 1,
+  "errorPct": 0.02,
+  "ms": 0.6,
+  "firstErrorSpan": [
+   1731,
+   1732
+  ]
+ },
+ {
+  "file": "2005.11401/methods.tex",
+  "bytes": 8009,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 1,
+  "missingNodes": 1,
+  "errorBytes": 1,
+  "errorPct": 0.01,
+  "ms": 1.34,
+  "firstErrorSpan": [
+   828,
+   829
+  ]
+ },
+ {
+  "file": "2005.11401/neurips_2020.tex",
+  "bytes": 9360,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 1,
+  "missingNodes": 1,
+  "errorBytes": 1,
+  "errorPct": 0.01,
+  "ms": 0.9,
+  "firstErrorSpan": [
+   3701,
+   3702
+  ]
+ },
+ {
+  "file": "2005.11401/related.tex",
+  "bytes": 4601,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 0.72,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "2005.11401/results.tex",
+  "bytes": 16907,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 12,
+  "missingNodes": 12,
+  "errorBytes": 12,
+  "errorPct": 0.07,
+  "ms": 3.59,
+  "firstErrorSpan": [
+   318,
+   319
+  ]
+ },
+ {
+  "file": "2005.11401/tables/main_results.tex",
+  "bytes": 1509,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 0.35,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "2106.09685/expt.tex",
+  "bytes": 17476,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 20,
+  "missingNodes": 20,
+  "errorBytes": 20,
+  "errorPct": 0.11,
+  "ms": 3.99,
+  "firstErrorSpan": [
+   925,
+   926
+  ]
+ },
+ {
+  "file": "2106.09685/iclr2022_conference.tex",
+  "bytes": 78753,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 91,
+  "missingNodes": 91,
+  "errorBytes": 91,
+  "errorPct": 0.12,
+  "ms": 18.21,
+  "firstErrorSpan": [
+   4468,
+   4469
+  ]
+ },
+ {
+  "file": "2106.09685/math_commands.tex",
+  "bytes": 10697,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 32,
+  "missingNodes": 0,
+  "errorBytes": 64,
+  "errorPct": 0.6,
+  "ms": 2.91,
+  "firstErrorSpan": [
+   423,
+   425
+  ]
+ },
+ {
+  "file": "2203.02155/automatic-eval-prompts.tex",
+  "bytes": 14665,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 2.66,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "2203.02155/automatic_evals_table.tex",
+  "bytes": 8484,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 1.3,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "2203.02155/model-samples.tex",
+  "bytes": 22690,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 10,
+  "missingNodes": 10,
+  "errorBytes": 10,
+  "errorPct": 0.04,
+  "ms": 4.09,
+  "firstErrorSpan": [
+   2184,
+   2185
+  ]
+ },
+ {
+  "file": "2203.02155/neurips_2021.tex",
+  "bytes": 149181,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 36,
+  "missingNodes": 35,
+  "errorBytes": 55,
+  "errorPct": 0.04,
+  "ms": 25.96,
+  "firstErrorSpan": [
+   1064,
+   1084
+  ]
+ },
+ {
+  "file": "2203.02155/usecases-gpt.tex",
+  "bytes": 9840,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 0.75,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "2203.02155/usecases-if.tex",
+  "bytes": 17979,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 1.15,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "2305.14335/0_abstract.tex",
+  "bytes": 1978,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 0.34,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "2305.14335/1_introduction_IEEE.tex",
+  "bytes": 7392,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 0.98,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "2305.14335/2_relatedworks.tex",
+  "bytes": 6905,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 0.88,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "2305.14335/3_methods.tex",
+  "bytes": 17885,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 9,
+  "missingNodes": 9,
+  "errorBytes": 9,
+  "errorPct": 0.05,
+  "ms": 3.72,
+  "firstErrorSpan": [
+   7240,
+   7241
+  ]
+ },
+ {
+  "file": "2305.14335/4_experiments.tex",
+  "bytes": 33640,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 2,
+  "missingNodes": 2,
+  "errorBytes": 2,
+  "errorPct": 0.01,
+  "ms": 5.43,
+  "firstErrorSpan": [
+   19651,
+   19652
+  ]
+ },
+ {
+  "file": "2305.14335/5_conclusion.tex",
+  "bytes": 1181,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 0.2,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "2305.14335/main.tex",
+  "bytes": 25082,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 1,
+  "missingNodes": 1,
+  "errorBytes": 1,
+  "errorPct": 0,
+  "ms": 1.45,
+  "firstErrorSpan": [
+   17209,
+   17210
+  ]
+ },
+ {
+  "file": "2501.14787/lectures/0-Introduction.tex",
+  "bytes": 3154,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 0.35,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "2501.14787/lectures/01-Overview.tex",
+  "bytes": 12648,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 2.28,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "2501.14787/lectures/02-Derivatives-LinearOperators.tex",
+  "bytes": 29027,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 5,
+  "missingNodes": 0,
+  "errorBytes": 5,
+  "errorPct": 0.02,
+  "ms": 5.6,
+  "firstErrorSpan": [
+   21297,
+   21298
+  ]
+ },
+ {
+  "file": "2501.14787/lectures/03-TwobyTwoJacobians.tex",
+  "bytes": 25376,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 5.3,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "2501.14787/lectures/04-FiniteDifferences.tex",
+  "bytes": 14699,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 2.78,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "2501.14787/lectures/05-Derivatives-GeneralVectorSpaces.tex",
+  "bytes": 13443,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 2.24,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "2501.14787/lectures/06-RootFinding-Optimization-Adjoints.tex",
+  "bytes": 22725,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 3,
+  "missingNodes": 0,
+  "errorBytes": 3,
+  "errorPct": 0.01,
+  "ms": 4.25,
+  "firstErrorSpan": [
+   20054,
+   20055
+  ]
+ },
+ {
+  "file": "2501.14787/lectures/07-Derivative-MatrixDet-Inverse.tex",
+  "bytes": 6367,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 1.45,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "2501.14787/lectures/08-Forward-Reverse-AD.tex",
+  "bytes": 49317,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 10.64,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "2501.14787/lectures/09-DifferentiatingODESolutions.tex",
+  "bytes": 32957,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 6.49,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "2501.14787/lectures/10-CalculusofVariations.tex",
+  "bytes": 11473,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 3,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "2501.14787/lectures/11-Derivatives-RandomFunctions.tex",
+  "bytes": 25223,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 3.08,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "2501.14787/lectures/12-SecondDerivatives-BilinearMaps-Hessian.tex",
+  "bytes": 32581,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 7.09,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "2501.14787/lectures/13-Derivatives-Eigenproblems.tex",
+  "bytes": 7498,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 2.05,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "2501.14787/lectures/14-WhereWeGoFromHere.tex",
+  "bytes": 5439,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 0.73,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "2501.14787/main.tex",
+  "bytes": 3567,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 1,
+  "missingNodes": 1,
+  "errorBytes": 1,
+  "errorPct": 0.03,
+  "ms": 0.47,
+  "firstErrorSpan": [
+   720,
+   721
+  ]
+ },
+ {
+  "file": "2501.14787/psets/Pset1.tex",
+  "bytes": 4196,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 0.76,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "2501.14787/psets/Pset1sol.tex",
+  "bytes": 14123,
+  "ok": true,
+  "hasError": true,
+  "errorNodes": 1,
+  "missingNodes": 0,
+  "errorBytes": 13748,
+  "errorPct": 97.34,
+  "ms": 3.17,
+  "firstErrorSpan": [
+   375,
+   14123
+  ]
+ },
+ {
+  "file": "2501.14787/psets/Pset2.tex",
+  "bytes": 7232,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 2.02,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "2501.14787/psets/Pset2sol.tex",
+  "bytes": 10779,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 2.12,
+  "firstErrorSpan": null
+ },
+ {
+  "file": "hep-th/9901001/imamura2.tex",
+  "bytes": 29049,
+  "ok": true,
+  "hasError": false,
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0,
+  "errorPct": 0,
+  "ms": 7.01,
+  "firstErrorSpan": null
+ }
+]

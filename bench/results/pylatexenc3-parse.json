@@ -1,0 +1,4059 @@
+{
+ "library": "pylatexenc",
+ "version": "3.0beta2",
+ "python": "3.12.11",
+ "parse": [
+  {
+   "size": 298,
+   "tol_ok": true,
+   "tol_ms": 2.7,
+   "tol_nodes": 11,
+   "tol_nlen": 298,
+   "strict_ok": true,
+   "strict_ms": 0.9,
+   "strict_nodes": 11,
+   "strict_nlen": 298,
+   "file": "corpus/1412.6980/arxiv.tex",
+   "wall_ms": 6.9
+  },
+  {
+   "size": 41199,
+   "tol_ok": true,
+   "tol_ms": 110.9,
+   "tol_nodes": 63,
+   "tol_nlen": 41199,
+   "strict_ok": false,
+   "strict_ms": 3.7,
+   "strict_error": "LatexWalkerNodesParseError: Unexpected mismatching closing delimiter ‘}’ @ (line 33, col 36)\nOpen LaTeX blocks:\n    @ (line 33, col 0)  macro ‘\\newcommand’\n    @ (line 33, col 20)  Argument 4\n    @ (line 33, col 20)  Delimited expression ‘{…}’\n    @ (line 33, col 21)  environment ‘{bmatrix}’\n",
+   "file": "corpus/1511.06432/iclr2016_conference.tex",
+   "wall_ms": 117.2
+  },
+  {
+   "size": 69687,
+   "tol_ok": true,
+   "tol_ms": 184.8,
+   "tol_nodes": 56,
+   "tol_nlen": 69687,
+   "strict_ok": true,
+   "strict_ms": 182.7,
+   "strict_nodes": 56,
+   "strict_nlen": 69687,
+   "file": "corpus/1512.03385/residual_v1_arxiv_release.tex",
+   "wall_ms": 371.2
+  },
+  {
+   "size": 8376,
+   "tol_ok": true,
+   "tol_ms": 5.9,
+   "tol_nodes": 73,
+   "tol_nlen": 8376,
+   "strict_ok": true,
+   "strict_ms": 4.3,
+   "strict_nodes": 73,
+   "strict_nlen": 8376,
+   "file": "corpus/1706.03762/background.tex",
+   "wall_ms": 13.1
+  },
+  {
+   "size": 5300,
+   "tol_ok": true,
+   "tol_ms": 6.2,
+   "tol_nodes": 40,
+   "tol_nlen": 5300,
+   "strict_ok": true,
+   "strict_ms": 4.3,
+   "strict_nodes": 40,
+   "strict_nlen": 5300,
+   "file": "corpus/1706.03762/introduction.tex",
+   "wall_ms": 14.2
+  },
+  {
+   "size": 17109,
+   "tol_ok": true,
+   "tol_ms": 26.8,
+   "tol_nodes": 237,
+   "tol_nlen": 17109,
+   "strict_ok": true,
+   "strict_ms": 23.9,
+   "strict_nodes": 237,
+   "strict_nlen": 17109,
+   "file": "corpus/1706.03762/model_architecture.tex",
+   "wall_ms": 53.1
+  },
+  {
+   "size": 17611,
+   "tol_ok": true,
+   "tol_ms": 36.4,
+   "tol_nodes": 125,
+   "tol_nlen": 17611,
+   "strict_ok": true,
+   "strict_ms": 37.8,
+   "strict_nodes": 125,
+   "strict_nlen": 17611,
+   "file": "corpus/1706.03762/ms.tex",
+   "wall_ms": 78.7
+  },
+  {
+   "size": 3489,
+   "tol_ok": true,
+   "tol_ms": 13.5,
+   "tol_nodes": 51,
+   "tol_nlen": 3489,
+   "strict_ok": true,
+   "strict_ms": 8.8,
+   "strict_nodes": 51,
+   "strict_nlen": 3489,
+   "file": "corpus/1706.03762/parameter_attention.tex",
+   "wall_ms": 27.2
+  },
+  {
+   "size": 11800,
+   "tol_ok": true,
+   "tol_ms": 103.2,
+   "tol_nodes": 120,
+   "tol_nlen": 11800,
+   "strict_ok": true,
+   "strict_ms": 42.8,
+   "strict_nodes": 120,
+   "strict_nlen": 11800,
+   "file": "corpus/1706.03762/results.tex",
+   "wall_ms": 149.5
+  },
+  {
+   "size": 2226,
+   "tol_ok": true,
+   "tol_ms": 8.5,
+   "tol_nodes": 58,
+   "tol_nlen": 2226,
+   "strict_ok": true,
+   "strict_ms": 5.0,
+   "strict_nodes": 58,
+   "strict_nlen": 2226,
+   "file": "corpus/1706.03762/sqrt_d_trick.tex",
+   "wall_ms": 16.1
+  },
+  {
+   "size": 4444,
+   "tol_ok": true,
+   "tol_ms": 7.6,
+   "tol_nodes": 70,
+   "tol_nlen": 4444,
+   "strict_ok": true,
+   "strict_ms": 6.2,
+   "strict_nodes": 70,
+   "strict_nlen": 4444,
+   "file": "corpus/1706.03762/training.tex",
+   "wall_ms": 16.2
+  },
+  {
+   "size": 1543,
+   "tol_ok": true,
+   "tol_ms": 5.0,
+   "tol_nodes": 10,
+   "tol_nlen": 1543,
+   "strict_ok": true,
+   "strict_ms": 3.2,
+   "strict_nodes": 10,
+   "strict_nlen": 1543,
+   "file": "corpus/1706.03762/visualizations.tex",
+   "wall_ms": 10.3
+  },
+  {
+   "size": 7867,
+   "tol_ok": true,
+   "tol_ms": 12.1,
+   "tol_nodes": 98,
+   "tol_nlen": 7867,
+   "strict_ok": true,
+   "strict_ms": 9.8,
+   "strict_nodes": 98,
+   "strict_nlen": 7867,
+   "file": "corpus/1706.03762/why_self_attention.tex",
+   "wall_ms": 24.2
+  },
+  {
+   "size": 7157,
+   "tol_ok": true,
+   "tol_ms": 15.4,
+   "tol_nodes": 116,
+   "tol_nlen": 7157,
+   "strict_ok": true,
+   "strict_ms": 13.2,
+   "strict_nodes": 116,
+   "strict_nlen": 7157,
+   "file": "corpus/1810.04805/ablation.tex",
+   "wall_ms": 31.1
+  },
+  {
+   "size": 1138,
+   "tol_ok": true,
+   "tol_ms": 3.7,
+   "tol_nodes": 29,
+   "tol_nlen": 1138,
+   "strict_ok": true,
+   "strict_ms": 2.2,
+   "strict_nodes": 29,
+   "strict_nlen": 1138,
+   "file": "corpus/1810.04805/abstract.tex",
+   "wall_ms": 8.1
+  },
+  {
+   "size": 860,
+   "tol_ok": true,
+   "tol_ms": 3.6,
+   "tol_nodes": 12,
+   "tol_nlen": 860,
+   "strict_ok": true,
+   "strict_ms": 1.9,
+   "strict_nodes": 12,
+   "strict_nlen": 860,
+   "file": "corpus/1810.04805/appendix_main.tex",
+   "wall_ms": 7.4
+  },
+  {
+   "size": 14009,
+   "tol_ok": true,
+   "tol_ms": 27.6,
+   "tol_nodes": 274,
+   "tol_nlen": 14009,
+   "strict_ok": true,
+   "strict_ms": 25.9,
+   "strict_nodes": 274,
+   "strict_nlen": 14009,
+   "file": "corpus/1810.04805/bert.tex",
+   "wall_ms": 56.4
+  },
+  {
+   "size": 9287,
+   "tol_ok": true,
+   "tol_ms": 20.4,
+   "tol_nodes": 154,
+   "tol_nlen": 9287,
+   "strict_ok": true,
+   "strict_ms": 17.9,
+   "strict_nodes": 154,
+   "strict_nlen": 9287,
+   "file": "corpus/1810.04805/bert_details.tex",
+   "wall_ms": 40.7
+  },
+  {
+   "size": 527,
+   "tol_ok": true,
+   "tol_ms": 2.5,
+   "tol_nodes": 5,
+   "tol_nlen": 527,
+   "strict_ok": true,
+   "strict_ms": 1.1,
+   "strict_nodes": 5,
+   "strict_nlen": 527,
+   "file": "corpus/1810.04805/conclusion.tex",
+   "wall_ms": 5.5
+  },
+  {
+   "size": 910,
+   "tol_ok": true,
+   "tol_ms": 3.6,
+   "tol_nodes": 2,
+   "tol_nlen": 910,
+   "strict_ok": true,
+   "strict_ms": 2.3,
+   "strict_nodes": 2,
+   "strict_nlen": 910,
+   "file": "corpus/1810.04805/direction_ablation_tab.tex",
+   "wall_ms": 7.9
+  },
+  {
+   "size": 8214,
+   "tol_ok": true,
+   "tol_ms": 18.8,
+   "tol_nodes": 196,
+   "tol_nlen": 8214,
+   "strict_ok": true,
+   "strict_ms": 16.5,
+   "strict_nodes": 196,
+   "strict_nlen": 8214,
+   "file": "corpus/1810.04805/experiment.tex",
+   "wall_ms": 37.5
+  },
+  {
+   "size": 3382,
+   "tol_ok": true,
+   "tol_ms": 8.9,
+   "tol_nodes": 89,
+   "tol_nlen": 3382,
+   "strict_ok": true,
+   "strict_ms": 7.5,
+   "strict_nodes": 89,
+   "strict_nlen": 3382,
+   "file": "corpus/1810.04805/experiments_details.tex",
+   "wall_ms": 18.8
+  },
+  {
+   "size": 2082,
+   "tol_ok": true,
+   "tol_ms": 6.0,
+   "tol_nodes": 5,
+   "tol_nlen": 2082,
+   "strict_ok": true,
+   "strict_ms": 3.6,
+   "strict_nodes": 5,
+   "strict_nlen": 2082,
+   "file": "corpus/1810.04805/glue_official_tab.tex",
+   "wall_ms": 11.6
+  },
+  {
+   "size": 4116,
+   "tol_ok": true,
+   "tol_ms": 9.8,
+   "tol_nodes": 63,
+   "tol_nlen": 4116,
+   "strict_ok": true,
+   "strict_ms": 8.9,
+   "strict_nodes": 63,
+   "strict_nlen": 4116,
+   "file": "corpus/1810.04805/intro.tex",
+   "wall_ms": 20.8
+  },
+  {
+   "size": 1719,
+   "tol_ok": true,
+   "tol_ms": 6.5,
+   "tol_nodes": 81,
+   "tol_nlen": 1719,
+   "strict_ok": true,
+   "strict_ms": 5.6,
+   "strict_nodes": 81,
+   "strict_nlen": 1719,
+   "file": "corpus/1810.04805/main.tex",
+   "wall_ms": 18.5
+  },
+  {
+   "size": 865,
+   "tol_ok": true,
+   "tol_ms": 4.8,
+   "tol_nodes": 3,
+   "tol_nlen": 865,
+   "strict_ok": true,
+   "strict_ms": 3.0,
+   "strict_nodes": 3,
+   "strict_nlen": 865,
+   "file": "corpus/1810.04805/mask_procedure_ablation_tab.tex",
+   "wall_ms": 10.1
+  },
+  {
+   "size": 2894,
+   "tol_ok": true,
+   "tol_ms": 7.5,
+   "tol_nodes": 66,
+   "tol_nlen": 2894,
+   "strict_ok": true,
+   "strict_ms": 5.9,
+   "strict_nodes": 66,
+   "strict_nlen": 2894,
+   "file": "corpus/1810.04805/more_ablation.tex",
+   "wall_ms": 15.6
+  },
+  {
+   "size": 997,
+   "tol_ok": true,
+   "tol_ms": 4.1,
+   "tol_nodes": 3,
+   "tol_nlen": 997,
+   "strict_ok": true,
+   "strict_ms": 2.7,
+   "strict_nodes": 3,
+   "strict_nlen": 997,
+   "file": "corpus/1810.04805/pretrained_embeddings_tab.tex",
+   "wall_ms": 8.6
+  },
+  {
+   "size": 4662,
+   "tol_ok": true,
+   "tol_ms": 12.3,
+   "tol_nodes": 101,
+   "tol_nlen": 4662,
+   "strict_ok": true,
+   "strict_ms": 10.6,
+   "strict_nodes": 101,
+   "strict_nlen": 4662,
+   "file": "corpus/1810.04805/related.tex",
+   "wall_ms": 25.2
+  },
+  {
+   "size": 841,
+   "tol_ok": true,
+   "tol_ms": 4.1,
+   "tol_nodes": 3,
+   "tol_nlen": 841,
+   "strict_ok": true,
+   "strict_ms": 2.1,
+   "strict_nodes": 3,
+   "strict_nlen": 841,
+   "file": "corpus/1810.04805/size_ablation_tab.tex",
+   "wall_ms": 8.4
+  },
+  {
+   "size": 2030,
+   "tol_ok": true,
+   "tol_ms": 7.5,
+   "tol_nodes": 6,
+   "tol_nlen": 2030,
+   "strict_ok": true,
+   "strict_ms": 5.7,
+   "strict_nodes": 6,
+   "strict_nlen": 2030,
+   "file": "corpus/1810.04805/squad_tab.tex",
+   "wall_ms": 17.1
+  },
+  {
+   "size": 1289,
+   "tol_ok": true,
+   "tol_ms": 4.0,
+   "tol_nodes": 3,
+   "tol_nlen": 1289,
+   "strict_ok": true,
+   "strict_ms": 2.1,
+   "strict_nodes": 3,
+   "strict_nlen": 1289,
+   "file": "corpus/1810.04805/steps_ablation_fig.tex",
+   "wall_ms": 8.4
+  },
+  {
+   "size": 647,
+   "tol_ok": true,
+   "tol_ms": 3.4,
+   "tol_nodes": 2,
+   "tol_nlen": 647,
+   "strict_ok": true,
+   "strict_ms": 1.8,
+   "strict_nodes": 2,
+   "strict_nlen": 647,
+   "file": "corpus/1810.04805/swag_official_tab.tex",
+   "wall_ms": 7.0
+  },
+  {
+   "size": 6824,
+   "tol_ok": true,
+   "tol_ms": 3.9,
+   "tol_nodes": 3,
+   "tol_nlen": 6824,
+   "strict_ok": true,
+   "strict_ms": 2.3,
+   "strict_nodes": 3,
+   "strict_nlen": 6824,
+   "file": "corpus/1906.08237/abstract.tex",
+   "wall_ms": 7.8
+  },
+  {
+   "size": 24129,
+   "tol_ok": true,
+   "tol_ms": 49.5,
+   "tol_nodes": 354,
+   "tol_nlen": 24129,
+   "strict_ok": true,
+   "strict_ms": 70.9,
+   "strict_nodes": 354,
+   "strict_nlen": 24129,
+   "file": "corpus/1906.08237/appendix.tex",
+   "wall_ms": 122.7
+  },
+  {
+   "size": 651,
+   "tol_ok": true,
+   "tol_ms": 2.5,
+   "tol_nodes": 4,
+   "tol_nlen": 651,
+   "strict_ok": true,
+   "strict_ms": 1.0,
+   "strict_nodes": 4,
+   "strict_nlen": 651,
+   "file": "corpus/1906.08237/conc.tex",
+   "wall_ms": 6.2
+  },
+  {
+   "size": 3524,
+   "tol_ok": true,
+   "tol_ms": 13.0,
+   "tol_nodes": 210,
+   "tol_nlen": 3524,
+   "strict_ok": true,
+   "strict_ms": 11.0,
+   "strict_nodes": 210,
+   "strict_nlen": 3524,
+   "file": "corpus/1906.08237/custom.tex",
+   "wall_ms": 26.3
+  },
+  {
+   "size": 25308,
+   "tol_ok": true,
+   "tol_ms": 33.2,
+   "tol_nodes": 233,
+   "tol_nlen": 25308,
+   "strict_ok": true,
+   "strict_ms": 31.5,
+   "strict_nodes": 233,
+   "strict_nlen": 25308,
+   "file": "corpus/1906.08237/exp.tex",
+   "wall_ms": 67.4
+  },
+  {
+   "size": 11347,
+   "tol_ok": true,
+   "tol_ms": 14.1,
+   "tol_nodes": 77,
+   "tol_nlen": 11347,
+   "strict_ok": true,
+   "strict_ms": 11.8,
+   "strict_nodes": 77,
+   "strict_nlen": 11347,
+   "file": "corpus/1906.08237/intro.tex",
+   "wall_ms": 29.7
+  },
+  {
+   "size": 31402,
+   "tol_ok": true,
+   "tol_ms": 49.3,
+   "tol_nodes": 502,
+   "tol_nlen": 31402,
+   "strict_ok": true,
+   "strict_ms": 46.1,
+   "strict_nodes": 502,
+   "strict_nlen": 31402,
+   "file": "corpus/1906.08237/model.tex",
+   "wall_ms": 97.9
+  },
+  {
+   "size": 3995,
+   "tol_ok": true,
+   "tol_ms": 8.3,
+   "tol_nodes": 103,
+   "tol_nlen": 3995,
+   "strict_ok": true,
+   "strict_ms": 5.5,
+   "strict_nodes": 103,
+   "strict_nlen": 3995,
+   "file": "corpus/1906.08237/neurips_2019.tex",
+   "wall_ms": 16.1
+  },
+  {
+   "size": 1843,
+   "tol_ok": true,
+   "tol_ms": 1.6,
+   "tol_nodes": 7,
+   "tol_nlen": 1843,
+   "strict_ok": true,
+   "strict_ms": 0.1,
+   "strict_nodes": 7,
+   "strict_nlen": 1843,
+   "file": "corpus/1906.08237/related.tex",
+   "wall_ms": 3.9
+  },
+  {
+   "size": 8505,
+   "tol_ok": true,
+   "tol_ms": 27.7,
+   "tol_nodes": 1475,
+   "tol_nlen": 8505,
+   "strict_ok": true,
+   "strict_ms": 27.7,
+   "strict_nodes": 1475,
+   "strict_nlen": 8505,
+   "file": "corpus/1906.08237/symbol.tex",
+   "wall_ms": 57.4
+  },
+  {
+   "size": 1632,
+   "tol_ok": true,
+   "tol_ms": 4.3,
+   "tol_nodes": 12,
+   "tol_nlen": 1632,
+   "strict_ok": true,
+   "strict_ms": 2.7,
+   "strict_nodes": 12,
+   "strict_nlen": 1632,
+   "file": "corpus/2005.11401/abstract.tex",
+   "wall_ms": 9.1
+  },
+  {
+   "size": 9763,
+   "tol_ok": true,
+   "tol_ms": 19.5,
+   "tol_nodes": 124,
+   "tol_nlen": 9763,
+   "strict_ok": true,
+   "strict_ms": 18.4,
+   "strict_nodes": 124,
+   "strict_nlen": 9763,
+   "file": "corpus/2005.11401/appendix.tex",
+   "wall_ms": 40.0
+  },
+  {
+   "size": 1993,
+   "tol_ok": true,
+   "tol_ms": 8.0,
+   "tol_nodes": 135,
+   "tol_nlen": 1993,
+   "strict_ok": true,
+   "strict_ms": 6.1,
+   "strict_nodes": 135,
+   "strict_nlen": 1993,
+   "file": "corpus/2005.11401/comment_engine.tex",
+   "wall_ms": 16.5
+  },
+  {
+   "size": 6283,
+   "tol_ok": true,
+   "tol_ms": 14.6,
+   "tol_nodes": 115,
+   "tol_nlen": 6283,
+   "strict_ok": true,
+   "strict_ms": 12.4,
+   "strict_nodes": 115,
+   "strict_nlen": 6283,
+   "file": "corpus/2005.11401/experiments.tex",
+   "wall_ms": 29.3
+  },
+  {
+   "size": 4517,
+   "tol_ok": true,
+   "tol_ms": 12.5,
+   "tol_nodes": 92,
+   "tol_nlen": 4517,
+   "strict_ok": true,
+   "strict_ms": 10.7,
+   "strict_nodes": 92,
+   "strict_nlen": 4517,
+   "file": "corpus/2005.11401/intro.tex",
+   "wall_ms": 25.5
+  },
+  {
+   "size": 8009,
+   "tol_ok": true,
+   "tol_ms": 21.1,
+   "tol_nodes": 259,
+   "tol_nlen": 8009,
+   "strict_ok": true,
+   "strict_ms": 18.6,
+   "strict_nodes": 259,
+   "strict_nlen": 8009,
+   "file": "corpus/2005.11401/methods.tex",
+   "wall_ms": 41.8
+  },
+  {
+   "size": 9360,
+   "tol_ok": true,
+   "tol_ms": 14.2,
+   "tol_nodes": 91,
+   "tol_nlen": 9360,
+   "strict_ok": true,
+   "strict_ms": 11.7,
+   "strict_nodes": 91,
+   "strict_nlen": 9360,
+   "file": "corpus/2005.11401/neurips_2020.tex",
+   "wall_ms": 28.0
+  },
+  {
+   "size": 4601,
+   "tol_ok": true,
+   "tol_ms": 11.9,
+   "tol_nodes": 86,
+   "tol_nlen": 4601,
+   "strict_ok": true,
+   "strict_ms": 9.8,
+   "strict_nodes": 86,
+   "strict_nlen": 4601,
+   "file": "corpus/2005.11401/related.tex",
+   "wall_ms": 24.1
+  },
+  {
+   "size": 16907,
+   "tol_ok": true,
+   "tol_ms": 38.4,
+   "tol_nodes": 222,
+   "tol_nlen": 16907,
+   "strict_ok": true,
+   "strict_ms": 36.3,
+   "strict_nodes": 222,
+   "strict_nlen": 16907,
+   "file": "corpus/2005.11401/results.tex",
+   "wall_ms": 76.9
+  },
+  {
+   "size": 1509,
+   "tol_ok": true,
+   "tol_ms": 6.5,
+   "tol_nodes": 2,
+   "tol_nlen": 1509,
+   "strict_ok": true,
+   "strict_ms": 5.0,
+   "strict_nodes": 2,
+   "strict_nlen": 1509,
+   "file": "corpus/2005.11401/tables/main_results.tex",
+   "wall_ms": 13.7
+  },
+  {
+   "size": 17476,
+   "tol_ok": true,
+   "tol_ms": 47.6,
+   "tol_nodes": 233,
+   "tol_nlen": 17476,
+   "strict_ok": true,
+   "strict_ms": 49.0,
+   "strict_nodes": 233,
+   "strict_nlen": 17476,
+   "file": "corpus/2106.09685/expt.tex",
+   "wall_ms": 98.9
+  },
+  {
+   "size": 78753,
+   "tol_ok": true,
+   "tol_ms": 180.4,
+   "tol_nodes": 91,
+   "tol_nlen": 78753,
+   "strict_ok": true,
+   "strict_ms": 185.6,
+   "strict_nodes": 91,
+   "strict_nlen": 78753,
+   "file": "corpus/2106.09685/iclr2022_conference.tex",
+   "wall_ms": 368.6
+  },
+  {
+   "size": 10697,
+   "tol_ok": true,
+   "tol_ms": 37.8,
+   "tol_nodes": 1682,
+   "tol_nlen": 10697,
+   "strict_ok": true,
+   "strict_ms": 37.8,
+   "strict_nodes": 1682,
+   "strict_nlen": 10697,
+   "file": "corpus/2106.09685/math_commands.tex",
+   "wall_ms": 77.9
+  },
+  {
+   "size": 14665,
+   "tol_ok": true,
+   "tol_ms": 32.8,
+   "tol_nodes": 28,
+   "tol_nlen": 14665,
+   "strict_ok": true,
+   "strict_ms": 31.3,
+   "strict_nodes": 28,
+   "strict_nlen": 14665,
+   "file": "corpus/2203.02155/automatic-eval-prompts.tex",
+   "wall_ms": 66.3
+  },
+  {
+   "size": 8484,
+   "tol_ok": true,
+   "tol_ms": 17.8,
+   "tol_nodes": 12,
+   "tol_nlen": 8484,
+   "strict_ok": true,
+   "strict_ms": 16.6,
+   "strict_nodes": 12,
+   "strict_nlen": 8484,
+   "file": "corpus/2203.02155/automatic_evals_table.tex",
+   "wall_ms": 36.7
+  },
+  {
+   "size": 22690,
+   "tol_ok": true,
+   "tol_ms": 42.7,
+   "tol_nodes": 18,
+   "tol_nlen": 22690,
+   "strict_ok": true,
+   "strict_ms": 40.4,
+   "strict_nodes": 18,
+   "strict_nlen": 22690,
+   "file": "corpus/2203.02155/model-samples.tex",
+   "wall_ms": 85.7
+  },
+  {
+   "size": 149181,
+   "tol_ok": true,
+   "tol_ms": 281.7,
+   "tol_nodes": 82,
+   "tol_nlen": 149181,
+   "strict_ok": true,
+   "strict_ms": 279.5,
+   "strict_nodes": 82,
+   "strict_nlen": 149181,
+   "file": "corpus/2203.02155/neurips_2021.tex",
+   "wall_ms": 564.1
+  },
+  {
+   "size": 9840,
+   "tol_ok": true,
+   "tol_ms": 12.9,
+   "tol_nodes": 2,
+   "tol_nlen": 9840,
+   "strict_ok": true,
+   "strict_ms": 10.1,
+   "strict_nodes": 2,
+   "strict_nlen": 9840,
+   "file": "corpus/2203.02155/usecases-gpt.tex",
+   "wall_ms": 25.7
+  },
+  {
+   "size": 17979,
+   "tol_ok": true,
+   "tol_ms": 15.9,
+   "tol_nodes": 2,
+   "tol_nlen": 17979,
+   "strict_ok": true,
+   "strict_ms": 33.0,
+   "strict_nodes": 2,
+   "strict_nlen": 17979,
+   "file": "corpus/2203.02155/usecases-if.tex",
+   "wall_ms": 52.0
+  },
+  {
+   "size": 1978,
+   "tol_ok": true,
+   "tol_ms": 5.9,
+   "tol_nodes": 2,
+   "tol_nlen": 1978,
+   "strict_ok": true,
+   "strict_ms": 3.6,
+   "strict_nodes": 2,
+   "strict_nlen": 1978,
+   "file": "corpus/2305.14335/0_abstract.tex",
+   "wall_ms": 12.5
+  },
+  {
+   "size": 7392,
+   "tol_ok": true,
+   "tol_ms": 16.3,
+   "tol_nodes": 46,
+   "tol_nlen": 7392,
+   "strict_ok": true,
+   "strict_ms": 13.4,
+   "strict_nodes": 46,
+   "strict_nlen": 7392,
+   "file": "corpus/2305.14335/1_introduction_IEEE.tex",
+   "wall_ms": 32.4
+  },
+  {
+   "size": 6905,
+   "tol_ok": true,
+   "tol_ms": 15.2,
+   "tol_nodes": 103,
+   "tol_nlen": 6905,
+   "strict_ok": true,
+   "strict_ms": 14.2,
+   "strict_nodes": 103,
+   "strict_nlen": 6905,
+   "file": "corpus/2305.14335/2_relatedworks.tex",
+   "wall_ms": 32.1
+  },
+  {
+   "size": 17885,
+   "tol_ok": true,
+   "tol_ms": 46.5,
+   "tol_nodes": 404,
+   "tol_nlen": 17885,
+   "strict_ok": true,
+   "strict_ms": 45.8,
+   "strict_nodes": 404,
+   "strict_nlen": 17885,
+   "file": "corpus/2305.14335/3_methods.tex",
+   "wall_ms": 95.4
+  },
+  {
+   "size": 33640,
+   "tol_ok": true,
+   "tol_ms": 89.4,
+   "tol_nodes": 421,
+   "tol_nlen": 33640,
+   "strict_ok": true,
+   "strict_ms": 85.2,
+   "strict_nodes": 421,
+   "strict_nlen": 33640,
+   "file": "corpus/2305.14335/4_experiments.tex",
+   "wall_ms": 178.0
+  },
+  {
+   "size": 1181,
+   "tol_ok": true,
+   "tol_ms": 3.8,
+   "tol_nodes": 2,
+   "tol_nlen": 1181,
+   "strict_ok": true,
+   "strict_ms": 2.8,
+   "strict_nodes": 2,
+   "strict_nlen": 1181,
+   "file": "corpus/2305.14335/5_conclusion.tex",
+   "wall_ms": 9.3
+  },
+  {
+   "size": 25082,
+   "tol_ok": true,
+   "tol_ms": 40.0,
+   "tol_nodes": 418,
+   "tol_nlen": 25082,
+   "strict_ok": true,
+   "strict_ms": 33.0,
+   "strict_nodes": 418,
+   "strict_nlen": 25082,
+   "file": "corpus/2305.14335/main.tex",
+   "wall_ms": 76.4
+  },
+  {
+   "size": 3567,
+   "tol_ok": true,
+   "tol_ms": 17.1,
+   "tol_nodes": 106,
+   "tol_nlen": 3567,
+   "strict_ok": false,
+   "strict_ms": 2.9,
+   "strict_error": "LatexWalkerNodesParseError: Expected LaTeX expression, got closing brace ‘}’ @ (line 37, col 16)\nOpen LaTeX blocks:\n    @ (line 37, col 0)  macro ‘\\renewcommand’\n    @ (line 37, col 13)  Argument 1\n    @ (line 37, col 13)  Delimited expression ‘{…}’\n    @ (line 37, col 14)  macro ‘\\d’\n    @ (line 37, col 16)  Argument 0\n",
+   "file": "corpus/2501.14787/main.tex",
+   "wall_ms": 22.5
+  },
+  {
+   "size": 3154,
+   "tol_ok": true,
+   "tol_ms": 5.4,
+   "tol_nodes": 21,
+   "tol_nlen": 3154,
+   "strict_ok": true,
+   "strict_ms": 3.7,
+   "strict_nodes": 21,
+   "strict_nlen": 3154,
+   "file": "corpus/2501.14787/lectures/0-Introduction.tex",
+   "wall_ms": 11.9
+  },
+  {
+   "size": 12648,
+   "tol_ok": true,
+   "tol_ms": 28.3,
+   "tol_nodes": 264,
+   "tol_nlen": 12648,
+   "strict_ok": false,
+   "strict_ms": 2.5,
+   "strict_error": "LatexWalkerNodesParseError: Expected LaTeX expression, got closing brace ‘}’ @ (line 7, col 471)\nOpen LaTeX blocks:\n    @ (line 7, col 462)  Delimited expression ‘$…$’\n    @ (line 7, col 463)  macro ‘\\frac’\n    @ (line 7, col 468)  Argument 0\n    @ (line 7, col 468)  Delimited expression ‘{…}’\n    @ (line 7, col 469)  macro ‘\\",
+   "file": "corpus/2501.14787/lectures/01-Overview.tex",
+   "wall_ms": 34.3
+  },
+  {
+   "size": 29027,
+   "tol_ok": true,
+   "tol_ms": 73.4,
+   "tol_nodes": 570,
+   "tol_nlen": 29027,
+   "strict_ok": true,
+   "strict_ms": 71.2,
+   "strict_nodes": 570,
+   "strict_nlen": 29027,
+   "file": "corpus/2501.14787/lectures/02-Derivatives-LinearOperators.tex",
+   "wall_ms": 147.1
+  },
+  {
+   "size": 25376,
+   "tol_ok": true,
+   "tol_ms": 67.1,
+   "tol_nodes": 640,
+   "tol_nlen": 25376,
+   "strict_ok": true,
+   "strict_ms": 65.2,
+   "strict_nodes": 640,
+   "strict_nlen": 25376,
+   "file": "corpus/2501.14787/lectures/03-TwobyTwoJacobians.tex",
+   "wall_ms": 134.8
+  },
+  {
+   "size": 14699,
+   "tol_ok": true,
+   "tol_ms": 32.1,
+   "tol_nodes": 376,
+   "tol_nlen": 14699,
+   "strict_ok": true,
+   "strict_ms": 30.0,
+   "strict_nodes": 376,
+   "strict_nlen": 14699,
+   "file": "corpus/2501.14787/lectures/04-FiniteDifferences.tex",
+   "wall_ms": 64.8
+  },
+  {
+   "size": 13443,
+   "tol_ok": true,
+   "tol_ms": 32.5,
+   "tol_nodes": 300,
+   "tol_nlen": 13443,
+   "strict_ok": true,
+   "strict_ms": 32.5,
+   "strict_nodes": 300,
+   "strict_nlen": 13443,
+   "file": "corpus/2501.14787/lectures/05-Derivatives-GeneralVectorSpaces.tex",
+   "wall_ms": 68.0
+  },
+  {
+   "size": 22725,
+   "tol_ok": true,
+   "tol_ms": 54.1,
+   "tol_nodes": 427,
+   "tol_nlen": 22725,
+   "strict_ok": true,
+   "strict_ms": 47.9,
+   "strict_nodes": 427,
+   "strict_nlen": 22725,
+   "file": "corpus/2501.14787/lectures/06-RootFinding-Optimization-Adjoints.tex",
+   "wall_ms": 104.5
+  },
+  {
+   "size": 6367,
+   "tol_ok": true,
+   "tol_ms": 39.0,
+   "tol_nodes": 178,
+   "tol_nlen": 6367,
+   "strict_ok": false,
+   "strict_ms": 10.4,
+   "strict_error": "LatexWalkerNodesParseError: Expected LaTeX expression, got closing brace ‘}’ @ (line 61, col 8)\nOpen LaTeX blocks:\n    @ (line 60, col 0)  Delimited expression ‘\\[…\\]’\n    @ (line 61, col 0)  macro ‘\\frac’\n    @ (line 61, col 5)  Argument 0\n    @ (line 61, col 5)  Delimited expression ‘{…}’\n    @ (line 61, col 6)  macro ‘\\d’\n ",
+   "file": "corpus/2501.14787/lectures/07-Derivative-MatrixDet-Inverse.tex",
+   "wall_ms": 52.1
+  },
+  {
+   "size": 49317,
+   "tol_ok": true,
+   "tol_ms": 109.9,
+   "tol_nodes": 856,
+   "tol_nlen": 49317,
+   "strict_ok": true,
+   "strict_ms": 119.4,
+   "strict_nodes": 856,
+   "strict_nlen": 49317,
+   "file": "corpus/2501.14787/lectures/08-Forward-Reverse-AD.tex",
+   "wall_ms": 235.8
+  },
+  {
+   "size": 32957,
+   "tol_ok": true,
+   "tol_ms": 79.1,
+   "tol_nodes": 773,
+   "tol_nlen": 32957,
+   "strict_ok": true,
+   "strict_ms": 80.5,
+   "strict_nodes": 773,
+   "strict_nlen": 32957,
+   "file": "corpus/2501.14787/lectures/09-DifferentiatingODESolutions.tex",
+   "wall_ms": 162.1
+  },
+  {
+   "size": 11473,
+   "tol_ok": true,
+   "tol_ms": 29.9,
+   "tol_nodes": 263,
+   "tol_nlen": 11473,
+   "strict_ok": true,
+   "strict_ms": 27.8,
+   "strict_nodes": 263,
+   "strict_nlen": 11473,
+   "file": "corpus/2501.14787/lectures/10-CalculusofVariations.tex",
+   "wall_ms": 60.8
+  },
+  {
+   "size": 25223,
+   "tol_ok": true,
+   "tol_ms": 44.8,
+   "tol_nodes": 633,
+   "tol_nlen": 25223,
+   "strict_ok": true,
+   "strict_ms": 43.8,
+   "strict_nodes": 633,
+   "strict_nlen": 25223,
+   "file": "corpus/2501.14787/lectures/11-Derivatives-RandomFunctions.tex",
+   "wall_ms": 91.3
+  },
+  {
+   "size": 32581,
+   "tol_ok": true,
+   "tol_ms": 72.3,
+   "tol_nodes": 908,
+   "tol_nlen": 32581,
+   "strict_ok": true,
+   "strict_ms": 76.3,
+   "strict_nodes": 908,
+   "strict_nlen": 32581,
+   "file": "corpus/2501.14787/lectures/12-SecondDerivatives-BilinearMaps-Hessian.tex",
+   "wall_ms": 151.2
+  },
+  {
+   "size": 7498,
+   "tol_ok": true,
+   "tol_ms": 20.8,
+   "tol_nodes": 227,
+   "tol_nlen": 7498,
+   "strict_ok": true,
+   "strict_ms": 19.7,
+   "strict_nodes": 227,
+   "strict_nlen": 7498,
+   "file": "corpus/2501.14787/lectures/13-Derivatives-Eigenproblems.tex",
+   "wall_ms": 42.9
+  },
+  {
+   "size": 5439,
+   "tol_ok": true,
+   "tol_ms": 11.9,
+   "tol_nodes": 2,
+   "tol_nlen": 5439,
+   "strict_ok": true,
+   "strict_ms": 9.8,
+   "strict_nodes": 2,
+   "strict_nlen": 5439,
+   "file": "corpus/2501.14787/lectures/14-WhereWeGoFromHere.tex",
+   "wall_ms": 23.8
+  },
+  {
+   "size": 4196,
+   "tol_ok": true,
+   "tol_ms": 13.5,
+   "tol_nodes": 29,
+   "tol_nlen": 4196,
+   "strict_ok": true,
+   "strict_ms": 13.4,
+   "strict_nodes": 29,
+   "strict_nlen": 4196,
+   "file": "corpus/2501.14787/psets/Pset1.tex",
+   "wall_ms": 29.3
+  },
+  {
+   "size": 14123,
+   "tol_ok": true,
+   "tol_ms": 47.5,
+   "tol_nodes": 29,
+   "tol_nlen": 14123,
+   "strict_ok": false,
+   "strict_ms": 23.0,
+   "strict_error": "LatexWalkerNodesParseError: Unexpected closing environment: ‘multline’ @ (line 143, col 0)\nOpen LaTeX blocks:\n    @ (line 19, col 0)  environment ‘{document}’\n    @ (line 133, col 0)  environment ‘{enumerate}’\n    @ (line 139, col 0)  environment ‘{multline*}’\n",
+   "file": "corpus/2501.14787/psets/Pset1sol.tex",
+   "wall_ms": 73.0
+  },
+  {
+   "size": 7232,
+   "tol_ok": true,
+   "tol_ms": 20.1,
+   "tol_nodes": 32,
+   "tol_nlen": 7232,
+   "strict_ok": true,
+   "strict_ms": 32.3,
+   "strict_nodes": 32,
+   "strict_nlen": 7232,
+   "file": "corpus/2501.14787/psets/Pset2.tex",
+   "wall_ms": 55.0
+  },
+  {
+   "size": 10779,
+   "tol_ok": true,
+   "tol_ms": 34.5,
+   "tol_nodes": 34,
+   "tol_nlen": 10779,
+   "strict_ok": true,
+   "strict_ms": 29.1,
+   "strict_nodes": 34,
+   "strict_nlen": 10779,
+   "file": "corpus/2501.14787/psets/Pset2sol.tex",
+   "wall_ms": 69.8
+  },
+  {
+   "size": 29049,
+   "tol_ok": true,
+   "tol_ms": 75.3,
+   "tol_nodes": 65,
+   "tol_nlen": 29049,
+   "strict_ok": false,
+   "strict_ms": 0.6,
+   "strict_error": "LatexWalkerNodesParseError: Expected LaTeX expression, got closing brace ‘}’ @ (line 11, col 27)\nOpen LaTeX blocks:\n    @ (line 11, col 0)  macro ‘\\newcommand’\n    @ (line 11, col 16)  Argument 4\n    @ (line 11, col 16)  Delimited expression ‘{…}’\n    @ (line 11, col 17)  macro ‘\\widetilde’\n    @ (line 11, col 27)  Argument 0\n",
+   "file": "corpus/hep-th/9901001/imamura2.tex",
+   "wall_ms": 78.4
+  }
+ ],
+ "fixtures": {
+  "T01": {
+   "desc": "\\be..\\ee (macro expanding to math env)",
+   "be_ee_parsed_as": [],
+   "math_node_found": false,
+   "math_content_leaks_as_chars": false,
+   "leak_sample": [],
+   "verdict": "ok",
+   "note": "no expansion -> \\be is a bare MacroNode; body parses as text"
+  },
+  "T02": {
+   "desc": "\\dR = \\mathbb{R} newcommand",
+   "occurrences": [
+    {
+     "container": "marg",
+     "in_math": true
+    },
+    {
+     "container": "math",
+     "in_math": true
+    },
+    {
+     "container": "env",
+     "in_math": true
+    }
+   ],
+   "parsed_as": "MacroNode, no args (unknown-macro spec)",
+   "verdict": "info"
+  },
+  "T03": {
+   "desc": "\\def\\wt{\\widetilde} TeX primitive def",
+   "node_sequence": [
+    "Macro('newcommand')"
+   ],
+   "def_has_args": null,
+   "verdict": "info"
+  },
+  "T04": {
+   "desc": "natbib family + ref family",
+   "macros": {
+    "citep": {
+     "argspec": "*[[{",
+     "n_args": 4,
+     "key": "vaswani2017",
+     "opt_args": 0
+    },
+    "citet": {
+     "argspec": "*[[{",
+     "n_args": 4,
+     "key": "kingma2015",
+     "opt_args": 2
+    },
+    "citealp": {
+     "argspec": "*[[{",
+     "n_args": 4,
+     "key": "he2016",
+     "opt_args": 0
+    },
+    "citeauthor": {
+     "argspec": "*[[{",
+     "n_args": 4,
+     "key": "devlin2019",
+     "opt_args": 0
+    },
+    "citeyear": {
+     "argspec": "[[{",
+     "n_args": 3,
+     "key": "devlin2019",
+     "opt_args": 0
+    },
+    "ref": {
+     "argspec": "{",
+     "n_args": 1,
+     "key": "fig:x",
+     "opt_args": 0
+    },
+    "eqref": {
+     "argspec": "{",
+     "n_args": 1,
+     "key": "eq:main",
+     "opt_args": 0
+    },
+    "autoref": {
+     "argspec": "{",
+     "n_args": 1,
+     "key": "sec:a",
+     "opt_args": 0
+    },
+    "cref": {
+     "argspec": "{",
+     "n_args": 1,
+     "key": "thm:main",
+     "opt_args": 0
+    },
+    "pageref": {
+     "argspec": "",
+     "n_args": 0,
+     "key": null,
+     "opt_args": 0
+    },
+    "nameref": {
+     "argspec": "",
+     "n_args": 0,
+     "key": null,
+     "opt_args": 0
+    },
+    "label": {
+     "argspec": "{",
+     "n_args": 1,
+     "key": "fig:x",
+     "opt_args": 0
+    }
+   },
+   "key_leaks": [
+    {
+     "bare_group_chars": "fig:x",
+     "container": "env"
+    },
+    {
+     "chars": "fig:x",
+     "container": "group"
+    },
+    {
+     "bare_group_chars": "sec:a",
+     "container": "env"
+    },
+    {
+     "chars": "sec:a",
+     "container": "group"
+    }
+   ],
+   "verdict": "FAIL-leak"
+  },
+  "T05": {
+   "desc": "\\section[Short]{Long}",
+   "sections": [
+    {
+     "argspec": "*[{",
+     "opt": "Short",
+     "mand": "A Very Long Section Title That Should Still Translate"
+    }
+   ],
+   "verdict": "ok"
+  },
+  "T06": {
+   "desc": "verbatim & lstlisting containing %",
+   "envs": [
+    {
+     "env": "equation",
+     "container": "marg",
+     "verbatim_text": "",
+     "inner_types": [
+      "CharsNode",
+      "MacroNode",
+      "SpecialsNode",
+      "CommentNode",
+      "MacroNode",
+      "SpecialsNode",
+      "CommentNode",
+      "MacroNode",
+      "MacroNode",
+      "GroupNode"
+     ]
+    },
+    {
+     "env": "document",
+     "container": "env",
+     "verbatim_text": "",
+     "inner_types": [
+      "CharsNode",
+      "MacroNode",
+      "SpecialsNode",
+      "CommentNode",
+      "EnvironmentNode",
+      "SpecialsNode",
+      "CommentNode",
+      "MacroNode",
+      "SpecialsNode",
+      "CommentNode"
+     ]
+    },
+    {
+     "env": "abstract",
+     "container": "env",
+     "verbatim_text": "",
+     "inner_types": [
+      "CharsNode",
+      "MacroNode",
+      "GroupNode",
+      "CharsNode",
+      "MathNode",
+      "CharsNode"
+     ]
+    },
+    {
+     "env": "subequations",
+     "container": "env",
+     "verbatim_text": "",
+     "inner_types": [
+      "CharsNode",
+      "EnvironmentNode",
+      "CharsNode"
+     ]
+    },
+    {
+     "env": "align",
+     "container": "env",
+     "verbatim_text": "",
+     "inner_types": [
+      "CharsNode",
+      "SpecialsNode",
+      "CharsNode",
+      "MacroNode",
+      "CharsNode",
+      "SpecialsNode",
+      "CharsNode"
+     ]
+    },
+    {
+     "env": "flalign",
+     "container": "env",
+     "verbatim_text": "",
+     "inner_types": [
+      "CharsNode",
+      "SpecialsNode",
+      "CharsNode"
+     ]
+    },
+    {
+     "env": "theorem",
+     "container": "env",
+     "verbatim_text": "",
+     "inner_types": [
+      "CharsNode",
+      "MathNode",
+      "CharsNode"
+     ]
+    },
+    {
+     "env": "figure",
+     "container": "env",
+     "verbatim_text": "",
+     "inner_types": [
+      "CharsNode",
+      "MacroNode",
+      "MacroNode",
+      "CharsNode",
+      "CommentNode",
+      "MacroNode",
+      "GroupNode",
+      "CharsNode",
+      "MacroNode",
+      "CharsNode"
+     ]
+    },
+    {
+     "env": "table",
+     "container": "env",
+     "verbatim_text": "",
+     "inner_types": [
+      "CharsNode",
+      "MacroNode",
+      "GroupNode",
+      "CharsNode",
+      "EnvironmentNode",
+      "CharsNode"
+     ]
+    },
+    {
+     "env": "tabular",
+     "container": "env",
+     "verbatim_text": "",
+     "inner_types": [
+      "CharsNode",
+      "MacroNode",
+      "CharsNode",
+      "SpecialsNode",
+      "CharsNode",
+      "MacroNode",
+      "CharsNode",
+      "MacroNode",
+      "CharsNode",
+      "SpecialsNode"
+     ]
+    },
+    {
+     "env": "itemize",
+     "container": "env",
+     "verbatim_text": "",
+     "inner_types": [
+      "CharsNode",
+      "MacroNode",
+      "CharsNode",
+      "MathNode",
+      "CharsNode",
+      "MacroNode",
+      "CharsNode"
+     ]
+    },
+    {
+     "env": "enumerate",
+     "container": "env",
+     "verbatim_text": "",
+     "inner_types": [
+      "CharsNode",
+      "MacroNode",
+      "CharsNode",
+      "MacroNode",
+      "CharsNode"
+     ]
+    },
+    {
+     "env": "description",
+     "container": "env",
+     "verbatim_text": "",
+     "inner_types": [
+      "CharsNode",
+      "MacroNode",
+      "CharsNode"
+     ]
+    },
+    {
+     "env": "verbatim",
+     "container": "env",
+     "verbatim_text": "100% real data",
+     "inner_types": [
+      "CharsNode"
+     ]
+    },
+    {
+     "env": "lstlisting",
+     "container": "env",
+     "verbatim_text": "code%with%percent\n",
+     "inner_types": [
+      "CharsNode"
+     ]
+    }
+   ],
+   "verdict": "info"
+  },
+  "T07": {
+   "desc": "\\url{..%20..} and \\verb|a%b|",
+   "url": [
+    {
+     "node_len": 38,
+     "n_args": 1,
+     "group_chars": "http://example.com/a%20b%20c.pdf",
+     "group_end_minus_node_end": 0
+    }
+   ],
+   "verb_text": [
+    "a%b"
+   ],
+   "verdict": "info"
+  },
+  "T08": {
+   "desc": "comment w/ unbalanced brace+math; \\% and \\\\%",
+   "comments": [
+    " @T02 \\newcommand producing math content inline",
+    " @T03 \\def macro (TeX primitive)",
+    " @T16 xparse \\NewDocumentCommand",
+    " @T25 \\makeatletter region with @-macros",
+    " @T09 author block with optional arg + \\and + \\thanks",
+    " @T19 abstract environment",
+    " @T05 section with optional short title",
+    " @T04 natbib citation family (all must be protected, keys mu",
+    " @T26 display math \\[ \\] and inline \\( \\)",
+    " @T01 usage: macro-expanded math env — a naive parser sees r",
+    " @T10 less-common math environments",
+    " @T11 theorem with optional name bracket",
+    " @T23 inline formatting commands — inner text SHOULD transla",
+    " @T22 \\href — url protected, anchor text translatable",
+    " @T21 includegraphics with options",
+    " @T18 caption inside protected figure env — caption SHOULD t",
+    " @T12 footnote inside caption",
+    " @T20 translatable environments",
+    " @T07 url containing literal percent (comment-stripper trap)",
+    " @T06 single-line verbatim containing % (breaks naive commen",
+    " @T08 comment edge cases",
+    " a comment with { unbalanced brace and $x^2$ math",
+    " followed by real comment",
+    " @T13 conditional compilation",
+    " @T27 accents and unicode-ish commands",
+    " @T17 math \\text{} contains real text",
+    " @T29 footnote standalone",
+    " @T24 bibliography variants"
+   ],
+   "escaped_pct_macros": 1,
+   "verdict": "ok"
+  },
+  "T09": {
+   "desc": "\\author[1]{..\\thanks..\\and..}",
+   "macros": [
+    {
+     "macro": "thanks",
+     "arg_verbatims": [],
+     "container": "marg"
+    },
+    {
+     "macro": "author",
+     "arg_verbatims": [
+      "["
+     ],
+     "container": "env"
+    },
+    {
+     "macro": "thanks",
+     "arg_verbatims": [],
+     "container": "group"
+    },
+    {
+     "macro": "and",
+     "arg_verbatims": [],
+     "container": "group"
+    }
+   ],
+   "verdict": "info"
+  },
+  "T10": {
+   "desc": "subequations/align/flalign",
+   "envs": [
+    [
+     "equation",
+     "marg",
+     false
+    ],
+    [
+     "document",
+     "env",
+     true
+    ],
+    [
+     "abstract",
+     "env",
+     true
+    ],
+    [
+     "subequations",
+     "env",
+     true
+    ],
+    [
+     "align",
+     "env",
+     true
+    ],
+    [
+     "flalign",
+     "env",
+     true
+    ],
+    [
+     "theorem",
+     "env",
+     true
+    ],
+    [
+     "figure",
+     "env",
+     true
+    ],
+    [
+     "table",
+     "env",
+     true
+    ],
+    [
+     "tabular",
+     "env",
+     true
+    ],
+    [
+     "itemize",
+     "env",
+     true
+    ],
+    [
+     "enumerate",
+     "env",
+     true
+    ],
+    [
+     "description",
+     "env",
+     true
+    ],
+    [
+     "verbatim",
+     "env",
+     true
+    ],
+    [
+     "lstlisting",
+     "env",
+     true
+    ]
+   ],
+   "verdict": "info"
+  },
+  "T11": {
+   "desc": "theorem[Main Result]",
+   "envs": [
+    [
+     "equation",
+     [],
+     [
+      "CharsNode",
+      "MacroNode",
+      "SpecialsNode",
+      "CommentNode",
+      "MacroNode",
+      "SpecialsNode",
+      "CommentNode",
+      "MacroNode",
+      "MacroNode",
+      "GroupNode",
+      "CharsNode",
+      "MacroNode",
+      "MacroNode",
+      "GroupNode",
+      "SpecialsNode",
+      "CommentNode",
+      "MacroNode",
+      "GroupNode",
+      "GroupNode",
+      "GroupNode",
+      "SpecialsNode",
+      "CommentNode",
+      "MacroNode",
+      "MacroNode",
+      "CharsNode",
+      "MacroNode",
+      "SpecialsNode",
+      "MacroNode",
+      "CharsNode",
+      "CommentNode",
+      "MacroNode",
+      "CharsNode",
+      "GroupNode",
+      "CharsNode",
+      "MacroNode",
+      "SpecialsNode",
+      "EnvironmentNode",
+      "CharsNode"
+     ]
+    ],
+    [
+     "document",
+     [],
+     [
+      "CharsNode",
+      "MacroNode",
+      "SpecialsNode",
+      "CommentNode",
+      "EnvironmentNode",
+      "SpecialsNode",
+      "CommentNode",
+      "MacroNode",
+      "SpecialsNode",
+      "CommentNode",
+      "CharsNode",
+      "MacroNode",
+      "CharsNode",
+      "MacroNode",
+      "CharsNode",
+      "MacroNode",
+      "CharsNode",
+      "MacroNode",
+      "CharsNode",
+      "MacroNode",
+      "CharsNode",
+      "MacroNode",
+      "CharsNode",
+      "MacroNode",
+      "CharsNode",
+      "MacroNode",
+      "CharsNode",
+      "MacroNode",
+      "CharsNode",
+      "MacroNode",
+      "GroupNode",
+      "CharsNode",
+      "MacroNode",
+      "GroupNode",
+      "CharsNode",
+      "MacroNode",
+      "CharsNode",
+      "SpecialsNode",
+      "CommentNode",
+      "CharsNode",
+      "MathNode",
+      "CharsNode",
+      "MathNode",
+      "CharsNode",
+      "SpecialsNode",
+      "CommentNode",
+      "CharsNode",
+      "MacroNode",
+      "MacroNode",
+      "GroupNode",
+      "CharsNode",
+      "MacroNode",
+      "CharsNode",
+      "SpecialsNode",
+      "CharsNode",
+      "MacroNode",
+      "CharsNode",
+      "MacroNode",
+      "GroupNode",
+      "CharsNode",
+      "MacroNode",
+      "GroupNode",
+      "CharsNode",
+      "SpecialsNode",
+      "CommentNode",
+      "EnvironmentNode",
+      "CharsNode",
+      "EnvironmentNode",
+      "SpecialsNode",
+      "CommentNode",
+      "EnvironmentNode",
+      "SpecialsNode",
+      "CommentNode",
+      "CharsNode",
+      "MacroNode",
+      "CharsNode",
+      "MacroNode",
+      "CharsNode",
+      "MacroNode",
+      "CharsNode",
+      "SpecialsNode",
+      "CommentNode",
+      "CharsNode",
+      "MacroNode",
+      "CharsNode",
+      "SpecialsNode",
+      "CommentNode",
+      "EnvironmentNode",
+      "SpecialsNode",
+      "CommentNode",
+      "EnvironmentNode",
+      "SpecialsNode",
+      "CommentNode",
+      "EnvironmentNode",
+      "CharsNode",
+      "EnvironmentNode",
+      "CharsNode",
+      "EnvironmentNode",
+      "SpecialsNode",
+      "CommentNode",
+      "CharsNode",
+      "MacroNode",
+      "CharsNode",
+      "MacroNode",
+      "CharsNode",
+      "SpecialsNode",
+      "CommentNode",
+      "EnvironmentNode",
+      "CharsNode",
+      "EnvironmentNode",
+      "SpecialsNode",
+      "CommentNode",
+      "CharsNode",
+      "CommentNode",
+      "CharsNode",
+      "MacroNode",
+      "CharsNode",
+      "MacroNode",
+      "CommentNode",
+      "SpecialsNode",
+      "CommentNode",
+      "MacroNode",
+      "MacroNode",
+      "MacroNode",
+      "MacroNode",
+      "CharsNode",
+      "MacroNode",
+      "CharsNode",
+      "MacroNode",
+      "SpecialsNode",
+      "CommentNode",
+      "CharsNode",
+      "MacroNode",
+      "CharsNode",
+      "MacroNode",
+      "CharsNode",
+      "MacroNode",
+      "CharsNode",
+      "MacroNode",
+      "CharsNode",
+      "SpecialsNode",
+      "CommentNode",
+      "MathNode",
+      "SpecialsNode",
+      "CommentNode",
+      "CharsNode",
+      "MacroNode",
+      "SpecialsNode",
+      "CommentNode",
+      "MacroNode",
+      "GroupNode",
+      "CharsNode",
+      "MacroNode",
+      "SpecialsNode"
+     ]
+    ],
+    [
+     "abstract",
+     [],
+     [
+      "CharsNode",
+      "MacroNode",
+      "GroupNode",
+      "CharsNode",
+      "MathNode",
+      "CharsNode"
+     ]
+    ],
+    [
+     "subequations",
+     [],
+     [
+      "CharsNode",
+      "EnvironmentNode",
+      "CharsNode"
+     ]
+    ],
+    [
+     "align",
+     [],
+     [
+      "CharsNode",
+      "SpecialsNode",
+      "CharsNode",
+      "MacroNode",
+      "CharsNode",
+      "SpecialsNode",
+      "CharsNode"
+     ]
+    ],
+    [
+     "flalign",
+     [],
+     [
+      "CharsNode",
+      "SpecialsNode",
+      "CharsNode"
+     ]
+    ],
+    [
+     "theorem",
+     [
+      "[Main Result]"
+     ],
+     [
+      "CharsNode",
+      "MathNode",
+      "CharsNode"
+     ]
+    ],
+    [
+     "figure",
+     [
+      "[ht]"
+     ],
+     [
+      "CharsNode",
+      "MacroNode",
+      "MacroNode",
+      "CharsNode",
+      "CommentNode",
+      "MacroNode",
+      "GroupNode",
+      "CharsNode",
+      "MacroNode",
+      "CharsNode"
+     ]
+    ],
+    [
+     "table",
+     [
+      "[h]"
+     ],
+     [
+      "CharsNode",
+      "MacroNode",
+      "GroupNode",
+      "CharsNode",
+      "EnvironmentNode",
+      "CharsNode"
+     ]
+    ],
+    [
+     "tabular",
+     [
+      "{|l|r|}"
+     ],
+     [
+      "CharsNode",
+      "MacroNode",
+      "CharsNode",
+      "SpecialsNode",
+      "CharsNode",
+      "MacroNode",
+      "CharsNode",
+      "MacroNode",
+      "CharsNode",
+      "SpecialsNode",
+      "CharsNode",
+      "MacroNode",
+      "CharsNode",
+      "SpecialsNode",
+      "CharsNode",
+      "MacroNode",
+      "CharsNode",
+      "MacroNode"
+     ]
+    ],
+    [
+     "itemize",
+     [
+      ""
+     ],
+     [
+      "CharsNode",
+      "MacroNode",
+      "CharsNode",
+      "MathNode",
+      "CharsNode",
+      "MacroNode",
+      "CharsNode"
+     ]
+    ],
+    [
+     "enumerate",
+     [
+      ""
+     ],
+     [
+      "CharsNode",
+      "MacroNode",
+      "CharsNode",
+      "MacroNode",
+      "CharsNode"
+     ]
+    ],
+    [
+     "description",
+     [
+      ""
+     ],
+     [
+      "CharsNode",
+      "MacroNode",
+      "CharsNode"
+     ]
+    ],
+    [
+     "verbatim",
+     [],
+     [
+      "CharsNode"
+     ]
+    ],
+    [
+     "lstlisting",
+     [
+      ""
+     ],
+     [
+      "CharsNode"
+     ]
+    ]
+   ],
+   "verdict": "info"
+  },
+  "T12": {
+   "desc": "caption containing footnote",
+   "macros": [
+    {
+     "macro": "caption",
+     "args": [],
+     "container": "env"
+    },
+    {
+     "macro": "caption",
+     "args": [],
+     "container": "env"
+    },
+    {
+     "macro": "footnote",
+     "args": [
+      "",
+      "{computed by hand}"
+     ],
+     "container": "group"
+    },
+    {
+     "macro": "footnote",
+     "args": [
+      "",
+      "{This footnote text should be translated.}"
+     ],
+     "container": "env"
+    }
+   ],
+   "verdict": "info"
+  },
+  "T13": {
+   "desc": "conditional",
+   "macros": [
+    "newcommand"
+   ],
+   "top_level_text": [],
+   "verdict": "info"
+  },
+  "T16": {
+   "desc": "xparse NewDocumentCommand",
+   "seq": [
+    "MacroNode(newcommand)"
+   ],
+   "verdict": "info"
+  },
+  "T17": {
+   "desc": "\\text{} inside math",
+   "math_nodes": 0,
+   "text_macro": [
+    {
+     "container": "math",
+     "arg": [
+      "{if and only if}"
+     ]
+    }
+   ],
+   "verdict": "info"
+  },
+  "T18": {
+   "desc": "caption inside figure",
+   "captions": [
+    {
+     "args": [],
+     "container": "env"
+    },
+    {
+     "args": [],
+     "container": "env"
+    }
+   ],
+   "verdict": "info"
+  },
+  "T20": {
+   "desc": "itemize/enumerate/description",
+   "items": [
+    {
+     "opt": [
+      ""
+     ]
+    },
+    {
+     "opt": [
+      ""
+     ]
+    },
+    {
+     "opt": [
+      ""
+     ]
+    },
+    {
+     "opt": [
+      ""
+     ]
+    },
+    {
+     "opt": [
+      "[Term]"
+     ]
+    }
+   ],
+   "verdict": "info"
+  },
+  "T23": {
+   "desc": "inline formatting",
+   "macros": [
+    {
+     "name": "emph",
+     "arg": [
+      "{very important}"
+     ]
+    },
+    {
+     "name": "textbf",
+     "arg": [
+      "{bold claim}"
+     ]
+    },
+    {
+     "name": "textit",
+     "arg": [
+      "{italic}"
+     ]
+    },
+    {
+     "name": "emph",
+     "arg": [
+      "{emphasis}"
+     ]
+    }
+   ],
+   "verdict": "ok"
+  },
+  "T22": {
+   "desc": "href",
+   "href": [
+    {
+     "n_args": 2,
+     "args": [
+      "{https://example.com}",
+      "{the documentation}"
+     ]
+    }
+   ],
+   "verdict": "info"
+  },
+  "T24": {
+   "desc": "bibliography",
+   "macros": [
+    {
+     "name": "bibliographystyle",
+     "args": []
+    },
+    {
+     "name": "bibliography",
+     "args": [
+      "{refs}"
+     ]
+    }
+   ],
+   "verdict": "info"
+  },
+  "T25": {
+   "desc": "makeatletter block",
+   "seq": [
+    "MacroNode(newcommand)"
+   ],
+   "verdict": "info"
+  },
+  "T27": {
+   "desc": "accent commands",
+   "macros": [
+    {
+     "name": "'",
+     "args": [
+      "e"
+     ]
+    },
+    {
+     "name": "\"",
+     "args": [
+      "u"
+     ]
+    },
+    {
+     "name": "~",
+     "args": [
+      "n"
+     ]
+    },
+    {
+     "name": "'",
+     "args": [
+      "e"
+     ]
+    }
+   ],
+   "verdict": "info"
+  },
+  "T19": {
+   "desc": "T19",
+   "top_seq": [
+    "MacroNode(newcommand)"
+   ],
+   "verdict": "info"
+  },
+  "T21": {
+   "desc": "T21",
+   "top_seq": [
+    "MacroNode(newcommand)"
+   ],
+   "verdict": "info"
+  },
+  "T26": {
+   "desc": "T26",
+   "top_seq": [
+    "MacroNode(newcommand)"
+   ],
+   "verdict": "info"
+  },
+  "T29": {
+   "desc": "T29",
+   "top_seq": [
+    "MacroNode(newcommand)"
+   ],
+   "verdict": "info"
+  },
+  "T209": {
+   "desc": "LaTeX2.09 \\documentstyle + \\def",
+   "ok": true,
+   "top_seq": [
+    "CommentNode()",
+    "MacroNode(documentstyle)",
+    "CharsNode([epsf,seceq,preprint)",
+    "GroupNode()",
+    "CharsNode(\n)",
+    "MacroNode(def)",
+    "MacroNode(Im)",
+    "GroupNode()",
+    "CharsNode(\n)",
+    "MacroNode(def)",
+    "MacroNode(Tr)",
+    "GroupNode()",
+    "CharsNode(\n)",
+    "MacroNode(newcommand)",
+    "CharsNode(\n)",
+    "MacroNode(newcommand)"
+   ],
+   "verdict": "info"
+  },
+  "T14": {
+   "desc": "\\input/\\include recursion + commented \\input",
+   "input_macros_found": [
+    [
+     "input",
+     [
+      "{sub/intro}"
+     ]
+    ],
+    [
+     "include",
+     [
+      "{sub/methods}"
+     ]
+    ]
+   ],
+   "expands_files": false,
+   "commented_input_is_comment": true,
+   "verdict": "info"
+  }
+ },
+ "damage": [
+  {
+   "file": "corpus/1412.6980/arxiv.tex",
+   "size": 298
+  },
+  {
+   "file": "corpus/1511.06432/iclr2016_conference.tex",
+   "size": 41199,
+   "damage": [
+    {
+     "kind": "env_in_arg",
+     "env": "bmatrix",
+     "pos": 873,
+     "len": 40326,
+     "pct": 97.9
+    }
+   ]
+  },
+  {
+   "file": "corpus/1512.03385/residual_v1_arxiv_release.tex",
+   "size": 69687
+  },
+  {
+   "file": "corpus/1706.03762/background.tex",
+   "size": 8376
+  },
+  {
+   "file": "corpus/1706.03762/introduction.tex",
+   "size": 5300
+  },
+  {
+   "file": "corpus/1706.03762/model_architecture.tex",
+   "size": 17109
+  },
+  {
+   "file": "corpus/1706.03762/ms.tex",
+   "size": 17611
+  },
+  {
+   "file": "corpus/1706.03762/parameter_attention.tex",
+   "size": 3489
+  },
+  {
+   "file": "corpus/1706.03762/results.tex",
+   "size": 11800
+  },
+  {
+   "file": "corpus/1706.03762/sqrt_d_trick.tex",
+   "size": 2226
+  },
+  {
+   "file": "corpus/1706.03762/training.tex",
+   "size": 4444
+  },
+  {
+   "file": "corpus/1706.03762/visualizations.tex",
+   "size": 1543
+  },
+  {
+   "file": "corpus/1706.03762/why_self_attention.tex",
+   "size": 7867
+  },
+  {
+   "file": "corpus/1810.04805/ablation.tex",
+   "size": 7157
+  },
+  {
+   "file": "corpus/1810.04805/abstract.tex",
+   "size": 1138
+  },
+  {
+   "file": "corpus/1810.04805/appendix_main.tex",
+   "size": 860
+  },
+  {
+   "file": "corpus/1810.04805/bert.tex",
+   "size": 14009
+  },
+  {
+   "file": "corpus/1810.04805/bert_details.tex",
+   "size": 9287
+  },
+  {
+   "file": "corpus/1810.04805/conclusion.tex",
+   "size": 527
+  },
+  {
+   "file": "corpus/1810.04805/direction_ablation_tab.tex",
+   "size": 910
+  },
+  {
+   "file": "corpus/1810.04805/experiment.tex",
+   "size": 8214
+  },
+  {
+   "file": "corpus/1810.04805/experiments_details.tex",
+   "size": 3382
+  },
+  {
+   "file": "corpus/1810.04805/glue_official_tab.tex",
+   "size": 2082
+  },
+  {
+   "file": "corpus/1810.04805/intro.tex",
+   "size": 4116
+  },
+  {
+   "file": "corpus/1810.04805/main.tex",
+   "size": 1719
+  },
+  {
+   "file": "corpus/1810.04805/mask_procedure_ablation_tab.tex",
+   "size": 865
+  },
+  {
+   "file": "corpus/1810.04805/more_ablation.tex",
+   "size": 2894
+  },
+  {
+   "file": "corpus/1810.04805/pretrained_embeddings_tab.tex",
+   "size": 997
+  },
+  {
+   "file": "corpus/1810.04805/related.tex",
+   "size": 4662
+  },
+  {
+   "file": "corpus/1810.04805/size_ablation_tab.tex",
+   "size": 841
+  },
+  {
+   "file": "corpus/1810.04805/squad_tab.tex",
+   "size": 2030
+  },
+  {
+   "file": "corpus/1810.04805/steps_ablation_fig.tex",
+   "size": 1289
+  },
+  {
+   "file": "corpus/1810.04805/swag_official_tab.tex",
+   "size": 647
+  },
+  {
+   "file": "corpus/1906.08237/abstract.tex",
+   "size": 6824
+  },
+  {
+   "file": "corpus/1906.08237/appendix.tex",
+   "size": 24129
+  },
+  {
+   "file": "corpus/1906.08237/conc.tex",
+   "size": 651
+  },
+  {
+   "file": "corpus/1906.08237/custom.tex",
+   "size": 3524
+  },
+  {
+   "file": "corpus/1906.08237/exp.tex",
+   "size": 25308
+  },
+  {
+   "file": "corpus/1906.08237/intro.tex",
+   "size": 11347
+  },
+  {
+   "file": "corpus/1906.08237/model.tex",
+   "size": 31402
+  },
+  {
+   "file": "corpus/1906.08237/neurips_2019.tex",
+   "size": 3995
+  },
+  {
+   "file": "corpus/1906.08237/related.tex",
+   "size": 1843
+  },
+  {
+   "file": "corpus/1906.08237/symbol.tex",
+   "size": 8505
+  },
+  {
+   "file": "corpus/2005.11401/abstract.tex",
+   "size": 1632
+  },
+  {
+   "file": "corpus/2005.11401/appendix.tex",
+   "size": 9763
+  },
+  {
+   "file": "corpus/2005.11401/comment_engine.tex",
+   "size": 1993
+  },
+  {
+   "file": "corpus/2005.11401/experiments.tex",
+   "size": 6283
+  },
+  {
+   "file": "corpus/2005.11401/intro.tex",
+   "size": 4517
+  },
+  {
+   "file": "corpus/2005.11401/methods.tex",
+   "size": 8009
+  },
+  {
+   "file": "corpus/2005.11401/neurips_2020.tex",
+   "size": 9360
+  },
+  {
+   "file": "corpus/2005.11401/related.tex",
+   "size": 4601
+  },
+  {
+   "file": "corpus/2005.11401/results.tex",
+   "size": 16907
+  },
+  {
+   "file": "corpus/2005.11401/tables/main_results.tex",
+   "size": 1509
+  },
+  {
+   "file": "corpus/2106.09685/expt.tex",
+   "size": 17476
+  },
+  {
+   "file": "corpus/2106.09685/iclr2022_conference.tex",
+   "size": 78753
+  },
+  {
+   "file": "corpus/2106.09685/math_commands.tex",
+   "size": 10697
+  },
+  {
+   "file": "corpus/2203.02155/automatic-eval-prompts.tex",
+   "size": 14665
+  },
+  {
+   "file": "corpus/2203.02155/automatic_evals_table.tex",
+   "size": 8484
+  },
+  {
+   "file": "corpus/2203.02155/model-samples.tex",
+   "size": 22690
+  },
+  {
+   "file": "corpus/2203.02155/neurips_2021.tex",
+   "size": 149181
+  },
+  {
+   "file": "corpus/2203.02155/usecases-gpt.tex",
+   "size": 9840
+  },
+  {
+   "file": "corpus/2203.02155/usecases-if.tex",
+   "size": 17979
+  },
+  {
+   "file": "corpus/2305.14335/0_abstract.tex",
+   "size": 1978
+  },
+  {
+   "file": "corpus/2305.14335/1_introduction_IEEE.tex",
+   "size": 7392
+  },
+  {
+   "file": "corpus/2305.14335/2_relatedworks.tex",
+   "size": 6905
+  },
+  {
+   "file": "corpus/2305.14335/3_methods.tex",
+   "size": 17885
+  },
+  {
+   "file": "corpus/2305.14335/4_experiments.tex",
+   "size": 33640
+  },
+  {
+   "file": "corpus/2305.14335/5_conclusion.tex",
+   "size": 1181
+  },
+  {
+   "file": "corpus/2305.14335/main.tex",
+   "size": 25082
+  },
+  {
+   "file": "corpus/2501.14787/main.tex",
+   "size": 3567
+  },
+  {
+   "file": "corpus/2501.14787/lectures/0-Introduction.tex",
+   "size": 3154
+  },
+  {
+   "file": "corpus/2501.14787/lectures/01-Overview.tex",
+   "size": 12648
+  },
+  {
+   "file": "corpus/2501.14787/lectures/02-Derivatives-LinearOperators.tex",
+   "size": 29027
+  },
+  {
+   "file": "corpus/2501.14787/lectures/03-TwobyTwoJacobians.tex",
+   "size": 25376
+  },
+  {
+   "file": "corpus/2501.14787/lectures/04-FiniteDifferences.tex",
+   "size": 14699
+  },
+  {
+   "file": "corpus/2501.14787/lectures/05-Derivatives-GeneralVectorSpaces.tex",
+   "size": 13443
+  },
+  {
+   "file": "corpus/2501.14787/lectures/06-RootFinding-Optimization-Adjoints.tex",
+   "size": 22725
+  },
+  {
+   "file": "corpus/2501.14787/lectures/07-Derivative-MatrixDet-Inverse.tex",
+   "size": 6367
+  },
+  {
+   "file": "corpus/2501.14787/lectures/08-Forward-Reverse-AD.tex",
+   "size": 49317
+  },
+  {
+   "file": "corpus/2501.14787/lectures/09-DifferentiatingODESolutions.tex",
+   "size": 32957
+  },
+  {
+   "file": "corpus/2501.14787/lectures/10-CalculusofVariations.tex",
+   "size": 11473
+  },
+  {
+   "file": "corpus/2501.14787/lectures/11-Derivatives-RandomFunctions.tex",
+   "size": 25223
+  },
+  {
+   "file": "corpus/2501.14787/lectures/12-SecondDerivatives-BilinearMaps-Hessian.tex",
+   "size": 32581
+  },
+  {
+   "file": "corpus/2501.14787/lectures/13-Derivatives-Eigenproblems.tex",
+   "size": 7498
+  },
+  {
+   "file": "corpus/2501.14787/lectures/14-WhereWeGoFromHere.tex",
+   "size": 5439
+  },
+  {
+   "file": "corpus/2501.14787/psets/Pset1.tex",
+   "size": 4196
+  },
+  {
+   "file": "corpus/2501.14787/psets/Pset1sol.tex",
+   "size": 14123
+  },
+  {
+   "file": "corpus/2501.14787/psets/Pset2.tex",
+   "size": 7232
+  },
+  {
+   "file": "corpus/2501.14787/psets/Pset2sol.tex",
+   "size": 10779
+  },
+  {
+   "file": "corpus/hep-th/9901001/imamura2.tex",
+   "size": 29049
+  }
+ ],
+ "extract": [
+  {
+   "file": "corpus/1412.6980/arxiv.tex",
+   "n_blocks": 2,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 6
+  },
+  {
+   "file": "corpus/1511.06432/iclr2016_conference.tex",
+   "n_blocks": 1,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 31
+  },
+  {
+   "file": "corpus/1512.03385/residual_v1_arxiv_release.tex",
+   "n_blocks": 27,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 566
+  },
+  {
+   "file": "corpus/1706.03762/background.tex",
+   "n_blocks": 1,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 9
+  },
+  {
+   "file": "corpus/1706.03762/introduction.tex",
+   "n_blocks": 1,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 11
+  },
+  {
+   "file": "corpus/1706.03762/model_architecture.tex",
+   "n_blocks": 8,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 93
+  },
+  {
+   "file": "corpus/1706.03762/ms.tex",
+   "n_blocks": 6,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 111
+  },
+  {
+   "file": "corpus/1706.03762/parameter_attention.tex",
+   "n_blocks": 3,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 20
+  },
+  {
+   "file": "corpus/1706.03762/results.tex",
+   "n_blocks": 4,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 41
+  },
+  {
+   "file": "corpus/1706.03762/sqrt_d_trick.tex",
+   "n_blocks": 3,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 27
+  },
+  {
+   "file": "corpus/1706.03762/training.tex",
+   "n_blocks": 2,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 21
+  },
+  {
+   "file": "corpus/1706.03762/visualizations.tex",
+   "n_blocks": 4,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 7
+  },
+  {
+   "file": "corpus/1706.03762/why_self_attention.tex",
+   "n_blocks": 2,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 21
+  },
+  {
+   "file": "corpus/1810.04805/ablation.tex",
+   "n_blocks": 1,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 35
+  },
+  {
+   "file": "corpus/1810.04805/abstract.tex",
+   "n_blocks": 1,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 13
+  },
+  {
+   "file": "corpus/1810.04805/appendix_main.tex",
+   "n_blocks": 5,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 13
+  },
+  {
+   "file": "corpus/1810.04805/bert.tex",
+   "n_blocks": 2,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 123
+  },
+  {
+   "file": "corpus/1810.04805/bert_details.tex",
+   "n_blocks": 10,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 87
+  },
+  {
+   "file": "corpus/1810.04805/conclusion.tex",
+   "n_blocks": 1,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 2
+  },
+  {
+   "file": "corpus/1810.04805/direction_ablation_tab.tex",
+   "n_blocks": 1,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 1
+  },
+  {
+   "file": "corpus/1810.04805/experiment.tex",
+   "n_blocks": 3,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 89
+  },
+  {
+   "file": "corpus/1810.04805/experiments_details.tex",
+   "n_blocks": 1,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 33
+  },
+  {
+   "file": "corpus/1810.04805/glue_official_tab.tex",
+   "n_blocks": 1,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 3
+  },
+  {
+   "file": "corpus/1810.04805/intro.tex",
+   "n_blocks": 2,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 28
+  },
+  {
+   "file": "corpus/1810.04805/main.tex",
+   "n_blocks": 4,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 60
+  },
+  {
+   "file": "corpus/1810.04805/mask_procedure_ablation_tab.tex",
+   "n_blocks": 1,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 1
+  },
+  {
+   "file": "corpus/1810.04805/more_ablation.tex",
+   "n_blocks": 3,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 30
+  },
+  {
+   "file": "corpus/1810.04805/pretrained_embeddings_tab.tex",
+   "n_blocks": 1,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 1
+  },
+  {
+   "file": "corpus/1810.04805/related.tex",
+   "n_blocks": 2,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 31
+  },
+  {
+   "file": "corpus/1810.04805/size_ablation_tab.tex",
+   "n_blocks": 1,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 1
+  },
+  {
+   "file": "corpus/1810.04805/squad_tab.tex",
+   "n_blocks": 2,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 2
+  },
+  {
+   "file": "corpus/1810.04805/steps_ablation_fig.tex",
+   "n_blocks": 1,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 1
+  },
+  {
+   "file": "corpus/1810.04805/swag_official_tab.tex",
+   "n_blocks": 1,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 1
+  },
+  {
+   "file": "corpus/1906.08237/abstract.tex",
+   "n_blocks": 1,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 2
+  },
+  {
+   "file": "corpus/1906.08237/appendix.tex",
+   "n_blocks": 14,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 130
+  },
+  {
+   "file": "corpus/1906.08237/conc.tex",
+   "n_blocks": 1,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 1
+  },
+  {
+   "file": "corpus/1906.08237/custom.tex",
+   "n_blocks": 1,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 99
+  },
+  {
+   "file": "corpus/1906.08237/exp.tex",
+   "n_blocks": 11,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 54
+  },
+  {
+   "file": "corpus/1906.08237/intro.tex",
+   "n_blocks": 5,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 20
+  },
+  {
+   "file": "corpus/1906.08237/model.tex",
+   "n_blocks": 12,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 182
+  },
+  {
+   "file": "corpus/1906.08237/neurips_2019.tex",
+   "n_blocks": 2,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 52
+  },
+  {
+   "file": "corpus/1906.08237/related.tex",
+   "n_blocks": 0,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 0
+  },
+  {
+   "file": "corpus/1906.08237/symbol.tex",
+   "n_blocks": 1,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 1044
+  },
+  {
+   "file": "corpus/2005.11401/abstract.tex",
+   "n_blocks": 1,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 0
+  },
+  {
+   "file": "corpus/2005.11401/appendix.tex",
+   "n_blocks": 4,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 51
+  },
+  {
+   "file": "corpus/2005.11401/comment_engine.tex",
+   "n_blocks": 1,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 79
+  },
+  {
+   "file": "corpus/2005.11401/experiments.tex",
+   "n_blocks": 1,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 30
+  },
+  {
+   "file": "corpus/2005.11401/intro.tex",
+   "n_blocks": 1,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 26
+  },
+  {
+   "file": "corpus/2005.11401/methods.tex",
+   "n_blocks": 1,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 107
+  },
+  {
+   "file": "corpus/2005.11401/neurips_2020.tex",
+   "n_blocks": 5,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 79
+  },
+  {
+   "file": "corpus/2005.11401/related.tex",
+   "n_blocks": 1,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 28
+  },
+  {
+   "file": "corpus/2005.11401/results.tex",
+   "n_blocks": 6,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 86
+  },
+  {
+   "file": "corpus/2005.11401/tables/main_results.tex",
+   "n_blocks": 1,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 1
+  },
+  {
+   "file": "corpus/2106.09685/expt.tex",
+   "n_blocks": 5,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 85
+  },
+  {
+   "file": "corpus/2106.09685/iclr2022_conference.tex",
+   "n_blocks": 35,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 630
+  },
+  {
+   "file": "corpus/2106.09685/math_commands.tex",
+   "n_blocks": 1,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 1182
+  },
+  {
+   "file": "corpus/2203.02155/automatic-eval-prompts.tex",
+   "n_blocks": 14,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 14
+  },
+  {
+   "file": "corpus/2203.02155/automatic_evals_table.tex",
+   "n_blocks": 2,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 6
+  },
+  {
+   "file": "corpus/2203.02155/model-samples.tex",
+   "n_blocks": 9,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 9
+  },
+  {
+   "file": "corpus/2203.02155/neurips_2021.tex",
+   "n_blocks": 53,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 668
+  },
+  {
+   "file": "corpus/2203.02155/usecases-gpt.tex",
+   "n_blocks": 1,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 191
+  },
+  {
+   "file": "corpus/2203.02155/usecases-if.tex",
+   "n_blocks": 1,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 254
+  },
+  {
+   "file": "corpus/2305.14335/0_abstract.tex",
+   "n_blocks": 1,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 3
+  },
+  {
+   "file": "corpus/2305.14335/1_introduction_IEEE.tex",
+   "n_blocks": 3,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 20
+  },
+  {
+   "file": "corpus/2305.14335/2_relatedworks.tex",
+   "n_blocks": 1,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 35
+  },
+  {
+   "file": "corpus/2305.14335/3_methods.tex",
+   "n_blocks": 17,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 173
+  },
+  {
+   "file": "corpus/2305.14335/4_experiments.tex",
+   "n_blocks": 12,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 181
+  },
+  {
+   "file": "corpus/2305.14335/5_conclusion.tex",
+   "n_blocks": 1,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 1
+  },
+  {
+   "file": "corpus/2305.14335/main.tex",
+   "n_blocks": 4,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 88
+  },
+  {
+   "file": "corpus/2501.14787/main.tex",
+   "n_blocks": 2,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 112
+  },
+  {
+   "file": "corpus/2501.14787/lectures/0-Introduction.tex",
+   "n_blocks": 3,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 3
+  },
+  {
+   "file": "corpus/2501.14787/lectures/01-Overview.tex",
+   "n_blocks": 13,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 100
+  },
+  {
+   "file": "corpus/2501.14787/lectures/02-Derivatives-LinearOperators.tex",
+   "n_blocks": 47,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 426
+  },
+  {
+   "file": "corpus/2501.14787/lectures/03-TwobyTwoJacobians.tex",
+   "n_blocks": 27,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 334
+  },
+  {
+   "file": "corpus/2501.14787/lectures/04-FiniteDifferences.tex",
+   "n_blocks": 13,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 161
+  },
+  {
+   "file": "corpus/2501.14787/lectures/05-Derivatives-GeneralVectorSpaces.tex",
+   "n_blocks": 19,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 170
+  },
+  {
+   "file": "corpus/2501.14787/lectures/06-RootFinding-Optimization-Adjoints.tex",
+   "n_blocks": 19,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 236
+  },
+  {
+   "file": "corpus/2501.14787/lectures/07-Derivative-MatrixDet-Inverse.tex",
+   "n_blocks": 7,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 78
+  },
+  {
+   "file": "corpus/2501.14787/lectures/08-Forward-Reverse-AD.tex",
+   "n_blocks": 43,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 391
+  },
+  {
+   "file": "corpus/2501.14787/lectures/09-DifferentiatingODESolutions.tex",
+   "n_blocks": 15,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 403
+  },
+  {
+   "file": "corpus/2501.14787/lectures/10-CalculusofVariations.tex",
+   "n_blocks": 18,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 145
+  },
+  {
+   "file": "corpus/2501.14787/lectures/11-Derivatives-RandomFunctions.tex",
+   "n_blocks": 26,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 230
+  },
+  {
+   "file": "corpus/2501.14787/lectures/12-SecondDerivatives-BilinearMaps-Hessian.tex",
+   "n_blocks": 21,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 414
+  },
+  {
+   "file": "corpus/2501.14787/lectures/13-Derivatives-Eigenproblems.tex",
+   "n_blocks": 12,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 107
+  },
+  {
+   "file": "corpus/2501.14787/lectures/14-WhereWeGoFromHere.tex",
+   "n_blocks": 2,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 59
+  },
+  {
+   "file": "corpus/2501.14787/psets/Pset1.tex",
+   "n_blocks": 11,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 121
+  },
+  {
+   "file": "corpus/2501.14787/psets/Pset1sol.tex",
+   "n_blocks": 10,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 134
+  },
+  {
+   "file": "corpus/2501.14787/psets/Pset2.tex",
+   "n_blocks": 10,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 142
+  },
+  {
+   "file": "corpus/2501.14787/psets/Pset2sol.tex",
+   "n_blocks": 13,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 212
+  },
+  {
+   "file": "corpus/hep-th/9901001/imamura2.tex",
+   "n_blocks": 42,
+   "n_leak": 0,
+   "leak_rate": 0.0,
+   "leak_samples": [],
+   "n_protected": 318
+  }
+ ],
+ "newcommand": {
+  "vect_registered_after_parse": false,
+  "dR_registered_after_parse": false,
+  "vect_node": {
+   "n_args": 0,
+   "verbatim": "\\vect"
+  },
+  "node_after_vect": "LatexGroupNode",
+  "custom_hook": {
+   "vect_n_args": 1,
+   "works": true,
+   "note": "custom args parser returns new_parsing_state that extends latex_context; \\vect{v} then parses v as its argument"
+  }
+ },
+ "roundtrip": [
+  {
+   "file": "corpus/1412.6980/arxiv.tex",
+   "size": 298,
+   "top_node_bytes": 298,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1511.06432/iclr2016_conference.tex",
+   "size": 41199,
+   "top_node_bytes": 41199,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1512.03385/residual_v1_arxiv_release.tex",
+   "size": 69687,
+   "top_node_bytes": 69687,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1706.03762/background.tex",
+   "size": 8376,
+   "top_node_bytes": 8376,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1706.03762/introduction.tex",
+   "size": 5300,
+   "top_node_bytes": 5300,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1706.03762/model_architecture.tex",
+   "size": 17109,
+   "top_node_bytes": 17109,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1706.03762/ms.tex",
+   "size": 17611,
+   "top_node_bytes": 17611,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1706.03762/parameter_attention.tex",
+   "size": 3489,
+   "top_node_bytes": 3489,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1706.03762/results.tex",
+   "size": 11800,
+   "top_node_bytes": 11800,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1706.03762/sqrt_d_trick.tex",
+   "size": 2226,
+   "top_node_bytes": 2226,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1706.03762/training.tex",
+   "size": 4444,
+   "top_node_bytes": 4444,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1706.03762/visualizations.tex",
+   "size": 1543,
+   "top_node_bytes": 1543,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1706.03762/why_self_attention.tex",
+   "size": 7867,
+   "top_node_bytes": 7867,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1810.04805/ablation.tex",
+   "size": 7157,
+   "top_node_bytes": 7157,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1810.04805/abstract.tex",
+   "size": 1138,
+   "top_node_bytes": 1138,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1810.04805/appendix_main.tex",
+   "size": 860,
+   "top_node_bytes": 860,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1810.04805/bert.tex",
+   "size": 14009,
+   "top_node_bytes": 14009,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1810.04805/bert_details.tex",
+   "size": 9287,
+   "top_node_bytes": 9287,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1810.04805/conclusion.tex",
+   "size": 527,
+   "top_node_bytes": 527,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1810.04805/direction_ablation_tab.tex",
+   "size": 910,
+   "top_node_bytes": 910,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1810.04805/experiment.tex",
+   "size": 8214,
+   "top_node_bytes": 8214,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1810.04805/experiments_details.tex",
+   "size": 3382,
+   "top_node_bytes": 3382,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1810.04805/glue_official_tab.tex",
+   "size": 2082,
+   "top_node_bytes": 2082,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1810.04805/intro.tex",
+   "size": 4116,
+   "top_node_bytes": 4116,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1810.04805/main.tex",
+   "size": 1719,
+   "top_node_bytes": 1719,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1810.04805/mask_procedure_ablation_tab.tex",
+   "size": 865,
+   "top_node_bytes": 865,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1810.04805/more_ablation.tex",
+   "size": 2894,
+   "top_node_bytes": 2894,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1810.04805/pretrained_embeddings_tab.tex",
+   "size": 997,
+   "top_node_bytes": 997,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1810.04805/related.tex",
+   "size": 4662,
+   "top_node_bytes": 4662,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1810.04805/size_ablation_tab.tex",
+   "size": 841,
+   "top_node_bytes": 841,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1810.04805/squad_tab.tex",
+   "size": 2030,
+   "top_node_bytes": 2030,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1810.04805/steps_ablation_fig.tex",
+   "size": 1289,
+   "top_node_bytes": 1289,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1810.04805/swag_official_tab.tex",
+   "size": 647,
+   "top_node_bytes": 647,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1906.08237/abstract.tex",
+   "size": 6824,
+   "top_node_bytes": 6824,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1906.08237/appendix.tex",
+   "size": 24129,
+   "top_node_bytes": 24129,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1906.08237/conc.tex",
+   "size": 651,
+   "top_node_bytes": 651,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1906.08237/custom.tex",
+   "size": 3524,
+   "top_node_bytes": 3524,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1906.08237/exp.tex",
+   "size": 25308,
+   "top_node_bytes": 25308,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1906.08237/intro.tex",
+   "size": 11347,
+   "top_node_bytes": 11347,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1906.08237/model.tex",
+   "size": 31402,
+   "top_node_bytes": 31402,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1906.08237/neurips_2019.tex",
+   "size": 3995,
+   "top_node_bytes": 3995,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1906.08237/related.tex",
+   "size": 1843,
+   "top_node_bytes": 1843,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/1906.08237/symbol.tex",
+   "size": 8505,
+   "top_node_bytes": 8505,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2005.11401/abstract.tex",
+   "size": 1632,
+   "top_node_bytes": 1632,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2005.11401/appendix.tex",
+   "size": 9763,
+   "top_node_bytes": 9763,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2005.11401/comment_engine.tex",
+   "size": 1993,
+   "top_node_bytes": 1993,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2005.11401/experiments.tex",
+   "size": 6283,
+   "top_node_bytes": 6283,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2005.11401/intro.tex",
+   "size": 4517,
+   "top_node_bytes": 4517,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2005.11401/methods.tex",
+   "size": 8009,
+   "top_node_bytes": 8009,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2005.11401/neurips_2020.tex",
+   "size": 9360,
+   "top_node_bytes": 9360,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2005.11401/related.tex",
+   "size": 4601,
+   "top_node_bytes": 4601,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2005.11401/results.tex",
+   "size": 16907,
+   "top_node_bytes": 16907,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2005.11401/tables/main_results.tex",
+   "size": 1509,
+   "top_node_bytes": 1509,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2106.09685/expt.tex",
+   "size": 17476,
+   "top_node_bytes": 17476,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2106.09685/iclr2022_conference.tex",
+   "size": 78753,
+   "top_node_bytes": 78753,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2106.09685/math_commands.tex",
+   "size": 10697,
+   "top_node_bytes": 10697,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2203.02155/automatic-eval-prompts.tex",
+   "size": 14665,
+   "top_node_bytes": 14665,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2203.02155/automatic_evals_table.tex",
+   "size": 8484,
+   "top_node_bytes": 8484,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2203.02155/model-samples.tex",
+   "size": 22690,
+   "top_node_bytes": 22690,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2203.02155/neurips_2021.tex",
+   "size": 149181,
+   "top_node_bytes": 149181,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2203.02155/usecases-gpt.tex",
+   "size": 9840,
+   "top_node_bytes": 9840,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2203.02155/usecases-if.tex",
+   "size": 17979,
+   "top_node_bytes": 17979,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2305.14335/0_abstract.tex",
+   "size": 1978,
+   "top_node_bytes": 1978,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2305.14335/1_introduction_IEEE.tex",
+   "size": 7392,
+   "top_node_bytes": 7392,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2305.14335/2_relatedworks.tex",
+   "size": 6905,
+   "top_node_bytes": 6905,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2305.14335/3_methods.tex",
+   "size": 17885,
+   "top_node_bytes": 17885,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2305.14335/4_experiments.tex",
+   "size": 33640,
+   "top_node_bytes": 33640,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2305.14335/5_conclusion.tex",
+   "size": 1181,
+   "top_node_bytes": 1181,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2305.14335/main.tex",
+   "size": 25082,
+   "top_node_bytes": 25082,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2501.14787/main.tex",
+   "size": 3567,
+   "top_node_bytes": 3567,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2501.14787/lectures/0-Introduction.tex",
+   "size": 3154,
+   "top_node_bytes": 3154,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2501.14787/lectures/01-Overview.tex",
+   "size": 12648,
+   "top_node_bytes": 12648,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2501.14787/lectures/02-Derivatives-LinearOperators.tex",
+   "size": 29027,
+   "top_node_bytes": 29027,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2501.14787/lectures/03-TwobyTwoJacobians.tex",
+   "size": 25376,
+   "top_node_bytes": 25376,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2501.14787/lectures/04-FiniteDifferences.tex",
+   "size": 14699,
+   "top_node_bytes": 14699,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2501.14787/lectures/05-Derivatives-GeneralVectorSpaces.tex",
+   "size": 13443,
+   "top_node_bytes": 13443,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2501.14787/lectures/06-RootFinding-Optimization-Adjoints.tex",
+   "size": 22725,
+   "top_node_bytes": 22725,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2501.14787/lectures/07-Derivative-MatrixDet-Inverse.tex",
+   "size": 6367,
+   "top_node_bytes": 6367,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2501.14787/lectures/08-Forward-Reverse-AD.tex",
+   "size": 49317,
+   "top_node_bytes": 49317,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2501.14787/lectures/09-DifferentiatingODESolutions.tex",
+   "size": 32957,
+   "top_node_bytes": 32957,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2501.14787/lectures/10-CalculusofVariations.tex",
+   "size": 11473,
+   "top_node_bytes": 11473,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2501.14787/lectures/11-Derivatives-RandomFunctions.tex",
+   "size": 25223,
+   "top_node_bytes": 25223,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2501.14787/lectures/12-SecondDerivatives-BilinearMaps-Hessian.tex",
+   "size": 32581,
+   "top_node_bytes": 32581,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2501.14787/lectures/13-Derivatives-Eigenproblems.tex",
+   "size": 7498,
+   "top_node_bytes": 7498,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2501.14787/lectures/14-WhereWeGoFromHere.tex",
+   "size": 5439,
+   "top_node_bytes": 5439,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2501.14787/psets/Pset1.tex",
+   "size": 4196,
+   "top_node_bytes": 4196,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2501.14787/psets/Pset1sol.tex",
+   "size": 14123,
+   "top_node_bytes": 14123,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2501.14787/psets/Pset2.tex",
+   "size": 7232,
+   "top_node_bytes": 7232,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/2501.14787/psets/Pset2sol.tex",
+   "size": 10779,
+   "top_node_bytes": 10779,
+   "gaps": [],
+   "status": "identical"
+  },
+  {
+   "file": "corpus/hep-th/9901001/imamura2.tex",
+   "size": 29049,
+   "top_node_bytes": 29049,
+   "gaps": [],
+   "status": "identical"
+  }
+ ]
+}

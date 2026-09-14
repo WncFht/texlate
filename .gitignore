@@ -1,0 +1,23 @@
+# python
+__pycache__/
+*.pyc
+.venv/
+.venv_*/
+
+# node
+node_modules/
+
+# bench 重产物 (可重建,不入库)
+bench/corpus/*/
+bench/work_*/
+bench/results/babeldoc/
+!bench/corpus/MANIFEST.md
+
+# tex 编译中间产物
+*.aux
+*.log
+*.out
+*.blg
+*.fls
+*.fdb_latexmk
+*.synctex.gz

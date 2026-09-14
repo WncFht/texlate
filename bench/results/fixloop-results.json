@@ -1,0 +1,2073 @@
+{
+ "meta": {
+  "date": "2026-09-14 10:04",
+  "texmf_mode": "cold",
+  "precheck": true,
+  "max_rounds": 8,
+  "clean_err_max": 3,
+  "xelatex": "XeTeX 3.141592653-2.6-0.999998 (TeX Live 2026)",
+  "engine": "xelatex -interaction=nonstopmode, ≤2 pass",
+  "rules": [
+   "install_file",
+   "install_tfm",
+   "install_sysfont",
+   "missing_pfb_updmap",
+   "pdftex_prim_guard",
+   "px_to_bp",
+   "microtype_off",
+   "times_to_newtx",
+   "hyphenation_sane",
+   "soul_cjk_mbox",
+   "thm_sibling_strip",
+   "option_clash_merge",
+   "minted_frozencache",
+   "latex209_reject",
+   "undefined_cs_guess"
+  ]
+ },
+ "cells": [
+  {
+   "project": "1412.6980",
+   "cond": "baseline",
+   "main": "arxiv.tex",
+   "texmf": "cold",
+   "precheck": true,
+   "rounds": [
+    {
+     "round": 1,
+     "pdf": true,
+     "pdf_bytes": 530722,
+     "n_errors": 4,
+     "category": "pdftex_prim",
+     "payload": "pdfoutput",
+     "sec": 0.7
+    },
+    {
+     "round": 2,
+     "pdf": true,
+     "pdf_bytes": 529125,
+     "n_errors": 0,
+     "category": null,
+     "payload": null,
+     "sec": 0.6
+    }
+   ],
+   "actions": [
+    {
+     "round": 0,
+     "rule": "static_precheck",
+     "detail": "missing files=[] -> install []",
+     "sec": 0.0
+    },
+    {
+     "round": 1,
+     "rule": "pdftex_prim_guard",
+     "detail": "guard pdfTeX prims in 1 files"
+    }
+   ],
+   "verdict": "clean",
+   "final_pdf": true,
+   "final_errors": 0,
+   "final_cat": null,
+   "installed": [],
+   "log": [
+    "  r1: pdf=True err=4 cat=pdftex_prim pay=pdfoutput (0.7s)",
+    "    apply pdftex_prim_guard: guard pdfTeX prims in 1 files",
+    "  r2: pdf=True err=0 cat=None pay=None (0.6s)"
+   ],
+   "started_fail": false
+  },
+  {
+   "project": "1412.6980",
+   "cond": "ctex",
+   "main": "arxiv.tex",
+   "texmf": "cold",
+   "precheck": true,
+   "rounds": [
+    {
+     "round": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "category": "missing_file",
+     "payload": "zhnumber.sty",
+     "sec": 0.2
+    },
+    {
+     "round": 2,
+     "pdf": true,
+     "pdf_bytes": 530721,
+     "n_errors": 18,
+     "category": "fontspec_missing",
+     "payload": "FandolSong-Regular",
+     "sec": 1.1
+    },
+    {
+     "round": 3,
+     "pdf": true,
+     "pdf_bytes": 530721,
+     "n_errors": 4,
+     "category": "pdftex_prim",
+     "payload": "pdfoutput",
+     "sec": 1.1
+    },
+    {
+     "round": 4,
+     "pdf": true,
+     "pdf_bytes": 529125,
+     "n_errors": 0,
+     "category": null,
+     "payload": null,
+     "sec": 1.2
+    }
+   ],
+   "actions": [
+    {
+     "round": 0,
+     "rule": "static_precheck",
+     "detail": "missing files=[] -> install []",
+     "sec": 0.0
+    },
+    {
+     "round": 1,
+     "rule": "install_file",
+     "detail": "install for zhnumber.sty"
+    },
+    {
+     "round": 2,
+     "rule": "install_sysfont",
+     "detail": "install font FandolSong-Regular.otf"
+    },
+    {
+     "round": 3,
+     "rule": "pdftex_prim_guard",
+     "detail": "guard pdfTeX prims in 1 files"
+    }
+   ],
+   "verdict": "clean",
+   "final_pdf": true,
+   "final_errors": 0,
+   "final_cat": null,
+   "installed": [
+    "zhnumber",
+    "fandol"
+   ],
+   "log": [
+    "  r1: pdf=False err=2 cat=missing_file pay=zhnumber.sty (0.2s)",
+    "    tlmgr init-usertree",
+    "    tlmgr install zhnumber -> rc=0 ",
+    "    apply install_file: install for zhnumber.sty",
+    "  r2: pdf=True err=18 cat=fontspec_missing pay=FandolSong-Regular (1.1s)",
+    "    tlmgr install fandol -> rc=0 ",
+    "    updmap-user 重建字体 map",
+    "    apply install_sysfont: install font FandolSong-Regular.otf",
+    "  r3: pdf=True err=4 cat=pdftex_prim pay=pdfoutput (1.1s)",
+    "    apply pdftex_prim_guard: guard pdfTeX prims in 1 files",
+    "  r4: pdf=True err=0 cat=None pay=None (1.2s)"
+   ],
+   "started_fail": true
+  },
+  {
+   "project": "1412.6980",
+   "cond": "zh",
+   "main": "arxiv.tex",
+   "texmf": "cold",
+   "precheck": true,
+   "rounds": [
+    {
+     "round": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "category": "missing_file",
+     "payload": "zhnumber.sty",
+     "sec": 0.2
+    },
+    {
+     "round": 2,
+     "pdf": true,
+     "pdf_bytes": 530702,
+     "n_errors": 18,
+     "category": "fontspec_missing",
+     "payload": "FandolSong-Regular",
+     "sec": 1.2
+    },
+    {
+     "round": 3,
+     "pdf": true,
+     "pdf_bytes": 530702,
+     "n_errors": 4,
+     "category": "pdftex_prim",
+     "payload": "pdfoutput",
+     "sec": 1.1
+    },
+    {
+     "round": 4,
+     "pdf": true,
+     "pdf_bytes": 529107,
+     "n_errors": 0,
+     "category": null,
+     "payload": null,
+     "sec": 1.1
+    }
+   ],
+   "actions": [
+    {
+     "round": 0,
+     "rule": "static_precheck",
+     "detail": "missing files=[] -> install []",
+     "sec": 0.0
+    },
+    {
+     "round": 1,
+     "rule": "install_file",
+     "detail": "install for zhnumber.sty"
+    },
+    {
+     "round": 2,
+     "rule": "install_sysfont",
+     "detail": "install font FandolSong-Regular.otf"
+    },
+    {
+     "round": 3,
+     "rule": "pdftex_prim_guard",
+     "detail": "guard pdfTeX prims in 1 files"
+    }
+   ],
+   "verdict": "clean",
+   "final_pdf": true,
+   "final_errors": 0,
+   "final_cat": null,
+   "installed": [
+    "zhnumber",
+    "fandol"
+   ],
+   "log": [
+    "  r1: pdf=False err=2 cat=missing_file pay=zhnumber.sty (0.2s)",
+    "    tlmgr init-usertree",
+    "    tlmgr install zhnumber -> rc=0 ",
+    "    apply install_file: install for zhnumber.sty",
+    "  r2: pdf=True err=18 cat=fontspec_missing pay=FandolSong-Regular (1.2s)",
+    "    tlmgr install fandol -> rc=0 ",
+    "    updmap-user 重建字体 map",
+    "    apply install_sysfont: install font FandolSong-Regular.otf",
+    "  r3: pdf=True err=4 cat=pdftex_prim pay=pdfoutput (1.1s)",
+    "    apply pdftex_prim_guard: guard pdfTeX prims in 1 files",
+    "  r4: pdf=True err=0 cat=None pay=None (1.1s)"
+   ],
+   "started_fail": true
+  },
+  {
+   "project": "1511.06432",
+   "cond": "baseline",
+   "main": "iclr2016_conference.tex",
+   "texmf": "cold",
+   "precheck": true,
+   "rounds": [
+    {
+     "round": 1,
+     "pdf": true,
+     "pdf_bytes": 453776,
+     "n_errors": 2,
+     "category": "missing_tfm",
+     "payload": "phvb",
+     "sec": 1.0
+    },
+    {
+     "round": 2,
+     "pdf": true,
+     "pdf_bytes": 453777,
+     "n_errors": 0,
+     "category": null,
+     "payload": null,
+     "sec": 0.5
+    }
+   ],
+   "actions": [
+    {
+     "round": 0,
+     "rule": "static_precheck",
+     "detail": "missing files=['citeref.sty', 'iclr14submit_e.sty'] -> install ['citeref']",
+     "sec": 4.1
+    },
+    {
+     "round": 1,
+     "rule": "install_tfm",
+     "detail": "install tfm-font phvb"
+    }
+   ],
+   "verdict": "clean",
+   "final_pdf": true,
+   "final_errors": 0,
+   "final_cat": null,
+   "installed": [
+    "citeref",
+    "helvetic"
+   ],
+   "log": [
+    "    tlmgr init-usertree",
+    "    tlmgr install citeref -> rc=0 ",
+    "  r1: pdf=True err=2 cat=missing_tfm pay=phvb (1.0s)",
+    "    tlmgr install helvetic -> rc=0 ",
+    "    updmap-user 重建字体 map",
+    "    apply install_tfm: install tfm-font phvb",
+    "  r2: pdf=True err=0 cat=None pay=None (0.5s)"
+   ],
+   "started_fail": false
+  },
+  {
+   "project": "1511.06432",
+   "cond": "ctex",
+   "main": "iclr2016_conference.tex",
+   "texmf": "cold",
+   "precheck": true,
+   "rounds": [
+    {
+     "round": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "category": "missing_file",
+     "payload": "zhnumber.sty",
+     "sec": 0.2
+    },
+    {
+     "round": 2,
+     "pdf": true,
+     "pdf_bytes": 453564,
+     "n_errors": 20,
+     "category": "fontspec_missing",
+     "payload": "FandolSong-Regular",
+     "sec": 1.5
+    },
+    {
+     "round": 3,
+     "pdf": true,
+     "pdf_bytes": 456863,
+     "n_errors": 2,
+     "category": "missing_tfm",
+     "payload": "phvb",
+     "sec": 1.6
+    },
+    {
+     "round": 4,
+     "pdf": true,
+     "pdf_bytes": 456861,
+     "n_errors": 0,
+     "category": null,
+     "payload": null,
+     "sec": 1.0
+    }
+   ],
+   "actions": [
+    {
+     "round": 0,
+     "rule": "static_precheck",
+     "detail": "missing files=['citeref.sty', 'iclr14submit_e.sty'] -> install ['citeref']",
+     "sec": 4.0
+    },
+    {
+     "round": 1,
+     "rule": "install_file",
+     "detail": "install for zhnumber.sty"
+    },
+    {
+     "round": 2,
+     "rule": "install_sysfont",
+     "detail": "install font FandolSong-Regular.otf"
+    },
+    {
+     "round": 3,
+     "rule": "install_tfm",
+     "detail": "install tfm-font phvb"
+    }
+   ],
+   "verdict": "clean",
+   "final_pdf": true,
+   "final_errors": 0,
+   "final_cat": null,
+   "installed": [
+    "citeref",
+    "zhnumber",
+    "fandol",
+    "helvetic"
+   ],
+   "log": [
+    "    tlmgr init-usertree",
+    "    tlmgr install citeref -> rc=0 ",
+    "  r1: pdf=False err=2 cat=missing_file pay=zhnumber.sty (0.2s)",
+    "    tlmgr install zhnumber -> rc=0 ",
+    "    apply install_file: install for zhnumber.sty",
+    "  r2: pdf=True err=20 cat=fontspec_missing pay=FandolSong-Regular (1.5s)",
+    "    tlmgr install fandol -> rc=0 ",
+    "    updmap-user 重建字体 map",
+    "    apply install_sysfont: install font FandolSong-Regular.otf",
+    "  r3: pdf=True err=2 cat=missing_tfm pay=phvb (1.6s)",
+    "    tlmgr install helvetic -> rc=0 ",
+    "    updmap-user 重建字体 map",
+    "    apply install_tfm: install tfm-font phvb",
+    "  r4: pdf=True err=0 cat=None pay=None (1.0s)"
+   ],
+   "started_fail": true
+  },
+  {
+   "project": "1511.06432",
+   "cond": "zh",
+   "main": "iclr2016_conference.tex",
+   "texmf": "cold",
+   "precheck": true,
+   "rounds": [
+    {
+     "round": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "category": "missing_file",
+     "payload": "zhnumber.sty",
+     "sec": 0.2
+    },
+    {
+     "round": 2,
+     "pdf": true,
+     "pdf_bytes": 425708,
+     "n_errors": 26,
+     "category": "fontspec_missing",
+     "payload": "FandolSong-Regular",
+     "sec": 1.5
+    },
+    {
+     "round": 3,
+     "pdf": true,
+     "pdf_bytes": 447672,
+     "n_errors": 2,
+     "category": "missing_tfm",
+     "payload": "phvb",
+     "sec": 1.4
+    },
+    {
+     "round": 4,
+     "pdf": true,
+     "pdf_bytes": 447672,
+     "n_errors": 0,
+     "category": null,
+     "payload": null,
+     "sec": 1.0
+    }
+   ],
+   "actions": [
+    {
+     "round": 0,
+     "rule": "static_precheck",
+     "detail": "missing files=['citeref.sty', 'iclr14submit_e.sty'] -> install ['citeref']",
+     "sec": 5.1
+    },
+    {
+     "round": 1,
+     "rule": "install_file",
+     "detail": "install for zhnumber.sty"
+    },
+    {
+     "round": 2,
+     "rule": "install_sysfont",
+     "detail": "install font FandolSong-Regular.otf"
+    },
+    {
+     "round": 3,
+     "rule": "install_tfm",
+     "detail": "install tfm-font phvb"
+    }
+   ],
+   "verdict": "clean",
+   "final_pdf": true,
+   "final_errors": 0,
+   "final_cat": null,
+   "installed": [
+    "citeref",
+    "zhnumber",
+    "fandol",
+    "helvetic"
+   ],
+   "log": [
+    "    tlmgr init-usertree",
+    "    tlmgr install citeref -> rc=0 ",
+    "  r1: pdf=False err=2 cat=missing_file pay=zhnumber.sty (0.2s)",
+    "    tlmgr install zhnumber -> rc=0 ",
+    "    apply install_file: install for zhnumber.sty",
+    "  r2: pdf=True err=26 cat=fontspec_missing pay=FandolSong-Regular (1.5s)",
+    "    tlmgr install fandol -> rc=0 ",
+    "    updmap-user 重建字体 map",
+    "    apply install_sysfont: install font FandolSong-Regular.otf",
+    "  r3: pdf=True err=2 cat=missing_tfm pay=phvb (1.4s)",
+    "    tlmgr install helvetic -> rc=0 ",
+    "    updmap-user 重建字体 map",
+    "    apply install_tfm: install tfm-font phvb",
+    "  r4: pdf=True err=0 cat=None pay=None (1.0s)"
+   ],
+   "started_fail": true
+  },
+  {
+   "project": "1512.03385",
+   "cond": "baseline",
+   "main": "residual_v1_arxiv_release.tex",
+   "texmf": "cold",
+   "precheck": true,
+   "rounds": [
+    {
+     "round": 1,
+     "pdf": true,
+     "pdf_bytes": 617825,
+     "n_errors": 2,
+     "category": "missing_tfm",
+     "payload": "phvb",
+     "sec": 1.2
+    },
+    {
+     "round": 2,
+     "pdf": true,
+     "pdf_bytes": 617825,
+     "n_errors": 0,
+     "category": null,
+     "payload": null,
+     "sec": 0.7
+    }
+   ],
+   "actions": [
+    {
+     "round": 0,
+     "rule": "static_precheck",
+     "detail": "missing files=['\\\\@tempb.sty', 'latex8.sty', 'soul.sty', 'tabulary.sty'] -> install ['soul', 'tabulary']",
+     "sec": 3.1
+    },
+    {
+     "round": 1,
+     "rule": "install_tfm",
+     "detail": "install tfm-font phvb"
+    }
+   ],
+   "verdict": "clean",
+   "final_pdf": true,
+   "final_errors": 0,
+   "final_cat": null,
+   "installed": [
+    "soul",
+    "tabulary",
+    "helvetic"
+   ],
+   "log": [
+    "    tlmgr init-usertree",
+    "    tlmgr install soul tabulary -> rc=0 ",
+    "  r1: pdf=True err=2 cat=missing_tfm pay=phvb (1.2s)",
+    "    tlmgr install helvetic -> rc=0 ",
+    "    updmap-user 重建字体 map",
+    "    apply install_tfm: install tfm-font phvb",
+    "  r2: pdf=True err=0 cat=None pay=None (0.7s)"
+   ],
+   "started_fail": false
+  },
+  {
+   "project": "1512.03385",
+   "cond": "ctex",
+   "main": "residual_v1_arxiv_release.tex",
+   "texmf": "cold",
+   "precheck": true,
+   "rounds": [
+    {
+     "round": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "category": "missing_file",
+     "payload": "zhnumber.sty",
+     "sec": 0.3
+    },
+    {
+     "round": 2,
+     "pdf": true,
+     "pdf_bytes": 618966,
+     "n_errors": 22,
+     "category": "fontspec_missing",
+     "payload": "FandolSong-Regular",
+     "sec": 1.9
+    },
+    {
+     "round": 3,
+     "pdf": true,
+     "pdf_bytes": 618966,
+     "n_errors": 2,
+     "category": "missing_tfm",
+     "payload": "phvb",
+     "sec": 1.8
+    },
+    {
+     "round": 4,
+     "pdf": true,
+     "pdf_bytes": 618966,
+     "n_errors": 0,
+     "category": null,
+     "payload": null,
+     "sec": 1.3
+    }
+   ],
+   "actions": [
+    {
+     "round": 0,
+     "rule": "static_precheck",
+     "detail": "missing files=['\\\\@tempb.sty', 'latex8.sty', 'soul.sty', 'tabulary.sty'] -> install ['soul', 'tabulary']",
+     "sec": 3.4
+    },
+    {
+     "round": 1,
+     "rule": "install_file",
+     "detail": "install for zhnumber.sty"
+    },
+    {
+     "round": 2,
+     "rule": "install_sysfont",
+     "detail": "install font FandolSong-Regular.otf"
+    },
+    {
+     "round": 3,
+     "rule": "install_tfm",
+     "detail": "install tfm-font phvb"
+    }
+   ],
+   "verdict": "clean",
+   "final_pdf": true,
+   "final_errors": 0,
+   "final_cat": null,
+   "installed": [
+    "soul",
+    "tabulary",
+    "zhnumber",
+    "fandol",
+    "helvetic"
+   ],
+   "log": [
+    "    tlmgr init-usertree",
+    "    tlmgr install soul tabulary -> rc=0 ",
+    "  r1: pdf=False err=2 cat=missing_file pay=zhnumber.sty (0.3s)",
+    "    tlmgr install zhnumber -> rc=0 ",
+    "    apply install_file: install for zhnumber.sty",
+    "  r2: pdf=True err=22 cat=fontspec_missing pay=FandolSong-Regular (1.9s)",
+    "    tlmgr install fandol -> rc=0 ",
+    "    updmap-user 重建字体 map",
+    "    apply install_sysfont: install font FandolSong-Regular.otf",
+    "  r3: pdf=True err=2 cat=missing_tfm pay=phvb (1.8s)",
+    "    tlmgr install helvetic -> rc=0 ",
+    "    updmap-user 重建字体 map",
+    "    apply install_tfm: install tfm-font phvb",
+    "  r4: pdf=True err=0 cat=None pay=None (1.3s)"
+   ],
+   "started_fail": true
+  },
+  {
+   "project": "1512.03385",
+   "cond": "zh",
+   "main": "residual_v1_arxiv_release.tex",
+   "texmf": "cold",
+   "precheck": true,
+   "rounds": [
+    {
+     "round": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "category": "missing_file",
+     "payload": "zhnumber.sty",
+     "sec": 0.2
+    },
+    {
+     "round": 2,
+     "pdf": true,
+     "pdf_bytes": 579326,
+     "n_errors": 40,
+     "category": "fontspec_missing",
+     "payload": "FandolSong-Regular",
+     "sec": 1.9
+    },
+    {
+     "round": 3,
+     "pdf": true,
+     "pdf_bytes": 634168,
+     "n_errors": 6,
+     "category": "missing_tfm",
+     "payload": "phvb",
+     "sec": 1.7
+    },
+    {
+     "round": 4,
+     "pdf": true,
+     "pdf_bytes": 634168,
+     "n_errors": 4,
+     "category": "hyphenation",
+     "payload": null,
+     "sec": 1.3
+    },
+    {
+     "round": 5,
+     "pdf": true,
+     "pdf_bytes": 634168,
+     "n_errors": 0,
+     "category": null,
+     "payload": null,
+     "sec": 1.3
+    }
+   ],
+   "actions": [
+    {
+     "round": 0,
+     "rule": "static_precheck",
+     "detail": "missing files=['\\\\@tempb.sty', 'latex8.sty', 'soul.sty', 'tabulary.sty'] -> install ['soul', 'tabulary']",
+     "sec": 4.0
+    },
+    {
+     "round": 1,
+     "rule": "install_file",
+     "detail": "install for zhnumber.sty"
+    },
+    {
+     "round": 2,
+     "rule": "install_sysfont",
+     "detail": "install font FandolSong-Regular.otf"
+    },
+    {
+     "round": 3,
+     "rule": "install_tfm",
+     "detail": "install tfm-font phvb"
+    },
+    {
+     "round": 4,
+     "rule": "hyphenation_sane",
+     "detail": "sanitize \\hyphenation in 1 files"
+    }
+   ],
+   "verdict": "clean",
+   "final_pdf": true,
+   "final_errors": 0,
+   "final_cat": null,
+   "installed": [
+    "soul",
+    "tabulary",
+    "zhnumber",
+    "fandol",
+    "helvetic"
+   ],
+   "log": [
+    "    tlmgr init-usertree",
+    "    tlmgr install soul tabulary -> rc=0 ",
+    "  r1: pdf=False err=2 cat=missing_file pay=zhnumber.sty (0.2s)",
+    "    tlmgr install zhnumber -> rc=0 ",
+    "    apply install_file: install for zhnumber.sty",
+    "  r2: pdf=True err=40 cat=fontspec_missing pay=FandolSong-Regular (1.9s)",
+    "    tlmgr install fandol -> rc=0 ",
+    "    updmap-user 重建字体 map",
+    "    apply install_sysfont: install font FandolSong-Regular.otf",
+    "  r3: pdf=True err=6 cat=missing_tfm pay=phvb (1.7s)",
+    "    tlmgr install helvetic -> rc=0 ",
+    "    updmap-user 重建字体 map",
+    "    apply install_tfm: install tfm-font phvb",
+    "  r4: pdf=True err=4 cat=hyphenation pay=None (1.3s)",
+    "    apply hyphenation_sane: sanitize \\hyphenation in 1 files",
+    "  r5: pdf=True err=0 cat=None pay=None (1.3s)"
+   ],
+   "started_fail": true
+  },
+  {
+   "project": "1706.03762",
+   "cond": "baseline",
+   "main": "ms.tex",
+   "texmf": "cold",
+   "precheck": true,
+   "rounds": [
+    {
+     "round": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "category": "missing_file",
+     "payload": "import.sty",
+     "sec": 0.2
+    },
+    {
+     "round": 2,
+     "pdf": true,
+     "pdf_bytes": 1292693,
+     "n_errors": 0,
+     "category": null,
+     "payload": null,
+     "sec": 1.4
+    }
+   ],
+   "actions": [
+    {
+     "round": 0,
+     "rule": "static_precheck",
+     "detail": "missing files=['nicefrac.sty', 'subfiles.sty'] -> install ['subfiles', 'units']",
+     "sec": 3.6
+    },
+    {
+     "round": 1,
+     "rule": "install_file",
+     "detail": "install for import.sty"
+    }
+   ],
+   "verdict": "clean",
+   "final_pdf": true,
+   "final_errors": 0,
+   "final_cat": null,
+   "installed": [
+    "subfiles",
+    "units",
+    "import"
+   ],
+   "log": [
+    "    tlmgr init-usertree",
+    "    tlmgr install subfiles units -> rc=0 ",
+    "  r1: pdf=False err=2 cat=missing_file pay=import.sty (0.2s)",
+    "    tlmgr install import -> rc=0 ",
+    "    apply install_file: install for import.sty",
+    "  r2: pdf=True err=0 cat=None pay=None (1.4s)"
+   ],
+   "started_fail": true
+  },
+  {
+   "project": "1706.03762",
+   "cond": "ctex",
+   "main": "ms.tex",
+   "texmf": "cold",
+   "precheck": true,
+   "rounds": [
+    {
+     "round": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "category": "missing_file",
+     "payload": "zhnumber.sty",
+     "sec": 0.2
+    },
+    {
+     "round": 2,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 9,
+     "category": "fontspec_missing",
+     "payload": "FandolSong-Regular",
+     "sec": 0.4
+    },
+    {
+     "round": 3,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "category": "missing_file",
+     "payload": "import.sty",
+     "sec": 0.4
+    },
+    {
+     "round": 4,
+     "pdf": true,
+     "pdf_bytes": 1301165,
+     "n_errors": 4,
+     "category": "xetexglyph_tfm",
+     "payload": "ptmr8c;",
+     "sec": 2.0
+    },
+    {
+     "round": 5,
+     "pdf": true,
+     "pdf_bytes": 1300943,
+     "n_errors": 0,
+     "category": null,
+     "payload": null,
+     "sec": 1.9
+    }
+   ],
+   "actions": [
+    {
+     "round": 0,
+     "rule": "static_precheck",
+     "detail": "missing files=['nicefrac.sty', 'subfiles.sty'] -> install ['subfiles', 'units']",
+     "sec": 3.3
+    },
+    {
+     "round": 1,
+     "rule": "install_file",
+     "detail": "install for zhnumber.sty"
+    },
+    {
+     "round": 2,
+     "rule": "install_sysfont",
+     "detail": "install font FandolSong-Regular.otf"
+    },
+    {
+     "round": 3,
+     "rule": "install_file",
+     "detail": "install for import.sty"
+    },
+    {
+     "round": 4,
+     "rule": "microtype_off",
+     "detail": "microtype protrusion/expansion off in 1 files"
+    }
+   ],
+   "verdict": "clean",
+   "final_pdf": true,
+   "final_errors": 0,
+   "final_cat": null,
+   "installed": [
+    "subfiles",
+    "units",
+    "zhnumber",
+    "fandol",
+    "import"
+   ],
+   "log": [
+    "    tlmgr init-usertree",
+    "    tlmgr install subfiles units -> rc=0 ",
+    "  r1: pdf=False err=2 cat=missing_file pay=zhnumber.sty (0.2s)",
+    "    tlmgr install zhnumber -> rc=0 ",
+    "    apply install_file: install for zhnumber.sty",
+    "  r2: pdf=False err=9 cat=fontspec_missing pay=FandolSong-Regular (0.4s)",
+    "    tlmgr install fandol -> rc=0 ",
+    "    updmap-user 重建字体 map",
+    "    apply install_sysfont: install font FandolSong-Regular.otf",
+    "  r3: pdf=False err=2 cat=missing_file pay=import.sty (0.4s)",
+    "    tlmgr install import -> rc=0 ",
+    "    apply install_file: install for import.sty",
+    "  r4: pdf=True err=4 cat=xetexglyph_tfm pay=ptmr8c; (2.0s)",
+    "    apply microtype_off: microtype protrusion/expansion off in 1 files",
+    "  r5: pdf=True err=0 cat=None pay=None (1.9s)"
+   ],
+   "started_fail": true
+  },
+  {
+   "project": "1706.03762",
+   "cond": "zh",
+   "main": "ms.tex",
+   "texmf": "cold",
+   "precheck": true,
+   "rounds": [
+    {
+     "round": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "category": "missing_file",
+     "payload": "zhnumber.sty",
+     "sec": 0.2
+    },
+    {
+     "round": 2,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 9,
+     "category": "fontspec_missing",
+     "payload": "FandolSong-Regular",
+     "sec": 0.5
+    },
+    {
+     "round": 3,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "category": "missing_file",
+     "payload": "import.sty",
+     "sec": 0.4
+    },
+    {
+     "round": 4,
+     "pdf": true,
+     "pdf_bytes": 1322044,
+     "n_errors": 4,
+     "category": "xetexglyph_tfm",
+     "payload": "ptmr8c;",
+     "sec": 2.1
+    },
+    {
+     "round": 5,
+     "pdf": true,
+     "pdf_bytes": 1322053,
+     "n_errors": 0,
+     "category": null,
+     "payload": null,
+     "sec": 2.0
+    }
+   ],
+   "actions": [
+    {
+     "round": 0,
+     "rule": "static_precheck",
+     "detail": "missing files=['nicefrac.sty', 'subfiles.sty'] -> install ['subfiles', 'units']",
+     "sec": 3.6
+    },
+    {
+     "round": 1,
+     "rule": "install_file",
+     "detail": "install for zhnumber.sty"
+    },
+    {
+     "round": 2,
+     "rule": "install_sysfont",
+     "detail": "install font FandolSong-Regular.otf"
+    },
+    {
+     "round": 3,
+     "rule": "install_file",
+     "detail": "install for import.sty"
+    },
+    {
+     "round": 4,
+     "rule": "microtype_off",
+     "detail": "microtype protrusion/expansion off in 1 files"
+    }
+   ],
+   "verdict": "clean",
+   "final_pdf": true,
+   "final_errors": 0,
+   "final_cat": null,
+   "installed": [
+    "subfiles",
+    "units",
+    "zhnumber",
+    "fandol",
+    "import"
+   ],
+   "log": [
+    "    tlmgr init-usertree",
+    "    tlmgr install subfiles units -> rc=0 ",
+    "  r1: pdf=False err=2 cat=missing_file pay=zhnumber.sty (0.2s)",
+    "    tlmgr install zhnumber -> rc=0 ",
+    "    apply install_file: install for zhnumber.sty",
+    "  r2: pdf=False err=9 cat=fontspec_missing pay=FandolSong-Regular (0.5s)",
+    "    tlmgr install fandol -> rc=0 ",
+    "    updmap-user 重建字体 map",
+    "    apply install_sysfont: install font FandolSong-Regular.otf",
+    "  r3: pdf=False err=2 cat=missing_file pay=import.sty (0.4s)",
+    "    tlmgr install import -> rc=0 ",
+    "    apply install_file: install for import.sty",
+    "  r4: pdf=True err=4 cat=xetexglyph_tfm pay=ptmr8c; (2.1s)",
+    "    apply microtype_off: microtype protrusion/expansion off in 1 files",
+    "  r5: pdf=True err=0 cat=None pay=None (2.0s)"
+   ],
+   "started_fail": true
+  },
+  {
+   "project": "1810.04805",
+   "cond": "baseline",
+   "main": "main.tex",
+   "texmf": "cold",
+   "precheck": true,
+   "rounds": [
+    {
+     "round": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 3,
+     "category": "missing_tfm",
+     "payload": "phvb",
+     "sec": 0.7
+    },
+    {
+     "round": 2,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "category": "missing_file",
+     "payload": "xifthen.sty",
+     "sec": 0.4
+    },
+    {
+     "round": 3,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "category": "missing_file",
+     "payload": "ifmtarg.sty",
+     "sec": 0.4
+    },
+    {
+     "round": 4,
+     "pdf": true,
+     "pdf_bytes": 144272,
+     "n_errors": 42,
+     "category": "illegal_unit",
+     "payload": null,
+     "sec": 1.3
+    },
+    {
+     "round": 5,
+     "pdf": true,
+     "pdf_bytes": 531512,
+     "n_errors": 0,
+     "category": null,
+     "payload": null,
+     "sec": 1.4
+    }
+   ],
+   "actions": [
+    {
+     "round": 0,
+     "rule": "static_precheck",
+     "detail": "missing files=['acl2000.sty', 'acl2015.sty', 'enumitem.sty', 'naaclhlt2018.sty', 'pgfplots.sty', 'tablefootnote.sty', 'tikz-qtree.sty'] -> install ['enumitem', 'pgfplots', 'tablefootnote', 'tikz-qtree']",
+     "sec": 4.7
+    },
+    {
+     "round": 1,
+     "rule": "install_tfm",
+     "detail": "install tfm-font phvb"
+    },
+    {
+     "round": 2,
+     "rule": "install_file",
+     "detail": "install for xifthen.sty"
+    },
+    {
+     "round": 3,
+     "rule": "install_file",
+     "detail": "install for ifmtarg.sty"
+    },
+    {
+     "round": 4,
+     "rule": "px_to_bp",
+     "detail": "px->bp in 1 files"
+    }
+   ],
+   "verdict": "clean",
+   "final_pdf": true,
+   "final_errors": 0,
+   "final_cat": null,
+   "installed": [
+    "enumitem",
+    "pgfplots",
+    "tablefootnote",
+    "tikz-qtree",
+    "helvetic",
+    "xifthen",
+    "ifmtarg"
+   ],
+   "log": [
+    "    tlmgr init-usertree",
+    "    tlmgr install enumitem pgfplots tablefootnote tikz-qtree -> rc=0 ",
+    "  r1: pdf=False err=3 cat=missing_tfm pay=phvb (0.7s)",
+    "    tlmgr install helvetic -> rc=0 ",
+    "    updmap-user 重建字体 map",
+    "    apply install_tfm: install tfm-font phvb",
+    "  r2: pdf=False err=2 cat=missing_file pay=xifthen.sty (0.4s)",
+    "    tlmgr install xifthen -> rc=0 ",
+    "    apply install_file: install for xifthen.sty",
+    "  r3: pdf=False err=2 cat=missing_file pay=ifmtarg.sty (0.4s)",
+    "    tlmgr install ifmtarg -> rc=0 ",
+    "    apply install_file: install for ifmtarg.sty",
+    "  r4: pdf=True err=42 cat=illegal_unit pay=None (1.3s)",
+    "    apply px_to_bp: px->bp in 1 files",
+    "  r5: pdf=True err=0 cat=None pay=None (1.4s)"
+   ],
+   "started_fail": true
+  },
+  {
+   "project": "1810.04805",
+   "cond": "ctex",
+   "main": "main.tex",
+   "texmf": "cold",
+   "precheck": true,
+   "rounds": [
+    {
+     "round": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "category": "missing_file",
+     "payload": "zhnumber.sty",
+     "sec": 0.3
+    },
+    {
+     "round": 2,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 10,
+     "category": "fontspec_missing",
+     "payload": "FandolSong-Regular",
+     "sec": 0.9
+    },
+    {
+     "round": 3,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 3,
+     "category": "missing_tfm",
+     "payload": "phvb",
+     "sec": 0.9
+    },
+    {
+     "round": 4,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "category": "missing_file",
+     "payload": "xifthen.sty",
+     "sec": 0.7
+    },
+    {
+     "round": 5,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "category": "missing_file",
+     "payload": "ifmtarg.sty",
+     "sec": 0.7
+    },
+    {
+     "round": 6,
+     "pdf": true,
+     "pdf_bytes": 159453,
+     "n_errors": 42,
+     "category": "illegal_unit",
+     "payload": null,
+     "sec": 2.0
+    },
+    {
+     "round": 7,
+     "pdf": true,
+     "pdf_bytes": 531610,
+     "n_errors": 0,
+     "category": null,
+     "payload": null,
+     "sec": 2.0
+    }
+   ],
+   "actions": [
+    {
+     "round": 0,
+     "rule": "static_precheck",
+     "detail": "missing files=['acl2000.sty', 'acl2015.sty', 'enumitem.sty', 'naaclhlt2018.sty', 'pgfplots.sty', 'tablefootnote.sty', 'tikz-qtree.sty'] -> install ['enumitem', 'pgfplots', 'tablefootnote', 'tikz-qtree']",
+     "sec": 3.6
+    },
+    {
+     "round": 1,
+     "rule": "install_file",
+     "detail": "install for zhnumber.sty"
+    },
+    {
+     "round": 2,
+     "rule": "install_sysfont",
+     "detail": "install font FandolSong-Regular.otf"
+    },
+    {
+     "round": 3,
+     "rule": "install_tfm",
+     "detail": "install tfm-font phvb"
+    },
+    {
+     "round": 4,
+     "rule": "install_file",
+     "detail": "install for xifthen.sty"
+    },
+    {
+     "round": 5,
+     "rule": "install_file",
+     "detail": "install for ifmtarg.sty"
+    },
+    {
+     "round": 6,
+     "rule": "px_to_bp",
+     "detail": "px->bp in 1 files"
+    }
+   ],
+   "verdict": "clean",
+   "final_pdf": true,
+   "final_errors": 0,
+   "final_cat": null,
+   "installed": [
+    "enumitem",
+    "pgfplots",
+    "tablefootnote",
+    "tikz-qtree",
+    "zhnumber",
+    "fandol",
+    "helvetic",
+    "xifthen",
+    "ifmtarg"
+   ],
+   "log": [
+    "    tlmgr init-usertree",
+    "    tlmgr install enumitem pgfplots tablefootnote tikz-qtree -> rc=0 ",
+    "  r1: pdf=False err=2 cat=missing_file pay=zhnumber.sty (0.3s)",
+    "    tlmgr install zhnumber -> rc=0 ",
+    "    apply install_file: install for zhnumber.sty",
+    "  r2: pdf=False err=10 cat=fontspec_missing pay=FandolSong-Regular (0.9s)",
+    "    tlmgr install fandol -> rc=0 ",
+    "    updmap-user 重建字体 map",
+    "    apply install_sysfont: install font FandolSong-Regular.otf",
+    "  r3: pdf=False err=3 cat=missing_tfm pay=phvb (0.9s)",
+    "    tlmgr install helvetic -> rc=0 ",
+    "    updmap-user 重建字体 map",
+    "    apply install_tfm: install tfm-font phvb",
+    "  r4: pdf=False err=2 cat=missing_file pay=xifthen.sty (0.7s)",
+    "    tlmgr install xifthen -> rc=0 ",
+    "    apply install_file: install for xifthen.sty",
+    "  r5: pdf=False err=2 cat=missing_file pay=ifmtarg.sty (0.7s)",
+    "    tlmgr install ifmtarg -> rc=0 ",
+    "    apply install_file: install for ifmtarg.sty",
+    "  r6: pdf=True err=42 cat=illegal_unit pay=None (2.0s)",
+    "    apply px_to_bp: px->bp in 1 files",
+    "  r7: pdf=True err=0 cat=None pay=None (2.0s)"
+   ],
+   "started_fail": true
+  },
+  {
+   "project": "1810.04805",
+   "cond": "zh",
+   "main": "main.tex",
+   "texmf": "cold",
+   "precheck": true,
+   "rounds": [
+    {
+     "round": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "category": "missing_file",
+     "payload": "zhnumber.sty",
+     "sec": 0.3
+    },
+    {
+     "round": 2,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 10,
+     "category": "fontspec_missing",
+     "payload": "FandolSong-Regular",
+     "sec": 0.9
+    },
+    {
+     "round": 3,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 3,
+     "category": "missing_tfm",
+     "payload": "phvb",
+     "sec": 0.9
+    },
+    {
+     "round": 4,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "category": "missing_file",
+     "payload": "xifthen.sty",
+     "sec": 0.7
+    },
+    {
+     "round": 5,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "category": "missing_file",
+     "payload": "ifmtarg.sty",
+     "sec": 0.6
+    },
+    {
+     "round": 6,
+     "pdf": true,
+     "pdf_bytes": 174692,
+     "n_errors": 42,
+     "category": "illegal_unit",
+     "payload": null,
+     "sec": 2.0
+    },
+    {
+     "round": 7,
+     "pdf": true,
+     "pdf_bytes": 529173,
+     "n_errors": 0,
+     "category": null,
+     "payload": null,
+     "sec": 2.1
+    }
+   ],
+   "actions": [
+    {
+     "round": 0,
+     "rule": "static_precheck",
+     "detail": "missing files=['acl2000.sty', 'acl2015.sty', 'enumitem.sty', 'naaclhlt2018.sty', 'pgfplots.sty', 'tablefootnote.sty', 'tikz-qtree.sty'] -> install ['enumitem', 'pgfplots', 'tablefootnote', 'tikz-qtree']",
+     "sec": 3.8
+    },
+    {
+     "round": 1,
+     "rule": "install_file",
+     "detail": "install for zhnumber.sty"
+    },
+    {
+     "round": 2,
+     "rule": "install_sysfont",
+     "detail": "install font FandolSong-Regular.otf"
+    },
+    {
+     "round": 3,
+     "rule": "install_tfm",
+     "detail": "install tfm-font phvb"
+    },
+    {
+     "round": 4,
+     "rule": "install_file",
+     "detail": "install for xifthen.sty"
+    },
+    {
+     "round": 5,
+     "rule": "install_file",
+     "detail": "install for ifmtarg.sty"
+    },
+    {
+     "round": 6,
+     "rule": "px_to_bp",
+     "detail": "px->bp in 1 files"
+    }
+   ],
+   "verdict": "clean",
+   "final_pdf": true,
+   "final_errors": 0,
+   "final_cat": null,
+   "installed": [
+    "enumitem",
+    "pgfplots",
+    "tablefootnote",
+    "tikz-qtree",
+    "zhnumber",
+    "fandol",
+    "helvetic",
+    "xifthen",
+    "ifmtarg"
+   ],
+   "log": [
+    "    tlmgr init-usertree",
+    "    tlmgr install enumitem pgfplots tablefootnote tikz-qtree -> rc=0 ",
+    "  r1: pdf=False err=2 cat=missing_file pay=zhnumber.sty (0.3s)",
+    "    tlmgr install zhnumber -> rc=0 ",
+    "    apply install_file: install for zhnumber.sty",
+    "  r2: pdf=False err=10 cat=fontspec_missing pay=FandolSong-Regular (0.9s)",
+    "    tlmgr install fandol -> rc=0 ",
+    "    updmap-user 重建字体 map",
+    "    apply install_sysfont: install font FandolSong-Regular.otf",
+    "  r3: pdf=False err=3 cat=missing_tfm pay=phvb (0.9s)",
+    "    tlmgr install helvetic -> rc=0 ",
+    "    updmap-user 重建字体 map",
+    "    apply install_tfm: install tfm-font phvb",
+    "  r4: pdf=False err=2 cat=missing_file pay=xifthen.sty (0.7s)",
+    "    tlmgr install xifthen -> rc=0 ",
+    "    apply install_file: install for xifthen.sty",
+    "  r5: pdf=False err=2 cat=missing_file pay=ifmtarg.sty (0.6s)",
+    "    tlmgr install ifmtarg -> rc=0 ",
+    "    apply install_file: install for ifmtarg.sty",
+    "  r6: pdf=True err=42 cat=illegal_unit pay=None (2.0s)",
+    "    apply px_to_bp: px->bp in 1 files",
+    "  r7: pdf=True err=0 cat=None pay=None (2.1s)"
+   ],
+   "started_fail": true
+  },
+  {
+   "project": "1906.08237",
+   "cond": "baseline",
+   "main": "neurips_2019.tex",
+   "texmf": "cold",
+   "precheck": true,
+   "rounds": [
+    {
+     "round": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "category": "missing_file",
+     "payload": "ifmtarg.sty",
+     "sec": 0.2
+    },
+    {
+     "round": 2,
+     "pdf": true,
+     "pdf_bytes": 472894,
+     "n_errors": 10,
+     "category": "missing_tfm",
+     "payload": "rsfs10",
+     "sec": 4.2
+    },
+    {
+     "round": 3,
+     "pdf": true,
+     "pdf_bytes": 472894,
+     "n_errors": 0,
+     "category": null,
+     "payload": null,
+     "sec": 1.9
+    }
+   ],
+   "actions": [
+    {
+     "round": 0,
+     "rule": "static_precheck",
+     "detail": "missing files=['enumitem.sty', 'nicefrac.sty', 'pgfplots.sty', 'stmaryrd.sty', 'xifthen.sty'] -> install ['enumitem', 'pgfplots', 'stmaryrd', 'units', 'xifthen']",
+     "sec": 4.9
+    },
+    {
+     "round": 1,
+     "rule": "install_file",
+     "detail": "install for ifmtarg.sty"
+    },
+    {
+     "round": 2,
+     "rule": "install_tfm",
+     "detail": "install tfm-font rsfs10"
+    }
+   ],
+   "verdict": "clean",
+   "final_pdf": true,
+   "final_errors": 0,
+   "final_cat": null,
+   "installed": [
+    "enumitem",
+    "pgfplots",
+    "stmaryrd",
+    "units",
+    "xifthen",
+    "ifmtarg",
+    "rsfs"
+   ],
+   "log": [
+    "    tlmgr init-usertree",
+    "    tlmgr install enumitem pgfplots stmaryrd units xifthen -> rc=0 ",
+    "  r1: pdf=False err=2 cat=missing_file pay=ifmtarg.sty (0.2s)",
+    "    tlmgr install ifmtarg -> rc=0 ",
+    "    apply install_file: install for ifmtarg.sty",
+    "  r2: pdf=True err=10 cat=missing_tfm pay=rsfs10 (4.2s)",
+    "    tlmgr install rsfs -> rc=0 ",
+    "    updmap-user 重建字体 map",
+    "    apply install_tfm: install tfm-font rsfs10",
+    "  r3: pdf=True err=0 cat=None pay=None (1.9s)"
+   ],
+   "started_fail": true
+  },
+  {
+   "project": "1906.08237",
+   "cond": "ctex",
+   "main": "neurips_2019.tex",
+   "texmf": "cold",
+   "precheck": true,
+   "rounds": [
+    {
+     "round": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "category": "missing_file",
+     "payload": "zhnumber.sty",
+     "sec": 0.3
+    },
+    {
+     "round": 2,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 9,
+     "category": "fontspec_missing",
+     "payload": "FandolSong-Regular",
+     "sec": 0.5
+    },
+    {
+     "round": 3,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "category": "missing_file",
+     "payload": "ifmtarg.sty",
+     "sec": 0.4
+    },
+    {
+     "round": 4,
+     "pdf": true,
+     "pdf_bytes": 480774,
+     "n_errors": 18,
+     "category": "missing_tfm",
+     "payload": "rsfs10",
+     "sec": 5.4
+    },
+    {
+     "round": 5,
+     "pdf": true,
+     "pdf_bytes": 480774,
+     "n_errors": 8,
+     "category": "xetexglyph_tfm",
+     "payload": "ptmr8c;",
+     "sec": 2.8
+    },
+    {
+     "round": 6,
+     "pdf": true,
+     "pdf_bytes": 480509,
+     "n_errors": 0,
+     "category": null,
+     "payload": null,
+     "sec": 2.6
+    }
+   ],
+   "actions": [
+    {
+     "round": 0,
+     "rule": "static_precheck",
+     "detail": "missing files=['enumitem.sty', 'nicefrac.sty', 'pgfplots.sty', 'stmaryrd.sty', 'xifthen.sty'] -> install ['enumitem', 'pgfplots', 'stmaryrd', 'units', 'xifthen']",
+     "sec": 4.9
+    },
+    {
+     "round": 1,
+     "rule": "install_file",
+     "detail": "install for zhnumber.sty"
+    },
+    {
+     "round": 2,
+     "rule": "install_sysfont",
+     "detail": "install font FandolSong-Regular.otf"
+    },
+    {
+     "round": 3,
+     "rule": "install_file",
+     "detail": "install for ifmtarg.sty"
+    },
+    {
+     "round": 4,
+     "rule": "install_tfm",
+     "detail": "install tfm-font rsfs10"
+    },
+    {
+     "round": 5,
+     "rule": "microtype_off",
+     "detail": "microtype protrusion/expansion off in 1 files"
+    }
+   ],
+   "verdict": "clean",
+   "final_pdf": true,
+   "final_errors": 0,
+   "final_cat": null,
+   "installed": [
+    "enumitem",
+    "pgfplots",
+    "stmaryrd",
+    "units",
+    "xifthen",
+    "zhnumber",
+    "fandol",
+    "ifmtarg",
+    "rsfs"
+   ],
+   "log": [
+    "    tlmgr init-usertree",
+    "    tlmgr install enumitem pgfplots stmaryrd units xifthen -> rc=0 ",
+    "  r1: pdf=False err=2 cat=missing_file pay=zhnumber.sty (0.3s)",
+    "    tlmgr install zhnumber -> rc=0 ",
+    "    apply install_file: install for zhnumber.sty",
+    "  r2: pdf=False err=9 cat=fontspec_missing pay=FandolSong-Regular (0.5s)",
+    "    tlmgr install fandol -> rc=0 ",
+    "    updmap-user 重建字体 map",
+    "    apply install_sysfont: install font FandolSong-Regular.otf",
+    "  r3: pdf=False err=2 cat=missing_file pay=ifmtarg.sty (0.4s)",
+    "    tlmgr install ifmtarg -> rc=0 ",
+    "    apply install_file: install for ifmtarg.sty",
+    "  r4: pdf=True err=18 cat=missing_tfm pay=rsfs10 (5.4s)",
+    "    tlmgr install rsfs -> rc=0 ",
+    "    updmap-user 重建字体 map",
+    "    apply install_tfm: install tfm-font rsfs10",
+    "  r5: pdf=True err=8 cat=xetexglyph_tfm pay=ptmr8c; (2.8s)",
+    "    apply microtype_off: microtype protrusion/expansion off in 1 files",
+    "  r6: pdf=True err=0 cat=None pay=None (2.6s)"
+   ],
+   "started_fail": true
+  },
+  {
+   "project": "1906.08237",
+   "cond": "zh",
+   "main": "neurips_2019.tex",
+   "texmf": "cold",
+   "precheck": true,
+   "rounds": [
+    {
+     "round": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "category": "missing_file",
+     "payload": "zhnumber.sty",
+     "sec": 0.3
+    },
+    {
+     "round": 2,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 9,
+     "category": "fontspec_missing",
+     "payload": "FandolSong-Regular",
+     "sec": 0.5
+    },
+    {
+     "round": 3,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "category": "missing_file",
+     "payload": "ifmtarg.sty",
+     "sec": 0.5
+    },
+    {
+     "round": 4,
+     "pdf": true,
+     "pdf_bytes": 497462,
+     "n_errors": 18,
+     "category": "missing_tfm",
+     "payload": "rsfs10",
+     "sec": 5.6
+    },
+    {
+     "round": 5,
+     "pdf": true,
+     "pdf_bytes": 497462,
+     "n_errors": 8,
+     "category": "xetexglyph_tfm",
+     "payload": "ptmr8c;",
+     "sec": 2.8
+    },
+    {
+     "round": 6,
+     "pdf": true,
+     "pdf_bytes": 497460,
+     "n_errors": 0,
+     "category": null,
+     "payload": null,
+     "sec": 2.5
+    }
+   ],
+   "actions": [
+    {
+     "round": 0,
+     "rule": "static_precheck",
+     "detail": "missing files=['enumitem.sty', 'nicefrac.sty', 'pgfplots.sty', 'stmaryrd.sty', 'xifthen.sty'] -> install ['enumitem', 'pgfplots', 'stmaryrd', 'units', 'xifthen']",
+     "sec": 8.0
+    },
+    {
+     "round": 1,
+     "rule": "install_file",
+     "detail": "install for zhnumber.sty"
+    },
+    {
+     "round": 2,
+     "rule": "install_sysfont",
+     "detail": "install font FandolSong-Regular.otf"
+    },
+    {
+     "round": 3,
+     "rule": "install_file",
+     "detail": "install for ifmtarg.sty"
+    },
+    {
+     "round": 4,
+     "rule": "install_tfm",
+     "detail": "install tfm-font rsfs10"
+    },
+    {
+     "round": 5,
+     "rule": "microtype_off",
+     "detail": "microtype protrusion/expansion off in 1 files"
+    }
+   ],
+   "verdict": "clean",
+   "final_pdf": true,
+   "final_errors": 0,
+   "final_cat": null,
+   "installed": [
+    "enumitem",
+    "pgfplots",
+    "stmaryrd",
+    "units",
+    "xifthen",
+    "zhnumber",
+    "fandol",
+    "ifmtarg",
+    "rsfs"
+   ],
+   "log": [
+    "    tlmgr init-usertree",
+    "    tlmgr install enumitem pgfplots stmaryrd units xifthen -> rc=0 ",
+    "  r1: pdf=False err=2 cat=missing_file pay=zhnumber.sty (0.3s)",
+    "    tlmgr install zhnumber -> rc=0 ",
+    "    apply install_file: install for zhnumber.sty",
+    "  r2: pdf=False err=9 cat=fontspec_missing pay=FandolSong-Regular (0.5s)",
+    "    tlmgr install fandol -> rc=0 ",
+    "    updmap-user 重建字体 map",
+    "    apply install_sysfont: install font FandolSong-Regular.otf",
+    "  r3: pdf=False err=2 cat=missing_file pay=ifmtarg.sty (0.5s)",
+    "    tlmgr install ifmtarg -> rc=0 ",
+    "    apply install_file: install for ifmtarg.sty",
+    "  r4: pdf=True err=18 cat=missing_tfm pay=rsfs10 (5.6s)",
+    "    tlmgr install rsfs -> rc=0 ",
+    "    updmap-user 重建字体 map",
+    "    apply install_tfm: install tfm-font rsfs10",
+    "  r5: pdf=True err=8 cat=xetexglyph_tfm pay=ptmr8c; (2.8s)",
+    "    apply microtype_off: microtype protrusion/expansion off in 1 files",
+    "  r6: pdf=True err=0 cat=None pay=None (2.5s)"
+   ],
+   "started_fail": true
+  },
+  {
+   "project": "2005.11401",
+   "cond": "baseline",
+   "main": "neurips_2020.tex",
+   "texmf": "cold",
+   "precheck": true,
+   "rounds": [
+    {
+     "round": 1,
+     "pdf": true,
+     "pdf_bytes": 692238,
+     "n_errors": 0,
+     "category": null,
+     "payload": null,
+     "sec": 1.2
+    }
+   ],
+   "actions": [
+    {
+     "round": 0,
+     "rule": "static_precheck",
+     "detail": "missing files=['nicefrac.sty', 'soul.sty', 'wrapfig.sty'] -> install ['soul', 'units', 'wrapfig']",
+     "sec": 3.6
+    }
+   ],
+   "verdict": "clean",
+   "final_pdf": true,
+   "final_errors": 0,
+   "final_cat": null,
+   "installed": [
+    "soul",
+    "units",
+    "wrapfig"
+   ],
+   "log": [
+    "    tlmgr init-usertree",
+    "    tlmgr install soul units wrapfig -> rc=0 ",
+    "  r1: pdf=True err=0 cat=None pay=None (1.2s)"
+   ],
+   "started_fail": false
+  },
+  {
+   "project": "2005.11401",
+   "cond": "ctex",
+   "main": "neurips_2020.tex",
+   "texmf": "cold",
+   "precheck": true,
+   "rounds": [
+    {
+     "round": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "category": "missing_file",
+     "payload": "zhnumber.sty",
+     "sec": 0.3
+    },
+    {
+     "round": 2,
+     "pdf": true,
+     "pdf_bytes": 467747,
+     "n_errors": 224,
+     "category": "fontspec_missing",
+     "payload": "FandolSong-Regular",
+     "sec": 1.4
+    },
+    {
+     "round": 3,
+     "pdf": true,
+     "pdf_bytes": 699039,
+     "n_errors": 0,
+     "category": null,
+     "payload": null,
+     "sec": 1.8
+    }
+   ],
+   "actions": [
+    {
+     "round": 0,
+     "rule": "static_precheck",
+     "detail": "missing files=['nicefrac.sty', 'soul.sty', 'wrapfig.sty'] -> install ['soul', 'units', 'wrapfig']",
+     "sec": 3.6
+    },
+    {
+     "round": 1,
+     "rule": "install_file",
+     "detail": "install for zhnumber.sty"
+    },
+    {
+     "round": 2,
+     "rule": "install_sysfont",
+     "detail": "install font FandolSong-Regular.otf"
+    }
+   ],
+   "verdict": "clean",
+   "final_pdf": true,
+   "final_errors": 0,
+   "final_cat": null,
+   "installed": [
+    "soul",
+    "units",
+    "wrapfig",
+    "zhnumber",
+    "fandol"
+   ],
+   "log": [
+    "    tlmgr init-usertree",
+    "    tlmgr install soul units wrapfig -> rc=0 ",
+    "  r1: pdf=False err=2 cat=missing_file pay=zhnumber.sty (0.3s)",
+    "    tlmgr install zhnumber -> rc=0 ",
+    "    apply install_file: install for zhnumber.sty",
+    "  r2: pdf=True err=224 cat=fontspec_missing pay=FandolSong-Regular (1.4s)",
+    "    tlmgr install fandol -> rc=0 ",
+    "    updmap-user 重建字体 map",
+    "    apply install_sysfont: install font FandolSong-Regular.otf",
+    "  r3: pdf=True err=0 cat=None pay=None (1.8s)"
+   ],
+   "started_fail": true
+  },
+  {
+   "project": "2005.11401",
+   "cond": "zh",
+   "main": "neurips_2020.tex",
+   "texmf": "cold",
+   "precheck": true,
+   "rounds": [
+    {
+     "round": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "category": "missing_file",
+     "payload": "zhnumber.sty",
+     "sec": 0.2
+    },
+    {
+     "round": 2,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 144,
+     "category": "fontspec_missing",
+     "payload": "FandolSong-Regular",
+     "sec": 0.5
+    },
+    {
+     "round": 3,
+     "pdf": true,
+     "pdf_bytes": 699784,
+     "n_errors": 6,
+     "category": "soul_err",
+     "payload": null,
+     "sec": 1.7
+    }
+   ],
+   "actions": [
+    {
+     "round": 0,
+     "rule": "static_precheck",
+     "detail": "missing files=['nicefrac.sty', 'soul.sty', 'wrapfig.sty'] -> install ['soul', 'units', 'wrapfig']",
+     "sec": 3.3
+    },
+    {
+     "round": 1,
+     "rule": "install_file",
+     "detail": "install for zhnumber.sty"
+    },
+    {
+     "round": 2,
+     "rule": "install_sysfont",
+     "detail": "install font FandolSong-Regular.otf"
+    }
+   ],
+   "verdict": "dirty_pdf",
+   "final_pdf": true,
+   "final_errors": 6,
+   "final_cat": "soul_err",
+   "installed": [
+    "soul",
+    "units",
+    "wrapfig",
+    "zhnumber",
+    "fandol"
+   ],
+   "log": [
+    "    tlmgr init-usertree",
+    "    tlmgr install soul units wrapfig -> rc=0 ",
+    "  r1: pdf=False err=2 cat=missing_file pay=zhnumber.sty (0.2s)",
+    "    tlmgr install zhnumber -> rc=0 ",
+    "    apply install_file: install for zhnumber.sty",
+    "  r2: pdf=False err=144 cat=fontspec_missing pay=FandolSong-Regular (0.5s)",
+    "    tlmgr install fandol -> rc=0 ",
+    "    updmap-user 重建字体 map",
+    "    apply install_sysfont: install font FandolSong-Regular.otf",
+    "  r3: pdf=True err=6 cat=soul_err pay=None (1.7s)",
+    "    rule soul_cjk_mbox: skip (mbox-wrap soul CJK args in 0 files)"
+   ],
+   "started_fail": true
+  },
+  {
+   "project": "2106.09685",
+   "cond": "baseline",
+   "main": "iclr2022_conference.tex",
+   "texmf": "cold",
+   "precheck": true,
+   "rounds": [
+    {
+     "round": 1,
+     "pdf": true,
+     "pdf_bytes": 1273443,
+     "n_errors": 2,
+     "category": "missing_tfm",
+     "payload": "phvb",
+     "sec": 2.0
+    },
+    {
+     "round": 2,
+     "pdf": true,
+     "pdf_bytes": 1273443,
+     "n_errors": 0,
+     "category": null,
+     "payload": null,
+     "sec": 1.5
+    }
+   ],
+   "actions": [
+    {
+     "round": 0,
+     "rule": "static_precheck",
+     "detail": "missing files=['citeref.sty', 'enumitem.sty', 'iclr14submit_e.sty', 'wrapfig.sty'] -> install ['citeref', 'enumitem', 'wrapfig']",
+     "sec": 3.8
+    },
+    {
+     "round": 1,
+     "rule": "install_tfm",
+     "detail": "install tfm-font phvb"
+    }
+   ],
+   "verdict": "clean",
+   "final_pdf": true,
+   "final_errors": 0,
+   "final_cat": null,
+   "installed": [
+    "citeref",
+    "enumitem",
+    "wrapfig",
+    "helvetic"
+   ],
+   "log": [
+    "    tlmgr init-usertree",
+    "    tlmgr install citeref enumitem wrapfig -> rc=0 ",
+    "  r1: pdf=True err=2 cat=missing_tfm pay=phvb (2.0s)",
+    "    tlmgr install helvetic -> rc=0 ",
+    "    updmap-user 重建字体 map",
+    "    apply install_tfm: install tfm-font phvb",
+    "  r2: pdf=True err=0 cat=None pay=None (1.5s)"
+   ],
+   "started_fail": false
+  }
+ ]
+}

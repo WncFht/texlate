@@ -1,0 +1,159 @@
+% Tricky LaTeX constructs benchmark fixture.
+% Each case marked % @Tnn — parser benchmark asserts per marker.
+% Design goal: should still compile under xelatex (except noted).
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{natbib}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{subcaption}
+\usepackage{xparse}
+\newtheorem{theorem}{Theorem}
+
+% @T01 \newcommand expanding to a math ENVIRONMENT (the \be/\ee trap)
+\newcommand{\be}{\begin{equation}}
+\newcommand{\ee}{\end{equation}}
+
+% @T02 \newcommand producing math content inline
+\newcommand{\dR}{\mathbb{R}}
+
+% @T03 \def macro (TeX primitive)
+\def\wt{\widetilde}
+\def\Tr{\mathop{\rm Tr}\nolimits}
+
+% @T16 xparse \NewDocumentCommand
+\NewDocumentCommand{\vect}{m}{\mathbf{#1}}
+
+% @T25 \makeatletter region with @-macros
+\makeatletter
+\newcommand{\secretmacro}{\@ifnextchar[{\@with}{\@without}}
+\makeatother
+
+\title{A Tricky Test \thanks{supported by nobody}}
+% @T09 author block with optional arg + \and + \thanks
+\author[1]{Alice Smith\thanks{alice@x.org} \and Bob Jones}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+% @T19 abstract environment
+\begin{abstract}
+We study tricky \LaTeX{} constructs. Results hold for $x \in \dR$.
+\end{abstract}
+
+% @T05 section with optional short title
+\section[Short]{A Very Long Section Title That Should Still Translate}
+
+% @T04 natbib citation family (all must be protected, keys must not be translated)
+Prior work \citep{vaswani2017} and \citet[see][chap.~2]{kingma2015} showed
+things; see also \citealp{he2016}, \citeauthor{devlin2019}, and
+\citeyear{devlin2019}. References like \ref{fig:x}, \eqref{eq:main},
+\autoref{sec:a}, \cref{thm:main}, \pageref{fig:x}, \nameref{sec:a} and
+\label{sec:a} must survive.
+
+% @T26 display math \[ \] and inline \( \)
+The identity
+\[ \int_0^1 f(x)\,\mathrm{d}x = F(1) - F(0) \]
+and inline \( e^{i\pi} = -1 \) both protected.
+
+% @T01 usage: macro-expanded math env — a naive parser sees raw text!
+The key result is
+\be \wt{A} = \Tr(M^2) \ee
+which uses \dR{} and \vect{v} macros inside text too.
+
+% @T10 less-common math environments
+\begin{subequations}
+\begin{align}
+a &= b + c \\
+d &= e + f
+\end{align}
+\end{subequations}
+\begin{flalign}
+x &= y
+\end{flalign}
+
+% @T11 theorem with optional name bracket
+\begin{theorem}[Main Result]
+For all $n > 0$, the statement holds.
+\end{theorem}
+
+% @T23 inline formatting commands — inner text SHOULD translate
+This is \emph{very important} and \textbf{bold claim} and \textit{italic}.
+
+% @T22 \href — url protected, anchor text translatable
+See \href{https://example.com}{the documentation} for details.
+
+% @T21 includegraphics with options
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.5\textwidth]{figs/plot.pdf}
+% @T18 caption inside protected figure env — caption SHOULD translate
+\caption{A figure with \emph{emphasis} and math $x^2$.}
+\label{fig:x}
+\end{figure}
+
+% @T12 footnote inside caption
+\begin{table}[h]
+\caption{Results table\footnote{computed by hand}}
+\begin{tabular}{|l|r|}
+\hline
+name & value \\ \hline
+alpha & 0.1 \\
+beta & 0.2 \\ \hline
+\end{tabular}
+\end{table}
+
+% @T20 translatable environments
+\begin{itemize}
+\item First item with $x$ math.
+\item Second item.
+\end{itemize}
+\begin{enumerate}
+\item Numbered one.
+\item Numbered two.
+\end{enumerate}
+\begin{description}
+\item[Term] Its definition here.
+\end{description}
+
+% @T07 url containing literal percent (comment-stripper trap)
+Download from \url{http://example.com/a%20b%20c.pdf} now.
+And \verb|a%b| verbatim percent inline.
+
+% @T06 single-line verbatim containing % (breaks naive comment stripping)
+\begin{verbatim}100% real data\end{verbatim}
+\begin{lstlisting}
+code%with%percent
+\end{lstlisting}
+
+% @T08 comment edge cases
+Real text. % a comment with { unbalanced brace and $x^2$ math
+Escaped \% percent stays. Line break \\% followed by real comment
+
+% @T13 conditional compilation
+\newif\ifdraft
+\drafttrue
+\ifdraft
+Draft mode paragraph that still contains translatable text.
+\else
+Final mode paragraph.
+\fi
+
+% @T27 accents and unicode-ish commands
+Andr\'e, M\"uller, \~n, caf\'e — names should not break parsing.
+
+% @T17 math \text{} contains real text
+$ f(x) = 0 \quad \text{if and only if} \quad x = 0 $
+
+% @T29 footnote standalone
+A claim.\footnote{This footnote text should be translated.}
+
+% @T24 bibliography variants
+\bibliographystyle{plainnat}
+\bibliography{refs}
+
+\end{document}

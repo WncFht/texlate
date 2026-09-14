@@ -1,0 +1,182 @@
+{
+ "perTrap": [
+  {
+   "id": "T01",
+   "lines": "16-19",
+   "errorNodesInRegion": 2,
+   "regionCoveredByErrorPct": 50
+  },
+  {
+   "id": "T02",
+   "lines": "20-22",
+   "errorNodesInRegion": 1,
+   "regionCoveredByErrorPct": 100
+  },
+  {
+   "id": "T03",
+   "lines": "23-26",
+   "errorNodesInRegion": 1,
+   "regionCoveredByErrorPct": 100
+  },
+  {
+   "id": "T16",
+   "lines": "27-29",
+   "errorNodesInRegion": 1,
+   "regionCoveredByErrorPct": 100
+  },
+  {
+   "id": "T25",
+   "lines": "30-35",
+   "errorNodesInRegion": 1,
+   "regionCoveredByErrorPct": 100
+  },
+  {
+   "id": "T09",
+   "lines": "36-42",
+   "errorNodesInRegion": 1,
+   "regionCoveredByErrorPct": 100
+  },
+  {
+   "id": "T19",
+   "lines": "43-47",
+   "errorNodesInRegion": 1,
+   "regionCoveredByErrorPct": 100
+  },
+  {
+   "id": "T05",
+   "lines": "48-50",
+   "errorNodesInRegion": 1,
+   "regionCoveredByErrorPct": 100
+  },
+  {
+   "id": "T04",
+   "lines": "51-57",
+   "errorNodesInRegion": 1,
+   "regionCoveredByErrorPct": 100
+  },
+  {
+   "id": "T26",
+   "lines": "58-62",
+   "errorNodesInRegion": 1,
+   "regionCoveredByErrorPct": 100
+  },
+  {
+   "id": "T01",
+   "lines": "63-67",
+   "errorNodesInRegion": 1,
+   "regionCoveredByErrorPct": 100
+  },
+  {
+   "id": "T10",
+   "lines": "68-78",
+   "errorNodesInRegion": 1,
+   "regionCoveredByErrorPct": 100
+  },
+  {
+   "id": "T11",
+   "lines": "79-83",
+   "errorNodesInRegion": 1,
+   "regionCoveredByErrorPct": 100
+  },
+  {
+   "id": "T23",
+   "lines": "84-86",
+   "errorNodesInRegion": 1,
+   "regionCoveredByErrorPct": 100
+  },
+  {
+   "id": "T22",
+   "lines": "87-89",
+   "errorNodesInRegion": 1,
+   "regionCoveredByErrorPct": 100
+  },
+  {
+   "id": "T21",
+   "lines": "90-93",
+   "errorNodesInRegion": 1,
+   "regionCoveredByErrorPct": 100
+  },
+  {
+   "id": "T18",
+   "lines": "94-98",
+   "errorNodesInRegion": 1,
+   "regionCoveredByErrorPct": 100
+  },
+  {
+   "id": "T12",
+   "lines": "99-109",
+   "errorNodesInRegion": 1,
+   "regionCoveredByErrorPct": 100
+  },
+  {
+   "id": "T20",
+   "lines": "110-122",
+   "errorNodesInRegion": 1,
+   "regionCoveredByErrorPct": 100
+  },
+  {
+   "id": "T07",
+   "lines": "123-126",
+   "errorNodesInRegion": 1,
+   "regionCoveredByErrorPct": 100
+  },
+  {
+   "id": "T06",
+   "lines": "127-132",
+   "errorNodesInRegion": 1,
+   "regionCoveredByErrorPct": 100
+  },
+  {
+   "id": "T08",
+   "lines": "133-136",
+   "errorNodesInRegion": 1,
+   "regionCoveredByErrorPct": 100
+  },
+  {
+   "id": "T13",
+   "lines": "137-145",
+   "errorNodesInRegion": 1,
+   "regionCoveredByErrorPct": 100
+  },
+  {
+   "id": "T27",
+   "lines": "146-148",
+   "errorNodesInRegion": 1,
+   "regionCoveredByErrorPct": 100
+  },
+  {
+   "id": "T17",
+   "lines": "149-151",
+   "errorNodesInRegion": 1,
+   "regionCoveredByErrorPct": 100
+  },
+  {
+   "id": "T29",
+   "lines": "152-154",
+   "errorNodesInRegion": 1,
+   "regionCoveredByErrorPct": 100
+  },
+  {
+   "id": "T24",
+   "lines": "155-160",
+   "errorNodesInRegion": 1,
+   "regionCoveredByErrorPct": 99
+  }
+ ],
+ "totalErrorNodes": 2,
+ "errorSpans": [
+  [
+   523,
+   4455
+  ],
+  [
+   556,
+   557
+  ]
+ ],
+ "sanitized": {
+  "errorNodes": 0,
+  "missingNodes": 0,
+  "errorBytes": 0
+ }
+}
