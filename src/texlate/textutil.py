@@ -159,7 +159,7 @@ def mask_tex(text: str, *, mask_dead: bool = True, keep_verbatim: bool = False) 
         if env is None and mask_dead:
             env = _DEAD_BEGIN_RX.match(text, i)
         if env:
-            stop = _env_stop(text, env[1], i + env.end())
+            stop = _env_stop(text, env[1], env.end())
             if not (keep_verbatim and is_verbatim):
                 mask(i, stop)
             i = stop

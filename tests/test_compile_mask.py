@@ -41,6 +41,26 @@ def test_visible_tex_comment_env_unmasked_when_disabled() -> None:
     assert "\\end{comment}" in vis
 
 
+def test_visible_tex_env_end_no_offset_overshoot() -> None:
+    r"""深位 ``\begin`` + 短体：``\end`` 搜索起点不得双计 offset。
+
+    2003.03510 实证：``_env_stop`` 起点误传 ``i + env.end()``（``env.end()``
+    已是绝对位）→ 体长 < ``i`` 时真 ``\end`` 被跳过，遮盖延至下一 ``\end``
+    或 EOF，``\begin{document}`` 被吞 → no_main_tex。
+    """
+    pad = "% pad\n" * 40  # \begin 落 ~240 字节深位
+    tex = (
+        pad
+        + "\\begin{comment}\nshort\n\\end{comment}\n"
+        + "\\begin{filecontents*}{x.eps}\nEPS\n\\end{filecontents*}\n"
+        + "\\begin{document}\n"
+    )
+    vis = visible_tex(tex)
+    assert "\\begin{document}" in vis
+    assert "short" not in vis  # comment 体仍被遮
+    assert "EPS" not in vis  # filecontents* 体仍被遮
+
+
 def test_without_comments_offset_preserved() -> None:
     tex = "aa %bb\ncc"
     out = without_comments(tex)
