@@ -1,6 +1,8 @@
-# corpus_v3: manifest/台账入库, 论文数据 gitignored (docs/09 §6)
+# corpus_v3: manifest/台账/提名审计轨迹入库, 论文数据 gitignored (docs/09 §6)
 *
 !.gitignore
 !MANIFEST.md
 !manifest.jsonl
 !mechanisms.jsonl
+!nominations/
+!nominations/**
