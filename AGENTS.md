@@ -1,10 +1,12 @@
 # TeXlate
 
 > 开源版「幻觉翻译」(hjfy.top)：arXiv LaTeX 源码 → LLM 段落级翻译 → ctex 重编译中文 PDF，双语对照阅读。
-> 当前状态：调研完成，方案冻结（`docs/05-reproduction-plan.md`），可按里程碑开工。决策与架构见 `docs/`（01 技术栈 ADR、02 架构、03 roadmap、04 选型上下文、05 复现方案）；最终技术规格：06 arXiv 源获取、07 LaTeX 解析管线、08 翻译 + 编译、09 benchmark 语料构建、10 benchmark 套件；过程证据归档 `docs/research/`。
+> 当前状态：M0 实施中（2026-09-15 起）。调研完成、方案冻结；决策史 `docs/01–05`，最终技术规格 `docs/06–10`（实现按此执行），过程证据归档 `docs/research/`。已落 `src/texlate/`：`arxiv/`（获取层）、`latex/`（半解析 + 展平+splice，corpus_v3 1955 文件 identity 100%/leak 0.04%）、`xlat/`（编排 + 网关客户端）、`validate/`（L0/L1/L2）、`compile/`（引擎/注入/normalize）+ `compile/fixloop/`（yaml 修复引擎 25 规则）。
 
 ## 仓库布局
 
+- `src/texlate/` — 产品代码（uv 管理，`uv sync` 起 .venv；Python 3.12+）：`arxiv/` 获取层、`latex/` 半解析管线、`xlat/` 翻译编排、`validate/` 校验三层、`compile/` 引擎 + 注入+normalize+`fixloop/` yaml 修复引擎、`server/`（M3 占位）、`cli.py`（typer）
+- `tests/` — pytest（corpus/网关/node 依赖用例均有 skipif/env 守卫，干净 clone 全绿）
 - `docs/` — `README.md` 总索引；决策史 01–05 + 最终技术规格 06–10 + `docs/research/` 调研档案（arxiv/latex/corpus/gateway/product 五子目录，`lit/` 文献原件 gitignored）
 - `bench/` — 解析/编译库 benchmark 现场（`bench/PROTOCOL.md` 是评测协议：每库测解析鲁棒性/陷阱断言/round-trip/输出物 4 项）
     - `bench/py/` — python 侧 bench（pylatexenc/TexSoup/plasTeX/miniscanner/fixloop/compile/parsebench），`scratch/` 是一次性探针
@@ -12,6 +14,7 @@
     - `bench/ts/` — js 侧 bench（latexjs/unified-latex/tree-sitter-latex），独立 package.json，CommonJS
     - `bench/corpus/` — 39 篇手挑陷阱语料（子目录 gitignored，`MANIFEST.md` 入库）
     - `bench/corpus_v2/` — 137 篇分层随机语料（同上惯例；`MANIFEST.md`+`build_corpus.py` 入库）
+    - `bench/corpus_v3/` — 1000 篇核心随机层（manifest.jsonl+MANIFEST.md 入库、数据 gitignored；`build_corpus_v3.py` 管线可重建）
     - `bench/fixtures/` — 陷阱构造 `.tex`（`% @Tnn` 标记；**逐字节即语义——不要格式化/润色这些文件**）
     - `bench/results/` — bench 产出目录（report/walkthrough/json 均由脚本重写；不在 format/lint 链内）
     - `bench/work_*/` — 编译/fixloop 工作区（gitignored 重产物）
@@ -39,7 +42,8 @@ CI（`.github/workflows/ci.yml`）与本地同源，本地不过 CI 必挂。
 
 ## 项目运维约定
 
-- 本仓处于调研/bench 阶段：没有产品代码，`bench/` 下脚本即全部可执行内容。
+- 本仓处于 M0 实施阶段：`src/texlate/` 产品代码 + `tests/` pytest；`bench/` 下是评测 harness 与语料管线。
+- 产品代码一律走 uv venv：`uv sync` 后 `uv run pytest tests/` / `uv run texlate`；**`src/**` 吃 ruff select=ALL 严格集（docstring/类型标注/异常纪律），bench/tests 的脚本豁免在 per-file-ignores**。
 - `bench/py/` 脚本用系统 python3（依赖见各文件头部注释）；`babeldoc` 对照实验用 `bench/py/.venv_babeldoc/` 专用 venv。
 - `bench/ts/` 自带 `package.json` + `node_modules`（latexjs/unified-latex/tree-sitter 依赖），与根 toolchain 的 package.json 无关——在 `bench/ts/` 里 `npm ci`。
 - `bench/corpus*/` 语料是 arXiv e-print 解压原样，不改写；新增语料登记对应 `MANIFEST.md`。
