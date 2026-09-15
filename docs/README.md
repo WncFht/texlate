@@ -17,6 +17,7 @@
 | `10-benchmark-suite.md`     | 评测器套件 B1–B7（评测器）                                  | **现行规范**                                      |
 | `original.md`               | hjfy.top 实现原文（知乎存档，目标系统参照）                 | 归档原文                                          |
 | `research/`                 | 45 篇调研报告 + `research/README.md` 索引                   | 证据档案                                          |
+| `HANDOFF-2026-09-15.md`     | archbox 迁移交接：当日落地清单 + 全部剩余工作 inventory     | 运维交接（随里程碑更新）                          |
 
 后置规范暂居 research/（M3 时再提正）：`research/product/web-layer.md`（API/前端/BYOK/部署）、`research/latex/{pdf-path,doc-formats}.md`（PDF sidecar / EPUB/DOCX）、`research/arxiv/licensing.md`（法务）。
 
