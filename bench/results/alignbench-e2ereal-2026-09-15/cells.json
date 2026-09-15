@@ -1,51 +1,104 @@
 {
- "n_pairs": 7,
- "n_error": 1,
- "n_degraded": 3,
- "n_hyperref": 3,
- "n_low": 0,
+ "n_pairs": 55,
+ "n_error": 2,
+ "n_degraded": 35,
+ "n_hyperref": 18,
+ "n_low": 3,
  "retention": {
-  "n": 3,
-  "min": 1.0,
+  "n": 18,
+  "min": 0.02631578947368421,
   "p50": 1.0,
-  "mean": 1.0,
+  "mean": 0.8661,
   "p95": 1.0,
   "max": 1.0
  },
  "chain_w_ratio": {
-  "n": 3,
-  "min": 0.967,
-  "p50": 1.0,
-  "mean": 0.989,
+  "n": 18,
+  "min": 0.6281,
+  "p50": 0.7622,
+  "mean": 0.8214,
   "p95": 1.0,
   "max": 1.0
  },
  "by_kind": {
-  "e2ereal-r2": {
-   "n": 6,
-   "degraded": 3,
-   "low": 0,
+  "v3-100-2026-09-15": {
+   "n": 53,
+   "degraded": 35,
+   "low": 3,
    "retention": {
-    "n": 3,
-    "min": 1.0,
+    "n": 18,
+    "min": 0.02631578947368421,
     "p50": 1.0,
-    "mean": 1.0,
+    "mean": 0.8661,
     "p95": 1.0,
     "max": 1.0
    }
   }
  },
- "low_pairs": [],
+ "low_pairs": [
+  {
+   "id": "1706.07924",
+   "retention": 0.02631578947368421,
+   "lost": [
+    "Item.1",
+    "Item.2",
+    "cite.cf:AA",
+    "cite.cf:B",
+    "cite.cf:BCM",
+    "cite.cf:BGT",
+    "cite.cf:BorI",
+    "cite.cf:BorII",
+    "cite.cf:CD",
+    "cite.cf:CH"
+   ]
+  },
+  {
+   "id": "2203.13039",
+   "retention": 0.37735849056603776,
+   "lost": [
+    "cite.Caraball1",
+    "cite.Caraball2",
+    "cite.Caraball3",
+    "cite.Caraball4",
+    "cite.Chenzhang1",
+    "cite.Chenzhang2",
+    "cite.DaPrato1",
+    "cite.DaPrato2",
+    "cite.DaPrato3",
+    "cite.DaPrato3.1"
+   ]
+  },
+  {
+   "id": "2403.15096",
+   "retention": 0.18614718614718614,
+   "lost": [
+    "cite.CG",
+    "cite.CP",
+    "cite.Ch",
+    "cite.Doi",
+    "cite.Dr",
+    "cite.EH",
+    "cite.EK",
+    "cite.ES",
+    "cite.Ga1",
+    "cite.Ga2"
+   ]
+  }
+ ],
  "error_pairs": [
   {
-   "id": "2211.13013",
+   "id": "1206.5428",
+   "error": "PdfStreamError: Stream has ended unexpectedly"
+  },
+  {
+   "id": "1404.2164",
    "error": "PdfStreamError: Stream has ended unexpectedly"
   }
  ],
  "min_retention": 0.95,
  "gates": {
   "no_pair_errors": false,
-  "hyperref_retention": true,
+  "hyperref_retention": false,
   "degraded_path_ok": true
  },
  "gates_pass": false,
