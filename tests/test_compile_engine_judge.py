@@ -346,6 +346,25 @@ def test_sandbox_wrap_passthrough_on_nondarwin(tmp_path: Path) -> None:
         assert wrapped == cmd
 
 
+def test_sandbox_profile_shape(tmp_path: Path) -> None:
+    """profile 结构性回归——2211.13013 SIGPIPE 三案根的防护：
+
+    - ``literal``+``subpath`` 双发：subpath 不含目录自身，cd/stat 会漏；
+    - TMPDIR canonical 形：/var→/private/var 软链，字面路径打不中；
+    - ``file-read-metadata`` on $HOME：shell cd/getcwd 要 stat 祖先目录。
+    三者缺一，mktexpk 装 pk 字体失败 → xdvipdfmx 死 → xelatex SIGPIPE。
+    """
+    if not (sys.platform == "darwin" and Path("/usr/bin/sandbox-exec").exists()):
+        pytest.skip("sandbox-exec 仅 macOS")
+    wrapped = sandbox_wrap(["xelatex"], root=tmp_path, out=tmp_path)
+    profile = wrapped[2]
+    assert "(literal" in profile
+    assert "(subpath" in profile
+    assert "file-read-metadata" in profile
+    assert "/private/var/" in profile  # canonical TMPDIR
+    assert "Library/texlive" in profile  # TEXMFVAR 读白名单
+
+
 # ---------------------------------------------------------------- 引擎检测
 def test_engine_protocol_caps() -> None:
     xe = XelatexEngine()

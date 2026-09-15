@@ -84,7 +84,10 @@ def sandbox_wrap(
 
     profile：`deny $HOME 读 + deny 全写`，然后白名单放行：
     - 读：工程目录、输出目录、tectonic 缓存、`~/Library/texmf`（usermode
-      装的包）、`~/Library/Fonts`、系统字体/TeX 树、tmp、工具链目录；
+      装的包）、`~/Library/texlive`（TEXMFVAR——fontmap/字体缓存，
+      xdvipdfmx 必读；e2e-real 实证其被拒 → xdvipdfmx 死 → xelatex
+      收 SIGPIPE）、`~/texmf`（TEXMFHOME）、`~/Library/Fonts`、
+      系统字体/TeX 树、tmp、工具链目录；
     - 写：输出目录、tectonic 缓存、tmp、`/dev`、工程目录（xelatex 在 cwd
       写 .aux/.log）。
     """
@@ -98,6 +101,11 @@ def sandbox_wrap(
         str(out),
         str(cache),
         str(home / "Library/texmf"),
+        # TEXMFVAR 默认落点（fontmap/mktex 产物）——write 名单已有，
+        # read 漏了：deny-$HOME-read 截获 xdvipdfmx 的 fontmap 读 →
+        # 进程死 → xelatex 收 SIGPIPE（2211.13013 等 3/40 实证）。
+        str(home / "Library/texlive"),
+        str(home / "texmf"),  # TEXMFHOME 平台默认
         str(home / "Library/Fonts"),
         "/Library/Fonts",
         "/Library/TeX",
@@ -106,6 +114,11 @@ def sandbox_wrap(
         "/opt/homebrew",  # tectonic/pdftotext 等
         "/etc",
         "/private/etc",
+        # sandbox profile 按 canonical 路径匹配——macOS /var 是
+        # /private/var 的软链，字面 /var/folders/... 规则永远打不中
+        # （e2e-real 实证：mktexpk 建 pk 字体的 TMPDIR mkdir 被拒 →
+        # xdvipdfmx 死 → xelatex 收 SIGPIPE，3/40 篇）。双形都写兜底。
+        os.path.realpath(tempfile.gettempdir()),
         tempfile.gettempdir(),
         "/dev",
         *(str(p) for p in (extra_read or [])),
@@ -116,24 +129,40 @@ def sandbox_wrap(
         str(cache),
         str(home / "Library/texmf"),  # updmap-user/mktex 迟建字体缓存
         str(home / "Library/texlive"),  # TEXMFVAR/CONFIG 默认落点
+        os.path.realpath(tempfile.gettempdir()),  # canonical 形必须
         tempfile.gettempdir(),
         "/dev",
     ]
+
+    def _paths(paths: list[str]) -> str:
+        # SBPL ``subpath X`` 只匹配 X 的**严格子孙**、不含 X 自身——
+        # cd/stat 目录本体仍被 deny-$HOME-read 截获（e2e-real 实证：
+        # mktexpk ``cd ~/Library/texmf/...`` ENOTDIR → bbold pk 装不上 →
+        # xdvipdfmx 死 → xelatex SIGPIPE）。literal+subpath 双发才完备。
+        return " ".join(
+            "(literal "
+            + json.dumps(p, ensure_ascii=False)
+            + ")"
+            + "(subpath "
+            + json.dumps(p, ensure_ascii=False)
+            + ")"
+            for p in paths
+        )
+
     profile = (
         "(version 1)\n(allow default)\n(deny file-read* (subpath "
         + json.dumps(str(home), ensure_ascii=False)
         + "))\n(deny file-write*)\n"
+        # deny 的是**内容读**；metadata(stat/目录遍历)放行——否则白名单
+        # 子路径内的 shell ``cd``/getcwd 要 stat 祖先目录全被截获，
+        # mktexpk 装 pk 字体的 cd 链必死（2211.13013 SIGPIPE 根因）。
+        # 密钥/配置内容仍不可读，代价仅是 $HOME 下文件名可枚举。
+        "(allow file-read-metadata (subpath "
+        + json.dumps(str(home), ensure_ascii=False)
+        + "))\n"
     )
-    profile += (
-        "(allow file-read* "
-        + " ".join("(subpath " + json.dumps(p, ensure_ascii=False) + ")" for p in read)
-        + ")\n"
-    )
-    profile += (
-        "(allow file-write* "
-        + " ".join("(subpath " + json.dumps(p, ensure_ascii=False) + ")" for p in write)
-        + ")\n"
-    )
+    profile += "(allow file-read* " + _paths(read) + ")\n"
+    profile += "(allow file-write* " + _paths(write) + ")\n"
     return ["/usr/bin/sandbox-exec", "-p", profile, *cmd]
 
 
