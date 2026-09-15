@@ -13,11 +13,11 @@ r"""xlatbench — B4a 翻译硬契约回归跑分器 (gwbench 扶正版).
   cs_dropped = src 中脆弱命令 (\ /\,/\;/\:/\!/~) 在 zh 计数变少 —— 升硬
   判据, 抓 "\ "+中文熔成 \和 这类未定义 cs 的编译炸弹.
 
-用法:
-  python3 bench/py/xlatbench.py run --models swe-2-medium,glm-5-2 \
+用法 (import texlate.* 产品代码, 必须 uv venv):
+  uv run python bench/py/xlatbench.py run --models swe-2-medium,glm-5-2 \
       [--runs 2] [--samples N] [--out DIR] [--resume]
-  python3 bench/py/xlatbench.py report DIR [DIR...] [--md OUT.md]
-  python3 bench/py/xlatbench.py samples          # 列出样例池
+  uv run python bench/py/xlatbench.py report DIR [DIR...] [--md OUT.md]
+  uv run python bench/py/xlatbench.py samples          # 列出样例池
 """
 
 from __future__ import annotations
@@ -33,11 +33,12 @@ import urllib.request
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO / "bench" / "py"))
 sys.path.insert(0, str(REPO / "tmp" / "exp" / "rule-validator"))
 
-import miniscanner
 import rule_validator
+
+from texlate.latex import parse_file
+from texlate.latex.placeholder import PH_RX
 
 BASE = "http://127.0.0.1:3003"
 KEY = "240127"
@@ -53,7 +54,6 @@ SYSTEM = (
     "commands. Output only the translation."
 )
 
-PH_RX = re.compile(r"\[\[[A-Z_]+_\d+\]\]")
 # 脆弱命令: 单字符/短控制序列, 丢了肉眼难查但影响排版
 FRAGILE_CS_RX = re.compile(r"\\[ ,;:!]|~")
 # zh 中残留英文散文词 (>=4 字母单词, 排除占位符/LaTeX 命令)
@@ -118,7 +118,7 @@ def build_samples(corpus: Path, limit: int | None = None) -> list[dict]:
         if not path.exists():
             print(f"  [skip] {rel} 不存在", file=sys.stderr)
             continue
-        res = miniscanner.parse_file(str(path), flatten=True)
+        res = parse_file(path, flatten=True)
         cands = [
             c
             for c in res.chunks
