@@ -19,7 +19,7 @@
 | F9 | 已修：`` `\X `` 转义形消费 3 字符取 `ord(X)`（scanner.py `_read_number`） |
 | F10 | 已修：`e` token 表入 `ArgSpec.delim` + `_args` 消费 `^{..}`/`_{..}` 全段；`b`/无 delim/未知 kind 一律零宽占位——`len(args)==len(spec)` 位序不变式成立 |
 | F11 | 已修：`_protect_call` 增定界符形 `\url|…|`（scanner.py，EOL 上限对齐 `\verb`） |
-| F12 | 待修：未闭合 env O(N·n) 悬崖（需缓存/限距，排入下一批） |
+| F12 | 已修：`_EnvDead` 墓标——失败扫描录端点事件，复查按 S(x)==S(j) 盈余 bisect 直答（58KB/800 未闭合 719→15ms，签名守卫迟到 \def 改义） |
 
 修复均有 `tests/test_latex_audit.py` F 系列钉（9 条）防回归。
 

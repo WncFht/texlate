@@ -24,6 +24,8 @@ r"""Scanner 主循环 + dispatch_cmd + env/macro/arg handlers + math-debt repair
 from __future__ import annotations
 
 import re
+from bisect import bisect_left
+from typing import NamedTuple
 
 from texlate.latex.macro_table import (
     parse_argspec,
@@ -121,6 +123,22 @@ _LEAD_WS_RX = re.compile(r"\s*")
 _TRAIL_WS_RX = re.compile(r"\s*$")
 
 
+class _EnvDead(NamedTuple):
+    r"""``_find_env_end`` 失败墓标（F12）：同 target 后续查询免重扫。
+
+    事件窗 = ``[anchor, n)``：失败扫描录全的 target 端点事件。自 j 重扫的
+    命中条件 ≡ 首个 end 事件 x≥j 满足 S(x)==S(j)（S(y)=窗内 begins−ends
+    前缀差）——bisect 直答，与逐字符重扫语义一致（含嵌套盈余）。
+    """
+
+    anchor: int  # 失败扫描起点
+    sig: frozenset[tuple[str, MacroKind]]  # target 端点宏签名（迟到 \def 即废标）
+    begins: list[int]  # 深度 +1 事件位（\begin{target}/ENV_BEGIN 宏的 \ 位）
+    end_at: list[int]  # 深度 −1 事件位
+    end_ret: list[tuple[int, int]]  # 各 end 命中时返回值 (end 后一位, tag 起点)
+    s_end: list[int]  # S(end_at[k]) = bisect_left(begins, end_at[k]) − k
+
+
 class Scanner:
     """单次正向扫描器。pos 单调递增，永不回退，绝不抛异常。
 
@@ -150,6 +168,7 @@ class Scanner:
         self._tex = ""
         self._run: list[str] = []
         self._run_start: int | None = None  # run 覆盖字节区间起点（局部坐标）
+        self._env_dead: dict[str, _EnvDead] = {}  # F12 未闭合 env 墓标（scan 起清零）
 
     def spawn(
         self,
@@ -369,6 +388,7 @@ class Scanner:
         self._tex = tex
         self._run = []
         self._run_start = None
+        self._env_dead = {}
         n = len(tex)
         i = preamble_end
         if preamble_end:
@@ -631,15 +651,39 @@ class Scanner:
                 out.append(ArgSpan(Span(pos, pos), Span(pos, pos), s))
         return out, pos
 
-    def _find_env_end(self, i: int, env: str) -> tuple[int, int] | None:  # noqa: C901, PLR0912 — begin/end/verb/宏端点四分支单遍查找，平铺即 §3.5
+    def _env_sig(self, target: str) -> frozenset[tuple[str, MacroKind]]:
+        r"""Target env 的端点宏签名——迟到 ``\def`` 登记/改义使墓标事件面失真即作废。"""
+        return frozenset(
+            (name, m.kind)
+            for name, m in self.state.macros.cmds.items()
+            if m.kind in (MacroKind.ENV_BEGIN, MacroKind.ENV_END)
+            and m.target_env.rstrip("*") == target
+        )
+
+    def _find_env_end(self, i: int, env: str) -> tuple[int, int] | None:  # noqa: C901, PLR0912, PLR0915 — begin/end/verb/宏端点四分支单遍查找，平铺即 §3.5
         r"""找 env 的匹配 ``\end``（含宏端点），注释安全 + ``*`` 归一。
 
         两侧 ``rstrip('*')`` 归一比较（``\begin{multline*}…\end{multline}``
         笔误场景，泄漏 C1 修复）。命中返回 (end 后一位, tag 起点)；未命中 None。
+
+        F12：未闭合扫描（docs/07 §11 曾见单文件 719ms）把端点事件存
+        ``_env_dead`` 墓标——同 target、宏签名未变的后续查询按盈余相等
+        直答（见 ``_EnvDead``），不再 O(n) 重扫到 EOF。
         """
         tex, n = self._tex, len(self._tex)
         target = env.rstrip("*")
+        dead = self._env_dead.get(target)
+        if dead is not None and i > dead.anchor and dead.sig == self._env_sig(target):
+            sj = bisect_left(dead.begins, i) - bisect_left(dead.end_at, i)
+            for k in range(bisect_left(dead.end_at, i), len(dead.end_at)):
+                if dead.s_end[k] == sj:
+                    return dead.end_ret[k]
+            return None
+        i0 = i
         depth = 1
+        begins: list[int] = []
+        end_at: list[int] = []
+        end_ret: list[tuple[int, int]] = []
         while i < n:
             c = tex[i]
             if c == "%":
@@ -662,6 +706,7 @@ class Scanner:
                         continue
                     if sub is not None and sub.rstrip("*") == target:
                         depth += 1
+                        begins.append(i)
                     i = e2 or j
                     continue
                 if name == "end":
@@ -670,6 +715,8 @@ class Scanner:
                         depth -= 1
                         if depth == 0:
                             return e2, i
+                        end_at.append(i)
+                        end_ret.append((e2, i))
                     i = e2 or j
                     continue
                 m = self.state.macros.cmds.get(name)
@@ -679,6 +726,7 @@ class Scanner:
                     and m.target_env.rstrip("*") == target
                 ):
                     depth += 1
+                    begins.append(i)
                 elif (
                     m is not None
                     and m.kind is MacroKind.ENV_END
@@ -687,9 +735,19 @@ class Scanner:
                     depth -= 1
                     if depth == 0:
                         return j, i
+                    end_at.append(i)
+                    end_ret.append((j, i))
                 i = j
                 continue
             i += 1
+        self._env_dead[target] = _EnvDead(
+            i0,
+            self._env_sig(target),
+            begins,
+            end_at,
+            end_ret,
+            [bisect_left(begins, x) - k for k, x in enumerate(end_at)],
+        )
         return None
 
     # ------------------------------------------------------------ 命令分派（19 行）

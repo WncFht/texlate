@@ -6,6 +6,7 @@ corpus 依赖的 property 测试带 skipif 守卫（bench/corpus* 是 gitignored
 
 import random
 import re
+import time
 from pathlib import Path
 
 import pytest
@@ -609,3 +610,41 @@ def test_audit_ifconst_hmode_vmode_plastex_truth() -> None:
     b = blob(res)
     assert "live branch words" in b
     assert "dead branch text" not in b
+
+
+def test_audit_f12_unclosed_env_nested_surplus() -> None:
+    r"""F12：未闭合 env 墓标（``_EnvDead``）的嵌套盈余直答 ≡ 逐字符重扫。
+
+    外 ``\\begin{equation}`` 查询失败录墓标；内层同 env 查询按
+    ``S(x)==S(j)``（盈余相等）bisect 直答 ``\\end`` 命中；第三个同 env
+    ``\\begin`` 在墓标内无满足盈余的 end → None。可观察面：恰两条
+    unclosed_env、内层 env 成 ``[[MATH]]``、identity 不破。
+    """
+    tex = (
+        "pre \\begin{equation} mid \\begin{equation} x+y \\end{equation} "
+        "post \\begin{equation} tail"
+    )
+    res = parse_tex(tex)
+    assert [w.kind for w in res.warnings] == ["unclosed_env", "unclosed_env"]
+    assert "\\begin{equation} x+y \\end{equation}" in res.ph_map.values()
+    assert reconstruct(res) == tex
+    # 墓标直答 vs 全新扫描逐字符扫——逐点等价（含非 None 命中）。
+    sc = Scanner(new_state())
+    sc._tex = tex  # noqa: SLF001 — 机制钉需触内部态
+    sc.scan(tex)
+    inner_j = tex.index("}", tex.index("\\begin{equation}", 20)) + 1
+    sc2 = Scanner(new_state())
+    sc2._tex = tex  # noqa: SLF001
+    assert sc._find_env_end(inner_j, "equation") == sc2._find_env_end(  # noqa: SLF001
+        inner_j, "equation"
+    )
+
+
+def test_audit_f12_unclosed_env_perf_gate() -> None:
+    r"""F12 性能门（docs/07 §11 max≤500ms）：800 未闭合 ``\\begin`` 不再 O(N·n)。"""
+    tex = "".join(f"text {k} \\begin{{equation}} x_{{{k}}}+y\n\n" for k in range(800))
+    t0 = time.perf_counter()
+    res = parse_tex(tex)
+    gate_s = 0.5  # docs/07 §11 max≤500ms
+    assert time.perf_counter() - t0 < gate_s
+    assert reconstruct(res) == tex
