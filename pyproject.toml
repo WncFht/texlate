@@ -8,7 +8,12 @@ license = { text = "Apache-2.0" }
 dependencies = ["httpx>=0.28", "pypdf>=5.0", "pyyaml>=6.0.3", "typer>=0.12"]
 
 [project.optional-dependencies]
-server = ["fastapi>=0.115", "uvicorn>=0.30", "sse-starlette>=2.1"]
+server = [
+  "fastapi>=0.115",
+  "python-multipart>=0.0.9",
+  "uvicorn>=0.30",
+  "sse-starlette>=2.1",
+]
 
 [project.scripts]
 texlate = "texlate.cli:app"
