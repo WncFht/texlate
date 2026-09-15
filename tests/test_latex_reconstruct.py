@@ -3,7 +3,7 @@ r"""reconstruct DAG 展开 + validate 的单测（docs/07 §9）。"""
 import re
 
 from texlate.latex import parse_tex, reconstruct
-from texlate.latex.model import ScanResult
+from texlate.latex.model import Chunk, ScanResult
 from texlate.latex.reconstruct import (
     cjk_glue_fix,
     validate_result,
@@ -60,6 +60,14 @@ def test_validate_translation_contract() -> None:
     assert extra.extra
 
 
+def test_validate_translation_multiset() -> None:
+    """同一占位符 ×2 掉到 ×1 必须算 missing（Counter 口径，非 list-membership）。"""
+    ch = Chunk(id=0, content="x", placeholders=["[[CITE_1]]", "[[CITE_1]]"])
+    verdict = validate_translation(ch, "译文 [[CITE_1]]")  # 只留一个
+    assert not verdict.ok
+    assert verdict.missing == ["[[CITE_1]]"]
+
+
 def test_validate_result_clean() -> None:
     body = "Para \\cite{a}.\n\\begin{figure}\\caption{C cap}\\end{figure}"
     res = scan(body)
@@ -71,6 +79,15 @@ def test_cjk_glue_only_with_translations() -> None:
     assert cjk_glue_fix("\\cmd这是") == "\\cmd 这是"
     res = scan("\\LaTeX 紧跟文字")
     assert reconstruct(res) == DOC % "\\LaTeX 紧跟文字"  # identity 不动
+
+
+def test_cjk_glue_verbatim_comment_immune() -> None:
+    r"""verbatim/comment 体内的 ``\cmd中`` 是字面内容，不插空格。"""
+    src = "\\begin{verbatim}\\cmd中\\end{verbatim}\n% \\cmd也\n\\cmd外"
+    out = cjk_glue_fix(src)
+    assert "\\cmd中" in out  # verbatim 不动
+    assert "% \\cmd也" in out  # 注释不动
+    assert "\\cmd 外" in out  # 正文修了
 
 
 def test_short_run_ph_survives() -> None:

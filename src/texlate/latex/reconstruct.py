@@ -12,20 +12,31 @@ r"""splice 重建 + DAG 递归展开 + validate（docs/07 §9）。
 from __future__ import annotations
 
 import re
+from collections import Counter
 from dataclasses import dataclass, field
 
 from texlate.latex.model import Chunk, ScanResult, ScanWarning
 from texlate.latex.placeholder import CHUNK_RX, PH_RX
+from texlate.textutil import CJK_RANGES, mask_tex
 
-_CJK_RX = re.compile(r"(\\[a-zA-Z@]+\*?)(?=[㐀-鿿豈-﫿])")
+_CJK_RX = re.compile(
+    r"(\\[a-zA-Z@]+\\*?)(?=["
+    + "".join(f"{chr(lo)}-{chr(hi)}" if lo != hi else chr(lo) for lo, hi in CJK_RANGES)
+    + "])"
+)
 
 
 def cjk_glue_fix(s: str) -> str:
     r"""``\cmd这是`` → ``\cmd 这是``：控制字后直接贴 CJK 时插空格。
 
     控制字后随空格在 TeX 里被吸收 → 源码语义不变，渲染更稳。
+    命中点在 ``mask_tex`` 视图上找——verbatim/comment 体内的 ``\cmd中``
+    是字面内容，不可编辑（等长遮盖位对齐，逆序回放）。
     """
-    return _CJK_RX.sub(r"\1 ", s)
+    hits = [m.end() for m in _CJK_RX.finditer(mask_tex(s))]
+    for pos in reversed(hits):
+        s = s[:pos] + " " + s[pos:]
+    return s
 
 
 def reconstruct(res: ScanResult, translations: dict[int, str] | None = None) -> str:
@@ -80,11 +91,15 @@ class TranslationVerdict:
 
 
 def validate_translation(chunk: Chunk, text: str) -> TranslationVerdict:
-    """译文侧契约校验：``chunk.placeholders`` 全列必须在 text 里，无幻觉。"""
-    want = chunk.placeholders or PH_RX.findall(chunk.content)
-    got = PH_RX.findall(text)
-    missing = [ph for ph in want if ph not in got]
-    extra = [ph for ph in got if ph not in want]
+    """译文侧契约校验：``chunk.placeholders`` 多重集必须逐枚出现在 text 里。
+
+    multiset 语义——``[[MATH_1]]``×2 被译文吃掉一个也算 missing
+    （list-membership 版会漏，与 L0 ``Counter`` 口径对齐）。
+    """
+    want = Counter(chunk.placeholders or PH_RX.findall(chunk.content))
+    got = Counter(PH_RX.findall(text))
+    missing = sorted((want - got).elements())
+    extra = sorted((got - want).elements())
     return TranslationVerdict(
         ok=not missing and not extra, missing=missing, extra=extra
     )
