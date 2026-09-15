@@ -5,7 +5,7 @@
 
 ## 仓库布局
 
-- `docs/` — ADR/架构/路线图（01–05）+ `docs/research/` 调研档案（`README.md` 总索引；arxiv/latex/corpus/gateway/product 五子目录，`lit/` 文献原件 gitignored）
+- `docs/` — `README.md` 总索引；决策史 01–05 + 最终技术规格 06–10 + `docs/research/` 调研档案（arxiv/latex/corpus/gateway/product 五子目录，`lit/` 文献原件 gitignored）
 - `bench/` — 解析/编译库 benchmark 现场（`bench/PROTOCOL.md` 是评测协议：每库测解析鲁棒性/陷阱断言/round-trip/输出物 4 项）
     - `bench/py/` — python 侧 bench（pylatexenc/TexSoup/plasTeX/miniscanner/fixloop/compile/parsebench），`scratch/` 是一次性探针
     - `bench/py/.venv_babeldoc/` — babeldoc 对照实验专用 venv（gitignored）

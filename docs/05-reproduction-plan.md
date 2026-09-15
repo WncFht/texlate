@@ -12,7 +12,7 @@
 
 **新增关键设计（本轮调研的增量）**：texglot 的"源码归一化层"（pdfTeX→XeTeX 手术包）、named-destinations 滚动同步、段级缓存键、BYOK 抽象、编译沙箱、tectonic 分发矩阵——六块直接照抄设计，见 §5。
 
-**LLM 后端已打通**（E21，2026-09-14）：本机 `127.0.0.1:3003` 网关（devin-2ap 上游）实测可用——**占位符契约 12/12 全绿**（3 模型 × 4 样例，0 丢失 0 幻觉），推荐 `claude-sonnet-5-medium`（3s/chunk、token 最省）。剩余未验证项收敛为：大规模回归、整篇真实翻译的编译影响、成本计价。
+**LLM 后端已打通**（E21，2026-09-14）：本机 `127.0.0.1:3003` 网关（devin-2ap 上游）实测可用——**占位符契约 12/12 全绿**（3 模型 × 4 样例，0 丢失 0 幻觉），推荐 `claude-sonnet-5-medium`（3s/chunk、token 最省；**E22 大样本横评后默认改判 `swe-2-medium` 免费档，sonnet 转付费对照——见 §3 裁决 11**）。剩余未验证项收敛为：大规模回归、整篇真实翻译的编译影响、成本计价。
 
 ## 1. 复现范围：功能对齐表
 
@@ -113,7 +113,9 @@ sidecar BabelDOC(AGPL 边界) | 降级链 HTML/PDF | 远期: EPUB/DOCX/批量层
 
 缓存两层键：`source = arxiv_id@resolved_version`；`product = sha256(id@ver|model|pipeline_ver|lang|glossary_hash)`。段级缓存 key 内含 masked/protected 快照 + 失效 tag（texglot 式细粒度失效）。
 
-## 5. 分模块实施规格（详规见 docs/research/ 对应文档）
+## 5. 分模块实施规格
+
+> **规范层已上提**：逐模块最终实现规格 = `docs/06–10`（§5.1→06 arxiv / §5.2–5.3→07 解析管线 / §5.4–5.5→08 §1–2 / §5.6→08 §3–5 / benchmark 底材→09、评测器→10）。本节保留里程碑级要点摘录；各小节标注的 `docs/research/` 文档为**证据出处**而非规范。§5.7–5.10（server/web/sidecar/批量/分发）规范暂居 research/，M3 提正。
 
 ### 5.1 `texlate/arxiv/` —— 下载/元数据/缓存（规格：arxiv-layer.md）
 

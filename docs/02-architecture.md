@@ -1,5 +1,7 @@
 # 架构设计
 
+> 本文是**高层架构视图**。逐模块实现规格以 `docs/06–10` 为准（06 源获取 / 07 解析管线 / 08 翻译 + 编译 / 09–10 benchmark）；调研证据在 `docs/research/`。
+
 ## 管线总览 (arXiv LaTeX 路线，hjfy 同款)
 
 ```
@@ -40,7 +42,7 @@ Scanner 单遍产出:
 - 体内纯结构/公式的宏 (\be→\begin{equation}) → 展开为等价命令后按该命令规则保护
 - 展开深度限制 + 递归检测，畸形定义降级为"不透明整体保护"
 
-### 2. `texlate.translate` — 翻译编排
+### 2. `texlate.xlat` — 翻译编排
 
 - 分块：段落为最小单元; <300 字符短块打包为编号批量请求 (≤2000 字符/批); 批量解析失败整批回退单翻
 - 上下文：每 chunk 携带前 N 段摘要/前后句; 可选先跑"术语提取"第一遍生成双语术语表
@@ -90,7 +92,7 @@ Scanner 单遍产出:
 texlate/
   src/texlate/
     latex/        # scanner, macro_table, placeholder, reconstruct
-    translate/    # orchestrator, providers, prompts, glossary
+    xlat/         # orchestrator, providers, prompts, glossary
     validate/     # rules, ts_latex(可选绑定)
     compile/      # tectonic wrapper, ctex inject, fixrules/, repair loop
     arxiv/        # download, cache, s3
