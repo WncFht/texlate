@@ -117,6 +117,27 @@ class TestDocFilter:
         assert keys == ["[[CITE_1]]", "[[MATH_2]]", "[[MATH_10]]"]
 
 
+class TestLoadIndex:
+    def test_comma_string_and_list_forms(self, tmp_path: Path) -> None:
+        p = tmp_path / "index.yaml"
+        p.write_text(
+            "cs.LG: lg.csv, ml.csv\ncs.CV: [cv.csv, extra.csv]\n", encoding="utf-8"
+        )
+        assert gl.load_index(p) == {
+            "cs.LG": ["lg.csv", "ml.csv"],
+            "cs.CV": ["cv.csv", "extra.csv"],
+        }
+
+    def test_missing_file_empty(self, tmp_path: Path) -> None:
+        assert gl.load_index(tmp_path / "none.yaml") == {}
+
+    def test_reject_non_string_list_value(self, tmp_path: Path) -> None:
+        p = tmp_path / "index.yaml"
+        p.write_text("cs.LG:\n  a: 1\n", encoding="utf-8")
+        with pytest.raises(TypeError, match="string or list"):
+            gl.load_index(p)
+
+
 class TestLoadYaml:
     def test_flat_map(self, tmp_path: Path) -> None:
         p = tmp_path / "g.yaml"

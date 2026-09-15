@@ -169,14 +169,32 @@ def load_yaml(path: Path) -> dict[str, str]:
 
 
 def load_index(path: Path) -> dict[str, list[str]]:
-    """`terms/index.yaml`：cat → 文件名（逗号分隔或单层 list）。"""
+    """`terms/index.yaml`：cat → 文件名（逗号分隔字符串或单层 list 皆可）。
+
+    不走 `load_yaml`/`flatten_terms`——术语表拒绝 list 值是刻意的，
+    但 index 的 list 形态是合法输入（`cat: [a.csv, b.csv]`）。
+    """
     if not path.exists():
         return {}
-    raw = load_yaml(path)
-    return {
-        cat: [f.strip() for f in files.split(",") if f.strip()]
-        for cat, files in raw.items()
-    }
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if data is None:
+        return {}
+    if not isinstance(data, dict):
+        msg = f"{path}: index must be a mapping, got {type(data).__name__}"
+        raise TypeError(msg)
+    out: dict[str, list[str]] = {}
+    for cat, files in data.items():
+        if isinstance(files, str):
+            out[str(cat)] = [f.strip() for f in files.split(",") if f.strip()]
+        elif isinstance(files, list):
+            out[str(cat)] = [str(f).strip() for f in files if str(f).strip()]
+        else:
+            msg = (
+                f"{path}: index entry {cat!r} must be a string or list, "
+                f"got {type(files).__name__}"
+            )
+            raise TypeError(msg)
+    return out
 
 
 def flatten_terms(data: object, *, name: str) -> dict[str, str]:
