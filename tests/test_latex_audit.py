@@ -591,3 +591,21 @@ def test_audit_f6_format_opts_still_eaten() -> None:
     assert "noitemsep" not in b
     assert "[t]" not in b
     assert reconstruct(res) == DOC % body
+
+
+def test_audit_ifconst_hmode_vmode_plastex_truth() -> None:
+    r"""``\\ifhmode``→True、``\\ifvmode``→False——plasTeX 恒值（曾写反）。"""
+    res = scan(
+        "\\ifvmode dead branch text that should not chunk "
+        "\\else live branch words that should chunk \\fi"
+    )
+    b = blob(res)
+    assert "live branch words" in b
+    assert "dead branch text" not in b
+    res = scan(
+        "\\ifhmode live branch words that should chunk "
+        "\\else dead branch text that should not chunk \\fi"
+    )
+    b = blob(res)
+    assert "live branch words" in b
+    assert "dead branch text" not in b

@@ -445,8 +445,11 @@ INPUT_CMDS = {
 COND_RX = re.compile(r"^(if[a-zA-Z@]*|else|fi|or)$")
 
 # 恒值 \if 族（可求值，docs/07 §8.6）
+# 真值以 plasTeX 为准（Primitives.py:247-258 硬编码 ifvmode=False/
+# ifhmode=True——展开语境恒按"正在水平排版"处理）；此前写反会让
+# 顶层 \ifhmode/\ifvmode 选中死分支进 chunk。
 IF_CONST_FALSE = {"ifeof", "ifinner", "ifvoid", "ifhbox", "ifvbox"}
-IF_CONST = {"ifhmode": False, "ifvmode": True}
+IF_CONST = {"ifhmode": True, "ifvmode": False}
 
 # 保护位参数启发：#i 落在这些命令参数位 → 该位 [[KEY]]
 PROTECTED_PARAM_CMDS = CITE_NAMES | REF_NAMES | {"label", "url", "includegraphics"}
