@@ -39,3 +39,4 @@ tmp/
 
 # 文献原件 (PDF/HTML 二进制,可再生)
 docs/research/lit/
+.DS_Store

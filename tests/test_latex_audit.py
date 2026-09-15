@@ -648,3 +648,48 @@ def test_audit_f12_unclosed_env_perf_gate() -> None:
     gate_s = 0.5  # docs/07 §11 max≤500ms
     assert time.perf_counter() - t0 < gate_s
     assert reconstruct(res) == tex
+
+
+def test_audit_minor_cite_second_brace_is_text() -> None:
+    r"""audit 次要 2：``\cite{a}{b}`` 的 ``{b}`` 是正文不是参数——mand=1。
+
+    修复前 ``_protect_call`` 固定吃 3 个 ``{..}`` 组，``{b}`` 被藏进
+    ``[[CITE]]`` 体永不进 chunk。
+    """
+    res = scan("See \\cite{key2020}{second group is body text} for details.")
+    b = blob(res)
+    assert "second group is body text" in b
+    assert (
+        reconstruct(res)
+        == DOC % "See \\cite{key2020}{second group is body text} for details."
+    )
+
+
+def test_audit_minor_escaped_bracket_not_math_close() -> None:
+    r"""audit 次要 1：``\\\\]`` 不提前关闭 ``\\[..\\]``——``\\<x>`` 成对消费。
+
+    同理 ``\\%`` 不杀闭符搜索（百分号前反斜杠是转义不是注释头）。
+    """
+    body = "display \\[ a \\\\] b \\] math done. tail text words here."
+    res = scan(body)
+    assert reconstruct(res) == DOC % body
+    # \\[..\\] 整段一个 MATH 占位符——体含 \\] 残片
+    math_bodies = [v for k, v in res.ph_map.items() if k.startswith("[[MATH_")]
+    assert any("\\\\]" in v for v in math_bodies)
+
+
+def test_audit_minor_boundary_tail_args_stay_literal() -> None:
+    r"""audit 次要 3：``\\setlength{\\parindent}{0pt}`` 结构参进 LITERAL。
+
+    修复前 BOUNDARY 只盖命令名，``{\\parindent}{0pt}`` 落正文 chunk——
+    裸命令进译文。结构参消费但 ``\\item[label]`` 的可译 label 不收。
+    """
+    res = scan("\\setlength{\\parindent}{0pt}Body text words here enough.")
+    b = blob(res)
+    assert "parindent" not in b
+    assert "0pt" not in b
+    assert "Body text words here enough" in b
+    assert (
+        reconstruct(res)
+        == DOC % "\\setlength{\\parindent}{0pt}Body text words here enough."
+    )

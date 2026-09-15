@@ -111,6 +111,36 @@ _FILENAME_CHARS = frozenset(
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._/-"
 )
 
+# BOUNDARY 命令的结构尾参表（audit 次要 3）：``\cline{1-2}``/``\vspace*{1em}``
+# 这类非文本参消费进 LITERAL 段——否则 ``{1-2}`` 落正文成 chunk 被翻译。
+# 只列结构参；``\item[o]`` 的 label、``\newtheorem`` 标题是可译文本不收。
+_BOUNDARY_TAIL: dict[str, list[ArgSpec]] = {
+    "cline": [ArgSpec("m")],
+    "cmidrule": [ArgSpec("o"), ArgSpec("d", delim="()"), ArgSpec("m")],
+    "toprule": [ArgSpec("o")],
+    "midrule": [ArgSpec("o")],
+    "bottomrule": [ArgSpec("o")],
+    "pagebreak": [ArgSpec("o")],
+    "linebreak": [ArgSpec("o")],
+    "nopagebreak": [ArgSpec("o")],
+    "twocolumn": [ArgSpec("o")],
+    "vspace": [ArgSpec("s"), ArgSpec("m")],
+    "hspace": [ArgSpec("s"), ArgSpec("m")],
+    "newcounter": [ArgSpec("m"), ArgSpec("o")],
+    "setcounter": [ArgSpec("m"), ArgSpec("m")],
+    "addtocounter": [ArgSpec("m"), ArgSpec("m")],
+    "setlength": [ArgSpec("m"), ArgSpec("m")],
+    "addtolength": [ArgSpec("m"), ArgSpec("m")],
+    "setstretch": [ArgSpec("m")],
+    "pagestyle": [ArgSpec("m")],
+    "thispagestyle": [ArgSpec("m")],
+    "pagenumbering": [ArgSpec("m")],
+    "documentclass": [ArgSpec("o"), ArgSpec("m")],
+    "documentstyle": [ArgSpec("o"), ArgSpec("m")],
+    "usepackage": [ArgSpec("o"), ArgSpec("m")],
+    "RequirePackage": [ArgSpec("o"), ArgSpec("m")],
+}
+
 _LETTER_TAIL_RX = re.compile(
     r"\\[a-zA-Z@]+\Z"
 )  # \Z 严格串尾：体尾 \n 已阻断 token 合并
@@ -808,19 +838,22 @@ class Scanner:
 
         # 6. cite 族 → [[CITE]] 进 run
         if name in CITE_NAMES or name.startswith("cite"):
-            return self._protect_call(i, j, PhType.CITE)
+            return self._protect_call(i, j, PhType.CITE, mand=1)
 
         # 7. ref 族 → [[REF]]（排除 href 与 TRANSPARENT）
         if name in REF_NAMES or (
             name.endswith("ref") and name not in TRANSPARENT_NAMES and name != "href"
         ):
-            return self._protect_call(i, j, PhType.REF)
+            return self._protect_call(i, j, PhType.REF, mand=1)
 
         # 8. PROTECT_NAMES → 类型映射；url/path verbatim 括号
         if name in PROTECT_NAMES:
             typ = _PROTECT_TYP.get(name, PhType.CMD)
             vb = name in ("url", "path")
-            return self._protect_call(i, j, typ, verbatim=vb)
+            # inputminted 是双参 {lang}{file}，其余单 key/单文件签名
+            return self._protect_call(
+                i, j, typ, verbatim=vb, mand=2 if name == "inputminted" else 1
+            )
 
         # 9. \href{url}{text}：url→[[HREF]]，text 继续扫
         if name == "href":
@@ -902,10 +935,16 @@ class Scanner:
             if self.in_arg:
                 return self._protect_call(i, j, PhType.CMD)
             self._flush_run(i)
-            self._emit(i, j)
+            end = j
+            spec = _BOUNDARY_TAIL.get(name)
+            if spec is not None:
+                args, e2 = self._args(j, spec)
+                if any(a.full.end > a.full.start for a in args):
+                    end = e2
+            self._emit(i, end)
             if name == "item":
                 self.force_chunk = True  # item 文本恒可译
-            return j
+            return end
 
         # 14b. \endinput：TeX 语义——当前文件到此为止，余下逐字（不再挖）
         if name == "endinput":
@@ -979,8 +1018,13 @@ class Scanner:
                 k = tex.find("\n", pos)
                 pos = n if k < 0 else k + 1
                 continue
-            if c == "\\" and tex.startswith(closer, pos):
-                return pos
+            if c == "\\":
+                if tex.startswith(closer, pos):
+                    return pos
+                # \<x> 成对消费：``\\]`` 不是闭符、``\%`` 不是注释；
+                # ``\``+``\n`` 只进一步——换行仍须走段界判定（audit 次要 1）
+                pos += 1 if pos + 1 >= n or tex[pos + 1] == "\n" else 2
+                continue
             if c == "\n":
                 k = pos + 1
                 while k < n and tex[k] in " \t\r":
@@ -1592,9 +1636,14 @@ class Scanner:
     # ------------------------------------------------------------ 保护调用
 
     def _protect_call(
-        self, i: int, j: int, typ: PhType, *, verbatim: bool = False
+        self, i: int, j: int, typ: PhType, *, verbatim: bool = False, mand: int = 3
     ) -> int:
-        r"""命令 + ``*?`` + ``[opt]*`` + ``{args}*`` 整段 → ``[[typ_n]]`` 进 run。"""
+        r"""命令 + ``*?`` + ``[opt]*`` + ``{args}*`` 整段 → ``[[typ_n]]`` 进 run。
+
+        ``mand`` = ``{...}`` 组上限（默认 3 = 通用兜底）。cite/ref/protect
+        族全是单 key 签名，传 1——``\cite{a}{b}`` 的 ``{b}`` 是正文不是
+        参数，吞进去就永不进 chunk（audit 次要 2）。
+        """
         tex, n = self._tex, len(self._tex)
         pos = j
         if pos < n and tex[pos] == "*":
@@ -1621,7 +1670,7 @@ class Scanner:
                     continue
             break
         end = pos
-        for _ in range(3):
+        for _ in range(mand):
             p2 = ws_skip_arg(tex, end)
             if p2 < n and tex[p2] == "{":
                 e = match_brace(tex, p2, verbatim=verbatim)

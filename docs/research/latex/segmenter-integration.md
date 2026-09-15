@@ -1,0 +1,177 @@
+# Segmenter 接线契约：scanner → token 流重写（M1 设计稿）
+
+> 状态：设计定稿待实施（2026-09-15）。上游：`docs/07` §8 三段式 +
+> `expansion-design.md`（gullet 侧规格已落地为 `mouth.py`/`gullet.py`，
+> commit d22b56b，未接线）。本文档是分段器侧的缺失半边——回答「scanner
+> 的 1614 行字节状态机怎么变成 `next_expanded()` 的消费者」。
+
+## 0. 总形状
+
+```
+file bytes ──► Mouth（逐文件 tokenize，catcode 共享表）
+           ──► Gullet（不动点展开 + \if 选支 + \input 压栈 + def 登记）
+           ──► Segmenter（消费 token 流 → pieces/chunks/ph_map/warnings）
+```
+
+分段器**永不直接前读字节**：一切源消耗经 token 流；字节只在「切 raw 片」
+时按 token 的 `(fid, start, end)` 从 `file_texts[fid]` 取。这保住三条铁律：
+字节级 identity、注释不可见即边界、展开只做分类不做物化（`gen>0` token
+的 pos 不做 splice，`origin`/`src` 才做）。
+
+## 1. vtex——叙事序虚拟文本（position mapping）
+
+**决定**：不按 `(file_id, offset)` 改造 Piece/Chunk/Span 下游，而在分段器
+里增量物化一条 **vtex**（virtual text）= `flatten_inputs` 产出的同构文本。
+一切 piece/chunk/span 用 vtex 坐标——`pieces` 平铺 `[0, len(vtex))` 不变式、
+`validate_result`、`reconstruct`、parsebench identity 全部零改动。
+
+- 每文件维护消费前沿 `cons[fid]`；一条源区间 `(fid, a, b)` 被「覆盖」时：
+  `vtex_parts.append(file_texts[fid][a:b])`，其 vtex 区间 =
+  `[vlen, vlen+b-a)`，`cons[fid] = b`。
+- 覆盖驱动 = token 到达：gen=0 token `(fid,a,b)` 到达时先覆盖
+  `[cons[fid], b]`——**间隙字节（注释/折叠空白）随覆盖自动进 vtex**，
+  这正是 Mouth 吞注释后 identity 不破的机制。
+- `\input` 成功：调用点字节**不进 vtex**（marker piece 记 `inputs[]`，
+  输出物不含 `\input` 行——与 flatten 现行替换语义一致，不会双重 include）。
+  子文件字节随其 token 到达序接进 vtex → 叙事序天然正确。
+- 单文件情形 `vtex == tex`；多文件 `vtex == flatten_inputs(main)`（模
+  `\endinput` 行保留之差，见 §6）。
+- 乱序例外（`\expandafter` 让后位调用点先展开）：`src.start < cons[fid]`
+  的展开组做不到单增映射——直接放弃 vtex 内联，按 `[[EXPAND_n]]` 保护
+  （§3.2 病理档），记 `expand_reorder` warning。
+
+## 2. 覆盖账本与 run 双轨
+
+run 项从 `str` 升级为 `(surface, ident)` 双轨：
+
+| 来源                 | surface（进 chunk.content / 译文面）     | ident（identity 面）                                                         |
+| -------------------- | ---------------------------------------- | ---------------------------------------------------------------------------- |
+| gen=0 文本 token     | `t.text`（space 已折叠，译文面要折叠形） | `vtex` 切片 `[cov_start, t.src.end)`——**含前导间隙**（注释随 identity 保留） |
+| ph 项（MATH/CITE/…） | `[[X_n]]`                                | 同一 token（ph_map 体即原文）                                                |
+| 展开组（§3）         | 展开表面文本                             | `[[EXPAND_n]]` token（体 = 调用点 vtex 切片）                                |
+
+- 非 chunk 冲刷（短 run / MINED_ONLY）：piece.text = `join(ident)`——
+  注释、展开调用点原文全部逐字回，identity 零新机制。
+- chunk 冲刷：content = `join(surface)`；**identity 经
+  `ph_map["[[CHUNK_k]]"] = vtex[gspan]`**——利用 `expand()` 现成的
+  `trans → ph_map → content` 优先级（docs/07 §9 伪码同序），零 schema
+  变更。仅当 run 含展开组才登记（`run_has_expand` 旗标），常态路径无
+  额外开销。
+- 溢出二次切分（`_split_core`）：part 边界落在展开组**整组**归属侧
+  （取含切点项的 vend），各 part 的 `ph_map[CHUNK]` = vtex 连续切片——
+  区间覆盖仍无缝。
+- `lead/trail` 空白剥离：含展开组的 run 跳过剥离（整 run 进 content，
+  ws 对翻译无害）；纯 gen=0 run 维持现行 §3.8 行为。
+
+## 3. 展开组的流内形态
+
+- **判定**：`t.gen > 0` 即展开产物。同 `origin`（=最外层调用点
+  `(fid,a,b)`）的连续 token 为一组；组间 disjoint 且按到达序。
+- **surface** = 组内 token 文本拼接（`eol_par`→`\n\n`、space→` `、
+  cs→`\name`、param→`#`…按 Tok.text 渲染规则）。
+- 组内再生保护段（展开文本里的 `$…$`、`\cite{…}`）照常走分段规则产
+  ph——ph 体是展开表面切片（vtex 里无对应字节，identity 由
+  chunk 级 `ph_map[CHUNK]`/run 级 `[[EXPAND]]` 兜底，永远查不到它）。
+- 展开组内 `eol_par` = **虚拟分段符**：flush run、不产字节（源里本就
+  没有 `\n\n`）；组的后半挂进下一 run，其覆盖字节 = 调用点已在
+  上一 run 计过的位 → 记 `expand_span_reuse`（罕见病理）。
+
+## 4. gullet 侧缺口（需 impl-expansion 补，或 leader 代笔）
+
+| 缺口                      | 现状                                                                                                                                                             | 需要                                                                                                                                                                                                                         |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 静默消费事件              | `_do_def`/`_do_newcmd`/`_do_newenv`/`_do_newtheorem`/`_do_mathop`/`_do_xparse`/`_do_let`/`_do_newif`/`_do_catcode`/`process_if`/`_do_input` 成功均 `return None` | 发 marker：`Tok(kind="consumed", pos=(fid,cs,ce), text="def:name"/"input:path"/…)`。分段器：flush + LITERAL piece 盖 `pos` + `inputs[]` 登记（input 型）。保住 dispatch 2/3/10 的边界语义——def 串不落 chunk 否则译文会删 def |
+| verbatim/`\verb` raw 消费 | Mouth 会把 verb 体内的 `%` 当注释吞 → 定界符永不到 → 流脱同步                                                                                                    | `gullet.skip_past(fid, pos)`：置 `inputs[-1].i`、复位 `state=S_M`、清 `tokbuf`。分段器对 `\begin{verbatim}`/`\verb` 在**文件字节**上找闭合（现行 `tex.find` 移植），命中即 resync                                            |
+| `math_depth` 回报         | gullet 字段已存在                                                                                                                                                | 分段器在 `$`/`$$`/`\(`/`\[`/math-env 进出时写                                                                                                                                                                                |
+| scope 回报                | `push_scope/pop_scope` 已有，注释写明由分段器驱动                                                                                                                | 分段器在 `lbrace`/`\bgroup`/`\begingroup`/`\begin{env}`/`$…$` 开、`rbrace`/`\egroup`/`\endgroup`/`\end{env}`/数学闭 推/弹。**组内对称推弹即安全**；arg 括号不产事件（gullet 内部消费，TeX 语义同）                           |
+| warnings 合流             | `gullet.warnings`                                                                                                                                                | `ScanResult.warnings` 尾部并入（pos 已是 `(fid,off)`——warning.pos 需 fid 化或存 vtex 位）                                                                                                                                    |
+
+## 5. 分段器主循环改写（dispatch 19 行 → token 版）
+
+```
+while t := gullet.next_expanded():
+    t.kind == "cs"      → dispatch_cmd(t)            # 19 行分派逐行移植
+    t.kind == "mathshift" → _on_math(t)              # _on_dollar 的 token 版
+    t.kind == "eol_par" → flush_run                  # gen>0 见 §3 虚拟分段符
+    t.kind == "space"   → run.append((" ", vtex 切片))
+    t.kind == "consumed"→ flush + LITERAL + 副作用登记
+    其余（letter/other/active/lbrace…）→ run.append((t.text, vtex 切片))
+    副作用：lbrace→push_scope，rbrace→pop_scope，mathshift 开→math_depth+=1
+```
+
+- **注释分支消失**——Mouth 已吞；间隙字节经 §2 覆盖账进 ident/vtex。
+  顶层 `%` 的「flush+literal」边界语义由「间隙含 `%` 时 flush 先行」近似：
+  覆盖切片若含 `%`（逐 gap 扫一次即可，等价今日注释边界）。
+- `param` token（孤立 `#`）→ 字面进 run。
+- 未知 cs、LITERAL 宏、INLINE_LITERAL 等按名分派全部沿用——只是
+  name 取自 `t.text` 而非 `read_cmd_name`。
+
+## 6. 逐处理器移植要点
+
+- **`_args` → token 版**：跳过 space token；`lbrace` → 平衡组收集
+  （lbrace/rbrace 计数，tokens 同时进 `sub` 列表供 in_arg 子扫）；
+  `[`→`]` 同；单 token 参数 = 下一非空白 token。ArgSpan content/full
+  = 组内 token pos 区间 / 含括号区间（file→vtex 映射）。`eol_par` 前停
+  （同 `ws_skip_arg` par 语义）。注释透明 = Mouth 已吞天然等价。
+  `e` spec：`^`/`_` token 检查 kind 而非字符。
+- **`_find_env_end` → token 拉取版**：`gullet.read()`（**原始流**——
+  前瞻不许触发展开副作用）拉 token 计深度：`\begin{t}`/`\end{t}` cs +
+  ENV_BEGIN/END 宏表查名 + verbatim env 体内 token 跳读。命中 →
+  body token 已消费，`[[ENV]]` 盖 `[begin.src.start, end.src.end)`；
+  未中 → `unread(collected)` 回吐、从 j 续扫（同现行语义）。F12 墓标
+  移植：事件位改「拉取序号」（跨 fid 全序），`end_ret` 存 `(fid,pos)`。
+- **verbatim env**：`\begin{V}` → 文件字节 `find("\end{V}")` → VERB ph
+    - `skip_past` resync（§4）。expanded 形（`\bv` 宏）同走文件字节路
+      （体在调用点后的真源里）；字节找不到 → unclosed（与现行等价）。
+- **`\verb`/`\lstinline`**：拉定界 token → 体按 token 位连续即取
+  file 切片；定界符被注释吃掉时退化到文件字节 find + resync。
+- **数学**：mathshift token 配对 + `$$` 双 token 识别（相邻两个
+  mathshift 或 Mouth 产 `$$` 单 token——以 mouth 实际产出为准，测试
+  先行）。math-debt repair 移植：ph 体奇 `$` → debt 栈照旧（体内容用
+  vtex/展开表面切片判）。
+- **`\if` 界标档**：gullet `_do_if` 不可求值 → `\ifX` token 交出 →
+  分段器 token 版 `_process_if`：`read()` 收集 case（`if*` 计嵌套、
+  `newif` 整对保留、`else/or` 分案例、`\fi` 止）→ 界标 literal piece
+  盖条件区 + **两支 token 序列各自 unread 回放**（中间夹 `\else` 界标
+  piece——界标 piece 需要字节区间，用 `else`/`fi` token 的 src span）。
+  可求值支已被 gullet 消费——其字节成 gap 自动 literal，选支流正常。
+- **`\end{document}`/`\endinput`**：顶层截停语义不变；`\endinput` 行
+  不进 vtex（与 flatten 的「保留该行」微差，接受并留档）。
+- **in_arg 子扫**：`_handle_chunk_arg`/in_arg 变体 = 同一 Segmenter
+  跑在 arg 的 **token 子列表**上（TokenSource 抽象 = gullet |
+  list[Tok]），共享 ScanState。arg 内 gen>0 token 的 origin 已指向
+  调用点——子扫内展开组处理规则同顶层。
+- **preamble**：不再 `register_macros_in` 正则预扫 + 整段 LITERAL——
+  preamble 区 token 照常过 gullet（`\def` 登记、`\if` 求值、
+  `\makeatletter` 翻 catcode），分段器对 preamble 区间一律 LITERAL
+  piece（`\begin{document}` 检出即切模式）。`macro_table.py` 的
+  `MacroTable`（cmds/envs 平表）整体退役，统一换 gullet 的 scope 链
+  `MacroTable`——`state.macros` 类型随之切换，下游 `res.macros`
+  消费点（`_env_sig`、`dispatch` env 查表）适配。
+
+## 7. 兼容面与验收门
+
+- `ScanResult` 字段不变 + 新增 `vtex`（= `protected_tex` 拼接前的源文
+  本；`parse_tex` 单文件时恒等于入参）。
+- `parse_file(path)`：`flatten_inputs` 退役进 bench 参考；`Gullet`
+  `root_dir=parent`；`res.inputs` 记 `(vpos, path)`。
+- parsebench 门：corpus_v3 1955 文件 **identity=100%**（对 `res.vtex`）、
+  leak 不劣于现基线（57 dollar 例）、unresolved_inputs ≤ 111、chunk 召回
+  不降（展开组应带来**增量**——`transparent_expand` 49% 藏文本回收）。
+- 性能门：§11 max≤500ms/文件 保持；Mouth tokenize + 展开每文件新增
+  耗时需实测（c2 的 gullet-corpus bench 先给数据）。
+- 回退开关：`TEXLATE_NO_EXPAND=1` 走旧字节 scanner（并存期基准对照）。
+
+## 8. 实施切片（建议顺序）
+
+1. **S1 骨架**：`segmenter.py` 新模块——TokenSource 抽象 + vtex 账本 +
+   run 双轨 + 直排（verbatim/math/env/chunk-arg 先全按「整块保护」），
+   corpus 抽样冒烟。
+2. **S2 分派移植**：dispatch 19 行逐行过 + `_args` token 版 + in_arg
+   子扫；对照旧 scanner 双跑 diff（同 corpus 输出对齐）。
+3. **S3 展开语义**：transparent_expand 表面入 run + `ph_map[CHUNK]`
+   fallback + EXPAND ph + eol_par 虚拟分段。
+4. **S4 `\if`/`\input` 接线**：界标档 + marker 事件 + resync。
+5. **S5 门**：parsebench corpus_v3 双跑 + e2e-real s40 + 性能曲线。
+
+每片独立可验；S2 起即可双跑 diff 当回归。
