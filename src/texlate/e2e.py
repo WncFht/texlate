@@ -19,8 +19,7 @@ from texlate.compile.normalize import normalize_project
 from texlate.latex.api import parse_file
 from texlate.latex.reconstruct import reconstruct
 from texlate.validate.l0 import validate_pair
-from texlate.xlat.pipeline import ChunkIn, MockTranslator, XlatPipeline
-from texlate.xlat.prompts import normalize_kind
+from texlate.xlat.pipeline import ChunkIn, MockTranslator, XlatPipeline, chunk_to_in
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -42,14 +41,7 @@ def mock_translate_tree(root: Path) -> dict:
         res = parse_file(f, flatten=False)
         idx = len(scans)
         scans.append((f, res))
-        chunks.extend(
-            ChunkIn(
-                chunk_id=f"{idx}:{c.id}",
-                content=c.content,
-                kind=normalize_kind(c.context),
-            )
-            for c in res.chunks
-        )
+        chunks.extend(chunk_to_in(c, chunk_id=f"{idx}:{c.id}") for c in res.chunks)
 
     pipe = XlatPipeline(
         MockTranslator(),

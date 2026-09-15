@@ -39,6 +39,8 @@ from .state import ChunkRecord, StateStore, segment_key
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from texlate.latex.model import Chunk
+
     from .glossary import Glossary
 
 log = logging.getLogger(__name__)
@@ -63,6 +65,19 @@ class ChunkIn:
     chunk_id: str
     content: str
     kind: str = "para"
+
+
+def chunk_to_in(c: Chunk, *, chunk_id: str | None = None) -> ChunkIn:
+    """``Chunk`` → ``ChunkIn`` 唯一适配点（context → kind 走 ``normalize_kind``）。
+
+    ``chunk_id`` 缺省 ``str(c.id)``；多文件编排时调用方给命名空间 id
+    （如 ``f"{file_idx}:{c.id}"``）。
+    """
+    return ChunkIn(
+        chunk_id=chunk_id if chunk_id is not None else str(c.id),
+        content=c.content,
+        kind=prompts.normalize_kind(c.context),
+    )
 
 
 @dataclass
