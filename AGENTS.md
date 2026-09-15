@@ -44,7 +44,7 @@ CI（`.github/workflows/ci.yml`）与本地同源，本地不过 CI 必挂。
 
 - 本仓处于 M0 实施阶段：`src/texlate/` 产品代码 + `tests/` pytest；`bench/` 下是评测 harness 与语料管线。
 - 产品代码一律走 uv venv：`uv sync` 后 `uv run pytest tests/` / `uv run texlate`；**`src/**` 吃 ruff select=ALL 严格集（docstring/类型标注/异常纪律），bench/tests 的脚本豁免在 per-file-ignores**。
-- `bench/py/` 脚本用系统 python3（依赖见各文件头部注释）；`babeldoc` 对照实验用 `bench/py/.venv_babeldoc/` 专用 venv。
+- `bench/py/` 脚本分两档：纯 bench 工具用系统 python3（依赖见各文件头部注释）；**import `texlate.*` 产品代码的（e2e_mock_bench/parsebench v2 等）必须 `uv run python bench/py/…`**——venv 才有 httpx/typer。`babeldoc` 对照实验用 `bench/py/.venv_babeldoc/` 专用 venv。
 - `bench/ts/` 自带 `package.json` + `node_modules`（latexjs/unified-latex/tree-sitter 依赖），与根 toolchain 的 package.json 无关——在 `bench/ts/` 里 `npm ci`。
 - `bench/corpus*/` 语料是 arXiv e-print 解压原样，不改写；新增语料登记对应 `MANIFEST.md`。
 - 参考实现 `~/src/ieeA`（zcyisiee/ieeA）只借鉴模式不搬代码。
