@@ -184,6 +184,10 @@ def run_process(
         cmd,  # --untrusted/-no-shell-escape/env 白名单/sandbox-exec 约束
         cwd=str(cwd),
         env=env,
+        stdin=subprocess.DEVNULL,  # 缺文件时 TeX 仍 \read stdin 问替代名——
+        # 不钉死则吃 harness 继承的 stdin，行为随父进程飘（e2e-real 2308.12712
+        # r1 出 4.4MB pdf / r2 emergency stop 即此不确定性）；钉 DEVNULL =
+        # 确定性 EOF → emergency stop → missing_file 归因稳定。
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         start_new_session=(sys.platform != "win32"),
