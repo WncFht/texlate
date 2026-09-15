@@ -168,9 +168,11 @@ def run_process(
         out, _ = proc.communicate()
     if out is None:
         out = b""
+    # 封顶保留**尾部**——消费端是 stdout_tail（tectonic 不写 .log 时的错误
+    # 兜底），fatal error 恒在末尾；截头会把诊断现场丢掉。
     return (
         proc.returncode,
-        out[:out_cap].decode("utf-8", errors="replace"),
+        out[-out_cap:].decode("utf-8", errors="replace"),
         time.time() - t0,
         timed_out,
     )
