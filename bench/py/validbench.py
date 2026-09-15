@@ -585,7 +585,7 @@ def gen_cases(
     papers_limit: int,
 ) -> tuple[list[dict], dict]:
     """逐 paper parse_file → 干净 chunk → ph/raw 两层对 × clean+10 类破坏."""
-    rng = random.Random(seed)  # noqa: S311 — bench 变异抽样, 非密码用途
+    rng = random.Random(seed)
     cases: list[dict] = []
     stats = {"papers_seen": 0, "papers_used": 0, "parse_fail": [], "pairs": 0}
     dirs = _paper_dirs(corpus)
@@ -635,9 +635,7 @@ def gen_cases(
                 )
                 n_pairs += 1
                 for kind, fn in CORRUPTIONS:
-                    crng = random.Random(  # noqa: S311 — 同上
-                        zlib.crc32((cid + kind).encode())
-                    )
+                    crng = random.Random(zlib.crc32((cid + kind).encode()))
                     bad = fn(zh, crng)
                     if bad is None:
                         continue

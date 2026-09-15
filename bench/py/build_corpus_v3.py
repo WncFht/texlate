@@ -743,7 +743,7 @@ def eligible(f: dict) -> bool:
 
 
 def cmd_sample() -> None:
-    rng = random.Random(SEED)  # noqa: S311 — 语料抽样非安全用途
+    rng = random.Random(SEED)
     alloc = {r["cluster_id"]: r for r in load_allocation()}
     mix: dict[str, dict[str, float]] = {}
     for r in csv.DictReader(open(EXP / "frame" / "cluster-cat-mix.csv")):

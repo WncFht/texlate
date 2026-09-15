@@ -132,7 +132,7 @@ def load_pool():
 
 def gen_sample():
     pool = load_pool()
-    rng = random.Random(SEED)  # noqa: S311  # 语料抽样非安全用途
+    rng = random.Random(SEED)  # 语料抽样非安全用途
     by_band = defaultdict(list)
     for p in pool.values():
         by_band[p["band"]].append(p)
