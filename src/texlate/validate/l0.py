@@ -35,7 +35,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Final
 
-from texlate.textutil import lev_capped, mask_comments
+from texlate.textutil import CJK_RX, lev_capped, mask_comments
 
 __all__ = [
     "Issue",
@@ -73,8 +73,6 @@ KEY_CMD_RX: Final = re.compile(
 
 ENV_RX: Final = re.compile(r"\\(begin|end)\s*\{([^{}]*)\}")
 
-#: CJK 统一表意文字（基本区 + 扩展 A + 兼容表意）。
-CJK_RX: Final = re.compile(r"[㐀-䶿一-鿿豈-﫿]")
 
 #: zh 内剥命令/占位符用。
 _CS_OR_SYM_RX: Final = re.compile(r"\\[a-zA-Z@]+\*?|\\.")

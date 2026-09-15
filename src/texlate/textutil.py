@@ -25,9 +25,12 @@ import re
 from typing import Final
 
 __all__ = [
+    "CJK_RANGES",
+    "CJK_RX",
     "DEAD_ENVS",
     "VERBATIM_ENVS",
     "decode_tex",
+    "is_cjk_cp",
     "lev_capped",
     "mask_comments",
     "mask_tex",
@@ -176,6 +179,32 @@ def decode_tex(blob: bytes) -> str:
         except UnicodeDecodeError:
             continue
     return blob.decode("utf-8", errors="replace")
+
+
+# ---------------------------------------------------------------- CJK 码点面
+
+#: CJK 统一表意码点面：扩A + 基本区 + 兼容区 + 〇（U+3007，日期用字）
+#: + 扩B~F（U+20000–2FA1F）。judge/l0/l2 三处计数曾各自漂移（judge 缺
+#: 〇、l0 只有三区、l2 扩F 截断在 2EBEF）——单源化后口径唯一。
+CJK_RANGES: Final = (
+    (0x3400, 0x4DBF),
+    (0x4E00, 0x9FFF),
+    (0xF900, 0xFAFF),
+    (0x3007, 0x3007),
+    (0x20000, 0x2FA1F),
+)
+
+#: ``CJK_RANGES`` 的字符类形态（``findall`` 计数用）。
+CJK_RX: Final = re.compile(
+    "["
+    + "".join(f"{chr(lo)}-{chr(hi)}" if lo != hi else chr(lo) for lo, hi in CJK_RANGES)
+    + "]"
+)
+
+
+def is_cjk_cp(cp: int) -> bool:
+    """码点是否落在 ``CJK_RANGES``（``Missing character:`` 码点判定用）。"""
+    return any(lo <= cp <= hi for lo, hi in CJK_RANGES)
 
 
 def lev_capped(a: str, b: str, cap: int) -> int:

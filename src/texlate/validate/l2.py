@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Final
 
 from texlate.texlog import looks_like_tex_file, update_file_stack
+from texlate.textutil import is_cjk_cp
 
 __all__ = [
     "L2Verdict",
@@ -116,23 +117,10 @@ _TAIL_LINES: Final = 30  # log 尾部留存行数
 _MAX_STORED_ERRORS: Final = 200  # 存储上限（n_errors 仍精确计数）
 _MAX_WARN_SAMPLES: Final = 5  # 每类 warning 样例留存上限
 
-#: CJK 码点区间（基本区+扩展 A/兼容区+扩展 B；对 missing_glyph 判中文渲染）。
-_CJK_RANGES: Final = (
-    (0x3400, 0x4DBF),
-    (0x4E00, 0x9FFF),
-    (0xF900, 0xFAFF),
-    (0x20000, 0x2A6DF),
-    (0x2A700, 0x2EBEF),
-)
-
 #: docs/08 §4.3 红线 warning 类（命中即记入 ``WarningSummary.redlines``）。
 _REDLINE_CLASSES: Final = frozenset(
     {"invalid_utf8", "missing_glyph_cjk", "file_not_found"}
 )
-
-
-def _is_cjk(cp: int) -> bool:
-    return any(lo <= cp <= hi for lo, hi in _CJK_RANGES)
 
 
 # ---------------------------------------------------------------- 数据
@@ -252,7 +240,7 @@ def _classify_warning(line: str, ws: WarningSummary) -> None:
             break
     if cls == "missing_glyph":
         m = _MISSING_CHAR_RX.search(line)
-        if m is not None and _is_cjk(int(m.group(1), 16)):
+        if m is not None and is_cjk_cp(int(m.group(1), 16)):
             ws.cjk_missing += 1
             cls = "missing_glyph_cjk"
     ws.total += 1
