@@ -76,7 +76,9 @@ class Chunk:
 
     id: int
     content: str
-    context: str = "paragraph"  # "paragraph" | "item" | chunk-arg 命令名
+    context: str = (
+        "para"  # "para"|"item"|chunk-arg 命令名（"paragraph" 专指 \paragraph 节题）
+    )
     span: Span = field(default_factory=lambda: Span(0, 0))
     env: str | None = None
     placeholders: list[str] = field(default_factory=list)

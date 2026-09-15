@@ -327,7 +327,7 @@ class Scanner:
         core_start, core_end = rs + len(lead), re_ - len(trail)
         gspan = Span(self.base + core_start, self.base + core_end)
         refs = "".join(
-            self._new_chunk(part, "item" if force else "paragraph", gspan)
+            self._new_chunk(part, "item" if force else "para", gspan)
             for part in self._split_core(core)
         )
         self.pieces.append(

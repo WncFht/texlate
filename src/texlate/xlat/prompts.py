@@ -27,18 +27,28 @@ _KINDS = ("para", "caption", "section_title", "abstract", "table_text", "env_tex
 
 #: 上游 scanner context → xlat kind 归一表（docs/07 Chunk.context → docs/08 六 kind）
 KIND_ALIASES: dict[str, str] = {
-    "paragraph": "para",
-    "item": "para",
     "para": "para",
+    "item": "para",
     "caption": "caption",
+    "subcaption": "caption",
+    "captionof": "caption",
     "title": "caption",
+    "subtitle": "caption",
     "keywords": "caption",
     "section": "section_title",
     "subsection": "section_title",
     "subsubsection": "section_title",
     "chapter": "section_title",
     "section_title": "section_title",
+    # 以下均为 CHUNK_ARG_NAMES 里的节题命令——\paragraph{} 的 arg 是 run-in
+    # 标题，不是正文段（context="paragraph" 消歧后专指该命令，不再兼作正文 context）
+    "paragraph": "section_title",
+    "subparagraph": "section_title",
+    "part": "section_title",
+    "sect": "section_title",
+    "subsect": "section_title",
     "abstract": "abstract",
+    "abst": "abstract",
     "table_text": "table_text",
     "table": "table_text",
     "env_text": "env_text",

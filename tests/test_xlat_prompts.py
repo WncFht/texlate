@@ -118,7 +118,9 @@ class TestCorrectorAndJudge:
 
 class TestNormalizeKind:
     def test_aliases(self) -> None:
-        assert prompts.normalize_kind("paragraph") == "para"
+        assert prompts.normalize_kind("para") == "para"
         assert prompts.normalize_kind("item") == "para"
         assert prompts.normalize_kind("section") == "section_title"
+        # "paragraph" 消歧后专指 \paragraph 节题命令 → section_title
+        assert prompts.normalize_kind("paragraph") == "section_title"
         assert prompts.normalize_kind("whatever-unknown") == "para"
