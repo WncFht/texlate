@@ -75,6 +75,8 @@ _VERBATIM_BASE: Final = (
     "lstpython",
     "minted",
     "filecontents",
+    "filecontents+",
+    "filecontentsheader",
 )
 #: 逐字族环境全枚举（含 ``*`` 变体）。
 VERBATIM_ENVS: Final = frozenset(

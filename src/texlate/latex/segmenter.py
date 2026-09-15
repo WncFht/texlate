@@ -94,6 +94,8 @@ _PROTECT_TYP = {
     "bibliographystyle": PhType.BIB,
     "bibitem": PhType.BIB,
 }
+# 组内再生保护段的配对前瞻上限（env/math/delim 扫描步数）
+_GRP_SCAN_CAP = 4000
 
 
 # ------------------------------------------------------------------ vtex
@@ -247,8 +249,9 @@ class Segmenter:
         self._run_has_expand = False
         self._open_origin: tuple[int, int, int] | None = None  # 展开组调用区间
         self._open_vspan: Span | None = None  # 该组在 vtex 的落位
-        self._open_surface: list[str] = []
+        self._open_toks: list[Tok] = []  # 组成员 token（surface 收组时产）
         self._open_pfx = ""  # 展开组调用点前的间隙 surface 前缀
+        self._run_pending: dict[str, str] = {}  # 组内 surface ph（chunk 化才入 ph_map）
         self._cov_origin: dict[int, int] = {}  # fid → 上次 _cover_to 的 pre-cons
         self._stop = False  # \end{document}/\endinput 顶层截停
 
@@ -428,13 +431,17 @@ class Segmenter:
         self.math_debt.clear()
         has_expand = self._run_has_expand
         self._run_has_expand = False
+        pending = self._run_pending
+        self._run_pending = {}
         if rs is None or not items:
+            self._run_pending.update(pending)  # 未消费归还（防御）
             return
         s = "".join(it.surface for it in items)
         ident = "".join(it.ident for it in items)
         re_ = end_pos
         if not s.strip() or self.in_arg:
             self._emit_text(rs, re_, self._lit_text(items, ident, re_))
+            self._pending_settle(pending, s, register=False)
             return
         lead = len(_LEAD_WS_RX.match(s).group(0))
         trail_m = _TRAIL_WS_RX.search(s)
@@ -447,23 +454,29 @@ class Segmenter:
         self.force_chunk = False
         if len(clean) < CHUNK_MIN and not (force and clean):
             self._emit_text(rs, re_, self._lit_text(items, ident, re_))
+            self._pending_settle(pending, s, register=False)
             return
         if has_expand:
             # 含展开组的 run 跳过 lead/trail 剥离——整 run 进 content（§2）
             lead, hi = 0, len(s)
-        core_vs = self._vpos_at(items, lead, "start")
-        core_ve = self._vpos_at(items, hi, "end")
-        if core_vs is None or core_ve is None:
+        parts = self._split_bounds(s, items, lead, hi)
+        slices = [self._slice_items(items, p0, p1, hi) for p0, p1 in parts]
+        # gspan = 分段项界并集——零宽项（surface==""，归段规则见 _slice_items）
+        # 的 callsite 字节随段折入，否则尾部 _emit 把同段字节 raw 再发一遍
+        core_vs, core_ve = slices[0][2], slices[-1][3]
+        if core_vs < 0 or core_ve < 0:
             self._emit_text(rs, re_, self._lit_text(items, ident, re_))
+            self._pending_settle(pending, s, register=False)
             return
         if core_vs > rs:
             self._emit(rs, core_vs)
         gspan = Span(core_vs, core_ve)
         context = "item" if force else "para"
-        refs = []
-        for p0, p1 in self._split_bounds(s, items, lead, hi):
-            part_s, part_i, pvs, pve = self._slice_items(items, p0, p1)
-            refs.append(self._new_chunk(part_s, context, Span(pvs, pve), part_i))
+        self._pending_settle(pending, s, register=True)
+        refs = [
+            self._new_chunk(part_s, context, Span(pvs, pve), part_i)
+            for part_s, part_i, pvs, pve in slices
+        ]
         self.pieces.append(
             Piece(
                 PieceKind.CHUNK_REF,
@@ -474,6 +487,21 @@ class Segmenter:
         )
         if core_ve < re_:
             self._emit(core_ve, re_)
+
+    def _pending_settle(
+        self, pending: dict[str, str], s: str, *, register: bool
+    ) -> None:
+        """组内 surface ph 清算。
+
+        本 run ``s`` 引用者登记（chunk）或丢弃（literal——surface 不可见）；
+        未引用者（eol_par 后段未挂项）归还 ``_run_pending`` 待下一 flush。
+        """
+        for tok, body in pending.items():
+            if tok in s:
+                if register:
+                    self.state.ph_map[tok] = body
+            else:
+                self._run_pending[tok] = body
 
     def _lit_text(self, items: list[_RunItem], ident: str, re_: int) -> str:
         """LITERAL piece 文本 = ``ident`` + 项覆盖界外的尾随 vtex 切片。
@@ -487,32 +515,24 @@ class Segmenter:
         return ident
 
     @staticmethod
-    def _vpos_at(items: list[_RunItem], off: int, side: str) -> int | None:
-        """Surface 偏移 ``off`` 落点的 vtex 位（snap 到含它的项界）。
-
-        ``start`` 取 ``off`` 之后首个项的 vstart；``end`` 取含 ``off``
-        项的 vend——项界两侧归属相反，切开即劈项。
-        """
-        acc = 0
-        for it in items:
-            nxt = acc + len(it.surface)
-            if (side == "start" and off < nxt) or (side == "end" and off <= nxt):
-                return it.vstart if side == "start" else it.vend
-            acc = nxt
-        return None
-
-    @staticmethod
     def _slice_items(
-        items: list[_RunItem], lo: int, hi: int
+        items: list[_RunItem], lo: int, hi: int, end: int
     ) -> tuple[str, str, int, int]:
-        """Surface ``[lo,hi)``（项界对齐）→ ``(surface, ident, vstart, vend)``。"""
+        """Surface ``[lo,hi)``（项界对齐）→ ``(surface, ident, vstart, vend)``。
+
+        零宽项（``surface==""``——eol_par 首段可为空）按 ``lo<=acc<hi`` 归段，
+        恰在 ``end`` 的归末段；否则其 ident 双侧段都不收 → dead_ph。
+        """
         acc = 0
         out_s: list[str] = []
         out_i: list[str] = []
         vs = ve = -1
         for it in items:
             nxt = acc + len(it.surface)
-            if nxt > lo and acc < hi:
+            keep = nxt > lo and acc < hi
+            if not it.surface and acc >= lo and (acc < hi or acc == hi == end):
+                keep = True
+            if keep:
                 out_s.append(it.surface)
                 out_i.append(it.ident)
                 if vs < 0:
@@ -581,7 +601,7 @@ class Segmenter:
         vspan = self._cover_to(fid, b)
         self._open_origin = (fid, a, b)
         self._open_vspan = vspan
-        self._open_surface = []
+        self._open_toks = []
         self._open_pfx = pfx
 
     def _close_group(self) -> None:
@@ -592,31 +612,309 @@ class Segmenter:
         """
         if self._open_origin is None or self._open_vspan is None:
             return
-        surface = self._open_pfx + "".join(self._open_surface)
+        segs = self._group_surface()
         vspan = self._open_vspan
-        ph = self._ph(PhType.EXPAND, self.vt.slice(vspan.start, vspan.end))
-        self._rappend(surface, ph, vspan)
+        # 零宽 vspan = callsite 已盖（\end{tabular}→\@checkend 之类内层展开）——
+        # 体恒空、identity 无需占位；签发只会零宽 run literal 冲刷时被
+        # ``_emit_text`` 连 piece 带 token 丢掉 → dead_ph
+        ph = (
+            self._ph(PhType.EXPAND, self.vt.slice(vspan.start, vspan.end))
+            if vspan.end > vspan.start
+            else ""
+        )
+        self._rappend(self._open_pfx + segs[0], ph, vspan)
         self._run_has_expand = True
+        for seg in segs[1:]:
+            # eol_par 虚拟分段符：前半（含 EXPAND 项）冲刷，后半挂下一 run
+            # （ident 空串——调用点字节已由 EXPAND 项计过，§3）
+            self._flush_run(vspan.end)
+            if seg:
+                self._rappend(seg, "", Span(vspan.end, vspan.end))
+                self._run_has_expand = True
         self._open_origin = None
         self._open_vspan = None
-        self._open_surface = []
+        self._open_toks = []
         self._open_pfx = ""
 
     def _in_group(self, t: Tok) -> bool:
-        """``t`` 是否属当前展开组（gen>0 同 origin / gen=0 落调用区间内）。"""
+        r"""``t`` 是否属当前展开组（gen>0 同 origin / gen=0 落调用区间内）。
+
+        gen>0 加一条嵌套包含：``origin`` 落在本组调用区间内的展开产物
+        （arg token 被 gullet 再展开的 ``\\Nrx`` 族）同属本组——surface
+        并入、identity 由本组 ``[[EXPAND]]`` 调用切片兜底；否则内层展开
+        会把外层组提前关闭，其后 arg token 裸落顶层 dispatch（已盖字节
+        二次分派 → 零宽 ENV + 前缀复制，1803.09012 diverged 根因）。
+        """
         o = self._open_origin
         if o is None:
             return False
         if t.gen > 0:
-            return t.origin == o
+            org = t.origin
+            if org is None:
+                return False
+            return org == o or (org[0] == o[0] and o[1] <= org[1] and org[2] <= o[2])
         fid, a, _b = t.pos
         return fid == o[0] and o[1] <= a < o[2]
+
+    # -------------------------------------------------------- 组内再生保护段
+
+    def _grp_ph(self, typ: PhType, body: str) -> str:
+        r"""组内 surface ph：先挂 ``_run_pending``。
+
+        run 转 chunk 才入 ``ph_map``——literal 冲刷只渲染 ident，surface
+        ph 若直登记必成 dead_ph。
+        """
+        return self.state.issuer.new(
+            typ, body, self._run_pending, self.state.ph_reserved
+        )
+
+    def _grp_surfs(self, toks: list[Tok]) -> str:
+        return "".join(self._tok_surface(t) for t in toks)
+
+    def _grp_envtag(self, toks: list[Tok], i: int) -> tuple[str, int] | None:
+        r"""``\\begin``/``\\end`` + ws + ``{name}`` → ``(name, j_end)``；失配 None。"""
+        n = len(toks)
+        j = i + 1
+        while j < n and toks[j].kind == "space":
+            j += 1
+        if j >= n or toks[j].kind != "lbrace":
+            return None
+        depth = 1
+        j += 1
+        parts: list[str] = []
+        while j < n:
+            x = toks[j]
+            if x.kind == "eol_par":
+                return None
+            if x.kind == "lbrace":
+                depth += 1
+            elif x.kind == "rbrace":
+                depth -= 1
+                if depth == 0:
+                    return "".join(parts), j + 1
+            parts.append(self._tok_surface(x))
+            j += 1
+        return None
+
+    def _grp_find_env_end(self, toks: list[Tok], i: int, env: str) -> int | None:
+        r"""``i`` 起找配对 ``\\end{env}``（同名 begin 计深度）→ j_end（``}`` 后）。"""
+        target = env.rstrip("*")
+        depth = 1
+        j = i
+        while j < len(toks) and j - i < _GRP_SCAN_CAP:
+            x = toks[j]
+            if x.kind == "cs" and x.text in ("begin", "end"):
+                hit = self._grp_envtag(toks, j)
+                if hit is not None:
+                    n2, e = hit
+                    if n2.rstrip("*") == target:
+                        depth += 1 if x.text == "begin" else -1
+                        if depth == 0:
+                            return e
+                    j = e
+                    continue
+            j += 1
+        return None
+
+    def _grp_math_end(self, toks: list[Tok], i: int) -> int | None:
+        r"""Mathshift 配对（``$$`` 双 token 形）→ 闭界 j（含）；未中 None。"""
+        dbl = i + 1 < len(toks) and toks[i + 1].kind == "mathshift"
+        j = i + 2 if dbl else i + 1
+        n = len(toks)
+        while j < n and j - i < _GRP_SCAN_CAP:
+            if toks[j].kind == "mathshift":
+                if dbl:
+                    if j + 1 < n and toks[j + 1].kind == "mathshift":
+                        return j + 2
+                    j += 1
+                    continue
+                return j + 1
+            j += 1
+        return None
+
+    def _grp_delim_end(self, toks: list[Tok], i: int, want: str) -> int | None:
+        r"""``\\[``/``\\(`` 配对 ``\\]``/``\\)`` → j_end；未中 None。"""
+        j = i + 1
+        n = len(toks)
+        while j < n and j - i < _GRP_SCAN_CAP:
+            x = toks[j]
+            if x.kind == "cs" and x.text == want:
+                return j + 1
+            j += 1
+        return None
+
+    @staticmethod
+    def _grp_bal(  # noqa: C901 — 两定界族各一段，平铺即规则
+        toks: list[Tok], i: int, *, brace: bool
+    ) -> int | None:
+        """``{…}``/``[…]`` 平衡组 → 闭界 j（含）；``eol_par``/EOF 止 None。"""
+        depth = 0
+        for j in range(i, len(toks)):
+            x = toks[j]
+            if x.kind == "eol_par":
+                return None
+            if brace:
+                if x.kind == "lbrace":
+                    depth += 1
+                elif x.kind == "rbrace":
+                    depth -= 1
+                    if depth == 0:
+                        return j + 1
+            elif x.kind == "other":
+                if x.text == "[":
+                    depth += 1
+                elif x.text == "]":
+                    depth -= 1
+                    if depth == 0:
+                        return j + 1
+        return None
+
+    def _grp_call_end(self, toks: list[Tok], i: int, mand: int) -> int:
+        r"""Cs + ``*``? + ``[opt]``≤3 + ``{arg}``≤mand → j_end（``_protect_cs`` 镜像）。"""
+        n = len(toks)
+        j = i + 1
+        if j < n and toks[j].kind == "other" and toks[j].text == "*":
+            j += 1
+        for _ in range(3):
+            k = j
+            while k < n and toks[k].kind == "space":
+                k += 1
+            if k < n and toks[k].kind == "other" and toks[k].text == "[":
+                e = self._grp_bal(toks, k, brace=False)
+                if e is None:
+                    break
+                j = e
+                continue
+            break
+        for _ in range(mand):
+            k = j
+            while k < n and toks[k].kind == "space":
+                k += 1
+            if k < n and toks[k].kind == "lbrace":
+                e = self._grp_bal(toks, k, brace=True)
+                if e is None:
+                    break
+                j = e
+                continue
+            break
+        return j
+
+    def _group_surface(self) -> list[str]:  # noqa: C901, PLR0912, PLR0915 — 组内保护段分派平铺（§3 再生保护段）
+        r"""组成员 token → surface 段：结构命令再生保护段产 ph。
+
+        展开表面里的 ``\\begin/\\end{env}``（math/verb/protected 整段、
+        其余 tag）、``$…$``/``\\[…\\]``/``\\(…\\)``、cite/ref/PROTECT 族整
+        调用、``\\if`` 族——ph 体 = 展开表面切片（vtex 无对应字节，
+        identity 由本组 ``[[EXPAND]]``/``ph_map[CHUNK]`` 兜底）。
+        ``eol_par`` = 虚拟分段符：切段边界、自身不产字节（§3）。
+        返回 ``list[str]``——段间边界处 ``_close_group`` 做 run 冲刷。
+        """
+        toks = self._open_toks
+        segs: list[str] = []
+        out: list[str] = []
+        i, n = 0, len(toks)
+        while i < n:
+            t = toks[i]
+            if t.kind == "eol_par":
+                segs.append("".join(out))
+                out = []
+                i += 1
+                continue
+            if t.kind == "mathshift":
+                j = self._grp_math_end(toks, i)
+                if j is None:
+                    out.append(self._tok_surface(t))
+                    i += 1
+                    continue
+                out.append(self._grp_ph(PhType.MATH, self._grp_surfs(toks[i:j])))
+                i = j
+                continue
+            if t.kind != "cs":
+                out.append(self._tok_surface(t))
+                i += 1
+                continue
+            name = t.text
+            if name in ("begin", "end"):
+                hit = self._grp_envtag(toks, i)
+                if hit is None:
+                    out.append(self._grp_ph(PhType.ENVTAG, self._tok_surface(t)))
+                    i += 1
+                    continue
+                env, j = hit
+                if name == "begin":
+                    typ = (
+                        PhType.MATH
+                        if env in MATH_ENVS
+                        else PhType.VERB
+                        if env in VERBATIM_ENVS
+                        else PhType.ENV
+                        if env in PROTECTED_ENVS
+                        else None
+                    )
+                    if typ is not None:
+                        e = self._grp_find_env_end(toks, j, env)
+                        if e is not None:
+                            out.append(self._grp_ph(typ, self._grp_surfs(toks[i:e])))
+                            i = e
+                            continue
+                out.append(self._grp_ph(PhType.ENVTAG, self._grp_surfs(toks[i:j])))
+                i = j
+                continue
+            if name in ("[", "("):
+                j = self._grp_delim_end(toks, i, "]" if name == "[" else ")")
+                if j is not None:
+                    out.append(self._grp_ph(PhType.MATH, self._grp_surfs(toks[i:j])))
+                    i = j
+                    continue
+                out.append(self._tok_surface(t))
+                i += 1
+                continue
+            if name in CITE_NAMES or name.startswith("cite"):
+                j = self._grp_call_end(toks, i, 1)
+                out.append(self._grp_ph(PhType.CITE, self._grp_surfs(toks[i:j])))
+                i = j
+                continue
+            if name in REF_NAMES or (
+                name.endswith("ref")
+                and name not in TRANSPARENT_NAMES
+                and name != "href"
+            ):
+                j = self._grp_call_end(toks, i, 1)
+                out.append(self._grp_ph(PhType.REF, self._grp_surfs(toks[i:j])))
+                i = j
+                continue
+            if name in PROTECT_NAMES:
+                j = self._grp_call_end(toks, i, 2 if name == "inputminted" else 1)
+                out.append(
+                    self._grp_ph(
+                        _PROTECT_TYP.get(name, PhType.CMD),
+                        self._grp_surfs(toks[i:j]),
+                    )
+                )
+                i = j
+                continue
+            if name in ("if", "else", "fi", "or") or (
+                name.startswith("if") and name[2:].isalpha()
+            ):
+                out.append(self._grp_ph(PhType.COND, self._tok_surface(t)))
+                i += 1
+                continue
+            if name in ("input", "include"):
+                j = self._grp_call_end(toks, i, 1)
+                out.append(self._grp_ph(PhType.CMD, self._grp_surfs(toks[i:j])))
+                i = j
+                continue
+            out.append(self._tok_surface(t))
+            i += 1
+        segs.append("".join(out))
+        return segs
 
     # ------------------------------------------------------------ 主循环
 
     def scan(self, src: TokenSource, files: list[str]) -> None:
         """消费 ``src`` 至耗尽。``files`` = fid→源文本表（gullet.file_texts）。"""
         self.file_texts = files
+        v0 = len(self.vt)  # 扫描起点——子扫全命中已盖区时不回补前缀
         while not self._stop:
             t = src.next_expanded()
             if t is None:
@@ -633,12 +931,12 @@ class Segmenter:
                 self._on_consumed(t)
                 continue
             if self._in_group(t):
-                self._open_surface.append(self._tok_surface(t))
+                self._open_toks.append(t)
                 continue
             if t.gen > 0:
                 self._close_group()
                 self._open_group(t)
-                self._open_surface.append(self._tok_surface(t))
+                self._open_toks.append(t)
                 continue
             self._close_group()
             self._dispatch(t, src)
@@ -651,9 +949,9 @@ class Segmenter:
         self._flush_run(len(self.vt))
         # flush 后仍可能有 vtex 尾巴无 piece 承接（纯注释/空白尾不产 run
         # 项）——补 LITERAL 保 pieces 平铺不变式。
-        tail_from = self.pieces[-1].span.end if self.pieces else 0
+        tail_from = self.pieces[-1].span.end if self.pieces else v0
         if tail_from < len(self.vt):
-            self._emit(tail_from, len(self.vt))
+            self._emit(max(tail_from, v0), len(self.vt))
 
     @staticmethod
     def _tok_surface(t: Tok) -> str:
@@ -1024,7 +1322,14 @@ class Segmenter:
         if env in VERBATIM_ENVS:
             self._flush_run(v_begin.start)
             pat = "\\end{" + env + "}"
-            k = self.file_texts[fid].find(pat, close_t.pos[2])
+            if env.startswith("filecontents"):
+                # filecontents 逐行读体、end 行首独占才算闭合（kernel 语义）——
+                # 裸 find 会被体内 PostScript/注释里的行中 \end decoy 截短（W26）
+                rx = re.compile(rf"(?m)^[ \t]*{re.escape(pat)}")
+                m = rx.search(self.file_texts[fid], close_t.pos[2])
+                k = -1 if m is None else m.end() - len(pat)
+            else:
+                k = self.file_texts[fid].find(pat, close_t.pos[2])
             if k < 0:
                 self._emit(v_begin.start, v_begin.end)
                 self.state.warnings.append(

@@ -13,6 +13,7 @@ r"""splice 重建 + DAG 递归展开 + validate（docs/07 §9）。
 
 from __future__ import annotations
 
+import logging
 import re
 from collections import Counter
 from dataclasses import dataclass, field
@@ -20,6 +21,8 @@ from dataclasses import dataclass, field
 from texlate.latex.model import Chunk, ScanResult, ScanWarning
 from texlate.latex.placeholder import CHUNK_RX, PH_RX
 from texlate.textutil import CJK_RANGES, mask_tex
+
+log = logging.getLogger(__name__)
 
 _CJK_RX = re.compile(
     r"(\\[a-zA-Z@]+\\*?)(?=["
@@ -134,6 +137,7 @@ def reconstruct(res: ScanResult, translations: dict[int, str] | None = None) -> 
     memo: dict[str, str] = {}
     chunks = res.chunks
     active: set[str] = set()
+    dangling: set[str] = set()  # 查无实体的 ph token——留字面并记名（原静默残留）
 
     def expand(token: str) -> str:  # token 形如 [[X_n]]
         if token in memo:
@@ -147,7 +151,11 @@ def reconstruct(res: ScanResult, translations: dict[int, str] | None = None) -> 
         if body is None:
             m = CHUNK_RX.fullmatch(token)
             idx = int(m.group(1)) if m else -1
-            body = chunks[idx].content if 0 <= idx < len(chunks) else token
+            if 0 <= idx < len(chunks):
+                body = chunks[idx].content
+            else:
+                dangling.add(token)
+                body = token
         memo[token] = PH_RX.sub(lambda mm: expand(mm.group(0)), body)
         active.discard(token)
         return memo[token]
@@ -155,6 +163,12 @@ def reconstruct(res: ScanResult, translations: dict[int, str] | None = None) -> 
     # LITERAL 段也可能内嵌 ph（短 run / MINED_ONLY run 发渲染文本）——全段展开。
     out = [PH_RX.sub(lambda m: expand(m.group(0)), p.text) for p in res.pieces]
     result = "".join(out)
+    if dangling:
+        log.warning(
+            "splice unresolved placeholders left literal: %d kinds (e.g. %s)",
+            len(dangling),
+            ", ".join(sorted(dangling)[:8]),
+        )
     if translations:
         result = cjk_glue_fix(result)
     return result
@@ -187,7 +201,7 @@ def validate_translation(chunk: Chunk, text: str) -> TranslationVerdict:
     )
 
 
-def validate_result(res: ScanResult) -> list[ScanWarning]:  # noqa: C901 — 四类校验各一段，平铺即清单
+def validate_result(res: ScanResult) -> list[ScanWarning]:  # noqa: C901, PLR0912 — 四类校验各一段，平铺即清单
     """结构校验：孤儿 chunk、死 ph、pieces 非平铺、悬空占位符引用。"""
     warns: list[ScanWarning] = []
 
@@ -224,6 +238,10 @@ def validate_result(res: ScanResult) -> list[ScanWarning]:  # noqa: C901 — 四
                 stack.extend(PH_RX.findall(res.chunks[idx].content))
             else:
                 warns.append(ScanWarning("dangling_chunk_ref", 0, tok))
+            # ``ph_map[CHUNK]`` fallback 体同走 ``expand`` 优先级——内含
+            # ``[[EXPAND_n]]`` 引用属可达面，不计 dead_ph
+            if tok in res.ph_map:
+                stack.extend(PH_RX.findall(res.ph_map[tok]))
         elif tok in res.ph_map:
             stack.extend(PH_RX.findall(res.ph_map[tok]))
         else:

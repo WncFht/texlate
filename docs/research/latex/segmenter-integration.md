@@ -96,6 +96,26 @@ run 项从 `str` 升级为 `(surface, ident)` 双轨：
 > - **组内 consumed marker 不破组界**：gen>0 marker 的 pos 是定义体区段
 >   （早已覆盖、零宽即可），`\document` 级大宏展开体内含 def/if/input
 >   marker 属常态；仅 input 型组内也记 `inputs[]`。
+>
+> S3 全量落地后追加三条（corpus_v3 1955 文件实测）：
+>
+> - **零宽 surface 项归段**：`_close_group` 的 eol_par 分段可产出
+>   `surface==""` 但 vspan 盖真实 callsite 的 run 项（如
+>   `\def\abs{\par…}` 展开面以 `\par` 开头）。`_slice_items` 对零宽项
+>   按 `acc >= lo and (acc < hi or acc == hi == end)` 归段；且其 ident
+>   一旦进 chunk identity，callsite 字节必须折入段 gspan——gspan 取
+>   分段项界并集（`slices[0].vstart … slices[-1].vend`），否则尾部
+>   `_emit` 把同段字节 raw 再发 → 双发 diverged。
+> - **零宽 callsite 不签 EXPAND**：嵌套展开里内层组的 callsite 已被外层
+>   盖过（vspan 零宽），签发 `[[EXPAND_n]]` 只会被零宽 run literal 冲刷
+>   时 `_emit_text` 的 `vend > vstart` 守卫连 piece 带 token 丢掉 →
+>   dead_ph。`_close_group` 对 `vspan.end == vspan.start` 直接置
+>   `ident=""`。
+> - **filecontents 行首锚定**：kernel 语义是逐行读体、`\end{filecontents}`
+>   行首独占才闭合——体内 PostScript/注释里的行中 `\end{…}` 全是字面
+>   负载。verbatim 路的闭合查找对 filecontents 族改用
+>   `(?m)^[ \t]*\end{…}` 锚定；`filecontents+`/`filecontentsheader`
+>   变体补登 `_VERBATIM_BASE`。
 
 | 缺口                      | 现状                                                                                                                                                             | 需要                                                                                                                                                                                                                         |
 | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -240,3 +260,35 @@ dispatch 普查（`bench/results/v2-census-2026-09-15.md`）：UNKNOWN 兜底
 49.5% cs token——`\\`(16.7k=行界应走 boundary)、`\[`/`\(`（已接 row16）、
 控制符号族（row17 已收）为主，余为 bibinfo/bbl 内部与真未知宏——
 CMD ph 兜底符合设计。
+
+## 10. S3 落地记录（2026-09-16）
+
+展开语义全接：transparent_expand 表面入 run（`_RunItem.surface` 渲染、
+ident = `[[EXPAND_n]]` 体=调用点 vtex 切片）、`ph_map[CHUNK]` fallback
+（chunk identity 走 `expand()` 的 trans→ph_map→content 优先级，零 schema
+变更）、eol_par 虚拟分段符（展开组内 flush、不产字节）、`_split_core`
+溢出切分整组归属。嵌套展开组（diverged 孤例根因）两处修法：组界判定
+补「gen>0 且 origin⊆组调用区间 → 同组」的包含关系（内层 origin 被外层
+callsite 包住时不再早闭外组）+ pending 分区登记。零宽三补丁与
+filecontents 行首锚定见 §4 落地状态追加段。
+
+验收（`bench/results/parsebench-v2full-s3c-2026-09-15/`，corpus_v3 全量
+1955 双跑，对照列 = v1 scanner 同跑）：
+
+| 指标                                | v1              | v2 (S3)         | 判定              |
+| ----------------------------------- | --------------- | --------------- | ----------------- |
+| parse ok                            | 1955/1955       | 1955/1955       | —                 |
+| identity strict/normalized/diverged | 1955/0/0        | 1955/0/0        | diverged 孤例清零 |
+| vtex_vs_src 展开足迹                | —               | strict 1955/0/0 | 全覆盖            |
+| leaked chunks                       | 57              | 90              | 见下              |
+| dead ph（chunk+protect）/ orphan    | 0               | 0               | 18345→65→0 收口   |
+| Σ chunks / placeholders             | 135116 / 789773 | 115240 / 932999 | 展开面进 chunk    |
+| wall ms p50 / p95                   | 7 / 202         | 35 / 285        | 约 5×，可接受     |
+
+leak 90 构成：dollar 61（`\$` 转义美元被 `_on_math` 当定界——良性 FP 大头，
+v1 同族 57 个）、conditional 27（`\iffull`/`\ifx` 族真漏——`\if` 求值未接，
+属 S4 域）、begin_env 2。无新 hit 族。
+
+遗留 → S4：`\if` 两档界标回放 + ifflags 真值表接线 + consumed `if:` marker
+已在 gullet 侧备好；F12 墓标（拉取序号版）。filecontents 族（含 `+`/
+`header` 变体）opaque 块 + end 行首锚定已落（W26 闭环）。
