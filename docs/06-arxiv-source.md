@@ -42,9 +42,11 @@
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------- |
 | 单请求 429 / 5xx          | 重试 3 次：+10s → +30s → +90s（±20% jitter）；`Retry-After` 有则从其值                                              |
 | 单请求 404                | 不重试，记 `not_found`                                                                                              |
-| **同 host 连续 2 次 429** | **断路器**：该 host **按路径**队列 park 15min（实测：限流按路径不按 host；惩罚窗口 >30min、无 Retry-After）         |
+| **同 host 连续 2 次 429** | **断路器**：该 host **按路径**队列 park 30min（勘误见表下）                                                         |
 | park 后首请求仍 429       | park 翻倍，上限 2h；全程 checkpoint 落盘可恢复                                                                      |
 | **~150 发/日后 406**      | 按 IP 累计配额惩罚：`/src/` 开始回 406、1–3min 自愈但密度渐升至近 100% → **直采日预算 ≈150–200 发**，超出走批量渠道 |
+
+> 勘误 2026-09-15：park 时长原文 15min，与本文自身「惩罚窗口 >30min」的实测证据矛盾，实现取 1800s；限流实测按路径不按 host；429 响应无 Retry-After。
 
 含义：元数据队列与下载队列独立调度；export 持续 429 只 park 元数据队列，下载照常。
 
@@ -83,7 +85,9 @@ bytes[0:4] == "%PDF"         → PDF 直投（无源码 → sidecar）
 ### 2.3 主文件定位算法
 
 ```
-candidates = { f ∈ *.tex | strip_comments(f) 含 \documentclass 或 \documentstyle }
+candidates = { f ∈ *.{tex,latex,ltx,TEX,…}（扩展名大小写不敏感） | strip_comments(f) 含 \documentclass 或 \documentstyle }
+# 勘误 2026-09-15：候选扩展名原文仅 *.tex；corpus_v2 实证 article.latex（nucl-ex/0203009
+# 唯一主文件）、corpus_v3 命中 .TEX×2——匹配须大小写不敏感且覆盖 .latex/.ltx。
 ```
 
 1. **先剥注释再匹配**（`\documentclass` 选项可被注释穿插；注释剥离须 `\%` 转义与 verbatim 感知）。
@@ -94,8 +98,8 @@ candidates = { f ∈ *.tex | strip_comments(f) 含 \documentclass 或 \documents
 ### 2.4 `\input` 拓扑
 
 - 识别：`\input` `\include` `\InputIfFileExists` `\subfile` `\import{dir}{file}` `\subimport` `\includestandalone` `\CatchFileBetweenTags` + **裸文件名形 `\input file`**（1502.01589 实测 20+ 处）。
-- 路径解析：相对 including 文件目录 → 退项目根；扩展名补全 `.tex` → `.sty` → 裸名。
-- `\bibliography{x}` → `x.bbl`（48.1% 语料自带 .bbl 直消费；仅 5.8% 需现场 bibtex）。
+- 路径解析：**CWD（编译主目录）→ 项目根 → including 文件目录**（勘误 2026-09-15：原文写「including 目录→项目根」，corpus39 实测序以此为准；including-dir 回退覆盖 import 族语义）；扩展名补全 `.tex` → `.sty` → 裸名。
+- `\bibliography{x}` → **`\jobname.bbl`**（主文件词干；勘误 2026-09-15：原文写 `x.bbl`，1502.01589 实证 24 个 .bib 全缺而 bbl 在——TeX 语义按 jobname）。48.1% 语料自带 .bbl 直消费；仅 5.8% 需现场 bibtex。
 - 环检测：绝对路径 `_seen` 集断环记 warning（防环优先于重复展开语义——留档偏差）。
 
 ## 3. 元数据层

@@ -183,7 +183,9 @@ bench/corpus_v3/                 # manifest 入库，数据 gitignored
 | strict identity     | ≥99.5%（normalized 容差单列）              |
 | leak rate           | ≤0.15%（chunk 级 CI 上界）                 |
 | dead/orphan         | 0                                          |
-| flatten coverage    | ≥99% 主文件触及                            |
+| flatten coverage    | ≥99% 主文件触及（口径勘误见表下）          |
+
+> 勘误 2026-09-15：v3 实测 flatten coverage 93.1%——orphan 大头是 e-print 内**未被主文件 `\input` 触及的随附 tex**（preamble/poster 件，124 例），属语料真实属性而非实现漏跟；口径宜改为「排除 unreferenced 后的触及率」或放宽至 ≥93% 并把 orphan 类目进机制台账。
 
 基线参照（corpus_v2 实测）：137 篇 / 223 .tex → ok 100%、identity 100%、leak 0.086%（15/17,375）、0 dead/orphan；17.6s 全量。
 

@@ -108,7 +108,7 @@ env judge 参数：**temperature=0、max_tokens=16、3 次重试、解析 `true/
 ### 1.6 并发 / 重试 / 断点
 
 - `asyncio.Semaphore(10)`（按 provider 限额 10~50 可调）；**首发单飞暖前缀缓存**，其余并发。
-- 退避：指数 `retry_delay·2^attempt`（429 用 `3^attempt` 下限 5s；timeout 下限 10s；`Retry-After` 从其值）；3~5 试；失败回退原文 + `skipped`+`skip_reason` 不阻塞整批。
+- 退避：指数 `retry_delay·2^attempt`（429 用 `3^attempt` 下限 5s；timeout 下限 10s；`Retry-After` 从其值）；3~5 试；失败回退原文 + `skipped`+`skip_reason` 不阻塞整批。（勘误 2026-09-15 B4a 实测：本网关 429 的 retry_after 在 **body `error.retry_after`（秒）** 而非 HTTP header——解析序 body→header→默认退避；429 系多租户共享流量触发，与本地并发宽度无关。）
 - 温度：翻译 0.2~0.3；judge/抽取 0。
 - **重试阶梯**：整段×2（字段化反馈）→ 行级修复（闭合 scope 边界按句号切）→ slots JSON 兜底（`⟪S0000⟫` 槽位、`response_format json_object`、8 槽/批、**失败槽只重问失败批**）→ 三振 `fallback_orig` + warning → `partial` 终态。
 - `recover_copied_tokens`：模型把受保护原文抄回时，**唯一出现**才换回 token（exact+unique 才修，不瞎猜）。
