@@ -92,6 +92,19 @@ def count_missing_chars(log_text: str) -> int:
     return len(re.findall(r"Missing character:", log_text))
 
 
+def _signal_attribution(res: CompRes) -> int | None:
+    """引擎被杀的信号号（无则 None）。
+
+    ``killed_signal`` 覆盖任一 pass（res.rc 只记末 pass，mid-loop 死亡会被
+    掩盖——2211.13013 实证）；``rc<0`` 兜底手工构造的 CompRes。
+    """
+    if res.killed_signal is not None:
+        return res.killed_signal
+    if res.rc is not None and res.rc < 0:
+        return -res.rc
+    return None
+
+
 def _cjk_render_check(v: Verdict, res: CompRes) -> None:
     """中文渲染检查（expect_cjk 时）：pdftotext 优先，缺席降级 log 判据。"""
     cjk = pdf_cjk_chars(res.pdf) if res.pdf else -1
@@ -121,6 +134,12 @@ def judge(res: CompRes, *, expect_cjk: bool = False, log_text: str = "") -> Verd
     if not res.ok and res.timed_out:
         v.reasons.append("timeout")
         return v
+    # 引擎被信号杀死：死进程产出不可信，有 pdf 也判 dirty，
+    # 并把真凶写进 reasons/notes（截断 aux 的下游症状不再顶包归因）。
+    sig = _signal_attribution(res)
+    if sig is not None:
+        v.notes.append(f"engine_killed:SIG{sig}")
+        v.reasons.append(f"killed_by_signal:{sig}")
     if not res.has_pdf:
         v.reasons.append("no_pdf")
         cat, pay = classify_error(

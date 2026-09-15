@@ -182,10 +182,12 @@ def _res(
     pdf: bool = True,
     log_text: str = "",
     timed_out: bool = False,
+    rc: int | None = 0,
 ) -> CompRes:
     res = CompRes(engine="xelatex")
     res.ok = not timed_out
     res.timed_out = timed_out
+    res.rc = rc
     if pdf:
         p = tmp_path / "main.pdf"
         p.write_bytes(b"%PDF-fake")
@@ -229,6 +231,41 @@ def test_judge_utf8_warning_dirty(tmp_path: Path) -> None:
     log = "Invalid UTF-8 byte or sequence at line 9 replaced by U+FFFD.\n"
     v = judge(_res(tmp_path, pdf=True, log_text=log))
     assert v.status == "partial"
+
+
+def test_judge_signal_death_attribution(tmp_path: Path) -> None:
+    """2211.13013 实证：xdvipdfmx 死 → xelatex 收 SIGPIPE(rc=-13)，
+    aux/log 截断的下游症状（invalid_utf8）曾顶包归因——rc<0 必须
+    单独进 reasons/notes，且有 pdf 也判 partial（死进程产出不可信）。"""
+    log = "Invalid UTF-8 byte or sequence at line 9 replaced by U+FFFD.\n"
+    v = judge(_res(tmp_path, pdf=True, log_text=log, rc=-13))
+    assert v.status == "partial"
+    assert "killed_by_signal:13" in v.reasons
+    assert any("engine_killed:SIG13" in n for n in v.notes)
+
+
+def test_judge_signal_death_no_pdf(tmp_path: Path) -> None:
+    """信号杀死 + 无 pdf：fail 且真凶在 reasons，不是哑巴 no_pdf。"""
+    v = judge(_res(tmp_path, pdf=False, rc=-9))
+    assert v.status == "fail"
+    assert "killed_by_signal:9" in v.reasons
+    assert "no_pdf" in v.reasons
+
+
+def test_judge_signal_death_clean_log_still_dirty(tmp_path: Path) -> None:
+    """log 表面干净但引擎被杀（罕见：写完 pdf 后崩）——仍判 partial。"""
+    v = judge(_res(tmp_path, pdf=True, log_text="all good\n", rc=-13))
+    assert v.status == "partial"
+    assert "killed_by_signal:13" in v.reasons
+
+
+def test_judge_signal_death_masked_by_later_pass(tmp_path: Path) -> None:
+    """pass1 被杀、pass2 跑完 rc=0：res.rc 末值掩不掉 killed_signal 归因。"""
+    res = _res(tmp_path, pdf=True, log_text="all good\n", rc=0)
+    res.killed_signal = 13  # 引擎侧 mid-loop 死亡记录
+    v = judge(res)
+    assert v.status == "partial"
+    assert "killed_by_signal:13" in v.reasons
 
 
 def _judge_mod() -> ModuleType:

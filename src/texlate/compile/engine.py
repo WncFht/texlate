@@ -69,7 +69,10 @@ class CompRes:
     timed_out: bool = False
     seconds: float = 0.0
     passes: int = 0
-    rc: int | None = None
+    rc: int | None = None  # 最后一个 pass 的 rc（逐 pass 覆写）
+    #: 任一 pass 被信号杀死时记信号号（如 13=SIGPIPE）——res.rc 只留
+    #: 末 pass，mid-loop 死亡会被后 pass 掩盖（2211.13013 实证）。
+    killed_signal: int | None = None
     stdout_tail: str = ""
     deps: list[str] | None = None  # compiled_dependencies（.fls/.mk 权威输入集）
 
@@ -516,6 +519,8 @@ class XelatexEngine:
                 break
             rc, out_s, sec, to = run_process(cmd, cwd=cwd, env=env, timeout=per_pass)
             res.rc = rc
+            if rc is not None and rc < 0:
+                res.killed_signal = -rc
             res.seconds += sec
             res.timed_out = res.timed_out or to
             res.passes = p
@@ -744,6 +749,8 @@ class TectonicEngine:
         for _attempt in range(_TECTONIC_ATTEMPTS):
             rc, out_s, sec, to = run_process(cmd, cwd=cwd, env=env, timeout=timeout)
             res.rc = rc
+            if rc is not None and rc < 0:
+                res.killed_signal = -rc
             res.seconds += sec
             outputs.append(out_s)
             # 末次尝试的 timeout 态才算数——首拉超时后重试成功不能再背
