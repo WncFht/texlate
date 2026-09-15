@@ -819,8 +819,9 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
 ) -> dict[str, Any]:
     """跑一格修复循环 → cell dict (字段与 spike fixloop-results.json 兼容)。
 
-    verdict ∈ clean / acceptable_pdf / dirty_pdf / unfixable:<cat> /
-    stuck / max_rounds / reject:<rid> / no_errors_no_pdf / no_main_tex
+    verdict ∈ clean / acceptable_pdf / dirty_pdf / best_effort_pdf /
+    unfixable:<cat> / stuck / max_rounds / reject:<rid> /
+    no_errors_no_pdf / no_main_tex
     """
     rs = ruleset or Ruleset.load()
     engine_name = engine_name or getattr(
@@ -951,6 +952,46 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
         ctx.events.append(f"apply {rule.id}: {note}")
     else:
         cell["verdict"] = "max_rounds"
+
+    # —— best-effort 兜底 pass: 规则耗尽且末轮无 pdf → 去 halt-on-error 让
+    # TeX 错误恢复跑到底救残页 (astro-ph/0306068 型真回归: 首错即停 vs
+    # nonstopmode 续跑出 partial pdf)。reject:* 是语义拒绝不救; clean/
+    # dirty/acceptable 已有 pdf 不救; timeout 重跑大概率再超时, 不救。
+    v_now = str(cell["verdict"] or "")
+    if (
+        v_now
+        and not v_now.startswith("reject:")
+        and v_now not in ("clean", "acceptable_pdf", "dirty_pdf", "unfixable:timeout")
+        and not (cell["rounds"] and cell["rounds"][-1]["pdf"])
+    ):
+        sres = eng.compile(wdir, ctx.main_rel, passes=1, best_effort=True)
+        srep = _report_of(sres, rs.warn_patterns)
+        spdf = _res_has_pdf(sres)
+        cell["rounds"].append(
+            {
+                "round": len(cell["rounds"]) + 1,
+                "salvage": True,
+                "pdf": spdf,
+                "pdf_bytes": int(getattr(sres, "pdf_bytes", 0) or 0),
+                "n_errors": srep.n_bang,
+                "category": None,
+                "payload": None,
+                "warnings": list(srep.warnings),
+                "line_no": srep.line_no,
+                "file_stack": srep.file_stack,
+                "sec": round(float(getattr(sres, "seconds", 0.0)), 1),
+            }
+        )
+        cell["actions"].append(
+            {
+                "round": "salvage",
+                "rule": "_best_effort_pass",
+                "detail": f"nonstopmode 兜底: pdf={spdf} err={srep.n_bang}",
+            }
+        )
+        ctx.events.append(f"salvage best_effort: pdf={spdf} err={srep.n_bang}")
+        if spdf:
+            cell["verdict"] = "best_effort_pdf"
 
     # —— 汇总最终态 (spike L776-791) ——
     last = cell["rounds"][-1] if cell["rounds"] else {}

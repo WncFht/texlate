@@ -52,10 +52,10 @@ import json
 import os
 import shutil
 import subprocess
+import threading
 import time
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from functools import lru_cache
 from pathlib import Path
 
 from texlate.compile import (
@@ -110,21 +110,34 @@ class _NoSandbox:
     def __setattr__(self, k: str, v: object) -> None:
         setattr(self._eng, k, v)
 
-    def compile(self, wdir: Path, main: str, passes: int = 2) -> object:
-        return self._eng.compile(wdir, main, passes=passes, sandbox=False)
+    def compile(self, wdir: Path, main: str, passes: int = 2, **kw: object) -> object:
+        return self._eng.compile(wdir, main, passes=passes, sandbox=False, **kw)
 
 
 # file→pkg oracle: 不用 `tlmgr search --global` (逐查询远端 tlpdb, 镜像 round-robin
 # 实测会挂 → 假 "no package provides") —— 换 texlive.tlpdb 离线索引 (ctan.py 同款
 # oracle, 一次性 ~2.8MB 下载后 ~/.texlate/cache/filemap.json 常驻)。同一份远端
 # 仓库知识, 与环境冷热无关, 不引入测量偏差。
-@lru_cache(maxsize=1)
+_index_lock = threading.Lock()
+_index_cache: TlpdbIndex | None = None
+
+
 def _index() -> TlpdbIndex | None:
-    """惰性构建/装载共享 tlpdb 索引 (tuna 镜像); 失败返回 None → filemap 回退 tlmgr。"""
-    try:
-        return TlpdbIndex.ensure(mirror=TUNA_TLNET)
-    except Exception:  # 索引不可用 → 回退 tlmgr search
-        return None
+    """惰性构建/装载共享 tlpdb 索引 (tuna 镜像); 失败返回 None → filemap 回退 tlmgr。
+
+    锁串行化首建 (并发 ensure 曾互相覆盖 texlive.tlpdb → 半写解析出残索引);
+    失败不缓存——下一篇重试 (lru_cache 会把 None 钉死整批)。
+    """
+    global _index_cache  # noqa: PLW0603
+    if _index_cache is not None:
+        return _index_cache
+    with _index_lock:
+        if _index_cache is None:
+            try:
+                _index_cache = TlpdbIndex.ensure(mirror=TUNA_TLNET)
+            except Exception:  # 索引不可用 → 回退 tlmgr search
+                return None
+    return _index_cache
 
 
 def _texmf_env(texmf: Path) -> dict[str, str]:
@@ -207,7 +220,7 @@ def _texmf_runner(texmf: Path):
 def _make_engine(name: str, texmf: Path, wdir: Path) -> _NoSandbox:
     if name == "xelatex":
         _init_usertree(texmf)
-        eng = XelatexEngine(halt_on_error=True, texmfhome=texmf)
+        eng = XelatexEngine(halt_on_error=True, texmfhome=texmf, repository=TUNA_TLNET)
         idx = _index()
         if idx is not None:
             # 实例遮蔽 filemap: install_file 内部 self.filemap 调用也走索引
@@ -299,8 +312,8 @@ def run_paper(p: dict, todo_engines: tuple[str, ...]) -> list[dict]:
             }
         cell["wall_s"] = round(time.time() - t0, 1)
         cell["paper_id"] = pid
-        cell["band"] = p["band"]
-        cell["tags"] = p["tags"]
+        cell["band"] = p.get("band")
+        cell["tags"] = p.get("tags", [])
         cells.append(cell)
     return cells
 
@@ -312,6 +325,7 @@ TIER = {
     "clean": "clean",
     "acceptable_pdf": "clean~",  # pdf 且残留错 ≤3
     "dirty_pdf": "pdf~",
+    "best_effort_pdf": "pdf~",  # nonstopmode 兜底残页 (与 clean 分流计量)
     "stuck": "fail",
     "max_rounds": "fail",
     "no_errors_no_pdf": "fail",
@@ -319,7 +333,7 @@ TIER = {
     "no_source": "fail",
 }
 GOOD = {"clean", "acceptable_pdf"}  # 可交付层
-PDFY = {"clean", "acceptable_pdf", "dirty_pdf"}  # 出了 pdf 层
+PDFY = {"clean", "acceptable_pdf", "dirty_pdf", "best_effort_pdf"}  # 出了 pdf 层
 
 
 def tier_of(cell: dict) -> str:
@@ -331,10 +345,24 @@ def tier_of(cell: dict) -> str:
     return "fail"
 
 
-def load_baseline() -> dict[str, dict]:
-    """baseline cells.json → {(pid, eng): {verdict, category}} + 路由标签."""
+def load_baseline() -> dict[tuple[str, str], dict]:
+    """baseline → {(pid, eng): {verdict, category}}.
+
+    两种底材: compilebench cells.json (papers[].engines{}) 或
+    cases.jsonl (--cases-from 模式直接以它为 baseline)。
+    """
     if not BASE_CELLS.exists():
         return {}
+    if BASE_CELLS.suffix == ".jsonl":
+        out = {}
+        for ln in BASE_CELLS.read_text().splitlines():
+            if ln.strip():
+                c = json.loads(ln)
+                out[(c["paper_id"], c["engine"])] = {
+                    "verdict": c.get("verdict"),
+                    "category": c.get("category"),
+                }
+        return out
     d = json.loads(BASE_CELLS.read_text())
     out = {}
     for p in d["papers"]:
@@ -344,6 +372,32 @@ def load_baseline() -> dict[str, dict]:
                 "category": r.get("category"),
             }
     return out
+
+
+def _papers_from_cases(
+    path: Path, *, only_category: str = "", only_engine: str = ""
+) -> list[dict]:
+    """compilebench-v3 cases.jsonl → papers 列表 (供 --cases-from 模式).
+
+    only_category/only_engine: 按「该引擎格 category==X」筛论文
+    (如 xelatex+missing_file = tlmgr 装包层测量集)。
+    """
+    seen: dict[str, dict] = {}
+    hit: set[str] = set()
+    for ln in path.read_text().splitlines():
+        if not ln.strip():
+            continue
+        c = json.loads(ln)
+        pid = c["paper_id"]
+        seen.setdefault(pid, {"id": pid, "band": c.get("band"), "tags": []})
+        if (not only_engine or c.get("engine") == only_engine) and (
+            not only_category or c.get("category") == only_category
+        ):
+            hit.add(pid)
+    papers = list(seen.values())
+    if only_engine or only_category:
+        papers = [p for p in papers if p["id"] in hit]
+    return papers
 
 
 def report(papers_meta: list[dict]) -> None:
@@ -373,7 +427,13 @@ def report(papers_meta: list[dict]) -> None:
     for pid in sorted(by_paper):
         pm = meta_by_id.get(pid, {})
         src = CORPUS / pid / "extracted"
-        route = {"engines": [], "reject": None, "reasons": [], "non_utf8": False}
+        route = {
+            "engines": [],
+            "reject": None,
+            "reasons": [],
+            "non_utf8": False,
+            "latex209_suspect": False,
+        }
         if src.is_dir():
             with contextlib.suppress(Exception):
                 r = route_project(src, prefer="xelatex")
@@ -382,6 +442,7 @@ def report(papers_meta: list[dict]) -> None:
                     "reject": r.reject,
                     "reasons": r.reasons,
                     "non_utf8": r.non_utf8,
+                    "latex209_suspect": r.latex209_suspect,
                 }
         doc["papers"].append(
             {
@@ -625,9 +686,9 @@ def report(papers_meta: list[dict]) -> None:
 
 
 def main() -> None:
-    # --out 重绑后 run_paper/report 经全局读新目录 (v2 整改批次);
-    # 模块级单例配置, noqa 保留直白写法
-    global OUT  # noqa: PLW0603
+    # --out/--corpus/--work/--cases-from 重绑后 run_paper/report 经全局读
+    # 新目录 (v2 整改批次 + v3 cases 复用); 模块级单例配置, noqa 保留直白写法
+    global OUT, CORPUS, WORK, BASE_CELLS, ENGINES  # noqa: PLW0603
     ap = argparse.ArgumentParser()
     ap.add_argument("--report", action="store_true")
     ap.add_argument("--jobs", type=int, default=JOBS)
@@ -638,11 +699,32 @@ def main() -> None:
         default=str(OUT),
         help="结果目录 (默认 fixloop-corpusv2-*; 整改批次用 fixloop-v2-*)",
     )
+    ap.add_argument("--corpus", default=str(CORPUS), help="语料根 ({id}/extracted/)")
+    ap.add_argument("--work", default=str(WORK), help="工作区根 (逐篇 rebuild)")
+    ap.add_argument("--engines", default=",".join(ENGINES), help="逗号分隔引擎子集")
+    ap.add_argument(
+        "--cases-from",
+        default="",
+        help="compilebench cases.jsonl: 以它挑论文 + 当 baseline (跨语料复用)",
+    )
+    ap.add_argument("--only-category", default="", help="--cases-from 过滤: 终态类别")
+    ap.add_argument("--only-engine", default="", help="--cases-from 过滤: 引擎格")
     args = ap.parse_args()
     OUT = Path(args.out).expanduser().resolve()
+    CORPUS = Path(args.corpus).expanduser().resolve()
+    WORK = Path(args.work).expanduser().resolve()
+    ENGINES = tuple(e.strip() for e in args.engines.split(",") if e.strip())
 
-    sample = json.loads(SAMPLE.read_text())
-    papers = sample["papers"]
+    if args.cases_from:
+        BASE_CELLS = Path(args.cases_from).expanduser().resolve()
+        papers = _papers_from_cases(
+            BASE_CELLS,
+            only_category=args.only_category,
+            only_engine=args.only_engine,
+        )
+    else:
+        sample = json.loads(SAMPLE.read_text())
+        papers = sample["papers"]
     if args.only:
         pats = [s.strip() for s in args.only.split(",") if s.strip()]
         papers = [p for p in papers if any(s in p["id"] for s in pats)]

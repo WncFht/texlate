@@ -408,9 +408,13 @@ def test_stuck_after_sig_repeat_3(tmp_path: Path) -> None:
         tmp_path, eng, ruleset=rs, runner=lambda _a, _t, _w: (0, "", 0.0, False)
     )
     assert cell["verdict"] == "stuck"
-    assert len(cell["rounds"]) == 3  # noqa: PLR2004 - sig×3 触发线
+    # salvage 兜底轮挂 rounds 尾 (salvage=True 标记), 不占地正式轮数
+    non_salvage = [r for r in cell["rounds"] if not r.get("salvage")]
+    assert len(non_salvage) == 3  # noqa: PLR2004 - sig×3 触发线
     # 第 3 轮在 match 前就判 stuck: 只应有 2 条 apply 记录
-    applied = [a for a in cell["actions"] if a.get("round", 0) > 0]
+    applied = [
+        a for a in cell["actions"] if isinstance(a.get("round"), int) and a["round"] > 0
+    ]
     assert [a["rule"] for a in applied] == ["fix1", "fix2"]
 
 
@@ -444,7 +448,8 @@ def test_max_rounds_with_varying_payload(tmp_path: Path) -> None:
         runner=lambda _a, _t, _w: (0, "", 0.0, False),
     )
     assert cell["verdict"] == "max_rounds"
-    assert len(cell["rounds"]) == 4  # noqa: PLR2004 - mini_rs max_rounds=4
+    non_salvage = [r for r in cell["rounds"] if not r.get("salvage")]
+    assert len(non_salvage) == 4  # noqa: PLR2004 - mini_rs max_rounds=4
 
 
 def test_dedup_same_rule_same_payload(tmp_path: Path) -> None:
@@ -474,7 +479,8 @@ def test_dedup_same_rule_same_payload(tmp_path: Path) -> None:
     )
     # r1 应用; r2 同 sig sig_n=2, dedup 阻断唯一规则 → unfixable (到不了 stuck)
     assert cell["verdict"] == "unfixable:missing_file"
-    assert len(cell["rounds"]) == 2  # noqa: PLR2004
+    non_salvage = [r for r in cell["rounds"] if not r.get("salvage")]
+    assert len(non_salvage) == 2  # noqa: PLR2004
 
 
 def test_unsupported_mode_falls_to_llm(tmp_path: Path) -> None:
@@ -506,3 +512,67 @@ def test_unsupported_mode_falls_to_llm(tmp_path: Path) -> None:
     assert cell["verdict"] == "clean"
     assert hook_calls == [1]
     assert any("escalated" in a.get("detail", "") for a in cell["actions"])
+
+
+# ---------------------------------------------------------------- best-effort 兜底
+class SalvageMockEngine(MockEngine):
+    """best_effort 感知: 兜底轮 (best_effort=True) 放残页 pdf 出来。"""
+
+    def compile(
+        self,
+        wdir: Path,
+        main: str,
+        *,
+        passes: int = 2,
+        best_effort: bool = False,
+        **_kw: object,
+    ) -> MockRes:
+        del passes
+        if best_effort:
+            self.rounds += 1
+            return MockRes(
+                Path(wdir),
+                main,
+                {"log": "! Undefined control sequence.\n", "pdf": True},
+            )
+        return super().compile(wdir, main, passes=1, **_kw)
+
+
+def test_salvage_best_effort_rescues(tmp_path: Path) -> None:
+    """规则耗尽且无 pdf → nonstopmode 兜底 pass 救残页 → best_effort_pdf。"""
+    eng = SalvageMockEngine([{"log": "! Undefined control sequence.\nl.5 \\mycs\n"}])
+    cell = fixloop(make_proj(tmp_path), eng)
+    assert cell["verdict"] == "best_effort_pdf"
+    assert cell["final_pdf"] is True
+    last = cell["rounds"][-1]
+    assert last["salvage"] is True
+    assert last["pdf"] is True
+    assert any(a["rule"] == "_best_effort_pass" for a in cell["actions"])
+
+
+def test_salvage_no_pdf_keeps_verdict(tmp_path: Path) -> None:
+    """兜底也出不了 pdf → 保留原失败 verdict, salvage 轮留痕。"""
+    eng = MockEngine([{"log": "! Undefined control sequence.\nl.5 \\mycs\n"}])
+    cell = fixloop(make_proj(tmp_path), eng)
+    assert cell["verdict"] == "unfixable:undefined_cs"
+    assert cell["final_pdf"] is False
+    assert cell["rounds"][-1]["salvage"] is True
+
+
+def test_salvage_skips_reject(tmp_path: Path) -> None:
+    """reject:* 是语义拒绝——不跑兜底 (latex209 gate 拒的不救)。"""
+    main = "\\documentstyle{article}\n\\begin{document}\nx\n\\end{document}\n"
+    eng = SalvageMockEngine(
+        [{"log": "! LaTeX2e command \\usepackage in LaTeX 2.09 document.\n"}]
+    )
+    cell = fixloop(make_proj(tmp_path, main), eng)
+    assert cell["verdict"] == "reject:latex209_reject"
+    assert not any(r.get("salvage") for r in cell["rounds"])
+
+
+def test_salvage_skips_clean(tmp_path: Path) -> None:
+    """clean/已有 pdf 的终态不跑兜底。"""
+    eng = SalvageMockEngine([{"log": CLEAN_LOG, "pdf": True}])
+    cell = fixloop(make_proj(tmp_path), eng)
+    assert cell["verdict"] == "clean"
+    assert len(cell["rounds"]) == 1

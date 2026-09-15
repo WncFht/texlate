@@ -124,6 +124,7 @@ def pipe_condition(work: Path, eng_name: str, main_rel: str, timeout: float) -> 
         rec["inject"] = prepare_chinese(work, main_rel)
     except InjectRejectError as e:
         rec["status"] = "reject"
+        rec["reject_at"] = "inject"  # inject_reject 类: 与 route reject 分流
         rec["verdict"] = {"status": "reject", "reasons": [e.reason]}
         return rec
     rec.update(_compile_judge(work, main_rel, eng_name, timeout, expect_cjk=True))
@@ -150,9 +151,11 @@ def mock_pipeline_run(work: Path, engine_opt: str, timeout: float) -> dict:
         "reject": route.reject,
         "reasons": route.reasons,
         "non_utf8": route.non_utf8,
+        "latex209_suspect": route.latex209_suspect,
     }
     if route.reject:
         report["status"] = "reject"
+        report["reject_at"] = "route"
         return report
     main_path = find_main_tex(work)
     if main_path is None:

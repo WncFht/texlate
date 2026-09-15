@@ -4,6 +4,7 @@
 """
 
 import importlib
+import json
 import os
 import sys
 from pathlib import Path
@@ -112,13 +113,16 @@ def test_classify_eps_hard_wall() -> None:
 
 
 # ---------------------------------------------------------------- 路由表
-def test_route_documentstyle_reject(tmp_path: Path) -> None:
+def test_route_documentstyle_suspect(tmp_path: Path) -> None:
+    """documentstyle 降级: 不再 reject, 打 latex209_suspect + 默认引擎序试编。"""
     (tmp_path / "main.tex").write_text(
         "\\documentstyle{ptptex}\n\\begin{document}\nx\\end{document}"
     )
     d = route_project(tmp_path)
-    assert d.reject == "latex209_documentstyle"
-    assert d.engines == []
+    assert d.reject is None
+    assert d.latex209_suspect is True
+    assert d.engines == ["tectonic", "xelatex"]
+    assert any("latex209_suspect" in r for r in d.reasons)
 
 
 def test_route_eps_to_xelatex(tmp_path: Path) -> None:
@@ -410,3 +414,52 @@ def test_tectonic_retry_success_clears_timed_out(
     assert res.timed_out is False
     assert res.ok is True
     assert res.has_pdf
+
+
+# ---------------------------------------------------------------- tlmgr 装包层
+def test_filemap_disk_cache_seed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """落盘缓存优先于索引/tlmgr——远端仓库知识的跨进程复用。"""
+    cache_file = tmp_path / "c.json"
+    cache_file.write_text(json.dumps({"/revtex4.cls": ["revtex4"]}))
+    monkeypatch.setenv("TEXLATE_TLMGR_CACHE", str(cache_file))
+    eng = XelatexEngine()
+    monkeypatch.setattr(eng, "_filemap_index", lambda _f: ["WRONG-INDEX"])
+    monkeypatch.setattr(eng, "_filemap_tlmgr", lambda _f: ["WRONG-TLMGR"])
+    assert eng.filemap("revtex4.cls") == ["revtex4"]
+
+
+def test_filemap_index_first(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """tlpdb 离线索引命中 → 不走 tlmgr; 索引自身即持久层, 不重复落盘。"""
+    cache_file = tmp_path / "c.json"
+    monkeypatch.setenv("TEXLATE_TLMGR_CACHE", str(cache_file))
+    eng = XelatexEngine()
+    monkeypatch.setattr(eng, "_filemap_index", lambda _f: ["revtex4"])
+
+    def _no_tlmgr(f: str) -> list[str]:
+        pytest.fail(f"索引命中不应回退 tlmgr: {f}")
+
+    monkeypatch.setattr(eng, "_filemap_tlmgr", _no_tlmgr)
+    assert eng.filemap("revtex4.cls") == ["revtex4"]
+    assert not cache_file.exists()
+
+
+def test_filemap_tlmgr_fallback_persists(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """索引缺席 → tlmgr 在线通路兜底, 新结果落盘缓存。"""
+    cache_file = tmp_path / "c.json"
+    monkeypatch.setenv("TEXLATE_TLMGR_CACHE", str(cache_file))
+    eng = XelatexEngine()
+    monkeypatch.setattr(eng, "_filemap_index", lambda _f: None)
+    monkeypatch.setattr(eng, "_filemap_tlmgr", lambda _f: ["pkg-from-tlmgr"])
+    assert eng.filemap("x.sty") == ["pkg-from-tlmgr"]
+    assert json.loads(cache_file.read_text())["/x.sty"] == ["pkg-from-tlmgr"]
+
+
+def test_install_lock_creates_lockfile(tmp_path: Path) -> None:
+    """同 usertree 的 tlmgr install 经 flock 串行化（锁文件在 texmfhome）。"""
+    eng = XelatexEngine(texmfhome=tmp_path)
+    with eng._install_lock():  # noqa: SLF001 -- 内部锁行为的直接断言
+        assert (tmp_path / ".texlate-install.lock").exists()

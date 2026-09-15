@@ -16,6 +16,7 @@ r"""引擎层：Engine 协议 + xelatex/tectonic 实现 + 静态路由表（docs
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -24,7 +25,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterator
 
 from texlate.texlog import update_file_stack
 from texlate.textutil import decode_tex
@@ -399,8 +400,14 @@ class Engine(Protocol):
         outdir: Path | None = None,
         sandbox: bool = True,
         env_extra: dict[str, str] | None = None,
+        best_effort: bool = False,
     ) -> CompRes:
-        """编译 `wdir/main`（相对路径）；产物落 `outdir`（默认 main 旁）。"""
+        """编译 `wdir/main`（相对路径）；产物落 `outdir`（默认 main 旁）。
+
+        ``best_effort=True`` 强制 nonstopmode 兜底语义：xelatex 去掉
+        ``-halt-on-error``（TeX 错误恢复跑到底，救残页），tectonic 强制
+        continue-on-errors——fixloop 规则耗尽后的最后一搏用。
+        """
         ...
 
     def probe_file(self, fname: str, *, cwd: Path | None = None) -> str | None:
@@ -442,14 +449,21 @@ class XelatexEngine:
         *,
         halt_on_error: bool = True,
         texmfhome: Path | None = None,
+        repository: str | None = None,
     ) -> None:
-        """binary=None → PATH/常见落点探测；texmfhome=沙箱 usermode 树（冷启动）。"""
+        """binary=None → PATH/常见落点探测；texmfhome=沙箱 usermode 树（冷启动）。
+
+        repository=tlnet 镜像 pin：`tlmgr --usermode install` 与 tlpdb 索引
+        拉取共用（env ``TEXLATE_TLNET`` 同效）；None = tlmgr 既有配置
+        （mirror.ctan.org round-robin 在部分网络下不稳，bench 侧钉 TUNA）。
+        """
         self.binary = binary
         # docs/08 命令行含 -halt-on-error（fixloop 首错语义）；bench 基线跑
         # best-effort（halt_on_error=False，对齐 compile_bench 方法论）。
         self.halt_on_error = halt_on_error
         self.texmfhome = texmfhome
-        self._search_cache: dict[str, list[str]] = {}
+        self.repository = repository or os.environ.get("TEXLATE_TLNET") or None
+        self._search_cache: dict[str, list[str]] | None = None
         self._usertree_inited = False
 
     def detect(self) -> str | None:
@@ -468,7 +482,9 @@ class XelatexEngine:
             )
         return child_env(add)
 
-    def _cmd(self, binary: str, out: Path, main_name: str) -> list[str]:
+    def _cmd(
+        self, binary: str, out: Path, main_name: str, *, best_effort: bool = False
+    ) -> list[str]:
         """构造 xelatex 命令行（docs/08 §4.1 旗标集）。"""
         cmd = [
             binary,
@@ -478,7 +494,7 @@ class XelatexEngine:
             "-recorder",
             f"-output-directory={out}",
         ]
-        if self.halt_on_error:
+        if self.halt_on_error and not best_effort:
             cmd.insert(3, "-halt-on-error")
         cmd.append(main_name)
         return cmd
@@ -493,6 +509,7 @@ class XelatexEngine:
         outdir: Path | None = None,
         sandbox: bool = True,
         env_extra: dict[str, str] | None = None,
+        best_effort: bool = False,
     ) -> CompRes:
         """执行 xelatex ≤`passes` 遍；-recorder 产 .fls 供 compiled_dependencies。"""
         res = CompRes(engine=self.name)
@@ -509,7 +526,7 @@ class XelatexEngine:
         for stale in (pdf, log, out / f"{stem}.fls"):
             stale.unlink(missing_ok=True)
         env = self._env(env_extra)
-        cmd = self._cmd(binary, out, main_path.name)
+        cmd = self._cmd(binary, out, main_path.name, best_effort=best_effort)
         if sandbox:
             cmd = sandbox_wrap(cmd, root=wdir, out=out)
         outputs = []
@@ -552,16 +569,52 @@ class XelatexEngine:
             return None
         return out.strip().splitlines()[0]
 
+    def _search_cache_map(self) -> dict[str, list[str]]:
+        """file→pkg 进程内缓存，首次访问时并入落盘缓存（远端仓库知识）。"""
+        if self._search_cache is None:
+            self._search_cache = load_search_cache()
+        return self._search_cache
+
+    def _filemap_index(self, fname: str) -> list[str] | None:
+        """texlive.tlpdb 离线索引查询；索引不可用 → None（回退 tlmgr）。
+
+        `tlmgr search --global` 逐查询远端 tlpdb，镜像 round-robin 实测挂出
+        假 "no package provides"（fixloop-bench 口径）——同一份仓库知识走
+        本地索引既稳又快（~/.texlate/cache/filemap.json 常驻）。
+        """
+        from texlate.compile.fixloop.ctan import (  # noqa: PLC0415  # 延迟: 防循环
+            MIRROR,
+            TlpdbIndex,
+        )
+
+        try:
+            idx = TlpdbIndex.ensure(mirror=self.repository or MIRROR)
+        except Exception:  # noqa: BLE001  # 索引拉取失败不阻塞在线通路
+            return None
+        return idx.query(fname)
+
     def filemap(self, fname: str) -> list[str]:
-        """`tlmgr search --global --file /fname` → TL 包名列表（进程内缓存）。"""
+        """file→TL 包名索引：tlpdb 离线索引优先，`tlmgr search --file` 兜底。"""
+        cache = self._search_cache_map()
+        key = "/" + fname
+        if key in cache:
+            return cache[key]
+        pkgs = self._filemap_index(fname)
+        if pkgs is not None:
+            cache[key] = pkgs
+            return pkgs
+        pkgs = self._filemap_tlmgr(fname)
+        cache[key] = pkgs
+        save_search_cache(cache)
+        return pkgs
+
+    def _filemap_tlmgr(self, fname: str) -> list[str]:
+        """`tlmgr search --global --file /fname` 在线通路（索引缺席时兜底）。"""
         tool = find_tool("tlmgr")
         if tool is None:
             return []
-        key = "/" + fname
-        if key in self._search_cache:
-            return self._search_cache[key]
         rc, out, _, to = run_process(
-            [tool, "search", "--global", "--file", key],
+            [tool, "search", "--global", "--file", "/" + fname],
             cwd=Path.cwd(),
             env=self._env(None),
             timeout=60,
@@ -589,9 +642,26 @@ class XelatexEngine:
                 if pkg.startswith(("tlmgr", "tlgs")):
                     continue
                 pkgs.append(pkg)
-        pkgs = sorted(set(pkgs))
-        self._search_cache[key] = pkgs
-        return pkgs
+        return sorted(set(pkgs))
+
+    @contextlib.contextmanager
+    def _install_lock(self) -> Iterator[None]:
+        """同 usertree 的 tlmgr install 串行化（跨进程 flock；无 fcntl 则退化为直通）。"""
+        base = (
+            Path(self.texmfhome) if self.texmfhome else tlmgr_search_cache_path().parent
+        )
+        try:
+            base.mkdir(parents=True, exist_ok=True)
+            import fcntl  # noqa: PLC0415  # 平台门: 无 fcntl 则退化为直通
+        except (OSError, ImportError):
+            yield
+            return
+        with (base / ".texlate-install.lock").open("a+b") as fh:
+            fcntl.flock(fh, fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(fh, fcntl.LOCK_UN)
 
     def install_file(self, fname: str, *, font_related: bool = False) -> bool:
         """经 kpsewhich 验证 → filemap 查包 → `tlmgr --usermode install` → 复核。"""
@@ -605,26 +675,28 @@ class XelatexEngine:
             return False
         env = self._env(None)
         home = env.get("TEXMFHOME")
-        if (
-            home
-            and not self._usertree_inited
-            and not (Path(home) / "tlpkg" / "texlive.tlpdb").exists()
-        ):
-            # 冷 TEXMFHOME：先建 usertree tlpdb，否则 --usermode 报
-            # "Cannot determine type of tlpdb"（fixloop.py 实测坑）。
-            run_process(
-                [tool, "--usermode", "init-usertree"],
-                cwd=Path.cwd(),
-                env=env,
-                timeout=60,
-            )
-            self._usertree_inited = True
-        rc, _, _, to = run_process(
-            [tool, "--usermode", "install", *pkgs],
-            cwd=Path.cwd(),
-            env=env,
-            timeout=300,
-        )
+        with self._install_lock():
+            if self.probe_file(fname):
+                return True  # 并发同伴已装好
+            if (
+                home
+                and not self._usertree_inited
+                and not (Path(home) / "tlpkg" / "texlive.tlpdb").exists()
+            ):
+                # 冷 TEXMFHOME：先建 usertree tlpdb，否则 --usermode 报
+                # "Cannot determine type of tlpdb"（fixloop.py 实测坑）。
+                run_process(
+                    [tool, "--usermode", "init-usertree"],
+                    cwd=Path.cwd(),
+                    env=env,
+                    timeout=60,
+                )
+                self._usertree_inited = True
+            argv = [tool, "--usermode"]
+            if self.repository:
+                argv += ["--repository", self.repository]
+            argv += ["install", *pkgs]
+            rc, _, _, to = run_process(argv, cwd=Path.cwd(), env=env, timeout=300)
         if to or rc != 0:
             return False
         if font_related:
@@ -688,7 +760,15 @@ class TectonicEngine:
         """Tectonic 二进制探测（ctor 指定优先，否则 PATH/常见落点）。"""
         return self.binary or find_tool("tectonic")
 
-    def _cmd(self, binary: str, out: Path, deps_mk: Path, main_name: str) -> list[str]:
+    def _cmd(
+        self,
+        binary: str,
+        out: Path,
+        deps_mk: Path,
+        main_name: str,
+        *,
+        best_effort: bool = False,
+    ) -> list[str]:
         """构造 tectonic V2 命令行（docs/08 §4.1 + continue-on-errors 语义对齐）。"""
         cmd = [
             binary,
@@ -704,10 +784,13 @@ class TectonicEngine:
             "--outdir",
             str(out),
         ]
-        if self.continue_on_errors:
+        if self.continue_on_errors or best_effort:
             cmd += ["-Z", "continue-on-errors"]
         if self.bundle:
-            cmd += ["--bundle", self.bundle]
+            # --bundle 只吃本地路径/zip；URL 必须走 --web-bundle，否则
+            # tectonic 把 URL 当文件路径打开 → os error 2（archbox 实测全灭根因）
+            flag = "--web-bundle" if "://" in self.bundle else "--bundle"
+            cmd += [flag, self.bundle]
         for hide in self.hide_paths:
             cmd += ["--hide", str(hide)]
         cmd.append(main_name)
@@ -723,6 +806,7 @@ class TectonicEngine:
         outdir: Path | None = None,
         sandbox: bool = True,
         env_extra: dict[str, str] | None = None,
+        best_effort: bool = False,
     ) -> CompRes:
         """执行 tectonic 单趟编译（自带 rerun 决策）；deps.mk 供 compiled_dependencies。"""
         del passes  # tectonic 自动决定 pass 数
@@ -740,7 +824,7 @@ class TectonicEngine:
         deps_mk = out / "dependencies.mk"
         for stale in (pdf, log, deps_mk):
             stale.unlink(missing_ok=True)
-        cmd = self._cmd(binary, out, deps_mk, main_path.name)
+        cmd = self._cmd(binary, out, deps_mk, main_path.name, best_effort=best_effort)
         if sandbox:
             cmd = sandbox_wrap(cmd, root=wdir, out=out)
         env = child_env(env_extra)
@@ -815,9 +899,10 @@ class RouteDecision:
     """`route_project` 产物：引擎优先序 + 拒绝/降级原因。"""
 
     engines: list[str]  # 优先序，如 ["tectonic", "xelatex"]
-    reject: str | None = None  # 非 None = 无条件拒绝（\documentstyle）
+    reject: str | None = None  # 非 None = 无条件拒绝
     reasons: list[str] = field(default_factory=list)
     non_utf8: bool = False  # 非 UTF-8 源（需 iconv 预处理提示）
+    latex209_suspect: bool = False  # \documentstyle 检出：降级为试编标记
 
 
 _PSTRICKS_RE = re.compile(
@@ -833,7 +918,10 @@ _BITMAP_FONT_PKGS = re.compile(
 def route_project(root: Path, *, prefer: str = "tectonic") -> RouteDecision:
     r"""静态预检路由（docs/08 §4.2 表）：编译前即可决策的引擎分配。
 
-    - `\documentstyle` → 无条件 reject（三引擎全死已实证，engine-matrix §3.2）
+    - `\documentstyle` → `latex209_suspect` 降级标记，**不再无条件 reject**
+      （TL2026 实测 ~23% FP：cond-mat/9703223 等真 2.09 源编出 clean——
+      先试编，fixloop `latex209_reject` gate 在真 2.09 错时兜底拒；
+      inject 层仍按原样拒，两类 reject 在账本里分流）
     - `*.eps` / pstricks / pspicture → 跳过 tectonic 直走 xelatex（E2 硬墙）
     - frozencache + minted → tectonic 优先（bundle v2.6 兼容 v2 缓存）
     - bbm/dsfont 位图字体包 → tectonic 高风险标记（失败后换 xelatex）
@@ -852,15 +940,12 @@ def route_project(root: Path, *, prefer: str = "tectonic") -> RouteDecision:
         vis[p] = visible_tex(decode_tex(raw))
     blob_vis = "\n".join(vis.values())
 
-    # --- 无条件 reject：\documentstyle（任何文件里出现都算，主文件判定已过）
-    for p, v in vis.items():
-        if re.search(r"\\documentstyle\b", v):
-            return RouteDecision(
-                engines=[],
-                reject="latex209_documentstyle",
-                reasons=[f"{p.relative_to(root)}: \\documentstyle → 三引擎实测全死"],
-                non_utf8=non_utf8,
-            )
+    # --- \documentstyle → latex209_suspect 标记（任何文件里出现都算）
+    latex209_suspect = [
+        str(p.relative_to(root))
+        for p, v in vis.items()
+        if re.search(r"\\documentstyle\b", v)
+    ]
 
     reasons: list[str] = []
     has_eps = any(p.suffix.lower() == ".eps" for p in root.rglob("*"))
@@ -883,10 +968,19 @@ def route_project(root: Path, *, prefer: str = "tectonic") -> RouteDecision:
         reasons.append("minted frozencache → tectonic 优先（bundle v2.6 兼容）")
     if has_bitmap_fonts:
         reasons.append("bbm/dsfont 类位图字体包 → tectonic 高风险，失败换 xelatex")
+    if latex209_suspect:
+        reasons.append(
+            f"latex209_suspect: {', '.join(latex209_suspect)} "
+            "\\documentstyle → 试编不定死（fixloop gate 兜底拒）"
+        )
     if non_utf8:
         reasons.append("非 UTF-8 源 → 需 iconv 转码预处理或 inputenc 路注")
     return RouteDecision(
-        engines=engines, reject=None, reasons=reasons, non_utf8=non_utf8
+        engines=engines,
+        reject=None,
+        reasons=reasons,
+        non_utf8=non_utf8,
+        latex209_suspect=bool(latex209_suspect),
     )
 
 

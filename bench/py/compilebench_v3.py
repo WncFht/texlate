@@ -289,6 +289,7 @@ def run_paper(p, corpus: Path, work: Path, engines: list[str]):
         "reject": route.reject,
         "reasons": route.reasons,
         "non_utf8": route.non_utf8,
+        "latex209_suspect": route.latex209_suspect,
     }
     p["route"] = paper["route"]  # 回填 sample 记录, _case_base 用
     main = find_main_tex(wdir)
@@ -356,6 +357,7 @@ def _case_base(p, pid, eng_name, main_rel):
         "main": main_rel,
         "route_reject": (p.get("route") or {}).get("reject"),
         "route_non_utf8": (p.get("route") or {}).get("non_utf8"),
+        "route_latex209_suspect": (p.get("route") or {}).get("latex209_suspect"),
     }
 
 
@@ -557,6 +559,9 @@ def report(args):
     lines.append("## 3. route_project 实录 × 结果")
     lines.append("")
     rej_ids = {p["id"] for p in doc["papers"] if (p.get("route") or {}).get("reject")}
+    sus_ids = {
+        p["id"] for p in doc["papers"] if (p.get("route") or {}).get("latex209_suspect")
+    }
     nu8_ids = {p["id"] for p in doc["papers"] if (p.get("route") or {}).get("non_utf8")}
     eps_ids = {
         p["id"]
@@ -573,7 +578,8 @@ def report(args):
     )
     lines.append("|" + "---|" * (2 + len(engines)))
     for label, ids in (
-        ("reject(\\documentstyle)", rej_ids),
+        ("reject(route)", rej_ids),
+        ("latex209_suspect(\\documentstyle 试编)", sus_ids),
         ("non_utf8", nu8_ids),
         ("eps/pstricks→xel优先", eps_ids),
     ):
@@ -625,6 +631,8 @@ def report(args):
         rmark = []
         if route.get("reject"):
             rmark.append("reject")
+        if route.get("latex209_suspect"):
+            rmark.append("209suspect")
         if route.get("non_utf8"):
             rmark.append("non-utf8")
         row = [
@@ -714,8 +722,9 @@ def report(args):
         "判定器为产品 judge(v2 内嵌版退役), 红线集见 engine.WARNING_RED_LINES。"
     )
     lines.append(
-        "- reject 路由(\\documentstyle)论文仍跑了双引擎——实测验证拒绝正确性, "
-        "其 FAIL 计为'预期不可救'而非管线缺口。"
+        "- \\documentstyle 已降级为 latex209_suspect 试编标记(route 不再 reject)——"
+        "真实试编, FAIL 计入管线缺口; fixloop 侧 latex209_reject gate 在"
+        "真 2.09 错时兜底拒。inject 层拒绝记 inject_reject:latex209 类。"
     )
     lines.append("")
     (args.out / "summary.md").write_text("\n".join(lines) + "\n")

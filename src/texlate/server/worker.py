@@ -696,7 +696,7 @@ class PipelineWorker:
         except InjectRejectError as e:
             self._fail(
                 ctx,
-                "parse",
+                "inject_reject",
                 f"inject reject: {e.reason}",
                 retryable=False,
                 stage=ctx.row["stage"],

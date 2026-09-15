@@ -144,11 +144,13 @@ class TlpdbIndex:
         return cls(json.loads(p.read_text(encoding="utf-8")))
 
     def save(self, cache_dir: Path | None = None) -> Path:
-        """写 ``filemap.json`` (sort_keys 稳定); 返回路径。"""
+        """写 ``filemap.json`` (sort_keys 稳定 + tmp→rename 原子落盘); 返回路径。"""
         d = cache_dir or default_cache_dir()
         d.mkdir(parents=True, exist_ok=True)
         p = d / "filemap.json"
-        p.write_text(json.dumps(self.table, ensure_ascii=False, sort_keys=True))
+        tmp = p.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(self.table, ensure_ascii=False, sort_keys=True))
+        tmp.replace(p)  # 原子换名: 并发读只能见到完整的一代
         return p
 
     @classmethod
@@ -200,12 +202,19 @@ class FetchResult:
 
 
 def fetch_tlpdb(mirror: str, dest_dir: Path, *, fetcher: Fetcher | None = None) -> Path:
-    """``tlpkg/texlive.tlpdb.xz`` → 解压 ``texlive.tlpdb`` 落 dest_dir。"""
+    """``tlpkg/texlive.tlpdb.xz`` → 解压 ``texlive.tlpdb`` 落 dest_dir。
+
+    tmp→os.replace 原子落盘: 并发 ``ensure`` 的 ``from_tlpdb`` 流式读
+    只能见到完整的一代 (fixloop-bench 冷启动实测撞过半写文件 →
+    索引缺条目 → 假 "no package provides")。
+    """
     get = fetcher or _http_get
     raw = get(f"{mirror}/{TLPDB_RELPATH}")
     dest_dir.mkdir(parents=True, exist_ok=True)
     out = dest_dir / "texlive.tlpdb"
-    out.write_bytes(lzma.decompress(raw))
+    tmp = out.with_suffix(".tlpdb.tmp")
+    tmp.write_bytes(lzma.decompress(raw))
+    tmp.replace(out)
     return out
 
 

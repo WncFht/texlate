@@ -3,8 +3,10 @@ r"""中文支持注入：ctex `[fontset=fandol,UTF8]` 默认路径 + xeCJK 降�
 docs/08 §3.3 注入缝：
 - 兼容块 → `\begin{document}` 前（normalize.py 的 inject_preamble）
 - 字体系块 → `\documentclass{}` 后（本模块 find_docclass_end）
-- `\documentstyle` → **禁止注入 + 无条件 reject**（三引擎实测全死，
-  ptptex.cls 已不可得，engine-matrix §3.2）
+- `\documentstyle` → **禁止注入 + inject 层 reject**（ctex/xeCJK 与 2.09
+  互不兼容；route_project 已降级为 latex209_suspect 试编标记——
+  inject 是 2.09 的兜底拒绝点，账本记 `inject_reject:latex209`
+  与 route reject 分流）
 
 实证：compile-bench 72 次编译中 ctex 注入破坏率 0%（bench/results/compile-report.md）。
 """
@@ -94,12 +96,17 @@ TABLE_FITTING = r"""% texlate: fit complete measured table containers v1
 
 
 class InjectRejectError(ValueError):
-    r"""`\documentstyle` 等不可注入形态——走降级链，不进编译。"""
+    r"""`\documentstyle` 等不可注入形态——走降级链，不进编译。
+
+    与 ``route_project`` 的 reject 分流：route 对 documentstyle 只打
+    ``latex209_suspect``（先试编），inject 拒的是「注入后必死」——
+    消费侧记 ``inject_reject:<reason>`` 类。
+    """
 
     def __init__(self, reason: str = "latex209") -> None:
         """记录拒绝原因（默认 latex209 documentstyle）。"""
         self.reason = reason
-        super().__init__("reject:" + reason)
+        super().__init__("inject_reject:" + reason)
 
 
 def find_main_tex(root: Path) -> Path | None:
@@ -220,7 +227,8 @@ def inject_cjk(tex: str, *, mode: str = "ctex") -> tuple[str, dict]:
     （hjfy 同款、双引擎实测 0% 破坏、白拿节名汉化）。
     mode `"xecjk"`：同缝插 xeCJK+Fandol 块（ctex 冲突签名→fixloop/探针切换用）。
 
-    `\documentstyle` → 抛 InjectRejectError（LaTeX 2.09 无条件拒绝路由）。
+    `\documentstyle` → 抛 InjectRejectError（2.09 注入层兜底拒绝——
+    route 已降级为 suspect 试编标记，原文可编，注不进 CJK 才拒）。
     """
     if CJK_PRESENT_RE.search(visible_tex(tex)):
         return tex, {"status": "already"}
@@ -279,7 +287,8 @@ def prepare_chinese(
     r"""工程级中文注入编排：主文件 ctex/xeCJK + 按需 FLOAT_SIZING/TABLE_FITTING。
 
     返回注入报告 dict（注入缝行号/模式/已存在标记）。`\documentstyle` 工程
-    抛 InjectRejectError——调用方应将其计入 reject 路由而非编译失败。
+    抛 InjectRejectError——调用方应记 ``inject_reject:<reason>`` 类 reject
+    （与 route reject 分流），而非编译失败。
     """
     main_path = root / main if isinstance(main, str) else main
     text = decode_tex(main_path.read_bytes())
