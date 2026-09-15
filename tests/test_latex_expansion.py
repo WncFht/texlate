@@ -592,28 +592,37 @@ def test_gullet_env_def_markers() -> None:
 
 
 def test_gullet_if_marker_covers_condition_only() -> None:
-    r"""可求值 ``\if``：marker 盖 ``\if``+条件段——``process_if`` 前取端点。
+    r"""可求值 ``\if``：``if:``/``fi:`` marker 夹心——lead 盖到选支首 token。
 
-    ``_read_number`` 末位多读一枚再回吐（条件后空格）→ 端点含该 token；
-    其一字节重叠无害（覆盖去重、token 仍照流）。
+    lead ``[trig.start, sel_start)`` = ``\if``+条件+前置死支+分案符；``fi:``
+    尾 marker 随选支 unread 盖 ``[sel_end, \fi 末)`` = 后置死支+``\fi``
+    （分段器侧全成 LITERAL——v1 ``_process_if`` 死支逐字保留的对价）。
     """
     src = "\\ifnum 1<2 T\\else F\\fi"
     ts, _ = expand(src)
     m = ts[0]
     assert m.kind == "consumed"
     assert m.text == "if:ifnum"
-    assert m.pos == (0, 0, src.index("T"))
+    # 选支首 token = T 前空格（属选支、回放进流），lead 只盖到空格前
+    assert m.pos == (0, 0, src.index("T") - 1)
+    fi = [t for t in ts if t.kind == "consumed" and t.text == "fi:ifnum"]
+    assert len(fi) == 1
+    assert fi[0].pos == (0, src.index("T") + 1, len(src))
     assert text_of(ts) == " T"
 
 
 def test_gullet_newif_cond_marker_just_cs() -> None:
-    r"""``IfCond`` 无条件段——marker 恰盖 ``\ifzz`` 本体，不得延到 ``\fi``。"""
+    r"""``IfCond`` 无条件段——lead marker 盖 ``\ifzz`` 到选支首 token 前。"""
     src = "\\newif\\ifzz\\zztrue\\ifzz T\\else F\\fi"
     ts, _ = expand(src)
     m = [t for t in ts if t.kind == "consumed" and t.text == "if:ifzz"]
     assert len(m) == 1
     at = src.index("\\ifzz T")
-    assert m[0].pos == (0, at, at + len("\\ifzz"))
+    # \ifzz 后空格被 tokenizer S 态吞掉不成 token——选支首 = T，lead 含空格
+    assert m[0].pos == (0, at, at + len("\\ifzz "))
+    fi = [t for t in ts if t.kind == "consumed" and t.text == "fi:ifzz"]
+    assert len(fi) == 1
+    assert fi[0].pos == (0, src.index("T") + 1, len(src))
     assert text_of(ts) == "\\zztrueT"
 
 

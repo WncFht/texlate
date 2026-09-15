@@ -292,3 +292,50 @@ v1 同族 57 个）、conditional 27（`\iffull`/`\ifx` 族真漏——`\if` 求
 遗留 → S4：`\if` 两档界标回放 + ifflags 真值表接线 + consumed `if:` marker
 已在 gullet 侧备好；F12 墓标（拉取序号版）。filecontents 族（含 `+`/
 `header` 变体）opaque 块 + end 行首锚定已落（W26 闭环）。
+
+## 11. S4 落地记录（2026-09-16）
+
+`\if` 界标档 + F12 墓标全接，§6 `\if` 界标档条从设计转实施。
+
+**marker 夹心**（gullet 侧，替掉 §6 的「界标 literal + 两支 unread」逐 piece
+收集回放）：`process_if`/`_do_ifundefined` 消费完选支外字节后，lead marker
+（`if:<name>`/`ifundefined:<name>`）的 `end` 取**选支首 token 起点**——盖
+`\if`+条件段 + 前置死支 + 分案符；尾 marker（`fi:<tag>`/`ifundefined-end:<name>`）
+随选支一起 `unread([*sel, tail])`，盖 `[选支末, \fi/调用末)` = 后置死支+`\fi`。
+死支字节全成 LITERAL piece——与 v1 `_process_if` 逐 piece 回放等价，且不需要
+分段器做 case 收集。`\@ifundefined` 同形（此前 marker 整调用覆盖 + 选支零宽
+回放 → literal 原文与 chunk 译文**双发**，实测确认，本片修复）。选支跨 fid
+或边界不齐时退回旧端点（cond_end/cs 本体），不留破口。
+
+**lazy 流式界标**（分段器侧 `_handle_cond`）：不可求值 `\ifX` 到 dispatch 时
+条件段已被 gullet 消费成 gap——`read()` 窥下一 raw token 取 `end=nxt.pos[1]`
+（限 `gen==0` 且同 fid），flush + `cover_to` + `_emit` 一条 LITERAL 盖
+`\ifX`+条件区即收工；`\else`/`\or`/`\fi`/`IfSetter` 散件各自到主流后同样
+flush + LITERAL 盖本体。嵌套免计深（内层 `\if` 在选支回放流里再走一遍同一
+路径），verb 体假 `\fi` 被 `skip_past` 天然挡住。in_arg 一律 `[[COND_n]]`
+占位进 run（v1 `_eval_if` 对价）。
+
+**F12 墓标 = seq + (fid,pos) 锚**，对 leader 笔记的源侧 pull_ord 游标方案做
+偏离：游标槽位在展开消费/`process_if` 丢支/`unread` 下复用错位，位→token
+映射不稳；改为失败扫描 `collected` 内的**拉取序号**（天然跨 fid 全序）做
+begins/ends 序，`\begin` cs 的 `(fid,pos)` 做查询锚（`bidx` dict 反查失败
+扫描期各事件 tag 首 token pos）。查询 = sig 校验 + `bidx.get(qpos)` →
+`s_j` 反推 → 首个 `s_end[k]==s_j` 的 `k` → `_replay_dead` 按文件区间
+`[ts,te)` 重拉（gen==0、非 consumed、tag 首 token 起点校验 `pos[1]==ts`
+挡「`\end` 被宏参吃掉」）；失效/未录路径全部回吐已拉 token 落正常扫描
+（EOF 时重写墓标保持完备），for-else 无匹配直接 `return None`——事件流
+完备即真未闭合，不重扫。`_env_sig_tok` = frozenset of
+`(name, kind, scope_depth)` over `src.macros.scopes`（`_ListSource`→空）。
+
+验收（`bench/results/parsebench-v2full-s4-2026-09-15/`，corpus_v3 全量
+1955 双跑，对照 s3c 基线）：
+
+| 指标                                | v2 (S3)  | v2 (S4)  | 判定                      |
+| ----------------------------------- | -------- | -------- | ------------------------- |
+| identity strict/normalized/diverged | 1955/0/0 | 1955/0/0 | 不回潮                    |
+| vtex_vs_src strict                  | 1955     | 1955     | 不回潮                    |
+| leaked chunks                       | 90       | 63       | conditional 27→**0** 收口 |
+| dead ph（chunk+protect）            | 0        | 0        | 不回潮                    |
+| Σ chunks                            | 115240   | 115244   | 选支入流 +4               |
+
+遗留 leak 63 全为片外族：dollar 61（`\$` 转义 FP）、begin_env 2。

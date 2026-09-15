@@ -852,11 +852,16 @@ class Gullet:
                     if not self._can_expand(t):
                         return t
                     self.steps += 1
-                    # IfCond 无条件段——marker 即 cs 本体；先构造再 process_if
-                    # （否则 _last_read 被 \fi 顶掉，端点扩展会误盖整个条件区）
-                    marker = self._consumed(f"if:{name}", t, None)
-                    self.process_if(self.ifflags.get(r.flag, False))
-                    return marker
+                    # 界标夹心：lead marker 盖 [trig, 选支首)（\ifX + 前置死支
+                    # + 分案符），fi: 尾 marker 随选支 unread 盖 [选支末, \fi 末)
+                    end = self.process_if(
+                        self.ifflags.get(r.flag, False),
+                        trig=t,
+                        tail_tag=f"fi:{name}",
+                    )
+                    return self._consumed(
+                        f"if:{name}", t, None, end=end if end is not None else t.pos[2]
+                    )
                 if isinstance(r, IfSetter):
                     self.ifflags[r.flag] = r.value
                     return t
@@ -2035,8 +2040,30 @@ class Gullet:
         defined = (
             self.macros.lookup(name) is not None or name in _PRIMS or name in _BUILTINS
         )
-        self.unread(f_arg if defined else t_arg)
-        return self._consumed(f"ifundefined:{name}", trig, trace)
+        sel = f_arg if defined else t_arg
+        # 界标夹心（同 process_if）：lead marker 盖到选支首 token，
+        # 尾 marker 随选支 unread 盖 [选支末, 调用末)——否则整调用
+        # literal 后选支 surface 再进 chunk → 译文面 literal 原文 +
+        # chunk 译文双发。
+        fid = trig.pos[0]
+        end = -1
+        tail: Tok | None = None
+        if trace and trace[-1].pos[0] == fid:
+            if sel and sel[0].pos[0] == fid and sel[-1].pos[0] == fid:
+                end = sel[0].pos[1]
+                call_end = trace[-1].pos[2]
+                if call_end > sel[-1].pos[2]:
+                    tail = Tok(
+                        "consumed",
+                        f"ifundefined-end:{name}",
+                        (fid, sel[-1].pos[2], call_end),
+                        trig.gen,
+                        trig.origin,
+                    )
+            elif not sel:
+                end = trace[-1].pos[2]
+        self.unread([*sel, *([tail] if tail is not None else [])])
+        return self._consumed(f"ifundefined:{name}", trig, trace, end=end)
 
     # ------------------------------------------------------------ \if 族
 
@@ -2050,11 +2077,18 @@ class Gullet:
         which = self._eval_if(t.text)
         if which is None:
             return t
-        # marker 先于 process_if 构造——此刻 _last_read 仍是条件末 token，
-        # _consumed 的端点扩展即条件段末；选支收集后 _last_read 会被 \fi 顶掉
-        marker = self._consumed(f"if:{t.text}", t, None)
-        self.process_if(which)
-        return marker
+        # 条件段端点在 process_if 前锚定（其后 _last_read 已被 \fi 顶掉）
+        lr = self._last_read
+        cond_end = (
+            lr.pos[2]
+            if lr is not None and lr.gen == 0 and lr.pos[0] == t.pos[0]
+            else t.pos[2]
+        )
+        end = self.process_if(which, trig=t, tail_tag=f"fi:{t.text}")
+        # 界标夹心：end = 选支首 token 起点（None = 跨 fid 退回条件段端点）
+        return self._consumed(
+            f"if:{t.text}", t, None, end=end if end is not None else cond_end
+        )
 
     def _eval_if(self, name: str) -> bool | int | None:  # noqa: C901, PLR0911, PLR0912 — 可求值族平铺即 §8.6 表
         r"""``\if`` 条件求值：``None`` → 界标档。条件 token 无条件消费。"""
@@ -2244,20 +2278,32 @@ class Gullet:
         self.unread([t])
         return None
 
-    def process_if(  # noqa: C901 — 案例收集循环分支平铺即 TeX.py:531-585
+    def process_if(  # noqa: C901, PLR0912, PLR0915 — 案例收集循环分支平铺即 TeX.py:531-585
         self,
         which: bool | int,  # noqa: FBT001 — \ifcase 值与 True/False 同槽（plasTeX which 同形）
-    ) -> None:
-        r"""``processIfContent`` 移植（TeX.py:531-585）。
+        *,
+        trig: Tok,
+        tail_tag: str = "",
+    ) -> int | None:
+        r"""``processIfContent`` 移植（TeX.py:531-585）+ 界标夹心。
 
         原始流收集 case 到 ``\fi``（``\else/\or`` 分案例；任何真 ``if*``
         计嵌套——但宏表里的 ``if*`` **MacroDef 不计**，``\newif\ifX`` 整对
-        保留）；收尾 ``\fi`` 不推回，只 ``unread(选中支)``。
+        保留）；收尾 ``\fi`` 不推回，``unread`` = 选中支 + 尾部 ``fi:``
+        marker。
+
+        返回 ``lead_end`` = 选支首 token 文件起点（空选支 = ``\fi``/末读
+        token 末）：调用方 ``if:`` marker 盖 ``[trig.start, lead_end)``
+        = 条件 + 前置死支 + 分案符；尾 marker 盖 ``[选支末, fi_end)`` =
+        后置死支 + ``\fi``——死支字节全成 LITERAL，与 v1 ``_process_if``
+        逐 piece 等价（此前死支折 gap 进 chunk gspan，译文面被整段替换
+        丢失）。边界 token 跨 fid → ``None``，调用方退回旧端点。
         """
         cases: list[list[Tok]] = [[]]
         else_idx: int | None = None  # \else 支索引（\ifcase 超界回落地）
         nesting = 0
         terminated = False
+        fi_tok: Tok | None = None  # depth-0 收尾 \fi（界标夹心右端）
         while True:
             t = self.read()
             if t is None:
@@ -2280,6 +2326,7 @@ class Gullet:
             if name == "fi":
                 if not nesting:
                     terminated = True
+                    fi_tok = t
                     break
                 cases[-1].append(t)
                 nesting -= 1
@@ -2302,7 +2349,33 @@ class Gullet:
             # \ifcase 超界 → \else 支；无 \else → 追加的空支
             # （plasTeX 此处 IndexError 裸奔；TeX 语义 = else 支）
             idx = else_idx if else_idx is not None else len(cases) - 1
-        self.unread(cases[idx])
+        sel = cases[idx]
+        # 界标端点：边界 token（选支首尾、\fi/末读）须同 fid——跨文件
+        # \if 退回 None（旧行为：marker 只盖条件段，死支折 gap）
+        fid = trig.pos[0]
+        edge = fi_tok if fi_tok is not None else self._last_read
+        bounds_ok = (
+            edge is not None
+            and edge.pos[0] == fid
+            and (not sel or (sel[0].pos[0] == fid and sel[-1].pos[0] == fid))
+        )
+        tail: Tok | None = None
+        lead_end: int | None = None
+        if bounds_ok and edge is not None:
+            if sel:
+                lead_end = sel[0].pos[1]
+                if edge.pos[2] > sel[-1].pos[2]:
+                    tail = Tok(
+                        "consumed",
+                        tail_tag or "fi:",
+                        (fid, sel[-1].pos[2], edge.pos[2]),
+                        trig.gen,
+                        trig.origin,
+                    )
+            else:
+                lead_end = edge.pos[2]  # 空选支：单 marker 盖到 \fi 末
+        self.unread([*sel, *([tail] if tail is not None else [])])
+        return lead_end
 
     # ------------------------------------------------------------ 分类
 
