@@ -1171,6 +1171,150 @@ def write_manifest_md(manifest: list[dict]) -> None:
 # ---------------- qc (S5) ----------------
 
 
+def cmd_extract_booster() -> None:
+    """S3b→S4：booster_selection.jsonl 的补强篇从 tars 落盘（layer=booster）。
+
+    选集由 select_booster.py 产出；成员定位走 features.jsonl（id→member/item/
+    sha256 全在），tar 复读校验 sha 与核心层同路径。manifest 写独立文件
+    manifest_booster.jsonl——不碰核心 manifest.jsonl。
+    """
+    CORPUS.mkdir(exist_ok=True)
+    load_allocation()
+    sel = [json.loads(ln) for ln in open(CORPUS / "booster_selection.jsonl")]
+    want = {s["id"]: s for s in sel}
+    feat: dict[str, dict] = {}
+    for ff in sorted((WORK / "features").glob("*.jsonl")):
+        for line in ff.open():
+            f = json.loads(line)
+            if f["id"] in want:
+                feat[f["id"]] = f
+    for pid in sorted(set(want) - set(feat)):
+        log(f"!! {pid} 无 features 记录（member 定位失败——跳过）")
+
+    lut = load_frame_lookup()
+    by_item: dict[str, list[tuple[str, dict]]] = {}
+    for f in feat.values():
+        by_item.setdefault(f["item"], []).append((f["member"], f))
+
+    manifest = []
+    for item, members in sorted(by_item.items()):
+        with tarfile.open(TARS / f"{item}.tar", "r:") as tar:
+            by_name = {m.name: m for m in tar.getmembers() if m.isreg()}
+            for mname, f in sorted(members):
+                tm = by_name.get(mname)
+                if tm is None:
+                    log(f"!! {item} member {mname} not found on re-read")
+                    continue
+                blob = tar.extractfile(tm).read()
+                sha = hashlib.sha256(blob).hexdigest()
+                if sha != f["blob_sha256"]:
+                    log(f"!! {mname} sha mismatch on re-read")
+                s = want[f["id"]]
+                pid = f["id"]
+                dest = CORPUS / pid
+                dest.mkdir(parents=True, exist_ok=True)
+                fmt = f["format"]
+                raw_name = {
+                    "tar": "raw.tar.gz",
+                    "gz": "raw.gz",
+                    "pdf": "raw.pdf",
+                    "stub": "raw.stub",
+                }[fmt]
+                (dest / raw_name).write_bytes(blob)
+                n_ext, warns = (0, [])
+                if fmt in ("tar", "gz"):
+                    n_ext, warns = unpack_blob(
+                        gzip.decompress(blob) if fmt == "tar" else blob,
+                        "tar" if fmt == "tar" else "gz",
+                        dest,
+                    )
+                else:
+                    warns.append(f"{fmt} member — blob 留存不解包（B07 归因材料）")
+                main_sha = None
+                roots = f.get("tex_roots") or []
+                if len(roots) == 1:
+                    mp = dest / "extracted" / roots[0]
+                    if mp.exists():
+                        main_sha = hashlib.sha256(mp.read_bytes()).hexdigest()
+                era = "old" if "/" in pid else "new"
+                band = BAND_OF_CLUSTER.get(f["cluster_id"], "")
+                fr = frame_get(lut, pid) or {}
+                meta = {
+                    "arxiv_id": pid,
+                    "resolved_version": None,
+                    "fetched_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                    "era": era,
+                    "archive": pid.split("/")[0] if "/" in pid else None,
+                    "yymm": mname.split("/")[0],
+                    "cluster_id": f["cluster_id"],
+                    "year_band": band,
+                    "layer": "booster",
+                    "stratum_cell": f"booster|{band}",
+                    "cat_group": fr.get("cat_group"),
+                    "license_class": fr.get("license_class"),
+                    "channel": f["channel"],
+                    "item": item,
+                    "member": mname,
+                    "raw_sha256": sha,
+                    "raw_file": raw_name,
+                    "format": fmt,
+                    "n_files": n_ext,
+                    "tex_files": f.get("n_tex_files"),
+                    "bytes": len(blob),
+                    "uncompressed_bytes": f.get("uncompressed_bytes"),
+                    "features": {
+                        k: f[k]
+                        for k in (
+                            "docclasses",
+                            "docstyle",
+                            "input_depth",
+                            "non_utf8",
+                            "flags",
+                            "tex_roots",
+                        )
+                        if k in f
+                    },
+                    "mech_tags": s.get("mech_tags", []),
+                    "pick_reason": s.get("pick_reason"),
+                    "warnings": warns,
+                    "source": f["channel"],
+                }
+                (dest / "meta.json").write_text(
+                    json.dumps(meta, indent=1, ensure_ascii=False)
+                )
+                manifest.append(
+                    {
+                        "id": pid,
+                        "era": era,
+                        "archive": meta["archive"],
+                        "yymm": meta["yymm"],
+                        "cluster_id": f["cluster_id"],
+                        "layer": "booster",
+                        "channel": f["channel"],
+                        "item": item,
+                        "member": mname,
+                        "blob_sha256": sha,
+                        "main_tex_sha256": main_sha,
+                        "stratum_cell": meta["stratum_cell"],
+                        "cat_group": meta["cat_group"],
+                        "license_class": meta["license_class"],
+                        "format": fmt,
+                        "n_files": n_ext,
+                        "n_tex": f.get("n_tex_files"),
+                        "bytes": len(blob),
+                        "mech_tags": s.get("mech_tags", []),
+                        "pick_reason": s.get("pick_reason"),
+                    }
+                )
+        log(f"extract_booster {item}: {len(members)} members -> corpus_v3")
+
+    out = CORPUS / "manifest_booster.jsonl"
+    out.write_text(
+        "\n".join(json.dumps(r, ensure_ascii=False) for r in manifest) + "\n"
+    )
+    log(f"extract_booster done: {len(manifest)} papers -> {CORPUS}")
+
+
 def cmd_qc() -> None:
     manifest = [json.loads(ln) for ln in open(CORPUS / "manifest.jsonl")]
     ids = [r["id"] for r in manifest]
@@ -1226,6 +1370,7 @@ def main() -> None:
             "frame-lookup",
             "sample",
             "extract",
+            "extract-booster",
             "qc",
         ],
     )
@@ -1242,6 +1387,7 @@ def main() -> None:
         "frame-lookup": cmd_frame_lookup,
         "sample": cmd_sample,
         "extract": cmd_extract,
+        "extract-booster": cmd_extract_booster,
         "qc": cmd_qc,
     }[a.cmd]()
 

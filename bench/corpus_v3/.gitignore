@@ -3,6 +3,7 @@
 !.gitignore
 !MANIFEST.md
 !manifest.jsonl
+!manifest_booster.jsonl
 !mechanisms.jsonl
 !nominations/
 !nominations/**
