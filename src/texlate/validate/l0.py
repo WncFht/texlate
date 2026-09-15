@@ -360,12 +360,18 @@ def _check_placeholder(src: str, zh: str, issues: list[Issue]) -> None:
     scnt, zcnt = Counter(sseq), Counter(zseq)
 
     # —— 模糊候选：zh 里所有形似占位符但不合正规形的串（扫未遮盖原文——
-    #    注释里的拼错候选一样喂 lev 配对，修复建议方向仍对）——
+    #    注释里的拼错候选一样喂 lev 配对，修复建议方向仍对）。
+    #    src 中 verbatim 存在的同形 token（如引用标号 [RS80]）是原文内容而非
+    #    臆造占位符——按净差计数豁免（validbench 干净对 FP 修复）——
+    src_literal = Counter(
+        m.group(0) for m in PH_FUZZY_RX.finditer(src) if not PH_RX.fullmatch(m.group(0))
+    )
+    zh_fuzzy = [
+        m.group(0) for m in PH_FUZZY_RX.finditer(znc) if not PH_RX.fullmatch(m.group(0))
+    ]
     missing = sorted((scnt - zcnt).elements())
     cands = list((zcnt - scnt).elements())
-    cands += [
-        m.group(0) for m in PH_FUZZY_RX.finditer(zh) if not PH_RX.fullmatch(m.group(0))
-    ]
+    cands += list((Counter(zh_fuzzy) - src_literal).elements())
     used = _pair_placeholder_typos(missing, cands, issues)
     issues.extend(
         Issue("placeholder", Severity.ERROR, f"多余/未识别占位符: {cand}", found=cand)
