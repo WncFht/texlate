@@ -24,8 +24,8 @@ def toks(src: str) -> list[Tok]:
 
 
 def text_of(ts: list[Tok]) -> str:
-    """token 流 → 表面文本（cs 反带 ``\\``）。"""
-    return "".join(str(t) for t in ts)
+    """token 流 → 表面文本（cs 反带 ``\\``；``consumed`` marker 是事件非文本）。"""
+    return "".join(str(t) for t in ts if t.kind != "consumed")
 
 
 def expand(src: str) -> tuple[list[Tok], Gullet]:
@@ -214,6 +214,24 @@ def test_gullet_def_products_carry_origin() -> None:
     prods = [t for t in ts if t.gen > 0]
     assert prods
     assert all(t.origin == (0, 11, 13) for t in prods)
+
+
+def test_gullet_products_origin_covers_full_call() -> None:
+    r"""``origin`` = 整调用区间（含 args）——``\\sw{a}{b}`` 的 args 字节不漏出。
+
+    segmenter-integration §4 表首行：``expand_def`` 原只打 ``trig.pos``
+    （cs 名区间）→ ``_invoke`` 返回前按 ``_trace`` 末位补打。
+    """
+    src = "\\def\\sw#1#2{#2 and #1}\\sw{a}{b}"
+    ts, _ = expand(src)
+    call = (0, src.index("\\sw{a}"), len(src))
+    prods = [t for t in ts if t.gen > 0]
+    assert prods
+    assert all(t.origin == call for t in prods)
+    # gen=0 实参 token 不打 origin——靠 pos 落在调用区间内归组
+    args = [t for t in ts if t.gen == 0 and call[1] < t.pos[1] < call[2]]
+    assert args
+    assert all(t.origin is None for t in args)
 
 
 # ---------------------------------------------------------------- \newcommand 族
@@ -509,3 +527,157 @@ def test_gullet_input_cycle_broken(tmp_path: Path) -> None:
     out = text_of(ts)
     assert "B" in out  # b 内容进流
     assert "B2" in out  # a 环断不递归
+
+
+# ---------------------------------------------------------------- consumed marker / skip_past（§4 接线）
+
+
+def test_gullet_def_emits_consumed_marker() -> None:
+    r"""``\def`` 静默段 → ``consumed`` marker；pos 盖整个定义区段。"""
+    src = "pre \\def\\a{x} post"
+    ts, _ = expand(src)
+    marks = [t for t in ts if t.kind == "consumed"]
+    assert len(marks) == 1
+    assert marks[0].text == "def:a"
+    assert marks[0].pos == (0, 4, src.index(" post"))
+    assert text_of(ts) == "pre  post"  # marker 不落表面文本
+
+
+def test_gullet_marker_head_covers_prefix_chain() -> None:
+    r"""``\long\global\def`` marker 自首个前缀 token 起算（``head`` 参数）。"""
+    src = "\\long\\global\\def\\a{x}"
+    ts, _ = expand(src)
+    marks = [t for t in ts if t.kind == "consumed"]
+    assert len(marks) == 1
+    assert marks[0].text == "def:a"
+    assert marks[0].pos == (0, 0, len(src))
+
+
+def test_gullet_def_family_marker_names() -> None:
+    r"""定义面 marker 文本 = ``family:payload``（newcommand/let/newif）。"""
+    src = "\\newcommand{\\foo}[1]{#1!}\\let\\b\\foo\\newif\\ifzz"
+    ts, _ = expand(src)
+    marks = [t.text for t in ts if t.kind == "consumed"]
+    assert marks == ["newcommand:foo", "let:b", "newif:zz"]
+
+
+def test_gullet_env_def_markers() -> None:
+    r"""``\newenvironment``/``\newtheorem``/``\DeclareMathOperator`` marker。"""
+    src = (
+        "\\newenvironment{bx}{B}{E}\\newtheorem{thm}{T}\\DeclareMathOperator{\\Res}{R}"
+    )
+    ts, _ = expand(src)
+    marks = [t.text for t in ts if t.kind == "consumed"]
+    assert marks == ["newenv:bx", "newtheorem:thm", "mathop:Res"]
+
+
+def test_gullet_if_marker_covers_condition_only() -> None:
+    r"""可求值 ``\if``：marker 盖 ``\if``+条件段——``process_if`` 前取端点。
+
+    ``_read_number`` 末位多读一枚再回吐（条件后空格）→ 端点含该 token；
+    其一字节重叠无害（覆盖去重、token 仍照流）。
+    """
+    src = "\\ifnum 1<2 T\\else F\\fi"
+    ts, _ = expand(src)
+    m = ts[0]
+    assert m.kind == "consumed"
+    assert m.text == "if:ifnum"
+    assert m.pos == (0, 0, src.index("T"))
+    assert text_of(ts) == " T"
+
+
+def test_gullet_newif_cond_marker_just_cs() -> None:
+    r"""``IfCond`` 无条件段——marker 恰盖 ``\ifzz`` 本体，不得延到 ``\fi``。"""
+    src = "\\newif\\ifzz\\zztrue\\ifzz T\\else F\\fi"
+    ts, _ = expand(src)
+    m = [t for t in ts if t.kind == "consumed" and t.text == "if:ifzz"]
+    assert len(m) == 1
+    at = src.index("\\ifzz T")
+    assert m[0].pos == (0, at, at + len("\\ifzz"))
+    assert text_of(ts) == "\\zztrueT"
+
+
+def test_gullet_input_marker_registers_path(tmp_path: Path) -> None:
+    r"""``\input`` 成功 → marker 文本 ``input:<解析路径>``，pos 盖调用点。"""
+    sub = tmp_path / "sub.tex"
+    sub.write_text("sub words", encoding="utf-8")
+    src = "pre \\input{sub} post"
+    g = Gullet(src, root_dir=str(tmp_path))
+    ts = list(g)
+    marks = [t for t in ts if t.kind == "consumed"]
+    assert len(marks) == 1
+    assert marks[0].text.startswith("input:")
+    assert marks[0].text.endswith("sub.tex")
+    assert marks[0].pos == (0, src.index("\\input"), src.index(" post"))
+    assert text_of(ts) == "pre sub words post"
+
+
+def test_gullet_endinput_marker_and_sibling_reinclude(tmp_path: Path) -> None:
+    r"""``\endinput`` → marker + 余下字节丢弃；``_seen`` 回撤使兄弟位再包含不断。"""
+    sub = tmp_path / "sub.tex"
+    sub.write_text("A\\endinput DISCARDED", encoding="utf-8")
+    g = Gullet("\\input{sub} mid \\input{sub} tail", root_dir=str(tmp_path))
+    ts = list(g)
+    marks = [t.text for t in ts if t.kind == "consumed"]
+    assert [m.split(":")[0] for m in marks] == [
+        "input",
+        "endinput",
+        "input",
+        "endinput",
+    ]
+    assert marks[0] == marks[2]  # 兄弟位重包含成功（_seen 已回撤）
+    assert text_of(ts) == "A mid A tail"
+
+
+def test_gullet_expansion_inner_marker_gen1() -> None:
+    r"""展开产物里的 ``\def`` 执行 → marker ``gen>0``（仅组内边界语义）。"""
+    ts, _ = expand("\\def\\a{ok \\def\\b{y}}\\a")
+    marks = [t for t in ts if t.kind == "consumed"]
+    assert [m.text for m in marks] == ["def:a", "def:b"]
+    assert marks[0].gen == 0
+    assert marks[1].gen > 0
+
+
+def test_gullet_skip_past_resyncs_mouth() -> None:
+    r"""``skip_past`` 把源消费指针推到闭合末，其后 token 照常读。"""
+    src = "ab %verb\n cd"
+    g = Gullet(src)
+    assert g.read() is not None  # 拉一枚让 i 离开 0
+    assert g.skip_past(0, src.index("cd"))
+    assert text_of(list(g)) == "cd"
+
+
+def test_gullet_skip_past_filters_tokbuf() -> None:
+    r"""缓冲 token：``end<=pos`` 逐字区残骸丢、``start>=pos`` 真内容留。"""
+    g = Gullet("0123456789abcdef")
+    top = g.inputs[-1]
+    stale = Tok("other", "%", (0, 3, 4))  # 落在闭合区间内 → 丢
+    fresh = Tok("letter", "z", (0, 12, 13))  # 闭合符后 → 留
+    top.push_tokens([fresh, stale])  # 逆序塞左端 → 弹出序 stale, fresh
+    assert g.skip_past(0, 10)
+    assert g.read() is fresh
+    assert not top.tokbuf  # stale 残骸已丢
+
+
+def test_gullet_skip_past_straddle_refused() -> None:
+    r"""缓冲 token 跨界（start<pos<end）→ warning + False，源不动。"""
+    g = Gullet("0123456789")
+    g.inputs[-1].push_tokens([Tok("cs", "x", (0, 5, 8))])
+    assert not g.skip_past(0, 6)
+    assert any(w.kind == "verb_resync_failed" for w in g.warnings)
+
+
+def test_gullet_skip_past_missing_fid_warns() -> None:
+    r"""目标 fid 不在栈 → ``verb_resync_failed`` + False。"""
+    g = Gullet("ab")
+    assert not g.skip_past(9, 1)
+    assert any(w.kind == "verb_resync_failed" for w in g.warnings)
+
+
+def test_gullet_skip_past_under_synthetic_top() -> None:
+    r"""栈顶 ``from_tokens`` 合成源（file_id<0）时向栈深找 fid，滞留源仍先排。"""
+    g = Gullet("ab cd")
+    g.inputs.append(Mouth.from_tokens([Tok("letter", "Q", (-1, 0, 1))], g.cats))
+    assert g.skip_past(0, 3)  # 真源在栈深仍命中
+    assert g.read().text == "Q"  # 合成 token 先排
+    assert text_of(list(g)) == "cd"  # 合成源耗尽 → 真源自 i=3 续

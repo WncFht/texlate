@@ -150,8 +150,18 @@ class ArgMismatch(Exception):  # noqa: N818 — 规格 §3.5 定名（非 Error 
 class MacroTable:
     r"""命令/环境 scope 链（§8.5）。
 
-    ``{``/``\\bgroup``/``\\begin{env}`` 推、``}``/``\\end`` 弹——由**分段器**
-    驱动回报；本层只提供链与查写。``\\gdef/\\xdef/\\global`` 写底帧。
+    scope 事件由**分段器**驱动回报（本层只提供链与查写）：
+
+    - **推**：``lbrace``/``\bgroup``/``\begingroup``/``\begin{env}``/数学开
+      （``$``/``$$``/``\(``/``\[``/math-env）——含 ``gen>0`` 的 ``\begin``
+      展开产物，宏展开的 ``\begin`` 同样开环境作用域；
+    - **弹**：``rbrace``/``\egroup``/``\endgroup``/``\end{env}``/数学闭，
+      组内对称推弹即安全；
+    - **不产事件**：参数括号——gullet ``_invoke`` 读参消费的分界 token 与
+      分段器自身 ``_args`` 消费的 ``{…}``/``[…]`` 都不推弹（TeX 语义同：
+      实参组不建作用域）。
+
+    ``\\gdef/\\xdef/\\global`` 写底帧。
     """
 
     def __init__(self) -> None:
@@ -160,12 +170,12 @@ class MacroTable:
         self.env_scopes: list[dict[str, EnvDef]] = [{}]
 
     def push_scope(self) -> None:
-        """分段器回报组/环境开始。"""
+        r"""分段器回报组/环境/数学开（``{``/``\bgroup``/``\begingroup``/``\begin``/``$``族）。"""
         self.scopes.append({})
         self.env_scopes.append({})
 
     def pop_scope(self) -> None:
-        """分段器回报组/环境结束；底帧不可弹。"""
+        r"""分段器回报组/环境/数学闭（``}``/``\egroup``/``\endgroup``/``\end``/``$``族）；底帧不可弹。"""
         if len(self.scopes) > 1:
             self.scopes.pop()
             self.env_scopes.pop()
@@ -637,7 +647,9 @@ def expand_def(
       pos/gen——它们是真实源 token）；``#``+非数字 → 容忍为字面 ``#``
       （plasTeX ``int(t)`` 会崩，我们选择不崩）；
     - ``previous == 'ifx'`` 时参数外包 ``{ }``（``__init__.py:1116`` 同款 hack）；
-    - 体产出的 token 打 ``gen=trig.gen+1``、``origin=最外层调用点``。
+    - 体产出的 token 打 ``gen=trig.gen+1``、``origin=最外层调用点``——顶层
+      调用的 origin 先打 ``trig.pos``（cs 名），``_invoke`` 返回前由
+      ``_stamp_call_origin`` 补打为含 args 的整调用区间。
     """
     gen = trig.gen + 1
     origin = trig.origin or trig.pos
@@ -706,7 +718,11 @@ class Gullet:
         self.file_texts: list[str] = []  # file_id → 源文本
         self.file_paths: list[str] = []  # file_id → 路径（'' = 内存源）
         self.ifflags: dict[str, bool] = {}  # \newif 旗标
-        self.math_depth = 0  # 分段器回报 → \ifmmode 求值
+        # 分段器在数学开（$/$$/\(/\[/math-env \begin）+1、数学闭（$/$$/\)/\]/
+        # \end）−1，**下一次拉取前**写入 → \ifmmode 求值读到的是当前嵌套深度
+        self.math_depth = 0
+        # read() 最近产出（\if 条件段 marker 取端点 / _consumed 端点扩展）
+        self._last_read: Tok | None = None
         self.steps = 0
         self.overflow = False  # 是否已记 expansion_overflow
         self.warnings: list[ScanWarning] = []
@@ -736,6 +752,7 @@ class Gullet:
         while self.inputs:
             t = self.inputs[-1].next()
             if t is not None:
+                self._last_read = t
                 return t
             m = self.inputs.pop()
             r = self._seen_fid.pop(m.file_id, None)
@@ -751,6 +768,44 @@ class Gullet:
             self.inputs.append(Mouth.from_tokens(list(toks), self.cats))
         else:
             self.inputs[-1].push_tokens(list(toks))
+
+    def skip_past(self, fid: int, pos: int) -> bool:
+        r"""逐字区 resync（分段器 ``\begin{verbatim}``/``\verb`` 用）。
+
+        分段器在**文件字节**上找到闭合符后调此：把 ``fid`` 源的消费指针
+        推到 ``pos``（=闭合区间末）。坑位：
+
+        - 目标源通常即栈顶；栈顶为 ``from_tokens`` 合成源（file_id<0，
+          case 回放/参读回吐所建）时向栈深找 fid——其上方滞留源保持
+          先排，流序不乱。
+        - ``tokbuf`` 回压 token：``end<=pos`` → 逐字区残骸丢弃；
+          ``start>=pos`` → 保留（闭合符后真内容）；跨界 straddle 实际
+          不可能（pos 恒落 ``}`` token 末），仍守门拒。
+        - ``i`` 只前进（分段器已拉过闭合点的防御路径不重绕）。
+        - ``_seen``/``_seen_fid`` 不动（resync 不弹源）。
+
+        fid 不在栈 / 缓冲跨界 → ``verb_resync_failed`` warning + False，
+        分段器退化逐字流（与今日无 verb 处理等价）。
+        """
+        target: Mouth | None = None
+        for m in reversed(self.inputs):
+            if m.file_id == fid:
+                target = m
+                break
+        if target is None:
+            self._warn("verb_resync_failed", None, f"fid {fid} not on inputs")
+            return False
+        keep: list[Tok] = []
+        for t in target.tokbuf:
+            if t.pos[0] != fid or t.pos[1] >= pos:
+                keep.append(t)  # 异 fid 产物/闭合符后真内容——照常先排
+                continue
+            if t.pos[2] > pos:
+                self._warn("verb_resync_failed", None, "buffered token straddles")
+                return False
+            # pos[2] <= pos：逐字区残骸，丢
+        target.resync(pos, keep)
+        return True
 
     # ------------------------------------------------------------ 主循环
 
@@ -790,8 +845,11 @@ class Gullet:
                     if not self._can_expand(t):
                         return t
                     self.steps += 1
+                    # IfCond 无条件段——marker 即 cs 本体；先构造再 process_if
+                    # （否则 _last_read 被 \fi 顶掉，端点扩展会误盖整个条件区）
+                    marker = self._consumed(f"if:{name}", t, None)
                     self.process_if(self.ifflags.get(r.flag, False))
-                    continue
+                    return marker
                 if isinstance(r, IfSetter):
                     self.ifflags[r.flag] = r.value
                     return t
@@ -847,9 +905,46 @@ class Gullet:
             out.append(t)
 
     def _warn(self, kind: str, t: Tok | None, detail: str) -> None:
-        """登记 ``ScanWarning``；pos 取 token 起点（无 token → 0）。"""
+        """登记 ``ScanWarning``；pos 取 token 起点（无 token → 0）。
+
+        ``ScanWarning.pos`` 是 int 装不下 fid——多文件时 detail 前挂
+        ``f{fid} `` 前缀（fid=0 主文件不挂，单文件 detail 保持原样）。
+        """
+        if t is not None and t.pos[0] > 0:
+            detail = f"f{t.pos[0]} {detail}"
         pos = t.pos[1] if t is not None else 0
         self.warnings.append(ScanWarning(kind, pos, detail))
+
+    def _consumed(
+        self,
+        tag: str,
+        trig: Tok,
+        trace: list[Tok] | None,
+        head: Tok | None = None,
+        end: int = -1,
+    ) -> Tok:
+        r"""静默消费段 → ``consumed`` marker token（分段器接线 §4）。
+
+        ``pos = (fid, head.start, 末消费 token end)``：分段器 flush +
+        LITERAL 盖面（``\def`` 串不落 chunk——译文会删 def）。``head``
+        供 ``\long\global`` 前缀链从首个前缀起算；``end`` 显式端点供
+        ``\if`` 条件段（其消费不走 ``trace``）。``gen>0`` 的 marker
+        只作组内边界——pos 是定义体位（母体字节，多已被同组 token 覆盖），
+        分段器侧零宽 piece 即正确、不驱覆盖；``input:`` 型仍须按 text 记
+        ``inputs[]``。
+        """
+        h = head or trig
+        if end < 0:
+            end = trace[-1].pos[2] if trace else h.pos[2]
+            lr = self._last_read
+            if (
+                lr is not None
+                and lr.gen == 0
+                and lr.pos[0] == h.pos[0]
+                and lr.pos[2] > end
+            ):
+                end = lr.pos[2]  # _read_number 等非 trace 消费补端；gen>0 产物不延
+        return Tok("consumed", tag, (h.pos[0], h.pos[1], end), h.gen, h.origin)
 
     # ------------------------------------------------------------ 参数读取
     # 全部走 read()（原始未展开流，TeX.py:704-714 同构）；消费计入 trace。
@@ -1009,7 +1104,7 @@ class Gullet:
         （None → 代入时该 ``#i`` 不产出）。``ArgMismatch`` 由调用方回吐。
         """
         if not m.spec:
-            return expand_def(m.body, {}, trig)
+            return self._stamp_call_origin(expand_def(m.body, {}, trig), trig)
         trace = self._trace
         params: dict[int, list[Tok] | None] = {}
         slot = 0
@@ -1042,7 +1137,38 @@ class Gullet:
                 params[slot] = self._read_until_lbrace(trace)
             else:
                 raise ArgMismatch
-        return expand_def(m.body, params, trig)
+        return self._stamp_call_origin(expand_def(m.body, params, trig), trig)
+
+    def _stamp_call_origin(self, out: list[Tok], trig: Tok) -> list[Tok]:
+        r"""产物 ``origin`` 补打为**整调用区间** ``(fid, trig.start, trace末.end)``。
+
+        ``expand_def`` 只打 ``trig.pos``（cs 名区间）——``\sw{a}{b}`` 的
+        args 字节会漏出 EXPAND/``ph_map[CHUNK]`` 的 identity 切片
+        （segmenter-integration §4 表首行）。嵌套展开的产物已带最外层
+        调用点 origin，不动；``gen=0`` 实参 token（pos 落在调用区间内的
+        真源 token）也不动——它们靠 pos 归组、靠自身 pos 切 ident。
+        """
+        last = self._trace[-1] if self._trace else None
+        if (
+            trig.origin is not None
+            or last is None
+            or last.gen != 0  # 实参是上游展开产物 → 调用区间不连续，退回 cs 名
+            or last.pos[0] != trig.pos[0]
+            or last.pos[2] <= trig.pos[2]
+        ):
+            return out
+        call = (trig.pos[0], trig.pos[1], last.pos[2])
+        return [
+            Tok(
+                x.kind,
+                x.text,
+                x.pos,
+                x.gen,
+                call if x.origin == trig.pos else x.origin,
+                x.xprotect,
+            )
+            for x in out
+        ]
 
     # ------------------------------------------------------------ 原语分派
 
@@ -1091,8 +1217,11 @@ class Gullet:
             return self._do_catcode(t)
         if name == "endinput":
             if self.inputs:
-                self.inputs.pop()
-            return None
+                m = self.inputs.pop()  # 当前文件余下字节丢弃（flatten 同语义）
+                r = self._seen_fid.pop(m.file_id, None)
+                if r is not None:
+                    self._seen.discard(r)  # 祖先栈回撤——同 read() 弹栈账
+            return self._consumed("endinput", t, None)
         if name in INPUT_CMDS:
             return self._do_input(t, name)
         if name == "expandafter":
@@ -1115,12 +1244,21 @@ class Gullet:
 
     # ------------------------------------------------------------ \def 族
 
-    def _do_def(self, trig: Tok, *, global_: bool, eager: bool = False) -> Tok | None:
+    def _do_def(
+        self,
+        trig: Tok,
+        *,
+        global_: bool,
+        eager: bool = False,
+        head: Tok | None = None,
+    ) -> Tok | None:
         r"""``\def\name<参数文本>{体}``（``DefCommand`` Primitives.py:127-168）。
 
         参数文本 = ``\name`` 与首个 ``{`` 间全部 token，定义时编译为 spec；
         ``##`` 检出后体/参数文本同折叠一层（Primitives.py:146-160）。
         ``\edef/\xdef``（``eager``）先对体跑一遍展开再登记（哨兵界标法）。
+        ``head`` = ``\long/\outer/\global`` 前缀链首 token（marker span
+        从它起算；缺省 = ``trig``）。
         """
         trace = self._trace = []
         nt = self._rt_skip(trace)
@@ -1165,11 +1303,15 @@ class Gullet:
                 target_env=target,
                 protect_args=protect,
                 scope="global" if global_ else "local",
-                src=(trig.pos[0], trig.pos[1], self._trace_end(trace)),
+                src=(
+                    (head or trig).pos[0],
+                    (head or trig).pos[1],
+                    self._trace_end(trace),
+                ),
             ),
             "global" if global_ else "local",
         )
-        return None
+        return self._consumed(f"{trig.text}:{mname}", trig, trace, head)
 
     def _expand_eager(self, body: list[Tok]) -> list[Tok]:
         r"""``\edef/\xdef`` 体即时展开：体 + 哨兵推回，抽展开流到哨兵止。
@@ -1214,6 +1356,7 @@ class Gullet:
                     t,
                     global_=seen_global or t.text in ("gdef", "xdef"),
                     eager=t.text in ("edef", "xdef"),
+                    head=trig,  # marker/src 从首个前缀 token 起算
                 )
             self.unread(trace)
             return trig
@@ -1375,7 +1518,7 @@ class Gullet:
             self.macros.setdefault(mname, entry)
         else:
             self.macros.set(mname, entry)
-        return None
+        return self._consumed(f"{name}:{mname}", trig, trace)
 
     def _do_newenv(self, trig: Tok) -> Tok | None:
         r"""``\newenvironment[*]{env}[N][d]{before}{after}``（Definitions.py:42-51）。"""
@@ -1402,7 +1545,7 @@ class Gullet:
         self.macros.set_env(
             EnvDef(name=envname, spec=spec, before=before, after=after, kind=kind)
         )
-        return None
+        return self._consumed(f"newenv:{envname}", trig, trace)
 
     def _read_env_name(self, trace: list[Tok]) -> str | None:
         """``{env}`` 读环境名（``name:str``）。"""
@@ -1426,7 +1569,7 @@ class Gullet:
         self.macros.set_env(
             EnvDef(name=envname, spec=[Arg("o")], caption=cap, kind="theorem")
         )
-        return None
+        return self._consumed(f"newtheorem:{envname}", trig, trace)
 
     def _do_mathop(self, trig: Tok) -> Tok | None:
         r"""``\DeclareMathOperator[*]{\n}{B}`` → 体包 ``\operatorname{B}``（amsmath.py:111-123）。"""
@@ -1454,7 +1597,7 @@ class Gullet:
                 src=(trig.pos[0], trig.pos[1], self._trace_end(trace)),
             ),
         )
-        return None
+        return self._consumed(f"mathop:{mname}", trig, trace)
 
     def _do_xparse(self, trig: Tok, name: str) -> Tok | None:
         r"""``\NewDocumentCommand{\n}{spec}{B}``（§4.3 xparse 子集）。
@@ -1488,7 +1631,7 @@ class Gullet:
             self.macros.setdefault(mname, entry)
         else:
             self.macros.set(mname, entry)
-        return None
+        return self._consumed(f"xparse:{mname}", trig, trace)
 
     def _parse_xparse(self, s: str) -> list[Arg] | None:  # noqa: C901, PLR0912, PLR0915 — spec 字母平铺即 §4.3 表
         """Xparse spec 串 → ``list[Arg]``；不支持字母 → ``None``。"""
@@ -1607,7 +1750,7 @@ class Gullet:
             self.macros.set(nt.text, Alias(tgt))
         else:
             self.macros.set(nt.text, Alias(src))
-        return None
+        return self._consumed(f"let:{nt.text}", trig, trace)
 
     def _do_newif(self, trig: Tok) -> Tok | None:
         r"""``\newif\ifX`` 三项登记（Context.newif Context.py:1008-1041）。
@@ -1626,7 +1769,7 @@ class Gullet:
         self.macros.set(nt.text, IfCond(flag))
         self.macros.set(flag + "true", IfSetter(flag, value=True))
         self.macros.set(flag + "false", IfSetter(flag, value=False))
-        return None
+        return self._consumed(f"newif:{flag}", trig, trace)
 
     def _do_catcode(self, trig: Tok) -> Tok | None:
         r"""``\catcode`<ch>=<num>``（Primitives.py:401-411）。"""
@@ -1648,7 +1791,7 @@ class Gullet:
             self.unread(trace)
             return trig
         self.cats.set(ch, int(v) & 15)
-        return None
+        return self._consumed("catcode", trig, trace)
 
     # ------------------------------------------------------------ \input 族
 
@@ -1736,7 +1879,9 @@ class Gullet:
                 return trig
             sub = region
         self.push_source(sub, hit)
-        return None
+        # marker 文本带解析后绝对路径——分段器据此登记 inputs[]
+        tag_text = f"input_tag:{hit}:{tag}" if tag is not None else f"input:{hit}"
+        return self._consumed(tag_text, trig, trace)
 
     def _read_bare_filename(self, trace: list[Tok]) -> str | None:
         r"""``\input file`` 裸名形：``[A-Za-z0-9._/-]+`` 至空白/反斜杠。"""
@@ -1864,7 +2009,7 @@ class Gullet:
         pos = start if start is not None else (-1, -1, -1)
         return Tok("cs", "".join(name), pos)
 
-    def _do_ifundefined(self, _trig: Tok) -> Tok | None:
+    def _do_ifundefined(self, trig: Tok) -> Tok | None:
         r"""``\@ifundefined{name}{T}{F}`` 选支推回（Base/LaTeX ``__init__.py:36-45``）。
 
         ``name`` 已定义（宏表/原语/内建名集）→ 推 ``F``；否则推 ``T``。
@@ -1884,7 +2029,7 @@ class Gullet:
             self.macros.lookup(name) is not None or name in _PRIMS or name in _BUILTINS
         )
         self.unread(f_arg if defined else t_arg)
-        return None
+        return self._consumed(f"ifundefined:{name}", trig, trace)
 
     # ------------------------------------------------------------ \if 族
 
@@ -1898,8 +2043,11 @@ class Gullet:
         which = self._eval_if(t.text)
         if which is None:
             return t
+        # marker 先于 process_if 构造——此刻 _last_read 仍是条件末 token，
+        # _consumed 的端点扩展即条件段末；选支收集后 _last_read 会被 \fi 顶掉
+        marker = self._consumed(f"if:{t.text}", t, None)
         self.process_if(which)
-        return None
+        return marker
 
     def _eval_if(self, name: str) -> bool | int | None:  # noqa: C901, PLR0911, PLR0912 — 可求值族平铺即 §8.6 表
         r"""``\if`` 条件求值：``None`` → 界标档。条件 token 无条件消费。"""

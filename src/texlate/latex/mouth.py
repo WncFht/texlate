@@ -88,11 +88,16 @@ _LETTERS = string.ascii_letters  # TeX 语义：LETTER 只含 ASCII（非 ASCII 
 
 @dataclass(slots=True)
 class Tok:
-    r"""token。``kind`` ∈ cs|lbrace|rbrace|mathshift|param|space|eol_par|letter|other|active。
+    r"""token。``kind`` ∈ cs|lbrace|rbrace|mathshift|param|space|eol_par|letter|other|active|consumed。
 
     ``pos`` = ``(file_id, start, end)`` 半开区间；展开产物的 pos = 定义体区间
     且 ``gen>0``、``origin`` = 最外层调用点 pos（spec §2.3）。
     ``xprotect`` = ``\noexpand`` 打标（gullet 见标跳过一次展开）。
+    ``consumed`` = gullet 静默消费段 marker（``\def``/``\if``/``\input`` 等），
+    ``text`` = ``family:payload``，``pos`` 盖整个被消费区间——分段器
+    flush + LITERAL 用。``gen>0`` 时 pos 是**定义体位**（母体字节，多已被
+    同组 token 覆盖）→ 分段器侧零宽 piece 即正确、不驱覆盖，仅作组内
+    边界；``input:`` 型仍须按 text 记 ``inputs[]``（文件源确实压栈了）。
     """
 
     kind: str
@@ -186,6 +191,19 @@ class Mouth:
         """逆序塞左端——``unread``/展开推回的落点（Tokenizer.py:319-331）。"""
         if toks:
             self.tokbuf.extendleft(reversed(toks))
+
+    def resync(self, pos: int, keep: list[Tok]) -> None:
+        r"""逐字区跳读复位（gullet ``skip_past`` 的唯一入口）。
+
+        ``i`` 只前进；``state`` 归 M（``\end{V}`` 后接 ``\n\n`` 仍产
+        ``eol_par``）；``_prev_kind`` 清空（同上，eol_par 去重不误伤）；
+        ``tokbuf`` 重置为 ``keep``（调用方已剔除逐字区残骸）。
+        """
+        self.i = max(self.i, pos)  # i 只前进
+        self.state = _M
+        self._prev_kind = ""
+        self.tokbuf.clear()
+        self.tokbuf.extend(keep)
 
     def __iter__(self) -> Mouth:
         """迭代协议：``next()`` 耗尽即停。"""
