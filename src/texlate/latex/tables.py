@@ -9,6 +9,9 @@ from __future__ import annotations
 
 import re
 
+from texlate.textutil import DEAD_ENVS as _DEAD_ENVS
+from texlate.textutil import VERBATIM_ENVS as _VERBATIM_ENVS
+
 # ---------------------------------------------------------------- 阈值
 
 CHUNK_MIN = 20  # flush_run 可译性阈值（去命令/非字母后字符数）
@@ -53,8 +56,8 @@ MATH_ENVS = {
 MATH_ENVS |= {e + "*" for e in list(MATH_ENVS)}
 
 # 逐字环境：整体跳过，% 不是注释，内部不挖 caption
-VERBATIM_ENVS = {"verbatim", "lstlisting", "minted", "comment", "Verbatim"}
-VERBATIM_ENVS |= {e + "*" for e in list(VERBATIM_ENVS)}
+# 名单单源在 texlate.textutil（逐字族 ∪ 失活族——对 scanner 都是不透体）
+VERBATIM_ENVS = set(_VERBATIM_ENVS) | set(_DEAD_ENVS)
 
 # 保护环境：整段 → [[ENV_n]]，但内部递归挖 \caption/\footnote 为 chunk
 PROTECTED_ENVS = {

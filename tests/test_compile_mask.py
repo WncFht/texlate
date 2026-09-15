@@ -1,12 +1,12 @@
-"""mask.py 遮蔽视图与 group_end 的单测。"""
+"""mask.py 遮蔽视图与 group_end 的单测（decode_tex 单源在 textutil）。"""
 
 from texlate.compile.mask import (
     apply_edits,
-    decode_tex,
     group_end,
     visible_tex,
     without_comments,
 )
+from texlate.textutil import decode_tex
 
 
 def test_visible_tex_masks_line_comment() -> None:

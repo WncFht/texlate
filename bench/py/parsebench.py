@@ -67,6 +67,7 @@ from texlate.latex import (
     reconstruct,
     validate_result,
 )
+from texlate.textutil import decode_tex
 
 if TYPE_CHECKING:
     from texlate.latex.model import ScanResult
@@ -135,7 +136,7 @@ def find_roots(tex_files: list[Path]) -> list[dict]:
     roots = []
     for p in sorted(tex_files):
         try:
-            tex = p.read_text(encoding="utf-8", errors="replace")
+            tex = decode_tex(p.read_bytes())
         except OSError:
             continue
         m = DOCCLASS_RX.search(strip_comments(tex))
@@ -405,7 +406,7 @@ def file_metrics(
         entry["leak_hits"] = sorted(entry["leak"]["hits"])
 
         rb = rebuild_metrics(res)  # identity + fake-translation 重建 (同 v1)
-        orig = path.read_text(encoding="utf-8", errors="replace")
+        orig = decode_tex(path.read_bytes())
         # flatten 在 parse 前已展开 \input → recon 的对比基准是展平文本
         orig_flat = flatten_inputs(orig, str(path.parent), str(path.parent))
         status, ratio, first_diff = classify_recon(orig_flat, rb["recon_identity"])
@@ -481,15 +482,14 @@ def analyze_paper(paper_id: str, pdir: Path, corpus: Path) -> dict:
 
     roots = find_roots(tex_files)
     stripped_blob = "\n".join(
-        strip_comments(p.read_text(encoding="utf-8", errors="replace"))
-        for p in tex_files
+        strip_comments(decode_tex(p.read_bytes())) for p in tex_files
     )
 
     # flatten 覆盖: 所有根的 \input 图并集 (multi_doc 时并集口径)
     covered: set[str] = set()
     reach_by_root: dict[str, set[str]] = {}
     for r in roots:
-        tex = r["file"].read_text(encoding="utf-8", errors="replace")
+        tex = decode_tex(r["file"].read_bytes())
         reach = flatten_reach(tex, str(r["file"].parent))
         reach.add(os.path.abspath(r["file"]))
         reach_by_root[os.path.abspath(r["file"])] = reach

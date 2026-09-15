@@ -27,6 +27,7 @@ from texlate.latex.model import (
     ws_skip,
 )
 from texlate.latex.tables import MAX_INPUTS, VERBATIM_ENVS
+from texlate.textutil import decode_tex
 
 _DOC_BEGIN_RX = re.compile(r"\\begin\{document\}")
 _DOC_END_RX = re.compile(r"\\end\{document\}")
@@ -76,7 +77,7 @@ def _resolve(fname: str, file_dir: str, root_dir: str) -> str | None:
 
 def _read_file(path: str) -> str:
     """文件读取接缝（bench ``flatten_reach`` 的 open 记录器经 shim 重绑这里）。"""
-    return Path(path).read_text(encoding="utf-8", errors="replace")
+    return decode_tex(Path(path).read_bytes())
 
 
 def _extract_tag_region(tex: str, tag: str) -> str | None:

@@ -27,8 +27,9 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 from texlate.texlog import update_file_stack
+from texlate.textutil import decode_tex
 
-from .mask import decode_tex, visible_tex
+from .mask import visible_tex
 from .sandbox import child_env, find_tool, run_process, sandbox_wrap
 
 DEFAULT_TIMEOUT = 240.0  # docs/08 §4.1

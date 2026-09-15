@@ -26,6 +26,7 @@ from typing import Final
 
 from texlate.arxiv._texutil import strip_comments
 from texlate.arxiv.sniff import check_pdf_wrapper
+from texlate.textutil import decode_tex
 
 #: 候选扩展名（docs/06 只列 .tex；corpus_v2 实测 .latex/.ltx 亦存在——
 #: nucl-ex/0203009 唯一主文件即 article.latex）
@@ -388,7 +389,7 @@ def _scan_nodes(
     nodes: dict[str, FileNode] = {}
     for rel in tex_files:
         try:
-            raw = (root / rel).read_bytes().decode("utf-8", "replace")
+            raw = decode_tex((root / rel).read_bytes())
         except OSError as e:
             res.warnings.append(f"unreadable:{rel}:{e}")
             continue

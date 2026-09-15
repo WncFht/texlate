@@ -20,10 +20,11 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
+from texlate.textutil import decode_tex
+
 from .mask import (
     TEX_SOURCE_SUFFIXES,
     apply_edits,
-    decode_tex,
     group_end,
     visible_tex,
     without_comments,

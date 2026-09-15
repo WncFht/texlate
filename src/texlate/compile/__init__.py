@@ -10,6 +10,8 @@
 fixloop（`compile/fixloop.py`，docs/08 §5）为独立模块另行交付。
 """
 
+from texlate.textutil import decode_tex
+
 from .engine import (
     CompRes,
     Engine,
@@ -45,7 +47,6 @@ from .judge import (
 from .mask import (
     TEX_SOURCE_SUFFIXES,
     apply_edits,
-    decode_tex,
     group_end,
     visible_tex,
     without_comments,

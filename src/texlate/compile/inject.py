@@ -14,7 +14,9 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from .mask import decode_tex, visible_tex
+from texlate.textutil import decode_tex
+
+from .mask import visible_tex
 from .normalize import inject_preamble
 
 CTEX_LINE = r"\usepackage[fontset=fandol,UTF8]{ctex}"

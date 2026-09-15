@@ -13,21 +13,10 @@ from __future__ import annotations
 
 import re
 
-from texlate.textutil import mask_comments
+from texlate.textutil import mask_comments, mask_tex
 
 #: 归一化层逐文件手术的扩展名集（.tex 之外，作者自带 .sty/.cls 同样要改）。
 TEX_SOURCE_SUFFIXES = {".tex", ".sty", ".cls", ".cfg", ".def", ".clo", ".fd", ".ltx"}
-
-#: 逐字环境：内容不做任何手术、不做翻译，整段遮盖。
-VERBATIM_ENVS = (
-    "verbatim",
-    "verbatim*",
-    "Verbatim",
-    "lstlisting",
-    "minted",
-    "filecontents",
-    "filecontents*",
-)
 
 _COMMAND_RE = re.compile(r"\\(?:[a-zA-Z@]+\*?|.)", re.DOTALL)
 
@@ -44,57 +33,11 @@ def without_comments(text: str) -> str:
 def visible_tex(text: str, *, mask_comment_environments: bool = True) -> str:
     r"""注释 + 逐字环境的等长遮盖视图；offset/行号与原文字节级对齐。
 
-    顺序敏感：先吃逐字环境（`\verb|%|` 里的 `%` 不是注释），再遮行内 `%`。
+    实现单源在 :func:`texlate.textutil.mask_tex`。
     `mask_comment_environments=False` 用于 comment.sty 手术自身——
     `\end{comment}` 行尾空白修复需要看见 comment 环境内部。
     """
-    chars = list(text)
-
-    def mask(start: int, stop: int) -> None:
-        chars[start:stop] = ["\n" if c == "\n" else " " for c in text[start:stop]]
-
-    i = 0
-    n = len(text)
-    env_alt = "|".join(VERBATIM_ENVS) + (
-        "|comment" if mask_comment_environments else ""
-    )
-    env_re = re.compile(r"\\begin\s*\{(" + env_alt + r")\}")
-    while i < n:
-        if text[i] == "%":
-            stop = text.find("\n", i)
-            stop = n if stop < 0 else stop
-            mask(i, stop)
-            i = stop
-            continue
-        if text[i] != "\\":
-            i += 1
-            continue
-        env = env_re.match(text, i)
-        if env:
-            ending = re.search(
-                r"\\end\s*\{" + re.escape(env[1]) + r"\}", text[i + env.end() :]
-            )
-            stop = i + env.end() + ending.end() if ending else n
-            mask(i, stop)
-            i = stop
-            continue
-        inline = re.match(r"\\(verb\*?|lstinline\*?)(?![A-Za-z@])", text[i:])
-        if inline:
-            start = i + inline.end()
-            if inline[1].startswith("lstinline"):
-                options = re.match(r"\s*(?:\[[^\]\n]*\]\s*)?", text[start:])
-                start += options.end()
-            if start < n and not text[start].isspace():
-                delimiter = text[start]
-                end = text.find("}" if delimiter == "{" else delimiter, start + 1)
-                newline = text.find("\n", start)
-                if end >= 0 and (newline < 0 or end < newline):
-                    mask(i, end + 1)
-                    i = end + 1
-                    continue
-        command = _COMMAND_RE.match(text, i)
-        i += command.end() if command else 1
-    return "".join(chars)
+    return mask_tex(text, mask_dead=mask_comment_environments)
 
 
 def group_end(s: str, pos: int) -> int:
@@ -128,17 +71,3 @@ def apply_edits(text: str, edits: list[tuple[int, int, str]]) -> str:
         newlines = text[start:end].count("\n") - replacement.count("\n")
         text = text[:start] + replacement + "\n" * newlines + text[end:]
     return text
-
-
-def decode_tex(blob: bytes) -> str:
-    """解码 arXiv 源码：UTF-8(BOM) → gb18030 → cp1252 → latin-1 兜底链。
-
-    latin-1 永不失败——latin-5/latin-9 源会带 U+FFFD 风险留给编译层
-    `Invalid UTF-8 byte` 判据兜底（docs/08 §4.3）。
-    """
-    for encoding in ("utf-8-sig", "gb18030", "cp1252", "latin-1"):
-        try:
-            return blob.decode(encoding)
-        except UnicodeDecodeError:
-            continue
-    return blob.decode("utf-8", errors="replace")

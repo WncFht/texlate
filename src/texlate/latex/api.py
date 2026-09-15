@@ -19,6 +19,7 @@ from texlate.latex.macro_table import MacroTable
 from texlate.latex.model import ScanResult, ScanState, ScanWarning
 from texlate.latex.placeholder import PH_RX, PlaceholderIssuer
 from texlate.latex.scanner import Scanner
+from texlate.textutil import decode_tex
 
 _PREAMBLE_RX = re.compile(r"\\(documentclass|documentstyle)(?![a-zA-Z])")
 _DOC_BEGIN_RX = re.compile(r"\\begin\{document\}")
@@ -55,7 +56,7 @@ def parse_tex(tex: str) -> ScanResult:
 
 def parse_file(path: str | os.PathLike[str], *, flatten: bool = True) -> ScanResult:
     r"""文件入口：读盘 → ``flatten_inputs`` → ``parse_tex``。"""
-    tex = Path(path).read_text(encoding="utf-8", errors="replace")
+    tex = decode_tex(Path(path).read_bytes())
     flat_warnings: list[ScanWarning] = []
     if flatten:
         d = str(Path(path).resolve().parent)
