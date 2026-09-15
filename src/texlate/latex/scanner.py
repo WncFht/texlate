@@ -1028,7 +1028,10 @@ class Scanner:
         pos = ws_skip_arg(tex, j)
         if pos < n and tex[pos] == "[":
             e2 = match_bracket(tex, pos)
-            if e2:
+            # F6：``[opt]`` 按内容分流——版式参（``[t]``/``[label=…]``/
+            # ``[noitemsep]``）吃掉照旧；定理类标题正文（``[Pythagoras]``）
+            # 不吃、随正文流进 chunk（docs/07 §3.5 原为无条件吞，8.3% 召回缺口）
+            if e2 and _env_opt_is_format(env, tex[pos + 1 : e2 - 1]):
                 pos = ws_skip_arg(tex, e2)
         mand = 1 if env in ENV_MANDATORY_ARG else 0
         if reg is not None:
@@ -1571,6 +1574,34 @@ class Scanner:
                 break
         self._ph_into_run(typ, tex[i:end], i, end)
         return end
+
+
+_OPT_FMT_CHARS = frozenset("=*\\#|!~,()<>:;")  # 版式参特征（kv/装饰/分组）
+_OPT_POS_LETTERS = frozenset("htbpHTBPclrmb")  # 浮动位 htbp + 列型 lcrmpb
+
+
+def _env_opt_is_format(env: str, content: str) -> bool:
+    r"""``\begin{env}[opt]`` 的 ``[opt]``：版式参（吃掉）还是标题正文（放行）。
+
+    scanner-audit F6：docs/07 §3.5 原规格无条件吞 ``[opt]`` → theorem/
+    lemma/proof 类环境标题永不进 chunk（corpus_v3 命中 8.3%，召回缺口）。
+    判定（corpus 实测分布校准）：
+
+    - 列表容器 env（``ARG_TRANSPARENT_ENVS``：itemize/enumerate 等）的
+      opt 恒为版式（``[noitemsep]``/``[label=…]``）——无条件吃；
+    - 其余看内容：空 / 数字开头 / 纯位置字母 / 含 ``=*\#|!~,()<>:;``
+      → 版式；否则当正文放行（回落主流进 chunk，标题恢复可译）。
+    """
+    if env in ARG_TRANSPARENT_ENVS:
+        return True
+    s = content.strip()
+    if not s:
+        return True  # ``[]`` 空参
+    if s[0].isdigit():
+        return True  # ``[1]``/``[1.]`` 编号参
+    if all(ch in _OPT_POS_LETTERS for ch in s):
+        return True  # ``[t]``/``[htb]``/``[mr]`` 位置参
+    return any(ch in _OPT_FMT_CHARS for ch in s)
 
 
 _CHUNK_SPEC_CACHE: dict[str, list[ArgSpec]] = {}

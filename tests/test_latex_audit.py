@@ -556,3 +556,38 @@ def test_audit_f10_e_spec_multi_tokens() -> None:
     assert "{dn}" not in b
     assert "{second}" not in b
     assert reconstruct(res) == DOC % body
+
+
+def test_audit_f6_theorem_opt_title_flows() -> None:
+    r"""F6：``\begin{theorem}[标题]`` 的 ``[opt]`` 放行成正文 chunk。
+
+    旧规格（§3.5）无条件吞 opt → 定理标题永不翻译（corpus 8.3%）。
+    """
+    body = (
+        "\\begin{theorem}[Pythagoras 定理] Body text of the theorem here "
+        "long enough. \\end{theorem}"
+    )
+    res = scan(body)
+    b = blob(res)
+    assert "Pythagoras" in b
+    assert reconstruct(res) == DOC % body
+
+
+def test_audit_f6_proof_opt_title_flows() -> None:
+    r"""F6：amsthm ``\begin{proof}[Proof of X]`` 同理放行。"""
+    body = "\\begin{proof}[Proof of Main Lemma] We argue as follows at length. \\end{proof}"
+    res = scan(body)
+    assert "Proof of Main Lemma" in blob(res)
+
+
+def test_audit_f6_format_opts_still_eaten() -> None:
+    r"""F6 对照：版式参照吃——``[noitemsep]``（列表容器 env）与 ``[t]``。"""
+    body = (
+        "\\begin{itemize}[noitemsep]\\item first item text here\\end{itemize}\n"
+        "\\begin{mybox}[t] box body text enough to chunk words \\end{mybox}"
+    )
+    res = scan(body)
+    b = blob(res)
+    assert "noitemsep" not in b
+    assert "[t]" not in b
+    assert reconstruct(res) == DOC % body
