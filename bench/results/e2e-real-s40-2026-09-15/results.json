@@ -1,0 +1,3048 @@
+{
+ "0707.4363": {
+  "id": "0707.4363",
+  "layer": "core",
+  "cat_group": "cond-mat",
+  "era": "new",
+  "uncompressed_bytes": 339833,
+  "main": "main.tex",
+  "route": {
+   "engines": [],
+   "reject": "latex209_documentstyle",
+   "reasons": [
+    "main.tex: \\documentstyle → 三引擎实测全死"
+   ],
+   "non_utf8": false
+  },
+  "status": "reject",
+  "base-xel": {
+   "engine": "xelatex",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.17,
+    "passes": 2,
+    "rc": -13,
+    "pdf_bytes": 19297,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "warn:invalid_utf8"
+    ],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "partial"
+  }
+ },
+ "0707.1511": {
+  "id": "0707.1511",
+  "layer": "core",
+  "cat_group": "quant-ph",
+  "era": "new",
+  "uncompressed_bytes": 2033533,
+  "main": "amalgam_final.tex",
+  "route": {
+   "engines": [
+    "xelatex",
+    "tectonic"
+   ],
+   "reject": null,
+   "reasons": [
+    "eps_files=True pstricks=False → xelatex 优先（tectonic xdvipdfmx 硬墙）"
+   ],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 2,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 89,
+    "ok": 89,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 89,
+    "batched": 41,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 63.2,
+    "src_chars": 33202
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 2.28,
+    "passes": 2,
+    "rc": -13,
+    "pdf_bytes": 1617,
+    "first_error": "/Users/fanghaotian/src/texlate/bench/work_e2ereal/pipe-xel/0707.1511/amalgam_final.tex:488: Missing $ inserted."
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "n_errors": 2,
+    "category": "syntax",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "clean"
+  },
+  "seconds": 65.6,
+  "status": "clean"
+ },
+ "0707.3950": {
+  "id": "0707.3950",
+  "layer": "core",
+  "cat_group": "math",
+  "era": "new",
+  "uncompressed_bytes": 32214,
+  "main": "main.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 85,
+    "ok": 85,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 85,
+    "batched": 73,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 27.8,
+    "src_chars": 14968
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 26,
+    "float_sizing": 0
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 2.78,
+    "passes": 2,
+    "rc": 0,
+    "pdf_bytes": 299077,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 2344,
+    "missing_chars": 0
+   },
+   "status": "clean"
+  },
+  "seconds": 30.7,
+  "status": "clean"
+ },
+ "0707.4465": {
+  "id": "0707.4465",
+  "layer": "core",
+  "cat_group": "hep-phys",
+  "era": "new",
+  "uncompressed_bytes": 105952,
+  "main": "cizallanals.tex",
+  "route": {
+   "engines": [
+    "xelatex",
+    "tectonic"
+   ],
+   "reject": null,
+   "reasons": [
+    "eps_files=True pstricks=False → xelatex 优先（tectonic xdvipdfmx 硬墙）"
+   ],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 149,
+    "ok": 149,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 149,
+    "batched": 102,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 62.6,
+    "src_chars": 44118
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 25,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.25,
+    "passes": 1,
+    "rc": 1,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `elsart.cls' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  },
+  "seconds": 62.9,
+  "status": "fail",
+  "base-xel": {
+   "engine": "xelatex",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.17,
+    "passes": 1,
+    "rc": 1,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `elsart.cls' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  }
+ },
+ "0707.4577": {
+  "id": "0707.4577",
+  "layer": "core",
+  "cat_group": "hep-phys",
+  "era": "new",
+  "uncompressed_bytes": 1504010,
+  "main": "egghe3.tex",
+  "route": {
+   "engines": [
+    "xelatex",
+    "tectonic"
+   ],
+   "reject": null,
+   "reasons": [
+    "eps_files=True pstricks=False → xelatex 优先（tectonic xdvipdfmx 硬墙）"
+   ],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 70,
+    "ok": 70,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 70,
+    "batched": 36,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 56.0,
+    "src_chars": 34914
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 2.94,
+    "passes": 2,
+    "rc": -13,
+    "pdf_bytes": 17246,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "clean"
+  },
+  "seconds": 59.0,
+  "status": "clean"
+ },
+ "0905.4793": {
+  "id": "0905.4793",
+  "layer": "core",
+  "cat_group": "eess-stat-etc",
+  "era": "new",
+  "uncompressed_bytes": 389375,
+  "main": "paper.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 96,
+    "ok": 96,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 97,
+    "batched": 50,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 58.5,
+    "src_chars": 33821
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 25,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 8.06,
+    "passes": 2,
+    "rc": 0,
+    "pdf_bytes": 571887,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 7042,
+    "missing_chars": 0
+   },
+   "status": "clean"
+  },
+  "seconds": 66.8,
+  "status": "clean"
+ },
+ "1003.1464": {
+  "id": "1003.1464",
+  "layer": "core",
+  "cat_group": "math",
+  "era": "new",
+  "uncompressed_bytes": 9480094,
+  "main": "Yang_AI2009_paper224.tex",
+  "route": {
+   "engines": [
+    "xelatex",
+    "tectonic"
+   ],
+   "reject": null,
+   "reasons": [
+    "eps_files=True pstricks=False → xelatex 优先（tectonic xdvipdfmx 硬墙）"
+   ],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 66,
+    "ok": 66,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 66,
+    "batched": 42,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 40.4,
+    "src_chars": 19622
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 28,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 3.63,
+    "passes": 2,
+    "rc": 1,
+    "pdf_bytes": 13434,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "warn:missing_chars",
+     "missing_character×1",
+     "cjk_unverified+missing_chars"
+    ],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": -1,
+    "missing_chars": 1
+   },
+   "status": "partial"
+  },
+  "seconds": 44.1,
+  "status": "partial",
+  "base-xel": {
+   "engine": "xelatex",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.3,
+    "passes": 2,
+    "rc": 1,
+    "pdf_bytes": 16815,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "warn:missing_chars"
+    ],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": -1,
+    "missing_chars": 1
+   },
+   "status": "partial"
+  }
+ },
+ "1003.4522": {
+  "id": "1003.4522",
+  "layer": "core",
+  "cat_group": "astro-ph",
+  "era": "new",
+  "uncompressed_bytes": 446613,
+  "main": "ms.tex",
+  "route": {
+   "engines": [
+    "xelatex",
+    "tectonic"
+   ],
+   "reject": null,
+   "reasons": [
+    "eps_files=True pstricks=False → xelatex 优先（tectonic xdvipdfmx 硬墙）"
+   ],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 66,
+    "ok": 66,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 72,
+    "batched": 42,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 55.9,
+    "src_chars": 27468
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 25,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.37,
+    "passes": 1,
+    "rc": 1,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `emulateapj.cls' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  },
+  "seconds": 56.3,
+  "status": "fail",
+  "base-xel": {
+   "engine": "xelatex",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.21,
+    "passes": 1,
+    "rc": 1,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `emulateapj.cls' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  }
+ },
+ "1012.1321": {
+  "id": "1012.1321",
+  "layer": "core",
+  "cat_group": "astro-ph",
+  "era": "new",
+  "uncompressed_bytes": 615748,
+  "main": "7734-73_Sahlmann.tex",
+  "route": {
+   "engines": [
+    "xelatex",
+    "tectonic"
+   ],
+   "reject": null,
+   "reasons": [
+    "eps_files=True pstricks=False → xelatex 优先（tectonic xdvipdfmx 硬墙）"
+   ],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 2,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 84,
+    "ok": 84,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 84,
+    "batched": 38,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 60.2,
+    "src_chars": 31499
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 39,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 17.98,
+    "passes": 2,
+    "rc": -13,
+    "pdf_bytes": 3643,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "clean"
+  },
+  "seconds": 78.3,
+  "status": "clean"
+ },
+ "1206.1808": {
+  "id": "1206.1808",
+  "layer": "core",
+  "cat_group": "math",
+  "era": "new",
+  "uncompressed_bytes": 31841,
+  "main": "main.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 75,
+    "ok": 75,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 75,
+    "batched": 58,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 40.0,
+    "src_chars": 17364
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 0
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 2.78,
+    "passes": 2,
+    "rc": 0,
+    "pdf_bytes": 281450,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 2508,
+    "missing_chars": 0
+   },
+   "status": "clean"
+  },
+  "seconds": 42.9,
+  "status": "clean"
+ },
+ "1206.5602": {
+  "id": "1206.5602",
+  "layer": "core",
+  "cat_group": "math",
+  "era": "new",
+  "uncompressed_bytes": 2213024,
+  "main": "bessatsu_arXiv.tex",
+  "route": {
+   "engines": [
+    "xelatex",
+    "tectonic"
+   ],
+   "reject": null,
+   "reasons": [
+    "eps_files=True pstricks=False → xelatex 优先（tectonic xdvipdfmx 硬墙）"
+   ],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 118,
+    "ok": 118,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 119,
+    "batched": 83,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 55.3,
+    "src_chars": 28515
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.34,
+    "passes": 1,
+    "rc": 1,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `eepic.sty' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  },
+  "seconds": 56.7,
+  "status": "fail",
+  "base-xel": {
+   "engine": "xelatex",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.26,
+    "passes": 1,
+    "rc": 1,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `eepic.sty' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  }
+ },
+ "0905.4439": {
+  "id": "0905.4439",
+  "layer": "core",
+  "cat_group": "astro-ph",
+  "era": "new",
+  "uncompressed_bytes": 138466,
+  "main": "12023.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 113,
+    "ok": 113,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 113,
+    "batched": 70,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 78.9,
+    "src_chars": 35371
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 30,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.29,
+    "passes": 1,
+    "rc": 1,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `aa.cls' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  },
+  "seconds": 79.3,
+  "status": "fail",
+  "base-xel": {
+   "engine": "xelatex",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.21,
+    "passes": 1,
+    "rc": 1,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `aa.cls' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  }
+ },
+ "1206.5628": {
+  "id": "1206.5628",
+  "layer": "core",
+  "cat_group": "math",
+  "era": "new",
+  "uncompressed_bytes": 667667,
+  "main": "ArticleSarahLemler.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [
+    "bbm/dsfont 类位图字体包 → tectonic 高风险，失败换 xelatex",
+    "非 UTF-8 源 → 需 iconv 转码预处理或 inputenc 路注"
+   ],
+   "non_utf8": true
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 179,
+    "ok": 179,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 181,
+    "batched": 110,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 94.6,
+    "src_chars": 49284
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 33,
+    "float_sizing": 0
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.73,
+    "passes": 1,
+    "rc": 1,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `frcursive.sty' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  },
+  "seconds": 96.4,
+  "status": "fail",
+  "base-xel": {
+   "engine": "xelatex",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.75,
+    "passes": 1,
+    "rc": 1,
+    "pdf_bytes": 0,
+    "first_error": "/Users/fanghaotian/Library/texmf/tex/latex/base/inputenc.sty:164: Package inputenc Error: inputenc is not designed for xetex or luatex."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 3,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  }
+ },
+ "1206.5702": {
+  "id": "1206.5702",
+  "layer": "core",
+  "cat_group": "quant-ph",
+  "era": "new",
+  "uncompressed_bytes": 304292,
+  "main": "BL_arXiv_v2.tex",
+  "route": {
+   "engines": [
+    "xelatex",
+    "tectonic"
+   ],
+   "reject": null,
+   "reasons": [
+    "eps_files=True pstricks=False → xelatex 优先（tectonic xdvipdfmx 硬墙）",
+    "bbm/dsfont 类位图字体包 → tectonic 高风险，失败换 xelatex"
+   ],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 103,
+    "ok": 103,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 105,
+    "batched": 50,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 62.9,
+    "src_chars": 41961
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 2.93,
+    "passes": 2,
+    "rc": -13,
+    "pdf_bytes": 15,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "clean"
+  },
+  "seconds": 65.9,
+  "status": "clean"
+ },
+ "1306.2177": {
+  "id": "1306.2177",
+  "layer": "core",
+  "cat_group": "nucl",
+  "era": "new",
+  "uncompressed_bytes": 214116,
+  "main": "shy-icrtnp-2012.tex",
+  "route": {
+   "engines": [
+    "xelatex",
+    "tectonic"
+   ],
+   "reject": null,
+   "reasons": [
+    "eps_files=True pstricks=False → xelatex 优先（tectonic xdvipdfmx 硬墙）"
+   ],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 42,
+    "ok": 42,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 43,
+    "batched": 18,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 41.6,
+    "src_chars": 25859
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 66,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.28,
+    "passes": 1,
+    "rc": 1,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `aipcheck.tex' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  },
+  "seconds": 41.9,
+  "status": "fail",
+  "base-xel": {
+   "engine": "xelatex",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.21,
+    "passes": 1,
+    "rc": 1,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `aipcheck.tex' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  }
+ },
+ "1306.5813": {
+  "id": "1306.5813",
+  "layer": "core",
+  "cat_group": "quant-ph",
+  "era": "new",
+  "uncompressed_bytes": 6098654,
+  "main": "OptoAcousticJPhysB_v6.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [
+    "非 UTF-8 源 → 需 iconv 转码预处理或 inputenc 路注"
+   ],
+   "non_utf8": true
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 2,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 64,
+    "ok": 64,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 64,
+    "batched": 48,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 52.6,
+    "src_chars": 18372
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.32,
+    "passes": 1,
+    "rc": 1,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `iopart12.clo' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  },
+  "seconds": 53.0,
+  "status": "fail",
+  "base-xel": {
+   "engine": "xelatex",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.15,
+    "passes": 1,
+    "rc": 1,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `iopart12.clo' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  }
+ },
+ "1404.5720": {
+  "id": "1404.5720",
+  "layer": "core",
+  "cat_group": "hep-phys",
+  "era": "new",
+  "uncompressed_bytes": 250237,
+  "main": "trcs_paper.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 39,
+    "ok": 39,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 40,
+    "batched": 13,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 40.8,
+    "src_chars": 19097
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 37,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.59,
+    "passes": 1,
+    "rc": 1,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `siunitx.sty' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  },
+  "seconds": 42.4,
+  "status": "fail",
+  "base-xel": {
+   "engine": "xelatex",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.63,
+    "passes": 1,
+    "rc": 1,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `siunitx.sty' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  }
+ },
+ "1404.5834": {
+  "id": "1404.5834",
+  "layer": "core",
+  "cat_group": "hep-phys",
+  "era": "new",
+  "uncompressed_bytes": 61991,
+  "main": "Dobay.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [
+    "bbm/dsfont 类位图字体包 → tectonic 高风险，失败换 xelatex"
+   ],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 2,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 38,
+    "ok": 38,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 38,
+    "batched": 13,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 40.2,
+    "src_chars": 23462
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 63,
+    "float_sizing": 0
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.98,
+    "passes": 1,
+    "rc": 1,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `extarrows.sty' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  },
+  "seconds": 42.2,
+  "status": "fail",
+  "base-xel": {
+   "engine": "xelatex",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.89,
+    "passes": 1,
+    "rc": 1,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `extarrows.sty' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  }
+ },
+ "1706.07773": {
+  "id": "1706.07773",
+  "layer": "core",
+  "cat_group": "hep-phys",
+  "era": "new",
+  "uncompressed_bytes": 764148,
+  "main": "PetersWerner.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 5,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 62,
+    "ok": 62,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 62,
+    "batched": 34,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 54.4,
+    "src_chars": 22132
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 65,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 3.32,
+    "passes": 2,
+    "rc": 0,
+    "pdf_bytes": 1006421,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 5198,
+    "missing_chars": 0
+   },
+   "status": "clean"
+  },
+  "seconds": 57.9,
+  "status": "clean"
+ },
+ "1706.07924": {
+  "id": "1706.07924",
+  "layer": "core",
+  "cat_group": "math",
+  "era": "new",
+  "uncompressed_bytes": 127623,
+  "main": "main.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 269,
+    "ok": 269,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 279,
+    "batched": 179,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 137.9,
+    "src_chars": 71372
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 0
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 8.02,
+    "passes": 2,
+    "rc": 0,
+    "pdf_bytes": 584504,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 11869,
+    "missing_chars": 0
+   },
+   "status": "clean"
+  },
+  "seconds": 146.3,
+  "status": "clean"
+ },
+ "1803.08927": {
+  "id": "1803.08927",
+  "layer": "core",
+  "cat_group": "astro-ph",
+  "era": "new",
+  "uncompressed_bytes": 221418,
+  "main": "apjl_jets.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 2,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 55,
+    "ok": 55,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 55,
+    "batched": 31,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 62.9,
+    "src_chars": 24479
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 25,
+    "float_sizing": 0
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 4.66,
+    "passes": 2,
+    "rc": 0,
+    "pdf_bytes": 324442,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 5364,
+    "missing_chars": 0
+   },
+   "status": "clean"
+  },
+  "seconds": 67.7,
+  "status": "clean"
+ },
+ "1907.10324": {
+  "id": "1907.10324",
+  "layer": "core",
+  "cat_group": "hep-phys",
+  "era": "new",
+  "uncompressed_bytes": 30539,
+  "main": "neuthist18.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 2,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 41,
+    "ok": 41,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 41,
+    "batched": 14,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 46.8,
+    "src_chars": 22323
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 28,
+    "float_sizing": 0
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 4.36,
+    "passes": 2,
+    "rc": 0,
+    "pdf_bytes": 402326,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "warn:missing_chars",
+     "missing_character×1"
+    ],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 5441,
+    "missing_chars": 1
+   },
+   "status": "partial"
+  },
+  "seconds": 51.2,
+  "status": "partial",
+  "base-xel": {
+   "engine": "xelatex",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 2.48,
+    "passes": 2,
+    "rc": 0,
+    "pdf_bytes": 62099,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "clean"
+  }
+ },
+ "2003.10818": {
+  "id": "2003.10818",
+  "layer": "core",
+  "cat_group": "cond-mat",
+  "era": "new",
+  "uncompressed_bytes": 7919619,
+  "main": "sces2019ejima.tex",
+  "route": {
+   "engines": [
+    "xelatex",
+    "tectonic"
+   ],
+   "reject": null,
+   "reasons": [
+    "eps_files=True pstricks=False → xelatex 优先（tectonic xdvipdfmx 硬墙）"
+   ],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 2,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 37,
+    "ok": 37,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 37,
+    "batched": 24,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 34.3,
+    "src_chars": 13830
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 25,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 3.32,
+    "passes": 2,
+    "rc": 1,
+    "pdf_bytes": 8731,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "clean"
+  },
+  "seconds": 37.7,
+  "status": "clean"
+ },
+ "2009.03685": {
+  "id": "2009.03685",
+  "layer": "core",
+  "cat_group": "math",
+  "era": "new",
+  "uncompressed_bytes": 25753,
+  "main": "main.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [
+    "非 UTF-8 源 → 需 iconv 转码预处理或 inputenc 路注"
+   ],
+   "non_utf8": true
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 73,
+    "ok": 73,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 76,
+    "batched": 52,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 76.6,
+    "src_chars": 19358
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 0
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 4.19,
+    "passes": 2,
+    "rc": 0,
+    "pdf_bytes": 299193,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 2242,
+    "missing_chars": 0
+   },
+   "status": "clean"
+  },
+  "seconds": 80.8,
+  "status": "clean"
+ },
+ "2105.03740": {
+  "id": "2105.03740",
+  "layer": "core",
+  "cat_group": "cond-mat",
+  "era": "new",
+  "uncompressed_bytes": 1854891,
+  "main": "sr113_arxiv_v2.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [
+    "bbm/dsfont 类位图字体包 → tectonic 高风险，失败换 xelatex",
+    "非 UTF-8 源 → 需 iconv 转码预处理或 inputenc 路注"
+   ],
+   "non_utf8": true
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 37,
+    "ok": 37,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 37,
+    "batched": 13,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 53.7,
+    "src_chars": 27982
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 25,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.61,
+    "passes": 1,
+    "rc": 1,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `standalone.sty' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  },
+  "seconds": 55.3,
+  "status": "fail",
+  "base-xel": {
+   "engine": "xelatex",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.74,
+    "passes": 1,
+    "rc": 1,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `standalone.sty' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  }
+ },
+ "2105.03750": {
+  "id": "2105.03750",
+  "layer": "core",
+  "cat_group": "astro-ph",
+  "era": "new",
+  "uncompressed_bytes": 4072221,
+  "main": "rrl_bin_1.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 105,
+    "ok": 105,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 106,
+    "batched": 33,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 123.4,
+    "src_chars": 82446
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.34,
+    "passes": 1,
+    "rc": 1,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `aastex63.cls' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  },
+  "seconds": 123.8,
+  "status": "fail",
+  "base-xel": {
+   "engine": "xelatex",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.17,
+    "passes": 1,
+    "rc": 1,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `aastex63.cls' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  }
+ },
+ "2105.03900": {
+  "id": "2105.03900",
+  "layer": "core",
+  "cat_group": "math",
+  "era": "new",
+  "uncompressed_bytes": 85704,
+  "main": "main.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 299,
+    "ok": 299,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 300,
+    "batched": 261,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 86.5,
+    "src_chars": 49927
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 0
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 3.82,
+    "passes": 2,
+    "rc": 0,
+    "pdf_bytes": 444627,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 6711,
+    "missing_chars": 0
+   },
+   "status": "clean"
+  },
+  "seconds": 90.6,
+  "status": "clean"
+ },
+ "2203.13039": {
+  "id": "2203.13039",
+  "layer": "core",
+  "cat_group": "math",
+  "era": "new",
+  "uncompressed_bytes": 36943,
+  "main": "main.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 60,
+    "ok": 60,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 60,
+    "batched": 44,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 42.6,
+    "src_chars": 17416
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 26,
+    "float_sizing": 0
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 13.84,
+    "passes": 2,
+    "rc": 0,
+    "pdf_bytes": 369721,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 2379,
+    "missing_chars": 0
+   },
+   "status": "clean"
+  },
+  "seconds": 56.7,
+  "status": "clean"
+ },
+ "2203.13109": {
+  "id": "2203.13109",
+  "layer": "core",
+  "cat_group": "math",
+  "era": "new",
+  "uncompressed_bytes": 196856,
+  "main": "main.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 491,
+    "ok": 491,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 496,
+    "batched": 313,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 267.7,
+    "src_chars": 157180
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 0
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 6.82,
+    "passes": 2,
+    "rc": 0,
+    "pdf_bytes": 783358,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 24574,
+    "missing_chars": 0
+   },
+   "status": "clean"
+  },
+  "seconds": 274.8,
+  "status": "clean"
+ },
+ "2211.13013": {
+  "id": "2211.13013",
+  "layer": "core",
+  "cat_group": "hep-phys",
+  "era": "new",
+  "uncompressed_bytes": 5848892,
+  "main": "main.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [
+    "bbm/dsfont 类位图字体包 → tectonic 高风险，失败换 xelatex"
+   ],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 74,
+    "ok": 74,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 75,
+    "batched": 26,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 77.1,
+    "src_chars": 37128
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 5.35,
+    "passes": 2,
+    "rc": -13,
+    "pdf_bytes": 769167,
+    "first_error": "/Users/fanghaotian/src/texlate/bench/work_e2ereal/pipe-xel/2211.13013/main.tex:104: File ended while scanning use of \\@newl@bel."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "warn:invalid_utf8"
+    ],
+    "n_errors": 1,
+    "category": "other",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "partial"
+  },
+  "seconds": 82.5,
+  "status": "partial",
+  "base-xel": {
+   "engine": "xelatex",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 2.89,
+    "passes": 2,
+    "rc": -13,
+    "pdf_bytes": 15,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "clean"
+  }
+ },
+ "2308.12597": {
+  "id": "2308.12597",
+  "layer": "core",
+  "cat_group": "hep-phys",
+  "era": "new",
+  "uncompressed_bytes": 24901768,
+  "main": "manuscript_EDITED.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 3,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 2,
+    "chunks": 49,
+    "ok": 49,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 51,
+    "batched": 13,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 68.3,
+    "src_chars": 44104
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 47,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.48,
+    "passes": 1,
+    "rc": 1,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `siunitx.sty' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  },
+  "seconds": 69.9,
+  "status": "fail",
+  "base-xel": {
+   "engine": "xelatex",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.33,
+    "passes": 1,
+    "rc": 1,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `siunitx.sty' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  }
+ },
+ "2308.12712": {
+  "id": "2308.12712",
+  "layer": "core",
+  "cat_group": "cs",
+  "era": "new",
+  "uncompressed_bytes": 19407289,
+  "main": "main.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 3,
+    "rewritten": 2
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 120,
+    "ok": 120,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 120,
+    "batched": 71,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 90.3,
+    "src_chars": 37128
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 59,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 10.63,
+    "passes": 2,
+    "rc": 1,
+    "pdf_bytes": 4459499,
+    "first_error": "/Users/fanghaotian/Library/texmf/tex/latex/hyperxmp/hyperxmp.sty:279: Package hyperxmp Error: hyperref must be loaded before hyperxmp."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "errors>3 (588)"
+    ],
+    "n_errors": 588,
+    "category": "other",
+    "cjk_chars": 8415,
+    "missing_chars": 0
+   },
+   "status": "partial"
+  },
+  "seconds": 101.1,
+  "status": "partial",
+  "base-xel": {
+   "engine": "xelatex",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.41,
+    "passes": 1,
+    "rc": 1,
+    "pdf_bytes": 0,
+    "first_error": "/Users/fanghaotian/Library/texmf/tex/latex/hyperxmp/hyperxmp.sty:279: Package hyperxmp Error: hyperref must be loaded before hyperxmp."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 3,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  }
+ },
+ "2403.15096": {
+  "id": "2403.15096",
+  "layer": "core",
+  "cat_group": "math",
+  "era": "new",
+  "uncompressed_bytes": 421546,
+  "main": "main.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [
+    "非 UTF-8 源 → 需 iconv 转码预处理或 inputenc 路注"
+   ],
+   "non_utf8": true
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 580,
+    "ok": 569,
+    "partial": 0,
+    "fault": 11,
+    "skipped": 0,
+    "attempts": 685,
+    "batched": 384,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {
+     "all ladder stages exhausted → fallback to original": 11,
+     "lines failed": 3,
+     "skip:whole×2 failed": 11,
+     "slots assembled but still invalid": 11,
+     "whole×2 failed": 11
+    },
+    "seconds": 423.1,
+    "src_chars": 132684
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 40,
+    "float_sizing": 0
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 7.04,
+    "passes": 2,
+    "rc": 0,
+    "pdf_bytes": 959688,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "warn:missing_chars",
+     "missing_character×1"
+    ],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 21481,
+    "missing_chars": 1
+   },
+   "status": "partial"
+  },
+  "seconds": 430.5,
+  "status": "partial",
+  "base-xel": {
+   "engine": "xelatex",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 4.27,
+    "passes": 2,
+    "rc": 0,
+    "pdf_bytes": 544410,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "warn:invalid_utf8",
+     "warn:missing_chars"
+    ],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": -1,
+    "missing_chars": 1
+   },
+   "status": "partial"
+  }
+ },
+ "astro-ph/9703134": {
+  "id": "astro-ph/9703134",
+  "layer": "core",
+  "cat_group": "astro-ph",
+  "era": "old",
+  "uncompressed_bytes": 1638668,
+  "main": "accepted_paper.tex",
+  "route": {
+   "engines": [],
+   "reject": "latex209_documentstyle",
+   "reasons": [
+    "accepted_paper.tex: \\documentstyle → 三引擎实测全死"
+   ],
+   "non_utf8": false
+  },
+  "status": "reject",
+  "base-xel": {
+   "engine": "xelatex",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.34,
+    "passes": 1,
+    "rc": 1,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `aaspp4.sty' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  }
+ },
+ "astro-ph/9703198": {
+  "id": "astro-ph/9703198",
+  "layer": "core",
+  "cat_group": "astro-ph",
+  "era": "old",
+  "uncompressed_bytes": 42667,
+  "main": "astro.tex",
+  "route": {
+   "engines": [],
+   "reject": "latex209_documentstyle",
+   "reasons": [
+    "astro.tex: \\documentstyle → 三引擎实测全死"
+   ],
+   "non_utf8": false
+  },
+  "status": "reject",
+  "base-xel": {
+   "engine": "xelatex",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.38,
+    "passes": 1,
+    "rc": 1,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `crckapb.cls' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  }
+ },
+ "hep-ph/0111218": {
+  "id": "hep-ph/0111218",
+  "layer": "core",
+  "cat_group": "hep-phys",
+  "era": "old",
+  "uncompressed_bytes": 447626,
+  "main": "ContrTrento_17_11_01.tex",
+  "route": {
+   "engines": [
+    "xelatex",
+    "tectonic"
+   ],
+   "reject": null,
+   "reasons": [
+    "eps_files=True pstricks=False → xelatex 优先（tectonic xdvipdfmx 硬墙）"
+   ],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 85,
+    "ok": 85,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 86,
+    "batched": 55,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 72.4,
+    "src_chars": 24415
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 28,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.1,
+    "passes": 1,
+    "rc": 1,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `espcrc2.sty' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  },
+  "seconds": 73.5,
+  "status": "fail",
+  "base-xel": {
+   "engine": "xelatex",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.18,
+    "passes": 1,
+    "rc": 1,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `espcrc2.sty' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  }
+ },
+ "hep-ph/9910403": {
+  "id": "hep-ph/9910403",
+  "layer": "core",
+  "cat_group": "hep-phys",
+  "era": "old",
+  "uncompressed_bytes": 277928,
+  "main": "plb-rev.tex",
+  "route": {
+   "engines": [],
+   "reject": "latex209_documentstyle",
+   "reasons": [
+    "plb-rev.tex: \\documentstyle → 三引擎实测全死"
+   ],
+   "non_utf8": false
+  },
+  "status": "reject",
+  "base-xel": {
+   "engine": "xelatex",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.6,
+    "passes": 2,
+    "rc": -13,
+    "pdf_bytes": 41861,
+    "first_error": "/Users/fanghaotian/src/texlate/bench/work_e2ereal/base-xel/hep-ph--9910403/plb-rev.tex:46: LaTeX Error: Backend request inconsistent with engine: using 'xetex'"
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "n_errors": 2,
+    "category": "other",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "clean"
+  }
+ },
+ "2403.15118": {
+  "id": "2403.15118",
+  "layer": "core",
+  "cat_group": "astro-ph",
+  "era": "new",
+  "uncompressed_bytes": 7792987,
+  "main": "Margalef2024.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 2,
+    "rewritten": 2
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 158,
+    "ok": 158,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 161,
+    "batched": 64,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 152.6,
+    "src_chars": 94855
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 38,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 11.88,
+    "passes": 2,
+    "rc": 0,
+    "pdf_bytes": 5917944,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 22294,
+    "missing_chars": 0
+   },
+   "status": "clean"
+  },
+  "seconds": 164.6,
+  "status": "clean"
+ },
+ "2403.15119": {
+  "id": "2403.15119",
+  "layer": "core",
+  "cat_group": "cs",
+  "era": "new",
+  "uncompressed_bytes": 12956248,
+  "main": "bare_jrnl_compsoc.tex",
+  "route": {
+   "engines": [
+    "xelatex",
+    "tectonic"
+   ],
+   "reject": null,
+   "reasons": [
+    "eps_files=True pstricks=False → xelatex 优先（tectonic xdvipdfmx 硬墙）"
+   ],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 2,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 162,
+    "ok": 162,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 162,
+    "batched": 81,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 130.3,
+    "src_chars": 68636
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 76,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 2.09,
+    "passes": 1,
+    "rc": 1,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `diagbox.sty' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  },
+  "seconds": 132.5,
+  "status": "fail",
+  "base-xel": {
+   "engine": "xelatex",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.32,
+    "passes": 1,
+    "rc": 1,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `diagbox.sty' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  }
+ },
+ "2410.06025": {
+  "id": "2410.06025",
+  "layer": "core",
+  "cat_group": "cs",
+  "era": "new",
+  "uncompressed_bytes": 18369120,
+  "main": "main.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 21,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 15,
+    "chunks": 132,
+    "ok": 132,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 132,
+    "batched": 82,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 120.8,
+    "src_chars": 49803
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 25,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 82.76,
+    "passes": 2,
+    "rc": 0,
+    "pdf_bytes": 17582383,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "warn:invalid_utf8"
+    ],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 11639,
+    "missing_chars": 0
+   },
+   "status": "partial"
+  },
+  "seconds": 205.1,
+  "status": "partial",
+  "base-xel": {
+   "engine": "xelatex",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 143.11,
+    "passes": 2,
+    "rc": 0,
+    "pdf_bytes": 17258300,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "warn:invalid_utf8"
+    ],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "partial"
+  }
+ }
+}
