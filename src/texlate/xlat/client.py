@@ -121,7 +121,7 @@ class EmptyContentError(ChatError):
 
 
 def _retry_after(headers: httpx.Headers) -> float | None:
-    """解析 Retry-After（秒数或 HTTP-date）；>60s 不等直接拒。"""
+    """解析 Retry-After 头（秒数或 HTTP-date）；>60s 不等直接拒。"""
     raw = headers.get("retry-after")
     if not raw:
         return None
@@ -133,8 +133,31 @@ def _retry_after(headers: httpx.Headers) -> float | None:
     return None
 
 
+def _body_retry_after(body: str) -> float | None:
+    """从错误 JSON body 的 `error.retry_after` 读秒数。
+
+    B4a 实测：本网关 429 的 retry_after 在 body（`error.retry_after` 秒，
+    观测 16~22s），HTTP 层无 Retry-After 头——body 优先、header 兜底。
+    """
+    try:
+        data = json.loads(body)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    err = data.get("error") if isinstance(data, dict) else None
+    raw = err.get("retry_after") if isinstance(err, dict) else None
+    if isinstance(raw, int | float) and not isinstance(raw, bool):
+        secs = float(raw)
+        return secs if 0 <= secs <= MAX_RETRY_AFTER_S else None
+    return None
+
+
 def classify_status(status: int, body: str, headers: httpx.Headers) -> ChatError:
-    """HTTP 状态码 → 异常类型（docs/08 §1.6 状态码分类表）。"""
+    """HTTP 状态码 → 异常类型（docs/08 §1.6 状态码分类表 + B4a 429 body 修订）。
+
+    429 的 retry_after 解析序：body `error.retry_after` → header `Retry-After`
+    → 无（退 `3^attempt` 下限 5s）。429 是多租户共享流量触发（healthz 常驻他户
+    22~26 active），与本地并发宽度无关——不为它缩 Semaphore。
+    """
     msg = f"HTTP {status}: {body[:300]}"
     if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
         return AuthError(msg, status=status)
@@ -147,8 +170,11 @@ def classify_status(status: int, body: str, headers: httpx.Headers) -> ChatError
         or status in RETRYABLE_4XX
         or status >= SERVER_ERROR_MIN
     ):
+        retry_after = _retry_after(headers)
+        if status == HTTP_TOO_MANY_REQUESTS:
+            retry_after = _body_retry_after(body) or retry_after
         return RetryableHTTPError(
-            msg, status=status, retryable=True, retry_after=_retry_after(headers)
+            msg, status=status, retryable=True, retry_after=retry_after
         )
     return ClientRejectedError(msg, status=status)
 
@@ -540,7 +566,12 @@ class ChatClient:
         *,
         options: ChatOptions | None = None,
     ) -> AsyncIterator[StreamEvent]:
-        """SSE 流式（仅 OpenAI 方言）：逐 delta yield StreamEvent，`[DONE]` 收 done。"""
+        """SSE 流式（仅 OpenAI 方言）：逐 delta yield StreamEvent，`[DONE]` 收 done。
+
+        B4a 实测注意：swe-2 系是假流式——上游缓存后转发，delta 全挤在末 ~0.3s，
+        TTFT≈总时长，stream 不能当进度信号；仅剩价值是 `stream_options.
+        include_usage` 拿末帧 usage。
+        """
         opts = options or ChatOptions()
         try:
             async with self._http.stream(

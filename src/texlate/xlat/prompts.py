@@ -20,7 +20,8 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
 #: prompt 语义版本——任何措辞改动 bump 此值，否则段级缓存会命中旧 prompt 产物
-PROMPT_VERSION = "xlat-prompt-v1"
+#: v2: +C8a 反熔合条款（B4a 实测 `\ `+CJK 熔合是跨模型通病）
+PROMPT_VERSION = "xlat-prompt-v2"
 
 _KINDS = ("para", "caption", "section_title", "abstract", "table_text", "env_text")
 
@@ -149,6 +150,17 @@ _KIND_CLAUSES: dict[str, tuple[str, ...]] = {
     ),
 }
 
+#: C8a 反熔合条款（公共块的扩展，放 kind 条款前——C1..C8 逐字共享与 C9 压轴
+#: 两条 spec 不变量都不动）。`\ `+CJK 熔合成未知控制序列是跨模型通病
+#: （B4a：glm-5-2/swe-2-medium/swe-2-max 全中）；L0 cs_dropped 与
+#: reconstruct cjk_glue_fix 是下游兜底，本条款在生成端先降发生率。
+_FUSION_CLAUSE = (
+    "C8a. Keep an explicit boundary (a space or a brace pair) between a "
+    "LaTeX control sequence and any adjacent {TGT} characters — e.g. write "
+    '"\\ 中文" not "\\中文" — so the command is never fused into an '
+    "unknown control word."
+)
+
 #: C9 占位符条款——docs/08 §1.1 逐字成稿，条款列表末位，全文唯一一次出现
 PLACEHOLDER_CLAUSE = """\
 C9. [[TYPE_n]] tokens (e.g. [[MATH_12]], [[CITE_3]], [[REF_7]], [[ENV_4]],
@@ -205,6 +217,7 @@ def build_system_prompt(
         _HEADER,
         _fill(_TASK_SENTENCE[kind], src_lang, tgt_lang),
         _fill(_COMMON_CLAUSES, src_lang, tgt_lang),
+        _fill(_FUSION_CLAUSE, src_lang, tgt_lang),
     ]
 
     clauses = [_fill(c, src_lang, tgt_lang) for c in _KIND_CLAUSES[kind]]

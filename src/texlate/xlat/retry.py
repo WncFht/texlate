@@ -11,6 +11,11 @@ r"""重试：HTTP 指数退避 + 四段语义阶梯（docs/08 §1.6 定案参数
    slots JSON 兜底（`⟪S0000⟫` 槽位、`response_format json_object`、8 槽/批、
    失败槽只重问失败批）→ 三振 `fallback_orig` + warning → `partial` 终态。
 
+   B4a 实测修订：`response_format` 在 3003 网关被静默忽略（三变体输出全同
+   全 200）——它只是 prompt 增强，真正的槽位约束是 `_valid_slot_text`
+   校验 + 失败槽重问；429 的 retry_after 在响应 body `error.retry_after`
+   （client 层已解析进 `ChatError.retry_after`）。
+
 阶梯只编排不实现——`translate_fn`/`validate_fn`/`slots_fn` 由 pipeline 注入
 （真网关走 client+prompts，mock 走 MockTranslator，测试走 fake）。
 """

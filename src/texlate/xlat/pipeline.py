@@ -360,6 +360,8 @@ class XlatPipeline:
             }
             if failures_json:
                 user_obj["slot_validation_failures"] = failures_json
+            # response_format 在 3003 网关被静默忽略（B4a 实测三变体同输出）——
+            # 只是 prompt 增强；真正约束在阶梯侧的槽位合法性校验+失败重问。
             raw = await self.translator.translate(
                 system=system,
                 user=json.dumps(user_obj, ensure_ascii=False),
