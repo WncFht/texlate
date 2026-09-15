@@ -1,36 +1,24 @@
 """texlate 命令行入口。
 
 M0 集成面：``fetch``（取源钉版）/ ``parse``（半解析分块）/ ``run``（mock 端到端
-——normalize → mock 翻译 → ctex 注入 → 编译 → 判定，全链走产品 API）。
+——normalize → mock 翻译 → ctex 注入 → 编译 → 判定，驱动在 ``texlate.e2e``）。
 """
 
 from __future__ import annotations
 
-import asyncio
 import json
-import re
 import shutil
 import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated
+from typing import Annotated
 
 import typer
 
 from texlate import __version__
 from texlate.arxiv.cache import SourceCache
 from texlate.arxiv.fetch import AcquireResult, AcquireStatus, Fetcher, acquire_source
-from texlate.compile.engine import engine_for, route_project
-from texlate.compile.inject import InjectRejectError, find_main_tex, prepare_chinese
-from texlate.compile.judge import judge
-from texlate.compile.normalize import normalize_project
+from texlate.e2e import mock_pipeline_run
 from texlate.latex.api import parse_file
-from texlate.latex.reconstruct import reconstruct
-from texlate.validate.l0 import validate_pair
-from texlate.xlat.pipeline import ChunkIn, MockTranslator, XlatPipeline
-from texlate.xlat.prompts import normalize_kind
-
-if TYPE_CHECKING:
-    from texlate.latex.model import ScanResult
 
 app = typer.Typer(
     help="arXiv LaTeX 源码 → LLM 段落级翻译 → ctex 重编译中文 PDF。",
@@ -38,8 +26,6 @@ app = typer.Typer(
 )
 
 _DEFAULT_CACHE = Path.home() / ".cache" / "texlate" / "src"
-
-_PH_LEFT_RX = re.compile(r"\[\[[A-Z_]+_\d+\]\]")
 
 
 @app.callback()
@@ -168,9 +154,9 @@ def run(  # noqa: PLR0913 -- CLI 选项面即参数面
 ) -> None:
     """Mock 端到端：取源/本地目录 → normalize → mock 翻译 → ctex 注入 → 编译 → 判定。
 
-    翻译走 ``XlatPipeline(MockTranslator)`` + L0 校验器——全链产品 API，
-    不触网（arxiv id 源走缓存/在线取源除外）。退出码：0 clean/partial，
-    1 编译失败，2 路由拒绝。
+    翻译走 ``XlatPipeline(MockTranslator)`` + L0 校验器（驱动在 ``texlate.e2e``）
+    ——全链产品 API，不触网（arxiv id 源走缓存/在线取源除外）。
+    退出码：0 clean/partial，1 编译失败，2 路由拒绝。
     """
     src_dir = _resolve_source(source, cache)
     if src_dir is None:
@@ -183,7 +169,7 @@ def run(  # noqa: PLR0913 -- CLI 选项面即参数面
     typer.echo(f"work dir: {work}", err=True)
 
     try:
-        verdict = _mock_pipeline_run(work, engine, timeout)
+        verdict = mock_pipeline_run(work, engine, timeout)
         typer.echo(json.dumps(verdict, ensure_ascii=False, indent=2))
         status = verdict.get("status")
         if status == "reject":
@@ -206,107 +192,3 @@ def _resolve_source(source: str, cache: Path) -> Path | None:
         return None
     assert res.entry is not None  # noqa: S101 -- ok/hit 必有 entry
     return res.entry.extracted_dir
-
-
-def _mock_pipeline_run(work: Path, engine_opt: str, timeout: float) -> dict:
-    """工程目录上的 mock 全链（对齐 e2e_mock_bench 的 pipe 条件）。"""
-    report: dict[str, object] = {"work": str(work)}
-    route = route_project(work)
-    report["route"] = {
-        "engines": route.engines,
-        "reject": route.reject,
-        "reasons": route.reasons,
-        "non_utf8": route.non_utf8,
-    }
-    if route.reject:
-        report["status"] = "reject"
-        return report
-    main_path = find_main_tex(work)
-    if main_path is None:
-        report["status"] = "reject"
-        report["route"]["reasons"] = [*route.reasons, "no main tex"]
-        return report
-    main_rel = main_path.relative_to(work).as_posix()
-    report["main"] = main_rel
-
-    eng_name = engine_opt if engine_opt != "auto" else route.engines[0]
-    report["engine"] = eng_name
-    report["normalize"] = normalize_project(work, eng_name, main_rel)
-    report["translate"] = _mock_translate_tree(work)
-    try:
-        report["inject"] = prepare_chinese(work, main_rel)
-    except InjectRejectError as e:
-        report["status"] = "reject"
-        report["route"]["reasons"] = [*route.reasons, e.reason]
-        return report
-
-    res = engine_for(eng_name).compile(work, main_rel, timeout=timeout, sandbox=True)
-    v = judge(res, expect_cjk=True)
-    report["compile"] = {
-        "ok": res.ok,
-        "timed_out": res.timed_out,
-        "seconds": round(res.seconds, 2),
-        "passes": res.passes,
-        "rc": res.rc,
-        "pdf_bytes": res.pdf_bytes,
-        "first_error": res.log.first_error,
-    }
-    report["status"] = v.status
-    report["verdict"] = {
-        "status": v.status,
-        "reasons": v.reasons,
-        "n_errors": v.n_errors,
-        "category": v.category,
-        "cjk_chars": v.cjk_chars,
-        "missing_chars": v.missing_chars,
-    }
-    return report
-
-
-def _mock_translate_tree(root: Path) -> dict:
-    """全部 .tex 走 XlatPipeline(MockTranslator) → splice 写回；返回汇总统计。"""
-    scans: list[tuple[Path, ScanResult]] = []
-    chunks: list[ChunkIn] = []
-    for f in sorted(root.rglob("*.tex")):
-        res = parse_file(f, flatten=False)
-        idx = len(scans)
-        scans.append((f, res))
-        chunks.extend(
-            ChunkIn(
-                chunk_id=f"{idx}:{c.id}",
-                content=c.content,
-                kind=normalize_kind(c.context),
-            )
-            for c in res.chunks
-        )
-
-    pipe = XlatPipeline(
-        MockTranslator(),
-        validator=lambda s, z: validate_pair(s, z).feedback(),
-    )
-    results = asyncio.run(pipe.run(chunks))
-    by_file: dict[int, dict[int, str]] = {}
-    n_fault = 0
-    for r in results:
-        fidx, cid = (int(x) for x in r.chunk_id.split(":", 1))
-        if r.status == "ok":
-            by_file.setdefault(fidx, {})[cid] = r.translation
-        else:
-            n_fault += 1
-
-    n_files = 0
-    n_leftover = 0
-    for idx, (f, res) in enumerate(scans):
-        trans = by_file.get(idx)
-        if not trans:
-            continue
-        zh = reconstruct(res, trans)
-        f.write_text(zh, encoding="utf-8")
-        n_files += 1
-        n_leftover += len(_PH_LEFT_RX.findall(zh))
-    return {
-        "files": n_files,
-        "chunks": len(chunks),
-        "fault_chunks": n_fault,
-        "leftover_ph": n_leftover,
-    }
