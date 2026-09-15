@@ -19,7 +19,7 @@
 | `compile/`         | Engine 协议 (xelatex+tectonic) / ctex 注入 / normalize / 沙箱     | corpus39 mock-E2E：pipe-xel 13/39（base-xel 12/39，注入无损）      |
 | `compile/fixloop/` | yaml 规则修复引擎（25 规则全移植）                                | spike 规则等价移植 + 单测                                          |
 
-Benchmark 底材：corpus39（陷阱）+ corpus_v2（137 篇）+ corpus_v3（1000 篇核心随机层，管线可重建）。规格见 `docs/06–10`。
+Benchmark 底材：corpus39（陷阱）+ corpus_v2（137 篇）+ corpus_v3（1000 篇核心随机层 + 200 篇 agent 策展补强层已落盘——机制台账 `mechanisms.jsonl` 143 条，选择器 `select_booster.py`，管线 `build_corpus_v3.py` 可重建）。规格见 `docs/06–10`。
 
 ## 关键设计共识 (来自 hjfy 逆向 + ieeA 走读)
 
