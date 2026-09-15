@@ -38,8 +38,10 @@ from __future__ import annotations
 
 import json
 import os
+import queue
 import shutil
 import subprocess
+import threading
 from dataclasses import dataclass, field
 from importlib import resources
 from pathlib import Path
@@ -183,6 +185,7 @@ class TsValidator:
         )
         self._timeout = timeout
         self._proc: subprocess.Popen[str] | None = None
+        self._lines: queue.Queue[str] = queue.Queue()
 
     # ---------------- 可用性 ----------------
 
@@ -234,7 +237,11 @@ class TsValidator:
         return self._node
 
     def validate_batch(self, records: list[dict[str, Any]]) -> list[TsResult]:
-        """spawn-per-batch：一次 spawn 校验整批（37ms 摊薄 <1ms/块）。"""
+        """spawn-per-batch：一次 spawn 校验整批（37ms 摊薄 <1ms/块）。
+
+        worker 非零退出或行数与请求数不符 → ``L1Error``（带 stderr 尾巴）——
+        空 stdout 若放任返回 ``[]``，调用方 ``[0]`` 取值会泄出 IndexError。
+        """
         node = self._require_available()
         payload = "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records)
         try:
@@ -250,11 +257,25 @@ class TsValidator:
         except (OSError, subprocess.SubprocessError) as e:
             msg = f"L1 worker spawn 失败: {e}"
             raise L1Error(msg) from e
-        return [
-            TsResult.from_dict(json.loads(line))
-            for line in proc.stdout.splitlines()
-            if line.strip()
-        ]
+        if proc.returncode != 0:
+            msg = (
+                f"L1 worker 退出码 {proc.returncode}: "
+                f"{proc.stderr.strip()[-300:] or '(stderr 空)'}"
+            )
+            raise L1Error(msg)
+        try:
+            results = [
+                TsResult.from_dict(json.loads(line))
+                for line in proc.stdout.splitlines()
+                if line.strip()
+            ]
+        except json.JSONDecodeError as e:
+            msg = f"L1 worker 输出非 JSON: {e}"
+            raise L1Error(msg) from e
+        if len(results) != len(records):
+            msg = f"L1 worker 响应数 {len(results)} != 请求数 {len(records)}"
+            raise L1Error(msg)
+        return results
 
     # ---------------- 常驻模式（--repl 行协议） ----------------
 
@@ -274,6 +295,18 @@ class TsValidator:
         except OSError as e:
             msg = f"L1 常驻 worker 启动失败: {e}"
             raise L1Error(msg) from e
+        # 泵线程把 stdout 行喂进队列——``_one`` 不能直接 ``readline()``，
+        # 那是无超时阻塞调用，worker 挂起会把整个 pipeline 永久卡死。
+        threading.Thread(
+            target=self._pump, args=(self._proc, self._lines), daemon=True
+        ).start()
+
+    @staticmethod
+    def _pump(proc: subprocess.Popen[str], lines: queue.Queue[str]) -> None:
+        """把 worker stdout 逐行搬进 ``lines`` 队列；EOF/进程死即线程退。"""
+        assert proc.stdout is not None  # noqa: S101 -- Popen 时已声明 PIPE
+        for line in proc.stdout:
+            lines.put(line)
 
     def close(self) -> None:
         """关闭常驻 worker。"""
@@ -296,17 +329,40 @@ class TsValidator:
 
     # ---------------- 业务 ----------------
 
+    def _drain_lines(self) -> None:
+        """清空响应队列里的滞留行（上次超时后迟到的响应会毒害下一请求）。
+
+        残余竞态：迟到行恰好落在 drain 与 write 之间——窗口极小，
+        REPL 协议没有 seq 号可配对，接受此残留并记录在案。
+        """
+        while True:
+            try:
+                self._lines.get_nowait()
+            except queue.Empty:
+                return
+
     def _one(self, rec: dict[str, Any]) -> TsResult:
         """常驻通道优先，未启动退批处理单条。"""
-        if self._proc is None or self._proc.stdin is None or self._proc.stdout is None:
+        if self._proc is None or self._proc.stdin is None:
             return self.validate_batch([rec])[0]
-        self._proc.stdin.write(json.dumps(rec, ensure_ascii=False) + "\n")
-        self._proc.stdin.flush()
-        line = self._proc.stdout.readline()
-        if not line:
-            msg = "L1 常驻 worker 无响应（进程已退出？）"
-            raise L1Error(msg)
-        return TsResult.from_dict(json.loads(line))
+        self._drain_lines()
+        try:
+            self._proc.stdin.write(json.dumps(rec, ensure_ascii=False) + "\n")
+            self._proc.stdin.flush()
+        except OSError as e:
+            msg = "L1 常驻 worker stdin 已断（进程已退出？）"
+            raise L1Error(msg) from e
+        try:
+            line = self._lines.get(timeout=self._timeout)
+        except queue.Empty as e:
+            self._drain_lines()
+            msg = f"L1 常驻 worker 响应超时（{self._timeout}s，进程已退出？）"
+            raise L1Error(msg) from e
+        try:
+            return TsResult.from_dict(json.loads(line))
+        except json.JSONDecodeError as e:
+            msg = f"L1 常驻 worker 输出非 JSON: {line[:200]!r}"
+            raise L1Error(msg) from e
 
     def sign(self, tex: str, *, doc_id: str | None = None) -> TsBaseline:
         """对译前源文本取签名（相对判定基线）。"""
