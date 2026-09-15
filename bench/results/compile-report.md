@@ -3,7 +3,7 @@
 - 日期: 2026-09-14
 - 语料: `bench/corpus/` — 12 个真实 arXiv 源码项目 (article/IEEEtran/LaTeX2.09; 单文件~多文件 20 个 tex)
 - 引擎: `tectonic 0.17.0` vs `xelatex (TeX Live 2026 basic + ~/Library/texmf)`
-- 脚本: `bench/compile_bench.py` (三条件×双引擎), `bench/rerun_xelatex.py` (修复轮), `bench/compile_report.py` (汇总)
+- 脚本: `bench/py/compile_bench.py` (三条件×双引擎), `bench/py/rerun_xelatex.py` (修复轮), `bench/py/compile_report.py` (汇总)
 - 数据: `bench/results/compile-bench.json` (72 次原始编译 + 30+ 次修复轮重编的全部记录)
 - 判据: 超时 120s; **pdf** = 产出 PDF; **clean** = 全程无 `!` 错误
   - xelatex: `-interaction=nonstopmode`, 最多 2 pass (解析 \ref/.bbl/toc)
@@ -110,9 +110,9 @@
 ## 7. 复现
 
 ```bash
-python3 bench/compile_bench.py          # 全量 72 次编译 (~20min, tectonic 首跑慢)
-python3 bench/rerun_xelatex.py          # 修复轮重跑(改 ROUND/FIXES)
-python3 bench/compile_report.py         # 重分类+出表
+python3 bench/py/compile_bench.py          # 全量 72 次编译 (~20min, tectonic 首跑慢)
+python3 bench/py/rerun_xelatex.py          # 修复轮重跑(改 ROUND/FIXES)
+python3 bench/py/compile_report.py         # 重分类+出表
 ```
 
 工作副本在 `bench/work_compile/{项目}/{条件}/` 下, 含每遍的 .log 与 _tect_out/。
