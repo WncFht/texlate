@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 
+from texlate.latex.model import ArgSpec
 from texlate.textutil import DEAD_ENVS as _DEAD_ENVS
 from texlate.textutil import VERBATIM_ENVS as _VERBATIM_ENVS
 
@@ -455,3 +456,53 @@ IF_CONST = {"ifhmode": True, "ifvmode": False}
 PROTECTED_PARAM_CMDS = CITE_NAMES | REF_NAMES | {"label", "url", "includegraphics"}
 
 _WS_CHARS = " \t\n"
+
+# ---------------------------------------------------------------- 扫描层共享表
+
+# scan 层登记的 \input 触发面（gullet 未解析成功时记 inputs[]）
+INPUT_SCAN_CMDS = {
+    "input",
+    "include",
+    "InputIfFileExists",
+    "subfile",
+    "includestandalone",
+    "import",
+    "subimport",
+}
+
+FILENAME_CHARS = frozenset(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._/-"
+)
+
+OPT_FMT_CHARS = frozenset("=*\\#|!~,()<>:;")  # 版式参特征（kv/装饰/分组）
+OPT_POS_LETTERS = frozenset("htbpHTBPclrmb")  # 浮动位 htbp + 列型 lcrmpb
+
+# BOUNDARY 命令的结构尾参表（audit 次要 3）：``\cline{1-2}``/``\vspace*{1em}``
+# 这类非文本参消费进 LITERAL 段——否则 ``{1-2}`` 落正文成 chunk 被翻译。
+# 只列结构参；``\item[o]`` 的 label、``\newtheorem`` 标题是可译文本不收。
+BOUNDARY_TAIL: dict[str, list[ArgSpec]] = {
+    "cline": [ArgSpec("m")],
+    "cmidrule": [ArgSpec("o"), ArgSpec("d", delim="()"), ArgSpec("m")],
+    "toprule": [ArgSpec("o")],
+    "midrule": [ArgSpec("o")],
+    "bottomrule": [ArgSpec("o")],
+    "pagebreak": [ArgSpec("o")],
+    "linebreak": [ArgSpec("o")],
+    "nopagebreak": [ArgSpec("o")],
+    "twocolumn": [ArgSpec("o")],
+    "vspace": [ArgSpec("s"), ArgSpec("m")],
+    "hspace": [ArgSpec("s"), ArgSpec("m")],
+    "newcounter": [ArgSpec("m"), ArgSpec("o")],
+    "setcounter": [ArgSpec("m"), ArgSpec("m")],
+    "addtocounter": [ArgSpec("m"), ArgSpec("m")],
+    "setlength": [ArgSpec("m"), ArgSpec("m")],
+    "addtolength": [ArgSpec("m"), ArgSpec("m")],
+    "setstretch": [ArgSpec("m")],
+    "pagestyle": [ArgSpec("m")],
+    "thispagestyle": [ArgSpec("m")],
+    "pagenumbering": [ArgSpec("m")],
+    "documentclass": [ArgSpec("o"), ArgSpec("m")],
+    "documentstyle": [ArgSpec("o"), ArgSpec("m")],
+    "usepackage": [ArgSpec("o"), ArgSpec("m")],
+    "RequirePackage": [ArgSpec("o"), ArgSpec("m")],
+}

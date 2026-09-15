@@ -49,6 +49,7 @@ from texlate.latex.model import (
     ScanWarning,
     Span,
     env_name_at,
+    env_opt_is_format,
     has_par_break,
     match_brace,
     match_bracket,
@@ -63,6 +64,7 @@ from texlate.latex.tables import (
     ACCENT_CHARS,
     ARG_TRANSPARENT_ENVS,
     BOUNDARY_NAMES,
+    BOUNDARY_TAIL,
     BUDGET,
     CHUNK_ARG_NAMES,
     CHUNK_ARG_SPEC,
@@ -72,10 +74,12 @@ from texlate.latex.tables import (
     COND_RX,
     DEF_NAMES,
     ENV_MANDATORY_ARG,
+    FILENAME_CHARS,
     FONT_SWITCHES,
     IF_CONST,
     IF_CONST_FALSE,
     INLINE_LITERAL_CMDS,
+    INPUT_SCAN_CMDS,
     MATH_ENVS,
     MAX_GEN,
     PROTECT_BLOCK_NAMES,
@@ -94,51 +98,6 @@ _PROTECT_TYP = {
     "bibliography": PhType.BIB,
     "bibliographystyle": PhType.BIB,
     "bibitem": PhType.BIB,
-}
-
-# scan 层登记的 \input 触发面（flatten 已展开的不再出现，未解析的记 inputs[]）
-_INPUT_SCAN_CMDS = {
-    "input",
-    "include",
-    "InputIfFileExists",
-    "subfile",
-    "includestandalone",
-    "import",
-    "subimport",
-}
-
-_FILENAME_CHARS = frozenset(
-    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._/-"
-)
-
-# BOUNDARY 命令的结构尾参表（audit 次要 3）：``\cline{1-2}``/``\vspace*{1em}``
-# 这类非文本参消费进 LITERAL 段——否则 ``{1-2}`` 落正文成 chunk 被翻译。
-# 只列结构参；``\item[o]`` 的 label、``\newtheorem`` 标题是可译文本不收。
-_BOUNDARY_TAIL: dict[str, list[ArgSpec]] = {
-    "cline": [ArgSpec("m")],
-    "cmidrule": [ArgSpec("o"), ArgSpec("d", delim="()"), ArgSpec("m")],
-    "toprule": [ArgSpec("o")],
-    "midrule": [ArgSpec("o")],
-    "bottomrule": [ArgSpec("o")],
-    "pagebreak": [ArgSpec("o")],
-    "linebreak": [ArgSpec("o")],
-    "nopagebreak": [ArgSpec("o")],
-    "twocolumn": [ArgSpec("o")],
-    "vspace": [ArgSpec("s"), ArgSpec("m")],
-    "hspace": [ArgSpec("s"), ArgSpec("m")],
-    "newcounter": [ArgSpec("m"), ArgSpec("o")],
-    "setcounter": [ArgSpec("m"), ArgSpec("m")],
-    "addtocounter": [ArgSpec("m"), ArgSpec("m")],
-    "setlength": [ArgSpec("m"), ArgSpec("m")],
-    "addtolength": [ArgSpec("m"), ArgSpec("m")],
-    "setstretch": [ArgSpec("m")],
-    "pagestyle": [ArgSpec("m")],
-    "thispagestyle": [ArgSpec("m")],
-    "pagenumbering": [ArgSpec("m")],
-    "documentclass": [ArgSpec("o"), ArgSpec("m")],
-    "documentstyle": [ArgSpec("o"), ArgSpec("m")],
-    "usepackage": [ArgSpec("o"), ArgSpec("m")],
-    "RequirePackage": [ArgSpec("o"), ArgSpec("m")],
 }
 
 _LETTER_TAIL_RX = re.compile(
@@ -868,7 +827,7 @@ class Scanner:
             return j
 
         # 10. \input/\include 族：flush + LITERAL + 记 inputs[]；in_arg → [[CMD]]
-        if name in _INPUT_SCAN_CMDS:
+        if name in INPUT_SCAN_CMDS:
             if self.in_arg:
                 return self._protect_call(i, j, PhType.CMD)
             pos = ws_skip_arg(tex, j)
@@ -888,9 +847,9 @@ class Scanner:
                     else:
                         fname = tex[pos + 1 : e - 1].strip()
                         self.state.inputs.append((self.base + i, fname))
-            elif pos < n and tex[pos] in _FILENAME_CHARS:
+            elif pos < n and tex[pos] in FILENAME_CHARS:
                 k = pos
-                while k < n and tex[k] in _FILENAME_CHARS:
+                while k < n and tex[k] in FILENAME_CHARS:
                     k += 1
                 self.state.inputs.append((self.base + i, tex[pos:k]))
                 end = k
@@ -936,7 +895,7 @@ class Scanner:
                 return self._protect_call(i, j, PhType.CMD)
             self._flush_run(i)
             end = j
-            spec = _BOUNDARY_TAIL.get(name)
+            spec = BOUNDARY_TAIL.get(name)
             if spec is not None:
                 args, e2 = self._args(j, spec)
                 if any(a.full.end > a.full.start for a in args):
@@ -1133,7 +1092,7 @@ class Scanner:
             # F6：``[opt]`` 按内容分流——版式参（``[t]``/``[label=…]``/
             # ``[noitemsep]``）吃掉照旧；定理类标题正文（``[Pythagoras]``）
             # 不吃、随正文流进 chunk（docs/07 §3.5 原为无条件吞，8.3% 召回缺口）
-            if e2 and _env_opt_is_format(env, tex[pos + 1 : e2 - 1]):
+            if e2 and env_opt_is_format(env, tex[pos + 1 : e2 - 1]):
                 pos = ws_skip_arg(tex, e2)
         mand = 1 if env in ENV_MANDATORY_ARG else 0
         if reg is not None:
@@ -1681,34 +1640,6 @@ class Scanner:
                 break
         self._ph_into_run(typ, tex[i:end], i, end)
         return end
-
-
-_OPT_FMT_CHARS = frozenset("=*\\#|!~,()<>:;")  # 版式参特征（kv/装饰/分组）
-_OPT_POS_LETTERS = frozenset("htbpHTBPclrmb")  # 浮动位 htbp + 列型 lcrmpb
-
-
-def _env_opt_is_format(env: str, content: str) -> bool:
-    r"""``\begin{env}[opt]`` 的 ``[opt]``：版式参（吃掉）还是标题正文（放行）。
-
-    scanner-audit F6：docs/07 §3.5 原规格无条件吞 ``[opt]`` → theorem/
-    lemma/proof 类环境标题永不进 chunk（corpus_v3 命中 8.3%，召回缺口）。
-    判定（corpus 实测分布校准）：
-
-    - 列表容器 env（``ARG_TRANSPARENT_ENVS``：itemize/enumerate 等）的
-      opt 恒为版式（``[noitemsep]``/``[label=…]``）——无条件吃；
-    - 其余看内容：空 / 数字开头 / 纯位置字母 / 含 ``=*\#|!~,()<>:;``
-      → 版式；否则当正文放行（回落主流进 chunk，标题恢复可译）。
-    """
-    if env in ARG_TRANSPARENT_ENVS:
-        return True
-    s = content.strip()
-    if not s:
-        return True  # ``[]`` 空参
-    if s[0].isdigit():
-        return True  # ``[1]``/``[1.]`` 编号参
-    if all(ch in _OPT_POS_LETTERS for ch in s):
-        return True  # ``[t]``/``[htb]``/``[mr]`` 位置参
-    return any(ch in _OPT_FMT_CHARS for ch in s)
 
 
 _CHUNK_SPEC_CACHE: dict[str, list[ArgSpec]] = {}

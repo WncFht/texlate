@@ -66,7 +66,14 @@ run 项从 `str` 升级为 `(surface, ident)` 双轨：
 ## 3. 展开组的流内形态
 
 - **判定**：`t.gen > 0` 即展开产物。同 `origin`（=最外层调用点
-  `(fid,a,b)`）的连续 token 为一组；组间 disjoint 且按到达序。
+  `(fid,a,b)`）的连续 token 为一组；**组内 gen=0 arg token**（代入位
+  的真源 token，`pos` 落在调用点区间内）同属该组——组界 = 首个
+  「gen>0 且 origin≠组」或「gen=0 且 pos 不在调用区间内」的 token。
+- **调用点区间 = 整调用**（`\sw{a}{b}` 全段），**不是** `trig.pos`
+  的 cs 名区间——当前 `expand_def` 打的是后者，gullet 侧需改为
+  `(trig.fid, trig.start, trace末位.end)`（见 §4）。实测锚：
+  `\def\sw#1#2{#2 and #1}` + `\sw{a}{b}` 现行 origin=(25,28) 仅盖
+  `\sw`，目标 origin=(25,34)。
 - **surface** = 组内 token 文本拼接（`eol_par`→`\n\n`、space→` `、
   cs→`\name`、param→`#`…按 Tok.text 渲染规则）。
 - 组内再生保护段（展开文本里的 `$…$`、`\cite{…}`）照常走分段规则产
@@ -78,8 +85,21 @@ run 项从 `str` 升级为 `(surface, ident)` 双轨：
 
 ## 4. gullet 侧缺口（需 impl-expansion 补，或 leader 代笔）
 
+> **落地状态（2026-09-15 晚）**：全部已实施——`_consumed` marker
+> （`def:`/`newcmd:`/`newenv:`/`newtheorem:`/`mathop:`/`xparse:`/`let:`/
+> `newif:`/`catcode:`/`if:`/`input:`/`endinput` 系）、`Mouth.resync` +
+> `gullet.skip_past(fid,pos)`（tokbuf 残骸剔除、栈深找 fid、i 只前进）、
+> `_stamp_call_origin` 补打整调用区间。segmenter 侧实测补丁两条：
+>
+> - `Span.__len__` = `end-start` → **零宽 span 是 falsy**——`x or Span(0,0)`
+>   式兜底会把 `Span(v,v)` 落成 `Span(0,0)`，判空一律 `is None`。
+> - **组内 consumed marker 不破组界**：gen>0 marker 的 pos 是定义体区段
+>   （早已覆盖、零宽即可），`\document` 级大宏展开体内含 def/if/input
+>   marker 属常态；仅 input 型组内也记 `inputs[]`。
+
 | 缺口                      | 现状                                                                                                                                                             | 需要                                                                                                                                                                                                                         |
 | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`origin` 只盖 cs 名**   | `expand_def` 打 `trig.origin or trig.pos`——`\sw{a}{b}` 的 origin=(25,28) 不含 args                                                                               | origin = 整调用区间 `(trig.fid, trig.start, self._trace[-1].pos.end)`（`_invoke` 返回后在 `next_expanded` 补打）。否则 EXPAND/ph_map[CHUNK] 的 identity 切片只含 `\sw`，args 字节漏出                                        |
 | 静默消费事件              | `_do_def`/`_do_newcmd`/`_do_newenv`/`_do_newtheorem`/`_do_mathop`/`_do_xparse`/`_do_let`/`_do_newif`/`_do_catcode`/`process_if`/`_do_input` 成功均 `return None` | 发 marker：`Tok(kind="consumed", pos=(fid,cs,ce), text="def:name"/"input:path"/…)`。分段器：flush + LITERAL piece 盖 `pos` + `inputs[]` 登记（input 型）。保住 dispatch 2/3/10 的边界语义——def 串不落 chunk 否则译文会删 def |
 | verbatim/`\verb` raw 消费 | Mouth 会把 verb 体内的 `%` 当注释吞 → 定界符永不到 → 流脱同步                                                                                                    | `gullet.skip_past(fid, pos)`：置 `inputs[-1].i`、复位 `state=S_M`、清 `tokbuf`。分段器对 `\begin{verbatim}`/`\verb` 在**文件字节**上找闭合（现行 `tex.find` 移植），命中即 resync                                            |
 | `math_depth` 回报         | gullet 字段已存在                                                                                                                                                | 分段器在 `$`/`$$`/`\(`/`\[`/math-env 进出时写                                                                                                                                                                                |
@@ -102,6 +122,11 @@ while t := gullet.next_expanded():
 - **注释分支消失**——Mouth 已吞；间隙字节经 §2 覆盖账进 ident/vtex。
   顶层 `%` 的「flush+literal」边界语义由「间隙含 `%` 时 flush 先行」近似：
   覆盖切片若含 `%`（逐 gap 扫一次即可，等价今日注释边界）。
+- **单遍不变式（c2 gullet-corpus 实测锚）**：66/995 文件二次驱动发散——
+  界标 `\if*` 的条件段被 gullet 消费后交出本体，重喂会把选中支头部
+  当条件再吃（最深 −26k token）。推论：**展开流不可重放**——分段器
+  前瞻一律 `read()` 原始流（不覆盖 vtex、无展开副作用），`unread`
+  只许回吐从未展开的 raw token；`next_expanded` 产物绝不回炉。
 - `param` token（孤立 `#`）→ 字面进 run。
 - 未知 cs、LITERAL 宏、INLINE_LITERAL 等按名分派全部沿用——只是
   name 取自 `t.text` 而非 `read_cmd_name`。
@@ -164,14 +189,54 @@ while t := gullet.next_expanded():
 
 ## 8. 实施切片（建议顺序）
 
-1. **S1 骨架**：`segmenter.py` 新模块——TokenSource 抽象 + vtex 账本 +
-   run 双轨 + 直排（verbatim/math/env/chunk-arg 先全按「整块保护」），
-   corpus 抽样冒烟。
-2. **S2 分派移植**：dispatch 19 行逐行过 + `_args` token 版 + in_arg
-   子扫；对照旧 scanner 双跑 diff（同 corpus 输出对齐）。
+1. **S1 骨架**（已落 `866ca27`）：`segmenter.py` 新模块——TokenSource
+   抽象 + vtex 账本 + run 双轨 + 直排（verbatim/math/env/chunk-arg
+   先全按「整块保护」），corpus 抽样冒烟。
+2. **S2 分派移植**（已落，见 §9）：dispatch 19 行逐行过 + `_args_tok`
+   token 版 + in_arg 子扫；对照旧 scanner 双跑 diff（同 corpus 输出对齐）。
 3. **S3 展开语义**：transparent_expand 表面入 run + `ph_map[CHUNK]`
    fallback + EXPAND ph + eol_par 虚拟分段。
-4. **S4 `\if`/`\input` 接线**：界标档 + marker 事件 + resync。
+4. **S4 `\if`/`\input` 接线**：界标档 + marker 事件 + resync + F12 墓标。
 5. **S5 门**：parsebench corpus_v3 双跑 + e2e-real s40 + 性能曲线。
 
 每片独立可验；S2 起即可双跑 diff 当回归。
+
+## 9. S2 落地记录（2026-09-15）
+
+dispatch 19 行全部 token 化（verb/begin/end/cite/ref/PROTECT/href/input/
+chunk-arg/PROTECT_BLOCK/TRANSPARENT/BOUNDARY/endinput/数学定界/inline-literal/
+opaque-macro/unknown-cs），`_args_tok` 全 argspec 字母（m/v/o/O/s/t/d/D/
+r/R/e/b + 单 token/零宽缺省），`_env_with_mined`/`_handle_chunk_arg`
+in_arg 子扫走 `_ListSource`。corpus_v2_smoke 40/40 identity。
+
+实测补丁两条（字节版→token 版移植的真实坑）：
+
+- **peek 吞 ws 丢 token（F-尾丢）**：`_peek_nonspace` 拉出即消费的
+  space token 在参数不匹配时永不回主流——v1 `ws_skip_arg` 的 `pos`
+  停在原位、空白由主流重扫的语义被破坏，子扫尾巴上丢字节 →
+  ENV/chunk-arg ph 体缺 `\n` → identity 破（corpus 40→11）。
+  修法：`_peek_nonspace(src, pulled)` 把跳过 token 记进 `pulled`，
+  一切放弃路径 `src.unread([*pulled, x])` 全量回放；命中路径
+  `pulled` 并入 `all_toks`（`_unread_args` 全恢复）。
+- **子扫 rendered 残余字节**：`_env_with_mined`/`_handle_chunk_arg`
+  的 `rendered = join(sub.pieces)` 丢掉「已盖 vtex 未挂 piece」的
+  尾部字节（上条的下游）——补 `vt.slice(sub_end, v_end.start)` 残段。
+- **gap-surface 前缀**：Mouth 吞三类字节不成 token（`\cs` 后空格、
+  折叠空白、`%` 注释）——进 ident 不进 surface → `[[MACRO_1]]as`
+  粘连。`_gap_surface(fid, cons0, tok_start)` 去注释纯空白 → `" "`，
+  run 项 surface 补前缀（`_rappend_tok`/`_rappend_ph(tok=)`/eol_par/
+  展开组调用点）。identity 本就兜住，此修的是译文面词界。
+- **杂项**：`_env_name` ws_skip + 嵌套花括号深度配对（`\begin {env}`）；
+  `_env_name` 失败 unread 回吐重分派（grp 里可能藏真 `\end{target}`）；
+  `_ListSource.skip_past` 丢 raw 消费段残骸 token（子扫内 verb 体
+  `\_end` 假命中防御）；`\section*` 预吃星号（v1 同序）；`\import`
+  第二参/`\lstinline` 用 `_read_skipws`（ws_skip 全空白语义，跨 `\n\n`）；
+  `_protect_cs` 的 `*`/定界判定用裸读不 ws_skip（v1 `tex[pos]` 同位）。
+
+遗留：`\if` 两档界标回放、F12 墓标（拉取序号版）在 S4；
+v1↔v2 双跑 diff（`bench/results/v2-diff-2026-09-15.md`，S2 中途态快照：
+v2 identity 75/200 strict——尾丢修复后应显著回绿，archbox 复跑）；
+dispatch 普查（`bench/results/v2-census-2026-09-15.md`）：UNKNOWN 兜底
+49.5% cs token——`\\`(16.7k=行界应走 boundary)、`\[`/`\(`（已接 row16）、
+控制符号族（row17 已收）为主，余为 bibinfo/bbl 内部与真未知宏——
+CMD ph 兜底符合设计。

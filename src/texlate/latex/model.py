@@ -354,6 +354,39 @@ def unescaped_dollar_odd(body: str) -> bool:
     return odd
 
 
+def env_opt_is_format(env: str, content: str) -> bool:
+    r"""``\begin{env}[opt]`` 的 ``[opt]``：版式参（吃掉）还是标题正文（放行）。
+
+    scanner-audit F6：docs/07 §3.5 原规格无条件吞 ``[opt]`` → theorem/
+    lemma/proof 类环境标题永不进 chunk（corpus_v3 命中 8.3%，召回缺口）。
+    判定（corpus 实测分布校准）：
+
+    - 列表容器 env（itemize/enumerate 等）的 opt 恒为版式
+      （``[noitemsep]``/``[label=…]``）——无条件吃；
+    - 其余看内容：空 / 数字开头 / 纯位置字母 / 含 ``=*\#|!~,()<>:;``
+      → 版式；否则当正文放行（回落主流进 chunk，标题恢复可译）。
+
+    实现注：``ARG_TRANSPARENT_ENVS``/``OPT_*`` 常量在 tables.py——此处
+    本地判定以避免 model→tables 反向依赖（model 是纯数据层）。
+    """
+    from texlate.latex.tables import (  # noqa: PLC0415 — 延迟破环：model 不入 tables 的 import 链
+        ARG_TRANSPARENT_ENVS,
+        OPT_FMT_CHARS,
+        OPT_POS_LETTERS,
+    )
+
+    if env in ARG_TRANSPARENT_ENVS:
+        return True
+    s = content.strip()
+    if not s:
+        return True  # ``[]`` 空参
+    if s[0].isdigit():
+        return True  # ``[1]``/``[1.]`` 编号参
+    if all(ch in OPT_POS_LETTERS for ch in s):
+        return True  # ``[t]``/``[htb]``/``[mr]`` 位置参
+    return any(ch in OPT_FMT_CHARS for ch in s)
+
+
 def skip_verb_at(tex: str, name: str, j: int) -> int | None:
     r"""``\\verb``/``\\lstinline`` 定界体跳过：返回体后一位；非定界形 → None。
 
