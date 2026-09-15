@@ -1,5 +1,8 @@
 """三级术语表 + ph→ph 恒等注入 + 文档级过滤烤进稳定 system prompt（docs/08 §1.4）。
 
+yaml 装载走 PyYAML safe_load；`flatten_terms` 把 `{en: zh}` / `{en: {target: zh}}` /
+`{"terms": {...}}` 三种形态归一为平表，list 值拒绝（宁可拒载不静默读歪）。
+
 层级（高→低优先级，先写者胜）：
 
     ① 用户表     ~/.texlate/glossary.yaml | --glossary user.csv   独占覆盖
@@ -20,6 +23,8 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+import yaml
 
 from .placeholders import sort_key
 
@@ -158,17 +163,8 @@ def load_csv(path: Path) -> dict[str, str]:
 
 
 def load_yaml(path: Path) -> dict[str, str]:
-    """YAML 术语表：`en: zh` 平表 或 ieeA 结构体 `en: {target, context, ...}`。
-
-    优先用 PyYAML（装了的话）；没有就走内置迷你解析——只支持平表与一层嵌套
-    映射，覆盖 glossary.yaml/glossary.local.yaml/index.yaml 的全部形态。
-    """
-    try:
-        import yaml  # noqa: PLC0415 -- PyYAML 是可选依赖，缺失时走 mini_yaml
-    except ImportError:
-        data = mini_yaml(path.read_text(encoding="utf-8"), name=str(path))
-    else:
-        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    """YAML 术语表：`en: zh` 平表 或 ieeA 结构体 `en: {target, context, ...}`。"""
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
     return flatten_terms(data, name=str(path))
 
 
@@ -202,47 +198,10 @@ def flatten_terms(data: object, *, name: str) -> dict[str, str]:
             continue
         if isinstance(v, dict):
             zh = str(v.get("target", en)).strip() or en
+        elif isinstance(v, list):
+            msg = f"{name}: term {en!r} has list value, expected string or mapping"
+            raise TypeError(msg)
         else:
             zh = str(v).strip() or en
         out[en] = zh
-    return out
-
-
-def mini_yaml(text: str, *, name: str) -> dict[str, object]:
-    r"""无 PyYAML 时的迷你解析：`k: v` 平表 + 一层 `k:\n  sub: v` 嵌套。
-
-    刻意不支持 list/多行字符串/锚点——命中即报 ValueError 指到文件，
-    宁可拒载也不静默读歪（术语表错了会系统性地错译）。
-    """
-    out: dict[str, object] = {}
-    cur_key: str | None = None
-    for lineno, raw in enumerate(text.splitlines(), 1):
-        line = raw.rstrip()
-        if not line or line.lstrip().startswith("#"):
-            continue
-        # 去行尾注释（仅在 `#` 前是空白时——`a: b#c` 的 `#` 属值的一部分）
-        line = re.sub(r"\s+#.*$", "", line)
-        indent = len(raw) - len(raw.lstrip())
-        if ":" not in line:
-            msg = f"{name}:{lineno}: unsupported yaml line: {line!r}"
-            raise ValueError(msg)
-        key, _, val = line.partition(":")
-        key = key.strip().strip("'\"")
-        val = val.strip()
-        if indent == 0:
-            if val == "":
-                cur_key = key
-                out[key] = {}
-            else:
-                cur_key = None
-                out[key] = val.strip("'\"")
-        elif cur_key is not None:
-            sub_map = out.get(cur_key)
-            if not isinstance(sub_map, dict):
-                msg = f"{name}:{lineno}: unexpected indent: {line!r}"
-                raise ValueError(msg)
-            sub_map[key] = val.strip("'\"")
-        else:
-            msg = f"{name}:{lineno}: unexpected indent: {line!r}"
-            raise ValueError(msg)
     return out

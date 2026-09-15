@@ -1,4 +1,4 @@
-"""glossary：三级合并优先级 / ph 恒等注入 / 文档级过滤 / 迷你 yaml 解析。"""
+"""glossary：三级合并优先级 / ph 恒等注入 / 文档级过滤 / yaml 装载归一。"""
 
 from pathlib import Path
 
@@ -117,14 +117,16 @@ class TestDocFilter:
         assert keys == ["[[CITE_1]]", "[[MATH_2]]", "[[MATH_10]]"]
 
 
-class TestMiniYaml:
-    def test_flat_map(self) -> None:
-        out = gl.mini_yaml("a: 1\nb: 2\n# comment\nc: 三\n", name="t")
-        assert out == {"a": "1", "b": "2", "c": "三"}
+class TestLoadYaml:
+    def test_flat_map(self, tmp_path: Path) -> None:
+        p = tmp_path / "g.yaml"
+        p.write_text("a: 1\nb: 2\n# comment\nc: 三\n", encoding="utf-8")
+        assert gl.load_yaml(p) == {"a": "1", "b": "2", "c": "三"}
 
-    def test_nested_map(self) -> None:
-        out = gl.mini_yaml("term:\n  target: 译\n  context: ctx\n", name="t")
-        assert out == {"term": {"target": "译", "context": "ctx"}}
+    def test_nested_map(self, tmp_path: Path) -> None:
+        p = tmp_path / "g.yaml"
+        p.write_text("term:\n  target: 译\n  context: ctx\n", encoding="utf-8")
+        assert gl.load_yaml(p) == {"term": "译"}
 
     def test_flatten_structured(self) -> None:
         out = gl.flatten_terms(
@@ -132,10 +134,19 @@ class TestMiniYaml:
         )
         assert out == {"a": "1", "b": "2"}
 
-    def test_reject_garbage(self) -> None:
-        with pytest.raises(ValueError, match="unsupported yaml"):
-            gl.mini_yaml("- list item\n", name="t")
+    def test_reject_top_level_list(self, tmp_path: Path) -> None:
+        p = tmp_path / "g.yaml"
+        p.write_text("- list item\n", encoding="utf-8")
+        with pytest.raises(TypeError, match="must be a mapping"):
+            gl.load_yaml(p)
 
-    def test_inline_comment(self) -> None:
-        out = gl.mini_yaml("a: b # note\n", name="t")
-        assert out == {"a": "b"}
+    def test_reject_list_value(self, tmp_path: Path) -> None:
+        p = tmp_path / "g.yaml"
+        p.write_text("term:\n  - a\n  - b\n", encoding="utf-8")
+        with pytest.raises(TypeError, match="list value"):
+            gl.load_yaml(p)
+
+    def test_inline_comment(self, tmp_path: Path) -> None:
+        p = tmp_path / "g.yaml"
+        p.write_text("a: b # note\n", encoding="utf-8")
+        assert gl.load_yaml(p) == {"a": "b"}

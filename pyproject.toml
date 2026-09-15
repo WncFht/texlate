@@ -5,7 +5,7 @@ description = "arXiv LaTeX 源码 → LLM 段落级翻译 → ctex 重编译中�
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
-dependencies = ["httpx>=0.28", "typer>=0.12"]
+dependencies = ["httpx>=0.28", "pyyaml>=6.0.3", "typer>=0.12"]
 
 [project.scripts]
 texlate = "texlate.cli:app"
@@ -16,6 +16,10 @@ dev = ["pytest>=8", "pytest-asyncio>=0.24"]
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[[tool.uv.index]]
+url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+default = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/texlate"]
