@@ -32,7 +32,7 @@ from .batch import (
     parse_batch_response,
     split_long_chunk,
 )
-from .client import ChatClient, ChatError, ChatOptions
+from .client import ChatClient, ChatError, ChatOptions, LengthTruncatedError
 from .retry import RetryPolicy, call_with_backoff, translate_with_ladder
 from .state import ChunkRecord, StateStore, segment_key
 
@@ -160,7 +160,7 @@ class GatewayTranslator:
             except ChatError as e:
                 retryable_length = (
                     e.retryable
-                    and e.__class__.__name__ == "LengthTruncatedError"
+                    and isinstance(e, LengthTruncatedError)
                     and max_tokens < LENGTH_RETRY_MAX_TOKENS
                 )
                 if not retryable_length:
@@ -258,6 +258,16 @@ def _mock_translate_text(text: str, zh: str) -> str:
 
 
 # ---------------------------------------------------------------- Pipeline
+
+
+def _item_chunks(item: tuple[str, Any]) -> list[ChunkIn]:
+    """工作单元 → 受影响 ChunkIn（worker crash 兜底记账用）。"""
+    kind, payload = item
+    if kind == "batch":
+        return list(payload[1])
+    if kind == "split":
+        return [payload[0]]
+    return [payload]
 
 
 @dataclass
@@ -657,6 +667,36 @@ class XlatPipeline:
         work_items += [("single", c) for c in longs]
         return work_items + split_items
 
+    async def _worker(
+        self,
+        queue: asyncio.Queue[tuple[str, Any] | None],
+        done_map: dict[str, ChunkResult],
+    ) -> None:
+        """消费循环：哨兵退出；item 级 crash 兜底成 skipped。
+
+        worker 不死——否则 queue.join() 死等 + done_map 缺口在 run() 末行
+        炸 KeyError。
+        """
+        while True:
+            item = await queue.get()
+            try:
+                if item is None:
+                    return
+                try:
+                    results = await self._process(item)
+                except Exception as e:
+                    # _process 各分支已兜底；真逃逸（bug/中断）也要把受影响
+                    # 块记成 skipped 而不是拖死整个消费循环。
+                    log.exception("worker item crashed")
+                    results = [
+                        self._skip(c, f"worker crash: {e}") for c in _item_chunks(item)
+                    ]
+                for r in results:
+                    done_map[r.chunk_id] = r
+                    self._emit(r)
+            finally:
+                queue.task_done()
+
     async def _drain(
         self,
         work_items: list[tuple[str, Any]],
@@ -669,29 +709,27 @@ class XlatPipeline:
         for item in work_items:
             queue.put_nowait(item)
 
-        async def worker() -> None:
-            while True:
-                item = await queue.get()
-                try:
-                    if item is None:
-                        return
-                    for r in await self._process(item):
-                        done_map[r.chunk_id] = r
-                        self._emit(r)
-                finally:
-                    queue.task_done()
-
         # 首发单飞暖前缀缓存，再并发其余（docs/08 §1.6 warmup 模式）
         first = await queue.get()
         if first is not None:
-            for r in await self._process(first):
+            try:
+                results = await self._process(first)
+            except Exception as e:  # 与 _worker 同兜底口径
+                log.exception("warmup item crashed")
+                results = [
+                    self._skip(c, f"warmup crash: {e}") for c in _item_chunks(first)
+                ]
+            for r in results:
                 done_map[r.chunk_id] = r
                 self._emit(r)
         queue.task_done()
 
         for _ in range(self.cfg.concurrency):
             queue.put_nowait(None)
-        workers = [asyncio.create_task(worker()) for _ in range(self.cfg.concurrency)]
+        workers = [
+            asyncio.create_task(self._worker(queue, done_map))
+            for _ in range(self.cfg.concurrency)
+        ]
         await queue.join()
         await asyncio.gather(*workers)
 
