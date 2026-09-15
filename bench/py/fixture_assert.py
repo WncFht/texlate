@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 r"""fixture_assert — B2 陷阱断言跑分器: bench/fixtures/*.tex → 契约三件套.
 
-断言逻辑全部复用 miniscanner_test (assert_tricky / assert_209 / assert_multi),
-判定口径与 miniscanner-parse.json 一致. 覆盖: tricky.tex T01–T29 (26 条 +
-_meta), tricky-209.tex 3 条, tricky-multi T14 ×4.
+断言矩阵来自 tests/test_bench_regression.py (spike miniscanner_test 移植,
+跑在 texlate.latex 产品解析器上); 本脚本只做计时执行 + 契约产出落盘.
+覆盖: tricky.tex T01–T29 (26 条 + _meta), tricky-209.tex 3 条 + parse_ok,
+tricky-multi T14 ×4.
 
 用法:
-  python3 bench/py/fixture_assert.py --out DIR
+  uv run python bench/py/fixture_assert.py --out DIR
 
 产出 (docs/10 §统一产出契约): OUT/cases.jsonl (逐断言明细) +
 OUT/cells.json (逐 fixture 聚合) + OUT/summary.md.
@@ -20,43 +21,10 @@ import sys
 import time
 from pathlib import Path
 
-BENCH = Path(__file__).resolve().parent.parent
-FIXTURES = BENCH / "fixtures"
+REPO = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO / "tests"))
 
-sys.path.insert(0, str(Path(__file__).parent))
-import miniscanner as ms
-import miniscanner_test as mt
-
-FIXTURE_FILES = [
-    ("tricky.tex", FIXTURES / "tricky.tex"),
-    ("tricky-209.tex", FIXTURES / "tricky-209.tex"),
-    ("tricky-multi/main.tex", FIXTURES / "tricky-multi" / "main.tex"),
-]
-
-
-def run_fixture(path: Path) -> dict:
-    """parse + recon 一次, 供断言复用."""
-    r = mt.parse_one(path, timeout_s=30, flatten=True)
-    out = {"ok": r["ok"], "wall_ms": r["ms"]}
-    if not r["ok"]:
-        out["error"] = r["error"]
-        return out
-    res: ms.ScanResult = r["res"]
-    rb = mt.rebuild_metrics(res)
-    orig = path.read_text(encoding="utf-8", errors="replace")
-    orig_flat = ms.flatten_inputs(orig, str(path.parent), str(path.parent))
-    status, ratio, first_diff = mt.classify_recon(orig_flat, rb["recon_identity"])
-    out.update(
-        res=res,
-        recon_identity=rb["recon_identity"],
-        recon_fake=rb["recon_fake"],
-        identity={"identical": "strict"}.get(status, status),
-        quick_ratio=ratio,
-        first_diff_at=first_diff,
-        n_chunks=len(res.chunks),
-        n_placeholders=len(res.ph_map),
-    )
-    return out
+import test_bench_regression as tbr
 
 
 def main() -> None:
@@ -70,35 +38,40 @@ def main() -> None:
     cases: list[dict] = []
     cells: dict[str, dict] = {}
 
-    parsed: dict[str, dict] = {}
-    for name, path in FIXTURE_FILES:
-        parsed[name] = run_fixture(path)
+    # 逐 fixture 现跑 (拿 wall_ms); 断言函数与 pytest 侧共享同一份
+    parsed = {name: tbr.run_fixture(name, path) for name, path in tbr.FIXTURE_FILES}
 
-    # ---- 逐 fixture 断言
     asserts: dict[str, dict] = {}
     t = parsed["tricky.tex"]
     asserts["tricky.tex"] = (
-        mt.assert_tricky(t["res"], t["recon_identity"], t["recon_fake"])
-        if t["ok"]
-        else {"_parse": {"status": "fail", "detail": t.get("error", "")}}
+        tbr.assert_tricky(t.res, t.recon, t.recon_fake)
+        if t.ok and t.res is not None
+        else {"_parse": {"status": "fail", "detail": t.error}}
     )
     t2 = parsed["tricky-209.tex"]
-    asserts["tricky-209.tex"] = mt.assert_209(t2, t2.get("recon_identity", ""))
+    asserts["tricky-209.tex"] = tbr.assert_209(t2.res if t2.ok else None, t2.recon)
     tm = parsed["tricky-multi/main.tex"]
     asserts["tricky-multi/main.tex"] = (
-        mt.assert_multi(tm["recon_identity"])
-        if tm["ok"]
-        else {"_parse": {"status": "fail", "detail": tm.get("error", "")}}
+        tbr.assert_multi(tm.recon)
+        if tm.ok
+        else {"_parse": {"status": "fail", "detail": tm.error}}
     )
 
     for name, p in parsed.items():
+        if p.ok:
+            status, _ratio, _first = tbr.classify_recon(p.flat, p.recon)
+            identity = {"identical": "strict"}.get(status, status)
+            n_chunks = len(p.res.chunks) if p.res else 0
+            n_ph = len(p.res.ph_map) if p.res else 0
+        else:
+            identity, n_chunks, n_ph = None, None, None
         cell = {
-            "parse_ok": p["ok"],
-            "wall_ms": p["wall_ms"],
-            "error": p.get("error"),
-            "identity": p.get("identity"),
-            "n_chunks": p.get("n_chunks"),
-            "n_placeholders": p.get("n_placeholders"),
+            "parse_ok": p.ok,
+            "wall_ms": p.wall_ms,
+            "error": p.error or None,
+            "identity": identity,
+            "n_chunks": n_chunks,
+            "n_placeholders": n_ph,
             "n_assert": 0,
             "pass": 0,
             "partial": 0,
@@ -117,8 +90,8 @@ def main() -> None:
                     "id": aid,
                     "status": status,
                     "detail": str(detail),
-                    "parse_ok": p["ok"],
-                    "wall_ms": p["wall_ms"],
+                    "parse_ok": p.ok,
+                    "wall_ms": p.wall_ms,
                 }
             )
             if status in ("pass", "partial", "fail"):
@@ -140,7 +113,7 @@ def main() -> None:
             fh.write(json.dumps(c, ensure_ascii=False) + "\n")
     (out / "cells.json").write_text(
         json.dumps(
-            {"fixtures_dir": str(FIXTURES), "wall_s": wall, "cells": cells},
+            {"fixtures_dir": str(tbr.FIXTURES), "wall_s": wall, "cells": cells},
             ensure_ascii=False,
             indent=2,
         ),
