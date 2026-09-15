@@ -1,0 +1,448 @@
+r"""命令族常量表（纯数据，零逻辑）。
+
+spike ``miniscanner.py`` 常量区的扶正搬迁（含 discard 修正后的终值），
+外加重写新增表：``ARG_TRANSPARENT_ENVS`` / ``CHUNK_ARG_SPEC`` /
+``\\if`` 两档分族 / 回压常数。
+"""
+
+from __future__ import annotations
+
+import re
+
+# ---------------------------------------------------------------- 阈值
+
+CHUNK_MIN = 20  # flush_run 可译性阈值（去命令/非字母后字符数）
+CHUNK_MAX = 4000  # 原子 chunk 上限（超阈值二次切分，docs/07 §3.8 硬要求）
+INLINE_MAX = 8000  # 宏参数内联上限（防 \\version{}{…}/ATLAS 作者块爆上下文）
+BUDGET = 100_000  # 每文档展开步数上限（docs/07 §8.2）
+MAX_GEN = 32  # 子扫描/展开代数上限（正常宏嵌套 ≤4 代，8 倍余量）
+MAX_INPUTS = 8  # \\input 展平深度上限
+
+# ---------------------------------------------------------------- 环境族
+
+# 数学环境族 → [[MATH_n]]（含 * 变体）
+MATH_ENVS = {
+    "equation",
+    "align",
+    "gather",
+    "multline",
+    "flalign",
+    "alignat",
+    "eqnarray",
+    "subequations",
+    "IEEEeqnarray",
+    "dmath",
+    "empheq",
+    "math",
+    "displaymath",
+    "cases",
+    "split",
+    "gathered",
+    "aligned",
+    "alignedat",
+    "array",
+    "matrix",
+    "pmatrix",
+    "bmatrix",
+    "vmatrix",
+    "Bmatrix",
+    "smallmatrix",
+    "equationarray",
+    "xxalignat",
+}
+MATH_ENVS |= {e + "*" for e in list(MATH_ENVS)}
+
+# 逐字环境：整体跳过，% 不是注释，内部不挖 caption
+VERBATIM_ENVS = {"verbatim", "lstlisting", "minted", "comment", "Verbatim"}
+VERBATIM_ENVS |= {e + "*" for e in list(VERBATIM_ENVS)}
+
+# 保护环境：整段 → [[ENV_n]]，但内部递归挖 \caption/\footnote 为 chunk
+PROTECTED_ENVS = {
+    "figure",
+    "figure*",
+    "table",
+    "table*",
+    "tabular",
+    "tabularx",
+    "tabulary",
+    "longtable",
+    "sidewaystable",
+    "wraptable",
+    "wrapfigure",
+    "algorithm",
+    "algorithm2e",
+    "algorithmic",
+    "algorithmicx",
+    "tikzpicture",
+    "pgfpicture",
+    "picture",
+    "pspicture",
+}
+
+# in_arg 下的透明容器环境白名单（纯容器 → begin/end 行 [[ENVTAG]]，
+# 内部 item 文本照常挖；其余未知 env in_arg → 整段 [[ENV]]，修泄漏 C2）
+ARG_TRANSPARENT_ENVS = {
+    "itemize",
+    "enumerate",
+    "description",
+    "center",
+    "flushleft",
+    "flushright",
+    "quote",
+    "quotation",
+    "verse",
+    "abstract",
+    "minipage",
+    "list",
+    "trivlist",
+    "sloppypar",
+    "document",
+}
+ARG_TRANSPARENT_ENVS |= {e + "*" for e in list(ARG_TRANSPARENT_ENVS)}
+
+# \begin 后要吞掉强制 {arg} 的环境（宽/格式参数，非文本）
+ENV_MANDATORY_ARG = {
+    "minipage",
+    "parbox",
+    "tabular",
+    "tabularx",
+    "tabulary",
+    "array",
+    "list",
+    "thebibliography",
+    "subfigure",
+    "wrapfigure",
+    "wraptable",
+}
+
+# ---------------------------------------------------------------- 命令族
+
+# 参数挖为独立 chunk 的命令（不受 20 字符阈值限制）
+CHUNK_ARG_NAMES = {
+    "section",
+    "subsection",
+    "subsubsection",
+    "paragraph",
+    "subparagraph",
+    "chapter",
+    "part",
+    "sect",
+    "subsect",  # ptptex 旧式
+    "caption",
+    "subcaption",
+    "captionof",
+    "title",
+    "subtitle",
+    "thanks",
+    "footnote",
+    "footnotetext",
+    "abst",
+    "keywords",
+}
+
+# chunk-arg 命令的参数形状：name → (argspec 串, 可译参数下标)。
+# 未登记默认 ("om", 1) = [opt]?{arg}（spike 原行为）。
+CHUNK_ARG_SPEC: dict[str, tuple[str, int]] = {
+    "captionof": ("mom", 2),  # \captionof{type}[lof]{text}
+    "title": ("m", 0),
+    "subtitle": ("m", 0),
+    "thanks": ("m", 0),
+    "abst": ("m", 0),
+    "keywords": ("m", 0),
+    "footnote": ("om", 1),
+    "footnotetext": ("om", 1),
+    "caption": ("om", 1),
+    "subcaption": ("om", 1),
+}
+
+# 整块保护命令（\author{..} 等 → [[AUTHOR_n]]）
+PROTECT_BLOCK_NAMES = {
+    "author",
+    "inst",
+    "address",
+    "affiliation",
+    "date",
+    "markboth",
+    "markright",
+    "preprintnumber",
+    "recdate",
+    "publishedin",
+    "institute",
+    "email",
+    "orcid",
+}
+
+# cite/ref 两族（词族匹配见 dispatch_cmd 第 6/7 行）
+CITE_NAMES = {
+    "cite",
+    "citep",
+    "citet",
+    "citealp",
+    "citealt",
+    "citeauthor",
+    "citeyear",
+    "citeyearpar",
+    "citetext",
+    "citeonline",
+    "parencite",
+    "textcite",
+    "footcite",
+    "smartcite",
+    "supercite",
+    "autocite",
+    "fullcite",
+    "shortcite",
+    "citeN",
+    "citeasnoun",
+    "citenum",
+    "nocite",
+    "upcite",
+    "citeyearnp",
+}
+REF_NAMES = {
+    "ref",
+    "eqref",
+    "autoref",
+    "cref",
+    "Cref",
+    "crefrange",
+    "cpageref",
+    "pageref",
+    "nameref",
+    "vref",
+    "vpageref",
+    "fref",
+    "Fref",
+    "subref",
+    "labelcref",
+    "labelpageref",
+}
+PROTECT_NAMES = {
+    "label",
+    "url",
+    "includegraphics",
+    "bibliography",
+    "bibliographystyle",
+    "index",
+    "gls",
+    "Gls",
+    "doi",
+    "path",
+    "includepdf",
+    "bibitem",
+    "inputminted",
+    "lstinputlisting",
+    "verbatiminput",
+}
+
+# 透明命令：参数内联扫描（inner text 进入当前 run/chunk）
+TRANSPARENT_NAMES = {
+    "emph",
+    "textbf",
+    "textit",
+    "textsc",
+    "textsl",
+    "textsf",
+    "texttt",
+    "textrm",
+    "textmd",
+    "textup",
+    "textnormal",
+    "underline",
+    "mbox",
+    "hbox",
+    "fbox",
+    "makebox",
+    "framebox",
+    "textcolor",
+    "colorbox",
+    "hl",
+    "sout",
+    "uline",
+    "uwave",
+    "noindent",
+    "footnotemark",
+}
+
+# 行级字面命令：文本 run 的硬边界，本体逐字保留
+BOUNDARY_NAMES = {
+    "item",
+    "maketitle",
+    "centering",
+    "centerline",
+    "hline",
+    "toprule",
+    "midrule",
+    "bottomrule",
+    "cline",
+    "cmidrule",
+    "newpage",
+    "clearpage",
+    "cleardoublepage",
+    "pagebreak",
+    "linebreak",
+    "nopagebreak",
+    "tableofcontents",
+    "listoffigures",
+    "listoftables",
+    "appendix",
+    "vspace",
+    "hspace",
+    "vfill",
+    "hfill",
+    "vskip",
+    "hskip",
+    "smallskip",
+    "medskip",
+    "bigskip",
+    "indent",
+    "par",
+    "newline",
+    "columnbreak",
+    "balance",
+    "onecolumn",
+    "twocolumn",
+    "newcounter",
+    "setcounter",
+    "addtocounter",
+    "setlength",
+    "addtolength",
+    "setstretch",
+    "pagestyle",
+    "thispagestyle",
+    "pagenumbering",
+    "makeatletter",
+    "makeatother",
+    "frontmatter",
+    "mainmatter",
+    "backmatter",
+    "documentclass",
+    "documentstyle",
+    "usepackage",
+    "RequirePackage",
+    "newtheorem",
+}
+
+# 零参/单字符安全字面命令（行内，不破 run）：重音、符号、品牌名
+ACCENT_CHARS = set("'`^\"~=.uvHtcdbkz")
+INLINE_LITERAL_CMDS = {
+    "LaTeX",
+    "TeX",
+    "LaTeXe",
+    "today",
+    "quad",
+    "qquad",
+    "ldots",
+    "dots",
+    "dotsb",
+    "dotsc",
+    "dotsm",
+    "textasciitilde",
+    "textasciicircum",
+    "textbackslash",
+    "textdegree",
+    "dag",
+    "dagger",
+    "ddag",
+    "ddagger",
+    "S",
+    "P",
+    "copyright",
+    "pounds",
+    "aa",
+    "AA",
+    "ae",
+    "AE",
+    "oe",
+    "OE",
+    "o",
+    "O",
+    "l",
+    "L",
+    "ss",
+    "i",
+    "j",
+    "enspace",
+    "thinspace",
+    "negthinspace",
+    "enskip",
+    "textquoteright",
+}
+
+# 旧式 2.09 字体开关：无参，行内字面
+FONT_SWITCHES = {
+    "rm",
+    "bf",
+    "it",
+    "sl",
+    "sf",
+    "tt",
+    "sc",
+    "em",
+    "cal",
+    "mit",
+    "tiny",
+    "scriptsize",
+    "footnotesize",
+    "small",
+    "normalsize",
+    "large",
+    "Large",
+    "LARGE",
+    "huge",
+    "Huge",
+    "HUGE",
+    "normalfont",
+    "bfseries",
+    "mdseries",
+    "itshape",
+    "slshape",
+    "scshape",
+    "upshape",
+    "ttfamily",
+    "sffamily",
+    "rmfamily",
+}
+
+# 定义命令（分派表第 2 行；整段 LITERAL + 登记宏表）
+DEF_NAMES = {
+    "newcommand",
+    "renewcommand",
+    "providecommand",
+    "def",
+    "gdef",
+    "edef",
+    "xdef",
+    "NewDocumentCommand",
+    "RenewDocumentCommand",
+    "ProvideDocumentCommand",
+    "DeclareDocumentCommand",
+    "DeclareMathOperator",
+    "newenvironment",
+    "renewenvironment",
+}
+
+# \input 展平触发面（docs/07 §7，flatten.py 消费）
+INPUT_CMDS = {
+    "input",
+    "include",
+    "InputIfFileExists",
+    "subfile",
+    "import",
+    "subimport",
+    "includestandalone",
+    "CatchFileBetweenTags",
+}
+
+# ---------------------------------------------------------------- \if 两档
+
+COND_RX = re.compile(r"^(if[a-zA-Z@]*|else|fi|or)$")
+
+# 恒值 \if 族（可求值，docs/07 §8.6）
+IF_CONST_FALSE = {"ifeof", "ifinner", "ifvoid", "ifhbox", "ifvbox"}
+IF_CONST = {"ifhmode": False, "ifvmode": True}
+
+# 保护位参数启发：#i 落在这些命令参数位 → 该位 [[KEY]]
+PROTECTED_PARAM_CMDS = CITE_NAMES | REF_NAMES | {"label", "url", "includegraphics"}
+
+_WS_CHARS = " \t\n"
