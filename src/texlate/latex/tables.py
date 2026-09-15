@@ -147,11 +147,14 @@ CHUNK_ARG_NAMES = {
 # 未登记默认 ("om", 1) = [opt]?{arg}（spike 原行为）。
 CHUNK_ARG_SPEC: dict[str, tuple[str, int]] = {
     "captionof": ("mom", 2),  # \captionof{type}[lof]{text}
-    "title": ("m", 0),
-    "subtitle": ("m", 0),
-    "thanks": ("m", 0),
-    "abst": ("m", 0),
-    "keywords": ("m", 0),
+    # title/subtitle/thanks/abst/keywords：``"m"`` 会把 ``[opt]`` 短标题
+    # 当真参数、``{长标题}`` 连花括号落正文（scanner-audit F2，corpus 6.4%
+    # 命中——acmart/sigconf ``\title[短]{长}`` 是标准用法）→ ``"om",1``。
+    "title": ("om", 1),
+    "subtitle": ("om", 1),
+    "thanks": ("om", 1),
+    "abst": ("om", 1),
+    "keywords": ("om", 1),
     "footnote": ("om", 1),
     "footnotetext": ("om", 1),
     "caption": ("om", 1),

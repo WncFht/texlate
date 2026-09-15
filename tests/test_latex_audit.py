@@ -420,3 +420,94 @@ def test_audit_no_dangling_ph_re() -> None:
             assert int(m.group(1)) < len(res.chunks)
         else:
             assert tok in res.ph_map, tok
+
+
+# ---------------------------------------------------------------- scanner-audit F 系列（2026-09-15 修复钉）
+
+
+def test_audit_f1_deep_bracket_no_recursion_crash() -> None:
+    r"""F1：``[``×1500 深嵌套不爆栈——match_bracket 已迭代化。"""
+    res = parse_tex(DOC % ("\\cite" + "[" * 1500 + "x" + "]" * 1500 + " tail"))
+    assert res is not None  # 不抛 RecursionError 即过
+    assert reconstruct(res) == DOC % (
+        "\\cite" + "[" * 1500 + "x" + "]" * 1500 + " tail"
+    )
+
+
+def test_audit_f2_title_opt_short_vs_long() -> None:
+    r"""F2：``\title[短题]{长题}`` 取 ``{长题}`` 为可译参数。"""
+    res = scan("\\title[Short Cap]{The Real Full Title Of The Paper}")
+    contents = [c.content for c in res.chunks]
+    assert any("Real Full Title" in c for c in contents)
+    assert not any(c.strip() == "Short Cap" for c in contents)
+
+
+def test_audit_f3_newenvironment_opt_default() -> None:
+    r"""F3：``\newenvironment{env}[n][dflt]{beg}{end}`` 登记 + 尾部不回落。"""
+    res = scan(
+        "\\newenvironment{mybox}[1][dflt]{\\textbf{#1} begintext}{endtext}\n"
+        "Para text follows here with words."
+    )
+    assert "mybox" in res.macros.envs
+    assert not any(
+        "begintext" in c.content or "endtext" in c.content for c in res.chunks
+    )
+
+
+def test_audit_f4_comment_between_cmd_and_arg() -> None:
+    r"""F4：``\cite%\n{key}`` 注释断参已修——key 进 CITE 占位符不落正文。"""
+    res = scan("See \\cite% note\n{key2020} and \\section% x\n{My Title} body text.")
+    assert any("key2020" in v for v in res.ph_map.values())
+    assert not any("key2020" in c.content for c in res.chunks)
+    assert any("My Title" in c.content for c in res.chunks)
+
+
+def test_audit_f4_comment_then_blank_line_still_par() -> None:
+    r"""F4 边界：注释吃完紧跟空行仍是 ``\par``——``\section%c\n\n{T}`` 不取参。
+
+    ``{NotArg}`` 组本身作为正文文本 chunk 出现是合法（它本来就是正文），
+    钉的是不产生 ``section`` 上下文的参数 chunk。
+    """
+    res = scan("\\section% c\n\n{NotArg} body text here.")
+    assert not any(c.context == "section" for c in res.chunks)
+
+
+def test_audit_f5_math_close_skips_comments() -> None:
+    r"""F5：``$$`` 闭合搜索跳注释——注释内 ``$$`` 不作闭合符。"""
+    body = "Math $$ a % b $$ still comment\nc $$ done"
+    res = scan(body)
+    math_ph = [v for v in res.ph_map.values() if v.startswith("$$")]
+    # 正确配对应吞到第二行真 $$（含注释行整段），不是注释内的假 $$
+    assert any("still comment" in v for v in math_ph)
+    assert reconstruct(res) == DOC % body
+
+
+def test_audit_f7_hard_cut_never_splits_token() -> None:
+    r"""F7：硬切点处横跨的 ``[[X_n]]`` 不再腰斩（全 core 扫 token）。"""
+    # 构造：>CHUNK_MAX 且无安全切点，长 token 起点在旧探测窗外
+    tok = "[[GRAPHICS_99999]]"
+    core = "a" * 3983 + tok + "b" * 100
+    res = scan("\\footnote{" + core + "}")
+    # 所有 chunk 内的 [[X_n]] 必须完整可匹配（不断腰）
+    for c in res.chunks:
+        for m in re.finditer(r"\[\[", c.content):
+            assert re.match(r"\[\[[A-Z_]+_\d+\]\]", c.content[m.start() :])
+    assert reconstruct(res) == DOC % ("\\footnote{" + core + "}")
+
+
+def test_audit_f9_backtick_escape_charcode() -> None:
+    r"""F9：``\ifnum`\A=65`` 转义形字符码消费 3 字符、值取 A=65。"""
+    res = scan("\\ifnum`\\A=65 yes branch text that is long enough to chunk\\fi")
+    # 'A' 不再成残片落 chunk
+    assert not any(c.content.startswith("A=65") for c in res.chunks)
+    assert (
+        reconstruct(res)
+        == DOC % "\\ifnum`\\A=65 yes branch text that is long enough to chunk\\fi"
+    )
+
+
+def test_audit_f11_url_delim_form() -> None:
+    r"""F11：``\url|http://…|`` 定界形整体进 URL 占位符。"""
+    res = scan("See \\url|http://example.com| for more info here.")
+    assert any("http://example.com" in v for v in res.ph_map.values())
+    assert not any("example.com" in c.content for c in res.chunks)

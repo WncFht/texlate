@@ -115,7 +115,6 @@ _LETTER_TAIL_RX = re.compile(
 # math-debt 豁免：体内容里的 ``$`` 是逐字/注释死字符（verbatim 定界、注释、
 # verbatim 参数括号），不是 TeX mathshift——压栈只会误吞后文真数学（W 类）。
 _DEBT_EXEMPT = frozenset({PhType.VERB, PhType.COMMENT, PhType.URL, PhType.HREF})
-_CUT_PROBE = 16  # 硬切点半径：探测横跨切点的 [[X_n]]（最长占位符 ~12 字符）
 _CLEAN_CMD_RX = re.compile(r"\\[a-zA-Z@]+\*?|\\[^a-zA-Z]")
 _CLEAN_NONALPHA_RX = re.compile(r"[^a-zA-Z]")
 _LEAD_WS_RX = re.compile(r"\s*")
@@ -277,7 +276,7 @@ class Scanner:
         )
         return f"[[CHUNK_{cid}]]"
 
-    def _split_core(self, core: str) -> list[str]:  # noqa: C901 — 切点优先级链，平铺即 §3.8 规则序
+    def _split_core(self, core: str) -> list[str]:  # noqa: C901, PLR0912 — 切点优先级链，平铺即 §3.8 规则序
         """超大 chunk 二次切分（§3.8 原子上限）：``[[X_n]]`` 边界优先。"""
         if len(core) <= CHUNK_MAX:
             return [core]
@@ -302,18 +301,18 @@ class Scanner:
                     if ws > CHUNK_MAX // 2:
                         cut = ws + len(ch)
                         break
-            if cut <= 0:  # 硬切，但不许切在 [[X_n]] 中间
-                tail = core[hard - _CUT_PROBE : hard + _CUT_PROBE]
-                lead = PH_RX.search(tail)
-                cut = (
-                    hard
-                    - i
-                    + (
-                        lead.end() - _CUT_PROBE
-                        if lead and lead.start() < _CUT_PROBE < lead.end()
-                        else 0
-                    )
-                )
+            if cut <= 0:
+                # 硬切：找**横跨** hard 的 token（至多一个）切到它尾后。
+                # 旧实现先切片再搜——``[[`` 落在探测窗外的长 token
+                # （[[GRAPHICS_99999]] 18 字符 > _CUT_PROBE）会被腰斩
+                # （scanner-audit F7）。在全 core 上扫，起点>=hard 即停。
+                cut = hard - i
+                for m in PH_RX.finditer(core, i):
+                    if m.start() >= hard:
+                        break
+                    if m.end() > hard:
+                        cut = m.end() - i
+                        break
             parts.append(core[i : i + cut])
             i += cut
         return parts
@@ -432,7 +431,7 @@ class Scanner:
 
     # ------------------------------------------------------------ 数学配对 + debt
 
-    def _on_dollar(self, i: int) -> int:  # noqa: C901 — debt/$$/$ 三分支单遍配对，平铺即 §3.3
+    def _on_dollar(self, i: int) -> int:  # noqa: C901, PLR0912, PLR0915 — debt/$$/$ 三分支单遍配对，平铺即 §3.3
         """``$`` 分支：debt 修复 → ``$$`` → ``$``；失败逐字 + warning。"""
         tex, n = self._tex, len(self._tex)
         # debt repair：占位符体内开出数学的闭合符（§3.3 正确性论证）
@@ -446,8 +445,36 @@ class Scanner:
             )
             return i + 1
         if tex.startswith("$$", i):
-            e = tex.find("$$", i + 2)
-            if e >= 0 and not has_par_break(tex[i:e]):
+            # 闭合符逐字符扫：跳注释/跳 \\X 转义/段边界即停（旧裸 find 会把
+            # 注释内 $$ 当闭合——scanner-audit F5）。
+            e = -1
+            j = i + 2
+            while j < n:
+                c = tex[j]
+                if c == "\\":
+                    j += 2
+                    continue
+                if c == "%":
+                    k = tex.find("\n", j)
+                    j = n if k < 0 else k + 1
+                    # 注释后新行态：紧跟空行仍是 \par（与 ws_skip_arg 同规则）
+                    k = j
+                    while k < n and tex[k] in " \t\r":
+                        k += 1
+                    if k < n and tex[k] == "\n":
+                        break
+                    continue
+                if c == "$" and tex[j + 1 : j + 2] == "$":
+                    e = j
+                    break
+                if c == "\n":
+                    k = j + 1
+                    while k < n and tex[k] in " \t\r":
+                        k += 1
+                    if k < n and tex[k] == "\n":
+                        break
+                j += 1
+            if e >= 0:
                 self._ph_into_run(PhType.MATH, tex[i : e + 2], i, e + 2)
                 return e + 2
             self._rappend("$", i)
@@ -457,6 +484,16 @@ class Scanner:
         while j < n:
             if tex[j] == "\\":
                 j += 2
+                continue
+            if tex[j] == "%":
+                k = tex.find("\n", j)
+                j = n if k < 0 else k + 1
+                # 注释后新行态：紧跟空行仍是 \par
+                k = j
+                while k < n and tex[k] in " \t\r":
+                    k += 1
+                if k < n and tex[k] == "\n":
+                    break
                 continue
             if tex[j] == "$":
                 ok = True
@@ -1326,6 +1363,11 @@ class Scanner:
                 k += 1
             return sign * int(tex[pos:k]), k
         if c in "'`" and pos + 1 < n:
+            # `` `\X `` 转义形：字符码取 X（如 `\A=65），消费 3 字符——
+            # 旧版读成 ord('\\')=92 且只消费 `` `\ ``，残片 'A=65' 落正文
+            # （scanner-audit F9）。
+            if tex[pos + 1] == "\\" and pos + 2 < n:
+                return sign * ord(tex[pos + 2]), pos + 3
             return sign * ord(tex[pos + 1]), pos + 2
         if c == "\\":
             _name, e2 = read_cmd_name(tex, pos)
@@ -1337,6 +1379,9 @@ class Scanner:
                     k += 1
                 return None, k
             if k + 1 < n and tex[k] in "'`":
+                # `` `\X `` 转义形消费 3 字符（\catcode`\A 尾巴不留残片）
+                if tex[k + 1] == "\\" and k + 2 < n:
+                    return None, k + 3
                 return None, k + 2
             if k < n and tex[k] == "{":
                 e = match_brace(tex, k)
@@ -1467,6 +1512,19 @@ class Scanner:
         pos = j
         if pos < n and tex[pos] == "*":
             pos += 1
+        if verbatim and pos < n:
+            # ``\url<delim>…<delim>`` 定界形（url.sty：定界符=任意非字母
+            # 非空白字符，同 \verb 规则，EOL 上限）。旧实现不认定界形 →
+            # ``\url|http://…|`` 只盖 \url 三字符、URL 全文进 chunk
+            # 被翻译（scanner-audit F11）。
+            d = tex[pos]
+            if not d.isalnum() and d not in " \t\n\r%{}[]":
+                e = tex.find(d, pos + 1)
+                eol = tex.find("\n", pos + 1)
+                lim = eol if eol >= 0 else n
+                end = e + 1 if 0 <= e < lim else lim
+                self._ph_into_run(typ, tex[i:end], i, end)
+                return end
         for _ in range(3):
             p2 = ws_skip_arg(tex, pos)
             if p2 < n and tex[p2] == "[":

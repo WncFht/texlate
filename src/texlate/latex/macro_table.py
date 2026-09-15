@@ -231,14 +231,23 @@ def scan_macro_def(  # noqa: C901, PLR0911, PLR0912, PLR0915 — 六类定义命
         if envname:
             p = ws_skip(tex, p)
             nargs = 0
-            if p < n and tex[p] == "[":
-                e2 = match_bracket(tex, p)
-                if e2:
-                    try:
-                        nargs = int(tex[p + 1 : e2 - 1].strip() or 0)
-                    except ValueError:
-                        nargs = 0
+            # ``[n][dflt]`` 双 bracket——与 newcommand 的 for-k 循环同形
+            # （旧版只读 [n]，落在 [dflt] 上 match_brace 失败 → 定义尾部
+            # 整段回落进正文 chunk：scanner-audit F3，corpus 1.5% 命中）。
+            for k in range(2):
+                if p < n and tex[p] == "[":
+                    e2 = match_bracket(tex, p)
+                    if e2 is None:
+                        break
+                    if k == 0:
+                        try:
+                            nargs = int(tex[p + 1 : e2 - 1].strip() or 0)
+                        except ValueError:
+                            nargs = 0
                     p = e2
+                else:
+                    break
+                p = ws_skip(tex, p)
             bb = ws_skip(tex, p)
             eb = match_brace(tex, bb)
             if eb:

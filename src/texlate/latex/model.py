@@ -203,18 +203,39 @@ def ws_skip(tex: str, i: int) -> int:
 
 
 def ws_skip_arg(tex: str, i: int) -> int:
-    r"""参数读取专用 ws_skip：不跨段落边界。
+    r"""参数读取专用 ws_skip：不跨段落边界；``%`` 注释透明跳过。
 
     TeX 不定界参数扫描只跳 space token——``\\n[ \\t\\r]*\\n`` 即 ``\\par``，
-    停在其首个 ``\\n`` 处（调用方看到的是空白字符 → 参数不成立）。
+    停在 ``\\par`` 涉及的 ``\\n`` 处（调用方看到空白字符 → 参数不成立）。
+    ``%`` 吃掉到行尾**含换行**；吃注释后处新行态——紧跟的空行仍是
+    ``\\par``（``\\section% c\\n\\n{T}`` 不取参，``\\section% c\\n{T}`` 取参）。
+    停止位约定：``\\par`` 对内任一 ``\\n`` 位置重入本函数仍停（幂等）——
+    ``_args`` 按参数项循环从停止位重扫（scanner-audit F4-par 修复）。
+    scanner-audit F4：此前遇 ``%`` 即停 → ``\\cite%\\n{key}`` 参数错位泄漏。
     """
     n = len(tex)
-    while i < n and tex[i] in _WS:
-        if tex[i] == "\n":
+    while i < n:
+        c = tex[i]
+        if c == "%":
+            k = tex.find("\n", i)
+            if k < 0:
+                return n
+            i = k + 1
+            continue  # 新行态交给 \n 分支统一判（含下方后向检查）
+        if c not in _WS:
+            return i
+        if c == "\n":
             k = i + 1
             while k < n and tex[k] in " \t\r":
                 k += 1
             if k < n and tex[k] == "\n":
+                return i
+            # 幂等：本 \n 是某 par 对的后一个换行（前向已看不到配对首 \n）
+            # ——回看前一非空白若为 \n 同样停住
+            k = i - 1
+            while k >= 0 and tex[k] in " \t\r":
+                k -= 1
+            if k >= 0 and tex[k] == "\n":
                 return i
         i += 1
     return i
@@ -253,10 +274,16 @@ def match_brace(tex: str, i: int, *, verbatim: bool = False) -> int | None:
 
 
 def match_bracket(tex: str, i: int) -> int | None:
-    """``tex[i]=='['`` → 匹配 ``']'`` 的后一位；允许内嵌 ``{..}`` 组与注释。"""
+    r"""``tex[i]=='['`` → 匹配 ``']'`` 的后一位；允许内嵌 ``{..}`` 组与注释。
+
+    迭代实现（原为自递归）：``[`` 嵌套用深度计数——规则与递归版逐条同构
+    （``{`` 组整跳、``%``→EOL、``\\\\`` 跳双），但深嵌套不再爆栈
+    （铁律 1「绝不抛异常」；scanner-audit F1：``[``×1500 曾 RecursionError）。
+    """
     if i >= len(tex) or tex[i] != "[":
         return None
     j, n = i + 1, len(tex)
+    depth = 1
     while j < n:
         c = tex[j]
         if c == "\\":
@@ -267,15 +294,17 @@ def match_bracket(tex: str, i: int) -> int | None:
             j = e or j + 1
             continue
         if c == "[":
-            e = match_bracket(tex, j)
-            j = e or j + 1
+            depth += 1
+            j += 1
             continue
         if c == "%":
             k = tex.find("\n", j)
             j = n if k < 0 else k + 1
             continue
         if c == "]":
-            return j + 1
+            depth -= 1
+            if depth == 0:
+                return j + 1
         j += 1
     return None
 
