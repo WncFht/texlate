@@ -181,6 +181,20 @@ class GatewayTranslator:
 
 #: mock 译文固定串（e2e mock_a 同款：散文段 → 固定中文，token 原位不动）
 MOCK_ZH = "这是译文"
+
+#: slots JSON 应答的 ```json fence 剥皮（response_format 在 3003 网关被静默
+#: 忽略——模型仍可能按习惯包 fence，剥一层再 json.loads 才算尽力）。
+_JSON_FENCE_RX = re.compile(
+    r"^\s*```[A-Za-z]*\s*\n(?P<body>.*?)\n?\s*```\s*$", re.DOTALL
+)
+
+
+def _strip_json_fence(raw: str) -> str:
+    """剥掉整段 ``` 围栏；非围栏原文原样返回。"""
+    m = _JSON_FENCE_RX.match(raw)
+    return m.group("body") if m else raw
+
+
 #: token 集 = 占位符 + 控制序列 + 括号 + L0 脆弱字符（``~`` 活动字符、``$``/``&``
 #: 结构符——丢了会触发 cs_dropped/数学计数差，mock 与 L0 同口径才构成有效 E2E）
 _MOCK_TOKEN_RX = re.compile(
@@ -402,7 +416,7 @@ class XlatPipeline:
                 response_format={"type": "json_object"},
             )
             try:
-                data = json.loads(raw)
+                data = json.loads(_strip_json_fence(raw))
             except json.JSONDecodeError:
                 return {}
             if isinstance(data, dict) and isinstance(data.get("slots"), dict):
@@ -594,6 +608,15 @@ class XlatPipeline:
         if self.state is None:
             return set(), {}
         completed, recs = self.state.load()
+        # completed 只认 ok/partial：skipped/fault（三振回退原文、网关抖动 skip）
+        # 在续跑里必须重试——否则一次瞬时失败会把该块永久冻结成英文原文。
+        # state.json 里 completed 仍记全部已尝试块（审计口径不变），过滤只在
+        # 编排侧生效；重试结果经 record() 追加覆盖 done_map。
+        completed = {
+            cid
+            for cid in completed
+            if cid in recs and recs[cid].status in ("ok", "partial")
+        }
         done_map: dict[str, ChunkResult] = {}
         for cid, rec in recs.items():
             done_map[cid] = ChunkResult(
@@ -652,18 +675,25 @@ class XlatPipeline:
         pending: list[ChunkIn],
         split_items: list[tuple[str, Any]],
     ) -> list[tuple[str, Any]]:
-        """分桶 + 装箱：`("batch",(序号,[ChunkIn])) | ("single",ChunkIn) | split`。"""
+        """分桶 + 装箱：`("batch",(序号,[ChunkIn])) | ("single",ChunkIn) | split`。
+
+        batch 按 kind 分组再装箱——一批共用 ``members[0].kind`` 的 system
+        prompt，混 kind 会让 caption/abstract 等专属条款错配到 para 头上。
+        """
         short = [c for c in pending if len(c.content) < self.cfg.short_limit]
         longs = [c for c in pending if len(c.content) >= self.cfg.short_limit]
-        work_items: list[tuple[str, Any]] = [
-            ("batch", (i, [short[j] for j in grp]))
-            for i, grp in enumerate(
-                pack_batches(
-                    [c.content for c in short],
-                    max_chars=self.cfg.batch_max_chars,
-                )
-            )
-        ]
+        by_kind: dict[str, list[ChunkIn]] = {}
+        for c in short:
+            by_kind.setdefault(c.kind, []).append(c)
+        work_items: list[tuple[str, Any]] = []
+        seq = 0
+        for grp_chunks in by_kind.values():  # dict 保 insertion 序——批次确定性
+            for grp in pack_batches(
+                [c.content for c in grp_chunks],
+                max_chars=self.cfg.batch_max_chars,
+            ):
+                work_items.append(("batch", (seq, [grp_chunks[j] for j in grp])))
+                seq += 1
         work_items += [("single", c) for c in longs]
         return work_items + split_items
 
@@ -691,11 +721,26 @@ class XlatPipeline:
                     results = [
                         self._skip(c, f"worker crash: {e}") for c in _item_chunks(item)
                     ]
-                for r in results:
-                    done_map[r.chunk_id] = r
-                    self._emit(r)
+                self._collect(results, done_map)
             finally:
                 queue.task_done()
+
+    def _collect(
+        self,
+        results: list[ChunkResult],
+        done_map: dict[str, ChunkResult],
+    ) -> None:
+        """结果入账 + 落盘（worker 与 warmup 共用）。
+
+        state.record/on_result 抛错绝不外泄——worker 一死，队列里剩余 item
+        永远等不到 task_done，``queue.join()`` 挂死；warmup 侧则直接炸掉整 run。
+        """
+        for r in results:
+            done_map[r.chunk_id] = r
+            try:
+                self._emit(r)
+            except Exception:
+                log.exception("emit failed for %s", r.chunk_id)
 
     async def _drain(
         self,
@@ -719,9 +764,7 @@ class XlatPipeline:
                 results = [
                     self._skip(c, f"warmup crash: {e}") for c in _item_chunks(first)
                 ]
-            for r in results:
-                done_map[r.chunk_id] = r
-                self._emit(r)
+            self._collect(results, done_map)
         queue.task_done()
 
         for _ in range(self.cfg.concurrency):
@@ -740,9 +783,9 @@ class XlatPipeline:
 
         if self.state is not None:
             self.state.start(len(chunks))
-        self._materialize(
-            [*pending] + [p for _k, (_c, pieces) in split_items for p in pieces]
-        )
+        # 术语表物化吃全量 chunks 而非仅 pending——续跑时已完成块同样参与
+        # 文档级过滤，保证 system prompt 与全新跑逐字节一致（缓存命中口径）。
+        self._materialize(list(chunks))
 
         await self._drain(self._build_work_items(pending, split_items), done_map)
 

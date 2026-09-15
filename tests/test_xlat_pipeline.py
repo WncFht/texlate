@@ -133,6 +133,38 @@ class TestResumeAndCache:
         assert t2.calls == []
         assert r2[0].translation == r1[0].translation
 
+    def test_resume_retries_fault(self, tmp_path: Path) -> None:
+        """fault/skipped 块不进 completed——续跑必须重试（瞬时失败不该永久冻结）。"""
+        outdir = tmp_path / "out"
+        chunks = [_mk("Long prose " + "x" * 400 + " [[MATH_1]]", "c1")]
+        r1 = _run(
+            chunks,
+            translator=pl.MockTranslator(),
+            state=StateStore(outdir),
+            validator=lambda _s, _z: "always fails",
+        )
+        assert r1[0].status == "fault"
+
+        t2 = pl.MockTranslator()
+        r2 = _run(chunks, translator=t2, state=StateStore(outdir))
+        assert t2.calls  # 重试真实发生
+        assert r2[0].status == "ok"
+
+    def test_worker_survives_emit_failure(self) -> None:
+        """on_result/state 落盘抛错不能杀 worker——一死 queue.join() 就死等。"""
+        chunks = [
+            _mk("Long prose " + "x" * 400 + f" [[MATH_{i}]]", f"c{i}")
+            for i in range(1, 5)
+        ]
+
+        def bad_callback(_r: pl.ChunkResult) -> None:
+            msg = "emit exploded"
+            raise RuntimeError(msg)
+
+        out = _run(chunks, translator=pl.MockTranslator(), on_result=bad_callback)
+        assert len(out) == len(chunks)
+        assert all(r.status == "ok" for r in out)
+
     def test_segment_cache_hit(self) -> None:
         cache: dict[str, str] = {}
         chunks = [_mk("Long prose " + "x" * 400 + " [[MATH_1]]", "c1")]

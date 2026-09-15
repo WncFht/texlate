@@ -172,7 +172,7 @@ class StateStore:
         self.pipeline_version = pipeline_version
         #: 每完成 `save_every` 块落一次盘（默认逐块——spec 原文；大文档可调大摊薄 O(n²) IO）
         self.save_every = max(1, save_every)
-        self._completed: list[str] = []
+        self._completed: dict[str, None] = {}  # dict 当有序 set——重试块不重复登记
         self._results: list[dict[str, Any]] = []
         self._errors: list[dict[str, Any]] = []
         self._started_at = _utcnow()
@@ -217,7 +217,7 @@ class StateStore:
                 log.warning("state record skipped: %s", e)
                 continue
             results[rec.chunk_id] = rec
-        self._completed = list(data.get("completed") or [])
+        self._completed = dict.fromkeys(data.get("completed") or [])
         self._results = list(data.get("results") or [])
         self._errors = list(data.get("errors_report") or [])
         meta = data.get("meta") or {}
@@ -232,8 +232,12 @@ class StateStore:
         self.flush()
 
     def record(self, rec: ChunkRecord, *, error: dict[str, Any] | None = None) -> None:
-        """完成一块：completed+results 追加，按 save_every 原子落盘。"""
-        self._completed.append(rec.chunk_id)
+        """完成一块：completed+results 追加，按 save_every 原子落盘。
+
+        续跑重试会让同一 chunk_id 二次经过——completed 按 key 去重
+        （results 仍各记一条，留重试审计痕迹，load() 后者覆盖前者）。
+        """
+        self._completed[rec.chunk_id] = None
         self._results.append(
             {
                 "chunk_id": rec.chunk_id,
@@ -273,7 +277,7 @@ class StateStore:
                     "started_at": self._started_at,
                     "finished_at": self._finished_at,
                 },
-                "completed": self._completed,
+                "completed": list(self._completed),
                 "results": self._results,
                 "errors_report": self._errors,
             },
