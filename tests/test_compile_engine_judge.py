@@ -316,3 +316,41 @@ def test_engine_protocol_caps() -> None:
     assert "tlmgr" in xe.caps
     assert "tlmgr" not in te.caps
     assert "bundle" in te.caps
+
+
+def test_tectonic_retry_success_clears_timed_out(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """冷 bundle 首拉超时 → 二次尝试成功出 pdf：timed_out 必须清掉。
+
+    旧实现 timed_out 粘住 → res.ok=False → judge timeout 短路 →
+    成功编译被判 fail。
+    """
+    eng = TectonicEngine(binary="/bin/true")
+    main = tmp_path / "main.tex"
+    main.write_text("\\documentclass{article}\\begin{document}x\\end{document}")
+    outdir = tmp_path / "out"
+    calls = {"n": 0}
+
+    def fake_run(
+        cmd: list[str],
+        *,
+        cwd: Path,
+        env: dict[str, str],
+        timeout: float,
+        out_cap: int = 8 * 1024 * 1024,
+    ) -> tuple[int | None, str, float, bool]:
+        _ = (cmd, cwd, env, out_cap)  # mock 签名对齐 run_process
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return None, "", timeout, True  # 首拉超时
+        outdir.mkdir(parents=True, exist_ok=True)
+        (outdir / "main.pdf").write_bytes(b"%PDF-fake")
+        return 0, "", 5.0, False
+
+    monkeypatch.setattr("texlate.compile.engine.run_process", fake_run)
+    res = eng.compile(tmp_path, "main.tex", outdir=outdir, sandbox=False)
+    assert calls["n"] == 2  # noqa: PLR2004 -- 超时重试恰一次
+    assert res.timed_out is False
+    assert res.ok is True
+    assert res.has_pdf

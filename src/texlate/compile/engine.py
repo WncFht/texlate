@@ -746,9 +746,11 @@ class TectonicEngine:
             res.rc = rc
             res.seconds += sec
             outputs.append(out_s)
+            # 末次尝试的 timeout 态才算数——首拉超时后重试成功不能再背
+            # timed_out=True（否则 judge 走 timeout 短路，出了 pdf 也判 fail）。
+            res.timed_out = to
             if not to:
                 break
-            res.timed_out = True
         res.passes = 1
         _collect_compile_outputs(res, outputs)
         log_text = log.read_text(errors="replace") if log.exists() else ""
