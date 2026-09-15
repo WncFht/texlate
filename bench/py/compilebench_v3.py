@@ -63,6 +63,10 @@ TECTONIC_TIMEOUT = PASS_TIMEOUT
 MAX_PASSES = 2
 JOBS = 4
 
+#: tlmgr usermode 装包钉 tuna——mirror.ctan.org round-robin 本机不通
+#: (fixloop_bench 同口径, 2026-09-15 实测)。
+TUNA_TLNET = "https://mirrors.tuna.tsinghua.edu.cn/CTAN/systems/texlive/tlnet"
+
 #: product verdict.status → v2 词汇(跨基线可比)
 VERDICT_MAP = {"clean": "clean", "partial": "pdf~", "fail": "FAIL", "reject": "reject"}
 
@@ -203,7 +207,7 @@ def _run_engine(eng_name: str, wdir: Path, main_rel: str, texmf: Path):
 
     kw: dict = {}
     if eng_name == "xelatex":
-        kw = {"halt_on_error": False, "texmfhome": texmf}
+        kw = {"halt_on_error": False, "texmfhome": texmf, "repository": TUNA_TLNET}
     eng = engine_for(eng_name, **kw)
     timeout = XELATEX_TIMEOUT if eng_name == "xelatex" else TECTONIC_TIMEOUT
     env_extra = {
