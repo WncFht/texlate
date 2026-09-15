@@ -15,6 +15,10 @@
 # \chapter 即炸 "Extra }, or forgotten $.", 可恢复错被 halt-on-error
 # 提升为致命; tectonic bundle LaTeX2e 2021 不受影响 → clean。判为正确
 # 裁决 (修需改写对方 cls 内核, 无可泛化规则), 留痕备查。
+# v3 (2026-09-16): taxonomy +inputenc_unicode (inputenc 拒载 Unicode 引擎)
+# +undefined_cs 空 l.N 变体行 (宏/钩展开上下文取末位 cs); syntax 族扩
+# Extra }/\\endgroup/\\fi 等组/条件多 token 错; rules +inputenc_strip(94)
+# +cs_targeted_fix(165, cs→修复表首版 headerps@out/mathbbm)。
 # 社区贡献入口 = 新增/修改本文件条目。
 #
 # 两层结构:
@@ -189,11 +193,29 @@ taxonomy:
       scope: head,
       pattern: "frozencache|Cannot highlight code",
     }
+  # —— 2026-09-16 新增 (compilebench-v3 失败构成): inputenc 对 Unicode
+  # 引擎整包拒载 (inputenc.sty:164), xelatex 走 -file-line-error 形态时
+  # 首错即此。剥装载点见 inputenc_strip 规则 ——
+  - {
+      id: inputenc_unicode,
+      scope: head,
+      pattern: "inputenc is not designed for",
+    }
   - {
       id: latex209,
       scope: head,
       pattern: "documentstyle|LaTeX ?2\\.09|LaTeX2e command .* in LaTeX 2\\.09",
     }
+  # 2026-09-16 新增变体行 (1909.05039 实证): 冒犯 cs 在宏/钩展开上下文
+  # 尾行而 l.N 行空白时 (\__hook shipout ...geHook \headerps@out 型),
+  # 抓 l.N 空白行之前的最后一个 \cs —— tempered 段保证取"最后一个"。
+  # 本行先于通用行评估; 不命中时由下行兜底 (payload=None 语义不变)。
+  - id: undefined_cs
+    scope: head
+    pattern: "Undefined control sequence[\\s\\S]*?\\\\([a-zA-Z@]+)(?:(?!\\\\[a-zA-Z@]+)[\\s\\S])*?l\\.\\d+[ \\t]*(?:\\r?\\n|$)"
+    payload_group: 1
+    subclassify:
+      { pattern: "\\\\(pdf[a-zA-Z@]+)", into: pdftex_prim, payload_group: 1 }
   # undefined_cs 命中后再细分 pdfTeX 原语 (L110-114)
   # payload = 出错行 l.N 上最后一个 \cs (TeX 错误展示约定: 冒犯 cs 在该行末),
   # 供 journal_cs_polyfill 等按名命中; 无 l. 行时 payload=None 正常降级。
@@ -214,9 +236,13 @@ taxonomy:
       scope: head,
       pattern: "begin\\{[^}]*\\}.*ended by|Extra \\\\end",
     }
+  # 2026-09-16 扩 syntax 族: Extra }/\\endgroup/\\right/\\middle/\\else/\\fi/\\or
+  # 与 Forgotten \\endgroup —— 组/定界/条件多 token 错误归 syntax
+  # (astro-ph/0306068 "Extra }, or forgotten $." 原是 other 兜底;
+  # Extra \\end 已由 env_mismatch 先行接住, 不重复列)。
   - id: syntax
     scope: head
-    pattern: "Missing|Runaway|Paragraph ended|Misplaced|Double subscript|Illegal|There's no line|Lonely|Bad math|Something's wrong|not in outer par|allowed only in math|improper"
+    pattern: "Missing|Runaway|Paragraph ended|Misplaced|Double subscript|Illegal|There's no line|Lonely|Bad math|Something's wrong|not in outer par|allowed only in math|improper|Extra \\}|Forgotten \\\\endgroup|Extra \\\\(?:endgroup|right|middle|else|fi|or)\\b"
   - { id: other, scope: head, pattern: "^!" } # 兜底: 有 '!' 行必命中
   # —— tail 段: 仅当全文 0 个 '!' 行时评估 (交互式缺文件/Emergency) ——
   - {
@@ -772,6 +798,33 @@ rules:
     stats: { fires: 1, rescued_cells: 1 }
     source_ref: "fixloop.py L409-426"
 
+  # 新增 (2026-09-16, compilebench-v3 失败构成): inputenc 对 Unicode 引擎
+  # 整包拒载 → 剥装载点 + \inputencoding 调用。源真为非 UTF-8 时下一轮
+  # 由 non_utf8_source(95) 接续转码 —— 两轮分工, 本轮只动声明。
+  - id: inputenc_strip
+    description: "inputenc 拒绝 xetex/luatex → 剥 \\usepackage{inputenc} 装载点与 \\inputencoding 调用"
+    phase: loop
+    order: 94
+    when: { category: inputenc_unicode }
+    action:
+      kind: builtin_transform
+      function: strip_inputenc
+      params: { exts: [.tex, .sty, .cls] }
+    risk: low # 只剥 Unicode 引擎下必拒载的包; 列表装载外科摘除不波及同列包
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1012.1124/1206.5628/1608.02354/2308.04174 (compilebench-v3)",
+          error: "Package inputenc Error: inputenc is not designed for xetex or luatex",
+        }
+    # 2026-09-16 fixloop-rules 实跑 (5 篇 xelatex 格): fires=5 → clean×3
+    # (1012.1124/1206.5832/1608.02354) + best_effort_pdf×2 (1206.5628/2308.04174);
+    # tectonic 格全部死于 tlextras-2022 pin bundle os error 2 (环境), 与本规则无关
+    stats: { fires: 5, rescued_cells: 5, status: validated }
+    source_ref: "handoff-2026-09-15 §2.2; compilebench-v3 失败构成"
+
   # 新增 (docs/08:272): xelatex 对非 UTF-8 源静默出 U+FFFD —— warning 驱动轮
   - id: non_utf8_source
     description: "xelatex 静默 U+FFFD (latin-5 等非 UTF-8 源) → 就地转码 UTF-8"
@@ -1052,6 +1105,37 @@ rules:
         }
     stats: { fires: 0, status: proposed } # 本语料唯一命中格被 order155 shadow 先接住
     source_ref: "fixloop-v2 整改; emulateapj.cls L1201-1256 期刊表"
+
+  # 新增 (2026-09-16): undefined_cs 无包映射项的 cs→修复表 —— spec 支持
+  # strip_pkg/usepackage+装文件/cs_map/polyfill 组合 (builtins.cs_targeted_fix)。
+  # 首版表: headerps@out→剥 breakurl (dvips 钩子在 Unicode 引擎无定义),
+  # mathbbm→xelatex 装 bbm / tectonic 换 dsfont\mathds。
+  - id: cs_targeted_fix
+    description: "undefined_cs payload 命中 cs 修复表 → 剥包/装包/宏改写/polyfill 定向修"
+    phase: loop
+    order: 165 # journal_cs_polyfill(160) 之后, undefined_cs_guess(900) 之前
+    when: { category: undefined_cs, payload_required: true }
+    action:
+      kind: builtin_transform
+      function: cs_targeted_fix
+      params: {} # 默认表 = builtins._CS_FIX_TABLE; cs_table: {cs: spec} 可扩
+    risk: medium # 剥包/换宏族改版式; 表只收语料实证条目
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1909.05039 (fixloop-v2)",
+          error: "\\headerps@out ← breakurl shipout 钩在 hdvipdfm 下无定义",
+        }
+      - {
+          corpus: "2301.01267 (fixloop-v2)",
+          error: "\\mathbbm ← bbm 对 tectonic 是 MF-only 死路",
+        }
+    # 2026-09-16 实跑: 1909.05039 xelatex headerps@out→剥 breakurl,
+    # 上圈 unfixable:undefined_cs → clean (fixloop-v2-rules 对照)
+    stats: { fires: 1, rescued_cells: 1, status: validated }
+    source_ref: "handoff-2026-09-15 §2.2 undefined_cs 无包映射项"
 
   # ─── 兜底: 恒最后 ───
   - id: undefined_cs_guess

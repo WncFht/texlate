@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from texlate.compile.fixloop import Ruleset, RulesetError, load_ruleset
+from texlate.compile.fixloop.builtins import TRANSFORM_FNS
 from texlate.compile.fixloop.engine import (
     LoopCtx,
     Rule,
@@ -288,3 +289,117 @@ def test_cond_any_or() -> None:
     cond = {"any": [{"cap_available": "bundle"}, {"cap_available": "none"}]}
     ok, _ = _cond_ok(cond, Rule({"id": "r"}), ctx, eng, None)
     assert not ok
+
+
+# ---------------------------------------------------------------- 2026-09-16 规则单元
+
+
+class _EngInstall(_Eng):
+    """_Eng + install_file (cs_targeted_fix 的装包断言用)。"""
+
+    def __init__(
+        self, probe_map: dict[str, str] | None = None, installable: tuple = ()
+    ) -> None:
+        super().__init__(probe_map)
+        self.installable = set(installable)
+        self.install_calls: list[str] = []
+
+    def install_file(self, fname: str, *, font_related: bool = False) -> bool:
+        del font_related
+        self.install_calls.append(fname)
+        return fname in self.installable
+
+
+def test_strip_inputenc_solo_list_and_inputencoding(tmp_path: Path) -> None:
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n"
+        "\\usepackage[latin1]{inputenc}\n"
+        "\\usepackage{amsmath,inputenc,graphicx}\n"
+        "\\inputencoding{latin9}\n"
+        "\\begin{document}\nx\n\\end{document}\n"
+    )
+    ctx, eng = ctx_for(tmp_path), _Eng()
+    ctx.main_rel = "main.tex"
+    ok, note = TRANSFORM_FNS["strip_inputenc"](ctx, eng, None, {})
+    assert ok, note
+    t = (tmp_path / "main.tex").read_text()
+    # 独载 → 整行注释; 列表 → 外科摘除; \inputencoding → 删除
+    assert "% fixloop: stripped \\usepackage[latin1]{inputenc}" in t
+    assert "\\usepackage{amsmath,graphicx}" in t
+    assert "\\inputencoding" not in t
+    # 非注释行里不再装载 inputenc
+    for ln in t.splitlines():
+        assert "inputenc" not in ln or ln.lstrip().startswith("%"), ln
+
+
+def test_strip_inputenc_inline_solo_keeps_tail(tmp_path: Path) -> None:
+    (tmp_path / "main.tex").write_text("\\usepackage{inputenc}\\usepackage{amsmath}\n")
+    ctx, eng = ctx_for(tmp_path), _Eng()
+    ctx.main_rel = "main.tex"
+    ok, _ = TRANSFORM_FNS["strip_inputenc"](ctx, eng, None, {})
+    assert ok
+    t = (tmp_path / "main.tex").read_text()
+    assert "\\usepackage{amsmath}" in t  # 行内嵌入置空, 不吃行尾
+
+
+def test_cs_targeted_fix_strips_breakurl(tmp_path: Path) -> None:
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\usepackage{hyperref}\n"
+        "\\usepackage[hyphenbreaks]{breakurl}\n\\begin{document}\n\\end{document}\n"
+    )
+    ctx, eng = ctx_for(tmp_path), _EngInstall()
+    ctx.main_rel = "main.tex"
+    ok, note = TRANSFORM_FNS["cs_targeted_fix"](ctx, eng, "headerps@out", {})
+    assert ok, note
+    t = (tmp_path / "main.tex").read_text()
+    assert "% fixloop: stripped \\usepackage[hyphenbreaks]{breakurl}" in t
+    assert "\\usepackage{hyperref}" in t  # 无关包不动
+
+
+def test_cs_targeted_fix_mathbbm_per_engine(tmp_path: Path) -> None:
+    # tectonic: bbm 剥 + dsfont 注入 + \\mathbbm→\\mathds
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\usepackage{bbm}\n"
+        "\\begin{document}\n$\\mathbbm{1}$\n\\end{document}\n"
+    )
+    ctx, eng = ctx_for(tmp_path, "tectonic"), _EngInstall(installable=("dsfont.sty",))
+    ctx.main_rel = "main.tex"
+    ok, note = TRANSFORM_FNS["cs_targeted_fix"](ctx, eng, "mathbbm", {})
+    assert ok, note
+    t = (tmp_path / "main.tex").read_text()
+    assert "\\usepackage{dsfont}" in t
+    assert "\\mathds{1}" in t
+    assert "\\mathbbm" not in t
+    assert "dsfont.sty" in eng.install_calls
+
+    # xelatex: bbm 已在源码 → 不重复注入, 只确保 bbm.sty 可用
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\usepackage{bbm}\n"
+        "\\begin{document}\n$\\mathbbm{1}$\n\\end{document}\n"
+    )
+    ctx2, eng2 = ctx_for(tmp_path), _EngInstall(installable=("bbm.sty",))
+    ctx2.main_rel = "main.tex"
+    ok, _ = TRANSFORM_FNS["cs_targeted_fix"](ctx2, eng2, "mathbbm", {})
+    assert ok
+    t2 = (tmp_path / "main.tex").read_text()
+    assert "\\usepackage{dsfont}" not in t2  # bbm 已装载 → 不重复注入
+    assert "\\mathbbm{1}" in t2  # xelatex 不改写 cs
+    assert "bbm.sty" in eng2.install_calls
+
+
+def test_cs_targeted_fix_unknown_cs_noop(tmp_path: Path) -> None:
+    (tmp_path / "main.tex").write_text("\\documentclass{article}\n")
+    ctx, eng = ctx_for(tmp_path), _EngInstall()
+    ctx.main_rel = "main.tex"
+    ok, note = TRANSFORM_FNS["cs_targeted_fix"](ctx, eng, "whatevercs", {})
+    assert not ok
+    assert "not in cs-fix table" in note
+
+
+def test_new_rules_present_and_ordered() -> None:
+    ids = [r.id for r in RS.phase("loop")]
+    assert "inputenc_strip" in ids
+    assert "cs_targeted_fix" in ids
+    assert ids.index("inputenc_strip") < ids.index("non_utf8_source")
+    assert ids.index("cs_targeted_fix") > ids.index("journal_cs_polyfill")
+    assert ids.index("cs_targeted_fix") < ids.index("undefined_cs_guess")

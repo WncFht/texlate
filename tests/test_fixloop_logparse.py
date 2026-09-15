@@ -119,6 +119,21 @@ def test_warn_patterns_scanned() -> None:
         ),
         # v2: undefined_cs payload 改抓 l.N 行末 cs 名 (供 polyfill/shadow 定位)
         ("! Undefined control sequence.\nl.5 \\foo", "undefined_cs", "foo"),
+        # 2026-09-16: inputenc 拒载 Unicode 引擎 (inputenc.sty:164)
+        (
+            "! Package inputenc Error: inputenc is not designed for xetex or luatex.",
+            "inputenc_unicode",
+            None,
+        ),
+        (
+            "./main.tex:12: Package inputenc Error: inputenc is not designed for xetex or lua",
+            "inputenc_unicode",
+            None,
+        ),
+        # 2026-09-16: Extra } 族归 syntax (原落 other 兜底)
+        ("! Extra }, or forgotten $.", "syntax", None),
+        ("! Extra \\fi.", "syntax", None),
+        ("! Forgotten \\endgroup.", "syntax", None),
         ("! TeX capacity exceeded, sorry.", "capacity", None),
         ("! Emergency stop.", "emergency", None),
         (
@@ -136,6 +151,25 @@ def test_head_categories(log: str, cat: str, pay: str | None) -> None:
 
 def test_undefined_cs_subclassifies_pdftex_prim() -> None:
     cat, pay = classify("! Undefined control sequence.\nl.5 \\pdfoutput=1")
+    assert (cat, pay) == ("pdftex_prim", "pdfoutput")
+
+
+def test_undefined_cs_blank_lineno_variant() -> None:
+    """1909.05039 实证: l.N 行空白时取展开上下文尾行的末位 cs。"""
+    log = (
+        "! Undefined control sequence.\n"
+        "\\__hook shipout/firstpage ...geHook \\headerps@out \n"
+        "                                                  {/burl@stx null def /BU.S ...\n"
+        "l.196 \n"
+    )
+    cat, pay = classify(log)
+    assert (cat, pay) == ("undefined_cs", "headerps@out")
+
+
+def test_undefined_cs_blank_lineno_pdftex_subclass() -> None:
+    """空 l.N 变体同样走 pdftex_prim 细分。"""
+    log = "! Undefined control sequence.\n\\foo \\pdfoutput \nl.9 \n"
+    cat, pay = classify(log)
     assert (cat, pay) == ("pdftex_prim", "pdfoutput")
 
 

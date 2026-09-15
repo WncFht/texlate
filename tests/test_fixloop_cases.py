@@ -44,8 +44,8 @@ class _Eng:
         self.script = list(script)
         self.n = 0
 
-    def compile(self, wdir: Path, main: str, passes: int = 2) -> _Res:
-        del passes  # mock 不需要
+    def compile(self, wdir: Path, main: str, passes: int = 2, **_kw: object) -> _Res:
+        del passes, _kw  # mock 不需要
         i = min(self.n, len(self.script) - 1)
         self.n += 1
         log, pdf = self.script[i]

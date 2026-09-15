@@ -20,6 +20,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from texlate.compile.fixloop.engine import Engine, LoopCtx
 
 __all__ = ["REWRITE_FNS", "TRANSFORM_FNS"]
@@ -609,6 +611,173 @@ _JOURNAL_MACROS: dict[str, str] = {
 _DOCCLASS_LINE_RE = re.compile(r"(?m)^[ \t]*\\document(?:class|style)[^\n]*\n?")
 
 
+def _drop_pkg_loads(t: str, pkg: str) -> tuple[str, int]:
+    r"""剥 ``\usepackage``/``\RequirePackage`` 对 pkg 的装载 → (新文本, 摘除数)。
+
+    独载: 行首锚 (前缀全空白) → 整行注释; 行内嵌入 → 置空
+    (注释替换会误吃同行尾 token)。列表成员: 外科摘除元素保留其余。
+    """
+    pat = re.compile(
+        rf"\\(usepackage|RequirePackage)(\s*\[[^\]\n]*\])?\s*\{{([^}}]*)\b{re.escape(pkg)}\b([^}}]*)\}}"
+    )
+    n = 0
+
+    def _sub(m: re.Match[str]) -> str:
+        nonlocal n
+        pkgs = [p.strip() for p in (m.group(3) + "," + m.group(4)).split(",")]
+        keep = [p for p in pkgs if p and p != pkg]
+        n += 1
+        if keep:
+            return f"\\{m.group(1)}{m.group(2) or ''}{{{','.join(keep)}}}"
+        ls = m.string.rfind("\n", 0, m.start()) + 1
+        if m.string[ls : m.start()].strip():
+            return ""
+        return "% fixloop: stripped " + m.group(0).strip()
+
+    return pat.sub(_sub, t), n
+
+
+_INPUTENCODING_RE = re.compile(r"\\inputencoding\s*\{[^}]*\}")
+
+
+def strip_inputenc(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""Unicode 引擎剥 inputenc: 装载点 + ``\inputencoding{}`` 调用 (compilebench-v3 缺口)。
+
+    inputenc.sty 对 xetex/luatex 整包拒载 ("not designed for xetex or
+    luatex"); 源真为非 UTF-8 时由 warn_utf8 → non_utf8_source 在后续轮
+    接续转码, 两轮分工不混。
+    """
+    del eng, payload
+    exts = tuple(params.get("exts") or (".tex", ".sty", ".cls"))
+    changed = []
+    for f in ctx.tex_files(exts):
+        t = ctx.read(f)
+        if t is None or "inputenc" not in t:
+            continue
+        nt, n_load = _drop_pkg_loads(t, "inputenc")
+        nt, n_enc = _INPUTENCODING_RE.subn("", nt)
+        if nt != t:
+            ctx.write(f, nt)
+            changed.append(f"{f.name}(-{n_load}load,-{n_enc}enc)")
+    return (bool(changed)), f"strip inputenc in {', '.join(changed)}"
+
+
+#: undefined_cs → 定向修复表 (cs_targeted_fix 的默认表, rules.yaml
+#: params.cs_table 可扩)。spec 键: strip_pkg / usepackage / cs_map /
+#: polyfill / engines{eng: 覆盖 spec} —— 组合语义见 cs_targeted_fix。
+_CS_FIX_TABLE: dict[str, dict[str, Any]] = {
+    # 1909.05039: breakurl 的 shipout 钩调 \headerps@out —— 该宏只在
+    # hyperref dvips/ps2pdf 驱动下有定义, xetex/tectonic 走 hdvipdfm →
+    # 未定义即炸。breakurl 对 pdf 直出引擎本就无意义, 剥装载点是根修。
+    "headerps@out": {"strip_pkg": "breakurl"},
+    # 2301.01267: \mathbbm ← bbm。xelatex/TL2026 装 bbm-macros 即可;
+    # tectonic 侧 bbm 是 MF-only 死路 (font_sub_shim 同族) → 换 dsfont\mathds。
+    "mathbbm": {
+        "usepackage": "bbm",
+        "engines": {
+            "tectonic": {
+                "strip_pkg": "bbm",
+                "usepackage": "dsfont",
+                "cs_map": {"mathbbm": "mathds"},
+            }
+        },
+    },
+}
+
+
+def _map_tex_files(
+    ctx: LoopCtx, exts: tuple[str, ...], fn: Callable[[str], tuple[str, int]]
+) -> int:
+    """逐 tex 文件应用 ``fn(t) -> (nt, n)``, n>0 且文本有变则写回 → 改动文件数。"""
+    n_files = 0
+    for f in ctx.tex_files(exts):
+        t = ctx.read(f)
+        if t is None:
+            continue
+        nt, n = fn(t)
+        if n and nt != t:
+            ctx.write(f, nt)
+            n_files += 1
+    return n_files
+
+
+def _rewrite_cs_map(t: str, cmap: dict[str, str]) -> tuple[str, int]:
+    r"""``\old``→``\new`` 逐对改写 (词边界定) → (新文本, 是否改动)。"""
+    nt = t
+    for old, new in cmap.items():
+        nt = re.sub(rf"\\{old}\b", rf"\\{new}", nt)
+    return nt, int(nt != t)
+
+
+def _inject_after_docclass(ctx: LoopCtx, snippet: str) -> bool:
+    """主文件 documentclass 行后注入 snippet (无 documentclass 则文件头; 幂等)。"""
+    main = ctx.main_path()
+    t = ctx.read(main) if main is not None else None
+    if t is None or snippet in t:
+        return False
+    m = _DOCCLASS_LINE_RE.search(t)
+    at = m.end() if m else 0
+    ctx.write(main, t[:at] + snippet + "\n" + t[at:])
+    return True
+
+
+def _ensure_usepackage(ctx: LoopCtx, eng: Engine, pkg: str) -> list[str]:
+    r"""主文件 ``\documentclass`` 后注入 ``\usepackage{pkg}`` + 装文件 → 已做事项。"""
+    out = []
+    if not re.search(
+        rf"\\(?:usepackage|RequirePackage)\s*(?:\[[^\]]*\])?\s*\{{[^}}]*\b{re.escape(pkg)}\b",
+        ctx.source_blob(),
+    ) and _inject_after_docclass(ctx, f"\\usepackage{{{pkg}}} % fixloop: cs-fix"):
+        out.append(f"inject \\usepackage{{{pkg}}}")
+    if eng.probe_file(f"{pkg}.sty") or eng.install_file(f"{pkg}.sty"):
+        out.append(f"{pkg}.sty available")
+    else:
+        out.append(f"{pkg}.sty still missing")
+    return out
+
+
+def cs_targeted_fix(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""undefined_cs 按 cs 修复表打靶 (handoff §2.2 cs→包表项)。
+
+    spec 键组合序: ``strip_pkg`` 剥装载点 → ``usepackage`` 注入+装文件
+    → ``cs_map`` ``\old``→``\new`` 逐文件改写 → ``polyfill`` 注原始 TeX body。
+    ``engines.{eng_name}`` 子表整体覆盖顶层同名词 (引擎差异修, 如 bbm→dsfont)。
+    payload 不在表 → False 落 undefined_cs_guess。
+    """
+    table = dict(_CS_FIX_TABLE)
+    table.update(params.get("cs_table") or {})
+    cs = (payload or "").lstrip("\\")
+    base = table.get(cs)
+    if not base:
+        return False, f"{payload} not in cs-fix table"
+    spec = {k: v for k, v in base.items() if k != "engines"}
+    spec.update((base.get("engines") or {}).get(ctx.engine_name) or {})
+    done: list[str] = []
+    if strip := spec.get("strip_pkg"):
+        n = _map_tex_files(
+            ctx,
+            (".tex", ".sty", ".cls"),
+            lambda t: _drop_pkg_loads(t, str(strip)),
+        )
+        if n:
+            done.append(f"strip \\usepackage{{{strip}}} x{n}")
+    if use := spec.get("usepackage"):
+        done.extend(_ensure_usepackage(ctx, eng, str(use)))
+    if cmap := spec.get("cs_map"):
+        n = _map_tex_files(ctx, (".tex", ".sty"), lambda t: _rewrite_cs_map(t, cmap))
+        if n:
+            done.append(f"cs_map in {n} files")
+    if spec.get("polyfill") and _inject_after_docclass(ctx, str(spec["polyfill"])):
+        done.append("polyfill injected")
+    if not done:
+        return False, f"cs-fix spec for {cs} applied nothing"
+    return True, "; ".join(done)
+
+
 def journal_cs_polyfill(
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
@@ -699,4 +868,6 @@ TRANSFORM_FNS = {
     "legacy_pkg_shim": legacy_pkg_shim,
     "journal_cs_polyfill": journal_cs_polyfill,
     "bundled_class_shadow": bundled_class_shadow,
+    "strip_inputenc": strip_inputenc,
+    "cs_targeted_fix": cs_targeted_fix,
 }
