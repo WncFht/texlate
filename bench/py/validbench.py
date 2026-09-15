@@ -66,7 +66,7 @@ MIN_LEN, MAX_LEN = 40, 4000
 PARSE_TIMEOUT_S = 30
 
 # ---------------------------------------------------------------- 伪译文
-# (tmp/exp/rule-validator/gen_cases.py 原样移植; PH_RX 换产品 l0.PH_RX —
+# (tmp/exp/rule-validator/gen_cases.py 原样移植; PH_RX 换产品 l0.PH_ANY_LIKE_RX —
 # 产品版额外认 [[SL]]/[[PL]] 无数字后缀形态, 是 spike 正则的超集.)
 
 VOCAB = (  # noqa: SIM905 — 紧凑词表, 200 元素 list 字面量反而难读
@@ -118,7 +118,7 @@ def pseudo_translate(src: str) -> str:
     out: list[str] = []
     i, n = 0, len(src)
     while i < n:
-        m = l0.PH_RX.match(src, i)
+        m = l0.PH_ANY_LIKE_RX.match(src, i)
         if m:
             out.append(m.group(0))
             i = m.end()
@@ -229,7 +229,7 @@ def rehydrate(s: str, ph_map: dict[str, str]) -> str:
 
 
 # ---------------------------------------------------------------- 破坏算子
-# (gen_cases.py c01–c10 照搬; rv.PH_RX/KEY_CMD_RX → l0.PH_RX/KEY_CMD_RX 同口径.
+# (gen_cases.py c01–c10 照搬; rv.PH_RX/KEY_CMD_RX → l0.PH_ANY_LIKE_RX/KEY_CMD_RX 同口径.
 #  产品化修订 (全部有实测漏检出典): 候选一律限注释区外 (l0 规则经 _no_comments
 #  豁免注释, 注释内破坏是语义 no-op); c06 修 `]` 补回合法 token 的自愈路径与
 #  裸标记无数字回退; c07 用 _lex bs token 选真定界符 (\\[5pt] 的 \[ 不算);
@@ -322,7 +322,9 @@ def c04_drop_end(zh: str, rng: random.Random) -> str | None:
 
 def c05_drop_ph(zh: str, rng: random.Random) -> str | None:
     spans = _comment_spans(zh)
-    ms = [m for m in l0.PH_RX.finditer(zh) if not _in_comment(spans, m.start())]
+    ms = [
+        m for m in l0.PH_ANY_LIKE_RX.finditer(zh) if not _in_comment(spans, m.start())
+    ]
     if not ms:
         return None
     m = ms[rng.randrange(len(ms))]
@@ -331,7 +333,9 @@ def c05_drop_ph(zh: str, rng: random.Random) -> str | None:
 
 def c06_typo_ph(zh: str, rng: random.Random) -> str | None:
     spans = _comment_spans(zh)
-    ms = [m for m in l0.PH_RX.finditer(zh) if not _in_comment(spans, m.start())]
+    ms = [
+        m for m in l0.PH_ANY_LIKE_RX.finditer(zh) if not _in_comment(spans, m.start())
+    ]
     if not ms:
         return None
     m = ms[rng.randrange(len(ms))]
@@ -685,7 +689,7 @@ def _l0_eval(cases: list[dict]) -> float:
 
 def _expect_names(src: str) -> list[str]:
     """src 内 [[TYPE_n]] → worker expect 契约名 (剥括号)."""
-    return [m[2:-2] for m in l0.PH_RX.findall(src)]
+    return [m[2:-2] for m in l0.PH_ANY_LIKE_RX.findall(src)]
 
 
 def _l1_eval(cases: list[dict]) -> str | None:

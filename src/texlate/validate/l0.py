@@ -44,8 +44,10 @@ __all__ = [
 
 # ---------------------------------------------------------------- 常量
 
-#: ``[[TYPE_n]]`` 正规形；``[[SL]]``/``[[PL]]`` 是无数字后缀的结构标记。
-PH_RX: Final = re.compile(r"\[\[[A-Z][A-Z0-9_]*(?:_\d+)?\]\]")
+#: ``[[TYPE_n]]`` 正规形 + ``[[SL]]``/``[[PL]]`` 无数字后缀结构标记。
+#: 刻意是 ``latex.placeholder.PH_RX`` 的超集——校验侧要认出"长得像占位符"
+#: 的一切 token（含 issuer 不会产出的畸形变体），故不能复用产品严格形。
+PH_ANY_LIKE_RX: Final = re.compile(r"\[\[[A-Z][A-Z0-9_]*(?:_\d+)?\]\]")
 
 #: 模糊占位符候选（zh 侧变体）：完整 [[..]] / 缺右括号 / 单层 [X_n] / 全角【..】。
 PH_FUZZY_RX: Final = re.compile(
@@ -355,8 +357,8 @@ def _check_ph_anchor(snc: str, znc: str, issues: list[Issue]) -> None:
 def _check_placeholder(src: str, zh: str, issues: list[Issue]) -> None:
     """占位符 multiset diff + lev≤2 修复配对 + 序守恒软信号 + BIBITEM 锚定。"""
     snc, znc = _no_comments(src), _no_comments(zh)
-    sseq = PH_RX.findall(snc)
-    zseq = PH_RX.findall(znc)
+    sseq = PH_ANY_LIKE_RX.findall(snc)
+    zseq = PH_ANY_LIKE_RX.findall(znc)
     scnt, zcnt = Counter(sseq), Counter(zseq)
 
     # —— 模糊候选：zh 里所有形似占位符但不合正规形的串（扫未遮盖原文——
@@ -364,10 +366,14 @@ def _check_placeholder(src: str, zh: str, issues: list[Issue]) -> None:
     #    src 中 verbatim 存在的同形 token（如引用标号 [RS80]）是原文内容而非
     #    臆造占位符——按净差计数豁免（validbench 干净对 FP 修复）——
     src_literal = Counter(
-        m.group(0) for m in PH_FUZZY_RX.finditer(src) if not PH_RX.fullmatch(m.group(0))
+        m.group(0)
+        for m in PH_FUZZY_RX.finditer(src)
+        if not PH_ANY_LIKE_RX.fullmatch(m.group(0))
     )
     zh_fuzzy = [
-        m.group(0) for m in PH_FUZZY_RX.finditer(znc) if not PH_RX.fullmatch(m.group(0))
+        m.group(0)
+        for m in PH_FUZZY_RX.finditer(znc)
+        if not PH_ANY_LIKE_RX.fullmatch(m.group(0))
     ]
     missing = sorted((scnt - zcnt).elements())
     cands = list((zcnt - scnt).elements())
@@ -607,7 +613,7 @@ def _check_length(src: str, zh: str, issues: list[Issue]) -> None:
                     f"(src={ls} zh={lz})",
                 )
             )
-    text = PH_RX.sub(" ", zh)
+    text = PH_ANY_LIKE_RX.sub(" ", zh)
     text = _CS_OR_SYM_RX.sub(" ", text)
     cjk = len(CJK_RX.findall(text))
     lat = sum(1 for c in text if c.isascii() and c.isalpha())
