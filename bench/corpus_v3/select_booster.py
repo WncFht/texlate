@@ -80,6 +80,22 @@ def load() -> dict[str, dict]:
     return merged
 
 
+def ledger_cites() -> dict[str, set[str]]:
+    """W 机制 → 台账例证论文集（examples+evidence 引用，不限池内）。"""
+    pat = re.compile(
+        r"(?:\d{4}\.\d{4,5}|(?:cond-mat|hep-\w+|math|cs|astro-ph|nucl-\w+|quant-ph|gr-qc|nlin|physics|stat|adap-org|alg-geom|chao-dyn|cmp-lg|dg-ga|funct-an|patt-sol|q-alg|solv-int|supr-con|acc-phys|ao-sci|atom-ph|bayes-an|chem-ph|plasm-ph|q-bio)/\d{7})"
+    )
+    out: dict[str, set[str]] = defaultdict(set)
+    for line in (BASE / "mechanisms.jsonl").open():
+        d = json.loads(line)
+        mid = d["mech_id"]
+        if not mid.startswith("W"):
+            continue
+        text = d.get("evidence", "") + " " + " ".join(d.get("examples", []))
+        out[mid] |= set(pat.findall(text))
+    return out
+
+
 def derive(noms: dict[str, dict]) -> dict[str, set[str]]:
     """台账 W 条目 examples/evidence 引用的池内论文 → 派生覆盖 tag.
 
@@ -103,6 +119,12 @@ def derive(noms: dict[str, dict]) -> dict[str, set[str]]:
 
 def main() -> None:
     noms = load()
+    # 两层必须不相交：核心层已中选的论文不入补强池（重叠会让 meta.layer 二义）
+    core_mf = BASE / "manifest.jsonl"
+    core_ids: set[str] = set()
+    if core_mf.exists():
+        core_ids = {json.loads(ln)["id"] for ln in core_mf.open()}
+        noms = {pid: d for pid, d in noms.items() if pid not in core_ids}
     derived = derive(noms)
     for pid, extra in derived.items():
         noms[pid]["mech_tags"] = sorted(set(noms[pid]["mech_tags"]) | extra)
@@ -167,6 +189,10 @@ def main() -> None:
         q_rows.append(f"| {b} | {floor} | {sel_tag_n.get(b, 0)} | {tag_n.get(b, 0)} |")
     uncovered_w = [w for w in sorted(ledger_ids) if sel_tag_n.get(w, 0) == 0]
     no_nom_w = [w for w in sorted(ledger_ids) if tag_n.get(w, 0) == 0]
+    cites = ledger_cites()
+    core_only_w = [
+        w for w in no_nom_w if any(pid in core_ids for pid in cites.get(w, set()))
+    ]
     lines = [
         "# 补强层选择报告",
         "",
@@ -181,6 +207,7 @@ def main() -> None:
         "",
         f"## W 机制覆盖：{len([w for w in ledger_ids if sel_tag_n.get(w, 0) > 0])}/{len(ledger_ids)} 有代表",
         f"- 选中集未覆盖（池内无提名——hunter exhausted 或 curator 未见）: {', '.join(no_nom_w) or '无'}",
+        f"  （其中例证在核心层，语料仍有代表）: {', '.join(core_only_w) or '无'}",
         f"- 池内有提名但未选（额度挤占）: {', '.join(w for w in uncovered_w if w not in no_nom_w) or '无'}",
         "",
         "选中明细见 booster_selection.jsonl（pick_reason: quota:* 地板配额 / mech:* 机制代表 / rarity-fill 稀有度填充）。",
