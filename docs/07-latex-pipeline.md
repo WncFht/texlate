@@ -192,7 +192,9 @@ env = {name}
 3. PROTECTED_ENVS → find_env_end → flush + _env_with_mined → [[ENV]] 独立 piece；
                     未命中 → LITERAL+warning
 4. 其余（透明容器/未知）:
-     顶层   → env_stack.push；吞 [opt] 与 ENV_MANDATORY_ARG {arg}；
+     顶层   → env_stack.push；吞 ENV_MANDATORY_ARG {arg}；
+              [opt] 按 _env_opt_is_format 分流：版式参照吞，
+              标题正文（theorem/proof 类）放行随正文进 chunk（F6）；
               \begin 行(含参数) LITERAL
      in_arg → ARG_TRANSPARENT_ENVS（itemize/enumerate/description/center/
               flush*/quote/abstract/minipage 等纯容器）→ \begin 行 → [[ENVTAG]]
@@ -459,20 +461,20 @@ def reconstruct(res: ScanResult, translations: dict[int,str] | None) -> str:
 
 scanner-audit（2026-09-15，`bench/results/scanner-audit-2026-09-15.md`）F 系列并入本表：
 
-| #   | 弱点                                                          | 状态                                                    |
-| --- | ------------------------------------------------------------- | ------------------------------------------------------- |
-| F1  | `match_bracket` 递归深嵌套爆栈                                | 已修（迭代化）                                          |
-| F2  | `\title[opt]{…}` 短题错位当真参                               | 已修（spec `om`,1）                                     |
-| F3  | `\newenvironment[n][d]` 第二 bracket 未读 → 登记丢 + 尾落文本 | 已修（双 bracket 循环）                                 |
-| F4  | 命令与参数间 `%` 注释断参                                     | 已修（`ws_skip_arg` 注释透明 + par 重入幂等）           |
-| F5  | `$`/`$$` 闭合不跳注释                                         | 已修（对齐 `_find_math_close`）                         |
-| F6  | theorem 类环境 `[opt]` 标题被吃（8.3%）                       | 规格层缺口，待决（§3.5 明写吞 `[opt]`，改口径需修规格） |
-| F7  | `_split_core` 硬切腰斩 `[[X_n]]`                              | 已修（全 core PH_RX 扫描）                              |
-| F8  | verbatim 裸 `find` 收尾（注释内 `\end`/`end {env}`）          | 误报（真实 TeX 即字面匹配），不改                       |
-| F9  | `` `\X `` 字符码读错（ord('\\') + 只吃 2 字符）               | 已修（消费 3 字符取 `ord(X)`）                          |
-| F10 | `e`/`b` spec 静默跳过 → 参数位序错位                          | 已修（e 消费修饰段 + 全 kind 零宽占位保位序）           |
-| F11 | `\url｜delim｜` 定界形漏保护                                  | 已修（`_protect_call` 定界符分支）                      |
-| F12 | 未闭合 env `_find_env_end` O(N·n) 性能悬崖                    | 待修（缓存/限距）                                       |
+| #   | 弱点                                                          | 状态                                           |
+| --- | ------------------------------------------------------------- | ---------------------------------------------- |
+| F1  | `match_bracket` 递归深嵌套爆栈                                | 已修（迭代化）                                 |
+| F2  | `\title[opt]{…}` 短题错位当真参                               | 已修（spec `om`,1）                            |
+| F3  | `\newenvironment[n][d]` 第二 bracket 未读 → 登记丢 + 尾落文本 | 已修（双 bracket 循环）                        |
+| F4  | 命令与参数间 `%` 注释断参                                     | 已修（`ws_skip_arg` 注释透明 + par 重入幂等）  |
+| F5  | `$`/`$$` 闭合不跳注释                                         | 已修（对齐 `_find_math_close`）                |
+| F6  | theorem 类环境 `[opt]` 标题被吃（8.3%）                       | 已修（`_env_opt_is_format` 内容分流，90f9f09） |
+| F7  | `_split_core` 硬切腰斩 `[[X_n]]`                              | 已修（全 core PH_RX 扫描）                     |
+| F8  | verbatim 裸 `find` 收尾（注释内 `\end`/`end {env}`）          | 误报（真实 TeX 即字面匹配），不改              |
+| F9  | `` `\X `` 字符码读错（ord('\\') + 只吃 2 字符）               | 已修（消费 3 字符取 `ord(X)`）                 |
+| F10 | `e`/`b` spec 静默跳过 → 参数位序错位                          | 已修（e 消费修饰段 + 全 kind 零宽占位保位序）  |
+| F11 | `\url｜delim｜` 定界形漏保护                                  | 已修（`_protect_call` 定界符分支）             |
+| F12 | 未闭合 env `_find_env_end` O(N·n) 性能悬崖                    | 待修（缓存/限距）                              |
 
 ## 11. 验收门（M0 gate）
 

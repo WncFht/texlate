@@ -13,7 +13,7 @@
 | F3 | 已修：`newenvironment` 双 bracket 循环对齐 `newcommand`（macro_table.py） |
 | F4 | 已修：`ws_skip_arg` 注释透明 + par 对内重入幂等（model.py；含 `% c\n\n` 仍停边界） |
 | F5 | 已修：`$$`/`$` 闭合扫描跳注释、新行态 `\n` 即 par（scanner.py `_on_dollar`） |
-| F6 | 待决：规格层召回缺口（theorem 类 `[opt]` 标题 8.3%）——需 leader 定口径 |
+| F6 | 已修：`_env_opt_is_format` 内容分流——列表容器 env 恒吃，其余看空/数字/位置字母/版式字符；定理标题随正文进 chunk（corpus 复跑 1955/1955 identity，净 +24 chunk，90f9f09） |
 | F7 | 已修：`_split_core` 硬切改全 core PH_RX 扫描（scanner.py） |
 | F8 | 误报：真实 TeX 的 verbatim 收尾就是字面 `\end{verbatim}`，`%` 在体内惰性——裸 `find` 行为正确，不改 |
 | F9 | 已修：`` `\X `` 转义形消费 3 字符取 `ord(X)`（scanner.py `_read_number`） |
