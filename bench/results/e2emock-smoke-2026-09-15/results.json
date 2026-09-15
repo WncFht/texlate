@@ -1,0 +1,138 @@
+{
+ "1412.6980": {
+  "id": "1412.6980",
+  "main": "arxiv.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "base-xel": {
+   "engine": "xelatex",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 41.23,
+    "passes": 2,
+    "rc": 1,
+    "pdf_bytes": 530725,
+    "first_error": "/Users/fanghaotian/src/texlate/bench/work_e2emock/base-xel/1412.6980/arxiv.tex:2: Undefined control sequence."
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "n_errors": 2,
+    "category": "pdftex_prim",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "clean"
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 0,
+    "chunks": 0,
+    "fault_chunks": 0,
+    "leftover_ph": 0
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 0
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 31.53,
+    "passes": 2,
+    "rc": 0,
+    "pdf_bytes": 529131,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "cjk_chars=0"
+    ],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 0,
+    "missing_chars": 0
+   },
+   "status": "partial"
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 0,
+    "chunks": 0,
+    "fault_chunks": 0,
+    "leftover_ph": 0
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 33,
+    "float_sizing": 0
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.24,
+    "passes": 1,
+    "rc": 0,
+    "pdf_bytes": 529224,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "cjk_chars=0"
+    ],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 0,
+    "missing_chars": 0
+   },
+   "status": "partial"
+  },
+  "base-tec": {
+   "engine": "tectonic",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.87,
+    "passes": 1,
+    "rc": 0,
+    "pdf_bytes": 537636,
+    "first_error": "! Undefined control sequence."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "errors>3 (25)",
+     "first_error=undefined_cs:None"
+    ],
+    "n_errors": 25,
+    "category": "undefined_cs",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "partial"
+  }
+ }
+}
