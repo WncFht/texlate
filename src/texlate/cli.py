@@ -47,7 +47,8 @@ def fetch(
     arxiv_id: Annotated[str, typer.Argument(help="arXiv id（新旧式/URL/vN 钉版均可）")],
     *,
     version: Annotated[
-        int | None, typer.Option("--version", "-v", help="钉版本号")
+        int | None,
+        typer.Option("--version", "-v", help="钉版本号", min=1),
     ] = None,
     cache: Annotated[
         Path, typer.Option("--cache", help="source-tier 缓存根")
@@ -71,7 +72,8 @@ def _echo_acquire(res: AcquireResult) -> None:
     if res.entry is not None:
         out["dir"] = str(res.entry.dir)
         out["extracted"] = str(res.entry.extracted_dir)
-        main = res.entry.meta.get("main_tex")
+        # meta.json 里主文件在 locate.main——顶层无 "main_tex" 键（曾读死键）。
+        main = (res.entry.meta.get("locate") or {}).get("main")
         if main:
             out["main_tex"] = main
     if res.warnings:
@@ -86,7 +88,12 @@ def _echo_acquire(res: AcquireResult) -> None:
 
 @app.command()
 def parse(
-    path: Annotated[Path, typer.Argument(help=".tex 文件路径")],
+    path: Annotated[
+        Path,
+        typer.Argument(
+            help=".tex 文件路径", exists=True, dir_okay=False, readable=True
+        ),
+    ],
     *,
     flatten: Annotated[
         bool, typer.Option("--flatten/--no-flatten", help="展开 \\input 图")
@@ -161,11 +168,29 @@ def run(  # noqa: PLR0913 -- CLI 选项面即参数面
     src_dir = _resolve_source(source, cache)
     if src_dir is None:
         raise typer.Exit(1)
+    if engine not in ("auto", "xelatex", "tectonic"):
+        typer.echo(
+            f"unknown --engine {engine!r} (expect auto|xelatex|tectonic)", err=True
+        )
+        raise typer.Exit(2)
 
+    # --work-dir 保护：已存在的非空目录绝不 rmtree（指错路径删整树的坑）；
+    # 空目录/不存在 → 正常用作工作区。文件形态报错。
     work = work_dir or Path(tempfile.mkdtemp(prefix="texlate-run-"))
     if work.exists():
-        shutil.rmtree(work)
-    shutil.copytree(src_dir, work)
+        if not work.is_dir():
+            typer.echo(f"--work-dir 不是目录: {work}", err=True)
+            raise typer.Exit(2)
+        if any(work.iterdir()):
+            typer.echo(
+                f"--work-dir 已存在且非空，拒绝覆盖删除: {work}\n"
+                "（请换路径或自行清空后重试）",
+                err=True,
+            )
+            raise typer.Exit(2)
+        shutil.copytree(src_dir, work, dirs_exist_ok=True)
+    else:
+        shutil.copytree(src_dir, work)
     typer.echo(f"work dir: {work}", err=True)
 
     try:
