@@ -4,14 +4,21 @@ r"""xlatbench — B4a 翻译硬契约回归跑分器 (gwbench 扶正版).
 对 3003 网关免费集模型跑分层抽样 LaTeX 段落翻译, 逐调用过 L0 validator
 + 三条增强判定, 产出 results.jsonl; report 子命令聚合排序表.
 
-样例池与 tmp/exp/gwbench/bench_free.py 逐字节一致 (36 真实 chunk 等距抽
-+ S1-S4 合成压力 = 40 样例), 与 E22 的 338 调用基线同口径可互相对拍.
+样例池定义与 tmp/exp/gwbench/bench_free.py 相同 (CORPUS_PICKS 6 篇×6
++ S1-S4 合成压力 = 40 样例), 但解析器已从 miniscanner 换成
+texlate.latex —— chunk 边界未必与 E22 逐字节一致, 对拍前先跑
+samples 子命令核对两版输出.
 
 判定口径 (E22 定案, docs/research/gateway/free-model-ranking.md §6):
   hard_ok = validator.ok ∧ 无丢占位符 ∧ 无造占位符 ∧ 无丢脆弱命令
   ph_order 降为软信号 (合法中文换序占违例 ~95%), 单独记录不计硬失败.
   cs_dropped = src 中脆弱命令 (\ /\,/\;/\:/\!/~) 在 zh 计数变少 —— 升硬
   判据, 抓 "\ "+中文熔成 \和 这类未定义 cs 的编译炸弹.
+
+2026-09-15: validator 从 tmp/exp/rule-validator (gitignored 脚手架) 切到
+产品版 texlate.validate.l0.validate_pair —— 规则集与 E22 基线口径可能
+有漂移, 跨版本对拍前先确认判据等价. 每条 rec 落 prompt_sha 供 prompt
+回归分口径.
 
 用法 (import texlate.* 产品代码, 必须 uv venv):
   uv run python bench/py/xlatbench.py run --models swe-2-medium,glm-5-2 \
@@ -23,6 +30,7 @@ r"""xlatbench — B4a 翻译硬契约回归跑分器 (gwbench 扶正版).
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import statistics
@@ -32,13 +40,11 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO / "tmp" / "exp" / "rule-validator"))
-
-import rule_validator
-
 from texlate.latex import parse_file
 from texlate.latex.placeholder import PH_RX
+from texlate.validate.l0 import validate_pair
+
+REPO = Path(__file__).resolve().parents[2]
 
 BASE = "http://127.0.0.1:3003"
 KEY = "240127"
@@ -53,6 +59,7 @@ SYSTEM = (
     "in output, never translate or invent new ones. Preserve all LaTeX "
     "commands. Output only the translation."
 )
+PROMPT_SHA = hashlib.sha256(SYSTEM.encode()).hexdigest()[:12]
 
 # 脆弱命令: 单字符/短控制序列, 丢了肉眼难查但影响排版
 FRAGILE_CS_RX = re.compile(r"\\[ ,;:!]|~")
@@ -187,7 +194,15 @@ def call_once(model: str, user: str, max_tokens: int) -> dict:
             "seconds": round(time.time() - t0, 2),
         }
     dt = time.time() - t0
-    ch = payload["choices"][0]
+    choices = payload.get("choices") or []
+    if not choices:
+        return {
+            "http": 200,
+            "seconds": round(dt, 2),
+            "content": "",
+            "error": f"missing choices: {str(payload)[:200]}",
+        }
+    ch = choices[0]
     msg = ch["message"]
     usage = payload.get("usage", {})
     return {
@@ -204,7 +219,7 @@ def call_once(model: str, user: str, max_tokens: int) -> dict:
 
 def judge(src: str, zh: str) -> dict:
     """契约判定. hard_ok 按 E22: validator 无 error ∧ ph 无丢/造 ∧ cs 无丢失."""
-    rep = rule_validator.validate_pair(src, zh)
+    rep = validate_pair(src, zh)
     ph_src = PH_RX.findall(src)
     ph_zh = PH_RX.findall(zh)
     ph_missing = sorted(set(ph_src) - set(ph_zh))
@@ -213,7 +228,7 @@ def judge(src: str, zh: str) -> dict:
     fragile_src = len(FRAGILE_CS_RX.findall(src))
     fragile_zh = len(FRAGILE_CS_RX.findall(zh))
     cs_dropped = fragile_zh < fragile_src
-    validator_ok = bool(rep.ok)
+    validator_ok = rep.ok
     hard_ok = validator_ok and not ph_missing and not ph_invented and not cs_dropped
     zh_clean = CS_RX.sub(" ", PH_RX.sub(" ", zh))
     en_residue = len(EN_WORD_RX.findall(zh_clean))
@@ -233,7 +248,7 @@ def judge(src: str, zh: str) -> dict:
 
 
 def cmd_samples(args: argparse.Namespace) -> None:
-    samples = build_samples(REPO / "bench" / "corpus")
+    samples = build_samples(REPO / "bench" / "corpus", limit=args.samples or None)
     for s in samples:
         print(
             f"{s['name']:24} kind={s['kind']:12} len={len(s['src']):5} "
@@ -282,6 +297,7 @@ def cmd_run(args: argparse.Namespace) -> None:
                     "sample": s["name"],
                     "doc": s["doc"],
                     "kind": s["kind"],
+                    "prompt_sha": PROMPT_SHA,
                     **r,
                 }
                 if r.get("http") == 200 and r.get("content"):
@@ -340,6 +356,7 @@ def aggregate(dirs: list[str]) -> tuple[dict[str, dict], list[dict]]:
                     "rsn": [],
                     "tin": [],
                     "tout": [],
+                    "tck": [],
                 },
             )
             st["n"] += 1
@@ -363,7 +380,8 @@ def aggregate(dirs: list[str]) -> tuple[dict[str, dict], list[dict]]:
                         "model": m,
                         "sample": r["sample"],
                         "run": r["run"],
-                        "why": "empty content",
+                        "why": "empty content"
+                        + (f" ({str(r.get('error'))[:60]})" if r.get("error") else ""),
                     }
                 )
                 continue
@@ -372,6 +390,7 @@ def aggregate(dirs: list[str]) -> tuple[dict[str, dict], list[dict]]:
             st["rsn"].append(r.get("reasoning_len", 0))
             st["tin"].append(r.get("tok_in") or 0)
             st["tout"].append(r.get("tok_out") or 0)
+            st["tck"].append(r.get("tok_cached") or 0)
             for i in j.get("validator_issues") or []:
                 if i.startswith("error:"):
                     st["v_err"] += 1
@@ -419,9 +438,10 @@ def cmd_report(args: argparse.Namespace) -> None:
     lines = [
         (
             "| model | n | hard_ok | ph_miss | ph_inv | cs_drop | ord_soft | "
-            "http_err | lat p50/p95 | rsn p50/p95 | in_tok med | out_tok med |"
+            "http_err | lat p50/p95 | rsn p50/p95 | in_tok med | out_tok med | "
+            "cached med |"
         ),
-        "|---|---|---|---|---|---|---|---|---|---|---|---|",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     agg = {}
     for m, s in sorted(
@@ -433,7 +453,8 @@ def cmd_report(args: argparse.Namespace) -> None:
             f"{s['ph_inv']} | {s['cs_drop']} | {s['ord_bad']} | "
             f"{s['http_err']} | {_med(s['lat']):.1f}/{_p95(s['lat']):.1f}s | "
             f"{_med(s['rsn']):.0f}/{_p95(s['rsn']):.0f}ch | "
-            f"{_med(s['tin']):.0f} | {_med(s['tout']):.0f} |"
+            f"{_med(s['tin']):.0f} | {_med(s['tout']):.0f} | "
+            f"{_med(s['tck']):.0f} |"
         )
         agg[m] = {
             k: (
@@ -479,6 +500,7 @@ def main() -> None:
     p_rep.add_argument("--md", default=None)
     p_rep.set_defaults(fn=cmd_report)
     p_ls = sub.add_parser("samples")
+    p_ls.add_argument("--samples", type=int, default=0)
     p_ls.set_defaults(fn=cmd_samples)
     args = ap.parse_args()
     args.fn(args)
