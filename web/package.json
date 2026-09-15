@@ -1,0 +1,33 @@
+{
+    "name": "texlate-web",
+    "private": true,
+    "version": "0.0.0",
+    "type": "module",
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "preview": "vite preview",
+        "test": "vitest run",
+        "typecheck": "tsc --noEmit",
+        "lint": "eslint ."
+    },
+    "dependencies": {
+        "@pdfslick/solid": "^4.0.2",
+        "katex": "^0.18.7",
+        "marked": "^18.0.13",
+        "pdfjs-dist": "^6.3.289",
+        "solid-js": "^1.9.15"
+    },
+    "devDependencies": {
+        "@eslint/js": "^10.0.1",
+        "@types/node": "^24.0.0",
+        "eslint": "^10.10.0",
+        "eslint-plugin-solid": "^0.18.0",
+        "globals": "^17.12.0",
+        "typescript": "~5.9.3",
+        "typescript-eslint": "^8.70.0",
+        "vite": "^8.3.0",
+        "vite-plugin-solid": "^2.11.14",
+        "vitest": "^5.0.1"
+    }
+}
