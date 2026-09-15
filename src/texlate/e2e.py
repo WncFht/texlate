@@ -99,6 +99,7 @@ def _compile_judge(
             "seconds": round(res.seconds, 2),
             "passes": res.passes,
             "rc": res.rc,
+            "killed_signal": res.killed_signal,
             "pdf_bytes": res.pdf_bytes,
             "first_error": res.log.first_error,
         },
