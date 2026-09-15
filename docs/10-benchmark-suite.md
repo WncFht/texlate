@@ -21,6 +21,8 @@
 
 ## B1 · parsebench —— 解析段基准
 
+**状态（2026-09-15）**：已落地 `bench/py/parsebench.py`（v2，texlate.latex 产品管线评测器）。首轮：corpus_v3 核心层 1955 文件 parse 100%/strict identity 100%/leak 0.04%/dead 0（coverage 94.4%†）；补强层 187 篇 1388 文件同指标全过（coverage 72.5%）。manifest 非空时即抽样框（`--manifest manifest_booster.jsonl` 切层）。结果 `bench/results/parsebench-*-2026-09-15/`。
+
 **测什么**：`texlate.latex` 对真实语料的解析正确性——能不能零崩溃、能不能逐字节还原、可译 chunk 里有没有漏进受保护内容。
 
 **底材**：corpus_v3 全部 `extracted/`（~1,200 篇 / ~2,000+ .tex）+ corpus39 手挑陷阱集（对拍基线）+ corpus_v2（渠道敏感性）。
@@ -38,6 +40,8 @@
 **门槛**：docs/09 §8（ok 100% / identity ≥99.5% / leak ≤0.15% / dead·orphan=0 / flatten ≥99%）。回归用法：每改一行 scanner 重跑出差异表（v2 规模 17.6s 全量 → v3 预计 ~3min）。
 
 ## B2 · fixtures 陷阱断言集 —— 解析段单元级
+
+**状态（2026-09-15）**：已落地 `tests/test_bench_regression.py`（54 用例全绿）——spike `miniscanner_test` 断言矩阵移植到 `texlate.latex`，断言函数与 `bench/py/fixture_assert.py` 共享。spike 原件已退役至 tmp/exp/。
 
 **测什么**：已知机制的逐条断言（"这个具体坑处理了吗"）——parsebench 测分布，fixtures 测机制。
 
@@ -104,6 +108,8 @@
 **门槛**：mock A 全绿（PDF+identity+ 零残留占位 + 中文实际渲染）；mock B 破坏 100% 编译前捕获；Mode D 成功率即产品 SLA 观测点。
 
 ## B6 · validbench —— 校验段基准
+
+**状态（2026-09-15）**：已落地 `bench/py/validbench.py`——corpus_v2 1503 对 gates 全绿（10 类破坏 L0 100% 检出、干净对 0 error-FP、14 探针全过、摊薄 0.374ms/对）；spike 1636 例 `--replay` 同 schema 兼容。结果 `bench/results/validbench-*-2026-09-15/`。
 
 **测什么**：L0/L1 校验器对 LLM 破坏的检出能力——校验器本身必须被评测（"校验器也必须被测试语料验证"——实现期真抓到过自身 bug）。
 
