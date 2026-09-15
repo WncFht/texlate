@@ -30,8 +30,10 @@ XECJK_BLOCK = r"""
 \setCJKmonofont{FandolFang-Regular.otf}
 """
 
-#: 已有 CJK 支持 → 不重复注入。
-CJK_PRESENT_RE = re.compile(r"ctex|xeCJK|CJKutf8|CJKfontspec|luatexja")
+#: 已有 CJK 支持 → 不重复注入。前边界防 `\impactex`/`sectex` 类宏名
+#: 内嵌 "ctex" 的假阳（误判会跳过注入 → 整篇中文静默缺失）；
+#: **无尾边界**——`ctexart`/`ctexbook`/`ctexrep`/`ctexbeamer` 文档类必须命中。
+CJK_PRESENT_RE = re.compile(r"\b(?:ctex|xeCJK|CJKutf8|CJKfontspec|luatexja)")
 
 _DOC_RE = re.compile(r"\\(documentclass|documentstyle)(?![a-zA-Z])")
 

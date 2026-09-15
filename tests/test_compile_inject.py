@@ -70,6 +70,20 @@ def test_inject_cjk_already_present() -> None:
     assert out == tex
 
 
+def test_inject_cjk_substring_ctex_not_present() -> None:
+    """宏名内嵌 "ctex"（\\impactex、sectex）不算 CJK 已支持——
+
+    裸子串匹配会误判 already → 跳过注入 → 整篇中文静默缺失。
+    """
+    tex = (
+        "\\documentclass{article}\n\\newcommand{\\impactex}[1]{#1}\n"
+        "\\begin{document}\nx\\end{document}"
+    )
+    out, info = inject_cjk(tex)
+    assert info["status"] == "injected"
+    assert CTEX_LINE in out
+
+
 def test_inject_cjk_documentstyle_reject() -> None:
     tex = "\\documentstyle{ptptex}\n\\begin{document}\nx\\end{document}"
     with pytest.raises(InjectRejectError):
