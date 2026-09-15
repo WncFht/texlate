@@ -93,7 +93,7 @@
 
 **底材**：corpus_v3 子集（先 ~50 篇，后全量）。
 
-**构建方法**（harness 已有：`tmp/exp/e2e/pipeline.py` 637 行扶正）：
+**构建方法**（harness 已扶正为 `src/texlate/e2e.py`——`mock_translate_tree`/`pipe_condition`/`base_condition`/`mock_pipeline_run`，CLI `texlate run` 与 `bench/py/e2e_mock_bench.py` 共用；勘误 2026-09-15：原写 `tmp/exp/e2e/pipeline.py` 扶正，实际落地为产品模块而非 bench 脚本，翻译走 XlatPipeline(MockTranslator)+L0 校验器全产品 API）：
 
 1. Mode A 位置忠实 mock：注入 ctex + 占位译文 + splice + 编译 → 验机械链路（已实证 16/16 PDF、0 FAIL、identity 111/111、leftover=0）。
 2. Mode B 幻觉 mock：注入占位符丢失/幻觉 → 验校验链兜底（132 处破坏编译前 132/132 捕获——"出 PDF≠成功"的实证来源）。
