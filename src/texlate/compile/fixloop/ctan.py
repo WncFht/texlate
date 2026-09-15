@@ -1,0 +1,410 @@
+"""ctan — ``ctan_fetch`` 原语: tlpdb 离线索引 → tlnet 拉包 → cwd 平铺遮蔽。
+
+实证基础 ``docs/research/latex/ctanfetch-probe.md``:
+  - tlpdb 正确路径 ``tlpkg/texlive.tlpdb.xz`` (~2.8MB xz → 20.7MB),
+    解析出 8148 包 / 138K basename 索引, 构建 0.14s, filemap.json ~5.5MB
+  - ``archive/<pkg>.tar.xz`` 单包 2-136KB 秒级; tar 顶层前缀不统一
+    (``texmf-dist/`` 或裸 ``tex/``), 落地两策略: 平铺 basename /
+    保留 ``tex/`` 树配 ``-Z search-path``
+  - cwd 平铺遮蔽 bundle 实测成立 (ctex 2.5.10 遮蔽 2.5.8 → 0 错)
+  - **仅限 TeX 输入层文件** (.sty/.cls/.tfm/…); 物理字体 (.pfb/.pk/.vf)
+    与 xdvipdfmx 层不在射程 —— 走改写规则兜底
+  - tlnet 只发最新版 → version_guard 比对 expl3/LaTeX2e 要求,
+    新版过新则跳过 (ctex 2.6.5 vs bundle expl3 2022/07/14 实证)
+
+缓存约定: ``$TEXLATE_CACHE`` 或 ``~/.texlate/cache/`` 下
+``texlive.tlpdb`` 原件 + ``filemap.json`` 索引 (远端仓库知识,
+与环境冷热无关 —— spike L17-18 同款理由)。
+"""
+
+from __future__ import annotations
+
+import contextlib
+import io
+import json
+import lzma
+import os
+import re
+import tarfile
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+__all__ = [
+    "CtanFetcher",
+    "FetchResult",
+    "TlpdbIndex",
+    "check_version_compat",
+    "ctan_fetch",
+    "default_cache_dir",
+    "fetch_package",
+    "fetch_tlpdb",
+]
+
+MIRROR = "https://mirror.ctan.org/systems/texlive/tlnet"
+TLPDB_RELPATH = "tlpkg/texlive.tlpdb.xz"  # 探针纠错: 非 tlnet/texlive.tlpdb.gz (404)
+
+# 索引收录扩展名 (探针 §1: 在任务白名单上加 .clo/.vf/.ofm/.ovp ——
+# ctex 有 .clo 字号文件, 不索引则无法从缺 .clo 反查包)
+INDEX_EXTS = {
+    ".sty",
+    ".cls",
+    ".def",
+    ".fd",
+    ".tfm",
+    ".pfb",
+    ".enc",
+    ".map",
+    ".cfg",
+    ".clo",
+    ".vf",
+    ".ofm",
+    ".ovp",
+}
+# 允许平铺进 cwd 的扩展名 = TeX 输入层; .pfb/.pk 物理字体对
+# tectonic xdvipdfmx 是死路 (探针 §3.5), 不投
+OVERLAY_EXTS = INDEX_EXTS - {".pfb"}
+# tar 内已知顶层前缀 (探针 §2 踩坑: 前缀不统一)
+_TAR_PREFIXES = ("texmf-dist/", "texmf/", "tex/")
+_TLPDB_FILE_SECTIONS = {"runfiles", "docfiles", "srcfiles"}
+_NEEDFMT_RE = re.compile(
+    r"\\NeedsTeXFormat\{LaTeX2e\}\s*\[(\d{4})[/.-](\d{2})[/.-](\d{2})"
+)
+_PKGLATER_RE = re.compile(
+    r"\\@ifpackagelater\{(?:expl3|latex2e|xparse)\}\{(\d{4})[/.-](\d{2})[/.-](\d{2})\}"
+)
+
+Fetcher = Callable[[str], bytes]  # url → body (测试注入点)
+
+
+def default_cache_dir() -> Path:
+    """``$TEXLATE_CACHE`` 或 ``~/.texlate/cache``。"""
+    return Path(os.environ.get("TEXLATE_CACHE") or Path.home() / ".texlate" / "cache")
+
+
+def _http_get(url: str) -> bytes:
+    import httpx  # noqa: PLC0415  # 延迟加载: 纯索引路径不依赖网络栈
+
+    resp = httpx.get(url, timeout=60.0, follow_redirects=True)
+    resp.raise_for_status()
+    return resp.content
+
+
+class TlpdbIndex:
+    """file basename → [TL 包] 离线索引 (texlive.tlpdb 解析产物)。"""
+
+    def __init__(
+        self, table: dict[str, list[str]], overrides: dict[str, Any] | None = None
+    ) -> None:
+        """table=basename→[pkg]; overrides 手工映射 (null=已知噪声)。"""
+        self.table = table
+        self.overrides = overrides or {}
+
+    @classmethod
+    def from_tlpdb(cls, path: Path) -> TlpdbIndex:
+        """解析 texlive.tlpdb 文本建索引 (tlpdb_index.py 探针移植)。
+
+        块格式: ``name <pkg>`` + ``runfiles/docfiles/srcfiles`` 缩进清单,
+        剥 ``RELOC/`` 前缀取 basename。
+        """
+        table: dict[str, list[str]] = {}
+        pkg: str | None = None
+        section: str | None = None
+        with path.open("r", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                if line.startswith("name "):
+                    pkg = line.split(None, 1)[1].strip()
+                    section = None
+                    continue
+                if pkg is None:
+                    continue
+                if line.startswith(" "):
+                    if section is None:
+                        continue
+                    relpath = line.strip().split(" ", 1)[0]
+                    relpath = relpath.removeprefix("RELOC/")
+                    base = relpath.rsplit("/", 1)[-1]
+                    stem, dot, ext = base.rpartition(".")
+                    if stem and dot and f".{ext.lower()}" in INDEX_EXTS:
+                        lst = table.setdefault(base, [])
+                        if pkg not in lst:
+                            lst.append(pkg)
+                    continue
+                if not line.strip():
+                    continue
+                key = line.split(None, 1)[0]
+                section = key if key in _TLPDB_FILE_SECTIONS else None
+        return cls(table)
+
+    @classmethod
+    def load(cls, cache_dir: Path | None = None) -> TlpdbIndex:
+        """读缓存 ``filemap.json``; 不存在 → FileNotFoundError (走 ensure)。"""
+        p = (cache_dir or default_cache_dir()) / "filemap.json"
+        return cls(json.loads(p.read_text(encoding="utf-8")))
+
+    def save(self, cache_dir: Path | None = None) -> Path:
+        """写 ``filemap.json`` (sort_keys 稳定); 返回路径。"""
+        d = cache_dir or default_cache_dir()
+        d.mkdir(parents=True, exist_ok=True)
+        p = d / "filemap.json"
+        p.write_text(json.dumps(self.table, ensure_ascii=False, sort_keys=True))
+        return p
+
+    @classmethod
+    def ensure(
+        cls,
+        cache_dir: Path | None = None,
+        *,
+        mirror: str = MIRROR,
+        fetcher: Fetcher | None = None,
+    ) -> TlpdbIndex:
+        """有缓存读缓存; 否则拉 tlpdb.xz → 解析 → 存 filemap.json。"""
+        try:
+            return cls.load(cache_dir)
+        except (OSError, json.JSONDecodeError):
+            pass
+        d = cache_dir or default_cache_dir()
+        tlpdb_path = fetch_tlpdb(mirror, d, fetcher=fetcher)
+        idx = cls.from_tlpdb(tlpdb_path)
+        idx.save(d)
+        return idx
+
+    def query(self, basename: str) -> list[str]:
+        """Basename → 候选包名; overrides 显式 null = 已知噪声 → []。"""
+        if basename in self.overrides:
+            v = self.overrides[basename]
+            return [v] if isinstance(v, str) else []
+        hits = self.table.get(basename, [])
+        stem = basename.rsplit(".", 1)[0]
+        # 消歧启发: 包名==stem 的排最前 (hyperxmp.sty→hyperxmp);
+        # 406 个多包 basename (探针 §1) 其余保持 tlpdb 序
+        return sorted(hits, key=lambda p: (p != stem, p))
+
+    def suggest(self, stem: str, limit: int = 5) -> list[str]:
+        """索引查不到时的 advisory 候选: 包名前缀匹配。"""
+        all_pkgs = {x for pkgs in self.table.values() for x in pkgs}
+        return sorted(p for p in all_pkgs if p.startswith(stem))[:limit]
+
+
+@dataclass(slots=True)
+class FetchResult:
+    """ctan_fetch 返回: ok / 落盘文件 / advisory (索引未命中或版本过新)。"""
+
+    ok: bool
+    fname: str
+    pkg: str | None = None
+    files: list[str] = field(default_factory=list)
+    note: str = ""
+    advisory: str | None = None
+
+
+def fetch_tlpdb(mirror: str, dest_dir: Path, *, fetcher: Fetcher | None = None) -> Path:
+    """``tlpkg/texlive.tlpdb.xz`` → 解压 ``texlive.tlpdb`` 落 dest_dir。"""
+    get = fetcher or _http_get
+    raw = get(f"{mirror}/{TLPDB_RELPATH}")
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    out = dest_dir / "texlive.tlpdb"
+    out.write_bytes(lzma.decompress(raw))
+    return out
+
+
+def _overlay_members(tf: tarfile.TarFile, dest: Path, *, overlay: str) -> list[str]:
+    """解包 tar 成员到 dest; 返回落盘相对路径表。
+
+    overlay="flat": 只取 OVERLAY_EXTS 的 basename 平铺 (cwd 遮蔽 bundle)
+    overlay="tree": 剥 texmf-dist/tex 前缀后按 relpath 落 (配 -Z search-path)
+    """
+    landed: list[str] = []
+    for m in tf.getmembers():
+        if not m.isfile():
+            continue
+        name = m.name
+        for pre in _TAR_PREFIXES:
+            if name.startswith(pre):
+                name = name[len(pre) :]
+                break
+        ext = Path(name).suffix.lower()
+        if overlay == "flat":
+            if ext not in OVERLAY_EXTS:
+                continue
+            rel = Path(name).name  # basename 平铺
+        else:
+            if not name or name.startswith("../"):
+                continue
+            rel = name
+        src = tf.extractfile(m)
+        if src is None:
+            continue
+        target = dest / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(src.read())
+        landed.append(rel)
+    return landed
+
+
+def fetch_package(
+    pkg: str,
+    dest_dir: Path,
+    *,
+    mirror: str = MIRROR,
+    overlay: str = "flat",
+    fetcher: Fetcher | None = None,
+) -> list[str]:
+    """``archive/<pkg>.tar.xz`` → 解包投放; 返回落盘文件相对路径表。"""
+    get = fetcher or _http_get
+    raw = get(f"{mirror}/archive/{pkg}.tar.xz")
+    with tarfile.open(fileobj=io.BytesIO(lzma.decompress(raw))) as tf:
+        return _overlay_members(tf, dest_dir, overlay=overlay)
+
+
+def check_version_compat(files: list[Path], epoch: str) -> tuple[bool, str | None]:
+    """Tlnet 最新版对 bundle 快照的 expl3/LaTeX2e 要求是否过新 (docs/08:276)。
+
+    epoch 形如 ``"2022-07-14"`` (tectonic bundle 快照年代)。
+    任一落盘文件声明的 ``NeedsTeXFormat``/``@ifpackagelater{expl3}``
+    要求晚于 epoch → (False, 说明)。
+    """
+    ey, em, ed = (int(x) for x in epoch.split("-"))
+    req: tuple[int, int, int] | None = None
+    for f in files:
+        try:
+            text = f.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for pat in (_NEEDFMT_RE, _PKGLATER_RE):
+            for m in pat.finditer(text):
+                d = (int(m.group(1)), int(m.group(2)), int(m.group(3)))
+                if req is None or d > req:
+                    req = d
+    if req is not None and req > (ey, em, ed):
+        return (
+            False,
+            f"requires LaTeX2e/expl3 >= {'-'.join(f'{x:02d}' for x in req)} > bundle epoch {epoch}",
+        )
+    return True, None
+
+
+def ctan_fetch(  # noqa: PLR0913  # mirror/overlay/epoch/fetcher 注入面即签名
+    fname: str,
+    wdir: Path,
+    index: TlpdbIndex,
+    *,
+    mirror: str = MIRROR,
+    overlay: str = "flat",
+    epoch: str | None = None,
+    fetcher: Fetcher | None = None,
+) -> FetchResult:
+    """``file→包索引→tlnet 拉取→cwd 平铺遮蔽`` 全链 (docs/08:283-288)。
+
+    - 索引查不到 → advisory 附候选包名 (suggest)
+    - epoch 给定且新版要求过新 → 撤回已投文件, 试下一候选包
+    - 仅限 TeX 输入层: 后缀不在 OVERLAY_EXTS 的文件不会落盘
+    """
+    stem = fname.rsplit(".", 1)[0]
+    ext = Path(fname).suffix.lower()
+    if ext not in OVERLAY_EXTS:
+        return FetchResult(
+            ok=False,
+            fname=fname,
+            advisory=f"{ext} 不在 TeX 输入层 (物理字体/xdvipdfmx 域须改写规则)",
+        )
+    pkgs = index.query(fname)
+    if not pkgs:
+        sug = index.suggest(stem)
+        hint = f"; 候选: {', '.join(sug)}" if sug else ""
+        return FetchResult(
+            ok=False, fname=fname, advisory=f"no TL package ships {fname}{hint}"
+        )
+    last_note = ""
+    for pkg in pkgs:
+        try:
+            landed = fetch_package(
+                pkg, wdir, mirror=mirror, overlay=overlay, fetcher=fetcher
+            )
+        except Exception as e:  # noqa: BLE001  # 网络/解包失败 → 试下一候选包
+            last_note = f"fetch {pkg}: {type(e).__name__}: {e}"
+            continue
+        if overlay == "flat" and fname not in landed:
+            # 包里没有目标文件 (索引按 basename 命中但整包未含?) —— 撤回
+            for rel in landed:
+                with contextlib.suppress(OSError):
+                    (wdir / rel).unlink()
+            last_note = f"{pkg} fetched but {fname} not inside"
+            continue
+        if epoch:
+            ok_ver, why = check_version_compat([wdir / rel for rel in landed], epoch)
+            if not ok_ver:
+                for rel in landed:
+                    with contextlib.suppress(OSError):
+                        (wdir / rel).unlink()
+                last_note = f"{pkg} {why}"
+                continue
+        return FetchResult(
+            ok=True,
+            fname=fname,
+            pkg=pkg,
+            files=landed,
+            note=f"{pkg} -> {len(landed)} files",
+        )
+    return FetchResult(
+        ok=False, fname=fname, advisory=f"all candidates failed: {last_note}"
+    )
+
+
+class CtanFetcher:
+    """``TectonicEngine(ctan_fetch=...)`` 注入适配器: ``(fname) -> 落点路径 | None``。
+
+    tlpdb 索引惰性构建 —— 首个真缺文件的 ctan_fetch 调用才拉 ~2.8MB
+    texlive.tlpdb (clean 工程零网络开销)。``overrides``/``epoch`` 来自
+    rules.yaml ``filemap:`` 段, 由 fixloop 启动时接线。
+    """
+
+    def __init__(  # noqa: PLR0913  # 注入面即签名 (index/cache/overrides/epoch/mirror/fetcher)
+        self,
+        wdir: Path,
+        *,
+        index: TlpdbIndex | None = None,
+        cache_dir: Path | None = None,
+        overrides: dict[str, Any] | None = None,
+        epoch: str | None = None,
+        mirror: str = MIRROR,
+        fetcher: Fetcher | None = None,
+    ) -> None:
+        """接线配置入存 (零 IO; 索引在 index/__call__ 首访时惰性建)。"""
+        self.wdir = Path(wdir)
+        self.cache_dir = cache_dir
+        self.overrides = dict(overrides or {})
+        self.epoch = epoch
+        self.mirror = mirror
+        self.fetcher = fetcher
+        self._index = index
+        self.last_note: str = ""
+
+    @property
+    def index(self) -> TlpdbIndex:
+        """首访构建/装载索引 (潜在网络 IO); 之后进程内缓存。"""
+        if self._index is None:
+            idx = TlpdbIndex.ensure(
+                self.cache_dir, mirror=self.mirror, fetcher=self.fetcher
+            )
+            idx.overrides.update(self.overrides)
+            self._index = idx
+        return self._index
+
+    def peek_index(self) -> TlpdbIndex | None:
+        """已构建才返回索引, 不触发拉取 (advisory 提示用, 见 engine._apply_install_file)。"""
+        return self._index
+
+    def __call__(self, fname: str) -> str | None:
+        """``(fname) -> 落点 | None`` —— TectonicEngine.ctan_fetch 契约。"""
+        res = ctan_fetch(
+            fname,
+            self.wdir,
+            self.index,
+            mirror=self.mirror,
+            epoch=self.epoch,
+            fetcher=self.fetcher,
+        )
+        self.last_note = res.advisory or res.note
+        return str(self.wdir / fname) if res.ok else None

@@ -1,0 +1,855 @@
+# rules.yaml — fixloop 编译修复规则表 (schema v1.1)
+#
+# 来源: bench/py/fixloop.py spike (冷 TEXMFHOME, 22 格, 16/16 救回) 的
+# 硬编码修复逻辑 → 数据化; 另并入 docs/08 §5.2 实证缺口回填的 9 条新规则。
+# 社区贡献入口 = 新增/修改本文件条目。
+#
+# 两层结构:
+#   taxonomy: log 文本 → (category, payload)      —— "这是什么错"
+#   rules:    (category, payload) → 修复动作       —— "怎么修"
+# 新增一个修复通常只需在 rules 追加一条 (复用已有 category);
+# 只有新错误形态才需要加 taxonomy 行。
+#
+# 语法约定: pattern/repl 均按 Python re 语义; repl 里 \g<N> 为分组引用;
+# action.function 表示该动作是命名内置函数 (算法型, 非纯 regex,
+# 注册表在 builtins.py —— 新函数才需要 PR 代码)。
+# 书写约束: flow 集合 {..}/[..] 必须单行写完 (子集解析器不跨行)。
+#
+# 每条规则逐条带注释: 出处为 spike 行号 (fixloop.py Lxxx) 或 docs/08 行号。
+
+version: 1
+
+meta:
+  source: "bench/py/fixloop.py + docs/08 §5"
+  generated: "2026-09-15"
+  engine_default: xelatex
+  loop:
+    max_rounds: 8 # spike L40
+    one_rule_per_round: true # 每轮只应用一条成功规则, 便于归因 (L549-565)
+    dedup_key: "{rule_id}:{payload}" # ctx.applied, 同规则同负载不重复 (L552,561)
+    stuck_sig_repeat: 3 # 同 category:payload 连续 3 轮 → verdict=stuck (L756-761)
+    clean_err_max: 3 # pdf 且 '!' 错 ≤3 → acceptable (L41, L786-791)
+    compile_passes: 2 # 第二轮仅在已出 pdf 时跑 (L628-630)
+    timeout_sec: 120
+    warn_demote: false # warnings 只记录不改判; §4.3 clean 三件套在 pipeline 层做
+    warn_driven_fixes: true # v1.1: 错误全无时 warnings 可驱动 warn_* 类别修复轮
+
+# ────────────────────────────────────────────────────────────────
+# 引擎能力位: 决定每条规则的 action 用 native 还是 degrade 路径
+# ────────────────────────────────────────────────────────────────
+capabilities:
+  xelatex:
+    kpsewhich: true
+    tlmgr: true
+    updmap: true
+    shell_escape: true
+    bundle: false
+  tectonic:
+    kpsewhich: false # 无 kpsewhich; 以"本地文件存在+bundle 含不含"近似
+    tlmgr: false # 无 tlmgr → install_* 走 ctan_fetch 降级
+    updmap: false # 无 updmap; 字体 map 由 bundle 内部管理
+    shell_escape: partial # 新版支持但受限; minted 场景按不可完全依赖处理
+    bundle:
+      true # bundle 内建按需拉文件 (install_file 等价物),
+      # 但只覆盖 bundle 索引内文件; 物理字体仍须改写规则
+
+# ────────────────────────────────────────────────────────────────
+# 共享知识: file → TeX Live 包名 索引 (install_* 动作的 oracle)
+# xelatex: tlmgr search --global --file '/X' (fixloop.py L176-208)
+# tectonic: 离线解析 texlive.tlpdb 生成的静态索引 + overrides 手工表
+#   (ctan.py: tlpkg/texlive.tlpdb.xz ~2.8MB → 8148 包 / 138K basename,
+#    filemap.json ~5.5MB, 构建 0.14s, 缓存 ~/.cache/texlate/)
+# ────────────────────────────────────────────────────────────────
+filemap:
+  xelatex_oracle: "tlmgr search --global --file '/{fname}'"
+  tectonic_oracle: "texlive.tlpdb 离线索引 (随规则库分发, 定期重建)"
+  cache: "全局 json 缓存, file→[pkg] (远端仓库知识, 与环境冷热无关)"
+  denylist_platform_suffixes: # 过滤平台特定包条目 (L190-204)
+    [windows, win32, macosx, linux, x86_64, aarch64, amd64, i386, universal]
+  denylist_prefixes: [tlmgr, tlgs]
+  overrides: {} # 社区贡献: "fname": "tl_pkg" 手工映射兜底
+  # 例: "iclr14submit_e.sty": null   # TL 无此包 → 预检扫描的已知噪声
+  version_guard: # docs/08 §5.2 第9条: ctan_fetch 版本前置检查
+    enabled: true # tlnet 只发最新; 新版对 bundle 的 expl3/LaTeX2e 太旧会拒载
+    texlive_format_epoch: "2022-07-14" # tectonic bundle 快照年代 (ctanfetch-probe §3.4)
+
+# ────────────────────────────────────────────────────────────────
+# log 尾部红线 warning 扫描 (docs/08 §4.3): 只记录进 cell.warnings,
+# 其中 invalid_utf8 在无 '!' 错时升级为 warn_utf8 类别驱动修复轮。
+# ────────────────────────────────────────────────────────────────
+warnings:
+  - {
+      id: invalid_utf8,
+      pattern: "Invalid UTF-8 byte|Missing character.*U\\+FFFD",
+    }
+  - { id: missing_char, pattern: "Missing character" } # CJK 渲染检查原料
+  - {
+      id: missing_graphic,
+      pattern: "File `[^']+\\.(eps|png|jpg|pdf)' not found|cannot (find|open) image",
+    }
+  - { id: tectonic_degrade, pattern: "^!+ .*not found" } # tectonic File..not found 降级行
+
+# ════════════════════════════════════════════════════════════════
+# 第一层: 分类学 —— log → (category, payload)
+# 评估序: 存在 '!' 行时按序首命中 (scope:head, 输入='!'行+其后8行);
+#         全文无 '!' 行时评估 scope:tail 段 (输入=log 末 30 行);
+#         仍无命中但有 warning 命中 → scope:warnings 驱动 warn_* 类。
+# 对应 fixloop.py classify() L67-125。
+# ════════════════════════════════════════════════════════════════
+taxonomy:
+  # —— 文件缺失类 (抓文件名 → install_file) ——
+  - {
+      id: missing_file,
+      scope: head,
+      payload_group: 1,
+      pattern: "File `([^']+\\.[a-zA-Z0-9]+)' not found",
+    }
+  - {
+      id: missing_file,
+      scope: head,
+      payload_group: 1,
+      pattern: "I can't find file `([^']+)'",
+    }
+  # —— TFM 字体缺失 (抓字体名=文件名 → install_tfm) ——
+  - {
+      id: missing_tfm,
+      scope: head,
+      payload_group: 1,
+      pattern: "Font \\\\?\\S*?=?\\s*([a-zA-Z0-9]+) at [0-9.]+pt not loadable",
+    }
+  - {
+      id: missing_tfm,
+      scope: head,
+      payload_group: 1,
+      pattern: "Metric \\(TFM\\) file[^\\n]*?(\\w+)\\.(tfm)",
+    }
+  # —— fontspec 时代错配 / 系统字体缺失 ——
+  - {
+      id: xetexglyph_tfm,
+      scope: head,
+      payload_group: 1,
+      pattern: "Cannot use XeTeXglyph with (\\S+)",
+    }
+  - {
+      id: missing_pfb,
+      scope: head,
+      pattern: "Cannot proceed without .vf|physical font",
+    }
+  - {
+      id: fontspec_missing,
+      scope: head,
+      payload_group: 1,
+      pattern: 'font [“"]([^”"]+)[”"] cannot be found',
+    }
+  # —— 源码级 ——
+  - { id: illegal_unit, scope: head, pattern: "Illegal unit of measure" }
+  - {
+      id: option_clash,
+      scope: head,
+      payload_group: 1,
+      pattern: "Option clash for package ([\\w-]+)",
+    }
+  - {
+      id: already_def,
+      scope: head,
+      payload_group: 1,
+      pattern: "Command \\\\?([\\w@]+) already defined",
+    }
+  - {
+      id: soul_err,
+      scope: head,
+      pattern: "Package soul Error|Reconstruction failed",
+    }
+  - { id: hyphenation, scope: head, pattern: "Not a letter" }
+  - {
+      id: minted_froz,
+      scope: head,
+      pattern: "frozencache|Cannot highlight code",
+    }
+  - {
+      id: latex209,
+      scope: head,
+      pattern: "documentstyle|LaTeX ?2\\.09|LaTeX2e command .* in LaTeX 2\\.09",
+    }
+  # undefined_cs 命中后再细分 pdfTeX 原语 (L110-114)
+  - id: undefined_cs
+    scope: head
+    pattern: "Undefined control sequence"
+    subclassify:
+      { pattern: "\\\\(pdf[a-zA-Z@]+)", into: pdftex_prim, payload_group: 1 }
+  - { id: capacity, scope: head, pattern: "TeX capacity exceeded" }
+  - {
+      id: emergency,
+      scope: head,
+      pattern: "Emergency stop|cannot \\\\read|Fatal error|job aborted",
+    }
+  - {
+      id: env_mismatch,
+      scope: head,
+      pattern: "begin\\{[^}]*\\}.*ended by|Extra \\\\end",
+    }
+  - id: syntax
+    scope: head
+    pattern: "Missing|Runaway|Paragraph ended|Misplaced|Double subscript|Illegal|There's no line|Lonely|Bad math|Something's wrong|not in outer par|allowed only in math|improper"
+  - { id: other, scope: head, pattern: "^!" } # 兜底: 有 '!' 行必命中
+  # —— tail 段: 仅当全文 0 个 '!' 行时评估 (交互式缺文件/Emergency) ——
+  - {
+      id: missing_file,
+      scope: tail,
+      payload_group: 1,
+      pattern: "File `([^']+\\.[a-zA-Z0-9]+)' not found",
+      guard: "Enter file name|Emergency",
+    }
+  - {
+      id: missing_file,
+      scope: tail,
+      payload_group: null,
+      pattern: "Enter file name",
+    }
+  - { id: latex209, scope: tail, pattern: "documentstyle|LaTeX ?2\\.09" }
+  # —— warnings 段: 无 '!' 且无 tail 命中, 但 warning 红线命中 (v1.1) ——
+  - { id: warn_utf8, scope: warnings, warn_id: invalid_utf8 } # docs/08 §5.2 non_utf8_source 的类别入口
+  # 都不中: err 为空 → clean; err 非空 → other
+
+# ════════════════════════════════════════════════════════════════
+# 第二层: 修复规则 (16 spike + 9 新增 = 25 条)
+# phase: gate(每轮分类后最先评估) / precheck(编译前一次性) / loop(每轮)
+# 同 phase 内按 order 升序, 首个 when+condition 满足且 dedup 未命中的执行。
+# engines.<name>.mode: native | same(源改写天然可移植) | degrade | unsupported | skip
+# condition 原语: tool_available / cap_available / engine_in /
+#   main_head_contains / source_contains / ctx_suggests / fileset /
+#   vendored_shadow / package_version_ge / prim_read_form /
+#   shim_known / cache_dir_glob / any:[...]  (未知键 → 规则跳过, fail-closed)
+# ════════════════════════════════════════════════════════════════
+rules:
+  # ─── gate: 路由拒绝先于一切修复尝试 ───
+  # spike 语义: 主循环 L748-755 在 pick_and_apply 之前短路,
+  # 等效于最高优先级 → 用 phase:gate 显式建模。
+  - id: latex209_reject
+    description: "LaTeX 2.09 文档 (\\documentstyle/化石 cls) → 路由拒绝, 转 latex+dvips 通道"
+    phase: gate
+    order: 1
+    when:
+      any:
+        - { category: latex209 }
+        - { category: missing_file, main_head_contains: "\\documentstyle" }
+    action:
+      kind: reject_route
+      params: { route: "latex+dvips", reason: "LaTeX 2.09 document" }
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # 路由层策略, 与引擎无关
+    provenance:
+      - {
+          corpus: "hep-th 类语料 (hjfy 经验移植)",
+          error: "LaTeX2e command in LaTeX 2.09 document",
+        }
+    stats: { fires: 0, status: proposed } # 本轮语料未触发, 为 2.09 论文预留
+    source_ref: "fixloop.py L508-520, L748-755"
+
+  # 新增 (docs/08:273): pstricks 文档走 dvips 路由前的 .pro 前置检查
+  - id: pstricks_dvips_preflight
+    description: "pstricks 文档被路由 latex+dvips 前, 预检 pst-tools.pro 等 dvips 资源存在"
+    phase: gate
+    order: 0 # 先于 latex209_reject(1): pstricks 时先记 .pro 预检信息再路由
+    when:
+      any:
+        - { category: latex209 }
+        - { category: missing_file, main_head_contains: "\\documentstyle" }
+    condition:
+      {
+        source_contains: "\\\\usepackage(\\[[^\\]]*\\])?\\{pstricks|pspicture|\\\\psset",
+      }
+    action:
+      kind: builtin_transform
+      function: pstricks_dvips_preflight # 缺 .pro → REJECT note 附 advisory; 全在 → 正常 reject
+      params: { require_files: ["pst-tools.pro"], route: "latex+dvips" }
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - { corpus: "—", error: "dvips 兜底缺 .pro 时白跑一路由 (docs/08:273)" }
+    stats: { fires: 0, status: proposed }
+    source_ref: "docs/08-translate-compile.md L273"
+
+  # ─── precheck: 静态路由 + 第 0 招装包, 不进循环 ───
+  # 新增 (docs/08:271): EPS/PS 是 tectonic 硬墙, 编译前静态判掉
+  - id: eps_route
+    description: "工程含 *.eps / pstricks / pspicture → 不进 fixloop 直接路由 xelatex (tectonic 硬墙)"
+    phase: precheck
+    order: -10 # 路由决策先于装包预检
+    when: { always: true }
+    condition:
+      engine_in: [tectonic]
+      any:
+        - { fileset: { has_ext: [.eps] } }
+        - {
+            source_contains: "\\\\usepackage(\\[[^\\]]*\\])?\\{(pstricks|pst-\\w+)\\}|pspicture|\\\\psset",
+          }
+    action:
+      kind: reject_route
+      params: { route: "xelatex", reason: "EPS/pstricks hard wall on tectonic" }
+    engines:
+      tectonic: { mode: native }
+      xelatex: { mode: skip } # xelatex 下 EPS 可走, 规则不触发
+    provenance:
+      - {
+          corpus: "pstricks-probe (docs/research/latex/pstricks-route.md)",
+          error: "xdvipdfmx EPS hard wall",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "docs/08-translate-compile.md L218, L271"
+
+  - id: static_precheck
+    description: "静态扫全部源码的 \\usepackage|\\RequirePackage|\\documentclass → 探测缺失 → filemap 批量装包 (一次装好, 省 N 轮循环)"
+    phase: precheck
+    order: 0
+    when: { always: true }
+    action:
+      kind: scan_install
+      params:
+        scan_patterns:
+          - {
+              regex: "\\\\(?:usepackage|RequirePackage)\\s*(?:\\[[^\\]]*\\])?\\s*\\{([^}]+)\\}",
+              split: ",",
+              suffix: ".sty",
+            }
+          - {
+              regex: "\\\\documentclass\\s*(?:\\[[^\\]]*\\])?\\s*\\{([^}]+)\\}",
+              suffix: ".cls",
+            }
+        verify: file_probe # kpsewhich / 本地探测
+        batch: true # 聚合后单次安装 (L611-617)
+        noise_filter: "^[\\w.-]+$" # 滤掉 '\\\\@tempb.sty' 类误捕 token (见 known_gaps)
+    engines:
+      xelatex: { mode: native }
+      tectonic:
+        mode: degrade
+        degrade: skip # bundle 按需拉包, 预检基本多余
+        fallback: ctan_fetch # 增强位: 仅做本地存在性检查, 缺则 ctan_fetch
+        note: "bundle 没有的包 (自定义 sty) 仍值得预检 → 保留轻量版"
+    provenance:
+      - { corpus: "*", error: "冷 TEXMFHOME 下高频 missing_file" }
+    stats: { fires: 22, note: "22/22 格执行; 每格装 0-9 包" }
+    source_ref: "fixloop.py L594-618"
+
+  # ─── loop: install 系 —— 环境缺失优先于源码改写 ───
+  - id: install_file
+    description: "缺文件 (.sty/.cls/.fd/.def/…) → filemap 查包 → 安装 → 探测复核"
+    phase: loop
+    order: 10
+    when: { category: missing_file, payload_required: true }
+    action:
+      kind: install_file
+      params:
+        file: "{payload}"
+        font_related_exts: [tfm, pfb, vf, fd, map, enc] # 命中扩展名 → 装后重建 map (L307)
+        verify: file_probe # 装后复核; 仍缺 → applied=False 落后续规则 (L274-275)
+        already_present_ok: true # 探测已在 → 记 applied (L268-269; 见 known_gaps 归因噪音)
+    engines:
+      xelatex:
+        { mode: native, via: "tlmgr search --file → tlmgr --usermode install" }
+      tectonic:
+        mode: degrade
+        degrade: ctan_fetch # filemap(tlpdb 索引)→tlnet archive→解包到工作目录/本地 texmf
+        fallback: advisory # 索引查不到 → 产出建议性报错 (附候选包名)
+    provenance:
+      - { corpus: "1706.03762/baseline", error: "File `import.sty' not found" }
+      - {
+          corpus: "1810.04805/*",
+          error: "File `xifthen.sty' / `ifmtarg.sty' not found",
+        }
+      - {
+          corpus: "*/ctex|zh (14格)",
+          error: "File `zhnumber.sty' not found (ctex 注入链)",
+        }
+    stats: { fires: 26, rescued_cells: 17 }
+    source_ref: "fixloop.py L301-311, L264-276"
+
+  - id: install_tfm
+    description: "Font X not loadable (TFM 缺) → 装 {X}.tfm 所在包 + 重建 map"
+    phase: loop
+    order: 20
+    when: { category: missing_tfm, payload_required: true }
+    action:
+      kind: install_file
+      params: { file: "{payload}.tfm", font_related: true, verify: file_probe }
+    engines:
+      xelatex: { mode: native }
+      tectonic:
+        mode: degrade
+        degrade: ctan_fetch # tfm 文件可落工作目录直接可用
+        fallback: advisory
+        note: "updmap 不存在: TFM 直读不需要 map; 若后端还要 pfb map → escalate"
+    provenance:
+      - {
+          corpus: "1511.06432/1512.03385/1810.04805/2106.09685 baseline",
+          error: "Font phvb at Npt not loadable → helvetic",
+        }
+      - { corpus: "1906.08237/*", error: "rsfs10 → rsfs" }
+    stats: { fires: 13, rescued_cells: 13 }
+    source_ref: "fixloop.py L314-321"
+
+  - id: install_sysfont
+    description: "fontspec 'font X cannot be found' → 按 {X}.otf/.ttf/.ttc 搜包安装"
+    phase: loop
+    order: 30
+    when: { category: fontspec_missing, payload_required: true }
+    action:
+      kind: install_file
+      params:
+        {
+          file: "{payload}",
+          try_exts: [".otf", ".ttf", ".ttc"],
+          font_related: true,
+        }
+    engines:
+      xelatex: { mode: native }
+      tectonic:
+        mode: degrade
+        degrade: ctan_fetch_font # 拉包装字体文件; 但 fontspec 按名查找需 fontconfig 可见
+        fallback: advisory # 建议: 换 bundle 内字体名 / 注入 fontspec Path=./ / 装系统字体
+        note: "放 workdir 不够, 需配合源改写 Path= 或字体注册 → 标 partial"
+    provenance:
+      - {
+          corpus: "*/ctex|zh (14格)",
+          error: "font “FandolSong-Regular” cannot be found → fandol",
+        }
+    stats: { fires: 14, rescued_cells: 14 }
+    source_ref: "fixloop.py L324-332"
+
+  - id: missing_pfb_updmap
+    description: "xdvipdfmx 物理字体缺失 (.vf/pfb) → updmap-user 重建 map"
+    phase: loop
+    order: 40
+    when: { category: missing_pfb }
+    action:
+      kind: run_tool
+      params: { argv: ["updmap-user"], once_per_payload: true, timeout: 120 }
+    engines:
+      xelatex: { mode: native }
+      tectonic:
+        mode: unsupported # tectonic 无 updmap, map 由 bundle 管
+        fallback: escalate_llm # 建议路由回 xelatex 或人工
+    provenance:
+      - {
+          corpus: "—",
+          error: "xdvipdfmx:fatal: Cannot proceed without .vf/physical font",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "fixloop.py L335-341"
+
+  # 新增 (docs/08:275): tectonic 下 missing_pfb 的改写出路 ——
+  # 物理字体投放已实证死路 (ctanfetch-probe §3.5), 换 Type1 近亲 shim
+  - id: font_sub_shim
+    description: "MF-only 字体包 (bbm 等) → Type1 近亲 (dsfont/dsrom) shim 改写"
+    phase: loop
+    order: 45 # missing_pfb 在 tectonic 的顺位 (updmap unsupported → 落此)
+    when: { category: missing_pfb, payload_required: false }
+    condition:
+      engine_in: [tectonic]
+      shim_known: true # 工程须用了 shim_map 内的 MF-only 包
+    action:
+      kind: builtin_transform
+      function: font_sub_shim
+      params:
+        exts: [.tex, .sty]
+        shim_map:
+          bbm:
+            {
+              usepackage: "dsfont",
+              cs_map:
+                { mathbbm: "mathds", mathbmss: "mathds", mathbmtt: "mathtt" },
+            }
+          # 探针实证改写 (ctanfetch-probe §3.5): 注掉 bbm, dsfont 已在 bundle 内
+    engines:
+      tectonic: { mode: native }
+      xelatex: { mode: skip } # xelatex 有 updmap, 不需要 shim
+    provenance:
+      - {
+          corpus: "2305.14335 (ctanfetch-probe)",
+          error: "xdvipdfmx: bbm10 physical font dead",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "docs/08-translate-compile.md L275; ctanfetch-probe.md §3.5"
+
+  # ─── loop: 源码改写系 —— 按"保守→激进"排序 ───
+  - id: pdftex_prim_guard
+    description: "pdfTeX 原语裸用 (\\pdfoutput 等 13 个) → \\ifdefined 守卫, xelatex 下静默跳过"
+    phase: loop
+    order: 50
+    when: { category: pdftex_prim }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          - {
+              pattern: "(?<!ifdefined)(\\\\(pdfoutput|pdfminorversion|pdfcompresslevel|pdfinfo|pdfpagewidth|pdfpageheight|pdfhorigin|pdfvorigin|pdfsuppressptexinfo|pdftrailer|pdfpxdimen|pdflastxpos|pdflastypos))(\\s*=\\s*[^\\n%]*)",
+              repl: '\\ifdefined\g<1>\g<0>\\fi',
+            }
+          - {
+              pattern: "(?<!ifdefined)(\\\\(pdfoutput|pdfminorversion|pdfcompresslevel|pdfinfo|pdfpagewidth|pdfpageheight|pdfhorigin|pdfvorigin|pdfsuppressptexinfo|pdftrailer|pdfpxdimen|pdflastxpos|pdflastypos))(\\s*\\{[^\\n]*\\})",
+              repl: '\\ifdefined\g<1>\g<0>\\fi',
+            }
+    risk: low # lookbehind 防重复套守卫, 幂等
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # XeTeX 内核, 守卫语义一致
+    provenance:
+      - {
+          corpus: "1412.6980/*",
+          error: "Undefined control sequence \\pdfoutput",
+        }
+    stats: { fires: 3, rescued_cells: 3 }
+    source_ref: "fixloop.py L344-361, L284-298"
+
+  # 新增 (docs/08:268): guard 只管赋值型; 读取型 \ifnum\pdfoutput 要补定义
+  - id: pdftex_prim_polyfill
+    description: "读取型 pdfTeX 原语 (\\ifnum\\pdfoutput 等) → 前导注入 \\ifdefined..\\else\\chardef=1\\fi"
+    phase: loop
+    order: 51 # 与 guard 同 trigger; dedup 后第二轮轮到它
+    when: { category: pdftex_prim, payload_required: true }
+    condition: { prim_read_form: "{payload}" } # 源码确有 \\if*\\<prim> 读取语境才注入
+    action:
+      kind: builtin_transform
+      function: pdftex_prim_polyfill
+      params: { prim: "{payload}" } # 在主文件 \\documentclass 行后注入守卫
+    risk: low
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "—",
+          error: "Undefined control sequence (\\ifnum\\pdfoutput 读取型)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "docs/08-translate-compile.md L268"
+
+  - id: px_to_bp
+    description: "非法单位 px → bp 换算 (CSS 96dpi: 1px = 0.75bp)"
+    phase: loop
+    order: 60
+    when: { category: illegal_unit }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty]
+        rewrites:
+          - { pattern: "(\\d*\\.?\\d+)\\s*px\\b", function: px_to_bp }
+          # px_to_bp: repl = fmt(num*0.75, 去尾零) + "bp"
+    risk: low
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1810.04805/*",
+          error: "Illegal unit of measure (px inserted)",
+        }
+    stats: { fires: 3, rescued_cells: 3 }
+    source_ref: "fixloop.py L364-375"
+
+  - id: microtype_off
+    description: "XeTeXglyph×TFM (microtype 探针量不了 TFM) → 关 protrusion/expansion"
+    phase: loop
+    order: 70 # 同 trigger 的 times_to_newtx(80) 之前: 先保守关特性
+    when: { category: xetexglyph_tfm }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          - {
+              pattern: "\\\\(usepackage|RequirePackage)\\s*(\\[[^\\]]*\\])?\\s*\\{microtype\\}",
+              repl: '\\\g<1>[protrusion=false,expansion=false]{microtype}',
+            }
+    risk: low
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1706.03762/ctex|zh, 1906.08237/ctex|zh",
+          error: "Cannot use XeTeXglyph with ptmr8c",
+        }
+    stats: { fires: 4, rescued_cells: 4 }
+    source_ref: "fixloop.py L378-393"
+
+  - id: times_to_newtx
+    description: "times/mathptmx/mathptm (T1 TFM 字体族) → newtxtext/newtxmath (OTF)"
+    phase: loop
+    order: 80 # 与 microtype_off 同 trigger; dedup 使同 payload 二轮才轮到它
+    when: { category: xetexglyph_tfm }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty]
+        rewrites:
+          - {
+              pattern: "\\{mathptmx\\}|\\{mathptm\\}",
+              repl: "{newtxtext,newtxmath}",
+            }
+          - { pattern: "\\{times\\}", repl: "{newtxtext}" }
+    risk: medium # 换字体族改版式
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "—",
+          error: "xetexglyph_tfm 的二线方案 (microtype_off 修不动时)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "fixloop.py L396-406"
+
+  - id: hyphenation_sane
+    description: "\\hyphenation{} 参数混入非拉丁 token (中文) → 剥离, 只留 [a-zA-Z-]"
+    phase: loop
+    order: 90
+    when: { category: hyphenation }
+    condition: { ctx_suggests: "\\hyphenation" } # "Not a letter" 也可能来自别处, 有 ctx 复核更稳
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          - {
+              pattern: "\\\\hyphenation\\{([^}]*)\\}",
+              flags: [DOTALL],
+              function: keep_latin_tokens,
+            }
+          # keep_latin_tokens: re.findall(r"[a-zA-Z][a-zA-Z-]*") → " ".join
+    risk: low
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1512.03385/zh",
+          error: "Not a letter (\\hyphenation 混入 CJK token)",
+        }
+    stats: { fires: 1, rescued_cells: 1 }
+    source_ref: "fixloop.py L409-426"
+
+  # 新增 (docs/08:272): xelatex 对非 UTF-8 源静默出 U+FFFD —— warning 驱动轮
+  - id: non_utf8_source
+    description: "xelatex 静默 U+FFFD (latin-5 等非 UTF-8 源) → 就地转码 UTF-8"
+    phase: loop
+    order: 95
+    when: { category: warn_utf8 } # warnings 段 invalid_utf8 命中升级的伪类别
+    condition: { engine_in: [xelatex] }
+    action:
+      kind: builtin_transform
+      function: non_utf8_recode # 逐文件 utf-8 解码失败 → cp1252/latin-1 重读重写
+      params: { exts: [.tex, .sty, .cls, .bib] }
+    risk: medium # 转码错判会毁源码; 只对真 decode-fail 文件动刀
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "非 UTF-8 语料 (docs/08 §4.2 路由表)",
+          error: "Invalid UTF-8 byte / U+FFFD 静默",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "docs/08-translate-compile.md L221, L272"
+
+  - id: soul_cjk_mbox
+    description: "soul 族 (\\hl\\ul\\st\\so\\caps) 参数含 CJK → \\mbox 包裹防逐字重构"
+    phase: loop
+    order: 100
+    when: { category: soul_err }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          - {
+              pattern: "\\\\(hl|ul|st|so|caps)\\{((?:[^{}]|\\{[^{}]*\\})*[\\u4e00-\\u9fff\\u3000-\\u303f\\uff00-\\uffef](?:[^{}]|\\{[^{}]*\\})*)\\}",
+              repl: '\\\g<1>{\\mbox{\g<2>}}',
+            }
+    risk: low
+    known_gap: "2005.11401/zh 触发 soul_err 但 regex 0 文件命中 → skip → dirty_pdf; 实际 soul 错因不在此 pattern 覆盖范围, 沉淀队列头号 case"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - { corpus: "2005.11401/zh", error: "Package soul Error (6 errs 残留)" }
+    stats: { fires: 0, note: "唯一触发格 0 命中 → 已知覆盖缺口" }
+    source_ref: "fixloop.py L429-445"
+
+  - id: thm_sibling_strip
+    description: "thmtools sibling= 定理计数器冲突 (already defined) → 剥 sibling 选项, 各定理独立编号"
+    phase: loop
+    order: 110
+    when: { category: already_def }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty]
+        rewrites:
+          - { pattern: "sibling\\s*=\\s*\\w+\\s*,?\\s*", repl: "" }
+    risk: medium # 改变定理编号
+    known_gap: "sibling= 0 命中时泛化 newtheorem 去重未实现 → applied=False (L453-455)"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "—",
+          error: "Command \\c@thm already defined (thmtools sibling)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "fixloop.py L448-456"
+
+  - id: option_clash_merge
+    description: "Option clash: 同包两次 \\usepackage → 合并选项到首处, 注释后处"
+    phase: loop
+    order: 120
+    when: { category: option_clash, payload_required: true }
+    action:
+      kind: builtin_transform # 非单条 regex: 找重复加载→合并选项→注释后者
+      function: option_clash_merge # params.pkg = payload; 详见 builtins.py 函数注册表
+      params: { pkg: "{payload}", exts: [.tex, .sty, .cls] }
+    risk: medium # 合并选项可能改变语义
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - { corpus: "—", error: "Option clash for package X" }
+    stats: { fires: 0, status: proposed }
+    source_ref: "fixloop.py L459-494"
+
+  - id: minted_frozencache
+    description: "minted frozencache 版本错配 → 有 pygmentize 则去 frozencache 选项 (需 -shell-escape)"
+    phase: loop
+    order: 130
+    when: { category: minted_froz }
+    condition: { tool_available: pygmentize } # 无 pygmentize → applied=False (L502-505)
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - { pattern: "frozencache\\s*,?\\s*", repl: "" }
+        engine_flags: ["-shell-escape"]
+    risk: medium
+    engines:
+      xelatex: { mode: native }
+      tectonic:
+        mode: degrade
+        degrade: partial # shell-escape 受限 → 建议改写 listings 或 advisory
+        fallback: advisory
+    provenance:
+      - { corpus: "—", error: "frozencache/Cannot highlight code" }
+    stats: { fires: 0, status: proposed }
+    source_ref: "fixloop.py L497-505"
+
+  # 新增 (docs/08:270): xelatex 侧 minted v3 装包 × 工程自带 v2 frozencache
+  # → 改挂 minted2 (v2 API 包)。注意改写只打包装载点: minted2 的 env 名仍是
+  # {minted}, \begin{minted} 绝不能动 (盲改 {minted}→{minted2} 会毁 env)。
+  - id: minted_v3_rewrite
+    description: "minted v3 装包 × 工程 v2 frozencache → \\usepackage{minted}→{minted2} 装载点改写"
+    phase: loop
+    order: 135 # frozencache 剥选项(130)先试; 它放弃/复发才轮到
+    when: { category: minted_froz }
+    condition:
+      engine_in: [xelatex]
+      cache_dir_glob: "_minted-*" # 工程确有 frozencache 目录才是 v3×v2 错配
+      package_version_ge: { file: "minted.sty", version: 3 }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "\\\\(usepackage|RequirePackage)(\\s*\\[[^\\]]*\\])?\\s*\\{minted\\}",
+              repl: '\\\g<1>\g<2>{minted2}',
+            }
+          - {
+              pattern: "\\\\PassOptionsToPackage(\\{[^}]*\\})\\{minted\\}",
+              repl: '\\PassOptionsToPackage\g<1>{minted2}',
+            }
+    risk: medium
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: skip } # tectonic 侧 minted 版本由 bundle 管, 无此错配
+    provenance:
+      - {
+          corpus: "—",
+          error: "minted v3 读 v2 frozencache 报 ~50 错 (docs/08:257)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "docs/08-translate-compile.md L257, L270"
+
+  # 新增 (docs/08:274): tectonic 自动 bibtex 产 stub bbl 在内存层遮蔽真 bbl
+  # (ctanfetch-probe §3.3 铁证: missing \item 真凶), 改写断链
+  - id: bbl_stub_shadow
+    description: "有 .bbl 无 .bib → \\bibliography{x} 改写 \\input{main.bbl}, 阻断 tectonic 自动 bibtex stub 遮蔽"
+    phase: loop
+    order: 140
+    when: { category: syntax } # 表现形态: Something's wrong--perhaps a missing \item
+    condition:
+      engine_in: [tectonic]
+      fileset: { has_ext: [.bbl], lacks_ext: [.bib] }
+    action:
+      kind: builtin_transform
+      function: bbl_stub_rewrite
+      params: { exts: [.tex] }
+    risk: low
+    engines:
+      tectonic: { mode: native }
+      xelatex: { mode: skip } # xelatex 侧同症由 normalize.use_bundled_bibliography 无条件处理
+    provenance:
+      - {
+          corpus: "2305.14335 (ctanfetch-probe §3.3)",
+          error: "missing \\item @ \\end{thebibliography} (stub bbl 遮蔽 360 行真 bbl)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "docs/08-translate-compile.md L274; ctanfetch-probe.md §3.3"
+
+  # 新增 (docs/08:269): 工程自带旧 .sty/.cls 遮蔽已装新版 ——
+  # 错误触发型 (undefined_cs/already_def 反复出现时才怀疑遮蔽),
+  # 按 \\ProvidesPackage 日期比较, 盲删必死 (同目录 cls 可能是唯一来源)
+  - id: vendored_sty_shadow
+    description: "工程自带旧 .sty/.cls 比系统新装版本旧 → rename 隔离 (.fixloop-iso)"
+    phase: loop
+    order: 150
+    when:
+      any:
+        - { category: undefined_cs }
+        - { category: already_def }
+    condition: { vendored_shadow: true } # builtin 探测: 本地副本日期 < 系统副本日期
+    action:
+      kind: builtin_transform
+      function: vendored_shadow_isolate
+      params: { exts: [.sty, .cls], suffix: ".fixloop-iso" }
+    risk: medium # rename 会改变工程布局; 只在确证更旧时动
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # tectonic 同理: cwd 旧版遮蔽 bundle 新版
+    provenance:
+      - { corpus: "—", error: "装了新包但错误依旧 → 工程内旧 .sty 遮蔽" }
+    stats: { fires: 0, status: proposed }
+    source_ref: "docs/08-translate-compile.md L269"
+
+  # ─── 兜底: 恒最后 ───
+  - id: undefined_cs_guess
+    description: "未定义控制序列 → cs→pkg 知识库长射 + LLM 兜底分析 (占位)"
+    phase: loop
+    order: 900 # 所有具体规则放弃后才轮到
+    when: { category: undefined_cs }
+    action:
+      kind: escalate_llm
+      params:
+        hint: "cs 名→sty 长射未实现; 交 LLM 判: 缺宏定义/缺包/拼写错误"
+        context: [first_bang, ctx8, file_stack, line_no]
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - { corpus: "—", error: "Undefined control sequence (非 pdf 原语类)" }
+    stats: { fires: 0, status: stub } # spike L523-527 恒返回 False
+    source_ref: "fixloop.py L523-527"
