@@ -24,14 +24,14 @@ Python 3.12 核心/CLI/服务端 · TS 仅 Web 前端 · AGPL 组件一律进程
 
 **实证**:miniscanner spike(1176 行，纯 Python 零依赖）259/259 + 32/32 陷阱 + 0.11% 泄漏 + identity 100% + 1.3ms。8 个现成库在宏展开上全灭，无可选项。**剩下的选择题只是"从谁身上抄什么"。**
 
-| 参考源 | 抄什么 | 位置 |
-|---|---|---|
-| **unified-latex** | CTAN 签名表（404 宏+128 环境 argspec `m o s d<>` xparse 风格）、受限展开+重解析路径、interval 重建思路 | `bench/ts/node_modules/@unified-latex/unified-latex-ctan/package/*/libs/` |
-| **latex-utensils** | 命令族分类（专用节点表：`command.href/url/verb/label` 形状）、Peggy 文法里的命令白名单 | `bench/ts/node_modules/latex-utensils/` |
-| **plasTeX** | 展开层设计：mouth/gullet 分离、参数 DSL(`args='* name:cs [nargs][opt:nox] definition:nox'`)、UnrecognizedMacro 兜底、**教训：绝不加载真实 .sty/.cls** | `bench/py/.venv/lib/python3.12/site-packages/plasTeX/` |
-| **TexSoup** | 逐字符 tokenizer 容错顺序（转义→注释→数学→命令→文本）、position 全程可靠 | `bench/py/.venv/lib/python3.12/site-packages/TexSoup/` |
-| **MathTranslate** | 受限展开白名单（宏体命中 `equation/align/theorem/…` 子串才展开）、占位符两侧垫空格、腾讯 UntranslatedText API 思路 | `/tmp/latex-refs/MathTranslate/` |
-| **miniscanner** | 全部机制：命令族表 150 行、piece 边界纪律、verbatim 先吃、宏表 env_begin/env_end 类属、`_args` 通用参数读取、子扫描器共享计数器、不动点重建 | `bench/py/miniscanner.py` |
+| 参考源             | 抄什么                                                                                                                                                | 位置                                                                      |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| **unified-latex**  | CTAN 签名表（404 宏 +128 环境 argspec `m o s d<>` xparse 风格）、受限展开 + 重解析路径、interval 重建思路                                             | `bench/ts/node_modules/@unified-latex/unified-latex-ctan/package/*/libs/` |
+| **latex-utensils** | 命令族分类（专用节点表：`command.href/url/verb/label` 形状）、Peggy 文法里的命令白名单                                                                | `bench/ts/node_modules/latex-utensils/`                                   |
+| **plasTeX**        | 展开层设计：mouth/gullet 分离、参数 DSL(`args='* name:cs [nargs][opt:nox] definition:nox'`)、UnrecognizedMacro 兜底、**教训：绝不加载真实 .sty/.cls** | `bench/py/.venv/lib/python3.12/site-packages/plasTeX/`                    |
+| **TexSoup**        | 逐字符 tokenizer 容错顺序（转义→注释→数学→命令→文本）、position 全程可靠                                                                              | `bench/py/.venv/lib/python3.12/site-packages/TexSoup/`                    |
+| **MathTranslate**  | 受限展开白名单（宏体命中 `equation/align/theorem/…` 子串才展开）、占位符两侧垫空格、腾讯 UntranslatedText API 思路                                    | `/tmp/latex-refs/MathTranslate/`                                          |
+| **miniscanner**    | 全部机制：命令族表 150 行、piece 边界纪律、verbatim 先吃、宏表 env_begin/env_end 类属、`_args` 通用参数读取、子扫描器共享计数器、不动点重建           | `bench/py/miniscanner.py`                                                 |
 
 **待决**:miniscanner 是否直接扶正为 `texlate.latex` 骨架（推荐：是，重写时顺便修 25 处残留泄漏：`$` 配对需计入保护段内 `$`、`\begin/\if` 字面残留后验重扫）。
 
@@ -41,7 +41,7 @@ macro-stats 实测（39 篇）:95% 有宏（median 47)、12/39 结构性宏、**
 
 **范围定案**：六类定义（`\newcommand/\renewcommand/\def/\DeclareMathOperator/\newenvironment/\NewDocumentCommand`)+ 参数代入 + 不动点迭代 + `\input` 展平 + `\if/\else/\fi` 结构化（ifmmode/`\newif` 旗标）。**不做**:catcode/halign/active chars（损失 ≤1/39)、完整 TeX 求值器。
 
-**待决**：展开时机——扫描中建表+调用点即时展开（miniscanner 现路线，推荐）vs 先建全表再二遍展开（unified-latex 路线，干净但多一遍）。前者实测已够，后者利于"定义在使用之后"的角落 case。
+**待决**：展开时机——扫描中建表 + 调用点即时展开（miniscanner 现路线，推荐）vs 先建全表再二遍展开（unified-latex 路线，干净但多一遍）。前者实测已够，后者利于"定义在使用之后"的角落 case。
 
 ## 3. 译文校验器 — 已定：tree-sitter-latex + 规则 diff
 
@@ -59,13 +59,14 @@ macro-stats 实测（39 篇）:95% 有宏（median 47)、12/39 结构性宏、**
 
 ### 4.2 Prompt 缓存（成本关键，逐 provider 实测过）
 
-| Provider | 机制 | 接入 |
-|---|---|---|
-| Anthropic | `cache_control: {type:"ephemeral"}` 手动断点（4 个）,5min TTL | anthropic SDK |
-| OpenAI/DeepSeek | 自动前缀缓存 >1024 token | 零代码 |
-| 火山 Doubao | Context API 显式建 context（省 80%） | 需手写 ~200 行 REST |
-| 阿里百炼 | 隐式缓存 | 零代码 |
-| **架构要求**:system prompt+术语表+占位符契约放前缀并稳定排序；ieeA 有现成 provider 缓存策略可参考 |
+| Provider        | 机制                                                          | 接入                |
+| --------------- | ------------------------------------------------------------- | ------------------- |
+| Anthropic       | `cache_control: {type:"ephemeral"}` 手动断点（4 个）,5min TTL | anthropic SDK       |
+| OpenAI/DeepSeek | 自动前缀缓存 >1024 token                                      | 零代码              |
+| 火山 Doubao     | Context API 显式建 context（省 80%）                          | 需手写 ~200 行 REST |
+| 阿里百炼        | 隐式缓存                                                      | 零代码              |
+
+**架构要求**:system prompt+ 术语表 + 占位符契约放前缀并稳定排序；ieeA 有现成 provider 缓存策略可参考
 
 ### 4.3 翻译回路（抄 LaTeXTrans，取其精华）
 
@@ -73,7 +74,7 @@ macro-stats 实测（39 篇）:95% 有宏（median 47)、12/39 结构性宏、**
 - **Prompt 条款可抄**(LaTeXTrans prompts.py)：占位符必须原样保留放第 10 条；人名保原语；caption/section/env 各用专属 system prompt。
 - **术语表**:`term_dict` 三级（user CSV > arXiv category 匹配 > default ~400-1800 行人工对）+ **`add_placeholder()` 妙技**：把全部占位符以 `ph→ph` 恒等映射灌进 glossary，占位符保护变术语硬约束。
 - **LLM judge**:need_trans 判不定的 env 问 LLM(temp=0、只答 True/False、5 few-shot）泛化未知环境——我们 miniscanner 的 unknown env 可用同款。
-- **并发**:`aiohttp/asyncio + Semaphore(10)` 段落级；每段完成即重写 map JSON 落盘（断点续跑+可观测）。
+- **并发**:`aiohttp/asyncio + Semaphore(10)` 段落级；每段完成即重写 map JSON 落盘（断点续跑 + 可观测）。
 
 ### 4.4 缓存键（抄 texglot)
 
@@ -84,7 +85,7 @@ macro-stats 实测（39 篇）:95% 有宏（median 47)、12/39 结构性宏、**
 - **主引擎 xelatex**:`-interaction=nonstopmode`，≤2 pass;**判定用 clean 阈值**(pdf 且 `'!'` 错误 ≤3),tectonic 静默降级教训——"出 PDF"≠成功。
 - **tectonic 便携降级**：单二进制 10–23MB、MIT、自动拉宏包；已知边界 pstricks/PK 字体/无 Win-ARM64/bundle 快照缺文件（放文档同目录可绕）。下载要做 checksum 校验（texglot 已验证三平台分发）。
 - **ctex 注入**:hjfy 实测同款 `\usepackage[fontset=windows,UTF8]{ctex}` 第 2 行注入，compile-bench 12 项目 **0% 破坏**；跨平台可换 `fontset=fandol`。
-- **fixloop 规则表**(16 条已实证，yaml 化待做）:`static_precheck`(kpsewhich 预检+批量 tlmgr)/`install_file`/`install_tfm`/`install_sysfont`/`pdftex_prim_guard`/`px_to_bp`/`microtype_off`/`hyphenation_sane`/`soul_cjk_mbox`/`thm_sibling_strip`/`option_clash_merge`/`times_to_newtx`/`missing_pfb_updmap`/`minted_frozencache`/`latex209_reject`(→latex+dvips 路由）/`undefined_cs_guess`(→LLM 修复器兜底）。
+- **fixloop 规则表**(16 条已实证，yaml 化待做）:`static_precheck`(kpsewhich 预检 + 批量 tlmgr)/`install_file`/`install_tfm`/`install_sysfont`/`pdftex_prim_guard`/`px_to_bp`/`microtype_off`/`hyphenation_sane`/`soul_cjk_mbox`/`thm_sibling_strip`/`option_clash_merge`/`times_to_newtx`/`missing_pfb_updmap`/`minted_frozencache`/`latex209_reject`(→latex+dvips 路由）/`undefined_cs_guess`(→LLM 修复器兜底）。
 - **`.bbl` 直消费**:42.5% 语料有 .bbl 无 .bib——编译时保留 .bbl 文件、不跑 bibtex。
 - **LaTeX 2.09 路由**:`\documentstyle` → 拒绝 xelatex，走 latex+dvips 或放弃。
 
@@ -98,17 +99,17 @@ macro-stats 实测（39 篇）:95% 有宏（median 47)、12/39 结构性宏、**
 
 ## 7. 服务层 — 待选
 
-| 组件 | 候选 | 推荐与理由 |
-|---|---|---|
-| HTTP | **FastAPI** + uvicorn | 生态/文档/SSE 成熟；texglot/hjfy 同构 |
-| SSE | sse-starlette 或裸 `StreamingResponse` | 逐段翻译进度；babeldoc sidecar 进度行也可用 |
-| 任务队列 | ①自写 asyncio.Queue+SQLite 持久化（本地单用户够） ②**huey**(SQLite broker，无需 Redis) ③dramatiq/arq（需 Redis/服务端再引） | **M0 用 ①**，服务端化再升 ② |
-| DB | **SQLite**(stdlib/sqlmodel) | 任务表+译文缓存+修复案例库 |
-| 服务端存储 | S3 兼容（译文 PDF 共享缓存） | 产品壁垒所在，后置 |
+| 组件       | 候选                                                                                                                        | 推荐与理由                                  |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| HTTP       | **FastAPI** + uvicorn                                                                                                       | 生态/文档/SSE 成熟；texglot/hjfy 同构       |
+| SSE        | sse-starlette 或裸 `StreamingResponse`                                                                                      | 逐段翻译进度；babeldoc sidecar 进度行也可用 |
+| 任务队列   | ①自写 asyncio.Queue+SQLite 持久化（本地单用户够） ②**huey**(SQLite broker，无需 Redis) ③dramatiq/arq（需 Redis/服务端再引） | **M0 用 ①**，服务端化再升 ②                 |
+| DB         | **SQLite**(stdlib/sqlmodel)                                                                                                 | 任务表 + 译文缓存 + 修复案例库              |
+| 服务端存储 | S3 兼容（译文 PDF 共享缓存）                                                                                                | 产品壁垒所在，后置                          |
 
 ## 8. 前端 — 待选框架，形态已定
 
-- **pdfslick**(pdfjs-dist 封装）:`@pdfslick/solid`(hjfy 同款）/ `@pdfslick/react`。**待决框架**：跟 hjfy 选 SolidJS+Zustand（轻、pdfslick 原生）vs React（生态大）。双 viewer 滚动同步需自写（scroll 事件+页锚映射，~100 行）。
+- **pdfslick**(pdfjs-dist 封装）:`@pdfslick/solid`(hjfy 同款）/ `@pdfslick/react`。**待决框架**：跟 hjfy 选 SolidJS+Zustand（轻、pdfslick 原生）vs React（生态大）。双 viewer 滚动同步需自写（scroll 事件 + 页锚映射，~100 行）。
 - **三模式**:split（左右）/original/translated —— hjfy 实测形态。
 - **KaTeX**:HTML 降级路线渲染数学；`marked` 渲染 MinerU markdown 对照。
 - **Vite + TS + vitest**:texglot 同款工具链。
@@ -121,22 +122,22 @@ macro-stats 实测（39 篇）:95% 有宏（median 47)、12/39 结构性宏、**
 - **两坑必须处理**:①`--no-send-temperature`（聚合网关兼容）;②**翻译失败静默 fallback 原文**——封装层校验 `Total tokens: 0` 或监控 `Fallback/BadRequestError` 日志。
 - **可借鉴工程点**：自动术语提取（每篇先跑 term extraction)、翻译缓存、`--max-pages-per-part` 分块。
 - **AGPL**:babeldoc+pdf2zh-next+PyMuPDF 全链 copyleft,**禁止 import 主进程**；输出 PDF 无 license 义务。
-- **MinerU**（过渡/备选）:`mineru-api` 自带 HTTP 服务+三语 SDK；输出 content_list.json 带 bbox 正好喂对照阅读器；Apache-2.0+署名条款（需 NOTICE)。**与 babeldoc 的分工待决**:MinerU→md 轻对照 vs babeldoc→同页双语 PDF，前者便宜后者效果好。
+- **MinerU**（过渡/备选）:`mineru-api` 自带 HTTP 服务 + 三语 SDK；输出 content_list.json 带 bbox 正好喂对照阅读器；Apache-2.0+ 署名条款（需 NOTICE)。**与 babeldoc 的分工待决**:MinerU→md 轻对照 vs babeldoc→同页双语 PDF，前者便宜后者效果好。
 
 ## 10. EPUB/DOCX/分发
 
-| 项 | 候选 | 注意 |
-|---|---|---|
-| EPUB | **EbookLib 是 AGPL**(import 即污染）→ 用 stdlib `zipfile`+`lxml`/BeautifulSoup 自拆 OPF/HTML,~200 行；或 EbookLib 也走 sidecar | 翻译模式=DOM 内插译（对照式） |
-| DOCX | **python-docx**(MIT) | 段落级插译成熟 |
-| CLI 分发 | **`uv tool install texlate`** | pdf2zh 同款事实标准；entry_points 单命令 |
-| 桌面（远期） | **Electron+PyInstaller**(texglot 矩阵已验证：mac dmg arm64+x64 / win nsis) | 引擎=冻结后端+spawn,UI 与 web 同源 |
-| Docker | 主镜像（Python+TeXLive或tectonic)+ babeldoc sidecar 镜像分离 | AGPL 不混镜像 |
+| 项           | 候选                                                                                                                           | 注意                                     |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------- |
+| EPUB         | **EbookLib 是 AGPL**(import 即污染）→ 用 stdlib `zipfile`+`lxml`/BeautifulSoup 自拆 OPF/HTML,~200 行；或 EbookLib 也走 sidecar | 翻译模式=DOM 内插译（对照式）            |
+| DOCX         | **python-docx**(MIT)                                                                                                           | 段落级插译成熟                           |
+| CLI 分发     | **`uv tool install texlate`**                                                                                                  | pdf2zh 同款事实标准；entry_points 单命令 |
+| 桌面（远期） | **Electron+PyInstaller**(texglot 矩阵已验证：mac dmg arm64+x64 / win nsis)                                                     | 引擎=冻结后端+spawn,UI 与 web 同源       |
+| Docker       | 主镜像（Python+TeXLive 或 tectonic)+ babeldoc sidecar 镜像分离                                                                 | AGPL 不混镜像                            |
 
 ## 11. License 边界表（红线）
 
-| 可 import(MIT/Apache/BSD) | 只能进程边界外（AGPL/Copyleft) |
-|---|---|
+| 可 import(MIT/Apache/BSD)                                                                                                                                                                                               | 只能进程边界外（AGPL/Copyleft)                                                   |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
 | fastapi/uvicorn/pydantic/openai/anthropic/aiohttp/tree-sitter/texsoup/plasTeX(LGPL?核实→用其设计不抄码）/unified-latex(MIT)/latex-utensils(MIT)/python-docx/tectonic(MIT 二进制）/pdfslick/KaTeX/lxml/bs4/sqlmodel/huey | **BabelDOC / pdf2zh / PyMuPDF / DocLayout-YOLO / EbookLib** → sidecar 或自写替代 |
 
 > 注：plasTeX 是 **LPPL**（非 LGPL)——可以 import 但建议只抄设计；ieeA 是 GPL-3 → 只看不搬。
@@ -152,4 +153,4 @@ macro-stats 实测（39 篇）:95% 有宏（median 47)、12/39 结构性宏、**
 7. **术语表 v0**：抄 LaTeXTrans `terms/*.csv` 人工对 + arXiv category 匹配，还是直接 LLM extract(BabelDOC 式 term extraction)。
 8. **MinerU vs BabelDOC 分工**：过渡期 MinerU(md 对照）值不值得做，还是一步到位 babeldoc。
 9. **共享译文缓存后端**：本地文件缓存先行，服务端 S3+Postgres 设计待定（含 BYOK 用户的隐私边界）。
-10. **LLM 修复器**:fixloop `undefined_cs_guess` 兜底规则是接 LLM 的第一处——prompt 设计（log+源文件上下文→最小 patch JSON)。
+10. **LLM 修复器**:fixloop `undefined_cs_guess` 兜底规则是接 LLM 的第一处——prompt 设计（log+ 源文件上下文→最小 patch JSON)。

@@ -9,9 +9,13 @@ node_modules/
 
 # bench 重产物 (可重建,不入库)
 bench/corpus/*/
+bench/corpus_v2/*/
+bench/corpus_v2/progress.json
+bench/corpus_v2/build.log
 bench/work_*/
 bench/results/babeldoc/
 !bench/corpus/MANIFEST.md
+!bench/corpus_v2/MANIFEST.md
 
 # tex 编译中间产物
 *.aux
@@ -29,3 +33,9 @@ bench/results/babeldoc/
 
 # 工具缓存
 .ruff_cache/
+
+# 调研实验现场 (repos/reports/experiments)
+tmp/
+
+# 文献原件 (PDF/HTML 二进制,可再生)
+docs/research/lit/

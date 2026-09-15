@@ -1,0 +1,104 @@
+# docs/research — 调研档案索引
+
+TeXlate（hjfy.top 开源复刻）全部调研报告。**裁决与方案以 `docs/05-reproduction-plan.md` 为准**；本目录是支撑详规与实测证据。实验现场在 `tmp/exp/`（gitignored，同名目录对应），参考仓库在 `tmp/refs/`（gitignored），文献原件在 `lit/`（gitignored——PDF/HTML 二进制再生可得）。
+
+## arxiv/ — arXiv 获取层
+
+| 文件                     | 内容                                                                                      |
+| ------------------------ | ----------------------------------------------------------------------------------------- |
+| `layer.md`               | **arXiv 层主详规**：三速率桶/406 日配额/e-print 三态/版本语义/license gate，§10-11 全裁决 |
+| `probes.md`              | 第一轮探针：rate-limit、HEAD 预检、条件请求                                               |
+| `serial2.md`             | 第二轮串行探针：190 发分层 HEAD 抽样（sample.jsonl 底材）                                 |
+| `export-probes.md`       | export.arxiv.org 全站镜像=第二下载桶、限流按路径不按 host                                 |
+| `oai-pmh.md`             | OAI-PMH 第三桶（oaipmh.arxiv.org）、`<license>` 字段唯一机读源                            |
+| `bulk-channels.md`       | IA tar / S3 requester-pays / gs://arxiv-dataset 批量通道对比                              |
+| `html-path.md`           | HTML 渲染降级路（ar5iv 生态、DOM 结构）                                                   |
+| `pdf-fidelity.md`        | en 侧 PDF 选型：官方 PDF vs 自编译（页漂移 13/15）                                        |
+| `licensing.md`           | arXiv license 法律面：nonexcl 对第三方零授权、CC 占比、托管合规                           |
+| `arxiv-to-prompt.md`     | `/arxiv-to-prompt` skill 逆向：uvx 工具链分析                                             |
+| `paper-search-assets.md` | `/paper-search` skill 的数据集与 API 资产盘点                                             |
+
+## latex/ — LaTeX 解析/编译/翻译管线
+
+| 文件                          | 内容                                                             |
+| ----------------------------- | ---------------------------------------------------------------- |
+| `miniscanner-rewrite-spec.md` | **半解析器重写规格**（`src/texlate/latex/` 9 文件蓝图 + 增补项） |
+| `expansion-design.md`         | 宏展开设计：单遍即时展开 vs 两遍建表裁决                         |
+| `expansion-timing.md`         | 展开时机语料统计（UBD=0 实证）                                   |
+| `validator-rules.md`          | L0 校验器规则规格（chunk 不变量）                                |
+| `validator-ts.md`             | tree-sitter L1 校验调研（baseline 相对模式裁决）                 |
+| `engine-matrix.md`            | 编译引擎矩阵：tectonic/xelatex 路由规则                          |
+| `pstricks-route.md`           | pstricks/eps 引擎路由实测                                        |
+| `ctan-argspec.md`             | CTAN 宏包参数规格获取                                            |
+| `ctanfetch-probe.md`          | tlmgr/CTAN 依赖解析探针                                          |
+| `doc-formats.md`              | EPUB/DOCX 通路规格（bbm 蓝图照抄）                               |
+| `pdf-path.md`                 | PDF 通路：BabelDOC sidecar 规格 + MinerU 深读                    |
+| `prompt-glossary-spec.md`     | 术语表/prompt 工程规格                                           |
+| `texglot-patterns.md`         | texglot 模式借鉴（normalize/阅读器/同步锚点）                    |
+| `fixloop-rules.md`            | fixloop 规则沉淀机制设计                                         |
+| `alignment-probe.md`          | named destinations 滚动同步锚点实测                              |
+
+## corpus/ — 语料与 benchmark（当前主线）
+
+| 文件                            | 内容                                                                                    |
+| ------------------------------- | --------------------------------------------------------------------------------------- |
+| `v3-plan.md`                    | **corpus_v3 数据管线定稿**：1,200 篇 = 1,000 核心 + 200 补强，30 簇 measure-then-sample |
+| `parsebench-v1.md`              | parsebench 首轮报告：137 篇无偏语料 223/223 ok、identity 100%、泄漏 0.086%              |
+| `parse-metrics-literature.md`   | 解析评估指标文献：unarXive 漏斗/GROBID 三档/Wilson/UTB                                  |
+| `bench-construction-methods.md` | benchmark 语料构建方法学：20 个先例对比 + 抽样统计引证                                  |
+| `ia-pilot.md`                   | IA bulk 管线 pilot：成员三态/特征提取速率/zipsum 索引/成本实测                          |
+| `post2020-sourcing.md`          | post-2020 渠道裁决：TIGER-5T byte-exact 实证、scholarweave 有损定量                     |
+| `frame-and-allocation.md`       | 抽样 frame：3.16M 行分层表、30 簇清单、配额分配                                         |
+| `hf-latex-datasets.md`          | HF 上 LaTeX 语料数据集普查                                                              |
+| `datasets.md`                   | arXiv 开放数据集与批量渠道普查                                                          |
+| `labels.md`                     | 分层键与真值标签源（HF 快照/OpenAlex/license）                                          |
+| `corpus39-profile.md`           | bench/corpus 39 篇机器级统计画像                                                        |
+| `arxmliv-unarxive.md`           | arXMLiv/ar5iv/unarXive 学术发行物调研（结论：无源码不入料）                             |
+
+## gateway/ — LLM 网关与模型选型
+
+| 文件                    | 内容                                                            |
+| ----------------------- | --------------------------------------------------------------- |
+| `probe-3003.md`         | 3003 网关首探：模型清单、协议契约                               |
+| `free-model-ranking.md` | **免费模型排序方法论**（338 次真实调用定案：swe-2-medium 默认） |
+| `free-glm.md`           | glm-5-2 免费档契约测试                                          |
+| `free-swe.md`           | swe-2 系免费档契约测试                                          |
+| `xlat.md`               | 翻译任务横评（xlat 组）                                         |
+| `gwbench-group-c.md`    | 网关横评 C 组实验                                               |
+| `cost-model.md`         | 翻译成本模型：chunk 统计 → token 估算（p50 91K/篇）             |
+
+## product/ — 产品/E2E/工程生态
+
+| 文件                   | 内容                                                         |
+| ---------------------- | ------------------------------------------------------------ |
+| `hjfy-site.md`         | **hjfy.top 线上侦察**：前端 bundle 逆向、API/状态机/OSS 产物 |
+| `web-layer.md`         | Web 层规格：API/SQLite 队列/BYOK/SolidJS+pdfslick/部署       |
+| `e2e-mock-pipeline.md` | 端到端 mock 管线：16 篇 13 clean 验证机械链路                |
+| `competitors.md`       | 竞品侦察矩阵：arXiv 阅读/翻译生态                            |
+| `multiagent-survey.md` | subagent/multi-agent 生态全景（CC 第一方/社区/外部框架）     |
+| `pi-parity.md`         | pi CLI 多 agent 能力对照                                     |
+
+## lit/ — 文献原件
+
+unarXive 2020/2022a/2022b、Nougat ×3、BabelDOC、S2ORC、pdfmathtranslate 等 PDF + arxmliv_stats/kitopen/sig HTML 快照 + olmOCR tests 源码。
+
+---
+
+## exp ↔ 报告对应表（`tmp/exp/`）
+
+| exp 目录                                                                | 报告                           | 说明                                                      |
+| ----------------------------------------------------------------------- | ------------------------------ | --------------------------------------------------------- |
+| `ia-pilot/`                                                             | corpus/ia-pilot.md             | 含可复用 `scan_tar.py`/`assemble.py` + 48 篇 pilot corpus |
+| `post2020/`                                                             | corpus/post2020-sourcing.md    | TIGER/scholarweave 对拍脚本与差异表                       |
+| `frame/`                                                                | corpus/frame-and-allocation.md | frame.parquet + allocation-*.csv（v3 构建输入）           |
+| `arxiv-probes/` `arxiv-serial2/` `export-probes/` `oai-probes/`         | arxiv/ 同名报告                | 探针原始响应                                              |
+| `bulk-channels/` `datasets/` `hf-datasets/` `labels/` `corpus-sources/` | corpus/arxiv 对应报告          | 渠道与数据集实测                                          |
+| `e2e/`                                                                  | product/e2e-mock-pipeline.md   | mock 管线代码 + 结果（work 目录已清）                     |
+| `engine/` `pstricks-probe/` `ctan/` `ctanfetch/`                        | latex/ 对应报告                | 编译路由实测                                              |
+| `align-probe/`                                                          | latex/alignment-probe.md       | dest 探针脚本 + 结果                                      |
+| `gwbench/` `costmodel/` `modelbench/`                                   | gateway/ 对应报告              | 网关横评与成本                                            |
+| `atp-src/` `atp-runs/`                                                  | arxiv/arxiv-to-prompt.md       | skill 逆向现场                                            |
+| `html-dom/` `pdf-fidelity/`                                             | arxiv/ 对应报告                | 渲染保真实验                                              |
+| `oracle/` `selfcheck/` `fixrules/` `rule-validator/` `ts-validator/`    | latex/ 校验器系                | L0/L1 校验实验                                            |
+| `corpus-profile/`                                                       | corpus/corpus39-profile.md     | profile.py + stats.json                                   |
+| `misc/`                                                                 | —                              | 无归属散件（userscript、macro_stats2）                    |
