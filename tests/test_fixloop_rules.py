@@ -44,7 +44,11 @@ def test_phase_ordering() -> None:
         "pstricks_dvips_preflight",
         "latex209_reject",
     ]
-    assert [r.id for r in RS.phase("precheck")] == ["eps_route", "static_precheck"]
+    # v2: eps_route 挪 loop 层 (log 确证后兜底拒); pstricks 独立成 precheck 项
+    assert [r.id for r in RS.phase("precheck")] == [
+        "pstricks_route",
+        "static_precheck",
+    ]
     loop = [r.id for r in RS.phase("loop")]
     assert loop[0] == "install_file"
     assert loop[-1] == "undefined_cs_guess"

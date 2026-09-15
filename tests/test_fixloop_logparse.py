@@ -117,7 +117,8 @@ def test_warn_patterns_scanned() -> None:
             "latex209",
             None,
         ),
-        ("! Undefined control sequence.\nl.5 \\foo", "undefined_cs", None),
+        # v2: undefined_cs payload 改抓 l.N 行末 cs 名 (供 polyfill/shadow 定位)
+        ("! Undefined control sequence.\nl.5 \\foo", "undefined_cs", "foo"),
         ("! TeX capacity exceeded, sorry.", "capacity", None),
         ("! Emergency stop.", "emergency", None),
         (

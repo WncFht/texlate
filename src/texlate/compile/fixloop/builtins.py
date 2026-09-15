@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import contextlib
 import re
+import shutil
+import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -249,7 +251,7 @@ def bbl_stub_rewrite(
         t = ctx.read(f)
         if t is None or "\\bibliography" not in t:
             continue
-        nt = pat.sub(f"\\input{{{target.name}}}", t, count=1)
+        nt = pat.sub(rf"\\input{{{target.name}}}", t, count=1)
         if nt != t:
             ctx.write(f, nt)
             changed += 1
@@ -298,7 +300,7 @@ def font_sub_shim(
 
             nt = load_pat.sub(_sw, nt)
             for old_cs, new_cs in (spec.get("cs_map") or {}).items():
-                nt = re.sub(rf"\\{old_cs}\b", f"\\{new_cs}", nt)
+                nt = re.sub(rf"\\{old_cs}\b", rf"\\{new_cs}", nt)
         if nt != t:
             ctx.write(f, nt)
             changed.append(f.name)
@@ -322,6 +324,356 @@ def pstricks_dvips_preflight(
     return True, f"REJECT: route={route} dvips-resources-ok"
 
 
+_EPS_EXTS = (".eps", ".ps")
+_GS_FLAGS = [
+    "-dSAFER",
+    "-dBATCH",
+    "-dNOPAUSE",
+    "-sDEVICE=pdfwrite",
+    "-dEPSCrop",
+    "-dEmbedAllFonts=true",
+]
+#: 只走 PostScript specials 的 graphicx 驱动 —— tectonic (xdvipdfmx) 下必死,
+#: 且 ``[dvips]{graphicx}`` 会把无扩展名引用的搜索序掰成 .eps 优先
+#: (1902.11112 实证: plykin.pdf 已生成仍请求 plykin.eps)。
+_PS_DRIVERS = frozenset(
+    {
+        "dvips",
+        "dvipsone",
+        "dvipsam",
+        "dviwindo",
+        "dviwin",
+        "oztex",
+        "textures",
+        "pctexps",
+        "pctexwin",
+        "pctexhp",
+        "pctex32",
+        "psprint",
+        "pubps",
+        "dvitops",
+        "dvi2ps",
+        "xdvi",
+    }
+)
+#: 带选项的装载点; documentclass/documentstyle/LoadClass 是全局选项位。
+_LOAD_OPT_RE = re.compile(
+    r"\\(usepackage|RequirePackage|documentclass|documentstyle|LoadClass)"
+    r"\s*\[([^\]\n]*)\](\s*\{[^}]*\})"
+)
+_GRAPHICS_PKGS_RE = re.compile(r"(?i)\b(?:graphics|graphicx|color|epsfig|epsf)\b")
+
+
+def _strip_ps_driver_opts(t: str) -> tuple[str, int]:
+    """摘 PS 路由驱动选项 → (新文本, 摘除数)。
+
+    usepackage/RequirePackage 只在参数表命中图形族包名时剥; 类装载点
+    (全局选项会下传给 graphicx) 无条件剥。选项表剥空时连方括号一起去掉。
+    """
+    n = 0
+
+    def _sub(m: re.Match[str]) -> str:
+        nonlocal n
+        cmd, opts, brace = m.group(1), m.group(2), m.group(3)
+        if cmd in ("usepackage", "RequirePackage") and not _GRAPHICS_PKGS_RE.search(
+            brace
+        ):
+            return m.group(0)
+        parts = [p.strip() for p in opts.split(",")]
+        keep = [p for p in parts if p and p.lower() not in _PS_DRIVERS]
+        if len(keep) == len(parts):
+            return m.group(0)
+        n += len(parts) - len(keep)
+        opt = f"[{','.join(keep)}]" if keep else ""
+        return f"\\{cmd}{opt}{brace}"
+
+    return _LOAD_OPT_RE.sub(_sub, t), n
+
+
+def _run_convert(tool: str, src: Path, dst: Path) -> tuple[int | None, str, bool]:
+    """跑单个转换工具 → (rc, out, timed_out)。argv 列表无 shell。"""
+    argv = (
+        [tool, str(src), f"--outfile={dst}"]
+        if Path(tool).name.startswith("epstopdf")
+        else [tool, *_GS_FLAGS, "-o", str(dst), str(src)]
+    )
+    try:
+        p = subprocess.run(  # noqa: S603  # 转换工具调用, 非用户输入
+            argv,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            errors="replace",
+            timeout=90,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return None, "", True
+    except OSError as e:
+        return None, f"{type(e).__name__}: {e}", False
+    else:
+        return p.returncode, p.stdout or "", False
+
+
+def _convert_one(epstopdf: str | None, gs: str | None, src: Path, dst: Path) -> bool:
+    """单个 .eps/.ps → .pdf: epstopdf 优先, gs -dEPSCrop 兜底 (texglot 同配方)。"""
+    for tool in (epstopdf, gs):
+        if not tool:
+            continue
+        rc, _out, to = _run_convert(tool, src, dst)
+        if rc == 0 and not to and dst.is_file() and dst.stat().st_size:
+            return True
+        dst.unlink(missing_ok=True)  # 失败残留清掉, 防半文件被当成产物
+    return False
+
+
+def _rewrite_eps_refs(
+    ctx: LoopCtx, exts: tuple[str, ...], converted: dict[str, str]
+) -> tuple[int, int]:
+    """逐 tex 文件: 字面量 ``x.eps``→``x.pdf`` + 剥 PS 驱动选项 → (改写文件数, 摘驱动数)。"""
+    n_files = 0
+    n_drivers = 0
+    for f in ctx.tex_files(exts):
+        t = ctx.read(f)
+        if t is None:
+            continue
+        nt = t
+        for old, new in converted.items():
+            if old in nt:
+                nt = nt.replace(old, new)
+        nt, k = _strip_ps_driver_opts(nt)
+        n_drivers += k
+        if nt != t:
+            ctx.write(f, nt)
+            n_files += 1
+    return n_files, n_drivers
+
+
+def eps_to_pdf(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""Xdvipdfmx EPS 硬墙救回: 全量 .eps/.ps → .pdf + 引用改写 + PS 驱动剥离。
+
+    实证 (fixloop-v2 整改探针): tectonic 报 ``image inclusion failed for "x.eps"``
+    时, 同名 ``x.pdf`` 存在即可过 —— graphicx 无扩展名引用的搜索序里 .pdf
+    先于 .eps, 显式 ``{x.eps}``/``file=x.eps`` 则由字面替换接住; 若工程带
+    ``[dvips]{graphicx}`` 等 PS 驱动选项 (1902.11112), 无扩展名引用仍会被掰回
+    .eps 优先, 故同步剥 PS 驱动。
+    参考 texglot app/graphics.py (gs -dEPSCrop + 引用改写同款思路)。
+    """
+    del eng, payload  # 转换不触引擎原语; 全量转换不靠单点 payload
+    epstopdf = shutil.which("epstopdf")
+    gs = shutil.which("gs") or shutil.which("gswin64c") or shutil.which("gswin32c")
+    if not epstopdf and not gs:
+        return False, "no epstopdf/gs available"
+    exts = tuple(params.get("exts") or (".tex", ".sty"))
+    sources = sorted(
+        p for p in ctx.wdir.rglob("*") if p.is_file() and p.suffix in _EPS_EXTS
+    )
+    if not sources:
+        return False, "no .eps/.ps in project"
+    converted: dict[str, str] = {}  # "fig.eps" -> "fig.pdf" (basename 级)
+    for src in sources:
+        dst = src.with_suffix(".pdf")
+        if dst.is_file() and dst.stat().st_size:
+            converted[src.name] = dst.name  # 上轮已转: 复用, 免重转
+            continue
+        if _convert_one(epstopdf, gs, src, dst):
+            converted[src.name] = dst.name
+    if not converted:
+        return False, f"0/{len(sources)} converted"
+    # 显式引用改写 + PS 驱动选项剥离: `x.eps`/`x.ps` 字面量改 `x.pdf`,
+    # [dvips] 族驱动摘掉让无扩展名引用落到 .pdf 搜索序
+    n_files, n_drivers = _rewrite_eps_refs(ctx, exts, converted)
+    note = (
+        f"eps->pdf {len(converted)}/{len(sources)} converted, "
+        f"refs rewritten in {n_files} files"
+    )
+    if n_drivers:
+        note += f", {n_drivers} ps-driver opts stripped"
+    return True, note
+
+
+def legacy_pkg_shim(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""退役/改名包的 shim: ``shim_map[payload]`` → 往 wdir 注入同名 stub + 装依赖。
+
+    spec 键:
+      ``loads: <pkg-base>`` — cls 类 stub 模板 ``\\LoadClassWithOptions{<pkg>}``;
+      ``body: <tex>``       — 自定义 stub 全文 (sty 桥接, 如 psfig→epsfig);
+      ``needs: [files]``    — stub 依赖文件, 先 install_file 补齐 (缺则照记, 下轮
+                              missing_file 自然归因)。
+    实证锚点 (fixloop-v2): aastex→emulateapj 救回 1806.06690 (aastex701 删了
+    ``\\altaffilmark`` 族, 非 drop-in; emulateapj 为 arXiv 投稿仿 aastex 接口);
+    psfig→epsfig 桥可用因 epsfig 的 Gin key 同收 ``figure=``/``file=``。
+    """
+    spec = (params.get("shim_map") or {}).get(payload or "")
+    if not spec:
+        return False, f"no legacy shim for {payload}"
+    stub = spec.get("body")
+    loads = spec.get("loads")
+    if not stub and loads:
+        stem = (payload or "").rsplit(".", 1)[0]
+        stub = (
+            "\\NeedsTeXFormat{LaTeX2e}\n"
+            # 版本串必须以 YYYY/MM/DD 日期开头: \\documentclass 装载时
+            # \\@ifl@t@r 会解析 ver@*.cls, 裸文字 "fixloop ..." 让
+            # \\@parse@version@ 读出 `f' → "Missing = inserted for \\ifnum"
+            # (1806.06690 实证; 无 halt-on-error 时可恢复故有 pdf 假象)。
+            f"\\ProvidesClass{{{stem}}}[2026/09/15 fixloop legacy shim -> {loads}]\n"
+            f"\\LoadClassWithOptions{{{loads}}}\n"
+            "\\endinput\n"
+        )
+    if not stub:
+        return False, f"shim spec for {payload} has neither body nor loads"
+    missing = []
+    for dep in spec.get("needs") or []:
+        if ctx.wdir.joinpath(dep).is_file():
+            continue
+        if eng.probe_file(dep) or eng.install_file(dep):
+            continue
+        missing.append(dep)
+    target = ctx.wdir / str(payload)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(stub, encoding="utf-8")
+    note = f"stub {payload} injected"
+    if loads:
+        note += f" (\\LoadClassWithOptions{{{loads}}})"
+    if missing:
+        note += f"; deps still missing: {', '.join(missing)}"
+    return True, note
+
+
+#: AAS 期刊缩写宏表 —— emulateapj.cls L1201-1256 ``\ref@jnl`` 全表抄录
+#: (去壳成纯文本展开)。实证锚点: tectonic bundle 内置 aastex 5.0rc3.1 (1999)
+#: 没有这批宏, 老 aastex 文档 \bibitem 里的 ``\actaa`` 族全成 undefined_cs
+#: (1806.06690 tectonic 臂)。\providecommand 语义: 类里已有定义时不覆盖。
+_JOURNAL_MACROS: dict[str, str] = {
+    "aj": "AJ",
+    "araa": "ARA\\&A",
+    "apj": "ApJ",
+    "apjl": "ApJ~Lett.",
+    "apjs": "ApJS",
+    "ao": "Appl.~Opt.",
+    "apss": "Ap\\&SS",
+    "aap": "A\\&A",
+    "aapr": "A\\&A~Rev.",
+    "aaps": "A\\&AS",
+    "azh": "AZh",
+    "baas": "BAAS",
+    "icarus": "Icarus",
+    "jrasc": "JRASC",
+    "memras": "MmRAS",
+    "mnras": "MNRAS",
+    "pra": "Phys.~Rev.~A",
+    "prb": "Phys.~Rev.~B",
+    "prc": "Phys.~Rev.~C",
+    "prd": "Phys.~Rev.~D",
+    "pre": "Phys.~Rev.~E",
+    "prl": "Phys.~Rev.~Lett.",
+    "pasp": "PASP",
+    "pasj": "PASJ",
+    "qjras": "QJRAS",
+    "skytel": "S\\&T",
+    "solphys": "Sol.~Phys.",
+    "sovast": "Soviet~Ast.",
+    "ssr": "Space~Sci.~Rev.",
+    "zap": "ZAp",
+    "nat": "Nature",
+    "iaucirc": "IAU~Circ.",
+    "aplett": "Astrophys.~Lett.",
+    "apspr": "Astrophys.~Space~Phys.~Res.",
+    "bain": "Bull.~Astron.~Inst.~Netherlands",
+    "fcp": "Fund.~Cosmic~Phys.",
+    "gca": "Geochim.~Cosmochim.~Acta",
+    "grl": "Geophys.~Res.~Lett.",
+    "jcp": "J.~Chem.~Phys.",
+    "jgr": "J.~Geophys.~Res.",
+    "jqsrt": "J.~Quant.~Spec.~Radiat.~Transf.",
+    "memsai": "Mem.~Soc.~Astron.~Italiana",
+    "nphysa": "Nucl.~Phys.~A",
+    "physrep": "Phys.~Rep.",
+    "physscr": "Phys.~Scr.",
+    "planss": "Planet.~Space~Sci.",
+    "procspie": "Proc.~SPIE",
+    "actaa": "Acta Astron.",
+    "caa": "Chinese Astron. Astrophys.",
+    "cjaa": "Chinese J. Astron. Astrophys.",
+    "jcap": "J.~Cosmology Astropart.~Phys.",
+    "na": "New~A",
+    "nar": "New~A~Rev.",
+    "pasa": "PASA",
+    "rmxaa": "Rev.~Mexicana Astron.~Astrofis.",
+}
+_DOCCLASS_LINE_RE = re.compile(r"(?m)^[ \t]*\\document(?:class|style)[^\n]*\n?")
+
+
+def journal_cs_polyfill(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""期刊缩写宏 polyfill: payload cs 命中表 → 全表 ``\providecommand`` 注入主文件。
+
+    一次注入整表而非单宏 —— ``\bibitem`` 里期刊宏成串出现, 逐宏救火要打
+    whack-a-mole 轮次; ``\providecommand`` 幂等, 重复注入无副作用。
+    payload 未命中 → False 落到 undefined_cs_guess。
+    """
+    del eng
+    table = dict(_JOURNAL_MACROS)
+    table.update(params.get("macros") or {})
+    cs = (payload or "").lstrip("\\")
+    if cs not in table:
+        return False, f"{payload} not a known journal macro"
+    main = ctx.main_path()
+    t = ctx.read(main) if main is not None else None
+    if t is None:
+        return False, "no main tex"
+    block = "% fixloop: AAS journal-macro polyfills (类文件过老缺定义)\n" + "\n".join(
+        rf"\providecommand{{\{name}}}{{{exp}}}" for name, exp in sorted(table.items())
+    )
+    m = _DOCCLASS_LINE_RE.search(t)
+    at = m.end() if m else 0
+    ctx.write(main, t[:at] + block + "\n" + t[at:])
+    return True, f"journal-macro polyfill injected (\\{cs} 命中, 全表 {len(table)} 宏)"
+
+
+def bundled_class_shadow(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""引擎 bundle 内建类太老 → wdir 注入同名 stub 遮蔽 (wdir 优先于 bundle)。
+
+    实证: tectonic 内置 aastex 5.0rc3.1 (1999) 缺 ``\actaa``/deluxetable
+    宏族 —— missing_file 永远打不到 (bundle 能解析), 只能 undefined_cs 确证后
+    遮蔽换 emulateapj。``cs_set`` 命中 + ``include_journal_table`` 并集判
+    payload; stub ``body`` 由 rules.yaml 提供 (版本串须日期开头, 见
+    legacy_pkg_shim 注)。
+    """
+    cs = (payload or "").lstrip("\\")
+    cs_set = {str(x).lstrip("\\") for x in params.get("cs_set") or []}
+    if params.get("include_journal_table"):
+        cs_set |= set(_JOURNAL_MACROS)
+    target = params.get("target")
+    body = params.get("body")
+    if not cs or cs not in cs_set or not target or not body:
+        return False, f"{payload} not in bundle-shadow set"
+    missing = []
+    for dep in params.get("needs") or []:
+        if (
+            ctx.wdir.joinpath(dep).is_file()
+            or eng.probe_file(dep)
+            or eng.install_file(dep)
+        ):
+            continue
+        missing.append(dep)
+    t = ctx.wdir / str(target)
+    t.parent.mkdir(parents=True, exist_ok=True)
+    t.write_text(body, encoding="utf-8")
+    note = f"shadow {target} injected (\\{cs} missing from bundled class)"
+    if missing:
+        note += f"; deps still missing: {', '.join(missing)}"
+    return True, note
+
+
 def shim_pkgs_in_use(ctx: LoopCtx, shim_map: dict[str, Any]) -> list[str]:
     r"""工程源码里实际 ``\\usepackage`` 的 shim_map 键 (shim_known 条件实现)。"""
     blob = ctx.source_blob()
@@ -343,4 +695,8 @@ TRANSFORM_FNS = {
     "bbl_stub_rewrite": bbl_stub_rewrite,
     "font_sub_shim": font_sub_shim,
     "pstricks_dvips_preflight": pstricks_dvips_preflight,
+    "eps_to_pdf": eps_to_pdf,
+    "legacy_pkg_shim": legacy_pkg_shim,
+    "journal_cs_polyfill": journal_cs_polyfill,
+    "bundled_class_shadow": bundled_class_shadow,
 }

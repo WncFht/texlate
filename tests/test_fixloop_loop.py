@@ -241,13 +241,30 @@ def test_latex209_gate_reject(tmp_path: Path) -> None:
     assert len(cell["rounds"]) == 1
 
 
+# tectonic xdvipdfmx PS 硬墙签名 (v2: 由 stdout_tail 的 error: 行归一成 ! 行)。
+PS_WALL_TAIL = (
+    "error: something bad happened inside xdvipdfmx\n"
+    'caused by: pdf: image inclusion failed for "fig.eps"\n'
+)
+
+
 def test_eps_route_rejects_on_tectonic(tmp_path: Path) -> None:
+    """v2: 仅当 log 确证 PS 硬墙且 eps_to_pdf 救不动才拒 (loop 兜底)。"""
+    (tmp_path / "fig.eps").write_text("%!PS")
+    eng = MockTectonic([{"log": CLEAN_LOG, "tail": PS_WALL_TAIL}])
+    cell = fixloop(make_proj(tmp_path), eng)
+    assert cell["verdict"] == "reject:eps_route"
+    # 先编译一轮拿到 ps_image 确证, 再拒 (旧契约是 precheck 零轮即拒)
+    assert cell["rounds"][0]["category"] == "ps_image"
+    assert isinstance(eng.ctan_fetch, CtanFetcher)  # 降级原语已注入
+
+
+def test_eps_route_fileset_only_clean_on_tectonic(tmp_path: Path) -> None:
+    """v2 关键回归: fileset 含 .eps 但编译干净 → 不拒 (旧版此处即误拒)。"""
     (tmp_path / "fig.eps").write_text("%!PS")
     eng = MockTectonic([{"log": CLEAN_LOG, "pdf": True}])
     cell = fixloop(make_proj(tmp_path), eng)
-    assert cell["verdict"] == "reject:eps_route"
-    assert cell["rounds"] == []  # precheck 阶段即拒绝, 未编译
-    assert isinstance(eng.ctan_fetch, CtanFetcher)  # 降级原语已注入
+    assert cell["verdict"] == "clean"
 
 
 def test_eps_route_skipped_on_xelatex(tmp_path: Path) -> None:

@@ -2,6 +2,19 @@
 #
 # 来源: bench/py/fixloop.py spike (冷 TEXMFHOME, 22 格, 16/16 救回) 的
 # 硬编码修复逻辑 → 数据化; 另并入 docs/08 §5.2 实证缺口回填的 9 条新规则。
+# v2 (2026-09-15 corpus_v2 40 篇实测整改): eps_route 由 fileset 静态拒改
+# log 确证 (ps_image taxonomy + eps_to_pdf 救回 + 兜底拒); pstricks 独立成
+# pstricks_route; legacy_pkg_shim 接住退役包; aastex_bundle_shadow 遮蔽
+# tectonic 内置老类 (aastex 5.0rc3); journal_cs_polyfill 补期刊缩写宏;
+# undefined_cs payload 改抓 l.N 行末 cs 名; latex209 gate 修行锚定防注释误杀。
+# 整改后 tectonic 臂 FAIL→pdf 1/16→12/16, reject 21→10 格, union pdf
+# 32→34/40, 零回归。missing_tfm 对账: 全 8 格经 install_tfm 修复、零
+# unfixable; astro-ph/0306068 xelatex 的 unfixable:other 实系 wdir 自带
+# 化石类 caps.cls (1997 CUP) 手工重实现 tabular 内核 (\hbox\bgroup$ +
+# \@tabarray + \ifnum0=`} 技巧) 与 LaTeX2e≥2024 内核不兼容 —— 任意
+# \chapter 即炸 "Extra }, or forgotten $.", 可恢复错被 halt-on-error
+# 提升为致命; tectonic bundle LaTeX2e 2021 不受影响 → clean。判为正确
+# 裁决 (修需改写对方 cls 内核, 无可泛化规则), 留痕备查。
 # 社区贡献入口 = 新增/修改本文件条目。
 #
 # 两层结构:
@@ -135,6 +148,16 @@ taxonomy:
       scope: head,
       pattern: "Cannot proceed without .vf|physical font",
     }
+  # —— xdvipdfmx PS 硬墙 (tectonic 无 gs 通道; 实证签名 fixloop-v2 整改) ——
+  # compilebench taxonomy 对应类别名 ps_image; 首错为
+  # "! something bad happened inside xdvipdfmx" (stdout_tail 归一),
+  # ctx8 内含 "caused by: pdf: image inclusion failed for "X.eps""。
+  - {
+      id: ps_image,
+      scope: head,
+      payload_group: 1,
+      pattern: 'image inclusion failed for "([^"]+\.(?:eps|ps|EPS|PS))"|PostScript images are not supported',
+    }
   - {
       id: fontspec_missing,
       scope: head,
@@ -172,9 +195,12 @@ taxonomy:
       pattern: "documentstyle|LaTeX ?2\\.09|LaTeX2e command .* in LaTeX 2\\.09",
     }
   # undefined_cs 命中后再细分 pdfTeX 原语 (L110-114)
+  # payload = 出错行 l.N 上最后一个 \cs (TeX 错误展示约定: 冒犯 cs 在该行末),
+  # 供 journal_cs_polyfill 等按名命中; 无 l. 行时 payload=None 正常降级。
   - id: undefined_cs
     scope: head
-    pattern: "Undefined control sequence"
+    pattern: "Undefined control sequence(?:[\\s\\S]*?l\\.\\d+[^\\n]*\\\\([a-zA-Z@]+))?"
+    payload_group: 1
     subclassify:
       { pattern: "\\\\(pdf[a-zA-Z@]+)", into: pdftex_prim, payload_group: 1 }
   - { id: capacity, scope: head, pattern: "TeX capacity exceeded" }
@@ -233,6 +259,11 @@ rules:
       any:
         - { category: latex209 }
         - { category: missing_file, main_head_contains: "\\documentstyle" }
+    condition: {
+        # v2 修正: mhc 子串会被注释 %\documentstyle 误中 (1806.06690);
+        # 加行锚定复核 —— 真 2.09 文档的 \documentstyle 必在行首。
+        source_contains: "(?m)^[ \\t]*\\\\documentstyle",
+      }
     action:
       kind: reject_route
       params: { route: "latex+dvips", reason: "LaTeX 2.09 document" }
@@ -256,9 +287,10 @@ rules:
       any:
         - { category: latex209 }
         - { category: missing_file, main_head_contains: "\\documentstyle" }
-    condition:
-      {
-        source_contains: "\\\\usepackage(\\[[^\\]]*\\])?\\{pstricks|pspicture|\\\\psset",
+    condition: {
+        # v2 修正: documentstyle 行锚定 (注释不命中) AND pstricks 依赖,
+        # 单 pattern 内顺序表达: \documentstyle 恒在文档头部先于包引用。
+        source_contains: "(?ms)^[ \\t]*\\\\documentstyle[\\s\\S]*?(\\\\usepackage(\\[[^\\]]*\\])?\\{pstricks|pspicture|\\\\psset)",
       }
     action:
       kind: builtin_transform
@@ -273,32 +305,37 @@ rules:
     source_ref: "docs/08-translate-compile.md L273"
 
   # ─── precheck: 静态路由 + 第 0 招装包, 不进循环 ───
-  # 新增 (docs/08:271): EPS/PS 是 tectonic 硬墙, 编译前静态判掉
-  - id: eps_route
-    description: "工程含 *.eps / pstricks / pspicture → 不进 fixloop 直接路由 xelatex (tectonic 硬墙)"
+  # v2 整改 (fixloop-corpusv2 实测): 原 eps_route 按 fileset 静态拒 .eps 工程,
+  # 实证误杀 —— tectonic 对部分 eps 工程能出 pdf~ (0812.4521/nucl-th/0104042
+  # baseline 即 pdf~), 且 epstopdf 转换可整格救回 (0903.0543/1406.1994 手测
+  # 出 pdf)。.eps 文件 → 循环内 log 确证的 ps_image 规则处理 (见 loop);
+  # 此处只留代码级 PS 依赖 (pstricks/pspicture) 的预检路由 —— 无转换路径。
+  - id: pstricks_route
+    description: "pstricks/pspicture/\\psset 源码依赖 → tectonic 无可行路径, 预检路由 xelatex"
     phase: precheck
     order: -10 # 路由决策先于装包预检
     when: { always: true }
     condition:
       engine_in: [tectonic]
-      any:
-        - { fileset: { has_ext: [.eps] } }
-        - {
-            source_contains: "\\\\usepackage(\\[[^\\]]*\\])?\\{(pstricks|pst-\\w+)\\}|pspicture|\\\\psset",
-          }
+      source_contains: "\\\\usepackage(\\[[^\\]]*\\])?\\{(pstricks|pst-\\w+)\\}|pspicture|\\\\psset"
     action:
       kind: reject_route
-      params: { route: "xelatex", reason: "EPS/pstricks hard wall on tectonic" }
+      params:
+        { route: "xelatex", reason: "pstricks/pspicture hard wall on tectonic" }
     engines:
       tectonic: { mode: native }
-      xelatex: { mode: skip } # xelatex 下 EPS 可走, 规则不触发
+      xelatex: { mode: skip } # xelatex 下 pstricks 可走 (dvips 后端另议), 不触发
     provenance:
       - {
           corpus: "pstricks-probe (docs/research/latex/pstricks-route.md)",
           error: "xdvipdfmx EPS hard wall",
         }
-    stats: { fires: 0, status: proposed }
-    source_ref: "docs/08-translate-compile.md L218, L271"
+    stats:
+      {
+        fires: 0,
+        note: "v1 为 eps_route fileset 版; v2 拆出 .eps 改走 ps_image 循环规则",
+      }
+    source_ref: "docs/08-translate-compile.md L218, L271; fixloop-v2 整改"
 
   - id: static_precheck
     description: "静态扫全部源码的 \\usepackage|\\RequirePackage|\\documentclass → 探测缺失 → filemap 批量装包 (一次装好, 省 N 轮循环)"
@@ -366,6 +403,58 @@ rules:
     stats: { fires: 26, rescued_cells: 17 }
     source_ref: "fixloop.py L301-311, L264-276"
 
+  # 新增 (fixloop-v2 整改): 退役/改名包 shim —— install_file 查无真包后的出路。
+  # 实证: 1806.06690 缺 aastex.cls → emulateapj 顶替出 13 页全文档 pdf;
+  # psfig→epsfig 桥可用因 epsfig 的 Gin key 同收 figure=/file= (graphics pkg,
+  # TL 内装得上)。真 2.09 文档到不了这里 —— gate 先拒, 语义分层干净。
+  - id: legacy_pkg_shim
+    description: "退役/改名包 (aastex/revtex.cls/psfig.sty 老名) → wdir 注入同名 stub + 装依赖"
+    phase: loop
+    order: 12 # install_file(10) 之后: 真包装得上先用真包, 查无才 shim
+    when: { category: missing_file, payload_required: true }
+    action:
+      kind: builtin_transform
+      function: legacy_pkg_shim
+      params:
+        shim_map:
+          # aastex→emulateapj 需自定义 body: emulateapj 的 deluxetable 重实现
+          # 明写 \rotate 不支持 (cls 注释 "too difficult to implement"),
+          # \providecommand 空宏保底 —— 表格竖排不换向, 内容全保 (1806.06690)。
+          # \ProvidesClass 版本串必须日期开头, 否则 \@ifl@t@r 解析崩 \ifnum。
+          aastex.cls:
+            needs: ["emulateapj.cls"]
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesClass{aastex}[2026/09/15 fixloop legacy shim -> emulateapj]
+              \LoadClassWithOptions{emulateapj}
+              \providecommand{\rotate}{}
+              \endinput
+          revtex.cls: { loads: "revtex4-2", needs: ["revtex4-2.cls"] }
+          psfig.sty:
+            needs: ["epsfig.sty"]
+            body: |
+              % 版本串必须日期开头 —— \@ifl@t@r 解析 ver@*.sty, 裸文字会
+              % 触发 "Missing = inserted for \ifnum" (halt-on-error 下致命)
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{psfig}[2026/09/15 fixloop legacy shim -> epsfig]
+              \RequirePackage{epsfig}
+              \let\psfig\epsfig
+              \endinput
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # stub 注入与引擎无关; needs 装不上则下轮 missing_file 归因
+    provenance:
+      - {
+          corpus: "1806.06690 (fixloop-corpusv2)",
+          error: "File `aastex.cls' not found (TL 只剩 aastex701, 非 drop-in)",
+        }
+      - {
+          corpus: "astro-ph/9702009 等 9 篇 corpus_v2",
+          error: "File `psfig.sty' not found (TL 已退役)",
+        }
+    stats: { fires: 1, rescued_cells: 1, status: validated } # 1806.06690 xel FAIL→clean 实证
+    source_ref: "fixloop-v2 整改; tlpdb filemap 实证 + 本机编译验证"
+
   - id: install_tfm
     description: "Font X not loadable (TFM 缺) → 装 {X}.tfm 所在包 + 重建 map"
     phase: loop
@@ -389,6 +478,56 @@ rules:
       - { corpus: "1906.08237/*", error: "rsfs10 → rsfs" }
     stats: { fires: 13, rescued_cells: 13 }
     source_ref: "fixloop.py L314-321"
+
+  # 新增 (fixloop-v2 整改): log 确证的 PS 硬墙 → 先救后拒。
+  # 实证: tectonic 对 .eps 工程分两类 —— 能出 pdf~ 的 (eps 引用未真正进
+  # xdvipdfmx 路径) 与撞墙的 ("image inclusion failed for X.eps")。
+  # epstopdf/gs 全量转换 + 显式引用改写可救后者 (0903.0543/1406.1994 手测出 pdf)。
+  - id: eps_to_pdf
+    description: "xdvipdfmx 'image inclusion failed for X.eps' → 全量 eps→pdf 转换 + .tex/.sty 显式引用改写"
+    phase: loop
+    order: 15
+    when: { category: ps_image }
+    action:
+      kind: builtin_transform
+      function: eps_to_pdf
+      params: { exts: [.tex, .sty] }
+    risk: low # 只加 .pdf 产物 + 改已死路径的引用; 扩展名引用改写有等价物
+    engines:
+      tectonic: { mode: native }
+      xelatex: { mode: same } # xelatex 撞此墙罕见 (xdvipdfmx 内嵌 gs), 撞上同法可救
+    provenance:
+      - {
+          corpus: "fixloop-corpusv2 ps_image 9 格 (tectonic)",
+          error: 'image inclusion failed for "*.eps" (xdvipdfmx unrecoverable)',
+        }
+    stats: { fires: 11, rescued_cells: 11, status: validated } # fixloop-v2-rules-2026-09-15 实测
+    source_ref: "fixloop-v2 整改; texglot app/graphics.py 同思路"
+
+  # 兜底拒: 转换工具缺席或全数失败时才拒 —— 替代原 precheck fileset 版,
+  # 后者实证把 baseline pdf~ 格也 0 轮拒掉 (0812.4521/nucl-th/0104042 回归)。
+  - id: eps_route
+    description: "log 确证 PS 硬墙且 eps_to_pdf 不可行 → 路由 xelatex"
+    phase: loop
+    order: 16
+    when: { category: ps_image }
+    action:
+      kind: reject_route
+      params:
+        {
+          route: "xelatex",
+          reason: "PS image hard wall (log-confirmed; epstopdf/gs 缺席或转换失败)",
+        }
+    engines:
+      tectonic: { mode: native }
+      xelatex: { mode: skip } # xelatex 侧救不动则 unfixable:ps_image 诚实上报
+    provenance:
+      - {
+          corpus: "fixloop-corpusv2 eps_route 11 拒格复盘",
+          error: "fileset 静态拒 → log 确证拒 (v2)",
+        }
+    stats: { fires: 0, status: validated } # 全语料 ps_image 均被 eps_to_pdf 救回, 兜底未点火
+    source_ref: "docs/08-translate-compile.md L218, L271; fixloop-v2 整改"
 
   - id: install_sysfont
     description: "fontspec 'font X cannot be found' → 按 {X}.otf/.ttf/.ttc 搜包安装"
@@ -834,6 +973,85 @@ rules:
       - { corpus: "—", error: "装了新包但错误依旧 → 工程内旧 .sty 遮蔽" }
     stats: { fires: 0, status: proposed }
     source_ref: "docs/08-translate-compile.md L269"
+
+  # 新增 (fixloop-v2 整改): tectonic bundle 内建类太老遮蔽 —— 内置
+  # aastex 5.0rc3.1 (1999) 缺 \actaa/deluxetable 宏族, missing_file 打不到
+  # (bundle 能解析), 只能 undefined_cs 确证后往 wdir 注 stub 遮蔽换 emulateapj
+  # (全 API 面一次补齐, 含 \rotate no-op; emulateapj 经 ctan_fetch 拉进 wdir)。
+  - id: aastex_bundle_shadow
+    description: "tectonic 内置 aastex 5.0rc3 缺新宏 → wdir 注 aastex.cls stub 遮蔽 (→emulateapj)"
+    phase: loop
+    order: 155 # journal_cs_polyfill(160) 之前: 遮蔽换类比逐宏补表更彻底
+    when: { category: undefined_cs, payload_required: true }
+    condition:
+      engine_in: [tectonic] # bundle 内建类问题只存在于 tectonic
+      source_contains: "\\\\documentclass[ \\t]*(\\[[^\\]]*\\])?[ \\t]*\\{aastex\\}"
+    action:
+      kind: builtin_transform
+      function: bundled_class_shadow
+      params:
+        target: aastex.cls
+        needs: ["emulateapj.cls"]
+        include_journal_table: true # \\actaa 族也算触发宏
+        cs_set: # aastex 5.0rc3 缺失的 deluxetable/新宏族 (emulateapj 全覆盖)
+          [
+            tabletypesize,
+            tablefontsize,
+            tablewidth,
+            tablenum,
+            tablehead,
+            colhead,
+            startdata,
+            enddata,
+            tablecomments,
+            tablerefs,
+            rotate,
+            deluxetable,
+            tablebreak,
+            figset,
+            platecomment,
+            splittablenotes,
+          ]
+        body: |
+          \NeedsTeXFormat{LaTeX2e}
+          \ProvidesClass{aastex}[2026/09/15 fixloop bundle shadow -> emulateapj]
+          \LoadClassWithOptions{emulateapj}
+          \providecommand{\rotate}{}
+          \endinput
+    engines:
+      xelatex: { mode: native } # 实际不可达: engine_in 门只放行 tectonic
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1806.06690 tectonic 臂 (fixloop-corpusv2)",
+          error: "Undefined control sequence \\actaa → \\tabletypesize (aastex 5.0rc3.1 连环缺)",
+        }
+    stats: { fires: 1, rescued_cells: 1, status: validated } # 1806.06690 tec 实证 clean
+    source_ref: "fixloop-v2 整改; tectonic bundle aastex 版本实证"
+
+  # 新增 (fixloop-v2 整改): AAS 期刊缩写宏缺失 —— tectonic bundle 内置
+  # aastex 5.0rc3.1 (1999) 没有 \actaa 族 (emulateapj/后期 aastex 才有);
+  # undefined_cs payload (l.N 行末 cs 名) 命中期刊表 → 全表 \providecommand
+  # 注入主文件 \documentclass 后。payload 不命中 → False 落 guess。
+  - id: journal_cs_polyfill
+    description: "AAS 期刊缩写宏缺失 (老 aastex/内置类太旧) → 注入期刊宏表 providecommand"
+    phase: loop
+    order: 160 # vendored_sty_shadow(150) 之后, undefined_cs_guess(900) 之前
+    when: { category: undefined_cs, payload_required: true }
+    action:
+      kind: builtin_transform
+      function: journal_cs_polyfill
+      params: {} # 默认表 = builtins._JOURNAL_MACROS; macros: {cs: 展开} 可扩
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1806.06690 tectonic 臂 (fixloop-corpusv2)",
+          error: "Undefined control sequence \\actaa (bundle 内 aastex 5.0rc3.1 无此宏)",
+        }
+    stats: { fires: 0, status: proposed } # 本语料唯一命中格被 order155 shadow 先接住
+    source_ref: "fixloop-v2 整改; emulateapj.cls L1201-1256 期刊表"
 
   # ─── 兜底: 恒最后 ───
   - id: undefined_cs_guess

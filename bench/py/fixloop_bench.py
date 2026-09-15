@@ -402,7 +402,9 @@ def report(papers_meta: list[dict]) -> None:
     lines.append("# fixloop bench — corpus_v2 40 篇无偏样本 × 产品化规则库")
     lines.append("")
     lines.append(f"- 日期: {doc['meta']['date']}")
-    lines.append(f"- 规则库: `{RS.path}` (25 规则, max_rounds={RS.max_rounds()})")
+    lines.append(
+        f"- 规则库: `{RS.path}` ({len(RS.rules)} 规则, max_rounds={RS.max_rounds()})"
+    )
     lines.append(
         "- 口径: 每篇独立冷 `_texmf` usertree (xelatex) / pin bundle+ctan_fetch "
         "(tectonic); 无 sandbox-exec; fixloop 直跑 (无 normalize/inject 前置)"
@@ -433,7 +435,7 @@ def report(papers_meta: list[dict]) -> None:
             if (base.get((c["paper_id"], eng)) or {}).get("verdict") == "FAIL"
         ]
         n_fail = len(fail_cells)
-        resc_pdf = sum(1 for c in fail_cells if c.get("final_pdf"))
+        resc_pdf = sum(1 for c in fail_cells if c.get("verdict") in PDFY)
         resc_good = sum(1 for c in fail_cells if c.get("verdict") in GOOD)
         lines.append(
             f"| {eng} | {n} | {bvc.get('clean', 0)}/{bvc.get('pdf~', 0)}/"
@@ -455,7 +457,7 @@ def report(papers_meta: list[dict]) -> None:
     fl_union_pdf = sum(
         1
         for pid, cells_d in by_paper.items()
-        if any(c.get("final_pdf") for c in cells_d.values())
+        if any(c.get("verdict") in PDFY for c in cells_d.values())
     )
     fl_union_good = sum(
         1
@@ -506,12 +508,12 @@ def report(papers_meta: list[dict]) -> None:
         if b.get("verdict") == "FAIL":
             cat_eng[(b.get("category") or "?", c["engine"])].append(c)
     for (cat, eng), cs in sorted(cat_eng.items(), key=lambda kv: -len(kv[1])):
-        npdf = sum(1 for c in cs if c.get("final_pdf"))
+        npdf = sum(1 for c in cs if c.get("verdict") in PDFY)
         ngood = sum(1 for c in cs if c.get("verdict") in GOOD)
         left = [
             f"{c['paper_id']}({c.get('final_cat') or c.get('verdict')})"
             for c in cs
-            if not c.get("final_pdf")
+            if c.get("verdict") not in PDFY
         ]
         lines.append(
             f"| {cat} | {eng} | {len(cs)} | {npdf} | {ngood} | "
@@ -532,7 +534,7 @@ def report(papers_meta: list[dict]) -> None:
             if not rid:
                 continue
             rule_hit[rid][c["engine"]] += 1
-            if c.get("final_pdf"):
+            if c.get("verdict") in PDFY:
                 rule_resc[rid].add((c["paper_id"], c["engine"]))
     for r in RS.rules:
         h = rule_hit.get(r.id, Counter())
@@ -554,11 +556,11 @@ def report(papers_meta: list[dict]) -> None:
         lines.append("")
 
     # §5 未救回清单
-    lines.append("## 5. 未救回格 (final_pdf=False, 按终态类别聚类)")
+    lines.append("## 5. 未救回格 (verdict 非 clean/ok~/dirty, 按终态类别聚类)")
     lines.append("")
     lines.append("| paper | eng | verdict | 终态cat | 轮数 | log_excerpt |")
     lines.append("|---|---|---|---|---|---|")
-    dead = [c for c in cells if not c.get("final_pdf")]
+    dead = [c for c in cells if c.get("verdict") not in PDFY]
     for c in sorted(dead, key=lambda c: (str(c.get("final_cat") or ""), c["paper_id"])):
         exc = (c.get("log_excerpt") or "").replace("\n", " ")[:140]
         lines.append(
@@ -573,7 +575,7 @@ def report(papers_meta: list[dict]) -> None:
     reg = [
         c
         for c in cells
-        if not c.get("final_pdf")
+        if c.get("verdict") not in PDFY
         and (base.get((c["paper_id"], c["engine"])) or {}).get("verdict")
         in ("clean", "pdf~")
     ]
@@ -623,17 +625,27 @@ def report(papers_meta: list[dict]) -> None:
 
 
 def main() -> None:
+    # --out 重绑后 run_paper/report 经全局读新目录 (v2 整改批次);
+    # 模块级单例配置, noqa 保留直白写法
+    global OUT  # noqa: PLW0603
     ap = argparse.ArgumentParser()
     ap.add_argument("--report", action="store_true")
     ap.add_argument("--jobs", type=int, default=JOBS)
     ap.add_argument("--only", default="")
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument(
+        "--out",
+        default=str(OUT),
+        help="结果目录 (默认 fixloop-corpusv2-*; 整改批次用 fixloop-v2-*)",
+    )
     args = ap.parse_args()
+    OUT = Path(args.out).expanduser().resolve()
 
     sample = json.loads(SAMPLE.read_text())
     papers = sample["papers"]
     if args.only:
-        papers = [p for p in papers if args.only in p["id"]]
+        pats = [s.strip() for s in args.only.split(",") if s.strip()]
+        papers = [p for p in papers if any(s in p["id"] for s in pats)]
     if args.limit:
         papers = papers[: args.limit]
 
