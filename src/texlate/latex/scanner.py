@@ -602,7 +602,33 @@ class Scanner:
                     break  # 定界强制缺失 → 参数不匹配，停读
                 else:
                     out.append(ArgSpan(Span(pos, pos), Span(pos, pos), s))
-            # 'e'/'b'/未知：不消费（修饰/环境体语义不在调用点）
+            elif s.kind == "e":
+                # 修饰参 ``e{^_}``：逐个 token 试吃 ``X{arg}``/``X<tok>``，
+                # 整段并作一个 ArgSpan（content==full 覆盖 `^{sup}` 全文——
+                # 此前 e/b 不占位导致 spec 位序错位 + 后续 {arg} 落正文，
+                # scanner-audit F10）；缺省 → 零宽占位保位序
+                es = pos
+                if s.delim:
+                    rest = list(dict.fromkeys(s.delim))
+                    while rest:
+                        p = ws_skip_arg(tex, pos)
+                        if p >= n or tex[p] not in rest:
+                            break
+                        pos = p + 1
+                        rest.remove(tex[p])
+                        p = ws_skip_arg(tex, pos)
+                        if p < n and tex[p] == "{":
+                            e2 = match_brace(tex, p)
+                            pos = e2 or p
+                        elif p < n and tex[p] != "\\" and tex[p] not in " \t\n\r":
+                            pos = p + 1  # 单 token 修饰参（`^2` 形）
+                        else:
+                            pos = p
+                out.append(ArgSpan(Span(es, pos), Span(es, pos), s))
+            else:
+                # 'b'（环境体，只在 env 定义里有义）/无 delim 的 dDrRt/未知：
+                # 不消费但占零宽位——protect_args 位序与 spec 对齐
+                out.append(ArgSpan(Span(pos, pos), Span(pos, pos), s))
         return out, pos
 
     def _find_env_end(self, i: int, env: str) -> tuple[int, int] | None:  # noqa: C901, PLR0912 — begin/end/verb/宏端点四分支单遍查找，平铺即 §3.5

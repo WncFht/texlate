@@ -17,7 +17,7 @@
 | F7 | 已修：`_split_core` 硬切改全 core PH_RX 扫描（scanner.py） |
 | F8 | 误报：真实 TeX 的 verbatim 收尾就是字面 `\end{verbatim}`，`%` 在体内惰性——裸 `find` 行为正确，不改 |
 | F9 | 已修：`` `\X `` 转义形消费 3 字符取 `ord(X)`（scanner.py `_read_number`） |
-| F10 | 待修：`e`/`b` spec 不消费不占位 → 位序错位（低频，排入下一批） |
+| F10 | 已修：`e` token 表入 `ArgSpec.delim` + `_args` 消费 `^{..}`/`_{..}` 全段；`b`/无 delim/未知 kind 一律零宽占位——`len(args)==len(spec)` 位序不变式成立 |
 | F11 | 已修：`_protect_call` 增定界符形 `\url|…|`（scanner.py，EOL 上限对齐 `\verb`） |
 | F12 | 待修：未闭合 env O(N·n) 悬崖（需缓存/限距，排入下一批） |
 

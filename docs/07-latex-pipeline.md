@@ -470,7 +470,7 @@ scanner-audit（2026-09-15，`bench/results/scanner-audit-2026-09-15.md`）F 系
 | F7  | `_split_core` 硬切腰斩 `[[X_n]]`                              | 已修（全 core PH_RX 扫描）                              |
 | F8  | verbatim 裸 `find` 收尾（注释内 `\end`/`end {env}`）          | 误报（真实 TeX 即字面匹配），不改                       |
 | F9  | `` `\X `` 字符码读错（ord('\\') + 只吃 2 字符）               | 已修（消费 3 字符取 `ord(X)`）                          |
-| F10 | `e`/`b` spec 静默跳过 → 参数位序错位                          | 待修（低频）                                            |
+| F10 | `e`/`b` spec 静默跳过 → 参数位序错位                          | 已修（e 消费修饰段 + 全 kind 零宽占位保位序）           |
 | F11 | `\url｜delim｜` 定界形漏保护                                  | 已修（`_protect_call` 定界符分支）                      |
 | F12 | 未闭合 env `_find_env_end` O(N·n) 性能悬崖                    | 待修（缓存/限距）                                       |
 

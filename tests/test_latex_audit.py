@@ -511,3 +511,48 @@ def test_audit_f11_url_delim_form() -> None:
     res = scan("See \\url|http://example.com| for more info here.")
     assert any("http://example.com" in v for v in res.ph_map.values())
     assert not any("example.com" in c.content for c in res.chunks)
+
+
+def test_audit_f10_e_spec_arg_consumed() -> None:
+    r"""F10：``e{^}`` 修饰参消费 ``^{arg}``——``{sup}{second}`` 不落正文。
+
+    OPAQUE 宏整段进 ``[[MACRO]]``：旧实现 ``e`` 不占位 → 第二 ``m`` 把
+    ``^`` 当单 token 参吞掉，``{sup}{second}`` 裸组落 chunk。
+    """
+    body = (
+        "\\NewDocumentCommand{\\x}{m e{^} m}{#1#2}\n"
+        "Before \\x{first}^{sup}{second} after words here."
+    )
+    res = scan(body)
+    b = blob(res)
+    assert "{sup}" not in b
+    assert "{second}" not in b
+    assert "first" not in b  # 整调用 [[MACRO]]，无残片
+    assert reconstruct(res) == DOC % body
+
+
+def test_audit_f10_e_spec_absent_keeps_position() -> None:
+    r"""F10 缺省形：``\\x{a}{b}`` 无 ``^``——e 位占零宽、后参不错位。"""
+    body = (
+        "\\NewDocumentCommand{\\x}{m e{^} m}{#1#2}\n"
+        "Before \\x{first}{second} after words here."
+    )
+    res = scan(body)
+    b = blob(res)
+    assert "{second}" not in b
+    assert "first" not in b
+    assert reconstruct(res) == DOC % body
+
+
+def test_audit_f10_e_spec_multi_tokens() -> None:
+    r"""F10：``e{^_}`` 双 token——``^{a}_{b}`` 全段覆盖。"""
+    body = (
+        "\\NewDocumentCommand{\\x}{m e{^_} m}{#1#2}\n"
+        "Before \\x{first}^{up}_{dn}{second} after words."
+    )
+    res = scan(body)
+    b = blob(res)
+    assert "{up}" not in b
+    assert "{dn}" not in b
+    assert "{second}" not in b
+    assert reconstruct(res) == DOC % body

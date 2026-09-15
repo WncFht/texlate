@@ -174,8 +174,10 @@ def parse_argspec(spec_str: str) -> list[ArgSpec]:  # noqa: C901, PLR0912 — ar
         elif ch == "v":
             out.append(ArgSpec("v"))
         elif ch == "e":
-            _, i = _spec_braced(spec_str, i, "{", "}")
-            out.append(ArgSpec("e"))
+            d, i = _spec_braced(spec_str, i, "{", "}")
+            # token 表入 delim（``e{^_}``→"^_"）——调用点按它试吃修饰参
+            # （此前丢弃 → e-spec 永不消费，位序错位，scanner-audit F10）
+            out.append(ArgSpec("e", delim=d or ""))
         elif ch == "t":
             # t 是单字符测试符（t* / t< 各测一字），与 d/D/r/R 的双字符对不同
             pos = ws_skip(spec_str, i)
