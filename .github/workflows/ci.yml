@@ -73,3 +73,27 @@ jobs:
             head -1 "$f" | grep -q "zsh" || shfmt -d -i 2 "$f"
             head -1 "$f" | grep -q "zsh" || shellcheck -S warning "$f"
           done
+
+  pytest:
+    name: Pytest
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Node (L1 tree-sitter 层依赖)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: bench/ts 依赖（tree-sitter-latex binding）
+        run: npm ci --prefix bench/ts
+
+      - name: uv sync
+        run: uv sync --frozen
+
+      - name: pytest
+        run: uv run pytest tests/ -q
