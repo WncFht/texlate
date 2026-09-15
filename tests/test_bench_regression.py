@@ -6,7 +6,16 @@ r"""B2 fixtures 陷阱断言回归（docs/10 §B2）——spike ``miniscanner_te
 - ``tricky-209.tex``：LaTeX 2.09 旧式组合 3 条（``\beq/\eeq``、``\documentstyle``、``\def``）+ parse_ok；
 - ``tricky-multi/``：T14 ``\input/\include`` 展平 4 条；
 - ``xlat-traps.tex``：xlat 契约压力形 4 条（``@Xn``——产品遮蔽口径
-  ``[[BIB_n]]``/``\href[[HREF_n]]``/``[[URL_n]]``，与 xlatbench SYNTHETIC S1–S4 同源）。
+  ``[[BIB_n]]``/``\href[[HREF_n]]``/``[[URL_n]]``，与 xlatbench SYNTHETIC S1–S4 同源）；
+- ``tricky-w.tex``：W 系列野机制 11 条（``@Wnn`` ↔ corpus_v3 mechanisms.jsonl 台账行，
+  infix-over/unbraced-args/arg-next-line/eol-pct-join/range-cite/discretionary/
+  pct-comment/comment-macro/spaced-env/enddoc-tail/usepackage-comment）；
+- ``tricky-w73/``：``\input{../...}`` 路径逃逸——出 main/ 进 shared/（paper 内）与
+  出 paper 根进 fixtures/（根外），锁 ``_resolve`` 字面跟随 ``../`` 的现行语义；
+- ``tricky-wenc.tex``：W72 混合编码字节件（合法 UTF-8 序列 + 孤立 latin1 字节共存），
+  走 ``decode_tex`` 单码选定路径——identity 基准同源改用 ``decode_tex`` 而非
+  ``errors="replace"``，断言只锁 latin1 侧 ``café``（单码不可救的 utf8 侧形态留给
+  normalize 分档层演进）。
 
 断言函数 ``assert_tricky`` / ``assert_209`` / ``assert_multi`` / ``assert_xlat``
 与 bench 跑分器 ``bench/py/fixture_assert.py`` 共享（该脚本直接 import 本模块）。
@@ -28,6 +37,7 @@ import pytest
 
 from texlate.latex import flatten_inputs, parse_file, reconstruct, validate_result
 from texlate.latex.placeholder import CHUNK_RX, PH_RX
+from texlate.textutil import decode_tex
 
 if TYPE_CHECKING:
     from types import FrameType
@@ -41,6 +51,9 @@ FIXTURE_FILES = [
     ("tricky-209.tex", FIXTURES / "tricky-209.tex"),
     ("tricky-multi/main.tex", FIXTURES / "tricky-multi" / "main.tex"),
     ("xlat-traps.tex", FIXTURES / "xlat-traps.tex"),
+    ("tricky-w.tex", FIXTURES / "tricky-w.tex"),
+    ("tricky-w73/main/main.tex", FIXTURES / "tricky-w73" / "main" / "main.tex"),
+    ("tricky-wenc.tex", FIXTURES / "tricky-wenc.tex"),
 ]
 
 # 泄漏扫描口径（spike 同表）：可译 chunk 内不得出现这些构造
@@ -155,7 +168,7 @@ def run_fixture(name: str, path: Path, timeout_s: int = 30) -> FixtureScan:
     translated = {c.id: fake_translation(c, i) for i, c in enumerate(res.chunks)}
     recon_fake = reconstruct(res, translated)
     flat = flatten_inputs(
-        path.read_text(encoding="utf-8", errors="replace"),
+        decode_tex(path.read_bytes()),
         str(path.parent),
         str(path.parent),
     )
@@ -527,18 +540,116 @@ def assert_xlat(res: ScanResult | None) -> dict[str, dict[str, str]]:
     return out
 
 
-# ---------------------------------------------------------------- 模块级测量（4 个小文件，ms 级）
+def assert_w(
+    res: ScanResult | None, recon: str, recon_fake: str
+) -> dict[str, dict[str, str]]:
+    """tricky-w.tex W 系列野机制逐条断言（``@Wnn`` ↔ mechanisms.jsonl 台账行）。"""
+    if res is None:
+        return {"_meta": {"status": "info", "detail": "parse failed"}}
+    chunks = chunks_blob(res)
+    out: dict[str, dict[str, str]] = {}
+
+    def no_leak(tid: str, rx: str, note: str) -> None:
+        m = re.search(rx, chunks)
+        out[tid] = {
+            "status": "fail" if m else "pass",
+            "detail": f"leaked {m.group(0)!r}" if m else note,
+        }
+
+    def absent(tid: str, needle: str, note: str) -> None:
+        out[tid] = {
+            "status": "pass" if needle not in chunks else "fail",
+            "detail": note if needle not in chunks else f"{needle!r} in chunks",
+        }
+
+    def present(tid: str, needle: str, note: str) -> None:
+        out[tid] = {
+            "status": "pass" if needle in chunks else "fail",
+            "detail": note if needle in chunks else f"{needle!r} missing",
+        }
+
+    # W11 \usepackage 参数跨行夹注释 → preamble literal，包名不进 chunk
+    absent("W11", "graphicx", "usepackage 跨行参数仍落 preamble literal")
+    # W15 \end{document} 之后真实正文/通信文本 → 不译但 identity 保留
+    out["W15"] = {
+        "status": "pass"
+        if ("referee" not in chunks and "Dear referee" in recon)
+        else "fail",
+        "detail": "post-\\end{document} prose literal in recon, absent from chunks",
+    }
+    # W50 \comment{...} 空宏吞块 → 内容不进译文
+    absent("W50", "author-todo", "\\comment{...} block swallowed from translation")
+    # W67 \begin {env} 标签与括号间插空格
+    present("W67", "Spaced env-tag body", "\\begin {abstract} spaced tag parsed")
+    # W75 plain-TeX 中缀分式 → 数学 ph 不透明
+    no_leak("W75", r"\\over\b|\\buildrel\b", "infix \\over/\\buildrel opaque in math")
+    # W82 无花括号单记号参数 → 数学 ph 不透明
+    no_leak("W82", r"\\frac|\\sqrt", "unbraced args inside math ph")
+    # W83 cs 与必选参数换行分隔 → cite 照常保护
+    absent("W83", "vaswani2017", "\\cite<NL>{key} -> [[CITE_n]]")
+    # W84 行尾 % 在数学参数内拼接记号 → identity 不破 + ph 完整
+    no_leak("W84", r"\\overline|\\chi", "%-join inside math arg keeps ph whole")
+    # W90 \cite{a-b} 区间当键 → key 不透出
+    absent("W90", "a-b", "range-as-key cite stays in ph")
+    # W91 可译文本内 \- 手工断词 → 原样透传
+    present("W91", "dis\\-cretionary", "\\- literal passthrough in translatable text")
+    # W92 注释内 $ \cite{ghost} \begin{equation} → 注释不可见
+    absent("W92", "ghost", "comment body invisible to scanner")
+
+    res_chunk = len(CHUNK_RX.findall(recon_fake))
+    res_prot = len(PH_RX.findall(recon_fake))
+    out["_meta"] = {
+        "status": "info",
+        "detail": f"chunks={len(res.chunks)} ph={len(res.ph_map)} "
+        f"residue_chunk={res_chunk} residue_prot={res_prot}",
+    }
+    return out
+
+
+def assert_w73(res: ScanResult | None) -> dict[str, dict[str, str]]:
+    """tricky-w73 ``\\input{../}`` 路径逃逸断言（锁现行字面跟随语义）。"""
+    chunks = chunks_blob(res) if res else ""
+    return {
+        "W73_within_paper_escape": {
+            "status": "pass" if "Shared-file sentence" in chunks else "fail",
+            "detail": "../shared/defs.tex（paper 内出目录）resolved inline",
+        },
+        "W73_beyond_root_escape": {
+            "status": "pass" if "Outside-root sentence" in chunks else "fail",
+            "detail": "../../escape-outside.tex（出 paper 根）resolved inline",
+        },
+    }
+
+
+def assert_wenc(res: ScanResult | None) -> dict[str, dict[str, str]]:
+    """tricky-wenc 混合编码断言（只锁 latin1 侧——单码选定下 utf8 侧 mojibake 留档）。"""
+    chunks = chunks_blob(res) if res else ""
+    return {
+        "W72_mixed_decoded": {
+            "status": "pass" if "café" in chunks else "fail",
+            "detail": "decode_tex 单码选定 latin1 → café 存活（mixed 分档归 normalize 层）",
+        }
+    }
+
+
+# ---------------------------------------------------------------- 模块级测量（7 个小文件，ms 级）
 
 _PARSED = {name: run_fixture(name, path) for name, path in FIXTURE_FILES}
 _t = _PARSED["tricky.tex"]
 _209 = _PARSED["tricky-209.tex"]
 _m = _PARSED["tricky-multi/main.tex"]
 _x = _PARSED["xlat-traps.tex"]
+_w = _PARSED["tricky-w.tex"]
+_w73 = _PARSED["tricky-w73/main/main.tex"]
+_wenc = _PARSED["tricky-wenc.tex"]
 
 TRICKY_ASSERTS = assert_tricky(_t.res, _t.recon, _t.recon_fake) if _t.res else {}
 ASSERTS_209 = assert_209(_209.res, _209.recon)
 MULTI_ASSERTS = assert_multi(_m.recon) if _m.res else {}
 XLAT_ASSERTS = assert_xlat(_x.res)
+W_ASSERTS = assert_w(_w.res, _w.recon, _w.recon_fake) if _w.res else {}
+W73_ASSERTS = assert_w73(_w73.res) if _w73.res else {}
+WENC_ASSERTS = assert_wenc(_wenc.res) if _wenc.res else {}
 
 # tricky.tex 的断言全集（docs/10：新增断言只增不减——T14 在 multi，T15/T28 不存在）
 TRICKY_IDS = [
@@ -585,6 +696,25 @@ XLAT_IDS = [
     "@X3-verbatim-pct",
     "@X4-dense-math",
 ]
+# tricky-w.tex 的断言全集（Wnn ↔ bench/corpus_v3/mechanisms.jsonl 台账行）
+W_IDS = [
+    "W11",
+    "W15",
+    "W50",
+    "W67",
+    "W75",
+    "W82",
+    "W83",
+    "W84",
+    "W90",
+    "W91",
+    "W92",
+]
+W73_IDS = [
+    "W73_within_paper_escape",
+    "W73_beyond_root_escape",
+]
+WENC_IDS = ["W72_mixed_decoded"]
 ALL_FIXTURE_NAMES = [n for n, _ in FIXTURE_FILES]
 
 
@@ -699,3 +829,35 @@ def test_xlat(aid: str) -> None:
 def test_xlat_matrix_complete() -> None:
     """断言矩阵只增不减：新增 ``@Xn`` 断言必须登记进 ``XLAT_IDS``。"""
     assert set(XLAT_ASSERTS) == set(XLAT_IDS)
+
+
+# ---------------------------------------------------------------- tricky-w / w73 / wenc 逐条
+
+
+@pytest.mark.parametrize("aid", W_IDS)
+def test_w(aid: str) -> None:
+    """tricky-w.tex W 系列野机制逐条断言（断言体在 ``assert_w``）。"""
+    a = W_ASSERTS.get(aid)
+    assert a is not None, f"missing assertion {aid} (parse failed?)"
+    assert a["status"] == "pass", f"{aid} {a['status']}: {a['detail']}"
+
+
+def test_w_matrix_complete() -> None:
+    """``@Wnn`` 断言与 ``W_IDS`` 登记一致（只增不减口径同 tricky）。"""
+    assert set(W_ASSERTS) == set(W_IDS) | {"_meta"}
+
+
+@pytest.mark.parametrize("aid", W73_IDS)
+def test_w73(aid: str) -> None:
+    """tricky-w73 ``\\input{../}`` 路径逃逸断言。"""
+    a = W73_ASSERTS.get(aid)
+    assert a is not None, f"missing assertion {aid} (parse failed?)"
+    assert a["status"] == "pass", f"{aid} {a['status']}: {a['detail']}"
+
+
+@pytest.mark.parametrize("aid", WENC_IDS)
+def test_wenc(aid: str) -> None:
+    """tricky-wenc 混合编码字节件断言。"""
+    a = WENC_ASSERTS.get(aid)
+    assert a is not None, f"missing assertion {aid} (parse failed?)"
+    assert a["status"] == "pass", f"{aid} {a['status']}: {a['detail']}"

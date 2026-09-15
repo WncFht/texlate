@@ -1,0 +1,49 @@
+% W-series wild-mechanism fixture — mechanisms.jsonl 台账 Wnn 对应的流内陷阱。
+% Each case marked % @Wnn — parser benchmark asserts per marker.
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb}
+% @W11 \usepackage 参数跨行夹注释
+\usepackage{%
+graphicx}
+\usepackage{natbib}
+
+\begin{document}
+
+% @W75 plain-TeX 中缀分式 \over/\buildrel —— 数学体不透明
+Infix fraction ${a\over b}$ and $\buildrel x \over y$ stay protected.
+
+% @W82 数学宏无花括号单记号参数
+Unbraced math args $\frac 12$ plus $\sqrt3$ and $\frac\chi2$ inline.
+
+% @W83 控制序列与必选参数被换行分隔
+A cite split across lines \cite
+{vaswani2017} must stay protected.
+
+% @W84 行尾 % 在数学参数内拼接记号
+Comment-join inside math $\overline{%
+\chi}$ keeps identity.
+
+% @W90 \cite{a-b} 区间当键
+Range-as-key \cite{a-b} must stay protected.
+
+% @W91 可译文本内 \- 手工断词
+Real text with dis\-cretionary hyphen keeps the command literal.
+
+% @W92 注释内含孤立数学定界符（编辑器平衡伪注释）
+% stray $ \cite{ghost} \begin{equation} inside comment
+Real paragraph continues after the comment.
+
+% @W50 \comment{...} 空宏吞块——块内容不进译文
+\comment{this whole block is author-todo, must not translate}
+
+% @W67 环境标签与括号间插空格
+\begin {abstract}
+Spaced env-tag body must still parse as abstract content.
+\end {abstract}
+
+Tail paragraph before end.
+\end{document}
+
+% @W15 \end{document} 之后尾随真实正文/通信文本
+Dear referee, thank you for the careful reading. This trailing letter
+is real prose but must stay literal, never translated.
