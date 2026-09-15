@@ -30,7 +30,7 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-ROOT = Path("/Users/fanghaotian/src/texlate")
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
 from texlate.compile.engine import route_project

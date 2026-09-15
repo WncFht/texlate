@@ -67,7 +67,7 @@ from texlate.latex import (
     reconstruct,
     validate_result,
 )
-from texlate.latex.segmenter import parse_tex_v2
+from texlate.latex.api import parse_file_v1
 from texlate.textutil import decode_tex
 
 if TYPE_CHECKING:
@@ -215,12 +215,12 @@ def ph_tail_risk(res: ScanResult) -> int:
 
 
 def parse_one(path: Path, timeout_s: int, *, flatten: bool = True) -> dict:
-    """api.parse_file + SIGALRM 超时; 返回 {ok,res,ms}|{ok,error,ms}."""
+    """api.parse_file_v1 + SIGALRM 超时; 返回 {ok,res,ms}|{ok,error,ms}."""
     t0 = time.perf_counter()
     signal.signal(signal.SIGALRM, _alarm)
     signal.alarm(timeout_s)
     try:
-        res = parse_file(str(path), flatten=flatten)
+        res = parse_file_v1(str(path), flatten=flatten)
         ms_ = (time.perf_counter() - t0) * 1000
         return {"ok": True, "res": res, "ms": round(ms_, 1)}
     except ParseTimeout:
@@ -233,10 +233,11 @@ def parse_one(path: Path, timeout_s: int, *, flatten: bool = True) -> dict:
 
 
 def parse_one_v2(path: Path, timeout_s: int) -> dict:
-    """segmenter.parse_tex_v2 + 同超时; 输入与 v1 同视图 (decode+flatten).
+    """api.parse_file（v2 产品路径）+ 同超时.
 
-    v2 自身 Gullet 不持 root_dir——喂展平文本即绕开 \\input 解析差异,
-    与 v1 在相同字节上对照 (S5 双跑门). 返回 {ok,res,flat,ms}|{ok,error,ms}.
+    gullet 自解析 \\input 内联——vtex = 展开机产出；``flat`` 仍由
+    flatten_inputs 算出供 vtex_vs_src 对照（展开足迹 = vtex 与 flatten
+    输出的差异）。返回 {ok,res,flat,ms}|{ok,error,ms}.
     """
     t0 = time.perf_counter()
     signal.signal(signal.SIGALRM, _alarm)
@@ -244,7 +245,7 @@ def parse_one_v2(path: Path, timeout_s: int) -> dict:
     try:
         orig = decode_tex(path.read_bytes())
         flat = flatten_inputs(orig, str(path.parent), str(path.parent))
-        res = parse_tex_v2(flat)
+        res = parse_file(str(path))
         ms_ = (time.perf_counter() - t0) * 1000
         return {"ok": True, "res": res, "flat": flat, "ms": round(ms_, 1)}
     except ParseTimeout:
@@ -296,6 +297,10 @@ def file_metrics_v2(path: Path, timeout_s: int) -> dict:
             "residue_protect_ph": rb["residue_protect_ph"],
             "n_orphan_chunks": rb["n_orphan_chunks"],
         }
+        # v2 inputs 混合语义：resolved 记 abs path, 漏网记原始名——按 isabs 过滤
+        out["unresolved_inputs"] = [
+            name for _pos, name in res.inputs if not os.path.isabs(name)
+        ]
     except Exception as exc:
         out["measure_error"] = f"{type(exc).__name__}: {exc}"
     return out

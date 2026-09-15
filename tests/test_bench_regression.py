@@ -730,10 +730,15 @@ def test_parse_ok(name: str) -> None:
 
 @pytest.mark.parametrize("name", ALL_FIXTURE_NAMES)
 def test_identity_reconstruct(name: str) -> None:
-    """identity 重建 == 展平后原文（逐字节）。"""
+    """identity 重建 == ``res.vtex``（逐字节）。
+
+    v2 的 identity 基准是 vtex（展开机产出文本），不是 flatten 输出——
+    cs 后空白被 tokenizer 吞、``\\if`` 死支不落地等差异属产品语义。
+    """
     p = _PARSED[name]
     assert p.ok, p.error
-    status, _ratio, _first = classify_recon(p.flat, p.recon)
+    assert p.res is not None
+    status, _ratio, _first = classify_recon(p.res.vtex, p.recon)
     assert status == "identical", f"{status} first_diff_at={_first}"
 
 

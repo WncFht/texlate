@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from texlate.latex import parse_file, parse_tex, reconstruct
+from texlate.latex import parse_file, parse_tex, parse_tex_v1, reconstruct
 from texlate.latex.api import new_state
 from texlate.latex.flatten import flatten_inputs
 from texlate.latex.macro_table import parse_argspec
@@ -138,21 +138,29 @@ def test_audit_argspec_t_single_char_delim() -> None:
 
 
 def test_audit_def_params_span_newline() -> None:
-    r"""``\def\a#1\n#2{BODY}``：参数文本里单 ``\n`` 是 space token（TeX 语义）。
+    r"""``\def\a#1\n#2{BODY}``：参数文本 ``\n`` 成 space token → ``#1`` 空格定界。
 
-    此前 ``\n`` 硬停 → ``ok=True`` 但 body 位对不上 → 静默不登记零 warning。
+    v2 按 TeX 语义登记 [delim, m]（v1 的 ["m","m"] 是近似）；关键是登记成功
+    且无 def_parse_fail——v1 此前 ``\n`` 硬停曾静默不登记零 warning。
     """
     res = parse_tex("\\def\\a#1\n#2{BODY}\ntext after \\a{x}{y} end")
-    assert "a" in res.macros.cmds
-    assert [s.kind for s in res.macros.cmds["a"].spec] == ["m", "m"]
+    e = res.macros.lookup("a")
+    assert e is not None
+    assert [s.kind for s in e.spec] == ["delim", "m"]
     assert not any(w.kind == "def_parse_fail" for w in res.warnings)
 
 
 def test_audit_def_bodyless_warns() -> None:
-    r"""纯 ``#n`` 序列后无 ``{body}``（EOF/参数被 ``\par`` 截断）→ ``def_parse_fail``。"""
+    r"""纯 ``#n`` 序列后无 ``{body}``（EOF/参数被 ``\par`` 截断）→ ``def_parse_fail``。
+
+    ``\\par`` 截断半：v2 gullet 把 ``\\n\\n`` 后文本当定界符照常登记
+    （TeX 报 "Paragraph ended" 错误但 gullet 无 \\long 检查）——该断言
+    钉 ``parse_tex_v1`` 守卫 v1 腿；EOF 截断两腿行为一致仍走默认 v2。
+    """
     res = parse_tex("\\def\\c#1")
+    assert res.macros.lookup("c") is None
     assert any(w.kind == "def_parse_fail" for w in res.warnings)
-    res = parse_tex("\\def\\d#1\n\nNext para {grp} more")
+    res = parse_tex_v1("\\def\\d#1\n\nNext para {grp} more")
     assert "d" not in res.macros.cmds
     assert any(w.kind == "def_parse_fail" for w in res.warnings)
     assert reconstruct(res) == "\\def\\d#1\n\nNext para {grp} more"
@@ -170,7 +178,7 @@ def test_audit_crlf_ws_skip() -> None:
         "\\documentclass{article}\r\n\\begin{document}\r\n"
         "\\newcommand{\\x}\r\n{bodytext} para text here.\r\n\\end{document}\r\n"
     )
-    assert "x" in res.macros.cmds
+    assert res.macros.lookup("x") is not None
 
 
 def test_audit_protect_call_opt_not_across_parbreak() -> None:
@@ -449,7 +457,7 @@ def test_audit_f3_newenvironment_opt_default() -> None:
         "\\newenvironment{mybox}[1][dflt]{\\textbf{#1} begintext}{endtext}\n"
         "Para text follows here with words."
     )
-    assert "mybox" in res.macros.envs
+    assert res.macros.lookup_env("mybox") is not None
     assert not any(
         "begintext" in c.content or "endtext" in c.content for c in res.chunks
     )

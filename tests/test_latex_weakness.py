@@ -108,11 +108,17 @@ def test_w14_unpaired_dollar_linear() -> None:
 
 
 def test_math_debt_repair() -> None:
-    r"""``$`` 配对跨占位符：ph 体内开出数学 → debt 修复合并（§3.3）。"""
+    r"""``$`` 配对跨占位符：ph 体内含奇数 ``$`` 不破坏后随 ``$x$`` 配对。
+
+    v2 语义变更：token 级 ``$..$`` 本地配对天然免疫（v1 的 debt_repair
+    合并机制退役——它会误并 ``[CMD]and $`` 再甩出 unpaired_dollar）。
+    断言面 = ``$x$`` 完整 MATH + 无 unpaired_dollar + identity。
+    """
     body = "Text \\foo{a $b} and $x$ more text."
     res = scan(body)
     assert reconstruct(res) == DOC % body
-    assert any(w.kind == "debt_repair" for w in res.warnings)
+    assert any(v == "$x$" for v in res.ph_map.values())
+    assert not any(w.kind == "unpaired_dollar" for w in res.warnings)
 
 
 # ---------------------------------------------------------------- 回压
@@ -147,7 +153,7 @@ def test_max_gen_guard() -> None:
 def test_def_in_body_registers() -> None:
     r"""正文里的 ``\newcommand`` 同样登记（分派行 2 不在 preamble 也生效）。"""
     res = scan("Text \\newcommand{\\late}{L} then \\late more text here.")
-    assert "late" in res.macros.cmds
+    assert res.macros.lookup("late") is not None
     assert (
         reconstruct(res)
         == DOC % "Text \\newcommand{\\late}{L} then \\late more text here."

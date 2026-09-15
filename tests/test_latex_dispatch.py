@@ -1,6 +1,7 @@
 r"""scanner._dispatch_cmd 19 行分派表逐行覆盖（docs/07 §3.2 顺序即语义）。"""
 
-from texlate.latex import parse_tex, reconstruct
+from texlate.latex import parse_tex, parse_tex_v1, reconstruct
+from texlate.latex.gullet import IfSetter
 from texlate.latex.model import ScanResult
 from texlate.latex.placeholder import PH_RX
 
@@ -41,7 +42,7 @@ def test_row1_lstinline_opt_and_brace() -> None:
 def test_row2_newcommand_registered() -> None:
     r"""``\newcommand`` 整段 LITERAL + 宏表登记；正文调用走宏行。"""
     res = scan("\\newcommand{\\dR}{\\mathrm{d}R}\nBody uses \\dR here.")
-    assert "dR" in res.macros.cmds
+    assert res.macros.lookup("dR") is not None
     assert any(v == "\\dR" for v in res.ph_map.values())
     assert (
         reconstruct(res)
@@ -50,8 +51,12 @@ def test_row2_newcommand_registered() -> None:
 
 
 def test_row2_def_delimited_degrades() -> None:
-    r"""``\def\f(#1){}`` 定界参 → 不登记 + ``def_parse_fail``（v1 刻意降级）。"""
-    res = scan("\\def\\f(#1){x#1}\nAfter \\f(y).")
+    r"""``\def\f(#1){}`` 定界参 → 不登记 + ``def_parse_fail``（v1 刻意降级）。
+
+    v2 gullet 原生支持定界参（``f`` 登记为 literal_match+delim spec）——
+    本断言钉 ``parse_tex_v1``，守卫并存期 v1 腿行为不变。
+    """
+    res = parse_tex_v1(DOC % "\\def\\f(#1){x#1}\nAfter \\f(y).")
     assert "f" not in res.macros.cmds
     assert any(w.kind == "def_parse_fail" for w in res.warnings)
     assert reconstruct(res) == DOC % "\\def\\f(#1){x#1}\nAfter \\f(y)."
@@ -68,16 +73,18 @@ def test_row2_param_beyond_spec_no_crash() -> None:
 
 def test_row2_newenvironment() -> None:
     res = scan("\\newenvironment{mybox}[1]{\\begin{figure}}{\\end{figure}}\nText.")
-    assert "mybox" in res.macros.envs
-    assert res.macros.envs["mybox"].nargs == 1
+    env = res.macros.lookup_env("mybox")
+    assert env is not None
+    assert len(env.spec) == 1
 
 
 def test_row3_newif_registers() -> None:
-    r"""``\newif\ifX`` → ifflags[X]=False + ``\Xtrue/\Xfalse`` LITERAL 宏。"""
+    r"""``\newif\ifX`` → ``\ifX`` 登记 IfCond + ``\Xtrue/\Xfalse`` 登记 IfSetter。"""
     res = scan("\\newif\\ifdbg\n\\dbgtrue\nText.")
     assert res.macros  # 宏表对象在
-    assert "dbgtrue" in res.macros.cmds
-    assert res.macros.cmds["dbgtrue"].kind.name == "LITERAL"
+    setter = res.macros.resolve(res.macros.lookup("dbgtrue"))
+    assert isinstance(setter, IfSetter)
+    assert setter.value is True
 
 
 def test_row4_math_env() -> None:
@@ -224,15 +231,35 @@ def test_row18_macro_opaque() -> None:
 
 
 def test_row18_macro_protect_args() -> None:
-    r"""``protect_args``：``#1`` 落在 ``\ref`` 参数位 → 该位 ``[[KEY]]``。"""
-    res = scan(r"\newcommand{\secc}[1]{Section~\ref{#1}}" + "\nSee \\secc{sec:x} end.")
-    assert any(t == "KEY" for t in ph_types(res))
+    r"""``protect_args``：``#1`` 落在 ``\ref`` 参数位 → 该位受保护。
+
+    v2 真展开替代 v1 位序保护：``\secc{sec:x}`` 展开出 ``\ref{sec:x}``
+    → 组内再生 ``[[REF]]``（v1 是调用位 ``[[KEY]]``——key 串都进保护段
+    不落译文面，语义等价）。长尾保证 run 成 chunk 而非 literal 冲刷。
+    """
+    res = scan(
+        r"\newcommand{\secc}[1]{Section~\ref{#1}}"
+        "\nSee \\secc{sec:x} at the end of this longer sentence here."
+    )
+    assert any(
+        k.startswith("[[REF_") and v == "\\ref{sec:x}" for k, v in res.ph_map.items()
+    )
+    assert all("sec:x" not in c.content for c in res.chunks)
 
 
 def test_row7_ref_beats_macro() -> None:
-    r"""``\Xref`` 名字撞 ref 族后缀 → 分派行 7 先截（顺序即语义）。"""
-    res = scan(r"\newcommand{\secref}[1]{Section~\ref{#1}}" + "\nSee \\secref{sec:x}.")
-    assert any(t == "REF" for t in ph_types(res))
+    r"""``\Xref`` 名字撞 ref 族后缀 → 宏表命中先于 ref 分派（顺序即语义）。
+
+    v2 下 ``\secref`` 展开出 ``\ref{sec:x}`` → 组内再生 ``[[REF]]``——
+    断言点从「撞上 ref 行」换成「展开产物的 ``\ref`` 照常保护」。
+    """
+    res = scan(
+        r"\newcommand{\secref}[1]{Section~\ref{#1}}"
+        "\nSee \\secref{sec:x} at the end of this longer sentence here."
+    )
+    assert any(
+        k.startswith("[[REF_") and v == "\\ref{sec:x}" for k, v in res.ph_map.items()
+    )
 
 
 def test_row19_unknown_cmd_with_args() -> None:

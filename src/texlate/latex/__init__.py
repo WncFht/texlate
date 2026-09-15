@@ -10,7 +10,7 @@
     out = reconstruct(res, translations)    # splice 回重建
 """
 
-from texlate.latex.api import parse_file, parse_tex
+from texlate.latex.api import parse_file, parse_file_v1, parse_tex, parse_tex_v1
 from texlate.latex.flatten import flatten_inputs, strip_doc_shell
 from texlate.latex.macro_table import MacroTable, parse_argspec
 from texlate.latex.model import (
@@ -64,7 +64,9 @@ __all__ = [
     "flatten_inputs",
     "parse_argspec",
     "parse_file",
+    "parse_file_v1",
     "parse_tex",
+    "parse_tex_v1",
     "reconstruct",
     "strip_doc_shell",
     "validate_result",

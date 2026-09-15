@@ -198,7 +198,7 @@ def _strip_json_fence(raw: str) -> str:
 #: token 集 = 占位符 + 控制序列 + 括号 + L0 脆弱字符（``~`` 活动字符、``$``/``&``
 #: 结构符——丢了会触发 cs_dropped/数学计数差，mock 与 L0 同口径才构成有效 E2E）
 _MOCK_TOKEN_RX = re.compile(
-    r"\[\[[A-Z_]+_\d+\]\]|\[\[[A-Z][A-Z_]*\]\]|\\[a-zA-Z@]+\*?|\\.|[][(){}|~$&]"
+    r"\[\[[A-Z_]+_\d+\]\]|\[\[[A-Z][A-Z_]*\]\]|\\[a-zA-Z@]+\*?|\\(?!\[\[).|[][(){}|~$&]"
 )
 #: 行内字母 run（mock 译文替换单位；``[^\n]`` 不跨行——保住换行布局）
 _PROSE_RUN_RX = re.compile(r"[a-zA-Z][^\n]*[a-zA-Z]|[a-zA-Z]")

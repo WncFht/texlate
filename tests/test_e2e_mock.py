@@ -15,6 +15,7 @@ r"""跨模块集成测试（M0）：``parse_file → XlatPipeline(Mock+L0) → r
 """
 
 import asyncio
+import re
 from pathlib import Path
 
 import pytest
@@ -123,6 +124,11 @@ def _assert_no_placeholder_leak(res: ScanResult, out: str) -> None:
     assert leaked == []
 
 
+def _ws_fold(s: str) -> str:
+    """surface 等价折叠：run 内空白/单 ``\\n`` → 一个空格；``\\n\\n`` 段界保留。"""
+    return re.sub(r"[^\S\n]+|(?<!\n)\n(?!\n)", " ", s)
+
+
 def _assert_mock_chain(res: ScanResult, flat: str) -> str:
     """良性 mock 全链断言：全 ok → L0 复核 → 占位符契约 → splice 成品。"""
     results = _run_mock(res)
@@ -208,7 +214,10 @@ def test_all_fault_splices_source() -> None:
     assert all(r.translation == r.source for r in non_trivial)
 
     out = reconstruct(res, _translations(res, results))
-    assert out == _DOC % ("", _SYNTH_BODY)
+    # v2：fallback 拼回的是 chunk.content（token surface）——run 内单 \n 与
+    # 空白折叠成一个 space（eol_par "\n\n" 不受影响）。逐字节断言放宽为空白
+    # 不敏感等价；identity 逐字节由 res.vtex / reconstruct(res) 承担。
+    assert _ws_fold(out) == _ws_fold(_DOC % ("", _SYNTH_BODY))
     _assert_no_placeholder_leak(res, out)
 
 
@@ -235,7 +244,9 @@ def test_corpus_paper_full_chain(paper: str, main: str) -> None:
 
     res = parse_file(path)
     assert res.chunks, f"{paper} 未产出 chunk"
-    assert reconstruct(res) == flat  # identity 逐字节
+    # v2 identity 基准 = res.vtex（调用点 ident 保真 + 展开产物在后）——
+    # 宏展开区与 v1 flat 逐字节本就有别，不拿 flat 当基准
+    assert reconstruct(res) == res.vtex  # identity 逐字节
     structural = [w for w in validate_result(res) if w.kind in _STRUCTURAL_WARN_KINDS]
     assert structural == []
 

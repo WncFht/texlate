@@ -489,3 +489,43 @@ scanner-audit（2026-09-15，`bench/results/scanner-audit-2026-09-15.md`）F 系
 | 性能                          | 中位 1.3ms/max 253ms | 中位 ≤5ms，max ≤500ms                      |
 
 测试面：`tests/latex/` 单元测试矩阵（match_brace/match_bracket/read_cmd_name/find_env_end 星号归一/_args/parse_argspec/math-debt/in_arg 四变体/宏分类/chunk 化/正文内 `\def`/flatten_inputs/reconstruct 三层嵌套）+ bench 回归（corpus39 陷阱集 + corpus_v2 混合集）。
+
+## 12. v2 产品面切换落地记录（2026-09-16）
+
+`parse_tex`/`parse_file` 产品入口切到 scan_v2（Gullet 展开流 → Segmenter 消费），v1 scanner 退役为 parsebench 对照臂。本节目的是留档切换面的语义决策与验收数字；细节实现见 gullet/segmenter docstring。
+
+### 12.1 切换面（相对 S4 的语义决策）
+
+| 面                                                   | 决策                                                                                                          | 动机                                                                           |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| env_begin/env_end 宏端点（`\beq`/`\eeq` 形）         | 不展开：`_EXPAND_KINDS` 只留 `transparent_expand`，raw cs 交 `_dispatch` 按 `m.target_env` 走 `_handle_env_*` | 展开产物的 def 位 gen>0 token 被组吸收成 `[[EXPAND]]`，env 配对丢失            |
+| verbatim 宏端点（`\bv`…`\eev`）                      | token 级 `_find_env_end` 配对，`_emit_ph(VERB)`                                                               | 无 `\end{env}` 字面可 `find`                                                   |
+| 组内 env 宏                                          | `_grp_env_macro` 经 `state.macros` 解析 → `[[MATH]]/[[VERB]]/[[ENV]]`/`[[ENVTAG]]`                            | 组内配对不进主流                                                               |
+| in_arg/子扫宏解析                                    | `_resolve_macro` 回落 `self.state.macros`（v1 平表对应物）                                                    | `\section{$…$\beq…}` 内 `\beq` 恢复 `[[MATH]]`；opaque/IfSetter 同受益         |
+| `_ListSource`                                        | `collections.deque`                                                                                           | `pop(0)` O(n) 是 2410.17998 超时根因（2.4M 出队 22s → popleft 4.4s）           |
+| 零宽 `_cover_to`（回放/乱序 token）                  | `_ph` 空 body 不签发返 `""`，`_rappend_ph`/`_emit_ph` 跳过                                                    | 已覆盖字节再分派只产空 ph → dead_ph（`_slice_items` 零宽项归段规则的已知后果） |
+| 动态文件名 input（`\input{\@journal\substyle@ext}`） | fname 含 `\` → 非输入尝试：gullet 不记 missing_input、segmenter 不记 inputs[]                                 | `\@ifx` 界标档扫双支后死支 `\input` 的幻影登记                                 |
+| `e` spec / ArgMismatch                               | `_parse_xparse` e 支消费修饰段；`next_expanded`/`_expand_once` 尾参失配 unread+ 交 trig                       | xparse e 参位序、失配回压                                                      |
+
+### 12.2 验收（corpus_v3 1955 文件，tag `v2prod-final`，697.7s）
+
+| 门                               | 结果                                                                                                                 | 判定                                                                                                                                                |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| parse ok                         | 1955/1955，0 错误 0 超时                                                                                             | PASS                                                                                                                                                |
+| identity strict（对 `res.vtex`） | **1955/1955 = 100%**                                                                                                 | PASS                                                                                                                                                |
+| leak                             | 58/124772 = 0.046%（v1 对照臂 57/135170 = 0.042%）                                                                   | PASS                                                                                                                                                |
+| unresolved_inputs                | **111**（≤111；动态文件名修复前 112）                                                                                | PASS                                                                                                                                                |
+| dead_ph / orphan                 | 0 / 0                                                                                                                | PASS                                                                                                                                                |
+| vtex_vs_src                      | strict 1906 / normalized 17 / diverged 32                                                                            | 信息项（展开足迹序差：input 内联位序 + 输入尾标保留差；不影响 identity）                                                                            |
+| 性能                             | v2 p50 43ms / p95 428ms / max 8.4s（2403.15096）；>500ms 文件 85                                                     | **未达 max≤500ms**——v1 同语料亦未达（p50 7.1 / max 4.7s / >500ms 46 个）；v2 尾部约 1.8× v1；deque 修复已把最坏离群 2410.17998 从 30s 超时压到 4.5s |
+| pytest / ruff                    | 1090 passed 16 skipped / 全净                                                                                        | PASS                                                                                                                                                |
+| e2e_mock 冒烟                    | 管线三段干净（fault_chunks=0、leftover_ph=0、ctex 注入 ok）；编译 fail 全为环境性缺包（pstricks/revtex4），base 同挂 | PASS（环境受限）                                                                                                                                    |
+
+warn_kinds 对照（v2 vs v1）：`stray_end` 63/33、`unclosed_env` 31/53、`def_parse_fail` 14/293、`missing_input` 149/159、`unpaired_dollar` 168/172、`if_unterminated` 2/1、`env_mismatch` 1/1；v2 独有 `gen_overflow` 1，v1 独有 `debt_repair` 13（math_debt 记账已并入主流退役）。`stray_end`/`unclosed_env` 增量主要来自 env 宏端点不对称配对（`\be{lbl}` 这类带 payload 的 begin 宏仍走展开，纯 `\ee` 端点弹栈 miss）——纯诊断面，字节覆盖不受影响。
+
+### 12.3 遗留
+
+- `res.macros` 消费点未适配：`ScanResult.macros` 类型放宽为 `MacroTable | GulletMacroTable`（scope 链对象沿用 MacroTable 接口并存），消费方待后续接线——本轮求行为等价未动。
+- 性能尾：85 文件 >500ms（最坏 2403.15096 8.4s），`_collect_group`/env 体扫描是已知热点——下一性能轮靶。
+- e2e_mock 编译侧 fail 均为环境性（缺 pstricks/revtex4 系统包），管线三段干净。
+- `chunk` 数口径：v2 124772 vs v1 135170——v2 把含 ph 的 run 整段单 chunk（v1 会在 ph 边界再切），leak 持平证明可译覆盖等价，仅分块粒度不同。

@@ -285,7 +285,9 @@ _PRIMS = {
 }
 
 # gullet 真展开的宏 kind（其余 pass-through 交分段器保护调用点，§6.2）
-_EXPAND_KINDS = {"env_begin", "env_end", "transparent_expand"}
+# env_begin/env_end 不在内：展开产物 \begin/\end 是 def 位 gen>0 token，
+# 会被分段器收进 [[EXPAND]] 组、env 配对丢失——raw cs 交分段器按宏端点处理
+_EXPAND_KINDS = {"transparent_expand"}
 
 # \ifdefined/ifundefined 的"已定义"判定补充集：内建命令名（§8.6 可求值档）
 _BUILTINS = (
@@ -776,7 +778,7 @@ class Gullet:
         else:
             self.inputs[-1].push_tokens(list(toks))
 
-    def skip_past(self, fid: int, pos: int) -> bool:
+    def skip_past(self, fid: int, pos: int) -> bool:  # noqa: C901 — 栈序/tokbuf 回压/跨界守门平铺即 resync 规则表
         r"""逐字区 resync（分段器 ``\begin{verbatim}``/``\verb`` 用）。
 
         分段器在**文件字节**上找到闭合符后调此：把 ``fid`` 源的消费指针
@@ -793,26 +795,46 @@ class Gullet:
 
         fid 不在栈 / 缓冲跨界 → ``verb_resync_failed`` warning + False，
         分段器退化逐字流（与今日无 verb 处理等价）。
+
+        残余 fid token 可能躺在**合成回放源**（``file_id<0``——``\\if``
+        选支回放/组收集回吐所建）的 ``tokbuf``——fid 源在栈时同样要清
+        （回放源压在 fid 源上方，token 已搬走不在 fid tokbuf）；
+        fid 源已弹栈（EOF 前排空被 ``read()`` 弹）时 tokbuf 剔除即
+        resync 等价物。
         """
-        target: Mouth | None = None
-        for m in reversed(self.inputs):
+        hit = False
+        for m in self.inputs:
             if m.file_id == fid:
-                target = m
-                break
-        if target is None:
-            self._warn("verb_resync_failed", None, f"fid {fid} not on inputs")
-            return False
-        keep: list[Tok] = []
-        for t in target.tokbuf:
-            if t.pos[0] != fid or t.pos[1] >= pos:
-                keep.append(t)  # 异 fid 产物/闭合符后真内容——照常先排
+                hit = True  # 字节游标 resync 由下方 target 分支统一做
                 continue
-            if t.pos[2] > pos:
-                self._warn("verb_resync_failed", None, "buffered token straddles")
-                return False
-            # pos[2] <= pos：逐字区残骸，丢
-        target.resync(pos, keep)
-        return True
+            if m.file_id >= 0 or not any(t.pos[0] == fid for t in m.tokbuf):
+                continue
+            keep2: list[Tok] = []
+            for t in m.tokbuf:
+                if t.pos[0] != fid or t.pos[1] >= pos:
+                    keep2.append(t)
+                    continue
+                if t.pos[2] > pos:
+                    self._warn("verb_resync_failed", None, "buffered token straddles")
+                    return False
+            m.tokbuf.clear()
+            m.tokbuf.extend(keep2)
+            hit = True
+        target = next((m for m in reversed(self.inputs) if m.file_id == fid), None)
+        if target is not None:
+            keep: list[Tok] = []
+            for t in target.tokbuf:
+                if t.pos[0] != fid or t.pos[1] >= pos:
+                    keep.append(t)  # 异 fid 产物/闭合符后真内容——照常先排
+                    continue
+                if t.pos[2] > pos:
+                    self._warn("verb_resync_failed", None, "buffered token straddles")
+                    return False
+                # pos[2] <= pos：逐字区残骸，丢
+            target.resync(pos, keep)
+        if not hit:
+            self._warn("verb_resync_failed", None, f"fid {fid} not on inputs")
+        return hit
 
     # ------------------------------------------------------------ 主循环
 
@@ -876,7 +898,12 @@ class Gullet:
                 if not self._can_expand(t):
                     return t
                 self.steps += 1
-                out = self._exec_prim(t)
+                self._trace = []
+                try:
+                    out = self._exec_prim(t)
+                except ArgMismatch:
+                    self.unread(self._trace)
+                    return t  # §3.5：回吐已读 + 本体交出（如 \input{ 流尽）
                 if out is None:
                     continue
                 return out
@@ -1147,6 +1174,25 @@ class Gullet:
                         self._pushback(trace, t2)
             elif k == "until_group":
                 params[slot] = self._read_until_lbrace(trace)
+            elif k == "e":
+                # 修饰参 e{^_}：每字符至多一次、X{arg}/X<tok>——与分段器
+                # _args_tok 'e' 分支同规（cs 不作参、缺席只留符）
+                emb: list[Tok] = []
+                rest = {t.text for t in a.delim}
+                while rest:
+                    t = self._rt_skip(trace)
+                    if t is None or t.kind == "cs" or t.text not in rest:
+                        if t is not None:
+                            self._pushback(trace, t)
+                        break
+                    rest.discard(t.text)
+                    emb.append(t)
+                    z = self._rt_skip(trace)
+                    if z is not None:
+                        self._pushback(trace, z)
+                        if z.kind != "cs":
+                            emb.extend(self._read_undelimited(trace))
+                params[slot] = emb
             else:
                 raise ArgMismatch
         return self._stamp_call_origin(expand_def(m.body, params, trig), trig)
@@ -1275,7 +1321,9 @@ class Gullet:
         trace = self._trace = []
         nt = self._rt_skip(trace)
         if nt is None or nt.kind not in ("cs", "active"):
-            return self._def_fail(trig, trace, "def name not cs")
+            # 名非 cs = 正文谈 \def 的笔法（v1 _read_def_name None → 静默不记）
+            self.unread(trace)
+            return trig
         mname = nt.text
         # 参数文本：到首个 lbrace 止（brace 入账不归参数文本）
         ptext: list[Tok] = []
@@ -1723,7 +1771,12 @@ class Gullet:
                 out.append(Arg("o", open="{", close="}"))
             elif ch == "l":
                 out.append(Arg("until_group"))
-            elif ch in "vbeEx":
+            elif ch == "e":
+                d, i = _braced(i)
+                if d is None:
+                    return None
+                out.append(Arg("e", delim=self._lex(d)))
+            elif ch in "vbEx":
                 return None  # 不支持的参数型 → 整条不登记
             else:
                 continue  # 未知字母跳过（容错）
@@ -1861,7 +1914,9 @@ class Gullet:
                 self.unread(trace)
                 return trig
             fname, tag = _surface(g1).strip(), _surface(g2).strip()
-        if not fname:
+        if not fname or "\\" in fname:
+            # 含 cs 的文件名是计算式（\@journal\substyle@ext）——无法按
+            # 字面解析，非输入尝试：回吐走普通 token 流，不计 missing_input
             self.unread(trace)
             return trig
         file_dir = self._file_dir_of(trig)
@@ -1910,11 +1965,15 @@ class Gullet:
         return "".join(chars) or None
 
     def _file_dir_of(self, t: Tok) -> str:
-        r"""Token 所在文件的目录（``\input`` 查找序第一级）。"""
+        r"""Token 所在文件的目录（``\input`` 查找序第一级）。
+
+        内存源（无路径）不回退 CWD——返回 ``root_dir``，空串即三级查找全空
+        → ``\\input`` 恒不解析（standalone/纯文本入口语义）。
+        """
         fid = t.pos[0]
         if 0 <= fid < len(self.file_paths) and self.file_paths[fid]:
             return str(Path(self.file_paths[fid]).parent)
-        return self.root_dir or "."
+        return self.root_dir
 
     @staticmethod
     def _resolve_input(  # noqa: C901 — 查找序四级候选平铺即 §7 语义

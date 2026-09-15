@@ -29,11 +29,12 @@ from __future__ import annotations
 
 import re
 from bisect import bisect_left
+from collections import deque
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, NamedTuple, Protocol
 
-from texlate.latex.gullet import Gullet, IfSetter, MacroDef
-from texlate.latex.macro_table import MacroTable, parse_argspec
+from texlate.latex.gullet import ArgMismatch, Gullet, IfSetter, MacroDef
+from texlate.latex.macro_table import parse_argspec
 from texlate.latex.model import (
     ArgSpec,
     Chunk,
@@ -45,6 +46,7 @@ from texlate.latex.model import (
     ScanWarning,
     Span,
     env_opt_is_format,
+    match_brace,
     unescaped_dollar_odd,
 )
 from texlate.latex.placeholder import PH_RX, PlaceholderIssuer
@@ -63,6 +65,7 @@ from texlate.latex.tables import (
     FILENAME_CHARS,
     FONT_SWITCHES,
     INLINE_LITERAL_CMDS,
+    INPUT_CMDS,
     INPUT_SCAN_CMDS,
     MATH_ENVS,
     MAX_GEN,
@@ -73,15 +76,21 @@ from texlate.latex.tables import (
     TRANSPARENT_NAMES,
     VERBATIM_ENVS,
 )
+from texlate.textutil import mask_tex
 
 if TYPE_CHECKING:
     from texlate.latex.mouth import Tok
 
-_CLEAN_CMD_RX = re.compile(r"\\[a-zA-Z@]+\*?")
-_CLEAN_NONALPHA_RX = re.compile(r"[^a-zA-Z]+")
+# 与 scanner.py 同源逐字：可译性口径随 v1（``+`` 折叠会把临界 run 压过
+# CHUNK_MIN 阈值 → chunk 召回降，验收门不许）
+_CLEAN_CMD_RX = re.compile(r"\\[a-zA-Z@]+\*?|\\[^a-zA-Z]")
+_CLEAN_NONALPHA_RX = re.compile(r"[^a-zA-Z]")
 _LEAD_WS_RX = re.compile(r"\s*")
 _TRAIL_WS_RX = re.compile(r"\s*$")
 _COMMENT_GAP_RX = re.compile(r"%[^\n]*")
+# 参数体内裸 ``%`` 注释（``\%`` 转义由 ``\\.`` 分支先吃掉）——in_arg 渲染串
+# 的 ``%`` 必为真注释（token 层已证非 \verb/url 体内）
+_ARG_COMMENT_RX = re.compile(r"\\.|%[^\n]*")
 # —— 与 scanner.py 同源的保护/豁免表（S2 scanner 退役时合入 tables.py）
 _LETTER_TAIL_RX = re.compile(r"\\[a-zA-Z@]+\Z")
 # math-debt 豁免：verbatim/url/href 体内的 ``$`` 是死字符非 mathshift。
@@ -170,15 +179,19 @@ class TokenSource(Protocol):
 
 
 class _ListSource:
-    """in_arg 子扫的 token 列表源（token 已展开，read==next_expanded）。"""
+    """in_arg 子扫的 token 列表源（token 已展开，read==next_expanded）。
+
+    ``deque`` 而非 list：大体 env/arg 子扫下 ``pop(0)`` 是 O(n)
+    memmove——2410.17998 实测 2.4M 次出队吃掉 22s。
+    """
 
     def __init__(self, toks: list[Tok]) -> None:
         """持有待发 token 队列。"""
-        self._q = list(toks)
+        self._q = deque(toks)
 
     def next_expanded(self) -> Tok | None:
         """队首出队。"""
-        return self._q.pop(0) if self._q else None
+        return self._q.popleft() if self._q else None
 
     def read(self) -> Tok | None:
         """同 next_expanded（子扫内不再有展开副作用）。"""
@@ -186,7 +199,7 @@ class _ListSource:
 
     def unread(self, toks: list[Tok]) -> None:
         """回插队首（保序）。"""
-        self._q[:0] = toks
+        self._q.extendleft(reversed(toks))
 
     def skip_past(self, fid: int, end: int) -> None:
         r"""丢弃 ``pos`` 完全落在 ``end`` 前的队首 token（raw 消费对齐）。
@@ -195,7 +208,7 @@ class _ListSource:
         token 早已展开入队——不剔除会被二次分派（体内 ``\end`` 假命中）。
         """
         while self._q and self._q[0].pos[0] == fid and self._q[0].pos[2] <= end:
-            self._q.pop(0)
+            self._q.popleft()
 
 
 # ------------------------------------------------------------------ segmenter
@@ -254,10 +267,22 @@ class _ArgTok:
 class Segmenter:
     r"""token 流 → pieces/chunks。单遍正向、绝不抛异常（铁律 1）。"""
 
-    def __init__(self, state: ScanState, *, in_arg: bool = False, gen: int = 0) -> None:
-        """共享 ``state``；``in_arg`` 子扫 = run 全 literal、只挖 chunk-arg。"""
+    def __init__(
+        self,
+        state: ScanState,
+        *,
+        in_arg: bool = False,
+        mined: bool = False,
+        gen: int = 0,
+    ) -> None:
+        r"""共享 ``state``；``in_arg`` 子扫 = run 全 literal + 嵌套内联。
+
+        ``mined`` = 保护环境体挖掘扫（v1 ``MINED_ONLY``）：run 全 literal
+        但分派照常——``\\caption`` 照产 chunk（``in_arg`` 则内联不产）。
+        """
         self.state = state
         self.in_arg = in_arg
+        self.mined = mined
         self.gen = gen  # 子扫代数（MAX_GEN 回压，v1 同值语义）
         self.vt = _Vtex()
         self.cons: dict[int, int] = {}  # fid → 文件内已消费位
@@ -277,8 +302,12 @@ class Segmenter:
         self._cov_origin: dict[int, int] = {}  # fid → 上次 _cover_to 的 pre-cons
         self._stop = False  # \end{document}/\endinput 顶层截停
         self._env_dead: dict[str, _EnvDeadTok] = {}  # F12 未闭合 env 墓标
+        self._doc_begin = -1  # fid-0 上 \begin{document} 的 \begin 起点（-1=无）
+        self._preamble = False  # preamble 档：token 照过 gullet、分段全 literal
 
-    def spawn(self, *, in_arg: bool | None = None) -> Segmenter:
+    def spawn(
+        self, *, in_arg: bool | None = None, mined: bool | None = None
+    ) -> Segmenter:
         """子分段器：共享 state/vt/cons/file_texts，env_stack 拷贝，gen+1。
 
         覆盖账本共享 = 子扫覆盖直落父 vtex 区间（连续无断）；``pieces``
@@ -288,6 +317,7 @@ class Segmenter:
         sub = Segmenter(
             self.state,
             in_arg=self.in_arg if in_arg is None else in_arg,
+            mined=self.mined if mined is None else mined,
             gen=self.gen + 1,
         )
         sub.vt = self.vt
@@ -336,6 +366,10 @@ class Segmenter:
         ``cut`` = 体尾源位 ``(fid, pos)``：体以 ``\\letters`` 收尾且源串
         后继仍是字母 → ``letters_cut`` 信号（§11 断言的 token 版）。
         """
+        if body == "":
+            # 零宽 _cover_to（回放/乱序 token 的字节早已覆盖）——无字节可保护，
+            # 直登记必成 dead_ph；调用方见 "" 应跳过挂项
+            return ""
         if (
             cut is not None
             and cut[1] < len(self.file_texts[cut[0]])
@@ -357,6 +391,8 @@ class Segmenter:
         ``tok`` = 触发的 cs/mathshift token——给 surface 补间隙前缀
         （``\ie \cite{a}`` 的被吞空格，见 ``_gap_surface``）。
         """
+        if not ph:
+            return  # 空 body（零宽回放）——无项可挂
         pfx = (
             self._gap_surface(
                 tok.pos[0], self._cov_origin.get(tok.pos[0], -1), tok.pos[1]
@@ -414,6 +450,8 @@ class Segmenter:
     def _emit_ph(self, typ: PhType, vstart: int, vend: int, body: str) -> None:
         """独立 PROTECTED piece。"""
         ph = self._ph(typ, body)
+        if not ph:
+            return  # 零宽覆盖（回放）——piece 无文本可载
         self.pieces.append(
             Piece(
                 PieceKind.PROTECTED,
@@ -462,7 +500,7 @@ class Segmenter:
         s = "".join(it.surface for it in items)
         ident = "".join(it.ident for it in items)
         re_ = end_pos
-        if not s.strip() or self.in_arg:
+        if not s.strip() or self.in_arg or self.mined:
             self._emit_text(rs, re_, self._lit_text(items, ident, re_))
             self._pending_settle(pending, s, register=False)
             return
@@ -719,8 +757,16 @@ class Segmenter:
             j += 1
         return None
 
+    def _grp_env_macro(self, t: Tok) -> tuple[str, str] | None:
+        r"""组内 env_begin/env_end 宏端点 → ``(kind, target_env)``；非宏 None。"""
+        m = self.state.macros.resolve(self.state.macros.lookup(t.text))
+        kind = getattr(m, "kind", "")
+        if kind in ("env_begin", "env_end"):
+            return kind, getattr(m, "target_env", "")
+        return None
+
     def _grp_find_env_end(self, toks: list[Tok], i: int, env: str) -> int | None:
-        r"""``i`` 起找配对 ``\\end{env}``（同名 begin 计深度）→ j_end（``}`` 后）。"""
+        r"""``i`` 起找配对 ``\\end{env}``（同名 begin/宏端点计深度）→ j_end。"""
         target = env.rstrip("*")
         depth = 1
         j = i
@@ -736,6 +782,12 @@ class Segmenter:
                             return e
                     j = e
                     continue
+            elif x.kind == "cs":
+                em = self._grp_env_macro(x)
+                if em is not None and em[1].rstrip("*") == target:
+                    depth += 1 if em[0] == "env_begin" else -1
+                    if depth == 0:
+                        return j + 1
             j += 1
         return None
 
@@ -927,6 +979,34 @@ class Segmenter:
                 out.append(self._grp_ph(PhType.CMD, self._grp_surfs(toks[i:j])))
                 i = j
                 continue
+            em = self._grp_env_macro(t)
+            if em is not None:
+                ek, eenv = em
+                typ = (
+                    (
+                        PhType.MATH
+                        if eenv in MATH_ENVS
+                        else PhType.VERB
+                        if eenv in VERBATIM_ENVS
+                        else PhType.ENV
+                        if eenv in PROTECTED_ENVS
+                        else None
+                    )
+                    if ek == "env_begin"
+                    else None
+                )
+                e = (
+                    self._grp_find_env_end(toks, i + 1, eenv)
+                    if typ is not None
+                    else None
+                )
+                if e is not None:
+                    out.append(self._grp_ph(typ, self._grp_surfs(toks[i:e])))
+                    i = e
+                    continue
+                out.append(self._grp_ph(PhType.ENVTAG, self._tok_surface(t)))
+                i += 1
+                continue
             out.append(self._tok_surface(t))
             i += 1
         segs.append("".join(out))
@@ -934,21 +1014,71 @@ class Segmenter:
 
     # ------------------------------------------------------------ 主循环
 
-    def scan(self, src: TokenSource, files: list[str]) -> None:
-        """消费 ``src`` 至耗尽。``files`` = fid→源文本表（gullet.file_texts）。"""
+    def scan(self, src: TokenSource, files: list[str], doc_begin: int = -1) -> None:  # noqa: C901, PLR0912, PLR0915 — preamble/consumed/组界/dispatch 四态平铺即主循环
+        r"""消费 ``src`` 至耗尽。``files`` = fid→源文本表（gullet.file_texts）。
+
+        ``doc_begin`` = fid-0 上 ``\\begin{document}`` 的 ``\\begin`` 起点
+        （api mask 视图判定，<0 = 无 preamble）：>0 时进 preamble 档——
+        token 照常过 gullet（``\\def`` 登记/``\\if`` 求值/``\\input`` 内联
+        全生效），分段侧一律 LITERAL 到该边界（v1 整段 ``_emit`` 对价）。
+        """
         self.file_texts = files
+        self._doc_begin = doc_begin
+        self._preamble = doc_begin >= 0 and not self.in_arg
         v0 = len(self.vt)  # 扫描起点——子扫全命中已盖区时不回补前缀
+        gullet_inputs = getattr(src, "inputs", None)
+        live_srcs = (
+            {id(m): m.file_id for m in gullet_inputs}
+            if gullet_inputs is not None
+            else None
+        )
         while not self._stop:
             t = src.next_expanded()
+            if live_srcs is not None:
+                # 子文件源耗尽被 read() 弹栈：尾部不成 token 的字节（注释/
+                # 空白尾）补盖 + 零宽 run 项（surface="" 不落译文面，ident
+                # 随归属 piece 进 identity）——v1 flatten 保留这些字节。
+                # \endinput 主动截停的尾巴不盖（flatten 同语义丢弃）。
+                cur = {id(m): m.file_id for m in gullet_inputs}
+                endinput = (
+                    t.pos[0]
+                    if t is not None
+                    and t.kind == "consumed"
+                    and t.text.partition(":")[0] == "endinput"
+                    else -1
+                )
+                for k, fid in reversed(list(live_srcs.items())):
+                    if k not in cur and fid >= 0 and fid != endinput:
+                        vspan = self._cover_to(fid, len(files[fid]))
+                        # preamble 档只盖不入队——emit 推迟整段兜底，run 项
+                        # 会冲刷出与 preamble piece 重叠的 piece
+                        if vspan.end > vspan.start and not self._preamble:
+                            self._rappend(
+                                "", self.vt.slice(vspan.start, vspan.end), vspan
+                            )
+                live_srcs = cur
             if t is None:
                 break
+            if self._preamble:
+                if self._cons(0) > self._doc_begin:
+                    # 覆盖已越过 \begin 起点——命中落在 def 体/if 死支等
+                    # 整体消费区内（token 永不到主流）→ preamble literal 收尾
+                    self._emit(
+                        self.pieces[-1].span.end if self.pieces else 0,
+                        len(self.vt),
+                    )
+                    self._preamble = False
+                else:
+                    self._preamble_tok(t, src)
+                    continue
             if t.kind == "consumed":
                 if self._in_group(t):
                     # 组内 marker（gen>0）：消费的是定义体区段（早已覆盖），
                     # 不是流边界——组界不破；input 型仍记 inputs[]。
                     tag, _, name = t.text.partition(":")
-                    if tag == "input":
-                        self.state.inputs.append((len(self.vt), name))
+                    if tag in ("input", "input_tag"):
+                        path = name.rpartition(":")[0] if tag == "input_tag" else name
+                        self.state.inputs.append((len(self.vt), path))
                     continue
                 self._close_group()
                 self._on_consumed(t)
@@ -967,7 +1097,7 @@ class Segmenter:
         # 流耗尽 ≠ 覆盖完备：主文件尾部（尾随注释/空白不产 token）补盖进
         # vtex——单文件 identity 的收口。\\endinput 截停的子文件尾巴不盖
         # （flatten 语义：\\endinput 后字节不进输出）。
-        if files and not self.in_arg:
+        if files and not self.in_arg and not self.mined:
             self._cover_to(0, len(files[0]))
         self._flush_run(len(self.vt))
         # flush 后仍可能有 vtex 尾巴无 piece 承接（纯注释/空白尾不产 run
@@ -975,6 +1105,42 @@ class Segmenter:
         tail_from = self.pieces[-1].span.end if self.pieces else v0
         if tail_from < len(self.vt):
             self._emit(max(tail_from, v0), len(self.vt))
+
+    def _preamble_tok(self, t: Tok, src: TokenSource) -> None:
+        r"""Preamble 档单 token：覆盖进 vtex 不 emit。
+
+        emit 推迟到 ``\\begin{document}`` 检出或 EOF 的 tail emit——整段
+        一条 LITERAL piece。``input:``/``input_tag:`` marker 保持调用点
+        排除 + ``inputs[]`` 登记；gen>0 token 只盖调用点（origin），本体
+        字节属已盖定义区。
+        """
+        fid, a, b = t.pos
+        if t.kind == "consumed":
+            tag, _, name = t.text.partition(":")
+            if tag in ("input", "input_tag"):
+                path = name.rpartition(":")[0] if tag == "input_tag" else name
+                self.state.inputs.append((len(self.vt), path))
+                self._cover_to(fid, a)  # 调用点前间隙（注释/空白）照常进 vtex
+                self._cons_bump(fid, b)
+            else:
+                self._cover_to(fid, b)
+            return
+        if t.kind == "cs" and t.text == "begin" and t.gen == 0:
+            env, close_t, consumed = self._env_name(src)
+            if env == "document" and close_t is not None:
+                self._cover_to(fid, close_t.pos[2])
+                start = self.pieces[-1].span.end if self.pieces else 0
+                self._emit(start, len(self.vt))
+                self._preamble = False
+                return
+            src.unread(consumed)
+            self._cover_to(fid, b)
+            return
+        if t.gen > 0:
+            if t.origin is not None:
+                self._cover_to(t.origin[0], t.origin[2])
+            return
+        self._cover_to(fid, b)
 
     @staticmethod
     def _tok_surface(t: Tok) -> str:
@@ -992,11 +1158,15 @@ class Segmenter:
         字节不进 vtex（输出物不含 ``\\input`` 行）；其余 flush+LITERAL
         盖区间（def 串不落 chunk，否则译文会删 def）。
         """
-        fid, _a, b = t.pos
+        fid, a, b = t.pos
         tag, _, name = t.text.partition(":")
         self._flush_run(len(self.vt))
-        if tag == "input":
-            self.state.inputs.append((len(self.vt), name))
+        if tag in ("input", "input_tag"):
+            path = name.rpartition(":")[0] if tag == "input_tag" else name
+            self.state.inputs.append((len(self.vt), path))
+            # 调用点前间隙（注释/空白）照常进 vtex——_cons_bump 只跳调用本体
+            vspan = self._cover_to(fid, a)
+            self._emit(vspan.start, vspan.end)
             self._cons_bump(fid, b)
         else:
             vspan = self._cover_to(fid, b)
@@ -1103,8 +1273,18 @@ class Segmenter:
             ):
                 self._rappend_tok(t)
                 return
-            # 18. gullet 宏表 opaque 命中（体无文本不展开）→ 整调用 [[MACRO]]
-            if getattr(m, "kind", "") == "opaque":
+            # 18. gullet 宏表命中：env_begin/env_end 宏端点走 \begin/\end
+            #     同路（target_env 已知免读 {env} 组；_find_env_end 认宏
+            #     端点事件）；opaque/math（体无文本不展开——math 即 v1
+            #     OPAQUE 含数学特征的那半）→ 整调用 [[MACRO]]
+            kind = getattr(m, "kind", "")
+            if kind == "env_begin":
+                self._handle_env_begin(t, src, m)
+                return
+            if kind == "env_end":
+                self._handle_env_end(t, src, m)
+                return
+            if kind in ("opaque", "math"):
                 self._handle_opaque_macro(t, src, m)
                 return
             # 19. 未知命令：有 {/[ 参数 → [[CMD]]；否则逐字进 run
@@ -1249,21 +1429,22 @@ class Segmenter:
             self._rappend_tok(t)
             return
         if d.kind == "lbrace":
-            # \verb{...} 配对形（verbatim 配对——collect 逐 token 平衡）
-            hit = self._collect_group(src, d, brace=True)
-            if hit is None:
-                # d 在 pulled 尾，组 token 已由 collect 回吐——回放到 d 前
-                src.unread(pulled[:-1])
+            # \verb{...} 配对形：字节级逐字配对（``%`` 不作注释，v1
+            # match_brace(verbatim=True) 同）——token 收集会被 ``%``
+            # 吃掉闭括号直排 EOF
+            e = match_brace(self.file_texts[fid], d.pos[1], verbatim=True)
+            if e is None:
+                src.unread(pulled)  # 未消费任何组 token——全量回放（含 d）
                 self._rappend_tok(t)
                 return
-            end = hit[1].pos[2]
-            vspan = self._cover_to(fid, end)
+            vspan = self._cover_to(fid, e)
             self._rappend_ph(
                 PhType.VERB,
                 self._ph(PhType.VERB, self.vt.slice(vspan.start, vspan.end)),
                 vspan,
                 t,
             )
+            self._skip_past(src, fid, e)
             return
         # 定界符 = token 的文件首字符（cs → ``\``；多字符 token 取首字符，
         # 与 v1 单字符 ``d = tex[k]`` 语义一致）
@@ -1336,25 +1517,54 @@ class Segmenter:
                     return name, x, consumed
             name_toks.append(x)
 
-    def _handle_env_begin(self, t: Tok, src: TokenSource) -> None:  # noqa: C901, PLR0911, PLR0915 — §3.5 环境四分类各一段，平铺即规则表
-        r"""``\begin{env}`` token 版：verbatim/math/protected/transparent。"""
+    def _handle_env_begin(  # noqa: C901, PLR0911, PLR0912, PLR0915 — §3.5 环境四分类各一段，平铺即规则表
+        self, t: Tok, src: TokenSource, m: MacroDef | None = None
+    ) -> None:
+        r"""``\begin{env}`` token 版：verbatim/math/protected/transparent。
+
+        ``m`` 非空 = env_begin 宏端点（``\beq`` 形）：env 取
+        ``m.target_env``、tag 区间 = cs 本体（无 ``{env}`` 组可读）。
+        """
         fid, _a, _b = t.pos
-        env, close_t, consumed = self._env_name(src)
-        if env is None or close_t is None:
-            src.unread(consumed)
-            self._rappend_tok(t)
-            return
+        if m is None:
+            env, close_t, consumed = self._env_name(src)
+            if env is None or close_t is None:
+                src.unread(consumed)
+                self._rappend_tok(t)
+                return
+        else:
+            env, close_t = m.target_env, t
         reg = src.macros.lookup_env(env) if isinstance(src, Gullet) else None
         v_begin = self._cover_to(fid, close_t.pos[2])
         if env in VERBATIM_ENVS:
             self._flush_run(v_begin.start)
+            if m is not None:
+                # 宏端点的 \end 面是 \eev 形宏事件——无 \end{env} 字面可
+                # find，走 token 级配对（体照常按 raw token 扫描收集，
+                # 渲染直切 vt 字节 = 字面）
+                hit = self._find_env_end(src, env, t.pos)
+                if hit is None:
+                    self._emit(v_begin.start, v_begin.end)
+                    self.state.warnings.append(
+                        ScanWarning("unclosed_env", v_begin.start, env)
+                    )
+                    return
+                _tag, last, _body = hit
+                vspan = self._cover_to(last.pos[0], last.pos[2])
+                self._emit_ph(
+                    PhType.VERB,
+                    v_begin.start,
+                    vspan.end,
+                    self.vt.slice(v_begin.start, vspan.end),
+                )
+                return
             pat = "\\end{" + env + "}"
             if env.startswith("filecontents"):
                 # filecontents 逐行读体、end 行首独占才算闭合（kernel 语义）——
                 # 裸 find 会被体内 PostScript/注释里的行中 \end decoy 截短（W26）
                 rx = re.compile(rf"(?m)^[ \t]*{re.escape(pat)}")
-                m = rx.search(self.file_texts[fid], close_t.pos[2])
-                k = -1 if m is None else m.end() - len(pat)
+                fm = rx.search(self.file_texts[fid], close_t.pos[2])
+                k = -1 if fm is None else fm.end() - len(pat)
             else:
                 k = self.file_texts[fid].find(pat, close_t.pos[2])
             if k < 0:
@@ -1454,14 +1664,23 @@ class Segmenter:
         self.env_stack.append(env)
         self._scope_push(src)
 
-    def _handle_env_end(self, t: Tok, src: TokenSource) -> None:
-        r"""``\end{env}``：in_arg→ENVTAG；``\end{document}``→顶层截停。"""
+    def _handle_env_end(
+        self, t: Tok, src: TokenSource, m: MacroDef | None = None
+    ) -> None:
+        r"""``\end{env}``：in_arg→ENVTAG；``\end{document}``→顶层截停。
+
+        ``m`` 非空 = env_end 宏端点（``\eeq`` 形）：env 取
+        ``m.target_env``、tag 区间 = cs 本体。
+        """
         fid, _a, _b = t.pos
-        env, close_t, consumed = self._env_name(src)
-        if env is None or close_t is None:
-            src.unread(consumed)
-            self._rappend_tok(t)
-            return
+        if m is None:
+            env, close_t, consumed = self._env_name(src)
+            if env is None or close_t is None:
+                src.unread(consumed)
+                self._rappend_tok(t)
+                return
+        else:
+            env, close_t = m.target_env, t
         vspan = self._cover_to(fid, close_t.pos[2])
         if self.in_arg:
             self._rappend_ph(
@@ -1583,7 +1802,9 @@ class Segmenter:
             )
             vend = self._cover_to(last.pos[0], last.pos[2])
             return self.vt.slice(vbegin.start, vend.end), vend.end
-        sub = self.spawn(in_arg=True)
+        # v1 ``MINED_ONLY + in_arg=False``：run 全 literal 但分派照常——
+        # \caption 照产 chunk（in_arg=True 会内联化不产，T12 回归）
+        sub = self.spawn(in_arg=False, mined=True)
         sub.env_stack.append(env)
         sub.scan(_ListSource(body_toks), self.file_texts)
         sub_end = len(self.vt)  # 子扫 pieces 平铺到此（scan 尾部兜底保证）
@@ -1600,12 +1821,16 @@ class Segmenter:
             + self.vt.slice(vend.start, vend.end)
         ), vend.end
 
-    @staticmethod
-    def _resolve_macro(src: TokenSource, name: str) -> object | None:
-        """Gullet 宏表查名（``Alias`` 解一层）；非 gullet 源 → None。"""
-        if isinstance(src, Gullet):
-            return src.macros.resolve(src.macros.lookup(name))
-        return None
+    def _resolve_macro(self, src: TokenSource, name: str) -> object | None:
+        r"""宏表查名（``Alias`` 解一层）。
+
+        Gullet 源查 ``src.macros``；``_ListSource`` 子扫查共享的
+        ``state.macros``——同一张表，v1 平表在子扫内可查的对应物
+        （in_arg/env 体里的 ``\\beq`` 端点宏也命中）。时点近似：表
+        反映的是子扫启动位的 scope 态，体内迟定义不回看。
+        """
+        tab = src.macros if isinstance(src, Gullet) else self.state.macros
+        return tab.resolve(tab.lookup(name))
 
     @staticmethod
     def _env_sig_tok(src: TokenSource, target: str) -> frozenset:
@@ -1613,7 +1838,8 @@ class Segmenter:
 
         gullet scope 链全量快照 ``(name, kind, scope_depth)``——迟到
         ``\def`` 登记/改义/scope 弹出使墓标事件面失真即作废。
-        ``_ListSource`` 无宏表 → 空集（端点宏事件本就不触发）。
+        ``_ListSource`` → 空集：子扫 token 列固定、宏表在重放内不突变，
+        单次扫描内墓标自洽（墓标本体也不跨子扫共享）。
         """
         if not isinstance(src, Gullet):
             return frozenset()
@@ -1725,6 +1951,20 @@ class Segmenter:
             seq = len(collected) - 1  # 事件位 = tag 首 token 的拉取序号
             if x.text in ("verb", "verb*", "lstinline"):
                 self._skip_verb_toks(src, collected)
+                continue
+            if isinstance(src, Gullet) and x.text in INPUT_CMDS:
+                # 前瞻 read() 不触发展开——\input 族收进 body_toks 会随
+                # _ListSource 子扫漏网成 literal（v1 flatten 先内联）。
+                # 交回 gullet 正常展开：marker 顶替已入列的 cs（pos 覆盖
+                # 整调用）、新源 token 由后续 read() 照常进 collected。
+                try:
+                    hit = src._do_input(x, x.text)  # noqa: SLF001 — §4 契约面：前瞻展开经 gullet 内部入口
+                except ArgMismatch:
+                    # 流尽（\input{ 未闭合）——残参回放走漏网路，cs 留 literal
+                    src.unread(src._trace)  # noqa: SLF001 — ArgMismatch 回吐协议（§3.5）
+                    hit = None
+                if hit is not None and hit is not x:
+                    collected[-1] = hit
                 continue
             if x.text in ("begin", "end"):
                 n, c, grp = self._env_name(src)
@@ -2112,7 +2352,7 @@ class Segmenter:
 
     # ------------------------------------------------------------ 保护调用
 
-    def _protect_cs(  # noqa: C901 — *?/定界/[opt]×3/{arg}×mand 平铺即 _protect_call
+    def _protect_cs(  # noqa: C901, PLR0915 — *?/定界/[opt]×3/{arg}×mand 平铺即 _protect_call
         self,
         t: Tok,
         src: TokenSource,
@@ -2173,6 +2413,18 @@ class Segmenter:
         for _ in range(mand):
             x = self._peek_nonspace(src, pulled)
             if x is not None and x.kind == "lbrace":
+                if verbatim:
+                    # url/path 逐字参：``%`` 不作注释——字节级配对 +
+                    # resync；token 收集会被 ``%`` 吃掉闭括号直排 EOF
+                    e = match_brace(self.file_texts[fid], x.pos[1], verbatim=True)
+                    if e is None:
+                        src.unread([*pulled, x])
+                        pulled.clear()
+                        break
+                    end = e
+                    pulled.clear()  # ws/lbrace 已在覆盖区间内——不回放
+                    self._skip_past(src, fid, e)
+                    continue
                 hit = self._collect_group(src, x, brace=True)
                 if hit is None:
                     src.unread(pulled)  # 组 token 已回吐
@@ -2192,29 +2444,33 @@ class Segmenter:
     # ------------------------------------------------------------ 各行 handler
 
     def _handle_href(self, t: Tok, src: TokenSource) -> None:
-        r"""``\href{url}{text}``：url→``[[HREF]]``，``{text}`` 留主流续扫。"""
+        r"""``\href{url}{text}``：url→``[[HREF]]``，``{text}`` 留主流续扫。
+
+        url 参按逐字读（``%`` 不作注释，v1 ``match_brace(verbatim=True)``
+        同）——token 收集会被 ``%`` 吃掉闭括号直排 EOF。
+        """
         fid, _a, _b = t.pos
         pulled: list[Tok] = []
         x = self._peek_nonspace(src, pulled)
         if x is not None and x.kind == "lbrace":
-            hit = self._collect_group(src, x, brace=True)
-            if hit is not None:
-                _inner, closer = hit
+            e = match_brace(self.file_texts[fid], x.pos[1], verbatim=True)
+            if e is not None:
                 vpre = self._cover_to(fid, x.pos[1])  # \href + 间隙进 run
                 self._rappend(
                     self.vt.slice(vpre.start, vpre.end),
                     self.vt.slice(vpre.start, vpre.end),
                     vpre,
                 )
-                vph = self._cover_to(fid, closer.pos[2])
+                vph = self._cover_to(fid, e)
                 self._rappend_ph(
                     PhType.HREF,
                     self._ph(PhType.HREF, self.vt.slice(vph.start, vph.end)),
                     vph,
                     t,
                 )
+                self._skip_past(src, fid, e)
                 return
-            src.unread(pulled)  # 组 token 已回吐；ws 回放（v1 回 j 重扫）
+            src.unread([*pulled, x])  # 未配对——全量回放重扫（v1 回 j）
             self._rappend_tok(t)
             return
         src.unread([*pulled, *([x] if x is not None else [])])
@@ -2287,7 +2543,9 @@ class Segmenter:
         vspan = self._cover_to(fid, end)
         self._flush_run(vspan.start)
         self._emit(vspan.start, vspan.end)
-        if fname:
+        if fname and "\\" not in fname:
+            # 含 cs 的动态文件名（\@journal\substyle@ext）非字面路径，
+            # 非输入尝试——不记 inputs[]（gullet 侧同款过滤）
             self.state.inputs.append((vspan.start, fname))
 
     def _handle_chunk_arg(self, t: Tok, src: TokenSource, name: str) -> None:
@@ -2352,6 +2610,16 @@ class Segmenter:
             # 已盖未挂 piece 的残余字节（子扫丢弃的尾空白 token 等）——
             # 不进 rendered 则 ph/chunk 体丢字节，identity 破（F-尾丢）
             rendered += self.vt.slice(sub_end, vce)
+        # 参数内 ``%`` 注释 → ``[[COMMENT]]``（v1 机制 B）——ident 轨道保
+        # 原字节（identity），content/译文面只见占位符
+        rendered = _ARG_COMMENT_RX.sub(
+            lambda m: (
+                m.group(0)
+                if m.group(0).startswith("\\")
+                else self._ph(PhType.COMMENT, m.group(0))
+            ),
+            rendered,
+        )
         vclose = self._cover_to(fid, target.fe)
         if self.in_arg:
             # 嵌套 chunk-arg 内联化：前缀+渲染+闭括号并入父 run
@@ -2585,8 +2853,8 @@ class Segmenter:
     def _handle_opaque_macro(self, t: Tok, src: TokenSource, m: object) -> None:
         r"""Opaque 宏（gullet 判定体无文本不展开）：按 spec 读参 → ``[[MACRO]]``。
 
-        gullet ``Arg`` → ``ArgSpec`` 映射：``m``→m、``o``→o、``star``→s，
-        其余（delim/until_group 等）→ 零宽占位。
+        gullet ``Arg`` → ``ArgSpec`` 映射：``m``→m、``o``→o、``star``→s、
+        ``e``→e（delim toks → 字符表），其余（delim/until_group 等）→ 零宽占位。
         """
         fid, _a, b = t.pos
         gspec = [
@@ -2596,6 +2864,8 @@ class Segmenter:
             if a.kind == "o"
             else ArgSpec("s")
             if a.kind == "star"
+            else ArgSpec("e", delim="".join(x.text for x in a.delim))
+            if a.kind == "e"
             else ArgSpec("b")
             for a in getattr(m, "spec", [])
         ]
@@ -2641,23 +2911,48 @@ def _chunk_spec_cached(spec_str: str) -> list[ArgSpec]:
     return _CHUNK_SPEC_CACHE[spec_str]
 
 
-def parse_tex_v2(tex: str) -> ScanResult:
-    r"""``parse_tex`` 的 token 流版（S1 骨架入口——双跑对照用）。
+_PREAMBLE_RX = re.compile(r"\\(documentclass|documentstyle)(?![a-zA-Z])")
+_DOC_BEGIN_RX = re.compile(r"\\begin\s*\{document\}")
 
-    ``\begin{document}`` preamble 判定沿用 api 的 mask 视图规则；
-    preamble 区段照流过 gullet（def/if 生效）但分段全 literal——S2 接线。
+
+def _doc_begin_of(tex0: str) -> int:
+    r"""fid-0 ``\\begin{document}`` 的 ``\\begin`` 起点（v1 mask 视图双门同规则）。"""
+    masked = mask_tex(tex0)
+    mdoc = _DOC_BEGIN_RX.search(masked)
+    mpream = _PREAMBLE_RX.search(masked)
+    return mdoc.start() if (mpream and mdoc) else -1
+
+
+def scan_v2(g: Gullet) -> ScanResult:
+    r"""v2 产品核：消费 ``g`` 的展开流 → ``ScanResult``。
+
+    ``res.macros`` = gullet scope 链（平表 MacroTable 退役）；
+    ``res.inputs`` = (vpos, path) 输入事件流（解析成功 = 绝对路径，
+    漏网 = 原始文件名——``missing_input`` warning 同步登记）；
+    ``gullet.warnings`` 尾并入（pos 已 fid 化前缀）。
     """
     state = ScanState(
         issuer=PlaceholderIssuer(),
         ph_map={},
         chunks=[],
-        macros=MacroTable(),
+        macros=g.macros,
         inputs=[],
         warnings=[],
     )
-    g = Gullet(tex)
+    if g.file_texts:
+        # 源文自带 [[X_n]] 形字面 → 签发避让（v1 parse_tex 同检）
+        reserved = PH_RX.findall(g.file_texts[0])
+        if reserved:
+            state.ph_reserved.update(reserved)
+            state.warnings.append(
+                ScanWarning("ph_collision", 0, f"{len(reserved)} 处 [[X_n]] 形字面")
+            )
     seg = Segmenter(state)
-    seg.scan(g, g.file_texts)
+    seg.scan(
+        g,
+        g.file_texts,
+        doc_begin=_doc_begin_of(g.file_texts[0]) if g.file_texts else -1,
+    )
     return ScanResult(
         protected_tex="".join(p.text for p in seg.pieces),
         chunks=state.chunks,
@@ -2668,3 +2963,12 @@ def parse_tex_v2(tex: str) -> ScanResult:
         warnings=[*state.warnings, *g.warnings],
         vtex=seg.vt.text(),
     )
+
+
+def parse_tex_v2(tex: str) -> ScanResult:
+    r"""``parse_tex`` 的 token 流版：内存源 Gullet。
+
+    无路径无 root——``\\input`` 恒不解析。产品文件入口是
+    ``api.parse_file``。
+    """
+    return scan_v2(Gullet(tex))
