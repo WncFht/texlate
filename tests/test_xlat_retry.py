@@ -261,7 +261,7 @@ class TestLadder:
         assert rounds["n"] == 2  # noqa: PLR2004 -- 重问一轮补齐
 
     def test_fallback_orig(self) -> None:
-        """全阶段败 → fallback_orig + 最新译文 + warnings。"""
+        """全阶段败 → fallback_orig + translation=原文 + warnings。"""
 
         async def bad_translate(_text: str, _feedback: str) -> str:
             return "译文没有占位符"

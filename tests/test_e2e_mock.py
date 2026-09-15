@@ -7,7 +7,7 @@ r"""跨模块集成测试（M0）：``parse_file → XlatPipeline(Mock+L0) → r
 - L0 校验器按 ``validator(src, zh) -> str`` 协议注入阶梯（空串=通过，
   ``L0Report.feedback()`` 即此形态）；
 - ``r.skipped`` 结果**回退原文**进 splice——``fallback_orig`` 的
-  ``translation`` 字段是 best_zh 残译文而非原文，调用方必须 gate ``skipped``；
+  ``translation`` 字段即原文（best_zh 残译文折进 warnings 留诊断）；
 - reconstruct 后零占位符泄漏；``translations=None`` identity 逐字节还原。
 
 ``bench/corpus`` 数据层 gitignored——corpus 用例 skipif 守卫；
@@ -193,8 +193,9 @@ def test_synthetic_multifile_flatten(tmp_path: Path) -> None:
 def test_all_fault_splices_source() -> None:
     """validator 恒败 → fault+skipped → splice 回退原文 = identity。
 
-    记录 ``fallback_orig`` 语义：``ChunkResult.translation`` 装的是阶梯
-    best_zh 残译文（非原文）——splice 侧必须以 ``skipped`` 为准。
+    ``fallback_orig`` 语义（2026-09-15 加固后）：``ChunkResult.translation``
+    = 原文而非阶梯 best_zh 残译文——``skipped`` 门控仍是正确姿势，但下游
+    即使误读 .translation 也只会拿到原文，名实相符。
     """
     res = parse_tex(_DOC % ("", _SYNTH_BODY))
     results = _run_mock(res, validator=lambda _s, _z: "always fails")
@@ -203,8 +204,8 @@ def test_all_fault_splices_source() -> None:
     assert non_trivial
     assert all(r.skipped for r in non_trivial)
     assert all(r.status == "fault" for r in non_trivial)
-    # 残译文（非原文）确实被带回来——不用 skipped 门控就会把它插进成品
-    assert any(r.translation != r.source for r in non_trivial)
+    # fallback_orig 的 translation 字段即原文——无残译文泄漏面
+    assert all(r.translation == r.source for r in non_trivial)
 
     out = reconstruct(res, _translations(res, results))
     assert out == _DOC % ("", _SYNTH_BODY)

@@ -379,8 +379,12 @@ async def translate_with_ladder(
     if zh is not None:
         return LadderResult(zh, "recovered", "slots", ctx.attempts, ctx.warnings)
 
-    # stage 4：三振 fallback_orig + warning（终态 partial 由调用方标记）
+    # stage 4：三振 fallback_orig + warning（终态 partial 由调用方标记）。
+    # translation 必须是原文——名实相符且防下游误用 .translation 把未过审
+    # 译文拼回文档；best_zh 折进 warnings 留诊断。
+    if ctx.best_zh:
+        ctx.warnings.append(f"best-effort zh (unspliced): {ctx.best_zh[:200]}")
     ctx.warnings.append("all ladder stages exhausted → fallback to original")
     return LadderResult(
-        ctx.best_zh, "fallback_orig", "fallback", ctx.attempts, ctx.warnings
+        ctx.source, "fallback_orig", "fallback", ctx.attempts, ctx.warnings
     )
