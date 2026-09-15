@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import TYPE_CHECKING
@@ -139,7 +140,8 @@ class ScanWarning:
     """可观测性（泄漏类 bug 的第一手线索）。"""
 
     kind: str  # unclosed_env|unpaired_dollar|stray_end|debt_repair|def_parse_fail|
-    #   letters_cut|expansion_overflow|if_unterminated|missing_input
+    #   letters_cut|expansion_overflow|if_unterminated|missing_input|
+    #   gen_overflow|ph_collision|env_mismatch
     pos: int
     detail: str
 
@@ -180,20 +182,47 @@ class ScanState:
     warnings: list[ScanWarning]
     ifflags: dict[str, bool] = field(default_factory=dict)
     steps: int = 0
+    ph_reserved: set[str] = field(
+        default_factory=set
+    )  # 源文自带 [[X_n]] 形字面 → 签发避让
 
 
 # ---------------------------------------------------------------- 字符级原语
 # 单遍逐字符扫描的共享低层工具（macro_table / scanner / flatten 三方消费）。
 
-_WS = " \t\n"
+_WS = " \t\n\r"
+_PAR_BREAK_RX = re.compile(r"\n[ \t\r]*\n")
 
 
 def ws_skip(tex: str, i: int) -> int:
-    r"""跳过 `` \\t\\n``，返回下一个非空白位置。"""
+    r"""跳过 `` \\t\\n\\r``，返回下一个非空白位置。"""
     n = len(tex)
     while i < n and tex[i] in _WS:
         i += 1
     return i
+
+
+def ws_skip_arg(tex: str, i: int) -> int:
+    r"""参数读取专用 ws_skip：不跨段落边界。
+
+    TeX 不定界参数扫描只跳 space token——``\\n[ \\t\\r]*\\n`` 即 ``\\par``，
+    停在其首个 ``\\n`` 处（调用方看到的是空白字符 → 参数不成立）。
+    """
+    n = len(tex)
+    while i < n and tex[i] in _WS:
+        if tex[i] == "\n":
+            k = i + 1
+            while k < n and tex[k] in " \t\r":
+                k += 1
+            if k < n and tex[k] == "\n":
+                return i
+        i += 1
+    return i
+
+
+def has_par_break(s: str) -> bool:
+    r"""``s`` 内含段落边界（``\\n`` + 空白* + ``\\n``，与主循环 §3.1.4 同判据）。"""
+    return bool(_PAR_BREAK_RX.search(s))
 
 
 def match_brace(tex: str, i: int, *, verbatim: bool = False) -> int | None:
@@ -266,8 +295,11 @@ def read_cmd_name(tex: str, i: int) -> tuple[str, int]:
 
 
 def env_name_at(tex: str, i: int) -> tuple[str | None, int]:
-    """``{name}`` 读取：ws 后 ``{env}`` → (名, ``}`` 后一位)；否则 (None, i)。"""
-    pos = ws_skip(tex, i)
+    r"""``{name}`` 读取：ws 后 ``{env}`` → (名, ``}`` 后一位)；否则 (None, i)。
+
+    ``\\begin/\\end`` 的参数读取同样不跨段落边界（ws_skip_arg）。
+    """
+    pos = ws_skip_arg(tex, i)
     if pos < len(tex) and tex[pos] == "{":
         e = match_brace(tex, pos)
         if e:
@@ -287,3 +319,35 @@ def unescaped_dollar_odd(body: str) -> bool:
             odd = not odd
         i += 1
     return odd
+
+
+def skip_verb_at(tex: str, name: str, j: int) -> int | None:
+    r"""``\\verb``/``\\lstinline`` 定界体跳过：返回体后一位；非定界形 → None。
+
+    ``j`` = 命令名后一位。``\\verb*?``、``\\lstinline[opt]``
+    前缀与 ``{...}`` 配对形都认；定界符搜索上限 = 下一 ``\\n``（W9）。
+    scanner/flatten/_find_env_end/_process_if 四处共用同一判据。
+    """
+    n = len(tex)
+    k = j
+    if name == "verb" and k < n and tex[k] == "*":
+        k += 1
+    if name == "lstinline":
+        k = ws_skip(tex, k)
+        if k < n and tex[k] == "[":
+            e2 = match_bracket(tex, k)
+            if e2:
+                k = ws_skip(tex, e2)
+    if k < n:
+        d = tex[k]
+        if d == "{":
+            e = match_brace(tex, k, verbatim=True)
+            if e:
+                return e
+        elif d not in _WS:
+            eol = tex.find("\n", k + 1)
+            limit = n if eol < 0 else eol
+            e = tex.find(d, k + 1, limit)
+            if e > 0:
+                return e + 1
+    return None

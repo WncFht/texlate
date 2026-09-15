@@ -177,8 +177,13 @@ def parse_argspec(spec_str: str) -> list[ArgSpec]:  # noqa: C901, PLR0912 — ar
             _, i = _spec_braced(spec_str, i, "{", "}")
             out.append(ArgSpec("e"))
         elif ch == "t":
-            d, i = _spec_delim(spec_str, i)
-            out.append(ArgSpec("t", delim=d))
+            # t 是单字符测试符（t* / t< 各测一字），与 d/D/r/R 的双字符对不同
+            pos = ws_skip(spec_str, i)
+            if pos < len(spec_str):
+                out.append(ArgSpec("t", delim=spec_str[pos]))
+                i = pos + 1
+            else:
+                out.append(ArgSpec("t"))
         elif ch == "b":
             out.append(ArgSpec("b"))
         # 未知字符：跳过（容错优先，签名串脏了不崩）
@@ -299,6 +304,11 @@ def scan_macro_def(  # noqa: C901, PLR0911, PLR0912, PLR0915 — 六类定义命
                         ScanWarning("def_parse_fail", i, f"delimited \\def\\{mname}")
                     )
                 return e2
+        if ok:
+            # 纯 #n 序列但无 body（EOF/参数中断）——降级也留信号
+            state.warnings.append(
+                ScanWarning("def_parse_fail", i, f"bodyless \\def\\{mname}")
+            )
         return body_pos if not ok else pos
 
     if name in (
@@ -361,7 +371,9 @@ def _read_def_name(tex: str, pos: int) -> tuple[str | None, int]:
 def _scan_def_params(tex: str, pos: int) -> tuple[bool, int, int]:
     r"""``\def`` 参数文本扫描：(是否纯 ``#n`` 序列, 参数数, 扫描停止位)。
 
-    纯序列 = 连续 ``#1..#9`` + 空白，直到 ``{``/其他字符。
+    纯序列 = 连续 ``#1..#9`` + 空白，直到 ``{``/``\par``/其他字符。
+    单个 ``\n`` 在参数文本里是 space token（TeX catcode 语义），
+    ``\n\n`` 才是 ``\par`` 停止位。
     """
     n = len(tex)
     nargs = 0
@@ -371,13 +383,20 @@ def _scan_def_params(tex: str, pos: int) -> tuple[bool, int, int]:
         if c == "#" and pos + 1 < n and tex[pos + 1].isdigit():
             nargs += 1
             pos += 2
-        elif c in " \t":
+        elif c in " \t\r":
             pos += 1
+        elif c == "\n":
+            k = pos + 1
+            while k < n and tex[k] in " \t\r":
+                k += 1
+            if k < n and tex[k] == "\n":
+                break  # \par：非 \long 定义到此为止
+            pos += 1  # 单换行 = space token，继续扫 #n
         elif c == "#":
             # '##' 或 '#{' 等非数字形 → 定界参
             ok = False
             pos += 1
-        elif c in "\n{":
+        elif c == "{":
             break
         else:
             ok = False

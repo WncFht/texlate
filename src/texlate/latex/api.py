@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 from texlate.latex.flatten import flatten_inputs
 from texlate.latex.macro_table import MacroTable
 from texlate.latex.model import ScanResult, ScanState, ScanWarning
-from texlate.latex.placeholder import PlaceholderIssuer
+from texlate.latex.placeholder import PH_RX, PlaceholderIssuer
 from texlate.latex.scanner import Scanner
 
 _PREAMBLE_RX = re.compile(r"\\(documentclass|documentstyle)(?![a-zA-Z])")
@@ -39,6 +39,13 @@ def new_state() -> ScanState:
 def parse_tex(tex: str) -> ScanResult:
     """主入口：单文件文本 → ``ScanResult``。"""
     state = new_state()
+    # 源文自带 [[X_n]] 形字面 → 签发避让 + 信号（reconstruct 会把原文当 ph 展开）
+    reserved = PH_RX.findall(tex)
+    if reserved:
+        state.ph_reserved.update(reserved)
+        state.warnings.append(
+            ScanWarning("ph_collision", 0, f"{len(reserved)} 处 [[X_n]] 形字面")
+        )
     sc = Scanner(state)
     mdoc = _DOC_BEGIN_RX.search(tex)
     mpream = _PREAMBLE_RX.search(tex)

@@ -47,11 +47,14 @@ from texlate.latex.model import (
     ScanWarning,
     Span,
     env_name_at,
+    has_par_break,
     match_brace,
     match_bracket,
     read_cmd_name,
+    skip_verb_at,
     unescaped_dollar_odd,
     ws_skip,
+    ws_skip_arg,
 )
 from texlate.latex.placeholder import PH_RX
 from texlate.latex.tables import (
@@ -109,6 +112,9 @@ _FILENAME_CHARS = frozenset(
 _LETTER_TAIL_RX = re.compile(
     r"\\[a-zA-Z@]+\Z"
 )  # \Z 严格串尾：体尾 \n 已阻断 token 合并
+# math-debt 豁免：体内容里的 ``$`` 是逐字/注释死字符（verbatim 定界、注释、
+# verbatim 参数括号），不是 TeX mathshift——压栈只会误吞后文真数学（W 类）。
+_DEBT_EXEMPT = frozenset({PhType.VERB, PhType.COMMENT, PhType.URL, PhType.HREF})
 _CUT_PROBE = 16  # 硬切点半径：探测横跨切点的 [[X_n]]（最长占位符 ~12 字符）
 _CLEAN_CMD_RX = re.compile(r"\\[a-zA-Z@]+\*?|\\[^a-zA-Z]")
 _CLEAN_NONALPHA_RX = re.compile(r"[^a-zA-Z]")
@@ -181,7 +187,9 @@ class Scanner:
             self.state.warnings.append(
                 ScanWarning("letters_cut", self.base + cut_end, body[-40:])
             )
-        return self.state.issuer.new(typ, body, self.state.ph_map)
+        return self.state.issuer.new(
+            typ, body, self.state.ph_map, self.state.ph_reserved
+        )
 
     def _ph_into_run(
         self,
@@ -198,7 +206,7 @@ class Scanner:
             self._run_start = byte_start
         ph = self._ph(typ, body, cut_end)
         self._run.append(ph)
-        if unescaped_dollar_odd(body):
+        if typ not in _DEBT_EXEMPT and unescaped_dollar_odd(body):
             self.math_debt.append(len(self._run) - 1)
 
     def _rappend(self, s: str, byte_start: int) -> None:
@@ -240,8 +248,23 @@ class Scanner:
     # ------------------------------------------------------------ chunk / run
 
     def _new_chunk(self, content: str, context: str, gspan: Span) -> str:
-        """登记 chunk，返回 ``[[CHUNK_id]]``。"""
+        """登记 chunk，返回 ``[[CHUNK_id]]``。
+
+        源文自带 ``[[CHUNK_n]]`` 形字面时补死位跳号——``chunks[id]`` 索引
+        对齐约束下只能塞空 chunk（碰撞本身已由 ``ph_collision`` 报告）。
+        """
         cid = len(self.state.chunks)
+        while f"[[CHUNK_{cid}]]" in self.state.ph_reserved:
+            # 死位 content = token 自身：expand 环防护把它展开回字面 → 撞号
+            # 字面在 chunk 内容里也逐字还原（identity 不破）
+            self.state.chunks.append(
+                Chunk(
+                    id=cid,
+                    content=f"[[CHUNK_{cid}]]",
+                    span=Span(gspan.start, gspan.start),
+                )
+            )
+            cid += 1
         self.state.chunks.append(
             Chunk(
                 id=cid,
@@ -381,7 +404,7 @@ class Scanner:
             # 4. 空行分段：\n + 空白* + \n → 段落边界
             if c == "\n":
                 k = i + 1
-                while k < n and tex[k] in " \t":
+                while k < n and tex[k] in " \t\r":
                     k += 1
                 if k < n and tex[k] == "\n":
                     self._rappend(tex[i:k], i)
@@ -409,7 +432,7 @@ class Scanner:
 
     # ------------------------------------------------------------ 数学配对 + debt
 
-    def _on_dollar(self, i: int) -> int:
+    def _on_dollar(self, i: int) -> int:  # noqa: C901 — debt/$$/$ 三分支单遍配对，平铺即 §3.3
         """``$`` 分支：debt 修复 → ``$$`` → ``$``；失败逐字 + warning。"""
         tex, n = self._tex, len(self._tex)
         # debt repair：占位符体内开出数学的闭合符（§3.3 正确性论证）
@@ -424,7 +447,7 @@ class Scanner:
             return i + 1
         if tex.startswith("$$", i):
             e = tex.find("$$", i + 2)
-            if e >= 0 and "\n\n" not in tex[i:e]:
+            if e >= 0 and not has_par_break(tex[i:e]):
                 self._ph_into_run(PhType.MATH, tex[i : e + 2], i, e + 2)
                 return e + 2
             self._rappend("$", i)
@@ -438,10 +461,15 @@ class Scanner:
             if tex[j] == "$":
                 ok = True
                 break
-            if tex[j] == "\n" and j + 1 < n and tex[j + 1] == "\n":
-                break
+            if tex[j] == "\n":
+                # 段落边界判据与主循环一致：\n[ \t\r]*\n（含空白空行也算）
+                k = j + 1
+                while k < n and tex[k] in " \t\r":
+                    k += 1
+                if k < n and tex[k] == "\n":
+                    break
             j += 1
-        if ok and "\n\n" not in tex[i : j + 1]:
+        if ok and not has_par_break(tex[i : j + 1]):
             self._ph_into_run(PhType.MATH, tex[i : j + 1], i, j + 1)
             return j + 1
         self._rappend("$", i)
@@ -473,11 +501,12 @@ class Scanner:
         if has_opt:
             items = [ArgSpec("o"), *items]
         pos = (
-            ws_skip(tex, i) if items else i
-        )  # 空 spec 不吃命令后空白（\CX\ngate 误吞 \n 教训）
+            ws_skip_arg(tex, i) if items else i
+        )  # 空 spec 不吃命令后空白（\CX\ngate 误吞 \n 教训）；
+        # ws_skip_arg 不跨 \n\n——TeX 不定界参数遇 \par 停
         out: list[ArgSpan] = []
         for s in items:
-            pos = ws_skip(tex, pos)
+            pos = ws_skip_arg(tex, pos)
             if pos >= n:
                 out.append(ArgSpan(Span(pos, pos), Span(pos, pos), s))
                 continue
@@ -495,8 +524,9 @@ class Scanner:
                         break
                     out.append(ArgSpan(Span(pos + 1, e - 1), Span(pos, e), s))
                     pos = e
-                elif c == "\\" or not allow_single_token:
-                    # 单 token 参数不跨 '\'（BUG1）；禁用即停
+                elif c == "\\" or c in " \t\n\r" or not allow_single_token:
+                    # 单 token 参数不跨 '\'（BUG1）不吞 ws_skip_arg 停下的
+                    # 段落边界 \n；禁用即停
                     break
                 else:
                     out.append(ArgSpan(Span(pos, pos + 1), Span(pos, pos + 1), s))
@@ -538,7 +568,7 @@ class Scanner:
             # 'e'/'b'/未知：不消费（修饰/环境体语义不在调用点）
         return out, pos
 
-    def _find_env_end(self, i: int, env: str) -> tuple[int, int] | None:  # noqa: C901 — begin/end/宏端点三分支单遍查找，平铺即 §3.5
+    def _find_env_end(self, i: int, env: str) -> tuple[int, int] | None:  # noqa: C901, PLR0912 — begin/end/verb/宏端点四分支单遍查找，平铺即 §3.5
         r"""找 env 的匹配 ``\end``（含宏端点），注释安全 + ``*`` 归一。
 
         两侧 ``rstrip('*')`` 归一比较（``\begin{multline*}…\end{multline}``
@@ -555,8 +585,18 @@ class Scanner:
                 continue
             if c == "\\":
                 name, j = read_cmd_name(tex, i)
+                if name in ("verb", "lstinline"):
+                    # 定界体内的 \end{target} 是字面内容，不计配对
+                    i = skip_verb_at(tex, name, j) or j
+                    continue
                 if name == "begin":
                     sub, e2 = env_name_at(tex, j)
+                    if sub in VERBATIM_ENVS:
+                        # verbatim 类环境体内一切字面（含假 \end{target}）
+                        pat = "\\end{" + sub + "}"
+                        k2 = tex.find(pat, e2 or j)
+                        i = k2 + len(pat) if k2 >= 0 else n
+                        continue
                     if sub is not None and sub.rstrip("*") == target:
                         depth += 1
                     i = e2 or j
@@ -633,7 +673,7 @@ class Scanner:
             if self.in_arg:
                 self._ph_into_run(PhType.ENVTAG, tex[i:end], i, end)
                 if env is not None:
-                    self._env_pop(env)
+                    self._env_pop(env, i)
                 return end
             self._flush_run(i)
             if env == "document" and e2:
@@ -642,7 +682,7 @@ class Scanner:
                 return n
             self._emit(i, end)
             if env is not None:
-                self._env_pop(env)
+                self._env_pop(env, i)
             return end
 
         # 6. cite 族 → [[CITE]] 进 run
@@ -663,7 +703,7 @@ class Scanner:
 
         # 9. \href{url}{text}：url→[[HREF]]，text 继续扫
         if name == "href":
-            pos = ws_skip(tex, j)
+            pos = ws_skip_arg(tex, j)
             if pos < n and tex[pos] == "{":
                 e = match_brace(tex, pos, verbatim=True)
                 if e:
@@ -677,7 +717,7 @@ class Scanner:
         if name in _INPUT_SCAN_CMDS:
             if self.in_arg:
                 return self._protect_call(i, j, PhType.CMD)
-            pos = ws_skip(tex, j)
+            pos = ws_skip_arg(tex, j)
             end = j
             if pos < n and tex[pos] == "{":
                 e = match_brace(tex, pos)
@@ -710,11 +750,11 @@ class Scanner:
 
         # 12. 整块保护（\author{..} 等）；in_arg → [[AUTHOR]] 进 run 不 flush
         if name in PROTECT_BLOCK_NAMES:
-            pos = ws_skip(tex, j)
+            pos = ws_skip_arg(tex, j)
             if pos < n and tex[pos] == "[":
                 e2 = match_bracket(tex, pos)
                 if e2:
-                    pos = ws_skip(tex, e2)
+                    pos = ws_skip_arg(tex, e2)
             if pos < n and tex[pos] == "{":
                 e = match_brace(tex, pos)
                 if e:
@@ -746,21 +786,29 @@ class Scanner:
                 self.force_chunk = True  # item 文本恒可译
             return j
 
+        # 14b. \endinput：TeX 语义——当前文件到此为止，余下逐字（不再挖）
+        if name == "endinput":
+            if self.in_arg:
+                return self._protect_call(i, j, PhType.CMD)
+            self._flush_run(i)
+            self._emit(i, n)
+            return n
+
         # 15. 条件命令 / LITERAL 类宏（\if 两档，§8.6）
         if COND_RX.match(name) or self._is_literal_macro(name):
             return self._handle_cond(i, j, name)
 
         # 16. 数学定界 \[ \( \] \)
         if name == "[":
-            e = tex.find("\\]", j)
-            if e > 0 and "\n\n" not in tex[i:e]:
+            e = self._find_math_close(j, "\\]")
+            if e > 0:
                 self._ph_into_run(PhType.MATH, tex[i : e + 2], i, e + 2)
                 return e + 2
             self._rappend(tex[i:j], i)
             return j
         if name == "(":
-            e = tex.find("\\)", j)
-            if e > 0 and "\n\n" not in tex[i:e]:
+            e = self._find_math_close(j, "\\)")
+            if e > 0:
                 self._ph_into_run(PhType.MATH, tex[i : e + 2], i, e + 2)
                 return e + 2
             self._rappend(tex[i:j], i)
@@ -784,8 +832,8 @@ class Scanner:
             return self._handle_macro(i, j, m)
 
         # 19. 未知命令：有 {/[ 参数 → [[CMD]]（禁单 token，修泄漏 A）；
-        #     否则逐字进 run
-        pos = ws_skip(tex, j)
+        #     否则逐字进 run；参数搜索不跨段落边界（TeX \par 停）
+        pos = ws_skip_arg(tex, j)
         if pos < n and tex[pos] in "{[":
             args, end = self._args(j, 6, has_opt=True, allow_single_token=False)
             if any(a.full.end > a.full.start for a in args):
@@ -796,37 +844,42 @@ class Scanner:
 
     # ------------------------------------------------------------ verb
 
+    def _find_math_close(self, j: int, closer: str) -> int:
+        r"""``\\]``/``\\)`` 闭符查找：跳过注释，遇段落边界放弃（-1）。
+
+        注释内 ``\]`` 不作闭合符（与 ``_find_env_end`` 的注释安全一致）；
+        ``\n[ \t\r]*\n`` 视为数学区逃逸——原始 ``find`` 会把假闭合吃进 MATH。
+        """
+        tex, n = self._tex, len(self._tex)
+        pos = j
+        while pos < n:
+            c = tex[pos]
+            if c == "%":
+                k = tex.find("\n", pos)
+                pos = n if k < 0 else k + 1
+                continue
+            if c == "\\" and tex.startswith(closer, pos):
+                return pos
+            if c == "\n":
+                k = pos + 1
+                while k < n and tex[k] in " \t\r":
+                    k += 1
+                if k < n and tex[k] == "\n":
+                    return -1
+            pos += 1
+        return -1
+
     def _handle_verb(self, i: int, j: int, name: str) -> int:
         r"""``\verb|x|`` / ``\verb*x`` / ``\lstinline[opt]|x|`` → ``[[VERB]]``。
 
         定界符搜索上限 = 下一 ``\n``（W9：TeX 里 verb 不跨行）。
         ``\lstinline`` 支持 ``[opts]`` 前缀与 ``{...}`` 配对形（W10）。
         """
-        tex, n = self._tex, len(self._tex)
-        k = j
-        if name == "verb" and k < n and tex[k] == "*":
-            k += 1
-        if name == "lstinline":
-            k = ws_skip(tex, k)
-            if k < n and tex[k] == "[":
-                e2 = match_bracket(tex, k)
-                if e2:
-                    k = ws_skip(tex, e2)
-        if k < n:
-            d = tex[k]
-            if d == "{":
-                e = match_brace(tex, k, verbatim=True)
-                if e:
-                    self._ph_into_run(PhType.VERB, tex[i:e], i, e)
-                    return e
-            elif d not in " \t\n":
-                eol = tex.find("\n", k + 1)
-                limit = n if eol < 0 else eol
-                e = tex.find(d, k + 1, limit)
-                if e > 0:
-                    self._ph_into_run(PhType.VERB, tex[i : e + 1], i, e + 1)
-                    return e + 1
-        self._rappend(tex[i:j], i)
+        e = skip_verb_at(self._tex, name, j)
+        if e is not None:
+            self._ph_into_run(PhType.VERB, self._tex[i:e], i, e)
+            return e
+        self._rappend(self._tex[i:j], i)
         return j
 
     # ------------------------------------------------------------ env
@@ -909,11 +962,11 @@ class Scanner:
     def _eat_env_args(self, j: int, env: str, reg: EnvEntry | None) -> int:
         r"""``\begin`` 行尾部：``[opt]`` + ``ENV_MANDATORY_ARG``/登记 nargs 的 ``{arg}``。"""
         tex, n = self._tex, len(self._tex)
-        pos = ws_skip(tex, j)
+        pos = ws_skip_arg(tex, j)
         if pos < n and tex[pos] == "[":
             e2 = match_bracket(tex, pos)
             if e2:
-                pos = ws_skip(tex, e2)
+                pos = ws_skip_arg(tex, e2)
         mand = 1 if env in ENV_MANDATORY_ARG else 0
         if reg is not None:
             mand = max(mand, reg.nargs)
@@ -921,27 +974,35 @@ class Scanner:
             if pos < n and tex[pos] == "{":
                 e2 = match_brace(tex, pos)
                 if e2:
-                    pos = ws_skip(tex, e2)
+                    pos = ws_skip_arg(tex, e2)
                     continue
             break
         return pos
 
-    def _env_pop(self, env: str) -> None:
-        r"""``\end{env}`` → env_stack 弹（rstrip 归一；stray → warning）。"""
+    def _env_pop(self, env: str, pos: int) -> None:
+        r"""``\end{env}`` → env_stack 弹（rstrip 归一；stray/隐式弹栈 → warning）。"""
         target = env.rstrip("*")
         if self.env_stack and self.env_stack[-1].rstrip("*") == target:
             self.env_stack.pop()
             return
         if target in {e.rstrip("*") for e in self.env_stack}:
+            popped: list[str] = []
             while self.env_stack and self.env_stack[-1].rstrip("*") != target:
-                self.env_stack.pop()
+                popped.append(self.env_stack.pop())
             if self.env_stack:
                 self.env_stack.pop()
-            return
-        if self.env_stack:
             self.state.warnings.append(
-                ScanWarning("stray_end", self.base, f"\\end{{{env}}}")
+                ScanWarning(
+                    "env_mismatch",
+                    self.base + pos,
+                    f"\\end{{{env}}} 隐式关闭 {popped}",
+                )
             )
+            return
+        # 栈空也算 stray——静默降级无信号是本项目核心教训
+        self.state.warnings.append(
+            ScanWarning("stray_end", self.base + pos, f"\\end{{{env}}}")
+        )
 
     def _env_with_mined(
         self, i: int, j: int, env: str, end: int, tag_start: int
@@ -952,6 +1013,9 @@ class Scanner:
         """
         inner = self._tex[j:tag_start]
         if self.gen >= MAX_GEN:
+            self.state.warnings.append(
+                ScanWarning("gen_overflow", self.base + i, f"env:{env}")
+            )
             return self._tex[i:end]  # 超代数不再内挖，原样保护
         sub = self.spawn(mode=ScanMode.MINED_ONLY, in_arg=False, base=self.base + j)
         sub.env_stack.append(env)
@@ -963,7 +1027,7 @@ class Scanner:
     def _handle_chunk_arg(self, i: int, j: int, name: str) -> int:
         r"""``\section[opt]{arg}``：前缀逐字，arg → 独立 chunk（§3.6）。"""
         tex = self._tex
-        pos = ws_skip(tex, j)
+        pos = ws_skip_arg(tex, j)
         if pos < len(tex) and tex[pos] == "*":
             pos += 1
         spec_str, tidx = CHUNK_ARG_SPEC.get(name, ("om", 1))
@@ -976,6 +1040,10 @@ class Scanner:
             target = args[tidx]
         elif real:
             target = real[-1]
+        if target is not None and self.gen >= MAX_GEN:
+            self.state.warnings.append(
+                ScanWarning("gen_overflow", self.base + i, f"chunk:{name}")
+            )
         if target is None or target.full == target.content or self.gen >= MAX_GEN:
             # 无 {..} 参数 / 单 token 参数 / 超代数 → 命令名逐字
             self._rappend(tex[i:j], i)
@@ -1068,7 +1136,12 @@ class Scanner:
             )  # 开括号
             if arg.spec is not None and arg.spec.kind == "s":
                 self._rappend(tex[arg.full.start : arg.full.end], arg.full.start)
-            elif k < len(m.protect_args) and m.protect_args[k]:
+            elif (
+                k < len(m.protect_args)
+                and m.protect_args[k]
+                and arg.content.end > arg.content.start
+            ):
+                # 零宽缺省参不签发空 [[KEY]]（死占位符噪声）
                 body = tex[arg.content.start : arg.content.end]
                 self._ph_into_run(PhType.KEY, body, arg.content.start, arg.content.end)
             elif arg.content.end > arg.content.start and self.gen < MAX_GEN:
@@ -1078,6 +1151,12 @@ class Scanner:
                 ).protected_tex
                 self._rappend(rendered, arg.content.start)
             else:
+                if arg.content.end > arg.content.start:
+                    self.state.warnings.append(
+                        ScanWarning(
+                            "gen_overflow", self.base + arg.content.start, m.name
+                        )
+                    )
                 self._rappend(
                     tex[arg.content.start : arg.content.end], arg.content.start
                 )
@@ -1113,7 +1192,7 @@ class Scanner:
         if name.startswith("if"):
             if self.in_arg:
                 # in_arg：if* 紧跟 { 即双参宏调用 → 整调用 [[COND]]
-                p = ws_skip(tex, j)
+                p = ws_skip_arg(tex, j)
                 if m is None and p < n and tex[p] == "{":
                     return self._protect_call(i, j, PhType.COND)
                 _w, end = self._eval_if(j, name)
@@ -1128,13 +1207,13 @@ class Scanner:
                 which, cond_end = self._eval_if(j, name)
                 if which is not None:
                     return self._process_if(i, cond_end, which=which)
-                p = ws_skip(tex, j)
+                p = ws_skip_arg(tex, j)
                 if p < n and tex[p] == "{":
                     return self._protect_call(i, j, PhType.CMD)
-                # 结构界标：\if/\else/\fi literal，双分支都进
+                # 结构界标：\if+已消费的条件串 literal，双分支都进
                 self._flush_run(i)
-                self._emit(i, j)
-                return j
+                self._emit(i, cond_end)
+                return cond_end
         # else/fi/or 或 LITERAL 宏（含 \newif 旗标写入副作用）
         if self.in_arg:
             self._ph_into_run(PhType.COND, tex[i:j], i, j)
@@ -1228,10 +1307,10 @@ class Scanner:
             return False, max(p, j)
         return None, j
 
-    def _read_number(self, i: int) -> tuple[int | None, int]:
+    def _read_number(self, i: int) -> tuple[int | None, int]:  # noqa: C901, PLR0911, PLR0912 — TeX <number> 语法各形态一分支，平铺即 §8.6 数表
         r"""读 TeX 数：可选符号 + 数字串 / ``'x`` / ```x`` 字符码 / ``\cs``。"""
         tex, n = self._tex, len(self._tex)
-        pos = ws_skip(tex, i)
+        pos = ws_skip_arg(tex, i)
         sign = 1
         while pos < n and tex[pos] in "+-":
             if tex[pos] == "-":
@@ -1250,7 +1329,20 @@ class Scanner:
             return sign * ord(tex[pos + 1]), pos + 2
         if c == "\\":
             _name, e2 = read_cmd_name(tex, pos)
-            return None, e2  # 寄存器/内部量 → 消费但不求值
+            # 寄存器/内部量不求值但消费：\count0/\dimen12 的下标数、
+            # \catcode`A 的字符码、{\group} 形一并读掉，保证界标覆盖完整条件
+            k = ws_skip(tex, e2)
+            if k < n and tex[k].isdigit():
+                while k < n and tex[k].isdigit():
+                    k += 1
+                return None, k
+            if k + 1 < n and tex[k] in "'`":
+                return None, k + 2
+            if k < n and tex[k] == "{":
+                e = match_brace(tex, k)
+                if e:
+                    return None, e
+            return None, e2
         if c == "{":
             e = match_brace(tex, pos)
             if e:
@@ -1260,7 +1352,7 @@ class Scanner:
     def _read_if_token(self, i: int) -> tuple[str | None, int]:
         r"""``\if/\ifx`` 的一个 token：``\cs`` 带 ``\`` 前缀返回，字符原样。"""
         tex, n = self._tex, len(self._tex)
-        pos = ws_skip(tex, i)
+        pos = ws_skip_arg(tex, i)
         if pos >= n:
             return None, pos
         if tex[pos] == "\\":
@@ -1290,6 +1382,20 @@ class Scanner:
                 continue
             if c == "\\":
                 nm, j2 = read_cmd_name(tex, pos)
+                if nm in ("verb", "lstinline"):
+                    # 定界体内的 \fi/\if 是字面内容，不计配对
+                    pos = skip_verb_at(tex, nm, j2) or j2
+                    continue
+                if nm == "begin":
+                    # verbatim 类环境体内的 \fi/\else 同样是字面内容
+                    sub2, e2 = env_name_at(tex, j2)
+                    if sub2 in VERBATIM_ENVS:
+                        pat = "\\end{" + sub2 + "}"
+                        k2 = tex.find(pat, e2 or j2)
+                        pos = k2 + len(pat) if k2 >= 0 else n
+                        continue
+                    pos = e2 or j2
+                    continue
                 if nm == "newif":
                     p3 = ws_skip(tex, j2)
                     if p3 < n and tex[p3] == "\\":
@@ -1299,6 +1405,12 @@ class Scanner:
                         pos = p3
                     continue
                 if nm.startswith("if"):
+                    # 与 _handle_cond 同一前置：非 LITERAL 宏（\ifAnonymous 等
+                    # 双参调用形）不是原语 if——计入会把真 \fi 配错对象
+                    m2 = self.state.macros.cmds.get(nm)
+                    if m2 is not None and m2.kind is not MacroKind.LITERAL:
+                        pos = j2
+                        continue
                     depth += 1
                     pos = j2
                     continue
@@ -1356,7 +1468,7 @@ class Scanner:
         if pos < n and tex[pos] == "*":
             pos += 1
         for _ in range(3):
-            p2 = ws_skip(tex, pos)
+            p2 = ws_skip_arg(tex, pos)
             if p2 < n and tex[p2] == "[":
                 e = match_bracket(tex, p2)
                 if e:
@@ -1365,7 +1477,7 @@ class Scanner:
             break
         end = pos
         for _ in range(3):
-            p2 = ws_skip(tex, end)
+            p2 = ws_skip_arg(tex, end)
             if p2 < n and tex[p2] == "{":
                 e = match_brace(tex, p2, verbatim=verbatim)
                 if e is None:

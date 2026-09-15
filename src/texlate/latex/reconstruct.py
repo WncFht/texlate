@@ -40,10 +40,14 @@ def reconstruct(res: ScanResult, translations: dict[int, str] | None = None) -> 
     )
     memo: dict[str, str] = {}
     chunks = res.chunks
+    active: set[str] = set()
 
     def expand(token: str) -> str:  # token 形如 [[X_n]]
         if token in memo:
             return memo[token]
+        if token in active:
+            return token  # 译文侧自指/互指环（ph_map 构造上无环）→ 留字面
+        active.add(token)
         body = trans.get(token)
         if body is None:
             body = res.ph_map.get(token)
@@ -52,6 +56,7 @@ def reconstruct(res: ScanResult, translations: dict[int, str] | None = None) -> 
             idx = int(m.group(1)) if m else -1
             body = chunks[idx].content if 0 <= idx < len(chunks) else token
         memo[token] = PH_RX.sub(lambda mm: expand(mm.group(0)), body)
+        active.discard(token)
         return memo[token]
 
     # LITERAL 段也可能内嵌 ph（短 run / MINED_ONLY run 发渲染文本）——全段展开。

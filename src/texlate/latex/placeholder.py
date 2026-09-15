@@ -34,9 +34,22 @@ class PlaceholderIssuer:
         """计数器归零。"""
         self._n = 0
 
-    def new(self, typ: PhType, body: str, ph_map: dict[str, str]) -> str:
-        """签发 ``[[TYPE_n]]`` 并把本体登记进 ``ph_map``。"""
-        self._n += 1
-        ph = f"[[{typ.name}_{self._n}]]"
+    def new(
+        self,
+        typ: PhType,
+        body: str,
+        ph_map: dict[str, str],
+        reserved: set[str] | None = None,
+    ) -> str:
+        """签发 ``[[TYPE_n]]`` 并把本体登记进 ``ph_map``。
+
+        ``reserved`` = 源文自带的 ``[[X_n]]`` 形字面集合——签发撞上会让
+        reconstruct 把原文当占位符展开（identity 破），遇撞顺延编号。
+        """
+        while True:
+            self._n += 1
+            ph = f"[[{typ.name}_{self._n}]]"
+            if ph not in ph_map and (reserved is None or ph not in reserved):
+                break
         ph_map[ph] = body
         return ph

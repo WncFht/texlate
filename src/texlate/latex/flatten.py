@@ -23,6 +23,7 @@ from texlate.latex.model import (
     env_name_at,
     match_brace,
     read_cmd_name,
+    skip_verb_at,
     ws_skip,
 )
 from texlate.latex.tables import MAX_INPUTS, VERBATIM_ENVS
@@ -140,14 +141,16 @@ def flatten_inputs(  # noqa: C901, PLR0912, PLR0915 — 单遍逐字符主循环
             out.append(tex[i : e2 or j])
             i = e2 or j
             continue
+        if name == "endinput":
+            out.append(tex[i:j])
+            break  # TeX 语义：丢弃当前文件余下内容
         if name in ("verb", "lstinline"):
-            k = j + (1 if name == "verb" and j < n and tex[j] == "*" else 0)
-            if k < n:
-                e = tex.find(tex[k], k + 1)
-                if e > 0:
-                    out.append(tex[i : e + 1])
-                    i = e + 1
-                    continue
+            # 与 scanner._handle_verb 同一判据：EOL 上限 + lstinline[opt] 前缀
+            e = skip_verb_at(tex, name, j)
+            if e is not None:
+                out.append(tex[i:e])
+                i = e
+                continue
             out.append(tex[i:j])
             i = j
             continue
