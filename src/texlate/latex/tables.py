@@ -432,6 +432,7 @@ DEF_NAMES = {
 # \input 展平触发面（docs/07 §7，flatten.py 消费）
 INPUT_CMDS = {
     "input",
+    "@input",  # \makeatletter 下 \@input 内部形（gullet catcode 路径）
     "include",
     "InputIfFileExists",
     "subfile",
@@ -462,6 +463,7 @@ _WS_CHARS = " \t\n"
 # scan 层登记的 \input 触发面（gullet 未解析成功时记 inputs[]）
 INPUT_SCAN_CMDS = {
     "input",
+    "@input",  # 字节层 read_cmd_name 的 \@input 特判形
     "include",
     "InputIfFileExists",
     "subfile",

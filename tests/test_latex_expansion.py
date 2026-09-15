@@ -508,6 +508,26 @@ def test_gullet_input_inlines_file(tmp_path: Path) -> None:
     assert "sub words here" in text_of(ts)
 
 
+def test_gullet_at_input_under_makeatletter(tmp_path: Path) -> None:
+    r"""``\makeatletter`` 下 ``\@input{xx}`` → cs ``@input`` 触发压栈（2308.12597）。"""
+    sub = tmp_path / "xx.tex"
+    sub.write_text("at input words", encoding="utf-8")
+    g = Gullet("\\makeatletter\\@input{xx}\\makeatother", root_dir=str(tmp_path))
+    ts = list(g)
+    assert "at input words" in text_of(ts)
+
+
+def test_gullet_input_topdir_fallback(tmp_path: Path) -> None:
+    r"""``top_dir`` 第三级兜底（flatten ``_resolve`` 镜像，hep-ex/0307068 形）。"""
+    zdir = tmp_path / "LaTeX" / "zeus"
+    zdir.mkdir(parents=True)
+    (zdir / "d.tex").write_text("deep top words", encoding="utf-8")
+    deep = tmp_path / "LaTeX" / "examples" / "talk"
+    deep.mkdir(parents=True)
+    g = Gullet("\\input{./LaTeX/zeus/d}", root_dir=str(deep), top_dir=str(tmp_path))
+    assert "deep top words" in text_of(list(g))
+
+
 def test_gullet_input_missing_warns(tmp_path: Path) -> None:
     r"""缺文件 → ``missing_input`` warning + ``\input`` 本体逐字。"""
     g = Gullet("\\input{nosuchfile}", root_dir=str(tmp_path))

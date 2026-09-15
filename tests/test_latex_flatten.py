@@ -29,6 +29,28 @@ def test_input_bare_filename(tmp_path: Path) -> None:
     assert "BARE CONTENT" in out
 
 
+def test_at_input(tmp_path: Path) -> None:
+    r"""``\@input`` 整名触发（2308.12597：``\makeatletter\@input{xx}\makeatother``）。"""
+    _w(tmp_path, "xx.tex", "AT INPUT CONTENT")
+    out = flatten_inputs("\\makeatletter\\@input{xx}\\makeatother", str(tmp_path))
+    assert "AT INPUT CONTENT" in out
+
+
+def test_topdir_fallback(tmp_path: Path) -> None:
+    r"""``top_dir`` 第三级兜底：深位 root 按 e-print 根相对路径 ``\input``。
+
+    hep-ex/0307068 实例：``LaTeX/examples/talk/ztalk.tex`` 内
+    ``\\input ./LaTeX/zeus/x`` 只在 extracted/ 基底下命中。
+    """
+    _w(tmp_path, "LaTeX/zeus/zeus_other_def.tex", "TOPDIR CONTENT")
+    deep = tmp_path / "LaTeX" / "examples" / "talk"
+    deep.mkdir(parents=True)
+    src = "\\input ./LaTeX/zeus/zeus_other_def.tex\nB"
+    assert "TOPDIR CONTENT" not in flatten_inputs(src, str(deep), str(deep))
+    out = flatten_inputs(src, str(deep), str(deep), top_dir=str(tmp_path))
+    assert "TOPDIR CONTENT" in out
+
+
 def test_include(tmp_path: Path) -> None:
     _w(tmp_path, "inc.tex", "INC CONTENT")
     out = flatten_inputs("\\include{inc}", str(tmp_path))

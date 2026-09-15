@@ -154,13 +154,14 @@ def find_roots(tex_files: list[Path]) -> list[dict]:
     return roots
 
 
-def flatten_reach(tex: str, root_dir: str) -> set[str]:
+def flatten_reach(tex: str, root_dir: str, *, top_dir: str | None = None) -> set[str]:
     r"""跑 flatten_inputs 并记录它实际读取的文件 = \input 图可达集.
 
     经 ``texlate.latex.flatten._read_file`` 文件读取接缝注入记录器——
     该接缝即为此用途预留 (flatten.py:76 注释); 遍历/解析逻辑与
     flatten_inputs 严格同源 (file_dir→root_dir→basename 回退, 深度≤8,
-    注释/verbatim 不展开, _seen 断环)."""
+    注释/verbatim 不展开, _seen 断环). ``top_dir`` = 论文顶层目录兜底
+    (深位 root 的 e-print 根相对 \input, hep-ex/0307068 实例)."""
     reached: set[str] = set()
     orig_reader = flatten_mod._read_file
 
@@ -170,7 +171,7 @@ def flatten_reach(tex: str, root_dir: str) -> set[str]:
 
     flatten_mod._read_file = rec
     try:
-        flatten_inputs(tex, root_dir, root_dir)
+        flatten_inputs(tex, root_dir, root_dir, top_dir=top_dir)
     except Exception as exc:  # 覆盖统计尽力而为; 解析异常由逐文件 pass 记录
         print(
             f"  flatten_reach warn: {type(exc).__name__}: {exc}",
@@ -570,7 +571,7 @@ def analyze_paper(paper_id: str, pdir: Path, corpus: Path) -> dict:
     reach_by_root: dict[str, set[str]] = {}
     for r in roots:
         tex = decode_tex(r["file"].read_bytes())
-        reach = flatten_reach(tex, str(r["file"].parent))
+        reach = flatten_reach(tex, str(r["file"].parent), top_dir=str(pdir))
         reach.add(os.path.abspath(r["file"]))
         reach_by_root[os.path.abspath(r["file"])] = reach
         covered |= reach

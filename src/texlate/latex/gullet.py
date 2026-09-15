@@ -244,6 +244,7 @@ _PRIMS = {
     "makeatother",
     "catcode",
     "input",
+    "@input",
     "include",
     "InputIfFileExists",
     "subfile",
@@ -708,10 +709,15 @@ class Gullet:
         text: str = "",
         *,
         root_dir: str = "",
+        top_dir: str = "",
         cats: CatTable | None = None,
         macros: MacroTable | None = None,
     ) -> None:
-        """``text`` 顶层源（可空）；``cats``/``macros`` 可注入共享。"""
+        r"""``text`` 顶层源（可空）；``cats``/``macros`` 可注入共享。
+
+        ``top_dir``：``\input`` 解析第三级兜底（论文顶层目录，
+        缺省回落 ``root_dir``，与 flatten ``_resolve`` 同序）。
+        """
         self.cats = cats if cats is not None else CatTable()
         self.macros = macros if macros is not None else MacroTable()
         self.inputs: list[Mouth] = []  # 输入栈 = TeX.inputs (TeX.py:72)
@@ -727,6 +733,7 @@ class Gullet:
         self.overflow = False  # 是否已记 expansion_overflow
         self.warnings: list[ScanWarning] = []
         self.root_dir = root_dir
+        self.top_dir = top_dir or root_dir
         self._seen: set[str] = set()  # \input 绝对路径祖先栈（W12：进栈压、弹栈撤）
         self._seen_fid: dict[int, str] = {}  # file_id → 已登记绝对路径
         self._trace: list[Tok] = []  # 当前 invoke 已消费 token（回吐用）
@@ -1804,8 +1811,8 @@ class Gullet:
         shell = False
         tag: str | None = None
         fname: str | None = None
-        if name in ("input", "include"):
-            if name == "input":
+        if name in ("input", "include", "@input"):
+            if name in ("input", "@input"):
                 # 先试 {file}，再试裸文件名（[A-Za-z0-9._/-]+ 至空白/反斜杠）
                 grp = self._read_grouping(trace, "{", "}")
                 if grp is not None:
@@ -1853,7 +1860,7 @@ class Gullet:
             self.unread(trace)
             return trig
         file_dir = self._file_dir_of(trig)
-        hit = self._resolve_input(fname, file_dir, self.root_dir)
+        hit = self._resolve_input(fname, file_dir, self.root_dir, top_dir=self.top_dir)
         if hit is None or str(Path(hit).resolve()) in self._seen:
             if hit is None:
                 self._warn("missing_input", trig, f"{name}:{fname}")
@@ -1906,15 +1913,15 @@ class Gullet:
 
     @staticmethod
     def _resolve_input(  # noqa: C901 — 查找序四级候选平铺即 §7 语义
-        fname: str, file_dir: str, root_dir: str
+        fname: str, file_dir: str, root_dir: str, *, top_dir: str = ""
     ) -> str | None:
-        """查找序：including 目录 → 根目录 → basename 补 ``.tex`` → 裸名。"""
+        """查找序：including 目录 → 根目录 → paper topdir → basename 补 ``.tex`` → 裸名。"""
         cands = (
             [fname]
             if fname.lower().endswith(".tex")
             else [fname, fname + ".tex", fname + ".TEX"]
         )
-        for d in (file_dir, root_dir):
+        for d in (file_dir, root_dir, top_dir):
             if not d:
                 continue
             for c in cands:
@@ -1922,14 +1929,14 @@ class Gullet:
                 if p.exists():
                     return str(p)
         stem = Path(fname).name
-        for d in (file_dir, root_dir):
+        for d in (file_dir, root_dir, top_dir):
             if not d:
                 continue
             for ext in (".tex", ".TEX"):
                 p = Path(d) / (stem + ext)
                 if p.exists():
                     return str(p)
-        for d in (file_dir, root_dir):
+        for d in (file_dir, root_dir, top_dir):
             if not d:
                 continue
             p = Path(d) / fname

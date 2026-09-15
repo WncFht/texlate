@@ -314,9 +314,16 @@ def match_bracket(tex: str, i: int) -> int | None:
 
 
 def read_cmd_name(tex: str, i: int) -> tuple[str, int]:
-    r"""``tex[i]=='\\\\'`` → (名字, 命令后一位)。字母+``@`` 串或非字母单字符。"""
+    r"""``tex[i]=='\\\\'`` → (名字, 命令后一位)。字母+``@`` 串、``\@``+字母串或非字母单字符。"""
     j = i + 1
     n = len(tex)
+    if j < n and tex[j] == "@" and j + 1 < n and tex[j + 1].isalpha():
+        # `\@input` 类 @-宏整名读取——字节层无 catcode 概念，按 makeatletter
+        # 语义收（orphan 修复见 HANDOFF-2026-09-15 §2.4）
+        k = j + 1
+        while k < n and (tex[k].isalpha() or tex[k] == "@"):
+            k += 1
+        return tex[j:k], k
     if j < n and tex[j].isalpha():
         k = j
         while k < n and (tex[k].isalpha() or tex[k] == "@"):

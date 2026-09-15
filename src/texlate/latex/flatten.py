@@ -4,7 +4,8 @@ r"""``\input/\include`` 展平（docs/07 §7）。
 \subimport/\includestandalone/\CatchFileBetweenTags`` + 裸文件名形
 ``\input file``（读 ``[A-Za-z0-9._/-]+`` 至空白/反斜杠）。
 
-- 查找序：including 文件目录 → 项目根 → basename 补 ``.tex`` → 裸名。
+- 查找序：including 文件目录 → 项目根 → paper topdir（可选兜底，
+  e-print 解压根＝LaTeX 编译 cwd 语义）→ basename 补 ``.tex`` → 裸名。
 - 注释内 ``\input`` 在 Mouth 层吞掉天然不触发；verbatim env / ``\verb`` 内不触发。
 - ``\subfile``/``\includestandalone`` 展开时剥 document 壳
   （``\begin{document}`` 前与 ``\end{document}`` 起的内容丢弃——子文件自带
@@ -55,25 +56,32 @@ def strip_doc_shell(tex: str) -> str:
     return body[: e.start()] if e else body
 
 
-def _resolve(fname: str, file_dir: str, root_dir: str) -> str | None:
-    """查找序：including 目录 → 项目根 → basename 补 .tex → 裸名。"""
+def _resolve(
+    fname: str, file_dir: str, root_dir: str, *, top_dir: str | None = None
+) -> str | None:
+    r"""查找序：including 目录 → 项目根 → paper topdir → basename 补 .tex → 裸名。
+
+    ``top_dir`` 是论文顶层目录兜底（深位 root 文件按 e-print 根的相对路径
+    ``\input``，hep-ex/0307068 ``./LaTeX/zeus/…`` 实例）；缺省即旧两级行为。
+    """
     cands = (
         [fname]
         if fname.lower().endswith(".tex")
         else [fname, fname + ".tex", fname + ".TEX"]  # 野存在大写扩展名（corpus_v3）
     )
-    for d in (file_dir, root_dir):
+    dirs = (file_dir, root_dir) if top_dir is None else (file_dir, root_dir, top_dir)
+    for d in dirs:
         for c in cands:
             p = Path(d) / c
             if p.exists():
                 return str(p)
     stem = Path(fname).name
-    for d in (file_dir, root_dir):
+    for d in dirs:
         for ext in (".tex", ".TEX"):
             p = Path(d) / (stem + ext)
             if p.exists():
                 return str(p)
-    for d in (file_dir, root_dir):
+    for d in dirs:
         p = Path(d) / fname
         if p.exists():
             return str(p)
@@ -96,18 +104,22 @@ def _extract_tag_region(tex: str, tag: str) -> str | None:
     return tex[s.end() : e.start() if e else len(tex)]
 
 
-def flatten_inputs(  # noqa: C901, PLR0912, PLR0915 — 单遍逐字符主循环，分支序即语义（docs/07 §3 五条铁律）
+def flatten_inputs(  # noqa: C901, PLR0912, PLR0913, PLR0915 — 单遍逐字符主循环，分支序即语义（docs/07 §3 五条铁律）
     tex: str,
     file_dir: str,
     root_dir: str | None = None,
     depth: int = 0,
     _seen: set[str] | None = None,
     warnings: list[ScanWarning] | None = None,
+    *,
+    top_dir: str | None = None,
 ) -> str:
     r"""展开 ``\input/\include`` 族（八形态 + 裸文件名）。
 
-    先相对当前文件目录，再相对主文件目录（LaTeX/TEXINPUTS 语义）。
-    注释掉的 ``\input`` 不展开；verbatim 环境内不展开。
+    先相对当前文件目录，再相对主文件目录（LaTeX/TEXINPUTS 语义）；
+    ``top_dir`` 给定论文顶层目录时作第三级兜底（深位 root 的
+    e-print 根相对 ``\input``）。注释掉的 ``\input`` 不展开；verbatim
+    环境内不展开。
     """
     if root_dir is None:
         root_dir = file_dir
@@ -160,7 +172,18 @@ def flatten_inputs(  # noqa: C901, PLR0912, PLR0915 — 单遍逐字符主循环
             out.append(tex[i:j])
             i = j
             continue
-        hit = _try_input(tex, i, name, j, file_dir, root_dir, depth, _seen, warnings)
+        hit = _try_input(
+            tex,
+            i,
+            name,
+            j,
+            file_dir,
+            root_dir,
+            depth,
+            _seen,
+            warnings,
+            top_dir=top_dir,
+        )
         if hit is not None:
             expanded, i = hit
             out.append(expanded)
@@ -180,6 +203,8 @@ def _try_input(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915, PLR0917 — �
     depth: int,
     seen: set[str],
     warnings: list[ScanWarning] | None,
+    *,
+    top_dir: str | None = None,
 ) -> tuple[str, int] | None:
     r"""尝试把一个 ``\\`` 命令解释为 \\input 触发形态。
 
@@ -192,13 +217,13 @@ def _try_input(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915, PLR0917 — �
     end = j
     pos = ws_skip(tex, j)
 
-    if name in ("input", "include"):
+    if name in ("input", "include", "@input"):
         if pos < n and tex[pos] == "{":
             e = match_brace(tex, pos)
             if not e:
                 return None
             fname, end = tex[pos + 1 : e - 1].strip(), e
-        elif name == "input" and pos < n and tex[pos] in _FILENAME_CHARS:
+        elif name in ("input", "@input") and pos < n and tex[pos] in _FILENAME_CHARS:
             k = pos
             while k < n and tex[k] in _FILENAME_CHARS:
                 k += 1
@@ -265,7 +290,7 @@ def _try_input(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915, PLR0917 — �
 
     if not fname:
         return None
-    hit = _resolve(fname, file_dir, root_dir)
+    hit = _resolve(fname, file_dir, root_dir, top_dir=top_dir)
     if hit is None:
         if warnings is not None:
             warnings.append(ScanWarning("missing_input", i, f"{name}:{fname}"))
@@ -289,7 +314,13 @@ def _try_input(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915, PLR0917 — �
         sub = region
     seen.add(rpath)
     sub = flatten_inputs(
-        sub, str(Path(hit).parent), root_dir, depth + 1, seen, warnings
+        sub,
+        str(Path(hit).parent),
+        root_dir,
+        depth + 1,
+        seen,
+        warnings,
+        top_dir=top_dir,
     )
     seen.discard(rpath)
     return sub, end

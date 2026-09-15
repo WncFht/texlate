@@ -50,6 +50,10 @@ def test_read_cmd_name() -> None:
     assert read_cmd_name("\\%abc", 0) == ("%", 2)  # 非字母单字符
     assert read_cmd_name("\\[", 0) == ("[", 2)
     assert read_cmd_name("\\", 0) == ("", 1)
+    # ``\@``+字母 → 整名（\@input orphan 修复）；``\@``+非字母/串尾 → 单字符
+    assert read_cmd_name("\\@input{x}", 0) == ("@input", 7)
+    assert read_cmd_name("\\@1", 0) == ("@", 2)
+    assert read_cmd_name("\\@", 0) == ("@", 2)
 
 
 def test_env_name_at() -> None:
