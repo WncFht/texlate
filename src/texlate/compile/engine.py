@@ -26,6 +26,8 @@ from typing import TYPE_CHECKING, Protocol, runtime_checkable
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+from texlate.texlog import update_file_stack
+
 from .mask import decode_tex, visible_tex
 from .sandbox import child_env, find_tool, run_process, sandbox_wrap
 
@@ -86,7 +88,6 @@ _NONERR_FILELINE_RE = re.compile(
     r"^\S+?:\d+:\s*(?:(?:LaTeX|Package|Class)\b[^\n]*?\bWarning\b|==>)"
 )
 _L_NUM_RE = re.compile(r"^l\.(\d+)")
-_OPEN_PAREN_RE = re.compile(r"\((\./)?([^\s(){}]+\.(?:tex|sty|cls|def|cfg|clo|fd))")
 
 #: clean 判据的 log warning 红线（docs/08 §4.3）：任一命中即 dirty。
 WARNING_RED_LINES: list[tuple[str, str]] = [
@@ -106,33 +107,12 @@ WARNING_RED_LINES: list[tuple[str, str]] = [
 ]
 
 
-def _update_file_stack(ln: str, stack: list[str | None]) -> None:
-    """单行扫 ``(``/``)`` 增量维护文件栈；非文件 ``(`` 入栈 None 保持配对。"""
-    j = 0
-    while j < len(ln):
-        c = ln[j]
-        if c == "(":
-            m = _OPEN_PAREN_RE.match(ln, j)
-            if m:
-                stack.append(m.group(2))
-                j = m.end()
-                continue
-            stack.append(None)
-            j += 1
-        elif c == ")":
-            if stack:
-                stack.pop()
-            j += 1
-        else:
-            j += 1
-
-
 def _scan_error_lines(lines: list[str], info: LogInfo) -> int:
     """数 `^!`+`file:line:` 错误、记首错位置、追踪 `(` 文件栈。返回首错行号。"""
     ctx_start = -1
     stack: list[str | None] = []
     for i, ln in enumerate(lines):
-        _update_file_stack(ln, stack)
+        update_file_stack(ln, stack)
         if _ERR_BANG_RE.match(ln) or (
             _ERR_FILELINE_RE.match(ln) and not _NONERR_FILELINE_RE.match(ln)
         ):

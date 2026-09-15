@@ -26,6 +26,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Final
 
+from texlate.texlog import looks_like_tex_file, update_file_stack
+
 __all__ = [
     "L2Verdict",
     "LogError",
@@ -38,35 +40,7 @@ __all__ = [
 
 #: ``-file-line-error`` 格式：``./main.tex:44: msg`` / ``/abs/x.sty:7: msg``。
 #: 要求首个分量带已知 tex 系扩展名，且行首不是 ``(``/``!``（避免误吃普通行）。
-_TEX_EXTS: Final = frozenset(
-    {
-        "tex",
-        "sty",
-        "cls",
-        "clo",
-        "def",
-        "cfg",
-        "fd",
-        "ldf",
-        "aux",
-        "toc",
-        "bbl",
-        "bib",
-        "ins",
-        "dtx",
-        "bbx",
-        "cbx",
-        "mf",
-        "tfm",
-        "vf",
-        "ofm",
-        "ovp",
-        "map",
-        "enc",
-        "out",
-    }
-)
-
+#: tex 系扩展名/文件栈判定收敛到 ``texlate.texlog``（三处实现单源化）。
 _FILE_LINE_RX: Final = re.compile(
     r"^([^()\s:]+\.[A-Za-z0-9]{1,10}):(\d+):[ \t]*!?[ \t]*(.*)$"
 )
@@ -87,9 +61,6 @@ _LNUM_RX: Final = re.compile(r"^l\.(\d+)\s*(.*)$")
 
 #: log 首行引擎签名 ``This is XeTeX, Version ...``。
 _ENGINE_RX: Final = re.compile(r"^This is (\w+)")
-
-#: ``(`` 后文件 token（到空白/括号为止）。
-_OPEN_FILE_RX: Final = re.compile(r"[^\s()]+")
 
 #: ``Missing character: There is no X ("8FD9) in font ...`` —— 取码点判 CJK。
 _MISSING_CHAR_RX: Final = re.compile(
@@ -270,14 +241,6 @@ class L2Verdict:
 # ---------------------------------------------------------------- 内部
 
 
-def _looks_like_tex_file(token: str) -> bool:
-    """``(`` 后 token 是否 tex 系文件名（供文件栈过滤）。"""
-    base = token.rsplit("/", 1)[-1]
-    if "." not in base:
-        return False
-    return base.rsplit(".", 1)[-1].lower() in _TEX_EXTS
-
-
 def _classify_warning(line: str, ws: WarningSummary) -> None:
     """单行 warning 归类 + 红线打标。"""
     if not (_ANY_WARNING_RX.search(line) or _MARKERLESS_WARN_RX.search(line)):
@@ -311,27 +274,6 @@ def _tex_line_from_ctx(ctx: list[str]) -> int | None:
     return None
 
 
-def _update_file_stack(ln: str, stack: list[str | None]) -> None:
-    """单行扫 ``(``/``)`` 增量维护文件栈；非文件 ``(`` 入栈 None 保持配对。"""
-    j = 0
-    while j < len(ln):
-        c = ln[j]
-        if c == "(":
-            m = _OPEN_FILE_RX.match(ln, j + 1)
-            if m and _looks_like_tex_file(m.group(0)):
-                stack.append(m.group(0))
-                j = m.end()
-                continue
-            stack.append(None)
-            j += 1
-        elif c == ")":
-            if stack:
-                stack.pop()
-            j += 1
-        else:
-            j += 1
-
-
 def _match_error_line(ln: str) -> tuple[str, str | None] | None:
     """``(head, file:line: 给的 tex_file)``；非错误行返回 None。"""
     if _BANG_RX.match(ln):
@@ -339,7 +281,7 @@ def _match_error_line(ln: str) -> tuple[str, str | None] | None:
     mf = _FILE_LINE_RX.match(ln)
     if (
         mf is not None
-        and _looks_like_tex_file(mf.group(1))
+        and looks_like_tex_file(mf.group(1))
         and not _NONERR_FILELINE_RX.search(mf.group(3))
     ):
         return ln.strip(), mf.group(1)
@@ -360,7 +302,7 @@ def parse_log_text(text: str) -> L2Verdict:
 
     stack: list[str | None] = []
     for i, ln in enumerate(lines):
-        _update_file_stack(ln, stack)
+        update_file_stack(ln, stack)
 
         # —— 错误行：双格式 ——
         hit = _match_error_line(ln)

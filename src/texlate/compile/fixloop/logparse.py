@@ -17,14 +17,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from texlate.texlog import file_stack_at
+
 __all__ = ["ErrReport", "Taxonomy", "parse_log", "parse_text"]
 
 _CTX_LINES = 8  # spike L62: 首错行后取 8 行上下文
 _TAIL_LINES = 30  # spike L63: tail 30 行
-_TEX_EXT_RE = re.compile(
-    r"\.(?:tex|sty|cls|def|clo|cfg|dtx|ins|ltx|bib|bst|fd|map|enc)$",
-    re.IGNORECASE,
-)
 _LINE_NO_RE = re.compile(r"l\.(\d+)")
 # `-file-line-error` 模式下错误行是 `path:line: msg` (无 '!' 前缀) ——
 # impl-compile 的 xelatex 命令行带此旗标, 只数 '!' 会漏全部错误。
@@ -64,30 +62,6 @@ class ErrReport:
     raw: str = ""  # log 全文 (供 escalate_llm context / cases log_excerpt)
 
 
-def _file_stack_at(lines: list[str], stop: int) -> list[str]:
-    """模拟 ``(``/``)`` 文件开闭栈, 取 stop 行处仍打开的文件名序列。
-
-    TeX log 行宽 79 折行可能断文件名 —— 逐 token 近似即可, 供缩小
-    rewrite 作用域与 escalate 上下文, 不是精确解析器。
-    """
-    stack: list[str] = []
-    depth = 0
-    token = re.compile(r"([()])|([^\s()]+)")
-    for ln in lines[:stop]:
-        for m in token.finditer(ln):
-            if m.group(1) == "(":
-                depth += 1
-            elif m.group(1) == ")":
-                depth = max(0, depth - 1)
-                if len(stack) > depth:
-                    del stack[depth:]
-            else:
-                word = m.group(2)
-                if _TEX_EXT_RE.search(word) and len(stack) < depth + 1:
-                    stack.append(word)
-    return stack
-
-
 def parse_log(
     log_path: Path | None, warn_patterns: list[dict[str, Any]] | None = None
 ) -> ErrReport:
@@ -125,7 +99,7 @@ def parse_text(
         if m:
             rep.line_no = int(m.group(1))
     if first_i is not None:
-        rep.file_stack = _file_stack_at(lines, first_i)
+        rep.file_stack = file_stack_at(lines, first_i)
     for w in warn_patterns or []:
         if re.search(w["pattern"], text, re.IGNORECASE | re.MULTILINE):
             rep.warnings.append(w["id"])
