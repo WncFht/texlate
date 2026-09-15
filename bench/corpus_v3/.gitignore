@@ -6,3 +6,6 @@
 !mechanisms.jsonl
 !nominations/
 !nominations/**
+!select_booster.py
+!booster_selection.jsonl
+!selection_report.md
