@@ -2,6 +2,8 @@
 
 目标：评测各语言 LaTeX 库对**真实 arXiv 源码**的处理能力，为"段落级提取 + 保护 + 重建"管线选型。
 
+> 注记（2026-09-15）：M0 后 `bench/py/parsebench.py` 是 `texlate.latex` 产品管线的正式评测器（parsebench v2，规格 docs/10 §B1，产出 `bench/results/parsebench-*` 三件套）；本协议的"逐库对比"层只适用于外部库选型期。
+
 ## 语料
 
 - `corpus/` — 39 篇真实 arXiv 源码 (见 MANIFEST.md): NIPS/ICLR/CVPR/ICML/IEEEtran/ptptex(LaTeX2.09!), amsart/revtex4-4.1-4.2/aastex61/aa/elsarticle/acmart×4/llncs/iopart/quantumarticle/cms-tdr/eptcs/jfp-epi/subfiles/cambridge7A/book, 法语 babel, 中文注释，latin-5 编码，bussproofs/mathpartir 推导树，tikz 重度，algorithm2e/algorithmic, xy/pstricks, 自带 cls/sty/bst, 2.2MB 单文件书，subfiles/\include 多文件项目

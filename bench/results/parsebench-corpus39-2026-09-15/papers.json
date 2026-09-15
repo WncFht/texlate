@@ -1,6 +1,7 @@
 {
   "corpus": "/Users/fanghaotian/src/texlate/bench/corpus",
-  "wall_s": 103.7,
+  "wall_s": 9.0,
+  "weighted_note": "等权退化 (语料无 stratum_cell 或 frame 计数缺失) = raw pooled",
   "papers": [
     {
       "id": "0807.3917",
@@ -18,6 +19,7 @@
         }
       ],
       "multi_doc": false,
+      "rootless": false,
       "primary_root": "main.tex",
       "docclass": "IEEEtran",
       "docclass_options": "journal,letterpaper,final,twocolumn",
@@ -34,24 +36,25 @@
         "files": 11,
         "ok": 11,
         "error": 0,
+        "measure_error": 0,
         "ok_rate": 1.0,
         "strict": 11,
         "normalized": 0,
         "diverged": 0,
         "identity_rate": 1.0,
-        "chunks": 323,
-        "leaked_chunks": 1,
-        "leak_rate": 0.0031,
-        "hits": {
-          "dollar": 1
-        },
-        "chunk_chars_median": 251,
+        "chunks": 324,
+        "leaked_chunks": 0,
+        "leak_rate": 0.0,
+        "hits": {},
+        "warn_kinds": {},
+        "chunk_chars_median": 251.0,
         "chunk_chars_p90": 692,
         "residue_chunk_ph": 0,
         "residue_protect_ph": 0,
         "orphan_chunks": 0,
-        "bug1_ph_tail": 42
-      }
+        "bug1_ph_tail": 0
+      },
+      "weight": 1.0
     },
     {
       "id": "0906.1291",
@@ -69,6 +72,7 @@
         }
       ],
       "multi_doc": false,
+      "rootless": false,
       "primary_root": "bbjy.tex",
       "docclass": "revtex4",
       "docclass_options": "aps,pre,nofootinbib,showpacs,tightenlines,preprint,titlepage,amsmath",
@@ -82,22 +86,25 @@
         "files": 1,
         "ok": 1,
         "error": 0,
+        "measure_error": 0,
         "ok_rate": 1.0,
         "strict": 1,
         "normalized": 0,
         "diverged": 0,
         "identity_rate": 1.0,
-        "chunks": 57,
+        "chunks": 58,
         "leaked_chunks": 0,
         "leak_rate": 0.0,
         "hits": {},
-        "chunk_chars_median": 163,
+        "warn_kinds": {},
+        "chunk_chars_median": 195.0,
         "chunk_chars_p90": 862,
         "residue_chunk_ph": 0,
         "residue_protect_ph": 0,
         "orphan_chunks": 0,
-        "bug1_ph_tail": 3
-      }
+        "bug1_ph_tail": 0
+      },
+      "weight": 1.0
     },
     {
       "id": "0906.4725",
@@ -115,6 +122,7 @@
         }
       ],
       "multi_doc": false,
+      "rootless": false,
       "primary_root": "iqo-v5.tex",
       "docclass": "iopart",
       "docclass_options": "",
@@ -132,22 +140,27 @@
         "files": 3,
         "ok": 3,
         "error": 0,
+        "measure_error": 0,
         "ok_rate": 1.0,
         "strict": 3,
         "normalized": 0,
         "diverged": 0,
         "identity_rate": 1.0,
-        "chunks": 707,
+        "chunks": 714,
         "leaked_chunks": 0,
         "leak_rate": 0.0,
         "hits": {},
-        "chunk_chars_median": 206,
-        "chunk_chars_p90": 561,
+        "warn_kinds": {
+          "unclosed_env": 74
+        },
+        "chunk_chars_median": 200.5,
+        "chunk_chars_p90": 560,
         "residue_chunk_ph": 0,
         "residue_protect_ph": 0,
         "orphan_chunks": 0,
-        "bug1_ph_tail": 21
-      }
+        "bug1_ph_tail": 0
+      },
+      "weight": 1.0
     },
     {
       "id": "1106.1445",
@@ -165,6 +178,7 @@
         }
       ],
       "multi_doc": false,
+      "rootless": false,
       "primary_root": "qit-notes.tex",
       "docclass": "book",
       "docclass_options": "12pt",
@@ -175,6 +189,7 @@
         "files": 1,
         "ok": 1,
         "error": 0,
+        "measure_error": 0,
         "ok_rate": 1.0,
         "strict": 1,
         "normalized": 0,
@@ -184,13 +199,15 @@
         "leaked_chunks": 0,
         "leak_rate": 0.0,
         "hits": {},
+        "warn_kinds": {},
         "chunk_chars_median": 174.0,
         "chunk_chars_p90": 593,
         "residue_chunk_ph": 0,
         "residue_protect_ph": 0,
         "orphan_chunks": 0,
         "bug1_ph_tail": 0
-      }
+      },
+      "weight": 1.0
     },
     {
       "id": "1111.4914",
@@ -208,6 +225,7 @@
         }
       ],
       "multi_doc": false,
+      "rootless": false,
       "primary_root": "PhDThesis.tex",
       "docclass": "amsart",
       "docclass_options": "a4paper, reqno, 11pt",
@@ -220,6 +238,7 @@
         "files": 1,
         "ok": 1,
         "error": 0,
+        "measure_error": 0,
         "ok_rate": 1.0,
         "strict": 1,
         "normalized": 0,
@@ -229,13 +248,15 @@
         "leaked_chunks": 0,
         "leak_rate": 0.0,
         "hits": {},
+        "warn_kinds": {},
         "chunk_chars_median": 237,
         "chunk_chars_p90": 552,
         "residue_chunk_ph": 0,
         "residue_protect_ph": 0,
         "orphan_chunks": 0,
         "bug1_ph_tail": 0
-      }
+      },
+      "weight": 1.0
     },
     {
       "id": "1207.7214",
@@ -253,6 +274,7 @@
         }
       ],
       "multi_doc": false,
+      "rootless": false,
       "primary_root": "TheATLASJulyPaper.tex",
       "docclass": "elsarticle",
       "docclass_options": "final,3p,times,twocolumn",
@@ -265,22 +287,25 @@
         "files": 2,
         "ok": 2,
         "error": 0,
+        "measure_error": 0,
         "ok_rate": 1.0,
         "strict": 2,
         "normalized": 0,
         "diverged": 0,
         "identity_rate": 1.0,
-        "chunks": 331,
+        "chunks": 379,
         "leaked_chunks": 0,
         "leak_rate": 0.0,
         "hits": {},
-        "chunk_chars_median": 230,
-        "chunk_chars_p90": 897,
+        "warn_kinds": {},
+        "chunk_chars_median": 256,
+        "chunk_chars_p90": 3975,
         "residue_chunk_ph": 0,
         "residue_protect_ph": 0,
         "orphan_chunks": 0,
-        "bug1_ph_tail": 5
-      }
+        "bug1_ph_tail": 0
+      },
+      "weight": 1.0
     },
     {
       "id": "1207.7235",
@@ -298,6 +323,7 @@
         }
       ],
       "multi_doc": false,
+      "rootless": false,
       "primary_root": "HIG-12-028_temp.tex",
       "docclass": "cms-tdr",
       "docclass_options": "11pt,twoside,a4paper,cmspaper,final",
@@ -310,22 +336,25 @@
         "files": 1,
         "ok": 1,
         "error": 0,
+        "measure_error": 0,
         "ok_rate": 1.0,
         "strict": 1,
         "normalized": 0,
         "diverged": 0,
         "identity_rate": 1.0,
-        "chunks": 118,
+        "chunks": 112,
         "leaked_chunks": 0,
         "leak_rate": 0.0,
         "hits": {},
-        "chunk_chars_median": 596.0,
-        "chunk_chars_p90": 1305,
+        "warn_kinds": {},
+        "chunk_chars_median": 636.5,
+        "chunk_chars_p90": 1314,
         "residue_chunk_ph": 0,
         "residue_protect_ph": 0,
         "orphan_chunks": 0,
-        "bug1_ph_tail": 22
-      }
+        "bug1_ph_tail": 0
+      },
+      "weight": 1.0
     },
     {
       "id": "1403.3985",
@@ -343,6 +372,7 @@
         }
       ],
       "multi_doc": false,
+      "rootless": false,
       "primary_root": "ms.tex",
       "docclass": "revtex4-1",
       "docclass_options": "prd,reprint,showpacs,superscriptaddress,bibnotes",
@@ -353,22 +383,25 @@
         "files": 2,
         "ok": 2,
         "error": 0,
+        "measure_error": 0,
         "ok_rate": 1.0,
         "strict": 2,
         "normalized": 0,
         "diverged": 0,
         "identity_rate": 1.0,
-        "chunks": 214,
+        "chunks": 220,
         "leaked_chunks": 0,
         "leak_rate": 0.0,
         "hits": {},
+        "warn_kinds": {},
         "chunk_chars_median": 393.5,
-        "chunk_chars_p90": 996,
+        "chunk_chars_p90": 989,
         "residue_chunk_ph": 0,
         "residue_protect_ph": 0,
         "orphan_chunks": 0,
-        "bug1_ph_tail": 14
-      }
+        "bug1_ph_tail": 0
+      },
+      "weight": 1.0
     },
     {
       "id": "1412.6980",
@@ -386,6 +419,7 @@
         }
       ],
       "multi_doc": false,
+      "rootless": false,
       "primary_root": "arxiv.tex",
       "docclass": "article",
       "docclass_options": "a4paper",
@@ -396,6 +430,7 @@
         "files": 1,
         "ok": 1,
         "error": 0,
+        "measure_error": 0,
         "ok_rate": 1.0,
         "strict": 1,
         "normalized": 0,
@@ -405,13 +440,15 @@
         "leaked_chunks": 0,
         "leak_rate": null,
         "hits": {},
+        "warn_kinds": {},
         "chunk_chars_median": null,
         "chunk_chars_p90": null,
         "residue_chunk_ph": 0,
         "residue_protect_ph": 0,
         "orphan_chunks": 0,
         "bug1_ph_tail": 0
-      }
+      },
+      "weight": 1.0
     },
     {
       "id": "1502.01589",
@@ -429,66 +466,38 @@
         }
       ],
       "multi_doc": false,
+      "rootless": false,
       "primary_root": "planck_parameters_2015.tex",
       "docclass": "aa",
       "docclass_options": "traditabstract,longauth",
       "non_utf8_files": [],
       "tags": [],
-      "orphan_tex": [
-        "LCDM_result_table.tex",
-        "Planck.tex",
-        "abstract.tex",
-        "acknowledgements.tex",
-        "conclusions.tex",
-        "datasets.tex",
-        "datasets_CMBlensing.tex",
-        "datasets_H0.tex",
-        "datasets_SNe.tex",
-        "datasets_additional.tex",
-        "datasets_bao.tex",
-        "datasets_clusters.tex",
-        "datasets_summary.tex",
-        "grid.tex",
-        "grid_1param_result_table.tex",
-        "grid_DE.tex",
-        "grid_DM.tex",
-        "grid_Recomb.tex",
-        "grid_bbn.tex",
-        "grid_defects.tex",
-        "grid_early_curv.tex",
-        "grid_early_inf.tex",
-        "grid_early_iso.tex",
-        "grid_neutrino.tex",
-        "introduction.tex",
-        "macros.tex",
-        "model_and_params.tex",
-        "planck_only.tex",
-        "references.tex",
-        "section4.tex",
-        "tables/LCDM_compare.tex",
-        "tables/grid_1paramext.tex",
-        "title.tex"
-      ],
+      "orphan_tex": [],
       "stats": {
         "files": 35,
         "ok": 35,
         "error": 0,
+        "measure_error": 0,
         "ok_rate": 1.0,
         "strict": 35,
         "normalized": 0,
         "diverged": 0,
         "identity_rate": 1.0,
-        "chunks": 629,
+        "chunks": 1372,
         "leaked_chunks": 0,
         "leak_rate": 0.0,
         "hits": {},
-        "chunk_chars_median": 497,
-        "chunk_chars_p90": 1258,
+        "warn_kinds": {
+          "def_parse_fail": 16
+        },
+        "chunk_chars_median": 517.5,
+        "chunk_chars_p90": 1257,
         "residue_chunk_ph": 0,
         "residue_protect_ph": 0,
         "orphan_chunks": 0,
-        "bug1_ph_tail": 19
-      }
+        "bug1_ph_tail": 0
+      },
+      "weight": 1.0
     },
     {
       "id": "1507.02284",
@@ -506,6 +515,7 @@
         }
       ],
       "multi_doc": false,
+      "rootless": false,
       "primary_root": "sieve.tex",
       "docclass": "article",
       "docclass_options": "",
@@ -516,24 +526,25 @@
         "files": 1,
         "ok": 1,
         "error": 0,
+        "measure_error": 0,
         "ok_rate": 1.0,
         "strict": 1,
         "normalized": 0,
         "diverged": 0,
         "identity_rate": 1.0,
-        "chunks": 110,
-        "leaked_chunks": 1,
-        "leak_rate": 0.0091,
-        "hits": {
-          "dollar": 1
-        },
-        "chunk_chars_median": 376.0,
-        "chunk_chars_p90": 997,
+        "chunks": 108,
+        "leaked_chunks": 0,
+        "leak_rate": 0.0,
+        "hits": {},
+        "warn_kinds": {},
+        "chunk_chars_median": 390.5,
+        "chunk_chars_p90": 1067,
         "residue_chunk_ph": 0,
         "residue_protect_ph": 0,
         "orphan_chunks": 0,
-        "bug1_ph_tail": 10
-      }
+        "bug1_ph_tail": 0
+      },
+      "weight": 1.0
     },
     {
       "id": "1511.06432",
@@ -551,6 +562,7 @@
         }
       ],
       "multi_doc": false,
+      "rootless": false,
       "primary_root": "iclr2016_conference.tex",
       "docclass": "article",
       "docclass_options": "",
@@ -561,6 +573,7 @@
         "files": 1,
         "ok": 1,
         "error": 0,
+        "measure_error": 0,
         "ok_rate": 1.0,
         "strict": 1,
         "normalized": 0,
@@ -570,13 +583,15 @@
         "leaked_chunks": 0,
         "leak_rate": 0.0,
         "hits": {},
+        "warn_kinds": {},
         "chunk_chars_median": 351.0,
         "chunk_chars_p90": 739,
         "residue_chunk_ph": 0,
         "residue_protect_ph": 0,
         "orphan_chunks": 0,
         "bug1_ph_tail": 0
-      }
+      },
+      "weight": 1.0
     },
     {
       "id": "1512.03385",
@@ -594,6 +609,7 @@
         }
       ],
       "multi_doc": false,
+      "rootless": false,
       "primary_root": "residual_v1_arxiv_release.tex",
       "docclass": "article",
       "docclass_options": "10pt,twocolumn,letterpaper",
@@ -604,6 +620,7 @@
         "files": 1,
         "ok": 1,
         "error": 0,
+        "measure_error": 0,
         "ok_rate": 1.0,
         "strict": 1,
         "normalized": 0,
@@ -613,13 +630,15 @@
         "leaked_chunks": 0,
         "leak_rate": 0.0,
         "hits": {},
+        "warn_kinds": {},
         "chunk_chars_median": 321.0,
         "chunk_chars_p90": 725,
         "residue_chunk_ph": 0,
         "residue_protect_ph": 0,
         "orphan_chunks": 0,
-        "bug1_ph_tail": 9
-      }
+        "bug1_ph_tail": 0
+      },
+      "weight": 1.0
     },
     {
       "id": "1612.09375",
@@ -637,6 +656,7 @@
         }
       ],
       "multi_doc": false,
+      "rootless": false,
       "primary_root": "BasicCategoryTheory.tex",
       "docclass": "cambridge7A",
       "docclass_options": "spanningrule",
@@ -647,24 +667,25 @@
         "files": 18,
         "ok": 18,
         "error": 0,
+        "measure_error": 0,
         "ok_rate": 1.0,
         "strict": 18,
         "normalized": 0,
         "diverged": 0,
         "identity_rate": 1.0,
-        "chunks": 3574,
-        "leaked_chunks": 3,
-        "leak_rate": 0.0008,
-        "hits": {
-          "dollar": 3
-        },
-        "chunk_chars_median": 142.0,
+        "chunks": 3563,
+        "leaked_chunks": 0,
+        "leak_rate": 0.0,
+        "hits": {},
+        "warn_kinds": {},
+        "chunk_chars_median": 141,
         "chunk_chars_p90": 405,
         "residue_chunk_ph": 0,
         "residue_protect_ph": 0,
         "orphan_chunks": 0,
-        "bug1_ph_tail": 92
-      }
+        "bug1_ph_tail": 0
+      },
+      "weight": 1.0
     },
     {
       "id": "1706.03762",
@@ -682,6 +703,7 @@
         }
       ],
       "multi_doc": false,
+      "rootless": false,
       "primary_root": "ms.tex",
       "docclass": "article",
       "docclass_options": "",
@@ -695,22 +717,25 @@
         "files": 10,
         "ok": 10,
         "error": 0,
+        "measure_error": 0,
         "ok_rate": 1.0,
         "strict": 10,
         "normalized": 0,
         "diverged": 0,
         "identity_rate": 1.0,
-        "chunks": 248,
+        "chunks": 247,
         "leaked_chunks": 0,
         "leak_rate": 0.0,
         "hits": {},
-        "chunk_chars_median": 224.5,
+        "warn_kinds": {},
+        "chunk_chars_median": 224,
         "chunk_chars_p90": 545,
         "residue_chunk_ph": 0,
         "residue_protect_ph": 0,
         "orphan_chunks": 0,
-        "bug1_ph_tail": 11
-      }
+        "bug1_ph_tail": 0
+      },
+      "weight": 1.0
     },
     {
       "id": "1712.01208",
@@ -728,6 +753,7 @@
         }
       ],
       "multi_doc": false,
+      "rootless": false,
       "primary_root": "main_tr.tex",
       "docclass": "article",
       "docclass_options": "11pt",
@@ -742,22 +768,28 @@
         "files": 12,
         "ok": 12,
         "error": 0,
+        "measure_error": 0,
         "ok_rate": 1.0,
         "strict": 12,
         "normalized": 0,
         "diverged": 0,
         "identity_rate": 1.0,
-        "chunks": 631,
+        "chunks": 449,
         "leaked_chunks": 0,
         "leak_rate": 0.0,
         "hits": {},
-        "chunk_chars_median": 186,
-        "chunk_chars_p90": 793,
+        "warn_kinds": {
+          "missing_input": 2,
+          "def_parse_fail": 286
+        },
+        "chunk_chars_median": 371,
+        "chunk_chars_p90": 856,
         "residue_chunk_ph": 0,
         "residue_protect_ph": 0,
         "orphan_chunks": 0,
-        "bug1_ph_tail": 56
-      }
+        "bug1_ph_tail": 0
+      },
+      "weight": 1.0
     },
     {
       "id": "1801.02634",
@@ -775,6 +807,7 @@
         }
       ],
       "multi_doc": false,
+      "rootless": false,
       "primary_root": "main.tex",
       "docclass": "aastex61",
       "docclass_options": "modern",
@@ -789,22 +822,25 @@
         "files": 5,
         "ok": 5,
         "error": 0,
+        "measure_error": 0,
         "ok_rate": 1.0,
         "strict": 5,
         "normalized": 0,
         "diverged": 0,
         "identity_rate": 1.0,
-        "chunks": 235,
+        "chunks": 230,
         "leaked_chunks": 0,
         "leak_rate": 0.0,
         "hits": {},
-        "chunk_chars_median": 200,
-        "chunk_chars_p90": 744,
+        "warn_kinds": {},
+        "chunk_chars_median": 214.5,
+        "chunk_chars_p90": 756,
         "residue_chunk_ph": 0,
         "residue_protect_ph": 0,
         "orphan_chunks": 0,
-        "bug1_ph_tail": 21
-      }
+        "bug1_ph_tail": 0
+      },
+      "weight": 1.0
     },
     {
       "id": "1810.04805",
@@ -822,6 +858,7 @@
         }
       ],
       "multi_doc": false,
+      "rootless": false,
       "primary_root": "main.tex",
       "docclass": "article",
       "docclass_options": "11pt,a4paper",
@@ -834,6 +871,7 @@
         "files": 20,
         "ok": 20,
         "error": 0,
+        "measure_error": 0,
         "ok_rate": 1.0,
         "strict": 20,
         "normalized": 0,
@@ -843,13 +881,15 @@
         "leaked_chunks": 0,
         "leak_rate": 0.0,
         "hits": {},
+        "warn_kinds": {},
         "chunk_chars_median": 172.0,
         "chunk_chars_p90": 536,
         "residue_chunk_ph": 0,
         "residue_protect_ph": 0,
         "orphan_chunks": 0,
-        "bug1_ph_tail": 4
-      }
+        "bug1_ph_tail": 0
+      },
+      "weight": 1.0
     },
     {
       "id": "1902.03178",
@@ -867,6 +907,7 @@
         }
       ],
       "multi_doc": false,
+      "rootless": false,
       "primary_root": "cliff-simp-q.tex",
       "docclass": "quantumarticle",
       "docclass_options": "a4paper,onecolumn,superscriptaddress,11pt,accepted=2020-04-27",
@@ -883,22 +924,25 @@
         "files": 6,
         "ok": 6,
         "error": 0,
+        "measure_error": 0,
         "ok_rate": 1.0,
         "strict": 6,
         "normalized": 0,
         "diverged": 0,
         "identity_rate": 1.0,
-        "chunks": 352,
+        "chunks": 379,
         "leaked_chunks": 0,
         "leak_rate": 0.0,
         "hits": {},
-        "chunk_chars_median": 141.0,
-        "chunk_chars_p90": 630,
+        "warn_kinds": {},
+        "chunk_chars_median": 157,
+        "chunk_chars_p90": 614,
         "residue_chunk_ph": 0,
         "residue_protect_ph": 0,
         "orphan_chunks": 0,
-        "bug1_ph_tail": 341
-      }
+        "bug1_ph_tail": 0
+      },
+      "weight": 1.0
     },
     {
       "id": "1906.08237",
@@ -916,6 +960,7 @@
         }
       ],
       "multi_doc": false,
+      "rootless": false,
       "primary_root": "neurips_2019.tex",
       "docclass": "article",
       "docclass_options": "",
@@ -926,24 +971,25 @@
         "files": 10,
         "ok": 10,
         "error": 0,
+        "measure_error": 0,
         "ok_rate": 1.0,
         "strict": 10,
         "normalized": 0,
         "diverged": 0,
         "identity_rate": 1.0,
-        "chunks": 325,
-        "leaked_chunks": 2,
-        "leak_rate": 0.0062,
-        "hits": {
-          "dollar": 2
-        },
-        "chunk_chars_median": 169,
+        "chunks": 322,
+        "leaked_chunks": 0,
+        "leak_rate": 0.0,
+        "hits": {},
+        "warn_kinds": {},
+        "chunk_chars_median": 169.5,
         "chunk_chars_p90": 685,
         "residue_chunk_ph": 0,
         "residue_protect_ph": 0,
         "orphan_chunks": 0,
-        "bug1_ph_tail": 4
-      }
+        "bug1_ph_tail": 0
+      },
+      "weight": 1.0
     },
     {
       "id": "2003.08934",
@@ -961,6 +1007,7 @@
         }
       ],
       "multi_doc": false,
+      "rootless": false,
       "primary_root": "arxiv_submission.tex",
       "docclass": "llncs",
       "docclass_options": "runningheads",
@@ -973,24 +1020,25 @@
         "files": 9,
         "ok": 9,
         "error": 0,
+        "measure_error": 0,
         "ok_rate": 1.0,
         "strict": 9,
         "normalized": 0,
         "diverged": 0,
         "identity_rate": 1.0,
-        "chunks": 123,
-        "leaked_chunks": 2,
-        "leak_rate": 0.0163,
-        "hits": {
-          "dollar": 2
-        },
-        "chunk_chars_median": 364,
-        "chunk_chars_p90": 1097,
+        "chunks": 120,
+        "leaked_chunks": 0,
+        "leak_rate": 0.0,
+        "hits": {},
+        "warn_kinds": {},
+        "chunk_chars_median": 367.0,
+        "chunk_chars_p90": 935,
         "residue_chunk_ph": 0,
         "residue_protect_ph": 0,
         "orphan_chunks": 0,
-        "bug1_ph_tail": 35
-      }
+        "bug1_ph_tail": 0
+      },
+      "weight": 1.0
     },
     {
       "id": "2005.11401",
@@ -1008,6 +1056,7 @@
         }
       ],
       "multi_doc": false,
+      "rootless": false,
       "primary_root": "neurips_2020.tex",
       "docclass": "article",
       "docclass_options": "",
@@ -1020,6 +1069,7 @@
         "files": 10,
         "ok": 10,
         "error": 0,
+        "measure_error": 0,
         "ok_rate": 1.0,
         "strict": 10,
         "normalized": 0,
@@ -1029,13 +1079,15 @@
         "leaked_chunks": 0,
         "leak_rate": 0.0,
         "hits": {},
+        "warn_kinds": {},
         "chunk_chars_median": 185.0,
         "chunk_chars_p90": 930,
         "residue_chunk_ph": 0,
         "residue_protect_ph": 0,
         "orphan_chunks": 0,
-        "bug1_ph_tail": 9
-      }
+        "bug1_ph_tail": 0
+      },
+      "weight": 1.0
     },
     {
       "id": "2106.09685",
@@ -1053,6 +1105,7 @@
         }
       ],
       "multi_doc": false,
+      "rootless": false,
       "primary_root": "iclr2022_conference.tex",
       "docclass": "article",
       "docclass_options": "",
@@ -1063,22 +1116,25 @@
         "files": 3,
         "ok": 3,
         "error": 0,
+        "measure_error": 0,
         "ok_rate": 1.0,
         "strict": 3,
         "normalized": 0,
         "diverged": 0,
         "identity_rate": 1.0,
-        "chunks": 206,
+        "chunks": 212,
         "leaked_chunks": 0,
         "leak_rate": 0.0,
         "hits": {},
-        "chunk_chars_median": 267.5,
-        "chunk_chars_p90": 723,
+        "warn_kinds": {},
+        "chunk_chars_median": 253.0,
+        "chunk_chars_p90": 695,
         "residue_chunk_ph": 0,
         "residue_protect_ph": 0,
         "orphan_chunks": 0,
-        "bug1_ph_tail": 1
-      }
+        "bug1_ph_tail": 0
+      },
+      "weight": 1.0
     },
     {
       "id": "2201.05989",
@@ -1102,6 +1158,7 @@
         }
       ],
       "multi_doc": true,
+      "rootless": false,
       "primary_root": "paper.tex",
       "docclass": "acmart",
       "docclass_options": "acmtog,authorversion,nonacm",
@@ -1114,24 +1171,27 @@
         "files": 18,
         "ok": 18,
         "error": 0,
+        "measure_error": 0,
         "ok_rate": 1.0,
         "strict": 18,
         "normalized": 0,
         "diverged": 0,
         "identity_rate": 1.0,
-        "chunks": 207,
-        "leaked_chunks": 2,
-        "leak_rate": 0.0097,
-        "hits": {
-          "dollar": 2
+        "chunks": 204,
+        "leaked_chunks": 0,
+        "leak_rate": 0.0,
+        "hits": {},
+        "warn_kinds": {
+          "def_parse_fail": 3
         },
-        "chunk_chars_median": 233,
-        "chunk_chars_p90": 734,
+        "chunk_chars_median": 241.0,
+        "chunk_chars_p90": 717,
         "residue_chunk_ph": 0,
         "residue_protect_ph": 0,
         "orphan_chunks": 0,
-        "bug1_ph_tail": 114
-      }
+        "bug1_ph_tail": 0
+      },
+      "weight": 1.0
     },
     {
       "id": "2203.02155",
@@ -1149,6 +1209,7 @@
         }
       ],
       "multi_doc": false,
+      "rootless": false,
       "primary_root": "neurips_2021.tex",
       "docclass": "article",
       "docclass_options": "",
@@ -1159,22 +1220,25 @@
         "files": 6,
         "ok": 6,
         "error": 0,
+        "measure_error": 0,
         "ok_rate": 1.0,
         "strict": 6,
         "normalized": 0,
         "diverged": 0,
         "identity_rate": 1.0,
-        "chunks": 369,
+        "chunks": 367,
         "leaked_chunks": 0,
         "leak_rate": 0.0,
         "hits": {},
-        "chunk_chars_median": 227,
+        "warn_kinds": {},
+        "chunk_chars_median": 234,
         "chunk_chars_p90": 702,
         "residue_chunk_ph": 0,
         "residue_protect_ph": 0,
         "orphan_chunks": 0,
-        "bug1_ph_tail": 5
-      }
+        "bug1_ph_tail": 0
+      },
+      "weight": 1.0
     },
     {
       "id": "2305.14335",
@@ -1192,6 +1256,7 @@
         }
       ],
       "multi_doc": false,
+      "rootless": false,
       "primary_root": "main.tex",
       "docclass": "IEEEtran",
       "docclass_options": "journal",
@@ -1202,22 +1267,25 @@
         "files": 7,
         "ok": 7,
         "error": 0,
+        "measure_error": 0,
         "ok_rate": 1.0,
         "strict": 7,
         "normalized": 0,
         "diverged": 0,
         "identity_rate": 1.0,
-        "chunks": 183,
+        "chunks": 185,
         "leaked_chunks": 0,
         "leak_rate": 0.0,
         "hits": {},
-        "chunk_chars_median": 298,
+        "warn_kinds": {},
+        "chunk_chars_median": 301,
         "chunk_chars_p90": 1261,
         "residue_chunk_ph": 0,
         "residue_protect_ph": 0,
         "orphan_chunks": 0,
-        "bug1_ph_tail": 32
-      }
+        "bug1_ph_tail": 0
+      },
+      "weight": 1.0
     },
     {
       "id": "2308.07483",
@@ -1235,6 +1303,7 @@
         }
       ],
       "multi_doc": false,
+      "rootless": false,
       "primary_root": "PIRT-2023VGG.tex",
       "docclass": "revtex4-2",
       "docclass_options": "aip, cp, amsmath,amssymb, reprint,",
@@ -1245,6 +1314,7 @@
         "files": 1,
         "ok": 1,
         "error": 0,
+        "measure_error": 0,
         "ok_rate": 1.0,
         "strict": 1,
         "normalized": 0,
@@ -1254,13 +1324,15 @@
         "leaked_chunks": 0,
         "leak_rate": 0.0,
         "hits": {},
+        "warn_kinds": {},
         "chunk_chars_median": 243.5,
         "chunk_chars_p90": 834,
         "residue_chunk_ph": 0,
         "residue_protect_ph": 0,
         "orphan_chunks": 0,
         "bug1_ph_tail": 0
-      }
+      },
+      "weight": 1.0
     },
     {
       "id": "2501.14787",
@@ -1302,6 +1374,7 @@
         }
       ],
       "multi_doc": true,
+      "rootless": false,
       "primary_root": "main.tex",
       "docclass": "article",
       "docclass_options": "",
@@ -1314,25 +1387,29 @@
         "files": 20,
         "ok": 20,
         "error": 0,
+        "measure_error": 0,
         "ok_rate": 1.0,
         "strict": 20,
         "normalized": 0,
         "diverged": 0,
         "identity_rate": 1.0,
         "chunks": 1417,
-        "leaked_chunks": 2,
-        "leak_rate": 0.0014,
+        "leaked_chunks": 1,
+        "leak_rate": 0.0007,
         "hits": {
-          "dollar": 1,
-          "begin_env": 1
+          "dollar": 1
         },
-        "chunk_chars_median": 247,
+        "warn_kinds": {
+          "unpaired_dollar": 1
+        },
+        "chunk_chars_median": 246,
         "chunk_chars_p90": 718,
         "residue_chunk_ph": 0,
         "residue_protect_ph": 0,
         "orphan_chunks": 0,
-        "bug1_ph_tail": 21
-      }
+        "bug1_ph_tail": 0
+      },
+      "weight": 1.0
     },
     {
       "id": "2512.03164",
@@ -1350,6 +1427,7 @@
         }
       ],
       "multi_doc": false,
+      "rootless": false,
       "primary_root": "mainv2.tex",
       "docclass": "amsart",
       "docclass_options": "11pt",
@@ -1360,22 +1438,25 @@
         "files": 1,
         "ok": 1,
         "error": 0,
+        "measure_error": 0,
         "ok_rate": 1.0,
         "strict": 1,
         "normalized": 0,
         "diverged": 0,
         "identity_rate": 1.0,
-        "chunks": 276,
+        "chunks": 275,
         "leaked_chunks": 0,
         "leak_rate": 0.0,
         "hits": {},
-        "chunk_chars_median": 180.0,
+        "warn_kinds": {},
+        "chunk_chars_median": 178,
         "chunk_chars_p90": 897,
         "residue_chunk_ph": 0,
         "residue_protect_ph": 0,
         "orphan_chunks": 0,
-        "bug1_ph_tail": 42
-      }
+        "bug1_ph_tail": 0
+      },
+      "weight": 1.0
     },
     {
       "id": "2602.06617",
@@ -1393,6 +1474,7 @@
         }
       ],
       "multi_doc": false,
+      "rootless": false,
       "primary_root": "FT-Jacquet-Guov3.tex",
       "docclass": "article",
       "docclass_options": "10pt,leqno",
@@ -1403,6 +1485,7 @@
         "files": 1,
         "ok": 1,
         "error": 0,
+        "measure_error": 0,
         "ok_rate": 1.0,
         "strict": 1,
         "normalized": 0,
@@ -1412,13 +1495,15 @@
         "leaked_chunks": 0,
         "leak_rate": 0.0,
         "hits": {},
-        "chunk_chars_median": 251,
+        "warn_kinds": {},
+        "chunk_chars_median": 250,
         "chunk_chars_p90": 875,
         "residue_chunk_ph": 0,
         "residue_protect_ph": 0,
         "orphan_chunks": 0,
-        "bug1_ph_tail": 3
-      }
+        "bug1_ph_tail": 0
+      },
+      "weight": 1.0
     },
     {
       "id": "2602.09511",
@@ -1436,6 +1521,7 @@
         }
       ],
       "multi_doc": false,
+      "rootless": false,
       "primary_root": "Invariance.tex",
       "docclass": "amsart",
       "docclass_options": "12pt,french",
@@ -1446,22 +1532,27 @@
         "files": 1,
         "ok": 1,
         "error": 0,
+        "measure_error": 0,
         "ok_rate": 1.0,
         "strict": 1,
         "normalized": 0,
         "diverged": 0,
         "identity_rate": 1.0,
-        "chunks": 487,
+        "chunks": 486,
         "leaked_chunks": 0,
         "leak_rate": 0.0,
         "hits": {},
-        "chunk_chars_median": 257,
+        "warn_kinds": {
+          "def_parse_fail": 1
+        },
+        "chunk_chars_median": 258.0,
         "chunk_chars_p90": 934,
         "residue_chunk_ph": 0,
         "residue_protect_ph": 0,
         "orphan_chunks": 0,
-        "bug1_ph_tail": 1
-      }
+        "bug1_ph_tail": 0
+      },
+      "weight": 1.0
     },
     {
       "id": "2602.19229",
@@ -1479,6 +1570,7 @@
         }
       ],
       "multi_doc": false,
+      "rootless": false,
       "primary_root": "arxiv.tex",
       "docclass": "acmart",
       "docclass_options": "manuscript,natbib=false,nonacm",
@@ -1491,24 +1583,25 @@
         "files": 12,
         "ok": 12,
         "error": 0,
+        "measure_error": 0,
         "ok_rate": 1.0,
         "strict": 12,
         "normalized": 0,
         "diverged": 0,
         "identity_rate": 1.0,
-        "chunks": 945,
-        "leaked_chunks": 6,
-        "leak_rate": 0.0063,
-        "hits": {
-          "dollar": 6
-        },
-        "chunk_chars_median": 214,
-        "chunk_chars_p90": 648,
+        "chunks": 910,
+        "leaked_chunks": 0,
+        "leak_rate": 0.0,
+        "hits": {},
+        "warn_kinds": {},
+        "chunk_chars_median": 219.0,
+        "chunk_chars_p90": 660,
         "residue_chunk_ph": 0,
         "residue_protect_ph": 0,
         "orphan_chunks": 0,
-        "bug1_ph_tail": 477
-      }
+        "bug1_ph_tail": 0
+      },
+      "weight": 1.0
     },
     {
       "id": "2606.31863",
@@ -1526,6 +1619,7 @@
         }
       ],
       "multi_doc": false,
+      "rootless": false,
       "primary_root": "main.tex",
       "docclass": "eptcs",
       "docclass_options": "submission,copyright,creativecommons",
@@ -1538,22 +1632,25 @@
         "files": 3,
         "ok": 3,
         "error": 0,
+        "measure_error": 0,
         "ok_rate": 1.0,
         "strict": 3,
         "normalized": 0,
         "diverged": 0,
         "identity_rate": 1.0,
-        "chunks": 133,
+        "chunks": 132,
         "leaked_chunks": 0,
         "leak_rate": 0.0,
         "hits": {},
-        "chunk_chars_median": 146,
+        "warn_kinds": {},
+        "chunk_chars_median": 148.5,
         "chunk_chars_p90": 699,
         "residue_chunk_ph": 0,
         "residue_protect_ph": 0,
         "orphan_chunks": 0,
-        "bug1_ph_tail": 6
-      }
+        "bug1_ph_tail": 0
+      },
+      "weight": 1.0
     },
     {
       "id": "2609.06443",
@@ -1637,6 +1734,7 @@
         }
       ],
       "multi_doc": true,
+      "rootless": false,
       "primary_root": "main.tex",
       "docclass": "subfiles",
       "docclass_options": "main.tex",
@@ -1647,22 +1745,25 @@
         "files": 13,
         "ok": 13,
         "error": 0,
+        "measure_error": 0,
         "ok_rate": 1.0,
         "strict": 13,
         "normalized": 0,
         "diverged": 0,
         "identity_rate": 1.0,
-        "chunks": 717,
+        "chunks": 1075,
         "leaked_chunks": 0,
         "leak_rate": 0.0,
         "hits": {},
-        "chunk_chars_median": 159,
-        "chunk_chars_p90": 579,
+        "warn_kinds": {},
+        "chunk_chars_median": 152,
+        "chunk_chars_p90": 589,
         "residue_chunk_ph": 0,
         "residue_protect_ph": 0,
         "orphan_chunks": 0,
-        "bug1_ph_tail": 10
-      }
+        "bug1_ph_tail": 0
+      },
+      "weight": 1.0
     },
     {
       "id": "2609.08578",
@@ -1680,6 +1781,7 @@
         }
       ],
       "multi_doc": false,
+      "rootless": false,
       "primary_root": "Paper.processed.tex",
       "docclass": "acmart",
       "docclass_options": "acmsmall, screen, authorversion, nonacm",
@@ -1694,25 +1796,25 @@
         "files": 5,
         "ok": 5,
         "error": 0,
+        "measure_error": 0,
         "ok_rate": 1.0,
         "strict": 5,
         "normalized": 0,
         "diverged": 0,
         "identity_rate": 1.0,
-        "chunks": 1953,
-        "leaked_chunks": 6,
-        "leak_rate": 0.0031,
-        "hits": {
-          "begin_env": 2,
-          "conditional": 4
-        },
+        "chunks": 1439,
+        "leaked_chunks": 0,
+        "leak_rate": 0.0,
+        "hits": {},
+        "warn_kinds": {},
         "chunk_chars_median": 103,
-        "chunk_chars_p90": 219,
+        "chunk_chars_p90": 229,
         "residue_chunk_ph": 0,
         "residue_protect_ph": 0,
         "orphan_chunks": 0,
-        "bug1_ph_tail": 3881
-      }
+        "bug1_ph_tail": 0
+      },
+      "weight": 1.0
     },
     {
       "id": "2609.09529",
@@ -1730,6 +1832,7 @@
         }
       ],
       "multi_doc": false,
+      "rootless": false,
       "primary_root": "Frobenius_Galois_of_Substructural_Logic.tex",
       "docclass": "elsarticle",
       "docclass_options": "final,12pt,times",
@@ -1740,22 +1843,25 @@
         "files": 1,
         "ok": 1,
         "error": 0,
+        "measure_error": 0,
         "ok_rate": 1.0,
         "strict": 1,
         "normalized": 0,
         "diverged": 0,
         "identity_rate": 1.0,
-        "chunks": 376,
+        "chunks": 375,
         "leaked_chunks": 0,
         "leak_rate": 0.0,
         "hits": {},
-        "chunk_chars_median": 152.5,
+        "warn_kinds": {},
+        "chunk_chars_median": 153,
         "chunk_chars_p90": 436,
         "residue_chunk_ph": 0,
         "residue_protect_ph": 0,
         "orphan_chunks": 0,
-        "bug1_ph_tail": 1
-      }
+        "bug1_ph_tail": 0
+      },
+      "weight": 1.0
     },
     {
       "id": "2609.11777",
@@ -1773,6 +1879,7 @@
         }
       ],
       "multi_doc": false,
+      "rootless": false,
       "primary_root": "main.tex",
       "docclass": "article",
       "docclass_options": "11pt",
@@ -1783,22 +1890,27 @@
         "files": 1,
         "ok": 1,
         "error": 0,
+        "measure_error": 0,
         "ok_rate": 1.0,
         "strict": 1,
         "normalized": 0,
         "diverged": 0,
         "identity_rate": 1.0,
-        "chunks": 116,
+        "chunks": 119,
         "leaked_chunks": 0,
         "leak_rate": 0.0,
         "hits": {},
-        "chunk_chars_median": 416.5,
+        "warn_kinds": {
+          "def_parse_fail": 1
+        },
+        "chunk_chars_median": 369,
         "chunk_chars_p90": 1044,
         "residue_chunk_ph": 0,
         "residue_protect_ph": 0,
         "orphan_chunks": 0,
-        "bug1_ph_tail": 16
-      }
+        "bug1_ph_tail": 0
+      },
+      "weight": 1.0
     },
     {
       "id": "hep-th/9901001",
@@ -1816,6 +1928,7 @@
         }
       ],
       "multi_doc": false,
+      "rootless": false,
       "primary_root": "imamura2.tex",
       "docclass": "ptptex",
       "docclass_options": "epsf,seceq,preprint",
@@ -1830,6 +1943,7 @@
         "files": 1,
         "ok": 1,
         "error": 0,
+        "measure_error": 0,
         "ok_rate": 1.0,
         "strict": 1,
         "normalized": 0,
@@ -1839,13 +1953,15 @@
         "leaked_chunks": 0,
         "leak_rate": 0.0,
         "hits": {},
+        "warn_kinds": {},
         "chunk_chars_median": 515,
         "chunk_chars_p90": 1332,
         "residue_chunk_ph": 0,
         "residue_protect_ph": 0,
         "orphan_chunks": 0,
-        "bug1_ph_tail": 4
-      }
+        "bug1_ph_tail": 0
+      },
+      "weight": 1.0
     },
     {
       "id": "math/0404188",
@@ -1863,6 +1979,7 @@
         }
       ],
       "multi_doc": false,
+      "rootless": false,
       "primary_root": "main.tex",
       "docclass": "amsart",
       "docclass_options": "12pt,a4paper,reqno",
@@ -1875,22 +1992,25 @@
         "files": 1,
         "ok": 1,
         "error": 0,
+        "measure_error": 0,
         "ok_rate": 1.0,
         "strict": 1,
         "normalized": 0,
         "diverged": 0,
         "identity_rate": 1.0,
-        "chunks": 253,
+        "chunks": 350,
         "leaked_chunks": 0,
         "leak_rate": 0.0,
         "hits": {},
-        "chunk_chars_median": 296,
-        "chunk_chars_p90": 1427,
+        "warn_kinds": {},
+        "chunk_chars_median": 306.0,
+        "chunk_chars_p90": 898,
         "residue_chunk_ph": 0,
         "residue_protect_ph": 0,
         "orphan_chunks": 0,
-        "bug1_ph_tail": 1
-      }
+        "bug1_ph_tail": 0
+      },
+      "weight": 1.0
     }
   ]
 }
