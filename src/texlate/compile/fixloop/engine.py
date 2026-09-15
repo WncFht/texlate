@@ -32,6 +32,8 @@ from texlate.compile.fixloop.logparse import (
     parse_log,
     parse_text,
 )
+from texlate.compile.inject import find_main_tex as _inject_find_main_tex
+from texlate.textutil import decode_tex
 
 if TYPE_CHECKING:
     from texlate.compile.fixloop.cases import CaseSink
@@ -726,11 +728,19 @@ def _match_apply(  # noqa: C901, PLR0913, PLR0917  # spike pick_and_apply 签名
 
 
 def find_main_tex(proj: Path) -> Path | None:
-    r"""主文件启发式: 含 ``\\documentclass|style``; 浅层 + 有 ``\\begin{document}`` 优先 (spike L575-587)。"""
+    r"""主文件定位：先严格档后宽松档。
+
+    严格档 = ``inject.find_main_tex``（注释遮盖 + 语种排序）；无命中退
+    宽松档——``\documentclass|style`` 在即可（fixloop 的职责是修坏论文，
+    ``\begin{document}`` 缺失正是要修的对象；spike L575-587 口径保留）。
+    """
+    strict = _inject_find_main_tex(proj)
+    if strict is not None:
+        return strict
     cands = []
     for f in sorted(proj.rglob("*.tex")):
         with contextlib.suppress(OSError):
-            head = f.read_text(errors="replace")[:60000]
+            head = decode_tex(f.read_bytes())[:60000]
             if _DOC_RE.search(head):
                 has_body = "\\begin{document}" in head
                 depth = len(f.relative_to(proj).parts)
