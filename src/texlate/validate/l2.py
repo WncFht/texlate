@@ -71,6 +71,14 @@ _FILE_LINE_RX: Final = re.compile(
     r"^([^()\s:]+\.[A-Za-z0-9]{1,10}):(\d+):[ \t]*!?[ \t]*(.*)$"
 )
 
+#: ``file:line:`` 形态的非错误行（与 fixloop/logparse 同口径）：
+#: Warning 行（部分引擎/包给 warning 也打 file:line: 前缀——fixloop 实测坑，
+#: 不排会让 ``n_errors==0`` 干净门永不通）与 ``==> Fatal error`` 汇总尾行
+#: （同一失败的复述，多计一次——bench/corpus_v2/2002.05660 colt2020.log 实测）。
+_NONERR_FILELINE_RX: Final = re.compile(
+    r"(?:LaTeX|Package|Class)\b[^\n]*?\bWarning\b|^\s*==>"
+)
+
 #: 经典错误行。
 _BANG_RX: Final = re.compile(r"^!\s*(.*)$")
 
@@ -329,7 +337,11 @@ def _match_error_line(ln: str) -> tuple[str, str | None] | None:
     if _BANG_RX.match(ln):
         return ln.strip(), None
     mf = _FILE_LINE_RX.match(ln)
-    if mf is not None and _looks_like_tex_file(mf.group(1)):
+    if (
+        mf is not None
+        and _looks_like_tex_file(mf.group(1))
+        and not _NONERR_FILELINE_RX.search(mf.group(3))
+    ):
         return ln.strip(), mf.group(1)
     return None
 

@@ -79,6 +79,12 @@ class CompRes:
 # ================================================================ log 解析
 _ERR_BANG_RE = re.compile(r"^!")
 _ERR_FILELINE_RE = re.compile(r"^\S+?:\d+: \S")  # -file-line-error 引擎级错误
+#: ``file:line:`` 形态的非错误行（与 fixloop/logparse 同口径）：
+#: Warning 行（警告也带 file:line: 前缀时不能计入错误）与
+#: ``==> Fatal error occurred`` 汇总尾行（同一失败的复述，多计一次）。
+_NONERR_FILELINE_RE = re.compile(
+    r"^\S+?:\d+:\s*(?:(?:LaTeX|Package|Class)\b[^\n]*?\bWarning\b|==>)"
+)
 _L_NUM_RE = re.compile(r"^l\.(\d+)")
 _OPEN_PAREN_RE = re.compile(r"\((\./)?([^\s(){}]+\.(?:tex|sty|cls|def|cfg|clo|fd))")
 
@@ -104,7 +110,9 @@ def _scan_error_lines(lines: list[str], info: LogInfo) -> int:
     """数 `^!`+`file:line:` 错误、记首错位置、追踪 `(` 文件栈。返回首错行号。"""
     ctx_start = -1
     for i, ln in enumerate(lines):
-        if _ERR_BANG_RE.match(ln) or _ERR_FILELINE_RE.match(ln):
+        if _ERR_BANG_RE.match(ln) or (
+            _ERR_FILELINE_RE.match(ln) and not _NONERR_FILELINE_RE.match(ln)
+        ):
             info.n_errors += 1
             info.errors.append(ln.strip()[:300])
             if info.first_error is None:

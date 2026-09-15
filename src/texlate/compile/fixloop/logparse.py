@@ -34,13 +34,20 @@ _ERR_FILELINE_RE = re.compile(r"^\S+?:\d+: \S")
 _WARN_FILELINE_RE = re.compile(
     r"^\S+?:\d+: (?:LaTeX|Package|Class)\b[^\n]*?\bWarning\b"
 )
+#: ``==> Fatal error occurred`` 汇总尾行也是 ``file:line:`` 形态——
+#: 同一失败的复述（单空格变体存在），计入会多报一个错误。
+_FATAL_TRAILER_RE = re.compile(r"^\S+?:\d+:\s*==>")
 
 
 def _is_err_line(ln: str) -> bool:
-    """`!` 行或 `-file-line-error` 行 (排除 Warning 伪命中)。"""
+    """`!` 行或 `-file-line-error` 行 (排除 Warning 伪命中与 ==> 汇总尾行)。"""
     if ln.startswith("!"):
         return True
-    return bool(_ERR_FILELINE_RE.match(ln)) and not _WARN_FILELINE_RE.match(ln)
+    return (
+        bool(_ERR_FILELINE_RE.match(ln))
+        and not _WARN_FILELINE_RE.match(ln)
+        and not _FATAL_TRAILER_RE.match(ln)
+    )
 
 
 @dataclass(slots=True)
