@@ -132,8 +132,9 @@ def _probe(eng: Engine, fname: str, cwd: Path | None = None) -> str | None:
 def _res_has_pdf(res: CompResLike) -> bool:
     """Pdf 产出判定: impl ``has_pdf`` (非空文件) 优先, 否则 pdf 字段真值。"""
     hp = getattr(res, "has_pdf", None)
+    # 鸭子实现若把 has_pdf 写成方法而非 property，bound method 恒真——调用之
     if hp is not None:
-        return bool(hp)
+        return bool(hp() if callable(hp) else hp)
     return bool(getattr(res, "pdf", False))
 
 

@@ -36,6 +36,7 @@ KIND_ALIASES: dict[str, str] = {
     "section": "section_title",
     "subsection": "section_title",
     "subsubsection": "section_title",
+    "chapter": "section_title",
     "section_title": "section_title",
     "abstract": "abstract",
     "table_text": "table_text",
