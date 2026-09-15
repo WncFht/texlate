@@ -267,24 +267,36 @@ def file_metrics(path: Path, rel: str, paper: str, role: str, non_utf8: bool) ->
 # ---------------------------------------------------------------- 论文分组
 
 
+def is_tex(p: Path) -> bool:
+    """大小写不敏感 .tex 判定——野语料存在 .TEX 古早文件
+    (corpus_v3 实测: 0707.2108/pmeyerxi.TEX, 0806.0433/*.TEX)."""
+    return p.is_file() and p.suffix.lower() == ".tex"
+
+
+def glob_tex(d: Path) -> list[Path]:
+    return [p for p in d.iterdir() if is_tex(p)]
+
+
+def rglob_tex(d: Path) -> list[Path]:
+    return [p for p in d.rglob("*") if is_tex(p)]
+
+
 def discover_papers(corpus: Path) -> tuple[dict[str, Path], set[str]]:
     """corpus 下一层目录直接含 .tex → 论文; 否则为 archive 分组目录
     (hep-th/9901001 式旧版 ID), 论文在第二层. corpus 根目录自身直接含
     .tex 时 → 整个 corpus 视为单论文 (id=目录名). 返回 (pid→dir, groupers)."""
-    if any(corpus.glob("*.tex")):
+    if glob_tex(corpus):
         return {corpus.name: corpus}, set()
-    groupers = {
-        d.name for d in corpus.iterdir() if d.is_dir() and not any(d.glob("*.tex"))
-    }
+    groupers = {d.name for d in corpus.iterdir() if d.is_dir() and not glob_tex(d)}
     papers: dict[str, Path] = {}
     for d in sorted(corpus.iterdir()):
         if not d.is_dir():
             continue
         if d.name in groupers:
             for sub in sorted(d.iterdir()):
-                if sub.is_dir() and list(sub.rglob("*.tex")):
+                if sub.is_dir() and rglob_tex(sub):
                     papers[f"{d.name}/{sub.name}"] = sub
-        elif list(d.rglob("*.tex")):
+        elif rglob_tex(d):
             papers[d.name] = d
     return papers, groupers
 
@@ -299,7 +311,7 @@ def paper_id_of(rel: Path, groupers: set[str], single: Path | None) -> str:
 
 
 def analyze_paper(paper_id: str, pdir: Path, corpus: Path) -> dict:
-    tex_files = sorted(pdir.rglob("*.tex"))
+    tex_files = sorted(rglob_tex(pdir))
     all_files = [p for p in pdir.rglob("*") if p.is_file()]
     non_utf8_set = {os.path.abspath(p) for p in tex_files if is_non_utf8(p)}
 
@@ -608,7 +620,7 @@ def main() -> None:
     manifest = load_manifest(args.manifest)
 
     t0 = time.perf_counter()
-    tex_files = sorted(corpus.rglob("*.tex"))
+    tex_files = sorted(rglob_tex(corpus))
     papers, groupers = discover_papers(corpus)
     single = next(iter(papers.values())) if len(papers) == 1 else None
     if single is not None and single != corpus:
