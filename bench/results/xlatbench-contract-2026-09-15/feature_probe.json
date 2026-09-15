@@ -1,0 +1,1154 @@
+[
+  {
+    "probe": "hidden",
+    "model": "glm-5-2",
+    "rep": 0,
+    "http": 200,
+    "seconds": 1.22,
+    "prompt_tokens": 391,
+    "completion_tokens": 57,
+    "cached": 320,
+    "finish": "stop",
+    "reasoning_len": 205,
+    "content_head": "OK",
+    "error": null
+  },
+  {
+    "probe": "hidden",
+    "model": "glm-5-2",
+    "rep": 1,
+    "http": 200,
+    "seconds": 1.06,
+    "prompt_tokens": 391,
+    "completion_tokens": 82,
+    "cached": 320,
+    "finish": "stop",
+    "reasoning_len": 323,
+    "content_head": "OK",
+    "error": null
+  },
+  {
+    "probe": "hidden",
+    "model": "swe-2-medium",
+    "rep": 0,
+    "http": 200,
+    "seconds": 11.34,
+    "prompt_tokens": 469,
+    "completion_tokens": 37,
+    "cached": 0,
+    "finish": "stop",
+    "reasoning_len": 120,
+    "content_head": "OK",
+    "error": null
+  },
+  {
+    "probe": "hidden",
+    "model": "swe-2-medium",
+    "rep": 1,
+    "http": 200,
+    "seconds": 9.01,
+    "prompt_tokens": 469,
+    "completion_tokens": 26,
+    "cached": 468,
+    "finish": "stop",
+    "reasoning_len": 72,
+    "content_head": "OK",
+    "error": null
+  },
+  {
+    "probe": "hidden",
+    "model": "swe-2-high",
+    "rep": 0,
+    "http": 200,
+    "seconds": 7.06,
+    "prompt_tokens": 469,
+    "completion_tokens": 26,
+    "cached": 0,
+    "finish": "stop",
+    "reasoning_len": 64,
+    "content_head": "OK",
+    "error": null
+  },
+  {
+    "probe": "hidden",
+    "model": "swe-2-high",
+    "rep": 1,
+    "http": 200,
+    "seconds": 8.29,
+    "prompt_tokens": 469,
+    "completion_tokens": 30,
+    "cached": 468,
+    "finish": "stop",
+    "reasoning_len": 109,
+    "content_head": "OK",
+    "error": null
+  },
+  {
+    "probe": "hidden",
+    "model": "swe-2-max",
+    "rep": 0,
+    "http": 200,
+    "seconds": 9.81,
+    "prompt_tokens": 468,
+    "completion_tokens": 38,
+    "cached": 0,
+    "finish": "stop",
+    "reasoning_len": 92,
+    "content_head": "OK",
+    "error": null
+  },
+  {
+    "probe": "hidden",
+    "model": "swe-2-max",
+    "rep": 1,
+    "http": 200,
+    "seconds": 8.59,
+    "prompt_tokens": 468,
+    "completion_tokens": 90,
+    "cached": 467,
+    "finish": "stop",
+    "reasoning_len": 117,
+    "content_head": "OK",
+    "error": null
+  },
+  {
+    "probe": "hidden",
+    "model": "swe-1-7",
+    "rep": 0,
+    "http": 200,
+    "seconds": 2.31,
+    "prompt_tokens": 384,
+    "completion_tokens": 57,
+    "cached": 320,
+    "finish": "stop",
+    "reasoning_len": 233,
+    "content_head": "OK",
+    "error": null
+  },
+  {
+    "probe": "hidden",
+    "model": "swe-1-7",
+    "rep": 1,
+    "http": 200,
+    "seconds": 0.89,
+    "prompt_tokens": 384,
+    "completion_tokens": 47,
+    "cached": 320,
+    "finish": "stop",
+    "reasoning_len": 179,
+    "content_head": "OK.",
+    "error": null
+  },
+  {
+    "probe": "hidden",
+    "model": "swe-1-7-medium",
+    "rep": 0,
+    "http": 200,
+    "seconds": 0.93,
+    "prompt_tokens": 350,
+    "completion_tokens": 20,
+    "cached": 0,
+    "finish": "stop",
+    "reasoning_len": 64,
+    "content_head": "OK",
+    "error": null
+  },
+  {
+    "probe": "hidden",
+    "model": "swe-1-7-medium",
+    "rep": 1,
+    "http": 200,
+    "seconds": 1.06,
+    "prompt_tokens": 350,
+    "completion_tokens": 27,
+    "cached": 320,
+    "finish": "stop",
+    "reasoning_len": 93,
+    "content_head": "OK.",
+    "error": null
+  },
+  {
+    "probe": "hidden",
+    "model": "glm-5-3-low",
+    "rep": 0,
+    "http": 200,
+    "seconds": 0.77,
+    "prompt_tokens": 391,
+    "completion_tokens": 3,
+    "cached": 320,
+    "finish": "stop",
+    "reasoning_len": 0,
+    "content_head": "OK",
+    "error": null
+  },
+  {
+    "probe": "hidden",
+    "model": "glm-5-3-low",
+    "rep": 1,
+    "http": 200,
+    "seconds": 1.0,
+    "prompt_tokens": 391,
+    "completion_tokens": 3,
+    "cached": 320,
+    "finish": "stop",
+    "reasoning_len": 0,
+    "content_head": "OK",
+    "error": null
+  },
+  {
+    "probe": "hidden",
+    "model": "claude-sonnet-5-medium",
+    "rep": 0,
+    "http": 200,
+    "seconds": 1.58,
+    "prompt_tokens": 566,
+    "completion_tokens": 4,
+    "cached": 0,
+    "finish": "stop",
+    "reasoning_len": 0,
+    "content_head": "OK",
+    "error": null
+  },
+  {
+    "probe": "hidden",
+    "model": "claude-sonnet-5-medium",
+    "rep": 1,
+    "http": 200,
+    "seconds": 1.81,
+    "prompt_tokens": 566,
+    "completion_tokens": 4,
+    "cached": 0,
+    "finish": "stop",
+    "reasoning_len": 0,
+    "content_head": "OK",
+    "error": null
+  },
+  {
+    "probe": "fusion",
+    "model": "swe-2-max",
+    "rep": 0,
+    "http": 200,
+    "seconds": 24.75,
+    "fragile_src": 8,
+    "fragile_zh": 4,
+    "cs_dropped": true,
+    "fused_cs": [
+      "\\和",
+      "\\衰变道的改进分析结果相结合"
+    ],
+    "reasoning_len": 1080,
+    "zh": "于2012年在[[MATH_3]]\\,TeV。将对8\\,TeV数据中\\htollll、[[MACRO_4]]\\和[[MATH_5]]各衰变道的单独搜寻，与此前发表的7\\,TeV数据中对[[MATH_6]]、[[MATH_7]]、\\bbbar\\和[[MATH_8]]的搜寻结果，以及7\\,TeV数据中\\htollll\\和[[MACRO_9]]\\衰变道的改进分析结果相结合。本文给出了一个中性玻色子产生的明确证据，其测量质量为[[MATH_10]]。该观测的显著性为5.9个标准差，对应的本底涨落概率为[[MATH_11]]，与标准模型希格斯玻色子的产生和衰变相容。",
+    "error": null
+  },
+  {
+    "probe": "fusion",
+    "model": "swe-2-max",
+    "rep": 1,
+    "http": 200,
+    "seconds": 26.22,
+    "fragile_src": 8,
+    "fragile_zh": 4,
+    "cs_dropped": true,
+    "fused_cs": [
+      "\\和",
+      "\\衰变道的改进分析结果相结合"
+    ],
+    "reasoning_len": 1195,
+    "zh": "在2012年[[MATH_3]]\\,TeV下。将8\\,TeV数据中\\htollll、[[MACRO_4]]\\和[[MATH_5]]各衰变道的单独搜索，与此前发表的7\\,TeV数据中对[[MATH_6]]、[[MATH_7]]、\\bbbar\\和[[MATH_8]]的搜索结果，以及7\\,TeV数据中\\htollll\\和[[MACRO_9]]\\衰变道的改进分析结果相结合。给出了一个测量质量为[[MATH_10]]的中性玻色子产生的明确证据。该观测的显著性为5.9个标准差，对应的本底涨落概率为[[MATH_11]]，与标准模型希格斯玻色子的产生和衰变相符。",
+    "error": null
+  },
+  {
+    "probe": "fusion",
+    "model": "swe-2-max",
+    "rep": 2,
+    "http": 200,
+    "seconds": 14.19,
+    "fragile_src": 8,
+    "fragile_zh": 8,
+    "cs_dropped": false,
+    "fused_cs": [],
+    "reasoning_len": 336,
+    "zh": "在2012年[[MATH_3]]\\,TeV。将对8\\,TeV数据中\\htollll、[[MACRO_4]]\\ 和[[MATH_5]]各道的单独搜寻，与先前发表的7\\,TeV数据中对[[MATH_6]]、[[MATH_7]]、\\bbbar\\ 和[[MATH_8]]的搜寻结果，以及7\\,TeV数据中\\htollll\\ 和[[MACRO_9]]\\ 道的改进分析结果相结合。本文给出了产生一个测量质量为[[MATH_10]]的中性玻色子的明确证据。该观测的显著度为5.9个标准差，对应的本底涨落概率为[[MATH_11]]，与标准模型希格斯玻色子的产生和衰变相符。",
+    "error": null
+  },
+  {
+    "probe": "sse",
+    "model": "swe-2-medium",
+    "ttft_s": 9.91,
+    "total_s": 10.13,
+    "n_chunks": 18,
+    "reasoning_chars": 82,
+    "content_chars": 26,
+    "saw_done": true,
+    "finish": "stop",
+    "usage_in_stream": false,
+    "error": null
+  },
+  {
+    "probe": "sse",
+    "model": "glm-5-2",
+    "ttft_s": 0.52,
+    "total_s": 1.63,
+    "n_chunks": 28,
+    "reasoning_chars": 270,
+    "content_chars": 26,
+    "saw_done": true,
+    "finish": "stop",
+    "usage_in_stream": false,
+    "error": null
+  },
+  {
+    "probe": "sse",
+    "model": "swe-2-max",
+    "ttft_s": 12.23,
+    "total_s": 12.52,
+    "n_chunks": 18,
+    "reasoning_chars": 353,
+    "content_chars": 26,
+    "saw_done": true,
+    "finish": "stop",
+    "usage_in_stream": false,
+    "error": null
+  },
+  {
+    "probe": "jsonmode",
+    "model": "swe-2-medium",
+    "variant": "json_object",
+    "http": 200,
+    "seconds": 10.78,
+    "finish": "stop",
+    "content_head": "{\"translation\":\"敏捷的棕色狐狸 [[MATH_1]]。\"}",
+    "valid_json": true,
+    "error": ""
+  },
+  {
+    "probe": "jsonmode",
+    "model": "swe-2-medium",
+    "variant": "json_schema",
+    "http": 200,
+    "seconds": 11.94,
+    "finish": "stop",
+    "content_head": "{\"translation\":\"敏捷的棕色狐狸 [[MATH_1]]。\"}",
+    "valid_json": true,
+    "error": ""
+  },
+  {
+    "probe": "jsonmode",
+    "model": "swe-2-medium",
+    "variant": "bogus",
+    "http": 200,
+    "seconds": 11.18,
+    "finish": "stop",
+    "content_head": "{\"translation\":\"敏捷的棕色狐狸 [[MATH_1]]。\"}",
+    "valid_json": true,
+    "error": ""
+  },
+  {
+    "probe": "jsonmode",
+    "model": "glm-5-2",
+    "variant": "json_object",
+    "http": 200,
+    "seconds": 1.05,
+    "finish": "stop",
+    "content_head": "{\"translation\": \"敏捷的棕色狐狸 [[MATH_1]].\"}",
+    "valid_json": true,
+    "error": ""
+  },
+  {
+    "probe": "jsonmode",
+    "model": "glm-5-2",
+    "variant": "json_schema",
+    "http": 200,
+    "seconds": 1.3,
+    "finish": "stop",
+    "content_head": "{\"translation\": \"敏捷的棕色狐狸 [[MATH_1]]。\"}",
+    "valid_json": true,
+    "error": ""
+  },
+  {
+    "probe": "jsonmode",
+    "model": "glm-5-2",
+    "variant": "bogus",
+    "http": 200,
+    "seconds": 1.49,
+    "finish": "stop",
+    "content_head": "{\"translation\": \"敏捷的棕色狐狸 [[MATH_1]].\"}",
+    "valid_json": true,
+    "error": ""
+  },
+  {
+    "probe": "concur",
+    "model": "swe-2-medium",
+    "level": 1,
+    "n": 8,
+    "wall_s": 73.83,
+    "errors": 0,
+    "error_sample": [],
+    "lat_p50": 9.36,
+    "lat_max": 10.23,
+    "lat_min": 7.6,
+    "throughput_rps": 0.108,
+    "results": [
+      {
+        "i": 0,
+        "http": 200,
+        "seconds": 9.32,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 1,
+        "http": 200,
+        "seconds": 10.23,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 2,
+        "http": 200,
+        "seconds": 10.05,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 3,
+        "http": 200,
+        "seconds": 8.61,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 4,
+        "http": 200,
+        "seconds": 7.6,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 5,
+        "http": 200,
+        "seconds": 9.4,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 6,
+        "http": 200,
+        "seconds": 8.64,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 7,
+        "http": 200,
+        "seconds": 9.98,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      }
+    ]
+  },
+  {
+    "probe": "concur",
+    "model": "swe-2-medium",
+    "level": 4,
+    "n": 8,
+    "wall_s": 19.19,
+    "errors": 0,
+    "error_sample": [],
+    "lat_p50": 8.02,
+    "lat_max": 10.53,
+    "lat_min": 4.05,
+    "throughput_rps": 0.417,
+    "results": [
+      {
+        "i": 0,
+        "http": 200,
+        "seconds": 4.05,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 3,
+        "http": 200,
+        "seconds": 7.93,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 4,
+        "http": 200,
+        "seconds": 5.47,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 2,
+        "http": 200,
+        "seconds": 10.37,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 1,
+        "http": 200,
+        "seconds": 10.53,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 5,
+        "http": 200,
+        "seconds": 6.37,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 6,
+        "http": 200,
+        "seconds": 8.11,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 7,
+        "http": 200,
+        "seconds": 8.82,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      }
+    ]
+  },
+  {
+    "probe": "concur",
+    "model": "swe-2-medium",
+    "level": 8,
+    "n": 8,
+    "wall_s": 10.84,
+    "errors": 0,
+    "error_sample": [],
+    "lat_p50": 9.18,
+    "lat_max": 10.84,
+    "lat_min": 8.31,
+    "throughput_rps": 0.738,
+    "results": [
+      {
+        "i": 3,
+        "http": 200,
+        "seconds": 8.31,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 4,
+        "http": 200,
+        "seconds": 8.58,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 5,
+        "http": 200,
+        "seconds": 9.02,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 1,
+        "http": 200,
+        "seconds": 9.07,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 2,
+        "http": 200,
+        "seconds": 9.29,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 6,
+        "http": 200,
+        "seconds": 9.32,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 7,
+        "http": 200,
+        "seconds": 9.34,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 0,
+        "http": 200,
+        "seconds": 10.84,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      }
+    ]
+  },
+  {
+    "probe": "concur",
+    "model": "swe-2-medium",
+    "level": 16,
+    "n": 8,
+    "wall_s": 17.94,
+    "errors": 0,
+    "error_sample": [],
+    "lat_p50": 7.875,
+    "lat_max": 17.93,
+    "lat_min": 3.54,
+    "throughput_rps": 0.446,
+    "results": [
+      {
+        "i": 6,
+        "http": 200,
+        "seconds": 3.54,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 7,
+        "http": 200,
+        "seconds": 6.39,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 1,
+        "http": 200,
+        "seconds": 7.17,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 4,
+        "http": 200,
+        "seconds": 7.44,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 3,
+        "http": 200,
+        "seconds": 8.31,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 2,
+        "http": 200,
+        "seconds": 9.04,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 0,
+        "http": 200,
+        "seconds": 9.11,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 5,
+        "http": 200,
+        "seconds": 17.93,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      }
+    ]
+  },
+  {
+    "probe": "concur",
+    "model": "glm-5-2",
+    "level": 1,
+    "n": 8,
+    "wall_s": 34.46,
+    "errors": 0,
+    "error_sample": [],
+    "lat_p50": 3.865,
+    "lat_max": 9.17,
+    "lat_min": 1.31,
+    "throughput_rps": 0.232,
+    "results": [
+      {
+        "i": 0,
+        "http": 200,
+        "seconds": 3.53,
+        "finish": "stop",
+        "content_len": 104,
+        "error": ""
+      },
+      {
+        "i": 1,
+        "http": 200,
+        "seconds": 4.2,
+        "finish": "stop",
+        "content_len": 106,
+        "error": ""
+      },
+      {
+        "i": 2,
+        "http": 200,
+        "seconds": 1.31,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 3,
+        "http": 200,
+        "seconds": 4.43,
+        "finish": "stop",
+        "content_len": 104,
+        "error": ""
+      },
+      {
+        "i": 4,
+        "http": 200,
+        "seconds": 2.94,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 5,
+        "http": 200,
+        "seconds": 9.17,
+        "finish": "stop",
+        "content_len": 105,
+        "error": ""
+      },
+      {
+        "i": 6,
+        "http": 200,
+        "seconds": 6.23,
+        "finish": "stop",
+        "content_len": 106,
+        "error": ""
+      },
+      {
+        "i": 7,
+        "http": 200,
+        "seconds": 2.65,
+        "finish": "stop",
+        "content_len": 105,
+        "error": ""
+      }
+    ]
+  },
+  {
+    "probe": "concur",
+    "model": "glm-5-2",
+    "level": 4,
+    "n": 8,
+    "wall_s": 13.23,
+    "errors": 0,
+    "error_sample": [],
+    "lat_p50": 4.22,
+    "lat_max": 6.91,
+    "lat_min": 3.11,
+    "throughput_rps": 0.605,
+    "results": [
+      {
+        "i": 3,
+        "http": 200,
+        "seconds": 3.74,
+        "finish": "stop",
+        "content_len": 108,
+        "error": ""
+      },
+      {
+        "i": 0,
+        "http": 200,
+        "seconds": 3.76,
+        "finish": "stop",
+        "content_len": 106,
+        "error": ""
+      },
+      {
+        "i": 1,
+        "http": 200,
+        "seconds": 5.12,
+        "finish": "stop",
+        "content_len": 105,
+        "error": ""
+      },
+      {
+        "i": 2,
+        "http": 200,
+        "seconds": 6.91,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 4,
+        "http": 200,
+        "seconds": 3.7,
+        "finish": "stop",
+        "content_len": 108,
+        "error": ""
+      },
+      {
+        "i": 6,
+        "http": 200,
+        "seconds": 3.11,
+        "finish": "stop",
+        "content_len": 105,
+        "error": ""
+      },
+      {
+        "i": 5,
+        "http": 200,
+        "seconds": 4.68,
+        "finish": "stop",
+        "content_len": 106,
+        "error": ""
+      },
+      {
+        "i": 7,
+        "http": 200,
+        "seconds": 6.32,
+        "finish": "stop",
+        "content_len": 106,
+        "error": ""
+      }
+    ]
+  },
+  {
+    "probe": "concur",
+    "model": "glm-5-2",
+    "level": 8,
+    "n": 8,
+    "wall_s": 15.75,
+    "errors": 0,
+    "error_sample": [],
+    "lat_p50": 13.815,
+    "lat_max": 15.75,
+    "lat_min": 9.99,
+    "throughput_rps": 0.508,
+    "results": [
+      {
+        "i": 3,
+        "http": 200,
+        "seconds": 9.99,
+        "finish": "stop",
+        "content_len": 108,
+        "error": ""
+      },
+      {
+        "i": 2,
+        "http": 200,
+        "seconds": 11.05,
+        "finish": "stop",
+        "content_len": 105,
+        "error": ""
+      },
+      {
+        "i": 1,
+        "http": 200,
+        "seconds": 11.33,
+        "finish": "stop",
+        "content_len": 108,
+        "error": ""
+      },
+      {
+        "i": 5,
+        "http": 200,
+        "seconds": 12.93,
+        "finish": "stop",
+        "content_len": 105,
+        "error": ""
+      },
+      {
+        "i": 6,
+        "http": 200,
+        "seconds": 14.7,
+        "finish": "stop",
+        "content_len": 106,
+        "error": ""
+      },
+      {
+        "i": 0,
+        "http": 200,
+        "seconds": 15.23,
+        "finish": "stop",
+        "content_len": 106,
+        "error": ""
+      },
+      {
+        "i": 7,
+        "http": 200,
+        "seconds": 15.26,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 4,
+        "http": 200,
+        "seconds": 15.75,
+        "finish": "stop",
+        "content_len": 105,
+        "error": ""
+      }
+    ]
+  },
+  {
+    "probe": "concur",
+    "model": "glm-5-2",
+    "level": 16,
+    "n": 8,
+    "wall_s": 16.37,
+    "errors": 0,
+    "error_sample": [],
+    "lat_p50": 12.955,
+    "lat_max": 16.36,
+    "lat_min": 10.36,
+    "throughput_rps": 0.489,
+    "results": [
+      {
+        "i": 0,
+        "http": 200,
+        "seconds": 10.36,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 5,
+        "http": 200,
+        "seconds": 10.65,
+        "finish": "stop",
+        "content_len": 106,
+        "error": ""
+      },
+      {
+        "i": 2,
+        "http": 200,
+        "seconds": 11.93,
+        "finish": "stop",
+        "content_len": 106,
+        "error": ""
+      },
+      {
+        "i": 3,
+        "http": 200,
+        "seconds": 12.41,
+        "finish": "stop",
+        "content_len": 106,
+        "error": ""
+      },
+      {
+        "i": 4,
+        "http": 200,
+        "seconds": 13.5,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 7,
+        "http": 200,
+        "seconds": 14.02,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 1,
+        "http": 200,
+        "seconds": 14.55,
+        "finish": "stop",
+        "content_len": 105,
+        "error": ""
+      },
+      {
+        "i": 6,
+        "http": 200,
+        "seconds": 16.36,
+        "finish": "stop",
+        "content_len": 105,
+        "error": ""
+      }
+    ]
+  },
+  {
+    "probe": "concur",
+    "model": "swe-2-medium",
+    "level": 32,
+    "n": 16,
+    "wall_s": 16.11,
+    "errors": 0,
+    "error_sample": [],
+    "lat_p50": 6.279999999999999,
+    "lat_max": 16.11,
+    "lat_min": 2.47,
+    "throughput_rps": 0.993,
+    "results": [
+      {
+        "i": 7,
+        "http": 200,
+        "seconds": 2.47,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 5,
+        "http": 200,
+        "seconds": 2.97,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 0,
+        "http": 200,
+        "seconds": 3.46,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 13,
+        "http": 200,
+        "seconds": 3.72,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 11,
+        "http": 200,
+        "seconds": 5.03,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 1,
+        "http": 200,
+        "seconds": 5.05,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 10,
+        "http": 200,
+        "seconds": 5.74,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 4,
+        "http": 200,
+        "seconds": 6.18,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 9,
+        "http": 200,
+        "seconds": 6.38,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 8,
+        "http": 200,
+        "seconds": 6.41,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 15,
+        "http": 200,
+        "seconds": 7.3,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 12,
+        "http": 200,
+        "seconds": 10.3,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 2,
+        "http": 200,
+        "seconds": 12.15,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 6,
+        "http": 200,
+        "seconds": 15.26,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 14,
+        "http": 200,
+        "seconds": 15.29,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      },
+      {
+        "i": 3,
+        "http": 200,
+        "seconds": 16.11,
+        "finish": "stop",
+        "content_len": 107,
+        "error": ""
+      }
+    ]
+  }
+]
