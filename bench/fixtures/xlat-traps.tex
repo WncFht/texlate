@@ -1,0 +1,23 @@
+% xlat 类陷阱：翻译硬契约压力形（xlatbench S1–S4 的产品侧回归底材）。
+% Each case marked % @Xn —— tests/test_bench_regression.py assert_xlat 逐条断言。
+% 断言面：遮蔽后 chunk 内 占位符种类/计数 + \href,\url 等命令本体保持可见。
+\documentclass[11pt]{article}
+\usepackage{hyperref}
+
+\begin{document}
+
+% @X1 bibitem-lead：\bibitem 引导的条目段，\href 双参数可见、\cite 遮蔽
+\begin{thebibliography}{9}
+\bibitem{transformer} Vaswani et al.\ \href{https://arxiv.org/abs/1706.03762}{introduced the Transformer}, demonstrating that attention alone suffices when the hidden dimension satisfies $d_{\mathrm{model}} = 512$; earlier work by Bahdanau, Cho, and Bengio \cite{bahdanau14} and the survey of Luong and Manning \cite{luong15} had already hinted at this.
+\end{thebibliography}
+
+% @X2 multikey-cite：单段多 \cite 与行内公式交错，换序/丢占位符压力
+Subsequent analyses \cite{smith20,jones21} refined this bound using $\alpha_n \to 0$ and argued, following the framework of \cite{lee19}, that the variance term dominates in the small-sample regime $\operatorname{Var}[\hat\theta] < \epsilon$.
+
+% @X3 verbatim-pct：\url 内 %20 是数据不是注释起始，命令本体不遮蔽
+The implementation is available at \url{https://example.org/repo%20texlate} and reproduces the baseline of \cite{wncfht24} within $\pm 2\%$ relative error, using the estimator described in \ref{sec:est}.
+
+% @X4 dense-math：行内公式高密度遮蔽，占位符浓度上限压力
+Setting $x_0 = 0$ yields $f(x_0) = 1$, and substituting $u = g(t)$ into $\int_0^1 u\,du$ gives the desired contraction whenever $\|T\| < 1$ holds \cite{banach}.
+
+\end{document}

@@ -4,12 +4,14 @@ r"""B2 fixtures 陷阱断言回归（docs/10 §B2）——spike ``miniscanner_te
 
 - ``tricky.tex``：T01–T29 单点陷阱 26 条断言 + ``_meta`` 残留计数 info 行；
 - ``tricky-209.tex``：LaTeX 2.09 旧式组合 3 条（``\beq/\eeq``、``\documentstyle``、``\def``）+ parse_ok；
-- ``tricky-multi/``：T14 ``\input/\include`` 展平 4 条。
+- ``tricky-multi/``：T14 ``\input/\include`` 展平 4 条；
+- ``xlat-traps.tex``：xlat 契约压力形 4 条（``@Xn``——产品遮蔽口径
+  ``[[BIB_n]]``/``\href[[HREF_n]]``/``[[URL_n]]``，与 xlatbench SYNTHETIC S1–S4 同源）。
 
-断言函数 ``assert_tricky`` / ``assert_209`` / ``assert_multi`` 与 bench 跑分器
-``bench/py/fixture_assert.py`` 共享（该脚本直接 import 本模块）。门槛（docs/10
-§B2）：33 条 dict 断言全 ``pass``——``partial`` 在 spike 里是容忍档，但产品
-现状全 pass，退化到 partial 即回归，这里按 ``== "pass"`` 严判。
+断言函数 ``assert_tricky`` / ``assert_209`` / ``assert_multi`` / ``assert_xlat``
+与 bench 跑分器 ``bench/py/fixture_assert.py`` 共享（该脚本直接 import 本模块）。
+门槛（docs/10 §B2）：37 条 dict 断言全 ``pass``——``partial`` 在 spike 里是容忍档，
+但产品现状全 pass，退化到 partial 即回归，这里按 ``== "pass"`` 严判。
 """
 
 from __future__ import annotations
@@ -38,6 +40,7 @@ FIXTURE_FILES = [
     ("tricky.tex", FIXTURES / "tricky.tex"),
     ("tricky-209.tex", FIXTURES / "tricky-209.tex"),
     ("tricky-multi/main.tex", FIXTURES / "tricky-multi" / "main.tex"),
+    ("xlat-traps.tex", FIXTURES / "xlat-traps.tex"),
 ]
 
 # 泄漏扫描口径（spike 同表）：可译 chunk 内不得出现这些构造
@@ -469,16 +472,73 @@ def assert_multi(recon_multi: str) -> dict[str, dict[str, str]]:
     }
 
 
-# ---------------------------------------------------------------- 模块级测量（3 个小文件，ms 级）
+def assert_xlat(res: ScanResult | None) -> dict[str, dict[str, str]]:
+    """xlat-traps.tex 逐条遮蔽形状断言（``@Xn`` ↔ xlatbench SYNTHETIC S1–S4 同源）。
+
+    钉产品占位符口径：``\\bibitem`` 段首 ``[[BIB_n]]``、``\\href``/``\\url``
+    命令本体可见而 url 遮蔽成 ``[[HREF_n]]``/``[[URL_n]]``、url 内 ``%20``
+    不当注释吞尾、占位符全局跨类编号。匹配键是占位符种类序列——编号随
+    文档顺序漂不算回归，种类/可见构造变了才是。
+    """
+    if res is None:
+        return {"_parse": {"status": "fail", "detail": "parse failed"}}
+    out: dict[str, dict[str, str]] = {}
+
+    def kinds(c: Chunk) -> list[str]:
+        return [p[2:-2].rsplit("_", 1)[0] for p in PH_RX.findall(c.content)]
+
+    def chk(tid: str, seq: list[str], must: list[str], note: str) -> None:
+        c = next((c for c in res.chunks if kinds(c) == seq), None)
+        missing = [s for s in must if c is None or s not in c.content]
+        if c is not None and not missing:
+            out[tid] = {"status": "pass", "detail": note}
+        else:
+            detail = (
+                f"missing={missing} chunk={c.content[:120]!r}"
+                if c
+                else f"no chunk with kinds={seq}"
+            )
+            out[tid] = {"status": "fail", "detail": detail}
+
+    chk(
+        "@X1-bibitem-lead",
+        ["BIB", "HREF", "MATH", "CITE", "CITE"],
+        ["\\href[[HREF_", "{introduced the Transformer}", "al.\\ "],
+        "\\bibitem 段 -> [[BIB_n]] 引导; \\href url 遮蔽、命令本体与可见文本保留",
+    )
+    chk(
+        "@X2-multikey-cite",
+        ["CITE", "MATH", "CITE", "MATH"],
+        ["Subsequent analyses"],
+        "多 \\cite 与行内公式交错遮蔽",
+    )
+    chk(
+        "@X3-verbatim-pct",
+        ["URL", "CITE", "MATH", "REF"],
+        ["estimator described in"],
+        "\\url -> [[URL_n]]; %20 之后文本存活（未当注释吞掉）",
+    )
+    chk(
+        "@X4-dense-math",
+        ["MATH", "MATH", "MATH", "MATH", "MATH", "CITE"],
+        ["contraction"],
+        "高密度行内公式全遮蔽",
+    )
+    return out
+
+
+# ---------------------------------------------------------------- 模块级测量（4 个小文件，ms 级）
 
 _PARSED = {name: run_fixture(name, path) for name, path in FIXTURE_FILES}
 _t = _PARSED["tricky.tex"]
 _209 = _PARSED["tricky-209.tex"]
 _m = _PARSED["tricky-multi/main.tex"]
+_x = _PARSED["xlat-traps.tex"]
 
 TRICKY_ASSERTS = assert_tricky(_t.res, _t.recon, _t.recon_fake) if _t.res else {}
 ASSERTS_209 = assert_209(_209.res, _209.recon)
 MULTI_ASSERTS = assert_multi(_m.recon) if _m.res else {}
+XLAT_ASSERTS = assert_xlat(_x.res)
 
 # tricky.tex 的断言全集（docs/10：新增断言只增不减——T14 在 multi，T15/T28 不存在）
 TRICKY_IDS = [
@@ -518,6 +578,12 @@ MULTI_IDS = [
     "T14_include_expanded",
     "T14_nested_input",
     "T14_commented_input",
+]
+XLAT_IDS = [
+    "@X1-bibitem-lead",
+    "@X2-multikey-cite",
+    "@X3-verbatim-pct",
+    "@X4-dense-math",
 ]
 ALL_FIXTURE_NAMES = [n for n, _ in FIXTURE_FILES]
 
@@ -617,3 +683,19 @@ def test_multi(aid: str) -> None:
     a = MULTI_ASSERTS.get(aid)
     assert a is not None, f"missing assertion {aid} (parse failed?)"
     assert a["status"] == "pass", f"{aid} {a['status']}: {a['detail']}"
+
+
+# ---------------------------------------------------------------- xlat-traps 逐条
+
+
+@pytest.mark.parametrize("aid", XLAT_IDS)
+def test_xlat(aid: str) -> None:
+    """xlat-traps.tex 逐条遮蔽形状断言（断言体在 ``assert_xlat``）。"""
+    a = XLAT_ASSERTS.get(aid)
+    assert a is not None, f"missing assertion {aid} (parse failed?)"
+    assert a["status"] == "pass", f"{aid} {a['status']}: {a['detail']}"
+
+
+def test_xlat_matrix_complete() -> None:
+    """断言矩阵只增不减：新增 ``@Xn`` 断言必须登记进 ``XLAT_IDS``。"""
+    assert set(XLAT_ASSERTS) == set(XLAT_IDS)

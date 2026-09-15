@@ -4,7 +4,7 @@ r"""fixture_assert — B2 陷阱断言跑分器: bench/fixtures/*.tex → 契约
 断言矩阵来自 tests/test_bench_regression.py (spike miniscanner_test 移植,
 跑在 texlate.latex 产品解析器上); 本脚本只做计时执行 + 契约产出落盘.
 覆盖: tricky.tex T01–T29 (26 条 + _meta), tricky-209.tex 3 条 + parse_ok,
-tricky-multi T14 ×4.
+tricky-multi T14 ×4, xlat-traps.tex @X1–@X4.
 
 用法:
   uv run python bench/py/fixture_assert.py --out DIR
@@ -55,6 +55,12 @@ def main() -> None:
         tbr.assert_multi(tm.recon)
         if tm.ok
         else {"_parse": {"status": "fail", "detail": tm.error}}
+    )
+    tx = parsed["xlat-traps.tex"]
+    asserts["xlat-traps.tex"] = (
+        tbr.assert_xlat(tx.res)
+        if tx.ok
+        else {"_parse": {"status": "fail", "detail": tx.error}}
     )
 
     for name, p in parsed.items():

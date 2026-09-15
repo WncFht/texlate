@@ -4,10 +4,12 @@ r"""xlatbench — B4a 翻译硬契约回归跑分器 (gwbench 扶正版).
 对 3003 网关免费集模型跑分层抽样 LaTeX 段落翻译, 逐调用过 L0 validator
 + 三条增强判定, 产出 results.jsonl; report 子命令聚合排序表.
 
-样例池定义与 tmp/exp/gwbench/bench_free.py 相同 (CORPUS_PICKS 6 篇×6
-+ S1-S4 合成压力 = 40 样例), 但解析器已从 miniscanner 换成
-texlate.latex —— chunk 边界未必与 E22 逐字节一致, 对拍前先跑
-samples 子命令核对两版输出.
+样例池 (docs/10 §B4a): corpus_v3 manifest.jsonl 按 ``--where k=v`` 切层
+(如 layer=core), ``--docs N`` 跨 cluster 轮转取 N 篇 (seed 定簇内序),
+每篇 locate() 定主 tex → 候选 chunk (300–1200 字符且含占位符) 按
+context-kind 分桶, 每桶等距取 ``--per-kind`` 个; 尾部挂 S1–S4 合成压力
+(与 bench/fixtures/xlat-traps.tex @Xn 遮蔽输出逐字一致, test_bench_regression
+assert_xlat 钉住产品口径).
 
 判定口径 (E22 定案, docs/research/gateway/free-model-ranking.md §6):
   hard_ok = validator.ok ∧ 无丢占位符 ∧ 无造占位符 ∧ 无丢脆弱命令
@@ -18,13 +20,15 @@ samples 子命令核对两版输出.
 2026-09-15: validator 从 tmp/exp/rule-validator (gitignored 脚手架) 切到
 产品版 texlate.validate.l0.validate_pair —— 规则集与 E22 基线口径可能
 有漂移, 跨版本对拍前先确认判据等价. 每条 rec 落 prompt_sha 供 prompt
-回归分口径.
+回归分口径; ``rejudge`` 子命令对存量 results.jsonl 按现口径重判对拍.
 
 用法 (import texlate.* 产品代码, 必须 uv venv):
   uv run python bench/py/xlatbench.py run --models swe-2-medium,glm-5-2 \
-      [--runs 2] [--samples N] [--out DIR] [--resume]
+      [--runs 2] [--samples N] [--manifest P] [--where layer=core] \
+      [--docs 0] [--per-kind 8] [--seed 0] [--out DIR] [--resume]
   uv run python bench/py/xlatbench.py report DIR [DIR...] [--md OUT.md]
-  uv run python bench/py/xlatbench.py samples          # 列出样例池
+  uv run python bench/py/xlatbench.py rejudge DIR [DIR...]  # 存量重判
+  uv run python bench/py/xlatbench.py samples [抽样选项]    # 列出样例池
 """
 
 from __future__ import annotations
@@ -32,6 +36,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import random
 import re
 import statistics
 import sys
@@ -40,6 +45,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+from texlate.arxiv.locate import locate
 from texlate.latex import parse_file
 from texlate.latex.placeholder import PH_RX
 from texlate.validate.l0 import validate_pair
@@ -67,84 +73,145 @@ FRAGILE_CS_RX = re.compile(r"\\[ ,;:!]|~")
 EN_WORD_RX = re.compile(r"[A-Za-z]{4,}")
 CS_RX = re.compile(r"\\[a-zA-Z]+")
 
-# 分层语料: 覆盖 article/IEEEtran/elsarticle/amsart-thesis/ATLAS-bib/数论
-CORPUS_PICKS = [
-    ("1706.03762/ms.tex", 6),
-    ("2305.14335/main.tex", 6),
-    ("2609.09529/Frobenius_Galois_of_Substructural_Logic.tex", 6),
-    ("1111.4914/PhDThesis.tex", 6),
-    ("1207.7214/TheATLASJulyPaper.tex", 6),
-    ("1507.02284/sieve.tex", 6),
-]
+DEFAULT_MANIFEST = REPO / "bench" / "corpus_v3" / "manifest.jsonl"
 
+# 合成压力样例: 与 bench/fixtures/xlat-traps.tex @X1–@X4 遮蔽输出逐字一致
+# (产品口径 —— BIB_/HREF_/URL_ 全局跨类编号), test_bench_regression.assert_xlat
+# 钉住 parser 侧; 改任一边先跑该测试对拍.
 SYNTHETIC = [
     {
         "name": "S1-bibitem-lead",
         "src": (
-            "[[BIBITEM_1]] Vaswani et al.\\ \\href{https://arxiv.org/abs/1706.03762}"
-            "{introduced the Transformer}, demonstrating that attention alone "
-            "suffices when the hidden dimension satisfies [[MATH_3]]; earlier "
-            "work by Bahdanau, Cho, and Bengio [[CITE_2]] and the survey of "
-            "Luong and Manning [[CITE_5]] had already hinted at this."
+            "[[BIB_1]] Vaswani et al.\\ \\href[[HREF_2]]{introduced the "
+            "Transformer}, demonstrating that attention alone suffices when "
+            "the hidden dimension satisfies [[MATH_3]]; earlier work by "
+            "Bahdanau, Cho, and Bengio [[CITE_4]] and the survey of Luong "
+            "and Manning [[CITE_5]] had already hinted at this."
         ),
     },
     {
         "name": "S2-multikey-cite",
         "src": (
-            "Subsequent analyses [[CITE_4]] refined this bound using "
-            "[[MATH_7]] and argued, following the framework of [[CITE_9]], "
+            "Subsequent analyses [[CITE_6]] refined this bound using "
+            "[[MATH_7]] and argued, following the framework of [[CITE_8]], "
             "that the variance term dominates in the small-sample regime "
-            "[[MATH_8]]."
+            "[[MATH_9]]."
         ),
     },
     {
         "name": "S3-verbatim-pct",
         "src": (
-            "The implementation is available at "
-            "\\url{https://example.org/repo%20texlate} and reproduces the "
-            "baseline of [[CITE_1]] within [[MATH_2]] relative error, using "
-            "the estimator described in [[REF_3]]."
+            "The implementation is available at [[URL_10]] and reproduces "
+            "the baseline of [[CITE_11]] within [[MATH_12]] relative error, "
+            "using the estimator described in [[REF_13]]."
         ),
     },
     {
         "name": "S4-dense-math",
         "src": (
-            "Setting [[MATH_1]] yields [[MATH_2]], and substituting "
-            "[[MATH_3]] into [[MATH_4]] gives the desired contraction "
-            "whenever [[MATH_5]] holds [[CITE_6]]."
+            "Setting [[MATH_14]] yields [[MATH_15]], and substituting "
+            "[[MATH_16]] into [[MATH_17]] gives the desired contraction "
+            "whenever [[MATH_18]] holds [[CITE_19]]."
         ),
     },
 ]
 
 
-def build_samples(corpus: Path, limit: int | None = None) -> list[dict]:
-    """分层抽样: 每篇等距取 k 个 300-1200 字符且含占位符的 chunk + 合成样例."""
+def load_manifest(path: Path, where: list[str]) -> list[dict]:
+    """manifest.jsonl → doc 行; ``--where k=v`` 逐项等值过滤 (值一律按 str 比)."""
+    docs = [
+        json.loads(line)
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    for w in where:
+        k, sep, v = w.partition("=")
+        if not sep:
+            print(f"  [skip] --where {w!r} 非 k=v 形", file=sys.stderr)
+            continue
+        docs = [d for d in docs if str(d.get(k)) == v]
+    return docs
+
+
+def pick_docs(docs: list[dict], n: int, seed: int) -> list[dict]:
+    """跨 cluster 轮转取 n 篇 (seed 定簇内序) —— 覆盖优先于簇内重复."""
+    if n <= 0 or n >= len(docs):
+        return docs
+    rng = random.Random(seed)
+    pools: list[list[dict]] = []
+    by_cluster: dict[str, list[dict]] = {}
+    for d in docs:
+        key = str(d.get("cluster_id") or d.get("stratum_cell") or "?")
+        by_cluster.setdefault(key, []).append(d)
+    for key in sorted(by_cluster):
+        pool = by_cluster[key]
+        rng.shuffle(pool)
+        pools.append(pool)
     out: list[dict] = []
-    for rel, k in CORPUS_PICKS:
-        path = corpus / rel
-        if not path.exists():
-            print(f"  [skip] {rel} 不存在", file=sys.stderr)
+    while len(out) < n:
+        progressed = False
+        for pool in pools:
+            if pool and len(out) < n:
+                out.append(pool.pop())
+                progressed = True
+        if not progressed:
+            break
+    return out
+
+
+def _main_tex(entry: Path) -> Path | None:
+    """corpus_v3 条目 → 主 tex 绝对路径 (locate 定位, 失败回退唯一 .tex)."""
+    ext = entry / "extracted"
+    if not ext.is_dir():
+        return None
+    res = locate(ext, arxiv_id=entry.name)
+    if res.main:
+        return ext / res.main
+    texs = sorted(ext.rglob("*.tex"))
+    return texs[0] if texs else None
+
+
+def build_samples(
+    manifest: Path,
+    where: list[str],
+    docs_n: int,
+    per_kind: int,
+    seed: int,
+    limit: int | None = None,
+) -> list[dict]:
+    """manifest 切层 → 跨簇选篇 → 候选 chunk 按 kind 分桶等距抽样 + 合成样例."""
+    root = manifest.parent
+    docs = pick_docs(load_manifest(manifest, where), docs_n, seed)
+    by_kind: dict[str, list[dict]] = {}
+    for d in docs:
+        main = _main_tex(root / d["id"])
+        if main is None:
+            print(f"  [skip] {d['id']} 无主 tex", file=sys.stderr)
             continue
-        res = parse_file(path, flatten=True)
-        cands = [
-            c
-            for c in res.chunks
-            if 300 <= len(c.content) <= 1200 and PH_RX.search(c.content)
-        ]
-        if not cands:
+        try:
+            res = parse_file(main, flatten=True)
+        except Exception as e:
+            print(f"  [skip] {d['id']} parse fail: {e}", file=sys.stderr)
             continue
-        step = max(1, len(cands) // k)
-        chosen = cands[::step][:k]
-        for i, c in enumerate(chosen):
-            out.append(
-                {
-                    "name": f"{path.parent.name}#{i}",
-                    "doc": rel,
-                    "kind": c.context,
-                    "src": c.content,
-                    "synthetic": False,
-                }
-            )
+        i = 0
+        for c in res.chunks:
+            if 300 <= len(c.content) <= 1200 and PH_RX.search(c.content):
+                kind = c.context or "para"
+                by_kind.setdefault(kind, []).append(
+                    {
+                        "name": f"{d['id']}#{i}",
+                        "doc": d["id"],
+                        "kind": kind,
+                        "src": c.content,
+                        "synthetic": False,
+                    }
+                )
+                i += 1
+    out: list[dict] = []
+    for kind in sorted(by_kind):
+        pool = by_kind[kind]
+        step = max(1, len(pool) // per_kind)
+        out.extend(pool[::step][:per_kind])
     out.extend(
         {**s, "synthetic": True, "doc": "synthetic", "kind": "stress"}
         for s in SYNTHETIC
@@ -247,8 +314,19 @@ def judge(src: str, zh: str) -> dict:
     }
 
 
+def _samples_from_args(args: argparse.Namespace) -> list[dict]:
+    return build_samples(
+        Path(args.manifest),
+        args.where,
+        args.docs,
+        args.per_kind,
+        args.seed,
+        limit=args.samples or None,
+    )
+
+
 def cmd_samples(args: argparse.Namespace) -> None:
-    samples = build_samples(REPO / "bench" / "corpus", limit=args.samples or None)
+    samples = _samples_from_args(args)
     for s in samples:
         print(
             f"{s['name']:24} kind={s['kind']:12} len={len(s['src']):5} "
@@ -258,7 +336,7 @@ def cmd_samples(args: argparse.Namespace) -> None:
 
 
 def cmd_run(args: argparse.Namespace) -> None:
-    samples = build_samples(REPO / "bench" / "corpus", limit=args.samples or None)
+    samples = _samples_from_args(args)
     outdir = Path(args.out)
     outdir.mkdir(parents=True, exist_ok=True)
     done: set[tuple[str, int, str]] = set()
@@ -266,7 +344,9 @@ def cmd_run(args: argparse.Namespace) -> None:
         for line in (outdir / "results.jsonl").read_text().splitlines():
             if line.strip():
                 r = json.loads(line)
-                done.add((r["model"], r["run"], r["sample"]))
+                # 只跳成功出译文的记录 —— http 错误/空响应留待补跑
+                if r.get("http") == 200 and r.get("content"):
+                    done.add((r["model"], r["run"], r["sample"]))
         print(f"resume: {len(done)} 已有结果将跳过")
     fp = (outdir / "results.jsonl").open("a")
     models = [m.strip() for m in args.models.split(",")]
@@ -315,6 +395,49 @@ def cmd_run(args: argparse.Namespace) -> None:
                 time.sleep(max(0, args.gap - (time.time() - t0)))
     fp.close()
     print(f"done -> {outdir / 'results.jsonl'}")
+
+
+def cmd_rejudge(args: argparse.Namespace) -> None:
+    """存量 results.jsonl 按现口径重判 —— validator/judge 升级后新旧 hard_ok 对拍."""
+    for d in args.dirs:
+        src_f = Path(d) / "results.jsonl"
+        out_f = Path(d) / "results.rejudged.jsonl"
+        recs = [
+            json.loads(line)
+            for line in src_f.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        per_model: dict[str, list[int]] = {}
+        flips: list[str] = []
+        with out_f.open("w", encoding="utf-8") as fp:
+            for r in recs:
+                if r.get("http") == 200 and r.get("content") and r.get("src"):
+                    j_old = r.get("judge") or {}
+                    # 现口径 hard_ok; E22 时代 judge 的硬判字段名是 ok
+                    old = j_old.get("hard_ok", j_old.get("ok"))
+                    new = judge(r["src"], r["content"])
+                    r["judge_old"] = r.get("judge")
+                    r["judge"] = new
+                    st = per_model.setdefault(r["model"], [0, 0, 0])
+                    st[0] += 1
+                    st[1] += int(bool(old))
+                    st[2] += int(new["hard_ok"])
+                    if old is not None and bool(old) != new["hard_ok"]:
+                        flips.append(
+                            f"{r['model']} {r['sample']} r{r['run']}: "
+                            f"{old}->{new['hard_ok']}"
+                        )
+                fp.write(json.dumps(r, ensure_ascii=False) + "\n")
+        print(f"== {d}")
+        for m, (n, old_ok, new_ok) in sorted(per_model.items()):
+            print(
+                f"  {m:22} hard_ok {old_ok}/{n} -> {new_ok}/{n} ({new_ok - old_ok:+d})"
+            )
+        for f_ in flips[:20]:
+            print(f"  flip {f_}")
+        if len(flips) > 20:
+            print(f"  ... +{len(flips) - 20} more flips")
+        print(f"  wrote {out_f}")
 
 
 def _med(xs: list[float]) -> float:
@@ -484,13 +607,41 @@ def cmd_report(args: argparse.Namespace) -> None:
     print(f"\nwrote {out / 'models.json'}")
 
 
+def _add_sampling_args(p: argparse.ArgumentParser) -> None:
+    p.add_argument("--samples", type=int, default=0, help="总样例上限 (0=不限)")
+    p.add_argument(
+        "--manifest",
+        default=str(DEFAULT_MANIFEST),
+        help="corpus_v3 manifest.jsonl 路径",
+    )
+    p.add_argument(
+        "--where",
+        action="append",
+        default=[],
+        help="manifest 行等值过滤 k=v (可重复, 如 --where layer=core)",
+    )
+    p.add_argument(
+        "--docs",
+        type=int,
+        default=0,
+        help="跨 cluster 轮转取 N 篇 (0=过滤后全部)",
+    )
+    p.add_argument(
+        "--per-kind",
+        type=int,
+        default=8,
+        help="每种 context-kind 等距抽样上限",
+    )
+    p.add_argument("--seed", type=int, default=0, help="簇内选篇种子")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     sub = ap.add_subparsers(dest="cmd", required=True)
     p_run = sub.add_parser("run")
     p_run.add_argument("--models", required=True, help="逗号分隔")
     p_run.add_argument("--runs", type=int, default=2)
-    p_run.add_argument("--samples", type=int, default=0)
+    _add_sampling_args(p_run)
     p_run.add_argument("--out", required=True)
     p_run.add_argument("--gap", type=float, default=GAP_S)
     p_run.add_argument("--resume", action="store_true")
@@ -499,8 +650,11 @@ def main() -> None:
     p_rep.add_argument("dirs", nargs="+")
     p_rep.add_argument("--md", default=None)
     p_rep.set_defaults(fn=cmd_report)
+    p_rej = sub.add_parser("rejudge")
+    p_rej.add_argument("dirs", nargs="+")
+    p_rej.set_defaults(fn=cmd_rejudge)
     p_ls = sub.add_parser("samples")
-    p_ls.add_argument("--samples", type=int, default=0)
+    _add_sampling_args(p_ls)
     p_ls.set_defaults(fn=cmd_samples)
     args = ap.parse_args()
     args.fn(args)
