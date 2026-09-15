@@ -35,6 +35,8 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Final
 
+from texlate.textmask import mask_comments
+
 __all__ = [
     "Issue",
     "L0Report",
@@ -265,16 +267,6 @@ def _lex(s: str) -> list[tuple[str, str, int]]:
     return out
 
 
-def _no_comments(s: str) -> str:
-    """注释区间替换为等长空格（保位，供正则使用）；其余逐字节保留。"""
-    out = list(s)
-    for kind, text, pos in _lex(s):
-        if kind == "cmt":
-            for i in range(pos, pos + len(text)):
-                out[i] = " "
-    return "".join(out)
-
-
 def _lev(a: str, b: str, cap: int) -> int:
     """Levenshtein 距离，超 cap 提前返回 cap+1。"""
     if abs(len(a) - len(b)) > cap:
@@ -356,7 +348,7 @@ def _check_ph_anchor(snc: str, znc: str, issues: list[Issue]) -> None:
 
 def _check_placeholder(src: str, zh: str, issues: list[Issue]) -> None:
     """占位符 multiset diff + lev≤2 修复配对 + 序守恒软信号 + BIBITEM 锚定。"""
-    snc, znc = _no_comments(src), _no_comments(zh)
+    snc, znc = mask_comments(src), mask_comments(zh)
     sseq = PH_ANY_LIKE_RX.findall(snc)
     zseq = PH_ANY_LIKE_RX.findall(znc)
     scnt, zcnt = Counter(sseq), Counter(zseq)
@@ -454,7 +446,7 @@ def _env_tokens(s: str) -> list[tuple[str, str, int]]:
     """``(begin|end, 环境名, pos)`` 事件流（注释豁免）。"""
     return [
         (m.group(1), m.group(2).strip(), m.start())
-        for m in ENV_RX.finditer(_no_comments(s))
+        for m in ENV_RX.finditer(mask_comments(s))
     ]
 
 
@@ -525,7 +517,7 @@ def _check_env(src: str, zh: str, issues: list[Issue]) -> None:
 def _key_multiset(s: str) -> Counter[str]:
     """cite/ref/label/bib key 多重集（逗号拆分，[..] 可选参豁免）。"""
     c: Counter[str] = Counter()
-    for m in KEY_CMD_RX.finditer(_no_comments(s)):
+    for m in KEY_CMD_RX.finditer(mask_comments(s)):
         for raw in m.group(1).split(","):
             key = raw.strip()
             if key:

@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
 
 from texlate.latex.placeholder import PH_RX
+from texlate.textmask import mask_comments
 
 # ---------------------------------------------------------------- 正则
 
@@ -179,32 +180,13 @@ class PhDiff:
         return "; ".join(parts)
 
 
-def _mask_comments(s: str) -> str:
-    r"""`%` 到行尾等长空格遮盖（`\` 后随字符整体跳过，`\%`/`\\%` 语义正确）。"""
-    out = list(s)
-    i, n = 0, len(s)
-    while i < n:
-        if s[i] == "\\":
-            i += 2
-            continue
-        if s[i] == "%":
-            j = i
-            while j < n and s[j] != "\n":
-                out[j] = " "
-                j += 1
-            i = j
-            continue
-        i += 1
-    return "".join(out)
-
-
 def diff(src: str, zh: str) -> PhDiff:
     """占位符多重集差分 + lev≤2 模糊配对（与 L0 `check_placeholder` 同口径，含注释豁免）。
 
     xlat 语境下 src 内注释多已被 scanner 折叠为 `[[COMMENT]]`，但 zh 可能裸带 `%`；
     双侧豁免与 L0 完全对齐，防"模型把占位符写进注释"造成误判。
     """
-    snc, znc = _mask_comments(src), _mask_comments(zh)
+    snc, znc = mask_comments(src), mask_comments(zh)
     scnt = Counter(ANY_PH_RX.findall(snc))
     zcnt = Counter(ANY_PH_RX.findall(znc))
     missing = sorted((scnt - zcnt).elements())

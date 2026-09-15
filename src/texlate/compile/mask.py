@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import re
 
+from texlate.textmask import mask_comments
+
 #: 归一化层逐文件手术的扩展名集（.tex 之外，作者自带 .sty/.cls 同样要改）。
 TEX_SOURCE_SUFFIXES = {".tex", ".sty", ".cls", ".cfg", ".def", ".clo", ".fd", ".ltx"}
 
@@ -36,19 +38,7 @@ def without_comments(text: str) -> str:
     只用于"注释会不会骗人"语义不敏感的场景（如 `\bibliography` 名提取）；
     逐字环境敏感的场景必须用 :func:`visible_tex`。
     """
-    chars = list(text)
-    i = 0
-    while i < len(text):
-        if text[i] == "\\":
-            i += 2
-        elif text[i] == "%":
-            end = text.find("\n", i)
-            end = len(text) if end < 0 else end
-            chars[i:end] = [" "] * (end - i)
-            i = end
-        else:
-            i += 1
-    return "".join(chars)
+    return mask_comments(text)
 
 
 def visible_tex(text: str, *, mask_comment_environments: bool = True) -> str:
