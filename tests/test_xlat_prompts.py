@@ -77,6 +77,13 @@ class TestKindPrompts:
             "para", glossary_terms={}
         )
 
+    def test_fusion_clause_all_kinds_before_c9(self) -> None:
+        """C8a 反熔合条款（B4a 跨模型通病防御）：全 kind 有、在 C9 之前。"""
+        for kind in prompts.all_kinds():
+            p = prompts.build_system_prompt(kind)
+            assert "C8a." in p
+            assert p.index("C8a.") < p.index("C9.")
+
 
 _EXPECTED_FEWSHOT_N = 6
 _EXPECTED_JUDGE_MAX_TOKENS = 16

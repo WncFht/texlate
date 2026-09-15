@@ -57,6 +57,15 @@ def test_row2_def_delimited_degrades() -> None:
     assert reconstruct(res) == DOC % "\\def\\f(#1){x#1}\nAfter \\f(y)."
 
 
+def test_row2_param_beyond_spec_no_crash() -> None:
+    r"""体引用超 spec 的 ``#k``（嵌套 ``##k``/笔误）→ 不抛 IndexError（pstricks 回归）。"""
+    res = scan("\\newcommand{\\x}[1]{\\def\\y##1{#1 ##2}}\nText \\x{a} tail.")
+    assert (
+        reconstruct(res)
+        == DOC % "\\newcommand{\\x}[1]{\\def\\y##1{#1 ##2}}\nText \\x{a} tail."
+    )
+
+
 def test_row2_newenvironment() -> None:
     res = scan("\\newenvironment{mybox}[1]{\\begin{figure}}{\\end{figure}}\nText.")
     assert "mybox" in res.macros.envs

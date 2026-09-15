@@ -69,7 +69,9 @@ def protected_param_positions(body: str, nargs: int) -> tuple[bool, ...]:
         tok = m.group(0)
         if tok.startswith("#"):
             idx = int(tok[1]) - 1
-            flags[idx] = flags[idx] or cur_protect
+            # 体引用超出 spec 的 #k（嵌套 \def 的 ##k、笔误 #9）→ 无位可标，跳过不抛
+            if idx < nargs:
+                flags[idx] = flags[idx] or cur_protect
         else:
             name = tok.lstrip("\\").rstrip("*")
             cur_protect = name in PROTECTED_PARAM_CMDS

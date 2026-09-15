@@ -50,17 +50,22 @@ def strip_doc_shell(tex: str) -> str:
 
 def _resolve(fname: str, file_dir: str, root_dir: str) -> str | None:
     """查找序：including 目录 → 项目根 → basename 补 .tex → 裸名。"""
-    cands = [fname] if fname.endswith(".tex") else [fname, fname + ".tex"]
+    cands = (
+        [fname]
+        if fname.lower().endswith(".tex")
+        else [fname, fname + ".tex", fname + ".TEX"]  # 野存在大写扩展名（corpus_v3）
+    )
     for d in (file_dir, root_dir):
         for c in cands:
             p = Path(d) / c
             if p.exists():
                 return str(p)
-    base = Path(fname).name + ".tex"
+    stem = Path(fname).name
     for d in (file_dir, root_dir):
-        p = Path(d) / base
-        if p.exists():
-            return str(p)
+        for ext in (".tex", ".TEX"):
+            p = Path(d) / (stem + ext)
+            if p.exists():
+                return str(p)
     for d in (file_dir, root_dir):
         p = Path(d) / fname
         if p.exists():

@@ -131,6 +131,13 @@ def test_cycle_protected(tmp_path: Path) -> None:
     assert "B" in out
 
 
+def test_uppercase_tex_extension(tmp_path: Path) -> None:
+    r"""``.TEX`` 大写扩展名在野存在（corpus_v3）——大小写敏感 FS 上也要命中。"""
+    _w(tmp_path, "up.TEX", "UPPER CONTENT")
+    out = flatten_inputs("\\input{up}", str(tmp_path))
+    assert "UPPER CONTENT" in out
+
+
 def test_missing_input_warning(tmp_path: Path) -> None:
     warns: list[ScanWarning] = []
     out = flatten_inputs("\\input{nonexistent}", str(tmp_path), warnings=warns)
