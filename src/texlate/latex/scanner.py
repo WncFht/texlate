@@ -110,7 +110,6 @@ _LETTER_TAIL_RX = re.compile(
     r"\\[a-zA-Z@]+\Z"
 )  # \Z 严格串尾：体尾 \n 已阻断 token 合并
 _CUT_PROBE = 16  # 硬切点半径：探测横跨切点的 [[X_n]]（最长占位符 ~12 字符）
-_CLEAN_PH_RX = re.compile(r"\[\[[A-Z_]+_\d+\]\]")
 _CLEAN_CMD_RX = re.compile(r"\\[a-zA-Z@]+\*?|\\[^a-zA-Z]")
 _CLEAN_NONALPHA_RX = re.compile(r"[^a-zA-Z]")
 _LEAD_WS_RX = re.compile(r"\s*")
@@ -315,7 +314,7 @@ class Scanner:
         trail_m = _TRAIL_WS_RX.search(s)
         trail = trail_m.group(0) if trail_m else ""
         core = s[len(lead) : len(s) - len(trail) if trail else len(s)]
-        clean = _CLEAN_PH_RX.sub(" ", core)
+        clean = PH_RX.sub(" ", core)
         clean = _CLEAN_CMD_RX.sub(" ", clean)
         clean = _CLEAN_NONALPHA_RX.sub(" ", clean).strip()
         force = self.force_chunk

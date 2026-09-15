@@ -1,8 +1,9 @@
 r"""占位符编解码与 src↔zh 对账（规格 docs/08 §1.3/§1.6，口径对齐 L0 校验层）。
 
 契约边界：
-- `[[TYPE_n]]` 带号占位符（MATH/CITE/REF/ENV/AUTHOR/...）——`ph_map` 侧受保护片段。
-- `[[NAME]]` 裸标记（SL/PL 换行编码、ENV/COMMENT/COND/ENVTAG 等 in_arg 产物）——无 `_n` 后缀。
+- `[[TYPE_n]]` 带号占位符——`ph_map` 侧受保护片段；PhType 全枚举（含
+  ENV/COMMENT/COND/ENVTAG 等 in_arg 产物）均走此形态。
+- `[[NAME]]` 裸标记仅 SL/PL 换行编码系（`[[SL]]`/`[[PL]]` 及 `_RAW` 变体）——无 `_n` 后缀。
 - 换行编码只接管段内 `\n`（分段边界在 chunk 层管理，`[[PL]]` 仅作 `\n\n+` 防御编码）。
 - 占位符多重集 diff + lev≤2 模糊配对与 `rule_validator.check_placeholder` 同口径——
   本模块是 xlat 层自带的轻量对账，正式 L0 校验器就绪后经 `PhValidator` 协议替换。
@@ -18,12 +19,16 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
 
+from texlate.latex.placeholder import PH_RX
+
 # ---------------------------------------------------------------- 正则
 
-#: 带号占位符 [[TYPE_n]]（与 L0 `PH_RX` 同口径）
-TYPED_PH_RX = re.compile(r"\[\[[A-Z_]+_\d+\]\]")
-#: 裸结构标记 [[SL]] [[PL]] [[ENV]] [[COMMENT]] [[COND]] [[ENVTAG]] ...（无 `_\d+` 后缀，
-#: 与 TYPED_PH_RX 不相交——`[A-Z_]+` 不吃数字）
+#: 带号占位符 [[TYPE_n]]——签发侧唯一定义在 ``latex.placeholder.PH_RX``，此处为别名
+TYPED_PH_RX = PH_RX
+#: 裸结构标记——实际产出只有 [[SL]]/[[PL]] 系；ENV/COMMENT/COND/ENVTAG 是
+#: PhType 成员、走带号 [[ENV_n]] 形态。本正则取超集口径（zh 侧任何裸 ALLCAPS
+#: 标记都算候选，含模型臆造的 [[ENV]] 类变体），与 TYPED_PH_RX 不相交——
+#: `[A-Z_]+` 不吃数字。
 BARE_PH_RX = re.compile(r"\[\[[A-Z][A-Z_]*\]\]")
 #: 任一占位符形态
 ANY_PH_RX = re.compile(rf"(?:{TYPED_PH_RX.pattern})|(?:{BARE_PH_RX.pattern})")

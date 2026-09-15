@@ -9,7 +9,6 @@ bench harness（e2e_mock_bench）与 CLI ``texlate run`` 共用同一实现—�
 from __future__ import annotations
 
 import asyncio
-import re
 from typing import TYPE_CHECKING
 
 from texlate.compile.engine import engine_for, route_project
@@ -17,6 +16,7 @@ from texlate.compile.inject import InjectRejectError, find_main_tex, prepare_chi
 from texlate.compile.judge import judge
 from texlate.compile.normalize import normalize_project
 from texlate.latex.api import parse_file
+from texlate.latex.placeholder import PH_RX
 from texlate.latex.reconstruct import reconstruct
 from texlate.validate.l0 import validate_pair
 from texlate.xlat.pipeline import ChunkIn, MockTranslator, XlatPipeline, chunk_to_in
@@ -25,8 +25,6 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from texlate.latex.model import ScanResult
-
-_PH_LEFT_RX = re.compile(r"\[\[[A-Z_]+_\d+\]\]")
 
 
 def mock_translate_tree(root: Path) -> dict:
@@ -66,7 +64,7 @@ def mock_translate_tree(root: Path) -> dict:
         zh = reconstruct(res, trans)
         f.write_text(zh, encoding="utf-8")
         n_files += 1
-        n_leftover += len(_PH_LEFT_RX.findall(zh))
+        n_leftover += len(PH_RX.findall(zh))
     return {
         "files": n_files,
         "chunks": len(chunks),
