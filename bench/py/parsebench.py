@@ -11,11 +11,17 @@ class 名/选项、tex 数/总大小/非 UTF-8、路由标签 (reject/xelatex/mi
 non-utf8/no-hyperref)、孤儿 tex 列表.
 
 用法:
-  python3 bench/py/parsebench.py --corpus DIR [--manifest M.jsonl] [--out PREFIX]
+  python3 bench/py/parsebench.py --corpus DIR [--manifest M.jsonl] --out DIR
 
-产出: {prefix}-files.jsonl / {prefix}-papers.json / {prefix}-summary.md.
+产出 (docs/10 §统一产出契约): OUT/files.jsonl + OUT/papers.json + OUT/summary.md,
+OUT 形如 bench/results/parsebench-{corpus}-{date}/.
 manifest.jsonl 每行 {"id": "...", "era": ..., "archive": ...} → 按 era/archive
-分组统计 (缺省则只按 documentclass 名分组).
+分组统计 (缺省则只按 documentclass 名分组). 论文目录形如 {id}/extracted/
+时按 {id} 关联 manifest.
+
+files.jsonl 逐文件契约字段: file / paper_id / ok / wall_ms / identity
+(strict|normalized|diverged) / n_chunks / leak_hits[]; 另带 role / leak /
+recon / fake / bug1_ph_tail 等明细.
 
 判定逻辑全部复用 miniscanner_test (parse_one/scan_chunks/classify_recon/
 rebuild_metrics), 保证与 miniscanner-parse.json 同口径可互相对拍.
@@ -144,6 +150,28 @@ def percentile(sorted_vals: list[int], q: float) -> int | None:
     return sorted_vals[max(0, math.ceil(q * len(sorted_vals)) - 1)]
 
 
+PH_RX = re.compile(r"\[\[[A-Z_]+_\d+\]\]")
+
+
+def ph_tail_risk(res: ms.ScanResult) -> int:
+    r"""BUG1 回归计数 (docs/07 §11): 占位符 body 以 `\letters` 结尾且其后继字符
+    是字母 → 展开后命令吞掉后继字母, token 合并. 扫描域 = protected_tex +
+    ph bodies + chunk contents (嵌套占位符的全部可见位置)."""
+    blob = (
+        res.protected_tex
+        + "\n"
+        + "\n".join(res.ph_map.values())
+        + "\n"
+        + "\n".join(c.content for c in res.chunks)
+    )
+    n = 0
+    for m in PH_RX.finditer(blob):
+        body = res.ph_map.get(m.group(0), "")
+        if re.search(r"\\[a-zA-Z]+$", body) and blob[m.end() : m.end() + 1].isalpha():
+            n += 1
+    return n
+
+
 # ---------------------------------------------------------------- 路由标签
 
 RX_EPS_PS = re.compile(
@@ -181,14 +209,14 @@ def paper_tags(roots: list[dict], stripped_blob: str, non_utf8: list[str]) -> li
 def file_metrics(path: Path, rel: str, paper: str, role: str, non_utf8: bool) -> dict:
     entry = {
         "file": rel,
-        "paper": paper,
+        "paper_id": paper,
         "role": role,  # root / input_reached / orphan / no_root
         "size": path.stat().st_size,
         "non_utf8": non_utf8,
     }
     r = mt.parse_one(path, timeout_s=TIMEOUT_S, flatten=True)
     entry["ok"] = r["ok"]
-    entry["ms"] = r["ms"]
+    entry["wall_ms"] = r["ms"]
     if not r["ok"]:
         entry["error"] = r["error"]
         return entry
@@ -212,14 +240,18 @@ def file_metrics(path: Path, rel: str, paper: str, role: str, non_utf8: bool) ->
             else None
         ),
         "hits": {k: v for k, v in lk["hits"].items() if v},
+        # 逐条归因素材 (≤5/file, 同 miniscanner_test 口径): context/hits/snippet
+        "examples": lk["examples"],
     }
+    entry["leak_hits"] = sorted(entry["leak"]["hits"])
 
     rb = mt.rebuild_metrics(res)  # identity + fake-translation 重建 (同 test)
     orig = path.read_text(encoding="utf-8", errors="replace")
     orig_flat = ms.flatten_inputs(orig, str(path.parent), str(path.parent))
     status, ratio, first_diff = mt.classify_recon(orig_flat, rb["recon_identity"])
+    # 契约命名: identical → strict (docs/09 §7.1 GROBID strict match)
+    entry["identity"] = {"identical": "strict"}.get(status, status)
     entry["recon"] = {
-        "status": status,
         "quick_ratio": ratio,
         "first_diff_at": first_diff,
     }
@@ -228,6 +260,7 @@ def file_metrics(path: Path, rel: str, paper: str, role: str, non_utf8: bool) ->
         "residue_protect_ph": rb["residue_protect_ph"],
         "n_orphan_chunks": rb["n_orphan_chunks"],
     }
+    entry["bug1_ph_tail"] = ph_tail_risk(res)
     return entry
 
 
@@ -339,13 +372,13 @@ def analyze_paper(paper_id: str, pdir: Path, corpus: Path) -> dict:
 
 def aggregate(files: list[dict]) -> dict:
     ok = [f for f in files if f.get("ok")]
-    recon = {"identical": 0, "normalized": 0, "diverged": 0}
+    recon = {"strict": 0, "normalized": 0, "diverged": 0}
     chunks = leaked = 0
-    res_c = res_p = orph = 0
+    res_c = res_p = orph = bug1 = 0
     hits: dict[str, int] = {}
     lens: list[int] = []
     for f in ok:
-        recon[f["recon"]["status"]] += 1
+        recon[f["identity"]] += 1
         lk = f["leak"]
         chunks += lk["n_translatable"]
         leaked += lk["n_leaked"]
@@ -354,6 +387,7 @@ def aggregate(files: list[dict]) -> dict:
         res_c += f["fake"]["residue_chunk_ph"]
         res_p += f["fake"]["residue_protect_ph"]
         orph += f["fake"]["n_orphan_chunks"]
+        bug1 += f["bug1_ph_tail"]
         lens.extend(f.get("_lens") or [])
     lens.sort()
     return {
@@ -361,10 +395,10 @@ def aggregate(files: list[dict]) -> dict:
         "ok": len(ok),
         "error": len(files) - len(ok),
         "ok_rate": round(len(ok) / len(files), 4) if files else None,
-        "identical": recon["identical"],
+        "strict": recon["strict"],
         "normalized": recon["normalized"],
         "diverged": recon["diverged"],
-        "identity_rate": round(recon["identical"] / len(ok), 4) if ok else None,
+        "identity_rate": round(recon["strict"] / len(ok), 4) if ok else None,
         "chunks": chunks,
         "leaked_chunks": leaked,
         "leak_rate": round(leaked / chunks, 4) if chunks else None,
@@ -374,6 +408,7 @@ def aggregate(files: list[dict]) -> dict:
         "residue_chunk_ph": res_c,
         "residue_protect_ph": res_p,
         "orphan_chunks": orph,
+        "bug1_ph_tail": bug1,
     }
 
 
@@ -417,9 +452,9 @@ def write_summary(
         f"({_pct(tot['ok_rate'])}%)   errors: {tot['error']}"
     )
     lines.append(
-        f"- recon: identical **{tot['identical']}** / normalized "
+        f"- identity: strict **{tot['strict']}** / normalized "
         f"{tot['normalized']} / diverged {tot['diverged']} "
-        f"(identity {_pct(tot['identity_rate'])}%)"
+        f"(strict-rate {_pct(tot['identity_rate'])}%)"
     )
     lines.append(
         f"- leak: **{tot['leaked_chunks']}/{tot['chunks']}** chunks "
@@ -432,26 +467,82 @@ def write_summary(
     lines.append(
         f"- fake-translation: dead CHUNK ph {tot['residue_chunk_ph']}   "
         f"dead protect ph {tot['residue_protect_ph']}   "
-        f"orphan chunks {tot['orphan_chunks']}"
+        f"orphan chunks {tot['orphan_chunks']}   "
+        f"bug1 ph-tail {tot['bug1_ph_tail']}"
     )
     lines.append(
         f"- flatten coverage: {n_reached} reached / {n_orphan} orphan tex / "
         f"{sum(1 for f in files if f['role'] == 'no_root')} rootless\n"
     )
 
+    # ---- docs/10 B1 漏斗: fetched → .tex → rooted → ok → identity → leak → dead/orphan
+    n_multi = sum(1 for p in papers if p["multi_doc"])
+    n_rootless = sum(1 for p in papers if not p["roots"])
+    lines.append("## funnel\n")
+    lines.append("| stage | n |")
+    lines.append("|---|---|")
+    if manifest:
+        n_src_ok = sum(1 for m in manifest.values() if m.get("status") == "ok")
+        lines.append(f"| manifest rows | {len(manifest)} |")
+        lines.append(f"| source ok (manifest) | {n_src_ok} |")
+    lines.append(f"| papers discovered | {len(papers)} |")
+    lines.append(f"| .tex files | {tot['files']} |")
+    lines.append(
+        f"| rooted papers | {len(papers) - n_rootless} "
+        f"(multi_doc {n_multi}, rootless {n_rootless}) |"
+    )
+    lines.append(f"| parse ok | {tot['ok']} |")
+    lines.append(
+        f"| identity | strict {tot['strict']} / normalized "
+        f"{tot['normalized']} / diverged {tot['diverged']} |"
+    )
+    lines.append(f"| translatable chunks | {tot['chunks']} |")
+    lines.append(f"| leaked chunks | {tot['leaked_chunks']} |")
+    lines.append(f"| dead CHUNK ph | {tot['residue_chunk_ph']} |")
+    lines.append(f"| dead protect ph | {tot['residue_protect_ph']} |")
+    lines.append(f"| orphan chunks | {tot['orphan_chunks']} |")
+    lines.append(f"| bug1 ph-tail | {tot['bug1_ph_tail']} |")
+    lines.append(
+        f"| flatten reached / orphan / rootless | "
+        f"{n_reached} / {n_orphan} / "
+        f"{sum(1 for f in files if f['role'] == 'no_root')} |\n"
+    )
+
     errs = [f for f in files if not f.get("ok")]
     if errs:
         lines.append("## parse errors\n")
-        lines.append("| file | error | ms |")
+        lines.append("| file | error | wall_ms |")
         lines.append("|---|---|---|")
         lines.extend(
-            f"| {f['file']} | {f.get('error', '')} | {f['ms']} |" for f in errs
+            f"| {f['file']} | {f.get('error', '')} | {f['wall_ms']} |" for f in errs
         )
+        lines.append("")
+
+    # ---- 泄漏逐条归因表 (docs/10 B1-4: 人工复核素材)
+    leaked_files = [f for f in files if f.get("leak", {}).get("n_leaked")]
+    if leaked_files:
+        lines.append("## leak detail\n")
+        lines.append("| file | leaked/trans | hits | leaked-chunk snippets |")
+        lines.append("|---|---|---|---|")
+        for f in leaked_files:
+            lk = f["leak"]
+            ex = "<br>".join(
+                f"{e['leaks']} `{e['snippet'][:80]}`" for e in lk["examples"]
+            )
+            more = (
+                f" (+{lk['n_leaked'] - len(lk['examples'])} more)"
+                if lk["n_leaked"] > len(lk["examples"])
+                else ""
+            )
+            lines.append(
+                f"| {f['file']} | {lk['n_leaked']}/{lk['n_translatable']} "
+                f"| {','.join(lk['hits'])} | {ex}{more} |"
+            )
         lines.append("")
 
     lines.append("## per-paper\n")
     lines.append(
-        "| paper | class | options | roots | tags | tex | ok | ident | "
+        "| paper | class | options | roots | tags | tex | ok | strict | "
         "leak% | orphan-tex |"
     )
     lines.append("|---|---|---|---|---|---|---|---|---|---|")
@@ -463,7 +554,7 @@ def write_summary(
         lines.append(
             f"| {p['id']} | {cls} | {p['docclass_options'] or '—'} "
             f"| {len(p['roots'])} | {', '.join(p['tags']) or '—'} "
-            f"| {s['files']} | {s['ok']} | {s['identical']} "
+            f"| {s['files']} | {s['ok']} | {s['strict']} "
             f"| {_pct(s['leak_rate'], 2)} | {len(p['orphan_tex'])} |"
         )
     lines.append("")
@@ -477,7 +568,7 @@ def write_summary(
         lines.append("|---|---|---|---|---|---|")
         for g in sorted(groups):
             pids = {pp["id"] for pp in groups[g]}
-            s = aggregate([f for f in files if f["paper"] in pids])
+            s = aggregate([f for f in files if f["paper_id"] in pids])
             lines.append(
                 f"| {g} | {len(groups[g])} | {s['files']} "
                 f"| {_pct(s['ok_rate'])} | {_pct(s['identity_rate'])} "
@@ -501,14 +592,19 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="corpus parse benchmark (miniscanner)")
     ap.add_argument("--corpus", required=True, type=Path)
     ap.add_argument("--manifest", type=Path, default=None)
-    ap.add_argument("--out", type=Path, default=None)
+    ap.add_argument(
+        "--out",
+        required=True,
+        type=Path,
+        help="产出目录 (契约: files.jsonl + papers.json + summary.md)",
+    )
     args = ap.parse_args()
 
     corpus = args.corpus.resolve()
-    out = args.out or Path(f"parsebench-{corpus.name}")
+    out = args.out
     if not out.is_absolute():
         out = Path.cwd() / out
-    out.parent.mkdir(parents=True, exist_ok=True)
+    out.mkdir(parents=True, exist_ok=True)
     manifest = load_manifest(args.manifest)
 
     t0 = time.perf_counter()
@@ -523,12 +619,17 @@ def main() -> None:
     prec_map: dict[str, dict] = {}
     for pid, pdir in sorted(papers.items()):
         prec = analyze_paper(pid, pdir, corpus)
-        if pid in manifest:
-            prec["meta"] = manifest[pid]
+        # corpus_v2 布局: 论文目录是 {id}/extracted/, manifest id 是 {id}
+        mkey = pid.removesuffix("/extracted")
+        if mkey in manifest:
+            prec["meta"] = manifest[mkey]
         prec_map[pid] = prec
     n_multi = sum(1 for p in prec_map.values() if p["multi_doc"])
     n_rootless = sum(1 for p in prec_map.values() if not p["roots"])
     print(f"  roots: {n_multi} multi_doc, {n_rootless} rootless")
+    if manifest:
+        n_meta = sum(1 for p in prec_map.values() if "meta" in p)
+        print(f"  manifest matched: {n_meta}/{len(prec_map)} papers")
 
     # ---- pass 2: 逐文件评测
     file_entries = []
@@ -554,7 +655,7 @@ def main() -> None:
 
     # ---- 论文级聚合 stats
     for prec in prec_map.values():
-        pfiles = [e for e in file_entries if e["paper"] == prec["id"]]
+        pfiles = [e for e in file_entries if e["paper_id"] == prec["id"]]
         prec["stats"] = aggregate(pfiles)
         for k in ("_covered", "_tex_files", "_roots", "_non_utf8"):
             prec.pop(k, None)
@@ -562,10 +663,10 @@ def main() -> None:
     wall = round(time.perf_counter() - t0, 1)
     paper_list = sorted(prec_map.values(), key=lambda p: p["id"])
 
-    # ---- 落盘
-    f_jsonl = out.parent / (out.name + "-files.jsonl")
-    p_json = out.parent / (out.name + "-papers.json")
-    s_md = out.parent / (out.name + "-summary.md")
+    # ---- 落盘 (docs/10 契约三件套)
+    f_jsonl = out / "files.jsonl"
+    p_json = out / "papers.json"
+    s_md = out / "summary.md"
 
     with f_jsonl.open("w", encoding="utf-8") as fh:
         for e in file_entries:
@@ -589,7 +690,7 @@ def main() -> None:
     tot = aggregate(file_entries)
     print(
         f"done {wall}s — ok {tot['ok']}/{tot['files']}, "
-        f"identical {tot['identical']}, leak {tot['leak_rate']} "
+        f"strict {tot['strict']}, leak {tot['leak_rate']} "
         f"({tot['leaked_chunks']}/{tot['chunks']})"
     )
     print(f"wrote {f_jsonl}\n      {p_json}\n      {s_md}")

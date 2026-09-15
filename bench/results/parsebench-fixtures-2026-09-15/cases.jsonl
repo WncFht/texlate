@@ -1,0 +1,35 @@
+{"case": "tricky.tex::T01", "fixture": "tricky.tex", "id": "T01", "status": "pass", "detail": "\\be..\\ee -> [[MATH_n]]", "parse_ok": true, "wall_ms": 0.9}
+{"case": "tricky.tex::T02", "fixture": "tricky.tex", "id": "T02", "status": "pass", "detail": "\\dR -> [[MACRO_n]]", "parse_ok": true, "wall_ms": 0.9}
+{"case": "tricky.tex::T03", "fixture": "tricky.tex", "id": "T03", "status": "pass", "detail": "def in preamble, verbatim", "parse_ok": true, "wall_ms": 0.9}
+{"case": "tricky.tex::T04", "fixture": "tricky.tex", "id": "T04", "status": "pass", "detail": "cmds=[] keys=[] core=[]", "parse_ok": true, "wall_ms": 0.9}
+{"case": "tricky.tex::T05", "fixture": "tricky.tex", "id": "T05", "status": "pass", "detail": "long title chunked", "parse_ok": true, "wall_ms": 0.9}
+{"case": "tricky.tex::T06", "fixture": "tricky.tex", "id": "T06", "status": "pass", "detail": "verbatim intact=True lstlisting=True", "parse_ok": true, "wall_ms": 0.9}
+{"case": "tricky.tex::T07", "fixture": "tricky.tex", "id": "T07", "status": "pass", "detail": "url %20=True verb=True", "parse_ok": true, "wall_ms": 0.9}
+{"case": "tricky.tex::T08", "fixture": "tricky.tex", "id": "T08", "status": "pass", "detail": "comment-in-chunk=False \\\\%-trail=False \\% kept=True", "parse_ok": true, "wall_ms": 0.9}
+{"case": "tricky.tex::T09", "fixture": "tricky.tex", "id": "T09", "status": "pass", "detail": "author -> [[AUTHOR_n]]", "parse_ok": true, "wall_ms": 0.9}
+{"case": "tricky.tex::T10", "fixture": "tricky.tex", "id": "T10", "status": "pass", "detail": "all -> [[MATH_n]]", "parse_ok": true, "wall_ms": 0.9}
+{"case": "tricky.tex::T11", "fixture": "tricky.tex", "id": "T11", "status": "pass", "detail": "theorem body chunked, env literal", "parse_ok": true, "wall_ms": 0.9}
+{"case": "tricky.tex::T12", "fixture": "tricky.tex", "id": "T12", "status": "pass", "detail": "footnote text rides in caption chunk", "parse_ok": true, "wall_ms": 0.9}
+{"case": "tricky.tex::T13", "fixture": "tricky.tex", "id": "T13", "status": "pass", "detail": "conditional tokens as boundary literals", "parse_ok": true, "wall_ms": 0.9}
+{"case": "tricky.tex::T16", "fixture": "tricky.tex", "id": "T16", "status": "pass", "detail": "xparse def kept verbatim", "parse_ok": true, "wall_ms": 0.9}
+{"case": "tricky.tex::T17", "fixture": "tricky.tex", "id": "T17", "status": "pass", "detail": "\\text{} inside [[MATH]]", "parse_ok": true, "wall_ms": 0.9}
+{"case": "tricky.tex::T18", "fixture": "tricky.tex", "id": "T18", "status": "pass", "detail": "caption mined from [[ENV]] body", "parse_ok": true, "wall_ms": 0.9}
+{"case": "tricky.tex::T19", "fixture": "tricky.tex", "id": "T19", "status": "pass", "detail": "abstract text chunked", "parse_ok": true, "wall_ms": 0.9}
+{"case": "tricky.tex::T20", "fixture": "tricky.tex", "id": "T20", "status": "pass", "detail": "item texts chunked", "parse_ok": true, "wall_ms": 0.9}
+{"case": "tricky.tex::T21", "fixture": "tricky.tex", "id": "T21", "status": "pass", "detail": "-> [[GRAPHICS_n]]", "parse_ok": true, "wall_ms": 0.9}
+{"case": "tricky.tex::T22", "fixture": "tricky.tex", "id": "T22", "status": "pass", "detail": "url->[[HREF_n]], text translatable", "parse_ok": true, "wall_ms": 0.9}
+{"case": "tricky.tex::T23", "fixture": "tricky.tex", "id": "T23", "status": "pass", "detail": "inline formatting text merged into chunk", "parse_ok": true, "wall_ms": 0.9}
+{"case": "tricky.tex::T24", "fixture": "tricky.tex", "id": "T24", "status": "pass", "detail": "-> [[BIB_n]], survives", "parse_ok": true, "wall_ms": 0.9}
+{"case": "tricky.tex::T25", "fixture": "tricky.tex", "id": "T25", "status": "pass", "detail": "kept literal", "parse_ok": true, "wall_ms": 0.9}
+{"case": "tricky.tex::T26", "fixture": "tricky.tex", "id": "T26", "status": "pass", "detail": "display/inline delims -> [[MATH_n]]", "parse_ok": true, "wall_ms": 0.9}
+{"case": "tricky.tex::T27", "fixture": "tricky.tex", "id": "T27", "status": "pass", "detail": "accent commands preserved", "parse_ok": true, "wall_ms": 0.9}
+{"case": "tricky.tex::T29", "fixture": "tricky.tex", "id": "T29", "status": "pass", "detail": "footnote arg -> own chunk", "parse_ok": true, "wall_ms": 0.9}
+{"case": "tricky.tex::_meta", "fixture": "tricky.tex", "id": "_meta", "status": "info", "detail": "chunks=21 ph=36 residue_chunk=0 residue_prot=0", "parse_ok": true, "wall_ms": 0.9}
+{"case": "tricky-209.tex::parse_ok", "fixture": "tricky-209.tex", "id": "parse_ok", "status": "pass", "detail": "True", "parse_ok": true, "wall_ms": 0.3}
+{"case": "tricky-209.tex::beq_eeq_trap", "fixture": "tricky-209.tex", "id": "beq_eeq_trap", "status": "pass", "detail": "\\beq..\\eeq leaked: None", "parse_ok": true, "wall_ms": 0.3}
+{"case": "tricky-209.tex::documentstyle", "fixture": "tricky-209.tex", "id": "documentstyle", "status": "pass", "detail": "2.09 preamble survives", "parse_ok": true, "wall_ms": 0.3}
+{"case": "tricky-209.tex::def_macros", "fixture": "tricky-209.tex", "id": "def_macros", "status": "pass", "detail": "\\def kept verbatim", "parse_ok": true, "wall_ms": 0.3}
+{"case": "tricky-multi/main.tex::T14_input_expanded", "fixture": "tricky-multi/main.tex", "id": "T14_input_expanded", "status": "pass", "detail": "sub/intro.tex inlined", "parse_ok": true, "wall_ms": 1.1}
+{"case": "tricky-multi/main.tex::T14_include_expanded", "fixture": "tricky-multi/main.tex", "id": "T14_include_expanded", "status": "pass", "detail": "sub/methods.tex inlined", "parse_ok": true, "wall_ms": 1.1}
+{"case": "tricky-multi/main.tex::T14_nested_input", "fixture": "tricky-multi/main.tex", "id": "T14_nested_input", "status": "pass", "detail": "nested \\input resolved vs main dir", "parse_ok": true, "wall_ms": 1.1}
+{"case": "tricky-multi/main.tex::T14_commented_input", "fixture": "tricky-multi/main.tex", "id": "T14_commented_input", "status": "pass", "detail": "commented \\input not expanded", "parse_ok": true, "wall_ms": 1.1}

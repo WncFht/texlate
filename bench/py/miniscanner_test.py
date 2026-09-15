@@ -412,6 +412,30 @@ def assert_209(res_parse, recon):
     }
 
 
+def assert_multi(recon_multi: str) -> dict:
+    """T14: tricky-multi \\input/\\include 展平断言 (供 main 与 fixture_assert 复用)."""
+    return {
+        "T14_input_expanded": {
+            "status": "pass" if "Intro paragraph" in recon_multi else "fail",
+            "detail": "sub/intro.tex inlined",
+        },
+        "T14_include_expanded": {
+            "status": "pass" if "Methods paragraph" in recon_multi else "fail",
+            "detail": "sub/methods.tex inlined",
+        },
+        "T14_nested_input": {
+            "status": "pass" if "Nested paragraph content" in recon_multi else "fail",
+            "detail": "nested \\input resolved vs main dir",
+        },
+        "T14_commented_input": {
+            "status": "pass"
+            if "THIS FILE MUST NOT APPEAR" not in recon_multi
+            else "fail",
+            "detail": "commented \\input not expanded",
+        },
+    }
+
+
 def main():
     RESULTS.mkdir(parents=True, exist_ok=True)
     report = {
@@ -506,27 +530,7 @@ def main():
     report["fixtures"]["tricky-209.tex"] = assert_209(r209, r209["recon_identity"])
 
     rm = parsed["fixtures/tricky-multi/main.tex"]
-    recon_multi = rm["recon_identity"]
-    report["fixtures"]["tricky-multi"] = {
-        "T14_input_expanded": {
-            "status": "pass" if "Intro paragraph" in recon_multi else "fail",
-            "detail": "sub/intro.tex inlined",
-        },
-        "T14_include_expanded": {
-            "status": "pass" if "Methods paragraph" in recon_multi else "fail",
-            "detail": "sub/methods.tex inlined",
-        },
-        "T14_nested_input": {
-            "status": "pass" if "Nested paragraph content" in recon_multi else "fail",
-            "detail": "nested \\input resolved vs main dir",
-        },
-        "T14_commented_input": {
-            "status": "pass"
-            if "THIS FILE MUST NOT APPEAR" not in recon_multi
-            else "fail",
-            "detail": "commented \\input not expanded",
-        },
-    }
+    report["fixtures"]["tricky-multi"] = assert_multi(rm["recon_identity"])
 
     out_path = RESULTS / "miniscanner-parse.json"
     report["parse"] = json.loads(
