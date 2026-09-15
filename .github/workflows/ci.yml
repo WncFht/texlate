@@ -93,7 +93,31 @@ jobs:
         run: npm ci --prefix bench/ts
 
       - name: uv sync
-        run: uv sync --frozen
+        run: uv sync --frozen --extra server
 
       - name: pytest
         run: uv run pytest tests/ -q
+
+  web:
+    name: Web
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: web 依赖
+        run: npm ci --prefix web
+
+      - name: tsc + eslint + vitest + build
+        run: |
+          npm run --prefix web typecheck
+          npm run --prefix web lint
+          npm run --prefix web test
+          npm run --prefix web build
