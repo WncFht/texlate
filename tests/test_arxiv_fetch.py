@@ -9,7 +9,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from texlate.arxiv.cache import SourceCache
+from texlate.arxiv.cache import CacheError, SourceCache
 from texlate.arxiv.fetch import (
     AcquireStatus,
     Fetcher,
@@ -180,6 +180,115 @@ def test_acquire_pdf_only(tmp_path: Path) -> None:
     f = _fetcher(httpx.MockTransport(handler), _Clock())
     res = acquire_source("2001.00002", fetcher=f, cache=SourceCache(tmp_path))
     assert res.status is AcquireStatus.PDF_ONLY
+
+
+def test_normalize_pdf_suffix_and_bare_host() -> None:
+    assert normalize_arxiv_id("https://arxiv.org/pdf/1412.6980.pdf") == (
+        "1412.6980",
+        None,
+    )
+    assert normalize_arxiv_id("arxiv.org/abs/1412.6980v2") == ("1412.6980", 2)
+
+
+def test_bad_id_rejected_before_network(tmp_path: Path) -> None:
+    """``a/../b`` 形 id：URL 归一化后能拿 200，但缓存键会被污染/逃逸——取源前拒。"""
+    calls: list[str] = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        calls.append(str(req.url))
+        return httpx.Response(HTTP_OK)
+
+    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    res = acquire_source("a/../b", fetcher=f, cache=SourceCache(tmp_path))
+    assert res.status is AcquireStatus.ERROR
+    assert "bad_id" in res.detail
+    assert not calls  # 一次请求都不发
+    with pytest.raises(ValueError, match="bad arxiv id"):
+        f.head_src("../x")
+    with pytest.raises(ValueError, match="bad arxiv id"):
+        f.get_src("..")
+
+
+def test_cache_key_traversal_defense(tmp_path: Path) -> None:
+    """缓存层兜底：entry_dir 逃逸拒、find_versions glob 元字符空集。"""
+    cache = SourceCache(tmp_path)
+    with pytest.raises(CacheError, match="escapes"):
+        cache.entry_dir("../x", 1)
+    assert cache.find_versions("*") == []
+    assert cache.find_versions("../x") == []
+
+
+def test_hit_passthrough_terminal_status(tmp_path: Path) -> None:
+    """pdf_only 条目 etag 命中 → 透传 pdf_only（不伪装成 cache_hit）。
+
+    伪装 hit 的下游代价：cli/e2e 把 HIT 当 OK，对着不存在的 extracted/ 跑。
+    """
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        if req.method == "HEAD":
+            return httpx.Response(
+                HTTP_OK, headers=_head_headers("2001.00002", 1, ".pdf", '"P1"')
+            )
+        return httpx.Response(HTTP_OK, content=b"%PDF-1.4 fake")
+
+    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    cache = SourceCache(tmp_path)
+    res1 = acquire_source("2001.00002", fetcher=f, cache=cache)
+    assert res1.status is AcquireStatus.PDF_ONLY
+    res2 = acquire_source("2001.00002", fetcher=f, cache=cache)
+    assert res2.status is AcquireStatus.PDF_ONLY
+
+
+def test_304_passthrough_terminal_status(tmp_path: Path) -> None:
+    """etag 变了但 GET 回 304 → 同样透传缓存终态。"""
+    state = {"etag": '"P1"', "got": False}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        if req.method == "HEAD":
+            return httpx.Response(
+                HTTP_OK,
+                headers=_head_headers("2001.00002", 1, ".pdf", state["etag"]),
+            )
+        if not state["got"]:
+            state["got"] = True
+            return httpx.Response(HTTP_OK, content=b"%PDF-1.4 fake")
+        return httpx.Response(HTTP_NOT_MODIFIED)
+
+    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    cache = SourceCache(tmp_path)
+    acquire_source("2001.00002", fetcher=f, cache=cache)
+    state["etag"] = '"P2"'
+    res = acquire_source("2001.00002", fetcher=f, cache=cache)
+    assert res.status is AcquireStatus.PDF_ONLY
+
+
+def test_get_newer_version_commits_resolved(tmp_path: Path) -> None:
+    """HEAD 解 v1、GET 已发 v2 → 按 GET 的 cd 钉 v2（版本漂移不错位缓存键）。"""
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        if req.method == "HEAD":
+            return httpx.Response(
+                HTTP_OK, headers=_head_headers("2001.00003", 1, ".tar.gz", '"E1"')
+            )
+        return httpx.Response(
+            HTTP_OK,
+            content=TINY_TAR_GZ,
+            headers={
+                "content-disposition": "attachment; "
+                'filename="arXiv-2001.00003v2.tar.gz"',
+                "etag": '"E2"',
+            },
+        )
+
+    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    cache = SourceCache(tmp_path)
+    res = acquire_source("2001.00003", fetcher=f, cache=cache)
+    assert res.status is AcquireStatus.OK
+    assert res.resolved_version == VER_2
+    assert res.entry is not None
+    assert res.entry.dir.name == "2001.00003v2"
+    meta = json.loads((res.entry.dir / "meta.json").read_text())
+    assert meta["etag"] == '"E2"'
 
 
 HTTP_OK = 200

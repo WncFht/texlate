@@ -151,7 +151,11 @@ def _write_entry(
     """写文件 + 记 mtree 成员 + stub 标记。"""
     target = res.dest / rel
     target.parent.mkdir(parents=True, exist_ok=True)
+    if target.is_symlink():
+        # 后到 file 覆盖同名 symlink：先摘链再写，否则 write_bytes 穿链改目标
+        target.unlink()
     target.write_bytes(data)
+    res.members = [mm for mm in res.members if mm.path != rel]
     stub = len(data) < STUB_SIZE or data.startswith(STUB_PREFIX)
     res.members.append(
         MemberEntry(
@@ -248,6 +252,12 @@ class _TarWalker:
         self.total += len(data)
 
     def _link(self, m: tarfile.TarInfo, rel: str) -> None:
+        ln = m.linkname
+        # linkname 先查本体：绝对路径/盘符经 _link_rel 归一化会被折成 in-tree，
+        # 只查解析结果会漏掉真实逃逸（symlink_to 用的是原始 linkname）。
+        if not ln or "\x00" in ln or ln.startswith("/") or _DRIVE_RE.match(ln):
+            self.res.warnings.append(f"reject_link:{rel}->{ln}")
+            return
         target_rel = _link_rel(m, rel)
         if not _in_tree(target_rel):
             self.res.warnings.append(f"reject_link:{rel}->{m.linkname}")

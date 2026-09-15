@@ -193,3 +193,26 @@ def test_state_persistence(tmp_path: Path) -> None:
     assert rl2.requests_today == TWO_REQUESTS
     with pytest.raises(ParkedError):
         rl2.acquire("https://arxiv.org/src/x")
+
+
+def test_load_corrupt_state_starts_clean(tmp_path: Path) -> None:
+    """合法 JSON 但字段类型错 → 干净起步（以前 int("x") 直接炸 init）。"""
+    state = tmp_path / "rl.json"
+    state.write_text(
+        '{"day": 5, "requests_today": "oops", "buckets": {"h|c": {"last_ts": "bad"}}}'
+    )
+    clk = _Clock()
+    rl = RateLimiter(state, clock=clk.now, sleep=clk.sleep)
+    assert rl.requests_today == 0
+    rl.acquire("https://arxiv.org/src/x")  # 不拦请求路径
+
+
+def test_parked_until_expired_is_zero() -> None:
+    """过期 park 返回 0（文档承诺 0=未 park），不再回吐历史时间戳。"""
+    clk = _Clock()
+    rl = _limiter(clk)
+    src = "https://arxiv.org/src/x"
+    until = _trip(rl, clk, src)
+    assert rl.parked_until(src) == until > 0
+    clk.t = until + 1
+    assert rl.parked_until(src) == 0.0

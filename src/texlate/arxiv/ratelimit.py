@@ -131,17 +131,23 @@ class RateLimiter:
             return
         try:
             data = json.loads(self.state_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+            day = str(data.get("day", ""))
+            n = int(data.get("requests_today", 0))
+            buckets = {
+                key: _Bucket(
+                    last_ts=float(b.get("last_ts", 0.0)),
+                    consec_429=int(b.get("consec_429", 0)),
+                    park_until=float(b.get("park_until", 0.0)),
+                    park_step=int(b.get("park_step", 0)),
+                )
+                for key, b in data.get("buckets", {}).items()
+            }
+        except (OSError, json.JSONDecodeError, TypeError, ValueError, AttributeError):
+            # 状态损坏（非 JSON 或字段类型错）→ 干净起步，不拦请求路径
             return
-        self._day = data.get("day", "")
-        self._requests_today = int(data.get("requests_today", 0))
-        for key, b in data.get("buckets", {}).items():
-            self._buckets[key] = _Bucket(
-                last_ts=float(b.get("last_ts", 0.0)),
-                consec_429=int(b.get("consec_429", 0)),
-                park_until=float(b.get("park_until", 0.0)),
-                park_step=int(b.get("park_step", 0)),
-            )
+        self._day = day
+        self._requests_today = n
+        self._buckets = buckets
 
     def _save(self) -> None:
         if not self.state_path:
@@ -179,10 +185,10 @@ class RateLimiter:
         return self._requests_today
 
     def parked_until(self, url: str) -> float:
-        """该 URL 所在 (host,path) 桶的 park 截止时间（0 = 未 park）。"""
+        """该 URL 所在 (host,path) 桶的 park 截止时间（0 = 未 park/已过期）。"""
         parts = urlsplit(url)
         b = self._buckets.get(self._key(parts.netloc, path_class(parts.path)))
-        return b.park_until if b else 0.0
+        return b.park_until if b and b.park_until > self._now() else 0.0
 
     def acquire(self, url: str) -> None:
         """发请求前调用：限速等待 + park/预算检查。计一次请求。"""

@@ -21,7 +21,7 @@ import hashlib
 import json
 import re
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from enum import StrEnum
 from http import HTTPStatus
@@ -140,7 +140,7 @@ class AcquireResult:
 
 
 _ID_URL_RE: Final = re.compile(
-    r"^(?:https?://[^/]*arxiv\.org/(?:abs|pdf|src|e-print|html|format)/+|"
+    r"^(?:(?:https?://)?(?:[\w.-]+\.)?arxiv\.org/(?:abs|pdf|src|e-print|html|format)/+|"
     r"arxiv\s*:\s*)",
     re.IGNORECASE,
 )
@@ -158,10 +158,20 @@ def normalize_arxiv_id(raw: str) -> tuple[str, int | None]:
     """
     s = _ID_URL_RE.sub("", raw.strip())
     s = s.split("?")[0].split("#")[0].strip("/")
+    s = re.sub(r"\.pdf$", "", s, flags=re.IGNORECASE)
     m = _VER_RE.match(s)
     if m and (_NEW_ID_RE.match(m.group("base")) or _OLD_ID_RE.match(m.group("base"))):
         return m.group("base"), int(m.group("ver"))
     return s, None
+
+
+def _valid_id(base: str) -> bool:
+    """校验 base 为合法 arXiv id 形（新 ``YYMM.NNNNN`` / 旧 ``archive/NNNNNNN``）。
+
+    ``a/../b`` 之类经 URL 归一化仍能拿到远端 200，但会把另一篇的内容写进
+    错误的缓存键（碰撞污染），甚至借 ``..`` 逃逸出缓存根——取源前必须拒。
+    """
+    return bool(_NEW_ID_RE.match(base) or _OLD_ID_RE.match(base))
 
 
 def _cd_filename(headers: httpx.Headers) -> str:
@@ -262,7 +272,7 @@ class Fetcher:
         if last_resp is not None:
             return last_resp
         msg = f"transport failed after retries: {last_exc}"
-        raise httpx.TransportError(msg)
+        raise httpx.TransportError(msg) from last_exc
 
     def _across_hosts(self, fn: Callable[[str], httpx.Response]) -> httpx.Response:
         """按 hosts 序尝试，跳过被 park 的 host；全 park 抛首个 ParkedError。"""
@@ -289,6 +299,9 @@ class Fetcher:
         """HEAD 预检（一次请求 = hasSrc + 版本 + 三态格式预检）。"""
         base, pin = normalize_arxiv_id(arxiv_id)
         ver = version if version is not None else pin
+        if not _valid_id(base):
+            msg = f"bad arxiv id: {arxiv_id!r}"
+            raise ValueError(msg)
         resp = self._across_hosts(
             lambda host: self._request("HEAD", _src_url(host, base, ver), {})
         )
@@ -306,6 +319,9 @@ class Fetcher:
         """GET e-print：先 HEAD（可复用传入的），再带条件头 GET，魔数判别。"""
         base, pin = normalize_arxiv_id(arxiv_id)
         ver = version if version is not None else pin
+        if not _valid_id(base):
+            msg = f"bad arxiv id: {arxiv_id!r}"
+            raise ValueError(msg)
         if head is None:
             head = self.head_src(base, ver)
         early = _head_gate(head)
@@ -349,11 +365,25 @@ def _body_result(resp: httpx.Response, head: HeadInfo) -> SrcResult:
     body = resp.content
     if len(body) > DL_CAP:
         return SrcResult(FetchStatus.TOO_LARGE, head)
+    head = _refresh_head(resp, head)
     try:
         sniffed = sniff(body)
     except SniffError as e:
         return SrcResult(FetchStatus.ERROR, head, body=body, detail=str(e))
     return SrcResult(FetchStatus.OK, head, body=body, sniffed=sniffed)
+
+
+def _refresh_head(resp: httpx.Response, head: HeadInfo) -> HeadInfo:
+    """GET 的 cd/etag 比 HEAD 新（两请求间可能发了新版）——以 GET 为准。"""
+    cd = _cd_filename(resp.headers)
+    m = _CD_VER_RE.search(cd)
+    return replace(
+        head,
+        cd_filename=cd or head.cd_filename,
+        resolved_version=int(m.group(1)) if m else head.resolved_version,
+        etag=resp.headers.get("etag", head.etag),
+        last_modified=resp.headers.get("last-modified", head.last_modified),
+    )
 
 
 def _raw_filename(kind: BlobKind) -> str:
@@ -384,6 +414,18 @@ def _locate_meta(res: LocateResult | None) -> dict | None:
         ],
         "warnings": res.warnings,
     }
+
+
+#: 缓存终态透传集——这些条目命中 etag 时不伪装成 cache_hit（无 extracted/）
+_HIT_PASSTHROUGH: Final = frozenset(
+    {AcquireStatus.PDF_ONLY.value, AcquireStatus.UNKNOWN_FORMAT.value}
+)
+
+
+def _hit_status(cached: CacheEntry) -> AcquireStatus:
+    """命中时的状态映射：pdf_only/unknown 条目如实透传，否则 cache_hit。"""
+    stored = str(cached.meta.get("status") or "")
+    return AcquireStatus(stored) if stored in _HIT_PASSTHROUGH else AcquireStatus.HIT
 
 
 def _head_phase(
@@ -419,7 +461,7 @@ def _head_phase(
         )
     cached = cache.get(base, ver)
     if cached is not None and head.etag and cached.etag == head.etag:
-        return AcquireResult(AcquireStatus.HIT, base, ver, cached, head), cached
+        return AcquireResult(_hit_status(cached), base, ver, cached, head), cached
     return head, cached
 
 
@@ -451,7 +493,7 @@ def _get_phase(
         )
         return AcquireResult(st, ids.base, ids.ver, head=head, detail=str(e))
     if res.status is FetchStatus.NOT_MODIFIED and cached is not None:
-        return AcquireResult(AcquireStatus.HIT, ids.base, ids.ver, cached, head)
+        return AcquireResult(_hit_status(cached), ids.base, ids.ver, cached, head)
     if res.status is FetchStatus.OK:
         return res
     st = {
@@ -478,6 +520,14 @@ def _commit_phase(
     if s is None or res.body is None:
         return AcquireResult(
             AcquireStatus.ERROR, ids.base, ids.ver, head=head, detail="missing sniff"
+        )
+    if s.oversized:
+        return AcquireResult(
+            AcquireStatus.TOO_LARGE,
+            ids.base,
+            ids.ver,
+            head=head,
+            detail=f"inflated_too_large:{s.inflated_size}",
         )
     staging = cache.stage()
     warnings: list[str] = []
@@ -521,12 +571,12 @@ def _commit_phase(
         "warnings": warnings,
         "locate": _locate_meta(loc_res),
     }
-    (staging / "meta.json").write_text(
-        json.dumps(meta, ensure_ascii=False, indent=1) + "\n", encoding="utf-8"
-    )
     try:
+        (staging / "meta.json").write_text(
+            json.dumps(meta, ensure_ascii=False, indent=1) + "\n", encoding="utf-8"
+        )
         entry = cache.commit(staging, ids.base, ids.ver)
-    except (OSError, json.JSONDecodeError, KeyError, CacheError) as e:
+    except (OSError, KeyError, TypeError, ValueError, CacheError) as e:
         SourceCache.cleanup(staging)
         return AcquireResult(
             AcquireStatus.ERROR, ids.base, ids.ver, head=head, detail=f"commit:{e}"
@@ -544,6 +594,8 @@ def acquire_source(
     """端到端取源：HEAD → 缓存命中/重验证 → GET → sniff → unpack → locate → 钉版落盘。"""
     base, pin = normalize_arxiv_id(arxiv_id)
     ver_req = version if version is not None else pin
+    if not _valid_id(base):
+        return AcquireResult(AcquireStatus.ERROR, base, detail=f"bad_id:{base!r}")
     phased = _head_phase(base, ver_req, fetcher, cache)
     if isinstance(phased[0], AcquireResult):
         return phased[0]
@@ -557,4 +609,7 @@ def acquire_source(
     res = _get_phase(ids, head, phased[1], fetcher)
     if isinstance(res, AcquireResult):
         return res
-    return _commit_phase(ids, res, head, cache)
+    get_ver = res.head.resolved_version
+    if get_ver is not None and get_ver != ids.ver:
+        ids = replace(ids, ver=get_ver)
+    return _commit_phase(ids, res, res.head, cache)

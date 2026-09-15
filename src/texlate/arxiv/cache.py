@@ -17,10 +17,14 @@ r"""source-tier 钉版缓存（docs/06 §4.1）。
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
+
+#: find_versions 的 glob 消毒：id 只许这些字符（glob 元字符 ``*?[]`` 全拒）
+_SAFE_GLOB_ID: re.Pattern[str] = re.compile(r"[A-Za-z0-9._/-]+")
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,10 +66,16 @@ class SourceCache:
 
     def entry_dir(self, arxiv_id: str, resolved_version: int) -> Path:
         """条目目录（旧式 id 自带 archive/ 段，自然嵌套）。"""
-        return self.root / f"{arxiv_id}v{resolved_version}"
+        d = self.root / f"{arxiv_id}v{resolved_version}"
+        if not d.resolve().is_relative_to(self.root.resolve()):
+            msg = f"arxiv_id escapes cache root: {arxiv_id!r}"
+            raise CacheError(msg)
+        return d
 
     def find_versions(self, arxiv_id: str) -> list[int]:
-        """已缓存版本清单（升序）。"""
+        """已缓存版本清单（升序）。id 含 glob 元字符直接空集。"""
+        if not _SAFE_GLOB_ID.fullmatch(arxiv_id):
+            return []
         return sorted(
             int(p.name.rsplit("v", 1)[-1])
             for p in self.root.glob(f"{arxiv_id}v*")

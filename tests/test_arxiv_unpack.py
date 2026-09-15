@@ -217,3 +217,44 @@ def test_unpack_sniffed_dispatch(tmp_path: Path) -> None:
     assert s.kind is BlobKind.SINGLE
     res = unpack_sniffed(s, tmp_path, stem_hint="arXiv-0807.5094v1.gz")
     assert res.files == ["0807.5094v1.tex"]
+
+
+def test_absolute_and_drive_linkname_rejected(tmp_path: Path) -> None:
+    """linkname 本体校验：绝对路径经 _link_rel 归一化会折成 in-tree——必须查原始串。
+
+    归一化只做包内相对解析：``figs/x -> /etc/passwd`` 被算成 ``figs/etc/passwd``
+    放行，但 ``symlink_to`` 用原始绝对路径，落盘即逃逸链接。
+    """
+    sym = tarfile.TarInfo("evil.tex")
+    sym.type = tarfile.SYMTYPE
+    sym.linkname = "/etc/passwd"
+    hl = tarfile.TarInfo("hl.tex")
+    hl.type = tarfile.LNKTYPE
+    hl.linkname = "/etc/hosts"
+    drv = tarfile.TarInfo("drv.tex")
+    drv.type = tarfile.SYMTYPE
+    drv.linkname = "C:/win/x"
+    payload = _make_tar(
+        [(sym, b""), (hl, b""), (drv, b""), (_reg("ok.tex", 3), b"xxx")]
+    )
+    res = unpack_tar(payload, tmp_path)
+    assert res.files == ["ok.tex"]
+    assert not (tmp_path / "evil.tex").exists()
+    assert "reject_link" in _warn_kinds(res.warnings)
+    assert not any(m.kind in ("symlink", "hardlink") for m in res.members)
+
+
+def test_file_over_symlink_replaces_link(tmp_path: Path) -> None:
+    """后到同名 file 覆盖 symlink：先摘链再写，不穿链改写链接目标。"""
+    sym = tarfile.TarInfo("a.tex")
+    sym.type = tarfile.SYMTYPE
+    sym.linkname = "b.tex"
+    payload = _make_tar(
+        [(_reg("b.tex", 3), b"old"), (sym, b""), (_reg("a.tex", 3), b"new")]
+    )
+    res = unpack_tar(payload, tmp_path)
+    assert not (tmp_path / "a.tex").is_symlink()
+    assert (tmp_path / "a.tex").read_bytes() == b"new"
+    assert (tmp_path / "b.tex").read_bytes() == b"old"
+    assert [m.path for m in res.members].count("a.tex") == 1
+    assert "dup_member_overwrite" in _warn_kinds(res.warnings)
