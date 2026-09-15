@@ -171,6 +171,8 @@ MOCK_ZH = "这是译文"
 _MOCK_TOKEN_RX = re.compile(
     r"\[\[[A-Z_]+_\d+\]\]|\[\[[A-Z][A-Z_]*\]\]|\\[a-zA-Z@]+\*?|\\.|[][(){}|~$&]"
 )
+#: 行内字母 run（mock 译文替换单位；``[^\n]`` 不跨行——保住换行布局）
+_PROSE_RUN_RX = re.compile(r"[a-zA-Z][^\n]*[a-zA-Z]|[a-zA-Z]")
 #: 批行 `[n]` 前缀识别（mock 回显编号用）
 _MOCK_NUM_RX = re.compile(r"^(\[\d+\])\s?(.*)$", re.DOTALL)
 
@@ -224,26 +226,19 @@ class MockTranslator:
 
 
 def _mock_translate_text(text: str, zh: str) -> str:
-    r"""e2e mock_a 同款：token 原位保留，散文段 → 固定中文串。
+    r"""e2e mock_a 同款：token 原位保留，字母散文 run → 固定中文串。
 
-    段缘空白保留（``\cmd 散文`` → ``\cmd 这是译文``）——否则 ``\cs``+CJK
-    熔合成未定义控制序列，正是 L0 macro/cs_dropped 与 C8a 条款防的形态。
+    护栏对齐 L0/C8a 口径：只替换行内字母 run（``\eg, Caffe`` →
+    ``\eg, 这是译文``），标点/空白/换行原样——否则 ``\cs``+CJK 熔合成
+    未定义控制序列（macro 融合 cs/cs_dropped 是 error 级判据）。
     """
-
-    def _zh(seg: str) -> str:
-        if not seg.strip():
-            return seg
-        lead = seg[: len(seg) - len(seg.lstrip())]
-        trail = seg[len(seg.rstrip()) :]
-        return lead + zh + trail
-
     out: list[str] = []
     pos = 0
     for m in _MOCK_TOKEN_RX.finditer(text):
-        out.append(_zh(text[pos : m.start()]))
+        out.append(_PROSE_RUN_RX.sub(zh, text[pos : m.start()]))
         out.append(m.group(0))
         pos = m.end()
-    out.append(_zh(text[pos:]))
+    out.append(_PROSE_RUN_RX.sub(zh, text[pos:]))
     return "".join(out)
 
 
