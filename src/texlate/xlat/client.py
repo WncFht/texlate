@@ -629,7 +629,7 @@ class ChatClient:
                     "messages": [{"role": "user", "content": "Reply with exactly: OK"}],
                     "max_tokens": PROBE_MAX_TOKENS,
                 },
-                timeout=PROBE_TIMEOUT.read,
+                timeout=PROBE_TIMEOUT,
             )
             latency = time.monotonic() - t0
             if resp.status_code != HTTP_OK:
