@@ -69,6 +69,7 @@ class PhType(Enum):
     COMMENT = auto()  # in_arg 注释（泄漏 B 修复）
     COND = auto()  # in_arg 条件式（泄漏 D 修复）
     ENVTAG = auto()  # in_arg 透明环境 begin/end 行
+    EXPAND = auto()  # 展开组 identity 面（segmenter：体=调用点 vtex 切片）
 
 
 @dataclass(slots=True)
@@ -157,6 +158,9 @@ class ScanResult:
     pieces: list[Piece] = field(default_factory=list)
     inputs: list[tuple[int, str]] = field(default_factory=list)
     warnings: list[ScanWarning] = field(default_factory=list)
+    # 叙事序虚拟文本（segmenter 版恒 == 单文件入参；多文件 = flatten 同构）。
+    # pieces/chunk.span 的坐标系；v1 字节 scanner 下留空（坐标即原 tex）。
+    vtex: str = ""
 
 
 class ScanMode(Enum):
