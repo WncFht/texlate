@@ -406,6 +406,7 @@ def _locate_meta(res: LocateResult | None) -> dict | None:
         "multi_doc": res.multi_doc,
         "pdf_wrapper": res.pdf_wrapper,
         "order": res.order,
+        "edges": res.edges,  # input 解析图——locate/flatten 对拍调试要用
         "bibliographies": res.bibliographies,
         "dead_files": res.dead_files,
         "unresolved": [
