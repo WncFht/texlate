@@ -20,20 +20,37 @@ def scan(body: str) -> ScanResult:
 
 
 def test_w11_preamble_regex_space_begin() -> None:
-    r"""W11：``\begin {document}``（带空格）不被 ``_DOC_BEGIN_RX`` 命中 →
-    整文按正文扫描（无 preamble 切除）。"""
+    r"""W11 已修：``\begin {document}``（带空格）现被识别 → preamble 正常切除。
+
+    （旧行为：正则不认空格变体 → 整文按正文扫，``\documentclass`` 进 chunk。）
+    """
     tex = "\\documentclass{article}\n\\begin {document}\nBody text here.\n"
     res = parse_tex(tex)
-    # 钉当前行为：preamble 未检出 → \documentclass 行进正文扫描
-    assert "\\documentclass" in res.protected_tex
+    assert res.protected_tex.startswith(
+        "\\documentclass{article}\n\\begin {document}\n"
+    )
+    assert all("documentclass" not in c.content for c in res.chunks)
 
 
-def test_w11_preamble_regex_commented_begin() -> None:
-    r"""W11 另一面：注释里的 ``\begin{document}`` 会被正则误命中。"""
-    tex = "% \\begin{document} fake\n\\documentclass{article}\nreal body text\n"
+def test_w11_preamble_commented_begin() -> None:
+    r"""W11 已修：注释里的 ``\begin{document}`` 不再误命中（mask_tex 视图）。
+
+    假 begin 在前、真 begin 在后——preamble 必须切到真标记；
+    无真标记时（全注释场景）preamble_end=0 整文按正文扫，不炸。
+    """
+    tex = (
+        "\\documentclass{article}\n% \\begin{document} fake\n"
+        "\\usepackage{x}\n\\begin{document}\nBody.\n\\end{document}\n"
+    )
     res = parse_tex(tex)
-    # 钉当前行为：正则命中注释内的 begin → preamble_end 错位（接受不修）
-    assert res is not None  # 不抛异常即符合 accept-not-fix
+    # preamble 切到真 \begin{document}：假注释行与 \usepackage 都在 LITERAL 区
+    assert res.protected_tex.startswith("\\documentclass{article}")
+    assert "\\begin{document}\nBody." in res.protected_tex
+    assert all("documentclass" not in c.content for c in res.chunks)
+    # 只有假标记：不识别为 preamble，但解析不炸
+    tex2 = "% \\begin{document} fake\n\\documentclass{article}\nreal body\n"
+    res2 = parse_tex(tex2)
+    assert res2 is not None
 
 
 def test_w11_normal_preamble() -> None:

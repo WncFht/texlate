@@ -1,8 +1,9 @@
 r"""入口装配：``parse_tex`` / ``parse_file``（docs/07 §1）。
 
-preamble 判定（spike 原样，W11 留档：``\begin {document}`` 带空格或注释内
-的 ``\begin{document}`` 会被正则误判——低频，不修）：``\documentclass`` 与
-``\begin{document}`` 同时在才切 preamble；preamble 整段 LITERAL + 只登记宏。
+preamble 判定：``\documentclass`` 与 ``\begin{document}`` 同时在才切
+preamble；preamble 整段 LITERAL + 只登记宏。两枚正则都跑在
+``mask_tex`` 视图上（注释/逐字内假命中豁免——arXiv 常见注释掉的
+备用 preamble；``\begin {document}`` 空格变体亦收）。
 """
 
 from __future__ import annotations
@@ -19,10 +20,10 @@ from texlate.latex.macro_table import MacroTable
 from texlate.latex.model import ScanResult, ScanState, ScanWarning
 from texlate.latex.placeholder import PH_RX, PlaceholderIssuer
 from texlate.latex.scanner import Scanner
-from texlate.textutil import decode_tex
+from texlate.textutil import decode_tex, mask_tex
 
 _PREAMBLE_RX = re.compile(r"\\(documentclass|documentstyle)(?![a-zA-Z])")
-_DOC_BEGIN_RX = re.compile(r"\\begin\{document\}")
+_DOC_BEGIN_RX = re.compile(r"\\begin\s*\{document\}")
 
 
 def new_state() -> ScanState:
@@ -48,8 +49,11 @@ def parse_tex(tex: str) -> ScanResult:
             ScanWarning("ph_collision", 0, f"{len(reserved)} 处 [[X_n]] 形字面")
         )
     sc = Scanner(state)
-    mdoc = _DOC_BEGIN_RX.search(tex)
-    mpream = _PREAMBLE_RX.search(tex)
+    # 等长遮盖视图：注释/verbatim 内的假 \begin{document} 不参与判定，
+    # 命中的 offset 与原文逐字节对齐（W11 留档弱点修复——曾接受不修）。
+    masked = mask_tex(tex)
+    mdoc = _DOC_BEGIN_RX.search(masked)
+    mpream = _PREAMBLE_RX.search(masked)
     preamble_end = mdoc.end() if (mpream and mdoc) else 0
     return sc.scan(tex, preamble_end=preamble_end)
 

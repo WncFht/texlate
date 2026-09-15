@@ -27,10 +27,10 @@ from texlate.latex.model import (
     ws_skip,
 )
 from texlate.latex.tables import MAX_INPUTS, VERBATIM_ENVS
-from texlate.textutil import decode_tex
+from texlate.textutil import decode_tex, mask_tex
 
-_DOC_BEGIN_RX = re.compile(r"\\begin\{document\}")
-_DOC_END_RX = re.compile(r"\\end\{document\}")
+_DOC_BEGIN_RX = re.compile(r"\\begin\s*\{document\}")
+_DOC_END_RX = re.compile(r"\\end\s*\{document\}")
 
 _FILENAME_CHARS = frozenset(
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._/-"
@@ -41,12 +41,15 @@ def strip_doc_shell(tex: str) -> str:
     r"""剥 ``\documentclass…\begin{document}`` / ``\end{document}`` 壳（subfile/standalone）。
 
     找不到 ``\begin{document}`` → 原样返回；只有壳标记残缺时尽力取正文。
+    壳标记查找跑 ``mask_tex`` 视图——注释/逐字里的假 ``\begin{document}``
+    （arXiv 子文件常见注释掉的备用壳）不参与定位（W11 同源修复）。
     """
-    b = _DOC_BEGIN_RX.search(tex)
+    masked = mask_tex(tex)
+    b = _DOC_BEGIN_RX.search(masked)
     if not b:
         return tex
     body = tex[b.end() :]
-    e = _DOC_END_RX.search(body)
+    e = _DOC_END_RX.search(mask_tex(body))
     return body[: e.start()] if e else body
 
 
