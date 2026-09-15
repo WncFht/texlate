@@ -50,7 +50,9 @@ DIRTY_FIRST_CATEGORIES = {
 #: CJK 渲染下限：译文 PDF 至少这么多 CJK 字符才算"中文真的渲染了"。
 CJK_MIN_CHARS = 20
 
-_CJK_RE = re.compile(r"[㐀-䶿一-鿿豈-﫿]")
+#: CJK 计数面：U+3400-4DBF 扩A + U+4E00-9FFF 基本区 + U+F900-FAFF 兼容区
+#: + U+3007 〇（日期用字）+ U+20000-2FA1F 扩B~F（生僻字漏计会假阴）
+_CJK_RE = re.compile(r"[㐀-䶿一-鿿豈-﫿〇\U00020000-\U0002fa1f]")
 
 
 @dataclass

@@ -72,6 +72,8 @@
 
 **门槛（M2 出口）**：200 篇语料 zh 条件编译成功率 ≥90%（hjfy 95% 为渐近线）；reject 判定正确率 100%（路由标签对拍）；无回归（clean 格不被规则改脏）。
 
+**状态（2026-09-15）：fixloop 臂已落地**——`bench/py/fixloop_bench.py` + `bench/results/fixloop-corpusv2-2026-09-15/`：corpus_v2 40 篇无偏样本 × 25 规则库，union baseline pdf 26/40 → fixloop pdf **36/40**（clean 层 31/40）；xelatex 臂 FAIL→pdf 25/34。已知缺口：tectonic 臂 eps_route 预检过度拒收（baseline pdf~ 格被 0r 拒 6 例）、legacy 包 shim 缺位（revtex.cls/psfig.sty/aastex.cls 类）。base×双引擎臂由 compilebench-v3（corpus_v3 抽样）在跑。
+
 ## B4 · xlatbench —— 翻译段基准
 
 **测什么**：LLM 后端的占位符契约遵守 + 真实翻译质量 + 经济性。两子层：
