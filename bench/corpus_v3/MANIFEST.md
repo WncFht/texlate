@@ -1011,3 +1011,17 @@
 | 2410.18001       | new | 2410 | C30 | cs            | cc-by              | tar  | 1    |
 | 2410.18015       | new | 2410 | C30 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
 | 2410.18024       | new | 2410 | C30 | eess-stat-etc | cc-by              | tar  | 4    |
+
+## 补强层（booster）—— 200 篇机制策展
+
+与核心层同目录共存（`{id}/`，meta.json `layer="booster"` 区分，两层 id 不相交）。
+入库清单 `manifest_booster.jsonl`；选择器 `select_booster.py`（`booster_selection.jsonl` +
+`selection_report.md` 为产出）；机制台账 `mechanisms.jsonl`（143 条：B01–07 配额 +
+T01–T29 fixture + W01–W109 野例）；提名审计轨迹 `nominations/{agent}.jsonl`（544 条，
+5 curator 分带阅读 + 3 hunter 定向狩猎）。
+
+- **200** 篇 · 1388 个 .tex · 打包形式 {'tar': 154, 'gz': 33, 'stub': 13}
+- 带分布 {a: 43, b: 45, c: 21, d: 53, e: 38}
+- B 配额地板全达成：B01–B04 各 30、B05 33、B06 20、B07 26（地板 30/30/30/30/25/20/25）
+- W 机制覆盖：103/109 池内有代表；W41/W42/W51/W63 例证在核心层；W108/W109 池内真空（hunter exhausted）
+- 13 篇 stub/pdf 成员（B07 归因材料，raw 留存不解包，无 extracted/）
