@@ -35,7 +35,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Final
 
-from texlate.textmask import mask_comments
+from texlate.textutil import lev_capped, mask_comments
 
 __all__ = [
     "Issue",
@@ -267,24 +267,6 @@ def _lex(s: str) -> list[tuple[str, str, int]]:
     return out
 
 
-def _lev(a: str, b: str, cap: int) -> int:
-    """Levenshtein 距离，超 cap 提前返回 cap+1。"""
-    if abs(len(a) - len(b)) > cap:
-        return cap + 1
-    prev = list(range(len(b) + 1))
-    for i, ca in enumerate(a, 1):
-        cur = [i]
-        rowmin = i
-        for j, cb in enumerate(b, 1):
-            v = min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca != cb))
-            cur.append(v)
-            rowmin = min(rowmin, v)
-        if rowmin > cap:
-            return cap + 1
-        prev = cur
-    return prev[-1]
-
-
 # ---------------------------------------------------------------- 七条规则
 
 
@@ -302,7 +284,7 @@ def _pair_placeholder_typos(
                 continue
             core = _PH_CORE_RX.search(cand)
             cand_core = core.group(0) if core else cand
-            d = _lev(ph_core, cand_core, _LEV_CAP)
+            d = lev_capped(ph_core, cand_core, _LEV_CAP)
             if d < bestd:
                 best, bestd = (ci, cand), d
         if best is not None:

@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
 
 from texlate.latex.placeholder import PH_RX
-from texlate.textmask import mask_comments
+from texlate.textutil import lev_capped, mask_comments
 
 # ---------------------------------------------------------------- 正则
 
@@ -137,24 +137,6 @@ def decode_newlines(text: str) -> str:
 # ---------------------------------------------------------------- src↔zh 对账
 
 
-def _lev(a: str, b: str, cap: int) -> int:
-    """Levenshtein 距离，超 cap 提前返回 cap+1（与 L0 同实现）。"""
-    if abs(len(a) - len(b)) > cap:
-        return cap + 1
-    prev = list(range(len(b) + 1))
-    for ca in a:
-        cur = [prev[0] + 1]
-        rowmin = cur[0]
-        for j, cb in enumerate(b, 1):
-            v = min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca != cb))
-            cur.append(v)
-            rowmin = min(rowmin, v)
-        if rowmin > cap:
-            return cap + 1
-        prev = cur
-    return prev[-1]
-
-
 @dataclass
 class PhDiff:
     """占位符 src↔zh 对账结果。`ok` = 无缺失/多余/拼错。"""
@@ -205,7 +187,7 @@ def diff(src: str, zh: str) -> PhDiff:
         for ci, cand in enumerate(cands):
             if ci in used:
                 continue
-            d = _lev(ph, cand, _FUZZY_LEV_CAP)
+            d = lev_capped(ph, cand, _FUZZY_LEV_CAP)
             if d < best_d:
                 best_idx, best_d = ci, d
         if best_idx >= 0:
