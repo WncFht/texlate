@@ -209,6 +209,20 @@ def test_bundled_bibliography_bib_present_noop(tmp_path: Path) -> None:
     assert use_bundled_bibliography(main.read_text(), main) == "\\bibliography{refs}"
 
 
+def test_bundled_bibliography_verbatim_immune(tmp_path: Path) -> None:
+    """lstlisting 里展示的 \\bibliography 示例不得被改写（verbatim 体遮盖）。"""
+    main = tmp_path / "main.tex"
+    main.write_text(
+        "\\documentclass{article}\n\\begin{document}\n"
+        "\\begin{lstlisting}\n\\bibliography{refs}\n\\end{lstlisting}\n"
+        "\\end{document}"
+    )
+    (tmp_path / "main.bbl").write_text(
+        "\\begin{thebibliography}{9}\\end{thebibliography}"
+    )
+    assert use_bundled_bibliography(main.read_text(), main) == main.read_text()
+
+
 # 12. rebase 越界路径
 def test_rebase_project_paths(tmp_path: Path) -> None:
     """根层主文件 `\\input{../shared/x}`（越界）→ 包内 `shared/x` 存在则改写。"""

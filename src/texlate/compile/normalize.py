@@ -27,7 +27,6 @@ from .mask import (
     apply_edits,
     group_end,
     visible_tex,
-    without_comments,
 )
 
 # ---------------------------------------------------------------- 兼容前导块
@@ -452,14 +451,18 @@ def normalize_legacy_cjk(text: str, engine: str) -> str:
 
 # ---------------------------------------------------------------- 11. bundled .bbl
 def use_bundled_bibliography(text: str, path: Path) -> str:
-    r"""当工程附现成 .bbl 而 .bib 缺失时，`\bibliography{x}` → `\input{x.bbl}`。"""
+    r"""当工程附现成 .bbl 而 .bib 缺失时，`\bibliography{x}` → `\input{x.bbl}`。
+
+    定位走 ``visible_tex``（verbatim 体遮盖）——``without_comments`` 只遮
+    注释，lstlisting 里展示的 ``\bibliography{x}`` 示例会被真改写。
+    """
     bbl = path.with_suffix(".bbl")
     if not bbl.is_file() or r"\begin{thebibliography}" not in bbl.read_text(
         errors="replace", encoding="utf-8"
     ):
         return text
     for match in reversed(
-        list(re.finditer(r"\\bibliography\s*\{([^}]+)\}", without_comments(text)))
+        list(re.finditer(r"\\bibliography\s*\{([^}]+)\}", visible_tex(text)))
     ):
         databases = [
             path.parent
