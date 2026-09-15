@@ -166,8 +166,10 @@ class GatewayTranslator:
 
 #: mock 译文固定串（e2e mock_a 同款：散文段 → 固定中文，token 原位不动）
 MOCK_ZH = "这是译文"
+#: token 集 = 占位符 + 控制序列 + 括号 + L0 脆弱字符（``~`` 活动字符、``$``/``&``
+#: 结构符——丢了会触发 cs_dropped/数学计数差，mock 与 L0 同口径才构成有效 E2E）
 _MOCK_TOKEN_RX = re.compile(
-    r"\[\[[A-Z_]+_\d+\]\]|\[\[[A-Z][A-Z_]*\]\]|\\[a-zA-Z@]+\*?|\\.|[][(){}|]"
+    r"\[\[[A-Z_]+_\d+\]\]|\[\[[A-Z][A-Z_]*\]\]|\\[a-zA-Z@]+\*?|\\.|[][(){}|~$&]"
 )
 #: 批行 `[n]` 前缀识别（mock 回显编号用）
 _MOCK_NUM_RX = re.compile(r"^(\[\d+\])\s?(.*)$", re.DOTALL)
@@ -222,16 +224,26 @@ class MockTranslator:
 
 
 def _mock_translate_text(text: str, zh: str) -> str:
-    """e2e mock_a 同款：token 原位保留，散文段 → 固定中文串。"""
+    r"""e2e mock_a 同款：token 原位保留，散文段 → 固定中文串。
+
+    段缘空白保留（``\cmd 散文`` → ``\cmd 这是译文``）——否则 ``\cs``+CJK
+    熔合成未定义控制序列，正是 L0 macro/cs_dropped 与 C8a 条款防的形态。
+    """
+
+    def _zh(seg: str) -> str:
+        if not seg.strip():
+            return seg
+        lead = seg[: len(seg) - len(seg.lstrip())]
+        trail = seg[len(seg.rstrip()) :]
+        return lead + zh + trail
+
     out: list[str] = []
     pos = 0
     for m in _MOCK_TOKEN_RX.finditer(text):
-        seg = text[pos : m.start()]
-        out.append(zh if seg.strip() else seg)
+        out.append(_zh(text[pos : m.start()]))
         out.append(m.group(0))
         pos = m.end()
-    tail = text[pos:]
-    out.append(zh if tail.strip() else tail)
+    out.append(_zh(text[pos:]))
     return "".join(out)
 
 
