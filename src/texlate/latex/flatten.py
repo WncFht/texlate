@@ -264,11 +264,16 @@ def _try_input(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915, PLR0917 — �
     if not fname:
         return None
     hit = _resolve(fname, file_dir, root_dir)
-    if hit is None or str(Path(hit).resolve()) in seen:
-        if hit is None and warnings is not None:
+    if hit is None:
+        if warnings is not None:
             warnings.append(ScanWarning("missing_input", i, f"{name}:{fname}"))
         return None
-    seen.add(str(Path(hit).resolve()))
+    rpath = str(Path(hit).resolve())
+    if rpath in seen:
+        # seen 是**祖先栈**语义（展开期间驻留、返回后弹出）——只断真环
+        # a→b→a；兄弟位序合法重包含照常内联（W12 修复：曾为全局
+        # once-set，第二个 \input{shared} 的内容整体丢失）。
+        return None
     try:
         sub = _read_file(hit)
     except OSError:
@@ -280,7 +285,9 @@ def _try_input(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915, PLR0917 — �
         if region is None:
             return None
         sub = region
+    seen.add(rpath)
     sub = flatten_inputs(
         sub, str(Path(hit).parent), root_dir, depth + 1, seen, warnings
     )
+    seen.discard(rpath)
     return sub, end

@@ -116,19 +116,20 @@ def test_root_dir_fallback(tmp_path: Path) -> None:
 
 
 def test_seen_blocks_reinclude(tmp_path: Path) -> None:
-    r"""W12 钉行为：同一文件二次 ``\input`` 被 ``_seen`` 跳过（防环优先）。"""
+    r"""W12 已修：``_seen`` 是祖先栈——兄弟位二次 ``\input`` 照常内联。"""
     _w(tmp_path, "dup.tex", "DUP CONTENT")
     out = flatten_inputs("\\input{dup}\nmid\n\\input{dup}", str(tmp_path))
-    assert out.count("DUP CONTENT") == 1
+    assert out.count("DUP CONTENT") == 2  # noqa: PLR2004 - 重包含两次内联
 
 
 def test_cycle_protected(tmp_path: Path) -> None:
-    r"""a↔b 互引断环不挂死。"""
+    r"""a↔b 互引断环不挂死：栈内命中逐字留存，兄弟位重包含仍展开。"""
     _w(tmp_path, "a.tex", "A\\input{b}")
     _w(tmp_path, "b.tex", "B\\input{a}")
     out = flatten_inputs("\\input{a}\n\\input{a}", str(tmp_path))
     assert "A" in out
     assert "B" in out
+    assert out.count("A") == 2  # noqa: PLR2004 - 第二个顶层 \input{a} 合法展开
 
 
 def test_uppercase_tex_extension(tmp_path: Path) -> None:

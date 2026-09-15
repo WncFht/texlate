@@ -65,10 +65,34 @@ def test_w11_normal_preamble() -> None:
 
 
 def test_w12_seen_blocks_legit_reinclude(tmp_path: Path) -> None:
-    r"""W12：同一文件被合法地 ``\input`` 两次 → 第二次被 ``_seen`` 跳过。"""
+    r"""W12 已修：``_seen`` 降为祖先栈——兄弟位合法重包含照常内联。
+
+    （旧行为：全局 once-set，第二个 ``\input{shared}`` 内容整体丢失。）
+    """
     (tmp_path / "shared.tex").write_text("SHARED CONTENT", encoding="utf-8")
     out = flatten_inputs("\\input{shared}\nx\n\\input{shared}", str(tmp_path))
-    assert out.count("SHARED CONTENT") == 1  # 第二次跳过（防环优先于召回）
+    assert out.count("SHARED CONTENT") == 2  # noqa: PLR2004 - 两次都内联
+
+
+def test_w12_cycle_still_breaks(tmp_path: Path) -> None:
+    r"""祖先栈仍断真环：a→b→a 的 a 二次展开被跳（栈上驻留）。
+
+    被跳的 ``\input`` 命令本体原样留在流内（None → 逐字回放），
+    由后续扫描/重编译语义兜底——不静默吞字。
+    """
+    (tmp_path / "a.tex").write_text("A[\\input{b}]A", encoding="utf-8")
+    (tmp_path / "b.tex").write_text("B{\\input{a}}B", encoding="utf-8")
+    out = flatten_inputs("\\input{a}", str(tmp_path))
+    # a 展开含 b；b 内的 \input{a} 命中祖先栈 → 该命令逐字留存不再展开
+    assert out == "A[B{\\input{a}}B]A"
+
+
+def test_w12_self_include_blocked(tmp_path: Path) -> None:
+    r"""主文件自包含：parse_file 预种主文件路径 → 一层都不展开。"""
+    (tmp_path / "main.tex").write_text("X\n\\input{main}\nY", encoding="utf-8")
+    res = parse_file(tmp_path / "main.tex")
+    assert res.protected_tex.count("X") == 1
+    assert "\\input{main}" in res.protected_tex  # 原样留下不展开
 
 
 # ---------------------------------------------------------------- W14

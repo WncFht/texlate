@@ -60,11 +60,13 @@ def parse_tex(tex: str) -> ScanResult:
 
 def parse_file(path: str | os.PathLike[str], *, flatten: bool = True) -> ScanResult:
     r"""文件入口：读盘 → ``flatten_inputs`` → ``parse_tex``。"""
-    tex = decode_tex(Path(path).read_bytes())
+    main = Path(path).resolve()
+    tex = decode_tex(main.read_bytes())
     flat_warnings: list[ScanWarning] = []
     if flatten:
-        d = str(Path(path).resolve().parent)
-        tex = flatten_inputs(tex, d, d, warnings=flat_warnings)
+        d = str(main.parent)
+        # 主文件预入祖先栈：``\input{self}`` 在 TeX 里是死循环，展平侧直接断
+        tex = flatten_inputs(tex, d, d, _seen={str(main)}, warnings=flat_warnings)
     res = parse_tex(tex)
     res.warnings[:0] = flat_warnings
     return res
