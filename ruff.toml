@@ -54,6 +54,9 @@ ignore = [
   "E402",
   "N801",
   "N818",
+  "S311",     # 语料抽样的 random.Random(seed) 是复现语义，非密码学
+  "ASYNC109", # bench 驱动的 timeout 形参是编译墙钟，传给下游非 asyncio.timeout
+  "ASYNC240", # bench async 编排里 rglob/mkdir 是有意同步（逐篇顺序驱动）
 ]
 # pytest 断言 + 免 docstring + 无 __init__.py 惯例
 "tests/**/*.py" = ["D", "S101", "INP001"]
