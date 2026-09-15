@@ -29,7 +29,10 @@ CHUNK_HARD_LIMIT = 6000
 
 T = TypeVar("T")
 
-#: 响应解析主协议：`[n]` 序号节
+#: 响应解析主协议：`[n]` 序号节——行首锚定版优先（译文里 `[12]` 引用号遍地
+#: 都是，非锚定会把正文 [n] 误当成员分隔符 → 多重集错位 → 整批退化单翻）。
+_NUM_LINE_RX = re.compile(r"^\s*\[(\d+)\]", re.MULTILINE)
+#: 非锚定退路：模型把整批挤在一行输出时（`[1] a [2] b`）仍按编号切开。
 _NUM_RX = re.compile(r"\[(\d+)\]")
 #: `@@` 兜底分隔（独占一行的 @@；模型不按编号时 spec 允许此退路）
 _ATAT_LINE_RX = re.compile(r"^\s*@@\s*$", re.MULTILINE)
@@ -66,28 +69,36 @@ def encode_batch(contents: Sequence[str]) -> str:
     return "\n".join(lines)
 
 
+def _parse_numbered(text: str, n: int, rx: re.Pattern[str]) -> list[str] | None:
+    """按 ``rx`` 标号切：序号多重集须恰为 {1..n}（乱序归位），段段非空。"""
+    matches = list(rx.finditer(text))
+    if not matches:
+        return None
+    idxs = [int(m.group(1)) for m in matches]
+    if sorted(idxs) != list(range(1, n + 1)):
+        return None
+    out = [""] * n
+    for i, m in enumerate(matches):
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+        out[int(m.group(1)) - 1] = text[m.end() : end].strip()
+    return out if all(out) else None
+
+
 def parse_batch_response(text: str, n: int) -> list[str] | None:
     """解析批量响应为 n 段译文；失败返回 `None`（调用方整批退单翻）。
 
-    主协议 `[n]`：序号多重集须恰为 {1..n}（乱序可接受——按下标归位）。
-    兜底 `@@`：独占一行的 @@ 切分，段数恰为 n 才算成功。
+    主协议 `[n]`：先试行首锚定匹配（免疫正文 `[12]` 引用号），不行再退
+    非锚定（单行全挤输出），最后 `@@` 独占行兜底。
     """
     text = text.strip()
     if not text or n <= 0:
         return None
 
-    # 主协议：按 [n] 标号切
-    matches = list(_NUM_RX.finditer(text))
-    if matches:
-        idxs = [int(m.group(1)) for m in matches]
-        if sorted(idxs) == list(range(1, n + 1)):
-            out = [""] * n
-            for i, m in enumerate(matches):
-                end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
-                out[int(m.group(1)) - 1] = text[m.end() : end].strip()
-            if all(s for s in out):
-                return out
-        # 标号不齐 → 尝试 @@ 兜底，仍败 → None
+    out = _parse_numbered(text, n, _NUM_LINE_RX)
+    if out is None:
+        out = _parse_numbered(text, n, _NUM_RX)
+    if out is not None:
+        return out
 
     parts = [p.strip() for p in _ATAT_LINE_RX.split(text)]
     parts = [p for p in parts if p]
@@ -115,6 +126,26 @@ def split_long_chunk(text: str, *, max_chars: int = CHUNK_HARD_LIMIT) -> list[st
     return out
 
 
+#: 切点避让的原子 span：占位符（``[[X_n]]``/``[[SL]]`` 系）与控制字/转义
+#: （``\cmd``/``\%``）——切开占位符两半都过不了对账；切开 ``\cmd`` 会在
+#: 重组译文里留下 ``\``+CJK 熔合或 ``%`` 起头注释吞行（undefined cs/吞文本）。
+_ATOMIC_CUT_RX = re.compile(
+    r"\[\[[A-Z][A-Z_]*\]\]|\[\[[A-Z_]+_\d+\]\]|\\[a-zA-Z@]+\*?|\\."
+)
+
+
+def _safe_cut(text: str, cut: int, lo: int) -> int:
+    """``cut`` 落在原子 span 内部时退到 span 头（头越不过 ``lo`` 则进到 span 尾）。
+
+    span 都很短（≤40 字符），只在 cut 附近 ±64 窗口里找——不切实际的长 span
+    也不会被漏（``[[`` token/控制字没有 >40 字符的形态）。
+    """
+    for m in _ATOMIC_CUT_RX.finditer(text, max(0, cut - 64), min(len(text), cut + 64)):
+        if m.start() < cut < m.end():
+            return m.start() if m.start() >= lo else m.end()
+    return cut
+
+
 def _best_split(text: str, limit: int) -> int:
     """在 [limit//2, limit] 窗口里找最右闭合-scope 句号切点；找不到退化到 limit。"""
     depth = 0
@@ -134,9 +165,9 @@ def _best_split(text: str, limit: int) -> int:
             best = i + 1  # 句号后切（含句号）
         i += 1
     if best >= lo:
-        return best
+        return _safe_cut(text, best, lo)
     # 兜底：找 limit 内最后一个换行/空格，再不行硬切
     for j in range(n, lo, -1):
         if text[j - 1] in " \n":
-            return j
-    return n
+            return _safe_cut(text, j, lo)
+    return _safe_cut(text, n, lo)

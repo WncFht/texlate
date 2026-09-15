@@ -67,6 +67,18 @@ class TestEncodeParse:
     def test_empty_section_fails(self) -> None:
         assert batch.parse_batch_response("[1] a\n[2] \n[3] c", 3) is None
 
+    def test_parse_ignores_inline_citation_brackets(self) -> None:
+        """译文正文里的 ``[12]`` 引用号不得被当成员分隔符（行首锚定优先）。"""
+        raw = "[1] 参见 [12] 的研究\n[2] 结果表明 [3,4] 一致"
+        out = batch.parse_batch_response(raw, 2)
+        assert out == ["参见 [12] 的研究", "结果表明 [3,4] 一致"]
+
+    def test_parse_single_line_fallback(self) -> None:
+        """模型把整批挤在一行（``[1] a [2] b``）时非锚定退路仍按编号切。"""
+        raw = "[1] 第一段 [2] 第二段 [3] 第三段"
+        out = batch.parse_batch_response(raw, 3)
+        assert out == ["第一段", "第二段", "第三段"]
+
 
 class TestSplitLongChunk:
     def test_short_passthrough(self) -> None:
@@ -98,3 +110,19 @@ class TestSplitLongChunk:
         parts = batch.split_long_chunk(src, max_chars=limit)
         assert len(parts) == len(src) // limit
         assert "".join(parts) == src
+
+    def test_never_cuts_inside_placeholder(self) -> None:
+        """硬切点落在 ``[[MATH_1]]`` 内部 → 退到 token 头（两半都过不了对账）。"""
+        src = "a" * 95 + "[[MATH_1]]" + "b" * 50  # token 跨 95..105, 硬切 100
+        parts = batch.split_long_chunk(src, max_chars=100)
+        assert "".join(parts) == src
+        assert parts[0] == "a" * 95
+        assert parts[1].startswith("[[MATH_1]]")
+
+    def test_never_cuts_inside_control_word(self) -> None:
+        r"""硬切点落在 ``\foo`` 内部 → 退到 ``\`` 前（防 ``\``+CJK 熔合成新 cs）。"""
+        src = "a" * 97 + "\\foo" + "b" * 50  # \foo 跨 97..101, 硬切 100
+        parts = batch.split_long_chunk(src, max_chars=100)
+        assert "".join(parts) == src
+        assert parts[0] == "a" * 97
+        assert parts[1].startswith("\\foo")
