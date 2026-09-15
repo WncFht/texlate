@@ -1186,6 +1186,13 @@ def main() -> None:
     if manifest:
         n_meta = sum(1 for p in prec_map.values() if "meta" in p)
         print(f"  manifest matched: {n_meta}/{len(prec_map)} papers")
+        # manifest 即抽样框：只评 manifest 列出的论文（corpus_v3 核心/补强
+        # 两层同目录共存，层间切换靠 --manifest 指向对应 jsonl）
+        keep = {pid for pid in prec_map if pid.removesuffix("/extracted") in manifest}
+        n_drop = len(prec_map) - len(keep)
+        if n_drop:
+            print(f"  manifest frame: dropped {n_drop} unlisted paper dirs")
+            prec_map = {pid: prec_map[pid] for pid in keep}
 
     # ---- pass 2: 逐文件评测
     sel = set(prec_map)
