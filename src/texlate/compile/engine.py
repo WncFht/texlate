@@ -106,10 +106,33 @@ WARNING_RED_LINES: list[tuple[str, str]] = [
 ]
 
 
+def _update_file_stack(ln: str, stack: list[str | None]) -> None:
+    """单行扫 ``(``/``)`` 增量维护文件栈；非文件 ``(`` 入栈 None 保持配对。"""
+    j = 0
+    while j < len(ln):
+        c = ln[j]
+        if c == "(":
+            m = _OPEN_PAREN_RE.match(ln, j)
+            if m:
+                stack.append(m.group(2))
+                j = m.end()
+                continue
+            stack.append(None)
+            j += 1
+        elif c == ")":
+            if stack:
+                stack.pop()
+            j += 1
+        else:
+            j += 1
+
+
 def _scan_error_lines(lines: list[str], info: LogInfo) -> int:
     """数 `^!`+`file:line:` 错误、记首错位置、追踪 `(` 文件栈。返回首错行号。"""
     ctx_start = -1
+    stack: list[str | None] = []
     for i, ln in enumerate(lines):
+        _update_file_stack(ln, stack)
         if _ERR_BANG_RE.match(ln) or (
             _ERR_FILELINE_RE.match(ln) and not _NONERR_FILELINE_RE.match(ln)
         ):
@@ -118,10 +141,7 @@ def _scan_error_lines(lines: list[str], info: LogInfo) -> int:
             if info.first_error is None:
                 info.first_error = ln.strip()
                 ctx_start = i
-        for m in _OPEN_PAREN_RE.finditer(ln):
-            name = m.group(2)
-            if not info.file_stack or info.file_stack[-1] != name:
-                info.file_stack.append(name)
+                info.file_stack = [s for s in stack if s]
     return ctx_start
 
 
