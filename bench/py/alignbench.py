@@ -1,0 +1,599 @@
+#!/usr/bin/env python3
+r"""alignbench — B7 锚点保留基准 harness（docs/10 §B7 产品化）.
+
+tmp/exp/align-probe/dest_probe.py 扶正：pypdf 提双侧 named destinations →
+同名锚点配对 → 保留率 + 最大权值单调链（对照阅读器滚动同步的质量上限，
+docs/05 §3-18 方案的前提条件；保留率 <95% 本身即 zh 编译完整性探针）。
+
+用法:
+  uv run --with pypdf python bench/py/alignbench.py --pairs pairs.jsonl [--check]
+  uv run --with pypdf python bench/py/alignbench.py --a-dir A --b-dir B
+  uv run --with pypdf python bench/py/alignbench.py --selftest
+
+对子来源三选一:
+  --pairs         jsonl 清单, 每行 {"id","a","b","kind"?} —— B3/B5 编译产物登记
+  --a-dir/--b-dir 两棵产物树按 *.pdf 相对路径配对 (e2e workBase↔work 型布局)
+  --selftest      pypdf 合成对子 (keep/shift/drop/degraded 四案) 无语料冒烟,
+                  自含断言不进 --check 门槛语义
+
+产出 (docs/10 §统一产出契约): OUT/{pairs.jsonl,cells.json,summary.md}
+
+门槛 (--check, docs/10 §B7): 有 hyperref 锚点侧的对子保留率 ≥95%;
+双侧无锚点对 (无 hyperref 工程 ~31%) 走退化路径不崩; 无 pair 级异常.
+退出码 0/1.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import math
+import re
+import sys
+import time
+from collections import Counter
+from datetime import UTC, datetime
+from pathlib import Path
+
+try:
+    from pypdf import PdfReader
+except ImportError:
+    sys.exit("pypdf 不在依赖内 — 用 uv run --with pypdf python bench/py/alignbench.py")
+
+ROOT = Path(__file__).resolve().parents[2]
+BENCH = ROOT / "bench"
+
+PAGE_ANCHOR_RX = re.compile(r"^page\.\d+$")
+MIN_RETENTION = 0.95
+
+
+# ---------------------------------------------------------------- 锚点提取
+def _dest_page(r: PdfReader, dest: object) -> int | None:
+    try:
+        return r.get_destination_page_number(dest)
+    except Exception:  # 坏 dest 当作缺失锚点
+        return None
+
+
+def extract_dests(path: Path) -> dict:
+    """{name: {"page","yfrac","fit"}} + 页数; page.N 页码锚点单列不计入."""
+    r = PdfReader(str(path))
+    heights = []
+    for p in r.pages:
+        mb = p.mediabox
+        heights.append(float(mb.height) or 792.0)
+    out = {}
+    fits = Counter()
+    n_page_anchor = 0
+    for name, dest in r.named_destinations.items():
+        if PAGE_ANCHOR_RX.match(name):
+            n_page_anchor += 1
+            continue
+        page = _dest_page(r, dest)
+        if page is None or page < 0:
+            continue
+        fit = str(dest.get("/Type", "?"))
+        top = dest.get("/Top")
+        yfrac = None
+        if top is not None and page < len(heights):
+            yfrac = float(top) / heights[page]
+        out[name] = {"page": page, "yfrac": yfrac, "fit": fit}
+        fits[fit] += 1
+    return {
+        "dests": out,
+        "npages": len(r.pages),
+        "fits": dict(fits),
+        "n_page_anchor": n_page_anchor,
+    }
+
+
+# ---------------------------------------------------------------- 类别与权重
+def category(name: str) -> str:
+    n = name.lower()
+    if n.startswith(
+        ("section", "subsection", "subsubsection", "chapter", "part", "paragraph")
+    ):
+        return "section"
+    if n.startswith(("figure", "fig", "table", "tab")):
+        return "figtable"
+    if n.startswith(("equation", "eq")):
+        return "equation"
+    if n.startswith("cite"):
+        return "cite"
+    if n.startswith(("footnote", "hfootnote")):
+        return "footnote"
+    return "other"
+
+
+# docs/10 §B7: section 12 / 图表 10 / equation 4 / cite 2 (page.* 排除等效权 0)
+WEIGHT = {
+    "section": 12,
+    "figtable": 10,
+    "equation": 4,
+    "cite": 2,
+    "footnote": 1,
+    "other": 1,
+}
+
+
+# ---------------------------------------------------------------- 单调链 DP
+def order_key(d: dict) -> tuple[float, float]:
+    """阅读序 key: 页号 + 页内自顶向下位置 (yfrac 越大越靠前)."""
+    y = d["yfrac"] if d["yfrac"] is not None else 1.0
+    return (d["page"], -y)
+
+
+def max_weight_chain(commons: list[tuple[str, dict, dict]]) -> dict:
+    """按 A 序排序, 找 B key 非降的最大权子序列. O(n²) DP."""
+    items = sorted(commons, key=lambda t: order_key(t[1]))
+    n = len(items)
+    bkeys = [order_key(it[2]) for it in items]
+    wts = [WEIGHT[category(it[0])] for it in items]
+    dp = wts[:]  # dp[i] = 以 i 结尾的最优链权
+    par = [-1] * n
+    for i in range(n):
+        bi = bkeys[i]
+        for j in range(i):
+            if bkeys[j] <= bi and dp[j] + wts[i] > dp[i]:
+                dp[i] = dp[j] + wts[i]
+                par[i] = j
+    if n == 0:
+        return {"n": 0, "chain_n": 0, "w": 0, "chain_w": 0, "names": []}
+    i_best = max(range(n), key=lambda i: dp[i])
+    chain = []
+    i = i_best
+    while i >= 0:
+        chain.append(items[i][0])
+        i = par[i]
+    chain.reverse()
+    return {
+        "n": n,
+        "chain_n": len(chain),
+        "w": sum(wts),
+        "chain_w": dp[i_best],
+        "names": chain,
+    }
+
+
+def hist(vals: list[float]) -> dict:
+    c = Counter(vals)
+    return {str(k): c[k] for k in sorted(c)}
+
+
+# ---------------------------------------------------------------- 对子分析
+def analyze_pair(pair: dict, min_retention: float) -> dict:
+    ea = extract_dests(pair["a"])
+    eb = extract_dests(pair["b"])
+    da, db = ea["dests"], eb["dests"]
+    names_a, names_b = set(da), set(db)
+    common = sorted(names_a & names_b)
+    only_a = names_a - names_b
+    only_b = names_b - names_a
+
+    page_diffs = []
+    y_diffs = []
+    cat_counter = Counter(category(n) for n in common)
+    lost_cat = Counter(category(n) for n in only_a)
+    commons_t = []
+    for n in common:
+        pa, pb = da[n], db[n]
+        page_diffs.append(pb["page"] - pa["page"])
+        if (
+            pa["page"] == pb["page"]
+            and pa["yfrac"] is not None
+            and pb["yfrac"] is not None
+        ):
+            y_diffs.append(round(pb["yfrac"] - pa["yfrac"], 4))
+        commons_t.append((n, pa, pb))
+
+    chain = max_weight_chain(commons_t)
+    pd_sorted = sorted(page_diffs)
+
+    def pct(p: float) -> float | None:
+        if not pd_sorted:
+            return None
+        k = min(len(pd_sorted) - 1, max(0, round((p / 100) * (len(pd_sorted) - 1))))
+        return pd_sorted[k]
+
+    retention = (len(common) / len(da)) if da else None
+    if not da:
+        verdict = "degraded"  # A 侧无锚点 (无 hyperref 工程) → 退化路径
+    elif retention < min_retention:
+        verdict = "low"
+    else:
+        verdict = "ok"
+
+    return {
+        "kind": pair["kind"],
+        "id": pair["id"],
+        "a": str(pair["a"]),
+        "b": str(pair["b"]),
+        "verdict": verdict,
+        "pages_a": ea["npages"],
+        "pages_b": eb["npages"],
+        "dests_a": len(da),
+        "dests_b": len(db),
+        "page_anchors_a": ea["n_page_anchor"],
+        "page_anchors_b": eb["n_page_anchor"],
+        "common": len(common),
+        "only_a": len(only_a),
+        "only_b": len(only_b),
+        "retention": retention,
+        "cat_common": dict(cat_counter),
+        "cat_lost_a": dict(lost_cat),
+        "page_diff": {
+            "min": pd_sorted[0] if pd_sorted else None,
+            "p25": pct(25),
+            "median": pct(50),
+            "p75": pct(75),
+            "p90": pct(90),
+            "max": pd_sorted[-1] if pd_sorted else None,
+            "mean": round(sum(page_diffs) / len(page_diffs), 2) if page_diffs else None,
+            "dist": hist(page_diffs),
+        },
+        "y_diff_samepage": {
+            "n": len(y_diffs),
+            "mean": round(sum(y_diffs) / len(y_diffs), 4) if y_diffs else None,
+            "abs_mean": round(sum(abs(y) for y in y_diffs) / len(y_diffs), 4)
+            if y_diffs
+            else None,
+        },
+        "chain": {
+            "n_common": chain["n"],
+            "chain_n": chain["chain_n"],
+            "w_total": chain["w"],
+            "w_chain": chain["chain_w"],
+            "n_ratio": round(chain["chain_n"] / chain["n"], 4) if chain["n"] else None,
+            "w_ratio": round(chain["chain_w"] / chain["w"], 4) if chain["w"] else None,
+        },
+        # 丢锚点全量名单 —— §B7-4 连锅端案例 (\label/\bibitem 随 chunk 移动)
+        # 归因入口; 确认机制后应沉淀为 bench/fixtures B2 断言
+        "lost_a": sorted(only_a),
+        "new_b": sorted(only_b),
+        "fits_a": ea["fits"],
+        "fits_b": eb["fits"],
+    }
+
+
+# ---------------------------------------------------------------- 对子来源
+def pairs_from_manifest(path: Path) -> list[dict]:
+    pairs = []
+    for ln, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        if not line.strip():
+            continue
+        row = json.loads(line)
+        a, b = Path(row["a"]), Path(row["b"])
+        pairs.append(
+            {
+                "kind": row.get("kind", "manifest"),
+                "id": row.get("id") or a.stem,
+                "a": a,
+                "b": b,
+            }
+        )
+        if not a.exists() or not b.exists():
+            print(
+                f"  warn {path.name}:{ln} {pairs[-1]['id']}: a/b 不存在",
+                file=sys.stderr,
+            )
+    return pairs
+
+
+def pairs_from_dirs(a_dir: Path, b_dir: Path, kind: str) -> list[dict]:
+    """B 侧每份 *.pdf 按相对路径在 A 侧找同名对子."""
+    pairs = []
+    for b in sorted(b_dir.rglob("*.pdf")):
+        rel = b.relative_to(b_dir)
+        a = a_dir / rel
+        if not a.exists():
+            print(f"  warn {rel}: A 侧无对应 PDF, 跳过", file=sys.stderr)
+            continue
+        pid = str(rel.parent) if str(rel.parent) != "." else b.stem
+        pairs.append({"kind": kind, "id": pid, "a": a, "b": b})
+    return pairs
+
+
+# ---------------------------------------------------------------- selftest
+def _selftest_pdf(path: Path, dests: list[tuple[str, int]], npages: int) -> None:
+    """合成 PDF: npages 空白页 + [(name,page)] named destinations (FitH y=顶)."""
+    from pypdf import PdfWriter
+    from pypdf.generic import Destination, Fit
+
+    w = PdfWriter()
+    for _ in range(npages):
+        w.add_blank_page(width=612, height=792)
+    for name, page in dests:
+        w.add_named_destination_object(
+            Destination(
+                name, w.pages[page].indirect_reference, Fit.fit_horizontally(792.0)
+            )
+        )
+    with path.open("wb") as fh:
+        w.write(fh)
+
+
+def selftest(workdir: Path, min_retention: float) -> list[dict]:
+    """四案断言: keep 全保留 / shift 整移保序 / drop 丢锚点检出 / degraded 退化."""
+    workdir.mkdir(parents=True, exist_ok=True)
+    base = [(f"section.{i}", i - 1) for i in range(1, 5)] + [
+        (f"figure.{i}", i + 1) for i in range(1, 4)
+    ]
+    cases = {
+        # B 原样 → 期望 ret=1.0 verdict=ok
+        "keep": (base, base, 6),
+        # B 整体 +1 页 → ret=1.0, page_diff 全 1, 链仍单调
+        "shift": (base, [(n, p + 1) for n, p in base], 7),
+        # B 丢 2 section + figure.1 挪到末页 → ret<0.95 verdict=low, 链反映断点
+        "drop": (
+            base,
+            [(n, p) for n, p in base if n not in {"section.2", "section.3", "figure.1"}]
+            + [("figure.1", 6)],
+            7,
+        ),
+        # 双侧无锚点 → degraded 不崩
+        "degraded": ([], [], 4),
+    }
+    results = []
+    for tag, (da, db, npages) in cases.items():
+        a, b = workdir / f"st_{tag}_a.pdf", workdir / f"st_{tag}_b.pdf"
+        _selftest_pdf(a, da, npages)
+        _selftest_pdf(b, db, npages)
+        res = analyze_pair(
+            {"kind": "selftest", "id": f"selftest/{tag}", "a": a, "b": b}, min_retention
+        )
+        results.append(res)
+
+    fails = []
+    by_id = {r["id"].split("/")[1]: r for r in results}
+    if by_id["keep"]["retention"] != 1.0 or by_id["keep"]["verdict"] != "ok":
+        fails.append("keep: 期望 ret=1.0/ok")
+    if by_id["shift"]["retention"] != 1.0 or by_id["shift"]["page_diff"]["median"] != 1:
+        fails.append("shift: 期望 ret=1.0 且 page_diff 全 1")
+    dr = by_id["drop"]
+    if (
+        dr["verdict"] != "low"
+        or dr["retention"] is None
+        or dr["retention"] >= min_retention
+    ):
+        fails.append("drop: 期望 verdict=low 且 ret<门槛")
+    if not {"section.2", "section.3"} <= set(dr["lost_a"]):
+        fails.append("drop: lost_a 未含丢掉的锚点名")
+    dg = by_id["degraded"]
+    if dg["verdict"] != "degraded" or dg["retention"] is not None:
+        fails.append("degraded: 期望 verdict=degraded 且 ret=None")
+    return results, fails
+
+
+# ---------------------------------------------------------------- 聚合/报告
+def _pct_vals(vals: list[float]) -> dict:
+    if not vals:
+        return {}
+    s = sorted(vals)
+
+    def q(x: float) -> float:
+        return s[max(0, math.ceil(x * len(s)) - 1)]
+
+    return {
+        "n": len(s),
+        "min": s[0],
+        "p50": q(0.50),
+        "mean": round(sum(s) / len(s), 4),
+        "p95": q(0.95),
+        "max": s[-1],
+    }
+
+
+def aggregate(results: list[dict], min_retention: float) -> dict:
+    errors = [r for r in results if "error" in r]
+    ok_results = [r for r in results if "error" not in r]
+    degraded = [r for r in ok_results if r["verdict"] == "degraded"]
+    hyper = [r for r in ok_results if r["verdict"] != "degraded"]
+    low = [r for r in hyper if r["verdict"] == "low"]
+
+    by_kind = {}
+    for r in ok_results:
+        k = by_kind.setdefault(r["kind"], {"n": 0, "degraded": 0, "low": 0, "rets": []})
+        k["n"] += 1
+        k["degraded"] += r["verdict"] == "degraded"
+        k["low"] += r["verdict"] == "low"
+        if r["retention"] is not None:
+            k["rets"].append(r["retention"])
+    for k in by_kind.values():
+        k["retention"] = _pct_vals(k.pop("rets"))
+
+    gates = {
+        "no_pair_errors": not errors,
+        "hyperref_retention": all(
+            r["retention"] >= min_retention for r in hyper if r["retention"] is not None
+        ),
+        # 退化路径: 双侧无锚点 → 正常出 degraded verdict (不崩不出错)
+        "degraded_path_ok": all(
+            r["retention"] is None and r["dests_a"] == 0 for r in degraded
+        ),
+    }
+    return {
+        "n_pairs": len(results),
+        "n_error": len(errors),
+        "n_degraded": len(degraded),
+        "n_hyperref": len(hyper),
+        "n_low": len(low),
+        "retention": _pct_vals(
+            [r["retention"] for r in hyper if r["retention"] is not None]
+        ),
+        "chain_w_ratio": _pct_vals(
+            [r["chain"]["w_ratio"] for r in hyper if r["chain"]["w_ratio"] is not None]
+        ),
+        "by_kind": by_kind,
+        "low_pairs": [
+            {"id": r["id"], "retention": r["retention"], "lost": r["lost_a"][:10]}
+            for r in low
+        ],
+        "error_pairs": [{"id": r["id"], "error": r["error"]} for r in errors],
+        "min_retention": min_retention,
+        "gates": gates,
+        "gates_pass": all(gates.values()),
+    }
+
+
+def write_summary(out: Path, results: list[dict], cells: dict, wall_s: float) -> str:
+    g = cells["gates"]
+    lines = ["# alignbench — B7 锚点保留基准\n"]
+    lines.append(
+        f"- date: {datetime.now(UTC):%Y-%m-%d %H:%M}Z · wall {wall_s:.1f}s "
+        f"· 门槛 retention ≥ {cells['min_retention']}"
+    )
+    lines.append(
+        f"- pairs: {cells['n_pairs']} (hyperref {cells['n_hyperref']} · "
+        f"degraded {cells['n_degraded']} · low {cells['n_low']} · "
+        f"error {cells['n_error']})"
+    )
+    ret = cells["retention"]
+    if ret:
+        lines.append(
+            f"- retention: min {ret['min']} · p50 {ret['p50']} · mean {ret['mean']}"
+        )
+    cw = cells["chain_w_ratio"]
+    if cw:
+        lines.append(f"- chain w_ratio: min {cw['min']} · p50 {cw['p50']}")
+    lines.append(
+        f"- **gates**: no_errors={'✅' if g['no_pair_errors'] else '❌'} · "
+        f"retention≥{cells['min_retention']}={'✅' if g['hyperref_retention'] else '❌'} · "
+        f"degraded_ok={'✅' if g['degraded_path_ok'] else '❌'}\n"
+    )
+
+    lines.append("## 逐对明细\n")
+    lines.append(
+        "| pair | kind | verdict | dests a→b | common | ret | Δp med | chain w |"
+    )
+    lines.append("|---|---|---|---|---|---|---|---|")
+    for r in results:
+        if "error" in r:
+            lines.append(f"| {r['id']} | {r['kind']} | ERROR | - | - | - | - | - |")
+            continue
+        ret_s = f"{r['retention']:.3f}" if r["retention"] is not None else "n/a"
+        wr = r["chain"]["w_ratio"]
+        lines.append(
+            f"| {r['id']} | {r['kind']} | {r['verdict']} "
+            f"| {r['dests_a']}→{r['dests_b']} | {r['common']} | {ret_s} "
+            f"| {r['page_diff']['median']} | {wr if wr is None else f'{wr:.3f}'} |"
+        )
+    lines.append("")
+
+    if cells["low_pairs"]:
+        lines.append("## 保留率不达标对（zh 编译完整性探针）\n")
+        lines.extend(
+            f"- `{r['id']}` ret={r['retention']:.3f} lost={r['lost']}"
+            for r in cells["low_pairs"]
+        )
+        lines.append("")
+    lost_any = [(r["id"], r["lost_a"]) for r in results if r.get("lost_a")]
+    if lost_any:
+        lines.append("## 丢锚点归因入口（→ fixtures B2 沉淀）\n")
+        for pid, lost in lost_any[:20]:
+            lines.append(f"- `{pid}`: {', '.join(lost[:12])}")
+        lines.append("")
+    if cells["error_pairs"]:
+        lines.append("## 异常对\n")
+        lines.extend(f"- `{r['id']}`: {r['error']}" for r in cells["error_pairs"])
+        lines.append("")
+    text = "\n".join(lines)
+    (out / "summary.md").write_text(text + "\n", encoding="utf-8")
+    return text
+
+
+# ---------------------------------------------------------------- main
+def main() -> None:
+    ap = argparse.ArgumentParser(description="B7 alignbench — 锚点保留基准")
+    src = ap.add_mutually_exclusive_group(required=True)
+    src.add_argument("--pairs", type=Path, help="jsonl 对子清单 {id,a,b,kind?}")
+    src.add_argument("--a-dir", type=Path, help="A 侧 (en/基线) 产物树")
+    src.add_argument("--selftest", action="store_true", help="合成对子冒烟")
+    ap.add_argument("--b-dir", type=Path, help="B 侧 (zh/变体) 产物树")
+    ap.add_argument(
+        "--kind", default="dir-pair", help="--a-dir/--b-dir 模式的 kind 标签"
+    )
+    ap.add_argument("--out", type=Path, default=None)
+    ap.add_argument("--min-retention", type=float, default=MIN_RETENTION)
+    ap.add_argument("--check", action="store_true", help="门槛断言, 失败退出码 1")
+    args = ap.parse_args()
+
+    today = datetime.now(UTC).strftime("%Y-%m-%d")
+    tag = "selftest" if args.selftest else "pairs"
+    out = args.out or (BENCH / "results" / f"alignbench-{tag}-{today}")
+    out = out if out.is_absolute() else Path.cwd() / out
+    out.mkdir(parents=True, exist_ok=True)
+
+    t0 = time.perf_counter()
+    selftest_fails = None
+    if args.selftest:
+        results, selftest_fails = selftest(out / "_selftest", args.min_retention)
+    else:
+        if args.pairs:
+            pairs = pairs_from_manifest(args.pairs)
+        else:
+            if not args.b_dir:
+                ap.error("--a-dir 需配 --b-dir")
+            pairs = pairs_from_dirs(args.a_dir, args.b_dir, args.kind)
+        print(f"pairs: {len(pairs)}", file=sys.stderr)
+        results = []
+        for p in pairs:
+            try:
+                res = analyze_pair(p, args.min_retention)
+            except Exception as e:  # 单对失败不拖垮整批
+                res = {
+                    "kind": p["kind"],
+                    "id": p["id"],
+                    "error": f"{type(e).__name__}: {e}",
+                }
+            results.append(res)
+            if "error" in res:
+                print(
+                    f"[{res['kind']}] {res['id']}: ERROR {res['error']}",
+                    file=sys.stderr,
+                )
+            else:
+                ret = (
+                    f"{res['retention']:.3f}" if res["retention"] is not None else "n/a"
+                )
+                print(
+                    f"[{res['kind']:12s}] {res['id']:28s} {res['verdict']:8s} "
+                    f"dests {res['dests_a']}→{res['dests_b']} ret={ret} "
+                    f"Δp med={res['page_diff']['median']} "
+                    f"chain w={res['chain']['w_ratio']}",
+                    file=sys.stderr,
+                )
+
+    cells = aggregate(results, args.min_retention)
+    cells["meta"] = {
+        "out": str(out),
+        "date": today,
+        "min_retention": args.min_retention,
+        "source": "selftest"
+        if args.selftest
+        else str(args.pairs or f"{args.a_dir} ↔ {args.b_dir}"),
+        "selftest_fails": selftest_fails,
+    }
+    wall_s = time.perf_counter() - t0
+
+    with (out / "pairs.jsonl").open("w", encoding="utf-8") as fh:
+        for r in results:
+            fh.write(json.dumps(r, ensure_ascii=False) + "\n")
+    (out / "cells.json").write_text(
+        json.dumps(cells, ensure_ascii=False, indent=1), encoding="utf-8"
+    )
+    text = write_summary(out, results, cells, wall_s)
+    print("\n" + text)
+    print(f"wrote {out}/{{pairs.jsonl,cells.json,summary.md}}")
+
+    if selftest_fails is not None:
+        if selftest_fails:
+            print("SELFTEST FAIL:", *selftest_fails, sep="\n  ")
+            sys.exit(1)
+        print("SELFTEST PASS")
+    if args.check and not cells["gates_pass"]:
+        print("GATE FAIL", [k for k, v in cells["gates"].items() if not v])
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
