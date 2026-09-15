@@ -35,8 +35,13 @@ def mock_translate_tree(root: Path) -> dict:
     """
     scans: list[tuple[Path, ScanResult]] = []
     chunks: list[ChunkIn] = []
+    fault_files: list[str] = []
     for f in sorted(root.rglob("*.tex")):
-        res = parse_file(f, flatten=False)
+        try:
+            res = parse_file(f, flatten=False)
+        except Exception:  # noqa: BLE001 -- 单文件解析崩不拖垮整树：
+            fault_files.append(f.name)  # 记名可审计，该文件按原文保留
+            continue
         idx = len(scans)
         scans.append((f, res))
         chunks.extend(chunk_to_in(c, chunk_id=f"{idx}:{c.id}") for c in res.chunks)
@@ -69,6 +74,7 @@ def mock_translate_tree(root: Path) -> dict:
         "files": n_files,
         "chunks": len(chunks),
         "fault_chunks": n_fault,
+        "fault_files": fault_files,
         "leftover_ph": n_leftover,
     }
 
