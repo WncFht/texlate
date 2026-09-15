@@ -1,0 +1,2559 @@
+{
+ "meta": {
+  "date": "2026-09-15 10:00",
+  "corpus": "/Users/fanghaotian/src/texlate/bench/corpus_v2",
+  "work": "/Users/fanghaotian/src/texlate/bench/work_compile_v2",
+  "timeout_s": 240,
+  "clean_err_max": 3,
+  "texmf_mode": "cold (per-paper TEXMFHOME/VAR/CONFIG)",
+  "xelatex": "XeTeX 3.141592653-2.6-0.999998 (TeX Live 2026)",
+  "tectonic": "Tectonic 0.17.0"
+ },
+ "papers": [
+  {
+   "id": "0812.4521",
+   "band": "b",
+   "yymm": "2008-12",
+   "tags": [
+    "xelatex",
+    "no-hyperref"
+   ],
+   "n_files": 6,
+   "tex_files": 1,
+   "main": "rPLA.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 2,
+     "seconds": 0.5044229030609131,
+     "exit": 1,
+     "pdf": true,
+     "pdf_bytes": 122990,
+     "n_errors": 18,
+     "n_bang": 0,
+     "n_fileline": 18,
+     "first_error": "./rPLA.tex:448: Too many }'s.",
+     "error_ctx": "./rPLA.tex:448: Too many }'s.\n\\color@endbox ->\\color@endgroup \\egroup \n                                        \nl.448 \\end{figure}\n                  \nYou've closed more groups than you opened.\nSuch booboos are generally harmless, so keep going.\n",
+     "category": "syntax",
+     "payload": null,
+     "warn": {},
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/0812.4521/baseline/rPLA.log",
+     "verdict": "pdf~"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 0.3548309803009033,
+     "retried": false,
+     "exit": 0,
+     "pdf": true,
+     "pdf_bytes": 124596,
+     "n_errors": 9,
+     "n_bang": 9,
+     "n_fileline": 0,
+     "first_error": "! Too many }'s.",
+     "error_ctx": "! Too many }'s.\n\\color@endbox ->\\color@endgroup \\egroup \n                                        \nl.448 \\end{figure}\n                  \nYou've closed more groups than you opened.\nSuch booboos are generally harmless, so keep going.\n",
+     "category": "syntax",
+     "payload": null,
+     "warn": {
+      "invalid_utf8": 0,
+      "missing_char": 0,
+      "ufffd": 0,
+      "file_not_found": 0,
+      "missing_graphic": 0,
+      "emergency_stop": 0
+     },
+     "timed_out": false,
+     "stderr_tail": "error: rPLA.tex:455: Extra \\endgroup\nwarning: rPLA.tex:460: Overfull \\hbox (59.27216pt too wide) in paragraph at lines 458--460\nwarning: rPLA.tex:460: Underfull \\hbox (badness 10000) in paragraph at lines 460--460\nerror: rPLA.tex:462: Too many }'s\nerror: rPLA.tex:462: LaTeX Error: \\begin{document} ended by \\end{figure}.\n\nSee the LaTeX manual or LaTeX Companion for explanation.\nType  H <return>  for immediate help\nerror: rPLA.tex:462: Extra \\endgroup\nwarning: errors were issued by the TeX engine, but were ignored; use --print and/or --keep-logs for details.\nnote: Running xdvipdfmx ...\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/0812.4521/baseline/_tect_out/rPLA.aux` (3.548828125 KiB)\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/0812.4521/baseli",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/0812.4521/baseline/_tect_out/rPLA.log",
+     "verdict": "pdf~"
+    }
+   },
+   "docclass_line": "\\documentclass{elsart}"
+  },
+  {
+   "id": "0903.0543",
+   "band": "b",
+   "yymm": "2009-03",
+   "tags": [
+    "xelatex"
+   ],
+   "n_files": 2,
+   "tex_files": 1,
+   "main": "unitlearn_PRA.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 1,
+     "seconds": 0.07136893272399902,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "n_bang": 1,
+     "n_fileline": 1,
+     "first_error": "! LaTeX Error: File `revtex4.cls' not found.",
+     "error_ctx": "! LaTeX Error: File `revtex4.cls' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: cls)\n\nEnter file name: \n./unitlearn_PRA.tex:3: Emergency stop.\n<read *> ",
+     "category": "missing_file",
+     "payload": "revtex4.cls",
+     "warn": {
+      "file_not_found": 1,
+      "emergency_stop": 1
+     },
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/0903.0543/baseline/unitlearn_PRA.log",
+     "verdict": "FAIL"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 0.6416549682617188,
+     "retried": false,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 0,
+     "n_bang": 0,
+     "n_fileline": 0,
+     "first_error": "! something bad happened inside xdvipdfmx; its output follows:",
+     "error_ctx": "",
+     "category": "ps_image",
+     "payload": null,
+     "warn": {
+      "invalid_utf8": 0,
+      "missing_char": 0,
+      "ufffd": 0,
+      "file_not_found": 0,
+      "missing_graphic": 0,
+      "emergency_stop": 0
+     },
+     "timed_out": false,
+     "stderr_tail": "warning: unitlearn_PRA.tex:589: Overfull \\vbox (8.26367pt too high) has occurred while \\output is active\nwarning: unitlearn_PRA.tex:590: Overfull \\vbox (8.26367pt too high) has occurred while \\output is active\nwarning: warnings were issued by the TeX engine; use --print and/or --keep-logs for details.\nnote: Running xdvipdfmx ...\nwarning: sorry, PostScript images are not supported by Tectonic\nwarning: for details, please see https://github.com/tectonic-typesetting/tectonic/issues/27\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/0903.0543/baseline/_tect_out/unitlearn_PRA.log` (14.3857421875 KiB)\nerror: something bad happened inside xdvipdfmx; its output follows:\n\n===============================================================================\n\n===========================",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/0903.0543/baseline/_tect_out/unitlearn_PRA.log",
+     "verdict": "FAIL"
+    }
+   },
+   "docclass_line": "\\documentclass[aps,pra,twocolumn,showpacs]{revtex4}"
+  },
+  {
+   "id": "0909.3990",
+   "band": "b",
+   "yymm": "2009-09",
+   "tags": [
+    "no-hyperref"
+   ],
+   "n_files": 5,
+   "tex_files": 1,
+   "main": "mixmc.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 1,
+     "seconds": 0.07234692573547363,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "n_bang": 1,
+     "n_fileline": 1,
+     "first_error": "! LaTeX Error: File `revtex4.cls' not found.",
+     "error_ctx": "! LaTeX Error: File `revtex4.cls' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: cls)\n\nEnter file name: \n./mixmc.tex:3: Emergency stop.\n<read *> ",
+     "category": "missing_file",
+     "payload": "revtex4.cls",
+     "warn": {
+      "file_not_found": 1,
+      "emergency_stop": 1
+     },
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/0909.3990/baseline/mixmc.log",
+     "verdict": "FAIL"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 0.37357115745544434,
+     "retried": false,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 0,
+     "n_bang": 0,
+     "n_fileline": 0,
+     "first_error": "! something bad happened inside xdvipdfmx; its output follows:",
+     "error_ctx": "",
+     "category": "ps_image",
+     "payload": null,
+     "warn": {
+      "invalid_utf8": 0,
+      "missing_char": 0,
+      "ufffd": 0,
+      "file_not_found": 0,
+      "missing_graphic": 0,
+      "emergency_stop": 0
+     },
+     "timed_out": false,
+     "stderr_tail": "note: Running TeX ...\nnote: Rerunning TeX because \"mixmc.aux\" changed ...\nnote: Rerunning TeX because \"mixmc.aux\" changed ...\nnote: Running xdvipdfmx ...\nwarning: sorry, PostScript images are not supported by Tectonic\nwarning: for details, please see https://github.com/tectonic-typesetting/tectonic/issues/27\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/0909.3990/baseline/_tect_out/mixmc.log` (7.744140625 KiB)\nerror: something bad happened inside xdvipdfmx; its output follows:\n\n===============================================================================\n\n===============================================================================\nerror: the xdvipdfmx engine had an unrecoverable error\ncaused by: pdf: image inclusion failed for \"umixmc2b.ps\" (page=1).",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/0909.3990/baseline/_tect_out/mixmc.log",
+     "verdict": "FAIL"
+    }
+   },
+   "docclass_line": "\\documentclass[twocolumn,showpacs,superscriptaddress,amsmath,amssymb,pre]{revtex4}"
+  },
+  {
+   "id": "0912.2867",
+   "band": "b",
+   "yymm": "2009-12",
+   "tags": [
+    "no-hyperref"
+   ],
+   "n_files": 5,
+   "tex_files": 1,
+   "main": "manuscript-v7-SV-PMO-AK.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 1,
+     "seconds": 0.06699109077453613,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "n_bang": 1,
+     "n_fileline": 1,
+     "first_error": "! LaTeX Error: File `revtex4.cls' not found.",
+     "error_ctx": "! LaTeX Error: File `revtex4.cls' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: cls)\n\nEnter file name: \n./manuscript-v7-SV-PMO-AK.tex:6: Emergency stop.\n<read *> ",
+     "category": "missing_file",
+     "payload": "revtex4.cls",
+     "warn": {
+      "file_not_found": 1,
+      "emergency_stop": 1
+     },
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/0912.2867/baseline/manuscript-v7-SV-PMO-AK.log",
+     "verdict": "FAIL"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 0.5038919448852539,
+     "retried": false,
+     "exit": 0,
+     "pdf": true,
+     "pdf_bytes": 261687,
+     "n_errors": 0,
+     "n_bang": 0,
+     "n_fileline": 0,
+     "first_error": null,
+     "error_ctx": "",
+     "category": "clean",
+     "payload": null,
+     "warn": {
+      "invalid_utf8": 0,
+      "missing_char": 0,
+      "ufffd": 0,
+      "file_not_found": 0,
+      "missing_graphic": 0,
+      "emergency_stop": 0
+     },
+     "timed_out": false,
+     "stderr_tail": "note: Running TeX ...\nnote: Rerunning TeX because \"manuscript-v7-SV-PMO-AK.aux\" changed ...\nnote: Rerunning TeX because \"manuscript-v7-SV-PMO-AK.aux\" changed ...\nnote: Running xdvipdfmx ...\nwarning: PDF file is tagged... Ignoring tags.\nwarning: PDF file is tagged... Ignoring tags.\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/0912.2867/baseline/_tect_out/manuscript-v7-SV-PMO-AK.pdf` (255.5537109375 KiB)\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/0912.2867/baseline/_tect_out/manuscript-v7-SV-PMO-AK.log` (8.8984375 KiB)\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/0912.2867/baseline/_tect_out/manuscript-v7-SV-PMO-AK.aux` (3.1484375 KiB)",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/0912.2867/baseline/_tect_out/manuscript-v7-SV-PMO-AK.log",
+     "verdict": "clean"
+    }
+   },
+   "docclass_line": "%\\documentclass[prb, preprint, a4paper]{revtex4}"
+  },
+  {
+   "id": "0912.5174",
+   "band": "b",
+   "yymm": "2009-12",
+   "tags": [
+    "non-utf8",
+    "no-hyperref"
+   ],
+   "n_files": 1,
+   "tex_files": 1,
+   "main": "0912.5174v1.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 1,
+     "seconds": 0.18108105659484863,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "n_bang": 1,
+     "n_fileline": 1,
+     "first_error": "! LaTeX Error: File `subfigure.sty' not found.",
+     "error_ctx": "! LaTeX Error: File `subfigure.sty' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: sty)\n\nEnter file name: \n./0912.5174v1.tex:18: Emergency stop.\n<read *> ",
+     "category": "missing_file",
+     "payload": "subfigure.sty",
+     "warn": {
+      "file_not_found": 1,
+      "emergency_stop": 1
+     },
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/0912.5174/baseline/0912.5174v1.log",
+     "verdict": "FAIL"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 0.41338491439819336,
+     "retried": false,
+     "exit": 0,
+     "pdf": true,
+     "pdf_bytes": 168335,
+     "n_errors": 1,
+     "n_bang": 1,
+     "n_fileline": 0,
+     "first_error": "! Package inputenc Error: inputenc is not designed for xetex or luatex.",
+     "error_ctx": "! Package inputenc Error: inputenc is not designed for xetex or luatex.\n(inputenc)                only UTF-8 supported.\n\nSee the inputenc package documentation for explanation.\nType  H <return>  for immediate help.\n ...                                              \n                                                  \nl.165 \\endinput",
+     "category": "inputenc_xetex",
+     "payload": null,
+     "warn": {
+      "invalid_utf8": 1,
+      "missing_char": 1,
+      "ufffd": 1,
+      "file_not_found": 0,
+      "missing_graphic": 0,
+      "emergency_stop": 0
+     },
+     "timed_out": false,
+     "stderr_tail": "Type  H <return>  for immediate help\nwarning: 0912.5174v1.tex:1423: Overfull \\hbox (5.6619pt too wide) in paragraph at lines 1422--1423\nwarning: 0912.5174v1.tex:1609: Underfull \\hbox (badness 10000) in paragraph at lines 1608--1609\nwarning: 0912.5174v1.tex:1836: Overfull \\hbox (1.21774pt too wide) detected at line 1836\nwarning: 0912.5174v1.tex:1856: Invalid UTF-8 byte or sequence at line 1856 replaced by U+FFFD.\nwarning: 0912.5174v1.tex:1856: Missing character: There is no ��� (\"FFFD) in font ec-lmr12!\nwarning: could not represent character \"�\" (0xfffd) in font \"ec-lmr12\"\nwarning:   you may need to load the `fontspec` package and use (e.g.) \\setmainfont to\nwarning:   choose a different font that covers the unrepresentable character(s)\nwarning: errors were issued by the TeX engine, but were",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/0912.5174/baseline/_tect_out/0912.5174v1.log",
+     "verdict": "pdf~"
+    }
+   },
+   "docclass_line": "\\documentclass[a4paper,12pt]{article}"
+  },
+  {
+   "id": "1005.0504",
+   "band": "b",
+   "yymm": "2010-05",
+   "tags": [
+    "xelatex",
+    "no-hyperref"
+   ],
+   "n_files": 4,
+   "tex_files": 1,
+   "main": "manuscript.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 1,
+     "seconds": 0.07620406150817871,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "n_bang": 1,
+     "n_fileline": 1,
+     "first_error": "! LaTeX Error: File `revtex4-1.cls' not found.",
+     "error_ctx": "! LaTeX Error: File `revtex4-1.cls' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: cls)\n\nEnter file name: \n./manuscript.tex:4: Emergency stop.\n<read *> ",
+     "category": "missing_file",
+     "payload": "revtex4-1.cls",
+     "warn": {
+      "file_not_found": 1,
+      "emergency_stop": 1
+     },
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/1005.0504/baseline/manuscript.log",
+     "verdict": "FAIL"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 0.4700300693511963,
+     "retried": false,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 0,
+     "n_bang": 0,
+     "n_fileline": 0,
+     "first_error": "! something bad happened inside xdvipdfmx; its output follows:",
+     "error_ctx": "",
+     "category": "ps_image",
+     "payload": null,
+     "warn": {
+      "invalid_utf8": 0,
+      "missing_char": 0,
+      "ufffd": 0,
+      "file_not_found": 0,
+      "missing_graphic": 0,
+      "emergency_stop": 0
+     },
+     "timed_out": false,
+     "stderr_tail": "warning: manuscript.tex:925: Overfull \\hbox (24.38408pt too wide) in paragraph at lines 915--925\nwarning: warnings were issued by the TeX engine; use --print and/or --keep-logs for details.\nnote: Running xdvipdfmx ...\nwarning: sorry, PostScript images are not supported by Tectonic\nwarning: for details, please see https://github.com/tectonic-typesetting/tectonic/issues/27\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/1005.0504/baseline/_tect_out/manuscript.log` (8.7802734375 KiB)\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/1005.0504/baseline/_tect_out/manuscript.blg` (3.2890625 KiB)\nerror: something bad happened inside xdvipdfmx; its output follows:\n\n===============================================================================\n\n===============",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/1005.0504/baseline/_tect_out/manuscript.log",
+     "verdict": "FAIL"
+    }
+   },
+   "docclass_line": "%\\documentclass[aps,floatfix,preprintnumbers,amsmath,amssymb,amsfonts,final, sort, compress, twocolumn, prl]"
+  },
+  {
+   "id": "1009.5340",
+   "band": "b",
+   "yymm": "2010-09",
+   "tags": [
+    "xelatex",
+    "no-hyperref"
+   ],
+   "n_files": 18,
+   "tex_files": 1,
+   "main": "SW_hybridscan_v2.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 2,
+     "seconds": 6.694662094116211,
+     "exit": 0,
+     "pdf": true,
+     "pdf_bytes": 2371329,
+     "n_errors": 0,
+     "n_bang": 0,
+     "n_fileline": 0,
+     "first_error": null,
+     "error_ctx": "",
+     "category": "clean",
+     "payload": null,
+     "warn": {},
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/1009.5340/baseline/SW_hybridscan_v2.log",
+     "verdict": "clean"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 0.3917531967163086,
+     "retried": false,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 0,
+     "n_bang": 0,
+     "n_fileline": 0,
+     "first_error": "! something bad happened inside xdvipdfmx; its output follows:",
+     "error_ctx": "",
+     "category": "ps_image",
+     "payload": null,
+     "warn": {
+      "invalid_utf8": 0,
+      "missing_char": 0,
+      "ufffd": 0,
+      "file_not_found": 0,
+      "missing_graphic": 0,
+      "emergency_stop": 0
+     },
+     "timed_out": false,
+     "stderr_tail": "warning: SW_hybridscan_v2.tex:97: Overfull \\hbox (7.37523pt too wide) detected at line 97\nwarning: warnings were issued by the TeX engine; use --print and/or --keep-logs for details.\nnote: Running xdvipdfmx ...\nwarning: sorry, PostScript images are not supported by Tectonic\nwarning: for details, please see https://github.com/tectonic-typesetting/tectonic/issues/27\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/1009.5340/baseline/_tect_out/SW_hybridscan_v2.log` (14.037109375 KiB)\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/1009.5340/baseline/_tect_out/SW_hybridscan_v2.blg` (2.8291015625 KiB)\nerror: something bad happened inside xdvipdfmx; its output follows:\n\n===============================================================================\n\n=======",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/1009.5340/baseline/_tect_out/SW_hybridscan_v2.log",
+     "verdict": "FAIL"
+    }
+   },
+   "docclass_line": "\\documentclass[preprint,12pt]{elsarticle}"
+  },
+  {
+   "id": "1011.5681",
+   "band": "b",
+   "yymm": "2010-11",
+   "tags": [
+    "no-hyperref"
+   ],
+   "n_files": 2,
+   "tex_files": 2,
+   "main": "AMO08.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 2,
+     "seconds": 0.42751026153564453,
+     "exit": 0,
+     "pdf": true,
+     "pdf_bytes": 209337,
+     "n_errors": 0,
+     "n_bang": 0,
+     "n_fileline": 0,
+     "first_error": null,
+     "error_ctx": "",
+     "category": "clean",
+     "payload": null,
+     "warn": {},
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/1011.5681/baseline/AMO08.log",
+     "verdict": "clean"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 0.304919958114624,
+     "retried": false,
+     "exit": 0,
+     "pdf": true,
+     "pdf_bytes": 212511,
+     "n_errors": 0,
+     "n_bang": 0,
+     "n_fileline": 0,
+     "first_error": null,
+     "error_ctx": "",
+     "category": "clean",
+     "payload": null,
+     "warn": {
+      "invalid_utf8": 0,
+      "missing_char": 0,
+      "ufffd": 0,
+      "file_not_found": 0,
+      "missing_graphic": 0,
+      "emergency_stop": 0
+     },
+     "timed_out": false,
+     "stderr_tail": "warning: AMO08.tex:903: Overfull \\hbox (5.84471pt too wide) in paragraph at lines 898--903\nwarning: AMO08.tex:1291: Overfull \\hbox (7.53993pt too wide) in paragraph at lines 1281--1291\nwarning: AMO08.tex:1537: Overfull \\hbox (13.0425pt too wide) in paragraph at lines 1528--1537\nwarning: AMO08.tex:1594: Overfull \\hbox (12.04955pt too wide) in paragraph at lines 1590--1594\nwarning: AMO08.tex:2371: Overfull \\hbox (15.0418pt too wide) in paragraph at lines 2367--2371\nnote: Rerunning TeX because \"AMO08.aux\" changed ...\nwarning: AMO08.tex:903: Overfull \\hbox (5.84471pt too wide) in paragraph at lines 898--903\nwarning: AMO08.tex:2371: Overfull \\hbox (15.0418pt too wide) in paragraph at lines 2367--2371\nwarning: warnings were issued by the TeX engine; use --print and/or --keep-logs for details.\nno",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/1011.5681/baseline/_tect_out/AMO08.log",
+     "verdict": "clean"
+    }
+   },
+   "docclass_line": "\\documentclass{article}"
+  },
+  {
+   "id": "1206.0671",
+   "band": "c",
+   "yymm": "2012-06",
+   "tags": [
+    "non-utf8",
+    "no-hyperref"
+   ],
+   "n_files": 1,
+   "tex_files": 1,
+   "main": "1206.0671v3.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 1,
+     "seconds": 0.0697488784790039,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "n_bang": 1,
+     "n_fileline": 1,
+     "first_error": "! LaTeX Error: File `revtex4.cls' not found.",
+     "error_ctx": "! LaTeX Error: File `revtex4.cls' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: cls)\n\nEnter file name: \n./1206.0671v3.tex:2: Emergency stop.\n<read *> ",
+     "category": "missing_file",
+     "payload": "revtex4.cls",
+     "warn": {
+      "file_not_found": 1,
+      "emergency_stop": 1
+     },
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/1206.0671/baseline/1206.0671v3.log",
+     "verdict": "FAIL"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 0.46813297271728516,
+     "retried": false,
+     "exit": 0,
+     "pdf": true,
+     "pdf_bytes": 129184,
+     "n_errors": 0,
+     "n_bang": 0,
+     "n_fileline": 0,
+     "first_error": null,
+     "error_ctx": "",
+     "category": "clean",
+     "payload": null,
+     "warn": {
+      "invalid_utf8": 2,
+      "missing_char": 2,
+      "ufffd": 2,
+      "file_not_found": 0,
+      "missing_graphic": 0,
+      "emergency_stop": 0
+     },
+     "timed_out": false,
+     "stderr_tail": "warning: 1206.0671v3.tex:623: Invalid UTF-8 byte or sequence at line 623 replaced by U+FFFD.\nwarning: 1206.0671v3.tex:623: \nMissing character: There is no ��� (U+FFFD) in font [lmroman9-regular]:mapping=tex-text;!\nwarning: could not represent character \"�\" (0xfffd) in font \"[lmroman9-regular]:mapping=tex-text;\"\nwarning:   you may need to load the `fontspec` package and use (e.g.) \\setmainfont to\nwarning:   choose a different font that covers the unrepresentable character(s)\nwarning: 1206.0671v3.tex:623: Missing character: There is no ��� (U+FFFD) in font [lmroman9-regular]:mapping=tex-text;!\nwarning: could not represent character \"�\" (0xfffd) in font \"[lmroman9-regular]:mapping=tex-text;\"\nwarning: 1206.0671v3.tex:873: Underfull \\hbox (badness 1783) in paragraph at lines 866--873\nwarning: w",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/1206.0671/baseline/_tect_out/1206.0671v3.log",
+     "verdict": "pdf~"
+    }
+   },
+   "docclass_line": "\\documentclass[aps,twocolumn,showpacs]{revtex4}"
+  },
+  {
+   "id": "1404.7186",
+   "band": "c",
+   "yymm": "2014-04",
+   "tags": [],
+   "n_files": 16,
+   "tex_files": 1,
+   "main": "Theta3_CGTA.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 1,
+     "seconds": 0.0697019100189209,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "n_bang": 1,
+     "n_fileline": 1,
+     "first_error": "! LaTeX Error: File `fullpage.sty' not found.",
+     "error_ctx": "! LaTeX Error: File `fullpage.sty' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: sty)\n\nEnter file name: \n./Theta3_CGTA.tex:3: Emergency stop.\n<read *> ",
+     "category": "missing_file",
+     "payload": "fullpage.sty",
+     "warn": {
+      "file_not_found": 1,
+      "emergency_stop": 1
+     },
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/1404.7186/baseline/Theta3_CGTA.log",
+     "verdict": "FAIL"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 0.6031408309936523,
+     "retried": false,
+     "exit": 0,
+     "pdf": true,
+     "pdf_bytes": 329122,
+     "n_errors": 0,
+     "n_bang": 0,
+     "n_fileline": 0,
+     "first_error": null,
+     "error_ctx": "",
+     "category": "clean",
+     "payload": null,
+     "warn": {
+      "invalid_utf8": 0,
+      "missing_char": 0,
+      "ufffd": 0,
+      "file_not_found": 0,
+      "missing_graphic": 0,
+      "emergency_stop": 0
+     },
+     "timed_out": false,
+     "stderr_tail": "warning: Object @figure.4 already defined.\nwarning: Object @figure.5 already defined.\nwarning: Object @figure.6 already defined.\nwarning: Object @figure.7 already defined.\nwarning: Object @figure.8 already defined.\nwarning: Object @figure.9 already defined.\nwarning: Object @figure.10 already defined.\nwarning: Object @figure.11 already defined.\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/1404.7186/baseline/_tect_out/Theta3_CGTA.out` (954 B)\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/1404.7186/baseline/_tect_out/Theta3_CGTA.pdf` (321.408203125 KiB)\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/1404.7186/baseline/_tect_out/Theta3_CGTA.log` (30.7666015625 KiB)\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/1404.7186/baseline/_tect_out/Theta3_CGTA.log",
+     "verdict": "clean"
+    }
+   },
+   "docclass_line": "\\documentclass[letterpaper,11pt]{article}"
+  },
+  {
+   "id": "1406.1994",
+   "band": "c",
+   "yymm": "2014-06",
+   "tags": [
+    "non-utf8"
+   ],
+   "n_files": 9,
+   "tex_files": 1,
+   "main": "finalv5.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 1,
+     "seconds": 0.09636998176574707,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "n_bang": 1,
+     "n_fileline": 1,
+     "first_error": "! LaTeX Error: File `subfigure.sty' not found.",
+     "error_ctx": "! LaTeX Error: File `subfigure.sty' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: sty)\n\nEnter file name: \n./finalv5.tex:14: Emergency stop.\n<read *> ",
+     "category": "missing_file",
+     "payload": "subfigure.sty",
+     "warn": {
+      "file_not_found": 1,
+      "emergency_stop": 1
+     },
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/1406.1994/baseline/finalv5.log",
+     "verdict": "FAIL"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 0.5906529426574707,
+     "retried": false,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 0,
+     "n_bang": 0,
+     "n_fileline": 0,
+     "first_error": "! something bad happened inside xdvipdfmx; its output follows:",
+     "error_ctx": "",
+     "category": "ps_image",
+     "payload": null,
+     "warn": {
+      "invalid_utf8": 0,
+      "missing_char": 4,
+      "ufffd": 4,
+      "file_not_found": 0,
+      "missing_graphic": 0,
+      "emergency_stop": 0
+     },
+     "timed_out": false,
+     "stderr_tail": "warning: finalv5.tex:997: Underfull \\hbox (badness 1584) in paragraph at lines 994--997\nwarning: finalv5.tex:1003: Underfull \\hbox (badness 1163) in paragraph at lines 999--1003\nwarning: warnings were issued by the TeX engine; use --print and/or --keep-logs for details.\nnote: Running xdvipdfmx ...\nwarning: sorry, PostScript images are not supported by Tectonic\nwarning: for details, please see https://github.com/tectonic-typesetting/tectonic/issues/27\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/1406.1994/baseline/_tect_out/finalv5.log` (13.314453125 KiB)\nerror: something bad happened inside xdvipdfmx; its output follows:\n\n===============================================================================\n\n==================================================================",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/1406.1994/baseline/_tect_out/finalv5.log",
+     "verdict": "FAIL"
+    }
+   },
+   "docclass_line": "\\documentclass[12pt]{article}"
+  },
+  {
+   "id": "1503.02052",
+   "band": "c",
+   "yymm": "2015-03",
+   "tags": [
+    "xelatex",
+    "no-hyperref"
+   ],
+   "n_files": 4,
+   "tex_files": 1,
+   "main": "ms.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 1,
+     "seconds": 0.06966090202331543,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "n_bang": 1,
+     "n_fileline": 1,
+     "first_error": "! LaTeX Error: File `emulateapj.cls' not found.",
+     "error_ctx": "! LaTeX Error: File `emulateapj.cls' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: cls)\n\nEnter file name: \n./ms.tex:13: Emergency stop.\n<read *> ",
+     "category": "missing_file",
+     "payload": "emulateapj.cls",
+     "warn": {
+      "file_not_found": 1,
+      "emergency_stop": 1
+     },
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/1503.02052/baseline/ms.log",
+     "verdict": "FAIL"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 0.5108139514923096,
+     "retried": false,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 0,
+     "n_bang": 0,
+     "n_fileline": 0,
+     "first_error": "! something bad happened inside xdvipdfmx; its output follows:",
+     "error_ctx": "",
+     "category": "ps_image",
+     "payload": null,
+     "warn": {
+      "invalid_utf8": 0,
+      "missing_char": 0,
+      "ufffd": 0,
+      "file_not_found": 0,
+      "missing_graphic": 0,
+      "emergency_stop": 0
+     },
+     "timed_out": false,
+     "stderr_tail": "warning: ms.tex:780: Underfull \\hbox (badness 2635) in paragraph at lines 779--780\nwarning: warnings were issued by the TeX engine; use --print and/or --keep-logs for details.\nnote: Running xdvipdfmx ...\nwarning: sorry, PostScript images are not supported by Tectonic\nwarning: for details, please see https://github.com/tectonic-typesetting/tectonic/issues/27\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/1503.02052/baseline/_tect_out/ms.blg` (901 B)\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/1503.02052/baseline/_tect_out/ms.log` (10.0908203125 KiB)\nerror: something bad happened inside xdvipdfmx; its output follows:\n\n===============================================================================\n\n==================================================",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/1503.02052/baseline/_tect_out/ms.log",
+     "verdict": "FAIL"
+    }
+   },
+   "docclass_line": "%\\documentclass[iop,apjl]{emulateapj}"
+  },
+  {
+   "id": "1505.00491",
+   "band": "c",
+   "yymm": "2015-05",
+   "tags": [
+    "xelatex",
+    "no-hyperref"
+   ],
+   "n_files": 7,
+   "tex_files": 1,
+   "main": "HPNP2015_ejchun.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 1,
+     "seconds": 0.13917207717895508,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "n_bang": 1,
+     "n_fileline": 1,
+     "first_error": "! LaTeX Error: File `revtex4.cls' not found.",
+     "error_ctx": "! LaTeX Error: File `revtex4.cls' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: cls)\n\nEnter file name: \n./HPNP2015_ejchun.tex:5: Emergency stop.\n<read *> ",
+     "category": "missing_file",
+     "payload": "revtex4.cls",
+     "warn": {
+      "file_not_found": 1,
+      "emergency_stop": 1
+     },
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/1505.00491/baseline/HPNP2015_ejchun.log",
+     "verdict": "FAIL"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 0.5948121547698975,
+     "retried": false,
+     "exit": 0,
+     "pdf": true,
+     "pdf_bytes": 226925,
+     "n_errors": 12,
+     "n_bang": 12,
+     "n_fileline": 0,
+     "first_error": "! Argument of \\@gobble has an extra }.",
+     "error_ctx": "! Argument of \\@gobble has an extra }.\n<inserted text> \n                \\par \nl.85 \\maketitle\n               \nI've run across a `}' that doesn't seem to match anything.\nFor example, `\\def\\a#1{...}' and `\\a}' would produce\nthis error. If you simply proceed now, the `\\par' that",
+     "category": "syntax",
+     "payload": null,
+     "warn": {
+      "invalid_utf8": 0,
+      "missing_char": 0,
+      "ufffd": 0,
+      "file_not_found": 0,
+      "missing_graphic": 0,
+      "emergency_stop": 0
+     },
+     "timed_out": false,
+     "stderr_tail": "error: HPNP2015_ejchun.tex:85: Paragraph ended before \\@gobble was complete\nerror: HPNP2015_ejchun.tex:85: Argument of \\@gobble has an extra }\nerror: HPNP2015_ejchun.tex:85: Paragraph ended before \\@gobble was complete\nerror: HPNP2015_ejchun.tex:85: Argument of \\@gobble has an extra }\nerror: HPNP2015_ejchun.tex:85: Paragraph ended before \\@gobble was complete\nerror: HPNP2015_ejchun.tex:85: Argument of \\@gobble has an extra }\nerror: HPNP2015_ejchun.tex:85: Paragraph ended before \\@gobble was complete\nerror: HPNP2015_ejchun.tex:85: Argument of \\@gobble has an extra }\nerror: HPNP2015_ejchun.tex:85: Paragraph ended before \\@gobble was complete\nwarning: errors were issued by the TeX engine, but were ignored; use --print and/or --keep-logs for details.\nnote: Running xdvipdfmx ...\nnote: Writing `",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/1505.00491/baseline/_tect_out/HPNP2015_ejchun.log",
+     "verdict": "pdf~"
+    }
+   },
+   "docclass_line": "\\documentclass[a4paper]{revtex4}"
+  },
+  {
+   "id": "1607.00497",
+   "band": "c",
+   "yymm": "2016-07",
+   "tags": [
+    "no-hyperref"
+   ],
+   "n_files": 9,
+   "tex_files": 1,
+   "main": "_final_ePrint_ECU_identification.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 1,
+     "seconds": 0.06349802017211914,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "n_bang": 1,
+     "n_fileline": 1,
+     "first_error": "! LaTeX Error: File `IEEEtran.cls' not found.",
+     "error_ctx": "! LaTeX Error: File `IEEEtran.cls' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: cls)\n\nEnter file name: \n./_final_ePrint_ECU_identification.tex:2: Emergency stop.\n<read *> ",
+     "category": "missing_file",
+     "payload": "IEEEtran.cls",
+     "warn": {
+      "file_not_found": 1,
+      "emergency_stop": 1
+     },
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/1607.00497/baseline/_final_ePrint_ECU_identification.log",
+     "verdict": "FAIL"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 0.5781068801879883,
+     "retried": false,
+     "exit": 0,
+     "pdf": true,
+     "pdf_bytes": 1033383,
+     "n_errors": 1,
+     "n_bang": 1,
+     "n_fileline": 0,
+     "first_error": "! LaTeX Error: Something's wrong--perhaps a missing \\item.",
+     "error_ctx": "! LaTeX Error: Something's wrong--perhaps a missing \\item.\n\nSee the LaTeX manual or LaTeX Companion for explanation.\nType  H <return>  for immediate help.\n ...                                              \n                                                  \nl.24 \\end{thebibliography}\n                          ",
+     "category": "bib_error",
+     "payload": null,
+     "warn": {
+      "invalid_utf8": 0,
+      "missing_char": 0,
+      "ufffd": 0,
+      "file_not_found": 0,
+      "missing_graphic": 0,
+      "emergency_stop": 0
+     },
+     "timed_out": false,
+     "stderr_tail": "note: Running xdvipdfmx ...\nwarning: PDF file is tagged... Ignoring tags.\nwarning: PDF file is tagged... Ignoring tags.\nwarning: PDF file is tagged... Ignoring tags.\nwarning: PDF file is tagged... Ignoring tags.\nwarning: PDF file is tagged... Ignoring tags.\nwarning: Trying to include PDF file with version (1.6), which is newer than current output PDF setting (1.5).\nwarning: PDF file is tagged... Ignoring tags.\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/1607.00497/baseline/_tect_out/_final_ePrint_ECU_identification.bbl` (879 B)\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/1607.00497/baseline/_tect_out/_final_ePrint_ECU_identification.pdf` (1009.1630859375 KiB)\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/1607.00497/basel",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/1607.00497/baseline/_tect_out/_final_ePrint_ECU_identification.log",
+     "verdict": "clean"
+    }
+   },
+   "docclass_line": "\\documentclass[journal,twocolumn]{IEEEtran}"
+  },
+  {
+   "id": "1608.04155",
+   "band": "c",
+   "yymm": "2016-08",
+   "tags": [
+    "xelatex",
+    "no-hyperref"
+   ],
+   "n_files": 7,
+   "tex_files": 1,
+   "main": "Cascade.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 1,
+     "seconds": 0.10810708999633789,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "n_bang": 1,
+     "n_fileline": 1,
+     "first_error": "! LaTeX Error: File `overpic.sty' not found.",
+     "error_ctx": "! LaTeX Error: File `overpic.sty' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: sty)\n\nEnter file name: \n./Cascade.tex:38: Emergency stop.\n<read *> ",
+     "category": "missing_file",
+     "payload": "overpic.sty",
+     "warn": {
+      "file_not_found": 1,
+      "emergency_stop": 1
+     },
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/1608.04155/baseline/Cascade.log",
+     "verdict": "FAIL"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 0.6503288745880127,
+     "retried": false,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 7,
+     "n_bang": 7,
+     "n_fileline": 0,
+     "first_error": "! LaTeX Error: File `example2c.eps' not found.",
+     "error_ctx": "! LaTeX Error: File `example2c.eps' not found.\n\nSee the LaTeX manual or LaTeX Companion for explanation.\nType  H <return>  for immediate help.\n ...                                              \n                                                  \nl.932 ...m 0mm 0mm,clip,scale=0.41]{example2c.eps}\n                                                  ",
+     "category": "missing_file",
+     "payload": "example2c.eps",
+     "warn": {
+      "invalid_utf8": 1,
+      "missing_char": 0,
+      "ufffd": 0,
+      "file_not_found": 6,
+      "missing_graphic": 9,
+      "emergency_stop": 0
+     },
+     "timed_out": false,
+     "stderr_tail": "error: Cascade.bbl:3: LaTeX Error: Something's wrong--perhaps a missing \\item.\n\nSee the LaTeX manual or LaTeX Companion for explanation.\nType  H <return>  for immediate help\nwarning: errors were issued by the TeX engine, but were ignored; use --print and/or --keep-logs for details.\nnote: Running xdvipdfmx ...\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/1608.04155/baseline/_tect_out/Cascade.log` (32.1318359375 KiB)\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/1608.04155/baseline/_tect_out/Cascade.blg` (1.3984375 KiB)\nerror: something bad happened inside xdvipdfmx; its output follows:\n\n===============================================================================\n[5===============================================================================\n",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/1608.04155/baseline/_tect_out/Cascade.log",
+     "verdict": "FAIL"
+    }
+   },
+   "docclass_line": "\\documentclass[letterpaper, 10 pt, conference]{ieeeconf}  % Comment"
+  },
+  {
+   "id": "1609.01652",
+   "band": "c",
+   "yymm": "2016-09",
+   "tags": [],
+   "n_files": 2,
+   "tex_files": 1,
+   "main": "xor_entanglement.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 1,
+     "seconds": 0.06646203994750977,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "n_bang": 1,
+     "n_fileline": 1,
+     "first_error": "! LaTeX Error: File `fullpage.sty' not found.",
+     "error_ctx": "! LaTeX Error: File `fullpage.sty' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: sty)\n\nEnter file name: \n./xor_entanglement.tex:4: Emergency stop.\n<read *> ",
+     "category": "missing_file",
+     "payload": "fullpage.sty",
+     "warn": {
+      "file_not_found": 1,
+      "emergency_stop": 1
+     },
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/1609.01652/baseline/xor_entanglement.log",
+     "verdict": "FAIL"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 0.7449178695678711,
+     "retried": false,
+     "exit": 0,
+     "pdf": true,
+     "pdf_bytes": 126664,
+     "n_errors": 0,
+     "n_bang": 0,
+     "n_fileline": 0,
+     "first_error": null,
+     "error_ctx": "",
+     "category": "clean",
+     "payload": null,
+     "warn": {
+      "invalid_utf8": 4,
+      "missing_char": 0,
+      "ufffd": 0,
+      "file_not_found": 0,
+      "missing_graphic": 0,
+      "emergency_stop": 0
+     },
+     "timed_out": false,
+     "stderr_tail": "warning: endnotes.sty:118: \nInvalid UTF-8 byte or sequence at line 118 replaced by U+FFFD.\nwarning: endnotes.sty:118: Invalid UTF-8 byte or sequence at line 118 replaced by U+FFFD.\nwarning: endnotes.sty:121: Invalid UTF-8 byte or sequence at line 121 replaced by U+FFFD.\nwarning: endnotes.sty:121: Invalid UTF-8 byte or sequence at line 121 replaced by U+FFFD.\nwarning: xor_entanglement.tex:266: Overfull \\hbox (31.20929pt too wide) detected at line 266\nwarning: warnings were issued by the TeX engine; use --print and/or --keep-logs for details.\nnote: Running xdvipdfmx ...\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/1609.01652/baseline/_tect_out/xor_entanglement.bbl` (49 B)\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/1609.01652/baseline/_tect_out/",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/1609.01652/baseline/_tect_out/xor_entanglement.log",
+     "verdict": "pdf~"
+    }
+   },
+   "docclass_line": "\\documentclass[11pt]{article}"
+  },
+  {
+   "id": "1801.06287",
+   "band": "d",
+   "yymm": "2018-01",
+   "tags": [
+    "no-hyperref"
+   ],
+   "n_files": 4,
+   "tex_files": 1,
+   "main": "paper.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 1,
+     "seconds": 0.06619882583618164,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "n_bang": 1,
+     "n_fileline": 1,
+     "first_error": "! LaTeX Error: File `IEEEtran.cls' not found.",
+     "error_ctx": "! LaTeX Error: File `IEEEtran.cls' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: cls)\n\nEnter file name: \n./paper.tex:2: Emergency stop.\n<read *> ",
+     "category": "missing_file",
+     "payload": "IEEEtran.cls",
+     "warn": {
+      "file_not_found": 1,
+      "emergency_stop": 1
+     },
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/1801.06287/baseline/paper.log",
+     "verdict": "FAIL"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 0.1309046745300293,
+     "retried": false,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 74,
+     "n_bang": 74,
+     "n_fileline": 0,
+     "first_error": "! Undefined control sequence.",
+     "error_ctx": "! Undefined control sequence.\n<argument> \\ifnum \\pdfshellescape \n                                  >0 \\edef \\Gin@extensions {\\Gin@extensions ...\nl.12 \\begin{document}\n                     \nThe control sequence at the end of the top line\nof your error message was never \\def'ed. If you have\nmisspelled it (e.g., `\\hobx'), type `I' and the correct",
+     "category": "pdftex_prim",
+     "payload": "pdfshellescape",
+     "warn": {
+      "invalid_utf8": 0,
+      "missing_char": 0,
+      "ufffd": 0,
+      "file_not_found": 0,
+      "missing_graphic": 0,
+      "emergency_stop": 1
+     },
+     "timed_out": false,
+     "stderr_tail": "                    [htbp]\n)\n! Incomplete \\iffalse; all text was ignored after line 198.\n<inserted text> \n                \\fi \n<*> \n    \n! Emergency stop\n*** (job aborted, no legal \\end found)\nOutput written on paper.xdv (1 page, 37504 bytes).\nTranscript written on paper.log.\n===============================================================================\nerror: the XeTeX engine had an unrecoverable error\ncaused by: *** (job aborted, no legal \\end found)",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/1801.06287/baseline/_tect_out/paper.log",
+     "verdict": "FAIL"
+    }
+   },
+   "docclass_line": "\\documentclass[conference]{IEEEtran}"
+  },
+  {
+   "id": "1806.06690",
+   "band": "d",
+   "yymm": "2018-06",
+   "tags": [
+    "xelatex",
+    "no-hyperref"
+   ],
+   "n_files": 15,
+   "tex_files": 1,
+   "main": "ms.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 1,
+     "seconds": 0.06452775001525879,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "n_bang": 1,
+     "n_fileline": 1,
+     "first_error": "! LaTeX Error: File `aastex.cls' not found.",
+     "error_ctx": "! LaTeX Error: File `aastex.cls' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: cls)\n\nEnter file name: \n./ms.tex:7: Emergency stop.\n<read *> ",
+     "category": "missing_file",
+     "payload": "aastex.cls",
+     "warn": {
+      "file_not_found": 1,
+      "emergency_stop": 1
+     },
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/1806.06690/baseline/ms.log",
+     "verdict": "FAIL"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 0.32608890533447266,
+     "retried": false,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "n_bang": 2,
+     "n_fileline": 0,
+     "first_error": "! Undefined control sequence.",
+     "error_ctx": "! Undefined control sequence.\nl.585 .......41..257P} Paczynski, B.\\ 1991, \\actaa\n                                                  , 41, 257\nThe control sequence at the end of the top line\nof your error message was never \\def'ed. If you have\nmisspelled it (e.g., `\\hobx'), type `I' and the correct\nspelling (e.g., `I\\hbox'). Otherwise just continue,\nand I'll forget about whatever was undefined.",
+     "category": "undefined_cs",
+     "payload": null,
+     "warn": {
+      "invalid_utf8": 0,
+      "missing_char": 0,
+      "ufffd": 0,
+      "file_not_found": 0,
+      "missing_graphic": 0,
+      "emergency_stop": 0
+     },
+     "timed_out": false,
+     "stderr_tail": "warning: ms.tex:1052: Overfull \\vbox (299.78072pt too high) detected at line 1052\n\nwarning: errors were issued by the TeX engine, but were ignored; use --print and/or --keep-logs for details.\nnote: Running xdvipdfmx ...\nwarning: sorry, PostScript images are not supported by Tectonic\nwarning: for details, please see https://github.com/tectonic-typesetting/tectonic/issues/27\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/1806.06690/baseline/_tect_out/ms.log` (9.2509765625 KiB)\nerror: something bad happened inside xdvipdfmx; its output follows:\n\n===============================================================================\n\n===============================================================================\nerror: the xdvipdfmx engine had an unrecoverable error\ncaused by: pdf",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/1806.06690/baseline/_tect_out/ms.log",
+     "verdict": "FAIL"
+    }
+   },
+   "docclass_line": "%\\documentclass{emulateapj}"
+  },
+  {
+   "id": "1902.11112",
+   "band": "d",
+   "yymm": "2019-02",
+   "tags": [
+    "xelatex",
+    "no-hyperref"
+   ],
+   "n_files": 7,
+   "tex_files": 1,
+   "main": "ProcSumProg_Template_2018.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 1,
+     "seconds": 0.11847710609436035,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "n_bang": 1,
+     "n_fileline": 1,
+     "first_error": "! LaTeX Error: File `dashrule.sty' not found.",
+     "error_ctx": "! LaTeX Error: File `dashrule.sty' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: sty)\n\nEnter file name: \n./ProcSumProg_Template_2018.tex:25: Emergency stop.\n<read *> ",
+     "category": "missing_file",
+     "payload": "dashrule.sty",
+     "warn": {
+      "file_not_found": 1,
+      "emergency_stop": 1
+     },
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/1902.11112/baseline/ProcSumProg_Template_2018.log",
+     "verdict": "FAIL"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 0.465407133102417,
+     "retried": false,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 0,
+     "n_bang": 0,
+     "n_fileline": 0,
+     "first_error": "! something bad happened inside xdvipdfmx; its output follows:",
+     "error_ctx": "",
+     "category": "ps_image",
+     "payload": null,
+     "warn": {
+      "invalid_utf8": 0,
+      "missing_char": 0,
+      "ufffd": 0,
+      "file_not_found": 0,
+      "missing_graphic": 0,
+      "emergency_stop": 0
+     },
+     "timed_out": false,
+     "stderr_tail": "warning: ProcSumProg_Template_2018.tex:341: Underfull \\vbox (badness 1127) has occurred while \\output is active\nwarning: ProcSumProg_Template_2018.tex:562: Underfull \\vbox (badness 10000) has occurred while \\output is active\nwarning: warnings were issued by the TeX engine; use --print and/or --keep-logs for details.\nnote: Running xdvipdfmx ...\nwarning: sorry, PostScript images are not supported by Tectonic\nwarning: for details, please see https://github.com/tectonic-typesetting/tectonic/issues/27\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/1902.11112/baseline/_tect_out/ProcSumProg_Template_2018.log` (8.6875 KiB)\nerror: something bad happened inside xdvipdfmx; its output follows:\n\n===============================================================================\n\n======",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/1902.11112/baseline/_tect_out/ProcSumProg_Template_2018.log",
+     "verdict": "FAIL"
+    }
+   },
+   "docclass_line": "\\documentclass{ctr_summer}"
+  },
+  {
+   "id": "1905.07704",
+   "band": "d",
+   "yymm": "2019-05",
+   "tags": [
+    "no-hyperref"
+   ],
+   "n_files": 1,
+   "tex_files": 1,
+   "main": "1905.07704v4.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 2,
+     "seconds": 0.3871142864227295,
+     "exit": 0,
+     "pdf": true,
+     "pdf_bytes": 139468,
+     "n_errors": 0,
+     "n_bang": 0,
+     "n_fileline": 0,
+     "first_error": null,
+     "error_ctx": "",
+     "category": "clean",
+     "payload": null,
+     "warn": {},
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/1905.07704/baseline/1905.07704v4.log",
+     "verdict": "clean"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 0.3379857540130615,
+     "retried": false,
+     "exit": 0,
+     "pdf": true,
+     "pdf_bytes": 142442,
+     "n_errors": 0,
+     "n_bang": 0,
+     "n_fileline": 0,
+     "first_error": null,
+     "error_ctx": "",
+     "category": "clean",
+     "payload": null,
+     "warn": {
+      "invalid_utf8": 0,
+      "missing_char": 0,
+      "ufffd": 0,
+      "file_not_found": 0,
+      "missing_graphic": 0,
+      "emergency_stop": 0
+     },
+     "timed_out": false,
+     "stderr_tail": "note: Running TeX ...\nnote: Rerunning TeX because \"1905.07704v4.aux\" changed ...\nnote: Rerunning TeX because \"1905.07704v4.aux\" changed ...\nnote: Running xdvipdfmx ...\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/1905.07704/baseline/_tect_out/1905.07704v4.pdf` (139.103515625 KiB)\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/1905.07704/baseline/_tect_out/1905.07704v4.aux` (2.73046875 KiB)\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/1905.07704/baseline/_tect_out/1905.07704v4.log` (4.9521484375 KiB)",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/1905.07704/baseline/_tect_out/1905.07704v4.log",
+     "verdict": "clean"
+    }
+   },
+   "docclass_line": "\\documentclass[11pt,a4paper,twoside]{article}"
+  },
+  {
+   "id": "1909.05039",
+   "band": "d",
+   "yymm": "2019-09",
+   "tags": [],
+   "n_files": 15,
+   "tex_files": 1,
+   "main": "IZWI_xmm2015_rev1.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 1,
+     "seconds": 0.06501913070678711,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "n_bang": 1,
+     "n_fileline": 1,
+     "first_error": "! LaTeX Error: File `emulateapj.cls' not found.",
+     "error_ctx": "! LaTeX Error: File `emulateapj.cls' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: cls)\n\nEnter file name: \n./IZWI_xmm2015_rev1.tex:23: Emergency stop.\n<read *> ",
+     "category": "missing_file",
+     "payload": "emulateapj.cls",
+     "warn": {
+      "file_not_found": 1,
+      "emergency_stop": 1
+     },
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/1909.05039/baseline/IZWI_xmm2015_rev1.log",
+     "verdict": "FAIL"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 0.8772990703582764,
+     "retried": false,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 1,
+     "n_bang": 1,
+     "n_fileline": 0,
+     "first_error": "! Undefined control sequence.",
+     "error_ctx": "! Undefined control sequence.\n\\__hook shipout/firstpage ...geHook \\headerps@out \n                                                  {/burl@stx null def /BU.S ...\nl.196 \n      \nThe control sequence at the end of the top line\nof your error message was never \\def'ed. If you have\nmisspelled it (e.g., `\\hobx'), type `I' and the correct",
+     "category": "undefined_cs",
+     "payload": null,
+     "warn": {
+      "invalid_utf8": 0,
+      "missing_char": 0,
+      "ufffd": 0,
+      "file_not_found": 0,
+      "missing_graphic": 0,
+      "emergency_stop": 0
+     },
+     "timed_out": false,
+     "stderr_tail": "warning: IZWI_xmm2015_rev1.tex:897: Overfull \\hbox (2.27235pt too wide) in paragraph at lines 896--897\nwarning: errors were issued by the TeX engine, but were ignored; use --print and/or --keep-logs for details.\nnote: Running xdvipdfmx ...\nwarning: sorry, PostScript images are not supported by Tectonic\nwarning: for details, please see https://github.com/tectonic-typesetting/tectonic/issues/27\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/1909.05039/baseline/_tect_out/IZWI_xmm2015_rev1.blg` (5.71875 KiB)\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/1909.05039/baseline/_tect_out/IZWI_xmm2015_rev1.log` (21.931640625 KiB)\nerror: something bad happened inside xdvipdfmx; its output follows:\n\n============================================================",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/1909.05039/baseline/_tect_out/IZWI_xmm2015_rev1.log",
+     "verdict": "FAIL"
+    }
+   },
+   "docclass_line": "%% is the \\documentclass command. LaTeX will ignore"
+  },
+  {
+   "id": "1910.12800",
+   "band": "d",
+   "yymm": "2019-10",
+   "tags": [],
+   "n_files": 22,
+   "tex_files": 6,
+   "main": "geophysics_endfloat.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 1,
+     "seconds": 0.0865027904510498,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "n_bang": 1,
+     "n_fileline": 1,
+     "first_error": "! LaTeX Error: File `moreverb.sty' not found.",
+     "error_ctx": "! LaTeX Error: File `moreverb.sty' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: sty)\n\nEnter file name: \n./seg.sty:59: Emergency stop.\n<read *> ",
+     "category": "missing_file",
+     "payload": "moreverb.sty",
+     "warn": {
+      "file_not_found": 1,
+      "emergency_stop": 1
+     },
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/1910.12800/baseline/geophysics_endfloat.log",
+     "verdict": "FAIL"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 0.9772179126739502,
+     "retried": false,
+     "exit": 0,
+     "pdf": true,
+     "pdf_bytes": 5804798,
+     "n_errors": 0,
+     "n_bang": 0,
+     "n_fileline": 0,
+     "first_error": null,
+     "error_ctx": "",
+     "category": "clean",
+     "payload": null,
+     "warn": {
+      "invalid_utf8": 5,
+      "missing_char": 0,
+      "ufffd": 0,
+      "file_not_found": 0,
+      "missing_graphic": 0,
+      "emergency_stop": 0
+     },
+     "timed_out": false,
+     "stderr_tail": "warning: JPEG: Inconsistent resolution may have been specified in Exif and JFIF: 300x300 - 72x72\nwarning: JPEG: Inconsistent resolution may have been specified in Exif and JFIF: 300x300 - 72x72\nwarning: JPEG: Inconsistent resolution may have been specified in Exif and JFIF: 300x300 - 72x72\nwarning: JPEG: Inconsistent resolution may have been specified in Exif and JFIF: 300x300 - 72x72\nwarning: JPEG: Inconsistent resolution may have been specified in Exif and JFIF: 300x300 - 72x72\nwarning: JPEG: Inconsistent resolution may have been specified in Exif and JFIF: 300x300 - 72x72\nwarning: JPEG: Inconsistent resolution may have been specified in Exif and JFIF: 300x300 - 72x72\nwarning: JPEG: Inconsistent resolution may have been specified in Exif and JFIF: 300x300 - 72x72\nnote: Writing `/Users/fa",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/1910.12800/baseline/_tect_out/geophysics_endfloat.log",
+     "verdict": "pdf~"
+    }
+   },
+   "docclass_line": "%\\documentclass[paper]{geophysics}"
+  },
+  {
+   "id": "2002.05660",
+   "band": "d",
+   "yymm": "2020-02",
+   "tags": [],
+   "n_files": 13,
+   "tex_files": 1,
+   "main": "main.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 1,
+     "seconds": 0.1312730312347412,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "n_bang": 1,
+     "n_fileline": 1,
+     "first_error": "! LaTeX Error: File `algorithm2e.sty' not found.",
+     "error_ctx": "! LaTeX Error: File `algorithm2e.sty' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: sty)\n\nEnter file name: \n./jmlr.cls:152: Emergency stop.\n<read *> ",
+     "category": "missing_file",
+     "payload": "algorithm2e.sty",
+     "warn": {
+      "file_not_found": 1,
+      "emergency_stop": 1
+     },
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/2002.05660/baseline/main.log",
+     "verdict": "FAIL"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 0.2703378200531006,
+     "retried": false,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 18,
+     "n_bang": 18,
+     "n_fileline": 0,
+     "first_error": "! Paragraph ended before \\@tempa was complete.",
+     "error_ctx": "! Paragraph ended before \\@tempa was complete.\n<to be read again> \n                   \\par \nl.514 \n      \nI suspect you've forgotten a `}', causing me to apply this\ncontrol sequence to too much text. How can we recover?\nMy plan is to forget the whole thing and hope for the best.",
+     "category": "syntax",
+     "payload": null,
+     "warn": {
+      "invalid_utf8": 4,
+      "missing_char": 0,
+      "ufffd": 0,
+      "file_not_found": 1,
+      "missing_graphic": 1,
+      "emergency_stop": 1
+     },
+     "timed_out": false,
+     "stderr_tail": "See the LaTeX manual or LaTeX Companion for explanation.\nType  H <return>  for immediate help.\n ...                                              \n                                                  \nl.890 \\end{document}\n                    \n)\n! Emergency stop\n*** (job aborted, no legal \\end found)\nOutput written on main.xdv (9 pages, 263400 bytes).\nTranscript written on main.log.\n===============================================================================\nerror: the XeTeX engine had an unrecoverable error\ncaused by: *** (job aborted, no legal \\end found)",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/2002.05660/baseline/_tect_out/main.log",
+     "verdict": "FAIL"
+    }
+   },
+   "docclass_line": "\\documentclass[anon]{colt2020} % Include author names"
+  },
+  {
+   "id": "2007.02320",
+   "band": "d",
+   "yymm": "2020-07",
+   "tags": [
+    "no-hyperref"
+   ],
+   "n_files": 12,
+   "tex_files": 1,
+   "main": "arXiv_revtex_style.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 1,
+     "seconds": 0.06348395347595215,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "n_bang": 1,
+     "n_fileline": 1,
+     "first_error": "! LaTeX Error: File `revtex4.cls' not found.",
+     "error_ctx": "! LaTeX Error: File `revtex4.cls' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: cls)\n\nEnter file name: \n./arXiv_revtex_style.tex:3: Emergency stop.\n<read *> ",
+     "category": "missing_file",
+     "payload": "revtex4.cls",
+     "warn": {
+      "file_not_found": 1,
+      "emergency_stop": 1
+     },
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/2007.02320/baseline/arXiv_revtex_style.log",
+     "verdict": "FAIL"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 0.534825325012207,
+     "retried": false,
+     "exit": 0,
+     "pdf": true,
+     "pdf_bytes": 363262,
+     "n_errors": 104,
+     "n_bang": 104,
+     "n_fileline": 0,
+     "first_error": "! Undefined control sequence.",
+     "error_ctx": "! Undefined control sequence.\n\\@makecol ...col@appendblocks \\ifvbox \\@kludgeins \n                                                  \\@makespecialcolbox \\else ...\nl.92 \\begin{equation}\n                     \nThe control sequence at the end of the top line\nof your error message was never \\def'ed. If you have\nmisspelled it (e.g., `\\hobx'), type `I' and the correct",
+     "category": "undefined_cs",
+     "payload": null,
+     "warn": {
+      "invalid_utf8": 0,
+      "missing_char": 0,
+      "ufffd": 0,
+      "file_not_found": 0,
+      "missing_graphic": 0,
+      "emergency_stop": 0
+     },
+     "timed_out": false,
+     "stderr_tail": "error: arXiv_revtex_style.tex:1599: Missing number, treated as zero\nerror: arXiv_revtex_style.tex:1599: Undefined control sequence\nerror: arXiv_revtex_style.tex:1599: Missing number, treated as zero\nerror: arXiv_revtex_style.tex:1683: Undefined control sequence\nerror: arXiv_revtex_style.tex:1683: Missing number, treated as zero\nerror: arXiv_revtex_style.tex:1683: Undefined control sequence\nerror: arXiv_revtex_style.tex:1683: Missing number, treated as zero\nerror: arXiv_revtex_style.tex:1683: Undefined control sequence\nerror: arXiv_revtex_style.tex:1683: Missing number, treated as zero\nwarning: errors were issued by the TeX engine, but were ignored; use --print and/or --keep-logs for details.\nnote: Running xdvipdfmx ...\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/200",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/2007.02320/baseline/_tect_out/arXiv_revtex_style.log",
+     "verdict": "pdf~"
+    }
+   },
+   "docclass_line": "\\documentclass[article,onecolumn]{revtex4}"
+  },
+  {
+   "id": "2104.00776",
+   "band": "e",
+   "yymm": "2021-04",
+   "tags": [
+    "no-hyperref"
+   ],
+   "n_files": 25,
+   "tex_files": 1,
+   "main": "root.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 1,
+     "seconds": 0.11112713813781738,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "n_bang": 1,
+     "n_fileline": 1,
+     "first_error": "! LaTeX Error: File `algorithm.sty' not found.",
+     "error_ctx": "! LaTeX Error: File `algorithm.sty' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: sty)\n\nEnter file name: \n./root.tex:38: Emergency stop.\n<read *> ",
+     "category": "missing_file",
+     "payload": "algorithm.sty",
+     "warn": {
+      "file_not_found": 1,
+      "emergency_stop": 1
+     },
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/2104.00776/baseline/root.log",
+     "verdict": "FAIL"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 0.8672618865966797,
+     "retried": false,
+     "exit": 0,
+     "pdf": true,
+     "pdf_bytes": 5900376,
+     "n_errors": 0,
+     "n_bang": 0,
+     "n_fileline": 0,
+     "first_error": null,
+     "error_ctx": "",
+     "category": "clean",
+     "payload": null,
+     "warn": {
+      "invalid_utf8": 1,
+      "missing_char": 0,
+      "ufffd": 0,
+      "file_not_found": 0,
+      "missing_graphic": 0,
+      "emergency_stop": 0
+     },
+     "timed_out": false,
+     "stderr_tail": "warning: PDF file is tagged... Ignoring tags.\nwarning: Trying to include PDF file with version (1.7), which is newer than current output PDF setting (1.5).\nwarning: Trying to include PDF file with version (1.7), which is newer than current output PDF setting (1.5).\nwarning: Trying to include PDF file with version (1.7), which is newer than current output PDF setting (1.5).\nwarning: Trying to include PDF file with version (1.7), which is newer than current output PDF setting (1.5).\nwarning: Trying to include PDF file with version (1.7), which is newer than current output PDF setting (1.5).\nwarning: Trying to include PDF file with version (1.7), which is newer than current output PDF setting (1.5).\nwarning: Trying to include PDF file with version (1.6), which is newer than current output PDF",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/2104.00776/baseline/_tect_out/root.log",
+     "verdict": "pdf~"
+    }
+   },
+   "docclass_line": "\\documentclass[letterpaper, 10 pt, conference]{ieeeconf}  % Comment this line out if you need a4paper"
+  },
+  {
+   "id": "2104.02882",
+   "band": "e",
+   "yymm": "2021-04",
+   "tags": [
+    "no-hyperref"
+   ],
+   "n_files": 8,
+   "tex_files": 1,
+   "main": "fsr2021.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 1,
+     "seconds": 0.10231399536132812,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "n_bang": 1,
+     "n_fileline": 1,
+     "first_error": "! LaTeX Error: File `diagbox.sty' not found.",
+     "error_ctx": "! LaTeX Error: File `diagbox.sty' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: sty)\n\nEnter file name: \n./fsr2021.tex:6: Emergency stop.\n<read *> ",
+     "category": "missing_file",
+     "payload": "diagbox.sty",
+     "warn": {
+      "file_not_found": 1,
+      "emergency_stop": 1
+     },
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/2104.02882/baseline/fsr2021.log",
+     "verdict": "FAIL"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 0.454909086227417,
+     "retried": false,
+     "exit": 0,
+     "pdf": true,
+     "pdf_bytes": 669488,
+     "n_errors": 1,
+     "n_bang": 1,
+     "n_fileline": 0,
+     "first_error": "! LaTeX Error: Something's wrong--perhaps a missing \\item.",
+     "error_ctx": "! LaTeX Error: Something's wrong--perhaps a missing \\item.\n\nSee the LaTeX manual or LaTeX Companion for explanation.\nType  H <return>  for immediate help.\n ...                                              \n                                                  \nl.24 \\end{thebibliography}\n                          ",
+     "category": "bib_error",
+     "payload": null,
+     "warn": {
+      "invalid_utf8": 2,
+      "missing_char": 0,
+      "ufffd": 0,
+      "file_not_found": 0,
+      "missing_graphic": 0,
+      "emergency_stop": 0
+     },
+     "timed_out": false,
+     "stderr_tail": "error: fsr2021.bbl:24: LaTeX Error: Something's wrong--perhaps a missing \\item.\n\nSee the LaTeX manual or LaTeX Companion for explanation.\nType  H <return>  for immediate help\nwarning: errors were issued by the TeX engine, but were ignored; use --print and/or --keep-logs for details.\nnote: Running xdvipdfmx ...\nwarning: Trying to include PDF file with version (1.7), which is newer than current output PDF setting (1.5).\nwarning: Trying to include PDF file with version (1.7), which is newer than current output PDF setting (1.5).\nwarning: JPEG: Inconsistent resolution may have been specified in Exif and JFIF: 0x0 - 100x100\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/2104.02882/baseline/_tect_out/fsr2021.bbl` (877 B)\nnote: Writing `/Users/fanghaotian/src/texlate/bench/wo",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/2104.02882/baseline/_tect_out/fsr2021.log",
+     "verdict": "pdf~"
+    }
+   },
+   "docclass_line": "\\documentclass[a4paper]{article}"
+  },
+  {
+   "id": "2109.12648",
+   "band": "e",
+   "yymm": "2021-09",
+   "tags": [],
+   "n_files": 21,
+   "tex_files": 2,
+   "main": "main.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 1,
+     "seconds": 0.06832003593444824,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "n_bang": 1,
+     "n_fileline": 1,
+     "first_error": "! LaTeX Error: File `revtex4-1.cls' not found.",
+     "error_ctx": "! LaTeX Error: File `revtex4-1.cls' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: cls)\n\nEnter file name: \n./main.tex:2: Emergency stop.\n<read *> ",
+     "category": "missing_file",
+     "payload": "revtex4-1.cls",
+     "warn": {
+      "file_not_found": 1,
+      "emergency_stop": 1
+     },
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/2109.12648/baseline/main.log",
+     "verdict": "FAIL"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 2.2118780612945557,
+     "retried": false,
+     "exit": 0,
+     "pdf": true,
+     "pdf_bytes": 1069443,
+     "n_errors": 0,
+     "n_bang": 0,
+     "n_fileline": 0,
+     "first_error": null,
+     "error_ctx": "",
+     "category": "clean",
+     "payload": null,
+     "warn": {
+      "invalid_utf8": 0,
+      "missing_char": 0,
+      "ufffd": 0,
+      "file_not_found": 0,
+      "missing_graphic": 0,
+      "emergency_stop": 0
+     },
+     "timed_out": false,
+     "stderr_tail": "warning: Object @figure.5 already defined.\nwarning: Object @figure.6 already defined.\nwarning: Object @figure.7 already defined.\nwarning: Object @figure.8 already defined.\nwarning: Object @figure.9 already defined.\nwarning: Object @figure.10 already defined.\nwarning: Object @figure.11 already defined.\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/2109.12648/baseline/_tect_out/main.log` (28.3935546875 KiB)\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/2109.12648/baseline/_tect_out/main.out` (5.837890625 KiB)\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/2109.12648/baseline/_tect_out/main.blg` (983 B)\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/2109.12648/baseline/_tect_out/mainNotes.bib` (822 B)\nnote: ",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/2109.12648/baseline/_tect_out/main.log",
+     "verdict": "clean"
+    }
+   },
+   "docclass_line": "\\documentclass[twocolumn,aps,prxquantum,reprint,showpacs,superscriptaddress,longbibliography]{revtex4-1}"
+  },
+  {
+   "id": "2110.10462",
+   "band": "e",
+   "yymm": "2021-10",
+   "tags": [],
+   "n_files": 12,
+   "tex_files": 1,
+   "main": "neutrino_ijmp_sub.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 1,
+     "seconds": 0.10688519477844238,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "n_bang": 1,
+     "n_fileline": 1,
+     "first_error": "! LaTeX Error: File `enumitem.sty' not found.",
+     "error_ctx": "! LaTeX Error: File `enumitem.sty' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: sty)\n\nEnter file name: \n./neutrino_ijmp_sub.tex:8: Emergency stop.\n<read *> ",
+     "category": "missing_file",
+     "payload": "enumitem.sty",
+     "warn": {
+      "file_not_found": 1,
+      "emergency_stop": 1
+     },
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/2110.10462/baseline/neutrino_ijmp_sub.log",
+     "verdict": "FAIL"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 0.5657408237457275,
+     "retried": false,
+     "exit": 0,
+     "pdf": true,
+     "pdf_bytes": 900135,
+     "n_errors": 0,
+     "n_bang": 0,
+     "n_fileline": 0,
+     "first_error": null,
+     "error_ctx": "",
+     "category": "clean",
+     "payload": null,
+     "warn": {
+      "invalid_utf8": 0,
+      "missing_char": 0,
+      "ufffd": 0,
+      "file_not_found": 0,
+      "missing_graphic": 0,
+      "emergency_stop": 0
+     },
+     "timed_out": false,
+     "stderr_tail": "note: Running TeX ...\nnote: Running BibTeX on neutrino_ijmp_sub.aux ...\nwarning: errors were issued by BibTeX, but were ignored; use --print and/or --keep-logs for details.\nnote: Rerunning TeX because bibtex was run ...\nnote: Running xdvipdfmx ...\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/2110.10462/baseline/_tect_out/neutrino_ijmp_sub.blg` (625 B)\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/2110.10462/baseline/_tect_out/neutrino_ijmp_sub.pdf` (879.0380859375 KiB)\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/2110.10462/baseline/_tect_out/neutrino_ijmp_sub.aux` (15.619140625 KiB)\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/2110.10462/baseline/_tect_out/neutrino_ijmp_sub.bbl` (7.021484375 KiB)\nno",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/2110.10462/baseline/_tect_out/neutrino_ijmp_sub.log",
+     "verdict": "clean"
+    }
+   },
+   "docclass_line": "\\documentclass{ws-ijmpa}"
+  },
+  {
+   "id": "2201.04035",
+   "band": "e",
+   "yymm": "2022-01",
+   "tags": [
+    "no-hyperref"
+   ],
+   "n_files": 8,
+   "tex_files": 1,
+   "main": "decomp_QCHS2021.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 1,
+     "seconds": 0.10756897926330566,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "n_bang": 1,
+     "n_fileline": 1,
+     "first_error": "! LaTeX Error: File `cuted.sty' not found.",
+     "error_ctx": "! LaTeX Error: File `cuted.sty' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: sty)\n\nEnter file name: \n./webofc.cls:168: Emergency stop.\n<read *> ",
+     "category": "missing_file",
+     "payload": "cuted.sty",
+     "warn": {
+      "file_not_found": 1,
+      "emergency_stop": 1
+     },
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/2201.04035/baseline/decomp_QCHS2021.log",
+     "verdict": "FAIL"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 0.32968616485595703,
+     "retried": false,
+     "exit": 0,
+     "pdf": true,
+     "pdf_bytes": 86547,
+     "n_errors": 0,
+     "n_bang": 0,
+     "n_fileline": 0,
+     "first_error": null,
+     "error_ctx": "",
+     "category": "clean",
+     "payload": null,
+     "warn": {
+      "invalid_utf8": 0,
+      "missing_char": 4,
+      "ufffd": 4,
+      "file_not_found": 0,
+      "missing_graphic": 0,
+      "emergency_stop": 0
+     },
+     "timed_out": false,
+     "stderr_tail": "warning:   you may need to load the `fontspec` package and use (e.g.) \\setmainfont to\nwarning:   choose a different font that covers the unrepresentable character(s)\nwarning: decomp_QCHS2021.tex:377: Missing character: There is no ��� (\"201D) in font t1xr!\nwarning: could not represent character \"”\" (0x201d) in font \"t1xr\"\nwarning: decomp_QCHS2021.tex:378: Missing character: There is no ��� (\"201C) in font t1xr!\nwarning: could not represent character \"“\" (0x201c) in font \"t1xr\"\nwarning: decomp_QCHS2021.tex:378: Missing character: There is no ��� (\"201D) in font t1xr!\nwarning: could not represent character \"”\" (0x201d) in font \"t1xr\"\nwarning: decomp_QCHS2021.tex:434: Underfull \\hbox (badness 5563) in paragraph at lines 425--434\nwarning: warnings were issued by the TeX engine; use --print and",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/2201.04035/baseline/_tect_out/decomp_QCHS2021.log",
+     "verdict": "pdf~"
+    }
+   },
+   "docclass_line": "%%%\\documentclass[option]{webofc}"
+  },
+  {
+   "id": "2301.01267",
+   "band": "e",
+   "yymm": "2023-01",
+   "tags": [],
+   "n_files": 4,
+   "tex_files": 4,
+   "main": "discr-opt-SH2.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 1,
+     "seconds": 0.07302999496459961,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "n_bang": 1,
+     "n_fileline": 1,
+     "first_error": "! LaTeX Error: File `authblk.sty' not found.",
+     "error_ctx": "! LaTeX Error: File `authblk.sty' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: sty)\n\nEnter file name: \n./discr-opt-SH2.tex:4: Emergency stop.\n<read *> ",
+     "category": "missing_file",
+     "payload": "authblk.sty",
+     "warn": {
+      "file_not_found": 1,
+      "emergency_stop": 1
+     },
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/2301.01267/baseline/discr-opt-SH2.log",
+     "verdict": "FAIL"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 1.7252371311187744,
+     "retried": false,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 0,
+     "n_bang": 0,
+     "n_fileline": 0,
+     "first_error": "! something bad happened inside xdvipdfmx; its output follows:",
+     "error_ctx": "",
+     "category": "missing_pfb",
+     "payload": null,
+     "warn": {
+      "invalid_utf8": 0,
+      "missing_char": 1,
+      "ufffd": 1,
+      "file_not_found": 0,
+      "missing_graphic": 0,
+      "emergency_stop": 0
+     },
+     "timed_out": false,
+     "stderr_tail": "warning: warnings were issued by the TeX engine; use --print and/or --keep-logs for details.\nnote: Running xdvipdfmx ...\nwarning: Tectonic unable to generate PK font \"bbm10\" (dpi 657) on-the-fly\nwarning: Could not locate a virtual/physical font for TFM \"bbm10\".\nwarning: >> There are no valid font mapping entry for this font.\nwarning: >> Font file name \"bbm10\" was assumed but failed to locate that font.\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/2301.01267/baseline/_tect_out/discr-opt-SH2.log` (45.4970703125 KiB)\nerror: something bad happened inside xdvipdfmx; its output follows:\n\n===============================================================================\n\n===============================================================================\nerror: the xdvipdfmx engine",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/2301.01267/baseline/_tect_out/discr-opt-SH2.log",
+     "verdict": "FAIL"
+    }
+   },
+   "docclass_line": "\\documentclass[11pt,a4paper]{article}"
+  },
+  {
+   "id": "2506.07410",
+   "band": "e",
+   "yymm": "2025-06",
+   "tags": [],
+   "n_files": 4,
+   "tex_files": 1,
+   "main": "main.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 1,
+     "seconds": 0.10133981704711914,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "n_bang": 1,
+     "n_fileline": 1,
+     "first_error": "! LaTeX Error: File `algorithm.sty' not found.",
+     "error_ctx": "! LaTeX Error: File `algorithm.sty' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: sty)\n\nEnter file name: \n./main.tex:11: Emergency stop.\n<read *> ",
+     "category": "missing_file",
+     "payload": "algorithm.sty",
+     "warn": {
+      "file_not_found": 1,
+      "emergency_stop": 1
+     },
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/2506.07410/baseline/main.log",
+     "verdict": "FAIL"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 1.6704800128936768,
+     "retried": false,
+     "exit": 0,
+     "pdf": true,
+     "pdf_bytes": 134837,
+     "n_errors": 0,
+     "n_bang": 0,
+     "n_fileline": 0,
+     "first_error": null,
+     "error_ctx": "",
+     "category": "clean",
+     "payload": null,
+     "warn": {
+      "invalid_utf8": 1,
+      "missing_char": 0,
+      "ufffd": 0,
+      "file_not_found": 0,
+      "missing_graphic": 0,
+      "emergency_stop": 0
+     },
+     "timed_out": false,
+     "stderr_tail": "warning: main.tex:494:  -> msbm10\nwarning: main.tex:494: Requested font \"msbm10\" at 9.4pt\nwarning: main.tex:494:  -> msbm10\nwarning: main.tex:556: Overfull \\hbox (5.88239pt too wide) in paragraph at lines 555--556\nwarning: main.tex:713: Overfull \\hbox (0.9759pt too wide) in paragraph at lines 712--713\nwarning: main.tex:774: Requested font \"[TeXGyreTermesX-Regular.otf]/OT:script=latn;language=dflt;-ss05;+tnum;+lnum;mapping=tex-text;\" at 10.0pt\nwarning: warnings were issued by the TeX engine; use --print and/or --keep-logs for details.\nnote: Running xdvipdfmx ...\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/2506.07410/baseline/_tect_out/main.out` (7.6015625 KiB)\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/2506.07410/baseline/_tect_out/main.bbl` ",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/2506.07410/baseline/_tect_out/main.log",
+     "verdict": "pdf~"
+    }
+   },
+   "docclass_line": "\\documentclass[a4paper,12pt]{extarticle}"
+  },
+  {
+   "id": "astro-ph/0306068",
+   "band": "a",
+   "yymm": "2003-06",
+   "tags": [
+    "no-hyperref"
+   ],
+   "n_files": 8,
+   "tex_files": 1,
+   "main": "hamann.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 2,
+     "seconds": 1.8306632041931152,
+     "exit": 1,
+     "pdf": true,
+     "pdf_bytes": 209125,
+     "n_errors": 8,
+     "n_bang": 0,
+     "n_fileline": 8,
+     "first_error": "./hamann.tex:80: Font T1/phv/m/n/20.74=phvr8t at 20.74pt not loadable: Metric (",
+     "error_ctx": "./hamann.tex:80: Font T1/phv/m/n/20.74=phvr8t at 20.74pt not loadable: Metric (\nTFM) file or installed font not found.\n<to be read again> \n                   relax \nl.80 Host Galaxy Evolution}\n                           \nI wasn't able to read the size data for this font,\nso I will ignore the font specification.",
+     "category": "missing_tfm",
+     "payload": "phvr8t",
+     "warn": {
+      "missing_char": 94,
+      "ufffd": 94
+     },
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/astro-ph/0306068/baseline/hamann.log",
+     "verdict": "pdf~"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 0.30641698837280273,
+     "retried": false,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 0,
+     "n_bang": 0,
+     "n_fileline": 0,
+     "first_error": "! something bad happened inside xdvipdfmx; its output follows:",
+     "error_ctx": "",
+     "category": "ps_image",
+     "payload": null,
+     "warn": {
+      "invalid_utf8": 0,
+      "missing_char": 0,
+      "ufffd": 0,
+      "file_not_found": 0,
+      "missing_graphic": 0,
+      "emergency_stop": 0
+     },
+     "timed_out": false,
+     "stderr_tail": "warning: hamann.tex:471: Underfull \\vbox (badness 7203) has occurred while \\output is active\nwarning: hamann.tex:592: Underfull \\vbox (badness 10000) has occurred while \\output is active\nwarning: warnings were issued by the TeX engine; use --print and/or --keep-logs for details.\nnote: Running xdvipdfmx ...\nwarning: sorry, PostScript images are not supported by Tectonic\nwarning: for details, please see https://github.com/tectonic-typesetting/tectonic/issues/27\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/astro-ph/0306068/baseline/_tect_out/hamann.log` (17.158203125 KiB)\nerror: something bad happened inside xdvipdfmx; its output follows:\n\n===============================================================================\n\n===================================================",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/astro-ph/0306068/baseline/_tect_out/hamann.log",
+     "verdict": "FAIL"
+    }
+   },
+   "docclass_line": "\\documentclass[cup5b]{caps}"
+  },
+  {
+   "id": "astro-ph/9702009",
+   "band": "a",
+   "yymm": "1997-02",
+   "tags": [
+    "reject",
+    "no-hyperref"
+   ],
+   "n_files": 3,
+   "tex_files": 1,
+   "main": "scharf_texas.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 1,
+     "seconds": 0.17914795875549316,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "n_bang": 1,
+     "n_fileline": 1,
+     "first_error": "! LaTeX Error: File `psfig.sty' not found.",
+     "error_ctx": "! LaTeX Error: File `psfig.sty' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: sty)\n\nEnter file name: \n./scharf_texas.tex:13: Emergency stop.\n<read *> ",
+     "category": "missing_file",
+     "payload": "psfig.sty",
+     "warn": {
+      "file_not_found": 1,
+      "emergency_stop": 1
+     },
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/astro-ph/9702009/baseline/scharf_texas.log",
+     "verdict": "FAIL"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 0.28671908378601074,
+     "retried": false,
+     "exit": 0,
+     "pdf": true,
+     "pdf_bytes": 57984,
+     "n_errors": 6,
+     "n_bang": 6,
+     "n_fileline": 0,
+     "first_error": "! ! LaTeX Error: File `psfig.sty' not found..",
+     "error_ctx": "! ! LaTeX Error: File `psfig.sty' not found..\n\\saved@missingfileerror ...ile `#1.#2' not found.}\n                                                  \nl.13 \\def\n         \\Journal#1#2#3#4{{#1} {\\bf #2}, #3 (#4)}\nThis error message was generated by an \\errmessage\ncommand, so I can't give any explicit help.\nPretend that you're Hercule Poirot: Examine all clues,",
+     "category": "missing_file",
+     "payload": "psfig.sty",
+     "warn": {
+      "invalid_utf8": 0,
+      "missing_char": 0,
+      "ufffd": 0,
+      "file_not_found": 1,
+      "missing_graphic": 0,
+      "emergency_stop": 0
+     },
+     "timed_out": false,
+     "stderr_tail": "error: scharf_texas.tex:113: Missing $ inserted\nerror: scharf_texas.tex:114: Missing } inserted\nnote: Rerunning TeX because \"scharf_texas.aux\" changed ...\nerror: scharf_texas.tex:13: ! LaTeX Error: File `psfig.sty' not found.\nerror: scharf_texas.tex:108: Undefined control sequence\nerror: scharf_texas.tex:108: Missing $ inserted\nerror: scharf_texas.tex:108: Extra }, or forgotten $\nerror: scharf_texas.tex:113: Missing $ inserted\nerror: scharf_texas.tex:114: Missing } inserted\nwarning: errors were issued by the TeX engine, but were ignored; use --print and/or --keep-logs for details.\nnote: Running xdvipdfmx ...\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/astro-ph/9702009/baseline/_tect_out/scharf_texas.aux` (1.392578125 KiB)\nnote: Writing `/Users/fanghaotian/src/texlat",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/astro-ph/9702009/baseline/_tect_out/scharf_texas.log",
+     "verdict": "pdf~"
+    }
+   },
+   "docclass_line": "\\documentstyle[sprocl,psfig]{article}"
+  },
+  {
+   "id": "cond-mat/0202090",
+   "band": "a",
+   "yymm": "2002-02",
+   "tags": [
+    "xelatex",
+    "no-hyperref"
+   ],
+   "n_files": 9,
+   "tex_files": 1,
+   "main": "manuscript.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 1,
+     "seconds": 0.15578794479370117,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "n_bang": 1,
+     "n_fileline": 1,
+     "first_error": "! LaTeX Error: File `revtex4.cls' not found.",
+     "error_ctx": "! LaTeX Error: File `revtex4.cls' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: cls)\n\nEnter file name: \n./manuscript.tex:3: Emergency stop.\n<read *> ",
+     "category": "missing_file",
+     "payload": "revtex4.cls",
+     "warn": {
+      "file_not_found": 1,
+      "emergency_stop": 1
+     },
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/cond-mat/0202090/baseline/manuscript.log",
+     "verdict": "FAIL"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 0.371060848236084,
+     "retried": false,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 0,
+     "n_bang": 0,
+     "n_fileline": 0,
+     "first_error": "! something bad happened inside xdvipdfmx; its output follows:",
+     "error_ctx": "",
+     "category": "ps_image",
+     "payload": null,
+     "warn": {
+      "invalid_utf8": 0,
+      "missing_char": 0,
+      "ufffd": 0,
+      "file_not_found": 0,
+      "missing_graphic": 0,
+      "emergency_stop": 0
+     },
+     "timed_out": false,
+     "stderr_tail": "note: Running TeX ...\nnote: Rerunning TeX because \"manuscript.aux\" changed ...\nnote: Running xdvipdfmx ...\nwarning: sorry, PostScript images are not supported by Tectonic\nwarning: for details, please see https://github.com/tectonic-typesetting/tectonic/issues/27\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/cond-mat/0202090/baseline/_tect_out/manuscript.log` (5.34765625 KiB)\nerror: something bad happened inside xdvipdfmx; its output follows:\n\n===============================================================================\n\n===============================================================================\nerror: the xdvipdfmx engine had an unrecoverable error\ncaused by: pdf: image inclusion failed for \"fig1.eps\" (page=1).",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/cond-mat/0202090/baseline/_tect_out/manuscript.log",
+     "verdict": "FAIL"
+    }
+   },
+   "docclass_line": "\\documentclass[aps,prb]{revtex4}"
+  },
+  {
+   "id": "cond-mat/9601002",
+   "band": "a",
+   "yymm": "1996-01",
+   "tags": [
+    "reject",
+    "no-hyperref"
+   ],
+   "n_files": 1,
+   "tex_files": 1,
+   "main": "cond-mat9601002v1.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 1,
+     "seconds": 0.17566728591918945,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "n_bang": 1,
+     "n_fileline": 1,
+     "first_error": "! LaTeX Error: File `revtex.cls' not found.",
+     "error_ctx": "! LaTeX Error: File `revtex.cls' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: cls)\n\nEnter file name: \n./cond-mat9601002v1.tex:6: Emergency stop.\n<read *> ",
+     "category": "missing_file",
+     "payload": "revtex.cls",
+     "warn": {
+      "file_not_found": 1,
+      "emergency_stop": 1
+     },
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/cond-mat/9601002/baseline/cond-mat9601002v1.log",
+     "verdict": "FAIL"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 0.30009913444519043,
+     "retried": false,
+     "exit": 0,
+     "pdf": true,
+     "pdf_bytes": 72132,
+     "n_errors": 99,
+     "n_bang": 99,
+     "n_fileline": 0,
+     "first_error": "! ! LaTeX Error: File `revtex.cls' not found..",
+     "error_ctx": "! ! LaTeX Error: File `revtex.cls' not found..\n\\saved@missingfileerror ...ile `#1.#2' not found.}\n                                                  \nl.6 \n    \nThis error message was generated by an \\errmessage\ncommand, so I can't give any explicit help.\nPretend that you're Hercule Poirot: Examine all clues,",
+     "category": "missing_file",
+     "payload": "revtex.cls",
+     "warn": {
+      "invalid_utf8": 0,
+      "missing_char": 0,
+      "ufffd": 0,
+      "file_not_found": 1,
+      "missing_graphic": 0,
+      "emergency_stop": 0
+     },
+     "timed_out": false,
+     "stderr_tail": "error: cond-mat9601002v1.tex:1786: LaTeX Error: \\begin{document} ended by \\end{references}.\n\nSee the LaTeX manual or LaTeX Companion for explanation.\nType  H <return>  for immediate help\nerror: cond-mat9601002v1.tex:1788: LaTeX Error: The font size command \\normalsize is not defined:\n               there is probably something wrong with the class file.\n\nSee the LaTeX manual or LaTeX Companion for explanation.\nType  H <return>  for immediate help\nwarning: errors were issued by the TeX engine, but were ignored; use --print and/or --keep-logs for details.\nnote: Running xdvipdfmx ...\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/cond-mat/9601002/baseline/_tect_out/cond-mat9601002v1.pdf` (70.44140625 KiB)\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/cond-mat/9601002/baseline/_tect_out/cond-mat9601002v1.log",
+     "verdict": "pdf~"
+    }
+   },
+   "docclass_line": "\\documentstyle[prb,aps,twocolumn]{revtex}"
+  },
+  {
+   "id": "gr-qc/0012020",
+   "band": "a",
+   "yymm": "2000-12",
+   "tags": [
+    "reject",
+    "no-hyperref"
+   ],
+   "n_files": 1,
+   "tex_files": 1,
+   "main": "gr-qc0012020v2.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 1,
+     "seconds": 0.07757997512817383,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "n_bang": 1,
+     "n_fileline": 1,
+     "first_error": "! LaTeX Error: File `revtex.cls' not found.",
+     "error_ctx": "! LaTeX Error: File `revtex.cls' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: cls)\n\nEnter file name: \n./gr-qc0012020v2.tex:2: Emergency stop.\n<read *> ",
+     "category": "missing_file",
+     "payload": "revtex.cls",
+     "warn": {
+      "file_not_found": 1,
+      "emergency_stop": 1
+     },
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/gr-qc/0012020/baseline/gr-qc0012020v2.log",
+     "verdict": "FAIL"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 0.3319220542907715,
+     "retried": false,
+     "exit": 0,
+     "pdf": true,
+     "pdf_bytes": 123891,
+     "n_errors": 142,
+     "n_bang": 142,
+     "n_fileline": 0,
+     "first_error": "! ! LaTeX Error: File `revtex.cls' not found..",
+     "error_ctx": "! ! LaTeX Error: File `revtex.cls' not found..\n\\saved@missingfileerror ...ile `#1.#2' not found.}\n                                                  \nl.2 \n    \nThis error message was generated by an \\errmessage\ncommand, so I can't give any explicit help.\nPretend that you're Hercule Poirot: Examine all clues,",
+     "category": "missing_file",
+     "payload": "revtex.cls",
+     "warn": {
+      "invalid_utf8": 0,
+      "missing_char": 0,
+      "ufffd": 0,
+      "file_not_found": 1,
+      "missing_graphic": 0,
+      "emergency_stop": 0
+     },
+     "timed_out": false,
+     "stderr_tail": "error: gr-qc0012020v2.tex:4376: Undefined control sequence\nerror: gr-qc0012020v2.tex:4376: Undefined control sequence\nerror: gr-qc0012020v2.tex:4376: Undefined control sequence\nerror: gr-qc0012020v2.tex:4376: Undefined control sequence\nerror: gr-qc0012020v2.tex:4376: Undefined control sequence\nerror: gr-qc0012020v2.tex:4376: Undefined control sequence\nerror: gr-qc0012020v2.tex:4376: Undefined control sequence\nerror: gr-qc0012020v2.tex:4376: Undefined control sequence\nerror: gr-qc0012020v2.tex:4376: Undefined control sequence\nwarning: errors were issued by the TeX engine, but were ignored; use --print and/or --keep-logs for details.\nnote: Running xdvipdfmx ...\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/gr-qc/0012020/baseline/_tect_out/gr-qc0012020v2.pdf` (120.987304",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/gr-qc/0012020/baseline/_tect_out/gr-qc0012020v2.log",
+     "verdict": "pdf~"
+    }
+   },
+   "docclass_line": "\\documentstyle[aps,prd]{revtex}"
+  },
+  {
+   "id": "hep-ex/0406065",
+   "band": "a",
+   "yymm": "2004-06",
+   "tags": [
+    "xelatex",
+    "no-hyperref"
+   ],
+   "n_files": 19,
+   "tex_files": 3,
+   "main": "main.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 1,
+     "seconds": 0.09141302108764648,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "n_bang": 1,
+     "n_fileline": 1,
+     "first_error": "! LaTeX Error: File `epsf.sty' not found.",
+     "error_ctx": "! LaTeX Error: File `epsf.sty' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: sty)\n\nEnter file name: \n./main.tex:4: Emergency stop.\n<read *> ",
+     "category": "missing_file",
+     "payload": "epsf.sty",
+     "warn": {
+      "file_not_found": 1,
+      "emergency_stop": 1
+     },
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/hep-ex/0406065/baseline/main.log",
+     "verdict": "FAIL"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 0.4051840305328369,
+     "retried": false,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 1,
+     "n_bang": 1,
+     "n_fileline": 0,
+     "first_error": "! LaTeX Error: Something's wrong--perhaps a missing \\item.",
+     "error_ctx": "! LaTeX Error: Something's wrong--perhaps a missing \\item.\n\nSee the LaTeX manual or LaTeX Companion for explanation.\nType  H <return>  for immediate help.\n ...                                              \n                                                  \nl.6 \\end{thebibliography}\n                         ",
+     "category": "bib_error",
+     "payload": null,
+     "warn": {
+      "invalid_utf8": 0,
+      "missing_char": 0,
+      "ufffd": 0,
+      "file_not_found": 0,
+      "missing_graphic": 0,
+      "emergency_stop": 0
+     },
+     "timed_out": false,
+     "stderr_tail": "warning: errors were issued by the TeX engine, but were ignored; use --print and/or --keep-logs for details.\nnote: Running xdvipdfmx ...\nwarning: sorry, PostScript images are not supported by Tectonic\nwarning: for details, please see https://github.com/tectonic-typesetting/tectonic/issues/27\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/hep-ex/0406065/baseline/_tect_out/main.blg` (984 B)\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/hep-ex/0406065/baseline/_tect_out/AMS01-AUTHORS.blg` (375 B)\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/hep-ex/0406065/baseline/_tect_out/main.log` (10.275390625 KiB)\nerror: something bad happened inside xdvipdfmx; its output follows:\n\n==========================================================",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/hep-ex/0406065/baseline/_tect_out/main.log",
+     "verdict": "FAIL"
+    }
+   },
+   "docclass_line": "\\documentclass{elsart}"
+  },
+  {
+   "id": "hep-th/0508095",
+   "band": "a",
+   "yymm": "2005-08",
+   "tags": [
+    "no-hyperref"
+   ],
+   "n_files": 3,
+   "tex_files": 1,
+   "main": "ElzePI05.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 2,
+     "seconds": 0.43384838104248047,
+     "exit": 0,
+     "pdf": true,
+     "pdf_bytes": 141630,
+     "n_errors": 0,
+     "n_bang": 0,
+     "n_fileline": 0,
+     "first_error": null,
+     "error_ctx": "",
+     "category": "clean",
+     "payload": null,
+     "warn": {},
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/hep-th/0508095/baseline/ElzePI05.log",
+     "verdict": "clean"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 0.3366580009460449,
+     "retried": false,
+     "exit": 0,
+     "pdf": true,
+     "pdf_bytes": 143244,
+     "n_errors": 0,
+     "n_bang": 0,
+     "n_fileline": 0,
+     "first_error": null,
+     "error_ctx": "",
+     "category": "clean",
+     "payload": null,
+     "warn": {
+      "invalid_utf8": 0,
+      "missing_char": 0,
+      "ufffd": 0,
+      "file_not_found": 0,
+      "missing_graphic": 0,
+      "emergency_stop": 0
+     },
+     "timed_out": false,
+     "stderr_tail": "note: Running TeX ...\nwarning: ElzePI05.tex:666: Overfull \\hbox (24.45132pt too wide) in paragraph at lines 662--666\nwarning: ElzePI05.tex:690: Overfull \\hbox (40.96286pt too wide) in paragraph at lines 688--690\nwarning: ElzePI05.tex:706: Overfull \\hbox (10.24088pt too wide) in paragraph at lines 704--706\nwarning: ElzePI05.tex:735: Overfull \\hbox (8.65584pt too wide) in paragraph at lines 729--735\nnote: Rerunning TeX because \"ElzePI05.aux\" changed ...\nwarning: ElzePI05.tex:666: Overfull \\hbox (24.45132pt too wide) in paragraph at lines 662--666\nnote: Rerunning TeX because \"ElzePI05.aux\" changed ...\nwarning: ElzePI05.tex:666: Overfull \\hbox (24.45132pt too wide) in paragraph at lines 662--666\nwarning: warnings were issued by the TeX engine; use --print and/or --keep-logs for details.\nnote: ",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/hep-th/0508095/baseline/_tect_out/ElzePI05.log",
+     "verdict": "clean"
+    }
+   },
+   "docclass_line": "\\documentclass{pi2005}          % for LaTeX 2e"
+  },
+  {
+   "id": "nucl-th/0104042",
+   "band": "a",
+   "yymm": "2001-04",
+   "tags": [
+    "reject",
+    "xelatex",
+    "no-hyperref"
+   ],
+   "n_files": 5,
+   "tex_files": 1,
+   "main": "IdMorio016Err.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 1,
+     "seconds": 0.06928086280822754,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "n_bang": 1,
+     "n_fileline": 1,
+     "first_error": "! LaTeX Error: File `revtex.cls' not found.",
+     "error_ctx": "! LaTeX Error: File `revtex.cls' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: cls)\n\nEnter file name: \n./IdMorio016Err.tex:2: Emergency stop.\n<read *> ",
+     "category": "missing_file",
+     "payload": "revtex.cls",
+     "warn": {
+      "file_not_found": 1,
+      "emergency_stop": 1
+     },
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/nucl-th/0104042/baseline/IdMorio016Err.log",
+     "verdict": "FAIL"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 0.23032116889953613,
+     "retried": false,
+     "exit": 0,
+     "pdf": true,
+     "pdf_bytes": 62886,
+     "n_errors": 139,
+     "n_bang": 139,
+     "n_fileline": 0,
+     "first_error": "! ! LaTeX Error: File `revtex.cls' not found..",
+     "error_ctx": "! ! LaTeX Error: File `revtex.cls' not found..\n\\saved@missingfileerror ...ile `#1.#2' not found.}\n                                                  \nl.2      \\newcommand\n                    {\\pathmarc}{/usr1/rafelski/figure/}\nThis error message was generated by an \\errmessage\ncommand, so I can't give any explicit help.\nPretend that you're Hercule Poirot: Examine all clues,",
+     "category": "missing_file",
+     "payload": "revtex.cls",
+     "warn": {
+      "invalid_utf8": 0,
+      "missing_char": 0,
+      "ufffd": 0,
+      "file_not_found": 1,
+      "missing_graphic": 0,
+      "emergency_stop": 0
+     },
+     "timed_out": false,
+     "stderr_tail": "Type  H <return>  for immediate help\nerror: IdMorio016Err.tex:965: Undefined control sequence\nerror: IdMorio016Err.tex:965: Undefined control sequence\nerror: IdMorio016Err.tex:965: Undefined control sequence\nerror: IdMorio016Err.tex:965: Undefined control sequence\nerror: IdMorio016Err.tex:965: Undefined control sequence\nerror: IdMorio016Err.tex:965: Undefined control sequence\nerror: IdMorio016Err.tex:965: Undefined control sequence\nerror: IdMorio016Err.tex:965: Undefined control sequence\nwarning: errors were issued by the TeX engine, but were ignored; use --print and/or --keep-logs for details.\nnote: Running xdvipdfmx ...\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/nucl-th/0104042/baseline/_tect_out/IdMorio016Err.log` (51.4052734375 KiB)\nnote: Writing `/Users/fangha",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/nucl-th/0104042/baseline/_tect_out/IdMorio016Err.log",
+     "verdict": "pdf~"
+    }
+   },
+   "docclass_line": "\\documentstyle[twocolumn,prc,aps,epsfig]{revtex}"
+  },
+  {
+   "id": "quant-ph/9712026",
+   "band": "a",
+   "yymm": "1997-12",
+   "tags": [
+    "reject",
+    "no-hyperref"
+   ],
+   "n_files": 1,
+   "tex_files": 1,
+   "main": "quant-ph9712026v1.tex",
+   "engines": {
+    "xelatex": {
+     "engine": "xelatex",
+     "passes": 1,
+     "seconds": 0.0711359977722168,
+     "exit": 1,
+     "pdf": false,
+     "pdf_bytes": 0,
+     "n_errors": 2,
+     "n_bang": 1,
+     "n_fileline": 1,
+     "first_error": "! LaTeX Error: File `revtex.cls' not found.",
+     "error_ctx": "! LaTeX Error: File `revtex.cls' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: cls)\n\nEnter file name: \n./quant-ph9712026v1.tex:4: Emergency stop.\n<read *> ",
+     "category": "missing_file",
+     "payload": "revtex.cls",
+     "warn": {
+      "file_not_found": 1,
+      "emergency_stop": 1
+     },
+     "timed_out": false,
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/quant-ph/9712026/baseline/quant-ph9712026v1.log",
+     "verdict": "FAIL"
+    },
+    "tectonic": {
+     "engine": "tectonic",
+     "passes": null,
+     "seconds": 0.2503931522369385,
+     "retried": false,
+     "exit": 0,
+     "pdf": true,
+     "pdf_bytes": 74815,
+     "n_errors": 71,
+     "n_bang": 71,
+     "n_fileline": 0,
+     "first_error": "! ! LaTeX Error: File `revtex.cls' not found..",
+     "error_ctx": "! ! LaTeX Error: File `revtex.cls' not found..\n\\saved@missingfileerror ...ile `#1.#2' not found.}\n                                                  \nl.4 \\begin\n          {document}\nThis error message was generated by an \\errmessage\ncommand, so I can't give any explicit help.\nPretend that you're Hercule Poirot: Examine all clues,",
+     "category": "missing_file",
+     "payload": "revtex.cls",
+     "warn": {
+      "invalid_utf8": 0,
+      "missing_char": 0,
+      "ufffd": 0,
+      "file_not_found": 1,
+      "missing_graphic": 0,
+      "emergency_stop": 0
+     },
+     "timed_out": false,
+     "stderr_tail": "error: quant-ph9712026v1.tex:736: LaTeX Error: \\begin{document} ended by \\end{references}.\n\nSee the LaTeX manual or LaTeX Companion for explanation.\nType  H <return>  for immediate help\nerror: quant-ph9712026v1.tex:739: LaTeX Error: The font size command \\normalsize is not defined:\n               there is probably something wrong with the class file.\n\nSee the LaTeX manual or LaTeX Companion for explanation.\nType  H <return>  for immediate help\nwarning: errors were issued by the TeX engine, but were ignored; use --print and/or --keep-logs for details.\nnote: Running xdvipdfmx ...\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/quant-ph/9712026/baseline/_tect_out/quant-ph9712026v1.log` (34.1826171875 KiB)\nnote: Writing `/Users/fanghaotian/src/texlate/bench/work_compile_v2/",
+     "log": "/Users/fanghaotian/src/texlate/bench/work_compile_v2/quant-ph/9712026/baseline/_tect_out/quant-ph9712026v1.log",
+     "verdict": "pdf~"
+    }
+   },
+   "docclass_line": "\\documentstyle[preprint,aps]{revtex}"
+  }
+ ]
+}
