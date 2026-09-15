@@ -263,6 +263,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pypdf"
+version = "6.18.1"
+source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
+sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/4f/c2/e537e78a8282b51ed47031566be118debbc34c04782a9afd8739672eb07d/pypdf-6.18.1.tar.gz", hash = "sha256:2441fc839053745638d9b9ddb38ed66beed8d611f47a3036c9838fc4e3074dea", size = 7027577, upload-time = "2026-09-11T10:10:07.616Z" }
+wheels = [
+  { url = "https://pypi.tuna.tsinghua.edu.cn/packages/58/13/645df3995075112cb3cce15e8797c205f0f88fb50acc11012b84b071bc22/pypdf-6.18.1-py3-none-any.whl", hash = "sha256:ee93a2665670ecf57ee81d197a4ca548f3dc15f9cefc56e59b8140866aaa3de5", size = 394327, upload-time = "2026-09-11T10:10:06.103Z" },
+]
+
+[[package]]
 name = "pytest"
 version = "9.1.1"
 source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
@@ -383,7 +392,12 @@ wheels = [
 name = "texlate"
 version = "0.1.0"
 source = { editable = "." }
-dependencies = [{ name = "httpx" }, { name = "pyyaml" }, { name = "typer" }]
+dependencies = [
+  { name = "httpx" },
+  { name = "pypdf" },
+  { name = "pyyaml" },
+  { name = "typer" },
+]
 
 [package.optional-dependencies]
 server = [
@@ -399,6 +413,7 @@ dev = [{ name = "pytest" }, { name = "pytest-asyncio" }]
 requires-dist = [
   { name = "fastapi", marker = "extra == 'server'", specifier = ">=0.115" },
   { name = "httpx", specifier = ">=0.28" },
+  { name = "pypdf", specifier = ">=5.0" },
   { name = "pyyaml", specifier = ">=6.0.3" },
   { name = "sse-starlette", marker = "extra == 'server'", specifier = ">=2.1" },
   { name = "typer", specifier = ">=0.12" },
