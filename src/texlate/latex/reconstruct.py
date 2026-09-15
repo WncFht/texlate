@@ -7,6 +7,8 @@ r"""splice 重建 + DAG 递归展开 + validate（docs/07 §9）。
   :func:`validate_translation` 校验缺失/幻觉占位符（由 translate 层消费）。
 - ``cjk_glue_fix``（``\\cmd这是`` → 插空格）是 post-reconstruct 全局修正一步，
   只在有译文时启用（identity 路径保持逐字节）。
+- ``unicode_math_fix``（译文里游离的 ``β``/``∂`` → ``$\beta$``/``$\partial$``）
+  是 pre-splice 的逐条译文修正——文本字体没有这些字形，缺字判据见 judge。
 """
 
 from __future__ import annotations
@@ -39,6 +41,86 @@ def cjk_glue_fix(s: str) -> str:
     return s
 
 
+# ---------------------------------------------------------------- unicode → math
+#: 模型译文里游离的 Unicode 数学字符 → LaTeX 命令。文本字体（lmroman/Fandol）
+#: 没有这些字形 → missing_character 丢字（e2e-real 实证：β U+03B2 被丢）。
+#: 包 ``$\cdot$`` 走数学字体渲染——不依赖任何字体探测的确定解。
+#: 只收**确定缺席**的字符（希腊字母全谱 + 数学算子/关系/箭头）；±§°–— 等
+#: TU 文本字体常备字形不在表内——过度包裹反而改变原文排版语义。
+# fmt: off
+_TEXT_TO_MATH: dict[str, str] = {
+    # 希腊小写
+    "α": r"\alpha", "β": r"\beta", "γ": r"\gamma", "δ": r"\delta",
+    "ε": r"\epsilon", "ϵ": r"\varepsilon", "ζ": r"\zeta", "η": r"\eta",
+    "θ": r"\theta", "ϑ": r"\vartheta", "ι": r"\iota", "κ": r"\kappa",
+    "ϰ": r"\varkappa", "λ": r"\lambda", "μ": r"\mu", "µ": r"\mu",
+    "ν": r"\nu", "ξ": r"\xi", "ο": r"\mathrm{o}", "π": r"\pi",
+    "ϖ": r"\varpi", "ρ": r"\rho", "ϱ": r"\varrho", "σ": r"\sigma",
+    "ς": r"\varsigma", "τ": r"\tau", "υ": r"\upsilon", "φ": r"\phi",
+    "ϕ": r"\varphi", "χ": r"\chi", "ψ": r"\psi", "ω": r"\omega",
+    # 希腊大写（与拉丁同形的归 \mathrm，避免 \Alpha 等非标准命令）
+    "Γ": r"\Gamma", "Δ": r"\Delta", "Θ": r"\Theta", "Λ": r"\Lambda",
+    "Ξ": r"\Xi", "Π": r"\Pi", "Σ": r"\Sigma", "Υ": r"\Upsilon",
+    "Φ": r"\Phi", "Χ": r"\Chi", "Ψ": r"\Psi", "Ω": r"\Omega",
+    "Α": r"\mathrm{A}", "Β": r"\mathrm{B}", "Ε": r"\mathrm{E}",
+    "Ζ": r"\mathrm{Z}", "Η": r"\mathrm{H}", "Ι": r"\mathrm{I}",
+    "Κ": r"\mathrm{K}", "Μ": r"\mathrm{M}", "Ν": r"\mathrm{N}",
+    "Ο": r"\mathrm{O}", "Ρ": r"\mathrm{P}", "Τ": r"\mathrm{T}",
+    "Ϝ": r"\digamma", "ϝ": r"\digamma",
+    # 数学算子/关系/箭头/界符（文本字体必缺）
+    "−": "-", "′": "'", "″": "''", "‴": "'''", "⁗": "''''",
+    "∂": r"\partial", "∇": r"\nabla", "∈": r"\in", "∉": r"\notin",
+    "∋": r"\ni", "∏": r"\prod", "∐": r"\coprod", "∑": r"\sum",
+    "√": r"\surd", "∞": r"\infty", "∫": r"\int", "∬": r"\iint",
+    "∭": r"\iiint", "∮": r"\oint", "∧": r"\wedge", "∨": r"\vee",
+    "∩": r"\cap", "∪": r"\cup", "⊂": r"\subset", "⊃": r"\supset",
+    "⊆": r"\subseteq", "⊇": r"\supseteq", "⊄": r"\nsubseteq",
+    "⊈": r"\nsubseteq", "⊊": r"\subsetneq", "⊋": r"\supsetneq",
+    "∀": r"\forall", "∃": r"\exists", "∄": r"\nexists", "∅": r"\emptyset",
+    "∝": r"\propto", "∼": r"\sim", "≃": r"\simeq", "≅": r"\cong",
+    "≡": r"\equiv", "≈": r"\approx", "≤": r"\leq", "≥": r"\geq",
+    "≠": r"\neq", "≪": r"\ll", "≫": r"\gg", "⊗": r"\otimes",
+    "⊕": r"\oplus", "⊖": r"\ominus", "⊙": r"\odot", "⊘": r"\oslash",
+    "∘": r"\circ", "∗": r"\ast", "⋅": r"\cdot", "⋆": r"\star",
+    "→": r"\to", "←": r"\leftarrow", "↑": r"\uparrow", "↓": r"\downarrow",
+    "↔": r"\leftrightarrow", "↕": r"\updownarrow", "⇐": r"\Leftarrow",
+    "⇒": r"\Rightarrow", "⇑": r"\Uparrow", "⇓": r"\Downarrow",
+    "⇔": r"\Leftrightarrow", "↦": r"\mapsto", "⟨": r"\langle",
+    "⟩": r"\rangle", "⌈": r"\lceil", "⌉": r"\rceil", "⌊": r"\lfloor",
+    "⌋": r"\rfloor", "∥": r"\parallel", "∤": r"\nmid", "ℏ": r"\hbar",
+    "ℓ": r"\ell", "ℜ": r"\Re", "ℑ": r"\Im", "ℵ": r"\aleph",
+    "⊥": r"\perp", "≺": r"\prec", "≻": r"\succ", "⪯": r"\preceq",
+    "⪰": r"\succeq", "⊢": r"\vdash", "⊣": r"\dashv", "⊨": r"\models",
+    "◦": r"\circ",
+}
+# fmt: on
+
+_UNICODE_MATH_RX = re.compile("[" + "".join(re.escape(c) for c in _TEXT_TO_MATH) + "]")
+
+#: 译文侧的占位符切分（typed ``[[X_n]]`` + 裸 ``[[NAME]]`` 都算——模型可能
+#: 把 [[SL]] 等编码 token 原样回显，其内部不许进 unicode→math 替换）。
+#: 捕获组保留分隔符——``re.split`` 产出 [文本, token, 文本, ...] 交错序列。
+_TRANS_PH_RX = re.compile(rf"((?:{PH_RX.pattern})|(?:\[\[[A-Z][A-Z_]*\]\]))")
+
+
+def unicode_math_fix(zh: str) -> str:
+    r"""译文非占位符段内的 Unicode 数学字符 → ``$\alpha$`` 形式。
+
+    占位符 token 整段豁免（``[[MATH_1]]`` 体内是原样回放的受保护原文，
+    其内部 ``$\beta$`` 已是合法数学）。已写成 ``\beta``/``$..$`` 的不动。
+    """
+    parts = _TRANS_PH_RX.split(zh)
+    out: list[str] = []
+    for i, seg in enumerate(parts):
+        if i % 2:
+            out.append(seg)  # 占位符 token 原样
+        else:
+            out.append(
+                _UNICODE_MATH_RX.sub(lambda m: f"${_TEXT_TO_MATH[m.group(0)]}$", seg)
+            )
+    return "".join(out)
+
+
 def reconstruct(res: ScanResult, translations: dict[int, str] | None = None) -> str:
     """按 pieces splice + 占位符 DAG 递归展开（docs/07 §9 伪码原样）。
 
@@ -47,7 +129,7 @@ def reconstruct(res: ScanResult, translations: dict[int, str] | None = None) -> 
     trans = (
         {}
         if translations is None
-        else {f"[[CHUNK_{k}]]": v for k, v in translations.items()}
+        else {f"[[CHUNK_{k}]]": unicode_math_fix(v) for k, v in translations.items()}
     )
     memo: dict[str, str] = {}
     chunks = res.chunks

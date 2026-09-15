@@ -6,6 +6,7 @@ from texlate.latex import parse_tex, reconstruct
 from texlate.latex.model import Chunk, ScanResult
 from texlate.latex.reconstruct import (
     cjk_glue_fix,
+    unicode_math_fix,
     validate_result,
     validate_translation,
 )
@@ -88,6 +89,28 @@ def test_cjk_glue_verbatim_comment_immune() -> None:
     assert "\\cmd中" in out  # verbatim 不动
     assert "% \\cmd也" in out  # 注释不动
     assert "\\cmd 外" in out  # 正文修了
+
+
+def test_unicode_math_fix() -> None:
+    r"""译文游离的 ``β``/``∂`` → ``$\beta$``/``$\partial$``（文本字体无字形）。
+
+    e2e-real 实证（1907.10324）：模型把 ``$\beta$`` 改写成字面 ``β`` 落进
+    正文，Fandol/lmroman 无此字形 → missing_character 判 partial。
+    """
+    assert unicode_math_fix("β 衰变与 ∂ 求导") == "$\\beta$ 衰变与 $\\partial$ 求导"
+    # 占位符 token 体内是原文回放——绝不动
+    assert unicode_math_fix("见 [[MATH_1]] 的 β") == "见 [[MATH_1]] 的 $\\beta$"
+    # 已写 \beta / $..$ 的不重复包裹
+    assert unicode_math_fix("$x$ 与 \\beta") == "$x$ 与 \\beta"
+
+
+def test_unicode_math_fix_in_reconstruct() -> None:
+    """端到端：translation 值进 reconstruct 前先过 unicode_math_fix。"""
+    res = scan("Para one long text here \\cite{a}.")
+    ch = res.chunks[0]
+    phs = "".join(ch.placeholders)
+    out = reconstruct(res, {ch.id: f"β 粒子 {phs}"})
+    assert "$\\beta$ 粒子" in out
 
 
 def test_short_run_ph_survives() -> None:
