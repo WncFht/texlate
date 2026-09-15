@@ -207,7 +207,9 @@ def recover_copied_tokens(zh: str, ph_map: Mapping[str, str]) -> tuple[str, list
     """
     present = set(ANY_PH_RX.findall(zh))
     recovered: list[str] = []
-    for ph, fragment in ph_map.items():
+    # 长 fragment 先认领——`$x$` 是 `$$x$$` 的子串，短者先换会把长 fragment
+    # 的副本啃坏（`$$x$$`→`$[[MATH_1]]$`），长者随之永远失配。
+    for ph, fragment in sorted(ph_map.items(), key=lambda kv: (-len(kv[1]), kv[0])):
         if ph in present or not fragment:
             continue
         if zh.count(fragment) == 1:

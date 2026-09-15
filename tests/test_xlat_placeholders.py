@@ -128,6 +128,17 @@ class TestRecoverCopiedTokens:
         assert out == zh
         assert recovered == []
 
+    def test_substring_fragment_shadows_longer(self) -> None:
+        """`$x$` 是 `$$x$$` 子串——长 fragment 必须先认领，否则短者把
+
+        长者的副本啃成 `$[[MATH_1]]$`，display 公式永远失配。
+        """
+        ph_map = {"[[MATH_1]]": "$x$", "[[MATH_2]]": "$$x$$"}
+        zh = "译文里公式 $$x$$ 保留原样"
+        out, recovered = ph.recover_copied_tokens(zh, ph_map)
+        assert out == "译文里公式 [[MATH_2]] 保留原样"
+        assert recovered == ["[[MATH_2]]"]
+
 
 def test_collect_doc_placeholders_stable_order() -> None:
     docs = ["b [[MATH_10]] [[SL]]", "a [[CITE_1]] [[MATH_2]]"]
