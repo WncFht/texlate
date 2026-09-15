@@ -118,6 +118,8 @@ d/e 带每簇取间隔 2 块扩候选池（成员按 id 连续 → 类目轻度�
 
 基础配额锚点（最小保障非上限）：B01 2.09 遗存 30 / B02 非 UTF-8 30 / B03 深多文件 30 / B04 低 TeX 密度类目（cs/econ/eess，d/e 带）30 / B05 宏包机制（minted/pstricks/psfrag/vendored cls）25 / B06 大字节 >2MB 20 / B07 边缘形态（单 gz/pdf_only，记丢弃原因）25。
 
+> 勘误 2026-09-15（P3 已执行）：台账 143 条（W01–W109 野例 + T/B 种子）；5 curator + 3 hunter 共产出 544 条验证提名（`nominations/*.jsonl` 审计轨迹入库）；`select_booster.py` 选出 200 篇（B 地板全达成、W 覆盖 107/109——W108/W109 池内无例证即 hunter exhausted 记录），明细 `booster_selection.jsonl` + `selection_report.md`。
+
 ## 5. 管线分阶段（S0–S7）
 
 ```
