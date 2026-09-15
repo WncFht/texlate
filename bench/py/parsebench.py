@@ -67,6 +67,7 @@ from texlate.latex import (
     reconstruct,
     validate_result,
 )
+from texlate.latex.segmenter import parse_tex_v2
 from texlate.textutil import decode_tex
 
 if TYPE_CHECKING:
@@ -230,6 +231,75 @@ def parse_one(path: Path, timeout_s: int, *, flatten: bool = True) -> dict:
         signal.alarm(0)
 
 
+def parse_one_v2(path: Path, timeout_s: int) -> dict:
+    """segmenter.parse_tex_v2 + 同超时; 输入与 v1 同视图 (decode+flatten).
+
+    v2 自身 Gullet 不持 root_dir——喂展平文本即绕开 \\input 解析差异,
+    与 v1 在相同字节上对照 (S5 双跑门). 返回 {ok,res,flat,ms}|{ok,error,ms}.
+    """
+    t0 = time.perf_counter()
+    signal.signal(signal.SIGALRM, _alarm)
+    signal.alarm(timeout_s)
+    try:
+        orig = decode_tex(path.read_bytes())
+        flat = flatten_inputs(orig, str(path.parent), str(path.parent))
+        res = parse_tex_v2(flat)
+        ms_ = (time.perf_counter() - t0) * 1000
+        return {"ok": True, "res": res, "flat": flat, "ms": round(ms_, 1)}
+    except ParseTimeout:
+        return {"ok": False, "error": f"Timeout(>{timeout_s}s)", "ms": timeout_s * 1000}
+    except Exception as e:
+        ms_ = (time.perf_counter() - t0) * 1000
+        return {"ok": False, "error": f"{type(e).__name__}: {e}", "ms": round(ms_, 1)}
+    finally:
+        signal.alarm(0)
+
+
+def file_metrics_v2(path: Path, timeout_s: int) -> dict:
+    """v2 逐文件判定——字段与 v1 同形, identity 对 ``res.vtex``.
+
+    额外 ``vtex_vs_src``: vtex vs 展平源的三档——展开足迹 (strict =
+    展开机对本文件无净改动).
+    """
+    out: dict = {}
+    r = parse_one_v2(path, timeout_s)
+    out["ok"] = r["ok"]
+    out["wall_ms"] = r["ms"]
+    if not r["ok"]:
+        out["error"] = r["error"]
+        return out
+    res: ScanResult = r["res"]
+    try:
+        out["n_chunks"] = len(res.chunks)
+        out["n_placeholders"] = len(res.ph_map)
+        out["vtex_len"] = len(res.vtex)
+        wk: dict[str, int] = {}
+        for w in res.warnings:
+            wk[w.kind] = wk.get(w.kind, 0) + 1
+        for w in validate_result(res):
+            wk[w.kind] = wk.get(w.kind, 0) + 1
+        out["warn_kinds"] = wk
+        lk = scan_chunks(res)
+        out["leak"] = {
+            "n_translatable": lk["n_translatable_chunks"],
+            "n_leaked": lk["n_leaked"],
+            "hits": {k: v for k, v in lk["hits"].items() if v},
+        }
+        rb = rebuild_metrics(res)
+        status, ratio, first_diff = classify_recon(res.vtex, rb["recon_identity"])
+        out["identity"] = status
+        out["recon"] = {"quick_ratio": ratio, "first_diff_at": first_diff}
+        out["vtex_vs_src"] = classify_recon(r["flat"], res.vtex)[0]
+        out["fake"] = {
+            "residue_chunk_ph": rb["residue_chunk_ph"],
+            "residue_protect_ph": rb["residue_protect_ph"],
+            "n_orphan_chunks": rb["n_orphan_chunks"],
+        }
+    except Exception as exc:
+        out["measure_error"] = f"{type(exc).__name__}: {exc}"
+    return out
+
+
 LEAK_PATTERNS = {
     "dollar": re.compile(r"\$"),
     "cite_family": re.compile(r"\\cite[a-zA-Z]*"),
@@ -353,7 +423,14 @@ def paper_tags(roots: list[dict], stripped_blob: str, non_utf8: list[str]) -> li
 
 
 def file_metrics(
-    path: Path, rel: str, paper: str, role: str, non_utf8: bool, timeout_s: int
+    path: Path,
+    rel: str,
+    paper: str,
+    role: str,
+    non_utf8: bool,
+    timeout_s: int,
+    *,
+    v2: bool = False,
 ) -> dict:
     entry = {
         "file": rel,
@@ -365,6 +442,9 @@ def file_metrics(
     r = parse_one(path, timeout_s, flatten=True)
     entry["ok"] = r["ok"]
     entry["wall_ms"] = r["ms"]
+    if v2:
+        # S5 双跑门: v2 独立于 v1 结果, v1 挂掉的文件照样量 v2
+        entry["v2"] = file_metrics_v2(path, timeout_s)
     if not r["ok"]:
         entry["error"] = r["error"]
         return entry
@@ -683,7 +763,7 @@ def cluster_bootstrap(
         key = meta.get("cluster_id") or meta.get("yymm") or p["id"]
         clusters.setdefault(str(key), []).append(p["id"])
     keys = sorted(clusters)
-    rng = random.Random(BOOTSTRAP_SEED)  # noqa: S311 — 统计重抽样, 非密码用途
+    rng = random.Random(BOOTSTRAP_SEED)
 
     # 每篇预聚合 (单遍): ok/meas/strict/chunks/leaked/reached/orphan
     sums_keys = (
@@ -825,6 +905,121 @@ def _ci_str(ci: tuple[float | None, float | None] | None, nd: int = 2) -> str:
     if not ci or ci[0] is None:
         return "—"
     return f"[{_pct(ci[0], nd)}, {_pct(ci[1], nd)}]"
+
+
+def _v2_section(lines: list[str], files: list[dict]) -> None:
+    """``--v2`` 双跑并排: 聚合对照表 + 逐文件差异表 (S5 验收门素材).
+
+    v1 列 = entry 顶层字段; v2 列 = entry["v2"]. identity 口径不同:
+    v1 对展平源, v2 对 ``res.vtex`` (expand 后虚拟文本)——vtex_vs_src
+    单列展开足迹, strict 即展开机对本文件无净改动.
+    """
+    rows = [(f, f["v2"]) for f in files if isinstance(f.get("v2"), dict)]
+    if not rows:
+        return
+    n = len(rows)
+
+    def _side(f: dict, v: dict, side: str) -> dict:
+        return f if side == "v1" else v
+
+    def _tally(side: str, key: str) -> dict[str, int]:
+        t: dict[str, int] = {}
+        for f, v in rows:
+            val = _side(f, v, side).get(key)
+            if val:
+                t[val] = t.get(val, 0) + 1
+        return t
+
+    def _sum(side: str, *ks: str) -> int:
+        tot = 0
+        for f, v in rows:
+            cur = _side(f, v, side)
+            for k in ks:
+                cur = cur.get(k) if isinstance(cur, dict) else None
+            if isinstance(cur, int):
+                tot += cur
+        return tot
+
+    def _ms(side: str, q: float) -> str:
+        vals = sorted(_side(f, v, side).get("wall_ms", 0) for f, v in rows)
+        p = percentile(vals, q)
+        return f"{p:.0f}" if p is not None else "—"
+
+    id1, id2 = _tally("v1", "identity"), _tally("v2", "identity")
+    vs = _tally("v2", "vtex_vs_src")
+    wk2: dict[str, int] = {}
+    for _f, v in rows:
+        for k, c in (v.get("warn_kinds") or {}).items():
+            wk2[k] = wk2.get(k, 0) + c
+
+    lines.append("## v1 vs v2 — segmenter.parse_tex_v2\n")
+    lines.append("| 指标 | v1 (scanner) | v2 (segmenter) |")
+    lines.append("|---|---|---|")
+    lines.append(f"| parse ok | {_sum('v1', 'ok')}/{n} | {_sum('v2', 'ok')}/{n} |")
+    lines.append(
+        f"| identity strict/normalized/diverged | "
+        f"{id1.get('strict', 0)}/{id1.get('normalized', 0)}/{id1.get('diverged', 0)} | "
+        f"{id2.get('strict', 0)}/{id2.get('normalized', 0)}/{id2.get('diverged', 0)} |"
+    )
+    lines.append(
+        f"| translatable chunks | {_sum('v1', 'leak', 'n_translatable')} | "
+        f"{_sum('v2', 'leak', 'n_translatable')} |"
+    )
+    lines.append(
+        f"| leaked chunks | {_sum('v1', 'leak', 'n_leaked')} | "
+        f"{_sum('v2', 'leak', 'n_leaked')} |"
+    )
+    lines.append(f"| Σ chunks | {_sum('v1', 'n_chunks')} | {_sum('v2', 'n_chunks')} |")
+    lines.append(
+        f"| Σ placeholders | {_sum('v1', 'n_placeholders')} | "
+        f"{_sum('v2', 'n_placeholders')} |"
+    )
+    lines.append(
+        f"| wall ms p50 / p95 | {_ms('v1', 0.5)} / {_ms('v1', 0.95)} | "
+        f"{_ms('v2', 0.5)} / {_ms('v2', 0.95)} |"
+    )
+    lines.append(
+        f"| vtex_vs_src 展开足迹 | — | strict {vs.get('strict', 0)} / "
+        f"normalized {vs.get('normalized', 0)} / diverged {vs.get('diverged', 0)} |"
+    )
+    if wk2:
+        lines.append(f"| v2 warn_kinds | — | {wk2} |")
+    lines.append("")
+
+    diff = []
+    for f, v in rows:
+        flags = []
+        if f.get("ok") != v.get("ok"):
+            flags.append("ok-flip")
+        if f.get("identity") != v.get("identity"):
+            flags.append("identity")
+        if f.get("n_chunks") != v.get("n_chunks"):
+            flags.append("chunks")
+        if (f.get("leak") or {}).get("n_leaked") != (v.get("leak") or {}).get(
+            "n_leaked"
+        ):
+            flags.append("leak")
+        if flags:
+            diff.append((f, v, flags))
+    lines.append(f"### v1↔v2 差异文件 ({len(diff)}/{n})\n")
+    if diff:
+        lines.append(
+            "| file | v1 id | v2 id | chunks | leaked | ms | vtex_vs_src | flags |"
+        )
+        lines.append("|---|---|---|---|---|---|---|---|")
+        for f, v, flags in diff[:60]:
+            lines.append(
+                f"| {f['file']} | {f.get('identity') or f.get('error', '—')} | "
+                f"{v.get('identity') or v.get('error', '—')} | "
+                f"{f.get('n_chunks', '—')}→{v.get('n_chunks', '—')} | "
+                f"{(f.get('leak') or {}).get('n_leaked', '—')}→"
+                f"{(v.get('leak') or {}).get('n_leaked', '—')} | "
+                f"{f.get('wall_ms', '—')}→{v.get('wall_ms', '—')} | "
+                f"{v.get('vtex_vs_src', '—')} | {','.join(flags)} |"
+            )
+        if len(diff) > 60:
+            lines.append(f"| … | +{len(diff) - 60} more | | | | | | |")
+    lines.append("")
 
 
 def write_summary(
@@ -973,6 +1168,9 @@ def write_summary(
         "\\input 触及的随附 tex (preamble/poster 件), 属语料真实属性而非实现漏跟; "
         "v3 实测 ~93%.\n"
     )
+
+    # ---- --v2 双跑并排 (S5 验收门; 无 v2 数据时跳过)
+    _v2_section(lines, files)
 
     # ---- docs/09 §7.2 三口径 + CI
     wr = weighted_rates(files, weights)
@@ -1133,6 +1331,12 @@ def main() -> None:
     ap.add_argument("--timeout", type=int, default=TIMEOUT_S)
     ap.add_argument("--only", default=None, help="substring filter on paper id")
     ap.add_argument("--limit", type=int, default=None)
+    ap.add_argument(
+        "--v2",
+        action="store_true",
+        help="双跑 segmenter.parse_tex_v2 (S5 验收门): 逐文件 entry[v2] "
+        "+ summary v1/v2 并排 diff 表",
+    )
     args = ap.parse_args()
 
     corpus = args.corpus
@@ -1220,6 +1424,7 @@ def main() -> None:
             role,
             apath in (prec["_non_utf8"] if prec else set()),
             args.timeout,
+            v2=args.v2,
         )
         file_entries.append(e)
         done += 1
