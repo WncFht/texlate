@@ -1,7 +1,7 @@
 # TeXlate
 
 > 开源版「幻觉翻译」(hjfy.top)：arXiv LaTeX 源码 → LLM 段落级翻译 → ctex 重编译中文 PDF，双语对照阅读。
-> 当前状态：调研完成，方案冻结（`docs/05-reproduction-plan.md`），可按里程碑开工。决策与架构见 `docs/`（01 技术栈 ADR、02 架构、03 roadmap、04 选型上下文、05 复现方案）。
+> 当前状态：调研完成，方案冻结（`docs/05-reproduction-plan.md`），可按里程碑开工。决策与架构见 `docs/`（01 技术栈 ADR、02 架构、03 roadmap、04 选型上下文、05 复现方案）；最终技术规格：06 arXiv 源获取、07 LaTeX 解析管线、08 翻译 + 编译、09 benchmark 语料构建、10 benchmark 套件；过程证据归档 `docs/research/`。
 
 ## 仓库布局
 

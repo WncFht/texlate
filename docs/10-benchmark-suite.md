@@ -1,0 +1,148 @@
+# 10 · Benchmark 套件规格：建几个、每个怎么建
+
+> 最终技术方案 · 评测器层。配套 `docs/09-benchmark-corpus.md`——09 定义**底材**（语料）怎么建，本文定义**评测器**建几个、各自怎么构建、门槛是什么。
+> 证据基础：`docs/research/corpus/parsebench-v1.md`、`docs/research/latex/{validator-rules,validator-ts,engine-matrix,fixloop-rules,alignment-probe}.md`、`docs/research/product/e2e-mock-pipeline.md`、`docs/05-reproduction-plan.md`（E1–E22 实验矩阵）。
+
+## 0. 总览：七个 benchmark
+
+每个 benchmark 对准管线一段 + 一个"组合层"。共同底材 = corpus_v3（docs/09），合成破坏案例各自生成。
+
+| #   | benchmark        | 测哪段           | 底材                              | 核心指标                                  | 现状                         |
+| --- | ---------------- | ---------------- | --------------------------------- | ----------------------------------------- | ---------------------------- |
+| B1  | **parsebench**   | 解析段           | corpus_v3 + corpus39              | ok / identity / leak / dead·orphan / 漏斗 | ✅ 已有（spike 级），升级 v3 |
+| B2  | **fixtures**     | 解析段（单元级） | `bench/fixtures/*.tex` 手造       | 陷阱断言通过率                            | ✅ 已建成（T01–T29）         |
+| B3  | **compilebench** | 编译段 + fixloop | corpus_v3 raw blob                | clean/pdf~/FAIL、救回率、规则触发谱       | spike 已验证，需产品化       |
+| B4  | **xlatbench**    | 翻译段           | corpus_v3 chunk 抽样              | 硬契约率 / 延迟 / token 经济 / 质量抽样   | gwbench 雏形已验证           |
+| B5  | **e2ebench**     | 全链（组合）     | corpus_v3 子集                    | 每环节成功率漏斗 + 终态分布               | mock 管线已验证（16/16）     |
+| B6  | **validbench**   | 校验段           | 生成的破坏案例（语料 chunk 变异） | 检出率 / FP / 延迟                        | exp 已验证（100%/0FP）       |
+| B7  | **alignbench**   | 阅读体验（锚点） | en/zh 编译产物对（B3/B5 产出）    | named-dest 保留率 / 链权                  | probe 已验证（保留 ~100%）   |
+
+依赖序：`corpus_v3 → B1 → B4 → {B3, B5} → B7`；B2/B6 独立（合成输入）。
+
+## B1 · parsebench —— 解析段基准
+
+**测什么**：`texlate.latex` 对真实语料的解析正确性——能不能零崩溃、能不能逐字节还原、可译 chunk 里有没有漏进受保护内容。
+
+**底材**：corpus_v3 全部 `extracted/`（~1,200 篇 / ~2,000+ .tex）+ corpus39 手挑陷阱集（对拍基线）+ corpus_v2（渠道敏感性）。
+
+**构建方法**（harness 已存在：`bench/py/parsebench.py`，扶正为 `bench/parsebench/` 或 `src/texlate/bench/`）：
+
+1. 对每篇：主文件定位 → flatten → `parse_file`（30s 超时）→ `reconstruct()` 三次测量（identity / 空译文 fake-translate / 占位译文）。
+2. 逐文件记录 `files.jsonl`：`{paper_id, file, ok, identity∈{strict,normalized,diverged}, n_chunks, leak_hits[], wall_ms}`。
+3. 逐篇聚合 `papers.json`：路由标签（reject/xelatex/minted/non-utf8/no-hyperref——**即 B3 的静态路由金标准**）、flatten coverage（orphan tex 清单）、multi_doc/rootless 标记。
+4. `summary.md`：漏斗（fetched→有 .tex→rooted→ok→identity→leak→dead/orphan）+ 逐条泄漏人工归因 → **归因写回 `mechanisms.jsonl` 台账**（docs/09 §4.3，benchmark→语料的反馈环）。
+5. 统计口径：核心层加权池化率 + 宏平均双报、Wilson + 月簇稳健 bootstrap CI（docs/09 §7.2）。
+
+**配套探针**：oracle 对拍（`oracle_extract.py`/`oracle_diff.py`——plasTeX par 节点规范化文本流 vs 我们 chunks，`SequenceMatcher` 字符级 recall/noise；`[[*_n]]→*` 哨兵归一化防整段错位）。定位：开发期召回探针，不进 gate。
+
+**门槛**：docs/09 §8（ok 100% / identity ≥99.5% / leak ≤0.15% / dead·orphan=0 / flatten ≥99%）。回归用法：每改一行 scanner 重跑出差异表（v2 规模 17.6s 全量 → v3 预计 ~3min）。
+
+## B2 · fixtures 陷阱断言集 —— 解析段单元级
+
+**测什么**：已知机制的逐条断言（"这个具体坑处理了吗"）——parsebench 测分布，fixtures 测机制。
+
+**底材**：`bench/fixtures/*.tex`，`% @Tnn` 标记。**逐字节即语义——永不格式化/润色**（不在 format 链内）。
+
+**构建方法**：
+
+1. 现有断言矩阵照搬 spike：T01–T29 单点陷阱 + 209×3 组合 + multi×4。
+2. **生长机制**：parsebench 归因（B1-4）和 mechanisms.jsonl 的 `found-in-wild` 条目达到 `covered` 后 → fixture 化（最小复现提取 + `@Tnn` 登记）——语料里每个真坑沉淀为永久断言。
+3. 断言写在 `tests/latex/test_bench_regression.py`（spike `miniscanner_test.py` 移植，import 换 `texlate.latex`）。
+
+**门槛**：32/32（当前断言数），新增断言只增不减；BUG1 类回归断言（"ph 尾 `\letters`+后继字母"=0）随修复入列。
+
+## B3 · compilebench —— 编译段 + fixloop 基准
+
+**测什么**：归一化 + 注入 + 引擎 + 修复循环的真实救回能力。这是 hjfy 用 ~5000 篇人肉沉淀护城河的对应物。
+
+**底材**：corpus_v3 `raw.*` blob（**必须字节级保真渠道**——图/.bst/.bbl 全在才能编译，scholarweave 有损源在此被排除的根因）+ B1 产出的路由标签作静态路由金标准。
+
+**构建方法**：
+
+1. 网格 = `paper × condition × engine`：condition ∈ {base 原文 / zh-injected 注入 ctex / mock-translated 占位译文}（mock 用 B5 管线产）；engine ∈ {xelatex, tectonic}（路由预检先行：documentstyle→reject、eps/pstricks→xelatex、minted-frozencache→tectonic）。
+2. 每格：`normalize → inject → Engine.compile(沙箱, ≤2 pass, 240s) → fixloop(yaml) → clean 判定三件套`（docs/08 §4.3）。
+3. 逐格落 `results.jsonl`：verdict（clean/pdf~/FAIL/reject）+ 每轮 `{cat,pay,rule,result}` + log_excerpt → **直接灌 `cases.jsonl` 沉淀机制**（docs/08 §5.5）。
+4. 归因表：首错类别分布 × 规则触发谱（spike 实测：missing_* 16 格救回 16/16、install 系占触发 87%）。
+
+**指标**：clean 率（分 condition/引擎/时代带）、救回率（fail→clean|pdf~）、规则 fires/rescues、stuck/unfixable 率、修复轮数分布。
+
+**门槛（M2 出口）**：200 篇语料 zh 条件编译成功率 ≥90%（hjfy 95% 为渐近线）；reject 判定正确率 100%（路由标签对拍）；无回归（clean 格不被规则改脏）。
+
+## B4 · xlatbench —— 翻译段基准
+
+**测什么**：LLM 后端的占位符契约遵守 + 真实翻译质量 + 经济性。两子层：
+
+**B4a 硬契约层**（harness 已有：`tmp/exp/gwbench/bench_free.py` + `aggregate.py` 扶正）：
+
+1. chunk 抽样：corpus_v3 chunks 按 kind 分层抽样（含 `\bibitem` 前缀 / `\href` / `\` 压力样例陷阱集——bench/fixtures 增 xlat 类）。
+2. 网格：`chunk × model × repeat`；每响应过 L0 validator。
+3. 指标排序管线：**硬契约率**（丢/造占位符 + 丢脆弱命令 + validator error）→ ord 软信号（合法中文换序不降权）→ 延迟 p50/p95 → reasoning 开销 → token 经济。338 调用大样本实证此方法有效（swe-2-medium 100% 全场第一）。
+4. 用途：模型选型/白名单刷新（免费集 promo 到期即重跑）+ prompt 措辞回归（bump prompt_version 必跑）。
+
+**B4b 质量层**（需 LLM key，M1 出口）：
+
+1. 整篇真实翻译 corpus_v3 抽样子集（~100 篇）→ 译文进 B3 编译网格测"翻译对编译的实际影响"（中文长句撑爆 `\hbox`、罕见字缺字形、bibtex 多遍收敛——E10 未覆盖项）。
+2. 占位符位置敏感性：mock C（随机挪动 ~10% 占位符）量化 splice 鲁棒性（e2e pipeline 已留接口）。
+3. 质量抽样：段对抽取 → 人工/LLM-judge 评流畅度与术语一致性（三级术语表的实际提升测量点）。
+
+**门槛（M1 出口）**：100 篇真实翻译端到端 ≥85%；硬契约率大样本不回退（对照 80/80 基线）；L0 检出率不回退。
+
+## B5 · e2ebench —— 端到端组合基准
+
+**测什么**：全链组合后的逐环节成功率——单段绿不等于组合绿（E10 实证价值）。
+
+**底材**：corpus_v3 子集（先 ~50 篇，后全量）。
+
+**构建方法**（harness 已有：`tmp/exp/e2e/pipeline.py` 637 行扶正）：
+
+1. Mode A 位置忠实 mock：注入 ctex + 占位译文 + splice + 编译 → 验机械链路（已实证 16/16 PDF、0 FAIL、identity 111/111、leftover=0）。
+2. Mode B 幻觉 mock：注入占位符丢失/幻觉 → 验校验链兜底（132 处破坏编译前 132/132 捕获——"出 PDF≠成功"的实证来源）。
+3. Mode C 位置扰动 mock（待跑）：随机移位 ~10% 占位符。
+4. Mode D 真实：B4 真译文接入（M1 后）。
+5. 产出 **漏斗看板**：下载/解包/定位/解析/翻译/校验/编译每环节成功率 + 终态分布（done/partial/fault/degraded_*）——这就是"端到端成功率看板"的实现（docs/02 §测试策略）。
+
+**门槛**：mock A 全绿（PDF+identity+ 零残留占位 + 中文实际渲染）；mock B 破坏 100% 编译前捕获；Mode D 成功率即产品 SLA 观测点。
+
+## B6 · validbench —— 校验段基准
+
+**测什么**：L0/L1 校验器对 LLM 破坏的检出能力——校验器本身必须被评测（"校验器也必须被测试语料验证"——实现期真抓到过自身 bug）。
+
+**底材**：corpus chunk 对 + 变异器生成的破坏案例。
+
+**构建方法**（harness 已有：`tmp/exp/rule-validator/{gen_cases,run_eval}.py` + `tmp/exp/ts-validator/{gen_cases,run_eval}.js` 扶正合并）：
+
+1. 变异器：干净 chunk 施加 10 类破坏（丢 `}`/丢 `$`/`\end` 改名/删 `\end`/丢占位符/占位符拼错/`\[` 不配对/幻觉宏/删 cite key/多余占位符）× ph/raw 两层 → `cases.jsonl`（现有 1636 例规模，语料扩后重新生成）。
+2. 对抗手工探针：合法改写（掉 `\emph` 组）/ src 自带不平衡继承 / 占位符换序 / `\cite {k}` 带空格 / `\cite{a,b,c}`→`{a,b}` 漏 key / 全角 `【MATH_1】`——边界行为逐条断言。
+3. 指标：检出率（按破坏类分列命中规则）、error-FP（干净对）、warn-only 率、延迟/对、lev≤2 修复建议率。
+4. L1 层同口径跑 tree-sitter 版（绝对/相对判定分开报）。
+
+**门槛**：10 类破坏 100% 检出、干净对 0 error-FP、L0 ≤1ms/对。新增破坏类随真实 LLM 失败案例沉淀（B4 产出反向喂 B6）。
+
+## B7 · alignbench —— 锚点保留基准（滚动同步）
+
+**测什么**：zh 重编译后 named-destination 锚点保留率——对照阅读器滚动同步的质量上限（docs/05 §3-18 方案的前提条件）。
+
+**底材**：B3/B5 编译产物 en/zh PDF 对。
+
+**构建方法**（harness 已有：`tmp/exp/align-probe/` 扶正）：
+
+1. pypdf 提双侧 named destinations → 同名锚点配对 → 保留率 + 最大权值单调链权重（section 12/图表 10/equation 4/cite 2，`page.*` 权 0）。
+2. 回归断言：锚点保留率 ≥95%（实测 8/11 对 =1.000、778 页书 5519 锚 100%）；**保留率 <95% 本身可当 zh 编译完整性探针**。
+3. 退化集：无 hyperref 工程（~31%）双侧注 hyperref 兜底或同页码同 fraction 退化的正确性断言。
+4. 分段器回归联动：`\input/\include/\label/\bibitem` 进 chunk 的锚点连锅端案例（1502.01589 型）必须进 fixtures B2。
+
+**门槛**：有 hyperref 对保留率 ≥95%；无 hyperref 对走退化路径不崩。
+
+## 8. 汇总：构建顺序与里程碑映射
+
+| 序  | benchmark | 何时建/跑                      | 里程碑门                 |
+| --- | --------- | ------------------------------ | ------------------------ |
+| 1   | B1+B2     | M0 重写验收（语料就绪即跑）    | corpus39+v2 479 文件全绿 |
+| 2   | B6        | M0–M1（校验器随写随测）        | 100%/0FP 保持            |
+| 3   | B4a       | M1（LLM 后端选型+prompt 回归） | 硬契约率基线建档         |
+| 4   | B3        | M2（fixloop 主战场）           | 200 篇 ≥90%              |
+| 5   | B5 A–C    | M0 起常驻；D 随 B4b 接入       | mock 全绿 + 漏斗看板     |
+| 6   | B4b       | M1（真实翻译质量）             | 100 篇 ≥85%              |
+| 7   | B7        | M3（阅读器前置验证）           | 保留率 ≥95%              |
+
+统一产出契约：每个 benchmark 落 `bench/results/{name}-{corpus}-{date}/` 三件套（`files|cases.jsonl` 逐单元明细 + `summary.md` 漏斗/归因 + `papers|cells.json` 聚合）；`bench/results/` 划出 format/lint 链，报告由脚本全权重写。

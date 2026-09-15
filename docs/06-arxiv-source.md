@@ -1,0 +1,208 @@
+# 06 · arXiv 源获取层规格
+
+> 最终技术方案 · arXiv 接入与批量取数。
+> 证据基础：`docs/research/arxiv/layer.md`（在线层实测）、`docs/research/corpus/ia-pilot.md`（IA 管道 pilot）、`docs/research/corpus/post2020-sourcing.md`（post-2020 渠道裁决）、`docs/research/corpus/frame-and-allocation.md`（frame）。
+> 本文是规范（normative）：实现按此执行；研究文档只作证据出处，不再回查。
+
+## 0. 定位与两个消费方
+
+本层服务两个消费方，共享同一套解包/定位/钉版语义：
+
+| 消费方                     | 入口                          | 特征                                      |
+| -------------------------- | ----------------------------- | ----------------------------------------- |
+| 在线单篇（产品管线）       | `arxiv.org` / `export` 端点   | 限速、HEAD 预检、缓存、降级链             |
+| 批量建库（benchmark 语料） | IA / HF tar、HF parquet       | **零 arxiv.org 请求**，成员级 sha256 钉版 |
+| 批量预译（M4 远期）        | S3 requester-pays / OAI / RSS | 同 region 就地处理，只回传派生数据        |
+
+## 1. 在线层：端点与请求纪律
+
+### 1.1 端点表
+
+| 用途        | URL                                              | 备注                                                        |
+| ----------- | ------------------------------------------------ | ----------------------------------------------------------- |
+| 源码包      | `arxiv.org/src/{id}[vN]`（`/e-print/` 301 到此） | tar.gz / 单文件 .gz / PDF 直投三态                          |
+| HTML 版     | `arxiv.org/html/{id}[vN]`                        | 探 `{id}`（最新版）——实测存在 v1 404 而 v2 200 的边缘案     |
+| abs 页      | `arxiv.org/abs/{id}[vN]`                         | license 链接、替代版本（备用元数据源）                      |
+| PDF         | `arxiv.org/pdf/{id}[vN]`                         | PDF sidecar 输入                                            |
+| Atom 元数据 | `export.arxiv.org/api/query?id_list={id},…`      | 批量 id_list 一次拉多篇                                     |
+| OAI-PMH     | `oaipmh.arxiv.org/oai?verb=…`                    | 已迁出 export；独立第三限流桶                               |
+| 镜像下载桶  | `export.arxiv.org/{src,pdf,abs}/…`               | 全站镜像、行为一致——下载面容量 ×2 且互为故障转移            |
+| RSS         | `arxiv.org/rss/{cat}`（302→export）              | ~260 篇/日，含 license+announce_type+guid；每日预译种子首选 |
+
+### 1.2 请求纪律（硬约束）
+
+- **UA**：`texlate/{version} (+{repo_url}; mailto:{contact})`——官方要求机器人自报家门。
+- **限速**：每 host 桶 **≥3.05s 全局间隔，零并发**。吞吐靠批量接口（id_list / OAI / 批量渠道），不靠并行打站。
+- **HEAD 预检**：GET 之前先 `HEAD /src/{id}`——`content-disposition` 文件名直接给出 **resolved_version + 打包格式**（`arXiv-2203.02155v1.tar.gz` / 单文件 `arXiv-{id}vN.gz` / `arXiv-{id}vN.pdf`+`content-type: application/pdf`），`content-length` 做上限检查（拒 >150MB），`etag` 做缓存重验证。**一次 HEAD = hasSrc + 版本 + 三态格式预检**。
+- **重验证**：`If-None-Match` / `If-Modified-Since` → 304 成立已实测；etag 有 `sha256:…` 与 GCS 短串两形态，按不透明串处理。
+
+### 1.3 退避与 park（实测校准）
+
+| 场景                      | 动作                                                                                                                |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| 单请求 429 / 5xx          | 重试 3 次：+10s → +30s → +90s（±20% jitter）；`Retry-After` 有则从其值                                              |
+| 单请求 404                | 不重试，记 `not_found`                                                                                              |
+| **同 host 连续 2 次 429** | **断路器**：该 host **按路径**队列 park 15min（实测：限流按路径不按 host；惩罚窗口 >30min、无 Retry-After）         |
+| park 后首请求仍 429       | park 翻倍，上限 2h；全程 checkpoint 落盘可恢复                                                                      |
+| **~150 发/日后 406**      | 按 IP 累计配额惩罚：`/src/` 开始回 406、1–3min 自愈但密度渐升至近 100% → **直采日预算 ≈150–200 发**，超出走批量渠道 |
+
+含义：元数据队列与下载队列独立调度；export 持续 429 只 park 元数据队列，下载照常。
+
+### 1.4 版本语义
+
+- `{id}` = 最新版；`{id}v{N}` = 钉版。缓存键**永远用 resolved version**（裸 id 请求从 HEAD 文件名解析出 `vN`）。
+- `meta.json` 同时存 `requested_id`（含用户 v 钉）与 `resolved_version`；Atom `resolved_version` > 缓存值 → 标 stale 提示新版。
+- 用户钉 `vN` 但版本不存在 → 404，向用户报版本清单（abs 页 / OAI arXivRaw 版本史可得）。
+
+## 2. 解包规格
+
+### 2.1 三态判别（魔数优先，扩展名/响应头只作提示）
+
+```
+bytes[0:2] == 1f 8b          → gzip 封装
+  └ gunzip → offset 257 起 "ustar"（或 tar -tf 干跑成功）→ tar 多文件（主流 ~67–86%）
+             否则                                        → 单文件 .tex 本体（~7–32%）
+bytes[0:4] == "%PDF"         → PDF 直投（无源码 → sidecar）
+其他                          → 遗留格式告警（实测 0/190 已绝迹，95% 上界 <1.6%）
+```
+
+- **先 `gunzip -c` → 嗅 ustar → 再分流**；禁止依赖 bsdtar auto-magic（gz 压缩的非 tar 文件会报 Unrecognized）。
+- tar 探测用只读列举先列后解，同时产出 `files.txt`。
+- 比例随年代漂移：IA 9802 tar 67%/gz 32%/pdf 0.2% → 2001 tar 76%/gz 15%/pdf 8.4% → TIGER 2408 tar 86%/gz 7%/pdf 6.7%。
+- **第四态 pdf_wrapper stub**：源码存在但正文是 `\includepdf`/`\pdfpages` 壳（1412.6980 实测）——hasSrc 之外须加正文含量检测（stub 判据：section==0 ∧ 文本 <2KB），检出后走降级链。
+
+### 2.2 路径安全（逐成员，缺一不可）
+
+- 拒绝：`..`、绝对路径、包外 symlink/hardlink、device/fifo/socket、setuid。
+- 规范化：`./` 前缀剥离、重复名去重、**大小写折叠冲突检测**（`Fig1.eps`/`fig1.eps` 改名 + 告警，LaTeX 引用按原名）。
+- 上限：解压总量 ≤512MB、成员 ≤20k、单文件 ≤100MB。
+- 落盘：`raw/`（原始 blob 字节原样保存，可重放）+ `extracted/`（过滤后树）。
+- **mtree**：每包一份 `mtree.txt`（path+size+sha256）——缓存完整性校验、跨版本 diff、引用排序去重依据。
+- stub 过滤：`member_bytes < 100B` 或解压后 `%auto-ignore` 前缀 → 标 `stub` 不进抽样（实测 42B 占位混入案例）。
+
+### 2.3 主文件定位算法
+
+```
+candidates = { f ∈ *.tex | strip_comments(f) 含 \documentclass 或 \documentstyle }
+```
+
+1. **先剥注释再匹配**（`\documentclass` 选项可被注释穿插；注释剥离须 `\%` 转义与 verbatim 感知）。
+2. 唯一候选 → 主文件。
+3. 多候选裁决序：a. 含 `\begin{document}` 优先 → b. include 图的**根**优先 → c. 文件名先验 `main|paper|ms|root|manuscript|thesis|{id}`、顶层目录优先 → d. 仍 ≥2 个独立根 → 标 `multi_doc: true`，按 include-degree 最大者选定，report 记录全部候选。
+4. 零候选 → 非 LaTeX（plain TeX `\bye` / ConTeXt `\starttext`）→ 进降级链，不硬猜。
+
+### 2.4 `\input` 拓扑
+
+- 识别：`\input` `\include` `\InputIfFileExists` `\subfile` `\import{dir}{file}` `\subimport` `\includestandalone` `\CatchFileBetweenTags` + **裸文件名形 `\input file`**（1502.01589 实测 20+ 处）。
+- 路径解析：相对 including 文件目录 → 退项目根；扩展名补全 `.tex` → `.sty` → 裸名。
+- `\bibliography{x}` → `x.bbl`（48.1% 语料自带 .bbl 直消费；仅 5.8% 需现场 bibtex）。
+- 环检测：绝对路径 `_seen` 集断环记 warning（防环优先于重复展开语义——留档偏差）。
+
+## 3. 元数据层
+
+### 3.1 拉取
+
+- Atom `id_list` 批量：≤200 篇/次、URL ≤8KB 分批；独立队列调度支持 park/resume。
+- 批量发现走 OAI-PMH `oaipmh.arxiv.org/oai`：`ListRecords` + `resumptionToken` 翻页；`metadataPrefix ∈ {oai_dc, arXiv, arXivOld, arXivRaw}`；**`<license>` 只在 OAI 系**（机读许可唯一来源），arXivRaw 独占版本史；183 set；错误以 200+body 返回。全库回填 ~2000 页 ≈ 2h@3s。
+- DOI/版本史反查备用：DataCite `api.datacite.org/dois/10.48550/arxiv.{id}` 免 key 全量覆盖，`dates[]` 送 v1–vN。
+
+### 3.2 Atom → meta schema
+
+```json
+{
+    "arxiv_id": "1412.6980",
+    "resolved_version": 5,
+    "title": "...",
+    "authors": ["..."],
+    "abstract": "...",
+    "primary_category": "cs.LG",
+    "categories": ["cs.LG", "stat.ML"],
+    "published": "...",
+    "updated": "...",
+    "doi": "...",
+    "journal_ref": "...",
+    "comment": "15 pages",
+    "license": "...",
+    "links": { "abs": "...", "pdf": "..." }
+}
+```
+
+消费点：`primary_category` → 术语包映射（primary 优先、多类并集）；`comment` → chunk/token 预算先验；`authors` → 不可翻名单（配合 `\author` 块保护）。
+
+## 4. 缓存设计
+
+### 4.1 两层键
+
+```
+source_tier  = arxiv_id @ resolved_version                       # 跨请求/跨语言共享
+product_tier = sha256(id | resolved_version | model |
+                      pipeline_version | target_lang | glossary_hash)
+```
+
+- source tier 产物：`raw.*`、`extracted/`、`files.txt`、`mtree.txt`、`meta.json`、`etag`。
+- product tier 产物：`zh.pdf`、`chunks.jsonl`（断点续翻载体）、`glossary.json`、`report.json`、`compile.log`。
+- 失效语义：`pipeline_version` 只失效 product 层（升级解析器不重下源码）；`model`/`glossary_hash` 仅重翻。
+
+### 4.2 状态机（report.json）
+
+```
+pending → downloading → unpacking → locating → parsing → translating
+        → validating → compiling → done
+失败终态: no_source | pdf_only | stub | parse_failed | translate_failed
+        | compile_failed | degraded_html | degraded_pdf
+```
+
+`degraded_*` 仍产出译文，状态位供产品层给降级提示。
+
+## 5. 降级链
+
+```
+L1  e-print 源码 ──解析/编译失败──→ L2  arXiv HTML 最新版（LaTeXML ltx_* DOM，
+       │                             覆盖集 ≡ 源码集——救"我们解析器崩了"）
+       └── %PDF/404/stub → L3  PDF sidecar（~13% 唯一通路）
+```
+
+- L2 探测顺序：`HEAD /html/{id}`（最新版）→ 逐版本回退；stub 检测同 §2.1。
+- L2 是**异构降级**：DOM 节点级分块（`p.ltx_p` 可译叶、`<math>` 整子树占位、`data-chunk` 锚），不复用 LaTeX scanner。
+- 三层叠加覆盖 ≈100%；L1 单层 86.7%（CI 76–92%，~250 合并样本；旧式 id 源码率 98.1%、新式 94.8%）。
+
+## 6. 批量渠道（benchmark 取数正源）
+
+**硬约束：语料构建不请求 arxiv.org 任何端点**——可复现、无限流、可断点续跑。
+
+### 6.1 渠道裁决表
+
+| 渠道                                        | 覆盖                                             | 保真                                                                                            | 成本/速率                          | 角色                                        |
+| ------------------------------------------- | ------------------------------------------------ | ----------------------------------------------------------------------------------------------- | ---------------------------------- | ------------------------------------------- |
+| IA `arxiv-bulk` 月度 tar                    | 1991-07→2020-10，352 月无缺（3,242 item/1.66TB） | 字节级（Range 单成员抽取逐字节核验）                                                            | 免费，实测 10.7–16.2MB/s           | **≤2020 主力**（~24 簇）                    |
+| HF `TIGER-Lab/arxiv-latex-5T`               | 1991-07→2025-01，403 月零缺口（9,547 tar）       | **字节级已实证**：对拍 IA `2008_001`，123/165 成员 sha256 全同，42 差异全是上游 v2+ 修订        | 免费但 HF CDN 仅 ~3.7MB/s          | **post-2020 主力**（~6 簇）+ IA 缺月备份    |
+| HF `scholarweave/arxiv-latex`               | →2026-08（46 shards，duckdb 谓词下推可用）       | **.tex 逐字保真（845/845）但结构有损**：丢 73% 文件（图/.bst）、7.1% 论文 U+FFFD、pdf_only=NULL | 远程列裁剪，140 id/6.3GB shard 35s | 文本层规模实验源；**不进正式语料**          |
+| HF `librarian-bots/arxiv-metadata-snapshot` | 全量元数据（CC0 日更）                           | —                                                                                               | 免费、远程列裁剪                   | **分层 frame**（年月/类目/license 键）      |
+| AWS `s3://arxiv`                            | 全量（us-east-1，requester-pays）                | 字节级                                                                                          | $0.09/GB egress；同 region EC2 免  | 不用（M4 预译层才考虑；hjfy $174/2TB 锚点） |
+| GCP `gs://arxiv-dataset`                    | PDF+OAI 元数据 + 官方引用图                      | —                                                                                               | 匿名免 key                         | 冷备（无 LaTeX src）                        |
+
+### 6.2 成员级语义（实测定案）
+
+- 成员名 = `{YYMM}/{id}.gz|pdf`（旧式 archive 连写如 `astro-ph9802001`）；**名中无版本号** → blob ≈ tar 构建时点 e-print 状态，非钉版 v1。**manifest 以 `(channel, item, member, blob_sha256)` 四元组为唯一事实源**，`resolved_version=null`。
+- **月块只收当月新提交**：跨 3 月块 2,763 成员实测 id-yymm 全等于 chunk 月、跨月 id 重叠 = 0 → 去重键 = id。
+- 同 id 跨渠道可不同字节（快照时点不同 + 上游修订）→ `channel` 字段必填，不跨渠道去重。
+- **zipsum.tsv 捷径**：`{item}_zipsum.tsv` 成员序 == tar 序（2,549 成员 0 失配）→ 成员 data offset 纯算术重建（`512·(i+2) + Σ ceil(size_j/512)·512`），免下 tar 得全月成员索引（名字/大小/格式/sha256）。晚期 item 不规律缺失 → 退化整 chunk 流式扫描或 Range 头扫描（46 请求重建 311MB tar 索引已验证）。
+- 簇粒度 = 月内 chunk tar：IA 130–543MB/214–1,668 成员；TIGER ~0.53GB/≈150 篇（2024 每块）。单成员均值 ~3.7MB。
+- 吞吐实测：IA bulk ~11MB/s；特征提取 ~214 成员/s（单遍流式：魔数三态+gunzip+ 内层 tar+docclass+`\input` 深度+flags）；Range 延迟 ~1.6s/req。
+- `curl` 必须 `-L`（IA `/download/` 302 到 `dn*` 节点）。
+
+### 6.3 引用排序（预译种子集，M4）
+
+对 `extracted/` 语料单遍扫描 `.bbl+.bib+.tex`（46.2% 语料 bib/bbl 皆无、内嵌 thebibliography 在 .tex——必须三面全扫）抽「引用→arXiv id」边：
+
+- 七模式：`arXiv[: ]id`、旧式 `arXiv:hep-ph/9712271`、bib `eprint` 字段（**必须形状校验**——常装 DOI URL）、`journal={arXiv preprint…}`、URL 形态（`arxiv.org/(abs|pdf|e-print)/`、`doi.org/10.48550/arXiv.`）、`\cite{id}` 键即 id、`\eprint/\arxiv` 宏。
+- id 归一：新式 `\d{4}\.\d{4,5}` + 月份合法校验；旧式 archive 白名单 + `math.AG/`→`math/` 归并 + 大小写归一；版本后缀剥离→paper 级计数。
+- 去重：`(citing_id, cited_id)` 集合语义；作者交集标 `self_cite`。
+- 产物：`edges.jsonl` → `counts.json` → `rank.txt`。校准锚（hjfy 47 万篇 2023+ 语料）：`1412.6980`=29,512、top-10k≈64、top-100k≈个位数。
+- 已知偏差：语料边界近因偏差；正式发表遮蔽（OpenAlex 对拍 Adam：84,617 vs 语料内 29,512，低估 ~3×）；PDF 直投引用者漏计。方向均为低估，相对序仍稳。
+
+## 7. 开放项（已知未验证，不阻塞）
+
+- S3 manifest 边界完整性（需 AWS 凭据；M4 前不阻塞）。
+- export 429 窗口精确长度（只确认 >30min 下界；park 策略已按保守值）。
+- Atom `<arxiv:doi>` 原文验证（有 DataCite 替代，优先级低）。

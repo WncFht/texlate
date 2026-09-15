@@ -1,0 +1,332 @@
+# 08 · 翻译 / 校验 / 编译管线规格
+
+> 最终技术方案 · `src/texlate/xlat/` + `src/texlate/validate/` + `src/texlate/compile/` 全规格。
+> 证据基础：`docs/research/latex/prompt-glossary-spec.md`（prompt/术语表）、`texglot-patterns.md`（归一化层/缓存键/重试阶梯/沙箱）、`validator-rules.md`（L0）、`validator-ts.md`（L1）、`fixloop-rules.md`（规则库）、`engine-matrix.md`（引擎路由）、`pstricks-route.md`、`ctanfetch-probe.md`。
+> 实现按本文执行。
+
+## 0. 总览
+
+```
+chunks[] ──► 术语表物化（三级 + ph 恒等 + doc 级过滤）
+        ──► 按 kind 选 system prompt（C1–C10 + kind 条款 + glossary 尾块）
+        ──► 批量/单翻 + 重试阶梯 ──► L0 规则校验（每块即时）
+        ──► （可选 L1 CST）──► splice 回写（docs/07 §9）
+        ──► normalize 归一化手术 ──► 注入块（ctex/xeCJK + 兼容前导块）
+        ──► Engine 沙箱编译 ──► fixloop（yaml 规则）──► clean 判定 ──► zh.pdf
+```
+
+铁律：**"出 PDF ≠ 成功"**——校验必须独立于编译（E10 实测：56 处丢占位符产生 0 编译错误静默删内容；hep-th 出 8 页 PDF 但 0 中文字节）。
+
+## 1. 翻译编排（`xlat/`）
+
+### 1.1 chunk 类型与 system prompt 套件
+
+六种 chunk kind → 六份 system prompt，**公共条款块 C1–C8 逐字共享**（维护性 + 前缀缓存）：
+
+```
+system_prompt(kind) = TASK_SENTENCE[kind]
+                    + C1..C8（公共块，逐字固定）
+                    + KIND_CLAUSES[kind]     # 0~2 条
+                    + C9 PLACEHOLDER_CLAUSE  # 压轴，条款列表末位
+                    + C10 NAME_CLAUSE        # 仅 para/abstract
+                    + GLOSSARY_BLOCK         # 最末（§1.4）
+```
+
+公共块要点（英文成稿，init 期填 `{SRC}/{TGT}`）：C1 只翻自然语言；C2 不翻清单（控制命令/数学/含 LaTeX 尺寸单位 em…sp 的参数原样枚举）；C3 转义特殊字符 `\% \# \&`；C4 已知与 CJK 冲突的宏（`\hl/\ctext`/soul/xcolor 系）参数保原语；C5 特殊符号两侧垫空格（中文换行痛点）；C6 输出可编译；C7 学术术语一致；C8 只输出译文无解释无围栏。
+
+**C9 占位符条款（逐字，列表末位）**：
+
+```text
+C9. [[TYPE_n]] tokens (e.g. [[MATH_12]], [[CITE_3]], [[REF_7]], [[ENV_4]],
+    [[AUTHOR_1]], [[SL]], [[PL]]) are placeholders for protected LaTeX
+    fragments or structural markers. Do not translate, modify, reorder,
+    split, merge, add, or remove any of them, and do not let them influence
+    the surrounding translation. Every placeholder in the input must appear
+    verbatim in your output.
+```
+
+**C10 人名保原语**（para/abstract 末条）：`always keep person names in their original {SRC} form. Never translate, transliterate, or reorder them.`
+
+| kind            | 专属条款                                                                                                   |
+| --------------- | ---------------------------------------------------------------------------------------------------------- |
+| `para`          | +C10                                                                                                       |
+| `caption`       | 无（短文本）                                                                                               |
+| `section_title` | 只翻 `\section` 花括号内文本；命令/`[opt]`/`\label` 不动                                                   |
+| `abstract`      | +C10；单段流畅、保留 `\keywords` 结构                                                                      |
+| `table_text`    | `&`/`\\`/`\hline`/`\multicolumn`/`\cline`/列 spec 不动；行列数不变（**v0 先不翻表格内文本，prompt 备好**） |
+| `env_text`      | `\begin/\end` 与结构命令不动，只翻人读句子                                                                 |
+
+### 1.2 带错重翻（corrector）
+
+专用 corrector system prompt（不改共享块）+ user 三段式：
+
+```text
+[Original]
+<original {SRC} LaTeX>
+[Translation]
+<current {TGT} LaTeX>
+[Error]
+<missing/extra placeholders, command mismatches, bracket errors, ...>
+```
+
+温度 0.2；上限 3 轮；仍败 → 回退原文 + `fault` 标记。**反馈字段化优先**：校验异常字符串塞 `previous_validation_error`/`slot_validation_failures` 字段（texglot 结构化方案）比对话式更稳。
+
+### 1.3 批量协议
+
+- 分桶：`content < 300 字符 → short`（打包编号批量），否则 long（逐条单翻）。
+- 打包：short 桶贪心装箱 ≤2000 字符/批（**按 token 控可放宽 ~2000–4000 tok ≈ ≤8000 字符**——成本实测：prompt 摊销占输入 68%，批阈值是最大杠杆）；编号 `[1]…[n]` 协议，`@@` 兜底，响应按 `\[(\d+)\]` 解析。
+- 回退：数量不符/序号越界/解析失败 → **整批退化逐条单翻**（复用并发额度）；超大原子 chunk 先切分再入批。
+- 跳过：纯占位符 chunk（`^[[TYPE_n]]$`）不发请求，translation=source 直落盘。
+- 换行编码：段内 `\n` 编码为 `[[SL]]` 送翻、回来解码（`[[PL]]` 不需要——分段边界在 chunk 层管理）。
+
+### 1.4 术语表（三级 + 恒等注入 + 文档级烤进）
+
+```
+① 用户表  ~/.texlate/glossary.yaml | --glossary user.csv  → 最高优先，独占覆盖
+② category 表  terms/{primary_cat}.csv（+ 次 category 并集，先命中先写）
+③ 内建默认表  terms/default.csv                           → 兜底
+```
+
+- 格式：CSV 两列无表头 `en,zh`；"保原语"条目一等公民（`AGI,AGI`/`LLM,LLM`）。
+- **ph→ph 恒等注入**：文档全部占位符 `glossary[ph]=ph` 混入表（优先级最低不覆盖真术语）——占位符保护从"请你别动"软约束升级为术语表硬约束，零额外 token。
+- **文档级过滤 + 整表烤进**：启动时扫全部 chunk 源文本，`(?<!\w)term(?!\w)`（IGNORECASE|ASCII）筛出本文实际出现的术语 → `doc_glossary` 序列化为 `- en: zh` 行表追加 system prompt 末尾——整篇翻译期间 system prompt **逐字节不变**（前缀缓存：Anthropic `cache_control`，OpenAI/DeepSeek 自然前缀命中）。排序稳定（TYPE 字典序+n 数值序）是缓存命中前提。
+- 论文级覆盖：`output/{paper}/glossary.local.yaml`（优先级介于 user 与 category 之间）；产物落盘 `term_dict.json`。
+- 运行时术语自增：可选开关**默认关**（自动抽取质量参差，污染全局表得不偿失）。
+- 种子表：LaTeXTrans `terms/` 六表（default 404 + cs.LG/RO/ML/AI/CV）；category→file 映射 `terms/index.yaml`；缺口领域（hep/math/cond-mat/eess）后续众包。
+
+### 1.5 判定分工与 LLM-judge
+
+| 判定             | 首选手段                                                                                     | LLM 时机                  |
+| ---------------- | -------------------------------------------------------------------------------------------- | ------------------------- |
+| env 可译性       | 黑名单（math/verbatim/figure/table/algorithm/bib 全族）+ 白名单（proof/itemize/abstract 等） | 未知 env → judge          |
+| 段内可译自然语言 | 规则：无拉丁字母跳过/全大写跳过/纯占位符跳过                                                 | 灰区默认翻（fail-open）   |
+| 宏透明性         | 宏表静态分析（docs/07 §5.1）                                                                 | v0 不做                   |
+| 编译修复         | fixloop 规则表                                                                               | 未命中 → LLM 修复器（§5） |
+
+env judge 参数：**temperature=0、max_tokens=16、3 次重试、解析 `true/false` 小写、其余一律 True（fail-open 宁翻勿漏）**；判 content 非 env name；6 few-shot 成稿（含 `\caption` 内嵌→True、纯公式/绘图→False 灰区）。判 False → 整体 `[[ENV_n]]`；判 True → `env_text` chunk 送翻。
+
+### 1.6 并发 / 重试 / 断点
+
+- `asyncio.Semaphore(10)`（按 provider 限额 10~50 可调）；**首发单飞暖前缀缓存**，其余并发。
+- 退避：指数 `retry_delay·2^attempt`（429 用 `3^attempt` 下限 5s；timeout 下限 10s；`Retry-After` 从其值）；3~5 试；失败回退原文 + `skipped`+`skip_reason` 不阻塞整批。
+- 温度：翻译 0.2~0.3；judge/抽取 0。
+- **重试阶梯**：整段×2（字段化反馈）→ 行级修复（闭合 scope 边界按句号切）→ slots JSON 兜底（`⟪S0000⟫` 槽位、`response_format json_object`、8 槽/批、**失败槽只重问失败批**）→ 三振 `fallback_orig` + warning → `partial` 终态。
+- `recover_copied_tokens`：模型把受保护原文抄回时，**唯一出现**才换回 token（exact+unique 才修，不瞎猜）。
+- HTTP 层：状态码分类表（401/403 认证、402 余额、404 地址、408/409/425/429/5xx 重试 ≤2、余 4xx 拒、`finish_reason==length` 截断错）；`redact()` provider 无关脱敏。
+- **断点**：`state.json` 逐块原子落盘 `{version, meta{model,pipeline_version,total_chunks}, completed[], results[], errors_report[]}`；中间产物五表 `chunks_map/placeholders_map/glossary/state/errors_report`——重建器只读 map 表。
+- **段级缓存键**：`sha256(source + role + 失效标签 + masked/protected 快照)`——失效 tag 按需追加（accent/声明/数量级命中才加），masked/protected 快照使 token 布局变则 key 变；文件级键 `sha256(prompt_version+base_url+model+lang+glossary+context)`。**prompt 措辞任何改动必须 bump `prompt_version`**。
+- `atomic_json`：tmp+rename+0600；缓存读入逐条再校验，损坏文件隔离不删。
+
+### 1.7 本地默认后端（实测定案）
+
+`http://127.0.0.1:3003/v1/chat/completions` + **`swe-2-medium`**（free tier：大样本硬契约 100%(80/80)、reasoning p50=98 字符、5.9s/chunk）；备选 `swe-2-high`；`swe-2-max` 留修复器；禁用 `swe-1-7*`。免费集运行时动态筛（`/panel/api/models` `cost_tier==free` ∧ promo.active + `/v1/models` 求交 + 探活）。硬约束：每请求 ~160–566 隐藏 prompt token（网关注入 agent 系统提示，批内摊不掉）；reasoning 档 effort=模型名后缀；清单≠可用须实测白名单。付费对照 `glm-5-3-low`/`claude-sonnet-5-medium`。外部 BYOK 走 `provider_for_url` host→provider 预设表。
+
+## 2. 校验链（`validate/`）
+
+三层分工，**全部 src↔zh 相对判定**（"译文不得比原文更坏"——src 自带不平衡继承容忍，只报新增损伤）。
+
+### 2.1 L0 规则层（stdlib，always-on，0.57ms/对）
+
+| rule          | 检查                                                                                                     | error                                                                  | warn                      |
+| ------------- | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------- |
+| `placeholder` | `[[A-Z_]+_\d+]` multiset diff + 模糊候选 lev≤2 配对（`[[..]`/`[X_1]`/`【..】`）                          | 缺失/多余/拼错（附修复建议）                                           | —                         |
+| `brace`       | `{}` 平衡（`\{\}` 转义、`%` 注释豁免）                                                                   | zh 前缀深度 < src 或净余额 ≠ src                                       | 计数不同但净额一致        |
+| `env`         | `\begin/\end` 栈配对 + env 名 multiset diff                                                              | 多余 end/不匹配/未闭合/新增或丢失 env 名                               | end 名偏多                |
+| `key`         | `\cite*/\*ref/\label/\bibitem/\bibliography` key multiset（逗号拆分、`[..]` 豁免）                       | src−zh 漏 key                                                          | zh−src 新增（幻觉引用）   |
+| `math`        | 未转义 `$` 计数 + `\(\)\[\]` 成对                                                                        | 任一计数 ≠ src                                                         | `$` 奇数（继承自 src）    |
+| `length`      | zh/src 长度比 + 剥占位符后 CJK 占比                                                                      | —                                                                      | 比出 [0.25,2.50]；CJK<30% |
+| `macro`       | zh 控制序列集合 − src 集合（**+ src 命令多重集 ⊆ zh 方向检查**：`\`/`\,`/`\;`/`~` 脆弱间距命令防丢失型） | 命中结构族（`begin/end/documentclass/newcommand/usepackage` 等 31 个） | 其余新 cs                 |
+
+实测：10 类破坏 100% 检出（1323 例）、313 干净对 0 error-FP、135/138 拼错给 lev≤2 修复建议。**大样本再修**：占位符严格序守恒降软信号（`of X`→`X 的` 合法换序 ~95%）；`cs_dropped`（脆弱命令计数差）升硬判据（抓到 `\`+中文熔成 `\和` 未定义 cs 全部真炸弹）。
+
+### 2.2 L1 tree-sitter CST 层（可选组件 `texlate[ts-validator]`）
+
+- **必须 baseline 相对模式**（`ok_relative`）：73.7%（42/57）真实主文件自带 grammar 空隙 baseline ERROR——绝对判定在真实语料上不可用；相对模式按计数比对，位移不影响。
+- 检查项：ERROR/MISSING 节点（startByte/row/snippet）、env 配对（Query 抓 begin/end/generic_command/裸 begin/end 叶）、unclosed_math（CST 叶计数——verbatim/comment 内 `{}`/`$` 天然免疫）、brace_balance、placeholders 契约 diff（同 L0）。
+- 独有能查：node 级定位（破坏点 ±1B / 容器区域级）、`\end` 改名（语法上合法 generic_environment，必须自做名字比对）、ERROR 区内退化形态恢复。
+- 工程：JSONL 批处理 stdin/stdout 常驻进程（逐块 spawn 50ms 不可行，批处理摊薄 <1ms/块；chunk 级进程内 0.7–2ms）；分发 = validator.js + 两 npm 依赖随包作 data，`shutil.which("node")` 探测、无 node 优雅降级 L0。
+- 已知 grammar 坑四个已覆盖（`\end` 改名不报 ERROR 等）。
+
+### 2.3 L2 编译 log 回灌
+
+- 错误计数**双格式**：`^!` + `file:line:`（只数 `!` 漏全部引擎级错误）。
+- `parse_log`：首个 `^!` 行 + 其后 8 行 ctx + `!` 总数 + tail 30 行；ctx 内 `l.(\d+)` 行号 + `(` 开括号文件栈追踪（file_stack 定位出错 .tex/.sty，供 rewrite 规则缩小作用域）。
+- 注意：tectonic 有时**不写 .log**——监控不能假设 log 存在。
+- 不过 → 重译该块（错误描述进反馈字段）→ 再不过 → fallback 原文。
+
+## 3. 归一化层（`compile/normalize.py`）
+
+### 3.1 方法论：visible_tex 遮蔽视图 + 逆序 span 回放
+
+- 所有正则定位打在 `visible_tex()` 上：verbatim/Verbatim/lstlisting/minted/filecontents/comment 环境 + `\verb` + 行内 `%` 注释**等长空格遮盖**（`\n` 保留 → 行号不变、offset 保持）；编辑列表 `(start,end,replacement)` **逆序**应用到原文。
+- 定位视图 ≠ 改写目标：绝不能把 masked view 拷回去（注释行变空行、断跨行参数）。
+- 所有删除保持行号稳定（`replacement += "\n" * count` 补回换行）——错误可回溯源文件行号。
+
+### 3.2 无条件手术清单（顺序执行）
+
+1. `normalize_comment_terminators`：`\end{comment}` 行尾空白剥掉。
+2. `normalize_float_positions`：float 位置参数非法字符剥掉。
+3. `normalize_pdftex_features`（tectonic/xelatex 时）：`\pdf{compresslevel,objcompresslevel,minorversion,majorversion,gentounicode}` 系赋值整段删 + `\input glyphtounicode` 删；microtype `expansion/spacing/kerning`（tectonic 再+`tracking`）选项 → `=false`。
+4. `normalize_pixel_dimensions`：尺寸语境 `Npx` → `N\pdfpxdimen`（**语境受限**，非全局 sed）。
+5. 兼容前导块按需前插（注入点 = `\begin{document}` 前）：PIXEL_COMPATIBILITY（`\pdfpxdimen` polyfill）、XETEX_COMPATIBILITY（microtype TU 限定 + breakurl `\ifpdf` 暂存 + quantumarticle PassOptions + pstricks typeout 探针）、TECTONIC_FONT（bbm→dsrom/dsss 向量字体 shim）。
+6. `\PassOptionsToPackage{no-math}{fontspec}` 前插。
+7. **剥 inputenc/fontenc**：解析 `\usepackage{..}` 名字列表只剔 `{inputenc,fontenc}`，其余保留。
+8. 删 `\pdfinfo{...}`、删 `\pdfoutput=1`；驱动选项 `pdftex→xetex`（只改 hyperref/graphicx/graphics/color/xcolor 可选参内的独立 token）。
+9. OT1/T1/LY1 → TU 字体族：`ptm→texgyretermes` 等映射表 + `\usefont/\fontfamily` 改写 + `\newfontfamily` 定义块插 `\documentclass{}` **后**（自定义 NFSS 族跳过；不改作者默认字体，只给显式 Type1 选择提供 Unicode 等价物）。
+10. `normalize_legacy_cjk`：`CJK/CJKutf8` → xeCJK+Fandol（lualatex→luatexja）。
+11. `use_bundled_bibliography`：`.bib` 缺失但有 `.bbl` → `\bibliography{x}` → `\input{x.bbl}`。
+12. `rebase_project_paths`：`\input/../foo.tex` 越界引用重写为包内正确相对路径。
+
+**分工铁律**：归一化层做无条件手术；条件性手术（microtype/times→newtx 等）留 fixloop——两边不得重复改同一处。
+
+### 3.3 中文注入
+
+- 默认 **ctex `[fontset=fandol,UTF8]`**（hjfy 同款、双引擎实测可编译、白拿节名汉化）；**xeCJK+fontspec 为降级路径**（ctex 冲突签名→fixloop 或探测编译切换）。两路径共用注入缝：兼容块 → `\begin{document}` 前；字体系块 → `\documentclass{}` 后。
+- `\documentstyle` → **禁止注入 + 无条件 reject**（三引擎实测全死，ptptex.cls 已不可得）→ 走降级链。
+- FLOAT_SIZING 仅在有 figure/table 时注入（`\resizebox*` 缩超高 float + typeout 回读）；TABLE_FITTING hook threeparttable（`adjustbox{max width=\linewidth}`）。
+- `embed_cjk_mappings`：编译后给 Identity-H/Adobe-GB1 无 ToUnicode 字体注 `Adobe-GB1-UCS2` cmap——中文 PDF 可复制可搜索。
+
+### 3.4 target_probe 与 compiled_dependencies
+
+- **target_probe**：翻译前先以"译文桩"替换英文词编译一遍（免费），暴露字体/模板问题再花钱；探针失败直接进 fixloop。
+- **compiled_dependencies 为翻译文件集权威**：`.fls` INPUT 行 / tectonic `--makefile-rules` 决定翻哪些 .tex；静态 `\input` 图只作编译失败时降级。
+
+## 4. 引擎层（`compile/engine.py`）
+
+### 4.1 Engine 协议
+
+```python
+class Engine(Protocol):
+    caps: set[str]                    # {kpsewhich,tlmgr,updmap,shell_escape,bundle}
+    def compile(wdir, main, passes=2) -> CompRes    # pdf?, log_path, timed_out
+    def probe_file(fname) -> str | None             # kpsewhich | 本地+bundle 探测
+    def install_file(fname, font_related) -> bool   # tlmgr | ctan_fetch 降级
+    def rebuild_fontmaps() -> None                  # updmap-user | noop
+    def filemap(fname) -> list[str]                 # file→pkg 索引
+```
+
+- xelatex：`-no-shell-escape -interaction=nonstopmode -halt-on-error -file-line-error -recorder`，≤2 pass，timeout 240s。
+- tectonic：`-X compile --untrusted --keep-logs --keep-intermediates --makefile-rules <deps.mk> --hide secrets`；`TEXINPUTS` 不认——等价物 `-Z search-path`；bundle pin `tlextras-2022.0r0`。
+
+### 4.2 路由与兜底
+
+**静态预检路由表**（编译前即可决策）：
+
+| 检测                                            | 路由                                      |
+| ----------------------------------------------- | ----------------------------------------- |
+| `\documentstyle`                                | **无条件 reject**（三引擎全死已实证）     |
+| `*.eps` / `\usepackage{pstricks}` / `pspicture` | **跳过 tectonic 直走 xelatex**（硬墙）    |
+| `frozencache` + minted                          | tectonic 优先（bundle v2.6 兼容 v2 缓存） |
+| bbm/dsfont 类位图字体包                         | tectonic 高风险 → 失败后换 xelatex        |
+| 非 UTF-8 源（latin-5 等）                       | iconv 转码预处理 或 latex 路注 inputenc   |
+
+- **M0 开发默认 xelatex**（fixloop 地面真值、tlmgr 可修性实测最高：7 FAIL → 7 可推进、链深 1–5 轮）。
+- **分发默认 tectonic 优先 + xelatex 兜底**：便携无 tlmgr 依赖、初始 clean 率更高（7/12 vs 4/12）、热缓存 ≤22s；失败集几乎互补（联合 clean 9/12，全灭仅 hep-th）。
+- tectonic 三大硬墙（换引擎信号）：EPS/PS 图（xdvipdfmx 不支持）、bundle 缺物理字体（`.vf or physical font`）、bundle 包版本旧语义错（不可选版只能换引擎）。
+
+### 4.3 clean 判定三件套（判据，非修复）
+
+`clean` = ① 有 pdf ② `!`≤3 且首错非 missing_*/undefined_cs ③ **log warning 扫描**：`Invalid UTF-8 byte` / `Missing character.*U+FFFD` / tectonic `File.*not found` 降级行 / missing_graphic 红线——任一命中即 dirty。另加**中文实际渲染检查**（`Missing character` 计数==0 或 PDF 字体表含 CJK——hep-th 0 中文字节是全线最坏静默失败）。`partial` = 有 pdf 但 dirty。
+
+### 4.4 编译沙箱
+
+`--untrusted`（tectonic）/ `-no-shell-escape`（xelatex）+ **env 白名单**（非黑名单；加 `TECTONIC_UNTRUSTED_MODE=1 openin_any=p openout_any=p shell_escape=f`）+ macOS sandbox-exec profile（deny `$HOME` 读 + 全写，白名单放行工程/输出/缓存/字体目录——settings.json/浏览器 profile/SSH key 编译期不可读）+ `killpg` 进程树超时杀。
+
+## 5. fixloop（`compile/fixloop.py`）
+
+### 5.1 两层 YAML：`taxonomy`（log→类别，18 regex）+ `rules`（类别→动作）
+
+phase：`gate`=每轮分类后最先评估 / `precheck`=编译前一次性 / `loop`=每轮错误驱动；同 phase 按 order 升序、**每轮只应用一条**（便于归因）。
+
+| #   | id                   | phase/order | 触发                                         | 动作                                                             |
+| --- | -------------------- | ----------- | -------------------------------------------- | ---------------------------------------------------------------- |
+| 1   | `latex209_reject`    | gate/1      | `latex209` ∨ `missing_file`+`\documentstyle` | reject_route                                                     |
+| 2   | `static_precheck`    | precheck/0  | always                                       | 扫 `\usepackage/\RequirePackage/\documentclass`→filemap 批量装包 |
+| 3   | `install_file`       | loop/10     | `missing_file`                               | filemap 查包→安装→复核；字体扩展名装后重建 map                   |
+| 4   | `install_tfm`        | loop/20     | `missing_tfm`                                | 装 `{pay}.tfm` 所在包 + updmap                                   |
+| 5   | `install_sysfont`    | loop/30     | `fontspec_missing`                           | `{pay}.otf/.ttf/.ttc` 搜包装 + updmap                            |
+| 6   | `missing_pfb_updmap` | loop/40     | `missing_pfb`                                | `updmap-user` 重建 map                                           |
+| 7   | `pdftex_prim_guard`  | loop/50     | `pdftex_prim`                                | 13 个 `\pdf*` 原语套 `\ifdefined…\fi`（lookbehind 幂等）         |
+| 8   | `px_to_bp`           | loop/60     | `illegal_unit`                               | `N px`→`N*0.75 bp`（算术函数）                                   |
+| 9   | `microtype_off`      | loop/70     | `xetexglyph_tfm`                             | microtype 强制 `[protrusion=false,expansion=false]`              |
+| 10  | `times_to_newtx`     | loop/80     | `xetexglyph_tfm`                             | `{mathptmx/mathptm}`→`{newtxtext,newtxmath}`                     |
+| 11  | `hyphenation_sane`   | loop/90     | `hyphenation`                                | `\hyphenation{}` 只留 `[a-zA-Z-]` token                          |
+| 12  | `soul_cjk_mbox`      | loop/100    | `soul_err`                                   | `\hl/\ul/\st/\so/\caps` 含 CJK 参数套 `\mbox`                    |
+| 13  | `thm_sibling_strip`  | loop/110    | `already_def`                                | 剥 `sibling=\w+,?`                                               |
+| 14  | `option_clash_merge` | loop/120    | `option_clash`                               | 同名包重复加载→合并选项到首处 + 注释后处（builtin）              |
+| 15  | `minted_frozencache` | loop/130    | `minted_froz`                                | `{minted}`→`{minted2}` 一行替换（v3 吃 v2 缓存报 50 错实测）     |
+| 16  | `undefined_cs_guess` | loop/900    | `undefined_cs`                               | escalate_llm（恒最后兜底）                                       |
+
+动作原语 7 种：`scan_install / install_file / run_tool / regex_rewrite / builtin_transform / reject_route / escalate_llm`。命名函数注册表仅 3 个（`px_to_bp`/`keep_latin_tokens`/`option_clash_merge`）——社区新规则多数只写 regex，新函数才需 PR 代码。
+
+**顺序不变量**：gate 先于一切（`missing_file`+`\documentstyle` 必须先拦，否则给 2.09 白装包）；install 先于 rewrite（缺包时不许动源码）；同 trigger 保守→激进（microtype_off 70 < times_to_newtx 80 + `(rule_id,payload)` dedup）；兜底恒最后（order 900）。防干扰：同 `(cat,pay)` 签名连续 3 轮 → `stuck`；rewrite 幂等逐条审过。
+
+### 5.2 新增规则（实证缺口回填）
+
+| id                            | 触发/检测                                        | 动作                                                                                          |
+| ----------------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| `pdftex_prim_polyfill`        | 读取型 `\ifnum\pdfoutput`（现 guard 只管赋值型） | `\ifdefined\pdfoutput\else\chardef\pdfoutput=1\fi`                                            |
+| `vendored_sty_shadow`         | 工程自带旧 .sty 遮蔽已装新版                     | **按 ProvidesPackage 日期比较 + 错误触发** rename 隔离（盲删必死——同目录 cls 可能是唯一来源） |
+| `minted_v3_rewrite`           | xelatex minted v3 × v2 frozencache               | `{minted}`→`{minted2}`                                                                        |
+| `eps_route`                   | 静态扫 `*.eps`/pstricks                          | 不进 fixloop 直接路由 xelatex                                                                 |
+| `non_utf8_source`             | xelatex 静默 U+FFFD                              | 上游 iconv 转码或 inputenc 注入                                                               |
+| `pstricks_dvips_fallback`     | dvips 兜底                                       | `.pro` preflight（pst-tools.pro）                                                             |
+| `bbl_stub_shadow`（tectonic） | 有 .bbl 无 .bib                                  | `\bibliography{x}`→`\input{main.bbl}`，阻断自动 bibtex stub 遮蔽真 bbl                        |
+| `font_sub_shim`（tectonic）   | MF-only 字体包（bbm 等）                         | Type1 近亲（dsfont/dsrom）shim——物理字体投放是死路                                            |
+| `ctan_fetch` 版本前置         | 命中包先比 expl3/LaTeX2e 版本要求                | 新版过新跳过（tlnet 只发最新，钉版需 historic tlnet/自建 pin cache）                          |
+
+### 5.3 tectonic 降级与 ctan_fetch 原语
+
+16 条中 11 条源改写天然引擎无关；5 条依赖 tlmgr/kpsewhich/updmap 需降级，其中 **4 条汇到同一原语 `ctan_fetch`**：
+
+```
+ctan_fetch = file→TeX Live 包离线索引（解析 texlive.tlpdb：
+             8148 包 / 138K basename，0.14s 构建，随规则库分发 + overrides 手工表）
+           → tlnet/archive/<pkg>.tar.xz 拉取 → 解包到工作目录
+           （cwd 平铺遮蔽 bundle 实测成立：ctex 2.5.10 遮蔽 bundle 2.5.8 → 0 错）
+           → 索引查不到 → advisory（附候选包名）
+```
+
+**仅限 TeX 输入层文件**（.sty/.cls/.tfm）；物理字体/xdvipdfmx 层须改写规则兜底；`install_sysfont` 拉到字体后需配套 `Path=./` 或 fontconfig 注册否则 advisory；`missing_pfb_updmap` 无替代物 → escalate 或路由回 xelatex。xelatex 侧 `tlmgr search --global --file` → `tlmgr --usermode install`（21 种实测装入 `~/Library/texmf`；`not relocatable` 落 `.ins` 兜底/放弃标记；搜索缓存落盘）。
+
+### 5.4 主循环
+
+```
+fixloop(proj, eng, ruleset):
+    ctx = {applied:set, actions:[], installed:[]}
+    for r in ruleset.phase("precheck"): apply(r)          # 第 0 招
+    main = find_main_tex(proj)
+    for rnd in 1..max_rounds:
+        res = eng.compile(wdir, main, passes=2)
+        cat, pay = classify(parse_log(res.log))
+        v = verdict_gate(res, cat, pay, ruleset.phase("gate"), ctx)
+        if v: return finish(v)                           # clean / reject
+        if (cat,pay) == prev_sig ×3: return finish("stuck")
+        r = match(ruleset, cat, pay, ctx, eng)           # order 序+dedup+cond+caps
+        if r is None: return finish("unfixable:"+cat | "dirty_pdf")
+        apply(r); ctx.applied.add((r.id,pay))
+    return finish("max_rounds")
+    # finish(): final_pdf/errors 汇总 + case → cases.jsonl（沉淀原料）
+```
+
+终止判据：pdf+0 错→clean；cat clean/None→判 pdf；gate 命中→reject；sig×3→stuck。
+
+### 5.5 沉淀机制（"新失败 → 新规则"）
+
+```
+每格跑完 → cases.jsonl {corpus, cond, engine, rounds[cat/pay/rule/result],
+                        verdict, log_excerpt}
+    verdict ∈ {unfixable, stuck, dirty_pdf} → triage queue
+        LLM/人工读 log_excerpt → 三类补丁之一：
+          a) taxonomy 新行（新错误形态 regex→category）
+          b) rules 新条目（已有类别修法：多为 regex_rewrite，少数新 function）
+          c) filemap.overrides 行（索引查不到的 file→pkg）
+    ▼ 回放验证（入库门槛）
+      ① 本格重跑：新规则必须把 fail 修到 pdf
+      ② 全语料回归：不得把任何 clean 格改脏（no-regression gate）
+      ③ status: proposed → active；fires/rescues 计数回填 stats
+```
+
+要点：~80% 新失败落"已知类别变体"→纯 yaml PR；规则带 `stats.fires/rescued_cells` + `status: stub|proposed|active|retired`；`provenance` 必填（`corpus_id + error` 原文可回溯失败现场——hjfy 人肉库的开源等价物）；可选 **shadow 模式**（proposed 排 active 后试运行只记录"若应用会怎样"防抢位回归）。当前沉淀队列头号 case：`soul_cjk_mbox`（soul_err 不在现有 CJK-参数 pattern 内）；`undefined_cs_guess` 需 cs→pkg 知识库（fdsymbol/stix/unicode-math 符号包映射）。
+
+实测覆盖：install 系 4 招 = 75/86 次触发（87%）；spike 22 格 16 原始失败 → 16 救回、15 clean。
