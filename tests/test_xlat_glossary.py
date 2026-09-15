@@ -1,0 +1,141 @@
+"""glossary：三级合并优先级 / ph 恒等注入 / 文档级过滤 / 迷你 yaml 解析。"""
+
+from pathlib import Path
+
+import pytest
+
+from texlate.xlat import glossary as gl
+
+
+@pytest.fixture
+def terms_dir(tmp_path: Path) -> Path:
+    d = tmp_path / "terms"
+    d.mkdir()
+    (d / "default.csv").write_text(
+        "attention,注意力\nAGI,AGI\nmodel,模型\n", encoding="utf-8"
+    )
+    (d / "cs.LG.csv").write_text("model,模型(LG)\nloss,损失\n", encoding="utf-8")
+    (d / "cs.CV.csv").write_text("model,模型(CV)\nfeature,特征\n", encoding="utf-8")
+    (d / "index.yaml").write_text(
+        "cs.LG: cs.LG.csv\ncs.CV: cs.CV.csv\n", encoding="utf-8"
+    )
+    return d
+
+
+class TestTieredMerge:
+    def test_default_fallback(self, terms_dir: Path) -> None:
+        g = gl.Glossary.load(terms_dir=terms_dir, user_path=Path("/nonexistent"))
+        assert g.terms["attention"].zh == "注意力"
+        assert g.terms["AGI"].zh == "AGI"  # 保原语条目
+
+    def test_category_union_first_hit_wins(self, terms_dir: Path) -> None:
+        g = gl.Glossary.load(
+            terms_dir=terms_dir,
+            categories=["cs.LG", "cs.CV"],
+            user_path=Path("/nonexistent"),
+        )
+        assert g.terms["loss"].zh == "损失"
+        assert g.terms["feature"].zh == "特征"
+        # 同 term 双 category 命中：声明序先写者胜
+        assert g.terms["model"].zh == "模型(LG)"
+
+    def test_user_overrides_category(self, terms_dir: Path, tmp_path: Path) -> None:
+        user = tmp_path / "glossary.yaml"
+        user.write_text("model: 用户模型\n", encoding="utf-8")
+        g = gl.Glossary.load(terms_dir=terms_dir, categories=["cs.LG"], user_path=user)
+        assert g.terms["model"].zh == "用户模型"
+
+    def test_local_between_user_and_category(
+        self, terms_dir: Path, tmp_path: Path
+    ) -> None:
+        local = tmp_path / "glossary.local.yaml"
+        local.write_text("model: 本地模型\nloss: 本地损失\n", encoding="utf-8")
+        g = gl.Glossary.load(
+            terms_dir=terms_dir,
+            categories=["cs.LG"],
+            user_path=Path("/nonexistent"),
+            local_path=local,
+        )
+        assert g.terms["model"].zh == "本地模型"
+        assert g.terms["loss"].zh == "本地损失"
+
+    def test_csv_single_column_is_identity(self, tmp_path: Path) -> None:
+        f = tmp_path / "t.csv"
+        f.write_text("Transformer\n", encoding="utf-8")
+        assert gl.load_table(f) == {"Transformer": "Transformer"}
+
+
+class TestPlaceholderIdentity:
+    def test_ph_injected_lowest_priority(self, terms_dir: Path) -> None:
+        g = gl.Glossary.load(
+            terms_dir=terms_dir,
+            user_path=Path("/nonexistent"),
+            placeholders=["[[MATH_2]]", "[[MATH_10]]", "[[SL]]"],
+        )
+        assert g.terms["[[MATH_2]]"].zh == "[[MATH_2]]"
+        assert g.terms["[[MATH_2]]"].source == "placeholder"
+        # 排序键在 doc_filter 里体现
+
+    def test_ph_never_overrides_real_term(
+        self, terms_dir: Path, tmp_path: Path
+    ) -> None:
+        user = tmp_path / "u.yaml"
+        user.write_text('"[[MATH_1]]": 占位一号\n', encoding="utf-8")
+        g = gl.Glossary.load(
+            terms_dir=terms_dir, user_path=user, placeholders=["[[MATH_1]]"]
+        )
+        assert g.terms["[[MATH_1]]"].zh == "占位一号"
+        assert g.terms["[[MATH_1]]"].source == "user"
+
+
+class TestDocFilter:
+    def test_filters_to_doc_occurrence(self, terms_dir: Path) -> None:
+        g = gl.Glossary.load(terms_dir=terms_dir, user_path=Path("/nonexistent"))
+        out = g.doc_filter(["we use attention here", "no match text"])
+        assert "attention" in out
+        assert "model" not in out  # 未出现则不入表
+
+    def test_boundary_respects_word_chars(self, terms_dir: Path) -> None:
+        g = gl.Glossary.load(terms_dir=terms_dir, user_path=Path("/nonexistent"))
+        out = g.doc_filter(["the models are great"])  # "models" 不命中 "model"
+        assert "model" not in out
+
+    def test_case_insensitive(self, terms_dir: Path) -> None:
+        g = gl.Glossary.load(terms_dir=terms_dir, user_path=Path("/nonexistent"))
+        out = g.doc_filter(["ATTENTION is all you need"])
+        assert "attention" in out
+
+    def test_placeholders_always_included_sorted(self, terms_dir: Path) -> None:
+        g = gl.Glossary.load(
+            terms_dir=terms_dir,
+            user_path=Path("/nonexistent"),
+            placeholders=["[[MATH_10]]", "[[CITE_1]]", "[[MATH_2]]"],
+        )
+        out = g.doc_filter(["irrelevant text"])
+        keys = list(out)
+        # 占位符按 sort_key 排在真术语后；本文真术语全不命中
+        assert keys == ["[[CITE_1]]", "[[MATH_2]]", "[[MATH_10]]"]
+
+
+class TestMiniYaml:
+    def test_flat_map(self) -> None:
+        out = gl.mini_yaml("a: 1\nb: 2\n# comment\nc: 三\n", name="t")
+        assert out == {"a": "1", "b": "2", "c": "三"}
+
+    def test_nested_map(self) -> None:
+        out = gl.mini_yaml("term:\n  target: 译\n  context: ctx\n", name="t")
+        assert out == {"term": {"target": "译", "context": "ctx"}}
+
+    def test_flatten_structured(self) -> None:
+        out = gl.flatten_terms(
+            {"a": "1", "b": {"target": "2", "context": "x"}}, name="t"
+        )
+        assert out == {"a": "1", "b": "2"}
+
+    def test_reject_garbage(self) -> None:
+        with pytest.raises(ValueError, match="unsupported yaml"):
+            gl.mini_yaml("- list item\n", name="t")
+
+    def test_inline_comment(self) -> None:
+        out = gl.mini_yaml("a: b # note\n", name="t")
+        assert out == {"a": "b"}
