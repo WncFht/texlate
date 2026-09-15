@@ -41,6 +41,26 @@ class TestNewlineCodec:
     def test_decode_unknown_markers_pass_through(self) -> None:
         assert ph.decode_newlines("a[[MATH_1]]b") == "a[[MATH_1]]b"
 
+    def test_fragile_space_masked(self) -> None:
+        r"""`\ ` 脆弱间距 → ``[[SP]]`` 占位符（吃 C9 保护契约），decode 还原。"""
+        src = "cf.\\ [[MATH_1]] holds,\ni.e.\\ too"
+        enc, _ = ph.encode_newlines(src)
+        assert enc == "cf.[[SP]][[MATH_1]] holds,[[SL]]i.e.[[SP]]too"
+        assert ph.decode_newlines(enc) == src
+
+    def test_literal_sp_collision(self) -> None:
+        """源文本自带字面 ``[[SP]]``/``[[SP_RAW]]`` 走两级转义不碰撞。"""
+        src = "literal [[SP]] and [[SP_RAW]] plus\\ real"
+        enc, _ = ph.encode_newlines(src)
+        assert "\\ " not in enc.replace("[[SP_RAW]]", "")
+        assert ph.decode_newlines(enc) == src
+
+    def test_double_backslash_space(self) -> None:
+        r"""``\\ ``（换行命令+空格）内的 ``\ `` 子串——编码后仍无损 round-trip。"""
+        src = "line\\\\ broken\nnext"
+        enc, _ = ph.encode_newlines(src)
+        assert ph.decode_newlines(enc) == src
+
 
 class TestFindAllAndSort:
     def test_typed_and_bare(self) -> None:

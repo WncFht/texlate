@@ -310,7 +310,9 @@ def _assemble_slots(seq: list[tuple[str, str]], translated: dict[str, str]) -> s
         if kind == "slot":
             parts.append(decode_newlines(translated[payload]))
         elif kind == "ph":
-            parts.append(payload)
+            # [[SL]]/[[PL]]/[[SP]] 也是 ph 项——必须解码回字节形态，否则装配
+            # 译文残留字面 token，校验按多余占位符判死（s40 阶梯全军覆没根因）
+            parts.append(decode_newlines(payload))
         else:
             parts.append(decode_newlines(payload))
     return "".join(parts)

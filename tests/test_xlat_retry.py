@@ -260,6 +260,28 @@ class TestLadder:
         assert res.stage == "slots"
         assert rounds["n"] == 2  # noqa: PLR2004 -- 重问一轮补齐
 
+    def test_slots_decode_newline_ph(self) -> None:
+        """slots 装配必须把 ``[[SL]]``/``[[PL]]`` 解码回换行——否则校验按多余
+        占位符判死（s40 多行 chunk 阶梯全军覆没的根因回归）。"""
+        src = "Alpha [[MATH_1]] beta\ngamma delta"  # 有句内换行、无句号切点
+
+        async def bad_translate(_text: str, _feedback: str) -> str:
+            return "译文没有占位符"
+
+        async def good_slots(slots: dict[str, str], _failures: str) -> dict[str, str]:
+            return dict.fromkeys(slots, "槽译文")
+
+        res = asyncio.run(
+            rt.translate_with_ladder(
+                src, translate_fn=bad_translate, slots_fn=good_slots
+            )
+        )
+        assert res.status == "recovered"
+        assert res.stage == "slots"
+        assert "[[SL]]" not in res.translation
+        assert "\n" in res.translation
+        assert "[[MATH_1]]" in res.translation
+
     def test_fallback_orig(self) -> None:
         """全阶段败 → fallback_orig + translation=原文 + warnings。"""
 

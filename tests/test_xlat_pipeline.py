@@ -150,6 +150,20 @@ class TestResumeAndCache:
         assert t2.calls  # 重试真实发生
         assert r2[0].status == "ok"
 
+    def test_resume_source_drift_retranslates(self, tmp_path: Path) -> None:
+        """同 chunk_id 但 source 漂移 → 旧记录不命中、重翻覆盖（splice 残留防线）。"""
+        outdir = tmp_path / "out"
+        old = [_mk("Long prose " + "x" * 400 + " [[MATH_1]]", "c1")]
+        r1 = _run(old, translator=pl.MockTranslator(), state=StateStore(outdir))
+        assert r1[0].status == "ok"
+
+        new = [_mk("Long prose " + "y" * 400 + " [[MATH_1]]", "c1")]
+        t2 = pl.MockTranslator()
+        r2 = _run(new, translator=t2, state=StateStore(outdir))
+        assert t2.calls  # 漂移不命中 → 真实重翻
+        assert r2[0].source == new[0].content
+        assert r2[0].status == "ok"
+
     def test_worker_survives_emit_failure(self) -> None:
         """on_result/state 落盘抛错不能杀 worker——一死 queue.join() 就死等。"""
         chunks = [

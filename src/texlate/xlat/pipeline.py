@@ -649,8 +649,20 @@ class XlatPipeline:
         split_items: list[tuple[str, Any]] = []
         for c in chunks:
             cid = c.chunk_id
-            if cid in completed and cid in done_map:
-                continue
+            prev = done_map.get(cid)
+            if cid in completed and prev is not None:
+                if prev.source == c.content:
+                    continue
+                # parse 漂移下同 id 命中陈旧记录——其译文的 [[X_n]] 在新
+                # ph_map 缺席 → splice 留字面残留（n100 实测 1524 例）。
+                # 按未命中重翻自愈；丢出 done_map 防异常路径把旧译文当结果。
+                log.warning(
+                    "chunk %s source drifted (recorded %dB != current %dB) → re-translate",
+                    cid,
+                    len(prev.source),
+                    len(c.content),
+                )
+                del done_map[cid]
             if placeholders.is_placeholder_only(c.content.strip()):
                 r = ChunkResult(
                     chunk_id=cid,

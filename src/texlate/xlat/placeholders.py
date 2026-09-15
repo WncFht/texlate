@@ -3,7 +3,7 @@ r"""占位符编解码与 src↔zh 对账（规格 docs/08 §1.3/§1.6，口径�
 契约边界：
 - `[[TYPE_n]]` 带号占位符——`ph_map` 侧受保护片段；PhType 全枚举（含
   ENV/COMMENT/COND/ENVTAG 等 in_arg 产物）均走此形态。
-- `[[NAME]]` 裸标记仅 SL/PL 换行编码系（`[[SL]]`/`[[PL]]` 及 `_RAW` 变体）——无 `_n` 后缀。
+- `[[NAME]]` 裸标记仅 SL/PL 换行编码系与 `\ ` 间距保护（`[[SL]]`/`[[PL]]`/`[[SP]]` 及 `_RAW` 变体）——无 `_n` 后缀。
 - 换行编码只接管段内 `\n`（分段边界在 chunk 层管理，`[[PL]]` 仅作 `\n\n+` 防御编码）。
 - 占位符多重集 diff + lev≤2 模糊配对与 `rule_validator.check_placeholder` 同口径——
   本模块是 xlat 层自带的轻量对账，正式 L0 校验器就绪后经 `PhValidator` 协议替换。
@@ -54,6 +54,14 @@ SOFT_NEWLINE_RAW = "[[SL_RAW]]"
 PARA_NEWLINE_RAW = "[[PL_RAW]]"
 _SOFT_NEWLINE_SENTINEL = "[[__TEXLATE_SL_LIT__]]"
 _PARA_NEWLINE_SENTINEL = "[[__TEXLATE_PL_LIT__]]"
+#: 脆弱间距命令 `\ ` 的保护 token——裸 `\ ` 对模型不显著（E21/E22 cs_dropped
+#: 实测主因，s40 11/4365 chunk 因此三振），编码成占位符吃 C9 保护契约；
+#: decode 回 `\ ` 后才进校验，L0 计数口径不变。`\,`/`\;`/`\:`/`\!`/`~` 同族
+#: 未编码（暂无实测失败信号，扩展即在同处加一枚 token）。
+SOFT_SPACE = "[[SP]]"
+#: 源文本字面 `[[SP]]` 的转义形态
+SOFT_SPACE_RAW = "[[SP_RAW]]"
+_SOFT_SPACE_SENTINEL = "[[__TEXLATE_SP_LIT__]]"
 
 _FUZZY_LEV_CAP = 2
 
@@ -98,6 +106,9 @@ def encode_newlines(text: str) -> tuple[str, dict[str, int]]:
     escaped = escaped.replace(PARA_NEWLINE_RAW, _PARA_NEWLINE_SENTINEL)
     escaped = escaped.replace(SOFT_NEWLINE, SOFT_NEWLINE_RAW)
     escaped = escaped.replace(PARA_NEWLINE, PARA_NEWLINE_RAW)
+    escaped = escaped.replace(SOFT_SPACE_RAW, _SOFT_SPACE_SENTINEL)
+    escaped = escaped.replace(SOFT_SPACE, SOFT_SPACE_RAW)
+    escaped = escaped.replace("\\ ", SOFT_SPACE)
 
     out: list[str] = []
     i, n = 0, len(escaped)
@@ -126,12 +137,15 @@ def encode_newlines(text: str) -> tuple[str, dict[str, int]]:
 
 
 def decode_newlines(text: str) -> str:
-    r"""`[[SL]]`→`\n`、`[[PL]]`→`\n\n`，随后还原被转义的字面 token。"""
+    r"""`[[SL]]`→`\n`、`[[PL]]`→`\n\n`、`[[SP]]`→`\ `，随后还原被转义的字面 token。"""
     decoded = text.replace(PARA_NEWLINE, "\n\n").replace(SOFT_NEWLINE, "\n")
+    decoded = decoded.replace(SOFT_SPACE, "\\ ")
     decoded = decoded.replace(SOFT_NEWLINE_RAW, SOFT_NEWLINE)
     decoded = decoded.replace(PARA_NEWLINE_RAW, PARA_NEWLINE)
+    decoded = decoded.replace(SOFT_SPACE_RAW, SOFT_SPACE)
     decoded = decoded.replace(_SOFT_NEWLINE_SENTINEL, SOFT_NEWLINE_RAW)
-    return decoded.replace(_PARA_NEWLINE_SENTINEL, PARA_NEWLINE_RAW)
+    decoded = decoded.replace(_PARA_NEWLINE_SENTINEL, PARA_NEWLINE_RAW)
+    return decoded.replace(_SOFT_SPACE_SENTINEL, SOFT_SPACE_RAW)
 
 
 # ---------------------------------------------------------------- src↔zh 对账

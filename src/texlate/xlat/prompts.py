@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
 #: prompt 语义版本——任何措辞改动 bump 此值，否则段级缓存会命中旧 prompt 产物
 #: v2: +C8a 反熔合条款（B4a 实测 `\ `+CJK 熔合是跨模型通病）
-PROMPT_VERSION = "xlat-prompt-v2"
+PROMPT_VERSION = "xlat-prompt-v3"
 
 _KINDS = ("para", "caption", "section_title", "abstract", "table_text", "env_text")
 
@@ -175,7 +175,7 @@ _FUSION_CLAUSE = (
 #: C9 占位符条款——docs/08 §1.1 逐字成稿，条款列表末位，全文唯一一次出现
 PLACEHOLDER_CLAUSE = """\
 C9. [[TYPE_n]] tokens (e.g. [[MATH_12]], [[CITE_3]], [[REF_7]], [[ENV_4]],
-    [[AUTHOR_1]], [[SL]], [[PL]]) are placeholders for protected LaTeX
+    [[AUTHOR_1]], [[SL]], [[PL]], [[SP]]) are placeholders for protected LaTeX
     fragments or structural markers. Do not translate, modify, reorder,
     split, merge, add, or remove any of them, and do not let them influence
     the surrounding translation. Every placeholder in the input must appear

@@ -356,6 +356,22 @@ async def run_project(
     return rec
 
 
+def _paper_done(rec: dict | None) -> bool:
+    """results.json 里该篇是否算「完成」（bench 级续跑谓词）。
+
+    与 ``XlatPipeline._load_resumed`` 同口径——``skipped``/``fault`` 是可重试类
+    （draining 窗口的传输失败、阶梯三振），``bench_error`` 是执行中断，三种都得
+    重进让 chunk 级 state 决定重翻谁；静态 reject/oversize 与全块 ok/partial
+    才算终态。
+    """
+    if not isinstance(rec, dict) or not rec.get("status"):
+        return False
+    if rec["status"] == "bench_error":
+        return False
+    tr = (rec.get("pipe-xel") or {}).get("translate") or {}
+    return not (tr.get("skipped") or tr.get("fault"))
+
+
 # ---------------------------------------------------------------- 报告
 def _v(rec: dict, cond: str) -> str:
     c = rec.get(cond)
@@ -406,6 +422,11 @@ def write_reports(results: dict, out_dir: Path, meta: dict) -> None:
     tot_chunks = sum(r["pipe-xel"]["translate"].get("chunks", 0) for r in ran_pipe)
     ok_chunks = sum(r["pipe-xel"]["translate"].get("ok", 0) for r in ran_pipe)
     ph = sum(r["pipe-xel"]["translate"].get("leftover_ph", 0) for r in ran_pipe)
+    ph_bad = {
+        rel: r["pipe-xel"]["translate"]["leftover_ph"]
+        for rel, r in sorted(results.items())
+        if r.get("pipe-xel") and r["pipe-xel"]["translate"].get("leftover_ph", 0) > 0
+    }
     lines.append(f"- 翻译执行（chunks>0）: {n_tr}/{len(ran_pipe)} 篇")
     lines.append(
         f"- chunk 终态: ok {ok_chunks}/{tot_chunks}"
@@ -413,7 +434,10 @@ def write_reports(results: dict, out_dir: Path, meta: dict) -> None:
         f" · fault {sum(r['pipe-xel']['translate'].get('fault', 0) for r in ran_pipe)}"
         f" · skipped {sum(r['pipe-xel']['translate'].get('skipped', 0) for r in ran_pipe)}"
     )
-    lines.append(f"- splice 残留占位符: {ph}（应为 0）")
+    lines.append(
+        f"- splice 残留占位符: {ph}（应为 0）— gate "
+        + ("PASS" if not ph_bad else f"**FAIL** {ph_bad}")
+    )
     for cond in ("pipe-xel", "base-xel"):
         ran = [r[cond] for r in results.values() if r.get(cond)]
         if not ran:
@@ -520,9 +544,10 @@ async def amain(args: argparse.Namespace) -> None:
 
         t_start = time.monotonic()
         for idx, rel in enumerate(ids):
-            if rel in results and results[rel].get("status") and not args.rerun:
+            prev = results.get(rel)
+            if not args.rerun and _paper_done(prev):
                 print(
-                    f"===== [{idx}/{len(ids)}] {rel} cached -> {results[rel]['status']}",
+                    f"===== [{idx}/{len(ids)}] {rel} cached -> {prev['status']}",
                     flush=True,
                 )
                 continue
