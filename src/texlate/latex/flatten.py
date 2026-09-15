@@ -9,8 +9,10 @@ r"""``\input/\include`` 展平（docs/07 §7）。
 - ``\subfile``/``\includestandalone`` 展开时剥 document 壳
   （``\begin{document}`` 前与 ``\end{document}`` 起的内容丢弃——子文件自带
   document 壳时正文才能见光，``\end{document}`` 只在顶层截停，2609.06443 实修）。
-- 防护：``MAX_INPUTS=8`` 深度 + ``_seen`` 绝对路径集断环
-  （W12 留档：合法重复包含被跳过一次，防环优先）。``\includeonly`` 忽略。
+- 防护：``MAX_INPUTS=8`` 深度 + ``_seen`` 祖先栈断环
+  （W12 已修：栈内命中断真环，兄弟位合法重包含照常内联；
+  主文件路径在 ``parse_file`` 预种——``\input{self}`` 直接断）。
+  ``\includeonly`` 忽略。
 """
 
 from __future__ import annotations

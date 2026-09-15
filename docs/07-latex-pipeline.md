@@ -449,8 +449,8 @@ def reconstruct(res: ScanResult, translations: dict[int,str] | None) -> str:
 | W7  | `_spawn` 手工拷字段易漏                                   | 已修（`ScanState` 容器化）                     |
 | W9  | `\verb` 定界符 find 无 EOL 上限                           | 已修（限下一 `\n`）                            |
 | W10 | `\lstinline\|…\|` 定界形漏保护                            | 已修（走 verb 通道）                           |
-| W11 | `\begin{document}` 正则误判（注释内/`\begin {document}`） | 留档（低频）                                   |
-| W12 | `_seen` 环检测拦合法重复包含                              | 留档（防环优先）                               |
+| W11 | `\begin{document}` 正则误判（注释内/`\begin {document}`） | 已修（mask_tex 视图 + `\s*` 变体，593da2d）    |
+| W12 | `_seen` 环检测拦合法重复包含                              | 已修（祖先栈语义，5811f83）                    |
 | W14 | `$` 配对 O(n²)（44 万字符 253ms）                         | 留档（可接受）                                 |
 | W16 | 译文占位符合法性（丢/改 `[[X_n]]`）                       | `validate_translation` hook → translate 层接线 |
 | —   | `\def` 定界参（15 例/7 文档）                             | v1 opaque 降级；v2 按 §8.4 编译                |
