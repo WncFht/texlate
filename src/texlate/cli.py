@@ -7,6 +7,7 @@ M0 集成面：``fetch``（取源钉版）/ ``parse``（半解析分块）/ ``ru
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import tempfile
 from pathlib import Path
@@ -217,3 +218,36 @@ def _resolve_source(source: str, cache: Path) -> Path | None:
         return None
     assert res.entry is not None  # noqa: S101 -- ok/hit 必有 entry
     return res.entry.extracted_dir
+
+
+# ---------------------------------------------------------------- web
+
+
+@app.command()
+def web(
+    *,
+    host: Annotated[str, typer.Option("--host", help="绑定地址")] = "127.0.0.1",
+    port: Annotated[int, typer.Option("--port", "-p", help="端口")] = 8765,
+    data_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "--data-dir", help="数据目录（缺省 TEXLATE_DATA_DIR 或 ~/.texlate）"
+        ),
+    ] = None,
+) -> None:
+    """起 web 服务：FastAPI + SSE + 任务队列（需 ``texlate[server]`` extra）。"""
+    if data_dir is not None:
+        os.environ["TEXLATE_DATA_DIR"] = str(data_dir.expanduser())
+    try:
+        import uvicorn  # noqa: PLC0415 -- server extra 延迟导入
+
+        from texlate.server.app import create_app  # noqa: PLC0415
+    except ImportError:
+        typer.echo(
+            "web 需要 server extra：uv sync --extra server"
+            "（或 pip install 'texlate[server]'）",
+            err=True,
+        )
+        raise typer.Exit(1) from None
+    typer.echo(f"texlate web → http://{host}:{port}", err=True)
+    uvicorn.run(create_app(), host=host, port=port)

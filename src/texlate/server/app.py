@@ -22,8 +22,6 @@ import sqlite3
 import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from email import policy
-from email.parser import BytesParser
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit
@@ -32,6 +30,7 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from sse_starlette.sse import EventSourceResponse
+from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from texlate import __version__
 from texlate.arxiv.fetch import normalize_arxiv_id
@@ -112,7 +111,7 @@ class _ApiError(Exception):
 
 @dataclass(frozen=True, slots=True)
 class UploadPart:
-    """multipart 文件字段（stdlib email 解析产出）。"""
+    """multipart 文件字段（``request.form()`` 产出归一到本形态）。"""
 
     filename: str
     data: bytes
@@ -124,36 +123,22 @@ _MULTIPART_OVERHEAD = 65536
 async def _parse_multipart(request: Request) -> dict[str, str | UploadPart]:
     """``multipart/form-data`` → ``{name: str | UploadPart}``。
 
-    ``texlate[server]`` 只声明 fastapi/uvicorn/sse-starlette——starlette 的
-    ``request.form()`` 要 python-multipart；email.parser 解同构 MIME 足够。
+    走 starlette ``request.form()``（python-multipart 在 server extra 内）；
+    ``Content-Length`` 超 ``UPLOAD_CAP + overhead`` 先 413 不读体，文件字段
+    的精细上限在 upload handler 里按 payload 判。
     """
-    ctype = request.headers.get("content-type", "")
-    body = await request.body()
-    if len(body) > UPLOAD_CAP + _MULTIPART_OVERHEAD:
+    clen = request.headers.get("content-length", "")
+    if clen.isdigit() and int(clen) > UPLOAD_CAP + _MULTIPART_OVERHEAD:
         raise _ApiError(
             413, {"detail": f"upload > {UPLOAD_CAP}B", "code": "upload_too_large"}
         )
-    raw = (
-        b"Content-Type: "
-        + ctype.encode("latin-1")
-        + b"\r\nMIME-Version: 1.0\r\n\r\n"
-        + body
-    )
-    msg = BytesParser(policy=policy.default).parsebytes(raw)
-    if not msg.is_multipart():
-        raise _ApiError(400, {"detail": "expected multipart/form-data"})
+    form = await request.form()
     out: dict[str, str | UploadPart] = {}
-    for part in msg.iter_parts():
-        name = part.get_param("name", header="content-disposition")
-        if not isinstance(name, str) or not name:
-            continue
-        payload = part.get_payload(decode=True) or b""
-        filename = part.get_filename()
-        if filename is None:
-            charset = part.get_content_charset() or "utf-8"
-            out[name] = payload.decode(charset, errors="replace")
-        else:
-            out[name] = UploadPart(filename=filename, data=payload)
+    for name, val in form.multi_items():
+        if isinstance(val, StarletteUploadFile):
+            out[name] = UploadPart(filename=val.filename or "", data=await val.read())
+        elif isinstance(val, str):
+            out[name] = val
     return out
 
 

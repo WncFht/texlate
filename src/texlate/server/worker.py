@@ -35,6 +35,7 @@ from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from texlate import __version__
+from texlate.align import build_alignment
 from texlate.arxiv.cache import SourceCache
 from texlate.arxiv.fetch import AcquireStatus, Fetcher, acquire_source
 from texlate.arxiv.ratelimit import RateLimiter
@@ -1203,8 +1204,12 @@ class PipelineWorker:
                 "version": zh.get("sha256") or "",
                 "pages": pdf_pages(ctx.root / zh["path"]),
             }
-        # 无锚退化（§5.3 pairs 缺席路径 → 同页码映射）
-        doc["alignment"] = {"kind": "pages"}
+        # named-dest 单调链锚点同步（texlate.align）；缺侧/无公共锚 → 同页映射
+        doc["alignment"] = (
+            build_alignment(ctx.root / en["path"], ctx.root / zh["path"])
+            if en and zh
+            else {"kind": "pages"}
+        )
         doc["chunks"] = [
             {
                 "seq": r["seq"],
