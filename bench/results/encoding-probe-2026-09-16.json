@@ -1,0 +1,252 @@
+[
+ {
+  "paper": "0707.2833",
+  "file": "Iftomm_Chablat_Wenger_Merlet.tex",
+  "encoding": "cp1252",
+  "basis": "detector",
+  "declared": null,
+  "note": "",
+  "old_differs": true,
+  "hibytes": 1
+ },
+ {
+  "paper": "0905.4208",
+  "file": "nn_B_resubmit.tex",
+  "encoding": "cp1252",
+  "basis": "detector",
+  "declared": null,
+  "note": "",
+  "old_differs": false,
+  "hibytes": 1
+ },
+ {
+  "paper": "1003.5531",
+  "file": "main.tex",
+  "encoding": "cp1252",
+  "basis": "detector",
+  "declared": null,
+  "note": "",
+  "old_differs": false,
+  "hibytes": 2
+ },
+ {
+  "paper": "1012.1124",
+  "file": "main.tex",
+  "encoding": "iso8859-15",
+  "basis": "declared",
+  "declared": "latin9",
+  "note": "declared latin9 accepted over cp1252",
+  "old_differs": false,
+  "hibytes": 6
+ },
+ {
+  "paper": "1109.1664",
+  "file": "main_8.tex",
+  "encoding": "cp1252",
+  "basis": "detector",
+  "declared": null,
+  "note": "",
+  "old_differs": false,
+  "hibytes": 8
+ },
+ {
+  "paper": "1109.1801",
+  "file": "network_science_conf.tex",
+  "encoding": "mac_roman",
+  "basis": "detector",
+  "declared": null,
+  "note": "",
+  "old_differs": true,
+  "hibytes": 1
+ },
+ {
+  "paper": "1206.5628",
+  "file": "ArticleSarahLemler.tex",
+  "encoding": "latin-1",
+  "basis": "declared",
+  "declared": "latin1",
+  "note": "declared latin1 accepted over cp1252",
+  "old_differs": true,
+  "hibytes": 1
+ },
+ {
+  "paper": "1206.5796",
+  "file": "agemodified.tex",
+  "encoding": "mac_roman",
+  "basis": "detector",
+  "declared": null,
+  "note": "",
+  "old_differs": true,
+  "hibytes": 6
+ },
+ {
+  "paper": "1206.5832",
+  "file": "EOM.tex",
+  "encoding": "latin-1",
+  "basis": "declared",
+  "declared": "latin1",
+  "note": "declared latin1 accepted over mac_roman",
+  "old_differs": true,
+  "hibytes": 7
+ },
+ {
+  "paper": "1306.2183",
+  "file": "chi2_SPS_arxiv_v2.tex",
+  "encoding": "mac_roman",
+  "basis": "detector",
+  "declared": null,
+  "note": "",
+  "old_differs": true,
+  "hibytes": 4
+ },
+ {
+  "paper": "1404.2164",
+  "file": "paper-rshetal-pversion.bbl",
+  "encoding": "utf-8-mixed",
+  "basis": "mixed",
+  "declared": null,
+  "note": "regions:mixed",
+  "old_differs": true,
+  "hibytes": 8
+ },
+ {
+  "paper": "1404.2164",
+  "file": "paper-rshetal-pversion.tex",
+  "encoding": "cp1252",
+  "basis": "detector",
+  "declared": null,
+  "note": "",
+  "old_differs": false,
+  "hibytes": 3
+ },
+ {
+  "paper": "1404.5685",
+  "file": "Supplemental_Material.tex",
+  "encoding": "mac_roman",
+  "basis": "detector",
+  "declared": null,
+  "note": "",
+  "old_differs": true,
+  "hibytes": 8
+ },
+ {
+  "paper": "1404.5685",
+  "file": "manuscript.tex",
+  "encoding": "mac_roman",
+  "basis": "detector",
+  "declared": null,
+  "note": "",
+  "old_differs": true,
+  "hibytes": 4
+ },
+ {
+  "paper": "1404.6180",
+  "file": "Perez-Hernandez_EPJD.tex",
+  "encoding": "utf-8-mixed",
+  "basis": "mixed",
+  "declared": null,
+  "note": "regions:mixed",
+  "old_differs": true,
+  "hibytes": 3
+ },
+ {
+  "paper": "2009.03686",
+  "file": "Laser_Wake_Field_Collider-17.tex",
+  "encoding": "cp1252",
+  "basis": "detector",
+  "declared": null,
+  "note": "",
+  "old_differs": false,
+  "hibytes": 10
+ },
+ {
+  "paper": "2308.04174",
+  "file": "main.tex",
+  "encoding": "iso8859-15",
+  "basis": "declared",
+  "declared": "latin9",
+  "note": "declared latin9 accepted over cp1252",
+  "old_differs": false,
+  "hibytes": 5
+ },
+ {
+  "paper": "2403.15096",
+  "file": "main.tex",
+  "encoding": "cp1252",
+  "basis": "detector",
+  "declared": null,
+  "note": "",
+  "old_differs": true,
+  "hibytes": 2
+ },
+ {
+  "paper": "cond-mat/0111097",
+  "file": "mtoda1.tex",
+  "encoding": "shift_jis",
+  "basis": "detector",
+  "declared": null,
+  "note": "paired-bytes=0.79",
+  "old_differs": true,
+  "hibytes": 58
+ },
+ {
+  "paper": "hep-ph/9910443",
+  "file": "hep99.tex",
+  "encoding": "cp1252",
+  "basis": "detector",
+  "declared": null,
+  "note": "",
+  "old_differs": false,
+  "hibytes": 1
+ },
+ {
+  "paper": "math/0307077",
+  "file": "concord-survey-11-26-04.tex",
+  "encoding": "cp1252",
+  "basis": "detector",
+  "declared": null,
+  "note": "",
+  "old_differs": false,
+  "hibytes": 7
+ },
+ {
+  "paper": "1511.06717",
+  "file": "starsim_p1_v8.tex",
+  "encoding": "utf-8-mixed",
+  "basis": "mixed",
+  "declared": null,
+  "note": "regions:mixed",
+  "old_differs": true,
+  "hibytes": 5
+ },
+ {
+  "paper": "2410.06008",
+  "file": "root.tex",
+  "encoding": "mac_roman",
+  "basis": "detector",
+  "declared": "utf8",
+  "note": "declared utf8 mismatch",
+  "old_differs": true,
+  "hibytes": 10
+ },
+ {
+  "paper": "2403.15158",
+  "file": "ReftMuharMagn.tex",
+  "encoding": "cp1252",
+  "basis": "detector",
+  "declared": "cp866",
+  "note": "declared cp866 mismatch",
+  "old_differs": false,
+  "hibytes": 5
+ },
+ {
+  "paper": "2105.03820",
+  "file": "The_phase_sensivity_of_an_SU__1,1__interferometry_with_a_Fock_state_and_an_arbitrary_state.tex",
+  "encoding": "gb18030",
+  "basis": "detector",
+  "declared": "cp936",
+  "note": "paired-bytes=0.96",
+  "old_differs": false,
+  "hibytes": 28
+ }
+]

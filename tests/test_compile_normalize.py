@@ -260,3 +260,41 @@ def test_normalize_engine_lualatex_only_cjk() -> None:
     tex = "\\documentclass{article}\n\\pdfcompresslevel=9\n\\begin{document}\nx\\end{document}"
     out = normalize_engine(tex, "lualatex")
     assert "\\pdfcompresslevel=9" in out  # lualatex 保留 pdftex 原语
+
+
+# ---------------------------------------------------------------- 编码分档接线
+def test_normalize_project_records_encoding_verdict(tmp_path: Path) -> None:
+    """非 UTF-8 主文件：转码写回 + ``stats["encodings"]`` 归因可回溯。"""
+    main = tmp_path / "main.tex"
+    blob = b"\\documentclass{article}\n\\begin{document}\nQu\xe9bec\n\\end{document}\n"
+    main.write_bytes(blob)
+    stats = normalize_project(tmp_path, "xelatex", "main.tex")
+    encs = stats["encodings"]
+    assert encs["main.tex"]["basis"] == "detector"
+    assert encs["main.tex"]["encoding"] in {"cp1252", "latin-1", "mac_roman"}
+    assert "Québec" in main.read_text(encoding="utf-8")
+    # utf-8 写回后再次 normalize 不再记 detector（幂等）
+    stats2 = normalize_project(tmp_path, "xelatex", "main.tex")
+    assert stats2.get("encodings", {}).get("main.tex", {}).get("basis") != "detector"
+
+
+def test_normalize_project_transcodes_aux(tmp_path: Path) -> None:
+    """.bib/.bbl 不过手术但须转码——``transcoded_aux`` 单列。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\nx\\end{document}\n"
+    )
+    bib = tmp_path / "refs.bib"
+    bib.write_bytes(b"@article{a, author={Andr\xe9}}\n")
+    stats = normalize_project(tmp_path, "xelatex", "main.tex")
+    assert "refs.bib" in stats["transcoded_aux"]
+    assert bib.read_bytes().decode("utf-8").find("é") > 0
+    assert stats["encodings"]["refs.bib"]["encoding"] != "utf-8"
+
+
+def test_normalize_project_clean_utf8_no_encodings(tmp_path: Path) -> None:
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\nx\\end{document}\n"
+    )
+    stats = normalize_project(tmp_path, "xelatex", "main.tex")
+    assert "encodings" not in stats
+    assert "transcoded_aux" not in stats

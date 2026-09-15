@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-from texlate.textutil import decode_tex
+from texlate.textutil import EncodingVerdict, decode_tex, decode_tex_with
 
 from .mask import (
     TEX_SOURCE_SUFFIXES,
@@ -28,6 +28,10 @@ from .mask import (
     group_end,
     visible_tex,
 )
+
+#: 随附文献/书目数据后缀——不是 TeX 手术面，但 XeTeX/biber 一律按
+#: UTF-8 读它们，非 UTF-8 字节须与 .tex 同档判定转码。
+AUX_BIB_SUFFIXES = {".bib", ".bbl", ".bst"}
 
 # ---------------------------------------------------------------- 兼容前导块
 # 注入缝统一为 \begin{document} 之前（docs/08 §3.3）；字体系块例外，
@@ -457,8 +461,8 @@ def use_bundled_bibliography(text: str, path: Path) -> str:
     注释，lstlisting 里展示的 ``\bibliography{x}`` 示例会被真改写。
     """
     bbl = path.with_suffix(".bbl")
-    if not bbl.is_file() or r"\begin{thebibliography}" not in bbl.read_text(
-        errors="replace", encoding="utf-8"
+    if not bbl.is_file() or r"\begin{thebibliography}" not in decode_tex(
+        bbl.read_bytes()
     ):
         return text
     for match in reversed(
@@ -492,7 +496,7 @@ def rebase_project_paths(root: Path, main: str) -> list[str]:
     changes: dict[Path, list[tuple[int, int, str]]] = {}
     for path in root.rglob("*"):
         if not path.is_file() or path.suffix.lower() not in (
-            TEX_SOURCE_SUFFIXES | {".bib", ".bst", ".bbl"}
+            TEX_SOURCE_SUFFIXES | AUX_BIB_SUFFIXES
         ):
             continue
         text = visible_tex(decode_tex(path.read_bytes()))
@@ -535,11 +539,10 @@ def source_path_violations(
     root = root.resolve()
     cwd = (root / main).parent if main else root
     for p in root.rglob("*"):
-        if not p.is_file() or p.suffix.lower() not in TEX_SOURCE_SUFFIXES | {
-            ".bib",
-            ".bst",
-            ".bbl",
-        }:
+        if (
+            not p.is_file()
+            or p.suffix.lower() not in TEX_SOURCE_SUFFIXES | AUX_BIB_SUFFIXES
+        ):
             continue
         text = visible_tex(decode_tex(p.read_bytes()))
         for match in re.finditer(
@@ -598,23 +601,67 @@ def normalize_engine(text: str, engine: str) -> str:
     return text
 
 
+def _record_verdict(
+    encodings: dict[str, dict[str, str | None]],
+    root: Path,
+    path: Path,
+    verdict: EncodingVerdict,
+) -> None:
+    """非平凡判定（非 strict-utf8 / 有声明出入注记）逐文件落账。"""
+    if verdict.basis != "strict-utf8" or verdict.note:
+        encodings[path.relative_to(root).as_posix()] = {
+            "encoding": verdict.encoding,
+            "basis": verdict.basis,
+            "declared": verdict.declared,
+            "note": verdict.note,
+        }
+
+
+def _transcode_aux_bib(
+    root: Path, encodings: dict[str, dict[str, str | None]]
+) -> list[str]:
+    """.bib/.bbl/.bst 同档转码：非 UTF-8 字节转 UTF-8 写回，无手术。"""
+    transcoded = []
+    for path in root.rglob("*"):
+        if not path.is_file() or path.suffix.lower() not in AUX_BIB_SUFFIXES:
+            continue
+        original = path.read_bytes()
+        text, verdict = decode_tex_with(original)
+        _record_verdict(encodings, root, path, verdict)
+        if text.encode("utf-8") != original:
+            path.write_text(text, encoding="utf-8")
+            transcoded.append(path.relative_to(root).as_posix())
+    return transcoded
+
+
 def normalize_project(root: Path, engine: str, main: str | None = None) -> dict:
     """工程级归一化：逐文件 `normalize_engine` + 文件级手术（9/11/12）。
 
     返回改动统计 dict。`main` 给 rebase/bbl 判定用；缺省时只按文件名猜。
+    非平凡解码判定（非 strict-utf8 / 有声明出入注记）逐文件落
+    ``stats["encodings"]``——worker 日志与 rec["normalize"] 由此可回溯
+    「该文件原来是什么编码、按哪档判定的」。
     """
-    stats: dict[str, int | list[str]] = {"files": 0, "rewritten": 0}
+    stats: dict[str, object] = {"files": 0, "rewritten": 0}
+    encodings: dict[str, dict[str, str | None]] = {}
     for path in root.rglob("*"):
         if not path.is_file() or path.suffix.lower() not in TEX_SOURCE_SUFFIXES:
             continue
         stats["files"] = int(stats["files"]) + 1
         original = path.read_bytes()
-        text = normalize_engine(decode_tex(original), engine)
+        text, verdict = decode_tex_with(original)
+        _record_verdict(encodings, root, path, verdict)
+        text = normalize_engine(text, engine)
         if path.suffix.lower() == ".tex":
             text = use_bundled_bibliography(text, path)
         if text.encode("utf-8") != original:
             path.write_text(text, encoding="utf-8")
             stats["rewritten"] = int(stats["rewritten"]) + 1
+    transcoded_aux = _transcode_aux_bib(root, encodings)
+    if encodings:
+        stats["encodings"] = encodings
+    if transcoded_aux:
+        stats["transcoded_aux"] = sorted(transcoded_aux)
     latin = prepare_legacy_latin_fonts(root)
     if latin:
         stats["legacy_latin_files"] = latin
