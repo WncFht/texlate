@@ -76,7 +76,7 @@
 
 ### partial→fail 17 格：实证后真退化仅 4 格
 
-peer 直编修复后 splice/ 树复验：**13 格为基建杀伤假象**（12/15 修复后引擎直出 pdf），真规则退化只 1003.1717 / 1306.0036 / 2410.00012 / astro-ph/0111575 四格 + 三个硬单案（1803.00012 SIGSEGV rc139、1803.00054 `\usepackage{color}` 真错、1706.02464 bufsize 溢出）。`no_errors_no_pdf` 机理实例（1706.00175）：`(\end occurred when \ifx ... was incomplete)` + `No pages of output` —— TeX 早夭无 `!` 行 → taxonomy 判 clean → 无规则承接。修复方向：a) taxonomy 尾段加 `No pages of output`/`\\end occurred when` pattern 给真类别（rules.yaml，peer1）；b) fixloop 引擎「不退化底板」——快照入口态 PDF、末态判决不低于入口态（mine，下轮候选）；c) judge 记 `killed_signal`（SIGSEGV 类）。triage `regressions:[]` 未捕此簇——探测器只同段同臂比，跨段「终态 vs 入口态」口径待补。
+peer 直编修复后 splice/ 树复验：**13 格为基建杀伤假象**（12/15 修复后引擎直出 pdf），真规则退化只 1003.1717 / 1306.0036 / 2410.00012 / astro-ph/0111575 四格 + 三个硬单案（1803.00012 SIGSEGV rc139、1803.00054 `\usepackage{color}` 真错、1706.02464 bufsize 溢出）。`no_errors_no_pdf` 机理实例（1706.00175）：`(\end occurred when \ifx ... was incomplete)` + `No pages of output` —— TeX 早夭无 `!` 行 → taxonomy 判 clean → 无规则承接。修复方向：a) taxonomy 尾段加 `No pages of output`/`\\end occurred when` pattern 给真类别（rules.yaml，peer1）；b) fixloop 引擎「不退化底板」——快照入口态 PDF、末态判决不低于入口态（mine，下轮候选）；c) judge 记 `killed_signal`（SIGSEGV 类）。triage `regressions:[]` 未捕此簇——探测器只同段同臂比；已补 `fixloop_degraded` 跨段口径（24b4d53，回扫 loop1 全中 17 格）。
 
 ### unfixable 大头 = missing_file legacy 包（113 格，fail 残留 59%）
 
