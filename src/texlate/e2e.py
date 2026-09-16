@@ -36,7 +36,11 @@ from texlate.compile.judge import Verdict, judge
 from texlate.compile.normalize import normalize_project
 from texlate.latex.api import parse_file
 from texlate.latex.placeholder import CHUNK_RX, PH_RX
-from texlate.latex.reconstruct import reconstruct, unicode_math_fix
+from texlate.latex.reconstruct import (
+    _PAR_RUN_RX,
+    reconstruct,
+    unicode_math_fix,
+)
 from texlate.latex.tables import (
     ARG_TRANSPARENT_ENVS,
     MATH_ENVS,
@@ -349,10 +353,13 @@ def _l2_parse(res: CompRes) -> l2_mod.L2Verdict:
 def _expand_tokens(
     res: ScanResult, tokmap: dict[str, str], text: str, _depth: int = 0
 ) -> str:
-    """``[[X_n]]`` 递归展开到落盘形态（与 reconstruct.expand 同优先级）。
+    r"""``[[X_n]]`` 递归展开到落盘形态（与 reconstruct.expand 同优先级）。
 
     ``tokmap`` = ``{"[[CHUNK_k]]": unicode_math_fix(zh)}``——译文本位；
     未译 chunk 回落 ``chunks[k].content``，typed ph 走 ``ph_map``。
+    已译且 context 非 para/item 的 ``[[CHUNK_n]]`` 展开后同样压 ``\n\n``→``\n``
+    （reconstruct.expand 的 ``short_arg`` 同则）——缺这步 ``_chunk_spans`` 的
+    ``find`` 必对不上落盘字节，块在 L2 二次归因里整片消失。
     """
     if _depth > _EXPAND_MAX_DEPTH:
         return text
@@ -362,15 +369,22 @@ def _expand_tokens(
         body = tokmap.get(tok)
         if body is None:
             body = res.ph_map.get(tok)
-        if body is None:
-            cm = CHUNK_RX.fullmatch(tok)
-            if cm:
-                idx = int(cm.group(1))
-                if 0 <= idx < len(res.chunks):
-                    body = res.chunks[idx].content
+        cm = CHUNK_RX.fullmatch(tok)
+        if body is None and cm:
+            idx = int(cm.group(1))
+            if 0 <= idx < len(res.chunks):
+                body = res.chunks[idx].content
         if body is None:
             return tok
-        return _expand_tokens(res, tokmap, body, _depth + 1)
+        out = _expand_tokens(res, tokmap, body, _depth + 1)
+        if cm and tok in tokmap:
+            idx = int(cm.group(1))
+            if 0 <= idx < len(res.chunks) and res.chunks[idx].context not in (
+                "para",
+                "item",
+            ):
+                out = _PAR_RUN_RX.sub("\n", out)
+        return out
 
     return PH_RX.sub(rep, text)
 
@@ -387,10 +401,8 @@ def _chunk_spans(
     spans: dict[int, tuple[int, int] | None] = {}
     cur = 0
     for c in res.chunks:
-        zh = trans.get(c.id)
-        body = _expand_tokens(
-            res, tokmap, unicode_math_fix(zh) if zh is not None else c.content
-        )
+        # 走 token 入口——短参折叠只在 rep 见到 [[CHUNK_n]] 时发生（同 reconstruct）
+        body = _expand_tokens(res, tokmap, f"[[CHUNK_{c.id}]]")
         if not body:
             continue
         i = text.find(body, cur)

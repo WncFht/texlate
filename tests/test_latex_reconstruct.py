@@ -130,3 +130,50 @@ def test_chunk_split_max() -> None:
         # 切分边界不断占位符：content 里每个 [[X_n]] 都完整匹配
         for m in re.finditer(r"\[\[", c.content):
             assert re.match(r"\[\[[A-Z_]+_\d+\]\]", c.content[m.start() :])
+
+
+def test_short_arg_par_collapse() -> None:
+    r"""短参（caption）译文内的 ``\n\n`` 压单 ``\n``——``\par`` 进非 ``\long``
+    移动参（nameref ``\NR@gettitle`` 等）即 runaway（1109.5963 实证）。"""
+    res = scan(
+        "\\begin{figure}\\caption{The allowed region by $K$ mixing here.}\\end{figure}"
+    )
+    cap = next(c for c in res.chunks if c.context == "caption")
+    out = reconstruct(res, {cap.id: "由\n\n  $K$ 混合允许的区域。"})
+    m = re.search(r"\\caption\{([^}]*)\}", out)
+    assert m is not None
+    assert "\n\n" not in m.group(1)
+    assert "由\n  $K$ 混合" in m.group(1)
+
+
+def test_short_arg_par_collapse_ph_boundary() -> None:
+    r"""译文尾 ``\n`` 叠 ph 体前导 ``\n  `` 在参数内合成 ``\n\n`` —— 边界合并
+    形态同压（1109.5963 实际机理：``由\n`` + ``[[MATH]]``=``\n  $K..$``）。"""
+    res = scan(
+        "\\begin{figure}\\caption{The allowed region by $K$ mixing here.}\\end{figure}"
+    )
+    cap = next(c for c in res.chunks if c.context == "caption")
+    math_tok = next(t for t in cap.placeholders if t.startswith("[[MATH_"))
+    res.ph_map[math_tok] = "\n  " + res.ph_map[math_tok]  # 复刻当次 ph 前导换行
+    out = reconstruct(res, {cap.id: f"由\n{math_tok} 混合允许的区域。"})
+    m = re.search(r"\\caption\{([^}]*)\}", out)
+    assert m is not None
+    assert "\n\n" not in m.group(1)
+    assert "由\n  $K$" in m.group(1)
+
+
+def test_para_chunk_keeps_par_break() -> None:
+    r"""正文段（``para``）译文的 ``\n\n`` 是合法段落断——不折叠。"""
+    res = scan("Body paragraph with enough words to form a chunk here.")
+    para = next(c for c in res.chunks if c.context == "para")
+    out = reconstruct(res, {para.id: "第一段文字。\n\n第二段文字。"})
+    assert "第一段文字。\n\n第二段文字。" in out
+
+
+def test_short_arg_untranslated_identity() -> None:
+    r"""未译短参保持原文逐字（identity 面不受折叠影响）。"""
+    body = (
+        "\\begin{figure}\\caption{The allowed region by $K$ mixing here.}\\end{figure}"
+    )
+    res = scan(body)
+    assert reconstruct(res) == DOC % body

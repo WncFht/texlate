@@ -100,6 +100,15 @@ _TEXT_TO_MATH: dict[str, str] = {
 
 _UNICODE_MATH_RX = re.compile("[" + "".join(re.escape(c) for c in _TEXT_TO_MATH) + "]")
 
+#: 短参写回的 ``\par`` 折叠：命令参数位（``\caption``/``\section``/``\footnote``
+#: 等 chunk-arg 语境，``Chunk.context`` 非 ``para``/``item``）里 ``\n\n``
+#: 是 ``\par``——nameref ``\NR@gettitle``/``\@sect`` 等非 ``\long`` 读取宏
+#: 遇之即 runaway（1109.5963 实证：译文自带 ``\n`` 叠 ph 体前导 ``\n  ``
+#: 在 ``\caption`` 参数内合成 ``\n\n``）。译文内部与占位符边界合并出的
+#: 段落断在展开后文本上统一压成单 ``\n``；正文段（``para``/``item``）
+#: 的 ``\n\n`` 合法，不动。
+_PAR_RUN_RX = re.compile(r"\n(?:[ \t\r]*\n)+")
+
 #: 译文侧的占位符切分（typed ``[[X_n]]`` + 裸 ``[[NAME]]`` 都算——模型可能
 #: 把 [[SL]] 等编码 token 原样回显，其内部不许进 unicode→math 替换）。
 #: 捕获组保留分隔符——``re.split`` 产出 [文本, token, 文本, ...] 交错序列。
@@ -138,6 +147,13 @@ def reconstruct(res: ScanResult, translations: dict[int, str] | None = None) -> 
     chunks = res.chunks
     active: set[str] = set()
     dangling: set[str] = set()  # 查无实体的 ph token——留字面并记名（原静默残留）
+    # 短参 chunk 集：context 非 para/item 的已译 [[CHUNK_n]]——展开后 ``\n\n``
+    # 压单 ``\n``（见 _PAR_RUN_RX 注）。
+    short_arg: set[str] = {
+        f"[[CHUNK_{c.id}]]"
+        for c in chunks
+        if c.context not in ("para", "item") and f"[[CHUNK_{c.id}]]" in trans
+    }
 
     def expand(token: str) -> str:  # token 形如 [[X_n]]
         if token in memo:
@@ -156,7 +172,10 @@ def reconstruct(res: ScanResult, translations: dict[int, str] | None = None) -> 
             else:
                 dangling.add(token)
                 body = token
-        memo[token] = PH_RX.sub(lambda mm: expand(mm.group(0)), body)
+        expanded = PH_RX.sub(lambda mm: expand(mm.group(0)), body)
+        if token in short_arg:
+            expanded = _PAR_RUN_RX.sub("\n", expanded)
+        memo[token] = expanded
         active.discard(token)
         return memo[token]
 
