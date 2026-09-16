@@ -1,0 +1,4 @@
+{"sig_id": "compile-001", "stage": "compile", "signature": "clean", "count": 4, "example_ids": ["1003.4522", "0707.3950", "2203.13039"], "repro_path": "work/1003.4522/", "fix_class": "rule", "notes": "待人工归因; 全部落在 ok 记录上 (warning 级)"}
+{"sig_id": "compile-002", "stage": "compile", "signature": "missing_character", "count": 2, "example_ids": ["0707.3950", "2203.13039"], "repro_path": "work/0707.3950/", "fix_class": "rule", "notes": "CJK 缺字类规则可扩性 (F4)"}
+{"sig_id": "fixloop-003", "stage": "fixloop", "signature": "acceptable_pdf", "count": 1, "example_ids": ["2203.13039"], "repro_path": "work/2203.13039/", "fix_class": "rule", "notes": "待人工归因"}
+{"sig_id": "fixloop-004", "stage": "fixloop", "signature": "best_effort_pdf", "count": 1, "example_ids": ["0707.3950"], "repro_path": "work/0707.3950/", "fix_class": "rule", "notes": "待人工归因"}
