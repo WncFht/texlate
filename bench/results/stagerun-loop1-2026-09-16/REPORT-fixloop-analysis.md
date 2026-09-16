@@ -78,3 +78,26 @@ syntax 15 / other 14 / babel_opt 11 / illegal_unit 10 / pdftex_prim 7 / capacity
 - **`1e0e5c8` 67debb6 后同步**：`pdftex_prim_guard` 交替 13→75（全 PDFTEX_PRIMS，长名优先序）；`spotcolor_xetex_shadow` 的 `when` 改 `any:[undefined_cs, pdftex_prim]` + cs_set 加 `pdfobj`/`pdflastobj`（subclassify 现把宏体内 \pdfobj 炸点改判 `pdftex_prim:pdfobj`，单 undefined_cs gate 会死）。8 case 验证幂等 + cs 紧邻免疫。**技术债**：guard 交替是 yaml 内联字面值，PDFTEX_PRIMS 再扩时需手工同步——建议后续加 `prim_family` 键由 loader 生成（fixloop/engine.py 侧，1d 评估）。
 - **`ea0c73e` 1e 两条兜底**：taxonomy 新增 `undefined_color`（`Package (?:x)?color Error: Undefined color 'X'`，payload=色名，实证 `undefined_color:这是译文`）；新规则 `undefined_color_fallback`(order 166) docclass 锚注 `\definecolor{X}{rgb}{0,0,0}`；`cs_targeted_fix` cs_table 加 `DeclareUnicodeCharacter` polyfill（lccode 惯用法，与 normalize c582736 同源 shim）。test_fixloop_yamlish 计数 37→38。
 - **`.rtx` 边界裁定（我判，实现位在 1d 文件）**：1003.1717 的 `aps.rtx.tex`/`10pt.rtx.tex` 是 e-print 自带的 REVTeX 运行时转储（makeatletter 域纯宏数据），被 `rglob("*.tex")` 收进翻译集 → 407 超簇同款腐蚀。裁定 = **文件面排除 `*.rtx.tex`**（全语料 6 个文件全属此类，零 FP 面）；实现 = `e2e.py:_translate_tree` 与 `stagerun.py:_translate_tree` 两处 glob 加 `not f.name.endswith(".rtx.tex")`（或 1d 认为合适的共享 helper）。更深层的「纯宏数据 .tex」（tcilcomm 型无扩展名信号者）归 fixer-slots 的内容侧检测，不在本裁定内。
+
+## 补记 6：loop2-delta 收官读数 + 残格归因（2026-09-16 深夜）
+
+**批 `b4akkgal5` 终态**（每 cell 取末条 record，共 1310 格）：verdict 分布 acceptable_pdf 669 / best_effort 363 / clean 157（出 pdf 1189/1310 = 90.8%）/ unfixable 合计 112 / max_rounds 8 / no_errors_no_pdf 1。迁移：fail→clean 197、fail→partial 329、fail→fail 121、partial→clean 8、**partial→fail 仅 2**、partial→partial 653。对 loop1 基线：unfixable:missing_file **113→32**，nenp **15→1**（剩 1803.00012 即 SIGSEGV 格，ticket-only）。
+
+### 残格逐簇归因
+
+- **unfixable:pdftex_prim ×6 —— axessibility（已修 `7037301`）**：六格全是 `\usepackage[accsupp]{axessibility}`。axessibility 在 TL texmf-dist 内（missing_file 打不到），包体 `\pdfcompresslevel/\pdfoptionpdfminorversion/\pdfglyphtounicode` 在 XeTeX 内核必炸 pdftex_prim；包无用户命令面（纯 ActualText 标注补丁）→ 新规则 `axessibility_xetex_shadow`（order 157，spotcolor 同档）wdir 注空 stub 吞选项。cs_set 含包体全部六个 pdf 原语。
+- **unfixable:missing_file ×32 —— axodraw2 类已修（`9f08bf3`），余为期刊 legacy**：axodraw2 ×5 的机理是 `tlmgr --usermode` 对 postaction 类包整体拒装（`package axodraw2 is not relocatable`，**rc=0 假成功**）→ `install_file` 新增 CTAN `archive/<pkg>.tar.xz` overlay=tree 落 usertree home 兜底（probe 复核，已实测 axodraw2.sty 落 `tex/latex/axodraw2/`）。其余 payload 为期刊/legacy 类（svmult/cimento/eptcs/JINST/PoS/nature2/llncsdoc/aa501/sw20lart/kapproc/appolb/pasj00/acm_proc_article-sp/emulateapj-rtx4/amsart2000 + multind/numcompress/widetext/umlaut/isolatin1/xetex-inputenc/docs/ol2/ams/thmsupp.tex/feynman）——filemap 无解者居多，归 shim_map/overrides 扩列评估或承认真缺。
+- **max_rounds ×8 —— pst-all 家族扇出（机理查明，修法待 1d 侧）**：八格全是 `\usepackage{pst-all}`。pst-all.sty 在 `pstricks` 包内，`\RequirePackage` 连发 11 个成员（pst-tree/pst-grad/pst-3d/…各为独立 TL 包）。现有 `_install_dep_closure` 扫**被装文件**的依赖行——看不到"要求方" pst-all → 每轮只补一个成员，8 轮 < 11 成员耗尽预算。建议（fixloop engine 侧）：missing_file 收尾行的 `file:line` 带要求方（实证 `pst-all.sty:25: Emergency stop`），若该文件可解析则扫其 `\RequirePackage` 全表批量装——对一切 meta-wrapper 家族通杀。我侧备选钝器是抬 `meta.loop.max_rounds`（全局代价大，不推荐首选）。
+- **partial→fail ×2 —— 一格是真超簇，一格是脏树残留**：1003.1717 = .rtx 腐蚀超簇（fixer-slots 属地，不变）。1306.0036 的 `unfixable:undefined_cs:relax` 查明为 **88d0ab9 之前轮次留下的套娃残留**——splice tex 第 30 行实存 `\chardef\ifdefined\pdfoutput\pdfoutput=1\fi` 烤进文件；现行 lookbehind 已免疫此类改写（cs 紧邻全拦），但 `--rerun` 复用 work dir 不洗源 → 旧伤永存。**方法论旗标**：rerun 继承脏树，曾被已修 bug 写坏的格需 pristine-tree 重跑才见真值。
+- **floor_restored 指标（ticket #20）**：键已在 records 落地，本轮全格 False——与「近零退化」一致（底板从未被触发，非失效）。
+
+### 裁定落地（我的队列清零）
+
+- **bug-E**（0905.4907 caption 裸 `\alpha`→Missing $）：**不立规则**，归 llm_hook 候选——caption 作用域正则爆炸半径大，单格量不值。
+- **prim-guard 注释行命中**（IEEEtran.cls:552）：**接受不改**——match 与 repl 同落 `%` 之后，全行仍是注释，语义零效应；收紧需行首锚定+前缀捕获，为 cosmetic 伤加复杂度不值。
+- **latex209 终拒**：确认 `latex209_reject` phase:gate order:1 已 terminal——upgrade_209 后仍命中者（`\documentstyle` 行首条件复核）走 reject_route，无需再加东西。
+- **elsart 旁系 shim 名表**（1e gtrap-scout §a 请求）：`elsart3/elsart3-1/elsart1/autart/personal` 五个 `.cls` 键已入 `legacy_pkg_shim` shim_map → elsarticle（`7037301`）。ship 真载体的 misschar 毒化由 `CJK_FIRST_USE_WARMUP` 覆盖（cmrepro elsart/elsart3 10/10 → 0 miss 实证；autart `\proc@elem` 逐字节同源、personal 为 elsart 克隆 → 同机理预期同治，待 real-postfix 复扫确认）。
+
+### 定点重跑建议清单（post-delta）
+
+axessibility 6 格 + axodraw2 5 格 + pst-all 8 格（待 sibling-closure 或配合抬 max_rounds 验证收敛）+ 脏树嫌疑 1306.0036（pristine-tree）+ 1003.1717（随 .rtx 排除落地后）+ early_eof 13 格归因待看。`rerun-ids-loop2delta.txt` 已有底单，可按此簇化筛。
