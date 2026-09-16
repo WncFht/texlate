@@ -10,7 +10,7 @@ from pathlib import Path
 
 from texlate.compile.fixloop import Ruleset, builtins, fixloop, load_ruleset
 from texlate.compile.fixloop.ctan import CtanFetcher
-from texlate.compile.fixloop.engine import LoopCtx, find_main_tex
+from texlate.compile.fixloop.engine import LoopCtx, _dep_stems, find_main_tex
 from texlate.compile.fixloop.logparse import ErrReport
 
 RS = load_ruleset()
@@ -921,3 +921,34 @@ def test_aux_sweep_final_round_leftover(tmp_path: Path) -> None:
     assert cell["verdict"] == "unfixable:timeout"
     assert not (proj / "main.aux").exists()
     assert any("final aux-sweep" in e for e in cell["log"])
+
+
+def test_static_precheck_skips_constructed_input(tmp_path: Path) -> None:
+    r"""``\input sv\X``/``\InputIfFileExists{aip-\X.tex}`` 构造名不产 sv.tex/aip-.tex 噪音。"""
+    main = (
+        "\\documentclass{article}\n"
+        "\\input sv\\CurrentOption.clo\n"
+        "\\InputIfFileExists{aip-\\CurrentOption.tex}{}{}\n"
+        "\\begin{document}\nx\n\\end{document}\n"
+    )
+    eng = MockEngine(
+        [{"log": CLEAN_LOG, "pdf": True}],
+        installable={"sv.tex", "aip-.tex", "sv\\CurrentOption.clo"},
+        available={"article.cls"},
+    )
+    cell = fixloop(make_proj(tmp_path, main), eng)
+    assert cell["verdict"] == "clean"
+    assert not eng.install_calls
+
+
+def test_dep_stems_constructed_names_skipped(tmp_path: Path) -> None:
+    r"""``_dep_stems``: 构造名/裸名 \ 截断不产 stem, 真名照收。"""
+    f = tmp_path / "m.tex"
+    f.write_text(
+        "\\input aip-\\CurrentOption.tex\n"
+        "\\input {sv\\CurrentOption.clo}\n"
+        "\\input realdep\n"
+        "\\input sub/fig\n",
+        encoding="utf-8",
+    )
+    assert _dep_stems(f) == ["realdep", "sub/fig"]

@@ -19,7 +19,7 @@ import contextlib
 import re
 import shutil
 import subprocess
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
@@ -734,6 +734,29 @@ def _compile_rewrites(
     return subs
 
 
+def _scan_names(code: str, sp: dict[str, Any]) -> Iterator[str]:
+    r"""单行 (已切注释) 按 scan_pattern 抽文件名——构造名/截断头滤除。
+
+    ``\input sv\CurrentOption.clo`` 裸名被 ``\`` 截成 ``sv`` 残头、
+    ``\InputIfFileExists{aip-\X.tex}`` 花括号内构造名——都不可探测,
+    放行即产 ``sv.tex``/``aip-.tex`` 噪音安装 (svjour/aipcheck 实证)。
+    """
+    for m in re.finditer(sp["regex"], code):
+        if (
+            m.end() < len(code)
+            and code[m.end()] == "\\"
+            and code[m.end() - 1] != "}"
+        ):
+            continue  # 匹配被 \ 截断——残头非实名
+        names = [m.group(1)]
+        if sp.get("split"):
+            names = m.group(1).split(sp["split"])
+        for nm in names:
+            name = nm.strip()
+            if name and "\\" not in name:
+                yield name
+
+
 def _apply_scan_install(
     ctx: LoopCtx, eng: Engine, params: dict[str, Any]
 ) -> tuple[bool, str]:
@@ -749,22 +772,13 @@ def _apply_scan_install(
             # (pst-notreal 实证; ``\%`` 转义不算注释起点)
             for line in t.splitlines():
                 code = _COMMENT_CUT_RE.split(line, maxsplit=1)[0]
-                for m in re.finditer(sp["regex"], code):
-                    names = [m.group(1)]
-                    if sp.get("split"):
-                        names = m.group(1).split(sp["split"])
-                    for nm in names:
-                        name = nm.strip()
-                        if not name:
-                            continue
-                        # suffix 仅补给无扩展名 (``\input epsf`` → epsf.tex);
-                        # 已带扩展名者 (``\input{x.tex}``) 照旧不叠。
-                        fname = (
-                            name if Path(name).suffix else name + sp.get("suffix", "")
-                        )
-                        if noise and not noise.match(name):
-                            continue
-                        need.add(fname)
+                for name in _scan_names(code, sp):
+                    # suffix 仅补给无扩展名 (``\input epsf`` → epsf.tex);
+                    # 已带扩展名者 (``\input{x.tex}``) 照旧不叠。
+                    fname = name if Path(name).suffix else name + sp.get("suffix", "")
+                    if noise and not noise.match(name):
+                        continue
+                    need.add(fname)
     missing = sorted(f for f in need if not _probe(eng, f, cwd=ctx.wdir))
     installed = [f for f in missing if eng.install_file(f)]
     ctx.installed.extend(installed)
@@ -813,9 +827,17 @@ def _dep_stems(path: Path) -> list[str]:
     ]
     for line in text.splitlines():
         code = _COMMENT_CUT_RE.split(line, maxsplit=1)[0]
-        stems += [
-            g for m in _DEP_INPUT_RE.finditer(code) if (g := m.group(1) or m.group(2))
-        ]
+        for m in _DEP_INPUT_RE.finditer(code):
+            g = m.group(1) or m.group(2)
+            if not g or "\\" in g:
+                continue  # 构造文件名 (aip-\CurrentOption.tex) 不可探测
+            if (
+                m.group(2) is not None
+                and m.end() < len(code)
+                and code[m.end()] == "\\"
+            ):
+                continue  # 裸名被 \ 截断 (sv\CurrentOption.clo → 'sv' 残头)
+            stems.append(g)
     return stems
 
 
