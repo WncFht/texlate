@@ -120,6 +120,27 @@ class TestEndToEnd:
         assert out[0].skipped
         assert out[0].skip_reason
 
+    def test_leftover_ph_flagged(self) -> None:
+        """B7 观测面：译文残留源外占位符 token → leftover_ph warning 落库。"""
+
+        class Hallucinator(pl.MockTranslator):
+            async def translate(self, *, user: str, **_kw: object) -> str:
+                return user + " [[MATH_99]]"  # 幻觉 token 穿透
+
+        out = _run(
+            [_mk("Long prose " + "x" * 400, "c1")],
+            translator=Hallucinator(),
+            validator=lambda _s, _z: "",  # 校验放行——模拟 B7 穿透路径
+        )
+        assert out[0].status == "ok"
+        assert "leftover_ph:1" in out[0].warnings
+
+        clean = _run(
+            [_mk("Long prose " + "x" * 400, "c2")],
+            translator=pl.MockTranslator(),
+        )
+        assert not any(w.startswith("leftover_ph") for w in clean[0].warnings)
+
 
 class TestResumeAndCache:
     def test_resume_skips_completed(self, tmp_path: Path) -> None:

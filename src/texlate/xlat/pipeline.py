@@ -19,6 +19,7 @@ import asyncio
 import json
 import logging
 import re
+from collections import Counter
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol
 
@@ -294,6 +295,21 @@ def _mock_translate_text(text: str, zh: str) -> str:
 
 
 # ---------------------------------------------------------------- Pipeline
+
+
+def _flag_leftover_ph(r: ChunkResult) -> None:
+    """译文残留源文没有的占位符 token → ``leftover_ph:N`` warning。
+
+    B7 归因：模型幻觉 ``[[MATH_n]]`` 穿透 ladder 留字面——落库观测而非只
+    log。只扫 ok/partial——skipped/fault 的 translation=source，幻影无处藏。
+    """
+    if r.skipped or r.status not in ("ok", "partial"):
+        return
+    extra = Counter(placeholders.ANY_PH_RX.findall(r.translation)) - Counter(
+        placeholders.ANY_PH_RX.findall(r.source)
+    )
+    if n := sum(extra.values()):
+        r.warnings.append(f"leftover_ph:{n}")
 
 
 def _is_auth_error(e: BaseException) -> bool:
@@ -943,6 +959,7 @@ class XlatPipeline:
         """
         for r in results:
             done_map[r.chunk_id] = r
+            _flag_leftover_ph(r)
             self.auth_gate.record(r)
             try:
                 self._emit(r)
