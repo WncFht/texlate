@@ -176,11 +176,18 @@ class PhDiff:
         return "; ".join(parts)
 
 
-def diff(src: str, zh: str) -> PhDiff:
-    """占位符多重集差分 + lev≤2 模糊配对（与 L0 `check_placeholder` 同口径，含注释豁免）。
+def _ph_in_comments(s: str, masked: str) -> Counter[str]:
+    """注释区内占位符多重集 = 原文计数 − masked 计数（mask 保位等长，差集恰是注释区）。"""
+    return Counter(ANY_PH_RX.findall(s)) - Counter(ANY_PH_RX.findall(masked))
 
-    xlat 语境下 src 内注释多已被 scanner 折叠为 `[[COMMENT]]`，但 zh 可能裸带 `%`；
-    双侧豁免与 L0 完全对齐，防"模型把占位符写进注释"造成误判。
+
+def diff(src: str, zh: str) -> PhDiff:
+    """占位符多重集差分 + lev≤2 模糊配对（与 L0 `check_placeholder` 同口径）。
+
+    xlat 语境下 src 内注释多已被 scanner 折叠为 `[[COMMENT]]`，但 zh 可能裸带 `%`。
+    注释豁免只盖内容差异——主比对仍对双侧 masked 文本做：正文占位符被挪进注释
+    按 missing 抓、注释内容改写/整条丢弃不追责；另加注释区专项，zh 注释内净多出
+    的占位符是 splice 字面残留（sabotage 实测逃逸），计 extra，与 L0 补丁同口径。
     """
     snc, znc = mask_comments(src), mask_comments(zh)
     scnt = Counter(ANY_PH_RX.findall(snc))
@@ -210,6 +217,11 @@ def diff(src: str, zh: str) -> PhDiff:
         else:
             out.missing.append(ph)
     out.extra = [cand for ci, cand in enumerate(cands) if ci not in used]
+    # 注释区专项：zh 注释内净多出的占位符计 extra——masked 主比对看不见，
+    # splice 后字面残留。不进 cands：它不是 missing 的拼错候选，是独立缺陷。
+    out.extra += sorted(
+        (_ph_in_comments(zh, znc) - _ph_in_comments(src, snc)).elements()
+    )
     return out
 
 
