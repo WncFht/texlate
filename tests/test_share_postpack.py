@@ -162,6 +162,9 @@ class TestGuards:
         r = client.post(f"/api/task/{tid}/share/pack")
         assert r.status_code == HTTPStatus.CONFLICT
         assert "detail" in r.json()
+        # web 侧按 status 分支 + mock 钉死本码——与 invalid_transition 同义
+        # 但属 share_pack 词表，改名须前后端同改（app-contracts 审计钉约）
+        assert r.json()["code"] == "invalid_state"
 
     def test_422_missing_artifacts(self, client: TestClient) -> None:
         tid = _mk_task(client)

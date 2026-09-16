@@ -18,6 +18,7 @@ import io
 import json
 import sqlite3
 import zipfile
+from functools import partial
 from http import HTTPStatus
 from typing import TYPE_CHECKING
 
@@ -382,6 +383,39 @@ class TestShareImportBadBundle:
             r = _import(pb, blob)
             assert r.status_code == HTTPStatus.BAD_REQUEST
             assert r.json()["code"] == "share_invalid"
+
+    def test_import_options_gate(
+        self,
+        tmp_path: Path,
+        clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
+    ) -> None:
+        """options 字段同走 ``_clean_task_options`` 闸（translate/upload 同口径）。
+
+        非法 engine → 400 invalid_request；``options.share`` 伪造无门——
+        端点在闸后强制覆盖审计载荷（用户键摘除不残留）。
+        """
+        _prod, imp, _ddir = _apps(tmp_path)
+        with TestClient(imp) as pb:
+            blob = _synth_bundle(tmp_path, [])
+            r = pb.post(
+                "/api/share/import",
+                files={"file": ("x.share.zip", blob, "application/zip")},
+                data={"options": '{"engine":"pdflatex"}'},
+            )
+            assert r.status_code == HTTPStatus.BAD_REQUEST
+            assert r.json()["code"] == "invalid_request"
+            # 伪造 share 审计载荷 + 合法 options → 202 且载荷取 manifest 真值
+            r = pb.post(
+                "/api/share/import",
+                files={"file": ("y.share.zip", blob, "application/zip")},
+                data={"options": '{"share":{"contributor":"forged"},"concurrency":99}'},
+            )
+            assert r.status_code == HTTPStatus.ACCEPTED
+            tid = r.json()["task_id"]
+            row = pb.portal.call(partial(imp.state.store.get, tid))
+            opts = json.loads(row["options_json"])
+            assert opts["share"]["contributor"] != "forged"
+            assert opts["concurrency"] == 16  # noqa: PLR2004
 
 
 class TestShareImportCleanup:

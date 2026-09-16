@@ -1156,3 +1156,160 @@ class TestSpaMount:
         assert sf.spa_dir() != spa  # 无 index.html → 回退包内（有/无皆可能）
         (spa / "index.html").write_text("<html/>", encoding="utf-8")
         assert sf.spa_dir() == spa
+
+
+# ------------------------------------------------------------ options 入参闸
+
+
+class TestOptionsGate:
+    """``_clean_task_options``：engine/concurrency 白名单 + 系统保留键摘除。
+
+    此前 options_json 无入参闸——``engine`` 非法值跑到编译段才 fault、
+    ``concurrency`` 非数值直接 500、``reuse_hit`` 可伪造让 share_pack 永 422。
+    """
+
+    def test_engine_invalid_400(self, client: TestClient) -> None:
+        r = client.post(
+            f"/api/arxiv/{ARXIV}/translate",
+            json={"options": {"engine": "pdflatex"}},
+        )
+        assert r.status_code == HTTPStatus.BAD_REQUEST
+        assert r.json()["code"] == "invalid_request"
+
+    def test_engine_valid_202(self, client: TestClient) -> None:
+        tid = _mk(client, options={"engine": "xelatex"})
+        row = client.portal.call(partial(client.app.state.store.get, tid))
+        assert json.loads(row["options_json"])["engine"] == "xelatex"
+
+    def test_concurrency_garbage_400(self, raw_client: TestClient) -> None:
+        """``int("abc")`` 裸炸曾是 500——入参闸收敛成 400 invalid_request。"""
+        for bad in ("abc", {"x": 1}, [2]):
+            r = raw_client.post(
+                f"/api/arxiv/{ARXIV}/translate",
+                json={"options": {"concurrency": bad}},
+            )
+            assert r.status_code == HTTPStatus.BAD_REQUEST, bad
+            assert r.json()["code"] == "invalid_request"
+
+    def test_concurrency_clamped(self, client: TestClient) -> None:
+        """settings 同口径 1–16 clamp（0→1、99→16）。"""
+        tid = _mk(client, options={"concurrency": 99})
+        row = client.portal.call(partial(client.app.state.store.get, tid))
+        assert json.loads(row["options_json"])["concurrency"] == 16  # noqa: PLR2004
+        assert json.loads(row["config_json"])["concurrency"] == 16  # noqa: PLR2004
+
+    def test_reserved_keys_stripped(self, client: TestClient) -> None:
+        """reuse_hit 等系统键入参即摘——options_json 审计面不可伪造。"""
+        tid = _mk(
+            client,
+            options={
+                "reuse_hit": "t_deadbeefdeadbeef",
+                "share": {"contributor": "fake"},
+                "engine_resolved": "xelatex",
+                "route_engines": ["xelatex"],
+                "arxiv_categories": ["cs.FAKE"],
+                "prefer": "fresh",
+            },
+        )
+        row = client.portal.call(partial(client.app.state.store.get, tid))
+        opts = json.loads(row["options_json"])
+        for k in (
+            "reuse_hit",
+            "share",
+            "engine_resolved",
+            "route_engines",
+            "arxiv_categories",
+        ):
+            assert k not in opts
+        assert opts["prefer"] == "fresh"  # 用户合法键不误伤
+
+    def test_stripped_reuse_hit_no_pack_422(self, client: TestClient) -> None:
+        """注入 reuse_hit 被摘 → share_pack 走到产物检查（artifacts 码区分分支）。"""
+        tid = _mk(client, options={"reuse_hit": "t_deadbeefdeadbeef"})
+        _force(client, tid, "done")
+        r = client.post(f"/api/task/{tid}/share/pack")
+        assert r.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+        # reuse_hit 分支是 share_pack_rejected；摘除后是缺产物分支
+        assert r.json()["code"] == "share_pack_artifacts"
+
+    def test_upload_options_gate(self, client: TestClient) -> None:
+        """upload 同闸：engine 白名单 + 保留键摘除。"""
+        r = client.post(
+            "/api/upload",
+            files={"file": ("main.tex", MINI_TEX.encode(), "text/plain")},
+            data={"options": '{"engine":"pdflatex"}'},
+        )
+        assert r.status_code == HTTPStatus.BAD_REQUEST
+        r = client.post(
+            "/api/upload",
+            files={"file": ("main.tex", MINI_TEX.encode(), "text/plain")},
+            data={"options": '{"reuse_hit":"t_x","concurrency":99}'},
+        )
+        assert r.status_code == HTTPStatus.ACCEPTED
+        row = client.portal.call(
+            partial(client.app.state.store.get, r.json()["task_id"])
+        )
+        opts = json.loads(row["options_json"])
+        assert "reuse_hit" not in opts
+        assert opts["concurrency"] == 16  # noqa: PLR2004
+
+    def test_retry_options_gate(self, client: TestClient) -> None:
+        """retry 并入增量同闸：非法 engine 400、保留键摘、合法键 clamp 并入。"""
+        tid = _mk(client)
+        client.post(f"/api/task/{tid}/cancel")
+        r = client.post(
+            f"/api/task/{tid}/retry", json={"options": {"engine": "pdflatex"}}
+        )
+        assert r.status_code == HTTPStatus.BAD_REQUEST
+        assert client.get(f"/api/task/{tid}").json()["status"] == "cancelled"
+        r = client.post(
+            f"/api/task/{tid}/retry",
+            json={"options": {"reuse_hit": "t_x", "concurrency": 99}},
+        )
+        assert r.status_code == HTTPStatus.ACCEPTED
+        row = client.portal.call(partial(client.app.state.store.get, tid))
+        opts = json.loads(row["options_json"])
+        assert "reuse_hit" not in opts
+        assert opts["concurrency"] == 16  # noqa: PLR2004
+
+
+# ------------------------------------------------------------ server 模式 settings 闸
+
+
+class TestServerModeSettingsGate:
+    """§4.1：PUT settings 是本地单机默认形态——server 模式写路径 403。
+
+    多租户下 settings.json 是部署方全局配置：租户可写即可改 base_url
+    截获他租户 header key / 改配额/CORS；``settings/test`` 是同级
+    出站探活 oracle。读面（GET settings/providers/health）保持开放。
+    """
+
+    def test_put_settings_403(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("TEXLATE_MODE", "server")
+        r = client.put("/api/settings", json={"base_url": "https://evil.example"})
+        assert r.status_code == HTTPStatus.FORBIDDEN
+        # 未落盘——settings.json 根本没被写
+        assert not (client.app.state.data_dir / "settings.json").exists()
+
+    def test_settings_test_403(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("TEXLATE_MODE", "server")
+        r = client.post("/api/settings/test", json={})
+        assert r.status_code == HTTPStatus.FORBIDDEN
+
+    def test_read_paths_open(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """GET settings/providers/health 是公共读面——server 模式不闸。"""
+        monkeypatch.setenv("TEXLATE_MODE", "server")
+        assert client.get("/api/settings").status_code == HTTPStatus.OK
+        assert client.get("/api/providers").status_code == HTTPStatus.OK
+        assert client.get("/api/health").status_code == HTTPStatus.OK
+
+    def test_local_mode_still_writes(self, client: TestClient) -> None:
+        """local 形态不受影响——PUT settings 正常合并。"""
+        r = client.put("/api/settings", json={"concurrency": 4})
+        assert r.status_code == HTTPStatus.OK

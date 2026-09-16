@@ -261,6 +261,74 @@ def _share_parts_checked(
     return base, ver_s, model, lang, (int(ver_s[1:]) if ver_s else None)
 
 
+#: 任务 options 的系统保留键——worker/app 自写字段（provenance/审计/持久化）。
+#: options_json 无 schema、用户可写任意键进库：伪造 ``reuse_hit`` 让 share_pack
+#: 永 422（自伤方向，但脏审计行）；``engine_resolved``/``route_engines``/
+#: ``arxiv_categories`` 是 worker 运行期持久化值；``share`` 是 share_import
+#: 的强制覆盖审计载荷。入参侧一律摘除（idempotency_key/prefer/main/glossary
+#: 等用户合法键不在列）。
+_RESERVED_OPTION_KEYS = frozenset(
+    {"reuse_hit", "arxiv_categories", "engine_resolved", "route_engines", "share"}
+)
+
+#: options.engine 白名单（settings ``_normalize_updates`` 同口径——
+#: ``engine_for`` 只认两台真机 + auto 路由）。
+_ENGINE_NAMES = frozenset({"auto", "xelatex", "tectonic"})
+
+
+def _settings_write_gate() -> None:
+    """Server 模式 settings 写路径关闭（§4.1：PUT settings 是本地单机默认形态）。
+
+    多租户形态下 settings.json 是部署方全局配置——租户可写即可改
+    ``base_url`` 截获他租户 header key、改配额/CORS/glossary_dir；
+    ``settings/test`` 是同级别的出站探活 oracle。server 形态的写管理
+    走 settings.json 文件 / env / CLI ``--configure``。
+    """
+    if server_mode() == "server":
+        raise _ApiError(
+            403,
+            {
+                "detail": (
+                    "server 模式下 settings 由部署方管理（settings.json/env），"
+                    "API 写关闭"
+                )
+            },
+        )
+
+
+def _clean_task_options(options: dict[str, Any]) -> dict[str, Any]:
+    """任务 options 入参闸（就地改写 + 返回）：摘保留键 + 白名单校验。
+
+    ``engine`` 此前无入参校验——非法值要跑到编译段 ``engine_for`` 才炸成
+    fault；``concurrency`` 裸 ``int()`` 对非数值输入直接 500。两闸与
+    settings 同口径：engine ∈ ``_ENGINE_NAMES``；concurrency 须可转
+    int 并 clamp 1–16。
+    """
+    for k in _RESERVED_OPTION_KEYS:
+        options.pop(k, None)
+    engine = str(options.get("engine") or "auto")
+    if engine not in _ENGINE_NAMES:
+        raise _ApiError(
+            400,
+            {
+                "detail": f"options.engine ∈ {sorted(_ENGINE_NAMES)}",
+                "code": "invalid_request",
+            },
+        )
+    if "concurrency" in options:
+        try:
+            options["concurrency"] = max(1, min(16, int(options["concurrency"])))
+        except (TypeError, ValueError):
+            raise _ApiError(
+                400,
+                {
+                    "detail": "options.concurrency 须为整数（clamp 1–16）",
+                    "code": "invalid_request",
+                },
+            ) from None
+    return options
+
+
 def _json_error(status: int, detail: str, code: str | None = None) -> JSONResponse:
     """``{"detail": str, "code"?}`` 统一错误面。"""
     body: dict[str, Any] = {"detail": detail}
@@ -612,6 +680,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
             options = dict(body.get("options") or {})
         except (TypeError, ValueError):
             return _json_error(400, "options 须为 object 或 KV 对列表")
+        options = _clean_task_options(options)
         try:
             model = validate_model(str(body.get("model") or _auth(request).model))
         except ValueError as e:
@@ -768,6 +837,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
             raise _ApiError(400, {"detail": "options 字段不是合法 JSON"}) from None
         if not isinstance(options, dict):
             options = {}
+        options = _clean_task_options(options)
         try:
             model = validate_model(_form_text(form, "model") or _auth(request).model)
         except ValueError as e:
@@ -876,6 +946,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
                 raise _ApiError(400, {"detail": "options 字段不是合法 JSON"}) from None
             if not isinstance(options, dict):
                 options = {}
+            options = _clean_task_options(options)
             # 审计载荷强制覆盖——调用方 options 不得伪造 share 来源字段
             options["share"] = {
                 "share_key": mf.share_key,
@@ -1144,7 +1215,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         if not isinstance(opts, dict):
             opts = {}
         if isinstance(body.get("options"), dict):
-            opts.update(body["options"])
+            opts.update(_clean_task_options(body["options"]))
         if body.get("main"):
             opts["main"] = str(body["main"])
             if str(body["main"]) != row.get("main_tex"):
@@ -1268,6 +1339,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         两个伪字段——未知键直接 400，否则 save 会原样写进 settings.json
         攒垃圾键（load 侧 FIELDS 过滤只是读时兜底）。
         """
+        _settings_write_gate()
         body = await _read_body(request)
         allowed = set(SettingsStore.FIELDS) | {"clear_api_key", "has_api_key"}
         bad_keys = sorted(set(body) - allowed)
@@ -1282,6 +1354,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
     @app.post("/api/settings/test")
     async def settings_test(request: Request) -> Response:
         """探活配置端点：body 可带覆盖值；错误信息先过 scrub。"""
+        _settings_write_gate()
         body = await _read_body(request)
         cur = settings_store.load()
         base_url = str(body.get("base_url") or cur["base_url"])
