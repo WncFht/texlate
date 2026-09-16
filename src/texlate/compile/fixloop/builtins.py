@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 
 __all__ = ["REWRITE_FNS", "TRANSFORM_FNS"]
 
-# pdfTeX 原语清单 (spike L284-298)
+# pdfTeX 原语清单 (spike L284-298 + 2410.00012 实证扩: 文档面对象/注释/资源族)
 PDFTEX_PRIMS = (
     "pdfoutput",
     "pdfminorversion",
@@ -44,6 +44,73 @@ PDFTEX_PRIMS = (
     "pdfpxdimen",
     "pdflastxpos",
     "pdflastypos",
+    # 对象/表单/图像
+    "pdfobj",
+    "pdflastobj",
+    "pdfrefobj",
+    "pdfxform",
+    "pdflastxform",
+    "pdfrefxform",
+    "pdfximage",
+    "pdflastximage",
+    "pdfrefximage",
+    # 注释/链接/书签
+    "pdfannot",
+    "pdflastannot",
+    "pdfdest",
+    "pdflink",
+    "pdfstartlink",
+    "pdfendlink",
+    "pdfoutline",
+    "pdfcatalog",
+    "pdfnames",
+    # 文字流/页面资源
+    "pdfliteral",
+    "pdfcolorstack",
+    "pdfcolorstackinit",
+    "pdfsavepos",
+    "pdfpageref",
+    "pdfpageattr",
+    "pdfpagesattr",
+    "pdfpageresources",
+    "pdfdraftmode",
+    # 读取/工具原语
+    "pdfescapestring",
+    "pdfescapename",
+    "pdfescapehex",
+    "pdfunescapehex",
+    "pdffilesize",
+    "pdffilemoddate",
+    "pdffiledump",
+    "pdfmdfivesum",
+    "pdfelapsedtime",
+    "pdfresettimer",
+    "pdfuniformdeviate",
+    "pdfnormaldeviate",
+    "pdfrandomseed",
+    "pdfmatch",
+    "pdflastmatch",
+    "pdfstrcmp",
+    "pdfprimitive",
+    "pdfifprimitive",
+    "pdfcreationdate",
+    # 字体/微排/映射
+    "pdffontname",
+    "pdffontobjnum",
+    "pdffontsize",
+    "pdfincludechars",
+    "pdfmapfile",
+    "pdfmapline",
+    "pdfglyphtounicode",
+    "pdfgentounicode",
+    "pdfadjustspacing",
+    "pdfprotrudechars",
+    "pdftracingfonts",
+    "pdfdecimaldigits",
+    "pdftexversion",
+    "pdftexrevision",
+    "pdfinclusionerrorlevel",
+    "pdfsuppresswarningpagegroup",
 )
 
 _DATE_RE = re.compile(
@@ -973,16 +1040,23 @@ def bundled_class_shadow(
 
 
 def shim_pkgs_in_use(ctx: LoopCtx, shim_map: dict[str, Any]) -> list[str]:
-    r"""工程源码里实际 ``\\usepackage`` 的 shim_map 键 (shim_known 条件实现)。"""
+    r"""工程源码里实际引用的 shim_map 键 (shim_known 条件实现)。
+
+    键可带扩展名 (install_file 系 map 形如 ``revtex4-1.cls``)——按 stem
+    匹 ``\\usepackage``/``\\RequirePackage``/``\\documentclass``/``\\documentstyle``
+    花括号名单, 否则 ``\\bspotcolor\\.sty\\b`` 对裸名 ``{spotcolor}`` 永不中。
+    """
     blob = ctx.source_blob()
-    return [
-        pkg
-        for pkg in shim_map
+    hits = []
+    for pkg in shim_map:
+        stem = re.sub(r"\.(?:sty|cls|clo|tex|def|cfg)$", "", str(pkg))
         if re.search(
-            rf"\\(?:usepackage|RequirePackage)\s*(?:\[[^\]]*\])?\s*\{{[^}}]*\b{re.escape(pkg)}\b",
+            rf"\\(?:usepackage|RequirePackage|documentclass|documentstyle)"
+            rf"\s*(?:\[[^\]]*\])?\s*\{{[^}}]*\b{re.escape(stem)}\b",
             blob,
-        )
-    ]
+        ):
+            hits.append(pkg)
+    return hits
 
 
 def purge_corrupt_intermediates(

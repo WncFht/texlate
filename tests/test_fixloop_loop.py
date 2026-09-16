@@ -8,7 +8,7 @@ MockEngine 对齐 impl-compile ``compile/engine.py`` 的 CompRes/Engine 字段�
 from collections.abc import Iterable
 from pathlib import Path
 
-from texlate.compile.fixloop import Ruleset, fixloop, load_ruleset
+from texlate.compile.fixloop import Ruleset, builtins, fixloop, load_ruleset
 from texlate.compile.fixloop.ctan import CtanFetcher
 from texlate.compile.fixloop.engine import LoopCtx
 from texlate.compile.fixloop.logparse import ErrReport
@@ -640,3 +640,38 @@ def test_floor_skips_reject(tmp_path: Path) -> None:
     assert cell["floor_restored"] is False
     assert cell["final_pdf"] is False
     assert (proj / "main.pdf").read_bytes() == b"%PDF-1.4 entry"
+
+
+def test_shim_pkgs_in_use_extension_keys(tmp_path: Path) -> None:
+    r"""shim_map 键可带扩展名——按 stem 匹 ``\usepackage``/``\documentclass``。
+
+    旧实现 ``\bspotcolor\.sty\b`` 对裸名 ``{spotcolor}`` 永不中, shim_known
+    条件对扩展名键形同虚设 (peer1 审计项)。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{revtex4-1}\n\\usepackage{spotcolor,hyperref}\n",
+        encoding="utf-8",
+    )
+    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
+    hits = builtins.shim_pkgs_in_use(
+        ctx,
+        {
+            "spotcolor.sty": "xespotcolor",
+            "revtex4-1.cls": "revtex4-2",
+            "absent.sty": "x",
+        },
+    )
+    assert set(hits) == {"spotcolor.sty", "revtex4-1.cls"}
+
+
+def test_pdftex_prim_polyfill_object_family(tmp_path: Path) -> None:
+    r"""对象/注释族原语扩列后读取型也吃 polyfill (2410.00012 配套)。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\ifnum\\pdflastobj=0 \\fi\n",
+        encoding="utf-8",
+    )
+    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
+    ok, note = builtins.pdftex_prim_polyfill(ctx, None, "pdflastobj", {})
+    assert ok, note
+    assert "\\ifdefined\\pdflastobj" in (tmp_path / "main.tex").read_text(
+        encoding="utf-8"
+    )

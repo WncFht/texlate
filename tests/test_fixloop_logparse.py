@@ -235,3 +235,22 @@ def test_clean_log() -> None:
         "This is pdfTeX, Version 3\nOutput written on main.pdf (1 page).\n"
     )
     assert (cat, pay) == ("clean", None)
+
+
+def test_undefined_cs_expansion_stack_root() -> None:
+    """2410.00012 实证: 宏内炸 —— 冒犯 cs 在展开栈区域末位 (\\pdfobj),
+
+    l.N 行末只剩表面宏 (\\SpotSpace)。subclassify 须认栈末位。"""
+    log = (
+        "splice/ieeeaccess.cls:128: Undefined control sequence.\n"
+        "\\AddSpotColor #1#2#3#4->\\def \\obj { 0 R}\\pdfobj \n"
+        "                                {<</C0[0 0 0 0]/FunctionType...\n"
+        "l.128 ...SpotSpace 3015\\SpotSpace C} {1 0.3 0 0.2}\n"
+    )
+    assert classify(log) == ("pdftex_prim", "pdfobj")
+
+
+def test_undefined_cs_stack_tail_not_pdf_stays() -> None:
+    """展开栈末位非 pdf 原语 → 不细分 (allowed 不凭空放行)。"""
+    log = "! Undefined control sequence.\n\\mymacro ->\\somecs \nl.9 \\myouter{x}\n"
+    assert classify(log) == ("undefined_cs", "myouter")

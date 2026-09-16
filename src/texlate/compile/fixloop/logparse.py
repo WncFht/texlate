@@ -124,15 +124,24 @@ def _payload(entry: dict[str, Any], m: re.Match[str]) -> str | None:
     return next((g for g in m.groups() if g), None)
 
 
-def _ln_tail_cs(ctx: str | None) -> str | None:
-    """首个 ``l.N`` 行的行末控制序列名 (TeX 约定: 冒犯 cs 在该行末)。"""
+def _ctx_tail_css(ctx: str | None) -> set[str]:
+    r"""上下文中冒犯 cs 的两个候选位: 展开栈末位 cs 与 ``l.N`` 行末 cs。
+
+    ctx 以错误行起 (parse_text L101)——顶层错误时冒犯 cs 落在 ``l.N``
+    行内, 宏展开错误时 ``l.N`` 行末只剩表面宏, 真冒犯 cs 是错误行与
+    ``l.N`` 行之间展开栈区域的末位 (loop1-2410.00012: ``\\pdfobj`` 藏
+    ``\\AddSpotColor`` 体内, l.N 行末 ``\\SpotSpace`` 只是调用点)。
+    """
+    out: set[str] = set()
     if not ctx:
-        return None
-    m = _LN_ROW_RE.search(ctx)
-    if not m:
-        return None
-    hits = _CS_NAME_RE.findall(m.group(0))
-    return hits[-1] if hits else None
+        return out
+    lines = ctx.splitlines()
+    ln_i = next((i for i, ln in enumerate(lines) if _LN_ROW_RE.match(ln)), len(lines))
+    if hits := _CS_NAME_RE.findall("\n".join(lines[1:ln_i])):
+        out.add(hits[-1])
+    if ln_i < len(lines) and (hits := _CS_NAME_RE.findall(lines[ln_i])):
+        out.add(hits[-1])
+    return out
 
 
 class Taxonomy:
@@ -173,8 +182,7 @@ class Taxonomy:
                     # \pdfoutput 环境引用) 不再把真 undefined_cs 抢路由成
                     # pdftex_prim。
                     allowed = {pay} if pay else set()
-                    if (ln_cs := _ln_tail_cs(rep.ctx)) is not None:
-                        allowed.add(ln_cs)
+                    allowed.update(_ctx_tail_css(rep.ctx))
                     grp = sub.get("payload_group")
                     for sm in re.finditer(sub["pattern"], head):
                         spay = (

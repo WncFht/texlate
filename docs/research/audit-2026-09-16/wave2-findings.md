@@ -91,3 +91,12 @@ pst-node×11 / jheppub×9 / citesort×7 / diagrams×7 / axodraw×5 / pst-arrow×
 - **二轮（13 格 early_eof 复跑）**：全数出 pdf（11 acceptable + 2 best_effort）——plea 规则+revtex4-1 桥闭环。19 格累计 14 出 pdf；残 5 = 1803.00012（SIGSEGV）、1706.02464（bufsize）、1003.1717（syntax）、1306.0036/2410.00012（undefined_cs）。
 - **「不退化底板」#20 已落 `2f12955`**（leader 侧 fixloop engine）：入口 pdf 快照双源（precheck 前现存 / rounds[0]）+ 末态失 pdf 非 reject 兜回 + `floor_from`/`floor_restored` 观测面；replay 门②将兜回计入 regressed；stagerun post 复判仍直编裸树保持退化观测真实。killed_signal 归一化 ticket 核销（run_process POSIX 负值约定本就正确）。
 - **skip 分布核实**（scout）：compile zh skip 实为 129 格全合法上游门——79 not_translated（parse 失败级联）+49 arm_mismatch+1 gate；**发现排程洞**：zh/ 单槽被 real 臂覆写 → real-50 抽样 48 id 永无 mock compile 数据，loop2 runbook 需先 compile-mock 再 xlat-real（或 zh/ 分臂）。
+
+### regress4 归因（scout-regress4 直编复验 4 真退化格）
+
+**主机理：TEXMFHOME 环境不对称遮蔽（3/4 格）**——stagerun `_compile_judge`（:917 入口编译）跑在 ambient 环境，`~/texmf` 可见；`_fixloop_one`（:1128）冷起 `_texmf` 并经 `XelatexEngine(texmfhome=)` → `engine.py:865-870` 写 TEXMFHOME → `~/texmf` 整树不可见。epsf.tex/revtex4-1.cls/mhchem/chemgreek/algorithm/algpseudocode/ltxgrid 全部只活在 `~/texmf` → 入口编译出 partial pdf、fixloop 里同包全部失踪 → 装错分支/装不上 → 退化。**这不是规则 bug 是 bench harness 包宇宙不一致**——「不退化底板」在产物层兜底，真修法是 texmf 可见性对齐（`_texmf` 串链 ambient `$HOME/texmf`，或入口编译同样吃 texmfhome 走全密封）。路由：engine.py `_env` 侧归 peer1、stagerun 半侧归 1d。
+
+- **1306.0036**：`pdftex_prim_guard` regex 重写了自己注入的行——lookbehind 只防 `\ifdefined` 不防 `\chardef` → `\chardef\ifdefined` 杀 e-TeX primitive → 后续 `\ifdefined` 全灭；splice 原地 mutate 无回滚，run-2 继承残行。**已修 `88d0ab9`**（peer1，lookbehind 扩 `\chardef|\let|\def` + spotcolor→xespotcolor shadow）。残留机制缺口：splice in-place 无树级回滚（底板只兜 pdf 产物不兜树）——大设计项，记档。
+- **1003.1717**：`install_file` 装 fallback 分支 revtex4 → `\input aps.rtx` 命中被 xlat 污染的 `splice/aps.rtx.tex:322`（`\let\frontmatter@ 这是译文 }{}`——csname 槽位腐蚀，fixer-slots 机理覆盖；但**随包 runtime 文件该不该进翻译集**是 pipeline 边界问题，转 peer1）。
+- **2410.00012**：`install_file` 装 mhchem 没带依赖闭包（chemgreek 被 TEXMFHOME 遮蔽）——依赖闭包安装是 install_file 规则面缺口，归 peer1 rules/engine。
+- **astro-ph/0111575**：rerun 已自愈 acceptable（epsf 裸 payload 修复起效）。
