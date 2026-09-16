@@ -21,6 +21,10 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 #: 透传父进程的 env 名（白名单）。
 _ENV_PASS_EXACT = {
@@ -78,7 +82,12 @@ def child_env(extra: dict[str, str] | None = None) -> dict[str, str]:
 
 
 def sandbox_wrap(
-    cmd: list[str], *, root: Path, out: Path, extra_read: list[Path] | None = None
+    cmd: list[str],
+    *,
+    root: Path,
+    out: Path,
+    extra_read: list[Path] | None = None,
+    extra_rw: Iterable[Path | str] = (),
 ) -> list[str]:
     """沙箱包裹命令（sandbox-exec，仅 macOS）；非 darwin / 无 sandbox-exec 原样返回。
 
@@ -93,6 +102,10 @@ def sandbox_wrap(
     """
     if sys.platform != "darwin" or not Path("/usr/bin/sandbox-exec").exists():
         return cmd
+    # SBPL 按 canonical 路径匹配——相对 root/out 生成的 literal 永远打不中，
+    # 等同全拒（与 bwrap 相对 bind 同源坑）。
+    root = Path(root).resolve()
+    out = Path(out).resolve()
     home = Path.home()
     cache = home / "Library/Caches/TectonicProject.Tectonic"
     cache.mkdir(parents=True, exist_ok=True)
@@ -121,6 +134,8 @@ def sandbox_wrap(
         os.path.realpath(tempfile.gettempdir()),
         tempfile.gettempdir(),
         "/dev",
+        # extra_rw 须读写双放——deny-$HOME-read 在前，只放写仍会读拒。
+        *(str(Path(p).resolve()) for p in extra_rw),
         *(str(p) for p in (extra_read or [])),
     ]
     write = [
@@ -132,6 +147,7 @@ def sandbox_wrap(
         os.path.realpath(tempfile.gettempdir()),  # canonical 形必须
         tempfile.gettempdir(),
         "/dev",
+        *(str(Path(p).resolve()) for p in extra_rw),
     ]
 
     def _paths(paths: list[str]) -> str:
@@ -180,18 +196,23 @@ def run_process(
     （latex→dvips/mktextfm 子进程一并带走），非 POSIX 平台降级 proc.kill。
     """
     t0 = time.time()
-    proc = subprocess.Popen(  # noqa: S603 — 编译器子进程即本模块职责，输入已由
-        cmd,  # --untrusted/-no-shell-escape/env 白名单/sandbox-exec 约束
-        cwd=str(cwd),
-        env=env,
-        stdin=subprocess.DEVNULL,  # 缺文件时 TeX 仍 \read stdin 问替代名——
-        # 不钉死则吃 harness 继承的 stdin，行为随父进程飘（e2e-real 2308.12712
-        # r1 出 4.4MB pdf / r2 emergency stop 即此不确定性）；钉 DEVNULL =
-        # 确定性 EOF → emergency stop → missing_file 归因稳定。
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        start_new_session=(sys.platform != "win32"),
-    )
+    try:
+        proc = subprocess.Popen(  # noqa: S603 — 编译器子进程即本模块职责，输入已由
+            cmd,  # --untrusted/-no-shell-escape/env 白名单/sandbox-exec 约束
+            cwd=str(cwd),
+            env=env,
+            stdin=subprocess.DEVNULL,  # 缺文件时 TeX 仍 \read stdin 问替代名——
+            # 不钉死则吃 harness 继承的 stdin，行为随父进程飘（e2e-real 2308.12712
+            # r1 出 4.4MB pdf / r2 emergency stop 即此不确定性）；钉 DEVNULL =
+            # 确定性 EOF → emergency stop → missing_file 归因稳定。
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            start_new_session=(sys.platform != "win32"),
+        )
+    except OSError as e:
+        # 二进制缺席/cwd 失效等 exec 失败——返回 rc=None 而非炸掉调用方
+        # （fixloop 轮内 FileNotFoundError 会整格崩）。
+        return None, f"exec failed: {e}", time.time() - t0, False
     timed_out = False
     try:
         out, _ = proc.communicate(timeout=timeout)

@@ -526,12 +526,27 @@ def test_xelatex_compile_flags_in_argv(
 
 
 def test_tectonic_map_flags_subset() -> None:
-    """放行面 = 显式映射 + -Z 两式直通；-shell-escape 与未知项 → dropped。"""
+    """放行面 = 显式映射 + -Z 白名单值域；shell-escape 系与未知项 → dropped。"""
     toks, dropped = TectonicEngine._map_flags(  # noqa: SLF001
-        ["-synctex=1", "-Z", "keep-going", "-Zfoo", "-shell-escape", "--x"]
+        [
+            "-synctex=1",
+            "-Z",
+            "keep-logs",  # 白名单内 → 两 token 直通
+            "-Zpaper-size=a4",  # 白名单名 (= 前值名匹配) → 单 token 直通
+            "-Z",
+            "shell-escape",  # 白名单外 → 连值整体丢弃（-shell-escape 后门）
+            "-Zsearch-path=/x",
+            "-shell-escape",
+            "--x",
+        ]
     )
-    assert toks == ["--synctex", "-Z", "keep-going", "-Zfoo"]
-    assert dropped == ["-shell-escape", "--x"]
+    assert toks == ["--synctex", "-Z", "keep-logs", "-Zpaper-size=a4"]
+    assert dropped == [
+        "-Z shell-escape",
+        "-Zsearch-path=/x",
+        "-shell-escape",
+        "--x",
+    ]
 
 
 def test_tectonic_compile_flags_map_and_drop(

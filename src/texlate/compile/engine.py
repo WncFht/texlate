@@ -44,6 +44,9 @@ from .toolchain import ensure_tectonic, tectonic_version
 DEFAULT_TIMEOUT = 240.0  # docs/08 §4.1
 MAX_PASSES = 2
 _TECTONIC_ATTEMPTS = 2  # 冷 bundle 首拉超时后重试（缓存热身）
+#: 重试趟预算上限——首趟已烧满 timeout，重试时缓存已热、只需覆盖真实编译
+#: 时长；再给满 timeout 会把单次调用真超时翻倍且救不了真超时的论文。
+_TECTONIC_RETRY_TIMEOUT = 120.0
 
 #: tectonic bundle pin（docs/08 §4.1）——引擎默认 bundle；可用 env
 #: TEXLATE_TEX_BUNDLE 或构造参数覆盖，置空串回落引擎自带默认 bundle。
@@ -61,6 +64,30 @@ _TECTONIC_FLAG_MAP: Final = {
     "-synctex": ["--synctex"],
     "-synctex=1": ["--synctex"],
 }
+
+#: ``-Z`` 原生拼写直通是 ``-shell-escape`` 的后门（``-Z shell-escape``
+#: 落位在 ``--untrusted`` 之后仍开 \write18；``-Z search-path=…`` 在 env
+#: 降级下可读工程外路径）——只放已知无害子集，按 ``=`` 前值名匹配。
+_TECTONIC_Z_OK: Final = frozenset(
+    {
+        "continue-on-errors",
+        "minify-bundle",
+        "keep-intermediates",
+        "keep-logs",
+        "deterministic-output",
+        "synctex",
+        "paper-size",
+        "trace",
+        "hide",
+    }
+)
+
+#: xelatex 开 ``\write18`` 的 flag 拼写集——``env`` 降级（OS 容器缺席）时
+#: 须从 argv 摘除降入 ``flags_dropped``：无沙箱兜底的 shell-escape 即裸
+#: 命令执行面。``sandbox=off`` 是调用方明示退出，不动。
+_SHELL_ESCAPE_FLAGS: Final = frozenset(
+    {"-shell-escape", "--shell-escape", "-enable-write18", "--enable-write18"}
+)
 
 #: ``-X compile`` 撤 ``--web-bundle`` 的分界版本：0.17.0 起 URL 并入
 #: ``--bundle``（0.17.0 help 实测 ``--bundle <BUNDLE>  Use this URL or
@@ -215,7 +242,13 @@ _ERROR_RULES: tuple[tuple[str, str], ...] = (
     ("minted_froz", r"frozencache|Cannot highlight code"),
     (
         "latex209",
-        r"documentstyle|LaTeX ?2\.09|LaTeX2e command .* in LaTeX 2\.09",
+        # 与 _LATEX209_TAIL_RE 同签名集——head 侧也曾被 aastex 系 info 横幅
+        # "Original \LaTeX2.09 style" 打中（松版 `LaTeX ?2\.09` 残留）。
+        (
+            r"\\documentstyle\b|LaTeX 2\.09 COMPATIBILITY MODE|"
+            r"LaTeX2e command[^\n]*\bin LaTeX 2\.09|LaTeX Version 2\.09|"
+            r"(?m:^[ \t]*Compatibility mode)"
+        ),
     ),
     ("undefined_cs", r"Undefined control sequence"),
     ("capacity", r"TeX capacity exceeded"),
@@ -382,12 +415,13 @@ def _deps_from_record(main: str, out: Path, engine: str) -> list[str] | None:
 
 
 def compiled_dependencies(
-    root: Path, main: str, out: Path, engine: str, *, include_eps: bool = False
+    root: Path, main: str, out: Path, engine: str
 ) -> list[str] | None:
     r"""编译器自述的真实输入集——**翻译文件集权威**（docs/08 §3.4）。
 
     xelatex 读 `-recorder` 产的 `.fls` INPUT 行；tectonic 读
     `--makefile-rules` 产物。静态 `\input` 图只作编译失败时的降级。
+    图件（.eps 等）不算 TeX 输入层——不做开关，恒不收。
     """
     root = root.resolve()
     cwd = (root / main).parent
@@ -396,9 +430,7 @@ def compiled_dependencies(
     if names is None:
         return None
     files = set()
-    extensions = {".tex", ".sty", ".cls", ".cfg", ".def", ".clo", ".fd", ".ltx"} | (
-        {".eps"} if include_eps else set()
-    )
+    extensions = {".tex", ".sty", ".cls", ".cfg", ".def", ".clo", ".fd", ".ltx"}
     for name in names:
         path = Path(name)
         candidates = [path] if path.is_absolute() else [cwd / path]
@@ -451,8 +483,8 @@ _BWRAP_ENV_RW: Final = {
     "TEMP",
     "TMP",
 }
-#: env 键里 TMPDIR 系的子集——落 ``/tmp`` 内时不挂（沙箱 /tmp 是私有
-#: tmpfs，挂宿主子目录反而扩写面）。
+#: env 键里 TMPDIR 系的子集——一律不挂宿主路径，``_bwrap_wrap`` 把它们
+#: --setenv 重定向进沙箱私有 tmpfs。
 _BWRAP_TMP_KEYS: Final = {"TMPDIR", "TEMP", "TMP"}
 #: 需 RO 进沙箱的 env 键：kpathsea 搜索路径列表 + 本地 bundle 文件。
 _BWRAP_ENV_RO: Final = {
@@ -536,9 +568,9 @@ def _bwrap_env_paths(env: dict[str, str]) -> tuple[list[str], list[str]]:
         if not val:
             continue
         if key in _BWRAP_ENV_RW:
-            if Path(val).is_absolute() and not (
-                key in _BWRAP_TMP_KEYS and Path(val).is_relative_to(_SANDBOX_TMP)
-            ):
+            # TMPDIR 系不挂——`_bwrap_wrap` 会 --setenv 进私有 tmpfs，宿主
+            # 路径挂进来既扩写面也可能在沙箱内根本不该存在。
+            if Path(val).is_absolute() and key not in _BWRAP_TMP_KEYS:
                 rw.append(val)
         elif key in _BWRAP_ENV_RO:
             ro += _kpathsea_list(val)
@@ -651,6 +683,12 @@ def _bwrap_wrap(  # noqa: PLR0913 -- 挂载面组装参数即签名
     """
     if not _bwrap_capable():
         return None
+    # bwrap 的 --bind 源按其自身 cwd（= run_process 的 cwd = build 目录）
+    # 解析——调用方漏传绝对路径时 bind 在沙箱内落空 ENOENT、双引擎全灭
+    # （live-smoke2 实证）→ 入口统一 resolve。
+    root = Path(root).resolve()
+    out = Path(out).resolve()
+    extra_rw = [Path(p).resolve() for p in extra_rw]
     tool = find_tool("bwrap") or "bwrap"
     rw, ro = _bwrap_mounts(cmd[0], root=root, out=out, env=env, extra_rw=extra_rw)
     argv = [
@@ -688,10 +726,29 @@ def _bwrap_wrap(  # noqa: PLR0913 -- 挂载面组装参数即签名
         argv += ["--setenv", "XDG_CACHE_HOME", xdg]
         cache = str(Path(xdg) / "Tectonic")
         argv += ["--bind-try", cache, cache]
+    # TMPDIR 系指向宿主路径时挂进来只是扩写面（甚至可能不存在）——一律
+    # 重定向进私有 tmpfs；`_bwrap_env_paths` 同步不再为这三键加挂载。
+    for key in _BWRAP_TMP_KEYS:
+        if env.get(key):
+            argv += ["--setenv", key, _SANDBOX_TMP]
     for p in rw:
         argv += ["--bind-try", p, p]
     argv += ["--", *cmd]
     return argv
+
+
+def _mirror_source_dirs(cwd: Path, out: Path) -> None:
+    r"""按源树目录集在 ``out`` 下镜像预建子目录（dot 目录不镜像）。
+
+    tectonic ``--outdir`` 不预建子目录：``\\include``/``\\input`` 目标在
+    子目录时 aux 写 ``<out>/<sub>/*.aux`` 直接 os error 2（modec-tec
+    实证 2308.00125）。
+    """
+    for d in sorted(cwd.rglob("*")):
+        if d.is_dir() and not d.is_relative_to(out):
+            rel = d.relative_to(cwd)
+            if not any(part.startswith(".") for part in rel.parts):
+                (out / rel).mkdir(parents=True, exist_ok=True)
 
 
 def _apply_sandbox(  # noqa: PLR0913 -- 沙箱决策参数面
@@ -712,7 +769,7 @@ def _apply_sandbox(  # noqa: PLR0913 -- 沙箱决策参数面
     """
     if not enabled:
         return cmd, "off"
-    wrapped = sandbox_wrap(cmd, root=root, out=out)
+    wrapped = sandbox_wrap(cmd, root=root, out=out, extra_rw=extra_rw)
     if wrapped is not cmd:
         return wrapped, "sandbox-exec"
     if sys.platform != "linux":
@@ -931,6 +988,16 @@ class XelatexEngine:
             allow_net=False,
             extra_rw=[self.texmfhome] if self.texmfhome else [],
         )
+        if res.sandbox_mode == "env":
+            # env 降级 = OS 容器缺席——shell-escape 系 flag 没人兜底，压过
+            # -no-shell-escape 即裸 \write18 → 从 argv 摘除降入 dropped。
+            esc = [f for f in res.flags_applied if f in _SHELL_ESCAPE_FLAGS]
+            if esc:
+                res.flags_applied = [
+                    f for f in res.flags_applied if f not in _SHELL_ESCAPE_FLAGS
+                ]
+                res.flags_dropped += esc
+                cmd = [t for t in cmd if t not in _SHELL_ESCAPE_FLAGS]
         outputs = []
         per_pass = max(10.0, timeout / max(1, passes))
         for p in range(1, passes + 1):
@@ -1169,9 +1236,10 @@ class TectonicEngine:
     def _map_flags(flags: Iterable[str] | None) -> tuple[list[str], list[str]]:
         """engine_flags → (argv 追加 token, 丢弃的原 flag)：只放支持子集。
 
-        放行面 = ``_TECTONIC_FLAG_MAP`` 显式映射 + ``-Z`` 原生拼写直通
-        （``-Z<opt>`` 单 token 与 ``-Z <opt>`` 两 token 都收）；其余（含
-        ``-shell-escape`` 与任何 ``--outdir`` 类重键尝试）进 dropped。
+        放行面 = ``_TECTONIC_FLAG_MAP`` 显式映射 + ``-Z`` 白名单值域
+        （``_TECTONIC_Z_OK``；``-Z<opt>`` 单 token 与 ``-Z <opt>`` 两 token
+        都收）；其余（含 ``-shell-escape``、``-Z shell-escape`` 后门拼写与
+        任何 ``--outdir`` 类重键尝试）进 dropped。
         """
         toks, dropped = [], []
         flist = list(flags or ())
@@ -1181,10 +1249,16 @@ class TectonicEngine:
             if fl in _TECTONIC_FLAG_MAP:
                 toks += _TECTONIC_FLAG_MAP[fl]
             elif fl == "-Z" and i + 1 < len(flist) and not flist[i + 1].startswith("-"):
-                toks += [fl, flist[i + 1]]
+                if flist[i + 1].split("=", 1)[0] in _TECTONIC_Z_OK:
+                    toks += [fl, flist[i + 1]]
+                else:
+                    dropped.append(f"-Z {flist[i + 1]}")
                 i += 1
             elif fl.startswith("-Z") and fl != "-Z":
-                toks.append(fl)
+                if fl[2:].split("=", 1)[0] in _TECTONIC_Z_OK:
+                    toks.append(fl)
+                else:
+                    dropped.append(fl)
             else:
                 dropped.append(fl)
             i += 1
@@ -1272,6 +1346,7 @@ class TectonicEngine:
         stem = main_path.stem
         out = (outdir or cwd / "_tect_out").resolve()
         out.mkdir(parents=True, exist_ok=True)
+        _mirror_source_dirs(cwd, out)
         pdf, log = out / f"{stem}.pdf", out / f"{stem}.log"
         deps_mk = out / "dependencies.mk"
         for stale in (pdf, log, deps_mk):
@@ -1285,9 +1360,13 @@ class TectonicEngine:
             cmd, root=wdir, out=out, env=env, enabled=sandbox, allow_net=True
         )
         # 冷 bundle 首拉可能超时：缓存热身后重试一次（compile_bench 惯例）。
+        # 重试趟预算封顶 `_TECTONIC_RETRY_TIMEOUT`——首趟超时已烧满 timeout，
+        # 满预算重试会把真超时翻倍（audit wave2）。
         outputs = []
-        for _attempt in range(_TECTONIC_ATTEMPTS):
-            rc, out_s, sec, to = run_process(cmd, cwd=cwd, env=env, timeout=timeout)
+        for budget in (timeout, min(timeout, _TECTONIC_RETRY_TIMEOUT))[
+            :_TECTONIC_ATTEMPTS
+        ]:
+            rc, out_s, sec, to = run_process(cmd, cwd=cwd, env=env, timeout=budget)
             res.rc = rc
             if rc is not None and rc < 0:
                 res.killed_signal = -rc

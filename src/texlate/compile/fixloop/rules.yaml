@@ -343,7 +343,7 @@ taxonomy:
   # 都不中: err 为空 → clean; err 非空 → other
 
 # ════════════════════════════════════════════════════════════════
-# 第二层: 修复规则 (16 spike + 9 新增 = 25 条)
+# 第二层: 修复规则 (36 条: 2 gate + 2 precheck + 32 loop)
 # phase: gate(每轮分类后最先评估) / precheck(编译前一次性) / loop(每轮)
 # 同 phase 内按 order 升序, 首个 when+condition 满足且 dedup 未命中的执行。
 # engines.<name>.mode: native | same(源改写天然可移植) | degrade | unsupported | skip
@@ -797,8 +797,10 @@ rules:
               \providecommand{\bnabla}{\boldsymbol{\nabla}}
               \providecommand{\bpartial}{\boldsymbol{\partial}}
               \endinput
-          # kastrup 的 binhex 真身在 TL, 但 filemap 索引不含 .tex 扩展名 → 装不上
-          # (overrides 只接 tectonic 通路)。newtxtext.sty 实需可展开
+          # kastrup 的 binhex 真身在 TL: overrides 钉 binhex.tex→kastrup 对
+          # 全引擎生效, xelatex 侧 tlmgr 装真包即可; tectonic 侧 ctan_fetch
+          # 的 OVERLAY_EXTS 不收 .tex (平铺会撞名遮蔽工程源文件) → 真身永远
+          # 落不了地, 本 stub 即 tectonic 通路兜底。newtxtext.sty 实需可展开
           # \nhex{<位数>}{<数>} —— expl3 全展开实现, 宽度=高位补零 (加 base^w
           # 再丢首位)。2211.04574 实证。
           binhex.tex:
@@ -1041,8 +1043,9 @@ rules:
               % fixloop legacy shim: tcilatex.tex 无公共对应物 —— 空件
               \endinput
           # epsf.tex (老 epsf plain-TeX 图件接口; TL epsf 包 tex/generic/epsf/
-          # 已有真身 —— filemap.overrides 直解, 本 stub 为 xelatex 通路
-          # overrides 盲区兜底, 1706.02568 实证) —— graphicx 桥接:
+          # 已有真身 —— overrides 直解后 xelatex 侧 tlmgr 装真包; tectonic
+          # 侧 .tex 不可平铺 (同 binhex) → 本 stub 为 tectonic 通路兜底,
+          # 1706.02568 实证) —— graphicx 桥接:
           # \epsfbox[opt bbox]{f}/\epsffile{f} → \includegraphics; \epsfxsize/
           # \epsfysize 为真 dimen (>0 时才进 width=/height=); bbox 可选参数
           # 吞掉降级 (clip 语义不移植)。\input 装载 → 禁 @-cs。
