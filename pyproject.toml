@@ -44,3 +44,7 @@ artifacts = ["src/texlate/server/static/**"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/texlate"]
+
+[tool.hatch.build.targets.sdist]
+# 默认 sdist = 整棵工作树（bench/results 24G+ 全入包，构建不可行）——白名单收敛
+include = ["/src", "/tests", "/README.md", "/pyproject.toml"]
