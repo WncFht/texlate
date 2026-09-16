@@ -5,6 +5,8 @@
 import { createEffect, createMemo, createSignal, onCleanup, onMount, Show, For } from "solid-js";
 import {
     api,
+    ApiError,
+    DB_TO_URL_KIND,
     isTerminal,
     type DualJson,
     type FileKind,
@@ -31,6 +33,8 @@ const DOWNLOAD_ORDER: FileKind[] = [
     "en.pdf",
     "dual.pdf",
     "dual.json",
+    "zh.docx",
+    "zh.epub",
     "zh-src.zip",
     "compile.log",
     "md",
@@ -57,6 +61,20 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
     const [drift, setDrift] = createSignal<Partial<Record<DocId, boolean>>>({});
     const [fatal, setFatal] = createSignal("");
     const [handles, setHandles] = createSignal<Partial<Record<DocId, AnyHandle>>>({});
+    // reader 404 于终态任务：无产物可读，走结果面板而非裸 fatal
+    const [readerGone, setReaderGone] = createSignal(false);
+    const [retrying, setRetrying] = createSignal(false);
+    const [retryError, setRetryError] = createSignal<{
+        status: number;
+        code?: string;
+        message: string;
+    } | null>(null);
+    // needs_auth 结果面板的内联 API Key 输入（重试随 X-Texlate-Key 透传）
+    const [authKey, setAuthKey] = createSignal("");
+    // 已用时秒表的走时源（created_at 为 epoch 秒）
+    const [now, setNow] = createSignal(Date.now());
+    const tick = window.setInterval(() => setNow(Date.now()), 1000);
+    onCleanup(() => window.clearInterval(tick));
 
     let engine: SyncEngine | null = null;
     let pendingJump: { from: DocId; pos: Pos } | null = null;
@@ -86,7 +104,13 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
                 if (rd.active) setActive(rd.active);
             }
         } catch (e) {
-            setFatal(e instanceof Error ? e.message : String(e));
+            // 终态任务无产物 → reader 404 属预期，交给结果面板；其余仍 fatal
+            const s = task()?.status;
+            if (e instanceof ApiError && e.status === 404 && s && isTerminal(s)) {
+                setReaderGone(true);
+            } else {
+                setFatal(e instanceof Error ? e.message : String(e));
+            }
         }
     };
 
@@ -128,8 +152,8 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
             return { original: n, translated: n };
         }
         return {
-            original: i.documents.original.pages,
-            translated: i.documents.translated.pages,
+            original: i.documents.original?.pages ?? 1,
+            translated: i.documents.translated?.pages ?? 1,
         };
     });
 
@@ -161,6 +185,7 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
             }
         }
         if (!on) updateDrift();
+        persistPosition();
     };
 
     // ---------- 模式切换保位置（texglot planModeChange） ----------
@@ -168,8 +193,24 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
     const planModeChange = (next: Mode) => {
         if (next === mode()) return;
         const src = handles()[active()] ?? handles().original ?? handles().translated;
-        if (src) pendingJump = { from: src.side, pos: capturePos(src) };
+        if (src) {
+            const from = src.side;
+            const pos = capturePos(src);
+            // 目标侧：split → 当前隐藏的对侧；单栏 → next 对应侧
+            const target: DocId =
+                next === "split" ? (from === "original" ? "translated" : "original") : next;
+            const dst = handles()[target];
+            if (dst) {
+                // 目标窗格仍在挂载态（split→单栏留下的一侧），paneReady 不会再火——
+                // 立即跳，不留 pendingJump 污染下次挂载
+                const to = from === target ? pos : mapper()(pos, from);
+                requestAnimationFrame(() => dst.jump(to));
+            } else {
+                pendingJump = { from, pos };
+            }
+        }
         setMode(next);
+        persistPosition();
     };
 
     const paneReady = (side: DocId, h: AnyHandle) => {
@@ -268,24 +309,34 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
     };
 
     const gotoPage = (n: number) => {
-        const h = handles()[active()] as PaneHandle | undefined;
-        h?.gotoPage?.(n);
+        handles()[active()]?.gotoPage?.(n);
     };
 
     const downloads = createMemo<DownloadItem[]>(() => {
         const m = manifest();
         if (!m) return [];
-        return DOWNLOAD_ORDER.filter((k) => k in m.artifacts).map((kind) => ({
-            kind,
-            label: t.files[kind] ?? kind,
-            url: api.fileUrl(props.taskId, kind, { download: true }),
-        }));
+        // manifest.artifacts 的键是 db kind；entry.url 已是完整下载路径，
+        // 补 ?download=1 让服务端落 Content-Disposition
+        const ord = (k: string) => {
+            const i = DOWNLOAD_ORDER.indexOf(k as FileKind);
+            return i < 0 ? DOWNLOAD_ORDER.length : i;
+        };
+        return Object.entries(m.artifacts)
+            .map(([dbKind, e]) => {
+                const kind = DB_TO_URL_KIND[dbKind] ?? dbKind;
+                return {
+                    kind,
+                    label: t.files[kind] ?? kind,
+                    url: `${e.url}?download=1`,
+                };
+            })
+            .sort((a, b) => ord(a.kind) - ord(b.kind));
     });
 
     const docUrl = (side: DocId) => {
         const i = info();
-        if (!i) return "";
-        const doc = i.documents[side];
+        const doc = i?.documents[side];
+        if (!i || !doc) return "";
         const kind: FileKind = side === "original" ? "en.pdf" : "zh.pdf";
         // 优先服务端给的 url；否则按 files 约定拼（带版本校验防旧版，§2.3）
         return doc.url || api.fileUrl(props.taskId, kind, { version: doc.version });
@@ -301,37 +352,258 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
         return !!s && !isTerminal(s.status);
     };
 
+    // ---------- 重试（终态 → 同 id 重入队，§3.3） ----------
+
+    const onRetry = async () => {
+        if (retrying()) return;
+        setRetrying(true);
+        setRetryError(null);
+        try {
+            // needs_auth：重试必须重带 X-Texlate-Key（server 401 auth_required）
+            const res = await api.retry(
+                props.taskId,
+                undefined,
+                authKey() ? { apiKey: authKey() } : undefined,
+            );
+            if (res.task_id !== props.taskId) {
+                props.nav(`#/reader/${res.task_id}`);
+                return;
+            }
+            // 同 id 重跑：清产物快照 + 清上一轮 SSE 痕迹，界面回到进度视图
+            setInfo(null);
+            setDual(undefined);
+            setManifest(null);
+            setReaderGone(false);
+            pendingJump = null;
+            restoredSides.clear();
+            setTask((cur) =>
+                cur
+                    ? {
+                          ...cur,
+                          status: res.status,
+                          stage: undefined,
+                          message: undefined,
+                          error: null,
+                          progress: 0,
+                      }
+                    : cur,
+            );
+            // 先于 resetLive 补丁列表行——否则 SSE 生效前 effect 会用旧终态回盖 task()
+            taskStore.patch(props.taskId, {
+                status: res.status,
+                stage: undefined,
+                message: undefined,
+                error: null,
+                progress: 0,
+            });
+            taskStore.resetLive(props.taskId);
+            setAuthKey(""); // 已用毕即弃，不留在组件态
+        } catch (e) {
+            const ae = e instanceof ApiError ? e : null;
+            setRetryError({
+                status: ae?.status ?? 0,
+                code: ae?.code,
+                message: ae?.detail ?? (e instanceof Error ? e.message : String(e)),
+            });
+        } finally {
+            setRetrying(false);
+        }
+    };
+
+    // ---------- 进度视图 / 结果面板的数据加工 ----------
+
+    /** 终态非 done → 结果面板/横幅的状态键；done 或进行中 → null */
+    const resultStatus = () => {
+        const s = task()?.status;
+        return s && isTerminal(s) && s !== "done" ? s : null;
+    };
+
+    const RESULT_TEXT: Record<string, string> = {
+        fault: t.reader.resultFault,
+        partial: t.reader.resultPartial,
+        cancelled: t.reader.resultCancelled,
+        interrupted: t.reader.resultInterrupted,
+        needs_auth: t.reader.resultNeedsAuth,
+    };
+
+
+    const pad2 = (n: number) => String(n).padStart(2, "0");
+    const fmtClock = (at: number) => {
+        const d = new Date(at * 1000);
+        return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+    };
+    const fmtElapsed = (sec: number) => {
+        const s = Math.max(0, Math.floor(sec));
+        const m = Math.floor(s / 60);
+        const h = Math.floor(m / 60);
+        return h > 0 ? `${h}:${pad2(m % 60)}:${pad2(s % 60)}` : `${m}:${pad2(s % 60)}`;
+    };
+
+    /** 统计条：chunk 帧优先，快照 counters 兜底；tokens 只有快照带 */
+    const progStats = () => {
+        const c = live()?.chunk;
+        const k = task()?.counters;
+        return {
+            done: c?.done ?? k?.done ?? 0,
+            total: c?.total ?? k?.total ?? 0,
+            cached: c?.cached ?? k?.cached ?? 0,
+            failed: c?.failed ?? k?.failed ?? 0,
+            tokens: k?.tokens ?? 0,
+        };
+    };
+    const elapsed = () => {
+        const ca = task()?.created_at;
+        return ca ? Math.max(0, now() / 1000 - ca) : 0;
+    };
+
+    /** 结果面板统计：done.stats 优先，快照 counters 兜底 */
+    const resultStats = () => {
+        const s = live()?.done?.stats;
+        const c = task()?.counters;
+        const tokens = s?.tokens ?? c?.tokens;
+        const seconds = s?.seconds;
+        const failed = s?.chunks_failed ?? c?.failed;
+        return tokens == null && seconds == null && failed == null
+            ? null
+            : { tokens, seconds, failed };
+    };
+
+    let logPre: HTMLPreElement | undefined;
+    let logDrawer: HTMLDetailsElement | undefined;
+    const scrollLog = () => {
+        if (logDrawer?.open && logPre) logPre.scrollTop = logPre.scrollHeight;
+    };
+    // 新日志落地后贴底（For 渲染先于 effect，scrollHeight 已是新值）
+    createEffect(() => {
+        void live()?.logs.length;
+        scrollLog();
+    });
+
+    /** 终态面板主体：状态文案 + 错误 + 警告 + 统计 + 重试（横幅与整页共用） */
+    const renderResultBody = (st: string) => (
+        <>
+            <h2 class="rp-status">{RESULT_TEXT[st] ?? t.status[st] ?? st}</h2>
+            <Show when={task()?.error}>
+                {(e) => (
+                    <p class="form-error">
+                        [{e().code}] {e().message}
+                        {e().retryable ? "（可重试）" : ""}
+                    </p>
+                )}
+            </Show>
+            <Show when={retryError()}>
+                {(e) => (
+                    <p class="form-error">
+                        [{e().code ?? "retry"}] {e().message}
+                        <Show when={e().status === 401 || e().code === "auth_required"}>
+                            {" "}
+                            {t.reader.retryHintAuth}
+                        </Show>
+                    </p>
+                )}
+            </Show>
+            <Show when={(task()?.warnings?.length ?? 0) > 0}>
+                <ul class="warn-list">
+                    <For each={task()!.warnings}>{(w) => <li>{w}</li>}</For>
+                </ul>
+            </Show>
+            <Show when={resultStats()}>
+                {(s) => (
+                    <dl class="stat-strip">
+                        <Show when={s().tokens != null}>
+                            <div class="stat">
+                                <dt>{t.reader.statsTokens}</dt>
+                                <dd class="stat-num">{s().tokens}</dd>
+                            </div>
+                        </Show>
+                        <Show when={s().seconds != null}>
+                            <div class="stat">
+                                <dt>{t.reader.statsSeconds}</dt>
+                                <dd class="stat-num">{fmtElapsed(s().seconds ?? 0)}</dd>
+                            </div>
+                        </Show>
+                        <Show when={s().failed != null}>
+                            <div class="stat">
+                                <dt>{t.reader.statsFailed}</dt>
+                                <dd class="stat-num">{s().failed}</dd>
+                            </div>
+                        </Show>
+                    </dl>
+                )}
+            </Show>
+            <div class="rp-actions">
+                <Show when={st === "needs_auth"}>
+                    <input
+                        type="password"
+                        class="auth-key-input"
+                        placeholder={t.reader.authKeyPlaceholder}
+                        value={authKey()}
+                        disabled={retrying()}
+                        onInput={(e) => setAuthKey(e.currentTarget.value)}
+                    />
+                </Show>
+                <button
+                    type="button"
+                    class="tb-btn"
+                    disabled={retrying()}
+                    onClick={() => void onRetry()}
+                >
+                    {retrying() ? t.reader.retrying : t.reader.retry}
+                </button>
+                <Show when={st === "needs_auth"}>
+                    <span class="muted">{t.reader.retryHintAuth}</span>
+                </Show>
+            </div>
+        </>
+    );
+
     // ---------- 渲染 ----------
 
     const renderPane = (side: DocId) => {
-        const version = () => info()?.documents[side].version ?? "pending";
+        // keyed Show 的 when 不许 ""(falsy 联合只收 false|null|undefined)→ || undefined
+        const version = () => info()?.documents[side]?.version || undefined;
         return (
             <div class="pane-slot">
-                <Show when={version()} keyed>
-                    {(_v) =>
-                        isPdf() ? (
+                {/* html 视图数据来自 chunks，不看 documents；pdf 侧按 doc.version
+                    keyed 重挂，document 缺侧（该侧无产物）→ 占位 veil */}
+                <Show
+                    when={isPdf()}
+                    fallback={
+                        <HtmlPane
+                            side={side}
+                            chunks={dual()?.chunks ?? []}
+                            active={active() === side}
+                            onReady={(h) => paneReady(side, h)}
+                            onDispose={(h) => paneDisposed(side, h)}
+                            onActivate={() => setActive(side)}
+                            onScroll={onUserScroll}
+                        />
+                    }
+                >
+                    <Show
+                        when={version()}
+                        keyed
+                        fallback={
+                            <div class="pane-veil pane-empty">
+                                <p class="muted">{t.reader.docMissing}</p>
+                            </div>
+                        }
+                    >
+                        {(_v) => (
                             <PdfPane
                                 url={docUrl(side)}
                                 side={side}
                                 active={active() === side}
                                 onReady={(h) => paneReady(side, h)}
                                 onDispose={(h) => paneDisposed(side, h)}
-                                onPageChange={(p) => setPageNums((s) => ({ ...s, [side]: p }))}
+                                onPageChange={(p) =>
+                                    setPageNums((s) => ({ ...s, [side]: p }))
+                                }
                                 onActivate={() => setActive(side)}
                                 onScroll={onUserScroll}
                             />
-                        ) : (
-                            <HtmlPane
-                                side={side}
-                                chunks={dual()?.chunks ?? []}
-                                active={active() === side}
-                                onReady={(h) => paneReady(side, h)}
-                                onDispose={(h) => paneDisposed(side, h)}
-                                onActivate={() => setActive(side)}
-                                onScroll={onUserScroll}
-                            />
-                        )
-                    }
+                        )}
+                    </Show>
                 </Show>
                 <Show when={drift()[side]}>
                     <button type="button" class="jump-back" onClick={() => jumpBack(side)}>
@@ -357,6 +629,9 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
             <Show when={!fatal() && activeTask()}>
                 <main class="task-progress">
                     <h1 class="tp-title">{title()}</h1>
+                    <Show when={live()?.transport && live()!.transport !== "live"}>
+                        <p class="transport-badge">{t.progress.reconnecting}</p>
+                    </Show>
                     <ol class="stage-stepper">
                         <For each={STAGES}>
                             {(s) => {
@@ -381,6 +656,47 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
                     <Show when={task()?.message}>
                         <p class="muted">{task()!.message}</p>
                     </Show>
+                    <dl class="stat-strip">
+                        <div class="stat">
+                            <dt>{t.progress.doneChunks}</dt>
+                            <dd class="stat-num">
+                                {progStats().done}/{progStats().total}
+                            </dd>
+                        </div>
+                        <div class="stat">
+                            <dt>{t.progress.cached}</dt>
+                            <dd class="stat-num">{progStats().cached}</dd>
+                        </div>
+                        <div class="stat">
+                            <dt>{t.progress.failed}</dt>
+                            <dd class="stat-num">{progStats().failed}</dd>
+                        </div>
+                        <div class="stat">
+                            <dt>{t.progress.tokens}</dt>
+                            <dd class="stat-num">{progStats().tokens}</dd>
+                        </div>
+                        <div class="stat">
+                            <dt>{t.progress.elapsed}</dt>
+                            <dd class="stat-num">{fmtElapsed(elapsed())}</dd>
+                        </div>
+                    </dl>
+                    <Show when={(live()?.stages.length ?? 0) > 0}>
+                        <ol class="stage-timeline">
+                            <For each={live()!.stages}>
+                                {(e) => (
+                                    <li>
+                                        <time class="tl-time">{fmtClock(e.at)}</time>
+                                        <span class="tl-stage">
+                                            {t.status[e.stage] ?? e.stage}
+                                        </span>
+                                        <Show when={e.message}>
+                                            <span class="tl-msg muted">{e.message}</span>
+                                        </Show>
+                                    </li>
+                                )}
+                            </For>
+                        </ol>
+                    </Show>
                     <Show when={live()?.chunk}>
                         {(c) => (
                             <ProgressGrid
@@ -388,11 +704,12 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
                                 done={c().done}
                                 cached={c().cached}
                                 failed={c().failed}
-                                items={c().items}
+                                items={live()?.chunkItems ?? []}
                             />
                         )}
                     </Show>
                     <Show when={(live()?.warnings.length ?? 0) > 0}>
+                        <p class="warn-title muted">{t.progress.warnings}</p>
                         <ul class="warn-list">
                             <For each={live()!.warnings}>
                                 {(w) => (
@@ -410,9 +727,9 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
                             </p>
                         )}
                     </Show>
-                    <details class="log-drawer">
+                    <details class="log-drawer" ref={(el) => (logDrawer = el)} onToggle={scrollLog}>
                         <summary>{t.progress.log}</summary>
-                        <pre>
+                        <pre ref={(el) => (logPre = el)}>
                             <For each={live()?.logs ?? []}>{(l) => l.line + "\n"}</For>
                         </pre>
                     </details>
@@ -445,24 +762,63 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
                     active={active()}
                     swapped={swapped()}
                     downloads={downloads()}
+                    canGotoPage={isPdf()}
                     onMode={planModeChange}
                     onSync={setSync}
                     onZoom={applyZoom}
                     onGotoPage={gotoPage}
                     onSwap={() => setSwapped((v) => !v)}
                     onActiveSide={setActive}
-                    onRetry={() => void api.retry(props.taskId)}
+                    onRetry={() => void onRetry()}
                     onCancel={() => void api.cancel(props.taskId)}
                     onBack={() => props.nav("#/")}
                 />
+                {/* 有产物的非干净终态（partial 等）：横幅提示，不挡阅读 */}
+                <Show when={resultStatus()}>
+                    <section class={`result-banner st-${resultStatus()}`}>
+                        {renderResultBody(resultStatus()!)}
+                    </section>
+                </Show>
                 <div class="panes" classList={{ swapped: swapped(), single: mode() !== "split" }}>
                     <Show when={paneVisible("original")}>{renderPane("original")}</Show>
                     <Show when={paneVisible("translated")}>{renderPane("translated")}</Show>
                 </div>
             </Show>
 
-            {/* server 登记了 html（md_zip）但 dual.json 无 chunks——出空态而非空面板 */}
-            <Show when={!fatal() && !activeTask() && view() === "empty"}>
+            {/* 无产物的终态（fault/cancelled/interrupted/needs_auth、reader 404、
+                登记 html 却无 chunks）：整页结果面板取代空态 */}
+            <Show
+                when={
+                    !fatal() &&
+                    !activeTask() &&
+                    resultStatus() &&
+                    (readerGone() || view() === "empty")
+                }
+            >
+                <main class="result-panel-wrap">
+                    <section class={`result-panel st-${resultStatus()}`}>
+                        {renderResultBody(resultStatus()!)}
+                        <button
+                            type="button"
+                            class="btn-ghost"
+                            onClick={() => props.nav("#/")}
+                        >
+                            ← {t.reader.back}
+                        </button>
+                    </section>
+                </main>
+            </Show>
+
+            {/* server 登记了 html（md_zip）但 dual.json 无 chunks——出空态而非空面板；
+                done 却 404（readerGone 无 resultStatus）同路 */}
+            <Show
+                when={
+                    !fatal() &&
+                    !activeTask() &&
+                    !resultStatus() &&
+                    (view() === "empty" || readerGone())
+                }
+            >
                 <main class="reader-fatal">
                     <p class="muted">{t.reader.notReady}</p>
                     <button type="button" class="btn-ghost" onClick={() => props.nav("#/")}>
@@ -471,7 +827,9 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
                 </main>
             </Show>
 
-            <Show when={!fatal() && !activeTask() && view() === "loading"}>
+            <Show
+                when={!fatal() && !activeTask() && !readerGone() && view() === "loading"}
+            >
                 <main class="reader-fatal">
                     <p class="muted">{t.reader.loading}</p>
                 </main>

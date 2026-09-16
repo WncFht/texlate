@@ -20,7 +20,7 @@ export type TaskStatus =
     | "needs_auth";
 
 export type TaskStage = "fetching" | "parsing" | "translating" | "compiling";
-export type TaskKind = "arxiv" | "upload_tex" | "upload_pdf";
+export type TaskKind = "arxiv" | "upload_tex" | "upload_pdf" | "docx" | "epub" | string;
 
 export type ErrorCode =
     | "arxiv_fetch"
@@ -162,12 +162,30 @@ export type FileKind =
     | "src.tar"
     | "zh-src.zip"
     | "compile.log"
-    | "md";
+    | "md"
+    | "zh.docx"
+    | "zh.epub";
+
+/** db kind → URL kind（files manifest / snapshot.artifacts / done.artifacts 的键均为 db kind） */
+export const DB_TO_URL_KIND: Record<string, FileKind> = {
+    en_pdf: "en.pdf",
+    zh_pdf: "zh.pdf",
+    dual_pdf: "dual.pdf",
+    dual_json: "dual.json",
+    src_tar: "src.tar",
+    zh_src_zip: "zh-src.zip",
+    compile_log: "compile.log",
+    md_zip: "md",
+    zh_docx: "zh.docx",
+    zh_epub: "zh.epub",
+};
 
 export interface FileEntry {
     bytes: number;
     sha256: string;
     created_at: number;
+    /** 服务端直接给的下载路径（/api/files/{id}/{url_kind}） */
+    url: string;
 }
 
 export interface FileManifest {
@@ -192,9 +210,10 @@ export interface ReadingState {
 
 export interface ReaderInfo {
     view?: ReaderView;
+    /** 哪侧缺哪侧不写：md_zip 路径必缺 translated，en_pdf 缺则 original 缺 */
     documents: {
-        original: ReaderDoc;
-        translated: ReaderDoc;
+        original?: ReaderDoc;
+        translated?: ReaderDoc;
     };
     alignment?: Alignment;
     reading?: ReadingState | null;
@@ -210,9 +229,10 @@ export interface DualChunk {
 
 export interface DualJson {
     version: number;
+    /** 与 ReaderInfo.documents 同规则：哪侧无产物哪侧缺省 */
     documents: {
-        original: { version: string; pages: number };
-        translated: { version: string; pages: number };
+        original?: { version: string; pages: number };
+        translated?: { version: string; pages: number };
     };
     alignment?: Alignment;
     chunks?: DualChunk[];
@@ -311,10 +331,11 @@ export const api = {
 
     snapshot: (taskId: string) => request<TaskSnapshot>(`/task/${taskId}`),
     cancel: (taskId: string) => request(`/task/${taskId}/cancel`, { method: "POST" }),
-    retry: (taskId: string, body?: { main?: string; options?: object }) =>
+    // needs_auth 任务重试必须重带 X-Texlate-Key（BYOK 经 headers 透传）
+    retry: (taskId: string, body?: { main?: string; options?: object }, byok?: ByokHeaders) =>
         request<TranslateResponse>(`/task/${taskId}/retry`, {
             method: "POST",
-            headers: { "content-type": "application/json" },
+            headers: { "content-type": "application/json", ...byokHeaders(byok) },
             body: JSON.stringify(body ?? {}),
         }),
 
@@ -343,8 +364,16 @@ export const api = {
             headers: { "content-type": "application/json" },
             body: JSON.stringify(s),
         }),
-    testSettings: () => request<{ ok: boolean; detail?: string }>("/settings/test", { method: "POST" }),
+    // body 可带 base_url/api_key/model 覆盖——测表单现值而非已存配置
+    testSettings: (s?: Settings) =>
+        request<{ ok: boolean; detail?: string; models?: string[] }>("/settings/test", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(s ?? {}),
+        }),
 };
+
+export type TransportState = "live" | "reconnecting" | "closed";
 
 export interface TaskEventHandlers {
     snapshot?: (s: TaskSnapshot) => void;
@@ -354,8 +383,8 @@ export interface TaskEventHandlers {
     warning?: (e: WarningEvent) => void;
     error?: (e: TaskErrorEvent) => void;
     done?: (e: DoneEvent) => void;
-    /** 连接层错误（EventSource 自动重连中也会触发） */
-    transport?: (ev: Event) => void;
+    /** 传输层状态：open→live / error→reconnecting（closed 为彻底断开） */
+    transport?: (state: TransportState) => void;
 }
 
 export interface TaskChannel {
@@ -406,15 +435,17 @@ export function openTaskEvents(taskId: string, h: TaskEventHandlers): TaskChanne
         h.done?.(e);
         close();
     });
-    es.onerror = (ev) => {
+    es.onopen = () => h.transport?.("live");
+    es.onerror = () => {
         if (es.readyState === EventSource.CLOSED) close();
-        h.transport?.(ev);
+        else h.transport?.("reconnecting");
     };
 
     function close() {
         if (!closed) {
             closed = true;
             es.close();
+            h.transport?.("closed");
         }
     }
 

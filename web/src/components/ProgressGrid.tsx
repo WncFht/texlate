@@ -1,7 +1,7 @@
 // 段落棋盘格 —— hjfy 式逐段可视：ok 绿 / fallback 黄 / failed 红 / 未到灰。
-// SSE chunk 事件只带变化的 items[]，本组件按 seq 折叠成 seq→status 图。
+// items 是 dense 累积数组：下标即 seq，缺位一律 pending。
 
-import { createMemo, For, Show } from "solid-js";
+import { createMemo, For } from "solid-js";
 import type { ChunkItem } from "../api/client";
 import { t } from "../i18n/zh";
 
@@ -10,7 +10,7 @@ interface Props {
     done: number;
     cached?: number;
     failed?: number;
-    items?: ChunkItem[]; // 增量帧；也接受累计全量
+    items?: ChunkItem[]; // dense：index = seq，已是累积态
 }
 
 const STATUS_CLASS: Record<string, string> = {
@@ -21,9 +21,12 @@ const STATUS_CLASS: Record<string, string> = {
 
 export default function ProgressGrid(props: Props) {
     const cells = createMemo(() => {
-        const map = new Map<number, string>();
-        for (const it of props.items ?? []) map.set(it.seq, it.status);
-        return Array.from({ length: Math.max(0, props.total) }, (_, i) => map.get(i) ?? "pending");
+        const items = props.items;
+        const out: string[] = [];
+        for (let i = 0; i < Math.max(0, props.total); i++) {
+            out.push(items?.[i]?.status ?? "pending");
+        }
+        return out;
     });
 
     return (
@@ -32,20 +35,20 @@ export default function ProgressGrid(props: Props) {
                 <span>
                     {t.progress.doneChunks} {props.done}/{props.total}
                 </span>
-                <Show when={props.cached}>
-                    <span>
-                        {t.progress.cached} {props.cached}
-                    </span>
-                </Show>
-                <Show when={props.failed}>
-                    <span class="bad">
-                        {t.progress.failed} {props.failed}
-                    </span>
-                </Show>
+                <span>
+                    {t.progress.cached} {props.cached ?? 0}
+                </span>
+                <span classList={{ bad: (props.failed ?? 0) > 0 }}>
+                    {t.progress.failed} {props.failed ?? 0}
+                </span>
             </div>
-            <div class="progress-grid" role="img" aria-label={t.progress.chunks}>
+            <div
+                class="progress-grid"
+                role="img"
+                aria-label={`${t.progress.chunks} ${props.done}/${props.total}`}
+            >
                 <For each={cells()}>
-                    {(status) => <i class={STATUS_CLASS[status] ?? "cell-pending"} title={status} />}
+                    {(status) => <i class={STATUS_CLASS[status] ?? "cell-pending"} />}
                 </For>
             </div>
         </div>

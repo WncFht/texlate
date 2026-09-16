@@ -13,13 +13,19 @@ export const settingsStore = {
     loaded,
 
     async refresh() {
-        const [s, p] = await Promise.all([
-            api.getSettings(),
-            api.providers().catch(() => [] as Provider[] | { providers: Provider[] }),
-        ]);
-        setSettings(s);
-        setProviders(Array.isArray(p) ? p : (p.providers ?? []));
-        setLoaded(true);
+        // getSettings 失败也要放 loaded——否则 Settings 页永远停在空表单
+        try {
+            const [s, p] = await Promise.all([
+                api.getSettings(),
+                api.providers().catch(() => [] as Provider[] | { providers: Provider[] }),
+            ]);
+            setSettings(s);
+            setProviders(Array.isArray(p) ? p : (p.providers ?? []));
+        } catch {
+            /* 页面层按 settings()==null 自行提示 */
+        } finally {
+            setLoaded(true);
+        }
     },
 
     async save(patch: Settings) {
@@ -28,5 +34,5 @@ export const settingsStore = {
         return next;
     },
 
-    test: () => api.testSettings(),
+    test: (s?: Settings) => api.testSettings(s),
 };

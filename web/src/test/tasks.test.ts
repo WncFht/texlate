@@ -1,0 +1,50 @@
+import { describe, expect, it } from "vitest";
+import { mergeChunkItems } from "../stores/tasks";
+import type { ChunkItem } from "../api/client";
+
+const it_ = (seq: number, status = "ok"): ChunkItem => ({ seq, status });
+
+describe("mergeChunkItems（SSE 增量帧 → dense 累积数组）", () => {
+    it("增量帧按 seq 覆盖合并，不动未携带的段", () => {
+        const prev = [it_(0), it_(1), it_(2)];
+        const next = mergeChunkItems(prev, [it_(1, "failed")]);
+        expect(next).toEqual([it_(0), it_(1, "failed"), it_(2)]);
+        expect(prev[1].status).toBe("ok"); // 不改原数组
+    });
+
+    it("首帧 seq 跳段 → 空洞补 pending 占位，保持 dense", () => {
+        const next = mergeChunkItems([], [it_(3)]);
+        expect(next).toHaveLength(4);
+        expect(next[3]).toEqual(it_(3));
+        expect(next.slice(0, 3).every((c) => c.status === "pending")).toBe(true);
+        expect(next[0].seq).toBe(0);
+    });
+
+    it("乱序到达：后到的低 seq 回填空洞", () => {
+        let cur = mergeChunkItems([], [it_(5)]);
+        cur = mergeChunkItems(cur, [it_(2, "cached"), it_(4, "failed")]);
+        expect(cur).toHaveLength(6);
+        expect(cur[2].status).toBe("cached");
+        expect(cur[4].status).toBe("failed");
+        expect(cur[3].status).toBe("pending");
+    });
+
+    it("重复 seq 以新帧为准（failed → ok 翻转）", () => {
+        const prev = [it_(0, "failed"), it_(1)];
+        const next = mergeChunkItems(prev, [it_(0)]);
+        expect(next[0].status).toBe("ok");
+    });
+
+    it("非法 seq（负数/非整数）丢弃", () => {
+        const next = mergeChunkItems([it_(0)], [
+            { seq: -1, status: "failed" },
+            { seq: 1.5, status: "failed" },
+        ]);
+        expect(next).toEqual([it_(0)]);
+    });
+
+    it("空 delta 返回等价数组", () => {
+        const prev = [it_(0), it_(1)];
+        expect(mergeChunkItems(prev, [])).toEqual(prev);
+    });
+});

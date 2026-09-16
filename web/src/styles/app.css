@@ -14,6 +14,8 @@
     --cinnabar-deep: #8c2d17;
     --pine: #2f6f4f;
     --ochre: #a67c00;
+    /* ochre 文本用途:12-13px 小字压 14% tint 实测 3.15:1 不及格;deep 4.76:1 */
+    --ochre-deep: #7d5f00;
     --shadow: 0 1px 2px rgb(33 27 18 / 8%), 0 4px 16px rgb(33 27 18 / 7%);
     --font-ui:
         "Inter", "PingFang SC", "Source Han Sans SC", "Noto Sans CJK SC", system-ui, sans-serif;
@@ -48,8 +50,35 @@ body {
 }
 
 button {
-    font-family: inherit;
+    font: inherit;
+    color: inherit;
     cursor: pointer;
+}
+
+/* 全站统一焦点环:button 此前全靠 UA 默认 outline,风格不一且 Firefox 表现差 */
+:is(
+    .btn-primary,
+    .btn-ghost,
+    .tb-btn,
+    .segmented-item,
+    .task-row,
+    .jump-back,
+    .tb-menu a,
+    .log-drawer summary,
+    .tb-select,
+    .tb-page input,
+    .topnav a
+):focus-visible {
+    outline: 2px solid var(--cinnabar);
+    outline-offset: 2px;
+}
+
+.task-row:focus-visible {
+    outline-offset: -2px;
+}
+
+::selection {
+    background: color-mix(in srgb, var(--cinnabar) 18%, transparent);
 }
 
 .muted {
@@ -88,6 +117,11 @@ button {
     color: var(--ink-2);
     text-decoration: none;
     font-size: 13px;
+    border-radius: 4px;
+}
+
+.topnav a:hover {
+    color: var(--ink);
 }
 
 .topnav a.on {
@@ -157,6 +191,7 @@ button {
     border-radius: 6px;
     font-size: 14px;
     font-weight: 600;
+    white-space: nowrap;
 }
 
 .btn-primary:hover {
@@ -175,6 +210,7 @@ button {
     border: 1px solid var(--line-strong);
     border-radius: 6px;
     font-size: 14px;
+    white-space: nowrap;
 }
 
 .btn-ghost:hover {
@@ -227,7 +263,7 @@ button {
 .task-row {
     display: grid;
     grid-template-columns: 1fr auto auto;
-    grid-template-areas: "title status time" "bar bar bar";
+    grid-template-areas: "title status time" "meta meta meta" "bar bar bar";
     gap: 4px 14px;
     width: 100%;
     text-align: left;
@@ -236,6 +272,25 @@ button {
     border: 1px solid var(--line);
     border-radius: 8px;
     margin-bottom: 8px;
+}
+
+.task-meta {
+    grid-area: meta;
+    display: flex;
+    gap: 12px;
+    font-size: 12px;
+    color: var(--ink-2);
+    overflow: hidden;
+}
+
+.task-meta > * {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.task-meta .task-err {
+    color: var(--cinnabar-deep);
 }
 
 .task-row:hover {
@@ -275,15 +330,16 @@ button {
 .task-status.st-compiling,
 .task-status.st-parsing,
 .task-status.st-fetching,
-.task-status.st-queued {
+.task-status.st-queued,
+.task-status.st-needs_auth {
     background: color-mix(in srgb, var(--ochre) 14%, transparent);
-    color: var(--ochre);
+    color: var(--ochre-deep);
 }
 
 .task-time {
     grid-area: time;
     font-size: 12px;
-    color: var(--ink-3);
+    color: var(--ink-2);
 }
 
 .task-bar {
@@ -334,7 +390,7 @@ button {
     flex: 1;
     text-align: center;
     font-size: 12px;
-    color: var(--ink-3);
+    color: var(--ink-2);
     padding: 8px 0;
     border-bottom: 3px solid var(--line);
 }
@@ -367,7 +423,7 @@ button {
 
 .warn-list {
     font-size: 13px;
-    color: var(--ochre);
+    color: var(--ochre-deep);
     padding-left: 18px;
 }
 
@@ -384,6 +440,11 @@ button {
     color: var(--ink-2);
     cursor: pointer;
     user-select: none;
+    border-radius: 8px;
+}
+
+.log-drawer summary:hover {
+    color: var(--ink);
 }
 
 .log-drawer pre {
@@ -392,7 +453,7 @@ button {
     max-height: 280px;
     overflow: auto;
     font-family: var(--font-mono);
-    font-size: 11.5px;
+    font-size: 12px;
     line-height: 1.5;
     border-top: 1px solid var(--line);
     white-space: pre-wrap;
@@ -412,7 +473,7 @@ button {
 .progress-grid-meta {
     display: flex;
     gap: 18px;
-    font-size: 12.5px;
+    font-size: 12px;
     color: var(--ink-2);
     margin-bottom: 8px;
     font-variant-numeric: tabular-nums;
@@ -476,7 +537,7 @@ button {
 }
 
 .tb-title {
-    max-width: 240px;
+    max-width: min(240px, 28vw);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -490,7 +551,7 @@ button {
 
 .tb-btn {
     padding: 6px 12px;
-    font-size: 12.5px;
+    font-size: 13px;
     background: transparent;
     color: var(--ink-2);
     border: 1px solid var(--line-strong);
@@ -510,18 +571,25 @@ button {
 
 .tb-select {
     padding: 6px 8px;
-    font-size: 12.5px;
+    font-size: 13px;
     background: var(--panel);
     border: 1px solid var(--line-strong);
     border-radius: 6px;
     color: var(--ink);
 }
 
+.tb-select:focus,
+.tb-page input:focus {
+    border-color: var(--cinnabar);
+    box-shadow: 0 0 0 3px rgb(178 58 31 / 12%);
+    outline: none;
+}
+
 .tb-page {
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 12.5px;
+    font-size: 13px;
     color: var(--ink-2);
     font-variant-numeric: tabular-nums;
 }
@@ -530,12 +598,16 @@ button {
     width: 52px;
     padding: 5px 6px;
     text-align: right;
-    font-size: 12.5px;
+    font-size: 13px;
     font-family: var(--font-mono);
     border: 1px solid var(--line-strong);
     border-radius: 6px;
     background: var(--panel);
     color: var(--ink);
+}
+
+.tb-page input:disabled {
+    opacity: 0.5;
 }
 
 .tb-menu-wrap {
@@ -581,7 +653,7 @@ button {
 
 .segmented-item {
     padding: 5px 14px;
-    font-size: 12.5px;
+    font-size: 13px;
     border: 0;
     border-radius: 5px;
     background: transparent;
@@ -655,6 +727,10 @@ button {
     z-index: 4;
 }
 
+.pane-veil.pane-error {
+    color: var(--cinnabar-deep);
+}
+
 .spinner {
     width: 22px;
     height: 22px;
@@ -696,6 +772,8 @@ button {
 .pane-html {
     overflow: auto;
     background: var(--panel);
+    /* 滚动条出现/消失不引起内容宽度突变,保住双栏同步对齐 */
+    scrollbar-gutter: stable;
 }
 
 .pane-html-body {
@@ -729,7 +807,7 @@ button {
 }
 
 .chunk-empty {
-    color: var(--ink-3);
+    color: var(--ink-2);
     text-align: center;
     padding: 40px 0;
 }
@@ -792,7 +870,7 @@ button {
 
 .settings-form textarea {
     font-family: var(--font-mono);
-    font-size: 12.5px;
+    font-size: 13px;
     resize: vertical;
 }
 
@@ -811,4 +889,330 @@ button {
 .pdfSlickViewer .page {
     box-shadow: var(--shadow);
     border: 0 !important;
+}
+
+/* ---------- 可观测性:统计条 / 时间线 / 连接徽章 / 结果面板 ---------- */
+
+/* .stat-strip —— 进行中任务的指标行(done/cached/failed/tokens/elapsed) */
+.stat-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 24px;
+    padding: 12px 16px;
+    margin-top: 16px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-variant-numeric: tabular-nums;
+}
+
+.stat-strip .stat {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+}
+
+.stat-strip .stat dt {
+    font-size: 12px;
+    color: var(--ink-2);
+    order: 2;
+}
+
+.stat-strip .stat .stat-num {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0;
+    order: 1;
+}
+
+/* .stage-timeline —— 各阶段竖向时间线 */
+.stage-timeline {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 16px;
+    font-size: 13px;
+}
+
+.stage-timeline li {
+    position: relative;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-left: 6px;
+    padding: 5px 0 5px 18px;
+    border-left: 1px solid var(--line-strong);
+    color: var(--ink-2);
+}
+
+.stage-timeline li::before {
+    content: "";
+    position: absolute;
+    left: -5px;
+    top: 10px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--paper);
+    border: 1px solid var(--line-strong);
+}
+
+.stage-timeline li.done {
+    color: var(--ink);
+}
+
+.stage-timeline li.done::before {
+    background: var(--pine);
+    border-color: var(--pine);
+}
+
+.stage-timeline li.on {
+    color: var(--ink);
+    font-weight: 600;
+}
+
+.stage-timeline li.on::before {
+    background: var(--cinnabar);
+    border-color: var(--cinnabar);
+}
+
+.stage-timeline li .dur,
+.stage-timeline li .tl-time {
+    font-size: 12px;
+    color: var(--ink-2);
+    font-variant-numeric: tabular-nums;
+    font-family: var(--font-mono);
+    min-width: 62px;
+}
+
+.stage-timeline li .tl-stage {
+    font-weight: 600;
+    color: var(--ink);
+}
+
+.stage-timeline li .tl-msg {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* .transport-badge —— SSE 连接徽章(live/reconnecting/closed) */
+.transport-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    background: var(--paper-2);
+    color: var(--ink-2);
+}
+
+.transport-badge::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentcolor;
+}
+
+.transport-badge.live {
+    background: color-mix(in srgb, var(--pine) 12%, transparent);
+    color: var(--pine);
+}
+
+.transport-badge.reconnecting {
+    background: color-mix(in srgb, var(--ochre) 14%, transparent);
+    color: var(--ochre-deep);
+}
+
+.transport-badge.closed {
+    color: var(--ink-3);
+}
+
+/* .result-banner —— 阅读器内终态横幅(partial/fault 贴 toolbar 下) */
+.result-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 14px;
+    font-size: 13px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+    color: var(--ink-2);
+}
+
+.result-banner.warn {
+    background: color-mix(in srgb, var(--ochre) 10%, var(--panel));
+    color: var(--ochre-deep);
+}
+
+.result-banner.bad {
+    background: color-mix(in srgb, var(--cinnabar) 8%, var(--panel));
+    color: var(--cinnabar-deep);
+}
+
+.result-banner .act {
+    margin-left: auto;
+}
+
+/* 横幅里的结果主体收紧:嵌套的 stat-strip/warn-list 去掉外边距 */
+.result-banner .stat-strip {
+    margin-top: 0;
+    padding: 6px 10px;
+    border: 0;
+    background: transparent;
+}
+
+.result-banner .warn-list {
+    margin: 0;
+}
+
+.result-banner .rp-status {
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.result-panel-wrap {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+}
+
+.result-panel-wrap .result-panel {
+    margin: auto;
+}
+
+/* .result-panel —— 无产物终态的整页结果卡(fault/cancelled/needs_auth…) */
+.result-panel {
+    margin: 80px auto;
+    max-width: 560px;
+    padding: 20px 22px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.result-panel.bad {
+    border-color: color-mix(in srgb, var(--cinnabar) 35%, var(--line));
+}
+
+.result-panel h2 {
+    font-family: var(--font-serif);
+    font-size: 17px;
+    margin: 0;
+}
+
+.result-panel .err-line {
+    font-size: 13px;
+    color: var(--cinnabar-deep);
+}
+
+.rp-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.auth-key-input {
+    padding: 7px 12px;
+    font-size: 13px;
+    font-family: var(--font-mono);
+    background: var(--paper);
+    border: 1px solid var(--line-strong);
+    border-radius: 6px;
+    color: var(--ink);
+    outline: none;
+    min-width: 220px;
+}
+
+.auth-key-input:focus {
+    border-color: var(--cinnabar);
+    box-shadow: 0 0 0 3px rgb(178 58 31 / 12%);
+}
+
+/* .health.checking —— 三态健康指示的中间态(修加载期闪红) */
+.health.checking .dot {
+    background: var(--ink-3);
+    animation: hpulse 1.2s ease-in-out infinite;
+}
+
+@keyframes hpulse {
+    50% {
+        opacity: 0.35;
+    }
+}
+
+/* ---------- 响应式 ---------- */
+
+@media (max-width: 720px) {
+    /* 窄屏 toolbar 折行时让位给控件;标题在页内已有 */
+    .tb-title {
+        display: none;
+    }
+}
+
+@media (max-width: 640px) {
+    /* 双栏纵排:每栏仍内部滚动,SyncEngine 用 scrollTop 不受影响 */
+    .panes {
+        flex-direction: column;
+    }
+
+    .panes.swapped {
+        flex-direction: column-reverse;
+    }
+
+    .panes .pane-slot + .pane-slot {
+        border-inline: 0;
+        border-block-start: 1px solid var(--line-strong);
+    }
+
+    .panes.swapped .pane-slot + .pane-slot {
+        border-block-start: 0;
+        border-block-end: 1px solid var(--line-strong);
+    }
+
+    .pane-html-body {
+        padding: 36px 20px 60vh;
+    }
+}
+
+@media (max-width: 560px) {
+    .home {
+        padding: 32px 20px;
+    }
+}
+
+@media (max-width: 520px) {
+    .arxiv-form {
+        flex-wrap: wrap;
+    }
+
+    .arxiv-input {
+        flex: 1 1 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .task-time {
+        display: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .spinner {
+        animation-duration: 2.4s;
+    }
+
+    .task-bar i,
+    .tp-bar i,
+    .health.checking .dot {
+        transition: none;
+        animation: none;
+    }
 }

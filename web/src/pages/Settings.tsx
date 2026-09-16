@@ -1,6 +1,6 @@
 // Settings —— BYOK 表单：key 只写不回显（GET 只回 has_api_key）+ 测试按钮。
 
-import { createSignal, onMount, Show, For } from "solid-js";
+import { createSignal, onCleanup, onMount, Show, For } from "solid-js";
 import { settingsStore } from "../stores/settings";
 import { t } from "../i18n/zh";
 
@@ -12,17 +12,32 @@ export default function Settings() {
     const [glossary, setGlossary] = createSignal("");
     const [msg, setMsg] = createSignal("");
     const [testing, setTesting] = createSignal(false);
+    let msgTimer = 0;
+
+    onCleanup(() => window.clearTimeout(msgTimer));
 
     onMount(async () => {
-        await settingsStore.refresh();
-        const s = settingsStore.settings();
-        if (s) {
-            setBaseUrl(s.base_url ?? "");
-            setModel(s.model ?? "");
-            setTargetLang(s.target_lang ?? "zh-CN");
-            setGlossary(s.glossary ?? "");
+        try {
+            await settingsStore.refresh();
+            const s = settingsStore.settings();
+            if (s) {
+                setBaseUrl(s.base_url ?? "");
+                setModel(s.model ?? "");
+                setTargetLang(s.target_lang ?? "zh-CN");
+                setGlossary(s.glossary ?? "");
+            }
+        } catch (e) {
+            // 加载失败表单仍可用，仅提示
+            setMsg(`${t.settings.loadFailed}：${e instanceof Error ? e.message : String(e)}`);
         }
     });
+
+    /** 成功提示 3s 后自动清 */
+    const flashSaved = () => {
+        setMsg(t.settings.saved);
+        window.clearTimeout(msgTimer);
+        msgTimer = window.setTimeout(() => setMsg(""), 3000);
+    };
 
     const save = async () => {
         setMsg("");
@@ -33,16 +48,25 @@ export default function Settings() {
             glossary: glossary(),
         };
         if (apiKey()) patch.api_key = apiKey();
-        await settingsStore.save(patch);
-        setApiKey("");
-        setMsg(t.settings.saved);
+        try {
+            await settingsStore.save(patch);
+            setApiKey("");
+            flashSaved();
+        } catch (e) {
+            setMsg(`${t.settings.saveFailed}：${e instanceof Error ? e.message : String(e)}`);
+        }
     };
 
     const test = async () => {
         setTesting(true);
         setMsg("");
         try {
-            const r = await settingsStore.test();
+            // 测当前表单值而非已存配置
+            const r = await settingsStore.test({
+                base_url: baseUrl(),
+                model: model(),
+                ...(apiKey() ? { api_key: apiKey() } : {}),
+            });
             setMsg(r.ok ? t.settings.testOk : `${t.settings.testFail}：${r.detail ?? ""}`);
         } catch (e) {
             setMsg(`${t.settings.testFail}：${e instanceof Error ? e.message : String(e)}`);
@@ -52,7 +76,10 @@ export default function Settings() {
     };
 
     const models = () => {
-        const all = settingsStore.providers().flatMap((p) => p.models ?? []);
+        // provider preset 可能是 models[] 或单数 model
+        const all = settingsStore
+            .providers()
+            .flatMap((p) => p.models ?? (typeof p.model === "string" ? [p.model] : []));
         return [...new Set(all)];
     };
 

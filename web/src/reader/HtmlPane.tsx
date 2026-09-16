@@ -12,6 +12,7 @@ import { capturePos, jumpTo, scrollTopFor, type PageGeom, type PaneLike } from "
 import type { DualChunk } from "../api/client";
 
 export interface HtmlPaneHandle extends PaneLike {
+    gotoPage?(n: number): void;
     capture(): Pos;
     jump(pos: Pos): void;
     scrollTopFor(pos: Pos): number | null;
@@ -49,6 +50,10 @@ export default function HtmlPane(props: Props) {
         },
         capture() {
             return capturePos(this);
+        },
+        // 页码 = chunk 序：跳到第 n 段顶
+        gotoPage(n) {
+            jumpTo(this, { page: n, fraction: 0, viewport: 0 });
         },
         jump(pos) {
             jumpTo(this, pos);

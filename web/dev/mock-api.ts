@@ -57,7 +57,9 @@ type Status =
     | "done"
     | "partial"
     | "fault"
-    | "cancelled";
+    | "cancelled"
+    | "interrupted"
+    | "needs_auth";
 
 interface MockEvent {
     seq: number;
@@ -77,6 +79,8 @@ interface MockTask {
     created_at: number;
     updated_at: number;
     counters: { total: number; done: number; cached: number; failed: number; tokens: number };
+    warnings: string[];
+    error?: { code: string; message: string; retryable?: boolean } | null;
     events: MockEvent[];
     listeners: Set<ServerResponse>;
     timer?: ReturnType<typeof setInterval>;
@@ -112,8 +116,8 @@ function snapshot(t: MockTask) {
         target_lang: "zh-CN",
         model: "mock-model",
         counters: t.counters,
-        warnings: [],
-        error: null,
+        warnings: t.warnings,
+        error: t.error ?? null,
         created_at: t.created_at,
         updated_at: t.updated_at,
         last_seq: t.events.length,
@@ -122,30 +126,48 @@ function snapshot(t: MockTask) {
 }
 
 function isDone(t: MockTask) {
-    return ["done", "partial", "fault", "cancelled"].includes(t.status);
+    return ["done", "partial", "fault", "cancelled", "interrupted", "needs_auth"].includes(
+        t.status,
+    );
 }
 
-function artifactsOf(t: MockTask) {
-    const base = `/api/files/${t.id}`;
-    return t.html
-        ? { "dual.json": `${base}/dual.json`, md: `${base}/md`, log: `${base}/compile.log` }
-        : {
-              "en.pdf": `${base}/en.pdf`,
-              "zh.pdf": `${base}/zh.pdf`,
-              "dual.pdf": `${base}/dual.pdf`,
-              "dual.json": `${base}/dual.json`,
-              "zh-src.zip": `${base}/zh-src.zip`,
-              log: `${base}/compile.log`,
-          };
+// db kind → URL kind，与 server KIND_URL 白名单一致；
+// artifacts 键用 db kind，URL 仍走 url kind
+const KIND_URL: Record<string, string> = {
+    src_tar: "src.tar",
+    en_pdf: "en.pdf",
+    zh_pdf: "zh.pdf",
+    dual_pdf: "dual.pdf",
+    dual_json: "dual.json",
+    zh_src_zip: "zh-src.zip",
+    compile_log: "compile.log",
+    md_zip: "md",
+};
+
+function artifactsOf(t: MockTask): Record<string, string> {
+    const kinds = t.html
+        ? ["dual_json", "md_zip", "compile_log"]
+        : ["en_pdf", "zh_pdf", "dual_pdf", "dual_json", "zh_src_zip", "compile_log"];
+    const out: Record<string, string> = {};
+    for (const k of kinds) out[k] = `/api/files/${t.id}/${KIND_URL[k]}`;
+    return out;
 }
 
 const TOTAL_CHUNKS = 24;
+
+const WARN_POOL = [
+    { code: "placeholder_repair", message: "占位符 ⟦MATH0003⟧ 译文缺失，已自动补回" },
+    { code: "context_truncated", message: "段落过长，上下文窗口已截断" },
+    { code: "glossary_miss", message: "术语表条目未命中：eigenpair" },
+];
 
 /** 步进器：每 tick 推一个阶段或一批 chunk，~7s 跑完整管线 */
 function drive(t: MockTask) {
     let tick = 0;
     let seq = 0;
     let compileTicks = 0;
+    // 演示用：translating 期间随机发 1~2 条 warning
+    let warnLeft = 1 + Math.floor(Math.random() * 2);
     t.timer = setInterval(() => {
         tick++;
         if (tick === 1) {
@@ -185,6 +207,12 @@ function drive(t: MockTask) {
             };
             t.progress = 25 + Math.round((seq / TOTAL_CHUNKS) * 60);
             emit(t, "chunk", { ...t.counters, items });
+            if (warnLeft > 0 && Math.random() < 0.2) {
+                warnLeft--;
+                const w = WARN_POOL[Math.floor(Math.random() * WARN_POOL.length)];
+                emit(t, "warning", w);
+                t.warnings.push(`[${w.code}] ${w.message}`);
+            }
         } else if (seq >= TOTAL_CHUNKS && compileTicks < 3) {
             compileTicks++;
             if (t.stage !== "compiling") {
@@ -290,6 +318,8 @@ function seedTask(id: string, status: Status, opts?: Partial<MockTask>): MockTas
         created_at: Date.now() / 1000 - 300,
         updated_at: Date.now() / 1000,
         counters: { total: TOTAL_CHUNKS, done: TOTAL_CHUNKS, cached: 4, failed: 1, tokens: 8123 },
+        warnings: [],
+        error: null,
         events: [],
         listeners: new Set(),
         ...opts,
@@ -301,6 +331,17 @@ function seedTask(id: string, status: Status, opts?: Partial<MockTask>): MockTas
 seedTask("t_0000000000000a01", "done", { title: "Mock paper — PDF 对照演示", arxiv_id: "2501.14787" });
 seedTask("t_0000000000000a02", "done", { title: "Mock paper — HTML 降级演示", arxiv_id: "2409.01234", html: true });
 seedTask("t_0000000000000a03", "partial", { title: "Mock paper — 部分失败样例", arxiv_id: "2401.00001" });
+seedTask("t_0000000000000a04", "fault", {
+    title: "Mock paper — 编译失败样例",
+    arxiv_id: "2407.05555",
+    error: { code: "compile", message: "xelatex 编译失败(mock)", retryable: true },
+    warnings: ["⟦MATH0007⟧ 占位符在译文中缺失，已回退原文"],
+});
+seedTask("t_0000000000000a05", "needs_auth", {
+    title: "Mock paper — 需要 API Key",
+    arxiv_id: "2406.99999",
+    error: { code: "auth_required", message: "未配置 API Key(mock)", retryable: true },
+});
 
 // ---------- 路由 ----------
 
@@ -369,9 +410,23 @@ function handleApi(req: Req, res: Res, url: URL): boolean {
         return true;
     }
     if (req.method === "GET" && p === "/api/providers") {
+        // 对齐真后端 provider_presets：单数 model + base_url + key_env
         json(res, 200, {
             providers: [
-                { id: "texlate-gateway", name: "Texlate Gateway", models: ["swe-2-medium", "deepseek-flash", "gpt-4o-mini"] },
+                {
+                    id: "gateway",
+                    name: "Local Gateway",
+                    base_url: "http://127.0.0.1:3003/v1",
+                    model: "swe-2-medium",
+                    key_env: "MOCK_GATEWAY_KEY",
+                },
+                {
+                    id: "deepseek",
+                    name: "DeepSeek",
+                    base_url: "https://api.deepseek.com",
+                    model: "deepseek-chat",
+                    key_env: "DEEPSEEK_API_KEY",
+                },
             ],
         });
         return true;
@@ -452,9 +507,13 @@ function handleApi(req: Req, res: Res, url: URL): boolean {
     if ((mm = m(/^\/api\/files\/([^/]+)$/)) && req.method === "GET") {
         const t = tasks.get(mm[1]);
         if (!t) return notFound(res), true;
-        const arts: Record<string, { bytes: number; sha256: string; created_at: number }> = {};
-        for (const kind of Object.keys(artifactsOf(t))) {
-            arts[kind] = { bytes: 1024, sha256: "mock", created_at: t.updated_at };
+        // manifest：db kind → {bytes, sha256, created_at, url}
+        const arts: Record<
+            string,
+            { bytes: number; sha256: string; created_at: number; url: string }
+        > = {};
+        for (const [kind, url] of Object.entries(artifactsOf(t))) {
+            arts[kind] = { bytes: 1024, sha256: "mock", created_at: t.updated_at, url };
         }
         json(res, 200, { artifacts: arts });
         return true;
@@ -486,7 +545,17 @@ function handleApi(req: Req, res: Res, url: URL): boolean {
         return true;
     }
     if (p === "/api/settings/test" && req.method === "POST") {
-        json(res, 200, { ok: true, detail: "mock provider reachable" });
+        // 对齐真后端 {ok, models, model}，回显 body 里的 model
+        let body = "";
+        req.on("data", (c) => (body += c));
+        req.on("end", () => {
+            const b = JSON.parse(body || "{}") as { model?: string };
+            json(res, 200, {
+                ok: true,
+                models: ["swe-2-medium", "deepseek-flash", "gpt-4o-mini"],
+                model: b.model ?? "mock-model",
+            });
+        });
         return true;
     }
     return false;

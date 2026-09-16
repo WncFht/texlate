@@ -41,8 +41,12 @@ export default function App() {
                 </a>
             </nav>
             <Switch>
-                <Match when={route().page === "reader"}>
-                    <Reader taskId={(route() as { taskId: string }).taskId} nav={nav} />
+                {/* keyed：#/reader/A → #/reader/B 整树重挂，不残留上个任务的状态 */}
+                <Match
+                    when={route().page === "reader" && (route() as { taskId: string }).taskId}
+                    keyed
+                >
+                    {(taskId) => <Reader taskId={taskId} nav={nav} />}
                 </Match>
                 <Match when={route().page === "settings"}>
                     <Settings />
