@@ -721,6 +721,11 @@ rules:
             body: |
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesClass{aastex}[2026/09/15 fixloop legacy shim -> emulateapj]
+              % emulateapj 内 \usepackage{emulateapj5} 自指递归爆栈
+              % (BeginEnvironment 包 \begin → input stack 10000) —— 预注册
+              % ver@/opt@ 令 \@ifl@aded 判已载, usepackage 成 no-op (1d 实证×2)
+              \expandafter\def\csname ver@emulateapj5.sty\endcsname{2026/09/17}
+              \expandafter\def\csname opt@emulateapj5.sty\endcsname{twocolumn,onecolumn}
               \LoadClassWithOptions{emulateapj}
               \providecommand{\rotate}{}
               \endinput
@@ -794,6 +799,9 @@ rules:
             body: &aastex6x_body |
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesClass{aastex6x}[2026/09/16 fixloop legacy shim -> emulateapj]
+              % emulateapj5 自指递归保险 —— ver@/opt@ 预注册同 aastex.cls 条
+              \expandafter\def\csname ver@emulateapj5.sty\endcsname{2026/09/17}
+              \expandafter\def\csname opt@emulateapj5.sty\endcsname{twocolumn,onecolumn}
               \LoadClassWithOptions{emulateapj}
               \providecommand{\received}[1]{}
               \providecommand{\revised}[1]{}
@@ -1602,6 +1610,291 @@ rules:
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesPackage{undertilde}[2026/09/16 fixloop degrade shim -> widetilde]
               \providecommand{\utilde}[1]{\widetilde{#1}}
+              \endinput
+          # ── 2026-09-17 latex209 白名单实证批 (1e scout-pf2final) ──────────
+          # upgrade_209 把 2.09 选项转 \usepackage 后这些 1990s 包在 TL 全灭
+          # → 逐案实证 body。aaspp4 (AAS preprint substyle, 9703134 实证
+          # 0 err/31pg): deluxetable = table+tabular 复合 —— 延迟开张
+          # (\@delspec stash, 环境开张与 \tablehead 间可夹 \scriptsize 类
+          # 字体命令) + 低层 \tabular/\endtabular (\begin{tabular} 会把夹缝
+          # 命令吞成 cell 且 \enddata 对 \@currenvir 错位)。
+          aaspp4.sty:
+            needs: ["amssymb.sty"]
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{aaspp4}[2026/09/17 fixloop legacy shim]
+              \RequirePackage{amssymb}
+              \def\slugcomment#1{}
+              \def\received#1{}
+              \def\accepted#1{}
+              \def\journalid#1#2{}
+              \def\articleid#1#2{}
+              \def\keywords#1{}
+              \def\subjectheadings#1{}
+              \def\acknowledgments{\section*{Acknowledgments}}
+              \def\altaffilmark#1{\textsuperscript{#1}}
+              \def\altaffiltext#1#2{\par\medskip\noindent\textsuperscript{#1}\,#2\par}
+              \newenvironment{deluxetable}[1]{\begin{table}[htbp]\centering\def\@delspec{#1}}{\end{table}}
+              \newenvironment{deluxetable*}[1]{\begin{table}[htbp]\centering\def\@delspec{#1}}{\end{table}}
+              \def\tablewidth#1{}
+              \def\tablecolumns#1{}
+              \def\tablecaption#1{\caption{#1}}
+              \def\tablehead#1{\tabular{\@delspec}#1\\\hline}
+              \def\startdata{}
+              \def\enddata{\endtabular}
+              \def\nl{\\}
+              \def\tableline{\hline}
+              \def\colhead#1{#1}
+              \def\phs{\phantom{0}}
+              \def\phn{\phantom{0}}
+              \def\tablenotetext#1#2{\par\smallskip\noindent\textsuperscript{#1}\,#2\par}
+              \def\tablenotemark#1{\textsuperscript{#1}}
+              \newcommand{\figcaption}[2][]{\par\medskip\noindent\textbf{Figure.} #2\par}
+              \def\arcdeg{\ensuremath{^\circ}}
+              \def\arcmin{\ensuremath{'}}
+              \def\arcsec{\ensuremath{''}}
+              \def\apj{ApJ}
+              \def\apjl{ApJ}
+              \def\apjs{ApJS}
+              \def\aj{AJ}
+              \def\mnras{MNRAS}
+              \def\aap{A\&A}
+              \def\aaps{A\&AS}
+              \def\pasp{PASP}
+              \def\pasj{PASJ}
+              \def\nat{Nature}
+              \def\iaucirc{IAU Circ.}
+              \def\jgr{JGR}
+              \def\ssr{Space Sci. Rev.}
+              \def\physrep{Phys. Rep.}
+              \def\spr{Sol. Phys.}
+              \def\araa{ARA\&A}
+              \endinput
+          # apjprepr: aaspp4 同族前身 (1995 doc2sty 同谱系, vendored 本随
+          # 9703152 实证可用) —— shim 只在缺文件时点火, 面取 aaspp4 超集:
+          # title/author 直排版 (2.09 范式无 \maketitle), \eqsecnum/\tighten
+          # 系, mathletters/\eqnum, references 环境, \plotone/\plottwo
+          # (epsf 通路), 物理符号 (\sun/\earth/\sq/\la/\ga/\micron/\ion/
+          # \fd-\fs/\fdg/\farcm/\farcs/\fp/\case/\slantfrac 系/\ubvr 系/
+          # \nodata/\phd/\phm/\nextline) 与扩充期刊缩写表 —— 全移植自
+          # vendored AASPP4.STY 原文。\RequirePackage{amssymb} 取代
+          # vendored \def\lesssim/\gtrsim 版 (与 amssym shim 的 undef 闸
+          # 同策, 免撞 \newcommand)。
+          apjprepr.sty:
+            needs: ["amssymb.sty", "epsf.sty"]
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{apjprepr}[2026/09/17 fixloop legacy shim]
+              \RequirePackage{amssymb}
+              \@ifundefined{epsfbox}{\RequirePackage{epsf}}{}
+              \def\slugcomment#1{}
+              \def\received#1{}
+              \def\accepted#1{}
+              \def\journalid#1#2{}
+              \def\articleid#1#2{}
+              \def\notetoeditor#1{}
+              \def\lefthead#1{}
+              \def\righthead#1{}
+              \def\keywords#1{}
+              \def\subjectheadings#1{}
+              \def\acknowledgments{\section*{Acknowledgments}}
+              \let\acknowledgements=\acknowledgments
+              \def\altaffilmark#1{\textsuperscript{#1}}
+              \def\altaffiltext#1#2{\par\medskip\noindent\textsuperscript{#1}\,#2\par}
+              \def\title#1{\begin{center}\large\bfseries#1\end{center}}
+              \def\author#1{\begin{center}\normalsize#1\end{center}}
+              \let\authoraddr=\@gobble
+              \let\authoremail=\@gobble
+              \def\affil#1{\begin{center}#1\end{center}}
+              \def\and{\begin{center}and\end{center}}
+              \def\sluginfo{}
+              \let\dates=\sluginfo
+              \def\eqsecnum{\@addtoreset{equation}{section}%
+              \def\theequation{\thesection-\arabic{equation}}}
+              \def\tighten{\def\baselinestretch{1.0}}
+              \let\tightenlines=\tighten
+              \def\singlespace{\def\baselinestretch{1.0}\normalsize}
+              \def\doublespace{\def\baselinestretch{1.6}\normalsize}
+              \newenvironment{deluxetable}[1]{\begin{table}[htbp]\centering\def\@delspec{#1}}{\end{table}}
+              \newenvironment{deluxetable*}[1]{\begin{table}[htbp]\centering\def\@delspec{#1}}{\end{table}}
+              \let\planotable=\deluxetable
+              \let\endplanotable=\enddeluxetable
+              \def\tablewidth#1{}
+              \def\tablecolumns#1{}
+              \def\tablecaption#1{\caption{#1}}
+              \def\tablehead#1{\tabular{\@delspec}#1\\\hline}
+              \def\tabletail#1{}
+              \def\tableheadfrac#1{}
+              \def\startdata{}
+              \def\enddata{\endtabular}
+              \def\nl{\\}
+              \let\nextline=\nl
+              \def\tableline{\hline}
+              \def\colhead#1{#1}
+              \def\tablevspace#1{\noalign{\vskip#1}}
+              \def\tablebreak{\\}
+              \def\cutinhead#1{\hline#1\\\hline}
+              \def\sidehead#1{\noalign{\vskip1.5ex}#1\\\noalign{\vskip.5ex}}
+              \def\tablenum#1{\def\thetable{#1}\let\@currentlabel\thetable\addtocounter{table}{\m@ne}}
+              \def\figurenum#1{\def\thefigure{#1}\let\@currentlabel\thefigure\addtocounter{figure}{\m@ne}}
+              \let\placetable=\@gobble
+              \let\placefigure=\@gobble
+              \let\placeplate=\@gobble
+              \def\phs{\phantom{0}}
+              \def\phn{\phantom{0}}
+              \def\phd{\phantom{.}}
+              \def\phm#1{\phantom{#1}}
+              \def\tablenotetext#1#2{\par\smallskip\noindent\textsuperscript{#1}\,#2\par}
+              \def\tablenotemark#1{\textsuperscript{#1}}
+              \def\tablerefs#1{\par\medskip\noindent References. --- #1\par}
+              \def\tablecomments#1{\par\medskip\noindent Note. --- #1\par}
+              \newcommand{\figcaption}[2][]{\par\medskip\noindent\textbf{Figure.} #2\par}
+              \newcounter{cureqno}
+              \newenvironment{mathletters}{\refstepcounter{equation}%
+              \setcounter{cureqno}{\value{equation}}%
+              \let\@curtheeqn\theequation%
+              \edef\cur@eqn{\theequation}%
+              \def\theequation{\cur@eqn\alph{equation}}%
+              \setcounter{equation}{0}}%
+              {\let\theequation\@curtheeqn%
+              \setcounter{equation}{\value{cureqno}}}
+              \def\eqnum#1{\def\theequation{#1}\let\@currentlabel\theequation\addtocounter{equation}{\m@ne}}
+              \def\references{\subsection*{References}%
+              \bgroup\parindent=\z@\parskip=\itemsep
+              \def\refpar{\par\hangindent=3em\hangafter=1}}
+              \def\endreferences{\refpar\egroup}
+              \def\markcite{}
+              \def\reference{\refpar}
+              \def\eps@scaling{.95}
+              \def\epsscale#1{\def\eps@scaling{#1}}
+              \def\plotone#1{\par\medskip\centering\leavevmode
+              \epsfxsize=\eps@scaling\columnwidth\epsfbox{#1}\par\medskip}
+              \def\plottwo#1#2{\par\medskip\centering\leavevmode
+              \epsfxsize=.45\columnwidth\epsfbox{#1}\hfil
+              \epsfxsize=.45\columnwidth\epsfbox{#2}\par\medskip}
+              \def\sun{\hbox{$\odot$}}
+              \def\earth{\hbox{$\oplus$}}
+              \def\sq{\hbox{\rlap{$\sqcap$}$\sqcup$}}
+              \let\la=\lesssim
+              \let\ga=\gtrsim
+              \def\arcdeg{\hbox{$^\circ$}}
+              \def\arcmin{\hbox{$^\prime$}}
+              \def\arcsec{\hbox{$^{\prime\prime}$}}
+              \def\fd{\hbox{$.\!\!^{\rm d}$}}
+              \def\fh{\hbox{$.\!\!^{\rm h}$}}
+              \def\fm{\hbox{$.\!\!^{\rm m}$}}
+              \def\fs{\hbox{$.\!\!^{\rm s}$}}
+              \def\fdg{\hbox{$.\!\!^\circ$}}
+              \def\farcm{\hbox{$.\mkern-4mu^\prime$}}
+              \def\farcs{\hbox{$.\!\!^{\prime\prime}$}}
+              \def\fp{\hbox{$.\!\!^{\scriptscriptstyle\rm p}$}}
+              \def\micron{\hbox{$\mu$m}}
+              \def\case#1#2{\hbox{$\frac{#1}{#2}$}}
+              \def\slantfrac#1#2{\hbox{$\,^#1\!/_#2$}}
+              \def\onehalf{\slantfrac{1}{2}}
+              \def\onethird{\slantfrac{1}{3}}
+              \def\twothirds{\slantfrac{2}{3}}
+              \def\onequarter{\slantfrac{1}{4}}
+              \def\threequarters{\slantfrac{3}{4}}
+              \def\ubvr{\hbox{$U\!BV\!R$}}
+              \def\ub{\hbox{$U\!-\!B$}}
+              \def\bv{\hbox{$B\!-\!V$}}
+              \def\vr{\hbox{$V\!-\!R$}}
+              \def\ur{\hbox{$U\!-\!R$}}
+              \def\ion#1#2{#1$\;${\small\rm\@Roman{#2}}\relax}
+              \def\nodata{ ~$\cdots$~ }
+              \def\aj{AJ}
+              \def\araa{ARA\&A}
+              \def\apj{ApJ}
+              \def\apjl{ApJ}
+              \def\apjs{ApJS}
+              \def\ao{Appl.~Opt.}
+              \def\apss{Ap\&SS}
+              \def\aap{A\&A}
+              \def\aapr{A\&A~Rev.}
+              \def\aaps{A\&AS}
+              \def\azh{AZh}
+              \def\baas{BAAS}
+              \def\jrasc{JRASC}
+              \def\memras{MmRAS}
+              \def\mnras{MNRAS}
+              \def\pra{Phys.~Rev.~A}
+              \def\prb{Phys.~Rev.~B}
+              \def\prc{Phys.~Rev.~C}
+              \def\prd{Phys.~Rev.~D}
+              \def\pre{Phys.~Rev.~E}
+              \def\prl{Phys.~Rev.~Lett.}
+              \def\pasp{PASP}
+              \def\pasj{PASJ}
+              \def\qjras{QJRAS}
+              \def\skytel{S\&T}
+              \def\solphys{Sol.~Phys.}
+              \def\sovast{Soviet~Ast.}
+              \def\ssr{Space~Sci.~Rev.}
+              \def\zap{ZAp}
+              \def\nat{Nature}
+              \def\iaucirc{IAU~Circ.}
+              \def\aplett{Astrophys.~Lett.}
+              \def\apspr{Astrophys.~Space~Phys.~Res.}
+              \def\bain{Bull.~Astron.~Inst.~Netherlands}
+              \def\fcp{Fund.~Cosmic~Phys.}
+              \def\gca{Geochim.~Cosmochim.~Acta}
+              \def\grl{Geophys.~Res.~Lett.}
+              \def\jcp{J.~Chem.~Phys.}
+              \def\jgr{J.~Geophys.~Res.}
+              \def\jqsrt{J.~Quant.~Spec.~Radiat.~Transf.}
+              \def\memsai{Mem.~Soc.~Astron.~Italiana}
+              \def\nphysa{Nucl.~Phys.~A}
+              \def\physrep{Phys.~Rep.}
+              \def\physscr{Phys.~Scr}
+              \def\planss{Planet.~Space~Sci.}
+              \def\procspie{Proc.~SPIE}
+              \let\astap=\aap
+              \let\apjlett=\apjl
+              \let\apjsupp=\apjs
+              \let\applopt=\ao
+              \endinput
+          # amssym → amssymb 正名 (2.09 老名; 9703152 实证): 随源 .sty
+          # (apjprepr 族) 先 \def 同名符号时 amssymb \newcommand 撞车
+          # → 预 undef 放行, 两族同形符号语义同。
+          amssym.sty:
+            needs: ["amssymb.sty"]
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{amssym}[2026/09/17 fixloop legacy shim -> amssymb]
+              \let\gtrsim\@undefined
+              \let\lesssim\@undefined
+              \RequirePackage{amssymb}
+              \endinput
+          # flushrt: flushright 全文版 (9703152 同案实证)。
+          flushrt.sty:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{flushrt}[2026/09/17 fixloop legacy shim]
+              \AtBeginDocument{\raggedleft}
+              \endinput
+          # eqsecnum: 公式按节编号 (cond-mat/9703161 实证清 missing_file;
+          # 残余是 revtex frontmatter 序问题, 另案)。
+          eqsecnum.sty:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{eqsecnum}[2026/09/17 fixloop legacy shim]
+              \@addtoreset{equation}{section}
+              \renewcommand{\theequation}{\thesection.\arabic{equation}}
+              \endinput
+          # crckapb.cls (Kluwer crckap 书章类): article 底 + opening env +
+          # \institute 并入 author + AtBeginDocument 前置 \maketitle
+          # (9703198 实证 0 err/5pg)。
+          crckapb.cls:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesClass{crckapb}[2026/09/17 fixloop legacy shim -> article]
+              \LoadClassWithOptions{article}
+              \newenvironment{opening}{}{}
+              \def\institute#1{\g@addto@macro\@author{\\ {\normalsize\itshape #1}}}
+              \def\runningtitle#1{}
+              \def\runningauthor#1{}
+              \AtBeginDocument{\maketitle}
               \endinput
     engines:
       xelatex: { mode: native }
@@ -2505,6 +2798,9 @@ rules:
         body: |
           \NeedsTeXFormat{LaTeX2e}
           \ProvidesClass{aastex}[2026/09/15 fixloop bundle shadow -> emulateapj]
+          % emulateapj5 自指递归保险 —— ver@/opt@ 预注册同 shim_map aastex.cls 条
+          \expandafter\def\csname ver@emulateapj5.sty\endcsname{2026/09/17}
+          \expandafter\def\csname opt@emulateapj5.sty\endcsname{twocolumn,onecolumn}
           \LoadClassWithOptions{emulateapj}
           \providecommand{\rotate}{}
           \endinput
@@ -2641,6 +2937,38 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "builtins.py bbl_regen (a5ba9a7)"
+
+  # 0905.0193: e-print 捆绑 svjour.cls (2003) 但零 .clo 伴船, TL 亦不收录
+  # → \DeclareOption* 里 \InputIfFileExists{sv\CurrentOption.clo} 逐选项
+  # 落空, \journalopt 停 \@empty → "Class SVJour Error: No valid journal
+  # specified" + \stop。builtin 按 \documentclass 选项写 sv<opt>.clo noop
+  # stub (\endinput), InputIfFileExists 走真臂置 \journalopt 即过; 盘上
+  # 真 .clo 不覆盖。taxonomy 无专类: '!' 行落 other, 尾部 \stop 抢签时
+  # 归 emergency —— ctx_suggests 正则 err_head 两类归属下都判别。
+  # 与 shim_map svjour.cls 条不冲突: 那条管缺类, 这条管有类缺 clo。
+  - id: svjour_clo_stub
+    description: "svjour.cls 在场但零 .clo 伴船 → 按 docclass 选项写 sv<opt>.clo noop stub"
+    phase: loop
+    order: 159 # shadow/bbl_regen 族(155-158)同档: wdir 注件先于逐宏补
+    when:
+      any:
+        - { category: other }
+        - { category: emergency }
+    condition:
+      ctx_suggests: "No valid journal specified"
+    action:
+      kind: builtin_transform
+      function: svjour_clo_stub
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "0905.0193 (1d fixer-svjour 实证)",
+          error: "Class SVJour Error: No valid journal specified (sv*.clo 零伴船)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "builtins.py svjour_clo_stub (3e292eb)"
 
   # 新增 (fixloop-v2 整改): AAS 期刊缩写宏缺失 —— tectonic bundle 内置
   # aastex 5.0rc3.1 (1999) 没有 \actaa 族 (emulateapj/后期 aastex 才有);

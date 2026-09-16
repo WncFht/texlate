@@ -15,7 +15,7 @@ def test_shipped_rules_yaml_loads() -> None:
     data = load_yaml(RULES_YAML)
     assert data["version"] == 1
     assert data["meta"]["loop"]["max_rounds"] == 8  # noqa: PLR2004 - schema 断言值
-    assert len(data["rules"]) == 54  # noqa: PLR2004 - 33 + case_link/graphic_repair/invalid_char_recode/cls-plea/undefined_color_fallback/revtex4_array_swap_guard/axessibility_xetex_shadow/font_fallback/babel_lang_ldf_install/expl3_driver_opt_strip/already_def_newcmd_renew/option_clash_loadopt_strip/option_clash_passopts/pkg_order_hyperxmp_relocate/font_name_substitute/typein_neutralize/babel_opt_polutoniko_rewrite/hyperref_driver_neutralize/revtex4_legacy_class_rewrite/docclass_post_option_normalize/bbl_regen
+    assert len(data["rules"]) == 55  # noqa: PLR2004 - 33 + case_link/graphic_repair/invalid_char_recode/cls-plea/undefined_color_fallback/revtex4_array_swap_guard/axessibility_xetex_shadow/font_fallback/babel_lang_ldf_install/expl3_driver_opt_strip/already_def_newcmd_renew/option_clash_loadopt_strip/option_clash_passopts/pkg_order_hyperxmp_relocate/font_name_substitute/typein_neutralize/babel_opt_polutoniko_rewrite/hyperref_driver_neutralize/revtex4_legacy_class_rewrite/docclass_post_option_normalize/bbl_regen/svjour_clo_stub
     ids = [r["id"] for r in data["rules"]]
     assert ids[0] == "latex209_reject"
     assert "install_file" in ids
