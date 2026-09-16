@@ -1742,3 +1742,77 @@ class TestRunFixloopWiring:
         s = worker_mod._fixloop_summary(cell)  # noqa: SLF001
         assert s["log_excerpt"] == "! error context tail"
         assert s["trace"][0]["rule"] == "r1"
+
+
+class TestFetcherOwnership:
+    """``_fetch_arxiv`` 连接池纪律：自建 Fetcher 随任务关闭；注入实例归调用方。"""
+
+    def test_injected_fetcher_not_closed(self, tmp_path: Path) -> None:
+        closed: list[bool] = []
+        fake = FakeFetcher(make_targz({"main.tex": MINI_TEX}))
+        fake.close = lambda: closed.append(True)  # type: ignore[attr-defined]
+        ctx, worker, _store = _mk(
+            tmp_path,
+            worker_kw={
+                "fetcher": fake,
+                "source_cache": SourceCache(tmp_path / "src-cache"),
+            },
+        )
+        worker._fetch_arxiv(ctx)  # noqa: SLF001 -- 单测直驱
+        assert closed == []
+
+    def test_self_built_fetcher_closed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import texlate.server.worker as worker_mod  # noqa: PLC0415
+
+        closed: list[bool] = []
+
+        class _RecFetcher(FakeFetcher):
+            def close(self) -> None:
+                closed.append(True)
+
+        monkeypatch.setattr(
+            worker_mod,
+            "Fetcher",
+            lambda *_a, **_kw: _RecFetcher(make_targz({"main.tex": MINI_TEX})),
+        )
+        monkeypatch.setattr(
+            worker_mod,
+            "fetch_metadata",
+            lambda _id, *, fetcher: None,  # noqa: ARG005
+        )
+        ctx, worker, _store = _mk(
+            tmp_path, worker_kw={"source_cache": SourceCache(tmp_path / "src-cache")}
+        )
+        worker._fetch_arxiv(ctx)  # noqa: SLF001
+        assert closed == [True]
+
+    def test_self_built_fetcher_closed_on_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """acquire_source 抛错路径同样收口——泄漏点正在异常臂。"""
+        import texlate.server.worker as worker_mod  # noqa: PLC0415
+
+        closed: list[bool] = []
+
+        class _RecFetcher(FakeFetcher):
+            def close(self) -> None:
+                closed.append(True)
+
+        monkeypatch.setattr(
+            worker_mod,
+            "Fetcher",
+            lambda *_a, **_kw: _RecFetcher(make_targz({"main.tex": MINI_TEX})),
+        )
+        monkeypatch.setattr(
+            worker_mod,
+            "acquire_source",
+            lambda *_a, **_kw: (_ for _ in ()).throw(OSError("boom")),
+        )
+        ctx, worker, _store = _mk(
+            tmp_path, worker_kw={"source_cache": SourceCache(tmp_path / "src-cache")}
+        )
+        with pytest.raises(OSError, match="boom"):
+            worker._fetch_arxiv(ctx)  # noqa: SLF001
+        assert closed == [True]

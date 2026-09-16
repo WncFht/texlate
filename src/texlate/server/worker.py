@@ -1520,54 +1520,63 @@ class PipelineWorker:
         """``acquire_source`` → extracted → ``src/``；raw blob → ``src.tar``。"""
         arxiv_id = str(ctx.row["arxiv_id"])
         cache = self._src_cache or SourceCache(self.data_dir / "src-cache")
+        own_fetcher = self._fetcher is None
         fetcher = self._fetcher or Fetcher(RateLimiter(cache.root / "ratelimit.json"))
-        res = acquire_source(arxiv_id, fetcher=fetcher, cache=cache)
-        if res.status not in (AcquireStatus.OK, AcquireStatus.HIT):
-            code = (
-                "no_latex_source"
-                if res.status in (AcquireStatus.PDF_ONLY, AcquireStatus.UNKNOWN_FORMAT)
-                else "arxiv_fetch"
-            )
-            raise _StageError(
-                code,
-                res.detail or res.status.value,
-                retryable=res.status not in _FETCH_NO_RETRY,
-            )
-        assert res.entry is not None  # noqa: S101 -- ok/hit 必有 entry
-        entry = res.entry
-        fields: dict[str, Any] = {
-            "arxiv_id": f"{entry.arxiv_id}v{entry.resolved_version}",
-            "title": str(entry.meta.get("title") or ""),
-        }
-        # cache meta.json 无 categories——单独 Atom/OAI 拉一次喂
-        # glossary category 层；best-effort，挂了只丢该层术语
         try:
-            meta = fetch_metadata(arxiv_id, fetcher=fetcher)
-        except Exception as e:  # noqa: BLE001 -- 元数据臂不拦主链
-            self._log(ctx, f"arxiv meta: {type(e).__name__}: {e}")
-            meta = None
-        if meta is not None:
-            cats = [
-                c for c in dict.fromkeys([meta.primary_category, *meta.categories]) if c
-            ]
-            if cats:
-                opts = ctx.options()
-                opts["arxiv_categories"] = cats
-                # ctx.row 是入队快照——同步内存面防 _build_base 写回丢键
-                ctx.row["options_json"] = json.dumps(opts, ensure_ascii=False)
-                fields["options_json"] = ctx.row["options_json"]
-        self._on_loop(self.store.update_fields, ctx.task_id, **fields)
-        if self._post_resolve_reuse(ctx, entry):
-            return  # 钉版键命中已完成任务——产物物化由 _stage_fetch 接管
-        if ctx.src_dir.exists():
-            shutil.rmtree(ctx.src_dir)
-        shutil.copytree(entry.extracted_dir, ctx.src_dir)
-        raw = entry.raw_path
-        if raw is not None and raw.is_file():
-            shutil.copyfile(raw, ctx.root / "src.tar")
-            self._register(ctx, "src_tar", "src.tar")
-        for w in res.warnings:
-            self._log(ctx, f"fetch warn: {w}")
+            res = acquire_source(arxiv_id, fetcher=fetcher, cache=cache)
+            if res.status not in (AcquireStatus.OK, AcquireStatus.HIT):
+                code = (
+                    "no_latex_source"
+                    if res.status
+                    in (AcquireStatus.PDF_ONLY, AcquireStatus.UNKNOWN_FORMAT)
+                    else "arxiv_fetch"
+                )
+                raise _StageError(
+                    code,
+                    res.detail or res.status.value,
+                    retryable=res.status not in _FETCH_NO_RETRY,
+                )
+            assert res.entry is not None  # noqa: S101 -- ok/hit 必有 entry
+            entry = res.entry
+            fields: dict[str, Any] = {
+                "arxiv_id": f"{entry.arxiv_id}v{entry.resolved_version}",
+                "title": str(entry.meta.get("title") or ""),
+            }
+            # cache meta.json 无 categories——单独 Atom/OAI 拉一次喂
+            # glossary category 层；best-effort，挂了只丢该层术语
+            try:
+                meta = fetch_metadata(arxiv_id, fetcher=fetcher)
+            except Exception as e:  # noqa: BLE001 -- 元数据臂不拦主链
+                self._log(ctx, f"arxiv meta: {type(e).__name__}: {e}")
+                meta = None
+            if meta is not None:
+                cats = [
+                    c
+                    for c in dict.fromkeys([meta.primary_category, *meta.categories])
+                    if c
+                ]
+                if cats:
+                    opts = ctx.options()
+                    opts["arxiv_categories"] = cats
+                    # ctx.row 是入队快照——同步内存面防 _build_base 写回丢键
+                    ctx.row["options_json"] = json.dumps(opts, ensure_ascii=False)
+                    fields["options_json"] = ctx.row["options_json"]
+            self._on_loop(self.store.update_fields, ctx.task_id, **fields)
+            if self._post_resolve_reuse(ctx, entry):
+                return  # 钉版键命中已完成任务——产物物化由 _stage_fetch 接管
+            if ctx.src_dir.exists():
+                shutil.rmtree(ctx.src_dir)
+            shutil.copytree(entry.extracted_dir, ctx.src_dir)
+            raw = entry.raw_path
+            if raw is not None and raw.is_file():
+                shutil.copyfile(raw, ctx.root / "src.tar")
+                self._register(ctx, "src_tar", "src.tar")
+            for w in res.warnings:
+                self._log(ctx, f"fetch warn: {w}")
+        finally:
+            # 自建实例随任务关连接池；注入的 self._fetcher 归调用方所有
+            if own_fetcher:
+                fetcher.close()
 
     def _post_resolve_reuse(self, ctx: TaskCtx, entry: CacheEntry) -> bool:
         """#74：latest-alias 任务 fetch 定版后按钉版键二次 dedup + re-key。
