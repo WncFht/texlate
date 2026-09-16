@@ -1,0 +1,63 @@
+\section{这是译文}
+\label{sec:exactgpv}
+
+这是译文~\ref{lem:gpv}.  这是译文~\cite{DBLP:conf/stoc/GentryPV08}, 这是译文~\cite{DBLP:conf/stoc/GentryPV08}. 这是译文~\cite{DBLP:conf/stoc/GentryPV08}, 这是译文~\cite{DBLP:conf/stoc/GentryPV08}, 这是译文. 
+
+\subsection{这是译文}
+
+这是译文 (这是译文.~\cite[Page 117]{DevroyeBook86} 这是译文).
+
+这是译文 $\Z$, 这是译文 $D_{\Z+c,r}$ 这是译文 $c \in [0,1)$ 这是译文 $r>0$. 这是译文 $Z_0 = \int_c^\infty \rho_r(x) \mathrm{d} x$, 这是译文 $Z_1 = \int_{-\infty}^{c-1} \rho_r(x) \mathrm{d} x$. 这是译文 $Z=Z_0+Z_1+\rho_r(c)+\rho_r(c-1)$. 这是译文: 
+\begin{itemize}
+\item 这是译文 $\rho_r(c)/Z$ 这是译文 $c$;
+\item 这是译文 $\rho_r(c-1)/Z$ 这是译文 $c-1$;
+\item 这是译文 $Z_0/Z$ 这是译文 $x$ 这是译文 $D_r$ 这是译文 $[c,\infty)$. 这是译文 $y$ 这是译文 $\Z+c$ 这是译文 $x$. 这是译文 $\rho_r(y)/\rho_r(x)$ 这是译文 $y$, 这是译文;
+\item 这是译文 $Z_1/Z$ 这是译文 $x$ 这是译文 $D_r$ 这是译文 $(-\infty,c-1]$. 这是译文 $y$ 这是译文 $\Z+c$ 这是译文 $x$. 这是译文 $\rho_r(y)/\rho_r(x)$ 这是译文 $y$, 这是译文.
+\end{itemize}
+
+这是译文 $c$ 这是译文 $\rho_r(c)/Z$, 这是译文 $c-1$  这是译文 $\rho_r(c-1)/Z$, 这是译文 $c+k$ 这是译文 $k \ge 1$ 这是译文 \[
+\frac{Z_0}{Z} \cdot \frac{1}{Z_0} \int_{c+k-1}^{c+k} \rho_r(x) \cdot \frac{\rho_r(c+k)}{\rho_r(x)}  \mathrm{d} x
+= \frac{\rho_r(c+k)}{Z},
+\] 这是译文 $c-1-k$ 这是译文 $k \ge 1$ 这是译文  $\rho_r(c-1-k)/Z$. 这是译文 $\Z+c$ 这是译文 $\rho_r$, 这是译文 $D_{\Z+c,r}$. 这是译文 \[
+\frac{\rho_r(\Z+c)}{Z} = \frac{\rho_r(\Z+c)}{Z_0+Z_1+\rho_r(c)+\rho_r(c-1)} \ge \frac{\rho_r(\Z+c)}{\rho_r(\Z+c)+\rho_r(c)+\rho_r(c-1)}
+\ge \frac{1}{2}.
+\] 这是译文 $1/2$ 这是译文 $t$ 这是译文 $2^{-t}$, 这是译文 $2$.
+
+\subsection{这是译文}
+
+这是译文 $\sampleD$ 这是译文~\cite{DBLP:conf/stoc/GentryPV08}. 这是译文 $\matB=(\vecb_1,\ldots,\vecb_n)$ 这是译文 $n$-这是译文 $\Lambda=\lat(\matB)$, 这是译文 $r>0$,  这是译文 $\vecc \in \R^n$, 这是译文 $\Lambda+\vecc$ 这是译文  $D_{\Lambda+\vecc,r}$. 这是译文 $\widetilde{\vecb_1},\ldots,\widetilde{\vecb_n}$ 这是译文 $\vecb_1,\ldots,\vecb_n$, 这是译文 $\overline{\vecb_1},\ldots,\overline{\vecb_n}$ 这是译文., $\overline{\vecb_i} = \widetilde{\vecb_i}/\|\widetilde{\vecb_i}\|$. 这是译文. 
+
+\begin{enumerate}
+\item 这是译文 $\vecc_n \leftarrow \vecc$. 这是译文 $i \leftarrow n,\ldots,1$, 这是译文:
+\begin{enumerate}
+	\item 这是译文 $v_i$ 这是译文 $D_{\|\widetilde{\vecb_i}\| \Z+\inner{\vecc_i,\overline{\vecb_i}}, r}$ 这是译文.
+	\item 这是译文 $\vecc_{i-1} \leftarrow \vecc_i + (v_i - \inner{\vecc_i, \overline{\vecb_i}}) \cdot \vecb_i / \|\widetilde{\vecb_i}\| - v_i \overline{\vecb_i}$.
+\end{enumerate}	
+\item 这是译文 $\vecv := \sum_{i=1}^n v_i \overline{\vecb_i}$.
+\end{enumerate}
+
+这是译文 $\Lambda+\vecc$. 这是译文 $\vecv \in \Lambda+\vecc$ 这是译文  \[
+\prod_{i=1}^n \frac{\rho_r(v_i)}{\rho_r(\|\widetilde{\vecb_i}\| \Z + \inner{\vecc_i,\overline{\vecb_i}})} = 
+\frac{\rho_r(\vecv)}{\prod_{i=1}^n \rho_r(\|\widetilde{\vecb_i}\| \Z + \inner{\vecc_i,\overline{\vecb_i}})},
+\] 这是译文 $\vecc_i$ 这是译文 $\vecv$. 这是译文~\ref{lem:boundonsmoothing} 这是译文 $r$,  这是译文 $r \ge \eta_{1/(n+1)}(\|\widetilde{\vecb_i}\| \Z)$ 这是译文 $i$. 这是译文~\ref{lem:smoothing}, 这是译文 $c \in \R$, \begin{equation*}%\label{eq:deviationofgaussmass}
+\rho_r(\|\widetilde{\vecb_i}\| \Z + c) \in \bracks*{1-\frac{2}{n+2},1} \rho_r(\|\widetilde{\vecb_i}\| \Z).
+\end{equation*}
+
+这是译文 $\sampleD$ 这是译文 $\vecv$. 这是译文 $\vecv$ 这是译文  \begin{equation}\label{eq:rejsamplingprob}
+\frac{\prod_{i=1}^n \rho_r(\|\widetilde{\vecb_i}\| \Z + \inner{\vecc_i,\overline{\vecb_i}})}
+{\prod_{i=1}^n \rho_r(\|\widetilde{\vecb_i}\| \Z)} \in \left( \left(1-\frac{2}{n+2}\right)^n,1 \right] \subseteq (e^{-2},1],
+\end{equation} 这是译文 $\vecv \in \Lambda+\vecc$ 这是译文  \[
+\frac{\rho_r(\vecv)}{\prod_{i=1}^n \rho_r(\|\widetilde{\vecb_i}\| \Z )}.
+\] 这是译文 $\vecv$, 这是译文 $D_{\Lambda+\vecc,r}$, 这是译文~\eqref{eq:rejsamplingprob},  这是译文 $e^{-2}$, 这是译文 $t$ 这是译文 $(1-e^{-2})^t$, 这是译文 $e^{2}$.
+
+这是译文~\eqref{eq:rejsamplingprob}. 这是译文  \[
+\rho_r(\Z+c) = \sum_{k \in \Z} \exp(-\pi (k+c)^2 / r^2)
+\]  这是译文 $r>0$ 这是译文 $c \in [0,1)$. 这是译文 $r<1$, 这是译文 $t$ 这是译文 $\poly(t)$, 这是译文 (这是译文~\cite[Section 1.4]{LovaszBook}). 这是译文 $r \ge 1$, 这是译文 (这是译文.,~\cite[Lemma 2.8]{DBLP:journals/siamcomp/MicciancioR07}) 这是译文 \[
+\rho_r(\Z+c) = r \cdot \sum_{k \in \Z} \exp(-\pi k^2 r^2 + 2 \pi i c k) = r \cdot \sum_{k \in \Z} \exp(-\pi k^2 r^2) \cos(2 \pi c k),
+\]  这是译文 $t$ 这是译文 $\poly(t)$.
+
+%%% Local Variables: 
+%%% mode: latex
+%%% TeX-master: "lwehard"
+%%% End: 
+

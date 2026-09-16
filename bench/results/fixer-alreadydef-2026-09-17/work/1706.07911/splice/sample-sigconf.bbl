@@ -1,0 +1,669 @@
+%%% -*-BibTeX-*-
+%%% Do NOT edit. File created by BibTeX with style
+%%% ACM-Reference-Format-Journals [18-Jan-2012].
+
+\begin{thebibliography}{00}
+
+%%% ====================================================================
+%%% NOTE TO THE USER: you can override these defaults by providing
+%%% customized versions of any of these macros before the \bibliography
+%%% command.  Each of them MUST provide its own final punctuation,
+%%% except for \shownote{}, \showDOI{}, and \showURL{}.  The latter two
+%%% do not use final punctuation, in order to avoid confusing it with
+%%% the Web address.
+%%%
+%%% To suppress output of a particular field, define its macro to expand
+%%% to an empty string, or better, \unskip, like this:
+%%%
+%%% \newcommand{\showDOI}[1]{\unskip}   % LaTeX syntax
+%%%
+%%% \def \showDOI #1{\unskip}           % plain TeX syntax
+%%%
+%%% ====================================================================
+
+\ifx \showCODEN    \undefined \def \showCODEN     #1{\unskip}     \fi
+\ifx \showDOI      \undefined \def \showDOI       #1{#1}\fi
+\ifx \showISBNx    \undefined \def \showISBNx     #1{\unskip}     \fi
+\ifx \showISBNxiii \undefined \def \showISBNxiii  #1{\unskip}     \fi
+\ifx \showISSN     \undefined \def \showISSN      #1{\unskip}     \fi
+\ifx \showLCCN     \undefined \def \showLCCN      #1{\unskip}     \fi
+\ifx \shownote     \undefined \def \shownote      #1{#1}          \fi
+\ifx \showarticletitle \undefined \def \showarticletitle #1{#1}   \fi
+\ifx \showURL      \undefined \def \showURL       {\relax}        \fi
+% The following commands are used for tagged output and should be
+% invisible to TeX
+\providecommand\bibfield[2]{#2}
+\providecommand\bibinfo[2]{#2}
+\providecommand\natexlab[1]{#1}
+\providecommand\showeprint[2][]{arXiv:#2}
+
+\bibitem[\protect\citeauthoryear{Abu-El-Haija, Kothari, Lee, Natsev, Toderici,
+  Varadarajan, and Vijayanarasimhan}{Abu-El-Haija et~al\mbox{.}}{2016}]%
+        {YouTube_8M_2016}
+\bibfield{author}{\bibinfo{person}{Sami Abu-El-Haija}, \bibinfo{person}{Nisarg
+  Kothari}, \bibinfo{person}{Joonseok Lee}, \bibinfo{person}{Paul Natsev},
+  \bibinfo{person}{George Toderici}, \bibinfo{person}{Balakrishnan
+  Varadarajan}, {and} \bibinfo{person}{Sudheendra Vijayanarasimhan}.}
+  \bibinfo{year}{2016}\natexlab{}.
+\newblock \showarticletitle{{YouTube-8M: A Large-Scale Video Classification
+  Benchmark}}.
+\newblock \bibinfo{journal}{{\em arXiv preprint arXiv:1609.08675\/}}
+  (\bibinfo{year}{2016}).
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Bodensteiner, Bullinger, Lemaire, and
+  Arens}{Bodensteiner et~al\mbox{.}}{2015}]%
+        {Structure_Bodensteiner_2015}
+\bibfield{author}{\bibinfo{person}{C. Bodensteiner}, \bibinfo{person}{S.
+  Bullinger}, \bibinfo{person}{S. Lemaire}, {and} \bibinfo{person}{M. Arens}.}
+  \bibinfo{year}{2015}\natexlab{}.
+\newblock \showarticletitle{Single Frame Based Video Geo-Localisation Using
+  Structure Projection}. In \bibinfo{booktitle}{{\em 2015 IEEE International
+  Conference on Computer Vision Workshop (ICCVW)}}.
+  \bibinfo{pages}{1036--1043}.
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Crandall, Backstrom, Huttenlocher, and
+  Kleinberg}{Crandall et~al\mbox{.}}{2009}]%
+        {CrandallMapWorld09}
+\bibfield{author}{\bibinfo{person}{D. Crandall}, \bibinfo{person}{L.
+  Backstrom}, \bibinfo{person}{D. Huttenlocher}, {and} \bibinfo{person}{J.
+  Kleinberg}.} \bibinfo{year}{2009}\natexlab{}.
+\newblock \showarticletitle{{Mapping the World's Photos}}. In
+  \bibinfo{booktitle}{{\em Proceedings of the International World Wide Web
+  Conference}}. \bibinfo{pages}{761--770}.
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Demsar and Virrantaus}{Demsar and
+  Virrantaus}{2010}]%
+        {Density_Demsar_2010}
+\bibfield{author}{\bibinfo{person}{Urska Demsar} {and} \bibinfo{person}{Kirsi
+  Virrantaus}.} \bibinfo{year}{2010}\natexlab{}.
+\newblock \showarticletitle{Space-Time Density of Trajectories: Exploring
+  Spatio-Temporal Patterns in Movement Data}.
+\newblock \bibinfo{journal}{{\em International Journal of Geographical
+  Information Science\/}} \bibinfo{volume}{24}, \bibinfo{number}{10}
+  (\bibinfo{year}{2010}), \bibinfo{pages}{1527--1542}.
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Deng, Dong, Socher, Li, Li, and Fei-Fei}{Deng
+  et~al\mbox{.}}{2009}]%
+        {imagenet_cvpr09}
+\bibfield{author}{\bibinfo{person}{J. Deng}, \bibinfo{person}{W. Dong},
+  \bibinfo{person}{R. Socher}, \bibinfo{person}{L.-J. Li}, \bibinfo{person}{K.
+  Li}, {and} \bibinfo{person}{L. Fei-Fei}.} \bibinfo{year}{2009}\natexlab{}.
+\newblock \showarticletitle{{ImageNet: A Large-Scale Hierarchical Image
+  Database}}. In \bibinfo{booktitle}{{\em Proceedings of the IEEE Conference on
+  Computer Vision and Pattern Recognition}}.
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Diba, Sharma, and Gool}{Diba
+  et~al\mbox{.}}{2016}]%
+        {diba_tle_2016}
+\bibfield{author}{\bibinfo{person}{Ali Diba}, \bibinfo{person}{Vivek Sharma},
+  {and} \bibinfo{person}{Luc~Van Gool}.} \bibinfo{year}{2016}\natexlab{}.
+\newblock \showarticletitle{{Deep Temporal Linear Encoding Networks}}.
+\newblock \bibinfo{journal}{{\em arXiv preprint arXiv:1611.06678\/}}
+  (\bibinfo{year}{2016}).
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Feichtenhofer, Pinz, and Wildes}{Feichtenhofer
+  et~al\mbox{.}}{2016a}]%
+        {res_two_stream_nips16}
+\bibfield{author}{\bibinfo{person}{Christoph Feichtenhofer},
+  \bibinfo{person}{Axel Pinz}, {and} \bibinfo{person}{Richard~P. Wildes}.}
+  \bibinfo{year}{2016}\natexlab{a}.
+\newblock \showarticletitle{{Spatiotemporal Residual Networks for Video Action
+  Recognition}}. In \bibinfo{booktitle}{{\em Conference on Neural Information
+  Processing Systems}}.
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Feichtenhofer, Pinz, and
+  Zisserman}{Feichtenhofer et~al\mbox{.}}{2016b}]%
+        {convTwoStream2016}
+\bibfield{author}{\bibinfo{person}{Christoph Feichtenhofer},
+  \bibinfo{person}{Axel Pinz}, {and} \bibinfo{person}{Andrew Zisserman}.}
+  \bibinfo{year}{2016}\natexlab{b}.
+\newblock \showarticletitle{{Convolutional Two-Stream Network Fusion for Video
+  Action Recognition}}. In \bibinfo{booktitle}{{\em Proceedings of the IEEE
+  Conference on Computer Vision and Pattern Recognition}}.
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Fischer, Dosovitskiy, Ilg, Hausser, Hazirbas,
+  Golkov, van~der Smagt, Cremers, and Brox}{Fischer et~al\mbox{.}}{2015}]%
+        {flownet}
+\bibfield{author}{\bibinfo{person}{Philipp Fischer}, \bibinfo{person}{Alexey
+  Dosovitskiy}, \bibinfo{person}{Eddy Ilg}, \bibinfo{person}{Philip Hausser},
+  \bibinfo{person}{Caner Hazirbas}, \bibinfo{person}{Vladimir Golkov},
+  \bibinfo{person}{Patrick van~der Smagt}, \bibinfo{person}{Daniel Cremers},
+  {and} \bibinfo{person}{Thomas Brox}.} \bibinfo{year}{2015}\natexlab{}.
+\newblock \showarticletitle{{FlowNet: Learning Optical Flow with Convolutional
+  Networks}}. In \bibinfo{booktitle}{{\em IEEE International Conference on
+  Computer Vision}}.
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Gupta, Chen, Park, Gunda, Qian, Conger, and
+  Shafique}{Gupta et~al\mbox{.}}{2016}]%
+        {geolocalization_Gupta_2016}
+\bibfield{author}{\bibinfo{person}{Himaanshu Gupta}, \bibinfo{person}{Yi Chen},
+  \bibinfo{person}{Minwoo Park}, \bibinfo{person}{Kiran Gunda},
+  \bibinfo{person}{Gang Qian}, \bibinfo{person}{Dave Conger}, {and}
+  \bibinfo{person}{Khurram Shafique}.} \bibinfo{year}{2016}\natexlab{}.
+\newblock \bibinfo{booktitle}{{\em A Real-World System for Image/Video
+  Geo-localization}}.
+\newblock \bibinfo{pages}{299--320}.
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Hammoud, Kuzdeba, Berard, Tom, Ivey, Bostwick,
+  HandUber, Vinciguerra, Shnidman, and Smiley}{Hammoud et~al\mbox{.}}{2013}]%
+        {Overhead_Hammoud_2013}
+\bibfield{author}{\bibinfo{person}{R.~I. Hammoud}, \bibinfo{person}{S.~A.
+  Kuzdeba}, \bibinfo{person}{B. Berard}, \bibinfo{person}{V. Tom},
+  \bibinfo{person}{R. Ivey}, \bibinfo{person}{R. Bostwick}, \bibinfo{person}{J.
+  HandUber}, \bibinfo{person}{L. Vinciguerra}, \bibinfo{person}{N. Shnidman},
+  {and} \bibinfo{person}{B. Smiley}.} \bibinfo{year}{2013}\natexlab{}.
+\newblock \showarticletitle{Overhead-Based Image and Video Geo-localization
+  Framework}. In \bibinfo{booktitle}{{\em 2013 IEEE Conference on Computer
+  Vision and Pattern Recognition Workshops}}. \bibinfo{pages}{320--327}.
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Hauthal and Burghardt}{Hauthal and
+  Burghardt}{2016}]%
+        {Emotions_Hauthal_2016}
+\bibfield{author}{\bibinfo{person}{Eva Hauthal} {and} \bibinfo{person}{Dirk
+  Burghardt}.} \bibinfo{year}{2016}\natexlab{}.
+\newblock \showarticletitle{Using VGI for Analyzing Activities and Emotions of
+  Locals and Tourists}. In \bibinfo{booktitle}{{\em Association of Geographic
+  Information Laboratories in Europe (AGILE)}}.
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Hawelka, Sitko, Beinat, Sobolevsky,
+  Kazakopoulos, and Ratti}{Hawelka et~al\mbox{.}}{2014}]%
+        {Twitter_Hawelka_2014}
+\bibfield{author}{\bibinfo{person}{Bartosz Hawelka}, \bibinfo{person}{Izabela
+  Sitko}, \bibinfo{person}{Euro Beinat}, \bibinfo{person}{Stanislav
+  Sobolevsky}, \bibinfo{person}{Pavlos Kazakopoulos}, {and}
+  \bibinfo{person}{Carlo Ratti}.} \bibinfo{year}{2014}\natexlab{}.
+\newblock \showarticletitle{Geo-located Twitter as the Proxy for Global
+  Mobility Patterns}.
+\newblock \bibinfo{journal}{{\em Cartography and Geographic Information
+  Science\/}} \bibinfo{volume}{41}, \bibinfo{number}{3} (\bibinfo{date}{May}
+  \bibinfo{year}{2014}), \bibinfo{pages}{260--271}.
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Hays and Efros}{Hays and Efros}{2008}]%
+        {Haysim2gps08}
+\bibfield{author}{\bibinfo{person}{James Hays} {and} \bibinfo{person}{Alexei~A.
+  Efros}.} \bibinfo{year}{2008}\natexlab{}.
+\newblock \showarticletitle{{IM2GPS: Estimating Geographic Information from a
+  Single Image}}. In \bibinfo{booktitle}{{\em Proceedings of the {IEEE}
+  Conference on Computer Vision and Pattern Recognition}}.
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Heilbron, Escorcia, Ghanem, and
+  Niebles}{Heilbron et~al\mbox{.}}{2015}]%
+        {activityNet}
+\bibfield{author}{\bibinfo{person}{Fabian~Caba Heilbron},
+  \bibinfo{person}{Victor Escorcia}, \bibinfo{person}{Bernard Ghanem}, {and}
+  \bibinfo{person}{Juan~Carlos Niebles}.} \bibinfo{year}{2015}\natexlab{}.
+\newblock \showarticletitle{{ActivityNet: A Large-Scale Video Benchmark for
+  Human Activity Understanding}}. In \bibinfo{booktitle}{{\em Proceedings of
+  the IEEE Conference on Computer Vision and Pattern Recognition}}.
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Jaderberg, Simonyan, Zisserman, and
+  Kavukcuoglu}{Jaderberg et~al\mbox{.}}{2015}]%
+        {stn_nips15}
+\bibfield{author}{\bibinfo{person}{Max Jaderberg}, \bibinfo{person}{Karen
+  Simonyan}, \bibinfo{person}{Andrew Zisserman}, {and} \bibinfo{person}{Koray
+  Kavukcuoglu}.} \bibinfo{year}{2015}\natexlab{}.
+\newblock \showarticletitle{{Spatial Transformer Network}}. In
+  \bibinfo{booktitle}{{\em Conference on Neural Information Processing
+  Systems}}.
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Jia, Shelhamer, Donahue, Karayev, Long,
+  Girshick, Guadarrama, and Darrell}{Jia et~al\mbox{.}}{2014}]%
+        {jia2014caffe}
+\bibfield{author}{\bibinfo{person}{Yangqing Jia}, \bibinfo{person}{Evan
+  Shelhamer}, \bibinfo{person}{Jeff Donahue}, \bibinfo{person}{Sergey Karayev},
+  \bibinfo{person}{Jonathan Long}, \bibinfo{person}{Ross Girshick},
+  \bibinfo{person}{Sergio Guadarrama}, {and} \bibinfo{person}{Trevor Darrell}.}
+  \bibinfo{year}{2014}\natexlab{}.
+\newblock \showarticletitle{{Caffe: Convolutional Architecture for Fast Feature
+  Embedding}}.
+\newblock \bibinfo{journal}{{\em arXiv preprint arXiv:1408.5093\/}}
+  (\bibinfo{year}{2014}).
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Jiang, Wu, Wang, Xue, and Chang}{Jiang
+  et~al\mbox{.}}{2015}]%
+        {FCVID}
+\bibfield{author}{\bibinfo{person}{Yu-Gang Jiang}, \bibinfo{person}{Zuxuan Wu},
+  \bibinfo{person}{Jun Wang}, \bibinfo{person}{Xiangyang Xue}, {and}
+  \bibinfo{person}{Shih-Fu Chang}.} \bibinfo{year}{2015}\natexlab{}.
+\newblock \showarticletitle{Exploiting Feature and Class Relationships in Video
+  Categorization with Regularized Deep Neural Networks}.
+\newblock \bibinfo{journal}{{\em arXiv preprint arXiv:1502.07209\/}}
+  (\bibinfo{year}{2015}).
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Karpathy, Toderici, Shetty, Leung, Sukthankar,
+  and Fei-Fei}{Karpathy et~al\mbox{.}}{2014}]%
+        {KarpathyCVPR14}
+\bibfield{author}{\bibinfo{person}{Andrej Karpathy}, \bibinfo{person}{George
+  Toderici}, \bibinfo{person}{Sanketh Shetty}, \bibinfo{person}{Thomas Leung},
+  \bibinfo{person}{Rahul Sukthankar}, {and} \bibinfo{person}{Li Fei-Fei}.}
+  \bibinfo{year}{2014}\natexlab{}.
+\newblock \showarticletitle{{Large-scale Video Classification with
+  Convolutional Neural Networks}}. In \bibinfo{booktitle}{{\em Proceedings of
+  the IEEE Conference on Computer Vision and Pattern Recognition}}.
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Kisilevich, Krstajic, Keim, Andrienko, and
+  Andrienko}{Kisilevich et~al\mbox{.}}{2010}]%
+        {Flickr_Kisilevich_2010}
+\bibfield{author}{\bibinfo{person}{S. Kisilevich}, \bibinfo{person}{M.
+  Krstajic}, \bibinfo{person}{D. Keim}, \bibinfo{person}{N. Andrienko}, {and}
+  \bibinfo{person}{G. Andrienko}.} \bibinfo{year}{2010}\natexlab{}.
+\newblock \showarticletitle{Event-Based Analysis of People's Activities and
+  Behavior Using Flickr and Panoramio Geotagged Photo Collections}. In
+  \bibinfo{booktitle}{{\em 2010 14th International Conference Information
+  Visualisation}}. \bibinfo{pages}{289--296}.
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Kling and Pozdnoukhov}{Kling and
+  Pozdnoukhov}{2012}]%
+        {City_Story_Kling_2012}
+\bibfield{author}{\bibinfo{person}{Felix Kling} {and} \bibinfo{person}{Alexei
+  Pozdnoukhov}.} \bibinfo{year}{2012}\natexlab{}.
+\newblock \showarticletitle{When a City Tells a Story: Urban Topic Analysis}.
+  In \bibinfo{booktitle}{{\em Proceedings of the 20th International Conference
+  on Advances in Geographic Information Systems}} {\em
+  (\bibinfo{series}{SIGSPATIAL '12})}. \bibinfo{pages}{482--485}.
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Lan, Lin, Li, Hauptmann, and Raj}{Lan
+  et~al\mbox{.}}{2015}]%
+        {MIFS2015}
+\bibfield{author}{\bibinfo{person}{Zhenzhong Lan}, \bibinfo{person}{Ming Lin},
+  \bibinfo{person}{Xuanchong Li}, \bibinfo{person}{Alexander~G. Hauptmann},
+  {and} \bibinfo{person}{Bhiksha Raj}.} \bibinfo{year}{2015}\natexlab{}.
+\newblock \showarticletitle{{Beyond Gaussian Pyramid: Multi-skip Feature
+  Stacking for Action Recognition}}. In \bibinfo{booktitle}{{\em Proceedings of
+  the IEEE Conference on Computer Vision and Pattern Recognition}}.
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Lan, Zhu, and Hauptmann}{Lan
+  et~al\mbox{.}}{2017}]%
+        {dovf_lan_2017}
+\bibfield{author}{\bibinfo{person}{Zhenzhong Lan}, \bibinfo{person}{Yi Zhu},
+  {and} \bibinfo{person}{Alexander~G. Hauptmann}.}
+  \bibinfo{year}{2017}\natexlab{}.
+\newblock \showarticletitle{{Deep Local Video Feature for Action Recognition}}.
+\newblock \bibinfo{journal}{{\em arXiv preprint arXiv:1701.07368\/}}
+  (\bibinfo{year}{2017}).
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Li, Zhang, Qin, and Yan}{Li
+  et~al\mbox{.}}{2017}]%
+        {LULC_Activity_Li_2017}
+\bibfield{author}{\bibinfo{person}{Jun Li}, \bibinfo{person}{Yuan Zhang},
+  \bibinfo{person}{Qiming Qin}, {and} \bibinfo{person}{Yueguan Yan}.}
+  \bibinfo{year}{2017}\natexlab{}.
+\newblock \showarticletitle{Investigating the Impact of Human Activity on Land
+  Use/Cover Change in Chinas Lijiang River Basin from the Perspective of Flow
+  and Type of Population}.
+\newblock \bibinfo{journal}{{\em Sustainability\/}} \bibinfo{volume}{9},
+  \bibinfo{number}{383} (\bibinfo{date}{March} \bibinfo{year}{2017}).
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{M., M., S., J.-F., and A.}{M.
+  et~al\mbox{.}}{2017}]%
+        {Generative_Yin_2017}
+\bibfield{author}{\bibinfo{person}{Yin M.}, \bibinfo{person}{Sheehan M.},
+  \bibinfo{person}{Feygin S.}, \bibinfo{person}{Paiement J.-F.}, {and}
+  \bibinfo{person}{Pozdnoukhov A.}} \bibinfo{year}{2017}\natexlab{}.
+\newblock \showarticletitle{A Generative Model of Urban Activities from
+  Cellular Data}.
+\newblock \bibinfo{journal}{{\em IEEE Transactions in ITS (to appear)\/}}
+  (\bibinfo{year}{2017}).
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{More and Chaudhuri}{More and
+  Chaudhuri}{2016}]%
+        {event_More_2016}
+\bibfield{author}{\bibinfo{person}{Amit More} {and} \bibinfo{person}{Subhasis
+  Chaudhuri}.} \bibinfo{year}{2016}\natexlab{}.
+\newblock \showarticletitle{Event Geo-localization and Tracking from
+  Crowd-sourced Video Metadata}. In \bibinfo{booktitle}{{\em Proceedings of the
+  Tenth Indian Conference on Computer Vision, Graphics and Image Processing}}
+  {\em (\bibinfo{series}{ICVGIP '16})}. \bibinfo{pages}{24:1--24:8}.
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{NE, TA, M, N, and A}{NE et~al\mbox{.}}{2015}]%
+        {Phone_NE_2015}
+\bibfield{author}{\bibinfo{person}{Williams NE}, \bibinfo{person}{Thomas TA},
+  \bibinfo{person}{Dunbar M}, \bibinfo{person}{Eagle N}, {and}
+  \bibinfo{person}{Dobra A}.} \bibinfo{year}{2015}\natexlab{}.
+\newblock \showarticletitle{Measures of Human Mobility Using Mobile Phone
+  Records Enhanced with GIS Data}.
+\newblock \bibinfo{journal}{{\em PLoS ONE\/}} \bibinfo{volume}{10},
+  \bibinfo{number}{7} (\bibinfo{date}{July} \bibinfo{year}{2015}).
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Paldino, Bojic, Sobolevsky, Ratti, and
+  Gonzalez}{Paldino et~al\mbox{.}}{2015}]%
+        {Magnetism_Paldino_2015}
+\bibfield{author}{\bibinfo{person}{Silvia Paldino}, \bibinfo{person}{Iva
+  Bojic}, \bibinfo{person}{Stanislav Sobolevsky}, \bibinfo{person}{Carlo
+  Ratti}, {and} \bibinfo{person}{Marta~C Gonzalez}.}
+  \bibinfo{year}{2015}\natexlab{}.
+\newblock \showarticletitle{Urban Magnetism through the Lens of Geo-Tagged
+  Photography}.
+\newblock \bibinfo{journal}{{\em EPJ Data Science\/}} (\bibinfo{year}{2015}).
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Peng, Zou, Qiao, and Peng}{Peng
+  et~al\mbox{.}}{2014}]%
+        {peng2014action}
+\bibfield{author}{\bibinfo{person}{Xiaojiang Peng}, \bibinfo{person}{Changqing
+  Zou}, \bibinfo{person}{Yu Qiao}, {and} \bibinfo{person}{Qiang Peng}.}
+  \bibinfo{year}{2014}\natexlab{}.
+\newblock \showarticletitle{Action Recognition with Stacked Fisher Vectors}. In
+  \bibinfo{booktitle}{{\em European Conference on Computer Vision}}. Springer,
+  \bibinfo{pages}{581--595}.
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Phithakkitnukoon, Horanont, Di~Lorenzo,
+  Shibasaki, and Ratti}{Phithakkitnukoon et~al\mbox{.}}{2010}]%
+        {Activity_Aware_Phithakkitnukoon_2010}
+\bibfield{author}{\bibinfo{person}{Santi Phithakkitnukoon},
+  \bibinfo{person}{Teerayut Horanont}, \bibinfo{person}{Giusy Di~Lorenzo},
+  \bibinfo{person}{Ryosuke Shibasaki}, {and} \bibinfo{person}{Carlo Ratti}.}
+  \bibinfo{year}{2010}\natexlab{}.
+\newblock \showarticletitle{Activity-Aware Map: Identifying Human Daily
+  Activity Pattern Using Mobile Phone Data}. In \bibinfo{booktitle}{{\em
+  Proceedings of the First International Conference on Human Behavior
+  Understanding}}. \bibinfo{pages}{14--25}.
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Qi and Du}{Qi and Du}{2013}]%
+        {Trajectory_Qi_2013}
+\bibfield{author}{\bibinfo{person}{Feng Qi} {and} \bibinfo{person}{Fei Du}.}
+  \bibinfo{year}{2013}\natexlab{}.
+\newblock \showarticletitle{{Trajectory Data Analyses for Pedestrian Space-Time
+  Activity Study}}.
+\newblock \bibinfo{journal}{{\em Journal of Visual Experiments\/}}
+  \bibinfo{volume}{72} (\bibinfo{date}{Feburary} \bibinfo{year}{2013}).
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Sagl, Delmelle, and Delmelle}{Sagl
+  et~al\mbox{.}}{2014}]%
+        {Mobile_Sagl_2014}
+\bibfield{author}{\bibinfo{person}{Guenther Sagl}, \bibinfo{person}{Eric
+  Delmelle}, {and} \bibinfo{person}{Elizabeth Delmelle}.}
+  \bibinfo{year}{2014}\natexlab{}.
+\newblock \showarticletitle{Mapping Collective Human Activity in an Urban
+  Environment based on Mobile Phone Data}.
+\newblock \bibinfo{journal}{{\em Cartography and Geographic Information
+  Science\/}} \bibinfo{volume}{41}, \bibinfo{number}{3}
+  (\bibinfo{date}{Feburary} \bibinfo{year}{2014}), \bibinfo{pages}{272--285}.
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Simonyan and Zisserman}{Simonyan and
+  Zisserman}{2014}]%
+        {twostream2014}
+\bibfield{author}{\bibinfo{person}{K. Simonyan} {and} \bibinfo{person}{A.
+  Zisserman}.} \bibinfo{year}{2014}\natexlab{}.
+\newblock \showarticletitle{{Two-Stream Convolutional Networks for Action
+  Recognition in Videos}}.
+\newblock \bibinfo{journal}{{\em Conference on Neural Information Processing
+  Systems\/}} (\bibinfo{year}{2014}).
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Snavely, Seitz, and Szeliski}{Snavely
+  et~al\mbox{.}}{2008}]%
+        {3dModelSnavely08}
+\bibfield{author}{\bibinfo{person}{Noah Snavely}, \bibinfo{person}{Steven~M.
+  Seitz}, {and} \bibinfo{person}{Richard Szeliski}.}
+  \bibinfo{year}{2008}\natexlab{}.
+\newblock \showarticletitle{{Modeling the World from Internet Photo
+  Collections}}.
+\newblock \bibinfo{journal}{{\em International Journal of Computer Vision\/}}
+  (\bibinfo{year}{2008}), \bibinfo{pages}{189--210}.
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Soomro, Zamir, and Shah}{Soomro
+  et~al\mbox{.}}{2012}]%
+        {ucf101}
+\bibfield{author}{\bibinfo{person}{Khurram Soomro},
+  \bibinfo{person}{Amir~Roshan Zamir}, {and} \bibinfo{person}{Mubarak Shah}.}
+  \bibinfo{year}{2012}\natexlab{}.
+\newblock \showarticletitle{{UCF101: A Dataset of 101 Human Action Classes From
+  Videos in The Wild}}. In \bibinfo{booktitle}{{\em CRCV-TR-12-01}}.
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Sun, Fan, Helbich, and Zipf}{Sun
+  et~al\mbox{.}}{2013}]%
+        {VGI_Sun_2013}
+\bibfield{author}{\bibinfo{person}{Yeran Sun}, \bibinfo{person}{Hongchao Fan},
+  \bibinfo{person}{Marco Helbich}, {and} \bibinfo{person}{Alexander Zipf}.}
+  \bibinfo{year}{2013}\natexlab{}.
+\newblock \bibinfo{booktitle}{{\em Analyzing Human Activities Through
+  Volunteered Geographic Information: Using Flickr to Analyze Spatial and
+  Temporal Pattern of Tourist Accommodation}}.
+\newblock \bibinfo{pages}{57--69}.
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Tran, Bourdev, Fergus, Torresani, and
+  Paluri}{Tran et~al\mbox{.}}{2015}]%
+        {c3d2015}
+\bibfield{author}{\bibinfo{person}{Du Tran}, \bibinfo{person}{Lubomir Bourdev},
+  \bibinfo{person}{Rob Fergus}, \bibinfo{person}{Lorenzo Torresani}, {and}
+  \bibinfo{person}{Manohar Paluri}.} \bibinfo{year}{2015}\natexlab{}.
+\newblock \showarticletitle{{Learning Spatiotemporal Features with 3D
+  Convolutional Networks}}. In \bibinfo{booktitle}{{\em IEEE International
+  Conference on Computer Vision}}.
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Wang and Schmid}{Wang and Schmid}{2013}]%
+        {idtfWang2013}
+\bibfield{author}{\bibinfo{person}{H. Wang} {and} \bibinfo{person}{C. Schmid}.}
+  \bibinfo{year}{2013}\natexlab{}.
+\newblock \showarticletitle{{Action Recognition with Improved Trajectories}}.
+  In \bibinfo{booktitle}{{\em IEEE International Conference on Computer
+  Vision}}.
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Wang, Xiong, Wang, and Qiao}{Wang
+  et~al\mbox{.}}{2015}]%
+        {wanggoodpractice2015}
+\bibfield{author}{\bibinfo{person}{Limin Wang}, \bibinfo{person}{Yuanjun
+  Xiong}, \bibinfo{person}{Zhe Wang}, {and} \bibinfo{person}{Yu Qiao}.}
+  \bibinfo{year}{2015}\natexlab{}.
+\newblock \showarticletitle{{Towards Good Practices for Very Deep Two-Stream
+  ConvNets}}.
+\newblock \bibinfo{journal}{{\em arXiv preprint arXiv:1507.02159\/}}
+  (\bibinfo{year}{2015}).
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Wang, Xiong, Wang, Qiao, Lin, Tang, and
+  Gool}{Wang et~al\mbox{.}}{2016}]%
+        {TSN2016}
+\bibfield{author}{\bibinfo{person}{Limin Wang}, \bibinfo{person}{Yuanjun
+  Xiong}, \bibinfo{person}{Zhe Wang}, \bibinfo{person}{Yu Qiao},
+  \bibinfo{person}{Dahua Lin}, \bibinfo{person}{Xiaoou Tang}, {and}
+  \bibinfo{person}{Luc~Van Gool}.} \bibinfo{year}{2016}\natexlab{}.
+\newblock \showarticletitle{{Temporal Segment Networks: Towards Good Practices
+  for Deep Action Recognition}}. In \bibinfo{booktitle}{{\em European
+  Conference on Computer Vision}}.
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Wang, Bovik, Sheikh, and Simoncelli}{Wang
+  et~al\mbox{.}}{2004}]%
+        {SSIM_2004}
+\bibfield{author}{\bibinfo{person}{Zhou Wang}, \bibinfo{person}{Alan~C. Bovik},
+  \bibinfo{person}{Hamid~R. Sheikh}, {and} \bibinfo{person}{Eero~P.
+  Simoncelli}.} \bibinfo{year}{2004}\natexlab{}.
+\newblock \showarticletitle{{Image Quality Assessment: From Error Visibility to
+  Structural Similarity}}.
+\newblock \bibinfo{journal}{{\em Transaction on Image Processing\/}}
+  (\bibinfo{year}{2004}).
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Yang, Zhao, and Lu}{Yang
+  et~al\mbox{.}}{2016}]%
+        {Mobility_Yang_2016}
+\bibfield{author}{\bibinfo{person}{Xiping Yang}, \bibinfo{person}{Zhiyuan
+  Zhao}, {and} \bibinfo{person}{Shiwei Lu}.} \bibinfo{year}{2016}\natexlab{}.
+\newblock \showarticletitle{Exploring Spatial-Temporal Patterns of Urban Human
+  Mobility Hotspots}.
+\newblock \bibinfo{journal}{{\em Sustainability\/}} \bibinfo{volume}{8},
+  \bibinfo{number}{674} (\bibinfo{date}{July} \bibinfo{year}{2016}).
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Yu, Harley, and Derpanis}{Yu
+  et~al\mbox{.}}{2016}]%
+        {jasonUnsup2016}
+\bibfield{author}{\bibinfo{person}{Jason~J. Yu}, \bibinfo{person}{Adam~W.
+  Harley}, {and} \bibinfo{person}{Konstantinos~G. Derpanis}.}
+  \bibinfo{year}{2016}\natexlab{}.
+\newblock \showarticletitle{{Back to Basics: Unsupervised Learning of Optical
+  Flow via Brightness Constancy and Motion Smoothness}}.
+\newblock \bibinfo{journal}{{\em arXiv preprint arXiv:1608.05842\/}}
+  (\bibinfo{year}{2016}).
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Yuan and Medel}{Yuan and Medel}{2016}]%
+        {Travel_Yuan_2016}
+\bibfield{author}{\bibinfo{person}{Yihong Yuan} {and} \bibinfo{person}{Monica
+  Medel}.} \bibinfo{year}{2016}\natexlab{}.
+\newblock \showarticletitle{Characterizing International Travel Behavior from
+  Geotagged Photos: A Case Study of Flickr}.
+\newblock \bibinfo{journal}{{\em PLOS ONE\/}}  \bibinfo{volume}{11}
+  (\bibinfo{date}{05} \bibinfo{year}{2016}), \bibinfo{pages}{1--18}.
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Zach, Pock, and Bischof}{Zach
+  et~al\mbox{.}}{2014}]%
+        {tvl1realTime}
+\bibfield{author}{\bibinfo{person}{C. Zach}, \bibinfo{person}{T. Pock}, {and}
+  \bibinfo{person}{H. Bischof}.} \bibinfo{year}{2014}\natexlab{}.
+\newblock \showarticletitle{{A duality based approach for realtime TV-L1
+  optical flow}}. In \bibinfo{booktitle}{{\em 29th DAGM conference on Pattern
+  recognition}}.
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Zhu, Lan, Newsam, and Hauptmann}{Zhu
+  et~al\mbox{.}}{2017a}]%
+        {guided_flow_17}
+\bibfield{author}{\bibinfo{person}{Yi Zhu}, \bibinfo{person}{Zhenzhong Lan},
+  \bibinfo{person}{Shawn Newsam}, {and} \bibinfo{person}{Alexander~G.
+  Hauptmann}.} \bibinfo{year}{2017}\natexlab{a}.
+\newblock \showarticletitle{{Guided Optical Flow Learning}}.
+\newblock \bibinfo{journal}{{\em arXiv preprint arXiv:1702.02295\/}}
+  (\bibinfo{year}{2017}).
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Zhu, Lan, Newsam, and Hauptmann}{Zhu
+  et~al\mbox{.}}{2017b}]%
+        {hidden_zhu_17}
+\bibfield{author}{\bibinfo{person}{Yi Zhu}, \bibinfo{person}{Zhenzhong Lan},
+  \bibinfo{person}{Shawn Newsam}, {and} \bibinfo{person}{Alexander~G.
+  Hauptmann}.} \bibinfo{year}{2017}\natexlab{b}.
+\newblock \showarticletitle{{Hidden Two-Stream Convolutional Networks for
+  Action Recognition}}.
+\newblock \bibinfo{journal}{{\em arXiv preprint arXiv:1704.00389\/}}
+  (\bibinfo{year}{2017}).
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Zhu and Newsam}{Zhu and Newsam}{2015}]%
+        {landuse_yi_sigspatial_2015}
+\bibfield{author}{\bibinfo{person}{Yi Zhu} {and} \bibinfo{person}{S. Newsam}.}
+  \bibinfo{year}{2015}\natexlab{}.
+\newblock \showarticletitle{{Land Use Classification Using Convolutional Neural
+  Networks Applied to Ground-Level Images}}. In \bibinfo{booktitle}{{\em
+  Procedings of the ACM SIGSPATIAL International Conference on Advances in
+  Geographic Information Systems}}.
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Zhu and Newsam}{Zhu and Newsam}{2016a}]%
+        {depth2action}
+\bibfield{author}{\bibinfo{person}{Yi Zhu} {and} \bibinfo{person}{Shawn
+  Newsam}.} \bibinfo{year}{2016}\natexlab{a}.
+\newblock \showarticletitle{{Depth2Action: Exploring Embedded Depth for
+  Large-Scale Action Recognition}}. In \bibinfo{booktitle}{{\em ECCV
+  Workshop}}.
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Zhu and Newsam}{Zhu and Newsam}{2016b}]%
+        {emotion_yi_sigspatial_2016}
+\bibfield{author}{\bibinfo{person}{Yi Zhu} {and} \bibinfo{person}{S. Newsam}.}
+  \bibinfo{year}{2016}\natexlab{b}.
+\newblock \showarticletitle{{Spatio-Temporal Sentiment Hotspot Detection using
+  Geotagged Photos}}. In \bibinfo{booktitle}{{\em Procedings of the ACM
+  SIGSPATIAL International Conference on Advances in Geographic Information
+  Systems}}.
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Zhu and Newsam}{Zhu and Newsam}{2017}]%
+        {densenet_denseflow_icip17}
+\bibfield{author}{\bibinfo{person}{Yi Zhu} {and} \bibinfo{person}{Shawn
+  Newsam}.} \bibinfo{year}{2017}\natexlab{}.
+\newblock \showarticletitle{{DenseNet for Dense Flow}}. In
+  \bibinfo{booktitle}{{\em ICIP}}.
+\newblock
+
+
+\end{thebibliography}
