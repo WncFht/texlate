@@ -262,6 +262,19 @@ def _load_quota(value: object) -> int:
         return 0
 
 
+def _load_concurrency(value: object) -> int:
+    """``concurrency`` 容错读：非法值 → 3。
+
+    ``load()`` 其余字段的强转（``str``/``bool``）永不炸——唯一会抛的是
+    本项 ``int()``；手改文件留个 ``"abc"`` 会炸穿 ``load()`` 连带全部
+    ``_auth``/settings 端点 500，与 ``_load_quota`` 同口径容错回落。
+    """
+    try:
+        return max(1, int(value or 3))
+    except (TypeError, ValueError):
+        return 3
+
+
 class SettingsStore:
     """``settings.json``（0600）+ ``connections.json`` 分槽 key 池。
 
@@ -308,7 +321,7 @@ class SettingsStore:
             "target_lang": str(data.get("target_lang") or DEFAULT_TARGET_LANG),
             "glossary": str(data.get("glossary") or ""),
             "glossary_dir": str(data.get("glossary_dir") or ""),
-            "concurrency": int(data.get("concurrency") or 3),
+            "concurrency": _load_concurrency(data.get("concurrency")),
             "engine": str(data.get("engine") or "auto"),
             "context_guidance": bool(data.get("context_guidance", True)),
             "cors_origins": _load_origins(data.get("cors_origins")),
@@ -330,10 +343,15 @@ class SettingsStore:
         _normalize_updates(values)
         if not values.get("api_key"):
             values.pop("api_key", None)
-            new_url = str(values.get("base_url", old["base_url"]))
-            if new_url != old["base_url"]:
-                old["api_key"] = self.connections().get(new_url, {}).get("api_key", "")
         merged = old | values
+        if "api_key" not in values and merged["base_url"] != old["base_url"]:
+            # 换 endpoint 未带 key → 找回新 endpoint 槽位历史 key。
+            # 只改 merged——old 动不得：下方 conns 回写按 cfg.base_url
+            # 分槽，old.api_key 若被换成新 endpoint 的 key，旧槽会被
+            # 错写（切回旧 endpoint 时把新 key 发给它）。
+            merged["api_key"] = (
+                self.connections().get(str(merged["base_url"]), {}).get("api_key") or ""
+            )
         if clear_key:
             merged["api_key"] = ""
         conns = self.connections()
@@ -391,13 +409,19 @@ def env_model() -> str:
 
 
 def server_salt(root: Path) -> str:
-    """租户指纹盐：``server_salt`` 文件 0600，首跑生成。"""
+    """租户指纹盐：``server_salt`` 文件 0600，首跑生成。
+
+    空/全空白文件视为未初始化——空盐下 ``tenant_for`` 退成裸
+    ``sha256(key)``，已知 key 可预计算租户指纹，弱化隔离意义。
+    """
     path = root / SALT_FILE
     if path.exists():
         try:
-            return path.read_text(encoding="utf-8").strip()
+            salt = path.read_text(encoding="utf-8").strip()
         except OSError:
-            pass
+            salt = ""
+        if salt:
+            return salt
     salt = secrets.token_hex(16)
     path.write_text(salt, encoding="utf-8")
     path.chmod(0o600)

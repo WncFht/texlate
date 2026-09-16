@@ -498,9 +498,18 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
     # ------------------------------------------------------------ 辅助
 
     def _auth(request: Request) -> AuthContext:
-        """Header > settings > env 三级决议（§4.1）；非法 header 值 → 400。"""
+        """Header > settings > env 三级决议（§4.1）；非法 header 值 → 400。
+
+        每请求缓存到 ``request.state``：一次请求内 header 与 settings
+        快照都不变，而 ``load()`` 每次都读盘解析——translate 单链决议
+        3+ 次（model 回落/cache_key/_create_and_enqueue），缓存只读
+        一次。失败不缓存（重试同路径重炸 400）。
+        """
+        cached = getattr(request.state, "auth_ctx", None)
+        if isinstance(cached, AuthContext):
+            return cached
         try:
-            return resolve_auth(
+            auth = resolve_auth(
                 settings_store.load(),
                 header_key=request.headers.get("x-texlate-key", ""),
                 header_base_url=request.headers.get("x-texlate-base-url", ""),
@@ -510,6 +519,8 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
             )
         except ValueError as e:
             raise _ApiError(400, {"detail": str(e)}) from e
+        request.state.auth_ctx = auth
+        return auth
 
     def _get_task(request: Request, task_id: str) -> dict[str, Any]:
         """Id 形态 + 存在 + tenant 隔离三检；不过 → 404。"""
@@ -546,7 +557,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         ``files.bytes`` 合计 + 本次入队载荷。reuse/idempotent 命中不建行，
         在调用方此处之前就返回，不占配额。
         """
-        st = settings_store.load()
+        st = auth.settings  # 与 _auth 同一份请求快照——不再读一次盘
         q_tasks = int(st.get("quota_max_tasks") or 0)
         q_bytes = int(st.get("quota_max_bytes") or 0)
         if not (q_tasks or q_bytes):
@@ -691,7 +702,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         except ValueError as e:
             return _json_error(400, str(e))
         target_lang = str(
-            body.get("target_lang") or settings_store.load()["target_lang"]
+            body.get("target_lang") or _auth(request).settings["target_lang"]
         )
         if target_lang not in TARGET_LANGS:
             return _json_error(400, f"target_lang ∈ {sorted(TARGET_LANGS)}")
@@ -848,7 +859,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         except ValueError as e:
             raise _ApiError(400, {"detail": str(e)}) from e
         target_lang = _form_text(form, "target_lang") or str(
-            settings_store.load()["target_lang"]
+            _auth(request).settings["target_lang"]
         )
         if target_lang not in TARGET_LANGS:
             raise _ApiError(400, {"detail": f"target_lang ∈ {sorted(TARGET_LANGS)}"})

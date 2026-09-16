@@ -1,6 +1,9 @@
 """worker.py 审计修复批（task #52）逐条钉样：ph 武装 / glossary 五层 /
 cancel 孤儿 / 旁路 usage+术语 / fixloop reject+跨引擎 / _build_dual 出
-loop / queued 重放 / _stage 终态守卫 / zip 前缀冲突 / IndirectObject 字体。"""
+loop / queued 重放 / _stage 终态守卫 / zip 前缀冲突 / IndirectObject 字体。
+
+server-residual 波补钉：_auth 每请求单读 / connections 分槽不互染 /
+settings load 字段级容错 / server_salt 空文件重生成 / _spawn pty fd 清理。"""
 
 from __future__ import annotations
 
@@ -8,8 +11,11 @@ import asyncio
 import contextlib
 import io
 import json
+import os
 import threading
 import zipfile
+from http import HTTPStatus
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
@@ -19,11 +25,13 @@ pytest.importorskip("starlette.testclient", reason="server extra 未装")
 
 from conftest import MINI_TEX, FakeFetcher, RecordingEngine, make_targz
 
+import texlate.server.babeldoc as babeldoc_mod
 from texlate.arxiv.cache import SourceCache
 from texlate.arxiv.meta import PaperMeta
 from texlate.compile.cjkmap import embed_cjk_mappings
 from texlate.compile.engine import CompRes, LogInfo
 from texlate.server.events import EventBus
+from texlate.server.settings import SettingsStore, server_salt
 from texlate.server.store import ERROR_CODES, Store, StoreError, new_task_id
 from texlate.server.worker import (
     DBStateBridge,
@@ -45,7 +53,7 @@ from texlate.xlat.pipeline import (
 )
 
 if TYPE_CHECKING:
-    from pathlib import Path
+    from starlette.testclient import TestClient
 
 _MATH_TEX = (
     "\\documentclass{article}\n"
@@ -1302,3 +1310,157 @@ class TestRegisterPrecomputed:
         assert rec is not None
         assert rec["bytes"] == 64  # noqa: PLR2004 -- fixture 大小钉样
         assert rec["sha256"] == hashlib.sha256(b"x" * 64).hexdigest()
+
+
+# ------------------------------------------------------------ server-residual 波
+
+
+class TestAuthOncePerRequest:
+    """``_auth`` 每请求缓存：translate 单链决议 3+ 次，settings.json 只读一次。"""
+
+    def test_translate_loads_settings_once(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        store = client.app.state.settings_store
+        calls = 0
+        orig = store.load
+
+        def spy() -> dict:
+            nonlocal calls
+            calls += 1
+            return orig()
+
+        monkeypatch.setattr(store, "load", spy)
+        r = client.post("/api/arxiv/2401.00022/translate", json={})
+        assert r.status_code == HTTPStatus.ACCEPTED, r.text
+        assert calls == 1, (
+            f"一次 translate 请求读了 {calls} 次 settings.json"
+            "（_auth/model/target_lang/quota 应共享同一快照）"
+        )
+
+
+class TestConnectionsSlotPreserve:
+    """``save`` 换 endpoint 不带 key：找回新槽历史 key，旧槽原 key 不丢。
+
+    旧实现把 restore 值写进 ``old``——conns 回写按 ``cfg.base_url`` 分槽，
+    旧 endpoint 槽被错写成新 endpoint 的 key（切回时把它发错门）。
+    """
+
+    def test_switch_without_key_keeps_old_slot(self, tmp_path: Path) -> None:
+        st = SettingsStore(tmp_path)
+        st.save({"base_url": "https://a.example", "api_key": "key-a"})
+        st.save({"base_url": "https://b.example"})  # 无 key 切换 → B 槽空
+        assert st.load()["api_key"] == ""
+        st.save({"base_url": "https://a.example"})  # 切回 A → 找回 key-a
+        assert st.load()["api_key"] == "key-a"
+
+    def test_switch_roundtrip_both_slots(self, tmp_path: Path) -> None:
+        st = SettingsStore(tmp_path)
+        st.save({"base_url": "https://a.example", "api_key": "key-a"})
+        st.save({"base_url": "https://b.example", "api_key": "key-b"})
+        st.save({"base_url": "https://a.example"})
+        assert st.load()["api_key"] == "key-a"
+        st.save({"base_url": "https://b.example"})
+        assert st.load()["api_key"] == "key-b"
+
+
+class TestSettingsLoadTolerant:
+    """``load()`` 字段级容错——文件级损坏已有兜底，手改字段留垃圾不能炸 500。"""
+
+    def test_corrupt_concurrency_falls_back(self, tmp_path: Path) -> None:
+        (tmp_path / "settings.json").write_text(
+            '{"concurrency": "abc"}', encoding="utf-8"
+        )
+        assert SettingsStore(tmp_path).load()["concurrency"] == 3  # noqa: PLR2004 -- 缺省值钉样
+
+    def test_zero_and_negative_concurrency(self, tmp_path: Path) -> None:
+        (tmp_path / "settings.json").write_text('{"concurrency": 0}', encoding="utf-8")
+        assert SettingsStore(tmp_path).load()["concurrency"] == 3  # noqa: PLR2004 -- 0 → 缺省
+        (tmp_path / "settings.json").write_text('{"concurrency": -2}', encoding="utf-8")
+        assert SettingsStore(tmp_path).load()["concurrency"] == 1  # 负 → clamp
+
+
+class TestServerSaltEmpty:
+    """空/全空白 salt 文件重生成——空盐下租户指纹退成裸 sha256(key)。"""
+
+    def test_empty_file_regenerated(self, tmp_path: Path) -> None:
+        (tmp_path / "server_salt").write_text("", encoding="utf-8")
+        salt = server_salt(tmp_path)
+        assert salt
+        assert (tmp_path / "server_salt").read_text(encoding="utf-8") == salt
+
+    def test_valid_file_kept(self, tmp_path: Path) -> None:
+        (tmp_path / "server_salt").write_text("deadcafe", encoding="utf-8")
+        assert server_salt(tmp_path) == "deadcafe"
+
+
+def _pty_dev_fds() -> list[str]:
+    """扫 /proc/self/fd 里指向 pty 设备的 readlink 目标（同步阻塞——调用方走 to_thread）。
+
+    fd 号会被兜底 pipe 复用，只能按 readlink 目标数 pty 残留；瞬逝 fd
+    （iterdir 目录自身/子继承句柄）readlink 落空即跳过。
+    """
+    pts: list[str] = []
+    for ent in Path("/proc/self/fd").iterdir():
+        if int(ent.name) <= 2:  # noqa: PLR2004 -- 0/1/2 标准流不算
+            continue
+        try:
+            t = str(ent.readlink())
+        except OSError:
+            continue
+        if "/dev/pt" in t:  # ptmx/ptsN 设备——pipe/eventfd 不含
+            pts.append(t)
+    return pts
+
+
+@pytest.mark.skipif(babeldoc_mod.pty is None, reason="POSIX pty only")
+class TestSpawnPtyFdCleanup:
+    """``_spawn`` openpty 成功后 ioctl 翻车：master/slave 两 fd 必须显式关。"""
+
+    @pytest.mark.skipif(not Path("/proc/self/fd").is_dir(), reason="fd 枚举依赖 /proc")
+    def test_ioctl_failure_closes_fds(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import fcntl  # noqa: PLC0415 -- POSIX-only（skipif 已闸 Windows）
+        import pty  # noqa: PLC0415
+
+        master, slave = pty.openpty()
+        monkeypatch.setattr(pty, "openpty", lambda: (master, slave))
+
+        def boom(*_a: object, **_kw: object) -> None:
+            msg = "winsize fail"
+            raise OSError(msg)
+
+        monkeypatch.setattr(fcntl, "ioctl", boom)
+
+        async def run() -> None:
+            proc, feed_fd = await babeldoc_mod._spawn(["/bin/true"])  # noqa: SLF001
+            try:
+                pts = await asyncio.to_thread(_pty_dev_fds)
+                assert pts == [], f"pty fd 泄漏（master/slave 未关）: {pts}"
+            finally:
+                os.close(feed_fd)  # 测里没有泵——读端手动收
+                await proc.wait()
+
+        asyncio.run(run())
+
+    def test_pipe_fallback_carries_both_streams(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """pty 整体缺席 → 匿名 pipe 合并流：stdout/stderr 同进读端（历史 STDOUT 非法形已修）。"""
+        monkeypatch.setattr(babeldoc_mod, "pty", None)
+
+        async def run() -> str:
+            proc, feed_fd = await babeldoc_mod._spawn(  # noqa: SLF001
+                ["/bin/sh", "-c", "echo out-line; echo err-line >&2"]
+            )
+            try:
+                data = b""
+                while chunk := os.read(feed_fd, 65536):
+                    data += chunk
+            finally:
+                os.close(feed_fd)
+                await proc.wait()
+            return data.decode()
+
+        out = asyncio.run(run())
+        assert "out-line" in out
+        assert "err-line" in out

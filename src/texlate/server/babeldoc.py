@@ -26,6 +26,7 @@ babeldoc 不进产品 venv/import，只 spawn CLI。关键约定：
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import csv
 import json
 import logging
@@ -436,19 +437,6 @@ def _pump_fd(fd: int, buf: bytearray, lock: threading.Lock) -> None:
         os.close(fd)
 
 
-async def _pump_stream(
-    stream: asyncio.StreamReader | None,
-    buf: bytearray,
-    lock: threading.Lock,
-) -> None:
-    """PIPE stderr → buf。"""
-    if stream is None:
-        return
-    while chunk := await stream.read(_PUMP_CHUNK):
-        with lock:
-            buf += chunk
-
-
 def _classify_rc(feed: _Feed) -> tuple[str, str, bool]:
     """非零退出码 → ``(code, message, retryable)``。"""
     tail = feed.tail
@@ -562,64 +550,67 @@ def _judge_run(  # noqa: PLR0913, PLR0911 -- 退出码判定表平铺即 §三 a
 
 async def _spawn(
     argv: list[str],
-) -> tuple[asyncio.subprocess.Process, int | None]:
-    """开 pty（可用时）+ spawn → ``(proc, master_fd)``；退化期 master=None。
+) -> tuple[asyncio.subprocess.Process, int]:
+    """Spawn → ``(proc, 合并流读端 fd)``——pty（可用时）或匿名 pipe 兜底。
 
-    父进程侧 slave 副本在 spawn 后立即关——子进程已 dup 走自己的
-    stderr；留着它 master 在子退出后读不到 EIO，泵线程死等。
+    babeldoc 的进度/日志走 stdout（见模块 docstring）——pty 模式
+    stdout+stderr 同挂 slave；兜底期匿名 pipe 合并两流给 ``_pump_fd``
+    （``stdout=STDOUT`` 不是合法 spawn 参数——Popen 只认
+    ``stderr=STDOUT``，child ``dup2(-2)`` 必 EBADF，pipe 合并是唯一能
+    保持「单 fd 混合流」语义的退化形）。
+    父进程侧写端副本 spawn 后立即关：留着它子退出后读不到 EIO/EOF，
+    泵线程死等。
     """
     env = dict(os.environ)
     env.setdefault("OMP_NUM_THREADS", "4")
     env.setdefault("TERM", "xterm")  # pty 模式下 rich 需要
     env["PYTHONUNBUFFERED"] = "1"
-    master: int | None = None
-    slave: int | None = None
-    # babeldoc 的进度/日志走 stdout（见模块 docstring）——pty 模式
-    # stdout+stderr 同挂 slave；PIPE 退化期 stdout 并入 stderr 流。
-    stderr_tgt: Any = asyncio.subprocess.PIPE
-    stdout_tgt: Any = asyncio.subprocess.STDOUT
+    read_fd: int | None = None
+    write_fd: int | None = None
     if pty is not None:
         try:
-            master, slave = pty.openpty()
+            read_fd, write_fd = pty.openpty()
             # openpty 给 0×0 winsize——rich 按 fallback 窄宽渲染会把
             # ``52/100`` 截成 ``52/…``，刮不到进度。钉 120×24。
             import fcntl  # noqa: PLC0415 -- POSIX-only，pty 分支内惰性
             import struct  # noqa: PLC0415
             import termios  # noqa: PLC0415
 
-            fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 24, 120, 0, 0))
-            stderr_tgt = slave
-            stdout_tgt = slave
+            fcntl.ioctl(
+                write_fd, termios.TIOCSWINSZ, struct.pack("HHHH", 24, 120, 0, 0)
+            )
         except OSError:
-            master = slave = None
+            # openpty 已成功、ioctl 翻车——两 fd 显式关，不能置 None 弃疗
+            for fd in (read_fd, write_fd):
+                if fd is not None:
+                    with contextlib.suppress(OSError):
+                        os.close(fd)
+            read_fd = write_fd = None
+    if read_fd is None:
+        read_fd, write_fd = os.pipe()
     try:
         proc = await asyncio.create_subprocess_exec(
             *argv,
             stdin=asyncio.subprocess.DEVNULL,
-            stdout=stdout_tgt,
-            stderr=stderr_tgt,
+            stdout=write_fd,
+            stderr=write_fd,
             env=env,
         )
     except Exception:
-        if master is not None:
-            os.close(master)
+        os.close(read_fd)
         raise
     finally:
-        if slave is not None:
-            os.close(slave)
-    return proc, master
+        os.close(write_fd)
+    return proc, read_fd
 
 
 def _start_pump(
-    proc: asyncio.subprocess.Process,
-    master: int | None,
+    feed_fd: int,
     buf: bytearray,
     lock: threading.Lock,
 ) -> asyncio.Task[None]:
-    """起 stderr 泵任务：pty 走 ``to_thread`` 阻塞读，PIPE 走 StreamReader。"""
-    if master is not None:
-        return asyncio.create_task(asyncio.to_thread(_pump_fd, master, buf, lock))
-    return asyncio.create_task(_pump_stream(proc.stderr, buf, lock))
+    """起合并流泵任务：pty master/匿名 pipe 读端同走 ``_pump_fd``。"""
+    return asyncio.create_task(asyncio.to_thread(_pump_fd, feed_fd, buf, lock))
 
 
 async def run_babeldoc(
@@ -643,10 +634,10 @@ async def run_babeldoc(
 
     feed = _Feed(on_progress=on_progress, on_log=on_log)
     t0 = time.monotonic()
-    proc, master = await _spawn(argv)
+    proc, feed_fd = await _spawn(argv)
     buf = bytearray()
     lock = threading.Lock()
-    pump = _start_pump(proc, master, buf, lock)
+    pump = _start_pump(feed_fd, buf, lock)
 
     timed_out, cursor = False, 0
     deadline = t0 + job.timeout
