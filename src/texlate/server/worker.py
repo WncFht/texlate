@@ -401,6 +401,10 @@ class TaskCtx:
     #: #74 post-resolve dedup 命中行（钉版键二次 ``find_reusable``）——
     #: ``_stage_fetch`` 物化其产物后任务直接终态，parse/translate 不跑
     reuse_hit: dict[str, Any] | None = None
+    #: judge 的 expect_cjk：0-chunk 主文档（includepdf 壳等）cjk_chars=0
+    #: 是正确终态。``_stage_compile`` 在 loop 线程算好——store conn
+    #: 有线程亲和，编译线程内不可查
+    expect_cjk: bool = True
 
     @property
     def src_dir(self) -> Path:
@@ -2058,6 +2062,7 @@ class PipelineWorker:
         self._check_cancelled(ctx)
         self.store.update_fields(ctx.task_id, progress=PROGRESS["compiling"][0] + 4)
         await asyncio.to_thread(self._compile_en, ctx)
+        ctx.expect_cjk = self._expect_cjk(ctx)
         ok = await asyncio.to_thread(self._compile_zh, ctx)
         self._check_cancelled(ctx)
         self.store.update_fields(ctx.task_id, progress=PROGRESS["compiling"][1])
@@ -2416,6 +2421,13 @@ class PipelineWorker:
                 pass
         return res.stdout_tail or ""
 
+    def _expect_cjk(self, ctx: TaskCtx) -> bool:
+        """0-chunk 主文档（includepdf 壳等）不期待 CJK——cjk_chars=0 是其正确终态。
+
+        只能在 loop 线程调（store conn 线程亲和）——编译线程读 ``ctx.expect_cjk``。
+        """
+        return self.store.chunk_counts(ctx.task_id)["total"] != 0
+
     def _fixloop_enabled(self, ctx: TaskCtx) -> bool:
         """Fixloop 开关：``options.fixloop`` false 系值或 ``TEXLATE_NO_FIXLOOP`` 真值 → 关（默认开）。"""
         if os.environ.get("TEXLATE_NO_FIXLOOP", "").strip().lower() in (
@@ -2472,7 +2484,9 @@ class PipelineWorker:
             # _build_base 持久化的生效候选列表——显式 engine= 覆盖时
             # 只剩用户指定那台，臂自熄（尊重显式选型）
             route_engines = [str(e) for e in ctx.options().get("route_engines") or []]
-            v_last = judge(res, expect_cjk=True, log_text=self._log_text_of(res))
+            v_last = judge(
+                res, expect_cjk=ctx.expect_cjk, log_text=self._log_text_of(res)
+            )
             if (
                 ctx.engine_name == "tectonic"
                 and "xelatex" in route_engines
@@ -2490,7 +2504,11 @@ class PipelineWorker:
                     sandbox=True,
                     flags=flags,
                 )
-                xv = judge(xres, expect_cjk=True, log_text=self._log_text_of(xres))
+                xv = judge(
+                    xres,
+                    expect_cjk=ctx.expect_cjk,
+                    log_text=self._log_text_of(xres),
+                )
                 summary["cross_engine"] = {
                     "engine": "xelatex",
                     "status": xv.status,
@@ -2671,7 +2689,9 @@ class PipelineWorker:
             res2 = eng.compile(
                 work, ctx.main_rel, timeout=self._compile_timeout, sandbox=True
             )
-            v2 = judge(res2, expect_cjk=True, log_text=self._log_text_of(res2))
+            v2 = judge(
+                res2, expect_cjk=ctx.expect_cjk, log_text=self._log_text_of(res2)
+            )
             rep["recompiled"] = v2.status
             if v2.status != "clean":
                 hits2, _ = _l2_localize(work, run, res2)
@@ -2827,12 +2847,12 @@ class PipelineWorker:
             flags=rep.flags if rep else None,
         )
         self._probe_diff(ctx, rep, res)
-        v = judge(res, expect_cjk=True, log_text=self._log_text_of(res))
+        v = judge(res, expect_cjk=ctx.expect_cjk, log_text=self._log_text_of(res))
         if v.status != "clean":
             res, v = self._l2_attempt(ctx, work, eng, res, v)
         if v.status != "clean" and self._fixloop_enabled(ctx):
             res = self._run_fixloop(ctx, work, eng, res)
-            v = judge(res, expect_cjk=True, log_text=self._log_text_of(res))
+            v = judge(res, expect_cjk=ctx.expect_cjk, log_text=self._log_text_of(res))
         if res.has_pdf and res.pdf is not None:
             shutil.copyfile(res.pdf, ctx.root / "zh.pdf")
             self._embed_tounicode(ctx, ctx.root / "zh.pdf")
