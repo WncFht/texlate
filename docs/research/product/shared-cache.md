@@ -124,7 +124,7 @@ manifest.json schema:
 | `ShareManifest` | frozen dataclass                                                                          | 校验后 manifest 视图（fmt/share_key/key_parts/artifacts/contributor/created_at） |
 | `ShareError`    | Exception                                                                                 | 一切格式/校验失败                                                                |
 
-纯库层：不接 cli/app。后续接线点：worker 完成钩子上 opt-in 打包上传；任务创建 fetch 后（此时 resolved_ver 已知）→ share_key lookup → 命中走 §5 验证通道。
+纯库层：不接 cli/app。接线现状：worker 完成钩已落地（`746e87f`——`options.share_pack` opt-in，`_stage_compile` 三终态出口，`pack_share`+`unpack_share` 回验后 `index_append` 进 `share_dir/index.jsonl`；`kind=="share"` 与 reuse_hit 永不自包）；任务创建 fetch 后（此时 resolved_ver 已知）→ share_key lookup → 命中走 §5 验证通道（#74 post-resolve dedup `7cce5f9` 已落同点位）。
 
 ## 9. 开放问题
 
