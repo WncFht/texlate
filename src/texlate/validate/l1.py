@@ -43,6 +43,7 @@ import queue
 import shutil
 import subprocess
 import threading
+import time
 from dataclasses import dataclass, field
 from importlib import resources
 from pathlib import Path
@@ -126,10 +127,10 @@ class TsResult:
             ok_relative=d.get("ok_relative"),
             parse_errors=list(d.get("parse_errors") or []),
             env_mismatches=list(d.get("env_mismatches") or []),
-            unclosed_math=int(d.get("unclosed_math", 0)),
-            brace_balance=int(d.get("brace_balance", 0)),
+            unclosed_math=int(d.get("unclosed_math") or 0),
+            brace_balance=int(d.get("brace_balance") or 0),
             placeholders=dict(d.get("placeholders") or {}),
-            parse_ms=float(d.get("parse_ms", 0.0)),
+            parse_ms=float(d.get("parse_ms") or 0.0),
             error=d.get("error"),
         )
 
@@ -188,7 +189,7 @@ class TsValidator:
         )
         self._timeout = timeout
         self._proc: subprocess.Popen[str] | None = None
-        self._lines: queue.Queue[str] = queue.Queue()
+        self._lines: queue.Queue[str | None] = queue.Queue()
 
     # ---------------- 可用性 ----------------
 
@@ -197,17 +198,19 @@ class TsValidator:
         """Worker 脚本路径。"""
         return self._worker_dir / "validator.js"
 
+    def _deps_present(self) -> bool:
+        """两枚 npm 依赖都在场——只查 ``tree-sitter`` 会在文法缺失时误判可用。"""
+        return (self._node_path / "tree-sitter").is_dir() and (
+            self._node_path / "@pfoerster" / "tree-sitter-latex"
+        ).is_dir()
+
     def available(self) -> bool:
         """Node + worker.js + npm 依赖三者齐备才可用，否则降级 L0。"""
-        return bool(
-            self._node
-            and self.worker_js.is_file()
-            and (self._node_path / "tree-sitter").is_dir()
-        )
+        return bool(self._node and self.worker_js.is_file() and self._deps_present())
 
     def ensure_deps(self) -> bool:
         """依赖缺失时 ``npm i --prefix`` 一次性安装；成功返回 True。"""
-        if (self._node_path / "tree-sitter").is_dir():
+        if self._deps_present():
             return True
         npm = shutil.which("npm")
         if not (self.worker_js.is_file() and npm):
@@ -227,7 +230,7 @@ class TsValidator:
             )
             log.debug("L1 ensure_deps npm i failed: %s", detail)
             return False
-        return (self._node_path / "tree-sitter").is_dir()
+        return self._deps_present()
 
     # ---------------- 传输 ----------------
 
@@ -311,11 +314,18 @@ class TsValidator:
         ).start()
 
     @staticmethod
-    def _pump(proc: subprocess.Popen[str], lines: queue.Queue[str]) -> None:
-        """把 worker stdout 逐行搬进 ``lines`` 队列；EOF/进程死即线程退。"""
+    def _pump(proc: subprocess.Popen[str], lines: queue.Queue[str | None]) -> None:
+        """把 worker stdout 逐行搬进 ``lines`` 队列；EOF/进程死即线程退。
+
+        退出前投 ``None`` 哨兵唤醒 ``_one`` 等待者——无哨兵时 worker
+        崩死会让等待方白挂整个 timeout。
+        """
         assert proc.stdout is not None  # noqa: S101 -- Popen 时已声明 PIPE
-        for line in proc.stdout:
-            lines.put(line)
+        try:
+            for line in proc.stdout:
+                lines.put(line)
+        finally:
+            lines.put(None)
 
     def close(self) -> None:
         """关闭常驻 worker。"""
@@ -341,8 +351,8 @@ class TsValidator:
     def _drain_lines(self) -> None:
         """清空响应队列里的滞留行（上次超时后迟到的响应会毒害下一请求）。
 
-        残余竞态：迟到行恰好落在 drain 与 write 之间——窗口极小，
-        REPL 协议没有 seq 号可配对，接受此残留并记录在案。
+        残余竞态：迟到行恰好落在 drain 与 write 之间——``_one`` 靠
+        ``id`` 配对丢弃这类迟到响应兜底。
         """
         while True:
             try:
@@ -351,8 +361,12 @@ class TsValidator:
                 return
 
     def _one(self, rec: dict[str, Any]) -> TsResult:
-        """常驻通道优先，未启动退批处理单条。"""
+        """常驻通道优先，未启动/进程死退批处理单条。"""
         if self._proc is None or self._proc.stdin is None:
+            return self.validate_batch([rec])[0]
+        if self._proc.poll() is not None:
+            # worker 已退出（上轮 EOF/崩死）——透明降级批处理重起进程
+            self.close()
             return self.validate_batch([rec])[0]
         self._drain_lines()
         try:
@@ -361,17 +375,27 @@ class TsValidator:
         except OSError as e:
             msg = "L1 常驻 worker stdin 已断（进程已退出？）"
             raise L1Error(msg) from e
-        try:
-            line = self._lines.get(timeout=self._timeout)
-        except queue.Empty as e:
-            self._drain_lines()
-            msg = f"L1 常驻 worker 响应超时（{self._timeout}s，进程已退出？）"
-            raise L1Error(msg) from e
-        try:
-            return TsResult.from_dict(json.loads(line))
-        except json.JSONDecodeError as e:
-            msg = f"L1 常驻 worker 输出非 JSON: {line[:200]!r}"
-            raise L1Error(msg) from e
+        want_id = rec.get("id")
+        deadline = time.monotonic() + self._timeout
+        while True:
+            try:
+                line = self._lines.get(timeout=max(deadline - time.monotonic(), 0.01))
+            except queue.Empty as e:
+                self._drain_lines()
+                msg = f"L1 常驻 worker 响应超时（{self._timeout}s，进程已退出？）"
+                raise L1Error(msg) from e
+            if line is None:
+                self.close()
+                msg = "L1 常驻 worker EOF（进程已退出，响应通道关闭）"
+                raise L1Error(msg)
+            try:
+                res = TsResult.from_dict(json.loads(line))
+            except json.JSONDecodeError as e:
+                msg = f"L1 常驻 worker 输出非 JSON: {line[:200]!r}"
+                raise L1Error(msg) from e
+            if res.id == want_id:
+                return res
+            # 迟到/错序响应（上轮超时残留）——丢弃继续等本请求的配对行
 
     def sign(self, tex: str, *, doc_id: str | None = None) -> TsBaseline:
         """对译前源文本取签名（相对判定基线）。"""

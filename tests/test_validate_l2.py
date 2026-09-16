@@ -249,3 +249,55 @@ def test_invalid_utf8_usertree_under_root_is_sys(tmp_path: Path) -> None:
     v = parse_log_text(log, project_root=tmp_path)
     assert v.warnings.sys_hits == ["invalid_utf8@foo.sty"]
     assert not any("invalid_utf8" in r for r in v.warnings.redlines)
+
+
+# ---------------------------------------------------------------- 审计修复面
+
+
+def test_missing_char_uplus_format_cjk() -> None:
+    """fontspec 时代 ``(U+8BD1)`` 缺字形：归 missing_glyph_cjk 且入红线——
+    只认 ``("HEX)`` 旧格式会漏掉新工具链全部 CJK 缺字。"""
+    log = "Missing character: There is no 译 (U+8BD1) in font [lmroman10-regular]:mapping=tex-text;\n"
+    v = parse_log_text(log)
+    assert v.warnings.by_class.get("missing_glyph_cjk") == 1
+    assert v.warnings.cjk_missing == 1
+    assert any("missing_glyph_cjk" in r for r in v.warnings.redlines)
+
+
+def test_missing_char_fffd_redline() -> None:
+    """``(U+FFFD)`` 缺字 = invalid_utf8 排版产物——§4.3 具名红线。"""
+    log = "Missing character: There is no (U+FFFD) in font cmr10!\n"
+    v = parse_log_text(log)
+    assert v.warnings.by_class.get("fffd_glyph") == 1
+    assert any("fffd_glyph" in r for r in v.warnings.redlines)
+
+
+def test_missing_char_non_cjk_redline() -> None:
+    """非 CJK 缺字形同入红线——judge ``missing_chars`` 对全部缺字形判
+    dirty（§4.3 渲染检查要求 Missing character 计数==0）。"""
+    log = 'Missing character: There is no ; ("3B) in font cmr10!\n'
+    v = parse_log_text(log)
+    assert v.warnings.by_class.get("missing_glyph") == 1
+    assert v.warnings.cjk_missing == 0
+    assert any("missing_glyph" in r for r in v.warnings.redlines)
+
+
+def test_missing_char_fffd_quote_form_redline() -> None:
+    """老 TL ``("FFFD)`` 引号形缺字同挂 ffd_glyph 红线——与 ``(U+FFFD)``
+    新形并吃（码点形态随引擎代际分叉，corpus 两形并存）。"""
+    v = parse_log_text('Missing character: There is no ("FFFD) in font cmr10!\n')
+    assert v.warnings.by_class.get("fffd_glyph") == 1
+    assert any("fffd_glyph" in r for r in v.warnings.redlines)
+
+
+def test_file_line_error_non_tex_ext() -> None:
+    """``file:line:`` 错误不限 tex 系扩展名——``.pdf_t``/``.eps``/``.lbx``
+    等非白名单扩展名行同样是真错误（loop1 语料 7814 log 全扫：白名单口径
+    漏 586 行真错 / 13 log，其中 3 例整体翻转 ok=True 假干净）。"""
+    text = "./fig/diag.pdf_t:7: Undefined control sequence.\nl.7 \\foo\n"
+    v = parse_log_text(text)
+    assert v.n_errors == 1
+    fe = v.first_error
+    assert fe is not None
+    assert fe.tex_file == "./fig/diag.pdf_t"
+    assert fe.tex_line == 7  # noqa: PLR2004 - file:line: 提取的样本行号

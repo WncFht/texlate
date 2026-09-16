@@ -75,11 +75,13 @@ __all__ = [
 PH_ANY_LIKE_RX: Final = re.compile(r"\[\[[A-Z][A-Z0-9_]*(?:_\d+)?\]\]")
 
 #: 模糊占位符候选（zh 侧变体）：完整 [[..]] / 缺右括号 / 单层 [X_n] / 全角【..】。
+#: 各臂 lookahead 要求内部至少一枚 ASCII 字母——纯数字/纯 CJK 的
+#: 【1】【图1】[[图]] 是中文正文的自然全角括号用法，非占位符变体。
 PH_FUZZY_RX: Final = re.compile(
-    r"\[\[[^\[\]\n]{1,48}?\]\]"  # [[..]] 完整（含全角/空格/小写变体）
-    r"|\[\[[^\[\]\n]{1,48}?\](?!\])"  # [[..] 缺右括号
+    r"\[\[(?=[^\[\]\n]{0,47}[A-Za-z])[^\[\]\n]{1,48}?\]\]"  # [[..]] 完整
+    r"|\[\[(?=[^\[\]\n]{0,47}[A-Za-z])[^\[\]\n]{1,48}?\](?!\])"  # [[..] 缺右括号
     r"|(?<!\[)\[[A-Za-z_]+_?-?\d+\](?!\])"  # [X_1] 单层括号
-    r"|【[^【】\n]{1,48}?】"  # 【..】 CJK 括号
+    r"|【(?=[^【】\n]{0,47}[A-Za-z])[^【】\n]{1,48}?】"  # 【..】 CJK 括号
 )
 
 #: 从模糊候选里剥出核心 token（去括号/空白），供 lev 配对。
@@ -90,13 +92,18 @@ _PH_CORE_RX: Final = re.compile(r"[A-Za-z0-9_]+")
 #: ``\\`` 控制符号 + ``[[PH]]`` 由必需字母排除。
 _PH_IN_CS_RX: Final = re.compile(r"\\[a-zA-Z@]+\[\[[^\[\]\n]{1,48}?\]\][a-zA-Z@]")
 
-#: key 承载命令：cite 族 / *ref 族 / label / bibitem / bibliography。
-#: 只抓第一个 {..}（key 参数），可选 [..] 先吃掉。
+#: key 承载命令：*cite* 族（cite/paracite/footcite/nocite/mcite……
+#: 前后缀皆收）/ *ref 族 / *refrange 双 key 族（crefrange/cpagerefrange）/
+#: label / bibitem / addbibresource / bibliography 族。只抓 {..} key
+#: 参数，可选 [..] 先吃掉；refrange 臂多抓第二个 {..}。
 KEY_CMD_RX: Final = re.compile(
-    r"\\(?:cite[a-zA-Z]*|[a-zA-Z@]*ref|crefrange|label|bibitem|nocite"
-    r"|bibliography|bibliographystyle)\*?"
+    r"\\(?:[a-zA-Z@]*cite[a-zA-Z]*|[a-zA-Z@]*ref|label|bibitem"
+    r"|addbibresource|addsectionbib|[a-zA-Z@]*bibliography(?:style)?)\*?"
     r"(?:\s*\[[^\]\n]*\])*"
     r"\s*\{([^{}]*)\}"
+    r"|\\[a-zA-Z@]*refrange\*?"
+    r"(?:\s*\[[^\]\n]*\])*"
+    r"\s*\{([^{}]*)\}(?:\{([^{}]*)\})?"  # 第二参相邻才算——带空格多为正文 {..}
 )
 
 ENV_RX: Final = re.compile(r"\\(begin|end)\s*\{([^{}]*)\}")
@@ -338,7 +345,9 @@ def _pair_placeholder_typos(
                 continue
             core = _PH_CORE_RX.search(cand)
             cand_core = core.group(0) if core else cand
-            d = lev_capped(ph_core, cand_core, _LEV_CAP)
+            # 大小写折叠后比较：issuer 恒产大写形，[[math_1]] 类小写变体
+            # 视为同一 token 的拼错（lev 只差在大小写上），给出修复建议。
+            d = lev_capped(ph_core.upper(), cand_core.upper(), _LEV_CAP)
             if d < bestd:
                 best, bestd = (ci, cand), d
         if best is not None:
@@ -619,22 +628,34 @@ def _check_env(src: str, zh: str, issues: list[Issue]) -> None:
         Issue("env", Severity.ERROR, f"环境 \\begin{{{name}}} 未保留 ×{cnt}")
         for name, cnt in (s_beg - z_beg).items()
     )
-    # end 名 diff 多数已被栈签名覆盖，仅补充 begin/end 同改名的对称情形
+    # end 名 diff 多数已被栈签名覆盖，仅补充 begin/end 同改名的对称情形；
+    # 先过滤再截断——被 begin 净增覆盖的条目不消耗报告条数上限。
     issues.extend(
         Issue("env", Severity.WARN, f"\\end{{{name}}} 比原文多 ×{cnt}")
-        for name, cnt in list((z_end - s_end).items())[:_ENV_CHECK_TAIL_LIMIT]
-        if z_beg.get(name, 0) <= s_beg.get(name, 0)
+        for name, cnt in [
+            (nme, c)
+            for nme, c in (z_end - s_end).items()
+            if z_beg.get(nme, 0) <= s_beg.get(nme, 0)
+        ][:_ENV_CHECK_TAIL_LIMIT]
     )
 
 
 def _key_multiset(s: str) -> Counter[str]:
-    """cite/ref/label/bib key 多重集（逗号拆分，[..] 可选参豁免）。"""
+    r"""cite/ref/label/bib key 多重集（逗号拆分，[..] 可选参豁免）。
+
+    refrange 臂的第二 {..} 也是 key 参数（``\crefrange{a}{b}``），
+    group 1-3 逐组点算。
+    """
     c: Counter[str] = Counter()
     for m in KEY_CMD_RX.finditer(mask_comments(s)):
-        for raw in m.group(1).split(","):
-            key = raw.strip()
-            if key:
-                c[key] += 1
+        for gi in (1, 2, 3):
+            grp = m.group(gi)
+            if grp is None:
+                continue
+            for raw in grp.split(","):
+                key = raw.strip()
+                if key:
+                    c[key] += 1
     return c
 
 
@@ -742,9 +763,13 @@ def _cs_names(s: str) -> tuple[Counter[str], Counter[str]]:
     for kind, text, _ in _lex(s):
         if kind == "cs":
             cs[text] += 1
-        elif (kind == "bs" and text in FRAGILE_BS) or (
-            kind == "ch" and text in FRAGILE_CHARS
-        ):
+        elif kind == "bs":
+            # ``\<newline>``/``\<tab>`` 与 ``\ `` 同义（TeX 控制空格）——
+            # 归一后再比，否则等价形互换被误报 cs_dropped。
+            tok = "\\ " if text[1:].isspace() else text
+            if tok in FRAGILE_BS:
+                frag[tok] += 1
+        elif kind == "ch" and text in FRAGILE_CHARS:
             frag[text] += 1
     return cs, frag
 
@@ -813,15 +838,22 @@ def _check_item_glue(src: str, zh: str, issues: list[Issue]) -> None:
     r"""``\item``+ASCII 字母粘合签名（``\itemFSU`` 类，管线引入，编译炸弹）。
 
     走 ``_lex`` cs 流而非裸正则：``\\itemX``（``\\`` 断行 + 文本）不误判，
-    注释区天然豁免。``\itemsep``/``\itemindent`` 等合法 cs 与 src 自带粘连
-    靠 src↔zh 净差豁免；只报 zh 多出计数。
+    注释区天然豁免。后缀须含大写字母——与 ``textutil.bare_cs_net`` 同口径，
+    全小写延申按真实 cs 豁免（``\itemsep``/``\itemize``/``\itemindent``）。
+    src 自带粘连靠 src↔zh 净差豁免；只报 zh 多出计数。
     """
-    s = Counter(
-        t for k, t, _ in _lex(src) if k == "cs" and t != "item" and t.startswith("item")
-    )
-    z = Counter(
-        t for k, t, _ in _lex(zh) if k == "cs" and t != "item" and t.startswith("item")
-    )
+
+    def glued(s: str) -> Counter[str]:
+        return Counter(
+            t
+            for k, t, _ in _lex(s)
+            if k == "cs"
+            and t != "item"
+            and t.startswith("item")
+            and any(c.isupper() for c in t[4:])
+        )
+
+    s, z = glued(src), glued(zh)
     extra = z - s
     if extra:
         toks = ", ".join(f"\\{t} ×{n}" for t, n in sorted(extra.items()))
@@ -955,7 +987,7 @@ def _check_protocol_echo(src: str, zh: str, issues: list[Issue]) -> None:
 
 
 def validate_pair(src: str, zh: str) -> L0Report:
-    """对 ``(src_chunk, zh_chunk)`` 跑全部十组检查，返回结构化 verdict。
+    """对 ``(src_chunk, zh_chunk)`` 跑全部 11 组检查，返回结构化 verdict。
 
     ``report.ok`` 为 True 即可送 L1/拼回；False 时 ``report.feedback()``
     的文本可直接进 corrector 的 ``previous_validation_error`` 字段。

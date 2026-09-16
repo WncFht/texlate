@@ -421,7 +421,8 @@ def test_bare_cs_math_multiple_aggregate() -> None:
     rep = validate_pair(src, zh)
     assert _sev(rep, "bare_cs") == [Severity.ERROR]
     [issue] = [i for i in rep.issues if i.rule == "bare_cs"]
-    assert "×3" in issue.message and "\\to" in issue.message
+    assert "×3" in issue.message
+    assert "\\to" in issue.message
 
 
 def test_bare_cs_inside_zh_math_exempt() -> None:
@@ -473,7 +474,8 @@ def test_bare_cs_fused_item_oc_error() -> None:
     rep = validate_pair(src, zh)
     assert _sev(rep, "bare_cs") == [Severity.ERROR]
     [issue] = [i for i in rep.issues if i.rule == "bare_cs"]
-    assert "item" in issue.message and "OC" in issue.message
+    assert "item" in issue.message
+    assert "OC" in issue.message
 
 
 def test_bare_cs_fused_linebreak_gf() -> None:
@@ -524,3 +526,105 @@ def test_bare_cs_text_mode_cs_no_flag() -> None:
     zh = "该项目 \\LaTeX 站已上线。"
     rep = validate_pair(src, zh)
     assert not _sev(rep, "bare_cs")
+
+
+# ---------------------------------------------------------------- 审计修复面
+
+
+def test_fuzzy_ph_fullwidth_cjk_bracket_not_flagged() -> None:
+    r"""``【图1】``/``【1】`` 是中文正文自然全角括号用法——非占位符变体，
+    不得报多余占位符（validbench 正文 FP 修复）。"""
+    src = "Results in [Fig 1] and [2] show [[MATH_1]]."
+    zh = "结果见【图1】和【2】，显示 [[MATH_1]]。"
+    rep = validate_pair(src, zh)
+    assert not _sev(rep, "placeholder"), str(rep)
+
+
+def test_fuzzy_ph_fullwidth_variant_pairs() -> None:
+    r"""``【MATH_1】`` 全角括号变体仍是占位符拼错——lev 配对给修复建议。"""
+    rep = validate_pair("见 [[MATH_1]] 式。", "见【MATH_1】式。")
+    sev = _sev(rep, "placeholder")
+    assert sev == [Severity.ERROR]
+    iss = next(i for i in rep.issues if i.rule == "placeholder")
+    assert iss.expected == "[[MATH_1]]"
+    assert iss.found == "【MATH_1】"
+
+
+def test_fuzzy_ph_lowercase_variant_pairs() -> None:
+    r"""``[[math_1]]`` 小写变体——大小写折叠 lev=0 配对成拼错而非缺失+多余双报。"""
+    rep = validate_pair("见 [[MATH_1]] 式。", "见 [[math_1]] 式。")
+    iss = [i for i in rep.issues if i.rule == "placeholder"]
+    assert len(iss) == 1
+    assert "拼错" in iss[0].message
+    assert iss[0].expected == "[[MATH_1]]"
+    assert iss[0].found == "[[math_1]]"
+
+
+def test_key_cite_suffix_family() -> None:
+    r"""``*cite`` 后缀族（biblatex ``\\parencite``/``\\footcite``/``\\textcite``）
+    key 丢失同样 error——只认 ``\\cite*`` 前缀会漏掉整族。"""
+    src = "见 \\parencite{vaswani2017} 与 \\footcite{kingma2015}。"
+    zh = "见文中引用。"
+    rep = validate_pair(src, zh)
+    iss = [i for i in rep.issues if i.rule == "key" and i.severity is Severity.ERROR]
+    assert {i.expected for i in iss} == {"vaswani2017", "kingma2015"}
+
+
+def test_key_refrange_two_args() -> None:
+    r"""``\\crefrange{a}{b}`` 第二个 key 参数也点算。"""
+    rep = validate_pair(
+        "见 \\crefrange{sec:a}{sec:b}。", "见 \\crefrange{sec:a}{sec:b}。"
+    )
+    assert rep.ok, str(rep)
+    rep2 = validate_pair("见 \\crefrange{sec:a}{sec:b}。", "见 \\crefrange{sec:a}。")
+    iss = [i for i in rep2.issues if i.rule == "key" and i.severity is Severity.ERROR]
+    assert {i.expected for i in iss} == {"sec:b"}
+
+
+def test_key_addbibresource() -> None:
+    r"""biblatex ``\\addbibresource{x.bib}`` 是 key 承载命令。"""
+    rep = validate_pair("\\addbibresource{refs.bib} 文本。", "文本。")
+    iss = [i for i in rep.issues if i.rule == "key" and i.severity is Severity.ERROR]
+    assert {i.expected for i in iss} == {"refs.bib"}
+
+
+def test_item_glue_legit_item_cs_no_flag() -> None:
+    r"""``\\itemsep``/``\\itemize``/``\\itemindent`` 全小写延申是真实 cs——
+    与 ``bare_cs_net`` 同口径豁免，不误报"编译炸弹"。"""
+    src = "\\item a\n\\item b"
+    zh = "\\item 甲\n\\itemsep 2pt\n\\item 乙"
+    rep = validate_pair(src, zh)
+    assert not _sev(rep, "item_glue"), str(rep)
+
+
+def test_item_glue_uppercase_suffix_flagged() -> None:
+    r"""``\\itemFSU`` 大写尾粘合仍是编译炸弹签名。"""
+    rep = validate_pair("\\item First", "\\itemFSU 第一")
+    assert _sev(rep, "item_glue") == [Severity.WARN]
+
+
+def test_fragile_space_newline_equiv() -> None:
+    r"""``\\ ``↔``\\<newline>`` 是 TeX 等价控制空格——互换不报 cs_dropped。"""
+    src = "Bahdanau\\ et al.\\ propose."
+    zh = "Bahdanau\\\net al.\\ 提出。"
+    rep = validate_pair(src, zh)
+    assert not [
+        i for i in rep.issues if i.rule == "macro" and i.severity is Severity.ERROR
+    ], str(rep)
+
+
+def test_fragile_space_dropped_still_flagged() -> None:
+    r"""``\\ `` 真正丢失（非换成等价形）仍报 cs_dropped error。"""
+    rep = validate_pair("Bahdanau\\ et al.", "Bahdanau et al.")
+    iss = [i for i in rep.issues if i.rule == "macro" and i.severity is Severity.ERROR]
+    assert any("脆弱间距" in i.message for i in iss)
+
+
+def test_env_end_warn_cap_after_filter() -> None:
+    r"""end 名偏多 warn：先过滤（begin 净增覆盖的不报）再截断——
+    被过滤条目不消耗 50 条上限。"""
+    pairs = "".join(f"\\begin{{f{i}}}\\end{{f{i}}}" for i in range(50))
+    orphans = "".join(f"\\end{{g{i}}}" for i in range(10))
+    rep = validate_pair("x", pairs + orphans)
+    warns = [i for i in rep.issues if i.rule == "env" and i.severity is Severity.WARN]
+    assert len(warns) == 10  # noqa: PLR2004 - 50 个被 begin 覆盖的 f* 不吞额度，g* 全报

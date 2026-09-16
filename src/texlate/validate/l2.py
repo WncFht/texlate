@@ -14,7 +14,7 @@ docs/08 §4.3 的判据消费本层输出）。
 - warning 分类按真实 log 语料（bench/work_compile）归纳：missing_glyph /
   invalid_utf8 / citation / reference / rerun / font_subst / file_not_found /
   overfull / generic；并对 docs/08 §4.3 红线信号打标（invalid_utf8、
-  CJK 缺字形、file_not_found）。
+  缺字形全家含 U+FFFD 具名红线与 CJK 缺字形、file_not_found）。
 - tectonic 有时**不写 .log**：``parse_log`` 对不存在路径返回 ``log_missing=True``
   的 verdict，不抛异常——监控方不得假设 log 存在。
 """
@@ -26,11 +26,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Final
 
-from texlate.texlog import (
-    is_project_file,
-    looks_like_tex_file,
-    update_file_stack,
-)
+from texlate.texlog import is_project_file, update_file_stack
 from texlate.textutil import is_cjk_cp
 
 __all__ = [
@@ -44,10 +40,13 @@ __all__ = [
 # ---------------------------------------------------------------- 常量
 
 #: ``-file-line-error`` 格式：``./main.tex:44: msg`` / ``/abs/x.sty:7: msg``。
-#: 要求首个分量带已知 tex 系扩展名，且行首不是 ``(``/``!``（避免误吃普通行）。
-#: tex 系扩展名/文件栈判定收敛到 ``texlate.texlog``（三处实现单源化）。
+#: 只要求首个分量是 ``name.ext`` 形态——**不**限 tex 系扩展名：TeX 会按
+#: file:line: 报任何被它当输入读的文件（``.eps``/``.pdf_t``/``.lbx``/
+#: ``.tikz``/``.end``/``.lof``/``.fgx`` 实测全为真错误，loop1 语料 7814
+#: log 全扫、扩展名白名单漏 586 行真错含 3 例整体 ok=True 假干净）。
+#: 行首 ``(``/``!`` 与 ``:``/空白内嵌仍排除（避免误吃普通行）。
 _FILE_LINE_RX: Final = re.compile(
-    r"^([^()\s:]+\.[A-Za-z0-9]{1,10}):(\d+):[ \t]*!?[ \t]*(.*)$"
+    r"^([^()\s:]+\.[A-Za-z0-9_-]{1,10}):(\d+):[ \t]*!?[ \t]*(.*)$"
 )
 
 #: ``file:line:`` 形态的非错误行（与 fixloop/logparse 同口径）：
@@ -67,9 +66,12 @@ _LNUM_RX: Final = re.compile(r"^l\.(\d+)\s*(.*)$")
 #: log 首行引擎签名 ``This is XeTeX, Version ...``。
 _ENGINE_RX: Final = re.compile(r"^This is (\w+)")
 
-#: ``Missing character: There is no X ("8FD9) in font ...`` —— 取码点判 CJK。
+#: ``Missing character: There is no X ("8FD9)/(U+8FD9) in font ...`` ——
+#: 取码点判 CJK。码点形态随引擎代际分叉：老 TL 打 ``("8FD9)``、新 TL
+#: 打 ``(U+8FD9)``（corpus log 两种并存，U+ 形态约 1/3——单认引号形会
+#: 漏掉新工具链全部 CJK 缺字红线）。
 _MISSING_CHAR_RX: Final = re.compile(
-    r'Missing character: There is no (?:\S+ )?\("([0-9A-Fa-f]{4,6})\)'
+    r'Missing character: There is no (?:\S+ )?\((?:"|U\+)([0-9A-Fa-f]{4,6})\)'
 )
 
 #: warning 分类规则（按序首中即归）。类别名即 by_class 键。
@@ -128,8 +130,18 @@ _EOF_ERR_RX: Final = re.compile(r"File ended while scanning")
 _EOF_POP_WINDOW: Final = 16
 
 #: docs/08 §4.3 红线 warning 类（命中即记入 ``WarningSummary.redlines``）。
+#: ``fffd_glyph`` = 缺 U+FFFD 替换符字形（invalid_utf8 源被排版成缺字——
+#: engine 侧 ``WARNING_RED_LINES`` 同名红线的 L2 对应类）。
+#: ``missing_glyph``（非 CJK/非 FFFD/码点不可解）同入红线——judge 的
+#: ``missing_chars`` 对全部缺字形判 dirty，§4.3 渲染检查亦要求计数==0。
 _REDLINE_CLASSES: Final = frozenset(
-    {"invalid_utf8", "missing_glyph_cjk", "file_not_found"}
+    {
+        "invalid_utf8",
+        "missing_glyph",
+        "missing_glyph_cjk",
+        "fffd_glyph",
+        "file_not_found",
+    }
 )
 
 
@@ -292,9 +304,13 @@ def _classify_warning(
             break
     if cls == "missing_glyph":
         m = _MISSING_CHAR_RX.search(line)
-        if m is not None and is_cjk_cp(int(m.group(1), 16)):
-            ws.cjk_missing += 1
-            cls = "missing_glyph_cjk"
+        if m is not None:
+            cp = int(m.group(1), 16)
+            if cp == 0xFFFD:  # noqa: PLR2004 - U+FFFD 码点字面量即规格
+                cls = "fffd_glyph"
+            elif is_cjk_cp(cp):
+                ws.cjk_missing += 1
+                cls = "missing_glyph_cjk"
     ws.total += 1
     ws.by_class[cls] = ws.by_class.get(cls, 0) + 1
     bucket = ws.samples.setdefault(cls, [])
@@ -317,11 +333,7 @@ def _match_error_line(ln: str) -> tuple[str, str | None] | None:
     if _BANG_RX.match(ln):
         return ln.strip(), None
     mf = _FILE_LINE_RX.match(ln)
-    if (
-        mf is not None
-        and looks_like_tex_file(mf.group(1))
-        and not _NONERR_FILELINE_RX.search(mf.group(3))
-    ):
+    if mf is not None and not _NONERR_FILELINE_RX.search(mf.group(3)):
         return ln.strip(), mf.group(1)
     return None
 

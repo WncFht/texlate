@@ -4,12 +4,13 @@
 用 TEXLATE_TS_NODE_PATH 指过去即可，不复制不重装。
 """
 
+import json
 import shutil
 from pathlib import Path
 
 import pytest
 
-from texlate.validate.l1 import TsBaseline, TsValidator
+from texlate.validate.l1 import L1Error, TsBaseline, TsResult, TsValidator
 
 REPO = Path(__file__).resolve().parents[1]
 BENCH_NM = REPO / "bench" / "ts" / "node_modules"
@@ -89,3 +90,89 @@ def test_unavailable_degrades() -> None:
 def test_baseline_roundtrip() -> None:
     b = TsBaseline(parse_errors=1, env_mismatches=2, unclosed_math=3, brace_balance=-1)
     assert TsBaseline.from_dict(b.to_dict()) == b
+
+
+# ---------------------------------------------------------------- 审计修复面
+
+
+def test_available_requires_both_npm_deps(tmp_path: Path) -> None:
+    """只有 ``tree-sitter`` 无 ``@pfoerster/tree-sitter-latex`` 文法时
+    不得报可用——node 侧 require 会炸，应判不可用降级 L0。"""
+    (tmp_path / "tree-sitter").mkdir()
+    val = TsValidator(node_path=tmp_path)
+    assert not val._deps_present()  # noqa: SLF001 - 依赖面判定的最小单元
+    (tmp_path / "@pfoerster" / "tree-sitter-latex").mkdir(parents=True)
+    assert val._deps_present()  # noqa: SLF001 - 同上
+
+
+class _FakeStdin:
+    """常驻 worker stdin 假桩——write 时把预设响应行喂回队列。"""
+
+    def __init__(self, v: TsValidator, replies: list[str | None]) -> None:
+        self._v = v
+        self._replies = replies
+
+    def write(self, s: str) -> int:
+        for r in self._replies:
+            self._v._lines.put(r)  # noqa: SLF001 - 假桩模拟泵线程回灌
+        return len(s)
+
+    def flush(self) -> None:
+        pass
+
+    def close(self) -> None:
+        pass
+
+
+class _FakeProc:
+    def __init__(self, v: TsValidator, replies: list[str | None]) -> None:
+        self.stdin = _FakeStdin(v, replies)
+        self._rc: int | None = None
+
+    def poll(self) -> int | None:
+        return self._rc
+
+    def wait(self, timeout: float = 0) -> int:  # noqa: ARG002 - Popen.wait 签名对齐
+        return self._rc or 0
+
+    def kill(self) -> None:
+        pass
+
+
+def test_one_pairs_response_by_id() -> None:
+    """常驻通道按 ``id`` 配对——上轮超时残留的迟到响应行须丢弃，
+    不得当本请求结果返回。"""
+    v = TsValidator()
+    stale = json.dumps({"id": "prev-chunk", "ok": False})
+    mine = json.dumps({"id": "cur", "ok": True})
+    v._proc = _FakeProc(  # noqa: SLF001 - 注入假常驻通道
+        v, [stale + "\n", mine + "\n"]
+    )  # type: ignore[assignment]
+    res = v._one({"id": "cur", "tex": "x"})  # noqa: SLF001 - 测的就是私有通道
+    assert res.id == "cur"
+    assert res.ok
+
+
+def test_one_eof_sentinel_fails_fast() -> None:
+    """worker 死 → 泵线程投 None 哨兵 → ``_one`` 立即 L1Error 而非
+    白挂整个 timeout。"""
+    v = TsValidator(timeout=30.0)
+    v._proc = _FakeProc(  # noqa: SLF001 - 注入假常驻通道
+        v, [None]
+    )  # type: ignore[assignment]
+    with pytest.raises(L1Error, match="EOF"):
+        v._one({"id": "x", "tex": "t"})  # noqa: SLF001 - 同上
+    assert v._proc is None  # noqa: SLF001 - 断言通道已关闭  # EOF 后通道已关闭，下一调用走批处理降级
+
+
+def test_one_dead_proc_falls_back_to_batch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """poll() 非 None（上轮崩死）→ 透明降级 spawn-per-batch。"""
+    v = TsValidator()
+    v._proc = _FakeProc(v, [])  # noqa: SLF001 - 注入假常驻通道  # type: ignore[assignment]
+    v._proc._rc = 1  # noqa: SLF001 - 模拟已退出进程
+    sentinel = TsResult(id="x", ok=True)
+    monkeypatch.setattr(v, "validate_batch", lambda _recs: [sentinel])
+    assert v._one({"id": "x", "tex": "t"}) is sentinel  # noqa: SLF001 - 同上
+    assert v._proc is None  # noqa: SLF001 - 断言已降级
