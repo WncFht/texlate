@@ -109,4 +109,10 @@ pst-node×11 / jheppub×9 / citesort×7 / diagrams×7 / axodraw×5 / pst-arrow×
 
 **invalid_utf8 545 格**（fixer-utf8，按 log 括号栈归因到打开文件）：scout 框架「源文件 latin-1」只占小头——**96%（514/538）是系统/用户 texmf 老 CTAN 包自带坏字节**（algorithm.sty 325、algorithmic 206、algorithm2e 120；`/usr/share/texmf-dist` 同族），EPS 头注释 ~20、`[dvips]` 驱动 4（1404.0103 单格 15.7 万条=jpg 全文件扫描）。方案：normalize.py 单点四件套（cwd 包影遮蔽/EPS 注释净化/ps 驱动 token 改写/catch-all 转码），已批准带三防护（不写原工程、vendored 同名跳过、二进制 allowlist 保守）。**judge 语义跟进项**：invalid_utf8 redline 应限定工程文件产生者——物理修复后自然消解，记档待 audit 线裁。
 
-**1e modec-misschar/repro-2501 包**（5 实症，证据 `8fead4c`）：`_on_math` `\)`/`\]` closer 洞 + accent 参数保护 + textcolor/colorbox argspec 遮蔽补丁对 → fixer-slots（并入非文本槽位超簇）；alias-macro opaque（`\nc{\be}{\begin{equation}}` 链断裂）+ `_do_newenv` math-role 推断 → fixer-gullet（新派）。rules.yaml 缺口两枚（DeclareUnicodeCharacter undefined_cs + `Undefined color 'X'` pattern）→ peer1 backstop。
+**1e modec-misschar/repro-2501 包**（5 实症，证据 `8fead4c`）：`_on_math` `\)`/`\]` closer 洞 + accent 参数保护 + textcolor/colorbox argspec 遮蔽补丁对 → fixer-slots（并入非文本槽位超簇）；alias-macro opaque（`\nc{\be}{\begin{equation}}` 链断裂）+ `_do_newenv` math-role 推断 → fixer-gullet（新派）。rules.yaml 缺口两枚（DeclareUnicodeCharacter undefined_cs + `Undefined color 'X'` pattern）→ peer1 backstop（`ea0c73e` 已落）。
+
+**fixer-gullet 交付 `ce1dc9f`**：裸 cs 体宏 → `transparent_expand`（`\nc{\be}{\begin{equation}}` 别名链执行，`\[` 开数学符真展开）+ `\newenvironment` body_role 数学角色推断（before 体尾形：mathshift/`\begin{X}`/cs 链解析，v1+v2 双臂对称）——0905.0795/1003.0112a 两格 miss×100/180 修复，9 新测试，全套 2107 绿。
+
+**1e realarm-repro 包**（12 基线真臂退化归因，`253caab`）：预测-fixed 3 格待 real-postfix A/B；新浮出两 bug 类——**bug-B 主路径 cs+latin 融合**（`\item FSU`→`\itemFSU`，5 格；`_cat_surf` `90aa823` 只修了 group 路径，主路径同款洞；`letters_cut` 只告警）→ fixer-slots 追加；**bug-G elsart `\protect` 测盒 × xeCJK 绑定崩坏**（cond-mat/0307508 全文 4379 缺字，最小 repro `\def\protect{\noexpand\protect\noexpand}`+hbox CJK 通用陷阱）→ peer1 rules 车道，但 cjkfont `CJK_FIRST_USE_WARMUP` 疑似同根已兜（1003.5459 elsart 5485→0），peer1 复核中；bug-E（0905.4907 caption 裸 `\alpha`）→ peer1 backstop/prompt。
+
+**fixer-utf8 交付 `673d8ce`**：normalize 四臂（系统包 kpsewhich 遮蔽 ≤8 轮闭包 / EPS `%`-行净化 / ps 驱动 token→xetex / catch-all 转码），真格 invalid_utf8=0；judge 按「警告来源是否工程文件」分流记档待裁。**fixer-209up 交付**：`upgrade_209` + inject 挂点 + 414 普查 **97.8% 过门**（405 格；reject 9 全 ds@ terminal），白名单 +15。
