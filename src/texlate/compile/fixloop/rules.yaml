@@ -105,6 +105,31 @@ filemap:
     # overrides 是 basename→pkg 直表, 不经 runfiles 过滤)。
     "epsf.tex": "epsf" # 1706.02568; 真身 tex/generic/epsf/epsf.tex ∈ epsf 包
     "tcilatex.tex": null # physics/0307021; TL 无 (TCI 私有) → 已知噪声, 走 shim_map stub
+    # ── 2026-09-16 babel ldf 钉组: `.ldf` 不在 INDEX_EXTS → 索引恒 miss,
+    # overrides-first 直通真包 (babel_lang_ldf_install 规则的查询落点)。
+    # 钉名 = 规则 try_exts 实际查询名 ({lang}.ldf / {lang}b.ldf)。
+    "german.ldf": "babel-german"
+    "germanb.ldf": "babel-german"
+    "ngerman.ldf": "babel-german"
+    "ngermanb.ldf": "babel-german"
+    "russian.ldf": "babel-russian" # TL 无此名 (真身 russianb.ldf) —— 首候选
+    # 装上包后 probe miss, 次候选 russianb.ldf 走 already_present_ok 收口
+    "russianb.ldf": "babel-russian"
+    "french.ldf": "babel-french"
+    "frenchb.ldf": "babel-french"
+    "francais.ldf": "babel-french"
+    "spanish.ldf": "babel-spanish"
+    "greek.ldf": "babel-greek"
+    "latin.ldf": "babel-latin"
+    "turkish.ldf": "babel-turkish"
+    "brazil.ldf": "babel-portuges"
+    "portuges.ldf": "babel-portuges"
+    "portuguese.ldf": "babel-portuges"
+    "italian.ldf": "babel-italian"
+    "polish.ldf": "babel-polish"
+    "czech.ldf": "babel-czech"
+    "ukraineb.ldf": "babel-ukrainian" # 实档名; 选项 ukrainian 查询名
+    # (ukrainian[b].ldf) 永不落此 —— 该格残留, 归选项改写类后续规则
   version_guard: # docs/08 §5.2 第9条: ctan_fetch 版本前置检查
     enabled: true # tlnet 只发最新; 新版对 bundle 的 expl3/LaTeX2e 太旧会拒载
     texlive_format_epoch: "2022-07-14" # tectonic bundle 快照年代 (ctanfetch-probe §3.4)
@@ -588,6 +613,35 @@ rules:
         }
     stats: { fires: 26, rescued_cells: 17 }
     source_ref: "fixloop.py L301-311, L264-276"
+
+  # 2026-09-16 wave-2: babel_opt 类目原无消费规则 (纯死端)。机理=稿传
+  # [german]/[russian] 等老语言选项 → babel 找不到对应 ldf (babel-<lang>
+  # 包未装; Arch 侧 tlpdb 注册装了但 runfiles 缺席 → 系统树假在场)。
+  # payload=语言名 → try_exts 拼 {lang}.ldf / {lang}b.ldf 双候选
+  # (russian→russianb.ldf 实证命名) → filemap → babel-<lang> 真包。
+  # 覆盖 31/33; ukrainian(ukraineb)/polutonikogreek(TL 无此 ldf) 残留。
+  - id: babel_lang_ldf_install
+    description: "babel 语言选项缺 ldf → filemap 装 babel-<lang> 包"
+    phase: loop
+    order: 11 # install_file(10) 后, legacy_pkg_shim(12) 前
+    when: { category: babel_opt, payload_required: true }
+    action:
+      kind: install_file
+      params:
+        file: "{payload}"
+        try_exts: [".ldf", "b.ldf"]
+    engines:
+      xelatex: { mode: native, via: "filemap {lang}.ldf→babel-<lang> → usermode install" }
+      tectonic:
+        mode: degrade
+        degrade: ctan_fetch # 同 install_file 降级通路
+    provenance:
+      - {
+          corpus: "loop2-delta babel_opt×11 (+loop1 共 33)",
+          error: "Package babel Error: Unknown option 'german'",
+        }
+    stats: { fires: 0 }
+    source_ref: "wave-2 落地: taxonomy babel_opt (:301) 首个消费规则"
 
   # 新增 (fixloop-v2 整改): 退役/改名包 shim —— install_file 查无真包后的出路。
   # 实证: 1806.06690 缺 aastex.cls → emulateapj 顶替出 13 页全文档 pdf;
@@ -1271,6 +1325,136 @@ rules:
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesPackage{espcrc1}[2026/09/16 fixloop noop stub - Elsevier crc, not in TL]
               \endinput
+          # ── 2026-09-16 wave-2 (loop2-delta 残盘 ~27 格, 1d scout-unfix 枚举) ──
+          # 继任类桥: emulateapj-rtx4 (revtex4 时代变体, 1404.2351 实证),
+          # amsart2000 (vintage amsart), nature2 (老 Nature 名),
+          # acm_proc_article-sp (2009 时代 ACM 版式) —— 同 sig-alternate 先例。
+          emulateapj-rtx4.cls: { loads: "emulateapj", needs: ["emulateapj.cls"] }
+          amsart2000.cls: { loads: "amsart", needs: ["amsart.cls"] }
+          nature2.cls: { loads: "nature", needs: ["nature.cls"] }
+          acm_proc_article-sp.cls: { loads: "acmart", needs: ["acmart.cls"] }
+          # TL 全缺席出版商类 → article 桥 (版式降级保内容): svmult
+          # (Springer 专著), cimento (Nuovo Cimento), eptcs, JINST, PoS
+          # (SISSA), appolb, pasj00, aa501 (A&A), kapproc —— 逐格实证名见
+          # REPORT 补记7 delta 残盘表。
+          svmult.cls: { loads: "article" }
+          cimento.cls: { loads: "article" }
+          eptcs.cls: { loads: "article" }
+          JINST.cls: { loads: "article" }
+          PoS.cls: { loads: "article" }
+          appolb.cls: { loads: "article" }
+          pasj00.cls: { loads: "article" }
+          aa501.cls: { loads: "article" }
+          kapproc.cls: { loads: "article" }
+          # multind 两参 \index{name}{entry} —— noop 必须吞双参, 否则第二参
+          # 泄进正文 (0806.3028 实证用法)。
+          multind.sty:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{multind}[2026/09/16 fixloop stub -> two-arg index swallow]
+              \providecommand{\makeindex}[1]{}
+              \renewcommand{\index}[2]{}
+              \providecommand{\printindex}[2]{}
+              \endinput
+          # ams.sty 老 AMS 捆名 ([defs] 选项) → amsmath+amssymb 桥。
+          ams.sty:
+            needs: ["amsmath.sty", "amssymb.sty"]
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{ams}[2026/09/16 fixloop shim -> amsmath/amssymb]
+              \DeclareOption*{}
+              \ProcessOptions\relax
+              \RequirePackage{amsmath}
+              \RequirePackage{amssymb}
+              \endinput
+          # widetext 唯一宏面 = widetext 环境 (跨栏宽公式); 1706.02511 未显式
+          # 用仍保底定义。
+          widetext.sty:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{widetext}[2026/09/16 fixloop stub - widetext env]
+              \newenvironment{widetext}{}{}
+              \endinput
+          # 纯 noop .sty: numcompress (elsarticle 引文压缩件, sort&compress
+          # 已由 natbib 担), ol2/docs (私名件), sw20lart (Scientific Word),
+          # xetex-inputenc (luainputenc 链内引用, xelatex 原生 UTF-8 免),
+          # umlaut/isolatin1 (化石编码件), llncsdoc (llncs 文档样式)。
+          numcompress.sty:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{numcompress}[2026/09/16 fixloop noop stub - elsarticle cite-compress kit]
+              \endinput
+          ol2.sty:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{ol2}[2026/09/16 fixloop noop stub - not in TL]
+              \endinput
+          docs.sty:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{docs}[2026/09/16 fixloop noop stub - not in TL]
+              \endinput
+          sw20lart.sty:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{sw20lart}[2026/09/16 fixloop noop stub - Scientific Word kit, not in TL]
+              \endinput
+          xetex-inputenc.sty:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{xetex-inputenc}[2026/09/16 fixloop noop stub - xetex native UTF-8]
+              \endinput
+          umlaut.sty:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{umlaut}[2026/09/16 fixloop noop stub - legacy german shorthand]
+              \endinput
+          isolatin1.sty:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{isolatin1}[2026/09/16 fixloop noop stub - legacy encoding kit]
+              \endinput
+          llncsdoc.sty:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{llncsdoc}[2026/09/16 fixloop noop stub - llncs doc kit, not in TL runfiles]
+              \endinput
+          # .tex 碎片裸 \input (thmsupp 定理补充件 / feynman 老图宏集) ——
+          # \endinput 即退; 正文若调其宏下轮 undefined_cs 归因。
+          thmsupp.tex:
+            body: |
+              % fixloop stub (hep-th/9703079 missing fragment)
+              \endinput
+          feynman.tex:
+            body: |
+              % fixloop stub (hep-th/9910011 missing fragment - feynman pre-feynmf kit)
+              \endinput
+          diagrams.tex:
+            body: |
+              % fixloop stub (math/0104250: \input diagrams — P.Taylor 件 license 不入 TL)
+              \endinput
+          # wave-2 二圈残余 (shim 落地后露出的二级缺档): tocstyle (KOMA
+          # 系已撤出 TL), procps (kapproc 伴生件), amscd2000 → amscd 桥
+          # (amsmath 包内真身, API 同源)。
+          tocstyle.sty:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{tocstyle}[2026/09/16 fixloop noop stub - withdrawn KOMA kit]
+              \endinput
+          procps.sty:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{procps}[2026/09/16 fixloop noop stub - kapproc companion, not in TL]
+              \endinput
+          amscd2000.sty:
+            needs: ["amscd.sty"]
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{amscd2000}[2026/09/16 fixloop shim -> amscd]
+              \DeclareOption*{}
+              \ProcessOptions\relax
+              \RequirePackage{amscd}
+              \endinput
           # 杂项 CTAN-only/退役件: Paul Taylor diagrams (license 不进 TL,
           # 宏面巨大 noop 仅过 missing_file)、texsort 字母序件、setstack
           # 堆栈宏件、default.sty 模板渣名。
@@ -1437,6 +1621,38 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "docs/research/product/2026-09-16-signature-mining.md §2.2"
+
+  # 2026-09-16 wave-2: expl3_backend×4 (0905.4874/1306.0364/hep-ph0501170/
+  # 9910403) —— 全局驱动选项 (dvips/pdftex) 经 documentclass 传给 expl3
+  # 后端探测 → "Backend request inconsistent with engine: using 'xetex'"
+  # 于 ctex→expl3 装载点炸。xelatex 自决 xdvipdfmx, 驱动选项纯属死重 →
+  # 从 \documentclass[..] 剥除 (多余逗号槽 LaTeX 选项解析器忽略, 安全)。
+  - id: expl3_driver_opt_strip
+    description: "documentclass 驱动选项 (dvips/pdftex 系) 与 xelatex 后端冲突 → 剥除"
+    phase: loop
+    order: 35
+    when: { category: expl3_backend }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "(\\\\documentclass\\s*\\[[^\\]]*?),?\\s*\\b(?:dvips|dvipdfm|dvipdfmx|pdftex|pdflatex|xdvi|oztex|textures|vtex)\\b\\s*,?",
+              repl: "\\g<1>",
+            }
+    risk: low # 剥错向: dvipdfmx 名义上与 xetex 自决同路, 剥了不亏
+    engines:
+      xelatex: { mode: native }
+      tectonic:
+        mode: same # tectonic 后端固定, 同理由剥除
+    provenance:
+      - {
+          corpus: "loop2-delta expl3_backend×4",
+          error: "expl3.sty:154 Backend request inconsistent with engine: using 'xetex'",
+        }
+    stats: { fires: 0 }
+    source_ref: "wave-2: expl3_backend 类目首个消费规则"
 
   - id: install_sysfont
     description: "fontspec 'font X cannot be found' → 按 {X}.otf/.ttf/.ttc 搜包安装"
@@ -1827,6 +2043,37 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "fixloop.py L448-456"
 
+  # 2026-09-16 wave-2: already_def 泛化 (1003.0344/cond-mat-0501638) ——
+  # 稿自带 \newcommand{\Ref}[1]{(\ref{#1})} 撞包先定义 (varioref 系),
+  # thm_sibling_strip 只剥 sibling= 够不到。作者意图是自家定义胜出 →
+  # \newcommand→\renewcommand 字面换词 ([n]{body} 槽位原样保留)。
+  - id: already_def_newcmd_renew
+    description: "\\newcommand{\\X} 撞包先定义 → 换 \\renewcommand (作者书写面胜出)"
+    phase: loop
+    order: 111
+    when: { category: already_def, payload_required: true }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          - {
+              pattern: "\\\\newcommand(\\s*\\*?\\s*)\\{?\\s*\\\\{payload}(?![a-zA-Z@])\\s*\\}?",
+              repl: '\\renewcommand\g<1>{\\{payload}}',
+            }
+    risk: low # renew 保留作者定义; 对自重复定义场景同样收敛
+    known_gap: "newenvironment/DeclareRobustCommand/\\def 形撞名未覆盖 → applied=False; 稿内双 \\newcommand{同X} 时首个也被换成 renew (renew 未定义 cs 会新炸, 罕见)"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "loop2-delta already_def×2 (1003.0344, cond-mat/0501638)",
+          error: "Command \\Ref already defined",
+        }
+    stats: { fires: 0 }
+    source_ref: "wave-2: already_def 类目首个泛化消费规则"
+
   - id: option_clash_merge
     description: "Option clash: 同包两次 \\usepackage → 合并选项到首处, 注释后处"
     phase: loop
@@ -1844,6 +2091,101 @@ rules:
       - { corpus: "—", error: "Option clash for package X" }
     stats: { fires: 0, status: proposed }
     source_ref: "fixloop.py L459-494"
+
+  # 2026-09-16 wave-2: option_clash 跨文件形态 (cls 先载 vs doc 后载) ——
+  # option_clash_merge 只合单文件双载; 0905.0081 elsart 先载 graphicx[] +
+  # doc \usepackage[dvips]{graphicx} 够不到。驱动选项在 xelatex 下纯属错向
+  # → doc 侧含驱动词的整括号剥除, 类端配置全量胜出。先于 passopts 规则:
+  # 驱动词在场时绝不向上游传 (passopts 会把 dvips 注进 cls 装载)。
+  - id: option_clash_loadopt_strip
+    description: "option_clash 且 doc 侧选项含驱动词 (dvips 系) → 剥整括号, 类端配置胜出"
+    phase: loop
+    order: 121
+    when: { category: option_clash, payload_required: true }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "\\\\(?:usepackage|RequirePackage)\\s*\\[[^\\]]*\\b(?:dvips|dvipdfm|dvipdfmx|pdftex|pdflatex|xdvi|oztex|textures|vtex|xetex|latex)\\b[^\\]]*\\]\\s*(\\{[^{}]*\\b{payload}\\b[^{}]*\\})",
+              repl: "\\\\usepackage\\g<1>",
+            }
+    risk: low # 驱动选项在 xelatex/tectonic 下本就错向; 同括号非驱动词顺带丢 (罕见)
+    known_gap: "撞名载点在 \\input 的 .tex 内同样覆盖 (exts 面); doc 双侧同文件撞已由 merge(120) 先收"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "loop2-delta option_clash (0905.0081)",
+          error: "Option clash for package graphicx (cls 先载 [], doc 要 [dvips])",
+        }
+    stats: { fires: 0 }
+    source_ref: "wave-2: option_clash 跨文件形态 driver 面"
+
+  # 非驱动选项形态: doc 要 [authoryear] 但 cls shim 先载 natbib[]
+  # (astro-ph/0501556, aa.cls shim 内置 \RequirePackage{natbib}) ——
+  # 把 doc 选项经 \PassOptionsToPackage 挂到 documentclass 之前, 让首次
+  # 装载 (无论发生在哪个文件) 就带上 doc 意图, doc 侧括号剥除 → 裸请求
+  # ⊆ 实载选项 → 静默收敛, 意图零损失。
+  - id: option_clash_passopts
+    description: "option_clash 非驱动选项 → \\PassOptionsToPackage 挂 documentclass 前, doc 括号剥除"
+    phase: loop
+    order: 122
+    when: { category: option_clash, payload_required: true }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "(\\n[ \\t]*)(\\\\documentclass)([\\s\\S]*?)(\\n[ \\t]*\\\\usepackage\\s*)\\[([^\\]]+)\\](\\s*\\{[^{}]*\\b{payload}\\b[^{}]*\\})",
+              repl: '\g<1>\\PassOptionsToPackage{\g<5>}{{payload}}\g<1>\g<2>\g<3>\g<4>\g<6>',
+            }
+    risk: medium # PassOptions 把 doc 选项注进首次装载; 装载点在他文件时兜底同效
+    known_gap: "documentclass/usepackage 须在非注释行首 (%行被 \\n[ \\t]*\\\\ 排除); 分文件 (\\input 拆) 或 documentclass 居文件 0 字节 → applied=False; 每文件仅首处括号载点获 hoist"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "loop2-delta option_clash (astro-ph/0501556)",
+          error: "Option clash for package natbib (cls shim 先载 [], doc 要 [authoryear])",
+        }
+    stats: { fires: 0 }
+    source_ref: "wave-2: option_clash 跨文件形态语义选项面"
+
+  # pkg_order 首规则 (2308.12712): bundled 老 acmart.cls
+  # \RequirePackage{hyperxmp} 先于 hyperref, 新 hyperxmp v5+ 硬检
+  # \@ifpackageloaded 报错。两装载行夹 \\let 三明治 (存 pre-hyperref
+  # 脚注记号) —— 不能互换位置, 只能把 hyperxmp 整行下沉到 hyperref 之后。
+  - id: pkg_order_hyperxmp_relocate
+    description: "hyperxmp 先于 hyperref 装载 → hyperxmp 整行下沉到 hyperref 载点后"
+    phase: loop
+    order: 123
+    when: { category: pkg_order, payload_required: true }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          - {
+              pattern: "(\\\\(?:RequirePackage|usepackage)\\s*(?:\\[[^\\]]*\\])?\\s*\\{hyperxmp\\})([\\s\\S]*?)(\\\\(?:RequirePackage|usepackage)\\s*(?:\\[[^\\]]*\\])?\\s*\\{hyperref\\})",
+              repl: '\g<2>\g<3>\n\g<1>',
+            }
+    risk: low # 纯重排, 中间行 (\\let 三明治) 原位保留仍在 hyperref 之前
+    known_gap: "仅 hyperxmp↔hyperref 序对; hyperref 装载不在同文件/从未装载 → applied=False"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "loop2-delta pkg_order (2308.12712)",
+          error: "hyperxmp.sty:279 Package hyperxmp Error: hyperref must be loaded before hyperxmp",
+        }
+    stats: { fires: 0 }
+    source_ref: "wave-2: pkg_order 类目首个消费规则"
 
   - id: minted_frozencache
     description: "minted frozencache 版本错配 → 有 pygmentize 则去 frozencache 选项 (需 -shell-escape)"
