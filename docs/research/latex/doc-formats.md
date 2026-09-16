@@ -2,6 +2,8 @@
 
 > 调研对象：`tmp/refs/bilingual_book_maker/`(下文引用省略前缀 `book_maker/`)。
 > 结论先行：**EPUB 用 stdlib zipfile + bs4 自拆 (~300 行可达成 v1),完整蓝图在 bbm 里，照抄其 DOM 插译/job 枚举/marker 占位/断点协议即可，不碰 EbookLib(AGPL);DOCX 用 python-docx(MIT),deepcopy `w:p` + `addnext` + pPr 继承，边角集中在表格/文本框/脚注三个独立遍历面。两者都复用同一翻译编排契约 `translate(text) / translate_list(texts)`。里程碑:M3 内 EPUB 先行、DOCX 紧随，PDF 不提前 (MinerU→md 已在 M3 过渡，BabelDOC sidecar 留 M4)。**
+>
+> **已落地（2026-09-16）**：实现在 `src/texlate/export/`（`epub.py`/`docx.py`/`markers.py`/`rights.py`/`filters.py`/`common.py`，公共口 `export_document`/`sniff_format`；CLI `texlate export`）。与本 spec 的有意偏差：①编排层不是伪码的 `translate_list` 直调，而是 `xlat.XlatPipeline` 全量复用（`[n]` 批协议 + retry 阶梯 + StateStore 断点，`chunk_id` 即 `epub:{doc}:{unit}:{sha256}` job_id——键控断点替代位置序 JSONL，对源漂移免疫）；②marker 皮是 `[[TAG_n]]` 而非 ⟦⟧——与 `PH_RX` 同构，`placeholders.diff`/`encode_newlines`/MockTranslator 零改动；③XML 解析面——container/OPF/`encryption.xml` 走 defusedxml，NCX 与 DOCX 裸 part（header/footer/footnotes/endnotes/comments）走加固 lxml（DOCX 侧直接用 python-docx `oxml_parser`，产 CT_* 类型元素使 `add_run`/`get_or_add_rPr` 全 part 一致），未用 bs4 "xml"（其后端是无实体防护的裸 `XMLParser`）；④CSS 区分色 `.texlate-zh` 仅在有插译时注入。验证：`tests/test_export_{epub,docx}.py` 12 例 + 真书回归 `bench/results/export-realbook-2026-09-16/`（2 本 Gutenberg 全链绿、EbookLib 可读）。
 
 ---
 
