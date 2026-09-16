@@ -11,12 +11,12 @@ cp -r "$TASK/build-zh" /tmp/duc-baseline
 mkdir -p /tmp/duc-baseline/_out
 cd /tmp/duc-baseline
 tectonic --color never -X compile --untrusted --keep-logs \
-    --outdir _out -Z continue-on-errors main.tex || true
-grep -c "^!" _out/main.log          # → 14（9 DUC + 1 Missing-\begin{document} + 4 xcolor）
-grep -n "DeclareUnicodeCharacter" main.tex   # → l.88-96 共 9 处调用
+  --outdir _out -Z continue-on-errors main.tex || true
+grep -c "^!" _out/main.log                 # → 14（9 DUC + 1 Missing-\begin{document} + 4 xcolor）
+grep -n "DeclareUnicodeCharacter" main.tex # → l.88-96 共 9 处调用
 
 # en 臂同炸证明（源级，非 zh 特有）：
-grep -c "^!" "$TASK/build-en/_tect_out/main.log"   # → 10（同 9 DUC + 1 级联，无 xcolor）
+grep -c "^!" "$TASK/build-en/_tect_out/main.log" # → 10（同 9 DUC + 1 级联，无 xcolor）
 
 # --- 缺陷 A 修复验证：normalize_engine 注入 shim 后编译 ----------------------
 cd /home/fanghaotian/src/texlate
@@ -35,9 +35,9 @@ open("/tmp/duc-norm-test/main.tex", "w").write(old.replace(anchor, shim))
 PY
 cd /tmp/duc-norm-test && mkdir -p _tect_out
 tectonic --color never -X compile --untrusted --keep-logs \
-    --keep-intermediates --outdir _tect_out -Z continue-on-errors main.tex || true
-grep -c "^!" _tect_out/main.log     # → 4（DUC 全清，仅剩缺陷 B 残留的 xcolor）
-ls -la _tect_out/main.pdf           # → ~888 KB
+  --keep-intermediates --outdir _tect_out -Z continue-on-errors main.tex || true
+grep -c "^!" _tect_out/main.log # → 4（DUC 全清，仅剩缺陷 B 残留的 xcolor）
+ls -la _tect_out/main.pdf       # → ~888 KB
 
 # --- 缺陷 B 复现：TRANSPARENT 遮蔽 argspec，色名进 chunk --------------------
 uv run python - <<'PY'
@@ -52,9 +52,9 @@ PY
 
 # --- 缺陷 B 修复验证：影子树（现树 + patch）---------------------------------
 git apply bench/results/repro-2501-2026-09-16/tables.py.patch \
-          bench/results/repro-2501-2026-09-16/segmenter.py.patch   # 须同批
-uv run python /tmp/duc-repro/verify_shadow.py    # mini×3 identity TRUE + 真文 672 chunks
-uv run python /tmp/duc-repro/verify_diff.py      # base vs shadow：672→672, ph +2, 仅 chunk 383 语义变
+  bench/results/repro-2501-2026-09-16/segmenter.py.patch # 须同批
+uv run python /tmp/duc-repro/verify_shadow.py            # mini×3 identity TRUE + 真文 672 chunks
+uv run python /tmp/duc-repro/verify_diff.py              # base vs shadow：672→672, ph +2, 仅 chunk 383 语义变
 PYTHONPATH=/tmp/texlate-shadow uv run pytest tests/ \
-    -k "segmenter or expand or latex or parse or recon or placeholder or argspec" -x -q
+  -k "segmenter or expand or latex or parse or recon or placeholder or argspec" -x -q
 # → 536 passed

@@ -14,7 +14,8 @@ data_re='\.(json|jsonl|csv|parquet|pdf)$'
 echo "== 手写代码行数（git 跟踪、剔数据文件）=="
 total=0
 for d in $buckets; do
-  n=$(git ls-files "$d" | grep -vE "$data_re" | xargs wc -l 2>/dev/null | tail -1 | awk '{print $1}')
+  # 桶内零命中时 grep 返回 1——包一层防 pipefail 把整脚本带走；xargs -r 防空输入跑 wc
+  n=$(git ls-files "$d" | { grep -vE "$data_re" || true; } | xargs -r wc -l 2>/dev/null | tail -1 | awk '{print $1}')
   printf '%-10s %8s\n' "$d" "${n:-0}"
   total=$((total + ${n:-0}))
 done
@@ -22,15 +23,15 @@ printf '%-10s %8s\n' TOTAL "$total"
 
 echo
 echo "== 未跟踪新文件（开发中未提交）=="
-git ls-files --others --exclude-standard | grep -vE "$data_re" | xargs wc -l 2>/dev/null | tail -5 || true
+git ls-files --others --exclude-standard | grep -vE "$data_re" | xargs -r wc -l 2>/dev/null | tail -5 || true
 
 echo
 echo "== 生成数据快照（单列，不算开发量）=="
-git ls-files | grep -E "$data_re" | xargs wc -l 2>/dev/null | tail -1 || true
+git ls-files | grep -E "$data_re" | xargs -r wc -l 2>/dev/null | tail -1 || true
 
 if [[ ${1:-} == --cloc ]]; then
   echo
   echo "== cloc 语言分布 =="
-  git ls-files | grep -vE "$data_re" >/tmp/texlate-loc-files.txt
+  git ls-files | { grep -vE "$data_re" || true; } >/tmp/texlate-loc-files.txt
   cloc --list-file=/tmp/texlate-loc-files.txt --quiet
 fi

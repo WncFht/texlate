@@ -18,6 +18,10 @@ echo "=== 1/4 fetch: $ID ==="
 uv run texlate fetch "$ID"
 
 MAIN_TEX=$(find "$HOME/.cache/texlate/src/${ID}v"*"/extracted" -name '*.tex' 2>/dev/null | head -1)
+[[ -n $MAIN_TEX ]] || {
+  echo "error: fetch 未在 ~/.cache/texlate/src/${ID}v*/extracted 产出 .tex" >&2
+  exit 1
+}
 echo "main_tex: $MAIN_TEX"
 
 echo
@@ -34,6 +38,10 @@ echo
 echo "=== 3/4 mock run（不触网，全链产品 API）==="
 timeout 300 uv run texlate run "$ID" --keep -w "$WORK"
 PDF=$(find "$WORK" -name '*.pdf' | head -1)
+[[ -n $PDF ]] || {
+  echo "error: mock run 未产出 PDF（工作区 $WORK，看上方 run 输出）" >&2
+  exit 1
+}
 echo
 echo "--- pdftotext 验 CJK 进 PDF ---"
 pdftotext "$PDF" - 2>/dev/null | grep -m5 -E '[一-鿿]' || echo "(未检出中文字符——看 verdict)"

@@ -31,7 +31,7 @@ del_all
 
 # tailscaled 的 ExecStartPost 可能早于它的 netfilter 编程;等 jump ts-input
 # 出现(最多 ~10s)再钉顶,避免被后插的 jump 压下去。
-for i in $(seq 1 40); do
+for _ in $(seq 1 40); do
   nft list chain ip filter INPUT 2>/dev/null | grep -q 'jump ts-input' && break
   sleep 0.25
 done

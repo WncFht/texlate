@@ -6,6 +6,8 @@
 # 用法: scripts/server-smoke.sh 8899 /tmp/tw   (省略则 port=8899 data-dir=/tmp/tw-<port>)
 # 出处：tmp/transcript-mining/484a9c38.md A9（多 agent 重抄的序列固化）。
 set -u
+# uv run 依赖仓根 pyproject——与兄弟脚本同规，先钉回仓根再干活
+cd "$(dirname "$0")/.." || exit 1
 PORT=${1:-8899}
 DIR=${2:-/tmp/tw-$PORT}
 BASE=http://127.0.0.1:$PORT
@@ -38,7 +40,7 @@ curl -s "$BASE/openapi.json" | python3 -c 'import json,sys; print("\n".join(sort
 printf '\\documentclass{article}\n\\begin{document}\nhi\n\\end{document}\n' >"$DIR/m.tex"
 RESP=$(curl -s -X POST -F "file=@$DIR/m.tex" "$BASE/api/upload")
 echo "upload -> $RESP"
-TID=$(printf %s "$RESP" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("task_id") or json.load(sys.stdin).get("id",""))')
+TID=$(printf %s "$RESP" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("task_id") or d.get("id",""))')
 [ -n "$TID" ] || fail "upload 未回 task_id"
 
 timeout 60 curl -sN -H "Accept: text/event-stream" "$BASE/api/task/$TID" >"$DIR/sse.log" 2>/dev/null

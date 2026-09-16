@@ -8,12 +8,21 @@
 # 产出：outdir/{tracked,untracked}/ + MANIFEST.txt + 前缀校验提示。
 # 出处：2026-09-16 stash -u/pop 并发事故手工取证固化（tmp/transcript-mining/484a9c38.md A1）。
 set -eu
+# 与兄弟脚本同规钉仓根：stash 操作对象是本仓，默认 outdir 落在 gitignored tmp/
+cd "$(dirname "$0")/.."
+
 S="${1:-stash@{0}}"
 O=${2:-tmp/stash-export-$(date +%Y%m%d-%H%M%S)}
 
+git rev-parse --verify -q "$S" >/dev/null || {
+  echo "error: no such stash ref: $S" >&2
+  exit 1
+}
+
 mkdir -p "$O/tracked" "$O/untracked"
 
-for f in $(git stash show --name-only "$S"); do
+# while-read 防路径含空格被 for+分词劈碎（行内换行的文件名仍然救不了）
+git stash show --name-only "$S" | while IFS= read -r f; do
   mkdir -p "$O/tracked/$(dirname "$f")"
   git show "$S:$f" >"$O/tracked/$f"
 done
