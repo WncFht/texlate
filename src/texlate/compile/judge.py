@@ -131,7 +131,7 @@ def judge(res: CompRes, *, expect_cjk: bool = False, log_text: str = "") -> Verd
     """
     v = Verdict(status="fail", n_errors=res.log.n_errors)
     v.warnings_hit = list(res.log.warnings_hit)
-    if not res.ok and res.timed_out:
+    if res.timed_out:
         v.reasons.append("timeout")
         return v
     # 引擎被信号杀死：死进程产出不可信，有 pdf 也判 dirty，
@@ -148,7 +148,9 @@ def judge(res: CompRes, *, expect_cjk: bool = False, log_text: str = "") -> Verd
             res.log.tail,
             timed_out=res.timed_out,
         )
-        v.category, v.payload = cat, pay
+        # 无 log 可分类（引擎缺席/启动失败）时 classify 返回 "clean"——
+        # 与 status=fail 矛盾，账本归 "other"。
+        v.category, v.payload = ("other", None) if cat == "clean" else (cat, pay)
         return v
 
     # —— 有 pdf：进入 clean/partial 分界判定 ——
