@@ -73,7 +73,8 @@ def _dest_page(r: object, dest: object) -> int | None:
     """Dest → 0-based 页号；坏 dest 当缺锚（None），不让整篇作废。"""
     try:
         return r.get_destination_page_number(dest)  # type: ignore[attr-defined]
-    except Exception:  # noqa: BLE001 -- pypdf 内部异常类型发散
+    except Exception as e:  # noqa: BLE001 -- pypdf 内部异常类型发散
+        log.debug("named dest 页号解析失败，按缺锚丢弃: %s", e)
         return None
 
 
@@ -328,7 +329,8 @@ def _match_figure_regions(
             if key not in cache:
                 try:
                     cache[key] = _graphic_regions(readers[side].pages[d["page"] - 1])
-                except Exception:  # noqa: BLE001 -- 单页 content stream 解析崩只丢该页 regions
+                except Exception as e:  # noqa: BLE001 -- 单页 content stream 解析崩只丢该页 regions
+                    log.debug("graphic regions 扫描失败 %s p%s: %s", side, d["page"], e)
                     cache[key] = []
             caption = min(1.0, max(0.0, 1.0 - d["yfrac"]))
             sides[side] = [

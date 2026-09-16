@@ -217,8 +217,6 @@ class Unit:
 
     job_id: str
     text: str
-    doc_path: str
-    doc_index: int
     kind: str
     owner: Tag | None
     run_nodes: list
@@ -601,8 +599,6 @@ def iter_units(  # noqa: C901, PLR0912 -- 枚举主循环：记录趟/owner 趟/
                 yield Unit(
                     job_id=job_id,
                     text=text,
-                    doc_path=path,
-                    doc_index=doc_index,
                     kind="para",
                     owner=owner,
                     run_nodes=run_nodes,
@@ -631,8 +627,6 @@ def iter_units(  # noqa: C901, PLR0912 -- 枚举主循环：记录趟/owner 趟/
                 yield Unit(
                     job_id=f"epub:ncx:{i}:{digest}",
                     text=raw,
-                    doc_path=book.ncx_path,
-                    doc_index=-1,
                     kind="para",
                     owner=None,
                     run_nodes=[],
@@ -864,6 +858,7 @@ def _restamp_opf(book: EpubBook, language: str) -> None:
     try:
         text = raw.decode("utf-8")
     except UnicodeDecodeError:
+        log.warning("OPF 非 UTF-8，跳过 dc:language 改写: %s", book.opf_path)
         return
     m = _DC_LANGUAGE_RE.search(text)
     if m:

@@ -28,6 +28,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import re
 import shutil
 from copy import deepcopy
@@ -63,6 +64,8 @@ if TYPE_CHECKING:
     from lxml.etree import _Element
 
     from texlate.xlat.pipeline import Translator
+
+log = logging.getLogger(__name__)
 
 _PIPELINE_VERSION = "export-docx-1"
 
@@ -176,6 +179,7 @@ def _part_root(part: Part) -> _Element | None:
     try:
         return parse_xml(blob)
     except etree.XMLSyntaxError:
+        log.warning("DOCX part %s XML 解析失败——该面跳过翻译", part.partname)
         return None
 
 

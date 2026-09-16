@@ -12,6 +12,7 @@ docs/research/latex/texglot-patterns.md §1.1–1.6。
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 import shutil
@@ -30,6 +31,8 @@ from .mask import (
     group_end,
     visible_tex,
 )
+
+log = logging.getLogger(__name__)
 
 #: 随附文献/书目数据后缀——不是 TeX 手术面，但 XeTeX/biber 一律按
 #: UTF-8 读它们，非 UTF-8 字节须与 .tex 同档判定转码。
@@ -936,7 +939,8 @@ def _kpse_resolve(filename: str, progname: str, cwd: Path, kpse: str) -> Path | 
             timeout=15,
             check=False,
         )
-    except (OSError, subprocess.SubprocessError):
+    except (OSError, subprocess.SubprocessError) as e:
+        log.debug("kpsewhich 探测失败 %s: %s", filename, e)
         return None
     if proc.returncode != 0 or not proc.stdout.strip():
         return None
@@ -980,7 +984,8 @@ def _try_shadow(
         if resolved is None or resolved.resolve().is_relative_to(root):
             return None, set()
         blob = resolved.read_bytes()
-    except OSError:
+    except OSError as e:
+        log.debug("系统包遮蔽源不可读 %s: %s", resolved, e)
         return None, set()
     try:
         blob.decode("utf-8")

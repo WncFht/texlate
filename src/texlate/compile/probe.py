@@ -33,13 +33,10 @@ if TYPE_CHECKING:
 
     from texlate.compile.fixloop.ctan import TlpdbIndex
 
-    from .engine import CompRes
-
 __all__ = [
     "DepProbe",
     "DepsDiff",
     "ProbeReport",
-    "consume_deps",
     "dep_seen",
     "deps_diff",
     "target_probe",
@@ -356,13 +353,3 @@ def dep_seen(recorded: Iterable[str] | None, fname: str) -> bool | None:
     if recorded is None:
         return None
     return _dep_match(frozenset(_norm_dep(p) for p in recorded), fname)
-
-
-def consume_deps(res: CompRes, expected: Iterable[str] | None = None) -> DepsDiff:
-    """`res.deps` → DepsDiff 诊断视图（`compiled_dependencies` 权威集消费点）。
-
-    ``expected=None`` → 只用 ``saw()`` 判据（missing_file payload 是否曾被
-    记录）；给 expected（如 `ProbeReport.inputs` 或声明 fname 集）则同时
-    得 seen/unseen/extra 三分量。
-    """
-    return deps_diff(expected or (), res.deps)
