@@ -117,6 +117,12 @@ _TAIL_LINES: Final = 30  # log 尾部留存行数
 _MAX_STORED_ERRORS: Final = 200  # 存储上限（n_errors 仍精确计数）
 _MAX_WARN_SAMPLES: Final = 5  # 每类 warning 样例留存上限
 
+#: runaway 扫描错（``File ended while scanning use of \xxx``）——文件栈
+#: 在 ``)`` 处已弹出肇事文件，错误行报的是**父文件** ``\input`` 续行位。
+_EOF_ERR_RX: Final = re.compile(r"File ended while scanning")
+#: ``)`` 弹出到错误打印的最大行距（日志折行/font dump 可隔几行）。
+_EOF_POP_WINDOW: Final = 16
+
 #: docs/08 §4.3 红线 warning 类（命中即记入 ``WarningSummary.redlines``）。
 _REDLINE_CLASSES: Final = frozenset(
     {"invalid_utf8", "missing_glyph_cjk", "file_not_found"}
@@ -132,7 +138,10 @@ class LogError:
 
     ``line_no`` = log 内 1-based 行号；``tex_file``/``tex_line`` = 源码定位
     （file:line: 直接给出，``^!`` 格式从 ctx 的 ``l.NNN`` 提）；
-    ``file_stack`` = 出错时刻 ``(`` 开括号文件栈（外层→内层）。
+    ``file_stack`` = 出错时刻 ``(`` 开括号文件栈（外层→内层）；
+    ``eof_file`` = ``File ended while scanning`` 类错误的真肇事文件——
+    该错误打印前 ``)`` 已把肇事文件弹出栈，报位落在父文件续行，
+    此处回填最近一次弹出的文件名（#78）。
     """
 
     line_no: int
@@ -141,6 +150,7 @@ class LogError:
     tex_line: int | None = None
     ctx: tuple[str, ...] = ()
     file_stack: tuple[str, ...] = ()
+    eof_file: str | None = None
 
     def to_dict(self) -> dict[str, object]:
         """序列化为一级字典。"""
@@ -151,6 +161,7 @@ class LogError:
             "tex_line": self.tex_line,
             "ctx": list(self.ctx),
             "file_stack": list(self.file_stack),
+            "eof_file": self.eof_file,
         }
 
 
@@ -276,6 +287,15 @@ def _match_error_line(ln: str) -> tuple[str, str | None] | None:
     return None
 
 
+def _eof_culprit(head: str, last_pop: tuple[int, str] | None, i: int) -> str | None:
+    """Runaway 扫描错的真肇事文件：错误行前 ``_EOF_POP_WINDOW`` 内最后弹出的文件。"""
+    if last_pop is None or i - last_pop[0] > _EOF_POP_WINDOW:
+        return None
+    if not _EOF_ERR_RX.search(head):
+        return None
+    return last_pop[1]
+
+
 # ---------------------------------------------------------------- 主入口
 
 
@@ -289,8 +309,14 @@ def parse_log_text(text: str) -> L2Verdict:
             v.engine = m.group(1)
 
     stack: list[str | None] = []
+    popped: list[str | None] = []
+    last_pop: tuple[int, str] | None = None  # (行 idx, 刚弹出的文件 token)
     for i, ln in enumerate(lines):
-        update_file_stack(ln, stack)
+        popped.clear()
+        update_file_stack(ln, stack, popped)
+        for tok in popped:
+            if tok is not None:
+                last_pop = (i, tok)
 
         # —— 错误行：双格式 ——
         hit = _match_error_line(ln)
@@ -302,6 +328,7 @@ def parse_log_text(text: str) -> L2Verdict:
             tex_line = int(mf.group(2)) if mf else None
             if tex_line is None:
                 tex_line = _tex_line_from_ctx(ctx)
+            eof_file = _eof_culprit(head, last_pop, i)
             err = LogError(
                 line_no=i + 1,
                 head=head,
@@ -309,6 +336,7 @@ def parse_log_text(text: str) -> L2Verdict:
                 tex_line=tex_line,
                 ctx=tuple(ctx),
                 file_stack=tuple(s for s in stack if s),
+                eof_file=eof_file,
             )
             if v.first_error is None:
                 v.first_error = err

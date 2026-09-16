@@ -32,8 +32,25 @@ from texlate.xlat.pipeline import MockTranslator
 if TYPE_CHECKING:
     from fastapi import FastAPI
 
-#: L2 可归因错误 log：``(./main.tex`` 文件栈 + ``l.5`` 行号 → main.tex chunk
-_ATTR_ERR_LOG = "(./main.tex\n! Undefined control sequence.\nl.5 \\badcs\n"
+
+#: L2 可归因错误 log：``(./main.tex`` 文件栈 + ``l.N`` 行号 → main.tex chunk。
+#: 行号运行时取——ctex 注入往 preamble 塞了几十行，写死的行号会落在注入
+#: 锅炉板里（chunk 全部在其后，顺序读取不变量下不可归因——#78 修复后
+#: forward-fallback 不再把 preamble 错误错归给首个正文块）。
+def _attr_err_log(wdir: Path, stem: str) -> str:
+    """``l.N`` 指向 zh 树里首个译文块所在行（mock 标记 ``这是译文``）。"""
+    ln = 1
+    src = wdir / f"{stem}.tex"
+    if src.is_file():
+        for i, line in enumerate(
+            src.read_text(encoding="utf-8", errors="replace").splitlines(), 1
+        ):
+            if "这是译文" in line:
+                ln = i
+                break
+    return f"(./main.tex\n! Undefined control sequence.\nl.{ln} \\badcs\n"
+
+
 _CLEAN_LOG = "This is fake engine\nOutput written on disk.\n"
 
 #: 含未知 env 的工程——env_judge 判定面（``mybox`` 不在静态表内）
@@ -115,7 +132,7 @@ class L2FlakyEngine:
         )
         stem = Path(main).stem
         log_path = wdir / f"{stem}.log"
-        text = _CLEAN_LOG if ok else _ATTR_ERR_LOG
+        text = _CLEAN_LOG if ok else _attr_err_log(wdir, stem)
         log_path.write_text(text, encoding="utf-8")
         pdf = wdir / f"{stem}.pdf"
         if ok:

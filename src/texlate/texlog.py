@@ -66,10 +66,17 @@ def looks_like_tex_file(token: str) -> bool:
     return base.rsplit(".", 1)[-1].lower() in TEX_FILE_EXTS
 
 
-def update_file_stack(ln: str, stack: list[str | None]) -> None:
+def update_file_stack(
+    ln: str,
+    stack: list[str | None],
+    popped: list[str | None] | None = None,
+) -> None:
     """单行扫 ``(``/``)`` 增量维护文件栈；非文件 ``(`` 入栈 ``None`` 保持配对。
 
     入栈的是字面 token（保留 ``./`` 前缀——log 原样，消费端按 endswith 用）。
+    ``popped`` 非 None 时把本行弹出的栈顶按序追加——``File ended while
+    scanning`` 类 runaway 错报在父文件续行位（``)`` 先于错误打印），消费端
+    靠"刚弹出的文件"找回真肇事文件（#78）。
     """
     j = 0
     while j < len(ln):
@@ -84,7 +91,9 @@ def update_file_stack(ln: str, stack: list[str | None]) -> None:
             j += 1
         elif c == ")":
             if stack:
-                stack.pop()
+                top = stack.pop()
+                if popped is not None:
+                    popped.append(top)
             j += 1
         else:
             j += 1

@@ -25,6 +25,7 @@ import os
 import re
 import secrets as secrets_mod
 import shutil
+import sqlite3
 import threading
 import time
 import zipfile
@@ -38,7 +39,7 @@ from typing import TYPE_CHECKING, Any, TypeVar
 
 from texlate import __version__
 from texlate.align import build_alignment
-from texlate.arxiv.cache import SourceCache
+from texlate.arxiv.cache import CacheEntry, SourceCache
 from texlate.arxiv.fetch import AcquireStatus, Fetcher, acquire_source
 from texlate.arxiv.meta import fetch_metadata
 from texlate.arxiv.ratelimit import RateLimiter
@@ -50,6 +51,7 @@ from texlate.arxiv.unpack import (
 )
 from texlate.compile.engine import CompRes, Engine, engine_for, route_project
 from texlate.compile.fixloop import CaseSink, fixloop
+from texlate.compile.fixloop.llm_hook import make_llm_hook
 from texlate.compile.inject import (
     InjectRejectError,
     find_main_tex,
@@ -126,6 +128,7 @@ if TYPE_CHECKING:
     from pypdf.generic import DictionaryObject
 
     from texlate.compile.fixloop.ctan import TlpdbIndex
+    from texlate.compile.fixloop.engine import LlmHook
     from texlate.compile.judge import Verdict
     from texlate.compile.probe import ProbeReport
     from texlate.latex.model import Chunk, ScanResult
@@ -384,6 +387,9 @@ class TaskCtx:
     #: share 导入对账统计（matched/dropped/missed/extra）——done stats 与
     #: partial error_json 的审计载荷；None = 非 share 任务
     share: dict[str, Any] | None = None
+    #: #74 post-resolve dedup 命中行（钉版键二次 ``find_reusable``）——
+    #: ``_stage_fetch`` 物化其产物后任务直接终态，parse/translate 不跑
+    reuse_hit: dict[str, Any] | None = None
 
     @property
     def src_dir(self) -> Path:
@@ -687,6 +693,50 @@ class _FallbackTranslator:
             max_tokens=max_tokens,
             response_format=response_format,
         )
+
+
+class _PerCallTranslator:
+    """llm_hook 的 BYOK translator：每次 ``translate`` 新建 ``ChatClient`` 即弃。
+
+    ``LlmFixer._drive`` 把每次调用扔进**新线程 + ``asyncio.run`` 新 loop**
+    ——共享 ``ChatClient`` 的 httpx 池跨 loop 复用会炸
+    （"attached to a different loop"，``llm_hook.py`` docstring 明示的坑），
+    故网关面做成 per-call 工厂。``usage_sink`` 仍接同一 meter——
+    旁路烧的 token 不从 ``task_usage`` 蒸发。
+    """
+
+    def __init__(
+        self,
+        base_url: str,
+        api_key: str,
+        model: str,
+        sink: Callable[[UsageRecord], None],
+    ) -> None:
+        self._base_url = base_url
+        self._api_key = api_key
+        self._model = model
+        self._sink = sink
+
+    async def translate(
+        self,
+        *,
+        system: str,
+        user: str,
+        temperature: float,
+        max_tokens: int,
+        response_format: dict[str, str] | None = None,
+    ) -> str:
+        client = ChatClient(self._base_url, self._api_key, usage_sink=self._sink)
+        try:
+            return await GatewayTranslator(client, self._model).translate(
+                system=system,
+                user=user,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                response_format=response_format,
+            )
+        finally:
+            await client.aclose()
 
 
 class _StageError(Exception):
@@ -1360,6 +1410,8 @@ class PipelineWorker:
         """arxiv/upload_tex 共链：fetch → parse → translate → compile。"""
         ctx.root.mkdir(parents=True, exist_ok=True)
         await self._stage_fetch(ctx)
+        if ctx.reuse_hit is not None:
+            return  # post-resolve dedup 命中——产物已物化 + 终态已写
         await self._stage_parse(ctx)
         await self._stage_translate(ctx)
         await self._stage_compile(ctx)
@@ -1373,6 +1425,13 @@ class PipelineWorker:
             await asyncio.to_thread(self._fetch_arxiv, ctx)
         else:
             await asyncio.to_thread(self._fetch_upload, ctx)
+        if ctx.reuse_hit is not None:
+            # dedup 命中——不落哨兵：崩溃在终态写入前时 resume 重跑
+            # fetch 重查 dedup，等幂
+            if self._current_status(ctx) not in TERMINAL_STATUSES:
+                await asyncio.to_thread(self._materialize_reuse, ctx, ctx.reuse_hit)
+                self._finish_reuse(ctx, ctx.reuse_hit)
+            return
         (ctx.src_dir / ".fetch-done").write_text("", encoding="utf-8")
         self._stage(ctx, "fetching", "取源完成", PROGRESS["fetching"][1])
         self._check_cancelled(ctx)
@@ -1418,6 +1477,8 @@ class PipelineWorker:
                 ctx.row["options_json"] = json.dumps(opts, ensure_ascii=False)
                 fields["options_json"] = ctx.row["options_json"]
         self._on_loop(self.store.update_fields, ctx.task_id, **fields)
+        if self._post_resolve_reuse(ctx, entry):
+            return  # 钉版键命中已完成任务——产物物化由 _stage_fetch 接管
         if ctx.src_dir.exists():
             shutil.rmtree(ctx.src_dir)
         shutil.copytree(entry.extracted_dir, ctx.src_dir)
@@ -1427,6 +1488,114 @@ class PipelineWorker:
             self._register(ctx, "src_tar", "src.tar")
         for w in res.warnings:
             self._log(ctx, f"fetch warn: {w}")
+
+    def _post_resolve_reuse(self, ctx: TaskCtx, entry: CacheEntry) -> bool:
+        """#74：latest-alias 任务 fetch 定版后按钉版键二次 dedup + re-key。
+
+        入队时 ``id``（无版本）与 ``id@vN`` 产不同 cache_key 材料——enqueue
+        的 ``find_reusable`` 拿 alias 键查不到钉版完成的产物。定版后补查
+        钉版键：命中 → ``ctx.reuse_hit`` 置位（``_stage_fetch`` 物化产物）；
+        未命中且无同键 ACTIVE 任务 → 本行 re-key 成钉版形，让后来的
+        ``id@vN`` 请求 enqueue 即命中（双向补齐 dedup 面）。
+
+        跳过条件：非 arxiv 任务（share 必须走 ``_share_apply`` 对账链，
+        不得吃 reuse 捷径）；``prefer=fresh``；无 cache_key（fresh 撞键
+        降级行）；键形同（本就钉版）。re-key 撞 ACTIVE 唯一索引 → 放弃
+        re-key 保留 alias 键（无妨——对方任务覆盖钉版方向）。
+        """
+        if ctx.row["kind"] != "arxiv":
+            return False
+        stored = str(ctx.row.get("cache_key") or "")
+        if not stored or str(ctx.options().get("prefer") or "reuse") == "fresh":
+            return False
+        resolved_key = cache_key_for(
+            arxiv_id=entry.arxiv_id,
+            version=entry.resolved_version,
+            model=str(ctx.row["model"]),
+            target_lang=str(ctx.row["target_lang"]),
+            api_key=ctx.secrets.api_key,
+        )
+        if resolved_key == stored:
+            return False
+        hit = self._on_loop(self.store.find_reusable, resolved_key)
+        if hit is not None:
+            ctx.reuse_hit = hit
+            return True
+        if self._on_loop(self.store.find_active_by_cache_key, resolved_key) is None:
+            try:
+                self._on_loop(
+                    self.store.update_fields, ctx.task_id, cache_key=resolved_key
+                )
+            except sqlite3.IntegrityError:
+                return False
+            ctx.row["cache_key"] = resolved_key
+        return False
+
+    def _materialize_reuse(self, ctx: TaskCtx, hit: dict[str, Any]) -> None:
+        """把命中任务的 files 产物物理拷进本任务目录并登记（worker 线程）。
+
+        下载面按 ``tasks/{id}/{path}`` 解析——只建行不拷文件会让产物
+        链接 404。盘上缺失的产物跳过（文件面以实拷为准）。
+        """
+        hit_root = self.data_dir / "tasks" / str(hit["id"])
+        for kind, f in self._on_loop(self.store.files, str(hit["id"])).items():
+            rel = Path(str(f["path"]))
+            src = hit_root / rel
+            dst = ctx.root / rel
+            if (
+                rel.is_absolute()
+                or ".." in rel.parts
+                or not dst.resolve().is_relative_to(ctx.root.resolve())
+            ):
+                self._log(ctx, f"reuse: 路径越界跳过 {rel}")
+                continue
+            if not src.is_file():
+                self._log(ctx, f"reuse: 产物缺失跳过 {rel}")
+                continue
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(src, dst)
+            self._register(ctx, kind, rel.as_posix())
+
+    def _finish_reuse(self, ctx: TaskCtx, hit: dict[str, Any]) -> None:
+        """post-resolve dedup 收尾：终态镜像命中行 + done 事件（loop 线程）。
+
+        cancel 竞态守卫同 ``_fail``——行已入终态则整条跳过（cancel 路径
+        已发 done），不复活用户取消的任务。
+        """
+        if self._current_status(ctx) in TERMINAL_STATUSES:
+            return
+        self._log(ctx, f"reuse: 命中任务 {hit['id']} 产物（post-resolve dedup）")
+        status = "done" if hit["status"] == "done" else "partial"
+        err: dict[str, Any] | None = None
+        if status == "partial" and hit.get("error_json"):
+            try:
+                raw = json.loads(str(hit["error_json"]))
+                err = raw if isinstance(raw, dict) else None
+            except json.JSONDecodeError:
+                err = None
+        upd: dict[str, Any] = {"progress": 100}
+        if hit.get("main_tex"):
+            upd["main_tex"] = str(hit["main_tex"])
+        if hit.get("title") and not ctx.row.get("title"):
+            upd["title"] = str(hit["title"])
+        self.store.update_fields(ctx.task_id, **upd)
+        self.store.transition(
+            ctx.task_id,
+            status,
+            progress=100,
+            error=err,
+            force=True,
+            message="完成" if status == "done" else "部分完成",
+        )
+        self.bus.publish(
+            ctx.task_id,
+            "done",
+            {
+                "status": status,
+                "artifacts": self._artifact_urls(ctx),
+                "stats": self._stats(ctx),
+            },
+        )
 
     def _fetch_upload(self, ctx: TaskCtx) -> None:
         """upload_tex：解包 ``upload/`` blob → ``src/``；原文登记 src_tar。"""
@@ -2027,7 +2196,12 @@ class PipelineWorker:
         self._register(ctx, "zh_src_zip", "zh-src.zip")
 
     def _env_judge_enabled(self, ctx: TaskCtx) -> bool:
-        """env_judge 开关：``options.env_judge`` 显式优先，缺省读 ``TEXLATE_ENV_JUDGE``（默认关）。"""
+        """env_judge 开关：``options.env_judge`` 显式优先，缺省读 ``TEXLATE_ENV_JUDGE``（默认关）。
+
+        share 任务恒关——零 token 结构承诺，options/env 无权打开。
+        """
+        if ctx.row["kind"] == "share":
+            return False
         v = ctx.options().get("env_judge")
         if v is not None:
             if isinstance(v, bool):
@@ -2253,6 +2427,7 @@ class PipelineWorker:
         编译。返回末次 ``CompRes``（fixloop 崩溃/未编译则原样回传）。
         """
         rec = _RecEngine(eng)
+        hook, hook_usage, hook_clients = self._llm_hook_pack(ctx)
         try:
             cell = fixloop(
                 work,
@@ -2260,11 +2435,14 @@ class PipelineWorker:
                 engine_name=ctx.engine_name,
                 corpus_id=ctx.task_id,
                 cond="zh",
+                llm_hook=hook,
                 case_sink=CaseSink(self.data_dir / "fixloop-cases.jsonl"),
             )
         except Exception as e:  # noqa: BLE001 -- fixloop 崩不拖垮编译段
             self._log(ctx, f"fixloop crashed: {type(e).__name__}: {e}")
             return first
+        finally:
+            self._teardown_llm_hook(ctx, hook_usage, hook_clients)
         summary = _fixloop_summary(cell)
         res = rec.last or first
         flags = [str(f) for f in cell.get("engine_flags") or []]
@@ -2329,13 +2507,70 @@ class PipelineWorker:
         return res
 
     def _l2_enabled(self, ctx: TaskCtx) -> bool:
-        """L2 回灌开关：``options.l2`` 显式优先，缺省读 ``TEXLATE_NO_L2``（默认开）。"""
+        """L2 回灌开关：``options.l2`` 显式优先，缺省读 ``TEXLATE_NO_L2``（默认开）。
+
+        share 任务恒关——零 token 是结构承诺（``_share_apply`` 不回退自译
+        同理），options/env 无权打开。
+        """
+        if ctx.row["kind"] == "share":
+            return False
         v = ctx.options().get("l2")
         if v is not None:
             if isinstance(v, bool):
                 return v
             return str(v).strip().lower() not in ("0", "false", "no", "off")
         return not _env_flag(_ENV_NO_L2, default=False)
+
+    def _llm_hook_pack(
+        self, ctx: TaskCtx
+    ) -> tuple[LlmHook | None, dict[str, Any] | None, list[ChatClient]]:
+        """Fixloop ``escalate_llm`` 的 server 侧接线：``(hook, usage, clients)``。
+
+        与 e2e ``TEXLATE_FIXLOOP_LLM`` opt-in 不同——server 侧**默认开**
+        （与 L2 parity）：任务带真 BYOK key 即建 hook，token 经
+        ``usage_sink`` → ``_persist_usage`` 落账。None 条件（序即优先级）：
+
+        - ``kind=="share"``：零 token 结构承诺，任何开关无权开；
+        - ``options.llm_hook`` 显式 false / ``TEXLATE_FIXLOOP_LLM=0``；
+        - 无 ``api_key``（含 ``TEXLATE_TRANSLATOR=mock``）：不给裸
+          env-key client——那会绕开 BYOK 计费面。
+        """
+        if ctx.row["kind"] == "share":
+            return None, None, []
+        opt = ctx.options().get("llm_hook")
+        if opt is not None and (
+            opt is False or str(opt).strip().lower() in ("0", "false", "no", "off")
+        ):
+            return None, None, []
+        if not _env_flag("TEXLATE_FIXLOOP_LLM", default=True):
+            return None, None, []
+        if self._translator_factory is not None:
+            # 注入路径：factory 产 translator 直接给 hook（测试桩语义调用方担）
+            tr = self._translator_factory(ctx)
+            clients = _translator_clients(tr)
+            return make_llm_hook(translator=tr), self._meter_usage(clients), clients
+        force = os.environ.get("TEXLATE_TRANSLATOR", "").lower()
+        if not ctx.secrets.api_key or force == "mock":
+            if opt:
+                self._log(ctx, "llm_hook: 无 BYOK api_key——跳过 escalate_llm")
+            return None, None, []
+        usage, sink = _new_usage_meter()
+        model = ctx.secrets.model or "swe-2-medium"
+        tr = _PerCallTranslator(ctx.secrets.base_url, ctx.secrets.api_key, model, sink)
+        return make_llm_hook(translator=tr, model=model), usage, []
+
+    def _teardown_llm_hook(
+        self,
+        ctx: TaskCtx,
+        usage: dict[str, Any] | None,
+        clients: list[ChatClient],
+    ) -> None:
+        """escalate_llm 旁路收尾：已发调用落账 + factory 路径 client 关闭。"""
+        # escalate_llm 烧的是 BYOK token——崩溃/早退也把已发调用落账
+        if usage is not None:
+            self._persist_usage(ctx, usage)
+        if clients:
+            asyncio.run(_aclose_clients(clients))
 
     def _l2_run_state(
         self, ctx: TaskCtx, work: Path
@@ -2532,7 +2767,13 @@ class PipelineWorker:
         if not self._l2_enabled(ctx):
             ctx.l2 = {
                 "enabled": False,
-                "reason": "options.l2" if "l2" in ctx.options() else _ENV_NO_L2,
+                "reason": (
+                    "share_zero_token"
+                    if ctx.row["kind"] == "share"
+                    else "options.l2"
+                    if "l2" in ctx.options()
+                    else _ENV_NO_L2
+                ),
             }
             return res, v
         try:
@@ -3012,15 +3253,16 @@ class PipelineWorker:
         return usage
 
     def _persist_usage(self, ctx: TaskCtx, usage: dict[str, Any]) -> None:
-        """真实 usage 落账（``_teardown_translate`` 同款「有真账用真账」）。
+        """旁路臂真实 usage 落账（``_teardown_translate`` 的旁路对应物）。
 
-        在 ``_run_doc`` 的 finally 段跑——ExportError/crash 早退也把已发
-        调用的真账留下。``_on_loop`` 回弹使 worker 线程内的旁路臂
-        （env_judge/L2）也可直调。
+        旁路 meter 只数本臂调用——``tokens_est`` **累加**而非覆盖
+        （覆盖会把主链真账抹成旁路小计）。ExportError/crash 早退也把
+        已发调用的真账留下；``_on_loop`` 回弹使 worker 线程内的旁路臂
+        （env_judge/L2/llm_hook）也可直调。
         """
         if not usage["calls"]:
             return
-        ctx.tokens_est = usage["prompt_tokens"] + usage["completion_tokens"]
+        ctx.tokens_est += usage["prompt_tokens"] + usage["completion_tokens"]
         self._on_loop(self.store.update_fields, ctx.task_id, tokens=ctx.tokens_est)
         self._on_loop(
             self.store.record_usage,

@@ -448,11 +448,18 @@ class _L2Attr:
         )
 
     def attribute(self, fidx: int, tex_line: int) -> int | None:
-        """行号 → 字节偏移 → 所在/最近 chunk.id。"""
+        """行号 → 字节偏移 → 所在/最近 chunk.id。
+
+        顺序读取不变量：TeX 报 ``l.NNN`` 时还没读到该行之后——起点落在
+        错误行行尾之后的块不可能是肇事者（repro-2501：preamble 错被
+        forward-fallback 错归给首个正文块）。runaway/EOF 类报的父文件
+        续行位由 ``attr_error`` 的 ``eof_file`` 改派兜住，不经此路。
+        """
         offs = self.line_off[fidx]
         if not (1 <= tex_line <= len(offs) - 1):
             return None
         off = offs[tex_line - 1]
+        line_end = offs[tex_line]
         best_cid, best_gap = None, _L2_ATTR_WINDOW + 1
         for cid, sp in self.spans[fidx].items():
             if sp is None:
@@ -460,6 +467,8 @@ class _L2Attr:
             s, e = sp
             if s <= off < e:
                 return cid
+            if s >= line_end:
+                continue
             gap = max(s - off, off - e, 0)
             if gap < best_gap:
                 best_cid, best_gap = cid, gap
@@ -467,17 +476,27 @@ class _L2Attr:
 
     def attr_error(self, err: l2_mod.LogError) -> tuple[int, list[int]] | None:
         """单条 log 错误 → (fidx, chunk.id 列表)；不可归因 → None。"""
-        src_tok = err.tex_file or (err.file_stack[-1] if err.file_stack else None)
+        # runaway/EOF 错（eof_file 非 None）：报位是父文件 ``\input`` 续行，
+        # 真肇事文件是 ``)`` 刚弹出的那个——行号属父文件须丢弃，归肇事
+        # 文件整体（块多时任归 EOF 侧末块——runaway 的参数起点在文件尾）
+        eof = err.eof_file is not None
+        src_tok = (
+            err.eof_file
+            or err.tex_file
+            or (err.file_stack[-1] if err.file_stack else None)
+        )
         fidx = _resolve_fidx(src_tok, self.run, self.work) if src_tok else None
         if fidx is None:
-            return None
+            return None  # 肇事文件不在产物树——错怪父文件不如不归因
         self.file_state(fidx)
         sres = self.run.scans[fidx][1]
-        if err.tex_line is not None:
+        if not eof and err.tex_line is not None:
             cid = self.attribute(fidx, err.tex_line)
             return (fidx, [cid] if cid is not None else [])
         if len(sres.chunks) <= L2_MAX_CHUNKS:
             return (fidx, [c.id for c in sres.chunks])
+        if eof and sres.chunks:
+            return (fidx, [sres.chunks[-1].id])
         return (fidx, [])
 
 
@@ -486,10 +505,12 @@ def _l2_localize(
 ) -> tuple[dict[str, dict[str, Any]], int]:
     """编译 log → ``{chunk_id: {file,line,head}}`` 归因表 + 错误总数。
 
-    定位链：出错文件 = ``tex_file``（file:line: 格式）或文件栈**最内层**
-    （``l.NNN`` 只对 TeX 正在读的文件有意义——栈里更深的 ``.sty``/``.cls``
-    错是基建问题，不归 chunk）。``tex_line`` → 字节偏移 → 所在 chunk；
-    不在任何块内则取最近块（≤ ``_L2_ATTR_WINDOW``）。无行号错误按文件级
+    定位链：``eof_file``（runaway/EOF 错——报位是父文件续行，改派 ``)``
+    刚弹出的肇事文件，行号丢弃）> ``tex_file``（file:line: 格式）> 文件栈
+    **最内层**（``l.NNN`` 只对 TeX 正在读的文件有意义——栈里更深的
+    ``.sty``/``.cls`` 错是基建问题，不归 chunk）。``tex_line`` → 字节偏移
+    → 所在 chunk；不在任何块内则取最近块（≤ ``_L2_ATTR_WINDOW``，且起点
+    越过错误行行尾的块被顺序读取不变量排除）。无行号错误按文件级
     归因——仅当该文件 chunk 数 ≤ ``L2_MAX_CHUNKS`` 才全收。
     """
     verdict = _l2_parse(res)

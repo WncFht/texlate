@@ -30,12 +30,18 @@ from texlate.server.worker import (
     SegmentCache,
     TaskCtx,
     TaskRunner,
+    cache_key_for,
     chunk_db_id,
     embed_cjk_mappings,
     unpack_zip,
 )
 from texlate.xlat.client import ChatClient
-from texlate.xlat.pipeline import ChunkIn, MockTranslator, XlatPipeline
+from texlate.xlat.pipeline import (
+    ChunkIn,
+    MockTranslator,
+    PipelineConfig,
+    XlatPipeline,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -574,3 +580,320 @@ class TestIndirectFontDict:
         assert embed_cjk_mappings(pdf) == 1
         got = PdfReader(str(pdf)).pages[0]["/Resources"]["/Font"]["/F5"].get_object()
         assert "/ToUnicode" in got
+
+
+class TestPostResolveDedup:
+    """#74：latest-alias 任务 fetch 定版后按钉版键二次 dedup + re-key。"""
+
+    def _mk_alias(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        *,
+        kind: str = "arxiv",
+    ) -> tuple[TaskCtx, PipelineWorker, Store]:
+        ctx, worker, store = _mk(
+            tmp_path,
+            worker_kw={
+                "fetcher": FakeFetcher(make_targz({"main.tex": MINI_TEX})),
+                "source_cache": SourceCache(tmp_path / "src-cache"),
+            },
+        )
+        monkeypatch.setattr(
+            "texlate.server.worker.fetch_metadata",
+            lambda _id, *, fetcher: None,  # noqa: ARG005
+        )
+        if kind != "arxiv":
+            ctx.row["kind"] = kind
+        # FakeFetcher 恒解析 v1——alias 键（ver=None）≠ 钉版键（ver=1）
+        alias_key = cache_key_for(
+            arxiv_id="2401.00001", version=None, model="m", target_lang="zh-CN"
+        )
+        store.update_fields(ctx.task_id, cache_key=alias_key)
+        ctx.row["cache_key"] = alias_key
+        return ctx, worker, store
+
+    def _resolved_key(self) -> str:
+        return cache_key_for(
+            arxiv_id="2401.00001", version=1, model="m", target_lang="zh-CN"
+        )
+
+    def _hit_task(self, tmp_path: Path, store: Store) -> str:
+        """钉版键已完成任务 + zh.pdf 产物（reuse 命中源）。"""
+        hit_id = new_task_id()
+        store.create_task(
+            task_id=hit_id,
+            kind="arxiv",
+            target_lang="zh-CN",
+            model="m",
+            arxiv_id="2401.00001v1",
+            cache_key=self._resolved_key(),
+        )
+        hit_root = tmp_path / "tasks" / hit_id
+        hit_root.mkdir(parents=True)
+        (hit_root / "zh.pdf").write_bytes(b"%PDF-1.4 hit")
+        store.put_file(hit_id, "zh_pdf", "zh.pdf", data_dir=hit_root)
+        store.transition(hit_id, "done", force=True)
+        return hit_id
+
+    async def _drive(self, worker: PipelineWorker, ctx: TaskCtx) -> None:
+        worker._loop = asyncio.get_running_loop()  # noqa: SLF001
+        worker._loop_tid = threading.get_ident()  # noqa: SLF001
+        await worker._run_tex(ctx)  # noqa: SLF001
+
+    def test_second_dedup_hit(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
+    ) -> None:
+        """钉版键有完成行 → 产物物化 + 终态 done，parse/translate 不跑。"""
+        ctx, worker, store = self._mk_alias(tmp_path, monkeypatch)
+        self._hit_task(tmp_path, store)
+        asyncio.run(self._drive(worker, ctx))
+        row = store.get(ctx.task_id)
+        assert row["status"] == "done"
+        assert (ctx.root / "zh.pdf").read_bytes() == b"%PDF-1.4 hit"
+        assert store.file_record(ctx.task_id, "zh_pdf") is not None
+        assert not (ctx.src_dir / ".fetch-done").exists(), "reuse 短路不落哨兵"
+        assert not ctx.src_dir.exists(), "reuse 短路不拷源树"
+        assert not store.has_chunks(ctx.task_id), "翻译/解析段未跑"
+
+    def test_rekey_when_no_hit(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
+    ) -> None:
+        """无命中 → 行 re-key 成钉版形（后来的 id@vN 请求 enqueue 即中）。"""
+        ctx, worker, store = self._mk_alias(tmp_path, monkeypatch)
+        ctx.root.mkdir(parents=True, exist_ok=True)
+        worker._fetch_arxiv(ctx)  # noqa: SLF001
+        assert store.get(ctx.task_id)["cache_key"] == self._resolved_key()
+        assert ctx.reuse_hit is None
+        assert (ctx.src_dir / "main.tex").is_file(), "未命中照常落源树"
+
+    def test_fresh_skips_dedup(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
+    ) -> None:
+        """``prefer=fresh`` 不查 reuse 也不 re-key。"""
+        ctx, worker, store = self._mk_alias(tmp_path, monkeypatch)
+        store.update_fields(ctx.task_id, options_json=json.dumps({"prefer": "fresh"}))
+        ctx.row["options_json"] = json.dumps({"prefer": "fresh"})
+        self._hit_task(tmp_path, store)
+        ctx.root.mkdir(parents=True, exist_ok=True)
+        worker._fetch_arxiv(ctx)  # noqa: SLF001
+        assert ctx.reuse_hit is None
+        assert store.get(ctx.task_id)["cache_key"] == ctx.row["cache_key"]
+        assert (ctx.src_dir / "main.tex").is_file()
+
+    def test_cancelled_not_resurrected(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
+    ) -> None:
+        """fetch 期间用户 cancel → reuse 命中也只得保持 cancelled。"""
+        ctx, worker, store = self._mk_alias(tmp_path, monkeypatch)
+        self._hit_task(tmp_path, store)
+        store.transition(ctx.task_id, "cancelled")
+        asyncio.run(self._drive(worker, ctx))
+        row = store.get(ctx.task_id)
+        assert row["status"] == "cancelled"
+        assert not (ctx.root / "zh.pdf").exists()
+
+
+_EOF_LOG = """This is XeTeX, Version 3.14159
+(./main.tex
+(./lib/blob.tex
+! Paragraph ended before \\pgffor@var@add was complete.
+<to be read again>
+l.30 \\foreach\\i
+)
+./preprint.cls:163: File ended while scanning use of \\pgffor@var@add
+l.163 \\input{lib/blob.tex}
+"""
+
+_ATTR_MAIN_TEX = (
+    "\\documentclass{article}\n"
+    "\\usepackage{xcolor}\n"
+    "\\definecolor{brand}{RGB}{1,2,3}\n"
+    "\\begin{document}\n"
+    "A paragraph of English prose long enough to be a real chunk here.\n"
+    "\\end{document}\n"
+)
+
+_ATTR_BLOB_TEX = (
+    "First blob paragraph with enough English prose to be a real chunk.\n"
+    "\n"
+    "Second blob paragraph, also long enough to be a real chunk here.\n"
+)
+
+
+class TestL2EofAttribution:
+    """#78：runaway/EOF 错报父文件续行位——``)`` 弹出的文件才是真肇事者。"""
+
+    def test_eof_file_recorded(self) -> None:
+        """``parse_log_text``：File-ended 错回填最近弹出的文件 token。"""
+        from texlate.validate.l2 import parse_log_text  # noqa: PLC0415
+
+        v = parse_log_text(_EOF_LOG)
+        assert v.n_errors == 2  # noqa: PLR2004 -- fixture 形态断言
+        bang, fileline = v.errors
+        assert bang.eof_file is None, "行中 Paragraph-ended 错不走 eof 改派"
+        assert fileline.tex_file == "./preprint.cls"
+        assert fileline.eof_file == "./lib/blob.tex"
+
+    def test_attr_eof_remap(self, tmp_path: Path) -> None:
+        """``_L2Attr.attr_error``：eof_file 改派肇事文件，行号丢弃。"""
+        from texlate.e2e import _L2Attr, _TreeRun  # noqa: PLC0415
+        from texlate.latex.api import parse_file  # noqa: PLC0415
+        from texlate.validate.l2 import LogError  # noqa: PLC0415
+
+        work = tmp_path / "work"
+        (work / "lib").mkdir(parents=True)
+        (work / "main.tex").write_text(_ATTR_MAIN_TEX, encoding="utf-8")
+        (work / "lib" / "blob.tex").write_text(_ATTR_BLOB_TEX, encoding="utf-8")
+        run = _TreeRun(
+            scans=[
+                (work / "main.tex", parse_file(work / "main.tex", flatten=False)),
+                (
+                    work / "lib" / "blob.tex",
+                    parse_file(work / "lib" / "blob.tex", flatten=False),
+                ),
+            ],
+            trans={},
+            chunk_ins={},
+            pipe=XlatPipeline(MockTranslator(), config=PipelineConfig()),
+        )
+        st = _L2Attr(run, work)
+        blob_cids = [c.id for c in run.scans[1][1].chunks]
+        assert blob_cids, "fixture 应产出 blob chunk"
+
+        err = LogError(
+            line_no=7,
+            head="./preprint.cls:163: File ended while scanning use of \\pgffor@var@add",
+            tex_file="./preprint.cls",
+            tex_line=163,
+            file_stack=("./main.tex", "./preprint.cls"),
+            eof_file="./lib/blob.tex",
+        )
+        fidx, cids = st.attr_error(err)  # type: ignore[misc]
+        assert fidx == 1
+        assert sorted(cids) == sorted(blob_cids), "归肇事文件整体而非父文件续行"
+
+    def test_attr_forward_exclusion(self, tmp_path: Path) -> None:
+        """起点越过错误行行尾的块被顺序读取不变量排除（repro-2501 形态）。"""
+        from texlate.e2e import _L2Attr, _TreeRun  # noqa: PLC0415
+        from texlate.latex.api import parse_file  # noqa: PLC0415
+        from texlate.validate.l2 import LogError  # noqa: PLC0415
+
+        work = tmp_path / "work"
+        work.mkdir(parents=True)
+        (work / "main.tex").write_text(_ATTR_MAIN_TEX, encoding="utf-8")
+        res = parse_file(work / "main.tex", flatten=False)
+        assert res.chunks, "fixture 应产出 chunk"
+        run = _TreeRun(
+            scans=[(work / "main.tex", res)],
+            trans={},
+            chunk_ins={},
+            pipe=XlatPipeline(MockTranslator(), config=PipelineConfig()),
+        )
+        st = _L2Attr(run, work)
+        # preamble 错（l.3 \\definecolor）——首个 chunk 在 \\begin{document} 之后
+        got = st.attr_error(
+            LogError(
+                line_no=1,
+                head="./main.tex:3: Undefined control sequence.",
+                tex_file="./main.tex",
+                tex_line=3,
+            )
+        )
+        assert got == (0, []), "错误行之后才开始的块不该被 forward-fallback 错归"
+        # 对照：chunk 所在行的错误照常命中
+        para_line = (
+            _ATTR_MAIN_TEX[: _ATTR_MAIN_TEX.index("A paragraph")].count("\n") + 1
+        )
+        got2 = st.attr_error(
+            LogError(
+                line_no=2,
+                head="./main.tex:5: Undefined control sequence.",
+                tex_file="./main.tex",
+                tex_line=para_line,
+            )
+        )
+        assert got2 == (0, [res.chunks[0].id])
+
+
+class TestLlmHookShareGates:
+    """Item C：llm_hook BYOK 接线 + share 零 token 结构闸。"""
+
+    def test_share_no_llm_hook_with_key(
+        self,
+        tmp_path: Path,
+        clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
+    ) -> None:
+        """kind=share 有真 api_key 也不给 llm_hook——零 token 是结构承诺。"""
+        ctx, worker, _store = _mk(tmp_path)
+        ctx.row["kind"] = "share"
+        ctx.secrets = Secrets(api_key="k", base_url="http://b", model="m")
+        hook, usage, clients = worker._llm_hook_pack(ctx)  # noqa: SLF001
+        assert hook is None
+        assert usage is None
+        assert clients == []
+
+    def test_share_l2_env_judge_off(
+        self,
+        tmp_path: Path,
+        clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
+    ) -> None:
+        """share 任务 options/env 全开也压不住——三处 LLM 面结构关。"""
+        ctx, worker, _store = _mk(
+            tmp_path, options={"l2": True, "env_judge": True, "llm_hook": True}
+        )
+        ctx.row["kind"] = "share"
+        assert worker._l2_enabled(ctx) is False  # noqa: SLF001
+        assert worker._env_judge_enabled(ctx) is False  # noqa: SLF001
+        hook, _u, _c = worker._llm_hook_pack(ctx)  # noqa: SLF001
+        assert hook is None
+
+    def test_llm_hook_byok_default_on(
+        self,
+        tmp_path: Path,
+        clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
+    ) -> None:
+        """arxiv 任务带真 key → hook 建，translator 是 per-call BYOK 面。"""
+        from texlate.server.worker import _PerCallTranslator  # noqa: PLC0415
+
+        ctx, worker, _store = _mk(tmp_path)
+        ctx.secrets = Secrets(api_key="k", base_url="http://b", model="m9")
+        hook, usage, clients = worker._llm_hook_pack(ctx)  # noqa: SLF001
+        assert hook is not None
+        assert isinstance(hook.translator, _PerCallTranslator)  # type: ignore[attr-defined]
+        assert usage is not None
+        assert usage["calls"] == 0
+        assert clients == [], "per-call client 即弃，无长存连接要关"
+
+    def test_llm_hook_off_without_key(
+        self,
+        tmp_path: Path,
+        clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
+    ) -> None:
+        """无 BYOK key → None（裸 env-key client 会绕开计费面）。"""
+        ctx, worker, _store = _mk(tmp_path)
+        hook, usage, _c = worker._llm_hook_pack(ctx)  # noqa: SLF001
+        assert hook is None
+        assert usage is None
+
+    def test_llm_hook_opt_out(
+        self,
+        tmp_path: Path,
+        clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
+    ) -> None:
+        """``options.llm_hook=False`` / ``TEXLATE_FIXLOOP_LLM=0`` 显式关。"""
+        ctx, worker, _store = _mk(tmp_path, options={"llm_hook": False})
+        ctx.secrets = Secrets(api_key="k", base_url="http://b", model="m")
+        assert worker._llm_hook_pack(ctx)[0] is None  # noqa: SLF001
