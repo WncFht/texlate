@@ -57,7 +57,7 @@ from texlate.arxiv.unpack import (
 )
 from texlate.compile.cjkmap import embed_cjk_mappings
 from texlate.compile.engine import CompRes, Engine, engine_for, route_project
-from texlate.compile.fixloop import CaseSink, fixloop
+from texlate.compile.fixloop import CaseSink, Ruleset, fixloop
 from texlate.compile.fixloop.llm_hook import make_llm_hook
 from texlate.compile.inject import (
     InjectRejectError,
@@ -269,6 +269,24 @@ def _scrub_deep(value: Any, api_key: str) -> Any:  # noqa: ANN401 -- JSON 形状
     if isinstance(value, dict):
         return {k: _scrub_deep(v, api_key) for k, v in value.items()}
     return value
+
+
+def _ruleset_with_baseline(ctx: TaskCtx) -> Ruleset:
+    """加载默认 ruleset 并把 ``ctx.base_dir`` 注入 restore_support_from_src 的 params。
+
+    ``baseline_dir`` 是运行时路径（任务级 pristine base 树），``_substitute``
+    只展开 ``{payload}`` 模板——这里按 transform 名直接改写加载后的规则
+    raw dict。规则行未落地时为空转 no-op。
+    """
+    rs = Ruleset.load()
+    for rule in rs.rules:
+        act = rule.raw.get("action") or {}
+        if (
+            act.get("kind") == "builtin_transform"
+            and act.get("function") == "restore_support_from_src"
+        ):
+            act.setdefault("params", {})["baseline_dir"] = str(ctx.base_dir)
+    return rs
 
 
 def _fixloop_summary(cell: dict[str, Any]) -> dict[str, Any]:
@@ -2619,6 +2637,7 @@ class PipelineWorker:
             cell = fixloop(
                 work,
                 rec,
+                ruleset=_ruleset_with_baseline(ctx),
                 engine_name=ctx.engine_name,
                 corpus_id=ctx.task_id,
                 cond="zh",
