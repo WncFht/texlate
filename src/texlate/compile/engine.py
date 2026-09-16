@@ -247,6 +247,20 @@ def _match_head(head: str) -> tuple[str, str | None] | None:
     return None
 
 
+#: tail 侧真 2.09 签名（`_match_tail` 专用）：`\documentstyle` 控制序列
+#: 现身错上下文（`l.N` 行/tectonic stderr）、内核 compat-mode 横幅与
+#: "Compatibility mode" 注记行、2e 内核 "in LaTeX 2.09" 错文、上古格式
+#: "LaTeX Version 2.09" 版横幅。不收任意位置 "LaTeX2.09" 字样——aastex
+#: 系 cls 的 info 横幅 "Original \LaTeX2.09 style"（LaTeX2e 文档）曾连
+#: 吃 15+ 篇零 '!' 行静默死误报（fixloop-replay-baseline-2026-09-16）。
+_LATEX209_TAIL_RE = re.compile(
+    r"\\documentstyle\b|LaTeX 2\.09 COMPATIBILITY MODE|"
+    r"LaTeX2e command[^\n]*\bin LaTeX 2\.09|LaTeX Version 2\.09|"
+    r"^[ \t]*Compatibility mode",
+    re.MULTILINE,
+)
+
+
 def _match_tail(blob: str) -> tuple[str, str | None] | None:
     """无 `!` 行或首错即 emergency 时，回溯 tail 找文件名提示符。"""
     m = re.search(r"File `([^']+\.[a-zA-Z0-9]+)' not found", blob)
@@ -254,7 +268,7 @@ def _match_tail(blob: str) -> tuple[str, str | None] | None:
         return "missing_file", m.group(1)
     if "Enter file name" in blob:
         return "missing_file", None
-    if re.search(r"documentstyle|LaTeX ?2\.09", blob):
+    if _LATEX209_TAIL_RE.search(blob):
         return "latex209", None
     return None
 
@@ -1347,9 +1361,16 @@ class RouteDecision:
     latex209_suspect: bool = False  # \documentstyle 检出：降级为试编标记
 
 
+#: 高置信 pstricks 依赖签名（visible_tex 遮蔽视图上匹配）：包名元素级
+#: 精确（pstricks / pstricks-add / pst-* 家族——元素边界防 `{notpstricks}`
+#: 类子串误中）+ `pspicture` 环境 + `\psset` 配置宏（vendored/传递装载的
+#: 兜底信号，0905.2435/0905.4369 实证）。裸 `\psline`/`\psframe` 族不收——
+#: polyfill 守卫与自定义宏残影假命中（corpus_v3 全扫零独立命中；新口径
+#: 68 vs 旧 61，反增收 `{amsmath,pstricks}` 非首元素声明）。
 _PSTRICKS_RE = re.compile(
-    r"\\usepackage(?:\[[^]]*\])?\{[^}]*pstricks|\\begin\s*\{pspicture\}|"
-    r"\\ps(?:line|frame|curve|plot|custom|newpath)\b"
+    r"\\(?:usepackage|RequirePackage)\s*(?:\[[^\]]*\])?\s*"
+    r"\{[^}]*?\b(?:pstricks(?:-\w+)?|pst-\w+)\b|"
+    r"\\begin\s*\{pspicture\*?\}|\\pspicture\b|\\psset\b"
 )
 _MINTED_FROZEN_RE = re.compile(r"frozencache")
 _BITMAP_FONT_PKGS = re.compile(
