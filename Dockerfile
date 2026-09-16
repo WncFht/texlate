@@ -3,12 +3,13 @@
 #   阶段 1 node 构建 SPA → 阶段 2 取 tectonic musl 静态二进制（sha256 钉死）
 #   → 阶段 3 python:3.12-slim + uv sync + fonts-noto-cjk。
 #
-#   构建:  docker build -t texlate .
+#   构建:  docker build -t texlate .   （需 buildx/BuildKit：`COPY --from=<外部镜像>`
+#   是 BuildKit-only；代理宿主的 RUN 要走宿主网络：`--network=host`）
 #   运行:  docker run -p 8765:8765 -v texlate-data:/data texlate
 #   其他子命令: docker run --rm texlate fetch 1706.03762
 #
 # TeXLive xelatex 变体（texlate:full，高成功率编译档，镜像 ~4GB）：
-# 在 runtime 阶段追加——
+# 在 runtime 阶段追加——必须加在 `USER texlate` 之前（或临时 USER root）：
 #   RUN apt-get update && apt-get install -y --no-install-recommends \
 #         texlive-xetex texlive-lang-chinese texlive-latex-extra latexmk \
 #       && rm -rf /var/lib/apt/lists/*
@@ -51,8 +52,11 @@ RUN apt-get update \
 # ------------------------------------------------------------- 运行时
 FROM python:${PYTHON_VERSION}-slim AS runtime
 
+# fontconfig：消 tectonic 内置 fontconfig 的 default-config 噪音（~2MB）；
+# poppler-utils：judge 的 pdftotext CJK 字数核验依赖它，缺席降级 cjk_unverified。
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates fonts-noto-cjk \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates fonts-noto-cjk fontconfig poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=tectonic /usr/local/bin/tectonic /usr/local/bin/tectonic
@@ -66,7 +70,7 @@ COPY src/ ./src/
 # 镜像内 editable 安装直接以 src 树为包根，static 即装即用）。
 COPY --from=web /web/dist ./src/texlate/server/static
 
-RUN uv sync --frozen --extra server
+RUN uv sync --frozen --no-dev --extra server
 
 # BabelDOC sidecar 未随镜像分发（AGPL 进程边界 + 2GB 体积）——
 # 如需 PDF 上传通路，另行 `uv pip install babeldoc` 或挂宿主二进制。
