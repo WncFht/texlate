@@ -362,7 +362,7 @@ def _check_placeholder(src: str, zh: str, issues: list[Issue]) -> None:
     )
     zh_fuzzy = [
         m.group(0)
-        for m in PH_FUZZY_RX.finditer(znc)
+        for m in PH_FUZZY_RX.finditer(zh)
         if not PH_ANY_LIKE_RX.fullmatch(m.group(0))
     ]
     missing = sorted((scnt - zcnt).elements())

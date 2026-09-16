@@ -10,6 +10,8 @@
   （mock-sabotage 实测逃逸 1012.5411 chunk 7:1）→ zh 注释区净多出计 error。
 """
 
+import pytest
+
 from texlate.validate.l0 import L0Report, Severity, validate_pair
 
 
@@ -130,3 +132,144 @@ def test_body_placeholder_moved_into_comment_still_missing() -> None:
     rep = validate_pair(src, zh)
     assert not rep.ok
     assert any("缺失" in i.message for i in _issues(rep, "placeholder"))
+
+
+# ------------------------------------------- 真实逃逸样本回归（1012.5411）
+
+
+def test_comment_placeholder_real_escape_1012_5411() -> None:
+    """mock-sabotage recount 实际逃逸件原样回放。
+
+    bench/results/mock-sabotage-v3-2026-09-16/v3/recount.jsonl：
+    1012.5411 rngeo4.tex chunk 7:1，fabricate_ph ``[[MATH_966]]``@46——
+    src 段几乎全为 ``%`` 注释（含 CRLF），zh 在 ``%`` 行内注入占位符。
+    """
+    src = (
+        "% Body of paper goes here. Use proper sectioning commands. \r\n"
+        "% References should be done using the \\cite, \\ref, and \\label commands\r\n"
+        "\\section{} \n%\\label{}\r\n\\subsection{} \n\\subsubsection{}"
+    )
+    zh = (
+        "% 这是译文. \n% 这是译文 \\cite, \\ref, 这是译文 \\label "
+        "[[MATH_966]]这是译文\n\\section{} \n%\\label{}\n\\subsection{} "
+        "\n\\subsubsection{}"
+    )
+    rep = validate_pair(src, zh)
+    assert not rep.ok
+    hits = [i for i in _issues(rep, "placeholder") if "注释" in i.message]
+    assert hits, str(rep)
+    assert "MATH_966" in hits[0].message
+
+
+# ------------------------------------------------------- 注释区边缘变体
+
+
+def test_comment_placeholder_midline_and_double_percent() -> None:
+    """行中 ``%`` 与 ``%%`` 注释同样遮盖，藏入占位符均报错。"""
+    src = "公式 [[MATH_1]] 如下。"
+    for tail in ("% 注 [[MATH_966]]", "%% 注 [[MATH_966]]"):
+        rep = validate_pair(src, f"公式 [[MATH_1]] 如下。{tail}")
+        hits = [i for i in _issues(rep, "placeholder") if "注释" in i.message]
+        assert hits, tail
+        assert "MATH_966" in hits[0].message
+
+
+def test_comment_placeholder_eof_no_newline() -> None:
+    """注释延伸到 EOF 无换行，占位符仍被点算。"""
+    src = "公式 [[MATH_1]] 如下。"
+    zh = "公式 [[MATH_1]] 如下。\n% tail [[MATH_966]]"
+    rep = validate_pair(src, zh)
+    assert not rep.ok
+    assert any("MATH_966" in i.message for i in _issues(rep, "placeholder"))
+
+
+def test_comment_placeholder_multiple_tokens_each_reported() -> None:
+    """注释内多枚臆造占位符逐枚报错。"""
+    src = "公式 [[MATH_1]] 如下。"
+    zh = "公式 [[MATH_1]] 如下。\n% [[MATH_966]] 与 [[ENV_7]]"
+    rep = validate_pair(src, zh)
+    hits = [i for i in _issues(rep, "placeholder") if "注释" in i.message]
+    assert {i.found for i in hits} == {"[[MATH_966]]", "[[ENV_7]]"}
+    assert all(i.severity is Severity.ERROR for i in hits)
+
+
+def test_escaped_percent_body_placeholder_main_path() -> None:
+    r"""``\%`` 不是注释：其后占位符走正文主口径（多余方向），不进注释专项。"""
+    src = "占比 50\\% 见 [[MATH_1]]。"
+    zh = "占比 50\\% 见 [[MATH_1]] 与 [[MATH_966]]。"
+    rep = validate_pair(src, zh)
+    hits = _issues(rep, "placeholder")
+    assert not rep.ok
+    assert any("多余" in i.message for i in hits)
+    assert not any("注释" in i.message for i in hits)
+
+
+def test_comment_env_placeholder_caught_by_main_path() -> None:
+    r"""comment.sty ``\begin{comment}`` 环境**不被** mask_comments 遮盖——
+    其内占位符走正文主口径报"多余"，src 已有同环境时亦不逃。"""
+    src = "公式 [[MATH_1]]。\n\\begin{comment}\nold note\n\\end{comment}"
+    zh = "公式 [[MATH_1]]。\n\\begin{comment}\nold note [[MATH_966]]\n\\end{comment}"
+    rep = validate_pair(src, zh)
+    assert not rep.ok
+    assert any(
+        "多余" in i.message and "MATH_966" in i.message
+        for i in _issues(rep, "placeholder")
+    )
+
+
+# --------------------------------- 畸形变体注释区逃逸（zh_fuzzy 未遮盖修复）
+
+
+@pytest.mark.parametrize(
+    "bad",
+    ["[[math_966]]", "【MATH_966】", "[[MATH_966]", "[MATH_966]"],
+    ids=["lowercase", "fullwidth", "missing-bracket", "single-bracket"],
+)
+def test_comment_placeholder_malformed_variant_caught(bad: str) -> None:
+    """畸形占位符变体藏进 ``%`` 注释 → error。
+
+    ``zh_fuzzy`` 曾扫 masked ``znc`` 致注释内变体不可见（残余洞）；
+    改扫未遮盖 ``zh`` 后与 ``xlat.placeholders.diff`` 同口径，全部捕获。
+    """
+    src = "公式 [[MATH_1]] 如下。"
+    zh = f"公式 [[MATH_1]] 如下。\n% 备注 {bad}"
+    rep = validate_pair(src, zh)
+    assert not rep.ok
+    assert _issues(rep, "placeholder"), str(rep)
+
+
+def test_comment_malformed_variant_feeds_lev_pairing() -> None:
+    """注释内畸形 token 一样进 lev 配对：missing 方向拼错建议方向仍对。"""
+    src = "公式 [[MATH_1]] 与 [[MATH_2]]。"
+    zh = "公式 [[MATH_1]]。\n% [[MATH_2]"  # 缺右括号变体
+    rep = validate_pair(src, zh)
+    assert not rep.ok
+    assert any(
+        i.expected == "[[MATH_2]]" and i.found == "[[MATH_2]"
+        for i in _issues(rep, "placeholder")
+    ), str(rep)
+
+
+def test_comment_plain_text_no_tag_shape_clean() -> None:
+    """干净对回归：zh 注释正常文本（含 ``[RS80]`` 引用标号样式）不 FP。
+
+    src 注释自带 ``[RS80]`` → ``src_literal`` 净差豁免；``Smith 2020``
+    无 ``[Xn]``/``[[..]]`` 形同 token。
+    """
+    src = "见 [[MATH_1]]。% see [RS80] for details"
+    zh = "见 [[MATH_1]]。% 参考 [RS80] 与 Smith 2020 的工作"
+    rep = validate_pair(src, zh)
+    assert not _issues(rep, "placeholder"), str(rep)
+
+
+def test_comment_zh_new_bracket_tag_is_residue() -> None:
+    """zh 注释新增 src 没有的 ``[Xn]`` 形 token → 按多余占位符报。
+
+    与正文口径一致（正文新增 ``[RS80]`` 本报"多余/未识别"）——
+    注释文本 splice 后同样字面残留。
+    """
+    src = "见 [[MATH_1]]。% a note"
+    zh = "见 [[MATH_1]]。% 参考 [RS80]"
+    rep = validate_pair(src, zh)
+    assert not rep.ok
+    assert any("[RS80]" in i.message for i in _issues(rep, "placeholder"))
