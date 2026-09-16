@@ -1,0 +1,65 @@
+This is XeTeX, Version 3.141592653-2.6-0.999998 (TeX Live 2026/Arch Linux) (preloaded format=xelatex 2026.5.31)  16 SEP 2026 15:48
+entering extended mode
+ file:line:error style messages enabled.
+ %&-line parsing enabled.
+**gregory.tex
+(./gregory.tex
+LaTeX2e <2025-11-01>
+L3 programming layer <2026-01-19>
+(./iaus.cls
+Document Class: iaus 2004/05/17 v1.04 Proceedings IAU Symposium document class
+\halflineskip=\skip49
+\affilskip=\skip50
+\c@part=\count271
+\c@section=\count272
+\c@subsection=\count273
+\c@subsubsection=\count274
+\c@paragraph=\count275
+\@indentskip=\skip51
+\smallindent=\skip52
+\@footindent=\skip53
+\footheight=\skip54
+\@leftskip=\skip55
+\proofbox=\box53
+\rpbdim=\skip56
+\@stequation=\toks17
+\c@subequation=\count276
+\c@table=\count277
+\c@figure=\count278
+LaTeX Info: Redefining \cite on input line 1243.
+
+
+
+Found AMS Euler Roman fonts on the system, using the 'upmath' package.
+
+(./upmath.sty
+Package: upmath 1996/10/20 v1.0 CUP LaTeX2e package
+ (./AMSbsy.sty
+
+./AMSbsy.sty:24: LaTeX Error: Missing \begin{document}.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.24 A
+      MSfonts.sty^^@^^@^^@^^@^^@^^@^^@^^@^^@^^@^^@^^@^^@^^@^^@^^@^^@^^@^^@^^...
+? 
+./AMSbsy.sty:24: Emergency stop.
+ ...                                              
+                                                  
+l.24 A
+      MSfonts.sty^^@^^@^^@^^@^^@^^@^^@^^@^^@^^@^^@^^@^^@^^@^^@^^@^^@^^@^^@^^...
+You're in trouble here.  Try typing  <return>  to proceed.
+If that doesn't work, type  X <return>  to quit.
+
+ 
+Here is how much of TeX's memory you used:
+ 516 strings out of 470180
+ 7397 string characters out of 5479198
+ 426408 words of memory out of 5000000
+ 29190 multiletter control sequences out of 15000+600000
+ 628012 words of font info for 42 fonts, out of 8000000 for 9000
+ 14 hyphenation exceptions out of 8191
+ 66i,8n,66p,693b,93s stack positions out of 10000i,1000n,20000p,200000b,200000s
+No pages of output.

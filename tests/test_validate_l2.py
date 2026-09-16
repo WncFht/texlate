@@ -1,4 +1,4 @@
-"""L2 编译 log 解析测试 —— 真实 bench/work_compile 样例 + 合成 file:line: 格式。"""
+"""L2 编译 log 解析测试 —— tests/fixtures/ 入库真 log 常跑 + bench/work_compile 大样例 + 合成 file:line: 格式。"""
 
 from pathlib import Path
 
@@ -7,6 +7,16 @@ import pytest
 from texlate.validate.l2 import parse_log, parse_log_text
 
 WORK = Path(__file__).resolve().parents[1] / "bench" / "work_compile"
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
+
+# 入库真 log（裁自 bench/results/stagerun-loop1-2026-09-16/work/，本机绝对路径归一为 ./）：
+# 干净 clone 也必跑，不得加 skip 门
+_MISSING_FILE_LOG = (
+    FIXTURES / "xelatex-missing-file.log"
+)  # 0707.0128: File `setstack.sty' not found → Emergency stop
+_FILELINE_LOG = (
+    FIXTURES / "xelatex-fileline-syntax.log"
+)  # 0707.0382: file:line:error 格式 Missing \begin{document}
 
 _ERR_LOG = WORK / "1810.04805" / "baseline" / "main.log"  # 21 个 ! 错误
 _WARN_LOG = (
@@ -22,6 +32,9 @@ ERR_LINE_SUB = 12  # 合成样例第二处错误行号
 CTX_MAX = 8  # 错误上下文留存上限（docs/08 §2.3）
 TAIL_LEN = 30  # log 尾部留存行数
 N_ERR_SYNTH = 2
+N_ERR_FIXTURE = 2  # 两条 fixture 各 2 错：! 主错 + file:line Emergency stop
+FIXTURE_ESTOP_LINE = 31  # missing-file fixture 的 file:line Emergency stop 行号
+FILELINE_ERR_LINE = 24  # fileline fixture 首错 ./AMSbsy.sty:24
 
 _REAL_LOGS = (_ERR_LOG, _WARN_LOG, _CLEAN_LOG, _CJK_LOG, _UTF8_LOG)
 
@@ -84,6 +97,48 @@ def test_real_log_invalid_utf8_redline() -> None:
     v = parse_log(_UTF8_LOG)
     assert v.warnings.by_class.get("invalid_utf8", 0) > 0
     assert any("invalid_utf8" in r for r in v.warnings.redlines)
+
+
+def test_fixture_missing_file_log() -> None:
+    """入库真 log：File not found ! 错 + file:line Emergency stop 双格式共存。"""
+    v = parse_log(_MISSING_FILE_LOG)
+    assert not v.ok
+    assert not v.log_missing
+    assert v.n_errors == N_ERR_FIXTURE
+    assert v.engine == "XeTeX"
+    fe = v.first_error
+    assert fe is not None
+    assert "File `setstack.sty' not found" in fe.head
+    assert fe.tex_line is None  # missing-file ! 错无 l.N 锚
+    assert len(fe.ctx) <= CTX_MAX
+    assert fe.file_stack
+    assert fe.file_stack[0].endswith("GWDAW11_MLDC1_proc.tex")
+    second = v.errors[1]
+    assert second.tex_file == "./GWDAW11_MLDC1_proc.tex"
+    assert second.tex_line == FIXTURE_ESTOP_LINE
+    assert v.tail[-1] == "No pages of output."
+
+
+def test_fixture_fileline_syntax_log() -> None:
+    """入库真 log：file:line:error 格式 + 深层 file_stack + l.N ctx 锚。"""
+    v = parse_log(_FILELINE_LOG)
+    assert not v.ok
+    assert not v.log_missing
+    assert v.n_errors == N_ERR_FIXTURE
+    assert v.engine == "XeTeX"
+    fe = v.first_error
+    assert fe is not None
+    assert fe.tex_file == "./AMSbsy.sty"
+    assert fe.tex_line == FILELINE_ERR_LINE
+    assert "Missing \\begin{document}" in fe.head
+    assert any(f"l.{FILELINE_ERR_LINE}" in ln for ln in fe.ctx)
+    assert fe.file_stack == (
+        "./gregory.tex",
+        "./iaus.cls",
+        "./upmath.sty",
+        "./AMSbsy.sty",
+    )
+    assert v.tail[-1] == "No pages of output."
 
 
 def test_missing_log() -> None:

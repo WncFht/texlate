@@ -1,0 +1,48 @@
+This is XeTeX, Version 3.141592653-2.6-0.999998 (TeX Live 2026/Arch Linux) (preloaded format=xelatex 2026.5.31)  16 SEP 2026 15:48
+entering extended mode
+ file:line:error style messages enabled.
+ %&-line parsing enabled.
+**GWDAW11_MLDC1_proc.tex
+(./GWDAW11_MLDC1_proc.tex
+LaTeX2e <2025-11-01>
+L3 programming layer <2026-01-19>
+(./iopart.cls
+Document Class: iopart 2026/09/16 fixloop legacy shim -> article + IOP polyfills
+(/usr/share/texmf-dist/tex/latex/base/article.cls
+Document Class: article 2025/01/22 v1.4n Standard LaTeX document class
+[... preamble elided ...]
+\pmbraise@=\dimen185
+) (/usr/share/texmf-dist/tex/latex/amsfonts/amssymb.sty
+Package: amssymb 2013/01/14 v3.01 AMS font symbols
+ (/usr/share/texmf-dist/tex/latex/amsfonts/amsfonts.sty
+Package: amsfonts 2013/01/14 v3.01 Basic AMSFonts support
+\symAMSa=\mathgroup4
+\symAMSb=\mathgroup5
+LaTeX Font Info:    Redeclaring math symbol \hbar on input line 98.
+LaTeX Font Info:    Overwriting math alphabet `\mathfrak' in version `bold'
+(Font)                  U/euf/m/n --> U/euf/b/n on input line 106.
+)))
+
+! LaTeX Error: File `setstack.sty' not found.
+
+Type X to quit or <RETURN> to proceed,
+or enter new name. (Default extension: sty)
+
+Enter file name: 
+./GWDAW11_MLDC1_proc.tex:31: Emergency stop.
+<read *> 
+         
+l.31 ^^M
+        
+*** (cannot \read from terminal in nonstop modes)
+
+ 
+Here is how much of TeX's memory you used:
+ 6769 strings out of 470180
+ 190791 string characters out of 5479198
+ 602612 words of memory out of 5000000
+ 35311 multiletter control sequences out of 15000+600000
+ 629443 words of font info for 52 fonts, out of 8000000 for 9000
+ 14 hyphenation exceptions out of 8191
+ 93i,0n,112p,385b,286s stack positions out of 10000i,1000n,20000p,200000b,200000s
+No pages of output.
