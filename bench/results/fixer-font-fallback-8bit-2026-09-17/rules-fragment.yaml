@@ -1,0 +1,65 @@
+# rules-fragment.yaml — fixer-font-fallback-8bit (2026-09-17)
+# E(b): CJK 码位落类/fontenc 内置 8-bit tfm 文本字体 (ec-lmr12 / t1xr /
+# futr8t / mdbchr8t / aer* / cmr* / ptmr*t …) —— 缺字字体名无 [/: 前缀,
+# cjk_glyph 条目的 spec-font gate 不接; font_fallback 的 _FB_RANGES 只盖
+# 西里尔/组合/拉丁扩展, CJK 段不在带内 → 当前两条路都接不住。
+#
+# 前置状态 (2026-09-17 wave 561368d 实测): 42 个 E(b) 证据格全部痊愈——
+# 36 clean / 3 fail(非缺字面) / 3 upstream-skip, 全波 285 个 misschar
+# 残格中 CJK-in-tfm = 0。inject f7822a8 的 ctex+fandol 路由已根治。
+# 本规则是**残余安全网**: 若绑定污染型 E(b) 在新字体/新类上复发, 在此接住。
+#
+# ⚠ 需要 builtins 小改 (1d 属地, 见 builtin-spec.txt):
+#   font_fallback 新增 params.fallback_cs (默认 "txlatefallback") —
+#   第二回落实例需独立 cs 名, 否则两个实例的 \newfontfamily\txlatefallback
+#   互相撞名引入新 already_def 错误。font_not 门可一并加 (缺字已落 CJK
+#   字体 = 真缺字形, 跳过防自回环)。
+
+  # ─── E(b) residual net: CJK-in-8bit-tfm → newunicodechar → FandolSong ───
+  - id: cjk_font_fallback
+    description: "CJK 缺字落 8-bit tfm 文本字体 (绑定污染残例) → newunicodechar 逐字回退 FandolSong"
+    phase: loop
+    order: 27 # font_fallback(26) 之后; CJK 段与非 CJK 带互不重叠, 两规独立挂
+    when: { category: warn_missing_char }
+    action:
+      kind: builtin_transform
+      function: font_fallback
+      params:
+        # 与 _MC_TABLE cjk_glyph 同款 CJK 段表 (语义超集, 勿回退 textutil.CJK_RANGES)
+        fallback_ranges:
+          - [0x2E80, 0x303F]
+          - [0x3040, 0x30FF]
+          - [0x3100, 0x31EF]
+          - [0x3200, 0x33FF]
+          - [0x3400, 0x4DBF]
+          - [0x4E00, 0x9FFF]
+          - [0xA000, 0xA4CF]
+          - [0xAC00, 0xD7AF]
+          - [0xF900, 0xFAFF]
+          - [0xFE30, 0xFE4F]
+          - [0xFF00, 0xFFEF]
+          - [0x20000, 0x2FA1F]
+        # 文件形式命名 (kpathsea 解析, 不依赖 fontconfig; 与 inject
+        # texlatecjk <->"[FandolSong-Regular.otf]" 同口径, bwrap 内实证可达)
+        fallback_font: "FandolSong-Regular.otf"
+        # 待 1d: font_fallback 新 param —— \newfontfamily 的 cs 名
+        fallback_cs: txlatecjkfb
+        # 待 1d (可选): 缺字字体名已含 CJK 字体特征 (fandol/noto.*cjk/…) 的
+        # 码位跳过——真缺字形不归本规管, 防自身回环
+        font_not: "fandol|noto.*cjk|source.?han|uming|ukai|wqy|cjk"
+    risk: low # newunicodechar 逐字绑; 不碰 xeCJK 路由, 失败即回原缺字
+    known_gap: "死 \\selectfont 上下文内无效 (但那里只是绑定锻造点, 真正缺字发生在活上下文); 同一规则二次点火的 \\newfontfamily 重定义需 builtin 幂等守卫"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "loop1 E(b) 42-cell census: 0806.3020(ec-lmr12) 1109.5500(t1xr) 2105.00099(futr8t/futrc8t) 1404.0161(mdbchr8t) 1511.02648(aer9) 2203.00075(t1-stixgeneral) 等",
+          error: "Missing character: There is no 这 (\"8FD9) in font futr8t!",
+        }
+      - {
+          corpus: "jpp/fourier 类 futr8t (T1/futs→futr8t tfm): \\title{\\bf 这是译文} 在 \\maketitle frontmatter vbox 首用绑定落 tfm",
+          error: "CJK 落非 spec 字体名 → cjk_glyph font-gate 跳过, font_fallback 带外",
+        }
+    stats: { fires: 0, status: proposed } # 当前波面零活例 —— inject 已根治
+    source_ref: "fixer-font-fallback-8bit 交付 2026-09-17; bench/results/fixer-font-fallback-8bit-2026-09-17/builtin-spec.txt"

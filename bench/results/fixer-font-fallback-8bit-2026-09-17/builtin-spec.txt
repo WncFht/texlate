@@ -1,0 +1,44 @@
+builtin-spec.txt — font_fallback 扩展 delta (1d 属地实现建议)
+==============================================================
+
+背景: E(b) = CJK 码位落 8-bit tfm 文本字体。当前 font_fallback
+(builtins.py:1435) 只支持单一回落族 (\txlatefallback 硬编码) +
+单一带表。要开第二实例 (CJK 段→FandolSong) 需要两个新 param:
+
+1. ``fallback_cs`` (str, 默认 "txlatefallback")
+   \newfontfamily 的 cs 名。第二实例给 txlatecjkfb → 与第一实例
+   (Libertinus) 共存不撞 already_def。
+   改动点: 两处出现 "\txlatefallback" 字面 —— lines list 里
+   f"\\newfontfamily\\txlatefallback{{{font}}}" 与生成
+   \newunicodechar 的 "{{\\txlatefallback {c}}}", 换成 cs 变量。
+
+2. ``font_not`` (str 正则, 可选)
+   跳过缺字字体名命中此模式的码位 —— CJK 码位落在 CJK 字体本身
+   (fandol/noto cjk/…) 是真缺字形, 不应被 newunicodechar 重绑
+   (否则挂到无字形 CJK 字体的码位被反复接管, 每轮 snippet 变化
+   造成空转)。实现: chars 过滤处加
+   ``if font_not and re.search(font_not, font): continue``。
+   复用 _CJK_FONT_RE.pattern 作为 yaml 侧默认值即可。
+
+3. 幂等守卫 (bug 级, 建议顺手):
+   同一规则在后续轮次再点火时 chars 集合不同 → snippet 不同 →
+   _inject_after_docclass 判"未注入" → 第二次注入里的
+   \newfontfamily\txlateXxx 撞名 → "! Command already defined" 新错。
+   生成行改为:
+       \ifdefined\txlatecjkfb\else\newfontfamily\txlatecjkfb{...}\fi
+   (\ifdefined 两引擎都稳)。\usepackage{newunicodechar} 重复无害。
+
+已实证 (synthetic, 2105.00099 splice scratch):
+  \usepackage{newunicodechar}
+  \ifdefined\newfontfamily\else\usepackage{fontspec}\fi
+  \newfontfamily\txlatecjkfb{FandolSong-Regular.otf}
+  \newunicodechar{这}{{\txlatecjkfb 这}}
+  → bwrap 内 fontspec 正常建族 (log: family 'FandolSong-Regular.otf(0)'),
+    newunicodechar 链可用。残余 2 drop 是我注入的 poison-box 自身字符
+    (死 \selectfont 盒内必然落当前字体——但该处内容被弃, 非真伤)。
+
+备择机制 (未选): 族级 warmup —— 从日志 tfm 名反解 NFSS (enc,family)
+(kpsewhich fd 扫描: futr8t→T1/futs) 再 \fontencoding/\fontfamily
+预热 xeCJK 派生 spec。更近根因但要新增 fd→family 解析层, 复杂度高,
+且 warmup 只能防"绑定污染"型, 对"压根没路由"型无效。newunicodechar
+是两型通吃的钝器, 与既有 font_fallback 同构。

@@ -3185,12 +3185,10 @@ rules:
           ha: 'H$\alpha$'
           hb: 'H$\beta$'
           arcsec: "''"
-          # fixer-polyfill-journal 2026-09-17: \farcs=AAS 角秒小数
-          # (0\farcs60→.″60, 1003.0851 实证); \hbox{$''$} 双模安全
+          # fixer-polyfill-journal 2026-09-17: \farcs = AAS 角秒小数
+          # (0\farcs60 → .″60); \acknowledgements = aa.cls 裸章头
           farcs: ".\\hbox{$''$}"
-          # aa.cls 系裸 \acknowledgements 章头 —— 0806.3705/astro-ph/0408064/
-          # astro-ph/0501615; env 形 \begin{acknowledgements} 别签名不进此表
-          acknowledgements: '\section*{Acknowledgements}'
+          acknowledgements: "\\section*{Acknowledgements}"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -3271,89 +3269,34 @@ rules:
           # (c582736 已源头落); 本条目兜底绕开 normalize 的编译路径。
           DeclareUnicodeCharacter:
             {
-              polyfill: "\n\\providecommand{\\DeclareUnicodeCharacter}[2]{\\begingroup\\lccode`\\~=\"#1\\relax\\lowercase{\\endgroup\\catcode`~\\active\\protected\\def~}{#2}}",
+              polyfill: '\providecommand{\DeclareUnicodeCharacter}[2]{\begingroup\lccode`\~="#1\relax\lowercase{\endgroup\catcode`~\active\protected\def~}{#2}}',
             }
           # ── 2026-09-17 partial-taxonomy §C 期刊/类宏缺位族 ──
-          # 全表 polyfill 带 \n 前缀 —— _inject_after_docclass 在 docclass
-          # 行尾缝注入, 行尾 % 注释会整吞无前缀 snippet (1404.0346 %!PN
-          # 实证, applied=True 死注入); \n 逃出注释落下一行。
           # elsarticle \corauth[label]{注} → noop
-          corauth: { polyfill: "\n\\providecommand{\\corauth}[2][]{}" }
+          corauth: { polyfill: '\providecommand{\corauth}[2][]{}' }
           # svjour/amsthm \smartqed 重定义 \qed → noop (qed 保持包默认)
-          smartqed: { polyfill: "\n\\providecommand{\\smartqed}{}" }
+          smartqed: { polyfill: '\providecommand{\smartqed}{}' }
           # 期刊投稿注 \submitto{journal} → noop
-          submitto: { polyfill: "\n\\providecommand{\\submitto}[1]{}" }
+          submitto: { polyfill: '\providecommand{\submitto}[1]{}' }
           # \keywords{...} 渲染保留而非丢文 (article 系无此 cs)
           keywords:
             {
-              polyfill: "\n\\providecommand{\\keywords}[1]{\\medskip\\par\\noindent\\textbf{Keywords:} #1\\medskip}",
+              polyfill: '\providecommand{\keywords}[1]{\medskip\par\noindent\textbf{Keywords:} #1\medskip}',
             }
           # IEEEtran \PARstart{首}{余} 首字下沉 → 平排保字母
-          PARstart: { polyfill: "\n\\providecommand{\\PARstart}[2]{#1#2}" }
+          PARstart: { polyfill: '\providecommand{\PARstart}[2]{#1#2}' }
           # elsarticle/acmart \email → tt 渲染 (防 em 头把 email 误拆 \em ail)
-          email: { polyfill: "\n\\providecommand{\\email}[1]{\\texttt{#1}}" }
-          # REPLACE (fixer-polyfill-journal 2026-09-17): 原裸 \maketitle 兜底
-          # 在类已定义时 no-op 不治病根 —— ~25 格 maketitle payload 全是
-          # l.N 行末抢签, 真炸点 \email/\authorblockN/A 藏 \@author 展开体。
-          # 全家桶幂等注入; \n 前缀逃 docclass 行尾 % 注释吞注入
-          # (1404.0346 %!PN 实证; _inject_after_docclass eol 缝点缺陷,
-          # builtin 根治归 1d)。实证: 0905.0440/1003.0851 clean, 1404.0346 愈。
+          email: { polyfill: '\providecommand{\email}[1]{\texttt{#1}}' }
+          # shim 顶替类缺 \maketitle 兜底 —— 丢标题块换编译链存活
           maketitle:
             {
               polyfill: "\n\\providecommand{\\maketitle}{}\n\\providecommand{\\email}[1]{\\texttt{#1}}\n\\providecommand{\\authorblockN}[1]{#1}\n\\providecommand{\\authorblockA}[1]{\\\\[1ex]{\\small #1}}\n\\providecommand{\\authorrunning}[1]{}\n\\providecommand{\\titlerunning}[1]{}\n\\providecommand{\\inst}[1]{\\textsuperscript{#1}}\n\\providecommand{\\institute}[1]{}",
             }
-          # 同块挂直接 payload 键 (\authorblockN 裸调顶层时 payload 直达)
-          authorblockN:
-            {
-              polyfill: "\n\\providecommand{\\email}[1]{\\texttt{#1}}\n\\providecommand{\\authorblockN}[1]{#1}\n\\providecommand{\\authorblockA}[1]{\\\\[1ex]{\\small #1}}",
-            }
-          authorblockA:
-            {
-              polyfill: "\n\\providecommand{\\email}[1]{\\texttt{#1}}\n\\providecommand{\\authorblockN}[1]{#1}\n\\providecommand{\\authorblockA}[1]{\\\\[1ex]{\\small #1}}",
-            }
-          # 元数据宏裸调直达键 (aaspp4/svjour 系 preamble 散调)
-          authorrunning:
-            { polyfill: "\n\\providecommand{\\authorrunning}[1]{}" }
-          titlerunning:
-            { polyfill: "\n\\providecommand{\\titlerunning}[1]{}" }
-          institute: { polyfill: "\n\\providecommand{\\institute}[1]{}" }
-          inst:
-            { polyfill: "\n\\providecommand{\\inst}[1]{\\textsuperscript{#1}}" }
-          affil: { polyfill: "\n\\providecommand{\\affil}[1]{#1}" } # aaspp4
-          # \csname bibitemStop\endcsname 融合残留 —— NoStop 条目对偶
-          # (10-11 格)。拆回 → \bibitemStop 在场则调, 未定义也安全 (\relax)
-          csnamebibitemStop:
-            { cs_map: { csnamebibitemStop: "csname bibitemStop" } }
-          # recmath 系 wide-abstract \wideabs{...} —— cond-mat/0104373
-          # /9901011/9910489, nucl-th/0104002 (~5 格)。quote 块保全文面
-          wideabs:
-            {
-              polyfill: "\n\\providecommand{\\wideabs}[1]{\\begin{quote}\\small\\noindent #1\\end{quote}}",
-            }
-          # imsart/EJS 局部定义区定界 (1012.2012/1206.1960/1811.10292)。
-          # ★ \endlocaldefs 不可 \providecommand —— \@ifdefinable 拒 \end
-          #   前缀名 (1206.1960 already_def 级联实证) → \ifdefined..\else
-          #   \def..\fi 守卫式; 两键对称先到先注。
-          startlocaldefs:
-            {
-              polyfill: "\n\\providecommand{\\startlocaldefs}{}\n\\ifdefined\\endlocaldefs\\else\\def\\endlocaldefs{}\\fi",
-            }
-          endlocaldefs:
-            {
-              polyfill: "\n\\providecommand{\\startlocaldefs}{}\n\\ifdefined\\endlocaldefs\\else\\def\\endlocaldefs{}\\fi",
-            }
-          # 老 AMS/期刊 running-head 对 (1012.1584, astro-ph/9901236/9901311)
-          lefthead:
-            { polyfill: "\n\\providecommand{\\lefthead}[1]{\\markboth{#1}{}}" }
-          righthead:
-            { polyfill: "\n\\providecommand{\\righthead}[1]{\\markboth{}{#1}}" }
-          # epstopdf 包宏 (2104.00126) —— 稿依赖而 preamble 未装, 直接装包
-          epstopdfDeclareGraphicsRule: { usepackage: epstopdf }
           # 2.09 \eqnobysec (equation 按节重置) —— \@addtoreset 需
           # makeatletter 包住定义时刻, 调用处 catcode 无关
           eqnobysec:
             {
-              polyfill: "\n\\makeatletter\\providecommand{\\eqnobysec}{\\@addtoreset{equation}{section}\\renewcommand{\\theequation}{\\thesection.\\arabic{equation}}}\\makeatother",
+              polyfill: '\makeatletter\providecommand{\eqnobysec}{\@addtoreset{equation}{section}\renewcommand{\theequation}{\thesection.\arabic{equation}}}\makeatother',
             }
           # \hboxto 作者笔误 (0707.4206 等 ~15 格): \hboxto5cm → \hbox to5cm
           hboxto: { cs_map: { hboxto: "hbox to" } }
@@ -3362,10 +3305,33 @@ rules:
           # \endcsname 本就在场, 展开的 \bibitemNoStop 未定义自动 \relax
           csnamebibitemNoStop:
             { cs_map: { csnamebibitemNoStop: "csname bibitemNoStop" } }
-          # 1306.0281: acm_proc_article-sp→acmart shim 后老稿 \numberofauthors{N}
-          # 未定义 (acmart 自动计数, 老类手动设) —— 元数据提示宏, no-op 无损
-          numberofauthors:
-            { polyfill: "\n\\providecommand{\\numberofauthors}[1]{}" }
+          csnamebibitemStop:
+            { cs_map: { csnamebibitemStop: "csname bibitemStop" } }
+          wideabs:
+            { polyfill: "\n\\providecommand{\\wideabs}[1]{\\begin{quote}\\small\\noindent #1\\end{quote}}" }
+          startlocaldefs:
+            { polyfill: "\n\\providecommand{\\startlocaldefs}{}\\ifdefined\\endlocaldefs\\else\\def\\endlocaldefs{}\\fi" }
+          endlocaldefs:
+            { polyfill: "\n\\providecommand{\\startlocaldefs}{}\\ifdefined\\endlocaldefs\\else\\def\\endlocaldefs{}\\fi" }
+          lefthead:
+            { polyfill: "\n\\providecommand{\\lefthead}[1]{\\markboth{#1}{}}" }
+          righthead:
+            { polyfill: "\n\\providecommand{\\righthead}[1]{\\markboth{}{#1}}" }
+          affil:
+            { polyfill: "\n\\providecommand{\\affil}[1]{#1}" }
+          authorrunning:
+            { polyfill: "\n\\providecommand{\\authorrunning}[1]{}" }
+          titlerunning:
+            { polyfill: "\n\\providecommand{\\titlerunning}[1]{}" }
+          institute:
+            { polyfill: "\n\\providecommand{\\institute}[1]{}" }
+          inst:
+            { polyfill: "\n\\providecommand{\\inst}[1]{\\textsuperscript{#1}}" }
+          epstopdfDeclareGraphicsRule: { usepackage: epstopdf }
+          authorblockN:
+            { polyfill: "\n\\providecommand{\\email}[1]{\\texttt{#1}}\n\\providecommand{\\authorblockN}[1]{#1}\n\\providecommand{\\authorblockA}[1]{\\\\[1ex]{\\small #1}}" }
+          authorblockA:
+            { polyfill: "\n\\providecommand{\\email}[1]{\\texttt{#1}}\n\\providecommand{\\authorblockN}[1]{#1}\n\\providecommand{\\authorblockA}[1]{\\\\[1ex]{\\small #1}}" }
         # 表外 fallback (2026-09-16): glue 残骸前缀拆分 —— payload 未命中
         # cs_table 时, 若 cs = 已知粘连头 + 残余 (大写起首或 ≤4 字符) 则合成
         # cs_map 拆回 "head rest" (replay 实证 rmPT 型新残骸仍零星冒头,
