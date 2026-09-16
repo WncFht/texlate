@@ -43,7 +43,7 @@
 
 1. **定点 rerun 19 格两轮已收官**（peer1 执鞭）：**14/19 出 pdf**。nenp 15→2——early_eof 13 格全救回（11 acceptable + 2 best_effort，`18ff106` plea 规则+revtex4-1 桥）；真退化 4 格：astro-ph/0111575 **痊愈 acceptable**；1003.1717 仍 unfixable:syntax、1306.0036/2410.00012 改判 undefined_cs（subclassify 收窄正确）。残 5：1803.00012（SIGSEGV rc=-11，killed_signal 已记）、1706.02464（bufsize rc=1）、1003.1717、1306.0036、2410.00012。pst-* 可解仍败疑点归 loop2 全量观察。
 2. **rules.yaml 内容面**（peer1）：`shim_map` +17 条已落 `622fc04`；`static_precheck` scan_patterns 已补 `\input` 裸名+花括号两形态（lookahead 防 `\includegraphics` 误捕，`engine.py:678` 顺带修 `x.tex`→`x.tex.tex` 双叠）。
-3. **worker-hardening 12 项落地**（1e 在飞 #52）+ 残两件：#74 latest-alias 二次 dedup、#78 L2 归因洞。**注意 `server/worker.py:2763` 有半残 edit（await 外置 SyntaxError）断 test 收集——在飞方收尾。**
+3. **worker-hardening 12 项已收口** `7cce5f9`（#74 latest-alias 二次 dedup、#78 L2 归因洞、llm_hook BYOK、share 三闸同批落）；`server/worker.py:2763` 半残 edit 已修（HEAD 语法净）。#78 前置 popped_files 链路 `e32e90e` 已落（texlog-popped），消费侧接线（llm_hook `_resolve_err_file`/`_requester_paths`）转 项目体验方式。
 4. **engine taxonomy 单源化已落** `5d195c2`（audit-taxonomy 交付 + peer1 review；死代码 `_match_head/_match_tail` 顺手删）——engine.parse_log 一并被 derive 覆盖，engine↔rules.yaml 双轨漂移源消除。
 
 ### 4.2 loop2（全量 fixloop 重跑）
@@ -80,8 +80,8 @@
 
 ### 4.3 中线
 
-- **真网关规模验证**（1e 建议）：xlat-real n50 出数后推 n100-200 拿真 clean-rate 分布——mock 臂今日连修 4 个缺陷，真臂还没同等扫过。**postfix n≈81 已出数（在飞收尾，`bench/results/postfix-2026-09-16/`）**：翻译 81/81 篇、chunk ok 8885/8889（4 partial 0 fault）、splice 占位残留 0；pipe-xel clean 50/fail 6/partial 25（clean 61.7% vs mock 臂 45.3%——真译文反而更稳）；pipe-fix 救回 12/13（acceptable 9+best_effort 1+clean 2）。**管线引入退化 9 格**（pipe 非 clean 且 base clean）scout-realreg 归因在飞：0905.4907 已知 bug-E，其余 8 格待归因（疑 bug-B 主场——真臂 latin-token 保留率远高于 mock 四字）。
-- **share 生态闭环**（1e）：worker 完成钩自动产包 + index.jsonl 服务形态（§8）。
+- **真网关规模验证**（1e 建议）：xlat-real n50 出数后推 n100-200 拿真 clean-rate 分布——mock 臂今日连修 4 个缺陷，真臂还没同等扫过。**postfix n≈81 已出数（在飞收尾，`bench/results/postfix-2026-09-16/`）**：翻译 81/81 篇、chunk ok 8885/8889（4 partial 0 fault）、splice 占位残留 0；pipe-xel clean 50/fail 6/partial 25（clean 61.7% vs mock 臂 45.3%——真译文反而更稳）；pipe-fix 救回 12/13（acceptable 9+best_effort 1+clean 2）。**管线引入退化 9 格**（pipe 非 clean 且 base clean）scout-realreg 归因在飞：0905.4907 已知 bug-E，其余 8 格待归因（疑 bug-B 主场——真臂 latin-token 保留率远高于 mock 四字）。→ **已收官 realpostfix2 n=100**（2026-09-17，`bench/results/realpostfix2-2026-09-16/`）：chunk ok 10706/10717、splice 残留 0；pipe-xel clean76/partial10/fail14，fixloop 后 union pdf **96%**、union clean 87、fail 4；管线引入回归 2 格（0905.4907 翻译裸 cs——已落 L0#11 `de03153`；hep-ph/9910403 expl3_backend）。归因/审计 report：scout-pf2fails、scout-e2ereal。
+- **share 生态闭环**（1e）：worker 完成钩自动产包 + index.jsonl 服务形态（§8）。→ **已全闭**（2026-09-17）：完成钩 `746e87f` + 事后 pack 端点 `4b537df` + 前端钮 `aa8759a` + **隐式命中接线** `d3fb38b`（translate 路径 post-parse 查 index → `_stage_share_apply` 零 token 通道）+ docs-sync 对账 `6c9d567`。
 - **deferred 清单**：v1 退役（倾向不动）、e2e_real→lib 降级、L2 编排环 e2e↔worker 共享化（跨边界需协商落点）、TokenSource Protocol 重构、L2 真 log fixtures。
 - **llm_hook 接线**（1e 已裁）：server 路径走任务 BYOK client 复用 `_make_translator`/usage_sink；有真 api_key 默认开；`kind=share` 一律全关（§5 导入零 token 承诺）。
 
@@ -109,9 +109,9 @@
 
 **路由给 1d 的 ready-to-apply 规格**（`c4db001`/`eb89d55`）：PH-in-cs 双落点（l0 第 10 条 ERROR + pipeline `_intercept_ph_in_cs` 副层盖续跑/缓存旁路；正则须双侧夹持 `\\[a-zA-Z@]+\[\[..\]\][a-zA-Z@]` + Counter 净差——裸 `\\[a-zA-Z]*\[\[PH` 对 5% 合法尾邻 FP）；latex209 改名场景目标类可解析性检查（rglob 随包 + kpsewhich 系统，kpsewhich 缺席 fail-open → reject `latex209_no_target`）；inject `\DeclareUnicodeAccent{\t}{"0361}` TS1→TU 提升。
 
-**在飞（1e）**：realpostfix2（bg 测量臂 ~3h/9-11h）；xlat-sweep（xlat/+validate/ 残余审计，l0/pipeline 只读避 1d 活面）；epub-nobody（无 body 畸形 xhtml 防崩）；arxiv-sweep（arxiv/ 残余，fetch.py 冻结）；web-idem（Idempotency-Key create 路径接线）。
+**在飞（1e）**：realpostfix2（bg 测量臂 ~3h/9-11h）；xlat-sweep（xlat/+validate/ 残余审计，l0/pipeline 只读避 1d 活面）；epub-nobody（无 body 畸形 xhtml 防崩）；arxiv-sweep（arxiv/ 残余，fetch.py 冻结）；web-idem（Idempotency-Key create 路径接线）——**2026-09-17 五项全收口**（`e6ff7f8`/`ce7d982`+`d600c44`/`8cb1446`+`e07af9c`/`c06b4bb`，realpostfix2 见 §7）。
 
-**1e lane 残余清单**：Idempotency-Key server 端契约待 web-idem 核实（缺口则纯前端发头）；`--offline --server` 互斥与否已裁=维持静默不拒（与既有本地旗标语义一致）；epub export_epub/export_docx 转调包装属公共 API 面预留非死代码；work_e2emock keep-list（1d/fixers-slots 欠，fallback {1206.0197, 2410.17957}，磁盘不紧）；英文 UI/上传进度条/split 栏宽拖动=架构级待立项。
+**1e lane 残余清单**：Idempotency-Key 已核实服务端零缺口、前端三 create 路发头已落 `c06b4bb`；`--offline --server` 互斥与否已裁=维持静默不拒（与既有本地旗标语义一致）；epub export_epub/export_docx 转调包装属公共 API 面预留非死代码；work_e2emock keep-list（1d/fixers-slots 欠，fallback {1206.0197, 2410.17957}，磁盘不紧）；英文 UI/上传进度条/split 栏宽拖动=架构级待立项。
 
 **1d 落地波（深夜续，routing spec 全消化）**：
 
@@ -122,3 +122,55 @@
 - **slot 二分实装** `558c6c1`：`SLOT_MAX_CHARS` spec 参数从死常量变实装（`_make_slots` 走 `batch.split_long_chunk` 句界二分）；`PhValidator` 死协议类删除（签名与真缝不符）。
 - **新派发 → 已交付**：jpsj3 目标类可解析守卫 `9c381cf`（`_target_resolvable` rglob+kpsewhich fail-open → reject `latex209_no_target`）；aipcheck.tex bundled 覆写 `1e6ea75`（`JUNK_FILE_STUBS` 名单挂 normalize_project 首步，stub 与 fixloop shim 同文，1109.2354 真编出 4 页 PDF）；hyperref 驱动剥除 → peer1 rules 车道。maintex 附带观察：1206.0565 main 命中 `aipguide.tex` 类指南非论文本体——E 桶 docs-vs-paper 同族，记档。
 - **收口**：fixer-slots/209mc/maintex 交付毕全关，1d 侧 subagent roster 清空；scorecard 自查 `b04b96d`——89.17%（+43 到 90%），2f 复验 75 no_main_tex + 4 BrokenProcessPool 在飞（`7f20897` body 加权吃这批）。
+
+## 7. 2026-09-17 扫荡波收口清单
+
+大扫荡波（texlate-41 协调，~24 agent）全数落库；mock 全语料门 4527→**4537/89.68%**（差 +17，机械面枯竭，残路径=2f 再生成波 + catscope 重切 + B/C detect）；realpostfix2 真臂收官 **96%**（union pdf，n=100）。逐 agent 交付物：
+
+| agent | 交付物 | commit | 状态 |
+| --- | --- | --- | --- |
+| web-idem | create 三路 Idempotency-Key（client.ts+mock+8 vitest）；server 端契约核实零缺口 | `c06b4bb` | 收口 |
+| web-tests | sharePack/homeByok/taskStats 三 edge 文件 +25 vitest（118 全绿） | `56904a5` | 收口 |
+| web-i18n | 硬编码 5 处接线 + Record 回退 2 处 + title 接线 + i18n 契约测试 | `293c96f` | 收口 |
+| mock-parity | mock-api 形态漂移 9 修 + dedup/reuse/idempotency 全链 | `d5c6fe7` | 收口 |
+| docs-sync | tools-runbook/web-layer/shared-cache 三文档对齐落地特性 | `6c9d567` | 收口 |
+| share-audit | share 安全面 6 修（文件名逃逸/NUL·超长名/异常面/发布竞态/幂等 bytes/跨设备 move） | `9325aa1` | 收口 |
+| share-wire | 隐式 share 命中接线（post-parse `index_lookup`→`_stage_share_apply`，零 token） | `d3fb38b` | 收口 |
+| upload-hardening | `_parse_multipart` 有界读堵 413 旁路 + share_import 孤儿目录收净 | `ebb4ef0` | 收口 |
+| app-contracts | 18 端点守卫阶梯矩阵 + settings server 模式 403 闸 + options intake 清洗 | `08eb73a` | 收口 |
+| server-deep | idem_key 一等列+复合索引、cache_key 索引、SSE 队列限界 512、warnings 下推 SQL | `bd8b1ed` | 收口 |
+| align-sweep | align.py 4 修（无 /Top 锚排序/畸形 Top/mediabox/Resources 继承）+5 测试 | `47373cb` | 收口 |
+| texlog-sweep | missing-char 括弧字形污染修 + 无括弧早退 ~3.4x | `bd12931` | 收口 |
+| texlog-popped | `popped_files` 贯通 texlog→ErrReport/LogInfo（#78 L2 归因洞前置） | `e32e90e` | 收口；消费侧接线转 项目体验方式 |
+| docx-sweep | docx 8 修（hidden rPr 污染/specVanish/mc:Fallback 双计/paraId 克隆/noBreakHyphen/w:lang 戳/moveFrom/no-body） | `d600c44` | 收口 |
+| bench-hygiene | bench/py 12 文件小修（死码 4/路径漂移 2/runner 标注 4/docstring 2） | `3c37ea4` | 收口 |
+| scripts-ci | scripts 8 修（CI 必红 2 项：gwcap SC2034、repro.sh shfmt）+ CI 漂移表 | `1c27c8b` | 收口；lint:js 严格度对齐 `89a4065`、gitleaks job `90f9fd2` |
+| arxiv-stale | 缓存命中 stale-version hint（`resolve_version` 复用 + warnings 通道） | `e07af9c` | 收口 |
+| xlat-sweep | xlat/+validate/ 残余审计 + 3 小修（slots 分支合并/ensure_deps 留痕/十规则计数） | `e6ff7f8` | 收口；SLOT_MAX_CHARS 实装 `558c6c1`、PhValidator 已删 |
+| spec-xlat | docs/08 xlat 面对账（只读）：未落地 10 项 + 勘误 5 条 | `6c8fbb5` | 收口；勘误批已落 docs/06/08 |
+| scout-e2ereal | e2e_real_bench resume/recode 审计（只读）：9 风险（--date 分叉/印章漂移/rc141 信号归因等） | `6c8fbb5` | 收口 |
+| scout-pf2fails | realpostfix2 早期 13 格归因 + 5 新签名（翻译裸 cs/shim 保真/数学字体域 misschar/graphic_repair 缺口/normalize 揭罩） | report（随 `3c37ea4` 入库） | 收口；裸 cs 已落 L0#11 `de03153` |
+| corrosion-rerun | 28 格 mock 重译：10 出 pdf、CJK 指纹清零、残 18 归因（真错 11/结构残损 5/YamlishError 2） | `f18a511`/`a9c13a4`/`534e533` | 收口 |
+| no-main-tex-attr | 75 reject+4 BPP 归因：fixable-detect 12（A6/B4/C2）/upstream-wontfix 63；BPP 3/4 转 ok | `c1c8f96` | 收口；P-A `7a78b66`、P-C `e840ab0` 已落，P-B 待 1d 裁 |
+| utf8-rerun | 545 格复验：compile-clean 387、end-state clean +373、invalid_utf8 残 5（atend-bbox 数据行） | `7629299` | 收口；P-E 提案待 1d 裁 |
+| realpostfix2 | 真臂 n=100 收官：union pdf 96%、union clean 87（pipe-xel 76 + fix 救 11）、splice 残留 0、回归 2 格；snapshot manifest 存证 | `a0d8024`（+overseer 台账 `96b9a9c`） | 收口 |
+| fixable-data | 35 残格裁定落地（shim bodies/babel_opt/driver rewrites） | `2049ad3`/`1359b9c` | 收口 |
+| 1d 落地波 | catcode scope `9a44100` + CR/CRLF EOL `e840ab0` + L0#11 bare_cs `de03153` + ph_in_cs pipeline 副层 `7de27e7` + bare_cs 单源化 `9909f41`（`textutil.bare_cs_net`+`MATH_CS` 导出，`_intercept_bare_cs` 规格转 peer1） | 五 hash | 收口；catscope 后全量重切波在飞 |
+| worker-consistency | stage 函数不变量审计 | — | 在飞（#148） |
+
+**留存 open 项**（扫荡波未消化，归下轮路由）：
+
+- **spec-xlat 未落地 10 项**：三表死链（`save_maps` 无生产调用方）、免费集动态发现无生产接线、env_text kind 全链死路、env_judge 默认关 vs spec 标准机制、`invalidation_tags` 未接线、段内规则三缺二、file_cache_key 缺 `base_url`、修复器模型不符（impl `swe-2-medium` vs spec `swe-2-max`）、anthropic `cache_control` 缺字段、e2e `_translate_tree` 裸 pipeline——按归属已转 1d/项目体验方式。
+- **texlog-popped 消费侧**：`llm_hook._resolve_err_file`/`_requester_paths` 接 popped 尾段（#78 正修），归 项目体验方式。
+- **scout-e2ereal 风险 9 项**：`--date` 跨日重启分叉、印章只钉 live repo、浅合并残键、rc≥128 信号归因逃逸、cases 双行、results.json 撕写、空 records 种子、抽样漂移、auth 不停车——记档待修。
+- **scout-pf2fails 签名残余**：shim 保真 3 子型（aa.cls→natbib author-year、aipproc→theacknowledgments、aastex63→`_` catcode）、数学字体域 misschar 无规则接手、graphic_repair 覆盖缺口——归 项目体验方式规则车道。
+- **no-main-tex P-B 已裁**（2026-09-17）：bd 存在性谓词放宽到 `\input` 传递闭包——cs/0408015（bd 在 body.tex:11）+ 2105.00092（bd 在 begin.tex:74、ed 在 end.tex:1）两格 fixer-bdetect 在飞；SEKI 双子 0905.2435/0905.4369（封面件 dc + prolog 异形稿）判 wontfix。**P-D**（reject 错误码细分 plain_tex/latex209/garbage）、**utf8 P-E**（atend `%%BoundingBox` 头注改写）——待 1d 裁。
+- **app-contracts 未修面**：GET settings/health/providers server 模式信息泄漏（产品决策）、`worker.py` `int(options["qps"])` 同型崩溃类、`_auth` 三重读盘 nit。
+- **server-deep 取证清单**：`_build_md_zip` 线程约束 docstring、`put_file` loop 停顿 ~100-300ms（修法在 worker 侧）、transition 读-判-写不变量记档。
+- **scripts-ci 漂移残余**：bench/results 划出口径分裂（文档措辞 vs 实际 gate）待 leader 定政策；pre-commit eslint glob 不含 ts（CI 比本地严，观察项）。
+- **2f 再生成波/全量重切**：catscope `9a44100` 落地后重切波在飞——C 桶×2 实证翻案（1608.02631 chunks=449、gr-qc/0605005 chunks=49，reject→ok 流向 xlat/compile）、0707.4206 chunks 222→186（@-cs 碎块融合）。B 桶裁决见上条（fixer-bdetect 在飞）。
+- **新归因在飞**（realpostfix2 recode 露头）：0905.4439 `skip:chunk crash` + 2203.13012/2403.15096/hep-ph/9703228 五新 fault——scout-chunkfault 归因是否 splice/emit/cs 波引入；hep-ph/9910403（唯一 fail 级引入格）scout-pf2final 深掘中（1e 侧）。
+- **bundled-shadow 扩展**（scout-bundledshadow 在飞）：aipcheck `\next` 扫描 1109.2354/1206.0565 + svjour 0905.0193 `svepj.clo` 选项文件可见性；**aastex 爆栈**（scout-aastex 在飞）：astro-ph/0104174+0408531 `\begin{document}` 栈溢出，疑 inject×aastex-shim 交互。
+- **新残留类（记档）**：pstricks `\psunit 1cm` 的 `1cm` dimen 操作数进 chunk——动态寄存器名进不了槽表，归 fixloop illegal_unit 桶（非 segmenter 切碎）。
+- **perf 工单（低优先，不堵门）**：2410.00035/2410.17952/2410.17973 三格 parse 稳定 10-28min（非 catscope 回归），逐 .tex parse_tex <0.1s——嫌疑=巨件非-tex 全量读（2410.17952 带 49.7MB anthology.bib）或 parse_file O(n²)，波每轮拖尾 ~25min。
+- **deferred 清单**（§4.3 原位）：v1 退役、e2e_real→lib 降级、L2 编排环共享化、TokenSource Protocol、L2 真 log fixtures——不动。
