@@ -37,8 +37,10 @@ __all__ = [
     "CJK_RANGES",
     "CJK_RX",
     "DEAD_ENVS",
+    "MATH_CS",
     "VERBATIM_ENVS",
     "EncodingVerdict",
+    "bare_cs_net",
     "decode_tex",
     "decode_tex_with",
     "is_cjk_cp",
@@ -85,6 +87,148 @@ def ph_in_cs_net(src: str, zh: str) -> Counter[str]:
     return Counter(_PH_IN_CS_RX.findall(mask_comments(zh))) - Counter(
         _PH_IN_CS_RX.findall(mask_comments(src))
     )
+
+
+#: 数学模式专用命令（文本域出现即 ``Missing $`` 编译炸弹——realpostfix2
+#: 0905.4907 ``\alpha 发射体`` 实证签名）。收录内核 + amsmath/amssymb
+#: 高频名；表外新名退化走 L0 ``macro`` 泛 warn 兜底，不静默。
+#: 刻意不收双模式名（``\ldots``/``\quad``/``\phantom``/``\ensuremath``
+#: 文本域合法）与文本族名（``\dag``/``\S``/``\pounds``/``\eqref``）。
+MATH_CS: Final = frozenset(
+    """
+    alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi
+    pi rho sigma tau upsilon phi chi psi omega varepsilon varphi varpi varrho varsigma
+    vartheta varkappa digamma Gamma Delta Theta Lambda Xi Pi Sigma Upsilon Phi Psi Omega
+    aleph beth daleth gimel hbar hslash imath jmath ell wp Re Im partial nabla
+    infty prime emptyset varnothing angle measuredangle sphericalangle triangle triangledown vartriangle square diamond lozenge complement
+    backslash forall exists nexists neg lnot top bot flat natural sharp clubsuit diamondsuit heartsuit
+    spadesuit mho Finv Game eth Bbbk mathbb mathcal mathfrak mathscr mathbf mathit mathrm mathsf
+    mathtt mathnormal boldsymbol bm pmb times div pm mp cdot cdots vdots ddots dotsb
+    dotsc dotsi dotsm dotso ldotp cdotp ast star circ bullet oplus ominus otimes oslash
+    odot bigodot bigoplus bigotimes cup cap uplus sqcap sqcup setminus smallsetminus amalg wr triangleleft
+    triangleright vartriangleleft vartriangleright trianglelefteq trianglerighteq ntriangleleft ntriangleright ntrianglelefteq ntrianglerighteq bigcirc dagger ddagger vee wedge
+    barwedge doublebarwedge curlyvee curlywedge lhd rhd unlhd unrhd ltimes rtimes leftthreetimes rightthreetimes divideontimes dotplus
+    intercal boxdot boxplus boxminus boxtimes doublecap doublecup Cap Cup veebar circledast circledcirc circleddash circledS
+    circledR maltese checkmark land lor leq le geq ge neq ne equiv sim simeq
+    approx approxeq asymp cong ncong nsim backsim backsimeq eqsim thicksim thickapprox doteq doteqdot eqcirc
+    circeq risingdotseq fallingdotseq triangleq bumpeq Bumpeq iff prec succ preceq succeq preccurlyeq succcurlyeq curlyeqprec
+    curlyeqsucc precapprox succapprox precsim succsim precnapprox succnapprox nprec nsucc npreceq nsucceq ll gg llless
+    ggless lessapprox gtrapprox lesssim gtrsim lesseqgtr gtreqless lesseqqgtr gtreqqless lessdot gtrdot lessgtr gtrless lneq
+    lneqq gneq gneqq leqslant geqslant eqslantless eqslantgtr nleq ngeq nleqslant ngeqslant nleqq ngeqq nless
+    ngtr lnsim gnsim lnapprox gnapprox subset supset subseteq supseteq sqsubset sqsupset sqsubseteq sqsupseteq subsetneq
+    supsetneq subseteqq supseteqq varsubsetneq varsupsetneq varsubsetneqq varsupsetneqq nsubseteq nsupseteq nsubseteqq nsupseteqq Subset Supset in
+    ni notin owns vdash dashv vDash Vdash Vvdash nvdash nvDash nVdash nVDash models perp
+    mid nmid parallel nparallel shortmid shortparallel smile smallsmile frown smallfrown bowtie Join propto varpropto
+    between pitchfork therefore because multimap implies impliedby to gets mapsto mapsfrom hookrightarrow hookleftarrow rightarrow
+    leftarrow Rightarrow Leftarrow leftrightarrow Leftrightarrow nrightarrow nleftarrow nRightarrow nLeftarrow nleftrightarrow nLeftrightarrow rightleftarrows rightrightarrows leftleftarrows
+    Lleftarrow Rrightarrow twoheadrightarrow twoheadleftarrow rightarrowtail leftarrowtail looparrowleft looparrowright circlearrowleft circlearrowright curvearrowleft curvearrowright dashrightarrow dashleftarrow
+    uparrow downarrow updownarrow Uparrow Downarrow Updownarrow upuparrows downdownarrows upharpoonleft upharpoonright downharpoonleft downharpoonright rightharpoonup rightharpoondown
+    leftharpoonup leftharpoondown rightleftharpoons leftrightharpoons nearrow searrow swarrow nwarrow longrightarrow longleftarrow Longrightarrow Longleftarrow longleftrightarrow Longleftrightarrow
+    longmapsto rightsquigarrow leadsto xrightarrow xleftarrow arccos arcsin arctan arg cos cosh cot coth csc
+    deg det dim exp gcd hom inf injlim ker lg lim liminf limsup ln
+    log max min mod pmod bmod pod Pr projlim sec sin sinh sup tan
+    tanh varinjlim varliminf varlimsup varprojlim sum prod int iint iiint iiiint oint oiint idotsint
+    coprod bigcap bigcup bigvee bigwedge bigsqcup biguplus smallint intop left right middle big bigg
+    Big Bigg bigl bigr bigm biggl biggr Bigl Bigr Bigm Biggl Biggr biggm Biggm
+    langle rangle lceil rceil lfloor rfloor ulcorner urcorner llcorner lrcorner vert Vert lvert rvert
+    lVert rVert lgroup rgroup lmoustache rmoustache bracevert arrowvert Arrowvert acute grave ddot dddot ddddot
+    tilde bar breve check hat vec dot mathring overline overbrace underbrace widehat widetilde overleftarrow
+    overrightarrow overleftrightarrow underleftarrow underrightarrow underleftrightarrow frac dfrac tfrac cfrac binom dbinom tbinom choose sqrt
+    over atop above stackrel overset underset sideset substack operatorname mathop mathrel mathbin mathord mathopen
+    mathclose mathinner mathpunct displaystyle textstyle scriptstyle scriptscriptstyle limits nolimits nonumber smash boxed tag intertext
+    shortintertext not colon centerdot medspace thickspace negthinspace negmedspace negthickspace sb sp
+    """.split()  # noqa: SIM905 -- 词表字面量即规格形态
+)
+
+#: 裸 cs 扫描单遍正则：cs 名（``[a-zA-Z]`` 起头、``@`` 可续）/ bs 跳脱
+#: （``\\$``/``\\\\``/``\\%`` 等不被误当定界符或 cs）/ ``$`` 定界候选。
+_BARE_CS_SCAN_RX: Final = re.compile(r"\\[a-zA-Z][a-zA-Z@]*|\\.|\$")
+
+#: 粘合 cs 判定要求的最短 src 前缀长——``\toX`` 类短基名误粘面大，不判。
+_MIN_FUSED_PREFIX: Final = 3
+
+
+def _cs_events_spans(
+    masked: str,
+) -> tuple[list[tuple[str, int]], list[tuple[int, int]]]:
+    r"""``(cs 名+pos 事件, 配对数学 span 表)``——单遍扫描产物。
+
+    ``$..$``/``$$..$$``/``\\(..\\)``/``\\[..\\]`` 顺序配对；相邻两 ``$``
+    合并为 ``$$``（``$$x$$`` 不切成两对空区间）。未闭合定界符其后全部
+    按文本域处理（配对不齐由 L0 ``math`` 规则另行承接）。
+    """
+    css: list[tuple[str, int]] = []
+    evs: list[tuple[str, int]] = []
+    for m in _BARE_CS_SCAN_RX.finditer(masked):
+        t, p = m.group(0), m.start()
+        if t[0] == "\\" and len(t) > 1 and t[1].isalpha():
+            css.append((t[1:], p))
+        elif t == "$":
+            if evs and evs[-1][0] == "$" and evs[-1][1] + 1 == p:
+                evs[-1] = ("$$", p - 1)
+            else:
+                evs.append(("$", p))
+        elif t in ("\\(", "\\)", "\\[", "\\]"):
+            evs.append((t, p))
+    closer = {"$": "$", "$$": "$$", "\\(": "\\)", "\\[": "\\]"}
+    spans: list[tuple[int, int]] = []
+    open_: tuple[str, int] | None = None
+    for d, p in evs:
+        if open_ is None:
+            if d in closer:
+                open_ = (d, p)
+        elif d == closer[open_[0]]:
+            spans.append((open_[1], p + len(d)))
+            open_ = None
+    return css, spans
+
+
+def _cs_out_of_math(
+    evs: list[tuple[str, int]], spans: list[tuple[int, int]]
+) -> Counter[str]:
+    """文本域 cs 名 Counter——span 内出现不计。"""
+    return Counter(n for n, p in evs if not any(a <= p < b for a, b in spans))
+
+
+def bare_cs_net(src: str, zh: str) -> Counter[str]:
+    r"""译文侧裸 cs 注入净差（编译炸弹两类，Counter 多重集）。
+
+    - **数学域外数学 cs**：``MATH_CS`` 表名出现在 zh 文本域（zh 自带
+      ``$..$``/``\\(\\)`` 内豁免——那是合法修正方向）净超 src 文本域
+      同计数 → ``Missing $`` 炸弹（realpostfix2 0905.4907 ``\alpha``
+      实证）。
+    - **粘合 cs**：zh 新增名 = src 某 cs（≥3 字母）前缀 + 含大写后缀
+      ——``\itemOC``/``\linebreakGF``/``\csnamebibitemNoStop``（cs 吞掉
+      间隔空格、后随词首字母粘上）→ 未定义 cs 炸弹。后缀须含大写：
+      ``\citep``/``\refname``/``\textbf`` 类全小写延申是真实 cs 不炸。
+
+    注释区 ``mask_comments`` 屏蔽；src 自带同形按多重集差豁免。L0
+    ``_check_bare_cs`` 与 pipeline ``_intercept_bare_cs`` 共用本口径；
+    拆分子类判 ``nme in MATH_CS``（两族不交——粘合类跳过表内名）。
+    """
+    snc, znc = mask_comments(src), mask_comments(zh)
+    s_ev, s_sp = _cs_events_spans(snc)
+    z_ev, z_sp = _cs_events_spans(znc)
+    sn = Counter(n for n, _ in s_ev)
+    zn = Counter(n for n, _ in z_ev)
+    new = zn - sn
+    if not new:
+        return Counter()
+    out: Counter[str] = Counter()
+    for nme, n in (_cs_out_of_math(z_ev, z_sp) - _cs_out_of_math(s_ev, s_sp)).items():
+        if nme in MATH_CS:
+            out[nme] = n
+    for nme, n in new.items():
+        if nme in MATH_CS or nme in out:
+            continue
+        pre = max(
+            (s for s in sn if len(s) >= _MIN_FUSED_PREFIX and nme.startswith(s)),
+            key=len,
+            default=None,
+        )
+        if pre is not None and any(c.isupper() for c in nme[len(pre) :]):
+            out[nme] = n
+    return out
 
 
 # ---------------------------------------------------------------- 逐字/失活环境注册表
@@ -165,9 +309,7 @@ def mask_tex(text: str, *, mask_dead: bool = True, keep_verbatim: bool = False) 
     chars = list(text)
 
     def mask(start: int, stop: int) -> None:
-        chars[start:stop] = [
-            c if c in "\r\n" else " " for c in text[start:stop]
-        ]
+        chars[start:stop] = [c if c in "\r\n" else " " for c in text[start:stop]]
 
     i = 0
     n = len(text)
