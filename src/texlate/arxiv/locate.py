@@ -101,10 +101,16 @@ class InputRef:
 
 @dataclass(slots=True)
 class FileNode:
-    """单个 .tex 文件的扫描结果。"""
+    r"""单个 .tex 文件的扫描结果。
+
+    ``stripped`` = 剥注释但保 verbatim 字面量的视图（pdf_wrapper 计数用）；
+    ``scanned`` = 连 verbatim 体也遮盖的代码视图（documentclass/``\\input``/
+    ``\\bibliography`` 判定用——逐字环境内不执行，不产生边与候选）。
+    """
 
     path: str
     stripped: str
+    scanned: str
     has_documentclass: bool
     has_begin_document: bool
     refs: list[InputRef] = field(default_factory=list)
@@ -314,7 +320,7 @@ def locate(root: Path, arxiv_id: str = "") -> LocateResult:
     candidates = sorted(p for p, n in nodes.items() if n.has_documentclass)
     res.candidates = candidates
     if not candidates:
-        joined = "\n".join(n.stripped for n in nodes.values())
+        joined = "\n".join(n.scanned for n in nodes.values())
         if _PLAIN_RE.search(joined):
             res.kind = DocKind.PLAIN_TEX
         elif _CONTEXT_RE.search(joined):
@@ -394,12 +400,14 @@ def _scan_nodes(
             res.warnings.append(f"unreadable:{rel}:{e}")
             continue
         stripped = strip_comments(raw)
+        scanned = strip_comments(raw, keep_verbatim=False)
         nodes[rel] = FileNode(
             path=rel,
             stripped=stripped,
-            has_documentclass=bool(_DOCCLASS_RE.search(stripped)),
-            has_begin_document=bool(_BEGINDOC_RE.search(stripped)),
-            refs=_scan_refs(rel, stripped),
+            scanned=scanned,
+            has_documentclass=bool(_DOCCLASS_RE.search(scanned)),
+            has_begin_document=bool(_BEGINDOC_RE.search(scanned)),
+            refs=_scan_refs(rel, scanned),
         )
     return nodes
 

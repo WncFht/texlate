@@ -200,6 +200,126 @@ def test_normalize_pdf_suffix_and_bare_host() -> None:
     assert normalize_arxiv_id("arxiv.org/abs/1412.6980v2") == ("1412.6980", 2)
 
 
+def test_normalize_version_zero_is_bad_id() -> None:
+    """``v0``/``v00`` 非合法版本——不算钉版，落到非法 id 统一拒。"""
+    assert normalize_arxiv_id("1412.6980v0") == ("1412.6980v0", None)
+    assert normalize_arxiv_id("1412.6980v00") == ("1412.6980v00", None)
+    assert normalize_arxiv_id("1412.6980v01") == ("1412.6980", 1)
+
+
+def test_version_zero_kwarg_rejected(tmp_path: Path) -> None:
+    """显式 ``version=0``：`_src_url` 的 ``if version`` 会把 0 当未钉版发——
+    静默按最新版取还把 requested_version=0 写进 meta，按调用方错误拒。"""
+    calls: list[str] = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        calls.append(str(req.url))
+        return httpx.Response(HTTP_OK)
+
+    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    res = acquire_source(
+        "2001.00001", fetcher=f, cache=SourceCache(tmp_path), version=0
+    )
+    assert res.status is AcquireStatus.ERROR
+    assert "bad_version" in res.detail
+    assert not calls
+    with pytest.raises(ValueError, match="bad arxiv id"):
+        f.head_src("2001.00001", version=0)
+    with pytest.raises(ValueError, match="bad arxiv id"):
+        f.get_src("2001.00001", version=0)
+
+
+def test_decode_error_classified_not_crash(tmp_path: Path) -> None:
+    """``content-encoding: gzip`` + 坏 body → DecodingError（RequestError 而非
+    TransportError）——必须归 ERROR 而不是崩出 acquire_source。"""
+    calls: list[str] = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        if req.method == "HEAD":
+            return httpx.Response(
+                HTTP_OK, headers=_head_headers("2001.00001", 1, ".tar.gz", '"E1"')
+            )
+        calls.append(req.url.host)
+        return httpx.Response(
+            HTTP_OK,
+            content=b"not-a-gzip-body",
+            headers={"content-encoding": "gzip"},
+        )
+
+    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    res = acquire_source("2001.00001", fetcher=f, cache=SourceCache(tmp_path))
+    assert res.status is AcquireStatus.ERROR
+    # 确定性解码失败不原地重试（白烧预算）；每 host 恰一次 = 纯 failover
+    assert sorted(calls) == ["arxiv.org", "export.arxiv.org"]
+
+
+def test_redirect_loop_classified_not_crash(tmp_path: Path) -> None:
+    """重定向环 → TooManyRedirects（RequestError）——归类 ERROR 不崩。"""
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        return httpx.Response(301, headers={"location": str(req.url)})
+
+    client = httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True)
+    clk = _Clock()
+    f = Fetcher(
+        RateLimiter(clock=clk.now, sleep=clk.sleep),
+        client=client,
+        hosts=("arxiv.org",),
+        sleep=clk.sleep,
+    )
+    res = acquire_source("2001.00001", fetcher=f, cache=SourceCache(tmp_path))
+    assert res.status is AcquireStatus.ERROR
+
+
+def test_cd_filename_case_insensitive(tmp_path: Path) -> None:
+    """cd 文件名大写扩展名 ``arXiv-xV2.TAR.GZ``——版本号与格式提示仍解出。"""
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        if req.method == "HEAD":
+            return httpx.Response(
+                HTTP_OK,
+                headers={
+                    "content-disposition": (
+                        'attachment; filename="arXiv-2001.00001V2.TAR.GZ"'
+                    ),
+                    "etag": '"E1"',
+                },
+            )
+        return httpx.Response(HTTP_OK, content=TINY_TAR_GZ)
+
+    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    head = f.head_src("2001.00001")
+    assert head.resolved_version == VER_2
+    assert head.kind_hint == "tar.gz"
+
+    res = acquire_source("2001.00001", fetcher=f, cache=SourceCache(tmp_path))
+    assert res.status is AcquireStatus.OK
+    assert res.resolved_version == VER_2
+
+
+def test_cache_meta_nondict_treated_as_miss(tmp_path: Path) -> None:
+    """meta.json 合法 JSON 但非对象（手改/半写）→ 按未命中而非 AttributeError。"""
+    cache = SourceCache(tmp_path)
+    d = tmp_path / "2001.00001v1"
+    d.mkdir()
+    (d / "meta.json").write_text("[1,2,3]", encoding="utf-8")
+    assert cache.get("2001.00001", 1) is None
+    assert cache.get_latest("2001.00001") is None
+
+
+def test_find_versions_dotdot_no_escape(tmp_path: Path) -> None:
+    """``..`` 段过 ``_SAFE_GLOB_ID`` 字符白名单——glob 逃逸须按段拒。
+
+    构造 ``{tmp}/xv1`` 外部目录：若 ``..`` 放进 glob 会匹到 ``{tmp}/xv1``，
+    泄漏根外条目（随后 ``entry_dir`` 才拦——防御链断一节）。
+    """
+    cache = SourceCache(tmp_path / "cache")
+    cache.root.mkdir()
+    (tmp_path / "xv1").mkdir()
+    assert cache.find_versions("../x") == []
+    assert cache.find_versions("a/../x") == []
+
+
 def test_bad_id_rejected_before_network(tmp_path: Path) -> None:
     """``a/../b`` 形 id：URL 归一化后能拿 200，但缓存键会被污染/逃逸——取源前拒。"""
     calls: list[str] = []

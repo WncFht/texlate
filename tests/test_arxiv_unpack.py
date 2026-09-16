@@ -258,3 +258,83 @@ def test_file_over_symlink_replaces_link(tmp_path: Path) -> None:
     assert (tmp_path / "b.tex").read_bytes() == b"old"
     assert [m.path for m in res.members].count("a.tex") == 1
     assert "dup_member_overwrite" in _warn_kinds(res.warnings)
+
+
+def test_control_char_member_names_rejected(tmp_path: Path) -> None:
+    """成员名带 ``\\t``/``\\n``：POSIX 能落盘但 TSV manifest（files.txt/mtree.txt）
+    行列结构被破坏（phantom 行）——按路径非法拒绝。"""
+    payload = _make_tar(
+        [
+            (_reg("a\tb.tex", 3), b"xxx"),
+            (_reg("c\nd.tex", 3), b"xxx"),
+            (_reg("e\rf.tex", 3), b"xxx"),
+            (_reg("ok.tex", 3), b"xxx"),
+        ]
+    )
+    res = unpack_tar(payload, tmp_path)
+    assert res.files == ["ok.tex"]
+    assert _warn_kinds(res.warnings) >= {"reject_path"}
+    write_manifest(res, tmp_path)
+    # manifest 行列不被污染：每行恰一条成员
+    assert (tmp_path / "files.txt").read_text().splitlines() == ["ok.tex"]
+    assert len((tmp_path / "mtree.txt").read_text().splitlines()) == 1
+
+
+def test_control_char_linkname_rejected(tmp_path: Path) -> None:
+    """linkname 带 ``\\t``/``\\n`` 同样污染 mtree ``-> target`` 列——拒绝。"""
+    sym = tarfile.TarInfo("ln.tex")
+    sym.type = tarfile.SYMTYPE
+    sym.linkname = "real\ttex"
+    sym2 = tarfile.TarInfo("ln2.tex")
+    sym2.type = tarfile.SYMTYPE
+    sym2.linkname = "real\ntex"
+    payload = _make_tar([(sym, b""), (sym2, b""), (_reg("ok.tex", 3), b"xxx")])
+    res = unpack_tar(payload, tmp_path)
+    assert res.files == ["ok.tex"]
+    assert not any(m.kind in ("symlink", "hardlink") for m in res.members)
+    assert "reject_link" in _warn_kinds(res.warnings)
+
+
+def test_file_then_child_member_skipped(tmp_path: Path) -> None:
+    """``foo``（file）后出现 ``foo/bar.tex``——mkdir 撞文件会 FileExistsError
+    整包流产；按成员级 ``reject_dir_clash`` 告警跳过。"""
+    payload = _make_tar(
+        [
+            (_reg("foo", 3), b"abc"),
+            (_reg("foo/bar.tex", 3), b"def"),
+            (_reg("ok.tex", 3), b"xxx"),
+        ]
+    )
+    res = unpack_tar(payload, tmp_path)
+    assert (tmp_path / "foo").read_bytes() == b"abc"
+    assert not (tmp_path / "foo").is_dir()
+    assert "reject_dir_clash" in _warn_kinds(res.warnings)
+    assert "ok.tex" in res.files
+
+
+def test_dir_member_parent_is_file_skipped(tmp_path: Path) -> None:
+    """``foo``（file）后出现 ``foo/bar``（dir 成员）——同 clash 路径。"""
+    d = tarfile.TarInfo("foo/bar")
+    d.type = tarfile.DIRTYPE
+    payload = _make_tar(
+        [(_reg("foo", 3), b"abc"), (d, b""), (_reg("ok.tex", 3), b"xxx")]
+    )
+    res = unpack_tar(payload, tmp_path)
+    assert (tmp_path / "foo").is_file()
+    assert "reject_dir_clash" in _warn_kinds(res.warnings)
+    assert "ok.tex" in res.files
+
+
+def test_symlink_member_over_dir_clash(tmp_path: Path) -> None:
+    """symlink 成员名撞上隐式目录（文件父级 mkdir 产生、不在 ``seen``）：
+    ``target.unlink()`` 会 IsADirectoryError——按 clash 告警跳过不崩。"""
+    sym = tarfile.TarInfo("sub")
+    sym.type = tarfile.SYMTYPE
+    sym.linkname = "ok.tex"
+    payload = _make_tar(
+        [(_reg("sub/x.tex", 3), b"xxx"), (_reg("ok.tex", 3), b"xxx"), (sym, b"")]
+    )
+    res = unpack_tar(payload, tmp_path)
+    assert (tmp_path / "sub").is_dir()
+    assert not (tmp_path / "sub").is_symlink()
+    assert "reject_dir_clash" in _warn_kinds(res.warnings)

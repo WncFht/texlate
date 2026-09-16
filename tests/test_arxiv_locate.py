@@ -197,3 +197,63 @@ def test_commented_documentclass_not_candidate(tmp_path: Path) -> None:
     )
     r = locate(tmp_path)
     assert r.candidates == ["main.tex"]
+
+
+def test_verbatim_documentclass_not_candidate(tmp_path: Path) -> None:
+    r"""verbatim 环境里的 ``\documentclass``/``\begin{document}`` 不执行——
+    TeX 示例 listing 不能抢候选位（实测会把 listing.tex 推上 main）。"""
+    _write_tree(
+        tmp_path,
+        {
+            "real.tex": (
+                "\\documentclass{article}\n\\begin{document}\nreal\\end{document}\n"
+            ),
+            "listing.tex": (
+                "\\begin{verbatim}\n"
+                "\\documentclass{book}\n\\begin{document}x\\end{document}\n"
+                "\\end{verbatim}\n"
+            ),
+        },
+    )
+    r = locate(tmp_path)
+    assert r.candidates == ["real.tex"]
+    assert r.main == "real.tex"
+    assert not r.multi_doc
+
+
+def test_verbatim_input_and_bibliography_no_edges(tmp_path: Path) -> None:
+    r"""``lstlisting`` 内的 ``\input``/``\bibliography`` 不产生边/未解析引用。"""
+    _write_tree(
+        tmp_path,
+        {
+            "main.tex": (
+                "\\documentclass{article}\n\\begin{document}\n"
+                "\\begin{lstlisting}\n\\input{fake}\n\\bibliography{fakebib}\n"
+                "\\end{lstlisting}\n"
+                "body\\end{document}\n"
+            ),
+            "fake.tex": "sec\n",
+        },
+    )
+    r = locate(tmp_path)
+    assert r.order == ["main.tex"]
+    assert not r.unresolved
+    assert not r.bibliographies
+
+
+def test_inline_verb_input_no_edge(tmp_path: Path) -> None:
+    r"""行内 ``\verb``/``\lstinline`` 段的 ``\input`` 同样不产生边。"""
+    _write_tree(
+        tmp_path,
+        {
+            "main.tex": (
+                "\\documentclass{article}\n\\begin{document}\n"
+                "see \\verb|\\input{fake}| for usage\n"
+                "body\\end{document}\n"
+            ),
+            "fake.tex": "sec\n",
+        },
+    )
+    r = locate(tmp_path)
+    assert r.order == ["main.tex"]
+    assert "fake.tex" not in r.edges.get("main.tex", [])

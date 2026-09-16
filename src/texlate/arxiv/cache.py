@@ -76,8 +76,8 @@ class SourceCache:
         return d
 
     def find_versions(self, arxiv_id: str) -> list[int]:
-        """已缓存版本清单（升序）。id 含 glob 元字符直接空集。"""
-        if not _SAFE_GLOB_ID.fullmatch(arxiv_id):
+        """已缓存版本清单（升序）。id 含 glob 元字符或 ``..`` 段直接空集。"""
+        if not _SAFE_GLOB_ID.fullmatch(arxiv_id) or ".." in arxiv_id.split("/"):
             return []
         return sorted(
             int(p.name.rsplit("v", 1)[-1])
@@ -86,7 +86,7 @@ class SourceCache:
         )
 
     def get(self, arxiv_id: str, resolved_version: int) -> CacheEntry | None:
-        """按钉版读条目；meta.json 缺失/损坏视为未命中。"""
+        """按钉版读条目；meta.json 缺失/损坏/非对象视为未命中。"""
         d = self.entry_dir(arxiv_id, resolved_version)
         meta_p = d / "meta.json"
         if not meta_p.is_file():
@@ -96,6 +96,9 @@ class SourceCache:
         except (OSError, json.JSONDecodeError) as e:
             # 损坏条目按未命中处理（重取会覆盖），但留痕——静默重下会烧日预算
             log.warning("cache meta unreadable, treating as miss: %s (%s)", meta_p, e)
+            return None
+        if not isinstance(meta, dict):
+            log.warning("cache meta not an object, treating as miss: %s", meta_p)
             return None
         return CacheEntry(arxiv_id, resolved_version, d, meta)
 
@@ -122,6 +125,9 @@ class SourceCache:
             msg = f"staging missing meta.json: {staging}"
             raise CacheError(msg)
         meta = json.loads(meta_p.read_text(encoding="utf-8"))
+        if not isinstance(meta, dict):
+            msg = f"staging meta.json not an object: {staging}"
+            raise CacheError(msg)
         dest = self.entry_dir(arxiv_id, resolved_version)
         dest.parent.mkdir(parents=True, exist_ok=True)
         backup: Path | None = None

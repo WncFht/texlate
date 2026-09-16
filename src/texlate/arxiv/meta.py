@@ -125,10 +125,10 @@ class PaperMeta:
 
 
 def _get(fetcher: Fetcher, url: str) -> httpx.Response | None:
-    """GET + 失败归一：park/预算/传输错误/非 200 → None。"""
+    """GET + 失败归一：park/预算/请求错误（含解码/重定向）/非 200 → None。"""
     try:
         resp = fetcher.get_url(url)
-    except (ParkedError, BudgetExhaustedError, httpx.TransportError, OSError):
+    except (ParkedError, BudgetExhaustedError, httpx.RequestError, OSError):
         return None
     return resp if resp.status_code == HTTPStatus.OK else None
 
@@ -348,7 +348,7 @@ def _head(
     path = f"/{kind}/{base}{f'v{ver}' if ver else ''}"
     try:
         resp = fetcher.head_path(path)
-    except (ParkedError, BudgetExhaustedError, httpx.TransportError, OSError) as e:
+    except (ParkedError, BudgetExhaustedError, httpx.RequestError, OSError) as e:
         probed.append(f"error {path}: {e}")
         raise
     probed.append(f"{resp.status_code} {resp.url}")
@@ -409,10 +409,10 @@ def degrade(
     ``/pdf/{id}``（钉版 → 最新版）→ L2。全不可得 → ``tier=NONE``。
     """
     base, pin = normalize_arxiv_id(arxiv_id)
-    if not _valid_id(base):
+    ver_req = version if version is not None else pin
+    if not _valid_id(base) or (ver_req is not None and ver_req < 1):
         msg = f"bad arxiv id: {arxiv_id!r}"
         raise ValueError(msg)
-    ver_req = version if version is not None else pin
     first, second = (
         (_probe_html, _probe_pdf)
         if DegradeReason(reason) in _L2_FIRST
@@ -422,7 +422,7 @@ def degrade(
     for probe in (first, second):
         try:
             hit = probe(fetcher, base, ver_req, probed)
-        except (ParkedError, BudgetExhaustedError, httpx.TransportError, OSError) as e:
+        except (ParkedError, BudgetExhaustedError, httpx.RequestError, OSError) as e:
             probed.append(f"abort: {e}")
             continue
         if hit is not None:

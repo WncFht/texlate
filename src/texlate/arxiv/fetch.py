@@ -148,7 +148,7 @@ _VER_RE: Final = re.compile(r"^(?P<base>.+?)[vV](?P<ver>\d{1,3})$")
 _NEW_ID_RE: Final = re.compile(r"^\d{4}\.\d{4,5}$")
 _OLD_ID_RE: Final = re.compile(r"^[a-zA-Z-]+(?:\.[A-Z][a-zA-Z]+)?/\d{7}$")
 _CD_FN_RE: Final = re.compile(r'filename="?([^";]+)')
-_CD_VER_RE: Final = re.compile(r"[vV](\d+)\.(tar\.gz|gz|pdf)$")
+_CD_VER_RE: Final = re.compile(r"[vV](\d+)\.(tar\.gz|gz|pdf)$", re.IGNORECASE)
 
 
 def normalize_arxiv_id(raw: str) -> tuple[str, int | None]:
@@ -160,7 +160,11 @@ def normalize_arxiv_id(raw: str) -> tuple[str, int | None]:
     s = s.split("?")[0].split("#")[0].strip("/")
     s = re.sub(r"\.pdf$", "", s, flags=re.IGNORECASE)
     m = _VER_RE.match(s)
-    if m and (_NEW_ID_RE.match(m.group("base")) or _OLD_ID_RE.match(m.group("base"))):
+    if (
+        m
+        and int(m.group("ver")) >= 1  # v0/v00 非合法版本——落非法 id 统一拒
+        and (_NEW_ID_RE.match(m.group("base")) or _OLD_ID_RE.match(m.group("base")))
+    ):
         return m.group("base"), int(m.group("ver"))
     return s, None
 
@@ -186,8 +190,8 @@ def _parse_head(resp: httpx.Response, url: str, pinned: int | None) -> HeadInfo:
     m = _CD_VER_RE.search(cd)
     if m:
         ver = int(m.group(1))
-        hint = m.group(2)
-    elif cd.endswith(".pdf"):
+        hint = m.group(2).lower()
+    elif cd.lower().endswith(".pdf"):
         hint = "pdf"
     cl = resp.headers.get("content-length")
     content_length = int(cl) if cl and cl.isdigit() else None
@@ -253,7 +257,12 @@ class Fetcher:
     def _request(
         self, method: str, url: str, headers: dict[str, str]
     ) -> httpx.Response:
-        """单 URL 请求 + 退避重试。Parked/Budget 直接上抛（交上层切 host）。"""
+        """单 URL 请求 + 退避重试。Parked/Budget 直接上抛（交上层切 host）。
+
+        只重试传输层瞬时失败（TransportError/OSError）；DecodingError/
+        TooManyRedirects 等确定性 RequestError 立即上抛——重试无意义且
+        白烧日预算与退避时间。
+        """
         last_exc: Exception | None = None
         last_resp: httpx.Response | None = None
         for attempt in range(len(RETRY_DELAYS) + 1):
@@ -284,7 +293,7 @@ class Fetcher:
             except ParkedError as e:
                 if first_park is None:
                     first_park = e
-            except (httpx.TransportError, OSError) as e:
+            except (httpx.RequestError, OSError) as e:
                 last_err = e
         if last_err is not None and first_park is None:
             raise last_err
@@ -299,7 +308,7 @@ class Fetcher:
         """HEAD 预检（一次请求 = hasSrc + 版本 + 三态格式预检）。"""
         base, pin = normalize_arxiv_id(arxiv_id)
         ver = version if version is not None else pin
-        if not _valid_id(base):
+        if not _valid_id(base) or (ver is not None and ver < 1):
             msg = f"bad arxiv id: {arxiv_id!r}"
             raise ValueError(msg)
         resp = self._across_hosts(
@@ -331,7 +340,7 @@ class Fetcher:
         """GET e-print：先 HEAD（可复用传入的），再带条件头 GET，魔数判别。"""
         base, pin = normalize_arxiv_id(arxiv_id)
         ver = version if version is not None else pin
-        if not _valid_id(base):
+        if not _valid_id(base) or (ver is not None and ver < 1):
             msg = f"bad arxiv id: {arxiv_id!r}"
             raise ValueError(msg)
         if head is None:
@@ -350,7 +359,7 @@ class Fetcher:
             )
         except ParkedError as e:
             return SrcResult(FetchStatus.PARKED, head, detail=str(e))
-        except (httpx.TransportError, OSError) as e:
+        except (httpx.RequestError, OSError) as e:
             return SrcResult(FetchStatus.ERROR, head, detail=str(e))
         return _body_result(resp, head)
 
@@ -485,7 +494,7 @@ def _head_phase(
         err = AcquireResult(AcquireStatus.PARKED, base, detail=str(e))
     except BudgetExhaustedError as e:
         err = AcquireResult(AcquireStatus.BUDGET, base, detail=str(e))
-    except (httpx.TransportError, OSError) as e:
+    except (httpx.RequestError, OSError) as e:
         err = AcquireResult(AcquireStatus.ERROR, base, detail=f"head:{e}")
     if err is not None or head is None:
         return (err or AcquireResult(AcquireStatus.ERROR, base, detail="head")), None
@@ -661,8 +670,15 @@ def acquire_source(
     """
     base, pin = normalize_arxiv_id(arxiv_id)
     ver_req = version if version is not None else pin
-    if not _valid_id(base):
-        return AcquireResult(AcquireStatus.ERROR, base, detail=f"bad_id:{base!r}")
+    bad = (
+        f"bad_id:{base!r}"
+        if not _valid_id(base)
+        else f"bad_version:{ver_req}"
+        if ver_req is not None and ver_req < 1
+        else None
+    )
+    if bad is not None:
+        return AcquireResult(AcquireStatus.ERROR, base, detail=bad)
     if offline:
         return _offline_phase(base, ver_req, cache)
     phased = _head_phase(base, ver_req, fetcher, cache)

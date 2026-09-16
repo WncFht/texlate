@@ -225,6 +225,52 @@ def test_fetch_metadata_bad_id_raises() -> None:
         resolve_version("../x", fetcher=f)
 
 
+def test_fetch_metadata_decode_error_none() -> None:
+    """响应体解码失败（DecodingError）——归一成 None，不炸穿契约。"""
+
+    def handler(_req: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            HTTP_OK,
+            content=b"not-a-gzip",
+            headers={"content-encoding": "gzip"},
+        )
+
+    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    assert fetch_metadata("1412.6980", fetcher=f) is None
+
+
+def test_degrade_request_error_falls_through() -> None:
+    """首选层 TooManyRedirects → 落次选层探测，不炸出 degrade。"""
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        if req.url.path.startswith("/pdf/"):
+            return httpx.Response(HTTP_REDIRECT, headers={"location": str(req.url)})
+        if req.url.path == "/html/1412.6980v1":
+            return httpx.Response(HTTP_OK)
+        return httpx.Response(HTTP_NOT_FOUND)
+
+    client = httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True)
+    clk = _Clock()
+    f = Fetcher(
+        RateLimiter(clock=clk.now, sleep=clk.sleep),
+        client=client,
+        hosts=("arxiv.org",),
+        sleep=clk.sleep,
+    )
+    res = degrade("1412.6980v1", fetcher=f, reason=DegradeReason.STUB)
+    assert res.tier is DegradeTier.HTML
+    assert res.version == 1
+
+
+def test_degrade_version_zero_raises() -> None:
+    """``version=0`` 与 ``idv0`` 钉版一样按调用方错误拒。"""
+    f = _fetcher(httpx.MockTransport(lambda _req: httpx.Response(HTTP_OK)), _Clock())
+    with pytest.raises(ValueError, match="bad arxiv id"):
+        degrade("1412.6980", fetcher=f, reason=DegradeReason.STUB, version=0)
+    with pytest.raises(ValueError, match="bad arxiv id"):
+        degrade("1412.6980v0", fetcher=f, reason=DegradeReason.STUB)
+
+
 def test_resolve_version_via_atom() -> None:
     def handler(_req: httpx.Request) -> httpx.Response:
         return httpx.Response(HTTP_OK, content=ATOM_FEED.encode())

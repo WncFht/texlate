@@ -38,6 +38,9 @@ STUB_PREFIX: Final = b"%auto-ignore"
 _TEX_EXT: Final = (".tex", ".ltx", ".latex")
 
 _DRIVE_RE: Final = re.compile(r"^[A-Za-z]:")
+#: 成员名/链接名控制字符——POSIX 允许落盘但 TSV manifest（files.txt/mtree.txt）
+#: 行/列结构会被 \t \n 破坏（phantom 行、列错位），按路径非法一并拒绝
+_CTRL_RE: Final = re.compile(r"[\x00-\x1f\x7f]")
 
 
 class UnpackError(Exception):
@@ -64,6 +67,9 @@ class UnpackResult:
     members: list[MemberEntry] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     extracted_bytes: int = 0
+    #: ``members`` 路径索引——dup 覆写去重 O(1) 判存（20k 成员上限下
+    #: 逐条 list 重建是 O(n²) 扫描）
+    member_index: set[str] = field(default_factory=set, repr=False, compare=False)
 
     @property
     def files(self) -> list[str]:
@@ -89,9 +95,10 @@ class UnpackResult:
 def _norm_member(name: str) -> str | None:
     """成员名规范化 → 相对路径；非法返回 None。
 
-    剥离 ``./`` 与空段；拒绝 NUL、绝对路径（``/`` 或 ``C:`` 盘符）、``..``。
+    剥离 ``./`` 与空段；拒绝控制字符（含 NUL）、绝对路径（``/`` 或
+    ``C:`` 盘符）、``..``。
     """
-    if "\x00" in name:
+    if _CTRL_RE.search(name):
         return None
     if name.startswith("/") or _DRIVE_RE.match(name):
         return None
@@ -145,22 +152,36 @@ def _unique_rename(rel: str, seen: dict[str, str]) -> str:
     return f"{stem}~c{k}{suffix}"
 
 
-def _write_entry(
-    res: UnpackResult, rel: str, data: bytes, kind: str, link: str | None = None
-) -> bool:
-    """写文件 + 记 mtree 成员 + stub 标记；落点是既有目录 → 告警并跳过。"""
-    target = res.dest / rel
+def _dir_clash(res: UnpackResult, rel: str, target: Path) -> bool:
+    """落点与既有实体路径冲突（同名目录 / 父段是文件）→ 告警并跳过。"""
     if target.is_dir() and not target.is_symlink():
         # tar 里 dir 与同名 file 成员并存（或 casefold 冲突后的 FS 合并产物）
         # ——write_bytes 打目录会抛 IsADirectoryError，降级为告警跳过
         res.warnings.append(f"reject_dir_clash:{rel}")
+        return True
+    if target.parent.exists() and not target.parent.is_dir():
+        # 父路径段是文件（foo 之后来 foo/bar）——mkdir 会抛 FileExistsError
+        # 整包流产，按成员级拒绝降级
+        res.warnings.append(f"reject_dir_clash:{rel}")
+        return True
+    return False
+
+
+def _write_entry(
+    res: UnpackResult, rel: str, data: bytes, kind: str, link: str | None = None
+) -> bool:
+    """写文件 + 记 mtree 成员 + stub 标记；路径与既有实体冲突 → 告警跳过。"""
+    target = res.dest / rel
+    if _dir_clash(res, rel, target):
         return False
     target.parent.mkdir(parents=True, exist_ok=True)
     if target.is_symlink():
         # 后到 file 覆盖同名 symlink：先摘链再写，否则 write_bytes 穿链改目标
         target.unlink()
     target.write_bytes(data)
-    res.members = [mm for mm in res.members if mm.path != rel]
+    if rel in res.member_index:
+        res.members = [mm for mm in res.members if mm.path != rel]
+        res.member_index.discard(rel)
     stub = len(data) < STUB_SIZE or data.startswith(STUB_PREFIX)
     res.members.append(
         MemberEntry(
@@ -172,6 +193,7 @@ def _write_entry(
             stub=stub,
         )
     )
+    res.member_index.add(rel)
     res.extracted_bytes += len(data)
     if stub:
         res.warnings.append(f"stub_member:{rel}")
@@ -266,15 +288,20 @@ class _TarWalker:
             # 告警留痕后跳过（audit-2026-09-16 codehealth 补漏）
             self.res.warnings.append(f"casefold_dir:{prev}~{rel}")
             return
+        target = self.res.dest / rel
+        if target.parent.exists() and not target.parent.is_dir():
+            self.res.warnings.append(f"reject_dir_clash:{rel}")
+            return
         self.seen[low] = rel
-        (self.res.dest / rel).mkdir(parents=True, exist_ok=True)
+        target.mkdir(parents=True, exist_ok=True)
         self.res.members.append(MemberEntry(path=rel, size=0, sha256="", kind="dir"))
+        self.res.member_index.add(rel)
 
     def _link(self, m: tarfile.TarInfo, rel: str) -> None:
         ln = m.linkname
         # linkname 先查本体：绝对路径/盘符经 _link_rel 归一化会被折成 in-tree，
         # 只查解析结果会漏掉真实逃逸（symlink_to 用的是原始 linkname）。
-        if not ln or "\x00" in ln or ln.startswith("/") or _DRIVE_RE.match(ln):
+        if not ln or _CTRL_RE.search(ln) or ln.startswith("/") or _DRIVE_RE.match(ln):
             self.res.warnings.append(f"reject_link:{rel}->{ln}")
             return
         target_rel = _link_rel(m, rel)
@@ -289,6 +316,8 @@ class _TarWalker:
         self.seen[rel.lower()] = rel
         if m.issym():
             target = self.res.dest / rel
+            if _dir_clash(self.res, rel, target):
+                return
             target.parent.mkdir(parents=True, exist_ok=True)
             if target.exists() or target.is_symlink():
                 target.unlink()
@@ -298,6 +327,7 @@ class _TarWalker:
                     path=rel, size=0, sha256="", kind="symlink", link_target=m.linkname
                 )
             )
+            self.res.member_index.add(rel)
             self.res.warnings.append(f"link_kept:{rel}->{m.linkname}")
         else:
             # hardlink：目标可能靠后出现，延迟物化
