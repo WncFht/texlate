@@ -112,3 +112,13 @@
 **在飞（1e）**：realpostfix2（bg 测量臂 ~3h/9-11h）；xlat-sweep（xlat/+validate/ 残余审计，l0/pipeline 只读避 1d 活面）；epub-nobody（无 body 畸形 xhtml 防崩）；arxiv-sweep（arxiv/ 残余，fetch.py 冻结）；web-idem（Idempotency-Key create 路径接线）。
 
 **1e lane 残余清单**：Idempotency-Key server 端契约待 web-idem 核实（缺口则纯前端发头）；`--offline --server` 互斥与否已裁=维持静默不拒（与既有本地旗标语义一致）；epub export_epub/export_docx 转调包装属公共 API 面预留非死代码；work_e2emock keep-list（1d/fixers-slots 欠，fallback {1206.0197, 2410.17957}，磁盘不紧）；英文 UI/上传进度条/split 栏宽拖动=架构级待立项。
+
+**1d 落地波（深夜续，routing spec 全消化）**：
+
+- **PH-in-cs L0 第 10 条** `607704e`+`9f96f8b`：双侧夹持 `\\[a-zA-Z@]+\[\[..\]\][a-zA-Z@]` + textutil mask_comments + Counter 净差，Severity.ERROR → 重译/回退原文（不进 fixloop——splice 后载荷不可复原）。pipeline 副层 spec 已转 peer1（含 `_route_chunks` emit 护栏补丁）。
+- **`\t` TU accent** `ed7b9ac`：tuenc.def 实证 15 项无 `\t`（U+0361）→ TS1 `\accent` 原语绕 xeCJK → CJK 被饰符丢字；inject 块补 `\DeclareUnicodeAccent{\t}{"0361}`（`\UnicodeEncodingName` 门）。
+- **slots wave-2** `d54eb74`：`#174` `\)`/`\]` 混排闭符、`#175` accent 两形（`r` 入 ACCENT_CHARS）、`#176` bug-B splice 守卫 `_seg_join`（cs 尾+字母头接缝插空格）+ `_LATIN_ITEM_RX`（`\item(?=[A-Z])` 保险丝）。**镜像漂移实锤并修**：`7817aa1` e2e `_expand_tokens`/`_chunk_spans` 复刻两变换——否则 find 失配 → 块归 None → L2 静默丢归因（`4ce255e` short_arg 同款教训二次应验：reconstruct 译文侧任何字节变换必须同步查镜像）。
+- **#169 flake 定案** `1076086`：popped-source 抢跑尾盖 + `id()` 地址复用遮蔽（~1/20 概率）——双闸修复（live_srcs 持引用防地址复用 + tokbuf 残 token 闸门）+ 确定性回归钉（bytearray 垫占 freed 地址，ungated 60/60 必炸）。
+- **slot 二分实装** `558c6c1`：`SLOT_MAX_CHARS` spec 参数从死常量变实装（`_make_slots` 走 `batch.split_long_chunk` 句界二分）；`PhValidator` 死协议类删除（签名与真缝不符）。
+- **新派发**：fixer-209mc → jpsj3 目标类可解析守卫（rglob+kpsewhich fail-open → reject `latex209_no_target`）；fixer-maintex → aipcheck.tex bundled 交互文件覆写（41 归因裁定）；hyperref 驱动剥除 → peer1 rules 车道。
+- **收口**：fixer-slots 交付毕已关；scorecard 自查 `b04b96d`——89.17%（+43 到 90%），2f 复验 75 no_main_tex + 4 BrokenProcessPool 在飞（`7f20897` body 加权吃这批）。

@@ -203,3 +203,19 @@ pst-node×11 / jheppub×9 / citesort×7 / diagrams×7 / axodraw×5 / pst-arrow×
 - **modec-postfix n=80（1e `75fc518`）**：gate PASS（escaped=0 dirty=0），pipe-xel 54→65 / pipeB 56→67 / pipeC 47→59；新败签名 revtex4-2+multicol opt clash（9901156/9901347 partial→fail）收 #172——升级器升 revtex4-2 时剥 multicol + epsf/epsfig 兼容审计。该批 8 个 upgrade209 净正（3 死→clean / 3 partial / 2 此对 fail），覆盖率缺口非回归。
 - **1e worker expect_cjk `05a2fab`**：`TaskCtx.expect_cjk` 字段携带（`chunk_counts(task_id)["total"] != 0`，与 `450b1ad` 同口径；loop 线程算一次避开 sqlite 线程亲和），五处 judge 点全换。
 - **keep-list 链路**：work_e2emock 2.2G + stagerun-loop1/work 44G 挂 fixer-slots preserve-list（在催）；兜底口径已放行 48——名单不到只留报告点名 cell（1206.0197、2410.17957 保底）。
+
+### 路由项落库状态（09-17 凌晨收口，ledger 只记新事实）
+
+| 路由项 | 状态 | 落点 |
+| --- | --- | --- |
+| PH-in-cs L0 第 10 条（双侧夹持+净差，ERROR→重译非 fixloop） | **已落** | `607704e`+`9f96f8b`；pipeline 副层 spec→peer1 |
+| `\t` TS1→TU accent 提升 | **已落** | `ed7b9ac`（tuenc.def 15 项无 `\t` 实证） |
+| jpsj3 目标类可解析守卫 | 在飞 | fixer-209mc（reject `latex209_no_target`） |
+| hyperref 驱动剥除 ×2 | 已裁已转 | peer1 rules.yaml（`\\usepackage[dvips\|pdftex]{hyperref}` 剥 key） |
+| aipcheck.tex bundled 覆写 ×2 | 在飞 | fixer-maintex（wdir known-junk 覆写） |
+| slots wave-2（#174/#175/#176 `_seg_join`+`_LATIN_ITEM_RX`） | **已落** | `d54eb74` + e2e 镜像 `7817aa1` |
+| #169 flake | **定案已修** | `1076086`（双闸 + 确定性回归钉） |
+| SLOT_MAX_CHARS / PhValidator（1e xlat-sweep 残余） | **已落** | `558c6c1` |
+| no_main_tex 75 格 | 在飞 | 2f 复验 parse 段回收率；探测改动仍 1d |
+
+**镜像漂移二次应验**（教训升级）：`short_arg` 之后 `_seg_join`/`_LATIN_ITEM_RX` 又一次漏镜像——`reconstruct` 译文侧任何字节变换（折叠/保险丝/接缝守卫）必须同查 `e2e._expand_tokens`/`_chunk_spans`，失配=find 失败→spans None→L2 丢块→partial→done 假愈。本波已加 `TestChunkSpansMirror` 回归钉把两类变换锁死。
