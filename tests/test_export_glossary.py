@@ -180,6 +180,14 @@ class TestGlossaryReachesPrompt:
         export_document(src, tmp_path / "out.epub", tr, glossary=g)
         assert any(_TERM_LINE in s for s in _systems(tr))
 
+    def test_epub_placeholder_terms_in_system(self, tmp_path: Path) -> None:
+        """spec-xlat#10：export 链占位符恒等注入——``[[IMG_n]]`` marker 进尾块。"""
+        src = _write_epub(tmp_path, "<p>Text <img src='i.png'/> tail.</p>")
+        tr = MockTranslator()
+        export_document(src, tmp_path / "out.epub", tr)
+        assert _systems(tr)
+        assert any("[[IMG_1]]" in s for s in _systems(tr))
+
     def test_docx_dict_terms_in_system(self, tmp_path: Path) -> None:
         src = _make_docx(
             tmp_path / "in.docx", ["The transformer architecture relies on attention."]

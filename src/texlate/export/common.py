@@ -13,6 +13,7 @@ import yaml
 
 from texlate.xlat.glossary import Glossary, TermEntry
 from texlate.xlat.pipeline import ChunkIn, ChunkResult, XlatPipeline
+from texlate.xlat.placeholders import collect_doc_placeholders
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -132,10 +133,14 @@ def drive_pipeline(  # noqa: PLR0913 -- 骨架即双驱共享参数面（chunks/
     ``_save_temp_book`` 语义——半成品双语件总比没有强）。返回
     ``(结果表, 计数)`` 供调用方组 ``ExportReport``。
     """
+    g = coerce_glossary(glossary)
+    for ph in collect_doc_placeholders(c.content for c in chunks):
+        g = g or Glossary()
+        g.terms.setdefault(ph, TermEntry(ph, ph, "placeholder"))
     pipe = XlatPipeline(
         translator,
         state=store,
-        glossary=coerce_glossary(glossary),
+        glossary=g,
         on_result=on_result,
     )
     try:

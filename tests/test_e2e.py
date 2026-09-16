@@ -16,13 +16,14 @@ r"""``texlate.e2e`` 产品编排层直测——不经 bench harness、不复制�
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING
 
 from conftest import RecordingEngine
 
 from texlate import e2e
 from texlate.compile.engine import RouteDecision
-from texlate.xlat.pipeline import MOCK_ZH
+from texlate.xlat.pipeline import MOCK_ZH, MockTranslator
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -75,6 +76,24 @@ def test_translate_tree_two_files(tmp_path: Path) -> None:
     out = (tmp_path / "main.tex").read_text(encoding="utf-8")
     assert MOCK_ZH in out
     assert "\\section{" in out  # 命令名原样（标题正文是 chunk 会被翻）
+
+
+def test_translate_tree_glossary_ph_injection(tmp_path: Path) -> None:
+    r"""spec-xlat#10：文件模式链挂 glossary——段内 ``[[X_n]]`` 恒等注入进 system prompt。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\n"
+        "A paragraph with inline math $E=mc^2$ inside it for translation here.\n"
+        "\n"
+        "And a second paragraph to keep the chunker honest.\n"
+        "\\end{document}\n",
+        encoding="utf-8",
+    )
+    tr = MockTranslator()
+    stats = e2e.mock_translate_tree(tmp_path, translator=tr)
+
+    assert stats["chunks"] > 0
+    systems = [str(c["system"]) for c in tr.calls]
+    assert any(re.search(r"\[\[[A-Z]+_\d+\]\]", s) for s in systems)
 
 
 def test_translate_tree_parse_fault_isolated(

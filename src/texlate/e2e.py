@@ -52,12 +52,14 @@ from texlate.latex.tables import (
 from texlate.validate import l2 as l2_mod
 from texlate.validate.l0 import validate_pair
 from texlate.xlat import prompts as xlat_prompts
+from texlate.xlat.glossary import Glossary
 from texlate.xlat.pipeline import (
     ChunkIn,
     MockTranslator,
     XlatPipeline,
     chunk_to_in,
 )
+from texlate.xlat.placeholders import collect_doc_placeholders
 
 if TYPE_CHECKING:
     import re
@@ -214,7 +216,11 @@ def _translate_tree(
 
     pipe = XlatPipeline(
         translator or MockTranslator(),
+        glossary=Glossary.load(
+            placeholders=collect_doc_placeholders(c.content for c in chunks)
+        ),
         validator=lambda s, z: validate_pair(s, z).feedback(),
+        cache={},
     )
     results = asyncio.run(pipe.run(chunks))
     by_file: dict[int, dict[int, str]] = {}
