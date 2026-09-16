@@ -5,7 +5,14 @@
 → mixed 分段 → latin-1 兜底。校准锚点均为语料实证案例（见各用例注释）。
 """
 
-from texlate.textutil import decode_tex, decode_tex_with, sniff_tex_encoding
+from texlate.textutil import (
+    CJK_RANGES,
+    _char_class,
+    decode_tex,
+    decode_tex_with,
+    is_cjk_cp,
+    sniff_tex_encoding,
+)
 
 ASCII_TEX = b"\\documentclass{article}\n\\begin{document}\nhello\n\\end{document}\n"
 
@@ -139,3 +146,74 @@ def test_decode_tex_never_raises() -> None:
 def test_decode_tex_matches_with_variant() -> None:
     blob = b"% caf\xe9\n" + ASCII_TEX
     assert decode_tex(blob) == decode_tex_with(blob)[0]
+
+
+# ---------------------------------------------------------------- 码点面边界（bisect 查找面钉点）
+def test_is_cjk_cp_boundaries() -> None:
+    """``CJK_RANGES`` 每区间 lo±1/hi±1 + 代表点——bisect 面与原线性
+    区间逐点同义，边界含侧不得漂移（0x3007 是单点区间）。"""
+    spec = lambda cp: any(lo <= cp <= hi for lo, hi in CJK_RANGES)  # noqa: E731
+    pts = {0, 0x41, 0xFFFD, 0x10FFFF, 0x2FA20}
+    for lo, hi in CJK_RANGES:
+        pts |= {lo - 1, lo, lo + 1, hi - 1, hi, hi + 1}
+    for cp in pts:
+        assert is_cjk_cp(cp) == spec(cp), hex(cp)
+    # 〇（U+3007 日期用字）+ 已知内/外代表点
+    for cp in (0x3007, 0x4E00, 0x20000):
+        assert is_cjk_cp(cp), hex(cp)
+    for cp in (0x3006, 0xA000):
+        assert not is_cjk_cp(cp), hex(cp)
+
+
+def test_char_class_boundaries() -> None:
+    """``_CLASS_RANGES`` 全边界逐点钉名——含相邻区间接界与双覆盖点
+    （0x3007 同时在 cjk 类区与 ``CJK_RANGES``；0x3400 由扩A 归 cjk）。"""
+    cases = {
+        # latin_ext
+        0x9F: "other",
+        0xA0: "latin_ext",
+        0x24F: "latin_ext",
+        0x250: "other",
+        0x1DFF: "other",
+        0x1E00: "latin_ext",
+        0x1EFF: "latin_ext",
+        # greek
+        0x36F: "other",
+        0x370: "greek",
+        0x3FF: "greek",
+        0x1F00: "greek",
+        0x1FFF: "greek",
+        0x2000: "other",
+        # cyrillic
+        0x400: "cyrillic",
+        0x52F: "cyrillic",
+        0x530: "other",
+        0x2DDF: "other",
+        0x2DE0: "cyrillic",
+        0x2DFF: "cyrillic",
+        0x2E00: "other",
+        # boxdraw
+        0x24FF: "other",
+        0x2500: "boxdraw",
+        0x259F: "boxdraw",
+        0x25A0: "other",
+        # cjk 类区 + CJK_RANGES 续段
+        0x2FFF: "other",
+        0x3000: "cjk",
+        0x3007: "cjk",
+        0x33FF: "cjk",
+        0x3400: "cjk",
+        0x9FFF: "cjk",
+        0xF900: "cjk",
+        0xFAFF: "cjk",
+        0x20000: "cjk",
+        0x2FA1F: "cjk",
+        0x2FA20: "other",
+        # 面外
+        0x41: "other",
+        0x7F: "other",
+        0xFFFD: "other",
+        0x10FFFF: "other",
+    }
+    for cp, want in cases.items():
+        assert _char_class(chr(cp)) == want, hex(cp)

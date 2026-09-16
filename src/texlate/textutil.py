@@ -25,8 +25,12 @@ from __future__ import annotations
 
 import codecs
 import re
+from bisect import bisect_right
 from dataclasses import dataclass
-from typing import Final
+from typing import TYPE_CHECKING, Final
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 __all__ = [
     "CJK_RANGES",
@@ -279,12 +283,63 @@ _CLASS_RANGES: Final = (
 )
 
 
+def _merge_ranges(
+    ranges: Iterable[tuple[int, int]],
+) -> tuple[tuple[int, int], ...]:
+    """区间列 → 排序不相交面（相邻并入）——bisect 单候选判定前提。"""
+    out: list[list[int]] = []
+    for lo, hi in sorted(ranges):
+        if out and lo <= out[-1][1] + 1:
+            out[-1][1] = max(out[-1][1], hi)
+        else:
+            out.append([lo, hi])
+    return tuple(tuple(p) for p in out)
+
+
+def _in_ranges(
+    cp: int, los: tuple[int, ...], merged: tuple[tuple[int, int], ...]
+) -> bool:
+    """``any(lo <= cp <= hi)`` 的 bisect 版——``merged`` 须排序不相交。"""
+    i = bisect_right(los, cp) - 1
+    return i >= 0 and cp <= merged[i][1]
+
+
+def _class_lookup_table() -> tuple[tuple[int, int, str], ...]:
+    """``_CLASS_RANGES`` → 排序不相交 (lo,hi,name) 查找面。
+
+    重叠子段归 ``_CLASS_RANGES`` 先名（首中语义）——对任意区间内容
+    逐点等价，bisect 取 ``lo<=cp`` 的末区间即答案。
+    """
+    out: list[tuple[int, int, str]] = []
+    for name, ranges in _CLASS_RANGES:
+        for lo, hi in ranges:
+            parts = [(lo, hi)]
+            for plo, phi, _prev in out:
+                nxt: list[tuple[int, int]] = []
+                for a, b in parts:
+                    if a < plo:
+                        nxt.append((a, min(b, plo - 1)))
+                    if b > phi:
+                        nxt.append((max(a, phi + 1), b))
+                parts = nxt
+                if not parts:
+                    break
+            out.extend((a, b, name) for a, b in parts)
+    return tuple(sorted(out))
+
+
+#: ``_CLASS_RANGES`` 的查找面 + lo 列——``_score_text`` 逐字调用
+#: （breview 全文 ~976K 次），线性 any() 改 bisect。
+_CLASS_MERGED: Final = _class_lookup_table()
+_CLASS_LOS: Final = tuple(lo for lo, _, _ in _CLASS_MERGED)
+
+
 def _char_class(ch: str) -> str:
     """字符粗分类：latin_ext / cyrillic / greek / cjk / boxdraw / other。"""
     cp = ord(ch)
-    for name, ranges in _CLASS_RANGES:
-        if any(lo <= cp <= hi for lo, hi in ranges):
-            return name
+    i = bisect_right(_CLASS_LOS, cp) - 1
+    if i >= 0 and cp <= _CLASS_MERGED[i][1]:
+        return _CLASS_MERGED[i][2]
     return "cjk" if is_cjk_cp(cp) else "other"
 
 
@@ -430,6 +485,8 @@ _CJK_DECLARED: Final = frozenset(
 #: 专属面区间：假名（0x3040-0x30FF）/谚文音节+字母。gb18030 误吃 SJIS
 #: 只产表意字——命中这些面即族铁证。
 _KANA_HANGUL_RANGES: Final = ((0x3040, 0x30FF), (0x1100, 0x11FF), (0xAC00, 0xD7AF))
+_KANA_MERGED: Final = _merge_ranges(_KANA_HANGUL_RANGES)
+_KANA_LOS: Final = tuple(lo for lo, _ in _KANA_MERGED)
 _CJK_CHAR_SCORE: Final = 1.0
 _KANA_HANGUL_BONUS: Final = 4.0
 _CJK_FFFD_PENALTY: Final = -20.0
@@ -446,7 +503,7 @@ def _cjk_decode_score(text: str) -> float:
         cp = ord(ch)
         if _char_class(ch) == "cjk":
             score += _CJK_CHAR_SCORE
-        if any(lo <= cp <= hi for lo, hi in _KANA_HANGUL_RANGES):
+        if _in_ranges(cp, _KANA_LOS, _KANA_MERGED):
             score += _KANA_HANGUL_BONUS
         elif ch == "\ufffd":
             score += _CJK_FFFD_PENALTY
@@ -701,9 +758,15 @@ CJK_RX: Final = re.compile(
 )
 
 
+#: ``CJK_RANGES`` 的排序不相交面 + lo 列——``_char_class``/l2 逐字调用
+#: （breview ``_score_text`` 全文体 ~5.9M 次），线性 any() 改 bisect。
+_CJK_MERGED: Final = _merge_ranges(CJK_RANGES)
+_CJK_LOS: Final = tuple(lo for lo, _ in _CJK_MERGED)
+
+
 def is_cjk_cp(cp: int) -> bool:
     """码点是否落在 ``CJK_RANGES``（``Missing character:`` 码点判定用）。"""
-    return any(lo <= cp <= hi for lo, hi in CJK_RANGES)
+    return _in_ranges(cp, _CJK_LOS, _CJK_MERGED)
 
 
 def lev_capped(a: str, b: str, cap: int) -> int:
