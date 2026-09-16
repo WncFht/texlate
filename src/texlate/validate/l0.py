@@ -7,7 +7,7 @@ r"""L0 规则校验层 —— stdlib always-on，src↔zh 相对判定（规格 
 设计原则 = "译文不得比原文更坏"：每条检查都是 src↔zh 比较而非 zh 绝对判定，
 src 自带的不平衡/不一致不追责（继承容忍），只报 zh 相对 src 的新增损伤。
 
-九条规则（docs/08 §2.1 表 + E21/E22 修订口径 + 注释区/粘合/回显补丁）：
+十条规则（docs/08 §2.1 表 + E21/E22 修订口径 + 注释区/粘合/回显/ph_in_cs 补丁）：
 
   placeholder  ``[[TYPE_n]]``/``[[SL]]``/``[[PL]]`` multiset diff + lev≤2 修复建议；
                E22：严格序守恒降为 warn（``of X``→``X 的`` 合法换序占违例 ~95%），
@@ -309,15 +309,6 @@ def _lex(s: str) -> list[tuple[str, str, int]]:
         out.append(("ch", c, i))
         i += 1
     return out
-
-
-def _mask_comments(s: str) -> str:
-    """``_lex`` cmt 段整体置空——注释体内签名不参与净差（splice 字面区）。"""
-    out = list(s)
-    for kind, text, pos in _lex(s):
-        if kind == "cmt":
-            out[pos : pos + len(text)] = " " * len(text)
-    return "".join(out)
 
 
 # ---------------------------------------------------------------- 规则组
@@ -851,8 +842,8 @@ def _check_ph_in_cs(src: str, zh: str, issues: list[Issue]) -> None:
     记档：``\cs[[KEY_n]]`` 类尾邻载荷字母头也会融合，但 validator
     拿不到 ph_map 判不了类型——后续按 ph 类型白名单再补。
     """
-    extra = Counter(_PH_IN_CS_RX.findall(_mask_comments(zh))) - Counter(
-        _PH_IN_CS_RX.findall(_mask_comments(src))
+    extra = Counter(_PH_IN_CS_RX.findall(mask_comments(zh))) - Counter(
+        _PH_IN_CS_RX.findall(mask_comments(src))
     )
     if extra:
         toks = ", ".join(f"{t} ×{n}" for t, n in sorted(extra.items()))
