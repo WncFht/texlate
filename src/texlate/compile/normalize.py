@@ -71,7 +71,9 @@ INTERMEDIATE_SUFFIXES = {
 #: invalid_utf8（loop1-0707.4363 ``Fig*.eps`` 实证）。整件转码会腐
 #: ``%%BeginBinary``/内嵌预览的字节数据——只净化 ``%`` 注释行
 #: （PostScript 语义惰性区），DOS-EPS 二进制头（``0xC5D0D3C6`` 魔数，
-#: 内含绝对字节偏移）整件跳过。
+#: 内含绝对字节偏移）整件跳过。姊妹臂 ``_resolve_atend_bbox``：
+#: ``(atend)`` 占位头行强制全件扫描，trailer 实值搬回头行后扫描
+#: 在头行即停，数据行坏字节不再入扫。
 PS_GRAPHIC_SUFFIXES = {".eps", ".ps"}
 
 #: 已知二进制后缀——catch-all 转码豁免名单。漏网的冷门二进制最坏被
@@ -868,6 +870,58 @@ def _sanitize_ps_comments(blob: bytes) -> bytes:
     return b"\n".join(out) if changed else blob
 
 
+#: DSC 头区 ``%%BoundingBox: (atend)`` 占位行——值延到 trailer 才给。
+_BBOX_ATEND_RX: Final = re.compile(rb"^[ \t]*%%BoundingBox:[ \t]*\(atend\)[ \t\r]*$")
+#: 实值 ``%%BoundingBox:`` 行——恰好 4 个数值（负值/小数容忍），摄回 group 1。
+_BBOX_VALUE_RX: Final = re.compile(
+    rb"^[ \t]*%%BoundingBox:[ \t]*"
+    rb"((?:[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?[ \t]+){3}"
+    rb"[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)[ \t\r]*$"
+)
+
+
+def _resolve_atend_bbox(blob: bytes) -> bytes:
+    r"""``%%BoundingBox: (atend)`` 头行就地改写为 trailer 实值行。
+
+    graphicx/xetex 的 bbox 逐行扫描命中 ``(atend)`` 占位时被迫全件扫到
+    trailer——``(...) show`` 数据行的坏字节随之落入 invalid_utf8 判定
+    （数据行字节即语义，``_sanitize_ps_comments`` 刻意不动；utf8-rerun
+    复验残 5 格全属此形态）。DSC 约定 atend 实值本就由 trailer 行承载，
+    把头行改写为该值后扫描在头行即停——零语义差，trailer 原行保留无害。
+
+    只认 DSC 头注释块（首个非 ``%`` 行 / ``%%EndComments`` 之前）的
+    ``(atend)`` 占位行；取全件最后一条实值 ``%%BoundingBox:`` 行作源——
+    无实值/畸形值不造值，原样返回。幂等：改写后头行即实值行，二次跑无
+    占位可命中。DOS-EPS 二进制头同 sanitize 臂整件跳过。
+    """
+    if blob.startswith(_DOS_EPS_MAGIC):
+        return blob
+    lines = blob.split(b"\n")
+    atend_idx: int | None = None
+    for i, line in enumerate(lines):
+        stripped = line.lstrip()
+        if not stripped:
+            continue  # 空行不打断头注释块判定（CRLF 件的空行即 \r）
+        if stripped.startswith(b"%%EndComments") or not stripped.startswith(b"%"):
+            break  # DSC 头注释块边界——atend 占位只认头区
+        if _BBOX_ATEND_RX.match(line):
+            atend_idx = i
+            break
+    if atend_idx is None:
+        return blob
+    values: bytes | None = None
+    for line in lines:
+        match = _BBOX_VALUE_RX.match(line)
+        if match:
+            values = match[1]
+    if values is None:
+        return blob
+    out = lines[:]
+    trailer_ws = out[atend_idx][len(out[atend_idx].rstrip(b" \t\r")) :]
+    out[atend_idx] = b"%%BoundingBox: " + values + trailer_ws
+    return b"\n".join(out)
+
+
 def _transcode_one(
     path: Path,
     suffix: str,
@@ -920,12 +974,14 @@ def _transcode_support_files(
 
     返回 ``stats`` 片段（仅非空台账）：``transcoded_aux`` /
     ``transcoded_data`` / ``sanitized_ps_comments`` /
-    ``trimmed_intermediates`` / ``purged_intermediates``。
+    ``resolved_atend_bbox`` / ``trimmed_intermediates`` /
+    ``purged_intermediates``。
     """
     ledgers: dict[str, list[str]] = {
         "transcoded_aux": [],
         "transcoded_data": [],
         "sanitized_ps_comments": [],
+        "resolved_atend_bbox": [],
         "trimmed_intermediates": [],
         "purged_intermediates": [],
     }
@@ -941,10 +997,14 @@ def _transcode_support_files(
             continue  # 手术面由主循环转码；二进制件不读文本层
         if suffix in PS_GRAPHIC_SUFFIXES:
             original = path.read_bytes()
-            sanitized = _sanitize_ps_comments(original)
+            resolved = _resolve_atend_bbox(original)
+            sanitized = _sanitize_ps_comments(resolved)
+            if resolved != original:
+                ledgers["resolved_atend_bbox"].append(rel)
+            if sanitized != resolved:
+                ledgers["sanitized_ps_comments"].append(rel)
             if sanitized != original:
                 path.write_bytes(sanitized)
-                ledgers["sanitized_ps_comments"].append(rel)
             continue
         _transcode_one(path, suffix, encodings, ledgers, root)
     return {k: sorted(v) for k, v in ledgers.items() if v}

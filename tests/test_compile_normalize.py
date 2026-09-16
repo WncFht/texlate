@@ -390,6 +390,160 @@ def test_sanitize_ps_comments_dos_header_untouched(tmp_path: Path) -> None:
     assert eps.read_bytes() == blob
 
 
+def test_atend_bbox_header_rewritten(tmp_path: Path) -> None:
+    """``(atend)`` 占位头行改写为 trailer 实值——扫描在头行即停，数据行坏字节不再入扫。"""
+    blob = (
+        b"%!PS-Adobe-3.0 EPSF-3.0\n"
+        b"%%BoundingBox: (atend)\n"
+        b"%%EndComments\n"
+        b"(=8.2\xd710) show\n"  # latin-1 × 数据行——字节即语义不动
+        b"%%Trailer\n"
+        b"%%BoundingBox: 74 87 587 383\n"
+        b"%%EOF\n"
+    )
+    eps = tmp_path / "fig.eps"
+    eps.write_bytes(blob)
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\nx\\end{document}\n"
+    )
+    stats = normalize_project(tmp_path, "xelatex", "main.tex")
+    assert stats["resolved_atend_bbox"] == ["fig.eps"]
+    new = eps.read_bytes()
+    new_lines, old_lines = new.split(b"\n"), blob.split(b"\n")
+    assert len(new_lines) == len(old_lines)
+    assert new_lines[1] == b"%%BoundingBox: 74 87 587 383"
+    # 改写仅限头行——数据行/trailer 行逐字节不动
+    assert sum(a != b for a, b in zip(old_lines, new_lines, strict=True)) == 1
+    assert new_lines[3] == b"(=8.2\xd710) show"
+    assert b"%%Trailer\n%%BoundingBox: 74 87 587 383" in new
+
+
+def test_atend_bbox_no_trailer_value_untouched(tmp_path: Path) -> None:
+    """无 trailer 实值行——不可造值，整件原样。"""
+    blob = (
+        b"%!PS-Adobe-3.0 EPSF-3.0\n"
+        b"%%BoundingBox: (atend)\n"
+        b"%%EndComments\n"
+        b"(bad\xe9) show\n"
+        b"%%Trailer\n%%EOF\n"
+    )
+    eps = tmp_path / "fig.eps"
+    eps.write_bytes(blob)
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\nx\\end{document}\n"
+    )
+    stats = normalize_project(tmp_path, "xelatex", "main.tex")
+    assert "resolved_atend_bbox" not in stats
+    assert eps.read_bytes() == blob
+
+
+def test_atend_bbox_malformed_trailer_untouched(tmp_path: Path) -> None:
+    """trailer 行值畸形（非 4 数值）——不造值，整件原样。"""
+    blob = (
+        b"%!PS-Adobe-3.0 EPSF-3.0\n"
+        b"%%BoundingBox: (atend)\n"
+        b"%%EndComments\n"
+        b"%%Trailer\n"
+        b"%%BoundingBox: none\n"
+        b"%%EOF\n"
+    )
+    eps = tmp_path / "fig.eps"
+    eps.write_bytes(blob)
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\nx\\end{document}\n"
+    )
+    stats = normalize_project(tmp_path, "xelatex", "main.tex")
+    assert "resolved_atend_bbox" not in stats
+    assert eps.read_bytes() == blob
+
+
+def test_atend_bbox_real_header_untouched(tmp_path: Path) -> None:
+    """头行已实值（无 atend 占位）——不改写。"""
+    blob = (
+        b"%!PS-Adobe-3.0 EPSF-3.0\n"
+        b"%%BoundingBox: 0 0 100 100\n"
+        b"%%EndComments\n(bad\xe9) show\n%%EOF\n"
+    )
+    eps = tmp_path / "fig.eps"
+    eps.write_bytes(blob)
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\nx\\end{document}\n"
+    )
+    stats = normalize_project(tmp_path, "xelatex", "main.tex")
+    assert "resolved_atend_bbox" not in stats
+    assert eps.read_bytes() == blob
+
+
+def test_atend_bbox_body_atend_not_header_untouched(tmp_path: Path) -> None:
+    """``(atend)`` 出现在头注释块之外（body/trailer）——不认作头占位，不改写。"""
+    blob = (
+        b"%!PS-Adobe-3.0 EPSF-3.0\n"
+        b"%%EndComments\n"
+        b"showpage\n"
+        b"%%Trailer\n"
+        b"%%BoundingBox: (atend)\n"
+        b"%%EOF\n"
+    )
+    eps = tmp_path / "fig.eps"
+    eps.write_bytes(blob)
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\nx\\end{document}\n"
+    )
+    stats = normalize_project(tmp_path, "xelatex", "main.tex")
+    assert "resolved_atend_bbox" not in stats
+    assert eps.read_bytes() == blob
+
+
+def test_atend_bbox_idempotent(tmp_path: Path) -> None:
+    """二次 normalize_project 输出逐字节一致——头行已是实值无占位可命中。"""
+    blob = (
+        b"%!PS-Adobe-3.0 EPSF-3.0\n"
+        b"%%BoundingBox: (atend)\n"
+        b"%%EndComments\n"
+        b"(bad\xe9) show\n"
+        b"%%Trailer\n"
+        b"%%BoundingBox: 10 20 30 40\n"
+        b"%%EOF\n"
+    )
+    eps = tmp_path / "fig.eps"
+    eps.write_bytes(blob)
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\nx\\end{document}\n"
+    )
+    first = normalize_project(tmp_path, "xelatex", "main.tex")
+    assert first["resolved_atend_bbox"] == ["fig.eps"]
+    once = eps.read_bytes()
+    second = normalize_project(tmp_path, "xelatex", "main.tex")
+    assert "resolved_atend_bbox" not in second
+    assert eps.read_bytes() == once
+
+
+def test_atend_bbox_combined_with_comment_sanitize(tmp_path: Path) -> None:
+    """atend 改写 + 注释行坏字节净化同发——两台账各记各的。"""
+    blob = (
+        b"%!PS-Adobe-3.0 EPSF-3.0\n"
+        b"%%BoundingBox: (atend)\n"
+        b"%%For: caf\xe9\n"
+        b"%%EndComments\n"
+        b"(bad\xe9) show\n"
+        b"%%Trailer\n"
+        b"%%BoundingBox: 1 2 3 4\n"
+        b"%%EOF\n"
+    )
+    eps = tmp_path / "fig.eps"
+    eps.write_bytes(blob)
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\nx\\end{document}\n"
+    )
+    stats = normalize_project(tmp_path, "xelatex", "main.tex")
+    assert stats["resolved_atend_bbox"] == ["fig.eps"]
+    assert stats["sanitized_ps_comments"] == ["fig.eps"]
+    new = eps.read_bytes()
+    assert new.split(b"\n")[1] == b"%%BoundingBox: 1 2 3 4"
+    assert b"%%For: caf\xc3\xa9" in new  # 注释行坏字节已转 UTF-8
+    assert b"(bad\xe9) show" in new  # 数据行原样
+
+
 def test_transcode_catchall_data_file(tmp_path: Path) -> None:
     """未列名文本件（.txt/.dtx/无后缀）catch-all 转码。"""
     (tmp_path / "main.tex").write_text(
