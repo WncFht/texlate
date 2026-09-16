@@ -25,6 +25,20 @@ def test_http_public_ip_rejected() -> None:
         validate_base_url("http://8.8.8.8:3003")
 
 
+def test_http_cgnat_lower_edge_rejected() -> None:
+    with pytest.raises(ValueError, match="HTTPS"):
+        validate_base_url("http://100.63.255.255/x")
+
+
+def test_http_cgnat_upper_edge_rejected() -> None:
+    with pytest.raises(ValueError, match="HTTPS"):
+        validate_base_url("http://100.128.0.1:3003")
+
+
+def test_https_tailnet_cgnat_allowed() -> None:
+    assert validate_base_url("https://100.105.212.52") == "https://100.105.212.52"
+
+
 def test_http_lookalike_suffix_rejected() -> None:
     with pytest.raises(ValueError, match="HTTPS"):
         validate_base_url("http://evil.ts.net.attacker.example:3003")
