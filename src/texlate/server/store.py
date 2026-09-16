@@ -157,6 +157,7 @@ ERROR_CODES = frozenset(
         "inject_reject",
         "route_reject",
         "fixloop_exhausted",
+        "fixloop_reject",
         "internal",
         "auth_required",
         "unsupported_format",
@@ -483,6 +484,15 @@ class Store:
                 n_needs_auth += 1
             else:
                 n_interrupted += 1
+        # queued + header 源：凭证只活在死亡进程的内存 secrets 里，
+        # 永远等不到——分流 needs_auth（用户带 key retry 可续）；其余
+        # queued 由 TaskRunner.start 重放回内存队列续跑
+        n_needs_auth += self.conn.execute(
+            "UPDATE tasks SET status = 'needs_auth', worker_id = NULL,"
+            " updated_at = ? WHERE status = 'queued'"
+            " AND auth_source = 'header'",
+            (time.time(),),
+        ).rowcount
         # queued 行残留 worker_id 也清掉
         self.conn.execute(
             "UPDATE tasks SET worker_id = NULL WHERE status = 'queued'"
