@@ -1,0 +1,15 @@
+{
+ "seed": 42,
+ "layers": "core",
+ "n_requested": 40,
+ "model": "swe-2-medium",
+ "base_url": "http://100.105.212.52:3003",
+ "concurrency": 10,
+ "timeout": 240.0,
+ "time_budget": 1800.0,
+ "base_mode": "never",
+ "sample_ids": [
+  "2105.11479"
+ ],
+ "started_at": "2026-09-16T00:15:11.567911+00:00"
+}
