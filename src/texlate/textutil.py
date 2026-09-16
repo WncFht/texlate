@@ -26,6 +26,7 @@ from __future__ import annotations
 import codecs
 import re
 from bisect import bisect_right
+from collections import Counter
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Final
 
@@ -44,6 +45,7 @@ __all__ = [
     "lev_capped",
     "mask_comments",
     "mask_tex",
+    "ph_in_cs_net",
     "sniff_tex_encoding",
 ]
 
@@ -65,6 +67,24 @@ def mask_comments(text: str) -> str:
             continue
         i += 1
     return "".join(out)
+
+
+_PH_IN_CS_RX: Final = re.compile(r"\\[a-zA-Z@]+\[\[[^\[\]\n]{1,48}?\]\][a-zA-Z@]")
+
+
+def ph_in_cs_net(src: str, zh: str) -> Counter[str]:
+    r"""``\cs名[[..]]字母`` 双侧夹持签名净差（zh 侧多出，Counter 多重集）。
+
+    splice 逐字节替换 ``[[PH]]`` 后 ``\fo[[PH]]o`` → ``\fo<payload>o`` 断
+    cs 成未定义命令——挪位缺陷签名（scout-spliceguard 实证）。双侧字母夹持
+    必需：``\cs[[PH]]`` 尾邻是合法高频形（corpus 271 处 ``\protect[[REF_n]]``
+    系）；``+`` 排除 ``\[[PH]]`` display-math 与 ``\\[[PH]]`` 控制符号。
+    注释区 ``mask_comments`` 屏蔽；src 自带同形按多重集差豁免。L0
+    ``_check_ph_in_cs`` 与 pipeline ``_intercept_ph_in_cs`` 共用本口径。
+    """
+    return Counter(_PH_IN_CS_RX.findall(mask_comments(zh))) - Counter(
+        _PH_IN_CS_RX.findall(mask_comments(src))
+    )
 
 
 # ---------------------------------------------------------------- 逐字/失活环境注册表
