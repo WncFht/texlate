@@ -166,6 +166,9 @@ ERROR_CODES = frozenset(
         "babeldoc_translate",
         "zero_tokens",
         "degraded",
+        # 编译段块级回落码（worker _env_judge_filter / _l2_writeback → chunks.error_code）
+        "env_judge",
+        "l2_reverted",
     }
 )
 

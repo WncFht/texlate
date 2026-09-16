@@ -217,7 +217,7 @@ class TestDocPipeline:
             assert snap["status"] == "done"
             assert calls
             assert calls[0]["dst"].name.endswith("_bilingual.docx")
-            assert "zh.docx" in snap["artifacts"]
+            assert snap["artifacts"]["zh_docx"].endswith("/zh.docx")
             r = c.get(f"/api/files/{body['task_id']}/zh.docx")
             assert r.status_code == HTTPStatus.OK
             assert r.content == b"%FAKE bilingual doc"
@@ -234,7 +234,7 @@ class TestDocPipeline:
             snap = wait_terminal(c, body["task_id"])
             assert snap["status"] == "done"
             assert calls[0]["dst"].name.endswith("_bilingual.epub")
-            assert "zh.epub" in snap["artifacts"]
+            assert snap["artifacts"]["zh_epub"].endswith("/zh.epub")
 
     def test_drm_fault(
         self,

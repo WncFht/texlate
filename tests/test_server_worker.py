@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 from http import HTTPStatus
 from typing import TYPE_CHECKING
 
+import httpx
 import pytest
 
 pytest.importorskip("fastapi", reason="server extra 未装")
@@ -24,9 +26,9 @@ from conftest import (
 from starlette.testclient import TestClient
 
 from texlate.arxiv.cache import SourceCache
-from texlate.server.worker import chunk_db_id
-from texlate.xlat.client import AuthError, ChatError
-from texlate.xlat.pipeline import MockTranslator
+from texlate.server.worker import chunk_db_id, chunk_error_code
+from texlate.xlat.client import AuthError, ChatClient, ChatError
+from texlate.xlat.pipeline import ChunkResult, GatewayTranslator, MockTranslator
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -35,6 +37,22 @@ if TYPE_CHECKING:
     from texlate.server.worker import TaskCtx
 
 _CHUNK_ID_LEN = 24  # sha256[:24]
+
+#: ≥3 段 tex——T2 auth 闸熔断需要连续 3 块 auth 失败
+_MULTI_TEX = (
+    "\\documentclass{article}\n"
+    "\\begin{document}\n"
+    "First paragraph of English prose long enough to be a real chunk.\n"
+    "\n"
+    "Second paragraph here with more English text for the pipeline.\n"
+    "\n"
+    "Third paragraph carrying yet more translatable English content.\n"
+    "\n"
+    "Fourth paragraph of English prose keeping the document going.\n"
+    "\n"
+    "Fifth paragraph of English prose closing out the document body.\n"
+    "\\end{document}\n"
+)
 
 
 @pytest.fixture
@@ -176,6 +194,133 @@ class TestFaultPaths:
         assert r.status_code in (HTTPStatus.OK, HTTPStatus.CONFLICT)
         snap = wait_terminal(live_client, tid)
         assert snap["status"] in ("cancelled", "done")
+
+    def test_auth_trip_faults_task(
+        self,
+        tmp_path: Path,
+        clean_env: pytest.MonkeyPatch,  # noqa: ARG002
+    ) -> None:
+        """T2：≥3 块连续 401 → AuthTrippedError → provider_auth fault——
+        不再静默全 skipped 出 done。"""
+
+        class Denied:
+            async def translate(self, **_kw: object) -> object:
+                msg = "denied"
+                raise AuthError(msg, status=401)
+
+        app = make_app(
+            tmp_path,
+            start_worker=True,
+            translator_factory=lambda _ctx: Denied(),
+            engine_factory=lambda _name: FakeEngine(),
+        )
+        with TestClient(app) as c:
+            tid = upload_tex(c, tex=_MULTI_TEX)["task_id"]
+            snap = wait_terminal(c, tid)
+        assert snap["status"] == "fault"
+        assert snap["error"]["code"] == "provider_auth"
+        # T3：chunks.error_code 走唯一裁决点——auth 归因不写成 validate
+        # （app.state.store 的 sqlite 连接粘 worker 线程——本线程另开只读实例）
+        from texlate.server.store import Store  # noqa: PLC0415 -- 测试线程独立连
+
+        s2 = Store(tmp_path / "data" / "texlate.db")
+        s2.open()
+        try:
+            rows = s2.all_chunks(tid)
+        finally:
+            s2.close()
+        assert rows
+        assert all(r["error_code"] == "provider_auth" for r in rows)
+
+    def test_usage_sink_recorded(
+        self,
+        tmp_path: Path,
+        clean_env: pytest.MonkeyPatch,  # noqa: ARG002
+    ) -> None:
+        """T4：ChatClient.usage_sink → task_usage 行 + snapshot.usage 出账。"""
+
+        def handler(req: httpx.Request) -> httpx.Response:
+            # echo 回 user 内容——占位符全保留，批量/单翻两侧校验都过
+            body = json.loads(req.content)
+            return httpx.Response(
+                HTTPStatus.OK,
+                json={
+                    "model": "m1",
+                    "choices": [
+                        {
+                            "message": {
+                                "role": "assistant",
+                                "content": body["messages"][-1]["content"],
+                            },
+                            "finish_reason": "stop",
+                        }
+                    ],
+                    "usage": {"prompt_tokens": 11, "completion_tokens": 7},
+                },
+            )
+
+        http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        chat_client = ChatClient("http://127.0.0.1:3003", "k", http=http)
+        app = make_app(
+            tmp_path,
+            start_worker=True,
+            translator_factory=lambda _ctx: GatewayTranslator(chat_client, "m1"),
+            engine_factory=lambda _name: FakeEngine(),
+        )
+        with TestClient(app) as c:
+            tid = upload_tex(c)["task_id"]
+            snap = wait_terminal(c, tid)
+        assert snap["status"] == "done"
+        assert snap["usage"]["calls"] >= 1
+        assert snap["usage"]["prompt_tokens"] >= 11  # noqa: PLR2004 -- 真实账单
+        assert snap["usage"]["completion_tokens"] >= 7  # noqa: PLR2004
+        assert snap["usage"]["model"] == "m1"
+
+
+class TestChunkErrorCode:
+    """T3：SSE item 与 chunks 行共用 ``chunk_error_code``——单写点单图。"""
+
+    def _rec(self, **kw: object) -> ChunkResult:
+        base: dict[str, object] = {
+            "chunk_id": "c",
+            "source": "s",
+            "translation": "t",
+            "kind": "para",
+        }
+        base.update(kw)
+        return ChunkResult(**base)  # type: ignore[arg-type]
+
+    def test_mapping_table(self) -> None:
+        assert chunk_error_code(self._rec()) is None  # ok
+        assert chunk_error_code(self._rec(status="partial")) is None
+        # error_kind 归因先行：provider/auth 失败落库态是 skipped，
+        # 不能被 skip_reason 字符串嗅探误标成 validate
+        assert (
+            chunk_error_code(self._rec(skipped=True, error_kind="auth"))
+            == "provider_auth"
+        )
+        assert (
+            chunk_error_code(self._rec(skipped=True, error_kind="provider"))
+            == "provider_error"
+        )
+        assert (
+            chunk_error_code(self._rec(skipped=True, error_kind="crash")) == "internal"
+        )
+        # skipped：占位符对账炸 → placeholder_mismatch；余 validate
+        assert (
+            chunk_error_code(self._rec(skipped=True, skip_reason="placeholder diff"))
+            == "placeholder_mismatch"
+        )
+        assert (
+            chunk_error_code(self._rec(skipped=True, skip_reason="ladder"))
+            == "validate"
+        )
+        # fault：无归因 → provider_error；validate 归因 → validate
+        assert chunk_error_code(self._rec(status="fault")) == "provider_error"
+        assert (
+            chunk_error_code(self._rec(status="fault", error_kind="validate"))
+            == "validate"
+        )
 
 
 class TestResume:

@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import io
 import json
@@ -55,8 +56,29 @@ from texlate.compile.inject import (
 from texlate.compile.judge import judge
 from texlate.compile.normalize import normalize_project
 from texlate.compile.sandbox import find_tool
+from texlate.e2e import (
+    _ENV_ENV_JUDGE,
+    _ENV_NO_L2,
+    _KNOWN_ENVS,
+    L2_MAX_CHUNKS,
+    _env_flag,
+    _env_judge_all,
+    _l2_localize,
+    _resplice,
+    _retranslate_hits,
+    _split_cid,
+    _TreeRun,
+)
 from texlate.latex.api import parse_file
 from texlate.latex.reconstruct import reconstruct
+from texlate.server.babeldoc import (
+    BabeldocJob,
+    BabeldocRun,
+    default_timeout,
+    lang_out_for,
+    run_babeldoc,
+    write_glossary_csv,
+)
 from texlate.server.settings import cache_scope, scrub, validate_model
 from texlate.server.store import (
     ACTIVE_STATUSES,
@@ -70,6 +92,7 @@ from texlate.xlat.client import (
     ChatClient,
     ChatError,
     RetryableHTTPError,
+    UsageRecord,
 )
 from texlate.xlat.glossary import Glossary
 from texlate.xlat.pipeline import (
@@ -80,6 +103,7 @@ from texlate.xlat.pipeline import (
     PipelineConfig,
     Translator,
     XlatPipeline,
+    chunk_to_in,
 )
 from texlate.xlat.prompts import PROMPT_VERSION, normalize_kind
 from texlate.xlat.state import ChunkRecord, atomic_json
@@ -87,7 +111,8 @@ from texlate.xlat.state import ChunkRecord, atomic_json
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from texlate.latex.model import ScanResult
+    from texlate.compile.judge import Verdict
+    from texlate.latex.model import Chunk, ScanResult
     from texlate.server.events import EventBus
 
 log = logging.getLogger(__name__)
@@ -129,6 +154,8 @@ KIND_URL = {
     "zh_src_zip": "zh-src.zip",
     "compile_log": "compile.log",
     "md_zip": "md",
+    "zh_docx": "zh.docx",
+    "zh_epub": "zh.epub",
 }
 #: URL kind → files.kind（反查）
 URL_KIND = {v: k for k, v in KIND_URL.items()}
@@ -147,7 +174,7 @@ _FETCH_NO_RETRY = frozenset(
 _BAD_ZIP_NAME = re.compile(r"^(?:[a-zA-Z]:|/|\\)")
 
 #: 任务树内哨兵文件（断点恢复用，不进 zh-src.zip / fixloop 回灌）
-_SENTINELS = frozenset({".fetch-done", ".base-done", ".splice-done"})
+_SENTINELS = frozenset({".fetch-done", ".base-done", ".splice-done", ".compile-done"})
 
 #: fixloop 回灌 zh/ 的 TeX 输入层扩展名——rewrite 目标面 + ctan_fetch
 #: 平铺落盘面 + install_sysfont 可能投放的字体文件；编译产物
@@ -324,6 +351,8 @@ class TaskCtx:
     #: fixloop 跑过的压缩摘要（verdict/trace/installed）——_stage_compile
     #: 终态写 error_json / done 事件载荷用；None = 未跑
     fixloop: dict[str, Any] | None = None
+    #: L2 回灌报告（归因 hits/重译/回落名单）——同上进 error_json/done 载荷
+    l2: dict[str, Any] | None = None
 
     @property
     def src_dir(self) -> Path:
@@ -459,6 +488,46 @@ _PIPE_TO_DB = {
 }
 
 
+def chunk_error_code(rec: ChunkResult | ChunkRecord) -> str | None:
+    """Chunk error_code 唯一裁决点（T3）：SSE item 与 chunks 行共用一图。
+
+    ``error_kind`` 归因先行（provider/auth 失败的块落库态是 skipped，
+    不能被 validate 规则误标）；skipped → ``placeholder_mismatch``
+    （占位符对账炸）/``validate``；fault 余者 → provider_error；
+    ok/partial 无码。
+    """
+    if rec.error_kind in ("auth", "provider", "crash"):
+        return {
+            "auth": "provider_auth",
+            "provider": "provider_error",
+            "crash": "internal",
+        }[rec.error_kind]
+    if rec.skipped:
+        if "placeholder" in rec.skip_reason:
+            return "placeholder_mismatch"
+        return "validate"
+    if rec.status == "fault":
+        return "validate" if rec.error_kind == "validate" else "provider_error"
+    return None
+
+
+def _translator_clients(translator: object) -> list[ChatClient]:
+    """取 translator 底层 ``ChatClient`` 列表（usage_sink/aclose 接线面）。
+
+    ``_FallbackTranslator`` 主备两路；单路 translator 只有 ``.client``。
+    """
+    raw = getattr(translator, "clients", None)
+    if raw is None:
+        raw = [getattr(translator, "client", None)]
+    return [c for c in raw if isinstance(c, ChatClient)]
+
+
+async def _aclose_clients(clients: list[ChatClient]) -> None:
+    """逐一关 translator 底层 client（L2/env_judge 旁路自建 translator 的收尾）。"""
+    for c in clients:
+        await c.aclose()
+
+
 class DBStateBridge:
     """``StateStore`` 鸭子型：chunks 表做断点续跑状态面。
 
@@ -488,6 +557,7 @@ class DBStateBridge:
                 kind=r["kind"],
                 skipped=(status == "fallback_orig"),
                 attempts=int(r["attempts"]),
+                warnings=(json.loads(r["warnings"]) if r.get("warnings") else []),
             )
             recs[rec.chunk_id] = rec
             if status == "ok":
@@ -522,6 +592,11 @@ class _FallbackTranslator:
         self._primary = primary
         self._fallback = fallback
         self.client = getattr(primary, "client", None)
+
+    @property
+    def clients(self) -> list[object]:
+        """主备两路底层 client（usage_sink/aclose 接线面）。"""
+        return [self.client, getattr(self._fallback, "client", None)]
 
     async def translate(
         self,
@@ -862,6 +937,9 @@ class PipelineWorker:
             err.update(detail)
         row = self.store.get(ctx.task_id)
         progress = int(row["progress"]) if row else 0
+        if row and row["stage"]:
+            # ctx.row 是入队快照——error 事件的 stage 以库内现值为准
+            stage = str(row["stage"])
         self.store.transition(
             ctx.task_id, "fault", error=err, progress=progress, force=True
         )
@@ -894,6 +972,13 @@ class PipelineWorker:
         }
         if ctx.fixloop:
             out["fixloop"] = ctx.fixloop.get("verdict")
+        if ctx.l2:
+            out["l2"] = {
+                "enabled": ctx.l2.get("enabled"),
+                "errors": ctx.l2.get("errors"),
+                "retranslated": len(ctx.l2.get("retranslated") or []),
+                "fallback": len(ctx.l2.get("fallback_src") or []),
+            }
         return out
 
     def _register(self, ctx: TaskCtx, kind: str, rel: str) -> dict[str, Any]:
@@ -915,6 +1000,8 @@ class PipelineWorker:
             self._check_cancelled(ctx)
             if ctx.row["kind"] == "upload_pdf":
                 await self._run_pdf(ctx)
+            elif ctx.row["kind"] in ("docx", "epub"):
+                await self._run_doc(ctx)
             else:
                 await self._run_tex(ctx)
         except asyncio.CancelledError:
@@ -925,6 +1012,16 @@ class PipelineWorker:
                     "interrupted",
                     force=True,
                     message="worker cancelled",
+                )
+                # 终态必须配 done 事件——SSE reader/等待者靠它收尾
+                self.bus.publish(
+                    ctx.task_id,
+                    "done",
+                    {
+                        "status": "interrupted",
+                        "artifacts": self._artifact_urls(ctx),
+                        "stats": self._stats(ctx),
+                    },
                 )
             raise
         except _StageError as e:
@@ -1185,27 +1282,40 @@ class PipelineWorker:
         self._stage(ctx, "translating", "翻译中", PROGRESS["translating"][0])
 
         translator = self._make_translator(ctx)
-        client = getattr(translator, "client", None)
+        clients = _translator_clients(translator)
         cache = self._make_cache(ctx)
         state = DBStateBridge(self.store, ctx.task_id)
         seq_map = {r["chunk_id"]: int(r["seq"]) for r in rows}
         status_map = {r["chunk_id"]: str(r["status"]) for r in rows}
         sse_items: list[dict[str, Any]] = []
         last_flush = time.monotonic()
+        usage = {
+            "calls": 0,
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "latency_s": 0.0,
+            "model": "",
+        }
+
+        def _on_usage(u: UsageRecord) -> None:
+            """T4：每次成功 chat() 的真实 token/延迟记账（ChatClient 回调）。"""
+            usage["calls"] += 1
+            usage["prompt_tokens"] += u["prompt_tokens"]
+            usage["completion_tokens"] += u["completion_tokens"]
+            usage["latency_s"] += u["latency_s"]
+            usage["model"] = u["model"]
+
+        for c in clients:
+            c.usage_sink = _on_usage
 
         def on_result(r: ChunkResult) -> None:
             item: dict[str, Any] = {
                 "seq": seq_map.get(r.chunk_id, -1),
                 "status": _PIPE_TO_DB.get(r.status, "failed"),
             }
-            if r.skipped:
-                item["error_code"] = (
-                    "placeholder_mismatch"
-                    if "placeholder" in r.skip_reason
-                    else "validate"
-                )
-            elif r.status == "fault":
-                item["error_code"] = "provider_error"
+            code = chunk_error_code(r)
+            if code is not None:
+                item["error_code"] = code
             sse_items.append(item)
             ctx.tokens_est += (len(r.source) + len(r.translation)) // 4
 
@@ -1239,11 +1349,17 @@ class PipelineWorker:
                         ctx, state, cache, status_map, sse_items
                     )
                     last_flush = time.monotonic()
-            await run_task  # 传播异常
-            await self._flush_translate(ctx, state, cache, status_map, sse_items)
+            await run_task  # 传播异常（AuthTrippedError → run() 归 provider_auth）
         finally:
-            if isinstance(client, ChatClient):
-                await client.aclose()
+            await self._teardown_translate(
+                ctx=ctx,
+                state=state,
+                cache=cache,
+                status_map=status_map,
+                sse_items=sse_items,
+                usage=usage,
+                clients=clients,
+            )
         self._stage(ctx, "translating", "翻译完成", PROGRESS["translating"][1])
         counts = self.store.chunk_counts(ctx.task_id)
         if counts["failed"]:
@@ -1253,6 +1369,35 @@ class PipelineWorker:
                 f"{counts['failed']} 块回退原文（fallback_orig/failed）",
             )
         self._check_cancelled(ctx)
+
+    async def _teardown_translate(  # noqa: PLR0913 -- 收尾现场全员（flush 参数 + usage + clients）
+        self,
+        *,
+        ctx: TaskCtx,
+        state: DBStateBridge,
+        cache: SegmentCache,
+        status_map: dict[str, str],
+        sse_items: list[dict[str, Any]],
+        usage: dict[str, Any],
+        clients: list[ChatClient],
+    ) -> None:
+        """收尾 translating 段（正常/fault/cancel 全走）：usage 落账 → 残余 buffer flush → client 关闭。"""
+        if usage["calls"]:
+            # 有真账用真账——tokens_est 由字符估算换成 prompt+completion
+            ctx.tokens_est = usage["prompt_tokens"] + usage["completion_tokens"]
+            self.store.record_usage(
+                ctx.task_id,
+                model=str(usage["model"]),
+                calls=int(usage["calls"]),
+                prompt_tokens=int(usage["prompt_tokens"]),
+                completion_tokens=int(usage["completion_tokens"]),
+                latency_s=float(usage["latency_s"]),
+            )
+        with contextlib.suppress(asyncio.CancelledError):
+            # fault/cancel 也要把缓冲里的已完块落盘（原先异常路径丢 buffer）
+            await self._flush_translate(ctx, state, cache, status_map, sse_items)
+        for c in clients:
+            await c.aclose()
 
     async def _flush_translate(
         self,
@@ -1275,7 +1420,12 @@ class PipelineWorker:
                     {
                         "status": db_status,
                         "translation": rec.translation,
-                        "error_code": ("placeholder_mismatch" if rec.skipped else None),
+                        "error_code": chunk_error_code(rec),
+                        "warnings": (
+                            json.dumps(rec.warnings, ensure_ascii=False)
+                            if rec.warnings
+                            else None
+                        ),
                         "attempts": rec.attempts,
                     },
                 )
@@ -1334,19 +1484,26 @@ class PipelineWorker:
                 "message": "有 pdf 但判据未全绿或块级失败",
                 "retryable": True,
             }
+            if ctx.l2:
+                err["l2"] = ctx.l2
             if ctx.fixloop:
                 err["fixloop"] = ctx.fixloop
         else:
             # fixloop 跑过仍无 pdf → 规则耗尽（fixloop_exhausted），
             # 摘要随 error_json 落库供 triage
             self._build_md_zip(ctx)
+            detail: dict[str, Any] = {}
+            if ctx.l2:
+                detail["l2"] = ctx.l2
+            if ctx.fixloop:
+                detail["fixloop"] = ctx.fixloop
             self._fail(
                 ctx,
                 "fixloop_exhausted" if ctx.fixloop else "compile",
                 "zh compile: no pdf",
                 retryable=True,
                 stage="compiling",
-                detail={"fixloop": ctx.fixloop} if ctx.fixloop else None,
+                detail=detail or None,
             )
             return
         self.store.transition(
@@ -1378,11 +1535,13 @@ class PipelineWorker:
         if ctx.zh_dir.exists():
             shutil.rmtree(ctx.zh_dir)
         shutil.copytree(ctx.base_dir, ctx.zh_dir)
+        rows = self._on_loop(self.store.all_chunks, ctx.task_id)
         trans = {
             r["chunk_id"]: r["translation"]
-            for r in self._on_loop(self.store.all_chunks, ctx.task_id)
+            for r in rows
             if r["status"] == "ok" and r["translation"]
         }
+        trans = self._env_judge_filter(ctx, trans, rows)
         n_files = 0
         for rel, res in ctx.scans.items():
             by_int: dict[int, str] = {}
@@ -1399,8 +1558,10 @@ class PipelineWorker:
         self._log(ctx, f"splice: {n_files} files rewritten")
         info = prepare_chinese(ctx.zh_dir, ctx.main_rel)
         self._log(ctx, f"inject: {info}")
-        (ctx.zh_dir / ".splice-done").write_text("", encoding="utf-8")
+        # zip 先于哨兵：崩在 zip 里时 resume 会因无哨兵重建 zh/ 重打，
+        # 反序则哨兵在、产物登记永远缺席
         self._zip_zh(ctx)
+        (ctx.zh_dir / ".splice-done").write_text("", encoding="utf-8")
 
     def _zip_zh(self, ctx: TaskCtx) -> None:
         """``zh/`` → zh-src.zip 登记（fixloop 回灌后重打复用同一函数）。"""
@@ -1410,6 +1571,76 @@ class PipelineWorker:
                 if f.is_file() and f.name not in _SENTINELS:
                     zf.write(f, f.relative_to(ctx.zh_dir).as_posix())
         self._register(ctx, "zh_src_zip", "zh-src.zip")
+
+    def _env_judge_enabled(self, ctx: TaskCtx) -> bool:
+        """env_judge 开关：``options.env_judge`` 显式优先，缺省读 ``TEXLATE_ENV_JUDGE``（默认关）。"""
+        v = ctx.options().get("env_judge")
+        if v is not None:
+            if isinstance(v, bool):
+                return v
+            return str(v).strip().lower() not in ("0", "false", "no", "off")
+        return _env_flag(_ENV_ENV_JUDGE, default=False)
+
+    def _env_judge_filter(
+        self,
+        ctx: TaskCtx,
+        trans: dict[str, str],
+        rows: list[dict[str, Any]],
+    ) -> dict[str, str]:
+        """静态表外 env 块问 LLM 可译性（e2e ``_env_judge_pass`` 同语义）。
+
+        判 false 的块移出 splice 映射（回写时保留原文）并落库
+        ``fallback_orig``/``env_judge``。
+        """
+        if not self._env_judge_enabled(ctx) or not trans:
+            return trans
+        targets: list[tuple[str, Chunk, str]] = []
+        for rel, res in ctx.scans.items():
+            for c in res.chunks:
+                env_name = (c.env or "").strip()
+                if not env_name or env_name in _KNOWN_ENVS:
+                    continue
+                cid = chunk_db_id(rel, c.span.start, c.span.end)
+                if cid in trans:
+                    targets.append((cid, c, env_name))
+        if not targets:
+            return trans
+        translator = self._make_translator(ctx)
+        clients = _translator_clients(translator)
+        pipe = XlatPipeline(
+            translator,
+            config=PipelineConfig(tgt_lang=_tgt_lang(str(ctx.row["target_lang"]))),
+        )
+        try:
+            verdicts = asyncio.run(_env_judge_all(pipe, targets))
+        finally:
+            if clients:
+                asyncio.run(_aclose_clients(clients))
+        reverted = sorted(cid for cid, keep in verdicts.items() if not keep)
+        self._log(
+            ctx,
+            f"env_judge: {len(targets)} 块待判，{len(reverted)} 块回落原文",
+        )
+        if not reverted:
+            return trans
+        by_id = {r["chunk_id"]: r for r in rows}
+        updates = [
+            (
+                cid,
+                {
+                    "status": "fallback_orig",
+                    "translation": str(by_id[cid]["src_text"] or ""),
+                    "error_code": "env_judge",
+                },
+            )
+            for cid in reverted
+            if cid in by_id
+        ]
+        self._flush_chunk_updates(ctx, updates, [])
+        out = dict(trans)
+        for cid in reverted:
+            out.pop(cid, None)
+        return out
 
     def _engine(self, ctx: TaskCtx) -> Engine:
         """按注入面/默认构造引擎（xelatex 走 best-effort nonstopmode）。"""
@@ -1500,11 +1731,223 @@ class PipelineWorker:
                 self._zip_zh(ctx)
         return rec.last or first
 
-    def _compile_zh(self, ctx: TaskCtx) -> bool:
-        """zh.pdf：zh/ 拷贝编译 +（首判非 clean 时）fixloop 救援 + judge(expect_cjk)。
+    def _l2_enabled(self, ctx: TaskCtx) -> bool:
+        """L2 回灌开关：``options.l2`` 显式优先，缺省读 ``TEXLATE_NO_L2``（默认开）。"""
+        v = ctx.options().get("l2")
+        if v is not None:
+            if isinstance(v, bool):
+                return v
+            return str(v).strip().lower() not in ("0", "false", "no", "off")
+        return not _env_flag(_ENV_NO_L2, default=False)
 
+    def _l2_run_state(
+        self, ctx: TaskCtx, work: Path
+    ) -> tuple[_TreeRun, dict[str, str]]:
+        """``e2e._TreeRun`` 形态重建：scans 指向 work 内文件 + trans/chunk_ins。
+
+        ``trans`` 取 chunks 表 status='ok' 译文（= work 内已 splice 内容）；
+        ``db_of`` 是 ``"fidx:cid"`` → chunks.chunk_id 的 DB 回写映射。
+        """
+        ok = {
+            r["chunk_id"]: r["translation"]
+            for r in self._on_loop(self.store.all_chunks, ctx.task_id)
+            if r["status"] == "ok" and r["translation"]
+        }
+        rels = sorted(ctx.scans)
+        trans: dict[int, dict[int, str]] = {}
+        chunk_ins: dict[str, ChunkIn] = {}
+        db_of: dict[str, str] = {}
+        for fidx, rel in enumerate(rels):
+            res = ctx.scans[rel]
+            for c in res.chunks:
+                key = f"{fidx}:{c.id}"
+                db_cid = chunk_db_id(rel, c.span.start, c.span.end)
+                db_of[key] = db_cid
+                chunk_ins[key] = chunk_to_in(c, chunk_id=key, ph_map=res.ph_map)
+                zh = ok.get(db_cid)
+                if zh is not None:
+                    trans.setdefault(fidx, {})[c.id] = zh
+        pipe = XlatPipeline(
+            self._make_translator(ctx),
+            config=PipelineConfig(tgt_lang=_tgt_lang(str(ctx.row["target_lang"]))),
+            validator=lambda s, z: validate_pair(s, z).feedback(),
+            cache=self._make_cache(ctx),  # type: ignore[arg-type] -- MutableMapping 鸭子型
+        )
+        run = _TreeRun(
+            scans=[(work / rel, ctx.scans[rel]) for rel in rels],
+            trans=trans,
+            chunk_ins=chunk_ins,
+            pipe=pipe,
+        )
+        return run, db_of
+
+    def _l2_repair_zh(
+        self, ctx: TaskCtx, work: Path, eng: Engine, res: CompRes
+    ) -> tuple[dict[str, Any], CompRes, Verdict | None]:
+        """L2 回灌一轮（镜像 e2e ``_l2_repair``）：归因→重译→resplice→重编→余孽回落。
+
+        resplice 只重写 ``build-zh``——DB 回写 + ``_sync_fixed_sources``
+        灌回 ``zh/`` + 重打 zh-src.zip 由本层补齐（worker 的成品树是
+        ``zh/`` 而非 work）。返回 (l2 报告, 最新 CompRes, 新 Verdict 或
+        None=未重编）。
+        """
+        rep: dict[str, Any] = {"enabled": True, "cap": L2_MAX_CHUNKS}
+        run, db_of = self._l2_run_state(ctx, work)
+        clients = _translator_clients(run.pipe.translator)
+        try:
+            hits, n_err = _l2_localize(work, run, res)
+            rep["errors"] = n_err
+            rep["hits"] = hits
+            if not hits:
+                rep["note"] = "no chunk-level attribution"
+                return rep, res, None
+            retr = asyncio.run(_retranslate_hits(run, hits, L2_MAX_CHUNKS))
+            changed: set[str] = retr.pop("_changed")
+            adopted: set[str] = retr.pop("_adopted")
+            rep.update(retr)
+            if not changed:
+                rep["note"] = "no chunk changed"
+                return rep, res, None
+            rep["rewritten"] = _resplice(
+                run, work, ctx.main_rel, {_split_cid(c)[0] for c in changed}
+            )
+            res2 = eng.compile(
+                work, ctx.main_rel, timeout=self._compile_timeout, sandbox=True
+            )
+            v2 = judge(res2, expect_cjk=True, log_text=self._log_text_of(res2))
+            rep["recompiled"] = v2.status
+            if v2.status != "clean":
+                hits2, _ = _l2_localize(work, run, res2)
+                still_bad = sorted(set(hits2) & adopted)
+                rep["fallback_src"] = still_bad
+                rep["unresolved"] = sorted(set(hits2) - adopted)
+                if still_bad:
+                    for cid in still_bad:
+                        fidx, ccid = _split_cid(cid)
+                        run.trans.get(fidx, {}).pop(ccid, None)
+                    rep["fallback_rewritten"] = _resplice(
+                        run,
+                        work,
+                        ctx.main_rel,
+                        {_split_cid(c)[0] for c in still_bad},
+                    )
+                    # 回落后未再编——下一级 fixloop 代验
+                    rep["fallback_unverified"] = True
+            self._l2_writeback(ctx, run, db_of, rep)
+            n = _sync_fixed_sources(work, ctx.zh_dir)
+            if n:
+                self._log(ctx, f"l2: {n} 个重译文件回灌 zh/，重打 zh-src.zip")
+                self._zip_zh(ctx)
+            return rep, res2, v2
+        finally:
+            if clients:
+                asyncio.run(_aclose_clients(clients))
+
+    def _l2_writeback(
+        self,
+        ctx: TaskCtx,
+        run: _TreeRun,
+        db_of: dict[str, str],
+        rep: dict[str, Any],
+    ) -> None:
+        """L2 结果落 chunks 表：retranslated→新译文；reverted/fallback→fallback_orig。"""
+        upd: dict[str, dict[str, Any]] = {}
+        for cid in rep.get("retranslated") or []:
+            fidx, ccid = _split_cid(cid)
+            zh = (run.trans.get(fidx) or {}).get(ccid)
+            if zh is not None and cid in db_of:
+                upd[db_of[cid]] = {"translation": zh}
+        for cid in (
+            *(rep.get("reverted_l0") or []),
+            *(rep.get("fallback_src") or []),
+        ):
+            if cid not in db_of:
+                continue
+            ci = run.chunk_ins.get(cid)
+            upd[db_of[cid]] = {
+                "status": "fallback_orig",
+                "translation": ci.content if ci is not None else "",
+                "error_code": "l2_reverted",
+            }
+        cache = run.pipe.cache
+        cache_puts = cache.drain() if isinstance(cache, SegmentCache) else []
+        if not upd and not cache_puts:
+            return
+        self._flush_chunk_updates(ctx, list(upd.items()), cache_puts)
+
+    def _flush_chunk_updates(
+        self,
+        ctx: TaskCtx,
+        updates: list[tuple[str, dict[str, Any]]],
+        cache_puts: list[tuple[str, str, str, str]],
+    ) -> None:
+        """编译段块级回写事务（L2/env_judge 共用）：chunk 更新 + 段缓存 + 计数器。
+
+        worker 线程调用——``_on_loop`` 压回 loop 线程后读改写一笔成交；
+        计数器按 chunks 表最终态全量重算（不靠增量推演），progress 沿用行值。
+        """
+
+        def _flush() -> None:
+            st = {
+                r["chunk_id"]: str(r["status"])
+                for r in self.store.all_chunks(ctx.task_id)
+            }
+            applied = [(cid, f) for cid, f in updates if cid in st]
+            for cid, f in applied:
+                st[cid] = str(f.get("status") or st[cid])
+            row = self.store.get(ctx.task_id)
+            counters = {
+                "total": len(st),
+                "done": sum(
+                    s in ("ok", "fallback_orig", "failed") for s in st.values()
+                ),
+                "cached": int(row["cached_chunks"]) if row else 0,
+                "failed": sum(s in ("fallback_orig", "failed") for s in st.values()),
+                "tokens": ctx.tokens_est,
+                "progress": int(row["progress"]) if row else 0,
+            }
+            self.store.flush_chunk_batch(ctx.task_id, applied, cache_puts, counters)
+
+        self._on_loop(_flush)
+
+    def _l2_attempt(
+        self,
+        ctx: TaskCtx,
+        work: Path,
+        eng: Engine,
+        res: CompRes,
+        v: Verdict,
+    ) -> tuple[CompRes, Verdict]:
+        """非 clean 判据后的 L2 臂：跑 ``_l2_repair_zh`` + 报告入账/事件/日志。"""
+        if not self._l2_enabled(ctx):
+            ctx.l2 = {
+                "enabled": False,
+                "reason": "options.l2" if "l2" in ctx.options() else _ENV_NO_L2,
+            }
+            return res, v
+        try:
+            rep, res2, v2 = self._l2_repair_zh(ctx, work, eng, res)
+        except Exception as e:  # noqa: BLE001 -- L2 崩不拖垮编译段
+            self._log(ctx, f"l2 crashed: {type(e).__name__}: {e}")
+            return res, v
+        ctx.l2 = _scrub_deep(rep, ctx.secrets.api_key)
+        self._on_loop(self.bus.publish, ctx.task_id, "l2", ctx.l2)
+        for key in ("retranslated", "reverted_l0", "fallback_src", "unresolved"):
+            if rep.get(key):
+                self._log(ctx, f"l2 {key}: {rep[key]}")
+        return res2, (v2 if v2 is not None else v)
+
+    def _compile_zh(self, ctx: TaskCtx) -> bool:
+        """zh.pdf：zh/ 拷贝编译 +（非 clean 时）L2 回灌 → fixloop + judge(expect_cjk)。
+
+        修复链顺序对齐 e2e ``pipe_condition``：L2（译文归因重译）先于
+        fixloop——L2 resplice 重写 workdir，规则修源在其后兜底。
+        ``.compile-done`` 哨兵落 ``zh/`` 内：main 变更的 retry 会 rmtree
+        ``zh/``，哨兵与 zh_pdf 记录同生共死；resume 见哨兵+pdf 即跳过重编。
         返回「终态不 fault」——有 pdf 即 partial 起步。
         """
+        if (ctx.zh_dir / ".compile-done").is_file() and self._has_pdf(ctx, "zh_pdf"):
+            return True
         work = ctx.root / "build-zh"
         if work.exists():
             shutil.rmtree(work)
@@ -1514,12 +1957,15 @@ class PipelineWorker:
             work, ctx.main_rel, timeout=self._compile_timeout, sandbox=True
         )
         v = judge(res, expect_cjk=True, log_text=self._log_text_of(res))
+        if v.status != "clean":
+            res, v = self._l2_attempt(ctx, work, eng, res, v)
         if v.status != "clean" and self._fixloop_enabled(ctx):
             res = self._run_fixloop(ctx, work, eng, res)
             v = judge(res, expect_cjk=True, log_text=self._log_text_of(res))
         if res.has_pdf and res.pdf is not None:
             shutil.copyfile(res.pdf, ctx.root / "zh.pdf")
             self._register(ctx, "zh_pdf", "zh.pdf")
+            (ctx.zh_dir / ".compile-done").write_text("", encoding="utf-8")
         (ctx.root / "compile.log").write_text(
             scrub(self._log_text_of(res), ctx.secrets.api_key),
             encoding="utf-8",
@@ -1595,8 +2041,103 @@ class PipelineWorker:
 
     # ------------------------------------------------------------ pdf 管线
 
+    def _babeldoc_job(
+        self, ctx: TaskCtx, src: Path, outdir: Path, workdir: Path
+    ) -> BabeldocJob:
+        """``TaskCtx`` → ``BabeldocJob``：BYOK 凭证 + config base_url 兜底 + options 透传。
+
+        术语表复用主链 ``_make_glossary``（confine 规则同款），写成
+        babeldoc ``--glossary-files`` CSV。
+        """
+        try:
+            cfg = json.loads(str(ctx.row.get("config_json") or "{}"))
+        except json.JSONDecodeError:
+            cfg = {}
+        options = ctx.options()
+        glossary_csv = None
+        glossary = self._make_glossary(ctx)
+        if glossary is not None:
+            glossary_csv = write_glossary_csv(
+                workdir / "glossary.csv", list(glossary.as_dict().items())
+            )
+        return BabeldocJob(
+            src=src,
+            outdir=outdir,
+            workdir=workdir,
+            model=ctx.secrets.model or str(ctx.row["model"]),
+            base_url=ctx.secrets.base_url or str(cfg.get("base_url") or ""),
+            api_key=ctx.secrets.api_key,
+            lang_out=lang_out_for(str(ctx.row["target_lang"])),
+            qps=int(options.get("qps") or 4),
+            pages=str(options.get("pages") or "") or None,
+            dual=bool(options.get("dual", True)),
+            alternating=bool(options.get("alternating", True)),
+            send_temperature=bool(options.get("send_temperature", False)),
+            custom_system_prompt=(
+                str(options.get("custom_system_prompt") or "") or None
+            ),
+            glossary_csv=glossary_csv,
+            timeout=default_timeout(),
+        )
+
+    def _finish_pdf(self, ctx: TaskCtx, run: BabeldocRun) -> None:
+        """Sidecar 结果 → 产物登记 + 终态迁移 + done 事件。"""
+        ctx.tokens_est = int(run.stats.get("total_tokens") or 0)
+        mono = run.outputs.get("mono")
+        dual = run.outputs.get("dual")
+        if mono is not None:
+            shutil.copyfile(mono, ctx.root / "zh.pdf")
+            self._register(ctx, "zh_pdf", "zh.pdf")
+        if dual is not None:
+            shutil.copyfile(dual, ctx.root / "dual.pdf")
+            self._register(ctx, "dual_pdf", "dual.pdf")
+        self._log(ctx, f"babeldoc rc={run.rc} status={run.status} stats={run.stats}")
+        if run.status == "failed":
+            for ln in run.stderr_tail.strip().splitlines()[-3:]:
+                self._log(ctx, f"babeldoc stderr: {ln}")
+            self._fail(
+                ctx,
+                run.error_code or "compile",
+                run.error or "babeldoc 失败",
+                retryable=run.retryable,
+                stage="compiling",
+                detail={"babeldoc": _scrub_deep(run.stats, ctx.secrets.api_key)},
+            )
+            return
+        self._build_dual(ctx)
+        if self._current_status(ctx) in TERMINAL_STATUSES:
+            return  # cancel 竞态：终态已写，不再覆盖
+        status, err = "done", None
+        if run.status == "degraded":
+            status = "partial"
+            err = {
+                "code": "degraded",
+                "message": scrub(run.error, ctx.secrets.api_key),
+                "retryable": True,
+            }
+        self.store.transition(
+            ctx.task_id,
+            status,
+            progress=100,
+            error=err,
+            force=True,
+            message="完成" if status == "done" else "部分完成",
+        )
+        stats = self._stats(ctx)
+        stats["babeldoc"] = _scrub_deep(run.stats, ctx.secrets.api_key)
+        self.bus.publish(
+            ctx.task_id,
+            "done",
+            {"status": status, "artifacts": self._artifact_urls(ctx), "stats": stats},
+        )
+
     async def _run_pdf(self, ctx: TaskCtx) -> None:
-        """upload_pdf：BabelDOC sidecar（AGPL 边界=独立进程，§2.4）。"""
+        """upload_pdf：BabelDOC sidecar（AGPL 边界=独立进程，§2.4 + pdf-path §三）。
+
+        产物面：en.pdf（原文回登记）+ mono→zh.pdf + dual→dual.pdf；
+        ``run_babeldoc`` 的 status 判定（tracking/fallback/CJK 兜底）
+        映射终态——ok→done、degraded→partial、failed→fault。
+        """
         self._stage(ctx, "compiling", "BabelDOC 双语转换", 30)
         uploads = sorted((ctx.root / "upload").glob("*"))
         if not uploads:
@@ -1613,8 +2154,8 @@ class PipelineWorker:
         if not en.exists():
             shutil.copyfile(src, en)
         self._register(ctx, "en_pdf", "en.pdf")
-        babeldoc = self._babeldoc or find_tool("babeldoc")
-        if babeldoc is None:
+        binary = self._babeldoc or find_tool("babeldoc")
+        if binary is None:
             self._fail(
                 ctx,
                 "internal",
@@ -1624,51 +2165,157 @@ class PipelineWorker:
             )
             return
         outdir = ctx.root / "babeldoc-out"
-        outdir.mkdir(exist_ok=True)
-        proc = await asyncio.create_subprocess_exec(
-            babeldoc,
-            "--files",
-            str(src),
-            "--output",
-            str(outdir),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
+        workdir = ctx.root / "babeldoc-work"
+        for d in (outdir, workdir):
+            if d.exists():
+                shutil.rmtree(d)  # retry 幂等：旧产物/旧 tracking 不混入本单
+        job = self._babeldoc_job(ctx, src, outdir, workdir)
+        last_stage = ""
+
+        def on_progress(pct: float, stage: str) -> None:
+            nonlocal last_stage
+            self._on_loop(
+                self.store.update_fields,
+                ctx.task_id,
+                progress=30 + min(65, round(65 * pct / 100)),
+            )
+            if stage and stage != last_stage:
+                last_stage = stage
+                self._log(ctx, f"babeldoc stage: {stage}")
+
+        run = await run_babeldoc(
+            job,
+            binary=binary,
+            on_progress=on_progress,
+            on_log=lambda line: self._log(ctx, f"babeldoc: {line}"),
+            should_cancel=lambda: self._current_status(ctx) == "cancelled",
         )
-        out, _ = await proc.communicate()
         self._check_cancelled(ctx)
-        self._log(
-            ctx,
-            f"babeldoc rc={proc.returncode}: {out.decode(errors='replace')[-400:]}",
-        )
-        produced = sorted(outdir.glob("*.pdf"))
-        dual = next((p for p in produced if "dual" in p.name.lower()), None)
-        mono = next((p for p in produced if p is not dual), None)
-        if mono is not None:
-            shutil.copyfile(mono, ctx.root / "zh.pdf")
-            self._register(ctx, "zh_pdf", "zh.pdf")
-        if dual is not None:
-            shutil.copyfile(dual, ctx.root / "dual.pdf")
-            self._register(ctx, "dual_pdf", "dual.pdf")
-        if proc.returncode != 0 or mono is None:
+        self._finish_pdf(ctx, run)
+
+    # ------------------------------------------------------------ doc 管线
+
+    async def _run_doc(self, ctx: TaskCtx) -> None:  # noqa: C901 -- 错误面/终态分支即 §2.2 映射表，平铺即清单
+        """docx/epub：``export_document`` 双语插译（无编译链——产物即双语原文档）。
+
+        ``export_document`` 内部 ``asyncio.run(XlatPipeline)``——必须
+        ``to_thread`` 起独立 loop（本 loop 直调即 RuntimeError）；``on_result``
+        在 thread 内触发，DB/事件写一律 ``_on_loop`` 回弹。``state_dir`` 落
+        ``tasks/{id}/export-state/``——retry 由 StateStore 前缀校验自动续跑，
+        成功即被 export 侧清理。产物 kind = ``zh_docx``/``zh_epub``。
+        """
+        from texlate.export import export_document  # noqa: PLC0415 -- 重依赖惰性加载
+        from texlate.export.common import ExportError  # noqa: PLC0415
+
+        uploads = sorted((ctx.root / "upload").glob("*"))
+        if not uploads:
             self._fail(
                 ctx,
-                "compile",
-                "babeldoc 未产出译文 pdf",
-                retryable=True,
-                stage="compiling",
+                "internal",
+                "upload payload missing",
+                retryable=False,
+                stage="translating",
             )
             return
-        self._build_dual(ctx)
-        if self._current_status(ctx) in TERMINAL_STATUSES:
+        src = uploads[0]
+        self._register(ctx, "src_tar", f"upload/{src.name}")
+        self._stage(ctx, "translating", "文档插译", PROGRESS["translating"][0])
+        translator = self._make_translator(ctx)
+        client = getattr(translator, "client", None)
+        ext = src.suffix.lower()
+        if ext not in (".docx", ".epub"):
+            ext = f".{ctx.row['kind']}"
+        dst = ctx.root / f"{src.stem}_bilingual{ext}"
+        counters = {"done": 0, "failed": 0}
+
+        def on_result(r: ChunkResult) -> None:
+            """逐 unit 计数 + chunk 事件（units 枚举在 export 内部，total 未知填 0）。"""
+            counters["done"] += 1
+            if r.status in ("skipped", "fault"):
+                counters["failed"] += 1
+            ctx.tokens_est += (len(r.source) + len(r.translation)) // 4
+            self._on_loop(
+                self.bus.publish,
+                ctx.task_id,
+                "chunk",
+                {
+                    "done": counters["done"],
+                    "total": 0,
+                    "cached": 0,
+                    "failed": counters["failed"],
+                    "items": [
+                        {
+                            "seq": counters["done"],
+                            "status": _PIPE_TO_DB.get(r.status, "failed"),
+                        }
+                    ],
+                },
+            )
+
+        try:
+            report = await asyncio.to_thread(
+                export_document,
+                src,
+                dst,
+                translator,
+                target_lang=str(ctx.row["target_lang"]),
+                state_dir=ctx.root / "export-state",
+                on_result=on_result,
+            )
+        except ExportError as e:
+            # DRM/fixed-layout/畸形包/不识格式——重试无意义的拒翻面
+            self._fail(
+                ctx,
+                "unsupported_format",
+                str(e),
+                retryable=False,
+                stage="translating",
+            )
             return
+        finally:
+            if isinstance(client, ChatClient):
+                # client 在 to_thread 的 ephemeral loop 里跑过——aclose 尽力而为
+                try:
+                    await client.aclose()
+                except Exception:
+                    log.debug("doc client aclose failed", exc_info=True)
+        self._check_cancelled(ctx)
+        for w in report.warnings:
+            self._warning(ctx, "export", w)
+        self._register(ctx, f"zh_{ctx.row['kind']}", dst.name)
+        n_bad = report.skipped + report.fault
+        self.store.update_fields(
+            ctx.task_id,
+            total_chunks=report.units,
+            done_chunks=report.translated + report.unchanged,
+            failed_chunks=n_bad,
+        )
+        if self._current_status(ctx) in TERMINAL_STATUSES:
+            return  # cancel 竞态：终态已写，不再覆盖
+        status = "done" if n_bad == 0 else "partial"
+        err = None
+        if status == "partial":
+            err = {
+                "code": "provider_error" if report.fault else "validate",
+                "message": (
+                    f"{n_bad} 段回退原文"
+                    f"（skipped {report.skipped} / fault {report.fault}）"
+                ),
+                "retryable": bool(report.fault),
+            }
         self.store.transition(
-            ctx.task_id, "done", progress=100, message="完成", force=True
+            ctx.task_id,
+            status,
+            progress=100,
+            error=err,
+            force=True,
+            message="完成" if status == "done" else "部分完成",
         )
         self.bus.publish(
             ctx.task_id,
             "done",
             {
-                "status": "done",
+                "status": status,
                 "artifacts": self._artifact_urls(ctx),
                 "stats": self._stats(ctx),
             },
@@ -1883,7 +2530,11 @@ class TaskRunner:
                 try:
                     await task
                 except asyncio.CancelledError:
-                    pass
+                    # 子任务 cancel（cancel_running/stop 撤 _current）正常吞;
+                    # dispatcher 自身被 cancel 必须重抛——否则循环回
+                    # queue.get() 死等,stop() 的 await dispatcher 永久挂起
+                    if asyncio.current_task().cancelling() > 0:
+                        raise
                 except Exception:
                     log.exception("worker escaped for %s", task_id)
                 finally:
