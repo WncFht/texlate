@@ -3,6 +3,7 @@
 | 0807.3917 | main.tex |  | fail | fail | fail | fail |
 | 0906.1291 | bbjy.tex |  | clean | clean | clean | clean |
 | 0906.4725 | iqo-v5.tex |  | fail | fail | fail | fail |
+| 1106.1445 | qit-notes.tex |  | clean | clean | clean | partial |
 | 1111.4914 | PhDThesis.tex |  | clean | clean | clean | partial |
 | 1207.7214 | TheATLASJulyPaper.tex |  | partial | partial | partial | partial |
 | 1207.7235 | HIG-12-028_temp.tex |  | partial | clean | clean | partial |
@@ -17,6 +18,7 @@
 | 1712.01208 | main_tr.tex |  | partial | partial | partial | partial |
 | 1801.02634 | main.tex |  | partial | clean | partial | partial |
 | 1810.04805 | main.tex |  | partial | clean | partial | partial |
+| 1902.03178 | cliff-simp-q.tex |  | partial | partial | partial | partial |
 | 1906.08237 | neurips_2019.tex |  | clean | clean | partial | partial |
 | 2003.08934 | arxiv_submission.tex |  | partial | clean | partial | partial |
 | 2005.11401 | neurips_2020.tex |  | partial | partial | partial | partial |
@@ -25,3 +27,15 @@
 | 2203.02155 | neurips_2021.tex |  | fail | clean | clean | clean |
 | 2305.14335 | main.tex |  | fail | clean | clean | partial |
 | 2308.07483 | PIRT-2023VGG.tex |  | partial | clean | clean | clean |
+| 2501.14787 | main.tex |  | fail | partial | partial | partial |
+| 2512.03164 | mainv2.tex |  | fail | clean | partial | partial |
+| 2602.06617 | FT-Jacquet-Guov3.tex |  | fail | fail | fail | fail |
+| 2602.09511 | Invariance.tex |  | fail | fail | fail | fail |
+| 2602.19229 | arxiv.tex |  | partial | partial | partial | partial |
+| 2606.31863 | main.tex |  | partial | partial | clean | partial |
+| 2609.06443 | main.tex |  | fail | partial | partial | partial |
+| 2609.08578 | Paper.processed.tex |  | fail | partial | partial | partial |
+| 2609.09529 | Frobenius_Galois_of_Substructural_Logic.tex |  | partial | partial | partial | partial |
+| 2609.11777 | main.tex |  | partial | partial | partial | partial |
+| hep-th/9901001 | imamura2.tex |  | fail | partial | reject | reject |
+| math/0404188 | main.tex |  | clean | partial | partial | partial |
