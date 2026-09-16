@@ -170,7 +170,7 @@ def unicode_math_fix(zh: str) -> str:
     return "".join(out)
 
 
-def reconstruct(res: ScanResult, translations: dict[int, str] | None = None) -> str:  # noqa: C901 — expand/expand_body 双闭包 + 校验分支平铺即 §9 伪码
+def reconstruct(res: ScanResult, translations: dict[int, str] | None = None) -> str:  # noqa: C901, PLR0915 — expand/expand_body 双闭包 + 校验分支平铺即 §9 伪码
     """按 pieces splice + 占位符 DAG 递归展开（docs/07 §9 伪码原样）。
 
     ``translations``：``{chunk_id: 译文}``；None → identity 重建。
@@ -213,22 +213,53 @@ def reconstruct(res: ScanResult, translations: dict[int, str] | None = None) -> 
             else:
                 dangling.add(token)
                 body = token
-        expanded = expand_body(body)
-        if token in short_arg:
-            expanded = _PAR_RUN_RX.sub("\n", expanded)
+        expanded = expand_body(body, fold_par=token in short_arg)
         memo[token] = expanded
         active.discard(token)
         return memo[token]
 
-    def expand_body(body: str) -> str:
-        """字面+ph 交错体展开——token 递归展开后过接缝守卫。"""
+    def expand_body(body: str, *, fold_par: bool = False) -> str:
+        r"""字面+ph 交错体展开——token 递归展开后过接缝守卫。
+
+        ``fold_par`` 折叠域 = 本层字面段 + 字面↔ph 接缝；嵌套 ph 展开体
+        **内部**的 ``\\n\\n`` 不动——受保环境体的真段落界不属短参 arg 上
+        下文（S3）。接缝处理一律剥字面侧（foldable 面），ph 体只读：
+        字面尾 ``\\n`` + ph 头 ``\\n`` → 字面退一格；ph 尾 ``\\n`` +
+        字面头 ``\\n`` → 字面退一格。ph↔ph 直邻接缝不处理（双侧皆不可
+        折叠面，存残留记档）。
+        """
         segs: list[str] = []
+        prev_ph = False  # segs[-1] 是否 ph 展开体（ph↔ph 接缝无字面侧可剥）
+
+        def push_literal(seg: str) -> None:
+            nonlocal prev_ph
+            if fold_par:
+                seg = _PAR_RUN_RX.sub("\n", seg)
+                if seg.startswith("\n") and segs and segs[-1].endswith("\n"):
+                    seg = seg[1:]
+            segs.append(seg)
+            prev_ph = False
+
+        def push_ph(tok: str) -> None:
+            nonlocal prev_ph
+            exp = expand(tok)
+            if (
+                fold_par
+                and not prev_ph
+                and exp.startswith("\n")
+                and segs
+                and segs[-1].endswith("\n")
+            ):
+                segs[-1] = segs[-1][:-1]
+            segs.append(exp)
+            prev_ph = True
+
         pos = 0
         for mm in PH_RX.finditer(body):
-            segs.append(body[pos : mm.start()])
-            segs.append(expand(mm.group(0)))
+            push_literal(body[pos : mm.start()])
+            push_ph(mm.group(0))
             pos = mm.end()
-        segs.append(body[pos:])
+        push_literal(body[pos:])
         return _seg_join(segs) if glue_latin else "".join(segs)
 
     # LITERAL 段也可能内嵌 ph（短 run / MINED_ONLY run 发渲染文本）——全段展开。

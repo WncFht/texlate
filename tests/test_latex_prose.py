@@ -48,6 +48,13 @@ def test_is_prose_struct_context_rescue() -> None:
     assert is_prose(_chunk("XYZ", "section")) is True
 
 
+def test_is_prose_struct_context_aliases() -> None:
+    """``subsect``（ptptex 旧式）/``abst`` 在 CHUNK_ARG_NAMES 出 ctx——
+    PROSE_CONTEXTS 缺名即召回缺口（S5）。"""
+    assert is_prose(_chunk("XY", "subsect")) is True
+    assert is_prose(_chunk("K", "abst")) is True
+
+
 def test_is_prose_funcword_gate() -> None:
     """≥3 distinct 功能词 → 散文（大小写不敏感）。"""
     assert is_prose(_chunk("The results show that this method works well")) is True

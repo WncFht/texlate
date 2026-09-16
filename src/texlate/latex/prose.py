@@ -37,6 +37,7 @@ if TYPE_CHECKING:
 #: 短到零功能词也算散文。
 PROSE_CONTEXTS: frozenset[str] = frozenset(
     {
+        "abst",
         "caption",
         "captionof",
         "chapter",
@@ -49,6 +50,7 @@ PROSE_CONTEXTS: frozenset[str] = frozenset(
         "section",
         "subcaption",
         "subparagraph",
+        "subsect",
         "subsection",
         "subsubsection",
         "subtitle",

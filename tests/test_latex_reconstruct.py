@@ -162,6 +162,19 @@ def test_short_arg_par_collapse_ph_boundary() -> None:
     assert "由\n  $K$" in m.group(1)
 
 
+def test_short_arg_fold_preserves_ph_internal_pars() -> None:
+    r"""短参折叠不穿透嵌套 ph 体——ph 展开体内部 ``\n\n``（受保环境的真
+    段落界）原样保留；只有字面段与字面↔ph 接缝进折叠域（S3）。"""
+    res = scan(
+        "\\begin{figure}\\caption{The allowed region by $K$ mixing here.}\\end{figure}"
+    )
+    cap = next(c for c in res.chunks if c.context == "caption")
+    math_tok = next(t for t in cap.placeholders if t.startswith("[[MATH_"))
+    res.ph_map[math_tok] = "$K$\n\ninner par"  # ph 体内真段落界
+    out = reconstruct(res, {cap.id: f"由 {math_tok} 混合。"})
+    assert "$K$\n\ninner par" in out
+
+
 def test_para_chunk_keeps_par_break() -> None:
     r"""正文段（``para``）译文的 ``\n\n`` 是合法段落断——不折叠。"""
     res = scan("Body paragraph with enough words to form a chunk here.")
