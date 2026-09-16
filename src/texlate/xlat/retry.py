@@ -216,6 +216,7 @@ class _LadderCtx:
     slots_fn: Callable[[dict[str, str], str], Awaitable[dict[str, str]]]
     validate_fn: Callable[[str, str], str]
     corrector_fn: Callable[[str, str, str], Awaitable[str]] | None
+    repair_fn: Callable[[str, str], tuple[str, list[str]]] | None = None
     attempts: int = 0
     warnings: list[str] = field(default_factory=list)
     best_zh: str = ""
@@ -225,11 +226,22 @@ class _LadderCtx:
         self.attempts += 1
         return await self.translate_fn(src_text, feedback)
 
+    def repair(self, src_text: str, zh: str) -> str:
+        """Decode 后、validate 前的占位符抄回修复（缺 token 且原文唯一命中才换）。"""
+        if self.repair_fn is None:
+            return zh
+        zh2, recovered = self.repair_fn(src_text, zh)
+        if recovered:
+            self.warnings.append(
+                f"recovered copied placeholders: {', '.join(recovered)}"
+            )
+        return zh2
+
 
 async def _stage_whole(ctx: _LadderCtx) -> str | None:
     """Stage 1：整段×2（第二试 corrector 三段式或字段化反馈）。通过返回译文。"""
     raw = await ctx.call(ctx.encoded)
-    zh = decode_newlines(raw)
+    zh = ctx.repair(ctx.source, decode_newlines(raw))
     err = ctx.validate_fn(ctx.source, zh)
     if not err:
         return zh
@@ -238,7 +250,7 @@ async def _stage_whole(ctx: _LadderCtx) -> str | None:
         raw2 = await ctx.corrector_fn(ctx.source, zh, err)
     else:
         raw2 = await ctx.call(ctx.encoded, err)
-    zh2 = decode_newlines(raw2)
+    zh2 = ctx.repair(ctx.source, decode_newlines(raw2))
     err2 = ctx.validate_fn(ctx.source, zh2)
     if not err2:
         return zh2
@@ -256,11 +268,12 @@ async def _stage_lines(ctx: _LadderCtx) -> str | None:
     bad_lines = 0
     for line in lines:
         raw_l = await ctx.call(line)
-        zh_l = decode_newlines(raw_l)
-        if ctx.validate_fn(decode_newlines(line), zh_l):
+        src_l = decode_newlines(line)
+        zh_l = ctx.repair(src_l, decode_newlines(raw_l))
+        if ctx.validate_fn(src_l, zh_l):
             bad_lines += 1
         fixed.append(zh_l)
-    candidate = "\n".join(fixed)
+    candidate = ctx.repair(ctx.source, "\n".join(fixed))
     err = ctx.validate_fn(ctx.source, candidate)
     if err:
         ctx.warnings.append(f"lines failed: {err}")
@@ -333,7 +346,7 @@ async def _stage_slots(ctx: _LadderCtx) -> str | None:
     if pending:
         ctx.warnings.append(f"slots unanswered after retries: {sorted(pending)}")
         return None
-    candidate = _assemble_slots(seq, translated)
+    candidate = ctx.repair(ctx.source, _assemble_slots(seq, translated))
     err = ctx.validate_fn(ctx.source, candidate)
     if err:
         ctx.warnings.append(f"slots assembled but still invalid: {err}")
@@ -342,13 +355,14 @@ async def _stage_slots(ctx: _LadderCtx) -> str | None:
     return candidate
 
 
-async def translate_with_ladder(
+async def translate_with_ladder(  # noqa: PLR0913 -- 阶梯可插拔点全集（依赖注入面）
     source: str,
     *,
     translate_fn: Callable[[str, str], Awaitable[str]],
     slots_fn: Callable[[dict[str, str], str], Awaitable[dict[str, str]]],
     validate_fn: Callable[[str, str], str] = _validate,
     corrector_fn: Callable[[str, str, str], Awaitable[str]] | None = None,
+    repair_fn: Callable[[str, str], tuple[str, list[str]]] | None = None,
 ) -> LadderResult:
     """四段语义阶梯（各阶段内调用方已含 HTTP 退避）。
 
@@ -359,6 +373,8 @@ async def translate_with_ladder(
     `validate_fn(src, zh)` —— 错误描述字符串，空串 = 通过。
     `corrector_fn(original, translation, error)` —— 可选三段式 corrector，
     提供时替换 stage-1 第二试（corrector 是更强的修复臂）。
+    `repair_fn(src, zh) -> (zh, recovered)` —— 可选 decode 后/validate 前的
+    占位符抄回修复（模型把受保护原文抄进译文时换回 token）。
     """
     ctx = _LadderCtx(
         source=source,
@@ -367,6 +383,7 @@ async def translate_with_ladder(
         slots_fn=slots_fn,
         validate_fn=validate_fn,
         corrector_fn=corrector_fn,
+        repair_fn=repair_fn,
     )
 
     zh = await _stage_whole(ctx)

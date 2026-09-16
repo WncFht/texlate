@@ -1,0 +1,442 @@
+r"""e2e 修复链接线——fixloop / L2 回灌 / engine_flags / env judge / 抄回修复。
+
+与 ``test_e2e.py``（golden-path 直测）分工：本文件只覆盖**编译失败之后**的
+编排——``ScriptedEngine`` 按剧本逐次出 log/pdf，断言报告结构与盘上副作用。
+全离线：引擎/翻译器/judge 的 pdftotext 侧效果全部替身化。
+"""
+
+from __future__ import annotations
+
+import asyncio
+import importlib
+import json
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+import pytest
+
+from texlate import e2e
+from texlate.xlat.pipeline import ChunkIn, MockTranslator, XlatPipeline
+
+if TYPE_CHECKING:
+    from texlate.compile.engine import CompRes
+
+_MAIN = (
+    "\\documentclass{article}\n"
+    "\\begin{document}\n"
+    "\\section{Intro}\n"
+    "This is a longer paragraph of English text that should definitely be\n"
+    "segmented into at least one chunk for translation purposes.\n"
+    "\n"
+    "And a second paragraph here.\n"
+    "\\end{document}\n"
+)
+
+#: 未知 env（静态表外）——env judge 的目标输入
+_UNK_ENV_TEX = (
+    "\\documentclass{article}\n"
+    "\\begin{document}\n"
+    "\\section{Intro}\n"
+    "\\begin{mybox}\n"
+    "Some prose inside a custom box environment that the segmenter does not\n"
+    "know about, so it falls open and the body becomes a chunk.\n"
+    "\\end{mybox}\n"
+    "\\end{document}\n"
+)
+
+
+@pytest.fixture(autouse=True)
+def _clean_switches(monkeypatch: pytest.MonkeyPatch) -> None:
+    """三个开关 env 全部钉成缺省——本机/CI 环境差异免疫。"""
+    for k in ("TEXLATE_NO_FIXLOOP", "TEXLATE_NO_L2", "TEXLATE_ENV_JUDGE"):
+        monkeypatch.delenv(k, raising=False)
+
+
+def _project(root: Path, main: str = _MAIN) -> Path:
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "main.tex").write_text(main, encoding="utf-8")
+    return root
+
+
+# ---------------------------------------------------------------- 剧本引擎
+
+
+def _fail_unattributable(_w: Path, _m: str) -> tuple[str, bool]:
+    """不可归因的失败 log（无文件栈、无 ``l.NNN``）——L2 拿不到 chunk。"""
+    return ("! Undefined control sequence.\n<argument> \\oops\n", False)
+
+
+def _fail_at_last_zh(wdir: Path, main: str) -> tuple[str, bool]:
+    """失败 log：file:line: 直指最后一处 ``这是译文`` 所在行（第二段译文）。"""
+    lines = (wdir / main).read_text(encoding="utf-8").splitlines()
+    n = max(i for i, ln in enumerate(lines) if "这是译文" in ln) + 1
+    return (f"{main}:{n}: ! Undefined control sequence.\n", False)
+
+
+def _clean(_w: Path, _m: str) -> tuple[str, bool]:
+    """干净 log + pdf。"""
+    return ("This is fake\nOutput written on disk.\n", True)
+
+
+class ScriptedEngine:
+    """按剧本出 log/pdf 的假引擎；第 n 次 ``compile`` 消费 ``scripts[n]``。
+
+    剧本条目 = ``callable(wdir, main) -> (log_text, write_pdf)``——动态条目
+    可在 splice 后读盘找译文行号。满足 fixloop 的 Engine Protocol 面
+    （caps/probe/install/filemap 全空实现）。
+    """
+
+    def __init__(self, name: str, scripts: list[object]) -> None:
+        """``scripts`` 用尽后重复末条。"""
+        self.name = name
+        self.caps: frozenset[str] = frozenset()
+        self.scripts = list(scripts)
+        self.calls: list[dict[str, object]] = []
+        self.ctor_kwargs: dict[str, object] = {}
+
+    def compile(  # noqa: PLR0913 -- 与 Engine.compile 同签名
+        self,
+        wdir: Path,
+        main: str,
+        *,
+        passes: int = 1,
+        timeout: float | None = None,
+        outdir: Path | None = None,  # noqa: ARG002
+        sandbox: bool = True,  # noqa: ARG002
+        env_extra: dict[str, str] | None = None,  # noqa: ARG002
+        best_effort: bool = False,  # noqa: ARG002 -- fixloop salvage 会传
+    ) -> CompRes:
+        """按剧本写 ``<stem>.log``（+可选 pdf）→ CompRes。"""
+        from texlate.compile.engine import CompRes, parse_log  # noqa: PLC0415
+
+        i = min(len(self.calls), len(self.scripts) - 1)
+        spec = self.scripts[i]
+        log_text, make_pdf = spec(wdir, main) if callable(spec) else spec
+        stem = Path(main).stem
+        log = wdir / f"{stem}.log"
+        log.write_text(log_text, encoding="utf-8")
+        pdf: Path | None = None
+        pdf_bytes = 0
+        if make_pdf:
+            pdf = wdir / f"{stem}.pdf"
+            pdf.write_bytes(b"%PDF-1.4\n% fake\n")
+            pdf_bytes = pdf.stat().st_size
+        self.calls.append({"main": main, "timeout": timeout, "passes": passes})
+        return CompRes(
+            engine=self.name,
+            ok=True,
+            pdf=pdf,
+            pdf_bytes=pdf_bytes,
+            log_path=log,
+            log=parse_log(log_text),
+            rc=0,
+            passes=passes,
+            seconds=0.01,
+        )
+
+    def probe_file(self, fname: str, *, cwd: Path | None = None) -> None:
+        """全 miss——fixloop scan_install 走 install_file 分支。"""
+
+    def install_file(self, fname: str, *, font_related: bool = False) -> bool:  # noqa: ARG002
+        """装不上——advisories 记账但不阻塞。"""
+        return False
+
+    def rebuild_fontmaps(self) -> None:
+        """noop。"""
+
+    def filemap(self, fname: str) -> list[str]:  # noqa: ARG002
+        """无索引。"""
+        return []
+
+
+@pytest.fixture
+def engines(monkeypatch: pytest.MonkeyPatch) -> dict[str, ScriptedEngine]:
+    """``e2e.engine_for`` 换剧本表 + judge CJK 计数钉 500。测试先注册引擎再跑。"""
+    table: dict[str, ScriptedEngine] = {}
+
+    def factory(name: str, **kwargs: object) -> ScriptedEngine:
+        eng = table[name]
+        if not eng.ctor_kwargs:
+            eng.ctor_kwargs = kwargs
+        return eng
+
+    monkeypatch.setattr(e2e, "engine_for", factory)
+    judge_mod = importlib.import_module("texlate.compile.judge")
+    monkeypatch.setattr(judge_mod, "pdf_cjk_chars", lambda _p: 500)
+    return table
+
+
+# ---------------------------------------------------------------- fixloop
+
+
+def test_fixloop_runs_on_fail_and_recovers(
+    tmp_path: Path, engines: dict[str, ScriptedEngine]
+) -> None:
+    """首编 fail（不可归因）→ L2 无命中直通 → fixloop r1 clean → 终态 clean。"""
+    work = _project(tmp_path / "p")
+    engines["xelatex"] = ScriptedEngine("xelatex", [_fail_unattributable, _clean])
+
+    report = e2e.mock_pipeline_run(work, "xelatex", timeout=30.0)
+
+    assert report["status"] == "clean"
+    assert report["l2"]["note"] == "no chunk-level attribution"
+    fl = report["fixloop"]
+    assert fl["enabled"] is True
+    assert fl["verdict"] == "clean"
+    # rounds 视图带 {cat,pay,rule,result} 合并字段
+    assert fl["rounds"][0]["pdf"] is True
+    assert "cat" in fl["rounds"][0]
+    assert "rule" in fl["rounds"][0]
+    assert report["verdict"]["status"] == "clean"
+    assert len(engines["xelatex"].calls) == 2  # noqa: PLR2004 -- 首编 + fixloop r1
+
+
+def test_fixloop_disabled_by_env(
+    tmp_path: Path,
+    engines: dict[str, ScriptedEngine],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``TEXLATE_NO_FIXLOOP=1`` → fixloop 不跑，终态保持 fail。"""
+    work = _project(tmp_path / "p")
+    engines["xelatex"] = ScriptedEngine("xelatex", [_fail_unattributable])
+    monkeypatch.setenv("TEXLATE_NO_FIXLOOP", "1")
+
+    report = e2e.mock_pipeline_run(work, "xelatex", timeout=30.0)
+
+    assert report["status"] == "fail"
+    assert report["fixloop"] == {"enabled": False, "reason": "TEXLATE_NO_FIXLOOP"}
+    assert len(engines["xelatex"].calls) == 1  # 只有首编
+
+
+def test_fixloop_crash_does_not_atexit(
+    tmp_path: Path, engines: dict[str, ScriptedEngine], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """fixloop 自身崩 → 记 error、终态仍是修复前 verdict（修复臂不毁报告）。"""
+    work = _project(tmp_path / "p")
+    engines["xelatex"] = ScriptedEngine("xelatex", [_fail_unattributable])
+
+    def boom(*_a: object, **_kw: object) -> dict:
+        msg = "simulated fixloop crash"
+        raise RuntimeError(msg)
+
+    monkeypatch.setattr(e2e, "fixloop", boom)
+    report = e2e.mock_pipeline_run(work, "xelatex", timeout=30.0)
+
+    assert report["status"] == "fail"
+    assert "RuntimeError" in report["fixloop"]["error"]
+
+
+# ---------------------------------------------------------------- L2 回灌
+
+
+def test_l2_retranslate_then_recompile(
+    tmp_path: Path, engines: dict[str, ScriptedEngine]
+) -> None:
+    """file:line: 命中译文 chunk → 重译 → resplice → 重编 clean → fixloop 不跑。"""
+    work = _project(tmp_path / "p")
+    engines["xelatex"] = ScriptedEngine("xelatex", [_fail_at_last_zh, _clean])
+    tr = MockTranslator()
+
+    report = e2e.mock_pipeline_run(work, "xelatex", timeout=30.0, translator=tr)
+
+    assert report["status"] == "clean"
+    l2 = report["l2"]
+    assert l2["enabled"] is True
+    assert l2["hits"], "log 错误应归因到 chunk"
+    assert l2["retranslated"] == sorted(l2["hits"])
+    assert l2["recompiled"] == "clean"
+    assert "fixloop" not in report  # 已 clean 不进 fixloop
+    # 重译请求确实带 [compile_error] 反馈字段
+    fb_calls = [c for c in tr.calls if "[compile_error]" in c["user"]]
+    assert len(fb_calls) == len(l2["retranslated"])
+
+
+def test_l2_fallback_to_source(
+    tmp_path: Path, engines: dict[str, ScriptedEngine]
+) -> None:
+    """重译产物仍不过 L0 → 该块回落原文（spec：再不过 → fallback 原文）。"""
+
+    class BadFix(MockTranslator):
+        async def translate(
+            self,
+            *,
+            system: str,
+            user: str,
+            temperature: float,
+            max_tokens: int,
+            response_format: dict[str, str] | None = None,
+        ) -> str:
+            if "[compile_error]" in user:
+                return "结果 [[MATH_999]] 残留"  # 多出幻觉 token → L0 必挂
+            return await super().translate(
+                system=system,
+                user=user,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                response_format=response_format,
+            )
+
+    work = _project(tmp_path / "p")
+    engines["xelatex"] = ScriptedEngine("xelatex", [_fail_at_last_zh, _clean])
+    report = e2e.mock_pipeline_run(work, "xelatex", timeout=30.0, translator=BadFix())
+
+    l2 = report["l2"]
+    assert l2["reverted_l0"], "L0 仍败的块应回落原文"
+    assert l2["retranslated"] == []
+    assert report["status"] == "clean"
+    out = (work / "main.tex").read_text(encoding="utf-8")
+    assert "paragraph" in out  # 回落后原文段回来
+
+
+def test_l2_cap_limits_retranslate(
+    tmp_path: Path, engines: dict[str, ScriptedEngine]
+) -> None:
+    """per-doc 上限：``l2_max_chunks=1`` 时多个命中也只重译第一块。"""
+    work = _project(tmp_path / "p")
+    engines["xelatex"] = ScriptedEngine("xelatex", [_fail_at_last_zh, _clean])
+    tr = MockTranslator()
+
+    report = e2e.mock_pipeline_run(
+        work, "xelatex", timeout=30.0, translator=tr, l2_max_chunks=1
+    )
+    l2 = report["l2"]
+    assert len(l2["retranslated"]) <= 1
+    assert len([c for c in tr.calls if "[compile_error]" in c["user"]]) <= 1
+
+
+# ---------------------------------------------------------------- engine_flags
+
+
+def test_engine_flags_cross_engine_consumed(
+    tmp_path: Path, engines: dict[str, ScriptedEngine], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """fixloop 产 engine_flags + tectonic 仍挂 → 换 xelatex 重编取优。"""
+    work = _project(tmp_path / "p")
+    engines["tectonic"] = ScriptedEngine("tectonic", [_fail_unattributable])
+    engines["xelatex"] = ScriptedEngine("xelatex", [_clean])
+
+    def fake_fixloop(proj, eng, **kw) -> dict:  # noqa: ANN001, ANN003, ARG001
+        return {
+            "verdict": "unfixable:minted_froz",
+            "main": "main.tex",
+            "rounds": [
+                {
+                    "round": 1,
+                    "category": "minted_frozencache",
+                    "payload": "frozencache",
+                    "pdf": False,
+                    "n_errors": 1,
+                }
+            ],
+            "actions": [
+                {
+                    "round": 1,
+                    "rule": "minted_frozencache",
+                    "detail": "rewrite + engine_flags",
+                }
+            ],
+            "advisories": [],
+            "installed": [],
+            "engine_flags": ["-shell-escape"],
+            "log_excerpt": "! stub",
+        }
+
+    monkeypatch.setattr(e2e, "fixloop", fake_fixloop)
+    report = e2e.mock_pipeline_run(work, "auto", timeout=30.0)
+
+    fl = report["fixloop"]
+    assert fl["engine_flags"] == ["-shell-escape"]
+    assert fl["flags_unapplied"] is True
+    assert fl["cross_engine"]["engine"] == "xelatex"
+    assert fl["rounds"][0]["cat"] == "minted_frozencache"
+    assert fl["rounds"][0]["rule"] == "minted_frozencache"
+    assert report["status"] == "clean"  # xelatex 臂更优 → 采用
+    assert any("engine_flags" in n for n in report["verdict"]["notes"])
+
+
+# ---------------------------------------------------------------- env judge
+
+
+class _JudgeVeto(MockTranslator):
+    """env judge 一律 False（system 含 env-judge 标志句）→ 其余正常 mock。"""
+
+    async def translate(
+        self,
+        *,
+        system: str,
+        user: str,
+        temperature: float,
+        max_tokens: int,
+        response_format: dict[str, str] | None = None,
+    ) -> str:
+        if "whether it should be translated" in system:
+            return "False"
+        return await super().translate(
+            system=system,
+            user=user,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            response_format=response_format,
+        )
+
+
+def test_env_judge_default_off(tmp_path: Path) -> None:
+    """默认不开：未知 env 照常翻，stats 里 enabled=False。"""
+    work = _project(tmp_path / "p", main=_UNK_ENV_TEX)
+    stats = e2e.mock_translate_tree(work)
+    assert stats["env_judge"]["enabled"] is False
+    out = (work / "main.tex").read_text(encoding="utf-8")
+    assert "这是译文" in out
+
+
+def test_env_judge_reverts_false(tmp_path: Path) -> None:
+    """开启后 judge=False 的未知 env 块回落原文，不进 splice。"""
+    work = _project(tmp_path / "p", main=_UNK_ENV_TEX)
+    stats = e2e.mock_translate_tree(work, translator=_JudgeVeto(), env_judge=True)
+    ej = stats["env_judge"]
+    assert ej["enabled"] is True
+    assert ej["asked"] >= 1
+    assert ej["reverted"], "judge=False 的块应记名"
+    out = (work / "main.tex").read_text(encoding="utf-8")
+    assert "custom box environment" in out  # 原文回来了
+
+
+# ---------------------------------------------------------------- 抄回修复
+
+
+class _CopyTranslator:
+    """把 [[MATH_1]] 的受保护原文直接抄回译文（recover_copied_tokens 的目标形态）。"""
+
+    async def translate(
+        self,
+        *,
+        system: str,  # noqa: ARG002
+        user: str,  # noqa: ARG002
+        temperature: float,  # noqa: ARG002
+        max_tokens: int,  # noqa: ARG002
+        response_format: dict[str, str] | None = None,
+    ) -> str:
+        if response_format is not None:
+            # slots 兜底路径：槽值里仍抄 fragment（凑数即可，到不了这步）
+            return json.dumps({"⟪S0000⟫": "x", "⟪S0001⟫": "x"}, ensure_ascii=False)
+        return "见 $x^2$ 如上"  # $x^2$ = [[MATH_1]] 的 fragment
+
+
+def test_recover_copied_tokens_wired() -> None:
+    """ph_fragments 带上 → 抄回原文在 validate 前换回 token → ok。"""
+    c = ChunkIn(
+        "0:0",
+        "见 [[MATH_1]] 如上",
+        ph_fragments={"[[MATH_1]]": "$x^2$"},
+    )
+    res = asyncio.run(XlatPipeline(_CopyTranslator()).run([c]))
+    assert res[0].status == "ok"
+    assert res[0].translation == "见 [[MATH_1]] 如上"
+    assert any("recovered copied placeholders" in w for w in res[0].warnings)
+
+
+def test_recover_copied_tokens_unarmed_without_fragments() -> None:
+    """不带 ph_fragments → 修复臂不启用：同输入不再一发过（阶梯降级/三振）。"""
+    c = ChunkIn("0:0", "见 [[MATH_1]] 如上")  # 无 ph_fragments
+    res = asyncio.run(XlatPipeline(_CopyTranslator()).run([c]))
+    assert res[0].status != "ok"

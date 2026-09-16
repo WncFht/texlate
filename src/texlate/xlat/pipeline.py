@@ -65,18 +65,29 @@ class ChunkIn:
     chunk_id: str
     content: str
     kind: str = "para"
+    #: ``{ph_token: 原文 fragment}``——recover_copied_tokens 的判定底账；
+    #: 给了才启用阶梯的抄回修复臂（None = 不武装，行为同旧版）。
+    ph_fragments: dict[str, str] | None = None
 
 
-def chunk_to_in(c: Chunk, *, chunk_id: str | None = None) -> ChunkIn:
+def chunk_to_in(
+    c: Chunk, *, chunk_id: str | None = None, ph_map: dict[str, str] | None = None
+) -> ChunkIn:
     """``Chunk`` → ``ChunkIn`` 唯一适配点（context → kind 走 ``normalize_kind``）。
 
     ``chunk_id`` 缺省 ``str(c.id)``；多文件编排时调用方给命名空间 id
-    （如 ``f"{file_idx}:{c.id}"``）。
+    （如 ``f"{file_idx}:{c.id}"``）。``ph_map`` 给 ScanResult.ph_map 时按
+    块内出现的 token 裁出 ``ph_fragments``，武装抄回修复臂。
     """
+    frags: dict[str, str] | None = None
+    if ph_map is not None:
+        toks = c.placeholders or placeholders.TYPED_PH_RX.findall(c.content)
+        frags = {ph: ph_map[ph] for ph in toks if ph in ph_map}
     return ChunkIn(
         chunk_id=chunk_id if chunk_id is not None else str(c.id),
         content=c.content,
         kind=prompts.normalize_kind(c.context),
+        ph_fragments=frags,
     )
 
 
@@ -358,6 +369,24 @@ class XlatPipeline:
 
     # ------------------------------------------------------------ 单块路径
 
+    def _repair_fn(
+        self, c: ChunkIn
+    ) -> Callable[[str, str], tuple[str, list[str]]] | None:
+        """阶梯修复臂：译文缺 token 且 fragment 唯一命中 → 抄回（placeholders 层）。"""
+        frags = c.ph_fragments
+        if not frags:
+            return None
+
+        def _repair(src_text: str, zh: str) -> tuple[str, list[str]]:
+            todo = {
+                ph: frags[ph]
+                for ph in placeholders.diff(src_text, zh).missing
+                if ph in frags
+            }
+            return placeholders.recover_copied_tokens(zh, todo)
+
+        return _repair
+
     async def _one_chunk(self, c: ChunkIn, *, batch_id: str = "") -> ChunkResult:
         """单块：缓存命中 → 否则阶梯翻译 → 校验 → 结果。"""
         key = self._seg_key(c)
@@ -429,6 +458,7 @@ class XlatPipeline:
             corrector_fn=corrector_fn,
             slots_fn=slots_fn,
             validate_fn=self.validator,
+            repair_fn=self._repair_fn(c),
         )
         status = (
             "ok"
@@ -452,6 +482,61 @@ class XlatPipeline:
             ),
             attempts=res.attempts,
             warnings=res.warnings,
+        )
+
+    async def retranslate_chunk(
+        self, c: ChunkIn, compile_feedback: str
+    ) -> ChunkResult | None:
+        """L2 回灌单发重译：带 ``[compile_error]`` 反馈再要一次，不走阶梯。
+
+        每 chunk 只此一发的配额由调用方（e2e L2 回灌）记账。返回值：
+
+        - ``None`` —— 传输层异常：保留原译，调用方按"未变"处理；
+        - ``status="ok"`` —— L0 过：新译可入 splice（并写段级缓存）；
+        - ``status="fault"`` + ``translation=source`` —— L0 仍败：
+          调用方应回落原文（spec：再不过 → fallback 原文）。
+        """
+        system = self._system_prompt(c.kind)
+        try:
+            raw = await self.translator.translate(
+                system=system,
+                user=f"{c.content}\n\n[compile_error]\n{compile_feedback}",
+                temperature=self.cfg.temperature,
+                max_tokens=self.cfg.max_tokens,
+            )
+        except Exception as e:  # noqa: BLE001 -- 传输崩=保留原译，不算一次有效修复
+            log.debug("retranslate %s transport failed: %s", c.chunk_id, e)
+            return None
+        zh = placeholders.decode_newlines(raw)
+        repair = self._repair_fn(c)
+        warnings: list[str] = []
+        if repair is not None:
+            zh, recovered = repair(c.content, zh)
+            if recovered:
+                warnings.append(
+                    f"recovered copied placeholders: {', '.join(recovered)}"
+                )
+        err = self.validator(c.content, zh)
+        if err:
+            return ChunkResult(
+                chunk_id=c.chunk_id,
+                source=c.content,
+                translation=c.content,
+                kind=c.kind,
+                status="fault",
+                attempts=1,
+                warnings=[*warnings, f"retranslate still invalid: {err}"],
+            )
+        if self.cache is not None:
+            self.cache[self._seg_key(c)] = zh
+        return ChunkResult(
+            chunk_id=c.chunk_id,
+            source=c.content,
+            translation=zh,
+            kind=c.kind,
+            status="ok",
+            attempts=1,
+            warnings=warnings,
         )
 
     # ------------------------------------------------------------ 批量路径
@@ -486,6 +571,14 @@ class XlatPipeline:
         out: list[ChunkResult] = []
         for c, part in zip(members, parts, strict=True):
             zh = placeholders.decode_newlines(part)
+            warnings: list[str] = []
+            repair = self._repair_fn(c)
+            if repair is not None:
+                zh, recovered = repair(c.content, zh)
+                if recovered:
+                    warnings.append(
+                        f"recovered copied placeholders: {', '.join(recovered)}"
+                    )
             err = self.validator(c.content, zh)
             if err:
                 # 批成功但该块校验败 → 单块回炉走完整阶梯
@@ -503,6 +596,7 @@ class XlatPipeline:
                     batched=True,
                     batch_id=batch_id,
                     attempts=1,
+                    warnings=warnings,
                 )
             )
         return out

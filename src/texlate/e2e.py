@@ -4,34 +4,179 @@
 + L0 校验 → splice 写回 → prepare_chinese → engine.compile → judge``。
 bench harness（e2e_mock_bench）与 CLI ``texlate run`` 共用同一实现——
 评测条件矩阵在 bench 侧，单工程驱动在这里。
+
+编译失败后的两级修复（docs/08 §2.3/§5 接线）：
+
+1. **L2 回灌**（先跑）——log 解析把错误定位到 chunk（file:line: 或文件栈
+   归因），只重译被点名的块（每块限 1 次、per-doc 有上限），resplice 后
+   重编一次；仍被点名且本轮重译过的块回落原文（"再不过 → fallback 原文"）。
+   先修自家译文伤——fixloop 的 regex_rewrite 会直接改盘上文件，若先跑
+   fixloop 再 resplice 会把它的修复冲掉。
+2. **fixloop**（后跑）——yaml 规则引擎修源/基建类问题（缺包、preamble、
+   字体……）。``TEXLATE_NO_FIXLOOP=1`` 关闭（测试/对照臂）；轮数上限沿用
+   rules.yaml ``meta.loop.max_rounds``。产出 ``engine_flags`` 在此消费：
+   当前引擎没法直接吃 CLI 旗标（引擎 seam 未开），先落 advisory + 触发
+   跨引擎换编（tectonic 上收到 flag → 换 xelatex 再编，取更优 verdict）。
 """
 
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING
+import logging
+import os
+from contextlib import suppress
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from texlate.compile.engine import engine_for, route_project
+from texlate.compile.fixloop.engine import fixloop
 from texlate.compile.inject import InjectRejectError, find_main_tex, prepare_chinese
-from texlate.compile.judge import judge
+from texlate.compile.judge import Verdict, judge
 from texlate.compile.normalize import normalize_project
 from texlate.latex.api import parse_file
-from texlate.latex.placeholder import PH_RX
-from texlate.latex.reconstruct import reconstruct
+from texlate.latex.placeholder import CHUNK_RX, PH_RX
+from texlate.latex.reconstruct import reconstruct, unicode_math_fix
+from texlate.latex.tables import (
+    ARG_TRANSPARENT_ENVS,
+    MATH_ENVS,
+    PROTECTED_ENVS,
+    VERBATIM_ENVS,
+)
+from texlate.validate import l2 as l2_mod
 from texlate.validate.l0 import validate_pair
-from texlate.xlat.pipeline import ChunkIn, MockTranslator, XlatPipeline, chunk_to_in
+from texlate.xlat import prompts as xlat_prompts
+from texlate.xlat.pipeline import (
+    ChunkIn,
+    MockTranslator,
+    XlatPipeline,
+    chunk_to_in,
+)
 
 if TYPE_CHECKING:
-    from pathlib import Path
+    import re
 
-    from texlate.latex.model import ScanResult
+    from texlate.compile.engine import CompRes, Engine
+    from texlate.latex.model import Chunk, ScanResult
+    from texlate.xlat.pipeline import ChunkResult, Translator
+
+log = logging.getLogger(__name__)
+
+#: L2 回灌默认每文档重译上限（spec ≤10，参数化入口 ``l2_max_chunks``）
+L2_MAX_CHUNKS = 10
+#: 错误行 → 最近 chunk 的归因距离上限（字符）；超出按基建错处理，不耗 LLM
+_L2_ATTR_WINDOW = 4000
+#: L2 单次回灌最多消费的 log 错误条数
+_L2_MAX_ERRORS = 50
+#: ``_expand_tokens`` 递归深度保险丝（自引用 token 不死循环）
+_EXPAND_MAX_DEPTH = 32
+#: env judge 输入截断（长 env 体只喂前 N 字符）
+_ENV_JUDGE_MAX_CHARS = 2000
+#: 环境开关
+_ENV_NO_FIXLOOP = "TEXLATE_NO_FIXLOOP"
+_ENV_NO_L2 = "TEXLATE_NO_L2"
+_ENV_ENV_JUDGE = "TEXLATE_ENV_JUDGE"
+
+#: 静态环境表（已知语义的 env 不问 judge——体是否可译已由表决定）
+_KNOWN_ENVS = MATH_ENVS | VERBATIM_ENVS | PROTECTED_ENVS | ARG_TRANSPARENT_ENVS
+
+#: verdict 排序（跨引擎取优用）
+_VERDICT_RANK = {"clean": 3, "partial": 2, "fail": 1, "reject": 0}
 
 
-def mock_translate_tree(root: Path) -> dict:
-    """目录树内全部 .tex 走 XlatPipeline(MockTranslator) → splice 写回。
+def _env_flag(name: str, *, default: bool) -> bool:
+    """读布尔 env：``1/true/yes/on`` 为真；未设置取 default。"""
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
 
-    单 pipeline 跨文件编排（chunk_id = ``{file_idx}:{chunk.id}``），
-    校验器注入 L0 ``validate_pair``。返回 per-tree 汇总统计。
+
+# ---------------------------------------------------------------- 翻译树
+
+
+@dataclass
+class _TreeRun:
+    """``_translate_tree`` 的内部运行态——splice 后供 L2 回灌复用。"""
+
+    scans: list[tuple[Path, ScanResult]]
+    trans: dict[int, dict[int, str]]  # fidx → {chunk.id: 译文}
+    chunk_ins: dict[str, ChunkIn]  # "fidx:cid" → ChunkIn（带 ph_fragments）
+    pipe: XlatPipeline
+
+
+def _split_cid(chunk_id: str) -> tuple[int, int]:
+    """``"fidx:cid"`` → (fidx, cid)。"""
+    a, _, b = chunk_id.partition(":")
+    return int(a), int(b)
+
+
+async def _env_judge_one(pipe: XlatPipeline, chunk: Chunk, env_name: str) -> bool:
+    """单 env 可译性判定（docs/08 §1.5）：0 温/16 tok/3 试/解析失败 fail-open。"""
+    system = xlat_prompts.env_judge_system_prompt(pipe.cfg.src_lang, pipe.cfg.tgt_lang)
+    user = (
+        f"\\begin{{{env_name}}}\n"
+        f"{chunk.content[:_ENV_JUDGE_MAX_CHARS]}\n\\end{{{env_name}}}"
+    )
+    for _ in range(xlat_prompts.ENV_JUDGE_RETRIES):
+        try:
+            raw = await pipe.translator.translate(
+                system=system,
+                user=user,
+                temperature=xlat_prompts.ENV_JUDGE_TEMPERATURE,
+                max_tokens=xlat_prompts.ENV_JUDGE_MAX_TOKENS,
+            )
+        except Exception as e:  # noqa: BLE001 -- judge 是旁路臂，异常→宁翻勿漏
+            log.debug("env judge call failed (%s) → retry", e)
+            continue
+        return xlat_prompts.parse_env_judge_answer(raw)
+    return True
+
+
+async def _env_judge_all(
+    pipe: XlatPipeline, targets: list[tuple[str, Chunk, str]]
+) -> dict[str, bool]:
+    """逐条判定未知 env 块（顺序跑——mock/单文件路径，量小）。"""
+    out: dict[str, bool] = {}
+    for cid, chunk, env_name in targets:
+        out[cid] = await _env_judge_one(pipe, chunk, env_name)
+    return out
+
+
+def _env_judge_pass(
+    pipe: XlatPipeline,
+    scans: list[tuple[Path, ScanResult]],
+    results: list[ChunkResult],
+    by_file: dict[int, dict[int, str]],
+) -> dict[str, Any]:
+    """未知 env 块 → LLM 可译性判定；判 False 的块从 ``by_file`` 摘除（回落原文）。"""
+    targets: list[tuple[str, Chunk, str]] = []
+    for r in results:
+        if r.status != "ok":
+            continue
+        fidx, cid = _split_cid(r.chunk_id)
+        chunk = scans[fidx][1].chunks[cid]
+        env_name = (chunk.env or "").strip()
+        if env_name and env_name not in _KNOWN_ENVS:
+            targets.append((r.chunk_id, chunk, env_name))
+    verdicts = asyncio.run(_env_judge_all(pipe, targets))
+    reverted = sorted(cid for cid, keep in verdicts.items() if not keep)
+    for cid in reverted:
+        fidx, ccid = _split_cid(cid)
+        by_file.get(fidx, {}).pop(ccid, None)
+    return {"enabled": True, "asked": len(targets), "reverted": reverted}
+
+
+def _translate_tree(
+    root: Path,
+    *,
+    translator: Translator | None = None,
+    env_judge: bool = False,
+) -> tuple[dict, _TreeRun]:
+    """目录树翻译 + splice 写回；返回 (stats, 运行态)。
+
+    ``env_judge=True`` 时对静态表外的未知 env 块问 LLM 可译性——
+    False 的块回落原文不进 splice。
     """
     scans: list[tuple[Path, ScanResult]] = []
     chunks: list[ChunkIn] = []
@@ -44,21 +189,30 @@ def mock_translate_tree(root: Path) -> dict:
             continue
         idx = len(scans)
         scans.append((f, res))
-        chunks.extend(chunk_to_in(c, chunk_id=f"{idx}:{c.id}") for c in res.chunks)
+        chunks.extend(
+            chunk_to_in(c, chunk_id=f"{idx}:{c.id}", ph_map=res.ph_map)
+            for c in res.chunks
+        )
 
     pipe = XlatPipeline(
-        MockTranslator(),
+        translator or MockTranslator(),
         validator=lambda s, z: validate_pair(s, z).feedback(),
     )
     results = asyncio.run(pipe.run(chunks))
     by_file: dict[int, dict[int, str]] = {}
     n_fault = 0
     for r in results:
-        fidx, cid = (int(x) for x in r.chunk_id.split(":", 1))
+        fidx, cid = _split_cid(r.chunk_id)
         if r.status == "ok":
             by_file.setdefault(fidx, {})[cid] = r.translation
         else:
             n_fault += 1
+
+    env_stats: dict[str, Any] = (
+        _env_judge_pass(pipe, scans, results, by_file)
+        if env_judge
+        else {"enabled": False}
+    )
 
     n_files = 0
     n_leftover = 0
@@ -70,28 +224,56 @@ def mock_translate_tree(root: Path) -> dict:
         f.write_text(zh, encoding="utf-8")
         n_files += 1
         n_leftover += len(PH_RX.findall(zh))
-    return {
+    stats = {
         "files": n_files,
         "chunks": len(chunks),
         "fault_chunks": n_fault,
         "fault_files": fault_files,
         "leftover_ph": n_leftover,
+        "env_judge": env_stats,
     }
-
-
-def _compile_judge(
-    work: Path, main_rel: str, eng_name: str, timeout: float, *, expect_cjk: bool
-) -> dict:
-    """编译 + 判定公共尾段。
-
-    best-effort 语义：xelatex halt_on_error=False 对齐 bench；
-    tectonic 无此旋钮——恒 ``-Z continue-on-errors``。
-    """
-    kw: dict[str, object] = {"halt_on_error": False} if eng_name == "xelatex" else {}
-    res = engine_for(eng_name, **kw).compile(
-        work, main_rel, timeout=timeout, sandbox=True
+    run = _TreeRun(
+        scans=scans,
+        trans=by_file,
+        chunk_ins={c.chunk_id: c for c in chunks},
+        pipe=pipe,
     )
-    v = judge(res, expect_cjk=expect_cjk)
+    return stats, run
+
+
+def mock_translate_tree(
+    root: Path,
+    *,
+    translator: Translator | None = None,
+    env_judge: bool | None = None,
+) -> dict:
+    """目录树内全部 .tex 走 XlatPipeline(MockTranslator) → splice 写回。
+
+    单 pipeline 跨文件编排（chunk_id = ``{file_idx}:{chunk.id}``），
+    校验器注入 L0 ``validate_pair``。返回 per-tree 汇总统计。
+    ``translator`` 可注入真网关 Translator；``env_judge`` 缺省读
+    ``TEXLATE_ENV_JUDGE``（默认关——静态表外 env 的可译性 LLM 判定）。
+    """
+    ej = _env_flag(_ENV_ENV_JUDGE, default=False) if env_judge is None else env_judge
+    stats, _run = _translate_tree(root, translator=translator, env_judge=ej)
+    return stats
+
+
+# ---------------------------------------------------------------- 编译尾段
+
+
+@dataclass(frozen=True)
+class _Job:
+    """单工程编译上下文——work/main/引擎/超时四件套在修复链里全程同捆。"""
+
+    work: Path
+    main_rel: str
+    eng_name: str
+    timeout: float
+
+
+def _tail_dict(res: CompRes, v: Verdict) -> dict:
+    """CompRes + Verdict → 报告尾段（compile/verdict/status 三键）。"""
     return {
         "compile": {
             "ok": res.ok,
@@ -106,20 +288,456 @@ def _compile_judge(
         "verdict": {
             "status": v.status,
             "reasons": v.reasons,
+            "notes": v.notes,
             "n_errors": v.n_errors,
             "category": v.category,
             "cjk_chars": v.cjk_chars,
             "missing_chars": v.missing_chars,
+            "warnings_hit": v.warnings_hit,
         },
         "status": v.status,
     }
 
 
-def pipe_condition(work: Path, eng_name: str, main_rel: str, timeout: float) -> dict:
-    """跑 pipe 条件：normalize → mock 翻译 → ctex 注入 → 编译 → 判定。"""
+def _compile_judge(job: _Job, *, expect_cjk: bool) -> tuple[dict, CompRes]:
+    """编译 + 判定公共尾段 → (报告 dict, CompRes)。
+
+    best-effort 语义：xelatex halt_on_error=False 对齐 bench；
+    tectonic 无此旋钮——恒 ``-Z continue-on-errors``。
+    """
+    kw: dict[str, object] = (
+        {"halt_on_error": False} if job.eng_name == "xelatex" else {}
+    )
+    res = engine_for(job.eng_name, **kw).compile(
+        job.work, job.main_rel, timeout=job.timeout, sandbox=True
+    )
+    v = judge(res, expect_cjk=expect_cjk)
+    return _tail_dict(res, v), res
+
+
+# ---------------------------------------------------------------- L2 回灌
+
+
+def _l2_parse(res: CompRes) -> l2_mod.L2Verdict:
+    """CompRes → L2Verdict：log_path 优先，缺席退 stdout_tail。"""
+    if res.log_path is not None and res.log_path.exists():
+        return l2_mod.parse_log(res.log_path)
+    if res.stdout_tail:
+        return l2_mod.parse_log_text(res.stdout_tail)
+    return l2_mod.L2Verdict(log_missing=True)
+
+
+def _expand_tokens(
+    res: ScanResult, tokmap: dict[str, str], text: str, _depth: int = 0
+) -> str:
+    """``[[X_n]]`` 递归展开到落盘形态（与 reconstruct.expand 同优先级）。
+
+    ``tokmap`` = ``{"[[CHUNK_k]]": unicode_math_fix(zh)}``——译文本位；
+    未译 chunk 回落 ``chunks[k].content``，typed ph 走 ``ph_map``。
+    """
+    if _depth > _EXPAND_MAX_DEPTH:
+        return text
+
+    def rep(m: re.Match[str]) -> str:
+        tok = m.group(0)
+        body = tokmap.get(tok)
+        if body is None:
+            body = res.ph_map.get(tok)
+        if body is None:
+            cm = CHUNK_RX.fullmatch(tok)
+            if cm:
+                idx = int(cm.group(1))
+                if 0 <= idx < len(res.chunks):
+                    body = res.chunks[idx].content
+        if body is None:
+            return tok
+        return _expand_tokens(res, tokmap, body, _depth + 1)
+
+    return PH_RX.sub(rep, text)
+
+
+def _chunk_spans(
+    text: str, res: ScanResult, trans: dict[int, str]
+) -> dict[int, tuple[int, int] | None]:
+    """各 chunk 在当前文件中的 ``[s, e)`` 区间（文档序贪心 find）。
+
+    cjk_glue_fix 可能在译文里插空格 → find 失败的块给 ``None``，位置由
+    前后块锚定（归因是启发式，丢块可接受）。
+    """
+    tokmap = {f"[[CHUNK_{cid}]]": unicode_math_fix(zh) for cid, zh in trans.items()}
+    spans: dict[int, tuple[int, int] | None] = {}
+    cur = 0
+    for c in res.chunks:
+        zh = trans.get(c.id)
+        body = _expand_tokens(
+            res, tokmap, unicode_math_fix(zh) if zh is not None else c.content
+        )
+        if not body:
+            continue
+        i = text.find(body, cur)
+        if i < 0:
+            i = text.find(body)  # 乱序兜底（pieces 保序，正常不该走到）
+        if i < 0:
+            spans[c.id] = None
+            continue
+        spans[c.id] = (i, i + len(body))
+        cur = i + len(body)
+    return spans
+
+
+def _resolve_fidx(token: str, run: _TreeRun, work: Path) -> int | None:
+    """Log 里的文件名 token → scans 下标（相对/``./``/绝对路径三形态）。"""
+    t = token.strip()
+    while t.startswith("./"):
+        t = t[2:]
+    for i, (f, _res) in enumerate(run.scans):
+        rel = f.relative_to(work).as_posix()
+        if t == rel or t.endswith("/" + rel) or rel.endswith("/" + t):
+            return i
+    try:
+        rel2 = Path(t).resolve().relative_to(work.resolve()).as_posix()
+    except (OSError, ValueError):
+        return None
+    for i, (f, _res) in enumerate(run.scans):
+        if f.relative_to(work).as_posix() == rel2:
+            return i
+    return None
+
+
+@dataclass
+class _L2Attr:
+    """L2 归因底账：每文件 文本/行偏移/chunk 区间 三表（惰性建）。"""
+
+    run: _TreeRun
+    work: Path
+    texts: dict[int, str] = field(default_factory=dict)
+    line_off: dict[int, list[int]] = field(default_factory=dict)
+    spans: dict[int, dict[int, tuple[int, int] | None]] = field(default_factory=dict)
+
+    def file_state(self, fidx: int) -> None:
+        """惰性建文件文本/行偏移/chunk 区间三表。"""
+        if fidx in self.texts:
+            return
+        f, sres = self.run.scans[fidx]
+        self.texts[fidx] = f.read_text(encoding="utf-8", errors="replace")
+        offs = [0]
+        for ln in self.texts[fidx].splitlines(keepends=True):
+            offs.append(offs[-1] + len(ln))
+        self.line_off[fidx] = offs
+        self.spans[fidx] = _chunk_spans(
+            self.texts[fidx], sres, self.run.trans.get(fidx) or {}
+        )
+
+    def attribute(self, fidx: int, tex_line: int) -> int | None:
+        """行号 → 字节偏移 → 所在/最近 chunk.id。"""
+        offs = self.line_off[fidx]
+        if not (1 <= tex_line <= len(offs) - 1):
+            return None
+        off = offs[tex_line - 1]
+        best_cid, best_gap = None, _L2_ATTR_WINDOW + 1
+        for cid, sp in self.spans[fidx].items():
+            if sp is None:
+                continue
+            s, e = sp
+            if s <= off < e:
+                return cid
+            gap = max(s - off, off - e, 0)
+            if gap < best_gap:
+                best_cid, best_gap = cid, gap
+        return best_cid if best_gap <= _L2_ATTR_WINDOW else None
+
+    def attr_error(self, err: l2_mod.LogError) -> tuple[int, list[int]] | None:
+        """单条 log 错误 → (fidx, chunk.id 列表)；不可归因 → None。"""
+        src_tok = err.tex_file or (err.file_stack[-1] if err.file_stack else None)
+        fidx = _resolve_fidx(src_tok, self.run, self.work) if src_tok else None
+        if fidx is None:
+            return None
+        self.file_state(fidx)
+        sres = self.run.scans[fidx][1]
+        if err.tex_line is not None:
+            cid = self.attribute(fidx, err.tex_line)
+            return (fidx, [cid] if cid is not None else [])
+        if len(sres.chunks) <= L2_MAX_CHUNKS:
+            return (fidx, [c.id for c in sres.chunks])
+        return (fidx, [])
+
+
+def _l2_localize(
+    work: Path, run: _TreeRun, res: CompRes
+) -> tuple[dict[str, dict[str, Any]], int]:
+    """编译 log → ``{chunk_id: {file,line,head}}`` 归因表 + 错误总数。
+
+    定位链：出错文件 = ``tex_file``（file:line: 格式）或文件栈**最内层**
+    （``l.NNN`` 只对 TeX 正在读的文件有意义——栈里更深的 ``.sty``/``.cls``
+    错是基建问题，不归 chunk）。``tex_line`` → 字节偏移 → 所在 chunk；
+    不在任何块内则取最近块（≤ ``_L2_ATTR_WINDOW``）。无行号错误按文件级
+    归因——仅当该文件 chunk 数 ≤ ``L2_MAX_CHUNKS`` 才全收。
+    """
+    verdict = _l2_parse(res)
+    if verdict.log_missing or not verdict.errors:
+        return {}, verdict.n_errors
+    st = _L2Attr(run, work)
+    hits: dict[str, dict[str, Any]] = {}
+    for err in verdict.errors[:_L2_MAX_ERRORS]:
+        got = st.attr_error(err)
+        if got is None:
+            continue
+        fidx, cids = got
+        for cid in cids:
+            key = f"{fidx}:{cid}"
+            if key not in hits:
+                rel = run.scans[fidx][0].relative_to(work).as_posix()
+                hits[key] = {"file": rel, "line": err.tex_line, "head": err.head}
+    return hits, verdict.n_errors
+
+
+async def _retranslate_hits(
+    run: _TreeRun, hits: dict[str, dict[str, Any]], cap: int
+) -> dict[str, Any]:
+    """逐块重译（单发）+ 结果入账；返回报告 dict（``_`` 前缀内部键）。"""
+    rep: dict[str, Any] = {
+        "retranslated": [],
+        "reverted_l0": [],
+        "kept_transport_err": [],
+        "over_cap": [],
+    }
+    changed: set[str] = rep.setdefault("_changed", set())
+    adopted: set[str] = rep.setdefault("_adopted", set())
+    tried = 0
+    for cid, info in hits.items():
+        if tried >= cap:
+            rep["over_cap"].append(cid)
+            continue
+        ci = run.chunk_ins.get(cid)
+        if ci is None:
+            continue
+        tried += 1
+        fidx, ccid = _split_cid(cid)
+        loc = f"{info['file']}:{info['line']}" if info["line"] else info["file"]
+        r = await run.pipe.retranslate_chunk(ci, f"{info['head']}\n(at {loc})")
+        if r is None:
+            rep["kept_transport_err"].append(cid)
+            continue
+        if r.status == "ok":
+            run.trans.setdefault(fidx, {})[ccid] = r.translation
+            rep["retranslated"].append(cid)
+            adopted.add(cid)
+        else:
+            # 重译产物仍不过 L0 → 回落原文（spec: 再不过 → fallback 原文）
+            run.trans.get(fidx, {}).pop(ccid, None)
+            rep["reverted_l0"].append(cid)
+        changed.add(cid)
+    return rep
+
+
+def _resplice(run: _TreeRun, work: Path, main_rel: str, fidxs: set[int]) -> list[str]:
+    """受影响文件 reconstruct 重写；主文件重跑 ``prepare_chinese`` 补 ctex。"""
+    main_path = work / main_rel
+    rewritten: list[str] = []
+    touched_main = False
+    for fidx in sorted(fidxs):
+        f, res = run.scans[fidx]
+        f.write_text(reconstruct(res, run.trans.get(fidx) or {}), encoding="utf-8")
+        rewritten.append(f.relative_to(work).as_posix())
+        touched_main = touched_main or f == main_path
+    if touched_main:
+        # 首注已过——同文件重注不会再触发 \documentstyle 拒绝
+        with suppress(InjectRejectError):
+            prepare_chinese(work, main_rel)
+    return rewritten
+
+
+def _l2_repair(
+    job: _Job, run: _TreeRun, res: CompRes, cap: int
+) -> tuple[dict, CompRes, dict | None]:
+    """L2 回灌一轮：归因 → 重译 → resplice → 重编一次 → 余孽回落。
+
+    返回 (l2 报告, 最新 CompRes, 新尾段或 None)。
+    """
+    rep: dict[str, Any] = {"enabled": True, "cap": cap}
+    hits, n_err = _l2_localize(job.work, run, res)
+    rep["errors"] = n_err
+    rep["hits"] = hits
+    last_res = res
+    if not hits:
+        rep["note"] = "no chunk-level attribution"
+        return rep, last_res, None
+
+    retr = asyncio.run(_retranslate_hits(run, hits, cap))
+    changed: set[str] = retr.pop("_changed")
+    adopted: set[str] = retr.pop("_adopted")
+    rep.update(retr)
+    if not changed:
+        rep["note"] = "no chunk changed"
+        return rep, last_res, None
+
+    rep["rewritten"] = _resplice(
+        run, job.work, job.main_rel, {_split_cid(c)[0] for c in changed}
+    )
+    tail2, res2 = _compile_judge(job, expect_cjk=True)
+    last_res = res2
+    rep["recompiled"] = tail2["verdict"]["status"]
+    if tail2["status"] == "clean":
+        return rep, last_res, tail2
+
+    # 重编仍不过：本轮"重译过且仍被点名"的块回落原文；
+    # 其余归因（含已回落原文仍犯错的——那是源级问题）记名留 fixloop。
+    hits2, _ = _l2_localize(job.work, run, res2)
+    still_bad = sorted(set(hits2) & adopted)
+    rep["fallback_src"] = still_bad
+    rep["unresolved"] = sorted(set(hits2) - adopted)
+    if still_bad:
+        for cid in still_bad:
+            fidx, ccid = _split_cid(cid)
+            run.trans.get(fidx, {}).pop(ccid, None)
+        rep["fallback_rewritten"] = _resplice(
+            run, job.work, job.main_rel, {_split_cid(c)[0] for c in still_bad}
+        )
+        rep["fallback_unverified"] = True  # 回落后未再编——下一级 fixloop 代验
+    return rep, last_res, tail2
+
+
+# ---------------------------------------------------------------- fixloop
+
+
+class _LastResEngine:
+    """Engine 代理：转发 Protocol 面 + 记末次 CompRes（fixloop 终判原料）。
+
+    ``__setattr__`` 透传到内层——fixloop ``_wire_engine`` 会给 tectonic
+    注入 ``ctan_fetch``，必须落到真引擎上。
+    """
+
+    def __init__(self, inner: Engine) -> None:
+        """包一层引擎。"""
+        object.__setattr__(self, "_inner", inner)
+        object.__setattr__(self, "last", None)
+
+    def __getattr__(self, name: str) -> Any:  # noqa: ANN401 -- 代理面
+        return getattr(self._inner, name)
+
+    def __setattr__(self, name: str, value: Any) -> None:  # noqa: ANN401
+        if name in {"_inner", "last"}:
+            object.__setattr__(self, name, value)
+        else:
+            setattr(self._inner, name, value)
+
+    def compile(self, *args: Any, **kwargs: Any) -> CompRes:  # noqa: ANN401
+        """转发 compile 并记录结果。"""
+        res: CompRes = self._inner.compile(*args, **kwargs)
+        object.__setattr__(self, "last", res)
+        return res
+
+
+def _slim_cell(cell: dict[str, Any]) -> dict[str, Any]:
+    """Fixloop cell → 报告视图：rounds × actions 合并成 ``{cat,pay,rule,result}``。"""
+    acts: dict[Any, dict[str, Any]] = {}
+    for a in cell.get("actions") or []:
+        acts.setdefault(a.get("round"), a)
+    rounds = [
+        {
+            "round": r.get("round"),
+            "cat": r.get("category"),
+            "pay": r.get("payload"),
+            "pdf": r.get("pdf"),
+            "n_errors": r.get("n_errors"),
+            "rule": (acts.get(r.get("round")) or {}).get("rule"),
+            "result": (acts.get(r.get("round")) or {}).get("detail"),
+        }
+        for r in cell.get("rounds") or []
+    ]
+    return {
+        "enabled": True,
+        "verdict": cell.get("verdict"),
+        "main": cell.get("main"),
+        "rounds": rounds,
+        "advisories": cell.get("advisories") or [],
+        "installed": cell.get("installed") or [],
+        "engine_flags": cell.get("engine_flags") or [],
+        "log_excerpt": cell.get("log_excerpt"),
+    }
+
+
+def _run_fixloop(
+    job: _Job, route_engines: list[str], prev_res: CompRes
+) -> tuple[dict, dict | None, CompRes]:
+    """跑 fixloop + 消费 engine_flags → (报告, 新尾段或 None, 最新 CompRes)。
+
+    引擎新造不带 e2e 的 best-effort 旋钮——xelatex 默认 halt_on_error=True
+    （fixloop 首错分类语义）。flags 真正落 CLI 需要引擎 ``_cmd`` seam
+    （报告遗留项）；此处消费 = advisory + 跨引擎换编（flags 暗示
+    shell-escape 需求：tectonic 只 partial 支持 → 换 xelatex 取优）。
+    """
+    proxy = _LastResEngine(engine_for(job.eng_name))
+    try:
+        cell = fixloop(job.work, proxy, engine_name=job.eng_name)
+    except Exception as e:  # noqa: BLE001 -- 修复臂崩不毁主报告
+        return ({"enabled": True, "error": f"{type(e).__name__}: {e}"}, None, prev_res)
+    rep = _slim_cell(cell)
+    last_res = proxy.last or prev_res
+    cell_verdict = str(cell.get("verdict") or "")
+    if cell_verdict.startswith("reject:"):
+        tail = _tail_dict(last_res, Verdict(status="reject", reasons=[cell_verdict]))
+    else:
+        tail = _tail_dict(last_res, judge(last_res, expect_cjk=True))
+
+    flags: list[str] = rep["engine_flags"]
+    if flags:
+        rep["flags_unapplied"] = True
+        # 跨引擎消费：flags 多为 shell-escape 需求——tectonic partial → 换 xelatex
+        if (
+            job.eng_name == "tectonic"
+            and "xelatex" in route_engines
+            and _VERDICT_RANK.get(tail["status"], 0) < _VERDICT_RANK["clean"]
+        ):
+            xtail, xres = _compile_judge(
+                _Job(job.work, job.main_rel, "xelatex", job.timeout),
+                expect_cjk=True,
+            )
+            rep["cross_engine"] = {
+                "engine": "xelatex",
+                "status": xtail["status"],
+                "reason": f"engine_flags {flags} → tectonic 换 xelatex",
+            }
+            if _VERDICT_RANK.get(xtail["status"], 0) > _VERDICT_RANK.get(
+                tail["status"], 0
+            ):
+                tail, last_res = xtail, xres
+        # 注在换编之后——贴到最终采用的 tail 上，换臂不丢审计痕迹
+        tail["verdict"]["notes"].append(
+            f"engine_flags requested but not applied (needs engine CLI seam): {flags}"
+        )
+    return rep, tail, last_res
+
+
+# ---------------------------------------------------------------- 条件臂
+
+
+def pipe_condition(  # noqa: PLR0913 -- 修复链开关面（env 缺省，显式可覆盖）
+    work: Path,
+    eng_name: str,
+    main_rel: str,
+    timeout: float,
+    *,
+    translator: Translator | None = None,
+    env_judge: bool | None = None,
+    l2_on: bool | None = None,
+    fixloop_on: bool | None = None,
+    l2_max_chunks: int = L2_MAX_CHUNKS,
+    route_engines: list[str] | None = None,
+) -> dict:
+    """跑 pipe 条件：normalize → 翻译 → ctex 注入 → 编译 → 判定 → 修复链。
+
+    非 clean 时先 L2 回灌（译文归因重译）再 fixloop（规则修源）。开关：
+    ``TEXLATE_ENV_JUDGE`` / ``TEXLATE_NO_L2`` / ``TEXLATE_NO_FIXLOOP``
+    （显式参数优先于 env）。``route_engines`` 供 engine_flags 跨引擎消费，
+    缺省 ``[eng_name]``（bench 直调不跨界）。
+    """
     rec: dict[str, object] = {"engine": eng_name}
     rec["normalize"] = normalize_project(work, eng_name, main_rel)
-    rec["translate"] = mock_translate_tree(work)
+    job = _Job(work, main_rel, eng_name, timeout)
+    ej = _env_flag(_ENV_ENV_JUDGE, default=False) if env_judge is None else env_judge
+    stats, run = _translate_tree(work, translator=translator, env_judge=ej)
+    rec["translate"] = stats
     try:
         rec["inject"] = prepare_chinese(work, main_rel)
     except InjectRejectError as e:
@@ -127,22 +745,58 @@ def pipe_condition(work: Path, eng_name: str, main_rel: str, timeout: float) -> 
         rec["reject_at"] = "inject"  # inject_reject 类: 与 route reject 分流
         rec["verdict"] = {"status": "reject", "reasons": [e.reason]}
         return rec
-    rec.update(_compile_judge(work, main_rel, eng_name, timeout, expect_cjk=True))
+    tail, res = _compile_judge(job, expect_cjk=True)
+    rec.update(tail)
+
+    if rec["status"] != "clean":
+        l2 = (not _env_flag(_ENV_NO_L2, default=False)) if l2_on is None else l2_on
+        if l2:
+            l2_rep, res, tail2 = _l2_repair(job, run, res, l2_max_chunks)
+            rec["l2"] = l2_rep
+            if tail2 is not None:
+                rec.update(tail2)
+        else:
+            rec["l2"] = {"enabled": False, "reason": _ENV_NO_L2}
+
+        fl = (
+            (not _env_flag(_ENV_NO_FIXLOOP, default=False))
+            if fixloop_on is None
+            else fixloop_on
+        )
+        if rec["status"] != "clean" and fl:
+            fl_rep, tail3, _last = _run_fixloop(job, route_engines or [eng_name], res)
+            rec["fixloop"] = fl_rep
+            if tail3 is not None:
+                rec.update(tail3)
+        elif rec["status"] != "clean":
+            rec["fixloop"] = {"enabled": False, "reason": _ENV_NO_FIXLOOP}
     return rec
 
 
 def base_condition(work: Path, eng_name: str, main_rel: str, timeout: float) -> dict:
     """跑 base 条件：不动源码直接编译+判定（管线引入 vs 原生失败的归因对照）。"""
     rec: dict[str, object] = {"engine": eng_name}
-    rec.update(_compile_judge(work, main_rel, eng_name, timeout, expect_cjk=False))
+    job = _Job(work, main_rel, eng_name, timeout)
+    tail, _res = _compile_judge(job, expect_cjk=False)
+    rec.update(tail)
     return rec
 
 
-def mock_pipeline_run(work: Path, engine_opt: str, timeout: float) -> dict:
+def mock_pipeline_run(  # noqa: PLR0913 -- 同上：开关面穿透到 pipe_condition
+    work: Path,
+    engine_opt: str,
+    timeout: float,
+    *,
+    translator: Translator | None = None,
+    env_judge: bool | None = None,
+    l2_on: bool | None = None,
+    fixloop_on: bool | None = None,
+    l2_max_chunks: int = L2_MAX_CHUNKS,
+) -> dict:
     """工程目录上的 mock 全链（对齐 e2e_mock_bench 的 pipe 条件语义）。
 
     ``engine_opt``：``auto`` 取路由首选，或显式引擎名。返回结构化报告 dict
-    （route/normalize/translate/inject/compile/verdict + 终态 status）。
+    （route/normalize/translate/inject/compile/verdict + 修复链 + 终态）。
     """
     report: dict[str, object] = {"work": str(work)}
     route = route_project(work)
@@ -166,5 +820,18 @@ def mock_pipeline_run(work: Path, engine_opt: str, timeout: float) -> dict:
     report["main"] = main_rel
 
     eng_name = engine_opt if engine_opt != "auto" else route.engines[0]
-    report.update(pipe_condition(work, eng_name, main_rel, timeout))
+    report.update(
+        pipe_condition(
+            work,
+            eng_name,
+            main_rel,
+            timeout,
+            translator=translator,
+            env_judge=env_judge,
+            l2_on=l2_on,
+            fixloop_on=fixloop_on,
+            l2_max_chunks=l2_max_chunks,
+            route_engines=route.engines,
+        )
+    )
     return report
