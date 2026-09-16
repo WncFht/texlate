@@ -4,7 +4,7 @@
 
 - 样本：corpus_v3 expand 层 3800 在盘 → `--layers expand --sample 80 --seed 42`（rng.sample 作用于排序枚举，ids 全量在 sample.json 可复现）。
 - 臂：base-xel,pipe-xel,pipeB-xel,pipeC-xel；timeout 240；nice 串行 ~35min。
-- 代码面：**工作树直跑**（未设 TEXLATE_SRC）= HEAD + 在飞 segmenter 两补丁（F2 + #77，进程启动时装载、单进程内一致）——与 tailfix 冻结快照口径不同。
+- 代码面：**工作树直跑**（未设 TEXLATE_SRC），记录自洽于进程启动快照（17:37 装载一次）= **post-90aa823 三 bug 修复、pre-f5da4bf（F2/#77 尚未进工作树）**——与 tailfix 冻结快照口径不同。f5da4bf 与 1d 的 `_rappend_ph` 重构在跑批中途落地/进行，对已加载模块零影响。
 - 产出：`bench/results/modec-expand-2026-09-16/`（results/records/matrix/summary/sample/run.log 全）；现场 `bench/work_e2emock/corpus_v3/<cond>/<sid>/`。
 
 ## verdict 分布
