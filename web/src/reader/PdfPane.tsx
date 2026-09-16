@@ -17,6 +17,7 @@ import { ensurePdfjsWorker } from "../pdfjs";
 import PaneSidebar from "./PaneSidebar";
 import FindBar from "./FindBar";
 import DocInfo from "./DocInfo";
+import { t } from "../i18n/zh";
 
 export interface PaneHandle extends PaneLike {
     readonly slick: PDFSlick | null;
@@ -190,11 +191,16 @@ export default function PdfPane(props: Props) {
                 </Show>
                 <Show when={!isDocumentLoaded() && !error()}>
                     <div class="pane-veil">
-                        <div class="spinner" aria-label="加载 PDF" />
+                        <div class="spinner" aria-label={t.pane.pdfLoading} />
                     </div>
                 </Show>
                 <Show when={error()}>
-                    {(e) => <div class="pane-veil pane-error">PDF 加载失败：{String(e())}</div>}
+                    {(e) => (
+                        <div class="pane-veil pane-error">
+                            {t.pane.pdfError}
+                            {String(e())}
+                        </div>
+                    )}
                 </Show>
             </div>
         </div>

@@ -11,6 +11,7 @@ import type { DocId, Pos } from "./alignment";
 import { sanitizeHtml } from "./sanitize";
 import { capturePos, jumpTo, scrollTopFor, type PageGeom, type PaneLike } from "./sync";
 import type { DualChunk } from "../api/client";
+import { t } from "../i18n/zh";
 
 export interface HtmlPaneHandle extends PaneLike {
     gotoPage?(n: number): void;
@@ -77,7 +78,7 @@ export default function HtmlPane(props: Props) {
                     `</section>`,
             )
             .join("");
-        bodyEl.innerHTML = html || `<p class="chunk-empty">（无内容）</p>`;
+        bodyEl.innerHTML = html || `<p class="chunk-empty">${t.reader.chunkEmpty}</p>`;
         try {
             renderMathInElement(bodyEl, {
                 delimiters: [

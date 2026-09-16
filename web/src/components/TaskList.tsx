@@ -116,7 +116,10 @@ export default function TaskList(props: Props) {
                                     {t.kind[task.kind] ?? task.kind}
                                 </span>
                                 <Show when={!isTerminal(task.status)}>
-                                    <span>{t.status[task.stage ?? task.status]}</span>
+                                    <span>
+                                        {t.status[task.stage ?? task.status] ??
+                                            (task.stage ?? task.status)}
+                                    </span>
                                 </Show>
                                 <Show when={errOf(task)}>
                                     {(e) => (

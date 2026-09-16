@@ -4,6 +4,8 @@ import App from "./App";
 import { t } from "./i18n/zh";
 import "./styles/app.css";
 
+document.title = `${t.appName} — ${t.tagline}`;
+
 render(
     () => (
         <ErrorBoundary

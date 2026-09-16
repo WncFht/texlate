@@ -576,7 +576,7 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
                 {(e) => (
                     <p class="form-error">
                         [{e().code}] {e().message}
-                        {e().retryable ? "（可重试）" : ""}
+                        {e().retryable ? t.reader.retryable : ""}
                     </p>
                 )}
             </Show>
@@ -776,7 +776,7 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
                                             on: cur() === s,
                                         }}
                                     >
-                                        {t.status[s]}
+                                        {t.status[s] ?? s}
                                     </li>
                                 );
                             }}

@@ -176,7 +176,7 @@ export default function Settings() {
                 <label>
                     <span>{t.settings.engine}</span>
                     <select value={engine()} onChange={(e) => setEngine(e.currentTarget.value)}>
-                        <option value="auto">auto</option>
+                        <option value="auto">{t.home.engineAuto}</option>
                         <option value="xelatex">xelatex</option>
                         <option value="tectonic">tectonic</option>
                     </select>
