@@ -1,0 +1,39 @@
+{
+    "documents": {
+        "original": {
+            "version": "694c5d4fcf5d58a95892edf396bf094d0fefcf0906f611ece1bf6b66724c27ec",
+            "pages": 8,
+            "url": "/api/files/t_a29c5b323a8ee111/en.pdf"
+        },
+        "translated": {
+            "version": "f6c9c572634d316c4d5046b631c54156916c4cd589500e890c379081bdaa410c",
+            "pages": 6,
+            "url": "/api/files/t_a29c5b323a8ee111/zh.pdf"
+        }
+    },
+    "alignment": {
+        "kind": "pages",
+        "heights": {
+            "original": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0
+            ],
+            "translated": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0
+            ]
+        }
+    },
+    "reading": {},
+    "view": "pdf"
+}

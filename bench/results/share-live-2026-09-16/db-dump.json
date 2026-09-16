@@ -1,0 +1,396 @@
+{
+ "t_a29c5b323a8ee111": {
+  "row": {
+   "id": "t_a29c5b323a8ee111",
+   "kind": "share",
+   "status": "done",
+   "stage": null,
+   "progress": 100,
+   "message": "完成",
+   "title": "",
+   "arxiv_id": "cond-mat/0408438v1",
+   "source_name": "community.share.zip",
+   "main_tex": "lanlcologne2004.tex",
+   "target_lang": "zh-CN",
+   "model": "swe-2-medium",
+   "config_json": "{\"base_url\": \"http://100.105.212.52:3003\", \"model\": \"swe-2-medium\", \"glossary\": \"\", \"glossary_dir\": \"\", \"engine\": \"auto\", \"concurrency\": 3}",
+   "options_json": "{\"share\": {\"share_key\": \"18615c27cff0204dfb4ce51021539e2d2b86b8691b1d69e07fcfdd1edcc8b2ed\", \"contributor\": \"c-660e57a5597aff94\", \"created_at\": \"2026-09-16T08:30:34+00:00\", \"key_parts\": {\"arxiv_id\": \"cond-mat/0408438\", \"version\": \"v1\", \"model\": \"swe-2-medium\", \"prompt_ver\": \"xlat-prompt-v3\", \"target_lang\": \"zh-CN\", \"glossary_hash\": \"\", \"pipeline_ver\": \"texlate-0.1.0|xlat-prompt-v3\"}}, \"engine_resolved\": \"tectonic\"}",
+   "auth_source": "settings",
+   "tenant": "local",
+   "cache_key": "10f47acda9b9b7870046d81c90e31492efe69b13f05e5ba9874987f7ae842609",
+   "total_chunks": 60,
+   "done_chunks": 60,
+   "cached_chunks": 0,
+   "failed_chunks": 0,
+   "tokens": 0,
+   "error_json": null,
+   "worker_id": "w-4d0d7fbbf210",
+   "created_at": 1789547484.7735453,
+   "updated_at": 1789547488.4628553,
+   "started_at": 1789547484.7740612,
+   "finished_at": 1789547488.4628575
+  },
+  "events": [
+   {
+    "seq": 1,
+    "type": "stage",
+    "data": "{\"stage\": \"fetching\", \"progress\": 3, \"message\": \"取源\", \"at\": 1789547484.7741601}",
+    "created_at": 1789547484.774198
+   },
+   {
+    "seq": 2,
+    "type": "stage",
+    "data": "{\"stage\": \"fetching\", \"progress\": 9, \"message\": \"取源完成\", \"at\": 1789547485.6640935}",
+    "created_at": 1789547485.6641243
+   },
+   {
+    "seq": 3,
+    "type": "stage",
+    "data": "{\"stage\": \"parsing\", \"progress\": 9, \"message\": \"解析工程\", \"at\": 1789547485.6642923}",
+    "created_at": 1789547485.664305
+   },
+   {
+    "seq": 4,
+    "type": "log",
+    "data": "{\"line\": \"normalize: {'files': 2, 'rewritten': 1}\"}",
+    "created_at": 1789547485.7226079
+   },
+   {
+    "seq": 5,
+    "type": "stage",
+    "data": "{\"stage\": \"parsing\", \"progress\": 25, \"message\": \"解析完成\", \"at\": 1789547485.7951915}",
+    "created_at": 1789547485.795222
+   },
+   {
+    "seq": 6,
+    "type": "stage",
+    "data": "{\"stage\": \"translating\", \"progress\": 25, \"message\": \"共享译文对账\", \"at\": 1789547485.7953405}",
+    "created_at": 1789547485.7953525
+   },
+   {
+    "seq": 7,
+    "type": "log",
+    "data": "{\"line\": \"share apply: matched=60/60 dropped=0 missed=0 extra=0\"}",
+    "created_at": 1789547485.83577
+   },
+   {
+    "seq": 8,
+    "type": "stage",
+    "data": "{\"stage\": \"translating\", \"progress\": 85, \"message\": \"对账完成\", \"at\": 1789547485.8359222}",
+    "created_at": 1789547485.835937
+   },
+   {
+    "seq": 9,
+    "type": "stage",
+    "data": "{\"stage\": \"compiling\", \"progress\": 90, \"message\": \"编译\", \"at\": 1789547485.8360658}",
+    "created_at": 1789547485.8360772
+   },
+   {
+    "seq": 10,
+    "type": "log",
+    "data": "{\"line\": \"splice: 1 files rewritten\"}",
+    "created_at": 1789547485.8402119
+   },
+   {
+    "seq": 11,
+    "type": "log",
+    "data": "{\"line\": \"inject: {'status': 'injected', 'mode': 'ctex', 'line': 35, 'float_sizing': 0}\"}",
+    "created_at": 1789547485.846874
+   },
+   {
+    "seq": 12,
+    "type": "log",
+    "data": "{\"line\": \"probe: deps=8 local=1 tl_pkg=7 missing=0\"}",
+    "created_at": 1789547485.9723978
+   },
+   {
+    "seq": 13,
+    "type": "log",
+    "data": "{\"line\": \"probe tl_pkg: amsfonts,amsmath,graphics,iftex,latex,xkeyval\"}",
+    "created_at": 1789547485.9725742
+   },
+   {
+    "seq": 14,
+    "type": "log",
+    "data": "{\"line\": \"probe diff: seen=2 unread=0 undeclared=0\"}",
+    "created_at": 1789547486.9365754
+   },
+   {
+    "seq": 15,
+    "type": "log",
+    "data": "{\"line\": \"probe: deps=9 local=1 tl_pkg=8 missing=0\"}",
+    "created_at": 1789547487.0260515
+   },
+   {
+    "seq": 16,
+    "type": "log",
+    "data": "{\"line\": \"probe tl_pkg: amsfonts,amsmath,ctex,graphics,iftex,latex,xkeyval\"}",
+    "created_at": 1789547487.0262146
+   },
+   {
+    "seq": 17,
+    "type": "log",
+    "data": "{\"line\": \"probe diff: seen=2 unread=0 undeclared=0\"}",
+    "created_at": 1789547488.3621871
+   },
+   {
+    "seq": 18,
+    "type": "log",
+    "data": "{\"line\": \"tounicode: 3 个 GB1 CJK 字体补 ToUnicode cmap\"}",
+    "created_at": 1789547488.4476373
+   },
+   {
+    "seq": 19,
+    "type": "log",
+    "data": "{\"line\": \"verdict: clean cat=clean errs=0\"}",
+    "created_at": 1789547488.4493182
+   },
+   {
+    "seq": 20,
+    "type": "done",
+    "data": "{\"status\": \"done\", \"artifacts\": {\"compile_log\": \"/api/files/t_a29c5b323a8ee111/compile.log\", \"dual_json\": \"/api/files/t_a29c5b323a8ee111/dual.json\", \"en_pdf\": \"/api/files/t_a29c5b323a8ee111/en.pdf\", \"src_tar\": \"/api/files/t_a29c5b323a8ee111/src.tar\", \"zh_pdf\": \"/api/files/t_a29c5b323a8ee111/zh.pdf\", \"zh_src_zip\": \"/api/files/t_a29c5b323a8ee111/zh-src.zip\"}, \"stats\": {\"tokens\": 0, \"seconds\": 3.7, \"chunks_failed\": 0, \"share\": {\"total\": 60, \"matched\": 60, \"dropped\": 0, \"missed\": 0, \"extra\": 0}}}",
+    "created_at": 1789547488.4630532
+   }
+  ],
+  "files": [
+   {
+    "task_id": "t_a29c5b323a8ee111",
+    "kind": "compile_log",
+    "path": "compile.log",
+    "bytes": 11224,
+    "sha256": "4869c55225f04ebf1e0a6991e29d12776f5ce5cfaaf209f352cc9c7b5b10d2a9",
+    "created_at": 1789547488.449198
+   },
+   {
+    "task_id": "t_a29c5b323a8ee111",
+    "kind": "dual_json",
+    "path": "dual.json",
+    "bytes": 50772,
+    "sha256": "120d2adc3f22101c5ebf2213740aec0600aee710efe28142f7880c1e02298cc3",
+    "created_at": 1789547488.4626327
+   },
+   {
+    "task_id": "t_a29c5b323a8ee111",
+    "kind": "en_pdf",
+    "path": "en.pdf",
+    "bytes": 66300,
+    "sha256": "694c5d4fcf5d58a95892edf396bf094d0fefcf0906f611ece1bf6b66724c27ec",
+    "created_at": 1789547486.9371104
+   },
+   {
+    "task_id": "t_a29c5b323a8ee111",
+    "kind": "src_tar",
+    "path": "src.tar",
+    "bytes": 158725,
+    "sha256": "a2b51fe3697e4b009185bea3d7f3bed910c7b75106aaa7a5917bb8d9061bb154",
+    "created_at": 1789547485.658664
+   },
+   {
+    "task_id": "t_a29c5b323a8ee111",
+    "kind": "zh_pdf",
+    "path": "zh.pdf",
+    "bytes": 390264,
+    "sha256": "f6c9c572634d316c4d5046b631c54156916c4cd589500e890c379081bdaa410c",
+    "created_at": 1789547488.4480298
+   },
+   {
+    "task_id": "t_a29c5b323a8ee111",
+    "kind": "zh_src_zip",
+    "path": "zh-src.zip",
+    "bytes": 157313,
+    "sha256": "da1fce7e0fa066440122ab2882a85b30c5aa926cf0d780caf5f79588f65d1e48",
+    "created_at": 1789547485.8678012
+   }
+  ],
+  "chunk_status": [
+   [
+    "ok",
+    60
+   ]
+  ]
+ },
+ "t_8bcdc8e984deeba4": {
+  "row": {
+   "id": "t_8bcdc8e984deeba4",
+   "kind": "arxiv",
+   "status": "cancelled",
+   "stage": null,
+   "progress": 25,
+   "message": "已取消",
+   "title": "",
+   "arxiv_id": "cond-mat/0408438v1",
+   "source_name": "cond-mat/0408438",
+   "main_tex": "lanlcologne2004.tex",
+   "target_lang": "zh-CN",
+   "model": "swe-2-medium",
+   "config_json": "{\"base_url\": \"http://100.105.212.52:3003\", \"model\": \"swe-2-medium\", \"glossary\": \"\", \"glossary_dir\": \"\", \"engine\": \"auto\", \"concurrency\": 3}",
+   "options_json": "{\"engine_resolved\": \"tectonic\"}",
+   "auth_source": "settings",
+   "tenant": "local",
+   "cache_key": "24bea4339e4ccd5d0ce66bea8faac08b83781cd85706d3ececbe2b49c2f1dd36",
+   "total_chunks": 60,
+   "done_chunks": 0,
+   "cached_chunks": 0,
+   "failed_chunks": 0,
+   "tokens": 0,
+   "error_json": null,
+   "worker_id": "w-4d0d7fbbf210",
+   "created_at": 1789547730.8028677,
+   "updated_at": 1789547742.966745,
+   "started_at": 1789547730.8032866,
+   "finished_at": 1789547742.9667463
+  },
+  "events": [
+   {
+    "seq": 1,
+    "type": "stage",
+    "data": "{\"stage\": \"fetching\", \"progress\": 3, \"message\": \"取源\", \"at\": 1789547730.8033428}",
+    "created_at": 1789547730.8033571
+   },
+   {
+    "seq": 2,
+    "type": "stage",
+    "data": "{\"stage\": \"fetching\", \"progress\": 9, \"message\": \"取源完成\", \"at\": 1789547731.6714847}",
+    "created_at": 1789547731.671507
+   },
+   {
+    "seq": 3,
+    "type": "stage",
+    "data": "{\"stage\": \"parsing\", \"progress\": 9, \"message\": \"解析工程\", \"at\": 1789547731.6716511}",
+    "created_at": 1789547731.6716623
+   },
+   {
+    "seq": 4,
+    "type": "log",
+    "data": "{\"line\": \"normalize: {'files': 2, 'rewritten': 1}\"}",
+    "created_at": 1789547731.6993556
+   },
+   {
+    "seq": 5,
+    "type": "stage",
+    "data": "{\"stage\": \"parsing\", \"progress\": 25, \"message\": \"解析完成\", \"at\": 1789547731.7449386}",
+    "created_at": 1789547731.7449665
+   },
+   {
+    "seq": 6,
+    "type": "stage",
+    "data": "{\"stage\": \"translating\", \"progress\": 25, \"message\": \"翻译中\", \"at\": 1789547731.7452676}",
+    "created_at": 1789547731.7452784
+   },
+   {
+    "seq": 7,
+    "type": "done",
+    "data": "{\"status\": \"cancelled\", \"artifacts\": {\"src_tar\": \"/api/files/t_8bcdc8e984deeba4/src.tar\"}, \"stats\": {\"tokens\": 0, \"seconds\": 12.2, \"chunks_failed\": 0}}",
+    "created_at": 1789547742.9670212
+   }
+  ],
+  "files": [
+   {
+    "task_id": "t_8bcdc8e984deeba4",
+    "kind": "src_tar",
+    "path": "src.tar",
+    "bytes": 158725,
+    "sha256": "a2b51fe3697e4b009185bea3d7f3bed910c7b75106aaa7a5917bb8d9061bb154",
+    "created_at": 1789547731.669537
+   }
+  ],
+  "chunk_status": [
+   [
+    "pending",
+    60
+   ]
+  ]
+ },
+ "t_31714e800f2aef46": {
+  "row": {
+   "id": "t_31714e800f2aef46",
+   "kind": "share",
+   "status": "partial",
+   "stage": null,
+   "progress": 25,
+   "message": "部分完成",
+   "title": "",
+   "arxiv_id": "cond-mat/0408438v1",
+   "source_name": "evil2.share.zip",
+   "main_tex": "lanlcologne2004.tex",
+   "target_lang": "zh-CN",
+   "model": "contributor-model-x",
+   "config_json": "{\"base_url\": \"http://100.105.212.52:3003\", \"model\": \"contributor-model-x\", \"glossary\": \"\", \"glossary_dir\": \"\", \"engine\": \"auto\", \"concurrency\": 3}",
+   "options_json": "{\"share\": {\"share_key\": \"3dba843df63bcd760242574b6b70a86fe2413748518c30c8e98dd016934dfb31\", \"contributor\": \"c-714ff5853886be59\", \"created_at\": \"2026-09-16T08:36:23+00:00\", \"key_parts\": {\"arxiv_id\": \"cond-mat/0408438\", \"version\": \"v1\", \"model\": \"contributor-model-x\", \"prompt_ver\": \"xlat-prompt-v3\", \"target_lang\": \"zh-CN\", \"glossary_hash\": \"\", \"pipeline_ver\": \"texlate-0.1.0|xlat-prompt-v3\"}}, \"engine_resolved\": \"tectonic\"}",
+   "auth_source": "settings",
+   "tenant": "local",
+   "cache_key": "9c30bb0c1a27521c3d10b42a9b24de812d5e4d2e92ec09f5240a9569013b7965",
+   "total_chunks": 0,
+   "done_chunks": 0,
+   "cached_chunks": 0,
+   "failed_chunks": 0,
+   "tokens": 0,
+   "error_json": "{\"code\": \"share_verify\", \"message\": \"share verify: share chunks 对账零命中（包内 60 条 vs 本地 60 块）——包与本源不对应\", \"retryable\": false, \"reject_at\": \"share_verify\"}",
+   "worker_id": "w-4d0d7fbbf210",
+   "created_at": 1789547783.625016,
+   "updated_at": 1789547784.5182886,
+   "started_at": 1789547783.6253998,
+   "finished_at": 1789547784.5182967
+  },
+  "events": [
+   {
+    "seq": 1,
+    "type": "stage",
+    "data": "{\"stage\": \"fetching\", \"progress\": 3, \"message\": \"取源\", \"at\": 1789547783.6254554}",
+    "created_at": 1789547783.6254692
+   },
+   {
+    "seq": 2,
+    "type": "stage",
+    "data": "{\"stage\": \"fetching\", \"progress\": 9, \"message\": \"取源完成\", \"at\": 1789547784.4565432}",
+    "created_at": 1789547784.4565618
+   },
+   {
+    "seq": 3,
+    "type": "stage",
+    "data": "{\"stage\": \"parsing\", \"progress\": 9, \"message\": \"解析工程\", \"at\": 1789547784.4566555}",
+    "created_at": 1789547784.4566643
+   },
+   {
+    "seq": 4,
+    "type": "log",
+    "data": "{\"line\": \"normalize: {'files': 2, 'rewritten': 1}\"}",
+    "created_at": 1789547784.4803002
+   },
+   {
+    "seq": 5,
+    "type": "stage",
+    "data": "{\"stage\": \"parsing\", \"progress\": 25, \"message\": \"解析完成\", \"at\": 1789547784.5174282}",
+    "created_at": 1789547784.5174491
+   },
+   {
+    "seq": 6,
+    "type": "stage",
+    "data": "{\"stage\": \"translating\", \"progress\": 25, \"message\": \"共享译文对账\", \"at\": 1789547784.517564}",
+    "created_at": 1789547784.517575
+   },
+   {
+    "seq": 7,
+    "type": "done",
+    "data": "{\"status\": \"partial\", \"artifacts\": {\"src_tar\": \"/api/files/t_31714e800f2aef46/src.tar\"}, \"stats\": {\"tokens\": 0, \"seconds\": 0.9, \"chunks_failed\": 0}}",
+    "created_at": 1789547784.5184112
+   }
+  ],
+  "files": [
+   {
+    "task_id": "t_31714e800f2aef46",
+    "kind": "src_tar",
+    "path": "src.tar",
+    "bytes": 158725,
+    "sha256": "a2b51fe3697e4b009185bea3d7f3bed910c7b75106aaa7a5917bb8d9061bb154",
+    "created_at": 1789547784.4545944
+   }
+  ],
+  "chunk_status": [
+   [
+    "pending",
+    60
+   ]
+  ]
+ }
+}
