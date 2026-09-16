@@ -335,7 +335,12 @@ def _want_fix(rec: dict, mode: str) -> bool:
         return False
     if mode == "always" or v == "fail":
         return True
-    return v == "partial" and (verdict.get("missing_chars") or 0) > 0
+    # error 级 partial（n_errors>0 = 带 `!` 错也出了 PDF）是 fixloop 最可能
+    # 救回的对象——1e 语义查实：原门槛把它与 warning 级 partial 混同排除，
+    # 且 hotfix-smoke 的 2/3 回退率测于底板（floor_restored）落地之前。
+    return v == "partial" and (
+        (verdict.get("missing_chars") or 0) > 0 or (verdict.get("n_errors") or 0) > 0
+    )
 
 
 def pipe_fix_condition(
