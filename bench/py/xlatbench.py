@@ -52,7 +52,7 @@ from texlate.validate.l0 import validate_pair
 
 REPO = Path(__file__).resolve().parents[2]
 
-BASE = "http://127.0.0.1:3003"
+BASE = "http://100.105.212.52:3003"
 KEY = "240127"
 TIMEOUT = 240
 GAP_S = 1.0

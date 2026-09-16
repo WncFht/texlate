@@ -36,7 +36,7 @@ from texlate.xlat.state import atomic_json
 log = logging.getLogger(__name__)
 
 #: 默认网关/模型（本地 3003 网关免费集首选，docs/research/gateway 实测）
-DEFAULT_BASE_URL = "http://127.0.0.1:3003"
+DEFAULT_BASE_URL = "http://100.105.212.52:3003"
 DEFAULT_MODEL = "swe-2-medium"
 DEFAULT_TARGET_LANG = "zh-CN"
 

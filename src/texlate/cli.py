@@ -609,7 +609,7 @@ def _export_translator(model: str | None, *, mock: bool) -> Translator:
 
     return GatewayTranslator(
         ChatClient(
-            os.environ.get("TEXLATE_BASE_URL", "http://127.0.0.1:3003"), api_key
+            os.environ.get("TEXLATE_BASE_URL", "http://100.105.212.52:3003"), api_key
         ),
         model or os.environ.get("TEXLATE_MODEL", "") or "swe-2-medium",
     )
