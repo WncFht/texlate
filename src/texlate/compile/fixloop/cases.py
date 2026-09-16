@@ -14,7 +14,9 @@ docs/08 §5.5 (L312-330) 的沉淀机制::
 
 from __future__ import annotations
 
+import fcntl
 import json
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -51,6 +53,7 @@ class CaseSink:
     def __init__(self, path: Path | str) -> None:
         """Jsonl 落点 (父目录写时自建)。"""
         self.path = Path(path)
+        self._lock = threading.Lock()
 
     def record(
         self,
@@ -95,8 +98,14 @@ class CaseSink:
             "log_excerpt": cell.get("log_excerpt") or "",
         }
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self.path.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+        line = json.dumps(rec, ensure_ascii=False) + "\n"
+        # 线程锁防同进程交错、flock 防跨进程截断——bench 并行/多 worker 可共享同一 cases.jsonl。
+        with self._lock, self.path.open("a", encoding="utf-8") as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            try:
+                f.write(line)
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
         return rec
 
 
