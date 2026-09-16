@@ -111,6 +111,8 @@
 
 **门槛**：mock A 全绿（PDF+identity+ 零残留占位 + 中文实际渲染）；mock B 破坏 100% 编译前捕获；Mode D 成功率即产品 SLA 观测点。
 
+> 增补 2026-09-16（**pipe-fix 救回臂**，`e2e_real_bench.py --fixloop onfail|always|never`）：pipe-xel 产物树 copy → fixloop（xelatex usermode + TUNA 钉 + tlpdb 索引，配方复用 `fixloop_bench`）→ 救后 xelatex+judge 复判，union 口径取 pipe-xel/pipe-fix 较优者。语义经冒烟实证校准：**onfail 只接 `fail`**——partial 已产出 PDF（warning 级判据非编译错误），fixloop 的 halt_on_error 引擎 + 树改写只会丢 PDF 而救不了 warning（hot 层 n9 冒烟实测 partial→fail 回退 2/3、fail→{clean,partial} 救回 3/4）。inject reject 不救。证据 `research/product/2026-09-16-e2e-pipefix-hotlayer.md`、`bench/results/e2e-hotfix-smoke-2026-09-16/`。
+
 ## B6 · validbench —— 校验段基准
 
 **状态（2026-09-15）**：已落地 `bench/py/validbench.py`——corpus_v2 1503 对 gates 全绿（10 类破坏 L0 100% 检出、干净对 0 error-FP、14 探针全过、摊薄 0.374ms/对）；spike 1636 例 `--replay` 同 schema 兼容。结果 `bench/results/validbench-*-2026-09-15/`。

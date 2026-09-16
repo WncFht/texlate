@@ -15,7 +15,7 @@
     - `bench/ts/` — js 侧 bench（latex-utensils/unified-latex/tree-sitter-latex），独立 package.json，CommonJS
     - `bench/corpus/` — 39 篇手挑陷阱语料（子目录 gitignored，`MANIFEST.md` 入库）
     - `bench/corpus_v2/` — 139 篇分层随机语料（同上惯例；`MANIFEST.md`+`build_corpus.py` 入库）
-    - `bench/corpus_v3/` — 1000 篇核心随机层 + 200 篇补强层（`manifest.jsonl`/`manifest_booster.jsonl`/`mechanisms.jsonl`/`MANIFEST.md`/`select_booster.py` 等入库、数据 gitignored；管线 `bench/py/build_corpus_v3.py` 可重建）
+    - `bench/corpus_v3/` — 1000 篇核心随机层 + 200 篇补强层 + 热层（OpenAlex 高引近期，分批取源中）（`manifest.jsonl`/`manifest_booster.jsonl`/`manifest_hot.jsonl`/`mechanisms.jsonl`/`MANIFEST.md`/`select_booster.py` 等入库、数据 gitignored；管线 `bench/py/build_corpus_v3.py` + `build_hot_layer.py`）
     - `bench/fixtures/` — 陷阱构造 `.tex`（`% @Tnn` 标记；**逐字节即语义——不要格式化/润色这些文件**）
     - `bench/results/` — bench 产出目录（report/walkthrough/json 均由脚本重写；不在 format/lint 链内）
     - `bench/work_*/` — 编译/fixloop 工作区（gitignored 重产物）

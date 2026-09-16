@@ -119,6 +119,8 @@ d/e 带每簇取间隔 2 块扩候选池（成员按 id 连续 → 类目轻度�
 基础配额锚点（最小保障非上限）：B01 2.09 遗存 30 / B02 非 UTF-8 30 / B03 深多文件 30 / B04 低 TeX 密度类目（cs/econ/eess，d/e 带）30 / B05 宏包机制（minted/pstricks/psfrag/vendored cls）25 / B06 大字节 >2MB 20 / B07 边缘形态（单 gz/pdf_only，记丢弃原因）25。
 
 > 勘误 2026-09-15（P3 已执行）：台账 143 条（W01–W109 野例 + T/B 种子）；5 curator + 3 hunter 共产出 544 条验证提名（`nominations/*.jsonl` 审计轨迹入库）；`select_booster.py` 选出 200 篇（B 地板全达成、W 覆盖 107/109——W108/W109 池内无例证即 hunter exhausted 记录），明细 `booster_selection.jsonl` + `selection_report.md`。
+>
+> 增补 2026-09-16（**hot 层**，第三层、扩展不替换）：核心均匀层回答「成功率多少」、补强层回答「坑处理了吗」，但两者抽样框都不是真实用户负载——hjfy 类产品压倒性服务近期高引论文，且核心层止于 2412（TIGER 截止）。hot 层补**需求轴 + 时近轴**：`hot-cite`（OpenAlex `locations.source.id=S4306400194` + `from_publication_date≥2024-01-01` 按 `cited_by_count` 降序取头 120）+ `hot-recent`（同源 2025-06-01+ `sample=` 随机 40）。取源走产品路径 `acquire_source`（arxiv e-print 钉版，3.05s/发、日预算 ~180 → `--limit 85`/日续跑），入库 `manifest_hot.jsonl`，管线 `bench/py/build_hot_layer.py`（candidates/fetch/report）。不进池化估计（frame 非均匀），按 `stratum_cell=hot|*` 单独报。首日 85 发：入库 72 + `pdf_only` 跳过 13（高引论文无 TeX 源是真实负载固有类）。证据 `research/product/2026-09-16-e2e-pipefix-hotlayer.md`。
 
 ## 5. 管线分阶段（S0–S7）
 
@@ -145,6 +147,8 @@ S0 frame 构建（✅ 已产出 frame.parquet）
 bench/corpus_v3/                 # manifest 入库，数据 gitignored
   MANIFEST.md                    # 人类可读清单（生成）
   manifest.jsonl                 # 每篇一行（S4 schema）
+  manifest_booster.jsonl         # 补强层清单（S3b）
+  manifest_hot.jsonl             # 热层清单（2026-09-16 增补，OpenAlex+eprint 渠道）
   mechanisms.jsonl               # 机制台账（S3b）
   {id}/
     meta.json                    # id/source/stratum/features/license
