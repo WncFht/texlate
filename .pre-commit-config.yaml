@@ -15,6 +15,8 @@ repos:
         entry: ./node_modules/.bin/markdownlint-cli2 --fix
         language: system
         types: [markdown]
+        # --fix 是改写型，与 cli2 配置 ignores 同口径划出 bench/results
+        exclude: "^bench/results/"
       - id: prettier-md
         name: autocorrect + prettier (staged content)
         entry: ./node_modules/.bin/git-format-staged --formatter "autocorrect --stdin | ./node_modules/.bin/prettier --stdin-filepath {}"
@@ -28,6 +30,7 @@ repos:
         entry: ./node_modules/.bin/git-format-staged --formatter "./node_modules/.bin/prettier --stdin-filepath {}"
         language: system
         types: [yaml]
+        exclude: "^bench/results/"
       - id: prettier-js
         name: prettier (staged content)
         entry: ./node_modules/.bin/git-format-staged --formatter "./node_modules/.bin/prettier --stdin-filepath {}"
@@ -39,19 +42,23 @@ repos:
         entry: ./node_modules/.bin/git-format-staged --formatter "bash scripts/fmt-shell.sh"
         language: system
         types: [shell]
+        exclude: "^bench/results/"
       - id: ruff-format
         name: ruff format (staged content)
         entry: ./node_modules/.bin/git-format-staged --formatter "ruff format -"
         language: system
         types: [python]
+        # gfs stdin 通道拿不到文件名，ruff.toml 的 extend-exclude 兜不住——显式划出
+        exclude: "^bench/results/"
       - id: taplo
         name: taplo fmt (staged content)
         entry: ./node_modules/.bin/git-format-staged --formatter "taplo fmt -"
         language: system
         types: [toml]
+        exclude: "^bench/results/"
       - id: shellcheck
         name: shellcheck (bash only; zsh skipped)
-        entry: bash -c 'for f in "$@"; do head -1 "$f" | grep -q "zsh" || shellcheck -S warning "$f"; done' --
+        entry: bash -c 'for f in "$@"; do head -1 "$f" | grep -q "^#!.*zsh" || shellcheck -S warning "$f"; done' --
         language: system
         types: [shell]
       - id: ruff-check

@@ -5,6 +5,10 @@ on:
     branches: [master]
   pull_request:
 
+# 全部 job 只读——显式收窄 GITHUB_TOKEN，防后续加步骤时吃到默认写权限
+permissions:
+  contents: read
+
 # 与 pre-commit 同源：本地不过 CI 必挂。format 门控（prettier check +
 # markdownlint + eslint + actionlint）、python（ruff）、shell（shfmt +
 # shellcheck）。工具版本：npm 锁 package.json，brew 随源浮动。
@@ -42,7 +46,7 @@ jobs:
       - name: taplo (toml)
         run: |
           brew install taplo
-          git ls-files '*.toml' | xargs taplo fmt --check
+          git ls-files -z '*.toml' | xargs -0r taplo fmt --check
 
   secrets:
     name: Secrets (gitleaks)
@@ -84,9 +88,10 @@ jobs:
 
       - name: shfmt + shellcheck
         run: |
-          for f in $(git ls-files '*.sh'); do
-            head -1 "$f" | grep -q "zsh" || shfmt -d -i 2 "$f"
-            head -1 "$f" | grep -q "zsh" || shellcheck -S warning "$f"
+          git ls-files -z '*.sh' | while IFS= read -r -d '' f; do
+            head -1 "$f" | grep -q '^#!.*zsh' && continue
+            shfmt -d -i 2 "$f"
+            shellcheck -S warning "$f"
           done
 
   pytest:
