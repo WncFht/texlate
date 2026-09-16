@@ -486,12 +486,33 @@ def test_index_lookup_miss(tmp_path: Path) -> None:
     assert index_lookup(idx, _ZERO_SHA) is None
 
 
-def test_index_malformed_line_raises(tmp_path: Path) -> None:
-    """非 JSON object 行 → ShareError 报行号（索引损坏要响，不静默 miss）。"""
+def test_index_malformed_lines_skipped(tmp_path: Path) -> None:
+    """坏行（非 JSON / 非 object）夹中间不毒死索引——合法键照常命中。"""
     idx = tmp_path / "index.jsonl"
-    idx.write_text('{"share_key": "a"}\nnot-json\n', encoding="utf-8")
-    with pytest.raises(ShareError, match="line 2"):
-        index_lookup(idx, "a")
+    idx.write_text(
+        '{"share_key": "a"}\nnot-json\n[1, 2]\n{"share_key": "b"}\n',
+        encoding="utf-8",
+    )
+    assert index_lookup(idx, "a") == {"share_key": "a"}
+    assert index_lookup(idx, "b") == {"share_key": "b"}
+    assert index_lookup(idx, "c") is None
+
+
+def test_index_malformed_preserves_last_wins(tmp_path: Path) -> None:
+    """同键合法行之间夹坏行——last-wins 不受干扰（坏行不参与覆盖）。"""
+    idx = tmp_path / "index.jsonl"
+    idx.write_text(
+        '{"share_key": "a", "url": "old"}\n{bad\n{"share_key": "a", "url": "new"}\n',
+        encoding="utf-8",
+    )
+    assert index_lookup(idx, "a") == {"share_key": "a", "url": "new"}
+
+
+def test_index_all_malformed_misses(tmp_path: Path) -> None:
+    """全坏行 → miss 返回 ``None`` 不炸。"""
+    idx = tmp_path / "index.jsonl"
+    idx.write_text('not-json\n"str"\n{bad\n', encoding="utf-8")
+    assert index_lookup(idx, "a") is None
 
 
 def test_index_missing_file(tmp_path: Path) -> None:

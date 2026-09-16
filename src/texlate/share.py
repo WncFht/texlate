@@ -434,8 +434,10 @@ def index_append(
 def index_lookup(index_path: Path, share_key: str) -> dict[str, Any] | None:
     """线性扫 index.jsonl 取 ``share_key`` 行；文件缺席/未命中 → ``None``。
 
-    空行容忍跳过；行 JSON 解析失败或非 object → ShareError 带行号——
-    索引损坏要响，不能降级成静默 miss。同 share_key 多行时 last-wins
+    空行跳过；malformed 行（JSON 解析失败或非 object）跳过并在扫完记一条
+    warning 带行号——单行坏数据不毒死全索引（多源汇聚场景坏行只伤自身，
+    与 ``benchlib.iter_jsonl`` 容错账读同口径）。文件整体非 UTF-8 仍抛
+    ``UnicodeDecodeError``，由调用方降级。同 share_key 多行时 last-wins
     （append-only 语义：重传行覆盖旧行）。
     """
     try:
@@ -443,17 +445,20 @@ def index_lookup(index_path: Path, share_key: str) -> dict[str, Any] | None:
     except FileNotFoundError:
         return None
     found: dict[str, Any] | None = None
+    bad_lines: list[int] = []
     for lineno, line in enumerate(text.splitlines(), start=1):
         if not line.strip():
             continue
         try:
             row = json.loads(line)
-        except json.JSONDecodeError as e:
-            msg = f"index line {lineno} malformed: {e}"
-            raise ShareError(msg) from e
+        except json.JSONDecodeError:
+            bad_lines.append(lineno)
+            continue
         if not isinstance(row, dict):
-            msg = f"index line {lineno} is not a JSON object"
-            raise ShareError(msg)
+            bad_lines.append(lineno)
+            continue
         if row.get("share_key") == share_key:
             found = row
+    if bad_lines:
+        log.warning("share index %s: skipped malformed lines %s", index_path, bad_lines)
     return found
