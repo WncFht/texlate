@@ -1,0 +1,88 @@
+modeb-verify 2026-09-16 — echo guard × dirty gate closed-loop verification
+=============================================================================
+
+Setup: TEXLATE_SRC=/tmp/texlate-src-modeb-verify (src/ snapshot incl. bb3ecc0
+guard + COMMENT anchoring + all in-flight tree state). A/B twin:
+/tmp/texlate-src-modeb-noguard (same snapshot, _check_protocol_echo call
+commented out — isolates guard contribution). Harness: e2e_mock_bench.py
+run_project / instrumented translate_tree probe. Work dirs under /tmp only.
+
+== 1. Primary repro: 2410.17957 pipeB-xel ==
+
+BEFORE (modec-expand record, pre-bb3ecc0):
+  verdict fail / early_eof / no_pdf / n_errors 23
+  sabotage: 45 -> caught 41 / recovered 4 / escaped 0
+  live re-run by modeb-dirty: dirty=3, dirty_ids=[2:3, 5:3, 5:33] (all drop_ph)
+
+AFTER (guard ON, full run incl. compile tail):
+  verdict CLEAN (n_errors 1, category other, cjk_chars 1478)
+  sabotage: events 144, sabotaged 45 -> caught 7 / recovered 38 / escaped 0
+  dirty = 0, dirty_ids = [], leftover_ph = 0, fault_chunks = 7
+  gate escaped==0 AND dirty==0: PASS (was FAIL)
+
+A/B on identical snapshot (probe, translate stage only):
+  guard OFF: sabotaged 45 -> ok 3 / partial 35 / fault 7
+             dirty chunks: 5:3, 5:33 (zh hits '占位符缺失:', status ok)
+             -> echo channel reproduces; 2:3 already stopped by the new
+                COMMENT-ph anchoring check even without the echo guard.
+  guard ON : sabotaged 45 -> partial 38 / fault 7, dirty = 0
+             5:3, 5:33 echo-faulted at whole×2, rescued clean by slots stage.
+
+Per-chunk fates of the three former dirty sites (guard ON):
+  2:3  drop_ph  partial (delivered clean)
+       warnings: whole×2 failed: [anchoring] 注释占位符 [[COMMENT_14]] 所在行
+       混入非注释内容 + [echo] 协议字面 '占位符缺失:' 进入交付译文 ×1
+       ; slots fallback path rescued
+       zh head: "这是译文\n这是译文\n    [[COMMENT_14]]\n这是译文\n这是译文"
+  5:3  drop_ph+fabricate_ph  partial (delivered clean)
+       whole×2 failed: 协议字面 '占位符缺失:' ×1; lines failed:
+       多余/未识别占位符: [[MATH_955]]; slots rescued
+  5:33 drop_ph  partial (delivered clean)
+       whole×2 failed: 协议字面 '占位符缺失:' ×1; slots rescued
+
+NOTE on ledger inversion (caught 41->7, recovered 4->38 vs modec-expand):
+  NOT caused by the guard — guard-OFF probe on the same snapshot gives the
+  same 7-fault/38-delivered distribution. The shift predates bb3ecc0 or comes
+  from sibling changes (slots rescue / repair armament) between the
+  modec-expand run and current tree. The guard's isolated effect on this
+  codebase: converts the 2 echo-dirty ok deliveries into clean slots-rescued
+  partials; zero change to fault count.
+
+== 2. Post-run tree inspection (2410.17957) ==
+
+grep of all echo signatures (占位符缺失: / [Original] / [Translation] /
+[Error] / previous_validation_error / slot_validation_failures /
+[compile_error]) over /tmp/modeb-verify-work/pipeB-xel/2410.17957/**/*.tex:
+  ZERO hits.
+
+docs/2-introdution.tex caption block post-fix (was the kill site):
+    \caption{这是译文
+    这是译文
+        % (c) peak memory for BERT-tiny inference with different sequence lengths.}
+    这是译文
+    这是译文}
+    \label{fig:intro:mem_challenge}
+  -> [[COMMENT_14]] spliced on its own line; '% ...}' stays a comment;
+     closing brace survives -> \caption{} closes -> early_eof gone.
+     main.pdf produced.
+
+== 3. Negative check (guard ON, full pipeB-xel incl. compile) ==
+
+All three had on-disk '占位符缺失:' residue in the pre-guard modec-expand
+work trees (1 / 1 / 2 files). Post-guard delivered trees: ZERO residue.
+
+id          | verdict before->after   | sab   | caught  | rec     | esc | dirty
+1003.0112   | partial -> clean        | 90->82| 55 -> 0 | 35 -> 82| 0   | 0
+0806.4149   | clean   -> clean        | 63->64| 45 -> 26| 18 -> 38| 0   | 0
+0806.2376   | clean   -> clean        | 24->23| 17 -> 3 |  7 -> 20| 0   | 0
+
+No mass-faulting: caught went DOWN everywhere (same direction as the
+2410.17957 inversion — sibling-change baseline drift, not the guard; the
+A/B probe shows the guard adds zero net faults). dirty=0 AND escaped=0 on
+all four ids -> gate escaped==0 AND dirty==0 passes everywhere.
+
+Anomalies: none. sabotaged counts wobble ±2 vs modec-expand (143->144 on
+2410.17957, 90->82 on 1003.0112) — event attribution depends on ladder
+call count, which shifted with the rescue-path changes; sabotaged-block
+count itself is stable (45/64/23 vs 45/63/24 — within recount noise from
+_seg_of candidate matching).
