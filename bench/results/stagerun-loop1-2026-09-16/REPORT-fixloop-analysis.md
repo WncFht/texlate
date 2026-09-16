@@ -45,3 +45,13 @@ syntax 15 / other 14 / babel_opt 11 / illegal_unit 10 / pdftex_prim 7 / capacity
 - **定点重跑清单**：`rerun-ids.txt`（15 nenp + 4 真退化，csv 可直接喂 `--ids`）。命令形：`stagerun.py fixloop --on fail --tag loop1 --rerun --ids $(tail -1 rerun-ids.txt)`。
 - **环境坑**：`FORCE_COLOR` 会污染 CliRunner 输出致 help 断言假红；pytest 一律 `env -u FORCE_COLOR`。
 - 1d 提案「不退化底板」（入口态 PDF 快照、末态判决不低于入口态）已立 ticket #20，loop2 全量前评估。
+
+## 补记 3：定点 rerun 两轮结果（2026-09-16）
+
+**Round 1**（post-`6b23435` 引擎 + `efa1fa3` early_eof + `5d195c2` derive）：nenp 15 → 2 真残留（1803.00012 rc=-11 `killed_signal=11` SIGSEGV、1706.02464 bufsize）；**12 格 misschar 池 nenp 全改判 `unfixable:early_eof`**，1803.00054 同归；astro-ph/0111575 → **acceptable_pdf 痊愈**（epsf 通路链修复起效）；1003.1717 仍 syntax、1306.0036/2410.00012 改判 undefined_cs（subclassify 收窄正确）。
+
+**机理**：13 格 early_eof 同根因——稿自带 aastex61/62.cls 的 `\IfFileExists{revtex4-1.cls}{…}{…\stop}`，revtex4-1 不在 TL → `\stop` 夹条件内 → `\end occurred incomplete` + 零页、rc=0、无 `!`。对策 `18ff106`：tail plea 规则（`include|download … X.cls` + guard `No pages of output` → missing_file 抓档名）+ `revtex4-1.cls`→revtex4-2 shim。
+
+**Round 2**（13 格重跑）：**全数落 pdf** —— 11 acceptable_pdf + 2 best_effort_pdf（2304.05202、2211.04482）。
+
+**19 格终态**：14 格出 pdf；残 5 —— 1803.00012（SIGSEGV）、1706.02464（bufsize）、1003.1717（syntax）、1306.0036/2410.00012（undefined_cs）。pst-node/pst-arrow 可解仍败疑点在本批未复现（不在这 19 格内），归 loop2 全量观察。
