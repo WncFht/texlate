@@ -34,10 +34,11 @@ _AASTEX_BANNER_TAIL = (
 def test_tail_aastex_banner_not_latex209() -> None:
     """aastex 横幅落 tail（零 '!' 行静默死 → err=None 走 tail 扫描）
     不得归 latex209——这些全是 \\documentclass 的 LaTeX2e 稿。tail 实携
-    ``\\end occurred … incomplete`` + ``No pages of output`` 早夭签名 →
-    归 yaml tail 段的 early_eof（分类表单源化后该 id 可达）。"""
+    "Please update your system to include revtex4-1.cls" 求档文 → 归
+    missing_file（cls-plea tail 规则有意排在 early_eof 之前——plea 提出
+    的文件名是 actionable payload，install/shim 链接手；18ff106）。"""
     cat, _ = classify_error(None, None, _AASTEX_BANNER_TAIL, timed_out=False)
-    assert cat == "early_eof"
+    assert cat == "missing_file"
 
 
 def test_tail_banner_plus_unmatched_error_not_latex209() -> None:
