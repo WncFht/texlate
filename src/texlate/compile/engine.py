@@ -38,7 +38,7 @@ if TYPE_CHECKING:
 
     from texlate.compile.fixloop.logparse import ErrReport, Taxonomy
 
-from texlate.texlog import is_project_file, update_file_stack
+from texlate.texlog import is_dos_eps, is_project_file, update_file_stack
 from texlate.textutil import decode_tex
 
 from .mask import visible_tex
@@ -196,30 +196,6 @@ WARNING_RED_LINES: list[tuple[str, str]] = [
     ("degraded_file", r"^!.*(?:File|package)[^\n]*not found"),
 ]
 
-#: DOS 二进制 EPS 魔数（normalize.py ``_DOS_EPS_MAGIC`` 同款——带绝对偏移
-#: 头的 legacy 格式，normalize 只能字节原样保留进 ``dos_eps_skipped`` 台账，
-#: 其 invalid_utf8 警告是必然残余而非可修复缺陷）。
-_DOS_EPS_MAGIC: Final = b"\xc5\xd0\xd3\xc6"
-
-
-def _is_dos_eps(token: str | None, root: Path | None, cache: dict[str, bool]) -> bool:
-    """文件栈 token → DOS 二进制 EPS 判定（按 token 缓存——坏字节逐行报警）。"""
-    if not token or root is None:
-        return False
-    if token in cache:
-        return cache[token]
-    p = Path(token)
-    if not p.is_absolute():
-        p = root / p
-    try:
-        with p.open("rb") as fh:
-            ok = fh.read(4) == _DOS_EPS_MAGIC
-    except OSError:
-        ok = False
-    cache[token] = ok
-    return ok
-
-
 #: ``(x.eps`` 类 graphic 打开帧——``TEX_FILE_EXTS`` 不含 graphic 扩展名，
 #: texlog 对此入 ``None`` 配对帧；utf8 归因需要真名，故本函数把行尾最后
 #: 一个未配对 ``(`` 的 graphic token 补回栈顶（texlog 栈属本函数局部）。
@@ -264,7 +240,7 @@ def _scan_error_lines(
                 stack[-1] = g
         if _UTF8_WARN_RE.search(ln):
             inner = next((s for s in reversed(stack) if s), None)
-            if _is_dos_eps(inner, project_root, dos_eps_cache):
+            if is_dos_eps(inner, project_root, dos_eps_cache):
                 # dos_eps_skipped 件：normalize 字节原样保留的二进制 EPS，
                 # 残余警告降 warnings_sys 并打 (dos-eps) 标便于台账对账。
                 name = Path(inner).name if inner else "?"
