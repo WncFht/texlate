@@ -1,4 +1,4 @@
-# fixloop bench — corpus_v2 40 篇无偏样本 × 产品化规则库
+# fixloop bench — corpus_v3 172 格（v4 样本 × 双引擎）× 产品化规则库
 
 - 日期: 2026-09-16 03:07
 - 规则库: `/home/fanghaotian/src/texlate/src/texlate/compile/fixloop/rules.yaml` (31 规则, max_rounds=8)

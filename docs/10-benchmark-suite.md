@@ -19,6 +19,8 @@
 
 依赖序：`corpus_v3 → B1 → B4 → {B3, B5} → B7`；B2/B6 独立（合成输入）。
 
+> **现状列更新（2026-09-16）**：B3 已产品化（compilebench_v3.py + fixloop_bench.py，v4+fixloop 臂联合 pdf 89.5%）；B4a 已扶正 xlatbench（硬契约基线 240 调用建档）；B5 Mode A/D 已跑（e2e-real n100 chunk ok 99.97%），**Mode B 未产品化、Mode C 未跑**；B7 已扶正 alignbench 但当前门 FAIL（2 ERROR + 保留率 0.026 离群对）；B3 zh 条件臂从未跑。逐门证据矩阵见 `research/audit-2026-09-16/spec0910.md`。
+
 ## B1 · parsebench —— 解析段基准
 
 **状态（2026-09-15）**：已落地 `bench/py/parsebench.py`（v2，texlate.latex 产品管线评测器）。首轮：corpus_v3 核心层 1955 文件 parse 100%/strict identity 100%/leak 0.04%/dead 0（coverage 94.4%†）；补强层 187 篇 1388 文件同指标全过（coverage 72.5%）。manifest 非空时即抽样框（`--manifest manifest_booster.jsonl` 切层）。结果 `bench/results/parsebench-*-2026-09-15/`。
@@ -143,14 +145,16 @@
 
 ## 8. 汇总：构建顺序与里程碑映射
 
-| 序  | benchmark | 何时建/跑                      | 里程碑门                 |
-| --- | --------- | ------------------------------ | ------------------------ |
-| 1   | B1+B2     | M0 重写验收（语料就绪即跑）    | corpus39+v2 479 文件全绿 |
-| 2   | B6        | M0–M1（校验器随写随测）        | 100%/0FP 保持            |
-| 3   | B4a       | M1（LLM 后端选型+prompt 回归） | 硬契约率基线建档         |
-| 4   | B3        | M2（fixloop 主战场）           | 200 篇 ≥90%              |
-| 5   | B5 A–C    | M0 起常驻；D 随 B4b 接入       | mock 全绿 + 漏斗看板     |
-| 6   | B4b       | M1（真实翻译质量）             | 100 篇 ≥85%              |
-| 7   | B7        | M3（阅读器前置验证）           | 保留率 ≥95%              |
+| 序  | benchmark | 何时建/跑                      | 里程碑门                   |
+| --- | --------- | ------------------------------ | -------------------------- |
+| 1   | B1+B2     | M0 重写验收（语料就绪即跑）    | corpus39+v2 479 文件全绿 † |
+| 2   | B6        | M0–M1（校验器随写随测）        | 100%/0FP 保持              |
+| 3   | B4a       | M1（LLM 后端选型+prompt 回归） | 硬契约率基线建档           |
+| 4   | B3        | M2（fixloop 主战场）           | 200 篇 ≥90%                |
+| 5   | B5 A–C    | M0 起常驻；D 随 B4b 接入       | mock 全绿 + 漏斗看板       |
+| 6   | B4b       | M1（真实翻译质量）             | 100 篇 ≥85%                |
+| 7   | B7        | M3（阅读器前置验证）           | 保留率 ≥95%                |
+
+† 勘误（2026-09-16）：corpus_v2 现为 139 篇/224 .tex（语料冻结后 +2），corpus39 为 256 .tex，合计 480——「479」是冻结前口径；两门均已全绿通过。
 
 统一产出契约：每个 benchmark 落 `bench/results/{name}-{corpus}-{date}/` 三件套（`files|cases.jsonl` 逐单元明细 + `summary.md` 漏斗/归因 + `papers|cells.json` 聚合）；`bench/results/` 划出 format/lint 链，报告由脚本全权重写。

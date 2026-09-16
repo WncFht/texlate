@@ -1,7 +1,7 @@
 # Corpus v3 Manifest — arXiv 月度簇分层抽样源码语料
 
 渠道钉版批量语料：a–d 带 IA `arxiv-bulk` 月 chunk / e 带 HF `TIGER-Lab/arxiv-latex-5T`（成员四元组 `(channel,item,member,blob_sha256)` 钉版，`resolved_version=null`）。
-数据在本目录 `{id}/` 子目录（gitignored），入库的只有此清单、`manifest.jsonl`、`mechanisms.jsonl` 与 `bench/py/build_corpus_v3.py`。
+数据在本目录 `{id}/` 子目录（gitignored），入库的有此清单、`manifest.jsonl`、`manifest_booster.jsonl`、`mechanisms.jsonl`、`booster_selection.jsonl`、`select_booster.py`、`selection_report.md`，管线脚本在 `bench/py/build_corpus_v3.py`。
 抽样管线见 `docs/09-benchmark-corpus.md` S0–S5；旧式 ID 按 `archive/name` 嵌套。
 
 - 入库 **1000** 篇（核心层）· 1955 个 .tex · 原始包共 1603M

@@ -1,4 +1,4 @@
-# compilebench v3 — corpus_v3 baseline × 双引擎
+# compilebench v4 — corpus_v3 baseline × 双引擎
 
 - 日期: 2026-09-16 02:56:00
 - 语料: `/home/fanghaotian/src/texlate/bench/corpus_v3` extracted/ 分层抽样 n=180 (sample.json, seed=20260915, stratum_cell 比例分配)

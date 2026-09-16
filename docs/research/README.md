@@ -20,23 +20,26 @@ TeXlate（hjfy.top 开源复刻）全部调研报告。**裁决与方案以 `doc
 
 ## latex/ — LaTeX 解析/编译/翻译管线
 
-| 文件                          | 内容                                                             |
-| ----------------------------- | ---------------------------------------------------------------- |
-| `miniscanner-rewrite-spec.md` | **半解析器重写规格**（`src/texlate/latex/` 9 文件蓝图 + 增补项） |
-| `expansion-design.md`         | 宏展开设计：单遍即时展开 vs 两遍建表裁决                         |
-| `expansion-timing.md`         | 展开时机语料统计（UBD=0 实证）                                   |
-| `validator-rules.md`          | L0 校验器规则规格（chunk 不变量）                                |
-| `validator-ts.md`             | tree-sitter L1 校验调研（baseline 相对模式裁决）                 |
-| `engine-matrix.md`            | 编译引擎矩阵：tectonic/xelatex 路由规则                          |
-| `pstricks-route.md`           | pstricks/eps 引擎路由实测                                        |
-| `ctan-argspec.md`             | CTAN 宏包参数规格获取                                            |
-| `ctanfetch-probe.md`          | tlmgr/CTAN 依赖解析探针                                          |
-| `doc-formats.md`              | EPUB/DOCX 通路规格（bbm 蓝图照抄）                               |
-| `pdf-path.md`                 | PDF 通路：BabelDOC sidecar 规格 + MinerU 深读                    |
-| `prompt-glossary-spec.md`     | 术语表/prompt 工程规格                                           |
-| `texglot-patterns.md`         | texglot 模式借鉴（normalize/阅读器/同步锚点）                    |
-| `fixloop-rules.md`            | fixloop 规则沉淀机制设计                                         |
-| `alignment-probe.md`          | named destinations 滚动同步锚点实测                              |
+| 文件                               | 内容                                                             |
+| ---------------------------------- | ---------------------------------------------------------------- |
+| `miniscanner-rewrite-spec.md`      | **半解析器重写规格**（`src/texlate/latex/` 9 文件蓝图 + 增补项） |
+| `expansion-design.md`              | 宏展开设计：单遍即时展开 vs 两遍建表裁决                         |
+| `expansion-timing.md`              | 展开时机语料统计（UBD=0 实证）                                   |
+| `validator-rules.md`               | L0 校验器规则规格（chunk 不变量）                                |
+| `validator-ts.md`                  | tree-sitter L1 校验调研（baseline 相对模式裁决）                 |
+| `engine-matrix.md`                 | 编译引擎矩阵：tectonic/xelatex 路由规则                          |
+| `pstricks-route.md`                | pstricks/eps 引擎路由实测                                        |
+| `ctan-argspec.md`                  | CTAN 宏包参数规格获取                                            |
+| `ctanfetch-probe.md`               | tlmgr/CTAN 依赖解析探针                                          |
+| `doc-formats.md`                   | EPUB/DOCX 通路规格（bbm 蓝图照抄）                               |
+| `pdf-path.md`                      | PDF 通路：BabelDOC sidecar 规格 + MinerU 深读                    |
+| `prompt-glossary-spec.md`          | 术语表/prompt 工程规格                                           |
+| `texglot-patterns.md`              | texglot 模式借鉴（normalize/阅读器/同步锚点）                    |
+| `fixloop-rules.md`                 | fixloop 规则沉淀机制设计                                         |
+| `alignment-probe.md`               | named destinations 滚动同步锚点实测                              |
+| `segmenter-integration.md`         | segmenter v2 集成笔记（S3/S4/切换落地过程）                      |
+| `2026-09-15-adversarial-audit.md`  | latex 管线对抗性审计                                             |
+| `2026-09-16-aux-cjk-truncation.md` | aux/bib 8192B 截断→invalid UTF-8 问题留档（立项未做）            |
 
 ## corpus/ — 语料与 benchmark（当前主线）
 
@@ -54,6 +57,7 @@ TeXlate（hjfy.top 开源复刻）全部调研报告。**裁决与方案以 `doc
 | `labels.md`                     | 分层键与真值标签源（HF 快照/OpenAlex/license）                                          |
 | `corpus39-profile.md`           | bench/corpus 39 篇机器级统计画像                                                        |
 | `arxmliv-unarxive.md`           | arXMLiv/ar5iv/unarXive 学术发行物调研（结论：无源码不入料）                             |
+| `2026-09-15-parsebench-icc.md`  | parsebench 月间 ICC 信度分析（§7.2 统计口径行动项）                                     |
 
 ## gateway/ — LLM 网关与模型选型
 
@@ -69,14 +73,20 @@ TeXlate（hjfy.top 开源复刻）全部调研报告。**裁决与方案以 `doc
 
 ## product/ — 产品/E2E/工程生态
 
-| 文件                   | 内容                                                         |
-| ---------------------- | ------------------------------------------------------------ |
-| `hjfy-site.md`         | **hjfy.top 线上侦察**：前端 bundle 逆向、API/状态机/OSS 产物 |
-| `web-layer.md`         | Web 层规格：API/SQLite 队列/BYOK/SolidJS+pdfslick/部署       |
-| `e2e-mock-pipeline.md` | 端到端 mock 管线：16 篇 13 clean 验证机械链路                |
-| `competitors.md`       | 竞品侦察矩阵：arXiv 阅读/翻译生态                            |
-| `multiagent-survey.md` | subagent/multi-agent 生态全景（CC 第一方/社区/外部框架）     |
-| `pi-parity.md`         | pi CLI 多 agent 能力对照                                     |
+| 文件                               | 内容                                                         |
+| ---------------------------------- | ------------------------------------------------------------ |
+| `hjfy-site.md`                     | **hjfy.top 线上侦察**：前端 bundle 逆向、API/状态机/OSS 产物 |
+| `web-layer.md`                     | Web 层规格：API/SQLite 队列/BYOK/SolidJS+pdfslick/部署       |
+| `e2e-mock-pipeline.md`             | 端到端 mock 管线：16 篇 13 clean 验证机械链路                |
+| `competitors.md`                   | 竞品侦察矩阵：arXiv 阅读/翻译生态                            |
+| `multiagent-survey.md`             | subagent/multi-agent 生态全景（CC 第一方/社区/外部框架）     |
+| `pi-parity.md`                     | pi CLI 多 agent 能力对照                                     |
+| `2026-09-16-xlat-resume-review.md` | xlat 断点续翻三修评审留档                                    |
+
+## audit-2026-09-16/ — 全仓目标达成审计
+
+13 维度并行审计（M0–M3 里程碑验收 × spec 06–10 覆盖 × 实测/测试/安全/证据/文档），
+总索引与判定见 [audit-2026-09-16/README.md](audit-2026-09-16/README.md)。
 
 ## lit/ — 文献原件
 

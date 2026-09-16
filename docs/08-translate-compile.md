@@ -232,9 +232,12 @@ class Engine(Protocol):
 
 `--untrusted`（tectonic）/ `-no-shell-escape`（xelatex）+ **env 白名单**（非黑名单；加 `TECTONIC_UNTRUSTED_MODE=1 openin_any=p openout_any=p shell_escape=f`）+ macOS sandbox-exec profile（deny `$HOME` 读 + 全写，白名单放行工程/输出/缓存/字体目录——settings.json/浏览器 profile/SSH key 编译期不可读）+ `killpg` 进程树超时杀。
 
-## 5. fixloop（`compile/fixloop.py`）
+## 5. fixloop（`compile/fixloop/` 包）
 
 ### 5.1 两层 YAML：`taxonomy`（log→类别，18 regex）+ `rules`（类别→动作）
+
+> **勘误（2026-09-16）**：实现为 `compile/fixloop/` 包（engine/cases/ctan/logparse/\_yamlish/rules.yaml）；
+> taxonomy 段现为 28 个 pattern 条目、rules 段 31 条（v3 整改，HANDOFF-2026-09-16 §2.2）。
 
 phase：`gate`=每轮分类后最先评估 / `precheck`=编译前一次性 / `loop`=每轮错误驱动；同 phase 按 order 升序、**每轮只应用一条**（便于归因）。
 
