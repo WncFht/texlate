@@ -311,8 +311,24 @@ taxonomy:
       payload_group: 1,
       pattern: "Package (\\w+) Error: \\w+ must be loaded (?:before|after)",
     }
-  - { id: invalid_char, scope: head, pattern: "Text line contains an invalid character" }
-  - { id: expl3_backend, scope: head, pattern: "Backend request inconsistent with engine" }
+  # 2026-09-16 repro-2501 缺陷B: 色名参槽被译文/mock 污染 ({blue}→'这是译文')
+  # → (x)color Undefined color; payload=色名, 供 undefined_color_fallback 兜底。
+  - {
+      id: undefined_color,
+      scope: head,
+      payload_group: 1,
+      pattern: "Package (?:x)?color Error: Undefined color '([^']+)'",
+    }
+  - {
+      id: invalid_char,
+      scope: head,
+      pattern: "Text line contains an invalid character",
+    }
+  - {
+      id: expl3_backend,
+      scope: head,
+      pattern: "Backend request inconsistent with engine",
+    }
   # 2026-09-16 扩 syntax 族: Extra }/\\endgroup/\\right/\\middle/\\else/\\fi/\\or
   # 与 Forgotten \\endgroup —— 组/定界/条件多 token 错误归 syntax
   # (astro-ph/0306068 "Extra }, or forgotten $." 原是 other 兜底;
@@ -336,7 +352,11 @@ taxonomy:
       pattern: "Enter file name",
     }
   # tail 行同款收紧 (aastex 横幅会落 tail 30 行内抢签) —— 与 head 行同表。
-  - { id: latex209, scope: tail, pattern: "(?m)\\\\documentstyle\\b|LaTeX 2\\.09 COMPATIBILITY MODE|LaTeX2e command[^\\n]*\\bin LaTeX 2\\.09|LaTeX Version 2\\.09|^[ \\t]*Compatibility mode" }
+  - {
+      id: latex209,
+      scope: tail,
+      pattern: "(?m)\\\\documentstyle\\b|LaTeX 2\\.09 COMPATIBILITY MODE|LaTeX2e command[^\\n]*\\bin LaTeX 2\\.09|LaTeX Version 2\\.09|^[ \\t]*Compatibility mode",
+    }
   # —— cls/sty 「求档文」尾段: 类文件内部 \IfFileExists 失败→\stop 死路
   #   (aastex61 "Please update your system to include revtex4-1.cls" 实证:
   #   \stop 夹在条件内 → \end occurred incomplete, 无 '!' 无 missing_file
@@ -359,7 +379,12 @@ taxonomy:
       pattern: "\\\\end occurred (?:when (\\\\?\\w+)[^\\n]*?incomplete|inside a group)",
       guard: "No pages of output",
     }
-  - { id: early_eof, scope: tail, pattern: "No pages of output", payload_group: null }
+  - {
+      id: early_eof,
+      scope: tail,
+      pattern: "No pages of output",
+      payload_group: null,
+    }
   # —— warnings 段: 无 '!' 且无 tail 命中, 但 warning 红线命中 (v1.1) ——
   - { id: warn_utf8, scope: warnings, warn_id: invalid_utf8 } # docs/08 §5.2 non_utf8_source 的类别入口
   - { id: warn_missing_char, scope: warnings, warn_id: missing_char } # F4: 无 '!' 错但缺字 → 分诊修复入口
@@ -2102,13 +2127,22 @@ rules:
           # natbib 引用宏 —— 类内 natbib 缺席 (shim 顶替后) 或作者漏装包
           citep: { usepackage: natbib }
           citeyear: { usepackage: natbib }
+          # 2501.14787 (repro-2501-2026-09-16): \DeclareUnicodeCharacter 是
+          # inputenc 私有 cs, XeTeX 内核恒未定义 (en/zh 两臂同炸) → lccode
+          # 惯用法 polyfill。normalize.XETEX_COMPATIBILITY 同源 shim
+          # (c582736 已源头落); 本条目兜底绕开 normalize 的编译路径。
+          DeclareUnicodeCharacter:
+            {
+              polyfill: '\providecommand{\DeclareUnicodeCharacter}[2]{\begingroup\lccode`\~="#1\relax\lowercase{\endgroup\catcode`~\active\protected\def~}{#2}}',
+            }
         # 表外 fallback (2026-09-16): glue 残骸前缀拆分 —— payload 未命中
         # cs_table 时, 若 cs = 已知粘连头 + 残余 (大写起首或 ≤4 字符) 则合成
         # cs_map 拆回 "head rest" (replay 实证 rmPT 型新残骸仍零星冒头,
         # 逐条收表追不上)。split_guard 挡与头同前缀的真宏名 (part/parbox/
         # ddot/fraction…); 含 @ 的包内私有 cs 不拆 (版本偏斜非粘连)。
         # in 头不收: int/indent/input/index/infty 前缀面太热, inV 留显式条目。
-        split_heads: [linebreak, item, hline, nabla, Delta, frac, par, dd, bf, it, rm]
+        split_heads:
+          [linebreak, item, hline, nabla, Delta, frac, par, dd, bf, it, rm]
         split_guard:
           [part, para, parbox, parskip, itemize, itemsep, ddot, ddots, fraction]
     risk: medium # 剥包/换宏族改版式; 表只收语料实证条目
@@ -2128,6 +2162,35 @@ rules:
     # 上圈 unfixable:undefined_cs → clean (fixloop-v2-rules 对照)
     stats: { fires: 1, rescued_cells: 1, status: validated }
     source_ref: "handoff-2026-09-15 §2.2 undefined_cs 无包映射项"
+
+  # repro-2501 缺陷B 规则侧兜底: 色名参被段切漏保 (TRANSPARENT_NAMES 遮蔽
+  # argspec → {blue} 翻成中文) → xcolor Undefined color。真修在 segmenter/
+  # tables; 此规则把未知色名注册成黑保住编译链, 逐色名 dedup 各注一行。
+  - id: undefined_color_fallback
+    description: "(x)color Undefined color 'X' → 主文件 docclass 后注 \\definecolor{X}{rgb}{0,0,0} 兜底黑"
+    phase: loop
+    order: 166 # cs_targeted_fix(165) 之后, undefined_cs_guess(900) 之前
+    when: { category: undefined_color, payload_required: true }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "\\\\documentclass(\\[[^\\]\\n]*\\])?\\{[^}\\n]+\\}",
+              repl: '\g<0>\n\\definecolor{payload}{rgb}{0,0,0} % fixloop: undefined-color fallback',
+            }
+    risk: low # 注册色名不改版式; 色名参槽由错误先决条件保证 (x)color 已载
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "2501.14787 (repro-2501-2026-09-16)",
+          error: "Package xcolor Error: Undefined color '这是译文' ×4",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "repro-2501-2026-09-16/README.md 缺陷B; 1e cross-session handoff"
 
   # ─── F4 (2026-09-16): 缺字分诊 —— warnings 段 missing_char 升级类别驱动 ───
   # 两条互斥子路径都在 missing_char_fix 内 (码位×字体 查表):
