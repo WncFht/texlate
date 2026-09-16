@@ -167,6 +167,8 @@ def classify(sig, rep):
         )
     if cat == "missing_character":
         return "rule", "CJK 缺字类规则可扩性 (F4)"
+    if cat == "leftover_ph":
+        return "core", "占位符字面泄漏进文档——splice/translate 层缺陷, 非规则可修"
     if cat == "latex209":
         return (
             "wontfix",
