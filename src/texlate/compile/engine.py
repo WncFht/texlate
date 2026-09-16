@@ -872,6 +872,32 @@ def _apply_sandbox(  # noqa: PLR0913 -- 沙箱决策参数面
     return bw, "bwrap"
 
 
+#: 包裹层信号死上报基数：128+signo（bwrap/shell 惯例）
+_WRAP_SIG_BASE: Final = 128
+#: 上限 = 128+NSIG(64)；超过按字面退出码判
+_WRAP_SIG_MAX: Final = 128 + 64
+
+
+def _rc_to_signal(rc: int | None, sandbox_mode: str) -> int | None:
+    """``run_process`` rc → 信号号（无则 None）。
+
+    Popen 直通约定：信号死 = 负 rc。bwrap/sandbox-exec 包裹层把子进程
+    信号死亡上报为 ``128+N``（xelatex 被 xdvipdfmx 拉死走 SIGPIPE=141
+    实证）——不解码则 ``killed_signal`` 漏记，judge 把死进程产物当
+    活结果判。
+    """
+    if rc is None:
+        return None
+    if rc < 0:
+        return -rc
+    if _WRAP_SIG_BASE < rc <= _WRAP_SIG_MAX and sandbox_mode in {
+        "bwrap",
+        "sandbox-exec",
+    }:
+        return rc - _WRAP_SIG_BASE
+    return None
+
+
 # ================================================================ Engine 协议
 @runtime_checkable
 class Engine(Protocol):
@@ -1201,8 +1227,9 @@ class XelatexEngine:
                 break
             rc, out_s, sec, to = run_process(cmd, cwd=cwd, env=env, timeout=per_pass)
             res.rc = rc
-            if rc is not None and rc < 0:
-                res.killed_signal = -rc
+            sig = _rc_to_signal(rc, res.sandbox_mode)
+            if sig is not None:
+                res.killed_signal = sig
             res.seconds += sec
             res.timed_out = res.timed_out or to
             res.passes = p
@@ -1610,8 +1637,9 @@ class TectonicEngine:
         ]:
             rc, out_s, sec, to = run_process(cmd, cwd=cwd, env=env, timeout=budget)
             res.rc = rc
-            if rc is not None and rc < 0:
-                res.killed_signal = -rc
+            sig = _rc_to_signal(rc, res.sandbox_mode)
+            if sig is not None:
+                res.killed_signal = sig
             res.seconds += sec
             outputs.append(out_s)
             # 末次尝试的 timeout 态才算数——首拉超时后重试成功不能再背

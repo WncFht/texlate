@@ -7,6 +7,7 @@ import contextlib
 import importlib
 import json
 import os
+import signal
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -775,16 +776,16 @@ def test_salvage_driver_fatal_on_sigpipe(tmp_path: Path) -> None:
     )
     info = parse_log("(./main.tex\n)", project_root=tmp_path)
     eng_mod._salvage_driver_fatal(info, res)  # noqa: SLF001
-    assert info.first_error is not None and info.first_error.startswith(
-        "xdvipdfmx:fatal:"
-    )
+    assert info.first_error is not None
+    assert info.first_error.startswith("xdvipdfmx:fatal:")
     assert info.n_errors == 1
     # 未被信号杀 → 不动
     res2 = _res(tmp_path)
     res2.stdout_tail = "xdvipdfmx:fatal: should not surface\n"
     info2 = parse_log("(./main.tex\n)", project_root=tmp_path)
     eng_mod._salvage_driver_fatal(info2, res2)  # noqa: SLF001
-    assert info2.first_error is None and info2.n_errors == 0
+    assert info2.first_error is None
+    assert info2.n_errors == 0
 
 
 def test_parse_log_utf8_bare_name_tectonic(tmp_path: Path) -> None:
@@ -1041,3 +1042,19 @@ def test_tectonic_compile_dropped_z_not_in_flags_applied(
     )
     assert res.flags_applied == ["-synctex=1"]
     assert res.flags_dropped == ["-Z shell-escape"]
+
+
+def test_rc_to_signal_wrapper_128n() -> None:
+    """bwrap 把子死信号上报为 128+N：128+SIGPIPE 在 env/off 下按字面
+    退出码、bwrap/sandbox-exec 下解码回信号号；>192 按字面退出码。"""
+    f = eng_mod._rc_to_signal  # noqa: SLF001
+    assert f(-signal.SIGPIPE, "bwrap") == signal.SIGPIPE
+    assert f(-signal.SIGKILL, "off") == signal.SIGKILL
+    assert f(128 + signal.SIGPIPE, "bwrap") == signal.SIGPIPE
+    assert f(128 + signal.SIGPIPE, "sandbox-exec") == signal.SIGPIPE
+    assert f(128 + signal.SIGPIPE, "env") is None
+    assert f(128 + signal.SIGPIPE, "off") is None
+    assert f(200, "bwrap") is None
+    assert f(128, "bwrap") is None
+    assert f(0, "bwrap") is None
+    assert f(None, "bwrap") is None
