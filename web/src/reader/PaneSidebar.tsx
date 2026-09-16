@@ -7,7 +7,7 @@
 // 隐藏期 PDFThumbnailView 的 div 照常进 DOM，只是不渲染图；再次显示时
 // 组件内 resize observer → forceRendering → 补渲可见缩略图。
 
-import { createSignal, For, Show, untrack } from "solid-js";
+import { createEffect, createSignal, For, onCleanup, Show, untrack } from "solid-js";
 import { AnnotationEditorType } from "pdfjs-dist";
 import type {
     PDFSlick,
@@ -28,6 +28,8 @@ interface Props {
     Thumbs: typeof PDFSlickThumbnails;
     onOpenFind(): void;
     onToggleInfo(): void;
+    /** 「下载带批注副本」文件名（缺省按 store.filename 派生） */
+    annotName?: string;
 }
 
 /** 递归大纲节点：caret 折叠 + 标题点击跳 dest / 开外链 */
@@ -107,6 +109,46 @@ export default function PaneSidebar(props: Props) {
                 annotOn() ? AnnotationEditorType.NONE : AnnotationEditorType.HIGHLIGHT,
             );
 
+    const [hasAnnot, setHasAnnot] = createSignal(false);
+    const [saving, setSaving] = createSignal(false);
+
+    // annotationStorage 不进 store 响应式面——挂 pdf.js 自带的 onAnnotationEditor
+    // 钩子（viewer/pdfslick 均未占用）：有 editor 批注时回传类型串，最后一个被删时回 null
+    createEffect(() => {
+        const s = props.slick();
+        // pdf.js 类型把该钩子字段声明为 null，实为可赋值 callback——收窄成本地形状
+        const storage = props.store.numPages
+            ? (s?.document?.annotationStorage as unknown as {
+                  onAnnotationEditor: ((type: string | null) => void) | null;
+              } | undefined)
+            : undefined;
+        if (!storage) return;
+        const cb = (type: string | null) => setHasAnnot(type !== null);
+        storage.onAnnotationEditor = cb;
+        onCleanup(() => {
+            if (storage.onAnnotationEditor === cb) storage.onAnnotationEditor = null;
+        });
+    });
+
+    const annotFile = () => {
+        if (props.annotName) return props.annotName;
+        const base = (props.store.filename ?? "document").replace(/\.pdf$/i, "");
+        return `${base}-annotated.pdf`;
+    };
+
+    const saveAnnot = async () => {
+        const s = props.slick();
+        const dm = s?.downloadManager;
+        if (!s?.document || !dm || !hasAnnot() || saving()) return;
+        setSaving(true);
+        try {
+            const data = (await s.document.saveDocument()).slice(0);
+            dm.downloadData(data, annotFile(), "application/pdf");
+        } finally {
+            setSaving(false);
+        }
+    };
+
     const TABS: { key: SideTab; icon: string; label: string }[] = [
         { key: "thumbs", icon: "▦", label: t.pane.thumbs },
         { key: "outline", icon: "☰", label: t.pane.outline },
@@ -160,6 +202,16 @@ export default function PaneSidebar(props: Props) {
                     onClick={toggleAnnot}
                 >
                     ✎
+                </button>
+                <button
+                    type="button"
+                    class="rail-btn"
+                    disabled={!hasAnnot() || saving()}
+                    title={hasAnnot() ? t.pane.annotSave : t.pane.annotSaveEmpty}
+                    aria-label={t.pane.annotSave}
+                    onClick={() => void saveAnnot()}
+                >
+                    ⬇
                 </button>
             </nav>
             {/* aside 常驻 DOM（hidden 控显隐），保证 thumbs 容器在构造期已就位 */}

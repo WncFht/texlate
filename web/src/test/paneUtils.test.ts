@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+    annotFileName,
     FIND_STATE,
     findCountText,
     fmtBytes,
@@ -91,5 +92,12 @@ describe("fmtDate", () => {
         expect(fmtDate(null)).toBe("—");
         expect(fmtDate(undefined)).toBe("—");
         expect(fmtDate(new Date("2026-09-16T12:00:00Z"))).not.toBe("—");
+    });
+});
+
+describe("annotFileName（带批注副本文件名）", () => {
+    it("{task}-{en|zh}-annotated.pdf", () => {
+        expect(annotFileName("t_abc", "original")).toBe("t_abc-en-annotated.pdf");
+        expect(annotFileName("t_abc", "translated")).toBe("t_abc-zh-annotated.pdf");
     });
 });

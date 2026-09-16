@@ -120,6 +120,8 @@ export const t = {
         annot: "高亮标注",
         annotTip: "高亮标注——拖选文字即标亮；仅当前会话有效，不写入 PDF",
         annotOffTip: "关闭高亮标注",
+        annotSave: "下载带批注副本",
+        annotSaveEmpty: "尚无批注——先用 ✎ 标亮文本",
         findNone: "无匹配",
         highlightAll: "全部高亮",
         matchCase: "区分大小写",

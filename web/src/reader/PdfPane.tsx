@@ -35,6 +35,8 @@ export interface PaneHandle extends PaneLike {
 interface Props {
     url: string;
     side: DocId;
+    /** 「下载带批注副本」文件名（Reader 按 taskId+side 拼好传入） */
+    annotName?: string;
     active?: boolean;
     onReady?(h: PaneHandle): void;
     onDispose?(h: PaneHandle): void;
@@ -173,6 +175,7 @@ export default function PdfPane(props: Props) {
                 Thumbs={PDFSlickThumbnails}
                 onOpenFind={openFind}
                 onToggleInfo={() => setInfoOpen((v) => !v)}
+                annotName={props.annotName}
             />
             <div class="pane-body">
                 <PDFSlickViewer viewerRef={viewerRef} store={pdfSlickStore} />

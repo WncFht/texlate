@@ -21,6 +21,7 @@ import ProgressGrid from "../components/ProgressGrid";
 import PdfPane, { type PaneHandle } from "../reader/PdfPane";
 import HtmlPane, { type HtmlPaneHandle } from "../reader/HtmlPane";
 import { createPositionMapper, type DocId, type Pos } from "../reader/alignment";
+import { annotFileName } from "../reader/paneUtils";
 import { capturePos, jumpTo, scrollTopFor, SyncEngine } from "../reader/sync";
 import { resolveReaderView } from "../reader/view";
 import { t } from "../i18n/zh";
@@ -627,6 +628,7 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
                             <PdfPane
                                 url={docUrl(side)}
                                 side={side}
+                                annotName={annotFileName(props.taskId, side)}
                                 active={active() === side}
                                 onReady={(h) => paneReady(side, h)}
                                 onDispose={(h) => paneDisposed(side, h)}

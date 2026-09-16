@@ -1,6 +1,8 @@
 // 阅读器窗格侧件的纯函数层 —— 文件大小/查找计数/大纲颜色/页面尺寸文案。
 // 与 pdfjs/pdfslick 解耦，供 vitest 直接断言。
 
+import type { DocId } from "./alignment";
+
 /** pdfjs PDFFindController 的 FindState 枚举（web/pdf_viewer.mjs 不导出，本地镜像） */
 export const FIND_STATE = { found: 0, notFound: 1, wrapped: 2, pending: 3 } as const;
 
@@ -67,4 +69,9 @@ export function pageSizeText(
 /** 日期字段（creationDate 等可为 null）→ 本地串或 "—" */
 export function fmtDate(d: Date | null | undefined): string {
     return d instanceof Date && !Number.isNaN(d.getTime()) ? d.toLocaleString() : "—";
+}
+
+/** 「下载带批注副本」文件名：{task}-{en|zh}-annotated.pdf */
+export function annotFileName(taskId: string, side: DocId): string {
+    return `${taskId}-${side === "original" ? "en" : "zh"}-annotated.pdf`;
 }
