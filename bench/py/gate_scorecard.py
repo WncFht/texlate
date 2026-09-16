@@ -16,6 +16,7 @@ reject/skip 格的 fixloop 记录是 --on all 误编译英文树的产物不计�
 """
 
 import json
+import math
 import sys
 from collections import Counter
 from pathlib import Path
@@ -27,7 +28,9 @@ GATE = 0.90
 COMPILED = {"fail", "partial", "clean"}
 
 
-def last_records(path: Path, arm: str | None = None) -> dict[str, dict]:
+def last_records(
+    path: Path, arm: str | None = None, upstream: str | None = "mock"
+) -> dict[str, dict]:
     last: dict[str, dict] = {}
     if not path.exists():
         return last
@@ -37,6 +40,14 @@ def last_records(path: Path, arm: str | None = None) -> dict[str, dict]:
         except json.JSONDecodeError:
             continue
         if arm is not None and r.get("arm") != arm:
+            continue
+        # 双臂波次防串：对臂记录不进本口径——upstream 字段缺失按 mock
+        # 计（史前排无此字段）；arm_mismatch skip 是对臂 decline 零
+        # verdict 信息，两侧视图全跳。
+        if upstream is not None and (r.get("upstream") or "mock") != upstream:
+            continue
+        errs = r.get("errors") or []
+        if any(e.get("code") == "arm_mismatch" for e in errs):
             continue
         rid = r.get("id")
         if not isinstance(rid, str) or not rid:
@@ -61,13 +72,16 @@ def pick_final(c: dict, f: dict | None) -> tuple[str, dict, str | None]:
         return "compile", c, "no_csb"
     if csb != c.get("status"):
         return "compile", c, "stale"
+    cu, fu = c.get("upstream"), f.get("upstream")
+    if cu and fu and cu != fu:
+        return "compile", c, "upstream_mismatch"
     return "fixloop", f, None
 
 
 def main() -> int:
     rec_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_DIR
-    comp = last_records(rec_dir / "compile.jsonl", arm="zh")
-    fix = last_records(rec_dir / "fixloop.jsonl")
+    comp = last_records(rec_dir / "compile.jsonl", arm="zh", upstream="mock")
+    fix = last_records(rec_dir / "fixloop.jsonl", upstream="mock")
 
     end = Counter()
     end_sig = Counter()
@@ -77,7 +91,7 @@ def main() -> int:
         stage, r, drop = pick_final(c, f)
         if drop is not None:
             dropped_fix[drop] += 1
-        st = r["status"]
+        st = r.get("status") or "?"
         end[f"{stage}:{st}"] += 1
         if st != "clean":
             end_sig[r.get("sig") or "?"] += 1
@@ -89,15 +103,22 @@ def main() -> int:
     n_norej = total - reject
 
     print(f"records: {rec_dir}")
+    if total == 0:
+        print("cells=0  (no records)")
+        return 0
     print(
         f"cells={total}  pdf={pdf} ({pdf / total:.2%})  clean={clean} ({clean / total:.2%})"
     )
-    print(
-        f"gate union-pdf >=90%: {'PASS' if pdf / total >= GATE else f'need +{int(total * GATE) - pdf + 1}'}"
-    )
-    print(
-        f"  excl-reject(n={n_norej}): pdf {pdf / n_norej:.2%}  clean {clean / n_norej:.2%}"
-    )
+    if pdf / total >= GATE:
+        gate_line = "PASS"
+    else:
+        need = max(0, math.ceil(total * GATE - pdf - 1e-9))
+        gate_line = f"need +{need}"
+    print(f"gate union-pdf >=90%: {gate_line}")
+    if n_norej:
+        print(
+            f"  excl-reject(n={n_norej}): pdf {pdf / n_norej:.2%}  clean {clean / n_norej:.2%}"
+        )
     print("\nend-state:")
     for s, c in end.most_common():
         print(f"  {c:5d}  {s}")
