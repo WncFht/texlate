@@ -40,6 +40,7 @@ from texlate.compile.inject import (
 )
 from texlate.compile.judge import Verdict, judge
 from texlate.compile.normalize import normalize_project
+from texlate.compile.probe import target_probe
 from texlate.latex.api import parse_file
 from texlate.latex.placeholder import CHUNK_RX, PH_RX
 from texlate.latex.prose import file_has_prose
@@ -213,16 +214,17 @@ def _scan_tree(
             continue  # 隐文件不进翻译集 (同 worker._parse_all/stagerun)
         if f.name.lower().endswith(".rtx.tex"):
             continue  # REVTeX 运行时转储不进翻译集 (regress4-1003.1717)
+        rel = f.relative_to(root).as_posix()
         if f.name.lower().endswith(".code.tex"):
-            support_files.append(f.name)
+            support_files.append(rel)
             continue
         try:
             res = parse_file(f, flatten=False)
         except Exception:  # noqa: BLE001 -- 单文件解析崩不拖垮整树：
-            fault_files.append(f.name)  # 记名可审计，该文件按原文保留
+            fault_files.append(rel)  # 记名可审计，该文件按原文保留
             continue
         if not file_has_prose(res.chunks):
-            support_files.append(f.name)
+            support_files.append(rel)
             continue
         idx = len(scans)
         scans.append((f, res))
@@ -326,12 +328,13 @@ def mock_translate_tree(
 
 @dataclass(frozen=True)
 class _Job:
-    """单工程编译上下文——work/main/引擎/超时四件套在修复链里全程同捆。"""
+    """单工程编译上下文——work/main/引擎/超时 + 声明侧旗标全程同捆。"""
 
     work: Path
     main_rel: str
     eng_name: str
     timeout: float
+    probe_flags: tuple[str, ...] = ()
 
 
 def _tail_dict(res: CompRes, v: Verdict) -> dict:
@@ -353,12 +356,34 @@ def _tail_dict(res: CompRes, v: Verdict) -> dict:
             "notes": v.notes,
             "n_errors": v.n_errors,
             "category": v.category,
+            "payload": v.payload,
             "cjk_chars": v.cjk_chars,
             "missing_chars": v.missing_chars,
             "warnings_hit": v.warnings_hit,
         },
         "status": v.status,
     }
+
+
+def _probe_flags_of(work: Path, main_rel: str) -> tuple[str, ...]:
+    """``target_probe`` best-effort 壳：声明侧编译旗标（minted→-shell-escape 等）。
+
+    worker._probe_target 同款旁路语义——探针崩只空旗标返回，不阻塞编译。
+    """
+    try:
+        return tuple(target_probe(work, main_rel).flags)
+    except Exception:  # noqa: BLE001 -- 探针是旁路诊断
+        return ()
+
+
+def _log_text_of(res: CompRes) -> str:
+    """CompRes → log 全文（.log 优先、stdout_tail 兜底——tectonic 常无 .log，与 worker 同款）。"""
+    if res.log_path and res.log_path.exists():
+        try:
+            return res.log_path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            pass
+    return res.stdout_tail or ""
 
 
 def _compile_judge(
@@ -374,9 +399,13 @@ def _compile_judge(
         {"halt_on_error": False} if job.eng_name == "xelatex" else {}
     )
     res = engine_for(job.eng_name, **kw).compile(
-        job.work, job.main_rel, timeout=job.timeout, sandbox=True, flags=flags
+        job.work,
+        job.main_rel,
+        timeout=job.timeout,
+        sandbox=True,
+        flags=list(dict.fromkeys([*job.probe_flags, *(flags or [])])) or None,
     )
-    v = judge(res, expect_cjk=expect_cjk)
+    v = judge(res, expect_cjk=expect_cjk, log_text=_log_text_of(res))
     return _tail_dict(res, v), res
 
 
@@ -393,11 +422,17 @@ def _embed_tounicode(pdf: Path) -> int:
 
 
 def _l2_parse(res: CompRes) -> l2_mod.L2Verdict:
-    """CompRes → L2Verdict：log_path 优先，缺席退 stdout_tail。"""
-    if res.log_path is not None and res.log_path.exists():
-        return l2_mod.parse_log(res.log_path, project_root=res.workdir)
-    if res.stdout_tail:
-        return l2_mod.parse_log_text(res.stdout_tail, project_root=res.workdir)
+    """CompRes → L2Verdict：log 文本优先，缺席/空文件/读失败退 stdout_tail。
+
+    被杀编译留 0 字节 ``.log``——``exists()`` 判据下 0 错返回 L2 臂
+    静默空转（engine.parse_log 同款修复，worker 共享本函数同愈）。
+    """
+    text = ""
+    if res.log_path is not None:
+        with suppress(OSError):
+            text = res.log_path.read_text(encoding="utf-8", errors="replace")
+    if text or res.stdout_tail:
+        return l2_mod.parse_log_text(text or res.stdout_tail, project_root=res.workdir)
     return l2_mod.L2Verdict(log_missing=True)
 
 
@@ -831,7 +866,10 @@ def _run_fixloop(  # noqa: PLR0913 -- 开关面穿透同 pipe_condition
         tail = _tail_dict(last_res, Verdict(status="partial", reasons=[cell_verdict]))
         tail["reject_at"] = "fixloop"
     else:
-        tail = _tail_dict(last_res, judge(last_res, expect_cjk=expect_cjk))
+        tail = _tail_dict(
+            last_res,
+            judge(last_res, expect_cjk=expect_cjk, log_text=_log_text_of(last_res)),
+        )
 
     flags: list[str] = rep["engine_flags"]
     dropped: list[str] = rep["engine_flags_dropped"]
@@ -845,7 +883,13 @@ def _run_fixloop(  # noqa: PLR0913 -- 开关面穿透同 pipe_condition
             and _VERDICT_RANK.get(tail["status"], 0) < _VERDICT_RANK["clean"]
         ):
             xtail, xres = _compile_judge(
-                _Job(job.work, job.main_rel, "xelatex", job.timeout),
+                _Job(
+                    job.work,
+                    job.main_rel,
+                    "xelatex",
+                    job.timeout,
+                    probe_flags=job.probe_flags,
+                ),
                 expect_cjk=expect_cjk,
                 flags=flags,
             )
@@ -870,6 +914,57 @@ def _run_fixloop(  # noqa: PLR0913 -- 开关面穿透同 pipe_condition
 # ---------------------------------------------------------------- 条件臂
 
 
+def _repair_chain(  # noqa: PLR0913 -- 修复链开关面穿透
+    rec: dict,
+    job: _Job,
+    run: _TreeRun,
+    res: CompRes,
+    *,
+    expect_cjk: bool,
+    l2_on: bool | None,
+    fixloop_on: bool | None,
+    l2_max_chunks: int,
+    route_engines: list[str] | None,
+) -> CompRes:
+    """非 clean 后的两级修复链：L2 回灌 → fixloop；reports 直写 ``rec``。
+
+    L2 崩不丢整条 rec（worker._l2_attempt 同款包）；fixloop 只在仍非
+    clean 时跑。返回最新 ``CompRes`` 供 ToUnicode 注入判产物。
+    """
+    l2 = (not _env_flag(_ENV_NO_L2, default=False)) if l2_on is None else l2_on
+    if l2:
+        try:
+            l2_rep, res, tail2 = _l2_repair(job, run, res, l2_max_chunks)
+        except Exception as e:  # noqa: BLE001 -- L2 崩不丢整条 rec（含首编 verdict）
+            rec["l2"] = {"enabled": True, "error": f"{type(e).__name__}: {e}"}
+        else:
+            rec["l2"] = l2_rep
+            if tail2 is not None:
+                rec.update(tail2)
+    else:
+        rec["l2"] = {"enabled": False, "reason": _ENV_NO_L2}
+
+    fl = (
+        (not _env_flag(_ENV_NO_FIXLOOP, default=False))
+        if fixloop_on is None
+        else fixloop_on
+    )
+    if rec["status"] != "clean" and fl:
+        fl_rep, tail3, res = _run_fixloop(
+            job,
+            route_engines or [job.eng_name],
+            res,
+            timeout=job.timeout,
+            expect_cjk=expect_cjk,
+        )
+        rec["fixloop"] = fl_rep
+        if tail3 is not None:
+            rec.update(tail3)
+    elif rec["status"] != "clean":
+        rec["fixloop"] = {"enabled": False, "reason": _ENV_NO_FIXLOOP}
+    return res
+
+
 def pipe_condition(  # noqa: PLR0913 -- 修复链开关面（env 缺省，显式可覆盖）
     work: Path,
     eng_name: str,
@@ -892,7 +987,6 @@ def pipe_condition(  # noqa: PLR0913 -- 修复链开关面（env 缺省，显式
     """
     rec: dict[str, object] = {"engine": eng_name}
     rec["normalize"] = normalize_project(work, eng_name, main_rel)
-    job = _Job(work, main_rel, eng_name, timeout)
     ej = _env_flag(_ENV_ENV_JUDGE, default=False) if env_judge is None else env_judge
     stats, run = _translate_tree(work, translator=translator, env_judge=ej)
     rec["translate"] = stats
@@ -904,6 +998,13 @@ def pipe_condition(  # noqa: PLR0913 -- 修复链开关面（env 缺省，显式
         rec["reject_at"] = "inject"  # inject_reject 类: 与 route reject 分流
         rec["verdict"] = {"status": "partial", "reasons": [e.reason]}
         return rec
+    job = _Job(
+        work,
+        main_rel,
+        eng_name,
+        timeout,
+        probe_flags=_probe_flags_of(work, main_rel),
+    )
     # 0-chunk 主文档 (includepdf 壳等) 无译文产出 → 不期待 CJK 渲染,
     # cjk_chars=0 是其正确终态而非静默失败 (scout-cjk0 F 桶 11 格假阳)
     expect_cjk = stats.get("chunks") != 0
@@ -911,29 +1012,17 @@ def pipe_condition(  # noqa: PLR0913 -- 修复链开关面（env 缺省，显式
     rec.update(tail)
 
     if rec["status"] != "clean":
-        l2 = (not _env_flag(_ENV_NO_L2, default=False)) if l2_on is None else l2_on
-        if l2:
-            l2_rep, res, tail2 = _l2_repair(job, run, res, l2_max_chunks)
-            rec["l2"] = l2_rep
-            if tail2 is not None:
-                rec.update(tail2)
-        else:
-            rec["l2"] = {"enabled": False, "reason": _ENV_NO_L2}
-
-        fl = (
-            (not _env_flag(_ENV_NO_FIXLOOP, default=False))
-            if fixloop_on is None
-            else fixloop_on
+        res = _repair_chain(
+            rec,
+            job,
+            run,
+            res,
+            expect_cjk=expect_cjk,
+            l2_on=l2_on,
+            fixloop_on=fixloop_on,
+            l2_max_chunks=l2_max_chunks,
+            route_engines=route_engines,
         )
-        if rec["status"] != "clean" and fl:
-            fl_rep, tail3, res = _run_fixloop(
-                job, route_engines or [eng_name], res, expect_cjk=expect_cjk
-            )
-            rec["fixloop"] = fl_rep
-            if tail3 is not None:
-                rec.update(tail3)
-        elif rec["status"] != "clean":
-            rec["fixloop"] = {"enabled": False, "reason": _ENV_NO_FIXLOOP}
     # ToUnicode 注入在修复链收敛之后——L2 重编/fixloop 换编都会重写同一
     # <stem>.pdf，只对最终落盘产物注一次（worker _embed_tounicode 同位）
     if res.has_pdf and res.pdf is not None:
@@ -944,7 +1033,13 @@ def pipe_condition(  # noqa: PLR0913 -- 修复链开关面（env 缺省，显式
 def base_condition(work: Path, eng_name: str, main_rel: str, timeout: float) -> dict:
     """跑 base 条件：不动源码直接编译+判定（管线引入 vs 原生失败的归因对照）。"""
     rec: dict[str, object] = {"engine": eng_name}
-    job = _Job(work, main_rel, eng_name, timeout)
+    job = _Job(
+        work,
+        main_rel,
+        eng_name,
+        timeout,
+        probe_flags=_probe_flags_of(work, main_rel),
+    )
     tail, _res = _compile_judge(job, expect_cjk=False)
     rec.update(tail)
     return rec
