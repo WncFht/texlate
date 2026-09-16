@@ -60,7 +60,10 @@
 - 终态 1310 格：**acceptable 669 / best_effort 363 / clean 157 → 出 pdf 90.8%**（loop1 84.0%）；unfixable 112；**missing_file 113→32；nenp 15→1**（残 1803.00012 SIGSEGV）；partial→fail 仅 2。
 - **rundiff vs `5acb956` 基线：improved 73 / degraded 0 / same 1237**——fail→clean 16 + fail→partial 57，全部缺文件簇救回（2410.00012 随双修 fail→partial）；**零退化**——partial→fail 从 loop1 记录面 17 格清零。floor_restored 全格 False（底板未触发，与零退化一致）。
 - 残格归因落地：pdftex_prim×6=axessibility → `axessibility_xetex_shadow` order157（`7037301`）；axodraw2×5=tlmgr usermode non-relocatable rc=0 假成功 → CTAN overlay=tree 兜底（`9f08bf3`）；pst-all×8=meta-wrapper RequirePackage 连发 11 成员超轮 → **install_file 请求方扇出**（file:line 锚解要求方→依赖全表一轮补装，`8e6d442`）。
-- **判读纪律**：烤疤格（pre-`88d0ab9` 套娃残留烤进 splice，`--rerun` 不洗源——1306.0036 型）+ pre-`6752bb0` 假 missing_file 层不计入规则退化；此类格需 pristine-tree 重跑见真值。定点重跑清单：axessibility×6 + axodraw2×5 + pst×8（扇出落地后可跑）+ 1306.0036（先恢复原始 splice）+ early_eof×13 归因复核。
+- **判读纪律**：烤疤格（pre-`88d0ab9` 套娃残留烤进 splice，`--rerun` 不洗源——1306.0036 型）+ pre-`6752bb0` 假 missing_file 层不计入规则退化；此类格需 pristine-tree 重跑见真值。
+- **定点重跑 34 格已收官**（补记7 `e769ebb`，全格先洗 pristine splice）：axessibility 6/6、axodraw2 5/5、pst-all 7/8（扇出一轮补全实证）、1306.0036 best_effort（烤疤实锤）、1003.1717 acceptable、partial→fail 清零、early_eof 13 格全脱 unfixable（子机理两分归下轮签名归因）。终盘 unfixable 面：missing_file ~27 + early_eof 最大残簇。
+- **残盘三 scout 归因收官**（详见 wave2-findings 末节）：cjk_chars=0 实为 28 格五桶——splice 层零 bug（A/C 桶已被 `f7822a8` 愈，F 桶 11 格是 verdict 假阳待 tune，E 桶 1 格 main_rel 决策项）；pst 残链根因=pstricks-add.tex 行内 `\input` 裸名链盲区 → **已修 `ca0e748`**（`_dep_stems` 行内扫描 + advisory 全败才落）；尾 127 fail 分布=~24-29 已被晚波覆盖 + **~45-50 机械规则胜场转 peer1**（shim 波二 ~20 名/babel_opt×10/lgrenc×3/hyperref-driver×2/expl3-backend×4/杂簇×5）+ ~10-15 peer 面 + ~5-8 terminal + ~30 长尾。
+- **1e real-postfix A/B 终报 `0d1526d`**（100/100）：pipe-xel clean 61.7%；bug-B `\item<Cap>` 融合定位翻转到 **LLM echo 侧**（segmenter 修不到，拟 splice 侧 `\\item(?=[A-Z])` 守卫）；bug-G warmup 终证（fixloop 臂 16/18）；新露头 expl3_backend 失败模态（hep-ph/9910403）。
 
 ### 4.2.5 clean 率杠杆（scout-partial/misschar/latex209 实证，已分派）
 
@@ -86,6 +89,6 @@
 
 | 方 | 当前在飞 | 下一步 |
 | --- | --- | --- |
-| 1d leader | fixer-slots（8 项槽位保护 + bug-B cs+latin 通用边界规格已定）在飞；fixer-cjkfont 五项全落已收 `f7822a8`（inject 包同 commit：209up 挂点+A 桶双修+tfm 正则+spec 门+font_fallback builtin）；install_file 请求方扇出 `8e6d442`（pst-all 型 meta-wrapper 一轮补齐） | 3 scout 报告落地后台账；slots 交付收敛；real-postfix 9 退化格归因（scout-realreg 在飞） |
-| 项目体验方式 | **delta `b4akkgal5` 收官**（1310 格 90.8% 出 pdf、missing_file 113→32、nenp 15→1、rundiff 73 改善 0 退化）；axessibility shadow `7037301` + CTAN overlay 兜底 `9f08bf3` 已落 | rules.yaml：font_fallback 条目（order26，我侧已转草案）；定点重跑组织=axessibility6+axodraw2 5+pst8（扇出已就绪）+1306.0036 pristine+early_eof13 复核 |
-| 1e | worker-hardening 12 项（#52）、llm_hook BYOK 接线；realarm-repro 12 格归因 + repro-1306 判决 + bug-G 复核通告已交付 | #74/#78 残件、share 完成钩、postfix 收尾落库（records 写入中） |
+| 1d leader | fixer-slots（槽位保护 + bug-B，规格已按 1e 终报翻转：融合在 LLM echo 侧 → splice 守卫层）在飞；fixer-emit（#167 @-opaque 二路径 + #168 短参空行）在飞；fixer-cjkfont 全落 `f7822a8`；扇出 `\input` 链补盲 `ca0e748` | F 桶 verdict-tune（0-chunk main 不吃 cjk_chars=0 partial）；E 桶 main_rel 决策；slots/emit 交付收敛 + expl3_backend 钉签名 |
+| 项目体验方式 | **delta `b4akkgal5` 收官**（90.8% 出 pdf、rundiff 73/0）；font_fallback order26 `bd88dc9`、axessibility/axodraw2 对策、定点重跑 34 格全收官 | rules.yaml 机械胜场清单（scout-unfix 枚举 ~45-50 格：shim 波二 ~20/babel_opt/lgrenc pattern/hyperref-driver/expl3 backend/杂簇）+ emulateapj-rtx4/JINST shim 键 + early_eof 子机理签名 + precheck `\input` 扫描切注释 |
+| 1e | worker-hardening #52、llm_hook BYOK；**real-postfix A/B 终报 `0d1526d` 已落**（bug-B echo 侧定位、bug-G 终证、expl3_backend 露头） | #74/#78 残件、share 完成钩后续、modec-postfix 入库 |

@@ -145,3 +145,43 @@ pst-node×11 / jheppub×9 / citesort×7 / diagrams×7 / axodraw×5 / pst-arrow×
 | 1109.5963 | **新机理B**：caption 短参被塞进空行 → `\par` 撞 `\NR@gettitle` runaway + Extra } 级联 | l.362/364 五错级联 |
 
 聚合：**bug-B 家族 6/9 是真臂头号杀手**（mock 四字译文 CJK 首字天然免疫，真臂 latin-token 保留才暴露）——修复面=cs+latin 边界的空格/换行/`%`-EOL 三屏障（已转 fixer-slots）。bug-G 残余 0/9 → warmup 真臂成立。新机理 A（含 @-token 宏不应展开/应回写调用形式）与 B（caption 短参空行）记 1d 队列。pipe-fix 仅 2/9 格有记录——`onfail` 覆盖语义已向 1e 求证。
+
+## delta 残盘归因三件套（scout-cjk0 / scout-pst / scout-unfix）+ 1e postfix A/B 终报
+
+### scout-cjk0：`cjk_chars=0` 实为 28 格（旧账 14），splice/ph_map 丢失 = **0 bug**
+
+| 桶 | 格数 | 归因 | 处置 |
+| --- | --- | --- | --- |
+| A | 8 | inject 落死 `\if` 分支 | **已愈** `f7822a8` find_docclass_ends 逐缝注入 |
+| C | 7 | `CJK_PRESENT_RE` 假阳跳注入 | **已愈** `f7822a8` 包/类语境收紧 |
+| D | 1 | 1206.0294 dimen→中文（slots 腐蚀） | fixer-slots 机理覆盖 |
+| E | 1 | 1803.02985 standalone main 与论文正文章节 disjoint | **决策项**：main_rel 选取 vs 翻译集边界——无属主，记档 |
+| F | 11 | includepdf 壳文档本就零可译 chunk | **verdict 假阳**：0-chunk main 不该吃 `cjk_chars=0` partial → verdict-tune 项（判分侧，1d） |
+
+附带实证：fixloop warmup 首编同样锚进死分支（pre-fix），`f7822a8` 后共用 find_docclass_ends 一并覆盖。**结论：splice 层无 cjk=0 缺陷，全为上游/判分侧伪影。**
+
+### scout-pst：六家族逐格归因（pst 残链根因 = `\input` 裸名扫描盲区）
+
+| 家族 | 根因 | 处置 |
+| --- | --- | --- |
+| pst-node/pst-arrow | pstricks-add.tex l.27-32 `\ifx\else \input stem \fi` **行内**裸名链——`_DEP_DECL_RE` 只认行首 RequirePackage/LoadClass/usepackage → 一轮暴露一个烧光 8 轮 | **已修 `ca0e748`**：`_dep_stems` 加行内 `\input` 扫描（注释切尾 + `\endinput` 不误伤）+ advisory 全败才落（裸名 miss→`.tex` fallback 常态路径不再污染归因） |
+| axodraw×5 | shim→axodraw2 non-relocatable usermode rc=0 假成功 | 已修 `6752bb0`/`9f08bf3`，定点 rerun 5/5 |
+| emulateapj | 6/7 noop stub 救回；残 = `emulateapj-rtx4.cls` 无 shim 键（1404.2351） | → peer1 shim_map 补键 |
+| citesort | 7/7 救回 | — |
+| revtex4-1.cls | **误标签非 missing_file**——filemap 可解恒装上；残 = capacity×2 + syntax（.rtx 污染，已修） | 签名归仍需按真错记 |
+
+附带发现已落：precheck `scan_patterns` 扫 `\input` 裸名**不切注释**（`% \input x` 照装 x——本波测试实锤 `pst-notreal.tex` 被 precheck 装出）→ 小项转 peer1。
+
+### scout-unfix：delta 尾 127 fail 行（123 唯一格）残盘分布——零回归
+
+- **~24-29 格**已被 19:00 后落地波覆盖（cjkfont/precheck/fanout 等）。
+- **~45-50 格机械新规则胜场**（逐名枚举已转 peer1）：shim 波二 ~20 个 tlpdb 外出版商文件（svmult/cimento/eptcs/PoS/nature2/…）、babel_opt×10（剥 legacy babel 选项新规则）、lgrenc pattern×3（head pattern 缺 `Cannot find the file X` 措辞 → +1 pattern 归 missing_file）、hyperref-driver×2、expl3 backend×4、option_clash/already_def/pkg_order/JINST×5。
+- ~10-15 peer 侧（signature/taxonomy 面）；~5-8 terminal（SIGSEGV/capacity/pstricks-xetex 硬墙）；~30 长尾。
+- 判读纪律：污染 wdir 格须 pristine 重跑非 rerun；tail-preempt 增益尚未计入此表。
+
+### 1e real-postfix A/B 终报（`0d1526d`，100/100 零异常）——bug-B 定位翻转
+
+- 预测核销：1511.02908 ✓（`90aa823`）；0707.3950 ✗ 仍炸（gullet-opaque **第二路径**，fixer-emit #167 在飞）；hep-ph/9910403 半——`f5da4bf`+`90aa823` 灭 runaway/rmand 但露出 **expl3_backend 新失败模态**（fixloop unfixable，与 scout-unfix expl3×4 疑似同簇 → peer1）；math/0307301 意外转 clean（`\itemFlop` 被 re-roll 自发消）。
+- **bug-B 重解读（fixer-slots 关键）**：`\item<Cap>` 融合 flat 10→9——segmenter 修不动它，因融合发生在 **LLM echo 侧**（模型回显把 `\item` 粘后随大写 token）；re-roll 29% 双向 churn（2211.04495 `\itemOC` 新生）。segmenter/writer 修只治「源有分隔被吞」半边；LLM 产出融合需**交付侧/splice 侧守卫**——候选 `\\item(?=[A-Z])` 强插空格（无合法 `\item<Cap>` 先例，bfuse 普查真融合仅痕量；splice-time repair 优于 L0 fault——意图无歧义不必重试）。
+- **bug-G 终证**：cond-mat/0307508 pipe-xel 仍 4379 miss 但 pipe-fix 经 warmup 救回 clean——warmup 仅 fixloop 臂生效（首编不戴）；1706 外 18 臂救回 16/18。
+- latex209 两格 reject→partial（shim/209up 后不再硬拒）；`419cf13` 后 postfix 臂 18 跑 vs 基线 40 跑不可直比（indicative）。
