@@ -2975,6 +2975,92 @@ rules:
     stats: { fires: 0 }
     source_ref: "scout-fail59 fixable-data §4 驱动剥除 (1d 批准); taxonomy hyperref_driver 签名同期扩三形态"
 
+  # 上古 REVTeX 4 系 (v4.0rc ~/texmf 阴影件 / revtex4b* TL 缺席) vs 现代内核:
+  # \@uclcnotmath 路径上 \NoCaseChange{##} 塌缩成裸 # → \protected@edef
+  # \reserved@a 撞 Illegal parameter number (traced, zh/en 同炸 —— 类文件
+  # 本体过时非译文问题); revtex4b4 直接 missing_file。revtex4-2 是现行
+  # TL 兼容实现, docclass 改写 6 格实测全出 pdf (slac_one/slac_two .rtx
+  # 期刊子式在 4-2 下仅 unknown-option warning)。
+  - id: revtex4_legacy_class_rewrite
+    description: "\\documentclass{revtex4{,b*}} (v4.0rc 上古系) → revtex4-2"
+    phase: loop
+    order: 182 # hyperref_driver_neutralize(181) 之后, undefined_cs_guess(900) 之前
+    when:
+      any:
+        - { category: syntax }
+        - { category: missing_file }
+        - { category: capacity }
+    condition:
+      # 花括号精确形 {revtex4}/{revtex4b4}: revtex4-1/revtex4-2 不误中;
+      # 括号组 [^\]] 允许 docclass 选项跨行 (babel 组先例)。
+      source_contains: "\\\\documentclass(?:\\s*\\[[^\\]]*\\])?\\s*\\{revtex4(?:b\\d*)?\\}"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex] # suffix 匹配 lowercase, .TEX 同收 (physics/0104031)
+        rewrites:
+          # 只改 docclass 花括号: \ProvidesClass{revtex4} (bundled cls 内)
+          # 与正文散见 {revtex4} 字串不动。
+          - {
+              pattern: "(\\\\documentclass\\s*(?:\\[[^\\]]*\\]\\s*)?\\{)revtex4(?:b\\d*)?\\}",
+              repl: "\\g<1>revtex4-2}",
+            }
+    risk: low # revtex4-2 向后兼容 4.0 文档面; 上古 cls 在现代内核已无救
+    known_gap: "revtex4 专属旧 cs (\\preprint/旧 \\iftwocolumn 面) 若用则前进 undefined_cs → cs_targeted_fix; endfloats 等旧选项 4-2 有同名面"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # 内核不兼容与引擎无关
+    provenance:
+      - {
+          corpus: "loop1 unfixable cluster (1109.2144/1109.2205/1109.5313/1012.1830/hep-ph--0605134 均 slac_one|slac_two+revtex4; physics/0104031 revtex4b4)",
+          error: "Illegal parameter number in definition of \\reserved@a / File `revtex4b4.cls' not found / TeX capacity exceeded",
+        }
+    stats: { fires: 0 }
+    source_ref: "manual bisect 1109.2205: revtex4+ctex+title+maketitle+section 充要, 纯 en 同炸 → 类文件/内核不兼容; revtex4-2 替换 6/6 出 pdf"
+
+  - id: docclass_post_option_normalize
+    description: "\\documentclass{X}[opts] 后置选项畸形 → 孤儿 [opts] 行归位 \\documentclass[opts]{X}"
+    phase: loop
+    order: 183 # revtex4_legacy_class_rewrite(182) 之后, undefined_cs_guess(900) 之前
+    when:
+      any:
+        - { category: syntax }
+        - { category: undefined_cs }
+    condition:
+      # 孤儿选项行: segmenter 把 src 同行 `\documentclass{X}[opts]` 的
+      # [opts] 段拆成独立块, splice 落 preamble 孤行 → Missing \begin{document}。
+      source_contains: "(?m)^[ \\t]*\\[[0-9a-zA-Z,=.\\- ]+\\][ \\t]*$"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          # 既有选项 → 尾部合并: \documentclass[a]{X}…^[o]$ → \documentclass[a,o]{X}
+          # 中间段以 \begin{document} 回火——正文内孤立 [x] 行不越界吞。
+          - {
+              pattern: "(\\\\documentclass[ \\t]*\\[[^\\]\\n]*)\\]([ \\t]*\\{[^}\\n]*\\})((?:(?!\\\\begin\\{document\\})[\\s\\S])*?)^[ \\t]*\\[([0-9a-zA-Z,=.\\- ]+)\\][ \\t]*$",
+              repl: "\\g<1>,\\g<4>]\\g<2>\\g<3>",
+              flags: [MULTILINE],
+            }
+          # 无既有选项 → 新建选项组: \documentclass{X}…^[o]$ → \documentclass[o]{X}
+          - {
+              pattern: "(\\\\documentclass[ \\t]*)(\\{[^}\\n]*\\})((?:(?!\\\\begin\\{document\\})[\\s\\S])*?)^[ \\t]*\\[([0-9a-zA-Z,=.\\- ]+)\\][ \\t]*$",
+              repl: "\\g<1>[\\g<4>]\\g<2>\\g<3>",
+              flags: [MULTILINE],
+            }
+    risk: low # 选项归位是源作者本意; 仅 preamble 内孤行, 正文 [x] 行不达
+    known_gap: "多孤儿行只归位最近一条 (per-docclass 单匹配); 选项序改变 (o 尾插) 与源序不同但语义同"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "loop1 unfixable:syntax (1206.2111 schulze.tex src l.1 `\\documentclass{article}[12pt]`)",
+          error: "LaTeX Error: Missing \\begin{document} @ splice l.36 (孤儿 [12pt] 行)",
+        }
+    stats: { fires: 0 }
+    source_ref: "1206.2111 zh l.41 孤儿 [12pt] 在 inject 块后 preamble 内; src 原形 \\documentclass{article}[12pt] 同行后置"
+
   # ─── 兜底: 恒最后 ───
   - id: undefined_cs_guess
     description: "未定义控制序列 → cs→pkg 知识库长射 + LLM 兜底分析 (占位)"
