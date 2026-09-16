@@ -338,3 +338,19 @@ fixloop(proj, eng, ruleset):
 要点：~80% 新失败落"已知类别变体"→纯 yaml PR；规则带 `stats.fires/rescued_cells` + `status: stub|proposed|active|retired`；`provenance` 必填（`corpus_id + error` 原文可回溯失败现场——hjfy 人肉库的开源等价物）；可选 **shadow 模式**（proposed 排 active 后试运行只记录"若应用会怎样"防抢位回归）。当前沉淀队列头号 case：`soul_cjk_mbox`（soul_err 不在现有 CJK-参数 pattern 内）；`undefined_cs_guess` 需 cs→pkg 知识库（fdsymbol/stix/unicode-math 符号包映射）。
 
 实测覆盖：install 系 4 招 = 75/86 次触发（87%）；spike 22 格 16 原始失败 → 16 救回、15 clean。
+
+## 6. 状态词表（各层 status/verdict 枚举对照）
+
+四套枚举并存于不同层，字段名相近但语义域不同——读 records/cases 时按下表对号（audit-2026-09-16 wave2 deferred-4 收口）。
+
+| 域 | 字段位置 | 取值 | 产出处 |
+| --- | --- | --- | --- |
+| 编译判决 verdict | `metrics.verdict.status` / `post.verdict.status` | `clean`（无错有 pdf）/ `partial`（有 pdf 有错或缺字）/ `fail`（无 pdf） | `compile/judge.py` |
+| 记录态 status | stagerun records `status` | verdict 三值 + `reject`（inject 层拒绝，如 latex209）+ `skip`（上游门控豁免） | `bench/py/stagerun.py` |
+| 块态 | chunk/segment `status` | `ok` / `fault`（翻译或校验错）/ `skipped`（门控跳过） | `xlat/pipeline.py` |
+| 注入态 | inject `status` | `injected` / `already`（已有 CJK 支持）/ `no-docline`（无 documentclass 锚） | `compile/inject.py` |
+| fixloop 判决 | cases `verdict` / `fixloop_verdict` | `clean` / `acceptable_pdf`（有 pdf 即收，misschar 档）/ `best_effort_pdf`（有 pdf 残留错）/ `dirty_pdf` / `unfixable:{cat}` / `stuck`（轮内无进展）/ `no_errors_no_pdf`（干净日志零页面） | `fixloop/engine.py`、`fixloop/cases.py` |
+| 规则态 | rules.yaml `status` | `stub` / `proposed` / `active` / `retired` | `fixloop/rules.yaml` |
+| 任务态 | job `status`（11 态机） | active：`queued`/`fetching`/`parsing`/`translating`/`compiling`；terminal：`done`/`partial`/`fault`/`cancelled`/`interrupted`/`needs_auth` | `server/store.py:124` |
+
+跨段退化口径：终态 `fixloop.status` 不得低于上游 `compile.status`（clean>partial>fail>reject）；loop1 实证 17 格中 13 格为基建杀伤假象（修复后引擎直编出 pdf），真退化判定须直编复验。
