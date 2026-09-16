@@ -257,6 +257,7 @@ def collect_state_pairs(args: argparse.Namespace) -> tuple[list[Pair], dict]:
             )
             for r in picked
         )
+        state_abs = path.resolve()
         meta_papers.append(
             {
                 "id": paper,
@@ -264,7 +265,11 @@ def collect_state_pairs(args: argparse.Namespace) -> tuple[list[Pair], dict]:
                 "arm": arm,
                 "n_pairs": len(picked),
                 "n_unjudged": n_dead,
-                "state": str(path.relative_to(ROOT)),
+                "state": (
+                    str(state_abs.relative_to(ROOT))
+                    if state_abs.is_relative_to(ROOT)
+                    else str(state_abs)
+                ),
             }
         )
     # 跨篇轮转序：--n 小样本天然分散到不同论文
