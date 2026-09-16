@@ -40,7 +40,12 @@ from typing import TYPE_CHECKING, Any, TypeVar
 from texlate import __version__
 from texlate.align import build_alignment
 from texlate.arxiv.cache import CacheEntry, SourceCache
-from texlate.arxiv.fetch import AcquireStatus, Fetcher, acquire_source
+from texlate.arxiv.fetch import (
+    AcquireStatus,
+    Fetcher,
+    acquire_source,
+    normalize_arxiv_id,
+)
 from texlate.arxiv.meta import fetch_metadata
 from texlate.arxiv.ratelimit import RateLimiter
 from texlate.arxiv.sniff import BlobKind, SniffError, sniff
@@ -90,6 +95,7 @@ from texlate.server.settings import (
     cache_scope,
     resolve_auth,
     scrub,
+    share_dir,
     validate_model,
 )
 from texlate.server.store import (
@@ -98,6 +104,7 @@ from texlate.server.store import (
     Store,
     StoreError,
 )
+from texlate.share import index_append, pack_share, unpack_share
 from texlate.validate.l0 import validate_pair
 from texlate.xlat.client import (
     AuthError,
@@ -106,7 +113,11 @@ from texlate.xlat.client import (
     RetryableHTTPError,
     UsageRecord,
 )
-from texlate.xlat.glossary import LOCAL_GLOSSARY_NAME, Glossary
+from texlate.xlat.glossary import (
+    LOCAL_GLOSSARY_NAME,
+    USER_GLOSSARY_PATH,
+    Glossary,
+)
 from texlate.xlat.pipeline import (
     ChunkIn,
     ChunkResult,
@@ -122,7 +133,7 @@ from texlate.xlat.prompts import PROMPT_VERSION, normalize_kind
 from texlate.xlat.state import ChunkRecord, atomic_json
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable, Iterator
+    from collections.abc import Callable, Iterable, Iterator, Mapping
 
     from pypdf import PdfWriter
     from pypdf.generic import DictionaryObject
@@ -2072,6 +2083,7 @@ class PipelineWorker:
                 reject_at="fixloop",
                 detail=detail or None,
             )
+            await self._maybe_share_pack(ctx)
             return
         failed = self.store.chunk_counts(ctx.task_id)["failed"]
         if ok and failed == 0:
@@ -2091,6 +2103,7 @@ class PipelineWorker:
                 err["fixloop"] = ctx.fixloop
         else:
             self._no_pdf_finish(ctx, share=share)
+            await self._maybe_share_pack(ctx)
             return
         self.store.transition(
             ctx.task_id,
@@ -2109,6 +2122,7 @@ class PipelineWorker:
                 "stats": self._stats(ctx),
             },
         )
+        await self._maybe_share_pack(ctx)
 
     def _no_pdf_finish(self, ctx: TaskCtx, *, share: bool) -> None:
         """无 pdf 终态臂：md.zip 降级产物 → share 归策略拒绝 / tex 归 fault。
@@ -2910,6 +2924,108 @@ class PipelineWorker:
                 zf.writestr(_md_member(src_file, seen), "\n".join(parts))
         self._register(ctx, "md_zip", "md.zip")
         self._log(ctx, f"md.zip: {sum(len(v) for v in by_file.values())} chunks")
+
+    # ------------------------------------------------------------ share 打包钩
+
+    def _share_pack_opt_in(self, ctx: TaskCtx) -> bool:
+        """``options.share_pack`` 真值判定（bool 直读；字符串按 ``0/false/no/off`` 系判假）。"""
+        v = ctx.options().get("share_pack")
+        if v is None or isinstance(v, bool):
+            return bool(v)
+        return str(v).strip().lower() not in ("", "0", "false", "no", "off")
+
+    def _share_glossary_hash(self, ctx: TaskCtx, cfg: Mapping[str, Any]) -> str:
+        """``glossary_hash`` 组分：翻译时**生效**的自定义术语层内容复合指纹。
+
+        口径对齐 ``_make_glossary``：配置的 ``glossary`` 路径经
+        ``_glossary_path`` confine——拒/缺席即与翻译时同态回落
+        ``USER_GLOSSARY_PATH``（``Glossary.load`` 的缺省 user 层）；
+        local 层 ``base/glossary.local.yaml`` 恒进指纹。category/default
+        内建层随 ``pipeline_ver`` 走不进指纹（cli ``_share_glossary_hash``
+        同口径）。无自定义层 → ``""``。
+        """
+        gpath = str(cfg.get("glossary") or ctx.options().get("glossary") or "")
+        gfile: Path | None = None
+        if gpath:
+            gfile = self._glossary_path(ctx, gpath, str(cfg.get("glossary_dir") or ""))
+        if gfile is None and USER_GLOSSARY_PATH.is_file():
+            gfile = USER_GLOSSARY_PATH
+        files = [
+            f
+            for f in (gfile, ctx.base_dir / LOCAL_GLOSSARY_NAME)
+            if f is not None and f.is_file()
+        ]
+        if not files:
+            return ""
+        h = hashlib.sha256()
+        for f in files:
+            h.update(hashlib.sha256(f.read_bytes()).digest())
+        return h.hexdigest()
+
+    async def _maybe_share_pack(self, ctx: TaskCtx) -> None:
+        """opt-in 共享包完成钩（shared-cache.md §7/§8）：``_stage_compile`` 各终态分支末尾调用。
+
+        产物面满足 ``REQUIRED_ARTIFACTS``（zh-src.zip+dual.json）即打包——
+        zh.pdf 缺席落 partial 包（§9 已放行：fixloop_exhausted 型任务的
+        L2/修复译文经包传播有实证价值）。``kind=="share"`` 是导入产物永不
+        自包；reuse_hit 捷径在 ``_stage_fetch`` 提前 return 到不了本段——
+        命中任务的生效术语表不可知，错标 ``glossary_hash`` 比不打包更糟。
+        best-effort：任何失败只留 warning，绝不影响任务终态。
+        """
+        if ctx.row["kind"] == "share" or not self._share_pack_opt_in(ctx):
+            return
+        try:
+            await asyncio.to_thread(self._share_pack_try, ctx)
+        except Exception as e:  # noqa: BLE001 -- 共享打包是附加产物，炸不拖累任务终态
+            self._warning(ctx, "share_pack", f"共享打包失败（任务不受影响）: {e}")
+
+    def _share_pack_try(self, ctx: TaskCtx) -> None:
+        """Worker 线程侧打包体：key_parts 派生 → ``pack_share`` → ``index_append``。
+
+        包与 ``index.jsonl`` 同落 ``share_dir()``（``TEXLATE_SHARE_DIR`` >
+        ``<data>/share``）——index 行 ``url`` 记包文件名（§7 文件级形态：
+        目录整体挂静态托管后，行内相对名即取包路径）。``arxiv_id`` 取库内
+        现值（fetch 后已钉版成 ``{id}v{N}``），``normalize_arxiv_id`` 拆回
+        base+ver 进七组分；upload 类无 arxiv_id 不参与共享寻址，记行跳过。
+        打包后 ``unpack_share`` 全量回验一次再落 index——写盘损坏的包不进
+        索引（scratch 目录随验随清）。
+        """
+        row = self._on_loop(self.store.get, ctx.task_id)
+        if row is None:
+            return
+        base, ver = normalize_arxiv_id(str(row.get("arxiv_id") or ""))
+        if not base:
+            self._log(ctx, "share pack: 任务无 arxiv_id（不参与共享寻址），跳过打包")
+            return
+        try:
+            cfg = json.loads(str(row.get("config_json") or "{}"))
+            if not isinstance(cfg, dict):
+                cfg = {}
+        except json.JSONDecodeError:
+            cfg = {}
+        manifest: dict[str, object] = {
+            "arxiv_id": base,
+            "version": f"v{ver}" if ver is not None else "",
+            "model": str(row["model"]),
+            "prompt_ver": PROMPT_VERSION,
+            "target_lang": str(row["target_lang"]),
+            "glossary_hash": self._share_glossary_hash(ctx, cfg),
+            "pipeline_ver": PIPELINE_VERSION,
+        }
+        out_dir = share_dir(self.data_dir)
+        bundle = pack_share(ctx.root, manifest, out_dir=out_dir)
+        scratch = ctx.root / ".share-verify"
+        try:
+            mf = unpack_share(bundle, scratch)
+        finally:
+            shutil.rmtree(scratch, ignore_errors=True)
+        index_append(
+            out_dir / "index.jsonl",
+            mf,
+            url=bundle.name,
+            package_bytes=bundle.stat().st_size,
+        )
+        self._log(ctx, f"share pack: {bundle.name} → {out_dir}（index.jsonl 已落行）")
 
     # ------------------------------------------------------------ pdf 管线
 
