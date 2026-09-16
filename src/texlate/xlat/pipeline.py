@@ -23,7 +23,7 @@ import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol
 
-from texlate.textutil import ph_in_cs_net
+from texlate.textutil import bare_cs_net, ph_in_cs_net
 
 from . import placeholders, prompts
 from .batch import (
@@ -338,7 +338,7 @@ def _intercept_leftover_ph(r: ChunkResult) -> None:
 
 
 def _intercept_ph_in_cs(r: ChunkResult) -> None:
-    """``ph_in_cs`` 升格拦截：zh 把占位符嵌进 cs 名中段 → fault + 回退原文。
+    r"""``ph_in_cs`` 升格拦截：zh 把占位符嵌进 cs 名中段 → fault + 回退原文。
 
     ``_intercept_leftover_ph`` 同构副层——续跑 state/段级缓存命中旁路
     validator，此层是拦 stale 脏译的唯一闸（l0 ``_check_ph_in_cs`` 的
@@ -359,6 +359,32 @@ def _intercept_ph_in_cs(r: ChunkResult) -> None:
     r.translation = r.source
     shown = ", ".join(sorted(extra)[:8])
     r.skip_reason = f"placeholder fused into cs name x{n}: {shown}"
+    if r.attempts > 0:
+        r.error_kind = r.error_kind or "validate"
+
+
+def _intercept_bare_cs(r: ChunkResult) -> None:
+    r"""``bare_cs`` 升格拦截：zh 文本域新增裸 cs → fault + 回退原文。
+
+    ``_intercept_ph_in_cs`` 同构副层——判定口径 = ``textutil.bare_cs_net``
+    （与 l0 ``_check_bare_cs`` 逐字节一致），缓存/续跑旁路 validator
+    时此层是唯一闸。两类编译炸弹：数学域外 ``MATH_CS`` 表名
+    （``\alpha 发射体`` → ``Missing $``，realpostfix2 0905.4907 实证）
+    与粘合 cs（``\itemOC``/``\csnamebibitemNoStop`` → undefined cs）。
+    命中落 fallback_orig 同形；``attempts>0`` 才记 ``error_kind=validate``。
+    """
+    if r.skipped or r.status not in ("ok", "partial"):
+        return
+    extra = bare_cs_net(r.source, r.translation)
+    if not extra:
+        return
+    n = sum(extra.values())
+    r.warnings.append(f"bare_cs:{n}")
+    r.status = "fault"
+    r.skipped = True
+    r.translation = r.source
+    shown = ", ".join(sorted(extra)[:8])
+    r.skip_reason = f"bare cs injected x{n}: {shown}"
     if r.attempts > 0:
         r.error_kind = r.error_kind or "validate"
 
@@ -692,6 +718,7 @@ class XlatPipeline:
         )
         _intercept_leftover_ph(r)  # L2 回灌同受拦截——fault 由调用方回落原文
         _intercept_ph_in_cs(r)
+        _intercept_bare_cs(r)
         return r
 
     # ------------------------------------------------------------ 批量路径
@@ -894,6 +921,7 @@ class XlatPipeline:
             # 不进 completed → 本轮重翻自愈；否则旧档会把字面 [[X_n]] 带进 splice。
             _intercept_leftover_ph(res)
             _intercept_ph_in_cs(res)
+            _intercept_bare_cs(res)
             done_map[cid] = res
         completed = {
             cid
@@ -942,6 +970,7 @@ class XlatPipeline:
                 done_map[cid] = r
                 _intercept_leftover_ph(r)  # 升格语义下保持与 _collect 同构的后处理
                 _intercept_ph_in_cs(r)
+                _intercept_bare_cs(r)
                 self.auth_gate.record(r)
                 try:
                     self._emit(r)
@@ -1033,6 +1062,7 @@ class XlatPipeline:
             done_map[r.chunk_id] = r
             _intercept_leftover_ph(r)
             _intercept_ph_in_cs(r)
+            _intercept_bare_cs(r)
             self.auth_gate.record(r)
             try:
                 self._emit(r)
