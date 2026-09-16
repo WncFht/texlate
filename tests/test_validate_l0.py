@@ -397,3 +397,130 @@ def test_ph_in_cs_at_letter_and_count() -> None:
     assert _sev(rep, "ph_in_cs") == [Severity.ERROR]
     [issue] = [i for i in rep.issues if i.rule == "ph_in_cs"]
     assert "×2" in issue.message
+
+
+# ---------------------------------------------------------------- bare_cs
+# realpostfix2 0905.4907："alpha emitters"→``\alpha 发射体``，caption 两处
+# 裸数学 cs → Missing $×4。mock 臂同族：itemOC/itemSPELL/linebreakGF 粘合名。
+
+
+def test_bare_cs_math_in_text_error() -> None:
+    r"""``\alpha`` 落文本域（src 无此 cs）→ error。"""
+    src = "The flux of alpha emitters is large."
+    zh = "\\alpha 发射体的通量很大。"
+    rep = validate_pair(src, zh)
+    assert _sev(rep, "bare_cs") == [Severity.ERROR]
+    [issue] = [i for i in rep.issues if i.rule == "bare_cs"]
+    assert "\\alpha" in issue.message
+
+
+def test_bare_cs_math_multiple_aggregate() -> None:
+    r"""同 chunk 两处 ``\alpha`` + 一处 ``\to`` 聚合 ×N 计数。"""
+    src = "Alpha particles decay to lead over time."
+    zh = "\\alpha 粒子经 \\to 衰变后 \\alpha 变铅。"
+    rep = validate_pair(src, zh)
+    assert _sev(rep, "bare_cs") == [Severity.ERROR]
+    [issue] = [i for i in rep.issues if i.rule == "bare_cs"]
+    assert "×3" in issue.message and "\\to" in issue.message
+
+
+def test_bare_cs_inside_zh_math_exempt() -> None:
+    r"""``$\\alpha$``——zh 自包数学域是合法修正方向，裸 cs 不报
+    （``$`` 计数差另由 math 规则承接）。"""
+    src = "Alpha emitters decay."
+    zh = "$\\alpha$ 发射体衰变。"
+    rep = validate_pair(src, zh)
+    assert not _sev(rep, "bare_cs")
+
+
+def test_bare_cs_display_math_exempt() -> None:
+    r"""``$$x$$`` display 定界——``$$`` 不切两对空单符区间。"""
+    src = "Alpha emitters decay."
+    zh = "$$\\alpha$$ 发射体衰变。"
+    rep = validate_pair(src, zh)
+    assert not _sev(rep, "bare_cs")
+
+
+def test_bare_cs_inherited_src_same_count() -> None:
+    r"""src 文本域自带裸 ``\\alpha``——zh 同计数继承豁免。"""
+    src = "Text \\alpha emitters decay."
+    zh = "文本 \\alpha 发射体衰变。"
+    rep = validate_pair(src, zh)
+    assert not _sev(rep, "bare_cs")
+
+
+def test_bare_cs_net_delta_counts() -> None:
+    r"""src ×1 zh ×2 → 净多 ×1 才炸（继承一枚豁免）。"""
+    src = "Text \\alpha here."
+    zh = "文本 \\alpha 甲 \\alpha 乙。"
+    rep = validate_pair(src, zh)
+    assert _sev(rep, "bare_cs") == [Severity.ERROR]
+
+
+def test_bare_cs_comment_masked() -> None:
+    r"""zh 注释里的 ``\\alpha`` 遮盖豁免。"""
+    src = "Alpha emitters decay."
+    zh = "% \\alpha 注记\n发射体衰变。"
+    rep = validate_pair(src, zh)
+    assert not _sev(rep, "bare_cs")
+
+
+def test_bare_cs_fused_item_oc_error() -> None:
+    r"""``\\itemOC``（itemOC/itemSPELL 族）：src ``\\item`` 前缀 + 大写尾
+    粘合 → 未定义 cs 炸弹。"""
+    src = "\\item First point words here enough."
+    zh = "\\itemOC 第一条要点文字。"
+    rep = validate_pair(src, zh)
+    assert _sev(rep, "bare_cs") == [Severity.ERROR]
+    [issue] = [i for i in rep.issues if i.rule == "bare_cs"]
+    assert "item" in issue.message and "OC" in issue.message
+
+
+def test_bare_cs_fused_linebreak_gf() -> None:
+    r"""``\\linebreakGF``：前缀 ``\\linebreak`` + ``GF`` → error。"""
+    src = "Line \\linebreak break here."
+    zh = "行 \\linebreakGF 断处。"
+    rep = validate_pair(src, zh)
+    assert _sev(rep, "bare_cs") == [Severity.ERROR]
+
+
+def test_bare_cs_fused_csname_bibitem() -> None:
+    r"""``\\csnamebibitemNoStop``：前缀 ``\\csname`` + 驼峰尾 → error。"""
+    src = "See \\csname x\\endcsname here."
+    zh = "见 \\csnamebibitemNoStop 处。"
+    rep = validate_pair(src, zh)
+    assert _sev(rep, "bare_cs") == [Severity.ERROR]
+
+
+def test_bare_cs_lowercase_suffix_legit() -> None:
+    r"""保守面：``\\cite``→``\\citep`` 全小写尾是真实 cs——不炸
+    （新增名仍走 macro warn，本规则不重复报）。"""
+    src = "See \\cite{a} here."
+    zh = "见 \\citep{a} 处。"
+    rep = validate_pair(src, zh)
+    assert not _sev(rep, "bare_cs")
+
+
+def test_bare_cs_refname_legit() -> None:
+    r"""``\\ref``→``\\refname``：全小写真实 cs 延申不报。"""
+    src = "See \\ref{a} here."
+    zh = "见 \\refname 处。"
+    rep = validate_pair(src, zh)
+    assert not _sev(rep, "bare_cs")
+
+
+def test_bare_cs_textbf_not_fusion() -> None:
+    r"""``\\text``→``\\textbf``：全小写尾不判粘合。"""
+    src = "A \\text{x} here."
+    zh = "一 \\textbf{x} 处。"
+    rep = validate_pair(src, zh)
+    assert not _sev(rep, "bare_cs")
+
+
+def test_bare_cs_text_mode_cs_no_flag() -> None:
+    r"""文本族新 cs（``\\LaTeX``/``\\url`` 类）不属数学表也不含大写尾——
+    本规则静默，归 macro warn 承担。"""
+    src = "The project site is online."
+    zh = "该项目 \\LaTeX 站已上线。"
+    rep = validate_pair(src, zh)
+    assert not _sev(rep, "bare_cs")

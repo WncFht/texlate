@@ -7,7 +7,7 @@ r"""L0 规则校验层 —— stdlib always-on，src↔zh 相对判定（规格 
 设计原则 = "译文不得比原文更坏"：每条检查都是 src↔zh 比较而非 zh 绝对判定，
 src 自带的不平衡/不一致不追责（继承容忍），只报 zh 相对 src 的新增损伤。
 
-十条规则（docs/08 §2.1 表 + E21/E22 修订口径 + 注释区/粘合/回显/ph_in_cs 补丁）：
+十一条规则（docs/08 §2.1 表 + E21/E22 修订口径 + 注释区/粘合/回显/ph_in_cs/裸 cs 补丁）：
 
   placeholder  ``[[TYPE_n]]``/``[[SL]]``/``[[PL]]`` multiset diff + lev≤2 修复建议；
                E22：严格序守恒降为 warn（``of X``→``X 的`` 合法换序占违例 ~95%），
@@ -29,6 +29,10 @@ src 自带的不平衡/不一致不追责（继承容忍），只报 zh 相对 s
   item_glue    ``\\item`` 紧跟 ASCII 字母粘成 ``\\itemFSU`` 类非法 cs（管线引入
                签名，8 篇实证 Undefined cs 编译炸弹）——zh 净多出计数 → warn；
                ``\\itemsep`` 等合法 cs 与 src 自带粘连靠 src↔zh 净差豁免。
+  bare_cs     译文裸 cs 注入两子类 → error（realpostfix2 0905.4907：
+               ``\alpha 发射体`` 数学 cs 落文本域 → Missing $ 炸弹；
+               ``\itemOC``/``\linebreakGF`` 前缀+含大写后缀粘合 → 未定义
+               cs 炸弹）。泛新增 cs 仍归 macro warn，本规则只管编译即炸。
   protocol_echo 交付 zh 净多出协议字面 → error（repro-2410b §4b：corrector
                三段式节标/L0 反馈消息/``slot_validation_failures``/
                ``[compile_error]`` 被当正文回显——multiset 可吻合而载荷脏，
@@ -79,6 +83,90 @@ _PH_CORE_RX: Final = re.compile(r"[A-Za-z0-9_]+")
 #: ``\cs[[PH]]`` 是合法高频形（``\protect[[REF_n]]``/``\em[[CMD_n]]``），
 #: ``\\`` 控制符号 + ``[[PH]]`` 由必需字母排除。
 _PH_IN_CS_RX: Final = re.compile(r"\\[a-zA-Z@]+\[\[[^\[\]\n]{1,48}?\]\][a-zA-Z@]")
+
+#: 数学模式专用命令（文本域出现即 ``Missing $`` 编译炸弹——realpostfix2
+#: 0905.4907 ``\alpha 发射体`` 实证签名）。收录内核 + amsmath/amssymb
+#: 高频名；表外新名退化走 ``macro`` 泛 warn 兜底，不静默。
+#: 刻意不收双模式名（``\ldots``/``\quad``/``\phantom``/``\ensuremath``
+#: 文本域合法）与文本族名（``\dag``/``\S``/``\pounds``/``\eqref``）。
+_MATH_CS: Final = frozenset(
+    """
+    alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi
+    pi rho sigma tau upsilon phi chi psi omega
+    varepsilon varphi varpi varrho varsigma vartheta varkappa digamma
+    Gamma Delta Theta Lambda Xi Pi Sigma Upsilon Phi Psi Omega
+    aleph beth daleth gimel hbar hslash imath jmath ell wp Re Im partial
+    nabla infty prime emptyset varnothing angle measuredangle sphericalangle
+    triangle triangledown vartriangle square diamond lozenge complement
+    backslash forall exists nexists neg lnot top bot flat natural sharp
+    clubsuit diamondsuit heartsuit spadesuit mho Finv Game eth Bbbk
+    mathbb mathcal mathfrak mathscr mathbf mathit mathrm mathsf mathtt
+    mathnormal boldsymbol bm pmb
+    times div pm mp cdot cdots vdots ddots dotsb dotsc dotsi dotsm dotso ldotp cdotp
+    ast star circ bullet oplus ominus otimes oslash odot bigodot bigoplus
+    bigotimes cup cap uplus sqcap sqcup setminus smallsetminus amalg wr
+    triangleleft triangleright vartriangleleft vartriangleright
+    trianglelefteq trianglerighteq ntriangleleft ntriangleright
+    ntrianglelefteq ntrianglerighteq bigcirc dagger ddagger vee wedge
+    barwedge doublebarwedge curlyvee curlywedge lhd rhd unlhd unrhd
+    ltimes rtimes leftthreetimes rightthreetimes divideontimes dotplus
+    intercal boxdot boxplus boxminus boxtimes doublecap doublecup Cap Cup
+    veebar circledast circledcirc circleddash circledS circledR maltese
+    checkmark land lor
+    leq le geq ge neq ne equiv sim simeq approx approxeq asymp cong ncong
+    nsim backsim backsimeq eqsim thicksim thickapprox doteq doteqdot eqcirc
+    circeq risingdotseq fallingdotseq triangleq bumpeq Bumpeq iff
+    prec succ preceq succeq preccurlyeq succcurlyeq curlyeqprec curlyeqsucc
+    precapprox succapprox precsim succsim precnapprox succnapprox nprec
+    nsucc npreceq nsucceq ll gg llless ggless
+    lessapprox gtrapprox lesssim gtrsim lesseqgtr gtreqless lesseqqgtr
+    gtreqqless lessdot gtrdot lessgtr gtrless lneq lneqq gneq gneqq
+    leqslant geqslant eqslantless eqslantgtr nleq ngeq nleqslant ngeqslant
+    nleqq ngeqq nless ngtr lnsim gnsim lnapprox gnapprox
+    subset supset subseteq supseteq sqsubset sqsupset sqsubseteq sqsupseteq
+    subsetneq supsetneq subseteqq supseteqq varsubsetneq varsupsetneq
+    varsubsetneqq varsupsetneqq nsubseteq nsupseteq nsubseteqq nsupseteqq
+    Subset Supset in ni notin owns vdash dashv vDash Vdash Vvdash nvdash
+    nvDash nVdash nVDash models perp mid nmid parallel nparallel shortmid
+    shortparallel smile smallsmile frown smallfrown bowtie Join propto
+    varpropto between pitchfork therefore because multimap implies impliedby
+    to gets mapsto mapsfrom hookrightarrow hookleftarrow rightarrow
+    leftarrow Rightarrow Leftarrow leftrightarrow Leftrightarrow
+    nrightarrow nleftarrow nRightarrow nLeftarrow nleftrightarrow
+    nLeftrightarrow rightleftarrows rightrightarrows leftleftarrows
+    Lleftarrow Rrightarrow twoheadrightarrow twoheadleftarrow
+    rightarrowtail leftarrowtail looparrowleft looparrowright
+    circlearrowleft circlearrowright curvearrowleft curvearrowright
+    dashrightarrow dashleftarrow uparrow downarrow updownarrow Uparrow
+    Downarrow Updownarrow upuparrows downdownarrows upharpoonleft
+    upharpoonright downharpoonleft downharpoonright rightharpoonup
+    rightharpoondown leftharpoonup leftharpoondown rightleftharpoons
+    leftrightharpoons nearrow searrow swarrow nwarrow longrightarrow
+    longleftarrow Longrightarrow Longleftarrow longleftrightarrow
+    Longleftrightarrow longmapsto rightsquigarrow leadsto xrightarrow
+    xleftarrow
+    arccos arcsin arctan arg cos cosh cot coth csc deg det dim exp gcd hom
+    inf injlim ker lg lim liminf limsup ln log max min mod pmod bmod pod
+    Pr projlim sec sin sinh sup tan tanh varinjlim varliminf varlimsup
+    varprojlim
+    sum prod int iint iiint iiiint oint oiint idotsint coprod bigcap bigcup
+    bigvee bigwedge bigsqcup biguplus smallint intop
+    left right middle big bigg Big Bigg bigl bigr bigm biggl biggr Bigl
+    Bigr Bigm Biggl Biggr biggm Biggm langle rangle lceil rceil lfloor
+    rfloor ulcorner urcorner llcorner lrcorner vert Vert lvert rvert lVert
+    rVert lgroup rgroup lmoustache rmoustache bracevert arrowvert Arrowvert
+    acute grave ddot dddot ddddot tilde bar breve check hat vec dot
+    mathring overline overbrace underbrace widehat widetilde overleftarrow
+    overrightarrow overleftrightarrow underleftarrow underrightarrow
+    underleftrightarrow
+    frac dfrac tfrac cfrac binom dbinom tbinom choose sqrt over atop above
+    stackrel overset underset sideset substack operatorname mathop mathrel
+    mathbin mathord mathopen mathclose mathinner mathpunct displaystyle
+    textstyle scriptstyle scriptscriptstyle limits nolimits nonumber smash
+    boxed tag intertext shortintertext not colon centerdot
+    medspace thickspace negthinspace negmedspace negthickspace sb sp
+    """.split()
+)
 
 #: key 承载命令：cite 族 / *ref 族 / label / bibitem / bibliography。
 #: 只抓第一个 {..}（key 参数），可选 [..] 先吃掉。
@@ -859,6 +947,117 @@ def _check_ph_in_cs(src: str, zh: str, issues: list[Issue]) -> None:
         )
 
 
+def _math_spans(lexed: list[tuple[str, str, int]]) -> list[tuple[int, int]]:
+    r"""配对数学定界符的 ``(start, end)`` span 表——域内 cs 是合法数学用法。
+
+    ``$..$``/``$$..$$``/``\\(..\\)``/``\\[..\\]`` 顺序配对；相邻两 ``$``
+    合并为 ``$$``（``$$x$$`` 不切成两对空区间）。未闭合定界符其后全部
+    按文本域处理（配对不齐已由 ``math`` 规则兜底报错，这里宁严勿漏）。
+    """
+    evs: list[tuple[str, int]] = []
+    for kind, text, pos in lexed:
+        if kind == "ch" and text == "$":
+            if evs and evs[-1][0] == "$" and evs[-1][1] + 1 == pos:
+                evs[-1] = ("$$", pos - 1)
+            else:
+                evs.append(("$", pos))
+        elif kind == "bs" and text in ("\\(", "\\)", "\\[", "\\]"):
+            evs.append((text, pos))
+    closer = {"$": "$", "$$": "$$", "\\(": "\\)", "\\[": "\\]"}
+    spans: list[tuple[int, int]] = []
+    open_: tuple[str, int] | None = None
+    for d, p in evs:
+        if open_ is None:
+            if d in closer:
+                open_ = (d, p)
+        elif d == closer[open_[0]]:
+            spans.append((open_[1], p + len(d)))
+            open_ = None
+    return spans
+
+
+def _out_of_math(
+    lexed: list[tuple[str, str, int]], spans: list[tuple[int, int]]
+) -> tuple[Counter[str], dict[str, int]]:
+    """``(文本域 cs 名 Counter, 首个文本域出现 pos)``——span 内 cs 不计。"""
+    cnt: Counter[str] = Counter()
+    first: dict[str, int] = {}
+    for kind, text, pos in lexed:
+        if kind == "cs" and not any(a <= pos < b for a, b in spans):
+            cnt[text] += 1
+            first.setdefault(text, pos)
+    return cnt, first
+
+
+def _check_bare_cs(src: str, zh: str, issues: list[Issue]) -> None:
+    r"""译文裸 cs 注入（realpostfix2 0905.4907 实证签名），两类编译炸弹。
+
+    ``macro`` 规则对新增 cs 只报泛 warn；本规则抓其中**编译即炸**的
+    两个子类升 error（余下新名仍归 macro warn，不重复报）：
+
+    - **数学域外数学 cs**：``\alpha``/``\to`` 类数学模式命令出现在 zh
+      文本域（zh 自带 ``$..$``/``\\(\\)`` 内豁免——那是合法修正方向），
+      净超出 src 文本域同计数 → ``Missing $`` 炸弹（``alpha emitters``
+      被译成 ``\alpha 发射体``，caption 两处 → Missing $×4）。
+    - **粘合 cs**：zh 新增名 = src 某 cs（≥3 字母）前缀 + **含大写**后缀
+      ——``\itemOC``/``\linebreakGF``/``\csnamebibitemNoStop``（cs 吞掉
+      间隔空格、后随词首字母粘上）→ 未定义 cs 炸弹。后缀须含大写：
+      ``\citep``/``\refname``/``\textbf`` 类全小写延申是真实 cs 不炸。
+    """
+    snc, znc = mask_comments(src), mask_comments(zh)
+    slex, zlex = _lex(snc), _lex(znc)
+    sn = Counter(t for k, t, _ in slex if k == "cs")
+    zn = Counter(t for k, t, _ in zlex if k == "cs")
+    new = zn - sn
+    if not new:
+        return
+    zout, zfirst = _out_of_math(zlex, _math_spans(zlex))
+    sout, _ = _out_of_math(slex, _math_spans(slex))
+
+    bombs = {nme: n for nme, n in (zout - sout).items() if nme in _MATH_CS}
+    if bombs:
+        toks = ", ".join(f"\\{nme} ×{n}" for nme, n in sorted(bombs.items()))
+        issues.append(
+            Issue(
+                "bare_cs",
+                Severity.ERROR,
+                f"译文注入数学控制序列 ×{sum(bombs.values())}: {toks}"
+                f"（文本域 Missing $ 编译炸弹——应为普通文字或 $…$ 包裹）",
+                min(zfirst[nme] for nme in bombs),
+                found=toks,
+            )
+        )
+
+    fused = {}
+    for nme, n in sorted(new.items()):
+        if nme in _MATH_CS:
+            continue
+        pre = max(
+            (s for s in sn if len(s) >= 3 and nme.startswith(s)),
+            key=len,
+            default=None,
+        )
+        if pre is None:
+            continue
+        suf = nme[len(pre) :]
+        if any(c.isupper() for c in suf):
+            fused[nme] = (pre, suf, n)
+    if fused:
+        toks = ", ".join(
+            f"\\{nme}（\\{pre}+{suf} 粘合）×{n}"
+            for nme, (pre, suf, n) in fused.items()
+        )
+        issues.append(
+            Issue(
+                "bare_cs",
+                Severity.ERROR,
+                f"译文出现粘合控制序列 ×{sum(n for _, _, n in fused.values())}: "
+                f"{toks}（未定义 cs 编译炸弹——应拆回 \\前缀 + 空格）",
+                found=toks,
+            )
+        )
+
+
 def _check_protocol_echo(src: str, zh: str, issues: list[Issue]) -> None:
     r"""协议回显守卫：zh 净多出 corrector/L0 协议字面 → error。
 
@@ -905,5 +1104,6 @@ def validate_pair(src: str, zh: str) -> L0Report:
     _check_macro(src, zh, rep.issues)
     _check_item_glue(src, zh, rep.issues)
     _check_ph_in_cs(src, zh, rep.issues)
+    _check_bare_cs(src, zh, rep.issues)
     _check_protocol_echo(src, zh, rep.issues)
     return rep
