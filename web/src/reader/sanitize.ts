@@ -13,3 +13,12 @@ const PROFILE = {
 export function sanitizeHtml(html: string): string {
     return DOMPurify.sanitize(html, PROFILE);
 }
+
+/** marked 失败时把源 markdown 当纯文本兜底——只转义 HTML 特殊字符 */
+export function escapeHtml(s: string): string {
+    return s
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+}

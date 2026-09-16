@@ -132,6 +132,7 @@ export default function TaskList(props: Props) {
                             <span
                                 class="task-bar"
                                 role="progressbar"
+                                aria-label={task.title || task.arxiv_id || task.task_id}
                                 aria-valuenow={task.progress}
                                 aria-valuemin={0}
                                 aria-valuemax={100}
@@ -161,7 +162,9 @@ export default function TaskList(props: Props) {
                 )}
             </For>
             <Show when={delError()}>
-                <p class="task-del-err">{delError()}</p>
+                <p class="task-del-err" role="alert">
+                    {delError()}
+                </p>
             </Show>
         </div>
     );

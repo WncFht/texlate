@@ -8,7 +8,7 @@ import renderMathInElement from "katex/contrib/auto-render";
 import "katex/dist/katex.min.css";
 
 import type { DocId, Pos } from "./alignment";
-import { sanitizeHtml } from "./sanitize";
+import { escapeHtml, sanitizeHtml } from "./sanitize";
 import { capturePos, jumpTo, scrollTopFor, type PageGeom, type PaneLike } from "./sync";
 import type { DualChunk } from "../api/client";
 import { t } from "../i18n/zh";
@@ -69,14 +69,17 @@ export default function HtmlPane(props: Props) {
         // marked.parse 输出为 string（无异步扩展）；译文是 LLM 生成物，内联
         // HTML 原样透传——注入前过 DOMPurify，再跑 KaTeX（产物不经 sanitize）。
         const html = props.chunks
-            .map(
-                (c) =>
-                    `<section class="chunk" data-chunk="${c.seq}">` +
-                    sanitizeHtml(
-                        marked.parse(chunkText(c, props.side), { async: false }) as string,
-                    ) +
-                    `</section>`,
-            )
+            .map((c) => {
+                const md = chunkText(c, props.side);
+                // 单 chunk 解析失败降级为转义原文——不炸整页（坏数据面之一）
+                let inner: string;
+                try {
+                    inner = sanitizeHtml(marked.parse(md, { async: false }) as string);
+                } catch {
+                    inner = `<p>${escapeHtml(md)}</p>`;
+                }
+                return `<section class="chunk" data-chunk="${c.seq}">${inner}</section>`;
+            })
             .join("");
         bodyEl.innerHTML = html || `<p class="chunk-empty">${t.reader.chunkEmpty}</p>`;
         try {

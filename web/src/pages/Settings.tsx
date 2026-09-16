@@ -14,6 +14,7 @@ export default function Settings() {
     const [concurrency, setConcurrency] = createSignal("3");
     const [guidance, setGuidance] = createSignal("on");
     const [msg, setMsg] = createSignal("");
+    const [saving, setSaving] = createSignal(false);
     const [testing, setTesting] = createSignal(false);
     const [clearing, setClearing] = createSignal(false);
     let msgTimer = 0;
@@ -47,25 +48,32 @@ export default function Settings() {
     };
 
     const save = async () => {
+        // Enter 隐式提交不走 disabled 按钮——saving 门防重入
+        if (saving()) return;
+        setSaving(true);
         setMsg("");
         const patch: Record<string, unknown> = {
-            base_url: baseUrl(),
-            model: model(),
-            target_lang: targetLang(),
+            base_url: baseUrl().trim(),
+            model: model().trim(),
+            target_lang: targetLang().trim(),
             glossary: glossary(),
             engine: engine(),
             context_guidance: guidance() === "on",
         };
-        // 空串不送——server 侧 int("") 直接 400
+        // 空串不送——server 侧 int("") 直接 400；夹取口径同 Home 任务选项
         const conc = Number(concurrency());
-        if (Number.isFinite(conc) && conc >= 1) patch.concurrency = Math.floor(conc);
-        if (apiKey()) patch.api_key = apiKey();
+        if (Number.isFinite(conc) && conc >= 1) {
+            patch.concurrency = Math.max(1, Math.min(16, Math.floor(conc)));
+        }
+        if (apiKey().trim()) patch.api_key = apiKey().trim();
         try {
             await settingsStore.save(patch);
             setApiKey("");
             flash(t.settings.saved);
         } catch (e) {
             setMsg(`${t.settings.saveFailed}：${e instanceof Error ? e.message : String(e)}`);
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -216,14 +224,16 @@ export default function Settings() {
                     />
                 </label>
                 <div class="settings-actions">
-                    <button type="submit" class="btn-primary">
-                        {t.settings.save}
+                    <button type="submit" class="btn-primary" disabled={saving()}>
+                        {saving() ? t.settings.saving : t.settings.save}
                     </button>
                     <button type="button" class="btn-ghost" disabled={testing()} onClick={() => void test()}>
                         {testing() ? t.settings.testing : t.settings.test}
                     </button>
                     <Show when={msg()}>
-                        <span class="form-msg">{msg()}</span>
+                        <span class="form-msg" role="status">
+                            {msg()}
+                        </span>
                     </Show>
                 </div>
             </form>

@@ -2,7 +2,7 @@
 // 数据源 = pdfSlickStore 元数据（PDFSlick._parseDocumentInfo 落定）；
 // 响应式直读 store 字段，文档加载完自然填齐。
 
-import { For } from "solid-js";
+import { For, onCleanup, onMount } from "solid-js";
 import type { PDFSlickState } from "@pdfslick/solid";
 import { t } from "../i18n/zh";
 import { fmtBytes, fmtDate, pageSizeText } from "./paneUtils";
@@ -13,6 +13,15 @@ interface Props {
 }
 
 export default function DocInfo(props: Props) {
+    // 与 FindBar/下载菜单同口径：Escape 关弹层
+    onMount(() => {
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === "Escape") props.onClose();
+        };
+        document.addEventListener("keydown", onKey);
+        onCleanup(() => document.removeEventListener("keydown", onKey));
+    });
+
     const rows = (): [string, string][] => {
         const s = props.store;
         return (

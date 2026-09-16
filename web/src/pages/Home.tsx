@@ -1,6 +1,6 @@
 // Home —— arXiv 输入 + 文件上传 + 任务列表（活动任务进度走 SSE）。
 
-import { createSignal, For, onMount, Show } from "solid-js";
+import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import {
     api,
     ApiError,
@@ -30,9 +30,10 @@ export default function Home(props: { nav(to: string): void }) {
     const [arxivId, setArxivId] = createSignal("");
     const [busy, setBusy] = createSignal(false);
     const [error, setError] = createSignal("");
-    // 上传进度：uploading=文件提交在飞（区别于 translate 的 busy），upPct=已传百分比
+    // 上传进度：uploading=文件提交在飞（区别于 translate 的 busy）；
+    // upPct=-1 哨兵 = 尚无进度事件（lengthComputable=false 时恒如此）→ 不定态
     const [uploading, setUploading] = createSignal(false);
-    const [upPct, setUpPct] = createSignal(0);
+    const [upPct, setUpPct] = createSignal(-1);
     const [health, setHealth] = createSignal<Health | null>(null);
     const [healthPending, setHealthPending] = createSignal(true);
     // 任务选项（默认收起；空值 = 跟随 settings 默认）
@@ -48,6 +49,12 @@ export default function Home(props: { nav(to: string): void }) {
     // per-request BYOK：仅存组件 state，提交成功即清，不落 settings
     const [optKey, setOptKey] = createSignal("");
     let fileInput!: HTMLInputElement;
+    // 在飞请求不随卸载取消（幂等键保证服务端只收一单）——但落地后不得再
+    // openRes 劫持用户已切走的路由；alive 守一切提交后副作用
+    let alive = true;
+    onCleanup(() => {
+        alive = false;
+    });
 
     onMount(() => {
         void taskStore.refresh();
@@ -95,6 +102,8 @@ export default function Home(props: { nav(to: string): void }) {
     const byok = () => (optKey().trim() ? { apiKey: optKey().trim() } : undefined);
 
     const submit = async () => {
+        // 输入框 Enter 触发隐式提交不走 disabled 按钮——busy 门防重入
+        if (busy()) return;
         const id = parseArxivId(arxivId());
         if (!id) {
             setError(t.home.invalidId);
@@ -104,9 +113,11 @@ export default function Home(props: { nav(to: string): void }) {
         setBusy(true);
         try {
             const res = await api.translate(id, collectOptions(), byok());
+            if (!alive) return;
             setOptKey("");
             openRes(res);
         } catch (e) {
+            if (!alive) return;
             // 409：同 cache_key 已有活动任务 → 直接跳过去
             if (e instanceof ApiError && e.status === 409) {
                 const existing = e.taskId ?? e.detail.match(/t_[0-9a-f]{16}/)?.[0];
@@ -122,10 +133,11 @@ export default function Home(props: { nav(to: string): void }) {
     };
 
     const upload = async (file: File) => {
+        if (busy()) return;
         setError("");
         setBusy(true);
         setUploading(true);
-        setUpPct(0);
+        setUpPct(-1);
         const onProgress = (loaded: number, total: number) =>
             setUpPct(Math.min(100, Math.round((loaded / total) * 100)));
         try {
@@ -143,6 +155,7 @@ export default function Home(props: { nav(to: string): void }) {
                     byok(),
                     onProgress,
                 );
+                if (!alive) return;
                 setOptKey("");
                 openRes(res);
                 return;
@@ -158,10 +171,11 @@ export default function Home(props: { nav(to: string): void }) {
                       }
                     : undefined;
             const res = await api.upload(file, fields, byok(), onProgress);
+            if (!alive) return;
             setOptKey("");
             openRes(res);
         } catch (e) {
-            setError(e instanceof Error ? e.message : String(e));
+            if (alive) setError(e instanceof Error ? e.message : String(e));
         } finally {
             setBusy(false);
             setUploading(false);
@@ -203,7 +217,7 @@ export default function Home(props: { nav(to: string): void }) {
                         disabled={busy()}
                         onClick={() => fileInput?.click()}
                     >
-                        {busy() ? t.home.uploading : t.home.upload}
+                        {uploading() ? t.home.uploading : t.home.upload}
                     </button>
                     <input
                         ref={(el) => (fileInput = el)}
@@ -219,11 +233,21 @@ export default function Home(props: { nav(to: string): void }) {
                 </form>
                 <Show when={uploading()}>
                     <div class="up-progress">
-                        <div class="up-bar">
-                            <i style={{ width: `${upPct()}%` }} />
+                        <div
+                            class="up-bar"
+                            classList={{ indet: upPct() < 0 }}
+                            role="progressbar"
+                            aria-label={t.home.upload}
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-valuenow={upPct() >= 0 ? upPct() : undefined}
+                        >
+                            <i style={{ width: upPct() < 0 ? "35%" : `${upPct()}%` }} />
                         </div>
-                        <span class="up-label">
-                            {t.home.uploadPct.replace("{n}", String(upPct()))}
+                        <span class="up-label" aria-live="polite">
+                            {upPct() >= 0
+                                ? t.home.uploadPct.replace("{n}", String(upPct()))
+                                : t.home.uploading}
                         </span>
                     </div>
                 </Show>
@@ -355,7 +379,9 @@ export default function Home(props: { nav(to: string): void }) {
                     </div>
                 </details>
                 <Show when={error()}>
-                    <p class="form-error">{error()}</p>
+                    <p class="form-error" role="alert">
+                        {error()}
+                    </p>
                 </Show>
                 <p
                     class="health"

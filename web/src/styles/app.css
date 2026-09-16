@@ -248,6 +248,20 @@ button {
     transition: width 0.2s ease;
 }
 
+/* 不定态（上传进度事件未发/lengthComputable=false）：往返扫条 */
+.up-bar.indet i {
+    animation: up-indet 1.1s ease-in-out infinite;
+}
+
+@keyframes up-indet {
+    0% {
+        margin-left: -35%;
+    }
+    100% {
+        margin-left: 100%;
+    }
+}
+
 .up-label {
     font-size: 12px;
     color: var(--ink-2);
@@ -1846,6 +1860,7 @@ button {
 
     .task-bar i,
     .tp-bar i,
+    .up-bar i,
     .health.checking .dot {
         transition: none;
         animation: none;

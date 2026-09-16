@@ -326,14 +326,26 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
 
     // ---------- 缩放 / 页码 / 下载 ----------
 
+    /** 缩放值落单个窗格：% → setScale；命名值 → setScaleValue；HTML 侧无接口跳过 */
+    const applyZoomTo = (h: AnyHandle | undefined, z: string) => {
+        const ph = h as PaneHandle | undefined;
+        if (!z || !ph?.setScaleValue) return;
+        if (z.endsWith("%")) ph.setScale(Number(z.slice(0, -1)) / 100);
+        else ph.setScaleValue(z);
+    };
+
+    // zoom × handles 响应式落地：usePDFSlick 初值恒 page-width（§5.1 坑），
+    // reading.zoom 恢复、窗格 keyed 重挂、用户改缩放三路共用——在 paneReady
+    // 里手工补赶不上 setInfo→setZoom 之间的 await 窗口
+    createEffect(() => {
+        const z = zoom();
+        for (const side of ["original", "translated"] as const) {
+            applyZoomTo(handles()[side], z);
+        }
+    });
+
     const applyZoom = (z: string) => {
         setZoom(z);
-        for (const side of ["original", "translated"] as const) {
-            const h = handles()[side] as PaneHandle | undefined;
-            if (!h?.setScaleValue) continue;
-            if (z.endsWith("%")) h.setScale(Number(z.slice(0, -1)) / 100);
-            else h.setScaleValue(z);
-        }
         persistPosition();
     };
 
@@ -582,7 +594,7 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
             </Show>
             <Show when={retryError()}>
                 {(e) => (
-                    <p class="form-error">
+                    <p class="form-error" role="alert">
                         [{e().code ?? "retry"}] {e().message}
                         <Show when={e().status === 401 || e().code === "auth_required"}>
                             {" "}
@@ -762,7 +774,9 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
                 <main class="task-progress">
                     <h1 class="tp-title">{title()}</h1>
                     <Show when={live()?.transport && live()!.transport !== "live"}>
-                        <p class="transport-badge">{t.progress.reconnecting}</p>
+                        <p class="transport-badge" role="status">
+                            {t.progress.reconnecting}
+                        </p>
                     </Show>
                     <ol class="stage-stepper">
                         <For each={STAGES}>

@@ -214,6 +214,7 @@ export const t = {
         contextGuidance: "上下文引导",
         contextGuidanceHint: "翻译时附带上下文窗口",
         save: "保存",
+        saving: "保存中…",
         test: "测试连接",
         testing: "测试中…",
         saved: "已保存",

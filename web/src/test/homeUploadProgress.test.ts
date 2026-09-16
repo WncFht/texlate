@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
     tasks: vi.fn(),
     health: vi.fn(),
     getSettings: vi.fn(),
+    translate: vi.fn(),
     upload: vi.fn(),
     shareImport: vi.fn(),
 }));
@@ -21,6 +22,7 @@ vi.mock("../api/client", async (importOriginal) => {
             tasks: mocks.tasks,
             health: mocks.health,
             getSettings: mocks.getSettings,
+            translate: mocks.translate,
             upload: mocks.upload,
             shareImport: mocks.shareImport,
         },
@@ -45,8 +47,13 @@ function mount() {
     const nav = vi.fn();
     dispose = render(() => Home({ nav }), document.body);
     const file = document.body.querySelector<HTMLInputElement>('input[type="file"]');
-    if (!file) throw new Error("file input missing");
-    return { nav, file };
+    const input = document.body.querySelector<HTMLInputElement>(".arxiv-input");
+    const form = document.body.querySelector<HTMLFormElement>("form");
+    const upBtn = document.body.querySelector<HTMLButtonElement>(
+        "form button.btn-ghost",
+    );
+    if (!file || !input || !form || !upBtn) throw new Error("form elements missing");
+    return { nav, file, input, form, upBtn };
 }
 
 function pick(el: HTMLInputElement, f: File) {
@@ -59,6 +66,7 @@ beforeEach(() => {
     mocks.tasks.mockResolvedValue({ tasks: [] });
     mocks.health.mockResolvedValue({ ok: true, version: "t", compilers: {} });
     mocks.getSettings.mockResolvedValue({ has_api_key: false });
+    mocks.translate.mockResolvedValue(RESP);
 });
 
 afterEach(() => {
@@ -92,7 +100,8 @@ describe("Home 上传进度条", () => {
         const label = () =>
             document.body.querySelector(".up-label")?.textContent ?? "";
         expect(bar()).toBeTruthy();
-        expect(bar()!.style.width).toBe("0%");
+        // 无进度事件前为不定态扫条（宽度 35% 是 indet 动画幅宽，非真实进度）
+        expect(bar()!.style.width).toBe("35%");
 
         onProg!(256, 1024);
         await flush();
@@ -143,5 +152,86 @@ describe("Home 上传进度条", () => {
         // 直接验证初始状态无 .up-progress
         expect(document.body.querySelector(".up-progress")).toBeNull();
         expect(file).toBeTruthy();
+    });
+
+    it("translate 在飞时上传钮不误显「上传中…」", async () => {
+        mocks.translate.mockImplementation(() => new Promise(() => {}));
+        const { input, form, upBtn } = mount();
+        input.value = "2501.14787";
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+
+        await vi.waitFor(() => expect(mocks.translate).toHaveBeenCalled());
+        await flush();
+
+        expect(upBtn.disabled).toBe(true);
+        expect(upBtn.textContent).toBe("上传文件");
+        expect(document.body.querySelector(".up-progress")).toBeNull();
+    });
+
+    it("busy 门：translate 在飞期间重复 submit 不再发请求", async () => {
+        mocks.translate.mockImplementation(() => new Promise(() => {}));
+        const { input, form } = mount();
+        input.value = "2501.14787";
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        const ev = () =>
+            form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+        ev();
+        ev();
+        await flush();
+
+        expect(mocks.translate).toHaveBeenCalledTimes(1);
+    });
+
+    it("进度条 aria：role=progressbar，无进度事件时不定态（无 valuenow/无百分比）", async () => {
+        let onProg: ((l: number, t: number) => void) | undefined;
+        mocks.upload.mockImplementation(
+            (
+                _f: File,
+                _fields: unknown,
+                _byok: unknown,
+                prog?: (l: number, t: number) => void,
+            ) => {
+                onProg = prog;
+                return new Promise(() => {});
+            },
+        );
+        const { file } = mount();
+        pick(file, new File(["src"], "paper.tex"));
+        await vi.waitFor(() => expect(mocks.upload).toHaveBeenCalled());
+        await flush();
+
+        const bar = () => document.body.querySelector<HTMLElement>(".up-bar");
+        const label = () =>
+            document.body.querySelector(".up-label")?.textContent ?? "";
+        expect(bar()!.getAttribute("role")).toBe("progressbar");
+        expect(bar()!.getAttribute("aria-valuemin")).toBe("0");
+        expect(bar()!.getAttribute("aria-valuemax")).toBe("100");
+        // 不定态：无 valuenow，label 不带百分比
+        expect(bar()!.hasAttribute("aria-valuenow")).toBe(false);
+        expect(label()).not.toContain("%");
+
+        onProg!(256, 1024);
+        await flush();
+        expect(bar()!.getAttribute("aria-valuenow")).toBe("25");
+        expect(label()).toContain("25%");
+    });
+
+    it("上传在飞时组件卸载：请求落地后不再劫持路由（nav 不被调用）", async () => {
+        let resolveUp: ((v: typeof RESP) => void) | undefined;
+        mocks.upload.mockImplementation(
+            () => new Promise<typeof RESP>((r) => (resolveUp = r)),
+        );
+        const { nav, file } = mount();
+        pick(file, new File(["src"], "paper.tex"));
+        await vi.waitFor(() => expect(mocks.upload).toHaveBeenCalled());
+
+        dispose?.();
+        dispose = undefined;
+        resolveUp!(RESP);
+        await flush();
+        await flush();
+
+        expect(nav).not.toHaveBeenCalled();
     });
 });

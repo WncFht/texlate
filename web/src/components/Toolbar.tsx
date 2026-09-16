@@ -179,6 +179,7 @@ export default function Toolbar(props: Props) {
                     class="tb-btn"
                     aria-haspopup="menu"
                     aria-expanded={menuOpen()}
+                    disabled={props.downloads.length === 0}
                     onClick={() => setMenuOpen((v) => !v)}
                 >
                     ⬇ {t.reader.download}

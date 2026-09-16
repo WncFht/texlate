@@ -191,7 +191,7 @@ export default function PdfPane(props: Props) {
                 </Show>
                 <Show when={!isDocumentLoaded() && !error()}>
                     <div class="pane-veil">
-                        <div class="spinner" aria-label={t.pane.pdfLoading} />
+                        <div class="spinner" role="status" aria-label={t.pane.pdfLoading} />
                     </div>
                 </Show>
                 <Show when={error()}>
