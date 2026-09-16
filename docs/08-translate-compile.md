@@ -154,7 +154,7 @@ env judge 参数：**temperature=0、max_tokens=16、3 次重试、解析 `true/
 - 错误计数**双格式**：`^!` + `file:line:`（只数 `!` 漏全部引擎级错误）。（勘误 2026-09-17：`_FILE_LINE_RX` 扩展名字符集放宽到任意 `[A-Za-z0-9_-]{1,10}`——file:line: 报任何被当输入读的文件（`.eps`/`.pdf_t`/`.lbx`/`.tikz`/`.end` 实测全真错，loop1 7814 log 全扫、扩展名白名单漏 586 行真错含 3 例整体 ok=True 假干净）；行首 `(`/`!` 与 `:`/空白内嵌仍排除。`_NONERR_FILELINE_RX` 反向剔除非错误形——`{LaTeX,Package,Class} … Warning` 行（部分引擎/包给 warning 也打 file:line: 前缀，不排则 `n_errors==0` 干净门永不通）与 `==> Fatal error` 汇总尾行（同一失败复述多计，corpus_v2 2002.05660 实测）。）
 - `parse_log`：首个 `^!` 行 + 其后 8 行 ctx + `!` 总数 + tail 30 行；ctx 内 `l.(\d+)` 行号 + `(` 开括号文件栈追踪（file_stack 定位出错 .tex/.sty，供 rewrite 规则缩小作用域）。（勘误 2026-09-17：runaway 扫描错 `File ended while scanning` 单列 `eof_file` 字段——`)` 弹出已把肇事文件退栈、错误行报的是父文件 `\input` 续行位，取错误行前 `_EOF_POP_WINDOW=16` 行内最后弹出文件；存储面 `errors ≤200` 条（`n_errors` 仍精确计数）、每类 warning 样例 ≤5 条。）
 - 注意：tectonic 有时**不写 .log**——监控不能假设 log 存在。
-- 不过 → 重译该块（错误描述进反馈字段）→ 再不过 → fallback 原文。
+- 不过 → 重译该块（错误描述进反馈字段）→ 再不过 → fallback 原文。（勘误 2026-09-17：L2 回落原文并重 splice 后**未再编**——`e2e.py:746`/`worker.py:3046` 置 `fallback_unverified=True`，终判 verdict 对应回落前源树（PDF 产物为 stale），由后续 fixloop 代验；裁断维持现状——verdict 名如实标记即诚实面，对已败格再烧一轮编译不值。）
 
 ## 3. 归一化层（`compile/normalize.py`）
 
