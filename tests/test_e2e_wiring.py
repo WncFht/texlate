@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from texlate import e2e
+from texlate.latex.model import Chunk, Span
 from texlate.xlat.pipeline import ChunkIn, MockTranslator, XlatPipeline
 
 if TYPE_CHECKING:
@@ -407,6 +408,29 @@ def test_env_judge_reverts_false(tmp_path: Path) -> None:
     assert "custom box environment" in out  # 原文回来了
 
 
+class _JudgeBadReturn(MockTranslator):
+    """translate 返回非 str——``parse_env_judge_answer`` 必崩的形态。"""
+
+    async def translate(
+        self,
+        *,
+        system: str,  # noqa: ARG002
+        user: str,  # noqa: ARG002
+        temperature: float,  # noqa: ARG002
+        max_tokens: int,  # noqa: ARG002
+        response_format: dict[str, str] | None = None,  # noqa: ARG002
+    ) -> str:
+        return None  # type: ignore[return-value] -- 刻意违约测 fail-open
+
+
+def test_env_judge_bad_answer_fails_open() -> None:
+    """judge 调用/解析任何异常都重试到上限后 fail-open True——旁路臂
+    不许把怪应答炸成管线崩溃（worker 复用同一 ``_env_judge_all``）。"""
+    pipe = XlatPipeline(_JudgeBadReturn())
+    chunk = Chunk(id=0, content="body", context="para", span=Span(0, 4))
+    assert asyncio.run(e2e._env_judge_one(pipe, chunk, "mybox")) is True  # noqa: SLF001
+
+
 # ---------------------------------------------------------------- 抄回修复
 
 
@@ -482,9 +506,7 @@ def test_tounicode_embed_once_after_fixloop(
     work = _project(tmp_path / "p")
     engines["xelatex"] = ScriptedEngine("xelatex", [_fail_unattributable, _clean])
     calls: list[Path] = []
-    monkeypatch.setattr(
-        e2e, "embed_cjk_mappings", lambda pdf: calls.append(pdf) or 1
-    )
+    monkeypatch.setattr(e2e, "embed_cjk_mappings", lambda pdf: calls.append(pdf) or 1)
 
     report = e2e.mock_pipeline_run(work, "xelatex", timeout=30.0)
 
@@ -503,9 +525,7 @@ def test_tounicode_skipped_without_pdf(
     work = _project(tmp_path / "p")
     engines["xelatex"] = ScriptedEngine("xelatex", [_fail_unattributable])
     calls: list[Path] = []
-    monkeypatch.setattr(
-        e2e, "embed_cjk_mappings", lambda pdf: calls.append(pdf) or 1
-    )
+    monkeypatch.setattr(e2e, "embed_cjk_mappings", lambda pdf: calls.append(pdf) or 1)
 
     report = e2e.mock_pipeline_run(work, "xelatex", timeout=30.0)
 

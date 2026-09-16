@@ -151,36 +151,57 @@ _MIN_FUSED_PREFIX: Final = 3
 def _cs_events_spans(
     masked: str,
 ) -> tuple[list[tuple[str, int]], list[tuple[int, int]]]:
-    r"""``(cs 名+pos 事件, 配对数学 span 表)``——单遍扫描产物。
-
-    ``$..$``/``$$..$$``/``\\(..\\)``/``\\[..\\]`` 顺序配对；相邻两 ``$``
-    合并为 ``$$``（``$$x$$`` 不切成两对空区间）。未闭合定界符其后全部
-    按文本域处理（配对不齐由 L0 ``math`` 规则另行承接）。
-    """
+    r"""``(cs 名+pos 事件, 配对数学 span 表)``——单遍扫描产物。"""
     css: list[tuple[str, int]] = []
     evs: list[tuple[str, int]] = []
     for m in _BARE_CS_SCAN_RX.finditer(masked):
         t, p = m.group(0), m.start()
         if t[0] == "\\" and len(t) > 1 and t[1].isalpha():
             css.append((t[1:], p))
-        elif t == "$":
-            if evs and evs[-1][0] == "$" and evs[-1][1] + 1 == p:
-                evs[-1] = ("$$", p - 1)
-            else:
-                evs.append(("$", p))
-        elif t in ("\\(", "\\)", "\\[", "\\]"):
+        elif t == "$" or t in ("\\(", "\\)", "\\[", "\\]"):
             evs.append((t, p))
-    closer = {"$": "$", "$$": "$$", "\\(": "\\)", "\\[": "\\]"}
+    return css, _math_spans(evs)
+
+
+def _math_spans(evs: list[tuple[str, int]]) -> list[tuple[int, int]]:
+    r"""定界符事件 → 配对数学区间（``$..$``/``$$..$$``/``\\(..\\)``/``\\[..\\]``）。
+
+    TeX 序读口径——预合并 ``$$`` 会把「inline 闭 ``$`` + 相邻 ``$``」错并成
+    display 开，挂起开区间吞掉全文配对（``$a\alpha$$b\beta$$`` 实证：两枚
+    inline 域 cs 全被误报为文本域裸 cs）。状态机：文本态见相邻 ``$$`` 开
+    display、否则开 inline；inline 态单 ``$`` 即闭；display 态只认相邻
+    ``$$``（内部单 ``$`` 是字面字符）；``\(``/``\[`` 各认 ``\)``/``\]``，
+    异种定界符与裸 ``\)``/``\]`` 不接管。未闭合定界符其后全部按文本域
+    处理（配对不齐由 L0 ``math`` 规则另行承接）。
+    """
+    closer = {"\\(": "\\)", "\\[": "\\]"}
     spans: list[tuple[int, int]] = []
     open_: tuple[str, int] | None = None
-    for d, p in evs:
+    i = 0
+    while i < len(evs):
+        d, p = evs[i]
+        nxt = evs[i + 1] if i + 1 < len(evs) else None
+        pair = nxt is not None and nxt[0] == "$" and nxt[1] == p + 1
         if open_ is None:
-            if d in closer:
+            if d == "$":
+                open_ = ("$$", p) if pair else ("$", p)
+                i += pair
+            elif d in closer:
                 open_ = (d, p)
+        elif open_[0] == "$$":
+            if d == "$" and pair:
+                spans.append((open_[1], p + 2))
+                open_ = None
+                i += 1
+        elif open_[0] == "$":
+            if d == "$":
+                spans.append((open_[1], p + 1))
+                open_ = None
         elif d == closer[open_[0]]:
             spans.append((open_[1], p + len(d)))
             open_ = None
-    return css, spans
+        i += 1
+    return spans
 
 
 def _cs_out_of_math(
@@ -408,11 +429,15 @@ def _declared_name(blob: bytes) -> str | None:
     r"""文件自述编码：inputenc 选项 → ``\inputencoding`` → 魔数注释 → CodePage。
 
     全文件按 latin-1 视读扫（声明必为 ASCII）；inputenc 多选项取最后一个
-    可识别名（TeX 语义同）。
+    可识别名（TeX 语义同）。``\usepackage``/``\inputencoding`` 行在
+    comment/verbatim 遮盖面上扫——注释掉的旧声明与 verbatim 示例代码
+    不是作者先验（mask_tex 等长保 offset，``%`` 魔数注释恰属声明形态
+    故仍在原视图上扫）。
     """
     view = blob.decode("latin-1")
+    active = mask_tex(view)
     names: list[str] = []
-    for match in _INPUTENC_RX.finditer(view):
+    for match in _INPUTENC_RX.finditer(active):
         raw = match[1] if match[1] is not None else match[2]
         found = [o.lower() for o in _DECL_OPTION_RX.findall(raw)]
         names.extend(
@@ -771,6 +796,12 @@ def sniff_tex_encoding(blob: bytes) -> EncodingVerdict:  # noqa: C901, PLR0911, 
             except UnicodeDecodeError:
                 continue
             return EncodingVerdict(enc, "detector", declared_raw, "nul-dense")
+        # 两端 strict 皆败（奇数字节截断/孤立代理对）——NUL+ASCII 落回
+        # utf-8 档会产出 NUL 夹心乱文；按 NUL 奇偶位选端，
+        # decode_tex_with 的 errors=replace 兜底只坏截断点一处。
+        odd_nul = head[1::2].count(0)
+        enc = "utf-16-le" if odd_nul * 2 >= head.count(b"\x00") else "utf-16-be"
+        return EncodingVerdict(enc, "detector", declared_raw, "nul-dense,bad-tail")
     try:
         blob.decode("utf-8")
     except UnicodeDecodeError as err:
@@ -952,7 +983,12 @@ def is_cjk_cp(cp: int) -> bool:
 
 
 def lev_capped(a: str, b: str, cap: int) -> int:
-    """Levenshtein 距离，超 cap 提前返回 cap+1。"""
+    """Levenshtein 距离，超 cap 提前返回 cap+1。
+
+    行最小值全超 cap 可早退（最优路径行经值不降，终值必超 cap）；但
+    末行仍可能「行内最低点 ≤cap 而终值 >cap」——收尾同须压回 cap+1，
+    否则返回值越契约界（实证：``aaab``/``babbbbb`` cap=3 实距 5）。
+    """
     if abs(len(a) - len(b)) > cap:
         return cap + 1
     prev = list(range(len(b) + 1))
@@ -966,4 +1002,4 @@ def lev_capped(a: str, b: str, cap: int) -> int:
         if rowmin > cap:
             return cap + 1
         prev = cur
-    return prev[-1]
+    return min(prev[-1], cap + 1)

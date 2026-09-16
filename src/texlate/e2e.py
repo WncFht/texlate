@@ -151,10 +151,10 @@ async def _env_judge_one(pipe: XlatPipeline, chunk: Chunk, env_name: str) -> boo
                 temperature=xlat_prompts.ENV_JUDGE_TEMPERATURE,
                 max_tokens=xlat_prompts.ENV_JUDGE_MAX_TOKENS,
             )
+            return xlat_prompts.parse_env_judge_answer(raw)
         except Exception as e:  # noqa: BLE001 -- judge 是旁路臂，异常→宁翻勿漏
             log.debug("env judge call failed (%s) → retry", e)
             continue
-        return xlat_prompts.parse_env_judge_answer(raw)
     return True
 
 
