@@ -7,6 +7,7 @@ triage.py — stagerun records → tickets.jsonl 聚类 + metrics.jsonl 趋势 +
   records/{stage}.jsonl   每行 {id,stage,arm,status,dur_s,metrics{..},errors[{code,cat,payload}],sig}
   tickets.jsonl           {sig_id,stage,signature,count,example_ids[],repro_path,fix_class,notes}
   metrics.jsonl           跨 run 追加 {run_id,date,stage_rates{},fixloop{..},regressions[],wall_s}
+                          （全局文件 git 跟踪；冒烟/实验跑用 --no-global 只写 run 内 metrics.json）
 
 用法:
   triage.py records DIR            # records/*.jsonl → DIR/tickets.jsonl (按 count 降序)
@@ -433,7 +434,10 @@ def compute_metrics(results_dir, recs, prev_line):
         st = str(r.get("status") or "?")
         cell["total"] += 1
         cell[f"st:{st}"] += 1
-        if st in OK_STATUS:
+        # fixloop 的"成功"= rescued 终态集（partial/acceptable_pdf 等带伤出 pdf
+        # 也算），与 fixloop.rescue_rate 同口径；其余阶段用 OK_STATUS。
+        ok_set = RESCUED_STATUS if stage == "fixloop" else OK_STATUS
+        if st in ok_set:
             cell["ok"] += 1
         if st in SKIP_STATUS:
             cell["skip"] += 1
@@ -636,7 +640,7 @@ def cmd_records(results_dir, out=None):
     return 0
 
 
-def cmd_metrics(results_dir, metrics_file=None):
+def cmd_metrics(results_dir, metrics_file=None, *, global_append=True):
     recs, legacy = _records_or_legacy(results_dir)
     if not recs:
         print(f"{results_dir}: 无记录可算 metrics", file=sys.stderr)
@@ -644,16 +648,20 @@ def cmd_metrics(results_dir, metrics_file=None):
     metrics_file = metrics_file or results_dir.parent / "metrics.jsonl"
     prev = _last_metrics_line(metrics_file, exclude_run=results_dir.name)
     line = compute_metrics(results_dir, recs, prev)
-    metrics_file.parent.mkdir(parents=True, exist_ok=True)
-    with metrics_file.open("a") as f:
-        f.write(json.dumps(line, ensure_ascii=False) + "\n")
+    if global_append:
+        # 全局趋势行追加进 git 跟踪的 bench/results/metrics.jsonl——
+        # 冒烟/实验跑用 --no-global 只留 run 内 metrics.json 不污染趋势。
+        metrics_file.parent.mkdir(parents=True, exist_ok=True)
+        with metrics_file.open("a") as f:
+            f.write(json.dumps(line, ensure_ascii=False) + "\n")
     # 本 run 汇总 (spec §6 metrics.json) — stagerun 已写则不覆盖
     mp = results_dir / "metrics.json"
     if not mp.exists():
         mp.write_text(json.dumps(line, ensure_ascii=False, indent=1) + "\n")
     tag = " [legacy]" if legacy else ""
+    dest = str(metrics_file) if global_append else "(run-local only)"
     print(
-        f"metrics{tag}: {results_dir.name} → {metrics_file} "
+        f"metrics{tag}: {results_dir.name} → {dest} "
         f"(stages={list(line['stage_rates'])}, regressions={len(line['regressions'])})"
     )
     return 0
@@ -820,6 +828,11 @@ def main(argv=None):
             sp.add_argument("--out", type=Path, default=None)
         if name in ("metrics", "all"):
             sp.add_argument("--metrics-file", type=Path, default=None)
+            sp.add_argument(
+                "--no-global",
+                action="store_true",
+                help="不追加全局 metrics.jsonl（冒烟/实验跑用，防污染趋势文件）",
+            )
     args = p.parse_args(argv)
 
     if args.selftest:
@@ -827,12 +840,14 @@ def main(argv=None):
     if args.cmd == "records":
         return cmd_records(args.dir, args.out)
     if args.cmd == "metrics":
-        return cmd_metrics(args.dir, args.metrics_file)
+        return cmd_metrics(
+            args.dir, args.metrics_file, global_append=not args.no_global
+        )
     if args.cmd == "report":
         return cmd_report(args.dir, args.out)
     if args.cmd == "all":
         rc = cmd_records(args.dir)
-        rc |= cmd_metrics(args.dir, args.metrics_file)
+        rc |= cmd_metrics(args.dir, args.metrics_file, global_append=not args.no_global)
         rc |= cmd_report(args.dir)
         return rc
     p.print_help()
