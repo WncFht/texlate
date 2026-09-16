@@ -2,6 +2,16 @@
 
 > 开源版「幻觉翻译」(hjfy.top): arXiv LaTeX 源码 → LLM 段落级翻译 → ctex 重编译中文 PDF, 双语对照阅读。
 
+## 安装与运行
+
+```bash
+uv tool install 'texlate[server]'   # web 形态（含 SPA）；纯 CLI 可去 [server]
+texlate web                          # http://127.0.0.1:8765，BYOK 在 Settings 页配网关
+texlate run 1706.03762               # 或 CLI 直跑整链 → 双语 PDF
+```
+
+`uv tool install git+…` 是 CLI-only 路径（`server/static/` 为构建产物未入库，SPA 缺席时 API 仍可用）。容器形态见 `Dockerfile`（`docker build -t texlate .` 需 buildx；代理宿主加 `--network=host`）。开发形态：`uv sync && uv run pytest tests/`。
+
 ## 状态：M0 已验收，M1–M3 推进中
 
 - [ADR-001 技术栈决策](docs/01-tech-stack-decision.md) — **Python 核心 + TS 前端 + tectonic 编译层**
