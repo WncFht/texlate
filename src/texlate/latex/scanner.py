@@ -1025,7 +1025,7 @@ class Scanner:
                 return j
             self._emit_ph(PhType.VERB, i, k + len(pat), tex[i : k + len(pat)])
             return k + len(pat)
-        if env in MATH_ENVS:
+        if env in MATH_ENVS or (reg is not None and reg.body_role == "math"):
             hit = self._find_env_end(j, env)
             if hit is None:
                 self._flush_run(i)
@@ -1228,7 +1228,12 @@ class Scanner:
                 )
                 return j
             end, tag_start = hit
-            if env in MATH_ENVS or env.rstrip("*") in MATH_ENVS:
+            ereg = self.state.macros.envs.get(env)
+            if (
+                env in MATH_ENVS
+                or env.rstrip("*") in MATH_ENVS
+                or (ereg is not None and ereg.body_role == "math")
+            ):
                 self._ph_into_run(PhType.MATH, tex[i:end], i, end)
             elif env in VERBATIM_ENVS:
                 self._flush_run(i)

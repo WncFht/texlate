@@ -33,7 +33,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, NamedTuple, Protocol
 
-from texlate.latex.gullet import ArgMismatch, Gullet, IfSetter, MacroDef
+from texlate.latex.gullet import ArgMismatch, EnvDef, Gullet, IfSetter, MacroDef
 from texlate.latex.macro_table import parse_argspec
 from texlate.latex.model import (
     ArgSpec,
@@ -159,18 +159,25 @@ def _cite_ref_type(name: str) -> PhType | None:
     return None
 
 
-def _env_ph_type(env: str, ae: ArgspecEntry | None = None) -> PhType | None:
+def _env_ph_type(
+    env: str, ae: ArgspecEntry | None = None, reg: EnvDef | None = None
+) -> PhType | None:
     r"""Env 名 → 保护 ``PhType``（math/verbatim/protected 三族分类单源）。
 
     ``_group_surface``/``_handle_env_begin`` 共用——三族集合两两不相交，
-    判定序无关；``ae.body_role`` 是 argspec env 条目的同名分类
-    （verbatim/math/protect 逐项对映）。
+    判定序无关；``ae.body_role``/``reg.body_role`` 分别是 argspec env 条目
+    与用户 ``\newenvironment`` 登记的同名分类（verbatim/math/protect 逐项
+    对映）。族表名优先——body_role 不覆盖既有族表分类。
     """
-    if env in VERBATIM_ENVS or (ae is not None and ae.body_role == "verbatim"):
+    roles = (
+        ae.body_role if ae is not None else "",
+        reg.body_role if reg is not None else "",
+    )
+    if env in VERBATIM_ENVS or "verbatim" in roles:
         return PhType.VERB
-    if env in MATH_ENVS or (ae is not None and ae.body_role == "math"):
+    if env in MATH_ENVS or "math" in roles:
         return PhType.MATH
-    if env in PROTECTED_ENVS or (ae is not None and ae.body_role == "protect"):
+    if env in PROTECTED_ENVS or "protect" in roles:
         return PhType.ENV
     return None
 
@@ -1145,7 +1152,7 @@ class Segmenter:
                     continue
                 env, j = hit
                 if name == "begin":
-                    typ = _env_ph_type(env)
+                    typ = _env_ph_type(env, reg=self.state.macros.lookup_env(env))
                     if typ is not None:
                         e = self._grp_find_env_end(toks, j, env)
                         if e is not None:
@@ -1279,7 +1286,11 @@ class Segmenter:
             em = self._grp_env_macro(t)
             if em is not None:
                 ek, eenv = em
-                typ = _env_ph_type(eenv) if ek == "env_begin" else None
+                typ = (
+                    _env_ph_type(eenv, reg=self.state.macros.lookup_env(eenv))
+                    if ek == "env_begin"
+                    else None
+                )
                 e = (
                     self._grp_find_env_end(toks, i + 1, eenv)
                     if typ is not None
@@ -1939,7 +1950,7 @@ class Segmenter:
                 return
         else:
             env, close_t = m.target_env, t
-        reg = src.macros.lookup_env(env) if isinstance(src, Gullet) else None
+        reg = self.state.macros.lookup_env(env)
         # 环境表未命中且族表全不知 → argspec env 条目：body_role 决定体路由
         # （verbatim/math/protect 走同名路径；text 落下方透明尾）。族表已
         # 知的 env（含 ARG_TRANSPARENT/ENV_MANDATORY_ARG）不交给 argspec——
@@ -1959,7 +1970,7 @@ class Segmenter:
         # ENVTAG/VERB 体头部夹带前隙（in_arg ident 渲染丢空格）
         self._cover_gap(fid, t.pos[1])
         v_begin = self._cover_to(fid, close_t.pos[2])
-        pht = _env_ph_type(env, ae)
+        pht = _env_ph_type(env, ae, reg)
         if pht is PhType.VERB:
             self._flush_run(v_begin.start)
             if m is not None:

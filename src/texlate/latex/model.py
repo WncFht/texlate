@@ -135,6 +135,7 @@ class EnvEntry:
     name: str
     nargs: int = 0
     kind: str = "transparent"  # "protected" | "transparent"（启发式）
+    body_role: str = ""  # "": 散文体 | "math"（before 尾开数学推断）
 
 
 @dataclass(frozen=True, slots=True)

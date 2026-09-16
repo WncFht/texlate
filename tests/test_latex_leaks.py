@@ -6,7 +6,7 @@ B in-arg 注释；C1 env 名 ``*`` 归一；C2 in-arg 未知 env；D in-arg 条�
 
 import re
 
-from texlate.latex import parse_tex, reconstruct
+from texlate.latex import parse_tex, parse_tex_v1, reconstruct
 from texlate.latex.api import new_state
 from texlate.latex.model import PhType, ScanResult
 from texlate.latex.scanner import Scanner
@@ -281,4 +281,100 @@ def test_gap_toplevel_ph_body_clean() -> None:
     res = scan("Para \\foo \\cite{x} and \\begin{equation}y\\end{equation} z.")
     assert res.ph_map["[[CITE_1]]"] == "\\cite{x}"
     assert all(not v.startswith((" ", "\n", "%")) for v in res.ph_map.values())
-    assert reconstruct(res) == DOC % "Para \\foo \\cite{x} and \\begin{equation}y\\end{equation} z."
+    assert (
+        reconstruct(res)
+        == DOC % "Para \\foo \\cite{x} and \\begin{equation}y\\end{equation} z."
+    )
+
+
+# ---------------------------------------------------------------- 宏展开洞
+# modec-misschar-2026-09-16 归因：数学内容以散文身份到翻译器。
+
+
+def test_alias_newcommand_env_endpoints_protect_math() -> None:
+    r"""``\nc`` 别名定义链：``\be…\en`` → ``[[MATH]]``（0905.0795 miss×100）。
+
+    ``\newcommand{\nc}{\newcommand}`` 体=裸 cs 曾判 opaque → 定义永不
+    执行 → ``\be`` 未注册 → equation 环境体整段进 chunk 被译。
+    """
+    body = (
+        "\\newcommand{\\nc}{\\newcommand}\n"
+        "\\nc{\\be}{\\begin{equation}}\n"
+        "\\nc{\\en}{\\end{equation}}\n"
+        "Lead prose sentence with enough letters here.\n\n"
+        "\\be \\tau(x)=\\sum_{\\alpha\\in A} \\tau_\\alpha(x) regionword \\en\n\n"
+        "Tail prose sentence with enough letters here."
+    )
+    res = scan(body)
+    assert any(t.startswith("[[MATH_") and "\\tau" in v for t, v in res.ph_map.items())
+    assert not any(
+        "\\tau" in c.content or "regionword" in c.content for c in res.chunks
+    )
+    assert reconstruct(res) == DOC % body
+
+
+def test_user_env_math_role_eqnarray_tail() -> None:
+    r"""``\newenvironment{subeqnarray}`` before 尾 ``\eqnarray`` → 体成 ``[[MATH]]``。
+
+    1003.0112 miss×180：MATH_ENVS 无名、``_do_newenv`` 一律 transparent
+    → 体按散文进 chunk。字面 ``\begin``/宏端点 ``\sba`` 两形都钉。
+    """
+    body = (
+        "\\newenvironment{subeqnarray}\n"
+        "  {\\arraycolsep1pt\n"
+        "    \\def\\@eqnnum\\stepcounter##1{\\stepcounter{subequation}{\\reset@font\\rm\n"
+        "      (\\theequation\\alph{subequation})}}\\eqnarray}\n"
+        "  {\\endeqnarray\\stepcounter{equation}}\n"
+        "\\newcommand{\\sba}{\\begin{subeqnarray}}\n"
+        "\\newcommand{\\sea}{\\end{subeqnarray}}\n"
+        "Lead prose sentence with enough letters here.\n\n"
+        "\\begin{subeqnarray}\n"
+        "\\varphi^U_\\Omega = \\int d\\omega region_{\\Omega, omega} \\varphi_{region}^{U}\n"
+        "\\end{subeqnarray}\n\n"
+        "\\sba\na^2+b^2=c^2 regionword\n\\sea\n\n"
+        "Tail prose sentence with enough letters here."
+    )
+    res = scan(body)
+    env = res.macros.lookup_env("subeqnarray")
+    assert env is not None
+    assert env.body_role == "math"
+    maths = [v for k, v in res.ph_map.items() if k.startswith("[[MATH_")]
+    assert any("\\varphi^U_\\Omega" in v for v in maths)
+    assert any("\\sba" in v for v in maths)
+    assert not any(
+        "regionword" in c.content or "\\varphi" in c.content for c in res.chunks
+    )
+    assert reconstruct(res) == DOC % body
+
+
+def test_user_env_math_role_v1_arm() -> None:
+    r"""v1 字节 scanner 臂同洞对称：字面 ``\\begin{subeqnarray}`` 体也归 MATH。"""
+    body = (
+        "\\newenvironment{subeqnarray}{\\arraycolsep1pt\\eqnarray}{\\endeqnarray}\n"
+        "Lead prose sentence with enough letters here.\n\n"
+        "\\begin{subeqnarray}\n"
+        "\\varphi^U_\\Omega = \\int d\\omega region_{\\Omega, omega} \\varphi_{region}^{U}\n"
+        "\\end{subeqnarray}\n\n"
+        "Tail prose sentence with enough letters here."
+    )
+    res = parse_tex_v1(DOC % body)
+    maths = [v for k, v in res.ph_map.items() if k.startswith("[[MATH_")]
+    assert any("\\varphi^U_\\Omega" in v for v in maths)
+    assert not any("region" in c.content or "\\varphi" in c.content for c in res.chunks)
+    assert reconstruct(res) == DOC % body
+
+
+def test_user_env_math_role_in_arg() -> None:
+    r"""in_arg 路：用户 math env 嵌 ``\section`` 参数里也整段 ``[[MATH]]``。"""
+    body = (
+        "\\newenvironment{subeqnarray}{\\eqnarray}{\\endeqnarray}\n"
+        "\\section{Lead \\begin{subeqnarray}x_{region}=1\\end{subeqnarray} tail words here}"
+    )
+    res = scan(body)
+    assert any(
+        k.startswith("[[MATH_")
+        and "\\begin{subeqnarray}" in v
+        and "\\end{subeqnarray}" in v
+        for k, v in res.ph_map.items()
+    )
+    assert reconstruct(res) == DOC % body

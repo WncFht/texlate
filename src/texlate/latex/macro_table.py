@@ -30,7 +30,7 @@ from texlate.latex.model import (
     read_cmd_name,
     ws_skip,
 )
-from texlate.latex.tables import PROTECTED_PARAM_CMDS
+from texlate.latex.tables import MATH_ENVS, PROTECTED_PARAM_CMDS
 
 _ENV_BEGIN_RX = re.compile(r"\\begin\{([^}]*)\}")
 _ENV_END_RX = re.compile(r"\\end\{([^}]*)\}")
@@ -81,6 +81,51 @@ def protected_param_positions(body: str, nargs: int) -> tuple[bool, ...]:
 def env_kind_of(body: str) -> str:
     r"""``\newenvironment`` 体启发：含 caption/figure → protected（W15 粗糙，维持）。"""
     return "protected" if "caption" in body or "figure" in body else "transparent"
+
+
+_ENV_TAIL_BEGIN_RX = re.compile(r"\\begin\s*\{([^}]*)\}\s*$")
+_ENV_TAIL_CS_RX = re.compile(r"\\([a-zA-Z@]+\*?)\s*$")
+
+
+def env_body_role_of(body: str, table: MacroTable | None = None) -> str:
+    r"""``\newenvironment`` before 体尾开数学 → ``"math"``（否则 ``""``）。
+
+    gullet ``_env_body_role`` 的字符串版对价（1003.0112）：尾形 ``$``/``$$``、
+    ``\begin{math-env}``、开数学 cs（``\eqnarray`` 族内核名、``\(`/``\[``）、
+    env_begin→math-env 的已注册宏端点、``body_role=math`` 用户 env 套娃。
+    """
+    tail = body.rstrip()
+    if not tail:
+        return ""
+    m = _ENV_TAIL_BEGIN_RX.search(tail)
+    if m is not None:
+        name = m.group(1).strip()
+        e = table.envs.get(name) if table is not None else None
+        math = (
+            name in MATH_ENVS
+            or name.rstrip("*") in MATH_ENVS
+            or (e is not None and e.body_role == "math")
+        )
+        return "math" if math else ""
+    if tail.endswith(("\\(", "\\[")) or (
+        tail.endswith("$") and not tail.endswith("\\$")
+    ):
+        return "math"
+    m = _ENV_TAIL_CS_RX.search(tail)
+    name = m.group(1) if m is not None else ""
+    if name in MATH_ENVS:
+        return "math"
+    e = table.cmds.get(name) if table is not None else None
+    if e is None or e.kind is not MacroKind.ENV_BEGIN:
+        return ""
+    tenv = e.target_env
+    ee = table.envs.get(tenv) if table is not None else None
+    math = (
+        tenv in MATH_ENVS
+        or tenv.rstrip("*") in MATH_ENVS
+        or (ee is not None and ee.body_role == "math")
+    )
+    return "math" if math else ""
 
 
 def classify_body(body: str) -> tuple[MacroKind, str]:
@@ -256,7 +301,10 @@ def scan_macro_def(  # noqa: C901, PLR0911, PLR0912, PLR0915 — 六类定义命
                 body_b = tex[bb + 1 : eb - 1]
                 ee = match_brace(tex, ws_skip(tex, eb))
                 table.envs[envname] = EnvEntry(
-                    name=envname, nargs=nargs, kind=env_kind_of(body_b)
+                    name=envname,
+                    nargs=nargs,
+                    kind=env_kind_of(body_b),
+                    body_role=env_body_role_of(body_b, table),
                 )
                 return ee or eb
         return pos

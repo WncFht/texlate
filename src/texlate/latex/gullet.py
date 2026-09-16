@@ -47,6 +47,7 @@ from texlate.latex.tables import (
     FONT_SWITCHES,
     INLINE_LITERAL_CMDS,
     INPUT_CMDS,
+    MATH_ENVS,
     MAX_GEN,
     MAX_INPUTS,
     PROTECT_NAMES,
@@ -137,6 +138,7 @@ class EnvDef:
     after: list[Tok] = field(default_factory=list)
     caption: list[Tok] = field(default_factory=list)  # \newtheorem 的标题
     kind: str = "transparent"  # transparent|protected|theorem
+    body_role: str = ""  # "": 散文体 | "math"（before 尾开数学推断）
 
 
 Entry = MacroDef | Alias | IfCond | IfSetter
@@ -313,6 +315,7 @@ def export_flat_macros(flat: _FlatMacroTable) -> ScopeMacroTable:
                 name=name,
                 spec=[Arg("m")] * e.nargs,
                 kind="protected" if e.kind == "protected" else "transparent",
+                body_role=e.body_role,
             ),
             scope="global",
         )
@@ -712,6 +715,11 @@ _MATH_CS = {
 # `\(`/`\)`/`\[`/`\]` 单字符 cs 也是数学特征
 _MATH_CS |= {"(", ")", "[", "]"}
 
+# 把后续流切进数学态的 cs 名：内核 ``\math``/``\displaymath``/``\eqnarray``
+# 族与 ``\(`/``\[``——``\newenvironment`` before 体尾命中即 body_role=math。
+# （env 名与 cs 名同拼写，``MATH_ENVS`` 直接复用）
+_MATH_OPEN_CS = MATH_ENVS | {"(", "["}
+
 _DIGITS = frozenset("0123456789")
 _REL_CHARS = {"<", ">", "="}
 
@@ -739,6 +747,22 @@ def _surface(toks: list[Tok] | tuple[Tok, ...]) -> str:
 def _tok_eq(a: Tok, b: Tok) -> bool:
     """Token 结构相等（kind+text；忽略 pos/gen——plasTeX ``t == a`` 同义）。"""
     return a.kind == b.kind and a.text == b.text
+
+
+def _bare_cs(body: list[Tok]) -> Tok | None:
+    r"""体为单枚 cs（边沿空白不计）→ 该 cs；否则 ``None``。
+
+    ``\newcommand{\nc}{\newcommand}`` 纯别名形的判据——edge-stripped
+    只认一枚，多 token 体（``\foo\bar``）不走别名路。
+    """
+    i, j = 0, len(body)
+    while i < j and body[i].kind in ("space", "eol_par"):
+        i += 1
+    while j > i and body[j - 1].kind in ("space", "eol_par"):
+        j -= 1
+    if j - i == 1 and body[i].kind == "cs":
+        return body[i]
+    return None
 
 
 def expand_def(
@@ -1708,9 +1732,74 @@ class Gullet:
         spec.extend(Arg("m") for _ in range(n))
         kind = "transparent"  # env 保护性归分段器按 ENV 表裁决（v1 一律 transparent）
         self.macros.set_env(
-            EnvDef(name=envname, spec=spec, before=before, after=after, kind=kind)
+            EnvDef(
+                name=envname,
+                spec=spec,
+                before=before,
+                after=after,
+                kind=kind,
+                body_role=self._env_body_role(before),
+            )
         )
         return self._consumed(f"newenv:{envname}", trig, trace)
+
+    def _env_is_math(self, env: str) -> bool:
+        r"""Env 名判数学：内建 ``MATH_ENVS`` / 已注册 ``body_role=math`` 用户 env。"""
+        if env in MATH_ENVS or env.rstrip("*") in MATH_ENVS:
+            return True
+        reg = self.macros.lookup_env(env)
+        return reg is not None and reg.body_role == "math"
+
+    def _env_body_role(self, before: list[Tok]) -> str:
+        r"""``\newenvironment`` before 体尾开数学 → ``"math"``（否则 ``""``）。
+
+        1003.0112（miss×180）：before 尾 ``\eqnarray`` 的 env 体实为数学，
+        无名表可追——尾部推断覆盖 ``$``/``$$``、``\eqnarray`` 族内核名、
+        ``\(`/``\[``、``\begin{math-env}``、env_begin→math-env 宏端点与
+        ``body_role=math`` 用户 env 套娃；其余一律 ``""``。
+        """
+        i = len(before) - 1
+        while i >= 0 and before[i].kind in ("space", "eol_par"):
+            i -= 1
+        if i < 0:
+            return ""
+        t = before[i]
+        if t.kind == "mathshift":
+            return "math"
+        if t.kind == "rbrace":
+            return self._env_tail_begin_role(before, i)
+        if t.kind != "cs":
+            return ""
+        if t.text in _MATH_OPEN_CS:
+            return "math"
+        r = self.macros.resolve(self.macros.lookup(t.text))
+        math = (
+            isinstance(r, MacroDef)
+            and r.kind == "env_begin"
+            and self._env_is_math(r.target_env)
+        )
+        return "math" if math else ""
+
+    def _env_tail_begin_role(self, before: list[Tok], i: int) -> str:
+        r"""``\begin{env}`` 收尾尾形：回找配对 ``{``，前驱 cs 为 ``\begin`` 才取 env 名。"""
+        depth, j = 1, i - 1
+        while j >= 0:
+            if before[j].kind == "rbrace":
+                depth += 1
+            elif before[j].kind == "lbrace":
+                depth -= 1
+                if depth == 0:
+                    break
+            j -= 1
+        if j < 0:
+            return ""
+        k = j - 1
+        while k >= 0 and before[k].kind in ("space", "eol_par"):
+            k -= 1
+        if k < 0 or before[k].kind != "cs" or before[k].text != "begin":
+            return ""
+        env = _surface(before[j + 1 : i]).strip()
+        return "math" if self._env_is_math(env) else ""
 
     def _read_env_name(self, trace: list[Tok]) -> str | None:
         """``{env}`` 读环境名（``name:str``）。"""
@@ -2562,6 +2651,10 @@ class Gullet:
         if mk is MacroKind.ENV_END:
             return "env_end", target, ()
         if not body_has_text(surf):
+            if _bare_cs(body) is not None:
+                # 体=单枚 cs 的纯别名（\nc→\newcommand）：opaque 会让调用点
+                # 交出本体、目标 primitive/宏永不执行——回吐走正常分派
+                return "transparent_expand", "", ()
             return ("math" if self._has_math(body) else "opaque"), "", ()
         rest = _surface(self._strip_param_refs(body))
         kind = "transparent_expand" if body_has_text(rest) else "transparent_inline"

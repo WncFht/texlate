@@ -424,6 +424,52 @@ def test_gullet_newtheorem_registers() -> None:
     assert e.kind == "theorem"
 
 
+def test_gullet_newenv_math_role_eqnarray_tail() -> None:
+    r"""before 体尾 ``\eqnarray`` → ``body_role='math'``（1003.0112 miss×180 根因）。"""
+    g = Gullet(
+        "\\newenvironment{subeqnarray}"
+        "{\\arraycolsep1pt\\eqnarray}{\\endeqnarray\\stepcounter{equation}}"
+    )
+    list(g)
+    e = g.macros.lookup_env("subeqnarray")
+    assert e is not None
+    assert e.body_role == "math"
+
+
+def test_gullet_newenv_math_role_tail_variants() -> None:
+    r"""尾形族：``\begin{eqnarray}``/``\[``/``\(`/``$``/env_begin 宏端点 → math。"""
+    g = Gullet(
+        "\\newcommand{\\ba}{\\begin{eqnarray}}\n"
+        "\\newenvironment{eA}{x \\begin{eqnarray}}{\\end{eqnarray}}\n"
+        "\\newenvironment{eB}{pre \\[}{\\]}\n"
+        "\\newenvironment{eC}{pre \\(}{\\)}\n"
+        "\\newenvironment{eD}{pre $$}{$$}\n"
+        "\\newenvironment{eE}{pre \\ba}{\\ea}\n"
+        "\\newenvironment{eF}{inner \\begin{eB}}{\\end{eB}}"
+    )
+    list(g)
+    for name in ("eA", "eB", "eC", "eD", "eE", "eF"):
+        e = g.macros.lookup_env(name)
+        assert e is not None, name
+        assert e.body_role == "math", name
+
+
+def test_gullet_newenv_math_role_negative() -> None:
+    r"""before 尾非数学开 → 不标：``\begin{figure}``/闭符 ``\)``/裸词文本。"""
+    g = Gullet(
+        "\\newenvironment{nA}{\\begin{figure}}{\\end{figure}}\n"
+        "\\newenvironment{nB}{pre \\)}{post}\n"
+        "\\newenvironment{nC}{plain words here}{post}\n"
+        "\\newenvironment{nD}{\\section}{post}\n"
+        "\\newenvironment{nE}{}{post}"
+    )
+    list(g)
+    for name in ("nA", "nB", "nC", "nD", "nE"):
+        e = g.macros.lookup_env(name)
+        assert e is not None, name
+        assert e.body_role == "", name
+
+
 def test_gullet_declare_math_operator() -> None:
     r"""``\DeclareMathOperator{\\Res}{Resid}`` → math 类（体包 ``\operatorname``）。"""
     g = Gullet("\\DeclareMathOperator{\\Res}{Resid}\\Res")
@@ -463,6 +509,48 @@ def test_gullet_opaque_body_call_site_protected() -> None:
     r"""opaque 类（无文本体）调用点保护：``\m`` 本体交出、参数不读。"""
     ts, _ = expand("\\def\\m{x}\\m")
     assert ("cs", "m") in [(t.kind, t.text) for t in ts]
+
+
+def test_gullet_alias_bare_cs_body_expands() -> None:
+    r"""体为裸 cs 的宏不判 opaque——回吐目标 cs 正常分派。
+
+    0905.0795 miss×100 根因：``\newcommand{\nc}{\newcommand}`` 旧判
+    opaque → ``\nc{\be}{..}`` 定义永不执行 → ``\be`` 未注册。
+    """
+    _, g = expand(
+        "\\newcommand{\\nc}{\\newcommand}\n"
+        "\\nc{\\be}{\\begin{equation}}\\nc{\\en}{\\end{equation}}"
+    )
+    be = g.macros.lookup("be")
+    assert be is not None
+    assert be.kind == "env_begin"
+    assert be.target_env == "equation"
+    en = g.macros.lookup("en")
+    assert en is not None
+    assert en.kind == "env_end"
+    assert en.target_env == "equation"
+
+
+def test_gullet_alias_bare_cs_via_def() -> None:
+    r"""``\def`` 同路：``\def\nc{\newcommand}`` 别名展开执行定义。"""
+    _, g = expand("\\def\\nc{\\newcommand}\\nc{\\be}{\\begin{equation}}")
+    assert g.macros.lookup("be") is not None
+
+
+def test_gullet_alias_to_text_cmd() -> None:
+    r"""别名到普通命令：``\newcommand{\ttx}{\textit}`` → 展开出 ``\textit`` 本体。"""
+    ts, _ = expand("\\newcommand{\\ttx}{\\textit}\\ttx")
+    kinds = [(t.kind, t.text) for t in ts]
+    assert ("cs", "textit") in kinds
+    assert ("cs", "ttx") not in kinds
+
+
+def test_gullet_multi_cs_body_stays_opaque() -> None:
+    r"""多 token 无文本体仍 opaque：``\def\x{\foo\bar}`` 不展开（负向钉）。"""
+    ts, _ = expand("\\def\\x{\\foo\\bar}\\x")
+    kinds = [(t.kind, t.text) for t in ts]
+    assert ("cs", "x") in kinds
+    assert ("cs", "foo") not in kinds
 
 
 # ---------------------------------------------------------------- 预算降级
