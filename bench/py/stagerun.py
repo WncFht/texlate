@@ -1341,6 +1341,10 @@ def stage_fixloop(
     if comp_path.exists():
         for rec in benchlib.iter_jsonl(comp_path):
             if rec.get("id") in want_ids and rec.get("arm") == "zh":
+                # 多 xlat 臂并存时同键 append 互覆 —— 指定 --xlat-arm 则只认
+                # 该臂记录 (arm_mismatch skip 的 upstream 为空, 自然滤除)
+                if args.xlat_arm and (rec.get("upstream") or "") != args.xlat_arm:
+                    continue
                 cand_latest[rec["id"]] = rec  # append 序覆盖 = 末条
     todo: list[tuple[str, dict]] = []
     for pid in ids:
@@ -1474,6 +1478,11 @@ def main() -> None:
         help="目标格选择：fail(默认)/nonclean/misschar(缺字 partial 窄口)/clean(幂等探针)/all",
     )
     p_fx.add_argument("--timeout", type=float, default=240.0)
+    p_fx.add_argument(
+        "--xlat-arm",
+        default=None,
+        help="候选 compile 记录限该 upstream 臂（多臂 append 序互覆时按臂捞）",
+    )
     p_fx.add_argument(
         "--llm",
         action="store_true",
