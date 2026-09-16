@@ -53,8 +53,10 @@ from texlate.server.settings import (
     validate_model,
 )
 from texlate.server.settings import data_dir as default_data_dir
+from texlate.server.staticfiles import mount_spa
 from texlate.server.store import (
     ACTIVE_STATUSES,
+    RETRYABLE_FROM,
     Store,
     StoreError,
     TransitionError,
@@ -91,13 +93,13 @@ _OLD_ID_RE = re.compile(r"^[a-zA-Z-]+(?:\.[A-Z][a-zA-Z]+)?/\d{7}$")
 
 _LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 
-#: URL kind → media_type（§2.3 表）
+#: URL kind → media_type（§2.3 表）。``src.tar`` 不在表内——它的物理类型
+#: 随任务 kind 变化（e-print tar.gz / 上传原文件回读），走 ``_src_tar_media``。
 _MEDIA = {
     "en.pdf": "application/pdf",
     "zh.pdf": "application/pdf",
     "dual.pdf": "application/pdf",
     "dual.json": "application/json",
-    "src.tar": "application/gzip",
     "zh-src.zip": "application/zip",
     "compile.log": "text/plain; charset=utf-8",
     "md": "application/zip",
@@ -106,6 +108,40 @@ _MEDIA = {
     ),
     "zh.epub": "application/epub+zip",
 }
+
+#: 会产出 ``dual.json``（→ reader 可用）的任务 kind。docx/epub 走
+#: export 双语插译没有 dual.json——``_accepted`` 对它们不发 reader_url。
+_DUAL_JSON_KINDS = frozenset({"arxiv", "share", "upload_tex", "upload_pdf"})
+
+#: 上传任务 ``src.tar``（原始上传字节回读）按任务 kind 钉死的 mime
+_SRC_TAR_KIND_MEDIA = {
+    "upload_pdf": "application/pdf",
+    "docx": ("application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    "epub": "application/epub+zip",
+}
+
+
+def _src_tar_media(task_kind: str, path: Path) -> str:
+    """``src.tar`` 的物理 mime：arxiv/share=e-print tar.gz；上传任务=原文件回读。
+
+    ``upload_tex`` 的 blob 可能是 .tex/.zip/.tar/.tar.gz——按魔数给真值，
+    认不出的按 octet-stream（不谎报 gzip）。
+    """
+    if task_kind in ("arxiv", "share"):
+        return "application/gzip"
+    fixed = _SRC_TAR_KIND_MEDIA.get(task_kind)
+    if fixed is not None:
+        return fixed
+    if task_kind == "upload_tex":
+        with path.open("rb") as fh:
+            head = fh.read(263)
+        if head[:2] == b"\x1f\x8b":
+            return "application/gzip"
+        if head[:4] == b"PK\x03\x04":
+            return "application/zip"
+        if head[257:262] == b"ustar":
+            return "application/x-tar"
+    return "application/octet-stream"
 
 
 class _ApiError(Exception):
@@ -224,15 +260,20 @@ def _artifacts(store: Store, task_id: str) -> dict[str, str]:
 
 
 def _accepted(row: dict[str, Any], status: int, extra: dict[str, Any]) -> JSONResponse:
-    """202/200 任务响应统一形状（§2.1）。"""
+    """202/200 任务响应统一形状（§2.1）。
+
+    ``reader_url`` 只发给会产 ``dual.json`` 的 kind（``_DUAL_JSON_KINDS``）——
+    docx/epub 的 reader 端点恒 404，发链接是空诺。
+    """
     tid = str(row["id"])
     body = {
         "task_id": tid,
         "status": row["status"],
         "events_url": f"/api/task/{tid}",
-        "reader_url": f"/api/task/{tid}/reader",
         **extra,
     }
+    if str(row["kind"]) in _DUAL_JSON_KINDS:
+        body["reader_url"] = f"/api/task/{tid}/reader"
     return JSONResponse(body, status_code=status)
 
 
@@ -366,15 +407,18 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
     # ------------------------------------------------------------ 辅助
 
     def _auth(request: Request) -> AuthContext:
-        """Header > settings > env 三级决议（§4.1）。"""
-        return resolve_auth(
-            settings_store.load(),
-            header_key=request.headers.get("x-texlate-key", ""),
-            header_base_url=request.headers.get("x-texlate-base-url", ""),
-            header_model=request.headers.get("x-texlate-model", ""),
-            mode=server_mode(),
-            salt=salt,
-        )
+        """Header > settings > env 三级决议（§4.1）；非法 header 值 → 400。"""
+        try:
+            return resolve_auth(
+                settings_store.load(),
+                header_key=request.headers.get("x-texlate-key", ""),
+                header_base_url=request.headers.get("x-texlate-base-url", ""),
+                header_model=request.headers.get("x-texlate-model", ""),
+                mode=server_mode(),
+                salt=salt,
+            )
+        except ValueError as e:
+            raise _ApiError(400, {"detail": str(e)}) from e
 
     def _get_task(request: Request, task_id: str) -> dict[str, Any]:
         """Id 形态 + 存在 + tenant 隔离三检；不过 → 404。"""
@@ -546,7 +590,10 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         if not _is_valid_arxiv(base):
             return _json_error(400, f"invalid arxiv id: {arxiv_id!r}")
         body = await _read_body(request)
-        options = dict(body.get("options") or {})
+        try:
+            options = dict(body.get("options") or {})
+        except (TypeError, ValueError):
+            return _json_error(400, "options 须为 object 或 KV 对列表")
         try:
             model = validate_model(str(body.get("model") or _auth(request).model))
         except ValueError as e:
@@ -651,15 +698,17 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
             return _json_error(404, "artifact file missing")
         headers = None
         if download:
-            stem = row.get("arxiv_id") or task_id
+            # 旧式 arxiv_id 含 '/'（hep-th/9901001）——filename 白名单化防畸形 header
+            stem = re.sub(r"[^A-Za-z0-9_.+-]", "_", str(row.get("arxiv_id") or task_id))
             headers = {
                 "Content-Disposition": (f'attachment; filename="texlate-{stem}-{kind}"')
             }
-        return FileResponse(
-            path,
-            media_type=_MEDIA.get(kind, "application/octet-stream"),
-            headers=headers,
+        media = (
+            _src_tar_media(str(row["kind"]), path)
+            if kind == "src.tar"
+            else _MEDIA.get(kind, "application/octet-stream")
         )
+        return FileResponse(path, media_type=media, headers=headers)
 
     # ------------------------------------------------------------ §2.4 upload
 
@@ -741,20 +790,28 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         updir.mkdir(parents=True, exist_ok=True)
         safe = re.sub(r"[^A-Za-z0-9_.+-]", "_", Path(filename).name)
         (updir / (safe or "upload.bin")).write_bytes(data)
-        row, status, extra = _create_and_enqueue(
-            request,
-            kind=route,
-            arxiv_id=None,
-            source_name=filename,
-            title=filename,
-            model=model,
-            target_lang=target_lang,
-            options=options,
-            prefer="fresh",
-            cache_key=None,
-            task_id=task_id,
-            incoming_bytes=len(data),
-        )
+        try:
+            row, status, extra = _create_and_enqueue(
+                request,
+                kind=route,
+                arxiv_id=None,
+                source_name=filename,
+                title=filename,
+                model=model,
+                target_lang=target_lang,
+                options=options,
+                prefer="fresh",
+                cache_key=None,
+                task_id=task_id,
+                incoming_bytes=len(data),
+            )
+        except Exception:
+            # 建行/入队任何失败——upload blob 目录一并收掉，不留孤儿（B4）
+            shutil.rmtree(root / "tasks" / task_id, ignore_errors=True)
+            raise
+        if str(row["id"]) != task_id:
+            # idempotent 命中旧行——本次落盘 blob 成孤儿，连带目录清掉（B4）
+            shutil.rmtree(root / "tasks" / task_id, ignore_errors=True)
         return _accepted(row, status, extra)
 
     # ------------------------------------------------------------ share 导入
@@ -931,9 +988,17 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         return JSONResponse({"task_id": task_id, "status": "cancelled"})
 
     @app.post("/api/task/{task_id}/retry")
-    async def task_retry(request: Request, task_id: str) -> Response:
-        """终态/needs_auth → queued 重入队；body 可带 ``{main, options}``。"""
+    async def task_retry(request: Request, task_id: str) -> Response:  # noqa: C901 -- 校验阶梯平铺
+        """终态/needs_auth → queued 重入队；body 只收 ``{main, options}``。
+
+        ``model``/``target_lang`` 是 cache_key 口径成员——换值得新建任务，
+        静默丢弃比报错糟，故 body 白名单外的键一律 400。
+        """
         row = _get_task(request, task_id)
+        # 状态守卫必须在一切 mutation 之前——done 任务 retry 只许纯 409，
+        # 不得先清 chunks/删目录/写 options（B3）
+        if row["status"] not in RETRYABLE_FROM:
+            raise TransitionError(task_id, row["status"], "queued")
         body = await _read_body(request)
         header_key = request.headers.get("x-texlate-key", "")
         if row["status"] == "needs_auth" and not header_key:
@@ -942,6 +1007,15 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
                 "auth_source=header：重试必须重带 X-Texlate-Key",
                 "auth_required",
             )
+        bad_keys = sorted(set(body) - {"main", "options"})
+        if bad_keys:
+            return _json_error(
+                400,
+                f"retry body 仅支持 main/options，不识别: {bad_keys}",
+                "invalid_request",
+            )
+        if "options" in body and not isinstance(body["options"], dict):
+            return _json_error(400, "retry options 须为 object", "invalid_request")
         try:
             opts = json.loads(row.get("options_json") or "{}")
         except json.JSONDecodeError:
@@ -1004,7 +1078,11 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
             dual = json.loads(dual_path.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             return _json_error(500, "dual.json 损坏", "internal")
+        if not isinstance(dual, dict):
+            return _json_error(500, "dual.json 损坏", "internal")
         docs = dual.get("documents") or {}
+        if not isinstance(docs, dict):
+            return _json_error(500, "dual.json 损坏", "internal")
         for side, kind in (("original", "en.pdf"), ("translated", "zh.pdf")):
             if isinstance(docs.get(side), dict):
                 docs[side]["url"] = f"/api/files/{task_id}/{kind}"
@@ -1012,9 +1090,11 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         rpath = root / "tasks" / task_id / "reading.json"
         if rpath.is_file():
             try:
-                reading = json.loads(rpath.read_text(encoding="utf-8"))
+                raw_reading = json.loads(rpath.read_text(encoding="utf-8"))
             except json.JSONDecodeError:
-                reading = {}
+                raw_reading = {}
+            if isinstance(raw_reading, dict):
+                reading = raw_reading
         return JSONResponse(
             {
                 "documents": docs,
@@ -1061,8 +1141,17 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
 
     @app.put("/api/settings")
     async def settings_put(request: Request) -> Response:
-        """合并更新（0600 原子写 + connections 分槽）。"""
+        """合并更新（0600 原子写 + connections 分槽）。
+
+        键白名单 = ``SettingsStore.FIELDS`` + ``clear_api_key``/``has_api_key``
+        两个伪字段——未知键直接 400，否则 save 会原样写进 settings.json
+        攒垃圾键（load 侧 FIELDS 过滤只是读时兜底）。
+        """
         body = await _read_body(request)
+        allowed = set(SettingsStore.FIELDS) | {"clear_api_key", "has_api_key"}
+        bad_keys = sorted(set(body) - allowed)
+        if bad_keys:
+            return _json_error(400, f"settings 未知字段: {bad_keys}")
         try:
             settings_store.save(body)
         except ValueError as e:
@@ -1101,10 +1190,6 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
 
     # ------------------------------------------------------------ SPA 静态
 
-    static_dir = Path(__file__).parent / "static"
-    if static_dir.is_dir():
-        from fastapi.staticfiles import StaticFiles  # noqa: PLC0415 -- 可选挂载
-
-        app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
+    mount_spa(app)
 
     return app

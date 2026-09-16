@@ -537,7 +537,11 @@ class Store:
         )
 
     def chunk_counts(self, task_id: str) -> dict[str, int]:
-        """Counters 聚合：total/done(已处理含失败)/cached/failed(回退+失败)。"""
+        """Counters 聚合：total/done(已处理含失败)/failed(回退+失败)。
+
+        缓存命中数不在 chunks 表粒度——真值见 ``tasks.cached_chunks``
+        （``flush_chunk_batch`` 计数落列 → snapshot.counters.cached）。
+        """
         row = self.conn.execute(
             "SELECT COUNT(*) AS total,"
             " SUM(CASE WHEN status IN ('ok','fallback_orig','failed')"
@@ -550,7 +554,6 @@ class Store:
         return {
             "total": int(row["total"] or 0),
             "done": int(row["done"] or 0),
-            "cached": 0,
             "failed": int(row["failed"] or 0),
         }
 
@@ -798,7 +801,7 @@ class Store:
                 "failed": int(row["failed_chunks"]),
                 "tokens": int(row["tokens"]),
             },
-            "warnings": [],
+            "warnings": self._warnings(task_id),
             "error": error,
             "artifacts": artifacts,
             "last_seq": self.last_seq(task_id),
@@ -817,3 +820,20 @@ class Store:
             if row.get(opt_key):
                 snap[snap_key] = row[opt_key]
         return snap
+
+    def _warnings(self, task_id: str) -> list[str]:
+        """task_events 重放 warning 事件 → snapshot ``warnings`` 串列。
+
+        web 侧 ``warnings?: string[]`` 按 ``[code] message`` 渲染（与 live
+        WarningEvent 同形）；EVENT_CAP 滚动截断外的旧警告随之自然消失。
+        """
+        out: list[str] = []
+        for ev in self.events_since(task_id, 0):
+            if ev["type"] != "warning":
+                continue
+            data = ev["data"]
+            if isinstance(data, dict) and "message" in data:
+                out.append(f"[{data.get('code', '?')}] {data['message']}")
+            else:
+                out.append(str(data))
+        return out

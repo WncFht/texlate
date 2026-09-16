@@ -19,7 +19,7 @@ import pytest
 pytest.importorskip("fastapi", reason="server extra 未装")
 pytest.importorskip("starlette.testclient", reason="server extra 未装")
 
-from conftest import MINI_TEX, make_app, upload_tex
+from conftest import MINI_TEX, make_app, make_targz, upload_tex
 from starlette.testclient import TestClient
 
 from texlate.server.settings import SettingsStore
@@ -54,6 +54,15 @@ def _docx() -> bytes:
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as zf:
         zf.writestr("word/document.xml", "<doc/>")
+    return buf.getvalue()
+
+
+def _epub() -> bytes:
+    """最小 epub 魔数载荷（mimetype 段即判定依据）。"""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("mimetype", "application/epub+zip")
+        zf.writestr("OEBPS/content.opf", "<package/>")
     return buf.getvalue()
 
 
@@ -125,18 +134,10 @@ class TestTranslateEdges:
         r = client.post(f"/api/arxiv/{ARXIV}/translate", json=[1, 2])
         assert r.status_code == HTTPStatus.ACCEPTED
 
-    @pytest.mark.xfail(
-        strict=True, reason="dict(options) 非标量 → 500（report.md B2）"
-    )
     def test_options_str_400(self, raw_client: TestClient) -> None:
-        r = raw_client.post(
-            f"/api/arxiv/{ARXIV}/translate", json={"options": "xx"}
-        )
+        r = raw_client.post(f"/api/arxiv/{ARXIV}/translate", json={"options": "xx"})
         assert r.status_code == HTTPStatus.BAD_REQUEST
 
-    @pytest.mark.xfail(
-        strict=True, reason="dict(options) 非标量 → 500（report.md B2）"
-    )
     def test_options_int_400(self, raw_client: TestClient) -> None:
         r = raw_client.post(f"/api/arxiv/{ARXIV}/translate", json={"options": 5})
         assert r.status_code == HTTPStatus.BAD_REQUEST
@@ -149,9 +150,7 @@ class TestTranslateEdges:
         assert r.status_code == HTTPStatus.ACCEPTED
 
     def test_model_too_long_400(self, client: TestClient) -> None:
-        r = client.post(
-            f"/api/arxiv/{ARXIV}/translate", json={"model": "x" * 201}
-        )
+        r = client.post(f"/api/arxiv/{ARXIV}/translate", json={"model": "x" * 201})
         assert r.status_code == HTTPStatus.BAD_REQUEST
 
     def test_model_blank_400(self, client: TestClient) -> None:
@@ -178,10 +177,6 @@ class TestTranslateEdges:
         )
         assert r.status_code == HTTPStatus.BAD_REQUEST
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="_auth 的 ValueError 只在 translate try 内被接住（report.md B1）",
-    )
     def test_bad_header_base_url_with_body_model_400(
         self, raw_client: TestClient
     ) -> None:
@@ -209,7 +204,9 @@ class TestTranslateEdges:
         assert json.loads(row["options_json"])["glossary"] == "terms.yaml"
 
     def test_idempotent_replay_skips_quota(
-        self, tmp_path: Path, clean_env: pytest.MonkeyPatch  # noqa: ARG002
+        self,
+        tmp_path: Path,
+        clean_env: pytest.MonkeyPatch,  # noqa: ARG002
     ) -> None:
         """配额满后 idempotent 命中不建行 → 仍 202（_check_quota 在 dedup 后）。"""
         data_root = tmp_path / "data"
@@ -217,9 +214,12 @@ class TestTranslateEdges:
         SettingsStore(data_root).save({"quota_max_tasks": 1})
         with TestClient(make_app(tmp_path)) as c:
             hdr = {"Idempotency-Key": "q1"}
-            assert c.post(
-                f"/api/arxiv/{ARXIV}/translate", json={}, headers=hdr
-            ).status_code == HTTPStatus.ACCEPTED
+            assert (
+                c.post(
+                    f"/api/arxiv/{ARXIV}/translate", json={}, headers=hdr
+                ).status_code
+                == HTTPStatus.ACCEPTED
+            )
             r = c.post(f"/api/arxiv/{ARXIV}/translate", json={}, headers=hdr)
             assert r.status_code == HTTPStatus.ACCEPTED
             assert r.json()["cache"] == "idempotent"
@@ -259,9 +259,6 @@ class TestTaskGetEdges:
         assert r.status_code == HTTPStatus.NOT_FOUND
         assert r.headers["Cache-Control"] == "no-store"
 
-    @pytest.mark.xfail(
-        strict=True, reason="_auth ValueError 无 400 收敛（report.md B1）"
-    )
     def test_bad_header_base_url_400(self, raw_client: TestClient) -> None:
         tid = _mk(raw_client)
         r = raw_client.get(
@@ -269,9 +266,6 @@ class TestTaskGetEdges:
         )
         assert r.status_code == HTTPStatus.BAD_REQUEST
 
-    @pytest.mark.xfail(
-        strict=True, reason="_auth ValueError 无 400 收敛（report.md B1）"
-    )
     def test_bad_header_model_400(self, raw_client: TestClient) -> None:
         tid = _mk(raw_client)
         r = raw_client.get(f"/api/task/{tid}", headers={"X-Texlate-Model": "x" * 300})
@@ -325,9 +319,7 @@ class TestFileGet:
         root = client.app.state.data_dir
         (root / "evil.pdf").write_bytes(b"%PDF-1.4 outside")
         client.portal.call(
-            partial(
-                client.app.state.store.put_file, tid, "zh_pdf", "../../evil.pdf"
-            )
+            partial(client.app.state.store.put_file, tid, "zh_pdf", "../../evil.pdf")
         )
         r = client.get(f"/api/files/{tid}/zh.pdf")
         assert r.status_code == HTTPStatus.NOT_FOUND
@@ -343,9 +335,7 @@ class TestFileGet:
         tid = _mk(client)
         _reg_file(client, tid, "zh_pdf", "zh.pdf")
         r = client.get(f"/api/files/{tid}/zh.pdf", params={"download": 1})
-        assert f'filename="texlate-{ARXIV}-zh.pdf"' in r.headers[
-            "Content-Disposition"
-        ]
+        assert f'filename="texlate-{ARXIV}-zh.pdf"' in r.headers["Content-Disposition"]
 
     def test_media_types(self, client: TestClient) -> None:
         tid = _mk(client)
@@ -356,6 +346,54 @@ class TestFileGet:
         _reg_file(client, tid, "dual_json", "dual.json", b"{}")
         r = client.get(f"/api/files/{tid}/dual.json")
         assert r.headers["content-type"].startswith("application/json")
+
+    def test_src_tar_media_arxiv_gzip(self, client: TestClient) -> None:
+        """arxiv 任务的 src.tar 是 e-print tar.gz → application/gzip。"""
+        tid = _mk(client)
+        _reg_file(client, tid, "src_tar", "src.tar", make_targz({"a.tex": "x"}))
+        r = client.get(f"/api/files/{tid}/src.tar")
+        assert r.headers["content-type"].startswith("application/gzip")
+
+    def test_src_tar_media_upload_kinds(self, client: TestClient) -> None:
+        """上传任务 src.tar = 原始字节回读——mime 按任务 kind/魔数给真值。"""
+        r = client.post(
+            "/api/upload",
+            files={"file": ("a.docx", _docx(), "application/octet-stream")},
+        )
+        did = r.json()["task_id"]
+        _reg_file(client, did, "src_tar", "upload/a.docx", _docx())
+        r = client.get(f"/api/files/{did}/src.tar")
+        assert r.headers["content-type"].startswith(
+            "application/vnd.openxmlformats-officedocument"
+        )
+
+        r = client.post(
+            "/api/upload",
+            files={"file": ("a.epub", _epub(), "application/octet-stream")},
+        )
+        eid = r.json()["task_id"]
+        _reg_file(client, eid, "src_tar", "upload/a.epub", _epub())
+        r = client.get(f"/api/files/{eid}/src.tar")
+        assert r.headers["content-type"].startswith("application/epub+zip")
+
+    def test_src_tar_media_upload_tex_sniffed(self, client: TestClient) -> None:
+        """upload_tex 的 blob 按魔数：gzip→gzip、裸 .tex→octet-stream。"""
+        tid = upload_tex(client)["task_id"]
+        _reg_file(client, tid, "src_tar", "upload/p.tar.gz", make_targz({"a.tex": "x"}))
+        r = client.get(f"/api/files/{tid}/src.tar")
+        assert r.headers["content-type"].startswith("application/gzip")
+        _reg_file(client, tid, "src_tar", "upload/main.tex", MINI_TEX.encode())
+        r = client.get(f"/api/files/{tid}/src.tar")
+        assert r.headers["content-type"].startswith("application/octet-stream")
+
+    def test_download_filename_old_arxiv_sanitized(self, client: TestClient) -> None:
+        """旧式 arxiv id 含 '/'（hep-th/9901001）——filename 消毒防畸形 header。"""
+        tid = _mk(client, "hep-th/9901001")
+        _reg_file(client, tid, "zh_pdf", "zh.pdf")
+        r = client.get(f"/api/files/{tid}/zh.pdf", params={"download": 1})
+        cd = r.headers["Content-Disposition"]
+        assert 'filename="texlate-hep-th_9901001-zh.pdf"' in cd
+        assert "/" not in cd.split("filename=")[1]
 
     def test_download_bad_int_400(self, client: TestClient) -> None:
         """?download=abc → RequestValidationError → 400 invalid_request。"""
@@ -432,9 +470,7 @@ class TestUploadEdges:
         """``../../etc/evil.tex`` → ``Path().name`` 剥目录 + 字符白名单。"""
         r = client.post(
             "/api/upload",
-            files={
-                "file": ("../../etc/evil.tex", MINI_TEX.encode(), "text/plain")
-            },
+            files={"file": ("../../etc/evil.tex", MINI_TEX.encode(), "text/plain")},
         )
         assert r.status_code == HTTPStatus.ACCEPTED
         tid = r.json()["task_id"]
@@ -442,10 +478,6 @@ class TestUploadEdges:
         assert (updir / "evil.tex").is_file()
         assert len(list(updir.iterdir())) == 1
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="idempotent 命中前 blob 已写 orphan tasks/{新id}/（report.md B4）",
-    )
     def test_idempotent_no_orphan_dir(self, client: TestClient) -> None:
         hdr = {"Idempotency-Key": "up-idem-1"}
         files = {"file": ("main.tex", MINI_TEX.encode(), "text/plain")}
@@ -456,6 +488,54 @@ class TestUploadEdges:
         assert r2.json()["cache"] == "idempotent"
         dirs = list((client.app.state.data_dir / "tasks").iterdir())
         assert len(dirs) == 1  # 重放不该多写一个孤儿任务目录
+
+    def test_quota_reject_no_orphan_dir(
+        self,
+        tmp_path: Path,
+        clean_env: pytest.MonkeyPatch,  # noqa: ARG002
+    ) -> None:
+        """建行失败（quota 429）也要收掉已落盘的 tasks/{new}/upload 现场（B4）。"""
+        data_root = tmp_path / "data"
+        data_root.mkdir(parents=True)
+        SettingsStore(data_root).save({"quota_max_tasks": 1})
+        with TestClient(make_app(tmp_path)) as c:
+            assert (
+                c.post(f"/api/arxiv/{ARXIV}/translate", json={}).status_code
+                == HTTPStatus.ACCEPTED
+            )
+            r = c.post(
+                "/api/upload",
+                files={"file": ("main.tex", MINI_TEX.encode(), "text/plain")},
+            )
+            assert r.status_code == HTTPStatus.TOO_MANY_REQUESTS
+            tasks_dir = data_root / "tasks"
+            assert not tasks_dir.exists() or list(tasks_dir.iterdir()) == []
+
+    def test_docx_no_reader_url(self, client: TestClient) -> None:
+        """docx 管线不产 dual.json → 202 不发 reader_url（空诺闸）。"""
+        r = client.post(
+            "/api/upload",
+            files={"file": ("a.docx", _docx(), "application/octet-stream")},
+        )
+        assert r.status_code == HTTPStatus.ACCEPTED
+        body = r.json()
+        row = client.portal.call(partial(client.app.state.store.get, body["task_id"]))
+        assert row["kind"] == "docx"
+        assert "reader_url" not in body
+        assert "events_url" in body
+
+    def test_epub_no_reader_url(self, client: TestClient) -> None:
+        r = client.post(
+            "/api/upload",
+            files={"file": ("a.epub", _epub(), "application/octet-stream")},
+        )
+        assert r.status_code == HTTPStatus.ACCEPTED
+        assert "reader_url" not in r.json()
+
+    def test_tex_upload_has_reader_url(self, client: TestClient) -> None:
+        """upload_tex 会产 dual.json → reader_url 照发。"""
+        body = upload_tex(client)
+        assert body["reader_url"].endswith("/reader")
 
 
 # ------------------------------------------------------------ §2.5 tasks list
@@ -505,9 +585,7 @@ class TestCancelEdges:
         """cancel 同步补 done{cancelled} 事件——SSE 订阅者正常收尾。"""
         tid = _mk(client)
         client.post(f"/api/task/{tid}/cancel")
-        evs = client.portal.call(
-            partial(client.app.state.store.events_since, tid, 0)
-        )
+        evs = client.portal.call(partial(client.app.state.store.events_since, tid, 0))
         done = [e for e in evs if e["type"] == "done"]
         assert done
         assert done[-1]["data"]["status"] == "cancelled"
@@ -515,9 +593,9 @@ class TestCancelEdges:
 
 class TestRetryEdges:
     def test_retry_404(self, client: TestClient) -> None:
-        assert client.post("/api/task/t_0000000000000000/retry", json={}).status_code == (
-            HTTPStatus.NOT_FOUND
-        )
+        assert client.post(
+            "/api/task/t_0000000000000000/retry", json={}
+        ).status_code == (HTTPStatus.NOT_FOUND)
 
     def test_retry_done_409(self, client: TestClient) -> None:
         """done ∉ RETRYABLE_FROM → 409 invalid_transition。"""
@@ -555,7 +633,9 @@ class TestRetryEdges:
         assert opts["retry_model"] == "alt"
 
     def test_retry_main_switch_wipes(
-        self, client: TestClient, tmp_path: Path  # noqa: ARG002
+        self,
+        client: TestClient,
+        tmp_path: Path,  # noqa: ARG002
     ) -> None:
         """换主文件 retry → chunks 清 + base/zh/build-* 目录删（src 保留）。"""
         tid = _mk(client)
@@ -587,13 +667,7 @@ class TestRetryEdges:
         assert r.status_code == HTTPStatus.ACCEPTED
         assert _chunks(client, tid) == 1
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="retry 在 transition 守卫前先写库/删目录（report.md B3）",
-    )
-    def test_retry_terminal_no_side_effects(
-        self, raw_client: TestClient
-    ) -> None:
+    def test_retry_terminal_no_side_effects(self, raw_client: TestClient) -> None:
         """done 任务 retry 应纯 409——chunks/options/目录一概不动。"""
         tid = _mk(raw_client)
         tdir = raw_client.app.state.data_dir / "tasks" / tid
@@ -603,9 +677,9 @@ class TestRetryEdges:
             partial(raw_client.app.state.store.update_fields, tid, main_tex="main.tex")
         )
         _force(raw_client, tid, "done")
-        before = raw_client.portal.call(
-            partial(raw_client.app.state.store.get, tid)
-        )["options_json"]
+        before = raw_client.portal.call(partial(raw_client.app.state.store.get, tid))[
+            "options_json"
+        ]
         r = raw_client.post(
             f"/api/task/{tid}/retry",
             json={"main": "other.tex", "options": {"zap": "1"}},
@@ -613,10 +687,36 @@ class TestRetryEdges:
         assert r.status_code == HTTPStatus.CONFLICT
         assert _chunks(raw_client, tid) == 1
         assert (tdir / "base").exists()
-        after = raw_client.portal.call(
-            partial(raw_client.app.state.store.get, tid)
-        )["options_json"]
+        after = raw_client.portal.call(partial(raw_client.app.state.store.get, tid))[
+            "options_json"
+        ]
         assert after == before
+
+    def test_retry_unknown_keys_400(self, client: TestClient) -> None:
+        """body.model/target_lang 曾是静默丢弃（空诺）——白名单外键一律 400。"""
+        tid = _mk(client)
+        client.post(f"/api/task/{tid}/cancel")
+        r = client.post(f"/api/task/{tid}/retry", json={"model": "other-m"})
+        assert r.status_code == HTTPStatus.BAD_REQUEST
+        assert "model" in r.json()["detail"]
+        assert client.get(f"/api/task/{tid}").json()["status"] == "cancelled"
+        r = client.post(f"/api/task/{tid}/retry", json={"target_lang": "en"})
+        assert r.status_code == HTTPStatus.BAD_REQUEST
+        assert client.get(f"/api/task/{tid}").json()["status"] == "cancelled"
+        # options 非 object 也是静默丢弃——同族闸
+        r = client.post(f"/api/task/{tid}/retry", json={"options": "x"})
+        assert r.status_code == HTTPStatus.BAD_REQUEST
+        assert client.get(f"/api/task/{tid}").json()["status"] == "cancelled"
+
+    def test_retry_known_keys_still_202(self, client: TestClient) -> None:
+        """main/options 白名单内——不误伤。"""
+        tid = _mk(client)
+        client.post(f"/api/task/{tid}/cancel")
+        r = client.post(
+            f"/api/task/{tid}/retry",
+            json={"main": "main.tex", "options": {"k": "v"}},
+        )
+        assert r.status_code == HTTPStatus.ACCEPTED
 
 
 # ------------------------------------------------------------ reader
@@ -640,6 +740,34 @@ class TestReaderGet:
         r = client.get(f"/api/task/{tid}/reader")
         assert r.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
         assert r.json()["code"] == "internal"
+
+    def test_dual_non_dict_500(self, client: TestClient) -> None:
+        """dual.json 是合法 JSON 但顶层非 object → 结构化 500（非裸 AttributeError）。"""
+        tid = _mk(client)
+        tdir = client.app.state.data_dir / "tasks" / tid
+        tdir.mkdir(parents=True, exist_ok=True)
+        (tdir / "dual.json").write_text('["not", "a", "dict"]', encoding="utf-8")
+        r = client.get(f"/api/task/{tid}/reader")
+        assert r.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
+        assert r.json()["code"] == "internal"
+
+    def test_documents_non_dict_500(self, client: TestClient) -> None:
+        """documents 段非 dict 同属损坏——不静默吞成空 documents。"""
+        tid = _mk(client)
+        _write_dual(client, tid, {"documents": ["x"], "chunks": []})
+        r = client.get(f"/api/task/{tid}/reader")
+        assert r.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
+        assert r.json()["code"] == "internal"
+
+    def test_reading_non_dict_degrades(self, client: TestClient) -> None:
+        """reading.json 非 dict → 降级 {}（辅助状态文件不炸 reader）。"""
+        tid = _mk(client)
+        _write_dual(client, tid, {"documents": {}, "chunks": []})
+        tdir = client.app.state.data_dir / "tasks" / tid
+        (tdir / "reading.json").write_text('["junk"]', encoding="utf-8")
+        r = client.get(f"/api/task/{tid}/reader")
+        assert r.status_code == HTTPStatus.OK
+        assert r.json()["reading"] == {}
 
     def test_documents_urls_both_sides(self, client: TestClient) -> None:
         tid = _mk(client)
@@ -753,12 +881,14 @@ class TestSettingsPut:
         assert r.status_code == HTTPStatus.BAD_REQUEST
 
     def test_bad_quota_400(self, client: TestClient) -> None:
-        assert client.put(
-            "/api/settings", json={"quota_max_tasks": -1}
-        ).status_code == HTTPStatus.BAD_REQUEST
-        assert client.put(
-            "/api/settings", json={"quota_max_bytes": "abc"}
-        ).status_code == HTTPStatus.BAD_REQUEST
+        assert (
+            client.put("/api/settings", json={"quota_max_tasks": -1}).status_code
+            == HTTPStatus.BAD_REQUEST
+        )
+        assert (
+            client.put("/api/settings", json={"quota_max_bytes": "abc"}).status_code
+            == HTTPStatus.BAD_REQUEST
+        )
 
     def test_concurrency_clamp(self, client: TestClient) -> None:
         r = client.put("/api/settings", json={"concurrency": 99})
@@ -776,22 +906,36 @@ class TestSettingsPut:
         client.put("/api/settings", json={"clear_api_key": True})
         assert client.get("/api/settings").json()["has_api_key"] is False
 
-    def test_unknown_field_not_returned(self, client: TestClient) -> None:
-        """未知键不报错也不回读（load FIELDS 白名单过滤）。"""
+    def test_unknown_field_400(self, client: TestClient) -> None:
+        """未知键直接 400——旧行为是静默写进 settings.json 攒垃圾键。"""
         r = client.put("/api/settings", json={"bogus_field": 1})
+        assert r.status_code == HTTPStatus.BAD_REQUEST
+        assert "bogus_field" in r.json()["detail"]
+        # 400 在 save 之前 → settings.json 根本没落盘
+        assert not (client.app.state.data_dir / "settings.json").exists()
+
+    def test_pseudo_keys_pass(self, client: TestClient) -> None:
+        """has_api_key（出参回显）/clear_api_key（控制键）不算未知键。"""
+        r = client.put("/api/settings", json={"has_api_key": True})
         assert r.status_code == HTTPStatus.OK
-        assert "bogus_field" not in r.json()
+        r = client.put("/api/settings", json={"api_key": "sk-x", "clear_api_key": True})
+        assert r.status_code == HTTPStatus.OK
+        assert r.json()["has_api_key"] is False
 
 
 class TestSettingsTestEdge:
     def test_invalid_base_url_400(self, client: TestClient) -> None:
-        assert client.post(
-            "/api/settings/test", json={"base_url": "ftp://x"}
-        ).status_code == HTTPStatus.BAD_REQUEST
+        assert (
+            client.post("/api/settings/test", json={"base_url": "ftp://x"}).status_code
+            == HTTPStatus.BAD_REQUEST
+        )
         # 非 localhost/tailnet 的 http → 400（强制 HTTPS）
-        assert client.post(
-            "/api/settings/test", json={"base_url": "http://remote.example.com"}
-        ).status_code == HTTPStatus.BAD_REQUEST
+        assert (
+            client.post(
+                "/api/settings/test", json={"base_url": "http://remote.example.com"}
+            ).status_code
+            == HTTPStatus.BAD_REQUEST
+        )
 
     def test_body_key_scrubbed(self, client: TestClient) -> None:
         """body.api_key 探活失败回显必须脱敏。"""
@@ -926,3 +1070,52 @@ class TestTenantShadowing:
             headers={**self._HDR_B, "Accept": "text/event-stream"},
         )
         assert r.status_code == HTTPStatus.NOT_FOUND
+
+
+# ------------------------------------------------------------ SPA 挂载
+
+
+class TestSpaMount:
+    def test_env_dir_mounted(
+        self,
+        tmp_path: Path,
+        clean_env: pytest.MonkeyPatch,
+    ) -> None:
+        """``TEXLATE_SPA_DIR`` 指向含 index.html 的目录 → ``/`` 挂该 SPA。"""
+        spa = tmp_path / "spa"
+        spa.mkdir()
+        (spa / "index.html").write_text(
+            "<html><title>spa-ok</title></html>", encoding="utf-8"
+        )
+        clean_env.setenv("TEXLATE_SPA_DIR", str(spa))
+        with TestClient(make_app(tmp_path / "d")) as c:
+            r = c.get("/")
+            assert r.status_code == HTTPStatus.OK
+            assert "spa-ok" in r.text
+
+    def test_no_artifacts_no_mount(
+        self,
+        tmp_path: Path,
+        clean_env: pytest.MonkeyPatch,  # noqa: ARG002
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """产物缺席（spa_dir→None）→ 不挂载：``/`` 404 但 API 照常。"""
+        monkeypatch.setattr("texlate.server.staticfiles.spa_dir", lambda: None)
+        with TestClient(make_app(tmp_path)) as c:
+            assert c.get("/").status_code == HTTPStatus.NOT_FOUND
+            assert c.get("/api/health").status_code == HTTPStatus.OK
+
+    def test_spa_dir_index_gate(
+        self,
+        tmp_path: Path,
+        clean_env: pytest.MonkeyPatch,
+    ) -> None:
+        """``spa_dir`` 的 index.html 闸：env 目录无 index.html 不采信（回退包内）。"""
+        import texlate.server.staticfiles as sf  # noqa: PLC0415 -- 测试内延迟导入
+
+        spa = tmp_path / "spa"
+        spa.mkdir()
+        clean_env.setenv("TEXLATE_SPA_DIR", str(spa))
+        assert sf.spa_dir() != spa  # 无 index.html → 回退包内（有/无皆可能）
+        (spa / "index.html").write_text("<html/>", encoding="utf-8")
+        assert sf.spa_dir() == spa
