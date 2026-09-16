@@ -94,7 +94,7 @@ from texlate.xlat.client import (
     RetryableHTTPError,
     UsageRecord,
 )
-from texlate.xlat.glossary import Glossary
+from texlate.xlat.glossary import LOCAL_GLOSSARY_NAME, Glossary
 from texlate.xlat.pipeline import (
     ChunkIn,
     ChunkResult,
@@ -109,7 +109,10 @@ from texlate.xlat.prompts import PROMPT_VERSION, normalize_kind
 from texlate.xlat.state import ChunkRecord, atomic_json
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterator
+
+    from pypdf import PdfWriter
+    from pypdf.generic import DictionaryObject
 
     from texlate.compile.judge import Verdict
     from texlate.latex.model import Chunk, ScanResult
@@ -644,6 +647,10 @@ class _StageError(Exception):
         super().__init__(message)
 
 
+class _RouteRejectError(Exception):
+    """路由/主文件策略拒绝载体（F3：``run()`` 归 partial + ``reject_at``，非 fault）。"""
+
+
 # ---------------------------------------------------------------- 上传解包
 
 
@@ -765,6 +772,92 @@ def pdf_pages(pdf: Path) -> int:
         return len(PdfReader(str(pdf)).pages)
     except Exception:  # noqa: BLE001 -- best-effort：坏文件/缺库都退 0
         return 0
+
+
+#: ``embed_cjk_mappings`` 注入的 GB1→UCS2 CMap（Adobe 官方资源，BSD 许可
+#: ——与 poppler ``cMap/Adobe-GB1/Adobe-GB1-UCS2`` 逐字节一致，随包分发）
+_GB1_UCS2_CMAP = Path(__file__).resolve().parent / "cmaps" / "Adobe-GB1-UCS2"
+
+
+def _font_needs_gb1_cmap(font: DictionaryObject) -> bool:
+    """Type0 字体命中注入条件与否。
+
+    无 ToUnicode ∧ Identity-H/V 编码 ∧ CIDSystemInfo 为 Adobe/GB1。
+    Ordering 非 GB1 的 Identity-keyed 字体挂 GB1 cmap 反而写错映射——跳过。
+    """
+    if (
+        font.get("/ToUnicode")
+        or not font.get("/DescendantFonts")
+        or font.get("/Encoding") not in ("/Identity-H", "/Identity-V")
+    ):
+        return False
+    child = font["/DescendantFonts"][0].get_object()
+    system = child.get("/CIDSystemInfo", {})
+    return system.get("/Registry") == "Adobe" and system.get("/Ordering") == "GB1"
+
+
+def _iter_pdf_fonts(writer: PdfWriter) -> Iterator[DictionaryObject]:
+    """按页树 ``/Resources``（含 XObject 递归）走查字体对象，id 去重。"""
+    seen: set[int] = set()
+    pending = [page.get("/Resources") for page in writer.pages]
+    while pending:
+        res = pending.pop()
+        if not res:
+            continue
+        res = res.get_object()
+        for ref in res.get("/Font", {}).values():
+            font = ref.get_object()
+            if id(font) not in seen:
+                seen.add(id(font))
+                yield font
+        for ref in res.get("/XObject", {}).values():
+            obj = ref.get_object()
+            if id(obj) not in seen:
+                seen.add(id(obj))
+                pending.append(obj.get("/Resources"))
+
+
+def embed_cjk_mappings(pdf: Path) -> int:
+    """给 ``Identity-H``/Adobe-GB1 无 ToUnicode 的 CID 字体注 ``Adobe-GB1-UCS2`` cmap（docs/08 §3.3）。
+
+    xelatex/tectonic 出的 zh.pdf 里 ctex+fandol 是真 CID-keyed GB1 字体
+    且不落 ToUnicode——poppler 靠嵌入字体自身 cmap 能抽，pypdf/极简
+    阅读器直抽即乱码（复制/检索失效）。按页树 ``/Resources``（含
+    XObject 递归）走查 Type0 字体，命中条件全齐（无 ToUnicode ∧
+    Identity-H/V 编码 ∧ CIDSystemInfo 为 Adobe/GB1）才挂共享 cmap
+    流——Ordering 非 GB1 的 Identity-keyed 字体注它反而写错映射，
+    不碰。改写经临时文件原子替换。返回注入字体数。
+    """
+    from pypdf import PdfWriter  # noqa: PLC0415 -- 重依赖惰性加载
+    from pypdf.generic import (  # noqa: PLC0415
+        DecodedStreamObject,
+        NameObject,
+    )
+
+    writer = PdfWriter(clone_from=pdf)
+    count = 0
+    cmap_ref = None
+
+    try:
+        for font in _iter_pdf_fonts(writer):
+            if not _font_needs_gb1_cmap(font):
+                continue
+            if cmap_ref is None:
+                stream = DecodedStreamObject()
+                stream.set_data(_GB1_UCS2_CMAP.read_bytes())
+                cmap_ref = writer._add_object(  # noqa: SLF001 -- pypdf 无公开 add-raw-stream API
+                    stream.flate_encode()
+                )
+            font[NameObject("/ToUnicode")] = cmap_ref
+            count += 1
+        if count:
+            tmp = pdf.with_suffix(".mapped.pdf")
+            writer.write(tmp)
+    finally:
+        writer.close()
+    if count:
+        tmp.replace(pdf)
+    return count
 
 
 def _looks_text(data: bytes) -> bool:
@@ -956,6 +1049,42 @@ class PipelineWorker:
             },
         )
 
+    def _reject(self, ctx: TaskCtx, code: str, message: str, *, reject_at: str) -> None:
+        """F3 策略拒绝：``partial`` 终态 + error_json 留 ``reject_at`` 审计字段。
+
+        与 e2e ``status=partial + reject_at`` 同形——拒绝是降级交付不是
+        故障（``inject_reject``/``route_reject`` 同输入必再拒，
+        ``retryable=False``）。不发 ``error`` 事件：partial 既有通道只有
+        ``transition(error=...)`` + ``done``，消费方读 ``snapshot.error``。
+        cancel 竞态守卫同 ``_fail``。
+        """
+        if self._current_status(ctx) in TERMINAL_STATUSES:
+            return
+        err = {
+            "code": code,
+            "message": scrub(message, ctx.secrets.api_key),
+            "retryable": False,
+            "reject_at": reject_at,
+        }
+        row = self.store.get(ctx.task_id)
+        self.store.transition(
+            ctx.task_id,
+            "partial",
+            error=err,
+            progress=int(row["progress"]) if row else 0,
+            force=True,
+            message="部分完成",
+        )
+        self.bus.publish(
+            ctx.task_id,
+            "done",
+            {
+                "status": "partial",
+                "artifacts": self._artifact_urls(ctx),
+                "stats": self._stats(ctx),
+            },
+        )
+
     def _artifact_urls(self, ctx: TaskCtx) -> dict[str, str]:
         """Files 行 → ``{db_kind: /api/files/{id}/{url_kind}}``。"""
         return {
@@ -989,7 +1118,7 @@ class PipelineWorker:
 
     # ------------------------------------------------------------ 主入口
 
-    async def run(self, ctx: TaskCtx) -> None:  # noqa: C901 -- 异常阶梯平铺即 §2.2 错误码映射表
+    async def run(self, ctx: TaskCtx) -> None:  # noqa: C901, PLR0912 -- 异常阶梯平铺即 §2.2 错误码映射表
         """按 kind 跑全链；异常按错误码映射落 fault/cancelled。"""
         # resume：内存字段从行快照重建（main_tex/engine_resolved 持久化值）
         self._loop = asyncio.get_running_loop()
@@ -1055,13 +1184,14 @@ class PipelineWorker:
                 retryable=e.retryable,
                 stage=ctx.row["stage"],
             )
+        except _RouteRejectError as e:
+            self._reject(ctx, "route_reject", f"route reject: {e}", reject_at="route")
         except InjectRejectError as e:
-            self._fail(
+            self._reject(
                 ctx,
                 "inject_reject",
                 f"inject reject: {e.reason}",
-                retryable=False,
-                stage=ctx.row["stage"],
+                reject_at="inject",
             )
         except (UnpackError, ValueError, OSError) as e:
             self._fail(ctx, "parse", str(e), retryable=False, stage=ctx.row["stage"])
@@ -1183,7 +1313,7 @@ class PipelineWorker:
         self._stage(ctx, "parsing", "解析完成", PROGRESS["parsing"][1])
 
     def _build_base(self, ctx: TaskCtx) -> None:
-        """``src → base``：route（reject → parse fault）→ normalize。"""
+        """``src → base``：route（reject → partial+``reject_at``，F3）→ normalize。"""
         if ctx.base_dir.exists():
             shutil.rmtree(ctx.base_dir)
         shutil.copytree(ctx.src_dir, ctx.base_dir)
@@ -1191,8 +1321,7 @@ class PipelineWorker:
         for r in route.reasons:
             self._log(ctx, f"route: {r}")
         if route.reject:
-            msg = f"route reject: {route.reject}"
-            raise _StageError(code="parse", message=msg)
+            raise _RouteRejectError(route.reject)
         opt_engine = str(ctx.options().get("engine") or "auto")
         engines = route.engines if opt_engine == "auto" else [opt_engine]
         if not engines:
@@ -1217,7 +1346,9 @@ class PipelineWorker:
         else:
             main = find_main_tex(ctx.base_dir)
             if main is None:
-                raise _StageError(code="parse", message="no main tex")
+                # e2e 同位：no main tex 归 route 档策略拒绝（F3）
+                msg = "no main tex"
+                raise _RouteRejectError(msg)
             ctx.main_rel = main.relative_to(ctx.base_dir).as_posix()
         stats = normalize_project(ctx.base_dir, ctx.engine_name, ctx.main_rel)
         self._log(ctx, f"normalize: {stats}")
@@ -1556,7 +1687,14 @@ class PipelineWorker:
             (ctx.zh_dir / rel).write_text(out, encoding="utf-8")
             n_files += 1
         self._log(ctx, f"splice: {n_files} files rewritten")
-        info = prepare_chinese(ctx.zh_dir, ctx.main_rel)
+        try:
+            info = prepare_chinese(ctx.zh_dir, ctx.main_rel)
+        except InjectRejectError:
+            # F3 降级交付：译文已 splice——zh-src.zip 先落盘，再由
+            # run() 归 partial+reject_at=inject（不落 .splice-done，
+            # resume 重打重拒同态收敛）
+            self._zip_zh(ctx)
+            raise
         self._log(ctx, f"inject: {info}")
         # zip 先于哨兵：崩在 zip 里时 resume 会因无哨兵重建 zh/ 重打，
         # 反序则哨兵在、产物登记永远缺席
@@ -1964,6 +2102,7 @@ class PipelineWorker:
             v = judge(res, expect_cjk=True, log_text=self._log_text_of(res))
         if res.has_pdf and res.pdf is not None:
             shutil.copyfile(res.pdf, ctx.root / "zh.pdf")
+            self._embed_tounicode(ctx, ctx.root / "zh.pdf")
             self._register(ctx, "zh_pdf", "zh.pdf")
             (ctx.zh_dir / ".compile-done").write_text("", encoding="utf-8")
         (ctx.root / "compile.log").write_text(
@@ -1977,6 +2116,16 @@ class PipelineWorker:
             self._log(ctx, f"judge note: {n}")
         self._log(ctx, f"verdict: {v.status} cat={v.category} errs={v.n_errors}")
         return v.status in ("clean", "partial") or res.has_pdf
+
+    def _embed_tounicode(self, ctx: TaskCtx, pdf: Path) -> None:
+        """``embed_cjk_mappings`` best-effort 壳：后处理崩不拖编译段。"""
+        try:
+            n = embed_cjk_mappings(pdf)
+        except Exception as e:  # noqa: BLE001 -- 产物后处理失败不该 fault 任务
+            self._log(ctx, f"tounicode embed failed: {type(e).__name__}: {e}")
+            return
+        if n:
+            self._log(ctx, f"tounicode: {n} 个 GB1 CJK 字体补 ToUnicode cmap")
 
     def _build_dual(self, ctx: TaskCtx) -> None:
         """dual.json（§5.4）：documents 版本/pages + 页级 alignment + chunks。"""
@@ -2087,9 +2236,11 @@ class PipelineWorker:
         dual = run.outputs.get("dual")
         if mono is not None:
             shutil.copyfile(mono, ctx.root / "zh.pdf")
+            self._embed_tounicode(ctx, ctx.root / "zh.pdf")
             self._register(ctx, "zh_pdf", "zh.pdf")
         if dual is not None:
             shutil.copyfile(dual, ctx.root / "dual.pdf")
+            self._embed_tounicode(ctx, ctx.root / "dual.pdf")
             self._register(ctx, "dual_pdf", "dual.pdf")
         self._log(ctx, f"babeldoc rc={run.rc} status={run.status} stats={run.stats}")
         if run.status == "failed":
@@ -2382,20 +2533,35 @@ class PipelineWorker:
         )
         return None
 
+    def _local_glossary(self, ctx: TaskCtx) -> Path | None:
+        """论文级 ``glossary.local.yaml`` 探测：任务 ``base/`` 根下同名文件。
+
+        三级表（user > local > category seed）的 local 层——随源树走的
+        项目内覆盖（upload_tex 压缩包/arxiv e-print 自带即生效）；docx/
+        epub/pdf 路无 ``base/`` 自然缺省。返回 None = 无该层。
+        """
+        cand = ctx.base_dir / LOCAL_GLOSSARY_NAME
+        return cand if cand.is_file() else None
+
     def _make_glossary(self, ctx: TaskCtx) -> Glossary | None:
-        """术语表：config.glossary 路径优先（confine 后），缺省内置默认层。"""
+        """术语表：config.glossary 路径优先（confine 后），缺省内置默认层。
+
+        始终叠 local 层（``base/glossary.local.yaml``，优先级介于 user 与
+        category 之间）——``Glossary.load`` 五层序由 ``local_path`` 参数承载。
+        """
         try:
             cfg = json.loads(str(ctx.row.get("config_json") or "{}"))
         except json.JSONDecodeError:
             cfg = {}
         gpath = str(cfg.get("glossary") or ctx.options().get("glossary") or "")
+        local = self._local_glossary(ctx)
         try:
             if not gpath:
-                return Glossary.load()
+                return Glossary.load(local_path=local)
             path = self._glossary_path(ctx, gpath, str(cfg.get("glossary_dir") or ""))
             if path is None:
-                return Glossary.load()
-            return Glossary.load(user_path=path)
+                return Glossary.load(local_path=local)
+            return Glossary.load(user_path=path, local_path=local)
         except (OSError, ValueError) as e:
             self._log(ctx, f"glossary load failed: {e}")
             return None
@@ -2407,9 +2573,14 @@ class PipelineWorker:
         except json.JSONDecodeError:
             cfg_row = {}
         glossary = str(cfg_row.get("glossary") or ctx.options().get("glossary") or "")
+        local = self._local_glossary(ctx)
+        local_sig = ""
+        if local is not None:
+            # local 层内容进指纹——同名文件换内容/有无该层都改变有效术语表
+            local_sig = hashlib.sha256(local.read_bytes()).hexdigest()[:12]
         cfg = hashlib.sha256(
             f"{ctx.row['model']}|{PROMPT_VERSION}|{ctx.row['target_lang']}"
-            f"|{glossary}".encode()
+            f"|{glossary}|l:{local_sig}".encode()
         ).hexdigest()[:16]
         if cache_scope() == "per_key":
             # 与 cache_key_for 同一 oracle 防护：段级 translation_cache

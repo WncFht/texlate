@@ -155,6 +155,7 @@ ERROR_CODES = frozenset(
         "placeholder_mismatch",
         "compile",
         "inject_reject",
+        "route_reject",
         "fixloop_exhausted",
         "internal",
         "auth_required",
@@ -356,6 +357,16 @@ class Store:
             (tenant, idem_key),
         ).fetchone()
         return dict(row) if row else None
+
+    def delete_task(self, task_id: str) -> bool:
+        """删任务行——FK ``ON DELETE CASCADE`` 带走 chunks/files/events/usage。
+
+        返回是否有行被删（API 层 ``_get_task`` 已做存在性检查，这里只是
+        幂等回执）。任务工作目录 ``tasks/{id}/`` 清理由调用方负责。
+        """
+        cur = self.conn.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+        self.conn.commit()
+        return cur.rowcount > 0
 
     # ------------------------------------------------------------ 状态迁移
 

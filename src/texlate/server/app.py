@@ -54,6 +54,7 @@ from texlate.server.settings import (
 )
 from texlate.server.settings import data_dir as default_data_dir
 from texlate.server.store import (
+    ACTIVE_STATUSES,
     Store,
     StoreError,
     TransitionError,
@@ -824,6 +825,31 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
             return _json_error(409, str(e), "invalid_transition")
         runner.enqueue(task_id, _secrets_for(request, row))
         return _accepted(store.get(task_id) or row, 202, {"cache": "retry"})
+
+    @app.delete("/api/task/{task_id}")
+    async def task_delete(request: Request, task_id: str) -> Response:
+        """终态任务删除：DB 行（FK 级联子表）+ ``tasks/{id}/`` 工作目录。
+
+        ACTIVE 态 409——进行中任务先 ``POST cancel`` 收敛再删；删前补一条
+        ``done{status:"deleted"}`` 事件让在听的 SSE 流正常收尾（事件随
+        行级联删，只服务实时订阅者）。内存 ``secrets`` 一并摘。
+        """
+        row = _get_task(request, task_id)
+        if row["status"] in ACTIVE_STATUSES:
+            return _json_error(
+                409,
+                f"task {task_id} is {row['status']}: cancel first",
+                "invalid_transition",
+            )
+        bus.publish(
+            task_id,
+            "done",
+            {"status": "deleted", "artifacts": {}, "stats": {}},
+        )
+        store.delete_task(task_id)
+        runner.secrets.pop(task_id, None)
+        shutil.rmtree(root / "tasks" / task_id, ignore_errors=True)
+        return JSONResponse({"task_id": task_id, "status": "deleted"})
 
     # ------------------------------------------------------------ reader
 
