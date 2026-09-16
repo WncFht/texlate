@@ -12,6 +12,7 @@ preamble；preamble 整段 LITERAL + 只登记宏。两枚正则都跑在
 
 from __future__ import annotations
 
+import errno
 import os
 import re
 from pathlib import Path
@@ -74,6 +75,8 @@ def parse_file_v1(
     ``parse_file`` 参面一致——``TEXLATE_NO_EXPAND`` 回退不丢语义）。
     """
     main = Path(path).resolve()
+    if not main.is_file():  # fifo/设备/检查时点消失——read_bytes 会悬挂或裸 OSError
+        raise OSError(errno.ENXIO, "not a regular file", str(main))
     tex = decode_tex(main.read_bytes())
     flat_warnings: list[ScanWarning] = []
     if flatten:
@@ -116,6 +119,8 @@ def parse_file(
     if os.environ.get(_NO_EXPAND):
         return parse_file_v1(path, flatten=flatten, top_dir=top_dir)
     main = Path(path).resolve()
+    if not main.is_file():  # fifo/设备/检查时点消失——read_bytes 会悬挂或裸 OSError
+        raise OSError(errno.ENXIO, "not a regular file", str(main))
     tex = decode_tex(main.read_bytes())
     if flatten:
         g = Gullet(

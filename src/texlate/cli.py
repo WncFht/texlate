@@ -114,9 +114,8 @@ def fetch(
 def _acquire(
     arxiv_id: str, cache: Path, *, version: int | None = None, offline: bool = False
 ) -> AcquireResult:
-    """``acquire_source`` 收口：``Fetcher`` 内建 httpx.Client，用毕显式关池。"""
-    fetcher = Fetcher()
-    try:
+    """``acquire_source`` 收口：``Fetcher`` context manager 管 httpx.Client 池。"""
+    with Fetcher() as fetcher:
         return acquire_source(
             arxiv_id,
             fetcher=fetcher,
@@ -124,8 +123,6 @@ def _acquire(
             version=version,
             offline=offline,
         )
-    finally:
-        fetcher.client.close()
 
 
 def _echo_acquire(res: AcquireResult) -> None:
@@ -173,7 +170,11 @@ def parse(
         if out.resolve() == path.resolve():
             typer.echo("--out 与输入同路径——拒绝覆写源文件", err=True)
             raise typer.Exit(2)
-    res = parse_file(path, flatten=flatten)
+    try:
+        res = parse_file(path, flatten=flatten)
+    except OSError as e:  # 检查后消失/变不可读/fifo —— typer 断言与读间有 TOCTOU 窗
+        typer.echo(f"不可读 {path}: {e}", err=True)
+        raise typer.Exit(2) from None
     typer.echo(
         json.dumps(
             {

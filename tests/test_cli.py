@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
 import sqlite3
 import tempfile
@@ -594,3 +595,13 @@ class TestShareErrors:
         assert result.exit_code == 1
         assert "share pack:" in result.stderr
         assert "Traceback" not in result.output
+
+
+def test_parse_fifo_refused(tmp_path: Path) -> None:
+    """fifo/非正则文件：api 层 is_file 闸 → 干净报错不悬挂不 traceback。"""
+    fifo = tmp_path / "pipe.tex"
+    os.mkfifo(fifo)
+    result = _RUNNER.invoke(app, ["parse", str(fifo)])
+    assert result.exit_code == 2  # noqa: PLR2004
+    assert "不可读" in result.stderr
+    assert "Traceback" not in result.output
