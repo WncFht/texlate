@@ -33,12 +33,13 @@ done
 [ "$ok" = 1 ] || fail "health 15s 未就绪 (log: $LOG)"
 echo "PASS health"
 
-curl -s -o /dev/null -w 'GET / -> %{http_code} %{content_type}\n' "$BASE/"
+curl -s --max-time 10 -o /dev/null -w 'GET / -> %{http_code} %{content_type}\n' "$BASE/"
 echo "--- routes ---"
-curl -s "$BASE/openapi.json" | python3 -c 'import json,sys; print("\n".join(sorted(json.load(sys.stdin)["paths"].keys())))'
+curl -sf --max-time 10 "$BASE/openapi.json" | python3 -c 'import json,sys; print("\n".join(sorted(json.load(sys.stdin)["paths"].keys())))' ||
+  fail "openapi.json 获取/解析失败"
 
 printf '\\documentclass{article}\n\\begin{document}\nhi\n\\end{document}\n' >"$DIR/m.tex"
-RESP=$(curl -s -X POST -F "file=@$DIR/m.tex" "$BASE/api/upload")
+RESP=$(curl -s --max-time 15 -X POST -F "file=@$DIR/m.tex" "$BASE/api/upload")
 echo "upload -> $RESP"
 TID=$(printf %s "$RESP" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("task_id") or d.get("id",""))')
 [ -n "$TID" ] || fail "upload 未回 task_id"
@@ -47,7 +48,7 @@ timeout 60 curl -sN -H "Accept: text/event-stream" "$BASE/api/task/$TID" >"$DIR/
 tail -3 "$DIR/sse.log"
 
 for k in zh.pdf dual.json compile.log zh-src.zip; do
-  code=$(curl -s -o "$DIR/dl-$k" -w '%{http_code}' "$BASE/api/files/$TID/$k")
+  code=$(curl -s --max-time 30 -o "$DIR/dl-$k" -w '%{http_code}' "$BASE/api/files/$TID/$k")
   if [ "$code" = 200 ]; then sha256sum "$DIR/dl-$k"; else echo "$k -> $code"; fi
 done
 

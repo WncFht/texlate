@@ -19,7 +19,8 @@ RPORT=${GW_TUNNEL_RPORT:-3003}
 LOG=${GW_TUNNEL_LOG:-/tmp/ssh${LPORT}.log}
 PAT="ssh -N -L ${LPORT}:${RHOST}:${RPORT}"
 
-is_up() { curl -s -o /dev/null -w '%{http_code}' -m 5 "http://127.0.0.1:${LPORT}/healthz" 2>/dev/null | grep -q .; }
+# -f：连接失败仍打 000（-w 恒输出），%{http_code} 非空会让 grep 误判 up——必须让 curl 本身非零
+is_up() { curl -sf -o /dev/null -m 5 "http://127.0.0.1:${LPORT}/healthz" 2>/dev/null; }
 
 case ${1:-status} in
 start)

@@ -13,7 +13,8 @@ PORT=${1:-3003}
 PROJDIR=$HOME/.claude/projects
 
 echo "== 1) 谁在连 :${PORT} =="
-ss -tnp 2>/dev/null | grep -E ":${PORT}" | head -20 || echo "(无连接)"
+# 尾随空格锚定——裸 ":3003" 会误中 ":30030" 类端口
+ss -tnp 2>/dev/null | grep -E ":${PORT} " | head -20 || echo "(无连接)"
 
 echo
 echo "== 2) 嫌疑进程（CPU 排序）=="
@@ -21,10 +22,7 @@ ps -eo pid,ppid,etime,pcpu,args --sort=-pcpu | grep -vE 'grep|ps -eo' | grep -iE
 
 echo
 echo "== 3) 本机 claude 进程 + cwd =="
-for p in $(
-  pgrep -x claude
-  pgrep -f 'claude' | sort -u
-); do
+for p in $(pgrep -f 'claude' | sort -u); do
   cwd=$(readlink "/proc/$p/cwd" 2>/dev/null || echo '?')
   args=$(ps -o etime=,args= -p "$p" 2>/dev/null | cut -c1-120)
   printf 'pid=%-7s cwd=%-45s %s\n' "$p" "$cwd" "$args"

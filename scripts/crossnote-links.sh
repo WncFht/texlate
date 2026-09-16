@@ -33,6 +33,11 @@ mkdir -p .crossnote
 # 可软链项（配置四件套 + 说明 + 构建/测试工具目录）
 for item in parser.js style.less config.js head.html README.md scripts tests vendor; do
   dest=".crossnote/$item"
+  # 源侧缺项会产出 dangling 软链——先验
+  [[ -e $SRC/$item ]] || {
+    echo "error: 事实源缺项: $SRC/$item" >&2
+    exit 1
+  }
   if [[ -e $dest && ! -L $dest ]]; then
     echo "error: $dest 是实体文件/目录（仓内定制或待迁移副本），拒绝覆盖——" >&2
     echo "       要分叉就保留它；要回同步就删掉重跑本脚本" >&2
@@ -43,16 +48,18 @@ done
 
 # runtime 只能硬链：同 inode 才过 realpath 边界检查
 rt=".crossnote/pseudocode-runtime.js"
+# link-then-mv 原子替换——先 rm 再 ln 的话，跨设备/权限失败会留缺口
+hl() {
+  ln -f "$SRC/pseudocode-runtime.js" "$rt.ln-tmp" && mv -f "$rt.ln-tmp" "$rt"
+}
 if [[ -L $rt ]]; then
-  rm "$rt" # 软链必被边界检查拒，直接转硬链
-  ln "$SRC/pseudocode-runtime.js" "$rt"
+  hl # 软链必被边界检查拒，直接转硬链
 elif [[ ! -e $rt ]]; then
   ln "$SRC/pseudocode-runtime.js" "$rt"
 elif [[ $rt -ef $SRC/pseudocode-runtime.js ]]; then
   : # 已是同 inode，无操作
 elif cmp -s "$SRC/pseudocode-runtime.js" "$rt"; then
-  rm "$rt" # 内容一致的实体副本：转硬链
-  ln "$SRC/pseudocode-runtime.js" "$rt"
+  hl # 内容一致的实体副本：转硬链
 else
   echo "error: $rt 是实体文件且与事实源内容分歧，拒绝覆盖——" >&2
   echo "       保留分叉则不管；回同步就删掉重跑本脚本" >&2

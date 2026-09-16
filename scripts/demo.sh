@@ -8,16 +8,21 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-ID=${1:-2105.11479}
+ID=2105.11479
 REAL=0
-[[ ${2:-} == --real || ${1:-} == --real ]] && REAL=1
-[[ ${1:-} == --real ]] && ID=2105.11479
-WORK=/tmp/texlate-demo-$ID
+for a in "$@"; do
+  case $a in
+  --real) REAL=1 ;;
+  *) ID=$a ;;
+  esac
+done
+WORK=$(mktemp -d "/tmp/texlate-demo-$ID.XXXXXX")
 
 echo "=== 1/4 fetch: $ID ==="
 uv run texlate fetch "$ID"
 
-MAIN_TEX=$(find "$HOME/.cache/texlate/src/${ID}v"*"/extracted" -name '*.tex' 2>/dev/null | head -1)
+# 多版本目录（v1/v2/…）取版本号最大者——head -1 的 glob 序会拾到旧版
+MAIN_TEX=$(find "$HOME/.cache/texlate/src/${ID}v"*"/extracted" -name '*.tex' 2>/dev/null | sort -V | tail -1)
 [[ -n $MAIN_TEX ]] || {
   echo "error: fetch 未在 ~/.cache/texlate/src/${ID}v*/extracted 产出 .tex" >&2
   exit 1
@@ -44,7 +49,11 @@ PDF=$(find "$WORK" -name '*.pdf' | head -1)
 }
 echo
 echo "--- pdftotext 验 CJK 进 PDF ---"
-pdftotext "$PDF" - 2>/dev/null | grep -m5 -E '[一-鿿]' || echo "(未检出中文字符——看 verdict)"
+if command -v pdftotext >/dev/null; then
+  pdftotext "$PDF" - 2>/dev/null | grep -m5 -E '[一-鿿]' || echo "(未检出中文字符——看 verdict)"
+else
+  echo "(无 pdftotext，跳过 CJK 验证)"
+fi
 
 if [[ $REAL == 1 ]]; then
   echo

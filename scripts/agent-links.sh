@@ -7,6 +7,11 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# CLAUDE.md 为实体文件时拒绝覆盖——那可能是未入库的真文档，ln -sfn 会无声吞掉
+if [[ -e CLAUDE.md && ! -L CLAUDE.md ]]; then
+  echo "error: CLAUDE.md 是实体文件而非软链，先手工处置（移走或删除）" >&2
+  exit 1
+fi
 ln -sfn AGENTS.md CLAUDE.md
 
 mkdir -p .claude/skills .agents/skills
@@ -21,6 +26,19 @@ for skill in .agents/skills/*/; do
     exit 1
   fi
   ln -sfn "../../.agents/skills/$name" "$dest"
+done
+
+# .agents/skills 里已消失的 skill 会留下 dangling 软链——只清指向本机制目标的
+for dest in .claude/skills/*; do
+  [[ -L $dest ]] || continue
+  case $(readlink "$dest") in
+  ../../.agents/skills/*)
+    [[ -e $dest ]] || {
+      rm "$dest"
+      echo "pruned dangling: $dest"
+    }
+    ;;
+  esac
 done
 
 echo "linked: CLAUDE.md -> AGENTS.md"

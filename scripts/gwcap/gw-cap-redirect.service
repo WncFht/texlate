@@ -13,7 +13,8 @@ ExecStart=/usr/bin/nft -f /usr/local/libexec/gwcap/redirect.nft
 # tailscaled 重启会把 jump ts-input 重插回顶部，故另由 tailscaled.service.d/gwcap.conf
 # 的 ExecStartPost 再调一次 ensure-bypass.sh 兜底。
 ExecStartPost=/usr/local/libexec/gwcap/ensure-bypass.sh
-ExecStop=/usr/bin/nft delete table inet gwcap
+# `-` 前缀容缺：表不在时 restart/stop 不会把 unit 卡进 failed
+ExecStop=-/usr/bin/nft delete table inet gwcap
 ExecStopPost=-/usr/local/libexec/gwcap/ensure-bypass.sh remove
 
 [Install]

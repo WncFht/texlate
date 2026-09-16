@@ -7,7 +7,8 @@ set -e
 # 单行文件（first 有值 → 照常走格式化，shfmt 会补尾换行）。
 IFS= read -r first || [ -n "$first" ] || exit 0
 case "$first" in
-*zsh*) {
+# 只认 shebang——首行注释里出现 "zsh" 字样的 bash 脚本不该被透传跳过
+'#!'*zsh*) {
   printf '%s\n' "$first"
   cat
 } ;;

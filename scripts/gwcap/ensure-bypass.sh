@@ -9,6 +9,13 @@
 # 用法:ensure-bypass.sh [ensure|remove]
 set -u
 mode="${1:-ensure}"
+case "$mode" in
+ensure | remove) ;;
+*)
+  echo "usage: $0 [ensure|remove]" >&2
+  exit 2
+  ;;
+esac
 
 del_all() {
   for h in $(nft -a list chain ip filter INPUT 2>/dev/null | awk '/comment "gwcap-bypass-ts-input"/{print $NF}'); do
@@ -37,5 +44,9 @@ for _ in $(seq 1 40); do
 done
 insert_top
 sleep 1
-# 复查:若我们不是 INPUT 第一条(又被竞态插队),重钉一次。
-[ -n "$(first_handle)" ] && [ "$(first_handle)" != "$(my_handle)" ] && insert_top
+# 复查:若我们不是 INPUT 第一条(又被竞态插队),清干净再钉一次——
+# 直接 insert_top 会留下两条同名规则
+[ -n "$(first_handle)" ] && [ "$(first_handle)" != "$(my_handle)" ] && {
+  del_all
+  insert_top
+}

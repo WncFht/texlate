@@ -8,7 +8,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/../web"
 
-LOG=/tmp/vite-dev-smoke.log
+# 每跑一次独立 log——固定名会被并行会话互截，PORT 解析抓到别家端口
+LOG=$(mktemp /tmp/vite-dev-smoke.XXXXXX.log)
 npm run dev >"$LOG" 2>&1 &
 NPM_PID=$!
 MY_VITE_PIDS=""
@@ -25,7 +26,7 @@ trap cleanup EXIT
 # 等 vite 就绪并解析实际端口（漂移时 Local: 行给真口）
 PORT=""
 for _ in $(seq 1 30); do
-  PORT=$(grep -oE 'localhost:[0-9]+' "$LOG" | head -1 | cut -d: -f2 || true)
+  PORT=$(grep -oE '(localhost|127\.0\.0\.1):[0-9]+' "$LOG" | head -1 | cut -d: -f2 || true)
   [[ -n $PORT ]] && break
   sleep 1
 done

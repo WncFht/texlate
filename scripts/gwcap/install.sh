@@ -34,16 +34,21 @@ install)
   install -D -m 0644 "$HERE/gw-cap-proxy.service" "$UNITS/gw-cap-proxy.service"
   install -D -m 0644 "$HERE/gw-cap-redirect.service" "$UNITS/gw-cap-redirect.service"
   systemctl daemon-reload
-  systemctl enable --now gw-cap-proxy.service gw-cap-redirect.service
+  # enable + restart：覆盖已运行的旧装时拾新码（enable --now 对运行中 unit 是 no-op）
+  systemctl enable gw-cap-proxy.service gw-cap-redirect.service
+  systemctl restart gw-cap-proxy.service gw-cap-redirect.service
   echo "installed: gwcap uid=$uid, proxy :3399, cap=4 on swe-2-medium*"
   ;;
 uninstall)
   systemctl disable --now gw-cap-redirect.service gw-cap-proxy.service 2>/dev/null || true
   nft delete table inet gwcap 2>/dev/null || true
+  # unit 已先被删/坏的半装态下 ExecStopPost 不会跑——显式兜底摘 INPUT bypass
+  [ -x "$LIB/ensure-bypass.sh" ] && "$LIB/ensure-bypass.sh" remove
   rm -f "$UNITS/gw-cap-proxy.service" "$UNITS/gw-cap-redirect.service" "$UNITS/tailscaled.service.d/gwcap.conf"
   rm -rf "$LIB"
   systemctl daemon-reload
   userdel gwcap 2>/dev/null || true
+  groupdel gwcap 2>/dev/null || true
   echo "uninstalled"
   ;;
 status)
