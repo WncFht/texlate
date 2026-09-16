@@ -941,6 +941,25 @@ def _collect_compile_outputs(res: CompRes, outputs: list[str]) -> None:
     res.stdout_tail = outputs[-1][-4000:] if outputs else ""
 
 
+def _salvage_driver_fatal(info: LogInfo, res: CompRes) -> None:
+    """信号死时从 stdout_tail 捞下游驱动 fatal 行补进 info 归因。
+
+    xdvipdfmx 等下游 fatal 只走 stdout（stderr→STDOUT 合并）、不进
+    .log——xelatex 被 SIGPIPE 带走时 .log 已截断，不捞则 first_error
+    空缺（1404.6041: ``xdvipdfmx:fatal: Image inclusion failed`` →
+    xelatex 写 xdv 管道收 SIGPIPE）。
+    """
+    if not res.killed_signal or not res.stdout_tail:
+        return
+    for m in re.finditer(r"(?m)^\s*(\w+:\s*fatal:[^\n]*)$", res.stdout_tail):
+        line = m.group(1).strip()[:300]
+        if line not in info.errors:
+            info.errors.append(line)
+            info.n_errors += 1
+        if info.first_error is None:
+            info.first_error = line
+
+
 # ================================================================ xelatex
 class XelatexEngine:
     """TeX Live xelatex：M0 开发默认（tlmgr 可修性实测最高，engine-matrix §5）。"""
@@ -1196,6 +1215,7 @@ class XelatexEngine:
         except OSError:
             log_text = ""
         res.log = parse_log(log_text or res.stdout_tail, project_root=wdir)
+        _salvage_driver_fatal(res.log, res)
         res.log_path = log if log.exists() else None
         res.pdf = pdf if pdf.exists() else None
         res.pdf_bytes = pdf.stat().st_size if pdf.exists() else 0
@@ -1398,7 +1418,9 @@ class XelatexEngine:
         if res.log_path is not None:
             with contextlib.suppress(OSError):
                 text = res.log_path.read_text(encoding="utf-8", errors="replace")
-        return parse_log(text or res.stdout_tail, project_root=res.workdir)
+        info = parse_log(text or res.stdout_tail, project_root=res.workdir)
+        _salvage_driver_fatal(info, res)
+        return info
 
 
 # ================================================================ tectonic

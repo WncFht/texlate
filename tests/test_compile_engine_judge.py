@@ -764,6 +764,29 @@ def test_parse_log_utf8_dos_eps_demoted(tmp_path: Path) -> None:
     assert "invalid_utf8" in info2.warnings_hit
 
 
+def test_salvage_driver_fatal_on_sigpipe(tmp_path: Path) -> None:
+    """信号死时 stdout_tail 的 xdvipdfmx:fatal 补 errors/first_error 归因。"""
+    res = _res(tmp_path)
+    res.killed_signal = 13  # xdvipdfmx 死 → xelatex 写 xdv 管道收 SIGPIPE
+    res.stdout_tail = (
+        "progress\n"
+        "xdvipdfmx:fatal: Image inclusion failed. Could not find file: x.eps\n"
+        "No output PDF file written.\n"
+    )
+    info = parse_log("(./main.tex\n)", project_root=tmp_path)
+    eng_mod._salvage_driver_fatal(info, res)  # noqa: SLF001
+    assert info.first_error is not None and info.first_error.startswith(
+        "xdvipdfmx:fatal:"
+    )
+    assert info.n_errors == 1
+    # 未被信号杀 → 不动
+    res2 = _res(tmp_path)
+    res2.stdout_tail = "xdvipdfmx:fatal: should not surface\n"
+    info2 = parse_log("(./main.tex\n)", project_root=tmp_path)
+    eng_mod._salvage_driver_fatal(info2, res2)  # noqa: SLF001
+    assert info2.first_error is None and info2.n_errors == 0
+
+
 def test_parse_log_utf8_bare_name_tectonic(tmp_path: Path) -> None:
     """tectonic bundle 日志只印裸名：root 给定时按 root/name 存在性分。"""
     (tmp_path / "main.tex").write_text("x")
