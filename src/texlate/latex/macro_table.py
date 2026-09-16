@@ -31,6 +31,7 @@ from texlate.latex.model import (
     ws_skip,
 )
 from texlate.latex.tables import MATH_ENVS, PROTECTED_PARAM_CMDS
+from texlate.textutil import mask_tex
 
 _ENV_BEGIN_RX = re.compile(r"\\begin\{([^}]*)\}")
 _ENV_END_RX = re.compile(r"\\end\{([^}]*)\}")
@@ -45,7 +46,7 @@ _STRIP_CS_RX = re.compile(r"\\[a-zA-Z@]+\*?")
 _STRIP_CS1_RX = re.compile(r"\\[^a-zA-Z]")
 _NONALPHA_RX = re.compile(r"[^a-zA-Z]")
 _WORD_RX = re.compile(r"[a-zA-Z]{2,}")
-_PARAM_TOK_RX = re.compile(r"\\[a-zA-Z@]+\*?|#([1-9])")
+_PARAM_TOK_RX = re.compile(r"\\[a-zA-Z@]+\*?|#[1-9]|[{}\[\]]")
 # cs 名内含 ``@``（``\@startsection``/``\z@``/裸 ``\@``）——@ 能进 cs 名
 # 只在 makeatletter 语境成立；``\\x@``（``\\`` 换行 + ``@``）稀有误命中
 # 仅致保守 opaque，无害。
@@ -72,22 +73,45 @@ def body_has_text(body: str) -> bool:
     return bool(_WORD_RX.search(s))
 
 
-def protected_param_positions(body: str, nargs: int) -> tuple[bool, ...]:
-    r"""``#i`` 落在 ``\ref/\cite/\label/\url`` 等命令参数位 → 该参数保护。"""
+def protected_param_positions(body: str, nargs: int) -> tuple[bool, ...]:  # noqa: C901 — token 流状态机，平铺即分派表
+    r"""``#i`` 落在 ``\ref/\cite/\label/\url`` 等命令参数位 → 该参数保护。
+
+    保护以组界为界：``\cite{#1}`` 的保护域止于配对 ``}``——
+    ``\cite{#1} and #2`` 的 ``#2`` 不继承（audit C5：旧实现保护位
+    只被下一枚 cs 复位，跨 ``}`` 泄漏把纯文本位误标 ``[[KEY]]``，
+    调用点该参数永不进 chunk）。``[..]`` 可选参同样是参数位
+    （``\includegraphics[#1]{#2}`` 两位皆保护），裸 token 参
+    （``\cite#1``）消费一枚即止。
+    """
     flags = [False] * nargs
     if nargs == 0:
         return ()
-    cur_protect = False
+    armed = False  # 保护 cs 已见、参数未消费
+    bracket = 0  # armed 期间 [..] 嵌套深度（可选参内 #i 亦保护且不吃 armed）
+    gprot: list[bool] = []  # 各层 { 组是否为保护参组（栈，外层保护罩内层）
     for m in _PARAM_TOK_RX.finditer(body):
         tok = m.group(0)
-        if tok.startswith("#"):
+        if tok == "{":
+            gprot.append(armed)
+            armed = False
+        elif tok == "}":
+            if gprot:
+                gprot.pop()
+            armed = False
+        elif tok == "[":
+            bracket += 1
+        elif tok == "]":
+            bracket = max(bracket - 1, 0)
+        elif tok[0] == "#":
             idx = int(tok[1]) - 1
             # 体引用超出 spec 的 #k（嵌套 \def 的 ##k、笔误 #9）→ 无位可标，跳过不抛
-            if idx < nargs:
-                flags[idx] = flags[idx] or cur_protect
+            if idx < nargs and (armed or any(gprot)):
+                flags[idx] = True
+            if armed and not bracket:
+                armed = False  # 裸 token 参消费一枚
         else:
-            name = tok.lstrip("\\").rstrip("*")
-            cur_protect = name in PROTECTED_PARAM_CMDS
+            # cs 自身亦可作单 token 参（\cite\foo）：先消费再按名重挂
+            armed = tok.lstrip("\\").rstrip("*") in PROTECTED_PARAM_CMDS
     return tuple(flags)
 
 
@@ -313,6 +337,7 @@ def scan_macro_def(  # noqa: C901, PLR0911, PLR0912, PLR0915 — 六类定义命
         if envname:
             p = ws_skip(tex, p)
             nargs = 0
+            has_opt = False
             # ``[n][dflt]`` 双 bracket——与 newcommand 的 for-k 循环同形
             # （旧版只读 [n]，落在 [dflt] 上 match_brace 失败 → 定义尾部
             # 整段回落进正文 chunk：scanner-audit F3，corpus 1.5% 命中）。
@@ -326,6 +351,8 @@ def scan_macro_def(  # noqa: C901, PLR0911, PLR0912, PLR0915 — 六类定义命
                             nargs = int(tex[p + 1 : e2 - 1].strip() or 0)
                         except ValueError:
                             nargs = 0
+                    else:
+                        has_opt = True
                     p = e2
                 else:
                     break
@@ -337,7 +364,10 @@ def scan_macro_def(  # noqa: C901, PLR0911, PLR0912, PLR0915 — 六类定义命
                 ee = match_brace(tex, ws_skip(tex, eb))
                 table.envs[envname] = EnvEntry(
                     name=envname,
-                    nargs=nargs,
+                    # LaTeX n **含**可选位：``[2][d]`` = opt + 1 强制
+                    # （v2 ``_do_newenv`` ``max(n-1,0)`` 同规，audit C3；
+                    # ``_eat_env_args`` 的 ``[opt]`` 试吃与 mand 数两立）
+                    nargs=max(nargs - 1, 0) if has_opt else nargs,
                     kind=env_kind_of(body_b),
                     body_role=env_body_role_of(body_b, table),
                 )
@@ -352,6 +382,7 @@ def scan_macro_def(  # noqa: C901, PLR0911, PLR0912, PLR0915 — 六类定义命
         if mname is None:
             return pos
         nargs, has_opt = 0, False
+        opt_default: str | None = None
         for k in range(2):
             p2 = ws_skip(tex, pos)
             if p2 < n and tex[p2] == "[":
@@ -365,6 +396,7 @@ def scan_macro_def(  # noqa: C901, PLR0911, PLR0912, PLR0915 — 六类定义命
                         nargs = 0
                 else:
                     has_opt = True
+                    opt_default = tex[p2 + 1 : e2 - 1]
                 pos = e2
             else:
                 break
@@ -372,7 +404,12 @@ def scan_macro_def(  # noqa: C901, PLR0911, PLR0912, PLR0915 — 六类定义命
         if p2 < n and tex[p2] == "{":
             e2 = match_brace(tex, p2)
             if e2:
-                spec = [ArgSpec("o")] * (1 if has_opt else 0) + [ArgSpec("m")] * nargs
+                # LaTeX ``[n][d]`` 的 n **含**可选位：``[2][d]`` = o + m×1
+                # （v2 ``_do_newcmd`` ``max(n-1,0)`` 同规，audit C2——
+                # 旧版 o+m×n 的幻影第 3 参会把正文 token 吞进 [[MACRO]]）
+                spec = ([ArgSpec("o", default=opt_default)] if has_opt else []) + [
+                    ArgSpec("m")
+                ] * max(nargs - (1 if has_opt else 0), 0)
                 register_macro(table, mname, spec, tex[p2 + 1 : e2 - 1], i)
                 return e2
         return pos
@@ -503,20 +540,22 @@ def register_macros_in(tex: str, state: ScanState) -> None:
 
     ``\\newif`` 一并登记（旗标进 ``state.ifflags``）——preamble 里的
     ``\\newif`` 不进主流水线，漏登记会让正文 ``\\Xtrue`` 走未知命令路径。
+
+    定位扫 ``mask_tex`` 等长遮盖视图：verbatim/lstlisting 环境、
+    ``\verb``/``\lstinline``、comment 失活环境与 ``%`` 注释里的假
+    ``\def``/``\newcommand`` 不进表（audit F9a）。offset 与原文逐字节
+    对齐，命中的定义仍在原串上解析（体字节保真——遮盖视图仅供定位）。
     """
-    i, n = 0, len(tex)
+    view = mask_tex(tex)
+    i, n = 0, len(view)
     while i < n:
-        c = tex[i]
-        if c == "%":
-            k = tex.find("\n", i)
-            i = n if k < 0 else k + 1
-            continue
+        c = view[i]
         if c == "\\":
-            name, j = read_cmd_name(tex, i)
+            name, j = read_cmd_name(view, i)
             if name == "newif":
-                p = ws_skip(tex, j)
-                if p < n and tex[p] == "\\":
-                    cond, e2 = read_cmd_name(tex, p)
+                p = ws_skip(view, j)
+                if p < n and view[p] == "\\":
+                    cond, e2 = read_cmd_name(view, p)
                     register_newif(state, cond, i)
                     i = e2
                     continue
