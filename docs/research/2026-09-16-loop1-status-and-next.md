@@ -79,6 +79,6 @@
 
 | 方 | 当前在飞 | 下一步 |
 | --- | --- | --- |
-| 1d leader | fixer-latex 尾项（`_cov_origin` repro + argspec `%`-arg 红） | loop2 stagerun 驱动、台账维护、commit 收敛 |
-| 项目体验方式 | rerun 19 格两轮收官（14/19 出 pdf）；taxonomy derive `5d195c2`、shim_map/`\input` scan `622fc04`、plea+revtex4-1 桥 `18ff106` 已落 | loop2 全量复跑判读；候补：pst-* 可解仍败机理 ticket（~~killed_signal 归一~~已核销——run_process 全程 POSIX 负值约定，rc<0→signal 链路本就正确） |
-| 1e | worker-hardening 12 项（#52）、llm_hook BYOK 接线 | #74/#78 残件、share 完成钩、真网关 n100-200 |
+| 1d leader | 四杠杆 fixer 在飞（slots/cjkfont/utf8/209up）+ fixer-gullet（1e 包 gullet 两洞）；fixloop 三件已落 `67debb6` | loop2 落地后 rundiff 判读、台账维护、commit 收敛 |
+| 项目体验方式 | loop2 全量复跑已点火（含 `88d0ab9` prim-guard/`26b760e` buf_size 修复版）；taxonomy derive `5d195c2` 等已落 | **裁决中：TEXMFHOME 串链**（`_env` 内改、签名稳定——1e worker 同机理确认）；rules.yaml 待办：pdftex_prim_guard 交替表同步扩 + char_table/font_fallback 条目（cjkfont 交付后）+ 2 枚 backstop pattern（DeclareUnicodeCharacter/Undefined color）+ latex209 gate 改「先升级再拒」（209up 交付后）+ .rtx 翻译集边界 + install_file 依赖闭包/IfFileExists 分支语义 |
+| 1e | worker-hardening 12 项（#52）、llm_hook BYOK 接线、modec-misschar/repro-2501 取证已交付 | #74/#78 残件、share 完成钩、真网关 n100-200、TEXMFHOME 若加参的 worker-followup |
