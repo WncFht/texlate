@@ -198,6 +198,24 @@ def test_legacy_latin_fonts(tmp_path: Path) -> None:
     assert "texgyretermes-regular.otf" in out
 
 
+def test_legacy_latin_fonts_no_dangling_rewrite(tmp_path: Path) -> None:
+    r"""``\documentclass`` 无 ``{...}`` 实参的文件进不了注入循环——
+
+    若仍计入 documents 集，``\usefont`` 改写成 ``texlate-ptm`` 而定义块
+    无处注入即悬空引用。判定正则与注入定位同形后此类文件不计入，
+    documents 空则整体不改写。
+    """
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass\n\\begin{document}\n"
+        "\\usefont{OT1}{ptm}{m}{n} hello\n\\end{document}\n"
+    )
+    stats = normalize_project(tmp_path, "xelatex", "main.tex")
+    out = (tmp_path / "main.tex").read_text()
+    assert "texlate-ptm" not in out
+    assert "\\usefont{OT1}{ptm}" in out
+    assert "legacy_latin_files" not in stats
+
+
 # 10. legacy CJK
 def test_legacy_cjk_to_xecjk() -> None:
     tex = (
@@ -437,6 +455,31 @@ def test_sanitize_ps_comments_header_bad_byte(tmp_path: Path) -> None:
     old_lines, new_lines = blob.split(b"\n"), new.split(b"\n")
     assert len(old_lines) == len(new_lines)  # 行数不变
     assert sum(a != b for a, b in zip(old_lines, new_lines, strict=True)) == 1
+
+
+def test_sanitize_ps_comments_crlf_preserved(tmp_path: Path) -> None:
+    r"""CRLF 件坏注释行净化后行尾 ``\r`` 保留——``decode_tex`` 的 EOL 归一
+    曾把 ``\r`` 改写成 ``\n``，join 后凭空多出空行。"""
+    blob = (
+        b"%!PS-Adobe-3.0 EPSF-3.0\r\n"
+        b"%%Title: caf\xe9 fig\r\n"
+        b"%%EndComments\r\n"
+        b"100 200 moveto\r\n"
+    )
+    eps = tmp_path / "fig.eps"
+    eps.write_bytes(blob)
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\nx\\end{document}\n"
+    )
+    stats = normalize_project(tmp_path, "xelatex", "main.tex")
+    assert "fig.eps" in stats["sanitized_ps_comments"]
+    new = eps.read_bytes()
+    assert new == (
+        b"%!PS-Adobe-3.0 EPSF-3.0\r\n"
+        b"%%Title: caf\xc3\xa9 fig\r\n"
+        b"%%EndComments\r\n"
+        b"100 200 moveto\r\n"
+    )
 
 
 def test_sanitize_ps_comments_preserves_binary_section(tmp_path: Path) -> None:

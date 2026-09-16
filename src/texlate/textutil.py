@@ -34,6 +34,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
 
 __all__ = [
+    "BEGIN_DOC_RX",
     "CJK_RANGES",
     "CJK_RX",
     "DEAD_ENVS",
@@ -50,6 +51,11 @@ __all__ = [
     "ph_in_cs_net",
     "sniff_tex_encoding",
 ]
+
+
+#: ``\begin{document}`` 探测（``\begin {document}`` 空白合法）。消费侧一律
+#: 在遮盖/剥注释视图上判定——注释/verbatim 内的字面命中不算数。
+BEGIN_DOC_RX: Final = re.compile(r"\\begin\s*\{document\}")
 
 
 def mask_comments(text: str) -> str:
@@ -397,6 +403,9 @@ _DECLARED_CODECS: Final = {
     "koi8-u": "koi8-u",
     "gbk": "gbk",
     "gb18030": "gb18030",
+    # GB18030 的 Windows codepage 号——5 位过不了 ``cp\d{3,4}`` 通配，
+    # 且 python 未注册该别名（codecs.lookup 抛 LookupError），须显式列名。
+    "cp54936": "gb18030",
     "big5": "big5",
     "euc-jp": "euc_jp",
     "sjis": "shift_jis",
@@ -410,7 +419,9 @@ _MAGIC_RX: Final = re.compile(
     r"%\s*!TEX\s+encoding\s*=\s*(\S+)|-\*-\s*coding:\s*([^\s;]+)",
     re.IGNORECASE,
 )
-_CODEPAGE_RX: Final = re.compile(r"CodePage:\s*(\d{3,4})")
+#: SWP ``CodePage:`` 头——5 位号存在（54936=GB18030），``\d{3,4}`` 会把
+#: ``54936`` 截成 ``5493`` 产出错名 ``cp5493``。
+_CODEPAGE_RX: Final = re.compile(r"CodePage:\s*(\d{3,5})")
 #: ``utf8`` 混入 usepackage 选项串的正则子项。
 _DECL_OPTION_RX: Final = re.compile(r"[a-zA-Z0-9_-]+")
 
@@ -459,7 +470,7 @@ def _declared_codec(name: str) -> str | None:
         try:
             codecs.lookup(name)
         except LookupError:
-            return {"cp936": "gbk", "cp950": "cp950"}.get(name)
+            return None
         return name
     return None
 
@@ -671,10 +682,11 @@ _SINGLE_BYTE_CODECS: Final = (
 #: 真 gb18030（2105.03820 decl=cp936 实测 29:14）——arXiv 韩文语料
 #: 实测为零，误路由代价大于假想覆盖。
 _CJK_CODECS: Final = ("gb18030", "big5", "shift_jis", "euc_jp")
-#: 声明名里的 CJK 族（含 cp 别名——``codecs.lookup("cp936")`` 能解，
-#: ``_declared_codec`` 会原样返回而非归一到 ``gbk``）。
+#: 声明 codec 值里的 CJK 族（含 cp 别名——``codecs.lookup("cp936")`` 能解，
+#: ``_declared_codec`` 会原样返回而非归一到 ``gbk``）。``cp54936`` 不在列：
+#: 声明名经 ``_DECLARED_CODECS`` 已归一到 ``gb18030``。
 _CJK_DECLARED: Final = frozenset(
-    (*_CJK_CODECS, "gbk", "cp936", "cp950", "cp932", "cp949", "cp54936")
+    (*_CJK_CODECS, "gbk", "cp936", "cp950", "cp932", "cp949")
 )
 #: 专属面区间：假名（0x3040-0x30FF）/谚文音节+字母。gb18030 误吃 SJIS
 #: 只产表意字——命中这些面即族铁证。

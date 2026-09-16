@@ -88,6 +88,24 @@ def test_gbk_declared_cp936() -> None:
     assert "干涉仪相位灵敏度分析结果如下" in text
 
 
+def test_gbk_declared_cp54936() -> None:
+    """decl=cp54936（GB18030 的 Windows codepage 号）三路径归一 gb18030。
+
+    ``cp54936`` 过不了 ``cp\\d{3,4}`` fullmatch 且 python 未注册该别名——
+    未列名前声明先验整体丢失，真 GB18030 文件会被 detector 误判 cp1251。
+    """
+    body = b"% " + "干涉仪相位灵敏度分析结果如下".encode("gb18030") + b"\n"
+    for header in (
+        b"% !TEX encoding = cp54936\n",
+        b"% CodePage: 54936\n",  # 5 位号——\d{3,4} 曾截成 5493
+        b"\\usepackage[cp54936]{inputenc}\n",
+    ):
+        text, v = decode_tex_with(header + body + ASCII_TEX)
+        assert v.encoding == "gb18030"
+        assert v.declared == "cp54936"
+        assert "干涉仪相位灵敏度分析结果如下" in text
+
+
 def test_shift_jis_kana_evidence() -> None:
     """SJIS 注释块：假名专属面加分压过 gb18030 误吃（cond-mat/0111097）。"""
     body = b"% " + "これはコメントです。入してください。".encode("shift_jis") + b"\n"

@@ -568,10 +568,12 @@ def prepare_legacy_latin_fonts(root: Path) -> int:
         and path.suffix.lower() in TEX_SOURCE_SUFFIXES
     }
     visible = {path: visible_tex(text) for path, text in sources.items()}
+    # 判定正则与下方注入定位同形：``\documentclass`` 无 ``{...}`` 实参的文件
+    # 进不了注入循环，若仍计入 documents 会让已改写的 texlate-* 族名悬空。
     documents = {
         path
         for path, text in visible.items()
-        if re.search(r"\\documentclass\b", text)
+        if re.search(r"\\documentclass\s*(?:\[[^]]*\]\s*)?\{", text)
         and re.search(r"\\begin\s*\{document\}", text)
     }
     if not documents:
@@ -920,7 +922,11 @@ def _sanitize_ps_comments(blob: bytes) -> bytes:
             try:
                 line.decode("utf-8")
             except UnicodeDecodeError:
-                new = decode_tex(line).encode("utf-8")
+                # decode_tex 的 EOL 归一会把行尾 \r 改写成 \n——CRLF 件
+                # 净化后凭空多空行；剥尾转码再拼回保住行界字节。
+                trail = b"\r" if line.endswith(b"\r") else b""
+                body = line[:-1] if trail else line
+                new = decode_tex(body).encode("utf-8") + trail
                 changed = changed or new != line
                 line = new
         out.append(line)
@@ -991,7 +997,7 @@ def _transcode_one(
     text, verdict = decode_tex_with(original)
     # 漏网二进制闸：NUL 字节且非 UTF-16 形态（utf-16 判定自带 NUL 占比
     # 门槛）→ 拿不准的一律不动，也不进 encodings 归因（非文本件无可归因）。
-    if b"\x00" in original and not (verdict.encoding or "").startswith("utf-16"):
+    if b"\x00" in original and not verdict.encoding.startswith("utf-16"):
         return
     _record_verdict(encodings, root, path, verdict)
     rel = path.relative_to(root).as_posix()
