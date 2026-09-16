@@ -34,6 +34,18 @@ from .mask import (
 
 log = logging.getLogger(__name__)
 
+#: 源包 bundled 的已知垃圾件——内容非论文（自检/交互工具），翻译臂会当正文
+#: parse/splice 腐蚀（1109.2354/1206.0565 ``splice/aipcheck.tex:82`` 实证），
+#: 裸编译则 ``\typein`` 挂交互终端读（hep-ph/0111248 early_eof）。覆写为
+#: stub 而非删除——``\input`` 目标须保持存在。stub 体与 fixloop rules.yaml
+#: ``legacy_pkg_shim`` 的 aipcheck.tex 条目同文。
+JUNK_FILE_STUBS: Final[dict[str, str]] = {
+    # aipproc/REVTeX4 版本自检件（~18 处 \typein + \def\next#1/#2/#3 魔术）。
+    "aipcheck.tex": (
+        "% AIP \\input{aipcheck} 版本自检件 —— 纯 \\typeout, 无排版语义\n\\endinput\n"
+    ),
+}
+
 #: 随附文献/书目数据后缀——不是 TeX 手术面，但 XeTeX/biber 一律按
 #: UTF-8 读它们，非 UTF-8 字节须与 .tex 同档判定转码。
 AUX_BIB_SUFFIXES = {".bib", ".bbl", ".bst"}
@@ -730,6 +742,31 @@ def source_path_violations(
                 yield p, match, message
 
 
+# ---------------------------------------------------------------- 13. bundled 垃圾件 stub
+def _neutralize_junk_files(root: Path, stats: dict[str, object]) -> None:
+    r"""``JUNK_FILE_STUBS`` 名单件逐名覆写为 stub；覆写件记 ``stats["junk_stubbed"]``。
+
+    覆写不删——``\input``/``\include`` 引用目标须保持存在；逐名匹配不限
+    目录深度（bundled 件可落任意子目录）。已就位者跳过——幂等不重复记。
+    """
+    hits = []
+    for path in sorted(root.rglob("*")):
+        if not path.is_file():
+            continue
+        stub = JUNK_FILE_STUBS.get(path.name)
+        if stub is None:
+            continue
+        try:
+            if path.read_bytes() == stub.encode("utf-8"):
+                continue
+            path.write_text(stub, encoding="utf-8")
+        except OSError:
+            continue
+        hits.append(path.relative_to(root).as_posix())
+    if hits:
+        stats["junk_stubbed"] = hits
+
+
 # ---------------------------------------------------------------- 主编排
 def normalize_engine(text: str, engine: str) -> str:
     """单文件无条件手术编排（docs/08 §3.2 清单 1–10 的文件内部分）。"""
@@ -1080,6 +1117,7 @@ def normalize_project(root: Path, engine: str, main: str | None = None) -> dict:
     """
     stats: dict[str, object] = {"files": 0, "rewritten": 0}
     encodings: dict[str, dict[str, str | None]] = {}
+    _neutralize_junk_files(root, stats)
     for path in root.rglob("*"):
         if not path.is_file() or path.suffix.lower() not in TEX_SOURCE_SUFFIXES:
             continue

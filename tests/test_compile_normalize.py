@@ -309,6 +309,39 @@ def test_normalize_project_clean_utf8_no_encodings(tmp_path: Path) -> None:
     assert "transcoded_aux" not in stats
 
 
+def test_normalize_project_junk_stub(tmp_path: Path) -> None:
+    r"""bundled aipcheck.tex 覆写为 ``\endinput`` stub（1109.2354 交互自检件）。"""
+    (tmp_path / "aipcheck.tex").write_text(
+        "\\newif\\ifproblem\n\\typein{* Type <return> to continue ...}\n"
+        "\\def\\next#1/#2/#3\\next{#1#2}\n"
+    )
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\input{aipcheck}\n"
+        "\\begin{document}\nx\\end{document}\n"
+    )
+    stats = normalize_project(tmp_path, "xelatex", "main.tex")
+    stub = (tmp_path / "aipcheck.tex").read_text()
+    assert stub.endswith("\\endinput\n")
+    assert "typein" not in stub.lower()
+    assert stats["junk_stubbed"] == ["aipcheck.tex"]
+    # 覆写不删——\input 目标存在性保留；其它文件内容不动
+    assert "\\input{aipcheck}" in (tmp_path / "main.tex").read_text()
+
+
+def test_normalize_project_junk_stub_nested(tmp_path: Path) -> None:
+    """名单件逐名匹配不限深度；幂等——二次 normalize 不再记 junk。"""
+    sub = tmp_path / "vendor" / "aip"
+    sub.mkdir(parents=True)
+    (sub / "aipcheck.tex").write_text("\\typein{press return}\n")
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\nx\\end{document}\n"
+    )
+    stats = normalize_project(tmp_path, "xelatex", "main.tex")
+    assert stats["junk_stubbed"] == ["vendor/aip/aipcheck.tex"]
+    stats2 = normalize_project(tmp_path, "xelatex", "main.tex")
+    assert "junk_stubbed" not in stats2
+
+
 # ---------------------------------------------------------------- invalid_utf8 输入侧臂
 def test_sanitize_ps_comments_header_bad_byte(tmp_path: Path) -> None:
     """EPS 头注释 latin-1/GBK 字节 → UTF-8 净化；diff 仅限注释行。"""
