@@ -33,6 +33,7 @@ pipe 条件因翻译是 async 在本文件内联同款流程）。
       [--model swe-2-medium] [--concurrency 10] [--timeout 240]
       [--time-budget 1800] [--base onfail|always|never]
       [--fixloop onfail|always|never] [--tag NAME]
+      [--rerun 全量重跑 | --recode 产码印章不符的格重跑（splice 修复验证）]
 产出: bench/results/e2e-real-<tag>-<date>/{records.jsonl,results.json,matrix.md,summary.md,run_meta.json}
 工作区: bench/work_e2ereal/{cond}/{safe_id}/ + _xlat_state/{safe_id}/（gitignored）
 依赖: uv venv（httpx/typer）；xelatex；pdftotext（judge CJK 检查）；
@@ -43,10 +44,12 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import functools
 import json
 import os
 import random
 import shutil
+import subprocess
 import sys
 import time
 from datetime import UTC, datetime
@@ -426,7 +429,7 @@ async def run_project(
 ) -> dict:
     src = CORPUS / rel / "extracted"
     sid = safe_id(rel)
-    rec: dict = {"id": rel}
+    rec: dict = {"id": rel, "code": _code_stamp()}
     if not src.is_dir():
         rec["error"] = "no extracted/ dir"
         rec["status"] = "partial"  # F3: 拒跑归降级档 + reject_at
@@ -501,6 +504,35 @@ def _paper_done(rec: dict | None) -> bool:
         return False
     tr = (rec.get("pipe-xel") or {}).get("translate") or {}
     return not (tr.get("skipped") or tr.get("fault"))
+
+
+@functools.lru_cache(maxsize=1)
+def _code_stamp() -> str:
+    """产码印章：``<sha>`` 或 ``<sha>-dirty``（src/texlate 有未提交改动）。
+
+    记进每格 record——parse/splice 层修复落地后旧格 tex 是陈字节
+    （0707.3950 实证：resume 谓词把全 ok 格整篇 carry-over，postfix 臂编译
+    打修复前文件，mtime 取证才识破）。``--recode`` 按印章差异强制重跑；
+    chunk 级 state 缓存仍在，重翻免费、parse/splice/compile 走新码。
+    """
+    try:
+        sha = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],  # noqa: S607
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        dirty = subprocess.run(
+            ["git", "status", "--porcelain", "--", "src/texlate"],  # noqa: S607
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return "unknown"
+    return f"{sha}{'-dirty' if dirty else ''}"
 
 
 # ---------------------------------------------------------------- 报告
@@ -684,6 +716,7 @@ async def amain(args: argparse.Namespace) -> None:
 
     meta = {
         "seed": args.seed,
+        "code": _code_stamp(),
         "layers": args.layers,
         "n_requested": args.n,
         "model": args.model,
@@ -723,7 +756,12 @@ async def amain(args: argparse.Namespace) -> None:
         t_start = time.monotonic()
         for idx, rel in enumerate(ids):
             prev = results.get(rel)
-            if not args.rerun and _paper_done(prev):
+            # --recode：产码印章不符的旧格不续跑（splice 层修复验证用——
+            # chunk state 还在，重翻免费、parse/splice/compile 走新码）
+            stale_code = args.recode and (
+                not isinstance(prev, dict) or prev.get("code") != _code_stamp()
+            )
+            if not args.rerun and not stale_code and _paper_done(prev):
                 # pipe-xel 工作区仍在 → 旧结果可只补 fixloop 臂，不重翻
                 src_work = WORK / "pipe-xel" / safe_id(rel)
                 if (
@@ -852,6 +890,11 @@ def main() -> None:
         help="跳过启动自检（全量 import + mock 链）",
     )
     ap.add_argument("--rerun", action="store_true", help="无视 records 重跑")
+    ap.add_argument(
+        "--recode",
+        action="store_true",
+        help="产码印章（record.code=HEAD sha±dirty）不符的格重跑——splice/parse 层修复验证用，chunk 缓存仍在不重翻",
+    )
     ap.add_argument("--tag", default=RESULTS_DIR_DEFAULT)
     ap.add_argument("--date", default=str(datetime.now(UTC).date()))
     args = ap.parse_args()
