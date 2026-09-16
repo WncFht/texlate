@@ -174,6 +174,14 @@ BINARY_SUFFIXES = {
 #: 整件放弃净化（此类件本就带二进制预览，扫描面只会更糟）。
 _DOS_EPS_MAGIC: Final = b"\xc5\xd0\xd3\xc6"
 
+#: DSC 数据段标记——``%%Begin{Binary,Data,Document,Preview}`` 与配对
+#: ``%%End*`` 之间的行是另一消费者的字节负载：其间形似注释的 ``%`` 行
+#: 不是 PostScript 惰性区，逐行净化会改写二进制/嵌入件数据。
+_PS_DATA_BEGIN_RX: Final = re.compile(
+    rb"^[ \t]*%%Begin(?:Binary|Data|Document|Preview)\b"
+)
+_PS_DATA_END_RX: Final = re.compile(rb"^[ \t]*%%End(?:Binary|Data|Document|Preview)\b")
+
 # ---------------------------------------------------------------- 兼容前导块
 # 注入缝统一为 \begin{document} 之前（docs/08 §3.3）；字体系块例外，
 # 走 \documentclass{} 之后（见 prepare_legacy_latin_fonts / inject.py）。
@@ -294,8 +302,8 @@ def normalize_pdftex_features(text: str, engine: str) -> str:
     if engine == "tectonic":
         unsupported.add("tracking")
     for pattern in (
-        r"\\(?:usepackage|RequirePackage)\s*\[([^]]*)\]\s*\{microtype\}",
-        r"\\PassOptionsToPackage\s*\{([^{}]*)\}\s*\{microtype\}",
+        r"\\(?:usepackage|RequirePackage)\s*\[([^]]*)\]\s*\{[^}]*\bmicrotype\b[^}]*\}",
+        r"\\PassOptionsToPackage\s*\{([^{}]*)\}\s*\{[^}]*\bmicrotype\b[^}]*\}",
         r"\\microtypesetup\s*\{([^{}]*)\}",
     ):
         for match in re.finditer(pattern, visible):
@@ -376,10 +384,11 @@ def strip_input_encodings(text: str) -> str:
         names = [v.strip() for v in match[1].split(",")]
         kept = [v for v in names if v not in {"inputenc", "fontenc"}]
         if kept != names:
+            # 整行删除留空行（span 不含行尾 \n）；" " 而非 "" 防行内相邻 token 粘连
             value = (
                 text[match.start() : match.start(1)] + ",".join(kept) + "}"
                 if kept
-                else "\n"
+                else " "
             )
             removals.append((match.start(), match.end(), value))
     return apply_edits(text, removals)
@@ -534,7 +543,9 @@ def prepare_legacy_latin_fonts(root: Path) -> int:
     sources = {
         path: decode_tex(path.read_bytes())
         for path in root.rglob("*")
-        if path.is_file() and path.suffix.lower() in TEX_SOURCE_SUFFIXES
+        if path.is_file()
+        and not path.is_symlink()
+        and path.suffix.lower() in TEX_SOURCE_SUFFIXES
     }
     visible = {path: visible_tex(text) for path, text in sources.items()}
     documents = {
@@ -634,32 +645,33 @@ def normalize_legacy_cjk(text: str, engine: str) -> str:
 
 
 # ---------------------------------------------------------------- 11. bundled .bbl
-def use_bundled_bibliography(text: str, path: Path) -> str:
+def use_bundled_bibliography(text: str, path: Path, cwd: Path | None = None) -> str:
     r"""当工程附现成 .bbl 而 .bib 缺失时，`\bibliography{x}` → `\input{x.bbl}`。
 
     定位走 ``visible_tex``（verbatim 体遮盖）——``without_comments`` 只遮
     注释，lstlisting 里展示的 ``\bibliography{x}`` 示例会被真改写。
+    ``cwd`` 为编译工作目录（main 所在目录）：`.bib` 存在性判定与
+    `\input` 目标名都以它为基准（kpathsea `.` 口径）；缺省退回声明文件目录。
+    多只 `\bibliography`（multibib/chapterbib）只替换首个缺库者——单份
+    .bbl 只能填一个书目位，二次替换会重复排版整个 thebibliography。
     """
+    base = cwd or path.parent
     bbl = path.with_suffix(".bbl")
     if not bbl.is_file() or r"\begin{thebibliography}" not in decode_tex(
         bbl.read_bytes()
     ):
         return text
-    for match in reversed(
-        list(re.finditer(r"\\bibliography\s*\{([^}]+)\}", visible_tex(text)))
-    ):
+    for match in re.finditer(r"\\bibliography\s*\{([^}]+)\}", visible_tex(text)):
         databases = [
-            path.parent
-            / (v.strip() if v.strip().endswith(".bib") else v.strip() + ".bib")
+            base / (v.strip() if v.strip().endswith(".bib") else v.strip() + ".bib")
             for v in match[1].split(",")
         ]
         if any(not p.is_file() for p in databases):
-            text = (
-                text[: match.start()]
-                + r"\input{"
-                + bbl.name
-                + "}"
-                + text[match.end() :]
+            target = Path(os.path.relpath(bbl, base)).as_posix()
+            if target.startswith(".."):
+                continue  # openin_any=p 拒 ../ 引用——不可达的 .bbl 不改写
+            return (
+                text[: match.start()] + r"\input{" + target + "}" + text[match.end() :]
             )
     return text
 
@@ -675,8 +687,10 @@ def rebase_project_paths(root: Path, main: str) -> list[str]:
     cwd = (root / main).parent
     changes: dict[Path, list[tuple[int, int, str]]] = {}
     for path in root.rglob("*"):
-        if not path.is_file() or path.suffix.lower() not in (
-            TEX_SOURCE_SUFFIXES | AUX_BIB_SUFFIXES
+        if (
+            not path.is_file()
+            or path.is_symlink()
+            or path.suffix.lower() not in (TEX_SOURCE_SUFFIXES | AUX_BIB_SUFFIXES)
         ):
             continue
         text = visible_tex(decode_tex(path.read_bytes()))
@@ -720,17 +734,22 @@ def source_path_violations(
     cwd = (root / main).parent if main else root
     for p in root.rglob("*"):
         if (
-            not p.is_file()
+            p.is_symlink()
+            or not p.is_file()
             or p.suffix.lower() not in TEX_SOURCE_SUFFIXES | AUX_BIB_SUFFIXES
         ):
             continue
         text = visible_tex(decode_tex(p.read_bytes()))
         for match in re.finditer(
-            r"\\(?:input|include|includegraphics|openin|openout)(?![A-Za-z@])\s*"
-            r"(?:\[[^]]*\])?\s*(?:\{([^{}]*)\}|([^\s{}%]+))",
+            r"\\(?:input|include|includegraphics)(?![A-Za-z@])\s*"
+            r"(?:\[[^]]*\])?\s*(?:\{([^{}]*)\}|([^\s{}%]+))"
+            # \openin/\openout 实参是 \cs=<file>（或 <num>=<file>）——
+            # 旧式把 `\w=|cmd` 整体当名字，管道符被吞 → 漏检
+            r"|\\(?:openin|openout)(?![A-Za-z@])\s*"
+            r"(?:\\[a-zA-Z@]+|\d+)\s*=\s*(?:\{([^{}]*)\}|([^\s{}%]+))",
             text,
         ):
-            name = (match[1] if match[1] is not None else match[2]).strip()
+            name = next(g for g in match.groups() if g is not None).strip()
             absolute = re.match(r"/|~|[A-Za-z]:", name)
             outside = ".." in Path(name).parts and not (
                 cwd / name
@@ -753,8 +772,8 @@ def _neutralize_junk_files(root: Path, stats: dict[str, object]) -> None:
     """
     hits = []
     for path in sorted(root.rglob("*")):
-        if not path.is_file():
-            continue
+        if path.is_symlink() or not path.is_file():
+            continue  # 软链豁免：写穿会改到 root 外目标
         stub = JUNK_FILE_STUBS.get(path.name)
         if stub is None:
             continue
@@ -857,9 +876,14 @@ def _sanitize_ps_comments(blob: bytes) -> bytes:
         return blob
     out: list[bytes] = []
     changed = False
+    in_data = False
     for raw_line in blob.split(b"\n"):
         line = raw_line
-        if line.lstrip(b" \t").startswith(b"%"):
+        if _PS_DATA_BEGIN_RX.match(line):
+            in_data = True
+        elif _PS_DATA_END_RX.match(line):
+            in_data = False
+        elif not in_data and line.lstrip(b" \t").startswith(b"%"):
             try:
                 line.decode("utf-8")
             except UnicodeDecodeError:
@@ -1091,7 +1115,8 @@ def _try_shadow(
     else:
         return None, set()  # 系统件干净，无需遮蔽
     target = main_dir / req
-    if target.exists():
+    if target.exists() or target.is_symlink():
+        # 悬挂软链 exists()=False 但 write_text 会写穿到 root 外目标
         return None, set()
     text, verdict = decode_tex_with(blob)
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -1179,15 +1204,21 @@ def normalize_project(root: Path, engine: str, main: str | None = None) -> dict:
     encodings: dict[str, dict[str, str | None]] = {}
     _neutralize_junk_files(root, stats)
     for path in root.rglob("*"):
-        if not path.is_file() or path.suffix.lower() not in TEX_SOURCE_SUFFIXES:
-            continue
+        if (
+            path.is_symlink()
+            or not path.is_file()
+            or path.suffix.lower() not in TEX_SOURCE_SUFFIXES
+        ):
+            continue  # 软链豁免：读写都会穿到 root 外目标（同 _transcode 臂）
         stats["files"] = int(stats["files"]) + 1
         original = path.read_bytes()
         text, verdict = decode_tex_with(original)
         _record_verdict(encodings, root, path, verdict)
         text = normalize_engine(text, engine)
         if path.suffix.lower() == ".tex":
-            text = use_bundled_bibliography(text, path)
+            text = use_bundled_bibliography(
+                text, path, cwd=(root / main).parent if main else None
+            )
         if text.encode("utf-8") != original:
             path.write_text(text, encoding="utf-8")
             stats["rewritten"] = int(stats["rewritten"]) + 1

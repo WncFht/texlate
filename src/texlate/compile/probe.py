@@ -46,9 +46,12 @@ _PKG_RE = re.compile(r"\\(?:usepackage|RequirePackage)\s*(?:\[[^\]]*\])?\s*\{([^
 _CLS_RE = re.compile(
     r"\\(documentclass|documentstyle|LoadClass)\s*(?:\[[^\]]*\])?\s*\{([^}]+)\}"
 )
-_INPUT_BRACED_RE = re.compile(r"\\(?:input|include|InputIfFileExists)\b\s*\{([^}]+)\}")
+_INPUT_BRACED_RE = re.compile(r"\\(input|include|InputIfFileExists)\b\s*\{([^}]+)\}")
 _INPUT_BARE_RE = re.compile(r"\\input\s+([^\s{}%\\]+)")
 _DOC_BEGIN_RE = re.compile(r"\\begin\s*\{document\}")
+#: 死尾边界：首个 ``\end{document}``/``\endinput`` 之后引擎不再读本文件——
+#: 其后的 ``\input`` 不产生 missing_file，扫它只会报假缺失。
+_DEAD_TAIL_RE = re.compile(r"\\end\s*\{document\}|\\endinput\b")
 #: 声明名噪声过滤（fixloop static_precheck 同款）：滤掉 `\@tempb` 类误捕。
 _NAME_RE = re.compile(r"^[\w./+-]+$")
 
@@ -101,6 +104,7 @@ class _ScanCtx:
     """`target_probe` 扫描状态：声明去重 + blob 收集 + latex209 标记。"""
 
     root: Path
+    cwd: Path  # 编译工作目录（main 所在目录）——kpathsea `.` 的唯一基准
     index: TlpdbIndex | None
     rep: ProbeReport
     declared: set[tuple[str, str]] = field(default_factory=set)
@@ -128,22 +132,27 @@ def _clean_name(raw: str) -> str | None:
     return name
 
 
-def _find_local(root: Path, decl_dir: Path, fname: str) -> Path | None:
-    """声明文件目录 → 工程根 两跳本地解析（对齐 kpathsea cwd+TEXINPUTS 序）。"""
-    for base in (decl_dir, root):
-        cand = (base / fname).resolve()
-        if cand.is_file() and cand.is_relative_to(root):
-            return cand
+def _find_local(root: Path, cwd: Path, fname: str) -> Path | None:
+    r"""编译 cwd（main 所在目录）单跳本地解析。
+
+    kpathsea 的 ``.`` 是引擎进程 cwd——本仓两引擎恒以 main 目录为 cwd
+    （engine.py xelatex/tectonic 同口径），声明文件自身目录不在搜索路径：
+    `chaps/one.tex` 里 `\\input{shared}` 解析 `cwd/shared.tex` 而非
+    `chaps/shared.tex`（xelatex TL2026 + tectonic 0.15 实证 not found）。
+    """
+    cand = (cwd / fname).resolve()
+    if cand.is_file() and cand.is_relative_to(root):
+        return cand
     return None
 
 
 def _resolve_dep(
-    root: Path, decl_dir: Path, name: str, kind: str, index: TlpdbIndex | None
+    root: Path, cwd: Path, name: str, kind: str, index: TlpdbIndex | None
 ) -> tuple[str, str, str]:
     """单依赖三分支解析 → (fname, resolved, detail)。"""
     ext = {"package": ".sty", "class": ".cls", "input": ".tex"}[kind]
     fname = name if Path(name).suffix else name + ext
-    local = _find_local(root, decl_dir, fname)
+    local = _find_local(root, cwd, fname)
     if local is not None:
         return fname, "local", local.relative_to(root).as_posix()
     if index is not None:
@@ -154,10 +163,10 @@ def _resolve_dep(
 
 
 def _record_dep(
-    ctx: _ScanCtx, decl_dir: Path, rel: str, name: str, kind: str
+    ctx: _ScanCtx, rel: str, name: str, kind: str, *, optional: bool = False
 ) -> DepProbe:
     """解析 + 登记一条声明依赖（同 kind+fname 去重，保首个声明位）。"""
-    fname, resolved, detail = _resolve_dep(ctx.root, decl_dir, name, kind, ctx.index)
+    fname, resolved, detail = _resolve_dep(ctx.root, ctx.cwd, name, kind, ctx.index)
     probe = DepProbe(
         name=name,
         kind=kind,
@@ -170,7 +179,8 @@ def _record_dep(
         return probe
     ctx.declared.add((kind, fname))
     ctx.rep.deps.append(probe)
-    if resolved == "missing":
+    if resolved == "missing" and not optional:
+        # \InputIfFileExists 缺席走 else 分支——不是 missing_file，不进预热清单
         ctx.rep.missing.append(fname)
         ctx.rep.missing.sort()
     elif resolved == "tl_pkg" and detail not in ctx.rep.tl_packages:
@@ -179,31 +189,45 @@ def _record_dep(
     return probe
 
 
+def _scan_inputs(ctx: _ScanCtx, live: str, rel: str, queue: list[Path]) -> None:
+    r"""`\input`/`\include`/`\InputIfFileExists` + 裸 `\input` 登记与跟进。"""
+    for match in _INPUT_BRACED_RE.finditer(live):
+        name = _clean_name(match.group(2))
+        if name is None:
+            continue
+        optional = match.group(1) == "InputIfFileExists"
+        probe = _record_dep(ctx, rel, name, "input", optional=optional)
+        if probe.resolved == "local" and probe.fname.lower().endswith(".tex"):
+            queue.append((ctx.root / probe.detail).resolve())
+    for match in _INPUT_BARE_RE.finditer(live):
+        name = _clean_name(match.group(1))
+        if name is None:
+            continue
+        probe = _record_dep(ctx, rel, name, "input")
+        if probe.resolved == "local" and probe.fname.lower().endswith(".tex"):
+            queue.append((ctx.root / probe.detail).resolve())
+
+
 def _scan_file(ctx: _ScanCtx, tex: Path, rel: str, queue: list[Path]) -> None:
-    r"""扫单文件：preamble 取 package/class 声明，全文取 `\input` 并入队。"""
+    r"""扫单文件：preamble 取 package/class 声明，活区取 `\input` 并入队。"""
     vis = visible_tex(decode_tex(tex.read_bytes()))
     ctx.blob_parts.append(vis)
     m = _DOC_BEGIN_RE.search(vis)
     preamble = vis[: m.start()] if m is not None else vis
-    decl_dir = tex.parent
+    dead = _DEAD_TAIL_RE.search(vis)
+    live = vis[: dead.start()] if dead is not None else vis
     for match in _PKG_RE.finditer(preamble):
         for raw in match.group(1).split(","):
             name = _clean_name(raw)
             if name is not None:
-                _record_dep(ctx, decl_dir, rel, name, "package")
+                _record_dep(ctx, rel, name, "package")
     for match in _CLS_RE.finditer(preamble):
         name = _clean_name(match.group(2))
         if name is not None:
-            _record_dep(ctx, decl_dir, rel, name, "class")
+            _record_dep(ctx, rel, name, "class")
         if match.group(1) == "documentstyle":
             ctx.latex209 = True
-    for match in (*_INPUT_BRACED_RE.finditer(vis), *_INPUT_BARE_RE.finditer(vis)):
-        name = _clean_name(match.group(1))
-        if name is None:
-            continue
-        probe = _record_dep(ctx, decl_dir, rel, name, "input")
-        if probe.resolved == "local" and probe.fname.lower().endswith(".tex"):
-            queue.append((ctx.root / probe.detail).resolve())
+    _scan_inputs(ctx, live, rel, queue)
 
 
 def _dep_signal(dep: DepProbe, blob: str) -> tuple[str, str] | None:
@@ -268,10 +292,10 @@ def target_probe(
     index = deps_index if deps_index is not None else _load_index()
     rep = ProbeReport(index_available=index is not None)
     main = (root / main_rel).resolve()
-    if not main.is_file():
-        rep.notes.append(f"main {main_rel} 不存在——空探针")
+    if not main.is_file() or not main.is_relative_to(root):
+        rep.notes.append(f"main {main_rel} 不存在或越出 work_dir——空探针")
         return rep
-    ctx = _ScanCtx(root=root, index=index, rep=rep)
+    ctx = _ScanCtx(root=root, cwd=main.parent, index=index, rep=rep)
     queue = [main]
     visited: set[Path] = set()
     while queue:

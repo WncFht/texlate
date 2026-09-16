@@ -96,8 +96,13 @@ def test_body_usepackage_not_scanned(tmp_path: Path) -> None:
     assert [d.fname for d in rep.deps] == ["amsmath.sty"]
 
 
-def test_subdir_input_relative_to_declaring_file(tmp_path: Path) -> None:
-    """\\input 按声明文件目录解析（子目录文件声明相对路径）。"""
+def test_subdir_input_resolves_at_compile_cwd(tmp_path: Path) -> None:
+    r"""`\input` 按编译 cwd（main 目录）解析——声明文件自身目录不在搜索路径。
+
+    xelatex TL2026 + tectonic 0.15 实证：`chaps/one.tex` 里 `\input{shared}`
+    找 `cwd/shared.tex` 而非 `chaps/shared.tex`（`File 'shared.tex' not
+    found`）——探针须复刻该解析模型，否则 missing 预判漏报。
+    """
     _write(
         tmp_path,
         "main.tex",
@@ -107,8 +112,57 @@ def test_subdir_input_relative_to_declaring_file(tmp_path: Path) -> None:
     _write(tmp_path, "chaps/one.tex", "\\input{shared}\n内容\n")
     _write(tmp_path, "chaps/shared.tex", "\\usepackage{totallybogus}\n")
     rep = target_probe(tmp_path, "main.tex", _INDEX)
-    assert rep.inputs == ["main.tex", "chaps/one.tex", "chaps/shared.tex"]
-    assert rep.missing == ["totallybogus.sty"]
+    # chaps/shared.tex 引擎读不到：不进 inputs、不报其内部声明；
+    # cwd 下无 shared.tex → shared.tex 记 missing（真缺失预判）。
+    assert rep.inputs == ["main.tex", "chaps/one.tex"]
+    assert rep.missing == ["shared.tex"]
+    assert "totallybogus.sty" not in [d.fname for d in rep.deps]
+
+    _write(tmp_path, "shared.tex", "\\usepackage{totallybogus}\n")
+    rep2 = target_probe(tmp_path, "main.tex", _INDEX)
+    assert rep2.inputs == ["main.tex", "chaps/one.tex", "shared.tex"]
+    assert rep2.missing == ["totallybogus.sty"]
+
+
+def test_input_if_file_exists_missing_not_predicted(tmp_path: Path) -> None:
+    r"""`\InputIfFileExists{ghost}` 缺席走 else 分支——非 missing_file。"""
+    _write(
+        tmp_path,
+        "main.tex",
+        "\\documentclass{article}\n\\InputIfFileExists{localcfg}{}{}\n"
+        "\\input{absent}\n\\begin{document}x\\end{document}\n",
+    )
+    rep = target_probe(tmp_path, "main.tex", _INDEX)
+    by_name = {d.fname: d for d in rep.deps}
+    assert by_name["localcfg.tex"].resolved == "missing"
+    assert rep.missing == ["absent.tex"]
+
+
+def test_dead_tail_input_not_scanned(tmp_path: Path) -> None:
+    r"""`\end{document}`/`\endinput` 死尾里的 `\input` 引擎不读、探针不报。"""
+    _write(
+        tmp_path,
+        "main.tex",
+        "\\documentclass{article}\n\\input{stub}\n"
+        "\\begin{document}x\\end{document}\n\\input{afterdoc}\n",
+    )
+    _write(tmp_path, "stub.tex", "body\n\\endinput\n\\input{afterendinput}\n")
+    rep = target_probe(tmp_path, "main.tex", _INDEX)
+    assert rep.inputs == ["main.tex", "stub.tex"]
+    assert rep.missing == []
+
+
+def test_main_outside_root_empty_report(tmp_path: Path) -> None:
+    """main_rel 越出 work_dir → 空报告 + 注记（此前静默空inputs无解释）。"""
+    outside = tmp_path.parent / f"{tmp_path.name}-outside.tex"
+    outside.write_text("\\documentclass{article}\n\\begin{document}x\\end{document}\n")
+    _write(tmp_path, "main.tex", "\\documentclass{article}\n")
+    rep = target_probe(tmp_path, f"../{outside.name}", _INDEX)
+    try:
+        assert rep.inputs == []
+        assert any("越出" in n for n in rep.notes)
+    finally:
+        outside.unlink()
 
 
 def test_signal_pstricks_prefers_xelatex(tmp_path: Path) -> None:

