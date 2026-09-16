@@ -8,6 +8,7 @@ server API、轮询快照到终态、拉取产物。
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import os
@@ -755,6 +756,11 @@ def export(
     except ExportError as e:
         typer.echo(f"export: {e}", err=True)
         raise typer.Exit(1) from None
+    finally:
+        # GatewayTranslator 自持 ChatClient——不关则 httpx 连接池随进程泄漏
+        client = getattr(translator, "client", None)
+        if client is not None:
+            asyncio.run(client.aclose())
     typer.echo(
         f"{report.dst} — 插译 {report.translated}/{report.units}"
         f"（unchanged {report.unchanged} / skipped {report.skipped}"
