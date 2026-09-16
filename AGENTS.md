@@ -17,7 +17,7 @@
     - `bench/corpus_v2/` — 139 篇分层随机语料（同上惯例；`MANIFEST.md`+`build_corpus.py` 入库）
     - `bench/corpus_v3/` — 1000 篇核心随机层 + 200 篇补强层 + 热层（OpenAlex 高引近期，分批取源中）（`manifest.jsonl`/`manifest_booster.jsonl`/`manifest_hot.jsonl`/`mechanisms.jsonl`/`MANIFEST.md`/`select_booster.py` 等入库、数据 gitignored；管线 `bench/py/build_corpus_v3.py` + `build_hot_layer.py`）
     - `bench/fixtures/` — 陷阱构造 `.tex`（`% @Tnn` 标记；**逐字节即语义——不要格式化/润色这些文件**）
-    - `bench/results/` — bench 产出目录（report/walkthrough/json 均由脚本重写；不在 format/lint 链内）
+    - `bench/results/` — bench 产出目录（report/walkthrough/json 均由脚本重写；划出改写型 formatter——prettier/gfs/eslint/autocorrect，但 tracked 文件仍过 check 类链：shfmt/shellcheck/markdownlint/taplo/ruff）
     - `bench/work_*/` — 编译/fixloop 工作区（gitignored 重产物）
 - `tmp/` — scratch 实验区（整目录 gitignored；`tmp/exp/` 实验现场、`tmp/refs/` 参考仓库 clone）
 
@@ -27,13 +27,13 @@
 
 - `*.sh`：`shfmt -i 2`（gfs）+ `shellcheck -S warning`。zsh 脚本不在链内——两者都不支持 zsh，`scripts/fmt-shell.sh` 对 zsh shebang 原样透传。
 - `*.py`：`ruff format`（gfs）+ `ruff check`（`ruff.toml` 是 `select=ALL` + 逐条注明豁免）。
-- `*.js`/`*.json`：`prettier`（gfs）+ `eslint`（flat config，根目录是 CommonJS bench 脚本无 tsc；`web/` 是 TypeScript，走 `web/` 自己的 toolchain + CI web job）。
+- `*.js`/`*.json`：`prettier`（gfs）+ `eslint`（flat config，根目录是 CommonJS bench 脚本无 tsc；`web/` 是 TypeScript，走 `web/` 自己的 toolchain + CI web job——pre-commit eslint glob 只盖 `js/mjs/cjs`，web `.ts` 本地零 eslint 门是有意取舍：不假设 `web/node_modules` 在场，lint 由 web toolchain/CI 把关）。
 - `*.md`：`markdownlint-cli2 --fix` 原地改写（改写会 fail 一次，重新 `git add` 再提交）→ `autocorrect --stdin | prettier`（gfs）。
 - `*.yaml`/`*.yml`：`prettier`（gfs）。缩进规则：yaml 2 空格、md 4 空格，见 `.prettierrc` overrides。
 - `*.toml`：`taplo`（gfs）。
 - `.github/workflows/*`：`actionlint`（check）。
 - `*.tex`：**不进链**——`bench/fixtures/` 是陷阱输入，字节即语义。
-- `bench/results/`：整目录划出 format/lint——脚本产出目录，重跑会重写。
+- `bench/results/`：划出改写型 formatter（prettier/gfs/eslint/autocorrect 经 ignore 文件与 hook `exclude`）——脚本产出目录，重跑会重写。**tracked 文件仍在 check 类链内**：CI/hook 的 `git ls-files` 全仓扫描覆盖该目录（shfmt/shellcheck/markdownlint/taplo/ruff check），往此目录入库脚本/Manifest 前请先过对应 check。
 - gitleaks 拦 secret；`.gitleaks.toml` 目前只用默认规则。
 
 CI（`.github/workflows/ci.yml`）与本地同源，本地不过 CI 必挂。

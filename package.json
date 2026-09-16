@@ -5,7 +5,7 @@
         "format:check": "prettier --check \"**/*.md\" \"**/*.{yaml,yml}\" \"**/*.{js,mjs,cjs,json}\"",
         "lint:md": "markdownlint-cli2 \"**/*.md\"",
         "lint:py": "ruff format --check . && ruff check .",
-        "lint:js": "eslint ."
+        "lint:js": "eslint . --max-warnings 0"
     },
     "devDependencies": {
         "@eslint/js": "^10.0.1",
