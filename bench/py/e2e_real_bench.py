@@ -44,6 +44,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import fcntl
 import functools
 import hashlib
 import json
@@ -72,7 +73,12 @@ import fixloop_bench as _fl
 from texlate.compile.engine import XelatexEngine, engine_for, route_project
 from texlate.compile.fixloop import CaseSink, fixloop
 from texlate.compile.fixloop.llm_hook import make_llm_hook
-from texlate.compile.inject import InjectRejectError, find_main_tex, prepare_chinese
+from texlate.compile.inject import (
+    InjectRejectError,
+    classify_no_main,
+    find_main_tex,
+    prepare_chinese,
+)
 from texlate.compile.normalize import normalize_project
 from texlate.e2e import base_condition
 from texlate.latex.api import parse_file, parse_tex
@@ -81,6 +87,7 @@ from texlate.latex.reconstruct import reconstruct
 from texlate.validate.l0 import validate_pair
 from texlate.xlat.client import ChatClient
 from texlate.xlat.pipeline import (
+    AuthTrippedError,
     ChunkIn,
     GatewayTranslator,
     PipelineConfig,
@@ -100,6 +107,11 @@ RESULTS_DIR_DEFAULT = "e2e-real"
 #: 单篇可翻译总字符上限——超过记 skipped_oversize 终态不烧配额
 #:（B5 首轮保守闸；translate 记录带 oversize=True，base/fix 臂不补跑）。
 MAX_TOTAL_CHARS = 250_000
+
+#: 连续「全 auth 败」论文数熔断阈值——凭证中途死透时停跑不空烧
+#:（probe 只探开局；篇内 3 连熔断由 AuthTrippedError 即停，本闸兜的是
+#: 篇均不足阈值块、逐篇全 401 的慢速失血）。
+_AUTH_DEAD_STREAK = 2
 
 
 # ---------------------------------------------------------------- 启动自检
@@ -269,6 +281,10 @@ async def translate_tree(
         "warn_kinds": dict(sorted(warn_kinds.items())),
         "seconds": round(translate_s, 1),
         "src_chars": total_chars,
+        # AuthGate 设计口径「跨论文熔断由调用方累计」：整篇全 auth 败时
+        # amain 连记 N 篇即收摊（篇内 3 连熔断走 AuthTrippedError 即停，
+        # 本键兜篇均不足阈值块的慢速失血）。
+        "auth_all_failed": pipe.auth_gate.all_failed,
     }
 
 
@@ -410,6 +426,10 @@ def pipe_fix_condition(
             "actions": [],
         }
     cell["wall_s"] = round(time.monotonic() - t0, 1)
+    # 同 (corpus,cond) 重跑会让 cases.jsonl 追加双行，而消费端 load_cases/
+    # triage 不去重（scout-e2ereal §5）——写侧按「末行胜」物理去重保持
+    # artifact 干净，覆盖一切 pipe-fix 调用点（含 amain cached 补臂）。
+    _dedup_cases(sink.path)
     rec: dict[str, object] = {"engine": "xelatex", "fixloop": cell}
     jeng = XelatexEngine(
         halt_on_error=False, texmfhome=texmf, repository=_fl.TUNA_TLNET
@@ -447,7 +467,8 @@ async def run_project(
         rec["uncompressed_bytes"] = meta.get("uncompressed_bytes")
     main_path = find_main_tex(src)
     if main_path is None:
-        rec["error"] = "no main tex"
+        sub = classify_no_main(src)
+        rec["error"] = f"no main tex:{sub}" if sub else "no main tex"
         rec["status"] = "partial"
         rec["reject_at"] = "route"
         return rec
@@ -563,6 +584,68 @@ def _atomic_write(path: Path, text: str) -> None:
         raise
 
 
+def _dedup_cases(path: Path) -> int:
+    """cases.jsonl 同 (corpus,cond) 重跑追加的双行 → 按「末行胜」物理去重。
+
+    flock + 原地 truncate 重写（**不** os.replace）——CaseSink 追加方是
+    open→flock→append，原地写保证并发追加落在去重后文件末尾而非写进旧
+    inode 丢行（records.jsonl 保留双行是审计账，cases 是沉淀原料、语义
+    同末行胜，物理去重无损）。截尾坏行随重写清掉；返回剔除行数。
+    """
+    if not path.exists():
+        return 0
+    removed = 0
+    with path.open("a+", encoding="utf-8") as fh:
+        fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+        try:
+            fh.seek(0)
+            parsed: list[tuple[tuple, str]] = []
+            for ln in fh.read().splitlines():
+                s = ln.strip()
+                if not s:
+                    continue
+                try:
+                    rec = json.loads(s)
+                except json.JSONDecodeError:
+                    removed += 1
+                    continue
+                key = (
+                    (rec.get("corpus"), rec.get("cond"))
+                    if isinstance(rec, dict)
+                    else None
+                )
+                # 缺键行无法判重——各按唯一键全保留
+                parsed.append(
+                    (key if key and any(key) else ("__keep__", len(parsed)), s)
+                )
+            last = {k: i for i, (k, _) in enumerate(parsed)}
+            kept = [s for i, (k, s) in enumerate(parsed) if last[k] == i]
+            removed += len(parsed) - len(kept)
+            if removed:
+                fh.seek(0)
+                fh.truncate()
+                fh.write(("\n".join(kept) + "\n") if kept else "")
+        finally:
+            fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+    return removed
+
+
+def _stored_sample(out_dir: Path) -> list[str] | None:
+    """run_meta.json 里的首轮抽样快照（无文件/无字段/坏 JSON → None）。
+
+    须在 amain 重写 run_meta 之前读——它记的是「本目录这一跑」的样本集。
+    """
+    mp = out_dir / "run_meta.json"
+    if not mp.exists():
+        return None
+    try:
+        meta = json.loads(mp.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+    ids = meta.get("sample_ids")
+    return [str(i) for i in ids] if isinstance(ids, list) else None
+
+
 _DATE_SUFFIX_RX = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 
@@ -609,7 +692,9 @@ def _tr(rec: dict) -> str:
     t = rec.get("pipe-xel", {}).get("translate")
     if not t:
         return "·"
-    return f"{t['ok']}/{t['chunks']} ph:{t['leftover_ph']}"
+    # .get 容忍旧格式种子行（results.json 里的 translate 可能缺 leftover_ph
+    # 等后加键——直索引曾在续跑 write_reports 段 KeyError 炸停）
+    return f"{t.get('ok', 0)}/{t.get('chunks', 0)} ph:{t.get('leftover_ph', 0)}"
 
 
 def write_reports(results: dict, out_dir: Path, meta: dict) -> None:
@@ -753,17 +838,47 @@ async def amain(args: argparse.Namespace) -> None:
     rec_path = out_dir / "records.jsonl"
     # records.jsonl 是 append 真账（行在=done，末行胜）；results.json 为兼容
     # 旧 run 目录的兜底种子 + 逐篇快照（l2_attr_probe 等读它）。
-    results = (
-        benchlib.load_records(rec_path)
-        if rec_path.exists()
-        else (json.loads(out_path.read_text()) if out_path.exists() else {})
-    )
+    results = benchlib.load_records(rec_path) if rec_path.exists() else {}
+    if not results and out_path.exists():
+        # records 缺失/空/全坏行时回退 results.json 种子——空 records 曾把
+        # 有快照的旧目录判成全量重跑（scout-e2ereal §7）。坏 JSON 按空种子
+        # 起步不炸启动。
+        try:
+            seed_rec = json.loads(out_path.read_text())
+        except (OSError, json.JSONDecodeError) as e:
+            print(
+                f"*** WARNING: results.json 种子不可读（{e!r:.80}）——按空种子起步",
+                flush=True,
+            )
+        else:
+            if isinstance(seed_rec, dict):
+                results = seed_rec
 
     entries = load_manifest(set(args.layers.split(",")))
     if args.ids:
         ids = sorted({i.strip() for i in args.ids.split(",") if i.strip()})
     else:
         ids = pick_sample(entries, args.n, args.seed)
+        # 抽样漂移守卫（scout-e2ereal §8）：pick_sample 对「extracted/ 存在」
+        # 集合 seeded sample——corpus 补解压后同 seed 样本漂移。目录已有进度
+        # 时沿用 run_meta.sample_ids（首轮快照）保证续跑同一集合；无快照可
+        # 依时至少把「进度含样本外 id」喊出来。全新首跑尊重当次 seed/n。
+        stored = _stored_sample(out_dir)
+        if stored is not None and results and ids != stored:
+            print(
+                f"*** WARNING: 重抽样 {len(ids)} 篇与首轮样本 {len(stored)} 篇"
+                "不一致——沿用 run_meta.sample_ids 续跑（要换样本请换 --tag）",
+                flush=True,
+            )
+            ids = stored
+        elif results:
+            outside = sorted(r for r in results if r not in ids)
+            if outside:
+                print(
+                    f"*** WARNING: 已有进度含 {len(outside)} 个本次样本外 id"
+                    f"（疑似抽样漂移）: {outside[:8]}",
+                    flush=True,
+                )
     if args.only:
         ids = [i for i in ids if args.only in i]
     print(f"sample n={len(ids)} seed={args.seed} layers={args.layers}", flush=True)
@@ -796,8 +911,19 @@ async def amain(args: argparse.Namespace) -> None:
         out_dir / "run_meta.json", json.dumps(meta, ensure_ascii=False, indent=1)
     )
 
+    def _close_meta(reason: str) -> None:
+        """run_meta 落终态标记——scout 收尾注意：无完成标记时只能靠进程
+        退出+records 行数判读；缺 ended_at 即被杀（KeyboardInterrupt 不补写）。"""
+        meta["ended_at"] = datetime.now(UTC).isoformat()
+        meta["end_reason"] = reason
+        _atomic_write(
+            out_dir / "run_meta.json", json.dumps(meta, ensure_ascii=False, indent=1)
+        )
+
     cfg = PipelineConfig(concurrency=args.concurrency)
     sink = CaseSink(out_dir / "cases.jsonl")
+    # 上次被杀 run 可能留了同 (corpus,cond) 双行——启动先物理去重
+    _dedup_cases(sink.path)
     fl_llm_hook = (
         make_llm_hook(base_url=args.base_url, api_key=args.api_key, model=args.model)
         if args.fixloop_llm
@@ -813,10 +939,13 @@ async def amain(args: argparse.Namespace) -> None:
             )
             if not probe.probe_ok:
                 print("model probe failed — abort", flush=True)
+                _close_meta("probe_failed")
                 return
         translator = GatewayTranslator(client, args.model)
 
         t_start = time.monotonic()
+        end_reason = "completed"
+        auth_dead = 0  # 连续「全 auth 败」篇数（cached 格不触碰——没测凭证）
         for idx, rel in enumerate(ids):
             prev = results.get(rel)
             # --recode：产码印章不符的旧格不续跑（splice 层修复验证用——
@@ -862,6 +991,7 @@ async def amain(args: argparse.Namespace) -> None:
                     )
                 continue
             print(f"===== [{idx}/{len(ids)}] {rel}", flush=True)
+            auth_stop = False
             try:
                 rec = await run_project(
                     rel,
@@ -873,8 +1003,24 @@ async def amain(args: argparse.Namespace) -> None:
                     sink,
                     fl_llm_hook,
                 )
+            except AuthTrippedError as e:
+                # 篇内连续 auth-fail 熔断抛出 = 凭证死透——不收摊的话其后每篇
+                # 只会各烧 auth_fail_threshold 块再 bench_error
+                # （scout-e2ereal §9）。落行取证即停，换凭证后同命令续跑。
+                rec = {
+                    "id": rel,
+                    "status": "bench_error",
+                    "error": repr(e)[:400],
+                    "code": _code_stamp(),
+                }
+                auth_stop = True
             except Exception as e:
-                rec = {"id": rel, "status": "bench_error", "error": repr(e)[:400]}
+                rec = {
+                    "id": rel,
+                    "status": "bench_error",
+                    "error": repr(e)[:400],
+                    "code": _code_stamp(),
+                }
             # rec 已是完整格记录（与 records.jsonl 末行胜同口径）——整替换
             # 而非浅合并：旧格不再产的臂键（pipe-fix/base-xel/error/
             # reject_at）残留进新行会成 matrix 幻影行。
@@ -891,13 +1037,31 @@ async def amain(args: argparse.Namespace) -> None:
                 f"({rec.get('seconds', '-')}s)",
                 flush=True,
             )
+            if auth_stop:
+                end_reason = "auth_tripped"
+                print(
+                    "auth circuit tripped — 凭证疑似失效（连续 401/403 熔断），"
+                    "停跑不空烧；换凭证后同命令续跑",
+                    flush=True,
+                )
+                break
+            auth_dead = auth_dead + 1 if t.get("auth_all_failed") else 0
+            if auth_dead >= _AUTH_DEAD_STREAK:
+                end_reason = "auth_dead"
+                print(
+                    f"连续 {auth_dead} 篇全部请求 auth 失败——凭证疑似失效，停跑",
+                    flush=True,
+                )
+                break
             if time.monotonic() - t_start > args.time_budget:
+                end_reason = "time_budget"
                 print(
                     f"time budget {args.time_budget}s reached — stopping "
                     f"({idx + 1}/{len(ids)} done)",
                     flush=True,
                 )
                 break
+    _close_meta(end_reason)
     print(f"done -> {out_dir}", flush=True)
 
 
