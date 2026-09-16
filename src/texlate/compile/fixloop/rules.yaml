@@ -1503,7 +1503,7 @@ rules:
 
   # ─── loop: 源码改写系 —— 按"保守→激进"排序 ───
   - id: pdftex_prim_guard
-    description: "pdfTeX 原语裸用 (builtins.PDFTEX_PRIMS 全表 75 枚交替) → \\ifdefined 守卫, xelatex 下静默跳过"
+    description: "pdfTeX 原语裸用 (@pdftex_prims 族 token, load 期展开成 PDFTEX_PRIMS 交替) → \\ifdefined 守卫, xelatex 下静默跳过"
     phase: loop
     order: 50
     when: { category: pdftex_prim }
@@ -1513,11 +1513,11 @@ rules:
         exts: [.tex, .sty, .cls]
         rewrites:
           - {
-              pattern: "(?<![\\\\a-zA-Z])(\\\\(pdfsuppresswarningpagegroup|pdfinclusionerrorlevel|pdfsuppressptexinfo|pdfcolorstackinit|pdfglyphtounicode|pdfuniformdeviate|pdfadjustspacing|pdfcompresslevel|pdfdecimaldigits|pdfnormaldeviate|pdfpageresources|pdfprotrudechars|pdfcreationdate|pdfescapestring|pdfgentounicode|pdfincludechars|pdfminorversion|pdftracingfonts|pdfelapsedtime|pdffilemoddate|pdfifprimitive|pdftexrevision|pdfunescapehex|pdfcolorstack|pdfescapename|pdffontobjnum|pdflastximage|pdfpageheight|pdfrandomseed|pdfresettimer|pdftexversion|pdfdraftmode|pdfescapehex|pdflastannot|pdflastmatch|pdflastxform|pdfmdfivesum|pdfpagesattr|pdfpagewidth|pdfprimitive|pdfrefximage|pdfstartlink|pdffiledump|pdffilesize|pdffontname|pdffontsize|pdflastxpos|pdflastypos|pdfpageattr|pdfrefxform|pdfcatalog|pdfendlink|pdfhorigin|pdflastobj|pdfliteral|pdfmapfile|pdfmapline|pdfoutline|pdfpageref|pdfpxdimen|pdfsavepos|pdftrailer|pdfvorigin|pdfoutput|pdfrefobj|pdfstrcmp|pdfximage|pdfannot|pdfmatch|pdfnames|pdfxform|pdfdest|pdfinfo|pdflink|pdfobj))(\\s*=\\s*[^\\n%]*)",
+              pattern: "(?<![\\\\a-zA-Z])(\\\\@pdftex_prims)(\\s*=\\s*[^\\n%]*)",
               repl: '\\ifdefined\g<1>\g<0>\\fi',
             }
           - {
-              pattern: "(?<![\\\\a-zA-Z])(\\\\(pdfsuppresswarningpagegroup|pdfinclusionerrorlevel|pdfsuppressptexinfo|pdfcolorstackinit|pdfglyphtounicode|pdfuniformdeviate|pdfadjustspacing|pdfcompresslevel|pdfdecimaldigits|pdfnormaldeviate|pdfpageresources|pdfprotrudechars|pdfcreationdate|pdfescapestring|pdfgentounicode|pdfincludechars|pdfminorversion|pdftracingfonts|pdfelapsedtime|pdffilemoddate|pdfifprimitive|pdftexrevision|pdfunescapehex|pdfcolorstack|pdfescapename|pdffontobjnum|pdflastximage|pdfpageheight|pdfrandomseed|pdfresettimer|pdftexversion|pdfdraftmode|pdfescapehex|pdflastannot|pdflastmatch|pdflastxform|pdfmdfivesum|pdfpagesattr|pdfpagewidth|pdfprimitive|pdfrefximage|pdfstartlink|pdffiledump|pdffilesize|pdffontname|pdffontsize|pdflastxpos|pdflastypos|pdfpageattr|pdfrefxform|pdfcatalog|pdfendlink|pdfhorigin|pdflastobj|pdfliteral|pdfmapfile|pdfmapline|pdfoutline|pdfpageref|pdfpxdimen|pdfsavepos|pdftrailer|pdfvorigin|pdfoutput|pdfrefobj|pdfstrcmp|pdfximage|pdfannot|pdfmatch|pdfnames|pdfxform|pdfdest|pdfinfo|pdflink|pdfobj))(\\s*\\{[^\\n]*\\})",
+              pattern: "(?<![\\\\a-zA-Z])(\\\\@pdftex_prims)(\\s*\\{[^\\n]*\\})",
               repl: '\\ifdefined\g<1>\g<0>\\fi',
             }
     risk: low # lookbehind 排除 cs 名紧邻 (\<prim> 前接字母/反斜杠 = ifdefined/chardef/ifnum/let 定义语境 + 自输出第二枚), 幂等; loop1-1306.0036 实证旧 (?<!ifdefined) 会把 polyfill 注入的 \chardef\pdfoutput=1 再套娃改写
