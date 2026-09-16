@@ -1,0 +1,51 @@
+Ecosystem idiom scan — cls/sty carrying \def\protect{\noexpand\protect\noexpand}
+or \let\protect\noexpand, classified by whether a user-text box typesets under poison
+=====================================================================================
+
+TIER A — CONFIRMED KILLER SHAPE (sanitizer macro + user-text box in same group):
+  elsart.cls / elsart.sty / elsart1.cls / ELSART.CLS / ELSART.STY  (esl.dtx lineage)
+    \proc@elem: \begingroup \no@harm ... \setbox\@tempboxa\hbox{#2} \endgroup
+    hits \title \subtitle \author \collab \address (elsart.cls:1017,1023,1046,1094,1137+)
+  autart.cls / AUTART.CLS   identical \proc@elem code (Automatica, Elsevier)
+  personal.cls              identical \proc@elem code (elsart clone, 0707.0793)
+  elsart3.cls / elsart3-1.cls   wrappers, \LoadClass{elsart} -> inherit
+
+TIER B — IDIOM PRESENT, BOX CONDITION NOT MET (safe; poison used around \edef/\xdef/\write):
+  thanks/offprints xdef-accumulators (CJK never typeset inside poisoned group):
+    aa.cls(47 copies) aastex.cls(33) svjour.cls(7) svjour3.cls(18) svjour2.cls(2)
+    basi.cls an.cls mem.cls jaa.cls/jaa.sty pramana.sty jltp.sty lamuphys.sty
+    spr-astr-addons.sty jkas.sty  — all `\def\protect{...}\xdef\@thanks{\@thanks...}`
+  fnmark/label xdef (counter only, no user text):
+    iopart.cls jpconf.cls(derived) autart.cls ifacconf.cls AUTART.CLS elsart.cls
+    (`\@xmpfootnotemark`: \let\protect\noexpand \xdef\@thefnmark{\thempfootnote})
+  bibwrite (write to .aux only):
+    llncs.cls(25 copies) svproc.cls natbib.sty pasj00.cls seg.sty aipproc.* arximspdf.cls
+  mark machinery (stores \mark, typeset later under normal protect):
+    amsart.cls amsbook.cls amsproc.cls (\markleft) — amsart = 453+16+4 corpus papers SAFE
+  output routine (\let\protect\noexpand around \shipout\vbox, \set@typeset@protect
+  restores typeset-protect INSIDE the vbox before content typesets — kernel-standard):
+    latexrelease.sty (kernel itself) ws-procs9x6 ws-procs975x65 ws-ijmpa ws-ijmpe
+    ws-ijmpd ws-ijmpc_rev ws-ijgmmp ws-rv9x6 ws-mpla (World Scientific family)
+    ar-1col.cls acmsmall.cls acmsmalltr.cls tMOP2e.cls newlfm.cls pecha.cls
+    flowfram*.sty pgfpages.sty pgfmorepages.sty preview.sty fancybox.sty grfpaste.sty
+    memoize.sty bidipagegrid.sty pagegrid.sty pagefram.sty tabls.sty AMSbsy.sty
+  misc edef-only:
+    subfig.sty blkarray.sty cases.sty program.sty(\grefstepcounter) picinpar.sty
+    dinbrief.cls lettre.cls(\def\protect{\string} variant) aps.sty(tablenote marks)
+    utarticle.cls tMOP2e.cls interact.cls econsocart.cls bmcart.cls myectaart.cls
+    aiml14.cls acmtrans2m.cls MRM.cls espcrc1.sty crckapb.sty osa.sty mem.cls(memoir-v)
+    WileyNJD-v2.cls WileyASNA-v1*.cls imsart.sty acmsmall*.cls save_aastex.cls
+    arxstspdf.cls aipproc2.sty AA.CLS aachanged.cls my.sty
+
+UNVERIFIED (poison-form + box in group but semantics unclear, 1-copy oddballs):
+  soul-ori.sty   SOUL@addgroup/addprotect \let\protect\noexpand + letterspace hboxes
+  nath.sty       \inline poisoner + hbox (1206.0321)
+  sebase.cls     TCI Style Editor class (1206.0265)
+  edbk.cls / kapproc.cls   'normallatexbib' poisoner (Springer edited-book lineage;
+                 cond-mat/0104460 ships edbk.cls, astro-ph/0501207 & 0408466 decl kapproc)
+
+KEY NEGATIVES (checked, clean): elsarticle.cls, amsart/amsbook/amsproc, revtex*/ltxgrid
+(only \protect@penalty name-match false positive), IEEEtran.cls, acmart.cls, beamer,
+koma-script scrbook/scrreprt, memoir.cls proper, natbib.sty, hyperref/backref.
+
+No corpus .tex file carries the idiom inline (2 hits, both \write-only — safe).

@@ -1,0 +1,1429 @@
+[
+ {
+  "file": "autart.cls",
+  "n_copies": 5,
+  "flags": [
+   {
+    "group_line": 907,
+    "poison": "\\no@harm",
+    "box": "\\setbox"
+   }
+  ],
+  "poisoners": [
+   "mpfootnotemark",
+   "no@harm"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/2308.04287/extracted/autart.cls",
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/2009.03767/extracted/autart.cls",
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/2003.03498/extracted/autart.cls",
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/1706.02495/extracted/autart.cls",
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/1306.5836/extracted/autart.cls"
+  ]
+ },
+ {
+  "file": "ar-1col.cls",
+  "n_copies": 3,
+  "flags": [
+   {
+    "group_line": 973,
+    "poison": "\\let",
+    "box": "\\vbox"
+   }
+  ],
+  "poisoners": [
+   "@outputpage"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/2203.13083/extracted/ar-1col.cls",
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/2104.00119/extracted/ar-1col.cls",
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/2104.00064/extracted/ar-1col.cls"
+  ]
+ },
+ {
+  "file": "elsart.cls",
+  "n_copies": 2,
+  "flags": [
+   {
+    "group_line": 843,
+    "poison": "\\no@harm",
+    "box": "\\setbox"
+   }
+  ],
+  "poisoners": [
+   "mpfootnotemark",
+   "no@harm"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v2/0812.4521/extracted/elsart.cls",
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/physics/0408075/extracted/elsart.cls"
+  ]
+ },
+ {
+  "file": "ws-mpla.cls",
+  "n_copies": 2,
+  "flags": [
+   {
+    "group_line": 1011,
+    "poison": "\\let",
+    "box": "\\vbox"
+   }
+  ],
+  "poisoners": [
+   "@outputpage"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/0707.1431/extracted/ws-mpla.cls",
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/0905.1603/extracted/ws-mpla.cls"
+  ]
+ },
+ {
+  "file": "ws-procs9x6.cls",
+  "n_copies": 2,
+  "flags": [
+   {
+    "group_line": 1098,
+    "poison": "\\let",
+    "box": "\\vbox"
+   }
+  ],
+  "poisoners": [
+   "@outputpage"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/1003.0630/extracted/ws-procs9x6.cls",
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/0707.0687/extracted/ws-procs9x6.cls"
+  ]
+ },
+ {
+  "file": "tabls.sty",
+  "n_copies": 2,
+  "flags": [
+   {
+    "group_line": 27,
+    "poison": "\\let",
+    "box": "\\setbox"
+   }
+  ],
+  "poisoners": [],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/1706.00014/extracted/tabls.sty",
+   "/usr/share/texmf-dist/tex/latex/tabls/tabls.sty"
+  ]
+ },
+ {
+  "file": "elsart.cls",
+  "n_copies": 2,
+  "flags": [
+   {
+    "group_line": 843,
+    "poison": "\\no@harm",
+    "box": "\\setbox"
+   }
+  ],
+  "poisoners": [
+   "mpfootnotemark",
+   "no@harm"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/2009.03767/extracted/elsart.cls",
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/2003.03498/extracted/elsart.cls"
+  ]
+ },
+ {
+  "file": "seg.sty",
+  "n_copies": 2,
+  "flags": [
+   {
+    "group_line": 901,
+    "poison": "\\@mkpream",
+    "box": "\\setbox"
+   }
+  ],
+  "poisoners": [
+   "@mkpream",
+   "@tablenotetext",
+   "tablenote",
+   "tablenotemark",
+   "tablenotetext"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/nucl-ex/0111006/extracted/seg.sty",
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/1803.00056/extracted/seg.sty"
+  ]
+ },
+ {
+  "file": "ws-procs975x65.cls",
+  "n_copies": 2,
+  "flags": [
+   {
+    "group_line": 1100,
+    "poison": "\\let",
+    "box": "\\vbox"
+   }
+  ],
+  "poisoners": [
+   "@outputpage"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/1003.0459/extracted/ws-procs975x65.cls",
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/1003.0476/extracted/ws-procs975x65.cls"
+  ]
+ },
+ {
+  "file": "aipproc.sty",
+  "n_copies": 2,
+  "flags": [
+   {
+    "group_line": 745,
+    "poison": "\\tablenote",
+    "box": "\\setbox"
+   },
+   {
+    "group_line": 1099,
+    "poison": "\\@mkpream",
+    "box": "\\vtop"
+   }
+  ],
+  "poisoners": [
+   "@mkpream",
+   "@tablenotetext",
+   "tablenote",
+   "tablenotemark",
+   "tablenotetext"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/astro-ph/0104245/extracted/aipproc.sty",
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/astro-ph/0104007/extracted/aipproc.sty"
+  ]
+ },
+ {
+  "file": "ws-procs9x6.cls",
+  "n_copies": 2,
+  "flags": [
+   {
+    "group_line": 997,
+    "poison": "\\let",
+    "box": "\\vbox"
+   }
+  ],
+  "poisoners": [
+   "@outputpage"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/hep-ph/0408119/extracted/ws-procs9x6.cls",
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/gr-qc/0408026/extracted/ws-procs9x6.cls"
+  ]
+ },
+ {
+  "file": "elsart.cls",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 843,
+    "poison": "\\no@harm",
+    "box": "\\setbox"
+   }
+  ],
+  "poisoners": [
+   "mpfootnotemark",
+   "no@harm"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v2/hep-ex/0406065/extracted/elsart.cls"
+  ]
+ },
+ {
+  "file": "ws-ijmpa.cls",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 1013,
+    "poison": "\\let",
+    "box": "\\vbox"
+   }
+  ],
+  "poisoners": [
+   "@outputpage"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v2/2110.10462/extracted/ws-ijmpa.cls"
+  ]
+ },
+ {
+  "file": "elsart.cls",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 843,
+    "poison": "\\no@harm",
+    "box": "\\setbox"
+   }
+  ],
+  "poisoners": [
+   "mpfootnotemark",
+   "no@harm"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/1907.00254/extracted/elsart.cls"
+  ]
+ },
+ {
+  "file": "ws-ijmpe.cls",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 1099,
+    "poison": "\\let",
+    "box": "\\vbox"
+   }
+  ],
+  "poisoners": [
+   "@outputpage"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/2203.13106/extracted/ws-ijmpe.cls"
+  ]
+ },
+ {
+  "file": "AMSbsy.sty",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 17637,
+    "poison": "\\let",
+    "box": "\\vbox"
+   }
+  ],
+  "poisoners": [
+   "@outputpage"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/0707.0382/extracted/AMSbsy.sty"
+  ]
+ },
+ {
+  "file": "pagefram.sty",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 228,
+    "poison": "\\let",
+    "box": "\\vbox"
+   }
+  ],
+  "poisoners": [
+   "@outputpage"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/0707.0382/extracted/pagefram.sty"
+  ]
+ },
+ {
+  "file": "elsart.cls",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 843,
+    "poison": "\\no@harm",
+    "box": "\\setbox"
+   }
+  ],
+  "poisoners": [
+   "mpfootnotemark",
+   "no@harm"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/0905.1619/extracted/elsart.cls"
+  ]
+ },
+ {
+  "file": "elsart1.cls",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 843,
+    "poison": "\\no@harm",
+    "box": "\\setbox"
+   }
+  ],
+  "poisoners": [
+   "mpfootnotemark",
+   "no@harm"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/cond-mat/0408244/extracted/elsart1.cls"
+  ]
+ },
+ {
+  "file": "edbk.cls",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 2992,
+    "poison": "\\hss",
+    "box": "\\hbox"
+   },
+   {
+    "group_line": 2991,
+    "poison": "\\vss",
+    "box": "\\hbox"
+   },
+   {
+    "group_line": 2990,
+    "poison": "\\fi",
+    "box": "\\vtop"
+   },
+   {
+    "group_line": 3002,
+    "poison": "\\let",
+    "box": "\\vbox"
+   },
+   {
+    "group_line": 2501,
+    "poison": "\\ifll",
+    "box": "\\vbox"
+   }
+  ],
+  "poisoners": [
+   "normallatexbib"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/cond-mat/0104460/extracted/edbk.cls"
+  ]
+ },
+ {
+  "file": "elsart.cls",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 843,
+    "poison": "\\no@harm",
+    "box": "\\setbox"
+   }
+  ],
+  "poisoners": [
+   "mpfootnotemark",
+   "no@harm"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/cond-mat/0307508/extracted/elsart.cls"
+  ]
+ },
+ {
+  "file": "ws-procs975x65.cls",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 1099,
+    "poison": "\\let",
+    "box": "\\vbox"
+   }
+  ],
+  "poisoners": [
+   "@outputpage"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/0905.1356/extracted/ws-procs975x65.cls"
+  ]
+ },
+ {
+  "file": "acmsmall.cls",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 3659,
+    "poison": "\\fi",
+    "box": "\\vbox"
+   },
+   {
+    "group_line": 3666,
+    "poison": "\\let",
+    "box": "\\vbox"
+   }
+  ],
+  "poisoners": [
+   "@outputpage",
+   "@xsponsor"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/1811.03559/extracted/acmsmall.cls"
+  ]
+ },
+ {
+  "file": "ar-1col.cls",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 963,
+    "poison": "\\let",
+    "box": "\\vbox"
+   }
+  ],
+  "poisoners": [
+   "@outputpage"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/1706.00118/extracted/ar-1col.cls"
+  ]
+ },
+ {
+  "file": "ws-procs9x6.cls",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 1098,
+    "poison": "\\let",
+    "box": "\\vbox"
+   }
+  ],
+  "poisoners": [
+   "@outputpage"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/0905.0999/extracted/ws-procs9x6.cls"
+  ]
+ },
+ {
+  "file": "acmsmalltr.cls",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 3636,
+    "poison": "\\let",
+    "box": "\\vbox"
+   }
+  ],
+  "poisoners": [
+   "@outputpage",
+   "@xsponsor"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/1404.0390/extracted/acmsmalltr.cls"
+  ]
+ },
+ {
+  "file": "tMOP2e.cls",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 893,
+    "poison": "\\let",
+    "box": "\\vbox"
+   }
+  ],
+  "poisoners": [
+   "@outputpage",
+   "thanks"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/1502.02141/extracted/tMOP2e.cls"
+  ]
+ },
+ {
+  "file": "ws-mpla.cls",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 1011,
+    "poison": "\\let",
+    "box": "\\vbox"
+   }
+  ],
+  "poisoners": [
+   "@outputpage"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/1206.0148/extracted/ws-mpla.cls"
+  ]
+ },
+ {
+  "file": "ws-ijmpc_rev.cls",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 1004,
+    "poison": "\\let",
+    "box": "\\vbox"
+   }
+  ],
+  "poisoners": [
+   "@outputpage"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/1206.0341/extracted/ws-ijmpc_rev.cls"
+  ]
+ },
+ {
+  "file": "ws-procs975x65.cls",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 1099,
+    "poison": "\\let",
+    "box": "\\vbox"
+   }
+  ],
+  "poisoners": [
+   "@outputpage"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/1109.6066/extracted/ws-procs975x65.cls"
+  ]
+ },
+ {
+  "file": "personal.cls",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 870,
+    "poison": "\\no@harm",
+    "box": "\\setbox"
+   }
+  ],
+  "poisoners": [
+   "mpfootnotemark",
+   "no@harm"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/0707.0793/extracted/personal.cls"
+  ]
+ },
+ {
+  "file": "ws-procs9x6.cls",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 1000,
+    "poison": "\\let",
+    "box": "\\vbox"
+   }
+  ],
+  "poisoners": [
+   "@outputpage"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/nucl-ex/0408019/extracted/ws-procs9x6.cls"
+  ]
+ },
+ {
+  "file": "acmsmall.cls",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 3654,
+    "poison": "\\fi",
+    "box": "\\vbox"
+   },
+   {
+    "group_line": 3661,
+    "poison": "\\let",
+    "box": "\\vbox"
+   }
+  ],
+  "poisoners": [
+   "@outputpage",
+   "@xsponsor"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/1404.0427/extracted/acmsmall.cls"
+  ]
+ },
+ {
+  "file": "nath.sty",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 722,
+    "poison": "\\inline",
+    "box": "\\hbox"
+   },
+   {
+    "group_line": 2608,
+    "poison": "\\inline",
+    "box": "\\setbox"
+   }
+  ],
+  "poisoners": [
+   "cases",
+   "inline",
+   "mathoptest@"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/1206.0321/extracted/nath.sty"
+  ]
+ },
+ {
+  "file": "ELSART.STY",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 362,
+    "poison": "\\no@harm",
+    "box": "\\vbox"
+   }
+  ],
+  "poisoners": [
+   "mpfootnotemark",
+   "no@harm"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/1109.2086/extracted/ELSART.STY"
+  ]
+ },
+ {
+  "file": "kapproc.cls",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 3333,
+    "poison": "\\hss",
+    "box": "\\hbox"
+   },
+   {
+    "group_line": 3332,
+    "poison": "\\vss",
+    "box": "\\hbox"
+   },
+   {
+    "group_line": 3331,
+    "poison": "\\fi",
+    "box": "\\vtop"
+   },
+   {
+    "group_line": 3343,
+    "poison": "\\let",
+    "box": "\\vbox"
+   },
+   {
+    "group_line": 2790,
+    "poison": "\\ifll",
+    "box": "\\vbox"
+   }
+  ],
+  "poisoners": [
+   "normallatexbib"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/astro-ph/0501207/extracted/kapproc.cls"
+  ]
+ },
+ {
+  "file": "ws-ijmpa.cls",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 977,
+    "poison": "\\let",
+    "box": "\\vbox"
+   }
+  ],
+  "poisoners": [
+   "@outputpage"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/astro-ph/0501200/extracted/ws-ijmpa.cls"
+  ]
+ },
+ {
+  "file": "aipproc.cls",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 745,
+    "poison": "\\tablenote",
+    "box": "\\setbox"
+   },
+   {
+    "group_line": 1099,
+    "poison": "\\@mkpream",
+    "box": "\\vtop"
+   },
+   {
+    "group_line": 1096,
+    "poison": "\\@mkpream",
+    "box": "\\setbox"
+   }
+  ],
+  "poisoners": [
+   "@mkpream",
+   "@tablenotetext",
+   "tablenote",
+   "tablenotemark",
+   "tablenotetext"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/astro-ph/0104007/extracted/aipproc.cls"
+  ]
+ },
+ {
+  "file": "elsart.cls",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 843,
+    "poison": "\\no@harm",
+    "box": "\\setbox"
+   }
+  ],
+  "poisoners": [
+   "mpfootnotemark",
+   "no@harm"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/astro-ph/0605133/extracted/elsart.cls"
+  ]
+ },
+ {
+  "file": "aipproc2.sty",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 750,
+    "poison": "\\tablenote",
+    "box": "\\setbox"
+   },
+   {
+    "group_line": 1104,
+    "poison": "\\@mkpream",
+    "box": "\\vtop"
+   }
+  ],
+  "poisoners": [
+   "@mkpream",
+   "@tablenotetext",
+   "tablenote",
+   "tablenotemark",
+   "tablenotetext"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/astro-ph/9901362/extracted/aipproc2.sty"
+  ]
+ },
+ {
+  "file": "elsart.cls",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 843,
+    "poison": "\\no@harm",
+    "box": "\\setbox"
+   }
+  ],
+  "poisoners": [
+   "mpfootnotemark",
+   "no@harm"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/nlin/0408017/extracted/elsart.cls"
+  ]
+ },
+ {
+  "file": "ws-ijmpd.cls",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 1005,
+    "poison": "\\let",
+    "box": "\\vbox"
+   }
+  ],
+  "poisoners": [
+   "@outputpage"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/0806.3011/extracted/ws-ijmpd.cls"
+  ]
+ },
+ {
+  "file": "elsart.cls",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 843,
+    "poison": "\\no@harm",
+    "box": "\\setbox"
+   }
+  ],
+  "poisoners": [
+   "mpfootnotemark",
+   "no@harm"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/0905.1299/extracted/elsart.cls"
+  ]
+ },
+ {
+  "file": "acmsmall.cls",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 3657,
+    "poison": "\\fi",
+    "box": "\\vbox"
+   },
+   {
+    "group_line": 3664,
+    "poison": "\\let",
+    "box": "\\vbox"
+   }
+  ],
+  "poisoners": [
+   "@outputpage",
+   "@xsponsor"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/1306.2356/extracted/acmsmall.cls"
+  ]
+ },
+ {
+  "file": "aipproc.sty",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 745,
+    "poison": "\\tablenote",
+    "box": "\\setbox"
+   },
+   {
+    "group_line": 1099,
+    "poison": "\\@mkpream",
+    "box": "\\vtop"
+   }
+  ],
+  "poisoners": [
+   "@mkpream",
+   "@tablenotetext",
+   "tablenote",
+   "tablenotemark",
+   "tablenotetext"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/0806.2166/extracted/aipproc.sty"
+  ]
+ },
+ {
+  "file": "elsart.cls",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 843,
+    "poison": "\\no@harm",
+    "box": "\\setbox"
+   }
+  ],
+  "poisoners": [
+   "mpfootnotemark",
+   "no@harm"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/0806.1988/extracted/elsart.cls"
+  ]
+ },
+ {
+  "file": "ws-ijgmmp.cls",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 1129,
+    "poison": "\\let",
+    "box": "\\vbox"
+   }
+  ],
+  "poisoners": [
+   "@outputpage"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/hep-th/0501094/extracted/ws-ijgmmp.cls"
+  ]
+ },
+ {
+  "file": "ws-rv9x6.cls",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 1395,
+    "poison": "\\let",
+    "box": "\\vbox"
+   }
+  ],
+  "poisoners": [
+   "@outputpage"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/0905.0384/extracted/ws-rv9x6.cls"
+  ]
+ },
+ {
+  "file": "AUTART.CLS",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 907,
+    "poison": "\\no@harm",
+    "box": "\\setbox"
+   }
+  ],
+  "poisoners": [
+   "mpfootnotemark",
+   "no@harm"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/1706.02495/extracted/AUTART.CLS"
+  ]
+ },
+ {
+  "file": "ar-1col.cls",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 972,
+    "poison": "\\let",
+    "box": "\\vbox"
+   }
+  ],
+  "poisoners": [
+   "@outputpage"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/1706.00338/extracted/ar-1col.cls"
+  ]
+ },
+ {
+  "file": "elsart.cls",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 871,
+    "poison": "\\no@harm",
+    "box": "\\setbox"
+   }
+  ],
+  "poisoners": [
+   "mpfootnotemark",
+   "no@harm"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/1003.5459/extracted/elsart.cls"
+  ]
+ },
+ {
+  "file": "sebase.cls",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 2062,
+    "poison": "\\refstepcounter",
+    "box": "\\sbox"
+   },
+   {
+    "group_line": 2421,
+    "poison": "\\refstepcounter",
+    "box": "\\hbox"
+   }
+  ],
+  "poisoners": [
+   "@footnotetext",
+   "CusDefineDispElt",
+   "CustomMathSetup",
+   "CustomPageSetup",
+   "DefineDisplayDivision",
+   "DefineEnvironment",
+   "DefineException",
+   "DefineFloat",
+   "DefineInlineDivision",
+   "DefineInlineElt",
+   "DefineMarginDivision",
+   "ParSetup",
+   "SetupMark",
+   "refstepcounter"
+  ],
+  "paths": [
+   "/home/fanghaotian/src/texlate/bench/corpus_v3/1206.0265/extracted/sebase.cls"
+  ]
+ },
+ {
+  "file": "latexrelease.sty",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 24141,
+    "poison": "\\@parboxrestore",
+    "box": "\\vbox"
+   },
+   {
+    "group_line": 24241,
+    "poison": "\\let",
+    "box": "\\vbox"
+   },
+   {
+    "group_line": 24299,
+    "poison": "\\let",
+    "box": "\\vbox"
+   },
+   {
+    "group_line": 24957,
+    "poison": "\\@outputpage",
+    "box": "\\setbox"
+   },
+   {
+    "group_line": 24982,
+    "poison": "\\@outputpage",
+    "box": "\\setbox"
+   },
+   {
+    "group_line": 25023,
+    "poison": "\\@outputpage",
+    "box": "\\setbox"
+   }
+  ],
+  "poisoners": [
+   "@outputpage"
+  ],
+  "paths": [
+   "/usr/share/texmf-dist/tex/latex-dev/base/latexrelease.sty"
+  ]
+ },
+ {
+  "file": "bidipagegrid.sty",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 336,
+    "poison": "\\bidipagegrid@ShipoutDouble",
+    "box": "\\setbox"
+   }
+  ],
+  "poisoners": [
+   "bidipagegrid@ShipoutDouble"
+  ],
+  "paths": [
+   "/usr/share/texmf-dist/tex/xelatex/bidipagegrid/bidipagegrid.sty"
+  ]
+ },
+ {
+  "file": "pgfmorepages.sty",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 1309,
+    "poison": "\\let",
+    "box": "\\vbox"
+   }
+  ],
+  "poisoners": [
+   "pgfpages@shipoutshipoutbox"
+  ],
+  "paths": [
+   "/usr/share/texmf-dist/tex/latex/pgfmorepages/pgfmorepages.sty"
+  ]
+ },
+ {
+  "file": "newlfm.cls",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 2269,
+    "poison": "\\let",
+    "box": "\\vbox"
+   }
+  ],
+  "poisoners": [
+   "@outputpage"
+  ],
+  "paths": [
+   "/usr/share/texmf-dist/tex/latex/newlfm/newlfm.cls"
+  ]
+ },
+ {
+  "file": "flowfram-2014-09-30.sty",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 3296,
+    "poison": "\\@outputpage",
+    "box": "\\setbox"
+   },
+   {
+    "group_line": 3498,
+    "poison": "\\let",
+    "box": "\\vbox"
+   },
+   {
+    "group_line": 5910,
+    "poison": "\\@outputpage",
+    "box": "\\setbox"
+   },
+   {
+    "group_line": 5879,
+    "poison": "\\@outputpage",
+    "box": "\\setbox"
+   }
+  ],
+  "poisoners": [
+   "@outputpage"
+  ],
+  "paths": [
+   "/usr/share/texmf-dist/tex/latex/flowfram/flowfram-2014-09-30.sty"
+  ]
+ },
+ {
+  "file": "flowfram-2025-08-23.sty",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 3298,
+    "poison": "\\@outputpage",
+    "box": "\\setbox"
+   },
+   {
+    "group_line": 3500,
+    "poison": "\\let",
+    "box": "\\vbox"
+   },
+   {
+    "group_line": 5912,
+    "poison": "\\@outputpage",
+    "box": "\\setbox"
+   },
+   {
+    "group_line": 5881,
+    "poison": "\\@outputpage",
+    "box": "\\setbox"
+   }
+  ],
+  "poisoners": [
+   "@outputpage"
+  ],
+  "paths": [
+   "/usr/share/texmf-dist/tex/latex/flowfram/flowfram-2025-08-23.sty"
+  ]
+ },
+ {
+  "file": "flowfram.sty",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 6487,
+    "poison": "\\let",
+    "box": "\\vbox"
+   }
+  ],
+  "poisoners": [
+   "@@flowfram@output@page"
+  ],
+  "paths": [
+   "/usr/share/texmf-dist/tex/latex/flowfram/flowfram.sty"
+  ]
+ },
+ {
+  "file": "pagegrid.sty",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 314,
+    "poison": "\\pagegrid@ShipoutDouble",
+    "box": "\\setbox"
+   }
+  ],
+  "poisoners": [
+   "pagegrid@ShipoutDouble"
+  ],
+  "paths": [
+   "/usr/share/texmf-dist/tex/latex/pagegrid/pagegrid.sty"
+  ]
+ },
+ {
+  "file": "preview.sty",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 225,
+    "poison": "\\pr@endbox",
+    "box": "\\setbox"
+   },
+   {
+    "group_line": 256,
+    "poison": "\\box",
+    "box": "\\setbox"
+   },
+   {
+    "group_line": 268,
+    "poison": "\\let",
+    "box": "\\hbox"
+   }
+  ],
+  "poisoners": [
+   "pr@endbox"
+  ],
+  "paths": [
+   "/usr/share/texmf-dist/tex/latex/preview/preview.sty"
+  ]
+ },
+ {
+  "file": "latexrelease.sty",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 23994,
+    "poison": "\\@parboxrestore",
+    "box": "\\vbox"
+   },
+   {
+    "group_line": 24094,
+    "poison": "\\let",
+    "box": "\\vbox"
+   },
+   {
+    "group_line": 24152,
+    "poison": "\\let",
+    "box": "\\vbox"
+   },
+   {
+    "group_line": 24810,
+    "poison": "\\@outputpage",
+    "box": "\\setbox"
+   },
+   {
+    "group_line": 24835,
+    "poison": "\\@outputpage",
+    "box": "\\setbox"
+   },
+   {
+    "group_line": 24876,
+    "poison": "\\@outputpage",
+    "box": "\\setbox"
+   }
+  ],
+  "poisoners": [
+   "@outputpage"
+  ],
+  "paths": [
+   "/usr/share/texmf-dist/tex/latex/base/latexrelease.sty"
+  ]
+ },
+ {
+  "file": "fancybox.sty",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 363,
+    "poison": "\\expandafter",
+    "box": "\\setbox"
+   }
+  ],
+  "poisoners": [
+   "Save@@Verb",
+   "Verbatim@@Input",
+   "fb@outputpage"
+  ],
+  "paths": [
+   "/usr/share/texmf-dist/tex/latex/fancybox/fancybox.sty"
+  ]
+ },
+ {
+  "file": "pecha.cls",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 687,
+    "poison": "\\let",
+    "box": "\\setbox"
+   }
+  ],
+  "poisoners": [
+   "pecha@outputpage"
+  ],
+  "paths": [
+   "/usr/share/texmf-dist/tex/latex/pecha/pecha.cls"
+  ]
+ },
+ {
+  "file": "program.sty",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 203,
+    "poison": "\\grefstepcounter",
+    "box": "\\setbox"
+   }
+  ],
+  "poisoners": [
+   "grefstepcounter"
+  ],
+  "paths": [
+   "/usr/share/texmf-dist/tex/latex/program/program.sty"
+  ]
+ },
+ {
+  "file": "memoize.sty",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 894,
+    "poison": "\\mmz@shipout@extern",
+    "box": "\\setbox"
+   }
+  ],
+  "poisoners": [
+   "mmz@auto@replicate",
+   "mmz@shipout@extern"
+  ],
+  "paths": [
+   "/usr/share/texmf-dist/tex/latex/memoize/memoize.sty"
+  ]
+ },
+ {
+  "file": "grfpaste.sty",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 75,
+    "poison": "\\let",
+    "box": "\\hbox"
+   }
+  ],
+  "poisoners": [
+   "@outputpage"
+  ],
+  "paths": [
+   "/usr/share/texmf-dist/tex/latex/grfpaste/grfpaste.sty"
+  ]
+ },
+ {
+  "file": "pgfpages.sty",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 956,
+    "poison": "\\let",
+    "box": "\\vbox"
+   }
+  ],
+  "poisoners": [
+   "pgfpages@shipoutshipoutbox"
+  ],
+  "paths": [
+   "/usr/share/texmf-dist/tex/latex/pgf/utilities/pgfpages.sty"
+  ]
+ },
+ {
+  "file": "soul-ori.sty",
+  "n_copies": 1,
+  "flags": [
+   {
+    "group_line": 181,
+    "poison": "\\def",
+    "box": "\\hbox"
+   }
+  ],
+  "poisoners": [
+   "SOUL@addgroup",
+   "SOUL@addprotect",
+   "SOUL@expand"
+  ],
+  "paths": [
+   "/home/fanghaotian/texmf/tex/generic/soul/soul-ori.sty"
+  ]
+ }
+]
