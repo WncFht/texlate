@@ -529,7 +529,7 @@ R["T-209"] = {
     R["T14-multi"] = {
         expect: "flatten input/include recursively; commented \\input not expanded",
         status: "info",
-        evidence: `\\input=${inp.length} arg=${inp.length ? printRaw(inp[0].args.map((a) => a.content)) : "-"}, \\include=${inc.length} arg=${inc.length ? printRaw(inc[0].args.map((a) => a.content)) : "-"}; commented \\input inside comment node=${commentHasInput}. Library performs NO filesystem expansion — caller must pre-flatten or post-process \`input\` args.`,
+        evidence: `\\input=${inp.length} arg=${inp.length ? printRaw(inp[0].args.flatMap((a) => a.content)) : "-"}, \\include=${inc.length} arg=${inc.length ? printRaw(inc[0].args.flatMap((a) => a.content)) : "-"}; commented \\input inside comment node=${commentHasInput}. Library performs NO filesystem expansion — caller must pre-flatten or post-process \`input\` args.`,
     };
 }
 

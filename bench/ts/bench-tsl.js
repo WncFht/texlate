@@ -1,5 +1,6 @@
 // tree-sitter-latex (@pfoerster/tree-sitter-latex 0.6.0, native binding via tree-sitter 0.25) benchmark:
-//  1) corpus parse: ms + ERROR node count + MISSING node count + error byte coverage per file
+//  1) corpus parse: ms + ERROR node count + MISSING node count + error coverage per file
+//     (node offsets are UTF-16 char indices — bytes/errorBytes/corruptedAt are all char units)
 //  2) tricky.tex trap regions: which traps fall inside ERROR nodes
 //  3) post-translation validator evaluation: corrupted inputs -> can ERROR/MISSING localize damage?
 //  4) incremental re-parse demo (tree.edit + parse with old tree)
@@ -21,22 +22,36 @@ const {
 
 const parser = new Parser();
 parser.setLanguage(Latex);
+const PARSE_TIMEOUT_US = 30_000_000; // 30s——语料文件超大时不让单篇拖死整批
 
 function errorStats(root) {
     let errorNodes = 0,
         missingNodes = 0,
         errorBytes = 0;
     const errorSpans = [];
-    (function walk(n) {
+    const stack = [root]; // 迭代遍历——深树递归会爆栈
+    while (stack.length) {
+        const n = stack.pop();
         if (n.type === "ERROR") {
             errorNodes++;
             errorBytes += n.endIndex - n.startIndex;
             errorSpans.push([n.startIndex, n.endIndex]);
         }
         if (n.isMissing) missingNodes++;
-        for (let i = 0; i < n.childCount; i++) walk(n.child(i));
-    })(root);
+        for (let i = n.childCount - 1; i >= 0; i--) stack.push(n.child(i));
+    }
     return { errorNodes, missingNodes, errorBytes, errorSpans };
+}
+
+function collectErrorNodes(root, includeMissing) {
+    const errs = [];
+    const stack = [root];
+    while (stack.length) {
+        const n = stack.pop();
+        if (n.type === "ERROR" || (includeMissing && n.isMissing)) errs.push(n);
+        for (let i = n.childCount - 1; i >= 0; i--) stack.push(n.child(i));
+    }
+    return errs;
 }
 
 // ---------- 1. corpus ----------
@@ -45,8 +60,26 @@ function benchCorpus() {
     for (const f of listTexFiles(CORPUS)) {
         const src = fs.readFileSync(f, "utf8");
         const t0 = process.hrtime.bigint();
-        const tree = parser.parse(src);
+        const tree = parser.parse(src, null, {
+            timeoutMicros: PARSE_TIMEOUT_US,
+        });
         const ms = Number(process.hrtime.bigint() - t0) / 1e6;
+        if (!tree) {
+            // 超时返回 null（binding 不抛）——诚实记一行而不是崩掉整批
+            rows.push({
+                file: path.relative(CORPUS, f),
+                bytes: src.length,
+                ok: false,
+                timeout: true,
+                hasError: false,
+                errorNodes: 0,
+                missingNodes: 0,
+                errorBytes: 0,
+                errorPct: 0,
+                ms: Math.round(ms * 100) / 100,
+            });
+            continue;
+        }
         const s = errorStats(tree.rootNode);
         rows.push({
             file: path.relative(CORPUS, f),
@@ -70,11 +103,10 @@ function benchTraps() {
     const tree = parser.parse(src);
     const regions = trapRegions(src);
     // collect all ERROR nodes with ranges
-    const errs = [];
-    (function walk(n) {
-        if (n.type === "ERROR") errs.push([n.startIndex, n.endIndex]);
-        for (let i = 0; i < n.childCount; i++) walk(n.child(i));
-    })(tree.rootNode);
+    const errs = collectErrorNodes(tree.rootNode, false).map((n) => [
+        n.startIndex,
+        n.endIndex,
+    ]);
     const rows = regions.map((r) => {
         const inside = errs.filter(([a, b]) => a < r.end && b > r.start);
         const coveredPct = inside.length
@@ -195,17 +227,12 @@ function benchValidator() {
     const out = [];
     for (const c of cases) {
         const t = parser.parse(c.src);
-        const errs = [];
-        (function walk(n) {
-            if (n.type === "ERROR" || n.isMissing)
-                errs.push({
-                    type: n.isMissing ? "MISSING" : "ERROR",
-                    start: n.startIndex,
-                    end: n.endIndex,
-                    row: n.startPosition.row,
-                });
-            for (let i = 0; i < n.childCount; i++) walk(n.child(i));
-        })(t.rootNode);
+        const errs = collectErrorNodes(t.rootNode, true).map((n) => ({
+            type: n.isMissing ? "MISSING" : "ERROR",
+            start: n.startIndex,
+            end: n.endIndex,
+            row: n.startPosition.row,
+        }));
         const near = errs.filter(
             (e) =>
                 Math.abs(e.start - c.corruptedAt) < 200 ||
@@ -233,13 +260,22 @@ function benchIncremental() {
         src.slice(0, at) +
         "EXTREMELY important" +
         src.slice(at + "very important".length);
+    // row/col 由 src/edited 现算——fixture 一改硬编码 Point 就静默失效
+    const rowOf = (s, i) => s.slice(0, i).split("\n").length - 1;
+    const colOf = (s, i) => i - (s.lastIndexOf("\n", i - 1) + 1);
     t1.edit({
         startIndex: at,
         oldEndIndex: at + 14,
         newEndIndex: at + 19,
-        startPosition: { row: 84, column: 13 },
-        oldEndPosition: { row: 84, column: 27 },
-        newEndPosition: { row: 84, column: 32 },
+        startPosition: { row: rowOf(src, at), column: colOf(src, at) },
+        oldEndPosition: {
+            row: rowOf(src, at + 14),
+            column: colOf(src, at + 14),
+        },
+        newEndPosition: {
+            row: rowOf(edited, at + 19),
+            column: colOf(edited, at + 19),
+        },
     });
     const t0 = process.hrtime.bigint();
     const t2 = parser.parse(edited, t1);
@@ -272,7 +308,7 @@ const incr = benchIncremental();
 
 console.log("== corpus ==");
 console.log(
-    `files=${corpus.length} clean=${corpus.filter((r) => !r.hasError).length} withErrors=${corpus.filter((r) => r.hasError).length}`,
+    `files=${corpus.length} clean=${corpus.filter((r) => r.ok && !r.hasError).length} withErrors=${corpus.filter((r) => r.hasError).length} timeout=${corpus.filter((r) => r.timeout).length}`,
 );
 console.log(
     "files where >10% of bytes are inside ERROR:",
@@ -297,7 +333,7 @@ console.log(
     slow.map((r) => `${r.file}:${r.ms}ms`).join(" ") || "none",
 );
 console.log(
-    "total bytes in ERROR:",
+    "total chars in ERROR:",
     corpus.reduce((a, r) => a + r.errorBytes, 0),
     "/",
     corpus.reduce((a, r) => a + r.bytes, 0),

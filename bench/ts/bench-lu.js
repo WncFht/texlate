@@ -20,6 +20,13 @@ const {
 
 const PARSE_OPTS = { timeout: 30000, enableComment: true };
 
+// lu 的 TimeoutError e.name 恒为 "Error"——constructor.name 才有区分度
+function errName(e) {
+    return e.name !== "Error"
+        ? e.name
+        : (e.constructor && e.constructor.name) || "Error";
+}
+
 // ---------- generic AST walker ----------
 function walk(node, cb, parent) {
     if (!node || typeof node !== "object") return;
@@ -56,7 +63,7 @@ function benchCorpus() {
             latexParser.parse(src, PARSE_OPTS);
         } catch (e) {
             ok = false;
-            error = `${e.name}: ${String(e.message).slice(0, 160)}${e.location ? " @" + JSON.stringify(e.location.start) : ""}`;
+            error = `${errName(e)}: ${String(e.message).slice(0, 160)}${e.location ? " @" + JSON.stringify(e.location.start) : ""}`;
         }
         const ms = Number(process.hrtime.bigint() - t0) / 1e6;
         rows.push({
@@ -548,7 +555,9 @@ function norm(s) {
     return s.replace(/\s+/g, " ").trim();
 }
 function stripComments(s) {
-    return s.replace(/(?<!\\)%[^\n]*/g, "");
+    // % 前偶数个反斜杠才是注释起（\\% 的 % 是真注释, \% 是字面量）——
+    // 原 (?<!\\)% 把 \\% 误判成转义百分号，注释漏剥
+    return s.replace(/(^|[^\\])((?:\\\\)*)%[^\n]*/g, "$1$2");
 }
 function benchRoundtrip() {
     const files = listTexFiles(CORPUS);
@@ -590,7 +599,6 @@ function benchRoundtrip() {
                 else status = "diverged";
             }
             if (status === "diverged") {
-                status = "diverged";
                 const n = Math.min(out.length, src.length);
                 let i = 0;
                 while (i < n && out[i] === src[i]) i++;
@@ -598,7 +606,7 @@ function benchRoundtrip() {
             }
         } catch (e) {
             status = "parse-error";
-            detail = `${e.name}: ${String(e.message).slice(0, 120)}`;
+            detail = `${errName(e)}: ${String(e.message).slice(0, 120)}`;
         }
         rows.push({ file: path.relative(CORPUS, f), status, detail });
     }
@@ -764,7 +772,7 @@ function benchLeak() {
         } catch (e) {
             rows.push({
                 file: path.relative(CORPUS, f),
-                error: String(e.message).slice(0, 80),
+                error: `${errName(e)}: ${String(e.message).slice(0, 80)}`,
             });
         }
     }

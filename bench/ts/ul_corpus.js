@@ -13,6 +13,7 @@ fs.mkdirSync(RESULTS, { recursive: true });
 const files = execSync(`find "${CORPUS}" -name "*.tex"`, { encoding: "utf8" })
     .trim()
     .split("\n")
+    .filter(Boolean) // 空语料时 find 输出空串 → split 出 [""] 会产一条幽灵 FAIL 行
     .sort();
 
 const TIMEOUT_MS = 30000;
@@ -148,7 +149,6 @@ const MAIN_FILES = [
         const fileStat = { blocks: blocks.length, leaked: 0, samples: [] };
         for (const b of blocks) {
             leak.totalBlocks++;
-            fileStat.blocks === undefined || null;
             const hits = [];
             if (/\$/.test(b.text)) hits.push("$");
             if (/\\cite[a-zA-Z]*/.test(b.text)) hits.push("cite");
