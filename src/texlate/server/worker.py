@@ -107,7 +107,14 @@ from texlate.server.store import (
     Store,
     StoreError,
 )
-from texlate.share import index_append, pack_share, unpack_share
+from texlate.share import (
+    ShareError,
+    index_append,
+    index_lookup,
+    pack_share,
+    share_key,
+    unpack_share,
+)
 from texlate.validate.l0 import validate_pair
 from texlate.xlat.client import (
     AuthError,
@@ -817,6 +824,15 @@ def _share_row(
     }
 
 
+def _share_sourced(ctx: TaskCtx) -> bool:
+    """译文载荷来自共享包：``kind=share`` 导入，或 arxiv 隐式命中已接线。
+
+    零 token 结构承诺的判据面——``options["share"]`` 审计载荷由导入端点
+    /``_share_lookup`` 写入；对账回退时 ``_share_unmark`` 摘除即恢复自译。
+    """
+    return ctx.row["kind"] == "share" or bool(ctx.options().get("share"))
+
+
 # ---------------------------------------------------------------- 上传解包
 
 
@@ -1453,12 +1469,26 @@ class PipelineWorker:
     # ------------------------------------------------------------ tex 管线
 
     async def _run_tex(self, ctx: TaskCtx) -> None:
-        """arxiv/upload_tex 共链：fetch → parse → translate → compile。"""
+        """arxiv/upload_tex 共链：fetch → parse → translate|share_apply → compile。
+
+        parse 后先查共享 index（``_share_lookup``）——命中即换
+        ``_stage_share_apply`` 对账通道（零 token）；对账拒绝不替用户
+        拒包，摘标记回退自译——隐式命中是优化不是承诺。
+        """
         ctx.root.mkdir(parents=True, exist_ok=True)
         await self._stage_fetch(ctx)
         if ctx.reuse_hit is not None:
             return  # post-resolve dedup 命中——产物已物化 + 终态已写
         await self._stage_parse(ctx)
+        if await asyncio.to_thread(self._share_lookup, ctx):
+            try:
+                await self._stage_share_apply(ctx)
+            except _ShareRejectError as e:
+                self._warning(ctx, "share_apply", f"共享包对账失败，回退自译: {e}")
+                await asyncio.to_thread(self._share_unmark, ctx)
+            else:
+                await self._stage_compile(ctx, share=True)
+                return
         await self._stage_translate(ctx)
         await self._stage_compile(ctx)
 
@@ -2090,6 +2120,140 @@ class PipelineWorker:
             "extra": sum(len(q) for q in pool.values()),
         }
 
+    # ------------------------------------------------------------ share 命中查询
+
+    def _share_current_key(self, ctx: TaskCtx) -> str | None:
+        """库内现值 → share_key（``share_pack_manifest`` 同派生面）；不可寻址 → None。"""
+        row = self._on_loop(self.store.get, ctx.task_id)
+        if row is None:
+            return None
+        manifest = self.share_pack_manifest(ctx, row)
+        if manifest is None:
+            return None
+        return share_key(
+            str(manifest["arxiv_id"]),
+            str(manifest["version"]),
+            str(manifest["model"]),
+            str(manifest["prompt_ver"]),
+            str(manifest["target_lang"]),
+            str(manifest["glossary_hash"]),
+            str(manifest["pipeline_ver"]),
+        )
+
+    def _share_lookup(self, ctx: TaskCtx) -> bool:  # noqa: C901, PLR0911 -- 守卫/回退阶梯平铺即 spec 的跳过面
+        """隐式 share 命中查询（shared-cache.md §8）：``_run_tex`` 在 parse 后调。
+
+        触发点选型：share_key 七组分此刻才全齐且与翻译时同口径——
+        ``arxiv_id`` 钉版在 fetch 落库，``glossary_hash`` 的 local 层
+        （``base/glossary.local.yaml``）与 ``_glossary_path`` confine 根
+        都依赖 ``_build_base`` 产物；fetch 后即查会把生效术语表算漏。
+
+        命中 → 包校验解包 ``ctx.root/"share"`` + ``options["share"]`` 审计
+        载荷（与导入端点同形）+ ``options["reuse_hit"]="share:{key}"`` 来历
+        标记（share/pack 端点据以拒自包——译文非本实例术语表产出，错标
+        ``glossary_hash`` 比不打包更糟）。miss/索引损坏/包缺失/校验失败 →
+        log 留痕回退自译——隐式命中是优化不是承诺，绝不让任务因查询变坏。
+
+        幂等：标记与 ``share/`` 现场都持久化——resume 重验 key 符且
+        ``dual.json`` 在场即直返；retry 改 options 致 key 漂移或 ``share``
+        载荷伪造/残缺 → ``_share_unmark`` 摘除后按现状重查。
+        """
+        if ctx.row["kind"] != "arxiv" or ctx.reuse_hit is not None:
+            return False  # share 走 _run_share 自有链；dedup 命中已终态
+        opts = ctx.options()
+        if str(opts.get("prefer") or "reuse") == "fresh":
+            return False
+        key = self._share_current_key(ctx)
+        marked = opts.get("share")
+        if marked is not None:
+            if (
+                key is not None
+                and isinstance(marked, dict)
+                and marked.get("share_key") == key
+                and (ctx.root / "share" / "dual.json").is_file()
+            ):
+                if not str(opts.get("reuse_hit") or "").startswith("share:"):
+                    # 来历标记被 fetch 摘除/外力抹掉——补回保持拒自包面完整
+                    opts["reuse_hit"] = f"share:{key}"
+                    ctx.row["options_json"] = json.dumps(opts, ensure_ascii=False)
+                    self._on_loop(
+                        self.store.update_fields,
+                        ctx.task_id,
+                        options_json=ctx.row["options_json"],
+                    )
+                return True  # resume/retry 重验通过——已接线状态直走对账
+            self._share_unmark(ctx)
+            opts = ctx.options()
+        if opts.get("reuse_hit") or key is None:
+            return False  # dedup 命中史（来历标记归 dedup 面管）/ 不可寻址
+        if not self._on_loop(self.store.has_chunks, ctx.task_id):
+            return False  # 零块任务对账必零命中——让自译面正常收尾
+        out_dir = share_dir(self.data_dir)
+        try:
+            hit = index_lookup(out_dir / "index.jsonl", key)
+        except (ShareError, OSError) as e:
+            # 索引是缓存——读挂一律降级 miss，不为查询面 fault 任务
+            self._log(ctx, f"share lookup: index 不可读按 miss 处理: {e}")
+            return False
+        if hit is None:
+            return False
+        name = str(hit.get("url") or "")
+        if "/" in name or "\\" in name or name in ("", ".", ".."):
+            self._log(
+                ctx, f"share lookup: index 行 url 非扁平名 {name!r}，按 miss 处理"
+            )
+            return False
+        bundle = out_dir / name
+        if not bundle.is_file():
+            self._log(ctx, f"share lookup: 行在包不在 {name}，按 miss 处理")
+            return False
+        dest = ctx.root / "share"
+        try:
+            mf = unpack_share(bundle, dest)
+        except (ShareError, OSError) as e:
+            shutil.rmtree(dest, ignore_errors=True)  # 校验中途失败可能留半解包现场
+            self._log(ctx, f"share lookup: 包校验失败回退自译: {e}")
+            return False
+        opts = ctx.options()
+        opts["share"] = {
+            "share_key": mf.share_key,
+            "contributor": mf.contributor,
+            "created_at": mf.created_at,
+            "key_parts": dict(mf.key_parts),
+        }
+        opts["reuse_hit"] = f"share:{mf.share_key}"
+        ctx.row["options_json"] = json.dumps(opts, ensure_ascii=False)
+        self._on_loop(
+            self.store.update_fields,
+            ctx.task_id,
+            options_json=ctx.row["options_json"],
+        )
+        self._log(
+            ctx,
+            f"share lookup: 命中 {mf.share_key[:16]}… → 共享对账通道（零 token）",
+        )
+        return True
+
+    def _share_unmark(self, ctx: TaskCtx) -> None:
+        """摘除隐式命中痕迹：``options.share``/``reuse_hit`` 标记 + ``share/`` 解包现场。
+
+        retry 换 options 致 key 漂移、伪造 ``share`` 载荷、对账失败回退
+        共用。dedup 来源的 ``reuse_hit``（task id 形）不摘——归 dedup 面管。
+        """
+        opts = ctx.options()
+        dirty = opts.pop("share", None) is not None
+        if str(opts.get("reuse_hit") or "").startswith("share:"):
+            opts.pop("reuse_hit", None)
+            dirty = True
+        if dirty:
+            ctx.row["options_json"] = json.dumps(opts, ensure_ascii=False)
+            self._on_loop(
+                self.store.update_fields,
+                ctx.task_id,
+                options_json=ctx.row["options_json"],
+            )
+        shutil.rmtree(ctx.root / "share", ignore_errors=True)
+
     # ------------------------------------------------------------ compiling
 
     async def _stage_compile(self, ctx: TaskCtx, *, share: bool = False) -> None:
@@ -2260,9 +2424,10 @@ class PipelineWorker:
     def _env_judge_enabled(self, ctx: TaskCtx) -> bool:
         """env_judge 开关：``options.env_judge`` 显式优先，缺省读 ``TEXLATE_ENV_JUDGE``（默认关）。
 
-        share 任务恒关——零 token 结构承诺，options/env 无权打开。
+        共享译文任务（kind=share 导入 / arxiv 隐式命中）恒关——零 token
+        结构承诺，options/env 无权打开。
         """
-        if ctx.row["kind"] == "share":
+        if _share_sourced(ctx):
             return False
         v = ctx.options().get("env_judge")
         if v is not None:
@@ -2584,10 +2749,10 @@ class PipelineWorker:
     def _l2_enabled(self, ctx: TaskCtx) -> bool:
         """L2 回灌开关：``options.l2`` 显式优先，缺省读 ``TEXLATE_NO_L2``（默认开）。
 
-        share 任务恒关——零 token 是结构承诺（``_share_apply`` 不回退自译
-        同理），options/env 无权打开。
+        共享译文任务恒关——零 token 是结构承诺（``_share_apply`` 不回退
+        自译同理），options/env 无权打开。
         """
-        if ctx.row["kind"] == "share":
+        if _share_sourced(ctx):
             return False
         v = ctx.options().get("l2")
         if v is not None:
@@ -2605,12 +2770,12 @@ class PipelineWorker:
         （与 L2 parity）：任务带真 BYOK key 即建 hook，token 经
         ``usage_sink`` → ``_persist_usage`` 落账。None 条件（序即优先级）：
 
-        - ``kind=="share"``：零 token 结构承诺，任何开关无权开；
+        - 共享译文任务（``_share_sourced``）：零 token 结构承诺，任何开关无权开；
         - ``options.llm_hook`` 显式 false / ``TEXLATE_FIXLOOP_LLM=0``；
         - 无 ``api_key``（含 ``TEXLATE_TRANSLATOR=mock``）：不给裸
           env-key client——那会绕开 BYOK 计费面。
         """
-        if ctx.row["kind"] == "share":
+        if _share_sourced(ctx):
             return None, None, []
         opt = ctx.options().get("llm_hook")
         if opt is not None and (
@@ -2846,7 +3011,7 @@ class PipelineWorker:
                 "enabled": False,
                 "reason": (
                     "share_zero_token"
-                    if ctx.row["kind"] == "share"
+                    if _share_sourced(ctx)
                     else "options.l2"
                     if "l2" in ctx.options()
                     else _ENV_NO_L2
@@ -3061,11 +3226,17 @@ class PipelineWorker:
         产物面满足 ``REQUIRED_ARTIFACTS``（zh-src.zip+dual.json）即打包——
         zh.pdf 缺席落 partial 包（§9 已放行：fixloop_exhausted 型任务的
         L2/修复译文经包传播有实证价值）。``kind=="share"`` 是导入产物永不
-        自包；reuse_hit 捷径在 ``_stage_fetch`` 提前 return 到不了本段——
-        命中任务的生效术语表不可知，错标 ``glossary_hash`` 比不打包更糟。
+        自包；``options.reuse_hit`` 标记的命中任务（dedup 捷径在
+        ``_stage_fetch`` 提前 return 到不了本段，隐式 share 命中会走到
+        这里——检查是承重的）译文非本实例术语表产出，错标
+        ``glossary_hash`` 比不打包更糟。
         best-effort：任何失败只留 warning，绝不影响任务终态。
         """
-        if ctx.row["kind"] == "share" or not self._share_pack_opt_in(ctx):
+        if (
+            _share_sourced(ctx)
+            or ctx.options().get("reuse_hit")
+            or not self._share_pack_opt_in(ctx)
+        ):
             return
         try:
             await asyncio.to_thread(self._share_pack_try, ctx)
