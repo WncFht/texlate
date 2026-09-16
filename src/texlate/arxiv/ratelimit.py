@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 import time
 from dataclasses import dataclass
@@ -25,6 +26,8 @@ from urllib.parse import urlsplit
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+log = logging.getLogger(__name__)
 
 #: 每 host 最小请求间隔（官方 3s + 0.05s 余量）
 GAP_SECONDS: Final = 3.05
@@ -142,8 +145,17 @@ class RateLimiter:
                 )
                 for key, b in data.get("buckets", {}).items()
             }
-        except (OSError, json.JSONDecodeError, TypeError, ValueError, AttributeError):
+        except (
+            OSError,
+            json.JSONDecodeError,
+            TypeError,
+            ValueError,
+            AttributeError,
+        ) as e:
             # 状态损坏（非 JSON 或字段类型错）→ 干净起步，不拦请求路径
+            log.warning(
+                "ratelimit state corrupt, starting clean: %s (%s)", self.state_path, e
+            )
             return
         self._day = day
         self._requests_today = n

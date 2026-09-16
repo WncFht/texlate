@@ -9,7 +9,7 @@
     res = acquire_source("1412.6980", fetcher=fetcher, cache=cache)
 """
 
-from texlate.arxiv.cache import CacheEntry, SourceCache
+from texlate.arxiv.cache import CacheEntry, CacheError, SourceCache
 from texlate.arxiv.fetch import (
     AcquireResult,
     AcquireStatus,
@@ -61,6 +61,7 @@ __all__ = [
     "BlobKind",
     "BudgetExhaustedError",
     "CacheEntry",
+    "CacheError",
     "DegradeReason",
     "DegradeResult",
     "DegradeTier",

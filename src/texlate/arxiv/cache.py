@@ -17,11 +17,14 @@ r"""source-tier 钉版缓存（docs/06 §4.1）。
 from __future__ import annotations
 
 import json
+import logging
 import re
 import shutil
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
+
+log = logging.getLogger(__name__)
 
 #: find_versions 的 glob 消毒：id 只许这些字符（glob 元字符 ``*?[]`` 全拒）
 _SAFE_GLOB_ID: re.Pattern[str] = re.compile(r"[A-Za-z0-9._/-]+")
@@ -90,7 +93,9 @@ class SourceCache:
             return None
         try:
             meta = json.loads(meta_p.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+        except (OSError, json.JSONDecodeError) as e:
+            # 损坏条目按未命中处理（重取会覆盖），但留痕——静默重下会烧日预算
+            log.warning("cache meta unreadable, treating as miss: %s (%s)", meta_p, e)
             return None
         return CacheEntry(arxiv_id, resolved_version, d, meta)
 

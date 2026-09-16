@@ -77,7 +77,7 @@ class UnpackResult:
 
     @property
     def tex_files(self) -> int:
-        """``.tex``/``.ltx`` 文件数。"""
+        """``.tex``/``.ltx``/``.latex`` 文件数。"""
         return sum(1 for f in self.files if f.lower().endswith(_TEX_EXT))
 
     @property
