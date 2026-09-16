@@ -337,6 +337,18 @@ taxonomy:
     }
   # tail 行同款收紧 (aastex 横幅会落 tail 30 行内抢签) —— 与 head 行同表。
   - { id: latex209, scope: tail, pattern: "(?m)\\\\documentstyle\\b|LaTeX 2\\.09 COMPATIBILITY MODE|LaTeX2e command[^\\n]*\\bin LaTeX 2\\.09|LaTeX Version 2\\.09|^[ \\t]*Compatibility mode" }
+  # —— cls/sty 「求档文」尾段: 类文件内部 \IfFileExists 失败→\stop 死路
+  #   (aastex61 "Please update your system to include revtex4-1.cls" 实证:
+  #   \stop 夹在条件内 → \end occurred incomplete, 无 '!' 无 missing_file
+  #   行) —— plea 提出的文件名即 actionable payload, 归 missing_file 让
+  #   install/shim 链接手; 须排在 early_eof 之前 (同尾共存时 plea 优先) ——
+  - {
+      id: missing_file,
+      scope: tail,
+      payload_group: 1,
+      pattern: "(?:include|download|install|get|need)\\s+(\\S+\\.(?:cls|sty|clo|tex|def|fd|map|cfg))",
+      guard: "No pages of output",
+    }
   # —— 干净日志零页面: TeX 早夭但无 '!' 行 (1706.00175 实证:
   #   "(\end occurred when \ifx on line 27 was incomplete)" + "No pages of
   #   output") —— guard 把「有页输出仅带 \end occurred 警告」挡在外面 ——
@@ -655,13 +667,25 @@ rules:
               \frontmatter@init
               \let\frontmatter@init\relax
               \endinput
-          # revtex4.cls 老名 (revtex.cls 表项之上另名, 1003.4522 实证) ——
+          # revtex4.cls 老名 (revtex4.cls 表项之上另名, 1003.4522 实证) ——
           # 同 frontmatter 提前武装。
           revtex4.cls:
             needs: ["revtex4-2.cls"]
             body: |
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesClass{revtex4}[2026/09/16 fixloop legacy shim -> revtex4-2]
+              \LoadClassWithOptions{revtex4-2}
+              \frontmatter@init
+              \let\frontmatter@init\relax
+              \endinput
+          # revtex4-1.cls: aastex61/62 内部 \IfFileExists 硬依赖 (缺失则
+          # \stop 死路 → early_eof 零页; loop1 13 格实证簇)。TL 只存
+          # revtex4-2 —— 同名桥 + frontmatter 提前武装。
+          revtex4-1.cls:
+            needs: ["revtex4-2.cls"]
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesClass{revtex4-1}[2026/09/16 fixloop legacy shim -> revtex4-2]
               \LoadClassWithOptions{revtex4-2}
               \frontmatter@init
               \let\frontmatter@init\relax
