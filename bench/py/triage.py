@@ -51,6 +51,10 @@ RESCUED_STATUS = {
 # fixloop 终态词 → core 单 (规则面之外的引擎缺口)。
 TERMINAL_WORDS = {"stuck", "max_rounds"}
 
+#: 状态序数表 (高=好): fixloop_degraded 跨段退化判定与 rundiff 逐格迁移共用;
+#: 表外词 (skip/error/...) 一律按 -1 计。
+STATUS_RANK = {"clean": 3, "ok": 3, "partial": 2, "fail": 1, "reject": 0}
+
 MAX_EXAMPLES = 5
 MAX_REG_IDS = 50
 TOP_UNFIXABLE = 10
@@ -571,7 +575,6 @@ def compute_metrics(results_dir, recs, prev_line):
         regs.append({"kind": "pipeline_introduced_truncated", "total": len(pipe)})
     # 跨段退化: fixloop 终态低于入口态 (loop1 实证 17 格, 本探测器盲区补网)。
     # 注意基建杀伤会混入——真退化判定需直编复验 (见 wave2-findings loop1 节)。
-    _rank = {"clean": 3, "ok": 3, "partial": 2, "fail": 1, "reject": 0}
     degraded = sorted(
         (
             str(r.get("id")),
@@ -579,8 +582,8 @@ def compute_metrics(results_dir, recs, prev_line):
             str(r.get("status") or ""),
         )
         for r in fl
-        if _rank.get(str(r.get("status") or ""), -1)
-        < _rank.get(
+        if STATUS_RANK.get(str(r.get("status") or ""), -1)
+        < STATUS_RANK.get(
             str((r.get("metrics") or {}).get("compile_status_before") or ""), -1
         )
     )
