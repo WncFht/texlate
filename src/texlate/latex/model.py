@@ -167,7 +167,7 @@ class ScanWarning:
 
     kind: str  # unclosed_env|unpaired_dollar|stray_end|debt_repair|def_parse_fail|
     #   letters_cut|expansion_overflow|if_unterminated|missing_input|
-    #   gen_overflow|ph_collision|env_mismatch|argspec_shadowed
+    #   gen_overflow|ph_collision|env_mismatch|argspec_shadowed|expand_tail_dropped
     pos: int
     detail: str
 
