@@ -2,22 +2,34 @@
 
 M0 集成面：``fetch``（取源钉版）/ ``parse``（半解析分块）/ ``run``（mock 端到端
 ——normalize → mock 翻译 → ctex 注入 → 编译 → 判定，驱动在 ``texlate.e2e``）。
+``run --server`` 为瘦客户端形态（web-layer §6）：本地不跑管线，任务提交远端
+server API、轮询快照到终态、拉取产物。
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
 import tempfile
+import time
+from http import HTTPStatus
 from pathlib import Path
 from typing import Annotated
 
+import httpx
 import typer
 
 from texlate import __version__
 from texlate.arxiv.cache import SourceCache
-from texlate.arxiv.fetch import AcquireResult, AcquireStatus, Fetcher, acquire_source
+from texlate.arxiv.fetch import (
+    AcquireResult,
+    AcquireStatus,
+    Fetcher,
+    acquire_source,
+    normalize_arxiv_id,
+)
 from texlate.e2e import mock_pipeline_run
 from texlate.latex.api import parse_file
 
@@ -140,7 +152,7 @@ def parse(
 
 
 @app.command()
-def run(  # noqa: PLR0913 -- CLI 选项面即参数面
+def run(  # noqa: C901, PLR0913 -- CLI 选项面即参数面 + 本地/瘦客户端双模分流
     source: Annotated[str, typer.Argument(help="arXiv id 或本地工程目录")],
     *,
     engine: Annotated[
@@ -159,21 +171,75 @@ def run(  # noqa: PLR0913 -- CLI 选项面即参数面
     keep: Annotated[
         bool, typer.Option("--keep", help="保留工作目录（默认编译后删除）")
     ] = False,
+    server: Annotated[
+        str | None,
+        typer.Option(
+            "--server",
+            help="远端 texlate server URL——任务走 API 提交而非本地管线"
+            "（瘦客户端；web-layer §6）",
+        ),
+    ] = None,
+    model: Annotated[
+        str | None, typer.Option("--model", help="任务模型（仅 --server）")
+    ] = None,
+    api_key: Annotated[
+        str | None,
+        typer.Option("--api-key", help="BYOK key（仅 --server，x-texlate-key）"),
+    ] = None,
+    base_url: Annotated[
+        str | None,
+        typer.Option(
+            "--base-url", help="上游 LLM 网关（仅 --server，x-texlate-base-url）"
+        ),
+    ] = None,
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", "-o", help="--server 产物下载目录"),
+    ] = None,
+    wait: Annotated[
+        float, typer.Option("--wait", help="--server 终态等待上限秒")
+    ] = 1800.0,
 ) -> None:
-    """Mock 端到端：取源/本地目录 → normalize → mock 翻译 → ctex 注入 → 编译 → 判定。
+    """端到端：取源/本地目录 → normalize → mock 翻译 → ctex 注入 → 编译 → 判定。
 
     翻译走 ``XlatPipeline(MockTranslator)`` + L0 校验器（驱动在 ``texlate.e2e``）
     ——全链产品 API，不触网（arxiv id 源走缓存/在线取源除外）。
     退出码：0 clean/partial，1 编译失败，2 路由拒绝。
+
+    ``--server URL`` 切换为瘦客户端：``POST /api/arxiv/{id}/translate`` →
+    2s 快照轮询（web-layer §7 开放问题 1 明列的等价通道，不依赖 SSE
+    客户端栈）→ 产物 sha256 校验下载。同 cache_key 重跑会自然
+    attach 到进行中任务（409 duplicate_active 复用其 task_id）。
     """
-    src_dir = _resolve_source(source, cache)
-    if src_dir is None:
-        raise typer.Exit(1)
     if engine not in ("auto", "xelatex", "tectonic"):
         typer.echo(
             f"unknown --engine {engine!r} (expect auto|xelatex|tectonic)", err=True
         )
         raise typer.Exit(2)
+    if server is not None:
+        code = _thin_run(
+            source,
+            server=server,
+            engine=engine,
+            model=model,
+            api_key=api_key,
+            base_url=base_url,
+            out=out,
+            wait=wait,
+        )
+        raise typer.Exit(code)
+    if (
+        any(v is not None for v in (model, api_key, base_url, out)) or wait != 1800.0  # noqa: PLR2004 -- 与签名缺省同一字面值
+    ):
+        typer.echo(
+            "--model/--api-key/--base-url/--out/--wait 仅配合 --server 使用",
+            err=True,
+        )
+        raise typer.Exit(2)
+
+    src_dir = _resolve_source(source, cache)
+    if src_dir is None:
+        raise typer.Exit(1)
 
     # --work-dir 保护：已存在的非空目录绝不 rmtree（指错路径删整树的坑）；
     # 空目录/不存在 → 正常用作工作区。文件形态报错。
@@ -218,6 +284,168 @@ def _resolve_source(source: str, cache: Path) -> Path | None:
         return None
     assert res.entry is not None  # noqa: S101 -- ok/hit 必有 entry
     return res.entry.extracted_dir
+
+
+# ---------------------------------------------------------------- run --server（瘦客户端）
+
+#: 与 server/store.py TERMINAL_STATUSES 同集——瘦客户端不能 import server 层
+#: （无 server extra 的安装形态下 cli 也要可用）。
+_THIN_TERMINAL = frozenset(
+    {"done", "partial", "fault", "cancelled", "interrupted", "needs_auth"}
+)
+_THIN_POLL_S = 2.0
+
+
+def _thin_run(  # noqa: PLR0913 -- 与 run 的 --server 选项面一一对应
+    source: str,
+    *,
+    server: str,
+    engine: str,
+    model: str | None,
+    api_key: str | None,
+    base_url: str | None,
+    out: Path | None,
+    wait: float,
+) -> int:
+    """瘦客户端主流程：提交任务 → 轮询到终态 → 下载产物。返回退出码。"""
+    if Path(source).is_dir():
+        typer.echo(
+            "--server 模式只接 arXiv id/URL（本地目录请走 server /api/upload）",
+            err=True,
+        )
+        return 2
+    base, ver = normalize_arxiv_id(source)
+    pinned = f"{base}v{ver}" if ver is not None else base
+
+    headers: dict[str, str] = {}
+    if api_key:
+        headers["x-texlate-key"] = api_key
+    if base_url:
+        headers["x-texlate-base-url"] = base_url
+    payload: dict[str, object] = {"options": {"engine": engine}}
+    if model:
+        payload["model"] = model
+
+    try:
+        with httpx.Client(
+            base_url=server.rstrip("/"),
+            headers=headers,
+            timeout=httpx.Timeout(120.0, connect=10.0),
+        ) as client:
+            task_id = _thin_submit(client, pinned, payload)
+            if task_id is None:
+                return 2
+            status = _thin_wait(client, task_id, wait)
+            if status is None:
+                typer.echo(
+                    f"等待超时（--wait {wait}s）；任务 {task_id} 仍在 server 上"
+                    "——同参数重跑本命令即可 attach 续等",
+                    err=True,
+                )
+                return 1
+            artifacts = _thin_download(client, task_id, out, pinned)
+            typer.echo(
+                json.dumps(
+                    {
+                        "task_id": task_id,
+                        "status": status,
+                        "artifacts": artifacts,
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+            if status in ("done", "partial"):
+                return 0
+            return 2 if status == "needs_auth" else 1
+    except httpx.HTTPError as e:
+        typer.echo(f"server 传输错: {e}", err=True)
+        return 2
+
+
+def _thin_submit(
+    client: httpx.Client, pinned: str, payload: dict[str, object]
+) -> str | None:
+    """``POST /api/arxiv/{id}/translate`` → task_id；失败打 stderr 返回 None。
+
+    409 ``duplicate_active`` 不是错误——复用其 task_id 自然 attach 到
+    同 cache_key 的进行中任务（§2.1 dedup 语义）。
+    """
+    resp = client.post(f"/api/arxiv/{pinned}/translate", json=payload)
+    if resp.status_code == HTTPStatus.CONFLICT:
+        task_id = str(resp.json().get("task_id") or "")
+        if task_id:
+            typer.echo(f"attach 进行中任务 {task_id}", err=True)
+            return task_id
+    elif resp.status_code in (HTTPStatus.OK, HTTPStatus.ACCEPTED):
+        task_id = str(resp.json()["task_id"])
+        typer.echo(f"task {task_id} → {resp.json().get('status')}", err=True)
+        return task_id
+    typer.echo(f"translate {resp.status_code}: {resp.text[:300]}", err=True)
+    return None
+
+
+def _thin_wait(client: httpx.Client, task_id: str, wait: float) -> str | None:
+    """快照轮询到终态；状态行变化才打 stderr。超时返回 None。"""
+    deadline = time.monotonic() + wait
+    last = ""
+    while True:
+        resp = client.get(f"/api/task/{task_id}")
+        if resp.status_code != HTTPStatus.OK:
+            typer.echo(f"快照 {resp.status_code}: {resp.text[:200]}", err=True)
+            return "lost"
+        snap = resp.json()
+        counters = snap.get("counters") or {}
+        line = (
+            f"{snap.get('status')}/{snap.get('stage') or '-'} "
+            f"{snap.get('progress')}% chunks={counters.get('done', 0)}"
+            f"/{counters.get('total', 0)} failed={counters.get('failed', 0)}"
+        )
+        if line != last:
+            typer.echo(line, err=True)
+            last = line
+        status = str(snap.get("status"))
+        if status in _THIN_TERMINAL:
+            err = snap.get("error")
+            if err:
+                typer.echo(f"error: {err}", err=True)
+            return status
+        if time.monotonic() > deadline:
+            return None
+        time.sleep(_THIN_POLL_S)
+
+
+def _thin_download(
+    client: httpx.Client, task_id: str, out: Path | None, pinned: str
+) -> dict[str, str]:
+    """``GET /api/files/{id}`` 清单逐件下载，sha256 自验。返回 ``{kind: 路径}``。"""
+    listing = client.get(f"/api/files/{task_id}")
+    if listing.status_code != HTTPStatus.OK:
+        typer.echo(f"产物清单 {listing.status_code}: {listing.text[:200]}", err=True)
+        return {}
+    artifacts = listing.json().get("artifacts") or {}
+    dest = out or Path.cwd() / f"texlate-{pinned}-{task_id[:8]}"
+    dest.mkdir(parents=True, exist_ok=True)
+    got: dict[str, str] = {}
+    for kind, rec in artifacts.items():
+        url = str(rec.get("url") or "")
+        if not url:
+            continue
+        fname = url.rsplit("/", 1)[-1] or str(kind)
+        r = client.get(url)
+        if r.status_code != HTTPStatus.OK:
+            typer.echo(f"下载 {kind} {r.status_code}，跳过", err=True)
+            continue
+        blob = r.content
+        sha = str(rec.get("sha256") or "")
+        if sha and hashlib.sha256(blob).hexdigest() != sha:
+            typer.echo(f"{kind} sha256 不符，跳过", err=True)
+            continue
+        target = dest / fname
+        target.write_bytes(blob)
+        got[str(kind)] = str(target)
+        typer.echo(f"{kind} → {target}", err=True)
+    return got
 
 
 # ---------------------------------------------------------------- web
