@@ -54,6 +54,28 @@ RULES_PATH = Path(__file__).with_name("rules.yaml")
 _DOC_RE = re.compile(r"\\document(class|style)")
 _REJECT_PREFIX = "REJECT:"
 
+#: yaml 模式串占位符 → builtins 原语族 (扩表免手同步: 1e0e5c8 手工
+#: 13→75 交替即此债)。``@pdftex_prims`` 在任何字符串值里出现即展开成
+#: ``(?:…)`` 非捕获交替——按长度降序排, 防短名前缀截长名。
+_FAMILY_TOKENS: dict[str, frozenset[str]] = {
+    "@pdftex_prims": builtins.PDFTEX_PRIMS,
+}
+
+
+def _expand_family_tokens(node: Any) -> Any:  # noqa: ANN401  # yaml 树天然 Any
+    """递归展开 ``_FAMILY_TOKENS`` 占位符 → 正则交替片段 (yaml 全树)。"""
+    if isinstance(node, str):
+        for tok, fam in _FAMILY_TOKENS.items():
+            if tok in node:
+                alts = "|".join(sorted(fam, key=lambda s: (-len(s), s)))
+                node = node.replace(tok, f"(?:{alts})")
+        return node
+    if isinstance(node, list):
+        return [_expand_family_tokens(x) for x in node]
+    if isinstance(node, dict):
+        return {k: _expand_family_tokens(v) for k, v in node.items()}
+    return node
+
 
 # ════════════════════════════════════════════════════════════════
 # Engine 协议 (docs/08:198-225 逐字签名; impl-compile 的实现对接此处)
@@ -377,7 +399,7 @@ class Ruleset:
     def load(cls, path: Path | None = None) -> Ruleset:
         """装载 rules.yaml (默认本包附带; PyYAML 在则走全量解析)。"""
         p = path or RULES_PATH
-        return cls(load_yaml(p), path=p)
+        return cls(_expand_family_tokens(load_yaml(p)), path=p)
 
     def phase(self, name: str) -> list[Rule]:
         """某 phase 的规则按 order 升序。"""

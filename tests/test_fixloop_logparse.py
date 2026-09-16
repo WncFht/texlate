@@ -201,14 +201,21 @@ def test_tail_latex209() -> None:
 
 
 def test_head_beats_tail() -> None:
-    # 有 '!' 行时 tail 段不评估; 把 tail 标记推到 ctx (8行) 范围外
-    log = (
+    # preempts 时代 (regress4): tail missing_file 条目带
+    # preempts=[…,emergency] —— emergency 头错被尾部真缺文件夺路由;
+    # 未列名的强类别 (illegal_unit) 仍由 head 胜出。
+    preempted = (
         "! Emergency stop.\n"
         + "pad line\n" * 12
         + "File `x.sty' not found.\nEnter file name:"
     )
-    cat, _ = classify(log)
-    assert cat == "emergency"
+    assert classify(preempted)[0] == "missing_file"
+    held = (
+        "! Illegal unit of measure (pt inserted).\n"
+        + "pad line\n" * 12
+        + "File `x.sty' not found.\nEnter file name:"
+    )
+    assert classify(held)[0] == "illegal_unit"
 
 
 def test_tail_fatal_preempts_weak_head() -> None:
