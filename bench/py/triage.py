@@ -569,6 +569,27 @@ def compute_metrics(results_dir, recs, prev_line):
     ]
     if len(pipe) > MAX_REG_IDS:
         regs.append({"kind": "pipeline_introduced_truncated", "total": len(pipe)})
+    # 跨段退化: fixloop 终态低于入口态 (loop1 实证 17 格, 本探测器盲区补网)。
+    # 注意基建杀伤会混入——真退化判定需直编复验 (见 wave2-findings loop1 节)。
+    _rank = {"clean": 3, "ok": 3, "partial": 2, "fail": 1, "reject": 0}
+    degraded = sorted(
+        (
+            str(r.get("id")),
+            str((r.get("metrics") or {}).get("compile_status_before") or ""),
+            str(r.get("status") or ""),
+        )
+        for r in fl
+        if _rank.get(str(r.get("status") or ""), -1)
+        < _rank.get(
+            str((r.get("metrics") or {}).get("compile_status_before") or ""), -1
+        )
+    )
+    regs += [
+        {"kind": "fixloop_degraded", "id": i, "before": b, "after": a}
+        for i, b, a in degraded[:MAX_REG_IDS]
+    ]
+    if len(degraded) > MAX_REG_IDS:
+        regs.append({"kind": "fixloop_degraded_truncated", "total": len(degraded)})
     prev_rates = (prev_line or {}).get("stage_rates") or {}
     for stage, arms in stage_rates.items():
         for arm, cell in arms.items():
@@ -638,8 +659,10 @@ def render_report(results_dir, line, tickets, source_note):
     if regs:
         drops = [r for r in regs if r["kind"] == "rate_drop"]
         pipes = [r for r in regs if r["kind"] == "pipeline_introduced"]
+        degs = [r for r in regs if r["kind"] == "fixloop_degraded"]
         lines.append(
             f"- 回归: rate_drop×{len(drops)} · pipeline_introduced×{len(pipes)}"
+            f" · fixloop_degraded×{len(degs)}"
             + (f" ({', '.join(r['id'] for r in pipes[:5])}…)" if len(pipes) > 5 else "")
         )
     lines += [

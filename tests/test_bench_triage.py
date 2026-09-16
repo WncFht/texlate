@@ -298,3 +298,20 @@ def test_run_meta_started_finished(tmp_path: Path) -> None:
     # triage 侧直读：wall_s 用真实起止而非 sum(dur_s)
     line = triage.compute_metrics(tmp_path, [], None)
     assert line["wall_s"] is not None
+
+
+def test_fixloop_degraded_regression(tmp_path: Path) -> None:
+    """跨段退化探测: fixloop 终态 < metrics.compile_status_before 入口态。
+
+    loop1 实证 17 格 partial→fail 旧探测器全漏（只比同段同臂）。
+    """
+    recs = [
+        _rec("p1", "fixloop", "fail", metrics={"compile_status_before": "partial"}),
+        _rec("p2", "fixloop", "clean", metrics={"compile_status_before": "fail"}),
+        _rec("p3", "fixloop", "partial", metrics={"compile_status_before": "partial"}),
+    ]
+    line = triage.compute_metrics(tmp_path, recs, None)
+    degs = [r for r in line["regressions"] if r["kind"] == "fixloop_degraded"]
+    assert [r["id"] for r in degs] == ["p1"]
+    assert degs[0]["before"] == "partial"
+    assert degs[0]["after"] == "fail"
