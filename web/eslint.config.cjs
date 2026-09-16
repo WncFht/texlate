@@ -7,7 +7,7 @@ const solid = require("eslint-plugin-solid");
 
 module.exports = tseslint.config(
     {
-        ignores: ["dist/", "node_modules/"],
+        ignores: ["dist/", "node_modules/", "scripts/"],
     },
     js.configs.recommended,
     ...tseslint.configs.recommended,

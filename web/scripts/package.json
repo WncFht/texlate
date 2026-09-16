@@ -1,0 +1,13 @@
+{
+    "name": "texlate-web-smoke",
+    "private": true,
+    "version": "0.1.0",
+    "description": "playwright-core e2e smoke for texlate web reader (mock backend)",
+    "type": "module",
+    "scripts": {
+        "smoke": "node smoke.mjs"
+    },
+    "dependencies": {
+        "playwright-core": "^1.63.0"
+    }
+}

@@ -143,6 +143,20 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
         window.clearTimeout(saveTimer);
     });
 
+    // Ctrl/Cmd+F → 活动窗格的 findbar（PDF 侧；HTML 侧无 openFind，放行给浏览器原生查找）
+    onMount(() => {
+        const onKey = (e: KeyboardEvent) => {
+            if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "f") return;
+            const h = handles()[active()];
+            if (h && "openFind" in h) {
+                e.preventDefault();
+                h.openFind();
+            }
+        };
+        document.addEventListener("keydown", onKey);
+        onCleanup(() => document.removeEventListener("keydown", onKey));
+    });
+
     // ---------- 同步引擎 ----------
 
     const pageCounts = createMemo(() => {

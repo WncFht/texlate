@@ -9,6 +9,7 @@ SolidJS + Vite 阅读器前端（双语对照 PDF + chunk 列表 + 滚动锚点�
 - `VITE_MOCK_API=0 npm run dev` —— 真后端联调：`/api` 代理到 `http://127.0.0.1:8765`，先起 `uv run texlate web`（需 `texlate[server]` extra：`uv sync --extra server`）。
 - `npm run build` —— 产物 `dist/`（含 `dist/pdfjs/` 静态资源与 `THIRD_PARTY_LICENSES.txt`）。
 - `npm test` / `npm run typecheck` / `npm run lint` —— vitest + tsc + eslint。
+- `node scripts/smoke.mjs` —— playwright-core e2e 冒烟（21 断言，打 mock dev server）：先 `npm ci --prefix scripts` 装 playwright-core，`npm run dev` 跑着再跑；`WEB_BASE` 覆盖端口、`PW_EXE` 覆盖 chromium 路径，产物 `scripts/shots/*.png`，失败 exit 1。
 
 ## 构建交付
 
