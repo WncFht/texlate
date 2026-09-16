@@ -74,7 +74,13 @@ INTERMEDIATE_SUFFIXES = {
 #: 内含绝对字节偏移）整件跳过。姊妹臂 ``_resolve_atend_bbox``：
 #: ``(atend)`` 占位头行强制全件扫描，trailer 实值搬回头行后扫描
 #: 在头行即停，数据行坏字节不再入扫。
-PS_GRAPHIC_SUFFIXES = {".eps", ".ps"}
+#: ``.epsi/.epsf/.mps`` 同族归队：corpus_v3 全量 48 件皆 ``%!PS``
+#: 文本形态（epsi=EPS Interchange、epsf=EPSF、mps=MetaPost 输出），
+#: 真实非 UTF-8 坏点均在 ``%%`` 注释行（cond-mat/9901072
+#: ``fig2.epsf`` ``%%Copyright \xa9`` latin-1、0806.2219
+#: ``fig02b.epsi`` ``%%CreationDate`` GBK 日期）——走 catch-all 整件
+#: 转码会把数据行高字节一并改写，必须走本臂保数据段字节。
+PS_GRAPHIC_SUFFIXES = {".eps", ".epsf", ".epsi", ".mps", ".ps"}
 
 #: 已知二进制后缀——catch-all 转码豁免名单。漏网的冷门二进制最坏被
 #: latin-1→UTF-8 改写：编译树内只有 TeX 文本读取会触它（原样也只会
@@ -1026,7 +1032,7 @@ def _transcode_support_files(
     返回 ``stats`` 片段（仅非空台账）：``transcoded_aux`` /
     ``transcoded_data`` / ``sanitized_ps_comments`` /
     ``resolved_atend_bbox`` / ``trimmed_intermediates`` /
-    ``purged_intermediates``。
+    ``purged_intermediates`` / ``dos_eps_skipped``。
     """
     ledgers: dict[str, list[str]] = {
         "transcoded_aux": [],
@@ -1035,6 +1041,7 @@ def _transcode_support_files(
         "resolved_atend_bbox": [],
         "trimmed_intermediates": [],
         "purged_intermediates": [],
+        "dos_eps_skipped": [],
     }
     for path in root.rglob("*"):
         if path.is_symlink() or not path.is_file():
@@ -1048,6 +1055,11 @@ def _transcode_support_files(
             continue  # 手术面由主循环转码；二进制件不读文本层
         if suffix in PS_GRAPHIC_SUFFIXES:
             original = path.read_bytes()
+            if original.startswith(_DOS_EPS_MAGIC):
+                # 二进制头含绝对偏移，任何字节增删即腐——整件留原样落台账
+                # （残余 invalid_utf8 由引擎归因降到 sys_warn，不阻断 clean）
+                ledgers["dos_eps_skipped"].append(rel)
+                continue
             resolved = _resolve_atend_bbox(original)
             sanitized = _sanitize_ps_comments(resolved)
             if resolved != original:

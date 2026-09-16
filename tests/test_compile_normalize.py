@@ -897,3 +897,139 @@ def test_normalize_engine_support_still_rewrites_driver(tmp_path: Path) -> None:
     assert "pdftex]{graphicx}" not in out
     assert "xetex]{graphicx}" in out
     assert "xetex]{color}" in out
+
+
+# ---------------------------------------------------------------- bundled 样式件转码 + PS 族扩面
+def test_bundled_style_files_recoded(tmp_path: Path) -> None:
+    r"""bundled .sty/.cls/.def 非 UTF-8 → 主循环转码 UTF-8 + ``encodings`` 归因。
+
+    字节形态取真实件：algorithm.sty L11 ``Rog\xe9rio Brito``、
+    algorithm2e.sty L284 ``Schr\xf6der``/L550 ``J\xf6rg``（loop1
+    invalid_utf8 归因的注释行 latin-1 签名）。
+    """
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{mycls}\n\\usepackage{mypkg}\n"
+        "\\begin{document}\nx\\end{document}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "mypkg.sty").write_bytes(
+        b"%% Copyright (C) 2005-2009   Rog\xe9rio Brito <rbrito@ime.usp.br>\n"
+        b"\\ProvidesPackage{mypkg}\n\\newcommand\\x{}\n"
+    )
+    (tmp_path / "mycls.cls").write_bytes(
+        b"% thanks to Martin Schr\xf6der\n\\LoadClass{article}\n"
+    )
+    (tmp_path / "mydrv.def").write_bytes(b"% port by J\xf6rg\n\\def\\mydrv{}\n")
+    stats = normalize_project(tmp_path, "xelatex", "main.tex")
+    for name, needle in (
+        ("mypkg.sty", "Rogério Brito"),
+        ("mycls.cls", "Schröder"),
+        ("mydrv.def", "Jörg"),
+    ):
+        assert needle in (tmp_path / name).read_text(encoding="utf-8")
+        assert stats["encodings"][name]["basis"] != "strict-utf8"
+    # 行数保留——编译错误可回溯源行号
+    assert len((tmp_path / "mypkg.sty").read_text().splitlines()) == 3  # noqa: PLR2004
+
+
+def test_bundled_style_recode_idempotent(tmp_path: Path) -> None:
+    """转码后重跑：样式件已 strict-utf8——encodings 不再记、字节逐位不动。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\usepackage{mypkg}\n"
+        "\\begin{document}\nx\\end{document}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "mypkg.sty").write_bytes(
+        b"%% Copyright Schr\xf6der\n\\ProvidesPackage{mypkg}\n"
+    )
+    first = normalize_project(tmp_path, "xelatex", "main.tex")
+    assert first["encodings"]["mypkg.sty"]["basis"] != "strict-utf8"
+    once = (tmp_path / "mypkg.sty").read_bytes()
+    second = normalize_project(tmp_path, "xelatex", "main.tex")
+    assert "mypkg.sty" not in second.get("encodings", {})
+    assert (tmp_path / "mypkg.sty").read_bytes() == once
+
+
+def test_bundled_style_clean_utf8_untouched(tmp_path: Path) -> None:
+    """已是 UTF-8 的 .sty/.cls/.def 不重写——stats 无 rewritten 之外痕迹。"""
+    blobs = {
+        "ok.sty": "%% clean utf-8 — em\n\\ProvidesPackage{ok}\n",
+        "ok.cls": "%% class\n\\LoadClass{article}\n",
+        "ok.def": "%% driver\n\\def\\ok{}\n",
+    }
+    for name, text in blobs.items():
+        (tmp_path / name).write_text(text, encoding="utf-8")
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{ok}\n\\usepackage{ok}\n\\begin{document}\nx\\end{document}\n",
+        encoding="utf-8",
+    )
+    stats = normalize_project(tmp_path, "xelatex", "main.tex")
+    for name, text in blobs.items():
+        assert (tmp_path / name).read_bytes() == text.encode("utf-8")
+        assert name not in stats.get("encodings", {})
+
+
+def test_epsi_routed_to_ps_comment_sanitize(tmp_path: Path) -> None:
+    r"""``.epsi`` 归 PS 臂：注释行坏字节净化、数据行字节即语义——不再整件转码。
+
+    注释行形态取 corpus_v3 cond-mat/9901072 ``fig2.epsf`` 实件
+    （``%%Copyright \xa9 1988-91`` latin-1）；catch-all 旧道会把数据行
+    ``\xe9`` 一并改写腐件，本测试钉死新分派。
+    """
+    blob = (
+        b"%!PS-Adobe-3.0 EPSF-3.0\n"
+        b"%%BoundingBox: 0 0 10 10\n"
+        b"%%Copyright \xa9 1988-91 Deneba Systems\n"
+        b"%%EndComments\n"
+        b"(caf\xe9) show\n"
+        b"%%EOF\n"
+    )
+    epsi = tmp_path / "fig.epsi"
+    epsi.write_bytes(blob)
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\nx\\end{document}\n",
+        encoding="utf-8",
+    )
+    stats = normalize_project(tmp_path, "xelatex", "main.tex")
+    assert "fig.epsi" in stats["sanitized_ps_comments"]
+    assert "fig.epsi" not in stats.get("transcoded_data", [])
+    new = epsi.read_bytes()
+    assert b"%%Copyright \xc2\xa9 1988-91" in new
+    assert b"(caf\xe9) show" in new  # 数据行逐字节保留
+
+
+def test_epsf_mps_route_to_ps_arm(tmp_path: Path) -> None:
+    """``.epsf``/``.mps`` 同族——注释行坏字节净化记 ``sanitized_ps_comments``。"""
+    for name in ("a.epsf", "b.mps"):
+        (tmp_path / name).write_bytes(
+            b"%!PS-Adobe-3.0\n%%For: caf\xe9\n%%EndComments\nshowpage\n"
+        )
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\nx\\end{document}\n",
+        encoding="utf-8",
+    )
+    stats = normalize_project(tmp_path, "xelatex", "main.tex")
+    assert stats["sanitized_ps_comments"] == ["a.epsf", "b.mps"]
+    for name in ("a.epsf", "b.mps"):
+        (tmp_path / name).read_bytes().decode("utf-8")
+
+
+def test_dos_epsi_binary_skipped_with_ledger(tmp_path: Path) -> None:
+    r"""DOS-EPS 二进制头件整件跳过 + ``dos_eps_skipped`` 台账（残余警告降 notes）。
+
+    fixture 刻意不含 NUL——NUL 闸管不到它，只有魔数闸兜住；旧 catch-all
+    道会整件 latin-1→UTF-8 改写，把头内绝对偏移全部改腐。
+    """
+    blob = b"\xc5\xd0\xd3\xc6" + bytes(range(1, 256))  # DOS 魔数 + 无 NUL 二进负载
+    for name in ("prev.epsi", "prev.eps"):
+        (tmp_path / name).write_bytes(blob)
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\nx\\end{document}\n",
+        encoding="utf-8",
+    )
+    stats = normalize_project(tmp_path, "xelatex", "main.tex")
+    assert stats["dos_eps_skipped"] == ["prev.eps", "prev.epsi"]
+    for name in ("prev.epsi", "prev.eps"):
+        assert (tmp_path / name).read_bytes() == blob
+        assert name not in stats.get("transcoded_data", [])
+        assert name not in stats.get("encodings", {})
