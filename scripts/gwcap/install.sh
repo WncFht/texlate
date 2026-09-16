@@ -21,6 +21,8 @@ install)
   fi
   uid=$(id -u gwcap)
   install -D -m 0755 "$HERE/gw-cap-proxy.py" "$LIB/gw-cap-proxy.py"
+  install -D -m 0755 "$HERE/ensure-bypass.sh" "$LIB/ensure-bypass.sh"
+  install -D -m 0644 "$HERE/tailscaled-gwcap.conf" "$UNITS/tailscaled.service.d/gwcap.conf"
   printf '%s\n' \
     'table inet gwcap {' \
     '  chain output {' \
@@ -38,7 +40,7 @@ install)
 uninstall)
   systemctl disable --now gw-cap-redirect.service gw-cap-proxy.service 2>/dev/null || true
   nft delete table inet gwcap 2>/dev/null || true
-  rm -f "$UNITS/gw-cap-proxy.service" "$UNITS/gw-cap-redirect.service"
+  rm -f "$UNITS/gw-cap-proxy.service" "$UNITS/gw-cap-redirect.service" "$UNITS/tailscaled.service.d/gwcap.conf"
   rm -rf "$LIB"
   systemctl daemon-reload
   userdel gwcap 2>/dev/null || true
