@@ -121,3 +121,62 @@ jobs:
           npm run --prefix web lint
           npm run --prefix web test
           npm run --prefix web build
+
+  # 编译引擎冒烟：真引擎跑 `texlate run` 全链（normalize → mock 翻译 →
+  # ctex 注入 → 编译 → judge）。tectonic 用官方 musl 静态二进制（sha256 钉死，
+  # 与 Dockerfile 同源）；xelatex 走 apt texlive（重 leg，~GB 级安装——
+  # 若 flaky 可从 matrix 摘除，tectonic 是分发默认引擎）。
+  engine:
+    name: Engine smoke (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: tectonic
+          - name: xelatex
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install tectonic
+        if: matrix.name == 'tectonic'
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL -o /tmp/tectonic.tar.gz \
+            "https://github.com/tectonic-typesetting/tectonic/releases/download/tectonic%400.17.0/tectonic-0.17.0-x86_64-unknown-linux-musl.tar.gz"
+          echo "8533d07f9ccbd7a65824b9e0459041bca34af1eb33daba48f59215593753a3b7  /tmp/tectonic.tar.gz" \
+            | sha256sum -c -
+          tar -xzf /tmp/tectonic.tar.gz -C "$HOME/.local/bin" tectonic
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          tectonic --version
+
+      - name: Install xelatex (TeX Live + ctex/fandol)
+        if: matrix.name == 'xelatex'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            texlive-xetex texlive-lang-chinese latexmk
+          xelatex --version | head -1
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: uv sync
+        run: uv sync --frozen --extra server
+
+      - name: texlate run e2e 冒烟（真编译）
+        run: |
+          mkdir -p /tmp/mini-tex
+          cat > /tmp/mini-tex/main.tex <<'EOF'
+          \documentclass{article}
+          \begin{document}
+          \section{Intro}
+          This is a longer paragraph of English text that should definitely be
+          segmented into at least one chunk for translation purposes.
+
+          And a second paragraph here.
+          \end{document}
+          EOF
+          uv run texlate run /tmp/mini-tex --engine "${{ matrix.name }}"
