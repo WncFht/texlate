@@ -20,12 +20,16 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from texlate.textutil import decode_tex
 
 from .latex209 import upgrade_209
 from .mask import visible_tex
 from .normalize import inject_preamble
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 CTEX_LINE = r"\usepackage[fontset=fandol,UTF8]{ctex}"
 
@@ -195,6 +199,9 @@ _INPUT_BRACED_RE = re.compile(r"\\(?:input|include|InputIfFileExists)\b\s*\{([^}
 _INPUT_BARE_RE = re.compile(r"\\input\s+([^\s{}%\\]+)")
 _INPUT_NAME_RE = re.compile(r"^[\w./+-]+$")
 
+#: ``\begin{document}`` 探测（遮盖视图：注释/verbatim 内命中已被抹除）。
+_BEGIN_DOC_RE = re.compile(r"\\begin\s*\{document\}")
+
 #: ``_body_mass`` BFS 文件数上界——分数只是排序键，够分胜负即可，
 #: 病态工程（数千 .tex）不拖死选取。
 _MASS_FILE_CAP = 1024
@@ -282,20 +289,18 @@ def _resolve_input(root: Path, decl_dir: Path, name: str) -> Path | None:
     return None
 
 
-def _body_mass(root: Path, main: Path, body: str) -> int:
-    r"""``\begin{document}`` 后实质 body 量：可见非空白字符数 + ``\input`` 闭包。
+def _walk_inputs(
+    root: Path, seeds: list[tuple[Path, str]]
+) -> Iterator[tuple[Path, str]]:
+    r"""``\input``/``\include`` 传递闭包遍历：产出 ``(resolved_path, visible_text)``。
 
-    standalone 图档也能凑齐 ``document`` 环境但 body 与正文章节脱节——
-    裸 body 长度分不出「1K 的 ``\include`` 编排壳」与「1.5K 的 tikz 图」，
-    故按「这篇 document 实际拉进多少 .tex 内容」计：本体 body 可见非空白
-    字符 + body 内 ``\input``/``\include`` 可解析目标的传递闭包逐文件
-    同口径计数（1803.02985 E 桶：thesis.tex 本体 ~0.7K/闭包 ~400K，
-    standalone 图 body ~1.5K/闭包 0）。环引由 visited 集收，规模上界
-    ``_MASS_FILE_CAP``。
+    从 ``(decl_file, visible_text)`` 种子出发，在遮盖视图上扫描 input 族
+    目标（注释/verbatim 内的 ``\input`` 不参与），逐文件解析可存在的本地
+    .tex（``_resolve_input`` 口径：声明目录→工程根两跳、越出工程根不计）。
+    环引由 visited 集收，规模上界 ``_MASS_FILE_CAP``。
     """
-    mass = len(re.sub(r"\s", "", body))
-    seen = {main}
-    queue = [(main, body)]
+    seen = {src for src, _vis in seeds}
+    queue = list(seeds)
     while queue and len(seen) <= _MASS_FILE_CAP:
         src, vis = queue.pop()
         for match in (
@@ -313,13 +318,48 @@ def _body_mass(root: Path, main: Path, body: str) -> int:
                 sub = visible_tex(decode_tex(tgt.read_bytes()))
             except OSError:
                 continue
-            mass += len(re.sub(r"\s", "", sub))
             queue.append((tgt, sub))
+            yield tgt, sub
+
+
+def _closure_has_document(root: Path, main: Path, text: str) -> bool:
+    r"""``\begin{document}`` 在本体或 ``\input`` 传递闭包任一文件中可见。
+
+    编排壳 main（``\documentclass`` + ``\input{body}``，bd 落在被拉入的
+    子文件——cs/0408015 ``main.tex→body.tex``、2105.00092
+    ``main.tex→begin.tex`` 形态）按本谓词收为候选；闭包文件与本体同在
+    遮盖视图判定，注释掉的 bd/``\input`` 不计。
+    """
+    if _BEGIN_DOC_RE.search(text):
+        return True
+    return any(
+        _BEGIN_DOC_RE.search(sub) for _tgt, sub in _walk_inputs(root, [(main, text)])
+    )
+
+
+def _body_mass(root: Path, main: Path, body: str) -> int:
+    r"""``\begin{document}`` 后实质 body 量：可见非空白字符数 + ``\input`` 闭包。
+
+    standalone 图档也能凑齐 ``document`` 环境但 body 与正文章节脱节——
+    裸 body 长度分不出「1K 的 ``\include`` 编排壳」与「1.5K 的 tikz 图」，
+    故按「这篇 document 实际拉进多少 .tex 内容」计：本体 body 可见非空白
+    字符 + body 内 ``\input``/``\include`` 可解析目标的传递闭包逐文件
+    同口径计数（1803.02985 E 桶：thesis.tex 本体 ~0.7K/闭包 ~400K，
+    standalone 图 body ~1.5K/闭包 0）。环引由 visited 集收，规模上界
+    ``_MASS_FILE_CAP``。
+    """
+    mass = len(re.sub(r"\s", "", body))
+    for _tgt, sub in _walk_inputs(root, [(main, body)]):
+        mass += len(re.sub(r"\s", "", sub))
     return mass
 
 
 def find_main_tex(root: Path) -> Path | None:
     r"""定位主 .tex：最浅、最像正文的 `\documentclass`+`\begin{document}` 文件。
+
+    候选门槛：`\documentclass`/`\documentstyle` 必须在文件本体（遮盖视图），
+    `\begin{document}` 允许落在本体的 `\input`/`\include` 传递闭包内——
+    编排壳 main 只拉子文件、bd 在下游（cs/0408015、2105.00092 形态）。
 
     排序：英文正文优先（多语种版本不靠 UTF-8 字节数排序——多字节文字
     系统性吃亏）→ main/paper/ms 名 → 目录深度 → 实质 body 量级
@@ -328,6 +368,7 @@ def find_main_tex(root: Path) -> Path | None:
     只仲裁量级差，近等值回退文件大小，避免 `ver1/`、`old/`、diff 档
     这类版本目录副本被几个百分点翻盘）→ 文件大小。
     """
+    resolved = root.resolve()
     candidates = []
     bodies = {}
     for p in sorted(p for p in root.rglob("*") if p.suffix.lower() == ".tex"):
@@ -335,12 +376,13 @@ def find_main_tex(root: Path) -> Path | None:
             text = visible_tex(decode_tex(p.read_bytes()))
         except OSError:
             continue
-        if re.search(r"\\(?:documentclass|documentstyle)\b", text) and re.search(
-            r"\\begin\s*\{document\}", text
-        ):
-            rel = p.relative_to(root).as_posix()
-            candidates.append(rel)
-            bodies[rel] = text.split(r"\begin{document}", 1)[-1]
+        if not re.search(r"\\(?:documentclass|documentstyle)\b", text):
+            continue
+        rel = p.relative_to(root).as_posix()
+        if not _closure_has_document(resolved, p.resolve(), text):
+            continue
+        candidates.append(rel)
+        bodies[rel] = text.split(r"\begin{document}", 1)[-1]
     if not candidates:
         return None
 
@@ -350,7 +392,6 @@ def find_main_tex(root: Path) -> Path | None:
         latin = len(re.findall(r"[A-Za-z]", body))
         return letters > 0 and latin < letters / 2
 
-    resolved = root.resolve()
     masses = {
         rel: _body_mass(resolved, (resolved / rel).resolve(), bodies[rel])
         for rel in candidates

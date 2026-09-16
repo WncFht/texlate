@@ -359,6 +359,76 @@ def test_find_main_tex_uppercase_ranking_unchanged(tmp_path: Path) -> None:
     assert find_main_tex(tmp_path) == tmp_path / "main.tex"
 
 
+def test_find_main_tex_bd_in_input_child(tmp_path: Path) -> None:
+    r"""编排壳 main：``\documentclass`` 本体 + bd 落 ``\input`` 子文件（cs/0408015）。
+
+    ``main.tex`` 只拉 ``body.tex``，``\begin{document}`` 在下游——
+    旧谓词要求 bd 在本体 → 整工程 no_main_tex。
+    """
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{tacmconf}\n\\usepackage{graphicx}\n\\input{body}\n"
+    )
+    (tmp_path / "body.tex").write_text(
+        "\\begin{document}\nreal paper body " * 20 + "\n\\end{document}\n"
+    )
+    assert find_main_tex(tmp_path) == tmp_path / "main.tex"
+
+
+def test_find_main_tex_bd_transitive_two_hops(tmp_path: Path) -> None:
+    r"""bd 隔两跳也算：``main → mid → leaf`` 传递闭包内命中即收。"""
+    (tmp_path / "leaf.tex").write_text(
+        "\\begin{document}\ndeep content " * 30 + "\n\\end{document}\n"
+    )
+    (tmp_path / "mid.tex").write_text("\\input{leaf}\nmid wrapping text\n")
+    (tmp_path / "paper.tex").write_text("\\documentclass{article}\n\\input{mid}\n")
+    assert find_main_tex(tmp_path) == tmp_path / "paper.tex"
+
+
+def test_find_main_tex_closure_without_bd_rejected(tmp_path: Path) -> None:
+    r"""dc 文件的 ``\input`` 闭包无 bd → 仍拒（闭包放宽不放丢 bd 判据）。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\input{macros}\n\\input{styles}\n"
+    )
+    (tmp_path / "macros.tex").write_text("\\def\\a{1}\n\\def\\b{2}\n")
+    (tmp_path / "styles.tex").write_text("\\input{macros}\n\\def\\c{3}\n")
+    assert find_main_tex(tmp_path) is None
+
+
+def test_find_main_tex_commented_input_not_followed(tmp_path: Path) -> None:
+    r"""注释掉的 ``\input``/bd 不计——遮盖视图内不可见。
+
+    ``main.tex`` 的 ``%\input{body}`` 被抹除 → body.tex 不可达；
+    ``supp.tex`` 活 ``\input{chap}`` 但 chap 内 bd 整行注释 → 同样无 bd。
+    """
+    (tmp_path / "main.tex").write_text("\\documentclass{article}\n% \\input{body}\n")
+    (tmp_path / "body.tex").write_text("\\begin{document}\nx\n\\end{document}\n")
+    (tmp_path / "supp.tex").write_text("\\documentclass{article}\n\\input{chap}\n")
+    (tmp_path / "chap.tex").write_text(
+        "% \\begin{document}\nchapter text\n% \\end{document}\n"
+    )
+    assert find_main_tex(tmp_path) is None
+
+
+def test_find_main_tex_seki_cover_still_rejected(tmp_path: Path) -> None:
+    r"""SEKI 双子形态（0905.2435/0905.4369）：dc 只在封面件内，闭包无 bd → None。
+
+    收录方向的判别力所在：封面 ``seki-deckblatt-3.tex`` 有 dc 但不 ``\input``
+    正文；``pdf.tex`` 拉 ``body``（含 bd）却自己没有 dc——dc 门槛保持本体
+    判定，闭包放宽救不了它。
+    """
+    (tmp_path / "seki-deckblatt-3.tex").write_text(
+        "\\newcommand\\makecover{%\n\\documentclass[twoside,12pt]{\\whatSEKI}\n}\n"
+    )
+    (tmp_path / "body.tex").write_text(
+        "\\input seki-deckblatt-3\n"
+        "\\begin{document}\nbody " * 40 + "\n\\end{document}\n"
+    )
+    (tmp_path / "pdf.tex").write_text(
+        "%&latex\n\\newcommand\\SEKImasterusepackages{}\n\\input body\n"
+    )
+    assert find_main_tex(tmp_path) is None
+
+
 def test_inject_float_sizing_uppercase_ext(tmp_path: Path) -> None:
     r"""``.TEX`` 主文件的 figure 工程也触发 FLOAT_SIZING 注入。"""
     (tmp_path / "PAPER.TEX").write_text(
