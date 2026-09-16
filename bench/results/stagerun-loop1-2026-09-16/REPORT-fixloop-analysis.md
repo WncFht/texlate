@@ -67,3 +67,5 @@ syntax 15 / other 14 / babel_opt 11 / illegal_unit 10 / pdftex_prim 7 / capacity
 - **1803.00012 → 确定性 xelatex SIGSEGV（ticket-only）**：revtex4 shim 树内 hyperref 初始化段（log 止于 `Plain pages OFF` 后）崩 rc=-11；stack/save/nest_size 放宽无效、`unicode=false` 无效（文档自开 unicode=true）→ 非资源耗尽、非选项门控的真引擎 bug，无规则面可修。
 
 另发现并移交 1d：`shim_known` 条件（engine.py:611）实际不可达（shim_map 键带扩展名 vs `\usepackage{裸名}`）；payload 口径在宏内炸场景偏到展开点行末（真冒犯 cs 在上文 macro-expansion 行末）；`PDFTEX_PRIMS` 缺 pdfobj/pdflastobj 族（wdir 内直用型稿件要靠它 guard/polyfill）。
+
+**pst-node/pst-arrow 疑点核销**：0707.1954 动作链显示 round5 `missing_file: pst-node` 仅记 `no package provides pst-node`——裸名候选 `pst-node.tex` 变体补位是 `3c5aae2`（17:19）才落的，loop1 跑于 15:49 之前。机理无谜：`\input pst-node`（pstricks-add 内裸 input）→ 裸 payload → filemap 查文件名表必 miss。loop2 已含该修复，22 格 pst-* 预期转 installed。
