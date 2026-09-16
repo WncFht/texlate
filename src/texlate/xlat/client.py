@@ -11,15 +11,15 @@
   `content` 分字段返回，reasoning 也吃 max_tokens——翻译请求 max_tokens≥8192。
 - BYOK：`provider_for_url` host→provider 预设表（照 texglot providers.py 形状）。
 
-现状注记（audit 2026-09-16）：生产路径走配置模型名（worker/cli 显式指定），
-免费集发现链（``discover_free_models``/``probe_model``/``pick_model`` +
-``DEFAULT_MODEL_PREFERENCE``/``DEFAULT_MODEL_DENYLIST``）与 ``chat_stream``
-目前仅 bench/test/网关 smoke 消费——模型 fallback 臂接入待立项。
+现状注记（2026-09-17）：发现链已接入生产——``chat`` 在内置免费网关上
+附带模型降级臂（``fallback_candidates`` 惰性发现 + memoize，BYOK/公网
+端点零探测短路）；``chat_stream`` 仍仅 bench/test/网关 smoke 消费。
 """
 
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import json
 import logging
 import re
@@ -51,6 +51,9 @@ PROBE_TIMEOUT = httpx.Timeout(60.0, connect=10.0)
 DEFAULT_MODEL_PREFERENCE = ("swe-2-medium", "swe-2-high", "swe-2-max", "glm-5-2")
 #: 免费集禁用名单（契约事故史/不可预算，docs/research/gateway/free-model-ranking §5）
 DEFAULT_MODEL_DENYLIST = frozenset({"swe-1-7", "swe-1-7-medium"})
+#: 单次 chat 降级臂最多补发候选数（对齐 §1.7 备选链深度 medium→high→max，
+#: 防半死网关上一次调用放大成十数发——外层 ``call_with_backoff`` 还会整体重试）
+FALLBACK_MAX_CANDIDATES = 3
 
 #: HTTP 状态码（classify 判定表）
 HTTP_OK = 200
@@ -205,6 +208,20 @@ def classify_status(status: int, body: str, headers: httpx.Headers) -> ChatError
     return ClientRejectedError(msg, status=status)
 
 
+def _model_switchable(e: ChatError) -> bool:
+    """换模型可能有救的失败（免费集降级臂的切模判据）。
+
+    404 = 模型从清单摘除（promo 到期形态）；HTTP/合同级 retryable
+    （429/5xx/408/409/425/空响应/截断）换候选有救。传输错误
+    （status<0——同端点同死）、auth/计费/其余 4xx 不切。
+    """
+    if isinstance(e, EndpointNotFoundError):
+        return True
+    if isinstance(e, RetryableHTTPError) and e.status < 0:
+        return False
+    return e.retryable
+
+
 # ---------------------------------------------------------------- 结果类型
 
 
@@ -318,6 +335,28 @@ _PROVIDER_DIALECT: dict[str, str] = {
     "anthropic": "anthropic",
 }
 
+_LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
+#: tailnet CGNAT 段（与 ``settings._is_plaintext_ok_host`` 同信任域——
+#: 自有网段上跑的只会是部署方自有服务，探活打过去不烧第三方 quota）
+_TAILNET_V4 = ipaddress.ip_network("100.64.0.0/10")
+
+
+def is_free_gateway_url(base_url: str) -> bool:
+    """内置免费网关判定：host ∈ loopback ∪ tailnet（CGNAT / ``*.ts.net``）。
+
+    发现/探活链只准打这个面——公网 BYOK 预设（anthropic/deepseek/qwen/
+    openai）与任意 custom 公网端点一律 False，一个探测请求都不发。
+    ``provider_for_url`` 单独不能当闸：默认 tailnet 网关解析成
+    ``"custom"``，BYOK 也可以是 custom——端点身份只能看网络位置。
+    """
+    host = (urlsplit(normalize_base_url(base_url)).hostname or "").lower()
+    if host in _LOOPBACK_HOSTS or host.endswith(".ts.net"):
+        return True
+    try:
+        return ipaddress.ip_address(host) in _TAILNET_V4
+    except ValueError:
+        return False
+
 
 def normalize_base_url(base_url: str) -> str:
     """宽容归一：剥尾 `/`、`/chat/completions`、`/v1` 后缀，得到裸服务根。"""
@@ -384,6 +423,9 @@ class ChatClient:
         )
         #: 每次成功 ``chat()`` 后调用的记账回调（可后挂——worker 侧接线点）
         self.usage_sink = usage_sink
+        #: 免费集降级臂 memoize：None=未跑过发现；[]=非内置网关或发现失败
+        self._free_uids: list[str] | None = None
+        self._discovery_lock = asyncio.Lock()
 
     async def __aenter__(self) -> Self:
         """进入 async with——返回自身。"""
@@ -546,8 +588,40 @@ class ChatClient:
         *,
         options: ChatOptions | None = None,
     ) -> ChatResult:
-        """一次 chat 往返。错误已按 `classify_status` 分类；length/empty 也抛错。"""
+        """一次 chat 调用；内置免费网关上附带模型降级臂。
+
+        候选序 = 请求模型 → ``fallback_candidates`` 的免费集（偏好序、
+        惰性发现、memoize；BYOK/公网端点恒空、零探测）。模型级失败
+        （``_model_switchable``：404 摘除/429/5xx/空响应/截断）按序
+        换候选各补一发；传输/auth/计费/请求级错误不切模直接上抛。
+        """
         opts = options or ChatOptions()
+        try:
+            return await self._chat_once(model, messages, opts)
+        except ChatError as e:
+            if not _model_switchable(e):
+                raise
+            last = e
+            log.warning("model %s 失败（%s）→ 枚举免费集降级候选", model, e)
+        for uid in await self.fallback_candidates():
+            if uid == model:
+                continue
+            try:
+                return await self._chat_once(uid, messages, opts)
+            except ChatError as e:
+                if not _model_switchable(e):
+                    raise
+                log.warning("model %s 失败（%s）→ 换下一免费集候选", uid, e)
+                last = e
+        raise last
+
+    async def _chat_once(
+        self,
+        model: str,
+        messages: list[dict[str, str]],
+        opts: ChatOptions,
+    ) -> ChatResult:
+        """单模型单次 chat 往返。错误已按 `classify_status` 分类；length/empty 也抛错。"""
         t0 = time.monotonic()
         try:
             if self.dialect == "anthropic":
@@ -722,7 +796,7 @@ class ChatClient:
 
         promo 到期（如 glm-5-2 2026-09-16）后该 uid 自然掉出——绝不硬编码。
         `probe=False` 只做两步交集（清单≠可用，正式选路必须 probe）。
-        现状：无生产调用方（仅 bench/test/网关 smoke，见模块 docstring 注记）。
+        生产调用方：``fallback_candidates``（``chat`` 降级臂经此枚举）。
         """
         panel = await self.panel_models()
         try:
@@ -768,6 +842,38 @@ class ChatClient:
             await asyncio.gather(*(_probe(fm) for fm in candidates[:max_probe]))
         )
 
+    async def fallback_candidates(self) -> list[str]:
+        """免费集降级候选 uid 表（``rank_models`` 偏好序）：惰性发现 + memoize。
+
+        非内置网关（``is_free_gateway_url`` False）与发现链任何失败一律
+        返回 []——BYOK/公网端点一个探测请求都不发，调用方静默退化为
+        静态模型行为。``chat`` 降级臂与 worker 侧枚举共用此面。
+        候选数封顶 ``FALLBACK_MAX_CANDIDATES``。
+        """
+        if not is_free_gateway_url(self.base_url):
+            return []
+        if self._free_uids is None:
+            async with self._discovery_lock:
+                if self._free_uids is None:
+                    try:
+                        self._free_uids = rank_models(await self.discover_free_models())
+                    except Exception as e:  # noqa: BLE001 -- 发现失败静默退化，绝不挡 chat
+                        log.warning("免费集发现失败（%s）——模型降级臂停用", e)
+                        self._free_uids = []
+        return self._free_uids[:FALLBACK_MAX_CANDIDATES]
+
+
+def rank_models(
+    discovered: list[FreeModel],
+    *,
+    preference: tuple[str, ...] = DEFAULT_MODEL_PREFERENCE,
+    denylist: frozenset[str] = DEFAULT_MODEL_DENYLIST,
+) -> list[str]:
+    """探活通过的免费集 → 有序候选 uid 表（denylist 剔除；偏好序在前，其余按 uid 字典序）。"""
+    alive = {m.uid for m in discovered if m.probe_ok} - set(denylist)
+    pref = [u for u in preference if u in alive]
+    return pref + sorted(alive - set(pref))
+
 
 def pick_model(
     discovered: list[FreeModel],
@@ -775,12 +881,6 @@ def pick_model(
     preference: tuple[str, ...] = DEFAULT_MODEL_PREFERENCE,
     denylist: frozenset[str] = DEFAULT_MODEL_DENYLIST,
 ) -> str | None:
-    """从探活通过的免费集里按偏好序选模型（denylist 一票否决）。
-
-    现状：无生产调用方（仅 bench/test，见模块 docstring 注记）。
-    """
-    alive = {m.uid for m in discovered if m.probe_ok} - set(denylist)
-    pref = [u for u in preference if u in alive]
-    if pref:
-        return pref[0]
-    return min(alive, default=None)
+    """从探活通过的免费集里按偏好序选模型（denylist 一票否决）。"""
+    ranked = rank_models(discovered, preference=preference, denylist=denylist)
+    return ranked[0] if ranked else None
