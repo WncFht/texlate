@@ -104,7 +104,7 @@ class TestCorrectorAndJudge:
         assert "True" in s
         assert "False" in s
         assert prompts.ENV_JUDGE_MAX_TOKENS == _EXPECTED_JUDGE_MAX_TOKENS
-        assert prompts.ENV_JUDGE_TEMPERATURE == 0.0
+        assert prompts.ENV_JUDGE_TEMPERATURE == 0.01  # t=0 → gateway 502 (d89cf9e)
 
     def test_judge_parse_failopen(self) -> None:
         assert prompts.parse_env_judge_answer("true")
