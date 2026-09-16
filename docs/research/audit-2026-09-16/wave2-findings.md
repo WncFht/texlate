@@ -194,3 +194,12 @@ pst-node×11 / jheppub×9 / citesort×7 / diagrams×7 / axodraw×5 / pst-arrow×
 - **回弹我侧两项已落 `450b1ad`**：precheck `\input` 扫描逐行切注释（`_apply_scan_install` code-portion 化，pst-notreal 不再被装）；F 桶 verdict 修——`expect_cjk` 全 zh 臂调用点改由 translate chunks 派生（e2e/stagerun×2/e2e_real×2/e2e_mock；worker 侧已转 1e）。
 - **E 桶裁定 pipeline 面收**（peer1）：main_rel 选取加「`\begin{document}` 后实质 body」权重——落点 inject.py `find_main_tex`（1d，task #170）。
 - **L2 红旗哨**：`test_l2_runs_before_fixloop` 持续红（done≠partial，纯 `\badcs` 假 log 与 taxonomy 无关，HEAD 复现）——dirty 树 gullet/macro_table/reconstruct（fixer-slots 在飞）嫌疑最大，slots 交付后仍红则升 ticket（#171 观察项）。
+
+### L2 红旗闭环 + emit 交付入库（`e65c56c` / `4ce255e`）
+
+- **L2 红根因 = 归因镜像漂移，非 slots 断面**：emit 的 `reconstruct.expand` 短参 `\n\n`→`\n` 折叠（#168）落盘字节变了，但 e2e `_expand_tokens`/`_chunk_spans`（L2 tex_line→chunk 归因的预测器）没同步——resplice 后算出的未折叠 body `find` 失败 → `spans[cid]=None` → 二次归因 hits2 全空 → `fallback_src`/`unresolved` 双空 → 无 fallback_orig → fixloop 下一编转绿 → **partial→done**。已修（`4ce255e`）：`_expand_tokens.rep` 对「已译 ∧ context∉{para,item}」的 `[[CHUNK_n]]` 同压折叠，`_chunk_spans` 改走 token 入口与 reconstruct 同构。test_server_l2 11/11 绿、全套 2201 绿（余红仅 #169 序依赖 flake）。**教训留档：splice 侧折叠/改写规则今后每动一处，e2e.py `_expand_tokens` 是同改点**。
+- **emit #167 入库 `e65c56c`**：`_has_at_cs`（gullet `_classify`）+ `_AT_CS_RX`/`_AT_CSNAME_RX`（macro_table OPAQUE 判据）双臂——含 csname 合成 @-cs 第二路径。0707.3950 "修复后仍炸"证为 **`_paper_done` 陈字节**（record `translate.seconds=0.0` 整篇 carry-over，postfix 臂编译打 17:55 旧 tex）；新代码全臂复验 0 err 0 spacefactor。
+- **`_paper_done` 陈字节立 #173**（我车道 e2e_real_bench.py）：resume 谓词对 splice/parse 层修复会误判 done——下次真臂重跑（n100+）前必落强制重 translate 条件，1e 侧已对齐等它再发。
+- **modec-postfix n=80（1e `75fc518`）**：gate PASS（escaped=0 dirty=0），pipe-xel 54→65 / pipeB 56→67 / pipeC 47→59；新败签名 revtex4-2+multicol opt clash（9901156/9901347 partial→fail）收 #172——升级器升 revtex4-2 时剥 multicol + epsf/epsfig 兼容审计。该批 8 个 upgrade209 净正（3 死→clean / 3 partial / 2 此对 fail），覆盖率缺口非回归。
+- **1e worker expect_cjk `05a2fab`**：`TaskCtx.expect_cjk` 字段携带（`chunk_counts(task_id)["total"] != 0`，与 `450b1ad` 同口径；loop 线程算一次避开 sqlite 线程亲和），五处 judge 点全换。
+- **keep-list 链路**：work_e2emock 2.2G + stagerun-loop1/work 44G 挂 fixer-slots preserve-list（在催）；兜底口径已放行 48——名单不到只留报告点名 cell（1206.0197、2410.17957 保底）。
