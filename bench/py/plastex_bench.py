@@ -183,11 +183,6 @@ def tag_of(n):
     )
 
 
-def is_math(n):
-    t = tag_of(n)
-    return t in MATH_TAGS or (isinstance(t, str) and "math" in t.lower())
-
-
 def extract_blocks_plastex(doc):
     """按段落提取可译文本块: DOM 中 document 后代、非数学/verbatim/cite 的
     #text 节点. 段落边界 = par 节点或块级元素."""

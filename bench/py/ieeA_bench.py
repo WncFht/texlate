@@ -20,11 +20,12 @@ import time
 import warnings
 from pathlib import Path
 
-BENCH = Path("/Users/fanghaotian/src/texlate/bench")
+BENCH = Path(__file__).resolve().parents[1]
 CORPUS = BENCH / "corpus"
 FIXTURES = BENCH / "fixtures"
 RESULTS = BENCH / "results"
 
+import ieeA
 from ieeA.parser import LaTeXParser
 
 
@@ -457,9 +458,9 @@ def main():
     RESULTS.mkdir(parents=True, exist_ok=True)
     report = {
         "lib": "ieeA",
-        "lib_path": "/Users/fanghaotian/src/ieeA",
+        "lib_path": str(Path(ieeA.__file__).resolve().parent.parent),
         "parser": "ieeA.parser.latex_parser.LaTeXParser.parse_file",
-        "date": "2026-09-14",
+        "date": time.strftime("%Y-%m-%d"),
         "parse": [],
         "leak_summary": {},
         "reconstruct": [],

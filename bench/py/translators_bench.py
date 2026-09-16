@@ -36,8 +36,9 @@ ledger schema（``sabotaged`` = 命中事件的块数；``moved`` = C 模式挪�
     sabotage-b 另含: caught / recovered / escaped / escaped_ids
     sabotage-c·perturb 另含: spliced / dropped
 
-``python bench/py/translators_bench.py`` 自检：60 段合成 tex 走
-parse → XlatPipeline(sabotage-b) → finalize，断言台账记到注入事件。
+``uv run python bench/py/translators_bench.py`` 自检：60 段合成 tex 走
+parse → XlatPipeline(sabotage-b) → finalize，断言台账记到注入事件
+（模块级 import texlate.xlat.pipeline → httpx，需 uv venv）。
 """
 
 from __future__ import annotations

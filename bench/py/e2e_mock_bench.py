@@ -22,7 +22,7 @@ reject→partial 口径）——verdict 跨臂可比；破坏记账只在翻译�
 fault_chunks/leftover_ph 即管线 bug 信号（应零）。
 
 用法:
-  python3 bench/py/e2e_mock_bench.py [--only SUBSTR] [--conditions base-xel,...]
+  uv run python bench/py/e2e_mock_bench.py [--only SUBSTR] [--conditions base-xel,...]
       [--limit N] [--timeout SEC] [--tag NAME]
       [--corpus bench/corpus_v3] [--layers core,hot] [--sample N --seed S]
       [--ids id1,id2]

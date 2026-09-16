@@ -20,7 +20,9 @@ e-band (2021+) IA 索引无覆盖 → 走 tiger channel（HF LFS, Range GET 同�
 旧池、七成摊到新月份，兼顾带宽与月份多样性。
 
 用法: python3 bench/py/build_corpus_expand.py <cmd> [--flags]
-依赖: 纯 stdlib + 同目录 build_corpus_v3/benchlib（bench 脚本纪律: 系统 python3）。
+依赖: 纯 stdlib + 同目录 build_corpus_v3/benchlib（bench 脚本纪律: 系统 python3）；
+      extract 例外——materialize 走 b3.unpack_blob → texlate.arxiv（eager httpx），
+      用 `uv run python` 跑（与 build_corpus_v3 extract 同例）。
 """
 
 from __future__ import annotations

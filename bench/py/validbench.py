@@ -254,11 +254,6 @@ def _in_comment(spans: list[int], pos: int) -> bool:
     return bool(i % 2)
 
 
-def _live_positions(positions: list[int], spans: list[int]) -> list[int]:
-    """过滤掉注释内的候选位."""
-    return [p for p in positions if not _in_comment(spans, p)]
-
-
 def _live_insert_positions(s: str, spans: list[int]) -> list[int]:
     """可插入位: 落在 ``pos`` 的文本拼进 ``s[pos-1]`` 所在词法区 ——
     ``pos-1`` 在注释内即注释内插入 (含注释行尾 ``\\n`` 前位, 实测漏检来源)."""

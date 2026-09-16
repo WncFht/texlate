@@ -85,11 +85,6 @@ def append_jsonl(path: Path, rec: dict) -> None:
         write_jsonl(fh, rec)
 
 
-def done_keys(path: Path, key: str = "id") -> set:
-    """records.jsonl 已落行的 key 集——续跑跳过谓词。"""
-    return {str(r[key]) for r in iter_jsonl(path) if key in r}
-
-
 def load_records(path: Path, key: str = "id") -> dict[str, dict]:
     """append 账 → {key: rec} 末行胜（rerun 重记同 id 自然覆盖）。"""
     out: dict[str, dict] = {}

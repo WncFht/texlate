@@ -119,12 +119,6 @@ def is_math_node(node):
     return isinstance(e, TexNamedEnv) and e.name in MATH_ENV_NAMES
 
 
-def text_of_arg(arg):
-    if isinstance(arg, (BraceGroup, BracketGroup)):
-        return "".join(str(c) for c in arg.contents)
-    return str(arg)
-
-
 # ---------------------------------------------------------------------------
 # 可译块提取 (protocol §4)
 # ---------------------------------------------------------------------------

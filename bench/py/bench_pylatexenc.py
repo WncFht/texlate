@@ -7,6 +7,7 @@ Usage:
     python bench_pylatexenc.py fixtures   # T-assertions on tricky*.tex
     python bench_pylatexenc.py roundtrip  # pos/len reconstruction on corpus .tex
     python bench_pylatexenc.py extract    # translatable-block extraction + leak rate
+    python bench_pylatexenc.py damage     # catastrophic-swallow scan (env/arg 吞噬签名)
     python bench_pylatexenc.py newcmd     # \newcommand "half-expansion" feasibility
     python bench_pylatexenc.py all        # everything -> results/pylatexenc-parse.json
 """

@@ -19,6 +19,8 @@ docs/09 S1–S5 实现. 30 月簇 (cluster_pick.json): a–d 带走 IA arxiv-bul
                 booster_pool.json (B01–B07 候选预筛)
   extract       S4: 中选成员 → bench/corpus_v3/{id}/{meta.json,raw.*,extracted/}
                 + manifest.jsonl + MANIFEST.md
+  extract-booster 补强层同款: booster_selection.jsonl 中选成员 →
+                corpus_v3/{id}/ + manifest_booster.jsonl
   qc            S5 自检: 配额达成/去重/stub/pdf_only/账目
 
 用法: bench/work_v3/.venv/bin/python bench/py/build_corpus_v3.py <cmd> [args]

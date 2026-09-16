@@ -26,7 +26,9 @@ from texlate.export.epub import iter_units, load_epub, translate_epub
 from texlate.export.rights import check_epub
 from texlate.xlat.pipeline import MockTranslator
 
-OUTDIR = Path("bench/results/export-realbook-2026-09-16")
+OUTDIR = (
+    Path(__file__).resolve().parents[2] / "bench/results/export-realbook-2026-09-16"
+)
 
 
 def _check_one(src: Path, dst: Path) -> dict:

@@ -25,10 +25,12 @@ astro-ph/0111038). baseline 条件 = 原文直编, 不注入不修复 —— 回
   run_meta.json 环境实录(平台/引擎版本/沙箱口径/参数)
 
 用法:
-  python3 bench/py/compilebench_v3.py --gen-sample     # 生成/覆写 sample.json
-  python3 bench/py/compilebench_v3.py                  # 跑样本(断点续跑, (id,eng)粒度)
-  python3 bench/py/compilebench_v3.py --report         # 只重算 cells+summary
-Deps: stdlib only(产品代码经 sys.path 直进 src/, 无需 venv —— archbox 同).
+  uv run python bench/py/compilebench_v3.py --gen-sample     # 生成/覆写 sample.json
+  uv run python bench/py/compilebench_v3.py                  # 跑样本(断点续跑, (id,eng)粒度)
+  uv run python bench/py/compilebench_v3.py --report         # 只重算 cells+summary
+Deps: --gen-sample/--report stdlib only; 跑样本路径 lazy-import
+  texlate.compile.engine → toolchain → httpx（sys.path 直进 src/ 只解包名，
+  第三方依赖仍要环境提供 → uv run 为推荐口径；装了 httpx 的系统 python3 亦可）。
 """
 
 from __future__ import annotations
