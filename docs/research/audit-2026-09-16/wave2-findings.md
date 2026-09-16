@@ -69,3 +69,15 @@
 - 依赖表/web package.json/默认引擎序/PH_RX 形状/TEXLATE_LIVE 门/平台门/conftest helper：核实健康。
 - fixloop 程序化交叉验证：36 规则 category 全由 taxonomy 产出、17 builtin+2 rewrite 全命中注册表、无 order 冲突/重复 id；8 taxonomy 无规则承接=刻意留白。
 - server 哨兵顺序/done 事件配对/单写者纪律/share 对账/dispatcher 死锁修复/L2 cache 跨线程接线：核实干净。
+
+## loop1 fixloop 结果分析（stagerun-loop1-2026-09-16；聚合报告 REPORT-fixloop-analysis.md 由项目体验方式执笔，本节为 leader 对账+补充）
+
+数据：1310 格入闸（fail647+misschar663）→ clean 144 / acceptable 663 / best_effort 295 / unfixable ~208 / no_errors_no_pdf 15 / stuck 1，rescue 84.0%。迁移 fail→clean 181 / fail→partial 273 / partial→clean 8。**注意：本轮跑在 engine 修复 6b23435 之前**，环境杀伤需打折。
+
+### partial→fail 17 格：实证后真退化仅 4 格
+
+peer 直编修复后 splice/ 树复验：**13 格为基建杀伤假象**（12/15 修复后引擎直出 pdf），真规则退化只 1003.1717 / 1306.0036 / 2410.00012 / astro-ph/0111575 四格 + 三个硬单案（1803.00012 SIGSEGV rc139、1803.00054 `\usepackage{color}` 真错、1706.02464 bufsize 溢出）。`no_errors_no_pdf` 机理实例（1706.00175）：`(\end occurred when \ifx ... was incomplete)` + `No pages of output` —— TeX 早夭无 `!` 行 → taxonomy 判 clean → 无规则承接。修复方向：a) taxonomy 尾段加 `No pages of output`/`\\end occurred when` pattern 给真类别（rules.yaml，peer1）；b) fixloop 引擎「不退化底板」——快照入口态 PDF、末态判决不低于入口态（mine，下轮候选）；c) judge 记 `killed_signal`（SIGSEGV 类）。triage `regressions:[]` 未捕此簇——探测器只同段同臂比，跨段「终态 vs 入口态」口径待补。
+
+### unfixable 大头 = missing_file legacy 包（113 格，fail 残留 59%）
+
+pst-node×11 / jheppub×9 / citesort×7 / diagrams×7 / axodraw×5 / pst-arrow×5 / svjour3×5 + texsort/epsf/emulateapj5/setstack/conm-p-l/imsart/jinstpub/espcrc1 等——CTAN filemap 解不出。**正中在飞的 vendored_sty_shadow tlpdb-index 修复**（tlpdb 索引含 revtex4-1→cls 这类精确映射）；处置面=shim_map/overrides 扩列或真缺档承认。疑点：emulateapj*/epsf 有 shim 仍报 missing_file → vendored_shadow/install 通路未接住，疑规则 bug。`unfixable:pdftex_prim:pdfcompresslevel`×6 部分被 #131 subclassify 收窄覆盖。
