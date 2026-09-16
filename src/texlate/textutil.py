@@ -263,12 +263,16 @@ _DEAD_BEGIN_RX: Final = re.compile(
 )
 #: TeX 控制序列：`\word*` 或单个非字母字符（DOTALL 让 `\.` 能吃 `\`+换行）。
 _COMMAND_RX: Final = re.compile(r"\\(?:[a-zA-Z@]+\*?|.)", re.DOTALL)
+_INLINE_VERB_RX: Final = re.compile(r"\\(verb\*?|lstinline\*?)(?![A-Za-z@])")
+_LSTINLINE_OPT_RX: Final = re.compile(r"\s*(?:\[[^\]\n]*\]\s*)?")
+_NL_RX: Final = re.compile(r"[\r\n]")
 
 
 def _env_stop(text: str, env: str, pos: int) -> int:
     r"""从 pos 找 ``\end{env}``，返回其结束后 offset；找不到返回 len(text)。"""
-    ending = re.search(r"\\end\s*\{" + re.escape(env) + r"\}", text[pos:])
-    return pos + ending.end() if ending else len(text)
+    # 锚定 pos 搜索零切片——env 集有界，re 内部编译缓存兜住逐次 compile。
+    ending = re.compile(r"\\end\s*\{" + re.escape(env) + r"\}").search(text, pos)
+    return ending.end() if ending else len(text)
 
 
 def _inline_verb_end(text: str, i: int, n: int) -> int | None:
@@ -277,19 +281,19 @@ def _inline_verb_end(text: str, i: int, n: int) -> int | None:
     ``\lstinline`` 允许 ``[opt]`` 前缀；定界符取首个非空白字符，
     ``{`` 定界时配 ``}``；未闭合或跨行不算（交回主循环逐字符扫）。
     """
-    inline = re.match(r"\\(verb\*?|lstinline\*?)(?![A-Za-z@])", text[i:])
+    inline = _INLINE_VERB_RX.match(text, i)
     if not inline:
         return None
-    start = i + inline.end()
+    start = inline.end()
     if inline[1].startswith("lstinline"):
-        options = re.match(r"\s*(?:\[[^\]\n]*\]\s*)?", text[start:])
-        start += options.end()
+        options = _LSTINLINE_OPT_RX.match(text, start)
+        start = options.end()
     if start >= n or text[start].isspace():
         return None
     delimiter = text[start]
     end = text.find("}" if delimiter == "{" else delimiter, start + 1)
-    nl = re.search(r"[\r\n]", text[start:])
-    newline = -1 if nl is None else start + nl.start()
+    nl = _NL_RX.search(text, start)
+    newline = -1 if nl is None else nl.start()
     if end < 0 or (newline >= 0 and newline < end):
         return None
     return end + 1
@@ -315,8 +319,8 @@ def mask_tex(text: str, *, mask_dead: bool = True, keep_verbatim: bool = False) 
     n = len(text)
     while i < n:
         if text[i] == "%":
-            nl = re.search(r"[\r\n]", text[i:])
-            stop = n if nl is None else i + nl.start()
+            nl = _NL_RX.search(text, i)
+            stop = n if nl is None else nl.start()
             mask(i, stop)
             i = stop
             continue
