@@ -120,3 +120,19 @@ axessibility 6 格 + axodraw2 5 格 + pst-all 8 格（待 sibling-closure 或配
   - **SIGKILL 超时 ×1**：2211.13028 — rc=-9 timed_out，log 截断在 citation warning 半途（无 stats 尾）。真挂起/infra 类，非规则缺口。
 
 **小结**：本轮命名簇 21/22 格转 pdf（axessibility+axodraw2+pst 7+misschar 2），1 格前进换类（illegal_unit），early_eof 13 格留作下轮签名归因。
+
+## 补记 8：wave-2 规则批收官（2026-09-16，commit `3010310`/`768c528` 等）
+
+wave-2 全批落地验证完毕。**方法同补记 7**：每格先 `compile --arm zh --rerun` 重建 pristine splice 再 `fixloop --rerun`。
+
+- **shim_map 第二波 ×26 格 → 25 转 pdf**（clean 5 / acceptable 4 / best_effort ~16）：emulateapj-rtx4→emulateapj、amsart2000→amsart、nature2→nature、acm_proc_article-sp→acmart 桥接 + svmult/cimento/eptcs/JINST/PoS/appolb/pasj00/aa501/kapproc→article + multind/ams/widetext/amscd2000 功能 stub + numcompress/ol2/docs/sw20lart/xetex-inputenc/umlaut/isolatin1/llncsdoc noop + thmsupp/feynman/diagrams tex 空桩。唯一未愈 1306.0281 前进到 already_def（稿在 acmart-shim 的 amsthm 之上再载 ntheorem，"Theorem style plain already defined"——drop-loads 候选）。
+- **missing_file 第三 head 签名**（`Cannot find the file X`，3010310）：early_eof 误路由的 lgrenc.def×3 格全愈（补记 7 已记）。
+- **babel_lang_ldf_install**（order 11，`try_exts:[.ldf,b.ldf]` + overrides 语言→包钉表）**：14 格 → 13 愈**，唯一残留 polutonikogreek——语言无对应 .ldf 文件，需选项改写非安装，单格量。
+- **expl3_driver_opt_strip**（order 35，剥 documentclass 驱动选项）：4 格 → 1 愈 + 3 前进换类（other/illegal_unit/undefined_cs），非退化。
+- **already_def_newcmd_renew**（order 111）：`\newcommand{\X}` 撞包先定义 → `\renewcommand`，作者书写面胜出。1003.0344/cond-mat-0501638 `\Ref` 两格 → **2/2 clean**。
+- **option_clash 跨文件两规则**（merge 只合单文件双载，cls↔doc 分裂够不到）：`option_clash_loadopt_strip`（121，doc 侧含驱动词整括号剥除）愈 0905.0081（elsart 先载 graphicx[] vs doc [dvips]）；`option_clash_passopts`（122，非驱动选项 `\PassOptionsToPackage` 挂 documentclass 前 + doc 括号剥除）愈 astro-ph/0501556（aa.cls shim natbib[] vs doc [authoryear]，**意图零损失**）→ **2/2 出 pdf**（acceptable）。
+- **pkg_order_hyperxmp_relocate**（order 123）：hyperxmp 整行下沉到 hyperref 载点后（非互换——`\@footnotemark@nolink` \let 三明治须保持 pre-hyperref）。bundled 老 acmart.cls vs 新 hyperxmp v5+ 硬检 → 2308.12712 → **best_effort_pdf**。pkg_order 类目首个消费规则。
+
+**当前残盘**（fixloop.jsonl 每格末条，n=1310）：unfixable 合计 **57** = syntax 15 / illegal_unit 12 / early_eof 11 / undefined_cs 7 / capacity 5 / other 3 / fontspec_missing 2 / babel_opt 1（polutonikogreek）/ missing_file 1；no_errors_no_pdf 1（1803.00012 SIGSEGV，ticket-only）。出 pdf 1247/1310 = 95.2%。already_def/option_clash/pkg_order 三个命名簇清零。
+
+**wave-3 候选**：syntax/illegal_unit 超簇大头即译文腐蚀（fixer-slots 属地）+ 错帽终止下游；early_eof 残 11 = 补记 7 归因的 \read 交互/no-legal-\end/错帽/svjour-option/SIGKILL 各型；undefined_cs 7 残 payload 散（sortlist/maketitle/hb/emFrenkel/eqntopsep/LARGEFun）。
