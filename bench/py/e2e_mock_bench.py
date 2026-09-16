@@ -19,8 +19,15 @@ fault_chunks/leftover_ph 即管线 bug 信号（应零）。
 用法:
   python3 bench/py/e2e_mock_bench.py [--only SUBSTR] [--conditions base-xel,...]
       [--limit N] [--timeout SEC] [--tag NAME]
-产出: bench/results/e2emock-<tag>-<date>/{records.jsonl,results.json,matrix.md,summary.md}
-工作区: bench/work_e2emock/<cond>/<safe_id>/（gitignored 重产物）
+      [--corpus bench/corpus_v3] [--layers core,hot] [--sample N --seed S]
+      [--ids id1,id2]
+产出: bench/results/e2emock-<tag>-<date>/{records.jsonl,results.json,matrix.md,summary.md,sample.json}
+工作区: bench/work_e2emock/<cond>/<safe_id>/（gitignored 重产物；
+  非默认 corpus 时隔离到 work_e2emock/<corpus名>/ 下防跨语料同 id 互踩）
+
+--corpus 两种布局自动识别：bench/corpus 两级叶目录（默认）| corpus_v3
+manifest*.jsonl + {id}/extracted/（有 manifest 即走 v3 枚举，只收 extracted
+在盘条目；--layers 过滤层，默认全部在盘层）。
 """
 
 from __future__ import annotations
@@ -29,14 +36,19 @@ import argparse
 import asyncio
 import hashlib
 import json
+import os
+import random
 import re
 import shutil
 import sys
+from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "src"))
+#: TEXLATE_SRC 可指向冻结快照目录（内含 texlate/ 包）——长 bench 期间 src/
+#: 被并行代理实时改动时隔离用（同 e2e_real_bench 约定）。
+sys.path.insert(0, os.environ.get("TEXLATE_SRC", str(ROOT / "src")))
 
 import benchlib
 
@@ -225,13 +237,15 @@ class PerturbTranslator(MockTranslator):
 
 
 def _seg_of(r_source: str, seg: str) -> bool:
-    """事件段 ↔ 块: 段可能是 encoded 全段/行切片 (batch+ladder) 或原文 (corrector)."""
-    dec = decode_newlines(seg)
-    return (
-        r_source in (seg, dec)
-        or (len(dec) > 8 and dec in r_source)
-        or (len(seg) > 8 and seg in r_source)
-    )
+    """事件段 ↔ 块: 段可能是 encoded 全段/行切片 (batch+ladder) 或原文 (corrector).
+
+    两侧统一 ``\\r\\n→\\n``——CRLF 源里 ``[[SL]]`` 解回 ``\\n`` 对不上原文,
+    旧口径漏账 (sabotaged/escaped 双降; v3 recount 实证 sabotaged +33).
+    """
+    src_n = r_source.replace("\r\n", "\n")
+    cands = {seg, decode_newlines(seg)}
+    cands |= {c.replace("\r\n", "\n") for c in cands}
+    return src_n in cands or any(len(c) > 8 and c in src_n for c in cands)
 
 
 def translate_tree(root: Path, translator: MockTranslator) -> dict:
@@ -314,7 +328,16 @@ def pipe_mode_condition(
     src_ph = lambda s: sorted(PH_RX.findall(s))  # noqa: E731
     ledger: dict = {"events": len(tr.events), "sabotaged": 0, "moved": 0}
     if mode == "B":
-        ledger.update({"caught": 0, "recovered": 0, "escaped": 0, "escaped_ids": []})
+        ledger.update(
+            {
+                "caught": 0,
+                "recovered": 0,
+                "escaped": 0,
+                "escaped_ids": [],
+                "escaped_detail": [],
+                "by_kind": {},
+            }
+        )
     else:
         ledger.update({"spliced": 0, "dropped": 0})
     for r in results:
@@ -324,13 +347,30 @@ def pipe_mode_condition(
         ledger["sabotaged"] += 1
         ledger["moved"] += sum(e.get("moved", 0) for e in evs)
         if mode == "B":
+            kinds = "+".join(sorted({e.get("kind", "?") for e in evs}))
+            bk = ledger["by_kind"].setdefault(
+                kinds, {"caught": 0, "recovered": 0, "escaped": 0}
+            )
             if r.status != "ok":
                 ledger["caught"] += 1  # fault/skipped → 原文回退
+                bk["caught"] += 1
             elif src_ph(r.translation) != src_ph(r.source):
                 ledger["escaped"] += 1
+                bk["escaped"] += 1
                 ledger["escaped_ids"].append(r.chunk_id)
+                src_m, zh_m = Counter(src_ph(r.source)), Counter(src_ph(r.translation))
+                ledger["escaped_detail"].append(
+                    {
+                        "chunk": r.chunk_id,
+                        "kinds": kinds,
+                        "details": [e.get("detail") for e in evs],
+                        "lost": sorted((src_m - zh_m).elements()),
+                        "extra": sorted((zh_m - src_m).elements()),
+                    }
+                )
             else:
                 ledger["recovered"] += 1
+                bk["recovered"] += 1
         elif r.status == "ok":
             ledger["spliced"] += 1  # 挪位译文进了文档 → 编译判存活
         else:
@@ -349,11 +389,17 @@ def pipe_mode_condition(
 
 # ---------------------------------------------------------------- 条件执行
 def run_condition(
-    cond: str, src: Path, sid: str, main_rel: str, timeout: float
+    cond: str,
+    src: Path,
+    sid: str,
+    main_rel: str,
+    timeout: float,
+    work: Path | None = None,
 ) -> dict:
     """单条件：复制 → (pipe/pipeB/pipeC: 管线变体 | base: 原样) → compile → judge。"""
+    work = WORK if work is None else work
     engine_name = "xelatex" if cond.endswith("xel") else "tectonic"
-    dst = WORK / cond / sid
+    dst = work / cond / sid
     if dst.exists():
         shutil.rmtree(dst)
     shutil.copytree(src, dst)
@@ -366,10 +412,33 @@ def run_condition(
     return base_condition(dst, engine_name, main_rel, timeout)
 
 
-def list_projects() -> list[str]:
-    """corpus39 叶目录：直接含 .tex 的顶层目，或 hep-th/math 下的二级目。"""
+def _v3_layers(corpus: Path) -> list[str]:
+    """corpus_v3 在盘 manifest 层名：manifest.jsonl→core，manifest_X.jsonl→X。"""
+    return [
+        "core" if fp.name == "manifest.jsonl" else fp.stem.removeprefix("manifest_")
+        for fp in sorted(corpus.glob("manifest*.jsonl"))
+    ]
+
+
+def list_projects(
+    corpus: Path | None = None, layers: set[str] | None = None
+) -> list[str]:
+    """工程枚举。
+
+    corpus39 布局（默认）：直接含 .tex 的顶层目，或 hep-th/math 下的二级目。
+    corpus_v3 布局（manifest*.jsonl 存在）：manifest 条目里 extracted/ 在盘者，
+    ``--layers`` 可过滤层（默认全部在盘层）。
+    """
+    corpus = CORPUS if corpus is None else corpus
+    if _v3_layers(corpus):
+        rows = benchlib.load_manifest_rows(
+            corpus, sorted(layers) if layers else _v3_layers(corpus)
+        )
+        return sorted(
+            {e["id"] for e in rows if (corpus / e["id"] / "extracted").is_dir()}
+        )
     out = []
-    for p in sorted(CORPUS.iterdir()):
+    for p in sorted(corpus.iterdir()):
         if not p.is_dir():
             continue
         if any(p.glob("*.tex")):
@@ -386,10 +455,23 @@ def list_projects() -> list[str]:
 safe_id = benchlib.safe_id
 
 
-def run_project(rel: str, conditions: list[str], timeout: float) -> dict:
-    src = CORPUS / rel
+def run_project(
+    rel: str,
+    conditions: list[str],
+    timeout: float,
+    corpus: Path | None = None,
+    work: Path | None = None,
+) -> dict:
+    corpus = CORPUS if corpus is None else corpus
+    work = WORK if work is None else work
+    src = corpus / rel
+    if (src / "extracted").is_dir():
+        src = src / "extracted"  # corpus_v3 布局：{id}/extracted/ 是源码根
     sid = safe_id(rel)
     rec: dict = {"id": rel}
+    meta_p = src.parent / "meta.json" if src.name == "extracted" else None
+    if meta_p is not None and meta_p.exists():
+        rec["layer"] = json.loads(meta_p.read_text()).get("layer")
     main_path = find_main_tex(src)
     if main_path is None:
         rec["error"] = "no main tex"
@@ -406,11 +488,13 @@ def run_project(rel: str, conditions: list[str], timeout: float) -> dict:
     for cond in conditions:
         if cond == "base-tec":
             continue  # 条件性补跑——pipe-tec 非 clean 时再跑
-        rec[cond] = run_condition(cond, src, sid, main_rel, timeout)
+        rec[cond] = run_condition(cond, src, sid, main_rel, timeout, work)
     if "base-tec" in conditions:
         pt = rec.get("pipe-tec", {}).get("verdict", {}).get("status")
         if pt is not None and pt != "clean":
-            rec["base-tec"] = run_condition("base-tec", src, sid, main_rel, timeout)
+            rec["base-tec"] = run_condition(
+                "base-tec", src, sid, main_rel, timeout, work
+            )
     return rec
 
 
@@ -422,7 +506,7 @@ def _status(rec: dict, cond: str) -> str:
     return c.get("verdict", {}).get("status", "?")
 
 
-def write_reports(results: dict, out_dir: Path) -> None:
+def write_reports(results: dict, out_dir: Path, corpus_name: str = "corpus39") -> None:
     cond_order = (
         "base-xel",
         "pipe-xel",
@@ -447,7 +531,7 @@ def write_reports(results: dict, out_dir: Path) -> None:
     matrix.extend("| " + " | ".join(str(x) for x in r) + " |" for r in rows)
     (out_dir / "matrix.md").write_text("\n".join(matrix) + "\n", encoding="utf-8")
 
-    lines = ["# e2e mock bench — corpus39", ""]
+    lines = [f"# e2e mock bench — {corpus_name}", ""]
     for cond in conds:
         ran = [r[cond] for r in results.values() if r.get(cond)]
         clean = sum(1 for r in ran if r["verdict"]["status"] == "clean")
@@ -536,7 +620,31 @@ def main() -> None:
     ap.add_argument("--timeout", type=float, default=240.0)
     ap.add_argument("--tag", default=RESULTS_DIR_DEFAULT)
     ap.add_argument("--date", default=str(datetime.now(UTC).date()))
+    ap.add_argument(
+        "--corpus",
+        default=str(CORPUS),
+        help="语料根：bench/corpus 两级叶目录 | corpus_v3（manifest+{id}/extracted）",
+    )
+    ap.add_argument(
+        "--layers",
+        default=None,
+        help="corpus_v3 层过滤，逗号分隔（默认全部在盘 manifest 层）",
+    )
+    ap.add_argument("--ids", default=None, help="显式 id 逗号列表（跳过枚举+抽样）")
+    ap.add_argument("--sample", type=int, default=None, help="枚举内 seed 随机抽 N 篇")
+    ap.add_argument("--seed", type=int, default=42, help="--sample 随机种子")
     args = ap.parse_args()
+
+    corpus = Path(args.corpus)
+    if not corpus.is_absolute():
+        corpus = ROOT / corpus
+    layers = (
+        {s.strip() for s in args.layers.split(",") if s.strip()}
+        if args.layers
+        else None
+    )
+    # 非默认语料隔一层工作区——跨语料同 id（如 hep-th/9901001）不互踩
+    work = WORK if corpus == ROOT / "bench/corpus" else WORK / corpus.name
 
     conditions = [c.strip() for c in args.conditions.split(",") if c.strip()]
     out_dir = ROOT / "bench/results" / f"{args.tag}-{args.date}"
@@ -551,21 +659,41 @@ def main() -> None:
         else (json.loads(out_path.read_text()) if out_path.exists() else {})
     )
 
-    projects = list_projects()
+    projects = list_projects(corpus, layers)
+    if args.ids:
+        projects = sorted(i.strip() for i in args.ids.split(",") if i.strip())
+    elif args.sample is not None:
+        rng = random.Random(args.seed)
+        projects = sorted(rng.sample(projects, min(args.sample, len(projects))))
+    (out_dir / "sample.json").write_text(
+        json.dumps(
+            {
+                "corpus": str(corpus),
+                "layers": sorted(layers) if layers else _v3_layers(corpus) or None,
+                "sample": args.sample,
+                "seed": args.seed,
+                "ids": projects,
+            },
+            ensure_ascii=False,
+            indent=1,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     for idx, rel in enumerate(projects):
         if args.only and args.only not in rel:
             continue
         if args.limit is not None and idx >= args.limit:
             break
         print(f"===== [{idx}/{len(projects)}] {rel} conds={conditions}", flush=True)
-        rec = run_project(rel, conditions, args.timeout)
+        rec = run_project(rel, conditions, args.timeout, corpus, work)
         if rel in results:
             results[rel].update(rec)
         else:
             results[rel] = rec
         benchlib.append_jsonl(rec_path, results[rel])
         out_path.write_text(json.dumps(results, ensure_ascii=False, indent=1))
-        write_reports(results, out_dir)
+        write_reports(results, out_dir, corpus.name)
         stat = {c: _status(rec, c) for c in conditions}
         print(f"  -> {stat}", flush=True)
     print(f"done -> {out_dir}", flush=True)
