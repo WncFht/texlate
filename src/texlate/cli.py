@@ -12,12 +12,14 @@ import hashlib
 import json
 import os
 import shutil
+import tarfile
 import tempfile
 import time
 import webbrowser
+import zipfile
 from http import HTTPStatus
 from pathlib import Path
-from typing import IO, Annotated
+from typing import IO, TYPE_CHECKING, Annotated
 
 import httpx
 import typer
@@ -31,8 +33,12 @@ from texlate.arxiv.fetch import (
     acquire_source,
     normalize_arxiv_id,
 )
+from texlate.compile import toolchain
 from texlate.e2e import mock_pipeline_run
 from texlate.latex.api import parse_file
+
+if TYPE_CHECKING:
+    from texlate.xlat.pipeline import Translator
 
 app = typer.Typer(
     help="arXiv LaTeX 源码 → LLM 段落级翻译 → ctex 重编译中文 PDF。",
@@ -545,3 +551,110 @@ def web(
         return
     typer.echo(f"texlate web → http://{host}:{port}", err=True)
     uvicorn.run(create_app(), host=host, port=port)
+
+
+# ---------------------------------------------------------------- export
+
+
+@app.command()
+def export(
+    path: Annotated[
+        Path, typer.Argument(help="EPUB/DOCX 文档（zip 内容嗅探，不看后缀）")
+    ],
+    *,
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", "-o", help="输出路径（缺省 {stem}_bilingual{ext}）"),
+    ] = None,
+    model: Annotated[
+        str | None, typer.Option("--model", help="模型名（缺省 TEXLATE_MODEL）")
+    ] = None,
+    mock: Annotated[
+        bool, typer.Option("--mock", help="MockTranslator 干跑（不触网）")
+    ] = False,
+) -> None:
+    """EPUB/DOCX → 双语插译文档（原文段落后跟译文）。
+
+    DRM 声明/fixed-layout/畸形包落翻译前拒开；中断留 ``{dst}.state/`` 自动续跑。
+    """
+    from texlate.export import export_document  # noqa: PLC0415 -- 重依赖延迟导入
+    from texlate.export.common import ExportError  # noqa: PLC0415
+
+    translator = _export_translator(model, mock=mock)
+    try:
+        report = export_document(path, out, translator)
+    except ExportError as e:
+        typer.echo(f"export: {e}", err=True)
+        raise typer.Exit(1) from None
+    typer.echo(
+        f"{report.dst} — 插译 {report.translated}/{report.units}"
+        f"（unchanged {report.unchanged} / skipped {report.skipped}"
+        f" / fault {report.fault}）",
+        err=True,
+    )
+
+
+def _export_translator(model: str | None, *, mock: bool) -> Translator:
+    """worker._make_translator 的无 ctx 版：env/key → 网关，否则 Mock。"""
+    from texlate.xlat.pipeline import (  # noqa: PLC0415
+        GatewayTranslator,
+        MockTranslator,
+    )
+
+    force = os.environ.get("TEXLATE_TRANSLATOR", "").lower()
+    api_key = os.environ.get("TEXLATE_API_KEY", "")
+    if mock or force == "mock" or (not api_key and force != "gateway"):
+        return MockTranslator()
+    from texlate.xlat.client import ChatClient  # noqa: PLC0415
+
+    return GatewayTranslator(
+        ChatClient(
+            os.environ.get("TEXLATE_BASE_URL", "http://127.0.0.1:3003"), api_key
+        ),
+        model or os.environ.get("TEXLATE_MODEL", "") or "swe-2-medium",
+    )
+
+
+# ---------------------------------------------------------------- tools
+
+tools_app = typer.Typer(
+    help="外部工具链管理（编译引擎探测/安装）。",
+    no_args_is_help=True,
+)
+app.add_typer(tools_app, name="tools")
+
+
+@tools_app.command("install-tectonic")
+def tools_install_tectonic() -> None:
+    """探测 tectonic（系统件/托管件/缺失）；缺失时下载安装到托管目录。
+
+    走 ``compile.toolchain``：sha256 钉值校验 → 单文件提取 → 原子落位，
+    托管落点 ``<data>/tools/``（``TEXLATE_DATA_DIR`` > ``~/.texlate``）。
+    已可用即报落点退出；``TEXLATE_NO_DOWNLOAD``/CI 默认关自动下载——
+    显式 ``TEXLATE_NO_DOWNLOAD=0`` 可在 CI 强制开。
+    """
+    resolved = toolchain.resolve_tool("tectonic")
+    if resolved is not None:
+        kind = "托管件" if resolved == toolchain.find_managed() else "系统件"
+        typer.echo(f"tectonic: {kind} {resolved} —— 无需安装")
+        return
+    typer.echo("tectonic: 缺失（PATH 与托管目录均未命中）")
+    if not toolchain.download_allowed():
+        typer.echo(
+            "自动下载已关闭（TEXLATE_NO_DOWNLOAD / CI）；"
+            "显式 TEXLATE_NO_DOWNLOAD=0 可强制开启",
+            err=True,
+        )
+        raise typer.Exit(1)
+    try:
+        path = toolchain.install_tectonic()
+    except (
+        OSError,
+        RuntimeError,
+        tarfile.TarError,
+        zipfile.BadZipFile,
+        httpx.HTTPError,
+    ) as e:
+        typer.echo(f"tectonic 安装失败：{e}", err=True)
+        raise typer.Exit(1) from None
+    typer.echo(f"tectonic: 已安装 {toolchain.TECTONIC_VERSION} → {path}")
