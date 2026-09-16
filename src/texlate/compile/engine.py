@@ -175,13 +175,14 @@ _NONERR_FILELINE_RE = re.compile(
 _L_NUM_RE = re.compile(r"^l\.(\d+)")
 
 #: clean 判据的 log warning 红线（docs/08 §4.3）：任一命中即 dirty。
-#: ``invalid_utf8`` 按产生文件归因——仅工程文件源计入 ``warnings_hit``，
-#: 系统 texmf/bundle 件（老 CTAN 包自带坏字节，loop1 归因占 96%）降
+#: ``invalid_utf8`` 按产生文件归因——仅工程文件源计入 ``warnings_hit``；
+#: 系统 texmf/bundle 件（老 CTAN 包自带坏字节，loop1 归因占 96%）与
+#: ``dos_eps_skipped`` 二进制件（normalize 原样保留、警告是必然残余）降
 #: ``warnings_sys`` 观察项（fixer-utf8 `673d8ce` normalize 四臂后复审）。
 _UTF8_WARN_RE = re.compile(r"Invalid UTF-8 byte")
 WARNING_RED_LINES: list[tuple[str, str]] = [
     ("invalid_utf8", _UTF8_WARN_RE.pattern),
-    ("fffd_glyph", r"Missing character:[^\n]*U\+FFFD"),
+    ("fffd_glyph", r'Missing character:[^\n]*\((?:"|U\+)FFFD\)'),
     ("missing_chars", r"Missing character: There is no"),
     (
         "missing_graphic",
@@ -195,6 +196,46 @@ WARNING_RED_LINES: list[tuple[str, str]] = [
     ("degraded_file", r"^!.*(?:File|package)[^\n]*not found"),
 ]
 
+#: DOS 二进制 EPS 魔数（normalize.py ``_DOS_EPS_MAGIC`` 同款——带绝对偏移
+#: 头的 legacy 格式，normalize 只能字节原样保留进 ``dos_eps_skipped`` 台账，
+#: 其 invalid_utf8 警告是必然残余而非可修复缺陷）。
+_DOS_EPS_MAGIC: Final = b"\xc5\xd0\xd3\xc6"
+
+
+def _is_dos_eps(token: str | None, root: Path | None, cache: dict[str, bool]) -> bool:
+    """文件栈 token → DOS 二进制 EPS 判定（按 token 缓存——坏字节逐行报警）。"""
+    if not token or root is None:
+        return False
+    if token in cache:
+        return cache[token]
+    p = Path(token)
+    if not p.is_absolute():
+        p = root / p
+    try:
+        with p.open("rb") as fh:
+            ok = fh.read(4) == _DOS_EPS_MAGIC
+    except OSError:
+        ok = False
+    cache[token] = ok
+    return ok
+
+
+#: ``(x.eps`` 类 graphic 打开帧——``TEX_FILE_EXTS`` 不含 graphic 扩展名，
+#: texlog 对此入 ``None`` 配对帧；utf8 归因需要真名，故本函数把行尾最后
+#: 一个未配对 ``(`` 的 graphic token 补回栈顶（texlog 栈属本函数局部）。
+_GRAPHIC_EXTS: Final = frozenset({".eps", ".epsf", ".epsi", ".ps", ".mps"})
+
+
+def _last_open_graphic_token(ln: str) -> str | None:
+    """行尾最后一个 ``(`` 未被 ``)`` 闭时，取其 graphic 文件名 token。"""
+    lp = ln.rfind("(")
+    if lp < 0 or lp < ln.rfind(")"):
+        return None
+    m = re.match(r"[^\s(){}]+", ln[lp + 1 :])
+    if m and Path(m.group(0)).suffix.lower() in _GRAPHIC_EXTS:
+        return m.group(0)
+    return None
+
 
 def _scan_error_lines(
     lines: list[str], info: LogInfo, project_root: Path | None = None
@@ -204,7 +245,8 @@ def _scan_error_lines(
     返回 ``(首错行号, 工程源 invalid_utf8 命中)``：逐行把栈顶最内文件
     作产生者交 ``is_project_file`` 判定——系统件源名收进
     ``info.warnings_sys``（``invalid_utf8@<file>``），工程源命中由
-    ``parse_log`` 收口进 ``warnings_hit``。
+    ``parse_log`` 收口进 ``warnings_hit``；DOS 魔数 EPS（normalize
+    ``dos_eps_skipped`` 原样保留件）视同系统件降级，标 ``(dos-eps)``。
     """
     ctx_start = -1
     stack: list[str | None] = []
@@ -213,11 +255,21 @@ def _scan_error_lines(
     popped: list[str | None] = []
     utf8_proj = False
     utf8_sys: set[str] = set()
+    dos_eps_cache: dict[str, bool] = {}
     for i, ln in enumerate(lines):
         update_file_stack(ln, stack, popped)
+        if stack and stack[-1] is None:
+            g = _last_open_graphic_token(ln)
+            if g:
+                stack[-1] = g
         if _UTF8_WARN_RE.search(ln):
             inner = next((s for s in reversed(stack) if s), None)
-            if is_project_file(inner, project_root):
+            if _is_dos_eps(inner, project_root, dos_eps_cache):
+                # dos_eps_skipped 件：normalize 字节原样保留的二进制 EPS，
+                # 残余警告降 warnings_sys 并打 (dos-eps) 标便于台账对账。
+                name = Path(inner).name if inner else "?"
+                utf8_sys.add(f"{name}(dos-eps)")
+            elif is_project_file(inner, project_root):
                 utf8_proj = True
             else:
                 utf8_sys.add(Path(inner).name if inner else "?")
@@ -242,7 +294,8 @@ def parse_log(log_text: str, *, project_root: Path | None = None) -> LogInfo:
     `-file-line-error` 模式下引擎级错误，docs/08 §2.3）。
 
     ``project_root`` = 编译工作根（``wdir``）：invalid_utf8 红线按警告
-    产生文件归因，系统 texmf/bundle 源降 ``warnings_sys`` 观察项。
+    产生文件归因，系统 texmf/bundle 源与 DOS 魔数 EPS（normalize
+    ``dos_eps_skipped`` 原样保留件）降 ``warnings_sys`` 观察项。
     缺席时绝对路径按 texmf 标记启发式、裸名保守归工程（不掉红线）。
     """
     info = LogInfo()
@@ -804,7 +857,9 @@ def _apply_sandbox(  # noqa: PLR0913 -- 沙箱决策参数面
     """
     if not enabled:
         return cmd, "off"
-    wrapped = sandbox_wrap(cmd, root=root, out=out, extra_rw=extra_rw)
+    wrapped = sandbox_wrap(
+        cmd, root=root, out=out, extra_rw=extra_rw, allow_net=allow_net
+    )
     if wrapped is not cmd:
         return wrapped, "sandbox-exec"
     if sys.platform != "linux":
@@ -1011,14 +1066,27 @@ class XelatexEngine:
         """engine_flags → (进 argv, 丢弃)。
 
         ``_OUTPUT_REKEY_PREFIXES`` 系 flag 会重键 pdf/log 落点、毁掉按
-        outdir 回收产物的约定 → 拒放进 dropped；其余原样直通。
+        outdir 回收产物的约定 → 拒放进 dropped；两 token 形态
+        （``-output-directory /x``）把值 token 一并丢——留在 argv 会被
+        xelatex 当第二输入文件处理。其余原样直通。
         """
         applied, dropped = [], []
-        for fl in flags or ():
+        flist = list(flags or ())
+        i = 0
+        while i < len(flist):
+            fl = flist[i]
             if fl.startswith(_OUTPUT_REKEY_PREFIXES):
                 dropped.append(fl)
+                if (
+                    "=" not in fl
+                    and i + 1 < len(flist)
+                    and not flist[i + 1].startswith("-")
+                ):
+                    dropped.append(flist[i + 1])
+                    i += 1
             elif fl not in applied:
                 applied.append(fl)
+            i += 1
         return applied, dropped
 
     def _cmd(
@@ -1123,12 +1191,15 @@ class XelatexEngine:
             if to:
                 break
         _collect_compile_outputs(res, outputs)
-        log_text = log.read_text(errors="replace") if log.exists() else ""
+        try:
+            log_text = log.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            log_text = ""
         res.log = parse_log(log_text or res.stdout_tail, project_root=wdir)
         res.log_path = log if log.exists() else None
         res.pdf = pdf if pdf.exists() else None
         res.pdf_bytes = pdf.stat().st_size if pdf.exists() else 0
-        res.ok = not res.timed_out
+        res.ok = not res.timed_out and res.rc is not None and res.rc >= 0
         res.workdir = wdir
         res.deps = compiled_dependencies(wdir, main, out, self.name)
         return res
@@ -1266,13 +1337,14 @@ class XelatexEngine:
             ):
                 # 冷 TEXMFHOME：先建 usertree tlpdb，否则 --usermode 报
                 # "Cannot determine type of tlpdb"（fixloop.py 实测坑）。
-                run_process(
+                rc_i, _, _, to_i = run_process(
                     [tool, "--usermode", "init-usertree"],
                     cwd=Path.cwd(),
                     env=env,
                     timeout=60,
                 )
-                self._usertree_inited = True
+                # 失败/超时不钉 True——下次 install 按 tlpdb 缺席重试。
+                self._usertree_inited = rc_i == 0 and not to_i
             argv = [tool, "--usermode"]
             if self.repository:
                 argv += ["--repository", self.repository]
@@ -1287,16 +1359,15 @@ class XelatexEngine:
         # tlmgr rc=0 却未落盘: postaction 类包在 usermode 整体拒装
         # ("package X is not relocatable", axodraw2 实证) —— 文件本身
         # 可直放, 走 CTAN archive 按 tlpdb relpath 铺进 usertree home。
-        return self._fetch_into_usertree(fname, pkgs) if home else False
+        return self._fetch_into_usertree(fname, pkgs, Path(home)) if home else False
 
-    def _fetch_into_usertree(self, fname: str, pkgs: list[str]) -> bool:
+    def _fetch_into_usertree(self, fname: str, pkgs: list[str], dest: Path) -> bool:
         """CTAN ``archive/<pkg>.tar.xz`` → overlay=tree 落 usertree home → 复核。"""
         from texlate.compile.fixloop.ctan import (  # noqa: PLC0415  # 延迟: 防循环
             MIRROR,
             fetch_package,
         )
 
-        dest = Path(self.texmfhome) / "home"
         for pkg in pkgs:
             # 网络/解包失败 → 静默试下一候选包 (复核探针是真值)
             with contextlib.suppress(Exception):
@@ -1322,13 +1393,12 @@ class XelatexEngine:
         return rc == 0 and not to
 
     def parse_log(self, res: CompRes) -> LogInfo:
-        """读 res.log_path；缺席时退 stdout_tail。"""
-        if res.log_path and res.log_path.exists():
-            return parse_log(
-                res.log_path.read_text(errors="replace"),
-                project_root=res.workdir,
-            )
-        return parse_log(res.stdout_tail, project_root=res.workdir)
+        """读 res.log_path；缺席/空文件/读失败时退 stdout_tail。"""
+        text = ""
+        if res.log_path is not None:
+            with contextlib.suppress(OSError):
+                text = res.log_path.read_text(encoding="utf-8", errors="replace")
+        return parse_log(text or res.stdout_tail, project_root=res.workdir)
 
 
 # ================================================================ tectonic
@@ -1374,36 +1444,43 @@ class TectonicEngine:
         return self.binary or ensure_tectonic()
 
     @staticmethod
-    def _map_flags(flags: Iterable[str] | None) -> tuple[list[str], list[str]]:
-        """engine_flags → (argv 追加 token, 丢弃的原 flag)：只放支持子集。
+    def _map_flags(
+        flags: Iterable[str] | None,
+    ) -> tuple[list[str], list[str], list[str]]:
+        """engine_flags → (argv 追加 token, 丢弃的原 flag, 实放行的原 token)。
 
         放行面 = ``_TECTONIC_FLAG_MAP`` 显式映射 + ``-Z`` 白名单值域
         （``_TECTONIC_Z_OK``；``-Z<opt>`` 单 token 与 ``-Z <opt>`` 两 token
         都收）；其余（含 ``-shell-escape``、``-Z shell-escape`` 后门拼写与
-        任何 ``--outdir`` 类重键尝试）进 dropped。
+        任何 ``--outdir`` 类重键尝试）进 dropped。``applied`` 是源 token
+        级记账——``CompRes.flags_applied`` 取它（dropped 里 ``-Z <x>`` 是
+        合体串，按 flist 差集会漏记成已放行）。
         """
-        toks, dropped = [], []
+        toks, dropped, applied = [], [], []
         flist = list(flags or ())
         i = 0
         while i < len(flist):
             fl = flist[i]
             if fl in _TECTONIC_FLAG_MAP:
                 toks += _TECTONIC_FLAG_MAP[fl]
+                applied.append(fl)
             elif fl == "-Z" and i + 1 < len(flist) and not flist[i + 1].startswith("-"):
                 if flist[i + 1].split("=", 1)[0] in _TECTONIC_Z_OK:
                     toks += [fl, flist[i + 1]]
+                    applied += [fl, flist[i + 1]]
                 else:
                     dropped.append(f"-Z {flist[i + 1]}")
                 i += 1
             elif fl.startswith("-Z") and fl != "-Z":
                 if fl[2:].split("=", 1)[0] in _TECTONIC_Z_OK:
                     toks.append(fl)
+                    applied.append(fl)
                 else:
                     dropped.append(fl)
             else:
                 dropped.append(fl)
             i += 1
-        return toks, dropped
+        return toks, dropped, applied
 
     def _bundle_flag(self, binary: str) -> str:
         """Bundle 落 argv 的 flag 名：本地路径恒 ``--bundle``；URL 按版本分支。
@@ -1452,7 +1529,7 @@ class TectonicEngine:
             cmd += [self._bundle_flag(binary), self.bundle]
         for hide in self.hide_paths:
             cmd += ["--hide", str(hide)]
-        toks, _ = self._map_flags(flags)
+        toks, _dropped, _applied = self._map_flags(flags)
         cmd += toks
         cmd.append(main_name)
         return cmd
@@ -1474,10 +1551,9 @@ class TectonicEngine:
         del passes  # tectonic 自动决定 pass 数
         res = CompRes(engine=self.name)
         flist = list(flags or ())
-        _, dropped = self._map_flags(flist)
+        _toks, dropped, applied = self._map_flags(flist)
         res.flags_dropped = dropped
-        dset = set(dropped)
-        res.flags_applied = [f for f in flist if f not in dset]
+        res.flags_applied = applied
         binary = self.detect()
         if binary is None:
             res.stdout_tail = "tectonic not found"
@@ -1520,7 +1596,10 @@ class TectonicEngine:
                 break
         res.passes = 1
         _collect_compile_outputs(res, outputs)
-        log_text = log.read_text(errors="replace") if log.exists() else ""
+        try:
+            log_text = log.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            log_text = ""
         info = parse_log(log_text, project_root=wdir)
         if info.first_error is None and not log_text:
             # tectonic 有时不写 .log 就崩（如 \documentstyle）——stderr 兜底。
@@ -1534,7 +1613,7 @@ class TectonicEngine:
         res.log_path = log if log.exists() else None
         res.pdf = pdf if pdf.exists() else None
         res.pdf_bytes = pdf.stat().st_size if pdf.exists() else 0
-        res.ok = not res.timed_out
+        res.ok = not res.timed_out and res.rc is not None and res.rc >= 0
         res.workdir = wdir
         res.deps = compiled_dependencies(wdir, main, out, self.name)
         return res
@@ -1564,13 +1643,18 @@ class TectonicEngine:
         return False
 
     def parse_log(self, res: CompRes) -> LogInfo:
-        """读 res.log_path；缺席时退 stdout_tail。"""
-        if res.log_path and res.log_path.exists():
-            return parse_log(
-                res.log_path.read_text(errors="replace"),
-                project_root=res.workdir,
-            )
-        return parse_log(res.stdout_tail, project_root=res.workdir)
+        """读 res.log_path；缺席/空文件时退 stdout_tail + ``error:`` 扫描。"""
+        text = ""
+        if res.log_path is not None:
+            with contextlib.suppress(OSError):
+                text = res.log_path.read_text(encoding="utf-8", errors="replace")
+        info = parse_log(text or res.stdout_tail, project_root=res.workdir)
+        if info.first_error is None and not text:
+            m = re.search(r"^error: (.+)$", res.stdout_tail, re.MULTILINE)
+            if m:
+                info.first_error = "! " + m.group(1)
+                info.n_errors = max(1, info.n_errors)
+        return info
 
 
 # ================================================================ 静态路由表
@@ -1632,7 +1716,10 @@ def route_project(root: Path, *, prefer: str = "tectonic") -> RouteDecision:
     for p in root.rglob("*"):
         if not p.is_file() or p.suffix.lower() != ".tex":
             continue
-        raw = p.read_bytes()
+        try:
+            raw = p.read_bytes()
+        except OSError:
+            continue  # 不可读文件不参与路由信号（竞态删除/权限位）
         try:
             raw.decode("utf-8")
         except UnicodeDecodeError:

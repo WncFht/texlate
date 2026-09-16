@@ -3,8 +3,10 @@
 引擎实跑不进单测——由 bench/py/e2e_mock_bench.py 驱动覆盖。
 """
 
+import contextlib
 import importlib
 import json
+import os
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -562,12 +564,16 @@ def test_install_lock_creates_lockfile(tmp_path: Path) -> None:
 
 # ---------------------------------------------------------------- flags seam
 def test_xelatex_split_flags_drops_output_rekey() -> None:
-    """重键输出落点的 flag（-output-directory/-jobname 系）→ dropped。"""
+    """重键输出落点的 flag（-output-directory/-jobname 系）→ dropped。
+
+    两 token 形态（``-jobname y``）的值 token 一并丢——留在 argv 会被
+    xelatex 当第二输入文件处理。
+    """
     applied, dropped = XelatexEngine._split_flags(  # noqa: SLF001
         ["-shell-escape", "-output-directory=/x", "-jobname", "y"]
     )
-    assert applied == ["-shell-escape", "y"]
-    assert dropped == ["-output-directory=/x", "-jobname"]
+    assert applied == ["-shell-escape"]
+    assert dropped == ["-output-directory=/x", "-jobname", "y"]
 
 
 def test_xelatex_compile_flags_in_argv(
@@ -611,7 +617,7 @@ def test_xelatex_compile_flags_in_argv(
 
 def test_tectonic_map_flags_subset() -> None:
     """放行面 = 显式映射 + -Z 白名单值域；shell-escape 系与未知项 → dropped。"""
-    toks, dropped = TectonicEngine._map_flags(  # noqa: SLF001
+    toks, dropped, applied = TectonicEngine._map_flags(  # noqa: SLF001
         [
             "-synctex=1",
             "-Z",
@@ -625,6 +631,7 @@ def test_tectonic_map_flags_subset() -> None:
         ]
     )
     assert toks == ["--synctex", "-Z", "keep-logs", "-Zpaper-size=a4"]
+    assert applied == ["-synctex=1", "-Z", "keep-logs", "-Zpaper-size=a4"]
     assert dropped == [
         "-Z shell-escape",
         "-Zsearch-path=/x",
@@ -745,6 +752,18 @@ def test_parse_log_utf8_project_file_redline(tmp_path: Path) -> None:
         assert info.warnings_sys == []
 
 
+def test_parse_log_utf8_dos_eps_demoted(tmp_path: Path) -> None:
+    """dos_eps_skipped 件（DOS 魔数二进制 EPS，normalize 原样保留）降 sys。"""
+    (tmp_path / "fig.eps").write_bytes(b"\xc5\xd0\xd3\xc6" + b"\x00" * 28)
+    info = parse_log(f"(./fig.eps\n{_UTF8_WARN})\n", project_root=tmp_path)
+    assert "invalid_utf8" not in info.warnings_hit
+    assert info.warnings_sys == ["invalid_utf8@fig.eps(dos-eps)"]
+    # 普通文本 eps（%!PS 头）仍属工程件——红线照计
+    (tmp_path / "fig2.eps").write_bytes(b"%!PS-Adobe-3.0 EPSF-3.0\n")
+    info2 = parse_log(f"(./fig2.eps\n{_UTF8_WARN})\n", project_root=tmp_path)
+    assert "invalid_utf8" in info2.warnings_hit
+
+
 def test_parse_log_utf8_bare_name_tectonic(tmp_path: Path) -> None:
     """tectonic bundle 日志只印裸名：root 给定时按 root/name 存在性分。"""
     (tmp_path / "main.tex").write_text("x")
@@ -782,3 +801,220 @@ def test_judge_project_utf8_still_partial(tmp_path: Path) -> None:
     v = judge(res)
     assert v.status == "partial"
     assert "warn:invalid_utf8" in v.reasons
+
+
+# ---------------------------------------------------------------- 审计修复面
+def test_fffd_glyph_quote_form_redline() -> None:
+    """老 TL ``("FFFD)`` 引号形也挂 ffd_glyph 红线（``(U+FFFD)`` 同吃）。"""
+    info = parse_log('Missing character: There is no ("FFFD) in font cmr10!\n')
+    assert "fffd_glyph" in info.warnings_hit
+
+
+def test_compile_ok_false_on_exec_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """run_process rc=None（二进制 exec 失败）→ ok=False——此前错报 ok=True。"""
+    (tmp_path / "main.tex").write_text("x\n", encoding="utf-8")
+
+    def fake_run(
+        cmd: list[str],
+        *,
+        cwd: Path,
+        env: dict[str, str],
+        timeout: float,
+        out_cap: int = 8 * 1024 * 1024,
+    ) -> tuple[int | None, str, float, bool]:
+        _ = (cmd, cwd, env, timeout, out_cap)
+        return None, "exec failed: nope", 0.1, False
+
+    monkeypatch.setattr("texlate.compile.engine.run_process", fake_run)
+    res = XelatexEngine(binary="/x/xelatex").compile(
+        tmp_path, "main.tex", passes=1, sandbox=False
+    )
+    assert res.rc is None
+    assert not res.ok
+
+
+def test_compile_ok_false_on_signal_kill(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """末 pass 被信号杀（rc<0）→ ok=False + killed_signal 记录信号号。"""
+    (tmp_path / "main.tex").write_text("x\n", encoding="utf-8")
+
+    def fake_run(
+        cmd: list[str],
+        *,
+        cwd: Path,
+        env: dict[str, str],
+        timeout: float,
+        out_cap: int = 8 * 1024 * 1024,
+    ) -> tuple[int | None, str, float, bool]:
+        _ = (cmd, cwd, env, timeout, out_cap)
+        return -11, "", 0.1, False  # SIGSEGV
+
+    monkeypatch.setattr("texlate.compile.engine.run_process", fake_run)
+    res = XelatexEngine(binary="/x/xelatex").compile(
+        tmp_path, "main.tex", passes=1, sandbox=False
+    )
+    assert res.killed_signal == 11  # noqa: PLR2004 - SIGSEGV
+    assert not res.ok
+
+
+def test_engine_parse_log_res_empty_log_stdout_fallback(tmp_path: Path) -> None:
+    """``engine.parse_log(res)``：存在但空的 .log 退 stdout_tail——与编译期
+    ``log_text or res.stdout_tail`` 同口径（旧码空 log 直返 0 错）。"""
+    log_p = tmp_path / "main.log"
+    log_p.write_text("", encoding="utf-8")
+    res = CompRes(engine="xelatex")
+    res.log_path = log_p
+    res.stdout_tail = "! Undefined control sequence.\nl.9 \\foo\n"
+    res.workdir = tmp_path
+    info = XelatexEngine().parse_log(res)
+    assert info.n_errors == 1
+
+
+def test_tectonic_parse_log_res_stderr_error_scan(tmp_path: Path) -> None:
+    """tectonic parse_log(res)：空 .log + stdout ``error:`` 行 → 首错回填，
+    与 compile() 内联兜底同口径。"""
+    log_p = tmp_path / "main.log"
+    log_p.write_text("", encoding="utf-8")
+    res = CompRes(engine="tectonic")
+    res.log_path = log_p
+    res.stdout_tail = "noise\nerror: something broke\n"
+    res.workdir = tmp_path
+    info = TectonicEngine(bundle="").parse_log(res)
+    assert info.first_error == "! something broke"
+    assert info.n_errors == 1
+
+
+def test_route_project_unreadable_tex_skipped(tmp_path: Path) -> None:
+    """读不了的 .tex（竞态删除/权限位）不参与路由信号——不炸 OSError。"""
+    if hasattr(os, "geteuid") and os.geteuid() == 0:
+        pytest.skip("root 下 chmod 0 仍可读")
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\\begin{document}x\\end{document}",
+        encoding="utf-8",
+    )
+    bad = tmp_path / "sub.tex"
+    bad.write_text("sub\n", encoding="utf-8")
+    bad.chmod(0)
+    try:
+        rd = route_project(tmp_path)
+    finally:
+        bad.chmod(0o644)
+    assert rd.engines
+
+
+def test_install_file_init_usertree_failure_not_latched(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """init-usertree 失败不钉 ``_usertree_inited``——下次 install 按 tlpdb
+    缺席重试（旧码无条件钉 True，init 失败后 usermode 全链路假就绪）。"""
+    eng = XelatexEngine(binary="/x/xelatex", texmfhome=tmp_path)
+    probes = iter([None, None, "/ok"])
+    monkeypatch.setattr(eng, "probe_file", lambda *_a, **_k: next(probes))
+    monkeypatch.setattr(eng, "filemap", lambda _f: ["pkg"])
+    monkeypatch.setattr(
+        "texlate.compile.engine.find_tool",
+        lambda n: "/x/tlmgr" if n == "tlmgr" else None,
+    )
+    runs: list[list[str]] = []
+
+    def fake_run(
+        cmd: list[str],
+        *,
+        cwd: Path,
+        env: dict[str, str],
+        timeout: float,
+        out_cap: int = 8 * 1024 * 1024,
+    ) -> tuple[int | None, str, float, bool]:
+        _ = (cwd, env, timeout, out_cap)
+        runs.append(list(cmd))
+        if "init-usertree" in cmd:
+            return 1, "", 0.1, False  # init 失败
+        return 0, "", 0.1, False  # install 成功
+
+    monkeypatch.setattr("texlate.compile.engine.run_process", fake_run)
+    assert eng.install_file("x.sty") is True
+    assert eng._usertree_inited is False  # noqa: SLF001 - 内部态断言
+    assert any("init-usertree" in c for c in runs)
+
+
+def test_install_file_ambient_texmfhome_fetch_dest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """texmfhome=None + ambient TEXMFHOME：CTAN 直铺 dest 取 env 解析值——
+    旧码 ``Path(self.texmfhome)`` 直接 TypeError 崩。"""
+    from texlate.compile.fixloop import ctan  # noqa: PLC0415 - 延迟面同产码
+
+    amb = tmp_path / "amb"
+    monkeypatch.setenv("TEXMFHOME", str(amb))
+    # fontconfig conf 落点隔离进 tmp——不写真 HOME。
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    eng = XelatexEngine(binary="/x/xelatex")  # texmfhome=None
+    monkeypatch.setattr(eng, "_install_lock", contextlib.nullcontext)
+    captured: dict[str, Path] = {}
+    monkeypatch.setattr(
+        ctan,
+        "fetch_package",
+        lambda _pkg, dest, **_kw: captured.setdefault("dest", dest),
+    )
+    probes = iter([None, None, None, None])  # 顶检/锁内复检/装后复核/铺后复核
+    monkeypatch.setattr(eng, "probe_file", lambda *_a, **_k: next(probes))
+    monkeypatch.setattr(eng, "filemap", lambda _f: ["pkg"])
+    monkeypatch.setattr("texlate.compile.engine.find_tool", lambda _n: "/x/tlmgr")
+
+    def fake_run(
+        cmd: list[str],
+        *,
+        cwd: Path,
+        env: dict[str, str],
+        timeout: float,
+        out_cap: int = 8 * 1024 * 1024,
+    ) -> tuple[int | None, str, float, bool]:
+        _ = (cwd, env, timeout, out_cap)
+        if "init-usertree" in cmd:
+            return 1, "", 0.1, False
+        return 0, "", 0.1, False
+
+    monkeypatch.setattr("texlate.compile.engine.run_process", fake_run)
+    assert eng.install_file("x.sty") is False
+    assert captured["dest"] == amb
+
+
+def test_tectonic_compile_dropped_z_not_in_flags_applied(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """两 token ``-Z <非白名单>`` 整体丢弃后不得漏记进 flags_applied——
+    dropped 里是合体串 ``-Z shell-escape``，按 flist 差集会误记已放行。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\\begin{document}x\\end{document}",
+        encoding="utf-8",
+    )
+    outdir = tmp_path / "out"
+
+    def fake_run(
+        cmd: list[str],
+        *,
+        cwd: Path,
+        env: dict[str, str],
+        timeout: float,
+        out_cap: int = 8 * 1024 * 1024,
+    ) -> tuple[int | None, str, float, bool]:
+        _ = (cmd, cwd, env, timeout, out_cap)
+        outdir.mkdir(parents=True, exist_ok=True)
+        (outdir / "main.pdf").write_bytes(b"%PDF-fake")
+        (outdir / "main.log").write_text("Output written\n", encoding="utf-8")
+        return 0, "", 1.0, False
+
+    monkeypatch.setattr("texlate.compile.engine.run_process", fake_run)
+    eng = TectonicEngine(binary="/bin/true", bundle="")
+    res = eng.compile(
+        tmp_path,
+        "main.tex",
+        outdir=outdir,
+        sandbox=False,
+        flags=["-Z", "shell-escape", "-synctex=1"],
+    )
+    assert res.flags_applied == ["-synctex=1"]
+    assert res.flags_dropped == ["-Z shell-escape"]
