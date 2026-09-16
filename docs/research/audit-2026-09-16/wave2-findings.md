@@ -92,14 +92,16 @@ pst-node×11 / jheppub×9 / citesort×7 / diagrams×7 / axodraw×5 / pst-arrow×
 - **「不退化底板」#20 已落 `2f12955`**（leader 侧 fixloop engine）：入口 pdf 快照双源（precheck 前现存 / rounds[0]）+ 末态失 pdf 非 reject 兜回 + `floor_from`/`floor_restored` 观测面；replay 门②将兜回计入 regressed；stagerun post 复判仍直编裸树保持退化观测真实。killed_signal 归一化 ticket 核销（run_process POSIX 负值约定本就正确）。
 - **skip 分布核实**（scout）：compile zh skip 实为 129 格全合法上游门——79 not_translated（parse 失败级联）+49 arm_mismatch+1 gate；**发现排程洞**：zh/ 单槽被 real 臂覆写 → real-50 抽样 48 id 永无 mock compile 数据，loop2 runbook 需先 compile-mock 再 xlat-real（或 zh/ 分臂）。
 
-### regress4 归因（scout-regress4 直编复验 4 真退化格）
+### regress4 归因（scout-regress4 + 1e repro-1306 收官：管线真退化收敛到 2 格）
 
-**主机理：TEXMFHOME 环境不对称遮蔽（3/4 格）**——stagerun `_compile_judge`（:917 入口编译）跑在 ambient 环境，`~/texmf` 可见；`_fixloop_one`（:1128）冷起 `_texmf` 并经 `XelatexEngine(texmfhome=)` → `engine.py:865-870` 写 TEXMFHOME → `~/texmf` 整树不可见。epsf.tex/revtex4-1.cls/mhchem/chemgreek/algorithm/algpseudocode/ltxgrid 全部只活在 `~/texmf` → 入口编译出 partial pdf、fixloop 里同包全部失踪 → 装错分支/装不上 → 退化。**这不是规则 bug 是 bench harness 包宇宙不一致**——「不退化底板」在产物层兜底，真修法是 texmf 可见性对齐（`_texmf` 串链 ambient `$HOME/texmf`，或入口编译同样吃 texmfhome 走全密封）。路由：engine.py `_env` 侧归 peer1、stagerun 半侧归 1d。
+**主机理：TEXMFHOME 环境不对称遮蔽（3/4 格）**——stagerun `_compile_judge`（:917 入口编译）跑在 ambient 环境，`~/texmf` 可见；`_fixloop_one`（:1128）冷起 `_texmf` 并经 `XelatexEngine(texmfhome=)` → `engine.py:865-870` 写 TEXMFHOME → `~/texmf` 整树不可见。epsf.tex/revtex4-1.cls/mhchem/chemgreek/algorithm/algpseudocode/ltxgrid 全部只活在 `~/texmf` → 入口编译出 partial pdf、fixloop 里同包全部失踪 → 装错分支/装不上 → 退化。**这不是规则 bug 是 bench harness 包宇宙不一致**——「不退化底板」在产物层兜底，真修法是 texmf 可见性对齐。**已修 `6752bb0`**（peer1：`_env` 内 ambient `~/texmf` 串链进 usertree，签名稳定、worker/bench 零接线；1e 确认 worker `_engine()` 同机理、若未来加参有 followup 预案）。
 
-- **1306.0036**：`pdftex_prim_guard` regex 重写了自己注入的行——lookbehind 只防 `\ifdefined` 不防 `\chardef` → `\chardef\ifdefined` 杀 e-TeX primitive → 后续 `\ifdefined` 全灭；splice 原地 mutate 无回滚，run-2 继承残行。**已修 `88d0ab9`**（peer1，lookbehind 扩 `\chardef|\let|\def` + spotcolor→xespotcolor shadow）。残留机制缺口：splice in-place 无树级回滚（底板只兜 pdf 产物不兜树）——大设计项，记档。
-- **1003.1717**：`install_file` 装 fallback 分支 revtex4 → `\input aps.rtx` 命中被 xlat 污染的 `splice/aps.rtx.tex:322`（`\let\frontmatter@ 这是译文 }{}`——csname 槽位腐蚀，fixer-slots 机理覆盖；但**随包 runtime 文件该不该进翻译集**是 pipeline 边界问题，转 peer1）。
-- **2410.00012**：`install_file` 装 mhchem 没带依赖闭包（chemgreek 被 TEXMFHOME 遮蔽）——依赖闭包安装是 install_file 规则面缺口，归 peer1 rules/engine。
-- **astro-ph/0111575**：rerun 已自愈 acceptable（epsf 裸 payload 修复起效）。
+- **1306.0036**：**翻案——非管线 bug**（1e repro-1306 直编判决 `d2d82e8`）：revtex4-1 4.1s × array v2.6n 在 TL2026 上的既有缺陷，base 臂逐字节同源码同点位同炸（`\document@inithook` 对 array 快照校验失败但 `\let` 交换无条件执行 → `\@classz` 在 `\xdef\@preamble` 内失衡 → 孤儿 `\or`×30）。pipe-vs-base delta 门应记 pre-existing。曾误诊的 prim-guard 自残属实且已修 `88d0ab9`，但修掉后此格仍死于上游缺陷。**转机**：1e 已验证修复规则草案 `bench/results/repro-1306-2026-09-16/revtex4-array-guard.yaml`（order 170 / syntax / gate=revtex4 docclass+`Extra \or` ctx / 在 `\begin{document}` 前注入 `\@mkpream`+`\insert@column` 保存、`\AtBeginDocument` 恢复——**必须 mkpream+insert 对**，仅 mkpream 会 HANG；真源 e2e：补丁后 rc=0 七页 PDF）——转 peer1 落 rules.yaml，TL≥2024 所有 m/p/b 列 revtex 文档受益。残留缺口：splice in-place 无树级回滚（大设计项记档）；guard regex 命中注释行（IEEEtran.cls:552）——转 peer1。
+- **1003.1717**：`install_file` 装 fallback 分支 revtex4 → `\input aps.rtx` 命中被 xlat 污染的 `splice/aps.rtx.tex:322`（`\let\frontmatter@ 这是译文 }{}`——csname 槽位腐蚀，fixer-slots 机理覆盖；但**随包 runtime 文件该不该进翻译集**是 pipeline 边界问题，转 peer1 `.rtx` 翻译集边界项）。
+- **2410.00012**：完整链 = `install_file` 装 mhchem 不带依赖闭包（chemgreek 缺席）→ 续编译在 log 尾 `Emergency stop` + `File 'chemgreek.sty' not found` + Enter-file-name 死，但**first-error-wins 把头错当类别，尾部真杀手永远拿不到路由**。双修已落（本波）：a) `_apply_install_file` 依赖闭包——装/探测命中的包文件行首 `\RequirePackage`/`\LoadClass` 逐层补装（engine.py `_install_dep_closure`，depth≤2）；b) logparse tail 条目新增 `preempts` 弱类别表——致命收尾可夺路由（字段待 peer1 在 rules.yaml tail 条目上加挂）。另 polyfill 恒头注入同波落（cls 内部读取发生在 `\documentclass` 加载期，类行后注入太晚）。
+- **astro-ph/0111575**：rerun 已自愈 acceptable（epsf 裸 payload 修复起效）——off-books。
+
+管线真退化账终值：**2 格**——1003.1717（xlat .rtx 污染，slots 车道覆盖 + peer1 边界决策）与 2410.00012（本波双修后预期转可修）；1306.0036 记 pre-existing 上游缺陷（修复规则已备）。底板设计注记：快照必须是**编译期 PDF 产物字节**（precheck 前现存产物优先）而非 fixloop 环境重编译——astro-ph 型在 fixloop 包宇宙下零 action 也会死；1306.0036 型另需树级回滚（splice 原地 mutate 跨 rerun 继承残行）。
 
 ### misschar/invalid_utf8 取证翻案（scout-misschar + fixer-utf8，杠杆面重画）
 
