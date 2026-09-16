@@ -2954,6 +2954,7 @@ rules:
       any:
         - { category: other }
         - { category: emergency }
+        - { category: early_eof } # \stop 截断尾亦抢 early_eof 签 (0905.0193 实测)
     condition:
       ctx_suggests: "No valid journal specified"
     action:
