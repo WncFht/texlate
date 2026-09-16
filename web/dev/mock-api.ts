@@ -504,6 +504,9 @@ function handleApi(req: Req, res: Res, url: URL): boolean {
             arxiv_id: id,
             counters: { total: 0, done: 0, cached: 0, failed: 0, tokens: 0 },
         });
+        if (req.headers["x-texlate-key"]) {
+            emit(t, "log", { line: "[mock] X-Texlate-Key received (per-request BYOK)" });
+        }
         drive(t);
         json(res, 202, {
             task_id: t.id,
@@ -532,6 +535,9 @@ function handleApi(req: Req, res: Res, url: URL): boolean {
                 title: fname,
                 counters: { total: 0, done: 0, cached: 0, failed: 0, tokens: 0 },
             });
+            if (req.headers["x-texlate-key"]) {
+                emit(t, "log", { line: "[mock] X-Texlate-Key received (per-request BYOK)" });
+            }
             drive(t);
             json(res, 202, {
                 task_id: t.id,
@@ -555,6 +561,9 @@ function handleApi(req: Req, res: Res, url: URL): boolean {
                 arxiv_id: "2501.14787",
                 counters: { total: 0, done: 0, cached: 0, failed: 0, tokens: 0 },
             });
+            if (req.headers["x-texlate-key"]) {
+                emit(t, "log", { line: "[mock] X-Texlate-Key received (per-request BYOK)" });
+            }
             drive(t);
             json(res, 202, {
                 task_id: t.id,
@@ -601,6 +610,9 @@ function handleApi(req: Req, res: Res, url: URL): boolean {
         t.status = "queued";
         t.progress = 0;
         t.counters = { total: 0, done: 0, cached: 0, failed: 0, tokens: 0 };
+        if (req.headers["x-texlate-key"]) {
+            emit(t, "log", { line: "[mock] X-Texlate-Key received (per-request BYOK)" });
+        }
         drive(t);
         json(res, 200, { ok: true });
         return true;

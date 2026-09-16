@@ -342,22 +342,34 @@ export const api = {
         });
     },
 
-    upload(file: File, fields?: { target_lang?: string; model?: string; main?: string; options?: object }) {
+    upload(
+        file: File,
+        fields?: { target_lang?: string; model?: string; main?: string; options?: object },
+        byok?: ByokHeaders,
+    ) {
         const fd = new FormData();
         fd.append("file", file);
         if (fields?.target_lang) fd.append("target_lang", fields.target_lang);
         if (fields?.model) fd.append("model", fields.model);
         if (fields?.main) fd.append("main", fields.main);
         if (fields?.options) fd.append("options", JSON.stringify(fields.options));
-        return request<TranslateResponse>("/upload", { method: "POST", body: fd });
+        return request<TranslateResponse>("/upload", {
+            method: "POST",
+            headers: byokHeaders(byok),
+            body: fd,
+        });
     },
 
     /** .share.zip 共享包导入（model/lang/arxiv_id 由包内 manifest 自描述） */
-    shareImport(file: File, options?: object) {
+    shareImport(file: File, options?: object, byok?: ByokHeaders) {
         const fd = new FormData();
         fd.append("file", file);
         if (options) fd.append("options", JSON.stringify(options));
-        return request<TranslateResponse>("/share/import", { method: "POST", body: fd });
+        return request<TranslateResponse>("/share/import", {
+            method: "POST",
+            headers: byokHeaders(byok),
+            body: fd,
+        });
     },
 
     snapshot: (taskId: string) => request<TaskSnapshot>(`/task/${taskId}`),

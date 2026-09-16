@@ -42,6 +42,8 @@ export default function Home(props: { nav(to: string): void }) {
     const [optPrefer, setOptPrefer] = createSignal("");
     const [optShare, setOptShare] = createSignal("");
     const [optMain, setOptMain] = createSignal("");
+    // per-request BYOK：仅存组件 state，提交成功即清，不落 settings
+    const [optKey, setOptKey] = createSignal("");
     let fileInput!: HTMLInputElement;
 
     onMount(() => {
@@ -86,6 +88,9 @@ export default function Home(props: { nav(to: string): void }) {
         return o.model || o.target_lang || o.glossary || o.options ? o : undefined;
     };
 
+    /** 临时 key → X-Texlate-Key 头（空 → undefined，纯 per-request 透传） */
+    const byok = () => (optKey().trim() ? { apiKey: optKey().trim() } : undefined);
+
     const submit = async () => {
         const id = parseArxivId(arxivId());
         if (!id) {
@@ -95,7 +100,8 @@ export default function Home(props: { nav(to: string): void }) {
         setError("");
         setBusy(true);
         try {
-            const res = await api.translate(id, collectOptions());
+            const res = await api.translate(id, collectOptions(), byok());
+            setOptKey("");
             openRes(res);
         } catch (e) {
             // 409：同 cache_key 已有活动任务 → 直接跳过去
@@ -127,7 +133,9 @@ export default function Home(props: { nav(to: string): void }) {
                 const res = await api.shareImport(
                     file,
                     Object.keys(upOpts).length ? upOpts : undefined,
+                    byok(),
                 );
+                setOptKey("");
                 openRes(res);
                 return;
             }
@@ -141,7 +149,8 @@ export default function Home(props: { nav(to: string): void }) {
                           options: upOpts,
                       }
                     : undefined;
-            const res = await api.upload(file, fields);
+            const res = await api.upload(file, fields, byok());
+            setOptKey("");
             openRes(res);
         } catch (e) {
             setError(e instanceof Error ? e.message : String(e));
@@ -310,6 +319,18 @@ export default function Home(props: { nav(to: string): void }) {
                                 rows={3}
                                 value={optGlossary()}
                                 onInput={(e) => setOptGlossary(e.currentTarget.value)}
+                            />
+                        </label>
+                        <label class="span2">
+                            <span>
+                                {t.home.optKey}
+                                <em class="muted">{t.home.optKeyHint}</em>
+                            </span>
+                            <input
+                                type="password"
+                                autocomplete="off"
+                                value={optKey()}
+                                onInput={(e) => setOptKey(e.currentTarget.value)}
                             />
                         </label>
                     </div>

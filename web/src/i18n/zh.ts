@@ -33,6 +33,8 @@ export const t = {
         optShareHint: "完成后生成 .share.zip 社区缓存包",
         optMain: "主文件",
         optMainHint: "多文件工程入口 .tex（仅上传时生效）",
+        optKey: "临时 API Key",
+        optKeyHint: "仅随本次请求透传，不写入设置",
         optDefault: "跟随设置",
         optOn: "开",
         optOff: "关",
