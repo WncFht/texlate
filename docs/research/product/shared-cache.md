@@ -5,7 +5,7 @@
 ## 0. TL;DR
 
 - **寻址**：`share_key = sha256(arxiv_id | resolved_ver | model | prompt_ver | target_lang | glossary_hash | pipeline_ver)`——与本地 dedup 键同构，多 `glossary_hash` 一个组分，且永不拼凭证指纹。
-- **包格式**：`{share_key}.share.zip` = `manifest.json` + `zh-src.zip` + `zh.pdf` + `dual.json`。manifest 自校验：key_parts 重算 share_key、逐产物 sha256/bytes 对账。
+- **包格式**：`{share_key}.share.zip` = `manifest.json` + `zh-src.zip` + `dual.json` + 可选 `zh.pdf`（partial 包合法——zh.pdf 只是贡献者侧编译证据，译文载荷在 dual.json；manifest artifacts 表即在场清单）。manifest 自校验：key_parts 重算 share_key、逐产物 sha256/bytes 对账。
 - **信任模型**：下载的译文**不直接渲染**——进本地管线只跳 xlat 阶段，splice/validate(L0/L1)/compile/judge 全部本地重跑，validate 不过则丢弃回退自译。恶意包最坏结果是浪费一次编译，不会产出坏 PDF。
 - **上传 opt-in**：默认关，任务完成后提示；glossary/自定义 prompt 进 key 天然隔离。
 - **服务端 v1**：任意静态托管/对象存储 + `index.jsonl`，不锁定具体实现。
@@ -48,7 +48,7 @@ share key 七组分按下序 `|` 拼接进 sha256：
 
 ## 4. 包格式
 
-`{share_key}.share.zip`（PK zip）四成员：
+`{share_key}.share.zip`（PK zip）成员（`zh.pdf` 可选，缺席即 partial 包）：
 
 | 成员            | 来源                 | 角色                                                                                |
 | --------------- | -------------------- | ----------------------------------------------------------------------------------- |
@@ -127,7 +127,7 @@ manifest.json schema:
 ## 9. 开放问题
 
 - **chunks 对账协议**：`src_file + en` 文本匹配的隐含假设是同一 `id@ver` 源码在两侧 parse 出逐字节相同的 chunk——同版本 segmenter 下成立；segmenter 演进会让 en 文本分叉，但 `pipeline_ver` 组分已兜住（实现变 → 版本变 → key 变 → 不互相命中），属保守但正确的失效。
-- **fault/partial 产物可否共享**：v1 要求三件套齐全（zh.pdf 在场 = 贡献者侧至少编通过）；「译文好但贡献者环境编不过」的包价值存疑，留给 v2。
+- ~~**fault/partial 产物可否共享**：v1 要求三件套齐全（zh.pdf 在场 = 贡献者侧至少编通过）；「译文好但贡献者环境编不过」的包价值存疑，留给 v2。~~ **已放行**（2026-09-16 `c6e4306`）：pack/unpack 同口径只强制 `zh-src.zip`+`dual.json`，zh.pdf 缺席即 partial 包——fixloop_exhausted 型任务的 L2 修复译文经包传播有实证价值（share-live gap#4）；贡献者编不过只是少了证据件，消费端反正本地重编。
 - **段级共享**：`translation_cache` 表结构直接就是段级共享素材（key 已含 cfg 指纹），粒度更细、命中收益更高；但单段译文无法在本地 compile 验证语义，信任模型弱一档——v1 选文档级正因为它能被全链重跑验证。
 - **配额与滥用**：上传侧限流、包大小配额、恶意包举报通道——等服务选型再定。
 - **内容签名**：v1 信任模型不需要签名——伪造包的无害化由消费端重跑全链承担，不靠身份担保。若未来要「可信贡献者快速通道」（跳过部分重验证）或贡献者信誉体系，可在 manifest 增加 `signature` 字段（如对 `share_key`+产物哈希做 ed25519 签名）；stdlib 无 ed25519，届时要么引依赖要么把验签放服务端。
