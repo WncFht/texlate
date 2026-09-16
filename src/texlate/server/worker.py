@@ -1363,10 +1363,35 @@ class PipelineWorker:
         return out
 
     def _register(self, ctx: TaskCtx, kind: str, rel: str) -> dict[str, Any]:
-        """产物登记（bytes/sha256 实测，相对 ``tasks/{id}/``）。"""
+        """产物登记（bytes/sha256 在**调用线程**实测——大文件哈希不占 loop）。
+
+        缺失产物记 NULL 同旧口径；``_on_loop`` 回弹的只剩 DB 写。
+        """
+        size: int | None = None
+        sha: str | None = None
+        full = ctx.root / rel
+        if full.is_file():
+            blob = full.read_bytes()
+            size = len(blob)
+            sha = hashlib.sha256(blob).hexdigest()
         return self._on_loop(
-            self.store.put_file, ctx.task_id, kind, rel, data_dir=ctx.root
+            self.store.put_file, ctx.task_id, kind, rel, size=size, sha256=sha
         )
+
+    def _opt_int(
+        self, ctx: TaskCtx, options: Mapping[str, Any], key: str, default: int
+    ) -> int:
+        """``options[key]`` 容错 int：存量 options_json 可能残留非数值 → warning + 默认。"""
+        raw = options.get(key)
+        if not raw:
+            return default
+        try:
+            return int(raw)  # type: ignore[arg-type] -- JSON 值可为 str/float
+        except (TypeError, ValueError):
+            self._warning(
+                ctx, "bad_option", f"options.{key}={raw!r} 非数值——按 {default} 处理"
+            )
+            return default
 
     # ------------------------------------------------------------ 主入口
 
@@ -1723,7 +1748,7 @@ class PipelineWorker:
     async def _stage_parse(self, ctx: TaskCtx) -> None:
         """parsing：normalize → 主文件定位 → 逐文件 parse → chunks 入库。"""
         if self.store.has_chunks(ctx.task_id):
-            self._ensure_scans(ctx)
+            await self._ensure_scans(ctx)
             return
         self._stage(ctx, "parsing", "解析工程", PROGRESS["parsing"][0])
         if not (ctx.base_dir / ".base-done").is_file():
@@ -1733,6 +1758,7 @@ class PipelineWorker:
         self.store.insert_chunks(ctx.task_id, rows)
         ctx.scans = scans
         self._stage(ctx, "parsing", "解析完成", PROGRESS["parsing"][1])
+        self._check_cancelled(ctx)
 
     def _build_base(self, ctx: TaskCtx) -> None:
         """``src → base``：route（reject → partial+``reject_at``，F3）→ normalize。"""
@@ -1796,7 +1822,11 @@ class PipelineWorker:
         rows: list[dict[str, Any]] = []
         scans: dict[str, ScanResult] = {}
         seq = 0
-        for f in sorted(ctx.base_dir.rglob("*.tex")):
+        for f in sorted(
+            p
+            for p in ctx.base_dir.rglob("*")
+            if p.is_file() and p.suffix.lower() == ".tex"
+        ):
             if f.name.startswith("."):
                 continue
             rel = f.relative_to(ctx.base_dir).as_posix()
@@ -1822,10 +1852,10 @@ class PipelineWorker:
                 seq += 1
         return rows, scans
 
-    def _ensure_scans(self, ctx: TaskCtx) -> None:
+    async def _ensure_scans(self, ctx: TaskCtx) -> None:
         """Resume 场景：chunks 已有但内存 scans 空 → 重解析 base/ 补建。"""
         if not ctx.scans:
-            _rows, ctx.scans = self._parse_all(ctx)
+            _rows, ctx.scans = await asyncio.to_thread(self._parse_all, ctx)
 
     def _ph_frag_map(self, ctx: TaskCtx) -> dict[str, dict[str, str]]:
         """``chunk_db_id → ph_fragments``：scans × ph_map 全量映射。
@@ -1850,7 +1880,7 @@ class PipelineWorker:
         if not rows:
             self._stage(ctx, "translating", "无可译块", PROGRESS["translating"][1])
             return
-        self._ensure_scans(ctx)
+        await self._ensure_scans(ctx)
         self._stage(ctx, "translating", "翻译中", PROGRESS["translating"][0])
 
         translator = self._make_translator(ctx)
@@ -1878,7 +1908,7 @@ class PipelineWorker:
         pipe = XlatPipeline(
             translator,
             config=PipelineConfig(
-                concurrency=int(ctx.options().get("concurrency") or 3),
+                concurrency=self._opt_int(ctx, ctx.options(), "concurrency", 3),
                 tgt_lang=_tgt_lang(str(ctx.row["target_lang"])),
             ),
             glossary=self._make_glossary(
@@ -2191,7 +2221,7 @@ class PipelineWorker:
         out_dir = share_dir(self.data_dir)
         try:
             hit = index_lookup(out_dir / "index.jsonl", key)
-        except (ShareError, OSError) as e:
+        except (ShareError, OSError, UnicodeDecodeError) as e:
             # 索引是缓存——读挂一律降级 miss，不为查询面 fault 任务
             self._log(ctx, f"share lookup: index 不可读按 miss 处理: {e}")
             return False
@@ -2264,7 +2294,7 @@ class PipelineWorker:
         与 route/inject reject 同形。
         """
         self._stage(ctx, "compiling", "编译", PROGRESS["compiling"][0])
-        self._ensure_scans(ctx)
+        await self._ensure_scans(ctx)
         await asyncio.to_thread(self._build_zh, ctx)
         self._check_cancelled(ctx)
         self.store.update_fields(ctx.task_id, progress=PROGRESS["compiling"][0] + 4)
@@ -2282,7 +2312,7 @@ class PipelineWorker:
         # partial + reject_at=fixloop——拒绝是降级交付不是故障
         verdict = str((ctx.fixloop or {}).get("verdict") or "")
         if verdict.startswith("reject:"):
-            self._build_md_zip(ctx)
+            await asyncio.to_thread(self._build_md_zip, ctx)
             detail: dict[str, Any] = {}
             if ctx.l2:
                 detail["l2"] = ctx.l2
@@ -2314,7 +2344,7 @@ class PipelineWorker:
             if ctx.fixloop:
                 err["fixloop"] = ctx.fixloop
         else:
-            self._no_pdf_finish(ctx, share=share)
+            await self._no_pdf_finish(ctx, share=share)
             await self._maybe_share_pack(ctx)
             return
         self.store.transition(
@@ -2336,13 +2366,13 @@ class PipelineWorker:
         )
         await self._maybe_share_pack(ctx)
 
-    def _no_pdf_finish(self, ctx: TaskCtx, *, share: bool) -> None:
+    async def _no_pdf_finish(self, ctx: TaskCtx, *, share: bool) -> None:
         """无 pdf 终态臂：md.zip 降级产物 → share 归策略拒绝 / tex 归 fault。
 
         fixloop 跑过仍无 pdf → 规则耗尽（``fixloop_exhausted``），摘要随
         error_json 落库供 triage。
         """
-        self._build_md_zip(ctx)
+        await asyncio.to_thread(self._build_md_zip, ctx)
         detail: dict[str, Any] = {}
         if ctx.l2:
             detail["l2"] = ctx.l2
@@ -2436,7 +2466,7 @@ class PipelineWorker:
             return str(v).strip().lower() not in ("0", "false", "no", "off")
         return _env_flag(_ENV_ENV_JUDGE, default=False)
 
-    def _env_judge_filter(
+    def _env_judge_filter(  # noqa: C901 -- 守卫/回退阶梯平铺即 spec 的跳过面
         self,
         ctx: TaskCtx,
         trans: dict[str, str],
@@ -2474,7 +2504,10 @@ class PipelineWorker:
             # judge 调用也烧 token——不入账就从 task_usage 里蒸发
             self._persist_usage(ctx, usage)
             if clients:
-                asyncio.run(_aclose_clients(clients))
+                try:
+                    asyncio.run(_aclose_clients(clients))
+                except Exception:
+                    log.debug("env_judge client aclose failed", exc_info=True)
         reverted = sorted(cid for cid, keep in verdicts.items() if not keep)
         self._log(
             ctx,
@@ -2703,7 +2736,7 @@ class PipelineWorker:
                 xeng = (
                     self._engine_factory("xelatex")
                     if self._engine_factory is not None
-                    else engine_for("xelatex")
+                    else engine_for("xelatex", halt_on_error=False)
                 )
                 xres = xeng.compile(
                     work,
@@ -2810,7 +2843,10 @@ class PipelineWorker:
         if usage is not None:
             self._persist_usage(ctx, usage)
         if clients:
-            asyncio.run(_aclose_clients(clients))
+            try:
+                asyncio.run(_aclose_clients(clients))
+            except Exception:
+                log.debug("llm_hook client aclose failed", exc_info=True)
 
     def _l2_run_state(
         self, ctx: TaskCtx, work: Path
@@ -2928,7 +2964,10 @@ class PipelineWorker:
             # L2 重译也烧 token——不入账就从 task_usage 里蒸发
             self._persist_usage(ctx, usage)
             if clients:
-                asyncio.run(_aclose_clients(clients))
+                try:
+                    asyncio.run(_aclose_clients(clients))
+                except Exception:
+                    log.debug("l2 client aclose failed", exc_info=True)
 
     def _l2_writeback(
         self,
@@ -3135,7 +3174,7 @@ class PipelineWorker:
         对账位）。零译文不产：登记了而 chunks 无料会让前端落 empty 态。
         只在 ``_stage_compile`` 无 pdf 终态分支调用，此处 dual.json 已落。
         """
-        rows = self.store.all_chunks(ctx.task_id)
+        rows = self._on_loop(self.store.all_chunks, ctx.task_id)
         if not rows or not any(r["translation"] for r in rows):
             return
         by_file: dict[str, list[dict[str, Any]]] = {}
@@ -3290,7 +3329,7 @@ class PipelineWorker:
             base_url=ctx.secrets.base_url or str(cfg.get("base_url") or ""),
             api_key=ctx.secrets.api_key,
             lang_out=lang_out_for(str(ctx.row["target_lang"])),
-            qps=int(options.get("qps") or 4),
+            qps=self._opt_int(ctx, options, "qps", 4),
             pages=str(options.get("pages") or "") or None,
             dual=bool(options.get("dual", True)),
             alternating=bool(options.get("alternating", True)),
@@ -3316,16 +3355,7 @@ class PipelineWorker:
                 completion_tokens=int(run.stats.get("completion_tokens") or 0),
                 latency_s=float(run.seconds),
             )
-        mono = run.outputs.get("mono")
-        dual = run.outputs.get("dual")
-        if mono is not None:
-            shutil.copyfile(mono, ctx.root / "zh.pdf")
-            self._embed_tounicode(ctx, ctx.root / "zh.pdf")
-            self._register(ctx, "zh_pdf", "zh.pdf")
-        if dual is not None:
-            shutil.copyfile(dual, ctx.root / "dual.pdf")
-            self._embed_tounicode(ctx, ctx.root / "dual.pdf")
-            self._register(ctx, "dual_pdf", "dual.pdf")
+        await asyncio.to_thread(self._harvest_pdf_outputs, ctx, run)
         self._log(ctx, f"babeldoc rc={run.rc} status={run.status} stats={run.stats}")
         if run.status == "failed":
             for ln in run.stderr_tail.strip().splitlines()[-3:]:
@@ -3366,6 +3396,31 @@ class PipelineWorker:
             {"status": status, "artifacts": self._artifact_urls(ctx), "stats": stats},
         )
 
+    def _harvest_pdf_outputs(self, ctx: TaskCtx, run: BabeldocRun) -> None:
+        """Sidecar 产物物化（worker 线程）：copyfile + ToUnicode 注入 + 登记。"""
+        mono = run.outputs.get("mono")
+        dual = run.outputs.get("dual")
+        if mono is not None:
+            shutil.copyfile(mono, ctx.root / "zh.pdf")
+            self._embed_tounicode(ctx, ctx.root / "zh.pdf")
+            self._register(ctx, "zh_pdf", "zh.pdf")
+        if dual is not None:
+            shutil.copyfile(dual, ctx.root / "dual.pdf")
+            self._embed_tounicode(ctx, ctx.root / "dual.pdf")
+            self._register(ctx, "dual_pdf", "dual.pdf")
+
+    def _prep_pdf_dirs(
+        self, ctx: TaskCtx, src: Path, outdir: Path, workdir: Path
+    ) -> None:
+        """``upload_pdf`` 前置物化（worker 线程）：en.pdf 回登记 + retry 清旧产物。"""
+        en = ctx.root / "en.pdf"
+        if not en.exists():
+            shutil.copyfile(src, en)
+        self._register(ctx, "en_pdf", "en.pdf")
+        for d in (outdir, workdir):
+            if d.exists():
+                shutil.rmtree(d)  # retry 幂等：旧产物/旧 tracking 不混入本单
+
     async def _run_pdf(self, ctx: TaskCtx) -> None:
         """upload_pdf：BabelDOC sidecar（AGPL 边界=独立进程，§2.4 + pdf-path §三）。
 
@@ -3385,10 +3440,9 @@ class PipelineWorker:
             )
             return
         src = uploads[0]
-        en = ctx.root / "en.pdf"
-        if not en.exists():
-            shutil.copyfile(src, en)
-        self._register(ctx, "en_pdf", "en.pdf")
+        outdir = ctx.root / "babeldoc-out"
+        workdir = ctx.root / "babeldoc-work"
+        await asyncio.to_thread(self._prep_pdf_dirs, ctx, src, outdir, workdir)
         binary = self._babeldoc or find_tool("babeldoc")
         if binary is None:
             self._fail(
@@ -3399,11 +3453,6 @@ class PipelineWorker:
                 stage="compiling",
             )
             return
-        outdir = ctx.root / "babeldoc-out"
-        workdir = ctx.root / "babeldoc-work"
-        for d in (outdir, workdir):
-            if d.exists():
-                shutil.rmtree(d)  # retry 幂等：旧产物/旧 tracking 不混入本单
         job = self._babeldoc_job(ctx, src, outdir, workdir)
         last_stage = ""
 
@@ -3453,7 +3502,7 @@ class PipelineWorker:
             )
             return
         src = uploads[0]
-        self._register(ctx, "src_tar", f"upload/{src.name}")
+        await asyncio.to_thread(self._register, ctx, "src_tar", f"upload/{src.name}")
         self._stage(ctx, "translating", "文档插译", PROGRESS["translating"][0])
         translator = self._make_translator(ctx)
         clients = _translator_clients(translator)
@@ -3489,7 +3538,7 @@ class PipelineWorker:
             )
             return
         finally:
-            self._persist_usage(ctx, usage)
+            self._persist_usage(ctx, usage, replace_est=True)
             # clients 在 to_thread 的 ephemeral loop 里跑过——aclose 尽力而为
             try:
                 await _aclose_clients(clients)
@@ -3498,7 +3547,7 @@ class PipelineWorker:
         self._check_cancelled(ctx)
         for w in report.warnings:
             self._warning(ctx, "export", w)
-        self._register(ctx, f"zh_{ctx.row['kind']}", dst.name)
+        await asyncio.to_thread(self._register, ctx, f"zh_{ctx.row['kind']}", dst.name)
         n_bad = report.skipped + report.fault
         self.store.update_fields(
             ctx.task_id,
@@ -3585,6 +3634,8 @@ class PipelineWorker:
         units 枚举在 export 内部、total 事前不可知——progress 按 done 自增
         近似并钉在 ``hi-1`` 以下（终态 100 由 ``transition`` 写）。
         """
+        if self._current_status(ctx) in TERMINAL_STATUSES:
+            return  # cancel 竞态：孤儿 thread 的迟到 emit 不落盘/扇出
         lo, hi = PROGRESS["translating"]
         self.store.update_fields(
             ctx.task_id,
@@ -3602,17 +3653,22 @@ class PipelineWorker:
             c.usage_sink = sink
         return usage
 
-    def _persist_usage(self, ctx: TaskCtx, usage: dict[str, Any]) -> None:
+    def _persist_usage(
+        self, ctx: TaskCtx, usage: dict[str, Any], *, replace_est: bool = False
+    ) -> None:
         """旁路臂真实 usage 落账（``_teardown_translate`` 的旁路对应物）。
 
         旁路 meter 只数本臂调用——``tokens_est`` **累加**而非覆盖
         （覆盖会把主链真账抹成旁路小计）。ExportError/crash 早退也把
         已发调用的真账留下；``_on_loop`` 回弹使 worker 线程内的旁路臂
-        （env_judge/L2/llm_hook）也可直调。
+        （env_judge/L2/llm_hook）也可直调。``replace_est=True`` 给唯一
+        记账臂（doc 路——est 全程只是字符估算）用真账**替换**估算，
+        口径同 ``_teardown_translate``。
         """
         if not usage["calls"]:
             return
-        ctx.tokens_est += usage["prompt_tokens"] + usage["completion_tokens"]
+        real = usage["prompt_tokens"] + usage["completion_tokens"]
+        ctx.tokens_est = real if replace_est else ctx.tokens_est + real
         self._on_loop(self.store.update_fields, ctx.task_id, tokens=ctx.tokens_est)
         self._on_loop(
             self.store.record_usage,

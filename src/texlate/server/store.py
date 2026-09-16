@@ -696,18 +696,24 @@ class Store:
 
     # ------------------------------------------------------------ files
 
-    def put_file(
+    def put_file(  # noqa: PLR0913 -- 登记面五元组 + 可选预算值即 spec 定案字段
         self,
         task_id: str,
         kind: str,
         path: str,
         *,
         data_dir: Path | None = None,
+        size: int | None = None,
+        sha256: str | None = None,
     ) -> dict[str, Any]:
-        """登记产物（upsert）。bytes/sha256 由 path 实测（相对 tasks/{id}/）。"""
-        size: int | None = None
-        sha: str | None = None
-        if data_dir is not None:
+        """登记产物（upsert）。
+
+        ``size``/``sha256`` 调用方预算传入即只写库（worker ``_register``
+        在 worker 线程算好——大文件哈希不占 loop）；缺省则给 ``data_dir``
+        就地实测（读全文件+sha256，相对 ``tasks/{id}/``）。
+        """
+        sha = sha256
+        if size is None and sha is None and data_dir is not None:
             full = data_dir / path
             if full.is_file():
                 blob = full.read_bytes()

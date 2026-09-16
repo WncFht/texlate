@@ -978,3 +978,327 @@ class TestHeartbeatLoop:
             assert calls, "heartbeat 必须真打过拍"
         finally:
             store.close()
+
+
+class TestDocEmitTerminalGuard:
+    """#148：``_doc_emit`` 终态守卫——cancel 后孤儿 export thread 的迟到 emit 不落盘/扇出。"""
+
+    def test_emit_noop_after_terminal(self, tmp_path: Path) -> None:
+        ctx, worker, store = _mk(tmp_path)
+        payload = {"done": 1, "total": 0, "cached": 0, "failed": 0, "items": []}
+        worker._doc_emit(ctx, 1, 0, 10, payload)  # noqa: SLF001
+        assert store.get(ctx.task_id)["done_chunks"] == 1
+        store.transition(ctx.task_id, "cancelled")
+        seq0 = store.last_seq(ctx.task_id)
+        worker._doc_emit(ctx, 9, 9, 99, payload)  # noqa: SLF001
+        row = store.get(ctx.task_id)
+        assert row["done_chunks"] == 1, "终态后 emit 不许覆写"
+        assert row["tokens"] != 99  # noqa: PLR2004 -- 迟到 tokens 不落库
+        assert store.last_seq(ctx.task_id) == seq0, "终态后不许再发 chunk 事件"
+
+
+class TestShareLookupIndexDecode:
+    """#148：index.jsonl 非 UTF-8 → miss 回退（``index_lookup`` 漏 UnicodeDecodeError）。"""
+
+    def test_bad_index_bytes_falls_back(self, tmp_path: Path) -> None:
+        from texlate.server.settings import share_dir  # noqa: PLC0415
+
+        ctx, worker, store = _mk(tmp_path)
+        _scan(ctx, worker, store, _MATH_TEX)
+        out_dir = share_dir(tmp_path)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / "index.jsonl").write_bytes(b"\xff\xfe\x00bad")
+        assert worker._share_lookup(ctx) is False  # noqa: SLF001
+
+
+class TestPersistUsageReplace:
+    """#148：doc 路唯一记账臂用真账**替换**字符估算（``_teardown_translate`` 同口径）。"""
+
+    def _usage(self) -> dict[str, object]:
+        return {
+            "calls": 1,
+            "prompt_tokens": 5,
+            "completion_tokens": 3,
+            "latency_s": 0.1,
+            "model": "m",
+        }
+
+    def test_replace_est(self, tmp_path: Path) -> None:
+        ctx, worker, store = _mk(tmp_path)
+        ctx.tokens_est = 100  # on_result 累积的字符估算钉样
+        worker._persist_usage(ctx, self._usage(), replace_est=True)  # noqa: SLF001
+        assert ctx.tokens_est == 8  # noqa: PLR2004 -- 5+3 真账，est 被替换不叠加
+        assert store.get(ctx.task_id)["tokens"] == 8  # noqa: PLR2004
+
+    def test_default_accumulates(self, tmp_path: Path) -> None:
+        """旁路臂（env_judge/L2/llm_hook）保持累加——不抹主链真账。"""
+        ctx, worker, _store = _mk(tmp_path)
+        ctx.tokens_est = 100  # 主链真账钉样
+        worker._persist_usage(ctx, self._usage())  # noqa: SLF001
+        assert ctx.tokens_est == 108  # noqa: PLR2004 -- 100+5+3
+
+
+class TestParseEndCheckpoint:
+    """#148：``_stage_parse`` 尾检查点——parse 期 cancel 当场收敛不漂进 translate。"""
+
+    def test_cancel_during_parse_converges(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        ctx, worker, store = _mk(tmp_path)
+        ctx.base_dir.mkdir(parents=True, exist_ok=True)
+        (ctx.base_dir / ".base-done").write_text("", encoding="utf-8")
+
+        def fake_parse(_ctx: TaskCtx) -> tuple[list, dict]:
+            worker._on_loop(store.transition, ctx.task_id, "cancelled")  # noqa: SLF001
+            return [], {}
+
+        monkeypatch.setattr(worker, "_parse_all", fake_parse)
+
+        async def drive() -> None:
+            worker._loop = asyncio.get_running_loop()  # noqa: SLF001
+            worker._loop_tid = threading.get_ident()  # noqa: SLF001
+            await worker._stage_parse(ctx)  # noqa: SLF001
+
+        with pytest.raises(asyncio.CancelledError):
+            asyncio.run(drive())
+        assert store.get(ctx.task_id)["status"] == "cancelled"
+
+
+class TestOffLoopHeavySegments:
+    """#148：重 FS/解析段一律 ``asyncio.to_thread`` 出 loop；store 读弹回 loop。"""
+
+    def test_ensure_scans_parses_off_loop(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """resume 形态（chunks 在库 + scans 空）：``_parse_all`` 必须在 worker 线程。"""
+        ctx, worker, store = _mk(tmp_path)
+        _scan(ctx, worker, store, _MATH_TEX)
+        ctx.scans = {}
+        seen: list[int] = []
+        real = worker._parse_all  # noqa: SLF001
+
+        def spy(_ctx: TaskCtx) -> tuple[list, dict]:
+            seen.append(threading.get_ident())
+            return real(_ctx)
+
+        monkeypatch.setattr(worker, "_parse_all", spy)
+
+        async def drive() -> int:
+            worker._loop = asyncio.get_running_loop()  # noqa: SLF001
+            worker._loop_tid = threading.get_ident()  # noqa: SLF001
+            await worker._ensure_scans(ctx)  # noqa: SLF001
+            return threading.get_ident()
+
+        loop_tid = asyncio.run(drive())
+        assert seen, "_parse_all 应被调用"
+        assert seen[0] != loop_tid, "_parse_all 必须跑在 worker 线程"
+        assert ctx.scans, "scans 应被补建"
+
+    def test_build_md_zip_store_read_on_loop(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """``_build_md_zip`` 跑 worker 线程时 ``all_chunks`` 弹回 loop 线程。"""
+        ctx, worker, store = _mk(tmp_path)
+        _scan(ctx, worker, store, _MATH_TEX)
+        row = store.all_chunks(ctx.task_id)[0]
+        store.update_chunk(ctx.task_id, row["chunk_id"], {"translation": "译文"})
+        seen: list[int] = []
+        real = store.all_chunks
+
+        def spy(task_id: str) -> list[dict]:
+            seen.append(threading.get_ident())
+            return real(task_id)
+
+        monkeypatch.setattr(store, "all_chunks", spy)
+
+        async def drive() -> int:
+            worker._loop = asyncio.get_running_loop()  # noqa: SLF001
+            worker._loop_tid = threading.get_ident()  # noqa: SLF001
+            await asyncio.to_thread(worker._build_md_zip, ctx)  # noqa: SLF001
+            return threading.get_ident()
+
+        loop_tid = asyncio.run(drive())
+        assert seen, "all_chunks 应被调用"
+        assert all(t == loop_tid for t in seen), "store 读必须弹回 loop 线程"
+        assert store.file_record(ctx.task_id, "md_zip") is not None
+
+
+class TestPrepHarvestDirs:
+    """#148：``_prep_pdf_dirs``/``_harvest_pdf_outputs`` 物化语义钉样。"""
+
+    def test_prep_pdf_dirs(self, tmp_path: Path) -> None:
+        """en.pdf 回登记 + 旧产物清理；en.pdf 在场不覆盖（retry 幂等）。"""
+        ctx, worker, store = _mk(tmp_path)
+        src = ctx.root / "upload" / "paper.pdf"
+        src.parent.mkdir(parents=True, exist_ok=True)
+        src.write_bytes(b"%PDF-1.4 up")
+        outdir = ctx.root / "babeldoc-out"
+        workdir = ctx.root / "babeldoc-work"
+        outdir.mkdir(parents=True)
+        (outdir / "stale").write_text("x", encoding="utf-8")
+        workdir.mkdir()
+        worker._prep_pdf_dirs(ctx, src, outdir, workdir)  # noqa: SLF001
+        assert (ctx.root / "en.pdf").read_bytes() == b"%PDF-1.4 up"
+        assert store.file_record(ctx.task_id, "en_pdf") is not None
+        assert not outdir.exists()
+        assert not workdir.exists()
+        src.write_bytes(b"%PDF-1.4 new")
+        worker._prep_pdf_dirs(ctx, src, outdir, workdir)  # noqa: SLF001
+        assert (ctx.root / "en.pdf").read_bytes() == b"%PDF-1.4 up"
+
+    def test_harvest_pdf_outputs(self, tmp_path: Path) -> None:
+        """mono/dual → zh.pdf/dual.pdf + 登记；tounicode 失败 best-effort。"""
+        from texlate.server.babeldoc import BabeldocRun  # noqa: PLC0415
+
+        ctx, worker, store = _mk(tmp_path)
+        ctx.root.mkdir(parents=True, exist_ok=True)
+        mono = ctx.root / "out" / "mono.pdf"
+        dual = ctx.root / "out" / "dual.pdf"
+        mono.parent.mkdir(parents=True)
+        mono.write_bytes(b"%PDF-1.4 mono")
+        dual.write_bytes(b"%PDF-1.4 dual")
+        run = BabeldocRun(
+            rc=0,
+            seconds=1.0,
+            status="ok",
+            outputs={"mono": mono, "dual": dual},
+        )
+        worker._harvest_pdf_outputs(ctx, run)  # noqa: SLF001
+        assert (ctx.root / "zh.pdf").read_bytes() == b"%PDF-1.4 mono"
+        assert (ctx.root / "dual.pdf").read_bytes() == b"%PDF-1.4 dual"
+        assert store.file_record(ctx.task_id, "zh_pdf") is not None
+        assert store.file_record(ctx.task_id, "dual_pdf") is not None
+
+
+class TestAcloseTolerated:
+    """#148：旁路 client aclose 崩溃 → debug 留痕不拖垮段收尾（``_run_doc`` 同款）。"""
+
+    def test_teardown_llm_hook_aclose_boom(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import texlate.server.worker as worker_mod  # noqa: PLC0415
+
+        ctx, worker, _store = _mk(tmp_path)
+
+        async def boom(_clients: list) -> None:
+            msg = "aclose boom"
+            raise RuntimeError(msg)
+
+        monkeypatch.setattr(worker_mod, "_aclose_clients", boom)
+        client = ChatClient("http://127.0.0.1:9", "k")
+        worker._teardown_llm_hook(ctx, None, [client])  # noqa: SLF001 -- 不抛即过
+
+
+class TestParseAllUpperTex:
+    """#148 追加：``_parse_all`` rglob 大小写盲区——``.TEX`` 主文件不再零块。"""
+
+    def test_uppercase_tex_parsed(self, tmp_path: Path) -> None:
+        ctx, worker, _store = _mk(tmp_path)
+        ctx.base_dir.mkdir(parents=True, exist_ok=True)
+        (ctx.base_dir / "MAIN.TEX").write_text(_MATH_TEX, encoding="utf-8")
+        rows, scans = worker._parse_all(ctx)  # noqa: SLF001
+        assert "MAIN.TEX" in scans
+        assert rows, "大写 .TEX 应产出 chunk"
+
+
+class TestOptIntTolerant:
+    """#148 追加：存量 options_json 残留非数值 → 默认 + warning，不裸 int() 崩。"""
+
+    def test_opt_int_values(self, tmp_path: Path) -> None:
+        ctx, worker, store = _mk(tmp_path)
+        assert worker._opt_int(ctx, {}, "qps", 4) == 4  # noqa: SLF001, PLR2004
+        assert worker._opt_int(ctx, {"qps": "8"}, "qps", 4) == 8  # noqa: SLF001, PLR2004
+        seq0 = store.last_seq(ctx.task_id)
+        assert worker._opt_int(ctx, {"qps": "abc"}, "qps", 4) == 4  # noqa: SLF001, PLR2004
+        evs = store.events_since(ctx.task_id, seq0)
+        assert any(
+            e["type"] == "warning" and e["data"]["code"] == "bad_option" for e in evs
+        )
+
+    def test_babeldoc_job_bad_qps(
+        self,
+        tmp_path: Path,
+        clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
+    ) -> None:
+        """存量行 ``options.qps="abc"`` → job 落默认不 500。"""
+        ctx, worker, _store = _mk(tmp_path, options={"qps": "abc"})
+        ctx.secrets = Secrets(api_key="k")
+        workdir = ctx.root / "bw"
+        workdir.mkdir(parents=True, exist_ok=True)
+        job = worker._babeldoc_job(  # noqa: SLF001
+            ctx, ctx.root / "up.pdf", ctx.root / "out", workdir
+        )
+        assert job.qps == 4  # noqa: PLR2004 -- 默认钉样
+
+
+class TestRegisterPrecomputed:
+    """#148 追加：``_register`` 在调用线程实测 size/sha256——put_file 只做 DB 写。"""
+
+    def test_put_file_precomputed_skips_disk(self, tmp_path: Path) -> None:
+        store = Store(tmp_path / "t.db")
+        store.open()
+        try:
+            row = store.create_task(
+                task_id=new_task_id(),
+                kind="arxiv",
+                target_lang="zh-CN",
+                model="m",
+            )
+            rec = store.put_file(
+                row["id"], "zh_pdf", "ghost.pdf", size=7, sha256="deadbeef"
+            )
+            assert rec["bytes"] == 7  # noqa: PLR2004 -- 预算值钉样
+            assert rec["sha256"] == "deadbeef"
+            got = store.file_record(row["id"], "zh_pdf")
+            assert got is not None
+            assert got["sha256"] == "deadbeef"
+        finally:
+            store.close()
+
+    def test_register_hashes_on_caller_thread(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """worker 线程调 ``_register``：读盘+sha256 在调用线程，put_file 仍在 loop。"""
+        import hashlib  # noqa: PLC0415
+
+        import texlate.server.worker as worker_mod  # noqa: PLC0415
+
+        ctx, worker, store = _mk(tmp_path)
+        ctx.root.mkdir(parents=True, exist_ok=True)
+        (ctx.root / "big.bin").write_bytes(b"x" * 64)
+        sha_tids: list[int] = []
+        put_tids: list[int] = []
+        real_sha = hashlib.sha256
+        real_put = store.put_file
+
+        def spy_sha(data: bytes = b"", **kw: object) -> object:
+            sha_tids.append(threading.get_ident())
+            return real_sha(data, **kw)
+
+        def spy_put(*a: object, **kw: object) -> object:
+            put_tids.append(threading.get_ident())
+            return real_put(*a, **kw)
+
+        monkeypatch.setattr(worker_mod.hashlib, "sha256", spy_sha)
+        monkeypatch.setattr(store, "put_file", spy_put)
+
+        async def drive() -> int:
+            worker._loop = asyncio.get_running_loop()  # noqa: SLF001
+            worker._loop_tid = threading.get_ident()  # noqa: SLF001
+            await asyncio.to_thread(
+                worker._register,  # noqa: SLF001
+                ctx,
+                "blob",
+                "big.bin",
+            )
+            return threading.get_ident()
+
+        loop_tid = asyncio.run(drive())
+        assert sha_tids, "sha256 应被调用"
+        assert sha_tids[0] != loop_tid, "sha256 必须在调用线程算"
+        assert put_tids, "put_file 应被调用"
+        assert put_tids[0] == loop_tid, "put_file 仍在 loop 线程（DB 写单写者）"
+        rec = store.file_record(ctx.task_id, "blob")
+        assert rec is not None
+        assert rec["bytes"] == 64  # noqa: PLR2004 -- fixture 大小钉样
+        assert rec["sha256"] == hashlib.sha256(b"x" * 64).hexdigest()
