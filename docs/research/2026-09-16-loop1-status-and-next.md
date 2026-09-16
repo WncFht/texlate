@@ -160,11 +160,11 @@
 
 **留存 open 项**（扫荡波未消化，归下轮路由）：
 
-- **spec-xlat 未落地 10 项**：三表死链（`save_maps` 无生产调用方）、免费集动态发现无生产接线、env_text kind 全链死路、env_judge 默认关 vs spec 标准机制、`invalidation_tags` 未接线、段内规则三缺二、file_cache_key 缺 `base_url`、修复器模型不符（impl `swe-2-medium` vs spec `swe-2-max`）、anthropic `cache_control` 缺字段、e2e `_translate_tree` 裸 pipeline——按归属已转 1d/项目体验方式。
+- **spec-xlat 未落地 10 项**：三表死链（`save_maps` 无生产调用方）、免费集动态发现无生产接线、env_text kind 全链死路、env_judge 默认关 vs spec 标准机制、`invalidation_tags` 未接线、段内规则三缺二、file_cache_key 缺 `base_url`、修复器模型不符（impl `swe-2-medium` vs spec `swe-2-max`）、anthropic `cache_control` 缺字段、e2e `_translate_tree` 裸 pipeline——按归属已转 1d/项目体验方式。**1d 侧 #10 已落 `8ea2b4a`**（e2e 挂 `Glossary.load(placeholders=…)`+段缓存；export `drive_pipeline` ph 恒等注入——`[[IMG_n]]` 实证进 system prompt）。
 - **texlog-popped 消费侧**：`llm_hook._resolve_err_file`/`_requester_paths` 接 popped 尾段（#78 正修），归 项目体验方式。
 - **scout-e2ereal 风险 9 项**：`--date` 跨日重启分叉、印章只钉 live repo、浅合并残键、rc≥128 信号归因逃逸、cases 双行、results.json 撕写、空 records 种子、抽样漂移、auth 不停车——记档待修。
 - **scout-pf2fails 签名残余**：shim 保真 3 子型（aa.cls→natbib author-year、aipproc→theacknowledgments、aastex63→`_` catcode）、数学字体域 misschar 无规则接手、graphic_repair 覆盖缺口——归 项目体验方式规则车道。
-- **no-main-tex P-B 已裁**（2026-09-17）：bd 存在性谓词放宽到 `\input` 传递闭包——cs/0408015（bd 在 body.tex:11）+ 2105.00092（bd 在 begin.tex:74、ed 在 end.tex:1）两格 fixer-bdetect 在飞；SEKI 双子 0905.2435/0905.4369（封面件 dc + prolog 异形稿）判 wontfix。**P-D**（reject 错误码细分 plain_tex/latex209/garbage）、**utf8 P-E**（atend `%%BoundingBox` 头注改写）——待 1d 裁。
+- **no-main-tex P-B 已裁并落地** `91d142e`（2026-09-17）：`_walk_inputs` BFS 自 `_body_mass` 抽出共用，bd 存在性谓词放宽到 `\input` 传递闭包（遮盖视图，注释掉的 input/bd 不计），dc 仍本体判定——真格验证 cs/0408015+2105.00092 → main.tex 双翻案；SEKI 双子 0905.2435/0905.4369（封面件 dc + prolog 异形稿）判 wontfix 回归断言钉住。**P-D**（reject 错误码细分 plain_tex/latex209/garbage）、**utf8 P-E**（atend `%%BoundingBox` 头注改写）——待 1d 裁。
 - **app-contracts 未修面**：GET settings/health/providers server 模式信息泄漏（产品决策）、`worker.py` `int(options["qps"])` 同型崩溃类、`_auth` 三重读盘 nit。
 - **server-deep 取证清单**：`_build_md_zip` 线程约束 docstring、`put_file` loop 停顿 ~100-300ms（修法在 worker 侧）、transition 读-判-写不变量记档。
 - **scripts-ci 漂移残余**：bench/results 划出口径分裂（文档措辞 vs 实际 gate）待 leader 定政策；pre-commit eslint glob 不含 ts（CI 比本地严，观察项）。
