@@ -24,7 +24,7 @@ verdict 与 salvage 后 verdict 分列），console 逐格 `-> fail` 是首编�
 
 | 桶 | 格数 | 机理 |
 |---|---|---|
-| 真错暴露（upstream/规则面） | ~11 | `Illegal parameter number`×4（1012.1830/1109.2144/1109.2205/1109.5313——dpf2011/hcp2010 模板 `#` 真错）；capacity×2（1404.0037/1706.00076）；`\@citex` 失配（1907.00131）；`\c` 口音误用（1404.0519）；`Missing \begin{document}`（1206.2111 schulze——原 `[12pt]` 孤儿判腐蚀，重译后仍缺 documentclass 行，真错/上游待复核）；undefined_cs×2（0707.4206 pstricks.tex 内部 cs、astro-ph/0605222 `\hb`——aastex shim 宏面缺口，已在 fixable-data 提案） |
+| 真错暴露（upstream/规则面） | ~11 | `Illegal parameter number`×4（1012.1830/1109.2144/1109.2205/1109.5313——dpf2011/hcp2010 模板 `#` 真错）；capacity×2（1404.0037/1706.00076）；`\@citex` 失配（1907.00131）；`\c` 口音误用（1404.0519）；`Missing \begin{document}`（1206.2111 schulze——**已复核=上游真错**：src:1 作者写 `\documentclass{article}[12pt]`，选项错位置于类名后成孤儿——非腐蚀；可机械修（选项归位改写），单格量可作规则候选）；undefined_cs×2（0707.4206 pstricks.tex 内部 cs、astro-ph/0605222 `\hb`——aastex shim 宏面缺口，已在 fixable-data 提案） |
 | 结构性残损（非 CJK 指纹） | ~5 | `Incomplete \iffalse`×2（1206.0701 净 ifx-depth +4、1306.0364）；`\@iiiparbox` EOF 扫描×3（hep-ph/0408067/0501170/9910403——`\parbox{\absize}{...` 的 `}`/`\fi` 不在任何 chunk 内，重译无法回补——**残损在 segmenter chunk 边界层，fixer-slots 属地**） |
 | harness_crash:YamlishError | 2 格间发 | 2105.11398/hep-ph/0605134 各一条 crash record 后自恢复跑完——**fixloop 引擎 yaml 解析偶发崩溃，infra bug 报 owner** |
 
