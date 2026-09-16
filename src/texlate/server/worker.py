@@ -473,7 +473,7 @@ class SegmentCache:
     """``translation_cache`` 表的 dict 门面（XlatPipeline ``cache`` 参数契约）。
 
     键 = ``{cfg_hash}:{seg_key}``——``cfg_hash`` 由
-    ``sha256(model|prompt_ver|target_lang|glossary)[:16]`` 派生，管线内部
+    ``sha256(model|prompt_ver|target_lang|base_url|glossary)[:16]`` 派生，管线内部
     ``_seg_key`` 再叠 src_text+kind+masked 快照。读穿透 SELECT，写进
     pending 缓冲由 ``drain`` 随 chunk flush 事务落盘。
     """
@@ -3818,9 +3818,13 @@ class PipelineWorker:
         # 翻译函数不同，跨论文共享必须按分类分桶。placeholders 是恒等
         # 注入且逐文档漂移——进指纹会把缓存锁死成单文档桶，不进。
         cats = ",".join(self._arxiv_categories(ctx))
+        # base_url 进指纹：同名 model 换后端（free 网关 vs BYOK 端点）产出
+        # 不同——缺此项段缓存跨 provider 混桶中毒（spec file_cache_key
+        # 公式含 base 同口径，spec-xlat #7）。
+        base = str(ctx.secrets.base_url or cfg_row.get("base_url") or "")
         cfg = hashlib.sha256(
             f"{ctx.row['model']}|{PROMPT_VERSION}|{ctx.row['target_lang']}"
-            f"|{glossary}|l:{local_sig}|c:{cats}".encode()
+            f"|{base}|{glossary}|l:{local_sig}|c:{cats}".encode()
         ).hexdigest()[:16]
         if cache_scope() == "per_key":
             # 与 cache_key_for 同一 oracle 防护：段级 translation_cache

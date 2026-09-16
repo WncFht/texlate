@@ -187,6 +187,24 @@ class TestLocalGlossary:
         cache3["s"] = "t"
         assert cache3.drain()[0][0] not in (key1, key2)
 
+    def test_cache_prefix_tracks_base_url(self, tmp_path: Path) -> None:
+        """base_url 进段缓存指纹——同名 model 换后端不混桶（spec-xlat #7）。"""
+        ctx_a, worker_a = _glossary_ctx(tmp_path / "a")
+        ctx_a.secrets.base_url = "http://100.0.0.1:3003"
+        ctx_b, worker_b = _glossary_ctx(tmp_path / "b")
+        ctx_b.secrets.base_url = "https://api.example.com"
+        ka = worker_a._make_cache(ctx_a)  # noqa: SLF001
+        ka["s"] = "t"
+        kb = worker_b._make_cache(ctx_b)  # noqa: SLF001
+        kb["s"] = "t"
+        key_a, key_b = ka.drain()[0][0], kb.drain()[0][0]
+        assert key_a != key_b
+        ctx_c, worker_c = _glossary_ctx(tmp_path / "c")
+        ctx_c.secrets.base_url = ""
+        kc = worker_c._make_cache(ctx_c)  # noqa: SLF001
+        kc["s"] = "t"
+        assert kc.drain()[0][0] != key_b
+
 
 # ------------------------------------------------------------ ToUnicode 注入
 
