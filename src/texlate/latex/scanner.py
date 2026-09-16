@@ -111,6 +111,26 @@ _CLEAN_CMD_RX = re.compile(r"\\[a-zA-Z@]+\*?|\\[^a-zA-Z]")
 _CLEAN_NONALPHA_RX = re.compile(r"[^a-zA-Z]")
 _LEAD_WS_RX = re.compile(r"\s*")
 _TRAIL_WS_RX = re.compile(r"\s*$")
+# ``_eval_if`` 认得的原语 ``if*`` 名（``_is_if_opener`` 用）。只求值失败的
+# ``\ifdefined/\ifcsname`` 仍占一席——界标化不改其配 ``\fi`` 的结构事实。
+_IF_PRIM_NAMES = (
+    {
+        "if",
+        "ifcat",
+        "ifx",
+        "iftrue",
+        "iffalse",
+        "ifmmode",
+        "ifnum",
+        "ifdim",
+        "ifodd",
+        "ifcase",
+        "ifdefined",
+        "ifcsname",
+    }
+    | IF_CONST.keys()
+    | IF_CONST_FALSE
+)
 
 
 class _EnvDead(NamedTuple):
@@ -1009,14 +1029,20 @@ class Scanner:
 
     # ------------------------------------------------------------ env
 
-    def _handle_env(self, i: int, env: str, j: int) -> int:  # noqa: C901, PLR0911, PLR0915 — §3.5 环境四分类各一段，平铺即规则表
+    def _handle_env(self, i: int, env: str, j: int) -> int:  # noqa: C901, PLR0911, PLR0912, PLR0915 — §3.5 环境四分类各一段，平铺即规则表
         r"""``\begin{env}`` 已读到 j（env 名 ``}`` 后）。§3.5 全规则。"""
         tex = self._tex
         reg = self.state.macros.envs.get(env)
         if env in VERBATIM_ENVS:
             self._flush_run(i)
             pat = "\\end{" + env + "}"
-            k = tex.find(pat, j)
+            if env.startswith("filecontents"):
+                # 与 v2 segmenter 同款锚定（W26）：filecontents 闭环境须行首
+                # 独占——裸 find 会被体内 PostScript/注释的行中 \end 诱饵截短
+                fm = re.compile(rf"(?m)^[ \t]*{re.escape(pat)}").search(tex, j)
+                k = -1 if fm is None else fm.end() - len(pat)
+            else:
+                k = tex.find(pat, j)
             if k < 0:
                 self._emit(i, j)
                 self.state.warnings.append(
@@ -1306,6 +1332,21 @@ class Scanner:
         m = self.state.macros.cmds.get(name)
         return m is not None and m.kind is MacroKind.LITERAL
 
+    def _is_if_opener(self, name: str) -> bool:
+        r"""``if*`` cs 是否按真 ``\if`` 开器计 ``\fi`` 嵌套。
+
+        与 ``_handle_cond`` 同一判定：宏表已注册 → 否（``\newif`` 注册的
+        ``\Xtrue/\Xfalse`` setter 是 LITERAL 宏、``\ifAnonymous`` 类是普
+        通调用形——调用点都不配 ``\fi``）；未注册 → ``\newif`` 旗标
+        （``name[2:] ∈ ifflags``）或 ``_eval_if`` 认得的原语名 → 是；
+        其余未注册 ``if*``（etoolbox ``\ifdef/\ifcsdef`` 族包宏）→ 否。
+        """
+        if self.state.macros.cmds.get(name) is not None:
+            return False
+        if name[2:] in self.state.ifflags:
+            return True
+        return name in _IF_PRIM_NAMES
+
     def _handle_cond(self, i: int, j: int, name: str) -> int:  # noqa: C901, PLR0911 — 两档+宏前置各早退一支
         r"""``\if`` 两档（§8.6）：可求值 → ``_process_if``；不可求值 → 界标。
 
@@ -1508,7 +1549,8 @@ class Scanner:
 
         字节级实现：``\if+cond`` → LITERAL；未选 case + ``\else/\or/\fi``
         → LITERAL；选中 case → spawn 子扫（pieces 经 base 并入主流）。
-        ``\newif`` 整对保留（其后 ``\ifX`` 不计嵌套）；任何 ``if*`` 计嵌套。
+        ``\newif`` 整对保留（其后 ``\ifX`` 不计嵌套）；``if*`` 开器判定见
+        ``_is_if_opener``——注册宏与未注册包宏调用形不计嵌套。
         """
         tex, n = self._tex, len(self._tex)
         depth = 0
@@ -1546,13 +1588,11 @@ class Scanner:
                         pos = p3
                     continue
                 if nm.startswith("if"):
-                    # 与 _handle_cond 同一前置：非 LITERAL 宏（\ifAnonymous 等
-                    # 双参调用形）不是原语 if——计入会把真 \fi 配错对象
-                    m2 = self.state.macros.cmds.get(nm)
-                    if m2 is not None and m2.kind is not MacroKind.LITERAL:
-                        pos = j2
-                        continue
-                    depth += 1
+                    # 与 _handle_cond 同一前置：注册宏（\newif 的 \ifxtrue
+                    # 类 setter、\ifAnonymous 双参调用形）与未注册的包宏形
+                    # （\ifdef 族）都不配 \fi——计入会把真 \fi 配错对象
+                    if self._is_if_opener(nm):
+                        depth += 1
                     pos = j2
                     continue
                 if nm == "fi":

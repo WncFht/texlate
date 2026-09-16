@@ -134,7 +134,13 @@ def flatten_inputs(  # noqa: C901, PLR0912, PLR0913, PLR0915 — 单遍逐字符
         c = tex[i]
         if verb_env is not None:
             pat = "\\end{" + verb_env + "}"
-            k = tex.find(pat, i)
+            if verb_env.startswith("filecontents"):
+                # 与 v2 segmenter 同款锚定（W26）：filecontents 闭环境须行首
+                # 独占——裸 find 会被体内 PostScript/注释的行中 \end 诱饵截短
+                fm = re.compile(rf"(?m)^[ \t]*{re.escape(pat)}").search(tex, i)
+                k = -1 if fm is None else fm.end() - len(pat)
+            else:
+                k = tex.find(pat, i)
             if k < 0:
                 out.append(tex[i:])
                 break
@@ -188,8 +194,10 @@ def flatten_inputs(  # noqa: C901, PLR0912, PLR0913, PLR0915 — 单遍逐字符
             expanded, i = hit
             out.append(expanded)
             continue
-        out.append(c)
-        i += 1
+        # 整段命令吐字面：控制符号（\\、\% 等）的第二字节不得重新起词法——
+        # 逐字推进会把它当新转义起点（\\input 误内联、\\endinput 误截断）
+        out.append(tex[i:j])
+        i = j
     return "".join(out)
 
 
