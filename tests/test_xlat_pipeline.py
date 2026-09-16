@@ -121,7 +121,7 @@ class TestEndToEnd:
         assert out[0].skip_reason
 
     def test_leftover_ph_flagged(self) -> None:
-        """B7 观测面：译文残留源外占位符 token → leftover_ph warning 落库。"""
+        """B7 观测面：译文残留源外占位符 token → 升格 fault + 回退原文 + warning 落库。"""
 
         class Hallucinator(pl.MockTranslator):
             async def translate(self, *, user: str, **_kw: object) -> str:
@@ -132,7 +132,8 @@ class TestEndToEnd:
             translator=Hallucinator(),
             validator=lambda _s, _z: "",  # 校验放行——模拟 B7 穿透路径
         )
-        assert out[0].status == "ok"
+        assert out[0].status == "fault"
+        assert out[0].translation == out[0].source
         assert "leftover_ph:1" in out[0].warnings
 
         clean = _run(

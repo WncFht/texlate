@@ -6,7 +6,8 @@
              → 超大原子块切分 → 短块贪心装箱（≤2000 字符/批）
              → 文档级术语表物化 + 各 kind system prompt 预建（逐字节恒定）
              → 首发单飞暖前缀缓存 → N worker 消费 queue
-             → 每块经 retry 阶梯 → 占位符对账 → state 逐块落盘
+             → 每块经 retry 阶梯 → 占位符对账（leftover token 升格回退原文）
+             → state 逐块落盘
              → 批解析失败/批调用可重试失败 → 成员逐个回炉单翻（复用并发额度）
 
 `Translator` 是协议：真路径 = `GatewayTranslator`（ChatClient + prompts），
@@ -19,7 +20,6 @@ import asyncio
 import json
 import logging
 import re
-from collections import Counter
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol
 
@@ -297,19 +297,42 @@ def _mock_translate_text(text: str, zh: str) -> str:
 # ---------------------------------------------------------------- Pipeline
 
 
-def _flag_leftover_ph(r: ChunkResult) -> None:
-    """译文残留源文没有的占位符 token → ``leftover_ph:N`` warning。
+def _leftover_ph_tokens(src: str, zh: str) -> list[str]:
+    """``zh`` 中 ∉ ``src`` 占位符集合的 token（按出现序列，重复保留）。
 
-    B7 归因：模型幻觉 ``[[MATH_n]]`` 穿透 ladder 留字面——落库观测而非只
-    log。只扫 ok/partial——skipped/fault 的 translation=source，幻影无处藏。
+    splice 按 ph_map 成员解析 ``[[X_n]]``：zh 侧 token 不在 src 集合 → 查无
+    实体留字面（reconstruct ``dangling``）；在集合内则每处出现都正常展开——
+    故取集合差而非多重集差，合法重复引用与 src 字面 ``[[..]]`` 回显不误伤。
+    """
+    src_set = set(placeholders.ANY_PH_RX.findall(src))
+    return [t for t in placeholders.ANY_PH_RX.findall(zh) if t not in src_set]
+
+
+def _intercept_leftover_ph(r: ChunkResult) -> None:
+    """``leftover_ph`` 升格拦截：zh 带 splice 不可解析 token → fault + 回退原文。
+
+    B7 归因：模型幻觉 ``[[MATH_n]]`` 穿透 ladder/校验留字面，splice 后
+    ``[[MATH_966]]`` 进文档是用户可见污染（sabotage 1012.5411 实测）——
+    回退英文原文是更体面的降级。命中即落 fallback_orig 同形
+    （``fault`` + ``skipped`` + ``translation=source``）：不再 splice、
+    续跑重试、落库 ``failed`` → 论文级 ``partial`` 而非静默 ok。
+    ``attempts>0`` 才记 ``error_kind=validate``——缓存命中没发请求，
+    不充当 auth 闸的非-auth 证据。warning 仍落 ``leftover_ph:N`` 供计量。
+    只扫 ok/partial——skipped/fault 的 translation 已是 source。
     """
     if r.skipped or r.status not in ("ok", "partial"):
         return
-    extra = Counter(placeholders.ANY_PH_RX.findall(r.translation)) - Counter(
-        placeholders.ANY_PH_RX.findall(r.source)
-    )
-    if n := sum(extra.values()):
-        r.warnings.append(f"leftover_ph:{n}")
+    leftover = _leftover_ph_tokens(r.source, r.translation)
+    if not leftover:
+        return
+    r.warnings.append(f"leftover_ph:{len(leftover)}")
+    r.status = "fault"
+    r.skipped = True
+    r.translation = r.source
+    shown = ", ".join(sorted(set(leftover))[:8])
+    r.skip_reason = f"leftover placeholder(s) unresolvable in splice: {shown}"
+    if r.attempts > 0:
+        r.error_kind = r.error_kind or "validate"
 
 
 def _is_auth_error(e: BaseException) -> bool:
@@ -458,6 +481,14 @@ class XlatPipeline:
         ]
         return segment_key(c.content, c.kind, masked_snapshot=repr(ph_types))
 
+    def _cache_store(self, c: ChunkIn, zh: str) -> None:
+        """段级缓存写入；含 splice 不可解析 token 的译文不入缓存——防毒化续跑。
+
+        缓存命中旁路校验：同一份污染译文若落缓存，每轮续跑反复命中、永远修不正。
+        """
+        if self.cache is not None and not _leftover_ph_tokens(c.content, zh):
+            self.cache[self._seg_key(c)] = zh
+
     # ------------------------------------------------------------ 单块路径
 
     def _repair_fn(
@@ -558,8 +589,8 @@ class XlatPipeline:
             if res.status == "recovered"
             else "fault"
         )
-        if self.cache is not None and res.status in ("ok", "recovered"):
-            self.cache[key] = res.translation
+        if res.status in ("ok", "recovered"):
+            self._cache_store(c, res.translation)
         return ChunkResult(
             chunk_id=c.chunk_id,
             source=c.content,
@@ -620,9 +651,8 @@ class XlatPipeline:
                 warnings=[*warnings, f"retranslate still invalid: {err}"],
                 error_kind="validate",
             )
-        if self.cache is not None:
-            self.cache[self._seg_key(c)] = zh
-        return ChunkResult(
+        self._cache_store(c, zh)
+        r = ChunkResult(
             chunk_id=c.chunk_id,
             source=c.content,
             translation=zh,
@@ -631,6 +661,8 @@ class XlatPipeline:
             attempts=1,
             warnings=warnings,
         )
+        _intercept_leftover_ph(r)  # L2 回灌同受拦截——fault 由调用方回落原文
+        return r
 
     # ------------------------------------------------------------ 批量路径
 
@@ -679,8 +711,7 @@ class XlatPipeline:
                 # 批成功但该块校验败 → 单块回炉走完整阶梯
                 out.append(await self._degrade_one(c, batch_id))
                 continue
-            if self.cache is not None:
-                self.cache[self._seg_key(c)] = zh
+            self._cache_store(c, zh)
             out.append(
                 ChunkResult(
                     chunk_id=c.chunk_id,
@@ -813,14 +844,9 @@ class XlatPipeline:
         # 在续跑里必须重试——否则一次瞬时失败会把该块永久冻结成英文原文。
         # state.json 里 completed 仍记全部已尝试块（审计口径不变），过滤只在
         # 编排侧生效；重试结果经 record() 追加覆盖 done_map。
-        completed = {
-            cid
-            for cid in completed
-            if cid in recs and recs[cid].status in ("ok", "partial")
-        }
         done_map: dict[str, ChunkResult] = {}
         for cid, rec in recs.items():
-            done_map[cid] = ChunkResult(
+            res = ChunkResult(
                 chunk_id=rec.chunk_id,
                 source=rec.source,
                 translation=rec.translation,
@@ -831,9 +857,18 @@ class XlatPipeline:
                 skipped=rec.skipped,
                 skip_reason=rec.skip_reason,
                 attempts=rec.attempts,
-                warnings=rec.warnings,
+                warnings=[*rec.warnings],
                 error_kind=rec.error_kind,
             )
+            # warning 时代落盘的 ok 残留（zh 带源外占位符）→ 就地降 fault，
+            # 不进 completed → 本轮重翻自愈；否则旧档会把字面 [[X_n]] 带进 splice。
+            _intercept_leftover_ph(res)
+            done_map[cid] = res
+        completed = {
+            cid
+            for cid in completed
+            if cid in done_map and done_map[cid].status in ("ok", "partial")
+        }
         return completed, done_map
 
     def _route_chunks(
@@ -959,7 +994,7 @@ class XlatPipeline:
         """
         for r in results:
             done_map[r.chunk_id] = r
-            _flag_leftover_ph(r)
+            _intercept_leftover_ph(r)
             self.auth_gate.record(r)
             try:
                 self._emit(r)
