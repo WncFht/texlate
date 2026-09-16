@@ -185,7 +185,7 @@ env judge 参数：**temperature=0、max_tokens=16、3 次重试、解析 `true/
 ### 3.3 中文注入
 
 - 默认 **ctex `[fontset=fandol,UTF8]`**（hjfy 同款、双引擎实测可编译、白拿节名汉化）；**xeCJK+fontspec 为降级路径**（ctex 冲突签名→fixloop 或探测编译切换）。两路径共用注入缝：兼容块 → **文件顶**（勘误 2026-09-17：非 `\begin{document}` 前，PassOptions 语义要求）；字体系块 → `\documentclass{}` 后。
-- `\documentstyle` → **禁止注入**（inject 层兜底拒，账本记 `inject_reject:latex209`——勘误 2026-09-17：`inject.py:463` 先走 `upgrade_209` 转换器，仅不可转（ds@ 类/no_target）才抛拒，「禁止注入」是兜底语义）；路由侧改判 `latex209_suspect` **先试编**、真 2.09 签名（tail 侧 `\documentstyle`/`LaTeX 2.09 COMPATIBILITY MODE`）由 fixloop gate `latex209_reject` 拒绝 → 降级链（改判 `38cc0a7`，推翻 05 裁决 13 的"无条件 reject"——05 已加注）。
+- `\documentstyle` → **禁止注入**（inject 层兜底拒，账本记 `inject_reject:latex209`——勘误 2026-09-17：`inject.py:576` 先走 `upgrade_209` 转换器，仅不可转（ds@ 类/no_target）才抛拒，「禁止注入」是兜底语义）；路由侧改判 `latex209_suspect` **先试编**、真 2.09 签名（tail 侧 `\documentstyle`/`LaTeX 2.09 COMPATIBILITY MODE`）由 fixloop gate `latex209_reject` 拒绝 → 降级链（改判 `38cc0a7`，推翻 05 裁决 13 的"无条件 reject"——05 已加注）。
 - FLOAT_SIZING 仅在有 figure/table 时注入（`\resizebox*` 缩超高 float + typeout 回读）；TABLE_FITTING hook threeparttable（`adjustbox{max width=\linewidth}`）。
 - `embed_cjk_mappings`：编译后给 Identity-H/Adobe-GB1 无 ToUnicode 字体注 `Adobe-GB1-UCS2` cmap——中文 PDF 可复制可搜索。
 
@@ -355,6 +355,6 @@ fixloop(proj, eng, ruleset):
 | 注入态 | inject `status` | `injected` / `already`（已有 CJK 支持）/ `no-docline`（无 documentclass 锚） | `compile/inject.py` |
 | fixloop 判决 | cases `verdict` / `fixloop_verdict` | `clean` / `acceptable_pdf`（有 pdf 即收，misschar 档）/ `best_effort_pdf`（有 pdf 残留错）/ `dirty_pdf` / `unfixable:{cat}` / `stuck`（轮内无进展）/ `no_errors_no_pdf`（干净日志零页面）/ `reject:<rid>`（gate 直通）/ `no_main_tex` / `max_rounds`（勘误 2026-09-17：原表缺后三值） | `fixloop/engine.py`、`fixloop/cases.py` |
 | 规则态 | rules.yaml `status` | `stub` / `proposed` / `active` / `retired` / `validated`（勘误 2026-09-17：impl 另有 `validated`，且字段缺席默认按 active 上场——status 目前零行为效应，排序全由 `order` 驱动，生命周期语义待 owner 裁定） | `fixloop/rules.yaml` |
-| 任务态 | job `status`（11 态机） | active：`queued`/`fetching`/`parsing`/`translating`/`compiling`；terminal：`done`/`partial`/`fault`/`cancelled`/`interrupted`/`needs_auth` | `server/store.py:124` |
+| 任务态 | job `status`（11 态机） | active：`queued`/`fetching`/`parsing`/`translating`/`compiling`；terminal：`done`/`partial`/`fault`/`cancelled`/`interrupted`/`needs_auth` | `server/store.py:150` |
 
 跨段退化口径：终态 `fixloop.status` 不得低于上游 `compile.status`（clean>partial>fail>reject）；loop1 实证 17 格中 13 格为基建杀伤假象（修复后引擎直编出 pdf），真退化判定须直编复验。
