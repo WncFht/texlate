@@ -76,7 +76,7 @@
 
 ### A. 立即可删（无在飞依赖，证据已入库/可再生）≈ 63G
 
-- `bench/work_base_v3full/` 17G（**已删 19:2x**，磁盘 16G→29G 空闲）、`work_sabotage_v3` 5.2G、`work_e2emock` 2.2G（**暂缓**——1e 侧已无依赖（kill 现场证据入库 `cc50507`/`d2d82e8`），但 1d fixer-slots 可能引用其中 zh/splice 树做槽位保护+bug-B 真格复验；1d 正在向 fixer 要具体 cell 子目录保留名单，**等名单到后只保那几格、其余可删**）、`work_fixloop*` 全家 ~4.6G、`work_compile*` 全家 ~2.0G、`work_sabotage_{mock,probe}` ~0.8G
+- `bench/work_base_v3full/` 17G（**已删 19:2x**，磁盘 16G→29G 空闲）、`work_sabotage_v3` 5.2G、`work_e2emock` 2.2G（**名单已到（09-17 fixer-slots 终报）：全目录零引用可删——唯一保留格 = 1e 指定的 `corpus_v3/pipe-xel/1206.0197` 与 `corpus_v3/pipeB-xel/2410.17957` 两 cell 子目录**）、`work_fixloop*` 全家 ~4.6G、`work_compile*` 全家 ~2.0G、`work_sabotage_{mock,probe}` ~0.8G
 - `bench/work_v3/tars/`+`staging/` ~27.5G（IA chunk 整包缓存；**留 `chunks.json`/`features/`/`expand/`/`frame_lookup.tsv.gz` 等小件 ~30M**——成员级回取不依赖整包，但删 tars = 放弃旧池 56 chunk 本地再扫能力，若后续要加抽同 chunk 需重下 26G）
 - `tmp/exp/` 除散装脚本外 ~1.6G（corpus-cbh 是硬链接幻象，删只省 0.6M；`src-snapshot-*`/`cbv3-base`/`escape_probe.py`/`run_*.py`/`s3*.py` 是复跑咽喉小件建议留）；`tmp/` 其余冒烟数据 ~0.5G
 - `bench/py/.venv_babeldoc` 664M（失效 venv）、`dist/` 21M、`web/dist` 8.9M、`web/scripts/node_modules`+shots ~13M、（可选）`web/node_modules` 295M、`bench/ts/node_modules` 70M
@@ -84,7 +84,7 @@
 
 ### B. 在飞勿动 ≈ 46G+（等 §4 收官）
 
-- **`stagerun-loop1-2026-09-16/`（44G，work/ 独占）**：loop2 已收官（`e769ebb`），不再是活写面——但 **(a)** 挂 fixer-slots preserve-list（与 work_e2emock 同一张，1d 在催）；**(b)** tickets.jsonl 455 条 `repro_path` 指向 work/ 树，删前须在报告标注已失效或只保名单内 cell。解锁后按「结论留、现场销」可释放 ~44G。
+- **`stagerun-loop1-2026-09-16/`（44G，work/ 独占）**：loop2 已收官（`e769ebb`），不再是活写面——**(a) preserve-list 已到（09-17 fixer-slots 终报）：只保 11 格的 `src/` 子树**——`1012.1321`、`1206.1808`、`2003.10959`、`2105.03900`、`math--0307301`（bug-B 复验）+ `0707.1320`、`hep-ph--0605151`、`2105.00037`、`1306.2067`、`0806.3104`、`0905.2120`（slots 复验），其余可删；**(b)** tickets.jsonl 455 条 `repro_path` 指向 work/ 树，删前须在报告标注已失效或只保名单内 cell。解锁后按「结论留、现场销」可释放 ~44G。
 - `postfix-2026-09-16/`（100/100 已跑完，待 1e 落库）+ `work_e2ereal/` 1.6G（落库后转 A 类；**`_xlat_state/` 25M 永留**——真网关翻译缓存+断点续跑+qualbench 抽样源）。
 - `tmp/latex209-probe`/`cjkfont`/`latex209-verify`（latex209 交付前需引用）、`work_e2emock`（等 slots 名单）。
 - 未入库代码交付件（§4 表内 ?? 文件）。
