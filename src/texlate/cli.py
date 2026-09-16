@@ -833,6 +833,16 @@ def _share_out_is_file(out: Path) -> bool:
     return not out.is_dir() and bool(out.suffix)
 
 
+def _share_final_move(bundle: Path, out: Path) -> Path:
+    """``-o`` 文件形落盘：同设备 rename，跨设备退化 copy+unlink。"""
+    try:
+        shutil.move(bundle, out)
+    except OSError as e:
+        typer.echo(f"share pack: 无法写入 {out}: {e}", err=True)
+        raise typer.Exit(1) from None
+    return out
+
+
 def _share_warn_no_pdf(task_dir: Path) -> None:
     """zh.pdf 缺席 → 提示按 partial 包打包（合法，manifest 不登记该成员）。"""
     if (task_dir / "zh.pdf").is_file():
@@ -932,8 +942,7 @@ def share_pack(
         raise typer.Exit(1) from None
     final = bundle
     if out is not None and _share_out_is_file(out) and bundle != out:
-        bundle.replace(out)
-        final = out
+        final = _share_final_move(bundle, out)
     typer.echo(
         json.dumps(
             {
@@ -970,7 +979,11 @@ def share_unpack(
     """
     stem = bundle.name.removesuffix(".share.zip")
     if not stem or stem == bundle.name:
-        stem = bundle.stem or "share-unpacked"
+        stem = bundle.stem
+    # 包文件名来自外部——剥出的目录名必须扁平：``..``/``.``/分隔符回退固定名
+    # （``...share.zip`` 剥出 ``..`` 会向父目录写产物）
+    if not stem or stem in (".", "..") or "/" in stem or "\\" in stem:
+        stem = "share-unpacked"
     dest = out or Path.cwd() / stem
     try:
         mf = unpack_share(bundle, dest)

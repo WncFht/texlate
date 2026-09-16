@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import binascii
 import hashlib
 import json
+import struct
 import zipfile
 from typing import TYPE_CHECKING
 
@@ -207,6 +209,93 @@ def test_unsafe_artifact_name_rejected(tmp_path: Path) -> None:
     arts["../evil.tex"] = {"sha256": _ZERO_SHA, "bytes": 3}
     evil = _repack(tmp_path / "evil.share.zip", manifest, _payloads(bundle))
     with pytest.raises(ShareError, match="unsafe"):
+        unpack_share(evil, tmp_path / "d")
+
+
+@pytest.mark.parametrize("bad", ["a\x00b", "x" * 300])
+def test_bad_artifact_name_rejected(tmp_path: Path, bad: str) -> None:
+    """NUL / 超 NAME_MAX(255B) 的产物名 → 拒绝（写盘前闸死，不放行成 500）。"""
+    work = _make_work(tmp_path)
+    bundle = pack_share(work, _PARTS, out_dir=tmp_path / "out")
+    manifest = _bundle_manifest(bundle)
+    arts = manifest["artifacts"]
+    assert isinstance(arts, dict)
+    arts[bad] = {"sha256": _ZERO_SHA, "bytes": 3}
+    evil = _repack(tmp_path / "evil.share.zip", manifest, _payloads(bundle))
+    with pytest.raises(ShareError, match="unsafe"):
+        unpack_share(evil, tmp_path / "d")
+
+
+def test_bad_utf8_member_name_rejected(tmp_path: Path) -> None:
+    """中央目录成员名标 UTF-8 flag 但字节非法 → ``not a readable``（不炸 UnicodeDecodeError）。"""
+    name = b"a\xff\xfeb"
+    content = b"x"
+    crc = binascii.crc32(content) & 0xFFFFFFFF
+    local = (
+        struct.pack(
+            "<IHHHHHIIIHH",
+            0x04034B50,
+            20,
+            0x800,
+            0,
+            0,
+            0,
+            crc,
+            len(content),
+            len(content),
+            len(name),
+            0,
+        )
+        + name
+    )
+    cd_off = len(local) + len(content)
+    central = (
+        struct.pack(
+            "<IHHHHHHIIIHHHHHII",
+            0x02014B50,
+            20,
+            20,
+            0x800,
+            0,
+            0,
+            0,
+            crc,
+            len(content),
+            len(content),
+            len(name),
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+        )
+        + name
+    )
+    eocd = struct.pack("<IHHHHIIH", 0x06054B50, 0, 0, 1, 1, len(central), cd_off, 0)
+    bad = tmp_path / "bad.share.zip"
+    bad.write_bytes(local + content + central + eocd)
+    with pytest.raises(ShareError, match="not a readable"):
+        unpack_share(bad, tmp_path / "d")
+
+
+def test_unknown_compression_member_rejected(tmp_path: Path) -> None:
+    """产物成员标未知压缩方法 → ``corrupt member``（不炸 NotImplementedError）。"""
+    work = _make_work(tmp_path)
+    bundle = pack_share(work, _PARTS, out_dir=tmp_path / "out")
+    data = bytearray(bundle.read_bytes())
+    # 只把 dual.json 成员的 method 字段（local+central 两处）改成未知值 99
+    for sig, m_off, n_off in ((b"PK\x03\x04", 8, 26), (b"PK\x01\x02", 10, 28)):
+        idx = data.find(sig)
+        while idx != -1:
+            nlen = int.from_bytes(data[idx + n_off : idx + n_off + 2], "little")
+            name_at = idx + n_off + 4 if sig == b"PK\x03\x04" else idx + n_off + 18
+            if bytes(data[name_at : name_at + nlen]) == b"dual.json":
+                data[idx + m_off] = 99
+            idx = data.find(sig, idx + 1)
+    evil = tmp_path / "evil.share.zip"
+    evil.write_bytes(bytes(data))
+    with pytest.raises(ShareError, match="corrupt member"):
         unpack_share(evil, tmp_path / "d")
 
 

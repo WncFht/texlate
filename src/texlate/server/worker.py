@@ -26,6 +26,7 @@ import re
 import secrets as secrets_mod
 import shutil
 import sqlite3
+import tempfile
 import threading
 import time
 import zipfile
@@ -1104,7 +1105,8 @@ def share_pack_publish(
     返回 ``(包路径, 校验后 manifest)``。
     """
     bundle = pack_share(work_dir, manifest, out_dir=out_dir)
-    scratch = work_dir / ".share-verify"
+    # mkdtemp 唯一 scratch——并发同任务双发不会互删对方的校验现场
+    scratch = Path(tempfile.mkdtemp(prefix=".share-verify-", dir=work_dir))
     try:
         mf = unpack_share(bundle, scratch)
     finally:
@@ -1481,9 +1483,7 @@ class PipelineWorker:
         if opts.pop("reuse_hit", None) is not None:
             # 本跑自产——上轮的 reuse 标记随产物来历失效即摘
             ctx.row["options_json"] = json.dumps(opts, ensure_ascii=False)
-            self.store.update_fields(
-                ctx.task_id, options_json=ctx.row["options_json"]
-            )
+            self.store.update_fields(ctx.task_id, options_json=ctx.row["options_json"])
         self._stage(ctx, "fetching", "取源完成", PROGRESS["fetching"][1])
         self._check_cancelled(ctx)
 

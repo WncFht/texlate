@@ -990,10 +990,13 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
             # index 行 url 按约定是扁平包文件名——只认扁平名防越界探测
             name = str(hit.get("url") or "")
             flat = "/" not in name and "\\" not in name and name not in ("", ".", "..")
-            if flat and (out_dir / name).is_file():
-                return JSONResponse(
-                    {"share_key": key, "url": name, "bytes": hit["bytes"]}
-                )
+            if flat:
+                try:
+                    size = (out_dir / name).stat().st_size
+                except OSError:
+                    size = -1  # 行在包不在（或竞态消失）——按未命中走重打
+                if size >= 0:
+                    return JSONResponse({"share_key": key, "url": name, "bytes": size})
         missing = [n for n in REQUIRED_ARTIFACTS if not (task_root / n).is_file()]
         if missing:
             return _json_error(

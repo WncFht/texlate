@@ -363,6 +363,21 @@ class TestShareUnpack:
         dest = tmp_path / bundle.name.removesuffix(".share.zip")
         assert (dest / "dual.json").is_file()
 
+    def test_unpack_unsafe_bundle_name_falls_back(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """包名剥出 ``..``/``.`` 等越界 stem → 回退 ``share-unpacked``，不外溢。"""
+        bundle = self._bundle(tmp_path)
+        evil = tmp_path / "...share.zip"  # removesuffix(".share.zip") → ".."
+        bundle.rename(evil)
+        cwd = tmp_path / "cwd"
+        cwd.mkdir()
+        monkeypatch.chdir(cwd)
+        res = _RUNNER.invoke(app, ["share", "unpack", str(evil)])
+        assert res.exit_code == 0, res.output
+        assert (cwd / "share-unpacked" / "dual.json").is_file()
+        assert not (tmp_path / "dual.json").exists()  # 未写到父目录
+
     def test_unpack_rejects_non_zip(self, tmp_path: Path) -> None:
         bad = tmp_path / "bad.share.zip"
         bad.write_bytes(b"not a zip")

@@ -20,6 +20,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 import secrets
 import zipfile
 from dataclasses import dataclass
@@ -58,6 +59,8 @@ _MANIFEST_MAX = 1 << 20
 _MEMBER_MAX = 256 << 20
 #: sha256 hex digest 定长。
 _SHA256_HEX_LEN = 64
+#: 产物名字节上限——主流文件系统 NAME_MAX=255，超限名写盘必炸，校验段先拒。
+_NAME_MAX = 255
 
 
 class ShareError(Exception):
@@ -219,10 +222,18 @@ def pack_share(
     }
     out = (out_dir or work_dir) / f"{key}.share.zip"
     out.parent.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr(MANIFEST_NAME, json.dumps(doc, ensure_ascii=False, indent=2) + "\n")
-        for name in artifacts:
-            zf.write(work_dir / name, arcname=name)
+    # 临时文件 + 原子 rename 发布——并发同键打包/静态托管读取不会看到半成品
+    tmp = out.with_name(f".{out.name}.{secrets.token_hex(4)}.tmp")
+    try:
+        with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr(
+                MANIFEST_NAME, json.dumps(doc, ensure_ascii=False, indent=2) + "\n"
+            )
+            for name in artifacts:
+                zf.write(work_dir / name, arcname=name)
+        tmp.replace(out)
+    finally:
+        tmp.unlink(missing_ok=True)
     return out
 
 
@@ -230,13 +241,15 @@ def pack_share(
 
 
 def _name_ok(name: object) -> bool:
-    r"""产物名必须是扁平文件名——拒绝 ``/`` ``\`` ``.`` ``..`` 与空名。"""
+    r"""产物名必须是扁平文件名——拒绝 ``/`` ``\`` ``.`` ``..``、空名、NUL 与超 NAME_MAX 名。"""
     return (
         isinstance(name, str)
         and bool(name)
         and name not in (".", "..")
         and "/" not in name
         and "\\" not in name
+        and "\x00" not in name
+        and len(os.fsencode(name)) <= _NAME_MAX
     )
 
 
@@ -251,8 +264,18 @@ def _read_manifest(zf: zipfile.ZipFile) -> dict[str, Any]:
         msg = f"{MANIFEST_NAME} too large: {info.file_size}B"
         raise ShareError(msg)
     try:
-        doc = json.loads(zf.read(info))
-    except (json.JSONDecodeError, zipfile.BadZipFile) as e:
+        blob = zf.read(info)
+    except (
+        OSError,
+        zipfile.BadZipFile,
+        RuntimeError,
+        NotImplementedError,  # 未知压缩方法
+    ) as e:
+        msg = f"{MANIFEST_NAME} unreadable: {e}"
+        raise ShareError(msg) from e
+    try:
+        doc = json.loads(blob)
+    except json.JSONDecodeError as e:
         msg = f"{MANIFEST_NAME} unreadable: {e}"
         raise ShareError(msg) from e
     if not isinstance(doc, dict):
@@ -338,7 +361,12 @@ def _extract_verified(
         raise ShareError(msg)
     try:
         blob = zf.read(info)
-    except (OSError, zipfile.BadZipFile, RuntimeError) as e:
+    except (
+        OSError,
+        zipfile.BadZipFile,
+        RuntimeError,
+        NotImplementedError,  # 未知压缩方法
+    ) as e:
         msg = f"corrupt member: {name}"
         raise ShareError(msg) from e
     if len(blob) != art.size or hashlib.sha256(blob).hexdigest() != art.sha256:
@@ -358,7 +386,11 @@ def unpack_share(path: Path, dest: Path) -> ShareManifest:
     """
     try:
         zf = zipfile.ZipFile(path)
-    except (OSError, zipfile.BadZipFile) as e:
+    except (
+        OSError,
+        zipfile.BadZipFile,
+        UnicodeDecodeError,  # 中央目录成员名标 UTF-8 但字节非法
+    ) as e:
         msg = f"not a readable share bundle: {path}"
         raise ShareError(msg) from e
     with zf:
