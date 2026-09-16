@@ -681,6 +681,23 @@ class Segmenter:
 
     # ------------------------------------------------------------ flush
 
+    def _warn_expand_tail_drop(self, items: list[_RunItem]) -> None:
+        r"""Literal 冲刷丢空 ident 项非白 surface → ``expand_tail_dropped`` 留痕。
+
+        空 ident 项（组内 ``eol_par`` 尾段等）的 surface 在 literal 路径
+        整段蒸发——调用点字节由 EXPAND ident 兜底可编译，但译文面不可见。
+        此静默曾是 ``\\@iiiparbox`` runaway 族放大器；Option D 已让整组
+        同 run 同沉浮，残留只在整组合体 sub-``CHUNK_MIN`` 时触发。
+        """
+        for it in items:
+            if not it.ident and it.surface.strip():
+                self.state.warnings.append(
+                    ScanWarning(
+                        "expand_tail_dropped", it.vstart, it.surface.strip()[:60]
+                    )
+                )
+                return
+
     def _flush_run(self, end_pos: int) -> None:
         """Run → chunk piece / literal piece（§3.8 + 双轨 identity）。"""
         items = self._run
@@ -711,6 +728,7 @@ class Segmenter:
         force = self.force_chunk
         self.force_chunk = False
         if len(clean) < CHUNK_MIN and not (force and clean):
+            self._warn_expand_tail_drop(items)
             self._emit_text(rs, re_, self._lit_text(items, ident, re_))
             self._pending_settle(pending, s, register=False)
             return
@@ -881,12 +899,12 @@ class Segmenter:
         self._rappend(segs[0], ph, vspan)
         self._run_has_expand = True
         for seg in segs[1:]:
-            # eol_par 虚拟分段符：前半（含 EXPAND 项）冲刷，后半挂下一 run
-            # （ident 空串——调用点字节已由 EXPAND 项计过，§3）
-            self._flush_run(vspan.end)
+            # eol_par 段界 → 同 run 内 ``\n\n`` 段落分隔（全或无发射）：
+            # 逐段冲刷把空 ident 尾段挂下一 run，literal 路径只渲 ident
+            # → ``}``/``\end{env}`` 等结构字节静默蒸发（9910403 族）。
+            # ident 空串——调用点字节已由 EXPAND 项计过（§3）。
             if seg:
-                self._rappend(seg, "", Span(vspan.end, vspan.end))
-                self._run_has_expand = True
+                self._rappend("\n\n" + seg, "", Span(vspan.end, vspan.end))
         self._open_origin = None
         self._open_vspan = None
         self._open_toks = []
@@ -1387,7 +1405,11 @@ class Segmenter:
         调用、``\\if`` 族——ph 体 = 展开表面切片（vtex 无对应字节，
         identity 由本组 ``[[EXPAND]]``/``ph_map[CHUNK]`` 兜底）。
         ``eol_par`` = 虚拟分段符：切段边界、自身不产字节（§3）。
-        返回 ``list[str]``——段间边界处 ``_close_group`` 做 run 冲刷。
+        返回 ``list[str]``——段界在 ``_close_group`` 重拼为同一 run 的
+        ``\\n\\n`` 段内分隔（全或无发射：逐段冲刷会把空 ident 尾段交给
+        literal 路径丢字节——``\\parbox`` 参内 ``\\par`` 切断的
+        ``}``/``\\end{env}`` 蒸发，hep-ph/9910403 ``\\@iiiparbox``
+        runaway 族）。
         """
         toks = self._open_toks
         segs: list[str] = []

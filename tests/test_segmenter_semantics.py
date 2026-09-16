@@ -251,30 +251,30 @@ def test_expand_surface_and_phmap_fallback() -> None:
 
 
 def test_expand_par_inside_def_splits_run() -> None:
-    r"""``\def`` 体内 ``\par`` → eol_par 作虚拟段分隔：一次调用产两段 chunk；
-    ident 面 ``\twopara`` 只在 ``[[EXPAND_1]]`` 出现一次（不重复还原）。"""
+    r"""``\def`` 体内 ``\par`` → eol_par 段界在 ``_close_group`` 重拼为同
+    run ``\n\n`` 段内分隔（Option D 全或无发射——逐段冲刷会让空 ident
+    尾段在 literal 路径丢结构字节）；ident 面 ``\twopara`` 只在
+    ``[[EXPAND_1]]`` 出现一次（不重复还原）。"""
     res = scan(
         "Before \\twopara after.",
         "\\def\\twopara{First expanded part.\\par Second expanded part.}\n",
     )
     assert [c.content for c in res.chunks] == [
-        " Before First expanded part.",
-        "Second expanded part. after. ",
+        " Before First expanded part.\n\nSecond expanded part. after. ",
     ]
     assert res.ph_map["[[EXPAND_1]]"] == "\\twopara"
-    assert res.ph_map["[[CHUNK_0]]"] == "\nBefore [[EXPAND_1]]"
-    assert res.ph_map["[[CHUNK_1]]"] == " after.\n"
+    assert res.ph_map["[[CHUNK_0]]"] == "\nBefore [[EXPAND_1]] after.\n"
 
 
 def test_expand_long_def_blank_line_splits() -> None:
-    r"""``\long\def`` + 真空行：展开体内空行同样转 eol_par 切段。"""
+    r"""``\long\def`` + 真空行：展开体内空行同走 eol_par→``\n\n`` 合段。"""
     res = scan(
         "Before \\twopara after.",
         "\\long\\def\\twopara{First expanded part.\n\nSecond expanded part.}\n",
     )
-    assert len(res.chunks) == 2  # noqa: PLR2004
+    assert len(res.chunks) == 1
     assert "First expanded part." in res.chunks[0].content
-    assert "Second expanded part." in res.chunks[1].content
+    assert "Second expanded part." in res.chunks[0].content
 
 
 def test_expand_regenerated_protection() -> None:
