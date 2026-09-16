@@ -314,18 +314,23 @@ def base_xel_condition(src: Path, sid: str, main_rel: str, timeout: float) -> di
 def _want_fix(rec: dict, mode: str) -> bool:
     """pipe-xel verdict → 是否补跑 pipe-fix。
 
-    onfail 只接 ``fail``：partial 已产出 PDF（warning 级判据——invalid_utf8/
-    missing_chars 等非编译错误），fixloop 的 halt_on_error 引擎 + 树改写
-    （vendored sty 隔离/tlmgr 装包）只会把 PDF 弄丢而救不了 warning——
-    e2e-hotfix-smoke 实测 partial→fail 回退 2/3。reject 不救
-    （inject 拒绝=无 ctex，CJK 注定 fail）。always=幂等/回退率探针。
+    onfail 接 ``fail`` + 缺字 ``partial``：其余 partial 已产出 PDF
+    （warning 级判据——invalid_utf8 等非编译错误），fixloop 的 halt_on_error
+    引擎 + 树改写（vendored sty 隔离/tlmgr 装包）只会把 PDF 弄丢而救不了
+    warning——e2e-hotfix-smoke 实测 partial→fail 回退 2/3。例外是
+    missing_chars>0：F4 的 warn_missing_char/missing_char_fix 专打这一类
+    （零 `!` 错误也驱动修复轮）。reject 不救（inject 拒绝=无 ctex，CJK 注定
+    fail）。always=幂等/回退率探针。
     """
-    v = (rec.get("pipe-xel") or {}).get("verdict", {}).get("status")
+    verdict = (rec.get("pipe-xel") or {}).get("verdict", {})
+    v = verdict.get("status")
     reject_at = (rec.get("pipe-xel") or {}).get("reject_at")
     if v is None or v == "reject" or reject_at or mode == "never":
         # v=="reject" 仅兼容 F3 前旧结果文件；新数据走 reject_at 判定
         return False
-    return mode == "always" or v == "fail"
+    if mode == "always" or v == "fail":
+        return True
+    return v == "partial" and (verdict.get("missing_chars") or 0) > 0
 
 
 def pipe_fix_condition(

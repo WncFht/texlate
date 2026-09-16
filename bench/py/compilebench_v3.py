@@ -216,7 +216,7 @@ def _run_engine(eng_name: str, wdir: Path, main_rel: str, texmf: Path):
 _STDERR_RULES = (
     ("missing_pfb", r"Cannot proceed without .vf|physical font"),
     (
-        "eps_image",
+        "ps_image",
         (
             r"PostScript images are not supported|"
             r'image inclusion failed for "[^"]*\.(?:eps|ps)"'
@@ -393,7 +393,9 @@ F_MAP = {
     "minted_froz": "F10 minted",
     "already_def": "F11 宏冲突",
     "latex209": "F12 LaTeX2.09",
-    "eps_image": "路由 eps/ps→xelatex",
+    "ps_image": "路由 eps/ps→xelatex",
+    "eps_image": "路由 eps/ps→xelatex",  # 旧结果文件的改名前类别名
+    "inputenc_unicode": "inputenc 拒载 Unicode 引擎",
     "timeout": "超时",
     "capacity": "TeX capacity",
     "emergency": "Emergency stop",

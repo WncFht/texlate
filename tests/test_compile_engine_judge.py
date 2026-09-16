@@ -109,7 +109,18 @@ def test_classify_eps_hard_wall() -> None:
         "",
         timed_out=False,
     )
-    assert cat == "eps_image"
+    assert cat == "ps_image"
+
+
+def test_classify_inputenc_unicode() -> None:
+    """inputenc 对 Unicode 引擎整包拒载 → inputenc_unicode（rules.yaml 同名）。"""
+    cat, _ = classify_error(
+        "inputenc.sty:164: Package inputenc Error: inputenc is not designed for",
+        None,
+        "",
+        timed_out=False,
+    )
+    assert cat == "inputenc_unicode"
 
 
 # ---------------------------------------------------------------- 路由表
