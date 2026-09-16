@@ -2192,6 +2192,41 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "repro-2501-2026-09-16/README.md 缺陷B; 1e cross-session handoff"
 
+  # repro-1306 (1e 移交, e2e 实证 0 err 7页): revtex4-1 4.1s 的
+  # \document@inithook→\switch@array 对 array v2.6n 校验失败仍无条件 \let
+  # 换旧协议 \@mkpream/\insert@column → \xdef\@preamble 展开失衡 →
+  # Extra \or ×30 → Incomplete \iffalse → Emergency。守卫=\begin{document}
+  # 前存真值 + AtBeginDocument 恢复 (排在 revtex inithook 后)。
+  # 坑: 只恢复 \@mkpream 会 HANG——mkpream+insert@column 必须成对。
+  - id: revtex4_array_swap_guard
+    description: "revtex4-1 'Unrecognized array package' 指纹 (校验失败仍换旧协议 \\\\@mkpream/\\\\insert@column) → \\\\begin{document} 前注守卫: 存真值 + AtBeginDocument 恢复"
+    phase: loop
+    order: 170 # undefined_color_fallback(166) 之后, undefined_cs_guess(900) 之前
+    when: { category: syntax }
+    condition:
+      source_contains: "\\\\documentclass\\s*(\\[[^\\]]*\\])?\\s*\\{revtex4"
+      ctx_suggests: "Extra \\\\or"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "\\\\begin\\s*\\{document\\}",
+              repl: '\\makeatletter\n\\let\\TEXLATE@sv@mkpream\\@mkpream\n\\let\\TEXLATE@sv@insertcol\\insert@column\n\\AtBeginDocument{%\n\\let\\@mkpream\\TEXLATE@sv@mkpream\n\\let\\insert@column\\TEXLATE@sv@insertcol}%\n\\makeatother\n\g<0>',
+            }
+    risk: low # 守卫幂等 no-op: array 未载/校验已通过时, 存回的就是当前值
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # bundle 内核旧 → 校验或已通过; 守卫仍为 no-op
+    provenance:
+      - {
+          corpus: "1306.0067 (modec-expand-2026-09-16, expand layer)",
+          error: "Extra \\or. l.150 \\begin{tabular}{>{\\centering\\arraybackslash}m{1.25in}...} — revtex4-1+dcolumn(array v2.6n) 签名失配",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "bench/results/repro-1306-2026-09-16/ (probe-* 全矩阵 + e2e 7页实证); draft revtex4-array-guard.yaml (1e, d2d82e8)"
+
   # ─── F4 (2026-09-16): 缺字分诊 —— warnings 段 missing_char 升级类别驱动 ───
   # 两条互斥子路径都在 missing_char_fix 内 (码位×字体 查表):
   #   CJK 落非 CJK 字体 = xeCJK 字体绑定被污染 (elsart \no@harm → \protect
