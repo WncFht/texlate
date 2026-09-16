@@ -195,6 +195,9 @@ def largest_remainder(weights: dict[str, float], total: int) -> dict[str, int]:
         msg = f"negative weights: {neg}"
         raise ValueError(msg)
     s = sum(weights.values())
+    if weights and s == 0:
+        msg = "all weights zero"
+        raise ValueError(msg)
     raw = {k: total * w / s for k, w in weights.items()}
     q = {k: int(v) for k, v in raw.items()}
     for _, k in sorted(((raw[k] - int(raw[k]), k) for k in raw), reverse=True)[
