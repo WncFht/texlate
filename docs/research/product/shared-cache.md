@@ -6,7 +6,7 @@
 
 - **寻址**：`share_key = sha256(arxiv_id | resolved_ver | model | prompt_ver | target_lang | glossary_hash | pipeline_ver)`——与本地 dedup 键同构，多 `glossary_hash` 一个组分，且永不拼凭证指纹。
 - **包格式**：`{share_key}.share.zip` = `manifest.json` + `zh-src.zip` + `dual.json` + 可选 `zh.pdf`（partial 包合法——zh.pdf 只是贡献者侧编译证据，译文载荷在 dual.json；manifest artifacts 表即在场清单）。manifest 自校验：key_parts 重算 share_key、逐产物 sha256/bytes 对账。
-- **信任模型**：下载的译文**不直接渲染**——进本地管线只跳 xlat 阶段，splice/validate(L0/L1)/compile/judge 全部本地重跑，validate 不过则丢弃回退自译。恶意包最坏结果是浪费一次编译，不会产出坏 PDF。
+- **信任模型**：下载的译文**不直接渲染**——进本地管线只跳 xlat 阶段，splice/validate(L0/L1)/compile/judge 全部本地重跑；对不上的段回原文、validate 不过则该块回原文（v1 零 token 结构承诺：导入链永不消耗 token）。恶意包最坏结果是浪费一次编译，不会产出坏 PDF。
 - **上传 opt-in**：默认关，任务完成后提示；glossary/自定义 prompt 进 key 天然隔离。
 - **服务端 v1**：任意静态托管/对象存储 + `index.jsonl`，不锁定具体实现。
 
@@ -89,14 +89,14 @@ manifest.json schema:
 下载的共享包**不直接渲染、不直接进阅读器**。消费路径：
 
 1. 本地照常 fetch `id@resolved_ver`——自己的 source cache 保证源码为真；
-2. `unpack_share` 机械校验：格式/字段/产物哈希对账/share_key 自洽；
-3. `dual.json.chunks[]` 按 `src_file` + `en` 文本对账到本地 chunks——对不上的段丢弃（该段回退自译或原文）；
+2. `unpack_share` 机械校验：格式/字段/产物哈希对账/share_key 自洽——不过则端点 400 拒收，不建行；
+3. `dual.json.chunks[]` 按 `src_file` + `en` 文本对账到本地 chunks——对不上的段 `fallback_orig` 回原文（v1 **不回退自译**：导入承诺结构零 token，漏段宁可原文呈现）；
 4. splice → L0/L1 validate → compile → judge **全部本地重跑**；
-5. 任一步不过 → 整包丢弃，回退正常自译流程。
+5. 编译侧任一步不过 → 该任务按普通 partial/reject 终态收口（`reject_at=share_verify` 等留痕），不消耗 token 重译。
 
 效果边界要说清楚：恶意贡献者能造成的最坏结果是「让下载者多跑一遍 validate/compile 后发现不可用」——**浪费一次编译，不会产出坏 PDF，也不会消耗 token**（除非对账后残留段需要补译）。哈希对账 + share_key 自校验防的是传输损坏与索引错配，**不防伪造**——防伪靠的是消费端重跑管线，编译不撒谎。这与 hjfy 把 `{id}_zh_CN.tgz` 公开下载的信任结构一脉相承：产物可验证，所以敢分发。
 
-`zh.pdf` 的角色要分清：它是贡献者侧的编译**证据**（证明这组译文至少在某环境编出了 PDF）与下载菜单的预览物，**不是交付物**——阅读器展示的 PDF 必须是本地重编产物。极端情况（贡献者环境修出了消费端修不出的包）由 fixloop 差异兜住，最差仍是回退自译。
+`zh.pdf` 的角色要分清：它是贡献者侧的编译**证据**（证明这组译文至少在某环境编出了 PDF）与下载菜单的预览物，**不是交付物**——阅读器展示的 PDF 必须是本地重编产物。极端情况（贡献者环境修出了消费端修不出的包）由 fixloop 差异兜住，最差是漏段回原文的 partial 终态——v1 不为导入任务回退自译（零 token 承诺）。
 
 ## 6. opt-in 上传与隐私
 
