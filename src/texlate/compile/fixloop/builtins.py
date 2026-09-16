@@ -513,7 +513,7 @@ def pstricks_dvips_preflight(
     return True, f"REJECT: route={route} dvips-resources-ok"
 
 
-_EPS_EXTS = (".eps", ".ps", ".mps")
+_EPS_EXTS = (".eps", ".epsf", ".epsi", ".mps", ".ps")  # 与 normalize.PS_GRAPHIC_SUFFIXES 同步
 #: metapost 数字扩展名 ``.\d+`` —— ``diag1.1`` 实为 EPS (0806.4589 实证:
 #: ps_image 只认 .eps/.ps 把它漏归 other), 与 _EPS_EXTS 并列进扫源面。
 _NUMERIC_EXT_RE = re.compile(r"^\.\d+$")
@@ -1518,7 +1518,17 @@ def _sub_literal_chars(t: str, repl: dict[str, str]) -> tuple[str, int]:
 
 #: graphicx 可装载图形扩展名面 —— 无扩展名 ``\includegraphics{x}`` 的
 #: ci 补全候选域 (与 _EPS_EXTS 分工: 那边管 PS 族转换, 这边管全图形族匹配)。
-_GRAPHIC_EXTS = (".pdf", ".png", ".jpg", ".jpeg", ".eps", ".ps", ".mps")
+_GRAPHIC_EXTS = (
+    ".pdf",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".eps",
+    ".epsf",
+    ".epsi",
+    ".ps",
+    ".mps",
+)
 
 #: ``\includegraphics`` 引用点: g1=可选 opts, g2=图像参数 (星号变体同收)。
 _INCLUDE_GFX_RE = re.compile(

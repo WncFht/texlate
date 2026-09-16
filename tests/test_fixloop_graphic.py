@@ -367,6 +367,26 @@ def test_eps_to_pdf_mps_and_uppercase(
     assert "\\includegraphics{OLD.pdf}" in t
 
 
+def test_eps_to_pdf_dos_exts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``.epsi``/``.epsf`` (DOS 约定 EPS) 与 PS_GRAPHIC_SUFFIXES 同步进转换面。"""
+    monkeypatch.setattr(shutil, "which", _which_convert)
+    monkeypatch.setattr(builtins, "_run_convert", _fake_convert)
+    (tmp_path / "fig.epsi").write_bytes(b"%!PS-Adobe-3.0 EPSF")
+    (tmp_path / "plot.EPSF").write_bytes(b"%!PS-Adobe-3.0 EPSF")
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\n"
+        "\\includegraphics{fig.epsi}\n\\epsfig{file=plot.EPSF}\n\\end{document}\n",
+        encoding="utf-8",
+    )
+    ok, note = eps_to_pdf(_ctx(tmp_path), None, None, {})
+    assert ok
+    assert "2/2" in note
+    assert (tmp_path / "fig.pdf").is_file()
+    assert (tmp_path / "plot.pdf").is_file()
+
+
 def test_eps_to_pdf_no_sources(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """无 PS 族源文件 → False。"""
     monkeypatch.setattr(shutil, "which", _which_convert)
