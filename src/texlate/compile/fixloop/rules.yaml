@@ -481,6 +481,13 @@ rules:
               regex: "\\\\documentclass\\s*(?:\\[[^\\]]*\\])?\\s*\\{([^}]+)\\}",
               suffix: ".cls",
             }
+          # \input/\include/\InputIfFileExists —— 花括号/裸名两形态通收;
+          # suffix 仅在名无扩展时补 (engine.py _apply_scan_install 条件化)
+          # —— `\input epsf` 裸名此前不进预检清单 (loop1 实证)。
+          - {
+              regex: "\\\\(?:input|include|InputIfFileExists)(?=[^a-zA-Z])\\s*\\{?([^\\s{}%\\\\]+)",
+              suffix: ".tex",
+            }
         verify: file_probe # kpsewhich / 本地探测
         batch: true # 聚合后单次安装 (L611-617)
         noise_filter: "^[\\w.-]+$" # 滤掉 '\\\\@tempb.sty' 类误捕 token (见 known_gaps)
@@ -1086,6 +1093,139 @@ rules:
           svglov3.clo:
             body: |
               % fixloop legacy shim: svglov3.clo -> bare stub
+              \endinput
+          # ── 2026-09-16 loop1 missing_file 簇扩列 (113 格主体) ──────────
+          # 实证: 下列文件在 tlpdb 索引查无 (publisher 授权外发/CTAN-only/
+          # 退役件), install_file/tlmgr 通路救不了 —— 桥接优先于 noop;
+          # noop 保底过 missing_file, 残余宏面交 undefined_cs/cs_targeted_fix。
+          # citesort → cite: citesort 是 cite 的排序前身, \cite 接口同形,
+          # [sort,compress] 复刻其排序+压缩语义 (TL 有 cite.sty)。
+          citesort.sty:
+            needs: ["cite.sty"]
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{citesort}[2026/09/16 fixloop legacy shim -> cite sort,compress]
+              \RequirePackage[sort,compress]{cite}
+              \endinput
+          # axodraw v1 → axodraw2 (TL 唯一存续支; v1 核心费曼图宏 \Line/
+          # \Gluon/\Photon/\ArrowLine 等同名续存, 色彩/缩放面有差 —— 残差
+          # 交 undefined_cs 轮)。
+          axodraw.sty:
+            needs: ["axodraw2.sty"]
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{axodraw}[2026/09/16 fixloop legacy shim -> axodraw2]
+              \RequirePackage{axodraw2}
+              \endinput
+          # emulateapj5/emulateapj 只有 .cls 实体 (TL 无 .sty)——老稿以
+          # \usepackage 形态借 deluxetable 面, noop 保底 (1d 转办)。
+          emulateapj5.sty:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{emulateapj5}[2026/09/16 fixloop noop stub - no real .sty exists]
+              \endinput
+          emulateapj.sty:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{emulateapj}[2026/09/16 fixloop noop stub - no real .sty exists]
+              \endinput
+          # Springer svjour 系 (期刊模板外发, 不在 TL): article 底 + 文档化
+          # 宏面 polyfill (\journalname/\titlerunning/\institute/\keywords/
+          # \pacs/\communicated/\dedication/\mail/\offprints/\subclass)。
+          svjour3.cls:
+            body: &svjour_body |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesClass{svjour3}[2026/09/16 fixloop legacy shim -> article + svjour polyfills]
+              \LoadClassWithOptions{article}
+              \providecommand{\journalname}[1]{}
+              \providecommand{\titlerunning}[1]{}
+              \providecommand{\authorrunning}[1]{}
+              \providecommand{\institute}[1]{}
+              \providecommand{\date}[1]{}
+              \providecommand{\keywords}[1]{\par\noindent\textbf{Keywords:} #1\par}
+              \providecommand{\subclass}[1]{}
+              \providecommand{\pacs}[1]{\par\noindent\textbf{PACS:} #1\par}
+              \providecommand{\communicated}[1]{}
+              \providecommand{\dedication}[1]{}
+              \providecommand{\mail}[1]{}
+              \providecommand{\offprints}[1]{}
+              \endinput
+          svjour2.cls: { body: *svjour_body }
+          # EPL epl2.cls (Europhysics Letters, 期刊外发): \abstract 为命令
+          # 形态、\pacs 双参、\shortauthor/\shorttitle/\shortinstitute。
+          epl2.cls:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesClass{epl2}[2026/09/16 fixloop legacy shim -> article + epl polyfills]
+              \LoadClassWithOptions{article}
+              \providecommand{\shorttitle}[1]{}
+              \providecommand{\shortauthor}[1]{}
+              \providecommand{\shortinstitute}[1]{}
+              \providecommand{\institute}[1]{}
+              \providecommand{\pacs}[2]{\par\noindent\textbf{PACS:} #1\quad #2\par}
+              \providecommand{\abstract}{}
+              \renewcommand{\abstract}[1]{\begin{quotation}\noindent\textbf{Abstract.} #1\end{quotation}}
+              \endinput
+          # IMS imsart.cls (TL 无): article 底 + frontmatter 常用件。
+          imsart.cls:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesClass{imsart}[2026/09/16 fixloop legacy shim -> article + imsart polyfills]
+              \LoadClassWithOptions{article}
+              \providecommand{\thankstext}[2]{}
+              \providecommand{\affiliation}[1]{}
+              \providecommand{\address}[2]{{\footnotesize #2\par}}
+              \providecommand{\runtitle}[1]{}
+              \providecommand{\runauthor}[1]{}
+              \endinput
+          # ACM conm-p-l.cls (90s 会议 preprint 版式) → acmart 官方继任。
+          conm-p-l.cls: { loads: "acmart", needs: ["acmart.cls"] }
+          # JHEP/JINST 作者样式、Elsevier espcrc1 —— TL 全数缺席, noop 保底。
+          jheppub.sty:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{jheppub}[2026/09/16 fixloop noop stub - JHEP author kit, not in TL]
+              \endinput
+          jinstpub.sty:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{jinstpub}[2026/09/16 fixloop noop stub - JINST author kit, not in TL]
+              \endinput
+          espcrc1.sty:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{espcrc1}[2026/09/16 fixloop noop stub - Elsevier crc, not in TL]
+              \endinput
+          # 杂项 CTAN-only/退役件: Paul Taylor diagrams (license 不进 TL,
+          # 宏面巨大 noop 仅过 missing_file)、texsort 字母序件、setstack
+          # 堆栈宏件、default.sty 模板渣名。
+          diagrams.sty:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{diagrams}[2026/09/16 fixloop noop stub - P.Taylor diagrams, not in TL]
+              \endinput
+          texsort.sty:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{texsort}[2026/09/16 fixloop noop stub - letter sort util, not in TL]
+              \endinput
+          setstack.sty:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{setstack}[2026/09/16 fixloop noop stub - S-stack macros, not in TL]
+              \endinput
+          default.sty:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{default}[2026/09/16 fixloop noop stub - template cruft name]
+              \endinput
+          # undertilde 唯一宏面 \utilde → \widetilde 降级近似 (真身依赖
+          # 专用 .tex 字体机制, CTAN-only)。
+          undertilde.sty:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{undertilde}[2026/09/16 fixloop degrade shim -> widetilde]
+              \providecommand{\utilde}[1]{\widetilde{#1}}
               \endinput
     engines:
       xelatex: { mode: native }

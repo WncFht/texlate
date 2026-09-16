@@ -675,7 +675,9 @@ def _apply_scan_install(
                     name = nm.strip()
                     if not name:
                         continue
-                    fname = name + sp.get("suffix", "")
+                    # suffix 仅补给无扩展名 (``\input epsf`` → epsf.tex);
+                    # 已带扩展名者 (``\input{x.tex}``) 照旧不叠。
+                    fname = name if Path(name).suffix else name + sp.get("suffix", "")
                     if noise and not noise.match(name):
                         continue
                     need.add(fname)
