@@ -1516,6 +1516,8 @@ class PipelineWorker:
         if usage["calls"]:
             # 有真账用真账——tokens_est 由字符估算换成 prompt+completion
             ctx.tokens_est = usage["prompt_tokens"] + usage["completion_tokens"]
+            # buffer 空时下面的 _flush_translate 早退，tasks.tokens 滞留估算值
+            self.store.update_fields(ctx.task_id, tokens=ctx.tokens_est)
             self.store.record_usage(
                 ctx.task_id,
                 model=str(usage["model"]),
