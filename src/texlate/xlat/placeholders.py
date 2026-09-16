@@ -3,7 +3,7 @@ r"""占位符编解码与 src↔zh 对账（规格 docs/08 §1.3/§1.6，口径�
 契约边界：
 - `[[TYPE_n]]` 带号占位符——`ph_map` 侧受保护片段；PhType 全枚举（含
   ENV/COMMENT/COND/ENVTAG 等 in_arg 产物）均走此形态。
-- `[[NAME]]` 裸标记仅 SL/PL 换行编码系与 `\ ` 间距保护（`[[SL]]`/`[[PL]]`/`[[SP]]` 及 `_RAW` 变体）——无 `_n` 后缀。
+- `[[NAME]]` 裸标记仅 SL/PL 换行编码系与脆弱空白族间距保护（`[[SL]]`/`[[PL]]`/`[[SP]]`/`[[NBSP]]`/`[[THINSP]]`/`[[MEDSP]]`/`[[THICKSP]]`/`[[NEGSP]]` 及 `_RAW` 变体）——无 `_n` 后缀。
 - 换行编码只接管段内 `\n`（分段边界在 chunk 层管理，`[[PL]]` 仅作 `\n\n+` 防御编码）。
 - 占位符多重集 diff + lev≤2 模糊配对与 `rule_validator.check_placeholder` 同口径——
   本模块是 xlat 层自带的轻量对账，正式校验器经 pipeline 的
@@ -57,12 +57,42 @@ _SOFT_NEWLINE_SENTINEL = "[[__TEXLATE_SL_LIT__]]"
 _PARA_NEWLINE_SENTINEL = "[[__TEXLATE_PL_LIT__]]"
 #: 脆弱间距命令 `\ ` 的保护 token——裸 `\ ` 对模型不显著（E21/E22 cs_dropped
 #: 实测主因，s40 11/4365 chunk 因此三振），编码成占位符吃 C9 保护契约；
-#: decode 回 `\ ` 后才进校验，L0 计数口径不变。`\,`/`\;`/`\:`/`\!`/`~` 同族
-#: 未编码（暂无实测失败信号，扩展即在同处加一枚 token）。
+#: decode 回 `\ ` 后才进校验，L0 计数口径不变。同族扩列 (2026-09-17,
+#: realpostfix2 E22 实证: 2203.13012 `~` 丢、2403.15096 `\,`/`\;` 丢) ——
+#: `~`/`\,`/`\:`/`\;`/`\!` 各占一 token 保 decode 无损; 裸标记语法
+#: [A-Z_]+ 不吃数字, 命名不带参数位。
 SOFT_SPACE = "[[SP]]"
 #: 源文本字面 `[[SP]]` 的转义形态
 SOFT_SPACE_RAW = "[[SP_RAW]]"
 _SOFT_SPACE_SENTINEL = "[[__TEXLATE_SP_LIT__]]"
+NBSP = "[[NBSP]]"  # `~` 不可断空格
+NBSP_RAW = "[[NBSP_RAW]]"
+_NBSP_SENTINEL = "[[__TEXLATE_NBSP_LIT__]]"
+THINSP = "[[THINSP]]"  # `\,`
+THINSP_RAW = "[[THINSP_RAW]]"
+_THINSP_SENTINEL = "[[__TEXLATE_THINSP_LIT__]]"
+MEDSP = "[[MEDSP]]"  # `\:`
+MEDSP_RAW = "[[MEDSP_RAW]]"
+_MEDSP_SENTINEL = "[[__TEXLATE_MEDSP_LIT__]]"
+THICKSP = "[[THICKSP]]"  # `\;`
+THICKSP_RAW = "[[THICKSP_RAW]]"
+_THICKSP_SENTINEL = "[[__TEXLATE_THICKSP_LIT__]]"
+NEGSP = "[[NEGSP]]"  # `\!` 负 thin
+NEGSP_RAW = "[[NEGSP_RAW]]"
+_NEGSP_SENTINEL = "[[__TEXLATE_NEGSP_LIT__]]"
+
+#: 脆弱空白族编解码表 —— (token, RAW 形, sentinel, 源字面)。
+#: 转义三相按 RAW→sentinel → token→RAW → 字面→token 全局依序应用;
+#: decode 反向 (token→字面 → RAW→token → sentinel→RAW)。各字面互不
+#: 为子串 (`\ ` 与 `\,`/`~` 等全不相交), 三相内序位无关。
+_SPACE_FAM: tuple[tuple[str, str, str, str], ...] = (
+    (SOFT_SPACE, SOFT_SPACE_RAW, _SOFT_SPACE_SENTINEL, "\\ "),
+    (NBSP, NBSP_RAW, _NBSP_SENTINEL, "~"),
+    (THINSP, THINSP_RAW, _THINSP_SENTINEL, "\\,"),
+    (MEDSP, MEDSP_RAW, _MEDSP_SENTINEL, "\\:"),
+    (THICKSP, THICKSP_RAW, _THICKSP_SENTINEL, "\\;"),
+    (NEGSP, NEGSP_RAW, _NEGSP_SENTINEL, "\\!"),
+)
 
 _FUZZY_LEV_CAP = 2
 
@@ -107,9 +137,12 @@ def encode_newlines(text: str) -> tuple[str, dict[str, int]]:
     escaped = escaped.replace(PARA_NEWLINE_RAW, _PARA_NEWLINE_SENTINEL)
     escaped = escaped.replace(SOFT_NEWLINE, SOFT_NEWLINE_RAW)
     escaped = escaped.replace(PARA_NEWLINE, PARA_NEWLINE_RAW)
-    escaped = escaped.replace(SOFT_SPACE_RAW, _SOFT_SPACE_SENTINEL)
-    escaped = escaped.replace(SOFT_SPACE, SOFT_SPACE_RAW)
-    escaped = escaped.replace("\\ ", SOFT_SPACE)
+    for _tok, _raw, _sent, _lit in _SPACE_FAM:
+        escaped = escaped.replace(_raw, _sent)
+    for _tok, _raw, _sent, _lit in _SPACE_FAM:
+        escaped = escaped.replace(_tok, _raw)
+    for _tok, _raw, _sent, _lit in _SPACE_FAM:
+        escaped = escaped.replace(_lit, _tok)
 
     out: list[str] = []
     i, n = 0, len(escaped)
@@ -138,15 +171,19 @@ def encode_newlines(text: str) -> tuple[str, dict[str, int]]:
 
 
 def decode_newlines(text: str) -> str:
-    r"""`[[SL]]`→`\n`、`[[PL]]`→`\n\n`、`[[SP]]`→`\ `，随后还原被转义的字面 token。"""
+    r"""`[[SL]]`→`\n`、`[[PL]]`→`\n\n`、空白族 token→字面，随后还原被转义的字面 token。"""
     decoded = text.replace(PARA_NEWLINE, "\n\n").replace(SOFT_NEWLINE, "\n")
-    decoded = decoded.replace(SOFT_SPACE, "\\ ")
+    for _tok, _raw, _sent, _lit in _SPACE_FAM:
+        decoded = decoded.replace(_tok, _lit)
     decoded = decoded.replace(SOFT_NEWLINE_RAW, SOFT_NEWLINE)
     decoded = decoded.replace(PARA_NEWLINE_RAW, PARA_NEWLINE)
-    decoded = decoded.replace(SOFT_SPACE_RAW, SOFT_SPACE)
+    for _tok, _raw, _sent, _lit in _SPACE_FAM:
+        decoded = decoded.replace(_raw, _tok)
     decoded = decoded.replace(_SOFT_NEWLINE_SENTINEL, SOFT_NEWLINE_RAW)
     decoded = decoded.replace(_PARA_NEWLINE_SENTINEL, PARA_NEWLINE_RAW)
-    return decoded.replace(_SOFT_SPACE_SENTINEL, SOFT_SPACE_RAW)
+    for _tok, _raw, _sent, _lit in _SPACE_FAM:
+        decoded = decoded.replace(_sent, _raw)
+    return decoded
 
 
 # ---------------------------------------------------------------- src↔zh 对账

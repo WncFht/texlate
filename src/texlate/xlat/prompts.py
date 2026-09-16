@@ -175,7 +175,8 @@ _FUSION_CLAUSE = (
 #: C9 占位符条款——docs/08 §1.1 逐字成稿，条款列表末位，全文唯一一次出现
 PLACEHOLDER_CLAUSE = """\
 C9. [[TYPE_n]] tokens (e.g. [[MATH_12]], [[CITE_3]], [[REF_7]], [[ENV_4]],
-    [[AUTHOR_1]], [[SL]], [[PL]], [[SP]]) are placeholders for protected LaTeX
+    [[AUTHOR_1]], [[SL]], [[PL]], [[SP]], [[NBSP]], [[THINSP]]) are
+    placeholders for protected LaTeX
     fragments or structural markers. Do not translate, modify, reorder,
     split, merge, add, or remove any of them, and do not let them influence
     the surrounding translation. Every placeholder in the input must appear

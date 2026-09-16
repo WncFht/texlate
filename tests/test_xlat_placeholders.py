@@ -61,6 +61,34 @@ class TestNewlineCodec:
         enc, _ = ph.encode_newlines(src)
         assert ph.decode_newlines(enc) == src
 
+    def test_space_family_encoded(self) -> None:
+        r"""空白族扩列 (realpostfix2 E22 实证): ``~``/``\,``/``\:``/``\;``/``\!`` 各占一 token。"""
+        src = "Fig.~1, thin\\, med\\: thick\\; neg\\! end"
+        enc, _ = ph.encode_newlines(src)
+        assert enc == (
+            "Fig.[[NBSP]]1, thin[[THINSP]] med[[MEDSP]] "
+            "thick[[THICKSP]] neg[[NEGSP]] end"
+        )
+        assert ph.decode_newlines(enc) == src
+
+    def test_space_family_literal_collision(self) -> None:
+        """源文本自带字面 ``[[NBSP]]``/``[[THINSP_RAW]]`` 走两级转义不碰撞。"""
+        src = "literal [[NBSP]] and [[THINSP_RAW]] plus~x\\,y"
+        enc, _ = ph.encode_newlines(src)
+        assert "[[NBSP_RAW]]" in enc
+        assert ph.decode_newlines(enc) == src
+
+    def test_space_family_double_backslash(self) -> None:
+        r"""``\\,`` 内的 ``\,`` 子串——编码后仍无损 round-trip（``\``+``\,`` 字节级重合）。"""
+        src = "line\\\\, cont\\\\; next"
+        enc, _ = ph.encode_newlines(src)
+        assert ph.decode_newlines(enc) == src
+
+    def test_space_family_diff_counts_missing(self) -> None:
+        """模型丢 ``[[NBSP]]`` 计 missing——E22 丢号正是本族要拦的形态。"""
+        d = ph.diff("Fig.[[NBSP]]1", "图[[MATH_0]]1")
+        assert d.missing == ["[[NBSP]]"]
+
 
 class TestFindAllAndSort:
     def test_typed_and_bare(self) -> None:
