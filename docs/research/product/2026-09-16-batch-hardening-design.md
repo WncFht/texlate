@@ -28,10 +28,10 @@ manifest (1272 行；channel=ia + item + member 自带 IA bulk 坐标)
 
 ## 2. 入库层（数据集物化，不走 arXiv API）
 
-- 语料主体已在盘上：corpus_v3 manifest 1272 行（core 1000 + booster 200 + hot 72），已物化 1047 个工程目录（`{id}/extracted/`），**缺 ~225 篇未落盘**。
-- manifest 每行自带 IA bulk 坐标（`channel=ia`、`item=arXiv_src_YYMM_NNN`、`member=YYMM/<name>.gz`、`blob_sha256`）——补缺与扩层**按 item 分组整包拉取抽成员**，一个 item tar 解出数十篇，零逐篇 API。
-- `stagerun ingest` 定义：已物化 → copytree 进 `work/{id}/src/`；未物化 → 按 `item` 聚组拉 IA tar、抽 member 落 `corpus_v3/{id}/extracted/` 补库后 copytree。record：`{id, n_files, main_tex_guess, sha256_ok, source(cache|ia)}`。
-- arXiv 逐篇 API（~85 篇/日）仅留作单篇即兴旁路，不是入库主路；未来要更大规模走 IA bulk 同一通道扩 manifest。
+- 语料已全集物化：corpus_v3 manifest 1272 行（core 1000 + booster 200 + hot 72）= **1259 实体全部落盘 + 13 stub**（withdrawn 论文，`format=stub`/`n_files=0`、bytes 42-276 即撤稿声明，按设计不物化；`load_pool` 已滤 stub）。无待补缺口。
+- manifest 每行自带 IA bulk 坐标（`channel=ia`、`item=arXiv_src_YYMM_NNN`、`member=YYMM/<name>.gz`、`blob_sha256`）。**成员级 URL 已验证可单抽**：`https://archive.org/download/{item}/{item}.tar/{member}`（2026-09-16 实测 sha256 与 manifest `blob_sha256` 一致）——未来扩层按 member 直取或按 item 整包抽，零逐篇 API。
+- `stagerun ingest` 定义：`work/{id}/src/` ← copytree `{id}/extracted/`（stub 行直接记 record `{status: stub}` 跳过物化）；IA 拉取路径留作扩层备用。record：`{id, n_files, main_tex_guess, source(cache|ia|stub)}`。
+- arXiv 逐篇 API（~85 篇/日）仅留作单篇即兴旁路，不是入库主路；更大规模走 IA bulk 同一通道扩 manifest。
 
 ## 3. 执行层——stagerun 阶段矩阵
 
@@ -107,7 +107,7 @@ bench/results/{run}-{tag}-{date}/
 
 | stage         | 规模                                                                          | 依据                                                                                        |
 | ------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| ingest        | 补齐 225 缺篇 → 全集 1272                                                     | 一次性；IA item 整包抽成员                                                                  |
+| ingest        | 全集已物化（1259 实体 + 13 stub 不物化）                                      | copytree 即走；IA 成员级单抽 URL 已验证，留作扩层备用                                       |
 | parse         | **全集 1272 每轮必跑**                                                        | CPU ~1-3s/篇 ×6 进程 ≈ 10min；warning 签名分辨到 ~0.24%（3/1272），leak 指标要全表面        |
 | xlat mock     | 全集 1272                                                                     | 零 LLM、秒级/篇；结构故障全暴露                                                             |
 | xlat sabotage | 全集 1272                                                                     | escaped==0 硬门——逃逸率真值越小所需样本越大，免费臂直接拉满                                 |
@@ -154,7 +154,7 @@ rescue 率这样的头条指标在全集上过强（SE 1.7pp），**绑定约束
 
 **网关并发硬约束（2026-09-16 起）**：archbox 全部出向 tcp/3003 被 nftables `inet gwcap` REDIRECT 到 `gw-cap-proxy`（127.0.0.1:3399），`model` 以 `swe-2-medium` 开头的请求过**全局信号量 4**——任何会话、任何隧道共享。故 real 臂 sem=4；其他模型先查网关侧限流再定。观测 `curl 127.0.0.1:3399/__gwcap/healthz`（inflight/queued）。另：所有脚本/bench 直连 `http://100.105.212.52:3003`（tailscale，禁 loopback）；ssh 隧道仅为 texlate server 产品链保留。
 
-**成本估算（一轮 loop 批）**：ingest 补缺 ~30-60min 一次性；parse 全集 ~10-15min；xlat mock 全集 <30min；compile zh+base 全集 ~2-2.5h；fixloop ~600 格 ~2h；real xlat 300 篇 @sem4 ≈ **5-7h**（~3s/req × ~85 chunks/篇 ÷4 ≈ 64s/篇网关时，流水化后 ~56 篇/h）——real 臂放隔夜跑。Linux 无 FS 沙箱：批量跑第三方 tex 加 `-no-shell-escape` + env 白名单。
+**成本估算（一轮 loop 批）**：ingest 纯 copytree 分钟级；parse 全集 ~10-15min；xlat mock 全集 <30min；compile zh+base 全集 ~2-2.5h；fixloop ~600 格 ~2h；real xlat 300 篇 @sem4 ≈ **5-7h**（~3s/req × ~85 chunks/篇 ÷4 ≈ 64s/篇网关时，流水化后 ~56 篇/h）——real 臂放隔夜跑。Linux 无 FS 沙箱：批量跑第三方 tex 加 `-no-shell-escape` + env 白名单。
 
 ### 7.4 阶段 go/no-go 门（每轮 loop 批的验收线）
 
@@ -204,7 +204,7 @@ fixloop 规则面（n100 签名直接转化）：
 
 1. T1-T7（leader 或 1-2 fixer，一天内）——观测面先正
 2. E1 stagerun 骨架 + E2 → n=20 全 stage smoke 验 records/resume/并发
-3. ingest 补齐 ~225 缺篇（IA 批量）→ loop 批：mock 臂 n≈250 全 stage + real xlat n=50 → 首版 tickets
+3. loop 批：mock 臂 n≈250 全 stage + real xlat n=50 → 首版 tickets（语料已全集物化，无 ingest 前置）
 4. F1-F4 fixer 循环；每轮 merge 后 replay_all + 同 seed 重跑受影响 stage
 5. gate 批：mock 全集 1272 + real 子集 300 → 各 stage 硬化结论入 metrics.jsonl
 
