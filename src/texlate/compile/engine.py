@@ -1685,7 +1685,9 @@ class RouteDecision:
     """`route_project` 产物：引擎优先序 + 拒绝/降级原因。"""
 
     engines: list[str]  # 优先序，如 ["tectonic", "xelatex"]
-    reject: str | None = None  # 非 None = 无条件拒绝
+    # 保留槽位：latex209 无条件拒已移 fixloop gate，route 现恒 None；
+    # worker/e2e 的死检查即此槽位的预留消费点，留作将来"编译前必拒"语义。
+    reject: str | None = None
     reasons: list[str] = field(default_factory=list)
     non_utf8: bool = False  # 非 UTF-8 源（需 iconv 预处理提示）
     latex209_suspect: bool = False  # \documentstyle 检出：降级为试编标记

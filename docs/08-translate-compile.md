@@ -354,7 +354,7 @@ fixloop(proj, eng, ruleset):
 | 块态 | chunk/segment `status` | `ok` / `partial`（阶梯 recovered）/ `fault`（翻译或校验错；`fallback_orig` 回退原文亦落 fault+skipped 标记）/ `skipped`（门控跳过）（勘误 2026-09-17：原表漏 `partial` 第四值，impl `pipeline.py:107/614-630`） | `xlat/pipeline.py` |
 | 注入态 | inject `status` | `injected` / `already`（已有 CJK 支持）/ `no-docline`（无 documentclass 锚） | `compile/inject.py` |
 | fixloop 判决 | cases `verdict` / `fixloop_verdict` | `clean` / `acceptable_pdf`（有 pdf 即收，misschar 档）/ `best_effort_pdf`（有 pdf 残留错）/ `dirty_pdf` / `unfixable:{cat}` / `stuck`（轮内无进展）/ `no_errors_no_pdf`（干净日志零页面）/ `reject:<rid>`（gate 直通）/ `no_main_tex` / `max_rounds`（勘误 2026-09-17：原表缺后三值） | `fixloop/engine.py`、`fixloop/cases.py` |
-| 规则态 | rules.yaml `status` | `stub` / `proposed` / `active` / `retired` / `validated`（勘误 2026-09-17：impl 另有 `validated`，且字段缺席默认按 active 上场——status 目前零行为效应，排序全由 `order` 驱动，生命周期语义待 owner 裁定） | `fixloop/rules.yaml` |
+| 规则态 | rules.yaml `status` | `stub` / `proposed` / `active` / `retired` / `validated`（裁定 2026-09-17：**审计元数据非门控**——全部状态同序同权上场，排序/触发由 `order`+`when` 驱动；proposed→active 升迁走回放门 ③ 写 `stats`/复核，不拦 firing。bench 语义要"全手上场"，retired 例外=规则条目删除前位） | `fixloop/rules.yaml` |
 | 任务态 | job `status`（11 态机） | active：`queued`/`fetching`/`parsing`/`translating`/`compiling`；terminal：`done`/`partial`/`fault`/`cancelled`/`interrupted`/`needs_auth` | `server/store.py:150` |
 
 跨段退化口径：终态 `fixloop.status` 不得低于上游 `compile.status`（clean>partial>fail>reject）；loop1 实证 17 格中 13 格为基建杀伤假象（修复后引擎直编出 pdf），真退化判定须直编复验。
