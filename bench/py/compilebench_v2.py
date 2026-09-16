@@ -47,6 +47,8 @@ from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
+import benchlib
+
 ROOT = Path("~/src/texlate").expanduser().resolve()
 CORPUS = ROOT / "bench/corpus_v2"
 WORK = ROOT / "bench/work_compile_v2"
@@ -110,8 +112,7 @@ def load_pool():
             tags_by_id[pid] = p.get("tags", [])
             root_by_id[pid] = p.get("primary_root") or ""
     pool = {}
-    for line in MANIFEST.read_text().splitlines():
-        r = json.loads(line)
+    for r in benchlib.iter_jsonl(MANIFEST):
         if r.get("status") != "ok" or not r.get("tex_files"):
             continue
         pid = r["id"]
@@ -548,23 +549,7 @@ def run_tectonic(wdir: Path, rel_main: str, env):
 
 # ---------------- 单篇执行 ----------------
 
-IGNORE = shutil.ignore_patterns(
-    "_tect_out",
-    "*.aux",
-    "*.log",
-    "*.out",
-    "*.toc",
-    "*.lof",
-    "*.lot",
-    "*.fls",
-    "*.fdb_latexmk",
-    "*.synctex*",
-    "*.blg",
-    "texput.*",
-    "missfont.log",
-    ".DS_Store",
-    "__pycache__",
-)
+IGNORE = benchlib.copytree_ignore()
 
 
 def run_paper(p):

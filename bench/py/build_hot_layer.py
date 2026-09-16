@@ -41,6 +41,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
+import benchlib
+
 from texlate.arxiv.cache import SourceCache
 from texlate.arxiv.fetch import AcquireStatus, Fetcher, acquire_source
 
@@ -90,9 +92,9 @@ def cmd_candidates(args: argparse.Namespace) -> None:
     WORK.mkdir(parents=True, exist_ok=True)
     seen: set[str] = set()
     for mf in CORPUS.glob("manifest*.jsonl"):
-        for line in mf.read_text(encoding="utf-8").splitlines():
-            if line.strip():
-                seen.add(json.loads(line)["id"])
+        for rec in benchlib.iter_jsonl(mf):
+            if rec.get("id"):
+                seen.add(rec["id"])
     seen |= {p.name for p in CORPUS.iterdir() if p.is_dir()}
     log(f"existing ids: {len(seen)}")
 

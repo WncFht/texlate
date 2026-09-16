@@ -24,6 +24,8 @@ raw pooled 三口径并列; Wilson 95% CI (iid 近似) + 月簇稳健 bootstrap 
 
 产出 (docs/10 统一产出契约): OUT/files.jsonl + OUT/papers.json + OUT/summary.md,
 OUT 默认 bench/results/parsebench-{corpus.name}-{date}/.
+files.jsonl 逐文件 append 落盘（行在=done）——同 OUT 重跑自动续跑已完成
+文件（--rerun 强制重测）；papers.json/summary.md 仍是末尾汇总报告。
 manifest 默认 <corpus>/manifest.jsonl; 每行 {"id": ..., "stratum_cell": ...,
 "cluster_id": ..., "layer": ...} → 分组统计 + 权重; corpus39 无 manifest →
 只按 documentclass 名分组, 统计退化等权. 论文目录形如 {id}/extracted/ 或
@@ -31,7 +33,8 @@ manifest 默认 <corpus>/manifest.jsonl; 每行 {"id": ..., "stratum_cell": ...,
 
 files.jsonl 逐文件契约字段: file / paper_id / ok / wall_ms / identity
 (strict|normalized|diverged) / n_chunks / leak_hits[]; 另带 role / leak /
-recon / fake / warn_kinds / unresolved_inputs / bug1_ph_tail 等明细.
+recon / fake / warn_kinds / unresolved_inputs / bug1_ph_tail 等明细;
+_lens (逐 chunk 字符数原始表) 随行保留——续跑重载后聚合仍保真.
 
 判定逻辑: 解析/展平/重建全部走 ``texlate.latex`` (api.parse_file +
 flatten.flatten_inputs + reconstruct.reconstruct + validate_result);
@@ -59,6 +62,8 @@ from typing import TYPE_CHECKING
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))  # uv venv 外直跑兼容; uv run 下等价已装包
+
+import benchlib
 
 import texlate.latex.flatten as flatten_mod
 from texlate.latex import (
@@ -464,7 +469,7 @@ def file_metrics(
         entry["chunk_chars_median"] = statistics.median(lens) if lens else None
         entry["chunk_chars_p90"] = percentile(lens, 0.9)
         entry["chunk_chars_max"] = lens[-1] if lens else None
-        entry["_lens"] = lens  # 聚合用, 落盘前剔除
+        entry["_lens"] = lens  # 聚合用, 随行落盘（续跑后聚合仍保真）
 
         # scan/validate warnings 分类计数 (泄漏类 bug 第一手线索, docs/07 model)
         wk: dict[str, int] = {}
@@ -692,11 +697,7 @@ def load_manifest(path: Path | None) -> dict[str, dict]:
     if not path or not path.exists():
         return {}
     out = {}
-    for raw in path.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if not line:
-            continue
-        rec = json.loads(line)
+    for rec in benchlib.iter_jsonl(path):
         pid = rec.get("id") or rec.get("arxiv") or rec.get("paper_id")
         if pid:
             out[str(pid)] = rec
@@ -1338,6 +1339,11 @@ def main() -> None:
     ap.add_argument("--only", default=None, help="substring filter on paper id")
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument(
+        "--rerun",
+        action="store_true",
+        help="无视 files.jsonl 续跑行全部重测（默认行在=done 跳过）",
+    )
+    ap.add_argument(
         "--v2",
         action="store_true",
         help="双跑 segmenter.parse_tex_v2 (S5 验收门): 逐文件 entry[v2] "
@@ -1404,38 +1410,66 @@ def main() -> None:
             print(f"  manifest frame: dropped {n_drop} unlisted paper dirs")
             prec_map = {pid: prec_map[pid] for pid in keep}
 
-    # ---- pass 2: 逐文件评测
+    # ---- pass 2: 逐文件评测 —— files.jsonl append 真账（行在=done），
+    # 同 out 目录重跑自动续跑；--rerun 强制重测。pass 1 (analyze_paper)
+    # 仍全量重建——_roots/_covered 私有集决定逐文件 role，不落盘。
     sel = set(prec_map)
-    file_entries = []
-    done = 0
-    for f in tex_files:
-        rel = f.relative_to(corpus)
-        pid = paper_id_of(rel, groupers, single)
-        if pid not in sel:
-            continue
-        prec = prec_map.get(pid)
-        apath = os.path.abspath(f)
-        if prec is None or not prec["_roots"]:
-            role = "no_root"
-        elif apath in prec["_roots"]:
-            role = "root"
-        elif apath in prec["_covered"]:
-            role = "input_reached"
-        else:
-            role = "orphan"
-        e = file_metrics(
-            f,
-            str(rel),
-            pid,
-            role,
-            apath in (prec["_non_utf8"] if prec else set()),
-            args.timeout,
-            v2=args.v2,
-        )
-        file_entries.append(e)
-        done += 1
-        if done % 25 == 0 or done == len(tex_files):
-            print(f"  {done} files...", flush=True)
+    f_jsonl = out / "files.jsonl"
+    file_entries: list[dict] = []
+    done_files: set[str] = set()
+    if f_jsonl.exists() and not args.rerun:
+        n_prior_all = 0
+        for e in benchlib.iter_jsonl(f_jsonl):
+            n_prior_all += 1
+            # 选样缩圈（--only/--limit/manifest frame）或 --v2 模式切换的
+            # 存量行不算 done——重测保 schema/口径一致
+            if e.get("paper_id") in sel and ("v2" in e) == args.v2:
+                file_entries.append(e)
+                done_files.add(e["file"])
+        if n_prior_all:
+            print(
+                f"  resume: {len(file_entries)}/{n_prior_all} prior rows kept",
+                flush=True,
+            )
+
+    with f_jsonl.open("w", encoding="utf-8") as fh:
+        for e in file_entries:  # 续跑行重写回——顺带压实截尾坏行/口径外行
+            benchlib.write_jsonl(fh, e)
+        n_new = 0
+        for f in tex_files:
+            rel = f.relative_to(corpus)
+            pid = paper_id_of(rel, groupers, single)
+            if pid not in sel:
+                continue
+            rel_s = str(rel)
+            if rel_s in done_files:
+                continue
+            prec = prec_map.get(pid)
+            apath = os.path.abspath(f)
+            if prec is None or not prec["_roots"]:
+                role = "no_root"
+            elif apath in prec["_roots"]:
+                role = "root"
+            elif apath in prec["_covered"]:
+                role = "input_reached"
+            else:
+                role = "orphan"
+            e = file_metrics(
+                f,
+                rel_s,
+                pid,
+                role,
+                apath in (prec["_non_utf8"] if prec else set()),
+                args.timeout,
+                v2=args.v2,
+            )
+            file_entries.append(e)
+            benchlib.write_jsonl(fh, e)  # _lens 随行落盘：续跑聚合保真
+            n_new += 1
+            if n_new % 25 == 0:
+                print(f"  +{n_new} files...", flush=True)
+        if n_new:
+            print(f"  pass2: +{n_new} new, {len(file_entries)} total", flush=True)
 
     # ---- 论文级聚合 stats
     for prec in prec_map.values():
@@ -1475,20 +1509,10 @@ def main() -> None:
     for p in paper_list:
         p["weight"] = round(weights.get(p["id"], 0.0), 4) or None
 
-    # ---- 落盘 (docs/10 契约三件套)
-    f_jsonl = out / "files.jsonl"
+    # ---- 落盘 (docs/10 契约三件套；files.jsonl 已随 pass2 append 落盘)
     p_json = out / "papers.json"
     s_md = out / "summary.md"
 
-    with f_jsonl.open("w", encoding="utf-8") as fh:
-        for e in file_entries:
-            fh.write(
-                json.dumps(
-                    {k: v for k, v in e.items() if k != "_lens"},
-                    ensure_ascii=False,
-                )
-                + "\n"
-            )
     p_json.write_text(
         json.dumps(
             {

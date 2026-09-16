@@ -19,7 +19,7 @@ fault_chunks/leftover_ph 即管线 bug 信号（应零）。
 用法:
   python3 bench/py/e2e_mock_bench.py [--only SUBSTR] [--conditions base-xel,...]
       [--limit N] [--timeout SEC] [--tag NAME]
-产出: bench/results/e2emock-<tag>-<date>/{results.json,matrix.md,summary.md}
+产出: bench/results/e2emock-<tag>-<date>/{records.jsonl,results.json,matrix.md,summary.md}
 工作区: bench/work_e2emock/<cond>/<safe_id>/（gitignored 重产物）
 """
 
@@ -38,9 +38,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
+import benchlib
+
 from texlate.compile.engine import engine_for, route_project
 from texlate.compile.inject import InjectRejectError, find_main_tex, prepare_chinese
-from texlate.compile.judge import judge
 from texlate.compile.normalize import normalize_project
 from texlate.e2e import base_condition, pipe_condition
 from texlate.latex.api import parse_file
@@ -287,33 +288,12 @@ def translate_tree(root: Path, translator: MockTranslator) -> dict:
 
 
 def _compile_judge(work: Path, main_rel: str, eng_name: str, timeout: float) -> dict:
-    """e2e._compile_judge 同形状 (产品私有函数不越权 import, 这里复刻, expect_cjk=True)."""
+    """e2e._compile_judge 同形状 (benchlib.judge_dict 单源, expect_cjk=True)."""
     kw: dict = {"halt_on_error": False} if eng_name == "xelatex" else {}
     res = engine_for(eng_name, **kw).compile(
         work, main_rel, timeout=timeout, sandbox=True
     )
-    v = judge(res, expect_cjk=True)
-    return {
-        "compile": {
-            "ok": res.ok,
-            "timed_out": res.timed_out,
-            "seconds": round(res.seconds, 2),
-            "passes": res.passes,
-            "rc": res.rc,
-            "killed_signal": res.killed_signal,
-            "pdf_bytes": res.pdf_bytes,
-            "first_error": res.log.first_error,
-        },
-        "verdict": {
-            "status": v.status,
-            "reasons": v.reasons,
-            "n_errors": v.n_errors,
-            "category": v.category,
-            "cjk_chars": v.cjk_chars,
-            "missing_chars": v.missing_chars,
-        },
-        "status": v.status,
-    }
+    return benchlib.judge_dict(res, expect_cjk=True)
 
 
 def pipe_mode_condition(
@@ -403,8 +383,7 @@ def list_projects() -> list[str]:
     return out
 
 
-def safe_id(rel: str) -> str:
-    return rel.replace("/", "--")
+safe_id = benchlib.safe_id
 
 
 def run_project(rel: str, conditions: list[str], timeout: float) -> dict:
@@ -563,7 +542,14 @@ def main() -> None:
     out_dir = ROOT / "bench/results" / f"{args.tag}-{args.date}"
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / "results.json"
-    results = json.loads(out_path.read_text()) if out_path.exists() else {}
+    rec_path = out_dir / "records.jsonl"
+    # records.jsonl 是 append 真账（行在=done，末行胜）；results.json 为
+    # 兼容旧 run 目录的兜底种子 + 逐篇快照。
+    results = (
+        benchlib.load_records(rec_path)
+        if rec_path.exists()
+        else (json.loads(out_path.read_text()) if out_path.exists() else {})
+    )
 
     projects = list_projects()
     for idx, rel in enumerate(projects):
@@ -577,6 +563,7 @@ def main() -> None:
             results[rel].update(rec)
         else:
             results[rel] = rec
+        benchlib.append_jsonl(rec_path, results[rel])
         out_path.write_text(json.dumps(results, ensure_ascii=False, indent=1))
         write_reports(results, out_dir)
         stat = {c: _status(rec, c) for c in conditions}

@@ -43,6 +43,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+import benchlib
+
 REPO = Path(__file__).resolve().parents[2]
 WORK = REPO / "bench" / "work_v3"
 TARS = WORK / "tars"
@@ -1316,7 +1318,7 @@ def cmd_extract_booster() -> None:
 
 
 def cmd_qc() -> None:
-    manifest = [json.loads(ln) for ln in open(CORPUS / "manifest.jsonl")]
+    manifest = benchlib.read_jsonl(CORPUS / "manifest.jsonl")
     ids = [r["id"] for r in manifest]
     dup = {i for i in ids if ids.count(i) > 1}
     v2_ids = {p.name for p in (REPO / "bench" / "corpus_v2").iterdir() if p.is_dir()}

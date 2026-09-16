@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import argparse
 import bisect
+import contextlib
 import json
 import math
 import random
@@ -50,6 +51,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
+
+import benchlib
 
 from texlate.latex import parse_file
 from texlate.validate import l0
@@ -662,27 +665,25 @@ def gen_cases(
 # ---------------------------------------------------------------- 评测
 
 
-def _l0_eval(cases: list[dict]) -> float:
-    """逐 case 跑 validate_pair, 结果+耗时写回 case['l0']; 返回总 wall (s)."""
-    t_all = time.perf_counter()
-    for cs in cases:
-        t0 = time.perf_counter_ns()
-        rep = validate_pair(cs["src"], cs["zh"])
-        ms = (time.perf_counter_ns() - t0) / 1e6
-        cs["l0"] = {
-            "ok": rep.ok,
-            "n_err": rep.n_error,
-            "n_warn": rep.n_warn,
-            "rules_err": sorted(
-                {i.rule for i in rep.issues if i.severity is Severity.ERROR}
-            ),
-            "rules_warn": sorted(
-                {i.rule for i in rep.issues if i.severity is Severity.WARN}
-            ),
-            "suggest": sum(1 for i in rep.issues if i.expected and i.found),
-            "ms": round(ms, 4),
-        }
-    return time.perf_counter() - t_all
+def _l0_one(cs: dict) -> float:
+    """单 case 跑 validate_pair, 结果+耗时写回 case['l0']; 返回 ms."""
+    t0 = time.perf_counter_ns()
+    rep = validate_pair(cs["src"], cs["zh"])
+    ms = (time.perf_counter_ns() - t0) / 1e6
+    cs["l0"] = {
+        "ok": rep.ok,
+        "n_err": rep.n_error,
+        "n_warn": rep.n_warn,
+        "rules_err": sorted(
+            {i.rule for i in rep.issues if i.severity is Severity.ERROR}
+        ),
+        "rules_warn": sorted(
+            {i.rule for i in rep.issues if i.severity is Severity.WARN}
+        ),
+        "suggest": sum(1 for i in rep.issues if i.expected and i.found),
+        "ms": round(ms, 4),
+    }
+    return ms
 
 
 def _expect_names(src: str) -> list[str]:
@@ -690,48 +691,63 @@ def _expect_names(src: str) -> list[str]:
     return [m[2:-2] for m in l0.PH_ANY_LIKE_RX.findall(src)]
 
 
-def _l1_eval(cases: list[dict]) -> str | None:
-    """常驻 TsValidator 跑同口径; 返回不可用原因 (None=跑了)."""
+def _l1_daemon():
+    """TsValidator 常驻实例（未 enter）→ (v|None, 不可用原因|None)."""
     try:
         from texlate.validate.l1 import TsValidator
     except ImportError as e:
-        return f"import l1 失败: {e}"
+        return None, f"import l1 失败: {e}"
     node_path = BENCH_TS_NM if (BENCH_TS_NM / "tree-sitter").is_dir() else None
     v = TsValidator(node_path=node_path)
     if not v.available():
-        return "node/tree-sitter 依赖不在场 (TEXLATE_TS_NODE_PATH 可指)"
-    # baseline 缓存: 同 (paper,chunk,level) 组共享 src
+        return None, "node/tree-sitter 依赖不在场 (TEXLATE_TS_NODE_PATH 可指)"
+    return v, None
+
+
+def _l1_one(daemon, cs: dict, baselines: dict) -> None:
+    """常驻 daemon 跑单 case L1 同口径; baseline 缓存按 (paper,chunk,level) 共享 src."""
+    key = (cs["paper"], cs["chunk"], cs["level"])
+    if key not in baselines:
+        baselines[key] = daemon.sign(cs["src"], doc_id=f"{cs['id']}#src")
+    res = daemon.validate(
+        cs["zh"],
+        baseline=baselines[key],
+        expect=_expect_names(cs["src"]),
+        doc_id=cs["id"],
+    )
+    ph = res.placeholders
+    cs["l1"] = {
+        "ok": res.ok,
+        "ok_rel": res.ok_relative,
+        "detected": not res.verdict_ok,
+        "parse_ms": res.parse_ms,
+        "signals": {
+            "err": len(res.parse_errors),
+            "env": len(res.env_mismatches),
+            "math": res.unclosed_math,
+            "brace": res.brace_balance,
+            "ph_miss": len(ph.get("missing", [])),
+            "ph_unexp": len(ph.get("unexpected", [])),
+            "ph_typo": len(ph.get("typos", [])),
+        },
+    }
+    if res.error:
+        cs["l1"]["error"] = res.error
+
+
+def _eval_cases(cases: list[dict], fh, daemon) -> float:
+    """逐 case: L0 → (daemon 在场则) L1 → append 一行到 fh（行在=done，崩不丢）。
+
+    返回 L0 总 wall (s)（逐对加总，口径同旧 _l0_eval 全段墙钟）。
+    """
     baselines: dict[tuple, object] = {}
-    with v as daemon:
-        for cs in cases:
-            key = (cs["paper"], cs["chunk"], cs["level"])
-            if key not in baselines:
-                baselines[key] = daemon.sign(cs["src"], doc_id=f"{cs['id']}#src")
-            res = daemon.validate(
-                cs["zh"],
-                baseline=baselines[key],
-                expect=_expect_names(cs["src"]),
-                doc_id=cs["id"],
-            )
-            ph = res.placeholders
-            cs["l1"] = {
-                "ok": res.ok,
-                "ok_rel": res.ok_relative,
-                "detected": not res.verdict_ok,
-                "parse_ms": res.parse_ms,
-                "signals": {
-                    "err": len(res.parse_errors),
-                    "env": len(res.env_mismatches),
-                    "math": res.unclosed_math,
-                    "brace": res.brace_balance,
-                    "ph_miss": len(ph.get("missing", [])),
-                    "ph_unexp": len(ph.get("unexpected", [])),
-                    "ph_typo": len(ph.get("typos", [])),
-                },
-            }
-            if res.error:
-                cs["l1"]["error"] = res.error
-    return None
+    l0_wall_ms = 0.0
+    for cs in cases:
+        l0_wall_ms += _l0_one(cs)
+        if daemon is not None:
+            _l1_one(daemon, cs, baselines)
+        benchlib.write_jsonl(fh, cs)
+    return l0_wall_ms / 1e3
 
 
 def _probe_eval() -> list[dict]:
@@ -1075,13 +1091,23 @@ def main() -> None:
         )
         print(f"generated {len(cases)} cases from {gen_stats['pairs']} pairs")
 
-    print("L0 eval ...")
-    l0_wall_s = _l0_eval(cases)
-
+    # cases.jsonl append 落盘：逐 case L0→L1 判完即写行（行在=done，崩不丢）；
+    # 复评走 --replay 存量文件，不就地续写
+    print("L0/L1 eval (stream → cases.jsonl) ...")
     l1_note = "--no-l1"
-    if not args.no_l1:
-        print("L1 eval ...")
-        l1_note = _l1_eval(cases)
+    with (
+        (out / "cases.jsonl").open("w", encoding="utf-8") as fh,
+        contextlib.ExitStack() as stack,
+    ):
+        daemon = None
+        if not args.no_l1:
+            v, l1_note = _l1_daemon()
+            if v is not None:
+                daemon = stack.enter_context(v)
+        l0_wall_s = _eval_cases(cases, fh, daemon)
+    if args.no_l1:
+        print("  L1: --no-l1")
+    else:
         print(f"  L1: {'ran' if l1_note is None else 'skipped — ' + l1_note}")
 
     probe_rows = _probe_eval()
@@ -1097,9 +1123,6 @@ def main() -> None:
     }
 
     wall_s = time.perf_counter() - t0
-    with (out / "cases.jsonl").open("w", encoding="utf-8") as fh:
-        for cs in cases:
-            fh.write(json.dumps(cs, ensure_ascii=False) + "\n")
     with (out / "probes.jsonl").open("w", encoding="utf-8") as fh:
         for r in probe_rows:
             fh.write(json.dumps(r, ensure_ascii=False) + "\n")

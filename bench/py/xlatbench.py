@@ -45,6 +45,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+import benchlib
+
 from texlate.arxiv.locate import locate
 from texlate.latex import parse_file
 from texlate.latex.placeholder import PH_RX
@@ -119,11 +121,7 @@ SYNTHETIC = [
 
 def load_manifest(path: Path, where: list[str]) -> list[dict]:
     """manifest.jsonl → doc 行; ``--where k=v`` 逐项等值过滤 (值一律按 str 比)."""
-    docs = [
-        json.loads(line)
-        for line in path.read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
+    docs = benchlib.read_jsonl(path)
     for w in where:
         k, sep, v = w.partition("=")
         if not sep:

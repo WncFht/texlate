@@ -28,6 +28,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "src"))
 
+import benchlib
+
 from texlate.arxiv.locate import locate
 from texlate.latex.gullet import ArgMismatch, Gullet, _tok_eq
 from texlate.textutil import decode_tex
@@ -132,7 +134,7 @@ def main() -> None:
     )
     args = ap.parse_args()
 
-    entries = [json.loads(x) for x in MANIFEST.read_text().splitlines() if x.strip()]
+    entries = benchlib.read_jsonl(MANIFEST)
     if args.n:
         import random
 
@@ -140,15 +142,23 @@ def main() -> None:
 
     args.out.mkdir(parents=True, exist_ok=True)
     rows_path = args.out / "rows.jsonl"
-    rows = []
+    # rows.jsonl append 真账：已有行按 id 续跑跳过（换 seed/样本圈重进自然补齐）
+    rows = benchlib.read_jsonl(rows_path)
+    done = {r["id"] for r in rows if "id" in r}
+    if done:
+        print(f"resume: {len(done)} prior rows kept", flush=True)
     t_all = time.perf_counter()
-    with rows_path.open("w") as fh:
+    with rows_path.open("w") as fh:  # 压实重写存量行后继续 append
+        for r in rows:
+            benchlib.write_jsonl(fh, r)
         for k, e in enumerate(entries):
+            if e["id"] in done:
+                continue
             ext = REPO / "bench" / "corpus_v3" / e["id"] / "extracted"
             row = run_doc(ext, e["id"])
             row["stratum"] = e.get("stratum_cell", "")
             rows.append(row)
-            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+            benchlib.write_jsonl(fh, row)
             if (k + 1) % 50 == 0:
                 print(
                     f"  [{k + 1}/{len(entries)}] {time.perf_counter() - t_all:.0f}s",

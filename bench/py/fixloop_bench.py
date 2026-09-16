@@ -58,6 +58,8 @@ from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
+import benchlib
+
 from texlate.compile import (
     TectonicEngine,
     XelatexEngine,
@@ -89,7 +91,8 @@ RS = load_ruleset()
 #: tlnet 镜像钉选: 引擎子进程 (child_env) 不透传 *_PROXY → 直连; 本机直连实测
 #: tuna/aliyun/sjtug 通、mirror.ctan.org round-robin 不通 (2026-09-15)。
 #: usertree `option repository` 逐篇钉住 → tlmgr install 不再吃镜像抖动。
-TUNA_TLNET = "https://mirrors.tuna.tsinghua.edu.cn/CTAN/systems/texlive/tlnet"
+#: 单源在 benchlib（e2e_real 经 `_fl.TUNA_TLNET` 继续从此名取）。
+TUNA_TLNET = benchlib.TUNA_TLNET
 
 # ---------------- 引擎包装 ----------------
 
@@ -242,23 +245,7 @@ def _make_engine(name: str, texmf: Path, wdir: Path) -> _NoSandbox:
 
 # ---------------- 单篇执行 ----------------
 
-IGNORE = shutil.ignore_patterns(
-    "_tect_out",
-    "*.aux",
-    "*.log",
-    "*.out",
-    "*.toc",
-    "*.lof",
-    "*.lot",
-    "*.fls",
-    "*.fdb_latexmk",
-    "*.synctex*",
-    "*.blg",
-    "texput.*",
-    "missfont.log",
-    ".DS_Store",
-    "__pycache__",
-)
+IGNORE = benchlib.copytree_ignore()
 
 ENGINES = ("xelatex", "tectonic")
 INJECT_ZH = False  # --inject-zh: normalize+ctex 注入后再进 fixloop (B3 zh 臂)

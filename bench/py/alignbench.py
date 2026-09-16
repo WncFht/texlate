@@ -42,6 +42,8 @@ try:
 except ImportError:
     sys.exit("pypdf 不在依赖内 — 用 uv run --with pypdf python bench/py/alignbench.py")
 
+import benchlib
+
 ROOT = Path(__file__).resolve().parents[2]
 BENCH = ROOT / "bench"
 
@@ -579,8 +581,12 @@ def main() -> None:
 
     t0 = time.perf_counter()
     selftest_fails = None
+    pairs_path = out / "pairs.jsonl"
     if args.selftest:
         results, selftest_fails = selftest(out / "_selftest", args.min_retention)
+        with pairs_path.open("w", encoding="utf-8") as fh:
+            for r in results:
+                benchlib.write_jsonl(fh, r)
     else:
         if args.pairs:
             pairs = pairs_from_manifest(args.pairs)
@@ -589,39 +595,51 @@ def main() -> None:
                 ap.error("--a-dir 需配 --b-dir")
             pairs = pairs_from_dirs(args.a_dir, args.b_dir, args.kind)
         print(f"pairs: {len(pairs)}", file=sys.stderr)
-        results = []
-        for p in pairs:
-            try:
-                res = analyze_pair(p, args.min_retention)
-            except Exception as e:  # 单对失败不拖垮整批
-                res = {
-                    "kind": p["kind"],
-                    "id": p["id"],
-                    "error": f"{type(e).__name__}: {e}",
-                }
-            results.append(res)
-            if "error" in res:
-                print(
-                    f"[{res['kind']}] {res['id']}: ERROR {res['error']}",
-                    file=sys.stderr,
-                )
-            elif res["verdict"] == "invalid_pdf":
-                print(
-                    f"[{res['kind']}] {res['id']}: invalid_pdf "
-                    f"side={res['invalid_side']} {res['detail']}",
-                    file=sys.stderr,
-                )
-            else:
-                ret = (
-                    f"{res['retention']:.3f}" if res["retention"] is not None else "n/a"
-                )
-                print(
-                    f"[{res['kind']:12s}] {res['id']:28s} {res['verdict']:8s} "
-                    f"dests {res['dests_a']}→{res['dests_b']} ret={ret} "
-                    f"Δp med={res['page_diff']['median']} "
-                    f"chain w={res['chain']['w_ratio']}",
-                    file=sys.stderr,
-                )
+        # pairs.jsonl append 真账：存量行按 (kind,id) 续跑跳过
+        results = benchlib.read_jsonl(pairs_path)
+        done = {f"{r.get('kind')}|{r.get('id')}" for r in results}
+        if done:
+            print(f"resume: {len(done)} prior rows kept", file=sys.stderr)
+        with pairs_path.open("w", encoding="utf-8") as fh:
+            for r in results:  # 压实重写存量行后继续 append
+                benchlib.write_jsonl(fh, r)
+            for p in pairs:
+                if f"{p['kind']}|{p['id']}" in done:
+                    continue
+                try:
+                    res = analyze_pair(p, args.min_retention)
+                except Exception as e:  # 单对失败不拖垮整批
+                    res = {
+                        "kind": p["kind"],
+                        "id": p["id"],
+                        "error": f"{type(e).__name__}: {e}",
+                    }
+                results.append(res)
+                benchlib.write_jsonl(fh, res)
+                if "error" in res:
+                    print(
+                        f"[{res['kind']}] {res['id']}: ERROR {res['error']}",
+                        file=sys.stderr,
+                    )
+                elif res["verdict"] == "invalid_pdf":
+                    print(
+                        f"[{res['kind']}] {res['id']}: invalid_pdf "
+                        f"side={res['invalid_side']} {res['detail']}",
+                        file=sys.stderr,
+                    )
+                else:
+                    ret = (
+                        f"{res['retention']:.3f}"
+                        if res["retention"] is not None
+                        else "n/a"
+                    )
+                    print(
+                        f"[{res['kind']:12s}] {res['id']:28s} {res['verdict']:8s} "
+                        f"dests {res['dests_a']}→{res['dests_b']} ret={ret} "
+                        f"Δp med={res['page_diff']['median']} "
+                        f"chain w={res['chain']['w_ratio']}",
+                        file=sys.stderr,
+                    )
 
     cells = aggregate(results, args.min_retention)
     cells["meta"] = {
@@ -635,9 +653,6 @@ def main() -> None:
     }
     wall_s = time.perf_counter() - t0
 
-    with (out / "pairs.jsonl").open("w", encoding="utf-8") as fh:
-        for r in results:
-            fh.write(json.dumps(r, ensure_ascii=False) + "\n")
     (out / "cells.json").write_text(
         json.dumps(cells, ensure_ascii=False, indent=1), encoding="utf-8"
     )

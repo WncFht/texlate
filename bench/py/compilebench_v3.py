@@ -50,6 +50,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
+import benchlib
+
 CORPUS_DEFAULT = ROOT / "bench/corpus_v3"
 WORK_DEFAULT = ROOT / "bench/work_compile_v3"
 RESULTS_DEFAULT = f"compilebench-v3-{time.strftime('%Y-%m-%d')}"
@@ -65,8 +67,8 @@ JOBS = 4
 CONDS = ("baseline", "zh")
 
 #: tlmgr usermode 装包钉 tuna——mirror.ctan.org round-robin 本机不通
-#: (fixloop_bench 同口径, 2026-09-15 实测)。
-TUNA_TLNET = "https://mirrors.tuna.tsinghua.edu.cn/CTAN/systems/texlive/tlnet"
+#: (fixloop_bench 同口径, 2026-09-15 实测)。单源在 benchlib。
+TUNA_TLNET = benchlib.TUNA_TLNET
 
 #: product verdict.status → v2 词汇(跨基线可比)
 VERDICT_MAP = {"clean": "clean", "partial": "pdf~", "fail": "FAIL", "reject": "reject"}
@@ -83,10 +85,7 @@ def load_pool(manifest_paths: list[Path], corpus: Path):
     """manifest*.jsonl → 可编译论文池(滤 stub/无 tex)."""
     pool = {}
     for mp in manifest_paths:
-        for line in mp.read_text().splitlines():
-            if not line.strip():
-                continue
-            r = json.loads(line)
+        for r in benchlib.iter_jsonl(mp):
             if r.get("format") == "stub" or not r.get("n_tex"):
                 continue
             pid = r["id"]
@@ -172,24 +171,7 @@ def gen_sample(args):
 
 # ---------------- 单篇执行 ----------------
 
-IGNORE = shutil.ignore_patterns(
-    "_tect_out",
-    "_texmf",
-    "*.aux",
-    "*.log",
-    "*.out",
-    "*.toc",
-    "*.lof",
-    "*.lot",
-    "*.fls",
-    "*.fdb_latexmk",
-    "*.synctex*",
-    "*.blg",
-    "texput.*",
-    "missfont.log",
-    ".DS_Store",
-    "__pycache__",
-)
+IGNORE = benchlib.copytree_ignore("_texmf")
 
 
 def _cold_texmf(wdir: Path) -> Path:

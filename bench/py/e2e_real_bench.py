@@ -24,7 +24,8 @@ pipe 条件因翻译是 async 在本文件内联同款流程）。
 随机抽 `--n` 篇；`--layers core,booster` 可并入 booster 层
 （manifest_booster.jsonl）。只收 `extracted/` 存在的条目。
 断点续跑：StateStore 落 bench/work_e2ereal/_state/{sid}/（跨 copy 存活），
-重跑同 id 自动续翻已完成 chunk；results.json 逐篇 merge。
+重跑同 id 自动续翻已完成 chunk；records.jsonl 逐篇 append（行在=done、
+末行胜），results.json 逐篇 merge 快照兼容旧消费方。
 
 用法:
   uv run python bench/py/e2e_real_bench.py --ids 0707.1206     # 单篇 smoke
@@ -32,7 +33,7 @@ pipe 条件因翻译是 async 在本文件内联同款流程）。
       [--model swe-2-medium] [--concurrency 10] [--timeout 240]
       [--time-budget 1800] [--base onfail|always|never]
       [--fixloop onfail|always|never] [--tag NAME]
-产出: bench/results/e2e-real-<tag>-<date>/{results.json,matrix.md,summary.md,run_meta.json}
+产出: bench/results/e2e-real-<tag>-<date>/{records.jsonl,results.json,matrix.md,summary.md,run_meta.json}
 工作区: bench/work_e2ereal/{cond}/{safe_id}/ + _xlat_state/{safe_id}/（gitignored）
 依赖: uv venv（httpx/typer）；xelatex；pdftotext（judge CJK 检查）；
       3003 网关（TEXLATE_GATEWAY_KEY 或 --api-key，默认见 -h）。
@@ -58,12 +59,12 @@ sys.path.insert(0, os.environ.get("TEXLATE_SRC", str(ROOT / "src")))
 
 # fixloop 配方（TUNA 镜像钉 / usertree 三件套 / tlpdb 离线索引 / _NoSandbox）
 # 单源复用 fixloop_bench——同目录脚本经 sys.path[0] 可 import，其模块级无 IO。
+import benchlib
 import fixloop_bench as _fl
 
 from texlate.compile.engine import XelatexEngine, engine_for, route_project
 from texlate.compile.fixloop import CaseSink, fixloop
 from texlate.compile.inject import InjectRejectError, find_main_tex, prepare_chinese
-from texlate.compile.judge import judge
 from texlate.compile.normalize import normalize_project
 from texlate.e2e import base_condition
 from texlate.latex.api import parse_file, parse_tex
@@ -85,7 +86,8 @@ WORK = ROOT / "bench/work_e2ereal"
 STATE = WORK / "_xlat_state"
 RESULTS_DIR_DEFAULT = "e2e-real"
 
-#: 单篇可翻译总字符上限——超过记 skipped_oversize 不烧配额（B5 首轮保守闸）。
+#: 单篇可翻译总字符上限——超过记 skipped_oversize 终态不烧配额
+#:（B5 首轮保守闸；translate 记录带 oversize=True，base/fix 臂不补跑）。
 MAX_TOTAL_CHARS = 250_000
 
 
@@ -134,20 +136,8 @@ async def preflight() -> list[str]:
 
 # ---------------------------------------------------------------- 语料抽样
 def load_manifest(layers: set[str]) -> list[dict]:
-    """corpus_v3 manifest → [{id, layer, bytes}]；layer 缺失默认 core。"""
-    out: list[dict] = []
-    files = {"core": "manifest.jsonl", "booster": "manifest_booster.jsonl"}
-    for layer in layers:
-        fp = CORPUS / files.get(layer, f"manifest_{layer}.jsonl")
-        if not fp.exists():
-            continue
-        for line in fp.read_text(encoding="utf-8").splitlines():
-            if not line.strip():
-                continue
-            rec = json.loads(line)
-            rec.setdefault("layer", layer)
-            out.append(rec)
-    return out
+    """corpus_v3 manifest → [{id, layer, bytes}]；layer 缺失默认所在层。"""
+    return benchlib.load_manifest_rows(CORPUS, sorted(layers))
 
 
 def pick_sample(entries: list[dict], n: int, seed: int) -> list[str]:
@@ -159,8 +149,7 @@ def pick_sample(entries: list[dict], n: int, seed: int) -> list[str]:
     return sorted(picked)
 
 
-def safe_id(rel: str) -> str:
-    return rel.replace("/", "--")
+safe_id = benchlib.safe_id
 
 
 # ---------------------------------------------------------------- 真实翻译
@@ -188,6 +177,27 @@ async def translate_tree(
             chunk_to_in(c, chunk_id=f"{idx}:{c.id}", ph_map=res.ph_map)
             for c in res.chunks
         )
+
+    total_chars = sum(len(c.content) for c in chunks)
+    if total_chars > MAX_TOTAL_CHARS:
+        # 保守闸：超上限不烧网关配额——记 oversize 终态，调用侧记 skipped_oversize
+        return {
+            "files": 0,
+            "chunks": len(chunks),
+            "ok": 0,
+            "partial": 0,
+            "fault": 0,
+            "skipped": 0,
+            "attempts": 0,
+            "batched": 0,
+            "leftover_ph": 0,
+            "parse_fail": parse_fail,
+            "warn_kinds": {},
+            "seconds": 0.0,
+            "src_chars": total_chars,
+            "oversize": True,
+            "max_total_chars": MAX_TOTAL_CHARS,
+        }
 
     stats: dict[str, int] = {
         "ok": 0,
@@ -247,33 +257,7 @@ async def translate_tree(
         "parse_fail": parse_fail,
         "warn_kinds": dict(sorted(warn_kinds.items())),
         "seconds": round(translate_s, 1),
-        "src_chars": sum(len(c.content) for c in chunks),
-    }
-
-
-def _judge_dict(res, *, expect_cjk: bool) -> dict:
-    """CompileResult → {compile, verdict, status}（同 e2e._compile_judge 形状）。"""
-    v = judge(res, expect_cjk=expect_cjk)
-    return {
-        "compile": {
-            "ok": res.ok,
-            "timed_out": res.timed_out,
-            "seconds": round(res.seconds, 2),
-            "passes": res.passes,
-            "rc": res.rc,
-            "killed_signal": res.killed_signal,
-            "pdf_bytes": res.pdf_bytes,
-            "first_error": res.log.first_error,
-        },
-        "verdict": {
-            "status": v.status,
-            "reasons": v.reasons,
-            "n_errors": v.n_errors,
-            "category": v.category,
-            "cjk_chars": v.cjk_chars,
-            "missing_chars": v.missing_chars,
-        },
-        "status": v.status,
+        "src_chars": total_chars,
     }
 
 
@@ -284,7 +268,7 @@ def _compile_judge(
     res = engine_for("xelatex", halt_on_error=False).compile(
         work, main_rel, timeout=timeout, sandbox=True
     )
-    return _judge_dict(res, expect_cjk=expect_cjk)
+    return benchlib.judge_dict(res, expect_cjk=expect_cjk)
 
 
 async def pipe_xel_condition(
@@ -303,6 +287,9 @@ async def pipe_xel_condition(
     rec: dict[str, object] = {"engine": "xelatex"}
     rec["normalize"] = normalize_project(work, "xelatex", main_rel)
     rec["translate"] = await translate_tree(work, translator, STATE / sid, cfg)
+    if rec["translate"].get("oversize"):
+        rec["status"] = "skipped_oversize"
+        return rec
     try:
         rec["inject"] = prepare_chinese(work, main_rel)
     except InjectRejectError as e:
@@ -389,7 +376,7 @@ def pipe_fix_condition(
         halt_on_error=False, texmfhome=texmf, repository=_fl.TUNA_TLNET
     )
     res = jeng.compile(work, main_rel, timeout=timeout, sandbox=False)
-    rec.update(_judge_dict(res, expect_cjk=True))
+    rec.update(benchlib.judge_dict(res, expect_cjk=True))
     return rec
 
 
@@ -445,6 +432,7 @@ async def run_project(
 
     want_base = base_mode == "always" or (
         base_mode == "onfail"
+        and rec.get("status") != "skipped_oversize"
         and rec["pipe-xel"].get("verdict", {}).get("status") != "clean"
     )
     if want_base:
@@ -624,7 +612,14 @@ async def amain(args: argparse.Namespace) -> None:
     out_dir = ROOT / "bench/results" / f"{args.tag}-{args.date}"
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / "results.json"
-    results = json.loads(out_path.read_text()) if out_path.exists() else {}
+    rec_path = out_dir / "records.jsonl"
+    # records.jsonl 是 append 真账（行在=done，末行胜）；results.json 为兼容
+    # 旧 run 目录的兜底种子 + 逐篇快照（l2_attr_probe 等读它）。
+    results = (
+        benchlib.load_records(rec_path)
+        if rec_path.exists()
+        else (json.loads(out_path.read_text()) if out_path.exists() else {})
+    )
 
     entries = load_manifest(set(args.layers.split(",")))
     if args.ids:
@@ -696,6 +691,7 @@ async def amain(args: argparse.Namespace) -> None:
                         args.timeout,
                         sink,
                     )
+                    benchlib.append_jsonl(rec_path, prev)
                     out_path.write_text(
                         json.dumps(results, ensure_ascii=False, indent=1),
                         encoding="utf-8",
@@ -729,6 +725,7 @@ async def amain(args: argparse.Namespace) -> None:
                 results[rel].update(rec)
             else:
                 results[rel] = rec
+            benchlib.append_jsonl(rec_path, results[rel])
             out_path.write_text(
                 json.dumps(results, ensure_ascii=False, indent=1), encoding="utf-8"
             )
@@ -795,7 +792,7 @@ def main() -> None:
         action="store_true",
         help="跳过启动自检（全量 import + mock 链）",
     )
-    ap.add_argument("--rerun", action="store_true", help="无视 results.json 重跑")
+    ap.add_argument("--rerun", action="store_true", help="无视 records 重跑")
     ap.add_argument("--tag", default=RESULTS_DIR_DEFAULT)
     ap.add_argument("--date", default=str(datetime.now(UTC).date()))
     args = ap.parse_args()
