@@ -63,7 +63,7 @@ __all__ = [
     "IfCond",
     "IfSetter",
     "MacroDef",
-    "MacroTable",
+    "ScopeMacroTable",
     "expand_def",
 ]
 
@@ -148,7 +148,7 @@ class ArgMismatch(Exception):  # noqa: N818 — 规格 §3.5 定名（非 Error 
 # ------------------------------------------------------------------ 宏表
 
 
-class MacroTable:
+class ScopeMacroTable:
     r"""命令/环境 scope 链（§8.5）。
 
     scope 事件由**分段器**驱动回报（本层只提供链与查写）：
@@ -266,8 +266,8 @@ def _spec_to_args(spec: list[ArgSpec]) -> list[Arg]:
     return out
 
 
-def export_flat_macros(flat: _FlatMacroTable) -> MacroTable:
-    r"""v1 平表 ``MacroTable`` → scope 链表（``ScanResult.macros`` 单型收敛）。
+def export_flat_macros(flat: _FlatMacroTable) -> ScopeMacroTable:
+    r"""v1 平表 ``macro_table.MacroTable`` → scope 链表（``ScanResult.macros`` 单型收敛）。
 
     ``MacroEntry`` → ``MacroDef``：OPAQUE→``opaque``、TRANSPARENT→
     ``transparent_inline``（体含文本不展开、调用点保护分流——与 gullet
@@ -276,7 +276,7 @@ def export_flat_macros(flat: _FlatMacroTable) -> MacroTable:
     重词法成 token 列（file_id=-1 虚源——导出表只供查询面，body 不再
     上流连）。``envs`` 同理进 ``env_scopes`` 底帧。
     """
-    out = MacroTable()
+    out = ScopeMacroTable()
     for name, e in flat.cmds.items():
         if e.kind is MacroKind.LITERAL:
             # \Xtrue/\Xfalse：注册即 IfSetter（v2 \newif 同态）
@@ -816,7 +816,7 @@ class Gullet:
         root_dir: str = "",
         top_dir: str = "",
         cats: CatTable | None = None,
-        macros: MacroTable | None = None,
+        macros: ScopeMacroTable | None = None,
     ) -> None:
         r"""``text`` 顶层源（可空）；``cats``/``macros`` 可注入共享。
 
@@ -824,7 +824,7 @@ class Gullet:
         缺省回落 ``root_dir``，与 flatten ``_resolve`` 同序）。
         """
         self.cats = cats if cats is not None else CatTable()
-        self.macros = macros if macros is not None else MacroTable()
+        self.macros = macros if macros is not None else ScopeMacroTable()
         self.inputs: list[Mouth] = []  # 输入栈 = TeX.inputs (TeX.py:72)
         self.file_texts: list[str] = []  # file_id → 源文本
         self.file_paths: list[str] = []  # file_id → 路径（'' = 内存源）

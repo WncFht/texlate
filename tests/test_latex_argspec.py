@@ -10,7 +10,7 @@ r"""argspec.json 表 + 分段器接线：包门控 / policy 分派 / env 体路�
 """
 
 from texlate.latex import parse_tex, parse_tex_v1, reconstruct
-from texlate.latex.gullet import IfSetter, MacroDef, MacroTable
+from texlate.latex.gullet import IfSetter, MacroDef, ScopeMacroTable
 from texlate.latex.model import ScanResult
 from texlate.latex.tables import (
     ARGSPEC_ALWAYS_PKGS,
@@ -182,7 +182,7 @@ def test_v1_result_macros_converged() -> None:
         "\\newcommand{\\xx}[1]{#1!}\n\\newif\\ifdbg\nText \\xx{a}.\n"
         "\\end{document}\n"
     )
-    assert isinstance(res.macros, MacroTable)
+    assert isinstance(res.macros, ScopeMacroTable)
     assert isinstance(res.macros.resolve(res.macros.lookup("xx")), MacroDef)
     setter = res.macros.resolve(res.macros.lookup("dbgtrue"))
     assert isinstance(setter, IfSetter)

@@ -12,7 +12,7 @@ from enum import Enum, auto
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from texlate.latex.gullet import MacroTable as GulletMacroTable
+    from texlate.latex.gullet import ScopeMacroTable
     from texlate.latex.macro_table import MacroTable
     from texlate.latex.placeholder import PlaceholderIssuer
 
@@ -178,7 +178,7 @@ class ScanResult:
     protected_tex: str
     chunks: list[Chunk]
     ph_map: dict[str, str]  # "[[TYPE_n]]" → 原文段（可内嵌占位符）
-    macros: GulletMacroTable  # scope 链单一表示（v1 结果经 flat 表导出转换）
+    macros: ScopeMacroTable  # scope 链单一表示（v1 结果经 flat 表导出转换）
     pieces: list[Piece] = field(default_factory=list)
     inputs: list[tuple[int, str]] = field(default_factory=list)
     warnings: list[ScanWarning] = field(default_factory=list)
@@ -205,7 +205,7 @@ class ScanState:
     issuer: PlaceholderIssuer
     ph_map: dict[str, str]
     chunks: list[Chunk]
-    macros: MacroTable | GulletMacroTable  # v1 平表 / v2 scope 链（臂内状态）
+    macros: MacroTable | ScopeMacroTable  # v1 平表 / v2 scope 链（臂内状态）
     inputs: list[tuple[int, str]]
     warnings: list[ScanWarning]
     ifflags: dict[str, bool] = field(default_factory=dict)
