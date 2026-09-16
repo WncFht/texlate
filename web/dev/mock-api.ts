@@ -90,6 +90,16 @@ interface MockTask {
 const tasks = new Map<string, MockTask>();
 let seqCounter = 1;
 
+// 与 client.ts TERMINAL 同口径：终态可删，进行中 409
+const TERMINAL: ReadonlySet<Status> = new Set([
+    "done",
+    "partial",
+    "fault",
+    "cancelled",
+    "interrupted",
+    "needs_auth",
+]);
+
 function mkId(): string {
     return `t_${(seqCounter++).toString(16).padStart(16, "0")}`;
 }
@@ -506,6 +516,19 @@ function handleApi(req: Req, res: Res, url: URL): boolean {
         const accept = req.headers.accept ?? "";
         if (accept.includes("text/event-stream")) serveSse(req, res, t);
         else json(res, 200, snapshot(t));
+        return true;
+    }
+    if ((mm = m(/^\/api\/task\/([^/]+)$/)) && req.method === "DELETE") {
+        const t = tasks.get(mm[1]);
+        if (!t) return notFound(res), true;
+        if (!TERMINAL.has(t.status)) {
+            json(res, 409, { detail: "task is active; cancel first" });
+            return true;
+        }
+        if (t.timer) clearInterval(t.timer);
+        for (const l of t.listeners) l.end();
+        tasks.delete(t.id);
+        res.writeHead(204).end();
         return true;
     }
     if ((mm = m(/^\/api\/task\/([^/]+)\/cancel$/)) && req.method === "POST") {

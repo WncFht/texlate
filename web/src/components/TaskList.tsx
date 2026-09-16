@@ -1,6 +1,7 @@
-import { For, Show } from "solid-js";
+import { createSignal, For, Show } from "solid-js";
 import type { TaskError, TaskSnapshot } from "../api/client";
 import { isTerminal } from "../api/client";
+import { taskStore } from "../stores/tasks";
 import { t } from "../i18n/zh";
 
 interface Props {
@@ -24,14 +25,32 @@ function fmtRel(ts: number): string {
     return new Date(ms).toLocaleDateString();
 }
 
-// TODO: 任务删除按钮——后端 DELETE /api/task/{id} 未实装，落地后接
-// client.ts 的 api.deleteTask（confirm 后调用 + taskStore 本地移除）。
-
 export default function TaskList(props: Props) {
+    const [deleting, setDeleting] = createSignal<string | null>(null);
+    const [delError, setDelError] = createSignal("");
+
     // 终态 fault/partial 的 error 徽标内容
     const errOf = (task: TaskSnapshot): TaskError | null => {
         if (task.status !== "fault" && task.status !== "partial") return null;
         return task.error ?? null;
+    };
+
+    const confirmDelete = async (task: TaskSnapshot) => {
+        if (!isTerminal(task.status) || deleting()) return;
+        if (!window.confirm(t.home.delConfirm)) return;
+        setDeleting(task.task_id);
+        setDelError("");
+        try {
+            await taskStore.remove(task.task_id);
+            // 防御：若正开着该任务的 Reader，跳回首页（列表只在首页渲染，正常不可达）
+            if (window.location.hash.startsWith(`#/reader/${task.task_id}`)) {
+                window.location.hash = "#/";
+            }
+        } catch {
+            setDelError(t.home.delFailed);
+        } finally {
+            setDeleting(null);
+        }
     };
 
     return (
@@ -41,40 +60,63 @@ export default function TaskList(props: Props) {
             </Show>
             <For each={props.tasks}>
                 {(task) => (
-                    <button type="button" class="task-row" onClick={() => props.onOpen(task.task_id)}>
-                        <span class="task-title">{task.title || task.arxiv_id || task.task_id}</span>
-                        <span class={`task-status st-${task.status}`}>
-                            {t.status[task.status] ?? task.status}
-                        </span>
-                        <span class="task-time">{fmtRel(task.created_at)}</span>
-                        <span class="task-meta muted">
-                            <span class="task-kind">{t.kind[task.kind] ?? task.kind}</span>
-                            <Show when={!isTerminal(task.status)}>
-                                <span>{t.status[task.stage ?? task.status]}</span>
-                            </Show>
-                            <Show when={errOf(task)}>
-                                {(e) => (
-                                    <span class="task-err" title={e().message}>
-                                        [{e().code}]
-                                    </span>
-                                )}
-                            </Show>
-                        </span>
-                        <span
-                            class="task-bar"
-                            role="progressbar"
-                            aria-valuenow={task.progress}
-                            aria-valuemin={0}
-                            aria-valuemax={100}
+                    <div class="task-wrap">
+                        <button
+                            type="button"
+                            class="task-row"
+                            onClick={() => props.onOpen(task.task_id)}
                         >
-                            <i
-                                style={{ width: `${task.progress}%` }}
-                                classList={{ done: isTerminal(task.status) && task.status === "done" }}
-                            />
-                        </span>
-                    </button>
+                            <span class="task-title">
+                                {task.title || task.arxiv_id || task.task_id}
+                            </span>
+                            <span class={`task-status st-${task.status}`}>
+                                {t.status[task.status] ?? task.status}
+                            </span>
+                            <span class="task-time">{fmtRel(task.created_at)}</span>
+                            <span class="task-meta muted">
+                                <span class="task-kind">{t.kind[task.kind] ?? task.kind}</span>
+                                <Show when={!isTerminal(task.status)}>
+                                    <span>{t.status[task.stage ?? task.status]}</span>
+                                </Show>
+                                <Show when={errOf(task)}>
+                                    {(e) => (
+                                        <span class="task-err" title={e().message}>
+                                            [{e().code}]
+                                        </span>
+                                    )}
+                                </Show>
+                            </span>
+                            <span
+                                class="task-bar"
+                                role="progressbar"
+                                aria-valuenow={task.progress}
+                                aria-valuemin={0}
+                                aria-valuemax={100}
+                            >
+                                <i
+                                    style={{ width: `${task.progress}%` }}
+                                    classList={{
+                                        done: isTerminal(task.status) && task.status === "done",
+                                    }}
+                                />
+                            </span>
+                        </button>
+                        <button
+                            type="button"
+                            class="task-del"
+                            disabled={!isTerminal(task.status) || deleting() === task.task_id}
+                            title={isTerminal(task.status) ? t.home.delTip : t.home.delBusy}
+                            aria-label={t.home.del}
+                            onClick={() => void confirmDelete(task)}
+                        >
+                            ✕
+                        </button>
+                    </div>
                 )}
             </For>
+            <Show when={delError()}>
+                <p class="task-del-err">{delError()}</p>
+            </Show>
         </div>
     );
 }

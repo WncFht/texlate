@@ -8,6 +8,7 @@
 // 组件内 resize observer → forceRendering → 补渲可见缩略图。
 
 import { createSignal, For, Show, untrack } from "solid-js";
+import { AnnotationEditorType } from "pdfjs-dist";
 import type {
     PDFSlick,
     PDFSlickState,
@@ -97,6 +98,15 @@ export default function PaneSidebar(props: Props) {
     const downloadAtt = (a: { filename: string; content: Uint8Array }) =>
         props.slick()?.openOrDownloadData(a.content, a.filename);
 
+    // 高亮批注开关：store.annotationEditorMode 由 setAnnotationEditorMode 回写，可直接读
+    const annotOn = () => props.store.annotationEditorMode === AnnotationEditorType.HIGHLIGHT;
+    const toggleAnnot = () =>
+        props
+            .slick()
+            ?.setAnnotationEditorMode(
+                annotOn() ? AnnotationEditorType.NONE : AnnotationEditorType.HIGHLIGHT,
+            );
+
     const TABS: { key: SideTab; icon: string; label: string }[] = [
         { key: "thumbs", icon: "▦", label: t.pane.thumbs },
         { key: "outline", icon: "☰", label: t.pane.outline },
@@ -139,6 +149,17 @@ export default function PaneSidebar(props: Props) {
                     onClick={() => props.onToggleInfo()}
                 >
                     ⓘ
+                </button>
+                <button
+                    type="button"
+                    class="rail-btn"
+                    classList={{ on: annotOn() }}
+                    title={annotOn() ? t.pane.annotOffTip : t.pane.annotTip}
+                    aria-label={t.pane.annot}
+                    aria-pressed={annotOn()}
+                    onClick={toggleAnnot}
+                >
+                    ✎
                 </button>
             </nav>
             {/* aside 常驻 DOM（hidden 控显隐），保证 thumbs 容器在构造期已就位 */}

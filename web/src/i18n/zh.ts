@@ -35,6 +35,12 @@ export const t = {
         preferReuse: "复用已有结果",
         preferFresh: "强制重跑",
         engineAuto: "自动路由",
+        del: "删除任务",
+        delTip: "删除任务及其全部产物（PDF / 工作目录），不可恢复",
+        delBusy: "任务进行中——请先在阅读器里取消",
+        delConfirm:
+            "确定删除该任务？将一并删除其全部产物（原文/译文 PDF、工程文件、工作目录），不可恢复。",
+        delFailed: "删除失败，请稍后重试",
     },
     kind: {
         arxiv: "arXiv",
@@ -111,6 +117,9 @@ export const t = {
         findPrev: "上一个",
         findNext: "下一个",
         findClose: "关闭查找",
+        annot: "高亮标注",
+        annotTip: "高亮标注——拖选文字即标亮；仅当前会话有效，不写入 PDF",
+        annotOffTip: "关闭高亮标注",
         findNone: "无匹配",
         highlightAll: "全部高亮",
         matchCase: "区分大小写",

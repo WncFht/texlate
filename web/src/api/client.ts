@@ -331,7 +331,6 @@ export const api = {
 
     snapshot: (taskId: string) => request<TaskSnapshot>(`/task/${taskId}`),
     cancel: (taskId: string) => request(`/task/${taskId}/cancel`, { method: "POST" }),
-    // TODO(server): DELETE /api/task/{id} 后端未实装——落地后 TaskList 挂删除按钮
     deleteTask: (taskId: string) =>
         request<void>(`/task/${taskId}`, { method: "DELETE" }),
     // needs_auth 任务重试必须重带 X-Texlate-Key（BYOK 经 headers 透传）

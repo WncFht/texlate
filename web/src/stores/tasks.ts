@@ -1,8 +1,9 @@
 // 任务列表/活动任务 store —— solid store 承载 §2 快照 + SSE 增量。
 
-import { createStore } from "solid-js/store";
+import { createStore, produce } from "solid-js/store";
 import {
     api,
+    ApiError,
     isTerminal,
     openTaskEvents,
     type ChunkItem,
@@ -143,6 +144,23 @@ export const taskStore = {
     /** 本地补丁任务行（retry 后乐观更新；SSE snapshot 随后来覆盖为准） */
     patch(taskId: string, p: Partial<TaskSnapshot>) {
         setState("tasks", (t) => t.task_id === taskId, (t) => ({ ...t, ...p }));
+    },
+
+    /** 删除任务：先 DELETE 后端（404 视为已删同样本地移除），再清 SSE/列表/live */
+    async remove(taskId: string) {
+        try {
+            await api.deleteTask(taskId);
+        } catch (e) {
+            if (!(e instanceof ApiError && e.status === 404)) throw e;
+        }
+        taskStore.unwatch(taskId);
+        setState("tasks", (list) => list.filter((t) => t.task_id !== taskId));
+        setState(
+            "live",
+            produce((l) => {
+                delete l[taskId];
+            }),
+        );
     },
 
     /** retry 复用同一 task_id：清掉上一轮 SSE 痕迹再重新订阅 */
