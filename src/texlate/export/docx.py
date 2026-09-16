@@ -11,8 +11,10 @@
   ``comments.xml`` 未被 python-docx 建模（plain ``Part``），走 ``part.blob``
   lxml 解析、插译后写回 ``part._blob``。
 - 跳过：``w:instrText``/``w:fldSimple``（域代码/TOC 域）、``w:del``/``w:delText``
-  （修订删除）、``m:oMath`` 系、``w:rt`` 注音、``w:vanish`` 隐藏 run、
-  TOC 样式段落（域内残留 ``w:t``——页码反正失效，不花请求）。
+  /``w:moveFrom``（修订删除/移出侧）、``m:oMath`` 系、``w:rt`` 注音、
+  ``w:vanish``/``w:specVanish`` 隐藏 run、``mc:Fallback`` 子树（与
+  ``mc:Choice`` 同内容的重复序列化）、TOC 样式段落（域内残留 ``w:t``——
+  页码反正失效，不花请求）。
 - 图文/公式段：抽取只拼非保护 ``w:t``；保护物是整段主体 → 无 ``w:t`` →
   unit 不成立自然跳过（双语模式原文段反正留着）。
 
@@ -37,6 +39,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from docx import Document
+from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.oxml.parser import parse_xml
 from docx.shared import RGBColor
@@ -78,20 +81,30 @@ _PROTECTED_ANCESTOR = frozenset(
         qn("m:oMathPara"),
         qn("w:fldSimple"),
         qn("w:del"),
+        qn("w:moveFrom"),
         qn("w:rt"),
         qn("w:p"),
     }
 )
 
+#: ``w:rPr`` 下把 run 渲染成不可见的属性——其文本不送模型，rPr 也不做译文模板
+_HIDDEN_PROPS = (qn("w:vanish"), qn("w:specVanish"))
+
 #: 永不送模型的文本节点（``w:instrText`` 是域代码本体；``w:delText`` 是已删文本）
 _SKIP_NODE = frozenset({qn("w:instrText"), qn("w:delText")})
 
-#: 空白贡献节点：``w:tab``→``\t``，``w:br``/``w:cr``→``\n``（归一化时折叠）
-_WS_NODE = {
+#: 字面字符贡献节点：``w:tab``→``\t``，``w:br``/``w:cr``→``\n``（归一化时折叠），
+#: ``w:noBreakHyphen``→``-``（丢掉会把 ``non-breaking`` 粘成一个错词）
+_LITERAL_NODE = {
     qn("w:tab"): "\t",
     qn("w:br"): "\n",
     qn("w:cr"): "\n",
+    qn("w:noBreakHyphen"): "-",
 }
+
+#: ``mc:AlternateContent`` 的 ``mc:Fallback`` 与 ``mc:Choice`` 是同一份内容的
+#: 双份序列化（如文本框的 VML 兜底）——其 ``w:p`` 不枚举，否则同一文本送两遍
+_MC_FALLBACK = "{http://schemas.openxmlformats.org/markup-compatibility/2006}Fallback"
 
 #: 页眉页脚/脚注/尾注/批注 part 的文件名形态
 _EXTRA_PART_RE = re.compile(
@@ -118,7 +131,7 @@ class DocxUnit:
 def _protected(node: _Element, stop: _Element) -> bool:
     """``node``（``w:t`` 等）在 ``stop``（所属 ``w:p``）之下是否位于保护子树。
 
-    额外查 ``w:r`` 祖先的 ``w:rPr/w:vanish``——隐藏 run 不送模型。
+    额外查 ``w:r`` 祖先的 ``w:rPr`` 隐藏标记——隐藏 run 不送模型。
     """
     el = node.getparent()
     while el is not None and el is not stop:
@@ -126,7 +139,9 @@ def _protected(node: _Element, stop: _Element) -> bool:
             return True
         if el.tag == qn("w:r"):
             rpr = el.find(qn("w:rPr"))
-            if rpr is not None and rpr.find(qn("w:vanish")) is not None:
+            if rpr is not None and any(
+                rpr.find(prop) is not None for prop in _HIDDEN_PROPS
+            ):
                 return True
         el = el.getparent()
     return False
@@ -142,8 +157,8 @@ def _para_text(p_el: _Element) -> str:
         if tag == qn("w:t"):
             if not _protected(node, p_el):
                 parts.append(node.text or "")
-        elif tag in _WS_NODE and not _protected(node, p_el):
-            parts.append(_WS_NODE[tag])
+        elif tag in _LITERAL_NODE and not _protected(node, p_el):
+            parts.append(_LITERAL_NODE[tag])
     return normalize_text("".join(parts))
 
 
@@ -195,6 +210,24 @@ def _commit_part(part: Part, root: _Element) -> None:
     )
 
 
+def _in_mc_fallback(p_el: _Element) -> bool:
+    """``w:p`` 的祖先链含 ``mc:Fallback``——重复序列化分支，不枚举。"""
+    el = p_el.getparent()
+    while el is not None:
+        if el.tag == _MC_FALLBACK:
+            return True
+        el = el.getparent()
+    return False
+
+
+def _iter_paras(root: _Element) -> Iterator[_Element]:
+    """``root`` 下全部可枚举 ``w:p``——``mc:Fallback`` 副本除外。"""
+    for p_el in root.iter(qn("w:p")):
+        if _in_mc_fallback(p_el):
+            continue
+        yield p_el
+
+
 def _iter_surfaces(
     doc: DocumentObject,
 ) -> Iterator[tuple[str, _Element, Part | None, _Element | None]]:
@@ -204,7 +237,11 @@ def _iter_surfaces(
     一网打尽）；其余面按 partname 扫 package parts，``part_root`` 回传供
     ``_commit_part`` 写回。
     """
-    for p_el in doc.element.body.iter(qn("w:p")):
+    body = doc.element.body
+    if body is None:
+        msg = "document.xml 缺少 w:body——不是可翻的 DOCX"
+        raise UnsupportedFormatError(msg)
+    for p_el in _iter_paras(body):
         yield "/word/document.xml", p_el, None, None
     for part in doc.part.package.parts:
         name = str(part.partname)
@@ -213,7 +250,7 @@ def _iter_surfaces(
         root = _part_root(part)
         if root is None:
             continue
-        for p_el in root.iter(qn("w:p")):
+        for p_el in _iter_paras(root):
             yield name, p_el, part, root
 
 
@@ -251,20 +288,30 @@ def iter_units(
 
 
 def _first_rpr(p_el: _Element) -> _Element | None:
-    """源段首个 run 的 ``w:rPr``（译文 run 继承字体/字号用）。"""
-    for r in p_el.findall(qn("w:r")):
-        rpr = r.find(qn("w:rPr"))
-        if rpr is not None:
-            return rpr
+    """首个可见文本 run 的 ``w:rPr``——译文 run 的格式模板。
+
+    经 ``w:t`` 定位而非直系 ``w:r``：``w:hyperlink``/``w:sdt``/``w:smartTag``
+    包裹的 run 也能命中；``_protected`` 顺带排掉隐藏 run——隐藏 run 的 rPr
+    克隆过去译文会跟着隐形。
+    """
+    for t in p_el.iter(qn("w:t")):
+        if _protected(t, p_el):
+            continue
+        r = t.getparent()
+        if r is not None and r.tag == qn("w:r"):
+            rpr = r.find(qn("w:rPr"))
+            if rpr is not None:
+                return rpr
     return None
 
 
-def insert_after(p_el: _Element, zh_text: str) -> None:
+def insert_after(p_el: _Element, zh_text: str, language: str) -> None:
     """Deepcopy ``w:p`` → 剥到 ``w:pPr`` → ``addnext`` → 写入译文 run。
 
     pPr 深拷把 numPr/缩进/段落样式一起继承（spec §3.2）；书签/修订标记随
-    非 pPr 子树剥掉，不产生重复锚点/域 id。``rPr`` 子元素走
-    ``get_or_add_*`` 按 schema 序落位。
+    非 pPr 子树剥掉，不产生重复锚点/域 id；``w14:paraId``/``w14:textId``
+    是逐段唯一锚点 id，克隆必须剥除。``rPr`` 子元素走 ``get_or_add_*``
+    按 schema 序落位；``w:lang`` 是 docx 侧的 texlate-zh 标记等价物。
     """
     new_ct_p = deepcopy(p_el)
     for child in list(new_ct_p):
@@ -275,6 +322,8 @@ def insert_after(p_el: _Element, zh_text: str) -> None:
     if new_ppr is not None:
         for sect in new_ppr.findall(qn("w:sectPr")):
             new_ppr.remove(sect)
+    for attr in (qn("w14:paraId"), qn("w14:textId")):
+        new_ct_p.attrib.pop(attr, None)
     p_el.addnext(new_ct_p)
     para = Paragraph(new_ct_p, None)
     run = para.add_run(zh_text)
@@ -284,6 +333,13 @@ def insert_after(p_el: _Element, zh_text: str) -> None:
     rpr = run._r.get_or_add_rPr()  # noqa: SLF001
     rpr.get_or_add_rFonts().set(qn("w:eastAsia"), "SimSun")
     rpr.get_or_add_color().val = RGBColor(0x55, 0x55, 0x55)  # 双语区分色（v1 钉值）
+    lang = rpr.find(qn("w:lang"))
+    if lang is None:
+        lang = OxmlElement("w:lang")
+        # w:lang 在 rPr schema 序里位于 eastAsianLayout/specVanish/oMath 之前
+        rpr.insert_element_before(lang, "w:eastAsianLayout", "w:specVanish", "w:oMath")
+    lang.set(qn("w:val"), language)
+    lang.set(qn("w:eastAsia"), language)
 
 
 # ---------------------------------------------------------------- 驱动
@@ -337,7 +393,7 @@ def translate_docx(  # noqa: C901, PLR0913 -- 驱动主链：公共 API 参数�
             if r.translation.strip() == u.text.strip():
                 counts.unchanged += 1
                 continue
-            insert_after(u.p_el, r.translation)
+            insert_after(u.p_el, r.translation, target_lang)
             counts.translated += 1
         return counts
 

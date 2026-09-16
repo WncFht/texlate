@@ -12,15 +12,18 @@ import re
 import zipfile
 from typing import TYPE_CHECKING
 
+import pytest
 from docx import Document
 from docx.oxml.ns import qn
 from docx.oxml.parser import parse_xml
 
 from texlate.export import export_document, sniff_format
+from texlate.export.common import UnsupportedFormatError
 from texlate.export.docx import iter_units, translate_docx
 from texlate.xlat.pipeline import MockTranslator
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from pathlib import Path
 
 FOOTNOTES_XML = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -270,3 +273,155 @@ def test_header_part_translated(tmp_path: Path) -> None:
         assert header_names
         raw = z.read(header_names[0])
     assert "这是译文".encode() in raw
+
+
+def _rewrite_member(path: Path, name: str, transform: Callable[[bytes], bytes]) -> None:
+    """把 zip 成员 ``name`` 读出 → ``transform(bytes)->bytes`` → 原样写回。"""
+    with zipfile.ZipFile(path) as z:
+        members = {i.filename: z.read(i) for i in z.infolist()}
+    members[name] = transform(members[name])
+    with zipfile.ZipFile(path, "w") as z:
+        for n, blob in members.items():
+            z.writestr(n, blob, compress_type=zipfile.ZIP_DEFLATED)
+
+
+def test_no_body_rejected(tmp_path: Path) -> None:
+    """``document.xml`` 没有 ``w:body`` 的畸形件——可识别 DOCX 但不可翻。
+
+    此前 ``doc.element.body`` 为 ``None``，``body.iter`` 崩裸 AttributeError；
+    归到 ``UnsupportedFormatError``（worker/cli 统一 catch ``ExportError``）。
+    """
+    src = _make_docx(tmp_path / "in.docx", [("Some text.", None)])
+    _rewrite_member(
+        src,
+        "word/document.xml",
+        lambda b: re.sub(rb"<w:body>.*</w:body>", b"", b, flags=re.DOTALL),
+    )
+    with pytest.raises(UnsupportedFormatError, match="w:body"):
+        translate_docx(src, tmp_path / "out.docx", MockTranslator())
+
+
+def test_hidden_rpr_not_inherited(tmp_path: Path) -> None:
+    """首个 run 是 ``w:vanish`` 隐藏 run 时，其 rPr 不得克隆进译文 run——
+    否则译文段在 Word 里整段隐形。"""
+    doc = Document()
+    p = doc.add_paragraph()
+    hidden = p.add_run("secret")
+    hrpr = hidden._r.get_or_add_rPr()  # noqa: SLF001
+    hrpr.append(parse_xml(f'<w:vanish xmlns:w="{W_NS}"/>'))
+    visible = p.add_run("shown text")
+    vrpr = visible._r.get_or_add_rPr()  # noqa: SLF001
+    vrpr.append(parse_xml(f'<w:b xmlns:w="{W_NS}"/>'))
+    src = tmp_path / "in.docx"
+    doc.save(str(src))
+    dst = tmp_path / "out.docx"
+    report = translate_docx(src, dst, MockTranslator())
+    assert report.translated == 1
+    zh_rpr = Document(str(dst)).paragraphs[1].runs[0]._r.find(qn("w:rPr"))  # noqa: SLF001
+    assert zh_rpr is not None
+    assert zh_rpr.find(qn("w:vanish")) is None  # 译文不得隐形
+    assert zh_rpr.find(qn("w:b")) is not None  # 继承的是可见 run 的 rPr
+
+
+def test_hyperlink_rpr_inherited(tmp_path: Path) -> None:
+    """全文在 ``w:hyperlink`` 内的段落，译文 run 也能拿到 hyperlink run 的 rPr。"""
+    doc = Document()
+    p = doc.add_paragraph()
+    p._p.append(  # noqa: SLF001
+        parse_xml(
+            f'<w:hyperlink xmlns:w="{W_NS}"><w:r><w:rPr><w:b/></w:rPr>'
+            "<w:t>link only text</w:t></w:r></w:hyperlink>"
+        )
+    )
+    src = tmp_path / "in.docx"
+    doc.save(str(src))
+    dst = tmp_path / "out.docx"
+    assert translate_docx(src, dst, MockTranslator()).translated == 1
+    zh_rpr = Document(str(dst)).paragraphs[1].runs[0]._r.find(qn("w:rPr"))  # noqa: SLF001
+    assert zh_rpr is not None
+    assert zh_rpr.find(qn("w:b")) is not None
+
+
+def test_para_id_not_duplicated(tmp_path: Path) -> None:
+    """``w14:paraId``/``w14:textId`` 是逐段唯一锚点 id——克隆译文段必须剥掉。"""
+    doc = Document()
+    p = doc.add_paragraph("Para carrying w14 ids.")
+    p._p.set(qn("w14:paraId"), "0A3B4C5D")  # noqa: SLF001
+    p._p.set(qn("w14:textId"), "77777777")  # noqa: SLF001
+    src = tmp_path / "in.docx"
+    doc.save(str(src))
+    dst = tmp_path / "out.docx"
+    assert translate_docx(src, dst, MockTranslator()).translated == 1
+    with zipfile.ZipFile(dst) as z:
+        raw = z.read("word/document.xml")
+    assert raw.count(b"0A3B4C5D") == 1  # 仅源段持有
+    assert raw.count(b'w14:textId="77777777"') == 1
+
+
+def test_specvanish_skipped(tmp_path: Path) -> None:
+    """``w:specVanish`` 隐藏 run 与 ``w:vanish`` 同族——不送模型。"""
+    doc = Document()
+    p = doc.add_paragraph("visible part ")
+    spec = p.add_run("hidden spec text")
+    spec._r.get_or_add_rPr().append(  # noqa: SLF001
+        parse_xml(f'<w:specVanish xmlns:w="{W_NS}"/>')
+    )
+    src = tmp_path / "in.docx"
+    doc.save(str(src))
+    texts = [u.text for u, _part, _root in iter_units(Document(str(src)))]
+    assert texts == ["visible part"]
+
+
+def test_nobreakhyphen_keeps_hyphen(tmp_path: Path) -> None:
+    """``w:noBreakHyphen`` 是可见字符——抽取须补 ``-``，否则词被粘错。"""
+    doc = Document()
+    p = doc.add_paragraph()
+    p._p.append(  # noqa: SLF001
+        parse_xml(
+            f'<w:r xmlns:w="{W_NS}"><w:t xml:space="preserve">non</w:t>'
+            "<w:noBreakHyphen/><w:t>breaking change</w:t></w:r>"
+        )
+    )
+    src = tmp_path / "in.docx"
+    doc.save(str(src))
+    texts = [u.text for u, _part, _root in iter_units(Document(str(src)))]
+    assert texts == ["non-breaking change"]
+
+
+def test_mc_fallback_not_double_translated(tmp_path: Path) -> None:
+    """``mc:AlternateContent`` 的 Choice/Fallback 是同一份内容双份序列化——
+    文本框文字只枚举 Choice 侧，Fallback 不重复送模型。"""
+    mc = "http://schemas.openxmlformats.org/markup-compatibility/2006"
+    doc = Document()
+    p = doc.add_paragraph("Lead-in text.")
+    txbx = (
+        "<w:txbxContent><w:p><w:r><w:t>Textbox inner text</w:t></w:r>"
+        "</w:p></w:txbxContent>"
+    )
+    p._p.append(  # noqa: SLF001
+        parse_xml(
+            f'<w:r xmlns:w="{W_NS}" xmlns:mc="{mc}"><mc:AlternateContent>'
+            f"<mc:Choice>{txbx}</mc:Choice>"
+            f"<mc:Fallback><w:pict><v:shape "
+            f'xmlns:v="urn:schemas-microsoft-com:vml"><v:textbox>{txbx}'
+            "</v:textbox></v:shape></w:pict></mc:Fallback>"
+            "</mc:AlternateContent></w:r>"
+        )
+    )
+    src = tmp_path / "in.docx"
+    doc.save(str(src))
+    units = [u.text for u, _part, _root in iter_units(Document(str(src)))]
+    assert units == ["Lead-in text.", "Textbox inner text"]  # Fallback 双计已排除
+
+
+def test_translation_run_lang_stamped(tmp_path: Path) -> None:
+    """译文 run 的 ``w:lang``——docx 侧 texlate-zh 标记等价物（语言声明）。"""
+    src = _make_docx(tmp_path / "in.docx", [("Some source text.", None)])
+    dst = tmp_path / "out.docx"
+    translate_docx(src, dst, MockTranslator())
+    zh_rpr = Document(str(dst)).paragraphs[1].runs[0]._r.find(qn("w:rPr"))  # noqa: SLF001
+    assert zh_rpr is not None
+    lang = zh_rpr.find(qn("w:lang"))
+    assert lang is not None
+    assert lang.get(qn("w:eastAsia")) == "zh-CN"
+    assert lang.get(qn("w:val")) == "zh-CN"
