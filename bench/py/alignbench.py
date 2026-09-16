@@ -9,12 +9,27 @@ docs/05 §3-18 方案的前提条件；保留率 <95% 本身即 zh 编译完整�
   uv run --with pypdf python bench/py/alignbench.py --pairs pairs.jsonl [--check]
   uv run --with pypdf python bench/py/alignbench.py --a-dir A --b-dir B
   uv run --with pypdf python bench/py/alignbench.py --selftest
+  uv run --with pypdf python bench/py/alignbench.py --e2e-real bench/work_e2ereal \
+      --records bench/results/e2e-real-*-*/results.json [--rescue-en --corpus C]
 
-对子来源三选一:
+对子来源四选一:
   --pairs         jsonl 清单, 每行 {"id","a","b","kind"?} —— B3/B5 编译产物登记
   --a-dir/--b-dir 两棵产物树按 *.pdf 相对路径配对 (e2e workBase↔work 型布局)
   --selftest      pypdf 合成对子 (keep/shift/drop/degraded 四案) 无语料冒烟,
                   自含断言不进 --check 门槛语义
+  --e2e-real      e2e_real_bench 产物树 + run records 配对——zh 侧按 union
+                  口径优先 pipe-fix/{sid}、缺路径回落 pipe-xel/{sid}（docs/10
+                  §B5 增补: union 取较优者——pipe-fix 复判失败的 main.pdf 已
+                  被引擎先 unlink, 不存在陈旧误标）；en 侧 base-xel 优先、
+                  base-rescue 兜底。每对携带 {product_arm,en_arm,
+                  zh_compile_verdict,en_compile_verdict} 元数据进结果行——
+                  low-retention 联判编译 verdict（partial/fail = 编译截断
+                  而非「壳没译」，b7-attribution-2026-09-16 归因结论固化）。
+  --rescue-en     配 --e2e-real：b 侧有 PDF 而 base-xel 无 PDF 的工程（en
+                  编译在本机环境挂——缺包类），复制 corpus extracted →
+                  work/base-rescue/{sid}/ 用 fixloop usertree (_texmf/{sid})
+                  重编译 en 基线，--jobs 并发 xelatex。verdict 落
+                  OUT/rescue.jsonl。
 
 产出 (docs/10 §统一产出契约): OUT/{pairs.jsonl,cells.json,summary.md}
 
@@ -28,9 +43,12 @@ docs/05 §3-18 方案的前提条件；保留率 <95% 本身即 zh 编译完整�
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import json
 import math
+import os
 import re
+import shutil
 import sys
 import time
 from collections import Counter
@@ -165,21 +183,48 @@ def hist(vals: list[float]) -> dict:
 
 
 # ---------------------------------------------------------------- 对子分析
+def _with_meta(pair: dict, row: dict) -> dict:
+    """对子 meta（arm/verdict 标注）并入结果行——键名与核心字段不冲突。"""
+    row.update(pair.get("meta") or {})
+    return row
+
+
+def _blame(row: dict) -> str:
+    """low-retention 归因列：联判 zh 侧编译 verdict（attribution-2026-09-16）。
+
+    fail → 编译截断（百错上限后锚点全灭）；partial → 编译 partial（warning 级
+    判据，锚点缺失仍先计编译段）；clean → 编译干净仍丢锚点，splice/xlat 真问题。
+    """
+    zv = row.get("zh_compile_verdict")
+    if zv == "fail":
+        return "zh_compile_fail"
+    if zv == "partial":
+        return "zh_compile_partial"
+    if zv == "clean":
+        return "shell_loss"
+    if zv == "reject":
+        return "inject_reject"
+    return "unknown"
+
+
 def _invalid_pdf(pair: dict, side: str, exc: Exception) -> dict:
     """单侧 PDF 不可解析 → invalid_pdf verdict.
 
     语义: 这是编译段垃圾产物(超时 kill 留 stub/截断写), 不是 harness 异常——
     对应 leg 在 B3/B5 已计 FAIL, B7 不重复惩罚; 单列 n_invalid 显著报告。
     """
-    return {
-        "kind": pair["kind"],
-        "id": pair["id"],
-        "a": str(pair["a"]),
-        "b": str(pair["b"]),
-        "verdict": "invalid_pdf",
-        "invalid_side": side,
-        "detail": f"{type(exc).__name__}: {exc}",
-    }
+    return _with_meta(
+        pair,
+        {
+            "kind": pair["kind"],
+            "id": pair["id"],
+            "a": str(pair["a"]),
+            "b": str(pair["b"]),
+            "verdict": "invalid_pdf",
+            "invalid_side": side,
+            "detail": f"{type(exc).__name__}: {exc}",
+        },
+    )
 
 
 def analyze_pair(pair: dict, min_retention: float) -> dict:
@@ -230,56 +275,65 @@ def analyze_pair(pair: dict, min_retention: float) -> dict:
     else:
         verdict = "ok"
 
-    return {
-        "kind": pair["kind"],
-        "id": pair["id"],
-        "a": str(pair["a"]),
-        "b": str(pair["b"]),
-        "verdict": verdict,
-        "pages_a": ea["npages"],
-        "pages_b": eb["npages"],
-        "dests_a": len(da),
-        "dests_b": len(db),
-        "page_anchors_a": ea["n_page_anchor"],
-        "page_anchors_b": eb["n_page_anchor"],
-        "common": len(common),
-        "only_a": len(only_a),
-        "only_b": len(only_b),
-        "retention": retention,
-        "cat_common": dict(cat_counter),
-        "cat_lost_a": dict(lost_cat),
-        "page_diff": {
-            "min": pd_sorted[0] if pd_sorted else None,
-            "p25": pct(25),
-            "median": pct(50),
-            "p75": pct(75),
-            "p90": pct(90),
-            "max": pd_sorted[-1] if pd_sorted else None,
-            "mean": round(sum(page_diffs) / len(page_diffs), 2) if page_diffs else None,
-            "dist": hist(page_diffs),
+    return _with_meta(
+        pair,
+        {
+            "kind": pair["kind"],
+            "id": pair["id"],
+            "a": str(pair["a"]),
+            "b": str(pair["b"]),
+            "verdict": verdict,
+            "pages_a": ea["npages"],
+            "pages_b": eb["npages"],
+            "dests_a": len(da),
+            "dests_b": len(db),
+            "page_anchors_a": ea["n_page_anchor"],
+            "page_anchors_b": eb["n_page_anchor"],
+            "common": len(common),
+            "only_a": len(only_a),
+            "only_b": len(only_b),
+            "retention": retention,
+            "cat_common": dict(cat_counter),
+            "cat_lost_a": dict(lost_cat),
+            "page_diff": {
+                "min": pd_sorted[0] if pd_sorted else None,
+                "p25": pct(25),
+                "median": pct(50),
+                "p75": pct(75),
+                "p90": pct(90),
+                "max": pd_sorted[-1] if pd_sorted else None,
+                "mean": round(sum(page_diffs) / len(page_diffs), 2)
+                if page_diffs
+                else None,
+                "dist": hist(page_diffs),
+            },
+            "y_diff_samepage": {
+                "n": len(y_diffs),
+                "mean": round(sum(y_diffs) / len(y_diffs), 4) if y_diffs else None,
+                "abs_mean": round(sum(abs(y) for y in y_diffs) / len(y_diffs), 4)
+                if y_diffs
+                else None,
+            },
+            "chain": {
+                "n_common": chain["n"],
+                "chain_n": chain["chain_n"],
+                "w_total": chain["w"],
+                "w_chain": chain["chain_w"],
+                "n_ratio": round(chain["chain_n"] / chain["n"], 4)
+                if chain["n"]
+                else None,
+                "w_ratio": round(chain["chain_w"] / chain["w"], 4)
+                if chain["w"]
+                else None,
+            },
+            # 丢锚点全量名单 —— §B7-4 连锅端案例 (\label/\bibitem 随 chunk 移动)
+            # 归因入口; 确认机制后应沉淀为 bench/fixtures B2 断言
+            "lost_a": sorted(only_a),
+            "new_b": sorted(only_b),
+            "fits_a": ea["fits"],
+            "fits_b": eb["fits"],
         },
-        "y_diff_samepage": {
-            "n": len(y_diffs),
-            "mean": round(sum(y_diffs) / len(y_diffs), 4) if y_diffs else None,
-            "abs_mean": round(sum(abs(y) for y in y_diffs) / len(y_diffs), 4)
-            if y_diffs
-            else None,
-        },
-        "chain": {
-            "n_common": chain["n"],
-            "chain_n": chain["chain_n"],
-            "w_total": chain["w"],
-            "w_chain": chain["chain_w"],
-            "n_ratio": round(chain["chain_n"] / chain["n"], 4) if chain["n"] else None,
-            "w_ratio": round(chain["chain_w"] / chain["w"], 4) if chain["w"] else None,
-        },
-        # 丢锚点全量名单 —— §B7-4 连锅端案例 (\label/\bibitem 随 chunk 移动)
-        # 归因入口; 确认机制后应沉淀为 bench/fixtures B2 断言
-        "lost_a": sorted(only_a),
-        "new_b": sorted(only_b),
-        "fits_a": ea["fits"],
-        "fits_b": eb["fits"],
-    }
+    )
 
 
 # ---------------------------------------------------------------- 对子来源
@@ -296,6 +350,9 @@ def pairs_from_manifest(path: Path) -> list[dict]:
                 "id": row.get("id") or a.stem,
                 "a": a,
                 "b": b,
+                "meta": {
+                    k: v for k, v in row.items() if k not in {"id", "a", "b", "kind"}
+                },
             }
         )
         if not a.exists() or not b.exists():
@@ -318,6 +375,218 @@ def pairs_from_dirs(a_dir: Path, b_dir: Path, kind: str) -> list[dict]:
         pid = str(rel.parent) if str(rel.parent) != "." else b.stem
         pairs.append({"kind": kind, "id": pid, "a": a, "b": b})
     return pairs
+
+
+# ---------------------------------------------------------------- e2e-real 对子
+def load_records_any(path: Path) -> dict[str, dict]:
+    """run records → {id: rec}：results.json(dict) 或 records.jsonl(append 账)。"""
+    if path.suffix == ".jsonl":
+        return benchlib.load_records(path)
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(data, dict):
+        return data
+    return {str(r["id"]): r for r in data}
+
+
+def _verdict_of(rec: dict, arm: str) -> str | None:
+    return ((rec.get(arm) or {}).get("verdict") or {}).get("status")
+
+
+def _arm_pdfs(work: Path, arms: list[str], sid: str) -> dict[str, tuple[str, Path]]:
+    """{relpath: (arm, pdf_path)}——低优先级臂先扫，高优先级覆写同 rel。"""
+    found: dict[str, tuple[str, Path]] = {}
+    for arm in reversed(arms):
+        d = work / arm / sid
+        if not d.is_dir():
+            continue
+        for pdf in sorted(d.rglob("*.pdf")):
+            found[pdf.relative_to(d).as_posix()] = (arm, pdf)
+    return found
+
+
+def e2e_real_pairs(
+    work: Path,
+    records: dict[str, dict],
+    *,
+    rescue_arm: str = "base-rescue",
+    rescue_verdicts: dict[str, str] | None = None,
+) -> tuple[list[dict], list[dict]]:
+    """e2e_real_bench 产物树 → 对子 + 逐工程覆盖率记录。
+
+    union 口径（docs/10 §B5 增补）：zh 侧 relpath 级 [pipe-fix, pipe-xel] 递减
+    优先级（pipe-fix 仅当该工程 record 里实际跑过）；en 侧 [base-xel,
+    base-rescue]。返回 (pairs, coverage)；coverage 每行 {id,b_arm,zh_verdict,
+    n_pairs,unpaired_reason}——无法成对的原因显式化。
+    """
+    rescue_verdicts = rescue_verdicts or {}
+    pairs: list[dict] = []
+    coverage: list[dict] = []
+    for pid, rec in sorted(records.items()):
+        sid = benchlib.safe_id(pid)
+        has_fix = isinstance(rec.get("pipe-fix"), dict)
+        b_arms = ["pipe-fix", "pipe-xel"] if has_fix else ["pipe-xel"]
+        b_map = _arm_pdfs(work, b_arms, sid)
+        a_map = _arm_pdfs(work, ["base-xel", rescue_arm], sid)
+        cov = {
+            "id": pid,
+            "b_arms": b_arms,
+            "pipe_xel_verdict": _verdict_of(rec, "pipe-xel"),
+            "pipe_fix_verdict": _verdict_of(rec, "pipe-fix"),
+            "base_xel_verdict": _verdict_of(rec, "base-xel"),
+            "rescue_verdict": rescue_verdicts.get(pid),
+            "n_b_pdf": len(b_map),
+            "n_a_pdf": len(a_map),
+        }
+        if not b_map:
+            cov["unpaired_reason"] = "no_zh_pdf"
+            coverage.append(cov)
+            continue
+        main = rec.get("main")
+        main_rel = Path(main).with_suffix(".pdf").as_posix() if main else None
+        n_paired = 0
+        for rel, (b_arm, b_path) in sorted(b_map.items()):
+            a_hit = a_map.get(rel)
+            if a_hit is None:
+                continue
+            a_arm, a_path = a_hit
+            n_paired += 1
+            en_verdict = (
+                _verdict_of(rec, "base-xel")
+                if a_arm == "base-xel"
+                else rescue_verdicts.get(pid)
+            )
+            # 唯一且可读的对子 id：main 用裸 pid，其余带 relpath 防同 id 撞车
+            # （同 sid 根级多个 pdf 时 resume dedup 会静默丢对子）
+            if rel == main_rel:
+                pair_id = pid
+            elif "/" in rel:
+                pair_id = f"{pid}/{rel[:-4]}"
+            else:
+                pair_id = f"{pid}:{rel[:-4]}"
+            pairs.append(
+                {
+                    "kind": "e2e-real",
+                    "id": pair_id,
+                    "a": a_path,
+                    "b": b_path,
+                    "meta": {
+                        "product_arm": b_arm,
+                        "en_arm": a_arm,
+                        "zh_compile_verdict": _verdict_of(rec, b_arm),
+                        "en_compile_verdict": en_verdict,
+                        "pipe_xel_verdict": _verdict_of(rec, "pipe-xel"),
+                        "pipe_fix_verdict": _verdict_of(rec, "pipe-fix"),
+                        "base_xel_verdict": _verdict_of(rec, "base-xel"),
+                        "rel": rel,
+                    },
+                }
+            )
+        cov["n_pairs"] = n_paired
+        if not n_paired:
+            cov["unpaired_reason"] = "no_en_pdf"
+        coverage.append(cov)
+    return pairs, coverage
+
+
+# ---------------------------------------------------------------- en 基线补编译
+def rescue_en_baselines(
+    work: Path,
+    records: dict[str, dict],
+    corpus: Path,
+    out: Path,
+    *,
+    jobs: int = 4,
+    timeout: float = 240.0,
+    rescue_arm: str = "base-rescue",
+) -> list[dict]:
+    """b 侧有 PDF 而 base-xel 无 PDF → 用 fixloop usertree 重编译 en 基线。
+
+    归因结论（b7-attribution-2026-09-16）：archbox texlive 缺老包时 en 基线
+    先死，pipe-fix 的 usertree 装包后 zh 反而 clean——en 侧借同一 usertree
+    补编译补齐对子。产物落 ``work/base-rescue/{sid}/``（gitignored 重产物），
+    verdict 行落 ``out/rescue.jsonl``。幂等：main pdf 已存在即跳过。
+    """
+    # 延迟 import + src 路径注入：pypdf-only 路径（pairs/dirs/selftest）不触
+    sys.path.insert(0, os.environ.get("TEXLATE_SRC", str(ROOT / "src")))
+    from texlate.compile.engine import XelatexEngine
+    from texlate.compile.judge import judge
+
+    work = work.resolve()
+    corpus = corpus.resolve()
+
+    prior = {r["id"]: r for r in benchlib.read_jsonl(out / "rescue.jsonl")}
+    targets = []
+    for pid, rec in sorted(records.items()):
+        sid = benchlib.safe_id(pid)
+        has_fix = isinstance(rec.get("pipe-fix"), dict)
+        b_map = _arm_pdfs(
+            work, ["pipe-fix", "pipe-xel"] if has_fix else ["pipe-xel"], sid
+        )
+        a_map = _arm_pdfs(work, ["base-xel"], sid)
+        main = rec.get("main")
+        if not b_map or not main:
+            continue
+        # zh 有 main 产物而 en 基线缺 main.pdf 才补——a 侧有图片 pdf 不算覆盖
+        main_rel = Path(main).with_suffix(".pdf").as_posix()
+        if main_rel not in b_map or main_rel in a_map:
+            continue
+        if not (corpus / pid / "extracted").is_dir():
+            print(f"  rescue skip {pid}: corpus extracted/ 缺失", file=sys.stderr)
+            continue
+        targets.append((pid, sid, main))
+
+    todo = [
+        t
+        for t in targets
+        if not (work / rescue_arm / t[1] / Path(t[2]).with_suffix(".pdf")).exists()
+    ]
+    print(
+        f"rescue-en: {len(targets)} candidates, {len(todo)} to compile",
+        file=sys.stderr,
+    )
+
+    def _one(pid: str, sid: str, main: str) -> dict:
+        wdir = work / rescue_arm / sid
+        if wdir.exists():
+            shutil.rmtree(wdir)
+        shutil.copytree(
+            corpus / pid / "extracted", wdir, ignore=benchlib.copytree_ignore()
+        )
+        # TEXMFHOME 进子进程 env——必须绝对路径（xelatex cwd=wdir，相对路径
+        # 会在 wdir 下解析→静默找不到包，2026-09-16 rescue 全军覆没于此）
+        texmf = (work / "_texmf" / sid).resolve()
+        eng = XelatexEngine(
+            halt_on_error=False, texmfhome=texmf if texmf.is_dir() else None
+        )
+        try:
+            res = eng.compile(wdir, main, timeout=timeout, sandbox=False)
+            v = judge(res, expect_cjk=False)
+            return {
+                "id": pid,
+                "arm": rescue_arm,
+                "texmf": texmf.is_dir(),
+                "verdict": v.status,
+                "pdf": res.pdf_bytes,
+                "seconds": round(res.seconds, 1),
+                "first_error": res.log.first_error,
+            }
+        except Exception as e:
+            return {
+                "id": pid,
+                "arm": rescue_arm,
+                "verdict": "error",
+                "error": repr(e)[:300],
+            }
+
+    rows = list(prior.values())
+    with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as ex:
+        futs = {ex.submit(_one, pid, sid, main): pid for pid, sid, main in todo}
+        for fut in concurrent.futures.as_completed(futs):
+            row = fut.result()
+            rows.append(row)
+            benchlib.append_jsonl(out / "rescue.jsonl", row)
+            print(f"  rescue {row['id']}: {row.get('verdict')}", file=sys.stderr)
+    return rows
 
 
 # ---------------------------------------------------------------- selftest
@@ -439,6 +708,10 @@ def aggregate(results: list[dict], min_retention: float) -> dict:
     for k in by_kind.values():
         k["retention"] = _pct_vals(k.pop("rets"))
 
+    for r in low:  # low-retention 联判编译 verdict（pipefix 口径）
+        r["blame"] = _blame(r)
+    blame_tally = dict(Counter(r["blame"] for r in low))
+
     gates = {
         "no_pair_errors": not errors,
         "hyperref_retention": all(
@@ -463,8 +736,18 @@ def aggregate(results: list[dict], min_retention: float) -> dict:
             [r["chain"]["w_ratio"] for r in hyper if r["chain"]["w_ratio"] is not None]
         ),
         "by_kind": by_kind,
+        "blame_tally": blame_tally,
         "low_pairs": [
-            {"id": r["id"], "retention": r["retention"], "lost": r["lost_a"][:10]}
+            {
+                "id": r["id"],
+                "retention": r["retention"],
+                "lost": r["lost_a"][:10],
+                "blame": r["blame"],
+                "product_arm": r.get("product_arm"),
+                "zh_compile_verdict": r.get("zh_compile_verdict"),
+                "pipe_xel_verdict": r.get("pipe_xel_verdict"),
+                "pipe_fix_verdict": r.get("pipe_fix_verdict"),
+            }
             for r in low
         ],
         "invalid_pairs": [
@@ -506,32 +789,45 @@ def write_summary(out: Path, results: list[dict], cells: dict, wall_s: float) ->
 
     lines.append("## 逐对明细\n")
     lines.append(
-        "| pair | kind | verdict | dests a→b | common | ret | Δp med | chain w |"
+        "| pair | kind | verdict | arm | zh_v | dests a→b | common | ret "
+        "| Δp med | chain w |"
     )
-    lines.append("|---|---|---|---|---|---|---|---|")
+    lines.append("|---|---|---|---|---|---|---|---|---|---|")
     for r in results:
         if "error" in r:
-            lines.append(f"| {r['id']} | {r['kind']} | ERROR | - | - | - | - | - |")
+            lines.append(
+                f"| {r['id']} | {r['kind']} | ERROR | - | - | - | - | - | - | - |"
+            )
             continue
+        arm = r.get("product_arm") or "-"
+        zv = r.get("zh_compile_verdict") or "-"
         if r["verdict"] == "invalid_pdf":
             lines.append(
                 f"| {r['id']} | {r['kind']} | invalid({r['invalid_side']}) "
-                f"| - | - | - | - | - |"
+                f"| {arm} | {zv} | - | - | - | - | - |"
             )
             continue
         ret_s = f"{r['retention']:.3f}" if r["retention"] is not None else "n/a"
         wr = r["chain"]["w_ratio"]
         lines.append(
-            f"| {r['id']} | {r['kind']} | {r['verdict']} "
+            f"| {r['id']} | {r['kind']} | {r['verdict']} | {arm} | {zv} "
             f"| {r['dests_a']}→{r['dests_b']} | {r['common']} | {ret_s} "
             f"| {r['page_diff']['median']} | {wr if wr is None else f'{wr:.3f}'} |"
         )
     lines.append("")
 
     if cells["low_pairs"]:
-        lines.append("## 保留率不达标对（zh 编译完整性探针）\n")
+        lines.append("## 保留率不达标对（zh 编译完整性探针 + 编译 verdict 联判）\n")
+        if cells.get("blame_tally"):
+            tally = " · ".join(
+                f"{k}×{v}" for k, v in sorted(cells["blame_tally"].items())
+            )
+            lines.append(f"blame 分布: {tally}\n")
         lines.extend(
-            f"- `{r['id']}` ret={r['retention']:.3f} lost={r['lost']}"
+            f"- `{r['id']}` ret={r['retention']:.3f} blame={r.get('blame')} "
+            f"arm={r.get('product_arm')} zh_v={r.get('zh_compile_verdict')} "
+            f"(pipe-xel={r.get('pipe_xel_verdict')} "
+            f"pipe-fix={r.get('pipe_fix_verdict')}) lost={r['lost']}"
             for r in cells["low_pairs"]
         )
         lines.append("")
@@ -564,17 +860,41 @@ def main() -> None:
     src.add_argument("--pairs", type=Path, help="jsonl 对子清单 {id,a,b,kind?}")
     src.add_argument("--a-dir", type=Path, help="A 侧 (en/基线) 产物树")
     src.add_argument("--selftest", action="store_true", help="合成对子冒烟")
+    src.add_argument(
+        "--e2e-real",
+        type=Path,
+        metavar="WORK",
+        help="e2e_real_bench 产物树根 (bench/work_e2ereal)，配 --records",
+    )
     ap.add_argument("--b-dir", type=Path, help="B 侧 (zh/变体) 产物树")
     ap.add_argument(
         "--kind", default="dir-pair", help="--a-dir/--b-dir 模式的 kind 标签"
     )
+    ap.add_argument(
+        "--records",
+        type=Path,
+        help="--e2e-real: run 的 results.json / records.jsonl（arm verdict 来源）",
+    )
+    ap.add_argument(
+        "--corpus",
+        type=Path,
+        default=BENCH / "corpus_v3",
+        help="--rescue-en 的 extracted/ 来源",
+    )
+    ap.add_argument(
+        "--rescue-en",
+        action="store_true",
+        help="--e2e-real: base-xel 无 PDF 的工程用 fixloop usertree 补编译 en",
+    )
+    ap.add_argument("--jobs", type=int, default=4, help="--rescue-en xelatex 并发")
+    ap.add_argument("--timeout", type=float, default=240.0, help="编译超时秒")
     ap.add_argument("--out", type=Path, default=None)
     ap.add_argument("--min-retention", type=float, default=MIN_RETENTION)
     ap.add_argument("--check", action="store_true", help="门槛断言, 失败退出码 1")
     args = ap.parse_args()
 
     today = datetime.now(UTC).strftime("%Y-%m-%d")
-    tag = "selftest" if args.selftest else "pairs"
+    tag = "selftest" if args.selftest else ("e2ereal" if args.e2e_real else "pairs")
     out = args.out or (BENCH / "results" / f"alignbench-{tag}-{today}")
     out = out if out.is_absolute() else Path.cwd() / out
     out.mkdir(parents=True, exist_ok=True)
@@ -588,8 +908,32 @@ def main() -> None:
             for r in results:
                 benchlib.write_jsonl(fh, r)
     else:
+        coverage = None
         if args.pairs:
             pairs = pairs_from_manifest(args.pairs)
+        elif args.e2e_real:
+            if not args.records:
+                ap.error("--e2e-real 需配 --records")
+            e2e_work = args.e2e_real.resolve()
+            records = load_records_any(args.records)
+            rescue_verdicts: dict[str, str] = {}
+            if args.rescue_en:
+                for row in rescue_en_baselines(
+                    e2e_work,
+                    records,
+                    args.corpus,
+                    out,
+                    jobs=args.jobs,
+                    timeout=args.timeout,
+                ):
+                    rescue_verdicts[row["id"]] = row.get("verdict")
+            pairs, coverage = e2e_real_pairs(
+                e2e_work, records, rescue_verdicts=rescue_verdicts
+            )
+            (out / "coverage.jsonl").write_text(
+                "".join(json.dumps(c, ensure_ascii=False) + "\n" for c in coverage),
+                encoding="utf-8",
+            )
         else:
             if not args.b_dir:
                 ap.error("--a-dir 需配 --b-dir")
@@ -648,7 +992,11 @@ def main() -> None:
         "min_retention": args.min_retention,
         "source": "selftest"
         if args.selftest
-        else str(args.pairs or f"{args.a_dir} ↔ {args.b_dir}"),
+        else (
+            f"e2e-real {args.e2e_real} records={args.records}"
+            if args.e2e_real
+            else str(args.pairs or f"{args.a_dir} ↔ {args.b_dir}")
+        ),
         "selftest_fails": selftest_fails,
     }
     wall_s = time.perf_counter() - t0
@@ -656,6 +1004,41 @@ def main() -> None:
     (out / "cells.json").write_text(
         json.dumps(cells, ensure_ascii=False, indent=1), encoding="utf-8"
     )
+    # 归因视图：每对一行 {verdict,retention,arm,编译 verdict 联判,丢失类别}
+    with (out / "attribution.jsonl").open("w", encoding="utf-8") as fh:
+        for r in results:
+            benchlib.write_jsonl(
+                fh,
+                {
+                    k: r.get(k)
+                    for k in (
+                        "id",
+                        "kind",
+                        "verdict",
+                        "retention",
+                        "blame",
+                        "product_arm",
+                        "en_arm",
+                        "zh_compile_verdict",
+                        "en_compile_verdict",
+                        "pipe_xel_verdict",
+                        "pipe_fix_verdict",
+                        "base_xel_verdict",
+                        "rel",
+                        "pages_a",
+                        "pages_b",
+                        "dests_a",
+                        "dests_b",
+                        "common",
+                        "only_a",
+                        "cat_lost_a",
+                        "invalid_side",
+                        "detail",
+                        "error",
+                    )
+                    if k in r
+                },
+            )
     text = write_summary(out, results, cells, wall_s)
     print("\n" + text)
     print(f"wrote {out}/{{pairs.jsonl,cells.json,summary.md}}")
