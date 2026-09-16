@@ -37,3 +37,11 @@ syntax 15 / other 14 / babel_opt 11 / illegal_unit 10 / pdftex_prim 7 / capacity
 2. partial→fail 真退化 4 格 → 规则回归清单。
 3. SIGSEGV / bufsize / \usepackage{color} 三格 → 各立 ticket。
 4. misschar 模式 663 格全落 acceptable_pdf——该档语义是"有 pdf 即收"，如需更严口径另议。
+
+## 补记 2（2026-09-16 晚，leader）
+
+- **early_eof taxonomy 已落**（`efa1fa3`）：1706.00175 式「`\end occurred …` + `No pages of output`、全文无 `!`」此前判 clean；rules.yaml 尾段新增 `early_eof` 两条（guard=`No pages of output`，payload 抓冒犯 cs）。engine 侧待 taxonomy derive 落地后自动继承。重跑清单内 1706.00175 预期改判。
+- **killed_signal 盲区**：`res.killed_signal` 只记 `rc<0`（POSIX 约定）；1803.00012 实测 `rc=139`（128+11 壳层约定）→ killed_signal=null 漏记。engine.py:1009/:1372 两处赋值点待加 `rc in 129..192 → rc-128` 归一（排进 loop2，避开在飞 rewrite）。
+- **定点重跑清单**：`rerun-ids.txt`（15 nenp + 4 真退化，csv 可直接喂 `--ids`）。命令形：`stagerun.py fixloop --on fail --tag loop1 --rerun --ids $(tail -1 rerun-ids.txt)`。
+- **环境坑**：`FORCE_COLOR` 会污染 CliRunner 输出致 help 断言假红；pytest 一律 `env -u FORCE_COLOR`。
+- 1d 提案「不退化底板」（入口态 PDF 快照、末态判决不低于入口态）已立 ticket #20，loop2 全量前评估。
