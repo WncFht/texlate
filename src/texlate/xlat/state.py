@@ -196,7 +196,26 @@ class StateStore:
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError) as e:
-            log.warning("state %s corrupted (%s) — restart from scratch", path, e)
+            # 与 load_cache 同口径：隔离留诊断现场，不覆盖不删除
+            bad = path.with_name(
+                f"{path.stem}-invalid-{secrets.token_hex(4)}{path.suffix}"
+            )
+            path.rename(bad)
+            log.warning(
+                "state %s corrupted (%s) → quarantined as %s", path, e, bad.name
+            )
+            return set(), {}
+        if not isinstance(data, dict):
+            bad = path.with_name(
+                f"{path.stem}-invalid-{secrets.token_hex(4)}{path.suffix}"
+            )
+            path.rename(bad)
+            log.warning(
+                "state %s malformed (top-level %s) → quarantined as %s",
+                path,
+                type(data).__name__,
+                bad.name,
+            )
             return set(), {}
         completed = set(data.get("completed") or [])
         results: dict[str, ChunkRecord] = {}

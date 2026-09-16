@@ -527,3 +527,126 @@ class TestOwnership:
 
         c = asyncio.run(go())
         assert c._http.is_closed  # noqa: SLF001
+
+
+# ---------------------------------------------------------------- 传输/合同边界（audit 2026-09-17）
+
+
+class TestTransportAndContract:
+    def test_decoding_error_wrapped_retryable(self) -> None:
+        """gzip 损坏同款 ``DecodingError``——RequestError 非 TransportError，曾逃逸 ChatError 契约。"""
+
+        def boom(req: httpx.Request) -> httpx.Response:
+            err = httpx.DecodingError("corrupt gzip", request=req)
+            raise err
+
+        c = _client(boom)
+        with pytest.raises(cl.RetryableHTTPError) as ei:
+            asyncio.run(c.chat("m1", _MSGS))
+        assert ei.value.retryable
+        assert ei.value.status < 0  # 传输族 status=-1 → 降级臂不切模
+
+    def test_decoding_error_wrapped_in_stream(self) -> None:
+        def boom(req: httpx.Request) -> httpx.Response:
+            err = httpx.DecodingError("corrupt gzip", request=req)
+            raise err
+
+        c = _client(boom)
+
+        async def drain() -> list[cl.StreamEvent]:
+            return [ev async for ev in c.chat_stream("m1", _MSGS)]
+
+        with pytest.raises(cl.RetryableHTTPError):
+            asyncio.run(drain())
+
+    def test_invalid_url_non_retryable(self) -> None:
+        """坏 base_url 的 ``InvalidURL`` 是 plain Exception——曾逃逸成 crash 类。"""
+        c = _client(lambda _r: _json(_chat_payload()), base_url="http://host:badport")
+        with pytest.raises(cl.ChatError) as ei:
+            asyncio.run(c.chat("m1", _MSGS))
+        assert not ei.value.retryable
+        assert not isinstance(ei.value, cl.RetryableHTTPError)
+
+    def test_error_body_api_key_redacted(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """网关回显 Authorization 头 → api_key 不得进异常消息与日志。"""
+        key = "sk-test-secret-abcdef123456"
+
+        def echo(req: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                500,
+                text=f'{{"error": "upstream rejected auth {req.headers["authorization"]}"}}',
+            )
+
+        c = _client(echo, api_key=key)
+        with pytest.raises(cl.ChatError) as ei, caplog.at_level("WARNING"):
+            asyncio.run(c.chat("m1", _MSGS))
+        assert key not in str(ei.value)
+        assert "***" in str(ei.value)
+        assert key not in caplog.text  # 降级臂 log.warning 同样过 redact
+
+    def test_non_json_200_malformed_retryable(self) -> None:
+        """200 + 非 JSON 体（代理 HTML 错误页）→ retryable 合同违约而非永久 skipped。"""
+        c = _client(lambda _r: httpx.Response(200, text="<html>proxy oops</html>"))
+        with pytest.raises(cl.MalformedResponseError) as ei:
+            asyncio.run(c.chat("m1", _MSGS))
+        assert ei.value.retryable
+        assert ei.value.status == 200  # noqa: PLR2004 -- 记真实 HTTP 码
+        assert ei.value.max_tries == 2  # noqa: PLR2004 -- 只翻身一次
+
+    def test_non_object_json_200_malformed(self) -> None:
+        """200 + JSON list（非协议 dict）→ MalformedResponseError 而非 AttributeError。"""
+        c = _client(lambda _r: _json(["m1", "m2"]))
+        with pytest.raises(cl.MalformedResponseError):
+            asyncio.run(c.chat("m1", _MSGS))
+
+    def test_no_choices_malformed(self) -> None:
+        """200 + choices 空 → MalformedResponseError（曾是不重试的 ChatError）。"""
+        c = _client(lambda _r: _json({"choices": [], "usage": {}}))
+        with pytest.raises(cl.MalformedResponseError):
+            asyncio.run(c.chat("m1", _MSGS))
+
+    def test_list_models_malformed_payloads(self) -> None:
+        """list_models 三种畸形：list 顶层 / 非 JSON / data 非 list。"""
+        for resp in (
+            _json(["m1"]),
+            httpx.Response(200, text="<html>"),
+            _json({"data": {"x": 1}}),
+        ):
+            c = _client(lambda _r, r=resp: r)
+            with pytest.raises(cl.MalformedResponseError):
+                asyncio.run(c.list_models())
+
+    def test_list_models_filters_malformed_members(self) -> None:
+        """data 成员按 dict+id 过滤——裸字符串成员不再有 "id" in m 子串误判。"""
+        c = _client(lambda _r: _json({"data": [{"id": "ok"}, "junk", 5, {"noid": 1}]}))
+        assert asyncio.run(c.list_models()) == ["ok"]
+
+    def test_anthropic_error_payload_redacted(self) -> None:
+        """anthropic ``type==error`` 的 200 体——message 里的 key 过 redact。"""
+        key = "sk-ant-secret-xyz-9999"
+        payload = {
+            "type": "error",
+            "error": {"type": "overloaded_error", "message": f"key {key} rejected"},
+        }
+        c = _client(
+            lambda _r: _json(payload),
+            base_url="https://api.anthropic.com",
+            api_key=key,
+        )
+        with pytest.raises(cl.ChatError) as ei:
+            asyncio.run(c.chat("claude-x", _MSGS))
+        assert key not in str(ei.value)
+        assert "overloaded_error" in str(ei.value)
+
+    def test_malformed_base_url_no_crash_at_init(self) -> None:
+        """畸形 base_url：构造/provider 识别/网关判定不炸——请求期以非重试 ChatError 报出。"""
+        bad = "http://[bad::url"
+        assert cl.provider_for_url(bad) == "custom"
+        assert not cl.is_free_gateway_url(bad)
+        http = httpx.AsyncClient(transport=httpx.MockTransport(lambda _r: _json({})))
+        c = cl.ChatClient(bad, KEY, http=http)
+        with pytest.raises(cl.ChatError) as ei:
+            asyncio.run(c.chat("m1", _MSGS))
+        assert not ei.value.retryable

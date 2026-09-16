@@ -126,7 +126,8 @@ class LengthTruncatedError(ChatError):
 
     ``max_tries=2`` 对齐 EmptyContentError：调用点内层已做 8k→32k 放大
     重试，外层再吃满 policy.max_tries 会把慢性截断块放大到 ~10 请求/块
-    （audit 2026-09-16）；封顶 2 次外层尝试即最多 4 次 API 调用。
+    （audit 2026-09-16）。封顶后单模型 ≤4 次 API 调用；免费集降级臂命中时
+    每个候选再各起一轮（≤ ``FALLBACK_MAX_CANDIDATES`` 个）。
     """
 
     def __init__(self, message: str, *, partial_content: str = "") -> None:
@@ -146,6 +147,20 @@ class EmptyContentError(ChatError):
 
     def __init__(self, message: str) -> None:
         """空响应：retryable + 总尝试数封顶 2。"""
+        super().__init__(message, status=HTTP_OK, retryable=True, max_tries=2)
+
+
+class MalformedResponseError(ChatError):
+    """HTTP 200 但响应体非协议形态（非 JSON / choices 空 / 形状不符）。
+
+    与 ``EmptyContentError`` 同族——200 合同违约而非传输故障：网关/前置
+    代理瞬时吐 HTML 错误页或半截 JSON 是实测形态，retryable 才有翻身机会；
+    ``max_tries=2`` 封顶（持续畸形 = 端点坏了，不烧满 policy 上限）。
+    ``status`` 记 200 让退避走 base·2^attempt、降级臂判定 switchable。
+    """
+
+    def __init__(self, message: str) -> None:
+        """畸形 200 响应：retryable + 总尝试数封顶 2。"""
         super().__init__(message, status=HTTP_OK, retryable=True, max_tries=2)
 
 
@@ -298,7 +313,10 @@ class FreeModel:
 
 def provider_for_url(base_url: str) -> str:
     """Hostname → provider id。原则：按可信 API host 识别，绝不看模型名。"""
-    host = (urlsplit(base_url).hostname or "").lower()
+    try:
+        host = (urlsplit(base_url).hostname or "").lower()
+    except ValueError:
+        host = ""  # 畸形 URL 按未知 host 处理（落空到 "custom"），请求期 InvalidURL→ChatError 再报
     if host in {"127.0.0.1", "localhost", "::1"}:
         return "gateway"
     if host == "api.anthropic.com":
@@ -349,7 +367,10 @@ def is_free_gateway_url(base_url: str) -> bool:
     ``provider_for_url`` 单独不能当闸：默认 tailnet 网关解析成
     ``"custom"``，BYOK 也可以是 custom——端点身份只能看网络位置。
     """
-    host = (urlsplit(normalize_base_url(base_url)).hostname or "").lower()
+    try:
+        host = (urlsplit(normalize_base_url(base_url)).hostname or "").lower()
+    except ValueError:
+        return False  # 畸形 URL 必非内置网关——发现/探活面零放行
     if host in _LOOPBACK_HOSTS or host.endswith(".ts.net"):
         return True
     try:
@@ -467,12 +488,11 @@ class ChatClient:
             body.update(options.extra)
         return body
 
-    @staticmethod
-    def _parse_openai(payload: dict[str, Any], latency: float) -> ChatResult:
+    def _parse_openai(self, payload: dict[str, Any], latency: float) -> ChatResult:
         choices = payload.get("choices") or []
         if not choices:
             msg = "response has no choices"
-            raise ChatError(msg)
+            raise MalformedResponseError(msg)
         ch = choices[0]
         msg_obj = ch.get("message") or {}
         content = msg_obj.get("content") or ""
@@ -540,11 +560,11 @@ class ChatClient:
             body["stream"] = True
         return body
 
-    @staticmethod
-    def _parse_anthropic(payload: dict[str, Any], latency: float) -> ChatResult:
+    def _parse_anthropic(self, payload: dict[str, Any], latency: float) -> ChatResult:
         if payload.get("type") == "error":
             err = payload.get("error") or {}
-            msg = f"anthropic error {err.get('type')}: {err.get('message')}"
+            detail = redact(str(err.get("message") or ""), self.api_key)
+            msg = f"anthropic error {err.get('type')}: {detail}"
             raise ChatError(msg)
         texts: list[str] = []
         thinks: list[str] = []
@@ -636,18 +656,26 @@ class ChatClient:
                     headers=self._openai_headers(),
                     json=self._openai_body(model, messages, opts, stream=False),
                 )
-        except (httpx.TransportError, ssl.SSLError) as e:
+        except httpx.InvalidURL as e:
+            msg = f"invalid request URL: {e}"
+            raise ChatError(msg) from e
+        except (httpx.TransportError, httpx.DecodingError, ssl.SSLError) as e:
             msg = f"transport error: {e}"
             raise RetryableHTTPError(msg, retryable=True) from e
         latency = time.monotonic() - t0
 
         if resp.status_code != HTTP_OK:
-            raise classify_status(resp.status_code, resp.text, resp.headers)
+            raise classify_status(
+                resp.status_code, redact(resp.text, self.api_key), resp.headers
+            )
         try:
             payload = resp.json()
         except json.JSONDecodeError as e:
-            msg = f"non-JSON response: {resp.text[:200]}"
-            raise ChatError(msg) from e
+            msg = f"non-JSON response: {redact(resp.text[:200], self.api_key)}"
+            raise MalformedResponseError(msg) from e
+        if not isinstance(payload, dict):
+            msg = f"non-object JSON response: {redact(resp.text[:200], self.api_key)}"
+            raise MalformedResponseError(msg)
         if self.dialect == "anthropic":
             result = self._parse_anthropic(payload, latency)
         else:
@@ -715,14 +743,19 @@ class ChatClient:
             ) as resp:
                 if resp.status_code != HTTP_OK:
                     await resp.aread()
-                    raise classify_status(resp.status_code, resp.text, resp.headers)
+                    raise classify_status(
+                        resp.status_code, redact(resp.text, self.api_key), resp.headers
+                    )
                 async for line in resp.aiter_lines():
                     events, done = self._sse_events(line)
                     for ev in events:
                         yield ev
                     if done:
                         return
-        except (httpx.TransportError, ssl.SSLError) as e:
+        except httpx.InvalidURL as e:
+            msg = f"invalid request URL: {e}"
+            raise ChatError(msg) from e
+        except (httpx.TransportError, httpx.DecodingError, ssl.SSLError) as e:
             msg = f"transport error: {e}"
             raise RetryableHTTPError(msg, retryable=True) from e
 
@@ -732,13 +765,29 @@ class ChatClient:
             resp = await self._http.get(
                 f"{self.base_url}/v1/models", headers=self._openai_headers()
             )
-        except (httpx.TransportError, ssl.SSLError) as e:
+        except httpx.InvalidURL as e:
+            msg = f"invalid request URL: {e}"
+            raise ChatError(msg) from e
+        except (httpx.TransportError, httpx.DecodingError, ssl.SSLError) as e:
             msg = f"transport error: {e}"
             raise RetryableHTTPError(msg, retryable=True) from e
         if resp.status_code != HTTP_OK:
-            raise classify_status(resp.status_code, resp.text, resp.headers)
-        data = resp.json()
-        return [m["id"] for m in data.get("data") or [] if "id" in m]
+            raise classify_status(
+                resp.status_code, redact(resp.text, self.api_key), resp.headers
+            )
+        try:
+            data = resp.json()
+        except json.JSONDecodeError as e:
+            msg = f"non-JSON response: {redact(resp.text[:200], self.api_key)}"
+            raise MalformedResponseError(msg) from e
+        if not isinstance(data, dict):
+            msg = f"non-object JSON response: {redact(resp.text[:200], self.api_key)}"
+            raise MalformedResponseError(msg)
+        items = data.get("data") or []
+        if not isinstance(items, list):
+            msg = f"unexpected data field: {redact(resp.text[:200], self.api_key)}"
+            raise MalformedResponseError(msg)
+        return [str(m["id"]) for m in items if isinstance(m, dict) and "id" in m]
 
     async def panel_models(self) -> list[dict[str, Any]]:
         """`GET /panel/api/models` → 面板模型表（含 cost_tier/promo/disabled）。"""
@@ -746,12 +795,21 @@ class ChatClient:
             resp = await self._http.get(
                 f"{self.base_url}/panel/api/models", headers=self._openai_headers()
             )
-        except (httpx.TransportError, ssl.SSLError) as e:
+        except httpx.InvalidURL as e:
+            msg = f"invalid request URL: {e}"
+            raise ChatError(msg) from e
+        except (httpx.TransportError, httpx.DecodingError, ssl.SSLError) as e:
             msg = f"transport error: {e}"
             raise RetryableHTTPError(msg, retryable=True) from e
         if resp.status_code != HTTP_OK:
-            raise classify_status(resp.status_code, resp.text, resp.headers)
-        data = resp.json()
+            raise classify_status(
+                resp.status_code, redact(resp.text, self.api_key), resp.headers
+            )
+        try:
+            data = resp.json()
+        except json.JSONDecodeError as e:
+            msg = f"non-JSON response: {redact(resp.text[:200], self.api_key)}"
+            raise MalformedResponseError(msg) from e
         if isinstance(data, dict):
             return [m for m in data.get("models") or [] if isinstance(m, dict)]
         if isinstance(data, list):

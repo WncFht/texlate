@@ -151,7 +151,8 @@ def load_table(path: Path) -> dict[str, str]:
 def load_csv(path: Path) -> dict[str, str]:
     """两列无表头 `en,zh`（LaTeXTrans 语料兼容）。空行/# 注释行跳过。"""
     out: dict[str, str] = {}
-    with path.open(encoding="utf-8", newline="") as f:
+    # utf-8-sig：Excel 导出的 BOM 会让首行 en 黏上 U+FEFF 永远查无此词
+    with path.open(encoding="utf-8-sig", newline="") as f:
         for row in csv.reader(f):
             if not row or (row[0].strip().startswith("#")):
                 continue

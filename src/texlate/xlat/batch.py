@@ -113,8 +113,8 @@ def split_long_chunk(text: str, *, max_chars: int = CHUNK_HARD_LIMIT) -> list[st
     docs/08 §1.3「超大原子 chunk 先切分再入批」——不切会爆单请求上下文
     （实测 109K/77K 原子块，cost-model §5.3）。返回保持顺序的片段列表。
     """
-    if len(text) <= max_chars:
-        return [text]
+    if max_chars < 1 or len(text) <= max_chars:
+        return [text]  # max_chars<1 时不可切——原样返回胜过死循环
     out: list[str] = []
     rest = text
     while len(rest) > max_chars:

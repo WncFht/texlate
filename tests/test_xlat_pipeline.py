@@ -8,6 +8,7 @@ import pytest
 
 from texlate.xlat import pipeline as pl
 from texlate.xlat.client import AuthError
+from texlate.xlat.glossary import Glossary, TermEntry
 from texlate.xlat.state import StateStore
 
 
@@ -346,3 +347,99 @@ class TestAuthGate:
         out = asyncio.run(pipe.run([_mk(f"t{i}", f"c{i}") for i in range(4)]))
         assert all(r.skipped for r in out)
         assert not pipe.auth_gate.tripped
+
+
+class TestConfigClamps:
+    def test_concurrency_zero_clamped(self) -> None:
+        """concurrency=0 曾饿死 worker → queue.join() 死等；钳到 ≥1。"""
+        cfg = pl.PipelineConfig(concurrency=0)
+        assert cfg.concurrency == 1
+        out = _run(
+            [_mk("Long prose " + "x" * 400, "c")],
+            translator=pl.MockTranslator(),
+            config=cfg,
+        )
+        assert out[0].status == "ok"
+
+    def test_hard_limit_floor(self) -> None:
+        """hard_limit<1 曾让 split_long_chunk 死循环（cut=0 rest 不变）。"""
+        assert pl.PipelineConfig(hard_limit=0).hard_limit == 1
+        assert pl.PipelineConfig(hard_limit=-9).hard_limit == 1
+
+
+class TestSplitPieces:
+    def test_split_pieces_keep_ph_fragments(self) -> None:
+        """超大块切出的子片曾丢 ph_fragments——抄回修复臂对切片整体失效。"""
+        frags = {"[[MATH_1]]": "$x$"}
+        pipe = pl.XlatPipeline(
+            translator=pl.MockTranslator(), config=pl.PipelineConfig(hard_limit=80)
+        )
+        c = pl.ChunkIn(
+            "big",
+            "Sentence one here. " * 30 + " [[MATH_1]]",
+            "para",
+            ph_fragments=frags,
+        )
+        pending, split_items = pipe._route_chunks([c], set(), {})  # noqa: SLF001
+        assert not pending
+        assert len(split_items) == 1
+        _parent, subs = split_items[0][1]
+        assert len(subs) > 1
+        assert all(s.ph_fragments == frags for s in subs)
+
+
+class TestPromptReset:
+    def test_prompts_reset_between_runs(self) -> None:
+        """同实例二次 run 换文档 → 文档级术语变 → prompt memo 必须失效（曾陈旧）。"""
+        g = Glossary(terms={"attention": TermEntry("attention", "注意力", "user")})
+        t = pl.MockTranslator()
+        pipe = pl.XlatPipeline(translator=t, glossary=g)
+
+        asyncio.run(pipe.run([_mk("attention mechanism " + "x" * 400, "a")]))
+        sys1 = t.calls[0]["system"]
+        assert "注意力" in sys1
+
+        asyncio.run(pipe.run([_mk("totally different " + "y" * 400, "b")]))
+        sys2 = t.calls[-1]["system"]
+        assert "注意力" not in sys2
+
+
+class TestCachePoisonGuard:
+    def test_interceptable_translation_not_cached(self) -> None:
+        """过升格拦截三网的译文不入段级缓存——防续跑反复命中永不自愈。"""
+
+        class Fuser(pl.MockTranslator):
+            async def translate(self, **_kw: object) -> str:
+                return "译文 \\fo[[MATH_1]]o 其余照旧 " + "译" * 100
+
+        cache: dict[str, str] = {}
+        c = _mk("Long prose " + "x" * 400 + " [[MATH_1]]", "c1")
+        r1 = _run([c], translator=Fuser(), cache=cache, validator=lambda _s, _z: "")
+        assert r1[0].status == "fault"
+        assert cache == {}  # ph_in_cs 毒译未落缓存
+
+    def test_legacy_poisoned_entry_evicted_on_hit(self) -> None:
+        """旧版写入侧放行过的毒条目：命中即清 + 落回重翻自愈。"""
+        cache: dict[str, str] = {}
+        c = _mk("Long prose " + "x" * 400 + " [[MATH_1]]", "c1")
+        pipe = pl.XlatPipeline(translator=pl.MockTranslator(), cache=cache)
+        key = pipe._seg_key(c)  # noqa: SLF001
+        cache[key] = "译文 \\fo[[MATH_1]]o 其余照旧"
+
+        t2 = pl.MockTranslator()
+        r2 = _run([c], translator=t2, cache=cache, validator=lambda _s, _z: "")
+        assert t2.calls  # 毒条目被清 → 真实重翻
+        assert r2[0].status == "ok"
+        assert "\\fo[[MATH_1]]o" not in cache[key]  # 已改写为干净译文
+
+    def test_cache_store_rejects_all_three_nets(self) -> None:
+        """写入侧三网同拒：leftover_ph / ph_in_cs / bare_cs。"""
+        cache: dict[str, str] = {}
+        pipe = pl.XlatPipeline(translator=pl.MockTranslator(), cache=cache)
+        c = _mk("src text [[MATH_1]]", "c")
+        pipe._cache_store(c, "译 [[MATH_99]]")  # noqa: SLF001 -- leftover_ph
+        pipe._cache_store(c, "译 \\fo[[MATH_1]]o")  # noqa: SLF001 -- ph_in_cs
+        pipe._cache_store(c, "译 \\alpha 发射体")  # noqa: SLF001 -- bare_cs
+        assert cache == {}
+        pipe._cache_store(c, "干净译文 [[MATH_1]]")  # noqa: SLF001
+        assert len(cache) == 1

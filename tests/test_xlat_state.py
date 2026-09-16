@@ -78,10 +78,26 @@ class TestStateStore:
         assert recs["c2"].skip_reason == "boom"
 
     def test_corrupt_state_restarts(self, tmp_path: Path) -> None:
-        (tmp_path / "state.json").write_text("{not json", encoding="utf-8")
+        p = tmp_path / "state.json"
+        p.write_text("{not json", encoding="utf-8")
         completed, recs = st.StateStore(tmp_path).load()
         assert completed == set()
         assert recs == {}
+        # 与 load_cache 同口径：损坏文件改名隔离留诊断现场
+        assert not p.exists()
+        quarantined = list(tmp_path.glob("state-invalid-*.json"))
+        assert len(quarantined) == 1
+        assert quarantined[0].read_text(encoding="utf-8") == "{not json"
+
+    def test_malformed_state_quarantined(self, tmp_path: Path) -> None:
+        """JSON 合法但顶层非 dict（手改/串文件）——曾 ``data.get`` 炸 AttributeError。"""
+        p = tmp_path / "state.json"
+        p.write_text(json.dumps(["not", "a", "dict"]), encoding="utf-8")
+        completed, recs = st.StateStore(tmp_path).load()
+        assert completed == set()
+        assert recs == {}
+        assert not p.exists()
+        assert len(list(tmp_path.glob("state-invalid-*.json"))) == 1
 
     def test_save_maps(self, tmp_path: Path) -> None:
         store = st.StateStore(tmp_path)

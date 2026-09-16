@@ -180,20 +180,19 @@ class TestNoFalsePositive:
 class TestCacheAndResume:
     """缓存/续跑两路存量污染的拦截与自愈。"""
 
-    def test_poisoned_cache_hit_intercepted(self) -> None:
-        """脏缓存命中 → 照样拦；attempts=0 不扰 auth 闸。"""
+    def test_poisoned_cache_hit_evicted_and_retranslated(self) -> None:
+        """脏缓存命中 → 命中即清 + 落回重翻自愈（曾永远 fault 冻结：命中→拦截→fault 每轮循环）。"""
         c = _mk("Long prose [[MATH_1]] " + "x" * 400, "c1")
         cache: dict[str, str] = {}
-        pipe = pl.XlatPipeline(pl.MockTranslator(), cache=cache)
-        cache[pipe._seg_key(c)] = "这是译文 \\alpha 发射体"  # noqa: SLF001 -- 造毒须触键
+        t = pl.MockTranslator()
+        pipe = pl.XlatPipeline(t, cache=cache)
+        key = pipe._seg_key(c)  # noqa: SLF001 -- 造毒须触键
+        cache[key] = "这是译文 \\alpha 发射体"
         out = asyncio.run(pipe.run([c]))
         r = out[0]
-        assert r.status == "fault"
-        assert r.skipped
-        assert r.translation == c.content
-        assert r.attempts == 0
-        assert r.error_kind == ""  # 缓存命中没发请求——不当非-auth 证据
-        assert pipe.auth_gate.non_auth == 0
+        assert r.status == "ok"  # 毒条目被清 → 真重翻 → 痊愈
+        assert t.calls
+        assert "\\alpha" not in cache[key]  # 同键已被干净译文改写
 
     def test_resume_stale_ok_record_retranslates(self, tmp_path: Path) -> None:
         """warning 时代落盘的 ok 裸 cs 记录 → 续跑降 fault 重翻。"""

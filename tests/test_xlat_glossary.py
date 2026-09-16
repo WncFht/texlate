@@ -171,3 +171,11 @@ class TestLoadYaml:
         p = tmp_path / "g.yaml"
         p.write_text("a: b # note\n", encoding="utf-8")
         assert gl.load_yaml(p) == {"a": "b"}
+
+
+class TestLoadCsv:
+    def test_bom_csv(self, tmp_path: Path) -> None:
+        """utf-8-sig：Excel 导出的 BOM 文件首行 en 不黏 U+FEFF（曾静默查无此词）。"""
+        f = tmp_path / "g.csv"
+        f.write_text("attention,注意力\nmodel,模型\n", encoding="utf-8-sig")
+        assert gl.load_csv(f) == {"attention": "注意力", "model": "模型"}

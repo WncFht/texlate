@@ -310,6 +310,17 @@ def _leftover_ph_tokens(src: str, zh: str) -> list[str]:
     return [t for t in placeholders.ANY_PH_RX.findall(zh) if t not in src_set]
 
 
+def _interceptable(src: str, zh: str) -> bool:
+    """升格拦截三网的合并判定——``zh`` 命中任一网即会被 ``_collect`` 降 fault。
+
+    ``_cache_store``/缓存命中路共用此口径：过不了拦截的译文既不入缓存、
+    命中旧毒条目也清除重翻。
+    """
+    return bool(
+        _leftover_ph_tokens(src, zh) or ph_in_cs_net(src, zh) or bare_cs_net(src, zh)
+    )
+
+
 def _intercept_leftover_ph(r: ChunkResult) -> None:
     """``leftover_ph`` 升格拦截：zh 带 splice 不可解析 token → fault + 回退原文。
 
@@ -474,6 +485,11 @@ class PipelineConfig:
     #: 连续 auth-fail 块数熔断阈值（T2；≤0 = 不熔断）
     auth_fail_threshold: int = 3
 
+    def __post_init__(self) -> None:
+        """数值钳位：0/负并发会饿死 worker 让 queue.join 死等；hard_limit<1 让 split 死循环。"""
+        self.concurrency = max(1, self.concurrency)
+        self.hard_limit = max(1, self.hard_limit)
+
 
 class XlatPipeline:
     """asyncio.Queue 编排：分桶 → 装箱 → N worker → 阶梯 → 对账 → 落盘。
@@ -526,6 +542,8 @@ class XlatPipeline:
         self._doc_glossary = {}
         if self.glossary is not None:
             self._doc_glossary = self.glossary.doc_filter(c.content for c in pending)
+        # 同实例二次 run 换了文档 → 术语块变了，prompt memo 必须失效重渲染
+        self._prompts.clear()
 
     def _seg_key(self, c: ChunkIn) -> str:
         """段级缓存键：source + role + masked 快照（占位符布局变则 key 变）。"""
@@ -536,12 +554,14 @@ class XlatPipeline:
         return segment_key(c.content, c.kind, masked_snapshot=repr(ph_types))
 
     def _cache_store(self, c: ChunkIn, zh: str) -> None:
-        """段级缓存写入；含 splice 不可解析 token 的译文不入缓存——防毒化续跑。
+        """段级缓存写入；过不了升格拦截三网的译文不入缓存——防毒化续跑。
 
         缓存命中旁路校验：同一份污染译文若落缓存，每轮续跑反复命中、永远修不正。
+        判定口径 = ``_collect`` 三条 intercept（leftover_ph/ph_in_cs/bare_cs）。
         """
-        if self.cache is not None and not _leftover_ph_tokens(c.content, zh):
-            self.cache[self._seg_key(c)] = zh
+        if self.cache is None or _interceptable(c.content, zh):
+            return
+        self.cache[self._seg_key(c)] = zh
 
     # ------------------------------------------------------------ 单块路径
 
@@ -563,18 +583,35 @@ class XlatPipeline:
 
         return _repair
 
+    def _cache_hit(self, c: ChunkIn, batch_id: str) -> ChunkResult | None:
+        """缓存命中解析 → ok 结果；命中旧毒条目则清除并返回 None（落回重翻自愈）。
+
+        旧版写入侧放行过 ``_interceptable`` 译文——不清则缓存命中旁路校验，
+        毒译每轮续跑都被 intercept 降 fault、永不修复。
+        """
+        if self.cache is None:
+            return None
+        key = self._seg_key(c)
+        if key not in self.cache:
+            return None
+        zh = self.cache[key]
+        if _interceptable(c.content, zh):
+            del self.cache[key]
+            log.warning("evicted poisoned cache entry for %s", c.chunk_id)
+            return None
+        return ChunkResult(
+            chunk_id=c.chunk_id,
+            source=c.content,
+            translation=zh,
+            kind=c.kind,
+            status="ok",
+            batch_id=batch_id,
+        )
+
     async def _one_chunk(self, c: ChunkIn, *, batch_id: str = "") -> ChunkResult:
         """单块：缓存命中 → 否则阶梯翻译 → 校验 → 结果。"""
-        key = self._seg_key(c)
-        if self.cache is not None and key in self.cache:
-            return ChunkResult(
-                chunk_id=c.chunk_id,
-                source=c.content,
-                translation=self.cache[key],
-                kind=c.kind,
-                status="ok",
-                batch_id=batch_id,
-            )
+        if hit := self._cache_hit(c, batch_id):
+            return hit
 
         system = self._system_prompt(c.kind)
 
@@ -979,7 +1016,10 @@ class XlatPipeline:
                 continue
             pieces = split_long_chunk(c.content, max_chars=self.cfg.hard_limit)
             if len(pieces) > 1:
-                subs = [ChunkIn(f"{cid}~{i}", p, c.kind) for i, p in enumerate(pieces)]
+                subs = [
+                    ChunkIn(f"{cid}~{i}", p, c.kind, ph_fragments=c.ph_fragments)
+                    for i, p in enumerate(pieces)
+                ]
                 split_items.append(("split", (c, subs)))
             else:
                 pending.append(c)

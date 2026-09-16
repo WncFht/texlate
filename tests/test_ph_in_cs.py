@@ -89,9 +89,7 @@ class TestIntercept:
             _mk("dirty-marker prose \\textbf[[MATH_1]] " + "x" * 400, "dirty"),
             _mk("clean prose " + "y" * 400, "clean"),
         ]
-        out = _run(
-            chunks, translator=_Fuser(marker="dirty-marker"), validator=_pass
-        )
+        out = _run(chunks, translator=_Fuser(marker="dirty-marker"), validator=_pass)
         by_id = {r.chunk_id: r for r in out}
         assert by_id["dirty"].status == "fault"
         assert by_id["clean"].status == "ok"
@@ -111,7 +109,7 @@ class TestNoFalsePositive:
         """src 自带 ``\\lq[[CMD_1]]angular`` 同形，zh 忠实回显——净差零不拦。"""
 
         class Echo(pl.MockTranslator):
-            async def translate(self, *, user: str, **kw: object) -> str:
+            async def translate(self, *, user: str, **_kw: object) -> str:
                 return user
 
         src = "Long prose \\lq[[CMD_1]]angular-momentum " + "x" * 400
@@ -134,20 +132,19 @@ class TestNoFalsePositive:
 class TestCacheAndResume:
     """缓存/续跑两路存量污染的拦截与自愈。"""
 
-    def test_poisoned_cache_hit_intercepted(self) -> None:
-        """脏缓存命中 → 照样拦；attempts=0 不扰 auth 闸。"""
+    def test_poisoned_cache_hit_evicted_and_retranslated(self) -> None:
+        """脏缓存命中 → 命中即清 + 落回重翻自愈（曾永远 fault 冻结：命中→拦截→fault 每轮循环）。"""
         c = _mk("Long prose \\textbf[[MATH_1]] " + "x" * 400, "c1")
         cache: dict[str, str] = {}
-        pipe = pl.XlatPipeline(pl.MockTranslator(), cache=cache)
-        cache[pipe._seg_key(c)] = "这是译文 \\te[[MATH_1]]xtbf"  # noqa: SLF001 -- 造毒须触键
+        t = pl.MockTranslator()
+        pipe = pl.XlatPipeline(t, cache=cache)
+        key = pipe._seg_key(c)  # noqa: SLF001 -- 造毒须触键
+        cache[key] = "这是译文 \\te[[MATH_1]]xtbf"
         out = asyncio.run(pipe.run([c]))
         r = out[0]
-        assert r.status == "fault"
-        assert r.skipped
-        assert r.translation == c.content
-        assert r.attempts == 0
-        assert r.error_kind == ""  # 缓存命中没发请求——不当非-auth 证据
-        assert pipe.auth_gate.non_auth == 0
+        assert r.status == "ok"  # 毒条目被清 → 真重翻 → 痊愈
+        assert t.calls
+        assert "\\te[[MATH_1]]xtbf" not in cache[key]  # 同键已被干净译文改写
 
     def test_resume_stale_ok_record_retranslates(self, tmp_path: Path) -> None:
         """warning 时代落盘的 ok 融合记录 → 续跑降 fault 重翻。"""

@@ -126,3 +126,9 @@ class TestSplitLongChunk:
         assert "".join(parts) == src
         assert parts[0] == "a" * 97
         assert parts[1].startswith("\\foo")
+
+    def test_zero_or_negative_limit_returns_unsplit(self) -> None:
+        """max_chars<1 曾死循环（_best_split 切出 cut=0 → rest 不变）——原样返回胜过挂死。"""
+        src = "abcdef" * 100
+        assert batch.split_long_chunk(src, max_chars=0) == [src]
+        assert batch.split_long_chunk(src, max_chars=-5) == [src]
