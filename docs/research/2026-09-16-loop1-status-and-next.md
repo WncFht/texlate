@@ -80,7 +80,7 @@
 
 ### 4.3 中线
 
-- **真网关规模验证**（1e 建议）：xlat-real n50 出数后推 n100-200 拿真 clean-rate 分布——mock 臂今日连修 4 个缺陷，真臂还没同等扫过。**postfix n≈81 已出数（在飞收尾，`bench/results/postfix-2026-09-16/`）**：翻译 81/81 篇、chunk ok 8885/8889（4 partial 0 fault）、splice 占位残留 0；pipe-xel clean 50/fail 6/partial 25（clean 61.7% vs mock 臂 45.3%——真译文反而更稳）；pipe-fix 救回 12/13（acceptable 9+best_effort 1+clean 2）。**管线引入退化 9 格**（pipe 非 clean 且 base clean）scout-realreg 归因在飞：0905.4907 已知 bug-E，其余 8 格待归因（疑 bug-B 主场——真臂 latin-token 保留率远高于 mock 四字）。→ **已收官 realpostfix2 n=100**（2026-09-17，`bench/results/realpostfix2-2026-09-16/`）：chunk ok 10706/10717、splice 残留 0；pipe-xel clean76/partial10/fail14，fixloop 后 union pdf **96%**、union clean 87、fail 4；管线引入回归 2 格（0905.4907 翻译裸 cs——已落 L0#11 `de03153`；hep-ph/9910403 expl3_backend）。归因/审计 report：scout-pf2fails、scout-e2ereal。
+- **真网关规模验证**（1e 建议）：xlat-real n50 出数后推 n100-200 拿真 clean-rate 分布——mock 臂今日连修 4 个缺陷，真臂还没同等扫过。**postfix n≈81 已出数（在飞收尾，`bench/results/postfix-2026-09-16/`）**：翻译 81/81 篇、chunk ok 8885/8889（4 partial 0 fault）、splice 占位残留 0；pipe-xel clean 50/fail 6/partial 25（clean 61.7% vs mock 臂 45.3%——真译文反而更稳）；pipe-fix 救回 12/13（acceptable 9+best_effort 1+clean 2）。**管线引入退化 9 格**（pipe 非 clean 且 base clean）scout-realreg 归因在飞：0905.4907 已知 bug-E，其余 8 格待归因（疑 bug-B 主场——真臂 latin-token 保留率远高于 mock 四字）。→ **已收官 realpostfix2 n=100**（2026-09-17，`bench/results/realpostfix2-2026-09-16/`）：chunk ok 10706/10717、splice 残留 0；pipe-xel clean76/partial10/fail14，fixloop 后 union pdf **96%**（scout-pf2final 精化：px∪fix 纯管线口径 95%——96 含 hep-ph/9910403 的 base 臂 pdf）、union clean 87（纯管线 85）、fail 4；管线引入回归 2 格（0905.4907 翻译裸 cs——已落 L0#11 `de03153`；hep-ph/9910403 **splice macro-body 回放截断**——前跑签名 expl3_backend 已换代，本跑 `\@iiiparbox` runaway，归 1d）。归因/审计 report：scout-pf2fails、scout-e2ereal、scout-pf2final。
 - **share 生态闭环**（1e）：worker 完成钩自动产包 + index.jsonl 服务形态（§8）。→ **已全闭**（2026-09-17）：完成钩 `746e87f` + 事后 pack 端点 `4b537df` + 前端钮 `aa8759a` + **隐式命中接线** `d3fb38b`（translate 路径 post-parse 查 index → `_stage_share_apply` 零 token 通道）+ docs-sync 对账 `6c9d567`。
 - **deferred 清单**：v1 退役（倾向不动）、e2e_real→lib 降级、L2 编排环 e2e↔worker 共享化（跨边界需协商落点）、TokenSource Protocol 重构、L2 真 log fixtures。
 - **llm_hook 接线**（1e 已裁）：server 路径走任务 BYOK client 复用 `_make_translator`/usage_sink；有真 api_key 默认开；`kind=share` 一律全关（§5 导入零 token 承诺）。
@@ -125,7 +125,7 @@
 
 ## 7. 2026-09-17 扫荡波收口清单
 
-大扫荡波（texlate-41 协调，~24 agent）全数落库；mock 全语料门 4527→**4537/89.68%**（差 +17，机械面枯竭，残路径=2f 再生成波 + catscope 重切 + B/C detect）；realpostfix2 真臂收官 **96%**（union pdf，n=100）。逐 agent 交付物：
+大扫荡波（texlate-41 协调，~24 agent）全数落库；mock 全语料门 4527→**4537/89.68%**（差 +17，机械面枯竭，残路径=2f 再生成波 + catscope 重切 + B/C detect）；realpostfix2 真臂收官 **96%**（union pdf 含 base 口径，n=100；px∪fix 纯管线 95%）。逐 agent 交付物：
 
 | agent | 交付物 | commit | 状态 |
 | --- | --- | --- | --- |
@@ -153,10 +153,14 @@
 | corrosion-rerun | 28 格 mock 重译：10 出 pdf、CJK 指纹清零、残 18 归因（真错 11/结构残损 5/YamlishError 2） | `f18a511`/`a9c13a4`/`534e533` | 收口 |
 | no-main-tex-attr | 75 reject+4 BPP 归因：fixable-detect 12（A6/B4/C2）/upstream-wontfix 63；BPP 3/4 转 ok | `c1c8f96` | 收口；P-A `7a78b66`、P-C `e840ab0` 已落，P-B 待 1d 裁 |
 | utf8-rerun | 545 格复验：compile-clean 387、end-state clean +373、invalid_utf8 残 5（atend-bbox 数据行） | `7629299` | 收口；P-E 提案待 1d 裁 |
-| realpostfix2 | 真臂 n=100 收官：union pdf 96%、union clean 87（pipe-xel 76 + fix 救 11）、splice 残留 0、回归 2 格；snapshot manifest 存证 | `a0d8024`（+overseer 台账 `96b9a9c`） | 收口 |
+| realpostfix2 | 真臂 n=100 收官：union pdf 96%（纯管线 95%）、union clean 87（纯管线 85）、splice 残留 0、回归 2 格；snapshot manifest 存证 | `a0d8024`（+overseer 台账 `96b9a9c`） | 收口；scout-pf2final 全量归因后口径精化 |
 | fixable-data | 35 残格裁定落地（shim bodies/babel_opt/driver rewrites） | `2049ad3`/`1359b9c` | 收口 |
 | 1d 落地波 | catcode scope `9a44100` + CR/CRLF EOL `e840ab0` + L0#11 bare_cs `de03153` + ph_in_cs pipeline 副层 `7de27e7` + bare_cs 单源化 `9909f41`（`textutil.bare_cs_net`+`MATH_CS` 导出，`_intercept_bare_cs` 规格转 peer1） | 五 hash | 收口；catscope 后全量重切波在飞 |
-| worker-consistency | stage 函数不变量审计 | — | 在飞（#148） |
+| worker-consistency | stage 一致性 F1–F10 + 追加 3 项（_opt_int qps/concurrency、.TEX 盲区、put_file 预算 sha256） | `5c95179` | 收口 |
+| e2ereal-fix | e2e_real_bench 续跑完整性 4 修（--date 分叉守卫、snap- 印章、整格替换、原子写） | `571ca9f` | 收口 |
+| scout-pf2final | realpostfix2 全量归因：纯管线口径 95/85、hep-ph/9910403 splice 截断新签名、shim 缺口清单 | report（随 `8ea2b4a` 入库） | 收口；路由 1d/项目体验方式 |
+| spec-compile | docs/08 §3–§6+docs/10 §B3 vs compile/ 对账（只读）：9 未落地+10 勘误，唯二决策项 rules status 门/fixloop 接件口径 | report（随 `8ea2b4a` 入库） | 收口；全单转 项目体验方式 裁 |
+| test-hygiene | tests/ 卫生审计（只读）：High 3（USER_GLOSSARY_PATH 裸奔/GATEWAY_KEY 硬编码/_ENV_KEYS 缺口）+Medium 4 | report（随 `8ea2b4a` 入库） | 收口；High 返修在飞 |
 
 **留存 open 项**（扫荡波未消化，归下轮路由）：
 

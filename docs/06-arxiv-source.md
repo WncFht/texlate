@@ -145,7 +145,7 @@ product_tier = sha256(id | resolved_version | model |
 ```
 
 - source tier 产物：`raw.*`、`extracted/`、`files.txt`、`mtree.txt`、`meta.json`、`etag`。
-- product tier 产物：`zh.pdf`、`chunks.jsonl`（断点续翻载体）、`glossary.json`、`report.json`、`compile.log`。
+- product tier 产物：`zh.pdf`、`chunks.jsonl`（断点续翻载体）、`glossary.json`、`report.json`、`compile.log`（勘误 2026-09-17：产物命名与 docs/08 §1.4/§1.6 不一致——规格面是 `term_dict.json` 与中间产物五表 `chunks_map/placeholders_map/glossary/state/errors_report`，以 docs/08 为准）。
 - 失效语义：`pipeline_version` 只失效 product 层（升级解析器不重下源码）；`model`/`glossary_hash` 仅重翻。
 
 ### 4.2 状态机（report.json）

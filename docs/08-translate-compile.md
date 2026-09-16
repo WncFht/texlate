@@ -38,12 +38,14 @@ system_prompt(kind) = TASK_SENTENCE[kind]
 
 ```text
 C9. [[TYPE_n]] tokens (e.g. [[MATH_12]], [[CITE_3]], [[REF_7]], [[ENV_4]],
-    [[AUTHOR_1]], [[SL]], [[PL]]) are placeholders for protected LaTeX
+    [[AUTHOR_1]], [[SL]], [[PL]], [[SP]]) are placeholders for protected LaTeX
     fragments or structural markers. Do not translate, modify, reorder,
     split, merge, add, or remove any of them, and do not let them influence
     the surrounding translation. Every placeholder in the input must appear
     verbatim in your output.
 ```
+
+（勘误 2026-09-17：成稿列举补 `[[SP]]`——post-spec 新 token，保护 `\ ` 强制空格，`placeholders.py:62`；条款文本与 `prompts.py` `PLACEHOLDER_CLAUSE` 逐字同步。）
 
 **C10 人名保原语**（para/abstract 末条）：`always keep person names in their original {SRC} form. Never translate, transliterate, or reorder them.`
 
@@ -77,7 +79,7 @@ C9. [[TYPE_n]] tokens (e.g. [[MATH_12]], [[CITE_3]], [[REF_7]], [[ENV_4]],
 - 打包：short 桶贪心装箱 ≤2000 字符/批（**按 token 控可放宽 ~2000–4000 tok ≈ ≤8000 字符**——成本实测：prompt 摊销占输入 68%，批阈值是最大杠杆）；编号 `[1]…[n]` 协议，`@@` 兜底，响应按 `\[(\d+)\]` 解析。
 - 回退：数量不符/序号越界/解析失败 → **整批退化逐条单翻**（复用并发额度）；超大原子 chunk 先切分再入批。
 - 跳过：纯占位符 chunk（`^[[TYPE_n]]$`）不发请求，translation=source 直落盘。
-- 换行编码：段内 `\n` 编码为 `[[SL]]` 送翻、回来解码（`[[PL]]` 不需要——分段边界在 chunk 层管理）。
+- 换行编码：段内 `\n` 编码为 `[[SL]]` 送翻、回来解码；分段边界在 chunk 层管理（勘误 2026-09-17：impl 另有两枚防御 token——`[[PL]]` 编码 `\n\n+` 空段保底、`[[SP]]` 保护 `\ ` 强制空格，`placeholders.py:51-64/95-149`）。
 
 ### 1.4 术语表（三级 + 恒等注入 + 文档级烤进）
 
@@ -110,7 +112,7 @@ env judge 参数：**temperature=0、max_tokens=16、3 次重试、解析 `true/
 - `asyncio.Semaphore(10)`（按 provider 限额 10~50 可调）；**首发单飞暖前缀缓存**，其余并发。
 - 退避：指数 `retry_delay·2^attempt`（429 用 `3^attempt` 下限 5s；timeout 下限 10s；`Retry-After` 从其值）；3~5 试；失败回退原文 + `skipped`+`skip_reason` 不阻塞整批。（勘误 2026-09-15 B4a 实测：本网关 429 的 retry_after 在 **body `error.retry_after`（秒）** 而非 HTTP header——解析序 body→header→默认退避；429 系多租户共享流量触发，与本地并发宽度无关。）
 - 温度：翻译 0.2~0.3；judge/抽取 0。
-- **重试阶梯**：整段×2（字段化反馈）→ 行级修复（闭合 scope 边界按句号切）→ slots JSON 兜底（`⟪S0000⟫` 槽位、`response_format json_object`、8 槽/批、**失败槽只重问失败批**）→ 三振 `fallback_orig` + warning → `partial` 终态。
+- **重试阶梯**：整段×2（字段化反馈）→ 行级修复（闭合 scope 边界按句号切）→ slots JSON 兜底（`⟪S0000⟫` 槽位、`response_format json_object`、8 槽/批、**失败槽只重问失败批**）→ 三振 `fallback_orig` + warning → `partial` 终态（勘误 2026-09-17：`fallback_orig` 在 impl 块级落 `status=fault`+`skipped` 标记，`partial` 是论文级终态语义；块级 `partial` 另有出处=阶梯 recovered，见 §6）。
 - `recover_copied_tokens`：模型把受保护原文抄回时，**唯一出现**才换回 token（exact+unique 才修，不瞎猜）。
 - HTTP 层：状态码分类表（401/403 认证、402 余额、404 地址、408/409/425/429/5xx 重试 ≤2、余 4xx 拒、`finish_reason==length` 截断错）；`redact()` provider 无关脱敏。
 - **断点**：`state.json` 逐块原子落盘 `{version, meta{model,pipeline_version,total_chunks}, completed[], results[], errors_report[]}`；中间产物五表 `chunks_map/placeholders_map/glossary/state/errors_report`——重建器只读 map 表。
@@ -119,7 +121,7 @@ env judge 参数：**temperature=0、max_tokens=16、3 次重试、解析 `true/
 
 ### 1.7 本地默认后端（实测定案）
 
-`http://127.0.0.1:3003/v1/chat/completions` + **`swe-2-medium`**（free tier：大样本硬契约 100%(80/80)、reasoning p50=98 字符、5.9s/chunk）；备选 `swe-2-high`；`swe-2-max` 留修复器；禁用 `swe-1-7*`。免费集运行时动态筛（`/panel/api/models` `cost_tier==free` ∧ promo.active + `/v1/models` 求交 + 探活）。硬约束：每请求 ~160–566 隐藏 prompt token（网关注入 agent 系统提示，批内摊不掉）；reasoning 档 effort=模型名后缀；清单≠可用须实测白名单。付费对照 `glm-5-3-low`/`claude-sonnet-5-medium`。外部 BYOK 走 `provider_for_url` host→provider 预设表。
+`http://127.0.0.1:3003/v1/chat/completions` + **`swe-2-medium`**（free tier：大样本硬契约 100%(80/80)、reasoning p50=98 字符、5.9s/chunk）；备选 `swe-2-high`；`swe-2-max` 留修复器；禁用 `swe-1-7*`。免费集运行时动态筛（`/panel/api/models` `cost_tier==free` ∧ promo.active + `/v1/models` 求交 + 探活）。硬约束：每请求 ~160–566 隐藏 prompt token（网关注入 agent 系统提示，批内摊不掉）；reasoning 档 effort=模型名后缀；清单≠可用须实测白名单。付费对照 `glm-5-3-low`/`claude-sonnet-5-medium`。外部 BYOK 走 `provider_for_url` host→provider 预设表。（勘误 2026-09-17：默认后端 impl 实为 tailscale `http://100.105.212.52:3003`——`settings.py:40`/`cli.py:672` 同款，`127.0.0.1` 仅 `client.py` docstring 残留；禁用表 impl 精确两枚 `{"swe-1-7","swe-1-7-medium"}` 非 `swe-1-7*` 通配，`client.py:53`——新 `swe-1-7-*` 变体会逃逸；付费对照 impl 偏好表第 4 位是 `glm-5-2` 非 `glm-5-3-low`，`client.py:51`。）
 
 ## 2. 校验链（`validate/`）
 
@@ -347,7 +349,7 @@ fixloop(proj, eng, ruleset):
 | --- | --- | --- | --- |
 | 编译判决 verdict | `metrics.verdict.status` / `post.verdict.status` | `clean`（无错有 pdf）/ `partial`（有 pdf 有错或缺字）/ `fail`（无 pdf） | `compile/judge.py` |
 | 记录态 status | stagerun records `status` | verdict 三值 + `reject`（inject 层拒绝，如 latex209）+ `skip`（上游门控豁免） | `bench/py/stagerun.py` |
-| 块态 | chunk/segment `status` | `ok` / `fault`（翻译或校验错）/ `skipped`（门控跳过） | `xlat/pipeline.py` |
+| 块态 | chunk/segment `status` | `ok` / `partial`（阶梯 recovered）/ `fault`（翻译或校验错；`fallback_orig` 回退原文亦落 fault+skipped 标记）/ `skipped`（门控跳过）（勘误 2026-09-17：原表漏 `partial` 第四值，impl `pipeline.py:107/614-630`） | `xlat/pipeline.py` |
 | 注入态 | inject `status` | `injected` / `already`（已有 CJK 支持）/ `no-docline`（无 documentclass 锚） | `compile/inject.py` |
 | fixloop 判决 | cases `verdict` / `fixloop_verdict` | `clean` / `acceptable_pdf`（有 pdf 即收，misschar 档）/ `best_effort_pdf`（有 pdf 残留错）/ `dirty_pdf` / `unfixable:{cat}` / `stuck`（轮内无进展）/ `no_errors_no_pdf`（干净日志零页面） | `fixloop/engine.py`、`fixloop/cases.py` |
 | 规则态 | rules.yaml `status` | `stub` / `proposed` / `active` / `retired` | `fixloop/rules.yaml` |
