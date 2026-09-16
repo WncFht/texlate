@@ -91,4 +91,24 @@
 | --- | --- | --- |
 | 1d leader | fixer-slots（槽位保护 + bug-B，规格已按 1e 终报翻转：融合在 LLM echo 侧 → splice 守卫层）在飞；fixer-emit（#167 @-opaque 二路径 + #168 短参空行）在飞；fixer-cjkfont 全落 `f7822a8`；扇出 `\input` 链补盲 `ca0e748` | F 桶 verdict-tune（0-chunk main 不吃 cjk_chars=0 partial）；E 桶 main_rel 决策；slots/emit 交付收敛 + expl3_backend 钉签名 |
 | 项目体验方式 | **delta `b4akkgal5` 收官**（90.8% 出 pdf、rundiff 73/0）；font_fallback order26 `bd88dc9`、axessibility/axodraw2 对策、定点重跑 34 格全收官 | rules.yaml 机械胜场清单（scout-unfix 枚举 ~45-50 格：shim 波二 ~20/babel_opt/lgrenc pattern/hyperref-driver/expl3 backend/杂簇）+ emulateapj-rtx4/JINST shim 键 + early_eof 子机理签名 + precheck `\input` 扫描切注释 |
-| 1e | worker-hardening #52、llm_hook BYOK、**real-postfix A/B 终报 `0d1526d`**、Mode-B echo 三层闭合（`29c196f`/`bb3ecc0`/`e7519ac`）、worker 大批 `7cce5f9`（#74/#78/llm_hook BYOK/share 三闸）、share 链全线（`1cf12e2`/`746e87f`/`05ab768`）、**modec-postfix `75fc518`**（dirty-gate PASS，pipe-xel 54→65）、worker expect_cjk `05a2fab` | 在飞 7 agent：scout-realreg（真臂回归归因）、scout-modec-resid（Mode-C/209partial/JINST shim）、web-polish、judge-redline（invalid_utf8 限工程源）、share-consume、harness-dirty-src、cli-sweep |
+| 1e | worker-hardening #52、llm_hook BYOK、**real-postfix A/B 终报 `0d1526d`**、Mode-B echo 三层闭合（`29c196f`/`bb3ecc0`/`e7519ac`）、worker 大批 `7cce5f9`（#74/#78/llm_hook BYOK/share 三闸）、share 链全线（`1cf12e2`/`746e87f`/`05ab768`）、**modec-postfix `75fc518`**（dirty-gate PASS，pipe-xel 54→65）、worker expect_cjk `05a2fab` | 见 §6 深夜波更新 |
+
+## 6. 深夜波更新（2026-09-17 凌晨，总协调 texlate-41 上任）
+
+**大口径**：loop1 末条 record union pdf 89.1%（4506/5059），M2 门 ≥90% 差 ~1pt；真残无 PDF = 59 fixloop:fail + 80 skip + 414 latex209 wontfix。`realpostfix2` 真臂 n100 `--recode` 复跑为正式测量臂（chunk 源近全量漂移 → 实为全量重译臂，ETA ~9-11h/12h budget，records 增量落盘）。
+
+**1e 深夜波落地**（承接 §5 行的 7-agent 波次全交付 + 二波）：
+
+- **归因三件套**：`02312cd` bug-B 机理翻案（管线侧 gap-in-chunk + edge-strip，非 LLM echo，`a6b58d4` 后全愈）；`3833839` modec-postfix 残余全归因（**PH 嵌 cs 名中段**断 cs 新签名 → 路由 1d L0 检查；accent 展开缺字 U+0332/00C5/0131 盲区 → 项目体验方式；JINST shim 草案 → 已落 `e6ecb85`）；`c818199` armed channel 计量（语料 1/3972 带 sigs 永不进 chunk → 基线实证 0）。
+- **判定/引擎侧**：`0c4e4b8` invalid_utf8 红线限工程文件源（file-stack 最内层帧归属，系统 texmf 降级 sys_warn 留痕）；`b989fd5` quantumarticle 选项拼写 `allowfontchageintitle`→`allowfontchangeintitle`（**一个字母**——selectfont 陷阱从未被绕过，签名 5 全灭，scout-coreleak 实证归因）。
+- **share §6 全链闭环**：`4b537df` POST /api/task/{id}/share/pack 事后打包端点（幂等+守卫阶梯+reuse_hit options 行级标记）→ `aa8759a` done/partial 面板「分享本译文」按钮三挂载面。至此 §6 服务端+前端全闭（此前消费侧 `a6b75c5`、完成钩 `746e87f`）。
+- **offline 通道**：`8af61c5` fetch `--offline`/`TEXLATE_OFFLINE` → `7c2f5a5` run 同款透传（残余联网点清单：tectonic bundle 冷拉/env_judge/fixloop_llm/server 模式）。
+- **web 波**：`95b3c58` usage 细分面板 + Settings 清 key；`629571c` per-request BYOK key 三建任务路径（server 端 `_auth` 已收头零缺口）。
+- **质量波**：`952eac7` server-sweep（heartbeat check-then-use 竞态修真 + spec 常量单源）；`f00b93b` export-sweep（死字段/静默吞错留痕）；`3443add` cli-sweep + `a6b75c5` share-consume + web-polish。
+- **Mode-B/C 复证**：`6632cce` modec-core n80s7 门槛 PASS（escaped/dirty/armed 全 0 第二层第二种子）；**Mode-C mid-cs 截断 ×8 同族复证**（两层 14 格 → PH-in-cs L0 检查升最高优先）；新签名 jpsj3 目标类不存在 + CJK 域泄漏（实拆三机理：TS1 `\t` 域绕过/quantumarticle 拼写/jpsj3 盲改）。
+
+**路由给 1d 的 ready-to-apply 规格**（`c4db001`/`eb89d55`）：PH-in-cs 双落点（l0 第 10 条 ERROR + pipeline `_intercept_ph_in_cs` 副层盖续跑/缓存旁路；正则须双侧夹持 `\\[a-zA-Z@]+\[\[..\]\][a-zA-Z@]` + Counter 净差——裸 `\\[a-zA-Z]*\[\[PH` 对 5% 合法尾邻 FP）；latex209 改名场景目标类可解析性检查（rglob 随包 + kpsewhich 系统，kpsewhich 缺席 fail-open → reject `latex209_no_target`）；inject `\DeclareUnicodeAccent{\t}{"0361}` TS1→TU 提升。
+
+**在飞（1e）**：realpostfix2（bg 测量臂 ~3h/9-11h）；xlat-sweep（xlat/+validate/ 残余审计，l0/pipeline 只读避 1d 活面）；epub-nobody（无 body 畸形 xhtml 防崩）；arxiv-sweep（arxiv/ 残余，fetch.py 冻结）；web-idem（Idempotency-Key create 路径接线）。
+
+**1e lane 残余清单**：Idempotency-Key server 端契约待 web-idem 核实（缺口则纯前端发头）；`--offline --server` 互斥与否已裁=维持静默不拒（与既有本地旗标语义一致）；epub export_epub/export_docx 转调包装属公共 API 面预留非死代码；work_e2emock keep-list（1d/fixers-slots 欠，fallback {1206.0197, 2410.17957}，磁盘不紧）；英文 UI/上传进度条/split 栏宽拖动=架构级待立项。
