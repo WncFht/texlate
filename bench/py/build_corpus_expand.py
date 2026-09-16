@@ -161,6 +161,9 @@ def yymm2cluster() -> dict[str, str]:
 def n100_rates(manifest_rows: list[dict]) -> tuple[dict, dict, float]:
     """n100 → (band_bad_rate, cat_bad_rate, global); bad=fail+reject+partial."""
     res = json.loads(N100.read_text())
+    if not res:
+        log(f"n100 结果为空 ({N100.name}) — band/cat/global 故障率报 0")
+        return {}, {}, 0.0
     by_id = {r["id"]: r for r in manifest_rows}
     with (b3.EXP / "frame" / "allocation-core.csv").open(newline="") as fh:
         c2b = {r["cluster_id"]: r["year_band"] for r in csv.DictReader(fh)}
@@ -187,6 +190,10 @@ def n100_rates(manifest_rows: list[dict]) -> tuple[dict, dict, float]:
 
 
 def largest_remainder(weights: dict[str, float], total: int) -> dict[str, int]:
+    neg = {k: w for k, w in weights.items() if w < 0}
+    if neg:
+        msg = f"negative weights: {neg}"
+        raise ValueError(msg)
     s = sum(weights.values())
     raw = {k: total * w / s for k, w in weights.items()}
     q = {k: int(v) for k, v in raw.items()}
@@ -298,9 +305,12 @@ def cmd_plan(args: argparse.Namespace) -> None:
     weights = {}
     for cell, n in cell_n.items():
         band, cat = cell.split("|", 1)
-        rel = 0.5 * (
-            fr_band.get(band, fr_all) / fr_all + fr_cat.get(cat, fr_all) / fr_all
-        )
+        if fr_all:
+            rel = 0.5 * (
+                fr_band.get(band, fr_all) / fr_all + fr_cat.get(cat, fr_all) / fr_all
+            )
+        else:
+            rel = 1.0  # 无 bad 样本 → 无故障信号可加偏, 配额退化纯比例
         weights[cell] = n * (1 + args.bias * (rel - 1))
     quotas = largest_remainder(weights, args.target)
     band_q = Counter()
