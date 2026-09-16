@@ -33,7 +33,7 @@
 - **fixer-tests**：pyproject `testpaths`/`norecursedirs`（裸 pytest INTERNALERROR）、`_HAS_RUN_DOC` 遗迹门、SSE `_FEED_DELAY` flake、`_StageError` code 覆盖、file:line 重复钉评估。→ `4a37980` + `pyproject.toml`。
 - **fixer-latex**：上列 P0 + `math_debt`/`math_depth` 死机制 + 切点链/input marker/env→PhType 三分收敛 + `FILENAME_CHARS` 单源 + `__init__` 24 死 re-export + `parse_file_v1` top_dir 转发 + `_cov_origin` 复现验证。→ `2f3fc67`（latex slice 346 绿）。
 - **fixer-e2e-misc**：e2e mock 臂 partial 译文准入对齐、cli `_thin_submit` KeyError+退出码表、align 错误路径 `heights` 缺席、export epub/docx 双驱同构评估、client 死公共 API 标注。→ `0fe05c1`。
-- **fixer-fixloop**：`_when_ok` fail-open→对称 fail-closed+键白名单、`regex_rewrite` 0 命中落 flags、`_gate_eval` dedup 前置、`CtanFetcher.index` 共享索引 mutate、`pdftex_prim` subclassify 误路由、`missing_char_fix` verbatim 防护、`timeout_sec` 消费+timeout 透传链、`stats_backfill` project/corpus 口径、llm_hook 我侧四调用点 opt-in 接线、加挂 vendored_sty_shadow tectonic advisory 档 + `l.N` 行首锚。→ `3c5aae2`（含 peer texmfhome hunk 带署名）。尾项：emulateapj/epsf shim-bypass 调查在跑。
+- **fixer-fixloop**：`_when_ok` fail-open→对称 fail-closed+键白名单、`regex_rewrite` 0 命中落 flags、`_gate_eval` dedup 前置、`CtanFetcher.index` 共享索引 mutate、`pdftex_prim` subclassify 误路由、`missing_char_fix` verbatim 防护、`timeout_sec` 消费+timeout 透传链、`stats_backfill` project/corpus 口径、llm_hook 我侧四调用点 opt-in 接线、加挂 vendored_sty_shadow tectonic advisory 档 + `l.N` 行首锚。→ `3c5aae2`（含 peer texmfhome hunk 带署名）。尾项收官：emulateapj/epsf shim-bypass = **裸 payload 机制 bug**（`I can't find file 'epsf'` 裸名 vs 全带扩展名的 filemap/shim_map/stub 键 → `_apply_install_file` 补 `.tex` 候选 + `legacy_pkg_shim` 归一 `X.tex`，随 `3c5aae2` 落）；emulateapj*.sty 实为 TL 内容缺口（只发 .cls）→ shim_map 扩列转 peer1（rules.yaml）；另揭 static_precheck scan_patterns 疑不覆盖 `\input` 裸名（同转）。
 
 ## 已路由 peer
 
