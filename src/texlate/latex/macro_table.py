@@ -34,6 +34,12 @@ from texlate.latex.tables import MATH_ENVS, PROTECTED_PARAM_CMDS
 
 _ENV_BEGIN_RX = re.compile(r"\\begin\{([^}]*)\}")
 _ENV_END_RX = re.compile(r"\\end\{([^}]*)\}")
+_ENV_END_TAIL_RX = re.compile(r"\\end\{([^}]*)\}\s*$")
+# ``\csname endX\endcsname`` 整体形——LaTeX ``\end{X}`` 内核即展开成
+# ``\endX``，故包它的宏（``\def\eea{\csname endeqnarray\endcsname}``）
+# 语义上就是 env_end 端点（R1：token 层 ``x.text=="end"+target`` 同规
+# 的表侧入口——csname 合成不经宏体表，不登记则配对扫描永远看不见它）。
+_CSNAME_END_RX = re.compile(r"\\csname\s*end([a-zA-Z@*]+)\s*\\endcsname")
 _STRIP_PARAM_RX = re.compile(r"#[1-9]?")
 _STRIP_CS_RX = re.compile(r"\\[a-zA-Z@]+\*?")
 _STRIP_CS1_RX = re.compile(r"\\[^a-zA-Z]")
@@ -136,14 +142,27 @@ def env_body_role_of(body: str, table: MacroTable | None = None) -> str:
 
 
 def classify_body(body: str) -> tuple[MacroKind, str]:
-    r"""``body.strip()`` 全匹配 ``\\begin{X}``/``\\end{X}`` → 端点宏。"""
+    r"""``\\begin{X}`` 全匹配 / ``\\end{X}`` 尾匹配 → 端点宏。
+
+    env_end 放宽为**尾匹配**（R7）：端点宏真实形态常带收尾原语
+    （``\\def\\eea{\\relax\\end{eqnarray}}``——fullmatch 落空被当
+    透明宏展开，体里 ``\\relax``+ENVTAG 裸进 surface、env 对不上号）。
+    前缀闸防误伤：``\\end{X}`` 之前若含自然文本（``\\begin{c}Hi
+    \\end{c}`` 全包宏形）则仍是 TRANSPARENT——调用点不展开、体里
+    的真 ``\\end`` 也永远够不着，登记成 env_end 只会召回双输。
+    ``\\begin`` 不做头匹配同理（``\\wrap{…\\begin{c}…\\end{c}}``
+    被误登记 env_begin 会把调用点当 ``\\begin`` 处理）。
+    """
     stripped = body.strip()
     b = _ENV_BEGIN_RX.fullmatch(stripped)
     if b:
         return MacroKind.ENV_BEGIN, b.group(1).strip()
-    e = _ENV_END_RX.fullmatch(stripped)
-    if e:
+    e = _ENV_END_TAIL_RX.search(stripped)
+    if e is not None and not body_has_text(stripped[: e.start()]):
         return MacroKind.ENV_END, e.group(1).strip()
+    c = _CSNAME_END_RX.fullmatch(stripped)
+    if c is not None:
+        return MacroKind.ENV_END, c.group(1).strip()
     return MacroKind.TRANSPARENT, ""
 
 

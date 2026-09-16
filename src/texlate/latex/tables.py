@@ -678,3 +678,35 @@ def argspec_lookup_env(name: str, pkgs: set[str]) -> ArgspecEntry | None:
     if e.package in allowed or e.also_in & allowed:
         return e
     return None
+
+
+# ---------------------------------------------------------------- 列型前导启发
+
+_COLSPEC_CS_RX = re.compile(r"\\[a-zA-Z@]+\*?|\\.")
+_COLSPEC_GROUP_RX = re.compile(r"\{[^{}]*\}")
+# 列型字母族：array ``lcrpmb`` + tabularx ``X`` + ragged2e ``LCRJ`` +
+# dcolumn ``D`` + siunitx ``Ss`` + array ``wW``；修饰 ``|><@!*`` 与
+# dcolumn 数字/标点载荷（``D{,}{.}{2}`` 内组剥空后残留位）。
+_COLSPEC_COLS = frozenset("lcrpmbXLCRJDwWs")
+_COLSPEC_CHARS = _COLSPEC_COLS | frozenset("|><@!*.,:;-+= \t0123456789")
+
+
+def looks_like_colspec(content: str) -> bool:
+    r"""``{...}`` 参内容是否形似列型前导（``{cc}``/``{>{\raggedright}p{4cm}}`` 族）。
+
+    未注册环境 ``\begin{env}{preamble}`` 的第一参：剥掉 cs 名与内层
+    花括号组后只剩列型字符且含至少一个列型字母 → 判列参吃掉；否则
+    回吐随主流进 chunk。``{Title}`` 形含表外字母自然落空；``{c}``/
+    ``{l}`` 单字母文本参是已知误伤面（代价低于列参裸泄，罕见——
+    真 ``tabular`` 族走 ``ENV_MANDATORY_ARG`` 不经此路）。
+    """
+    s = _COLSPEC_CS_RX.sub("", content)
+    while True:
+        s2 = _COLSPEC_GROUP_RX.sub("", s)
+        if s2 == s:
+            break
+        s = s2
+    s = s.strip()
+    if not s or any(c not in _COLSPEC_CHARS for c in s):
+        return False
+    return any(c in _COLSPEC_COLS for c in s)

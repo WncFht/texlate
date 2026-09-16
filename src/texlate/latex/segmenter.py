@@ -78,6 +78,7 @@ from texlate.latex.tables import (
     VERBATIM_ENVS,
     argspec_lookup,
     argspec_lookup_env,
+    looks_like_colspec,
 )
 from texlate.textutil import mask_tex
 
@@ -97,6 +98,13 @@ _COMMENT_GAP_RX = re.compile(r"%[^\n]*")
 _ARG_COMMENT_RX = re.compile(r"\\.|%[^\n]*")
 # —— 与 scanner.py 同源的保护/豁免表（S2 scanner 退役时合入 tables.py）
 _LETTER_TAIL_RX = re.compile(r"\\[a-zA-Z@]+\Z")
+
+
+def _starts_letter(s: str) -> bool:
+    r"""首字符是 ASCII 字母（TeX 控制词名续名判据——``\\foo``+``中`` 不算熔合）。"""
+    return bool(s) and s[0].isascii() and s[0].isalpha()
+
+
 _PROTECT_TYP = {
     "includegraphics": PhType.GRAPHICS,
     "url": PhType.URL,
@@ -591,7 +599,22 @@ class Segmenter:
         self._rappend(ph, ph, vspan)
 
     def _rappend(self, surface: str, ident: str, vspan: Span) -> None:
-        """追加 run 项（surface/ident 双轨 + 覆盖位）。"""
+        r"""追加 run 项（surface/ident 双轨 + 覆盖位）。
+
+        项界接缝守卫（``_cat_surf``/``_seg_join`` 同族——run 项边是它俩
+        都够不着的残留面）：前项尾落 ``\letters`` 控制词形且本项以字母
+        起头 → 补 ``" "``。csname 合成/乱序 token 的 ``\w after`` 形中
+        ``\w`` 与 ``after`` 分属两项、gap 字节 ``\w `` 被前项 cover 代记
+        （``_gap_surface`` 对非全白 gap 只产 ``""``），不补则 surface
+        熔成 ``\endtabularafter`` 假 cs。ident 侧同判——两条轨都按
+        「``\letters`` 尾 + 字母头」各自补位。
+        """
+        if self._run:
+            prev = self._run[-1]
+            if _starts_letter(surface) and _LETTER_TAIL_RX.search(prev.surface):
+                surface = " " + surface
+            if _starts_letter(ident) and _LETTER_TAIL_RX.search(prev.ident):
+                ident = " " + ident
         if self._run_start is None:
             self._run_start = vspan.start
         self._run.append(_RunItem(surface, ident, vspan.start, vspan.end))
@@ -871,15 +894,19 @@ class Segmenter:
 
         注意 ``Span.__len__`` = 区间长——零宽 span 为 falsy，判空必须用
         ``is None``（``or`` 会把 ``Span(x,x)`` 落成 ``Span(0,0)``）。
+        ``_group_surface`` 返回 ``None`` 与 ``_open_side_effect`` 同走
+        literal 兜底（surface 再生不出等价语义的两种情况）。
         """
         if self._open_origin is None or self._open_vspan is None:
             return
         vspan = self._open_vspan
-        if self._open_side_effect:
+        segs = self._group_surface() if not self._open_side_effect else None
+        if segs is None:
             # 组内展开执行过副作用（def 族/let/catcode/newif…——consumed
-            # marker 不回放）：surface 骨架再生不出等价语义
-            # （\makecommand→\foreach 空壳，\xdef 体被 gullet 吃掉），
-            # 整组回 literal——顶层 _on_consumed 同款 "def 串不落 chunk"。
+            # marker 不回放），或组内 ``\begin``{保护族 env} 无配对
+            # ``\end``（R7/J3——surface 物质化一个永无配对的开 tag 比
+            # 原样回字面更糟）：surface 骨架再生不出等价语义，整组回
+            # literal——顶层 _on_consumed 同款 "def 串不落 chunk"。
             self._flush_run(vspan.start)
             self._emit(vspan.start, vspan.end)
             self._open_origin = None
@@ -887,7 +914,6 @@ class Segmenter:
             self._open_toks = []
             self._open_side_effect = False
             return
-        segs = self._group_surface()
         # 零宽 vspan = callsite 已盖（\end{tabular}→\@checkend 之类内层展开）——
         # 体恒空、identity 无需占位；签发只会零宽 run literal 冲刷时被
         # ``_emit_text`` 连 piece 带 token 丢掉 → dead_ph
@@ -968,12 +994,12 @@ class Segmenter:
     def _grp_envtag(self, toks: list[Tok], i: int) -> tuple[str, int] | None:
         r"""``\\begin``/``\\end`` + ws + ``{name}`` → ``(name, j_end)``；失配 None。
 
-        主流对价：``_env_name``（源侧版；组内 ``eol_par`` 即失败与主流
-        par 边界不跨同规）。
+        主流对价：``_env_name``——前扫跨 space 与 ``eol_par``（断行
+        env tag 收名），名内 ``eol_par`` 即失败（R6 主流同规）。
         """
         n = len(toks)
         j = i + 1
-        while j < n and toks[j].kind == "space":
+        while j < n and toks[j].kind in ("space", "eol_par"):
             j += 1
         if j >= n or toks[j].kind != "lbrace":
             return None
@@ -1002,7 +1028,9 @@ class Segmenter:
             return kind, getattr(m, "target_env", "")
         return None
 
-    def _grp_find_env_end(self, toks: list[Tok], i: int, env: str) -> int | None:
+    def _grp_find_env_end(  # noqa: C901 — begin/end/cs-end/宏端点四臂单遍深度扫描平铺
+        self, toks: list[Tok], i: int, env: str
+    ) -> int | None:
         r"""``i`` 起找配对 ``\\end{env}``（同名 begin/宏端点计深度）→ j_end。"""
         target = env.rstrip("*")
         depth = 1
@@ -1020,6 +1048,14 @@ class Segmenter:
                     j = e
                     continue
             elif x.kind == "cs":
+                # ``\end<env>`` 字面端点（csname 合成/旧式）——主流
+                # ``_find_env_end`` 同名判据的组内镜像（R1）
+                if x.text == "end" + target:
+                    depth -= 1
+                    if depth == 0:
+                        return j + 1
+                    j += 1
+                    continue
                 em = self._grp_env_macro(x)
                 if em is not None and em[1].rstrip("*") == target:
                     depth += 1 if em[0] == "env_begin" else -1
@@ -1152,6 +1188,37 @@ class Segmenter:
             return None  # 匹配界落 token 内（cs 名被尾参切断）——不吃半截
         return i + k
 
+    def _grp_tikz_end(self, toks: list[Tok], i: int) -> int | None:
+        r"""组内裸 ``\tikz <path>;`` 的 ``;`` 定界扫描 → j_end；非路径形 → None。
+
+        ``_tikz_tail_end``（字节版）的 token 对价：首非空 token 须是
+        cs/``(``/``[``（path 起点族）；``{..}``/``[..]`` 深度内 ``;``
+        不算界；``eol_par``/深度外闭括/``\end`` cs 即中止（R8）。
+        """
+        n = len(toks)
+        j = i + 1
+        while j < n and toks[j].kind == "space":
+            j += 1
+        if j >= n or not (
+            toks[j].kind == "cs" or (toks[j].kind == "other" and toks[j].text in "([")
+        ):
+            return None
+        depth = 0
+        while j < n and j - i < _GRP_SCAN_CAP:
+            x = toks[j]
+            if x.kind == "eol_par" or (x.kind == "cs" and x.text == "end"):
+                return None
+            if x.kind == "lbrace" or (x.kind == "other" and x.text == "["):
+                depth += 1
+            elif x.kind == "rbrace" or (x.kind == "other" and x.text == "]"):
+                if depth == 0:
+                    return None  # 越过所在组界
+                depth -= 1
+            elif x.kind == "other" and x.text == ";" and depth == 0:
+                return j + 1
+            j += 1
+        return None
+
     def _grp_bsbs(self, toks: list[Tok], i: int) -> int | None:
         r"""组内 ``\\`` 的可选 dimen 参 → j_end；``\\[5pt]``/``\\*[2em]`` 命中。
 
@@ -1272,7 +1339,7 @@ class Segmenter:
             return None
         return argspec_lookup_env(env, self.state.pkgs)
 
-    def _grp_env_args_end(
+    def _grp_env_args_end(  # noqa: C901, PLR0912 — opt/mand/colspec 三段参数尾扫平铺即行序
         self,
         toks: list[Tok],
         j: int,
@@ -1314,6 +1381,17 @@ class Segmenter:
             if e is None:
                 break
             j = e
+        if mand == 0:
+            # 列型前导 peek 的组内镜像（R3）——首 ``{..}`` 形似列参即吃进
+            k = j
+            while k < n and toks[k].kind == "space":
+                k += 1
+            if k < n and toks[k].kind == "lbrace":
+                e = self._grp_bal(toks, k, brace=True)
+                if e is not None and looks_like_colspec(
+                    self._grp_surfs(toks[k + 1 : e - 1])
+                ):
+                    j = e
         return j
 
     def _grp_probe_end(self, toks: list[Tok], i: int) -> int | None:
@@ -1397,7 +1475,7 @@ class Segmenter:
             return self._grp_bal(toks, j, brace=True)
         return self._grp_delim_body_end(toks, i, j)
 
-    def _group_surface(self) -> list[str]:  # noqa: C901, PLR0912, PLR0915 — 组内保护段分派平铺（§3 再生保护段）
+    def _group_surface(self) -> list[str] | None:  # noqa: C901, PLR0912, PLR0915 — 组内保护段分派平铺（§3 再生保护段）
         r"""组成员 token → surface 段：结构命令再生保护段产 ph。
 
         展开表面里的 ``\\begin/\\end{env}``（math/verb/protected 整段、
@@ -1410,6 +1488,12 @@ class Segmenter:
         literal 路径丢字节——``\\parbox`` 参内 ``\\par`` 切断的
         ``}``/``\\end{env}`` 蒸发，hep-ph/9910403 ``\\@iiiparbox``
         runaway 族）。
+
+        返回 ``None`` = 整组 bail（``_close_group`` 转 literal 兜底）：
+        组内 ``\\begin{保护族 env}``/env_begin 宏端点找不到配对
+        ``\\end``——物质化一个永无配对的开 tag 会把后续主流
+        ``\\end`` 变 stray、译文面留未闭环境（R7/J3，``\\bea``=
+        ``\\begin{eqnarray}\\relax`` 形）。
         """
         toks = self._open_toks
         segs: list[str] = []
@@ -1473,6 +1557,9 @@ class Segmenter:
                             )
                             i = e
                             continue
+                        # 保护族 env 开 tag 无配对 \end——整组回 literal
+                        # （R7/J3：\bea=\begin{eqnarray}\relax 形）
+                        return None
                     # ENVTAG 界延到环境尾参（主流 _eat_env_args 同规）——
                     # preamble {lRLc}/版式 [opt] 不裸进 surface
                     j = self._grp_env_args_end(toks, j, env, reg, ae)
@@ -1589,6 +1676,10 @@ class Segmenter:
                         and all(c in FILENAME_CHARS for c in toks[j].text)
                     ):
                         j += 1
+                elif k < n and toks[k].kind == "cs":
+                    # ``\input \cs`` 动态文件名——cs 随命令进 [[CMD]]
+                    # （主流 else 臂同规，R4）
+                    j = k + 1
                 else:
                     j = self._grp_call_end(
                         toks, i, 2 if name in ("import", "subimport") else 1
@@ -1613,6 +1704,9 @@ class Segmenter:
                     self._cat_surf(out, self._grp_ph(typ, self._grp_surfs(toks[i:e])))
                     i = e
                     continue
+                if ek == "env_begin" and typ is not None:
+                    # 同上：保护族 env 开端点无配对——整组回 literal（R7/J3）
+                    return None
                 j2 = i + 1
                 if ek == "env_begin":
                     # 宏端点同吃环境尾参（\bea{c} 的 preamble 不裸进 surface）
@@ -1731,6 +1825,17 @@ class Segmenter:
                     i += 1
                     continue
                 # protect/key/verbatim/boundary → 整调用 [[CMD]]
+                if name == "tikz" and policy in ("protect", "key"):
+                    # 裸 ``\tikz <path>;`` 的组内对价（R8）——签名
+                    # ``o o m`` 同主流一样够不着路径形
+                    j3 = self._grp_tikz_end(toks, i)
+                    if j3 is not None:
+                        self._cat_surf(
+                            out,
+                            self._grp_ph(PhType.CMD, self._grp_surfs(toks[i:j3])),
+                        )
+                        i = j3
+                        continue
                 mand = sum(1 for s in spec2 if s.kind in ("m", "v"))
                 j2 = self._grp_call_end(toks, i, mand)
                 self._cat_surf(
@@ -2378,14 +2483,69 @@ class Segmenter:
         m = _TAIL_RX[kind].match(self.file_texts[fid], pos)
         return m.end() if m is not None and m.end() > pos else None
 
+    def _tikz_tail_end(  # noqa: C901, PLR0911, PLR0912 — 字节级 ; 定界扫：深度/注释/终止判定逐字符平铺
+        self, fid: int, pos: int
+    ) -> int | None:
+        r"""裸 ``\tikz <path>;`` 语句的 ``;`` 定界尾扫 → end；非路径形 → None。
+
+        ``\tikz`` 的 argspec ``o o m`` 认不出无 ``[``/``{`` 起头的裸
+        路径形（``\tikz \draw (0,0) -- (1,1);``）——整句 path 裸进
+        chunk 被当正文翻译（R8）。首非空字符须是 ``\\``/``(``/``[``
+        （path 起点族；``{`` 起头是 ``\tikz{...}`` 短形归 argspec
+        ``m`` 参，散文里 ``\tikz``+文字的误伤面也压掉）；之后 ``{..}``/
+        ``[..]`` 组内、``\\X`` 转义、``%`` 注释内的 ``;`` 都不算界；
+        ``\\end{``/``\n\n``（par 界）/EOF 即中止回落旧路。
+        """
+        tex = self.file_texts[fid]
+        n = len(tex)
+        i = pos
+        while i < n and tex[i] in " \t":
+            i += 1
+        if i >= n or tex[i] not in "\\([":
+            return None
+        depth = 0
+        while i < n:
+            c = tex[i]
+            if c == "\\":
+                if tex.startswith("\\end{", i):
+                    return None
+                i += 2
+                continue
+            if c == "%":
+                k = tex.find("\n", i)
+                if k < 0:
+                    return None
+                i = k + 1
+                continue
+            if c == "\n":
+                k = i + 1
+                while k < n and tex[k] in " \t\r":
+                    k += 1
+                if k >= n or tex[k] == "\n":
+                    return None
+                i += 1
+                continue
+            if c in "{[":
+                depth += 1
+            elif c in "}]":
+                if depth == 0:
+                    return None  # 深度外闭括 = 越过所在参数界（in_arg 调用）
+                depth -= 1
+            elif c == ";" and depth == 0:
+                return i + 1
+            i += 1
+        return None
+
     # ------------------------------------------------------------ env
 
     def _env_name(self, src: TokenSource) -> tuple[str | None, Tok | None, list[Tok]]:
         r"""``{env}`` 组收集：返回 (env 名, rbrace token, 全消费 token 列)。
 
-        v1 ``env_name_at`` 用 ``ws_skip_arg``——space token 跳过、
-        ``eol_par`` 即停（par 边界不跨）；名内花括号按 ``match_brace``
-        深度配对。失败返回 ``(None, None, consumed)``——调用方负责
+        前扫跨 space 与 ``eol_par``——``\end`` 换段 ``{name}`` 形（断行
+        env tag）不把 ``{name}`` 裸落主流（R6）；名内 ``eol_par``
+        即失败（par 不可能是 env 名的合法成分——docstring 旧稿只写了
+        半句，名内判据补上）。名内花括号按 ``match_brace`` 深度配对。
+        失败返回 ``(None, None, consumed)``——调用方负责
         ``unread(consumed)``（v1 返回 ``i`` 原位重扫的等价物）。
 
         不变式：``env is None`` ⟺ ``close_t is None``——调用方只判
@@ -2393,7 +2553,7 @@ class Segmenter:
         """
         consumed: list[Tok] = []
         open_t = src.read()
-        while open_t is not None and open_t.kind == "space":
+        while open_t is not None and open_t.kind in ("space", "eol_par"):
             consumed.append(open_t)
             open_t = src.read()
         if open_t is not None:
@@ -2407,6 +2567,8 @@ class Segmenter:
             if x is None:
                 return None, None, consumed
             consumed.append(x)
+            if x.kind == "eol_par":
+                return None, None, consumed
             if x.kind == "lbrace":
                 depth += 1
             elif x.kind == "rbrace":
@@ -2453,7 +2615,11 @@ class Segmenter:
                 # 渲染直切 vt 字节 = 字面）
                 hit = self._find_env_end(src, env, t.pos)
                 if hit is None:
-                    self._emit(v_begin.start, v_begin.end)
+                    # 未闭合也先吃环境尾参——{cc} preamble/版式 [opt]
+                    # 不裸进 chunk（R2，全臂同规）
+                    end = self._eat_env_args(src, fid, close_t.pos[2], env, reg, ae)
+                    vspan = self._cover_to(fid, end)
+                    self._emit(v_begin.start, vspan.end)
                     self.state.warnings.append(
                         ScanWarning("unclosed_env", v_begin.start, env)
                     )
@@ -2477,7 +2643,9 @@ class Segmenter:
             else:
                 k = self.file_texts[fid].find(pat, close_t.pos[2])
             if k < 0:
-                self._emit(v_begin.start, v_begin.end)
+                end = self._eat_env_args(src, fid, close_t.pos[2], env, reg, ae)
+                vspan = self._cover_to(fid, end)
+                self._emit(v_begin.start, vspan.end)
                 self.state.warnings.append(
                     ScanWarning("unclosed_env", v_begin.start, env)
                 )
@@ -2496,7 +2664,9 @@ class Segmenter:
             hit = self._find_env_end(src, env, t.pos)
             if hit is None:
                 self._flush_run(v_begin.start)
-                self._emit(v_begin.start, v_begin.end)
+                end = self._eat_env_args(src, fid, close_t.pos[2], env, reg, ae)
+                vspan = self._cover_to(fid, end)
+                self._emit(v_begin.start, vspan.end)
                 self.state.warnings.append(
                     ScanWarning("unclosed_env", v_begin.start, env)
                 )
@@ -2513,7 +2683,9 @@ class Segmenter:
             hit = self._find_env_end(src, env, t.pos)
             if hit is None:
                 self._flush_run(v_begin.start)
-                self._emit(v_begin.start, v_begin.end)
+                end = self._eat_env_args(src, fid, close_t.pos[2], env, reg, ae)
+                vspan = self._cover_to(fid, end)
+                self._emit(v_begin.start, vspan.end)
                 self.state.warnings.append(
                     ScanWarning("unclosed_env", v_begin.start, env)
                 )
@@ -2545,9 +2717,12 @@ class Segmenter:
             # in_arg 未知/结构环境 → 整段 [[ENV]] 进 run（v1 泄漏 C2 修复）
             hit = self._find_env_end(src, env, t.pos)
             if hit is None:
+                # 未闭合也吃环境尾参——ENVTAG 界延到 preamble 后（R2 同规）
+                end = self._eat_env_args(src, fid, close_t.pos[2], env, reg, ae)
+                vspan = self._cover_to(fid, end)
                 self._rappend_ph(
-                    self._ph(PhType.ENVTAG, self.vt.slice(v_begin.start, v_begin.end)),
-                    v_begin,
+                    self._ph(PhType.ENVTAG, self.vt.slice(v_begin.start, vspan.end)),
+                    Span(v_begin.start, vspan.end),
                 )
                 self.state.warnings.append(
                     ScanWarning("unclosed_env", v_begin.start, env)
@@ -2627,7 +2802,7 @@ class Segmenter:
         self.state.warnings.append(ScanWarning("stray_end", vpos, f"\\end{{{env}}}"))
         return 0
 
-    def _eat_env_args(  # noqa: C901, PLR0912, PLR0913, PLR0917 — opt/mand 两段判定平铺即 v1 行序
+    def _eat_env_args(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915, PLR0917 — opt/mand/colspec 三段判定平铺即 v1 行序
         self,
         src: TokenSource,
         fid: int,
@@ -2688,6 +2863,28 @@ class Segmenter:
                 pos = x.pos[1]  # `{` 未闭已回吐；ws 消费进 pos
                 break
             pos = hit[1].pos[2]
+        if mand == 0:
+            # 未注册环境的列型前导参（``\begin{mytable}{>{\raggedright}
+            # p{4cm}}`` 形）——无 ``ENV_MANDATORY_ARG``/签名可据，首 ``{..}``
+            # 形似列参即吃进 begin 行字面段（R3；``{Title}`` 形文本参
+            # 回吐主流——判据/误伤面见 ``looks_like_colspec``）
+            p3: list[Tok] = []
+            x = self._peek_nonspace(src, p3)
+            if x is not None and x.kind == "lbrace":
+                hit = self._collect_group(src, x, brace=True)
+                if hit is None:
+                    return x.pos[1]  # `{` 未闭——组已回吐；ws 在 pos 内
+                inner, closer = hit
+                if looks_like_colspec(self.file_texts[fid][x.pos[2] : closer.pos[1]]):
+                    return closer.pos[2]
+                src.unread([x, *inner, closer])
+                return x.pos[1]
+            if x is None:
+                if p3:
+                    pos = p3[-1].pos[2]
+            else:
+                src.unread([x])
+                pos = x.pos[1]
         return pos
 
     def _eat_env_args_spec(
@@ -2843,7 +3040,7 @@ class Segmenter:
         src.unread(pulled)
         return None
 
-    def _find_env_end(  # noqa: C901, PLR0912, PLR0915 — begin/end/verb/宏端点四分支单遍查找
+    def _find_env_end(  # noqa: C901, PLR0911, PLR0912, PLR0915 — begin/end/csname-end/verb/宏端点五分支单遍查找
         self, src: TokenSource, env: str, qpos: tuple[int, int, int]
     ) -> tuple[Tok, Tok, list[Tok]] | None:
         r"""Token 版 env 配对（``read()`` 原始流——前瞻不触发展开副作用）。
@@ -2939,6 +3136,39 @@ class Segmenter:
                         return x, c, body
                     ends.append(seq)
                     end_tag.append((x.pos[0], x.pos[1], c.pos[2]))
+                continue
+            # ``\end<env>`` 字面端点：csname 合成（``\csname endtabular
+            # \endcsname`` 产 gen=0 cs token，宏表无登记）与旧式写法
+            # （``\begin{tabular}…\endtabular``——LaTeX 内核 ``\end{X}``
+            # 即 ``\csname endX\endcsname``）都按 env_end 计对（R1）。
+            # 先于宏解析——重定义 ``\endfoo`` 为别体的边缘形也按端点配对。
+            if x.text == "end" + target:
+                depth -= 1
+                if depth == 0:
+                    return x, x, collected[:-1]
+                ends.append(seq)
+                end_tag.append((x.pos[0], x.pos[1], x.pos[2]))
+                continue
+            if x.text == "csname":
+                # 直用 ``\csname end<env>\endcsname``：raw 前瞻不触发
+                # csname 合成（``_read_csname`` 的 token 版镜像）——收名
+                # 到 ``\endcsname`` 止，命中 ``end+target`` 按 env_end
+                # 计对；收不到（流尽）交给外层 EOF 墓标路径
+                ctoks: list[Tok] = []
+                while True:
+                    y = src.read()
+                    if y is None:
+                        break
+                    collected.append(y)
+                    if y.kind == "cs" and y.text == "endcsname":
+                        if "".join(str(z) for z in ctoks) == "end" + target:
+                            depth -= 1
+                            if depth == 0:
+                                return x, y, collected[: -(len(ctoks) + 2)]
+                            ends.append(seq)
+                            end_tag.append((x.pos[0], x.pos[1], y.pos[2]))
+                        break
+                    ctoks.append(y)
                 continue
             m = self._resolve_macro(src, x.text)
             kind = getattr(m, "kind", "")
@@ -3439,7 +3669,7 @@ class Segmenter:
         src.unread([*pulled, *([x] if x is not None else [])])
         self._rappend_tok(t)
 
-    def _handle_input_cs(  # noqa: C901, PLR0912 — 三形平铺（{file}/import 双参/裸名）
+    def _handle_input_cs(  # noqa: C901, PLR0912, PLR0915 — 四形平铺（{file}/import 双参/裸名/\cs 动态名）
         self, t: Tok, src: TokenSource, name: str
     ) -> None:
         r"""``\input`` 族漏网（gullet 未解析成功）：literal + ``inputs[]``。
@@ -3501,6 +3731,11 @@ class Segmenter:
                     break
             fname = "".join(t2.text for t2 in fname_toks)
             end = fname_toks[-1].pos[2]
+        elif x is not None and x.kind == "cs":
+            # ``\input \cs`` 动态文件名：cs 吞进 literal 随命令走——否则
+            # ``\myfile`` 被主流当未知命令展开/逐字，体文本漏进 chunk
+            # （R4）。``fname`` 留空——动态名非字面路径，不记 inputs[]。
+            end = x.pos[2]
         else:
             src.unread([*pulled, *([x] if x is not None else [])])
         vspan = self._cover_to(fid, end)
@@ -3977,7 +4212,7 @@ class Segmenter:
         self._unread_args(src, args)
         self._rappend_tok(t)
 
-    def _handle_argspec_cs(  # noqa: PLR0911 — policy 分派早退平铺，顺序即语义
+    def _handle_argspec_cs(  # noqa: C901, PLR0911 — policy 分派早退平铺，顺序即语义
         self, t: Tok, src: TokenSource, e: ArgspecEntry
     ) -> None:
         r"""Argspec 表命中分派：policy → literal/boundary/protect/chunk-arg。
@@ -4011,6 +4246,20 @@ class Segmenter:
                 self._rappend_tok(t)
                 return
         spec = _chunk_spec_cached(e.signature)
+        if e.name == "tikz" and e.policy in ("protect", "key"):
+            # 裸 ``\tikz <path>;``：签名 ``o o m`` 够不着无 ``[``/``{``
+            # 起头的路径形（``[opts]`` 前导形同漏——先扫再让 argspec 走
+            # 参）——``;`` 定界整句进 [[CMD]]（R8）；非路径形 → None 回落。
+            tail_end = self._tikz_tail_end(fid, b)
+            if tail_end is not None:
+                self._cover_gap(fid, t.pos[1])
+                vspan = self._cover_to(fid, tail_end)
+                self._rappend_ph(
+                    self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
+                    vspan,
+                )
+                self._skip_past(src, fid, tail_end)
+                return
         args, end = self._args_tok(src, fid, spec, b, allow_single_token=True)
         if e.policy == "chunk-arg":
             self._emit_argspec_chunks(t, src, e, args, end, b)
