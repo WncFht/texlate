@@ -121,6 +121,47 @@ def test_quoted_name_falls_to_none_placeholder() -> None:
     assert stack == ["./main.tex"]
 
 
+def test_paren_inside_filename_pairs_off() -> None:
+    """文件名内嵌 ``(``（``a(b).tex`` 稀有形态）：内层 ``(b)`` 自配对、
+    外层 ``(./sub/a`` 落 None 占位——文件不可见但配对不破，外层 ``)``
+    不错弹真文件帧。"""
+    stack = _run(["(./main.tex", "(./sub/a(b).tex content)"])
+    assert stack == ["./main.tex"]
+
+
+def test_two_opens_one_line() -> None:
+    """同行双开：``(./a.tex (./b.tex)``——b 闭合后 a 仍在栈。"""
+    assert _run(["(./a.tex (./b.tex) tail"]) == ["./a.tex"]
+
+
+def test_double_open_inner_token_is_file() -> None:
+    """``((x.tex``——外层 ``(`` 落 None、内层 ``(`` 的文件 token 正常入栈。"""
+    stack: list[str | None] = []
+    popped: list[str | None] = []
+    update_file_stack("((x.tex", stack, popped)
+    assert stack == [None, "x.tex"]
+
+
+def test_deep_unclosed_nesting() -> None:
+    """深层未闭合嵌套线性增长——无上限保护也不需要（log 有界）。"""
+    depth = 2000
+    stack = _run([f"(./f{i}.tex" for i in range(depth)])
+    assert len(stack) == depth
+    assert stack[-1] == f"./f{depth - 1}.tex"
+
+
+def test_missing_char_glyph_before_non_space_not_skipped() -> None:
+    """字形 ``)`` 后紧跟非空格/非 ``(`` 字符不在豁免 lookahead 内——
+    仍按配对符处理（真实 TeX 输出字形后恒跟 `` in font``，此行为假想形留档）。"""
+    stack = _run(
+        [
+            "(./main.tex",
+            "Missing character: There is no )x in font nullfont!",
+        ]
+    )
+    assert stack == []
+
+
 def test_file_stack_at_replays_before_stop() -> None:
     lines = ["(./main.tex", "(./sub/a.tex", ")close", "(./b.tex"]
     assert file_stack_at(lines, 3) == ["./main.tex"]
@@ -169,6 +210,36 @@ def test_is_project_file_relative_escape_still_project(tmp_path: Path) -> None:
 def test_is_project_file_absolute_escape_via_dotdot(tmp_path: Path) -> None:
     """绝对路径带 ``..`` 解析出 root → 系统侧（resolve 归一化生效）。"""
     assert not is_project_file(str(tmp_path / ".." / "x.tex"), tmp_path)
+
+
+def test_is_project_file_bare_name_with_root(tmp_path: Path) -> None:
+    """裸名（tectonic bundle 日志形态）：``root`` 内存在 → 工程，缺席 → 系统。"""
+    (tmp_path / "main.tex").write_text("x", encoding="utf-8")
+    assert is_project_file("main.tex", tmp_path)
+    assert not is_project_file("missing.sty", tmp_path)
+
+
+def test_is_project_file_usertree_inside_root_is_sys(tmp_path: Path) -> None:
+    """``root/_texmf`` usertree 件在 root 之内仍是系统语义——texmf 段标记先于
+    root 前缀判（fixloop usertree 落 ``wdir/_texmf`` 是承重场景）。"""
+    f = tmp_path / "_texmf" / "x.sty"
+    f.parent.mkdir()
+    f.write_text("x", encoding="utf-8")
+    assert not is_project_file(str(f), tmp_path)
+
+
+def test_is_project_file_tectonic_case_sensitive() -> None:
+    """``/Tectonic/`` 大写缓存目录 → 系统；小写 ``tectonic/`` 是 fixloop 编译
+    工作段名（``wdir/tectonic``），root 缺席时保守归工程不误吃。"""
+    assert not is_project_file("/home/u/.cache/Tectonic/bundle/x.sty")
+    assert is_project_file("/work/tectonic/x.tex")
+
+
+def test_is_project_file_nul_token_conservative(tmp_path: Path) -> None:
+    """含 NUL 的 token 不可能是真实路径（``resolve`` 会炸 ValueError）——
+    保守归工程，不掉红线也不炸归因面。"""
+    assert is_project_file("/abs/a\x00b.tex", tmp_path)
+    assert is_project_file("a\x00b.tex", tmp_path)
 
 
 def test_looks_like_tex_file_edge() -> None:

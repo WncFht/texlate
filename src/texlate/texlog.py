@@ -150,9 +150,10 @@ def is_project_file(token: str | None, root: Path | None = None) -> bool:
     标记再按 ``root`` 前缀判（root 给定时界外即系统——沙箱 root=wdir，
     工程件不可能在其外）。裸名是 tectonic bundle 日志形态：``root`` 给定
     按 ``root/token`` 存在性分（bundle 件不在工程树），缺席时保守归工程
-    ——不可归因不掉红线。
+    ——不可归因不掉红线。含 NUL 的 token 与 ``resolve`` 失败的路径同理
+    归工程——真实文件路径不含 NUL，判不出归属时红线照留。
     """
-    if token is None:
+    if token is None or "\x00" in token:
         return True
     if "/" not in token:
         return root is None or (root / token).is_file()
@@ -160,4 +161,9 @@ def is_project_file(token: str | None, root: Path | None = None) -> bool:
         return True
     if _SYS_TREE_RX.search(token):
         return False
-    return root is None or Path(token).resolve().is_relative_to(Path(root).resolve())
+    if root is not None:
+        try:
+            return Path(token).resolve().is_relative_to(Path(root).resolve())
+        except (OSError, ValueError):
+            pass  # symlink 环/非法路径——不可归因，保守归工程
+    return True

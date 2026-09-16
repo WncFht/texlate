@@ -7,6 +7,7 @@ import hashlib
 import json
 import struct
 import zipfile
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
@@ -25,8 +26,6 @@ from texlate.share import (
 )
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from texlate.share import ShareManifest
 
 _PARTS: dict[str, object] = {
@@ -114,6 +113,39 @@ def test_pack_share_key_given_and_consistent(tmp_path: Path) -> None:
     key = share_key(**_PARTS)
     bundle = pack_share(work, {**_PARTS, "share_key": key}, out_dir=tmp_path)
     assert bundle.name == f"{key}.share.zip"
+
+
+def test_pack_artifact_single_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """产物单读语义：同一份字节既进 manifest 对账又写 zip 成员——
+    读取后磁盘件再被改不产生自矛盾包（TOCTOU 窗口已消）。"""
+    work = _make_work(tmp_path)
+    original = Path.read_bytes
+    calls: list[str] = []
+
+    def once(self: Path) -> bytes:
+        calls.append(self.name)
+        data = original(self)
+        if self.name == "zh.pdf":
+            self.write_bytes(b"MUTATED after hash read")
+        return data
+
+    monkeypatch.setattr(Path, "read_bytes", once)
+    bundle = pack_share(work, _PARTS, out_dir=tmp_path / "out")
+    monkeypatch.undo()
+    assert sorted(calls) == sorted(ARTIFACT_NAMES)
+    unpack_share(bundle, tmp_path / "d")
+    assert (tmp_path / "d" / "zh.pdf").read_bytes() == _PDF_BYTES
+
+
+def test_pack_version_none_is_latest_alias(tmp_path: Path) -> None:
+    """``version=None`` 归一 latest 别名（``""``）——与 ``share_key`` 直调同键。"""
+    work = _make_work(tmp_path)
+    bundle = pack_share(work, {**_PARTS, "version": None}, out_dir=tmp_path)
+    mf = unpack_share(bundle, tmp_path / "d")
+    assert mf.key_parts["version"] == ""
+    assert mf.share_key == share_key(**{**_PARTS, "version": None})
 
 
 # ---------------------------------------------------------------- 拒绝面
@@ -328,11 +360,20 @@ def test_pack_partial_no_zh_pdf(tmp_path: Path) -> None:
     assert not (dest / "zh.pdf").exists()
 
 
-def test_pack_missing_key_part_rejected(tmp_path: Path) -> None:
+@pytest.mark.parametrize("drop", ["model", "version", "glossary_hash"])
+def test_pack_missing_key_part_rejected(tmp_path: Path, drop: str) -> None:
+    """七键必带——可空组分（version/glossary_hash）整键缺席也按 missing 拒。"""
     work = _make_work(tmp_path)
-    bad = {k: v for k, v in _PARTS.items() if k != "model"}
+    bad = {k: v for k, v in _PARTS.items() if k != drop}
     with pytest.raises(ShareError, match="missing key part"):
         pack_share(work, bad, out_dir=tmp_path)
+
+
+def test_pack_null_non_emptyable_key_part_rejected(tmp_path: Path) -> None:
+    """非可空组分值为 ``None`` → 拒（null 只等价于 ``""`` 于 _EMPTY_OK 字段）。"""
+    work = _make_work(tmp_path)
+    with pytest.raises(ShareError, match="key part empty"):
+        pack_share(work, {**_PARTS, "model": None}, out_dir=tmp_path)
 
 
 def test_pack_share_key_mismatch_rejected(tmp_path: Path) -> None:
@@ -464,6 +505,40 @@ def test_share_key_last_part_pipe_unambiguous() -> None:
     with pytest.raises(ShareError, match="must not contain"):
         share_key(**{**_PARTS, "glossary_hash": "g|x", "pipeline_ver": "y"})
     assert tail
+
+
+def test_share_key_strips_whitespace() -> None:
+    """直调组分带边缘空白 → 与 manifest 侧 strip 归一后同键。"""
+    assert share_key(**{**_PARTS, "model": " deepseek-chat "}) == share_key(**_PARTS)
+    assert share_key(**{**_PARTS, "target_lang": "zh-CN "}) == share_key(**_PARTS)
+
+
+def test_unpack_key_parts_extra_fields_tolerated(tmp_path: Path) -> None:
+    """key_parts 多出未知字段 → 忽略（前向兼容），只用七组分派生。"""
+    work = _make_work(tmp_path)
+    bundle = pack_share(work, _PARTS, out_dir=tmp_path / "out")
+    manifest = _bundle_manifest(bundle)
+    parts = manifest["key_parts"]
+    assert isinstance(parts, dict)
+    parts["future_field"] = "x"
+    repacked = _repack(tmp_path / "fwd.share.zip", manifest, _payloads(bundle))
+    mf = unpack_share(repacked, tmp_path / "d")
+    assert mf.key_parts == _PARTS
+
+
+def test_unpack_key_parts_version_null(tmp_path: Path) -> None:
+    """key_parts.version 为 JSON null → 归一 ``""``（latest 别名）照常解包。"""
+    work = _make_work(tmp_path)
+    parts_empty = {**_PARTS, "version": ""}
+    bundle = pack_share(work, parts_empty, out_dir=tmp_path / "out")
+    manifest = _bundle_manifest(bundle)
+    kp = manifest["key_parts"]
+    assert isinstance(kp, dict)
+    kp["version"] = None  # JSON null 与 "" 同义
+    repacked = _repack(tmp_path / "null.share.zip", manifest, _payloads(bundle))
+    mf = unpack_share(repacked, tmp_path / "d")
+    assert mf.key_parts["version"] == ""
+    assert mf.share_key == share_key(**parts_empty)
 
 
 # ---------------------------------------------------------------- index.jsonl

@@ -124,17 +124,18 @@ def share_key(  # noqa: PLR0913, PLR0917 -- 七组分即寻址公式本身，参
     已含同成分，本键对齐其口径）。前六组分含 ``|`` 会破坏分隔 →
     ShareError；``pipeline_ver`` 是末位组分，自身允许含 ``|``
     （``worker.PIPELINE_VERSION = "texlate-{ver}|{prompt_ver}"`` 本就如此，
-    末位含分隔符无解析歧义）。
+    末位含分隔符无解析歧义）。各组分 strip 归一——与 ``_key_parts`` 的
+    manifest 侧归一同口径，边缘空白不进键（域内无意义）。
     """
     ver = _norm_version(version)
     parts = (
-        arxiv_id,
+        arxiv_id.strip(),
         ver,
-        model,
-        prompt_ver,
-        target_lang,
-        glossary_hash,
-        pipeline_ver,
+        model.strip(),
+        prompt_ver.strip(),
+        target_lang.strip(),
+        glossary_hash.strip(),
+        pipeline_ver.strip(),
     )
     for part in parts[:-1]:
         if "|" in part:
@@ -147,12 +148,24 @@ def share_key(  # noqa: PLR0913, PLR0917 -- 七组分即寻址公式本身，参
 
 
 def _key_parts(manifest: Mapping[str, object]) -> dict[str, str]:
-    """七组分提取 + 归一；缺字段/非空组分为空 → ShareError。"""
+    """七组分提取 + 归一；缺键/非空组分为空 → ShareError。
+
+    键必须在场（七键格式契约）；``_EMPTY_OK`` 组分（version/glossary_hash）
+    的 ``None`` 归一为 ``""``——与 ``_norm_version``/``share_key`` 的
+    latest 别名口径一致，JSON ``null`` 与 ``""`` 同义；非可空组分 ``None``
+    仍按缺失拒。
+    """
     parts: dict[str, str] = {}
     for field in KEY_PART_FIELDS:
-        raw = manifest.get(field)
-        if raw is None:
+        if field not in manifest:
             msg = f"manifest missing key part: {field}"
+            raise ShareError(msg)
+        raw = manifest[field]
+        if raw is None:
+            if field in _EMPTY_OK:
+                parts[field] = ""
+                continue
+            msg = f"manifest key part empty: {field}"
             raise ShareError(msg)
         value = _norm_version(raw) if field == "version" else str(raw).strip()
         if not value and field not in _EMPTY_OK:
@@ -199,6 +212,7 @@ def pack_share(
         msg = f"share_key mismatch: given {given!r} != derived {key}"
         raise ShareError(msg)
     artifacts: dict[str, dict[str, object]] = {}
+    blobs: dict[str, bytes] = {}
     for name in ARTIFACT_NAMES:
         src = work_dir / name
         if not src.is_file():
@@ -207,14 +221,21 @@ def pack_share(
                 raise ShareError(msg)
             log.info("optional artifact absent, omitted from bundle: %s", name)
             continue
-        size = src.stat().st_size
-        if size > _MEMBER_MAX:
-            msg = f"artifact too large: {name} ({size}B > {_MEMBER_MAX}B)"
+        if src.stat().st_size > _MEMBER_MAX:
+            # 先 stat 拒大件避免整块读进内存
+            msg = f"artifact too large: {name}"
             raise ShareError(msg)
+        blob = src.read_bytes()
+        if len(blob) > _MEMBER_MAX:
+            msg = f"artifact too large: {name} ({len(blob)}B > {_MEMBER_MAX}B)"
+            raise ShareError(msg)
+        # 同一份字节既进 manifest 对账又写 zip 成员——单读消灭
+        # 「哈希到写入之间文件被改 → 包自矛盾」的 TOCTOU 窗口
         artifacts[name] = {
-            "sha256": hashlib.sha256(src.read_bytes()).hexdigest(),
-            "bytes": size,
+            "sha256": hashlib.sha256(blob).hexdigest(),
+            "bytes": len(blob),
         }
+        blobs[name] = blob
     doc: dict[str, object] = {
         "format": SHARE_FORMAT,
         "share_key": key,
@@ -232,8 +253,8 @@ def pack_share(
             zf.writestr(
                 MANIFEST_NAME, json.dumps(doc, ensure_ascii=False, indent=2) + "\n"
             )
-            for name in artifacts:
-                zf.write(work_dir / name, arcname=name)
+            for name, blob in blobs.items():
+                zf.writestr(name, blob)
         tmp.replace(out)
     finally:
         tmp.unlink(missing_ok=True)
@@ -379,9 +400,11 @@ def _extract_verified(
 
 
 def unpack_share(path: Path, dest: Path) -> ShareManifest:
-    """解包 + 全量校验 → ShareManifest；任一步失败 → ShareError。
+    """解包 + 全量校验 → ShareManifest。
 
-    校验序：zip 可读 → manifest.json 存在且 ≤ ``_MANIFEST_MAX`` →
+    包/校验失败 → ``ShareError``；``dest`` 落盘与改名等本地 I/O 失败抛
+    ``OSError``（环境错与坏包分流，消费端按两者都降级）。校验序：
+    zip 可读 → manifest.json 存在且 ≤ ``_MANIFEST_MAX`` →
     format/key_parts/share_key 重算 → artifacts 表 → 逐成员 size+sha256
     对账。只抽取 manifest 登记成员（白名单），包内多余成员忽略——天然免
     zip-slip。产物先落 ``dest`` 内临时目录、全部对账过才逐件 rename 进
