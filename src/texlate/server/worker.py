@@ -84,6 +84,7 @@ from texlate.e2e import (
     _TreeRun,
 )
 from texlate.latex.api import parse_file
+from texlate.latex.prose import file_has_prose
 from texlate.latex.reconstruct import reconstruct
 from texlate.server.babeldoc import (
     BabeldocJob,
@@ -412,6 +413,9 @@ class TaskCtx:
     #: 是正确终态。``_stage_compile`` 在 loop 线程算好——store conn
     #: 有线程亲和，编译线程内不可查
     expect_cjk: bool = True
+    #: 散文门分流出的 support 文件（.code.tex 机制件/无散文宏件转储）——
+    #: 按原文保留不进翻译集，送译即腐蚀（同 e2e._scan_tree 三级分流）
+    support_files: list[str] = field(default_factory=list)
 
     @property
     def src_dir(self) -> Path:
@@ -1727,19 +1731,29 @@ class PipelineWorker:
         """逐文件半解析 → (chunk 行, scans)。单文件崩不拖全树。"""
         rows: list[dict[str, Any]] = []
         scans: dict[str, ScanResult] = {}
+        ctx.support_files = []
         seq = 0
         for f in sorted(
             p
             for p in ctx.base_dir.rglob("*")
             if p.is_file() and p.suffix.lower() == ".tex"
         ):
-            if f.name.startswith(".") or f.name.lower().endswith(".rtx.tex"):
+            name = f.name.lower()
+            if f.name.startswith(".") or name.endswith(".rtx.tex"):
                 continue  # 隐文件 + REVTeX 运行时转储不进翻译集（同 e2e/stagerun）
             rel = f.relative_to(ctx.base_dir).as_posix()
+            if name.endswith(".code.tex"):
+                ctx.support_files.append(rel)  # tikzlibrary 机制件按原文保留
+                continue
             try:
                 res = parse_file(f, flatten=False)
             except Exception as e:  # noqa: BLE001 -- 单文件解析崩记名跳过
                 self._log(ctx, f"parse skip {rel}: {e}")
+                continue
+            if not file_has_prose(res.chunks):
+                # 无散文（pstricks/epsf/宏件/gnuplot 转储）——送译即腐蚀，
+                # 按原文保留；与 parse skip 分流：这里是有意跳过而非失败
+                ctx.support_files.append(rel)
                 continue
             scans[rel] = res
             for c in res.chunks:

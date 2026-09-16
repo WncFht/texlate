@@ -58,16 +58,19 @@ if TYPE_CHECKING:
 _MATH_TEX = (
     "\\documentclass{article}\n"
     "\\begin{document}\n"
-    "A paragraph with inline math $x+y$ and a command \\alpha inside prose.\n"
+    "A paragraph that has inline math $x+y$ and a command \\alpha that "
+    "sits inside the prose.\n"
     "\n"
-    "Second paragraph to pad the document body out a little.\n"
+    "Second paragraph that pads the document body and fills it with the "
+    "text that was written for this purpose.\n"
     "\\end{document}\n"
 )
 
 _ENV_TEX = (
     "\\documentclass{article}\n"
     "\\begin{document}\n"
-    "First paragraph of English prose long enough to be a real chunk.\n"
+    "First paragraph of English prose that is long enough, with the words "
+    "and the phrases that make it a real chunk.\n"
     "\n"
     "\\begin{weirdbox}\n"
     "Some content inside a weird environment.\n"
@@ -1224,6 +1227,38 @@ class TestParseAllRtxSkip:
         rows, scans = worker._parse_all(ctx)  # noqa: SLF001
         assert set(scans) == {"main.tex"}
         assert all(r["src_file"] == "main.tex" for r in rows)
+
+
+class TestParseAllProseGate:
+    """散文门：``.code.tex`` 机制件与无散文件分流 support 不送译（同 e2e 口径）。"""
+
+    def test_code_tex_and_nonprose_to_support(self, tmp_path: Path) -> None:
+        ctx, worker, _store = _mk(tmp_path)
+        ctx.base_dir.mkdir(parents=True, exist_ok=True)
+        (ctx.base_dir / "main.tex").write_text(_MATH_TEX, encoding="utf-8")
+        (ctx.base_dir / "tikzlibraryfoo.code.tex").write_text(
+            "\\def\\psunit{1cm}\\def\\plot{\\psline}", encoding="utf-8"
+        )
+        (ctx.base_dir / "macros.tex").write_text(
+            "\\newcommand{\\foo}[1]{#1}\\def\\bar{baz}", encoding="utf-8"
+        )
+        rows, scans = worker._parse_all(ctx)  # noqa: SLF001
+        assert set(scans) == {"main.tex"}
+        assert all(r["src_file"] == "main.tex" for r in rows)
+        assert set(ctx.support_files) == {
+            "tikzlibraryfoo.code.tex",
+            "macros.tex",
+        }
+
+    def test_support_files_reset_on_rerun(self, tmp_path: Path) -> None:
+        """``_ensure_scans`` 会二次调 ``_parse_all``——support 清单须幂等。"""
+        ctx, worker, _store = _mk(tmp_path)
+        ctx.base_dir.mkdir(parents=True, exist_ok=True)
+        (ctx.base_dir / "main.tex").write_text(_MATH_TEX, encoding="utf-8")
+        (ctx.base_dir / "x.code.tex").write_text("\\def\\a{1}", encoding="utf-8")
+        worker._parse_all(ctx)  # noqa: SLF001
+        worker._parse_all(ctx)  # noqa: SLF001
+        assert ctx.support_files == ["x.code.tex"]
 
 
 class TestOptIntTolerant:
