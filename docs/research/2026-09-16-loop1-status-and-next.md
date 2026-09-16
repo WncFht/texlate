@@ -12,7 +12,7 @@
 | parse | 4980/5059 | 98.4%（残 75 = no_main_tex） |
 | xlat mock | 4957/5059 | 98.0% |
 | xlat real（n50 隔夜） | 48/50 | 96.0% |
-| compile zh（译后注入编译） | clean 2290 / partial 1628 / fail 647 / reject 414 / skip 80 | pdf 77.4% |
+| compile zh（译后注入编译） | clean 2290 / partial 1628 / fail 647 / reject 414 / skip 129 | pdf 77.4% |
 | fixloop（on fail647+misschar663） | clean 189 / partial 911 / fail 210 | rescue 84.0% |
 | **终态（zh 臂过 fixloop 后）** | **clean 2479 / partial 1876 / fail 210** | **pdf 86.1%（4355/5059），clean 49.0%** |
 
@@ -31,24 +31,28 @@
 ## 3. loop1 学到的（实证修正）
 
 - partial→fail 17 格**直编复验后真退化仅 4 格**（1003.1717/1306.0036/2410.00012/astro-ph/0111575），13 格是 pre-`6b23435` 引擎基建杀伤——跨段退化判定必须直编复验，不能只看记录面。
-- `no_errors_no_pdf` = TeX `(\end occurred…incomplete)` + `No pages of output` 早夭路径无 `!` 行 → 旧 taxonomy 判 clean 无规则承接；已由 `early_eof` 接住。
+- `no_errors_no_pdf` = TeX `(\end occurred…incomplete)` + `No pages of output` 早夭路径无 `!` 行 → 旧 taxonomy 判 clean 无规则承接；已由 `early_eof` 接住。**rerun 实证补齐机理**：13 格同根因——aastex61/62.cls 内部 `\IfFileExists{revtex4-1.cls}{ok}{…\stop}`，revtex4-1 不在 TL → `\stop` 夹条件内 → 早夭；「类文件求档文」语义。对策 `18ff106`（tail plea 规则抓档名归 missing_file + revtex4-1→4-2 桥）验证 **13/13 出 pdf**（11 acceptable + 2 best_effort）。
 - unfixable 大头 `missing_file`×113 = legacy 期刊包簇。经 tlpdb 实证拆两型：**索引可解**（pst-node/pst-arrow/epsf/emulateapj.cls/cite/axodraw2/acmart/revtex——pst-* 可解仍败是独立机理疑点，rerun 归类）与 **TL 真缺席**（svjour2/3、jheppub、jinstpub、espcrc1、epl2、imsart、conm-p-l、citesort、diagrams、texsort、setstack、undertilde、default、emulateapj*.sty）——只能 shim 写 stub（真桥：citesort→cite[sort,compress]、axodraw→axodraw2、conm-p-l→acmart；svjour/epl2/imsart 用 aa/iopart 同款 article+polyfill；余 noop 保底）。
 - misschar 663 格 acceptable 档语义 = 「有 pdf 即收」——如需更严口径（缺字数阈值）另议。
+- skip 129 格全合法上游门（scout 逐链核实）：79 not_translated（parse 失败级联）+ 49 arm_mismatch + 1 gate——**但暴露排程洞**：zh/ 单槽被 real 臂覆写，real-50 抽样 48 id 永无 mock compile 数据；loop2 若做 real↔mock 同 id 对照需先 compile-mock 再 xlat-real（或 zh/ 分臂）。
 
 ## 4. 下一步计划（收敛后分派）
 
 ### 4.1 即时（loop2 前）
 
-1. **定点 rerun 19 格——一轮已出**（peer1 执鞭）：nenp 15→2，暴露同根因簇——aastex61/62.cls 内部 `\IfFileExists{revtex4-1.cls}…\stop` 夹条件内早夭（rc=0 无 `!`），「类文件求档文」语义；对策 `18ff106` 已落（tail plea 规则→missing_file:revtex4-1.cls + shim_map revtex4-1→4-2 桥），13 格二次 rerun 在飞。真退化 4 格：astro-ph/0111575 **痊愈 acceptable**；1003.1717 仍 syntax、1306.0036/2410.00012 改判 undefined_cs（subclassify 收窄正确）。硬单案 1803.00012（SIGSEGV rc=-11）/1706.02464（bufsize rc=1）仍 nenp。scan_patterns 实证通（1907.00121 装 epsf/ulem）。
+1. **定点 rerun 19 格两轮已收官**（peer1 执鞭）：**14/19 出 pdf**。nenp 15→2——early_eof 13 格全救回（11 acceptable + 2 best_effort，`18ff106` plea 规则+revtex4-1 桥）；真退化 4 格：astro-ph/0111575 **痊愈 acceptable**；1003.1717 仍 unfixable:syntax、1306.0036/2410.00012 改判 undefined_cs（subclassify 收窄正确）。残 5：1803.00012（SIGSEGV rc=-11，killed_signal 已记）、1706.02464（bufsize rc=1）、1003.1717、1306.0036、2410.00012。pst-* 可解仍败疑点归 loop2 全量观察。
 2. **rules.yaml 内容面**（peer1）：`shim_map` +17 条已落 `622fc04`；`static_precheck` scan_patterns 已补 `\input` 裸名+花括号两形态（lookahead 防 `\includegraphics` 误捕，`engine.py:678` 顺带修 `x.tex`→`x.tex.tex` 双叠）。
 3. **worker-hardening 12 项落地**（1e 在飞 #52）+ 残两件：#74 latest-alias 二次 dedup、#78 L2 归因洞。**注意 `server/worker.py:2763` 有半残 edit（await 外置 SyntaxError）断 test 收集——在飞方收尾。**
 4. **engine taxonomy 单源化已落** `5d195c2`（audit-taxonomy 交付 + peer1 review；死代码 `_match_head/_match_tail` 顺手删）——engine.parse_log 一并被 derive 覆盖，engine↔rules.yaml 双轨漂移源消除。
 
 ### 4.2 loop2（全量 fixloop 重跑）
 
-- 触发：上述 4.1 落地后；`--on fail` + `--on misschar` 双闸，沙箱臂全程 bwrap。
-- 目标：rescue ≥90%；missing_file 簇靠 shim_map 扩列 + tlpdb-index 预期消化大半；盯 `fixloop_degraded` 计数 ≤4。
-- 候选引擎项（台账 §deferred 已记）：「不退化底板」——快照入口态 PDF、末态判决不低于入口态（4 格真退化+基建杀伤双兜底）。
+- 触发：上述 4.1 落地后；命令形（同目录 `--rerun` 两闸顺序跑，`--ids` 省略即全量重选）：
+  `uv run python bench/py/stagerun.py fixloop --on fail --rerun --dir bench/results/stagerun-loop1-2026-09-16`
+  `uv run python bench/py/stagerun.py fixloop --on misschar --rerun --dir bench/results/stagerun-loop1-2026-09-16`
+- 判读：`bench/py/rundiff.py`（在飞）出 loop1→loop2 逐格迁移矩阵；triage `fixloop_degraded` 盯跨段退化。
+- 目标：rescue ≥90%；missing_file 簇靠 shim_map 扩列 + tlpdb-index 预期消化大半；`fixloop_degraded` ≤4。
+- **「不退化底板」已落 `2f12955`**：入口态 pdf 快照（precheck 前现存产物优先、否则 rounds[0]），末态失 pdf 且非 reject → 拷回 + verdict 重落既有公式（`floor_from`/`floor_restored` 留痕，stagerun metrics 带 `floor_restored`，replay_all 门②将兜回计入 regressed）。注意 stagerun post 复判仍直编裸树——record status 反映树真实态，退化观测不受底板遮蔽。
 
 ### 4.3 中线
 
@@ -62,5 +66,5 @@
 | 方 | 当前在飞 | 下一步 |
 | --- | --- | --- |
 | 1d leader | fixer-latex 尾项（`_cov_origin` repro + argspec `%`-arg 红） | loop2 stagerun 驱动、台账维护、commit 收敛 |
-| 项目体验方式 | **定点 rerun 19 格已开火**；taxonomy derive `5d195c2`、shim_map/`\input` scan `622fc04` 已落 | rerun 迁移表判读 → loop2 全量复跑 → 「不退化底板」#20；候补：pst-* 可解仍败机理 ticket、`killed_signal` rc∈[129,192]→rc-128 归一 |
+| 项目体验方式 | rerun 19 格两轮收官（14/19 出 pdf）；taxonomy derive `5d195c2`、shim_map/`\input` scan `622fc04`、plea+revtex4-1 桥 `18ff106` 已落 | loop2 全量复跑判读；候补：pst-* 可解仍败机理 ticket（~~killed_signal 归一~~已核销——run_process 全程 POSIX 负值约定，rc<0→signal 链路本就正确） |
 | 1e | worker-hardening 12 项（#52）、llm_hook BYOK 接线 | #74/#78 残件、share 完成钩、真网关 n100-200 |

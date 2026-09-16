@@ -88,3 +88,6 @@ pst-node×11 / jheppub×9 / citesort×7 / diagrams×7 / axodraw×5 / pst-arrow×
 - **真退化 4 格**：astro-ph/0111575 → **acceptable_pdf 痊愈**（epsf 裸 payload 修复起效）；1003.1717 仍 unfixable:syntax；1306.0036 stuck→undefined_cs；2410.00012 pdftex_prim→undefined_cs（#131 收窄正确改判）。
 - **硬单案**：1803.00012 仍 nenp（post.rc=-11，killed_signal 已记 SIGSEGV）；1706.02464 仍 nenp（rc=1 bufsize 真 bug）。
 - **scan_patterns 实证**：1907.00121 装上 epsf.sty/epsf.tex/ulem.sty——`\input` 裸名预检链路通。
+- **二轮（13 格 early_eof 复跑）**：全数出 pdf（11 acceptable + 2 best_effort）——plea 规则+revtex4-1 桥闭环。19 格累计 14 出 pdf；残 5 = 1803.00012（SIGSEGV）、1706.02464（bufsize）、1003.1717（syntax）、1306.0036/2410.00012（undefined_cs）。
+- **「不退化底板」#20 已落 `2f12955`**（leader 侧 fixloop engine）：入口 pdf 快照双源（precheck 前现存 / rounds[0]）+ 末态失 pdf 非 reject 兜回 + `floor_from`/`floor_restored` 观测面；replay 门②将兜回计入 regressed；stagerun post 复判仍直编裸树保持退化观测真实。killed_signal 归一化 ticket 核销（run_process POSIX 负值约定本就正确）。
+- **skip 分布核实**（scout）：compile zh skip 实为 129 格全合法上游门——79 not_translated（parse 失败级联）+49 arm_mismatch+1 gate；**发现排程洞**：zh/ 单槽被 real 臂覆写 → real-50 抽样 48 id 永无 mock compile 数据，loop2 runbook 需先 compile-mock 再 xlat-real（或 zh/ 分臂）。
