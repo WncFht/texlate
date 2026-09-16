@@ -1,0 +1,104 @@
+{
+ "run_id": "e2e-real-n100-postcutover-2026-09-16",
+ "date": "2026-09-16",
+ "stage_rates": {
+  "compile": {
+   "zh": {
+    "ok": 25,
+    "total": 79,
+    "rate": 0.3165,
+    "n_skip": 0,
+    "by_status": {
+     "ok": 25,
+     "partial": 18,
+     "fail": 36
+    }
+   },
+   "base": {
+    "ok": 8,
+    "total": 54,
+    "rate": 0.1481,
+    "n_skip": 0,
+    "by_status": {
+     "ok": 8,
+     "fail": 36,
+     "partial": 10
+    }
+   }
+  },
+  "fixloop": {
+   "fix": {
+    "ok": 26,
+    "total": 36,
+    "rate": 0.7222,
+    "n_skip": 0,
+    "by_status": {
+     "ok": 26,
+     "fail": 10
+    }
+   }
+  }
+ },
+ "fixloop": {
+  "attempted": 36,
+  "rescued": 26,
+  "rescue_rate": 0.7222,
+  "top_unfixable": [
+   {
+    "sig": "unfixable:missing_file",
+    "count": 6
+   },
+   {
+    "sig": "unfixable:latex209",
+    "count": 3
+   },
+   {
+    "sig": "unfixable:other",
+    "count": 1
+   }
+  ]
+ },
+ "regressions": [
+  {
+   "kind": "pipeline_introduced",
+   "stage": "compile",
+   "id": "0707.3950"
+  },
+  {
+   "kind": "pipeline_introduced",
+   "stage": "compile",
+   "id": "0905.4907"
+  },
+  {
+   "kind": "pipeline_introduced",
+   "stage": "compile",
+   "id": "1012.1321"
+  },
+  {
+   "kind": "pipeline_introduced",
+   "stage": "compile",
+   "id": "1206.1808"
+  },
+  {
+   "kind": "pipeline_introduced",
+   "stage": "compile",
+   "id": "1511.02908"
+  },
+  {
+   "kind": "pipeline_introduced",
+   "stage": "compile",
+   "id": "2003.10959"
+  },
+  {
+   "kind": "pipeline_introduced",
+   "stage": "compile",
+   "id": "2105.03900"
+  },
+  {
+   "kind": "pipeline_introduced",
+   "stage": "compile",
+   "id": "2203.13109"
+  }
+ ],
+ "wall_s": 154.6
+}
