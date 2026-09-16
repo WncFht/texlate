@@ -307,6 +307,18 @@ class Fetcher:
         )
         return _parse_head(resp, str(resp.url), ver)
 
+    def get_url(
+        self, url: str, headers: dict[str, str] | None = None
+    ) -> httpx.Response:
+        """GET 绝对 URL（同一限速/退避纪律）——export api / oai 元数据端点用。"""
+        return self._request("GET", url, headers or {})
+
+    def head_path(self, path: str) -> httpx.Response:
+        """HEAD 同 path 按 ``hosts`` 序跨镜像尝试——/html/、/pdf/ 降级探测用。"""
+        return self._across_hosts(
+            lambda host: self._request("HEAD", f"https://{host}{path}", {})
+        )
+
     def get_src(
         self,
         arxiv_id: str,
