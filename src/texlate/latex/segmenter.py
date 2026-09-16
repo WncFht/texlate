@@ -1745,9 +1745,7 @@ class Segmenter:
         v0 = len(self.vt)  # 扫描起点——子扫全命中已盖区时不回补前缀
         gullet_inputs = getattr(src, "inputs", None)
         live_srcs = (
-            {id(m): m.file_id for m in gullet_inputs}
-            if gullet_inputs is not None
-            else None
+            {id(m): m for m in gullet_inputs} if gullet_inputs is not None else None
         )
         # 栈成员变更事件门：``_pop_seq``/``_push_seq`` 不变即 live 快照不失真
         # （fid 进出栈唯一通道是 read() 弹栈 / push_source / unread 合成源，
@@ -1772,7 +1770,9 @@ class Segmenter:
                 # 空白尾）补盖 + 零宽 run 项（surface="" 不落译文面，ident
                 # 随归属 piece 进 identity）——v1 flatten 保留这些字节。
                 # \endinput 主动截停的尾巴不盖（flatten 同语义丢弃）。
-                cur = {id(m): m.file_id for m in gullet_inputs}
+                # 快照持 Mouth 引用：弹栈对象续命一拍，防 id() 地址复用把
+                # 真弹栈遮蔽成"仍在栈"。
+                cur = {id(m): m for m in gullet_inputs}
                 endinput = (
                     t.pos[0]
                     if t is not None
@@ -1780,15 +1780,26 @@ class Segmenter:
                     and t.text.partition(":")[0] == "endinput"
                     else -1
                 )
-                for k, fid in reversed(list(live_srcs.items())):
-                    if k not in cur and fid >= 0 and fid != endinput:
-                        vspan = self._cover_to(fid, len(files[fid]))
-                        # preamble 档只盖不入队——emit 推迟整段兜底，run 项
-                        # 会冲刷出与 preamble piece 重叠的 piece
-                        if vspan.end > vspan.start and not self._preamble:
-                            self._rappend(
-                                "", self.vt.slice(vspan.start, vspan.end), vspan
-                            )
+                for k, m in reversed(list(live_srcs.items())):
+                    fid = m.file_id
+                    if k in cur or fid < 0 or fid == endinput:
+                        continue
+                    if any(
+                        t2.pos[0] == fid
+                        for mm in gullet_inputs
+                        for t2 in mm.tokbuf
+                    ):
+                        # 源弹栈 ≠ fid 枯竭：拉参/回放可把 fid 源提前排空，
+                        # 残余 token 躺合成回放源 tokbuf——尾盖抢在回放分派
+                        # 前吃字节 → 后续 cover 全零宽 → ph 空体整段 literal。
+                        continue
+                    vspan = self._cover_to(fid, len(files[fid]))
+                    # preamble 档只盖不入队——emit 推迟整段兜底，run 项
+                    # 会冲刷出与 preamble piece 重叠的 piece
+                    if vspan.end > vspan.start and not self._preamble:
+                        self._rappend(
+                            "", self.vt.slice(vspan.start, vspan.end), vspan
+                        )
                 live_srcs = cur
             if t is None:
                 break

@@ -19,6 +19,7 @@ from pathlib import Path
 import pytest
 
 from texlate.latex import parse_file, parse_tex, reconstruct
+from texlate.latex.gullet import Gullet
 from texlate.latex.model import PieceKind, ScanResult
 from texlate.latex.reconstruct import validate_result
 
@@ -495,3 +496,33 @@ def test_parse_file_flatten_false(tmp_path: Path) -> None:
     assert "\\input{sub}" in res.protected_tex
     assert res.inputs[0][1] == "sub"
     assert any(w.kind == "missing_input" for w in res.warnings)
+
+# ------------------------------------------------------- 弹栈尾盖闸
+
+
+def test_popped_source_cover_skips_buffered_fid(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    r"""源弹栈 ≠ fid 枯竭：``\\section{..\\hyperbaseurl{u%20}..}`` 的 ``%``
+    吃掉闭括号 → 参读拉穿 EOF → fid-0 源被 ``read()`` 提前弹栈，回放 token
+    躺合成回放源 ``tokbuf``——弹栈尾盖若抢跑会把 fid 余下字节一次盖掉，
+    回放分派的 ``_cover_to`` 全零宽 → ph 空体 → 整段 LITERAL（#169 flake
+    原形，曾以 ~1/20 概率随机现）。
+
+    触发本是 ``id()`` 地址复用概率事件：合成源落在刚释放主源地址上时
+    ``id`` 碰撞把弹栈遮蔽成"仍在栈"。``unread`` 前垫一批短生命周期对象
+    抢占 freelist——回放源落他址、遮蔽失效，无闸代码路径下确定性全灭。
+    """
+    real_unread = Gullet.unread
+
+    def unread_pad(self: Gullet, toks: list) -> None:
+        _pad = [bytearray(64) for _ in range(96)]
+        real_unread(self, toks)
+
+    monkeypatch.setattr(Gullet, "unread", unread_pad)
+    for _ in range(10):
+        res = scan(
+            "Text \\section{See \\hyperbaseurl{u%20} rest of title} tail.",
+            "\\usepackage{hyperref}\n",
+        )
+        assert res.ph_map["[[CMD_1]]"] == "\\hyperbaseurl{u%20}"
