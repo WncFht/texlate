@@ -5,9 +5,9 @@
 - 成员路径唯一（last-wins 去重，不留重复条目）；
 - 每个成员的真实落点 resolve 后仍在 dest 内（零逃逸）；
 - 同一真实落点被多条成员路径别名共享时（经 kept symlink 祖先写入），
-  只有最后落盘者的 kind/sha 与盘上相符——先到条目谎报，是已确认缺陷，
-  本套断言只验"各落点赢家"（缺陷本身由独立 ``xfail`` 用例钉）；
-- dir/symlink 赢家条目 kind 与盘上类型一致、link_target 原样；
+  后到写穿先到，先到条目的内容字段由 ``_reconcile_aliases`` 改记为
+  赢家实况——本套断言逐成员全验 kind/sha 与盘上相符；
+- dir/symlink 条目 kind 与盘上类型一致、link_target 原样；
 - 盘上无 phantom：每个真实文件/链接都是某成员的真实落点，每个真实
   目录是成员目录或某成员落点的祖先（隐式父级）；
 - 告警全部 UTF-8 可编码且前缀在已知告警集内；
@@ -139,9 +139,6 @@ def _check_views(res: UnpackResult) -> None:
         1 for f in files_prop if f.lower().endswith((".tex", ".ltx", ".latex"))
     )
     assert res.stub_files == sorted(m.path for m in members if m.stub)
-    assert res.extracted_bytes >= sum(
-        m.size for m in members if m.kind in ("file", "hardlink")
-    )
     for w in res.warnings:
         w.encode("utf-8")  # meta.json 可编码性
         kind, sep, _ = w.partition(":")
@@ -201,22 +198,24 @@ def _check_disk(res: UnpackResult, dest: Path) -> None:
         assert members == [], f"dest absent but members reported: {members}"
         return
     # 真实落点（resolve 父级，可穿 kept symlink）→ 落点别名识别：
-    # members 按写序追加，同 loc 的最末成员才是盘上实况持有者
+    # 同 loc 的最末成员是赢家；先到条目已被对账改记为赢家实况，逐成员全验
     locs = [_real_loc(dest_res, m.path) for m in members]
     winner = {loc: i for i, loc in enumerate(locs)}  # 后者覆盖——最末写序
-    for i, (m, loc) in enumerate(zip(members, locs, strict=True)):
+    for m, loc in zip(members, locs, strict=True):
         assert loc.is_relative_to(dest_res), f"escape member: {m.path}"
-        if i != winner[loc]:
-            continue  # 别名共享下的先到条目——盘上实况已被后到写穿（见 xfail 缺陷）
         _check_winner(m, loc, dest_res)
     files, dirs, links, others = _walk(dest_res)
     assert others == []
-    # 盘上实体只与"赢家"（各落点最末成员）对账——别名先到者已被写穿
+    # 盘上实体与"赢家"（各落点最末成员）对账
     win = [
         (loc, m)
         for m, loc in zip(members, locs, strict=True)
         if loc == locs[winner[loc]]
     ]
+    # 别名条目的 size 与赢家同记一份——字节总量只按各落点赢家对账
+    assert res.extracted_bytes >= sum(
+        m.size for _, m in win if m.kind in ("file", "hardlink")
+    )
     member_file_locs = {loc for loc, m in win if m.kind in ("file", "hardlink")}
     member_dir_locs = {loc for loc, m in win if m.kind == "dir"}
     member_link_locs = {loc for loc, m in win if m.kind == "symlink"}
@@ -415,14 +414,10 @@ def test_dup_member_cross_type_last_wins(
     assert len(xs) <= 1  # 留下至多一条，且不留幽灵
 
 
-@pytest.mark.xfail(strict=True, reason="alias defect: see body")
 def test_alias_via_symlinked_dir_lies_in_mtime(tmp_path: Path) -> None:
-    """已确认缺陷钉：``d``→``e`` symlink 后，``d/x`` 与 ``e/x`` 别名同实文件——
-    后到写穿先到，mtree 早写条目 sha 与盘上实况不符（谎报）。
-
-    ``_write_entry`` 按字面 ``rel`` 去重（member_index），不识别经
-    symlink 祖先的落点别名。修复后本用例 XPASS(strict) 报警。
-    """
+    """别名落点对账回归钉：``d``→``e`` symlink 后，``d/x`` 与 ``e/x`` 别名
+    同实文件——后到写穿先到，``_reconcile_aliases`` 把先到条目的 sha 改记
+    为盘上实况（赢家 B），并记 ``dup_member_overwrite``。"""
     payload = _make_tar(
         [
             (_dir("e"), b""),
@@ -436,6 +431,7 @@ def test_alias_via_symlinked_dir_lies_in_mtime(tmp_path: Path) -> None:
     entry = next(m for m in res.members if m.path == "d/x.tex")
     actual = hashlib.sha256((dest / "e" / "x.tex").read_bytes()).hexdigest()
     assert entry.sha256 == actual
+    assert "dup_member_overwrite:d/x.tex" in res.warnings
 
 
 def test_hardlink_chain_order_dependent(tmp_path: Path) -> None:

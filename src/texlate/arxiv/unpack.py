@@ -6,7 +6,9 @@ r"""e-print 解包：逐成员路径安全 + mtree 清单（docs/06 §2.2）。
   device/fifo/socket 等特殊文件、setuid/setgid 位、控制字符与非 UTF-8
   原名（tarfile surrogateescape 代理区——manifest/meta.json 无法编码）。
 - 规范化：``./`` 前缀剥离、重复名去重（last-wins）、大小写折叠冲突
-  改名（``~cN``）+ 告警。
+  改名（``~cN``）+ 告警。经 kept symlink 祖先写穿的别名成员共享同一
+  物理落点——解包末尾按落点对账，先到条目的内容字段改记为盘上实况
+  （last-wins 赢家），记录实际变化的记 ``dup_member_overwrite``。
 - 成员级 IO 病态（超长名、dangling/自环链接父级等 errno 白名单）降级
   ``reject_io``；成员流中途坏头（tarfile 静默停枚举、尾部留非零块）
   整包 ``UnpackError``——mtree 不能谎报完整。
@@ -186,6 +188,53 @@ def _dir_clash(res: UnpackResult, rel: str, target: Path) -> bool:
     return False
 
 
+def _member_loc(dest_res: Path, rel: str) -> Path:
+    """成员的物理落点：父级 resolve（可穿 kept symlink 祖先）+ 末段名。"""
+    p = dest_res / rel
+    try:
+        parent = p.parent.resolve()
+    except RuntimeError:
+        # 自环/环链 symlink 祖先——无法解析时按未解析路径当独立落点
+        parent = p.parent.absolute()
+    return parent / p.name
+
+
+def _reconcile_aliases(res: UnpackResult) -> None:
+    """别名落点对账：经 kept symlink 祖先写穿的成员共享同一物理落点。
+
+    mtree 按字面成员路径记账，但盘上别名路径指向同一实体——后到写穿先到
+    （last-wins），先到条目的 size/sha256（乃至 kind/link_target）仍是声明时
+    旧值，与盘上实况不符。把各落点最末成员的内容字段回填到先到条目；涉入
+    symlink 时 kind/link_target 同样以赢家为准（lstat 类型已变）。内容字段
+    实际变化的条目记 ``dup_member_overwrite``（声明载荷被后到别名覆盖，
+    与字面重名同语义）；dir/dir 等记录本就一致的别名不告警。
+    """
+    if not res.members:
+        return
+    dest_res = res.dest.resolve()
+    locs = [_member_loc(dest_res, m.path) for m in res.members]
+    winner = {loc: i for i, loc in enumerate(locs)}  # 后写序覆盖——最末为赢家
+    for i, (m, loc) in enumerate(zip(res.members, locs, strict=True)):
+        if i == winner[loc]:
+            continue
+        w = res.members[winner[loc]]  # 赢家条目不会被改写，读到的是原始记录
+        kind, link = m.kind, m.link_target
+        if m.kind == "symlink" or w.kind == "symlink":
+            kind, link = w.kind, w.link_target
+        new = MemberEntry(
+            path=m.path,
+            size=w.size,
+            sha256=w.sha256,
+            kind=kind,
+            link_target=link,
+            stub=m.stub,
+        )
+        if new == m:
+            continue
+        res.members[i] = new
+        res.warnings.append(f"dup_member_overwrite:{m.path}")
+
+
 def _write_entry(
     res: UnpackResult, rel: str, data: bytes, kind: str, link: str | None = None
 ) -> bool:
@@ -250,6 +299,7 @@ class _TarWalker:
             msg = f"not a tar stream: {e}"
             raise UnpackError(msg) from e
         self._finish_links()
+        _reconcile_aliases(self.res)
         return self.res
 
     def _claim(self, rel: str) -> str:
