@@ -25,6 +25,7 @@ import pytest
 from texlate.latex import parse_tex, reconstruct
 from texlate.latex.model import ScanResult
 from texlate.latex.reconstruct import validate_result
+from texlate.latex.tables import looks_like_colspec
 
 ART = "\\documentclass{article}\n%s\\begin{document}\n%s\n\\end{document}\n"
 
@@ -165,6 +166,34 @@ def test_r3_title_like_arg_still_leaks_to_chunk() -> None:
     res = parse_tex(tex)
     check_invariants(res, tex)
     assert "Some Title Here" in chunk_text(res)
+
+
+def test_r3_star_repeat_colspec() -> None:
+    r"""``*{n}{spec}`` 纯 array-repeat 列型（wave-review F3）：spec 组剥空后
+
+    残留 ``*`` 无列字母曾漏判——解卷 ``{spec}`` 再走同判，``{*{3}{c}|l}``/
+    嵌套 ``*{2}{c*{2}{l}}``/载荷 ``*{2}{p{3cm}}`` 全收；``*{3}`` 残缺形与
+    文本参仍落空（fail closed）。
+    """
+    assert looks_like_colspec("*{3}{c}|l")
+    assert looks_like_colspec("*{2}{p{3cm}}")
+    assert looks_like_colspec("*{2}{c*{2}{l}}")
+    assert not looks_like_colspec("*{3}")
+    assert not looks_like_colspec("Summary of results")
+
+
+def test_r3_star_repeat_env_arg_eaten() -> None:
+    r"""集成面：``\\begin{mytab}{*{3}{c}|l}`` 列参进字面段不裸漏。"""
+    tex = ART % (
+        "",
+        (
+            "\\begin{mytab}{*{3}{c}|l}\nA & B & C & D\n\\end{mytab}\n"
+            "After words here and more text to fill.\n"
+        ),
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    assert "*{3}" not in chunk_text(res)
 
 
 # ------------------------------------------------------------------ R4
