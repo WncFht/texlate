@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from typing import TYPE_CHECKING, Any
 
 import pytest
 
 from texlate.server.store import (
+    ERROR_CODES,
     Store,
     StoreError,
     TransitionError,
@@ -193,6 +195,98 @@ class TestChunks:
         assert chunks["c1"]["status"] == "fallback_orig"
         assert chunks["c2"]["error_code"] == "validate"
         assert store.cache_get("k1") == "译0"
+
+    def test_warnings_persisted(self, store: Store) -> None:
+        """T3：chunk warnings 落 chunks.warnings（JSON 列）。"""
+        row = _mk(store)
+        store.insert_chunks(row["id"], [_chunk(0)])
+        store.flush_chunk_batch(
+            row["id"],
+            [
+                (
+                    "c0",
+                    {
+                        "status": "fallback_orig",
+                        "warnings": json.dumps(
+                            ["slots unanswered"], ensure_ascii=False
+                        ),
+                        "attempts": 3,
+                    },
+                )
+            ],
+            [],
+            {"total": 1, "done": 1, "failed": 1},
+        )
+        chunk = store.all_chunks(row["id"])[0]
+        assert json.loads(chunk["warnings"]) == ["slots unanswered"]
+
+    def test_warnings_column_migration(self, tmp_path: Path) -> None:
+        """老库（chunks 无 warnings 列）→ open() 探测补列（幂等）。"""
+        db = tmp_path / "old.db"
+        conn = sqlite3.connect(db)
+        conn.executescript(
+            "CREATE TABLE chunks ("
+            " task_id TEXT NOT NULL, seq INTEGER NOT NULL,"
+            " chunk_id TEXT NOT NULL, status TEXT DEFAULT 'pending',"
+            " PRIMARY KEY (task_id, chunk_id));"
+        )
+        conn.commit()
+        conn.close()
+        s = Store(db)
+        s.open()
+        try:
+            cols = {str(r["name"]) for r in s.conn.execute("PRAGMA table_info(chunks)")}
+            assert "warnings" in cols
+            s.conn.execute(
+                "INSERT INTO chunks (task_id, seq, chunk_id, warnings)"
+                " VALUES ('t_x', 0, 'c0', ?)",
+                (json.dumps(["w"]),),
+            )
+            got = s.conn.execute(
+                "SELECT warnings FROM chunks WHERE chunk_id = 'c0'"
+            ).fetchone()
+            assert json.loads(got["warnings"]) == ["w"]
+        finally:
+            s.close()
+
+
+class TestErrorCodes:
+    def test_inject_reject_listed(self) -> None:
+        """T7b：inject_reject 是合法错误码（inject 拒翻 → fault 落它）。"""
+        assert "inject_reject" in ERROR_CODES
+
+
+class TestUsage:
+    def test_record_and_snapshot(self, store: Store) -> None:
+        """T4：record_usage upsert 累加 + snapshot 带 usage。"""
+        row = _mk(store)
+        assert store.usage_for(row["id"]) is None
+        snap = store.snapshot(row["id"], artifacts={})
+        assert "usage" not in snap
+        store.record_usage(
+            row["id"],
+            model="m1",
+            calls=2,
+            prompt_tokens=100,
+            completion_tokens=50,
+            latency_s=1.5,
+        )
+        store.record_usage(
+            row["id"],
+            model="m1",
+            calls=1,
+            prompt_tokens=10,
+            completion_tokens=5,
+            latency_s=0.5,
+        )
+        u = store.usage_for(row["id"])
+        assert u is not None
+        assert u["calls"] == 3  # noqa: PLR2004 -- 2+1 upsert 累加
+        assert u["prompt_tokens"] == 110  # noqa: PLR2004
+        assert u["completion_tokens"] == 55  # noqa: PLR2004
+        assert u["latency_s"] == pytest.approx(2.0)
+        snap = store.snapshot(row["id"], artifacts={})
+        assert snap["usage"]["calls"] == 3  # noqa: PLR2004
 
 
 class TestEvents:

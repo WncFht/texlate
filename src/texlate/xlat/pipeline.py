@@ -32,7 +32,15 @@ from .batch import (
     parse_batch_response,
     split_long_chunk,
 )
-from .client import ChatClient, ChatError, ChatOptions, LengthTruncatedError
+from .client import (
+    HTTP_FORBIDDEN,
+    HTTP_UNAUTHORIZED,
+    AuthError,
+    ChatClient,
+    ChatError,
+    ChatOptions,
+    LengthTruncatedError,
+)
 from .retry import RetryPolicy, call_with_backoff, translate_with_ladder
 from .state import ChunkRecord, StateStore, segment_key
 
@@ -106,6 +114,9 @@ class ChunkResult:
     skip_reason: str = ""
     attempts: int = 0
     warnings: list[str] = field(default_factory=list)
+    #: 失败成因分类（打标处在异常现场赋值）："" | auth | provider | crash |
+    #: validate——auth 闸计数与 error_code 归一的共同输入。
+    error_kind: str = ""
 
 
 # ---------------------------------------------------------------- Translator 协议
@@ -285,6 +296,66 @@ def _mock_translate_text(text: str, zh: str) -> str:
 # ---------------------------------------------------------------- Pipeline
 
 
+def _is_auth_error(e: BaseException) -> bool:
+    """Auth 类失败判定：401/403（AuthError 或裸 status 命中）。"""
+    return isinstance(e, AuthError) or (
+        isinstance(e, ChatError) and e.status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN)
+    )
+
+
+def _kind_of(e: BaseException) -> str:
+    """异常 → ``ChunkResult.error_kind``：auth | provider | crash。"""
+    if isinstance(e, ChatError):
+        return "auth" if _is_auth_error(e) else "provider"
+    return "crash"
+
+
+class AuthTrippedError(AuthError):
+    """连续 auth-fail 熔断信号（T2）：``run()`` 抛出 = 论文 fault。
+
+    继承 ``AuthError``——调用方既有的 ``except AuthError`` 归类
+    （worker → ``provider_auth``）对它天然生效。
+    """
+
+
+@dataclass
+class AuthGate:
+    """连续 auth-fail 计数闸（一个 ``run()`` 一扇，``run`` 开头重置）。
+
+    - ``consecutive``：当前连续 auth-fail 块数。
+    - ``tripped``：``consecutive`` 达到 ``threshold`` 闩锁——run 收尾抛
+      ``AuthTrippedError``。
+    - ``auth_failures``/``non_auth``：本 run 累计——``all_failed`` 属性是
+      「整篇全 auth 败」判定，跨论文熔断（连续 N 篇）由调用方据此自行累计。
+    """
+
+    threshold: int = 3
+    consecutive: int = 0
+    auth_failures: int = 0
+    non_auth: int = 0
+    tripped: bool = False
+
+    def record(self, r: ChunkResult) -> None:
+        """逐结果入账：auth 类累计；真发过请求的非-auth 结果清零连续计数。
+
+        ``attempts==0`` 且无 error_kind 的 ok（缓存命中等）不置证——
+        没发请求，对 auth 死活既不清零也不计 ``non_auth`` 分母。
+        """
+        if r.error_kind == "auth":
+            self.consecutive += 1
+            self.auth_failures += 1
+            if 0 < self.threshold <= self.consecutive:
+                self.tripped = True
+        elif r.attempts > 0 or r.error_kind:
+            self.consecutive = 0
+            self.non_auth += 1
+
+    @property
+    def all_failed(self) -> bool:
+        """本 run 是否「全 auth 败」——已熔断，或有 auth-fail 且零成功请求。"""
+        return self.tripped or (self.auth_failures > 0 and self.non_auth == 0)
+
+
 def _item_chunks(item: tuple[str, Any]) -> list[ChunkIn]:
     """工作单元 → 受影响 ChunkIn（worker crash 兜底记账用）。"""
     kind, payload = item
@@ -307,6 +378,8 @@ class PipelineConfig:
     max_tokens: int = TRANSLATE_MAX_TOKENS
     src_lang: str = "English"
     tgt_lang: str = "Chinese"
+    #: 连续 auth-fail 块数熔断阈值（T2；≤0 = 不熔断）
+    auth_fail_threshold: int = 3
 
 
 class XlatPipeline:
@@ -336,6 +409,8 @@ class XlatPipeline:
         self.validator = validator or (lambda s, z: placeholders.diff(s, z).describe())
         self.cache = cache
         self.on_result = on_result
+        #: auth 熔断闸（``run()`` 每次开头重置；跨论文熔断靠调用方读它累计）
+        self.auth_gate = AuthGate(self.cfg.auth_fail_threshold)
         self._doc_glossary: dict[str, str] = {}
         self._prompts: dict[tuple[str, bool], str] = {}
 
@@ -482,6 +557,7 @@ class XlatPipeline:
             ),
             attempts=res.attempts,
             warnings=res.warnings,
+            error_kind="validate" if res.status == "fallback_orig" else "",
         )
 
     async def retranslate_chunk(
@@ -526,6 +602,7 @@ class XlatPipeline:
                 status="fault",
                 attempts=1,
                 warnings=[*warnings, f"retranslate still invalid: {err}"],
+                error_kind="validate",
             )
         if self.cache is not None:
             self.cache[self._seg_key(c)] = zh
@@ -559,7 +636,9 @@ class XlatPipeline:
         except ChatError as e:
             if not e.retryable:
                 # 认证/余额/地址类错误重试无意义——直接整块 skip
-                return [self._skip(c, str(e), batch_id) for c in members]
+                return [
+                    self._skip(c, str(e), batch_id, kind=_kind_of(e)) for c in members
+                ]
             log.debug("batch %s call failed (%s) → degrade to singles", batch_id, e)
         except Exception as e:  # noqa: BLE001 -- 批量调用崩→退单翻，绝不丢成员
             log.debug("batch %s crashed (%s) → degrade to singles", batch_id, e)
@@ -606,13 +685,15 @@ class XlatPipeline:
         try:
             return await self._one_chunk(c, batch_id=batch_id)
         except ChatError as e:
-            return self._skip(c, f"degraded single: {e}", batch_id)
+            return self._skip(c, f"degraded single: {e}", batch_id, kind=_kind_of(e))
         except Exception as e:  # noqa: BLE001 -- 单块崩不拖全批
-            return self._skip(c, f"degraded single crash: {e}", batch_id)
+            return self._skip(c, f"degraded single crash: {e}", batch_id, kind="crash")
 
     @staticmethod
-    def _skip(c: ChunkIn, reason: str, batch_id: str = "") -> ChunkResult:
-        """失败回退原文——不阻塞整批（docs/08 §1.6）。"""
+    def _skip(
+        c: ChunkIn, reason: str, batch_id: str = "", *, kind: str = ""
+    ) -> ChunkResult:
+        """失败回退原文——不阻塞整批（docs/08 §1.6）。``kind`` 记失败成因。"""
         return ChunkResult(
             chunk_id=c.chunk_id,
             source=c.content,
@@ -622,6 +703,7 @@ class XlatPipeline:
             batch_id=batch_id,
             skipped=True,
             skip_reason=reason,
+            error_kind=kind,
         )
 
     def _emit(self, r: ChunkResult) -> None:
@@ -639,6 +721,7 @@ class XlatPipeline:
                     skip_reason=r.skip_reason,
                     attempts=r.attempts,
                     warnings=r.warnings,
+                    error_kind=r.error_kind,
                 ),
                 error=({"error": r.skip_reason} if r.skipped else None),
             )
@@ -660,19 +743,24 @@ class XlatPipeline:
             try:
                 return await self._one_batch(members, bid)
             except Exception as e:  # noqa: BLE001 -- worker 绝不让一批炸全队
-                return [self._skip(c, f"batch crash: {e}", bid) for c in members]
+                return [
+                    self._skip(c, f"batch crash: {e}", bid, kind=_kind_of(e))
+                    for c in members
+                ]
         if kind == "split":
             parent, pieces = payload
             translations: list[str] = []
             warnings: list[str] = []
+            kinds: list[str] = []
             worst = "ok"
             for piece in pieces:
                 try:
                     r = await self._one_chunk(piece)
                 except Exception as e:  # noqa: BLE001 -- 片段崩不拖全块
-                    r = self._skip(piece, f"split piece crash: {e}")
+                    r = self._skip(piece, f"split piece crash: {e}", kind=_kind_of(e))
                 translations.append(r.translation)
                 warnings += r.warnings
+                kinds.append(r.error_kind)
                 if r.status in ("fault", "skipped"):
                     worst = "fault"
                 elif r.status == "partial" and worst == "ok":
@@ -689,13 +777,16 @@ class XlatPipeline:
                     skipped=(status == "fault"),
                     skip_reason="split piece(s) failed" if status == "fault" else "",
                     warnings=warnings,
+                    error_kind=(
+                        "auth" if "auth" in kinds else next((k for k in kinds if k), "")
+                    ),
                 )
             ]
         c = payload
         try:
             return [await self._one_chunk(c)]
         except Exception as e:  # noqa: BLE001 -- 同上
-            return [self._skip(c, f"chunk crash: {e}")]
+            return [self._skip(c, f"chunk crash: {e}", kind=_kind_of(e))]
 
     def _load_resumed(self) -> tuple[set[str], dict[str, ChunkResult]]:
         """续跑装载：state → (completed 集合, chunk_id→ChunkResult)。"""
@@ -725,6 +816,7 @@ class XlatPipeline:
                 skip_reason=rec.skip_reason,
                 attempts=rec.attempts,
                 warnings=rec.warnings,
+                error_kind=rec.error_kind,
             )
         return completed, done_map
 
@@ -818,15 +910,23 @@ class XlatPipeline:
             try:
                 if item is None:
                     return
-                try:
-                    results = await self._process(item)
-                except Exception as e:
-                    # _process 各分支已兜底；真逃逸（bug/中断）也要把受影响
-                    # 块记成 skipped 而不是拖死整个消费循环。
-                    log.exception("worker item crashed")
+                if self.auth_gate.tripped:
+                    # auth 闸已断：剩余块不再发请求，直接按 auth 失败记账
                     results = [
-                        self._skip(c, f"worker crash: {e}") for c in _item_chunks(item)
+                        self._skip(c, "auth circuit open", kind="auth")
+                        for c in _item_chunks(item)
                     ]
+                else:
+                    try:
+                        results = await self._process(item)
+                    except Exception as e:
+                        # _process 各分支已兜底；真逃逸（bug/中断）也要把受影响
+                        # 块记成 skipped 而不是拖死整个消费循环。
+                        log.exception("worker item crashed")
+                        results = [
+                            self._skip(c, f"worker crash: {e}", kind=_kind_of(e))
+                            for c in _item_chunks(item)
+                        ]
                 self._collect(results, done_map)
             finally:
                 queue.task_done()
@@ -843,6 +943,7 @@ class XlatPipeline:
         """
         for r in results:
             done_map[r.chunk_id] = r
+            self.auth_gate.record(r)
             try:
                 self._emit(r)
             except Exception:
@@ -868,7 +969,8 @@ class XlatPipeline:
             except Exception as e:  # 与 _worker 同兜底口径
                 log.exception("warmup item crashed")
                 results = [
-                    self._skip(c, f"warmup crash: {e}") for c in _item_chunks(first)
+                    self._skip(c, f"warmup crash: {e}", kind=_kind_of(e))
+                    for c in _item_chunks(first)
                 ]
             self._collect(results, done_map)
         queue.task_done()
@@ -883,7 +985,13 @@ class XlatPipeline:
         await asyncio.gather(*workers)
 
     async def run(self, chunks: list[ChunkIn]) -> list[ChunkResult]:
-        """跑完整篇。返回与输入同序的结果表。"""
+        """跑完整篇。返回与输入同序的结果表。
+
+        连续 ``cfg.auth_fail_threshold`` 块 auth 类失败（401/403）→ 抛
+        ``AuthTrippedError`` 让论文 fault——凭证失效时绝不把整篇静默写成
+        fallback 原文（T2：n100 里 401 逐块吞成 skipped→任务假 done）。
+        """
+        self.auth_gate = AuthGate(self.cfg.auth_fail_threshold)
         completed, done_map = self._load_resumed()
         pending, split_items = self._route_chunks(chunks, completed, done_map)
 
@@ -897,4 +1005,10 @@ class XlatPipeline:
 
         if self.state is not None:
             self.state.finish()
+        if self.auth_gate.tripped:
+            msg = (
+                f"auth circuit open: {self.auth_gate.consecutive} consecutive "
+                "auth failures (401/403) — check credentials"
+            )
+            raise AuthTrippedError(msg, status=HTTP_UNAUTHORIZED)
         return [done_map[c.chunk_id] for c in chunks]

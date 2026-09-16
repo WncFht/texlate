@@ -63,8 +63,15 @@ class RetryPolicy:
 
 
 def _backoff_delay(e: BaseException, attempt: int, p: RetryPolicy) -> float | None:
-    """本次失败应睡多久；`None` = 不重试（non-retryable 或已是最后一试）。"""
-    if attempt == p.max_tries - 1:
+    """本次失败应睡多久；`None` = 不重试（non-retryable 或已是最后一试）。
+
+    ``ChatError.max_tries`` 收窄该错误自己的总尝试数（EmptyContentError
+    只翻身一次——连续空响应不是瞬时抖动，不值得烧满 policy 上限）。
+    """
+    limit = p.max_tries
+    if isinstance(e, ChatError) and e.max_tries is not None:
+        limit = min(limit, e.max_tries)
+    if attempt >= limit - 1:
         return None
     delay: float | None = None
     if isinstance(e, ChatError):

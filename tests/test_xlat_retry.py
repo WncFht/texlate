@@ -5,7 +5,12 @@ import asyncio
 import pytest
 
 from texlate.xlat import retry as rt
-from texlate.xlat.client import AuthError, ChatError, RetryableHTTPError
+from texlate.xlat.client import (
+    AuthError,
+    ChatError,
+    EmptyContentError,
+    RetryableHTTPError,
+)
 
 
 def _policy(
@@ -71,6 +76,35 @@ class TestBackoff:
 
         with pytest.raises(RetryableHTTPError):
             asyncio.run(rt.call_with_backoff(always, policy=_policy(max_tries=2)))
+
+    def test_empty_content_retried_once_then_raises(self) -> None:
+        """T7a：EmptyContentError retryable 但 max_tries=2——只翻身一次
+        （原先 non-retryable 直接穿透；也不该烧满 policy 上限）。"""
+        calls = {"n": 0}
+
+        async def empty() -> str:
+            calls["n"] += 1
+            msg = "empty content"
+            raise EmptyContentError(msg)
+
+        with pytest.raises(EmptyContentError):
+            asyncio.run(rt.call_with_backoff(empty, policy=_policy(max_tries=5)))
+        assert calls["n"] == 2  # noqa: PLR2004 -- 首发 + 一次翻身
+
+    def test_empty_content_second_try_success(self) -> None:
+        """第一次空、第二次出正文 → 正常返回（reasoning 模型偶发空响应）。"""
+        calls = {"n": 0}
+
+        async def flaky() -> str:
+            calls["n"] += 1
+            if calls["n"] == 1:
+                msg = "empty content"
+                raise EmptyContentError(msg)
+            return "ok"
+
+        out = asyncio.run(rt.call_with_backoff(flaky, policy=_policy()))
+        assert out == "ok"
+        assert calls["n"] == 2  # noqa: PLR2004 -- 第二试成功
 
     def test_429_floor_and_retry_after(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """429 → 3^attempt 且 ≥rate_limit_floor；Retry-After 从其值。"""

@@ -4,6 +4,8 @@ import asyncio
 import json
 from pathlib import Path
 
+import pytest
+
 from texlate.xlat import pipeline as pl
 from texlate.xlat.client import AuthError
 from texlate.xlat.state import StateStore
@@ -198,3 +200,127 @@ class TestResumeAndCache:
         assert data["completed"] == ["c1"]
         assert data["results"][0]["status"] == "ok"
         assert data["meta"]["total_chunks"] == 1
+
+
+class _SelectiveAuthTranslator(pl.MockTranslator):
+    """user 含 ``BAD`` 的块抛 AuthError(401)，其余走 Mock——闸清零测试用。"""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.seen: list[str] = []
+
+    async def translate(
+        self,
+        *,
+        system: str,
+        user: str,
+        temperature: float,
+        max_tokens: int,
+        response_format: dict[str, str] | None = None,
+    ) -> str:
+        self.seen.append(user)
+        if "BAD" in user:
+            msg = "denied"
+            raise AuthError(msg, status=401)
+        return await super().translate(
+            system=system,
+            user=user,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            response_format=response_format,
+        )
+
+
+def _auth_rec(cid: str) -> pl.ChunkResult:
+    """合成一条 auth-fail 结果（AuthGate 单元测试用）。"""
+    return pl.ChunkResult(
+        chunk_id=cid,
+        source="s",
+        translation="s",
+        kind="para",
+        status="skipped",
+        skipped=True,
+        error_kind="auth",
+    )
+
+
+class TestAuthGate:
+    """T2：连续 N 块 auth 失败 → AuthTrippedError（论文 fault 信号）。"""
+
+    def test_trip_raises(self) -> None:
+        pipe = pl.XlatPipeline(translator=_AuthFailTranslator())
+        chunks = [_mk(f"para {i} text", f"a{i}") for i in range(4)]
+        with pytest.raises(pl.AuthTrippedError):
+            asyncio.run(pipe.run(chunks))
+        assert pipe.auth_gate.tripped
+        assert pipe.auth_gate.all_failed
+
+    def test_under_threshold_returns(self) -> None:
+        """2 块全 auth-fail 不够闸——run 正常返回，但 all_failed 置证
+        （跨篇熔断器读这个：连续全 auth 败的论文数）。"""
+        pipe = pl.XlatPipeline(translator=_AuthFailTranslator())
+        out = asyncio.run(pipe.run([_mk("a", "a"), _mk("b", "b")]))
+        assert all(r.skipped and r.error_kind == "auth" for r in out)
+        assert not pipe.auth_gate.tripped
+        assert pipe.auth_gate.all_failed
+
+    def test_success_resets_consecutive(self) -> None:
+        """bad,bad,ok,bad,bad：ok 清零连续计数——不熔断、正常返回。"""
+        cfg = pl.PipelineConfig(concurrency=1, short_limit=0)
+        t = _SelectiveAuthTranslator()
+        chunks = [
+            _mk("BAD one", "b1"),
+            _mk("BAD two", "b2"),
+            _mk("good para", "g1"),
+            _mk("BAD three", "b3"),
+            _mk("BAD four", "b4"),
+        ]
+        out = asyncio.run(pl.XlatPipeline(t, config=cfg).run(chunks))
+        assert len(t.seen) == len(chunks)  # 每块真发过请求
+        assert [r.chunk_id for r in out] == ["b1", "b2", "g1", "b3", "b4"]
+        assert out[2].status == "ok"
+        assert all(r.error_kind == "auth" for r in out if r.chunk_id != "g1")
+
+    def test_tripped_short_circuits_rest(self) -> None:
+        """闸断后剩余块不再发请求——直接按 auth 失败记账。"""
+        cfg = pl.PipelineConfig(concurrency=1, short_limit=0)
+        t = _SelectiveAuthTranslator()
+        pipe = pl.XlatPipeline(t, config=cfg)
+        chunks = [_mk(f"BAD text {i}", f"c{i}") for i in range(6)]
+        with pytest.raises(pl.AuthTrippedError):
+            asyncio.run(pipe.run(chunks))
+        assert len(t.seen) == 3  # noqa: PLR2004 -- 闸断后零请求
+        assert pipe.auth_gate.auth_failures == len(chunks)
+
+    def test_gate_reset_between_runs(self) -> None:
+        """run() 开头重置闸——同一 pipe 二跑不吃上篇的连续计数。"""
+        cfg = pl.PipelineConfig(concurrency=1, short_limit=0)
+        pipe = pl.XlatPipeline(_AuthFailTranslator(), config=cfg)
+        bad = [_mk(f"text {i}", f"c{i}") for i in range(3)]
+        with pytest.raises(pl.AuthTrippedError):
+            asyncio.run(pipe.run(bad))
+        pipe.translator = pl.MockTranslator()
+        out = asyncio.run(pipe.run([_mk("fine", "g1")]))
+        assert out[0].status == "ok"
+        assert not pipe.auth_gate.tripped
+        assert not pipe.auth_gate.all_failed
+
+    def test_cache_hit_does_not_reset(self) -> None:
+        """attempts==0 且无 error_kind 的结果（缓存命中）不清零连续计数。"""
+        g = pl.AuthGate(threshold=3)
+        g.record(_auth_rec("a"))
+        g.record(_auth_rec("b"))
+        g.record(
+            pl.ChunkResult(chunk_id="c", source="s", translation="t", kind="para")
+        )  # 缓存命中：attempts=0、error_kind="" → 中性
+        assert g.consecutive == 2  # noqa: PLR2004 -- 二连不清零
+        g.record(_auth_rec("d"))
+        assert g.tripped
+
+    def test_threshold_zero_disables(self) -> None:
+        """auth_fail_threshold<=0 → 闸停用（auth-fail 仍照常记 skipped）。"""
+        cfg = pl.PipelineConfig(auth_fail_threshold=0)
+        pipe = pl.XlatPipeline(_AuthFailTranslator(), config=cfg)
+        out = asyncio.run(pipe.run([_mk(f"t{i}", f"c{i}") for i in range(4)]))
+        assert all(r.skipped for r in out)
+        assert not pipe.auth_gate.tripped

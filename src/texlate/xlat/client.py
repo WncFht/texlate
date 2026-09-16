@@ -21,13 +21,13 @@ import re
 import ssl
 import time
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING, Any, Self, TypedDict
 from urllib.parse import urlsplit
 
 import httpx
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator
+    from collections.abc import AsyncIterator, Callable
 
 log = logging.getLogger(__name__)
 
@@ -79,12 +79,18 @@ class ChatError(XlatError):
         status: int = -1,
         retryable: bool = False,
         retry_after: float | None = None,
+        max_tries: int | None = None,
     ) -> None:
-        """HTTP 层错误：status（传输层 -1）+ retryable + retry_after。"""
+        """HTTP 层错误：status（传输层 -1）+ retryable + retry_after。
+
+        ``max_tries`` 收窄该错误在 ``call_with_backoff`` 里的总尝试数
+        （None = 跟随 RetryPolicy.max_tries）。
+        """
         super().__init__(message)
         self.status = status
         self.retryable = retryable
         self.retry_after = retry_after
+        self.max_tries = max_tries
 
 
 class AuthError(ChatError):
@@ -117,7 +123,17 @@ class LengthTruncatedError(ChatError):
 
 
 class EmptyContentError(ChatError):
-    """HTTP 200 但 content 为空（reasoning 模型预算被思考烧光的典型形态）。"""
+    """HTTP 200 但 content 为空（reasoning 模型预算被思考烧光的典型形态）。
+
+    retryable 但 ``max_tries=2``（只翻身一次——连续空响应多半是模型/预算
+    问题而非瞬时抖动；原先 non-retryable 让空响应直接穿透成 skipped）。
+    ``status`` 记真实 HTTP 码 200：这是合同违约不是传输故障，退避走
+    base·2^attempt 而非 timeout_floor。
+    """
+
+    def __init__(self, message: str) -> None:
+        """空响应：retryable + 总尝试数封顶 2。"""
+        super().__init__(message, status=HTTP_OK, retryable=True, max_tries=2)
 
 
 def _retry_after(headers: httpx.Headers) -> float | None:
@@ -211,6 +227,19 @@ class StreamEvent:
     kind: str
     delta: str = ""
     finish_reason: str = ""
+
+
+class UsageRecord(TypedDict):
+    """``usage_sink`` 回调载荷——一次成功 ``chat()`` 的记账单元（T4）。
+
+    ``Translator`` 协议只回 ``str``，token/延迟在边界被丢弃；挂 sink 后
+    每次成功响应把 usage+latency 递出（失败的 HTTP 调用无 usage 可报）。
+    """
+
+    model: str
+    prompt_tokens: int
+    completion_tokens: int
+    latency_s: float
 
 
 @dataclass(frozen=True)
@@ -323,7 +352,7 @@ class ChatClient:
             r = await c.chat("swe-2-medium", messages, temperature=0.2, max_tokens=8192)
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 -- endpoint/key + provider/timeout/http + usage_sink 全是独立旋钮
         self,
         base_url: str,
         api_key: str = "",
@@ -331,6 +360,7 @@ class ChatClient:
         provider: str | None = None,
         timeout: httpx.Timeout | None = None,
         http: httpx.AsyncClient | None = None,
+        usage_sink: Callable[[UsageRecord], None] | None = None,
     ) -> None:
         """按 base_url 自动识别 provider/方言；`http` 传入外部 client 时不自持。"""
         self.base_url = normalize_base_url(base_url)
@@ -342,6 +372,8 @@ class ChatClient:
             timeout=timeout or DEFAULT_TIMEOUT,
             headers={"Content-Type": "application/json"},
         )
+        #: 每次成功 ``chat()`` 后调用的记账回调（可后挂——worker 侧接线点）
+        self.usage_sink = usage_sink
 
     async def __aenter__(self) -> Self:
         """进入 async with——返回自身。"""
@@ -533,8 +565,23 @@ class ChatClient:
             msg = f"non-JSON response: {resp.text[:200]}"
             raise ChatError(msg) from e
         if self.dialect == "anthropic":
-            return self._parse_anthropic(payload, latency)
-        return self._parse_openai(payload, latency)
+            result = self._parse_anthropic(payload, latency)
+        else:
+            result = self._parse_openai(payload, latency)
+        sink = self.usage_sink
+        if sink is not None:
+            try:
+                sink(
+                    {
+                        "model": result.model,
+                        "prompt_tokens": result.usage.prompt_tokens,
+                        "completion_tokens": result.usage.completion_tokens,
+                        "latency_s": result.latency_s,
+                    }
+                )
+            except Exception:
+                log.exception("usage_sink failed")  # 记账回调绝不拖垮调用
+        return result
 
     @staticmethod
     def _sse_events(line: str) -> tuple[list[StreamEvent], bool]:

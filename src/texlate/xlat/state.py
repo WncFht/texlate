@@ -141,6 +141,8 @@ class ChunkRecord:
     skip_reason: str = ""
     attempts: int = 0
     warnings: list[str] = field(default_factory=list)
+    #: 失败成因（""|auth|provider|crash|validate）——error_code 归一输入
+    error_kind: str = ""
 
 
 class StateStore:
@@ -212,6 +214,7 @@ class StateStore:
                     skip_reason=str(r.get("skip_reason", "")),
                     attempts=int(r.get("attempts", 0)),
                     warnings=list(r.get("warnings") or []),
+                    error_kind=str(r.get("error_kind") or ""),
                 )
             except (KeyError, TypeError, ValueError) as e:
                 log.warning("state record skipped: %s", e)
@@ -251,6 +254,7 @@ class StateStore:
                 "skip_reason": rec.skip_reason,
                 "attempts": rec.attempts,
                 "warnings": rec.warnings,
+                "error_kind": rec.error_kind,
             }
         )
         if error is not None:

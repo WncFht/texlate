@@ -68,6 +68,7 @@ CREATE TABLE IF NOT EXISTS chunks (
   translation TEXT,
   error_code TEXT,
   attempts   INTEGER NOT NULL DEFAULT 0,
+  warnings   TEXT,
   PRIMARY KEY (task_id, chunk_id),
   UNIQUE (task_id, seq)
 );
@@ -99,7 +100,25 @@ CREATE TABLE IF NOT EXISTS task_events (
   created_at REAL NOT NULL,
   PRIMARY KEY (task_id, seq)
 );
+
+-- T4：翻译阶段真实 usage/latency 聚合（ChatClient.usage_sink → worker 记账；
+-- CREATE IF NOT EXISTS 自带迁移——老库补建即得，不用 ALTER）
+CREATE TABLE IF NOT EXISTS task_usage (
+  task_id           TEXT PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
+  model             TEXT NOT NULL DEFAULT '',
+  calls             INTEGER NOT NULL DEFAULT 0,
+  prompt_tokens     INTEGER NOT NULL DEFAULT 0,
+  completion_tokens INTEGER NOT NULL DEFAULT 0,
+  latency_s         REAL NOT NULL DEFAULT 0,
+  updated_at        REAL NOT NULL
+);
 """
+
+#: 列级迁移（CREATE IF NOT EXISTS 盖不住的老库加列）：
+#: ``(table, column, ALTER 片段)``——table_info 探测缺失才执行。
+_COLUMN_MIGRATIONS: tuple[tuple[str, str, str], ...] = (
+    ("chunks", "warnings", "ALTER TABLE chunks ADD COLUMN warnings TEXT"),
+)
 
 #: 11 态机（§3.3）
 ACTIVE_STATUSES = frozenset(
@@ -135,11 +154,18 @@ ERROR_CODES = frozenset(
         "validate",
         "placeholder_mismatch",
         "compile",
+        "inject_reject",
         "fixloop_exhausted",
         "internal",
         "auth_required",
         "unsupported_format",
         "upload_too_large",
+        # BabelDOC sidecar 判定码（pdf-path.md §三 assess → _run_pdf 透传）
+        "timeout",
+        "scanned_pdf",
+        "babeldoc_translate",
+        "zero_tokens",
+        "degraded",
     }
 )
 
@@ -203,7 +229,17 @@ class Store:
         conn.execute("PRAGMA synchronous = NORMAL")
         conn.execute("PRAGMA foreign_keys = ON")
         conn.executescript(DDL)
+        self._migrate(conn)
         self._conn = conn
+
+    @staticmethod
+    def _migrate(conn: sqlite3.Connection) -> None:
+        """列级迁移：``_COLUMN_MIGRATIONS`` 里探测缺失才 ALTER（幂等）。"""
+        for table, column, ddl in _COLUMN_MIGRATIONS:
+            cols = {str(r["name"]) for r in conn.execute(f"PRAGMA table_info({table})")}
+            if column not in cols:
+                conn.execute(ddl)
+        conn.commit()
 
     def close(self) -> None:
         """关连接。"""
@@ -553,6 +589,51 @@ class Store:
             conn.rollback()
             raise
 
+    # ------------------------------------------------------------ usage（T4）
+
+    def record_usage(  # noqa: PLR0913 -- usage 聚合五元组是 spec 定案字段
+        self,
+        task_id: str,
+        *,
+        model: str,
+        calls: int,
+        prompt_tokens: int,
+        completion_tokens: int,
+        latency_s: float,
+    ) -> None:
+        """翻译阶段真实 usage 聚合落 task_usage（upsert 累加，T4）。"""
+        self.conn.execute(
+            "INSERT INTO task_usage (task_id, model, calls, prompt_tokens,"
+            " completion_tokens, latency_s, updated_at) VALUES (?,?,?,?,?,?,?)"
+            " ON CONFLICT(task_id) DO UPDATE SET"
+            " model = excluded.model,"
+            " calls = task_usage.calls + excluded.calls,"
+            " prompt_tokens = task_usage.prompt_tokens + excluded.prompt_tokens,"
+            " completion_tokens = task_usage.completion_tokens"
+            "   + excluded.completion_tokens,"
+            " latency_s = task_usage.latency_s + excluded.latency_s,"
+            " updated_at = excluded.updated_at",
+            (
+                task_id,
+                model,
+                calls,
+                prompt_tokens,
+                completion_tokens,
+                latency_s,
+                time.time(),
+            ),
+        )
+        self.conn.commit()
+
+    def usage_for(self, task_id: str) -> dict[str, Any] | None:
+        """task_usage 行 → dict；无记录 None。"""
+        row = self.conn.execute(
+            "SELECT model, calls, prompt_tokens, completion_tokens, latency_s"
+            " FROM task_usage WHERE task_id = ?",
+            (task_id,),
+        ).fetchone()
+        return dict(row) if row is not None else None
+
     # ------------------------------------------------------------ files
 
     def put_file(
@@ -704,6 +785,9 @@ class Store:
             "artifacts": artifacts,
             "last_seq": self.last_seq(task_id),
         }
+        usage = self.usage_for(task_id)
+        if usage is not None:
+            snap["usage"] = usage
         if row["stage"]:
             snap["stage"] = row["stage"]
         for opt_key, snap_key in (
