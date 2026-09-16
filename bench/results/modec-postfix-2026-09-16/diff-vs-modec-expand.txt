@@ -1,0 +1,113 @@
+=== verdict matrix ===
+arm	base c/p/f	new c/p/f
+base-xel	44/24/12	44/24/12
+pipe-xel	54/24/2	65/12/3
+pipeB-xel	56/21/3	67/10/3
+pipeC-xel	47/31/2	59/18/3
+
+=== per-id verdict transitions (new != base) ===
+0707.1871 pipe-xel: partial(clean) -> clean(clean) reasons=[]
+0707.1871 pipeB-xel: partial(clean) -> clean(clean) reasons=[]
+0707.1871 pipeC-xel: partial(clean) -> clean(clean) reasons=[]
+0806.1984 pipe-xel: partial(clean) -> clean(illegal_unit) reasons=[]
+0806.1984 pipeB-xel: partial(clean) -> clean(syntax) reasons=[]
+0806.1984 pipeC-xel: partial(clean) -> clean(illegal_unit) reasons=[]
+0905.0795 pipe-xel: partial(clean) -> clean(clean) reasons=[]
+0905.0795 pipeB-xel: partial(clean) -> clean(clean) reasons=[]
+0905.0795 pipeC-xel: partial(clean) -> clean(clean) reasons=[]
+1003.0112 pipe-xel: partial(other) -> clean(other) reasons=[]
+1003.0112 pipeB-xel: partial(other) -> clean(other) reasons=[]
+1003.0112 pipeC-xel: partial(undefined_cs) -> clean(clean) reasons=[]
+1206.0526 pipeC-xel: partial(undefined_cs) -> clean(clean) reasons=[]
+1306.0067 pipe-xel: fail(syntax) -> clean(clean) reasons=[]
+1306.0067 pipeB-xel: fail(syntax) -> clean(clean) reasons=[]
+1306.0067 pipeC-xel: fail(syntax) -> partial(undefined_cs) reasons=['first_error=undefined_cs:noin']
+1306.0068 pipe-xel: partial(clean) -> clean(clean) reasons=[]
+1306.0068 pipeB-xel: partial(clean) -> clean(clean) reasons=[]
+1306.0068 pipeC-xel: partial(clean) -> clean(clean) reasons=[]
+2403.05542 pipeC-xel: partial(syntax) -> clean(syntax) reasons=[]
+2410.00019 pipe-xel: partial(undefined_cs) -> clean(other) reasons=[]
+2410.00019 pipeB-xel: partial(undefined_cs) -> clean(other) reasons=[]
+2410.00019 pipeC-xel: partial(undefined_cs) -> clean(other) reasons=[]
+2410.00059 pipe-xel: partial(syntax) -> clean(syntax) reasons=[]
+2410.00059 pipeC-xel: partial(syntax) -> clean(syntax) reasons=[]
+2410.17957 pipeB-xel: fail(early_eof) -> clean(other) reasons=[]
+astro-ph/9901302 pipe-xel: partial(None) -> clean(clean) reasons=[]
+astro-ph/9901302 pipeB-xel: partial(None) -> clean(clean) reasons=[]
+astro-ph/9901302 pipeC-xel: partial(None) -> clean(clean) reasons=[]
+cond-mat/9901156 pipe-xel: partial(None) -> fail(early_eof) reasons=['no_pdf']
+cond-mat/9901156 pipeB-xel: partial(None) -> fail(early_eof) reasons=['no_pdf']
+cond-mat/9901156 pipeC-xel: partial(None) -> fail(early_eof) reasons=['no_pdf']
+cond-mat/9901347 pipe-xel: partial(None) -> fail(early_eof) reasons=['no_pdf']
+cond-mat/9901347 pipeB-xel: partial(None) -> fail(early_eof) reasons=['no_pdf']
+cond-mat/9901347 pipeC-xel: partial(None) -> fail(early_eof) reasons=['no_pdf']
+hep-ph/9703322 pipe-xel: partial(None) -> clean(other) reasons=[]
+hep-ph/9703322 pipeB-xel: partial(None) -> clean(other) reasons=[]
+hep-ph/9703322 pipeC-xel: partial(None) -> clean(other) reasons=[]
+hep-th/9901062 pipe-xel: partial(None) -> clean(other) reasons=[]
+hep-th/9901062 pipeB-xel: partial(None) -> clean(other) reasons=[]
+hep-th/9901062 pipeC-xel: partial(None) -> clean(other) reasons=[]
+
+=== Mode-B ledger totals ===
+field	base	new
+events	10102	10376
+sabotaged	3123	3114
+caught	2720	548
+recovered	403	2566
+escaped	0	0
+dirty	0	0
+
+by_kind (new):
+  drop_ph: {'caught': 129, 'recovered': 586, 'escaped': 0, 'dirty': 0}
+  drop_ph+fabricate_ph: {'caught': 236, 'recovered': 459, 'escaped': 0, 'dirty': 0}
+  fabricate_ph: {'caught': 183, 'recovered': 1521, 'escaped': 0, 'dirty': 0}
+
+by_kind (base):
+  drop_ph: {'caught': 510, 'recovered': 283, 'escaped': 0, 'dirty': 0}
+  drop_ph+fabricate_ph: {'caught': 619, 'recovered': 1, 'escaped': 0, 'dirty': 0}
+  fabricate_ph: {'caught': 1591, 'recovered': 119, 'escaped': 0, 'dirty': 0}
+
+GATE base: escaped==0 AND dirty==0 -> PASS (escaped=0 dirty=0)
+GATE new : escaped==0 AND dirty==0 -> PASS (escaped=0 dirty=0)
+escaped ids (new): []
+dirty ids (new): []
+dirty signature counts (new): {}
+dirty projects (new): []
+
+=== Mode-C ledger totals ===
+field	base	new
+events	3095	3110
+sabotaged	2904	2901
+moved	5368	5428
+spliced	2822	2889
+dropped	82	12
+survival base: 78/78 broke=[] degraded=['1206.0197', '1206.0358', '1206.0526', '2211.04436', '2308.12593', '2403.05542', '2410.17957']
+survival new : 77/77 broke=[] degraded=['1206.0197', '1206.0358', '1306.0067', '2211.04436', '2308.12593', '2410.17957']
+
+=== failure signatures (new) ===
+base-xel fail cats: {('missing_file', None): 12}
+base-xel partial reason heads: {'warn:invalid_utf8': 12, 'warn:fffd_glyph': 2, 'warn:missing_chars': 14, 'errors>3 (20)': 1, 'errors>3 (10)': 1, 'errors>3 (199)': 1, 'first_error=undefined_cs:begin': 1, 'errors>3 (30)': 1, 'errors>3 (19)': 1, 'first_error=undefined_cs:DeclareUnicodeCharacter': 1}
+pipe-xel fail cats: {('missing_file', 'unfixable:missing_file'): 1, ('early_eof', 'unfixable:early_eof'): 2}
+pipe-xel partial reason heads: {'warn:missing_chars': 9, 'missing_character': 9, 'warn:invalid_utf8': 1, 'errors>3 (191)': 1, 'first_error=undefined_cs:begin': 1, 'latex209_ds_at': 1, 'errors>3 (71)': 1, 'first_error=undefined_cs:abstract': 1}
+pipeB-xel fail cats: {('missing_file', 'unfixable:missing_file'): 1, ('early_eof', 'unfixable:early_eof'): 2}
+pipeB-xel partial reason heads: {'warn:missing_chars': 7, 'missing_character': 7, 'warn:invalid_utf8': 1, 'errors>3 (191)': 1, 'first_error=undefined_cs:begin': 1, 'latex209_ds_at': 1, 'errors>3 (60)': 1, 'first_error=undefined_cs:abstract': 1}
+pipeC-xel fail cats: {('missing_file', 'unfixable:missing_file'): 1, ('early_eof', 'unfixable:early_eof'): 2}
+pipeC-xel partial reason heads: {'warn:missing_chars': 10, 'missing_character': 10, 'warn:invalid_utf8': 1, 'first_error=undefined_cs:texti': 1, 'errors>3 (191)': 1, 'first_error=undefined_cs:begin': 1, 'first_error=undefined_cs:noin': 1, 'latex209_ds_at': 1, 'first_error=undefined_cs:textb': 1, 'first_error=undefined_cs:noind': 1, 'first_error=undefined_cs:meth': 1, 'errors>3 (64)': 1, 'first_error=undefined_cs:abstract': 1, 'first_error=undefined_cs:displ': 1}
+
+=== spot checks ===
+2410.17957 base-xel:partial->partial(mc=0) | pipe-xel:clean->clean(mc=0) | pipeB-xel:fail->clean(mc=0) | pipeC-xel:partial->partial(mc=0)
+0806.1984 base-xel:clean->clean(mc=0) | pipe-xel:partial->clean(mc=0) | pipeB-xel:partial->clean(mc=0) | pipeC-xel:partial->clean(mc=0)
+0806.3144 base-xel:clean->clean(mc=0) | pipe-xel:partial->partial(mc=1) | pipeB-xel:partial->partial(mc=1) | pipeC-xel:partial->partial(mc=1)
+0905.0795 base-xel:clean->clean(mc=0) | pipe-xel:partial->clean(mc=0) | pipeB-xel:partial->clean(mc=0) | pipeC-xel:partial->clean(mc=0)
+1003.0112 base-xel:clean->clean(mc=0) | pipe-xel:partial->clean(mc=0) | pipeB-xel:partial->clean(mc=0) | pipeC-xel:partial->clean(mc=0)
+1706.00265 base-xel:clean->clean(mc=0) | pipe-xel:partial->partial(mc=3) | pipeB-xel:partial->partial(mc=3) | pipeC-xel:partial->partial(mc=3)
+1404.0527 base-xel:clean->clean(mc=0) | pipe-xel:partial->partial(mc=None) | pipeB-xel:partial->partial(mc=None) | pipeC-xel:partial->partial(mc=None)
+hep-th/0408064 base-xel:clean->clean(mc=0) | pipe-xel:partial->partial(mc=1) | pipeB-xel:partial->partial(mc=1) | pipeC-xel:partial->partial(mc=1)
+1404.0275 base-xel:clean->clean(mc=0) | pipe-xel:partial->partial(mc=1) | pipeB-xel:clean->clean(mc=0) | pipeC-xel:partial->partial(mc=1)
+1306.0067 base-xel:partial->partial(mc=0) | pipe-xel:fail->clean(mc=0) | pipeB-xel:fail->clean(mc=0) | pipeC-xel:fail->partial(mc=0)
+1206.0197 base-xel:clean->clean(mc=0) | pipe-xel:clean->clean(mc=0) | pipeB-xel:clean->clean(mc=0) | pipeC-xel:partial->partial(mc=0)
+1206.0358 base-xel:clean->clean(mc=0) | pipe-xel:clean->clean(mc=0) | pipeB-xel:clean->clean(mc=0) | pipeC-xel:partial->partial(mc=2)
+1206.0526 base-xel:clean->clean(mc=0) | pipe-xel:clean->clean(mc=0) | pipeB-xel:clean->clean(mc=0) | pipeC-xel:partial->clean(mc=0)
+2211.04436 base-xel:partial->partial(mc=2) | pipe-xel:clean->clean(mc=0) | pipeB-xel:clean->clean(mc=0) | pipeC-xel:partial->partial(mc=0)
+2308.12593 base-xel:clean->clean(mc=0) | pipe-xel:clean->clean(mc=0) | pipeB-xel:clean->clean(mc=0) | pipeC-xel:partial->partial(mc=0)
+2403.05542 base-xel:partial->partial(mc=0) | pipe-xel:clean->clean(mc=0) | pipeB-xel:clean->clean(mc=0) | pipeC-xel:partial->clean(mc=0)

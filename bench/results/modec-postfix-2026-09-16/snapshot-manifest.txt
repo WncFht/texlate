@@ -1,0 +1,31 @@
+modec-postfix snapshot manifest
+================================
+TEXLATE_SRC = /tmp/texlate-src-modec-postfix  (copy of worktree src/ @ 2026-09-16T12:12:41Z)
+code-state: worktree post-e7519ac + 在飞覆盖层 @ 2026-09-16T12:12:41Z
+  (base commit e7519ac + uncommitted overlay: 1d segmenter refactor,
+   fixloop builtins, inject/l2/e2e in-flight — HEAD resolved by leader)
+
+Invocation:
+  TEXLATE_SRC=/tmp/texlate-src-modec-postfix nice -n 10 uv run python \
+    bench/py/e2e_mock_bench.py --corpus bench/corpus_v3 --layers expand \
+    --sample 80 --seed 42 \
+    --conditions base-xel,pipe-xel,pipeB-xel,pipeC-xel \
+    --timeout 240 --tag modec-postfix
+  (script has no --out; out dir = bench/results/<tag>-<date>;
+   NOTE: --corpus resolves relative to repo ROOT — bare "corpus_v3" crashes)
+
+Sample: enumeration re-verified identical to baseline
+  (expand layer 3800 on-disk -> seed-42 sample == modec-expand sample.json ids, exact match)
+
+Fix markers confirmed present in frozen snapshot (grep):
+  texlate/validate/l0.py:824    _check_protocol_echo (protocol-echo guard; _ECHO_SIGS 11 sigs,
+                               called from validate_pair l0.py:869; net-extra src<->zh count test)
+  texlate/latex/segmenter.py    _cover_gap (call sites 779,1754,1855,1880,1971,2112,2879)
+  texlate/compile/inject.py:169 CJK_FIRST_USE_WARMUP (emitted into inject block at :401)
+  texlate/compile/normalize.py:190-193  \DeclareUnicodeCharacter XeTeX no-op shim
+  texlate/compile/fixloop/rules.yaml:2197  DeclareUnicodeCharacter polyfill rule
+  texlate/validate/l2.py:142-164,331-339  eof_file attribution field
+  texlate/e2e.py:456-508        eof_file consumer (runaway/EOF re-attribution)
+
+Bench harness state: dirty ledger + gate "escaped==0 AND dirty==0" live in
+  bench/py/e2e_mock_bench.py (DIRTY_SIGS == l0._ECHO_SIGS, same 11 sigs same order).
