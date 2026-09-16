@@ -21,17 +21,17 @@ texlate run 1706.03762               # 或 CLI 直跑整链 → 双语 PDF
 
 已落 `src/texlate/`（uv 管理，`uv sync` 后 `uv run pytest tests/` 全绿）：
 
-| 包                 | 内容                                                                                                                           | 验证                                                                                      |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| `arxiv/`           | e-print 获取/解包/主文件定位/限速                                                                                              | 189 tests + corpus39/实网 gated 用例                                                      |
-| `latex/`           | 半解析 + 展开机（**v2 Gullet+Segmenter 默认路径**，`TEXLATE_NO_EXPAND=1` 回退 v1）                                             | corpus_v3 1955 文件 identity 100%、leak 0.046%、fixtures 98 断言全绿                      |
-| `xlat/`            | 编排层 + 3003 网关客户端（动态免费模型发现/重试/状态续翻/术语表）                                                              | 121 tests + MockTranslator E2E；e2e-real n100 chunk ok 99.97%                             |
-| `validate/`        | L0 规则校验（7 规则）/ L1 tree-sitter / L2 编译日志                                                                            | validbench corpus_v2 7867 用例：破坏 100% 检出 / 0 error-FP                               |
-| `compile/`         | Engine 协议 (xelatex+tectonic) / ctex 注入 / normalize / 沙箱                                                                  | compilebench-v4+fixloop 联合 pdf 154/172=89.5%（`bench/results/compilebench-v4-*/` 归因） |
-| `compile/fixloop/` | yaml 规则修复引擎（31 规则 + taxonomy 28 类 + cases.jsonl 沉淀）                                                               | fixloop-cbv4 臂 344 格实证（tlmgr 真装包 89 格）                                          |
-| `server/`+`web/`   | FastAPI+SSE+SQLite(WAL)+BYOK worker 管线；SolidJS+pdfslick 阅读器（SPA 打包待接）                                              | 104 server/align 测试 + vitest 13 绿                                                      |
-| `export/`          | EPUB/DOCX 双语插译（`texlate export <file>`）：bbm 蓝图照抄——DRM 预检 + run 制 unit + `[[TAG_n]]` marker + StateStore 断点续跑 | 12 tests + 真书回归（`bench/results/export-realbook-2026-09-16/`：2 本 Gutenberg 全链绿） |
-| `e2e.py`/`cli.py`  | `texlate run <arxiv-id>` 整链驱动（fetch→parse→xlat→inject→compile→judge）                                                     | 实测出双语 PDF（audit-2026-09-16/e2e-func.md）                                            |
+| 包                 | 内容                                                                                                                                               | 验证                                                                                      |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `arxiv/`           | e-print 获取/解包/主文件定位/限速                                                                                                                  | 189 tests + corpus39/实网 gated 用例                                                      |
+| `latex/`           | 半解析 + 展开机（**v2 Gullet+Segmenter 默认路径**，`TEXLATE_NO_EXPAND=1` 回退 v1）                                                                 | corpus_v3 1955 文件 identity 100%、leak 0.046%、fixtures 98 断言全绿                      |
+| `xlat/`            | 编排层 + 3003 网关客户端（动态免费模型发现/重试/状态续翻/术语表）                                                                                  | 121 tests + MockTranslator E2E；e2e-real n100 chunk ok 99.97%                             |
+| `validate/`        | L0 规则校验（7 规则）/ L1 tree-sitter / L2 编译日志                                                                                                | validbench corpus_v2 7867 用例：破坏 100% 检出 / 0 error-FP                               |
+| `compile/`         | Engine 协议 (xelatex+tectonic) / ctex 注入 / normalize / 沙箱                                                                                      | compilebench-v4+fixloop 联合 pdf 154/172=89.5%（`bench/results/compilebench-v4-*/` 归因） |
+| `compile/fixloop/` | yaml 规则修复引擎（33 规则 + taxonomy 28 类 + cases.jsonl 沉淀）                                                                                   | fixloop-cbv4 臂 344 格实证（tlmgr 真装包 89 格）                                          |
+| `server/`+`web/`   | FastAPI+SSE+SQLite(WAL)+BYOK worker 管线；SolidJS+pdfslick 阅读器（SPA 已接打包链：`scripts/build-web.sh` → `server/static/` 入 wheel/Dockerfile） | 104 server/align 测试 + vitest 13 绿                                                      |
+| `export/`          | EPUB/DOCX 双语插译（`texlate export <file>`）：bbm 蓝图照抄——DRM 预检 + run 制 unit + `[[TAG_n]]` marker + StateStore 断点续跑                     | 12 tests + 真书回归（`bench/results/export-realbook-2026-09-16/`：2 本 Gutenberg 全链绿） |
+| `e2e.py`/`cli.py`  | `texlate run <arxiv-id>` 整链驱动（fetch→parse→xlat→inject→compile→judge）                                                                         | 实测出双语 PDF（audit-2026-09-16/e2e-func.md）                                            |
 
 Benchmark 底材：corpus39（陷阱）+ corpus_v2（139 篇）+ corpus_v3（1000 篇核心随机层 + 200 篇 agent 策展补强层——机制台账 `mechanisms.jsonl` 144 条，选择器 `select_booster.py`，管线 `bench/py/build_corpus_v3.py` 可重建）。评测器已扶正：parsebench（B1）/ fixtures 断言（B2，tests/test_bench_regression.py）/ compilebench（B3）/ xlatbench（B4）/ e2e_mock+e2e_real（B5）/ validbench（B6）/ alignbench（B7）。规格见 `docs/06–10`。
 

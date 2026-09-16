@@ -2,6 +2,8 @@
 
 > 2026-09-16 xlat 评审移交（handoff §2.5 条目落地）。证据：
 > `bench/results/e2e-real-s40-2026-09-15/results.json` → 2211.13013。
+>
+> **已修（同日）**：`normalize.py:638–662` `_transcode_aux_bib` + `_trim_intermediate_tail`——`.aux` 系可再生中间产物与 `.bib/.bbl/.bst` 同档非 UTF-8 转码写回，中间产物另按行界截尾整形（不完整末行删除，引擎下遍重长）；回归 `tests/test_normalize_aux_trunc.py`。docs/08 §3.2 手术清单第 13 条已回写。
 
 ## 现象
 

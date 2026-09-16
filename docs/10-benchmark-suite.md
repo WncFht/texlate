@@ -19,7 +19,9 @@
 
 依赖序：`corpus_v3 → B1 → B4 → {B3, B5} → B7`；B2/B6 独立（合成输入）。
 
-> **现状列更新（2026-09-16）**：B3 已产品化（compilebench_v3.py + fixloop_bench.py，v4+fixloop 臂联合 pdf 89.5%）；B4a 已扶正 xlatbench（硬契约基线 240 调用建档）；B5 Mode A/D 已跑（e2e-real n100 chunk ok 99.97%），**Mode B 未产品化、Mode C 未跑**；B7 已扶正 alignbench 但当前门 FAIL（2 ERROR + 保留率 0.026 离群对）；B3 zh 条件臂从未跑。逐门证据矩阵见 `research/audit-2026-09-16/spec0910.md`。
+> **现状列更新（2026-09-16 二校）**：B3 已产品化（compilebench_v3.py + fixloop_bench.py，v4+fixloop 臂联合 pdf 154/172=89.5%，`bench/results/compilebench-v4-2026-09-16/` + `base-v3-full-2026-09-16/` 全量基线在盘；**zh 条件臂已跑** `compilebench-v3-zh`/`fixloop-zh-cbv3`）；B4a 已扶正 xlatbench（硬契约基线 240 调用建档）+ B4b 质量臂 `qualbench.py` 已建（LLM-judge 六类 flag+1–5 分，`c81d695`）；B5 Mode A/D 已跑（e2e-real n100 chunk ok 99.97%），**Mode B/C 已实装** `e2e_mock_bench.py` pipeB-xel/pipeC-xel（`f4d9ec8`/`c187025`，`mock-sabotage-v3-2026-09-16/`）；B7 已扶正 alignbench + 已归因（xelatex ~100 错截断 `cite.*` 必死；ctex 共享计数器改 theorem 锚名是离群对根因）+ pipe-fix 产物复测 mean 0.9918（`b7-pipefix-2026-09-16/`）。逐门证据矩阵见 `research/audit-2026-09-16/spec0910.md`。
+>
+> **套件之外新件（同日批量层）**：`stagerun.py` 五阶段批量驱动（ingest/parse/xlat/compile/fixloop 子命令 + append records + (id,arm,upstream) resume + `--sem` 网关信号量，设计 `research/product/2026-09-16-batch-hardening-design.md`，操作单 `bench/py/runbook_loop.md`）；`triage.py` records→tickets.jsonl 聚类+趋势+报告；`translators_bench.py` xlat 臂工厂（mock/sabotage-b/c/perturb）；`preflight_batch.py` 批前一票闸。
 
 ## B1 · parsebench —— 解析段基准
 
@@ -74,7 +76,9 @@
 
 **门槛（M2 出口）**：200 篇语料 zh 条件编译成功率 ≥90%（hjfy 95% 为渐近线）；reject 判定正确率 100%（路由标签对拍）；无回归（clean 格不被规则改脏）。
 
-**状态（2026-09-15）：fixloop 臂已落地**——`bench/py/fixloop_bench.py` + `bench/results/fixloop-corpusv2-2026-09-15/`：corpus_v2 40 篇无偏样本 × 25 规则库，union baseline pdf 26/40 → fixloop pdf **36/40**（clean 层 31/40）；xelatex 臂 FAIL→pdf 25/34。已知缺口：tectonic 臂 eps_route 预检过度拒收（baseline pdf~ 格被 0r 拒 6 例）、legacy 包 shim 缺位（revtex.cls/psfig.sty/aastex.cls 类）。base×双引擎臂由 compilebench-v3（corpus_v3 抽样）在跑。
+**状态（2026-09-15）：fixloop 臂已落地**——`bench/py/fixloop_bench.py` + `bench/results/fixloop-corpusv2-2026-09-15/`：corpus_v2 40 篇无偏样本 × 25 规则库，union baseline pdf 26/40 → fixloop pdf **36/40**（clean 层 31/40）；xelatex 臂 FAIL→pdf 25/34。已知缺口：tectonic 臂 eps_route 预检过度拒收（baseline pdf~ 格被 0r 拒 6 例）、legacy 包 shim 缺位（revtex.cls/psfig.sty/aastex.cls 类）。
+
+> 更新（2026-09-16）：base×双引擎臂已跑完——compilebench-v4 全量 180 样本（`61a9e16`），baseline 仅 1 格判定更正性迁移；fixloop 臂联合 pdf 127/172→**154/172（89.5%）**，xel missing_file 109 FAIL→84 pdf（tlmgr usermode 装包层实证），归因 `bench/results/compilebench-v4-2026-09-16/summary-diff-v3.md`。zh 条件臂首跑 `compilebench-v3-zh`/`fixloop-zh-cbv3`（union pdf 86.3%）。B3 zh 臂距门槛 200 篇 ≥90% 仍差 n 补齐。
 
 ## B4 · xlatbench —— 翻译段基准
 
@@ -88,6 +92,8 @@
 4. 用途：模型选型/白名单刷新（免费集 promo 到期即重跑）+ prompt 措辞回归（bump prompt_version 必跑）。
 
 **B4b 质量层**（需 LLM key，M1 出口）：
+
+> 落地注记（2026-09-16）：`bench/py/qualbench.py` 已建（`c81d695`）——LLM-judge 对段对打 1–5 分 + 六类 flag（漏译/错译/术语不一致/格式破坏/幻觉/语言混杂），对应本条第 3 项；首跑 `bench/results/qual-run-2026-09-16/`。第 1/2 项（真译文进编译网格、占位符扰动）由 e2e_real_bench `--fixloop`/`--base` 臂与 e2e_mock_bench pipeC 部分覆盖。
 
 1. 整篇真实翻译 corpus_v3 抽样子集（~100 篇）→ 译文进 B3 编译网格测"翻译对编译的实际影响"（中文长句撑爆 `\hbox`、罕见字缺字形、bibtex 多遍收敛——E10 未覆盖项）。
 2. 占位符位置敏感性：mock C（随机挪动 ~10% 占位符）量化 splice 鲁棒性（e2e pipeline 已留接口）。

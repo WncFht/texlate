@@ -7,7 +7,7 @@
 ## 语料
 
 - `corpus/` — 39 篇真实 arXiv 源码 (见 MANIFEST.md): NIPS/ICLR/CVPR/ICML/IEEEtran/ptptex(LaTeX2.09!), amsart/revtex4-4.1-4.2/aastex61/aa/elsarticle/acmart×4/llncs/iopart/quantumarticle/cms-tdr/eptcs/jfp-epi/subfiles/cambridge7A/book, 法语 babel, 中文注释，latin-5 编码，bussproofs/mathpartir 推导树，tikz 重度，algorithm2e/algorithmic, xy/pstricks, 自带 cls/sty/bst, 2.2MB 单文件书，subfiles/\include 多文件项目
-- `fixtures/tricky.tex` — 26 个陷阱构造（@T01–T29，T14 在 multi、T15/T28 未分配），每处标 `% @Tnn`
+- `fixtures/tricky.tex` — 27 个陷阱构造（@T01–T29，T14 在 multi、T15/T28 未分配），每处标 `% @Tnn`
 - `fixtures/tricky-209.tex` — LaTeX 2.09 旧格式 (\documentstyle/\def)
 - `fixtures/tricky-multi/` — \input/\include 多文件 + 注释掉的 \input(不得展开)
 - `fixtures/tricky-w.tex` — 11 条野外机制陷阱（@Wnn，found-in-wild→fixture 生长）

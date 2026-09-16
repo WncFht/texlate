@@ -3,6 +3,7 @@
 > 最终技术方案 · arXiv 接入与批量取数。
 > 证据基础：`docs/research/arxiv/layer.md`（在线层实测）、`docs/research/corpus/ia-pilot.md`（IA 管道 pilot）、`docs/research/corpus/post2020-sourcing.md`（post-2020 渠道裁决）、`docs/research/corpus/frame-and-allocation.md`（frame）。
 > 本文是规范（normative）：实现按此执行；研究文档只作证据出处，不再回查。
+> 落地注记（2026-09-16）：§3 元数据层已全落（`arxiv/meta.py`：Atom 主源 + OAI-PMH 兜底 + `PaperMeta` schema + `resolve_version`/`degrade`，`d7b3c0a` + `test_arxiv_meta.py`）；§5 降级链 `degrade()` 裁决层已落（L2 html/L3 pdf sidecar 判空），babeldoc sidecar 进 worker 产品链（`server/babeldoc.py`，`8d50c38`）。
 
 ## 0. 定位与两个消费方
 

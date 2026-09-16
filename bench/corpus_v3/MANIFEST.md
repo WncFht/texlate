@@ -1,8 +1,10 @@
 # Corpus v3 Manifest — arXiv 月度簇分层抽样源码语料
 
 渠道钉版批量语料：a–d 带 IA `arxiv-bulk` 月 chunk / e 带 HF `TIGER-Lab/arxiv-latex-5T`（成员四元组 `(channel,item,member,blob_sha256)` 钉版，`resolved_version=null`）。
-数据在本目录 `{id}/` 子目录（gitignored），入库的有此清单、`manifest.jsonl`、`manifest_booster.jsonl`、`mechanisms.jsonl`、`booster_selection.jsonl`、`select_booster.py`、`selection_report.md`，管线脚本在 `bench/py/build_corpus_v3.py`。
+数据在本目录 `{id}/` 子目录（gitignored），入库的有此清单、`manifest.jsonl`（核心 1000）、`manifest_booster.jsonl`（补强 200）、`manifest_expand.jsonl`（扩展 3800）、`manifest_hot.jsonl`（热层 72，OpenAlex 高引近期 e-print 渠道）、`mechanisms.jsonl`、`booster_selection.jsonl`、`select_booster.py`、`selection_report.md`，管线脚本在 `bench/py/build_corpus_v3.py`（core/booster）+ `build_corpus_expand.py`（expand）+ `build_hot_layer.py`（hot）。
 抽样管线见 `docs/09-benchmark-corpus.md` S0–S5；旧式 ID 按 `archive/name` 嵌套。
+
+> 追记（2026-09-16）：四层合计 **5072 篇**。expand 层（3800）与 hot 层（72）为同日增补——expand 明细见 `manifest_expand.jsonl` + QC `bench/results/corpus-expand-qc-2026-09-16/`；hot 层口径见 `docs/09` §4.3 增补注记与 `docs/research/product/2026-09-16-e2e-pipefix-hotlayer.md`。
 
 - 入库 **1000** 篇（核心层）· 1955 个 .tex · 原始包共 1603M
 - 打包形式：{'tar': 831, 'gz': 169}

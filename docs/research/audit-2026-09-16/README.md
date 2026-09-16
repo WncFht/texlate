@@ -3,6 +3,12 @@
 > HEAD `6a256b2`。本文是 13 个并行审计 agent 的汇总索引；各分报告同目录，
 > 逐项 verdict + file:line 证据在分报告内。审计方法：spec 原文逐条抽规范性
 > 断言 → 对照实现/测试/bench 实物 → DONE/PARTIAL/MISSING/UNVERIFIABLE。
+>
+> **时效注记（2026-09-16 午后）**：本文是午前时点快照。P0 安全三件、编排
+> 断链（fixloop 接线/L2 回灌/target_probe/env_judge/recover_copied_tokens）、
+> SPA 打包链（M3）、argspec 装载（M1 GAP）、B3 zh 臂/Mode B·C/B7 归因等
+> 多项"缺口"已在同日午后修复或推进——**当前判定以 `docs/HANDOFF-2026-09-16.md`
+> §3 追记与 §6 为准**，本文留作证据档案。
 
 ## 1. 里程碑总判定（docs/05 §6 口径）
 
