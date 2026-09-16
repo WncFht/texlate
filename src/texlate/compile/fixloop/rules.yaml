@@ -745,6 +745,16 @@ rules:
               \expandafter\def\csname opt@emulateapj5.sty\endcsname{twocolumn,onecolumn}
               \LoadClassWithOptions{emulateapj}
               \providecommand{\rotate}{}
+              % aastex v5 前置元数据面 (6x body 同款, fixer-aastex-stub):
+              % revtex 链 \email 依赖 \@AF@join 武装会炸 → provide+renew
+              % no-op; slug-line 三元组保险; \paperid 稿号 slug revtex/
+              % emulateapj 皆无 (0707.1778 活调用 → 参数泄漏级联实证)。
+              \providecommand{\email}[1]{}
+              \renewcommand{\email}[1]{}
+              \providecommand{\received}[1]{}
+              \providecommand{\revised}[1]{}
+              \providecommand{\accepted}[1]{}
+              \providecommand{\paperid}[1]{}
               \endinput
           revtex.cls: { loads: "revtex4-2", needs: ["revtex4-2.cls"] }
           psfig.sty:
@@ -1952,8 +1962,12 @@ rules:
           corpus: "astro-ph/9702009 等 9 篇 corpus_v2",
           error: "File `psfig.sty' not found (TL 已退役)",
         }
+      - {
+          corpus: "0707.1778 + aastex 链 acceptable×69 (fixer-aastex-stub-2026-09-17)",
+          error: "aastex.cls stub 补 v5 元数据面: \\paperid(活调用→级联实证)/\\email(revtex 版 \\@AF@join 未武装会炸)/\\received/\\revised/\\accepted",
+        }
     stats: { fires: 1, rescued_cells: 1, status: validated } # 1806.06690 xel FAIL→clean 实证
-    source_ref: "fixloop-v2 整改; tlpdb filemap 实证 + 本机编译验证"
+    source_ref: "fixloop-v2 整改; tlpdb filemap 实证 + 本机编译验证; aastex.cls 面扩 fixer-aastex-stub (0104174/0408531/0707.1778 复跑 0 stub 错)"
 
   - id: install_tfm
     description: "Font X not loadable (TFM 缺) → 装 {X}.tfm 所在包 + 重建 map"
@@ -3439,11 +3453,21 @@ rules:
     description: "无 '!' 错但 log 有 Missing character → 码位分级: CJK→xeCJK 绑定预热, 符号/拉丁→字面替换"
     phase: loop
     order: 25 # 与类别独占, 序位只影响同 category 规则间
-    when: { category: warn_missing_char }
+    when:
+      any:
+        - { category: warn_missing_char }
+        # warn_utf8 终类的格带缺字共存时原永不评估本族 (类别排他 quirk,
+        # scout-misschar-coverage ×6 rows): log 无 missing char 时自然
+        # applied=False 落穿, 有则先修缺字再让 utf8 规则接手。
+        - { category: warn_utf8 }
     action:
       kind: builtin_transform
       function: missing_char_fix
       params:
+        # cls_pretokenized (scout-misschar ×2): jetpl.cls 把西里尔字面编进
+        # \addtocontents/token 寄存器 —— cls 装载即 token 化, 注入够不到;
+        # 源级字面替换须在 token 化前改字节 → exts 扩 .cls/.sty/.bbl。
+        exts: [.tex, .cls, .sty, .bbl]
         # Latin-1/标点散字补表 (scout-pf2final 盲区: £/ĳ 系落 cmr/cmmi/txmi
         # 无字形; ø/§/≠/−/è 已在内置 _MC_TABLE)。文本命令一律 \mbox 包裹防
         # 数学模式缺字复发; 数学符号走 \ensuremath。
@@ -3470,6 +3494,19 @@ rules:
           - { id: ddagger, cps: [0x2021], replace: "\\mbox{\\textdaggerdbl}" }
           - { id: bullet, cps: [0x2022], replace: "\\mbox{\\textbullet}" }
           - { id: hellip, cps: [0x2026], replace: "\\mbox{\\dots}" }
+          # ── outband 覆盖 (scout-misschar-coverage 2026-09-17, ×13 pids) ──
+          # FFFD 替换符 = 源 mojibake 破折号 (bibitem 页码 '2481–2508') → 连字符
+          - { id: fffd_repl, cps: [0xFFFD], replace: "-" }
+          # C1 控制符 / LRM / ZWSP / BOM —— 零宽不可见, 空组剥除
+          - { id: c1_ctrl, ranges: [[0x80, 0x9F]], replace: "{}" }
+          - { id: zero_width, cps: [0x200B, 0x200E, 0xFEFF], replace: "{}" }
+          - { id: pua_f047, cps: [0xF047], replace: "{}" }
+          - { id: boxdraw_252c, cps: [0x252C], replace: "{}" }
+          # 数学/标点散字 → \ensuremath 双模无恙
+          - { id: fracslash, cps: [0x2044], replace: "/" }
+          - { id: prime_2032, cps: [0x2032], replace: "\\ensuremath{'}" }
+          - { id: astop_2217, cps: [0x2217], replace: "\\ensuremath{\\ast}" }
+          - { id: sumop_2211, cps: [0x2211], replace: "\\ensuremath{\\sum}" }
     risk: low # 预热盒不可见; replace 只动缺字码位本身
     engines:
       xelatex: { mode: native }
@@ -3483,8 +3520,12 @@ rules:
           corpus: "0707.3950 / 0905.4907 / 0806.1079 / 1003.1464 / 1608.02516 / 2403.15096 (n100)",
           error: "Missing character: CJK in cmr/lmroman + ≠−§øè in cm*",
         }
+      - {
+          corpus: "0806.2630 jetpl.cls (scout-misschar-coverage-2026-09-17)",
+          error: "cls 预 token 化西里尔 → exts 扩列; outband FFFD/C1/LRM/PUA/2044/2032/2217/2211/252C → char_table 补 9 条",
+        }
     stats: { fires: 0, status: proposed }
-    source_ref: "spec 2026-09-16-batch-hardening-design §9 F4"
+    source_ref: "spec 2026-09-16-batch-hardening-design §9 F4; scout-misschar-coverage findings.yaml §outband_coverage+cls_pretokenized"
 
   # ─── F4b (2026-09-16, fixer-cjkfont 交付 f7822a8): 缺字第二分级 ——
   # 西里尔/组合符/拉丁扩展带的码位既非 CJK(预热) 也非 char_table 替换
@@ -3493,19 +3534,30 @@ rules:
     description: "Missing character 落西里尔/组合符/拉丁扩展带 → newunicodechar 逐字回退 Libertinus Serif"
     phase: loop
     order: 26 # missing_char_fix(25) 之后: replace 表先吃, 残带内码位走字体回退
-    when: { category: warn_missing_char }
+    when:
+      any:
+        - { category: warn_missing_char }
+        - { category: warn_utf8 } # 同 missing_char_fix —— 类别排他 quirk 补漏
     action:
       kind: builtin_transform
       function: font_fallback
-      params: {} # fallback_ranges/fallback_font/char_table 可覆盖
+      params:
+        # 显式重述 _FB_RANGES 三带 + 希腊块 (scout-misschar outband:
+        # 0x3A5-0x3F5 观测; Libertinus Serif 全希腊覆盖)。数学模式内
+        # 字面量仍待 \ifmmode 模板 (builtins, 1d lane)。
+        fallback_ranges: [[0x400, 0x4FF], [0x300, 0x36F], [0xC0, 0x17F], [0x370, 0x3FF]]
     risk: low
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
     provenance:
       - { corpus: "—", error: "Missing character: 西里尔/组合符落在无字形字体" }
+      - {
+          corpus: "scout-misschar-coverage-2026-09-17 outband greek 带",
+          error: "Missing character: 希腊字面 U+3A5-3F5 落无希腊字形字体",
+        }
     stats: { fires: 0, status: proposed }
-    source_ref: "fixer-cjkfont 交付 (builtins.py f7822a8); 1d 转办 2026-09-16"
+    source_ref: "fixer-cjkfont 交付 (builtins.py f7822a8); 1d 转办 2026-09-16; greek 带 scout-misschar-coverage findings.yaml"
 
   # 2026-09-16 wave-3: early_eof 交互档 (hep-ph/0111248 bundled
   # aipcheck.tex) —— 稿自带 "press <return> to continue" \typein 终端读,

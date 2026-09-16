@@ -861,6 +861,11 @@ def _rc_to_signal(rc: int | None, sandbox_mode: str) -> int | None:
     信号死亡上报为 ``128+N``（xelatex 被 xdvipdfmx 拉死走 SIGPIPE=141
     实证）——不解码则 ``killed_signal`` 漏记，judge 把死进程产物当
     活结果判。
+
+    已知取舍 (1e wave-review F2-low)：包裹层下 ``exit(128+N)`` 与真信号
+    死不可区分——``exit(141)`` 会误记 SIGPIPE。代价止于归因噪声：
+    ``_salvage_driver_fatal`` 只在 killed_signal 置位时补 stdout_tail
+    fatal: 行，不翻转判定。按不实信号记录处理。
     """
     if rc is None:
         return None
