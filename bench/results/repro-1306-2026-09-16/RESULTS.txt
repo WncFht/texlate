@@ -1,0 +1,22 @@
+1306.0067 Extra \or — repro matrix (xelatex, TeX Live 2026, kernel 2025-11-01)
+
+repro-revtex        revtex4-1+dcolumn+booktabs, full >{...}m{...} spec   FAIL (Extra\or)
+repro-article       article+array, identical spec                        PASS
+repro-revtex-ccc    revtex4-1+dcolumn, plain ccc                         PASS
+repro-revtex-monly  revtex4-1+dcolumn, m{..} alone                       FAIL  <- m/p/b path
+repro-revtex-gtdecl revtex4-1+dcolumn, >{...}c (no m)                    PASS
+repro-revtex-rollback revtex4-1 + array[=2020-02-10] + spec              FAIL (rollback insufficient)
+pdflatex run of repro-revtex                                             FAIL (engine-independent)
+
+counter-patch probes (restore post-swap in document body):
+probe-revtex-restore     mkpream+classx+insert@column                    PASS (0 err, pdf)
+probe-revtex-mkpream-only mkpream alone                                  HANG (timeout)
+probe-revtex-classx-only classx alone                                    FAIL
+probe-revtex-insert-only insert@column alone                             FAIL
+probe-mkpcx              mkpream+classx                                  HANG
+probe-mkpins             mkpream+insert@column                           PASS <- minimal pair
+probe-revtex-atbegindoc  trio via \AtBeginDocument (preamble-safe)       PASS
+probe-revtex-noswitch    \def\switch@array{} neutralization              PASS
+
+e2e/main.tex = real 1306.0067 source + guard before \begin{document}
+  -> xelatex rc=0, 0 errors, main.pdf 7 pages   (unpatched: 30 ! errors, emergency stop)

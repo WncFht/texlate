@@ -1,0 +1,13 @@
+\documentclass[reprint,aps]{revtex4-1}
+\usepackage{dcolumn}
+\makeatletter
+\let\saved@insertcol\insert@column
+\makeatother
+\begin{document}
+\makeatletter
+\let\insert@column\saved@insertcol
+\makeatother
+\begin{tabular}{>{\centering\arraybackslash}m{1.25in}c}
+a & b \\
+\end{tabular}
+\end{document}

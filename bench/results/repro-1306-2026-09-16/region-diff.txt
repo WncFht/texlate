@@ -1,0 +1,9 @@
+=== base-xel vs pipe-xel, tabular region (line-identical modulo mock-zh) ===
+11c11
+< \caption {Calculated \cite{Sahoo06,Safronova13,Sahoo07,Dzuba06,Roberts13} and relative sizes of the transition moments between $6S_{1/2}$ and $5D_{3/2}$ in Ba$^{+}$.  The calculated values are listed in units of ea$_{0}$, where e is the electron charge and a$_{0}$ is the Bohr radius.  The fine structure constant $\mathrm{\alpha}$ and the transition wavelength $\mathrm{\lambda}$ enter so that a \emph{bona fide} comparison can be made with these units.  Although the calculation for M1 shows enhancement from electron-electron correlation effects it is still small relative to E2.}
+---
+> \caption {这是译文 \cite{Sahoo06,Safronova13,Sahoo07,Dzuba06,Roberts13} 这是译文 $6S_{1/2}$ 这是译文 $5D_{3/2}$ 这是译文$^{+}$.  这是译文$_{0}$, 这是译文$_{0}$ 这是译文 $\mathrm{\alpha}$ 这是译文 $\mathrm{\lambda}$ 这是译文 \emph{这是译文} 这是译文2.}
+
+=== spec line byte-check: extracted vs pipe ===
+8d08a94c3f2a1393dd4b4f290f48f3ce  -
+8d08a94c3f2a1393dd4b4f290f48f3ce  -

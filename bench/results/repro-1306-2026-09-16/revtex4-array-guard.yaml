@@ -1,0 +1,52 @@
+# DRAFT fixloop rule — 1306.0067 (modec-expand n=80, all 3 pipe arms fail, base partial)
+#
+# Mechanism: revtex4-1.cls 4.1s (2020/09/30) installs \document@inithook ->
+# \@ifpackageloaded{array} -> \switch@array, which signature-checks \@mkpream /
+# \@classx / \insert@column etc. against circa-2018 array snapshots
+# (\@mkpream@array etc.). With array v2.6n (kernel LaTeX2e 2025-11-01) the check
+# FAILS -> "Unrecognized array package ... fingers crossed" — but the \let swap
+# executes UNCONDITIONALLY, installing old-protocol \@mkpream@array@new /
+# \@classx@array@new / \insert@column@array@new over array v2.6n.
+# New \@classz then emits \@startpbox{\@nextchar}\insert@pcolumn\@endpbox +
+# \insert@column into \xdef-built \@preamble without the new \@mkpream's
+# \unexpanded \@startpbox wrapper / \@protected@firstofone armor -> the
+# \ifcase\@chclass dispatch in \@tfor unbalances -> orphaned \or tokens ->
+# 30x "Extra \or" -> "Incomplete \iffalse" -> Emergency stop.
+#
+# Verified on TeX Live 2026 / xelatex AND pdflatex (engine-independent).
+# Fires only when spec uses m/p/b columns: ccc and >{...}c specs pass.
+#
+# Minimal verified rescue (probe-mkpins.tex, e2e/main.tex = real source):
+#   save \@mkpream + \insert@column before \begin{document} (still array's own),
+#   restore them in \AtBeginDocument (runs AFTER revtex's \document@inithook).
+#   Result on real 1306.0067 source: 0 errors, 7-page PDF (was: emergency stop).
+# Trio variant (adds \@classx) also verified; mkpream-only HANGS (do not use).
+
+  - id: revtex4_array_swap_guard
+    description: "revtex4-1 'Unrecognized array package' 指纹 (checksum 失败仍换旧协议 \@mkpream/\insert@column) → \begin{document} 前注守卫: 存真值 + AtBeginDocument 恢复"
+    phase: loop
+    order: 170 # journal_cs_polyfill(165) 之后, escalate_llm(900) 之前
+    when: { category: syntax }
+    condition:
+      source_contains: "\\\\documentclass\\s*(\\[[^\\]]*\\])?\\s*\\{revtex4"
+      ctx_suggests: "Extra \\\\or"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "\\\\begin\\s*\\{document\\}",
+              repl: "\\makeatletter\n\\let\\TEXLATE@sv@mkpream\\@mkpream\n\\let\\TEXLATE@sv@insertcol\\insert@column\n\\AtBeginDocument{%\n\\let\\@mkpream\\TEXLATE@sv@mkpream\n\\let\\insert@column\\TEXLATE@sv@insertcol}%\n\\makeatother\n\\\\begin{document}",
+            }
+    risk: low # 守卫为幂等 no-op: array 未载/旧内核校验通过时, 存回的就是当前值
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # bundle 内核旧 → 校验或已通过; 守卫仍为 no-op
+    provenance:
+      - {
+          corpus: "1306.0067 (modec-expand-2026-09-16, expand layer)",
+          error: "Extra \\or. l.150 \\begin{tabular}{>{\\centering\\arraybackslash}m{1.25in}...} — revtex4-1+dcolumn(array v2.6n) 签名失配",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "bench/results/repro-1306-2026-09-16/ (probe-*.tex 全矩阵 + e2e/main.tex 7 页实证)"

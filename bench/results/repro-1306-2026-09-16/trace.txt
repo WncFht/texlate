@@ -1,0 +1,16 @@
+=== probe-article (article+array, WORKS) ===
+CHCLS=9 CHNUM=0 LAST=4 NEXT=macro:->>
+CHCLS=3 CHNUM=0 LAST=9 NEXT=macro:->\centering \arraybackslash 
+CHCLS=10 CHNUM=3 LAST=3 NEXT=macro:->m
+CHCLS=0 CHNUM=3 LAST=10 NEXT=macro:->1.25in
+CHCLS=0 CHNUM=0 LAST=0 NEXT=macro:->c
+
+=== probe-revtex (revtex4-1+dcolumn, FAILS) ===
+CHCLS=9 CHNUM=0 LAST=4 NEXT=macro:->>
+CHCLS=3 CHNUM=0 LAST=9 NEXT=macro:->\centering \arraybackslash 
+CHCLS=10 CHNUM=3 LAST=3 NEXT=macro:->m
+CHCLS=0 CHNUM=3 LAST=10 NEXT=macro:->1.25in
+116:Class revtex4-1 Info: Unrecognized array package. Please update this document c
+153:! Extra \or.
+160:! Extra \or.
+167:! Extra \or.
