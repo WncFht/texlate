@@ -119,6 +119,8 @@ manifest.json schema:
 | `share_key`     | `(arxiv_id, version, model, prompt_ver, target_lang, glossary_hash, pipeline_ver) -> str` | 寻址键派生；version 归一（`3`/`"v3"`/`None`）                                    |
 | `pack_share`    | `(work_dir, manifest, *, out_dir=None) -> Path`                                           | 三件套打包 + manifest 生成 + sha256 自校验字段                                   |
 | `unpack_share`  | `(path, dest) -> ShareManifest`                                                           | 解包 + 全量校验；坏包 `ShareError`                                               |
+| `index_append`  | `(index_path, manifest, url, package_bytes) -> dict`                                      | §7 index.jsonl 追加一行（share_key/url/key_parts/bytes/created_at/contributor）  |
+| `index_lookup`  | `(index_path, share_key) -> dict \| None`                                                 | 线性扫 index，同 key 后写胜；坏行 ShareError 带行号                              |
 | `ShareManifest` | frozen dataclass                                                                          | 校验后 manifest 视图（fmt/share_key/key_parts/artifacts/contributor/created_at） |
 | `ShareError`    | Exception                                                                                 | 一切格式/校验失败                                                                |
 
