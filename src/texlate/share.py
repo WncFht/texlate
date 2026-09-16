@@ -26,6 +26,7 @@ import secrets
 import shutil
 import tempfile
 import zipfile
+import zlib
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -71,6 +72,17 @@ _INFLATED_MAX = 300 << 20
 _SHA256_HEX_LEN = 64
 #: 产物名字节上限——主流文件系统 NAME_MAX=255，超限名写盘必炸，校验段先拒。
 _NAME_MAX = 255
+#: zipfile 读取面统一异常谱——``ZipFile()`` 构造（中央目录解析）与成员
+#: 解压两侧共用，一律归一 ShareError：``NotImplementedError`` 覆盖未知
+#: 压缩方法与中央目录 ``extract_version`` 超 ``MAX_EXTRACT_VERSION``，
+#: ``zlib.error`` 是解压中途的坏 DEFLATE 流，``RuntimeError`` 覆盖加密成员。
+_ZIP_ERRORS = (
+    OSError,
+    zipfile.BadZipFile,
+    RuntimeError,
+    NotImplementedError,
+    zlib.error,
+)
 
 
 class ShareError(Exception):
@@ -209,7 +221,10 @@ def pack_share(
     不符 → ShareError（调用方错配防呆）。``REQUIRED_ARTIFACTS`` 缺失/
     超 ``_MEMBER_MAX`` → ShareError；``zh.pdf`` 缺席则不登记不打包——
     manifest artifacts 表即在场清单（缺席即 partial 包，与 unpack 的
-    ``REQUIRED_ARTIFACTS`` 口径对称）。返回包路径（``out_dir`` 缺省
+    ``REQUIRED_ARTIFACTS`` 口径对称）。生成 manifest 序列化超
+    ``_MANIFEST_MAX``（``contributor``/``created_at``/组分串调用方控，
+    无上界会产出自家 unpack 拒收的包）或产物合计超 ``_INFLATED_MAX``
+    → ShareError——pack 不产出自拒包。返回包路径（``out_dir`` 缺省
     = ``work_dir``）。
     """
     parts = _key_parts(manifest)
@@ -251,15 +266,23 @@ def pack_share(
         "contributor": str(manifest.get("contributor") or f"c-{secrets.token_hex(8)}"),
         "created_at": str(manifest.get("created_at") or _utcnow()),
     }
+    # 自洽闸：pack 产出必须可被自家 unpack 消费——manifest 序列化尺寸与
+    # 产物声明合计两侧口径对齐（unpack 侧同上限拒收）
+    manifest_blob = (json.dumps(doc, ensure_ascii=False, indent=2) + "\n").encode()
+    if len(manifest_blob) > _MANIFEST_MAX:
+        msg = f"manifest too large: {len(manifest_blob)}B > {_MANIFEST_MAX}B"
+        raise ShareError(msg)
+    total = sum(len(b) for b in blobs.values())
+    if total > _INFLATED_MAX:
+        msg = f"artifacts too large in aggregate: {total}B > {_INFLATED_MAX}B"
+        raise ShareError(msg)
     out = (out_dir or work_dir) / f"{key}.share.zip"
     out.parent.mkdir(parents=True, exist_ok=True)
     # 临时文件 + 原子 rename 发布——并发同键打包/静态托管读取不会看到半成品
     tmp = out.with_name(f".{out.name}.{secrets.token_hex(4)}.tmp")
     try:
         with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zf:
-            zf.writestr(
-                MANIFEST_NAME, json.dumps(doc, ensure_ascii=False, indent=2) + "\n"
-            )
+            zf.writestr(MANIFEST_NAME, manifest_blob)
             for name, blob in blobs.items():
                 zf.writestr(name, blob)
         tmp.replace(out)
@@ -285,7 +308,11 @@ def _name_ok(name: object) -> bool:
 
 
 def _read_manifest(zf: zipfile.ZipFile) -> dict[str, Any]:
-    """取并解析 manifest.json；不存在/超限/非 JSON object → ShareError。"""
+    """取并解析 manifest.json；不存在/超限/非 JSON object → ShareError。
+
+    声明 ``file_size`` 先快拒超 ``_MANIFEST_MAX``；读取仍按上限 +1 截断——
+    目录 size 可谎报，有界读防「声明小、实解大」解压放大。
+    """
     try:
         info = zf.getinfo(MANIFEST_NAME)
     except KeyError as e:
@@ -295,18 +322,21 @@ def _read_manifest(zf: zipfile.ZipFile) -> dict[str, Any]:
         msg = f"{MANIFEST_NAME} too large: {info.file_size}B"
         raise ShareError(msg)
     try:
-        blob = zf.read(info)
-    except (
-        OSError,
-        zipfile.BadZipFile,
-        RuntimeError,
-        NotImplementedError,  # 未知压缩方法
-    ) as e:
+        with zf.open(info) as fp:
+            blob = fp.read(_MANIFEST_MAX + 1)
+    except _ZIP_ERRORS as e:
         msg = f"{MANIFEST_NAME} unreadable: {e}"
         raise ShareError(msg) from e
+    if len(blob) > _MANIFEST_MAX:
+        msg = f"{MANIFEST_NAME} too large: {len(blob)}B"
+        raise ShareError(msg)
     try:
         doc = json.loads(blob)
-    except json.JSONDecodeError as e:
+    except (
+        json.JSONDecodeError,
+        UnicodeDecodeError,  # 成员字节非法 UTF-8——loads 对 bytes 先 decode
+        RecursionError,  # 上限内仍可构造超深嵌套
+    ) as e:
         msg = f"{MANIFEST_NAME} unreadable: {e}"
         raise ShareError(msg) from e
     if not isinstance(doc, dict):
@@ -402,12 +432,7 @@ def _extract_verified(
             # 声明尺寸 +1 截断读——中央目录 file_size 可能谎报，
             # 有界读防「声明小、实解大」的内存炸弹先于对账分配巨量。
             blob = fp.read(art.size + 1)
-    except (
-        OSError,
-        zipfile.BadZipFile,
-        RuntimeError,
-        NotImplementedError,  # 未知压缩方法
-    ) as e:
+    except _ZIP_ERRORS as e:
         msg = f"corrupt member: {name}"
         raise ShareError(msg) from e
     if len(blob) != art.size or hashlib.sha256(blob).hexdigest() != art.sha256:
@@ -427,12 +452,14 @@ def unpack_share(path: Path, dest: Path) -> ShareManifest:
     对账（读取按声明尺寸 +1 截断，目录 size 谎报不放大内存）。只抽取 manifest 登记成员（白名单），包内多余成员忽略——天然免
     zip-slip。产物先落 ``dest`` 内临时目录、全部对账过才逐件 rename 进
     ``dest``——校验中途失败 ``dest`` 零残留（既有同名文件也不被覆写）。
+    发布段先预检全部目标位（同名目录冲突整体先拒），再逐件 rename——
+    多文件真原子不可达，预检收敛确定性冲突后，环境级中段故障理论上
+    仍可能部分发布（rename 不可逆，无回滚承诺）。
     """
     try:
         zf = zipfile.ZipFile(path)
     except (
-        OSError,
-        zipfile.BadZipFile,
+        *_ZIP_ERRORS,
         UnicodeDecodeError,  # 中央目录成员名标 UTF-8 但字节非法
     ) as e:
         msg = f"not a readable share bundle: {path}"
@@ -446,6 +473,12 @@ def unpack_share(path: Path, dest: Path) -> ShareManifest:
         try:
             for name, art in mf.artifacts.items():
                 _extract_verified(zf, name, art, tmp)
+            # 发布预检：目标位被同名目录占据时 rename 必败——整体先拒，
+            # 避免逐件 rename 中段失败留下部分发布
+            for name in mf.artifacts:
+                if (dest / name).is_dir():
+                    msg = f"publish target is a directory: {dest / name}"
+                    raise IsADirectoryError(msg)
             for name in mf.artifacts:
                 (tmp / name).replace(dest / name)
         finally:

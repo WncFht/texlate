@@ -19,7 +19,6 @@ import json
 import random
 import re
 import zipfile
-import zlib
 from typing import TYPE_CHECKING
 
 import pytest
@@ -110,9 +109,6 @@ _NEW_NAMES = [
     "UPPER.PDF",
 ]
 _EXTRA_MEMBER_NAMES = [n for n in _NEW_NAMES if n != MANIFEST_NAME]
-#: 已钉缺陷的已知逃逸异常类型——fuzz 遇之跳过（不算通过也不算失败）；
-#: 确定性复现由 xfail 用例钉住，缺陷修复后这些 catch 即成 dead 分支。
-_KNOWN_ESCAPES = (UnicodeDecodeError, zlib.error, NotImplementedError)
 _BAD_ART_ENTRIES: list[object] = [
     None,
     "x",
@@ -462,17 +458,13 @@ def test_unpack_manifest_max_gate(
         unpack_share(bundle, tmp_path / "d")
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="pack emits bundles its own unpack rejects (manifest size unbounded)",
-)
 def test_pack_huge_caller_field_self_rejects(tmp_path: Path) -> None:
-    """已确认缺陷钉：``contributor``/``created_at``/组分串无界——pack 可产出
-    manifest 超 ``_MANIFEST_MAX`` 的包，自家 ``unpack_share`` 拒收（应 pack 先拒）。"""
+    """``contributor`` 等调用方控字段把序列化 manifest 顶超 ``_MANIFEST_MAX``
+    → pack 侧先拒（自洽闸：不产出自家 ``unpack_share`` 拒收的包）。"""
     _write_work(tmp_path / "w", {"zh-src.zip": b"ZS", "dual.json": b"{}"})
     parts = {**_BASE_PARTS, "contributor": "x" * (1 << 21)}
-    bundle = pack_share(tmp_path / "w", parts, out_dir=tmp_path)
-    unpack_share(bundle, tmp_path / "d")  # 现实现抛 ShareError("too large")
+    with pytest.raises(ShareError, match="too large"):
+        pack_share(tmp_path / "w", parts, out_dir=tmp_path)
 
 
 # ---------------------------------------------------------------- unpack 篡改 fuzz
@@ -562,8 +554,8 @@ def _mutate_members(payloads: dict[str, bytes], rng: random.Random) -> None:
     """成员侧变异：丢件/翻字节/加未登记成员。
 
     ``MANIFEST_NAME`` 不入成员名池——重名 manifest 成员会把随机字节顶上
-    权威位（last-wins），触发已钉缺陷（非 UTF-8 manifest → UnicodeDecodeError
-    逃逸，见 ``test_non_utf8_manifest_escapes_contract``）。
+    权威位（last-wins）只剩必拒路径，对 fuzz 无增量覆盖（权威语义由
+    ``test_unpack_dup_manifest_member_last_wins`` 单钉）。
     """
     for _ in range(rng.randint(0, 2)):
         r = rng.random()
@@ -621,19 +613,12 @@ def test_fuzz_unpack_mutated_bytes(tmp_path: Path) -> None:
         except ShareError:
             assert not dest.exists()
             continue
-        except _KNOWN_ESCAPES:
-            continue  # 成员解码面已知逃逸（xfail 钉住，修复后此分支转 dead）
         _check_consistent(mf, dest)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="non-UTF-8 manifest member escapes as UnicodeDecodeError, not ShareError",
-)
-def test_non_utf8_manifest_escapes_contract(tmp_path: Path) -> None:
-    """已确认缺陷钉：``manifest.json`` 成员字节非法 UTF-8 → ``json.loads`` 对
-    bytes 先 decode 抛 ``UnicodeDecodeError``——``_read_manifest`` 的 except
-    只接 ``JSONDecodeError``，坏包逃逸 ShareError 契约（也非 OSError）。"""
+def test_non_utf8_manifest_share_error(tmp_path: Path) -> None:
+    """``manifest.json`` 成员字节非法 UTF-8 → ShareError（``json.loads`` 对
+    bytes 先 decode 的 ``UnicodeDecodeError`` 归一契约内，不逃逸）。"""
     out = tmp_path / "bad.zip"
     with zipfile.ZipFile(out, "w") as zf:
         zf.writestr(MANIFEST_NAME, b"\xbb\x87not-utf8")
@@ -662,15 +647,9 @@ def _corrupt_member_data(bundle: Path, member: str, out: Path) -> Path:
     return out
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="corrupt DEFLATE stream escapes as zlib.error, not ShareError",
-)
-def test_corrupt_deflate_member_escapes_contract(tmp_path: Path) -> None:
-    """已确认缺陷钉：成员 deflate 流损坏 → ``zf.read`` 抛 ``zlib.error``——
-    ``_extract_verified``/``_read_manifest`` 的 except 名单
-    （OSError/BadZipFile/RuntimeError/NotImplementedError）不含它，
-    坏包逃逸 ShareError/OSError 契约。"""
+def test_corrupt_deflate_member_share_error(tmp_path: Path) -> None:
+    """成员 DEFLATE 流损坏 → 解压中途 ``zlib.error``，归一 ShareError（成员
+    读取面异常谱 ``_ZIP_ERRORS`` 已含，不逃逸契约）。"""
     doc, payloads = _base_bundle(tmp_path)
     good = _repack(tmp_path / "good.zip", doc, payloads)
     evil = _corrupt_member_data(good, "zh-src.zip", tmp_path / "e.zip")
@@ -678,15 +657,10 @@ def test_corrupt_deflate_member_escapes_contract(tmp_path: Path) -> None:
         unpack_share(evil, tmp_path / "d")
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="ZipFile() constructor escapes NotImplementedError on bad extract_version",
-)
-def test_bad_zip_version_escapes_contract(tmp_path: Path) -> None:
-    """已确认缺陷钉：中央目录 ``extract_version`` 超 ``MAX_EXTRACT_VERSION`` →
-    ``zipfile.ZipFile()`` 抛 ``NotImplementedError``——``unpack_share`` 构造侧
-    except 名单（OSError/BadZipFile/UnicodeDecodeError）不含它（成员读取侧
-    反而含——两路径名单不一致），坏包逃逸契约。"""
+def test_bad_zip_version_share_error(tmp_path: Path) -> None:
+    """中央目录 ``extract_version`` 超 ``MAX_EXTRACT_VERSION`` → ``ZipFile()``
+    构造抛 ``NotImplementedError``——构造侧与成员读取侧同异常谱，归一
+    ShareError。"""
     doc, payloads = _base_bundle(tmp_path)
     good = _repack(tmp_path / "good.zip", doc, payloads)
     data = bytearray(good.read_bytes())
@@ -745,15 +719,10 @@ def test_unpack_stale_dest_preserved_on_failure(tmp_path: Path) -> None:
     assert {p.name for p in dest.iterdir()} == {"keep.txt"}
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="rename phase is not atomic: mid-loop OSError leaves partial publish",
-)
-def test_unpack_rename_phase_partial_publish(tmp_path: Path) -> None:
-    """已确认缺陷钉：校验全过后逐件 ``rename`` 发布——中段 OSError（如 dest 既有
-    同名**目录**挡住 rename）会让前面成员已落盘、后面缺席 → 部分发布。
-    manifest artifacts 序可控（JSON 保序），把 zh-src.zip 排首、dest 预置
-    ``zh.pdf`` 目录即复现。修复方向：rename 前探测全部目标可写。"""
+def test_unpack_rename_phase_no_partial_publish(tmp_path: Path) -> None:
+    """发布段预检：dest 既有同名**目录**挡住 rename → 开 rename 循环前整体
+    ``IsADirectoryError``（OSError 域，环境冲突非坏包），已校验成员零落盘——
+    ``zh-src.zip`` 保持 STALE，无部分发布。"""
     doc, payloads = _base_bundle(tmp_path)
     good = _repack(tmp_path / "g.zip", doc, payloads)
     dest = tmp_path / "d"
