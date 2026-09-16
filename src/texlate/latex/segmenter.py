@@ -1785,9 +1785,7 @@ class Segmenter:
                     if k in cur or fid < 0 or fid == endinput:
                         continue
                     if any(
-                        t2.pos[0] == fid
-                        for mm in gullet_inputs
-                        for t2 in mm.tokbuf
+                        t2.pos[0] == fid for mm in gullet_inputs for t2 in mm.tokbuf
                     ):
                         # 源弹栈 ≠ fid 枯竭：拉参/回放可把 fid 源提前排空，
                         # 残余 token 躺合成回放源 tokbuf——尾盖抢在回放分派
@@ -1797,9 +1795,7 @@ class Segmenter:
                     # preamble 档只盖不入队——emit 推迟整段兜底，run 项
                     # 会冲刷出与 preamble piece 重叠的 piece
                     if vspan.end > vspan.start and not self._preamble:
-                        self._rappend(
-                            "", self.vt.slice(vspan.start, vspan.end), vspan
-                        )
+                        self._rappend("", self.vt.slice(vspan.start, vspan.end), vspan)
                 live_srcs = cur
             if t is None:
                 break
@@ -3811,12 +3807,13 @@ class Segmenter:
             return
         self._rappend_tok(t)
 
-    @staticmethod
-    def _find_math_close_tok(src: TokenSource, closer: str) -> int | None:
+    def _find_math_close_tok(self, src: TokenSource, closer: str) -> int | None:
         r"""``\]``/``\)`` 闭符 token 拉取：``eol_par``/EOF → 回吐放弃。
 
         字节版 ``_find_math_close`` 的 token 等价：注释已由 Mouth 吞掉；
-        ``eol_par`` = 段界逃逸信号（假闭合不吃进 MATH）。
+        ``eol_par`` = 段界逃逸信号（假闭合不吃进 MATH）。``\text`` 族
+        正文参整段跳扫——体内 ``\)``/``\]`` 属组内文本，不关外层数学
+        （``_on_math`` 同款 ``_math_skip_textarg`` 口径）。
         """
         pulled: list[Tok] = []
         while True:
@@ -3829,6 +3826,8 @@ class Segmenter:
             pulled.append(x)
             if x.kind == "cs" and x.text == closer:
                 return x.pos[2]
+            if x.kind == "cs" and x.text in _MATH_TEXTARG:
+                self._math_skip_textarg(src, pulled)
 
     def _handle_cond(
         self, t: Tok, src: TokenSource, name: str, m: object | None
