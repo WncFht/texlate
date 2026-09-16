@@ -45,3 +45,17 @@ brief 曾问 en.pdf 是否需 arxiv 重拉/重编、`dual_verified:false` 兜底
 | `test_import_tampered_manifest` | key_parts.model 篡改致 share_key 不自洽 → 400 |
 | `test_import_not_zip` / `test_import_missing_file` | 非 zip / 缺 file 字段 → 400 |
 | `test_import_bad_lang` / `test_import_bad_version_form` | key_parts lang∉白名单 / version 非 vN 形 → 400 |
+
+## 附录：随本 diff 一并修的端点 bug（端点审计 B1–B4 + mime 错配）
+
+`tests/test_app_endpoints.py` 的 6 处 `xfail(strict=True)` 钉住的行为缺陷已修、标记摘除转正——该文件 78 例全绿无 xfail：
+
+| 编号 | 缺陷 | 修法 |
+| --- | --- | --- |
+| B1 | 坏 `X-Texlate-Base-Url`/`X-Texlate-Model` header → `resolve_auth` ValueError 裸 500（部分路径偶被外层 try 接成 400，行为分裂） | `_auth` 内 try/except ValueError → `_ApiError(400)`，全调用点统一收敛 |
+| B2 | `options` 非标量（`"xx"`/`5`/`["a"]`）→ `dict()` ValueError/TypeError 裸 500 | `arxiv_translate` 处 try/except → 400；KV 对列表宽松接收保留 |
+| B3 | `retry` 在 transition 状态守卫前先 merge options/DELETE chunks/rmtree——done 任务 retry 返回 409 但数据已清 | `RETRYABLE_FROM` 守卫前移到一切 mutation 之前（`TransitionError` 直抛复用 409 处理器），`store.transition` 保留作权威兜底 |
+| B4 | upload idempotent 命中前 blob 已落盘 → `tasks/{新tid}/` 孤儿目录 | `_create_and_enqueue` 返回后 `row.id != task_id` → rmtree 兜底（与 share 导入同款手法） |
+| mime | `_MEDIA["src.tar"]` 恒 `application/gzip`；上传任务（epub/docx/tex）的 src.tar 实为原文件字节 | `file_get` 中 `kind=="src.tar"` 且任务 kind ∉ {arxiv, share} → `application/octet-stream` |
+
+另注：本机 `test_pdf_no_babeldoc_501`（test_server_api.py + test_server_upload.py 两处）当前失败是环境因——babeldoc 已被在飞 e2e 会话装到 PATH，两测试均无 PATH/ find_tool 隔离，与本 diff 无关，归 babeldoc 侧收口。
