@@ -619,11 +619,7 @@ def materialize(rec: dict, blob: bytes, sha: str) -> dict:
     fmt = rec["format"]
     raw_name = RAW_NAME[fmt]
     (dest / raw_name).write_bytes(blob)
-    n_ext, warns = b3.unpack_blob(
-        gzip.decompress(blob) if fmt == "tar" else blob,
-        "tar" if fmt == "tar" else "gz",
-        dest,
-    )
+    n_ext, warns = b3.unpack_blob(blob, fmt, dest)
     main_sha = None
     roots = rec.get("tex_roots") or []
     if len(roots) == 1:

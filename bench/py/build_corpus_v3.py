@@ -22,7 +22,8 @@ docs/09 S1–S5 实现. 30 月簇 (cluster_pick.json): a–d 带走 IA arxiv-bul
   qc            S5 自检: 配额达成/去重/stub/pdf_only/账目
 
 用法: bench/work_v3/.venv/bin/python bench/py/build_corpus_v3.py <cmd> [args]
-依赖: stdlib; frame-lookup 另需 pyarrow (work_v3/.venv 已装).
+依赖: stdlib; frame-lookup 另需 pyarrow; extract 走产品 unpack
+      (texlate.arxiv) → 用 `uv run python` 跑 (work_v3/.venv 无 texlate).
 特征提取代码改编自 tmp/exp/ia-pilot/scan_tar.py (⟦A1⟧ pilot 产物).
 """
 
@@ -960,40 +961,55 @@ def safe_name(name: str) -> str | None:
 
 
 def unpack_blob(blob: bytes, fmt: str, dest: Path) -> tuple[int, list[str]]:
+    """raw e-print blob → ``dest/extracted/``（归并产品 ``texlate.arxiv`` unpack）。
+
+    sniff 做有上限 gunzip + 魔数复核——``fmt`` 只是扫描侧标注，内容优先、不符
+    记 fmt_mismatch 告警；tar 走产品逐成员过滤（容量/setuid/link/casefold/
+    stub），单文件 gz 沿用旧命名：tex → ``main.tex``、ps/pdf payload 按真实
+    扩展名落盘。非 tar/gz 与解包硬错误 → ``(0, warns)``，不炸批。
+    """
+    from texlate.arxiv import (  # 仅 extract 路径需要 (pyarrow 同例；其余子命令保持 stdlib-only)
+        BlobKind,
+        SniffError,
+        UnpackError,
+        sniff,
+        unpack_single,
+        unpack_tar,
+    )
+
+    if fmt not in ("tar", "gz"):
+        return 0, [f"{fmt} member — blob 留存不解包"]
     ext_dir = dest / "extracted"
     ext_dir.mkdir(parents=True, exist_ok=True)
-    warns: list[str] = []
-    n = 0
-    if fmt == "gz":
-        data = gzip.decompress(blob)
-        head = data.lstrip()[:8]
-        ext = (
-            ".ps"
-            if head.startswith(b"%!PS")
-            else ".pdf"
-            if head.startswith(b"%PDF")
-            else ".tex"
-        )
-        (ext_dir / f"main{ext}").write_bytes(data)
-        if ext != ".tex":
-            warns.append(f"single-gz payload sniffed as {ext}")
-        return 1, warns
-    inner = tarfile.open(fileobj=io.BytesIO(blob), mode="r:")
-    for m in inner.getmembers():
-        if not m.isreg():
-            continue
-        rel = safe_name(m.name)
-        if rel is None:
-            warns.append(f"skipped unsafe path: {m.name}")
-            continue
-        f = inner.extractfile(m)
-        if f is None:
-            continue
-        out = ext_dir / rel
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_bytes(f.read())
-        n += 1
-    return n, warns
+    try:
+        s = sniff(blob)
+    except SniffError as e:
+        return 0, [f"sniff_error:{e}"]
+    if s.oversized or s.payload is None:
+        return 0, [
+            f"inflated_too_large:{s.inflated_size}"
+            if s.oversized
+            else f"cannot unpack kind={s.kind}"
+        ]
+    try:
+        if s.kind is BlobKind.TAR:
+            res = unpack_tar(s.payload, ext_dir)
+            if fmt != "tar":
+                res.warnings.append("fmt_mismatch:gz->tar")
+            return res.n_files, res.warnings
+        if s.kind is BlobKind.SINGLE:
+            head = s.payload.lstrip()[:8]
+            if head.startswith((b"%!PS", b"%PDF")):
+                ext = ".ps" if head.startswith(b"%!PS") else ".pdf"
+                (ext_dir / f"main{ext}").write_bytes(s.payload)
+                return 1, [f"single-gz payload sniffed as {ext}"]
+            res = unpack_single(s.payload, ext_dir, stem_hint="main")
+            if fmt != "gz":
+                res.warnings.append("fmt_mismatch:tar->single")
+            return res.n_files, res.warnings
+    except UnpackError as e:
+        return 0, [f"unpack_error:{e}"]
+    return 0, [f"cannot unpack kind={s.kind}"]
 
 
 def cmd_extract() -> None:
@@ -1037,13 +1053,7 @@ def cmd_extract() -> None:
                 fmt = feat["format"]
                 raw_name = {"tar": "raw.tar.gz", "gz": "raw.gz", "pdf": "raw.pdf"}[fmt]
                 (dest / raw_name).write_bytes(blob)
-                n_ext, warns = (0, [])
-                if fmt in ("tar", "gz"):
-                    n_ext, warns = unpack_blob(
-                        gzip.decompress(blob) if fmt == "tar" else blob,
-                        "tar" if fmt == "tar" else "gz",
-                        dest,
-                    )
+                n_ext, warns = unpack_blob(blob, fmt, dest)
                 # main tex sha
                 main_sha = None
                 roots = feat.get("tex_roots") or []
@@ -1225,11 +1235,7 @@ def cmd_extract_booster() -> None:
                 (dest / raw_name).write_bytes(blob)
                 n_ext, warns = (0, [])
                 if fmt in ("tar", "gz"):
-                    n_ext, warns = unpack_blob(
-                        gzip.decompress(blob) if fmt == "tar" else blob,
-                        "tar" if fmt == "tar" else "gz",
-                        dest,
-                    )
+                    n_ext, warns = unpack_blob(blob, fmt, dest)
                 else:
                     warns.append(f"{fmt} member — blob 留存不解包（B07 归因材料）")
                 main_sha = None

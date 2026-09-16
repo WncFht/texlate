@@ -86,7 +86,31 @@ SAMPLE = BASE / "sample.json"
 BASE_CELLS = BASE / "cells.json"
 
 JOBS = 4
-RS = load_ruleset()
+
+#: RS 惰性装载: stagerun/e2e_real 顶层 ``import fixloop_bench`` 只为取配方
+#: (_NoSandbox/_init_usertree/_index/TUNA_TLNET), import-time 读 rules.yaml
+#: 会撞上半途编辑的规则文件 → 顶层 import 直接崩。模块内走 ``_rs()``, 外部
+#: ``flb.RS`` 经 PEP 562 __getattr__ 兼容, 都是首次访问才加载; 线程池并发
+#: 首访经锁串行 (与 _index 同型)。
+_rs_cache = None
+_rs_lock = threading.Lock()
+
+
+def _rs():
+    global _rs_cache  # noqa: PLW0603
+    if _rs_cache is None:
+        with _rs_lock:
+            if _rs_cache is None:
+                _rs_cache = load_ruleset()
+    return _rs_cache
+
+
+def __getattr__(name: str):
+    if name == "RS":
+        return _rs()
+    msg = f"module {__name__!r} has no attribute {name!r}"
+    raise AttributeError(msg)
+
 
 #: tlnet 镜像钉选: 引擎子进程 (child_env) 不透传 *_PROXY → 直连; 本机直连实测
 #: tuna/aliyun/sjtug 通、mirror.ctan.org round-robin 不通 (2026-09-15)。
@@ -232,11 +256,12 @@ def _make_engine(name: str, texmf: Path, wdir: Path) -> _NoSandbox:
         eng = TectonicEngine(bundle=TECTONIC_BUNDLE_PIN)
         # 预注入 ctan_fetch (同 _wire_engine 配方, 但 mirror 钉 tuna);
         # fixloop 见到非 None 即跳过自带注入
-        vg = RS.filemap_cfg.get("version_guard") or {}
+        rs = _rs()
+        vg = rs.filemap_cfg.get("version_guard") or {}
         eng.ctan_fetch = CtanFetcher(
             wdir,
             index=_index(),
-            overrides=RS.filemap_cfg.get("overrides") or {},
+            overrides=rs.filemap_cfg.get("overrides") or {},
             epoch=(str(vg["texlive_format_epoch"]) if vg.get("enabled") else None),
             mirror=TUNA_TLNET,
         )
@@ -311,7 +336,7 @@ def run_paper(p: dict, todo_engines: tuple[str, ...]) -> list[dict]:
             cell = fixloop(
                 wdir,
                 eng,
-                ruleset=RS,
+                ruleset=_rs(),
                 engine_name=eng_name,
                 corpus_id=pid,
                 cond="zh" if INJECT_ZH else "fixloop",
@@ -419,6 +444,7 @@ def _papers_from_cases(
 
 
 def report(papers_meta: list[dict]) -> None:
+    rs = _rs()
     cells = [
         json.loads(ln)
         for ln in (OUT / "cells.jsonl").read_text().splitlines()
@@ -437,8 +463,8 @@ def report(papers_meta: list[dict]) -> None:
             "work": str(WORK),
             "texmf_mode": "per-paper cold usertree (tlmgr --usermode)",
             "tectonic_bundle": TECTONIC_BUNDLE_PIN,
-            "rules": str(RS.path),
-            "max_rounds": RS.max_rounds(),
+            "rules": str(rs.path),
+            "max_rounds": rs.max_rounds(),
         },
         "papers": [],
     }
@@ -486,7 +512,7 @@ def report(papers_meta: list[dict]) -> None:
     lines.append("")
     lines.append(f"- 日期: {doc['meta']['date']}")
     lines.append(
-        f"- 规则库: `{RS.path}` ({len(RS.rules)} 规则, max_rounds={RS.max_rounds()})"
+        f"- 规则库: `{rs.path}` ({len(rs.rules)} 规则, max_rounds={rs.max_rounds()})"
     )
     inject_note = (
         "fixloop 前 normalize_project + prepare_chinese(ctex) 注入"
@@ -625,7 +651,7 @@ def report(papers_meta: list[dict]) -> None:
             rule_hit[rid][c["engine"]] += 1
             if c.get("verdict") in PDFY:
                 rule_resc[rid].add((c["paper_id"], c["engine"]))
-    for r in RS.rules:
+    for r in rs.rules:
         h = rule_hit.get(r.id, Counter())
         lines.append(
             f"| {r.id} ({r.phase}) | {h.get('xelatex', 0)} | "
