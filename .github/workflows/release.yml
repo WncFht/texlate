@@ -1,0 +1,112 @@
+name: Release
+
+# tag v* 触发：构建 SPA → static/ 就位 → uv build（sdist+wheel）→
+# wheel 内容断言（SPA 入包防回归）→ 传 GitHub Release → docker 镜像推 ghcr.io。
+# 与 ci.yml 同源纪律：node 22 / uv / 同一 build-web.sh 链路。
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write # gh release 产物
+  packages: write # ghcr.io 推送
+
+jobs:
+  dist:
+    name: sdist + wheel + Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: web 构建 → src/texlate/server/static
+        # npm ci --prefix web → vite build → cp -R web/dist/. static/
+        run: scripts/build-web.sh
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: uv build（sdist + wheel）
+        run: uv build
+
+      - name: wheel 断言：SPA 已入包
+        # pyproject [tool.hatch.build] artifacts 强制携带 static/——
+        # 防"wheel 无前端"回归（audit m3.md 点名的交付断链）。
+        run: |
+          whl=$(ls dist/texlate-*-py3-none-any.whl)
+          python3 -m zipfile -l "$whl" | grep -q "texlate/server/static/index.html"
+          python3 -m zipfile -l "$whl" | grep -q "texlate/server/static/pdfjs/"
+          echo "wheel SPA 断言通过: $whl"
+
+      - name: wheel 冒烟：console script 可用
+        run: |
+          uv tool install dist/texlate-*-py3-none-any.whl
+          "$HOME/.local/bin/texlate" version
+
+      - name: GitHub Release + 产物
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --title "texlate $GITHUB_REF_NAME" --generate-notes
+
+      - name: Actions artifact（dist/ 存档）
+        uses: actions/upload-artifact@v4
+        with:
+          name: texlate-dist-${{ github.ref_name }}
+          path: dist/
+
+  docker:
+    name: Docker → ghcr.io
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build + tag
+        # 单架 linux/amd64。multi-arch 扩展点：加 docker/setup-qemu-action +
+        # docker/setup-buildx-action 后 `docker buildx build --platform
+        # linux/amd64,linux/arm64 --push`——Dockerfile 内 uname -m 选档在
+        # QEMU 下报目标架构，无需改 Dockerfile。
+        run: |
+          IMAGE=$(echo "ghcr.io/${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          VER="${GITHUB_REF_NAME#v}"
+          docker build -t "$IMAGE:$VER" -t "$IMAGE:latest" .
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+          echo "VER=$VER" >> "$GITHUB_ENV"
+
+      - name: 镜像冒烟（起服 + health + SPA）
+        run: |
+          docker run -d --name smoke -p 8765:8765 "$IMAGE:$VER"
+          ok=""
+          for _ in $(seq 1 30); do
+            if curl -sf --max-time 2 http://127.0.0.1:8765/api/health; then
+              ok=1
+              break
+            fi
+            sleep 1
+          done
+          spa=""
+          if curl -sf --max-time 5 http://127.0.0.1:8765/ > /dev/null; then
+            spa=1
+          fi
+          docker rm -f smoke
+          test -n "$ok" # 30s 内 health 没起来 → fail
+          test -n "$spa" # SPA 在镜像内可达
+
+      - name: ghcr.io 登录
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io \
+            -u "${{ github.actor }}" --password-stdin
+
+      - name: Push
+        run: |
+          docker push "$IMAGE:$VER"
+          docker push "$IMAGE:latest"
