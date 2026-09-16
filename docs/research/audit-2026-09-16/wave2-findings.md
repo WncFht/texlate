@@ -185,3 +185,12 @@ pst-node×11 / jheppub×9 / citesort×7 / diagrams×7 / axodraw×5 / pst-arrow×
 - **bug-B 重解读（fixer-slots 关键）**：`\item<Cap>` 融合 flat 10→9——segmenter 修不动它，因融合发生在 **LLM echo 侧**（模型回显把 `\item` 粘后随大写 token）；re-roll 29% 双向 churn（2211.04495 `\itemOC` 新生）。segmenter/writer 修只治「源有分隔被吞」半边；LLM 产出融合需**交付侧/splice 侧守卫**——候选 `\\item(?=[A-Z])` 强插空格（无合法 `\item<Cap>` 先例，bfuse 普查真融合仅痕量；splice-time repair 优于 L0 fault——意图无歧义不必重试）。
 - **bug-G 终证**：cond-mat/0307508 pipe-xel 仍 4379 miss 但 pipe-fix 经 warmup 救回 clean——warmup 仅 fixloop 臂生效（首编不戴）；1706 外 18 臂救回 16/18。
 - latex209 两格 reject→partial（shim/209up 后不再硬拒）；`419cf13` 后 postfix 臂 18 跑 vs 基线 40 跑不可直比（indicative）。
+
+### peer1 回执与二轮落地（`3010310` / 口头确认）
+
+- **lgrenc×3 已独立落地**：textgreek.sty:39 `\PackageError` 报 `Cannot find the file lgrenc.def`（无反引号对）逃出两条 head 签名，halt 后 tail 被 early_eof 抢路由——head 加第三 pattern `Cannot find the file\s+([\w@.+-]+\.[a-zA-Z0-9]+)` → greek-fontenc 通吃，重跑 3/3 best_effort。
+- **early_eof ×13 全格归因**（REPORT 补记7 修订）：missing_file 伪装 ×3（上条已愈）、`\read` 交互档 ×1（hep-ph/0111248 bundled aipcheck.tex:259，wdir stub 候选）、`no legal \end` ×4 四根各异（^^M 截断/`{` runaway/`\if` 缺 `\fi`/command-ignored Emergency——无统一规则面，逐格或 llm_hook）、错误帽 100 ×2（1608.06693/2308.12612 上游个案）、svjour 选项 errmessage ×1（0905.0193）、腐蚀 ×1（1404.0519 `\c{S}` 口音参数改写 → slots 超簇）、SIGKILL ×1（2211.13028 infra）。
+- **peer1 接单**：shim 波二 ~20 名 + emulateapj-rtx4/JINST 键 + babel_opt×10 + hyperref-driver/expl3×4(含 hep-ph/9910403)/option_clash/already_def/pkg_order 小簇，顺序 shim→babel_opt→小簇。
+- **回弹我侧两项已落 `450b1ad`**：precheck `\input` 扫描逐行切注释（`_apply_scan_install` code-portion 化，pst-notreal 不再被装）；F 桶 verdict 修——`expect_cjk` 全 zh 臂调用点改由 translate chunks 派生（e2e/stagerun×2/e2e_real×2/e2e_mock；worker 侧已转 1e）。
+- **E 桶裁定 pipeline 面收**（peer1）：main_rel 选取加「`\begin{document}` 后实质 body」权重——落点 inject.py `find_main_tex`（1d，task #170）。
+- **L2 红旗哨**：`test_l2_runs_before_fixloop` 持续红（done≠partial，纯 `\badcs` 假 log 与 taxonomy 无关，HEAD 复现）——dirty 树 gullet/macro_table/reconstruct（fixer-slots 在飞）嫌疑最大，slots 交付后仍红则升 ticket（#171 观察项）。
