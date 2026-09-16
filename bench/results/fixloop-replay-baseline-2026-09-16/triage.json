@@ -1,0 +1,639 @@
+[
+ {
+  "ts": "2026-09-16 10:36:26",
+  "corpus": "0707.4465",
+  "cond": "pipe-fix",
+  "engine": "xelatex",
+  "main": "cizallanals.tex",
+  "verdict": "unfixable:missing_file",
+  "final_pdf": false,
+  "final_errors": 2,
+  "started_fail": true,
+  "rounds": [
+   {
+    "round": 1,
+    "cat": "missing_file",
+    "pay": "elsart.cls",
+    "pdf": false,
+    "n_errors": 2,
+    "warnings": [
+     "tectonic_degrade"
+    ]
+   },
+   {
+    "round": 2,
+    "cat": null,
+    "pay": null,
+    "pdf": false,
+    "n_errors": 2,
+    "warnings": [
+     "tectonic_degrade"
+    ]
+   }
+  ],
+  "actions": [
+   {
+    "round": 0,
+    "rule": "static_precheck",
+    "result": "missing files=['elsart.cls'] -> installed []"
+   },
+   {
+    "round": "salvage",
+    "rule": "_best_effort_pass",
+    "result": "nonstopmode 兜底: pdf=False err=2"
+   }
+  ],
+  "installed": [],
+  "advisories": [
+   "no package provides elsart.cls"
+  ],
+  "log_excerpt": "! LaTeX Error: File `elsart.cls' not found.\n! LaTeX Error: File `elsart.cls' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: cls)\n\nEnter file name: \n/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/0707.4465/cizallanals.tex:26: Emergency stop.\n<read *> "
+ },
+ {
+  "ts": "2026-09-16 10:37:09",
+  "corpus": "0905.4439",
+  "cond": "pipe-fix",
+  "engine": "xelatex",
+  "main": "12023.tex",
+  "verdict": "unfixable:missing_file",
+  "final_pdf": false,
+  "final_errors": 2,
+  "started_fail": true,
+  "rounds": [
+   {
+    "round": 1,
+    "cat": "missing_file",
+    "pay": "aa.cls",
+    "pdf": false,
+    "n_errors": 2,
+    "warnings": [
+     "tectonic_degrade"
+    ]
+   },
+   {
+    "round": 2,
+    "cat": null,
+    "pay": null,
+    "pdf": false,
+    "n_errors": 2,
+    "warnings": [
+     "tectonic_degrade"
+    ]
+   }
+  ],
+  "actions": [
+   {
+    "round": 0,
+    "rule": "static_precheck",
+    "result": "missing files=['aa.cls'] -> installed []"
+   },
+   {
+    "round": "salvage",
+    "rule": "_best_effort_pass",
+    "result": "nonstopmode 兜底: pdf=False err=2"
+   }
+  ],
+  "installed": [],
+  "advisories": [
+   "no package provides aa.cls"
+  ],
+  "log_excerpt": "! LaTeX Error: File `aa.cls' not found.\n! LaTeX Error: File `aa.cls' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: cls)\n\nEnter file name: \n/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/0905.4439/12023.tex:31: Emergency stop.\n<read *> "
+ },
+ {
+  "ts": "2026-09-16 10:38:57",
+  "corpus": "1306.2177",
+  "cond": "pipe-fix",
+  "engine": "xelatex",
+  "main": "shy-icrtnp-2012.tex",
+  "verdict": "unfixable:missing_file",
+  "final_pdf": false,
+  "final_errors": 2,
+  "started_fail": true,
+  "rounds": [
+   {
+    "round": 1,
+    "cat": "missing_file",
+    "pay": "aipcheck.tex",
+    "pdf": false,
+    "n_errors": 2,
+    "warnings": [
+     "tectonic_degrade"
+    ]
+   },
+   {
+    "round": 2,
+    "cat": null,
+    "pay": null,
+    "pdf": false,
+    "n_errors": 2,
+    "warnings": [
+     "tectonic_degrade"
+    ]
+   }
+  ],
+  "actions": [
+   {
+    "round": 0,
+    "rule": "static_precheck",
+    "result": "missing files=['aipproc.cls'] -> installed []"
+   },
+   {
+    "round": "salvage",
+    "rule": "_best_effort_pass",
+    "result": "nonstopmode 兜底: pdf=False err=2"
+   }
+  ],
+  "installed": [],
+  "advisories": [
+   "no package provides aipcheck.tex"
+  ],
+  "log_excerpt": "! LaTeX Error: File `aipcheck.tex' not found.\n! LaTeX Error: File `aipcheck.tex' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: tex)\n\nEnter file name: \n/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/1306.2177/shy-icrtnp-2012.tex:50: Emergency stop.\n<read *> "
+ },
+ {
+  "ts": "2026-09-16 10:38:58",
+  "corpus": "1306.5813",
+  "cond": "pipe-fix",
+  "engine": "xelatex",
+  "main": "OptoAcousticJPhysB_v6.tex",
+  "verdict": "unfixable:missing_file",
+  "final_pdf": false,
+  "final_errors": 2,
+  "started_fail": true,
+  "rounds": [
+   {
+    "round": 1,
+    "cat": "missing_file",
+    "pay": "iopart12.clo",
+    "pdf": false,
+    "n_errors": 2,
+    "warnings": [
+     "tectonic_degrade"
+    ]
+   },
+   {
+    "round": 2,
+    "cat": null,
+    "pay": null,
+    "pdf": false,
+    "n_errors": 2,
+    "warnings": [
+     "tectonic_degrade"
+    ]
+   }
+  ],
+  "actions": [
+   {
+    "round": 0,
+    "rule": "static_precheck",
+    "result": "missing files=['iopams.sty'] -> installed []"
+   },
+   {
+    "round": "salvage",
+    "rule": "_best_effort_pass",
+    "result": "nonstopmode 兜底: pdf=False err=2"
+   }
+  ],
+  "installed": [],
+  "advisories": [
+   "no package provides iopart12.clo"
+  ],
+  "log_excerpt": "! LaTeX Error: File `iopart12.clo' not found.\n! LaTeX Error: File `iopart12.clo' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: clo)\n\nEnter file name: \n/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/1306.5813/iopart.cls:52: Emergency stop.\n<read *> "
+ },
+ {
+  "ts": "2026-09-16 10:40:16",
+  "corpus": "1803.08927",
+  "cond": "pipe-fix",
+  "engine": "xelatex",
+  "main": "apjl_jets.tex",
+  "verdict": "unfixable:latex209",
+  "final_pdf": false,
+  "final_errors": 0,
+  "started_fail": true,
+  "rounds": [
+   {
+    "round": 1,
+    "cat": "latex209",
+    "pay": null,
+    "pdf": false,
+    "n_errors": 0,
+    "warnings": []
+   },
+   {
+    "round": 2,
+    "cat": null,
+    "pay": null,
+    "pdf": false,
+    "n_errors": 0,
+    "warnings": []
+   }
+  ],
+  "actions": [
+   {
+    "round": 0,
+    "rule": "static_precheck",
+    "result": "missing files=['apjfonts.sty', 'epsf.sty', 'ulem.sty'] -> installed ['epsf.sty', 'ulem.sty']"
+   },
+   {
+    "round": "salvage",
+    "rule": "_best_effort_pass",
+    "result": "nonstopmode 兜底: pdf=False err=0"
+   }
+  ],
+  "installed": [
+   "epsf.sty",
+   "ulem.sty"
+  ],
+  "advisories": [],
+  "log_excerpt": "(/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/1803.08927/aastex61.cls\nDocument Class: aastex61 2016/04/16 Version 6.1/AAS markup document class\nClass aastex Info: \n \n Original \\LaTeX2.09 style by Chris Biemesderfer (chris@seagoat.com). \n Adapted to \\LaTeXe by A. Ogawa (ogawa@teleport.com)\n emulateapj.cls included, Copyright 2000-2015 Alexey Vikhlinin \n Rewrite and update of emulateapj.cls, revised and enhanced with table macros, gridlines, draft watermark,\n track changes, new `modern' style and much more, by Amy Hendrickson,\n (amyh@texnology.com, http://www.texnology.com) \n \n  on input line 106.\n\\bibbaselineskip=\\skip49\n\n\n Please update your system to include revtex4-1.cls\n\n\n ) )\n(\\end occurred when \\ifx on line 26 was incomplete) \nHere is how much of TeX's memory you used:\n 152 strings out of 470180\n 3404 string characters out of 5479198\n 426408 words of memory out of 5000000\n 28838 multiletter control sequences out of 15000+600000\n 627721 words of font info for 40 fonts, out of 8000000 for 9000\n 14 hyphenation exceptions out of 8191\n 29i,1n,37p,202b,18s stack positions out of 10000i,1000n,20000p,200000b,200000s\n\nNo pages of output."
+ },
+ {
+  "ts": "2026-09-16 10:40:21",
+  "corpus": "1803.09046",
+  "cond": "pipe-fix",
+  "engine": "xelatex",
+  "main": "new.ms.tex",
+  "verdict": "unfixable:latex209",
+  "final_pdf": false,
+  "final_errors": 0,
+  "started_fail": true,
+  "rounds": [
+   {
+    "round": 1,
+    "cat": "latex209",
+    "pay": null,
+    "pdf": false,
+    "n_errors": 0,
+    "warnings": []
+   },
+   {
+    "round": 2,
+    "cat": null,
+    "pay": null,
+    "pdf": false,
+    "n_errors": 0,
+    "warnings": []
+   }
+  ],
+  "actions": [
+   {
+    "round": 0,
+    "rule": "static_precheck",
+    "result": "missing files=['apjfonts.sty', 'epsf.sty', 'math.sty', 'ulem.sty'] -> installed ['epsf.sty', 'ulem.sty']"
+   },
+   {
+    "round": "salvage",
+    "rule": "_best_effort_pass",
+    "result": "nonstopmode 兜底: pdf=False err=0"
+   }
+  ],
+  "installed": [
+   "epsf.sty",
+   "ulem.sty"
+  ],
+  "advisories": [],
+  "log_excerpt": "(/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/1803.09046/aastex61.cls\nDocument Class: aastex61 2016/04/16 Version 6.1/AAS markup document class\nClass aastex Info: \n \n Original \\LaTeX2.09 style by Chris Biemesderfer (chris@seagoat.com). \n Adapted to \\LaTeXe by A. Ogawa (ogawa@teleport.com)\n emulateapj.cls included, Copyright 2000-2015 Alexey Vikhlinin \n Rewrite and update of emulateapj.cls, revised and enhanced with table macros, gridlines, draft watermark,\n track changes, new `modern' style and much more, by Amy Hendrickson,\n (amyh@texnology.com, http://www.texnology.com) \n \n  on input line 106.\n\\bibbaselineskip=\\skip49\n\n\n Please update your system to include revtex4-1.cls\n\n\n ) )\n(\\end occurred when \\ifx on line 57 was incomplete) \nHere is how much of TeX's memory you used:\n 152 strings out of 470180\n 3392 string characters out of 5479198\n 426408 words of memory out of 5000000\n 28838 multiletter control sequences out of 15000+600000\n 627721 words of font info for 40 fonts, out of 8000000 for 9000\n 14 hyphenation exceptions out of 8191\n 29i,1n,37p,199b,18s stack positions out of 10000i,1000n,20000p,200000b,200000s\n\nNo pages of output."
+ },
+ {
+  "ts": "2026-09-16 10:42:06",
+  "corpus": "2105.03750",
+  "cond": "pipe-fix",
+  "engine": "xelatex",
+  "main": "rrl_bin_1.tex",
+  "verdict": "unfixable:missing_file",
+  "final_pdf": false,
+  "final_errors": 2,
+  "started_fail": true,
+  "rounds": [
+   {
+    "round": 1,
+    "cat": "missing_file",
+    "pay": "aastex63.cls",
+    "pdf": false,
+    "n_errors": 2,
+    "warnings": [
+     "tectonic_degrade"
+    ]
+   },
+   {
+    "round": 2,
+    "cat": null,
+    "pay": null,
+    "pdf": false,
+    "n_errors": 2,
+    "warnings": [
+     "tectonic_degrade"
+    ]
+   }
+  ],
+  "actions": [
+   {
+    "round": 0,
+    "rule": "static_precheck",
+    "result": "missing files=['aastex63.cls'] -> installed []"
+   },
+   {
+    "round": "salvage",
+    "rule": "_best_effort_pass",
+    "result": "nonstopmode 兜底: pdf=False err=2"
+   }
+  ],
+  "installed": [],
+  "advisories": [
+   "no package provides aastex63.cls"
+  ],
+  "log_excerpt": "! LaTeX Error: File `aastex63.cls' not found.\n! LaTeX Error: File `aastex63.cls' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: cls)\n\nEnter file name: \n/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/2105.03750/rrl_bin_1.tex:25: Emergency stop.\n<read *> "
+ },
+ {
+  "ts": "2026-09-16 10:52:38",
+  "corpus": "2203.04385",
+  "cond": "pipe-fix",
+  "engine": "xelatex",
+  "main": "apj.tex",
+  "verdict": "unfixable:latex209",
+  "final_pdf": false,
+  "final_errors": 0,
+  "started_fail": true,
+  "rounds": [
+   {
+    "round": 1,
+    "cat": "latex209",
+    "pay": null,
+    "pdf": false,
+    "n_errors": 0,
+    "warnings": []
+   },
+   {
+    "round": 2,
+    "cat": null,
+    "pay": null,
+    "pdf": false,
+    "n_errors": 0,
+    "warnings": []
+   }
+  ],
+  "actions": [
+   {
+    "round": 0,
+    "rule": "static_precheck",
+    "result": "missing files=['AASTeX62.cls', 'apjfonts.sty', 'epsf.sty', 'ulem.sty'] -> installed ['epsf.sty', 'ulem.sty']"
+   },
+   {
+    "round": "salvage",
+    "rule": "_best_effort_pass",
+    "result": "nonstopmode 兜底: pdf=False err=0"
+   }
+  ],
+  "installed": [
+   "epsf.sty",
+   "ulem.sty"
+  ],
+  "advisories": [],
+  "log_excerpt": "\nDocument Class: aastex_reep 2017/10/16 Version 6.2/AAS markup document class\nClass aastex Info: \n \n Original \\LaTeX2.09 style by Chris Biemesderfer (chris@seagoat.com). \n Adapted to \\LaTeXe by A. Ogawa (ogawa@teleport.com)\n emulateapj.cls included, Copyright 2000-2015 Alexey Vikhlinin \n Rewrite and update of emulateapj.cls, revised and enhanced with table macros, gridlines, draft watermark,\n track changes, new `modern' style and much more, by Amy Hendrickson,\n (amyh@texnology.com, http://www.texnology.com) \n \n  on input line 128.\n\\bibbaselineskip=\\skip49\n\n\n Please update your system to include revtex4-1.cls\n\n\n ) )\n(\\end occurred when \\ifx on line 25 was incomplete) \nHere is how much of TeX's memory you used:\n 157 strings out of 470180\n 3492 string characters out of 5479198\n 426408 words of memory out of 5000000\n 28843 multiletter control sequences out of 15000+600000\n 627721 words of font info for 40 fonts, out of 8000000 for 9000\n 14 hyphenation exceptions out of 8191\n 37i,1n,38p,196b,18s stack positions out of 10000i,1000n,20000p,200000b,200000s\n\nNo pages of output."
+ },
+ {
+  "ts": "2026-09-16 11:33:11",
+  "corpus": "2211.04574",
+  "cond": "pipe-fix",
+  "engine": "xelatex",
+  "main": "mnras_guide.tex",
+  "verdict": "unfixable:missing_file",
+  "final_pdf": false,
+  "final_errors": 2,
+  "started_fail": true,
+  "rounds": [
+   {
+    "round": 1,
+    "cat": "missing_file",
+    "pay": "binhex.tex",
+    "pdf": false,
+    "n_errors": 2,
+    "warnings": [
+     "tectonic_degrade"
+    ]
+   },
+   {
+    "round": 2,
+    "cat": null,
+    "pay": null,
+    "pdf": false,
+    "n_errors": 2,
+    "warnings": [
+     "tectonic_degrade"
+    ]
+   }
+  ],
+  "actions": [
+   {
+    "round": 0,
+    "rule": "static_precheck",
+    "result": "missing files=['mnras.cls'] -> installed ['mnras.cls']"
+   },
+   {
+    "round": "salvage",
+    "rule": "_best_effort_pass",
+    "result": "nonstopmode 兜底: pdf=False err=2"
+   }
+  ],
+  "installed": [
+   "mnras.cls"
+  ],
+  "advisories": [
+   "no package provides binhex.tex"
+  ],
+  "log_excerpt": "! LaTeX Error: File `binhex.tex' not found.\n! LaTeX Error: File `binhex.tex' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: tex)\n\nEnter file name: \n/usr/share/texmf-dist/tex/latex/newtx/newtxtext.sty:25: Emergency stop.\n<read *> "
+ },
+ {
+  "ts": "2026-09-16 11:50:45",
+  "corpus": "2308.12712",
+  "cond": "pipe-fix",
+  "engine": "xelatex",
+  "main": "main.tex",
+  "verdict": "unfixable:other",
+  "final_pdf": false,
+  "final_errors": 3,
+  "started_fail": true,
+  "rounds": [
+   {
+    "round": 1,
+    "cat": "other",
+    "pay": null,
+    "pdf": false,
+    "n_errors": 1,
+    "warnings": []
+   },
+   {
+    "round": 2,
+    "cat": null,
+    "pay": null,
+    "pdf": false,
+    "n_errors": 3,
+    "warnings": [
+     "tectonic_degrade"
+    ]
+   }
+  ],
+  "actions": [
+   {
+    "round": 0,
+    "rule": "static_precheck",
+    "result": "missing files=['nicematrix.sty'] -> installed ['nicematrix.sty']"
+   },
+   {
+    "round": "salvage",
+    "rule": "_best_effort_pass",
+    "result": "nonstopmode 兜底: pdf=False err=3"
+   }
+  ],
+  "installed": [
+   "nicematrix.sty"
+  ],
+  "advisories": [],
+  "log_excerpt": "/usr/share/texmf-dist/tex/latex/hyperxmp/hyperxmp.sty:279: Package hyperxmp Error: hyperref must be loaded before hyperxmp.\n/usr/share/texmf-dist/tex/latex/hyperxmp/hyperxmp.sty:279: Package hyperxmp Error: hyperref must be loaded before hyperxmp.\n\nSee the hyperxmp package documentation for explanation.\nType  H <return>  for immediate help.\n ...                                              \n                                                  \nl.279 }\n       "
+ },
+ {
+  "ts": "2026-09-16 12:29:41",
+  "corpus": "hep-lat--0111009",
+  "cond": "pipe-fix",
+  "engine": "xelatex",
+  "main": "jlab_lat01_33.tex",
+  "verdict": "unfixable:missing_file",
+  "final_pdf": false,
+  "final_errors": 2,
+  "started_fail": true,
+  "rounds": [
+   {
+    "round": 1,
+    "cat": "missing_file",
+    "pay": "espcrc2.sty",
+    "pdf": false,
+    "n_errors": 2,
+    "warnings": [
+     "tectonic_degrade"
+    ]
+   },
+   {
+    "round": 2,
+    "cat": null,
+    "pay": null,
+    "pdf": false,
+    "n_errors": 2,
+    "warnings": [
+     "tectonic_degrade"
+    ]
+   }
+  ],
+  "actions": [
+   {
+    "round": 0,
+    "rule": "static_precheck",
+    "result": "missing files=['epsf.sty', 'espcrc2.sty'] -> installed ['epsf.sty']"
+   },
+   {
+    "round": "salvage",
+    "rule": "_best_effort_pass",
+    "result": "nonstopmode 兜底: pdf=False err=2"
+   }
+  ],
+  "installed": [
+   "epsf.sty"
+  ],
+  "advisories": [
+   "no package provides espcrc2.sty"
+  ],
+  "log_excerpt": "! LaTeX Error: File `espcrc2.sty' not found.\n! LaTeX Error: File `espcrc2.sty' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: sty)\n\nEnter file name: \n/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/hep-lat--0111009/jlab_lat01_33.tex:27: Emergency stop.\n<read *> "
+ },
+ {
+  "ts": "2026-09-16 12:30:47",
+  "corpus": "hep-ph--0111218",
+  "cond": "pipe-fix",
+  "engine": "xelatex",
+  "main": "ContrTrento_17_11_01.tex",
+  "verdict": "unfixable:missing_file",
+  "final_pdf": false,
+  "final_errors": 2,
+  "started_fail": true,
+  "rounds": [
+   {
+    "round": 1,
+    "cat": "missing_file",
+    "pay": "espcrc2.sty",
+    "pdf": false,
+    "n_errors": 2,
+    "warnings": [
+     "tectonic_degrade"
+    ]
+   },
+   {
+    "round": 2,
+    "cat": null,
+    "pay": null,
+    "pdf": false,
+    "n_errors": 2,
+    "warnings": [
+     "tectonic_degrade"
+    ]
+   }
+  ],
+  "actions": [
+   {
+    "round": 0,
+    "rule": "static_precheck",
+    "result": "missing files=['espcrc2.sty'] -> installed []"
+   },
+   {
+    "round": "salvage",
+    "rule": "_best_effort_pass",
+    "result": "nonstopmode 兜底: pdf=False err=2"
+   }
+  ],
+  "installed": [],
+  "advisories": [
+   "no package provides espcrc2.sty"
+  ],
+  "log_excerpt": "! LaTeX Error: File `espcrc2.sty' not found.\n! LaTeX Error: File `espcrc2.sty' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: sty)\n\nEnter file name: \n/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/hep-ph--0111218/ContrTrento_17_11_01.tex:31: Emergency stop.\n<read *> "
+ },
+ {
+  "ts": "2026-09-16 12:34:17",
+  "corpus": "hep-ph--9910403",
+  "cond": "pipe-fix",
+  "engine": "xelatex",
+  "main": "plb-rev.tex",
+  "verdict": "unfixable:other",
+  "final_pdf": false,
+  "final_errors": 4,
+  "started_fail": true,
+  "rounds": [
+   {
+    "round": 1,
+    "cat": "other",
+    "pay": null,
+    "pdf": false,
+    "n_errors": 1,
+    "warnings": []
+   },
+   {
+    "round": 2,
+    "cat": null,
+    "pay": null,
+    "pdf": false,
+    "n_errors": 4,
+    "warnings": []
+   }
+  ],
+  "actions": [
+   {
+    "round": 0,
+    "rule": "static_precheck",
+    "result": "missing files=[] -> installed []"
+   },
+   {
+    "round": "salvage",
+    "rule": "_best_effort_pass",
+    "result": "nonstopmode 兜底: pdf=False err=4"
+   }
+  ],
+  "installed": [],
+  "advisories": [],
+  "log_excerpt": "/usr/share/texmf-dist/tex/latex/l3kernel/expl3.sty:154: LaTeX Error: Backend request inconsistent with engine: using 'xetex'\n/usr/share/texmf-dist/tex/latex/l3kernel/expl3.sty:154: LaTeX Error: Backend request inconsistent with engine: using 'xetex'\n(LaTeX)        backend.\n\nFor immediate help type H <return>.\n ...                                              \n                                                  \nl.154   { \\sys_load_backend:n { } }\n                                   "
+ }
+]

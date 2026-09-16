@@ -23,8 +23,12 @@ CTX_MAX = 8  # 错误上下文留存上限（docs/08 §2.3）
 TAIL_LEN = 30  # log 尾部留存行数
 N_ERR_SYNTH = 2
 
+_REAL_LOGS = (_ERR_LOG, _WARN_LOG, _CLEAN_LOG, _CJK_LOG, _UTF8_LOG)
+
+# 五件套全查：缺 _CLEAN_LOG 时 parse_log 回 log_missing 会让 clean 用例空转假绿
 NEED_LOGS = pytest.mark.skipif(
-    not _ERR_LOG.is_file(), reason="bench/work_compile 重产物不在场"
+    not all(p.is_file() for p in _REAL_LOGS),
+    reason="bench/work_compile 重产物不在场（五件钉死 log 缺一即整组跳过）",
 )
 
 

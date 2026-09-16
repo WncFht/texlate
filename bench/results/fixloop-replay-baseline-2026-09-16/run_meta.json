@@ -1,0 +1,10 @@
+{
+ "date": "2026-09-16 13:40:25",
+ "cases_src": "/home/fanghaotian/src/texlate/bench/results/e2e-real-n100-postcutover-2026-09-16/cases.jsonl",
+ "src_snapshot": "/home/fanghaotian/src/texlate/tmp/exp/src-snapshot-replay",
+ "rules_yaml": "/home/fanghaotian/src/texlate/tmp/exp/src-snapshot-replay/texlate/compile/fixloop/rules.yaml",
+ "rules_sha256": "9908b5505313f3e9c31807cb2a48c641317c67024ff34598e0a14ac02819a4b6",
+ "n_cases": 40,
+ "jobs": 4,
+ "work": "/home/fanghaotian/src/texlate/bench/work_fixloop_replay"
+}

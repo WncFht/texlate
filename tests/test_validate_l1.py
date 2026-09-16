@@ -17,7 +17,8 @@ v = TsValidator(node_path=BENCH_NM if (BENCH_NM / "tree-sitter").is_dir() else N
 HAS_L1 = v.available()
 
 need_l1 = pytest.mark.skipif(
-    not HAS_L1, reason="node 或 tree-sitter 依赖不在场（可选组件）"
+    not HAS_L1,
+    reason="node 或 tree-sitter 依赖不在场（可选组件；bench/ts 跑 npm ci 即恢复）",
 )
 
 SRC = "We propose [[MATH_1]] in \\begin{equation}\nE=mc^2\n\\end{equation}.\n"

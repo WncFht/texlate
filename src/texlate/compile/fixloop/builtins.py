@@ -895,6 +895,243 @@ def purge_corrupt_intermediates(
     return (bool(purged)), f"purged corrupt intermediates: {', '.join(purged)}"
 
 
+# ════════════════════════════════════════════════════════════════
+# missing_char: log「Missing character」行 → 码位分级 → 按类修复 (F4)
+# ════════════════════════════════════════════════════════════════
+
+#: ``Missing character: There is no <what> (U+XXXX)? in font <font>``
+#: xetex/tectonic 带 ``(U+XXXX)``; pdftex 8-bit 给裸字符或 ``^^xx`` 记法。
+_MISSING_CHAR_RE = re.compile(
+    r"Missing character:\s*There is no (?P<what>.+?)"
+    r"(?:\s*\((?P<cp>U\+[0-9A-Fa-f]+)\))?\s*in font\s+(?P<font>[^\s!;]+)"
+)
+
+#: ``^^xx``/``^^^xxxx`` TeX 记法码位提取。
+_CARET_HEX_RE = re.compile(r"\^{2,3}([0-9a-fA-F]{2,4})")
+
+#: xeCJK/ctex 支持探针 (source_contains 级) —— 有 CJK 机制才有绑定可预热。
+_CJK_MECH_RE = re.compile(
+    r"\\(?:usepackage|RequirePackage)\b[^\n%]*\{[^}]*\b(?:ctex|xeCJK|CJKutf8)\b"
+    r"|\\(?:setCJK\w*font|CJKfontspec|ctexset|xeCJKsetup|newCJKfontfamily)\b"
+)
+
+#: 判定「字体本身即 CJK 字体」的排除模式 —— CJK 码位落在 CJK 字体里
+#: 是真缺字形 (换字体的 warmup 救不了), 不属于绑定污染类。
+_CJK_FONT_RE = re.compile(
+    r"fandol|noto.*cjk|source.?han|uming|ukai|wqy|ipa(?:ex)?[mg]|"
+    r"sim(?:sun|hei|kai|fang)|ms ?(?:gothic|mincho)|cjk",
+    re.IGNORECASE,
+)
+
+
+def _mc_codepoint(what: str, cp: str | None) -> int | None:
+    """``(U+XXXX)`` / ``^^xx`` / 裸字符 → 码位; 不可判定 → None。"""
+    if cp:
+        return int(cp.removeprefix("U+"), 16)
+    if m := _CARET_HEX_RE.fullmatch(what.strip()):
+        return int(m.group(1), 16)
+    if len(what) == 1:
+        return ord(what)
+    return None
+
+
+def _compile_log_text(ctx: LoopCtx) -> str:
+    """定位本轮编译 log。
+
+    ``{stem}.log`` (xelatex) → ``_tect_out/{stem}.log`` (tectonic)
+    → 任一含 Missing character 的 ``*.log`` (兜底)。
+    """
+    main = ctx.main_path()
+    cands: list[Path] = []
+    if main is not None:
+        stem = main.stem
+        cands += [ctx.wdir / f"{stem}.log", ctx.wdir / "_tect_out" / f"{stem}.log"]
+    for p in cands:
+        t = ctx.read(p) if p.is_file() else None
+        if t and "Missing character" in t:
+            return t
+    for p in sorted(ctx.wdir.rglob("*.log")):
+        t = ctx.read(p)
+        if t and "Missing character" in t:
+            return t
+    return ""
+
+
+#: missing_char 修复默认表 (seeded 自 n100 缺字签名, 2026-09-16;
+#: ``params.char_table`` 同形条目按 id 覆盖/扩列 —— 首匹配生效)。
+#: 每条目: ``id``; 匹配面 ``cps:[int]`` | ``ranges:[[lo,hi],...]``,
+#: ``font``/``font_not`` 为作用在日志字体名上的正则; 动作:
+#: ``action: cjk_warmup`` (预热 xeCJK 字体绑定) 或 ``replace: "<TeX串>"``。
+_MC_TABLE: list[dict[str, Any]] = [
+    {
+        "id": "cjk_glyph",
+        # CJK 统一表意+假名+谚文+兼容/全角区 —— 落在非 CJK 字体 = xeCJK
+        # 绑定被污染 (elsart 族 \no@harm 下 \protect=\noexpand 使
+        # \fontfamily/\selectfont 失效, 首用把 xeCJK/<fam>/<ser>/<sh>/<size>
+        # 全局绑到 lmroman —— /tmp/mc-repro 实证), 预热即可。
+        "ranges": [
+            [0x2E80, 0x303F],
+            [0x3040, 0x30FF],
+            [0x3100, 0x31EF],
+            [0x3200, 0x33FF],
+            [0x3400, 0x4DBF],
+            [0x4E00, 0x9FFF],
+            [0xA000, 0xA4CF],
+            [0xAC00, 0xD7AF],
+            [0xF900, 0xFAFF],
+            [0xFE30, 0xFE4F],
+            [0xFF00, 0xFFEF],
+            [0x20000, 0x2FA1F],
+        ],
+        "font_not": _CJK_FONT_RE.pattern,
+        "action": "cjk_warmup",
+    },
+    # n100: 0806.1079 ×3 ≠ in cmr7/cmr5
+    {"id": "neq", "cps": [0x2260], "replace": "\\ensuremath{\\neq}"},
+    # n100: 1608.02516 ×1 − in cmr10
+    {"id": "minus", "cps": [0x2212], "replace": "\\ensuremath{-}"},
+    # n100: 2403.15096 ×1 § in cmr10
+    {"id": "section", "cps": [0x00A7], "replace": "\\S"},
+    # n100: 1003.1464 ×1 ø in cmmi8 (math italic → \mbox 包文本字形)
+    {"id": "oslash", "cps": [0x00F8], "replace": "\\mbox{\\o}"},
+    # n100: 0707.3950 è in cmex10
+    {"id": "egrave", "cps": [0x00E8], "replace": "\\mbox{\\`{e}}"},
+]
+
+#: cjk_warmup 注入的绑定预热盒: 每 ``{尺寸/系列 中}`` 组把
+#: ``xeCJK/<fam>/<ser>/<sh>/<size>`` 在干净上下文先绑到真 CJK 字体,
+#: 之后 \no@harm 测量盒再遇同型直接复用既有绑定, 不再污染。
+_MC_WARMUP_SIZES = (
+    "\\normalsize 中",
+    "\\small 中",
+    "\\footnotesize 中",
+    "\\large 中",
+    "\\Large\\bfseries 中",
+    "\\bfseries 中",
+    "\\itshape 中",
+)
+
+
+def _mc_table(params: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """内置表 + ``params.char_table`` 按 id 合并 (参数条目同 id 覆盖)。"""
+    table = {e["id"]: e for e in _MC_TABLE}
+    for e in params.get("char_table") or []:
+        table[e["id"]] = e
+    return table
+
+
+def _mc_hit(entry: dict[str, Any], cp: int, font: str) -> bool:
+    """码位+字体 vs 条目匹配面 (cps/ranges 与 font/font_not 正则)。"""
+    if (fno := entry.get("font_not")) and re.search(fno, font, re.IGNORECASE):
+        return False
+    if (fyes := entry.get("font")) and not re.search(fyes, font, re.IGNORECASE):
+        return False
+    if cp in (entry.get("cps") or ()):
+        return True
+    return any(lo <= cp <= hi for lo, hi in entry.get("ranges") or ())
+
+
+def missing_char_fix(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""``Missing character`` 缺字 → 字符类分诊修复 (F4, 表驱动可扩)。
+
+    CJK 类码位落在非 CJK 字体 = xeCJK 逐 (family,series,shape,size) 的字体
+    绑定被 ``\no@harm`` 式上下文污染 (elsart ``\proc@elem`` 测量盒实证:
+    \protect 被重定义后 \fontfamily/\selectfont 变 no-op, 首用绑定落
+    lmroman 且 ``\cs_gset_eq`` 全局不可回) → 注入 ``\AtBeginDocument`` 预热
+    盒先在干净上下文绑好常用 size。非 CJK 缺字走 ``replace`` 字面替换
+    (≠→\neq 等)。表在 ``params.char_table`` 可按 id 覆盖扩列。
+    """
+    del eng, payload
+    log = _compile_log_text(ctx)
+    if not log:
+        return False, "no compile log with Missing character found"
+    seen = _mc_parse_log(log)
+    if not seen:
+        return False, "Missing character lines present but no codepoint parsed"
+    warm, repl, unmatched = _mc_plan(seen, _mc_table(params))
+
+    applied: list[str] = []
+    notes: list[str] = []
+    if warm:
+        ok, note = _mc_apply_warmup(ctx)
+        (applied if ok else notes).append(note)
+    if repl:
+        n = _map_tex_files(
+            ctx,
+            tuple(params.get("exts") or (".tex",)),
+            lambda t: _sub_literal_chars(t, repl),
+        )
+        if n:
+            applied.append(f"replaced {len(repl)} char kinds in {n} file(s)")
+    if not applied:
+        if unmatched:
+            notes.append(f"{unmatched} codepoint(s) unmatched by char_table")
+        return False, "; ".join(notes) or "no actionable missing chars"
+    return True, "; ".join(applied + notes)
+
+
+def _mc_parse_log(log: str) -> dict[int, tuple[str, str]]:
+    """``Missing character`` 行 → {码位: (原字面, 字体名)} 去重。"""
+    seen: dict[int, tuple[str, str]] = {}
+    for m in _MISSING_CHAR_RE.finditer(log):
+        cp = _mc_codepoint(m.group("what"), m.group("cp"))
+        if cp is not None and cp not in seen:
+            seen[cp] = (m.group("what"), m.group("font").rstrip(".,;"))
+    return seen
+
+
+def _mc_plan(
+    seen: dict[int, tuple[str, str]], table: dict[str, dict[str, Any]]
+) -> tuple[bool, dict[str, str], int]:
+    """逐缺字码位查表 → (是否需 CJK 预热, 字面替换映射, 未匹配数)。"""
+    warm = False
+    repl: dict[str, str] = {}
+    unmatched = 0
+    for cp, (what, font) in seen.items():
+        entry = next((e for e in table.values() if _mc_hit(e, cp, font)), None)
+        if entry is None:
+            unmatched += 1
+        elif entry.get("action") == "cjk_warmup":
+            warm = True
+        elif rep := entry.get("replace"):
+            ch = what if len(what) == 1 else _mc_chr(cp)
+            if ch:
+                repl[ch] = rep
+    return warm, repl, unmatched
+
+
+def _mc_chr(cp: int) -> str | None:
+    """码位 → 字符; 超出 Unicode 面 → None。"""
+    try:
+        return chr(cp)
+    except ValueError:
+        return None
+
+
+def _mc_apply_warmup(ctx: LoopCtx) -> tuple[bool, str]:
+    r"""``\AtBeginDocument`` 预热盒注入 —— 仅当源里有 ctex/xeCJK 机制。"""
+    box = "\\setbox0=\\hbox{" + "".join(f"{{{s}}}" for s in _MC_WARMUP_SIZES) + "}"
+    snippet = f"\\AtBeginDocument{{{box}}} % fixloop: xeCJK bind warmup"
+    if not _CJK_MECH_RE.search(ctx.source_blob()):
+        return False, "cjk drops but no ctex/xeCJK in source — warmup skipped"
+    if _inject_after_docclass(ctx, snippet):
+        return True, "injected CJK font-binding warmup"
+    return False, "warmup snippet already present"
+
+
+def _sub_literal_chars(t: str, repl: dict[str, str]) -> tuple[str, int]:
+    """字面字符 → TeX 命令串逐替换 → (新文本, 替换数)。"""
+    n = 0
+    for ch, to in repl.items():
+        cnt = t.count(ch)
+        if cnt:
+            t = t.replace(ch, to)
+            n += cnt
+    return t, n
+
+
 TRANSFORM_FNS = {
     "option_clash_merge": option_clash_merge,
     "pdftex_prim_polyfill": pdftex_prim_polyfill,
@@ -910,4 +1147,5 @@ TRANSFORM_FNS = {
     "strip_inputenc": strip_inputenc,
     "cs_targeted_fix": cs_targeted_fix,
     "purge_corrupt_intermediates": purge_corrupt_intermediates,
+    "missing_char_fix": missing_char_fix,
 }

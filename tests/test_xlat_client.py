@@ -1,8 +1,23 @@
-"""client：状态码分类（含 429 body retry_after）/ provider 识别 / 脱敏 / 选模。"""
+"""client：状态码分类（含 429 body retry_after）/ provider 识别 / 脱敏 / 选模。
+
+线路主面（chat/stream/panel/discover）由 test_xlat_client_wire 覆盖；
+本文件补钉它没碰的分支：usage_sink 记账、EmptyContentError 合同属性、
+anthropic 显式预算/多 system 拼接、stream 传输错误、max_probe 截断等。
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+from typing import TYPE_CHECKING, Any
 
 import httpx
+import pytest
 
 from texlate.xlat import client as cl
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 def _headers(**kw: str) -> httpx.Headers:
@@ -119,3 +134,278 @@ class TestPickModel:
     def test_unknown_alive_sorted(self) -> None:
         got = cl.pick_model([self._m("zz-model"), self._m("aa-model")])
         assert got == "aa-model"  # 偏好序外按字典序取最小
+
+
+# ---------------------------------------------------------------- wire 补钉（MockTransport）
+
+_BASE = "http://127.0.0.1:3003"
+_ANTHROPIC_BASE = "https://api.anthropic.com"
+_MSGS = [{"role": "user", "content": "hi"}]
+
+
+def _mock(
+    handler: Callable[[httpx.Request], httpx.Response],
+    base_url: str = _BASE,
+    api_key: str = "k",
+    usage_sink: Callable[[cl.UsageRecord], None] | None = None,
+) -> cl.ChatClient:
+    http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    return cl.ChatClient(base_url, api_key, http=http, usage_sink=usage_sink)
+
+
+def _chat_payload(
+    content: str = "OK", *, finish: str = "stop", model: str = "m1"
+) -> dict[str, Any]:
+    return {
+        "model": model,
+        "choices": [
+            {
+                "message": {"role": "assistant", "content": content},
+                "finish_reason": finish,
+            }
+        ],
+        "usage": {"prompt_tokens": 11, "completion_tokens": 7},
+    }
+
+
+_ANTHROPIC_OK = {
+    "type": "message",
+    "stop_reason": "end_turn",
+    "content": [{"type": "text", "text": "译"}],
+    "usage": {"input_tokens": 3, "output_tokens": 2},
+}
+
+
+class TestUsageSink:
+    """usage_sink 记账合同：成功一次记一笔；HTTP 失败不记；sink 炸不拖垮调用。"""
+
+    def test_sink_receives_record(self) -> None:
+        recs: list[cl.UsageRecord] = []
+        c = _mock(
+            lambda _r: httpx.Response(200, json=_chat_payload()),
+            usage_sink=recs.append,
+        )
+        r = asyncio.run(c.chat("m1", _MSGS))
+        assert r.content == "OK"
+        assert len(recs) == 1
+        rec = recs[0]
+        assert rec["model"] == "m1"
+        assert rec["prompt_tokens"] == 11  # noqa: PLR2004
+        assert rec["completion_tokens"] == 7  # noqa: PLR2004
+        assert rec["latency_s"] >= 0
+
+    def test_sink_not_fired_on_http_error(self) -> None:
+        recs: list[cl.UsageRecord] = []
+        c = _mock(lambda _r: httpx.Response(500, json={"e": 1}), usage_sink=recs.append)
+        with pytest.raises(cl.RetryableHTTPError):
+            asyncio.run(c.chat("m1", _MSGS))
+        assert recs == []
+
+    def test_sink_exception_swallowed(self) -> None:
+        def boom(_rec: cl.UsageRecord) -> None:
+            msg = "accounting down"
+            raise RuntimeError(msg)
+
+        c = _mock(lambda _r: httpx.Response(200, json=_chat_payload()), usage_sink=boom)
+        r = asyncio.run(c.chat("m1", _MSGS))
+        assert r.content == "OK"
+
+
+class TestChatEdges:
+    def test_empty_content_error_contract(self) -> None:
+        """EmptyContentError：status=200 记真实 HTTP 码 + retryable + 总尝试封顶 2。"""
+        c = _mock(lambda _r: httpx.Response(200, json=_chat_payload("  ")))
+        with pytest.raises(cl.EmptyContentError) as ei:
+            asyncio.run(c.chat("m1", _MSGS))
+        assert ei.value.status == 200  # noqa: PLR2004
+        assert ei.value.retryable
+        assert ei.value.max_tries == 2  # noqa: PLR2004
+
+    def test_error_message_truncated_to_300(self) -> None:
+        e = cl.classify_status(500, "y" * 500, httpx.Headers())
+        assert str(e) == f"HTTP 500: {'y' * 300}"
+
+    def test_retry_after_http_date_ignored(self) -> None:
+        """HTTP-date 形态不解析——文档化降级，不引 email.utils 链。"""
+        e = cl.classify_status(
+            503,
+            "x",
+            httpx.Headers({"retry-after": "Wed, 21 Oct 2026 07:28:00 GMT"}),
+        )
+        assert e.retry_after is None
+
+
+class TestAnthropicEdges:
+    def test_explicit_max_tokens_honored(self) -> None:
+        """显式 max_tokens 不被 REASONING_MIN_MAX_TOKENS 默认值覆盖。"""
+        reqs: list[httpx.Request] = []
+
+        def handler(r: httpx.Request) -> httpx.Response:
+            reqs.append(r)
+            return httpx.Response(200, json=_ANTHROPIC_OK)
+
+        c = _mock(handler, base_url=_ANTHROPIC_BASE)
+        asyncio.run(c.chat("claude-x", _MSGS, options=cl.ChatOptions(max_tokens=123)))
+        assert json.loads(reqs[0].content)["max_tokens"] == 123  # noqa: PLR2004
+
+    def test_multiple_system_messages_joined(self) -> None:
+        reqs: list[httpx.Request] = []
+
+        def handler(r: httpx.Request) -> httpx.Response:
+            reqs.append(r)
+            return httpx.Response(200, json=_ANTHROPIC_OK)
+
+        c = _mock(handler, base_url=_ANTHROPIC_BASE)
+        msgs = [
+            {"role": "system", "content": "a"},
+            {"role": "system", "content": "b"},
+            {"role": "user", "content": "x"},
+        ]
+        asyncio.run(c.chat("claude-x", msgs))
+        body = json.loads(reqs[0].content)
+        assert body["system"] == "a\nb"
+        assert [m["role"] for m in body["messages"]] == ["user"]
+
+    def test_empty_text_block_rejected(self) -> None:
+        payload = {
+            "type": "message",
+            "stop_reason": "end_turn",
+            "content": [{"type": "text", "text": "  "}],
+        }
+        c = _mock(
+            lambda _r: httpx.Response(200, json=payload), base_url=_ANTHROPIC_BASE
+        )
+        with pytest.raises(cl.EmptyContentError):
+            asyncio.run(c.chat("m", _MSGS))
+
+    def test_transport_error_retryable(self) -> None:
+        def boom(_r: httpx.Request) -> httpx.Response:
+            msg = "refused"
+            raise httpx.ConnectError(msg)
+
+        c = _mock(boom, base_url=_ANTHROPIC_BASE)
+        with pytest.raises(cl.RetryableHTTPError, match="transport error"):
+            asyncio.run(c.chat("m", _MSGS))
+
+    def test_http_error_classified_same(self) -> None:
+        c = _mock(
+            lambda _r: httpx.Response(401, json={"e": 1}), base_url=_ANTHROPIC_BASE
+        )
+        with pytest.raises(cl.AuthError):
+            asyncio.run(c.chat("m", _MSGS))
+
+
+class TestStreamEdges:
+    def test_transport_error_retryable(self) -> None:
+        def boom(_r: httpx.Request) -> httpx.Response:
+            msg = "reset"
+            raise httpx.ConnectError(msg)
+
+        c = _mock(boom)
+
+        async def collect() -> list[cl.StreamEvent]:
+            return [ev async for ev in c.chat_stream("m1", _MSGS)]
+
+        with pytest.raises(cl.RetryableHTTPError, match="transport error"):
+            asyncio.run(collect())
+
+
+class TestProbeEdges:
+    def test_finish_length_rejected(self) -> None:
+        """非 stop 收尾即使 content 非空也判探活失败。"""
+        c = _mock(
+            lambda _r: httpx.Response(200, json=_chat_payload("OK", finish="length"))
+        )
+        fm = asyncio.run(c.probe_model("m1"))
+        assert not fm.probe_ok
+        assert "finish" in fm.probe_error
+
+    def test_finish_absent_accepted(self) -> None:
+        payload = {"choices": [{"message": {"content": "OK"}}]}
+        c = _mock(lambda _r: httpx.Response(200, json=payload))
+        assert asyncio.run(c.probe_model("m1")).probe_ok
+
+    def test_probe_error_redacts_api_key(self) -> None:
+        """探活异常文本过 redact——api_key 值不外泄到 probe_error。"""
+
+        def boom(r: httpx.Request) -> httpx.Response:
+            msg = f"auth failed for {r.headers['authorization']}"
+            raise httpx.ConnectError(msg)
+
+        c = _mock(boom, api_key="supersecret")
+        fm = asyncio.run(c.probe_model("m1"))
+        assert not fm.probe_ok
+        assert "supersecret" not in fm.probe_error
+        assert "Bearer" not in fm.probe_error
+
+
+def _panel_entry(uid: str) -> dict[str, Any]:
+    return {
+        "uid": uid,
+        "cost_tier": "free",
+        "promo": {"active": True, "end_date": "2026-10-01"},
+        "context_tokens": 131072,
+        "max_output_tokens": 8192,
+    }
+
+
+class TestDiscoverCap:
+    def _handler(
+        self, uids: list[str], probed: list[str]
+    ) -> Callable[[httpx.Request], httpx.Response]:
+        def handler(req: httpx.Request) -> httpx.Response:
+            if req.url.path == "/panel/api/models":
+                return httpx.Response(
+                    200, json={"models": [_panel_entry(u) for u in uids]}
+                )
+            if req.url.path == "/v1/models":
+                return httpx.Response(503, json={"e": 1})  # 退化为只信 panel
+            probed.append(json.loads(req.content)["model"])
+            return httpx.Response(200, json=_chat_payload("OK"))
+
+        return handler
+
+    def test_default_cap_drops_overflow(self) -> None:
+        """候选超 max_probe（默认 12）时溢出项直接不进返回集。"""
+        uids = [f"f{i:02d}" for i in range(13)]
+        probed: list[str] = []
+        c = _mock(self._handler(uids, probed))
+        found = asyncio.run(c.discover_free_models())
+        assert {m.uid for m in found} == set(uids[:12])
+        assert set(probed) == set(uids[:12])
+        assert all(m.probe_ok for m in found)
+
+    def test_max_probe_param(self) -> None:
+        probed: list[str] = []
+        c = _mock(self._handler(["a", "b", "c"], probed))
+        found = asyncio.run(c.discover_free_models(max_probe=2))
+        assert len(found) == 2  # noqa: PLR2004
+        assert set(probed) == {"a", "b"}
+
+    def test_panel_scalar_payload_empty(self) -> None:
+        c = _mock(lambda _r: httpx.Response(200, json="nope"))
+        assert asyncio.run(c.panel_models()) == []
+
+
+class TestProviderAndUrlExtra:
+    def test_azure_and_regional_qwen(self) -> None:
+        assert cl.provider_for_url("https://my.openai.azure.com") == "openai"
+        assert cl.provider_for_url("https://dashscope-intl.aliyuncs.com") == "qwen"
+        got = cl.provider_for_url("https://abc123.cn-beijing.maas.aliyuncs.com")
+        assert got == "qwen"
+
+    def test_host_case_insensitive(self) -> None:
+        assert cl.provider_for_url("https://API.ANTHROPIC.COM") == "anthropic"
+
+
+class TestRedactExtra:
+    def test_google_key_pattern(self) -> None:
+        out = cl.redact("k=AIzaSyD4iE2xVSpkLLOXoyq2uexnF3jJ2 end")
+        assert "AIzaSyD4iE2xVSpkLLOXoyq2uexnF3jJ2" not in out
+
+    def test_x_api_key_kv_pattern(self) -> None:
+        out = cl.redact("x-api-key: supersecretvalue123")
+        assert "supersecretvalue123" not in out
+
+    def test_empty_api_key_no_crash(self) -> None:
+        assert cl.redact("plain text") == "plain text"
