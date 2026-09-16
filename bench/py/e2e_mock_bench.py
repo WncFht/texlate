@@ -8,10 +8,15 @@ r"""e2e mock bench — corpus39 全量 mock 翻译 → ctex 注入 → 双引擎
 每工程条件（attribution 设计来自 tmp/exp/e2e/pipeline.py）:
   base-xel : 原样复制 → xelatex（zh 失败时区分"原文就挂"vs"管线引入"）
   pipe-xel : normalize → mock 翻译 → prepare_chinese(ctex) → xelatex → judge
+             → 非 clean 时 L2 回灌 + fixloop（产品完整修复链）
   pipe-tec : 同上 → tectonic
   base-tec : 原样复制 → tectonic（**仅当 pipe-tec 非 clean 时补跑**，归因用）
   pipeB-xel: pipe-xel + Mode B 幻觉破坏（~30% 块丢/造占位符 → 校验链须 100% 捕获）
   pipeC-xel: pipe-xel + Mode C 位置扰动（~10% 占位符挪位 → 量化 splice 鲁棒性）
+
+pipeB/pipeC 与 pipe 走**同一条 compile 尾段**（L2 回灌 + fixloop + inject
+reject→partial 口径）——verdict 跨臂可比；破坏记账只在翻译层叠加，
+尾段修复语义与产品路径一致。
 
 路由先行：`route_project`（\documentstyle → reject；仍跑 base-xel 实证拒绝正确性）。
 fault_chunks/leftover_ph 即管线 bug 信号（应零）。
@@ -52,7 +57,8 @@ sys.path.insert(0, os.environ.get("TEXLATE_SRC", str(ROOT / "src")))
 
 import benchlib
 
-from texlate.compile.engine import engine_for, route_project
+from texlate import e2e as e2e_mod
+from texlate.compile.engine import route_project
 from texlate.compile.inject import InjectRejectError, find_main_tex, prepare_chinese
 from texlate.compile.normalize import normalize_project
 from texlate.e2e import base_condition, pipe_condition
@@ -248,11 +254,14 @@ def _seg_of(r_source: str, seg: str) -> bool:
     return src_n in cands or any(len(c) > 8 and c in src_n for c in cands)
 
 
-def translate_tree(root: Path, translator: MockTranslator) -> dict:
-    """mock_translate_tree 同构: 换注入 translator + 带出逐块结果 (Mode B/C 归因).
+def translate_tree(
+    root: Path, translator: MockTranslator, *, env_judge: bool = False
+) -> tuple[dict, e2e_mod._TreeRun, list]:
+    """``e2e._translate_tree`` 同构 + 带出逐块 results（Mode B/C 归因账本用）。
 
-    产品面走同一批 API (parse_file → chunk_to_in → XlatPipeline+L0 →
-    reconstruct → 写回); fault 块不 splice (回退原文)。
+    与产品面逐点对齐：``chunk_to_in(ph_map=res.ph_map)`` 武装抄回修复臂、
+    env_judge 复用 ``_env_judge_pass``、splice 写回同 ``reconstruct``；
+    额外返回 ``_TreeRun`` 供 L2 回灌复用（与 pipe 臂同一运行态形状）。
     """
     scans: list[tuple[Path, object]] = []
     chunks: list[ChunkIn] = []
@@ -265,7 +274,10 @@ def translate_tree(root: Path, translator: MockTranslator) -> dict:
             continue
         idx = len(scans)
         scans.append((f, res))
-        chunks.extend(chunk_to_in(c, chunk_id=f"{idx}:{c.id}") for c in res.chunks)
+        chunks.extend(
+            chunk_to_in(c, chunk_id=f"{idx}:{c.id}", ph_map=res.ph_map)
+            for c in res.chunks
+        )
 
     pipe = XlatPipeline(
         translator,
@@ -275,11 +287,17 @@ def translate_tree(root: Path, translator: MockTranslator) -> dict:
     by_file: dict[int, dict[int, str]] = {}
     n_fault = 0
     for r in results:
-        fidx, cid = (int(x) for x in r.chunk_id.split(":", 1))
+        fidx, cid = e2e_mod._split_cid(r.chunk_id)
         if r.status == "ok":
             by_file.setdefault(fidx, {})[cid] = r.translation
         else:
             n_fault += 1
+
+    env_stats: dict = (
+        e2e_mod._env_judge_pass(pipe, scans, results, by_file)
+        if env_judge
+        else {"enabled": False}
+    )
 
     n_files = 0
     n_leftover = 0
@@ -291,40 +309,56 @@ def translate_tree(root: Path, translator: MockTranslator) -> dict:
         f.write_text(zh, encoding="utf-8")
         n_files += 1
         n_leftover += len(PH_RX.findall(zh))
-    return {
+    stats = {
         "files": n_files,
         "chunks": len(chunks),
         "fault_chunks": n_fault,
         "fault_files": fault_files,
         "leftover_ph": n_leftover,
-        "results": results,
+        "env_judge": env_stats,
     }
-
-
-def _compile_judge(work: Path, main_rel: str, eng_name: str, timeout: float) -> dict:
-    """e2e._compile_judge 同形状 (benchlib.judge_dict 单源, expect_cjk=True)."""
-    kw: dict = {"halt_on_error": False} if eng_name == "xelatex" else {}
-    res = engine_for(eng_name, **kw).compile(
-        work, main_rel, timeout=timeout, sandbox=True
+    run = e2e_mod._TreeRun(
+        scans=scans,
+        trans=by_file,
+        chunk_ins={c.chunk_id: c for c in chunks},
+        pipe=pipe,
     )
-    return benchlib.judge_dict(res, expect_cjk=True)
+    return stats, run, results
 
 
 def pipe_mode_condition(
-    work: Path, eng_name: str, main_rel: str, timeout: float, mode: str
+    work: Path,
+    eng_name: str,
+    main_rel: str,
+    timeout: float,
+    mode: str,
+    *,
+    env_judge: bool | None = None,
+    l2_on: bool | None = None,
+    fixloop_on: bool | None = None,
+    l2_max_chunks: int = e2e_mod.L2_MAX_CHUNKS,
+    route_engines: list[str] | None = None,
 ) -> dict:
-    """pipe_condition 变体: mock_translate_tree → translate_tree(Mode B/C translator).
+    """pipe_condition 变体：翻译层换 Mode B/C 破坏 translator，其余全链同产品臂。
 
     Mode B 逐块结局: caught (校验链拦下→原文回退) / recovered (阶梯修回干净)
     / escaped (校验放行且译文带破坏残留——真逃逸, 门槛 = 0)。
     Mode C: 挪位天然过 L0, 记账 moved + 落到 splice 的块数 (spliced)。
+    编译尾段 = ``pipe_condition`` 同一条链：首编 → L2 回灌 → fixloop，
+    inject 拒绝同口径 ``partial``——verdict 与 pipe 臂直接可比。
     """
     rec: dict = {"engine": eng_name}
     rec["normalize"] = normalize_project(work, eng_name, main_rel)
     tr = SabotageTranslator() if mode == "B" else PerturbTranslator()
-    rec["translate"] = translate_tree(work, tr)
-    # 事件归因 → 逐块结局
-    results = rec["translate"].pop("results")
+    ej = (
+        e2e_mod._env_flag(e2e_mod._ENV_ENV_JUDGE, default=False)
+        if env_judge is None
+        else env_judge
+    )
+    stats, run, results = translate_tree(work, tr, env_judge=ej)
+    rec["translate"] = stats
+    # 事件归因 → 逐块结局；env_judge 回落的块视同未进 splice（防 escaped 虚报）
+    reverted = set(stats["env_judge"].get("reverted") or ())
     src_ph = lambda s: sorted(PH_RX.findall(s))  # noqa: E731
     ledger: dict = {"events": len(tr.events), "sabotaged": 0, "moved": 0}
     if mode == "B":
@@ -346,13 +380,14 @@ def pipe_mode_condition(
             continue
         ledger["sabotaged"] += 1
         ledger["moved"] += sum(e.get("moved", 0) for e in evs)
+        spliced_ok = r.status == "ok" and r.chunk_id not in reverted
         if mode == "B":
             kinds = "+".join(sorted({e.get("kind", "?") for e in evs}))
             bk = ledger["by_kind"].setdefault(
                 kinds, {"caught": 0, "recovered": 0, "escaped": 0}
             )
-            if r.status != "ok":
-                ledger["caught"] += 1  # fault/skipped → 原文回退
+            if not spliced_ok:
+                ledger["caught"] += 1  # fault/skipped/env回落 → 原文回退
                 bk["caught"] += 1
             elif src_ph(r.translation) != src_ph(r.source):
                 ledger["escaped"] += 1
@@ -371,7 +406,7 @@ def pipe_mode_condition(
             else:
                 ledger["recovered"] += 1
                 bk["recovered"] += 1
-        elif r.status == "ok":
+        elif spliced_ok:
             ledger["spliced"] += 1  # 挪位译文进了文档 → 编译判存活
         else:
             ledger["dropped"] += 1
@@ -379,11 +414,43 @@ def pipe_mode_condition(
     try:
         rec["inject"] = prepare_chinese(work, main_rel)
     except InjectRejectError as e:
-        rec["status"] = "reject"
+        # 与 pipe_condition 同口径：策略拒绝 → partial (F3), reject_at 审计
+        rec["status"] = "partial"
         rec["reject_at"] = "inject"
-        rec["verdict"] = {"status": "reject", "reasons": [e.reason]}
+        rec["verdict"] = {"status": "partial", "reasons": [e.reason]}
         return rec
-    rec.update(_compile_judge(work, main_rel, eng_name, timeout))
+    job = e2e_mod._Job(work, main_rel, eng_name, timeout)
+    tail, res = e2e_mod._compile_judge(job, expect_cjk=True)
+    rec.update(tail)
+
+    if rec["status"] != "clean":
+        l2 = (
+            (not e2e_mod._env_flag(e2e_mod._ENV_NO_L2, default=False))
+            if l2_on is None
+            else l2_on
+        )
+        if l2:
+            l2_rep, res, tail2 = e2e_mod._l2_repair(job, run, res, l2_max_chunks)
+            rec["l2"] = l2_rep
+            if tail2 is not None:
+                rec.update(tail2)
+        else:
+            rec["l2"] = {"enabled": False, "reason": e2e_mod._ENV_NO_L2}
+
+        fl = (
+            (not e2e_mod._env_flag(e2e_mod._ENV_NO_FIXLOOP, default=False))
+            if fixloop_on is None
+            else fixloop_on
+        )
+        if rec["status"] != "clean" and fl:
+            fl_rep, tail3, _last = e2e_mod._run_fixloop(
+                job, route_engines or [eng_name], res
+            )
+            rec["fixloop"] = fl_rep
+            if tail3 is not None:
+                rec.update(tail3)
+        elif rec["status"] != "clean":
+            rec["fixloop"] = {"enabled": False, "reason": e2e_mod._ENV_NO_FIXLOOP}
     return rec
 
 

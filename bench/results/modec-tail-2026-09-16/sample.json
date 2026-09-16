@@ -1,0 +1,21 @@
+{
+ "corpus": "/home/fanghaotian/src/texlate/bench/corpus_v3",
+ "layers": [
+  "core",
+  "booster",
+  "expand",
+  "hot"
+ ],
+ "sample": null,
+ "seed": 42,
+ "ids": [
+  "0806.3472",
+  "astro-ph/0104134",
+  "astro-ph/0501428",
+  "cond-mat/9910284",
+  "hep-th/0408076",
+  "math/9901064",
+  "nucl-th/0307063",
+  "quant-ph/0307209"
+ ]
+}
