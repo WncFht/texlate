@@ -62,6 +62,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import contextlib
+import functools
 import json
 import os
 import shutil
@@ -152,25 +153,42 @@ def _rec_key(rec: dict) -> tuple[str, str, str]:
     )
 
 
+@functools.cache
+def _code_stamp() -> str:
+    """产码印章（``<sha>``/``<sha>-dirty``）——e2e_real_bench 同款，进程内一次。
+
+    records 终态格带印：splice/parse 层修复落地后，旧格 work/ tex 是陈字节，
+    ``is_done`` 的 resume 谓词无码感会整篇 carry-over（0707.3950 同款坑，
+    e2e_real_bench ``090975d`` 已实证）。``--recode`` 时印章不符即不续跑。
+    """
+    return erb._code_stamp()
+
+
 class RecLog:
-    """records/{stage}.jsonl：load 出 done 键集 + 逐条 append（落盘即 done）。"""
+    """records/{stage}.jsonl：load 出 done 键→印章映射 + 逐条 append（落盘即 done）。"""
 
     def __init__(self, path: Path) -> None:
         self.path = path
-        self.done: set[tuple[str, str, str]] = set()
+        self.done: dict[tuple[str, str, str], str] = {}
         for rec in benchlib.iter_jsonl(path) if path.exists() else ():
             if str(rec.get("status")) in DONE_STATUS:
-                self.done.add(_rec_key(rec))
+                self.done[_rec_key(rec)] = str(rec.get("code") or "")
         path.parent.mkdir(parents=True, exist_ok=True)
         self._fh = path.open("a", encoding="utf-8")
 
-    def is_done(self, pid: str, arm: str, upstream: str = "") -> bool:
-        return (pid, arm, upstream) in self.done
+    def is_done(
+        self, pid: str, arm: str, upstream: str = "", recode: bool = False
+    ) -> bool:
+        code = self.done.get((pid, arm, upstream))
+        if code is None:
+            return False
+        # --recode：印章不符/缺印 = 陈字节格, 不续跑（与 e2e _paper_done 同型修复）
+        return not recode or code == _code_stamp()
 
     def append(self, rec: dict) -> None:
         benchlib.write_jsonl(self._fh, rec)
         if str(rec.get("status")) in DONE_STATUS:
-            self.done.add(_rec_key(rec))
+            self.done[_rec_key(rec)] = str(rec.get("code") or "")
 
     def close(self) -> None:
         self._fh.close()
@@ -200,6 +218,7 @@ def base_rec(pid: str, stage: str, arm: str, upstream: str = "") -> dict:
         "stage": stage,
         "arm": arm,
         "upstream": upstream,
+        "code": _code_stamp(),
         "status": "error",
         "dur_s": 0.0,
         "metrics": {},
@@ -269,6 +288,7 @@ def touch_run_meta(out_dir: Path, args: argparse.Namespace) -> None:
             "argv": sys.argv[1:],
             "seed": args.seed,
             "layers": args.layers,
+            "code": _code_stamp(),
         }
     )
     mp.write_text(
@@ -374,7 +394,7 @@ def stage_ingest(
     by_id = {e["id"]: e for e in entries}
     cached, missing = [], []
     for pid in ids:
-        if log.is_done(pid, "-") and not args.rerun:
+        if log.is_done(pid, "-", recode=args.recode) and not args.rerun:
             continue
         if (CORPUS / pid / "extracted").is_dir():
             cached.append(pid)
@@ -519,7 +539,7 @@ def stage_parse(
 ) -> None:
     todo = []
     for pid in ids:
-        if log.is_done(pid, "-") and not args.rerun:
+        if log.is_done(pid, "-", recode=args.recode) and not args.rerun:
             continue
         wid = workdir(out_dir, pid)
         src = wid / "src"
@@ -826,7 +846,7 @@ def stage_xlat(
     upstream_ok = set((args.upstream or "ok").split(","))
     todo = []
     for pid in ids:
-        if log.is_done(pid, args.arm) and not args.rerun:
+        if log.is_done(pid, args.arm, recode=args.recode) and not args.rerun:
             continue
         up = parse_recs.get((pid, "-", ""))
         if up is not None and up.get("status") not in upstream_ok:
@@ -1075,9 +1095,9 @@ def stage_compile(
             if marker.exists():
                 with contextlib.suppress(Exception):
                     up = json.loads(marker.read_text()).get("arm") or ""
-            if not args.rerun and up and log.is_done(pid, "zh", up):
+            if not args.rerun and up and log.is_done(pid, "zh", up, recode=args.recode):
                 continue
-        elif not args.rerun and log.is_done(pid, "base"):
+        elif not args.rerun and log.is_done(pid, "base", recode=args.recode):
             continue
         todo.append(pid)
     print(f"compile[{args.arm}]: {len(todo)} to run (jobs={args.jobs})", flush=True)
@@ -1241,7 +1261,7 @@ def stage_fixloop(
         _k, crec = cand[-1]  # 末条=当前 splice/ 的 provenance
         if not want(crec):
             continue
-        if log.is_done(pid, "fix", crec.get("upstream") or "") and not args.rerun:
+        if log.is_done(pid, "fix", crec.get("upstream") or "", recode=args.recode) and not args.rerun:
             continue
         todo.append((pid, crec))
     print(f"fixloop[on={args.on}]: {len(todo)} cells (jobs={args.jobs})", flush=True)
@@ -1283,6 +1303,11 @@ def _add_shared(p: argparse.ArgumentParser, jobs: int) -> None:
     p.add_argument("--dir", default=None, help="显式结果目（覆盖 --tag/--date）")
     p.add_argument("--date", default=str(datetime.now(UTC).date()))
     p.add_argument("--rerun", action="store_true", help="无视 records 重跑")
+    p.add_argument(
+        "--recode",
+        action="store_true",
+        help="产码印章（record.code=HEAD sha±dirty）不符/缺印的格重跑——splice/parse 层修复验证用",
+    )
     p.add_argument(
         "--upstream", default=None, help="上游可收 status CSV（默认各 stage 自定）"
     )
