@@ -57,17 +57,18 @@
 - 修复证据包：`repro-{0806,0806-head,0806-textfix,2203,2501}` 已入库；`repro-1306`/`repro-2410b`/`realarm-repro`/`postfix`/`modec-misschar` 未入库或在飞（见 §4）。
 - 网关/运维：`scripts/gwcap/`、`gw-tunnel.sh`、`gw-health.sh`、`find-gateway-hog.sh`、`preflight_batch.py`、`runbook_loop.md`、`tools-runbook.md`；`docs/research/gateway/2026-09-16-free-tokens.md`（免费额度全景：保险库 80→2 存活）。
 
-## 4. 在飞清单（19:15 本地 `ps` 实锤复核——清理前必须等/确认）
+## 4. 在飞清单（20:2x 本地 `ps` 实锤复核——清理前必须等/确认）
 
 | 在飞项 | 进程/产物 | 依赖面 |
 | --- | --- | --- |
-| **loop2 delta rerun** | PID 683998/684001 `stagerun.py fixloop --on fail --rerun`（fail 池 xelatex 活跃编译中；misschar 池排队） | 正在写 `stagerun-loop1-2026-09-16/records/fixloop.jsonl`（已 append 到 2266 行 vs 入库版 1942）+ `work/`；delta 清单 `rerun-ids-loop2delta.txt`（未入库）。收官后 rundiff vs `5acb956` 基线 + commit records |
-| **postfix 真网关 A/B** | PID 38737/38740 `e2e_real_bench.py --tag postfix` n≈96（c=2，budget 12h，已写 68/100） | 写 `postfix-2026-09-16/` + `work_e2ereal/` + `/tmp/realpostfix.log`；**loop1 修复波在真臂上的唯一验收证据** |
-| 1d fixer 波 | `src/texlate/compile/latex209.py`、`tests/test_latex209.py`、`tests/test_inject_cjk_math.py` 未入库；inject.py/normalize.py 等 M 态；另有 `pytest tests/` 在跑（PID 696618） | `tmp/latex209-probe/`（57M，RESULTS.md 台账+convert.py 草稿）、`tmp/cjkfont/`、`tmp/latex209-verify/` 是配套现场 |
-| 已收口的在飞项（19:0x 后落库） | `repro-1306` `d2d82e8`、`repro-2410b` `cc50507`、`realarm-repro` `253caab`、TEXMFHOME 串链 `6752bb0`、prim-guard 同步 `1e0e5c8` | 挖掘时未入库、现已 commit——**同类 untracked 证据包（`postfix`、`gtrap-scout`、`rerun-ids-loop2delta.txt`）照此办理：先入库再判删** |
-| 1e 队列 | worker-followup #74/#75/#78、modeb-dirty、share 完成钩 #92 | worker.py M 态在飞 |
+| ~~loop2 delta rerun~~ **已收官** | records 落库 `e769ebb`（targeted rerun 21/22 named-cluster cells → pdf）；run_meta/REPORT 增量已入库 | `stagerun-loop1` 不再是活写面；但 work/ 转挂 fixer-slots preserve-list + tickets repro_path 决策（见下） |
+| ~~postfix 真网关 A/B~~ **已跑完** | records.jsonl 满 100/100，进程已退出 | `postfix-2026-09-16/` 待 1e 落库 commit；之后 `work_e2ereal/` 转 A 类可删（`_xlat_state` 25M 保留） |
+| **fixer-slots preserve-list（当前唯一阻塞项）** | 20:21 实测 bwrap+xelatex 正在 `work_e2emock/corpus_v3/pipe-xel/1206.0197` 复验（CandFtransformFinalDouble.tex）——fixer 真在用 | `work_e2emock` + `stagerun-loop1/work/` 挂同一张名单（1d 在催；#147 取证用的就是 loop1 cell 树）。兜底口径：名单不到则只留报告里出现过的 cell id 子目录 |
+| 1d fixer 波 | `latex209.py`、`test_latex209.py`、`test_inject_cjk_math.py` 未入库；inject.py/normalize.py 等 M 态 | `tmp/latex209-probe/`（57M，RESULTS.md 台账+convert.py 草稿）、`tmp/cjkfont/`、`tmp/latex209-verify/` 配套现场 |
+| 已收口的在飞项（落库记录） | `repro-1306` `d2d82e8`、`repro-2410b` `cc50507`、`realarm-repro` `253caab`、TEXMFHOME 串链 `6752bb0`、prim-guard `1e0e5c8`、loop2 records `e769ebb` | 同类 untracked 证据包（`postfix`、`gtrap-scout`、`rerun-ids-loop2delta.txt`）照此办理：先入库再判删 |
+| 1e 队列 | worker-followup #74/#75/#78、modeb-dirty、share 完成钩 #92；**postfix 结果待落库** | worker.py M 态在飞 |
 | peer 待办 | rules.yaml 五项（prim_guard 交替表/char_table/backstop×2/latex209 gate 改路由/.rtx 边界/install_file 闭包） | status doc §5 分工表 |
-| 1d 补充红线（19:2x 回执） | `tmp/` 下 fixer-slots / fixer-cjkfont 随时可能写复现 scratch——**tmp 清理一律按 mtime 过滤，~2h 内动过的跳过**；仓外 `/tmp/loop1-snap/` 是 1d 新建 rundiff 基线快照、`/tmp/cmrepro` 是 1e bug-G 复核脚本 | 仓外两件不在本清理面，仅备忘勿顺手删 |
+| 1d 补充红线 | tmp 清理一律按 mtime 过滤，~2h 内动过的跳过；仓外 `/tmp/loop1-snap/`（1d rundiff 基线快照）、`/tmp/cmrepro`（1e bug-G 复核脚本）备忘勿删 | tickets.jsonl 455 条 `repro_path→work/` 树：删 work/ 前须在报告里标注 repro_path 已失效（或保 tickets 引用语义） |
 
 ## 5. 可删/不可删判定（汇总 `artifact-map.md` + `docs-inventory.md` 交叉；清理动作请等 §4 落地）
 
@@ -83,9 +84,9 @@
 
 ### B. 在飞勿动 ≈ 46G+（等 §4 收官）
 
-- **`stagerun-loop1-2026-09-16/`（44G，work/ 独占）**：loop2 正写；work/ 同时是 455 张 ticket 的 `repro_path` 基底与逐格取证层（regress4/misschar/fixtures 的物理证据源）。rerun 全部落地 + records 再 commit 之后，若接受「结论留、现场销」可删 work/。
-- `postfix-2026-09-16/` + `work_e2ereal/` 1.6G（postfix 写入中；**`work_e2ereal/_xlat_state/` 25M 跑完也保留**——真网关翻译缓存+断点续跑+qualbench 抽样源）。
-- `repro-1306`/`repro-2410b`（建议先入库再判）、`tmp/latex209-probe`/`cjkfont`/`latex209-verify`（latex209 交付前需引用）。
+- **`stagerun-loop1-2026-09-16/`（44G，work/ 独占）**：loop2 已收官（`e769ebb`），不再是活写面——但 **(a)** 挂 fixer-slots preserve-list（与 work_e2emock 同一张，1d 在催）；**(b)** tickets.jsonl 455 条 `repro_path` 指向 work/ 树，删前须在报告标注已失效或只保名单内 cell。解锁后按「结论留、现场销」可释放 ~44G。
+- `postfix-2026-09-16/`（100/100 已跑完，待 1e 落库）+ `work_e2ereal/` 1.6G（落库后转 A 类；**`_xlat_state/` 25M 永留**——真网关翻译缓存+断点续跑+qualbench 抽样源）。
+- `tmp/latex209-probe`/`cjkfont`/`latex209-verify`（latex209 交付前需引用）、`work_e2emock`（等 slots 名单）。
 - 未入库代码交付件（§4 表内 ?? 文件）。
 
 ### C. 资产勿删 ≈ 21G
@@ -103,4 +104,4 @@
 
 - `tmp/preclean/` 原始挖掘件：全部七份矿工报告 + `gitlog-full.txt` 已拷入本目录；唯一未拷入的是 `_sess-53215cda-render.md`（317K transcript 渲染稿，可再生）。
 - `tmp/transcript-mining/` 10 件（27bd911f 会话一轮挖掘：各会话报告 + docs-audit 44 项 + subagent-bash 语料 + 五份小会话导出）已整体拷入 `transcript-mining/` 子目录——**这是清理 tmp/ 时唯一会真丢的知识载体**。
-- 建议：本目录经用户审阅后 `git add` 入库（体量 ~2.7M），此后 `tmp/` 即可整目录清理。
+- 入库状态：本目录 21 件已由 texlate-1d 于 `5cfd678` 落库（19:59）；本文件 §4/§5 的最新在飞状态在其后续补。
