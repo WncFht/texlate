@@ -178,6 +178,16 @@ _DOC_RE = re.compile(r"\\(documentclass|documentstyle)(?![a-zA-Z])")
 #: \documentclass 调用参数扫描上限（防御畸形输入死循环）。
 _DOCCLASS_SCAN_LIMIT = 4000
 
+#: ``\input`` 族目标扫描（probe.py 同款口径：braced/bare 两形；
+#: ``\b`` 词界使 ``\includegraphics`` 不误命中 ``\include``）。
+_INPUT_BRACED_RE = re.compile(r"\\(?:input|include|InputIfFileExists)\b\s*\{([^}]+)\}")
+_INPUT_BARE_RE = re.compile(r"\\input\s+([^\s{}%\\]+)")
+_INPUT_NAME_RE = re.compile(r"^[\w./+-]+$")
+
+#: ``_body_mass`` BFS 文件数上界——分数只是排序键，够分胜负即可，
+#: 病态工程（数千 .tex）不拖死选取。
+_MASS_FILE_CAP = 1024
+
 #: FLOAT_SIZING 仅在有 figure/table 时注入（docs/08 §3.3）。
 FLOAT_SIZING = r"""% texlate: fit complete oversized float boxes v1
 \usepackage{graphicx}
@@ -245,11 +255,67 @@ class InjectRejectError(ValueError):
         super().__init__("inject_reject:" + reason)
 
 
+def _resolve_input(root: Path, decl_dir: Path, name: str) -> Path | None:
+    r"""``\input``/``\include`` 目标 → 本地 .tex（声明目录→工程根两跳，kpathsea 序）。
+
+    无扩展名补 ``.tex``；解析到非 .tex（``.bbl``/``.sty`` 等）或越出
+    工程根的目标不计入 body 量（probe.py ``_find_local`` 同口径）。
+    """
+    fname = name if Path(name).suffix else name + ".tex"
+    if not fname.lower().endswith(".tex"):
+        return None
+    for base in (decl_dir, root):
+        cand = (base / fname).resolve()
+        if cand.is_file() and cand.is_relative_to(root):
+            return cand
+    return None
+
+
+def _body_mass(root: Path, main: Path, body: str) -> int:
+    r"""``\begin{document}`` 后实质 body 量：可见非空白字符数 + ``\input`` 闭包。
+
+    standalone 图档也能凑齐 ``document`` 环境但 body 与正文章节脱节——
+    裸 body 长度分不出「1K 的 ``\include`` 编排壳」与「1.5K 的 tikz 图」，
+    故按「这篇 document 实际拉进多少 .tex 内容」计：本体 body 可见非空白
+    字符 + body 内 ``\input``/``\include`` 可解析目标的传递闭包逐文件
+    同口径计数（1803.02985 E 桶：thesis.tex 本体 ~0.7K/闭包 ~400K，
+    standalone 图 body ~1.5K/闭包 0）。环引由 visited 集收，规模上界
+    ``_MASS_FILE_CAP``。
+    """
+    mass = len(re.sub(r"\s", "", body))
+    seen = {main}
+    queue = [(main, body)]
+    while queue and len(seen) <= _MASS_FILE_CAP:
+        src, vis = queue.pop()
+        for match in (
+            *_INPUT_BRACED_RE.finditer(vis),
+            *_INPUT_BARE_RE.finditer(vis),
+        ):
+            name = match[1].strip().strip('"').strip()
+            if not name or not _INPUT_NAME_RE.match(name):
+                continue
+            tgt = _resolve_input(root, src.parent, name)
+            if tgt is None or tgt in seen:
+                continue
+            seen.add(tgt)
+            try:
+                sub = visible_tex(decode_tex(tgt.read_bytes()))
+            except OSError:
+                continue
+            mass += len(re.sub(r"\s", "", sub))
+            queue.append((tgt, sub))
+    return mass
+
+
 def find_main_tex(root: Path) -> Path | None:
     r"""定位主 .tex：最浅、最像正文的 `\documentclass`+`\begin{document}` 文件。
 
     排序：英文正文优先（多语种版本不靠 UTF-8 字节数排序——多字节文字
-    系统性吃亏）→ main/paper/ms 名 → 目录深度 → 文件大小。
+    系统性吃亏）→ main/paper/ms 名 → 目录深度 → 实质 body 量级
+    （`\begin{document}` 后可见字符 + `\input` 闭包的十进制位数——
+    standalone 图档/document 薄壳与真 main 分野，1803.02985 E 桶修法；
+    只仲裁量级差，近等值回退文件大小，避免 `ver1/`、`old/`、diff 档
+    这类版本目录副本被几个百分点翻盘）→ 文件大小。
     """
     candidates = []
     bodies = {}
@@ -273,11 +339,18 @@ def find_main_tex(root: Path) -> Path | None:
         latin = len(re.findall(r"[A-Za-z]", body))
         return letters > 0 and latin < letters / 2
 
+    resolved = root.resolve()
+    masses = {
+        rel: _body_mass(resolved, (resolved / rel).resolve(), bodies[rel])
+        for rel in candidates
+    }
+
     candidates.sort(
         key=lambda p: (
             language_rank(p),
             Path(p).name not in ("main.tex", "paper.tex", "ms.tex"),
             len(Path(p).parts),
+            -len(str(masses[p])),
             -(root / p).stat().st_size,
         )
     )

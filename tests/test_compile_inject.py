@@ -224,6 +224,104 @@ def test_find_main_tex_none(tmp_path: Path) -> None:
     assert find_main_tex(tmp_path) is None
 
 
+def test_find_main_tex_body_mass_beats_standalone(tmp_path: Path) -> None:
+    r"""E 桶 1803.02985：standalone 图档字面 body 更厚也输 include 编排壳。
+
+    thesis 壳 literal body 仅几条 ``\include``（~80 字符），standalone
+    tikz 图 body 更厚——按闭包内容量取 thesis。
+    """
+    (tmp_path / "fig_standalone.tex").write_text(
+        "\\documentclass{standalone}\n\\usepackage{tikz}\n"
+        "\\begin{document}\n\\begin{tikzpicture}\n"
+        + "\\draw (0,0) -- (1,1) node{label}; % pad\n" * 12
+        + "\\end{tikzpicture}\n\\end{document}\n"
+    )
+    (tmp_path / "chap_one.tex").write_text(
+        "\\chapter{One}\n" + "Body text of chapter one. " * 60
+    )
+    (tmp_path / "chap_two.tex").write_text(
+        "\\chapter{Two}\n" + "Body text of chapter two. " * 60
+    )
+    (tmp_path / "thesis.tex").write_text(
+        "\\documentclass{book}\n\\begin{document}\n"
+        "\\include{chap_one}\n\\include{chap_two}\n\\end{document}\n"
+    )
+    assert find_main_tex(tmp_path) == tmp_path / "thesis.tex"
+
+
+def test_find_main_tex_body_mass_transitive(tmp_path: Path) -> None:
+    r"""``\input`` 闭包传递：main → chapter → section 二级也计入质量。"""
+    (tmp_path / "deep.tex").write_text("deep section content. " * 80)
+    (tmp_path / "chap.tex").write_text("\\input{deep}\nchapter text. " * 40)
+    (tmp_path / "thick_fig.tex").write_text(
+        "\\documentclass{standalone}\n\\begin{document}\n"
+        + "figure body filler " * 50
+        + "\\end{document}\n"
+    )
+    (tmp_path / "paper_main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\n\\input{chap}\n\\end{document}\n"
+    )
+    assert find_main_tex(tmp_path) == tmp_path / "paper_main.tex"
+
+
+def test_find_main_tex_name_bonus_above_mass(tmp_path: Path) -> None:
+    r"""main/paper/ms 名仍在 body 量之上——退化 main.tex 不致被厚图档翻盘。"""
+    (tmp_path / "bigfig.tex").write_text(
+        "\\documentclass{standalone}\n\\begin{document}\n"
+        + "huge figure content " * 60
+        + "\\end{document}\n"
+    )
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n"
+    )
+    assert find_main_tex(tmp_path) == tmp_path / "main.tex"
+
+
+def test_find_main_tex_body_mass_input_cycle(tmp_path: Path) -> None:
+    r"""``\\input`` 环引不死循环——visited 集收口。"""
+    (tmp_path / "a.tex").write_text("\\input{b}\nalpha text. " * 40)
+    (tmp_path / "b.tex").write_text("\\input{a}\nbeta text. " * 40)
+    (tmp_path / "doc.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\n\\input{a}\n\\end{document}\n"
+    )
+    assert find_main_tex(tmp_path) == tmp_path / "doc.tex"
+
+
+def test_find_main_tex_mass_same_bucket_keeps_size(tmp_path: Path) -> None:
+    r"""同量级 body 不由 mass 仲裁——supp 险胜正文的翻盘被位数桶拦住。
+
+    1907.00012 形态：补充材料文档 body 比正文厚 ~1.8× 但同十进制位数桶 →
+    回退文件大小（注释填充令正文文件更大，mass 不计注释）。
+    """
+    (tmp_path / "supp_doc.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\n"
+        + "supplemental section content " * 80
+        + "\\end{document}\n"
+    )
+    (tmp_path / "conference.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\n"
+        + "main paper body text " * 60
+        + "\\end{document}\n"
+        + "% trailing comment padding to keep file bigger\n" * 200
+    )
+    assert find_main_tex(tmp_path) == tmp_path / "conference.tex"
+
+
+def test_find_main_tex_depth_above_mass(tmp_path: Path) -> None:
+    r"""目录深度仍在 body 量之上——深层厚文档不翻盘浅层候选（1012.5411 形态）。"""
+    sub = tmp_path / "doc" / "latex" / "guide"
+    sub.mkdir(parents=True)
+    (sub / "guide_doc.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\n"
+        + "deep bundled documentation text " * 60
+        + "\\end{document}\n"
+    )
+    (tmp_path / "short_paper.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n"
+    )
+    assert find_main_tex(tmp_path) == tmp_path / "short_paper.tex"
+
+
 def test_inject_float_sizing_only_with_floats(tmp_path: Path) -> None:
     plain = tmp_path / "plain"
     plain.mkdir()
