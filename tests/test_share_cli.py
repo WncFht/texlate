@@ -267,11 +267,36 @@ class TestSharePack:
         assert "per_key" in res.stderr
 
     def test_pack_missing_artifact_rejected(self, tmp_path: Path) -> None:
+        """必需产物缺席 → 拒绝（zh-src.zip 是必需件）。"""
         tdir = _mk_task(tmp_path / "data")
-        (tdir / "zh.pdf").unlink()
+        (tdir / "zh-src.zip").unlink()
         res = _pack(tdir)
         assert res.exit_code == 1
-        assert "zh.pdf" in res.stderr
+        assert "zh-src.zip" in res.stderr
+
+    def test_pack_partial_no_zh_pdf(self, tmp_path: Path) -> None:
+        """partial 任务无 zh.pdf → 打包成功，manifest/包内均无该成员，
+        unpack 侧正常消费。"""
+        tdir = _mk_task(tmp_path / "data", status="partial")
+        (tdir / "zh.pdf").unlink()
+        out_dir = tmp_path / "out"
+        res = _pack(tdir, "-o", str(out_dir))
+        assert res.exit_code == 0, res.output
+        assert "zh.pdf 不在场" in res.stderr
+        report = json.loads(res.stdout)
+        bundle = out_dir / f"{report['share_key']}.share.zip"
+        with zipfile.ZipFile(bundle) as zf:
+            doc = json.loads(zf.read(MANIFEST_NAME))
+            assert set(doc["artifacts"]) == {"zh-src.zip", "dual.json"}
+            assert "zh.pdf" not in zf.namelist()
+
+        dest = tmp_path / "un"
+        res2 = _RUNNER.invoke(app, ["share", "unpack", str(bundle), "-o", str(dest)])
+        assert res2.exit_code == 0, res2.output
+        mf = json.loads(res2.stdout)
+        assert set(mf["artifacts"]) == {"zh-src.zip", "dual.json"}
+        assert (dest / "dual.json").is_file()
+        assert not (dest / "zh.pdf").exists()
 
     def test_pack_glossary_local_hashes(self, tmp_path: Path) -> None:
         """``base/glossary.local.yaml`` 在场 → glossary_hash 非空进键。"""

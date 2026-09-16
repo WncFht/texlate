@@ -12,6 +12,7 @@ import pytest
 from texlate.share import (
     ARTIFACT_NAMES,
     MANIFEST_NAME,
+    REQUIRED_ARTIFACTS,
     SHARE_FORMAT,
     ShareError,
     pack_share,
@@ -205,11 +206,33 @@ def test_unsafe_artifact_name_rejected(tmp_path: Path) -> None:
         unpack_share(evil, tmp_path / "d")
 
 
-def test_pack_missing_artifact_rejected(tmp_path: Path) -> None:
+@pytest.mark.parametrize("drop", list(REQUIRED_ARTIFACTS))
+def test_pack_missing_required_artifact_rejected(tmp_path: Path, drop: str) -> None:
+    """必需产物（zh-src.zip/dual.json）缺席 → 拒绝。"""
     work = _make_work(tmp_path)
-    (work / "zh.pdf").unlink()
+    (work / drop).unlink()
     with pytest.raises(ShareError, match="missing in work_dir"):
         pack_share(work, _PARTS, out_dir=tmp_path)
+
+
+def test_pack_partial_no_zh_pdf(tmp_path: Path) -> None:
+    """zh.pdf 缺席的 partial 任务 → 合法打包：manifest 不登记、包内无成员、
+    unpack 正常消费（与 ``REQUIRED_ARTIFACTS`` 口径对称）。"""
+    work = _make_work(tmp_path)
+    (work / "zh.pdf").unlink()
+    bundle = pack_share(work, _PARTS, out_dir=tmp_path / "out")
+    doc = _bundle_manifest(bundle)
+    arts = doc["artifacts"]
+    assert isinstance(arts, dict)
+    assert set(arts) == set(REQUIRED_ARTIFACTS)
+    with zipfile.ZipFile(bundle) as zf:
+        assert set(zf.namelist()) == {MANIFEST_NAME, *REQUIRED_ARTIFACTS}
+    dest = tmp_path / "unpacked"
+    mf = unpack_share(bundle, dest)
+    assert set(mf.artifacts) == set(REQUIRED_ARTIFACTS)
+    for name in REQUIRED_ARTIFACTS:
+        assert (dest / name).read_bytes() == (work / name).read_bytes()
+    assert not (dest / "zh.pdf").exists()
 
 
 def test_pack_missing_key_part_rejected(tmp_path: Path) -> None:

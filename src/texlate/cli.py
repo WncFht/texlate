@@ -800,6 +800,17 @@ def _share_out_is_file(out: Path) -> bool:
     return not out.is_dir() and bool(out.suffix)
 
 
+def _share_warn_no_pdf(task_dir: Path) -> None:
+    """zh.pdf 缺席 → 提示按 partial 包打包（合法，manifest 不登记该成员）。"""
+    if (task_dir / "zh.pdf").is_file():
+        return
+    typer.echo(
+        "zh.pdf 不在场——按 partial 包打包（manifest 不登记该成员，"
+        "消费端只依赖 dual.json 重跑全链）",
+        err=True,
+    )
+
+
 @share_app.command("pack")
 def share_pack(
     task: Annotated[
@@ -881,6 +892,7 @@ def share_pack(
             if out is None
             else (out.parent if _share_out_is_file(out) else out)
         )
+        _share_warn_no_pdf(task_dir)
         bundle = pack_share(task_dir, manifest, out_dir=out_dir)
     except ShareError as e:
         typer.echo(f"share pack: {e}", err=True)

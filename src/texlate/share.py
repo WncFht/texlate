@@ -7,8 +7,9 @@
   的产物级 dedup 键同构但独立：dedup 键是本地任务去重（per_key scope
   可按凭证指纹分桶），本键是跨实例公开寻址，永不拼凭证/租户成分。
 - 包格式：``{share_key}.share.zip`` = ``manifest.json`` + ``zh-src.zip``
-  + ``zh.pdf`` + ``dual.json`` 四成员；manifest 自校验（key_parts 重算
-  share_key、逐产物 sha256/bytes 对账）。
+  + ``dual.json`` + 可选 ``zh.pdf``；manifest 自校验（key_parts 重算
+  share_key、逐产物 sha256/bytes 对账）。``zh.pdf`` 缺席的 partial 包
+  合法——它只是贡献者侧编译证据，译文载荷在 ``dual.json``。
 - 信任边界：本模块只做机械校验（格式/字段/哈希），不保证译文语义——
   消费端拿 ``dual.json`` 回灌本地 splice→validate→compile 重跑，
   包本身不被信任（设计文 §5）。
@@ -35,9 +36,9 @@ log = logging.getLogger(__name__)
 SHARE_FORMAT = "texlate-share/1"
 #: 包内 manifest 成员名。
 MANIFEST_NAME = "manifest.json"
-#: 标准产物三件套——``pack_share`` 全收；文件名即包内 arcname。
+#: 标准产物三件套——``pack_share`` 在场即收；文件名即包内 arcname。
 ARTIFACT_NAMES = ("zh-src.zip", "zh.pdf", "dual.json")
-#: 解包侧强制在场的产物子集（zh.pdf 缺席的前向兼容包仍可消费——译文载荷在 dual.json）。
+#: 打包/解包双侧强制在场的产物子集（zh.pdf 缺席的 partial 包合法——译文载荷在 dual.json）。
 REQUIRED_ARTIFACTS = ("zh-src.zip", "dual.json")
 #: share_key 七组分（序 = 哈希材料序）。
 KEY_PART_FIELDS = (
@@ -174,13 +175,16 @@ def pack_share(
     *,
     out_dir: Path | None = None,
 ) -> Path:
-    """产物三件套 + 生成的 manifest.json → ``{share_key}.share.zip``。
+    """在场产物 + 生成的 manifest.json → ``{share_key}.share.zip``。
 
     ``manifest`` 必带 ``KEY_PART_FIELDS`` 七键（``version``/``glossary_hash``
     可空串）；可选 ``contributor``（缺省生成 ``c-<16hex>`` 匿名 id）与
     ``created_at``（缺省 UTC now）。给了 ``share_key`` 但与组分量重算
-    不符 → ShareError（调用方错配防呆）。产物缺失/超 ``_MEMBER_MAX``
-    → ShareError。返回包路径（``out_dir`` 缺省 = ``work_dir``）。
+    不符 → ShareError（调用方错配防呆）。``REQUIRED_ARTIFACTS`` 缺失/
+    超 ``_MEMBER_MAX`` → ShareError；``zh.pdf`` 缺席则不登记不打包——
+    manifest artifacts 表即在场清单（缺席即 partial 包，与 unpack 的
+    ``REQUIRED_ARTIFACTS`` 口径对称）。返回包路径（``out_dir`` 缺省
+    = ``work_dir``）。
     """
     parts = _key_parts(manifest)
     key = _derive_key(parts)
@@ -192,8 +196,11 @@ def pack_share(
     for name in ARTIFACT_NAMES:
         src = work_dir / name
         if not src.is_file():
-            msg = f"artifact missing in work_dir: {name}"
-            raise ShareError(msg)
+            if name in REQUIRED_ARTIFACTS:
+                msg = f"artifact missing in work_dir: {name}"
+                raise ShareError(msg)
+            log.info("optional artifact absent, omitted from bundle: %s", name)
+            continue
         size = src.stat().st_size
         if size > _MEMBER_MAX:
             msg = f"artifact too large: {name} ({size}B > {_MEMBER_MAX}B)"
@@ -214,7 +221,7 @@ def pack_share(
     out.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr(MANIFEST_NAME, json.dumps(doc, ensure_ascii=False, indent=2) + "\n")
-        for name in ARTIFACT_NAMES:
+        for name in artifacts:
             zf.write(work_dir / name, arcname=name)
     return out
 
