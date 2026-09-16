@@ -53,6 +53,7 @@ from texlate.arxiv.sniff import BlobKind, SniffError, sniff
 from texlate.arxiv.unpack import (
     MAX_FILE_BYTES,
     UnpackError,
+    _unique_rename,
     unpack_sniffed,
 )
 from texlate.compile.cjkmap import embed_cjk_mappings
@@ -118,6 +119,7 @@ from texlate.share import (
     share_key,
     unpack_share,
 )
+from texlate.textutil import CJK_RX
 from texlate.validate.l0 import validate_pair
 from texlate.xlat.client import (
     AuthError,
@@ -838,14 +840,26 @@ class _ShareRejectError(Exception):
 
 
 def _share_pool(raw: list[object]) -> dict[tuple[str, str], deque[str]]:
-    """包内 dual chunks → ``(src_file, en)`` → zh 队列（重复段按序消费）。"""
+    """包内 dual chunks → ``(src_file, en)`` → zh 队列（重复段按序消费）。
+
+    只收真译文载荷：zh 非 str/空白串、或 ``zh == en`` 且不含 CJK 的条目
+    不进池——源任务 ``fallback_orig``/``failed`` 行的 dual.json zh 位装
+    的是原文回写/空串，对无占位符 src 这两形态都能过 ``validate_pair``
+    （CJK 占比仅 WARN），收进池会让英文原文/空译文以 ``ok`` 落库续传。
+    ``zh == en`` 含 CJK 是合法恒等译文（原文即中文段），照常放行。
+    """
     pool: dict[tuple[str, str], deque[str]] = defaultdict(deque)
     for c in raw:
         if not isinstance(c, dict):
             continue
         src_file, en, zh = c.get("src_file"), c.get("en"), c.get("zh")
-        if isinstance(src_file, str) and isinstance(en, str):
-            pool[(src_file, en)].append(zh if isinstance(zh, str) else "")
+        if not (isinstance(src_file, str) and isinstance(en, str)):
+            continue
+        if not isinstance(zh, str) or not zh.strip():
+            continue
+        if zh == en and not CJK_RX.search(zh):
+            continue
+        pool[(src_file, en)].append(zh)
     return pool
 
 
@@ -891,19 +905,6 @@ def _share_sourced(ctx: TaskCtx) -> bool:
 
 
 # ---------------------------------------------------------------- 上传解包
-
-
-def _zip_unique(rel: str, seen: dict[str, str]) -> str:
-    """Casefold 冲突改名：``foo.eps`` → ``foo~c2.eps``（arxiv.unpack 同款语义）。"""
-    stem, dot, ext = rel.rpartition(".")
-    if not stem:
-        stem, suffix = rel, ""
-    else:
-        suffix = dot + ext
-    k = 2
-    while f"{stem}~c{k}{suffix}".lower() in seen:
-        k += 1
-    return f"{stem}~c{k}{suffix}"
 
 
 def _zip_member_payload(zf: zipfile.ZipFile, info: zipfile.ZipInfo) -> bytes:
@@ -961,7 +962,7 @@ def unpack_zip(data: bytes, dest: Path) -> list[str]:
             rel_s = PurePosixPath(*parts).as_posix()
             low = rel_s.lower()
             if low in seen and seen[low] != rel_s:
-                new_rel = _zip_unique(rel_s, seen)
+                new_rel = _unique_rename(rel_s, seen)
                 warnings.append(f"casefold_rename:{rel_s}->{new_rel}")
                 rel_s, low = new_rel, new_rel.lower()
             elif low in seen:
@@ -1959,9 +1960,7 @@ class PipelineWorker:
                     len(state.buffer) >= _FLUSH_N
                     or time.monotonic() - last_flush >= _FLUSH_MS
                 ):
-                    await self._flush_translate(
-                        ctx, state, cache, status_map, sse_items
-                    )
+                    self._flush_translate(ctx, state, cache, status_map, sse_items)
                     last_flush = time.monotonic()
             await run_task  # 传播异常（AuthTrippedError → run() 归 provider_auth）
         finally:
@@ -2021,13 +2020,13 @@ class PipelineWorker:
                 completion_tokens=int(usage["completion_tokens"]),
                 latency_s=float(usage["latency_s"]),
             )
-        with contextlib.suppress(asyncio.CancelledError):
-            # fault/cancel 也要把缓冲里的已完块落盘（原先异常路径丢 buffer）
-            await self._flush_translate(ctx, state, cache, status_map, sse_items)
+        # fault/cancel 也要把缓冲里的已完块落盘（原先异常路径丢 buffer）——
+        # flush 是同步体无悬置点：pending-cancel 不会投递进来截断写盘
+        self._flush_translate(ctx, state, cache, status_map, sse_items)
         self._invalidate_splice(ctx, pre_rows)
         await _aclose_clients(clients)
 
-    async def _flush_translate(
+    def _flush_translate(
         self,
         ctx: TaskCtx,
         state: DBStateBridge,
@@ -2035,7 +2034,13 @@ class PipelineWorker:
         status_map: dict[str, str],
         sse_items: list[dict[str, Any]],
     ) -> None:
-        """批量事务 flush（§3.4.2）：record 缓冲 → chunks 行 + 段缓存 + 计数器 + chunk 事件。"""
+        """批量事务 flush（§3.4.2）：record 缓冲 → chunks 行 + 段缓存 + 计数器 + chunk 事件。
+
+        本函数体必须保持纯同步（无 await）——``_teardown_translate`` 在
+        pending-cancel 下也要靠它把缓冲落盘：cancel 只投递在悬置点，同步
+        体原子跑完不会被吞。若日后要加真异步（如 to_thread 落库），调用
+        方的 cancel 语义面须整体重评。
+        """
         if not state.buffer and not sse_items:
             return
         updates = []
@@ -2162,12 +2167,14 @@ class PipelineWorker:
         """包内 ``dual.json.chunks`` → 本地 chunks 表译文（§5 第 3 步对账）。
 
         对账键 ``(src_file, en==src_text)``——本地行按 seq 序贪心消费
-        同键包内条目（重复原文段按序各得一份）。命中译文先过
-        ``validate_pair``（与 LLM 产出同款 L0 判据）：过 → ``ok``；
-        不过 → ``fallback_orig`` + ``validate``。本地无包条目的块 →
-        ``fallback_orig`` + ``share_miss``（v1 不回退自译——导入保持
-        零 token）；包内多余条目只记 ``extra`` 忽略。零命中即包与本源
-        不对应 → ``_ShareRejectError``（不写库）。``flush_chunk_batch``
+        同键包内条目（重复原文段按序各得一份）。``_share_pool`` 只收真
+        译文载荷（zh 空/非 str、``zh==en`` 无 CJK 的原文回写条目不进池），
+        被滤条目视同无条目。命中译文先过 ``validate_pair``（与 LLM 产出
+        同款 L0 判据）：过 → ``ok``；不过 → ``fallback_orig`` +
+        ``validate``。本地无包条目的块 → ``fallback_orig`` +
+        ``share_miss``（v1 不回退自译——导入保持零 token）；包内多余
+        条目只记 ``extra`` 忽略。零命中即包与本源不对应 →
+        ``_ShareRejectError``（不写库）。``flush_chunk_batch``
         单事务落盘——崩溃只有「全没落」一态，resume 重跑即幂等。
         """
         dual_path = ctx.root / "share" / "dual.json"
@@ -2280,8 +2287,10 @@ class PipelineWorker:
         out_dir = share_dir(self.data_dir)
         try:
             hit = index_lookup(out_dir / "index.jsonl", key)
-        except (ShareError, OSError, UnicodeDecodeError) as e:
+        except (OSError, UnicodeDecodeError) as e:
             # 索引是缓存——读挂一律降级 miss，不为查询面 fault 任务
+            # （index_lookup 真实异常面只有 OSError/UnicodeDecodeError：
+            # FileNotFoundError 归 None，坏行内吞记 warning）
             self._log(ctx, f"share lookup: index 不可读按 miss 处理: {e}")
             return False
         if hit is None:
@@ -2713,13 +2722,17 @@ class PipelineWorker:
             )
 
     def _log_text_of(self, res: CompRes) -> str:
-        """CompRes → log 全文（.log 优先、stdout_tail 兜底——tectonic 常无 .log）。"""
-        if res.log_path and res.log_path.exists():
-            try:
-                return res.log_path.read_text(errors="replace")
-            except OSError:
-                pass
-        return res.stdout_tail or ""
+        """CompRes → log 全文（.log 非空优先、stdout_tail 兜底——tectonic 常无 .log）。
+
+        与 ``engine.parse_log`` 同口径：.log 缺席/空文件/读失败一律退
+        ``stdout_tail``——空 .log 直返空串会把 missing-char 等只存在于
+        stdout 的升级信号静默丢掉（judge 拿不到 log_text 就是 missing_chars=0）。
+        """
+        text = ""
+        if res.log_path is not None:
+            with contextlib.suppress(OSError):
+                text = res.log_path.read_text(encoding="utf-8", errors="replace")
+        return text or res.stdout_tail or ""
 
     def _expect_cjk(self, ctx: TaskCtx) -> bool:
         """0-chunk 主文档（includepdf 壳等）不期待 CJK——cjk_chars=0 是其正确终态。

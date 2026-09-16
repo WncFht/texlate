@@ -266,6 +266,48 @@ class TestShareImport:
         assert snap["error"]["code"] == "compile"
         assert snap["error"]["share"]["dropped"] == 1
 
+    def test_import_polluted_zh_counts_as_miss(
+        self, pair: tuple[TestClient, TestClient, Path], tmp_path: Path
+    ) -> None:
+        """zh 位非译文（原文回写 ``zh == en`` / 空串）→ share_miss，不以 ok 落库。
+
+        源任务 ``fallback_orig``/``failed`` 行的 dual.json zh 位装的是
+        src_text 回写或空串——``validate_pair`` 对无占位符 src 放行这两
+        形态（CJK 占比仅 WARN）；消费端 ``_share_pool`` 收闸滤掉，块级落
+        ``fallback_orig`` + ``share_miss`` 而不是英文「译文」以 ok 续传。
+        """
+        pa, pb, ddir = pair
+        blob, _ = _produce_pack(pa, ddir)
+        orig = json.loads(zipfile.ZipFile(io.BytesIO(blob)).read("dual.json"))
+
+        def pollute(dual: dict) -> None:
+            dual["chunks"][1]["zh"] = dual["chunks"][1]["en"]  # fallback_orig 回写形态
+            dual["chunks"][2]["zh"] = ""  # failed 空串形态
+
+        evil = _repack_dual(blob, tmp_path, pollute)
+        r = _import(pb, evil)
+        assert r.status_code == HTTPStatus.ACCEPTED, r.text
+        tid = r.json()["task_id"]
+        snap = wait_terminal(pb, tid)
+        assert snap["status"] == "partial", snap
+        assert snap["counters"]["failed"] == 2  # noqa: PLR2004
+        share = snap["error"]["share"]
+        assert share["missed"] == 2  # noqa: PLR2004
+        assert share["dropped"] == 0
+        assert share["matched"] == 1
+        rows = {
+            c["src_text"]: c
+            for c in pb.portal.call(partial(pb.app.state.store.all_chunks, tid))
+        }
+        ok_src = orig["chunks"][0]["en"]
+        echo_src = orig["chunks"][1]["en"]
+        empty_src = orig["chunks"][2]["en"]
+        assert rows[ok_src]["status"] == "ok"
+        for src in (echo_src, empty_src):
+            assert rows[src]["status"] == "fallback_orig"
+            assert rows[src]["error_code"] == "share_miss"
+            assert rows[src]["translation"] == src  # 原文回写，非包内污染 zh
+
     def test_import_zero_match_reject(
         self,
         tmp_path: Path,

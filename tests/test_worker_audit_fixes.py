@@ -32,7 +32,7 @@ from texlate.arxiv.unpack import UnpackError
 from texlate.compile.cjkmap import embed_cjk_mappings
 from texlate.compile.engine import CompRes, LogInfo
 from texlate.server.events import EventBus
-from texlate.server.settings import SettingsStore, server_salt
+from texlate.server.settings import SettingsStore, server_salt, share_dir
 from texlate.server.store import ERROR_CODES, Store, StoreError, new_task_id
 from texlate.server.worker import (
     DBStateBridge,
@@ -45,6 +45,7 @@ from texlate.server.worker import (
     chunk_db_id,
     unpack_zip,
 )
+from texlate.share import ShareError
 from texlate.xlat.client import ChatClient
 from texlate.xlat.pipeline import (
     ChunkIn,
@@ -52,8 +53,11 @@ from texlate.xlat.pipeline import (
     PipelineConfig,
     XlatPipeline,
 )
+from texlate.xlat.state import ChunkRecord
 
 if TYPE_CHECKING:
+    from typing import Any
+
     from starlette.testclient import TestClient
 
 _MATH_TEX = (
@@ -1816,3 +1820,227 @@ class TestFetcherOwnership:
         with pytest.raises(OSError, match="boom"):
             worker._fetch_arxiv(ctx)  # noqa: SLF001
         assert closed == [True]
+
+
+class TestSharePoolZhGuard:
+    """worker-share-fix：包内 dual ``zh`` 位污染条目不进对账池。
+
+    源任务 ``fallback_orig``/``failed`` 行的 dual.json zh 位装的是
+    src_text 回写或空串——``validate_pair`` 对无占位符 src 放行这两形态
+    （CJK 占比仅 WARN），收进池会让英文原文/空译文以 ``ok`` 落库续传、
+    matched 计数造假甚至绕过零命中拒绝。``zh == en`` 含 CJK 是合法恒等
+    译文（原文即中文段），照常放行。
+    """
+
+    @staticmethod
+    def _row(src: str) -> dict[str, Any]:
+        return {
+            "status": "pending",
+            "src_file": "main.tex",
+            "src_text": src,
+            "chunk_id": "c1",
+        }
+
+    def test_echo_src_counts_as_miss(self) -> None:
+        """``zh == en`` 无 CJK = 原文回写 → 不进池 → missed/share_miss。"""
+        import texlate.server.worker as worker_mod  # noqa: PLC0415
+
+        src = "English prose that fell back to original on the origin side."
+        pool = worker_mod._share_pool(  # noqa: SLF001
+            [{"src_file": "main.tex", "en": src, "zh": src}]
+        )
+        assert ("main.tex", src) not in pool
+        outcome, upd = worker_mod._share_row(self._row(src), pool)  # noqa: SLF001
+        assert outcome == "missed"
+        assert upd == {
+            "status": "fallback_orig",
+            "translation": src,
+            "error_code": "share_miss",
+        }
+
+    def test_empty_blank_and_nonstr_zh_not_pooled(self) -> None:
+        """``zh == ""``/空白串/非 str → 不进池 → missed。"""
+        import texlate.server.worker as worker_mod  # noqa: PLC0415
+
+        src = "A paragraph whose translation never landed upstream."
+        pool = worker_mod._share_pool(  # noqa: SLF001
+            [
+                {"src_file": "main.tex", "en": src, "zh": ""},
+                {"src_file": "main.tex", "en": "blank", "zh": "   \n "},
+                {"src_file": "main.tex", "en": "nonstr", "zh": 123},
+                {"src_file": "main.tex", "en": "missing"},
+            ]
+        )
+        assert pool == {}
+        outcome, upd = worker_mod._share_row(self._row(src), pool)  # noqa: SLF001
+        assert outcome == "missed"
+        assert upd is not None
+        assert upd["error_code"] == "share_miss"
+
+    def test_cjk_identity_and_real_zh_pass(self) -> None:
+        """``zh == en`` 含 CJK（原文即中文段）与真译文照常入池对账。"""
+        import texlate.server.worker as worker_mod  # noqa: PLC0415
+
+        cjk_src = "本节给出全文总结与后续工作展望。"
+        en_src = "Experiments show our approach outperforms strong baselines."
+        zh = "实验表明我们的方法优于强基线。"
+        pool = worker_mod._share_pool(  # noqa: SLF001
+            [
+                {"src_file": "main.tex", "en": cjk_src, "zh": cjk_src},
+                {"src_file": "main.tex", "en": en_src, "zh": zh},
+            ]
+        )
+        outcome, upd = worker_mod._share_row(self._row(cjk_src), pool)  # noqa: SLF001
+        assert outcome == "ok"
+        assert upd is not None
+        assert upd["translation"] == cjk_src
+        outcome, upd = worker_mod._share_row(self._row(en_src), pool)  # noqa: SLF001
+        assert outcome == "ok"
+        assert upd is not None
+        assert upd["translation"] == zh
+
+
+class TestLogTextOfFallback:
+    """worker-share-fix：``_log_text_of`` 空/缺席/读失败的 .log 一律退 ``stdout_tail``。
+
+    与 ``engine.parse_log`` 同口径——空 .log 直返空串会把 missing-char
+    等只存在于 stdout 的升级信号静默丢掉（judge 拿不到 log_text 即
+    missing_chars=0，升级逃逸）。
+    """
+
+    @staticmethod
+    def _res(log_path: Path | None, tail: str) -> CompRes:
+        return CompRes(
+            engine="xelatex",
+            ok=False,
+            pdf=None,
+            log=LogInfo(),
+            log_path=log_path,
+            stdout_tail=tail,
+        )
+
+    def test_empty_log_falls_back_to_tail(self, tmp_path: Path) -> None:
+        _ctx, worker, _store = _mk(tmp_path)
+        log = tmp_path / "empty.log"
+        log.write_text("", encoding="utf-8")
+        tail = "Missing character: There is no 中 in font cmr10!"
+        assert worker._log_text_of(self._res(log, tail)) == tail  # noqa: SLF001
+
+    def test_missing_and_unreadable_log_fall_back(self, tmp_path: Path) -> None:
+        _ctx, worker, _store = _mk(tmp_path)
+        tail = "tail-signal"
+        assert (
+            worker._log_text_of(self._res(tmp_path / "nonexistent.log", tail))  # noqa: SLF001
+            == tail
+        )
+        asdir = tmp_path / "asdir.log"
+        asdir.mkdir()  # read_text → IsADirectoryError(OSError)
+        assert worker._log_text_of(self._res(asdir, tail)) == tail  # noqa: SLF001
+
+    def test_log_content_wins_and_no_logpath_uses_tail(
+        self, tmp_path: Path
+    ) -> None:
+        _ctx, worker, _store = _mk(tmp_path)
+        log = tmp_path / "real.log"
+        log.write_text("! real log line", encoding="utf-8")
+        assert (
+            worker._log_text_of(self._res(log, "tail")) == "! real log line"  # noqa: SLF001
+        )
+        assert worker._log_text_of(self._res(None, "tail!")) == "tail!"  # noqa: SLF001
+        assert worker._log_text_of(self._res(None, "")) == ""  # noqa: SLF001
+
+
+class TestFlushTranslateSync:
+    """worker-share-fix：``_flush_translate`` 同步体钉——cancel 面结构性消除。
+
+    ``_teardown_translate`` 的 buffer flush 原先由 ``suppress(CancelledError)``
+    包裹 ``await`` 异步体：体一旦引入悬置点，pending-cancel 会投递进去
+    截断写盘再被吞。改同步 ``def`` 后 cancel 只能投递在悬置点，同步体
+    原子跑完不被截断。
+    """
+
+    def test_flush_is_plain_sync_function(self) -> None:
+        """钉死契约：``_flush_translate`` 不得退回 coroutine（防未来 await 混入）。"""
+        assert not asyncio.iscoroutinefunction(
+            PipelineWorker._flush_translate  # noqa: SLF001
+        )
+
+    def test_teardown_flushes_buffer_after_cancel(self, tmp_path: Path) -> None:
+        """cancel 已投递后进 teardown：缓冲已完块仍落库（status/translation 真值）。"""
+        ctx, worker, store = _mk(tmp_path)
+        src = "A finished chunk buffered when cancellation landed."
+        store.insert_chunks(
+            ctx.task_id,
+            [
+                {
+                    "chunk_id": "c1",
+                    "seq": 0,
+                    "src_file": "main.tex",
+                    "src_text": src,
+                    "kind": "para",
+                    "byte_start": 0,
+                    "byte_end": len(src),
+                }
+            ],
+        )
+        state = DBStateBridge(store, ctx.task_id)
+        state.buffer.append(
+            ChunkRecord(chunk_id="c1", source=src, translation="译文落盘", status="ok")
+        )
+
+        async def drive() -> None:
+            me = asyncio.current_task()
+            assert me is not None
+            me.get_loop().call_soon(me.cancel)  # 复刻 poll 循环 _check_cancelled 抛出点
+            with contextlib.suppress(asyncio.CancelledError):
+                await asyncio.sleep(0)
+            await worker._teardown_translate(  # noqa: SLF001
+                ctx=ctx,
+                run_task=None,
+                state=state,
+                cache=SegmentCache(store, prefix="t", model="m", target_lang="zh-CN"),
+                status_map={},
+                sse_items=[],
+                usage={"calls": 0},
+                clients=[],
+                pre_rows={},
+            )
+
+        asyncio.run(drive())
+        row = store.all_chunks(ctx.task_id)[0]
+        assert row["status"] == "ok"
+        assert row["translation"] == "译文落盘"
+
+
+class TestShareLookupExceptSurface:
+    """worker-share-fix：``_share_lookup`` 的 ``index_lookup`` except 面钉死。
+
+    ``index_lookup`` 真实异常面只有 OSError/UnicodeDecodeError
+    （FileNotFoundError 归 None、坏行内吞记 warning）——原
+    ``except (ShareError, ...)`` 是死代码；删掉后 ShareError 冒出来即
+    实现漂移信号，宁可 fault 暴露也不当 miss 静默。
+    """
+
+    def test_index_oserror_degrades_to_miss(self, tmp_path: Path) -> None:
+        """index.jsonl 是目录（IsADirectoryError ⊂ OSError）→ 仍按 miss 降级。"""
+        ctx, worker, store = _mk(tmp_path)
+        _scan(ctx, worker, store, MINI_TEX)  # has_chunks → 才走到 index_lookup
+        idx = share_dir(worker.data_dir) / "index.jsonl"
+        idx.mkdir(parents=True)
+        assert worker._share_lookup(ctx) is False  # noqa: SLF001
+
+    def test_share_error_propagates(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """index_lookup 抛 ShareError → 传播（钉死 except 不含 ShareError）。"""
+        import texlate.server.worker as worker_mod  # noqa: PLC0415
+
+        ctx, worker, store = _mk(tmp_path)
+        _scan(ctx, worker, store, MINI_TEX)
+
+        def boom(*_a: object, **_kw: object) -> None:
+            raise ShareError
+
+        monkeypatch.setattr(worker_mod, "index_lookup", boom)
+        with pytest.raises(ShareError):
+            worker._share_lookup(ctx)  # noqa: SLF001
