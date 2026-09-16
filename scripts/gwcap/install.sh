@@ -1,7 +1,7 @@
 #!/bin/sh
 # gwcap 装机/卸载/状态——本机 swe-2-medium 并发硬闸。
 # 用法：sudo sh scripts/gwcap/install.sh [install|uninstall|status]
-# 机制：nftables `inet gwcap` output nat 把所有本机出向 tcp/3003 REDIRECT 到
+# 机制：nftables `inet gwcap` output nat 把到网关 100.105.212.52 / fd7a:115c:a1e0::e501:d434 的 tcp/3003 REDIRECT 到
 # 127.0.0.1+::1 :3399 的 gw-cap-proxy（gwcap 用户自己的上游连接按 skuid 豁免），
 # 代理对 model 命中 swe-2-medium 的请求过全局信号量 4，其余透传。
 # 注意：gw-cap-redirect.service 的 ExecStartPost 还会在 `ip filter INPUT` 顶部插
@@ -25,7 +25,8 @@ install)
     'table inet gwcap {' \
     '  chain output {' \
     '    type nat hook output priority dstnat; policy accept;' \
-    "    tcp dport 3003 meta skuid != $uid redirect to :3399" \
+    "    ip daddr 100.105.212.52 tcp dport 3003 meta skuid != $uid redirect to :3399" \
+    "    ip6 daddr fd7a:115c:a1e0::e501:d434 tcp dport 3003 meta skuid != $uid redirect to :3399" \
     '  }' \
     '}' | tee "$LIB/redirect.nft" >/dev/null
   install -D -m 0644 "$HERE/gw-cap-proxy.service" "$UNITS/gw-cap-proxy.service"
