@@ -370,6 +370,38 @@ def bbl_stub_rewrite(
     ), f"\\bibliography -> \\input{{{target.name}}} in {changed} files"
 
 
+def bbl_regen(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""Bundled 旧版 .bbl 撞新 biblatex → ``biber <stem>`` 就地重生成 (.bcf 在场)。
+
+    实证根因 (2009.11064): e-print 捆绑 biber <3.3 格式 .bbl, TL biblatex 3.21
+    拒载 —— ``\\sortlist`` undefined / ``File 'ms.bbl' is wrong format version``;
+    .bcf+.bib 在场即 ``biber <stem>`` 重生成正确版本 .bbl (输出落 .bcf 同目录,
+    嵌套亦直传 wdir 相对 stem)。biber 缺席 → run_tool rc≠0 fail-safe。
+    """
+    del eng, payload, params
+    bcfs = sorted(ctx.wdir.rglob("*.bcf"))
+    if not bcfs:
+        return False, "no .bcf in project"
+    done: list[str] = []
+    failed: list[str] = []
+    for bcf in bcfs:
+        stem = str(bcf.relative_to(ctx.wdir).with_suffix(""))
+        rc, _out, to = ctx.run_tool(["biber", stem], 60)
+        if rc == 0 and not to:
+            done.append(bcf.name)
+            ctx.invalidate(bcf.with_suffix(".bbl"))
+        else:
+            failed.append(f"{bcf.name} rc={rc}{'/timeout' if to else ''}")
+    if not done:
+        return False, f"biber regen failed: {'; '.join(failed)}"
+    note = f"biber regen: {', '.join(done)}"
+    if failed:
+        note += f"; failed: {'; '.join(failed)}"
+    return True, note
+
+
 def font_sub_shim(
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
@@ -1689,6 +1721,7 @@ TRANSFORM_FNS = {
     "vendored_shadow_isolate": vendored_shadow_isolate,
     "non_utf8_recode": non_utf8_recode,
     "bbl_stub_rewrite": bbl_stub_rewrite,
+    "bbl_regen": bbl_regen,
     "font_sub_shim": font_sub_shim,
     "pstricks_dvips_preflight": pstricks_dvips_preflight,
     "eps_to_pdf": eps_to_pdf,
