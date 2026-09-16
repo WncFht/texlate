@@ -259,8 +259,16 @@ def _resolve_bib(
         arg = piece.strip()
         if not arg:
             continue
-        probe = arg if arg.endswith((".bbl", ".bib")) else arg + ".bbl"
-        hit, _basis = _resolve(probe, ctx.bases, ctx.fileset, ctx.lowermap)
+        if arg.endswith((".bbl", ".bib")):
+            probes = (arg,)
+        else:
+            # TeX 语义：.bbl 在则直接读，缺席时 bibtex 需要 .bib——两探
+            probes = (arg + ".bbl", arg + ".bib")
+        hit = None
+        for probe in probes:
+            hit, _basis = _resolve(probe, ctx.bases, ctx.fileset, ctx.lowermap)
+            if hit:
+                break
         if hit:
             if hit not in bibs:
                 bibs.append(hit)

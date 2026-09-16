@@ -241,6 +241,23 @@ def test_verbatim_input_and_bibliography_no_edges(tmp_path: Path) -> None:
     assert not r.bibliographies
 
 
+def test_bibliography_bib_fallback(tmp_path: Path) -> None:
+    r"""``\bibliography{x}`` 无 ``x.bbl`` 时回探 ``x.bib``——docstring 承诺的双探。"""
+    _write_tree(
+        tmp_path,
+        {
+            "main.tex": (
+                "\\documentclass{article}\n\\begin{document}\nbody\n"
+                "\\bibliography{refs}\n\\end{document}\n"
+            ),
+            "refs.bib": "@article{a, title={t}}\n",
+        },
+    )
+    r = locate(tmp_path)
+    assert "refs.bib" in r.bibliographies
+    assert not any(u.arg == "refs" for u in r.unresolved)
+
+
 def test_inline_verb_input_no_edge(tmp_path: Path) -> None:
     r"""行内 ``\verb``/``\lstinline`` 段的 ``\input`` 同样不产生边。"""
     _write_tree(
