@@ -127,7 +127,6 @@ ACTIVE_STATUSES = frozenset(
 TERMINAL_STATUSES = frozenset(
     {"done", "partial", "fault", "cancelled", "interrupted", "needs_auth"}
 )
-ALL_STATUSES = ACTIVE_STATUSES | TERMINAL_STATUSES
 
 #: ACTIVE stage 名（snapshot.stage 枚举）
 STAGES = ("fetching", "parsing", "translating", "compiling")

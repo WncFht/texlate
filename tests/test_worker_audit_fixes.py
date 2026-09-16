@@ -5,6 +5,7 @@ loop / queued 重放 / _stage 终态守卫 / zip 前缀冲突 / IndirectObject �
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import io
 import json
 import threading
@@ -22,7 +23,7 @@ from texlate.arxiv.cache import SourceCache
 from texlate.arxiv.meta import PaperMeta
 from texlate.compile.engine import CompRes, LogInfo
 from texlate.server.events import EventBus
-from texlate.server.store import ERROR_CODES, Store, new_task_id
+from texlate.server.store import ERROR_CODES, Store, StoreError, new_task_id
 from texlate.server.worker import (
     DBStateBridge,
     PipelineWorker,
@@ -897,3 +898,49 @@ class TestLlmHookShareGates:
         ctx, worker, _store = _mk(tmp_path, options={"llm_hook": False})
         ctx.secrets = Secrets(api_key="k", base_url="http://b", model="m")
         assert worker._llm_hook_pack(ctx)[0] is None  # noqa: SLF001
+
+
+class TestHeartbeatLoop:
+    """``_heartbeat_loop``：store 故障只留 debug 痕，ticker 不死（sweep 钉样）。"""
+
+    def test_survives_store_error_and_current_clear(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        store = Store(tmp_path / "t.db")
+        store.open()
+        try:
+            bus = EventBus(store)
+            worker = PipelineWorker(store, bus, tmp_path)
+            runner = TaskRunner(store, bus, worker)
+            calls = 0
+
+            def _boom(_task_id: str) -> None:
+                nonlocal calls
+                calls += 1
+                msg = "disk gone"
+                raise StoreError(msg)
+
+            monkeypatch.setattr(store, "heartbeat", _boom)
+            monkeypatch.setattr("texlate.server.worker._HEARTBEAT_S", 0.01)
+
+            async def drive() -> None:
+                dummy = asyncio.create_task(asyncio.sleep(60))
+                runner._current = ("t1", dummy)  # noqa: SLF001
+                ticker = asyncio.create_task(runner._heartbeat_loop())  # noqa: SLF001
+                await asyncio.sleep(0.05)
+                runner._current = None  # noqa: SLF001 -- 中途清当前任务不得崩 ticker
+                await asyncio.sleep(0.03)
+                assert not ticker.done(), "heartbeat 失败/_current 清空不得杀 ticker"
+                ticker.cancel()
+                dummy.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await ticker
+                with contextlib.suppress(asyncio.CancelledError):
+                    await dummy
+
+            asyncio.run(drive())
+            assert calls, "heartbeat 必须真打过拍"
+        finally:
+            store.close()

@@ -91,6 +91,8 @@ from texlate.server.babeldoc import (
     write_glossary_csv,
 )
 from texlate.server.settings import (
+    INFLATED_CAP,
+    MAX_FILES,
     SettingsStore,
     cache_scope,
     resolve_auth,
@@ -170,9 +172,6 @@ COMPILE_TIMEOUT = 240.0
 
 #: 心跳间隔（updated_at 供 SSE/列表页判活）
 _HEARTBEAT_S = 5.0
-
-#: upload_tex 解包文件数上限（§2.4：4000 文件）
-_MAX_UNPACK_FILES = 4000
 
 #: files.kind → URL kind（§2.3 白名单表）
 KIND_URL = {
@@ -848,7 +847,7 @@ def unpack_zip(data: bytes, dest: Path) -> list[str]:
         raise UnpackError(msg) from e
     with zf:
         infos = [i for i in zf.infolist() if not i.is_dir()]
-        if len(infos) > _MAX_UNPACK_FILES:
+        if len(infos) > MAX_FILES:
             msg = f"too_many_files:{len(infos)}"
             raise UnpackError(msg)
         total = 0
@@ -864,7 +863,7 @@ def unpack_zip(data: bytes, dest: Path) -> list[str]:
                 warnings.append(f"reject_size:{info.filename}")
                 continue
             total += info.file_size
-            if total > 300 * 1024 * 1024:  # 300MB 解压上限（§2.4）
+            if total > INFLATED_CAP:  # 300MB 解压上限（§2.4）
                 warnings.append("reject_totalcap")
                 break
             rel_s = PurePosixPath(*parts).as_posix()
@@ -3660,10 +3659,6 @@ class TaskRunner:
         if self._queue is not None:
             self._queue.put_nowait(task_id)
 
-    def secrets_for(self, task_id: str) -> Secrets | None:
-        """读内存凭证（无则 None——API 侧回落 settings/env 决议）。"""
-        return self.secrets.get(task_id)
-
     def cancel_running(self, task_id: str) -> bool:
         """取消正在跑的任务；未在跑（还在队列）返回 False。"""
         if self._current is not None and self._current[0] == task_id:
@@ -3717,8 +3712,12 @@ class TaskRunner:
         """每 ``_HEARTBEAT_S`` 秒 bump 当前任务 updated_at。"""
         while True:
             await asyncio.sleep(_HEARTBEAT_S)
-            if self._current is not None:
-                try:
-                    self.store.heartbeat(self._current[0])
-                except (StoreError, OSError):
-                    continue
+            # 快照防竞态：dispatch finally 可把 _current 清 None，分开读
+            # check/use 会 TypeError 杀死 ticker
+            cur = self._current
+            if cur is None:
+                continue
+            try:
+                self.store.heartbeat(cur[0])
+            except (StoreError, OSError):
+                log.debug("heartbeat failed for %s", cur[0], exc_info=True)
