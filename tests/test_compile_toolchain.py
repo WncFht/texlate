@@ -359,3 +359,39 @@ def test_engine_bundle_env_override_and_empty_escape(
     monkeypatch.setenv("TEXLATE_TEX_BUNDLE", "")
     assert TectonicEngine().bundle == ""
     assert TectonicEngine(bundle="https://y/b.tar").bundle == "https://y/b.tar"
+
+
+# ---------------------------------------------------------------- 版本探针
+def _plant_version_exe(tmp_path: Path, body: str) -> str:
+    """tmp_path 放一个假 tectonic 脚本（输出内容由 body 定）。"""
+    exe = tmp_path / "tectonic"
+    exe.write_text(body, encoding="utf-8")
+    exe.chmod(0o755)
+    return str(exe)
+
+
+def test_tectonic_version_parses(tmp_path: Path) -> None:
+    """``--version`` 输出 → ``(major,minor,patch)``；大小写两种行首都吃。"""
+    exe = _plant_version_exe(tmp_path, '#!/bin/sh\necho "Tectonic 0.17.0"\n')
+    toolchain.tectonic_version.cache_clear()
+    assert toolchain.tectonic_version(exe) == (0, 17, 0)
+
+
+def test_tectonic_version_unparseable_and_missing(tmp_path: Path) -> None:
+    """跑不动/无版本号 → None（bundle flag 落新语法默认侧）。"""
+    exe = _plant_version_exe(tmp_path, "#!/bin/sh\necho noise\n")
+    toolchain.tectonic_version.cache_clear()
+    assert toolchain.tectonic_version(exe) is None
+    assert toolchain.tectonic_version(str(tmp_path / "nonexistent")) is None
+
+
+def test_tectonic_version_cached(tmp_path: Path) -> None:
+    """同一 binary 只探一回——``-X compile`` 每文件都走 ``_cmd`` 问到。"""
+    counter = tmp_path / "n"
+    exe = _plant_version_exe(
+        tmp_path, f'#!/bin/sh\necho x >> "{counter}"\necho "tectonic 0.15.0"\n'
+    )
+    toolchain.tectonic_version.cache_clear()
+    assert toolchain.tectonic_version(exe) == (0, 15, 0)
+    assert toolchain.tectonic_version(exe) == (0, 15, 0)
+    assert counter.read_text(encoding="utf-8").strip() == "x"  # 只跑了一次

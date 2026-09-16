@@ -299,17 +299,20 @@ def _tail_dict(res: CompRes, v: Verdict) -> dict:
     }
 
 
-def _compile_judge(job: _Job, *, expect_cjk: bool) -> tuple[dict, CompRes]:
+def _compile_judge(
+    job: _Job, *, expect_cjk: bool, flags: list[str] | None = None
+) -> tuple[dict, CompRes]:
     """编译 + 判定公共尾段 → (报告 dict, CompRes)。
 
     best-effort 语义：xelatex halt_on_error=False 对齐 bench；
-    tectonic 无此旋钮——恒 ``-Z continue-on-errors``。
+    tectonic 无此旋钮——恒 ``-Z continue-on-errors``。``flags`` 透传
+    fixloop engine_flags（跨引擎臂用——tectonic 丢的 flag 由 xelatex 接）。
     """
     kw: dict[str, object] = (
         {"halt_on_error": False} if job.eng_name == "xelatex" else {}
     )
     res = engine_for(job.eng_name, **kw).compile(
-        job.work, job.main_rel, timeout=job.timeout, sandbox=True
+        job.work, job.main_rel, timeout=job.timeout, sandbox=True, flags=flags
     )
     v = judge(res, expect_cjk=expect_cjk)
     return _tail_dict(res, v), res
@@ -653,6 +656,7 @@ def _slim_cell(cell: dict[str, Any]) -> dict[str, Any]:
         "advisories": cell.get("advisories") or [],
         "installed": cell.get("installed") or [],
         "engine_flags": cell.get("engine_flags") or [],
+        "engine_flags_dropped": cell.get("engine_flags_dropped") or [],
         "log_excerpt": cell.get("log_excerpt"),
     }
 
@@ -663,9 +667,9 @@ def _run_fixloop(
     """跑 fixloop + 消费 engine_flags → (报告, 新尾段或 None, 最新 CompRes)。
 
     引擎新造不带 e2e 的 best-effort 旋钮——xelatex 默认 halt_on_error=True
-    （fixloop 首错分类语义）。flags 真正落 CLI 需要引擎 ``_cmd`` seam
-    （报告遗留项）；此处消费 = advisory + 跨引擎换编（flags 暗示
-    shell-escape 需求：tectonic 只 partial 支持 → 换 xelatex 取优）。
+    （fixloop 首错分类语义）。flags 经 ``compile(flags=…)`` seam 落 CLI：
+    xelatex 追加 argv；tectonic 只放支持子集，dropped 项（多为
+    shell-escape 需求）→ 记 advisory + 换 xelatex 重编取优。
     """
     proxy = _LastResEngine(engine_for(job.eng_name))
     try:
@@ -681,9 +685,11 @@ def _run_fixloop(
         tail = _tail_dict(last_res, judge(last_res, expect_cjk=True))
 
     flags: list[str] = rep["engine_flags"]
-    if flags:
+    dropped: list[str] = rep["engine_flags_dropped"]
+    if dropped:
         rep["flags_unapplied"] = True
-        # 跨引擎消费：flags 多为 shell-escape 需求——tectonic partial → 换 xelatex
+        # 跨引擎消费：dropped 多为 shell-escape 需求——tectonic --untrusted
+        # 下不收 → 换 xelatex 重编并把全部请求 flag 经 seam 带给它
         if (
             job.eng_name == "tectonic"
             and "xelatex" in route_engines
@@ -692,11 +698,12 @@ def _run_fixloop(
             xtail, xres = _compile_judge(
                 _Job(job.work, job.main_rel, "xelatex", job.timeout),
                 expect_cjk=True,
+                flags=flags,
             )
             rep["cross_engine"] = {
                 "engine": "xelatex",
                 "status": xtail["status"],
-                "reason": f"engine_flags {flags} → tectonic 换 xelatex",
+                "reason": f"engine_flags {dropped} tectonic 不支持 → 换 xelatex",
             }
             if _VERDICT_RANK.get(xtail["status"], 0) > _VERDICT_RANK.get(
                 tail["status"], 0
@@ -704,8 +711,10 @@ def _run_fixloop(
                 tail, last_res = xtail, xres
         # 注在换编之后——贴到最终采用的 tail 上，换臂不丢审计痕迹
         tail["verdict"]["notes"].append(
-            f"engine_flags requested but not applied (needs engine CLI seam): {flags}"
+            f"engine_flags unsupported on {job.eng_name}: {dropped}"
         )
+    elif flags:
+        tail["verdict"]["notes"].append(f"engine_flags applied via CLI seam: {flags}")
     return rep, tail, last_res
 
 

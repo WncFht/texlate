@@ -463,3 +463,147 @@ def test_install_lock_creates_lockfile(tmp_path: Path) -> None:
     eng = XelatexEngine(texmfhome=tmp_path)
     with eng._install_lock():  # noqa: SLF001 -- 内部锁行为的直接断言
         assert (tmp_path / ".texlate-install.lock").exists()
+
+
+# ---------------------------------------------------------------- flags seam
+def test_xelatex_split_flags_drops_output_rekey() -> None:
+    """重键输出落点的 flag（-output-directory/-jobname 系）→ dropped。"""
+    applied, dropped = XelatexEngine._split_flags(  # noqa: SLF001
+        ["-shell-escape", "-output-directory=/x", "-jobname", "y"]
+    )
+    assert applied == ["-shell-escape", "y"]
+    assert dropped == ["-output-directory=/x", "-jobname"]
+
+
+def test_xelatex_compile_flags_in_argv(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """flags 端到端：argv 追加在基线旗标后 + CompRes.flags_* 记账。"""
+    main = tmp_path / "main.tex"
+    main.write_text("\\documentclass{article}\\begin{document}x\\end{document}")
+    captured: dict[str, list[str]] = {}
+
+    def fake_run(
+        cmd: list[str],
+        *,
+        cwd: Path,
+        env: dict[str, str],
+        timeout: float,
+        out_cap: int = 8 * 1024 * 1024,
+    ) -> tuple[int | None, str, float, bool]:
+        _ = (cwd, env, timeout, out_cap)  # mock 签名对齐 run_process
+        captured["cmd"] = cmd
+        (tmp_path / "main.pdf").write_bytes(b"%PDF-fake")
+        (tmp_path / "main.log").write_text("Output written\n", encoding="utf-8")
+        return 0, "", 1.0, False
+
+    monkeypatch.setattr("texlate.compile.engine.run_process", fake_run)
+    eng = XelatexEngine(binary="/bin/true")
+    res = eng.compile(
+        tmp_path,
+        "main.tex",
+        passes=1,
+        sandbox=False,
+        flags=["-shell-escape", "-output-directory=/x"],
+    )
+    cmd = captured["cmd"]
+    assert "-shell-escape" in cmd
+    assert cmd.index("-shell-escape") > cmd.index("-no-shell-escape")
+    assert "-output-directory=/x" not in cmd  # 重键 flag 拒放
+    assert res.flags_applied == ["-shell-escape"]
+    assert res.flags_dropped == ["-output-directory=/x"]
+
+
+def test_tectonic_map_flags_subset() -> None:
+    """放行面 = 显式映射 + -Z 两式直通；-shell-escape 与未知项 → dropped。"""
+    toks, dropped = TectonicEngine._map_flags(  # noqa: SLF001
+        ["-synctex=1", "-Z", "keep-going", "-Zfoo", "-shell-escape", "--x"]
+    )
+    assert toks == ["--synctex", "-Z", "keep-going", "-Zfoo"]
+    assert dropped == ["-shell-escape", "--x"]
+
+
+def test_tectonic_compile_flags_map_and_drop(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """受支持子集进 argv；dropped 进 CompRes 记账（e2e 换引擎凭据）。"""
+    main = tmp_path / "main.tex"
+    main.write_text("\\documentclass{article}\\begin{document}x\\end{document}")
+    outdir = tmp_path / "out"
+    captured: dict[str, list[str]] = {}
+
+    def fake_run(
+        cmd: list[str],
+        *,
+        cwd: Path,
+        env: dict[str, str],
+        timeout: float,
+        out_cap: int = 8 * 1024 * 1024,
+    ) -> tuple[int | None, str, float, bool]:
+        _ = (cwd, env, timeout, out_cap)  # mock 签名对齐 run_process
+        captured["cmd"] = cmd
+        outdir.mkdir(parents=True, exist_ok=True)
+        (outdir / "main.pdf").write_bytes(b"%PDF-fake")
+        (outdir / "main.log").write_text("Output written\n", encoding="utf-8")
+        return 0, "", 1.0, False
+
+    monkeypatch.setattr("texlate.compile.engine.run_process", fake_run)
+    eng = TectonicEngine(binary="/bin/true", bundle="")
+    res = eng.compile(
+        tmp_path,
+        "main.tex",
+        outdir=outdir,
+        sandbox=False,
+        flags=["-synctex=1", "-shell-escape"],
+    )
+    cmd = captured["cmd"]
+    assert "--synctex" in cmd
+    assert "-shell-escape" not in cmd
+    assert cmd[-1] == "main.tex"  # flag 追加在 main 前
+    assert res.flags_applied == ["-synctex=1"]
+    assert res.flags_dropped == ["-shell-escape"]
+
+
+# ---------------------------------------------------------------- bundle flag
+def test_bundle_flag_web_bundle_pre_017(monkeypatch: pytest.MonkeyPatch) -> None:
+    """<0.17 + URL bundle → --web-bundle（老 --bundle 只认本地路径）。"""
+    monkeypatch.setattr(
+        "texlate.compile.engine.tectonic_version", lambda _b: (0, 15, 0)
+    )
+    eng = TectonicEngine(binary="/x/tectonic", bundle="https://b/x.tar")
+    cmd = eng._cmd("/x/tectonic", Path("/o"), "main.tex")  # noqa: SLF001
+    i = cmd.index("--web-bundle")
+    assert cmd[i + 1] == "https://b/x.tar"
+
+
+def test_bundle_flag_bundle_for_017_and_unknown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """≥0.17 + URL → --bundle；探不出版本同样 --bundle（新语法是默认）。"""
+    monkeypatch.setattr(
+        "texlate.compile.engine.tectonic_version", lambda _b: (0, 17, 0)
+    )
+    eng = TectonicEngine(binary="/x/tectonic", bundle="https://b/x.tar")
+    cmd = eng._cmd("/x/tectonic", Path("/o"), "main.tex")  # noqa: SLF001
+    assert "--web-bundle" not in cmd
+    i = cmd.index("--bundle")
+    assert cmd[i + 1] == "https://b/x.tar"
+
+    monkeypatch.setattr("texlate.compile.engine.tectonic_version", lambda _b: None)
+    cmd = eng._cmd("/x/tectonic", Path("/o"), "main.tex")  # noqa: SLF001
+    assert "--web-bundle" not in cmd
+    assert "--bundle" in cmd
+
+
+def test_bundle_flag_local_path_skips_probe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """本地路径恒 --bundle，且不浪费一次 --version 子进程。"""
+    monkeypatch.setattr(
+        "texlate.compile.engine.tectonic_version",
+        lambda _b: pytest.fail("本地路径不该探版本"),
+    )
+    eng = TectonicEngine(binary="/x/tectonic", bundle="/opt/b.tar")
+    cmd = eng._cmd("/x/tectonic", Path("/o"), "main.tex")  # noqa: SLF001
+    i = cmd.index("--bundle")
+    assert cmd[i + 1] == "/opt/b.tar"

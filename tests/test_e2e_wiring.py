@@ -105,6 +105,7 @@ class ScriptedEngine:
         sandbox: bool = True,  # noqa: ARG002
         env_extra: dict[str, str] | None = None,  # noqa: ARG002
         best_effort: bool = False,  # noqa: ARG002 -- fixloop salvage 会传
+        flags: list[str] | None = None,
     ) -> CompRes:
         """按剧本写 ``<stem>.log``（+可选 pdf）→ CompRes。"""
         from texlate.compile.engine import CompRes, parse_log  # noqa: PLC0415
@@ -121,7 +122,9 @@ class ScriptedEngine:
             pdf = wdir / f"{stem}.pdf"
             pdf.write_bytes(b"%PDF-1.4\n% fake\n")
             pdf_bytes = pdf.stat().st_size
-        self.calls.append({"main": main, "timeout": timeout, "passes": passes})
+        self.calls.append(
+            {"main": main, "timeout": timeout, "passes": passes, "flags": flags}
+        )
         return CompRes(
             engine=self.name,
             ok=True,
@@ -338,6 +341,7 @@ def test_engine_flags_cross_engine_consumed(
             "advisories": [],
             "installed": [],
             "engine_flags": ["-shell-escape"],
+            "engine_flags_dropped": ["-shell-escape"],  # tectonic --untrusted 下不收
             "log_excerpt": "! stub",
         }
 
@@ -352,6 +356,8 @@ def test_engine_flags_cross_engine_consumed(
     assert fl["rounds"][0]["rule"] == "minted_frozencache"
     assert report["status"] == "clean"  # xelatex 臂更优 → 采用
     assert any("engine_flags" in n for n in report["verdict"]["notes"])
+    # 换编把全部请求 flag 经 seam 带给 xelatex（tectonic dropped 的项在内）
+    assert engines["xelatex"].calls[-1]["flags"] == ["-shell-escape"]
 
 
 # ---------------------------------------------------------------- env judge

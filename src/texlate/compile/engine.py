@@ -22,17 +22,17 @@ import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Final, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterator
+    from collections.abc import Callable, Iterable, Iterator
 
 from texlate.texlog import update_file_stack
 from texlate.textutil import decode_tex
 
 from .mask import visible_tex
 from .sandbox import child_env, find_tool, run_process, sandbox_wrap
-from .toolchain import ensure_tectonic
+from .toolchain import ensure_tectonic, tectonic_version
 
 DEFAULT_TIMEOUT = 240.0  # docs/08 §4.1
 MAX_PASSES = 2
@@ -41,6 +41,25 @@ _TECTONIC_ATTEMPTS = 2  # 冷 bundle 首拉超时后重试（缓存热身）
 #: tectonic bundle pin（docs/08 §4.1）——引擎默认 bundle；可用 env
 #: TEXLATE_TEX_BUNDLE 或构造参数覆盖，置空串回落引擎自带默认 bundle。
 TECTONIC_BUNDLE_PIN = "https://data1b.fullyjustified.net/tlextras-2022.0r0.tar"
+
+#: ``compile(flags=…)`` 拒放面：重键输出落点的 flag 会毁掉 ``{stem}.pdf/.log``
+#: 按 outdir 回收的约定——这类请求进 ``CompRes.flags_dropped`` 而非 argv。
+_OUTPUT_REKEY_PREFIXES: Final = ("-output-directory", "-aux-directory", "-jobname")
+
+#: engine_flags → tectonic argv 的受支持子集映射（原拼写 → argv token）。
+#: ``-shell-escape`` 刻意不映射：``--untrusted`` 恒在 cmd 即禁 \write18，
+#: 开 shell 与之矛盾且放大不可信源的 RCE 面 → 走 dropped，由 e2e 跨引擎
+#: 换 xelatex 承载。
+_TECTONIC_FLAG_MAP: Final = {
+    "-synctex": ["--synctex"],
+    "-synctex=1": ["--synctex"],
+}
+
+#: ``-X compile`` 撤 ``--web-bundle`` 的分界版本：0.17.0 起 URL 并入
+#: ``--bundle``（0.17.0 help 实测 ``--bundle <BUNDLE>  Use this URL or
+#: path``；老版 ``--bundle`` 只认本地路径，URL 必须 ``--web-bundle``，
+#: 否则 URL 被当文件打开 → os error 2，archbox 全灭根因）。
+_TECTONIC_BUNDLE_URL_MIN: Final = (0, 17, 0)
 
 
 # ================================================================ 数据类型
@@ -77,6 +96,11 @@ class CompRes:
     killed_signal: int | None = None
     stdout_tail: str = ""
     deps: list[str] | None = None  # compiled_dependencies（.fls/.mk 权威输入集）
+    #: ``compile(flags=…)`` 实落 argv 的请求 flag（tectonic 记映射前原拼写）。
+    flags_applied: list[str] = field(default_factory=list)
+    #: 请求但引擎拒放的 flag（支持子集外 / 会重键输出落点）→ fixloop 记
+    #: advisory、e2e 凭它跨引擎取优。
+    flags_dropped: list[str] = field(default_factory=list)
 
     @property
     def has_pdf(self) -> bool:
@@ -402,12 +426,18 @@ class Engine(Protocol):
         sandbox: bool = True,
         env_extra: dict[str, str] | None = None,
         best_effort: bool = False,
+        flags: Iterable[str] | None = None,
     ) -> CompRes:
         """编译 `wdir/main`（相对路径）；产物落 `outdir`（默认 main 旁）。
 
         ``best_effort=True`` 强制 nonstopmode 兜底语义：xelatex 去掉
         ``-halt-on-error``（TeX 错误恢复跑到底，救残页），tectonic 强制
         continue-on-errors——fixloop 规则耗尽后的最后一搏用。
+
+        ``flags`` = fixloop 规则请求追加的引擎 CLI flag（engine_flags cell
+        的落点）：xelatex 原样追加 argv（kpathsea last-wins，可压
+        ``-no-shell-escape``）；tectonic 只放 ``_map_flags`` 支持子集，
+        其余记 ``CompRes.flags_dropped`` 降级为 advisory。
         """
         ...
 
@@ -483,10 +513,36 @@ class XelatexEngine:
             )
         return child_env(add)
 
+    @staticmethod
+    def _split_flags(flags: Iterable[str] | None) -> tuple[list[str], list[str]]:
+        """engine_flags → (进 argv, 丢弃)。
+
+        ``_OUTPUT_REKEY_PREFIXES`` 系 flag 会重键 pdf/log 落点、毁掉按
+        outdir 回收产物的约定 → 拒放进 dropped；其余原样直通。
+        """
+        applied, dropped = [], []
+        for fl in flags or ():
+            if fl.startswith(_OUTPUT_REKEY_PREFIXES):
+                dropped.append(fl)
+            elif fl not in applied:
+                applied.append(fl)
+        return applied, dropped
+
     def _cmd(
-        self, binary: str, out: Path, main_name: str, *, best_effort: bool = False
+        self,
+        binary: str,
+        out: Path,
+        main_name: str,
+        *,
+        best_effort: bool = False,
+        flags: Iterable[str] | None = None,
     ) -> list[str]:
-        """构造 xelatex 命令行（docs/08 §4.1 旗标集）。"""
+        """构造 xelatex 命令行（docs/08 §4.1 旗标集 + fixloop engine_flags）。
+
+        ``flags`` 追加在基线旗标之后、``main_name`` 之前——kpathsea 选项
+        last-wins，规则请求（如 minted 的 ``-shell-escape``）可压过
+        ``-no-shell-escape``。
+        """
         cmd = [
             binary,
             "-no-shell-escape",
@@ -497,6 +553,10 @@ class XelatexEngine:
         ]
         if self.halt_on_error and not best_effort:
             cmd.insert(3, "-halt-on-error")
+        applied, _ = self._split_flags(flags)
+        for fl in applied:
+            if fl not in cmd:
+                cmd.append(fl)
         cmd.append(main_name)
         return cmd
 
@@ -511,9 +571,11 @@ class XelatexEngine:
         sandbox: bool = True,
         env_extra: dict[str, str] | None = None,
         best_effort: bool = False,
+        flags: Iterable[str] | None = None,
     ) -> CompRes:
         """执行 xelatex ≤`passes` 遍；-recorder 产 .fls 供 compiled_dependencies。"""
         res = CompRes(engine=self.name)
+        res.flags_applied, res.flags_dropped = self._split_flags(flags)
         binary = self.detect()
         if binary is None:
             res.stdout_tail = "xelatex not found"
@@ -527,7 +589,9 @@ class XelatexEngine:
         for stale in (pdf, log, out / f"{stem}.fls"):
             stale.unlink(missing_ok=True)
         env = self._env(env_extra)
-        cmd = self._cmd(binary, out, main_path.name, best_effort=best_effort)
+        cmd = self._cmd(
+            binary, out, main_path.name, best_effort=best_effort, flags=flags
+        )
         if sandbox:
             cmd = sandbox_wrap(cmd, root=wdir, out=out)
         outputs = []
@@ -764,16 +828,58 @@ class TectonicEngine:
         """Ctor 指定 → PATH/常见落点 → 托管件 → 自动下载（toolchain 矩阵）。"""
         return self.binary or ensure_tectonic()
 
+    @staticmethod
+    def _map_flags(flags: Iterable[str] | None) -> tuple[list[str], list[str]]:
+        """engine_flags → (argv 追加 token, 丢弃的原 flag)：只放支持子集。
+
+        放行面 = ``_TECTONIC_FLAG_MAP`` 显式映射 + ``-Z`` 原生拼写直通
+        （``-Z<opt>`` 单 token 与 ``-Z <opt>`` 两 token 都收）；其余（含
+        ``-shell-escape`` 与任何 ``--outdir`` 类重键尝试）进 dropped。
+        """
+        toks, dropped = [], []
+        flist = list(flags or ())
+        i = 0
+        while i < len(flist):
+            fl = flist[i]
+            if fl in _TECTONIC_FLAG_MAP:
+                toks += _TECTONIC_FLAG_MAP[fl]
+            elif fl == "-Z" and i + 1 < len(flist) and not flist[i + 1].startswith("-"):
+                toks += [fl, flist[i + 1]]
+                i += 1
+            elif fl.startswith("-Z") and fl != "-Z":
+                toks.append(fl)
+            else:
+                dropped.append(fl)
+            i += 1
+        return toks, dropped
+
+    def _bundle_flag(self, binary: str) -> str:
+        """Bundle 落 argv 的 flag 名：本地路径恒 ``--bundle``；URL 按版本分支。
+
+        ``_TECTONIC_BUNDLE_URL_MIN`` 起 ``-X compile`` 撤了 ``--web-bundle``
+        （URL 并入 ``--bundle``）；更老的 ``--bundle`` 只认本地路径。版本
+        探不出 → ``--bundle``（托管件钉版已在新语法侧，新版是未来默认）。
+        """
+        if "://" not in self.bundle:
+            return "--bundle"
+        ver = tectonic_version(binary)
+        if ver is not None and ver < _TECTONIC_BUNDLE_URL_MIN:
+            return "--web-bundle"
+        return "--bundle"
+
     def _cmd(
         self,
         binary: str,
         out: Path,
-        deps_mk: Path,
         main_name: str,
         *,
         best_effort: bool = False,
+        flags: Iterable[str] | None = None,
     ) -> list[str]:
-        """构造 tectonic V2 命令行（docs/08 §4.1 + continue-on-errors 语义对齐）。"""
+        """构造 tectonic V2 命令行（docs/08 §4.1 + continue-on-errors 语义对齐）。
+
+        ``flags`` 经 ``_map_flags`` 过滤——只放受支持子集（见该方法 docstring）。
+        """
         cmd = [
             binary,
             "--color",
@@ -784,19 +890,18 @@ class TectonicEngine:
             "--keep-logs",
             "--keep-intermediates",
             "--makefile-rules",
-            str(deps_mk),
+            str(out / "dependencies.mk"),
             "--outdir",
             str(out),
         ]
         if self.continue_on_errors or best_effort:
             cmd += ["-Z", "continue-on-errors"]
         if self.bundle:
-            # --bundle 只吃本地路径/zip；URL 必须走 --web-bundle，否则
-            # tectonic 把 URL 当文件路径打开 → os error 2（archbox 实测全灭根因）
-            flag = "--web-bundle" if "://" in self.bundle else "--bundle"
-            cmd += [flag, self.bundle]
+            cmd += [self._bundle_flag(binary), self.bundle]
         for hide in self.hide_paths:
             cmd += ["--hide", str(hide)]
+        toks, _ = self._map_flags(flags)
+        cmd += toks
         cmd.append(main_name)
         return cmd
 
@@ -811,10 +916,16 @@ class TectonicEngine:
         sandbox: bool = True,
         env_extra: dict[str, str] | None = None,
         best_effort: bool = False,
+        flags: Iterable[str] | None = None,
     ) -> CompRes:
         """执行 tectonic 单趟编译（自带 rerun 决策）；deps.mk 供 compiled_dependencies。"""
         del passes  # tectonic 自动决定 pass 数
         res = CompRes(engine=self.name)
+        flist = list(flags or ())
+        _, dropped = self._map_flags(flist)
+        res.flags_dropped = dropped
+        dset = set(dropped)
+        res.flags_applied = [f for f in flist if f not in dset]
         binary = self.detect()
         if binary is None:
             res.stdout_tail = "tectonic not found"
@@ -828,7 +939,9 @@ class TectonicEngine:
         deps_mk = out / "dependencies.mk"
         for stale in (pdf, log, deps_mk):
             stale.unlink(missing_ok=True)
-        cmd = self._cmd(binary, out, deps_mk, main_path.name, best_effort=best_effort)
+        cmd = self._cmd(
+            binary, out, main_path.name, best_effort=best_effort, flags=flist
+        )
         if sandbox:
             cmd = sandbox_wrap(cmd, root=wdir, out=out)
         env = child_env(env_extra)

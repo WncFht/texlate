@@ -25,10 +25,12 @@ import io
 import logging
 import os
 import platform
+import re
 import subprocess
 import sys
 import tarfile
 import zipfile
+from functools import lru_cache
 from pathlib import Path
 
 import httpx
@@ -220,6 +222,28 @@ def _smoke(binary: Path) -> bool:
     except (OSError, subprocess.TimeoutExpired):
         return False
     return r.returncode == 0
+
+
+@lru_cache(maxsize=8)
+def tectonic_version(binary: str) -> tuple[int, int, int] | None:
+    """``binary --version`` → ``(major, minor, patch)``；跑不动/解析不出 → None。
+
+    lru_cache：同一二进制一进程只探一回——``compile._cmd`` 每文件都会问到
+    （``--web-bundle`` 自 0.17.0 起被撤、URL 并入 ``--bundle`` 的分支判定）。
+    """
+    try:
+        r = subprocess.run(  # noqa: S603 — 同 _smoke：探测已定位的二进制
+            [binary, "--version"],
+            capture_output=True,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    m = re.search(rb"(\d+)\.(\d+)\.(\d+)", r.stdout + r.stderr)
+    if m is None:
+        return None
+    return int(m[1]), int(m[2]), int(m[3])
 
 
 def ensure_tectonic(

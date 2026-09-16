@@ -89,13 +89,19 @@ class FlakyEngine:
         sandbox: bool = True,  # noqa: ARG002
         env_extra: dict[str, str] | None = None,  # noqa: ARG002
         best_effort: bool = False,
+        flags: list[str] | None = None,
     ) -> CompRes:
         """同 wdir 首调失败（! 错 log）、其后成功出假 pdf。"""
         first = str(wdir) not in self.seen
         self.seen.add(str(wdir))
         ok = not self.always_fail and not first
         self.calls.append(
-            {"wdir": str(wdir), "passes": passes, "best_effort": best_effort}
+            {
+                "wdir": str(wdir),
+                "passes": passes,
+                "best_effort": best_effort,
+                "flags": flags,
+            }
         )
         stem = Path(main).stem
         pdf = wdir / f"{stem}.pdf"

@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Iterable, Iterator
 
     from fastapi import FastAPI
     from starlette.testclient import TestClient
@@ -92,6 +92,7 @@ class FakeEngine:
         outdir: Path | None = None,  # noqa: ARG002
         sandbox: bool = True,  # noqa: ARG002
         env_extra: dict[str, str] | None = None,  # noqa: ARG002
+        flags: list[str] | None = None,  # noqa: ARG002
     ) -> CompRes:
         """不写真引擎：%PDF 假字节 + rc=0。judge 走 has_pdf 路径。"""
         from texlate.compile.engine import CompRes  # noqa: PLC0415
@@ -144,6 +145,7 @@ class RecordingEngine:
         sandbox: bool = True,  # noqa: ARG002
         env_extra: dict[str, str] | None = None,  # noqa: ARG002
         best_effort: bool = False,  # noqa: ARG002 -- fixloop salvage 旋钮
+        flags: Iterable[str] | None = None,
     ) -> CompRes:
         """写 ``<stem>.pdf``+干净 ``<stem>.log`` → ``CompRes(ok=True)``。"""
         from texlate.compile.engine import CompRes  # noqa: PLC0415
@@ -160,7 +162,13 @@ class RecordingEngine:
             "This is a fake log\nOutput written on disk.\n", encoding="utf-8"
         )
         self.calls.append(
-            {"wdir": str(wdir), "main": main, "timeout": timeout, "passes": passes}
+            {
+                "wdir": str(wdir),
+                "main": main,
+                "timeout": timeout,
+                "passes": passes,
+                "flags": list(flags) if flags else [],
+            }
         )
         return CompRes(
             engine=self.name,

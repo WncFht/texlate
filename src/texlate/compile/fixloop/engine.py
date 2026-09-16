@@ -85,8 +85,21 @@ class Engine(Protocol):
 
     caps: set[str] | frozenset[str]  # {kpsewhich,tlmgr,updmap,shell_escape,bundle}
 
-    def compile(self, wdir: Path, main: str, passes: int = 2) -> CompResLike:
-        """沙箱编译 ``main`` (相对 wdir), ≤``passes`` 轮 → CompResLike。"""
+    def compile(
+        self,
+        wdir: Path,
+        main: str,
+        *,
+        passes: int = 2,
+        flags: Iterable[str] | None = None,
+        best_effort: bool = False,
+    ) -> CompResLike:
+        """沙箱编译 ``main`` (相对 wdir), ≤``passes`` 轮 → CompResLike。
+
+        ``flags`` = ``ctx.engine_flags`` 累计的引擎 CLI flag —— 经 impl 侧
+        seam 落 argv；引擎不收的项进 ``CompResLike.flags_dropped`` (getattr
+        容错读取)。
+        """
         ...
 
     def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
@@ -138,6 +151,14 @@ def _res_has_pdf(res: CompResLike) -> bool:
     if hp is not None:
         return bool(hp() if callable(hp) else hp)
     return bool(getattr(res, "pdf", False))
+
+
+def _note_dropped_flags(ctx: LoopCtx, res: CompResLike) -> None:
+    """引擎经 ``flags`` seam 丢回的项 → ctx.flags_dropped + advisory (每 flag 一次)。"""
+    for fl in getattr(res, "flags_dropped", None) or []:
+        if fl not in ctx.flags_dropped:
+            ctx.flags_dropped.append(fl)
+            ctx.advisories.append(f"engine flag unsupported on {ctx.engine_name}: {fl}")
 
 
 def _report_of(res: CompResLike, warn_patterns: list[dict[str, Any]]) -> ErrReport:
@@ -323,6 +344,9 @@ class LoopCtx:
     installed: list[str] = field(default_factory=list)
     events: list[str] = field(default_factory=list)
     engine_flags: list[str] = field(default_factory=list)
+    #: 经 ``compile(flags=…)`` seam 被引擎拒放的 flag（支持子集外）——
+    #: 每 flag 记一次 advisory，cell 落 ``engine_flags_dropped``。
+    flags_dropped: list[str] = field(default_factory=list)
     advisories: list[str] = field(default_factory=list)
     runner: RunFn | None = None
     llm_hook: LlmHook | None = None
@@ -890,7 +914,10 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
     prev_sig, sig_n = "", 0
     last_rep: ErrReport | None = None
     for rnd in range(1, max_rounds + 1):
-        res = eng.compile(wdir, ctx.main_rel, passes=passes)
+        res = eng.compile(
+            wdir, ctx.main_rel, passes=passes, flags=list(ctx.engine_flags)
+        )
+        _note_dropped_flags(ctx, res)
         rep = _report_of(res, rs.warn_patterns)
         last_rep = rep
         cat, pay = rs.taxonomy.classify(
@@ -964,7 +991,14 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
         and v_now not in ("clean", "acceptable_pdf", "dirty_pdf", "unfixable:timeout")
         and not (cell["rounds"] and cell["rounds"][-1]["pdf"])
     ):
-        sres = eng.compile(wdir, ctx.main_rel, passes=1, best_effort=True)
+        sres = eng.compile(
+            wdir,
+            ctx.main_rel,
+            passes=1,
+            best_effort=True,
+            flags=list(ctx.engine_flags),
+        )
+        _note_dropped_flags(ctx, sres)
         srep = _report_of(sres, rs.warn_patterns)
         spdf = _res_has_pdf(sres)
         cell["rounds"].append(
@@ -1001,6 +1035,7 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
     cell["installed"] = ctx.installed
     cell["advisories"] = ctx.advisories
     cell["engine_flags"] = ctx.engine_flags
+    cell["engine_flags_dropped"] = ctx.flags_dropped
     cell["log"] = ctx.events
     if last_rep is not None:  # triage 原料: 终态错误上下文 (docs/08:318 log_excerpt)
         head = "\n".join(x for x in (last_rep.first, last_rep.ctx) if x)
