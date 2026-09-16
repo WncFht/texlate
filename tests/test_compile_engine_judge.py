@@ -12,6 +12,7 @@ from types import ModuleType
 
 import pytest
 
+from texlate.compile import engine as eng_mod
 from texlate.compile.engine import (
     CompRes,
     TectonicEngine,
@@ -21,6 +22,8 @@ from texlate.compile.engine import (
     parse_log,
     route_project,
 )
+from texlate.compile.fixloop._yamlish import load_yaml
+from texlate.compile.fixloop.engine import RULES_PATH
 from texlate.compile.judge import count_missing_chars, judge
 from texlate.compile.sandbox import child_env, sandbox_wrap
 
@@ -103,8 +106,9 @@ def test_classify_enter_filename_tail() -> None:
 
 
 def test_classify_eps_hard_wall() -> None:
+    # 真实 tectonic 签名带双引号（rules.yaml taxonomy ps_image 行口径）。
     cat, _ = classify_error(
-        "error: xdvipdfmx: image inclusion failed for fig.eps",
+        'error: xdvipdfmx: image inclusion failed for "fig.eps"',
         None,
         "",
         timed_out=False,
@@ -121,6 +125,68 @@ def test_classify_inputenc_unicode() -> None:
         timed_out=False,
     )
     assert cat == "inputenc_unicode"
+
+
+def test_classify_yaml_only_categories() -> None:
+    """单源化收益：仅 yaml taxonomy 有、旧 _ERROR_RULES 缺的 id 现可达。"""
+    cat, pay = classify_error(
+        "! File ended while scanning use of \\@newl@bel.",
+        None,
+        "",
+        timed_out=False,
+    )
+    assert cat == "aux_scan_eof"
+    assert pay == "newl@bel"
+    cat, pay = classify_error(
+        "! Package babel Error: Unknown option `foobarbaz'.",
+        None,
+        "",
+        timed_out=False,
+    )
+    assert cat == "babel_opt"
+    assert pay == "foobarbaz"
+    cat, pay = classify_error(
+        "! Unable to load picture or PDF file 'fig.png'.",
+        None,
+        "",
+        timed_out=False,
+    )
+    assert cat == "missing_graphic"
+    assert pay == "fig.png"
+
+
+def test_classify_early_eof_tail() -> None:
+    """干净 log 零页面 + \\end occurred incomplete → early_eof（yaml tail 段）。"""
+    tail = (
+        "(\\end occurred when \\ifx on line 27 was incomplete)\nNo pages of output.\n"
+    )
+    cat, _ = classify_error(None, None, tail, timed_out=False)
+    assert cat == "early_eof"
+
+
+def test_classify_error_degrades_without_ruleset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """rules.yaml 不可载 → 不重建冻结副本，降级 other/clean（timeout 仍短路）。"""
+    monkeypatch.setattr("texlate.compile.engine._taxonomy", lambda: None)
+    assert classify_error(
+        "! LaTeX Error: File `x.sty' not found.", None, "", timed_out=False
+    ) == ("other", None)
+    assert classify_error(None, None, "", timed_out=False) == ("clean", None)
+    assert classify_error(None, None, "", timed_out=True) == ("timeout", None)
+
+
+def test_engine_taxonomy_ids_match_yaml() -> None:
+    """漂移护栏：engine 可达的 head/tail/warn id 集 == rules.yaml taxonomy 段。"""
+    tax = eng_mod._taxonomy()  # noqa: SLF001
+    assert tax is not None
+    yaml_ids = {e["id"] for e in load_yaml(RULES_PATH).get("taxonomy") or []}
+    engine_ids = (
+        {e["id"] for e, _ in tax.head}
+        | {e["id"] for e, _ in tax.tail}
+        | {e["id"] for e in tax.warn}
+    )
+    assert engine_ids == yaml_ids
 
 
 # ---------------------------------------------------------------- 路由表

@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import logging
 import os
 import re
 import sys
@@ -34,12 +35,16 @@ from typing import TYPE_CHECKING, Final, Protocol, runtime_checkable
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Iterator
 
+    from texlate.compile.fixloop.logparse import ErrReport, Taxonomy
+
 from texlate.texlog import update_file_stack
 from texlate.textutil import decode_tex
 
 from .mask import visible_tex
 from .sandbox import child_env, find_tool, run_process, sandbox_wrap
 from .toolchain import ensure_tectonic, tectonic_version
+
+log = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT = 240.0  # docs/08 §4.1
 MAX_PASSES = 2
@@ -223,87 +228,61 @@ def parse_log(log_text: str) -> LogInfo:
 
 
 # ================================================================ 错误分类学
-#: 首错/上下文 → 类别 的有序规则表（首个命中即返回）。
-_ERROR_RULES: tuple[tuple[str, str], ...] = (
-    ("missing_file", r"File `([^']+\.[a-zA-Z0-9]+)' not found"),
-    ("missing_file", r"I can't find file `([^']+)'"),
-    ("missing_tfm", r"Font \\?\S*?=?\s*([a-zA-Z0-9]+) at [0-9.]+pt not loadable"),
-    ("missing_tfm", r"Metric \(TFM\) file[^\n]*?(\w+)\.(tfm)"),
-    ("xetexglyph_tfm", r"Cannot use XeTeXglyph with (\S+)"),
-    ("missing_pfb", r"Cannot proceed without .vf|physical font"),
-    ("fontspec_missing", r'font [“"]([^”"]+)[”"] cannot be found'),
-    ("ps_image", r"image inclusion failed for[^\n]*\.eps|PostScript image"),
-    ("inputenc_unicode", r"inputenc is not designed for"),
-    ("illegal_unit", r"Illegal unit of measure"),
-    ("option_clash", r"Option clash for package ([\w-]+)"),
-    ("already_def", r"Command \\?([\w@]+) already defined"),
-    ("soul_err", r"Package soul Error|Reconstruction failed"),
-    ("hyphenation", r"Not a letter"),
-    ("minted_froz", r"frozencache|Cannot highlight code"),
-    (
-        "latex209",
-        # 与 _LATEX209_TAIL_RE 同签名集——head 侧也曾被 aastex 系 info 横幅
-        # "Original \LaTeX2.09 style" 打中（松版 `LaTeX ?2\.09` 残留）。
-        (
-            r"\\documentstyle\b|LaTeX 2\.09 COMPATIBILITY MODE|"
-            r"LaTeX2e command[^\n]*\bin LaTeX 2\.09|LaTeX Version 2\.09|"
-            r"(?m:^[ \t]*Compatibility mode)"
-        ),
-    ),
-    ("undefined_cs", r"Undefined control sequence"),
-    ("capacity", r"TeX capacity exceeded"),
-    ("emergency", r"Emergency stop|cannot \\read|Fatal error|job aborted"),
-    ("env_mismatch", r"begin\{[^}]*\}.*ended by|Extra \\end"),
-    (
-        "syntax",
-        (
-            r"Missing|Runaway|Paragraph ended|Misplaced|Double subscript|"
-            r"Illegal|There's no line|Lonely|Bad math|Something's wrong|"
-            r"not in outer par|allowed only in math|improper"
-        ),
-    ),
-    ("other", r"^!"),
-)
+#: 分类表**单源** = ``fixloop/rules.yaml`` ``taxonomy:`` 段——引擎侧不再持有
+#: 第二份规则表（audit-2026-09-16 wave2：两份并行已漂出 8 个 id + 3 组变体）。
+#: 本节只做 ``(err, ctx, tail)`` → ``ErrReport`` 的薄适配；匹配语义（head/
+#: tail 有序评估、payload_group、``subclassify`` 冒犯域收窄、tail ``guard``
+#: 复核）全部归 ``fixloop.logparse.Taxonomy``。``scope:warnings`` 条目
+#: （``warn_*``）以 ``rep.warnings`` 为驱动原料——本接口只收 err/ctx/tail
+#: 三段不喂 warnings，故该段在引擎侧天然不触发（fixloop 主循环以全文 log
+#: 扫描另行驱动，两处调用面本就不同）。
 
 
-def _match_head(head: str) -> tuple[str, str | None] | None:
-    """首错上下文按 `_ERROR_RULES` 顺序匹配；undefined_cs 细分 pdf* 原语。"""
-    for name, pat in _ERROR_RULES:
-        m = re.search(pat, head, re.IGNORECASE)
-        if m:
-            pay = next((g for g in m.groups() if g), None)
-            if name == "undefined_cs":
-                pm = re.search(r"\\(pdf[a-zA-Z@]+)", head)
-                if pm:
-                    return "pdftex_prim", pm.group(1)
-            return name, pay
-    return None
+@lru_cache(maxsize=1)
+def _taxonomy() -> Taxonomy | None:
+    """rules.yaml ``taxonomy:`` → 编译态 ``Taxonomy``（进程内一次）。
+
+    惰性载入：``fixloop/__init__`` 链（cases→fcntl、engine→compile.inject）
+    在本模块装载期会成环；且引擎层在 rules.yaml 缺席的上下文（裁剪部署、
+    bench 快照）仍须可 import、可分类。
+
+    装载失败**不**重建冻结副本——副本即下一份漂移源；降级 ``None`` 使
+    classify 退化为 ``other``/``clean``，warning 记一次（同根因由 fixloop
+    侧 ``load_ruleset`` 的校验错误更完整报出）。只读 ``taxonomy:`` 段而不走
+    ``Ruleset.load``：rules 段校验失败（规则 schema 面）不应击穿分类。
+    """
+    try:
+        from texlate.compile.fixloop._yamlish import (  # noqa: PLC0415  # 延迟: 防循环
+            load_yaml,
+        )
+        from texlate.compile.fixloop.engine import (  # noqa: PLC0415  # 同上
+            RULES_PATH,
+        )
+        from texlate.compile.fixloop.logparse import (  # noqa: PLC0415  # 同上
+            Taxonomy,
+        )
+
+        data = load_yaml(RULES_PATH)
+        entries = data.get("taxonomy") if isinstance(data, dict) else None
+        if not entries or data.get("version") != 1:
+            log.warning("rules.yaml taxonomy 段缺失/空或 version!=1: %s", RULES_PATH)
+            return None
+        return Taxonomy(entries)
+    except Exception:  # 装载失败 = 分类降级, 不阻断引擎层
+        log.warning(
+            "rules.yaml taxonomy 装载失败, 错误分类降级为 other/clean",
+            exc_info=True,
+        )
+        return None
 
 
-#: tail 侧真 2.09 签名（`_match_tail` 专用）：`\documentstyle` 控制序列
-#: 现身错上下文（`l.N` 行/tectonic stderr）、内核 compat-mode 横幅与
-#: "Compatibility mode" 注记行、2e 内核 "in LaTeX 2.09" 错文、上古格式
-#: "LaTeX Version 2.09" 版横幅。不收任意位置 "LaTeX2.09" 字样——aastex
-#: 系 cls 的 info 横幅 "Original \LaTeX2.09 style"（LaTeX2e 文档）曾连
-#: 吃 15+ 篇零 '!' 行静默死误报（fixloop-replay-baseline-2026-09-16）。
-_LATEX209_TAIL_RE = re.compile(
-    r"\\documentstyle\b|LaTeX 2\.09 COMPATIBILITY MODE|"
-    r"LaTeX2e command[^\n]*\bin LaTeX 2\.09|LaTeX Version 2\.09|"
-    r"^[ \t]*Compatibility mode",
-    re.MULTILINE,
-)
+def _err_report(first: str | None, ctx: str | None, tail: str) -> ErrReport:
+    """薄构造：engine 侧 ``(err, ctx, tail)`` → ``logparse.ErrReport``。"""
+    from texlate.compile.fixloop.logparse import (  # noqa: PLC0415  # 延迟: 防循环
+        ErrReport,
+    )
 
-
-def _match_tail(blob: str) -> tuple[str, str | None] | None:
-    """无 `!` 行或首错即 emergency 时，回溯 tail 找文件名提示符。"""
-    m = re.search(r"File `([^']+\.[a-zA-Z0-9]+)' not found", blob)
-    if m and ("Enter file name" in blob or "Emergency" in blob):
-        return "missing_file", m.group(1)
-    if "Enter file name" in blob:
-        return "missing_file", None
-    if _LATEX209_TAIL_RE.search(blob):
-        return "latex209", None
-    return None
+    return ErrReport(first=first, ctx=ctx, tail=tail)
 
 
 def classify_error(
@@ -311,20 +290,16 @@ def classify_error(
 ) -> tuple[str | None, str | None]:
     """首错 → `(category, payload)`；payload 给规则定位用（文件名/字体名/cs 名）。
 
-    分类学源自 bench/py/fixloop.py 实测版 + engine-matrix §2 扩充
-    （EPS 硬墙/物理字体/vendored sty/latin-5 等引擎路由相关类别）。
+    分类学单源 = ``fixloop/rules.yaml`` ``taxonomy:`` 段（见 ``_taxonomy``）；
+    rules.yaml 不可载时降级为 ``other``/``clean``（不留冻结副本——副本即
+    漂移源）。
     """
     if timed_out:
         return "timeout", None
-    head = "\n".join(x for x in (err, ctx) if x)
-    if err:
-        hit = _match_head(head)
-        if hit is not None:
-            return hit
-    tail_hit = _match_tail(tail or "")
-    if tail_hit is not None:
-        return tail_hit
-    return ("other" if err else "clean"), None
+    tax = _taxonomy()
+    if tax is None:
+        return ("other" if err else "clean"), None
+    return tax.classify(_err_report(err, ctx, tail or ""))
 
 
 # ================================================================ 依赖记录解析

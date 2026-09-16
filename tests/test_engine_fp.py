@@ -33,9 +33,11 @@ _AASTEX_BANNER_TAIL = (
 # ---------------------------------------------------------------- latex209 tail
 def test_tail_aastex_banner_not_latex209() -> None:
     """aastex 横幅落 tail（零 '!' 行静默死 → err=None 走 tail 扫描）
-    不得归 latex209——这些全是 \\documentclass 的 LaTeX2e 稿。"""
+    不得归 latex209——这些全是 \\documentclass 的 LaTeX2e 稿。tail 实携
+    ``\\end occurred … incomplete`` + ``No pages of output`` 早夭签名 →
+    归 yaml tail 段的 early_eof（分类表单源化后该 id 可达）。"""
     cat, _ = classify_error(None, None, _AASTEX_BANNER_TAIL, timed_out=False)
-    assert cat == "clean"
+    assert cat == "early_eof"
 
 
 def test_tail_banner_plus_unmatched_error_not_latex209() -> None:
