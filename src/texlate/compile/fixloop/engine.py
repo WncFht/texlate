@@ -689,20 +689,26 @@ def _apply_scan_install(
         if t is None:
             continue
         for sp in params.get("scan_patterns") or []:
-            for m in re.finditer(sp["regex"], t):
-                names = [m.group(1)]
-                if sp.get("split"):
-                    names = m.group(1).split(sp["split"])
-                for nm in names:
-                    name = nm.strip()
-                    if not name:
-                        continue
-                    # suffix 仅补给无扩展名 (``\input epsf`` → epsf.tex);
-                    # 已带扩展名者 (``\input{x.tex}``) 照旧不叠。
-                    fname = name if Path(name).suffix else name + sp.get("suffix", "")
-                    if noise and not noise.match(name):
-                        continue
-                    need.add(fname)
+            # 逐行切注释后扫——``% \input foo`` 注释行不该触发安装
+            # (pst-notreal 实证; ``\%`` 转义不算注释起点)
+            for line in t.splitlines():
+                code = _COMMENT_CUT_RE.split(line, maxsplit=1)[0]
+                for m in re.finditer(sp["regex"], code):
+                    names = [m.group(1)]
+                    if sp.get("split"):
+                        names = m.group(1).split(sp["split"])
+                    for nm in names:
+                        name = nm.strip()
+                        if not name:
+                            continue
+                        # suffix 仅补给无扩展名 (``\input epsf`` → epsf.tex);
+                        # 已带扩展名者 (``\input{x.tex}``) 照旧不叠。
+                        fname = (
+                            name if Path(name).suffix else name + sp.get("suffix", "")
+                        )
+                        if noise and not noise.match(name):
+                            continue
+                        need.add(fname)
     missing = sorted(f for f in need if not _probe(eng, f, cwd=ctx.wdir))
     installed = [f for f in missing if eng.install_file(f)]
     ctx.installed.extend(installed)

@@ -698,13 +698,14 @@ def _slim_cell(cell: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _run_fixloop(
+def _run_fixloop(  # noqa: PLR0913 -- 开关面穿透同 pipe_condition
     job: _Job,
     route_engines: list[str],
     prev_res: CompRes,
     *,
     timeout: float | None = None,
     llm_hook: LlmHook | None = None,
+    expect_cjk: bool = True,
 ) -> tuple[dict, dict | None, CompRes]:
     """跑 fixloop + 消费 engine_flags → (报告, 新尾段或 None, 最新 CompRes)。
 
@@ -741,7 +742,7 @@ def _run_fixloop(
         tail = _tail_dict(last_res, Verdict(status="partial", reasons=[cell_verdict]))
         tail["reject_at"] = "fixloop"
     else:
-        tail = _tail_dict(last_res, judge(last_res, expect_cjk=True))
+        tail = _tail_dict(last_res, judge(last_res, expect_cjk=expect_cjk))
 
     flags: list[str] = rep["engine_flags"]
     dropped: list[str] = rep["engine_flags_dropped"]
@@ -756,7 +757,7 @@ def _run_fixloop(
         ):
             xtail, xres = _compile_judge(
                 _Job(job.work, job.main_rel, "xelatex", job.timeout),
-                expect_cjk=True,
+                expect_cjk=expect_cjk,
                 flags=flags,
             )
             rep["cross_engine"] = {
@@ -814,7 +815,10 @@ def pipe_condition(  # noqa: PLR0913 -- 修复链开关面（env 缺省，显式
         rec["reject_at"] = "inject"  # inject_reject 类: 与 route reject 分流
         rec["verdict"] = {"status": "partial", "reasons": [e.reason]}
         return rec
-    tail, res = _compile_judge(job, expect_cjk=True)
+    # 0-chunk 主文档 (includepdf 壳等) 无译文产出 → 不期待 CJK 渲染,
+    # cjk_chars=0 是其正确终态而非静默失败 (scout-cjk0 F 桶 11 格假阳)
+    expect_cjk = stats.get("chunks") != 0
+    tail, res = _compile_judge(job, expect_cjk=expect_cjk)
     rec.update(tail)
 
     if rec["status"] != "clean":
@@ -833,7 +837,9 @@ def pipe_condition(  # noqa: PLR0913 -- 修复链开关面（env 缺省，显式
             else fixloop_on
         )
         if rec["status"] != "clean" and fl:
-            fl_rep, tail3, _last = _run_fixloop(job, route_engines or [eng_name], res)
+            fl_rep, tail3, _last = _run_fixloop(
+                job, route_engines or [eng_name], res, expect_cjk=expect_cjk
+            )
             rec["fixloop"] = fl_rep
             if tail3 is not None:
                 rec.update(tail3)

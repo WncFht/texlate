@@ -303,7 +303,12 @@ async def pipe_xel_condition(
         rec["reject_at"] = "inject"
         rec["verdict"] = {"status": "partial", "reasons": [e.reason]}
         return rec
-    rec.update(_compile_judge(work, main_rel, timeout, expect_cjk=True))
+    # 0-chunk 主文档 (includepdf 壳) 不期待 CJK 渲染 (F 桶假阳修)
+    rec.update(
+        _compile_judge(
+            work, main_rel, timeout, expect_cjk=rec["translate"].get("chunks") != 0
+        )
+    )
     return rec
 
 
@@ -350,6 +355,8 @@ def pipe_fix_condition(
     timeout: float,
     sink: CaseSink,
     llm_hook: LlmHook | None = None,
+    *,
+    expect_cjk: bool = True,
 ) -> dict:
     """pipe-fix：pipe-xel 产物树 copy → fixloop(xelatex usermode) → 复判。
 
@@ -402,7 +409,7 @@ def pipe_fix_condition(
         halt_on_error=False, texmfhome=texmf, repository=_fl.TUNA_TLNET
     )
     res = jeng.compile(work, main_rel, timeout=timeout, sandbox=False)
-    rec.update(benchlib.judge_dict(res, expect_cjk=True))
+    rec.update(benchlib.judge_dict(res, expect_cjk=expect_cjk))
     return rec
 
 
@@ -469,7 +476,13 @@ async def run_project(
         rec["base-xel"] = base_xel_condition(src, sid, main_rel, timeout)
     if _want_fix(rec, fixloop_mode):
         rec["pipe-fix"] = pipe_fix_condition(
-            WORK / "pipe-xel" / sid, sid, main_rel, timeout, sink, llm_hook
+            WORK / "pipe-xel" / sid,
+            sid,
+            main_rel,
+            timeout,
+            sink,
+            llm_hook,
+            expect_cjk=rec["pipe-xel"].get("translate", {}).get("chunks") != 0,
         )
     return rec
 
@@ -726,6 +739,10 @@ async def amain(args: argparse.Namespace) -> None:
                         args.timeout,
                         sink,
                         fl_llm_hook,
+                        expect_cjk=prev.get("pipe-xel", {})
+                        .get("translate", {})
+                        .get("chunks")
+                        != 0,
                     )
                     benchlib.append_jsonl(rec_path, prev)
                     out_path.write_text(

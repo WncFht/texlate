@@ -460,7 +460,8 @@ def pipe_mode_condition(
         rec["verdict"] = {"status": "partial", "reasons": [e.reason]}
         return rec
     job = e2e_mod._Job(work, main_rel, eng_name, timeout)
-    tail, res = e2e_mod._compile_judge(job, expect_cjk=True)
+    # 0-chunk 主文档不期待 CJK (与 pipe_condition 同口径, F 桶假阳修)
+    tail, res = e2e_mod._compile_judge(job, expect_cjk=stats.get("chunks") != 0)
     rec.update(tail)
 
     if rec["status"] != "clean":

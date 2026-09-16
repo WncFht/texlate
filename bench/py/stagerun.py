@@ -1004,7 +1004,14 @@ def _compile_one(
             ]
             rec["metrics"]["verdict"] = {"status": "reject", "reasons": [e.reason]}
             return finish_rec(rec, t0)
-        tail = _compile_judge(splice, main_rel, eng, args.timeout, expect_cjk=True)
+        # 0-chunk 主文档 (includepdf 壳) 无译文产出 → 不期待 CJK (F 桶假阳修);
+        # xr 缺席时保守默认 True。记入 metrics 供 fixloop 复判同口径
+        _tr = ((xr or {}).get("metrics") or {}).get("translate") or {}
+        expect_cjk = _tr.get("chunks") != 0
+        rec["metrics"]["expect_cjk"] = expect_cjk
+        tail = _compile_judge(
+            splice, main_rel, eng, args.timeout, expect_cjk=expect_cjk
+        )
     else:  # base：src/ 原样直编（归因臂——不 normalize 不 inject）
         src = wid / "src"
         if not src.is_dir():
@@ -1162,7 +1169,9 @@ def _fixloop_one(
         halt_on_error=False, texmfhome=texmf, repository=flb.TUNA_TLNET
     )
     res = jeng.compile(splice, main_rel, timeout=args.timeout, sandbox=False)
-    tail = benchlib.judge_dict(res, expect_cjk=True)
+    # 复判沿用 compile 臂的 CJK 期待口径 (0-chunk 主文档不判 cjk_chars=0)
+    expect_cjk = (comp_rec.get("metrics") or {}).get("expect_cjk", True)
+    tail = benchlib.judge_dict(res, expect_cjk=expect_cjk)
 
     rounds = cell.get("rounds") or []
     fcat = cell.get("final_cat") or (rounds[-1].get("category") if rounds else None)

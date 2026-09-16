@@ -392,6 +392,22 @@ def test_static_precheck_scan_install(tmp_path: Path) -> None:
     assert "foo.sty" in eng.install_calls  # 尝试装但不在白名单
 
 
+def test_static_precheck_skips_commented_input(tmp_path: Path) -> None:
+    """``% \\input ghost`` 注释行不触发安装 (pst-notreal 实证噪音)。"""
+    main = (
+        "\\documentclass{article}\n% \\input ghost\n"
+        "\\begin{document}\nx\n\\end{document}\n"
+    )
+    eng = MockEngine(
+        [{"log": CLEAN_LOG, "pdf": True}],
+        installable={"ghost.tex"},
+        available={"article.cls"},
+    )
+    cell = fixloop(make_proj(tmp_path, main), eng)
+    assert cell["verdict"] == "clean"
+    assert not any("ghost" in c for c in eng.install_calls)
+
+
 def test_warn_utf8_drives_recode_round(tmp_path: Path) -> None:
     # latin-1 源码 + U+FFFD warning (无 '!' 错) → warn_utf8 → non_utf8_recode
     (tmp_path / "main.tex").write_bytes(
