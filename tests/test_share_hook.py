@@ -186,8 +186,9 @@ class TestErrorDiscipline:
         """直调 ``_share_pack_try``：必需产物缺席 → ShareError 抛出（由钩壳吞）。"""
         from texlate.share import ShareError  # noqa: PLC0415
 
-        ctx, worker, _store = _mk(tmp_path, options={"share_pack": True})
+        ctx, worker, store = _mk(tmp_path, options={"share_pack": True})
         ctx.root.mkdir(parents=True, exist_ok=True)
+        store.transition(ctx.task_id, "done", force=True)  # 本钩只在终态后被调
         with pytest.raises(ShareError, match="artifact missing"):
             worker._share_pack_try(ctx)  # noqa: SLF001
 

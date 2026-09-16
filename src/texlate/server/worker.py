@@ -109,7 +109,6 @@ from texlate.server.store import (
     ACTIVE_STATUSES,
     TERMINAL_STATUSES,
     Store,
-    StoreError,
 )
 from texlate.share import (
     ShareError,
@@ -2180,7 +2179,9 @@ class PipelineWorker:
         dual_path = ctx.root / "share" / "dual.json"
         try:
             doc = json.loads(dual_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as e:
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
+            # UnicodeDecodeError 是 ValueError 非 JSONDecodeError——漏它会
+            # 走 run() 的 parse 臂把隐式命中任务 fault 掉，而非回退自译
             msg = f"dual.json unreadable: {e}"
             raise _ShareRejectError(msg) from e
         raw = doc.get("chunks") if isinstance(doc, dict) else None
@@ -3382,6 +3383,10 @@ class PipelineWorker:
         row = self._on_loop(self.store.get, ctx.task_id)
         if row is None:
             return
+        if str(row["status"]) not in ("done", "partial", "fault"):
+            # 弃单系终态（cancelled/interrupted/needs_auth）不打：终态检查到
+            # 本钩之间用户仍可 cancel——半成品译文进公共 index 违背弃单语义
+            return
         manifest = self.share_pack_manifest(ctx, row)
         if manifest is None:
             self._log(ctx, "share pack: 任务无 arxiv_id（不参与共享寻址），跳过打包")
@@ -3883,7 +3888,7 @@ class PipelineWorker:
                 categories=cats,
                 placeholders=placeholders,
             )
-        except (OSError, ValueError) as e:
+        except Exception as e:  # noqa: BLE001 -- 术语表是增强件：load 面 TypeError/yaml.YAMLError 等非 OSError/ValueError 同降级无表
             self._log(ctx, f"glossary load failed: {e}")
             return None
 
@@ -4083,6 +4088,12 @@ class TaskRunner:
                 finally:
                     self._current = None
                     self.secrets.pop(task_id, None)
+            except Exception:
+                # 前置段（store.get/claim/ctx 构造）的 DB/IO 异常——单条失败
+                # 只丢这一队列项（行仍 queued，重启 replay 兜底）；透出会把
+                # dispatcher 整个打死，后续任务静默饿死且 secrets 残留
+                log.exception("dispatch setup failed for %s", task_id)
+                self.secrets.pop(task_id, None)
             finally:
                 self._queue.task_done()
 
@@ -4095,7 +4106,8 @@ class TaskRunner:
             cur = self._current
             if cur is None:
                 continue
+            # 心跳是活性信号：sqlite3.Error 等非 StoreError/OSError 面同样不许杀 ticker
             try:
                 self.store.heartbeat(cur[0])
-            except (StoreError, OSError):
+            except Exception:
                 log.debug("heartbeat failed for %s", cur[0], exc_info=True)

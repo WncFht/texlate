@@ -12,6 +12,7 @@ import contextlib
 import io
 import json
 import os
+import sqlite3
 import threading
 import zipfile
 from http import HTTPStatus
@@ -41,6 +42,7 @@ from texlate.server.worker import (
     SegmentCache,
     TaskCtx,
     TaskRunner,
+    _ShareRejectError,
     cache_key_for,
     chunk_db_id,
     unpack_zip,
@@ -1817,8 +1819,9 @@ class TestRunFixloopWiring:
         ctx, worker, _store = _mk(
             tmp_path,
             worker_kw={
-                "engine_factory": lambda name: made.append(name)
-                or RecordingEngine(name)
+                "engine_factory": lambda name: (
+                    made.append(name) or RecordingEngine(name)
+                )
             },
         )
         ctx.engine_name = "xelatex"
@@ -2030,9 +2033,7 @@ class TestLogTextOfFallback:
         asdir.mkdir()  # read_text → IsADirectoryError(OSError)
         assert worker._log_text_of(self._res(asdir, tail)) == tail  # noqa: SLF001
 
-    def test_log_content_wins_and_no_logpath_uses_tail(
-        self, tmp_path: Path
-    ) -> None:
+    def test_log_content_wins_and_no_logpath_uses_tail(self, tmp_path: Path) -> None:
         _ctx, worker, _store = _mk(tmp_path)
         log = tmp_path / "real.log"
         log.write_text("! real log line", encoding="utf-8")
@@ -2137,3 +2138,188 @@ class TestShareLookupExceptSurface:
         monkeypatch.setattr(worker_mod, "index_lookup", boom)
         with pytest.raises(ShareError):
             worker._share_lookup(ctx)  # noqa: SLF001
+
+
+class TestResidAuditLoops:
+    """#278：dispatcher/heartbeat 对 sqlite3 异常面存活钉样。
+
+    ``sqlite3.OperationalError`` 不是 OSError/StoreError 子类——原捕获面
+    漏它，一次 DB 错即打死 dispatcher（后续任务静默饿死 + secrets 残留）
+    或 ticker（全实例 updated_at 停摆）。
+    """
+
+    def test_dispatcher_survives_sqlite_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        store = Store(tmp_path / "t.db")
+        store.open()
+        try:
+            bus = EventBus(store)
+            worker = PipelineWorker(store, bus, tmp_path)
+            runner = TaskRunner(store, bus, worker)
+            tid_a = new_task_id()
+            store.create_task(
+                task_id=tid_a,
+                kind="arxiv",
+                target_lang="zh-CN",
+                model="m",
+                arxiv_id="2401.00001",
+                options={},
+            )
+            tid_b = new_task_id()
+            store.create_task(
+                task_id=tid_b,
+                kind="arxiv",
+                target_lang="zh-CN",
+                model="m",
+                arxiv_id="2401.00002",
+                options={},
+            )
+            # replay 只灌 queued——先挪走，start() 后再挪回
+            store.update_fields(tid_a, status="interrupted")
+            store.update_fields(tid_b, status="interrupted")
+
+            ran: list[str] = []
+
+            async def fake_run(_self: PipelineWorker, c: TaskCtx) -> None:
+                ran.append(c.task_id)
+
+            monkeypatch.setattr(PipelineWorker, "run", fake_run)
+            real_get = store.get
+
+            def flaky_get(task_id: str) -> dict[str, object] | None:
+                if task_id == tid_a:
+                    msg = "database is locked"
+                    raise sqlite3.OperationalError(msg)
+                return real_get(task_id)
+
+            monkeypatch.setattr(store, "get", flaky_get)
+
+            async def drive() -> None:
+                runner.start()
+                store.update_fields(tid_a, status="queued")
+                store.update_fields(tid_b, status="queued")
+                runner.enqueue(tid_a, Secrets())
+                runner.enqueue(tid_b, Secrets())
+                await asyncio.sleep(0.3)
+                assert runner._dispatcher is not None  # noqa: SLF001
+                assert not runner._dispatcher.done(), (  # noqa: SLF001
+                    "前置段 DB 异常不得打死 dispatcher"
+                )
+                assert ran == [tid_b], "A 失败后 B 仍须被分发"
+                assert tid_a not in runner.secrets, "失败条目的 secrets 必须清"
+                await runner.stop()
+
+            asyncio.run(drive())
+        finally:
+            store.close()
+
+    def test_heartbeat_survives_sqlite_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        ctx, worker, store = _mk(tmp_path)
+        store.update_fields(ctx.task_id, status="interrupted")  # 避开 replay
+        runner = TaskRunner(store, EventBus(store), worker)
+        calls = {"n": 0}
+
+        def flaky(_task_id: str) -> None:
+            calls["n"] += 1
+            if calls["n"] == 1:
+                msg = "disk I/O error"
+                raise sqlite3.OperationalError(msg)
+
+        monkeypatch.setattr(store, "heartbeat", flaky)
+        monkeypatch.setattr("texlate.server.worker._HEARTBEAT_S", 0.01)
+
+        async def drive() -> None:
+            runner.start()
+            loop = asyncio.get_running_loop()
+            runner._current = (ctx.task_id, loop.create_future())  # noqa: SLF001
+            await asyncio.sleep(0.15)
+            assert runner._ticker is not None  # noqa: SLF001
+            assert not runner._ticker.done(), "sqlite3 面异常不得杀 ticker"  # noqa: SLF001
+            await runner.stop()
+
+        asyncio.run(drive())
+        assert calls["n"] >= 2, "首拍炸后 ticker 必须续拍"  # noqa: PLR2004
+
+
+class TestResidAuditShareApply:
+    """#278：``dual.json`` 非 UTF-8 → ``_ShareRejectError`` 而非逃逸。
+
+    UnicodeDecodeError 是 ValueError 但非 ``json.JSONDecodeError``——漏捕
+    时隐式命中路走 ``run()`` 的 parse 臂把任务 fault 掉（违反「隐式命中
+    是优化不是承诺」）；kind=share 应归 partial+share_verify 而非 fault。
+    """
+
+    def test_bad_utf8_dual_rejects(self, tmp_path: Path) -> None:
+        ctx, worker, _store = _mk(tmp_path, options={})
+        ctx.row["kind"] = "share"
+        (ctx.root / "share").mkdir(parents=True)
+        (ctx.root / "share" / "dual.json").write_bytes(b'{"chunks": [\xff\xfe]}')
+        with pytest.raises(_ShareRejectError):
+            worker._share_apply(ctx)  # noqa: SLF001
+
+
+class TestResidAuditGlossary:
+    """#278：``_make_glossary`` 降级面——Glossary.load 的 TypeError
+    （顶层非 mapping）与 yaml.YAMLError 皆回落 None，不许 fault 任务。"""
+
+    def test_list_yaml_degrades_to_none(self, tmp_path: Path) -> None:
+        ctx, worker, _store = _mk(tmp_path)
+        ctx.base_dir.mkdir(parents=True)
+        (ctx.base_dir / "glossary.local.yaml").write_text(
+            "- term_a\n- term_b\n", encoding="utf-8"
+        )
+        assert worker._make_glossary(ctx) is None  # noqa: SLF001
+
+    def test_bad_yaml_degrades_to_none(self, tmp_path: Path) -> None:
+        ctx, worker, _store = _mk(tmp_path)
+        ctx.base_dir.mkdir(parents=True)
+        (ctx.base_dir / "glossary.local.yaml").write_text(
+            "key: [unclosed\n  bad: : :\n", encoding="utf-8"
+        )
+        assert worker._make_glossary(ctx) is None  # noqa: SLF001
+
+
+class TestResidAuditSharePackGate:
+    """#278：``_share_pack_try`` 终态闸——弃单系终态（cancelled/
+    interrupted/needs_auth）不进公共 index；fault/partial/done 照旧
+    （§9 fixloop_exhausted 型放行语义不变）。"""
+
+    @staticmethod
+    def _drive(ctx: TaskCtx, worker: PipelineWorker) -> int:
+        calls = 0
+
+        def fake_publish(_root: Path, manifest: object, _out: Path) -> object:
+            nonlocal calls
+            calls += 1
+            return Path("fake.share.zip"), manifest
+
+        import texlate.server.worker as worker_mod  # noqa: PLC0415
+
+        orig_publish = worker_mod.share_pack_publish
+        orig_manifest = PipelineWorker.share_pack_manifest
+        worker_mod.share_pack_publish = fake_publish
+        PipelineWorker.share_pack_manifest = lambda _s, _c, _r: object()  # type: ignore[method-assign]
+        try:
+            worker._share_pack_try(ctx)  # noqa: SLF001 -- 主线程直调（_loop 未钉）
+        finally:
+            worker_mod.share_pack_publish = orig_publish
+            PipelineWorker.share_pack_manifest = orig_manifest  # type: ignore[method-assign]
+        return calls
+
+    def test_cancelled_not_published(self, tmp_path: Path) -> None:
+        ctx, worker, store = _mk(tmp_path, options={"share_pack": True})
+        store.transition(ctx.task_id, "cancelled")
+        assert self._drive(ctx, worker) == 0
+
+    def test_interrupted_not_published(self, tmp_path: Path) -> None:
+        ctx, worker, store = _mk(tmp_path, options={"share_pack": True})
+        store.transition(ctx.task_id, "interrupted", force=True)
+        assert self._drive(ctx, worker) == 0
+
+    def test_fault_still_published(self, tmp_path: Path) -> None:
+        ctx, worker, store = _mk(tmp_path, options={"share_pack": True})
+        store.transition(ctx.task_id, "fault", force=True)
+        assert self._drive(ctx, worker) == 1
