@@ -338,18 +338,23 @@ taxonomy:
     pattern: "Missing|Runaway|Paragraph ended|Misplaced|Double subscript|Illegal|There's no line|Lonely|Bad math|Something's wrong|not in outer par|allowed only in math|improper|Extra \\}|Forgotten \\\\endgroup|Extra \\\\(?:endgroup|right|middle|else|fi|or)\\b"
   - { id: other, scope: head, pattern: "^!" } # 兜底: 有 '!' 行必命中
   # —— tail 段: 仅当全文 0 个 '!' 行时评估 (交互式缺文件/Emergency) ——
+  # preempts: 致命尾错夺弱 head 类的路由 (regress4-2410.00012: chemgreek
+  # 缺档是真杀手, 此前永远被上游包内 undefined_cs 抢路由)。early_eof
+  # 不挂——零页是后果不是可修因, 抢占会盖住可行动的 head 错。
   - {
       id: missing_file,
       scope: tail,
       payload_group: 1,
       pattern: "File `([^']+\\.[a-zA-Z0-9]+)' not found",
       guard: "Enter file name|Emergency",
+      preempts: [undefined_cs, pdftex_prim, other, emergency],
     }
   - {
       id: missing_file,
       scope: tail,
       payload_group: null,
       pattern: "Enter file name",
+      preempts: [undefined_cs, pdftex_prim, other, emergency],
     }
   # tail 行同款收紧 (aastex 横幅会落 tail 30 行内抢签) —— 与 head 行同表。
   - {
@@ -368,6 +373,7 @@ taxonomy:
       payload_group: 1,
       pattern: "(?:include|download|install|get|need)\\s+(\\S+\\.(?:cls|sty|clo|tex|def|fd|map|cfg))",
       guard: "No pages of output",
+      preempts: [undefined_cs, pdftex_prim, other, emergency],
     }
   # —— 干净日志零页面: TeX 早夭但无 '!' 行 (1706.00175 实证:
   #   "(\end occurred when \ifx on line 27 was incomplete)" + "No pages of
