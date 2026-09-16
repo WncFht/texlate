@@ -1,0 +1,30 @@
+{
+ "phase": "report",
+ "date": "2026-09-16 15:56:01",
+ "platform": "Linux-7.2.4-arch1-2-x86_64-with-glibc2.44",
+ "python": "3.12.13",
+ "cwd": "/home/fanghaotian/src/texlate/tmp/exp/cbv3-base",
+ "corpus": "/home/fanghaotian/src/texlate/bench/corpus_v3",
+ "work": "/home/fanghaotian/src/texlate/bench/work_base_v3full",
+ "out": "/home/fanghaotian/src/texlate/bench/results/base-v3-full-2026-09-16",
+ "engines": [
+  "tectonic",
+  "xelatex"
+ ],
+ "condition": "baseline",
+ "engine_versions": {
+  "tectonic": "tectonic 0.15.0Tectonic 0.15.0",
+  "xelatex": "XeTeX 3.141592653-2.6-0.999998 (TeX Live 2026/Arch Linux)"
+ },
+ "pass_timeout_s": 240.0,
+ "xelatex_timeout_total_s": 480.0,
+ "tectonic_timeout_s": 240.0,
+ "max_passes": 2,
+ "sandbox": "product sandbox_wrap (sandbox-exec darwin / passthrough linux) + child_env 白名单 + 冷 TEXMFHOME/VAR/CONFIG",
+ "xelatex_flags": "-no-shell-escape -interaction=nonstopmode -file-line-error -recorder (halt_on_error=False)",
+ "tectonic_flags": "-X compile --untrusted -Z continue-on-errors --keep-logs --keep-intermediates --makefile-rules",
+ "judge": "texlate.compile.judge(expect_cjk=False)",
+ "jobs": 4,
+ "sample_n": 6000,
+ "seed": 20260915
+}
