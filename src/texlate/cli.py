@@ -203,6 +203,14 @@ def run(  # noqa: C901, PLR0913 -- CLI 选项面即参数面 + 本地/瘦客户�
     cache: Annotated[
         Path, typer.Option("--cache", help="source-tier 缓存根")
     ] = _DEFAULT_CACHE,
+    offline: Annotated[
+        bool,
+        typer.Option(
+            "--offline",
+            help="离线模式：取源只用本地 src-cache、零网络请求"
+            "（env TEXLATE_OFFLINE=1 等效；--server 模式不生效）",
+        ),
+    ] = False,
     keep: Annotated[
         bool, typer.Option("--keep", help="保留工作目录（默认编译后删除）")
     ] = False,
@@ -239,6 +247,11 @@ def run(  # noqa: C901, PLR0913 -- CLI 选项面即参数面 + 本地/瘦客户�
 
     翻译走 ``XlatPipeline(MockTranslator)`` + L0 校验器（驱动在 ``texlate.e2e``）
     ——全链产品 API，不触网（arxiv id 源走缓存/在线取源除外）。
+
+    ``--offline``/``TEXLATE_OFFLINE=1``：取源零网络——本地目录源无
+    影响；arXiv id 源只查本地 src-cache（钉版精确查、未钉版取已缓存
+    最高版），无缓存报 ``offline_no_cache`` 退出 1，不静默降级联网。
+
     退出码：0 = clean/partial（远端 done/partial）；1 = 编译失败（修复链
     走尽仍无 pdf），--server 侧另含终态 fault/cancelled/interrupted、
     快照失联（lost）与 --wait 超时；2 = 用法错（未知引擎/--server 选项
@@ -277,7 +290,9 @@ def run(  # noqa: C901, PLR0913 -- CLI 选项面即参数面 + 本地/瘦客户�
         )
         raise typer.Exit(2)
 
-    src_dir = _resolve_source(source, cache)
+    src_dir = _resolve_source(
+        source, cache, offline=offline or _env_flag("TEXLATE_OFFLINE", default=False)
+    )
     if src_dir is None:
         raise typer.Exit(1)
 
@@ -313,12 +328,14 @@ def run(  # noqa: C901, PLR0913 -- CLI 选项面即参数面 + 本地/瘦客户�
             shutil.rmtree(work, ignore_errors=True)
 
 
-def _resolve_source(source: str, cache: Path) -> Path | None:
+def _resolve_source(source: str, cache: Path, *, offline: bool = False) -> Path | None:
     """参数分流：存在的目录直接用，否则按 arXiv id 取源。"""
     p = Path(source)
     if p.is_dir():
         return p
-    res = acquire_source(source, fetcher=Fetcher(), cache=SourceCache(cache))
+    res = acquire_source(
+        source, fetcher=Fetcher(), cache=SourceCache(cache), offline=offline
+    )
     _echo_acquire(res)
     if res.status not in (AcquireStatus.OK, AcquireStatus.HIT):
         return None

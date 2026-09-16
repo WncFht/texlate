@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 from typer.testing import CliRunner
 
 from texlate import e2e
+from texlate.arxiv.cache import SourceCache
 from texlate.cli import app
 
 if TYPE_CHECKING:
@@ -41,6 +42,19 @@ def _src(tmp_path: Path, body: str = _MAIN) -> Path:
     src.mkdir()
     (src / "main.tex").write_text(body, encoding="utf-8")
     return src
+
+
+def _seed_cache(cache_root: Path, arxiv_id: str, version: int = 1) -> None:
+    """离线铺一条 src-cache 钉版条目：extracted/ 内放 _MAIN 工程。"""
+    cache = SourceCache(cache_root)
+    staging = cache.stage()
+    extracted = staging / "extracted"
+    extracted.mkdir()
+    (extracted / "main.tex").write_text(_MAIN, encoding="utf-8")
+    (staging / "meta.json").write_text(
+        json.dumps({"resolved_version": version}), encoding="utf-8"
+    )
+    cache.commit(staging, arxiv_id, version)
 
 
 def test_version() -> None:
@@ -116,3 +130,67 @@ class TestRun:
         )
         assert result.exit_code == 1
         assert json.loads(result.stdout)["status"] == "fail"
+
+    def test_offline_miss_exit_1(self, tmp_path: Path) -> None:
+        """--offline + 空缓存 → offline_no_cache → exit 1，不静默联网。"""
+        result = _RUNNER.invoke(
+            app,
+            ["run", "2001.00001", "--offline", "--cache", str(tmp_path / "c")],
+        )
+        assert result.exit_code == 1
+        rep = json.loads(result.stdout)
+        assert rep["status"] == "error"
+        assert "offline_no_cache" in rep["detail"]
+
+    def test_offline_env_flag_miss(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """TEXLATE_OFFLINE=1 等效 --offline：无缓存同样 exit 1。"""
+        monkeypatch.setenv("TEXLATE_OFFLINE", "1")
+        result = _RUNNER.invoke(
+            app, ["run", "2001.00001", "--cache", str(tmp_path / "c")]
+        )
+        assert result.exit_code == 1
+        assert "offline_no_cache" in json.loads(result.stdout)["detail"]
+
+    def test_offline_hit_full_pipeline(
+        self,
+        tmp_path: Path,
+        fake_engine: dict[str, RecordingEngine],
+    ) -> None:
+        """--offline 命中钉版缓存 → 全链照跑 → exit 0 + status clean。"""
+        cache_root = tmp_path / "c"
+        _seed_cache(cache_root, "2001.00001")
+        result = _RUNNER.invoke(
+            app,
+            [
+                "run",
+                "2001.00001",
+                "--offline",
+                "--cache",
+                str(cache_root),
+                "--work-dir",
+                str(tmp_path / "w"),
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        # stdout 是两段 JSON：_echo_acquire 一行 + verdict indent=2 块。
+        first = json.loads(result.stdout.splitlines()[0])
+        assert first["status"] == "cache_hit"
+        assert first["detail"] == "offline"
+        assert fake_engine
+
+    def test_offline_local_dir_unaffected(
+        self,
+        tmp_path: Path,
+        fake_engine: dict[str, RecordingEngine],
+    ) -> None:
+        """--offline + 本地目录源 → 分流不进缓存查找，全链 exit 0。"""
+        src = _src(tmp_path)
+        result = _RUNNER.invoke(
+            app,
+            ["run", str(src), "--offline", "--work-dir", str(tmp_path / "w")],
+        )
+        assert result.exit_code == 0, result.output
+        assert json.loads(result.stdout)["status"] == "clean"
+        assert fake_engine  # 引擎确实被驱动
