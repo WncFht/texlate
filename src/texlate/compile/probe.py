@@ -20,7 +20,12 @@ from typing import TYPE_CHECKING
 
 from texlate.textutil import decode_tex
 
-from .engine import _MINTED_FROZEN_RE
+from .engine import (
+    _MINTED_FROZEN_RE,
+    BITMAP_FONT_PKG_NAMES,
+    PST_PKG_PREFIXES,
+    PSTRICKS_PKG_NAMES,
+)
 from .mask import visible_tex
 
 if TYPE_CHECKING:
@@ -53,19 +58,11 @@ _NAME_RE = re.compile(r"^[\w./+-]+$")
 #: 声明包名 → (信号, 说明)。信号集：``xelatex`` = tectonic xdvipdfmx 硬墙；
 #: ``shell_escape`` = 需 ``\write18``（xelatex flags 承载，tectonic
 #: ``--untrusted`` 拒放）；``tectonic_risky`` = bundle 位图字体高风险标记
-#: （失败后换引擎）。
+#: （失败后换引擎）。pstricks 家族与位图字体名集单源在 engine（
+#: ``PSTRICKS_PKG_NAMES``/``PST_PKG_PREFIXES``/``BITMAP_FONT_PKG_NAMES``）。
 _PKG_SIGNALS: dict[str, tuple[str, str]] = {
-    "pstricks": ("xelatex", "pstricks → xelatex（tectonic xdvipdfmx 硬墙）"),
     "minted": ("shell_escape", "minted → 需 -shell-escape（pygments \\write18）"),
-    "bbm": ("tectonic_risky", "bbm 位图字体包 → tectonic 高风险"),
-    "bbmfonts": ("tectonic_risky", "bbmfonts 位图字体包 → tectonic 高风险"),
-    "dsfont": ("tectonic_risky", "dsfont 位图字体包 → tectonic 高风险"),
-    "bbold": ("tectonic_risky", "bbold 位图字体包 → tectonic 高风险"),
-    "yfonts": ("tectonic_risky", "yfonts 位图字体包 → tectonic 高风险"),
-    "wasy": ("tectonic_risky", "wasy 位图字体包 → tectonic 高风险"),
-    "wasysym": ("tectonic_risky", "wasysym 位图字体包 → tectonic 高风险"),
 }
-_PST_PREFIX = "pst-"  # pstricks 家族包（pst-plot/pst-node/…）同走 xelatex
 
 
 @dataclass(frozen=True, slots=True)
@@ -218,8 +215,12 @@ def _dep_signal(dep: DepProbe, blob: str) -> tuple[str, str] | None:
     if dep.fname.lower().endswith(".eps"):
         return "xelatex", f"{dep.fname} → xelatex（tectonic xdvipdfmx 硬墙）"
     sig = _PKG_SIGNALS.get(base)
-    if sig is None and base.startswith(_PST_PREFIX):
+    if sig is None and (
+        base in PSTRICKS_PKG_NAMES or base.startswith(PST_PKG_PREFIXES)
+    ):
         sig = ("xelatex", f"{base} pstricks 家族 → xelatex")
+    if sig is None and base in BITMAP_FONT_PKG_NAMES:
+        sig = ("tectonic_risky", f"{base} 位图字体包 → tectonic 高风险")
     if sig is None:
         return None
     kind, note = sig
