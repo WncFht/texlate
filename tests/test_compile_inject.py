@@ -512,3 +512,38 @@ def test_prepare_chinese(tmp_path: Path) -> None:
     assert info["status"] == "injected"
     out = (tmp_path / "main.tex").read_text()
     assert CTEX_LINE in out
+
+
+def test_find_main_tex_template_options_demoted(tmp_path: Path) -> None:
+    r"""1206.0565：``\documentclass[\optionlist]{cls}`` 算选项=类文档模板档。
+
+    类发行捆绑包 (aipproc.dtx/.ins/.cls 同树) 的 guide 档 body 量比真论文
+    还大——字面选项优先于质量/大小键。
+    """
+    (tmp_path / "aipguide.tex").write_text(
+        "\\documentclass[\\optionlist]{aipproc}\n\\begin{document}\n"
+        + "class guide prose " * 200
+        + "\\end{document}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "poster_duerr_arxiv.tex").write_text(
+        "\\documentclass[sort&compress]{aipproc}\n\\begin{document}\n"
+        "real paper body\n\\end{document}\n",
+        encoding="utf-8",
+    )
+    assert find_main_tex(tmp_path) == tmp_path / "poster_duerr_arxiv.tex"
+
+
+def test_find_main_tex_literal_opts_undemoted(tmp_path: Path) -> None:
+    r"""字面选项档不受模板键影响——``[12pt,twocolumn]`` 无 ``\`` 照常竞争。"""
+    (tmp_path / "real.tex").write_text(
+        "\\documentclass[12pt,twocolumn]{article}\n\\begin{document}\n"
+        + "paper " * 100
+        + "\\end{document}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "small.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n",
+        encoding="utf-8",
+    )
+    assert find_main_tex(tmp_path) == tmp_path / "real.tex"

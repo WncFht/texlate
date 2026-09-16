@@ -362,7 +362,11 @@ def find_main_tex(root: Path) -> Path | None:
     编排壳 main 只拉子文件、bd 在下游（cs/0408015、2105.00092 形态）。
 
     排序：英文正文优先（多语种版本不靠 UTF-8 字节数排序——多字节文字
-    系统性吃亏）→ main/paper/ms 名 → 目录深度 → 实质 body 量级
+    系统性吃亏）→ main/paper/ms 名 → 模板参档后置（``\documentclass``
+    的 ``[...]`` 里含控制序列 = 类文档模板算选项，如 aipguide
+    ``[\optionlist]{aipproc}``；真论文写字面选项——1206.0565 类发行
+    捆绑包中 guide/check 档 body 量比正主还大，需在深度/量级前挡下）
+    → 目录深度 → 实质 body 量级
     （`\begin{document}` 后可见字符 + `\input` 闭包的十进制位数——
     standalone 图档/document 薄壳与真 main 分野，1803.02985 E 桶修法；
     只仲裁量级差，近等值回退文件大小，避免 `ver1/`、`old/`、diff 档
@@ -371,6 +375,7 @@ def find_main_tex(root: Path) -> Path | None:
     resolved = root.resolve()
     candidates = []
     bodies = {}
+    tpl: dict[str, bool] = {}
     for p in sorted(p for p in root.rglob("*") if p.suffix.lower() == ".tex"):
         try:
             text = visible_tex(decode_tex(p.read_bytes()))
@@ -383,6 +388,8 @@ def find_main_tex(root: Path) -> Path | None:
             continue
         candidates.append(rel)
         bodies[rel] = text.split(r"\begin{document}", 1)[-1]
+        dc = re.search(r"\\document(?:class|style)\s*(\[[^\]]*\])?", text)
+        tpl[rel] = bool(dc and dc.group(1) and "\\" in dc.group(1))
     if not candidates:
         return None
 
@@ -401,6 +408,7 @@ def find_main_tex(root: Path) -> Path | None:
         key=lambda p: (
             language_rank(p),
             Path(p).name not in ("main.tex", "paper.tex", "ms.tex"),
+            tpl[p],
             len(Path(p).parts),
             -len(str(masses[p])),
             -(root / p).stat().st_size,
