@@ -20,6 +20,8 @@ docs/05 §3-18 方案的前提条件；保留率 <95% 本身即 zh 编译完整�
 
 门槛 (--check, docs/10 §B7): 有 hyperref 锚点侧的对子保留率 ≥95%;
 双侧无锚点对 (无 hyperref 工程 ~31%) 走退化路径不崩; 无 pair 级异常.
+单侧 PDF 不可解析记 invalid_pdf verdict——编译段垃圾产物 (kill 截断/stub),
+对应 leg 在 B3/B5 已计 FAIL, 不占 no_pair_errors 门但单列显著报告.
 退出码 0/1.
 """
 
@@ -161,9 +163,32 @@ def hist(vals: list[float]) -> dict:
 
 
 # ---------------------------------------------------------------- 对子分析
+def _invalid_pdf(pair: dict, side: str, exc: Exception) -> dict:
+    """单侧 PDF 不可解析 → invalid_pdf verdict.
+
+    语义: 这是编译段垃圾产物(超时 kill 留 stub/截断写), 不是 harness 异常——
+    对应 leg 在 B3/B5 已计 FAIL, B7 不重复惩罚; 单列 n_invalid 显著报告。
+    """
+    return {
+        "kind": pair["kind"],
+        "id": pair["id"],
+        "a": str(pair["a"]),
+        "b": str(pair["b"]),
+        "verdict": "invalid_pdf",
+        "invalid_side": side,
+        "detail": f"{type(exc).__name__}: {exc}",
+    }
+
+
 def analyze_pair(pair: dict, min_retention: float) -> dict:
-    ea = extract_dests(pair["a"])
-    eb = extract_dests(pair["b"])
+    try:
+        ea = extract_dests(pair["a"])
+    except Exception as e:  # 编译段垃圾产物 —— 非 harness 异常
+        return _invalid_pdf(pair, "a", e)
+    try:
+        eb = extract_dests(pair["b"])
+    except Exception as e:
+        return _invalid_pdf(pair, "b", e)
     da, db = ea["dests"], eb["dests"]
     names_a, names_b = set(da), set(db)
     common = sorted(names_a & names_b)
@@ -332,12 +357,17 @@ def selftest(workdir: Path, min_retention: float) -> list[dict]:
         ),
         # 双侧无锚点 → degraded 不崩
         "degraded": ([], [], 4),
+        # B 侧 15B stub (kill 截断编译产物) → invalid_pdf(b), 不炸对子
+        "corrupt": (base, "STUB", 6),
     }
     results = []
     for tag, (da, db, npages) in cases.items():
         a, b = workdir / f"st_{tag}_a.pdf", workdir / f"st_{tag}_b.pdf"
         _selftest_pdf(a, da, npages)
-        _selftest_pdf(b, db, npages)
+        if db == "STUB":
+            b.write_bytes(b"%PDF-1.7\n%\xe4\xf0\xed\xf8\n")  # 15B kill 截断 stub
+        else:
+            _selftest_pdf(b, db, npages)
         res = analyze_pair(
             {"kind": "selftest", "id": f"selftest/{tag}", "a": a, "b": b}, min_retention
         )
@@ -361,6 +391,9 @@ def selftest(workdir: Path, min_retention: float) -> list[dict]:
     dg = by_id["degraded"]
     if dg["verdict"] != "degraded" or dg["retention"] is not None:
         fails.append("degraded: 期望 verdict=degraded 且 ret=None")
+    cp = by_id["corrupt"]
+    if cp["verdict"] != "invalid_pdf" or cp["invalid_side"] != "b":
+        fails.append("corrupt: 期望 verdict=invalid_pdf 且 side=b")
     return results, fails
 
 
@@ -385,7 +418,10 @@ def _pct_vals(vals: list[float]) -> dict:
 
 def aggregate(results: list[dict], min_retention: float) -> dict:
     errors = [r for r in results if "error" in r]
-    ok_results = [r for r in results if "error" not in r]
+    invalid = [r for r in results if r.get("verdict") == "invalid_pdf"]
+    ok_results = [
+        r for r in results if "error" not in r and r.get("verdict") != "invalid_pdf"
+    ]
     degraded = [r for r in ok_results if r["verdict"] == "degraded"]
     hyper = [r for r in ok_results if r["verdict"] != "degraded"]
     low = [r for r in hyper if r["verdict"] == "low"]
@@ -414,6 +450,7 @@ def aggregate(results: list[dict], min_retention: float) -> dict:
     return {
         "n_pairs": len(results),
         "n_error": len(errors),
+        "n_invalid": len(invalid),
         "n_degraded": len(degraded),
         "n_hyperref": len(hyper),
         "n_low": len(low),
@@ -427,6 +464,10 @@ def aggregate(results: list[dict], min_retention: float) -> dict:
         "low_pairs": [
             {"id": r["id"], "retention": r["retention"], "lost": r["lost_a"][:10]}
             for r in low
+        ],
+        "invalid_pairs": [
+            {"id": r["id"], "side": r["invalid_side"], "detail": r["detail"]}
+            for r in invalid
         ],
         "error_pairs": [{"id": r["id"], "error": r["error"]} for r in errors],
         "min_retention": min_retention,
@@ -445,7 +486,7 @@ def write_summary(out: Path, results: list[dict], cells: dict, wall_s: float) ->
     lines.append(
         f"- pairs: {cells['n_pairs']} (hyperref {cells['n_hyperref']} · "
         f"degraded {cells['n_degraded']} · low {cells['n_low']} · "
-        f"error {cells['n_error']})"
+        f"invalid {cells.get('n_invalid', 0)} · error {cells['n_error']})"
     )
     ret = cells["retention"]
     if ret:
@@ -469,6 +510,12 @@ def write_summary(out: Path, results: list[dict], cells: dict, wall_s: float) ->
     for r in results:
         if "error" in r:
             lines.append(f"| {r['id']} | {r['kind']} | ERROR | - | - | - | - | - |")
+            continue
+        if r["verdict"] == "invalid_pdf":
+            lines.append(
+                f"| {r['id']} | {r['kind']} | invalid({r['invalid_side']}) "
+                f"| - | - | - | - | - |"
+            )
             continue
         ret_s = f"{r['retention']:.3f}" if r["retention"] is not None else "n/a"
         wr = r["chain"]["w_ratio"]
@@ -495,6 +542,13 @@ def write_summary(out: Path, results: list[dict], cells: dict, wall_s: float) ->
     if cells["error_pairs"]:
         lines.append("## 异常对\n")
         lines.extend(f"- `{r['id']}`: {r['error']}" for r in cells["error_pairs"])
+        lines.append("")
+    if cells.get("invalid_pairs"):
+        lines.append("## 不可解析 PDF 对（编译段垃圾产物，B3/B5 已计 FAIL）\n")
+        lines.extend(
+            f"- `{r['id']}` side={r['side']}: {r['detail']}"
+            for r in cells["invalid_pairs"]
+        )
         lines.append("")
     text = "\n".join(lines)
     (out / "summary.md").write_text(text + "\n", encoding="utf-8")
@@ -549,6 +603,12 @@ def main() -> None:
             if "error" in res:
                 print(
                     f"[{res['kind']}] {res['id']}: ERROR {res['error']}",
+                    file=sys.stderr,
+                )
+            elif res["verdict"] == "invalid_pdf":
+                print(
+                    f"[{res['kind']}] {res['id']}: invalid_pdf "
+                    f"side={res['invalid_side']} {res['detail']}",
                     file=sys.stderr,
                 )
             else:

@@ -62,6 +62,7 @@ XELATEX_TIMEOUT = PASS_TIMEOUT * 2  # 产品 compile timeout 是总预算/per_pa
 TECTONIC_TIMEOUT = PASS_TIMEOUT
 MAX_PASSES = 2
 JOBS = 4
+CONDS = ("baseline", "zh")
 
 #: tlmgr usermode 装包钉 tuna——mirror.ctan.org round-robin 本机不通
 #: (fixloop_bench 同口径, 2026-09-15 实测)。
@@ -257,11 +258,15 @@ def _refine_category(cat, pay, res):
     return cat, pay, False
 
 
-def run_paper(p, corpus: Path, work: Path, engines: list[str]):
-    """复制 → find_main_tex + route_project → per-engine 编译判定."""
+def run_paper(p, corpus: Path, work: Path, engines: list[str], cond: str = "baseline"):
+    """复制 → find_main_tex + route_project → per-engine 编译判定.
+
+    cond=zh: 每引擎独立拷贝 → normalize_project → prepare_chinese(ctex 注入)
+    → 编译(docs/10 §B3 网格 zh-injected 臂; inject 拒绝记 inject_reject)。
+    """
     pid = p["id"]
     src = corpus / pid / "extracted"
-    wdir = work / pid / "baseline"
+    wdir = work / pid / cond
     paper = {
         "id": pid,
         "band": p["band"],
@@ -280,14 +285,12 @@ def run_paper(p, corpus: Path, work: Path, engines: list[str]):
         for eng in engines:
             paper["engines"][eng] = {"verdict": "no_source", "engine": eng}
         return paper, []
-    if wdir.exists():
-        shutil.rmtree(wdir)
-    shutil.copytree(src, wdir, ignore=IGNORE)
 
     from texlate.compile.engine import route_project
     from texlate.compile.inject import find_main_tex
 
-    route = route_project(wdir)
+    # 检测面用 src: copytree 对 .tex/.eps 等检测对象字节保真, src ≡ wdir
+    route = route_project(src)
     paper["route"] = {
         "engines": route.engines,
         "reject": route.reject,
@@ -296,19 +299,46 @@ def run_paper(p, corpus: Path, work: Path, engines: list[str]):
         "latex209_suspect": route.latex209_suspect,
     }
     p["route"] = paper["route"]  # 回填 sample 记录, _case_base 用
-    main = find_main_tex(wdir)
+    main = find_main_tex(src)
     if not main:
         for eng in engines:
             paper["engines"][eng] = {"verdict": "no_main_tex", "engine": eng}
         return paper, []
-    main_rel = main.relative_to(wdir).as_posix()
+    main_rel = main.relative_to(src).as_posix()
     paper["main"] = main_rel
     texmf = _cold_texmf(wdir)
 
     cases = []
     for eng_name in engines:
+        prep: dict = {}
+        if cond == "zh":
+            cur = work / pid / f"zh-{eng_name}"
+            if cur.exists():
+                shutil.rmtree(cur)
+            shutil.copytree(src, cur, ignore=IGNORE)
+            from texlate.compile.inject import InjectRejectError, prepare_chinese
+            from texlate.compile.normalize import normalize_project
+
+            try:
+                prep["normalize"] = normalize_project(cur, eng_name, main_rel)
+                prep["inject"] = prepare_chinese(cur, main_rel)
+            except InjectRejectError as e:
+                r = {
+                    "engine": eng_name,
+                    "verdict": "reject",
+                    "category": "inject_reject",
+                    "payload": e.reason,
+                }
+                paper["engines"][eng_name] = r
+                cases.append({**_case_base(p, pid, eng_name, main_rel, cond), **r})
+                continue
+        else:
+            if wdir.exists():
+                shutil.rmtree(wdir)
+            shutil.copytree(src, wdir, ignore=IGNORE)
+            cur = wdir
         try:
-            res, v = _run_engine(eng_name, wdir, main_rel, texmf)
+            res, v = _run_engine(eng_name, cur, main_rel, texmf)
         except Exception as e:
             r = {
                 "engine": eng_name,
@@ -317,7 +347,7 @@ def run_paper(p, corpus: Path, work: Path, engines: list[str]):
                 "payload": f"{type(e).__name__}: {e}",
             }
             paper["engines"][eng_name] = r
-            cases.append({**_case_base(p, pid, eng_name, main_rel), **r})
+            cases.append({**_case_base(p, pid, eng_name, main_rel, cond), **r})
             continue
         cat, pay, refined = _refine_category(v.category, v.payload, res)
         rec = {
@@ -343,16 +373,17 @@ def run_paper(p, corpus: Path, work: Path, engines: list[str]):
             "n_deps": len(res.deps) if res.deps else 0,
             "deps": res.deps,
             "log": str(res.log_path) if res.log_path else None,
+            **prep,
         }
         paper["engines"][eng_name] = rec
-        cases.append({**_case_base(p, pid, eng_name, main_rel), **rec})
+        cases.append({**_case_base(p, pid, eng_name, main_rel, cond), **rec})
     return paper, cases
 
 
-def _case_base(p, pid, eng_name, main_rel):
+def _case_base(p, pid, eng_name, main_rel, cond="baseline"):
     return {
         "corpus": "corpus_v3",
-        "cond": "baseline",
+        "cond": cond,
         "paper_id": pid,
         "band": p["band"],
         "stratum_cell": p["stratum_cell"],
@@ -417,6 +448,7 @@ def write_run_meta(args, engines, phase):
         "work": str(args.work),
         "out": str(args.out),
         "engines": engines,
+        "condition": getattr(args, "condition", "baseline"),
         "engine_versions": _engine_versions(engines),
         "pass_timeout_s": PASS_TIMEOUT,
         "xelatex_timeout_total_s": XELATEX_TIMEOUT,
@@ -470,8 +502,9 @@ def report(args):
         if c["verdict"] == "clean":
             clean_by_id[c["paper_id"]].add(c["engine"])
 
+    cond_lbl = cases[0].get("cond", "baseline") if cases else "baseline"
     lines = []
-    lines.append("# compilebench v3 — corpus_v3 baseline × 双引擎")
+    lines.append(f"# compilebench v3 — corpus_v3 {cond_lbl} × 双引擎")
     lines.append("")
     lines.append(f"- 日期: {meta['date']}")
     lines.append(
@@ -483,8 +516,13 @@ def report(args):
         f"- {eng}: `{meta['engine_versions'].get(eng, '?')}`" for eng in engines
     )
     lines.append(
-        "- 条件: baseline 原文直编, 不注入不修复; "
-        f"xelatex ≤{MAX_PASSES}pass×{PASS_TIMEOUT:.0f}s, tectonic {TECTONIC_TIMEOUT:.0f}s"
+        "- 条件: "
+        + (
+            "baseline 原文直编, 不注入不修复"
+            if cond_lbl == "baseline"
+            else "zh — normalize_project + prepare_chinese(ctex) 后直编, 不修复"
+        )
+        + f"; xelatex ≤{MAX_PASSES}pass×{PASS_TIMEOUT:.0f}s, tectonic {TECTONIC_TIMEOUT:.0f}s"
     )
     lines.append(
         "- 判定: 产品 `texlate.compile.judge`(expect_cjk=False); "
@@ -745,6 +783,12 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--gen-sample", action="store_true")
     ap.add_argument("--report", action="store_true")
+    ap.add_argument(
+        "--condition",
+        choices=CONDS,
+        default="baseline",
+        help="baseline=原文直编; zh=normalize+prepare_chinese(ctex) 后编译 (docs/10 §B3)",
+    )
     ap.add_argument("--corpus", type=Path, default=CORPUS_DEFAULT)
     ap.add_argument(
         "--manifest",
@@ -760,7 +804,10 @@ def main():
     ap.add_argument("--only", default="")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument(
-        "--out", type=Path, default=ROOT / "bench/results" / RESULTS_DEFAULT
+        "--out",
+        type=Path,
+        default=None,
+        help="默认 bench/results/compilebench-v3[-zh]-<date>/",
     )
     ap.add_argument("--work", type=Path, default=WORK_DEFAULT)
     ap.add_argument("--v2-cells", type=Path, default=V2_CELLS_DEFAULT)
@@ -769,6 +816,13 @@ def main():
     # 是字面相对路径, 永不匹配真实绝对路径 → darwin 下引擎读不到输入文件
     args.corpus = args.corpus.resolve()
     args.work = args.work.resolve()
+    if args.out is None:
+        tag = (
+            "compilebench-v3"
+            if args.condition == "baseline"
+            else f"compilebench-v3-{args.condition}"
+        )
+        args.out = ROOT / "bench/results" / f"{tag}-{time.strftime('%Y-%m-%d')}"
     args.out = args.out.resolve()
     if args.manifest is None:
         args.manifest = [args.corpus / "manifest.jsonl"]
@@ -813,7 +867,8 @@ def main():
 
     with open(cases_path, "a") as cj, ThreadPoolExecutor(args.jobs) as ex:
         futs = {
-            ex.submit(run_paper, p, args.corpus, args.work, engines): p for p in todo
+            ex.submit(run_paper, p, args.corpus, args.work, engines, args.condition): p
+            for p in todo
         }
         for fut in as_completed(futs):
             p = futs[fut]

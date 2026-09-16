@@ -261,6 +261,7 @@ IGNORE = shutil.ignore_patterns(
 )
 
 ENGINES = ("xelatex", "tectonic")
+INJECT_ZH = False  # --inject-zh: normalize+ctex 注入后再进 fixloop (B3 zh 臂)
 
 
 def run_paper(p: dict, todo_engines: tuple[str, ...]) -> list[dict]:
@@ -287,6 +288,36 @@ def run_paper(p: dict, todo_engines: tuple[str, ...]) -> list[dict]:
         if wdir.exists():
             shutil.rmtree(wdir)
         shutil.copytree(src, wdir, ignore=IGNORE)
+        if INJECT_ZH:
+            # zh 条件臂 (docs/10 §B3): 产品序 normalize → ctex 注入 → fixloop
+            from texlate.compile.inject import (
+                InjectRejectError,
+                find_main_tex,
+                prepare_chinese,
+            )
+            from texlate.compile.normalize import normalize_project
+
+            _m = find_main_tex(wdir)
+            if _m is not None:
+                _mrel = _m.relative_to(wdir).as_posix()
+                try:
+                    normalize_project(wdir, eng_name, _mrel)
+                    prepare_chinese(wdir, _mrel)
+                except InjectRejectError as e:
+                    cells.append(
+                        {
+                            "project": pid,
+                            "paper_id": pid,
+                            "engine": eng_name,
+                            "verdict": f"reject:inject_{e.reason}",
+                            "cond": "zh",
+                            "rounds": [],
+                            "actions": [],
+                            "final_pdf": False,
+                            "wall_s": 0.0,
+                        }
+                    )
+                    continue
         eng = _make_engine(eng_name, texmf, wdir)
         t0 = time.time()
         try:
@@ -296,7 +327,7 @@ def run_paper(p: dict, todo_engines: tuple[str, ...]) -> list[dict]:
                 ruleset=RS,
                 engine_name=eng_name,
                 corpus_id=pid,
-                cond="fixloop",
+                cond="zh" if INJECT_ZH else "fixloop",
                 runner=_texmf_runner(texmf) if eng_name == "xelatex" else None,
                 case_sink=sink,
             )
@@ -459,19 +490,29 @@ def report(papers_meta: list[dict]) -> None:
     )
 
     # ---- summary.md ----
+    n_papers = len(by_paper)
+    cond_lbl = "zh 注入臂" if INJECT_ZH else "baseline 臂"
     lines = []
-    lines.append("# fixloop bench — corpus_v2 40 篇无偏样本 × 产品化规则库")
+    lines.append(
+        f"# fixloop bench — {CORPUS.name} {n_papers} 篇 × 产品化规则库 ({cond_lbl})"
+    )
     lines.append("")
     lines.append(f"- 日期: {doc['meta']['date']}")
     lines.append(
         f"- 规则库: `{RS.path}` ({len(RS.rules)} 规则, max_rounds={RS.max_rounds()})"
     )
-    lines.append(
-        "- 口径: 每篇独立冷 `_texmf` usertree (xelatex) / pin bundle+ctan_fetch "
-        "(tectonic); 无 sandbox-exec; fixloop 直跑 (无 normalize/inject 前置)"
+    inject_note = (
+        "fixloop 前 normalize_project + prepare_chinese(ctex) 注入"
+        if INJECT_ZH
+        else "fixloop 直跑 (无 normalize/inject 前置)"
     )
     lines.append(
-        "- 对照: baseline = compilebench-corpusv2 同批样本原文直编 (clean/pdf~/FAIL)"
+        "- 口径: 每篇独立冷 `_texmf` usertree (xelatex) / pin bundle+ctan_fetch "
+        f"(tectonic); 无 sandbox-exec; {inject_note}"
+    )
+    lines.append(
+        f"- 对照: baseline = {BASE_CELLS or 'compilebench 同批样本原文直编'} "
+        "(clean/pdf~/FAIL)"
     )
     lines.append("")
 
@@ -688,7 +729,7 @@ def report(papers_meta: list[dict]) -> None:
 def main() -> None:
     # --out/--corpus/--work/--cases-from 重绑后 run_paper/report 经全局读
     # 新目录 (v2 整改批次 + v3 cases 复用); 模块级单例配置, noqa 保留直白写法
-    global OUT, CORPUS, WORK, BASE_CELLS, ENGINES  # noqa: PLW0603
+    global OUT, CORPUS, WORK, BASE_CELLS, ENGINES, INJECT_ZH  # noqa: PLW0603
     ap = argparse.ArgumentParser()
     ap.add_argument("--report", action="store_true")
     ap.add_argument("--jobs", type=int, default=JOBS)
@@ -709,11 +750,17 @@ def main() -> None:
     )
     ap.add_argument("--only-category", default="", help="--cases-from 过滤: 终态类别")
     ap.add_argument("--only-engine", default="", help="--cases-from 过滤: 引擎格")
+    ap.add_argument(
+        "--inject-zh",
+        action="store_true",
+        help="zh 条件臂: copytree 后 normalize+prepare_chinese(ctex) 再进 fixloop",
+    )
     args = ap.parse_args()
     OUT = Path(args.out).expanduser().resolve()
     CORPUS = Path(args.corpus).expanduser().resolve()
     WORK = Path(args.work).expanduser().resolve()
     ENGINES = tuple(e.strip() for e in args.engines.split(",") if e.strip())
+    INJECT_ZH = args.inject_zh
 
     if args.cases_from:
         BASE_CELLS = Path(args.cases_from).expanduser().resolve()

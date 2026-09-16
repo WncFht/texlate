@@ -1,0 +1,3099 @@
+{
+ "0807.3917": {
+  "id": "0807.3917",
+  "main": "main.tex",
+  "route": {
+   "engines": [
+    "xelatex",
+    "tectonic"
+   ],
+   "reject": null,
+   "reasons": [
+    "eps_files=True pstricks=True → xelatex 优先（tectonic xdvipdfmx 硬墙）",
+    "非 UTF-8 源 → 需 iconv 转码预处理或 inputenc 路注"
+   ],
+   "non_utf8": true
+  },
+  "pipeB-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 14,
+    "rewritten": 1,
+    "encodings": {
+     "main.tex": {
+      "encoding": "cp1252",
+      "basis": "detector",
+      "declared": null,
+      "note": ""
+     }
+    }
+   },
+   "translate": {
+    "files": 5,
+    "chunks": 298,
+    "fault_chunks": 103,
+    "fault_files": [],
+    "leftover_ph": 0
+   },
+   "sabotage": {
+    "events": 338,
+    "sabotaged": 106,
+    "moved": 0,
+    "caught": 103,
+    "recovered": 3,
+    "escaped": 0,
+    "escaped_ids": []
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 34,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.31,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `pstricks.tex' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  },
+  "pipeC-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 14,
+    "rewritten": 1,
+    "encodings": {
+     "main.tex": {
+      "encoding": "cp1252",
+      "basis": "detector",
+      "declared": null,
+      "note": ""
+     }
+    }
+   },
+   "translate": {
+    "files": 11,
+    "chunks": 298,
+    "fault_chunks": 1,
+    "fault_files": [],
+    "leftover_ph": 0
+   },
+   "sabotage": {
+    "events": 108,
+    "sabotaged": 106,
+    "moved": 182,
+    "spliced": 105,
+    "dropped": 1
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 34,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.32,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `pstricks.tex' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 14,
+    "rewritten": 1,
+    "encodings": {
+     "main.tex": {
+      "encoding": "cp1252",
+      "basis": "detector",
+      "declared": null,
+      "note": ""
+     }
+    }
+   },
+   "translate": {
+    "files": 11,
+    "chunks": 298,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 34,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.31,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `pstricks.tex' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "notes": [],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0,
+    "warnings_hit": [
+     "degraded_file"
+    ]
+   },
+   "status": "fail",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 2,
+    "hits": {},
+    "note": "no chunk-level attribution"
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "unfixable:missing_file",
+    "main": "main.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "missing_file",
+      "pay": "pstricks.tex",
+      "pdf": false,
+      "n_errors": 2,
+      "rule": null,
+      "result": null
+     },
+     {
+      "round": 2,
+      "cat": null,
+      "pay": null,
+      "pdf": false,
+      "n_errors": 2,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [
+     "no package provides pstricks.tex"
+    ],
+    "installed": [],
+    "engine_flags": [],
+    "log_excerpt": "! LaTeX Error: File `pstricks.tex' not found.\n! LaTeX Error: File `pstricks.tex' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: tex)\n\nEnter file name: \n/home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/0807.3917/pstricks.sty:68: Emergency stop.\n<read *> "
+   }
+  }
+ },
+ "0906.1291": {
+  "id": "0906.1291",
+  "main": "bbjy.tex",
+  "route": {
+   "engines": [
+    "xelatex",
+    "tectonic"
+   ],
+   "reject": null,
+   "reasons": [
+    "eps_files=True pstricks=False → xelatex 优先（tectonic xdvipdfmx 硬墙）"
+   ],
+   "non_utf8": false
+  },
+  "pipeB-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 38,
+    "fault_chunks": 13,
+    "fault_files": [],
+    "leftover_ph": 0
+   },
+   "sabotage": {
+    "events": 37,
+    "sabotaged": 13,
+    "moved": 0,
+    "caught": 13,
+    "recovered": 0,
+    "escaped": 0,
+    "escaped_ids": []
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 56,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.19,
+    "passes": 2,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 127022,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 799,
+    "missing_chars": 0
+   },
+   "status": "clean"
+  },
+  "pipeC-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 38,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0
+   },
+   "sabotage": {
+    "events": 20,
+    "sabotaged": 20,
+    "moved": 40,
+    "spliced": 20,
+    "dropped": 0
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 56,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.17,
+    "passes": 2,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 117957,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 1391,
+    "missing_chars": 0
+   },
+   "status": "clean"
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 38,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 56,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.16,
+    "passes": 2,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 119342,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 1375,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "clean",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 2,
+    "hits": {
+     "0:0": {
+      "file": "bbjy.tex",
+      "line": 57,
+      "head": "/home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/0906.1291/bbjy.tex:57: Emergency stop."
+     }
+    },
+    "retranslated": [
+     "0:0"
+    ],
+    "reverted_l0": [],
+    "kept_transport_err": [],
+    "over_cap": [],
+    "rewritten": [
+     "bbjy.tex"
+    ],
+    "recompiled": "fail",
+    "fallback_src": [
+     "0:0"
+    ],
+    "unresolved": [],
+    "fallback_rewritten": [
+     "bbjy.tex"
+    ],
+    "fallback_unverified": true
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "clean",
+    "main": "bbjy.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "clean",
+      "pay": null,
+      "pdf": true,
+      "n_errors": 0,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [],
+    "installed": [
+     "revtex4.cls"
+    ],
+    "engine_flags": [],
+    "log_excerpt": "(fontspec)             'FandolFang-Regular' with options\n(fontspec)             [Script={CJK},Extension={.otf}].\n(fontspec)              \n(fontspec)              This font family consists of the following NFSS\n(fontspec)             series/shapes:\n(fontspec)              \n(fontspec)             - 'normal' (m/n) with NFSS spec.:\n(fontspec)             <->\"[FandolFang-Regular.otf]/OT:script=hani;language=dflt;\"\n\n[1] [2] [3] [4] [5] [6] [7] [8] [9] (/home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/0906.1291/bbjy.aux)\n ***********\nLaTeX2e <2025-11-01>\nL3 programming layer <2022/07/14>\n ***********\n\n\nLaTeX Font Warning: Size substitutions with differences\n(Font)              up to 0.41063pt have occurred.\n\n ) \nHere is how much of TeX's memory you used:\n 8831 strings out of 470180\n 218671 string characters out of 5479198\n 676258 words of memory out of 5000000\n 37300 multiletter control sequences out of 15000+600000\n 644249 words of font info for 122 fonts, out of 8000000 for 9000\n 14 hyphenation exceptions out of 8191\n 93i,17n,112p,358b,530s stack positions out of 10000i,1000n,20000p,200000b,200000s\n\nOutput written on /home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/0906.1291/bbjy.pdf (9 pages)."
+   }
+  }
+ },
+ "0906.4725": {
+  "id": "0906.4725",
+  "main": "iqo-v5.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [
+    "非 UTF-8 源 → 需 iconv 转码预处理或 inputenc 路注"
+   ],
+   "non_utf8": true
+  },
+  "pipeB-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 8,
+    "rewritten": 1,
+    "encodings": {
+     "iqo-v5.tex": {
+      "encoding": "cp1252",
+      "basis": "detector",
+      "declared": null,
+      "note": ""
+     }
+    }
+   },
+   "translate": {
+    "files": 2,
+    "chunks": 578,
+    "fault_chunks": 176,
+    "fault_files": [],
+    "leftover_ph": 0
+   },
+   "sabotage": {
+    "events": 567,
+    "sabotaged": 181,
+    "moved": 0,
+    "caught": 176,
+    "recovered": 5,
+    "escaped": 0,
+    "escaped_ids": []
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.3,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `diagrams.sty' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  },
+  "pipeC-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 8,
+    "rewritten": 1,
+    "encodings": {
+     "iqo-v5.tex": {
+      "encoding": "cp1252",
+      "basis": "detector",
+      "declared": null,
+      "note": ""
+     }
+    }
+   },
+   "translate": {
+    "files": 2,
+    "chunks": 578,
+    "fault_chunks": 10,
+    "fault_files": [],
+    "leftover_ph": 0
+   },
+   "sabotage": {
+    "events": 184,
+    "sabotaged": 165,
+    "moved": 242,
+    "spliced": 155,
+    "dropped": 10
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.3,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `diagrams.sty' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 8,
+    "rewritten": 1,
+    "encodings": {
+     "iqo-v5.tex": {
+      "encoding": "cp1252",
+      "basis": "detector",
+      "declared": null,
+      "note": ""
+     }
+    }
+   },
+   "translate": {
+    "files": 2,
+    "chunks": 578,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.3,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `diagrams.sty' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "notes": [],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0,
+    "warnings_hit": [
+     "degraded_file"
+    ]
+   },
+   "status": "fail",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 2,
+    "hits": {},
+    "note": "no chunk-level attribution"
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "unfixable:missing_file",
+    "main": "iqo-v5.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "missing_file",
+      "pay": "diagrams.sty",
+      "pdf": false,
+      "n_errors": 2,
+      "rule": null,
+      "result": null
+     },
+     {
+      "round": 2,
+      "cat": null,
+      "pay": null,
+      "pdf": false,
+      "n_errors": 2,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [
+     "no package provides diagrams.sty"
+    ],
+    "installed": [
+     "stmaryrd.sty"
+    ],
+    "engine_flags": [],
+    "log_excerpt": "! LaTeX Error: File `diagrams.sty' not found.\n! LaTeX Error: File `diagrams.sty' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: sty)\n\nEnter file name: \n/home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/0906.4725/preamble.tex:13: Emergency stop.\n<read *> "
+   }
+  }
+ },
+ "1106.1445": {
+  "id": "1106.1445",
+  "main": "qit-notes.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipeB-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 3091,
+    "fault_chunks": 895,
+    "fault_files": [],
+    "leftover_ph": 0
+   },
+   "sabotage": {
+    "events": 3031,
+    "sabotaged": 1003,
+    "moved": 0,
+    "caught": 895,
+    "recovered": 108,
+    "escaped": 0,
+    "escaped_ids": []
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 39,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.19,
+    "passes": 2,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 105469,
+    "first_error": "! File ended while scanning use of \\@footnotetext."
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "n_errors": 2,
+    "category": "other",
+    "cjk_chars": 2489,
+    "missing_chars": 0
+   },
+   "status": "clean"
+  },
+  "pipeC-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 3091,
+    "fault_chunks": 69,
+    "fault_files": [],
+    "leftover_ph": 0
+   },
+   "sabotage": {
+    "events": 1163,
+    "sabotaged": 1016,
+    "moved": 2106,
+    "spliced": 947,
+    "dropped": 69
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 39,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.97,
+    "passes": 2,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 519212,
+    "first_error": "/home/fanghaotian/src/texlate/bench/work_e2emock/pipeC-xel/1106.1445/qit-notes.tex:405: Undefined control sequence."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "errors>3 (30)",
+     "first_error=undefined_cs:None",
+     "warn:missing_chars",
+     "missing_character×25"
+    ],
+    "n_errors": 30,
+    "category": "undefined_cs",
+    "cjk_chars": 7087,
+    "missing_chars": 25
+   },
+   "status": "partial"
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 3091,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 39,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 12.03,
+    "passes": 2,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 5621474,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 90184,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "clean"
+  }
+ },
+ "1111.4914": {
+  "id": "1111.4914",
+  "main": "PhDThesis.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipeB-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 531,
+    "fault_chunks": 161,
+    "fault_files": [],
+    "leftover_ph": 0
+   },
+   "sabotage": {
+    "events": 557,
+    "sabotaged": 170,
+    "moved": 0,
+    "caught": 161,
+    "recovered": 9,
+    "escaped": 0,
+    "escaped_ids": []
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 0
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.4,
+    "passes": 2,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 320352,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 11185,
+    "missing_chars": 0
+   },
+   "status": "clean"
+  },
+  "pipeC-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 531,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0
+   },
+   "sabotage": {
+    "events": 219,
+    "sabotaged": 219,
+    "moved": 322,
+    "spliced": 219,
+    "dropped": 0
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 0
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.32,
+    "passes": 2,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 264799,
+    "first_error": "/home/fanghaotian/src/texlate/bench/work_e2emock/pipeC-xel/1111.4914/PhDThesis.aux:144: Text line contains an invalid character."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "errors>3 (7)",
+     "warn:missing_chars",
+     "missing_character×3"
+    ],
+    "n_errors": 7,
+    "category": "other",
+    "cjk_chars": 16035,
+    "missing_chars": 3
+   },
+   "status": "partial"
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 531,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 0
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.3,
+    "passes": 2,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 260925,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 16035,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "clean"
+  }
+ },
+ "1207.7214": {
+  "id": "1207.7214",
+  "main": "TheATLASJulyPaper.tex",
+  "route": {
+   "engines": [
+    "xelatex",
+    "tectonic"
+   ],
+   "reject": null,
+   "reasons": [
+    "eps_files=True pstricks=False → xelatex 优先（tectonic xdvipdfmx 硬墙）",
+    "bbm/dsfont 类位图字体包 → tectonic 高风险，失败换 xelatex"
+   ],
+   "non_utf8": false
+  },
+  "pipeB-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 4,
+    "rewritten": 1,
+    "legacy_latin_files": 2
+   },
+   "translate": {
+    "files": 2,
+    "chunks": 258,
+    "fault_chunks": 64,
+    "fault_files": [],
+    "leftover_ph": 0
+   },
+   "sabotage": {
+    "events": 200,
+    "sabotaged": 67,
+    "moved": 0,
+    "caught": 64,
+    "recovered": 3,
+    "escaped": 0,
+    "escaped_ids": []
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 9.09,
+    "passes": 2,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 515918,
+    "first_error": "/home/fanghaotian/src/texlate/bench/work_e2emock/pipeB-xel/1207.7214/TheATLASJulyPaper.tex:347: LaTeX Error: Loading a class or package in a group."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "errors>3 (7)",
+     "warn:invalid_utf8",
+     "warn:missing_chars",
+     "missing_character×229"
+    ],
+    "n_errors": 7,
+    "category": "other",
+    "cjk_chars": 23402,
+    "missing_chars": 229
+   },
+   "status": "partial"
+  },
+  "pipeC-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 4,
+    "rewritten": 1,
+    "legacy_latin_files": 2
+   },
+   "translate": {
+    "files": 2,
+    "chunks": 258,
+    "fault_chunks": 13,
+    "fault_files": [],
+    "leftover_ph": 0
+   },
+   "sabotage": {
+    "events": 128,
+    "sabotaged": 106,
+    "moved": 539,
+    "spliced": 93,
+    "dropped": 13
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 11.37,
+    "passes": 2,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 496127,
+    "first_error": "/home/fanghaotian/src/texlate/bench/work_e2emock/pipeC-xel/1207.7214/TheATLASJulyPaper.tex:347: LaTeX Error: Loading a class or package in a group."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "errors>3 (21)",
+     "warn:invalid_utf8",
+     "warn:missing_chars",
+     "missing_character×226"
+    ],
+    "n_errors": 21,
+    "category": "other",
+    "cjk_chars": 30935,
+    "missing_chars": 226
+   },
+   "status": "partial"
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 4,
+    "rewritten": 1,
+    "legacy_latin_files": 2
+   },
+   "translate": {
+    "files": 2,
+    "chunks": 258,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 5.68,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 454444,
+    "first_error": "/home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/1207.7214/TheATLASJulyPaper.tex:347: LaTeX Error: Loading a class or package in a group."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "errors>3 (13)",
+     "warn:invalid_utf8",
+     "warn:missing_chars",
+     "missing_character×289"
+    ],
+    "notes": [],
+    "n_errors": 13,
+    "category": "other",
+    "cjk_chars": 32851,
+    "missing_chars": 289,
+    "warnings_hit": [
+     "invalid_utf8",
+     "missing_chars"
+    ]
+   },
+   "status": "partial",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 2,
+    "hits": {
+     "0:0": {
+      "file": "TheATLASJulyPaper.tex",
+      "line": 25,
+      "head": "/home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/1207.7214/TheATLASJulyPaper.tex:25: Emergency stop."
+     }
+    },
+    "retranslated": [
+     "0:0"
+    ],
+    "reverted_l0": [],
+    "kept_transport_err": [],
+    "over_cap": [],
+    "rewritten": [
+     "TheATLASJulyPaper.tex"
+    ],
+    "recompiled": "fail",
+    "fallback_src": [],
+    "unresolved": []
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "best_effort_pdf",
+    "main": "TheATLASJulyPaper.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "warn_utf8",
+      "pay": null,
+      "pdf": false,
+      "n_errors": 1,
+      "rule": null,
+      "result": null
+     },
+     {
+      "round": 2,
+      "cat": null,
+      "pay": null,
+      "pdf": true,
+      "n_errors": 13,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [],
+    "installed": [
+     "elsarticle.cls"
+    ],
+    "engine_flags": [],
+    "log_excerpt": "/home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/1207.7214/TheATLASJulyPaper.tex:347: LaTeX Error: Loading a class or package in a group.\n/home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/1207.7214/TheATLASJulyPaper.tex:347: LaTeX Error: Loading a class or package in a group.\n\nSee the LaTeX manual or LaTeX Companion for explanation.\nType  H <return>  for immediate help.\n ...                                              \n                                                  \nl.347 \\begin{document}\n                      "
+   }
+  }
+ },
+ "1207.7235": {
+  "id": "1207.7235",
+  "main": "HIG-12-028_temp.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipeB-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 4,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 159,
+    "fault_chunks": 45,
+    "fault_files": [],
+    "leftover_ph": 0
+   },
+   "sabotage": {
+    "events": 152,
+    "sabotaged": 50,
+    "moved": 0,
+    "caught": 45,
+    "recovered": 5,
+    "escaped": 0,
+    "escaped_ids": []
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 26,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.72,
+    "passes": 2,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 692818,
+    "first_error": "/home/fanghaotian/src/texlate/bench/work_e2emock/pipeB-xel/1207.7235/HIG-12-028_temp.tex:58: Package caption Error: The topcapt package is incompatible to the"
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "n_errors": 2,
+    "category": "other",
+    "cjk_chars": 3516,
+    "missing_chars": 0
+   },
+   "status": "clean"
+  },
+  "pipeC-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 4,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 159,
+    "fault_chunks": 5,
+    "fault_files": [],
+    "leftover_ph": 0
+   },
+   "sabotage": {
+    "events": 59,
+    "sabotaged": 51,
+    "moved": 86,
+    "spliced": 46,
+    "dropped": 5
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 26,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.16,
+    "passes": 2,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 100853,
+    "first_error": "/home/fanghaotian/src/texlate/bench/work_e2emock/pipeC-xel/1207.7235/HIG-12-028_temp.tex:58: Package caption Error: The topcapt package is incompatible to the"
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "errors>3 (101)"
+    ],
+    "n_errors": 101,
+    "category": "other",
+    "cjk_chars": 1243,
+    "missing_chars": 0
+   },
+   "status": "partial"
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 4,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 159,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 26,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.62,
+    "passes": 2,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 668294,
+    "first_error": "/home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/1207.7235/HIG-12-028_temp.tex:58: Package caption Error: The topcapt package is incompatible to the"
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "notes": [],
+    "n_errors": 2,
+    "category": "other",
+    "cjk_chars": 4670,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "clean"
+  }
+ },
+ "1403.3985": {
+  "id": "1403.3985",
+  "main": "ms.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipeB-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 3,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 247,
+    "fault_chunks": 63,
+    "fault_files": [],
+    "leftover_ph": 0
+   },
+   "sabotage": {
+    "events": 210,
+    "sabotaged": 68,
+    "moved": 0,
+    "caught": 63,
+    "recovered": 5,
+    "escaped": 0,
+    "escaped_ids": []
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 28,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 2.71,
+    "passes": 2,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 1735294,
+    "first_error": "/home/fanghaotian/src/texlate/bench/work_e2emock/pipeB-xel/1403.3985/ms.tex:74: Extra \\endgroup."
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "n_errors": 2,
+    "category": "env_mismatch",
+    "cjk_chars": 4875,
+    "missing_chars": 0
+   },
+   "status": "clean"
+  },
+  "pipeC-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 3,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 247,
+    "fault_chunks": 6,
+    "fault_files": [],
+    "leftover_ph": 0
+   },
+   "sabotage": {
+    "events": 65,
+    "sabotaged": 56,
+    "moved": 115,
+    "spliced": 50,
+    "dropped": 6
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 28,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 2.76,
+    "passes": 2,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 1708293,
+    "first_error": "/home/fanghaotian/src/texlate/bench/work_e2emock/pipeC-xel/1403.3985/ms.tex:74: Extra \\endgroup."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "errors>3 (11)",
+     "warn:missing_chars",
+     "missing_character×2"
+    ],
+    "n_errors": 11,
+    "category": "env_mismatch",
+    "cjk_chars": 6019,
+    "missing_chars": 2
+   },
+   "status": "partial"
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 3,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 247,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 28,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.33,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 1689383,
+    "first_error": "/home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/1403.3985/ms.tex:74: Extra \\endgroup."
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "notes": [],
+    "n_errors": 2,
+    "category": "env_mismatch",
+    "cjk_chars": 6519,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "clean",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 2,
+    "hits": {},
+    "note": "no chunk-level attribution"
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "best_effort_pdf",
+    "main": "ms.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "env_mismatch",
+      "pay": null,
+      "pdf": false,
+      "n_errors": 1,
+      "rule": null,
+      "result": null
+     },
+     {
+      "round": 2,
+      "cat": null,
+      "pay": null,
+      "pdf": true,
+      "n_errors": 2,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [],
+    "installed": [
+     "revsymb4-1.sty"
+    ],
+    "engine_flags": [],
+    "log_excerpt": "/home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/1403.3985/ms.tex:74: Extra \\endgroup.\n/home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/1403.3985/ms.tex:74: Extra \\endgroup.\n\\document ->\\endgroup \n                      \\document@inithook \\true@sw {}\\UseOneTimeHook {begindo...\nl.74 \\begin{document}\n                     \nThings are pretty mixed up, but I think the worst is over.\n\n "
+   }
+  }
+ },
+ "1412.6980": {
+  "id": "1412.6980",
+  "main": "arxiv.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipeB-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 0,
+    "chunks": 0,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0
+   },
+   "sabotage": {
+    "events": 0,
+    "sabotaged": 0,
+    "moved": 0,
+    "caught": 0,
+    "recovered": 0,
+    "escaped": 0,
+    "escaped_ids": []
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 0
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.22,
+    "passes": 2,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 529131,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "cjk_chars=0"
+    ],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 0,
+    "missing_chars": 0
+   },
+   "status": "partial"
+  },
+  "pipeC-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 0,
+    "chunks": 0,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0
+   },
+   "sabotage": {
+    "events": 0,
+    "sabotaged": 0,
+    "moved": 0,
+    "spliced": 0,
+    "dropped": 0
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 0
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.2,
+    "passes": 2,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 529131,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "cjk_chars=0"
+    ],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 0,
+    "missing_chars": 0
+   },
+   "status": "partial"
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 0,
+    "chunks": 0,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 0
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.17,
+    "passes": 2,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 529131,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "cjk_chars=0"
+    ],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 0,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "partial",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 0,
+    "hits": {},
+    "note": "no chunk-level attribution"
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "clean",
+    "main": "arxiv.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "clean",
+      "pay": null,
+      "pdf": true,
+      "n_errors": 0,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [],
+    "installed": [],
+    "engine_flags": [],
+    "log_excerpt": "<use 0_adam_main.pdf, page 14>\n [14\n\n]\nFile: 0_adam_main.pdf Graphic file (type pdf)\n<use 0_adam_main.pdf, page 15>\nFile: 0_adam_main.pdf Graphic file (type pdf)\n<use 0_adam_main.pdf, page 15>\nFile: 0_adam_main.pdf Graphic file (type pdf)\n<use 0_adam_main.pdf, page 15>\n [15\n\n] (/home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/1412.6980/arxiv.aux)\n ***********\nLaTeX2e <2025-11-01>\nL3 programming layer <2022/07/14>\n ***********\nPackage rerunfilecheck Info: File `arxiv.out' has not changed.\n(rerunfilecheck)             Checksum: D41D8CD98F00B204E9800998ECF8427E;0.\n ) \nHere is how much of TeX's memory you used:\n 14606 strings out of 470180\n 314237 string characters out of 5479198\n 740779 words of memory out of 5000000\n 43027 multiletter control sequences out of 15000+600000\n 629803 words of font info for 53 fonts, out of 8000000 for 9000\n 14 hyphenation exceptions out of 8191\n 93i,17n,112p,344b,483s stack positions out of 10000i,1000n,20000p,200000b,200000s\n\nOutput written on /home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/1412.6980/arxiv.pdf (15 pages)."
+   }
+  }
+ },
+ "1502.01589": {
+  "id": "1502.01589",
+  "main": "planck_parameters_2015.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipeB-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 36,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 27,
+    "chunks": 531,
+    "fault_chunks": 159,
+    "fault_files": [],
+    "leftover_ph": 0
+   },
+   "sabotage": {
+    "events": 554,
+    "sabotaged": 173,
+    "moved": 0,
+    "caught": 159,
+    "recovered": 14,
+    "escaped": 0,
+    "escaped_ids": []
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 25,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 3.24,
+    "passes": 2,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 12298676,
+    "first_error": "./grid_DM.tex:84: Undefined control sequence."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "first_error=undefined_cs:None",
+     "warn:missing_chars",
+     "missing_character×17"
+    ],
+    "n_errors": 2,
+    "category": "undefined_cs",
+    "cjk_chars": 14991,
+    "missing_chars": 17
+   },
+   "status": "partial"
+  },
+  "pipeC-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 36,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 29,
+    "chunks": 531,
+    "fault_chunks": 28,
+    "fault_files": [],
+    "leftover_ph": 0
+   },
+   "sabotage": {
+    "events": 246,
+    "sabotaged": 189,
+    "moved": 397,
+    "spliced": 161,
+    "dropped": 28
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 25,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 2.64,
+    "passes": 2,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 12023782,
+    "first_error": "/home/fanghaotian/src/texlate/bench/work_e2emock/pipeC-xel/1502.01589/planck_parameters_2015.tex:114: Illegal unit of measure (pt inserted)."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "errors>3 (91)",
+     "warn:missing_chars",
+     "missing_character×72"
+    ],
+    "n_errors": 91,
+    "category": "illegal_unit",
+    "cjk_chars": 19061,
+    "missing_chars": 72
+   },
+   "status": "partial"
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 36,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 29,
+    "chunks": 531,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 25,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.4,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 12082065,
+    "first_error": "/home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/1502.01589/planck_parameters_2015.tex:114: Illegal unit of measure (pt inserted)."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "warn:missing_chars",
+     "missing_character×73"
+    ],
+    "notes": [],
+    "n_errors": 3,
+    "category": "illegal_unit",
+    "cjk_chars": 21986,
+    "missing_chars": 73,
+    "warnings_hit": [
+     "missing_chars"
+    ]
+   },
+   "status": "partial",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 4,
+    "hits": {
+     "17:11": {
+      "file": "grid_DM.tex",
+      "line": 82,
+      "head": "./grid_DM.tex:82: Undefined control sequence."
+     }
+    },
+    "retranslated": [
+     "17:11"
+    ],
+    "reverted_l0": [],
+    "kept_transport_err": [],
+    "over_cap": [],
+    "rewritten": [
+     "grid_DM.tex"
+    ],
+    "recompiled": "partial",
+    "fallback_src": [
+     "17:11"
+    ],
+    "unresolved": [],
+    "fallback_rewritten": [
+     "grid_DM.tex"
+    ],
+    "fallback_unverified": true
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "best_effort_pdf",
+    "main": "planck_parameters_2015.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "illegal_unit",
+      "pay": null,
+      "pdf": false,
+      "n_errors": 1,
+      "rule": null,
+      "result": null
+     },
+     {
+      "round": 2,
+      "cat": null,
+      "pay": null,
+      "pdf": true,
+      "n_errors": 3,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [],
+    "installed": [],
+    "engine_flags": [],
+    "log_excerpt": "/home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/1502.01589/planck_parameters_2015.tex:114: Illegal unit of measure (pt inserted).\n/home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/1502.01589/planck_parameters_2015.tex:114: Illegal unit of measure (pt inserted).\n<to be read again> \n                   这\nl.114 \n      \nDimensions can be in units of em, ex, in, pt, pc,\ncm, mm, dd, cc, bp, or sp; but yours is a new one!\nI'll assume that you meant to say pt, for printer's points."
+   }
+  }
+ },
+ "1507.02284": {
+  "id": "1507.02284",
+  "main": "sieve.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipeB-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 7,
+    "rewritten": 3,
+    "encodings": {
+     "algorithm2e.sty": {
+      "encoding": "cp1252",
+      "basis": "detector",
+      "declared": null,
+      "note": ""
+     },
+     "icml2016.bst": {
+      "encoding": "cp1252",
+      "basis": "detector",
+      "declared": null,
+      "note": ""
+     },
+     "sieve.bbl": {
+      "encoding": "mac_roman",
+      "basis": "detector",
+      "declared": null,
+      "note": ""
+     }
+    },
+    "transcoded_aux": [
+     "icml2016.bst",
+     "sieve.bbl"
+    ]
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 100,
+    "fault_chunks": 27,
+    "fault_files": [],
+    "leftover_ph": 0
+   },
+   "sabotage": {
+    "events": 102,
+    "sabotaged": 29,
+    "moved": 0,
+    "caught": 27,
+    "recovered": 2,
+    "escaped": 0,
+    "escaped_ids": []
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.74,
+    "passes": 2,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 2060207,
+    "first_error": "/home/fanghaotian/src/texlate/bench/work_e2emock/pipeB-xel/1507.02284/sieve.tex:49: LaTeX Error: Command \\theHalgorithm already defined."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "warn:missing_chars",
+     "missing_character×1036"
+    ],
+    "n_errors": 1,
+    "category": "already_def",
+    "cjk_chars": 2012,
+    "missing_chars": 1036
+   },
+   "status": "partial"
+  },
+  "pipeC-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 7,
+    "rewritten": 3,
+    "encodings": {
+     "algorithm2e.sty": {
+      "encoding": "cp1252",
+      "basis": "detector",
+      "declared": null,
+      "note": ""
+     },
+     "icml2016.bst": {
+      "encoding": "cp1252",
+      "basis": "detector",
+      "declared": null,
+      "note": ""
+     },
+     "sieve.bbl": {
+      "encoding": "mac_roman",
+      "basis": "detector",
+      "declared": null,
+      "note": ""
+     }
+    },
+    "transcoded_aux": [
+     "icml2016.bst",
+     "sieve.bbl"
+    ]
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 100,
+    "fault_chunks": 1,
+    "fault_files": [],
+    "leftover_ph": 0
+   },
+   "sabotage": {
+    "events": 37,
+    "sabotaged": 36,
+    "moved": 66,
+    "spliced": 35,
+    "dropped": 1
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.36,
+    "passes": 2,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 1645373,
+    "first_error": "/home/fanghaotian/src/texlate/bench/work_e2emock/pipeC-xel/1507.02284/sieve.tex:49: LaTeX Error: Command \\theHalgorithm already defined."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "errors>3 (138)",
+     "warn:missing_chars",
+     "missing_character×298"
+    ],
+    "n_errors": 138,
+    "category": "already_def",
+    "cjk_chars": 1652,
+    "missing_chars": 298
+   },
+   "status": "partial"
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 7,
+    "rewritten": 3,
+    "encodings": {
+     "algorithm2e.sty": {
+      "encoding": "cp1252",
+      "basis": "detector",
+      "declared": null,
+      "note": ""
+     },
+     "icml2016.bst": {
+      "encoding": "cp1252",
+      "basis": "detector",
+      "declared": null,
+      "note": ""
+     },
+     "sieve.bbl": {
+      "encoding": "mac_roman",
+      "basis": "detector",
+      "declared": null,
+      "note": ""
+     }
+    },
+    "transcoded_aux": [
+     "icml2016.bst",
+     "sieve.bbl"
+    ]
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 100,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.81,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 2045951,
+    "first_error": "/home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/1507.02284/sieve.tex:49: LaTeX Error: Command \\theHalgorithm already defined."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "warn:missing_chars",
+     "missing_character×1092"
+    ],
+    "notes": [],
+    "n_errors": 1,
+    "category": "already_def",
+    "cjk_chars": 2542,
+    "missing_chars": 1092,
+    "warnings_hit": [
+     "missing_chars"
+    ]
+   },
+   "status": "partial",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 1,
+    "hits": {},
+    "note": "no chunk-level attribution"
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "best_effort_pdf",
+    "main": "sieve.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "already_def",
+      "pay": "theHalgorithm",
+      "pdf": false,
+      "n_errors": 1,
+      "rule": "vendored_sty_shadow",
+      "result": "isolate vendored: algorithm2e.sty ((2013, 1, 6) < (2017, 7, 18)), natbib.sty ((2009, 7, 16) < (2010, 9, 13))"
+     },
+     {
+      "round": 2,
+      "cat": "already_def",
+      "pay": "theHalgorithm",
+      "pdf": false,
+      "n_errors": 1,
+      "rule": null,
+      "result": null
+     },
+     {
+      "round": 3,
+      "cat": null,
+      "pay": null,
+      "pdf": true,
+      "n_errors": 1,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [],
+    "installed": [],
+    "engine_flags": [],
+    "log_excerpt": "/home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/1507.02284/sieve.tex:49: LaTeX Error: Command \\theHalgorithm already defined.\n/home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/1507.02284/sieve.tex:49: LaTeX Error: Command \\theHalgorithm already defined.\n               Or name \\end... illegal, see p.192 of the manual.\n\nSee the LaTeX manual or LaTeX Companion for explanation.\nType  H <return>  for immediate help.\n ...                                              \n                                                  \nl.49 ...ommand{\\theHalgorithm}{\\arabic{algorithm}}"
+   }
+  }
+ },
+ "1511.06432": {
+  "id": "1511.06432",
+  "main": "iclr2016_conference.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipeB-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 4,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 67,
+    "fault_chunks": 17,
+    "fault_files": [],
+    "leftover_ph": 0
+   },
+   "sabotage": {
+    "events": 60,
+    "sabotaged": 22,
+    "moved": 0,
+    "caught": 17,
+    "recovered": 5,
+    "escaped": 0,
+    "escaped_ids": []
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.19,
+    "passes": 2,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 445334,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 721,
+    "missing_chars": 0
+   },
+   "status": "clean"
+  },
+  "pipeC-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 4,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 67,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0
+   },
+   "sabotage": {
+    "events": 12,
+    "sabotaged": 12,
+    "moved": 16,
+    "spliced": 12,
+    "dropped": 0
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.12,
+    "passes": 2,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 432857,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 1112,
+    "missing_chars": 0
+   },
+   "status": "clean"
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 4,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 67,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.06,
+    "passes": 2,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 432706,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 1112,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "clean"
+  }
+ },
+ "1512.03385": {
+  "id": "1512.03385",
+  "main": "residual_v1_arxiv_release.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipeB-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 4,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 153,
+    "fault_chunks": 39,
+    "fault_files": [],
+    "leftover_ph": 0
+   },
+   "sabotage": {
+    "events": 156,
+    "sabotaged": 49,
+    "moved": 0,
+    "caught": 39,
+    "recovered": 10,
+    "escaped": 0,
+    "escaped_ids": []
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.32,
+    "passes": 2,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 599001,
+    "first_error": "/home/fanghaotian/src/texlate/bench/work_e2emock/pipeB-xel/1512.03385/residual_v1_arxiv_release.tex:642: Paragraph ended before \\NR@gettitle was complete."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "errors>3 (5)"
+    ],
+    "n_errors": 5,
+    "category": "syntax",
+    "cjk_chars": 2626,
+    "missing_chars": 0
+   },
+   "status": "partial"
+  },
+  "pipeC-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 4,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 153,
+    "fault_chunks": 1,
+    "fault_files": [],
+    "leftover_ph": 0
+   },
+   "sabotage": {
+    "events": 32,
+    "sabotaged": 31,
+    "moved": 38,
+    "spliced": 30,
+    "dropped": 1
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.25,
+    "passes": 2,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 579385,
+    "first_error": "/home/fanghaotian/src/texlate/bench/work_e2emock/pipeC-xel/1512.03385/residual_v1_arxiv_release.tex:111: Undefined control sequence."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "first_error=undefined_cs:None"
+    ],
+    "n_errors": 3,
+    "category": "undefined_cs",
+    "cjk_chars": 3220,
+    "missing_chars": 0
+   },
+   "status": "partial"
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 4,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 153,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.25,
+    "passes": 2,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 576953,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 3276,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "clean"
+  }
+ },
+ "1612.09375": {
+  "id": "1612.09375",
+  "main": "BasicCategoryTheory.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [
+    "bbm/dsfont 类位图字体包 → tectonic 高风险，失败换 xelatex"
+   ],
+   "non_utf8": false
+  },
+  "pipeB-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 19,
+    "rewritten": 2,
+    "encodings": {
+     "cambridge7A.cls": {
+      "encoding": "cp1252",
+      "basis": "detector",
+      "declared": null,
+      "note": ""
+     }
+    }
+   },
+   "translate": {
+    "files": 14,
+    "chunks": 1296,
+    "fault_chunks": 372,
+    "fault_files": [],
+    "leftover_ph": 0
+   },
+   "sabotage": {
+    "events": 1242,
+    "sabotaged": 398,
+    "moved": 0,
+    "caught": 372,
+    "recovered": 26,
+    "escaped": 0,
+    "escaped_ids": []
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 32,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 4.06,
+    "passes": 2,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 832126,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "warn:missing_chars",
+     "missing_character×1"
+    ],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 23095,
+    "missing_chars": 1
+   },
+   "status": "partial"
+  },
+  "pipeC-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 19,
+    "rewritten": 2,
+    "encodings": {
+     "cambridge7A.cls": {
+      "encoding": "cp1252",
+      "basis": "detector",
+      "declared": null,
+      "note": ""
+     }
+    }
+   },
+   "translate": {
+    "files": 14,
+    "chunks": 1296,
+    "fault_chunks": 3,
+    "fault_files": [],
+    "leftover_ph": 0
+   },
+   "sabotage": {
+    "events": 500,
+    "sabotaged": 495,
+    "moved": 747,
+    "spliced": 492,
+    "dropped": 3
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 32,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 3.87,
+    "passes": 2,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 731029,
+    "first_error": "/home/fanghaotian/src/texlate/bench/work_e2emock/pipeC-xel/1612.09375/rep.tex:1153: Extra }, or forgotten $."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "errors>3 (4)",
+     "warn:missing_chars",
+     "missing_character×1"
+    ],
+    "n_errors": 4,
+    "category": "other",
+    "cjk_chars": 32834,
+    "missing_chars": 1
+   },
+   "status": "partial"
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 19,
+    "rewritten": 2,
+    "encodings": {
+     "cambridge7A.cls": {
+      "encoding": "cp1252",
+      "basis": "detector",
+      "declared": null,
+      "note": ""
+     }
+    }
+   },
+   "translate": {
+    "files": 14,
+    "chunks": 1296,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 32,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 3.82,
+    "passes": 2,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 721104,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "warn:missing_chars",
+     "missing_character×1"
+    ],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 32910,
+    "missing_chars": 1,
+    "warnings_hit": [
+     "missing_chars"
+    ]
+   },
+   "status": "partial",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 0,
+    "hits": {},
+    "note": "no chunk-level attribution"
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "clean",
+    "main": "BasicCategoryTheory.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "clean",
+      "pay": null,
+      "pdf": true,
+      "n_errors": 0,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [],
+    "installed": [],
+    "engine_flags": [],
+    "log_excerpt": "] [155] [156] [157] [158] [159] [160] [161])\n\\tf@thm=\\write8\n\\openout8 = `BasicCategoryTheory.thm'.\n\n (/home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/1612.09375/BasicCategoryTheory.aux (/home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/1612.09375/titlepages.aux) (/home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/1612.09375/arxivpreface.aux) (/home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/1612.09375/front.aux) (/home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/1612.09375/preface.aux) (/home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/1612.09375/intro.aux) (/home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/1612.09375/cfnt.aux) (/home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/1612.09375/adj.aux) (/home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/1612.09375/sets.aux) (/home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/1612.09375/rep.aux) (/home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/1612.09375/lims.aux) (/home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/1612.09375/arl.aux) (/home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/1612.09375/gaft.aux) (/home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/1612.09375/reading.aux) (/home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/1612.09375/notation.aux))\n ***********\nLaTeX2e <2025-11-01>\nL3 programming layer <2022/07/14>\n ***********\n\n\nLaTeX Font Warning: Size substitutions with differences\n(Font)              up to 0.5pt have occurred.\n\n\nLaTeX Font Warning: Some font shapes were not available, defaults substituted.\n\nPackage rerunfilecheck Info: File `BasicCategoryTheory.out' has not changed.\n(rerunfilecheck)             Checksum: 1790ED07C3925B04D14E14C0B9960B42;953.\n ) \nHere is how much of TeX's memory you used:\n 20830 strings out of 470180\n 404342 string characters out of 5479198\n 1089713 words of memory out of 5000000\n 48959 multiletter control sequences out of 15000+600000\n 672849 words of font in"
+   }
+  }
+ },
+ "1706.03762": {
+  "id": "1706.03762",
+  "main": "ms.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipeB-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 11,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 10,
+    "chunks": 139,
+    "fault_chunks": 36,
+    "fault_files": [],
+    "leftover_ph": 0
+   },
+   "sabotage": {
+    "events": 126,
+    "sabotaged": 48,
+    "moved": 0,
+    "caught": 36,
+    "recovered": 12,
+    "escaped": 0,
+    "escaped_ids": []
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 2.31,
+    "passes": 2,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 1298163,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 812,
+    "missing_chars": 0
+   },
+   "status": "clean"
+  },
+  "pipeC-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 11,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 10,
+    "chunks": 139,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0
+   },
+   "sabotage": {
+    "events": 18,
+    "sabotaged": 18,
+    "moved": 21,
+    "spliced": 18,
+    "dropped": 0
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 2.27,
+    "passes": 2,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 1286221,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 1113,
+    "missing_chars": 0
+   },
+   "status": "clean"
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 11,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 10,
+    "chunks": 139,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 2.1,
+    "passes": 2,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 1286101,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 1113,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "clean"
+  }
+ },
+ "1712.01208": {
+  "id": "1712.01208",
+  "main": "main_tr.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [
+    "bbm/dsfont 类位图字体包 → tectonic 高风险，失败换 xelatex"
+   ],
+   "non_utf8": false
+  },
+  "pipeB-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 14,
+    "rewritten": 3
+   },
+   "translate": {
+    "files": 12,
+    "chunks": 240,
+    "fault_chunks": 61,
+    "fault_files": [],
+    "leftover_ph": 0
+   },
+   "sabotage": {
+    "events": 211,
+    "sabotaged": 75,
+    "moved": 0,
+    "caught": 61,
+    "recovered": 14,
+    "escaped": 0,
+    "escaped_ids": []
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 26,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.71,
+    "passes": 2,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 565352,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "warn:invalid_utf8",
+     "warn:missing_chars",
+     "missing_character×1"
+    ],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 2898,
+    "missing_chars": 1
+   },
+   "status": "partial"
+  },
+  "pipeC-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 14,
+    "rewritten": 3
+   },
+   "translate": {
+    "files": 12,
+    "chunks": 240,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0
+   },
+   "sabotage": {
+    "events": 21,
+    "sabotaged": 21,
+    "moved": 31,
+    "spliced": 21,
+    "dropped": 0
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 26,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.61,
+    "passes": 2,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 541381,
+    "first_error": "/home/fanghaotian/src/texlate/bench/work_e2emock/pipeC-xel/1712.01208/related.tex:16: Undefined control sequence."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "first_error=undefined_cs:None",
+     "warn:invalid_utf8",
+     "warn:missing_chars",
+     "missing_character×1"
+    ],
+    "n_errors": 1,
+    "category": "undefined_cs",
+    "cjk_chars": 3606,
+    "missing_chars": 1
+   },
+   "status": "partial"
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 14,
+    "rewritten": 3
+   },
+   "translate": {
+    "files": 12,
+    "chunks": 240,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 26,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.5,
+    "passes": 2,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 541240,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "warn:invalid_utf8",
+     "warn:missing_chars",
+     "missing_character×1"
+    ],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 3606,
+    "missing_chars": 1,
+    "warnings_hit": [
+     "invalid_utf8",
+     "missing_chars"
+    ]
+   },
+   "status": "partial",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 0,
+    "hits": {},
+    "note": "no chunk-level attribution"
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "acceptable_pdf",
+    "main": "main_tr.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "warn_utf8",
+      "pay": null,
+      "pdf": true,
+      "n_errors": 0,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [],
+    "installed": [],
+    "engine_flags": [],
+    "log_excerpt": "]\nUnderfull \\hbox (badness 10000) in paragraph at lines 49--49\n[]|\\TU/ptm/m/sc/10.95 Time\n []\n\n[19]) [20] (/home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/1712.01208/main_tr.aux)\n ***********\nLaTeX2e <2025-11-01>\nL3 programming layer <2022/08/05>\n ***********\n\n\nLaTeX Font Warning: Some font shapes were not available, defaults substituted.\n\n\nLaTeX Warning: Label(s) may have changed. Rerun to get cross-references right.\n\nPackage rerunfilecheck Info: File `main_tr.out' has not changed.\n(rerunfilecheck)             Checksum: 5A5799BD878053A0D4C17946B7E50B28;3322.\n ) \nHere is how much of TeX's memory you used:\n 24398 strings out of 470180\n 480678 string characters out of 5479198\n 962608 words of memory out of 5000000\n 52541 multiletter control sequences out of 15000+600000\n 647686 words of font info for 140 fonts, out of 8000000 for 9000\n 14 hyphenation exceptions out of 8191\n 93i,21n,112p,1004b,806s stack positions out of 10000i,1000n,20000p,200000b,200000s\n\nOutput written on /home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/1712.01208/main_tr.pdf (20 pages)."
+   }
+  }
+ }
+}
