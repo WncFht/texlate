@@ -173,6 +173,17 @@ CJK_FIRST_USE_WARMUP = r"""
 \fi
 """
 
+#: ``\t``（tie 音符 U+0361）缺席 tuenc.def 的 15 个 DeclareUnicodeAccent——
+#: TU 下该 cs 回落 TS1 ``\accent`` 原语，绕开 xeCJK interchartoks → 被饰
+#: CJK 字符落进拉丁字体丢字（2003.10723 实证）。补一条 TU 声明即回到
+#: 普通文本命令路径；非 TU 引擎（无 ``\UnicodeEncodingName``）整块跳过。
+TIE_ACCENT_FIX = r"""
+% texlate: \t absent from tuenc.def -> TS1 \accent bypasses xeCJK
+\ifdefined\UnicodeEncodingName
+\DeclareUnicodeAccent{\t}{"0361}
+\fi
+"""
+
 _DOC_RE = re.compile(r"\\(documentclass|documentstyle)(?![a-zA-Z])")
 
 #: \documentclass 调用参数扫描上限（防御畸形输入死循环）。
@@ -472,6 +483,7 @@ def inject_cjk(
     block += THEOREM_ANCHOR_SHIM
     block += CJK_MATH_FALLBACK
     block += CJK_FIRST_USE_WARMUP
+    block += TIE_ACCENT_FIX
     if len(hits) > 1:
         # 幂等哨兵：分支选择形态（\ifpdf A \else B \fi）逐缝注入，活臂的块
         # 执行后立哨；万一第二缝也执行（顺序双 \documentclass 坏档）整块

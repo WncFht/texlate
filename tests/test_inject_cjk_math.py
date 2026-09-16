@@ -19,7 +19,12 @@ from pathlib import Path
 
 import pytest
 
-from texlate.compile.inject import CJK_FIRST_USE_WARMUP, CJK_MATH_FALLBACK, inject_cjk
+from texlate.compile.inject import (
+    CJK_FIRST_USE_WARMUP,
+    CJK_MATH_FALLBACK,
+    TIE_ACCENT_FIX,
+    inject_cjk,
+)
 
 DOC = (
     "\\documentclass{article}\n"
@@ -94,6 +99,17 @@ def test_math_fallback_covers_unified_ranges() -> None:
         "20000-2A6DF",
     ):
         assert rng in CJK_MATH_FALLBACK
+
+
+def test_tie_accent_fix_injected_both_modes() -> None:
+    r"""``\t`` TU 声明随两条注入路径落盘，包在 ``\UnicodeEncodingName`` 门内。"""
+    assert "\\ifdefined\\UnicodeEncodingName" in TIE_ACCENT_FIX
+    assert "\\DeclareUnicodeAccent{\\t}" in TIE_ACCENT_FIX
+    tex = "\\documentclass{article}\n\\begin{document}\nx\\end{document}\n"
+    for mode in ("ctex", "xecjk"):
+        out, info = inject_cjk(tex, mode=mode)
+        assert info["status"] == "injected"
+        assert "\\DeclareUnicodeAccent{\\t}" in out
 
 
 @pytest.mark.skipif(shutil.which("xelatex") is None, reason="xelatex not installed")
