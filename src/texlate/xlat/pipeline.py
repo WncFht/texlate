@@ -519,6 +519,7 @@ class XlatPipeline:
                 translation=self.cache[key],
                 kind=c.kind,
                 status="ok",
+                batch_id=batch_id,
             )
 
         system = self._system_prompt(c.kind)
@@ -909,6 +910,8 @@ class XlatPipeline:
                     status="ok",
                 )
                 done_map[cid] = r
+                _intercept_leftover_ph(r)  # 升格语义下保持与 _collect 同构的后处理
+                self.auth_gate.record(r)
                 self._emit(r)
                 continue
             pieces = split_long_chunk(c.content, max_chars=self.cfg.hard_limit)

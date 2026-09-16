@@ -114,11 +114,16 @@ class RetryableHTTPError(ChatError):
 
 
 class LengthTruncatedError(ChatError):
-    """`finish_reason=="length"`——输出被截断，属可重试的合同违约（调大 max_tokens）。"""
+    """`finish_reason=="length"`——输出被截断，属可重试的合同违约（调大 max_tokens）。
+
+    ``max_tries=2`` 对齐 EmptyContentError：调用点内层已做 8k→32k 放大
+    重试，外层再吃满 policy.max_tries 会把慢性截断块放大到 ~10 请求/块
+    （audit 2026-09-16）；封顶 2 次外层尝试即最多 4 次 API 调用。
+    """
 
     def __init__(self, message: str, *, partial_content: str = "") -> None:
         """截断错误：携带已收到的部分正文（可留作降级材料）。"""
-        super().__init__(message, retryable=True)
+        super().__init__(message, retryable=True, max_tries=2)
         self.partial_content = partial_content
 
 
