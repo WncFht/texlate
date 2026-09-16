@@ -446,7 +446,7 @@ def build_worklist():
 
 def fill_slots(have):
     """New-style id sampler, 2018-2026 round-robin by year."""
-    rng = random.Random(202609142)  # noqa: S311  # 语料抽样不是安全用途
+    rng = random.Random(202609142)  # 语料抽样不是安全用途
     months = {}
     with open(MONTHLY_CSV) as f:
         for row in csv.DictReader(f):

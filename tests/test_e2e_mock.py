@@ -42,7 +42,8 @@ from texlate.xlat.prompts import all_kinds, normalize_kind
 CORPUS = Path(__file__).resolve().parents[1] / "bench" / "corpus"
 
 needs_corpus = pytest.mark.skipif(
-    not CORPUS.is_dir(), reason="bench/corpus 数据层不在场（gitignored 重产物）"
+    not any(CORPUS.rglob("*.tex")),
+    reason="bench/corpus 数据层不在场（gitignored 重产物）",
 )
 
 #: (paper_dir, 主文件) —— 覆盖多文件 /input、宏重 preamble、脆弱间距（~x.

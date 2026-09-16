@@ -14,12 +14,16 @@ from texlate.arxiv.sniff import (
 CORPUS_V2 = Path(__file__).resolve().parent.parent / "bench" / "corpus_v2"
 CORPUS_V1 = Path(__file__).resolve().parent.parent / "bench" / "corpus"
 
+# 数据层 gitignored：干净 clone 目录仍在（MANIFEST 等入库），守卫须判数据文件而非目录
+_HAS_V1 = any(CORPUS_V1.rglob("*.tex"))
+_HAS_V2 = any(CORPUS_V2.rglob("meta.json"))
+
 
 def _raw_blobs() -> list[Path]:
     return sorted(CORPUS_V2.rglob("raw.*"))
 
 
-@pytest.mark.skipif(not CORPUS_V2.exists(), reason="corpus_v2 not present")
+@pytest.mark.skipif(not _HAS_V2, reason="corpus_v2 数据不在场（gitignored）")
 def test_sniff_corpus_all() -> None:
     """139 个真实包：魔数判别与构建期 meta.json 的 format 字段全部一致。"""
     blobs = _raw_blobs()
@@ -70,6 +74,7 @@ def test_sniff_single_vs_tar() -> None:
     assert s.payload == tex
 
 
+@pytest.mark.skipif(not _HAS_V1, reason="corpus_v1 数据不在场（gitignored）")
 def test_pdf_wrapper_detect() -> None:
     src = (CORPUS_V1 / "1412.6980" / "arxiv.tex").read_text(encoding="utf-8")
     v = check_pdf_wrapper(src)
@@ -78,6 +83,7 @@ def test_pdf_wrapper_detect() -> None:
     assert v.n_sections == 0
 
 
+@pytest.mark.skipif(not _HAS_V2, reason="corpus_v2 数据不在场（gitignored）")
 def test_pdf_wrapper_negative() -> None:
     src = (
         (CORPUS_V2 / "2210.15358" / "extracted" / "acl_latex.tex")

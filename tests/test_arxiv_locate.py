@@ -8,6 +8,10 @@ from texlate.arxiv.locate import DocKind, locate
 CORPUS_V1 = Path(__file__).resolve().parent.parent / "bench" / "corpus"
 CORPUS_V2 = Path(__file__).resolve().parent.parent / "bench" / "corpus_v2"
 
+# 数据层 gitignored：干净 clone 目录仍在（MANIFEST 等入库），守卫须判数据文件而非目录
+_HAS_V1 = any(CORPUS_V1.rglob("*.tex"))
+_HAS_V2 = any(CORPUS_V2.rglob("meta.json"))
+
 MAIN_TEX = (
     "\\documentclass{article}\n\\begin{document}\n\\input{sec1}\n"
     "text body here\\end{document}\n"
@@ -21,7 +25,7 @@ def _write_tree(root: Path, files: dict[str, str]) -> None:
         p.write_text(text, encoding="utf-8")
 
 
-@pytest.mark.skipif(not CORPUS_V2.exists(), reason="corpus_v2 not present")
+@pytest.mark.skipif(not _HAS_V2, reason="corpus_v2 数据不在场（gitignored）")
 def test_locate_corpus_v2_all() -> None:
     """139 包全量定位：全部 kind=latex 且有 main，order 首元素即 main。"""
     metas = sorted(CORPUS_V2.rglob("meta.json"))
@@ -45,7 +49,7 @@ def test_locate_corpus_v2_all() -> None:
     assert multi >= 1  # 语料中确有 multi_doc（2101.07948 等）
 
 
-@pytest.mark.skipif(not CORPUS_V1.exists(), reason="corpus_v1 not present")
+@pytest.mark.skipif(not _HAS_V1, reason="corpus_v1 数据不在场（gitignored）")
 @pytest.mark.parametrize(
     ("arxiv_id", "expect_main", "expect_multi"),
     [
@@ -63,7 +67,7 @@ def test_locate_traps(arxiv_id: str, expect_main: str, *, expect_multi: bool) ->
     assert r.multi_doc is expect_multi
 
 
-@pytest.mark.skipif(not CORPUS_V1.exists(), reason="corpus_v1 not present")
+@pytest.mark.skipif(not _HAS_V1, reason="corpus_v1 数据不在场（gitignored）")
 def test_locate_1502_bare_input_and_bbl() -> None:
     r = locate(CORPUS_V1 / "1502.01589", arxiv_id="1502.01589")
     # 裸 \input 边要解析出节文件
@@ -72,7 +76,7 @@ def test_locate_1502_bare_input_and_bbl() -> None:
     assert "planck_parameters_2015.bbl" in r.bibliographies
 
 
-@pytest.mark.skipif(not CORPUS_V1.exists(), reason="corpus_v1 not present")
+@pytest.mark.skipif(not _HAS_V1, reason="corpus_v1 数据不在场（gitignored）")
 def test_locate_wrapper_flag() -> None:
     r = locate(CORPUS_V1 / "1412.6980", arxiv_id="1412.6980")
     assert r.pdf_wrapper

@@ -395,7 +395,8 @@ def _corpus_mains() -> list[Path]:
 
 
 @pytest.mark.skipif(
-    not _CORPUS.is_dir(), reason="bench/corpus_v3 不在本地（gitignored 数据层）"
+    not any(_CORPUS.rglob("meta.json")),
+    reason="bench/corpus_v3 数据不在本地（gitignored 数据层）",
 )
 def test_audit_corpus_pieces_tiling_sample() -> None:
     """corpus_v3 抽样：pieces 平铺 + protected_tex 自洽 + reconstruct 无异常。"""
