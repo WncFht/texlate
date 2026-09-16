@@ -30,7 +30,7 @@
 
 ## 3. loop1 学到的（实证修正）
 
-- partial→fail 17 格**直编复验后真退化收敛到 3 格**（1003.1717/1306.0036/2410.00012；astro-ph/0111575 已随 epsf 裸 payload 修复自愈 acceptable），13 格是 pre-`6b23435` 引擎基建杀伤——跨段退化判定必须直编复验，不能只看记录面。
+- partial→fail 17 格**直编复验后管线真退化收敛到 2 格**（1003.1717/2410.00012；1306.0036 经 1e repro-1306 逐字节 base 复验翻案为 revtex4-1×array TL2026 既有缺陷、记 pre-existing；astro-ph/0111575 已随 epsf 裸 payload 修复自愈），13 格是 pre-`6b23435` 引擎基建杀伤——跨段退化判定必须直编复验，不能只看记录面。
 - `no_errors_no_pdf` = TeX `(\end occurred…incomplete)` + `No pages of output` 早夭路径无 `!` 行 → 旧 taxonomy 判 clean 无规则承接；已由 `early_eof` 接住。**rerun 实证补齐机理**：13 格同根因——aastex61/62.cls 内部 `\IfFileExists{revtex4-1.cls}{ok}{…\stop}`，revtex4-1 不在 TL → `\stop` 夹条件内 → 早夭；「类文件求档文」语义。对策 `18ff106`（tail plea 规则抓档名归 missing_file + revtex4-1→4-2 桥）验证 **13/13 出 pdf**（11 acceptable + 2 best_effort）。
 - unfixable 大头 `missing_file`×113 = legacy 期刊包簇。经 tlpdb 实证拆两型：**索引可解**（pst-node/pst-arrow/epsf/emulateapj.cls/cite/axodraw2/acmart/revtex——pst-* 可解仍败是独立机理疑点，rerun 归类）与 **TL 真缺席**（svjour2/3、jheppub、jinstpub、espcrc1、epl2、imsart、conm-p-l、citesort、diagrams、texsort、setstack、undertilde、default、emulateapj*.sty）——只能 shim 写 stub（真桥：citesort→cite[sort,compress]、axodraw→axodraw2、conm-p-l→acmart；svjour/epl2/imsart 用 aa/iopart 同款 article+polyfill；余 noop 保底）。
 - misschar 663 格 acceptable 档语义 = 「有 pdf 即收」——如需更严口径（缺字数阈值）另议。
@@ -62,9 +62,9 @@
 | # | 杠杆 | 实证 | 可转化 | 属主 |
 | --- | --- | --- | --- | --- |
 | 1 | **译文槽位保护**（fixer-slots，segmenter） | 错误簇 42%=407 格同机理：`\vskip3这是译文`(illegal_unit 138)、`{\scJos`/`\csnamebibitemNoStop` 粘连(104)、`Undefined color '这是译文'`+counter/keyval(91)、`\par` 进短参(62)、array preamble(12) | ~407 | 1d（xlat 侧残留归 peer1） |
-| 2 | **CJK 字体兜底+缺字真修**（fixer-cjkfont，inject+builtins 缺字段） | scout-misschar 重画：663 格缺字 96.4% 行数是 mock 四字假象；真修面=**A 桶 114 格整文中文静默消失**（inject 两 bug：`CJK_PRESENT_RE` 宏体字面量假阳 + `find_docclass_end` 死分支注入）+ tfm 格式 `("XXXX)` 正则缺口（197 格未触发主因）+ warmup 门控（数学内 CJK 注了也白烧）+ font_fallback 动作（西里尔/拉丁扩展真损失） | ~150–220（A 桶为主） | 1d |
-| 3 | **invalid_utf8 净化**（fixer-utf8，normalize 单点） | fixer 取证翻案：96% 是**系统/用户 texmf 老包自带 latin-1 坏字节**（algorithm.sty 325 格等）非源文件；方案=cwd 包影遮蔽（kpathsea `.` 首位）+EPS 注释净化+ps 驱动 token 改写+catch-all 转码 | ~530/545 | 1d |
-| 4 | **latex209→2e 受限升级器**（fixer-209up，inject 挂点+新模块） | compat 模式禁 `\usepackage` 拒得对（A 臂 11/11 全灭），但探针 9/14 出 zh pdf；414 普查 revtex 169（41%）+article 188；探针产物 `tmp/latex209-probe/` | ~170–270（40–65%） | 1d 建器 + peer1 改 gate 路由 |
+| 2 | **CJK 字体兜底+缺字真修**（fixer-cjkfont，inject+builtins 缺字段） | scout-misschar 重画：663 格缺字 96.4% 行数是 mock 四字假象；真修面=**A 桶 114 格整文中文静默消失**（inject 两 bug：`CJK_PRESENT_RE` 宏体字面量假阳 + `find_docclass_end` 死分支注入）+ tfm 格式 `("XXXX)` 正则缺口（197 格未触发主因）+ warmup 门控（数学内 CJK 注了也白烧）+ font_fallback 动作（西里尔/拉丁扩展真损失）。**已交半**：`CJK_MATH_FALLBACK`（\Umathcode 重映 CJK 九段→FandolSong 符号字体，双 math version）+`CJK_FIRST_USE_WARMUP`（治 elsart 首用即弃，1003.5459 实证 5485→0，疑覆盖 bug-G 同根）；A 桶/正则/font_fallback 在飞 | ~150–220（A 桶为主） | 1d |
+| 3 | **invalid_utf8 净化**（fixer-utf8，normalize 单点） | **已落 `673d8ce`**：四臂（系统包 kpsewhich 遮蔽+EPS 注释净化+ps 驱动 token→xetex+catch-all 转码）单点 `normalize_project`；96% 警告源是系统 texmf 老包 latin-1，真格验证 invalid_utf8=0 | ~530/545 | 1d |
+| 4 | **latex209→2e 受限升级器**（fixer-209up，inject 挂点+新模块） | **已交付**（commit 等 inject.py 同提交）：`upgrade_209` 干跑普查 **405/414=97.8% 过门**（远超 40–65% 估）——article 188/revtex4-2 169/mnras 26 等；reject 9 格全 ds@ 机制性死墙记 terminal；白名单 +15 名已落。门后产出由下游 missing_file/fixloop 决定 | 过门面 405（产出另计） | 1d 建器 + peer1 改 gate 路由 |
 
 1+2+3 全落地理论上限 ~1120 格（407+~185+~530，misschar/utf8 取证重画后），clean 率 54.3%→~79%（基数 4565=5108−129skip−414reject）；#4 再额外解锁 reject 池。另：`cjk_chars=0` 14 格实为 splice 没拿到段（上游覆盖问题）；pst-* 可解仍败疑点归 loop2 全量观察。
 
@@ -79,6 +79,6 @@
 
 | 方 | 当前在飞 | 下一步 |
 | --- | --- | --- |
-| 1d leader | 四杠杆 fixer 在飞（slots/cjkfont/utf8/209up）+ fixer-gullet（1e 包 gullet 两洞）；fixloop 三件已落 `67debb6` | loop2 落地后 rundiff 判读、台账维护、commit 收敛 |
-| 项目体验方式 | loop2 全量复跑已点火（含 `88d0ab9` prim-guard/`26b760e` buf_size 修复版）；taxonomy derive `5d195c2` 等已落 | **裁决中：TEXMFHOME 串链**（`_env` 内改、签名稳定——1e worker 同机理确认）；rules.yaml 待办：pdftex_prim_guard 交替表同步扩 + char_table/font_fallback 条目（cjkfont 交付后）+ 2 枚 backstop pattern（DeclareUnicodeCharacter/Undefined color）+ latex209 gate 改「先升级再拒」（209up 交付后）+ .rtx 翻译集边界 + install_file 依赖闭包/IfFileExists 分支语义 |
-| 1e | worker-hardening 12 项（#52）、llm_hook BYOK 接线、modec-misschar/repro-2501 取证已交付 | #74/#78 残件、share 完成钩、真网关 n100-200、TEXMFHOME 若加参的 worker-followup |
+| 1d leader | fixer-slots（8 项槽位保护 + bug-B cs+latin 追加）、fixer-cjkfont（A 桶/正则/font_fallback 残件）；fixer-gullet 已交 `ce1dc9f`（alias-macro transparent_expand + newenv body_role 推断，双洞双臂）；已落 `67debb6`/`528edb9`/`673d8ce`/`c6aa712` | inject.py 待 cjkfont 残件后一 commit（209up 挂点+cjkfont 两块已就绪）；delta/loop2 落地后 rundiff 判读（扣 pre-chain 假 missing_file 层）、台账维护 |
+| 项目体验方式 | delta 批 `b4akkgal5` 在跑（pre-`6752bb0` 点火，假 missing_file 层判读扣减）；TEXMFHOME 串链 `6752bb0` 已落（tlmgr 链值坑+`_usertree_env` 解法）、guard 交替同步 `1e0e5c8`、backstop `ea0c73e` | rules.yaml：tail missing_file `preempts` 已挂 ✓；待办=revtex4-array-guard 折入（1e 草案已验证）+ prim-guard 注释行收紧 + `@pdftex_prims` 换字面值 + bug-G 复核（warmup 或已兜住）+ bug-E backstop + latex209 gate 残余=terminal reject |
+| 1e | worker-hardening 12 项（#52）、llm_hook BYOK 接线；realarm-repro 12 格归因 + repro-1306 判决已交付 | #74/#78 残件、share 完成钩、真网关 n100-200、real-postfix A/B 验证（预测-fixed 3 格） |
