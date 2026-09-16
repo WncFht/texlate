@@ -3,7 +3,8 @@ r"""TeX ``.log`` 词法原语 —— engine/l2/fixloop 三处文件栈收敛的�
 ``(``/``)`` 开闭配对追踪：TeX log 用圆括号标记打开/关闭文件，行内可能混
 非文件括号（``.log`` 折行、参数转储），非文件 ``(`` 入栈 ``None`` 占位以
 保持配对正确——这是文件栈算法的核心不变量（早期"只压不弹"实现把栈
-越滚越大的教训）。
+越滚越大的教训）。具名帧不限 tex 系扩展名——graphic/``.lbx``/pgf 内部
+件等真实输入文件按 ``looks_like_input_file`` 形状判定入栈。
 
 79 列折行可能把文件名劈到下一行——本模块逐字符扫，劈断的 token 因扩展名
 校验失败自然落入 ``None`` 占位，栈配对仍正确（近似即可，文件栈只用于
@@ -17,10 +18,12 @@ from pathlib import Path
 from typing import Final
 
 __all__ = [
+    "DOS_EPS_MAGIC",
     "TEX_FILE_EXTS",
     "file_stack_at",
+    "is_dos_eps",
     "is_project_file",
-    "looks_like_tex_file",
+    "looks_like_input_file",
     "update_file_stack",
 ]
 
@@ -59,6 +62,12 @@ TEX_FILE_EXTS: Final = frozenset(
 #: ``(`` 后的候选文件 token（排除 ``()``/``{}`` 内字符——后者是字体/参数转储）。
 _OPEN_TOKEN_RX: Final = re.compile(r"[^\s(){}]+")
 
+#: 非白名单扩展名形状：字母开头 + ``[a-z0-9_]`` ≤10 字符。字母开头一条
+#: 即挡住 ``(52.00102pt`` 尺寸转储（overfull 行海量）、``(v2.0)``/
+#: ``(4.2d--4.2f)`` 版本号、``(Fig.11a)`` 引文号这类数字开头假扩展名
+#: （loop1 语料 8418 log 全扫实证：误纳率 ~0.3%）。
+_FILE_EXT_RX: Final = re.compile(r"[a-z][a-z0-9_]{0,9}")
+
 #: ``Missing character: There is no X in font`` —— X 是**字面字形**，可为
 #: ``(``/``)``（nullfont 缺字符实测）：不配对的 ``)`` 会误弹真文件帧，
 #: ``(`` 留幻影帧吃掉后续真闭括弧。字形后必跟空格（单字符形态）或行尾；
@@ -66,12 +75,25 @@ _OPEN_TOKEN_RX: Final = re.compile(r"[^\s(){}]+")
 _MISS_CHAR_RX: Final = re.compile(r"Missing character: There is no ([()])(?=[ (]|$)")
 
 
-def looks_like_tex_file(token: str) -> bool:
-    """``(`` 后 token 是否 tex 系文件名（路径末段取扩展名判定）。"""
+def looks_like_input_file(token: str) -> bool:
+    r"""``(`` 后 token 是否文件名形——不限 tex 系扩展名。
+
+    白名单 ``TEX_FILE_EXTS`` 先行（零回归 fast-path）；其余按扩展名形状
+    判：末段 ``.<ext>`` 且 ext 字母开头 ``[a-z0-9_]`` ——TeX 实际打开的
+    输入文件扩展名是无限长尾（``.eps``/``.tikz``/``.lbx``/``.pygtex``/
+    pgf ``.code``/``.c``/``.cod``、revtex ``.rtx``、mdframed ``.mdf``…），
+    白名单注定追不全。含 ``@``/``://``/``,`` 的 token 拒收（邮件/URL/
+    坐标列表括号——loop1 语料 8418 log 实证该组合误纳率 ~0.3%）。
+    """
     base = token.rsplit("/", 1)[-1]
     if "." not in base:
         return False
-    return base.rsplit(".", 1)[-1].lower() in TEX_FILE_EXTS
+    ext = base.rsplit(".", 1)[-1].lower()
+    if ext in TEX_FILE_EXTS:
+        return True
+    if "@" in token or "://" in token or "," in base:
+        return False
+    return _FILE_EXT_RX.fullmatch(ext) is not None
 
 
 def update_file_stack(
@@ -82,9 +104,11 @@ def update_file_stack(
     """单行扫 ``(``/``)`` 增量维护文件栈；非文件 ``(`` 入栈 ``None`` 保持配对。
 
     入栈的是字面 token（保留 ``./`` 前缀——log 原样，消费端按 endswith 用）。
-    ``popped`` 非 None 时把本行弹出的栈顶按序追加——``File ended while
-    scanning`` 类 runaway 错报在父文件续行位（``)`` 先于错误打印），消费端
-    靠"刚弹出的文件"找回真肇事文件（#78）。
+    具名帧判定走 ``looks_like_input_file``——graphic/``.lbx``/pgf 内部件
+    等非 tex 扩展名同样具名入栈（栈内容与 ``popped`` 不限 tex 系，消费端
+    不得假设扩展名族）。``popped`` 非 None 时把本行弹出的栈顶按序追加——
+    ``File ended while scanning`` 类 runaway 错报在父文件续行位（``)``
+    先于错误打印），消费端靠"刚弹出的文件"找回真肇事文件（#78）。
     """
     if "(" not in ln and ")" not in ln:
         return
@@ -100,7 +124,7 @@ def update_file_stack(
             j += 1
         elif c == "(":
             m = _OPEN_TOKEN_RX.match(ln, j + 1)
-            if m and looks_like_tex_file(m.group(0)):
+            if m and looks_like_input_file(m.group(0)):
                 stack.append(m.group(0))
                 j = m.end()
                 continue
@@ -167,3 +191,31 @@ def is_project_file(token: str | None, root: Path | None = None) -> bool:
         except (OSError, ValueError):
             pass  # symlink 环/非法路径——不可归因，保守归工程
     return True
+
+
+#: DOS 二进制 EPS 魔数：带绝对偏移头的 legacy 格式，normalize 只能字节原样
+#: 保留进 ``dos_eps_skipped`` 台账——其 invalid_utf8 警告是必然残余而非可
+#: 修复缺陷，消费端（engine/l2）按栈顶文件 token 判定后降级 ``sys_hits``。
+DOS_EPS_MAGIC: Final = b"\xc5\xd0\xd3\xc6"
+
+
+def is_dos_eps(token: str | None, root: Path | None, cache: dict[str, bool]) -> bool:
+    """文件栈 token → DOS 二进制 EPS 判定（按 token 缓存；相对路径以 ``root`` 解析）。
+
+    读文件头 4 字节比对 ``DOS_EPS_MAGIC``；``root`` 缺席或读不到（None
+    token/相对路径无根/文件不存在）一律 False——判不出时不降级。
+    """
+    if not token or root is None:
+        return False
+    if token in cache:
+        return cache[token]
+    p = Path(token)
+    if not p.is_absolute():
+        p = root / p
+    try:
+        with p.open("rb") as fh:
+            ok = fh.read(4) == DOS_EPS_MAGIC
+    except OSError:
+        ok = False
+    cache[token] = ok
+    return ok

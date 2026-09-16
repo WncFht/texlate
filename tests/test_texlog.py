@@ -7,7 +7,7 @@ from pathlib import Path
 from texlate.texlog import (
     file_stack_at,
     is_project_file,
-    looks_like_tex_file,
+    looks_like_input_file,
     update_file_stack,
 )
 
@@ -242,8 +242,19 @@ def test_is_project_file_nul_token_conservative(tmp_path: Path) -> None:
     assert is_project_file("a\x00b.tex", tmp_path)
 
 
-def test_looks_like_tex_file_edge() -> None:
-    assert looks_like_tex_file("./a.TEX")
-    assert not looks_like_tex_file("./a.")
-    assert not looks_like_tex_file("nodotfile")
-    assert not looks_like_tex_file("./dir/")
+def test_looks_like_input_file_edge() -> None:
+    assert looks_like_input_file("./a.TEX")
+    assert not looks_like_input_file("./a.")
+    assert not looks_like_input_file("nodotfile")
+    assert not looks_like_input_file("./dir/")
+
+
+def test_looks_like_input_file_non_tex_exts() -> None:
+    """白名单外扩展名按形状收——graphic/``.lbx``/pgf 内部件具名入栈。"""
+    assert looks_like_input_file("./fig.eps")
+    assert looks_like_input_file("./x.lbx")
+    assert looks_like_input_file("./pgf.code")
+    # 形状拒收：数字开头假扩展名（尺寸/版本号转储）、逗号基名（坐标对）。
+    assert not looks_like_input_file("52.00102pt")
+    assert not looks_like_input_file("v2.0")
+    assert not looks_like_input_file("x,y.epsz")

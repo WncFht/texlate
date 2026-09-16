@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Final
 
-from texlate.texlog import is_project_file, update_file_stack
+from texlate.texlog import is_dos_eps, is_project_file, update_file_stack
 from texlate.textutil import is_cjk_cp
 
 __all__ = [
@@ -262,33 +262,12 @@ class L2Verdict:
 
 # ---------------------------------------------------------------- 内部
 
-#: DOS 二进制 EPS 魔数（normalize.py ``_DOS_EPS_MAGIC`` / engine.py 同款）：
-#: 带绝对偏移头的 legacy 格式，normalize 只能字节原样保留进
-#: ``dos_eps_skipped`` 台账，其 invalid_utf8 警告是必然残余而非可修复缺陷。
-_DOS_EPS_MAGIC: Final = b"\xc5\xd0\xd3\xc6"
-
 #: ``(x.eps`` 类 graphic 打开帧（engine.py ``_GRAPHIC_EXTS`` 同款）——
 #: texlog ``TEX_FILE_EXTS`` 不含 graphic 扩展名，此类 ``(`` 入 ``None``
 #: 配对帧；utf8 归因需要真名，行尾未配对 ``(`` 的 graphic token 补回栈顶。
+#: （``looks_like_input_file`` 形状路径已收 ``.eps`` 等新面，本补丁仍兜
+#: 形状拒收/截断 token 的 ``None`` 帧。）
 _GRAPHIC_EXTS: Final = frozenset({".eps", ".epsf", ".epsi", ".ps", ".mps"})
-
-
-def _is_dos_eps(token: str | None, root: Path | None, cache: dict[str, bool]) -> bool:
-    """文件栈 token → DOS 二进制 EPS 判定（engine.py 同款；按 token 缓存）。"""
-    if not token or root is None:
-        return False
-    if token in cache:
-        return cache[token]
-    p = Path(token)
-    if not p.is_absolute():
-        p = root / p
-    try:
-        with p.open("rb") as fh:
-            ok = fh.read(4) == _DOS_EPS_MAGIC
-    except OSError:
-        ok = False
-    cache[token] = ok
-    return ok
 
 
 def _last_open_graphic_token(ln: str) -> str | None:
@@ -330,7 +309,7 @@ def _mark_redline(  # noqa: PLR0913 - 归因三件套（栈/root/缓存）拆散
     """
     if cls == "invalid_utf8":
         inner = next((s for s in reversed(stack) if s), None)
-        if _is_dos_eps(inner, project_root, dos_eps_cache):
+        if is_dos_eps(inner, project_root, dos_eps_cache):
             hit = f"{cls}@{Path(inner).name if inner else '?'}(dos-eps)"
             if hit not in ws.sys_hits:
                 ws.sys_hits.append(hit)
