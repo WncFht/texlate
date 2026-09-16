@@ -236,7 +236,7 @@ def load_epub(src: Path | str) -> EpubBook:  # noqa: C901, PLR0912, PLR0915 -- �
     try:
         zf = zipfile.ZipFile(src)
     except (OSError, zipfile.BadZipFile) as e:
-        msg = f"不是可读 zip/EPUB: {src} ({e})"
+        msg = f"不是可读 zip/EPUB: {Path(src).name} ({e})"
         raise MalformedEpubError(msg) from e
     with zf:
         infos = zf.infolist()

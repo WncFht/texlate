@@ -302,7 +302,7 @@ def translate_docx(  # noqa: C901, PLR0913, PLR0915 -- 驱动主链：公共 API
     try:
         doc = Document(str(src))
     except Exception as e:
-        msg = f"不是可读 DOCX: {src} ({e})"
+        msg = f"不是可读 DOCX: {src.name} ({e})"
         raise UnsupportedFormatError(msg) from e
 
     pairs = list(iter_units(doc))

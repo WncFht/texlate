@@ -119,7 +119,7 @@ def export_document(  # noqa: PLR0913 -- 公共 API 面，关键字参数
     src = Path(src)
     fmt = sniff_format(src)
     if fmt is None:
-        msg = f"无法识别的导出格式（非 epub/docx zip）: {src}"
+        msg = f"无法识别的导出格式（非 epub/docx zip）: {src.name}"
         raise UnsupportedFormatError(msg)
     if dst is None:
         dst = src.with_name(f"{src.stem}_bilingual{src.suffix}")
