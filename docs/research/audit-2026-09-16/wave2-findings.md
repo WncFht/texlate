@@ -210,9 +210,9 @@ pst-node×11 / jheppub×9 / citesort×7 / diagrams×7 / axodraw×5 / pst-arrow×
 | --- | --- | --- |
 | PH-in-cs L0 第 10 条（双侧夹持+净差，ERROR→重译非 fixloop） | **已落** | `607704e`+`9f96f8b`；pipeline 副层 spec→peer1 |
 | `\t` TS1→TU accent 提升 | **已落** | `ed7b9ac`（tuenc.def 15 项无 `\t` 实证） |
-| jpsj3 目标类可解析守卫 | 在飞 | fixer-209mc（reject `latex209_no_target`） |
+| jpsj3 目标类可解析守卫 | **已落** | `9c381cf`（`_target_resolvable` rglob+kpsewhich fail-open → reject `latex209_no_target`） |
 | hyperref 驱动剥除 ×2 | 已裁已转 | peer1 rules.yaml（`\\usepackage[dvips\|pdftex]{hyperref}` 剥 key） |
-| aipcheck.tex bundled 覆写 ×2 | 在飞 | fixer-maintex（wdir known-junk 覆写） |
+| aipcheck.tex bundled 覆写 ×2 | **已落** | `1e6ea75`（`JUNK_FILE_STUBS` 挂 normalize_project；maintex 附带：1206.0565 main=aipguide.tex 类指南非论文——E 桶 docs-vs-paper 同族） |
 | slots wave-2（#174/#175/#176 `_seg_join`+`_LATIN_ITEM_RX`） | **已落** | `d54eb74` + e2e 镜像 `7817aa1` |
 | #169 flake | **定案已修** | `1076086`（双闸 + 确定性回归钉） |
 | SLOT_MAX_CHARS / PhValidator（1e xlat-sweep 残余） | **已落** | `558c6c1` |

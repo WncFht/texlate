@@ -120,5 +120,5 @@
 - **slots wave-2** `d54eb74`：`#174` `\)`/`\]` 混排闭符、`#175` accent 两形（`r` 入 ACCENT_CHARS）、`#176` bug-B splice 守卫 `_seg_join`（cs 尾+字母头接缝插空格）+ `_LATIN_ITEM_RX`（`\item(?=[A-Z])` 保险丝）。**镜像漂移实锤并修**：`7817aa1` e2e `_expand_tokens`/`_chunk_spans` 复刻两变换——否则 find 失配 → 块归 None → L2 静默丢归因（`4ce255e` short_arg 同款教训二次应验：reconstruct 译文侧任何字节变换必须同步查镜像）。
 - **#169 flake 定案** `1076086`：popped-source 抢跑尾盖 + `id()` 地址复用遮蔽（~1/20 概率）——双闸修复（live_srcs 持引用防地址复用 + tokbuf 残 token 闸门）+ 确定性回归钉（bytearray 垫占 freed 地址，ungated 60/60 必炸）。
 - **slot 二分实装** `558c6c1`：`SLOT_MAX_CHARS` spec 参数从死常量变实装（`_make_slots` 走 `batch.split_long_chunk` 句界二分）；`PhValidator` 死协议类删除（签名与真缝不符）。
-- **新派发**：fixer-209mc → jpsj3 目标类可解析守卫（rglob+kpsewhich fail-open → reject `latex209_no_target`）；fixer-maintex → aipcheck.tex bundled 交互文件覆写（41 归因裁定）；hyperref 驱动剥除 → peer1 rules 车道。
-- **收口**：fixer-slots 交付毕已关；scorecard 自查 `b04b96d`——89.17%（+43 到 90%），2f 复验 75 no_main_tex + 4 BrokenProcessPool 在飞（`7f20897` body 加权吃这批）。
+- **新派发 → 已交付**：jpsj3 目标类可解析守卫 `9c381cf`（`_target_resolvable` rglob+kpsewhich fail-open → reject `latex209_no_target`）；aipcheck.tex bundled 覆写 `1e6ea75`（`JUNK_FILE_STUBS` 名单挂 normalize_project 首步，stub 与 fixloop shim 同文，1109.2354 真编出 4 页 PDF）；hyperref 驱动剥除 → peer1 rules 车道。maintex 附带观察：1206.0565 main 命中 `aipguide.tex` 类指南非论文本体——E 桶 docs-vs-paper 同族，记档。
+- **收口**：fixer-slots/209mc/maintex 交付毕全关，1d 侧 subagent roster 清空；scorecard 自查 `b04b96d`——89.17%（+43 到 90%），2f 复验 75 no_main_tex + 4 BrokenProcessPool 在飞（`7f20897` body 加权吃这批）。
