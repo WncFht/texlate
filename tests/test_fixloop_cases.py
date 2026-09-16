@@ -181,7 +181,7 @@ def test_replay_all_gate2_regression(tmp_path: Path) -> None:
     assert all(not r.regressed for r in results)
     assert results[1].gate1_rescued is True
 
-    # 曾 clean 的格被改坏 → regressed
+    # 曾 clean 的格被改坏 → regressed (底板兜回入口 pdf 也算: 树死了)
     results = replay_all(
         [clean_case],
         resolve_proj=lambda _c: tmp_path,
@@ -189,7 +189,8 @@ def test_replay_all_gate2_regression(tmp_path: Path) -> None:
         ruleset=RS,
     )
     assert results[0].regressed is True
-    assert results[0].verdict_after == "unfixable:missing_file"
+    assert results[0].floor_restored is True
+    assert results[0].verdict_after == "acceptable_pdf"
 
 
 def test_replay_all_skips_missing_proj(tmp_path: Path) -> None:

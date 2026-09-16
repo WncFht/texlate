@@ -28,6 +28,8 @@ class MockRes:
         stem = Path(main).stem
         self.log_path = wdir / f"{stem}.log"
         self.log_path.write_text(spec.get("log", ""), encoding="utf-8")
+        if spec.get("wipe_pdf"):  # 镜像真引擎 stale-unlink (compile/engine.py:948)
+            (wdir / f"{stem}.pdf").unlink(missing_ok=True)
         self.pdf = wdir / f"{stem}.pdf" if spec.get("pdf") else None
         if self.pdf is not None:
             self.pdf.write_bytes(b"%PDF-1.4 fake")
@@ -576,3 +578,65 @@ def test_salvage_skips_clean(tmp_path: Path) -> None:
     cell = fixloop(make_proj(tmp_path), eng)
     assert cell["verdict"] == "clean"
     assert len(cell["rounds"]) == 1
+
+
+# ---------------------------------------------------------------- 不退化底板 (#20)
+MISSING_LOG = (
+    "! LaTeX Error: File `zzz-nonexistent.sty' not found.\n"
+    "l.3 \\usepackage{zzz-nonexistent}\n"
+)
+
+
+def test_floor_restores_entry_pdf(tmp_path: Path) -> None:
+    """入口有 pdf、规则/编译把树打死 → 拷回入口快照, verdict 按既有公式落成。"""
+    proj = make_proj(tmp_path)
+    (proj / "main.pdf").write_bytes(b"%PDF-1.4 entry")
+    eng = MockEngine([{"log": MISSING_LOG, "wipe_pdf": True}])
+    cell = fixloop(proj, eng)
+    assert cell["floor_restored"] is True
+    assert cell["floor_from"]  # 兜底前 verdict 留痕 (unfixable:*/stuck/…)
+    assert not cell["floor_from"].startswith("reject:")
+    assert cell["final_pdf"] is True
+    assert cell["verdict"] in ("dirty_pdf", "acceptable_pdf", "clean")
+    # 首轮 wipe 删过 → 末态在盘即证明拷回发生
+    assert (proj / "main.pdf").read_bytes() == b"%PDF-1.4 entry"
+
+
+def test_floor_snapshots_round1_when_no_entry_pdf(tmp_path: Path) -> None:
+    """入口无现存产物 → rounds[0] 出 pdf 时快照该轮产物作底板。"""
+    eng = MockEngine(
+        [
+            {"log": MISSING_LOG, "pdf": True},
+            {"log": MISSING_LOG, "wipe_pdf": True},
+        ],
+        installable={"zzz-nonexistent.sty"},  # r1 规则真应用 → 才有 r2 杀树
+    )
+    cell = fixloop(make_proj(tmp_path), eng)
+    assert cell["floor_restored"] is True
+    assert cell["final_pdf"] is True
+    assert (tmp_path / "main.pdf").read_bytes() == b"%PDF-1.4 fake"
+
+
+def test_floor_never_without_snapshot(tmp_path: Path) -> None:
+    """入口无 pdf 且全程没出过 pdf → 无底可兜, 原样失败。"""
+    eng = MockEngine([{"log": MISSING_LOG}])
+    cell = fixloop(make_proj(tmp_path), eng)
+    assert cell["floor_restored"] is False
+    assert cell["final_pdf"] is False
+    assert cell["verdict"].startswith(("unfixable:", "stuck", "max_rounds"))
+
+
+def test_floor_skips_reject(tmp_path: Path) -> None:
+    """reject:* 是语义拒绝——入口 pdf 在盘也不兜 (latex209 gate 实证)。"""
+    proj = make_proj(
+        tmp_path, "\\documentstyle{article}\n\\begin{document}\nx\n\\end{document}\n"
+    )
+    (proj / "main.pdf").write_bytes(b"%PDF-1.4 entry")
+    eng = MockEngine(
+        [{"log": "! LaTeX2e command \\usepackage in LaTeX 2.09 document.\n"}]
+    )
+    cell = fixloop(proj, eng)
+    assert cell["verdict"] == "reject:latex209_reject"
+    assert cell["floor_restored"] is False
+    assert cell["final_pdf"] is False
+    assert (proj / "main.pdf").read_bytes() == b"%PDF-1.4 entry"

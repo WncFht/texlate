@@ -145,6 +145,7 @@ class ReplayResult:
     verdict_after: str | None
     final_pdf: bool
     gate1_rescued: bool  # ① 本格重跑: started_fail 且终出 pdf
+    floor_restored: bool = False  # 底板兜回过 = 树被打死只剩入口产物
     regressed: bool = False  # ② 曾 clean 的格被改脏 (batch 层回填)
 
 
@@ -171,6 +172,7 @@ def replay_case(
         verdict_after=cell.get("verdict"),
         final_pdf=bool(cell.get("final_pdf")),
         gate1_rescued=bool(case.get("started_fail")) and bool(cell.get("final_pdf")),
+        floor_restored=bool(cell.get("floor_restored")),
     )
 
 
@@ -196,9 +198,10 @@ def replay_all(
         pairs.append((case, res))
     for case, res in pairs:
         was_clean = case.get("verdict") in ("clean", "acceptable_pdf")
-        res.regressed = was_clean and res.verdict_after not in (
-            "clean",
-            "acceptable_pdf",
+        res.regressed = was_clean and (
+            res.verdict_after not in ("clean", "acceptable_pdf")
+            # 底板兜回说明树被规则打死只剩入口快照——verdict 被兜住也算退化
+            or res.floor_restored
         )
     return results
 

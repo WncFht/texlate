@@ -1183,6 +1183,7 @@ def _fixloop_one(
             "rounds": len(rounds),
             "n_actions": len(cell.get("actions") or []),
             "installed": cell.get("installed") or [],
+            "floor_restored": bool(cell.get("floor_restored")),
             "fixloop_wall_s": cell_wall,
             "post": tail,
         }

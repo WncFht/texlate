@@ -1012,6 +1012,7 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
         "rounds": [],
         "actions": [],
         "verdict": None,
+        "floor_restored": False,
     }
     ctx = LoopCtx(wdir=wdir, engine_name=engine_name, runner=runner, llm_hook=llm_hook)
 
@@ -1026,6 +1027,19 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
     cell["main"] = ctx.main_rel
     cell["actions"] = ctx.actions  # 同一 list: precheck/gate/loop 动作汇入一处
     _wire_engine(eng, rs, wdir, ctx)
+
+    # —— 不退化底板: 快照入口态 PDF ——
+    # 先于 precheck/loop 一切编辑: 规则若把能出 pdf 的树打死, finalize 拷回
+    # 入口产物兜底 (loop1 实证 partial→fail 真退化 4 格)。reject:* 不救。
+    main_pdf = wdir / Path(ctx.main_rel).with_suffix(".pdf")
+    floor_snap: Path | None = None
+    if main_pdf.is_file() and main_pdf.stat().st_size > 0:
+        snap = wdir / ".fixloop-entry.pdf"
+        try:
+            shutil.copy2(main_pdf, snap)
+            floor_snap = snap
+        except OSError as e:  # 快照失败仅失底板, 不阻塞修复
+            ctx.advisories.append(f"floor snapshot: {e}")
 
     # —— precheck phase (第 0 招; 静态路由也在这里) ——
     dummy_rep = parse_log(None, rs.warn_patterns)
@@ -1099,6 +1113,15 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
         ctx.events.append(
             f"r{rnd}: pdf={pdf} err={rep.n_bang} cat={cat} pay={pay} ({entry['sec']}s)"
         )
+        if floor_snap is None and pdf:  # 入口无现存产物 → 快照首轮 pdf
+            src = getattr(res, "pdf", None)
+            if isinstance(src, Path):
+                snap = wdir / ".fixloop-entry.pdf"
+                try:
+                    shutil.copy2(src, snap)
+                    floor_snap = snap
+                except OSError as e:
+                    ctx.advisories.append(f"floor snapshot: {e}")
         # —— 终止判据 (spike L742-761 + docs/08:312) ——
         if pdf and rep.n_bang == 0 and cat not in rs.taxonomy.warn_cats:
             # spike 首门 `pdf and nerr==0 → clean`; v1.1 放行 warn_* 伪类别
@@ -1182,6 +1205,22 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
     # —— 汇总最终态 (spike L776-791) ——
     last = cell["rounds"][-1] if cell["rounds"] else {}
     cell["final_pdf"] = bool(last.get("pdf"))
+    # —— 底板兜回: 入口有 pdf 而末态无 → 拷回快照, verdict 置 None 让下方
+    # 既有公式自然落成 dirty_pdf/clean; floor_from 记兜底前 verdict 供
+    # triage/cases 观测 (不新增 verdict 词, 保持 docs/08 §6 词表封闭)。
+    v_end = str(cell["verdict"] or "")
+    if (
+        not cell["final_pdf"]
+        and floor_snap is not None
+        and not v_end.startswith("reject:")
+    ):
+        main_pdf.unlink(missing_ok=True)  # 末态同名碎片先清再拷, 防半截混语义
+        shutil.copy2(floor_snap, main_pdf)
+        cell["floor_from"] = v_end
+        cell["floor_restored"] = True
+        cell["final_pdf"] = True
+        cell["verdict"] = None
+        ctx.events.append(f"floor: entry pdf restored (was {v_end or 'none'})")
     cell["final_errors"] = last.get("n_errors")
     cell["final_cat"] = last.get("category")
     cell["installed"] = ctx.installed
