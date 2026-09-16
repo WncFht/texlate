@@ -1,5 +1,6 @@
 """rules.yaml 规则库装载校验 + when/condition 原语 + phase 序单测。"""
 
+import re
 from functools import lru_cache
 from pathlib import Path
 
@@ -67,6 +68,25 @@ def test_every_rule_has_provenance() -> None:
         assert r.raw.get("source_ref"), r.id
         assert r.raw.get("provenance"), r.id
         assert isinstance(r.raw.get("stats"), dict), r.id
+
+
+def test_regex_rewrite_repl_no_literal_backref() -> None:
+    # fixer-alreadydef 实证缺陷类 (b66a554): 单引号 yaml 'a\\g<0>' → 值含
+    # \\g<0> → re.sub 把 \\ 解成字面 \, g<0> 沦为纯文本 → 匹配行被吞成
+    # 字面 \g<0>。判定: g<N> 前紧邻的反斜杠串长为偶数 → 是字面非回引
+    # (奇数 = ...\\ + \g<N> 合法: 转义反斜杠 + 真回引)。
+    bad: list[str] = []
+    for r in _rs().rules:
+        act = r.raw.get("action") or {}
+        if act.get("kind") != "regex_rewrite":
+            continue
+        for rw in (act.get("params") or {}).get("rewrites") or []:
+            repl = rw.get("repl") or ""
+            for m in re.finditer(r"\\+g<[^>]*>", repl):
+                slashes = len(m.group(0)) - len(m.group(0).lstrip("\\"))
+                if slashes % 2 == 0:
+                    bad.append(f"{r.id}: {repl!r}")
+    assert not bad, "literal g<N> (even backslash run) in repl: " + "; ".join(bad)
 
 
 def test_version_guard_policy_present() -> None:

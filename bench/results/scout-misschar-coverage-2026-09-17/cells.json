@@ -1,0 +1,6501 @@
+[
+ {
+  "pid": "0806.4305",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0905.0539",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr10",
+   "cmr7"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1003.0159",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0xb1"
+  ],
+  "fonts": [
+   "cmr9"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1206.1954",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1306.0480",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x141"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1404.5949",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman7-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1811.03452",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman12-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2308.00063",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman12-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2410.00046",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2410.18001",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 2,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "astro-ph/0408558",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "astro-ph/0501590",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "cond-mat/0307573",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "gr-qc/0104023",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x301"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr7"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0707.2150",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x131"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi12"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0707.3673",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0707.4451",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman8-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0806.0555",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x131"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi12"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0806.0756",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0806.1894",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr12"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0806.1947",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0806.1231",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0806.3020",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 1,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "ec-lmr12"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0806.2934",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr8"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0806.2630",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 11,
+  "fb_cps": [
+   "0x440",
+   "0x419",
+   "0x423",
+   "0x428",
+   "0x41d",
+   "0x411",
+   "0x427",
+   "0x446",
+   "0x44c",
+   "0x444",
+   "0x436"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0806.3475",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0806.3545",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmsans10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0806.3387",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0806.3730",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x2044"
+  ],
+  "fonts": [
+   "cmr8"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0806.4685",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-italic]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0806.4971",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr12",
+   "cmr8"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0905.0376",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0905.0474",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "zptmcm7t"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0905.0392",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 2,
+  "fb_cps": [
+   "0xc5",
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text",
+   "cmr9"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0905.0666",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 7,
+  "fb_cps": [
+   "0x43b",
+   "0x430",
+   "0x433",
+   "0x440",
+   "0x43d",
+   "0x436",
+   "0x438"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0905.1031",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0xf047"
+  ],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0905.0974",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0905.1281",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0xca"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0905.1347",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0905.1327",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "ptmr7t"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0905.1880",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman12-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1003.0189",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-italic]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1003.0354",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 2,
+  "fb_cps": [
+   "0x131",
+   "0xd8"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi12",
+   "cmmi8"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1003.0615",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1003.1076",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 1,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "ec-lmr10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1003.1338",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 3,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr12"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1003.1318",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1003.1045",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1003.5286",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr10",
+   "cmr7"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1012.5679",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman6-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1012.1124",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman12-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1012.1195",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x3a5"
+  ],
+  "fonts": [
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1109.2316",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 1,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "futr8t"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1012.5223",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 2,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1109.5670",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0xc5"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1109.5500",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 1,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "t1xr"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1206.0143",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0xc5"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1206.0099",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x2212"
+  ],
+  "fonts": [
+   "cmr7"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1206.0239",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0xf8"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1206.0230",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 2,
+  "fb_cps": [
+   "0x327",
+   "0x351"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1206.0219",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x200e"
+  ],
+  "fonts": [
+   "[lmroman9-italic]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1206.0402",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmbx12"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1206.0423",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman12-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1206.0290",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1206.0498",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 2,
+  "fb_cps": [
+   "0x327",
+   "0xc5"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman8-regular]:mapping=tex-text",
+   "cmmi7"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1206.0437",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 1,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1206.0541",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1206.1879",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 2,
+  "fb_cps": [
+   "0x308",
+   "0xfd"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmssbx10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1206.5832",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1306.0068",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x2212"
+  ],
+  "fonts": [
+   "cmr9"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1306.0019",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 3,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "txr"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1306.0256",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0xfffd"
+  ],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1306.0156",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-italic]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1306.0262",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0xa0"
+  ],
+  "fonts": [
+   "cmr10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1306.0320",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1306.0482",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x133"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi8"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1306.0582",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1306.2279",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0xfffd"
+  ],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1306.2222",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1306.6164",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1404.0021",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman8-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1306.6318",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 2,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [
+   "0x2211"
+  ],
+  "fonts": [
+   "[lmroman12-regular]:mapping=tex-text",
+   "cmr12"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1404.0209",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman12-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1404.0261",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x2bc"
+  ],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1404.0225",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr12"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1404.0389",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 5,
+  "fb_cps": [
+   "0x43d",
+   "0x442",
+   "0x410",
+   "0x420"
+  ],
+  "nonfb_cps": [
+   "0x252c"
+  ],
+  "fonts": [
+   "[lmroman12-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1404.0161",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 1,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "mdbchr8t"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1404.0429",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman8-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1404.0500",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1404.0505",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1404.5668",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0xfffd"
+  ],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1404.2546",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1502.01959",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0xa0"
+  ],
+  "fonts": [
+   "cmr10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1502.06003",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1511.02648",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 1,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "aer9"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1608.06646",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 1,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "ec-lmbx10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1706.00094",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman12-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1706.00137",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x3f5"
+  ],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1706.00235",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0xc5"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1706.00129",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1706.00256",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1706.00251",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman8-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1706.00342",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0xa0"
+  ],
+  "fonts": [
+   "cmr10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1706.00362",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1706.00331",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr8"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1706.02424",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman8-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1706.02567",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1706.02729",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 1,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "aer7"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1803.00051",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0xc5"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1803.00060",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x2032"
+  ],
+  "fonts": [
+   "cmr8"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1803.00014",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x323"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1803.00139",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "ptmr8t"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1803.00063",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x200e"
+  ],
+  "fonts": [
+   "[lmroman10-italic]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1803.03038",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x2217"
+  ],
+  "fonts": [
+   "cmr6"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1811.03697",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr10",
+   "cmr7"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1811.03698",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman8-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1907.00005",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 1,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "aer7"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1811.10174",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 2,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x80",
+   "0x93"
+  ],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1811.10235",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0xfffd"
+  ],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1907.00113",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr7"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1907.00127",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1907.00012",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1907.00132",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0xd8"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "txmi"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1907.00192",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x3b"
+  ],
+  "fonts": [
+   "nullfont"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1907.00260",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2003.03387",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 1,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "aer9"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2105.00140",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2105.00156",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmromancaps10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2105.00099",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 1,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "futr8t"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2105.03816",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman12-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2112.00009",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x141"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2112.00105",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x301"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmcsc10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2203.00075",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 1,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "t1-stixgeneral"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2203.13039",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr10",
+   "cmr8"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2203.13065",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2211.00043",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 3,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x3c",
+   "0x2b",
+   "0x3e"
+  ],
+  "fonts": [
+   "nullfont"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2211.04532",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2211.13012",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2308.04153",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman8-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2308.12669",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2308.00125",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x3b"
+  ],
+  "fonts": [
+   "nullfont"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2308.04287",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2403.05469",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0xc5"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi12"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2403.00125",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 2,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x38",
+   "0x3b"
+  ],
+  "fonts": [
+   "nullfont"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "astro-ph/0104418",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0xc5"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "astro-ph/0408182",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "astro-ph/0501073",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "astro-ph/0501398",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman8-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "astro-ph/0605441",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 3,
+  "fb_cps": [
+   "0x301",
+   "0x308",
+   "0xd8"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "cond-mat/0104130",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "cond-mat/0111300",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "cond-mat/0408193",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x141"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "cs/0111002",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "cond-mat/0605249",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "gr-qc/0104070",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmbx10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "hep-ph/0307002",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "hep-ph/0605319",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x2f5"
+  ],
+  "fonts": [
+   "[lmroman12-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "hep-th/0104156",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr8"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "math/0104020",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman8-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "math/0104247",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "math/0408094",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "math/0501104",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "math/0408217",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0xa0"
+  ],
+  "fonts": [
+   "cmr10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "math/9910100",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-italic]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "math/9901120",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "nlin/0408002",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "physics/0408112",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0xe7"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi12"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "physics/0501018",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "quant-ph/0111094",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 1,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr12"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "quant-ph/0408022",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1404.5949",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman7-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1404.5949",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman7-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2410.18001",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 2,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "astro-ph/0501590",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0707.4451",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman8-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1003.1318",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1012.1124",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman12-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1012.1195",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x3a5"
+  ],
+  "fonts": [
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1109.2316",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 1,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "futr8t"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1206.5832",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1306.6164",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1404.5668",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0xfffd"
+  ],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1502.01959",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0xa0"
+  ],
+  "fonts": [
+   "cmr10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1608.06646",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 1,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "ec-lmbx10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1706.02567",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1706.02424",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman8-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1811.03697",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr10",
+   "cmr7"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1706.02729",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 1,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "aer7"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1811.10235",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0xfffd"
+  ],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2003.03387",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 1,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "aer9"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2203.13039",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr10",
+   "cmr8"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2211.13012",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2308.04153",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman8-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2308.12669",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2308.04287",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "astro-ph/0501073",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "astro-ph/0605441",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 3,
+  "fb_cps": [
+   "0x301",
+   "0x308",
+   "0xd8"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "astro-ph/0501398",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman8-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "cond-mat/0111300",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "cond-mat/0605249",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "math/0501104",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "quant-ph/0111094",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 1,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr12"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0806.4305",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0905.0539",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr10",
+   "cmr7"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1003.0159",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0xb1"
+  ],
+  "fonts": [
+   "cmr9"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1206.1954",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1306.0480",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x141"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1811.03452",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman12-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2308.00063",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman12-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2410.00046",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "astro-ph/0408558",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "cond-mat/0307573",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "gr-qc/0104023",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x301"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr7"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0707.2150",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x131"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi12"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0707.3673",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0806.0555",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x131"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi12"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0806.0756",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0806.1231",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0806.1894",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr12"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0806.1947",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0806.2630",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 11,
+  "fb_cps": [
+   "0x440",
+   "0x419",
+   "0x423",
+   "0x428",
+   "0x41d",
+   "0x411",
+   "0x427",
+   "0x446",
+   "0x44c",
+   "0x444",
+   "0x436"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0806.3020",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 1,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "ec-lmr12"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0806.2934",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr8"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0806.3387",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0806.3475",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0806.3545",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmsans10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0806.3730",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x2044"
+  ],
+  "fonts": [
+   "cmr8"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0806.4685",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-italic]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0806.4971",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr12",
+   "cmr8"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0905.0376",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0905.0392",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 2,
+  "fb_cps": [
+   "0xc5",
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text",
+   "cmr9"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0905.0474",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "zptmcm7t"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0905.0666",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 7,
+  "fb_cps": [
+   "0x43b",
+   "0x430",
+   "0x433",
+   "0x440",
+   "0x43d",
+   "0x436",
+   "0x438"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0905.0974",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0905.1031",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0xf047"
+  ],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0905.1281",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0xca"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0905.1327",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "ptmr7t"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0905.1347",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0905.1880",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman12-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1003.0189",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-italic]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1003.0354",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 2,
+  "fb_cps": [
+   "0x131",
+   "0xd8"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi12",
+   "cmmi8"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1003.0615",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1003.1045",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1003.1076",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 1,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "ec-lmr10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1003.1338",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 3,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr12"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1003.5286",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr10",
+   "cmr7"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1012.5223",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 2,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1012.5679",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman6-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1109.5500",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 1,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "t1xr"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1109.5670",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0xc5"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1206.0143",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0xc5"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1206.0099",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x2212"
+  ],
+  "fonts": [
+   "cmr7"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1206.0230",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 2,
+  "fb_cps": [
+   "0x327",
+   "0x351"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1206.0219",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x200e"
+  ],
+  "fonts": [
+   "[lmroman9-italic]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1206.0239",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0xf8"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1206.0290",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1206.0402",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmbx12"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1206.0423",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman12-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1206.0437",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 1,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1206.0498",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 2,
+  "fb_cps": [
+   "0x327",
+   "0xc5"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman8-regular]:mapping=tex-text",
+   "cmmi7"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1206.0541",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1206.1879",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 2,
+  "fb_cps": [
+   "0x308",
+   "0xfd"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmssbx10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1306.0019",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 3,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "txr"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1306.0068",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x2212"
+  ],
+  "fonts": [
+   "cmr9"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1306.0156",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-italic]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1306.0256",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0xfffd"
+  ],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1306.0262",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0xa0"
+  ],
+  "fonts": [
+   "cmr10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1306.0320",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1306.0482",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x133"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi8"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1306.0582",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1306.2222",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1306.2279",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0xfffd"
+  ],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1306.6318",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 2,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [
+   "0x2211"
+  ],
+  "fonts": [
+   "[lmroman12-regular]:mapping=tex-text",
+   "cmr12"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1404.0021",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman8-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1404.0161",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 1,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "mdbchr8t"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1404.0209",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman12-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1404.0225",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr12"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1404.0261",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x2bc"
+  ],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1404.0389",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 5,
+  "fb_cps": [
+   "0x43d",
+   "0x442",
+   "0x410",
+   "0x420"
+  ],
+  "nonfb_cps": [
+   "0x252c"
+  ],
+  "fonts": [
+   "[lmroman12-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1404.0429",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman8-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1404.0500",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1404.0505",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1404.2546",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1502.06003",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1511.02648",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 1,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "aer9"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1706.00094",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman12-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1706.00137",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x3f5"
+  ],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1706.00129",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1706.00235",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0xc5"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1706.00251",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman8-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1706.00256",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1706.00342",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0xa0"
+  ],
+  "fonts": [
+   "cmr10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1706.00331",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr8"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1706.00362",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1803.00014",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x323"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1803.00051",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0xc5"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1803.00060",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x2032"
+  ],
+  "fonts": [
+   "cmr8"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1803.00139",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "ptmr8t"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1803.00063",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x200e"
+  ],
+  "fonts": [
+   "[lmroman10-italic]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1803.03038",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x2217"
+  ],
+  "fonts": [
+   "cmr6"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1811.03698",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman8-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1811.10174",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 2,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x80",
+   "0x93"
+  ],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1907.00005",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 1,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "aer7"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1907.00012",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1907.00113",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr7"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1907.00127",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1907.00132",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0xd8"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "txmi"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1907.00192",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x3b"
+  ],
+  "fonts": [
+   "nullfont"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1907.00260",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2105.00099",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 1,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "futr8t"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2105.00140",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2105.00156",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmromancaps10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2105.03816",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman12-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2112.00009",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x141"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2112.00105",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x301"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmcsc10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2203.00075",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 1,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "t1-stixgeneral"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2203.13065",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2211.00043",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 3,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x3c",
+   "0x2b",
+   "0x3e"
+  ],
+  "fonts": [
+   "nullfont"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2211.04532",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2308.00125",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x3b"
+  ],
+  "fonts": [
+   "nullfont"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2403.05469",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0xc5"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi12"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2403.00125",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 2,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x38",
+   "0x3b"
+  ],
+  "fonts": [
+   "nullfont"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "astro-ph/0104418",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0xc5"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "astro-ph/0408182",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "cond-mat/0104130",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "cond-mat/0408193",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x141"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "cs/0111002",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "gr-qc/0104070",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmbx10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "hep-ph/0307002",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "hep-ph/0605319",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x2f5"
+  ],
+  "fonts": [
+   "[lmroman12-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "hep-th/0104156",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr8"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "math/0104020",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman8-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "math/0104247",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "math/0408094",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "math/0408217",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0xa0"
+  ],
+  "fonts": [
+   "cmr10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "math/9901120",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "math/9910100",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-italic]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "nlin/0408002",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "physics/0408112",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0xe7"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi12"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "physics/0501018",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "quant-ph/0408022",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "cond-mat/0408611",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0xc5"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "astro-ph/0605222",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1206.0219",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x200e"
+  ],
+  "fonts": [
+   "[lmroman9-italic]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "astro-ph/0605441",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 3,
+  "fb_cps": [
+   "0x301",
+   "0x308",
+   "0xd8"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0707.2570",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0xb7"
+  ],
+  "fonts": [
+   "cmr12"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0707.2150",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x131"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi12"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0707.4451",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman8-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0806.0555",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x131"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi12"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0806.1231",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0806.1947",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0806.2630",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 11,
+  "fb_cps": [
+   "0x440",
+   "0x419",
+   "0x423",
+   "0x428",
+   "0x41d",
+   "0x411",
+   "0x427",
+   "0x446",
+   "0x44c",
+   "0x444",
+   "0x436"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0806.3020",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 1,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "ec-lmr12"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0806.3475",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0806.3387",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0806.3545",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmsans10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0806.3730",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x2044"
+  ],
+  "fonts": [
+   "cmr8"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0905.0392",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0xc5"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr9"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0905.0974",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0905.1031",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0xf047"
+  ],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0905.1281",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0xca"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "0905.1347",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1003.0354",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 2,
+  "fb_cps": [
+   "0x131",
+   "0xd8"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi12",
+   "cmmi8"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1003.0159",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0xb1"
+  ],
+  "fonts": [
+   "cmr9"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1003.0615",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1003.1318",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1003.1045",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1003.5286",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-bold]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1012.1124",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman12-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1012.1195",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x3a5"
+  ],
+  "fonts": [
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1012.5679",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman6-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1109.2316",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 1,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "futr8t"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1109.5500",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 1,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "t1xr"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1109.5670",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0xc5"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1206.0143",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0xc5"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1206.0239",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0xf8"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1206.0230",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1206.0423",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman12-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1206.0437",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x361"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1206.0498",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 2,
+  "fb_cps": [
+   "0x327",
+   "0xc5"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman8-regular]:mapping=tex-text",
+   "cmmi7"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1206.0541",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1206.1879",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x308"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmssbx10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1206.5832",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1306.0156",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-italic]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1306.0256",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0xfffd"
+  ],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1306.0262",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0xa0"
+  ],
+  "fonts": [
+   "cmr10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1306.0320",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1306.0480",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x141"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1306.0482",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x133"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi8"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1306.2279",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0xfffd"
+  ],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1306.2222",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1306.6318",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 2,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [
+   "0x2211"
+  ],
+  "fonts": [
+   "[lmroman12-regular]:mapping=tex-text",
+   "cmr12"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1404.0021",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman8-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1404.0161",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 1,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "mdbchr8t"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1404.0209",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman12-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1404.0261",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x2bc"
+  ],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1404.0389",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x252c"
+  ],
+  "fonts": [
+   "[lmroman12-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1404.0429",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman8-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1404.0500",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1404.5668",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0xfffd"
+  ],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1404.2546",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1404.5949",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman7-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1502.01959",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0xa0"
+  ],
+  "fonts": [
+   "cmr10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1502.06003",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1511.02648",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 1,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "aer9"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1511.06879",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1608.02387",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman12-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1608.06646",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 1,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "ec-lmbx10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1608.02573",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 2,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x2113",
+   "0x2009"
+  ],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text",
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1706.00094",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman12-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1706.00129",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1706.00137",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x3f5"
+  ],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1706.00235",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0xc5"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1706.00241",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 5,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x30",
+   "0x31",
+   "0x39",
+   "0x2e",
+   "0x38"
+  ],
+  "fonts": [
+   "nullfont"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1706.00256",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1706.00251",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman8-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1706.00291",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x3b2"
+  ],
+  "fonts": [
+   "[lmroman8-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1706.02424",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman8-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1706.02567",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1706.02550",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1706.02729",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 1,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "aer7"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1803.00014",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x323"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1803.00051",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0xc5"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1803.00060",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x2032"
+  ],
+  "fonts": [
+   "cmr8"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1803.00063",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x200e"
+  ],
+  "fonts": [
+   "[lmroman10-italic]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1803.03038",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x2217"
+  ],
+  "fonts": [
+   "cmr6"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1811.03452",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman12-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1811.03698",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman8-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1811.10174",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 2,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x80",
+   "0x93"
+  ],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1811.10235",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0xfffd"
+  ],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1907.00005",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 1,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "aer7"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1907.00012",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1907.00132",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0xd8"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "txmi"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1907.00192",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x3b"
+  ],
+  "fonts": [
+   "nullfont"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "1907.00260",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2003.03387",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 1,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "aer9"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2105.00099",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 1,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "futr8t"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2105.00140",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2105.00156",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmromancaps10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2105.03816",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman12-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2112.00009",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x141"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2112.00105",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x301"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmcsc10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2203.13065",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2211.00043",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 3,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x3c",
+   "0x2b",
+   "0x3e"
+  ],
+  "fonts": [
+   "nullfont"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2211.13012",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2308.00063",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman12-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2308.00125",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x3b"
+  ],
+  "fonts": [
+   "nullfont"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2308.04153",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman8-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2308.12669",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2403.05469",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0xc5"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi12"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2403.00125",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 2,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x38",
+   "0x3b"
+  ],
+  "fonts": [
+   "nullfont"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2410.00046",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 4,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "2410.18001",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 2,
+  "n_noncjk": 0,
+  "fb_cps": [],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "astro-ph/0104418",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0xc5"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "astro-ph/0408182",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "astro-ph/0501073",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "astro-ph/0501398",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman8-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "astro-ph/0605222",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "cond-mat/0104130",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "cond-mat/0111300",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "cond-mat/0408193",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x141"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "cond-mat/0307573",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "cond-mat/0408611",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0xc5"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "cond-mat/0605249",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman9-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "gr-qc/0104023",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x301"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmr7"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "hep-ph/0605319",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0x2f5"
+  ],
+  "fonts": [
+   "[lmroman12-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "hep-ph/9703300",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman12-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "math-ph/0408014",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x430"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi10"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "math/0104020",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman8-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "math/0408094",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "math/0501104",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-regular]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "math/9910100",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0x327"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "[lmroman10-italic]:mapping=tex-text"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "physics/0408068",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 3,
+  "fb_cps": [],
+  "nonfb_cps": [
+   "0xbd",
+   "0xb7",
+   "0xbc"
+  ],
+  "fonts": [
+   "cmr12"
+  ],
+  "unparsed": false
+ },
+ {
+  "pid": "physics/0408112",
+  "verdict": "acceptable_pdf",
+  "n_cjk": 0,
+  "n_noncjk": 1,
+  "fb_cps": [
+   "0xe7"
+  ],
+  "nonfb_cps": [],
+  "fonts": [
+   "cmmi12"
+  ],
+  "unparsed": false
+ }
+]
