@@ -446,3 +446,81 @@ def test_recover_copied_tokens_unarmed_without_fragments() -> None:
     c = ChunkIn("0:0", "见 [[MATH_1]] 如上")  # 无 ph_fragments
     res = asyncio.run(XlatPipeline(_CopyTranslator()).run([c]))
     assert res[0].status != "ok"
+
+
+# ---------------------------------------------------------------- ToUnicode 注入
+
+
+def test_tounicode_embed_after_clean(
+    tmp_path: Path,
+    engines: dict[str, ScriptedEngine],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """clean 落地 → 对最终 ``<stem>.pdf`` 调一次 embed，计数进报告。"""
+    work = _project(tmp_path / "p")
+    engines["xelatex"] = ScriptedEngine("xelatex", [_clean])
+    calls: list[Path] = []
+
+    def spy(pdf: Path) -> int:
+        calls.append(pdf)
+        return 2
+
+    monkeypatch.setattr(e2e, "embed_cjk_mappings", spy)
+    report = e2e.mock_pipeline_run(work, "xelatex", timeout=30.0)
+
+    assert report["status"] == "clean"
+    assert calls == [work / "main.pdf"]
+    assert report["tounicode_fonts"] == 2  # noqa: PLR2004 -- spy 钉值
+
+
+def test_tounicode_embed_once_after_fixloop(
+    tmp_path: Path,
+    engines: dict[str, ScriptedEngine],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """修复链收敛后才注：首编 fail → fixloop r1 clean → embed 仍只调一次。"""
+    work = _project(tmp_path / "p")
+    engines["xelatex"] = ScriptedEngine("xelatex", [_fail_unattributable, _clean])
+    calls: list[Path] = []
+    monkeypatch.setattr(
+        e2e, "embed_cjk_mappings", lambda pdf: calls.append(pdf) or 1
+    )
+
+    report = e2e.mock_pipeline_run(work, "xelatex", timeout=30.0)
+
+    assert report["status"] == "clean"
+    assert len(engines["xelatex"].calls) == 2  # noqa: PLR2004 -- 首编 + fixloop r1
+    assert calls == [work / "main.pdf"]
+    assert report["tounicode_fonts"] == 1
+
+
+def test_tounicode_skipped_without_pdf(
+    tmp_path: Path,
+    engines: dict[str, ScriptedEngine],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """全链无 pdf 产出 → embed 不调、报告无 tounicode_fonts 键。"""
+    work = _project(tmp_path / "p")
+    engines["xelatex"] = ScriptedEngine("xelatex", [_fail_unattributable])
+    calls: list[Path] = []
+    monkeypatch.setattr(
+        e2e, "embed_cjk_mappings", lambda pdf: calls.append(pdf) or 1
+    )
+
+    report = e2e.mock_pipeline_run(work, "xelatex", timeout=30.0)
+
+    assert calls == []
+    assert "tounicode_fonts" not in report
+
+
+def test_tounicode_embed_best_effort(
+    tmp_path: Path, engines: dict[str, ScriptedEngine]
+) -> None:
+    """真 embed 在假 pdf 字节上崩 → best-effort 壳吞掉，管线终态不受拖累。"""
+    work = _project(tmp_path / "p")
+    engines["xelatex"] = ScriptedEngine("xelatex", [_clean])
+
+    report = e2e.mock_pipeline_run(work, "xelatex", timeout=30.0)
+
+    assert report["status"] == "clean"
+    assert report["tounicode_fonts"] == 0

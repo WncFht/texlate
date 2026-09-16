@@ -21,6 +21,7 @@ from conftest import MINI_TEX, FakeFetcher, RecordingEngine, make_targz
 
 from texlate.arxiv.cache import SourceCache
 from texlate.arxiv.meta import PaperMeta
+from texlate.compile.cjkmap import embed_cjk_mappings
 from texlate.compile.engine import CompRes, LogInfo
 from texlate.server.events import EventBus
 from texlate.server.store import ERROR_CODES, Store, StoreError, new_task_id
@@ -33,7 +34,6 @@ from texlate.server.worker import (
     TaskRunner,
     cache_key_for,
     chunk_db_id,
-    embed_cjk_mappings,
     unpack_zip,
 )
 from texlate.xlat.client import ChatClient

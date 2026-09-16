@@ -20,13 +20,13 @@ from conftest import (
 )
 from starlette.testclient import TestClient
 
+from texlate.compile.cjkmap import embed_cjk_mappings
 from texlate.server.events import EventBus
 from texlate.server.store import ERROR_CODES, Store
 from texlate.server.worker import (
     PipelineWorker,
     Secrets,
     TaskCtx,
-    embed_cjk_mappings,
 )
 from texlate.xlat.pipeline import MockTranslator
 

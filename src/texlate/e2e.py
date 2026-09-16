@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from texlate.compile.cjkmap import embed_cjk_mappings
 from texlate.compile.engine import engine_for, route_project
 from texlate.compile.fixloop.engine import LlmHook, fixloop
 from texlate.compile.inject import InjectRejectError, find_main_tex, prepare_chinese
@@ -344,6 +345,15 @@ def _compile_judge(
     )
     v = judge(res, expect_cjk=expect_cjk)
     return _tail_dict(res, v), res
+
+
+def _embed_tounicode(pdf: Path) -> int:
+    """``embed_cjk_mappings`` best-effort 壳：后处理崩不拖管线（对齐 worker 语义）。"""
+    try:
+        return embed_cjk_mappings(pdf)
+    except Exception:  # 产物后处理失败不该 fault 整链
+        log.debug("tounicode embed failed", exc_info=True)
+        return 0
 
 
 # ---------------------------------------------------------------- L2 回灌
@@ -869,7 +879,7 @@ def pipe_condition(  # noqa: PLR0913 -- 修复链开关面（env 缺省，显式
             else fixloop_on
         )
         if rec["status"] != "clean" and fl:
-            fl_rep, tail3, _last = _run_fixloop(
+            fl_rep, tail3, res = _run_fixloop(
                 job, route_engines or [eng_name], res, expect_cjk=expect_cjk
             )
             rec["fixloop"] = fl_rep
@@ -877,6 +887,10 @@ def pipe_condition(  # noqa: PLR0913 -- 修复链开关面（env 缺省，显式
                 rec.update(tail3)
         elif rec["status"] != "clean":
             rec["fixloop"] = {"enabled": False, "reason": _ENV_NO_FIXLOOP}
+    # ToUnicode 注入在修复链收敛之后——L2 重编/fixloop 换编都会重写同一
+    # <stem>.pdf，只对最终落盘产物注一次（worker _embed_tounicode 同位）
+    if res.has_pdf and res.pdf is not None:
+        rec["tounicode_fonts"] = _embed_tounicode(res.pdf)
     return rec
 
 
