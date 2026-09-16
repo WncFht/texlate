@@ -149,6 +149,44 @@ class TestPostPack:
         assert r.status_code == HTTPStatus.OK
 
 
+class TestIndexDegraded:
+    """index.jsonl 降级面：读挂不挡重打、坏行按未命中处理——
+    原 ``except ShareError`` 是死面（index_lookup 实抛
+    OSError/UnicodeDecodeError），NUL url 让 stat() 抛 ValueError。"""
+
+    def test_index_non_utf8_repacks(self, client: TestClient) -> None:
+        """index 整体非 UTF-8 → 捕获降级重打 200（修前 UnicodeDecodeError → 500）。"""
+        tid = _mk_task(client)
+        _seed_artifacts(client, tid)
+        share_root = _share_root(client)
+        share_root.mkdir(parents=True)
+        (share_root / "index.jsonl").write_bytes(b"\xff\xfe\x00not-utf8\n")
+        r = client.post(f"/api/task/{tid}/share/pack")
+        assert r.status_code == HTTPStatus.OK
+        url = r.json()["url"]
+        assert (share_root / url).is_file()
+
+    def test_index_nul_url_repacks(self, client: TestClient) -> None:
+        """index 行 url 含 ``\\x00`` → 非扁平名落 miss 路径重打
+        （修前过 flat 检查后 ``stat()`` 抛 ValueError → 500）。"""
+        tid = _mk_task(client)
+        _seed_artifacts(client, tid)
+        r1 = client.post(f"/api/task/{tid}/share/pack")
+        assert r1.status_code == HTTPStatus.OK
+        key = r1.json()["share_key"]
+        share_root = _share_root(client)
+        with (share_root / "index.jsonl").open("a", encoding="utf-8") as fh:
+            fh.write(
+                json.dumps({"share_key": key, "url": "evil\x00name.share.zip"}) + "\n"
+            )
+        r2 = client.post(f"/api/task/{tid}/share/pack")
+        assert r2.status_code == HTTPStatus.OK
+        url = r2.json()["url"]
+        assert "\x00" not in url
+        assert "/" not in url
+        assert (share_root / url).is_file()
+
+
 class TestGuards:
     """404/409/422 守卫面——每种拒绝各一例。"""
 

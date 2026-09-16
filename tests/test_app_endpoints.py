@@ -503,6 +503,42 @@ class TestUploadEdges:
         )
         assert r.status_code == HTTPStatus.ACCEPTED
 
+    def test_chunked_text_field_bounded_413(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """chunked 体 + 巨型 str 字段：receive 字节闸解析中途 413——str 字段
+        不再随 ``request.form()`` 无界进 RAM（修前此例体全吞后按缺 file 400）。
+        """
+        monkeypatch.setattr(app_mod, "UPLOAD_CAP", 16)
+        body = (
+            b"--X\r\n"
+            b'Content-Disposition: form-data; name="options"\r\n\r\n'
+            + b"z" * 80000
+            + b"\r\n--X--\r\n"
+        )
+        r = client.post(
+            "/api/upload",
+            content=iter([body]),
+            headers={"Content-Type": "multipart/form-data; boundary=X"},
+        )
+        assert r.status_code == HTTPStatus.REQUEST_ENTITY_TOO_LARGE
+        assert r.json()["code"] == "upload_too_large"
+
+    def test_chunked_json_body_bounded_413(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """``_read_body`` 同闸：无 CL 的 JSON 体超界 413（修前 ``request.body()``
+        无界读进 RAM 后正常 202）。"""
+        monkeypatch.setattr(app_mod, "UPLOAD_CAP", 16)
+        big = b'{"options": {"k": "' + b"v" * 80000 + b'"}}'
+        r = client.post(
+            f"/api/arxiv/{ARXIV}/translate",
+            content=iter([big]),
+            headers={"Content-Type": "application/json"},
+        )
+        assert r.status_code == HTTPStatus.REQUEST_ENTITY_TOO_LARGE
+        assert r.json()["code"] == "upload_too_large"
+
     def test_filename_traversal_sanitized(self, client: TestClient) -> None:
         """``../../etc/evil.tex`` → ``Path().name`` 剥目录 + 字符白名单。"""
         r = client.post(

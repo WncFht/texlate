@@ -35,7 +35,7 @@ from sse_starlette.sse import EventSourceResponse
 from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from texlate import __version__
-from texlate.arxiv.fetch import normalize_arxiv_id
+from texlate.arxiv.fetch import _valid_id, normalize_arxiv_id
 from texlate.compile.sandbox import find_tool
 from texlate.compile.toolchain import resolve_tool
 from texlate.server.events import EventBus, sse_frame
@@ -83,11 +83,13 @@ from texlate.share import (
     share_key,
     unpack_share,
 )
-from texlate.xlat.client import ChatClient, ChatError
+from texlate.xlat.client import _LOOPBACK_HOSTS, ChatClient, ChatError
 from texlate.xlat.state import atomic_json
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Awaitable, Callable
+
+    from starlette.types import Message
 
     from texlate.arxiv.cache import SourceCache
     from texlate.arxiv.fetch import Fetcher
@@ -95,12 +97,6 @@ if TYPE_CHECKING:
     from texlate.xlat.pipeline import Translator
 
 log = logging.getLogger(__name__)
-
-#: arXiv id 白名单正则（fetch._valid_id 同款口径，§2.1 fullmatch）
-_NEW_ID_RE = re.compile(r"^\d{4}\.\d{4,5}$")
-_OLD_ID_RE = re.compile(r"^[a-zA-Z-]+(?:\.[A-Z][a-zA-Z]+)?/\d{7}$")
-
-_LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 
 #: URL kind → media_type（§2.3 表）。``src.tar`` 不在表内——它的物理类型
 #: 随任务 kind 变化（e-print tar.gz / 上传原文件回读），走 ``_src_tar_media``。
@@ -174,19 +170,49 @@ class UploadPart:
 _MULTIPART_OVERHEAD = 65536
 
 
+def _cap_request_body(request: Request) -> None:
+    """给 ``request`` 的 receive 通道装字节闸：累计体超 ``UPLOAD_CAP + overhead`` → 413。
+
+    ``stream()``/``body()``/``form()`` 全经 ``self._receive``——此处包一层
+    计数即覆盖一切体消费方，且保持流式语义（文件字段仍走 spool，不整读
+    进 RAM）。``Content-Length`` 缺席（chunked/HTTP2）时头部预检失效，
+    本闸是唯一兜底；无 ``body`` 键的消息（disconnect 等）计 0 透传。
+    """
+    inner = request._receive  # noqa: SLF001 -- starlette 无公开 receive 包装口
+    seen = 0
+
+    async def capped() -> Message:
+        nonlocal seen
+        msg = await inner()
+        seen += len(msg.get("body", b""))
+        if seen > UPLOAD_CAP + _MULTIPART_OVERHEAD:
+            raise _ApiError(
+                413,
+                {
+                    "detail": f"upload > {UPLOAD_CAP}B",
+                    "code": "upload_too_large",
+                },
+            )
+        return msg
+
+    request._receive = capped  # noqa: SLF001 -- 同上：替换实例 receive 通道
+
+
 async def _parse_multipart(request: Request) -> dict[str, str | UploadPart]:
     """``multipart/form-data`` → ``{name: str | UploadPart}``。
 
     走 starlette ``request.form()``（python-multipart 在 server extra 内）；
     ``Content-Length`` 超 ``UPLOAD_CAP + overhead`` 先 413 不读体。
-    ``Content-Length`` 缺席（chunked/HTTP2）预检失效——文件字段按剩余
-    额度有界读，累计文件字节超 ``UPLOAD_CAP`` 即 413，无界体进不了 RAM。
+    ``Content-Length`` 缺席（chunked/HTTP2）预检失效——``_cap_request_body``
+    的流式字节闸对 str/文件全部字段合计上界，超界即 413；文件字段再按
+    剩余额度有界读，累计文件字节超 ``UPLOAD_CAP`` 即 413。
     """
     clen = request.headers.get("content-length", "")
     if clen.isdigit() and int(clen) > UPLOAD_CAP + _MULTIPART_OVERHEAD:
         raise _ApiError(
             413, {"detail": f"upload > {UPLOAD_CAP}B", "code": "upload_too_large"}
         )
+    _cap_request_body(request)
     form = await request.form()
     out: dict[str, str | UploadPart] = {}
     file_bytes = 0
@@ -211,10 +237,6 @@ def _form_text(form: dict[str, str | UploadPart], name: str) -> str:
     return val if isinstance(val, str) else ""
 
 
-def _is_valid_arxiv(base: str) -> bool:
-    return bool(_NEW_ID_RE.fullmatch(base) or _OLD_ID_RE.fullmatch(base))
-
-
 def _share_parts_checked(
     parts: dict[str, str],
 ) -> tuple[str, str, str, str, int | None]:
@@ -226,7 +248,7 @@ def _share_parts_checked(
     非数字形在此闸死，``int()`` 不会炸）。全数违例 → ``share_invalid``。
     """
     base, embedded = normalize_arxiv_id(parts["arxiv_id"])
-    if embedded is not None or not _is_valid_arxiv(base):
+    if embedded is not None or not _valid_id(base):
         raise _ApiError(
             400,
             {
@@ -444,7 +466,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
             origin = request.headers.get("origin")
             if origin:
                 host = (urlsplit(origin).hostname or "").lower()
-                if host not in _LOCAL_HOSTS:
+                if host not in _LOOPBACK_HOSTS:
                     return _json_error(403, f"origin {host} not allowed")
         return await call_next(request)
 
@@ -541,6 +563,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
 
     async def _read_body(request: Request) -> dict[str, Any]:
         """可选 JSON body；坏 JSON → 400。"""
+        _cap_request_body(request)  # 与 multipart 同闸——无 CL 时 body() 原无界读
         raw = await request.body()
         if not raw:
             return {}
@@ -689,7 +712,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
     async def arxiv_translate(request: Request, arxiv_id: str) -> Response:
         """建 arxiv 任务：202 + cache_key dedup/reuse（§2.1）。"""
         base, ver = normalize_arxiv_id(arxiv_id)
-        if not _is_valid_arxiv(base):
+        if not _valid_id(base):
             return _json_error(400, f"invalid arxiv id: {arxiv_id!r}")
         body = await _read_body(request)
         try:
@@ -1079,14 +1102,21 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         out_dir = share_dir(root)
         try:
             hit = index_lookup(out_dir / "index.jsonl", key)
-        except ShareError as e:
-            # 索引行损坏不挡重打——append-only last-wins 读出侧自愈
+        except (OSError, UnicodeDecodeError) as e:
+            # 索引读挂不挡重打——index_lookup 实抛面即此二类（坏行内部跳过，
+            # 不抛 ShareError）；append-only last-wins 读出侧自愈
             log.warning("share index unreadable for %s, repacking: %s", task_id, e)
             hit = None
         if hit is not None:
-            # index 行 url 按约定是扁平包文件名——只认扁平名防越界探测
+            # index 行 url 按约定是扁平包文件名——只认扁平名防越界探测；
+            # NUL 漏检会让 stat() 抛 ValueError（不属 OSError）炸 500
             name = str(hit.get("url") or "")
-            flat = "/" not in name and "\\" not in name and name not in ("", ".", "..")
+            flat = (
+                "/" not in name
+                and "\\" not in name
+                and "\x00" not in name
+                and name not in ("", ".", "..")
+            )
             if flat:
                 try:
                     size = (out_dir / name).stat().st_size
