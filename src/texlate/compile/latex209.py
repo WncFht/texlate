@@ -21,12 +21,17 @@ compat 模式在内核层禁用 ``\usepackage``（探针实证：A 臂 11/11 同
   ``\@floats``）；
 - ``ds@`` 选项机驱动的 style-as-class（ias/jaa/julie，及随源 ``<cls>.sty``/``.cls``
   内检出 ``ds@`` 定义者）不可转——2e 无此分发机制，返回 ``reject`` 状态交
-  inject 层按 ``latex209_ds_at`` 拒。
+  inject 层按 ``latex209_ds_at`` 拒；
+- 改名目标类落盘前做可解析性守卫（盲升闸）：工程树 ``<target>.cls`` 或
+  ``kpsewhich`` 双侧均无命中 → 升上去必 missing_file（jpsj3 不在 CTAN），
+  按 ``latex209_no_target`` 拒；kpsewhich 缺席/探测失败 fail-open 不阻断。
 """
 
 from __future__ import annotations
 
 import re
+import shutil
+import subprocess
 from typing import TYPE_CHECKING, NamedTuple
 
 from texlate.textutil import decode_tex
@@ -330,6 +335,35 @@ def _uses_ds_at(root: Path | None, cls: str) -> bool:
     return False
 
 
+def _target_resolvable(root: Path | None, target: str) -> bool:
+    """改名目标类可解析性——工程树 ``<target>.cls`` 或系统 kpsewhich 命中。
+
+    kpsewhich 缺席/探测失败 fail-open：合法映射目标都在系统 texmf，缺工具
+    不阻断（``_kpse_resolve`` 同款语义）；真返回空才判不可解析。
+    """
+    if (
+        root is not None
+        and _GLOB_SAFE_RE.fullmatch(target)
+        and any(root.rglob(f"{target}.cls"))
+    ):
+        return True
+    kpse = shutil.which("kpsewhich")
+    if kpse is None:
+        return True
+    try:
+        proc = subprocess.run(  # noqa: S603 — 固定 argv 无 shell
+            [kpse, "--", f"{target}.cls"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return True
+    return proc.returncode == 0 and bool(proc.stdout.strip())
+
+
 def _route_opts(
     opts: list[str], spec: _ClassSpec | None, root: Path | None, target: str
 ) -> tuple[list[str], list[str], list[str], list[str]]:
@@ -384,6 +418,15 @@ def upgrade_209(tex: str, *, root: Path | None = None) -> tuple[str, dict]:
         }
     spec = _CLASS_MAP.get(cls)
     target = spec.target if spec is not None else cls
+    if target != cls and not _target_resolvable(root, target):
+        # 盲升守卫：改名目标类双侧（工程/系统 texmf）不可解析——升上去
+        # missing_file 必死（jpsj→jpsj3 类不在 CTAN），拒转记台账。
+        return tex, {
+            "status": "reject",
+            "reason": "latex209_no_target",
+            "class": cls,
+            "target": target,
+        }
     cls_opts, pkg_opts, shipped, stripped = _route_opts(
         _split_opts(m.group(1)), spec, root, target
     )
