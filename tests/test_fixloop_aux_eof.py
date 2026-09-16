@@ -135,13 +135,32 @@ def test_purge_no_corrupt_returns_false(tmp_path: Path) -> None:
 
 # ---------------------------------------------------------------- 端到端
 def test_fixloop_aux_eof_roundtrip(tmp_path: Path) -> None:
+    """截断 aux 由 round 前 _sweep_bad_aux 预清扫移除 —— 首轮编译即不吃毒件。
+
+    126683d 起每轮 compile 前引擎先扫 aux 族 (无尾换行/花括号不闭) —— 比
+    aux_scan_eof 签名+规则路径更早一层; 规则仍兜底「行界完整但带非法
+    UTF-8」的中间件 (见下一个测试)。
+    """
     (tmp_path / "main.tex").write_text(MAIN_TEX, encoding="utf-8")
     (tmp_path / "main.aux").write_bytes(b"\\newlabel{a}{{1}{1}{t\xe4\xb8")
+    eng = _Eng([{"log": CLEAN_LOG, "pdf": True}])
+    cell = fixloop(tmp_path, eng, ruleset=RS)
+    assert cell["verdict"] == "clean"
+    assert not (tmp_path / "main.aux").exists()  # 损坏件已删, 下遍引擎重生成
+
+
+def test_fixloop_aux_eof_purge_fallback(tmp_path: Path) -> None:
+    """行界完整 + 花括号闭合但含非法 UTF-8 的 aux —— 预清扫放行, aux_scan_eof
+    签名命中后 aux_purge_regen 规则仍是最后一道。"""
+    (tmp_path / "main.tex").write_text(MAIN_TEX, encoding="utf-8")
+    (tmp_path / "main.aux").write_bytes(
+        b"\\newlabel{a}{{1}{1}{\xe4\xb8}}\n\\newlabel{b}{{2}{2}{ok}}\n"
+    )
     eng = _Eng([{"log": _EOF_LOG, "pdf": False}, {"log": CLEAN_LOG, "pdf": True}])
     cell = fixloop(tmp_path, eng, ruleset=RS)
     assert cell["verdict"] == "clean"
     assert any(a["rule"] == "aux_purge_regen" for a in cell["actions"])
-    assert not (tmp_path / "main.aux").exists()  # 损坏件已删, 下遍引擎重生成
+    assert not (tmp_path / "main.aux").exists()
 
 
 def test_fixloop_aux_eof_no_corrupt_falls_through(tmp_path: Path) -> None:

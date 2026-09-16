@@ -244,7 +244,15 @@ taxonomy:
       id: already_def,
       scope: head,
       payload_group: 1,
-      pattern: "Command \\\\?([\\w@]+) already defined",
+      pattern: "Command '?\\\\?([\\w@]+)'? already defined",
+    }
+  - {
+      # ntheorem 自检错 (Theorem style X already defined) —— amsthm/thmtools
+      # 预定义同名 th@X 样式撞车, payload=样式名 (非 cs 名)
+      id: already_def,
+      scope: head,
+      payload_group: 1,
+      pattern: "Theorem style ([\\w@]+) already defined",
     }
   - {
       id: soul_err,
@@ -2529,6 +2537,68 @@ rules:
     stats: { fires: 0 }
     source_ref: "wave-2: already_def 类目首个泛化消费规则"
 
+  # ── 2026-09-17 partial-taxonomy 包间撞名中性化 ──
+  # 新签 "LaTeX cmd Error: Command '\X' already defined" (ltcmd 层
+  # \NewDocumentCommand 严格化) 与 ntheorem "Theorem style X already defined"
+  # 都不被 renew 规则覆盖: 重定义方在包内 (非作者书写面)。清位语义 = 让
+  # 后加载包赢——\let\<cs>\@undefined 同时骗过两代检查 (\ifcsname 假阴性
+  # 走 undefined 分支, \ifdefined 见 undefined 义; \relax 形只够前者)。
+  - id: ntheorem_style_undefine
+    description: "amsthm 预定义 th@<style> 撞 ntheorem 自检 → \\usepackage{ntheorem} 前清 th@X 位"
+    phase: loop
+    order: 112 # renew(111) 之后: doc 侧 \newcommand 撞名仍先走 renew
+    when: { category: already_def, payload_required: true }
+    condition: { ctx_suggests: "Theorem style" }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          - {
+              pattern: "\\\\(?:usepackage|RequirePackage)(\\s*\\[[^\\]]*\\])?\\s*\\{ntheorem\\}",
+              repl: '\\makeatletter\\let\\th@{payload}\\@undefined\\makeatother\n\\g<0>',
+            }
+    risk: medium # amsthm 的 th@X 样式被 ntheorem 定义覆盖 —— 作者装 ntheorem 即意图
+    known_gap: "多包连环定义 th@X 时逐轮收敛; ntheorem 经 \\input 间接装载未锚"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1306.0281 (partial-taxonomy)",
+          error: "ntheorem.sty:524 Theorem style plain already defined (shim acmart→amsthm 预定义)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "partial-taxonomy-2026-09-17 散件; ntheorem.sty L515-522 自检"
+
+  - id: already_def_undefine
+    description: "包内 \\NewDocumentCommand 撞先定义 → docclass 后 \\let\\<cs>\\@undefined 清位 (后加载者赢)"
+    phase: loop
+    order: 113 # ntheorem_style_undefine(112) 之后 —— 只接 Command 形签名
+    when: { category: already_def, payload_required: true }
+    condition: { ctx_suggests: "Command" }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "\\\\documentclass(\\s*\\[[^\\]]*\\])?\\s*\\{[^}]+\\}",
+              repl: '\\g<0>\n\\makeatletter\\let\\{payload}\\@undefined\\makeatother',
+            }
+    risk: medium # 清掉包/类侧先定义让后载包重定义 —— doc 侧 \newcommand 撞名已由 renew 先行
+    known_gap: "多行 \\documentclass (revtex 注释缝) 不锚 → applied=False; usepackage 链内后定义者 (A 先 B 后, 非 docclass 位) 清位时机过早无效"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1706.07911 (partial-taxonomy)",
+          error: "fontspec-xetex.sty:672 Command '\\liningnums' already defined (bundled acmart v1.39→libertine 先定义, inject ctex→fontspec 后撞)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "partial-taxonomy-2026-09-17 散件; \\let\\X\\@undefined 两代检查通吃"
+
   - id: option_clash_merge
     description: "Option clash: 同包两次 \\usepackage → 合并选项到首处, 注释后处"
     phase: loop
@@ -2754,6 +2824,31 @@ rules:
       - { corpus: "—", error: "装了新包但错误依旧 → 工程内旧 .sty 遮蔽" }
     stats: { fires: 0, status: proposed }
     source_ref: "docs/08-translate-compile.md L269"
+
+  # ── 2026-09-17 支援件腐蚀复原 (prose gate 落地前残案兜底) ──
+  # builtin 五条件全 conjunctive 自判 (baseline 同名件在 ∧ 字节异 ∧ 无
+  # % texlate/% fixloop 自有标记 ∧ 工作件 CJK 计数超 baseline ∧ baseline
+  # 判 support); baseline_dir 由 worker/stagerun 按 transform 名运行时
+  # 注入, 缺席即 False 空转 —— when 放宽 always 每轮便宜扫一遍。
+  - id: restore_support_from_src
+    description: "被翻译写脏的 support 件 → 从 baseline 树逐字节复原"
+    phase: loop
+    order: 154 # vendored_sty_shadow(150) 后, shadow/bbl_regen 族(155-159) 前
+    when: { always: true }
+    action:
+      kind: builtin_transform
+      function: restore_support_from_src # params.baseline_dir 由调用侧注入
+    risk: low # 五条件全中才动; parse 崩/baseline 非 support → 不碰
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "scout-supportfiles 残案 (pstricks/epsf/tikzlibrary 宏件)",
+          error: "support 件被注入 CJK → illegal_unit/undefined_cs 级联 (0707.4206 \\psunit 同族)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "builtins.py restore_support_from_src (c47e844) + worker 挂点 (2f1daf5)"
 
   # 新增 (fixloop-v2 整改): tectonic bundle 内建类太老遮蔽 —— 内置
   # aastex 5.0rc3.1 (1999) 缺 \actaa/deluxetable 宏族, missing_file 打不到
@@ -3075,16 +3170,57 @@ rules:
             {
               polyfill: '\providecommand{\DeclareUnicodeCharacter}[2]{\begingroup\lccode`\~="#1\relax\lowercase{\endgroup\catcode`~\active\protected\def~}{#2}}',
             }
+          # ── 2026-09-17 partial-taxonomy §C 期刊/类宏缺位族 ──
+          # elsarticle \corauth[label]{注} → noop
+          corauth: { polyfill: '\providecommand{\corauth}[2][]{}' }
+          # svjour/amsthm \smartqed 重定义 \qed → noop (qed 保持包默认)
+          smartqed: { polyfill: '\providecommand{\smartqed}{}' }
+          # 期刊投稿注 \submitto{journal} → noop
+          submitto: { polyfill: '\providecommand{\submitto}[1]{}' }
+          # \keywords{...} 渲染保留而非丢文 (article 系无此 cs)
+          keywords:
+            {
+              polyfill: '\providecommand{\keywords}[1]{\medskip\par\noindent\textbf{Keywords:} #1\medskip}',
+            }
+          # IEEEtran \PARstart{首}{余} 首字下沉 → 平排保字母
+          PARstart: { polyfill: '\providecommand{\PARstart}[2]{#1#2}' }
+          # elsarticle/acmart \email → tt 渲染 (防 em 头把 email 误拆 \em ail)
+          email: { polyfill: '\providecommand{\email}[1]{\texttt{#1}}' }
+          # shim 顶替类缺 \maketitle 兜底 —— 丢标题块换编译链存活
+          maketitle: { polyfill: '\providecommand{\maketitle}{}' }
+          # 2.09 \eqnobysec (equation 按节重置) —— \@addtoreset 需
+          # makeatletter 包住定义时刻, 调用处 catcode 无关
+          eqnobysec:
+            {
+              polyfill: '\makeatletter\providecommand{\eqnobysec}{\@addtoreset{equation}{section}\renewcommand{\theequation}{\thesection.\arabic{equation}}}\makeatother',
+            }
+          # \hboxto 作者笔误 (0707.4206 等 ~15 格): \hboxto5cm → \hbox to5cm
+          hboxto: { cs_map: { hboxto: "hbox to" } }
+          # \csname bibitemNoStop\endcsname 融合残留 (revtex \BibitemShut
+          # 展开件, 45 格) —— 补回空格即复原 \csname..\endcsname 完整形,
+          # \endcsname 本就在场, 展开的 \bibitemNoStop 未定义自动 \relax
+          csnamebibitemNoStop:
+            { cs_map: { csnamebibitemNoStop: "csname bibitemNoStop" } }
         # 表外 fallback (2026-09-16): glue 残骸前缀拆分 —— payload 未命中
         # cs_table 时, 若 cs = 已知粘连头 + 残余 (大写起首或 ≤4 字符) 则合成
         # cs_map 拆回 "head rest" (replay 实证 rmPT 型新残骸仍零星冒头,
         # 逐条收表追不上)。split_guard 挡与头同前缀的真宏名 (part/parbox/
         # ddot/fraction…); 含 @ 的包内私有 cs 不拆 (版本偏斜非粘连)。
         # in 头不收: int/indent/input/index/infty 前缀面太热, inV 留显式条目。
+        # 2026-09-17 +字体开关头族 (1e partial-taxonomy §C ≥100 格):
+        # \emPhys \itJHK \scpin \bfB \rmeff \emcf 全是 reconstruct 丢 \em/\it
+        # 保护块尾随空格的熔合残骸 → head+大写残余自动拆回。em/sc/sf/sl/tt/cal
+        # 补位; emph/texttt/sfcode/sloppy/slash 等同前缀真宏进 guard。
         split_heads:
-          [linebreak, item, hline, nabla, Delta, frac, par, dd, bf, it, rm]
+          [
+            linebreak, item, hline, nabla, Delta, frac, par, dd, bf, it, rm,
+            em, sc, sf, sl, tt, cal,
+          ]
         split_guard:
-          [part, para, parbox, parskip, itemize, itemsep, ddot, ddots, fraction]
+          [
+            part, para, parbox, parskip, itemize, itemsep, ddot, ddots, fraction,
+            emph, texttt, sfcode, sloppy, slash,
+          ]
     risk: medium # 剥包/换宏族改版式; 表只收语料实证条目
     engines:
       xelatex: { mode: native }
@@ -3131,6 +3267,41 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "repro-2501-2026-09-16/README.md 缺陷B; 1e cross-session handoff"
+
+  # ── 2026-09-17 partial-taxonomy 散件: acro v2→v3 键改名 ──
+  # bundled/旧稿 \acsetup{X-format=...} 在 acro v3.8 下键已废 (旧键兼容表
+  # 存在于源但实测不注册, "acro/short-format unknown" 实证); v3 原名
+  # format/X。定点只改 \acsetup{...} 花括号内, 不动他处 -format 字样。
+  - id: acro_v3_key_rename
+    description: "acro v2 旧键 (short|long|extra|foreign|first-long)-format → v3 format/X"
+    phase: loop
+    order: 167 # undefined_color_fallback(166) 之后, revtex4_array_swap_guard(170) 之前
+    when:
+      any:
+        - { category: other }
+        - { category: emergency }
+    condition: { ctx_suggests: "key 'acro/[\\w-]+' is unknown" }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty]
+        rewrites:
+          - {
+              pattern: "(\\\\acsetup\\s*\\{[^{}]*?)(first-long|short|long|extra|foreign)-format",
+              repl: '\g<1>format/\g<2>',
+            }
+    risk: low # 仅 \acsetup{} 槽内键名改写; v3 等价键语义同
+    known_gap: "list-short-format/list-long-format/single-form 等被移除键未映射; 多组 \\acsetup 内嵌套 {} 超 [^{}] 窗"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1706.00240 (partial-taxonomy)",
+          error: "draft.sty:141 The key 'acro/short-format' is unknown (v3.8; format/short 冒烟实证可编)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "acro v3.8 acro.sty deprecated-key 表 (L5988+); format/short 实编通过"
 
   # repro-1306 (1e 移交, e2e 实证 0 err 7页): revtex4-1 4.1s 的
   # \document@inithook→\switch@array 对 array v2.6n 校验失败仍无条件 \let

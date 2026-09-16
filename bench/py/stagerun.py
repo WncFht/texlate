@@ -88,7 +88,7 @@ from texlate.compile.engine import (
     engine_for,
     route_project,
 )
-from texlate.compile.fixloop import CaseSink, fixloop
+from texlate.compile.fixloop import CaseSink, Ruleset, fixloop
 from texlate.compile.fixloop.llm_hook import make_llm_hook
 from texlate.compile.inject import (
     InjectRejectError,
@@ -1193,11 +1193,25 @@ def _fixloop_one(
     idx = flb._index()
     if idx is not None:
         eng.filemap = idx.query
+    # restore_support_from_src 的 baseline_dir 是逐格运行时路径 (复跑继承
+    # pre-prose-gate 脏树才有存量腐蚀可修) —— params 在共享 flb.RS 上无法按
+    # pid 注入, 故每格 Ruleset.load() 后按 transform 名注入 src/ 原件树
+    # (同 worker._ruleset_with_baseline 契约)。
+    rs = flb.RS
+    if (wid / "src").is_dir():
+        rs = Ruleset.load()
+        for rule in rs.rules:
+            act = rule.raw.get("action") or {}
+            if (
+                act.get("kind") == "builtin_transform"
+                and act.get("function") == "restore_support_from_src"
+            ):
+                act.setdefault("params", {})["baseline_dir"] = str(wid / "src")
     try:
         cell = fixloop(
             splice,
             eng,
-            ruleset=flb.RS,
+            ruleset=rs,
             engine_name="xelatex",
             corpus_id=pid,
             cond="fixloop",
