@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from texlate.compile.engine import engine_for, route_project
-from texlate.compile.fixloop.engine import fixloop
+from texlate.compile.fixloop.engine import LlmHook, fixloop
 from texlate.compile.inject import InjectRejectError, find_main_tex, prepare_chinese
 from texlate.compile.judge import Verdict, judge
 from texlate.compile.normalize import normalize_project
@@ -111,6 +111,16 @@ def _split_cid(chunk_id: str) -> tuple[int, int]:
     return int(a), int(b)
 
 
+def _delivered(r: ChunkResult) -> bool:
+    """该 chunk 的译文会进 splice——与产品臂同口径。
+
+    worker ``_PIPE_TO_DB`` 把 pipeline ``partial``（阶梯 recovered）归
+    ``ok`` 照常 splice；``e2e_real_bench`` 同此。只要求译文非空——
+    skipped/fault 的 ``translation`` 是原文回填，不判。
+    """
+    return r.status == "ok" or (r.status == "partial" and bool(r.translation))
+
+
 async def _env_judge_one(pipe: XlatPipeline, chunk: Chunk, env_name: str) -> bool:
     """单 env 可译性判定（docs/08 §1.5）：0 温/16 tok/3 试/解析失败 fail-open。"""
     system = xlat_prompts.env_judge_system_prompt(pipe.cfg.src_lang, pipe.cfg.tgt_lang)
@@ -152,7 +162,7 @@ def _env_judge_pass(
     """未知 env 块 → LLM 可译性判定；判 False 的块从 ``by_file`` 摘除（回落原文）。"""
     targets: list[tuple[str, Chunk, str]] = []
     for r in results:
-        if r.status != "ok":
+        if not _delivered(r):
             continue
         fidx, cid = _split_cid(r.chunk_id)
         chunk = scans[fidx][1].chunks[cid]
@@ -201,10 +211,13 @@ def _translate_tree(
     results = asyncio.run(pipe.run(chunks))
     by_file: dict[int, dict[int, str]] = {}
     n_fault = 0
+    n_partial = 0
     for r in results:
         fidx, cid = _split_cid(r.chunk_id)
-        if r.status == "ok":
+        if _delivered(r):
             by_file.setdefault(fidx, {})[cid] = r.translation
+            if r.status == "partial":
+                n_partial += 1
         else:
             n_fault += 1
 
@@ -227,6 +240,7 @@ def _translate_tree(
     stats = {
         "files": n_files,
         "chunks": len(chunks),
+        "partial_chunks": n_partial,
         "fault_chunks": n_fault,
         "fault_files": fault_files,
         "leftover_ph": n_leftover,
@@ -662,7 +676,12 @@ def _slim_cell(cell: dict[str, Any]) -> dict[str, Any]:
 
 
 def _run_fixloop(
-    job: _Job, route_engines: list[str], prev_res: CompRes
+    job: _Job,
+    route_engines: list[str],
+    prev_res: CompRes,
+    *,
+    timeout: float | None = None,
+    llm_hook: LlmHook | None = None,
 ) -> tuple[dict, dict | None, CompRes]:
     """跑 fixloop + 消费 engine_flags → (报告, 新尾段或 None, 最新 CompRes)。
 
@@ -670,10 +689,24 @@ def _run_fixloop(
     （fixloop 首错分类语义）。flags 经 ``compile(flags=…)`` seam 落 CLI：
     xelatex 追加 argv；tectonic 只放支持子集，dropped 项（多为
     shell-escape 需求）→ 记 advisory + 换 xelatex 重编取优。
+
+    ``timeout`` 覆盖 rules.yaml ``meta.loop.timeout_sec`` 的重编预算
+    （None=用 yaml 值）。``llm_hook`` 未传时 ``TEXLATE_FIXLOOP_LLM=1``
+    可经 env 启用 escalate_llm 钩（网关走 TEXLATE_* 三件套）。
     """
+    if llm_hook is None and _env_flag("TEXLATE_FIXLOOP_LLM", default=False):
+        from texlate.compile.fixloop.llm_hook import make_llm_hook  # noqa: PLC0415
+
+        llm_hook = make_llm_hook()
     proxy = _LastResEngine(engine_for(job.eng_name))
     try:
-        cell = fixloop(job.work, proxy, engine_name=job.eng_name)
+        cell = fixloop(
+            job.work,
+            proxy,
+            engine_name=job.eng_name,
+            llm_hook=llm_hook,
+            compile_timeout=timeout,
+        )
     except Exception as e:  # noqa: BLE001 -- 修复臂崩不毁主报告
         return ({"enabled": True, "error": f"{type(e).__name__}: {e}"}, None, prev_res)
     rep = _slim_cell(cell)

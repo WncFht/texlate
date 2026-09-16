@@ -288,7 +288,7 @@ def translate_tree(
     n_fault = 0
     for r in results:
         fidx, cid = e2e_mod._split_cid(r.chunk_id)
-        if r.status == "ok":
+        if e2e_mod._delivered(r):
             by_file.setdefault(fidx, {})[cid] = r.translation
         else:
             n_fault += 1

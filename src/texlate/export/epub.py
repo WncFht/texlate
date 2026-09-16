@@ -24,7 +24,6 @@ only/exclude_filelist。
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import logging
 import posixpath
@@ -41,17 +40,18 @@ from bs4 import BeautifulSoup, NavigableString, Tag
 from defusedxml.common import DefusedXmlException
 from lxml import etree
 
-from texlate.xlat.pipeline import ChunkIn, ChunkResult, XlatPipeline
+from texlate.xlat.pipeline import ChunkIn, ChunkResult
 from texlate.xlat.placeholders import is_placeholder_only
 from texlate.xlat.state import StateStore
 
 from .common import (
+    ApplyCounts,
     DrmError,
     ExportReport,
     FixedLayoutError,
     GlossaryArg,
     MalformedEpubError,
-    coerce_glossary,
+    drive_pipeline,
 )
 from .filters import is_apparatus_text, is_special_text, normalize_text
 from .markers import (
@@ -66,7 +66,7 @@ from .markers import (
 from .rights import DRM_MESSAGE, check_epub
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable, Iterator
+    from collections.abc import Callable, Iterable, Iterator, Mapping
 
     from lxml.etree import _Element
 
@@ -903,7 +903,7 @@ def save_epub(dst: Path | str, book: EpubBook) -> None:
 # ---------------------------------------------------------------- 驱动
 
 
-def translate_epub(  # noqa: C901, PLR0913, PLR0915 -- 驱动主链：公共 API 参数面 + 成功/半成品两路共用 apply/flush 闭包
+def translate_epub(  # noqa: C901, PLR0913 -- 驱动主链：公共 API 参数面 + apply/flush 闭包
     src: Path | str,
     dst: Path | str,
     translator: Translator,
@@ -953,58 +953,35 @@ def translate_epub(  # noqa: C901, PLR0913, PLR0915 -- 驱动主链：公共 API
             )
         save_epub(dst, book)
 
-    def _apply(results: dict[str, ChunkResult]) -> tuple[int, int, int, list[str]]:
-        n_ok = n_unchanged = n_fault = 0
-        warnings: list[str] = []
+    def _apply(results: Mapping[str, ChunkResult]) -> ApplyCounts:
+        counts = ApplyCounts()
         for u in units:
             r = results.get(u.job_id)
             if r is None:
                 continue
             if r.status in ("skipped", "fault"):
                 if r.status == "fault":
-                    n_fault += 1
+                    counts.fault += 1
                 continue
             if r.translation.strip() == u.text.strip():
-                n_unchanged += 1
+                counts.unchanged += 1
                 continue
             warn = insert_translation(u, r.translation, target_lang)
             if warn:
-                warnings.append(warn)
-            n_ok += 1
-        return n_ok, n_unchanged, n_fault, warnings
+                counts.warnings.append(warn)
+            counts.translated += 1
+        return counts
 
     chunks = [ChunkIn(u.job_id, u.text, u.kind) for u in units]
-    pipe = XlatPipeline(
-        translator,
-        state=store,
-        glossary=coerce_glossary(glossary),
+    results, counts = drive_pipeline(
+        chunks,
+        translator=translator,
+        store=store,
+        glossary=glossary,
         on_result=on_result,
+        apply_fn=_apply,
+        save_fn=_flush_and_save,
     )
-    try:
-        results_list = asyncio.run(pipe.run(chunks))
-        results = {r.chunk_id: r for r in results_list}
-    except BaseException:
-        # 半成品双语书：state 里已落盘的译文回放插译后照常出包
-        _completed, recs = store.load()
-        partial = {
-            cid: ChunkResult(
-                chunk_id=cid,
-                source=rec.source,
-                translation=rec.translation,
-                kind=rec.kind,
-                status=rec.status,
-            )
-            for cid, rec in recs.items()
-        }
-        try:
-            n_partial, _u, _f, _w = _apply(partial)
-            _flush_and_save(n_partial)
-        except Exception:
-            log.exception("partial epub save failed")
-        raise
-
-    n_ok, n_unchanged, n_fault, warnings = _apply(results)
-    _flush_and_save(n_ok)
 
     if state_dir.exists():
         shutil.rmtree(state_dir, ignore_errors=True)
@@ -1014,10 +991,10 @@ def translate_epub(  # noqa: C901, PLR0913, PLR0915 -- 驱动主链：公共 API
         dst=dst,
         format="epub",
         units=len(units),
-        translated=n_ok,
-        unchanged=n_unchanged,
+        translated=counts.translated,
+        unchanged=counts.unchanged,
         skipped=n_skipped,
-        fault=n_fault,
+        fault=counts.fault,
         documents=len(book.doc_paths),
-        warnings=warnings,
+        warnings=counts.warnings,
     )

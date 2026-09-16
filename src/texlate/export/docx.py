@@ -27,9 +27,7 @@
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
-import logging
 import re
 import shutil
 from copy import deepcopy
@@ -44,28 +42,27 @@ from docx.shared import RGBColor
 from docx.text.paragraph import Paragraph
 from lxml import etree
 
-from texlate.xlat.pipeline import ChunkIn, ChunkResult, XlatPipeline
+from texlate.xlat.pipeline import ChunkIn, ChunkResult
 from texlate.xlat.placeholders import is_placeholder_only
 from texlate.xlat.state import StateStore
 
 from .common import (
+    ApplyCounts,
     ExportReport,
     GlossaryArg,
     UnsupportedFormatError,
-    coerce_glossary,
+    drive_pipeline,
 )
 from .filters import is_apparatus_text, is_special_text, normalize_text
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterator
+    from collections.abc import Callable, Iterator, Mapping
 
     from docx.document import Document as DocumentObject
     from docx.opc.part import Part
     from lxml.etree import _Element
 
     from texlate.xlat.pipeline import Translator
-
-log = logging.getLogger(__name__)
 
 _PIPELINE_VERSION = "export-docx-1"
 
@@ -288,7 +285,7 @@ def insert_after(p_el: _Element, zh_text: str) -> None:
 # ---------------------------------------------------------------- 驱动
 
 
-def translate_docx(  # noqa: C901, PLR0913, PLR0915 -- 驱动主链：公共 API 参数面 + 成功/半成品两路共用 apply/commit 闭包
+def translate_docx(  # noqa: C901, PLR0913 -- 驱动主链：公共 API 参数面 + apply/commit 闭包
     src: Path | str,
     dst: Path | str,
     translator: Translator,
@@ -323,60 +320,39 @@ def translate_docx(  # noqa: C901, PLR0913, PLR0915 -- 驱动主链：公共 API
     state_dir = state_dir or dst.with_name(dst.name + ".state")
     store = StateStore(state_dir, model="export", pipeline_version=_PIPELINE_VERSION)
 
-    def _apply(results: dict[str, ChunkResult]) -> tuple[int, int, int]:
-        n_ok = n_unchanged = n_fault = 0
+    def _apply(results: Mapping[str, ChunkResult]) -> ApplyCounts:
+        counts = ApplyCounts()
         for u in units:
             r = results.get(u.job_id)
             if r is None:
                 continue
             if r.status in ("skipped", "fault"):
                 if r.status == "fault":
-                    n_fault += 1
+                    counts.fault += 1
                 continue
             if r.translation.strip() == u.text.strip():
-                n_unchanged += 1
+                counts.unchanged += 1
                 continue
             insert_after(u.p_el, r.translation)
-            n_ok += 1
-        return n_ok, n_unchanged, n_fault
+            counts.translated += 1
+        return counts
 
-    def _commit_and_save() -> None:
+    def _commit_and_save(_translated: int) -> None:
         for part, root in parts_to_commit.values():
             _commit_part(part, root)
         doc.core_properties.language = target_lang
         doc.save(str(dst))
 
     chunks = [ChunkIn(u.job_id, u.text, "para") for u in units]
-    pipe = XlatPipeline(
-        translator,
-        state=store,
-        glossary=coerce_glossary(glossary),
+    results, counts = drive_pipeline(
+        chunks,
+        translator=translator,
+        store=store,
+        glossary=glossary,
         on_result=on_result,
+        apply_fn=_apply,
+        save_fn=_commit_and_save,
     )
-    try:
-        results_list = asyncio.run(pipe.run(chunks))
-        results = {r.chunk_id: r for r in results_list}
-    except BaseException:
-        _completed, recs = store.load()
-        partial = {
-            cid: ChunkResult(
-                chunk_id=cid,
-                source=rec.source,
-                translation=rec.translation,
-                kind=rec.kind,
-                status=rec.status,
-            )
-            for cid, rec in recs.items()
-        }
-        try:
-            _apply(partial)
-            _commit_and_save()
-        except Exception:
-            log.exception("partial docx save failed")
-        raise
-
-    n_ok, n_unchanged, n_fault = _apply(results)
-    _commit_and_save()
 
     if state_dir.exists():
         shutil.rmtree(state_dir, ignore_errors=True)
@@ -386,9 +362,9 @@ def translate_docx(  # noqa: C901, PLR0913, PLR0915 -- 驱动主链：公共 API
         dst=dst,
         format="docx",
         units=len(units),
-        translated=n_ok,
-        unchanged=n_unchanged,
+        translated=counts.translated,
+        unchanged=counts.unchanged,
         skipped=n_skipped,
-        fault=n_fault,
+        fault=counts.fault,
         documents=len(parts_to_commit) + 1,
     )

@@ -21,6 +21,7 @@ verdict，这边是产出侧 payload）；regions 移植自 texglot
 from __future__ import annotations
 
 import hashlib
+import logging
 import re
 from io import BytesIO
 from typing import TYPE_CHECKING, Any
@@ -33,6 +34,8 @@ if TYPE_CHECKING:
     from pypdf.generic import DictionaryObject
 
 __all__ = ["build_alignment", "extract_landmarks"]
+
+log = logging.getLogger(__name__)
 
 #: hyperref 自动页锚 ``page.N``——只是页码，对锚点同步无信息量，单列不计。
 _PAGE_ANCHOR_RX = re.compile(r"^page\.\d+$")
@@ -365,19 +368,28 @@ def build_alignment(en_pdf: Path, zh_pdf: Path) -> dict[str, Any]:
     "regions":[...]}``，pairs 为 original 序的单调链（乱序锚丢弃）、
     regions 为 figure 浮动块双侧区间（候选取全部公共锚，不受链丢弃影响）；
     无公共锚 → ``{"kind":"pages","heights":{...}}`` 让前端退同页映射。
-    PDF 损坏/读不动按无锚处理——阅读器降级比任务失败便宜。
+    PDF 损坏/读不动按无锚处理——阅读器降级比任务失败便宜；双侧独立
+    抽取，一侧坏掉仍回存活侧的真实 ``heights``（缺席侧前端按每页 1 计）。
     """
     try:
         from pypdf import PdfReader  # noqa: PLC0415 -- 重依赖惰性加载
-
-        readers = {
-            "original": PdfReader(str(en_pdf)),
-            "translated": PdfReader(str(zh_pdf)),
-        }
-        ea = _reader_landmarks(readers["original"])
-        eb = _reader_landmarks(readers["translated"])
-    except Exception:  # noqa: BLE001 -- 截断/加密 PDF 只丢同步精度
+    except Exception:  # noqa: BLE001 -- pypdf 缺席 → 连 heights 也抽不出
         return {"kind": "pages"}
+    readers: dict[str, PdfReader] = {}
+    marks: dict[str, dict[str, Any]] = {}
+    for side, pdf in (("original", en_pdf), ("translated", zh_pdf)):
+        try:
+            r = PdfReader(str(pdf))
+            marks[side] = _reader_landmarks(r)
+            readers[side] = r
+        except Exception as e:  # noqa: BLE001 -- 截断/加密 PDF 只丢该侧同步精度
+            log.debug("landmark extraction failed for %s: %s", pdf, e)
+    ea, eb = marks.get("original"), marks.get("translated")
+    if ea is None or eb is None:
+        return {
+            "kind": "pages",
+            "heights": {s: m["heights"] for s, m in marks.items()},
+        }
     heights = {"original": ea["heights"], "translated": eb["heights"]}
     commons = [
         (n, ea["dests"][n], eb["dests"][n])

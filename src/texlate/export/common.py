@@ -1,14 +1,26 @@
-"""export 包共享件：错误族 + 统一报告 + ``glossary`` 入参归一。"""
+"""export 包共享件：错误族 + 统一报告 + ``glossary`` 入参归一 + 双驱骨架。"""
 
 from __future__ import annotations
 
+import asyncio
+import logging
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import yaml
 
 from texlate.xlat.glossary import Glossary, TermEntry
+from texlate.xlat.pipeline import ChunkIn, ChunkResult, XlatPipeline
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from texlate.xlat.pipeline import Translator
+    from texlate.xlat.state import StateStore
+
+log = logging.getLogger(__name__)
 
 
 class ExportError(Exception):
@@ -88,3 +100,63 @@ def coerce_glossary(glossary: GlossaryArg | None) -> Glossary | None:
     except (OSError, ValueError, TypeError, yaml.YAMLError) as e:
         msg = f"glossary 加载失败: {path} ({e})"
         raise ExportError(msg) from e
+
+
+# ---------------------------------------------------------------- 双驱骨架
+
+
+@dataclass
+class ApplyCounts:
+    """``apply_fn`` 计数包：插译成功/逐字同原文/真失败 + 插译警告。"""
+
+    translated: int = 0
+    unchanged: int = 0
+    fault: int = 0
+    warnings: list[str] = field(default_factory=list)
+
+
+def drive_pipeline(  # noqa: PLR0913 -- 骨架即双驱共享参数面（chunks/翻译/断点/回调/apply/save 七件）
+    chunks: list[ChunkIn],
+    *,
+    translator: Translator,
+    store: StateStore,
+    glossary: GlossaryArg | None,
+    on_result: Callable[[ChunkResult], None] | None,
+    apply_fn: Callable[[Mapping[str, ChunkResult]], ApplyCounts],
+    save_fn: Callable[[int], None],
+) -> tuple[dict[str, ChunkResult], ApplyCounts]:
+    """``XlatPipeline`` 全编排 + 半成品落盘——EPUB/DOCX 两驱动共用骨架。
+
+    ``apply_fn`` 把结果表插进文档模型返回计数；``save_fn`` 按插译成功数出包。
+    Ctrl-C/异常按 ``store`` 已落盘译文回放 apply+save 后再抛（bbm
+    ``_save_temp_book`` 语义——半成品双语件总比没有强）。返回
+    ``(结果表, 计数)`` 供调用方组 ``ExportReport``。
+    """
+    pipe = XlatPipeline(
+        translator,
+        state=store,
+        glossary=coerce_glossary(glossary),
+        on_result=on_result,
+    )
+    try:
+        results = {r.chunk_id: r for r in asyncio.run(pipe.run(chunks))}
+    except BaseException:
+        _completed, recs = store.load()
+        partial = {
+            cid: ChunkResult(
+                chunk_id=cid,
+                source=rec.source,
+                translation=rec.translation,
+                kind=rec.kind,
+                status=rec.status,
+            )
+            for cid, rec in recs.items()
+        }
+        try:
+            save_fn(apply_fn(partial).translated)
+        except Exception:
+            log.exception("partial export save failed")
+        raise
+    counts = apply_fn(results)
+    save_fn(counts.translated)
+    return results, counts

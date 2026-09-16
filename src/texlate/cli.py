@@ -223,7 +223,12 @@ def run(  # noqa: C901, PLR0913 -- CLI 选项面即参数面 + 本地/瘦客户�
 
     翻译走 ``XlatPipeline(MockTranslator)`` + L0 校验器（驱动在 ``texlate.e2e``）
     ——全链产品 API，不触网（arxiv id 源走缓存/在线取源除外）。
-    退出码：0 clean/partial，1 编译失败，2 路由拒绝。
+    退出码：0 = clean/partial（远端 done/partial）；1 = 编译失败（修复链
+    走尽仍无 pdf），--server 侧另含终态 fault/cancelled/interrupted、
+    快照失联（lost）与 --wait 超时；2 = 用法错（未知引擎/--server 选项
+    脱离/--work-dir 非空/本地目录喂 --server）与策略拒绝
+    （status=partial+reject_at），--server 侧另含提交被拒、传输错/
+    非法 JSON 响应与 needs_auth 终态。
 
     ``--server URL`` 切换为瘦客户端：``POST /api/arxiv/{id}/translate`` →
     2s 快照轮询（web-layer §7 开放问题 1 明列的等价通道，不依赖 SSE
@@ -377,7 +382,7 @@ def _thin_run(  # noqa: PLR0913 -- 与 run 的 --server 选项面一一对应
             if status in ("done", "partial"):
                 return 0
             return 2 if status == "needs_auth" else 1
-    except httpx.HTTPError as e:
+    except (httpx.HTTPError, json.JSONDecodeError) as e:
         typer.echo(f"server 传输错: {e}", err=True)
         return 2
 
@@ -397,9 +402,12 @@ def _thin_submit(
             typer.echo(f"attach 进行中任务 {task_id}", err=True)
             return task_id
     elif resp.status_code in (HTTPStatus.OK, HTTPStatus.ACCEPTED):
-        task_id = str(resp.json()["task_id"])
-        typer.echo(f"task {task_id} → {resp.json().get('status')}", err=True)
-        return task_id
+        body = resp.json()
+        task_id = str(body.get("task_id") or "")
+        if task_id:
+            typer.echo(f"task {task_id} → {body.get('status')}", err=True)
+            return task_id
+        # 畸形 2xx（缺 task_id）落通用错误行——不当成功 attach
     typer.echo(f"translate {resp.status_code}: {resp.text[:300]}", err=True)
     return None
 

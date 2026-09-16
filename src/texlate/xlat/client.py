@@ -10,6 +10,11 @@
 - reasoning 模型（swe-2-*/deepseek/kimi-k3/inkling）：`reasoning_content` 与
   `content` 分字段返回，reasoning 也吃 max_tokens——翻译请求 max_tokens≥8192。
 - BYOK：`provider_for_url` host→provider 预设表（照 texglot providers.py 形状）。
+
+现状注记（audit 2026-09-16）：生产路径走配置模型名（worker/cli 显式指定），
+免费集发现链（``discover_free_models``/``probe_model``/``pick_model`` +
+``DEFAULT_MODEL_PREFERENCE``/``DEFAULT_MODEL_DENYLIST``）与 ``chat_stream``
+目前仅 bench/test/网关 smoke 消费——模型 fallback 臂接入待立项。
 """
 
 from __future__ import annotations
@@ -623,6 +628,8 @@ class ChatClient:
         B4a 实测注意：swe-2 系是假流式——上游缓存后转发，delta 全挤在末 ~0.3s，
         TTFT≈总时长，stream 不能当进度信号；仅剩价值是 `stream_options.
         include_usage` 拿末帧 usage。
+
+        现状：无生产调用方（仅 tests/bench 消费，见模块 docstring 注记）。
         """
         opts = options or ChatOptions()
         try:
@@ -715,6 +722,7 @@ class ChatClient:
 
         promo 到期（如 glm-5-2 2026-09-16）后该 uid 自然掉出——绝不硬编码。
         `probe=False` 只做两步交集（清单≠可用，正式选路必须 probe）。
+        现状：无生产调用方（仅 bench/test/网关 smoke，见模块 docstring 注记）。
         """
         panel = await self.panel_models()
         try:
@@ -767,7 +775,10 @@ def pick_model(
     preference: tuple[str, ...] = DEFAULT_MODEL_PREFERENCE,
     denylist: frozenset[str] = DEFAULT_MODEL_DENYLIST,
 ) -> str | None:
-    """从探活通过的免费集里按偏好序选模型（denylist 一票否决）。"""
+    """从探活通过的免费集里按偏好序选模型（denylist 一票否决）。
+
+    现状：无生产调用方（仅 bench/test，见模块 docstring 注记）。
+    """
     alive = {m.uid for m in discovered if m.probe_ok} - set(denylist)
     pref = [u for u in preference if u in alive]
     if pref:
