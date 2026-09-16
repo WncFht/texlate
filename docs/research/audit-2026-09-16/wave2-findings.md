@@ -26,14 +26,14 @@
 - **`_group_surface` 复刻 `_dispatch` 漂移**（segmenter.py:979 vs 1270）：组内 REF 判定漏 `"hyperref"` 排除 → 展开组内 `\hyperref[o]{text}` 可译参被 REF 整吞；缺 verb 行 → 组内 `\verb` 泄进 surface。→ fixer-latex P0。
 - **triage `leftover_ph→core` 不可达**：xlat 错误写 `cat="xlat",code="leftover_ph"`，classify 按 cat 路由 → 全归 rule 且 `xlat:fault=N` 按计数碎 sig。→ fixer-triage。
 
-## 修复在飞（6 fixer）
+## 修复交付（6 fixer 全落）
 
-- **fixer-triage**（triage/stagerun/benchlib）：末行胜去重（compile.jsonl 已有 79 重复行）、run_meta `started_at/finished_at` 字段、skip 豁免失效+`stub_format:{member}` 碎票、sig 合成单源化（`_verdict_sig` vs `_legacy_sig` 漂移、`_judge_tail` vs `judge_dict` 差 payload）。
-- **fixer-bench-hygiene**：死 spike 簇 ~2900 行验证删除（fixloop.py/fixloop_report/compile_bench/compile_report/rerun_xelatex/macro_scan）、`fixloop_bench` 模块级 RS IO 惰性化、`unpack_blob` 归并产品 `arxiv.unpack`。
-- **fixer-tests**：pyproject `testpaths`/`norecursedirs`（裸 pytest INTERNALERROR）、`_HAS_RUN_DOC` 遗迹门、SSE `_FEED_DELAY` flake、`_StageError` code 覆盖、file:line 重复钉评估。
-- **fixer-latex**：上列 P0 + `math_debt`/`math_depth` 死机制 + 切点链/input marker/env→PhType 三分收敛 + `FILENAME_CHARS` 单源 + `__init__` 24 死 re-export + `parse_file_v1` top_dir 转发 + `_cov_origin` 复现验证。
-- **fixer-e2e-misc**：e2e mock 臂 partial 译文准入对齐、cli `_thin_submit` KeyError+退出码表、align 错误路径 `heights` 缺席、export epub/docx 双驱同构评估、client 死公共 API 标注。
-- **fixer-fixloop**：`_when_ok` fail-open→对称 fail-closed+键白名单、`regex_rewrite` 0 命中落 flags、`_gate_eval` dedup 前置、`CtanFetcher.index` 共享索引 mutate、`pdftex_prim` subclassify 误路由、`missing_char_fix` verbatim 防护、`timeout_sec` 消费+timeout 透传链、`stats_backfill` project/corpus 口径、llm_hook 我侧四调用点 opt-in 接线。
+- **fixer-triage**（triage/stagerun/benchlib）：末行胜去重（compile.jsonl 已有 79 重复行）、run_meta `started_at/finished_at` 字段、skip 豁免失效+`stub_format:{member}` 碎票、sig 合成单源化（`_verdict_sig` vs `_legacy_sig` 漂移、`_judge_tail` vs `judge_dict` 差 payload）。→ `8460336` + `test_bench_triage.py` 13 例。
+- **fixer-bench-hygiene**：死 spike 簇 ~2900 行验证删除（fixloop.py/fixloop_report/compile_bench/compile_report/rerun_xelatex/macro_scan）、`fixloop_bench` 模块级 RS IO 惰性化、`unpack_blob` 归并产品 `arxiv.unpack`。→ `36e195a`。
+- **fixer-tests**：pyproject `testpaths`/`norecursedirs`（裸 pytest INTERNALERROR）、`_HAS_RUN_DOC` 遗迹门、SSE `_FEED_DELAY` flake、`_StageError` code 覆盖、file:line 重复钉评估。→ `4a37980` + `pyproject.toml`。
+- **fixer-latex**：上列 P0 + `math_debt`/`math_depth` 死机制 + 切点链/input marker/env→PhType 三分收敛 + `FILENAME_CHARS` 单源 + `__init__` 24 死 re-export + `parse_file_v1` top_dir 转发 + `_cov_origin` 复现验证。→ `2f3fc67`（latex slice 346 绿）。
+- **fixer-e2e-misc**：e2e mock 臂 partial 译文准入对齐、cli `_thin_submit` KeyError+退出码表、align 错误路径 `heights` 缺席、export epub/docx 双驱同构评估、client 死公共 API 标注。→ `0fe05c1`。
+- **fixer-fixloop**：`_when_ok` fail-open→对称 fail-closed+键白名单、`regex_rewrite` 0 命中落 flags、`_gate_eval` dedup 前置、`CtanFetcher.index` 共享索引 mutate、`pdftex_prim` subclassify 误路由、`missing_char_fix` verbatim 防护、`timeout_sec` 消费+timeout 透传链、`stats_backfill` project/corpus 口径、llm_hook 我侧四调用点 opt-in 接线、加挂 vendored_sty_shadow tectonic advisory 档 + `l.N` 行首锚。→ `3c5aae2`（含 peer texmfhome hunk 带署名）。尾项：emulateapj/epsf shim-bypass 调查在跑。
 
 ## 已路由 peer
 
