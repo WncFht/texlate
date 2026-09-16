@@ -467,7 +467,13 @@ function handleApi(req: Req, res: Res, url: URL): boolean {
         return true;
     }
     if (req.method === "GET" && p === "/api/tasks") {
-        json(res, 200, { tasks: [...tasks.values()].map(snapshot) });
+        // 对齐真后端：列表行不附 artifacts（懒拉 /api/files/{id} 补）
+        const rows = [...tasks.values()].map((t) => {
+            const s = snapshot(t);
+            delete s.artifacts;
+            return s;
+        });
+        json(res, 200, { tasks: rows });
         return true;
     }
     if ((mm = m(/^\/api\/arxiv\/([^/]+)\/translate$/)) && req.method === "POST") {
@@ -494,7 +500,12 @@ function handleApi(req: Req, res: Res, url: URL): boolean {
         req.on("end", () => {
             const fname = /filename="([^"]+)"/.exec(body)?.[1] ?? "upload.tex";
             const ext = fname.toLowerCase().split(".").pop() ?? "";
-            const kind = ext === "docx" || ext === "epub" ? ext : "upload_tex";
+            const kind =
+                ext === "docx" || ext === "epub"
+                    ? ext
+                    : ext === "pdf"
+                      ? "upload_pdf"
+                      : "upload_tex";
             const t = seedTask(mkId(), "queued", {
                 kind,
                 title: fname,
@@ -505,7 +516,8 @@ function handleApi(req: Req, res: Res, url: URL): boolean {
                 task_id: t.id,
                 status: "queued",
                 events_url: `/api/task/${t.id}`,
-                reader_url: `/api/task/${t.id}/reader`,
+                // 对齐后端新契约：reader_url 仅产 dual.json 的 kind 下发
+                ...(isDoc(t) ? {} : { reader_url: `/api/task/${t.id}/reader` }),
             });
         });
         return true;

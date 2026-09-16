@@ -6,7 +6,6 @@ import { createEffect, createMemo, createSignal, onCleanup, onMount, Show, For }
 import {
     api,
     ApiError,
-    DB_TO_URL_KIND,
     isTerminal,
     type DualJson,
     type FileKind,
@@ -16,6 +15,7 @@ import {
     type TaskStage,
 } from "../api/client";
 import { taskStore } from "../stores/tasks";
+import { downloadItems } from "../taskFiles";
 import Toolbar, { type DownloadItem, type Mode } from "../components/Toolbar";
 import ProgressGrid from "../components/ProgressGrid";
 import PdfPane, { type PaneHandle } from "../reader/PdfPane";
@@ -29,18 +29,6 @@ import { t } from "../i18n/zh";
 const STAGES: TaskStage[] = ["fetching", "parsing", "translating", "compiling"];
 const JUMPBACK_PX = 500;
 const SAVE_DEBOUNCE_MS = 1000;
-const DOWNLOAD_ORDER: FileKind[] = [
-    "zh.pdf",
-    "en.pdf",
-    "dual.pdf",
-    "dual.json",
-    "zh.docx",
-    "zh.epub",
-    "zh-src.zip",
-    "compile.log",
-    "md",
-    "src.tar",
-];
 
 type AnyHandle = PaneHandle | HtmlPaneHandle;
 
@@ -332,22 +320,10 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
     const downloads = createMemo<DownloadItem[]>(() => {
         const m = manifest();
         if (!m) return [];
-        // manifest.artifacts 的键是 db kind；entry.url 已是完整下载路径，
-        // 补 ?download=1 让服务端落 Content-Disposition
-        const ord = (k: string) => {
-            const i = DOWNLOAD_ORDER.indexOf(k as FileKind);
-            return i < 0 ? DOWNLOAD_ORDER.length : i;
-        };
-        return Object.entries(m.artifacts)
-            .map(([dbKind, e]) => {
-                const kind = DB_TO_URL_KIND[dbKind] ?? dbKind;
-                return {
-                    kind,
-                    label: t.files[kind] ?? kind,
-                    url: `${e.url}?download=1`,
-                };
-            })
-            .sort((a, b) => ord(a.kind) - ord(b.kind));
+        // manifest.artifacts → db kind→url 同形状，排序/标签/直链走 taskFiles
+        return downloadItems(
+            Object.fromEntries(Object.entries(m.artifacts).map(([k, e]) => [k, e.url])),
+        );
     });
 
     const docUrl = (side: DocId) => {

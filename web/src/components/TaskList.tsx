@@ -1,7 +1,8 @@
-import { createSignal, For, Show } from "solid-js";
+import { createResource, createSignal, For, Show } from "solid-js";
 import type { TaskError, TaskSnapshot } from "../api/client";
-import { isTerminal } from "../api/client";
+import { api, isTerminal } from "../api/client";
 import { taskStore } from "../stores/tasks";
+import { downloadItems, isDocKind } from "../taskFiles";
 import { t } from "../i18n/zh";
 
 interface Props {
@@ -23,6 +24,40 @@ function fmtRel(ts: number): string {
     if (diff < DAY) return n(Math.floor(diff / HOUR), t.time.hourAgo);
     if (diff < 7 * DAY) return n(Math.floor(diff / DAY), t.time.dayAgo);
     return new Date(ms).toLocaleDateString();
+}
+
+/**
+ * doc 类任务（docx/epub）行内产物直链：snapshot.artifacts（SSE 在途带过）
+ * 优先，无则懒拉 files manifest；无产物（fault/拉取失败/在途）不渲染。
+ * 锚点必须落在 .task-row <button> 之外——button 内嵌 interactive 非法。
+ */
+function DocDownloads(props: { task: TaskSnapshot }) {
+    const [manifest] = createResource(
+        () => (props.task.artifacts ? null : props.task.task_id),
+        (id) => api.files(id).catch(() => null),
+    );
+    const items = () => {
+        const snap = props.task.artifacts;
+        if (snap) return downloadItems(snap);
+        const m = manifest();
+        if (!m) return [];
+        return downloadItems(
+            Object.fromEntries(Object.entries(m.artifacts).map(([k, e]) => [k, e.url])),
+        );
+    };
+    return (
+        <Show when={items().length > 0}>
+            <span class="task-dls" title={t.home.dlTitle}>
+                <For each={items()}>
+                    {(d) => (
+                        <a class="task-dl" href={d.url} download="">
+                            {d.label}
+                        </a>
+                    )}
+                </For>
+            </span>
+        </Show>
+    );
 }
 
 export default function TaskList(props: Props) {
@@ -74,7 +109,12 @@ export default function TaskList(props: Props) {
                             </span>
                             <span class="task-time">{fmtRel(task.created_at)}</span>
                             <span class="task-meta muted">
-                                <span class="task-kind">{t.kind[task.kind] ?? task.kind}</span>
+                                <span
+                                    class="task-kind"
+                                    classList={{ "k-doc": isDocKind(task.kind) }}
+                                >
+                                    {t.kind[task.kind] ?? task.kind}
+                                </span>
                                 <Show when={!isTerminal(task.status)}>
                                     <span>{t.status[task.stage ?? task.status]}</span>
                                 </Show>
@@ -101,6 +141,9 @@ export default function TaskList(props: Props) {
                                 />
                             </span>
                         </button>
+                        <Show when={isDocKind(task.kind) && isTerminal(task.status)}>
+                            <DocDownloads task={task} />
+                        </Show>
                         <button
                             type="button"
                             class="task-del"

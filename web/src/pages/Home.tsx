@@ -4,6 +4,7 @@ import { createSignal, For, onMount, Show } from "solid-js";
 import {
     api,
     ApiError,
+    landingHash,
     type Health,
     type TranslateOptions,
 } from "../api/client";
@@ -59,6 +60,9 @@ export default function Home(props: { nav(to: string): void }) {
     };
 
     const open = (taskId: string) => props.nav(`#/reader/${taskId}`);
+    // 202 落地：reader_url 仅产 dual.json 的 kind 下发，缺席（docx/epub）
+    // 回 task_id——#/reader/:id 即任务详情面，终态自动落产物下载面板
+    const openRes = (res: Parameters<typeof landingHash>[0]) => props.nav(landingHash(res));
 
     /** 非空字段收成 TranslateOptions；全空返回 undefined（不附带 body 字段） */
     const collectOptions = (): TranslateOptions | undefined => {
@@ -89,7 +93,7 @@ export default function Home(props: { nav(to: string): void }) {
         setBusy(true);
         try {
             const res = await api.translate(id, collectOptions());
-            open(res.task_id);
+            openRes(res);
         } catch (e) {
             // 409：同 cache_key 已有活动任务 → 直接跳过去
             if (e instanceof ApiError && e.status === 409) {
@@ -121,7 +125,7 @@ export default function Home(props: { nav(to: string): void }) {
                     ? { model: o.model, target_lang: o.target_lang, options: upOpts }
                     : undefined;
             const res = await api.upload(file, fields);
-            open(res.task_id);
+            openRes(res);
         } catch (e) {
             setError(e instanceof Error ? e.message : String(e));
         } finally {

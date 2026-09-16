@@ -45,7 +45,13 @@ const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
 
 const consoleErrors = [];
 page.on("console", (m) => {
-    if (m.type() === "error") consoleErrors.push(m.text());
+    if (m.type() !== "error") return;
+    // doc 类任务的 /api/task/{id}/reader 404 是设计内降级（前端转产物面板），
+    // 浏览器照样记 resource 404——按 location.url 豁免这一条
+    const loc = m.location()?.url ?? "";
+    if (/\/api\/task\/[^/]+\/reader$/.test(loc) && m.text().includes("404"))
+        return;
+    consoleErrors.push(m.text());
 });
 page.on("pageerror", (e) => consoleErrors.push(`pageerror: ${e.message}`));
 
@@ -158,6 +164,57 @@ await page.goto(`${BASE}/#/reader/t_0000000000000a03`, {
 });
 await page.waitForTimeout(1500);
 await page.screenshot({ path: `${SHOTS}08-partial.png` });
+
+// ---------- 4.5 doc 任务：kind 徽标 + 行内下载 + files 面板 ----------
+await page.goto(`${BASE}/#/`, { waitUntil: "networkidle" });
+// doc 行：kind 徽标带 k-doc 修饰，行内有产物直链（懒拉 files manifest——
+// 等首个 chip 出现再断言，manifest 往返晚于列表渲染）
+await page.waitForSelector(".task-dl", { timeout: 5000 });
+const docBadges = await page.locator(".task-kind.k-doc").count();
+check("doc 任务 kind 徽标（k-doc）", docBadges >= 2, `${docBadges} 枚`);
+const docDl = page.locator('.task-dl[href*="zh.docx"]');
+check(
+    "docx 行内 zh.docx 下载链",
+    (await docDl.count()) >= 1 &&
+        (await docDl.first().getAttribute("href"))?.includes("?download=1"),
+);
+check(
+    "epub 行内 zh.epub 下载链",
+    (await page.locator('.task-dl[href*="zh.epub"]').count()) >= 1,
+);
+// tex/arxiv 行不应有行内下载链
+const arxivRow = page.locator(".task-wrap", { hasText: "2501.14787" }).first();
+check(
+    "arxiv 行无行内下载",
+    (await arxivRow.locator(".task-dl").count()) === 0,
+);
+// doc 任务详情面：reader 404 → 产物下载面板，不白屏不 fatal
+await page.goto(`${BASE}/#/reader/t_0000000000000a07`, {
+    waitUntil: "networkidle",
+});
+await page.waitForSelector(".result-panel", { timeout: 5000 });
+check(
+    "epub 任务出产物面板",
+    await page.locator('.file-list a[href*="zh.epub"]').isVisible(),
+);
+check(
+    "产物面板非 fatal",
+    (await page.locator(".reader-fatal").count()) === 0,
+);
+await page.screenshot({ path: `${SHOTS}08b-doc-files.png` });
+
+// docx 上传：reader_url 缺席 → 仍落任务详情面
+await page.goto(`${BASE}/#/`, { waitUntil: "networkidle" });
+await page.setInputFiles('.arxiv-form input[type="file"]', {
+    name: "smoke.docx",
+    mimeType:
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    buffer: Buffer.from("PK\x05\x06" + "\0".repeat(18), "latin1"),
+});
+await page.waitForURL(/#\/reader\/t_/, { timeout: 5000 });
+check("docx 上传落地详情面（reader_url 缺席不崩）", true);
+await page.waitForSelector(".task-progress", { timeout: 5000 });
+check("docx 任务出进度视图", true);
 
 // ---------- 5. Settings ----------
 await page.goto(`${BASE}/#/settings`, { waitUntil: "networkidle" });

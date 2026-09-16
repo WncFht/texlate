@@ -41,6 +41,7 @@ export const t = {
         delConfirm:
             "确定删除该任务？将一并删除其全部产物（原文/译文 PDF、工程文件、工作目录），不可恢复。",
         delFailed: "删除失败，请稍后重试",
+        dlTitle: "下载产物——文档类任务无对照阅读器",
     },
     kind: {
         arxiv: "arXiv",

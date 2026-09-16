@@ -151,7 +151,8 @@ export interface TranslateResponse {
     cache?: string;
     reused?: boolean;
     events_url: string;
-    reader_url: string;
+    /** 仅产 dual.json 的 kind 下发；docx/epub（无对照阅读器）字段缺席 */
+    reader_url?: string;
 }
 
 export type FileKind =
@@ -405,6 +406,16 @@ const TERMINAL: ReadonlySet<TaskStatus> = new Set([
 
 export function isTerminal(status: TaskStatus): boolean {
     return TERMINAL.has(status);
+}
+
+/**
+ * translate/upload 202 → 落地 hash 路由。reader_url 可能缺席（doc 类任务
+ * 无 dual.json）——此时回 task_id 拼详情面：#/reader/:id 即任务详情页，
+ * 在途出进度、终态无 reader 自动落产物下载面板，不 404 不白屏。
+ */
+export function landingHash(res: Pick<TranslateResponse, "task_id" | "reader_url">): string {
+    const m = res.reader_url?.match(/\/task\/([A-Za-z0-9_-]+)\/reader/);
+    return `#/reader/${m?.[1] ?? res.task_id}`;
 }
 
 /**
