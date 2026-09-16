@@ -334,7 +334,10 @@ taxonomy:
       id: hyperref_driver,
       scope: head,
       payload_group: 1,
-      pattern: "Wrong DVI mode driver option [`']([^`']+)'",
+      # 三形态合一: "Wrong DVI mode driver option `X'" (hyperref 老文案) /
+      # "Wrong driver option `X'" (hyperref 现行) / "Wrong hyperref driver `X'"
+      # (hypdvips 自检) —— 2211.13028/2308.12612 曾因此漏签落 early_eof。
+      pattern: "Wrong (?:hyperref driver|(?:DVI mode )?driver option) [`']([^`']+)'",
     }
   - {
       id: float_opt,
@@ -645,6 +648,56 @@ rules:
     stats: { fires: 0 }
     source_ref: "wave-2 落地: taxonomy babel_opt (:301) 首个消费规则"
 
+  # fixable-data 裁定 (1003.2165): polutonikogreek 是弃名, greek.polutoniko
+  # 亦走 locale/invalid/ 弃名桩必炸。现行 ini 正形是 `greek.polytonic`
+  # (locale/el/babel-polytonicgreek.tex 自证 "Provided: greek.polytonic";
+  # 裸 `polytonicgreek` 选项反而炸 —— \languageattribute{greek} 要求 greek
+  # 语言本体已载)。装 babel-greek 的 greek.ldf 更糟: XeTeX 下 ldf 硬拒。
+  # 只改选项位 (方括号列表 + PassOptionsToPackage/Class 首参)。
+  - id: babel_opt_polutoniko_rewrite
+    description: "babel 弃名 polutonikogreek / greek.polutoniko → greek.polytonic (ini 机制)"
+    phase: loop
+    order: 13 # babel_lang_ldf_install(11) 之后: 装得上真 ldf 的先装, 此条兜无档语言
+    when: { category: babel_opt, payload_required: false }
+    condition:
+      any:
+        - { source_contains: "polutonikogreek" }
+        - { source_contains: "greek\\.polutoniko" }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          # 选项括号可跨行 (1003.2165 docclass 选项表逐行注释排版实证)
+          - {
+              pattern: "\\[([^\\]]*)\\bgreek\\.polutoniko\\b",
+              repl: "[\\g<1>greek.polytonic",
+            }
+          - {
+              pattern: "\\[([^\\]]*)\\bpolutonikogreek\\b",
+              repl: "[\\g<1>greek.polytonic",
+            }
+          - {
+              pattern: "(\\\\PassOptionsTo(?:Package|Class)\\s*\\{[^}]*)\\bgreek\\.polutoniko\\b",
+              repl: "\\g<1>greek.polytonic",
+            }
+          - {
+              pattern: "(\\\\PassOptionsTo(?:Package|Class)\\s*\\{[^}]*)\\bpolutonikogreek\\b",
+              repl: "\\g<1>greek.polytonic",
+            }
+    risk: low # 同语言现行属性形; ini 路由 XeTeX 原生支持
+    known_gap: "\\selectlanguage{polutonikogreek} 等正文引用不改 (选项修正后 greek 语言在位, 旧名引用 babel 兼容层接住); 需 babel ≥3.x ini 机制"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "fixable-data adjudication (1003.2165)",
+          error: "Package babel Error: Unknown option 'polutonikogreek' (src 写 greek.polutoniko, ini 弃名桩报错)",
+        }
+    stats: { fires: 0 }
+    source_ref: "scout-fail59 fixable-data 杂项; babel_lang_ldf_install 残留格"
+
   # 新增 (fixloop-v2 整改): 退役/改名包 shim —— install_file 查无真包后的出路。
   # 实证: 1806.06690 缺 aastex.cls → emulateapj 顶替出 13 页全文档 pdf;
   # psfig→epsfig 桥可用因 epsfig 的 Gin key 同收 figure=/file= (graphics pkg,
@@ -685,7 +738,35 @@ rules:
           # ── 2026-09-16 n100 F1 扩列 ──────────────────────────────────
           # elsart 家族 → elsarticle: Elsevier 官方继任类, 明确兼容 elsart 稿
           # (\author[tag]/\address[tag]/abstract 环境同签名)。0707.4465 实证。
-          elsart.cls: { loads: "elsarticle", needs: ["elsarticle.cls"] }
+          # elsart.cls 转 body 形 (hep-lat/0111059): 派生类 cpcauth
+          # \LoadClass{elsart} 后直接引用 elsart 私有面, elsarticle 不导出。
+          # eqntopsep/eqnarraycolsep 被赋 \@plus/\@minus 胶 → 必须 \newskip;
+          # \@bls 在因子位 (2\@bls) 用 → \newdimen。余为 elsart 私有 if/count/
+          # 版式宏; \@sharp 由内核 \mkpream 自绑, 无需补。纯增量对普通
+          # elsart 稿无副作用。
+          elsart.cls:
+            needs: ["elsarticle.cls"]
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesClass{elsart}[2026/09/17 fixloop legacy shim -> elsarticle]
+              \LoadClassWithOptions{elsarticle}
+              \newskip\eqntopsep
+              \newskip\eqnarraycolsep
+              \newdimen\@bls
+              \@bls=13\p@
+              \newdimen\@frontmatterwidth
+              \newcount\@maxlistdepth
+              \@maxlistdepth=8
+              \newif\if@TwoColumn
+              \@TwoColumntrue
+              \newif\if@ussrhead
+              \newif\if@Elproofing
+              \def\@pagenumprefix{}
+              \def\ESpagenumber#1{\arabic{#1}}
+              \def\head@format#1#2{#1\space#2}
+              \def\@secnumfont{\bfseries}
+              \def\head@style{}
+              \endinput
           elsart1p.cls: { loads: "elsarticle", needs: ["elsarticle.cls"] }
           elsart3p.cls: { loads: "elsarticle", needs: ["elsarticle.cls"] }
           elsart5p.cls: { loads: "elsarticle", needs: ["elsarticle.cls"] }
@@ -1223,7 +1304,10 @@ rules:
           # 版式差异由 article 面兜底。实证 1608.06693 (zh 臂)。
           svglov3.clo:
             body: |
-              % fixloop legacy shim: svglov3.clo -> bare stub
+              % fixloop legacy shim: svglov3.clo -> kernel 10pt size file
+              % (svjour3 \input's this before \normalsize exists; 1608.06693
+              % 实证 fontspec \normalsize not defined —— iopart10.clo 先例)
+              \input{size10.clo}
               \endinput
           # ── 2026-09-16 loop1 missing_file 簇扩列 (113 格主体) ──────────
           # 实证: 下列文件在 tlpdb 索引查无 (publisher 授权外发/CTAN-only/
@@ -1322,10 +1406,15 @@ rules:
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesPackage{jinstpub}[2026/09/16 fixloop noop stub - JINST author kit, not in TL]
               \endinput
+          # espcrc1 noop -> \address/\addressmark provides (astro-ph/0408286):
+          # 稿把 \address[IoA]{...}/\addressmark[IoA] 编进 \@author, article 的
+          # \maketitle 展开时炸 undefined_cs。内联输出, 任何版式面都安全。
           espcrc1.sty:
             body: |
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesPackage{espcrc1}[2026/09/16 fixloop noop stub - Elsevier crc, not in TL]
+              \providecommand{\address}[2][]{\textsuperscript{#1}#2}
+              \providecommand{\addressmark}[1][]{\textsuperscript{#1}}
               \endinput
           # ── 2026-09-16 wave-2 (loop2-delta 残盘 ~27 格, 1d scout-unfix 枚举) ──
           # 继任类桥: emulateapj-rtx4 (revtex4 时代变体, 1404.2351 实证),
@@ -2540,7 +2629,16 @@ rules:
     action:
       kind: builtin_transform
       function: journal_cs_polyfill
-      params: {} # 默认表 = builtins._JOURNAL_MACROS; macros: {cs: 展开} 可扩
+      params:
+        # fixable-data (astro-ph/0605222): aastex 族天文缩写宏 —— 稿写
+        # [O~{\sciii}] 形 (O 字面), 故 sciii 展开为 {\sc iii} 而非 AAS 的
+        # [O\,{\sc iii}] 全形; hb/ha 巴尔末线, arcsec 角秒。
+        macros:
+          sciii: '{\sc iii}'
+          scii: '{\sc ii}'
+          ha: 'H$\alpha$'
+          hb: 'H$\beta$'
+          arcsec: "''"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -2804,6 +2902,78 @@ rules:
         }
     stats: { fires: 0 }
     source_ref: "wave-3: early_eof 类目首个消费规则 (交互面)"
+
+  # fixable-data 裁定 (2211.13028/2308.12612, 1d 已批): doc 强指 dvi/pdf
+  # 驱动给 hyperref 家族, xelatex 下必炸 "Wrong driver option"/
+  # "Wrong hyperref driver"。剥除一切选项括号内的驱动词让 hyperref/
+  # graphicx 自侦 hxetex —— docclass 全局选项同样覆盖 (剥离对 xetex
+  # 恒正确: 这些驱动在 XeTeX 下本来就走不通)。hypdvips 整包换 hyperref
+  # (它只为 dvips 路由存在; doc 若另载 hyperref, 二次加载无害)。
+  - id: hyperref_driver_neutralize
+    description: "hyperref 家族驱动选项 (pdftex/dvips/…) + hypdvips → 剥词/换包, 交自侦"
+    phase: loop
+    order: 181 # typein_neutralize(180) 之后; early_eof/hyperref_driver 双签兜底
+    when:
+      any:
+        - { category: hyperref_driver, payload_required: false }
+        - { category: early_eof, payload_required: false }
+    condition:
+      source_contains: "hypdvips|\\[[^\\]]*\\b(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\b"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          # hypdvips → hyperref (选项面保留, 多为 hyp* 公共键)
+          - {
+              pattern: "(\\\\(?:usepackage|RequirePackage)\\s*(?:\\[[^\\]\\n]*\\]\\s*)?)\\{hypdvips\\}",
+              repl: "\\g<1>{hyperref}",
+            }
+          # 全驱动括号: [dvips] / [dvips,pdftex] → [] (括号可跨行)
+          - {
+              pattern: "\\[\\s*(?:(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|vtexpdfmark|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\s*,?\\s*)+\\]",
+              repl: "[]",
+            }
+          # 括号首位驱动词: [dvips,opt] → [opt]
+          - {
+              pattern: "\\[\\s*(?:(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|vtexpdfmark|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\s*,\\s*)+",
+              repl: "[",
+            }
+          # 中段/末位驱动词: [opt,dvips,opt2] / [opt,dvips] → [opt,opt2]/[opt]
+          - {
+              pattern: "(\\[[^\\]]*?)(?:,\\s*(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|vtexpdfmark|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\s*)+(?=,|\\])",
+              repl: "\\g<1>",
+            }
+          # PassOptionsToPackage/Class 首参同三套 (大括号形)
+          - {
+              pattern: "(\\\\PassOptionsTo(?:Package|Class)\\s*\\{)\\s*(?:(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|vtexpdfmark|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\s*,?\\s*)+\\}",
+              repl: "\\g<1>}",
+            }
+          - {
+              pattern: "(\\\\PassOptionsTo(?:Package|Class)\\s*\\{)\\s*(?:(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|vtexpdfmark|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\s*,\\s*)+",
+              repl: "\\g<1>",
+            }
+          - {
+              pattern: "(\\\\PassOptionsTo(?:Package|Class)\\s*\\{[^}]*?)(?:,\\s*(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|vtexpdfmark|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\s*)+(?=,|\\})",
+              repl: "\\g<1>",
+            }
+          # 空括号清扫: \usepackage[]{x} → \usepackage{x}
+          - {
+              pattern: "(\\\\(?:documentclass|usepackage|RequirePackage))\\s*\\[\\s*\\]",
+              repl: "\\g<1>",
+            }
+    risk: low # xetex 下这些驱动本就失效; 自侦即作者意图
+    known_gap: "doc 若用 hypdvips 专属 cs (嵌入 PS 钩子) 会前进到 undefined_cs → cs_targeted_fix; \\hypersetup 内驱动键、非括号赋值 (\\def\\@driver) 未覆盖"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # XeTeX 内核同驱动面
+    provenance:
+      - {
+          corpus: "fixable-data adjudication (2211.13028, 2308.12612)",
+          error: "hypdvips: Wrong hyperref driver `hxetex' / hyperref: Wrong driver option `pdftex'",
+        }
+    stats: { fires: 0 }
+    source_ref: "scout-fail59 fixable-data §4 驱动剥除 (1d 批准); taxonomy hyperref_driver 签名同期扩三形态"
 
   # ─── 兜底: 恒最后 ───
   - id: undefined_cs_guess

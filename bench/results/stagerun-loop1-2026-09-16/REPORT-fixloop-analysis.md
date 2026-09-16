@@ -148,3 +148,18 @@ wave-2 全批落地验证完毕。**方法同补记 7**：每格先 `compile --a
 - **pst-pdf 自愈确认**：2111.00051 上轮已转 acceptable_pdf，本轮 pristine 复跑稳态保持。
 
 **残盘**（每格末条，n=1310）：unfixable **54**（57→54）= syntax 15 / illegal_unit 12 / early_eof 11 / undefined_cs 7 / capacity 5 / other 3 / babel_opt 1；fontspec_missing、missing_file 两簇清零（early_eof 数不变但成员换血：hep-ph/0111248 出、1706.00240 bbl 错配入）。出 pdf **1255/1310 = 95.8%**。
+
+## 补记 10：fixable-data×18 裁定批落地（2026-09-17，41 单 scout-fail59）
+
+裁定采用 6 动件（另 3 项已覆盖/改判/转办，见下），全部 pristine 法验证（compile --rerun 重建 → fixloop --rerun）。
+
+- **elsart.cls loads→body 形**（hep-lat/0111059）：cpcauth.cls 是 elsart 深度派生，`\LoadClass{elsart}` 后引用 elsart 私有面——`\eqntopsep/\eqnarraycolsep` 被赋 `\@plus/\@minus` 胶必须 `\newskip`（dimen 版实测炸 "Missing \begin{document}"），`\@bls` 在因子位保 `\newdimen`，另补 `\@maxlistdepth`/`\if@TwoColumn`/`\if@ussrhead`/`\if@Elproofing`/`\ESpagenumber`/`\head@format`/`\@secnumfont`/`\head@style`/`\@pagenumprefix`；`\@sharp` 由内核 `\mkpream` 自绑不需补。三轮枚举收敛 → **best_effort_pdf**（下游另有 graphics 选项撞 + psfig，规则面各归其位）。
+- **espcrc1.sty noop→provides**（astro-ph/0408286）：稿把 `\address[IoA]{…}/\addressmark[IoA]` 编进 `\@author`，article 的 `\maketitle` 展开即炸——scout 表写 "\maketitle undef" 实则是 `\address`（log `\@author ->M. Lugaro\address` 实证）。补两 `\providecommand` → **clean**。
+- **svglov3.clo 裸桩→`\input{size10.clo}`**（1608.06693）：svjour3 硬 \input 的版式件缺字号引导致 fontspec 先于 `\normalsize` 初始化——iopart10.clo 同先例 → **acceptable_pdf**。
+- **babel_opt_polutoniko_rewrite**（order 13，1003.2165）：两轮修正——(a) `polytonicgreek` 裸名选项会炸（`\languageattribute{greek}` 要求 greek 本体已载），正形是 **`greek.polytonic`**（locale/el/babel-polytonicgreek.tex 自证 "Provided"）；(b) docclass 选项表可**跨行**，`[^\]\n]` 类全改 `[^\]]`/`[^}]`（本批所有括号重写统一放行换行）；(c) 装 babel-greek 的 greek.ldf 是**反效果**——XeTeX 下 ldf 硬拒 "use polyglossia"，已撤回该思路。→ **best_effort_pdf**。
+- **hyperref_driver_neutralize**（order 181，taxonomy `hyperref_driver` 签名同期扩三形态："Wrong DVI mode driver option"/"Wrong driver option"/"Wrong hyperref driver"——2308.12612 凭此从 early_eof 改判正确类目）：hypdvips 整包→hyperref + 全选项括号（含 docclass 全局位、PassOptionsTo* 首参、跨行）剥 pdftex/dvips 系驱动词 + 空括号清扫。2308.12612 → **acceptable_pdf**；2211.13028 仍 **unfixable:timeout**（rc=-9 真挂起在 driver 错前发生，infra 类非规则缺口）。
+- **journal_cs_polyfill params.macros 扩表**（astro-ph/0605222）：`sciii={\sc iii}`/`scii={\sc ii}`/`ha=H$\alpha$`/`hb=H$\beta$`/`arcsec=''`（sciii 按稿内 `[O~{\sciii}]` 字面-O 用法取半形，非 AAS `[O\,{\sc iii}]` 全形）→ **acceptable_pdf**。
+
+**裁定不落地项**：列型补齐×3（1306.0067/1706.00016/1811.03624 复核已被现存规则覆盖，实跑无墙，无需新数据）；thm-restate×2（1706.00335/2105.00111 改判**译文腐蚀**——`{这是译文}` 参数残渣非 shim 面）；aastex capacity×2（astro-ph/0104174+0408531 转 1d inject 交互探针）；aipcheck×2（1109.2354/1206.0565 归 1d bundled-shadow target 扩展，`\next` 扫描 wdir stub 属地；交互半已由 typein_neutralize 覆盖）；1306.0281 ntheorem/1706.07911 liningnums 单格量缓议（llm_hook 候选）。
+
+**残盘**（每格末条，n=1310，含同期 2f/1d/realpostfix2 各波合计效果）：unfixable **35** = syntax 10 / undefined_cs 3 / early_eof 8 / other 6 / capacity 6 / timeout 1（2211.13028 真挂起）/ no_errors_no_pdf 1（1803.00012 SIGSEGV）。出 pdf **1275/1310 = 97.3%**（clean 185 / acceptable 693 / best_effort 397）。

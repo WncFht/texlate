@@ -104,7 +104,6 @@ def test_shim_map_loads_entries_are_cls_and_delegate(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     "payload",
     [
-        "elsart.cls",
         "elsart1p.cls",
         "elsart3p.cls",
         "elsart5p.cls",
@@ -121,6 +120,22 @@ def test_shim_map_evolved_class_targets(tmp_path: Path, payload: str) -> None:
     ctx, eng = _ctx(tmp_path), _Eng()
     ok, note = TRANSFORM_FNS["legacy_pkg_shim"](ctx, eng, payload, SHIM_PARAMS)
     assert ok, note
+
+
+def test_shim_map_elsart_body_form(tmp_path: Path) -> None:
+    """elsart.cls 为 body 形 (cpcauth 需 \\eqntopsep 等私有 dimen) → 桥 elsarticle。"""
+    spec = SHIM_MAP["elsart.cls"]
+    assert "loads" not in spec
+    for cs in ("\\eqntopsep", "\\eqnarraycolsep"):  # 赋值含 \@plus/\@minus 胶 → skip
+        assert f"\\newskip{cs}" in spec["body"]
+    assert "\\newdimen\\@bls" in spec["body"]
+    for cs in ("\\@maxlistdepth", "\\if@TwoColumn", "\\if@ussrhead", "\\if@Elproofing"):
+        assert cs in spec["body"]
+    ctx, eng = _ctx(tmp_path), _Eng()
+    ok, note = TRANSFORM_FNS["legacy_pkg_shim"](ctx, eng, "elsart.cls", SHIM_PARAMS)
+    assert ok, note
+    stub = (tmp_path / "elsart.cls").read_text()
+    assert "\\LoadClassWithOptions{elsarticle}" in stub
 
 
 @pytest.mark.parametrize(
