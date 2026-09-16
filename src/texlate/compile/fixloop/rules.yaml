@@ -2617,6 +2617,31 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "loop2-delta unfixable:pdftex_prim ×6 全为 \\usepackage[accsupp]{axessibility}"
 
+  # 2009.11064 (stagerun-loop1): e-print 捆绑 biber <3.3 旧格式 .bbl,
+  # TL biblatex 3.21 拒载 (\sortlist undefined / wrong format version);
+  # .bcf+.bib 在场即 biber <stem> 就地重生成正确版本 .bbl (a5ba9a7 builtin)。
+  - id: bbl_regen
+    description: "bundled 旧版 .bbl 撞新 biblatex → biber <stem> 就地重生成 (.bcf 在场)"
+    phase: loop
+    order: 158 # shadow 族(155-157)同档: 结构性处置先于逐宏补
+    when: { category: undefined_cs, payload_required: true }
+    condition:
+      fileset: { has_ext: [.bcf] } # .bcf 只在 biber 通路存在, 天然限定 biblatex 稿
+      tool_available: biber
+    action:
+      kind: builtin_transform
+      function: bbl_regen
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "2009.11064 (stagerun-loop1)",
+          error: "Undefined control sequence \\sortlist / File 'ms.bbl' is wrong format version",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "builtins.py bbl_regen (a5ba9a7)"
+
   # 新增 (fixloop-v2 整改): AAS 期刊缩写宏缺失 —— tectonic bundle 内置
   # aastex 5.0rc3.1 (1999) 没有 \actaa 族 (emulateapj/后期 aastex 才有);
   # undefined_cs payload (l.N 行末 cs 名) 命中期刊表 → 全表 \providecommand
