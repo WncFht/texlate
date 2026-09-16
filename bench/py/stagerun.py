@@ -30,7 +30,9 @@ work/{id}/ 契约（``--tag T`` → ``bench/results/stagerun-T-<date>/``）：
 
 resume 语义：records/{stage}.jsonl 里 (id, arm, upstream) 已记且 status ∉
 {skip, error} 的格跳过；skip（上游门未过）/error（harness 崩）自动重试。
---rerun 全强制。zh/ 与 splice/ 是臂间共享树：real 臂翻译会覆盖 mock 产物
+--rerun 全强制。compile --arm zh 另核 xlat 换代：同臂重译重建 zh/ 后
+marker.ts 变，末条 metrics.xlat_ts 不符（含旧记缺印）即重编不吃陈记。
+zh/ 与 splice/ 是臂间共享树：real 臂翻译会覆盖 mock 产物
 （records 按臂分记、marker 记 provenance，compile --xlat-arm 可钉住预期）。
 
 与规格 §1/§3 的有意偏差（目录归谁写）：
@@ -205,7 +207,7 @@ def load_latest(path: Path) -> dict[tuple[str, str, str], dict]:
     return out
 
 
-def make_sig(status: str, errors: list[dict]) -> str:
+def make_sig(errors: list[dict]) -> str:
     """triage 契约：ok 级无 sig；否则 errors[0] 的 cat:pay 合成签名。"""
     if not errors:
         return ""
@@ -231,7 +233,7 @@ def base_rec(pid: str, stage: str, arm: str, upstream: str = "") -> dict:
 
 def finish_rec(rec: dict, t0: float) -> dict:
     rec["dur_s"] = round(time.monotonic() - t0, 2)
-    rec["sig"] = make_sig(str(rec["status"]), rec["errors"])
+    rec["sig"] = make_sig(rec["errors"])
     return rec
 
 
@@ -605,7 +607,10 @@ def stage_parse(
                 )
                 break
     finally:
-        ex.shutdown(wait=False, cancel_futures=True)
+        # wait=False 会把仍在写 zh/ 的在飞 worker 丢在后台——下个 stage
+        # 读到残树 (1e 审计)。cancel_futures 只收排队任务；在跑任务等其
+        # 写毕再交棒，bounded by 单篇 parse 时长。
+        ex.shutdown(wait=True, cancel_futures=True)
 
 
 # ================================================================ xlat
@@ -708,7 +713,13 @@ async def _translate_tree(
     by_file: dict[int, dict[int, str]] = {}
     warn_kinds: dict[str, int] = {}
     for r in results:
-        fidx, cid = (int(x) for x in r.chunk_id.split(":", 1))
+        try:
+            fidx, cid = (int(x) for x in r.chunk_id.split(":", 1))
+        except ValueError:
+            # 畸形 chunk_id（translator 违约）——记 fault+名，不让整篇崩
+            stats["fault"] += 1
+            warn_kinds["bad_chunk_id"] = warn_kinds.get("bad_chunk_id", 0) + 1
+            continue
         stats["attempts"] += r.attempts
         stats["batched"] += int(r.batched)
         if r.status in stats:
@@ -1024,7 +1035,8 @@ def _compile_one(
                 }
             ]
             return finish_rec(rec, t0)
-        upstream = json.loads(marker_p.read_text()).get("arm") or ""
+        marker_doc = json.loads(marker_p.read_text())
+        upstream = marker_doc.get("arm") or ""
         if args.xlat_arm and upstream != args.xlat_arm:
             rec["status"] = "skip"
             rec["errors"] = [
@@ -1036,6 +1048,9 @@ def _compile_one(
             ]
             return finish_rec(rec, t0)
         rec["upstream"] = upstream
+        # xlat 换代印：同臂 --rerun 重建 zh/ 后 marker.ts 变，compile
+        # resume 凭此判陈记（stage_compile 侧对照 latest 记录）
+        rec["metrics"]["xlat_ts"] = marker_doc.get("ts")
         up_ok = set((args.upstream or "ok,partial").split(","))
         xr = xlat_recs.get((pid, upstream, ""))
         if xr is not None and xr.get("status") not in up_ok:
@@ -1146,16 +1161,25 @@ def stage_compile(
     xlat_recs: dict,
 ) -> None:
     todo = []
+    # zh 臂 resume 还要核 xlat 换代：同臂 --rerun 会重建 zh/ 树，陈记的
+    # (id,zh,arm) 键仍命中——对照末条 metrics.xlat_ts 与当前 marker.ts
+    latest = load_latest(log.path) if args.arm == "zh" else {}
     for pid in ids:
         # resume 键含 upstream：zh 臂对 mock/real 产物各记一格
         if args.arm == "zh":
             marker = workdir(out_dir, pid) / "zh" / ".xlat-arm.json"
             up = ""
+            mts = None
             if marker.exists():
                 with contextlib.suppress(Exception):
-                    up = json.loads(marker.read_text()).get("arm") or ""
+                    doc = json.loads(marker.read_text())
+                    up = doc.get("arm") or ""
+                    mts = doc.get("ts")
             if not args.rerun and up and log.is_done(pid, "zh", up, recode=args.recode):
-                continue
+                last = latest.get((pid, "zh", up)) or {}
+                # marker 无 ts（旧版产物）退回纯键判；记录缺印=换代不明→重编
+                if mts is None or (last.get("metrics") or {}).get("xlat_ts") == mts:
+                    continue
         elif not args.rerun and log.is_done(pid, "base", recode=args.recode):
             continue
         todo.append(pid)
@@ -1324,8 +1348,9 @@ _ON_PRED: dict[str, object] = {
     "misschar": _on_misschar,
     "clean": lambda c: c.get("status") == "clean",
     # reject/skip 无有效 splice 树 —— post-judge 编译被拒英文树会虚增
-    # union-pdf (1e 审计: +414 phantom 上限)。clean 保留供非回归复判。
-    "all": lambda c: c.get("status") not in {"reject", "skip"},
+    # union-pdf (1e 审计: +414 phantom 上限)。error(harness 崩) 树态不定
+    # 同排。clean 保留供非回归复判。
+    "all": lambda c: c.get("status") not in {"reject", "skip", "error"},
 }
 
 
