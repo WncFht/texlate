@@ -2139,8 +2139,169 @@
    "seed": 42,
    "layers": "core,booster,hot,expand",
    "code": "48d2b6c-dirty"
+  },
+  {
+   "ts": "2026-09-16T21:51:04.481380+00:00",
+   "stage": "parse",
+   "argv": [
+    "parse",
+    "--dir",
+    "bench/results/stagerun-loop1-2026-09-16",
+    "--rerun",
+    "--ids",
+    "0806.1963,0806.3641,0806.3127",
+    "--jobs",
+    "3"
+   ],
+   "seed": 42,
+   "layers": "core",
+   "code": "f7a81b6-dirty"
+  },
+  {
+   "ts": "2026-09-16T21:51:12.816172+00:00",
+   "stage": "xlat",
+   "argv": [
+    "xlat",
+    "--dir",
+    "bench/results/stagerun-loop1-2026-09-16",
+    "--rerun",
+    "--ids",
+    "0806.1963,0806.3641,0806.3127",
+    "--arm",
+    "mock",
+    "--jobs",
+    "3"
+   ],
+   "seed": 42,
+   "layers": "core",
+   "code": "f7a81b6-dirty"
+  },
+  {
+   "ts": "2026-09-16T21:51:23.650663+00:00",
+   "stage": "compile",
+   "argv": [
+    "compile",
+    "--dir",
+    "bench/results/stagerun-loop1-2026-09-16",
+    "--rerun",
+    "--ids",
+    "0806.1963,0806.3641,0806.3127",
+    "--arm",
+    "zh",
+    "--jobs",
+    "3"
+   ],
+   "seed": 42,
+   "layers": "core",
+   "code": "f7a81b6-dirty"
+  },
+  {
+   "ts": "2026-09-16T21:51:45.223876+00:00",
+   "stage": "fixloop",
+   "argv": [
+    "fixloop",
+    "--dir",
+    "bench/results/stagerun-loop1-2026-09-16",
+    "--rerun",
+    "--ids",
+    "0806.3127",
+    "--on",
+    "fail",
+    "--jobs",
+    "1"
+   ],
+   "seed": 42,
+   "layers": "core",
+   "code": "f7a81b6-dirty"
+  },
+  {
+   "ts": "2026-09-16T21:57:36.993196+00:00",
+   "stage": "parse",
+   "argv": [
+    "parse",
+    "--dir",
+    "bench/results/stagerun-loop1-2026-09-16",
+    "--rerun",
+    "--jobs",
+    "12"
+   ],
+   "seed": 42,
+   "layers": "core",
+   "code": "b35b436-dirty"
+  },
+  {
+   "ts": "2026-09-16T22:00:45.958600+00:00",
+   "stage": "parse",
+   "argv": [
+    "parse",
+    "--dir",
+    "bench/results/stagerun-loop1-2026-09-16",
+    "--rerun",
+    "--jobs",
+    "12",
+    "--layers",
+    "booster,hot,expand"
+   ],
+   "seed": 42,
+   "layers": "booster,hot,expand",
+   "code": "ba89af0-dirty"
+  },
+  {
+   "ts": "2026-09-16T22:10:41.354368+00:00",
+   "stage": "xlat",
+   "argv": [
+    "xlat",
+    "--dir",
+    "bench/results/stagerun-loop1-2026-09-16",
+    "--arm",
+    "mock",
+    "--rerun",
+    "--jobs",
+    "12",
+    "--layers",
+    "core,booster,hot,expand"
+   ],
+   "seed": 42,
+   "layers": "core,booster,hot,expand",
+   "code": "3c47c51-dirty"
+  },
+  {
+   "ts": "2026-09-16T22:19:46.651288+00:00",
+   "stage": "parse",
+   "argv": [
+    "parse",
+    "--dir",
+    "bench/results/stagerun-loop1-2026-09-16",
+    "--rerun",
+    "--jobs",
+    "12",
+    "--layers",
+    "core,booster,hot,expand"
+   ],
+   "seed": 42,
+   "layers": "core,booster,hot,expand",
+   "code": "eccac1b-dirty"
+  },
+  {
+   "ts": "2026-09-16T22:29:18.640289+00:00",
+   "stage": "xlat",
+   "argv": [
+    "xlat",
+    "--dir",
+    "bench/results/stagerun-loop1-2026-09-16",
+    "--arm",
+    "mock",
+    "--rerun",
+    "--jobs",
+    "12",
+    "--layers",
+    "core,booster,hot,expand"
+   ],
+   "seed": 42,
+   "layers": "core,booster,hot,expand",
+   "code": "2cb259a-dirty"
   }
  ],
  "started_at": "2026-09-16T05:36:52.326569+00:00",
- "finished_at": "2026-09-16T21:35:45.343815+00:00"
+ "finished_at": "2026-09-16T22:28:48.280373+00:00"
 }
