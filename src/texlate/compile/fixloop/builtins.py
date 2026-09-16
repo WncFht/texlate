@@ -16,7 +16,7 @@ import contextlib
 import re
 import shutil
 import subprocess
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
 from texlate.compile.normalize import INTERMEDIATE_SUFFIXES
@@ -328,7 +328,10 @@ def pstricks_dvips_preflight(
     return True, f"REJECT: route={route} dvips-resources-ok"
 
 
-_EPS_EXTS = (".eps", ".ps")
+_EPS_EXTS = (".eps", ".ps", ".mps")
+#: metapost 数字扩展名 ``.\d+`` —— ``diag1.1`` 实为 EPS (0806.4589 实证:
+#: ps_image 只认 .eps/.ps 把它漏归 other), 与 _EPS_EXTS 并列进扫源面。
+_NUMERIC_EXT_RE = re.compile(r"^\.\d+$")
 _GS_FLAGS = [
     "-dSAFER",
     "-dBATCH",
@@ -443,7 +446,11 @@ def _rewrite_eps_refs(
             continue
         nt = t
         for old, new in converted.items():
-            if old in nt:
+            if new.startswith(old):
+                # ``.\d+`` dst = 原名+".pdf": old 是 new 前缀, 裸 replace 二次
+                # 触火会叠 suffix; 且 ``diag1.1`` 是 ``diag1.10`` 前缀 → 边界正则
+                nt = re.sub(rf"(?<![\w.]){re.escape(old)}(?![\w.])", new, nt)
+            elif old in nt:
                 nt = nt.replace(old, new)
         nt, k = _strip_ps_driver_opts(nt)
         n_drivers += k
@@ -463,6 +470,9 @@ def eps_to_pdf(
     先于 .eps, 显式 ``{x.eps}``/``file=x.eps`` 则由字面替换接住; 若工程带
     ``[dvips]{graphicx}`` 等 PS 驱动选项 (1902.11112), 无扩展名引用仍会被掰回
     .eps 优先, 故同步剥 PS 驱动。
+    metapost 产物 ``diagN.M`` (``.\d+`` 扩展, 实为 EPS) 同扫 (0806.4589
+    实证漏归 other) —— 其 dst 叠后缀 ``diagN.M.pdf`` 而非换后缀,
+    避免 ``diag1.1``/``diag1.2`` 同塌 ``diag1.pdf`` 互踩。
     参考 texglot app/graphics.py (gs -dEPSCrop + 引用改写同款思路)。
     """
     del eng, payload  # 转换不触引擎原语; 全量转换不靠单点 payload
@@ -472,13 +482,20 @@ def eps_to_pdf(
         return False, "no epstopdf/gs available"
     exts = tuple(params.get("exts") or (".tex", ".sty"))
     sources = sorted(
-        p for p in ctx.wdir.rglob("*") if p.is_file() and p.suffix in _EPS_EXTS
+        p
+        for p in ctx.wdir.rglob("*")
+        if p.is_file()
+        and (p.suffix.lower() in _EPS_EXTS or _NUMERIC_EXT_RE.match(p.suffix))
     )
     if not sources:
-        return False, "no .eps/.ps in project"
+        return False, "no .eps/.ps/.mps/.N in project"
     converted: dict[str, str] = {}  # "fig.eps" -> "fig.pdf" (basename 级)
     for src in sources:
-        dst = src.with_suffix(".pdf")
+        dst = (
+            src.with_name(src.name + ".pdf")
+            if _NUMERIC_EXT_RE.match(src.suffix)
+            else src.with_suffix(".pdf")
+        )
         if dst.is_file() and dst.stat().st_size:
             converted[src.name] = dst.name  # 上轮已转: 复用, 免重转
             continue
@@ -1132,6 +1149,258 @@ def _sub_literal_chars(t: str, repl: dict[str, str]) -> tuple[str, int]:
     return t, n
 
 
+# ════════════════════════════════════════════════════════════════
+# missing_graphic: 缺图 ci 改名 + 坏图分级修复
+# (signature-mining 2026-09-16 top5#2: 2403.15102/2211.04457 大小写不符,
+#  1502.06541/1012.5273 在盘拒载)
+# ════════════════════════════════════════════════════════════════
+
+#: graphicx 可装载图形扩展名面 —— 无扩展名 ``\includegraphics{x}`` 的
+#: ci 补全候选域 (与 _EPS_EXTS 分工: 那边管 PS 族转换, 这边管全图形族匹配)。
+_GRAPHIC_EXTS = (".pdf", ".png", ".jpg", ".jpeg", ".eps", ".ps", ".mps")
+
+#: ``\includegraphics`` 引用点: g1=可选 opts, g2=图像参数 (星号变体同收)。
+_INCLUDE_GFX_RE = re.compile(
+    r"\\includegraphics\*?\s*(?:\[([^\]\n]*)\])?\s*\{([^}]*)\}"
+)
+
+
+def _norm_graphic_name(name: str) -> str:
+    r"""Log payload / ``\includegraphics`` 参数 → 规整 posix 相对路径。"""
+    n = name.strip().strip("'\"")
+    n = n.replace("\\", "/")
+    while n.startswith("./"):
+        n = n[2:]
+    return n
+
+
+def _find_graphic_ci(ctx: LoopCtx, want: str) -> Path | None:
+    r"""工程目录内大小写不敏感找图真身。
+
+    命中序: 相对路径整串 ci 相等 / 文件名 ci 相等 (rank0) → want 无扩展名时
+    stem ci 相等且扩展名在图形族面 (rank1, ``.\d+`` 数字扩展同收);
+    多命中取 rank 低 + 相对路径短者 (确定性排序)。
+    """
+    want = _norm_graphic_name(want)
+    if not want:
+        return None
+    wl = want.lower()
+    base = PurePosixPath(wl).name
+    stemless = "." not in base
+    cands: list[tuple[int, int, str, Path]] = []
+    for p in ctx.wdir.rglob("*"):
+        if not p.is_file():
+            continue
+        rel = p.relative_to(ctx.wdir).as_posix().lower()
+        if rel == wl or p.name.lower() == base:
+            rank = 0
+        elif (
+            stemless
+            and p.stem.lower() == base
+            and (p.suffix.lower() in _GRAPHIC_EXTS or _NUMERIC_EXT_RE.match(p.suffix))
+        ):
+            rank = 1
+        else:
+            continue
+        cands.append((rank, len(rel), str(p), p))
+    if not cands:
+        return None
+    return min(cands, key=lambda t: t[:3])[3]
+
+
+def _graphic_ref_hit(arg: str, want: str) -> bool:
+    r"""``\includegraphics`` 参数 arg 是否指向 payload want (全 ci)。
+
+    相等判定: 全路径 / basename / 无扩展名侧对侧 stem (``{fig}`` ↔
+    ``fig.pdf`` 双向) —— 覆盖 ``{sf_08_VX}`` vs ``img/sf_08_VX.pdf`` 各形。
+    """
+    a = _norm_graphic_name(arg).lower()
+    w = _norm_graphic_name(want).lower()
+    if not a or not w:
+        return False
+    if a == w:
+        return True
+    ap, wp = PurePosixPath(a), PurePosixPath(w)
+    if ap.name == wp.name:
+        return True
+    if "." not in ap.name and ap.name == wp.stem:
+        return True
+    return "." not in wp.name and ap.stem == wp.name
+
+
+def _rewrite_case_refs(ctx: LoopCtx, exts: tuple[str, ...], want: str, rel: str) -> int:
+    r"""逐 tex 文件: 指 want 且本不可解析的 ``\includegraphics`` 参数改写 rel。
+
+    ``(wdir|filedir)/arg`` 已命中文件的引用是别人的好引用 —— 不动;
+    该守卫同时保证二次触火幂等 (改写后 arg 恰可解析 → 不再命中改写条件)。
+    """
+    changed = 0
+    for f in ctx.tex_files(exts):
+        t = ctx.read(f)
+        if t is None or "\\includegraphics" not in t:
+            continue
+
+        def _sub(m: re.Match[str], _f: Path = f) -> str:
+            arg = m.group(2)
+            if not _graphic_ref_hit(arg, want):
+                return m.group(0)
+            a = _norm_graphic_name(arg)
+            if (ctx.wdir / a).is_file() or (_f.parent / a).is_file():
+                return m.group(0)
+            return (
+                m.group(0)[: m.start(2) - m.start()]
+                + rel
+                + m.group(0)[m.end(2) - m.start() :]
+            )
+
+        nt = _INCLUDE_GFX_RE.sub(_sub, t)
+        if nt != t:
+            ctx.write(f, nt)
+            changed += 1
+    return changed
+
+
+def graphic_case_link(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""大小写不符型 missing_graphic: ci 找真身 → ``\includegraphics`` 参数改写真名。
+
+    实证: e-print 跨平台搬运后 ``{img/sf_08_VX.pdf}`` vs 盘上
+    ``img/SF_08_VX.pdf`` 在 Linux 敏感 FS 挂 (2403.15102/2211.04457)。
+    改写参数而非建 symlink —— 改写随工程走可移植, 不依赖 FS/平台语义。
+    """
+    del eng
+    want = _norm_graphic_name(payload or "")
+    if not want:
+        return False, "no graphic payload"
+    if (ctx.wdir / want).is_file():
+        return False, f"{want} resolves verbatim — not a case mismatch"
+    real = _find_graphic_ci(ctx, want)
+    if real is None:
+        return False, f"no case-variant of {want} in project"
+    rel = real.relative_to(ctx.wdir).as_posix()
+    exts = tuple(params.get("exts") or (".tex", ".sty"))
+    changed = _rewrite_case_refs(ctx, exts, want, rel)
+    if not changed:
+        return False, f"{want} -> {rel} resolved but no \\includegraphics ref rewrote"
+    return True, f"case-link {want} -> {rel}: rewrote refs in {changed} file(s)"
+
+
+def _opt_dim(opts: str | None, key: str) -> str | None:
+    r"""Opts 串里 ``key=<dim>`` 提取 (graphicx ``width=2in`` → ``2in``)。"""
+    if not opts:
+        return None
+    m = re.search(rf"(?:^|,)\s*{key}\s*=\s*([^,\]]+)", opts)
+    return m.group(1).strip() if m else None
+
+
+def _stub_graphic_refs(ctx: LoopCtx, f: Path, want: str, params: dict[str, Any]) -> int:
+    r"""指向坏图的 ``\includegraphics`` → ``\fbox{\rule{0pt}{H}\rule{W}{0pt}}``.
+
+    W/H 取 opts 的 ``width=``/``height=`` 保版式尺寸; 缺省
+    ``params.stub_width``/``stub_height`` 再缺省 ``0.6/0.45\linewidth``。
+    arg 命中 payload / 真身 basename / 真身相对路径任一即改 → 改写文件数。
+    """
+    w_d = str(params.get("stub_width") or r"0.6\linewidth")
+    h_d = str(params.get("stub_height") or r"0.45\linewidth")
+    names = {want, f.name, f.relative_to(ctx.wdir).as_posix()}
+    exts = tuple(params.get("exts") or (".tex", ".sty"))
+    changed = 0
+    for tf in ctx.tex_files(exts):
+        t = ctx.read(tf)
+        if t is None or "\\includegraphics" not in t:
+            continue
+
+        def _sub(m: re.Match[str]) -> str:
+            if not any(_graphic_ref_hit(m.group(2), n) for n in names):
+                return m.group(0)
+            w = _opt_dim(m.group(1), "width") or w_d
+            h = _opt_dim(m.group(1), "height") or h_d
+            box = rf"\fbox{{\rule{{0pt}}{{{h}}}\rule{{{w}}}{{0pt}}}}"
+            return f"{box}% fixloop: stub for unreadable {f.name}"
+
+        nt = _INCLUDE_GFX_RE.sub(_sub, t)
+        if nt != t:
+            ctx.write(tf, nt)
+            changed += 1
+    return changed
+
+
+def _try_gs_redistill(ctx: LoopCtx, f: Path, marker: Path) -> str | None:
+    r"""``gs -sDEVICE=pdfwrite`` 重蒸馏 f 就地覆盖 → None 成功 / 失败原因串。
+
+    原件拷为 marker (备份兼「已蒸馏」标记); 失败残留 ``.fixloop-tmp`` 清掉,
+    防半文件被当成产物 (``_convert_one`` 同款纪律)。
+    """
+    gs = shutil.which("gs") or shutil.which("gswin64c") or shutil.which("gswin32c")
+    if gs is None:
+        return "no gs"
+    tmp = f.with_name(f.name + ".fixloop-tmp")
+    rc, _out, to = ctx.run_tool(
+        [
+            gs,
+            "-dSAFER",
+            "-dBATCH",
+            "-dNOPAUSE",
+            "-sDEVICE=pdfwrite",
+            "-o",
+            str(tmp),
+            str(f),
+        ],
+        timeout=90,
+    )
+    if rc != 0 or to or not tmp.is_file() or not tmp.stat().st_size:
+        tmp.unlink(missing_ok=True)
+        return f"gs failed rc={rc}{'/timeout' if to else ''}"
+    shutil.copy2(f, marker)
+    tmp.replace(f)
+    ctx.invalidate(f)
+    return None
+
+
+def graphic_repair(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""在盘但引擎拒载的 graphic: gs 重蒸馏 → 降级 ``\fbox`` 占位框 (分级修复)。
+
+    实证: 1502.06541 figDY.pdf 合法但双引擎拒载; 1012.5273 zeromode.pdf
+    经 eps_to_pdf 转换后仍拒载。分级序 —— ``.pdf`` 且未蒸馏过先
+    ``gs -sDEVICE=pdfwrite`` 重蒸馏就地覆盖 (原件留 ``<name>.fixloop-rd``
+    旁记 = 备份兼「已蒸馏」标记); ``params.force_stub`` / marker 已存在 /
+    非 pdf / 无 gs / 蒸馏失败 → ``\includegraphics`` 改写 ``\fbox`` 占位框
+    (尺寸见 _stub_graphic_refs)。蒸馏成功仍拒载的残案靠规则序兜底:
+    下一轮同 payload 走第二条规则再入本函数, marker 短路直落 stub。
+    """
+    del eng
+    want = _norm_graphic_name(payload or "")
+    if not want:
+        return False, "no graphic payload"
+    f = ctx.wdir / want
+    if not f.is_file():
+        f = _find_graphic_ci(ctx, want) or f
+    if not f.is_file():
+        return False, f"{want} not found in project"
+    marker = f.with_name(f.name + ".fixloop-rd")
+    why = (
+        "force_stub"
+        if params.get("force_stub")
+        else "already redistilled"
+        if marker.exists()
+        else f"non-pdf {f.suffix or '(no ext)'}"
+        if f.suffix.lower() != ".pdf"
+        else _try_gs_redistill(ctx, f, marker)
+    )
+    if why is None:
+        return True, f"gs redistilled {f.name} (orig -> {marker.name})"
+    n = _stub_graphic_refs(ctx, f, want, params)
+    if not n:
+        return (
+            False,
+            f"{f.name} unreadable ({why}) but no \\includegraphics ref to stub",
+        )
+    return True, f"stub \\fbox for {f.name} ({why}) in {n} file(s)"
+
+
 TRANSFORM_FNS = {
     "option_clash_merge": option_clash_merge,
     "pdftex_prim_polyfill": pdftex_prim_polyfill,
@@ -1148,4 +1417,6 @@ TRANSFORM_FNS = {
     "cs_targeted_fix": cs_targeted_fix,
     "purge_corrupt_intermediates": purge_corrupt_intermediates,
     "missing_char_fix": missing_char_fix,
+    "graphic_case_link": graphic_case_link,
+    "graphic_repair": graphic_repair,
 }
