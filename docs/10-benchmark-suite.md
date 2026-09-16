@@ -117,7 +117,7 @@
 
 **门槛**：mock A 全绿（PDF+identity+ 零残留占位 + 中文实际渲染）；mock B 破坏 100% 编译前捕获；Mode D 成功率即产品 SLA 观测点。
 
-> 增补 2026-09-16（**pipe-fix 救回臂**，`e2e_real_bench.py --fixloop onfail|always|never`）：pipe-xel 产物树 copy → fixloop（xelatex usermode + TUNA 钉 + tlpdb 索引，配方复用 `fixloop_bench`）→ 救后 xelatex+judge 复判，union 口径取 pipe-xel/pipe-fix 较优者。语义经冒烟实证校准：**onfail 只接 `fail`**——partial 已产出 PDF（warning 级判据非编译错误），fixloop 的 halt_on_error 引擎 + 树改写只会丢 PDF 而救不了 warning（hot 层 n9 冒烟实测 partial→fail 回退 2/3、fail→{clean,partial} 救回 3/4）。inject reject 不救。证据 `research/product/2026-09-16-e2e-pipefix-hotlayer.md`、`bench/results/e2e-hotfix-smoke-2026-09-16/`。
+> 增补 2026-09-16（**pipe-fix 救回臂**，`e2e_real_bench.py --fixloop onfail|always|never`）：pipe-xel 产物树 copy → fixloop（xelatex usermode + TUNA 钉 + tlpdb 索引，配方复用 `fixloop_bench`）→ 救后 xelatex+judge 复判，union 口径取 pipe-xel/pipe-fix 较优者。语义经冒烟实证校准：**onfail 只接 `fail`**——partial 已产出 PDF（warning 级判据非编译错误），fixloop 的 halt_on_error 引擎 + 树改写只会丢 PDF 而救不了 warning（hot 层 n9 冒烟实测 partial→fail 回退 2/3、fail→{clean,partial} 救回 3/4）。inject reject 不救。（勘误 2026-09-17：floor 底板落地后 `_want_fix` 已重校为 **fail + misschar/error 级 partial**——`e2e_real_bench.py:330` 注释自证；产品链 e2e/worker 对任意非 clean 进 fixloop 口径更宽，待 owner 收敛。）证据 `research/product/2026-09-16-e2e-pipefix-hotlayer.md`、`bench/results/e2e-hotfix-smoke-2026-09-16/`。
 
 ## B6 · validbench —— 校验段基准
 

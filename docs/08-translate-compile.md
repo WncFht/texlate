@@ -170,7 +170,7 @@ env judge 参数：**temperature=0、max_tokens=16、3 次重试、解析 `true/
 2. `normalize_float_positions`：float 位置参数非法字符剥掉。
 3. `normalize_pdftex_features`（tectonic/xelatex 时）：`\pdf{compresslevel,objcompresslevel,minorversion,majorversion,gentounicode}` 系赋值整段删 + `\input glyphtounicode` 删；microtype `expansion/spacing/kerning`（tectonic 再+`tracking`）选项 → `=false`。
 4. `normalize_pixel_dimensions`：尺寸语境 `Npx` → `N\pdfpxdimen`（**语境受限**，非全局 sed）。
-5. 兼容前导块按需前插（注入点 = `\begin{document}` 前）：PIXEL_COMPATIBILITY（`\pdfpxdimen` polyfill）、XETEX_COMPATIBILITY（microtype TU 限定 + breakurl `\ifpdf` 暂存 + quantumarticle PassOptions + pstricks typeout 探针）、TECTONIC_FONT（bbm→dsrom/dsss 向量字体 shim）。
+5. 兼容前导块按需前插（注入点 = `\begin{document}` 前——勘误 2026-09-17：impl 三兼容块插**文件顶**，`text = BLOCK + text`，`\PassOptionsToClass` 语义所迫）：PIXEL_COMPATIBILITY（`\pdfpxdimen` polyfill）、XETEX_COMPATIBILITY（microtype TU 限定 + breakurl `\ifpdf` 暂存 + quantumarticle PassOptions + pstricks typeout 探针）、TECTONIC_FONT（bbm→dsrom/dsss 向量字体 shim）。
 6. `\PassOptionsToPackage{no-math}{fontspec}` 前插。
 7. **剥 inputenc/fontenc**：解析 `\usepackage{..}` 名字列表只剔 `{inputenc,fontenc}`，其余保留。
 8. 删 `\pdfinfo{...}`、删 `\pdfoutput=1`；驱动选项 `pdftex→xetex`（只改 hyperref/graphicx/graphics/color/xcolor 可选参内的独立 token）。
@@ -184,14 +184,14 @@ env judge 参数：**temperature=0、max_tokens=16、3 次重试、解析 `true/
 
 ### 3.3 中文注入
 
-- 默认 **ctex `[fontset=fandol,UTF8]`**（hjfy 同款、双引擎实测可编译、白拿节名汉化）；**xeCJK+fontspec 为降级路径**（ctex 冲突签名→fixloop 或探测编译切换）。两路径共用注入缝：兼容块 → `\begin{document}` 前；字体系块 → `\documentclass{}` 后。
-- `\documentstyle` → **禁止注入**（inject 层兜底拒，账本记 `inject_reject:latex209`）；路由侧改判 `latex209_suspect` **先试编**、真 2.09 签名（tail 侧 `\documentstyle`/`LaTeX 2.09 COMPATIBILITY MODE`）由 fixloop gate `latex209_reject` 拒绝 → 降级链（改判 `38cc0a7`，推翻 05 裁决 13 的"无条件 reject"——05 已加注）。
+- 默认 **ctex `[fontset=fandol,UTF8]`**（hjfy 同款、双引擎实测可编译、白拿节名汉化）；**xeCJK+fontspec 为降级路径**（ctex 冲突签名→fixloop 或探测编译切换）。两路径共用注入缝：兼容块 → **文件顶**（勘误 2026-09-17：非 `\begin{document}` 前，PassOptions 语义要求）；字体系块 → `\documentclass{}` 后。
+- `\documentstyle` → **禁止注入**（inject 层兜底拒，账本记 `inject_reject:latex209`——勘误 2026-09-17：`inject.py:463` 先走 `upgrade_209` 转换器，仅不可转（ds@ 类/no_target）才抛拒，「禁止注入」是兜底语义）；路由侧改判 `latex209_suspect` **先试编**、真 2.09 签名（tail 侧 `\documentstyle`/`LaTeX 2.09 COMPATIBILITY MODE`）由 fixloop gate `latex209_reject` 拒绝 → 降级链（改判 `38cc0a7`，推翻 05 裁决 13 的"无条件 reject"——05 已加注）。
 - FLOAT_SIZING 仅在有 figure/table 时注入（`\resizebox*` 缩超高 float + typeout 回读）；TABLE_FITTING hook threeparttable（`adjustbox{max width=\linewidth}`）。
 - `embed_cjk_mappings`：编译后给 Identity-H/Adobe-GB1 无 ToUnicode 字体注 `Adobe-GB1-UCS2` cmap——中文 PDF 可复制可搜索。
 
 ### 3.4 target_probe 与 compiled_dependencies
 
-- **target_probe**：翻译前先以"译文桩"替换英文词编译一遍（免费），暴露字体/模板问题再花钱；探针失败直接进 fixloop。落地注记（2026-09-16）：`compile/probe.py` 已落（`54e1c4b`，声明依赖预扫 + `.fls` deps diff + `latex209_suspect` 标记）；worker 接线为 **best-effort 旁路**（`worker.py::_probe_target`——依赖计数/`tl_pkg` 可装清单/`prefer_engine` 分歧只进 log 播报，探针崩溃不阻塞编译，装包仍归 fixloop/tlmgr）。
+- **target_probe**：翻译前先以"译文桩"替换英文词编译一遍（免费），暴露字体/模板问题再花钱；探针失败直接进 fixloop。落地注记（2026-09-16）：`compile/probe.py` 已落（`54e1c4b`，声明依赖预扫 + `.fls` deps diff + `latex209_suspect` 标记）；worker 接线为 **best-effort 旁路**（`worker.py::_probe_target`——依赖计数/`tl_pkg` 可装清单/`prefer_engine` 分歧只进 log 播报，探针崩溃不阻塞编译，装包仍归 fixloop/tlmgr）。（勘误 2026-09-17：译文桩预编译原形态未建——按落地注记口径为静态探针旁路合规；「探针失败直接进 fixloop」语义不存在，prefer_engine 分歧只进 log。）
 - **compiled_dependencies 为翻译文件集权威**：`.fls` INPUT 行 / tectonic `--makefile-rules` 决定翻哪些 .tex；静态 `\input` 图只作编译失败时降级。落地注记：`dep_seen`/`deps_diff` 已随 probe 一并接入 worker（`54e1c4b`）。
 
 ## 4. 引擎层（`compile/engine.py`）
@@ -208,8 +208,8 @@ class Engine(Protocol):
     def filemap(fname) -> list[str]                 # file→pkg 索引
 ```
 
-- xelatex：`-no-shell-escape -interaction=nonstopmode -halt-on-error -file-line-error -recorder`，≤2 pass，timeout 240s。
-- tectonic：`-X compile --untrusted --keep-logs --keep-intermediates --makefile-rules <deps.mk> --hide secrets`；`TEXINPUTS` 不认——等价物 `-Z search-path`；bundle pin `tlextras-2022.0r0`。
+- xelatex：`-no-shell-escape -interaction=nonstopmode -halt-on-error -file-line-error -recorder`，≤2 pass，timeout 240s（勘误 2026-09-17：消费方均传 `halt_on_error=False` 对齐 bench 产出——worker.py/e2e.py 刻意参数，fixloop 内部引擎才用默认 True）。
+- tectonic：`-X compile --untrusted --keep-logs --keep-intermediates --makefile-rules <deps.mk> --hide secrets` + `-Z continue-on-errors`（post-spec 加注对齐 nonstopmode）；`TEXINPUTS` 不认——等价物 `-Z search-path`（勘误 2026-09-17：被 `_TECTONIC_Z_OK` 白名单安全面封锁，`engine.py:77`）；bundle pin `tlextras-2022.0r0`。
 
 ### 4.2 路由与兜底
 
@@ -237,14 +237,14 @@ class Engine(Protocol):
 
 `--untrusted`（tectonic）/ `-no-shell-escape`（xelatex）+ **env 白名单**（非黑名单；加 `TECTONIC_UNTRUSTED_MODE=1 openin_any=p openout_any=p shell_escape=f`）+ macOS sandbox-exec profile（deny `$HOME` 读 + 全写，白名单放行工程/输出/缓存/字体目录——settings.json/浏览器 profile/SSH key 编译期不可读）+ `killpg` 进程树超时杀。
 
-> 落地注记（2026-09-16）：Linux 侧 bwrap 包装已落 `compile/sandbox.py`（`b260378`；darwin 走 sandbox-exec，`TEXLATE_NO_BWRAP=1` 逃逸开关）+ `tests/test_compile_sandbox.py`。
+> 落地注记（2026-09-16）：Linux 侧 bwrap 包装已落 `compile/sandbox.py`（`b260378`；darwin 走 sandbox-exec，`TEXLATE_NO_BWRAP=1` 逃逸开关）+ `tests/test_compile_sandbox.py`。（勘误 2026-09-17：bwrap 三件套实在 `compile/engine.py`——`_bwrap_capable/_bwrap_mounts/_bwrap_wrap`；sandbox.py 只有 env 白名单+sandbox-exec+killpg。）
 
 ## 5. fixloop（`compile/fixloop/` 包）
 
 ### 5.1 两层 YAML：`taxonomy`（log→类别）+ `rules`（类别→动作）
 
 > **勘误（2026-09-16）**：实现为 `compile/fixloop/` 包（engine/cases/ctan/logparse/\_yamlish/rules.yaml）；
-> taxonomy 段现为 37 个 pattern 条目、rules 段 **36** 条（v3 整改 + 后续扩表：pstricks_dvips_preflight/eps_route/eps_to_pdf/legacy_pkg_shim/font_sub_shim/aux_scan_eof/split_glued_cs 等，HANDOFF-2026-09-16 §2.2/§6）。
+> taxonomy 段现为 37 个 pattern 条目、rules 段 **36** 条（v3 整改 + 后续扩表：pstricks_dvips_preflight/eps_route/eps_to_pdf/legacy_pkg_shim/font_sub_shim/aux_scan_eof/split_glued_cs 等，HANDOFF-2026-09-16 §2.2/§6）。（勘误 2026-09-17：实 **42** taxonomy/**52** rules——计数持续滞后，以 rules.yaml 为准。）
 
 phase：`gate`=每轮分类后最先评估 / `precheck`=编译前一次性 / `loop`=每轮错误驱动；同 phase 按 order 升序、**每轮只应用一条**（便于归因）。
 
@@ -267,7 +267,7 @@ phase：`gate`=每轮分类后最先评估 / `precheck`=编译前一次性 / `lo
 | 15  | `minted_frozencache` | loop/130    | `minted_froz`                                | `{minted}`→`{minted2}` 一行替换（v3 吃 v2 缓存报 50 错实测）     |
 | 16  | `undefined_cs_guess` | loop/900    | `undefined_cs`                               | escalate_llm（恒最后兜底）                                       |
 
-动作原语 7 种：`scan_install / install_file / run_tool / regex_rewrite / builtin_transform / reject_route / escalate_llm`。命名函数注册表仅 3 个（`px_to_bp`/`keep_latin_tokens`/`option_clash_merge`）——社区新规则多数只写 regex，新函数才需 PR 代码。
+动作原语 7 种：`scan_install / install_file / run_tool / regex_rewrite / builtin_transform / reject_route / escalate_llm`。命名函数注册表仅 3 个（`px_to_bp`/`keep_latin_tokens`/`option_clash_merge`）——社区新规则多数只写 regex，新函数才需 PR 代码。（勘误 2026-09-17：impl `TRANSFORM_FNS` **18** + `REWRITE_FNS` **2**，`builtins.py:140/1686`。）
 
 **顺序不变量**：gate 先于一切（`missing_file`+`\documentstyle` 必须先拦，否则给 2.09 白装包）；install 先于 rewrite（缺包时不许动源码）；同 trigger 保守→激进（microtype_off 70 < times_to_newtx 80 + `(rule_id,payload)` dedup）；兜底恒最后（order 900）。防干扰：同 `(cat,pay)` 签名连续 3 轮 → `stuck`；rewrite 幂等逐条审过。
 
@@ -280,7 +280,7 @@ phase：`gate`=每轮分类后最先评估 / `precheck`=编译前一次性 / `lo
 | `minted_v3_rewrite`           | xelatex minted v3 × v2 frozencache               | `{minted}`→`{minted2}`                                                                        |
 | `eps_route`                   | 静态扫 `*.eps`/pstricks                          | 不进 fixloop 直接路由 xelatex                                                                 |
 | `non_utf8_source`             | xelatex 静默 U+FFFD                              | 上游 iconv 转码或 inputenc 注入                                                               |
-| `pstricks_dvips_fallback`     | dvips 兜底                                       | `.pro` preflight（pst-tools.pro）                                                             |
+| `pstricks_dvips_fallback`     | dvips 兜底                                       | `.pro` preflight（pst-tools.pro）（勘误 2026-09-17：impl id 为 `pstricks_dvips_preflight`——gate/0 相位语义超前于 loop fallback 命名） |
 | `bbl_stub_shadow`（tectonic） | 有 .bbl 无 .bib                                  | `\bibliography{x}`→`\input{main.bbl}`，阻断自动 bibtex stub 遮蔽真 bbl                        |
 | `font_sub_shim`（tectonic）   | MF-only 字体包（bbm 等）                         | Type1 近亲（dsfont/dsrom）shim——物理字体投放是死路                                            |
 | `ctan_fetch` 版本前置         | 命中包先比 expl3/LaTeX2e 版本要求                | 新版过新跳过（tlnet 只发最新，钉版需 historic tlnet/自建 pin cache）                          |
@@ -348,11 +348,11 @@ fixloop(proj, eng, ruleset):
 | 域 | 字段位置 | 取值 | 产出处 |
 | --- | --- | --- | --- |
 | 编译判决 verdict | `metrics.verdict.status` / `post.verdict.status` | `clean`（无错有 pdf）/ `partial`（有 pdf 有错或缺字）/ `fail`（无 pdf） | `compile/judge.py` |
-| 记录态 status | stagerun records `status` | verdict 三值 + `reject`（inject 层拒绝，如 latex209）+ `skip`（上游门控豁免） | `bench/py/stagerun.py` |
+| 记录态 status | stagerun records `status` | verdict 三值 + `reject`（inject 层拒绝，如 latex209）+ `skip`（上游门控豁免）（勘误 2026-09-17：与 §4.3 F3 口径并存分裂——stagerun 仍写裸 `reject`，e2e/worker 已落 `partial`+`reject_at` 字段；两写法并存待收口） | `bench/py/stagerun.py` |
 | 块态 | chunk/segment `status` | `ok` / `partial`（阶梯 recovered）/ `fault`（翻译或校验错；`fallback_orig` 回退原文亦落 fault+skipped 标记）/ `skipped`（门控跳过）（勘误 2026-09-17：原表漏 `partial` 第四值，impl `pipeline.py:107/614-630`） | `xlat/pipeline.py` |
 | 注入态 | inject `status` | `injected` / `already`（已有 CJK 支持）/ `no-docline`（无 documentclass 锚） | `compile/inject.py` |
-| fixloop 判决 | cases `verdict` / `fixloop_verdict` | `clean` / `acceptable_pdf`（有 pdf 即收，misschar 档）/ `best_effort_pdf`（有 pdf 残留错）/ `dirty_pdf` / `unfixable:{cat}` / `stuck`（轮内无进展）/ `no_errors_no_pdf`（干净日志零页面） | `fixloop/engine.py`、`fixloop/cases.py` |
-| 规则态 | rules.yaml `status` | `stub` / `proposed` / `active` / `retired` | `fixloop/rules.yaml` |
+| fixloop 判决 | cases `verdict` / `fixloop_verdict` | `clean` / `acceptable_pdf`（有 pdf 即收，misschar 档）/ `best_effort_pdf`（有 pdf 残留错）/ `dirty_pdf` / `unfixable:{cat}` / `stuck`（轮内无进展）/ `no_errors_no_pdf`（干净日志零页面）/ `reject:<rid>`（gate 直通）/ `no_main_tex` / `max_rounds`（勘误 2026-09-17：原表缺后三值） | `fixloop/engine.py`、`fixloop/cases.py` |
+| 规则态 | rules.yaml `status` | `stub` / `proposed` / `active` / `retired` / `validated`（勘误 2026-09-17：impl 另有 `validated`，且字段缺席默认按 active 上场——status 目前零行为效应，排序全由 `order` 驱动，生命周期语义待 owner 裁定） | `fixloop/rules.yaml` |
 | 任务态 | job `status`（11 态机） | active：`queued`/`fetching`/`parsing`/`translating`/`compiling`；terminal：`done`/`partial`/`fault`/`cancelled`/`interrupted`/`needs_auth` | `server/store.py:124` |
 
 跨段退化口径：终态 `fixloop.status` 不得低于上游 `compile.status`（clean>partial>fail>reject）；loop1 实证 17 格中 13 格为基建杀伤假象（修复后引擎直编出 pdf），真退化判定须直编复验。
