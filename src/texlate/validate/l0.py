@@ -75,6 +75,11 @@ PH_FUZZY_RX: Final = re.compile(
 #: 从模糊候选里剥出核心 token（去括号/空白），供 lev 配对。
 _PH_CORE_RX: Final = re.compile(r"[A-Za-z0-9_]+")
 
+#: 占位符嵌进 cs 名中段：``\cs名[[..]]字母`` 双侧夹持——尾邻无字母的
+#: ``\cs[[PH]]`` 是合法高频形（``\protect[[REF_n]]``/``\em[[CMD_n]]``），
+#: ``\\`` 控制符号 + ``[[PH]]`` 由必需字母排除。
+_PH_IN_CS_RX: Final = re.compile(r"\\[a-zA-Z@]+\[\[[^\[\]\n]{1,48}?\]\][a-zA-Z@]")
+
 #: key 承载命令：cite 族 / *ref 族 / label / bibitem / bibliography。
 #: 只抓第一个 {..}（key 参数），可选 [..] 先吃掉。
 KEY_CMD_RX: Final = re.compile(
@@ -306,7 +311,16 @@ def _lex(s: str) -> list[tuple[str, str, int]]:
     return out
 
 
-# ---------------------------------------------------------------- 七条规则
+def _mask_comments(s: str) -> str:
+    """``_lex`` cmt 段整体置空——注释体内签名不参与净差（splice 字面区）。"""
+    out = list(s)
+    for kind, text, pos in _lex(s):
+        if kind == "cmt":
+            out[pos : pos + len(text)] = " " * len(text)
+    return "".join(out)
+
+
+# ---------------------------------------------------------------- 规则组
 
 
 def _pair_placeholder_typos(
@@ -821,6 +835,39 @@ def _check_item_glue(src: str, zh: str, issues: list[Issue]) -> None:
         )
 
 
+def _check_ph_in_cs(src: str, zh: str, issues: list[Issue]) -> None:
+    r"""``\cs名[..[[PH]]..]字母`` 双侧夹持签名（``\fo[[CMD_1]]o`` 类）。
+
+    译文把占位符嵌进 cs 名中段 → splice 逐字节替换后断 cs
+    （``\te[[PH]]xtbf``→``\te\cite{…}xtbf``、``\noind[[PH]]ent``→
+    ``\noind\Cref{…}ent``——modec 两波实测签名）：未定义 cs 编译炸弹
+    且断名 payload 不可复原，不进 fixloop、走重译/回退原文。
+
+    双侧夹持是硬判据：``\cs[[PH]]`` 尾邻是合法高频形（corpus 271 处
+    ——``\protect[[REF_n]]``/``\em[[CMD_n]]``/``\S[[REF_n]]``），只查
+    前侧会灾难级误报；``\\`` 控制符号 + ``[[PH]]``（display-math 形）
+    由 ``[a-zA-Z@]+`` 必需字母排除。注释区屏蔽豁免；src 自带同形
+    （占位符本就贴命令名落位，实测 2/5413）按整串净差豁免。盲区
+    记档：``\cs[[KEY_n]]`` 类尾邻载荷字母头也会融合，但 validator
+    拿不到 ph_map 判不了类型——后续按 ph 类型白名单再补。
+    """
+    extra = Counter(_PH_IN_CS_RX.findall(_mask_comments(zh))) - Counter(
+        _PH_IN_CS_RX.findall(_mask_comments(src))
+    )
+    if extra:
+        toks = ", ".join(f"{t} ×{n}" for t, n in sorted(extra.items()))
+        issues.append(
+            Issue(
+                "ph_in_cs",
+                Severity.ERROR,
+                f"占位符嵌进控制序列名 ×{sum(extra.values())}: "
+                f"{toks}（splice 后断 cs 成未定义命令，载荷不可复原——"
+                f"应整体重译或回退原文）",
+                found=toks,
+            )
+        )
+
+
 def _check_protocol_echo(src: str, zh: str, issues: list[Issue]) -> None:
     r"""协议回显守卫：zh 净多出 corrector/L0 协议字面 → error。
 
@@ -852,7 +899,7 @@ def _check_protocol_echo(src: str, zh: str, issues: list[Issue]) -> None:
 
 
 def validate_pair(src: str, zh: str) -> L0Report:
-    """对 ``(src_chunk, zh_chunk)`` 跑全部九组检查，返回结构化 verdict。
+    """对 ``(src_chunk, zh_chunk)`` 跑全部十组检查，返回结构化 verdict。
 
     ``report.ok`` 为 True 即可送 L1/拼回；False 时 ``report.feedback()``
     的文本可直接进 corrector 的 ``previous_validation_error`` 字段。
@@ -866,5 +913,6 @@ def validate_pair(src: str, zh: str) -> L0Report:
     _check_length(src, zh, rep.issues)
     _check_macro(src, zh, rep.issues)
     _check_item_glue(src, zh, rep.issues)
+    _check_ph_in_cs(src, zh, rep.issues)
     _check_protocol_echo(src, zh, rep.issues)
     return rep

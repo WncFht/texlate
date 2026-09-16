@@ -343,3 +343,57 @@ def test_report_by_rule() -> None:
     d = rep.by_rule()
     assert "key" in d
     assert "placeholder" in d
+
+
+# ---------------------------------------------------------------- ph_in_cs
+
+
+def test_ph_in_cs_fused_error() -> None:
+    r"""``\fo[[CMD_1]]o`` 双侧夹持——splice 后断 cs，error 拦送。"""
+    src = "Text \\footnote{note words} more."
+    zh = "文本 \\fo[[CMD_1]]o 注记其余。"
+    rep = validate_pair(src, zh)
+    assert _sev(rep, "ph_in_cs") == [Severity.ERROR]
+    assert not rep.ok
+
+
+def test_ph_in_cs_tail_adjacent_legit() -> None:
+    r"""``\protect[[REF_1]]``/``\em[[CMD_1]]`` 尾邻无字母是合法高频形。"""
+    src = "See \\protect[[REF_1]] and \\em[[CMD_1]] words."
+    zh = "见 \\protect[[REF_1]] 与 \\em[[CMD_1]] 词。"
+    rep = validate_pair(src, zh)
+    assert not _sev(rep, "ph_in_cs")
+
+
+def test_ph_in_cs_comment_masked() -> None:
+    r"""注释体内的签名是 splice 字面区——mask 后不计。"""
+    src = "Text words here."
+    zh = "文本词 % \\fo[[CMD_1]]o 注释内不算\n其余。"
+    rep = validate_pair(src, zh)
+    assert not _sev(rep, "ph_in_cs")
+
+
+def test_ph_in_cs_net_diff_inherited_exempt() -> None:
+    r"""src 自带同形（占位符贴命令名落位）→ Counter 净差豁免。"""
+    src = "Head \\fo[[CMD_1]]o tail words."
+    zh = "头 \\fo[[CMD_1]]o 尾词。"
+    rep = validate_pair(src, zh)
+    assert not _sev(rep, "ph_in_cs")
+
+
+def test_ph_in_cs_control_symbol_not_hit() -> None:
+    r"""``\\[[MATH_1]]`` 控制符号形——``[a-zA-Z@]+`` 必需字母排除。"""
+    src = "Line \\\\[[MATH_1]] break."
+    zh = "行 \\\\[[MATH_1]] 断。"
+    rep = validate_pair(src, zh)
+    assert not _sev(rep, "ph_in_cs")
+
+
+def test_ph_in_cs_at_letter_and_count() -> None:
+    r"""``@`` 计入 cs 字母集；多处命中聚合进单条 issue 的 ×N。"""
+    src = "Text \\foo{x} and \\bar{y} end."
+    zh = "文本 \\fo[[CMD_1]]o 甲 \\b[[CMD_2]]@r 乙。"
+    rep = validate_pair(src, zh)
+    assert _sev(rep, "ph_in_cs") == [Severity.ERROR]
+    [issue] = [i for i in rep.issues if i.rule == "ph_in_cs"]
+    assert "×2" in issue.message
