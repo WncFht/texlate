@@ -59,6 +59,12 @@ TEX_FILE_EXTS: Final = frozenset(
 #: ``(`` 后的候选文件 token（排除 ``()``/``{}`` 内字符——后者是字体/参数转储）。
 _OPEN_TOKEN_RX: Final = re.compile(r"[^\s(){}]+")
 
+#: ``Missing character: There is no X in font`` —— X 是**字面字形**，可为
+#: ``(``/``)``（nullfont 缺字符实测）：不配对的 ``)`` 会误弹真文件帧，
+#: ``(`` 留幻影帧吃掉后续真闭括弧。字形后必跟空格（单字符形态）或行尾；
+#: ``(U+0029)``/``("0029)`` 码位形态括号自带配对，不在此列。
+_MISS_CHAR_RX: Final = re.compile(r"Missing character: There is no ([()])(?=[ (]|$)")
+
 
 def looks_like_tex_file(token: str) -> bool:
     """``(`` 后 token 是否 tex 系文件名（路径末段取扩展名判定）。"""
@@ -80,10 +86,19 @@ def update_file_stack(
     scanning`` 类 runaway 错报在父文件续行位（``)`` 先于错误打印），消费端
     靠"刚弹出的文件"找回真肇事文件（#78）。
     """
+    if "(" not in ln and ")" not in ln:
+        return
+    skip: frozenset[int] = (
+        frozenset(m.start(1) for m in _MISS_CHAR_RX.finditer(ln))
+        if "Missing character" in ln
+        else frozenset()
+    )
     j = 0
     while j < len(ln):
         c = ln[j]
-        if c == "(":
+        if j in skip:
+            j += 1
+        elif c == "(":
             m = _OPEN_TOKEN_RX.match(ln, j + 1)
             if m and looks_like_tex_file(m.group(0)):
                 stack.append(m.group(0))
