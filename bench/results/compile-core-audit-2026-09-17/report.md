@@ -53,4 +53,5 @@ l2 ×2（FFFD 引号形、非 tex 扩展名 file:line 计数）；engine_judge �
 
 - l2.py 在飞 hunks 分两次落：`_REDLINE_CLASSES`+missing_glyph 与 compile-core 的 `_MISSING_CHAR_RX`/`fffd_glyph`/`_classify_warning` 随 2ed90e9 双归因落地；`_FILE_LINE_RX`/`_match_error_line` 同在该提交（当时已在树内）。
 - engine.py + test_compile_engine_judge.py 的在飞 hunks 被 peer 会话 `24007d1`（05:03）pathspec commit 扫入——内容与报告逐条吻合 + peer 补 `_last_open_graphic_token` 栈回填使 dos_eps 消费侧真生效（我侧复跑 dos_eps 测试绿）。
-- l2.py 残存 +39 dos_eps 移植补丁（`_is_dos_eps`/`_last_open_graphic_token`/`_mark_redline` 降级段）在 tree 中，作者核实中——疑为 peer 对 l2 侧的同机制移植或本审计追加，无配套测试暂不提交。
+- l2.py dos_eps 移植（`_is_dos_eps`/`_last_open_graphic_token`/`_mark_redline` 降级段 + `test_invalid_utf8_dos_eps_demoted`）后由本审计追加交付，随 `65acfcc` 落地——l2 与 engine 同口径（同一 log 此前在 engine 降 sys、在 l2 误报工程红线）。
+- 三 parse_log 口径对照表（engine/logparse/l2 十三维度）已随追加交付产出，texlog 单源化建议（五件三点重复）转 share-texlog-audit 评估——其 scope 追加与 peer 的 engine-local 机制并存，由该代理裁断最终形态。
