@@ -39,7 +39,7 @@
 
 ### 4.1 即时（loop2 前）
 
-1. **定点 rerun 19 格**（peer1 已开火：fail 3 硬单案 + misschar 16，进 loop1 同目录）——post-`6b23435` 引擎复归类，验证基建杀伤簇消失 + 真退化归因 + 新 shim 命中面；pst-* 可解仍败机理与 1706.00175→early_eof 重归类在此批见分晓。
+1. **定点 rerun 19 格——一轮已出**（peer1 执鞭）：nenp 15→2，暴露同根因簇——aastex61/62.cls 内部 `\IfFileExists{revtex4-1.cls}…\stop` 夹条件内早夭（rc=0 无 `!`），「类文件求档文」语义；对策 `18ff106` 已落（tail plea 规则→missing_file:revtex4-1.cls + shim_map revtex4-1→4-2 桥），13 格二次 rerun 在飞。真退化 4 格：astro-ph/0111575 **痊愈 acceptable**；1003.1717 仍 syntax、1306.0036/2410.00012 改判 undefined_cs（subclassify 收窄正确）。硬单案 1803.00012（SIGSEGV rc=-11）/1706.02464（bufsize rc=1）仍 nenp。scan_patterns 实证通（1907.00121 装 epsf/ulem）。
 2. **rules.yaml 内容面**（peer1）：`shim_map` +17 条已落 `622fc04`；`static_precheck` scan_patterns 已补 `\input` 裸名+花括号两形态（lookahead 防 `\includegraphics` 误捕，`engine.py:678` 顺带修 `x.tex`→`x.tex.tex` 双叠）。
 3. **worker-hardening 12 项落地**（1e 在飞 #52）+ 残两件：#74 latest-alias 二次 dedup、#78 L2 归因洞。**注意 `server/worker.py:2763` 有半残 edit（await 外置 SyntaxError）断 test 收集——在飞方收尾。**
 4. **engine taxonomy 单源化已落** `5d195c2`（audit-taxonomy 交付 + peer1 review；死代码 `_match_head/_match_tail` 顺手删）——engine.parse_log 一并被 derive 覆盖，engine↔rules.yaml 双轨漂移源消除。

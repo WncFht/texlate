@@ -81,3 +81,10 @@ peer 直编修复后 splice/ 树复验：**13 格为基建杀伤假象**（12/15
 ### unfixable 大头 = missing_file legacy 包（113 格，fail 残留 59%）
 
 pst-node×11 / jheppub×9 / citesort×7 / diagrams×7 / axodraw×5 / pst-arrow×5 / svjour3×5 + texsort/epsf/emulateapj5/setstack/conm-p-l/imsart/jinstpub/espcrc1 等——CTAN filemap 解不出。**正中在飞的 vendored_sty_shadow tlpdb-index 修复**（tlpdb 索引含 revtex4-1→cls 这类精确映射）；处置面=shim_map/overrides 扩列或真缺档承认。疑点：emulateapj*/epsf 有 shim 仍报 missing_file → vendored_shadow/install 通路未接住，疑规则 bug。`unfixable:pdftex_prim:pdfcompresslevel`×6 部分被 #131 subclassify 收窄覆盖。
+
+### 定点 rerun 第一轮（19 格，peer1 执鞭，`18ff106` 对策已落）
+
+- **nenp 15→2**：misschar 池 12 格 + fail 池 1803.00054 全部改判 `early_eof` 系——**同根因**：稿自带 aastex61/62.cls 内部 `\IfFileExists{revtex4-1.cls}{ok}{…\stop}`，revtex4-1 不在 TL → `\stop` 夹条件内 → `\end occurred when \ifx incomplete` + No pages、rc=0、无 `!`。「类文件求档文」语义非文档 bug。对策：tail plea 规则（`include|download|install|get|need + X.cls/sty` + guard `No pages of output` → missing_file 抓档名，排 early_eof 前）+ shim_map `revtex4-1.cls`→revtex4-2 桥；4 篇抽样全改判 `missing_file:revtex4-1.cls`，13 格二次 rerun 在飞。
+- **真退化 4 格**：astro-ph/0111575 → **acceptable_pdf 痊愈**（epsf 裸 payload 修复起效）；1003.1717 仍 unfixable:syntax；1306.0036 stuck→undefined_cs；2410.00012 pdftex_prim→undefined_cs（#131 收窄正确改判）。
+- **硬单案**：1803.00012 仍 nenp（post.rc=-11，killed_signal 已记 SIGSEGV）；1706.02464 仍 nenp（rc=1 bufsize 真 bug）。
+- **scan_patterns 实证**：1907.00121 装上 epsf.sty/epsf.tex/ulem.sty——`\input` 裸名预检链路通。
