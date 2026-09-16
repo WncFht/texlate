@@ -2,19 +2,24 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from types import SimpleNamespace
+from typing import TYPE_CHECKING, Any
 
 import pytest
-from pypdf import PdfWriter
+from pypdf import PdfReader, PdfWriter
 from pypdf.generic import (
     DecodedStreamObject,
     Destination,
     DictionaryObject,
     Fit,
+    FloatObject,
     NameObject,
+    NullObject,
     NumberObject,
+    TextStringObject,
 )
 
+from texlate import align
 from texlate.align import build_alignment, extract_landmarks
 
 if TYPE_CHECKING:
@@ -271,3 +276,132 @@ def test_regions_only_figure_anchors(tmp_path: Path) -> None:
     al = build_alignment(a, b)
     assert al["kind"] == "landmarks"
     assert al["regions"] == []
+
+
+# ---------------------------------------------------------------- 残余审计补充
+# writer 会把 parent /Resources 拍平进页对象、把 /Top 强转 FloatObject——
+# 继承/畸形形态靠 reader 侧手术与 duck-type stub 构造。
+
+
+class _StubPage:
+    def __init__(self, height: float = PAGE_H) -> None:
+        self.mediabox = SimpleNamespace(height=height)
+
+
+class _BadBoxPage:
+    @property
+    def mediabox(self) -> object:
+        msg = "corrupt mediabox"
+        raise ValueError(msg)
+
+
+class _StubReader:
+    """duck-type PdfReader——畸形 /Top 经 writer 写不出（强转 FloatObject）。"""
+
+    def __init__(self, dests: dict[str, Any], pages: list[object]) -> None:
+        self._dests = dests
+        self.pages = pages
+
+    @property
+    def named_destinations(self) -> dict[str, Any]:
+        return self._dests
+
+    @staticmethod
+    def get_destination_page_number(dest: object) -> int:
+        return int(dest["__p"])  # type: ignore[index]
+
+
+def test_no_top_anchor_sorts_as_page_top(tmp_path: Path) -> None:
+    """无 /Top 锚（/Fit 整页）按页顶排序——与 _pos 输出 fraction 0.0 自洽。
+
+    修复前 _order_key 把 None 当页底（-0.0），同页 fraction 序列 0.495→0.0
+    非单调；修复后 whole.1 排序在 section.1 之前，fraction 非降。
+    """
+
+    def mk(p: Path) -> Path:
+        w = PdfWriter()
+        for _ in range(3):
+            w.add_blank_page(width=612, height=PAGE_H)
+        w.add_named_destination_object(
+            Destination("whole.1", w.pages[0].indirect_reference, Fit.fit())
+        )
+        w.add_named_destination_object(
+            Destination(
+                "section.1",
+                w.pages[0].indirect_reference,
+                Fit.fit_horizontally(400.0),
+            )
+        )
+        with p.open("wb") as fh:
+            w.write(fh)
+        return p
+
+    al = build_alignment(mk(tmp_path / "a.pdf"), mk(tmp_path / "b.pdf"))
+    assert [p["id"] for p in al["pairs"]] == ["whole.1", "section.1"]
+    fracs = [p["original"]["fraction"] for p in al["pairs"]]
+    assert fracs == sorted(fracs)
+    assert fracs[0] == 0.0
+
+
+def test_malformed_top_falls_back_to_page_top() -> None:
+    """畸形 /Top（文本/Null/间接）只丢精度不丢锚——按页顶（yfrac None）。"""
+    dests = {
+        "weird.1": DictionaryObject(
+            {"/Top": TextStringObject("junk"), "__p": NumberObject(0)}
+        ),
+        "null.1": DictionaryObject({"/Top": NullObject(), "__p": NumberObject(1)}),
+        "over.1": DictionaryObject(
+            {"/Top": FloatObject(900.0), "__p": NumberObject(0)}
+        ),
+    }
+    lm = align._reader_landmarks(  # noqa: SLF001 -- 白盒钉私有提取逻辑
+        _StubReader(dests, [_StubPage(), _StubPage()])
+    )
+    assert lm["npages"] == 2  # noqa: PLR2004 -- 桩页数即断言对象
+    assert lm["dests"]["weird.1"]["yfrac"] is None
+    assert lm["dests"]["weird.1"]["page"] == 1
+    assert lm["dests"]["null.1"]["yfrac"] is None
+    # 越界 /Top（900 > 792 页高）钳到 0..1
+    assert lm["dests"]["over.1"]["yfrac"] == 1.0
+
+
+def test_mediabox_garbage_page_falls_back() -> None:
+    """单页 mediabox 解析炸/nan → 该页高度回退 792，npages 与页序不动。"""
+    pages = [_StubPage(), _BadBoxPage(), _StubPage(float("nan"))]
+    lm = align._reader_landmarks(_StubReader({}, pages))  # noqa: SLF001 -- 同上
+    assert lm["npages"] == 3  # noqa: PLR2004 -- 同上
+    # 全部回退 792 → 归一化后仍全 1.0
+    assert lm["heights"] == [1.0, 1.0, 1.0]
+
+
+def test_regions_inherited_resources(tmp_path: Path) -> None:
+    """/Resources 只在父节点的页也能扫到 XObject（get_inherited）。"""
+    dests = [("figure.1", 0, 480.0)]
+    arts = [(0, (100.0, 500.0, 400.0, 200.0), IMG)]
+    a = _mk_fig_pdf(tmp_path / "a.pdf", dests, arts)
+    r = PdfReader(str(a))
+    pg = r.pages[0]
+    # 手术成继承形态：页级 /Resources 挪到父节点（writer 写出时会拍平，
+    # 真实继承形态只能从 reader 对象图构造）
+    pg["/Parent"].get_object()[NameObject("/Resources")] = pg["/Resources"]
+    del pg["/Resources"]
+    regions = align._graphic_regions(pg)  # noqa: SLF001 -- 白盒钉私有扫描逻辑
+    assert len(regions) == 1
+    assert regions[0]["start"] == pytest.approx(0.1162, abs=1e-3)
+
+
+def test_regions_broken_art_sibling_survives(tmp_path: Path) -> None:
+    """同页一块畸形 XObject（Do 指向非流对象）不拖死正常 artwork。"""
+    dests = [("figure.1", 0, 480.0)]
+    arts = [(0, (100.0, 500.0, 400.0, 200.0), IMG)]
+    a = _mk_fig_pdf(tmp_path / "a.pdf", dests, arts)
+    r = PdfReader(str(a))
+    pg = r.pages[0]
+    xobj = pg["/Resources"].get_object()["/XObject"].get_object()
+    xobj[NameObject("/Bad")] = NumberObject(42)  # Do 落点解析对它必炸
+    cs = DecodedStreamObject()
+    cs.set_data(b"q 400 0 0 200 100 500 cm /Im0 Do Q q 50 0 0 50 0 0 cm /Bad Do Q")
+    pg[NameObject("/Contents")] = cs
+    regions = align._graphic_regions(pg)  # noqa: SLF001 -- 同上
+    assert len(regions) == 1
+    assert regions[0]["start"] == pytest.approx(0.1162, abs=1e-3)

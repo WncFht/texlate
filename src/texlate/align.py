@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import math
 import re
 from io import BytesIO
 from typing import TYPE_CHECKING, Any
@@ -85,6 +86,28 @@ def extract_landmarks(path: Path) -> dict[str, Any]:
     return _reader_landmarks(PdfReader(str(path)))
 
 
+def _page_height(p: PageObject) -> float:
+    """单页 mediabox 高度：畸形/nan/非正值回退 792——只丢该页精度不丢页序。"""
+    try:
+        h = float(p.mediabox.height)
+    except Exception:  # noqa: BLE001 -- 单页 box 坏不该作废整侧锚点
+        return 792.0
+    return h if math.isfinite(h) and h > 0 else 792.0
+
+
+def _dest_yfrac(dest: object, height: float) -> float | None:
+    """``/Top`` → 底向上 0..1；缺省/畸形 → None（按页顶锚处理，``_pos`` 出 0.0）。"""
+    try:
+        top = dest.get("/Top")  # type: ignore[attr-defined]
+        y = float(top) / height if top is not None else None
+    except (AttributeError, TypeError, ValueError) as e:
+        log.debug("named dest /Top 解析失败，按页顶锚处理: %s", e)
+        return None
+    if y is None or not math.isfinite(y):
+        return None
+    return min(1.0, max(0.0, y))
+
+
 def _reader_landmarks(r: PdfReader) -> dict[str, Any]:
     """从已打开的 reader 抽锚点视图。
 
@@ -92,7 +115,7 @@ def _reader_landmarks(r: PdfReader) -> dict[str, Any]:
     "npages": int}``；``yfrac`` 是**底向上** 0..1（PDF 原生坐标），heights
     归一化到首页高（首页=1.0）。page.N 锚不入 dests。
     """
-    raw_heights = [float(p.mediabox.height) or 792.0 for p in r.pages]
+    raw_heights = [_page_height(p) for p in r.pages]
     h0 = raw_heights[0] if raw_heights else 1.0
     heights = [h / h0 for h in raw_heights]
     dests: dict[str, dict[str, Any]] = {}
@@ -102,19 +125,21 @@ def _reader_landmarks(r: PdfReader) -> dict[str, Any]:
         page = _dest_page(r, dest)
         if page is None or page < 0 or page >= len(raw_heights):
             continue
-        top = dest.get("/Top")
-        yfrac = float(top) / raw_heights[page] if top is not None else None
         dests[name] = {
             "page": page + 1,  # 对外 1-based（web Pos.page 语义）
-            "yfrac": yfrac,
+            "yfrac": _dest_yfrac(dest, raw_heights[page]),
             "fit": str(dest.get("/Type", "?")),
         }
     return {"dests": dests, "heights": heights, "npages": len(raw_heights)}
 
 
 def _order_key(d: dict[str, Any]) -> tuple[int, float]:
-    """阅读序 key：页号 + 页内自顶向下（底向上 yfrac 越大越靠前）。"""
-    return (d["page"], -(d["yfrac"] if d["yfrac"] is not None else 0.0))
+    """阅读序 key：页号 + 页内自顶向下（底向上 yfrac 越大越靠前）。
+
+    无 ``/Top`` 锚按页顶（1.0）——与 ``_pos`` 输出 fraction 0.0 同源，
+    否则同页锚序列排序与输出位置自相矛盾。
+    """
+    return (d["page"], -(d["yfrac"] if d["yfrac"] is not None else 1.0))
 
 
 def _monotonic_chain(commons: list[tuple[str, dict, dict]]) -> list[str]:
@@ -238,19 +263,22 @@ def _graphic_regions(  # noqa: C901, PLR0912 -- content-stream 算子分派即�
     处理 /Rotate）。追踪 q/Q 栈与 cm 级联得 CTM，Do 算子的 XObject 按
     BBox×Matrix 求落点矩形；过小的图形（图标、装饰线）不计。
     """
-    from pypdf.errors import PyPdfError  # noqa: PLC0415 -- 重依赖惰性加载
-    from pypdf.generic import DictionaryObject  # noqa: PLC0415
+    from pypdf.generic import DictionaryObject  # noqa: PLC0415 -- 重依赖惰性加载
 
-    res = (page.get("/Resources") or DictionaryObject()).get_object()
+    # /Resources 是 PDF 可继承页属性——父节点挂资源是常见形态（pypdf 自身
+    # extract_text 也走 get_inherited），raw get 会整页漏扫。
+    res = page.get_inherited("/Resources", DictionaryObject()).get_object()
+    if not isinstance(res, DictionaryObject):
+        res = DictionaryObject()
     resources = (res.get("/XObject") or DictionaryObject()).get_object()
-    if not resources:
+    if not isinstance(resources, DictionaryObject):
         return []
     stream = page.get_contents()
     if stream is None:
         return []
     box = page.cropbox
     width, height = float(box.width), float(box.height)
-    rotation = int(page.get("/Rotate", 0)) % 360
+    rotation = int(page.rotation) % 360
     matrix = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
     stack: list[tuple[float, ...]] = []
     result: list[dict[str, Any]] = []
@@ -262,45 +290,45 @@ def _graphic_regions(  # noqa: C901, PLR0912 -- content-stream 算子分派即�
         elif op == b"cm" and len(args) == 6:  # noqa: PLR2004 -- cm 算子六参
             matrix = _multiply(tuple(float(n) for n in args), matrix)
         elif op == b"Do" and args and args[0] in resources:
-            obj = resources[args[0]].get_object()
-            if obj.get("/Subtype") not in ("/Form", "/Image"):
-                continue
-            bounds = obj.get("/BBox", (0, 0, 1, 1))
-            transform = _multiply(
-                tuple(float(n) for n in obj.get("/Matrix", (1, 0, 0, 1, 0, 0))),
-                matrix,
-            )
-            a, b, c, d, e, f = transform
-            points = [
-                (a * x + c * y + e, b * x + d * y + f)
-                for x, y in (
-                    (float(bounds[0]), float(bounds[1])),
-                    (float(bounds[0]), float(bounds[3])),
-                    (float(bounds[2]), float(bounds[1])),
-                    (float(bounds[2]), float(bounds[3])),
-                )
-            ]
-            xs, ys = zip(*points, strict=True)
-            if (max(xs) - min(xs)) / width < _MIN_ART_W or (
-                max(ys) - min(ys)
-            ) / height < _MIN_ART_H:
-                continue
-            match rotation:
-                case 90:
-                    values = [(x - float(box.left)) / width for x in xs]
-                case 180:
-                    values = [(y - float(box.bottom)) / height for y in ys]
-                case 270:
-                    values = [1 - (x - float(box.left)) / width for x in xs]
-                case _:
-                    values = [(float(box.top) - y) / height for y in ys]
-            top, bottom = max(0.0, min(values)), min(1.0, max(values))
-            if bottom <= top:
-                continue
             try:
+                obj = resources[args[0]].get_object()
+                if obj.get("/Subtype") not in ("/Form", "/Image"):
+                    continue
+                bounds = obj.get("/BBox", (0, 0, 1, 1))
+                transform = _multiply(
+                    tuple(float(n) for n in obj.get("/Matrix", (1, 0, 0, 1, 0, 0))),
+                    matrix,
+                )
+                a, b, c, d, e, f = transform
+                points = [
+                    (a * x + c * y + e, b * x + d * y + f)
+                    for x, y in (
+                        (float(bounds[0]), float(bounds[1])),
+                        (float(bounds[0]), float(bounds[3])),
+                        (float(bounds[2]), float(bounds[1])),
+                        (float(bounds[2]), float(bounds[3])),
+                    )
+                ]
+                xs, ys = zip(*points, strict=True)
+                if (max(xs) - min(xs)) / width < _MIN_ART_W or (
+                    max(ys) - min(ys)
+                ) / height < _MIN_ART_H:
+                    continue
+                match rotation:
+                    case 90:
+                        values = [(x - float(box.left)) / width for x in xs]
+                    case 180:
+                        values = [(y - float(box.bottom)) / height for y in ys]
+                    case 270:
+                        values = [1 - (x - float(box.left)) / width for x in xs]
+                    case _:
+                        values = [(float(box.top) - y) / height for y in ys]
+                top, bottom = max(0.0, min(values)), min(1.0, max(values))
+                if bottom <= top:
+                    continue
                 signature = _graphic_signature(obj)
-            except (PyPdfError, NotImplementedError):
-                # 带 indirect 元数据/解码超限的 artwork 签不了名——只丢这块图。
+            except Exception as e:  # noqa: BLE001 -- 单块 artwork 畸形/签不了名只丢该图形，不拖整页
+                log.debug("artwork %s 落点/签名失败，丢弃该图形: %s", args[0], e)
                 continue
             result.append({"signature": signature, "start": top, "end": bottom})
     return result
