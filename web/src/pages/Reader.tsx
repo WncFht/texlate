@@ -20,6 +20,7 @@ import PdfPane, { type PaneHandle } from "../reader/PdfPane";
 import HtmlPane, { type HtmlPaneHandle } from "../reader/HtmlPane";
 import { createPositionMapper, type DocId, type Pos } from "../reader/alignment";
 import { capturePos, jumpTo, scrollTopFor, SyncEngine } from "../reader/sync";
+import { resolveReaderView } from "../reader/view";
 import { t } from "../i18n/zh";
 
 const STAGES: TaskStage[] = ["fetching", "parsing", "translating", "compiling"];
@@ -41,7 +42,8 @@ type AnyHandle = PaneHandle | HtmlPaneHandle;
 export default function Reader(props: { taskId: string; nav(to: string): void }) {
     const [task, setTask] = createSignal<TaskSnapshot | null>(null);
     const [info, setInfo] = createSignal<ReaderInfo | null>(null);
-    const [dual, setDual] = createSignal<DualJson | null>(null);
+    // undefined = dual.json 未拉完；null = 无文件/拉取失败（view.ts 三态语义）
+    const [dual, setDual] = createSignal<DualJson | null | undefined>(undefined);
     const [manifest, setManifest] = createSignal<FileManifest | null>(null);
     const [mode, setMode] = createSignal<Mode>("split");
     const [syncing, setSyncing] = createSignal(true);
@@ -290,7 +292,9 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
     };
 
     const title = () => task()?.title || task()?.arxiv_id || props.taskId;
-    const isPdf = () => info()?.view !== "html";
+    // html 视图需 dual.json chunks 到位才成立；登记 html 却无渲染材料 → empty 空态
+    const view = () => resolveReaderView(info(), dual());
+    const isPdf = () => view() !== "html";
     const live = () => taskStore.live(props.taskId);
     const activeTask = () => {
         const s = task();
@@ -425,7 +429,11 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
             </Show>
 
             {/* 终态：阅读器（左右互换走 CSS row-reverse，逻辑侧不变） */}
-            <Show when={!fatal() && !activeTask() && info()}>
+            <Show
+                when={
+                    !fatal() && !activeTask() && (view() === "pdf" || view() === "html")
+                }
+            >
                 <Toolbar
                     title={title()}
                     status={task()?.status}
@@ -453,7 +461,17 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
                 </div>
             </Show>
 
-            <Show when={!fatal() && !activeTask() && !info()}>
+            {/* server 登记了 html（md_zip）但 dual.json 无 chunks——出空态而非空面板 */}
+            <Show when={!fatal() && !activeTask() && view() === "empty"}>
+                <main class="reader-fatal">
+                    <p class="muted">{t.reader.notReady}</p>
+                    <button type="button" class="btn-ghost" onClick={() => props.nav("#/")}>
+                        ← {t.reader.back}
+                    </button>
+                </main>
+            </Show>
+
+            <Show when={!fatal() && !activeTask() && view() === "loading"}>
                 <main class="reader-fatal">
                     <p class="muted">{t.reader.loading}</p>
                 </main>
