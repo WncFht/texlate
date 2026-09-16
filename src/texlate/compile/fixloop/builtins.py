@@ -21,7 +21,9 @@ from typing import TYPE_CHECKING, Any
 
 from texlate.compile.inject import find_docclass_ends
 from texlate.compile.normalize import INTERMEDIATE_SUFFIXES
-from texlate.textutil import mask_tex
+from texlate.latex.api import parse_file
+from texlate.latex.prose import file_has_prose
+from texlate.textutil import CJK_RX, mask_tex
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
@@ -1760,6 +1762,85 @@ def graphic_repair(
     return True, f"stub \\fbox for {f.name} ({why}) in {n} file(s)"
 
 
+# ════════════════════════════════════════════════════════════════
+# support 文件腐蚀兜底: 偏离 pristine baseline 且被注入 CJK → 逐字节复原
+# ════════════════════════════════════════════════════════════════
+
+#: 自有写入标记 —— ``% texlate`` (inject/normalize/latex209 注入头) 与
+#: ``% fixloop`` (本表各 transform 就地改写注记)。带标记的偏离是有意修复,
+#: 回滚会撤销 deliberate fix。
+_OWN_MARKERS = ("% texlate", "% fixloop")
+
+#: support 判定的文件名闸 —— 与 e2e._scan_tree 同表 (``.rtx.tex`` REVTeX
+#: 运行时转储 / ``.code.tex`` tikzlibrary 机制件), 命中即 support 免散文判。
+_SUPPORT_SUFFIXES = (".rtx.tex", ".code.tex")
+
+
+def _is_support_baseline(path: Path) -> bool:
+    """Baseline 件判 support: 名闸命中 ∨ 解析后无散文; 解析崩 → False (不碰)。"""
+    if path.name.lower().endswith(_SUPPORT_SUFFIXES):
+        return True
+    try:
+        res = parse_file(path, flatten=False)
+    except Exception:  # noqa: BLE001 — 无法分类即按内容件处理, 绝不回滚
+        return False
+    return not file_has_prose(res.chunks)
+
+
+def _corrupted_by_xlat(f: Path, base: Path) -> bytes | None:
+    """单件判定 → 命中返回 baseline 字节 (供 verbatim 复原), 否则 None。
+
+    条件序: 字节有偏 ∧ 无自有标记 ∧ CJK 计数超 baseline ∧ baseline 判
+    support (``parse_file`` 最贵殿后)。
+    """
+    try:
+        wb, bb = f.read_bytes(), base.read_bytes()
+    except OSError:
+        return None
+    if wb == bb:
+        return None
+    wt = wb.decode("utf-8", errors="replace")
+    if any(m in wt for m in _OWN_MARKERS):
+        return None
+    bt = bb.decode("utf-8", errors="replace")
+    if len(CJK_RX.findall(wt)) <= len(CJK_RX.findall(bt)):
+        return None
+    return bb if _is_support_baseline(base) else None
+
+
+def restore_support_from_src(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""被翻译写脏的 support 文件 → 从 ``params.baseline_dir`` pristine 树逐字节复原。
+
+    prose gate (e2e._scan_tree) 只前向挡 bundled 机制件进翻译集; 本 builtin 收
+    gate 落地前已被注入 CJK 的残案 (scout-supportfiles: pstricks/epsf/
+    tikzlibrary ``*.code.tex``/宏件/gnuplot 转储)。五条件全中才动 (全
+    conjunctive, 便宜的先查, ``parse_file`` 殿后): baseline 同名件在 ∧
+    工作件字节有偏 ∧ 无 ``% texlate``/``% fixloop`` 自有标记 ∧ 工作件 CJK
+    计数超 baseline (baseline 自带 CJK 照容) ∧ baseline 判 support。
+    ``baseline_dir`` 缺失/非目录 → False fail-safe, 不抛。
+    """
+    del eng, payload
+    base_dir = params.get("baseline_dir")
+    if not base_dir:
+        return False, "no baseline_dir param"
+    base_root = Path(str(base_dir))
+    if not base_root.is_dir():
+        return False, f"baseline_dir not a directory: {base_root}"
+    restored: list[str] = []
+    for f in ctx.tex_files((".tex",)):
+        base = base_root / f.relative_to(ctx.wdir)
+        if not base.is_file() or (bb := _corrupted_by_xlat(f, base)) is None:
+            continue
+        f.write_bytes(bb)
+        ctx.invalidate(f)
+        restored.append(f.relative_to(ctx.wdir).as_posix())
+    if not restored:
+        return False, "no corrupted support files"
+    return True, f"restored: {', '.join(restored)}"
+
+
 TRANSFORM_FNS = {
     "option_clash_merge": option_clash_merge,
     "pdftex_prim_polyfill": pdftex_prim_polyfill,
@@ -1781,4 +1862,5 @@ TRANSFORM_FNS = {
     "font_fallback": font_fallback,
     "graphic_case_link": graphic_case_link,
     "graphic_repair": graphic_repair,
+    "restore_support_from_src": restore_support_from_src,
 }
