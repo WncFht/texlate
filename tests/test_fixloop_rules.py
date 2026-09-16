@@ -1,5 +1,6 @@
 """rules.yaml 规则库装载校验 + when/condition 原语 + phase 序单测。"""
 
+from functools import lru_cache
 from pathlib import Path
 
 import pytest
@@ -14,7 +15,11 @@ from texlate.compile.fixloop.engine import (
     _when_ok,
 )
 
-RS = load_ruleset()
+
+@lru_cache(maxsize=1)
+def _rs() -> Ruleset:
+    """ruleset 首用时加载——收集期不 IO（坏 yaml 报 test fail 而非 collection error）。"""
+    return load_ruleset()
 
 
 class _Eng:
@@ -41,24 +46,24 @@ def ctx_for(tmp_path: Path, engine_name: str = "xelatex") -> LoopCtx:
 
 # ---------------------------------------------------------------- 结构校验
 def test_phase_ordering() -> None:
-    assert [r.id for r in RS.phase("gate")] == [
+    assert [r.id for r in _rs().phase("gate")] == [
         "pstricks_dvips_preflight",
         "latex209_reject",
     ]
     # v2: eps_route 挪 loop 层 (log 确证后兜底拒); pstricks 独立成 precheck 项
-    assert [r.id for r in RS.phase("precheck")] == [
+    assert [r.id for r in _rs().phase("precheck")] == [
         "pstricks_route",
         "static_precheck",
     ]
-    loop = [r.id for r in RS.phase("loop")]
+    loop = [r.id for r in _rs().phase("loop")]
     assert loop[0] == "install_file"
     assert loop[-1] == "undefined_cs_guess"
-    orders = [r.order for r in RS.phase("loop")]
+    orders = [r.order for r in _rs().phase("loop")]
     assert orders == sorted(orders)
 
 
 def test_every_rule_has_provenance() -> None:
-    for r in RS.rules:
+    for r in _rs().rules:
         assert r.raw.get("source_ref"), r.id
         assert r.raw.get("provenance"), r.id
         assert isinstance(r.raw.get("stats"), dict), r.id
@@ -66,13 +71,13 @@ def test_every_rule_has_provenance() -> None:
 
 def test_version_guard_policy_present() -> None:
     # 对账第 25 条: 非 rules 条目, 是 filemap 段的 ctan_fetch 前置检查策略
-    vg = RS.filemap_cfg["version_guard"]
+    vg = _rs().filemap_cfg["version_guard"]
     assert vg["enabled"] is True
     assert vg["texlive_format_epoch"] == "2022-07-14"
 
 
 def test_engine_spec_default_and_degrade() -> None:
-    by_id = {r.id: r for r in RS.rules}
+    by_id = {r.id: r for r in _rs().rules}
     assert by_id["latex209_reject"].engine_spec("nonsense") == {"mode": "native"}
     spec = by_id["install_file"].engine_spec("tectonic")
     assert spec["mode"] == "degrade"
@@ -397,7 +402,7 @@ def test_cs_targeted_fix_unknown_cs_noop(tmp_path: Path) -> None:
 
 
 def test_new_rules_present_and_ordered() -> None:
-    ids = [r.id for r in RS.phase("loop")]
+    ids = [r.id for r in _rs().phase("loop")]
     assert "inputenc_strip" in ids
     assert "cs_targeted_fix" in ids
     assert ids.index("inputenc_strip") < ids.index("non_utf8_source")

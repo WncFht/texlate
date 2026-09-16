@@ -8,12 +8,10 @@ MockEngine 对齐 impl-compile ``compile/engine.py`` 的 CompRes/Engine 字段�
 from collections.abc import Iterable
 from pathlib import Path
 
-from texlate.compile.fixloop import Ruleset, builtins, fixloop, load_ruleset
+from texlate.compile.fixloop import Ruleset, builtins, fixloop
 from texlate.compile.fixloop.ctan import CtanFetcher
 from texlate.compile.fixloop.engine import LoopCtx, _dep_stems, find_main_tex
 from texlate.compile.fixloop.logparse import ErrReport
-
-RS = load_ruleset()
 
 CLEAN_LOG = "This is pdfTeX\nOutput written on main.pdf (1 page).\n"
 MAIN_TEX = "\\documentclass{article}\n\\begin{document}\nhi\n\\end{document}\n"
@@ -906,9 +904,7 @@ def test_aux_sweep_escaped_braces_healthy(tmp_path: Path) -> None:
 def test_aux_sweep_toc_family(tmp_path: Path) -> None:
     r"""``.toc`` 同机制件: 截断 ``\contentsline`` 半行一样毒。"""
     proj = make_proj(tmp_path)
-    (proj / "main.toc").write_text(
-        "\\contentsline{section}{", encoding="utf-8"
-    )
+    (proj / "main.toc").write_text("\\contentsline{section}{", encoding="utf-8")
     fixloop(proj, MockEngine([{"log": CLEAN_LOG, "pdf": True}]))
     assert not (proj / "main.toc").exists()
 

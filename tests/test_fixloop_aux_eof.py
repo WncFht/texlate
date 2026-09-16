@@ -6,14 +6,20 @@ taxonomy ``aux_scan_eof`` 接 ``File ended while scanning use of \@newl@bel``
 引擎自产件的运行时截断。
 """
 
+from functools import lru_cache
 from pathlib import Path
 
-from texlate.compile.fixloop import load_ruleset
+from texlate.compile.fixloop import Ruleset, load_ruleset
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
 from texlate.compile.fixloop.engine import LoopCtx, fixloop
 from texlate.compile.fixloop.logparse import parse_text
 
-RS = load_ruleset()
+
+@lru_cache(maxsize=1)
+def _rs() -> Ruleset:
+    """ruleset 首用时加载——收集期不 IO（坏 yaml 报 test fail 而非 collection error）。"""
+    return load_ruleset()
+
 
 _EOF_LOG = (
     "This is XeTeX\n(./main.aux\n! File ended while scanning use of \\@newl@bel.\n"
@@ -78,7 +84,7 @@ class _Eng:
 # ---------------------------------------------------------------- taxonomy
 def test_aux_eof_classifies_with_payload() -> None:
     rep = parse_text(_EOF_LOG)
-    cat, pay = RS.taxonomy.classify(rep)
+    cat, pay = _rs().taxonomy.classify(rep)
     assert cat == "aux_scan_eof"
     assert pay == "newl@bel"  # payload_group=1 抓到回读宏名
 
@@ -87,14 +93,14 @@ def test_aux_eof_beats_emergency_in_ctx8() -> None:
     """'!' 行后 ctx8 混入 Emergency stop 不抢签（条目先于 emergency 评估）。"""
     log = _EOF_LOG + "Emergency stop\n!  ==> Fatal error occurred\n"
     rep = parse_text(log)
-    cat, _ = RS.taxonomy.classify(rep)
+    cat, _ = _rs().taxonomy.classify(rep)
     assert cat == "aux_scan_eof"
 
 
 def test_generic_scan_eof_not_aux() -> None:
     """非回读宏的 EOF 扫描（如截断的 main.tex 撞上 \\section）不归本类。"""
     rep = parse_text("! File ended while scanning use of \\section.\nl.9 x\n")
-    cat, _ = RS.taxonomy.classify(rep)
+    cat, _ = _rs().taxonomy.classify(rep)
     assert cat == "other"
 
 
@@ -144,7 +150,7 @@ def test_fixloop_aux_eof_roundtrip(tmp_path: Path) -> None:
     (tmp_path / "main.tex").write_text(MAIN_TEX, encoding="utf-8")
     (tmp_path / "main.aux").write_bytes(b"\\newlabel{a}{{1}{1}{t\xe4\xb8")
     eng = _Eng([{"log": CLEAN_LOG, "pdf": True}])
-    cell = fixloop(tmp_path, eng, ruleset=RS)
+    cell = fixloop(tmp_path, eng, ruleset=_rs())
     assert cell["verdict"] == "clean"
     assert not (tmp_path / "main.aux").exists()  # 损坏件已删, 下遍引擎重生成
 
@@ -157,7 +163,7 @@ def test_fixloop_aux_eof_purge_fallback(tmp_path: Path) -> None:
         b"\\newlabel{a}{{1}{1}{\xe4\xb8}}\n\\newlabel{b}{{2}{2}{ok}}\n"
     )
     eng = _Eng([{"log": _EOF_LOG, "pdf": False}, {"log": CLEAN_LOG, "pdf": True}])
-    cell = fixloop(tmp_path, eng, ruleset=RS)
+    cell = fixloop(tmp_path, eng, ruleset=_rs())
     assert cell["verdict"] == "clean"
     assert any(a["rule"] == "aux_purge_regen" for a in cell["actions"])
     assert not (tmp_path / "main.aux").exists()
@@ -168,7 +174,7 @@ def test_fixloop_aux_eof_no_corrupt_falls_through(tmp_path: Path) -> None:
     (tmp_path / "main.tex").write_text(MAIN_TEX, encoding="utf-8")
     (tmp_path / "main.aux").write_bytes(b"\\newlabel{a}{{1}{1}{ok}}\n")
     eng = _Eng([{"log": _EOF_LOG, "pdf": False}] * 4)
-    cell = fixloop(tmp_path, eng, ruleset=RS)
+    cell = fixloop(tmp_path, eng, ruleset=_rs())
     assert cell["verdict"] != "clean"
     assert (tmp_path / "main.aux").exists()
     assert all(a["rule"] != "aux_purge_regen" for a in cell["actions"])

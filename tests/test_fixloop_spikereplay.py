@@ -9,16 +9,23 @@ work_* 是 gitignored 重产物, 缺席时仅跳过 work 扫描用例; 在本地
     2106.09685/ctex → missing_tfm:phvb (metric TFM 缺)
 """
 
+from functools import lru_cache
 from pathlib import Path
 
 import pytest
 
-from texlate.compile.fixloop import load_ruleset
+from texlate.compile.fixloop import Ruleset, load_ruleset
 from texlate.compile.fixloop.logparse import parse_log
 
 WORK = Path(__file__).resolve().parents[1] / "bench/work_fixloop"
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
-RS = load_ruleset()
+
+
+@lru_cache(maxsize=1)
+def _rs() -> Ruleset:
+    """ruleset 首用时加载——收集期不 IO（坏 yaml 报 test fail 而非 collection error）。"""
+    return load_ruleset()
+
 
 NEED_WORK = pytest.mark.skipif(
     not WORK.is_dir(), reason="bench/work_fixloop 不在本机 (gitignored 重产物)"
@@ -44,10 +51,10 @@ def _main_logs() -> list[Path]:
 def test_fixture_logs_classify() -> None:
     """入库真 log 走 taxonomy —— 干净 clone 常跑, 锚定 missing_file/syntax 两类。"""
     for name, (n_bang, cat, pay) in _FIXTURE_CATS.items():
-        rep = parse_log(FIXTURES / name, RS.warn_patterns)
+        rep = parse_log(FIXTURES / name, _rs().warn_patterns)
         assert rep.n_bang == n_bang
         assert rep.tail is not None
-        got_cat, got_pay = RS.taxonomy.classify(rep)
+        got_cat, got_pay = _rs().taxonomy.classify(rep)
         assert got_cat == cat
         assert got_pay == pay
 
@@ -58,10 +65,10 @@ def test_all_main_logs_parseable() -> None:
     assert len(logs) >= 16  # noqa: PLR2004 - spike 22 格, 至少 16 篇的量
     cats: dict[str, list[Path]] = {}
     for p in logs:
-        rep = parse_log(p, RS.warn_patterns)
+        rep = parse_log(p, _rs().warn_patterns)
         assert rep.n_bang >= 0
         assert rep.tail is not None
-        cat, _pay = RS.taxonomy.classify(rep)
+        cat, _pay = _rs().taxonomy.classify(rep)
         cats.setdefault(cat, []).append(p)
     # 多数格救回后终态 clean (spike 口径 21/22 clean + 1 dirty_pdf)
     assert len(cats.get("clean", [])) >= 15  # noqa: PLR2004
@@ -72,9 +79,9 @@ def test_known_residual_categories() -> None:
     soul = WORK / "2005.11401/zh/neurips_2020.log"
     tfm = WORK / "2106.09685/ctex/iclr2022_conference.log"
     if soul.exists():
-        cat, _ = RS.taxonomy.classify(parse_log(soul, RS.warn_patterns))
+        cat, _ = _rs().taxonomy.classify(parse_log(soul, _rs().warn_patterns))
         assert cat == "soul_err"  # spike 唯一未救回残错
     if tfm.exists():
-        cat, pay = RS.taxonomy.classify(parse_log(tfm, RS.warn_patterns))
+        cat, pay = _rs().taxonomy.classify(parse_log(tfm, _rs().warn_patterns))
         assert cat == "missing_tfm"
         assert pay == "phvb"
