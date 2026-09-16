@@ -75,7 +75,8 @@ def log(msg: str) -> None:
 
 
 def load_allocation() -> list[dict]:
-    rows = list(csv.DictReader(open(EXP / "frame" / "allocation-core.csv")))
+    with (EXP / "frame" / "allocation-core.csv").open(newline="") as fh:
+        rows = list(csv.DictReader(fh))
     for r in rows:
         r["quota_core"] = int(r["quota_core"])
         r["n_chunks"] = int(r["n_chunks"])
@@ -111,20 +112,22 @@ def pick_chunk_ids(n: int) -> list[int]:
 def cmd_plan() -> None:
     alloc = load_allocation()
     ia_idx: dict[str, dict[int, dict]] = {}
-    for r in csv.DictReader(open(EXP / "ia-pilot" / "item-index.csv")):
-        ia_idx.setdefault(r["yymm"], {})[int(r["chunk"])] = {
-            "item": r["identifier"],
-            "size": int(r["size"]),
-        }
+    with (EXP / "ia-pilot" / "item-index.csv").open(newline="") as fh:
+        for r in csv.DictReader(fh):
+            ia_idx.setdefault(r["yymm"], {})[int(r["chunk"])] = {
+                "item": r["identifier"],
+                "size": int(r["size"]),
+            }
     tiger_idx: dict[str, dict[int, dict]] = {}
-    for r in csv.DictReader(open(EXP / "post2020" / "tiger-files.csv")):
-        m = re.match(r"arXiv_src_(\d{4})_(\d{3})\.tar$", r["path"])
-        if not m:
-            continue
-        tiger_idx.setdefault(m.group(1), {})[int(m.group(2))] = {
-            "size": int(r["size_bytes"]),
-            "oid16": r["lfs_oid16"],
-        }
+    with (EXP / "post2020" / "tiger-files.csv").open(newline="") as fh:
+        for r in csv.DictReader(fh):
+            m = re.match(r"arXiv_src_(\d{4})_(\d{3})\.tar$", r["path"])
+            if not m:
+                continue
+            tiger_idx.setdefault(m.group(1), {})[int(m.group(2))] = {
+                "size": int(r["size_bytes"]),
+                "oid16": r["lfs_oid16"],
+            }
 
     chunks: list[dict] = []
     for row in alloc:
@@ -183,17 +186,17 @@ def cmd_probe() -> None:
         if c["state"] == "done":
             continue
         try:
-            r = open_url(c["url"], headers={"Range": "bytes=0-0"})
-            code = r.status
-            r.read()
-            r.close()
-            c["remote_ok"] = code in (200, 206)
+            # 只验可达: 封顶读 64KB——服务端不理会 Range 时防整 tar 被读穿
+            with open_url(c["url"], headers={"Range": "bytes=0-0"}) as r:
+                r.read(65536)
+                c["remote_ok"] = r.status in (200, 206)
         except Exception as e:
             c["remote_ok"] = False
             c["probe_err"] = f"{type(e).__name__}: {e}"
         if c["channel"] == "ia" and c.get("sha1") is None:
             try:
-                meta = json.loads(open_url(IA_META.format(item=c["item"])).read())
+                with open_url(IA_META.format(item=c["item"])) as r:
+                    meta = json.loads(r.read())
                 (WORK / "meta").mkdir(exist_ok=True)
                 (WORK / "meta" / f"{c['item']}.json").write_text(json.dumps(meta))
                 for f in meta.get("files", []):
@@ -252,9 +255,16 @@ def fetch_one(c: dict) -> dict:
         if have < c["size"]:
             stream_download(c, part, have)
             src = part
-        full_sha = verify_chunk(src, c)
+        try:
+            full_sha = verify_chunk(src, c)
+        except Exception:
+            # 验不过的文件必删——final 验过才 rename 而来(如今腐=盘上字节变),
+            # part 验不过=内容错(尺寸已齐), 留着下轮只是重复验同一坏字节
+            (final if src == final else part).unlink(missing_ok=True)
+            raise
         if src == part:
             part.rename(final)
+        c.pop("error", None)
         c.update(state="done", sha256=full_sha, elapsed_s=round(time.time() - t0, 1))
     except Exception as e:
         c.update(state="failed", error=f"{type(e).__name__}: {e}")
@@ -265,14 +275,16 @@ def stream_download(c: dict, part: Path, have: int) -> None:
     """把 chunk 余量流进 .part (have>0 时 Range 续传); 完成后核对尺寸."""
     headers = {"Range": f"bytes={have}-"} if have else {}
     r = open_url(c["url"], headers=headers, timeout=120)
-    resumed = bool(have) and r.status == 206
-    with open(part, "ab" if resumed else "wb") as f:
-        while True:
-            buf = r.read(1 << 20)
-            if not buf:
-                break
-            f.write(buf)
-    r.close()
+    try:
+        resumed = bool(have) and r.status == 206
+        with open(part, "ab" if resumed else "wb") as f:
+            while True:
+                buf = r.read(1 << 20)
+                if not buf:
+                    break
+                f.write(buf)
+    finally:
+        r.close()
     if part.stat().st_size != c["size"]:
         msg = f"size {part.stat().st_size} != expected {c['size']}"
         raise OSError(msg)
@@ -281,9 +293,16 @@ def stream_download(c: dict, part: Path, have: int) -> None:
 def verify_chunk(src: Path, c: dict) -> str:
     """完整性校验: 全量 sha256 + IA sha1 (metadata) / TIGER lfs_oid16 前缀.
     返回文件 sha256."""
-    full_sha = hashlib.sha256(src.read_bytes()).hexdigest()
+    # 单遍流式双 hash——read_bytes() 两次会把 GB 级 tar 整个吃进内存
+    h256 = hashlib.sha256()
+    h1 = hashlib.sha1(usedforsecurity=False)
+    with src.open("rb") as f:
+        for buf in iter(lambda: f.read(1 << 22), b""):
+            h256.update(buf)
+            h1.update(buf)
+    full_sha = h256.hexdigest()
     if c["channel"] == "ia" and c.get("sha1"):
-        s1 = hashlib.sha1(src.read_bytes(), usedforsecurity=False).hexdigest()
+        s1 = h1.hexdigest()
         if s1 != c["sha1"]:
             msg = f"sha1 {s1} != meta {c['sha1']}"
             raise OSError(msg)
@@ -364,12 +383,16 @@ def cmd_zipsum() -> None:
         if out.exists():
             continue
         try:
-            data = open_url(IA_ZIPSUM.format(item=c["item"])).read()
+            with open_url(IA_ZIPSUM.format(item=c["item"])) as r:
+                data = r.read()
             out.write_bytes(data)
             log(f"zipsum {c['item']} {len(data)}B")
         except urllib.error.HTTPError as e:
             log(f"zipsum {c['item']} HTTP {e.code}")
-            c["has_zipsum"] = False
+            if e.code == 404:  # 永久缺失才钉死; 5xx 留下轮重试
+                c["has_zipsum"] = False
+        except (urllib.error.URLError, OSError) as e:
+            log(f"zipsum {c['item']} {type(e).__name__}: {e} — 跳过重试")
     save_chunks(chunks)
 
 
@@ -758,8 +781,9 @@ def cmd_sample() -> None:
     rng = random.Random(SEED)
     alloc = {r["cluster_id"]: r for r in load_allocation()}
     mix: dict[str, dict[str, float]] = {}
-    for r in csv.DictReader(open(EXP / "frame" / "cluster-cat-mix.csv")):
-        mix.setdefault(r["yymm"], {})[r["cat_group"]] = float(r["share"])
+    with (EXP / "frame" / "cluster-cat-mix.csv").open(newline="") as fh:
+        for r in csv.DictReader(fh):
+            mix.setdefault(r["yymm"], {})[r["cat_group"]] = float(r["share"])
     lut = load_frame_lookup()
     chunks = load_chunks()
 
@@ -1061,7 +1085,9 @@ def cmd_extract() -> None:
                 dest = CORPUS / pid
                 dest.mkdir(parents=True, exist_ok=True)
                 fmt = feat["format"]
-                raw_name = {"tar": "raw.tar.gz", "gz": "raw.gz", "pdf": "raw.pdf"}[fmt]
+                raw_name = {"tar": "raw.tar.gz", "gz": "raw.gz", "pdf": "raw.pdf"}.get(
+                    fmt, "raw.bin"
+                )
                 (dest / raw_name).write_bytes(blob)
                 n_ext, warns = unpack_blob(blob, fmt, dest)
                 # main tex sha
@@ -1163,8 +1189,10 @@ def write_manifest_md(manifest: list[dict]) -> None:
             "`(channel,item,member,blob_sha256)` 钉版，`resolved_version=null`）。"
         ),
         (
-            "数据在本目录 `{id}/` 子目录（gitignored），入库的只有此清单、"
-            "`manifest.jsonl`、`mechanisms.jsonl` 与 `bench/py/build_corpus_v3.py`。"
+            "数据在本目录 `{id}/` 子目录（gitignored），入库清单："
+            "`manifest.jsonl`（核心）/`manifest_booster.jsonl`（补强）/"
+            "`manifest_expand.jsonl`（扩展）/`manifest_hot.jsonl`（热层）/"
+            "`mechanisms.jsonl`/`booster_selection.jsonl`；管线脚本在 `bench/py/`。"
         ),
         (
             "抽样管线见 `docs/09-benchmark-corpus.md` S0–S5；旧式 ID 按 "
@@ -1188,7 +1216,13 @@ def write_manifest_md(manifest: list[dict]) -> None:
         f"| {r['format']} | {r['n_tex']} |"
         for r in sorted(manifest, key=lambda r: (r["cluster_id"], r["id"]))
     )
-    (CORPUS / "MANIFEST.md").write_text("\n".join(lines) + "\n")
+    md = CORPUS / "MANIFEST.md"
+    if md.exists() and "## 补强层" in md.read_text(encoding="utf-8"):
+        # 现行 MANIFEST.md 含手补的 booster/hot/expand 策展段——整文件重写
+        # 会把它们抹掉; 核心表如需重生成请人工合并进现有文件
+        log("MANIFEST.md 含策展段，跳过重写（核心表如需更新请手工合并）")
+        return
+    md.write_text("\n".join(lines) + "\n")
 
 
 # ---------------- qc (S5) ----------------
@@ -1210,7 +1244,8 @@ def cmd_extract_booster() -> None:
         for f in benchlib.iter_jsonl(ff):
             if f.get("id") in want:
                 feat[f["id"]] = f
-    for pid in sorted(set(want) - set(feat)):
+    skipped = sorted(set(want) - set(feat))
+    for pid in skipped:
         log(f"!! {pid} 无 features 记录（member 定位失败——跳过）")
 
     lut = load_frame_lookup()
@@ -1330,7 +1365,15 @@ def cmd_extract_booster() -> None:
     benchlib.atomic_write_text(
         out, "\n".join(json.dumps(r, ensure_ascii=False) for r in manifest) + "\n"
     )
-    log(f"extract_booster done: {len(manifest)} papers -> {CORPUS}")
+    log(
+        f"extract_booster done: {len(manifest)}/{len(want)} papers -> {CORPUS}"
+        + (
+            f" | skipped(no features): {len(skipped)} {skipped[:10]}"
+            + ("…" if len(skipped) > 10 else "")
+            if skipped
+            else ""
+        )
+    )
 
 
 def cmd_qc() -> None:
@@ -1348,12 +1391,39 @@ def cmd_qc() -> None:
     n_pdf = sum(r["format_dist"].get("pdf", 0) for r in report)
     n_err = sum(r["format_dist"].get("error", 0) for r in report)
     total = sum(r["members_scanned"] for r in report)
+    # 盘 vs manifest 对账: 有 meta.json 的目录不在任一 manifest = 孤儿;
+    # id 目录存在但缺 meta.json = 半截落盘（nominations/__pycache__ 非语料目录）
+    all_ids = {
+        r["id"]
+        for r in benchlib.load_manifest_rows(
+            CORPUS, ["core", "booster", "hot", "expand"]
+        )
+    }
+    disk_ids: set[str] = set()
+    incomplete: list[str] = []
+    for top in sorted(CORPUS.iterdir()):
+        if not top.is_dir() or top.name in ("nominations", "__pycache__"):
+            continue
+        if (top / "meta.json").exists():
+            disk_ids.add(top.name)
+            continue
+        subs = [s for s in sorted(top.iterdir()) if s.is_dir()]
+        for s in subs:
+            if (s / "meta.json").exists():
+                disk_ids.add(f"{top.name}/{s.name}")
+            else:
+                incomplete.append(f"{top.name}/{s.name}")
+        if not subs:
+            incomplete.append(top.name)
+    orphans = sorted(disk_ids - all_ids)
     lines = [
         "# corpus_v3 P2 自检",
         "",
         f"- 核心层入库: **{len(manifest)}** / 目标 1000",
         f"- id 重复: {sorted(dup) or '无'}",
         f"- 与 corpus_v2 重叠: {sorted(set(ids) & v2_ids) or '无'}",
+        f"- 盘有 manifest 无(孤儿目录): {orphans[:8] or '无'} (n={len(orphans)})",
+        (f"- 缺 meta.json 半截目录: {incomplete[:8] or '无'} (n={len(incomplete)})"),
         (
             f"- 扫描成员总数: {total}（pdf_only {n_pdf} · stub {n_stub} "
             f"· error {n_err}）"

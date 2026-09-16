@@ -151,10 +151,8 @@ def frame_filter(pool_ids: set[str]) -> dict[str, dict]:
 
 
 def yymm2cluster() -> dict[str, str]:
-    return {
-        r["yymm"]: r["cluster_id"]
-        for r in csv.DictReader(open(b3.EXP / "frame" / "allocation-core.csv"))
-    }
+    with (b3.EXP / "frame" / "allocation-core.csv").open(newline="") as fh:
+        return {r["yymm"]: r["cluster_id"] for r in csv.DictReader(fh)}
 
 
 # ---------------- plan ----------------
@@ -164,10 +162,8 @@ def n100_rates(manifest_rows: list[dict]) -> tuple[dict, dict, float]:
     """n100 → (band_bad_rate, cat_bad_rate, global); bad=fail+reject+partial."""
     res = json.loads(N100.read_text())
     by_id = {r["id"]: r for r in manifest_rows}
-    c2b = {
-        r["cluster_id"]: r["year_band"]
-        for r in csv.DictReader(open(b3.EXP / "frame" / "allocation-core.csv"))
-    }
+    with (b3.EXP / "frame" / "allocation-core.csv").open(newline="") as fh:
+        c2b = {r["cluster_id"]: r["year_band"] for r in csv.DictReader(fh)}
     band_stat: dict[str, Counter] = defaultdict(Counter)
     cat_stat: dict[str, Counter] = defaultdict(Counter)
     n_bad = 0
@@ -204,8 +200,9 @@ def largest_remainder(weights: dict[str, float], total: int) -> dict[str, int]:
 def band_cat_share() -> dict[str, dict[str, float]]:
     """cluster-cat-mix → {band: {cat: share}}（带内聚合, 估算 item 产出用）."""
     agg: dict[str, Counter] = defaultdict(Counter)
-    for r in csv.DictReader(open(b3.EXP / "frame" / "cluster-cat-mix.csv")):
-        agg[r["year_band"]][r["cat_group"]] += int(r["n"])
+    with (b3.EXP / "frame" / "cluster-cat-mix.csv").open(newline="") as fh:
+        for r in csv.DictReader(fh):
+            agg[r["year_band"]][r["cat_group"]] += int(r["n"])
     return {
         b: {c: n / sum(cs.values()) for c, n in cs.items()} for b, cs in agg.items()
     }
@@ -229,37 +226,39 @@ def candidate_items() -> dict[str, list[dict]]:
     """{band: [item…]} 全量未扫候选."""
     done = scanned_items()
     out: dict[str, list[dict]] = defaultdict(list)
-    for r in csv.DictReader(open(IA_INDEX)):
-        item = r["identifier"]
-        if item in done:
-            continue
-        yymm = r["yymm"]
-        out[band_of_yymm(yymm)].append(
-            {
-                "item": item,
-                "yymm": yymm,
-                "chunk_no": int(r["chunk"]),
-                "channel": "ia",
-                "size": int(r["size"]),
-                "url": item_url("ia", item),
-            }
-        )
-    for r in csv.DictReader(open(TIGER_INDEX)):
-        m = re.match(r"(arXiv_src_(\d{4})_(\d{3}))\.tar$", r["path"])
-        if not m or m.group(1) in done:
-            continue
-        yymm = m.group(2)
-        out[band_of_yymm(yymm)].append(
-            {
-                "item": m.group(1),
-                "yymm": yymm,
-                "chunk_no": int(m.group(3)),
-                "channel": "tiger",
-                "size": int(r["size_bytes"]),
-                "oid16": r["lfs_oid16"],
-                "url": item_url("tiger", m.group(1)),
-            }
-        )
+    with IA_INDEX.open(newline="") as fh:
+        for r in csv.DictReader(fh):
+            item = r["identifier"]
+            if item in done:
+                continue
+            yymm = r["yymm"]
+            out[band_of_yymm(yymm)].append(
+                {
+                    "item": item,
+                    "yymm": yymm,
+                    "chunk_no": int(r["chunk"]),
+                    "channel": "ia",
+                    "size": int(r["size"]),
+                    "url": item_url("ia", item),
+                }
+            )
+    with TIGER_INDEX.open(newline="") as fh:
+        for r in csv.DictReader(fh):
+            m = re.match(r"(arXiv_src_(\d{4})_(\d{3}))\.tar$", r["path"])
+            if not m or m.group(1) in done:
+                continue
+            yymm = m.group(2)
+            out[band_of_yymm(yymm)].append(
+                {
+                    "item": m.group(1),
+                    "yymm": yymm,
+                    "chunk_no": int(m.group(3)),
+                    "channel": "tiger",
+                    "size": int(r["size_bytes"]),
+                    "oid16": r["lfs_oid16"],
+                    "url": item_url("tiger", m.group(1)),
+                }
+            )
     for v in out.values():
         v.sort(key=lambda it: (it["yymm"], it["chunk_no"]))
     return out
@@ -371,12 +370,16 @@ def remote_size(it: dict) -> int:
     mdir = EXP / "meta"
     mdir.mkdir(parents=True, exist_ok=True)
     cache = mdir / f"{it['item']}.json"
-    meta = (
-        json.loads(cache.read_text())
-        if cache.exists()
-        else json.loads(b3.open_url(b3.IA_META.format(item=it["item"])).read())
-    )
-    cache.write_text(json.dumps(meta))
+    meta = None
+    if cache.exists():
+        try:
+            meta = json.loads(cache.read_text())
+        except (OSError, json.JSONDecodeError):
+            cache.unlink(missing_ok=True)  # 截尾缓存每次重跑都炸——弃掉重抓
+    if meta is None:
+        with b3.open_url(b3.IA_META.format(item=it["item"])) as r:
+            meta = json.loads(r.read())
+        benchlib.atomic_write_text(cache, json.dumps(meta))
     for f in meta.get("files", []):
         if f["name"] == f"{it['item']}.tar":
             it["sha1"] = f.get("sha1")
@@ -384,43 +387,73 @@ def remote_size(it: dict) -> int:
     return it["size"]
 
 
+def _verify_content(path: Path, it: dict) -> None:
+    """尺寸之外的内容校验: ia→meta sha1, tiger→lfs oid16(sha256 前缀). 单遍流式."""
+    want_sha1 = it.get("sha1")
+    want_oid = it.get("oid16")
+    if not want_sha1 and not want_oid:
+        return
+    h256 = hashlib.sha256()
+    h1 = hashlib.sha1(usedforsecurity=False)
+    with path.open("rb") as f:
+        for buf in iter(lambda: f.read(1 << 22), b""):
+            h256.update(buf)
+            h1.update(buf)
+    if want_sha1 and h1.hexdigest() != want_sha1:
+        msg = f"sha1 {h1.hexdigest()[:12]} != meta {want_sha1[:12]}"
+        raise OSError(msg)
+    if want_oid and not h256.hexdigest().startswith(want_oid):
+        msg = f"sha256 {h256.hexdigest()[:16]} != oid16 {want_oid}"
+        raise OSError(msg)
+
+
 def download_item(it: dict, dest_dir: Path) -> Path:
-    """item tar → dest_dir/{item}.tar（.part+Range 续传, 尺寸+sha1 校验）."""
+    """item tar → dest_dir/{item}.tar（.part+Range 续传, 尺寸+内容校验）."""
     dest_dir.mkdir(parents=True, exist_ok=True)
     part = dest_dir / f"{it['item']}.tar.part"
     final = dest_dir / f"{it['item']}.tar"
     want = remote_size(it)
     if final.exists() and final.stat().st_size == want:
-        return final
+        # 尺寸对≠内容对: 腐 final 曾让本函数静默返回坏 tar(探针实证)——
+        # 验不过就删掉落回下载循环重抓
+        try:
+            _verify_content(final, it)
+        except OSError as e:
+            log(f"  {it['item']} existing tar corrupt: {e} — 重抓")
+            final.unlink()
+        else:
+            return final
     for attempt in range(4):
         have = part.stat().st_size if part.exists() else 0
         if have == want:
-            part.rename(final)
-            return final
+            try:
+                _verify_content(part, it)
+            except OSError as e:
+                log(f"  {it['item']} .part 腐坏: {e} — 重抓")
+                part.unlink()
+                have = 0
+            else:
+                part.rename(final)
+                return final
         if have > want:
             part.unlink()
             have = 0
         try:
             headers = {"Range": f"bytes={have}-"} if have else {}
             r = b3.open_url(it["url"], headers=headers, timeout=180)
-            resumed = bool(have) and r.status == 206
-            with open(part, "ab" if resumed else "wb") as f:
-                while True:
-                    buf = r.read(1 << 20)
-                    if not buf:
-                        break
-                    f.write(buf)
-            r.close()
+            try:
+                resumed = bool(have) and r.status == 206
+                with open(part, "ab" if resumed else "wb") as f:
+                    while True:
+                        buf = r.read(1 << 20)
+                        if not buf:
+                            break
+                        f.write(buf)
+            finally:
+                r.close()
             if part.stat().st_size == want:
+                _verify_content(part, it)
                 part.rename(final)
-                if it.get("sha1"):
-                    got = hashlib.sha1(
-                        final.read_bytes(), usedforsecurity=False
-                    ).hexdigest()
-                    if got != it["sha1"]:
-                        final.unlink()
-                        msg = f"sha1 {got[:12]} != meta {it['sha1'][:12]}"
-                        raise OSError(msg)  # noqa: TRY301
                 return final
             log(f"  {it['item']} partial {part.stat().st_size}/{want}")
         except Exception as e:
@@ -576,9 +609,7 @@ def select_members(args: argparse.Namespace) -> list[dict]:
             "new_avail": len(n),
             "deficit": short,
         }
-    benchlib.atomic_write_text(
-        EXP / "select_stats.json", json.dumps(stats, indent=1)
-    )
+    benchlib.atomic_write_text(EXP / "select_stats.json", json.dumps(stats, indent=1))
     n_def = sum(s["deficit"] for s in stats.values())
     log(f"select: {len(sel)} picks, deficit {n_def} (明细 select_stats.json)")
     return sel
@@ -593,7 +624,10 @@ def offsets_for(item: str, tag_of_item: dict[str, str]) -> dict[str, tuple[int, 
         p = WORK / "members" / f"{tag_of_item[item]}.jsonl"
     if p.exists():
         for r in benchlib.iter_jsonl(p):
-            out[r["name"]] = (r.get("offset", r.get("offset_data")), r["size"])
+            off = r.get("offset", r.get("offset_data"))
+            if off is None:
+                continue  # 缺 offset 记录留给 extract 的「无 offset」过滤统一报
+            out[r["name"]] = (off, r["size"])
     return out
 
 
@@ -604,7 +638,11 @@ def fetch_blob(rec: dict, old_tars: dict[str, Path], offs: dict[str, dict]) -> b
     if item in old_tars:
         with open(old_tars[item], "rb") as f:
             f.seek(off)
-            return f.read(size)
+            data = f.read(size)
+        if len(data) != size:
+            msg = f"local short read {len(data)}/{size}"
+            raise OSError(msg)
+        return data
     url = item_url(rec["channel"], item)
     last = ""
     for attempt in range(3):
@@ -614,11 +652,14 @@ def fetch_blob(rec: dict, old_tars: dict[str, Path], offs: dict[str, dict]) -> b
                 headers={"Range": f"bytes={off}-{off + size - 1}"},
                 timeout=120,
             )
-            data = r.read()
-            r.close()
+            try:
+                # size+1 封顶: 服务端不理会 Range 时不至于把整 tar 读进内存
+                data = r.read(size + 1)
+            finally:
+                r.close()
             if len(data) == size:
                 return data
-            last = f"short read {len(data)}/{size}"
+            last = f"read {len(data)}/{size}"
         except Exception as e:
             last = f"{type(e).__name__}: {e}"
         time.sleep(3 * (attempt + 1))

@@ -34,7 +34,7 @@ CLUSTER_BAND = {f"C{n:02d}": "abcde"[min((n - 1) // 6, 4)] for n in range(1, 31)
 def band_of(d: dict) -> str:
     cid = d.get("cluster_id") or d.get("cluster") or ""
     if not cid:
-        m = re.search(r"staging/(C\d+)/", d.get("evidence", ""))
+        m = re.search(r"staging/(C\d+)/", str(d.get("evidence") or ""))
         cid = m.group(1) if m else ""
     if cid in CLUSTER_BAND:
         return CLUSTER_BAND[cid]

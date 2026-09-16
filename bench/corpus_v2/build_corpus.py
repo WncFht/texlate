@@ -32,7 +32,9 @@ import urllib.error
 import urllib.request
 from datetime import UTC, datetime
 
-ROOT = "/Users/fanghaotian/src/texlate"
+ROOT = os.path.dirname(  # bench/corpus_v2/build_corpus.py → repo root
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 DATA = os.path.join(ROOT, "bench/corpus_v2")
 BENCH_CORPUS = os.path.join(ROOT, "bench/corpus")
 MANIFEST_MD = os.path.join(ROOT, "bench/corpus_v2/MANIFEST.md")

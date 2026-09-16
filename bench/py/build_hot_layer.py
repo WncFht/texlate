@@ -35,6 +35,8 @@ import re
 import shutil
 import sys
 import time
+import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -67,10 +69,23 @@ def log(msg: str) -> None:
 
 
 def _oa_get(params: dict) -> dict:
-    qs = "&".join(f"{k}={v}" for k, v in params.items())
+    # cursor/seed 等值必须 urlencode——裸插会把 `*`、`,` 之类断成坏查询
+    qs = urllib.parse.urlencode(params)
     req = urllib.request.Request(f"{OPENALEX}?{qs}", headers=UA)  # noqa: S310 -- 固定 https 端点
-    with urllib.request.urlopen(req, timeout=60) as r:  # noqa: S310 -- 同上
-        return json.loads(r.read())
+    last: Exception | None = None
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:  # noqa: S310 -- 同上
+                return json.loads(r.read())
+        except urllib.error.HTTPError as e:
+            if e.code not in (429, 500, 502, 503, 504):
+                raise
+            last = e
+        except (urllib.error.URLError, OSError) as e:
+            last = e
+        time.sleep(4 * (attempt + 1))
+    assert last is not None
+    raise last
 
 
 def _arxiv_id(w: dict) -> str | None:
@@ -99,6 +114,16 @@ def cmd_candidates(args: argparse.Namespace) -> None:
     log(f"existing ids: {len(seen)}")
 
     out: list[dict] = []
+
+    def _flush() -> None:
+        # 逐页落盘——OpenAlex 翻页长，中途崩丢全部已收集候选代价大；
+        # out 为空且已有候选文件时不覆盖（防 0 条抹掉好文件）
+        if out or not CANDIDATES.exists():
+            CANDIDATES.write_text(
+                "".join(json.dumps(c, ensure_ascii=False) + "\n" for c in out),
+                encoding="utf-8",
+            )
+            log(f"candidates -> {CANDIDATES} ({len(out)} 条)")
 
     # -- hot-cite：近窗活跃 + cited_by_count 降序 --
     cursor = "*"
@@ -131,6 +156,7 @@ def cmd_candidates(args: argparse.Namespace) -> None:
                 break
         cursor = (d.get("meta") or {}).get("next_cursor")
         log(f"hot-cite collected {len(out)} (next_cursor={'y' if cursor else 'n'})")
+        _flush()
         if not d.get("results"):
             break
 
@@ -168,12 +194,9 @@ def cmd_candidates(args: argparse.Namespace) -> None:
         log(
             f"hot-recent attempt {attempt}: +{len(d.get('results', []))} → {got_recent}"
         )
+        _flush()
 
-    CANDIDATES.write_text(
-        "".join(json.dumps(c, ensure_ascii=False) + "\n" for c in out),
-        encoding="utf-8",
-    )
-    log(f"candidates -> {CANDIDATES} ({len(out)} 条)")
+    _flush()
 
 
 def _merge_meta(entry_dir: Path, cand: dict, dest: Path) -> dict:
@@ -242,9 +265,7 @@ def cmd_fetch(args: argparse.Namespace) -> None:
     cands = benchlib.read_jsonl(CANDIDATES)
     done_ids = set()
     if MANIFEST_HOT.exists():
-        done_ids = {
-            r["id"] for r in benchlib.iter_jsonl(MANIFEST_HOT) if r.get("id")
-        }
+        done_ids = {r["id"] for r in benchlib.iter_jsonl(MANIFEST_HOT) if r.get("id")}
 
     fetcher = Fetcher()
     cache = SourceCache(CACHE)
@@ -301,7 +322,11 @@ def cmd_fetch(args: argparse.Namespace) -> None:
             entry = res.entry.dir
             dest = CORPUS / pid
             dest.mkdir(parents=True, exist_ok=True)
-            shutil.copytree(entry / "extracted", dest / "extracted", dirs_exist_ok=True)
+            # 上次半程截尾的 extracted/ 与本次 copytree 合并会留幽灵文件——重抓前清掉
+            stale = dest / "extracted"
+            if stale.exists():
+                shutil.rmtree(stale)
+            shutil.copytree(entry / "extracted", stale)
             for raw in entry.glob("raw.*"):
                 shutil.copy2(raw, dest / raw.name)
             meta = _merge_meta(entry, cand, dest)
