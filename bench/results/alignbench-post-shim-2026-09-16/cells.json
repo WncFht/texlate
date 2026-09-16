@@ -1,0 +1,73 @@
+{
+ "n_pairs": 488,
+ "n_error": 0,
+ "n_invalid": 3,
+ "n_degraded": 450,
+ "n_hyperref": 35,
+ "n_low": 0,
+ "retention": {
+  "n": 35,
+  "min": 0.9622641509433962,
+  "p50": 1.0,
+  "mean": 0.9989,
+  "p95": 1.0,
+  "max": 1.0
+ },
+ "chain_w_ratio": {
+  "n": 35,
+  "min": 0.5714,
+  "p50": 0.9936,
+  "mean": 0.8815,
+  "p95": 1.0,
+  "max": 1.0
+ },
+ "by_kind": {
+  "e2e-real": {
+   "n": 485,
+   "degraded": 450,
+   "low": 0,
+   "retention": {
+    "n": 35,
+    "min": 0.9622641509433962,
+    "p50": 1.0,
+    "mean": 0.9989,
+    "p95": 1.0,
+    "max": 1.0
+   }
+  }
+ },
+ "blame_tally": {},
+ "low_pairs": [],
+ "invalid_pairs": [
+  {
+   "id": "1206.5921:figure1",
+   "side": "a",
+   "detail": "PdfStreamError: Stream has ended unexpectedly"
+  },
+  {
+   "id": "1404.2164",
+   "side": "a",
+   "detail": "PdfStreamError: Stream has ended unexpectedly"
+  },
+  {
+   "id": "1404.5720",
+   "side": "a",
+   "detail": "PdfStreamError: Stream has ended unexpectedly"
+  }
+ ],
+ "error_pairs": [],
+ "min_retention": 0.95,
+ "gates": {
+  "no_pair_errors": true,
+  "hyperref_retention": true,
+  "degraded_path_ok": true
+ },
+ "gates_pass": true,
+ "meta": {
+  "out": "/home/fanghaotian/src/texlate/bench/results/alignbench-post-shim-2026-09-16",
+  "date": "2026-09-16",
+  "min_retention": 0.95,
+  "source": "bench/results/alignbench-post-shim-2026-09-16/manifest.jsonl",
+  "selftest_fails": null
+ }
+}
