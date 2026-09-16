@@ -42,7 +42,7 @@ _MAIN = (
 )
 
 _DOCSTYLE = (
-    "\\documentstyle{article}\n"
+    "\\documentstyle{ias}\n"
     "\\begin{document}\n"
     "Old LaTeX 2.09 body text that still needs translation.\n"
     "\\end{document}\n"
@@ -200,7 +200,7 @@ def test_pipeline_run_inject_reject_documentstyle(
     assert report["status"] == "partial"  # F3: inject 拒绝合成 partial
     assert report["reject_at"] == "inject"
     assert report["verdict"]["status"] == "partial"
-    assert report["verdict"]["reasons"] == ["latex209"]
+    assert report["verdict"]["reasons"] == ["latex209_ds_at"]
     assert report["route"]["latex209_suspect"] is True  # route 不拒、只标记
     assert fake_engine == {}  # 拒在编译前——引擎没被构造
 

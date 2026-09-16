@@ -30,7 +30,7 @@ _MAIN = (
 )
 
 _DOCSTYLE = (
-    "\\documentstyle{article}\n\\begin{document}\nLaTeX 2.09 body.\n\\end{document}\n"
+    "\\documentstyle{ias}\n\\begin{document}\nLaTeX 2.09 body.\n\\end{document}\n"
 )
 
 _RUNNER = CliRunner()

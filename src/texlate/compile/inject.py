@@ -1,8 +1,13 @@
-r"""中文支持注入：ctex `[fontset=fandol,UTF8]` 默认路径 + xeCJK 降级路径。
+r"""中文支持注入：ctex `[fontset=fandol,UTF8]` 默认路径 + xeCJK 降级路径 + 数学兜底。
+
+`CJK_MATH_FALLBACK`：xeCJK interchartoks 不进数学模式，译文落 `$..$`/
+`\boldmath` 头标即在数学族字体丢字，`\Umathcode` 重映进 FandolSong
+（CJK 九段）/ Libertinus Serif（西里尔·组合符·拉丁扩展）符号字体补齐。
 
 docs/08 §3.3 注入缝：
 - 兼容块 → `\begin{document}` 前（normalize.py 的 inject_preamble）
-- 字体系块 → `\documentclass{}` 后（本模块 find_docclass_end）
+- 字体系块 → `\documentclass{}` 后（本模块 find_docclass_ends：逐缝注入，
+  `\ifpdf A \else B \fi` 分支选择形态每条臂各落一份幂等块）
 - `\documentstyle` → **禁止注入 + inject 层 reject**（ctex/xeCJK 与 2.09
   互不兼容；route_project 已降级为 latex209_suspect 试编标记——
   inject 是 2.09 的兜底拒绝点，账本记 `inject_reject:latex209`
@@ -18,6 +23,7 @@ from pathlib import Path
 
 from texlate.textutil import decode_tex
 
+from .latex209 import upgrade_209
 from .mask import visible_tex
 from .normalize import inject_preamble
 
@@ -32,10 +38,22 @@ XECJK_BLOCK = r"""
 \setCJKmonofont{FandolFang-Regular.otf}
 """
 
-#: 已有 CJK 支持 → 不重复注入。前边界防 `\impactex`/`sectex` 类宏名
-#: 内嵌 "ctex" 的假阳（误判会跳过注入 → 整篇中文静默缺失）；
-#: **无尾边界**——`ctexart`/`ctexbook`/`ctexrep`/`ctexbeamer` 文档类必须命中。
-CJK_PRESENT_RE = re.compile(r"\b(?:ctex|xeCJK|CJKutf8|CJKfontspec|luatexja)")
+#: 已有 CJK 支持 → 不重复注入。判定收紧到**包/类调用语境**
+#: （`\usepackage`/`\RequirePackage`/`\LoadClass`/`\documentclass` 花括号
+#: 参数内的族名）+ xeCJK/CJK 专属命令探测——裸子串会被
+#: `\def\CTeXPreproc{...ctex v0.2.12...}` 宏体字面量、`\ctext` 宏名、
+#: `mactex` 类包名假阳（loop1 A 桶实证：误判 already → 整跳注入 →
+#: 整篇中文静默缺失）。花括号内 `ctex\w*`——`ctexart`/`ctexbook`/
+#: `ctexrep`/`ctexbeamer`/`ctexsize` 类名与 `CJKutf8`/`CJKfontspec`
+#: 包名全命中。
+CJK_PRESENT_RE = re.compile(
+    r"\\(?:usepackage|RequirePackage|LoadClass|documentclass)"
+    r"[^\n%{]*\{[^}\n%]*\b(?:ctex\w*|xeCJK\w*|CJK\w*|luatexja\w*)\b"
+    r"|\\setCJK\w*font\b"
+    r"|\\newCJKfontfamily\b"
+    r"|\\xeCJKsetup\b"
+    r"|\\begin\s*\{CJK\*?\}"
+)
 
 #: 共享计数器 theorem 的双 named-dest 补丁（B7 锚点对齐）。
 #: `\newtheorem{lemma}[definition]` 类声明在不同内核上 dest 命名分叉：
@@ -79,6 +97,80 @@ THEOREM_ANCHOR_SHIM = r"""
 \AddToHook{cmd/@begintheorem/before}{\TeXlate@thmtwin}%
 \AddToHook{cmd/@opargbegintheorem/before}{\TeXlate@thmtwin}%
 \makeatother
+"""
+
+#: 数学模式缺字兜底：xeCJK 的 interchartoks 是水平列机制，**数学内不触发**——
+#: 译文落进 ``$..$``/``\beq``/下标/``\boldmath`` 头标（loop1 misschar 实证：
+#: ec-lmss12、rm-lmr8、cmr10/7、ptmr8t 全是数学族 TFM）即丢字形。
+#: 本块把缺字码位 ``\Umathcode`` 重映为 ordinary 符号、指向专用符号字体：
+#: CJK 九段 → ``texlatecjk``（FandolSong 文件直载，与 fontset=fandol/xecjk
+#: 块同字体）；西里尔/组合符/拉丁扩展 → ``texlatefb``（Libertinus Serif，
+#: ``\IfFileExists`` 门——otf 缺席不挂）。normal+bold 两个 math version
+#: 都挂。纯追加：无数学内缺字时零行为变化；非 XeTeX/LuaTeX 引擎
+#: （无 ``\Umathcode``）整块跳过。
+CJK_MATH_FALLBACK = r"""
+% texlate: math fallback via dedicated symbol fonts
+\ifdefined\Umathcode
+\makeatletter
+\DeclareFontFamily{TU}{texlatecjk}{\hyphenchar\font\m@ne}
+\DeclareFontShape{TU}{texlatecjk}{m}{n}{<->"[FandolSong-Regular.otf]"}{}
+\DeclareFontShape{TU}{texlatecjk}{b}{n}{<->"[FandolSong-Bold.otf]"}{}
+\DeclareFontShape{TU}{texlatecjk}{bx}{n}{<->ssub*texlatecjk/b/n}{}
+\DeclareFontShape{TU}{texlatecjk}{m}{it}{<->ssub*texlatecjk/m/n}{}
+\DeclareFontShape{TU}{texlatecjk}{m}{sl}{<->ssub*texlatecjk/m/n}{}
+\DeclareFontShape{TU}{texlatecjk}{b}{it}{<->ssub*texlatecjk/b/n}{}
+\DeclareFontShape{TU}{texlatecjk}{bx}{it}{<->ssub*texlatecjk/b/n}{}
+\DeclareFontShape{TU}{texlatecjk}{bx}{sl}{<->ssub*texlatecjk/b/n}{}
+\DeclareSymbolFont{texlatecjk}{TU}{texlatecjk}{m}{n}
+\SetSymbolFont{texlatecjk}{bold}{TU}{texlatecjk}{b}{n}
+\def\TeXlate@mathmap#1#2-#3;{\count@="#2\relax
+  \@whilenum\count@<"#3 \do{\Umathcode\count@="0 #1 \count@\advance\count@\@ne}}
+\TeXlate@mathmap\symtexlatecjk 4E00-9FFF;
+\TeXlate@mathmap\symtexlatecjk 3400-4DBF;
+\TeXlate@mathmap\symtexlatecjk 3000-303F;
+\TeXlate@mathmap\symtexlatecjk FF00-FFEF;
+\TeXlate@mathmap\symtexlatecjk 3040-30FF;
+\TeXlate@mathmap\symtexlatecjk F900-FAFF;
+\TeXlate@mathmap\symtexlatecjk 2E80-2FDF;
+\TeXlate@mathmap\symtexlatecjk 20000-2A6DF;
+\TeXlate@mathmap\symtexlatecjk 2A700-2EBEF;
+% 非 CJK 带（西里尔人名 Ш/Д/Л、组合符、拉丁扩展）走 Libertinus Serif;
+% \IfFileExists 门——otf 缺席则整段不挂, 免把缺字升级成字体加载错误。
+% 00D7 ×/00F7 ÷ 是 binop 语义, 普通 ordinary 化会改距, 故带内挖掉。
+\IfFileExists{LibertinusSerif-Regular.otf}{%
+\DeclareFontFamily{TU}{texlatefb}{\hyphenchar\font\m@ne}
+\DeclareFontShape{TU}{texlatefb}{m}{n}{<->"[LibertinusSerif-Regular.otf]"}{}
+\DeclareFontShape{TU}{texlatefb}{b}{n}{<->"[LibertinusSerif-Bold.otf]"}{}
+\DeclareFontShape{TU}{texlatefb}{bx}{n}{<->ssub*texlatefb/b/n}{}
+\DeclareFontShape{TU}{texlatefb}{m}{it}{<->ssub*texlatefb/m/n}{}
+\DeclareFontShape{TU}{texlatefb}{m}{sl}{<->ssub*texlatefb/m/n}{}
+\DeclareFontShape{TU}{texlatefb}{b}{it}{<->ssub*texlatefb/b/n}{}
+\DeclareFontShape{TU}{texlatefb}{bx}{it}{<->ssub*texlatefb/b/n}{}
+\DeclareFontShape{TU}{texlatefb}{bx}{sl}{<->ssub*texlatefb/b/n}{}
+\DeclareSymbolFont{texlatefb}{TU}{texlatefb}{m}{n}
+\SetSymbolFont{texlatefb}{bold}{TU}{texlatefb}{b}{n}
+\TeXlate@mathmap\symtexlatefb 0400-04FF;
+\TeXlate@mathmap\symtexlatefb 0300-036F;
+\TeXlate@mathmap\symtexlatefb 00C0-00D6;
+\TeXlate@mathmap\symtexlatefb 00D8-00F6;
+\TeXlate@mathmap\symtexlatefb 00F8-017F;
+}{}
+\makeatother
+\fi
+"""
+
+#: elsart 类「首用即弃」症状的兜底：xeCJK 的 `__xeCJK_select_font:` 初值是
+#: `\prg_do_nothing:`，待宏包自身的 end-preamble/begindvi 钩子才换成真身；
+#: 若首个 CJK 排版落在 elsart frontmatter 的 `\vbox` 捕获组（`\no@harm`
+#: 上下文，loop1 实证 1003.5459 全文 5485 个 ec-lm* 丢字）内，字体选择
+#: 机制永久未激活 → 整篇丢字。在 `\begin{document}` 排一个即弃的 CJK
+#: hbox 可永久修复（机制级初始化，单字即可）。仅 XeTeX 挂载——pdflatex
+#: 下裸 CJK 字符需 CJK 环境，反受其害。
+CJK_FIRST_USE_WARMUP = r"""
+% texlate: xeCJK first-use warmup (frontmatter \vbox poison)
+\ifdefined\XeTeXversion
+\AtBeginDocument{\setbox0=\hbox{字}}%
+\fi
 """
 
 _DOC_RE = re.compile(r"\\(documentclass|documentstyle)(?![a-zA-Z])")
@@ -192,33 +284,19 @@ def find_main_tex(root: Path) -> Path | None:
     return root / candidates[0]
 
 
-def _line_has_comment_before(tex: str, start: int) -> bool:
-    """`tex[start]` 所在行在 start 之前是否出现未转义 `%`。"""
-    i = tex.rfind("\n", 0, start) + 1
-    while i < start:
-        c = tex[i]
-        if c == "\\":
-            i += 2
-            continue
-        if c == "%":
-            return True
-        i += 1
-    return False
+def _docclass_close(vis: str, start: int) -> int:
+    r"""从 `\documentclass` 命令名之后扫描 `[opt]{cls}` 配对，返回 `}` 后 offset。
 
-
-def _docclass_close(tex: str, start: int) -> int:
-    r"""从 `\documentclass` 命令名之后扫描 `[opt]{cls}` 配对，返回 `}` 后 offset。"""
-    j, n = start, len(tex)
+    在 visible_tex 遮盖视图上扫——`%` 注释/verbatim 已等长抹成空格，
+    注释内括号不参与配对。
+    """
+    j, n = start, len(vis)
     db = dc = 0
     seen_brace = False
     while j < n:
-        c = tex[j]
+        c = vis[j]
         if c == "\\":
             j += 2
-            continue
-        if c == "%":
-            k = tex.find("\n", j)
-            j = n if k < 0 else k + 1
             continue
         if c == "[":
             db += 1
@@ -237,58 +315,110 @@ def _docclass_close(tex: str, start: int) -> int:
     return j
 
 
-def find_docclass_end(tex: str) -> tuple[int, int, str] | None:
-    r"""首个非注释 `\documentclass`/`\documentstyle` 调用的行尾位置。
+def find_docclass_ends(tex: str) -> list[tuple[int, int, str]]:
+    r"""全部可用的 `\documentclass`/`\documentstyle` 注入缝 `(pos, lineno, cmd)`。
 
-    返回 `(insert_pos, lineno, cmd)`；括号匹配跨行、注释感知
-    （revtex4-2 的 docclass 参数被注释穿插成五选一，实测语料 2308.07483）。
+    在 visible_tex 等长遮盖视图上扫（注释/verbatim 命中天然消失，offset
+    与原文对齐）。brace depth>0 的命中——`\newcommand{\ds}{\documentstyle}`
+    类宏体（1706.07796）、`\ifmain{...}` 型实参——不是真声明点，跳过。
+
+    条件分支内命中**不判死活**（`\ifpdf A \else B \fi` 双 docclass 是
+    sigma/jhep 系标准形态；`\ifemulate`/`\ifdefined` 同理）——调用方逐缝
+    注入，哪条臂执行哪条臂生效（loop1 A 桶：旧版取首个命中，落死分支
+    则注入物整段进死代码 → 中文静默缺失）。
     """
-    for m in _DOC_RE.finditer(tex):
-        if _line_has_comment_before(tex, m.start()):
+    vis = visible_tex(tex)
+    hits: list[tuple[int, int, str]] = []
+    depth = 0
+    pos = 0
+    seen_pos: set[int] = set()
+    for m in _DOC_RE.finditer(vis):
+        while pos < m.start():
+            c = vis[pos]
+            if c == "\\":
+                pos += 2
+                continue
+            if c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+            pos += 1
+        pos = m.end()
+        if depth != 0:
             continue
-        close = _docclass_close(tex, m.end())
-        if close < len(tex) and tex[close - 1] == "}":
+        close = _docclass_close(vis, m.end())
+        if close < len(vis) and vis[close - 1] == "}":
             eol = tex.find("\n", close)
-            return (
-                (len(tex) if eol < 0 else eol),
-                tex.count("\n", 0, close) + 1,
-                m.group(1),
-            )
-        # 无 {..} 的裸 \documentclass：退化为行尾注入。
-        eol = tex.find("\n", m.end())
-        return (
-            (len(tex) if eol < 0 else eol),
-            tex.count("\n", 0, m.start()) + 1,
-            m.group(1),
-        )
-    return None
+            lineno = tex.count("\n", 0, close) + 1
+        else:
+            # 无 {..} 的裸 \documentclass：退化为行尾注入。
+            eol = tex.find("\n", m.end())
+            lineno = tex.count("\n", 0, m.start()) + 1
+        insert = len(tex) if eol < 0 else eol
+        if insert not in seen_pos:  # 单行 `\if..\else..\fi` 双命中同缝
+            seen_pos.add(insert)
+            hits.append((insert, lineno, m.group(1)))
+    return hits
 
 
-def inject_cjk(tex: str, *, mode: str = "ctex") -> tuple[str, dict]:
+def find_docclass_end(tex: str) -> tuple[int, int, str] | None:
+    r"""首个可用 `\documentclass` 缝（``find_docclass_ends`` 的首元素）。"""
+    hits = find_docclass_ends(tex)
+    return hits[0] if hits else None
+
+
+def inject_cjk(
+    tex: str, *, mode: str = "ctex", root: Path | None = None
+) -> tuple[str, dict]:
     r"""在主文件文本上注入中文支持。返回 `(new_text, info)`。
 
     mode `"ctex"`：`\documentclass` 行后插 `\usepackage[fontset=fandol,UTF8]{ctex}`
     （hjfy 同款、双引擎实测 0% 破坏、白拿节名汉化）。
     mode `"xecjk"`：同缝插 xeCJK+Fandol 块（ctex 冲突签名→fixloop/探针切换用）。
 
-    `\documentstyle` → 抛 InjectRejectError（2.09 注入层兜底拒绝——
-    route 已降级为 suspect 试编标记，原文可编，注不进 CJK 才拒）。
+    `\documentstyle` → 先经 latex209.upgrade_209 升级转换（209 兼容模式内核层
+    禁 `\usepackage`，注入前必须升级；`root` 提供工程树做随源 .sty 检测）。
+    不可转形态（ds@ 选项机类）才抛 InjectRejectError，reason 注明机制。
     """
     if CJK_PRESENT_RE.search(visible_tex(tex)):
         return tex, {"status": "already"}
-    hit = find_docclass_end(tex)
-    if hit is None:
+    hits = find_docclass_ends(tex)
+    if not hits:
         return tex, {"status": "no-docline"}
-    pos, lineno, cmd = hit
+    _pos, lineno, cmd = hits[0]
+    conv: dict | None = None
     if cmd == "documentstyle":
-        raise InjectRejectError
+        tex, conv = upgrade_209(tex, root=root)
+        if conv["status"] != "converted":
+            raise InjectRejectError(str(conv.get("reason") or "latex209"))
+        hits = find_docclass_ends(tex)
+        if not hits:  # 转换产物必含 \documentclass——防御性兜底
+            raise InjectRejectError
+        lineno = hits[0][1]
     block = CTEX_LINE + "  % [texlate injected]" if mode == "ctex" else XECJK_BLOCK
     block += THEOREM_ANCHOR_SHIM
-    return tex[:pos] + "\n" + block + tex[pos:], {
-        "status": "injected",
-        "mode": mode,
-        "line": lineno,
-    }
+    block += CJK_MATH_FALLBACK
+    block += CJK_FIRST_USE_WARMUP
+    if len(hits) > 1:
+        # 幂等哨兵：分支选择形态（\ifpdf A \else B \fi）逐缝注入，活臂的块
+        # 执行后立哨；万一第二缝也执行（顺序双 \documentclass 坏档）整块
+        # 跳过。\fi 配对安全：块内 \if 全成对（skip 计数平衡）。
+        block = (
+            "% texlate: CJK support (multi-seam idempotent)\n"
+            "\\ifdefined\\TeXlateCJKloaded\\else\n"
+            "\\def\\TeXlateCJKloaded{1}%\n" + block + "\\fi\n"
+        )
+    out = tex
+    delta = 0
+    for pos, _ln, _c in hits:
+        out = out[: pos + delta] + "\n" + block + out[pos + delta :]
+        delta += len(block) + 1
+    info: dict = {"status": "injected", "mode": mode, "line": lineno}
+    if conv is not None:
+        info["upgrade209"] = conv
+    if len(hits) > 1:
+        info["seams"] = len(hits)
+    return out, info
 
 
 def inject_float_sizing(root: Path) -> int:
@@ -337,7 +467,7 @@ def prepare_chinese(
     """
     main_path = root / main if isinstance(main, str) else main
     text = decode_tex(main_path.read_bytes())
-    new_text, info = inject_cjk(text, mode=mode)
+    new_text, info = inject_cjk(text, mode=mode, root=root)
     if info["status"] == "injected":
         vis = visible_tex(new_text)
         if re.search(r"\\begin\s*\{threeparttable\}", vis) or re.search(

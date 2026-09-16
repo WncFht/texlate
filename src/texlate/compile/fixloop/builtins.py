@@ -19,6 +19,7 @@ import subprocess
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
+from texlate.compile.inject import find_docclass_ends
 from texlate.compile.normalize import INTERMEDIATE_SUFFIXES
 from texlate.textutil import mask_tex
 
@@ -843,14 +844,27 @@ def _rewrite_cs_map(t: str, cmap: dict[str, str]) -> tuple[str, int]:
 
 
 def _inject_after_docclass(ctx: LoopCtx, snippet: str) -> bool:
-    """主文件 documentclass 行后注入 snippet (无 documentclass 则文件头; 幂等)。"""
+    r"""主文件每个 ``\documentclass`` 缝后注入 snippet（幂等）。
+
+    复用 inject.find_docclass_ends：分支选择形态（``\ifpdf A \else B \fi``
+    双 docclass）逐缝注入——静态不判死活，活臂生效死臂随分支跳过；
+    宏体/depth>0 命中与注释命中天然排除，跨行 ``[opt]{cls}``（revtex
+    五选一注释穿插）落在配对 ``}`` 行尾而非首行尾。无 docclass 行则
+    退文件头（``\AtBeginDocument`` 类 snippet 前定义也合法）。
+    """
     main = ctx.main_path()
     t = ctx.read(main) if main is not None else None
     if t is None or snippet in t:
         return False
-    m = _DOCCLASS_LINE_RE.search(t)
-    at = m.end() if m else 0
-    ctx.write(main, t[:at] + snippet + "\n" + t[at:])
+    hits = find_docclass_ends(t)
+    if not hits:
+        ctx.write(main, snippet + "\n" + t)
+        return True
+    out, delta = t, 0
+    for pos, _ln, _cmd in hits:
+        out = out[: pos + delta] + snippet + "\n" + out[pos + delta :]
+        delta += len(snippet) + 1
+    ctx.write(main, out)
     return True
 
 
@@ -1097,10 +1111,12 @@ def purge_corrupt_intermediates(
 # ════════════════════════════════════════════════════════════════
 
 #: ``Missing character: There is no <what> (U+XXXX)? in font <font>``
-#: xetex/tectonic 带 ``(U+XXXX)``; pdftex 8-bit 给裸字符或 ``^^xx`` 记法。
+#: xetex/tectonic spec 字体带 ``(U+XXXX)``; tfm 字体带 ``("XXXX)`` 十六进制
+#: (``("8FD9)`` = U+8FD9「这」, 码位仍是 Unicode); pdftex 8-bit 给裸字符或
+#: ``^^xx`` 记法。
 _MISSING_CHAR_RE = re.compile(
     r"Missing character:\s*There is no (?P<what>.+?)"
-    r"(?:\s*\((?P<cp>U\+[0-9A-Fa-f]+)\))?\s*in font\s+(?P<font>[^\s!;]+)"
+    r"(?:\s*\((?P<cp>U\+[0-9A-Fa-f]+|\"[0-9A-Fa-f]+)\))?\s*in font\s+(?P<font>[^\s!;]+)"
 )
 
 #: ``^^xx``/``^^^xxxx`` TeX 记法码位提取。
@@ -1122,9 +1138,9 @@ _CJK_FONT_RE = re.compile(
 
 
 def _mc_codepoint(what: str, cp: str | None) -> int | None:
-    """``(U+XXXX)`` / ``^^xx`` / 裸字符 → 码位; 不可判定 → None。"""
+    """``(U+XXXX)`` / ``("XXXX)`` / ``^^xx`` / 裸字符 → 码位; 不可判定 → None。"""
     if cp:
-        return int(cp.removeprefix("U+"), 16)
+        return int(cp[2:] if cp.startswith("U+") else cp[1:], 16)
     if m := _CARET_HEX_RE.fullmatch(what.strip()):
         return int(m.group(1), 16)
     if len(what) == 1:
@@ -1183,6 +1199,12 @@ _MC_TABLE: list[dict[str, Any]] = [
             [0x20000, 0x2FA1F],
         ],
         "font_not": _CJK_FONT_RE.pattern,
+        # 仅 spec 字体 ([lmroman10]:mapping=tex-text 形) 缺 CJK 才预热——
+        # tfm 字体 (cmr10/ec-lmss12) 缺 CJK 大头是数学模式 (xeCJK
+        # interchartoks 水平列机制不进数学, warmup 白烧到 stuck;
+        # scout-misschar 2026-09-16 实证), 数学面已由 inject 侧
+        # \Umathcode 符号字体兜底 (CJK_MATH_FALLBACK) 治。
+        "font": r"[\[:]",
         "action": "cjk_warmup",
     },
     # n100: 0806.1079 ×3 ≠ in cmr7/cmr5
@@ -1318,6 +1340,66 @@ def _mc_apply_warmup(ctx: LoopCtx) -> tuple[bool, str]:
     if _inject_after_docclass(ctx, snippet):
         return True, "injected CJK font-binding warmup"
     return False, "warmup snippet already present"
+
+
+#: font_fallback 默认覆盖带 (scout-misschar 2026-09-16: 西里尔人名真损失
+#: U+0400-04FF / 组合符 U+0300-036F / 拉丁扩展 U+00C0-017F)。
+#: ``params.fallback_ranges`` 覆盖带表、``params.fallback_font`` 换字体。
+_FB_RANGES: tuple[tuple[int, int], ...] = (
+    (0x0400, 0x04FF),
+    (0x0300, 0x036F),
+    (0x00C0, 0x017F),
+)
+_FB_FONT = "Libertinus Serif"  # TL libertinus-fonts, 三带全覆盖实证
+
+
+def font_fallback(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""非 CJK 缺字 (西里尔/拉丁扩展/组合符) → ``newunicodechar`` 换字体兜底。
+
+    ``\newunicodechar{X}{{\txlatefallback X}}`` 逐缺字声明：替换体里同字面
+    的 X 在 ``\newunicodechar`` 激活该字符前已按 letter catcode  token 化，
+    故无自递归 (newunicodechar 的 ``\protected`` 定义也使 label/cite 键名
+    内同字符不展开)。主字体本就缺这些带时才见缺字——逐字回退不伤排版。
+    已由 char_table ``replace`` 条目覆盖的码位 (ø/è 等) 让位字面替换。
+    """
+    del payload
+    log = _compile_log_text(ctx)
+    if not log:
+        return False, "no compile log with Missing character found"
+    seen = _mc_parse_log(log)
+    bands = params.get("fallback_ranges") or _FB_RANGES
+    taken = {
+        cp
+        for cp, (what, font) in seen.items()
+        for e in _mc_table(params).values()
+        if e.get("replace") and _mc_hit(e, cp, font)
+    }
+    chars = [
+        cp for cp in seen if cp not in taken and any(lo <= cp <= hi for lo, hi in bands)
+    ]
+    if not chars:
+        return False, "no missing chars in fallback bands"
+    if not eng.probe_file("newunicodechar.sty") and not eng.install_file(
+        "newunicodechar.sty"
+    ):
+        return False, "newunicodechar.sty unavailable"
+    font = str(params.get("fallback_font") or _FB_FONT)
+    lines = [
+        "% fixloop: per-char font fallback via newunicodechar",
+        "\\usepackage{newunicodechar}",
+        "\\ifdefined\\newfontfamily\\else\\usepackage{fontspec}\\fi",
+        f"\\newfontfamily\\txlatefallback{{{font}}}",
+    ]
+    lines += (
+        f"\\newunicodechar{{{c}}}{{{{\\txlatefallback {c}}}}}"
+        for cp in chars
+        if (c := _mc_chr(cp)) is not None
+    )
+    if _inject_after_docclass(ctx, "\n".join(lines)):
+        return True, f"font_fallback: {len(chars)} char(s) -> {font}"
+    return False, "fallback snippet already present"
 
 
 def _sub_literal_chars(t: str, repl: dict[str, str]) -> tuple[str, int]:
@@ -1617,6 +1699,7 @@ TRANSFORM_FNS = {
     "cs_targeted_fix": cs_targeted_fix,
     "purge_corrupt_intermediates": purge_corrupt_intermediates,
     "missing_char_fix": missing_char_fix,
+    "font_fallback": font_fallback,
     "graphic_case_link": graphic_case_link,
     "graphic_repair": graphic_repair,
 }

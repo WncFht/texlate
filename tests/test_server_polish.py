@@ -83,7 +83,7 @@ class TestF3RejectPartial:
         r"""``\documentstyle``（LaTeX 2.09）：route 降级放行 → inject 兜底拒 →
         partial+reject_at=inject，且 zh-src.zip 已落盘（译文 splice 降级交付）。"""
         tex209 = (
-            "\\documentstyle{article}\n"
+            "\\documentstyle{ias}\n"
             "\\begin{document}\n"
             "A paragraph of English text long enough to form a chunk.\n"
             "\\end{document}\n"
