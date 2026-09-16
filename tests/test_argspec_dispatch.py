@@ -109,7 +109,7 @@ def test_boundary_columnbreak_via_family() -> None:
     assert lit.kind is PieceKind.LITERAL
     assert [c.content for c in res.chunks] == [
         "First column text goes on here with enough words.",
-        " Second column text goes on here too.",
+        "Second column text goes on here too.",
     ]
 
 
@@ -463,5 +463,5 @@ def test_argspec_dead_path_reach_warns(
     assert lit.kind is PieceKind.LITERAL
     assert [c.content for c in res2.chunks] == [
         "First column text goes on here with enough words.",
-        " Second column text goes on here too.",
+        "Second column text goes on here too.",
     ]

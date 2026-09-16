@@ -137,6 +137,7 @@ CHUNK_ARG_NAMES = {
     "caption",
     "subcaption",
     "captionof",
+    "tablecaption",  # aastex deluxetable/planotable 标题（保护环境内挖掘面）
     "title",
     "subtitle",
     "thanks",
@@ -333,7 +334,7 @@ BOUNDARY_NAMES = {
 }
 
 # 零参/单字符安全字面命令（行内，不破 run）：重音、符号、品牌名
-ACCENT_CHARS = set("'`^\"~=.uvHtcdbkz")
+ACCENT_CHARS = set("'`^\"~=.uvHrtcdbkz")
 INLINE_LITERAL_CMDS = {
     "LaTeX",
     "TeX",
@@ -513,6 +514,102 @@ BOUNDARY_TAIL: dict[str, list[ArgSpec]] = {
     "documentstyle": [ArgSpec("o"), ArgSpec("m")],
     "usepackage": [ArgSpec("o"), ArgSpec("m")],
     "RequirePackage": [ArgSpec("o"), ArgSpec("m")],
+}
+
+# 裸操作数/赋值形命令的尾参种别（loop1 slots 修复）：``\vskip3pt``、
+# ``\hangindent=.5em``、``\vrule width 2pt``、``\font\cs=cmr10 at 12pt``
+# 这类非文本槽位在 ``{}`` 组外——BOUNDARY_TAIL 的组参规则与未知命令
+# 探针都够不着，单位字母裸进 surface 即被翻译（illegal_unit 主错因）。
+# segmenter 按种别做字节/token 尾扫整体保护：
+#   "dimen" — ``[=]?<atom> [plus <atom>] [minus <atom>]``（glue/dimen 寄存器
+#             与 skip 原语同式——刚性名多收 plus/minus 无害，该形本就非法）；
+#   "rule"  — ``\hrule``/``\vrule`` 的 ``width|height|depth <atom>`` 序；
+#   "font"  — ``\font\cs=name [at <atom>|scaled <num>]``。
+# 表外未知名走 ``_ASSIGN_TAIL_RX`` 通用 ``=<atom>`` 赋值扫——``\foo=2pt``
+# 的 ``=2pt`` 在散文语境不可能是文本。
+DIMEN_TAIL_KIND: dict[str, str] = {
+    # skip/glue 寄存器与原语
+    "vskip": "dimen",
+    "hskip": "dimen",
+    "mskip": "dimen",
+    "vglue": "dimen",
+    "hglue": "dimen",
+    "spaceskip": "dimen",
+    "xspaceskip": "dimen",
+    "leftskip": "dimen",
+    "rightskip": "dimen",
+    "topskip": "dimen",
+    "lineskip": "dimen",
+    "lineskiplimit": "dimen",
+    "baselineskip": "dimen",
+    "parskip": "dimen",
+    "parfillskip": "dimen",
+    "smallskipamount": "dimen",
+    "medskipamount": "dimen",
+    "bigskipamount": "dimen",
+    "jot": "dimen",
+    "abovedisplayskip": "dimen",
+    "belowdisplayskip": "dimen",
+    "abovedisplayshortskip": "dimen",
+    "belowdisplayshortskip": "dimen",
+    # LaTeX length 寄存器（rubber length = skip）
+    "itemsep": "dimen",
+    "labelsep": "dimen",
+    "labelwidth": "dimen",
+    "labelindent": "dimen",
+    "tabcolsep": "dimen",
+    "arraycolsep": "dimen",
+    "textfloatsep": "dimen",
+    "floatsep": "dimen",
+    "intextsep": "dimen",
+    "dblfloatsep": "dimen",
+    "dbltextfloatsep": "dimen",
+    "topsep": "dimen",
+    "partopsep": "dimen",
+    "parsep": "dimen",
+    "columnsep": "dimen",
+    # 刚性 dimen 与位移/字号参
+    "kern": "dimen",
+    "mkern": "dimen",
+    "parindent": "dimen",
+    "hangindent": "dimen",
+    "hsize": "dimen",
+    "vsize": "dimen",
+    "textwidth": "dimen",
+    "textheight": "dimen",
+    "linewidth": "dimen",
+    "columnwidth": "dimen",
+    "mathsurround": "dimen",
+    "emergencystretch": "dimen",
+    "moveleft": "dimen",
+    "moveright": "dimen",
+    "raise": "dimen",
+    "lower": "dimen",
+    "oddsidemargin": "dimen",
+    "evensidemargin": "dimen",
+    "topmargin": "dimen",
+    "headheight": "dimen",
+    "headsep": "dimen",
+    "footskip": "dimen",
+    "marginparwidth": "dimen",
+    "marginparsep": "dimen",
+    "paperwidth": "dimen",
+    "paperheight": "dimen",
+    "prevdepth": "dimen",
+    "pagegoal": "dimen",
+    # 规则与字体声明
+    "hrule": "rule",
+    "vrule": "rule",
+    "font": "font",
+}
+
+# 头参非文本、尾参可译的透明命令（loop1 slots③）：``\textcolor{red}{text}``
+# 的 ``{red}``/``[model]`` 进 [[CMD]]、``{text}`` 留主流——argspec 同名条目
+# 是 chunk-arg policy 但 ``textcolor`` 只挂 xcolor 包（文档靠 color/类定义
+# 引入时门控失效），族表先行为确定性修正。
+TRANSPARENT_HEAD_SPEC: dict[str, list[ArgSpec]] = {
+    "textcolor": [ArgSpec("o"), ArgSpec("m")],
+    "colorbox": [ArgSpec("o"), ArgSpec("m")],
 }
 
 # ---------------------------------------------------------------- argspec.json

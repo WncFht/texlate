@@ -60,6 +60,7 @@ from texlate.latex.tables import (
     CHUNK_MIN,
     CITE_NAMES,
     COND_RX,
+    DIMEN_TAIL_KIND,
     ENV_MANDATORY_ARG,
     FILENAME_CHARS,
     FONT_SWITCHES,
@@ -72,6 +73,7 @@ from texlate.latex.tables import (
     PROTECT_NAMES,
     PROTECTED_ENVS,
     REF_NAMES,
+    TRANSPARENT_HEAD_SPEC,
     TRANSPARENT_NAMES,
     VERBATIM_ENVS,
     argspec_lookup,
@@ -110,6 +112,57 @@ _GRP_SCAN_CAP = 4000
 #: 其余 tag（def 族/let/catcode/newif/ifundefined…）都在展开时改过宏表，
 #: surface 无法再生其副作用——命中即整组回 literal（_close_group）。
 _GRP_FLOW_TAGS = ("input:", "input_tag:", "endinput", "if:", "fi:")
+
+# ---------------------------------------------------------------- 非文本尾参扫
+# 裸操作数/赋值形命令的 dimension 尾（loop1 slots 修复）：``\vskip3pt``、
+# ``\\[5pt]``、``\hangindent=.5em``、``\vrule width 2pt``、``\font\cs=cmr10
+# at 12pt`` 的非文本槽位不在 ``{}`` 组内——探针与组参规则都够不着，单位
+# 字母裸进 surface 即被翻译（illegal_unit 主错因）。原子 = cs 操作数
+# （``\hskip \labelsep``）或 NUM+UNIT——UNIT 硬性要求（裸数字不是
+# dimension，``\vskip-0.015inside`` 这类半截形不盖）。
+_DIMEN_NUM = r"(?:\d+\.\d*|\.\d+|\d+)"
+_DIMEN_UNIT = (
+    r"(?:true[ \t]*)?"
+    r"(?:filll|fill|fil|pt|pc|in|bp|cm|mm|dd|cc|sp|em|ex|mu|zw|zh|px|Q|H)"
+    r"(?![a-zA-Z])"
+)
+_DIMEN_ATOM = (
+    r"[+-]?[ \t]*(?:\\[a-zA-Z@]+|" + _DIMEN_NUM + r"[ \t]*" + _DIMEN_UNIT + r")"
+)
+_TAIL_RX = {
+    # skip/dimen：``[=]? ATOM (plus|minus ATOM)*``
+    "dimen": re.compile(
+        r"[ \t]*=?[ \t]*"
+        + _DIMEN_ATOM
+        + r"(?:[ \t]*(?:plus|minus)(?![a-zA-Z])[ \t]*"
+        + _DIMEN_ATOM
+        + r")*"
+    ),
+    # ``\hrule``/``\vrule``：``(width|height|depth [=]? ATOM)+``
+    "rule": re.compile(
+        r"(?:[ \t]*(?:width|height|depth)(?![a-zA-Z])[ \t]*=?[ \t]*"
+        + _DIMEN_ATOM
+        + r")+"
+    ),
+    # ``\font\cs=name [at ATOM|scaled NUM]``
+    "font": re.compile(
+        r"[ \t]*\\[a-zA-Z@]+[ \t]*=?[ \t]*[A-Za-z0-9._/-]+"
+        r"(?:[ \t]+at(?![a-zA-Z])[ \t]*"
+        + _DIMEN_ATOM
+        + r"|[ \t]+scaled(?![a-zA-Z])[ \t]*[+-]?"
+        + _DIMEN_NUM
+        + r")?"
+    ),
+    # 通用赋值：``= ATOM``（``\foo=2pt`` 的 ``=2pt`` 永不可能是散文）
+    "assign": re.compile(r"[ \t]*=[ \t]*" + _DIMEN_ATOM),
+}
+# ``\\[5pt]``/``\\*[2em]`` 的可选 dimen 参（``\\`` 走单字符字面行，
+# ``[5pt]`` 裸落 surface → illegal_unit——slots① 第二形态）
+_BSBS_OPT_RX = re.compile(r"\*?[ \t]*\[[ \t]*" + _DIMEN_ATOM + r"[ \t]*\]")
+# 组内 ``\\`` opt 参的内容判据（``_grp_bsbs`` 的 fullmatch 版）
+_GRP_BSBS_CONTENT_RX = re.compile(r"[ \t]*" + _DIMEN_ATOM + r"[ \t]*")
+# 组内尾参扫的 surface join 字符窗上限
+_GRP_TAIL_CAP = 96
 
 # 数学内正文参命令：``{..}`` 参重进文本态，体内 ``$`` 属组内配对、不关外
 # 层数学——``_on_math`` 体扫遇此族整参跳扫（``\text{...$x$...}`` 在内层
@@ -544,9 +597,21 @@ class Segmenter:
         self._run.append(_RunItem(surface, ident, vspan.start, vspan.end))
 
     def _rappend_tok(self, t: Tok) -> None:
-        """gen=0 文本 token：覆盖 gap+本体；surface=渲染形，ident=vtex 切片。"""
+        r"""gen=0 文本 token：覆盖 gap+本体；surface=渲染形，ident=vtex 切片。
+
+        新 run 首项的前间隙（``\cs`` 吞空格/``%`` 注释）剖成独立 LITERAL
+        piece——折进首项 surface 会留前导空格进 chunk，下游译文去首尾
+        空白后命令名与文本粘连（``\item FSU``→``\itemFSU``，real-LLM
+        5 格实证；``\par%note\ni)`` 的注释间隙同形）。
+        """
         fid, _a, b = t.pos
         cons0 = self._cons(fid)
+        if self._run_start is None and t.pos[1] > cons0:
+            vgap = self._cover_to(fid, t.pos[1])
+            self._emit(vgap.start, vgap.end)
+            vspan, ident = self._cover_text(fid, b)
+            self._rappend(self._tok_surface(t), ident, vspan)
+            return
         vspan, ident = self._cover_text(fid, b)
         self._rappend(
             self._gap_surface(fid, cons0, t.pos[1]) + self._tok_surface(t),
@@ -1039,6 +1104,229 @@ class Segmenter:
             j += 1
         return j
 
+    def _grp_tail_end(self, toks: list[Tok], i: int, rx: re.Pattern[str]) -> int | None:
+        r"""``toks[i:]`` 非文本尾参扫 → j_end；形不合 → None。
+
+        主版 ``_tail_scan_end``（字节正则）的组内对价：surface join 后
+        ``_GRP_TAIL_CAP`` 字符窗内匹配，匹配界必须恰在 token 界（切进
+        token 内部 → 不匹配）；``eol_par`` 止扫（par 边界不跨）。
+        """
+        n = len(toks)
+        parts: list[str] = []
+        bounds = [0]
+        j = i
+        total = 0
+        while j < n and total < _GRP_TAIL_CAP:
+            x = toks[j]
+            if x.kind == "eol_par":
+                break
+            s = self._tok_surface(x)
+            parts.append(s)
+            total += len(s)
+            bounds.append(total)
+            j += 1
+        m = rx.match("".join(parts))
+        if m is None or m.end() == 0:
+            return None
+        e = m.end()
+        k = bisect_left(bounds, e)
+        if k >= len(bounds) or bounds[k] != e:
+            return None  # 匹配界落 token 内（cs 名被尾参切断）——不吃半截
+        return i + k
+
+    def _grp_bsbs(self, toks: list[Tok], i: int) -> int | None:
+        r"""组内 ``\\`` 的可选 dimen 参 → j_end；``\\[5pt]``/``\\*[2em]`` 命中。
+
+        ``_BSBS_OPT_RX`` 的 token 版：``*``? + ``[atom]``——内容非 dimen
+        （``\\[x]`` 形）→ None 回落逐字。
+        """
+        n = len(toks)
+        j = i + 1
+        if j < n and toks[j].kind == "other" and toks[j].text == "*":
+            j += 1
+        while j < n and toks[j].kind == "space":
+            j += 1
+        if j < n and toks[j].kind == "other" and toks[j].text == "[":
+            e = self._grp_bal(toks, j, brace=False)
+            if e is not None and _GRP_BSBS_CONTENT_RX.fullmatch(
+                self._grp_surfs(toks[j + 1 : e - 1])
+            ):
+                return e
+        return None
+
+    def _grp_spec_args_end(  # noqa: C901, PLR0912, PLR0915 — argspec 字母各一支，平铺即 _eat_env_args_spec 组内镜像
+        self,
+        toks: list[Tok],
+        j: int,
+        spec: list[ArgSpec],
+        roles: tuple[str, ...],
+        env: str | None,
+    ) -> int:
+        r"""Argspec 位序走参的组内 token 版（``_eat_env_args_spec`` 镜像）。
+
+        返回连续消费的非文本参后界——``text``/``opt-text`` 角色或参数缺席
+        处停（其后 token 留 surface 主流，同 ``_unread_args`` 语义）。
+        ``env`` 非空时可选位过 ``env_opt_is_format`` 闸（定理标题不收——
+        F6 同规）；None 则可选位照常消费（命令可选参无标题歧义）。
+        """
+        n = len(toks)
+        end = j
+        k = j
+        for si, s in enumerate(spec):
+            role = roles[si] if si < len(roles) else "skip"
+            while k < n and toks[k].kind == "space":
+                k += 1
+            if k >= n or toks[k].kind == "eol_par":
+                break
+            x = toks[k]
+            if s.kind in ("m", "v"):
+                if x.kind == "lbrace":
+                    e = self._grp_bal(toks, k, brace=True)
+                    if e is None:
+                        break
+                    if role in ("text", "opt-text"):
+                        break  # 文本参停界——k 不前推（主流 unread 同位）
+                    k = end = e
+                    continue
+                if x.kind == "cs":
+                    break  # 单 token 参不跨 '\'（BUG1 同规）
+                k += 1  # 单 token 参（env 路 allow_single_token=True 同规）
+                end = k
+                continue
+            if s.kind in ("o", "O"):
+                if x.kind == "other" and x.text == "[":
+                    e = self._grp_bal(toks, k, brace=False)
+                    if e is None:
+                        break
+                    if role in ("text", "opt-text"):
+                        break
+                    if env is not None and not env_opt_is_format(
+                        env, self._grp_surfs(toks[k + 1 : e - 1])
+                    ):
+                        break  # 定理标题正文不收——回吐随主流
+                    k = end = e
+                continue
+            if s.kind == "s":
+                if x.kind == "other" and x.text == "*":
+                    k += 1
+                    end = k
+                continue
+            if s.kind == "t" and s.delim:
+                if x.text == s.delim[0]:
+                    k += 1
+                    end = k
+                continue
+            if s.kind in ("d", "D", "r", "R") and s.delim:
+                op, cl = s.delim[0], s.delim[-1]
+                if x.text != op:
+                    if s.kind in ("r", "R"):
+                        break
+                    continue
+                k2 = k + 1
+                while k2 < n and toks[k2].text != cl and toks[k2].kind != "eol_par":
+                    k2 += 1
+                if k2 >= n or toks[k2].kind == "eol_par":
+                    break
+                if role in ("text", "opt-text"):
+                    break
+                if (
+                    env is not None
+                    and s.delim != "<>"
+                    and not env_opt_is_format(env, self._grp_surfs(toks[k + 1 : k2]))
+                ):
+                    break
+                k = k2 + 1
+                end = k
+                continue
+            # 'e'/'b'/无 delim：不消费
+        return end
+
+    def _argspec_env(self, env: str, reg: object | None) -> ArgspecEntry | None:
+        r"""Argspec env 条目查询——``_handle_env_begin`` 族表门控同集。"""
+        if (
+            reg is not None
+            or env in VERBATIM_ENVS
+            or env in MATH_ENVS
+            or env in PROTECTED_ENVS
+            or env in ARG_TRANSPARENT_ENVS
+            or env in ENV_MANDATORY_ARG
+        ):
+            return None
+        return argspec_lookup_env(env, self.state.pkgs)
+
+    def _grp_env_args_end(
+        self,
+        toks: list[Tok],
+        j: int,
+        env: str,
+        reg: object | None,
+        ae: ArgspecEntry | None,
+    ) -> int:
+        r"""``\begin{env}``/env_begin 宏端点尾参的组内对价（``_eat_env_args``）。
+
+        ``ae`` 带签名 → ``_grp_spec_args_end`` 位序走参；否则版式 ``[opt]``
+        （``env_opt_is_format`` 闸）+ ``ENV_MANDATORY_ARG``/``reg.spec``
+        的 ``{m}`` 数吃进 ENVTAG 界——否则 preamble ``{lRLc}`` 这类非文本
+        参裸进 surface 被翻译（``Illegal pream-token``，loop1 slots⑤）。
+        """
+        if ae is not None and ae.signature:
+            return self._grp_spec_args_end(
+                toks, j, _chunk_spec_cached(ae.signature), ae.arg_roles, env
+            )
+        n = len(toks)
+        k = j
+        while k < n and toks[k].kind == "space":
+            k += 1
+        if k < n and toks[k].kind == "other" and toks[k].text == "[":
+            e = self._grp_bal(toks, k, brace=False)
+            if e is not None and env_opt_is_format(
+                env, self._grp_surfs(toks[k + 1 : e - 1])
+            ):
+                j = e
+        mand = 1 if env in ENV_MANDATORY_ARG else 0
+        if reg is not None:
+            mand = max(mand, sum(1 for a in getattr(reg, "spec", ()) if a.kind == "m"))
+        for _ in range(mand):
+            k = j
+            while k < n and toks[k].kind == "space":
+                k += 1
+            if k >= n or toks[k].kind != "lbrace":
+                break
+            e = self._grp_bal(toks, k, brace=True)
+            if e is None:
+                break
+            j = e
+        return j
+
+    def _grp_probe_end(self, toks: list[Tok], i: int) -> int | None:
+        r"""未知命令探针的组内版（``_handle_unknown_cs``：``[opt]``? + ``{m}``×6、禁单 token 参）。
+
+        任一参数命中 → j_end；全缺席 → None。
+        """
+        n = len(toks)
+        j = i + 1
+        hit = False
+        k = j
+        while k < n and toks[k].kind == "space":
+            k += 1
+        if k < n and toks[k].kind == "other" and toks[k].text == "[":
+            e = self._grp_bal(toks, k, brace=False)
+            if e is not None:
+                j = e
+                hit = True
+        for _ in range(6):
+            k = j
+            while k < n and toks[k].kind == "space":
+                k += 1
+            if k >= n or toks[k].kind != "lbrace":
+                break
+            e = self._grp_bal(toks, k, brace=True)
+            if e is None:
+                break
+            j = e
+            hit = True
+        return j if hit else None
+
     def _grp_delim_body_end(self, toks: list[Tok], i: int, j: int) -> int | None:
         r"""``toks[j]`` = 定界 token 的逐字闭界扫描 → j_end；未闭 → None。
 
@@ -1152,7 +1440,9 @@ class Segmenter:
                     continue
                 env, j = hit
                 if name == "begin":
-                    typ = _env_ph_type(env, reg=self.state.macros.lookup_env(env))
+                    reg = self.state.macros.lookup_env(env)
+                    ae = self._argspec_env(env, reg)
+                    typ = _env_ph_type(env, ae, reg)
                     if typ is not None:
                         e = self._grp_find_env_end(toks, j, env)
                         if e is not None:
@@ -1161,6 +1451,9 @@ class Segmenter:
                             )
                             i = e
                             continue
+                    # ENVTAG 界延到环境尾参（主流 _eat_env_args 同规）——
+                    # preamble {lRLc}/版式 [opt] 不裸进 surface
+                    j = self._grp_env_args_end(toks, j, env, reg, ae)
                 self._cat_surf(
                     out, self._grp_ph(PhType.ENVTAG, self._grp_surfs(toks[i:j]))
                 )
@@ -1286,11 +1579,9 @@ class Segmenter:
             em = self._grp_env_macro(t)
             if em is not None:
                 ek, eenv = em
-                typ = (
-                    _env_ph_type(eenv, reg=self.state.macros.lookup_env(eenv))
-                    if ek == "env_begin"
-                    else None
-                )
+                reg2 = self.state.macros.lookup_env(eenv)
+                ae2 = self._argspec_env(eenv, reg2) if ek == "env_begin" else None
+                typ = _env_ph_type(eenv, ae2, reg2) if ek == "env_begin" else None
                 e = (
                     self._grp_find_env_end(toks, i + 1, eenv)
                     if typ is not None
@@ -1300,21 +1591,138 @@ class Segmenter:
                     self._cat_surf(out, self._grp_ph(typ, self._grp_surfs(toks[i:e])))
                     i = e
                     continue
-                self._cat_surf(out, self._grp_ph(PhType.ENVTAG, self._tok_surface(t)))
-                i += 1
+                j2 = i + 1
+                if ek == "env_begin":
+                    # 宏端点同吃环境尾参（\bea{c} 的 preamble 不裸进 surface）
+                    j2 = self._grp_env_args_end(toks, j2, eenv, reg2, ae2)
+                self._cat_surf(
+                    out, self._grp_ph(PhType.ENVTAG, self._grp_surfs(toks[i:j2]))
+                )
+                i = j2
                 continue
             if name in BOUNDARY_NAMES:
-                # 组内 BOUNDARY_TAIL（顶层 _handle_boundary 对价，in_arg=COMMAND
-                # 整调用保护）：结构尾参 ``{2mm}``/``[o]`` 随命令进 [[CMD]]——
-                # 裸落 surface 会被翻译 ``mm``（``\vspace{2这是译文}`` →
-                # illegal_unit，0806.3472 主错因）。
+                # 组内 BOUNDARY_TAIL/dimen 尾参（顶层 _handle_boundary 对价，
+                # in_arg=COMMAND 整调用保护）：结构尾参 ``{2mm}``/``[o]``、裸
+                # 操作数 ``\vskip 3pt`` 随命令进 [[CMD]]——裸落 surface 会被
+                # 翻译 ``mm``/``pt``（illegal_unit，loop1 slots①）。
+                # spec 缺席不预吃 ``[opt]``——``\item[label]`` 的 label 是
+                # 可译文本须留 surface（主流同规）。
                 spec = BOUNDARY_TAIL.get(name)
-                mand = sum(1 for a in spec if a.kind == "m") if spec else 0
-                j = self._grp_call_end(toks, i, mand)
+                j = i + 1
+                kind = DIMEN_TAIL_KIND.get(name)
+                if kind is not None:
+                    e2 = self._grp_tail_end(toks, j, _TAIL_RX[kind])
+                    if e2 is not None:
+                        j = e2
+                elif spec is not None:
+                    mand = sum(1 for a in spec if a.kind == "m")
+                    j = self._grp_call_end(toks, i, mand)
                 self._cat_surf(
                     out, self._grp_ph(PhType.CMD, self._grp_surfs(toks[i:j]))
                 )
                 i = j
+                continue
+            # —— 以下各行镜像 _dispatch 行 13–19 的组内对价（非文本槽位不
+            #    裸进 surface——loop1 slots 修复的组内侧）——
+            if name == "\\":
+                j2 = self._grp_bsbs(toks, i)
+                if j2 is not None:
+                    self._cat_surf(
+                        out,
+                        self._grp_ph(PhType.CMD, self._grp_surfs(toks[i:j2])),
+                    )
+                    i = j2
+                    continue
+                self._cat_surf(out, self._tok_surface(t))
+                i += 1
+                continue
+            if name in TRANSPARENT_HEAD_SPEC:
+                # \textcolor{red}{text}：头参进 [[CMD]]，{text} 留 surface
+                j2 = self._grp_spec_args_end(
+                    toks, i + 1, TRANSPARENT_HEAD_SPEC[name], (), None
+                )
+                if j2 > i + 1:
+                    self._cat_surf(
+                        out,
+                        self._grp_ph(PhType.CMD, self._grp_surfs(toks[i:j2])),
+                    )
+                    i = j2
+                    continue
+                self._cat_surf(out, self._tok_surface(t))
+                i += 1
+                continue
+            kind2 = DIMEN_TAIL_KIND.get(name)
+            j2 = self._grp_tail_end(
+                toks, i + 1, _TAIL_RX[kind2 if kind2 is not None else "assign"]
+            )
+            if j2 is not None:
+                self._cat_surf(
+                    out, self._grp_ph(PhType.CMD, self._grp_surfs(toks[i:j2]))
+                )
+                i = j2
+                continue
+            if len(name) == 1 and name in ACCENT_CHARS:
+                # accent 单参保护（主流 _handle_accent 对价）：{x} 组或
+                # 单 token 参随 cs 进 [[CMD]]——参字母裸落 surface 会被
+                # 翻译（0806.3144 同族，花括号形前由探针兜底、裸参形是洞）
+                j = i + 1
+                while j < n and toks[j].kind == "space":
+                    j += 1
+                if j < n and toks[j].kind == "lbrace":
+                    e2 = self._grp_bal(toks, j, brace=True)
+                    j = e2 if e2 is not None else i + 1
+                elif j < n and (
+                    toks[j].kind in ("letter", "other")
+                    or (toks[j].kind == "cs" and len(toks[j].text) == 1)
+                ):
+                    j += 1
+                else:
+                    j = i + 1
+                if j > i + 1:
+                    self._cat_surf(
+                        out,
+                        self._grp_ph(PhType.CMD, self._grp_surfs(toks[i:j])),
+                    )
+                    i = j
+                    continue
+                self._cat_surf(out, self._tok_surface(t))
+                i += 1
+                continue
+            e2 = argspec_lookup(name, self.state.pkgs)
+            if e2 is not None:
+                policy = e2.policy
+                if policy in ("literal", "transparent"):
+                    self._cat_surf(out, self._tok_surface(t))
+                    i += 1
+                    continue
+                spec2 = _chunk_spec_cached(e2.signature)
+                if policy == "chunk-arg":
+                    j2 = self._grp_spec_args_end(toks, i + 1, spec2, e2.arg_roles, None)
+                    if j2 > i + 1:
+                        self._cat_surf(
+                            out,
+                            self._grp_ph(PhType.CMD, self._grp_surfs(toks[i:j2])),
+                        )
+                        i = j2
+                        continue
+                    self._cat_surf(out, self._tok_surface(t))
+                    i += 1
+                    continue
+                # protect/key/verbatim/boundary → 整调用 [[CMD]]
+                mand = sum(1 for s in spec2 if s.kind in ("m", "v"))
+                j2 = self._grp_call_end(toks, i, mand)
+                self._cat_surf(
+                    out, self._grp_ph(PhType.CMD, self._grp_surfs(toks[i:j2]))
+                )
+                i = j2
+                continue
+            # 未知探针（主流 row19 对价）：``[opt]``? + ``{m}``×6 → [[CMD]]
+            j2 = self._grp_probe_end(toks, i)
+            if j2 is not None:
+                self._cat_surf(
+                    out, self._grp_ph(PhType.CMD, self._grp_surfs(toks[i:j2]))
+                )
+                i = j2
                 continue
             self._cat_surf(out, self._tok_surface(t))
             i += 1
@@ -1583,6 +1991,12 @@ class Segmenter:
             if name in PROTECT_BLOCK_NAMES:
                 self._handle_protect_block(t, src)
                 return
+            # 12b. 头参非文本的透明命令（\textcolor{red}{text} 的 {red} 保护、
+            #      {text} 留主流——argspec chunk-arg 的族表确定性版，不吃
+            #      xcolor 包门控；色名裸落 → Undefined color 腐蚀）
+            if name in TRANSPARENT_HEAD_SPEC:
+                self._handle_transparent_head(t, src, name)
+                return
             # 13. 透明命令：命令名进 run，参数随主流
             if name in TRANSPARENT_NAMES:
                 self._rappend_tok(t)
@@ -1612,11 +2026,21 @@ class Segmenter:
             if name in ("]", ")"):
                 self._rappend_tok(t)
                 return
-            # 17. 行内字面（重音/符号/品牌/旧式字体开关/单字符命令）
+            # 16b. ``\\`` 的可选 dimen 参：``\\[5pt]``/``\\*[2em]`` 整调用
+            #      → [[CMD]]（``[5pt]`` 裸进 surface → illegal_unit）
+            if name == "\\":
+                self._handle_bsbs(t, src)
+                return
+            # 16c. accent 族单参保护：``\c{c}``/``\~n`` 参字母+CJK 恒无意义
+            #      （0806.3144 参被译 ``\c{这是译文}``→组合符无字槽）
+            if len(name) == 1 and name in ACCENT_CHARS:
+                self._handle_accent(t, src)
+                return
+            # 17. 行内字面（符号/品牌/旧式字体开关/无参单字符命令）
             if (
                 name in INLINE_LITERAL_CMDS
                 or name in FONT_SWITCHES
-                or (len(name) == 1 and (name in ACCENT_CHARS or not name.isalpha()))
+                or (len(name) == 1 and not name.isalpha())
             ):
                 self._rappend_tok(t)
                 return
@@ -1675,7 +2099,11 @@ class Segmenter:
     # ------------------------------------------------------------ math
 
     def _on_math(self, t: Tok, src: TokenSource) -> None:  # noqa: C901, PLR0912, PLR0915 — $$ 邻接/闭符分支平铺即 §3.3
-        r"""``$``/``$$`` 配对：拉 token 到同窗 mathshift 止（``$$``=紧邻双 token）。"""
+        r"""``$``/``$$`` 配对：拉 token 到同窗 mathshift 止（``$$``=紧邻双 token）。
+
+        混排闭符 ``\)/\]`` 同收——LaTeX 数学态内 ``\)=`` ``$``、``\]=``
+        ``$$``，不收则越过真闭符吞散文、``$`` 奇偶翻转（0806.1984）。
+        """
         fid, _a, b = t.pos
         disp = False
         nxt = src.read()
@@ -1714,6 +2142,13 @@ class Segmenter:
                     src.unread([n2])
                 body.append(x)
                 continue
+            if x.kind == "cs" and x.text in (")", "]"):
+                # 混排闭符：``\)/\]`` 在 LaTeX 数学态语义即 ``$/$$``——
+                # ``$...\)``/``$$...\]`` 收作闭符，否则越过真闭符续吞散文、
+                # 奇偶翻转（0806.1984 ``$\alpha(x)\), for all $p \in S$``
+                # ", for all " 落数学、"\p" 裸进散文被译，miss×12）。
+                end_tok = x
+                break
             if x.kind == "cs" and x.text in _MATH_TEXTARG:
                 # \text 族正文参重进文本态——体内（含嵌套组）$ 属组内配
                 # 对，不跳扫会在内层 $ 处截断外层数学（0806.3472 残留）。
@@ -1895,6 +2330,17 @@ class Segmenter:
         """
         src.skip_past(fid, end)
 
+    def _tail_scan_end(self, fid: int, pos: int, kind: str) -> int | None:
+        r"""``pos`` 起的非文本尾参字节扫 → end；形不合 → None。
+
+        ``kind`` ∈ ``_TAIL_RX``：``dimen``/``rule``/``font``/``assign``
+        （通用 ``=ATOM``——``\foo=2pt`` 的赋值形对一切未知名生效）。
+        只认 ``[ \\t]`` 间隙——换行分隔的操作数不进覆盖（语料未见，
+        par 边界语义不跨）。
+        """
+        m = _TAIL_RX[kind].match(self.file_texts[fid], pos)
+        return m.end() if m is not None and m.end() > pos else None
+
     # ------------------------------------------------------------ env
 
     def _env_name(self, src: TokenSource) -> tuple[str | None, Tok | None, list[Tok]]:
@@ -1956,16 +2402,7 @@ class Segmenter:
         # 知的 env（含 ARG_TRANSPARENT/ENV_MANDATORY_ARG）不交给 argspec——
         # 既有语义钉死（如 thebibliography 透明体 @X1 trap），数据侧
         # body_role 不覆盖族表分类。
-        ae = (
-            argspec_lookup_env(env, self.state.pkgs)
-            if reg is None
-            and env not in VERBATIM_ENVS
-            and env not in MATH_ENVS
-            and env not in PROTECTED_ENVS
-            and env not in ARG_TRANSPARENT_ENVS
-            and env not in ENV_MANDATORY_ARG
-            else None
-        )
+        ae = self._argspec_env(env, reg)
         # \begin/\end 宏端点前间隙先剖字面项——不进 v_begin，否则 ENV/
         # ENVTAG/VERB 体头部夹带前隙（in_arg ident 渲染丢空格）
         self._cover_gap(fid, t.pos[1])
@@ -3188,18 +3625,33 @@ class Segmenter:
         self._emit_ph(PhType.AUTHOR, vspan.start, vspan.end, body)
 
     def _handle_boundary(self, t: Tok, src: TokenSource, name: str) -> None:
-        r"""边界命令：flush + LITERAL（含 ``BOUNDARY_TAIL`` 结构尾参）。
+        r"""边界命令：flush + LITERAL（含 ``BOUNDARY_TAIL``/dimen 尾参）。
 
         ``\item`` 置 ``force_chunk``（label ``[o]`` 不收——可译文本留 run）。
-        in_arg → ``[[CMD]]`` 进 run（v1 row14）。
+        in_arg → ``[[CMD]]`` 进 run（v1 row14）。``\vskip 3pt`` 这类裸操作
+        数尾参走 ``_tail_scan_end`` 字节扫随命令进 LITERAL/``[[CMD]]``——
+        否则 ``pt``/``em`` 裸进 surface 被翻译（illegal_unit）。
         """
         fid, _a, b = t.pos
+        kind = DIMEN_TAIL_KIND.get(name)
+        tail_end = self._tail_scan_end(fid, b, kind) if kind is not None else None
         if self.in_arg:
-            self._protect_cs(t, src, PhType.CMD)
+            if tail_end is not None:
+                self._cover_gap(fid, t.pos[1])
+                vspan = self._cover_to(fid, tail_end)
+                self._rappend_ph(
+                    self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
+                    vspan,
+                )
+                self._skip_past(src, fid, tail_end)
+            else:
+                self._protect_cs(t, src, PhType.CMD)
             return
         end = b
         spec = BOUNDARY_TAIL.get(name)
-        if spec is not None:
+        if tail_end is not None:
+            end = tail_end
+        elif spec is not None:
             args, e2 = self._args_tok(src, fid, spec, b)
             if any(a.fe > a.fs for a in args):
                 end = e2
@@ -3212,8 +3664,116 @@ class Segmenter:
         vspan = self._cover_to(fid, end)
         self._flush_run(vspan.start)
         self._emit(vspan.start, vspan.end)
+        if tail_end is not None:
+            self._skip_past(src, fid, tail_end)
         if name == "item":
             self.force_chunk = True  # item 文本恒可译
+
+    def _handle_transparent_head(self, t: Tok, src: TokenSource, name: str) -> None:
+        r"""``\textcolor{red}{text}``/``\colorbox``：头参 ``[model]{name}`` → ``[[CMD]]``。
+
+        ``{text}`` 留主流续扫（色名非文本槽位——裸落 surface 译成
+        ``Undefined color``，loop1 slots③ 主错因）。argspec 同名条目
+        是 chunk-arg 但只挂 xcolor 包——族表先行不吃门控。
+        """
+        fid, _a, b = t.pos
+        args, end = self._args_tok(
+            src, fid, TRANSPARENT_HEAD_SPEC[name], b, allow_single_token=False
+        )
+        if not any(a.fe > a.fs for a in args):
+            self._unread_args(src, args)
+            self._rappend_tok(t)
+            return
+        self._cover_gap(fid, t.pos[1])
+        vspan = self._cover_to(fid, end)
+        self._rappend_ph(
+            self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
+            vspan,
+        )
+
+    def _handle_bsbs(self, t: Tok, src: TokenSource) -> None:
+        r"""``\\`` 的可选 dimen 参：``\\[5pt]``/``\\*[2em]`` 整调用 → ``[[CMD]]``。
+
+        ``\\`` 本体是单字符字面 cs；``[atom]`` 命中 dimen 形才收（``\\[x]``
+        非 dimen 照常逐字）。字节扫 + ``_skip_past``——``[5pt]`` 的 token
+        不再主流重放。
+        """
+        fid, _a, b = t.pos
+        m = _BSBS_OPT_RX.match(self.file_texts[fid], b)
+        if m is None or m.end() <= b:
+            self._rappend_tok(t)
+            return
+        end = m.end()
+        self._cover_gap(fid, t.pos[1])
+        vspan = self._cover_to(fid, end)
+        self._rappend_ph(
+            self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
+            vspan,
+        )
+        self._skip_past(src, fid, end)
+
+    def _handle_accent(self, t: Tok, src: TokenSource) -> None:  # noqa: C901, PLR0912 — 参形两态（组深扫/单token）+ bail 三路平铺
+        r"""``\'e``/``\c{c}`` accent 单参保护：整调用 → ``[[CMD]]`` 进 run。
+
+        参形：``{x}`` 组或单 token（``\~n``/``\~\i``——undelimited 参前导
+        空格由 TeX 规则跳过，参判定同款；cs 参只收单字符名，``\begin``
+        类多字符名不算参）。参缺席（``eol_par``/跨 fid/无参 token 种）
+        → 裸名回吐按旧规内联字面。参在位则基字随 cs 进占位——``c``/``n``
+        落 chunk 被译成 ``\c{这是译文}`` 是 0806.3144 的 misschar 根因
+        （accent+CJK 语义上恒无意义）。
+        """
+        fid, _a, _b = t.pos
+        pulled: list[Tok] = []
+        end = -1
+        hit_eof = False
+        while True:
+            x = src.read()
+            if x is None:
+                hit_eof = True
+                break
+            pulled.append(x)
+            if x.kind == "eol_par" or x.pos[0] != fid:
+                break
+            if x.kind == "space":
+                continue
+            if x.kind == "lbrace":
+                depth = 1
+                while depth:
+                    y = src.read()
+                    if y is None:
+                        hit_eof = True
+                        break
+                    pulled.append(y)
+                    if y.pos[0] != fid:
+                        break
+                    if y.kind == "lbrace":
+                        depth += 1
+                    elif y.kind == "rbrace":
+                        depth -= 1
+                if depth == 0:
+                    end = pulled[-1].pos[2]
+                break
+            if x.kind in ("letter", "other") or (x.kind == "cs" and len(x.text) == 1):
+                end = x.pos[2]
+            break
+        if end < 0:
+            if hit_eof and isinstance(src, Gullet):
+                # _on_math 同款 EOF 守护：unread 只建 file_id<0 合成源——
+                # cs 本体落 run，余下字节整盖 LITERAL 保真
+                self._rappend_tok(t)
+                self._flush_run(len(self.vt))
+                tail = self._cover_to(fid, len(self.file_texts[fid]))
+                self._emit(tail.start, tail.end)
+                return
+            src.unread(pulled)
+            self._rappend_tok(t)
+            return
+        self._cover_gap(fid, t.pos[1])
+        vspan = self._cover_to(fid, end)
+        self._rappend_ph(
+            self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
+            vspan,
+        )
 
     def _handle_endinput(self, t: Tok, src: TokenSource) -> None:
         r"""``\endinput`` 漏网档：顶层 flush + 本文件余下逐字 + 截停。"""
@@ -3343,6 +3903,21 @@ class Segmenter:
         ``eol_par``。
         """
         fid, _a, b = t.pos
+        # 裸操作数/赋值尾参先扫——literal-policy 名（``\hangindent``/``\kern``/
+        # ``\vrule``/``\font``）在 argspec 分派早退逐字、探针不认 ``=``/裸
+        # 操作数形，不盖则单位字母进 surface（illegal_unit）。表外名走通用
+        # ``=ATOM`` 赋值扫（``\foo=2pt`` 的 ``=2pt`` 不可能是散文）。
+        kind = DIMEN_TAIL_KIND.get(name or t.text)
+        tail_end = self._tail_scan_end(fid, b, kind if kind is not None else "assign")
+        if tail_end is not None:
+            self._cover_gap(fid, t.pos[1])
+            vspan = self._cover_to(fid, tail_end)
+            self._rappend_ph(
+                self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
+                vspan,
+            )
+            self._skip_past(src, fid, tail_end)
+            return
         if m is None:
             e = argspec_lookup(name or t.text, self.state.pkgs)
             if e is not None:

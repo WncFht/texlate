@@ -109,7 +109,7 @@ def test_env_inside_braces_still_dispatches() -> None:
     [c] = res.chunks
     assert c.context == "item"
     assert c.env == "itemize"
-    assert c.content == " Item words here."
+    assert c.content == "Item words here."
 
 
 # ------------------------------------------------------------- 保护段
@@ -230,11 +230,12 @@ def test_eol_par_blank_line_splits() -> None:
 
 
 def test_eol_par_cs_splits() -> None:
-    r"""``\par`` cs 经 gullet 转 eol_par——与空行同切段效果（后段留前导空）。"""
+    r"""``\par`` cs 经 gullet 转 eol_par——与空行同切段效果；cs 吞掉的空格
+    剖成字面 piece，不折进后段 chunk（bug-B）。"""
     res = scan("First paragraph text here.\\par Second paragraph text here.")
     assert [c.content for c in res.chunks] == [
         "First paragraph text here.",
-        " Second paragraph text here.",
+        "Second paragraph text here.",
     ]
 
 

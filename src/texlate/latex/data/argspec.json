@@ -15207,6 +15207,26 @@
             "policy": "text",
             "source": ["manual-env", "no-signature"]
         },
+        "deluxetable": {
+            "name": "deluxetable",
+            "kind": "env",
+            "package": "manual",
+            "signature": "m o",
+            "arg_roles": ["skip", "skip"],
+            "body_role": "protect",
+            "policy": "protect",
+            "source": ["manual-env", "loop1 slots: preamble 裸进 surface → Illegal pream-token"]
+        },
+        "deluxetable*": {
+            "name": "deluxetable*",
+            "kind": "env",
+            "package": "manual",
+            "signature": "m o",
+            "arg_roles": ["skip", "skip"],
+            "body_role": "protect",
+            "policy": "protect",
+            "source": ["manual-env", "loop1 slots: preamble 裸进 surface → Illegal pream-token"]
+        },
         "description": {
             "name": "description",
             "kind": "env",
@@ -15657,6 +15677,26 @@
             "policy": "protect",
             "source": ["miniscanner protected-env (挖 caption)", "no-signature"]
         },
+        "longtable*": {
+            "name": "longtable*",
+            "kind": "env",
+            "package": "manual",
+            "signature": "o m",
+            "arg_roles": ["skip", "skip"],
+            "body_role": "protect",
+            "policy": "protect",
+            "source": ["manual-env", "loop1 slots: preamble 裸进 surface → Illegal pream-token"]
+        },
+        "longtabu": {
+            "name": "longtabu",
+            "kind": "env",
+            "package": "manual",
+            "signature": "o m",
+            "arg_roles": ["skip", "skip"],
+            "body_role": "protect",
+            "policy": "protect",
+            "source": ["manual-env", "loop1 slots: preamble 裸进 surface → Illegal pream-token"]
+        },
         "lstlisting": {
             "name": "lstlisting",
             "kind": "env",
@@ -15682,6 +15722,16 @@
                 "miniscanner/latex-utensils verbatim-env",
                 "no-signature"
             ]
+        },
+        "ltablex": {
+            "name": "ltablex",
+            "kind": "env",
+            "package": "manual",
+            "signature": "m m",
+            "arg_roles": ["skip", "skip"],
+            "body_role": "protect",
+            "policy": "protect",
+            "source": ["manual-env", "loop1 slots: preamble 裸进 surface → Illegal pream-token"]
         },
         "math": {
             "name": "math",
@@ -15775,6 +15825,26 @@
                 "miniscanner/latex-utensils verbatim-env",
                 "no-signature"
             ]
+        },
+        "mpsupertabular": {
+            "name": "mpsupertabular",
+            "kind": "env",
+            "package": "manual",
+            "signature": "o m",
+            "arg_roles": ["skip", "skip"],
+            "body_role": "protect",
+            "policy": "protect",
+            "source": ["manual-env", "loop1 slots: preamble 裸进 surface → Illegal pream-token"]
+        },
+        "mpsupertabular*": {
+            "name": "mpsupertabular*",
+            "kind": "env",
+            "package": "manual",
+            "signature": "o m m",
+            "arg_roles": ["skip", "skip", "skip"],
+            "body_role": "protect",
+            "policy": "protect",
+            "source": ["manual-env", "loop1 slots: preamble 裸进 surface → Illegal pream-token"]
         },
         "multicols": {
             "name": "multicols",
@@ -15995,6 +16065,16 @@
             "body_role": "protect",
             "policy": "protect",
             "source": ["ctan:latex2e", "miniscanner protected-env (挖 caption)"]
+        },
+        "planotable": {
+            "name": "planotable",
+            "kind": "env",
+            "package": "manual",
+            "signature": "m",
+            "arg_roles": ["skip"],
+            "body_role": "protect",
+            "policy": "protect",
+            "source": ["manual-env", "loop1 slots: preamble 裸进 surface → Illegal pream-token"]
         },
         "pmatrix": {
             "name": "pmatrix",
@@ -16396,6 +16476,26 @@
             "policy": "protect",
             "source": ["manual-env", "no-signature"]
         },
+        "supertabular": {
+            "name": "supertabular",
+            "kind": "env",
+            "package": "manual",
+            "signature": "o m",
+            "arg_roles": ["skip", "skip"],
+            "body_role": "protect",
+            "policy": "protect",
+            "source": ["manual-env", "loop1 slots: preamble 裸进 surface → Illegal pream-token"]
+        },
+        "supertabular*": {
+            "name": "supertabular*",
+            "kind": "env",
+            "package": "manual",
+            "signature": "m m",
+            "arg_roles": ["skip", "skip"],
+            "body_role": "protect",
+            "policy": "protect",
+            "source": ["manual-env", "loop1 slots: preamble 裸进 surface → Illegal pream-token"]
+        },
         "tabbing": {
             "name": "tabbing",
             "kind": "env",
@@ -16425,6 +16525,16 @@
             "body_role": "protect",
             "policy": "protect",
             "source": ["miniscanner protected-env (挖 caption)", "no-signature"]
+        },
+        "tabu": {
+            "name": "tabu",
+            "kind": "env",
+            "package": "manual",
+            "signature": "o m",
+            "arg_roles": ["skip", "skip"],
+            "body_role": "protect",
+            "policy": "protect",
+            "source": ["manual-env", "loop1 slots: preamble 裸进 surface → Illegal pream-token"]
         },
         "tabular": {
             "name": "tabular",
@@ -16468,6 +16578,16 @@
             "body_role": "protect",
             "policy": "protect",
             "source": ["miniscanner protected-env (挖 caption)", "no-signature"]
+        },
+        "tblr": {
+            "name": "tblr",
+            "kind": "env",
+            "package": "manual",
+            "signature": "m",
+            "arg_roles": ["skip"],
+            "body_role": "protect",
+            "policy": "protect",
+            "source": ["manual-env", "loop1 slots: preamble 裸进 surface → Illegal pream-token"]
         },
         "testcolors": {
             "name": "testcolors",
@@ -16694,6 +16814,16 @@
             "body_role": "protect",
             "policy": "protect",
             "source": ["miniscanner protected-env (挖 caption)", "no-signature"]
+        },
+        "xtabular": {
+            "name": "xtabular",
+            "kind": "env",
+            "package": "manual",
+            "signature": "m m",
+            "arg_roles": ["skip", "skip"],
+            "body_role": "protect",
+            "policy": "protect",
+            "source": ["manual-env", "loop1 slots: preamble 裸进 surface → Illegal pream-token"]
         },
         "xxalignat": {
             "name": "xxalignat",
