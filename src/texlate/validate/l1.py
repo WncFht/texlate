@@ -14,7 +14,7 @@
        常驻/批处理摊薄 <1ms/块；``shutil.which("node")`` 探测，
        无 node 优雅降级 L0。
 - 分发：``validate/ts/`` 内 validator.js + package.json（两 npm 依赖均有
-  prebuilt）随包作 data；首次 ``ensure_deps()`` 跑 ``npm i --prefix``（~5s）；
+  prebuilt）随包作 data；node_modules 缺席时 ``npm i --prefix`` 补装（~5s）；
   开发态可用 ``TEXLATE_TS_NODE_PATH`` 指到现成 node_modules（如 bench/ts）。
 
 判定**必须 baseline 相对模式**（``ok_relative``）：73.7% 真实主文件自带
@@ -207,30 +207,6 @@ class TsValidator:
     def available(self) -> bool:
         """Node + worker.js + npm 依赖三者齐备才可用，否则降级 L0。"""
         return bool(self._node and self.worker_js.is_file() and self._deps_present())
-
-    def ensure_deps(self) -> bool:
-        """依赖缺失时 ``npm i --prefix`` 一次性安装；成功返回 True。"""
-        if self._deps_present():
-            return True
-        npm = shutil.which("npm")
-        if not (self.worker_js.is_file() and npm):
-            return False
-        try:
-            subprocess.run(  # noqa: S603 - 固定 argv 无 shell
-                [npm, "i", "--prefix", str(self._worker_dir)],
-                check=True,
-                capture_output=True,
-                timeout=120,
-            )
-        except (OSError, subprocess.SubprocessError) as e:
-            detail = (
-                e.stderr.decode(errors="replace").strip()[-300:]
-                if isinstance(e, subprocess.CalledProcessError) and e.stderr
-                else str(e)
-            )
-            log.debug("L1 ensure_deps npm i failed: %s", detail)
-            return False
-        return self._deps_present()
 
     # ---------------- 传输 ----------------
 

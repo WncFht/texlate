@@ -22,7 +22,7 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from texlate.textutil import decode_tex
+from texlate.textutil import BEGIN_DOC_RX, decode_tex
 
 from .latex209 import upgrade_209
 from .mask import visible_tex
@@ -199,9 +199,6 @@ _INPUT_BRACED_RE = re.compile(r"\\(?:input|include|InputIfFileExists)\b\s*\{([^}
 _INPUT_BARE_RE = re.compile(r"\\input\s+([^\s{}%\\]+)")
 _INPUT_NAME_RE = re.compile(r"^[\w./+-]+$")
 
-#: ``\begin{document}`` 探测（遮盖视图：注释/verbatim 内命中已被抹除）。
-_BEGIN_DOC_RE = re.compile(r"\\begin\s*\{document\}")
-
 #: ``_body_mass`` BFS 文件数上界——分数只是排序键，够分胜负即可，
 #: 病态工程（数千 .tex）不拖死选取。
 _MASS_FILE_CAP = 1024
@@ -330,10 +327,10 @@ def _closure_has_document(root: Path, main: Path, text: str) -> bool:
     ``main.tex→begin.tex`` 形态）按本谓词收为候选；闭包文件与本体同在
     遮盖视图判定，注释掉的 bd/``\input`` 不计。
     """
-    if _BEGIN_DOC_RE.search(text):
+    if BEGIN_DOC_RX.search(text):
         return True
     return any(
-        _BEGIN_DOC_RE.search(sub) for _tgt, sub in _walk_inputs(root, [(main, text)])
+        BEGIN_DOC_RX.search(sub) for _tgt, sub in _walk_inputs(root, [(main, text)])
     )
 
 
@@ -390,7 +387,7 @@ def find_main_tex(root: Path) -> Path | None:
         # 与 _closure_has_document 的 ``\\begin\s*\{document\}`` 同口径——
         # ``\begin {document}``（空白合法）字面 split 切不到，body 量被
         # 前导区虚抬。
-        bodies[rel] = _BEGIN_DOC_RE.split(text, maxsplit=1)[-1]
+        bodies[rel] = BEGIN_DOC_RX.split(text, maxsplit=1)[-1]
         dc = re.search(r"\\document(?:class|style)\s*(\[[^\]]*\])?", text)
         tpl[rel] = bool(dc and dc.group(1) and "\\" in dc.group(1))
     if not candidates:
@@ -461,7 +458,7 @@ def classify_no_main(root: Path) -> str | None:
         if re.search(r"\\documentclass\b", vis):
             return None
         has_ds |= re.search(r"\\documentstyle\b", vis) is not None
-        has_bd |= _BEGIN_DOC_RE.search(vis) is not None
+        has_bd |= BEGIN_DOC_RX.search(vis) is not None
         plain |= _PLAIN_TEX_RE.search(vis) is not None
     if has_ds:
         return "latex209"

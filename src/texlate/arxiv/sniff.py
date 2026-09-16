@@ -26,6 +26,7 @@ from enum import StrEnum
 from typing import Final
 
 from texlate.arxiv._texutil import strip_comments
+from texlate.textutil import BEGIN_DOC_RX
 
 GZIP_MAGIC: Final = b"\x1f\x8b"
 PDF_MAGIC: Final = b"%PDF"
@@ -139,7 +140,6 @@ class WrapperVerdict:
     matched: list[str] = field(default_factory=list)
 
 
-_BEGIN_DOC_RE: Final = re.compile(r"\\begin\s*\{document\}")
 _END_DOC_RE: Final = re.compile(r"\\end\s*\{document\}")
 # \includepdf / \includepdfmerge / \includepdfset（pdfpages 宏包）
 _INCLUDEPDF_RE: Final = re.compile(r"\\includepdf\w*")
@@ -154,7 +154,7 @@ _BRACE_RE: Final = re.compile(r"[{}]")
 
 
 def _body_text(source: str) -> str:
-    m = _BEGIN_DOC_RE.search(source)
+    m = BEGIN_DOC_RX.search(source)
     if not m:
         return ""
     end = _END_DOC_RE.search(source, m.end())

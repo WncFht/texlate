@@ -24,13 +24,10 @@ from enum import StrEnum
 from pathlib import Path, PurePosixPath
 from typing import Final
 
-from texlate.arxiv._texutil import strip_comments
+from texlate.arxiv._texutil import TEX_EXT, strip_comments
 from texlate.arxiv.sniff import check_pdf_wrapper
-from texlate.textutil import decode_tex
+from texlate.textutil import BEGIN_DOC_RX, decode_tex
 
-#: 候选扩展名（docs/06 只列 .tex；corpus_v2 实测 .latex/.ltx 亦存在——
-#: nucl-ex/0203009 唯一主文件即 article.latex）
-_TEX_EXT: Final = (".tex", ".ltx", ".latex")
 _FILENAME_PRIOR: Final = frozenset(
     {"main", "paper", "ms", "root", "manuscript", "thesis"}
 )
@@ -38,7 +35,6 @@ _MAX_DEPTH: Final = 64
 _MULTI_ROOT: Final = 2
 
 _DOCCLASS_RE: Final = re.compile(r"\\(?:documentclass|documentstyle)(?![a-zA-Z@])")
-_BEGINDOC_RE: Final = re.compile(r"\\begin\s*\{document\}")
 _PLAIN_RE: Final = re.compile(r"\\bye(?![a-zA-Z@])")
 _CONTEXT_RE: Final = re.compile(
     r"\\(?:starttext|startdocument|startcomponent)(?![a-zA-Z@])"
@@ -315,7 +311,7 @@ def locate(root: Path, arxiv_id: str = "") -> LocateResult:
     res = LocateResult(root=root, kind=DocKind.NONE)
     fileset = set(_iter_files(root))
     lowermap = {p.lower(): p for p in fileset}
-    tex_files = sorted(p for p in fileset if p.lower().endswith(_TEX_EXT))
+    tex_files = sorted(p for p in fileset if p.lower().endswith(TEX_EXT))
     if not tex_files:
         res.warnings.append("no_tex_files")
         return res
@@ -414,7 +410,7 @@ def _scan_nodes(
             stripped=stripped,
             scanned=scanned,
             has_documentclass=bool(_DOCCLASS_RE.search(scanned)),
-            has_begin_document=bool(_BEGINDOC_RE.search(scanned)),
+            has_begin_document=bool(BEGIN_DOC_RX.search(scanned)),
             refs=_scan_refs(rel, scanned),
         )
     return nodes

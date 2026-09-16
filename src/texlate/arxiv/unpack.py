@@ -32,6 +32,7 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Final
 
+from texlate.arxiv._texutil import TEX_EXT
 from texlate.arxiv.sniff import BlobKind, SniffResult
 
 #: 资源上限（docs/06 §2.2）
@@ -41,7 +42,6 @@ MAX_TOTAL_BYTES: Final = 512 * 1024 * 1024
 #: stub 成员阈值：<100B 或 %auto-ignore 前缀（实测 42B 占位混入案例）
 STUB_SIZE: Final = 100
 STUB_PREFIX: Final = b"%auto-ignore"
-_TEX_EXT: Final = (".tex", ".ltx", ".latex")
 
 _DRIVE_RE: Final = re.compile(r"^[A-Za-z]:")
 #: 成员名/链接名控制字符——POSIX 允许落盘但 TSV manifest（files.txt/mtree.txt）
@@ -98,7 +98,7 @@ class UnpackResult:
     @property
     def tex_files(self) -> int:
         """``.tex``/``.ltx``/``.latex`` 文件数。"""
-        return sum(1 for f in self.files if f.lower().endswith(_TEX_EXT))
+        return sum(1 for f in self.files if f.lower().endswith(TEX_EXT))
 
     @property
     def stub_files(self) -> list[str]:

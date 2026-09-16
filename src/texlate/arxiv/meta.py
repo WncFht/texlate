@@ -79,7 +79,6 @@ class VersionInfo:
     version: int
     date: str = ""
     size: str = ""
-    source_type: str = ""
 
 
 @dataclass(slots=True)
@@ -211,7 +210,6 @@ def _parse_oai(body: bytes, pin: int | None) -> PaperMeta | None:
                 version=int(nv),
                 date=_rfc822_to_iso(_text(v, f"{{{_RAW_NS}}}date")),
                 size=_text(v, f"{{{_RAW_NS}}}size"),
-                source_type=_text(v, f"{{{_RAW_NS}}}source_type"),
             )
         )
     # 按版本号排序取真值——文档序不保证升序时 published/updated 会颠倒（审计实证）

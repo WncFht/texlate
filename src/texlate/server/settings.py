@@ -27,6 +27,10 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
 
 from texlate.xlat.client import (
+    _LOOPBACK_HOSTS,
+    _TAILNET_V4,
+    DEFAULT_BASE_URL,
+    DEFAULT_MODEL,
     PROVIDER_KEY_ENV,
     normalize_base_url,
     provider_for_url,
@@ -36,9 +40,6 @@ from texlate.xlat.state import atomic_json
 
 log = logging.getLogger(__name__)
 
-#: 默认网关/模型（本地 3003 网关免费集首选，docs/research/gateway 实测）
-DEFAULT_BASE_URL = "http://100.105.212.52:3003"
-DEFAULT_MODEL = "swe-2-medium"
 DEFAULT_TARGET_LANG = "zh-CN"
 
 SETTINGS_FILE = "settings.json"
@@ -56,16 +57,14 @@ TARGET_LANGS = frozenset({"zh-CN", "zh-TW", "en"})
 #: 模型名长度上限（防滥用长串）
 MODEL_MAX_LEN = 200
 
-_LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
-
-# tailnet（CGNAT 段 / *.ts.net）：WireGuard 传输本身已加密，HTTP 放行。
-_TAILNET_V4 = ipaddress.ip_network("100.64.0.0/10")
-
 
 def _is_plaintext_ok_host(hostname: str) -> bool:
-    """HTTP 放行：localhost，或 tailnet 主机（CGNAT 字面量 / ``*.ts.net``）。"""
+    """HTTP 放行：localhost，或 tailnet 主机（CGNAT 字面量 / ``*.ts.net``）。
+
+    tailnet 放行依据：WireGuard 传输本身已加密，HTTP 不泄密。
+    """
     h = hostname.lower()
-    if h in _LOCAL_HOSTS or h.endswith(".ts.net"):
+    if h in _LOOPBACK_HOSTS or h.endswith(".ts.net"):
         return True
     try:
         return ipaddress.ip_address(h) in _TAILNET_V4

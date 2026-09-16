@@ -1,6 +1,7 @@
 r"""LaTeX 源码文本工具：注释剥离（\% 转义 / verbatim / comment 环境感知）。
 
-供 sniff（pdf_wrapper 检测）与 locate（documentclass / \input 匹配）共用。
+供 sniff（pdf_wrapper 检测）、locate（documentclass / \input 匹配）与
+unpack（tex_files 计数）共用。
 口径见 docs/research/corpus/corpus39-profile.md：逐行剥注释，奇数前导 \ 的
 \% 视为转义不剥。
 
@@ -10,7 +11,13 @@ r"""LaTeX 源码文本工具：注释剥离（\% 转义 / verbatim / comment 环
 
 from __future__ import annotations
 
+from typing import Final
+
 from texlate.textutil import mask_tex
+
+#: TeX 主文件扩展名（docs/06 只列 .tex；corpus 实测 .ltx/.latex 亦存在——
+#: nucl-ex/0203009 唯一主文件即 article.latex）
+TEX_EXT: Final = (".tex", ".ltx", ".latex")
 
 
 def strip_comments(text: str, *, keep_verbatim: bool = True) -> str:

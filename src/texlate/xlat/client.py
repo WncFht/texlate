@@ -38,8 +38,6 @@ log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------- 常量
 
-#: 网关注入的隐藏 prompt token 量级（探针实测 154–566，取保守中值供成本估算）
-HIDDEN_PROMPT_TOKENS = 465
 #: reasoning 模型最小输出预算（思考先烧预算，16 token 会全耗在思考上 → content 空）
 REASONING_MIN_MAX_TOKENS = 8192
 #: 探活请求预算（只要求非空 content，给思考留 1k 余量足够）
@@ -306,7 +304,6 @@ class FreeModel:
     uid: str
     promo_end: str = ""
     context_tokens: int = 0
-    max_output_tokens: int = 0
     supports_thinking: bool = False
     probe_ok: bool = False
     probe_latency_s: float = 0.0
@@ -892,7 +889,6 @@ class ChatClient:
                     uid=uid,
                     promo_end=str(promo.get("end_date") or ""),
                     context_tokens=int(m.get("context_tokens") or 0),
-                    max_output_tokens=int(m.get("max_output_tokens") or 0),
                     supports_thinking=bool(m.get("supports_thinking")),
                 )
             )
