@@ -196,7 +196,7 @@ def test_tail_enter_file_name_alone() -> None:
 
 
 def test_tail_latex209() -> None:
-    cat, _ = classify("...\nThis is a documentstyle era document\n")
+    cat, _ = classify("...\nThis is a \\documentstyle era document\n")
     assert cat == "latex209"
 
 

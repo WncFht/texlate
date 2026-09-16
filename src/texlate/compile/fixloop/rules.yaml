@@ -24,7 +24,12 @@
 # +hyperref_driver/+float_opt/+pkg_order/+invalid_char/+expl3_backend
 # ("other" 拆家) + ps_image 数字扩展名变体 (metapost); shim_map +mn2e/
 # svjour/slashbox/geom/tcilatex/epsf/svglov3; rules +graphic_case_link(17)
-# +graphic_repair(18) +invalid_char_recode(97)。
+# +graphic_repair(18) +invalid_char_recode(97)。同轮 FP 收紧 (fix-engine-fp
+# 口径对齐): latex209 head/tail 收真 2.09 签名 (\documentstyle cs/compat-mode
+# 横幅/"LaTeX Version 2.09"/"in LaTeX 2.09" 错文; aastex "Original \LaTeX2.09"
+# 横幅四案误中实证); source_contains 三处加行锚 (?m)^[ \t]* 防注释误中
+# (pstricks_route/pstricks_dvips_preflight/aastex_bundle_shadow, 1803.08846;
+# pstricks 包名口径对齐 engine.py _PSTRICKS_RE 元素级)。
 # 社区贡献入口 = 新增/修改本文件条目。
 #
 # 两层结构:
@@ -223,10 +228,15 @@ taxonomy:
       scope: head,
       pattern: "inputenc is not designed for",
     }
+  # 2026-09-16 收紧 (对齐 compile/engine.py _LATEX209_TAIL_RE): 裸
+  # "LaTeX2.09" 字样误中 aastex 系 cls 的 info 横幅 "Original \LaTeX2.09
+  # style" (LaTeX2e 文档; 2211.04503/1803.08927/1803.09046/2203.04385 四案
+  # 实证)。真 2.09 只认: \documentstyle cs 本体 / 内核 compat-mode 横幅 /
+  # "in LaTeX 2.09" 错文 / "LaTeX Version 2.09" 上古版横幅。
   - {
       id: latex209,
       scope: head,
-      pattern: "documentstyle|LaTeX ?2\\.09|LaTeX2e command .* in LaTeX 2\\.09",
+      pattern: "(?m)\\\\documentstyle\\b|LaTeX 2\\.09 COMPATIBILITY MODE|LaTeX2e command[^\\n]*\\bin LaTeX 2\\.09|LaTeX Version 2\\.09|^[ \\t]*Compatibility mode",
     }
   # 2026-09-16 新增变体行 (1909.05039 实证): 冒犯 cs 在宏/钩展开上下文
   # 尾行而 l.N 行空白时 (\__hook shipout ...geHook \headerps@out 型),
@@ -325,7 +335,8 @@ taxonomy:
       payload_group: null,
       pattern: "Enter file name",
     }
-  - { id: latex209, scope: tail, pattern: "documentstyle|LaTeX ?2\\.09" }
+  # tail 行同款收紧 (aastex 横幅会落 tail 30 行内抢签) —— 与 head 行同表。
+  - { id: latex209, scope: tail, pattern: "(?m)\\\\documentstyle\\b|LaTeX 2\\.09 COMPATIBILITY MODE|LaTeX2e command[^\\n]*\\bin LaTeX 2\\.09|LaTeX Version 2\\.09|^[ \\t]*Compatibility mode" }
   # —— warnings 段: 无 '!' 且无 tail 命中, 但 warning 红线命中 (v1.1) ——
   - { id: warn_utf8, scope: warnings, warn_id: invalid_utf8 } # docs/08 §5.2 non_utf8_source 的类别入口
   - { id: warn_missing_char, scope: warnings, warn_id: missing_char } # F4: 无 '!' 错但缺字 → 分诊修复入口
@@ -384,7 +395,10 @@ rules:
     condition: {
         # v2 修正: documentstyle 行锚定 (注释不命中) AND pstricks 依赖,
         # 单 pattern 内顺序表达: \documentstyle 恒在文档头部先于包引用。
-        source_contains: "(?ms)^[ \\t]*\\\\documentstyle[\\s\\S]*?(\\\\usepackage(\\[[^\\]]*\\])?\\{pstricks|pspicture|\\\\psset)",
+        # 2026-09-16 再修: 后半 pstricks 组同病注释误中 (source_contains 跑
+        # raw 源, % 注释行会命中) —— 内组加同款行锚, 口径同 pstricks_route
+        # (engine.py _PSTRICKS_RE 元素级语义)。
+        source_contains: "(?ms)^[ \\t]*\\\\documentstyle[\\s\\S]*?^[ \\t]*(\\\\(?:usepackage|RequirePackage)\\s*(\\[[^\\]]*\\])?\\s*\\{[^}]*?\\b(pstricks(-\\w+)?|pst-\\w+)\\b|\\\\begin\\s*\\{pspicture\\*?\\}|\\\\pspicture\\b|\\\\psset\\b)",
       }
     action:
       kind: builtin_transform
@@ -411,7 +425,14 @@ rules:
     when: { always: true }
     condition:
       engine_in: [tectonic]
-      source_contains: "\\\\usepackage(\\[[^\\]]*\\])?\\{(pstricks|pst-\\w+)\\}|pspicture|\\\\psset"
+      # 2026-09-16 注释-FP 收紧 (1803.08846 实证: %\usepackage{pstricks}
+      # 注释行误杀 baseline-clean 稿): source_contains 跑 raw 源 → 各备选项
+      # 行锚 (?m)^[ \t]* (:369 latex209 gate 先例, % 注释行不命中)。包名
+      # 元素级口径同 compile/engine.py _PSTRICKS_RE (2d06184):
+      # pstricks(?:-\w+)?|pst-\w+ 元素边界 (防 {notpstricks} 子串),
+      # RequirePackage 同收, {amsmath,pstricks} 非首元素命中; pspicture
+      # 收 \begin{pspicture*?}/\pspicture cs 两形态。
+      source_contains: "(?m)^[ \\t]*(\\\\(?:usepackage|RequirePackage)\\s*(\\[[^\\]]*\\])?\\s*\\{[^}]*?\\b(pstricks(-\\w+)?|pst-\\w+)\\b|\\\\begin\\s*\\{pspicture\\*?\\}|\\\\pspicture\\b|\\\\psset\\b)"
     action:
       kind: reject_route
       params:
@@ -1044,6 +1065,7 @@ rules:
                 \includegraphics[height=\epsfysize]{#1}%
                 \else\includegraphics{#1}\fi\fi}
               \let\epsffile\epsfbox
+              \endinput
           # svglov3.clo (svjour3 无期刊选项时硬 \input 的版式件, 不在 TL;
           # 其余 sv*.clo 走 \InputIfFileExists 已可graceful) —— 裸 stub,
           # 版式差异由 article 面兜底。实证 1608.06693 (zh 臂)。
@@ -1718,7 +1740,9 @@ rules:
     when: { category: undefined_cs, payload_required: true }
     condition:
       engine_in: [tectonic] # bundle 内建类问题只存在于 tectonic
-      source_contains: "\\\\documentclass[ \\t]*(\\[[^\\]]*\\])?[ \\t]*\\{aastex\\}"
+      # 同款注释-FP 收紧: %\documentclass{aastex} 注释行不得触发遮蔽
+      # (行锚同 :369 latex209 gate 先例)。
+      source_contains: "(?m)^[ \\t]*\\\\documentclass[ \\t]*(\\[[^\\]]*\\])?[ \\t]*\\{aastex\\}"
     action:
       kind: builtin_transform
       function: bundled_class_shadow
