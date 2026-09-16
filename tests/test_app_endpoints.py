@@ -688,7 +688,11 @@ class TestRetryEdges:
     def test_retry_bad_json_400(self, client: TestClient) -> None:
         tid = _mk(client)
         client.post(f"/api/task/{tid}/cancel")
-        r = client.post(f"/api/task/{tid}/retry", content=b"{broken")
+        r = client.post(
+            f"/api/task/{tid}/retry",
+            content=b"{broken",
+            headers={"Content-Type": "application/json"},
+        )
         assert r.status_code == HTTPStatus.BAD_REQUEST
         assert client.get(f"/api/task/{tid}").json()["status"] == "cancelled"
 
@@ -942,7 +946,11 @@ class TestReaderPut:
 
     def test_put_bad_json_400(self, client: TestClient) -> None:
         tid = _mk(client)
-        r = client.put(f"/api/task/{tid}/reader/position", content=b"{broken")
+        r = client.put(
+            f"/api/task/{tid}/reader/position",
+            content=b"{broken",
+            headers={"Content-Type": "application/json"},
+        )
         assert r.status_code == HTTPStatus.BAD_REQUEST
 
 
@@ -951,7 +959,11 @@ class TestReaderPut:
 
 class TestSettingsPut:
     def test_bad_json_400(self, client: TestClient) -> None:
-        r = client.put("/api/settings", content=b"{broken")
+        r = client.put(
+            "/api/settings",
+            content=b"{broken",
+            headers={"Content-Type": "application/json"},
+        )
         assert r.status_code == HTTPStatus.BAD_REQUEST
 
     def test_bad_target_lang_400(self, client: TestClient) -> None:
@@ -1076,19 +1088,20 @@ class TestCsrfEdges:
         )
         assert r.status_code == HTTPStatus.FORBIDDEN
 
-    def test_origin_ipv6_localhost_ok(self, client: TestClient) -> None:
+    def test_origin_ipv6_localhost_403(self, client: TestClient) -> None:
+        """[::1] 与 localhost 是不同 origin（主机形+端口全等比对）——拒。"""
         r = client.post(
             f"/api/arxiv/{ARXIV}/translate",
             json={},
             headers={"Origin": "http://[::1]:8765"},
         )
-        assert r.status_code == HTTPStatus.ACCEPTED
+        assert r.status_code == HTTPStatus.FORBIDDEN
 
     def test_origin_case_insensitive_host(self, client: TestClient) -> None:
         r = client.post(
             f"/api/arxiv/{ARXIV}/translate",
             json={},
-            headers={"Origin": "HTTP://LOCALHOST:8765"},
+            headers={"Origin": "HTTP://LOCALHOST"},
         )
         assert r.status_code == HTTPStatus.ACCEPTED
 
@@ -1334,7 +1347,12 @@ class TestServerModeSettingsGate:
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv("TEXLATE_MODE", "server")
-        r = client.put("/api/settings", json={"base_url": "https://evil.example"})
+        # 带 key 才过匿名 401 闸、够到 write gate 的 403
+        r = client.put(
+            "/api/settings",
+            json={"base_url": "https://evil.example"},
+            headers={"X-Texlate-Key": "k-A"},
+        )
         assert r.status_code == HTTPStatus.FORBIDDEN
         # 未落盘——settings.json 根本没被写
         assert not (client.app.state.data_dir / "settings.json").exists()
@@ -1343,7 +1361,7 @@ class TestServerModeSettingsGate:
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv("TEXLATE_MODE", "server")
-        r = client.post("/api/settings/test", json={})
+        r = client.post("/api/settings/test", json={}, headers={"X-Texlate-Key": "k-A"})
         assert r.status_code == HTTPStatus.FORBIDDEN
 
     def test_read_paths_open(

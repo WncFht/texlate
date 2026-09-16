@@ -141,7 +141,11 @@ class TestSettingsTest:
             port = sock.getsockname()[1]
             client.put("/api/settings", json={"api_key": "sk-probe-key"})
             r = client.post(
-                "/api/settings/test", json={"base_url": f"http://127.0.0.1:{port}"}
+                "/api/settings/test",
+                json={
+                    "base_url": f"http://127.0.0.1:{port}",
+                    "api_key": "sk-probe-key",  # SEC-4：base_url 覆盖须同给 key
+                },
             )
         assert r.status_code == HTTPStatus.OK
         body = r.json()

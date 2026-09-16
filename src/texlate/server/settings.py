@@ -139,10 +139,14 @@ def validate_base_url(value: str) -> str:
 
 
 def validate_model(value: str) -> str:
-    """模型名校验：非空、长度上限。"""
+    r"""模型名校验：非空、长度上限、不含控制字符。
+
+    控制字符（``\n`` 等）会原样进 ``log.warning``/事件载荷——日志注入面；
+    ``isprintable`` 放行空格/CJK/emoji，只挡 C0/C1/分隔符族。
+    """
     v = value.strip()
-    if not v or len(v) > MODEL_MAX_LEN:
-        msg = "invalid model（空或超 200 字符）"
+    if not v or len(v) > MODEL_MAX_LEN or not v.isprintable():
+        msg = "invalid model（空/超 200 字符/含控制字符）"
         raise ValueError(msg)
     return v
 
@@ -466,6 +470,9 @@ def resolve_auth(  # noqa: PLR0913 -- header/base_url/model/mode/salt 即决议�
 
     ``auth_source`` 由 key 的来源决定（key 才是重启续跑的关键物）；
     header key 校验失败后不落 settings 兜底——显式覆盖语义。
+    server 形态例外：无 header key 时 key 不回落 settings/env——匿名
+    桶永不携带部署方凭据（匿名 mutation 由 app 中间件 401 挡死，读面
+    也绝不外借 key）。
     """
     base_url = settings["base_url"] or DEFAULT_BASE_URL
     if header_base_url:
@@ -481,6 +488,8 @@ def resolve_auth(  # noqa: PLR0913 -- header/base_url/model/mode/salt 即决议�
 
     if header_key:
         api_key, source = header_key, "header"
+    elif mode == "server":
+        api_key, source = "", "none"
     elif settings.get("api_key"):
         api_key, source = str(settings["api_key"]), "settings"
     else:

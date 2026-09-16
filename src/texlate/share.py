@@ -60,6 +60,13 @@ _EMPTY_OK = frozenset({"version", "glossary_hash"})
 _MANIFEST_MAX = 1 << 20
 #: 单产物成员尺寸上限（论文工程含图一般 <100MB；宽松取 256MB 防 zip 炸弹）。
 _MEMBER_MAX = 256 << 20
+#: manifest ``artifacts`` 条目数上限——真包 2–4 件，宽松取值挡成员洪泛。
+_ARTIFACT_MAX = 64
+#: 聚合解压字节上限（与 ``worker.unpack_zip`` INFLATED_CAP 同量级）——按
+#: manifest 声明 bytes 合计预算；成员真实大小与声明不符在
+#: ``_extract_verified`` 对账即拒，声明总量即实际上界。bzip2/lzma 等
+#: 压缩法不改变结论：上界钉在解压后尺寸，与压缩率无关。
+_INFLATED_MAX = 300 << 20
 #: sha256 hex digest 定长。
 _SHA256_HEX_LEN = 64
 #: 产物名字节上限——主流文件系统 NAME_MAX=255，超限名写盘必炸，校验段先拒。
@@ -353,11 +360,18 @@ def _manifest_checked(doc: Mapping[str, Any]) -> ShareManifest:
     if not isinstance(raw_arts, dict) or not raw_arts:
         msg = "artifacts missing or not an object"
         raise ShareError(msg)
+    if len(raw_arts) > _ARTIFACT_MAX:
+        msg = f"too many artifacts: {len(raw_arts)} > {_ARTIFACT_MAX}"
+        raise ShareError(msg)
     missing = [n for n in REQUIRED_ARTIFACTS if n not in raw_arts]
     if missing:
         msg = f"required artifacts absent from manifest: {missing}"
         raise ShareError(msg)
     arts = {str(n): _artifact_checked(n, a) for n, a in raw_arts.items()}
+    total = sum(a.size for a in arts.values())
+    if total > _INFLATED_MAX:
+        msg = f"artifacts too large in aggregate: {total}B > {_INFLATED_MAX}B"
+        raise ShareError(msg)
     return ShareManifest(
         fmt=SHARE_FORMAT,
         share_key=derived,
@@ -384,7 +398,10 @@ def _extract_verified(
         )
         raise ShareError(msg)
     try:
-        blob = zf.read(info)
+        with zf.open(info) as fp:
+            # 声明尺寸 +1 截断读——中央目录 file_size 可能谎报，
+            # 有界读防「声明小、实解大」的内存炸弹先于对账分配巨量。
+            blob = fp.read(art.size + 1)
     except (
         OSError,
         zipfile.BadZipFile,
@@ -405,8 +422,9 @@ def unpack_share(path: Path, dest: Path) -> ShareManifest:
     包/校验失败 → ``ShareError``；``dest`` 落盘与改名等本地 I/O 失败抛
     ``OSError``（环境错与坏包分流，消费端按两者都降级）。校验序：
     zip 可读 → manifest.json 存在且 ≤ ``_MANIFEST_MAX`` →
-    format/key_parts/share_key 重算 → artifacts 表 → 逐成员 size+sha256
-    对账。只抽取 manifest 登记成员（白名单），包内多余成员忽略——天然免
+    format/key_parts/share_key 重算 → artifacts 表（条数 ≤
+    ``_ARTIFACT_MAX``、声明合计 ≤ ``_INFLATED_MAX``）→ 逐成员 size+sha256
+    对账（读取按声明尺寸 +1 截断，目录 size 谎报不放大内存）。只抽取 manifest 登记成员（白名单），包内多余成员忽略——天然免
     zip-slip。产物先落 ``dest`` 内临时目录、全部对账过才逐件 rename 进
     ``dest``——校验中途失败 ``dest`` 零残留（既有同名文件也不被覆写）。
     """

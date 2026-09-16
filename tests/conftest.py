@@ -126,6 +126,34 @@ def _restore_log_filters() -> Iterator[None]:
                 h.removeFilter(f)
 
 
+@pytest.fixture(autouse=True)
+def _testclient_loopback_host() -> Iterator[None]:
+    """TestClient 缺省 ``base_url`` 钉 ``http://localhost``——配合 local Host 白名单。
+
+    app ``request_gate_mw`` 在 local 形态拒非 loopback ``Host``（DNS
+    rebinding 收口）；starlette 缺省 ``testserver`` 会让全量用例 403。
+    包装 ``__init__`` 统一默认值——测试文件 ``from starlette.testclient
+    import TestClient`` 拿到的是同一类对象，实例化时生效；显式传
+    ``base_url`` 的用例不受影响。server extra 缺装时安静跳过。
+    """
+    try:
+        from starlette.testclient import TestClient  # noqa: PLC0415
+    except ImportError:
+        yield
+        return
+    orig_init = TestClient.__init__
+
+    def _init(self: TestClient, app: object, *args: object, **kwargs: object) -> None:
+        kwargs.setdefault("base_url", "http://localhost")
+        orig_init(self, app, *args, **kwargs)
+
+    TestClient.__init__ = _init  # type: ignore[method-assign]
+    try:
+        yield
+    finally:
+        TestClient.__init__ = orig_init  # type: ignore[method-assign]
+
+
 def make_targz(files: dict[str, str]) -> bytes:
     """内存构造 tar.gz（arxiv FakeFetcher 的 e-print 载荷）。"""
     buf = io.BytesIO()

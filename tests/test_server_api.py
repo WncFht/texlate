@@ -262,13 +262,23 @@ class TestCsrf:
         )
         assert r.status_code == HTTPStatus.FORBIDDEN
 
-    def test_localhost_origin_ok(self, client: TestClient) -> None:
+    def test_same_origin_ok(self, client: TestClient) -> None:
+        """Origin 与请求 scheme+Host 全等（含端口）→ 放行。"""
+        r = client.post(
+            f"/api/arxiv/{ARXIV}/translate",
+            json={},
+            headers={"Origin": "http://localhost"},
+        )
+        assert r.status_code == HTTPStatus.ACCEPTED
+
+    def test_other_loopback_origin_403(self, client: TestClient) -> None:
+        """127.0.0.1:8765 ≠ localhost——loopback 族内跨 origin 也拒。"""
         r = client.post(
             f"/api/arxiv/{ARXIV}/translate",
             json={},
             headers={"Origin": "http://127.0.0.1:8765"},
         )
-        assert r.status_code == HTTPStatus.ACCEPTED
+        assert r.status_code == HTTPStatus.FORBIDDEN
 
     def test_get_not_checked(self, client: TestClient) -> None:
         r = client.get("/api/health", headers={"Origin": "https://evil.com"})

@@ -2,8 +2,9 @@
 
 ``create_app()`` 组装：``Store``(SQLite 单写者) + ``EventBus``(SSE 扇出)
 + ``TaskRunner``/``PipelineWorker``（``start_worker=False`` 供测试按住
-dispatcher）。横切：``/api`` 一律 ``Cache-Control: no-store``；local 模式
-对 mutating 请求做 ``Origin``/``Sec-Fetch-Site`` CSRF 检查（texglot 同款）。
+dispatcher）。横切：``/api`` 一律 ``Cache-Control: no-store``；入站闸
+（``request_gate_mw``）做 local Host 白名单 + mutating 请求
+``Origin``/``Sec-Fetch-Site`` 同源检查 + server 形态匿名写 401。
 
 key 纪律：``X-Texlate-*`` 头只进内存 ``Secrets`` 随任务活，绝不写库/日志；
 ``GET /api/settings`` 出参只给 ``has_api_key``。
@@ -364,6 +365,25 @@ def _json_error(status: int, detail: str, code: str | None = None) -> JSONRespon
     return JSONResponse(body, status_code=status)
 
 
+def _host_only(host: str) -> str:
+    """``Host`` 头剥端口 → 小写主机名（``[::1]:p`` 与裸 ``::1`` 都收）。"""
+    h = host.strip().lower()
+    if h.startswith("["):
+        return h[1:].split("]", 1)[0]
+    if h.count(":") > 1:
+        return h  # 裸 IPv6（无括号写法）
+    return h.split(":", 1)[0]
+
+
+def _same_origin(request: Request, origin: str) -> bool:
+    """``Origin`` 与请求 scheme+Host（含端口）严格一致——同源判定。"""
+    o = urlsplit(origin)
+    return (
+        o.scheme == request.url.scheme
+        and o.netloc.lower() == request.headers.get("host", "").lower()
+    )
+
+
 def _artifacts(store: Store, task_id: str) -> dict[str, str]:
     """``{db_kind: /api/files/{id}/{url_kind}}``（done 事件/快照共用）。"""
     return {
@@ -452,22 +472,44 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
     # ------------------------------------------------------------ 横切
 
     @app.middleware("http")
-    async def local_only_mw(
+    async def request_gate_mw(
         request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
-        """Local 模式 CSRF：mutating /api 拒跨站（texglot 同款）。"""
-        if server_mode() == "server":
+        """入站闸：local Host 白名单 + mutating /api 跨站检查 + server 匿名写 401。
+
+        - local 形态 ``Host`` 剥端口须 loopback——DNS rebinding 读面收口。
+        - mutating /api：``Sec-Fetch-Site: cross-site`` 一律拒；``Origin``
+          在时须与请求 scheme+Host（含端口）同源，或命中 server 形态
+          ``cors_origins`` allowlist（部署方显式跨域面）；两头皆无的
+          非浏览器客户端（curl/脚本）放行。
+        - server 形态无 ``X-Texlate-Key`` 的 mutation 一律 401——settings/env
+          的部署方 key 不外借（``resolve_auth`` 同侧不再回落）。
+        """
+        if server_mode() != "server":
+            host = request.headers.get("host", "")
+            if host and _host_only(host) not in _LOOPBACK_HOSTS:
+                return _json_error(403, f"host {host} not allowed")
+        mutating = request.method in (
+            "POST",
+            "PUT",
+            "DELETE",
+            "PATCH",
+        ) and request.url.path.startswith("/api")
+        if not mutating:
             return await call_next(request)
-        if request.method in ("POST", "PUT", "DELETE", "PATCH") and (
-            request.url.path.startswith("/api")
-        ):
-            if request.headers.get("sec-fetch-site") == "cross-site":
-                return _json_error(403, "cross-site request rejected")
-            origin = request.headers.get("origin")
-            if origin:
-                host = (urlsplit(origin).hostname or "").lower()
-                if host not in _LOOPBACK_HOSTS:
-                    return _json_error(403, f"origin {host} not allowed")
+        origin = request.headers.get("origin")
+        if origin and origin in getattr(app.state, "cors_origins", ()):
+            pass  # 部署方 CORS allowlist 显式放行的跨域源
+        elif request.headers.get("sec-fetch-site") == "cross-site":
+            return _json_error(403, "cross-site request rejected")
+        elif origin and not _same_origin(request, origin):
+            return _json_error(403, f"origin {origin} not allowed")
+        if server_mode() == "server" and not request.headers.get("x-texlate-key"):
+            return _json_error(
+                401,
+                "server 形态 mutation 要求 X-Texlate-Key",
+                "auth_required",
+            )
         return await call_next(request)
 
     @app.middleware("http")
@@ -481,7 +523,9 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
 
     # server 形态 CORS allowlist（web-layer §6）：settings.cors_origins 显式配，
     # 空 = 不挂中间件 = 禁跨域（浏览器同源策略天然拒）。local 形态不读此项——
-    # 跨站防护由 local_only_mw 的 fetch-site/origin 检查承担。
+    # 跨站防护由 request_gate_mw 的同源检查承担；allowlist 同时喂给该闸作
+    # mutation 的跨域放行面。
+    _origins: list[str] = []
     if server_mode() == "server":
         _origins = list(settings_store.load().get("cors_origins") or [])
         if _origins:
@@ -498,6 +542,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
                     "x-texlate-model",
                 ],
             )
+    app.state.cors_origins = _origins
 
     @app.exception_handler(_ApiError)
     async def _api_error(_req: Request, exc: _ApiError) -> JSONResponse:
@@ -562,11 +607,26 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         )
 
     async def _read_body(request: Request) -> dict[str, Any]:
-        """可选 JSON body；坏 JSON → 400。"""
+        """可选 JSON body；坏 JSON → 400；非空 body 须 ``application/json``。
+
+        Content-Type 闸是 CSRF 面的另一半：浏览器 simple-request 只能发
+        ``text/plain``/``application/x-www-form-urlencoded``/``multipart``——
+        闸死后跨站表单构造不了有效 JSON mutation。空 body（无 CT 的
+        curl 式 POST）照旧放行。
+        """
         _cap_request_body(request)  # 与 multipart 同闸——无 CL 时 body() 原无界读
         raw = await request.body()
         if not raw:
             return {}
+        ctype = request.headers.get("content-type", "").split(";", 1)[0].strip()
+        if ctype.lower() != "application/json":
+            raise _ApiError(
+                415,
+                {
+                    "detail": "Content-Type 须为 application/json",
+                    "code": "unsupported_media_type",
+                },
+            )
         try:
             data = json.loads(raw)
         except json.JSONDecodeError as e:
@@ -911,13 +971,17 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
             route, app.state.babeldoc or find_tool("babeldoc"), filename
         )
         model, target_lang, options = _upload_fields(request, form)
+        # re.sub 白名单放行 ``.``——``..`` 原样幸存会打成目录写（500+孤儿
+        # task 目录），建行前先拒。
+        safe = re.sub(r"[^A-Za-z0-9_.+-]", "_", Path(filename).name)
+        if safe in (".", ".."):
+            raise _ApiError(400, {"detail": f"unsafe filename: {filename!r}"})
         # 先落 blob（建行前），再建行+入队——task_id 两侧共用
         task_id = new_task_id()
         updir = root / "tasks" / task_id / "upload"
-        updir.mkdir(parents=True, exist_ok=True)
-        safe = re.sub(r"[^A-Za-z0-9_.+-]", "_", Path(filename).name)
-        (updir / (safe or "upload.bin")).write_bytes(data)
         try:
+            updir.mkdir(parents=True, exist_ok=True)
+            (updir / (safe or "upload.bin")).write_bytes(data)
             row, status, extra = _create_and_enqueue(
                 request,
                 kind=route,
@@ -1423,6 +1487,10 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         """探活配置端点：body 可带覆盖值；错误信息先过 scrub。"""
         _settings_write_gate()
         body = await _read_body(request)
+        if body.get("base_url") and not body.get("api_key"):
+            # 跨槽组合即已存 key 被打向任意出站地址的 exfil oracle——
+            # 与 settings.save 的「新槽按新 base_url 查 key」同设计。
+            return _json_error(400, "覆盖 base_url 须同给 api_key")
         cur = settings_store.load()
         base_url = str(body.get("base_url") or cur["base_url"])
         api_key = str(body.get("api_key") or cur["api_key"])
