@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "documents": {
+    "original": {
+      "version": "d134c7e214af49e2488c50987afacc8e3010b42479da03042602956f0704e665",
+      "pages": 1
+    },
+    "translated": {
+      "version": "2031a6402185c088150fe5ab03d810fba44057214a62a05839efbec8ecf2b48a",
+      "pages": 1
+    }
+  },
+  "chunks": [
+    {
+      "seq": 0,
+      "src_file": "main.tex",
+      "en": "Intro",
+      "zh": "引言",
+      "kind": "section_title"
+    },
+    {
+      "seq": 1,
+      "src_file": "main.tex",
+      "en": "This is a longer paragraph of English text that should definitely be segmented into at least one chunk for translation purposes.",
+      "zh": "这是一段较长的英文文本，出于翻译目的，它肯定应该被分割成至少一个块。",
+      "kind": "para"
+    },
+    {
+      "seq": 2,
+      "src_file": "main.tex",
+      "en": "And a second paragraph here.",
+      "zh": "这里是第二段。",
+      "kind": "para"
+    }
+  ],
+  "alignment": {
+    "kind": "pages",
+    "heights": {
+      "original": [
+        1.0
+      ],
+      "translated": [
+        1.0
+      ]
+    }
+  }
+}
