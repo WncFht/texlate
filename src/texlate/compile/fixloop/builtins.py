@@ -19,6 +19,8 @@ import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from texlate.compile.normalize import INTERMEDIATE_SUFFIXES
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -856,6 +858,43 @@ def shim_pkgs_in_use(ctx: LoopCtx, shim_map: dict[str, Any]) -> list[str]:
     ]
 
 
+def purge_corrupt_intermediates(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""删损坏的可再生中间件 (aux 族), 下遍引擎自动重生成 (2211.13013 同族)。
+
+    XeTeX 写缓冲在 8192B 边界劈断多字节字符 → 自产 .aux/.toc 带非法
+    UTF-8 → 下遍回读 "Invalid UTF-8 byte" + ``\@newl@bel`` EOF
+    (docs/research/latex/2026-09-16-aux-cjk-truncation.md)。
+    损坏谓词 = strict utf-8 解码失败 (字节劈断) 或末行不完整
+    (边界恰好落在字符缝上时文件仍可解码但停在某宏参数中间——
+    TeX 写出的完整行必以 \n 收尾)。健康件含 xr ``\externaldocument``
+    外链 aux 一律保留; shipped 侧归 normalize 转码兜底, 本函数只管
+    引擎自产件的运行时截断。
+    """
+    del eng, payload
+    exts = {str(e).lower() for e in (params.get("exts") or INTERMEDIATE_SUFFIXES)}
+    purged = []
+    for f in sorted(ctx.wdir.rglob("*")):
+        if not f.is_file() or f.suffix.lower() not in exts:
+            continue
+        try:
+            raw = f.read_bytes()
+        except OSError:
+            continue
+        try:
+            raw.decode("utf-8")
+            corrupt = not raw.endswith(b"\n")
+        except UnicodeDecodeError:
+            corrupt = True
+        if not corrupt:
+            continue
+        f.unlink()
+        ctx.invalidate(f)
+        purged.append(str(f.relative_to(ctx.wdir)))
+    return (bool(purged)), f"purged corrupt intermediates: {', '.join(purged)}"
+
+
 TRANSFORM_FNS = {
     "option_clash_merge": option_clash_merge,
     "pdftex_prim_polyfill": pdftex_prim_polyfill,
@@ -870,4 +909,5 @@ TRANSFORM_FNS = {
     "bundled_class_shadow": bundled_class_shadow,
     "strip_inputenc": strip_inputenc,
     "cs_targeted_fix": cs_targeted_fix,
+    "purge_corrupt_intermediates": purge_corrupt_intermediates,
 }
