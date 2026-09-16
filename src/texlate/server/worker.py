@@ -2518,6 +2518,17 @@ class PipelineWorker:
     def _finish_pdf(self, ctx: TaskCtx, run: BabeldocRun) -> None:
         """Sidecar 结果 → 产物登记 + 终态迁移 + done 事件。"""
         ctx.tokens_est = int(run.stats.get("total_tokens") or 0)
+        self.store.update_fields(ctx.task_id, tokens=ctx.tokens_est)
+        if ctx.tokens_est:
+            # babeldoc 不报调用次数——calls=0 只落 token 真账（与主链 T4 同表）
+            self.store.record_usage(
+                ctx.task_id,
+                model=str(ctx.row["model"]),
+                calls=0,
+                prompt_tokens=int(run.stats.get("prompt_tokens") or 0),
+                completion_tokens=int(run.stats.get("completion_tokens") or 0),
+                latency_s=float(run.seconds),
+            )
         mono = run.outputs.get("mono")
         dual = run.outputs.get("dual")
         if mono is not None:
