@@ -92,6 +92,9 @@ interface MockTask {
 }
 
 const tasks = new Map<string, MockTask>();
+// Idempotency-Key → taskId：对齐真后端 options.idempotency_key 去重
+// （命中直返 202 cache:"idempotent"；任务删除后 key 可复用）
+const idemTasks = new Map<string, string>();
 let seqCounter = 1;
 
 // 与 client.ts TERMINAL 同口径：终态可删，进行中 409
@@ -115,6 +118,21 @@ function emit(task: MockTask, type: string, data: unknown) {
     for (const res of task.listeners) {
         res.write(`id: ${ev.seq}\nevent: ${ev.type}\ndata: ${JSON.stringify(ev.data)}\n\n`);
     }
+}
+
+/** Idempotency-Key 去重命中——对齐 _create_and_enqueue：key 对应行还在即直返 */
+function idemHit(req: Req): MockTask | null {
+    const key = req.headers["idempotency-key"];
+    if (typeof key !== "string" || !key) return null;
+    const tid = idemTasks.get(key);
+    return (tid && tasks.get(tid)) || null;
+}
+
+function idemRegister(req: Req, t: MockTask) {
+    const key = req.headers["idempotency-key"];
+    if (typeof key !== "string" || !key) return;
+    idemTasks.set(key, t.id);
+    emit(t, "log", { line: `[mock] Idempotency-Key ${key} registered` });
 }
 
 function snapshot(t: MockTask) {
@@ -513,12 +531,24 @@ function handleApi(req: Req, res: Res, url: URL): boolean {
         return true;
     }
     if ((mm = m(/^\/api\/arxiv\/([^/]+)\/translate$/)) && req.method === "POST") {
+        const hit = idemHit(req);
+        if (hit) {
+            json(res, 202, {
+                task_id: hit.id,
+                status: hit.status,
+                cache: "idempotent",
+                events_url: `/api/task/${hit.id}`,
+                reader_url: `/api/task/${hit.id}/reader`,
+            });
+            return true;
+        }
         const id = decodeURIComponent(mm[1]);
         const t = seedTask(mkId(), "queued", {
             title: `arXiv ${id}`,
             arxiv_id: id,
             counters: { total: 0, done: 0, cached: 0, failed: 0, tokens: 0 },
         });
+        idemRegister(req, t);
         if (req.headers["x-texlate-key"]) {
             emit(t, "log", { line: "[mock] X-Texlate-Key received (per-request BYOK)" });
         }
@@ -537,6 +567,17 @@ function handleApi(req: Req, res: Res, url: URL): boolean {
         let body = "";
         req.on("data", (c: Buffer) => (body += c.toString("latin1")));
         req.on("end", () => {
+            const hit = idemHit(req);
+            if (hit) {
+                json(res, 202, {
+                    task_id: hit.id,
+                    status: hit.status,
+                    cache: "idempotent",
+                    events_url: `/api/task/${hit.id}`,
+                    ...(isDoc(hit) ? {} : { reader_url: `/api/task/${hit.id}/reader` }),
+                });
+                return;
+            }
             const fname = /filename="([^"]+)"/.exec(body)?.[1] ?? "upload.tex";
             const ext = fname.toLowerCase().split(".").pop() ?? "";
             const kind =
@@ -550,6 +591,7 @@ function handleApi(req: Req, res: Res, url: URL): boolean {
                 title: fname,
                 counters: { total: 0, done: 0, cached: 0, failed: 0, tokens: 0 },
             });
+            idemRegister(req, t);
             if (req.headers["x-texlate-key"]) {
                 emit(t, "log", { line: "[mock] X-Texlate-Key received (per-request BYOK)" });
             }
@@ -569,6 +611,17 @@ function handleApi(req: Req, res: Res, url: URL): boolean {
         let body = "";
         req.on("data", (c: Buffer) => (body += c.toString("latin1")));
         req.on("end", () => {
+            const hit = idemHit(req);
+            if (hit) {
+                json(res, 202, {
+                    task_id: hit.id,
+                    status: hit.status,
+                    cache: "idempotent",
+                    events_url: `/api/task/${hit.id}`,
+                    reader_url: `/api/task/${hit.id}/reader`,
+                });
+                return;
+            }
             const fname = /filename="([^"]+)"/.exec(body)?.[1] ?? "bundle.share.zip";
             const t = seedTask(mkId(), "queued", {
                 kind: "share",
@@ -576,6 +629,7 @@ function handleApi(req: Req, res: Res, url: URL): boolean {
                 arxiv_id: "2501.14787",
                 counters: { total: 0, done: 0, cached: 0, failed: 0, tokens: 0 },
             });
+            idemRegister(req, t);
             if (req.headers["x-texlate-key"]) {
                 emit(t, "log", { line: "[mock] X-Texlate-Key received (per-request BYOK)" });
             }

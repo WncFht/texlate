@@ -334,6 +334,62 @@ function byokHeaders(byok?: ByokHeaders): Record<string, string> {
     return h;
 }
 
+/**
+ * Idempotency-Key 生命周期——「提交意图」粒度。
+ *
+ * server `_create_and_enqueue` 按 options.idempotency_key 去重（同 tenant 命中
+ * 直返 202 {cache:"idempotent"}，不建行不入队；任务删除后 key 可复用）。
+ * key 绑定提交内容指纹：请求未决（网络层失败，服务端可能已收单）期间同参
+ * 重发/双击并发复用同 key；拿到任何 HTTP 响应（成功或错误）即结案，其后
+ * 同参提交视为新意图、生成新 key。byok.idempotencyKey 显式传入时透传，
+ * 不插手生命周期。
+ */
+const pendingCreate = new Map<string, string>();
+
+function newKey(): string {
+    const c = globalThis.crypto;
+    if (c?.randomUUID) return c.randomUUID();
+    // http://LAN 等非安全上下文无 randomUUID——getRandomValues 不受限
+    if (c?.getRandomValues) {
+        const b = c.getRandomValues(new Uint8Array(16));
+        return Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+    }
+    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+function intentSettle(fp: string, key: string): void {
+    // 守卫：同 fp 已被后续调用换新 key 时，旧在飞调用的结案不得误删新条目
+    if (pendingCreate.get(fp) === key) pendingCreate.delete(fp);
+}
+
+/** 提交内容指纹——apiKey 是凭证不是意图，改 key 重试仍复用同一 idem key */
+function createFp(kind: string, payload: unknown, byok?: ByokHeaders): string {
+    const semantics = byok ? { baseUrl: byok.baseUrl, model: byok.model } : null;
+    return JSON.stringify([kind, payload, semantics]);
+}
+
+function fileFp(file: File): string {
+    return `${file.name}:${file.size}:${file.lastModified}`;
+}
+
+/** create 三路（translate/upload/shareImport）共用：生成/复用/结案 Idempotency-Key */
+async function createRequest<T>(fp: string, path: string, init: RequestInit): Promise<T> {
+    const headers = { ...(init.headers as Record<string, string> | undefined) };
+    if (headers["Idempotency-Key"]) return request<T>(path, init);
+    const key = pendingCreate.get(fp) ?? newKey();
+    pendingCreate.set(fp, key);
+    headers["Idempotency-Key"] = key;
+    try {
+        const res = await request<T>(path, { ...init, headers });
+        intentSettle(fp, key);
+        return res;
+    } catch (e) {
+        // ApiError = 服务端已回话 → 结案；TypeError/AbortError = 未决 → 留 key 待重发
+        if (e instanceof ApiError) intentSettle(fp, key);
+        throw e;
+    }
+}
+
 export const api = {
     health: () => request<Health>("/health"),
     providers: () => request<Provider[] | { providers: Provider[] }>("/providers"),
@@ -343,11 +399,15 @@ export const api = {
         ),
 
     translate(arxivId: string, body?: TranslateOptions, byok?: ByokHeaders) {
-        return request<TranslateResponse>(`/arxiv/${encodeURIComponent(arxivId)}/translate`, {
-            method: "POST",
-            headers: { "content-type": "application/json", ...byokHeaders(byok) },
-            body: JSON.stringify(body ?? {}),
-        });
+        return createRequest<TranslateResponse>(
+            createFp("translate", { arxivId, body: body ?? null }, byok),
+            `/arxiv/${encodeURIComponent(arxivId)}/translate`,
+            {
+                method: "POST",
+                headers: { "content-type": "application/json", ...byokHeaders(byok) },
+                body: JSON.stringify(body ?? {}),
+            },
+        );
     },
 
     upload(
@@ -361,11 +421,11 @@ export const api = {
         if (fields?.model) fd.append("model", fields.model);
         if (fields?.main) fd.append("main", fields.main);
         if (fields?.options) fd.append("options", JSON.stringify(fields.options));
-        return request<TranslateResponse>("/upload", {
-            method: "POST",
-            headers: byokHeaders(byok),
-            body: fd,
-        });
+        return createRequest<TranslateResponse>(
+            createFp("upload", { file: fileFp(file), fields: fields ?? null }, byok),
+            "/upload",
+            { method: "POST", headers: byokHeaders(byok), body: fd },
+        );
     },
 
     /** .share.zip 共享包导入（model/lang/arxiv_id 由包内 manifest 自描述） */
@@ -373,11 +433,11 @@ export const api = {
         const fd = new FormData();
         fd.append("file", file);
         if (options) fd.append("options", JSON.stringify(options));
-        return request<TranslateResponse>("/share/import", {
-            method: "POST",
-            headers: byokHeaders(byok),
-            body: fd,
-        });
+        return createRequest<TranslateResponse>(
+            createFp("shareImport", { file: fileFp(file), options: options ?? null }, byok),
+            "/share/import",
+            { method: "POST", headers: byokHeaders(byok), body: fd },
+        );
     },
 
     /** 终态任务事后打 .share.zip 入共享目录（§6；幂等——已打过直返同 share_key） */
