@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any
 from texlate.compile.normalize import INTERMEDIATE_SUFFIXES
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterable
 
     from texlate.compile.fixloop.engine import Engine, LoopCtx
 
@@ -757,6 +757,59 @@ def _ensure_usepackage(ctx: LoopCtx, eng: Engine, pkg: str) -> list[str]:
     return out
 
 
+#: cs_targeted_fix 的 glue-残骸前缀拆分默认头表 —— 只收语料实证过的
+#: 粘连头 (n100 undefined_cs 24/24 均为 splice/join 合并残骸; ``in`` 头
+#: 前缀面太热 (int/indent/input/index… 真宏云集), 留在 cs_table 显式条目)。
+_SPLIT_HEADS: tuple[str, ...] = (
+    "linebreak",
+    "item",
+    "nabla",
+    "Delta",
+    "hline",
+    "frac",
+    "par",
+    "dd",
+    "bf",
+    "it",
+    "rm",
+)
+#: 与头同前缀的真宏名守卫 —— 命中即不拆 (part/parbox/parskip 是 kernel
+#: 命令; ddot/ddots 是 amsmath; itemize/fraction 同理)。残余门之外的双保险。
+_SPLIT_GUARD: frozenset[str] = frozenset(
+    {
+        "part",
+        "para",
+        "parbox",
+        "parskip",
+        "itemize",
+        "itemsep",
+        "ddot",
+        "ddots",
+        "fraction",
+    }
+)
+#: 拆分残余的长度门 (语料残余全 ≤4: FSU/Cd/i/and/r…; 更长残余的真宏名
+#: 还有 guard 兜底)。
+_SPLIT_REST_MAX = 4
+
+
+def _split_glued_cs(cs: str, heads: Iterable[str], guard: Iterable[str]) -> str | None:
+    """``cs`` = 已知粘连头 + 残余 → ``"head rest"``; 不可拆返回 None。
+
+    残余门: 大写起首或 ≤_SPLIT_REST_MAX 字符; ``@`` 含名是包内私有 cs
+    (版本偏斜类), 非粘连残骸, 不拆。
+    """
+    if "@" in cs or cs in guard:
+        return None
+    for head in sorted(heads, key=len, reverse=True):
+        if not cs.startswith(head):
+            continue
+        rest = cs[len(head) :]
+        if rest and (rest[0].isupper() or len(rest) <= _SPLIT_REST_MAX):
+            return f"{head} {rest}"
+    return None
+
+
 def cs_targeted_fix(
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
@@ -765,14 +818,22 @@ def cs_targeted_fix(
     spec 键组合序: ``strip_pkg`` 剥装载点 → ``usepackage`` 注入+装文件
     → ``cs_map`` ``\old``→``\new`` 逐文件改写 → ``polyfill`` 注原始 TeX body。
     ``engines.{eng_name}`` 子表整体覆盖顶层同名词 (引擎差异修, 如 bbm→dsfont)。
-    payload 不在表 → False 落 undefined_cs_guess。
+    payload 不在表 → 试 ``split_heads`` glue-残骸前缀拆分 (合成 cs_map 项);
+    仍不中 → False 落 undefined_cs_guess。
     """
     table = dict(_CS_FIX_TABLE)
     table.update(params.get("cs_table") or {})
     cs = (payload or "").lstrip("\\")
     base = table.get(cs)
     if not base:
-        return False, f"{payload} not in cs-fix table"
+        split = _split_glued_cs(
+            cs,
+            params.get("split_heads") or _SPLIT_HEADS,
+            params.get("split_guard") or _SPLIT_GUARD,
+        )
+        if split is None:
+            return False, f"{payload} not in cs-fix table"
+        base = {"cs_map": {cs: split}}
     spec = {k: v for k, v in base.items() if k != "engines"}
     spec.update((base.get("engines") or {}).get(ctx.engine_name) or {})
     done: list[str] = []

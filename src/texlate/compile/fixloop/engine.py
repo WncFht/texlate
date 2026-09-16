@@ -811,13 +811,45 @@ def _gate_eval(  # noqa: PLR0913, PLR0917  # 与 _match_apply 同签名面
     return None
 
 
+def _wire_filemap_overrides(
+    eng: Engine, overrides: dict[str, Any], ctx: LoopCtx
+) -> None:
+    """``eng.filemap`` 实例遮蔽: basename 先过手工映射, 未中走原查询。
+
+    xelatex 通路 ``install_file``/``_filemap_candidates`` 共用 ``self.filemap``
+    —— 单点遮蔽即全通路生效 (bench 现场 ``eng.filemap = idx.query`` 的既有
+    遮蔽也照包, 次序 = overrides → 既有查询; worker 的 ``_RecEngine`` 与
+    bench 的 ``_NoSandbox`` 均 ``__setattr__`` 透传, 遮蔽落在真引擎实例上)。
+    显式 null = 已知噪声 → 空表短路, 不再落 tlmgr/索引往返。
+    """
+    orig = getattr(eng, "filemap", None)
+    if not callable(orig) or getattr(orig, "overrides_wrapped", False):
+        return
+
+    def filemap(fname: str) -> list[str]:
+        if fname in overrides:
+            v = overrides[fname]
+            return [v] if isinstance(v, str) else []
+        return list(orig(fname))
+
+    filemap.overrides_wrapped = True  # type: ignore[attr-defined]  # 幂等: 重入不叠包
+    try:
+        eng.filemap = filemap  # type: ignore[method-assign]  # 实例遮蔽协议方法
+    except Exception as e:  # noqa: BLE001  # 遮蔽失败不阻塞: 退化为原生 filemap
+        ctx.advisories.append(f"filemap overrides wire failed: {type(e).__name__}: {e}")
+    else:
+        ctx.events.append("wire filemap overrides")
+
+
 def _wire_engine(eng: Engine, rs: Ruleset, wdir: Path, ctx: LoopCtx) -> None:
     """引擎侧降级原语注入 (docs/08 §5.3)。
 
-    tectonic: ``install_file`` 内部走 ``self.ctan_fetch`` callable ——
+    ``filemap.overrides`` 手工映射对全引擎生效 (实例遮蔽 ``eng.filemap``);
+    tectonic 追加: ``install_file`` 内部走 ``self.ctan_fetch`` callable ——
     未注入时这里装上 CtanFetcher (惰性 tlpdb 索引 + rules.yaml
     ``filemap.version_guard`` 的 bundle epoch 接线)。
     """
+    _wire_filemap_overrides(eng, rs.filemap_cfg.get("overrides") or {}, ctx)
     if ctx.engine_name != "tectonic":
         return
     if getattr(eng, "ctan_fetch", None) is not None or not hasattr(eng, "ctan_fetch"):

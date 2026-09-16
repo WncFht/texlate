@@ -48,7 +48,10 @@ MIRROR = "https://mirror.ctan.org/systems/texlive/tlnet"
 TLPDB_RELPATH = "tlpkg/texlive.tlpdb.xz"  # 探针纠错: 非 tlnet/texlive.tlpdb.gz (404)
 
 # 索引收录扩展名 (探针 §1: 在任务白名单上加 .clo/.vf/.ofm/.ovp ——
-# ctex 有 .clo 字号文件, 不索引则无法从缺 .clo 反查包)
+# ctex 有 .clo 字号文件, 不索引则无法从缺 .clo 反查包)。
+# .tex/.rtx 仅索引不平铺: binhex.tex/epsf.tex/tikzlibrary*.code.tex
+# 类缺名可反查真包, 但修复须走 usertree/tlmgr 安装 —— basename 平铺
+# 会撞名遮蔽工程自身 .tex。
 INDEX_EXTS = {
     ".sty",
     ".cls",
@@ -63,10 +66,16 @@ INDEX_EXTS = {
     ".vf",
     ".ofm",
     ".ovp",
+    ".tex",
+    ".rtx",
 }
+#: 只从 tlpdb ``runfiles`` 段收录的扩展名: docfiles/srcfiles 的同名
+#: .tex 量大 (示例/文档源) 且 kpsewhich 本就跑不到, 收录只喂噪声候选。
+_RUNFILES_ONLY_EXTS = {".tex", ".rtx"}
 # 允许平铺进 cwd 的扩展名 = TeX 输入层; .pfb/.pk 物理字体对
-# tectonic xdvipdfmx 是死路 (探针 §3.5), 不投
-OVERLAY_EXTS = INDEX_EXTS - {".pfb"}
+# tectonic xdvipdfmx 是死路 (探针 §3.5) 不投; .tex/.rtx 只索引不平铺
+# (basename 平铺即撞名遮蔽工程源文件)。
+OVERLAY_EXTS = INDEX_EXTS - {".pfb", ".tex", ".rtx"}
 # tar 内已知顶层前缀 (探针 §2 踩坑: 前缀不统一)
 _TAR_PREFIXES = ("texmf-dist/", "texmf/", "tex/")
 _TLPDB_FILE_SECTIONS = {"runfiles", "docfiles", "srcfiles"}
@@ -209,10 +218,16 @@ class TlpdbIndex:
                     relpath = relpath.removeprefix("RELOC/")
                     base = relpath.rsplit("/", 1)[-1]
                     stem, dot, ext = base.rpartition(".")
-                    if stem and dot and f".{ext.lower()}" in INDEX_EXTS:
-                        lst = table.setdefault(base, [])
-                        if pkg not in lst:
-                            lst.append(pkg)
+                    if not (stem and dot):
+                        continue
+                    lext = f".{ext.lower()}"
+                    if lext not in INDEX_EXTS or (
+                        lext in _RUNFILES_ONLY_EXTS and section != "runfiles"
+                    ):
+                        continue
+                    lst = table.setdefault(base, [])
+                    if pkg not in lst:
+                        lst.append(pkg)
                     continue
                 if not line.strip():
                     continue
@@ -426,6 +441,20 @@ def check_version_compat(files: list[Path], epoch: str) -> tuple[bool, str | Non
     return True, None
 
 
+def _overlay_gate(fname: str) -> str | None:
+    """后缀不在平铺层 → advisory 文本; 可平铺 → None。
+
+    .tex/.rtx 已在索引 (可反查真包) 但平铺即撞名遮蔽工程源;
+    物理字体 (.pfb/.pk) 对 xdvipdfmx 是死路 —— 两类分述。
+    """
+    ext = Path(fname).suffix.lower()
+    if ext in OVERLAY_EXTS:
+        return None
+    if ext in _RUNFILES_ONLY_EXTS:
+        return f"{ext} 只索引不平铺 (撞名遮蔽风险); 修复走 usertree/tlmgr 通路"
+    return f"{ext} 不在 TeX 输入层 (物理字体/xdvipdfmx 域须改写规则)"
+
+
 def ctan_fetch(  # noqa: PLR0913  # mirror/overlay/epoch/fetcher/caps 注入面即签名
     fname: str,
     wdir: Path,
@@ -441,16 +470,12 @@ def ctan_fetch(  # noqa: PLR0913  # mirror/overlay/epoch/fetcher/caps 注入面�
 
     - 索引查不到 → advisory 附候选包名 (suggest)
     - epoch 给定且新版要求过新 → 撤回已投文件, 试下一候选包
-    - 仅限 TeX 输入层: 后缀不在 OVERLAY_EXTS 的文件不会落盘
+    - 仅限平铺层: 后缀不在 OVERLAY_EXTS 的文件不会落盘
+      (.tex/.rtx 可索引反查但不可平铺 —— basename 撞名遮蔽工程源)
     """
     stem = fname.rsplit(".", 1)[0]
-    ext = Path(fname).suffix.lower()
-    if ext not in OVERLAY_EXTS:
-        return FetchResult(
-            ok=False,
-            fname=fname,
-            advisory=f"{ext} 不在 TeX 输入层 (物理字体/xdvipdfmx 域须改写规则)",
-        )
+    if note := _overlay_gate(fname):
+        return FetchResult(ok=False, fname=fname, advisory=note)
     pkgs = index.query(fname)
     if not pkgs:
         sug = index.suggest(stem)
@@ -527,16 +552,20 @@ class CtanFetcher:
 
     @property
     def index(self) -> TlpdbIndex:
-        """首访构建/装载索引 (潜在网络 IO); 之后进程内缓存。"""
+        """首访构建/装载索引 (潜在网络 IO); 之后进程内缓存。
+
+        注入的 ``index=`` 同样套 ``overrides`` —— 调用方 (fixloop_bench)
+        常注入共享索引, overrides 只走惰性建分支会被静默丢掉。
+        """
         if self._index is None:
-            idx = TlpdbIndex.ensure(
+            self._index = TlpdbIndex.ensure(
                 self.cache_dir,
                 mirror=self.mirror,
                 fetcher=self.fetcher,
                 caps=self.caps,
             )
-            idx.overrides.update(self.overrides)
-            self._index = idx
+        if self.overrides:
+            self._index.overrides.update(self.overrides)
         return self._index
 
     def peek_index(self) -> TlpdbIndex | None:

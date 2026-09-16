@@ -291,3 +291,80 @@ def test_cs_table_all_entries_cs_map_only() -> None:
         spec = CS_TABLE[payload]
         assert set(spec) == {"cs_map"}, payload
         assert payload in spec["cs_map"], payload
+
+
+# ---------------------------------------------------------------- 表外 split fallback
+# payload 未命中 cs_table 时按 glue 残骸拆 "head rest" (replay 实证 rmPT 型
+# 新残骸仍零星冒头); split_guard + @ 名不拆。
+
+_CS_SPLIT_CASES = [
+    # 未收表的新残骸 (replay-baseline hep-lat--0111009 实证)
+    ("rmPT", "{\\rmPT mode}", "{\\rm PT mode}"),
+    ("itemSIGMA", "\\itemSIGMA x", "\\item SIGMA x"),
+    ("hlineABC", "\\hlineABC d", "\\hline ABC d"),
+]
+
+
+@pytest.mark.parametrize(("payload", "src", "want"), _CS_SPLIT_CASES)
+def test_cs_split_fallback_new_residue(
+    tmp_path: Path, payload: str, src: str, want: str
+) -> None:
+    """表外 glue 残骸 → 前缀拆分合成 cs_map 拆回原形。"""
+    assert payload not in CS_TABLE, f"{payload} 已在显式表 (该用例失去意义)"
+    (tmp_path / "main.tex").write_text(
+        f"\\documentclass{{article}}\n\\begin{{document}}\n{src}\n\\end{{document}}\n"
+    )
+    ctx, eng = _ctx(tmp_path), _Eng()
+    ok, note = TRANSFORM_FNS["cs_targeted_fix"](ctx, eng, payload, CS_PARAMS)
+    assert ok, note
+    assert want in (tmp_path / "main.tex").read_text()
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        "parbox",  # kernel 真宏名与 par 头同前缀 → guard 不拆
+        "fraction",  # amsmath \fraction → guard
+        "ddot",  # amsmath \ddot → guard
+        "itemize",  # env 名误用 cs → guard
+        "itemsep",  # kernel 长度 → guard
+        "headerps@out",  # 包内私有 cs (@) → 版本偏斜类不拆
+        "Hy@pdfmajorversion",  # 同上
+        "maketitle",  # 无头可拆
+        "includegraphics",  # in 头不收 → 不拆
+        "par",  # 头无残余
+    ],
+)
+def test_cs_split_fallback_rejects(tmp_path: Path, payload: str) -> None:
+    """guard/@/无头 payload 不拆 → False 落 undefined_cs_guess。"""
+    assert payload not in CS_TABLE
+    (tmp_path / "main.tex").write_text(
+        f"\\documentclass{{article}}\n\\begin{{document}}\n\\{payload} x\n\\end{{document}}\n"
+    )
+    ctx, eng = _ctx(tmp_path), _Eng()
+    ok, note = TRANSFORM_FNS["cs_targeted_fix"](ctx, eng, payload, CS_PARAMS)
+    assert not ok, note
+    assert f"\\{payload} x" in (tmp_path / "main.tex").read_text()  # 零改写
+
+
+def test_cs_split_exact_table_precedence(tmp_path: Path) -> None:
+    """显式条目优先于拆分: citep 走 usepackage 而非 cite+p 拆。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\n\\citep{x}\n\\end{document}\n"
+    )
+    ctx, eng = _ctx(tmp_path), _Eng(installable=("natbib.sty",))
+    ok, _ = TRANSFORM_FNS["cs_targeted_fix"](ctx, eng, "citep", CS_PARAMS)
+    assert ok
+    assert "\\usepackage{natbib}" in (tmp_path / "main.tex").read_text()
+    assert "\\cite p" not in (tmp_path / "main.tex").read_text()
+
+
+def test_cs_split_none_residue_terminates(tmp_path: Path) -> None:
+    """拆分后若新 payload 恰为头本身 (\\dd), 无残余不拆 → 不自旋。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\n$\\dd$\n\\end{document}\n"
+    )
+    ctx, eng = _ctx(tmp_path), _Eng()
+    ok, note = TRANSFORM_FNS["cs_targeted_fix"](ctx, eng, "dd", CS_PARAMS)
+    assert not ok, note
+    assert "$\\dd$" in (tmp_path / "main.tex").read_text()
