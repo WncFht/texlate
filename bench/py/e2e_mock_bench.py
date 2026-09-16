@@ -88,6 +88,8 @@ _NUM_LINE_RX = re.compile(r"^(\[\d+\])\s?(.*)$", re.DOTALL)
 #: 臂 CJK 非散文 run 原样残留进交付）；节标/字段名 = 重试协议字面（mock 会
 #: 翻成 ``[这是译文]`` 不命中，真模型 parrot prompt furniture 同款通道兜底）。
 #: ``[这是译文]`` 独行**不**作签名——源 ``[word]`` 合法产出同款。
+#: 词表与 ``l0._ECHO_SIGS`` 同款同序；src 自带签名的 delivered 块 echo 与
+#: 忠实译文裸包含不可区分 → armed（结构性盲区，记账只观测不进门槛）。
 DIRTY_SIGS: tuple[str, ...] = (
     "占位符缺失:",  # l0._pair_placeholder_typos
     "占位符疑似拼错",  # l0._pair_placeholder_typos lev 配对臂
@@ -103,9 +105,9 @@ DIRTY_SIGS: tuple[str, ...] = (
 )
 
 
-def _dirty_hits(zh: str) -> list[str]:
-    """交付译文命中的协议签名列表（序同 ``DIRTY_SIGS``；空 = 干净）。"""
-    return [s for s in DIRTY_SIGS if s in zh]
+def _dirty_hits(text: str) -> list[str]:
+    """文本命中的协议签名列表（序同 ``DIRTY_SIGS``；空 = 无签名；src/zh 通用）。"""
+    return [s for s in DIRTY_SIGS if s in text]
 
 
 def _h(*parts: str) -> int:
@@ -370,6 +372,13 @@ def pipe_mode_condition(
     / escaped (校验放行且译文占位符 multiset 破坏残留)；dirty = 交付块 zh
     命中协议回显签名（multiset 可对而载荷脏，escaped 的内容通道盲区，
     repro-2410b）——门槛 = escaped==0 AND dirty==0。
+    armed = 交付块 src 自带协议签名（src_legit）：裸包含下 echo 与忠实译文
+    不可区分，armed channel 是 dirty 判定的结构性盲区——只观测不进门槛。
+    dirty/armed 按全 delivered 块记账（内容通道与破坏选择正交——真模型
+    parrot 可在非破坏块回显）；zh 命中按签名集合划分：zh−src = dirty
+    （判定性 echo，进门槛）；zh∩src = ambig（armed 块上的不可判定命中，
+    armed_zh 计数）。caught/recovered/escaped 仍为 sabotage 口径；
+    by_kind 各桶是 sabotaged 块上的交叉表（含 armed 列）。
     Mode C: 挪位天然过 L0, 记账 moved + 落到 splice 的块数 (spliced)。
     编译尾段 = ``pipe_condition`` 同一条链：首编 → L2 回灌 → fixloop，
     inject 拒绝同口径 ``partial``——verdict 与 pipe 臂直接可比。
@@ -395,37 +404,59 @@ def pipe_mode_condition(
                 "recovered": 0,
                 "escaped": 0,
                 "dirty": 0,
+                "armed": 0,
+                "armed_zh": 0,
                 "escaped_ids": [],
                 "escaped_detail": [],
                 "dirty_ids": [],
                 "dirty_detail": [],
+                "armed_ids": [],
+                "armed_detail": [],
                 "by_kind": {},
             }
         )
     else:
         ledger.update({"spliced": 0, "dropped": 0})
     for r in results:
+        # 交付谓词与 splice 同口径：``_delivered`` 放行 partial（旧 spliced_ok
+        # 严卡 ok 把脏 partial 记成 caught——连 escaped 都不进的反向漏账）。
+        delivered = e2e_mod._delivered(r) and r.chunk_id not in reverted
+        if mode == "B":
+            # 内容通道度量按全 delivered 块记账（非仅 sabotaged）：armed =
+            # src 自带签名 → 同形 echo 裸包含不可判定；dirty = zh 命中中
+            # src 解释不了的签名（判定性 echo）。
+            zh_hits = _dirty_hits(r.translation) if delivered else []
+            src_legit = _dirty_hits(r.source) if delivered else []
+            ambig = [s for s in zh_hits if s in src_legit]
+            hits = [s for s in zh_hits if s not in src_legit]
+            if src_legit:
+                ledger["armed"] += 1
+                ledger["armed_ids"].append(r.chunk_id)
+                ledger["armed_zh"] += bool(ambig)
+                ledger["armed_detail"].append(
+                    {"chunk": r.chunk_id, "src_legit": src_legit, "ambig": ambig}
+                )
+            if hits:
+                ledger["dirty"] += 1
+                ledger["dirty_ids"].append(r.chunk_id)
+                ledger["dirty_detail"].append(
+                    {"chunk": r.chunk_id, "hits": hits, "ambig": ambig}
+                )
         evs = [e for e in tr.events if _seg_of(r.source, e["seg"])]
         if not evs:
             continue
         ledger["sabotaged"] += 1
         ledger["moved"] += sum(e.get("moved", 0) for e in evs)
-        # 交付谓词与 splice 同口径：``_delivered`` 放行 partial（旧 spliced_ok
-        # 严卡 ok 把脏 partial 记成 caught——连 escaped 都不进的反向漏账）。
-        delivered = e2e_mod._delivered(r) and r.chunk_id not in reverted
         if mode == "B":
             kinds = "+".join(sorted({e.get("kind", "?") for e in evs}))
             bk = ledger["by_kind"].setdefault(
-                kinds, {"caught": 0, "recovered": 0, "escaped": 0, "dirty": 0}
+                kinds,
+                {"caught": 0, "recovered": 0, "escaped": 0, "dirty": 0, "armed": 0},
             )
-            hits = _dirty_hits(r.translation) if delivered else []
-            if hits:  # 内容通道独立于 caught/recovered/escaped 划分记脏
-                ledger["dirty"] += 1
+            if delivered and src_legit:
+                bk["armed"] += 1
+            if delivered and hits:
                 bk["dirty"] += 1
-                ledger["dirty_ids"].append(r.chunk_id)
-                ledger["dirty_detail"].append(
-                    {"chunk": r.chunk_id, "kinds": kinds, "hits": hits}
-                )
             if not delivered:
                 ledger["caught"] += 1  # fault/skipped/env回落 → 原文回退
                 bk["caught"] += 1
@@ -667,17 +698,21 @@ def write_reports(results: dict, out_dir: Path, corpus_name: str = "corpus39") -
             "recovered": 0,
             "escaped": 0,
             "dirty": 0,
+            "armed": 0,
+            "armed_zh": 0,
             "spliced": 0,
             "dropped": 0,
         }
         esc_ids: list[str] = []
         dirty_ids: list[str] = []
+        armed_ids: list[str] = []
         for _rel, c in recs:
             led = c.get("sabotage", {})
             for k in tot:
                 tot[k] += led.get(k, 0)
             esc_ids.extend(led.get("escaped_ids", []))
             dirty_ids.extend(led.get("dirty_ids", []))
+            armed_ids.extend(led.get("armed_ids", []))
         lines.append(f"## Mode {mode} 台账 ({cond})")
         if mode == "B":
             gate = "PASS" if tot["escaped"] == 0 and tot["dirty"] == 0 else "FAIL"
@@ -687,14 +722,21 @@ def write_reports(results: dict, out_dir: Path, corpus_name: str = "corpus39") -
                 f"**escaped {tot['escaped']}**"
             )
             lines.append(
-                f"- dirty {tot['dirty']}（交付 zh 命中协议回显签名——"
+                f"- dirty {tot['dirty']}（交付 zh 命中协议回显签名且 src 不含——"
                 f"multiset 可对而载荷脏，escaped 的内容通道盲区）"
+            )
+            lines.append(
+                f"- armed {tot['armed']}（交付块 src 自带协议签名——同形 echo "
+                f"与忠实译文裸包含不可区分，结构性盲区只观测不进门槛；"
+                f"其中 zh 同命中 {tot['armed_zh']} 块不可判定）"
             )
             lines.append(f"- 门槛 escaped==0 AND dirty==0: **{gate}**")
             if esc_ids:
                 lines.append(f"- escaped chunk ids: {esc_ids}")
             if dirty_ids:
                 lines.append(f"- dirty chunk ids: {dirty_ids}")
+            if armed_ids:
+                lines.append(f"- armed chunk ids: {armed_ids}")
         else:
             statuses = [c.get("verdict", {}).get("status") for _r, c in recs]
             dist = {s: statuses.count(s) for s in sorted(set(statuses))}
