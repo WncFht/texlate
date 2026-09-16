@@ -146,6 +146,7 @@ if TYPE_CHECKING:
     from texlate.compile.probe import ProbeReport
     from texlate.latex.model import Chunk, ScanResult
     from texlate.server.events import EventBus
+    from texlate.share import ShareManifest
 
 log = logging.getLogger(__name__)
 
@@ -1088,6 +1089,35 @@ def _tgt_lang(target_lang: str) -> str:
     return {"zh-TW": "Traditional Chinese", "en": "English"}.get(target_lang, "Chinese")
 
 
+def share_pack_publish(
+    work_dir: Path, manifest: Mapping[str, object], out_dir: Path
+) -> tuple[Path, ShareManifest]:
+    """``pack_share`` → ``unpack_share`` 全量回验 → ``index_append`` 落行。
+
+    完成钩 ``_share_pack_try`` 与 ``POST /api/task/{id}/share/pack`` 共用
+    的发布段：包与 ``index.jsonl`` 同落 ``out_dir``（``share_dir()``），
+    行内 ``url`` 记包文件名（§7 文件级形态——目录整体挂静态托管后，
+    行内相对名即取包路径）。写盘损坏的包不进索引（``.share-verify``
+    scratch 目录随验随清）。
+
+    纯 FS 面——不触 store/bus，可在 ``asyncio.to_thread`` 工作线程跑。
+    返回 ``(包路径, 校验后 manifest)``。
+    """
+    bundle = pack_share(work_dir, manifest, out_dir=out_dir)
+    scratch = work_dir / ".share-verify"
+    try:
+        mf = unpack_share(bundle, scratch)
+    finally:
+        shutil.rmtree(scratch, ignore_errors=True)
+    index_append(
+        out_dir / "index.jsonl",
+        mf,
+        url=bundle.name,
+        package_bytes=bundle.stat().st_size,
+    )
+    return bundle, mf
+
+
 # ---------------------------------------------------------------- Worker
 
 
@@ -1447,6 +1477,13 @@ class PipelineWorker:
                 self._finish_reuse(ctx, ctx.reuse_hit)
             return
         (ctx.src_dir / ".fetch-done").write_text("", encoding="utf-8")
+        opts = ctx.options()
+        if opts.pop("reuse_hit", None) is not None:
+            # 本跑自产——上轮的 reuse 标记随产物来历失效即摘
+            ctx.row["options_json"] = json.dumps(opts, ensure_ascii=False)
+            self.store.update_fields(
+                ctx.task_id, options_json=ctx.row["options_json"]
+            )
         self._stage(ctx, "fetching", "取源完成", PROGRESS["fetching"][1])
         self._check_cancelled(ctx)
 
@@ -1592,6 +1629,13 @@ class PipelineWorker:
             upd["main_tex"] = str(hit["main_tex"])
         if hit.get("title") and not ctx.row.get("title"):
             upd["title"] = str(hit["title"])
+        # 行级持久化 reuse 命中标记——事后 share 打包端点据以拒自包（命中
+        # 任务的生效术语表不可知，错标 glossary_hash 比不打包更糟）。真跑
+        # 取源落 .fetch-done 时摘除（标记只描述当前产物的来历）。
+        opts = ctx.options()
+        opts["reuse_hit"] = str(hit["id"])
+        upd["options_json"] = json.dumps(opts, ensure_ascii=False)
+        ctx.row["options_json"] = upd["options_json"]
         self.store.update_fields(ctx.task_id, **upd)
         self.store.transition(
             ctx.task_id,
@@ -2981,6 +3025,36 @@ class PipelineWorker:
             h.update(hashlib.sha256(f.read_bytes()).digest())
         return h.hexdigest()
 
+    def share_pack_manifest(
+        self, ctx: TaskCtx, row: dict[str, Any]
+    ) -> dict[str, object] | None:
+        """任务行 → key_parts 七组分 manifest；``None`` = 不参与共享寻址。
+
+        完成钩与 ``POST /api/task/{id}/share/pack`` 共用同一派生面：
+        ``arxiv_id`` 取库内现值（fetch 后已钉版成 ``{id}v{N}``），
+        ``normalize_arxiv_id`` 拆回 base+ver 进组分；``glossary_hash``
+        走 ``_share_glossary_hash``（翻译时生效层的复合指纹）；
+        ``prompt_ver``/``pipeline_ver`` 钉当前管线常量。
+        """
+        base, ver = normalize_arxiv_id(str(row.get("arxiv_id") or ""))
+        if not base:
+            return None
+        try:
+            cfg = json.loads(str(row.get("config_json") or "{}"))
+            if not isinstance(cfg, dict):
+                cfg = {}
+        except json.JSONDecodeError:
+            cfg = {}
+        return {
+            "arxiv_id": base,
+            "version": f"v{ver}" if ver is not None else "",
+            "model": str(row["model"]),
+            "prompt_ver": PROMPT_VERSION,
+            "target_lang": str(row["target_lang"]),
+            "glossary_hash": self._share_glossary_hash(ctx, cfg),
+            "pipeline_ver": PIPELINE_VERSION,
+        }
+
     async def _maybe_share_pack(self, ctx: TaskCtx) -> None:
         """opt-in 共享包完成钩（shared-cache.md §7/§8）：``_stage_compile`` 各终态分支末尾调用。
 
@@ -2999,51 +3073,21 @@ class PipelineWorker:
             self._warning(ctx, "share_pack", f"共享打包失败（任务不受影响）: {e}")
 
     def _share_pack_try(self, ctx: TaskCtx) -> None:
-        """Worker 线程侧打包体：key_parts 派生 → ``pack_share`` → ``index_append``。
+        """Worker 线程侧打包体：key_parts 派生 → ``share_pack_publish`` 发布。
 
-        包与 ``index.jsonl`` 同落 ``share_dir()``（``TEXLATE_SHARE_DIR`` >
-        ``<data>/share``）——index 行 ``url`` 记包文件名（§7 文件级形态：
-        目录整体挂静态托管后，行内相对名即取包路径）。``arxiv_id`` 取库内
-        现值（fetch 后已钉版成 ``{id}v{N}``），``normalize_arxiv_id`` 拆回
-        base+ver 进七组分；upload 类无 arxiv_id 不参与共享寻址，记行跳过。
-        打包后 ``unpack_share`` 全量回验一次再落 index——写盘损坏的包不进
-        索引（scratch 目录随验随清）。
+        manifest 派生与包发布两段已抽出共用（``share_pack_manifest`` +
+        ``share_pack_publish``）——API 事后打包端点走同一口径。upload 类
+        无 arxiv_id 不参与共享寻址，记行跳过。
         """
         row = self._on_loop(self.store.get, ctx.task_id)
         if row is None:
             return
-        base, ver = normalize_arxiv_id(str(row.get("arxiv_id") or ""))
-        if not base:
+        manifest = self.share_pack_manifest(ctx, row)
+        if manifest is None:
             self._log(ctx, "share pack: 任务无 arxiv_id（不参与共享寻址），跳过打包")
             return
-        try:
-            cfg = json.loads(str(row.get("config_json") or "{}"))
-            if not isinstance(cfg, dict):
-                cfg = {}
-        except json.JSONDecodeError:
-            cfg = {}
-        manifest: dict[str, object] = {
-            "arxiv_id": base,
-            "version": f"v{ver}" if ver is not None else "",
-            "model": str(row["model"]),
-            "prompt_ver": PROMPT_VERSION,
-            "target_lang": str(row["target_lang"]),
-            "glossary_hash": self._share_glossary_hash(ctx, cfg),
-            "pipeline_ver": PIPELINE_VERSION,
-        }
         out_dir = share_dir(self.data_dir)
-        bundle = pack_share(ctx.root, manifest, out_dir=out_dir)
-        scratch = ctx.root / ".share-verify"
-        try:
-            mf = unpack_share(bundle, scratch)
-        finally:
-            shutil.rmtree(scratch, ignore_errors=True)
-        index_append(
-            out_dir / "index.jsonl",
-            mf,
-            url=bundle.name,
-            package_bytes=bundle.stat().st_size,
-        )
+        bundle, _mf = share_pack_publish(ctx.root, manifest, out_dir)
         self._log(ctx, f"share pack: {bundle.name} → {out_dir}（index.jsonl 已落行）")
 
     # ------------------------------------------------------------ pdf 管线

@@ -14,6 +14,7 @@ key 纪律：``X-Texlate-*`` 头只进内存 ``Secrets`` 随任务活，绝不�
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -49,6 +50,7 @@ from texlate.server.settings import (
     scrub,
     server_mode,
     server_salt,
+    share_dir,
     validate_base_url,
     validate_model,
 )
@@ -68,11 +70,19 @@ from texlate.server.worker import (
     URL_KIND,
     PipelineWorker,
     Secrets,
+    TaskCtx,
     TaskRunner,
     cache_key_for,
+    share_pack_publish,
     sniff_upload,
 )
-from texlate.share import ShareError, unpack_share
+from texlate.share import (
+    REQUIRED_ARTIFACTS,
+    ShareError,
+    index_lookup,
+    share_key,
+    unpack_share,
+)
 from texlate.xlat.client import ChatClient, ChatError
 from texlate.xlat.state import atomic_json
 
@@ -82,7 +92,6 @@ if TYPE_CHECKING:
     from texlate.arxiv.cache import SourceCache
     from texlate.arxiv.fetch import Fetcher
     from texlate.compile.engine import Engine
-    from texlate.server.worker import TaskCtx
     from texlate.xlat.pipeline import Translator
 
 log = logging.getLogger(__name__)
@@ -906,6 +915,105 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
             # reuse/idempotent 命中旧行——本次解包现场作废（行从未建）
             shutil.rmtree(tdir, ignore_errors=True)
         return _accepted(row, status, extra)
+
+    # ------------------------------------------------------------ share 导出
+
+    @app.post("/api/task/{task_id}/share/pack")
+    async def share_pack(request: Request, task_id: str) -> Response:  # noqa: C901, PLR0911 -- 守卫阶梯平铺
+        """终态任务事后打 ``.share.zip``（shared-cache.md §6「完成后提示分享」服务端面）。
+
+        与 worker ``_maybe_share_pack`` 完成钩同口径：key_parts 由
+        ``worker.share_pack_manifest`` 从任务行现值派生，产物取
+        ``tasks/{id}/`` 下 ``REQUIRED_ARTIFACTS``（zh.pdf 缺席落 partial
+        包）。幂等：share_key 已入 ``index.jsonl`` 且包文件在场 → 直接
+        200 不重打。``kind=share``（导入产物不自包）与 reuse 命中任务
+        （产物物化自他任务、生效术语表不可知）→ 422；非 done/partial
+        → 409；缺必需产物 → 422。响应 ``{share_key, url, bytes}``——
+        ``url`` 与 index 行同口径（包文件名）。
+        """
+        row = _get_task(request, task_id)
+        if str(row["kind"]) == "share":
+            return _json_error(
+                422,
+                "kind=share 任务不打共享包（导入产物不自包）",
+                "share_pack_rejected",
+            )
+        try:
+            opts = json.loads(str(row.get("options_json") or "{}"))
+        except json.JSONDecodeError:
+            opts = {}
+        if isinstance(opts, dict) and opts.get("reuse_hit"):
+            return _json_error(
+                422,
+                f"reuse 命中任务（产物物化自 {opts['reuse_hit']}）不打共享包",
+                "share_pack_rejected",
+            )
+        if row["status"] not in ("done", "partial"):
+            return _json_error(
+                409,
+                f"任务状态 {row['status']}：仅 done/partial 终态可打包",
+                "invalid_state",
+            )
+        task_root = root / "tasks" / task_id
+        ctx = TaskCtx(
+            store=store,
+            bus=bus,
+            task_id=task_id,
+            row=row,
+            secrets=Secrets(),
+            root=task_root,
+        )
+        manifest = worker.share_pack_manifest(ctx, row)
+        if manifest is None:
+            return _json_error(
+                422,
+                "任务无 arxiv_id（不参与共享寻址）",
+                "share_pack_rejected",
+            )
+        key = share_key(
+            str(manifest["arxiv_id"]),
+            str(manifest["version"]),
+            str(manifest["model"]),
+            str(manifest["prompt_ver"]),
+            str(manifest["target_lang"]),
+            str(manifest["glossary_hash"]),
+            str(manifest["pipeline_ver"]),
+        )
+        out_dir = share_dir(root)
+        try:
+            hit = index_lookup(out_dir / "index.jsonl", key)
+        except ShareError as e:
+            # 索引行损坏不挡重打——append-only last-wins 读出侧自愈
+            log.warning("share index unreadable for %s, repacking: %s", task_id, e)
+            hit = None
+        if hit is not None:
+            # index 行 url 按约定是扁平包文件名——只认扁平名防越界探测
+            name = str(hit.get("url") or "")
+            flat = "/" not in name and "\\" not in name and name not in ("", ".", "..")
+            if flat and (out_dir / name).is_file():
+                return JSONResponse(
+                    {"share_key": key, "url": name, "bytes": hit["bytes"]}
+                )
+        missing = [n for n in REQUIRED_ARTIFACTS if not (task_root / n).is_file()]
+        if missing:
+            return _json_error(
+                422,
+                f"缺必需产物: {missing}",
+                "share_pack_artifacts",
+            )
+        try:
+            bundle, mf = await asyncio.to_thread(
+                share_pack_publish, task_root, manifest, out_dir
+            )
+        except ShareError as e:
+            return _json_error(422, f"share 打包失败: {e}", "share_pack_failed")
+        return JSONResponse(
+            {
+                "share_key": mf.share_key,
+                "url": bundle.name,
+                "bytes": bundle.stat().st_size,
+            }
+        )
 
     # ------------------------------------------------------------ §2.5 helpers
 
