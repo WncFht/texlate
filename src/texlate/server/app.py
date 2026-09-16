@@ -275,6 +275,11 @@ _RESERVED_OPTION_KEYS = frozenset(
 #: ``engine_for`` 只认两台真机 + auto 路由）。
 _ENGINE_NAMES = frozenset({"auto", "xelatex", "tectonic"})
 
+#: server 模式 ``GET /api/settings`` 摘键：前端不消费且泄漏部署拓扑
+#: （``glossary_dir`` 宿主文件系统路径、``cors_origins`` 部署方跨域策略）。
+#: ``quota_*`` 保留——多租户下配额上限是租户自身策略面，非拓扑。
+_SERVER_SETTINGS_HIDDEN = frozenset({"cors_origins", "glossary_dir"})
+
 
 def _settings_write_gate() -> None:
     """Server 模式 settings 写路径关闭（§4.1：PUT settings 是本地单机默认形态）。
@@ -1103,7 +1108,9 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
 
     @app.get("/api/health")
     async def health() -> dict[str, Any]:
-        """``{ok, version, compilers, data_dir}``。"""
+        """``{ok}`` 探活最小集；local 形态附加 ``version/compilers/data_dir``。"""
+        if server_mode() == "server":
+            return {"ok": True}
         return {
             "ok": True,
             "version": __version__,
@@ -1328,8 +1335,12 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
 
     @app.get("/api/settings")
     async def settings_get() -> dict[str, Any]:
-        """public_settings：key 剥壳只给 ``has_api_key``。"""
-        return settings_store.public()
+        """public_settings：key 剥壳只给 ``has_api_key``；server 摘部署拓扑键。"""
+        data = settings_store.public()
+        if server_mode() == "server":
+            for k in _SERVER_SETTINGS_HIDDEN:
+                data.pop(k, None)
+        return data
 
     @app.put("/api/settings")
     async def settings_put(request: Request) -> Response:
@@ -1379,8 +1390,12 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
 
     @app.get("/api/providers")
     async def providers() -> dict[str, Any]:
-        """列 provider 预设清单（key 只给 has_api_key/has_env_key）。"""
-        return {"providers": provider_presets(settings_store.load())}
+        """列 provider 预设清单；server 摘 ``has_env_key``（部署方 env 凭据面）。"""
+        presets = provider_presets(settings_store.load())
+        if server_mode() == "server":
+            for p in presets:
+                p.pop("has_env_key", None)
+        return {"providers": presets}
 
     # ------------------------------------------------------------ SPA 静态
 

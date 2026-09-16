@@ -1281,7 +1281,8 @@ class TestServerModeSettingsGate:
 
     多租户下 settings.json 是部署方全局配置：租户可写即可改 base_url
     截获他租户 header key / 改配额/CORS；``settings/test`` 是同级
-    出站探活 oracle。读面（GET settings/providers/health）保持开放。
+    出站探活 oracle。读面（GET settings/providers/health）保持开放
+    但裁部署拓扑字段（glossary_dir/cors_origins/data_dir/has_env_key）。
     """
 
     def test_put_settings_403(
@@ -1308,6 +1309,46 @@ class TestServerModeSettingsGate:
         assert client.get("/api/settings").status_code == HTTPStatus.OK
         assert client.get("/api/providers").status_code == HTTPStatus.OK
         assert client.get("/api/health").status_code == HTTPStatus.OK
+
+    def test_health_minimal(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """server 模式 health 只回探活最小集——version/compilers/data_dir 属部署拓扑。"""
+        monkeypatch.setenv("TEXLATE_MODE", "server")
+        assert client.get("/api/health").json() == {"ok": True}
+
+    def test_settings_topology_hidden(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """server 模式 settings 摘 glossary_dir/cors_origins；租户可见面保留。"""
+        monkeypatch.setenv("TEXLATE_MODE", "server")
+        body = client.get("/api/settings").json()
+        assert "glossary_dir" not in body
+        assert "cors_origins" not in body
+        assert "api_key" not in body
+        # 租户自身策略面不裁：配额/当前网关/key 存在位
+        assert "quota_max_tasks" in body
+        assert "base_url" in body
+        assert "has_api_key" in body
+
+    def test_providers_env_key_hidden(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """server 模式 providers 摘 has_env_key——部署方 env 凭据配置面。"""
+        monkeypatch.setenv("TEXLATE_MODE", "server")
+        monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-x")
+        body = client.get("/api/providers").json()
+        assert all("has_env_key" not in p for p in body["providers"])
+
+    def test_local_mode_full_read_surface(self, client: TestClient) -> None:
+        """local 形态读面不裁——三端点全量字段照回。"""
+        body = client.get("/api/settings").json()
+        assert "glossary_dir" in body
+        assert "cors_origins" in body
+        health = client.get("/api/health").json()
+        assert {"version", "compilers", "data_dir"} <= health.keys()
+        presets = client.get("/api/providers").json()["providers"]
+        assert all("has_env_key" in p for p in presets)
 
     def test_local_mode_still_writes(self, client: TestClient) -> None:
         """local 形态不受影响——PUT settings 正常合并。"""
