@@ -1,16 +1,16 @@
 # e2e mock bench — corpus_v3
 
-- **base-xel**: clean 37/60
-- **pipe-xel**: clean 44/60
-- **pipeB-xel**: clean 46/60
-- **pipeC-xel**: clean 39/60
+- **base-xel**: clean 44/80
+- **pipe-xel**: clean 54/80
+- **pipeB-xel**: clean 56/80
+- **pipeC-xel**: clean 47/80
 
-- pipe-xel 失败且 base-xel clean（管线引入）: ['0806.1984', '0806.3144', '0905.0795', '1003.0112', '1404.0275', '1404.0527', '1706.00265']
+- pipe-xel 失败且 base-xel clean（管线引入）: ['0806.1984', '0806.3144', '0905.0795', '1003.0112', '1404.0275', '1404.0527', '1706.00265', 'hep-th/0408064']
 - pipe-tec 失败且 base-tec clean（管线引入）: []
 ## Mode B 台账 (pipeB-xel)
-- 注入破坏块 2343（事件 7535）→ caught 2047 / recovered 296 / **escaped 0** — 门槛 escaped==0: **PASS**
+- 注入破坏块 3123（事件 10102）→ caught 2720 / recovered 403 / **escaped 0** — 门槛 escaped==0: **PASS**
 
 ## Mode C 台账 (pipeC-xel)
-- 挪位 4286 处 / 涉块 2287 → 进 splice 2231 / 回退 56；编译 verdict 分布 {'clean': 39, 'fail': 2, 'partial': 19}
-- 存活率 vs pipe-xel 基线: 58/58 篇出 pdf
+- 挪位 5368 处 / 涉块 2904 → 进 splice 2822 / 回退 82；编译 verdict 分布 {'clean': 47, 'fail': 2, 'partial': 31}
+- 存活率 vs pipe-xel 基线: 78/78 篇出 pdf
 
