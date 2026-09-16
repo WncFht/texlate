@@ -50,6 +50,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
     from typing import Any
 
+    from texlate.server.settings import SettingsStore
     from texlate.xlat.pipeline import Translator
 
 app = typer.Typer(
@@ -99,16 +100,32 @@ def fetch(
     ``{id}v{ver}``、未钉版取已缓存最高版；无缓存报 ``offline_no_cache``
     退出 1，不静默降级上网。
     """
-    res = acquire_source(
+    res = _acquire(
         arxiv_id,
-        fetcher=Fetcher(),
-        cache=SourceCache(cache),
+        cache,
         version=version,
         offline=offline or _env_flag("TEXLATE_OFFLINE", default=False),
     )
     _echo_acquire(res)
     if res.status not in (AcquireStatus.OK, AcquireStatus.HIT):
         raise typer.Exit(1)
+
+
+def _acquire(
+    arxiv_id: str, cache: Path, *, version: int | None = None, offline: bool = False
+) -> AcquireResult:
+    """``acquire_source`` 收口：``Fetcher`` 内建 httpx.Client，用毕显式关池。"""
+    fetcher = Fetcher()
+    try:
+        return acquire_source(
+            arxiv_id,
+            fetcher=fetcher,
+            cache=SourceCache(cache.expanduser()),
+            version=version,
+            offline=offline,
+        )
+    finally:
+        fetcher.client.close()
 
 
 def _echo_acquire(res: AcquireResult) -> None:
@@ -151,6 +168,11 @@ def parse(
     ] = None,
 ) -> None:
     """半解析单个 .tex：分块/占位符/警告统计，``--out`` 落逐块明细。"""
+    if out is not None:
+        out = out.expanduser()
+        if out.resolve() == path.resolve():
+            typer.echo("--out 与输入同路径——拒绝覆写源文件", err=True)
+            raise typer.Exit(2)
     res = parse_file(path, flatten=flatten)
     typer.echo(
         json.dumps(
@@ -165,21 +187,25 @@ def parse(
         )
     )
     if out is not None:
-        with out.open("w", encoding="utf-8") as fh:
-            for c in res.chunks:
-                fh.write(
-                    json.dumps(
-                        {
-                            "id": c.id,
-                            "context": c.context,
-                            "env": c.env,
-                            "placeholders": c.placeholders,
-                            "content": c.content,
-                        },
-                        ensure_ascii=False,
+        try:
+            with out.open("w", encoding="utf-8") as fh:
+                for c in res.chunks:
+                    fh.write(
+                        json.dumps(
+                            {
+                                "id": c.id,
+                                "context": c.context,
+                                "env": c.env,
+                                "placeholders": c.placeholders,
+                                "content": c.content,
+                            },
+                            ensure_ascii=False,
+                        )
+                        + "\n"
                     )
-                    + "\n"
-                )
+        except OSError as e:
+            typer.echo(f"--out 不可写 {out}: {e}", err=True)
+            raise typer.Exit(1) from None
         typer.echo(f"chunks -> {out}", err=True)
 
 
@@ -187,7 +213,7 @@ def parse(
 
 
 @app.command()
-def run(  # noqa: C901, PLR0913 -- CLI 选项面即参数面 + 本地/瘦客户端双模分流
+def run(  # noqa: PLR0913 -- CLI 选项面即参数面 + 本地/瘦客户端双模分流
     source: Annotated[str, typer.Argument(help="arXiv id 或本地工程目录")],
     *,
     engine: Annotated[
@@ -198,7 +224,7 @@ def run(  # noqa: C901, PLR0913 -- CLI 选项面即参数面 + 本地/瘦客户�
         typer.Option("--work-dir", "-w", help="工作目录（缺省 mkdtemp）"),
     ] = None,
     timeout: Annotated[
-        float, typer.Option("--timeout", help="单引擎编译超时秒")
+        float, typer.Option("--timeout", help="单引擎编译超时秒", min=0.0)
     ] = 240.0,
     cache: Annotated[
         Path, typer.Option("--cache", help="source-tier 缓存根")
@@ -240,8 +266,9 @@ def run(  # noqa: C901, PLR0913 -- CLI 选项面即参数面 + 本地/瘦客户�
         typer.Option("--out", "-o", help="--server 产物下载目录"),
     ] = None,
     wait: Annotated[
-        float, typer.Option("--wait", help="--server 终态等待上限秒")
-    ] = 1800.0,
+        float | None,
+        typer.Option("--wait", help="--server 终态等待上限秒（缺省 1800）", min=0.0),
+    ] = None,
 ) -> None:
     """端到端：取源/本地目录 → normalize → mock 翻译 → ctex 注入 → 编译 → 判定。
 
@@ -278,12 +305,10 @@ def run(  # noqa: C901, PLR0913 -- CLI 选项面即参数面 + 本地/瘦客户�
             api_key=api_key,
             base_url=base_url,
             out=out,
-            wait=wait,
+            wait=1800.0 if wait is None else wait,
         )
         raise typer.Exit(code)
-    if (
-        any(v is not None for v in (model, api_key, base_url, out)) or wait != 1800.0  # noqa: PLR2004 -- 与签名缺省同一字面值
-    ):
+    if any(v is not None for v in (model, api_key, base_url, out, wait)):
         typer.echo(
             "--model/--api-key/--base-url/--out/--wait 仅配合 --server 使用",
             err=True,
@@ -296,26 +321,16 @@ def run(  # noqa: C901, PLR0913 -- CLI 选项面即参数面 + 本地/瘦客户�
     if src_dir is None:
         raise typer.Exit(1)
 
-    # --work-dir 保护：已存在的非空目录绝不 rmtree（指错路径删整树的坑）；
-    # 空目录/不存在 → 正常用作工作区。文件形态报错。
-    work = work_dir or Path(tempfile.mkdtemp(prefix="texlate-run-"))
-    if work.exists():
-        if not work.is_dir():
-            typer.echo(f"--work-dir 不是目录: {work}", err=True)
-            raise typer.Exit(2)
-        if any(work.iterdir()):
-            typer.echo(
-                f"--work-dir 已存在且非空，拒绝覆盖删除: {work}\n"
-                "（请换路径或自行清空后重试）",
-                err=True,
-            )
-            raise typer.Exit(2)
-        shutil.copytree(src_dir, work, dirs_exist_ok=True)
-    else:
-        shutil.copytree(src_dir, work)
-    typer.echo(f"work dir: {work}", err=True)
-
+    # --work-dir 保护由 _populate_work_dir 收口；整个填充+管线都在 try 内，
+    # 保证 mkdtemp 临时目录在 copytree 失败时也清掉（原先泄漏）。
+    work = (
+        work_dir.expanduser()
+        if work_dir is not None
+        else Path(tempfile.mkdtemp(prefix="texlate-run-"))
+    )
     try:
+        _populate_work_dir(src_dir, work)
+        typer.echo(f"work dir: {work}", err=True)
         verdict = mock_pipeline_run(work, engine, timeout)
         typer.echo(json.dumps(verdict, ensure_ascii=False, indent=2))
         status = verdict.get("status")
@@ -328,14 +343,38 @@ def run(  # noqa: C901, PLR0913 -- CLI 选项面即参数面 + 本地/瘦客户�
             shutil.rmtree(work, ignore_errors=True)
 
 
+def _populate_work_dir(src_dir: Path, work: Path) -> None:
+    """``work`` 目录校验 + 拷工程：已存在非空目录绝不 rmtree。
+
+    指错路径删整树的坑——空目录/不存在正常用作工作区；文件形态报错
+    exit 2，OSError（拷贝中途盘满/权限）干净报错 exit 1。
+    """
+    try:
+        if work.exists():
+            if not work.is_dir():
+                typer.echo(f"--work-dir 不是目录: {work}", err=True)
+                raise typer.Exit(2)
+            if any(work.iterdir()):
+                typer.echo(
+                    f"--work-dir 已存在且非空，拒绝覆盖删除: {work}\n"
+                    "（请换路径或自行清空后重试）",
+                    err=True,
+                )
+                raise typer.Exit(2)
+            shutil.copytree(src_dir, work, dirs_exist_ok=True)
+        else:
+            shutil.copytree(src_dir, work)
+    except OSError as e:
+        typer.echo(f"工作目录准备失败 {work}: {e}", err=True)
+        raise typer.Exit(1) from None
+
+
 def _resolve_source(source: str, cache: Path, *, offline: bool = False) -> Path | None:
     """参数分流：存在的目录直接用，否则按 arXiv id 取源。"""
-    p = Path(source)
+    p = Path(source).expanduser()
     if p.is_dir():
         return p
-    res = acquire_source(
-        source, fetcher=Fetcher(), cache=SourceCache(cache), offline=offline
-    )
+    res = _acquire(source, cache, offline=offline)
     _echo_acquire(res)
     if res.status not in (AcquireStatus.OK, AcquireStatus.HIT):
         return None
@@ -365,7 +404,7 @@ def _thin_run(  # noqa: PLR0913 -- 与 run 的 --server 选项面一一对应
     wait: float,
 ) -> int:
     """瘦客户端主流程：提交任务 → 轮询到终态 → 下载产物。返回退出码。"""
-    if Path(source).is_dir():
+    if Path(source).expanduser().is_dir():
         typer.echo(
             "--server 模式只接 arXiv id/URL（本地目录请走 server /api/upload）",
             err=True,
@@ -400,7 +439,13 @@ def _thin_run(  # noqa: PLR0913 -- 与 run 的 --server 选项面一一对应
                     err=True,
                 )
                 return 1
-            artifacts = _thin_download(client, task_id, out, pinned)
+            # lost = 快照通道已失联（清单必同挂）；needs_auth = 任务未产出
+            # ——两者跳过产物下载，其余终态照试（fault/interrupted 可能有部分件）
+            artifacts = (
+                {}
+                if status in ("lost", "needs_auth")
+                else _thin_download(client, task_id, out, pinned)
+            )
             typer.echo(
                 json.dumps(
                     {
@@ -430,13 +475,14 @@ def _thin_submit(
     """
     resp = client.post(f"/api/arxiv/{pinned}/translate", json=payload)
     if resp.status_code == HTTPStatus.CONFLICT:
-        task_id = str(resp.json().get("task_id") or "")
+        body = resp.json()
+        task_id = str(body.get("task_id") or "") if isinstance(body, dict) else ""
         if task_id:
             typer.echo(f"attach 进行中任务 {task_id}", err=True)
             return task_id
     elif resp.status_code in (HTTPStatus.OK, HTTPStatus.ACCEPTED):
         body = resp.json()
-        task_id = str(body.get("task_id") or "")
+        task_id = str(body.get("task_id") or "") if isinstance(body, dict) else ""
         if task_id:
             typer.echo(f"task {task_id} → {body.get('status')}", err=True)
             return task_id
@@ -455,7 +501,12 @@ def _thin_wait(client: httpx.Client, task_id: str, wait: float) -> str | None:
             typer.echo(f"快照 {resp.status_code}: {resp.text[:200]}", err=True)
             return "lost"
         snap = resp.json()
-        counters = snap.get("counters") or {}
+        if not isinstance(snap, dict):
+            typer.echo(f"快照非法（非对象 JSON）: {resp.text[:200]}", err=True)
+            return "lost"
+        counters = snap.get("counters")
+        if not isinstance(counters, dict):
+            counters = {}
         line = (
             f"{snap.get('status')}/{snap.get('stage') or '-'} "
             f"{snap.get('progress')}% chunks={counters.get('done', 0)}"
@@ -483,29 +534,72 @@ def _thin_download(
     if listing.status_code != HTTPStatus.OK:
         typer.echo(f"产物清单 {listing.status_code}: {listing.text[:200]}", err=True)
         return {}
-    artifacts = listing.json().get("artifacts") or {}
-    dest = out or Path.cwd() / f"texlate-{pinned}-{task_id[:8]}"
-    dest.mkdir(parents=True, exist_ok=True)
+    body = listing.json()
+    artifacts = body.get("artifacts") if isinstance(body, dict) else None
+    if not isinstance(artifacts, dict):
+        artifacts = {}
+    dest = (
+        out.expanduser()
+        if out is not None
+        else Path.cwd() / f"texlate-{pinned}-{task_id[:8]}"
+    )
+    try:
+        dest.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        typer.echo(f"产物目录不可写 {dest}: {e}", err=True)
+        return {}
     got: dict[str, str] = {}
     for kind, rec in artifacts.items():
-        url = str(rec.get("url") or "")
-        if not url:
+        if not isinstance(rec, dict):
             continue
-        fname = url.rsplit("/", 1)[-1] or str(kind)
-        r = client.get(url)
-        if r.status_code != HTTPStatus.OK:
-            typer.echo(f"下载 {kind} {r.status_code}，跳过", err=True)
-            continue
-        blob = r.content
-        sha = str(rec.get("sha256") or "")
-        if sha and hashlib.sha256(blob).hexdigest() != sha:
-            typer.echo(f"{kind} sha256 不符，跳过", err=True)
-            continue
-        target = dest / fname
-        target.write_bytes(blob)
-        got[str(kind)] = str(target)
-        typer.echo(f"{kind} → {target}", err=True)
+        path = _thin_fetch_one(client, dest, str(kind), rec)
+        if path is not None:
+            got[str(kind)] = path
     return got
+
+
+def _thin_fetch_one(
+    client: httpx.Client, dest: Path, kind: str, rec: Mapping[str, Any]
+) -> str | None:
+    r"""单产物流式下载：``.{name}.part`` 临时件 + sha256 过了才 rename。
+
+    中断/校验不符不留半成品正名件；产物名取 url 末段，``.``/``..``/``\\``
+    非法名跳过（防 ``dest`` 外逃逸）。失败打 stderr 返回 None。
+    """
+    url = str(rec.get("url") or "")
+    if not url:
+        return None
+    fname = url.rsplit("/", 1)[-1] or str(kind)
+    if fname in (".", "..") or "\\" in fname:
+        typer.echo(f"{kind} 产物名非法 {fname!r}，跳过", err=True)
+        return None
+    target = dest / fname
+    tmp = target.with_name(f".{fname}.part")
+    digest = ""
+    try:
+        with client.stream("GET", url) as r:
+            if r.status_code != HTTPStatus.OK:
+                typer.echo(f"下载 {kind} {r.status_code}，跳过", err=True)
+            else:
+                h = hashlib.sha256()
+                with tmp.open("wb") as fh:
+                    for chunk in r.iter_bytes():
+                        h.update(chunk)
+                        fh.write(chunk)
+                digest = h.hexdigest()
+    except (httpx.HTTPError, OSError) as e:
+        typer.echo(f"下载 {kind} 失败: {e}，跳过", err=True)
+    if not digest:
+        tmp.unlink(missing_ok=True)
+        return None
+    sha = str(rec.get("sha256") or "")
+    if sha and digest != sha:
+        typer.echo(f"{kind} sha256 不符，跳过", err=True)
+        tmp.unlink(missing_ok=True)
+        return None
+    tmp.replace(target)
+    typer.echo(f"{kind} → {target}", err=True)
+    return str(target)
 
 
 # ---------------------------------------------------------------- web
@@ -565,7 +659,9 @@ def _service_lock(
 def web(
     *,
     host: Annotated[str, typer.Option("--host", help="绑定地址")] = "127.0.0.1",
-    port: Annotated[int, typer.Option("--port", "-p", help="端口")] = 8765,
+    port: Annotated[
+        int, typer.Option("--port", "-p", help="端口", min=1, max=65535)
+    ] = 8765,
     data_dir: Annotated[
         Path | None,
         typer.Option(
@@ -594,7 +690,12 @@ def web(
             err=True,
         )
         raise typer.Exit(1) from None
-    _lock_fh, existing = _service_lock(_data_dir(), host, port)
+    try:
+        root = _data_dir()
+    except OSError as e:
+        typer.echo(f"数据目录不可用: {e}", err=True)
+        raise typer.Exit(1) from None
+    _lock_fh, existing = _service_lock(root, host, port)
     if existing is not None:
         typer.echo(
             f"texlate web 已在运行 → {existing}（service.lock 被持有）",
@@ -603,7 +704,11 @@ def web(
         webbrowser.open(existing)
         return
     typer.echo(f"texlate web → http://{host}:{port}", err=True)
-    uvicorn.run(create_app(), host=host, port=port)
+    try:
+        uvicorn.run(create_app(), host=host, port=port)
+    except OSError as e:
+        typer.echo(f"web 起服失败（{host}:{port}）: {e}", err=True)
+        raise typer.Exit(1) from None
 
 
 # ---------------------------------------------------------------- export
@@ -641,6 +746,9 @@ def export(
     from texlate.export.common import ExportError  # noqa: PLC0415
 
     translator = _export_translator(model, mock=mock)
+    path = path.expanduser()
+    if out is not None:
+        out = out.expanduser()
     try:
         report = export_document(path, out, translator, glossary=glossary)
     except ExportError as e:
@@ -655,7 +763,12 @@ def export(
 
 
 def _export_translator(model: str | None, *, mock: bool) -> Translator:
-    """worker._make_translator 的无 ctx 版：env/key → 网关，否则 Mock。"""
+    """worker._make_translator 的无 ctx 版：env/key → 网关，否则 Mock。
+
+    ``TEXLATE_TRANSLATOR=gateway`` 无 ``TEXLATE_API_KEY`` → exit 2 显式拒
+    （缺 key 的网关调用必败，不静默回落 Mock 产占位译文）；无 key 隐式
+    回落 Mock 时打 stderr 提示——占位译文当真译文是真实踩坑面。
+    """
     from texlate.xlat.pipeline import (  # noqa: PLC0415
         GatewayTranslator,
         MockTranslator,
@@ -663,15 +776,29 @@ def _export_translator(model: str | None, *, mock: bool) -> Translator:
 
     force = os.environ.get("TEXLATE_TRANSLATOR", "").lower()
     api_key = os.environ.get("TEXLATE_API_KEY", "")
-    if mock or force == "mock" or (not api_key and force != "gateway"):
+    if mock or force == "mock":
+        return MockTranslator()  # 显式干跑优先于 env 矛盾检查
+    if force == "gateway" and not api_key:
+        typer.echo(
+            "TEXLATE_TRANSLATOR=gateway 需要 TEXLATE_API_KEY（缺 key 的网关翻译必败）",
+            err=True,
+        )
+        raise typer.Exit(2)
+    if not api_key:
+        typer.echo(
+            "未配置 TEXLATE_API_KEY——按 MockTranslator 干跑（占位译文、不触网）",
+            err=True,
+        )
         return MockTranslator()
+    from texlate.server.settings import (  # noqa: PLC0415
+        DEFAULT_BASE_URL,
+        DEFAULT_MODEL,
+    )
     from texlate.xlat.client import ChatClient  # noqa: PLC0415
 
     return GatewayTranslator(
-        ChatClient(
-            os.environ.get("TEXLATE_BASE_URL", "http://100.105.212.52:3003"), api_key
-        ),
-        model or os.environ.get("TEXLATE_MODEL", "") or "swe-2-medium",
+        ChatClient(os.environ.get("TEXLATE_BASE_URL") or DEFAULT_BASE_URL, api_key),
+        model or os.environ.get("TEXLATE_MODEL", "") or DEFAULT_MODEL,
     )
 
 
@@ -727,13 +854,23 @@ def _share_db(task_dir: Path, data_dir: Path | None) -> Path | None:
 
 
 def _share_row(db: Path, task_id: str) -> dict[str, Any] | None:
-    """只读开库取任务行——不走 ``Store.open()``（它有 DDL/迁移写副作用）。"""
-    conn = sqlite3.connect(f"file:{quote(str(db), safe='/')}?mode=ro", uri=True)
+    """只读开库取任务行——不走 ``Store.open()``（它有 DDL/迁移写副作用）。
+
+    库文件在场但非 sqlite/缺 tasks 表 → ``sqlite3.Error`` 归一干净报错
+    （不抛 traceback）。
+    """
     try:
-        conn.row_factory = sqlite3.Row
-        row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
-    finally:
-        conn.close()
+        conn = sqlite3.connect(f"file:{quote(str(db), safe='/')}?mode=ro", uri=True)
+        try:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT * FROM tasks WHERE id = ?", (task_id,)
+            ).fetchone()
+        finally:
+            conn.close()
+    except sqlite3.Error as e:
+        typer.echo(f"任务库不可读 {db}: {e}", err=True)
+        raise typer.Exit(1) from None
     return dict(row) if row is not None else None
 
 
@@ -937,7 +1074,7 @@ def share_pack(
         )
         _share_warn_no_pdf(task_dir)
         bundle = pack_share(task_dir, manifest, out_dir=out_dir)
-    except ShareError as e:
+    except (ShareError, OSError) as e:
         typer.echo(f"share pack: {e}", err=True)
         raise typer.Exit(1) from None
     final = bundle
@@ -984,10 +1121,10 @@ def share_unpack(
     # （``...share.zip`` 剥出 ``..`` 会向父目录写产物）
     if not stem or stem in (".", "..") or "/" in stem or "\\" in stem:
         stem = "share-unpacked"
-    dest = out or Path.cwd() / stem
+    dest = out.expanduser() if out else Path.cwd() / stem
     try:
         mf = unpack_share(bundle, dest)
-    except ShareError as e:
+    except (ShareError, OSError) as e:
         typer.echo(f"share unpack: {e}", err=True)
         raise typer.Exit(1) from None
     typer.echo(
@@ -1219,12 +1356,28 @@ def _doc_pdftotext() -> _Check:
     return _Check("pdftotext", "ok", f"{ver} @ {p}")
 
 
+def _doc_settings_raw(store: SettingsStore) -> dict[str, Any]:
+    """``settings.json`` 原始键（缺席/损坏/非 dict → ``{}``）。
+
+    不用 ``store.load()``——它把缺省 ``base_url`` 回填成
+    ``DEFAULT_BASE_URL``，判"配没配网关"必须看用户显式写下的键
+    （否则空 settings.json 也探测默认网关 = 非 tailnet 用户误诊 fail）。
+    """
+    if not store.path.is_file():
+        return {}
+    try:
+        parsed = json.loads(store.path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
 def _doc_gateway() -> _Check:
     """BYOK 网关连通：``GET {base}/v1/models`` 5s 探活（与 client.py 同端点）。
 
-    配置面 = ``settings.json``（``TEXLATE_DATA_DIR``>``~/.texlate``，只读定位
-    不 mkdir）+ env 兜底，与 ``resolve_auth`` 同序；什么都没配 → n/a。
-    key 只进请求头，绝不进输出。
+    配置面 = ``settings.json`` 原始键（``TEXLATE_DATA_DIR``>``~/.texlate``，
+    只读定位不 mkdir）+ env 兜底，与 ``resolve_auth`` 同序；什么都没配
+    → n/a。key 只进请求头，绝不进输出。
     """
     from texlate.server.settings import (  # noqa: PLC0415 -- server 层延迟 import
         DEFAULT_BASE_URL,
@@ -1235,9 +1388,9 @@ def _doc_gateway() -> _Check:
     from texlate.xlat.client import normalize_base_url  # noqa: PLC0415
 
     store = SettingsStore(toolchain.data_root())
-    cfg = store.load() if store.path.is_file() else {}
-    base_url = env_base_url() or str(cfg.get("base_url") or "")
-    api_key = str(cfg.get("api_key") or "")
+    raw = _doc_settings_raw(store)
+    base_url = env_base_url() or str(raw.get("base_url") or "")
+    api_key = str(raw.get("api_key") or "")
     if not api_key and base_url:
         api_key = env_key_for(base_url)
     if not base_url and not api_key:

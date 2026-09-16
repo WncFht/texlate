@@ -152,12 +152,41 @@ class TestExport:
         tmp_path: Path,
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用（env 清洗）
     ) -> None:
-        """无 --mock 且无 TEXLATE_API_KEY → 缺省 MockTranslator（零触网仍成跑）。"""
+        """无 --mock 且无 TEXLATE_API_KEY → 缺省 MockTranslator（零触网仍成跑），
+        隐式回落打 stderr 提示——占位译文不当真译文。"""
         src = _write_epub(tmp_path, _epub(_CH1))
         result = _RUNNER.invoke(app, ["export", str(src)])
 
         assert result.exit_code == 0, result.output
+        assert "MockTranslator" in result.stderr
         assert (tmp_path / "book_bilingual.epub").is_file()
+
+    def test_explicit_mock_no_hint(
+        self,
+        tmp_path: Path,
+        clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用（env 清洗）
+    ) -> None:
+        """显式 --mock 是用户明知 → 不打隐式回落提示。"""
+        src = _write_epub(tmp_path, _epub(_CH1))
+        result = _RUNNER.invoke(app, ["export", str(src), "--mock"])
+
+        assert result.exit_code == 0, result.output
+        assert "MockTranslator" not in result.stderr
+
+    def test_gateway_forced_no_key_exit_2(
+        self,
+        tmp_path: Path,
+        clean_env: pytest.MonkeyPatch,
+    ) -> None:
+        """``TEXLATE_TRANSLATOR=gateway`` 无 key → exit 2 显式拒（必败不静默）。"""
+        clean_env.setenv("TEXLATE_TRANSLATOR", "gateway")
+        clean_env.delenv("TEXLATE_API_KEY", raising=False)
+        src = _write_epub(tmp_path, _epub(_CH1))
+        result = _RUNNER.invoke(app, ["export", str(src)])
+
+        assert result.exit_code == 2  # noqa: PLR2004 -- 用法错（配置自相矛盾）
+        assert "TEXLATE_API_KEY" in result.stderr
+        assert not (tmp_path / "book_bilingual.epub").exists()
 
     def test_suffix_ignored_content_sniffed(self, tmp_path: Path) -> None:
         """epub 字节命名 ``.bin`` → 内容嗅探照走（help 承诺「不看后缀」）。"""

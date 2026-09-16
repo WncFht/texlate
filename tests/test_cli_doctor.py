@@ -229,6 +229,22 @@ class TestDoctor:
         assert st["gateway"] == "n/a"
         assert "texlate web" in r.stdout
 
+    def test_gateway_settings_without_keys_na(
+        self, tmp_path: Path, doctor_env: pytest.MonkeyPatch
+    ) -> None:
+        """settings.json 在但没写网关键 → n/a——``load()`` 回填的默认
+        base_url 不算"已配置"（否则非 tailnet 用户被默认网关误诊 fail）。"""
+        _write_settings(tmp_path / "data", model="some-model")
+
+        def _boom(*_a: object, **_kw: object) -> httpx.Response:
+            msg = "should not probe"
+            raise AssertionError(msg)
+
+        doctor_env.setattr(httpx, "get", _boom)
+        r = _RUNNER.invoke(app, ["doctor"])
+        assert r.exit_code == 0, r.output
+        assert _statuses(r.stdout)["gateway"] == "n/a"
+
     def test_gateway_unauthorized_warn(
         self, tmp_path: Path, doctor_env: pytest.MonkeyPatch
     ) -> None:
