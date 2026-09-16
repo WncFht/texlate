@@ -239,13 +239,8 @@ class TestGlossaryHash:
         ).hexdigest()
         assert got == expect
 
-    def test_no_layer_empty(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """无配置层且 USER_GLOSSARY_PATH 缺席 → 空串。"""
-        import texlate.server.worker as worker_mod  # noqa: PLC0415
-
-        monkeypatch.setattr(worker_mod, "USER_GLOSSARY_PATH", tmp_path / "nope.yaml")
+    def test_no_layer_empty(self, tmp_path: Path) -> None:
+        """无配置层且 USER_GLOSSARY_PATH 缺席（conftest 钉死）→ 空串。"""
         ctx, worker, _store = _mk(tmp_path)
         ctx.base_dir.mkdir(parents=True, exist_ok=True)
         assert worker._share_glossary_hash(ctx, {}) == ""  # noqa: SLF001

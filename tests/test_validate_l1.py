@@ -4,6 +4,7 @@
 用 TEXLATE_TS_NODE_PATH 指过去即可，不复制不重装。
 """
 
+import shutil
 from pathlib import Path
 
 import pytest
@@ -13,13 +14,21 @@ from texlate.validate.l1 import TsBaseline, TsValidator
 REPO = Path(__file__).resolve().parents[1]
 BENCH_NM = REPO / "bench" / "ts" / "node_modules"
 
-v = TsValidator(node_path=BENCH_NM if (BENCH_NM / "tree-sitter").is_dir() else None)
-HAS_L1 = v.available()
-
+# 收集期只查 PATH/纯路径——可用性终判（含 worker.js）放模块 fixture，
+# 收集阶段不构造校验器
 need_l1 = pytest.mark.skipif(
-    not HAS_L1,
+    shutil.which("node") is None or not (BENCH_NM / "tree-sitter").is_dir(),
     reason="node 或 tree-sitter 依赖不在场（可选组件；bench/ts 跑 npm ci 即恢复）",
 )
+
+
+@pytest.fixture(scope="module")
+def v() -> TsValidator:
+    val = TsValidator(node_path=BENCH_NM)
+    if not val.available():
+        pytest.skip("L1 依赖不可用（可选组件）")
+    return val
+
 
 SRC = "We propose [[MATH_1]] in \\begin{equation}\nE=mc^2\n\\end{equation}.\n"
 ZH_CLEAN = "我们提出 [[MATH_1]] 于 \\begin{equation}\nE=mc^2\n\\end{equation}。\n"
@@ -27,7 +36,7 @@ ZH_BROKEN = "我们提出 于 \\begin{equation}\nE=mc^2\n\\end{equationx}。\n" 
 
 
 @need_l1
-def test_batch_clean_and_broken() -> None:
+def test_batch_clean_and_broken(v: TsValidator) -> None:
     res = v.validate_batch(
         [
             {"id": "ok", "tex": ZH_CLEAN, "expect": ["MATH_1"]},
@@ -44,7 +53,7 @@ def test_batch_clean_and_broken() -> None:
 
 
 @need_l1
-def test_baseline_relative_mode() -> None:
+def test_baseline_relative_mode(v: TsValidator) -> None:
     """相对判定：baseline 带 ERROR 的源签名不拖累译文判定。"""
     src_with_gap = "\\inferrule{A}{B} 文本。"  # grammar 空隙命令产生 baseline ERROR
     base = v.sign(src_with_gap)
@@ -66,7 +75,7 @@ def test_resident_mode() -> None:
 
 
 @need_l1
-def test_sign_returns_baseline() -> None:
+def test_sign_returns_baseline(v: TsValidator) -> None:
     base = v.sign(SRC)
     assert isinstance(base, TsBaseline)
     assert base.parse_errors == 0

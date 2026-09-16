@@ -1,6 +1,7 @@
 """测试共享件：env 清洗 + fake engine/fetcher + client 工厂。
 
-非 autouse——只服务显式取用 fixture 的测试文件（test_server_* /
+autouse 仅两件无副作用的隔离件（用户术语表钉缺席 + RedactFilter 还原）；
+其余非 autouse——只服务显式取用 fixture 的测试文件（test_server_* /
 test_e2e / test_cli）。fastapi/starlette 只走函数内延迟导入：本 conftest
 对全测试集生效，server extra 缺装时其余测试集不能陪葬。
 """
@@ -8,6 +9,9 @@ test_e2e / test_cli）。fastapi/starlette 只走函数内延迟导入：本 con
 from __future__ import annotations
 
 import io
+import logging
+import os
+import sys
 import tarfile
 import time
 from http import HTTPStatus
@@ -25,22 +29,15 @@ if TYPE_CHECKING:
     from texlate.arxiv.fetch import HeadInfo, SrcResult
     from texlate.compile.engine import CompRes
 
-#: BYOK/行为相关 env——测试必须拿到确定性无凭证环境
+#: BYOK/行为相关 env——测试必须拿到确定性无凭证环境。
+#: ``TEXLATE_`` 前缀由 ``clean_env`` 全扫覆盖（新行为旗标自动免疫）；
+#: 本表只收非前缀的外部变量。
 _ENV_KEYS = (
-    "TEXLATE_API_KEY",
-    "TEXLATE_GATEWAY_KEY",
-    "TEXLATE_BASE_URL",
-    "TEXLATE_MODEL",
-    "TEXLATE_MODE",
-    "TEXLATE_CACHE_SCOPE",
-    "TEXLATE_TRANSLATOR",
-    "TEXLATE_NO_FIXLOOP",
-    "TEXLATE_DATA_DIR",
-    "TEXLATE_SPA_DIR",
     "OPENAI_API_KEY",
     "ANTHROPIC_API_KEY",
     "DEEPSEEK_API_KEY",
     "DASHSCOPE_API_KEY",
+    "FAKE_BABELDOC_MODE",
 )
 
 #: 最小可编 tex 工程（section+双段——单行 body 不产生翻译 chunk）
@@ -58,10 +55,75 @@ MINI_TEX = (
 
 @pytest.fixture
 def clean_env(monkeypatch: pytest.MonkeyPatch) -> pytest.MonkeyPatch:
-    """清掉所有会改变 BYOK/路由行为的 env（本机/CI 环境差异免疫）。"""
+    """清掉所有会改变 BYOK/路由/管线行为的 env（本机/CI 环境差异免疫）。
+
+    ``TEXLATE_*`` 全前缀扫描——``NO_BWRAP``/``OFFLINE``/``NO_EXPAND``/
+    ``NO_L2`` 等行为旗标与今后新增旗标一并免疫；非前缀外部键走
+    ``_ENV_KEYS`` 名单。
+    """
+    for key in tuple(os.environ):
+        if key.startswith("TEXLATE_"):
+            monkeypatch.delenv(key, raising=False)
     for key in _ENV_KEYS:
         monkeypatch.delenv(key, raising=False)
     return monkeypatch
+
+
+@pytest.fixture(autouse=True)
+def _no_user_glossary(tmp_path: Path) -> Iterator[None]:
+    """用户术语表缺省路径钉到不存在文件——宿主 ``~/.texlate/glossary.yaml``
+    不得泄入测试（有文件时翻译 prompt 与 ``glossary_hash`` 全漂移）。
+
+    两处绑定都要钉：``Glossary.load`` 读 ``xlat.glossary`` 模块全局；
+    ``worker._share_glossary_hash`` 读 ``worker`` 顶层 from-import 的自身
+    绑定。worker 未导入时不强拉——它之后 import 时会 from-bind 到
+    glossary 已钉的值。
+
+    不走 monkeypatch——autouse 消费它会把共享 monkeypatch 提前实例化、
+    teardown 排到其它 autouse fixture 之后（曾致 test_compile_sandbox
+    的 ``_clear_probe_caches`` 撞上未还原的 lambda）。手写存/还原。
+    """
+    from texlate.xlat import glossary as glossary_mod  # noqa: PLC0415
+
+    missing = tmp_path / "no-user-glossary.yaml"
+    orig = glossary_mod.USER_GLOSSARY_PATH
+    glossary_mod.USER_GLOSSARY_PATH = missing
+    worker_mod = sys.modules.get("texlate.server.worker")
+    worker_orig = getattr(worker_mod, "USER_GLOSSARY_PATH", None)
+    if worker_mod is not None:
+        worker_mod.USER_GLOSSARY_PATH = missing
+    try:
+        yield
+    finally:
+        glossary_mod.USER_GLOSSARY_PATH = orig
+        if worker_mod is not None:
+            worker_mod.USER_GLOSSARY_PATH = worker_orig
+
+
+@pytest.fixture(autouse=True)
+def _restore_log_filters() -> Iterator[None]:
+    """用例后卸掉 ``install_log_scrub`` 挂的 ``RedactFilter``。
+
+    app lifespan 每次起 app 都往 root/命名 logger 与其全部现有 handler
+    （含 pytest capture handler）挂 filter 且不卸——provider 闭包与
+    scrub 行为会泄漏给后续用例（断言含 ``sk-*``/``api_key=``/``Bearer``
+    文本的 caplog 即序依赖炸）。
+    """
+    yield
+    from texlate.server.settings import RedactFilter  # noqa: PLC0415
+
+    loggers = [logging.getLogger()]
+    loggers += [
+        lg
+        for lg in logging.Logger.manager.loggerDict.values()
+        if isinstance(lg, logging.Logger)
+    ]
+    for lg in loggers:
+        for f in [f for f in lg.filters if isinstance(f, RedactFilter)]:
+            lg.removeFilter(f)
+        for h in lg.handlers:
+            for f in [f for f in h.filters if isinstance(f, RedactFilter)]:
+                h.removeFilter(f)
 
 
 def make_targz(files: dict[str, str]) -> bytes:

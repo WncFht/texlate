@@ -72,16 +72,9 @@ def _apps(
 @pytest.fixture
 def pair(
     tmp_path: Path,
-    clean_env: pytest.MonkeyPatch,
+    clean_env: pytest.MonkeyPatch,  # noqa: ARG001 -- fixture 副作用（env 清洗）
 ) -> Iterator[tuple[TestClient, TestClient, Path, Path, MockTranslator]]:
-    """(生产 client, 消费 client, 生产 data_dir, 消费 data_dir, 消费 mock)。
-
-    ``worker.USER_GLOSSARY_PATH`` 钉不存在路径——本机有 ~/.texlate/glossary.yaml
-    时 ``glossary_hash`` 也不漂移（键组分确定性）。
-    """
-    clean_env.setattr(
-        "texlate.server.worker.USER_GLOSSARY_PATH", tmp_path / "no-glossary.yaml"
-    )
+    """(生产 client, 消费 client, 生产 data_dir, 消费 data_dir, 消费 mock)。"""
     mock = MockTranslator()
     prod, cons, pa_dir, pb_dir = _apps(tmp_path, mock)
     with TestClient(prod) as pa, TestClient(cons) as pb:
@@ -199,13 +192,9 @@ class TestImplicitShareHit:
     def test_zero_match_falls_back_to_translate(
         self,
         tmp_path: Path,
-        clean_env: pytest.MonkeyPatch,
+        clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用（env 清洗）
     ) -> None:
         """键命中但对账零命中（包与本源不对应）→ 摘标记回退自译——不替用户拒包。"""
-        clean_env.setattr(
-            "texlate.server.worker.USER_GLOSSARY_PATH",
-            tmp_path / "no-glossary.yaml",
-        )
         mock = MockTranslator()
         # 生产端源 = MINI_TEX；消费端源 = 完全不同的工程 → 对账必零命中
         prod = make_app(

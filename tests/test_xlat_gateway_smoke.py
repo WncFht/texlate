@@ -1,8 +1,8 @@
 """真网关冒烟：http://127.0.0.1:3003 一次 swe-2-medium 往返验证硬契约。
 
-默认 skip——`TEXLATE_LIVE=1` 才跑（网络测试，CI 默认不触网）：
+默认 skip——`TEXLATE_LIVE=1` + `TEXLATE_GATEWAY_KEY` 俱备才跑（网络测试，CI 默认不触网）：
 
-    TEXLATE_LIVE=1 .venv/bin/python -m pytest tests/test_xlat_gateway_smoke.py -v
+    TEXLATE_LIVE=1 TEXLATE_GATEWAY_KEY=… .venv/bin/python -m pytest tests/test_xlat_gateway_smoke.py -v
 """
 
 import os
@@ -13,11 +13,12 @@ from texlate.xlat import placeholders
 from texlate.xlat.client import ChatClient, ChatOptions
 
 GATEWAY_URL = os.environ.get("TEXLATE_GATEWAY_URL", "http://127.0.0.1:3003")
-GATEWAY_KEY = os.environ.get("TEXLATE_GATEWAY_KEY", "240127")
+GATEWAY_KEY = os.environ.get("TEXLATE_GATEWAY_KEY", "")
 
 _LIVE = os.environ.get("TEXLATE_LIVE") == "1"
 pytestmark = pytest.mark.skipif(
-    not _LIVE, reason="network test — set TEXLATE_LIVE=1 to run"
+    not (_LIVE and GATEWAY_KEY),
+    reason="network test — set TEXLATE_LIVE=1 + TEXLATE_GATEWAY_KEY to run",
 )
 
 

@@ -35,13 +35,9 @@ _FAKE_KEY = "f" * 64
 
 @pytest.fixture(autouse=True)
 def _isolated_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """隔离本机状态：TEXLATE_DATA_DIR / cache_scope / 用户默认术语表。"""
+    """隔离本机状态：TEXLATE_DATA_DIR / cache_scope。"""
     monkeypatch.setenv("TEXLATE_DATA_DIR", str(tmp_path / "env-data"))
     monkeypatch.delenv("TEXLATE_CACHE_SCOPE", raising=False)
-    monkeypatch.setattr(
-        "texlate.xlat.glossary.USER_GLOSSARY_PATH",
-        tmp_path / "no-user-glossary.yaml",
-    )
 
 
 def _mk_task(  # noqa: PLR0913 -- 任务行字段面即参数面

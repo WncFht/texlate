@@ -5,7 +5,6 @@
 
 import importlib
 import json
-import os
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -427,14 +426,13 @@ def test_compiled_dependencies_missing_record(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------- sandbox
-def test_child_env_whitelist_strips_secrets() -> None:
-    os.environ["TEST_TEXLATE_MUST_STRIP"] = "leakme"
+def test_child_env_whitelist_strips_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TEST_TEXLATE_MUST_STRIP", "leakme")
     env = child_env()
     assert "TEST_TEXLATE_MUST_STRIP" not in env
     assert env["openin_any"] == "p"
     assert env["shell_escape"] == "f"
     assert env["TECTONIC_UNTRUSTED_MODE"] == "1"
-    del os.environ["TEST_TEXLATE_MUST_STRIP"]
 
 
 def test_sandbox_wrap_passthrough_on_nondarwin(tmp_path: Path) -> None:

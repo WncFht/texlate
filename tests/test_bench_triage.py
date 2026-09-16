@@ -8,23 +8,18 @@ bench/py 是纯 stdlib 脚本目——triage/benchlib 直接可 import；stageru
 from __future__ import annotations
 
 import json
-import sys
 from argparse import Namespace
-from pathlib import Path
 from typing import TYPE_CHECKING
 
+import benchlib
 import pytest
+import triage
+
+from texlate.compile.engine import CompRes, parse_log
 
 if TYPE_CHECKING:
     import types
-
-BENCH_PY = Path(__file__).resolve().parents[1] / "bench" / "py"
-sys.path.insert(0, str(BENCH_PY))
-
-import benchlib  # noqa: E402
-import triage  # noqa: E402
-
-from texlate.compile.engine import CompRes, parse_log  # noqa: E402
+    from pathlib import Path
 
 
 def _rec(pid: str, stage: str, status: str, **over: object) -> dict:

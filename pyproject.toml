@@ -34,6 +34,9 @@ dev = ["pytest>=8", "pytest-asyncio>=0.24"]
 # 裸 pytest 从仓根只收 tests/——tmp/refs/ 参考 clone、bench、web 不入收集；
 # norecursedirs 全量覆盖 pytest 默认值，需把默认集一并列回
 testpaths = ["tests"]
+# bench/py 纯 stdlib 脚本目——triage/rundiff/benchlib 供 test_bench_* 直接
+# import（收口原各文件模块级 sys.path.insert 的全会话污染）
+pythonpath = ["bench/py"]
 norecursedirs = [
   "tmp",
   "bench",

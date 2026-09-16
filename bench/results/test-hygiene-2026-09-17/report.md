@@ -31,3 +31,36 @@ tmp/磁盘泄漏（全在 tmp_path）；断言质量（`pytest.raises` 全带具
 ## 路由
 
 High 3 项返 test-hygiene 自修（conftest 前缀扫描 + USER_GLOSSARY_PATH 钉 + GATEWAY_KEY 去默认）；Medium 按 ROI 顺手带。
+
+---
+
+# 第二轮：修复落地（High 三项 + Medium 全清）
+
+> `uv run pytest tests/ -q` → **2515 passed, 4 skipped, 0 failed**（58.6s，4 skip 全为既有 env-guard）；ruff format/check 对全部改动文件净。pipeline.py 在飞未造成任何红。
+
+## 逐项落地
+
+**High-1 USER_GLOSSARY_PATH 统一钉** — conftest 新 autouse `_no_user_glossary`：钉 `xlat.glossary.USER_GLOSSARY_PATH` + 条件钉 `worker.USER_GLOSSARY_PATH`（sys.modules 在册才钉，不强拉 worker；后 import 的 worker 会 from-bind 到已钉值）。test_share_wire（pair fixture + test_zero_match）、test_share_hook（test_no_layer_empty）、test_share_cli（_isolated_env）的重复钉已删。
+- **中途自伤已修**：首版用 monkeypatch——autouse 消费它会把共享 monkeypatch 提前实例化，teardown 排到 test_compile_sandbox `_clear_probe_caches` 之后撞上未还原 lambda（4 个 teardown AttributeError）。已改写手写 save/set/restore（conftest.py:72-104 注释记档）。**规训：此后任何 autouse fixture 都别吃 monkeypatch。**
+
+**High-2 gateway_smoke key 默认值** — `GATEWAY_KEY` 默认 `"240127"`→`""`；skipif 改 `not (_LIVE and GATEWAY_KEY)`。真实密钥不再内嵌默认值。
+
+**High-3 install_log_scrub 泄漏** — conftest 新 autouse `_restore_log_filters`：用例后从 root + 全部已注册 logger + 各自 handler 摘除 `RedactFilter`（settings.py:540 挂而不卸，曾污染后续 caplog 断言）。
+
+**Medium-1 clean_env 前缀扫描** — `TEXLATE_*` 全前缀 delenv（`tuple(os.environ)` 先物化再删）；`_ENV_KEYS` 收敛为 5 个非前缀键。新行为旗标（含 TEXLATE_SHARE_DIR）自动免疫。
+
+**Medium-2 sys.path.insert 收口** — pyproject `[tool.pytest.ini_options]` 加 `pythonpath = ["bench/py"]`；test_bench_triage/test_bench_rundiff 模块级 sys.path.insert+BENCH_PY 删除，import 归位 isort 序；`Path` 移入 TYPE_CHECKING。
+
+**Medium-3 validate_l1 收集期探测** — 模块级 `TsValidator()`+`available()` 删除；skipif 收窄为 `shutil.which("node")`+tree-sitter 目录纯路径闸；真可用性终判挪模块级 `v` fixture（pytest.skip 兜底），3 个消费用例改收 `v` 参。
+
+**Medium-4 engine_judge 手动 env** — `os.environ` set/del → `monkeypatch.setenv`；`import os` 移除。
+
+## 文件清单（全在 tests/+pyproject）
+
+conftest.py、test_share_wire.py、test_share_hook.py、test_share_cli.py、test_xlat_gateway_smoke.py、test_bench_triage.py、test_bench_rundiff.py、test_validate_l1.py、test_compile_engine_judge.py、pyproject.toml
+
+## 备注
+
+- 验证中段曾见 test_worker_audit_fixes pty-fd 用例红——是 server-residual #164 在飞（babeldoc.py 当时刚改），其修复落地后末次全量已绿，非本单问题。
+- 未碰 test_fixloop_yamlish.py 与 Low #13 worker 私有属性注入面（留档）。
+- diff 逐 hunk 自查：无夹带、无 src/ 改动。

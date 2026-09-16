@@ -7,17 +7,14 @@ triage.load_records 与 STATUS_RANK，纯 stdlib 可测。
 from __future__ import annotations
 
 import json
-import sys
-from pathlib import Path
 from typing import TYPE_CHECKING
 
+import rundiff
+
 if TYPE_CHECKING:
+    from pathlib import Path
+
     import pytest
-
-BENCH_PY = Path(__file__).resolve().parents[1] / "bench" / "py"
-sys.path.insert(0, str(BENCH_PY))
-
-import rundiff  # noqa: E402
 
 
 def _rec(pid: str, stage: str, status: str, **over: object) -> dict:
