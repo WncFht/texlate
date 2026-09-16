@@ -74,11 +74,13 @@ class TestUploadDocRoute:
 
     def test_blob_persisted(self, client: TestClient) -> None:
         """upload/{safe_name} 落盘：建行前写 blob，worker _run_doc 以此为源。"""
-        body = _post(client, "my book.epub", _epub())
+        payload = _epub()
+        body = _post(client, "my book.epub", payload)
         updir = client.app.state.data_dir / "tasks" / body["task_id"] / "upload"
         blobs = list(updir.glob("*"))
         assert len(blobs) == 1
-        assert blobs[0].read_bytes() == _epub()
+        # 与上传载荷逐字节等——zip mtime 2s 粒度下 _epub() 两调用未必同字节
+        assert blobs[0].read_bytes() == payload
         # 文件名 sanitize：空格 → _（与 tex 路同纪律）
         assert blobs[0].name == "my_book.epub"
 

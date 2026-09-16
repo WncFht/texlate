@@ -6,7 +6,7 @@ from texlate.compile.mask import (
     visible_tex,
     without_comments,
 )
-from texlate.textutil import decode_tex
+from texlate.textutil import decode_tex, mask_comments, mask_tex
 
 
 def test_visible_tex_masks_line_comment() -> None:
@@ -93,10 +93,6 @@ def test_decode_tex_latin1_fallback() -> None:
     assert decode_tex("café".encode("latin-1")) == "café"
 
 
-def test_decode_tex_latin1_fallback() -> None:
-    assert decode_tex("café".encode("latin-1")) == "café"
-
-
 # ------------------------------------------------------------- CR-EOL（C 桶）
 # 1608.02631 / gr-qc/0605005：CR-only/混合 EOL 文件 ``%`` 注释曾吞到
 # EOF——mask/词法层逐 ``\n`` 假设。decode_tex 归一 ``\r\n|\r→\n`` 后
@@ -108,12 +104,11 @@ def test_decode_tex_normalizes_cr_eol() -> None:
 
 
 def test_mask_comments_cr_line_end() -> None:
-    from texlate.textutil import mask_comments
-
     tex = "aa %note\rbb %note2\ncc"
     out = mask_comments(tex)
     assert out.endswith("cc")
-    assert "bb" in out and "note" not in out
+    assert "bb" in out
+    assert "note" not in out
 
 
 def test_visible_tex_cr_comment() -> None:
@@ -124,7 +119,5 @@ def test_visible_tex_cr_comment() -> None:
 
 
 def test_mask_tex_cr_comment() -> None:
-    from texlate.textutil import mask_tex
-
     tex = "x %note\ry"
     assert mask_tex(tex).endswith("y")
