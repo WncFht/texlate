@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 from bs4 import BeautifulSoup
+from lxml import etree
 
 from texlate.export.common import DrmError, FixedLayoutError, MalformedEpubError
 from texlate.export.epub import iter_units, load_epub, translate_epub
@@ -168,6 +169,137 @@ def test_translate_epub_bilingual(tmp_path: Path) -> None:
     # NCX navLabel → 原文 / 译文
     assert "Chapter One / " in ncx
     assert "这是译文" in ncx
+
+
+def test_dc_language_with_attributes(tmp_path: Path) -> None:
+    """``<dc:language xsi:type="...">la</dc:language>``——语言码是标签名子串。
+
+    回归：``replace(文本)`` 会先命中 ``language`` 里的 ``la`` 把元素改残
+    （``dc:zh-CNnguage``，真书 Liber Esther 语系 ``la`` 实测复现）——改写必须
+    走 match span 而非字符串替换。
+    """
+    opf = _opf(["ch1.xhtml"], ncx=False).replace(
+        "<dc:language>en</dc:language>",
+        '<dc:language xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
+        'xsi:type="dcterms:RFC4646">la</dc:language>',
+    )
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("mimetype", "application/epub+zip", compress_type=zipfile.ZIP_STORED)
+        z.writestr("META-INF/container.xml", CONTAINER_XML)
+        z.writestr("OEBPS/content.opf", opf)
+        z.writestr("OEBPS/ch1.xhtml", XHTML_TMPL.format(body="<p>Textus unus.</p>"))
+    src = _write_epub(tmp_path, buf.getvalue())
+    dst = tmp_path / "out.epub"
+    translate_epub(src, dst, MockTranslator())
+    with zipfile.ZipFile(dst) as z:
+        out_opf = z.read("OEBPS/content.opf")
+    root = etree.fromstring(out_opf)  # 必须仍是合法 XML
+    langs = [
+        el.text
+        for el in root.iter()
+        if isinstance(el.tag, str) and el.tag.rsplit("}", 1)[-1] == "language"
+    ]
+    assert langs[0] == "zh-CN"
+    assert b"zh-CNnguage" not in out_opf
+
+
+def test_literal_marker_no_collision(tmp_path: Path) -> None:
+    """源文逐字印着 ``[[IMG_1]]`` 时，``<img>`` 的占位符必须换号。
+
+    调和侧：``[[IMG_1]]`` 是书自有字面文本（不许洗不许动），``[[IMG_2]]`` 才是
+    发出的 marker——写回只把 ``[[IMG_2]]`` 换成 ``<img>`` 克隆。
+    """
+    src = _write_epub(
+        tmp_path,
+        _epub(
+            {"ch1.xhtml": ('<p>Read [[IMG_1]] then <img src="x.png"/> done here.</p>')},
+            ncx=False,
+            extra={"OEBPS/x.png": b"\x89PNG"},
+        ),
+    )
+    dst = tmp_path / "out.epub"
+    translate_epub(src, dst, MockTranslator())
+    with zipfile.ZipFile(dst) as z:
+        soup = BeautifulSoup(z.read("OEBPS/ch1.xhtml"), "html.parser")
+    zh = soup.select_one(".texlate-zh")
+    assert zh is not None
+    assert "[[IMG_1]]" in zh.get_text()  # 字面 token 原样保留
+    assert "[[IMG_2]]" not in zh.get_text()  # marker 不落字面
+    assert zh.find("img") is not None  # marker 落点 = <img> 克隆
+    assert len(soup.find_all("img")) == 2  # noqa: PLR2004 -- 原文+译文克隆各一
+
+
+def test_img_marker_restored(tmp_path: Path) -> None:
+    """段中 ``<img>`` 变 ``[[IMG_n]]`` marker，译文落点克隆回图片元素。"""
+    src = _write_epub(
+        tmp_path,
+        _epub(
+            {"ch1.xhtml": '<p>See <img src="pic.png"/> inside this line.</p>'},
+            ncx=False,
+            extra={"OEBPS/pic.png": b"\x89PNG"},
+        ),
+    )
+    dst = tmp_path / "out.epub"
+    translate_epub(src, dst, MockTranslator())
+    with zipfile.ZipFile(dst) as z:
+        soup = BeautifulSoup(z.read("OEBPS/ch1.xhtml"), "html.parser")
+    imgs = soup.find_all("img")
+    assert len(imgs) == 2  # noqa: PLR2004 -- 源图+译文图
+    zh = soup.select_one(".texlate-zh")
+    assert zh.find("img") is not None
+    assert "[[" not in zh.get_text()
+
+
+def test_figcaption_inline_append(tmp_path: Path) -> None:
+    """``<figcaption>`` 是受限容器——译文 ``<br/><span>`` 追加进内部，不产兄弟。"""
+    src = _write_epub(
+        tmp_path,
+        _epub(
+            {
+                "ch1.xhtml": (
+                    "<figure><img src='i.png'/>"
+                    "<figcaption>A caption for the figure.</figcaption></figure>"
+                )
+            },
+            ncx=False,
+            extra={"OEBPS/i.png": b"\x89PNG"},
+        ),
+    )
+    dst = tmp_path / "out.epub"
+    translate_epub(src, dst, MockTranslator())
+    with zipfile.ZipFile(dst) as z:
+        soup = BeautifulSoup(z.read("OEBPS/ch1.xhtml"), "html.parser")
+    assert len(soup.find_all("figcaption")) == 1
+    cap = soup.find("figcaption")
+    zh = cap.find("span", class_="texlate-zh")
+    assert zh is not None
+    assert "这是译文" in zh.get_text()
+    assert zh.parent is cap  # 译文在容器内部
+
+
+def test_entities_and_stray_ampersand(tmp_path: Path) -> None:
+    """命名实体归一化送模型；裸 ``&``/伪实体不炸管线、输出仍良构。"""
+    src = _write_epub(
+        tmp_path,
+        _epub(
+            {
+                "ch1.xhtml": (
+                    "<p>Caf&eacute; au&nbsp;lait &mdash; rich taste.</p>"
+                    "<p>Tom &amp; Jerry &bogus; stay literal.</p>"
+                )
+            },
+            ncx=False,
+        ),
+    )
+    dst = tmp_path / "out.epub"
+    report = translate_epub(src, dst, MockTranslator())
+    assert report.translated == 2  # noqa: PLR2004 -- 两段都插译
+    with zipfile.ZipFile(dst) as z:
+        raw = z.read("OEBPS/ch1.xhtml")
+        soup = BeautifulSoup(raw, "html.parser")
+    assert len(soup.select(".texlate-zh")) == 2  # noqa: PLR2004 -- 两段各一
+    assert "Caf" in soup.get_text()  # 原文仍在
 
 
 def test_marker_roundtrip(tmp_path: Path) -> None:

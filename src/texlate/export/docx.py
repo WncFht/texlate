@@ -264,6 +264,11 @@ def insert_after(p_el: _Element, zh_text: str) -> None:
     for child in list(new_ct_p):
         if child.tag != qn("w:pPr"):
             new_ct_p.remove(child)
+    # sectPr 是结构边界不是样式：克隆携带会在源段后复制出一个空分节
+    new_ppr = new_ct_p.find(qn("w:pPr"))
+    if new_ppr is not None:
+        for sect in new_ppr.findall(qn("w:sectPr")):
+            new_ppr.remove(sect)
     p_el.addnext(new_ct_p)
     para = Paragraph(new_ct_p, None)
     run = para.add_run(zh_text)

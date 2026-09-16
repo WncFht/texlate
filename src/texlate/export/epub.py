@@ -863,10 +863,11 @@ def _restamp_opf(book: EpubBook, language: str) -> None:
         text = raw.decode("utf-8")
     except UnicodeDecodeError:
         return
-    if _DC_LANGUAGE_RE.search(text):
-        text = _DC_LANGUAGE_RE.sub(
-            lambda m: m.group(0).replace(m.group(2), language, 1), text, count=1
-        )
+    m = _DC_LANGUAGE_RE.search(text)
+    if m:
+        # span 替换而非字符串 replace——语言码（la/an/gu…）可能是标签名/属性的
+        # 子串，replace 会先命中它们把元素改残（`dc:zh-CNnguage` 事故）
+        text = text[: m.start(2)] + language + text[m.end(2) :]
     elif "</metadata>" in text and "xmlns:dc" in text:
         # 只在 dc 前缀已声明时才补元素——裸 ``<dc:language>`` 是非法 XML
         text = text.replace(

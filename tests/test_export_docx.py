@@ -2,7 +2,8 @@ r"""``export.docx`` 双语插译测试——python-docx 现造最小 docx，不�
 
 覆盖：deepcopy ``w:p`` + ``addnext`` 插译、``pPr`` 样式继承、译文 run 的
 ``w:eastAsia``/颜色戳、echo 不重复插、脚注 part（plain ``Part`` → ``blob``
-解析 → ``_blob`` 写回）、``sniff_format``/``export_document`` 分派。
+解析 → ``_blob`` 写回）、``sniff_format``/``export_document`` 分派、
+``w:sectPr`` 不连坐克隆、hyperlink/域代码/隐藏 run/表格/页眉遍历面。
 """
 
 from __future__ import annotations
@@ -13,9 +14,10 @@ from typing import TYPE_CHECKING
 
 from docx import Document
 from docx.oxml.ns import qn
+from docx.oxml.parser import parse_xml
 
 from texlate.export import export_document, sniff_format
-from texlate.export.docx import translate_docx
+from texlate.export.docx import iter_units, translate_docx
 from texlate.xlat.pipeline import MockTranslator
 
 if TYPE_CHECKING:
@@ -149,3 +151,122 @@ def test_sniff_and_dispatch(tmp_path: Path) -> None:
     assert dst.exists()
     doc = Document(str(dst))
     assert len(doc.paragraphs) == 2  # noqa: PLR2004 -- 原段+译文段
+
+
+W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+
+
+def test_sectpr_not_cloned(tmp_path: Path) -> None:
+    """节尾段（``w:pPr/w:sectPr`` 带正文）插译时克隆不得携带分节边界。
+
+    sectPr 是结构不是样式——克隆携带会在源段后复制出一个空分节（Word 里
+    nextPage 型就是一张空白页）。真书 manuscript.docx 有 47 个 sectPr 段。
+    """
+    doc = Document()
+    p = doc.add_paragraph("Last paragraph ending a section.")
+    ppr = p._p.get_or_add_pPr()  # noqa: SLF001 -- oxml 断言面
+    ppr.append(
+        parse_xml(
+            f'<w:sectPr xmlns:w="{W_NS}"><w:pgSz w:w="12240" w:h="15840"/></w:sectPr>'
+        )
+    )
+    src = tmp_path / "in.docx"
+    doc.save(str(src))
+    dst = tmp_path / "out.docx"
+    report = translate_docx(src, dst, MockTranslator())
+    assert report.translated == 1
+    with zipfile.ZipFile(dst) as z:
+        raw = z.read("word/document.xml")
+    # 源 sectPr 恰好一份：段级 1（原段）+ body 级 1（模板自带）
+    assert raw.count(b"<w:sectPr") == 2  # noqa: PLR2004 -- 克隆不得新增
+    out = Document(str(dst))
+    assert "这是译文" in out.paragraphs[1].text
+
+
+def test_hyperlink_text_extracted(tmp_path: Path) -> None:
+    """``w:hyperlink`` 包裹的 run 是普通文本——抽取进 unit 并插译。"""
+    doc = Document()
+    p = doc.add_paragraph("Intro ")
+    p._p.append(  # noqa: SLF001 -- oxml 构造面
+        parse_xml(
+            f'<w:hyperlink xmlns:w="{W_NS}">'
+            "<w:r><w:t>link label text</w:t></w:r></w:hyperlink>"
+        )
+    )
+    src = tmp_path / "in.docx"
+    doc.save(str(src))
+    dst = tmp_path / "out.docx"
+    report = translate_docx(src, dst, MockTranslator())
+    assert report.units == 1
+    assert report.translated == 1
+    out = Document(str(dst))
+    assert len(out.paragraphs) == 2  # noqa: PLR2004 -- 原段+译文段
+    assert "这是译文" in out.paragraphs[1].text
+
+
+def test_field_codes_and_hidden_runs_skipped(tmp_path: Path) -> None:
+    """``w:fldSimple`` 内缓存文本、``w:vanish`` 隐藏 run 都不进送模型文本。"""
+    doc = Document()
+    p_fld = doc.add_paragraph()
+    p_fld._p.append(  # noqa: SLF001
+        parse_xml(
+            f'<w:fldSimple xmlns:w="{W_NS}" w:instr=" TOC \\o ">'
+            "<w:r><w:t>Cached TOC result line</w:t></w:r></w:fldSimple>"
+        )
+    )
+    p_vis = doc.add_paragraph()
+    p_vis.add_run("visible text run")
+    hidden = p_vis.add_run("hidden secret run")
+    rpr = hidden._r.get_or_add_rPr()  # noqa: SLF001
+    rpr.append(parse_xml(f'<w:vanish xmlns:w="{W_NS}"/>'))
+    src = tmp_path / "in.docx"
+    doc.save(str(src))
+
+    doc2 = Document(str(src))
+    texts = [u.text for u, _part, _root in iter_units(doc2)]
+    assert len(texts) == 1
+    assert texts[0] == "visible text run"  # 隐藏 run 不混入
+
+    dst = tmp_path / "out.docx"
+    report = translate_docx(src, dst, MockTranslator())
+    assert report.units == 1
+    with zipfile.ZipFile(dst) as z:
+        raw = z.read("word/document.xml")
+    # 域缓存文本不被翻译复制（仍是独份）
+    assert raw.count(b"Cached TOC result line") == 1
+
+
+def test_table_cell_translated(tmp_path: Path) -> None:
+    """表格单元格段落照常插译——译文克隆落在同一 ``w:tc`` 内。"""
+    doc = Document()
+    doc.add_paragraph("Before the table.")
+    tbl = doc.add_table(1, 1)
+    tbl.cell(0, 0).paragraphs[0].add_run("Cell text here.")
+    src = tmp_path / "in.docx"
+    doc.save(str(src))
+    dst = tmp_path / "out.docx"
+    report = translate_docx(src, dst, MockTranslator())
+    assert report.translated == 2  # noqa: PLR2004 -- 表前段+单元格段
+    out = Document(str(dst))
+    cell_paras = out.tables[0].cell(0, 0).paragraphs
+    assert len(cell_paras) == 2  # noqa: PLR2004 -- 原段+译文段
+    assert "这是译文" in cell_paras[1].text
+
+
+def test_header_part_translated(tmp_path: Path) -> None:
+    """页眉 part（``header*.xml``）走 ``_iter_surfaces`` 附属面照常插译。"""
+    doc = Document()
+    doc.add_paragraph("Body text.")
+    header = doc.sections[0].header
+    header.is_linked_to_previous = False
+    header.paragraphs[0].text = "Running header text."
+    src = tmp_path / "in.docx"
+    doc.save(str(src))
+    dst = tmp_path / "out.docx"
+    report = translate_docx(src, dst, MockTranslator())
+    assert report.translated == 2  # noqa: PLR2004 -- 正文+页眉
+    with zipfile.ZipFile(dst) as z:
+        header_names = [n for n in z.namelist() if re.match(r"word/header\d*\.xml", n)]
+        assert header_names
+        raw = z.read(header_names[0])
+    assert "这是译文".encode() in raw
