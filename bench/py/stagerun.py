@@ -453,25 +453,42 @@ def _parse_job(pid: str, src_s: str, zh_s: str, pj_s: str, engine_opt: str) -> d
         ]
         return finish_rec(rec, t0)
 
-    if zh.exists():
-        shutil.rmtree(zh)
-    shutil.copytree(src, zh, ignore=benchlib.copytree_ignore())
-    main = find_main_tex(zh)
+    # zh/ 先建到兄弟暂存再 rename —— 并发 compile 读 zh/.xlat-arm.json
+    # 时窗口内 rmtree+重建会让 marker 缺席 → 误记 skip (41 捞出 20 格)。
+    # 暂存期 zh/ 保持上一版完整状态 (marker+内容一致)。
+    stage = zh.with_name(".zh-build")
+    if stage.exists():
+        shutil.rmtree(stage)
+    shutil.copytree(src, stage, ignore=benchlib.copytree_ignore())
+
+    def _swap_in() -> None:
+        # rename 接力而非 rmtree+rename —— zh 路径名全程存在
+        old = zh.with_name(".zh-old")
+        if zh.exists():
+            if old.exists():
+                shutil.rmtree(old)
+            zh.rename(old)
+        stage.rename(zh)
+        if old.exists():
+            shutil.rmtree(old)
+
+    main = find_main_tex(stage)
     if main is None:
-        sub = classify_no_main(zh)
+        sub = classify_no_main(stage)
         doc["status"] = "reject"
         doc["no_main_sub"] = sub
+        _swap_in()
         pj.write_text(json.dumps(doc, ensure_ascii=False, indent=1))
         rec["status"] = "reject"
         rec["errors"] = [{"code": "no_main_tex", "cat": "parse", "payload": sub or ""}]
         return finish_rec(rec, t0)
-    main_rel = main.relative_to(zh).as_posix()
+    main_rel = main.relative_to(stage).as_posix()
     eng = (
         engine_opt
         if engine_opt != "auto"
         else (route.engines[0] if route.engines else "xelatex")
     )
-    norm = normalize_project(zh, eng, main_rel)
+    norm = normalize_project(stage, eng, main_rel)
     doc.update({"main_rel": main_rel, "engine_resolved": eng, "normalize": norm})
     rec["metrics"]["main_rel"] = main_rel
     rec["metrics"]["engine_resolved"] = eng
@@ -482,10 +499,10 @@ def _parse_job(pid: str, src_s: str, zh_s: str, pj_s: str, engine_opt: str) -> d
     unresolved: list[str] = []
     n_chunks = 0
     parse_fail: list[str] = []
-    for f in sorted(zh.rglob("*.tex")):
+    for f in sorted(stage.rglob("*.tex")):
         if f.name.startswith("."):
             continue
-        rel = f.relative_to(zh).as_posix()
+        rel = f.relative_to(stage).as_posix()
         try:
             res = parse_file(f, flatten=False)
         except Exception as e:
@@ -519,6 +536,7 @@ def _parse_job(pid: str, src_s: str, zh_s: str, pj_s: str, engine_opt: str) -> d
             },
         }
     )
+    _swap_in()
     pj.write_text(json.dumps(doc, ensure_ascii=False, indent=1), encoding="utf-8")
     rec["status"] = "ok"
     rec["metrics"].update(
@@ -765,10 +783,17 @@ async def _xlat_one_inner(
     state_dir = wid / "xlat-state" / args.arm  # 臂间 state 隔离——mock 结果不回灌 real
     cfg = PipelineConfig(concurrency=args.concurrency)
     cap = erb.MAX_TOTAL_CHARS if args.arm == "real" else 0  # 配额闸只对真网关
+    # 同 _parse_job staging-swap: 翻译写进暂存树, 完工换名 —— 期间 zh/
+    # 保持上一版 (marker+内容一致), 并发 compile 不读半成品
+    stage = wid / ".zh-xlat"
+    if stage.exists():
+        shutil.rmtree(stage)
+    shutil.copytree(zh, stage, ignore=benchlib.copytree_ignore())
     stats, results = await _translate_tree(
-        zh, translator, state_dir, cfg, oversize_cap=cap
+        stage, translator, state_dir, cfg, oversize_cap=cap
     )
     if stats.get("oversize"):
+        shutil.rmtree(stage, ignore_errors=True)
         rec["status"] = "reject"
         rec["errors"] = [
             {
@@ -796,7 +821,8 @@ async def _xlat_one_inner(
                     "warnings": r.warnings,
                 },
             )
-    (zh / ".xlat-arm.json").write_text(
+    marker = stage / ".xlat-arm.json"
+    marker.write_text(
         json.dumps(
             {
                 "arm": args.arm,
@@ -806,6 +832,14 @@ async def _xlat_one_inner(
             ensure_ascii=False,
         )
     )
+    old = zh.with_name(".zh-xlat-old")
+    if zh.exists():
+        if old.exists():
+            shutil.rmtree(old)
+        zh.rename(old)
+    stage.rename(zh)
+    if old.exists():
+        shutil.rmtree(old)
     rec["metrics"]["translate"] = stats
     # sabotage/perturb 臂带 .finalize 台账面（translators_bench 契约）；
     # mock/real 无此面，getattr 探空跳过

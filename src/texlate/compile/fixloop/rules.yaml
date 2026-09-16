@@ -826,6 +826,13 @@ rules:
               % \keywords 在 emulateapj 受 showkeys 选项门控 —— 同样覆盖成确定性版式
               \providecommand{\keywords}[1]{}
               \renewcommand{\keywords}[1]{\par\noindent\textbf{Keywords:} #1\par}
+              % emulateapj \url→\anchor 原样排印参数 —— footnote 等已冻结参数内
+              % catcode-8 `_`/`^`/`&` 炸 Missing $ (2105.03750 实证)。真身
+              % aastex63 装 hyperref 后 \url 走 detokenize-rescan 全收; shim 取
+              % 轻量等价: \detokenize 回收成 catcode-12 文本再 \texttt 排印
+              % (TU 下 `_`/`^` 有真字形)。签名兼容 emulateapj \@dblarg 形:
+              % \url{X} 与 \url[anchor]{X} 都排 X
+              \renewcommand{\url}[2][]{\texttt{\detokenize{#2}}}
               \providecommand{\nocollaboration}[1]{}
               \providecommand{\facilities}[1]{\par\noindent\textbf{Facilities:} #1\par}
               \providecommand{\software}[1]{\par\noindent\textbf{Software:} #1\par}
@@ -894,6 +901,18 @@ rules:
               \frontmatter@init
               \let\frontmatter@init\relax
               \endinput
+          # revtex4b4.cls = REVTeX4 beta-4 预发版名 (TL 从未收 ——
+          # physics/0104031 实证 \documentclass[aps,prl,twocolumn,endfloats])。
+          # revtex4-2 同桥; endfloats 等失效选项由类选项警告吸收
+          revtex4b4.cls:
+            needs: ["revtex4-2.cls"]
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesClass{revtex4b4}[2026/09/17 fixloop legacy shim -> revtex4-2]
+              \LoadClassWithOptions{revtex4-2}
+              \frontmatter@init
+              \let\frontmatter@init\relax
+              \endinput
           # AIP 会议文集: aipproc.cls + aipcheck.tex (\input 版本自检件)。
           # 1306.2177 实证: \layoutstyle/\keywords/\pacs + \author{Name}{address={...}}
           # 双参 keyval 约定 (在 document 体内调用)。
@@ -923,6 +942,10 @@ rules:
                   \g@addto@macro\fixaip@authors{\and #1\ifx\fixaip@addr\@empty\else\\{\footnotesize\fixaip@addr}\fi}%
                 \fi
                 \def\fixaip@addr{}}
+              % 真身 aipproc.cls 的致谢环境 (AIPacknowledgments 版式头) —
+              % 1306.2177 实证: 无头容器即可, 语义=不带号小节
+              \newenvironment{theacknowledgments}
+                {\par\noindent\textbf{Acknowledgments.}\space}{\par}
               \endinput
           aipcheck.tex:
             body: |
@@ -936,8 +959,12 @@ rules:
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesClass{aa}[2026/09/16 fixloop legacy shim -> article + A&A polyfills]
               \LoadClassWithOptions{article}
-              % 真身 aa.cls 内置 natbib (\citep/\citeyear 面, 2401.17274 实证)
-              \RequirePackage{natbib}
+              % 真身 aa.cls 内置 natbib (\citep/\citeyear 面, 2401.17274 实证)。
+              % 默认 author-year 对空 \bibitem{} (0905.4439: 45 条无 label
+              % 无引用的裸书目) 自写 aux 次轮回读炸 "Bibliography not
+              % compatible with author-year citations"; numbers 模式对
+              % author-year 形与裸形 bibitem 通吃 → shim 取宽容侧
+              \RequirePackage[numbers]{natbib}
               \providecommand{\inst}[1]{\textsuperscript{\,#1}}
               \providecommand{\offprints}[1]{}
               \providecommand{\mail}[1]{}
@@ -1942,6 +1969,44 @@ rules:
       - { corpus: "1906.08237/*", error: "rsfs10 → rsfs" }
     stats: { fires: 13, rescued_cells: 13 }
     source_ref: "fixloop.py L314-321"
+
+  # 1404.5720 实证: \includegraphics{feedforward.eps} 缺件但同 stem .pdf 在盘
+  # (arXiv 源常图文不配套)。签名归 missing_file 非 missing_graphic —— 图链
+  # (17/18) 够不着; install(10)/shim(12) 对工程数据件必拒。本规则剥引用扩展名
+  # → graphicx \Gin@extensions 自选 (.pdf 先中)。sibling 缺席时 fileset 闸
+  # 不点火落后续; 真无图可解次轮以无 ext 名再报缺, ctx_suggests 闸防回环。
+  - id: graphic_ext_relax
+    description: "missing_file 的 .eps/.ps 图引用剥扩展名 → graphicx 自选同 stem sibling"
+    phase: loop
+    order: 14 # legacy_pkg_shim(12)/babel_opt(13) 后, eps_to_pdf(15) 前
+    when: { category: missing_file, payload_required: true }
+    condition:
+      ctx_suggests: "\\.(eps|ps|epsi|epsf)' not found"
+      any:
+        - { fileset: { has_ext: [.pdf] } }
+        - { fileset: { has_ext: [.png] } }
+        - { fileset: { has_ext: [.jpg] } }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty]
+        rewrites:
+          # lookahead 锚定 payload (允许路径前缀, 须 \}-终止防词干误吃);
+          # \g<2> 保住 stem (含路径) 只剥扩展名
+          - {
+              pattern: "(\\\\includegraphics\\s*\\*?\\s*(?:\\[[^\\]]*\\])?\\s*\\{)(?=(?:[^{}/]*/)*{payload}\\})([^{}]*?)\\.(?:eps|ps|epsi|epsf)\\}",
+              repl: '\g<1>\g<2>}',
+            }
+    risk: low # 改写仅限 payload 精确引用; 无 sibling 时 fileset 闸拦住
+    engines:
+      xelatex: { mode: same }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1404.5720 (realpostfix2 shim residuals, task#23)",
+          error: "5× File `X.eps' not found 且 X.pdf 同目录在盘",
+        }
+    stats: { fires: 0, status: proposed }
 
   # 新增 (fixloop-v2 整改): log 确证的 PS 硬墙 → 先救后拒。
   # 实证: tectonic 对 .eps 工程分两类 —— 能出 pdf~ 的 (eps 引用未真正进
