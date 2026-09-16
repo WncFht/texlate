@@ -37,6 +37,50 @@ XECJK_BLOCK = r"""
 #: **无尾边界**——`ctexart`/`ctexbook`/`ctexrep`/`ctexbeamer` 文档类必须命中。
 CJK_PRESENT_RE = re.compile(r"\b(?:ctex|xeCJK|CJKutf8|CJKfontspec|luatexja)")
 
+#: 共享计数器 theorem 的双 named-dest 补丁（B7 锚点对齐）。
+#: `\newtheorem{lemma}[definition]` 类声明在不同内核上 dest 命名分叉：
+#: 旧内核（<2026-06，无 \newcounteralias）env 步进根计数器 → 锚点是
+#: `definition.N`；新内核 alias 计数器 → env 步进自己的别名 → 锚点
+#: `lemma.N`。en/zh 两臂只要工具链不一致就丢一半锚点（2410.17902
+#: en 臂在 BasicTeX 2026 新内核上编出 `lemma.*`，zh 臂本地旧内核
+#: 出 `definition.*`）。本补丁在 `\@begintheorem`/`\@opargbegintheorem`
+#: before 钩子上补发「另一侧名字」的孪生锚点——纯增量不改名，
+#: `\@currentHref` 发完即恢复，.aux label 名不受影响：
+#: - `\@currenvir`==`\@currentcounter` 且 `alias@ctr@<env>` 存在
+#:   → 新内核 alias 情形，补根名 `root.\theH<ctr>`；
+#: - 不等且 `\the<env>` 有定义 → 旧内核共享计数器，补 env 名
+#:   `env.\theH<ctr>`（`\the<env>` 守卫顺带挡掉 proof 等无号环境）。
+#: `\@opargbegintheorem` 在 amsthm 下是 \relax（patch 静默跳过），
+#: 在内核原生 theorem 路径上是带 [note] 的入口，两边都挂。
+THEOREM_ANCHOR_SHIM = r"""
+% texlate: twin named-dest for shared-counter theorems
+\makeatletter
+\def\TeXlate@thmtwin{%
+  \@ifundefined{MakeLinkTarget}{}{%
+  \@ifundefined{@currentcounter}{}{%
+  \@ifundefined{theH\@currentcounter}{}{%
+    \ifx\@currenvir\@currentcounter
+      \@ifundefined{alias@ctr@\@currenvir}{}{%
+        \edef\TeXlate@twin{\csname alias@ctr@\@currenvir\endcsname}%
+        \TeXlate@emit}%
+    \else
+      \@ifundefined{the\@currenvir}{}{%
+        \let\TeXlate@twin\@currenvir
+        \TeXlate@emit}%
+    \fi}}}%
+}%
+\def\TeXlate@emit{%
+  \begingroup
+  \let\TeXlate@save\@currentHref
+  \edef\TeXlate@name{\TeXlate@twin.\csname theH\@currentcounter\endcsname}%
+  \MakeLinkTarget*{\TeXlate@name}%
+  \global\let\@currentHref\TeXlate@save
+  \endgroup}%
+\AddToHook{cmd/@begintheorem/before}{\TeXlate@thmtwin}%
+\AddToHook{cmd/@opargbegintheorem/before}{\TeXlate@thmtwin}%
+\makeatother
+"""
+
 _DOC_RE = re.compile(r"\\(documentclass|documentstyle)(?![a-zA-Z])")
 
 #: \documentclass 调用参数扫描上限（防御畸形输入死循环）。
@@ -239,6 +283,7 @@ def inject_cjk(tex: str, *, mode: str = "ctex") -> tuple[str, dict]:
     if cmd == "documentstyle":
         raise InjectRejectError
     block = CTEX_LINE + "  % [texlate injected]" if mode == "ctex" else XECJK_BLOCK
+    block += THEOREM_ANCHOR_SHIM
     return tex[:pos] + "\n" + block + tex[pos:], {
         "status": "injected",
         "mode": mode,
