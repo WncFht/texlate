@@ -206,7 +206,11 @@ def _scan_tree(
     chunks: list[ChunkIn] = []
     fault_files: list[str] = []
     support_files: list[str] = []
-    for f in sorted(f for f in root.rglob("*") if f.suffix.lower() == ".tex"):
+    for f in sorted(
+        f for f in root.rglob("*") if f.is_file() and f.suffix.lower() == ".tex"
+    ):
+        if f.name.startswith("."):
+            continue  # 隐文件不进翻译集 (同 worker._parse_all/stagerun)
         if f.name.lower().endswith(".rtx.tex"):
             continue  # REVTeX 运行时转储不进翻译集 (regress4-1003.1717)
         if f.name.lower().endswith(".code.tex"):
@@ -740,27 +744,41 @@ class _LastResEngine:
 
 
 def _slim_cell(cell: dict[str, Any]) -> dict[str, Any]:
-    """Fixloop cell → 报告视图：rounds × actions 合并成 ``{cat,pay,rule,result}``。"""
-    acts: dict[Any, dict[str, Any]] = {}
+    """Fixloop cell → 报告视图：rounds × actions 合并成 ``{cat,pay,rule,result}``。
+
+    ``actions`` 按 str(round) 归并（一轮可多条）；``round=0/-1`` 是
+    precheck/gate 动作单列 ``setup``；salvage 轮的 action 键为
+    ``"salvage"`` 须按 ``r["salvage"]`` 对齐——与 worker
+    ``_fixloop_summary`` 同构。
+    """
+    by_round: dict[str, list[dict[str, Any]]] = {}
     for a in cell.get("actions") or []:
-        acts.setdefault(a.get("round"), a)
-    rounds = [
-        {
-            "round": r.get("round"),
-            "cat": r.get("category"),
-            "pay": r.get("payload"),
-            "pdf": r.get("pdf"),
-            "n_errors": r.get("n_errors"),
-            "rule": (acts.get(r.get("round")) or {}).get("rule"),
-            "result": (acts.get(r.get("round")) or {}).get("detail"),
-        }
-        for r in cell.get("rounds") or []
-    ]
+        by_round.setdefault(str(a.get("round")), []).append(a)
+    rounds = []
+    for r in cell.get("rounds") or []:
+        acts = by_round.get("salvage" if r.get("salvage") else str(r.get("round")), [])
+        head = acts[0] if acts else {}
+        rounds.append(
+            {
+                "round": r.get("round"),
+                "cat": r.get("category"),
+                "pay": r.get("payload"),
+                "pdf": r.get("pdf"),
+                "n_errors": r.get("n_errors"),
+                "rule": head.get("rule"),
+                "result": head.get("detail"),
+            }
+        )
     return {
         "enabled": True,
         "verdict": cell.get("verdict"),
         "main": cell.get("main"),
         "rounds": rounds,
+        "setup": [
+            {"rule": a.get("rule"), "result": a.get("detail")}
+            for a in cell.get("actions") or []
+            if a.get("round") in (0, -1)
+        ],
         "advisories": cell.get("advisories") or [],
         "installed": cell.get("installed") or [],
         "engine_flags": cell.get("engine_flags") or [],

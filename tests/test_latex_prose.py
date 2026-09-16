@@ -150,3 +150,28 @@ def test_translate_tree_support_vs_fault_partition(tmp_path: Path) -> None:
 
     assert stats["support_files"] == ["machinery.tex"]
     assert stats["fault_files"] == []
+
+
+def test_translate_tree_dotfile_silently_skipped(tmp_path: Path) -> None:
+    """``.foo.tex`` 隐文件静默跳过——不进 support/fault 记名（worker 同）。"""
+    _project(tmp_path)
+    (tmp_path / ".hidden.tex").write_text(
+        "This hidden file has prose that would otherwise be sent.\n",
+        encoding="utf-8",
+    )
+    stats = e2e.mock_translate_tree(tmp_path)
+
+    assert stats["support_files"] == []
+    assert stats["fault_files"] == []
+    assert stats["files"] == 1
+    assert (tmp_path / ".hidden.tex").read_text(encoding="utf-8").startswith("This")
+
+
+def test_translate_tree_nonregular_tex_skipped(tmp_path: Path) -> None:
+    """``foo.tex`` 目录名伪装：is_file 闸滤掉，不进 fault_files。"""
+    _project(tmp_path)
+    (tmp_path / "dirlike.tex").mkdir()
+    stats = e2e.mock_translate_tree(tmp_path)
+
+    assert stats["fault_files"] == []
+    assert stats["files"] == 1
