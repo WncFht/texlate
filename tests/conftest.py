@@ -114,10 +114,13 @@ class RecordingEngine:
     """``texlate.e2e.engine_for`` 替换件：写真 pdf+log、记构造/compile 调用。
 
     与 FakeEngine 分工：FakeEngine 服务 server worker（无 name 构造参）；
-    本类对齐 ``engine_for(name, **kwargs)`` 签名——xelatex 会收到
-    ``halt_on_error=False``，构造 kwargs 与 compile 调用都可断言。
+    本类对齐 ``engine_for(name, **kwargs)`` 签名与 ``Engine`` Protocol 全面
+    （非 clean 时 fixloop 修复链会走 probe_file/install_file/filemap/caps
+    ——空能力集 + 全 False 桩让 fixloop 真跑一轮后自然收敛）。
     ``produce_pdf=False`` 时返回无 pdf 的 CompRes（编译失败路径）。
     """
+
+    caps: frozenset[str] = frozenset()
 
     def __init__(self, name: str, **kwargs: object) -> None:
         """记构造参数（halt_on_error 等引擎旋钮从此透传）。"""
@@ -125,6 +128,10 @@ class RecordingEngine:
         self.ctor_kwargs = kwargs
         self.calls: list[dict[str, object]] = []
         self.produce_pdf = True
+
+    def detect(self) -> str:
+        """Protocol：返回假二进制路径（非 None = 可用）。"""
+        return "/fake/engine"
 
     def compile(  # noqa: PLR0913 -- 与 Engine.compile 同签名，kwarg 名是接口
         self,
@@ -136,6 +143,7 @@ class RecordingEngine:
         outdir: Path | None = None,  # noqa: ARG002
         sandbox: bool = True,  # noqa: ARG002
         env_extra: dict[str, str] | None = None,  # noqa: ARG002
+        best_effort: bool = False,  # noqa: ARG002 -- fixloop salvage 旋钮
     ) -> CompRes:
         """写 ``<stem>.pdf``+干净 ``<stem>.log`` → ``CompRes(ok=True)``。"""
         from texlate.compile.engine import CompRes  # noqa: PLC0415
@@ -151,7 +159,9 @@ class RecordingEngine:
         log.write_text(
             "This is a fake log\nOutput written on disk.\n", encoding="utf-8"
         )
-        self.calls.append({"wdir": str(wdir), "main": main, "timeout": timeout})
+        self.calls.append(
+            {"wdir": str(wdir), "main": main, "timeout": timeout, "passes": passes}
+        )
         return CompRes(
             engine=self.name,
             ok=True,
@@ -163,6 +173,38 @@ class RecordingEngine:
             seconds=0.01,
         )
 
+    def probe_file(self, fname: str, *, cwd: Path | None = None) -> None:  # noqa: ARG002
+        """Protocol：永远找不到（kpsewhich/filemap 语义全空）。"""
+        return
+
+    def install_file(
+        self,
+        fname: str,  # noqa: ARG002
+        *,
+        font_related: bool = False,  # noqa: ARG002
+    ) -> bool:
+        """Protocol：装不了。"""
+        return False
+
+    def rebuild_fontmaps(self) -> bool:
+        """Protocol：noop False。"""
+        return False
+
+    def filemap(self, fname: str) -> list[str]:  # noqa: ARG002
+        """Protocol：file→包索引空。"""
+        return []
+
+    def parse_log(self, res: CompRes) -> object:
+        """Protocol：log_path 在则真解析，否则退 stdout_tail。"""
+        from texlate.compile.engine import parse_log  # noqa: PLC0415
+
+        text = (
+            res.log_path.read_text(errors="replace")
+            if res.log_path and res.log_path.exists()
+            else res.stdout_tail
+        )
+        return parse_log(text)
+
 
 @pytest.fixture
 def fake_engine(monkeypatch: pytest.MonkeyPatch) -> dict[str, RecordingEngine]:
@@ -170,6 +212,8 @@ def fake_engine(monkeypatch: pytest.MonkeyPatch) -> dict[str, RecordingEngine]:
 
     pdftotext 在假 pdf 上必败（→ -1 降级 note）——patch 成正常值让
     ``expect_cjk`` 路径判定确定、不受本机 poppler 有无影响。
+    修复链 env 旗标（ENV_JUDGE/NO_L2/NO_FIXLOOP）钉成缺省——本机 env
+    不污染报告形状。
     """
     import importlib  # noqa: PLC0415
 
@@ -183,6 +227,8 @@ def fake_engine(monkeypatch: pytest.MonkeyPatch) -> dict[str, RecordingEngine]:
         return eng
 
     monkeypatch.setattr(e2e, "engine_for", factory)
+    for key in ("TEXLATE_ENV_JUDGE", "TEXLATE_NO_L2", "TEXLATE_NO_FIXLOOP"):
+        monkeypatch.delenv(key, raising=False)
     # 包级 re-export 的 judge 函数遮蔽了同名子模块属性路径——按模块对象打
     judge_mod = importlib.import_module("texlate.compile.judge")
     monkeypatch.setattr(judge_mod, "pdf_cjk_chars", lambda _p: 500)

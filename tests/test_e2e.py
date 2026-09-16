@@ -18,6 +18,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from conftest import RecordingEngine
+
 from texlate import e2e
 from texlate.compile.engine import RouteDecision
 from texlate.xlat.pipeline import MOCK_ZH
@@ -26,7 +28,6 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     import pytest
-    from conftest import RecordingEngine
 
 #: 最小可解析工程：两段散文保证出 chunk（单行 body 可能零 chunk）。
 _MAIN = (
@@ -218,3 +219,32 @@ def test_base_condition(
     assert "inject" not in rec
     # 源码未被改写（对照臂语义）
     assert (work / "main.tex").read_text(encoding="utf-8") == _MAIN
+
+
+def test_pipeline_run_repair_chain_fail(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """非 clean → L2 回灌 + fixloop 修复链真跑：无 pdf 引擎 → 终态 fail。
+
+    RecordingEngine 带全协议桩（caps/probe/install/filemap/best_effort），
+    fixloop 真跑自然收敛而非走 ``_run_fixloop`` 的 error 兜底。
+    """
+    work = _project(tmp_path / "p")
+
+    def factory(name: str, **kw: object) -> RecordingEngine:
+        eng = RecordingEngine(name, **kw)
+        eng.produce_pdf = False
+        return eng
+
+    monkeypatch.setattr(e2e, "engine_for", factory)
+    for key in ("TEXLATE_ENV_JUDGE", "TEXLATE_NO_L2", "TEXLATE_NO_FIXLOOP"):
+        monkeypatch.delenv(key, raising=False)
+    report = e2e.mock_pipeline_run(work, "auto", timeout=10.0)
+
+    assert report["status"] == "fail"
+    l2 = report["l2"]
+    assert l2["enabled"] is True
+    assert l2["errors"] == 0  # 假 log 无 chunk 级可归因错误
+    fl = report["fixloop"]
+    assert fl["enabled"] is True
+    assert "error" not in fl  # 协议桩齐 → fixloop 真跑不抛

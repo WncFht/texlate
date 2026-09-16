@@ -97,7 +97,7 @@ class TestRun:
     def test_compile_fail_exit_1(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """编译无 pdf → status fail → exit 1。"""
+        """编译无 pdf → status fail → exit 1（修复链走尽仍无 pdf）。"""
         from conftest import RecordingEngine  # noqa: PLC0415
 
         def factory(name: str, **kw: object) -> RecordingEngine:
@@ -106,6 +106,8 @@ class TestRun:
             return eng
 
         monkeypatch.setattr(e2e, "engine_for", factory)
+        for key in ("TEXLATE_ENV_JUDGE", "TEXLATE_NO_L2", "TEXLATE_NO_FIXLOOP"):
+            monkeypatch.delenv(key, raising=False)
         src = _src(tmp_path)
         result = _RUNNER.invoke(
             app, ["run", str(src), "--work-dir", str(tmp_path / "w")]
