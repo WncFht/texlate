@@ -44,6 +44,21 @@ jobs:
           brew install taplo
           git ls-files '*.toml' | xargs taplo fmt --check
 
+  secrets:
+    name: Secrets (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # gitleaks git 扫全史——增量 log-opts 跨 push/PR 形态易漏
+
+      - name: Install gitleaks
+        run: brew install gitleaks
+
+      - name: gitleaks
+        run: gitleaks git --redact .
+
   python:
     name: Python
     runs-on: ubuntu-latest

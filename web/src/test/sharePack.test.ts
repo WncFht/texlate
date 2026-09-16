@@ -171,7 +171,7 @@ describe("Reader「分享本译文」渲染门", () => {
 describe("Reader「分享本译文」调用与结果态", () => {
     it("点击成功 → sharePack 调一次，展示 share_key 且按钮消失", async () => {
         mocks.sharePack.mockResolvedValue({
-            share_key: "s-250114787-zh-ab12",
+            share_key: "s-250114787-zh-ab12", // gitleaks:allow —— 测试 fixture 假 key
             url: "s-250114787-zh-ab12.share.zip",
             bytes: 20480,
         });
