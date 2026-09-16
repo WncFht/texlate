@@ -409,10 +409,8 @@ class Segmenter:
         self._open_origin: tuple[int, int, int] | None = None  # 展开组调用区间
         self._open_vspan: Span | None = None  # 该组在 vtex 的落位
         self._open_toks: list[Tok] = []  # 组成员 token（surface 收组时产）
-        self._open_pfx = ""  # 展开组调用点前的间隙 surface 前缀
         self._open_side_effect = False  # 组内展开执行过副作用（def 族/let/…）
         self._run_pending: dict[str, str] = {}  # 组内 surface ph（chunk 化才入 ph_map）
-        self._cov_origin: dict[int, int] = {}  # fid → 上次 _cover_to 的 pre-cons
         self._stop = False  # \end{document}/\endinput 顶层截停
         self._env_dead: dict[str, _EnvDeadTok] = {}  # F12 未闭合 env 墓标
         self._doc_begin = -1  # fid-0 上 \begin{document} 的 \begin 起点（-1=无）
@@ -460,7 +458,6 @@ class Segmenter:
         if end <= a:
             # 已覆盖（回放/乱序）——零宽，锚在当前 vtex 末（不是文件位 a！）
             return Span(len(self.vt), len(self.vt)), ""
-        self._cov_origin[fid] = a  # 间隙 surface 前缀判定的锚（_gap_surface）
         text = self.file_texts[fid][a:end]
         sp = self.vt.cover(text)
         self.cons[fid] = end
@@ -473,13 +470,30 @@ class Segmenter:
         折叠连续空白、``%`` 注释。它们随覆盖进 vtex/ident 但 surface
         永不可见——v1 字节扫会把其中空白扫进 run（``\ie x`` →
         ``\ie x`` 而非 ``\iex``）。规则：去注释后纯空白且非空 → ``" "``。
-        ``cons0`` = 覆盖前锚：post-cover 路径用 ``_cov_origin[fid]``，
-        pre-cover 路径先取 ``self._cons(fid)`` 再 ``_cover_to``。
+        ``cons0`` = 覆盖前锚：调用方在 ``_cover_to`` 前先取
+        ``self._cons(fid)`` 快照再盖（pre-cover 唯一形态——post-cover
+        锚账本已随间隙剖分改版移除，见 ``_cover_gap``）。
         """
         if cons0 < 0 or tok_start <= cons0:
             return ""
         gap = _COMMENT_GAP_RX.sub("", self.file_texts[fid][cons0:tok_start])
         return " " if gap and not gap.strip() else ""
+
+    def _cover_gap(self, fid: int, tok_start: int) -> None:
+        r"""调用点前间隙字节 → 独立字面 run 项（cover + 挂项一步）。
+
+        保护段/调用点的 cover 一律先过此闸：``\\ie \\cite{a}`` 的被吞空格、
+        ``%`` 注释这类非 token 字节不再并入 ph 体——surface 取
+        ``_gap_surface`` 渲染形（``" "``/``""``）、ident 持原字节。不剖
+        则该空格只上 surface 轨：in_arg/mined 子扫渲染走 ident 轨会丢
+        （v1 渲染面有空格——``\\section{A\\foo \\cite{x}}`` 曾渲成
+        ``A\\foo[[CITE_1]]``，v1 为 ``A\\foo [[CITE_1]]``）。
+        """
+        cons0 = self._cons(fid)
+        if tok_start <= cons0:
+            return
+        gap, text = self._cover_text(fid, tok_start)
+        self._rappend(self._gap_surface(fid, cons0, tok_start), text, gap)
 
     # ------------------------------------------------------------ run 双轨
 
@@ -506,22 +520,15 @@ class Segmenter:
             typ, body, self.state.ph_map, self.state.ph_reserved
         )
 
-    def _rappend_ph(self, ph: str, vspan: Span, tok: Tok | None = None) -> None:
-        r"""Ph 项进 run。
+    def _rappend_ph(self, ph: str, vspan: Span) -> None:
+        r"""Ph 项进 run（surface=ident=占位符）。
 
-        ``tok`` = 触发的 cs/mathshift token——给 surface 补间隙前缀
-        （``\ie \cite{a}`` 的被吞空格，见 ``_gap_surface``）。
+        调用点前的间隙字节由调用方 ``_cover_gap`` 先剖成独立字面项——
+        此处 vspan 头即构造首字节，ph 体与 v1 逐字节一致。
         """
         if not ph:
             return  # 空 body（零宽回放）——无项可挂
-        pfx = (
-            self._gap_surface(
-                tok.pos[0], self._cov_origin.get(tok.pos[0], -1), tok.pos[1]
-            )
-            if tok is not None
-            else ""
-        )
-        self._rappend(pfx + ph, ph, vspan)
+        self._rappend(ph, ph, vspan)
 
     def _rappend(self, surface: str, ident: str, vspan: Span) -> None:
         """追加 run 项（surface/ident 双轨 + 覆盖位）。"""
@@ -762,12 +769,11 @@ class Segmenter:
     def _open_group(self, t: Tok) -> None:
         """开展开组：覆盖调用区间 → vtex；组内 token 收 surface。"""
         fid, a, b = t.src
-        pfx = self._gap_surface(fid, self._cons(fid), a)  # 调用点前间隙
+        self._cover_gap(fid, a)  # 调用点前间隙 → 字面 run 项（不进 EXPAND 体）
         vspan = self._cover_to(fid, b)
         self._open_origin = (fid, a, b)
         self._open_vspan = vspan
         self._open_toks = []
-        self._open_pfx = pfx
         self._open_side_effect = False
 
     def _close_group(self) -> None:
@@ -789,7 +795,6 @@ class Segmenter:
             self._open_origin = None
             self._open_vspan = None
             self._open_toks = []
-            self._open_pfx = ""
             self._open_side_effect = False
             return
         segs = self._group_surface()
@@ -801,7 +806,7 @@ class Segmenter:
             if vspan.end > vspan.start
             else ""
         )
-        self._rappend(self._open_pfx + segs[0], ph, vspan)
+        self._rappend(segs[0], ph, vspan)
         self._run_has_expand = True
         for seg in segs[1:]:
             # eol_par 虚拟分段符：前半（含 EXPAND 项）冲刷，后半挂下一 run
@@ -813,7 +818,6 @@ class Segmenter:
         self._open_origin = None
         self._open_vspan = None
         self._open_toks = []
-        self._open_pfx = ""
 
     def _in_group(self, t: Tok) -> bool:
         r"""``t`` 是否属当前展开组（gen>0 同 origin / gen=0 落调用区间内）。
@@ -1659,7 +1663,7 @@ class Segmenter:
 
     # ------------------------------------------------------------ math
 
-    def _on_math(self, t: Tok, src: TokenSource) -> None:  # noqa: C901, PLR0912 — $$ 邻接/闭符分支平铺即 §3.3
+    def _on_math(self, t: Tok, src: TokenSource) -> None:  # noqa: C901, PLR0912, PLR0915 — $$ 邻接/闭符分支平铺即 §3.3
         r"""``$``/``$$`` 配对：拉 token 到同窗 mathshift 止（``$$``=紧邻双 token）。"""
         fid, _a, b = t.pos
         disp = False
@@ -1736,9 +1740,10 @@ class Segmenter:
                     src.unread(body)
             return
         eb = end_tok.pos[2]
+        self._cover_gap(fid, t.pos[1])
         vspan = self._cover_to(fid, eb)
         ph = self._ph(PhType.MATH, self.vt.slice(vspan.start, vspan.end))
-        self._rappend_ph(ph, vspan, t)
+        self._rappend_ph(ph, vspan)
 
     @staticmethod
     def _skip_balanced(src: TokenSource, body: list[Tok], pair: str) -> None:
@@ -1791,7 +1796,7 @@ class Segmenter:
 
     # ------------------------------------------------------------ verb
 
-    def _handle_verb(self, t: Tok, src: TokenSource) -> None:  # noqa: C901, PLR0912 — verb 三形各一支，平铺即 W9/W10
+    def _handle_verb(self, t: Tok, src: TokenSource) -> None:  # noqa: C901, PLR0912, PLR0915 — verb 三形各一支，平铺即 W9/W10
         r"""``\\verb|..|``/``\\verb*``/``\\lstinline[opt]|..|``/``{...}`` 配对形。
 
         定界符 = 命令后首个非空白 token；``{..}`` 配对形按平衡组收；
@@ -1836,11 +1841,11 @@ class Segmenter:
                 src.unread(pulled)  # 未消费任何组 token——全量回放（含 d）
                 self._rappend_tok(t)
                 return
+            self._cover_gap(fid, t.pos[1])
             vspan = self._cover_to(fid, e)
             self._rappend_ph(
                 self._ph(PhType.VERB, self.vt.slice(vspan.start, vspan.end)),
                 vspan,
-                t,
             )
             self._skip_past(src, fid, e)
             return
@@ -1861,11 +1866,11 @@ class Segmenter:
             src.unread(pulled)
             return
         end = close + 1
+        self._cover_gap(fid, t.pos[1])
         vspan = self._cover_to(fid, end)
         self._rappend_ph(
             self._ph(PhType.VERB, self.vt.slice(vspan.start, vspan.end)),
             vspan,
-            t,
         )
         self._skip_past(src, fid, end)
 
@@ -1950,6 +1955,9 @@ class Segmenter:
             and env not in ENV_MANDATORY_ARG
             else None
         )
+        # \begin/\end 宏端点前间隙先剖字面项——不进 v_begin，否则 ENV/
+        # ENVTAG/VERB 体头部夹带前隙（in_arg ident 渲染丢空格）
+        self._cover_gap(fid, t.pos[1])
         v_begin = self._cover_to(fid, close_t.pos[2])
         pht = _env_ph_type(env, ae)
         if pht is PhType.VERB:
@@ -2014,7 +2022,6 @@ class Segmenter:
             self._rappend_ph(
                 self._ph(PhType.MATH, self.vt.slice(v_begin.start, vspan.end)),
                 Span(v_begin.start, vspan.end),
-                t,
             )
             return
         if pht is PhType.ENV or (reg is not None and reg.kind == "protected"):
@@ -2046,7 +2053,6 @@ class Segmenter:
                 self._rappend_ph(
                     self._ph(PhType.ENVTAG, self.vt.slice(v_begin.start, vspan.end)),
                     Span(v_begin.start, vspan.end),
-                    t,
                 )
                 self.env_stack.append(env)
                 self._scope_push(src)
@@ -2057,7 +2063,6 @@ class Segmenter:
                 self._rappend_ph(
                     self._ph(PhType.ENVTAG, self.vt.slice(v_begin.start, v_begin.end)),
                     v_begin,
-                    t,
                 )
                 self.state.warnings.append(
                     ScanWarning("unclosed_env", v_begin.start, env)
@@ -2067,7 +2072,7 @@ class Segmenter:
             body, vend = self._env_with_mined(
                 env=env, vbegin=v_begin, tag=tag, last=last, body_toks=body_toks
             )
-            self._rappend_ph(self._ph(PhType.ENV, body), Span(v_begin.start, vend), t)
+            self._rappend_ph(self._ph(PhType.ENV, body), Span(v_begin.start, vend))
             return
         self._flush_run(v_begin.start)
         end = self._eat_env_args(src, fid, close_t.pos[2], env, reg, ae)
@@ -2093,12 +2098,12 @@ class Segmenter:
                 return
         else:
             env, close_t = m.target_env, t
+        self._cover_gap(fid, t.pos[1])  # \end 前间隙 → 字面项（不进 ENVTAG 体）
         vspan = self._cover_to(fid, close_t.pos[2])
         if self.in_arg:
             self._rappend_ph(
                 self._ph(PhType.ENVTAG, self.vt.slice(vspan.start, vspan.end)),
                 vspan,
-                t,
             )
             for _ in range(self._env_pop(env, vspan.start)):
                 self._scope_pop(src)
@@ -2860,11 +2865,11 @@ class Segmenter:
                 eol = ftext.find("\n", x.pos[1] + 1)
                 lim = eol if eol >= 0 else len(ftext)
                 end = e + 1 if 0 <= e < lim else lim
+                self._cover_gap(fid, t.pos[1])
                 vspan = self._cover_to(fid, end)
                 self._rappend_ph(
                     self._ph(typ, self.vt.slice(vspan.start, vspan.end)),
                     vspan,
-                    t,
                 )
                 self._skip_past(src, fid, end)
                 return
@@ -2911,8 +2916,9 @@ class Segmenter:
             src.unread([*pulled, *([x] if x is not None else [])])
             pulled.clear()
             break
+        self._cover_gap(fid, t.pos[1])
         vspan = self._cover_to(fid, end)
-        self._rappend_ph(self._ph(typ, self.vt.slice(vspan.start, vspan.end)), vspan, t)
+        self._rappend_ph(self._ph(typ, self.vt.slice(vspan.start, vspan.end)), vspan)
 
     # ------------------------------------------------------------ 各行 handler
 
@@ -2928,6 +2934,7 @@ class Segmenter:
         if x is not None and x.kind == "lbrace":
             e = match_brace(self.file_texts[fid], x.pos[1], verbatim=True)
             if e is not None:
+                self._cover_gap(fid, t.pos[1])  # \href 前间隙 → 字面项
                 vpre = self._cover_to(fid, x.pos[1])  # \href + 间隙进 run
                 self._rappend(
                     self.vt.slice(vpre.start, vpre.end),
@@ -2938,7 +2945,6 @@ class Segmenter:
                 self._rappend_ph(
                     self._ph(PhType.HREF, self.vt.slice(vph.start, vph.end)),
                     vph,
-                    t,
                 )
                 self._skip_past(src, fid, e)
                 return
@@ -3028,7 +3034,6 @@ class Segmenter:
         ``[[X_n]]`` 自解析（ident=part 直传 ``_new_chunk``）。
         """
         fid, _a, b = t.pos
-        cons0 = self._cons(fid)  # 覆盖前锚——in_arg 内联形的 gap 前缀用
         # v1：``pos = ws_skip_arg(j)`` 后先吃 ``*``（``\section*{T}``），
         # 未中回吐走 ``_args_tok`` 的 peek 重拉
         pulled: list[Tok] = []
@@ -3061,6 +3066,7 @@ class Segmenter:
             self._unread_args(src, args)
             self._rappend_tok(t)
             return
+        self._cover_gap(fid, t.pos[1])  # 命令前间隙 → 字面项（不进下述覆盖段）
         if not self.file_texts[fid][target.cs : target.ce].strip():
             # 空参数 → 整调用（含括号）逐字进 run
             vspan = self._cover_to(fid, target.fe)
@@ -3083,7 +3089,7 @@ class Segmenter:
                 + self.vt.slice(vclose.start, vclose.end)
             )
             self._rappend(
-                self._gap_surface(fid, cons0, t.pos[1]) + text,
+                text,
                 text,
                 Span(vpre.start, vclose.end),
             )
@@ -3161,10 +3167,11 @@ class Segmenter:
             pulled.clear()
             x = None
         src.unread([*opt_toks, *pulled, *([x] if x is not None else [])])
+        self._cover_gap(fid, t.pos[1])
         vspan = self._cover_to(fid, end)
         body = self.vt.slice(vspan.start, vspan.end)
         if self.in_arg:
-            self._rappend_ph(self._ph(PhType.AUTHOR, body), vspan, t)
+            self._rappend_ph(self._ph(PhType.AUTHOR, body), vspan)
             return
         self._flush_run(vspan.start)
         self._emit_ph(PhType.AUTHOR, vspan.start, vspan.end, body)
@@ -3213,11 +3220,11 @@ class Segmenter:
         fid, _a, _b = t.pos
         e = self._find_math_close_tok(src, closer)
         if e is not None:
+            self._cover_gap(fid, t.pos[1])
             vspan = self._cover_to(fid, e)
             self._rappend_ph(
                 self._ph(PhType.MATH, self.vt.slice(vspan.start, vspan.end)),
                 vspan,
-                t,
             )
             return
         self._rappend_tok(t)
@@ -3275,11 +3282,11 @@ class Segmenter:
                 if nxt.gen == 0 and nxt.pos[0] == fid:
                     end = nxt.pos[1]
         if self.in_arg:
+            self._cover_gap(fid, t.pos[1])
             vspan = self._cover_to(fid, end)
             self._rappend_ph(
                 self._ph(PhType.COND, self.vt.slice(vspan.start, vspan.end)),
                 vspan,
-                t,
             )
             return
         self._flush_run(len(self.vt))
@@ -3306,11 +3313,11 @@ class Segmenter:
             for a in getattr(m, "spec", [])
         ]
         _args, end = self._args_tok(src, fid, gspec, b, allow_single_token=True)
+        self._cover_gap(fid, t.pos[1])
         vspan = self._cover_to(fid, end)
         self._rappend_ph(
             self._ph(PhType.MACRO, self.vt.slice(vspan.start, vspan.end)),
             vspan,
-            t,
         )
 
     def _handle_unknown_cs(
@@ -3334,11 +3341,11 @@ class Segmenter:
             src, fid, 6, b, has_opt=True, allow_single_token=False
         )
         if any(a.fe > a.fs for a in args):
+            self._cover_gap(fid, t.pos[1])
             vspan = self._cover_to(fid, end)
             self._rappend_ph(
                 self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
                 vspan,
-                t,
             )
             return
         self._unread_args(src, args)
@@ -3392,15 +3399,16 @@ class Segmenter:
             if e.policy in ("protect", "key"):
                 # 签名零参/参数缺席但本体仍要保护（\printindex 类）——
                 # 裸名进 run 会被译文面当真词处理
+                self._cover_gap(fid, t.pos[1])
                 vspan = self._cover_to(fid, b)
                 self._rappend_ph(
                     self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
                     vspan,
-                    t,
                 )
                 return
             self._rappend_tok(t)
             return
+        self._cover_gap(fid, t.pos[1])
         vspan = self._cover_to(fid, end)
         if e.policy == "boundary" and not self.in_arg:
             self._flush_run(vspan.start)
@@ -3409,7 +3417,6 @@ class Segmenter:
         self._rappend_ph(
             self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
             vspan,
-            t,
         )
 
     def _emit_argspec_chunks(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 — 参序 literal/chunk 交替平铺即 _handle_chunk_arg 多参推广
@@ -3429,7 +3436,6 @@ class Segmenter:
         → 整调用 ``[[CMD]]``；零消费 → 名进 run。
         """
         fid = t.pos[0]
-        cons0 = self._cons(fid)
         consumed = [a for a in args if a.fe > a.fs]
         cut = len(args)
         for k, a in enumerate(args):
@@ -3459,11 +3465,11 @@ class Segmenter:
             )
             text_k = set()
         if not text_k:
+            self._cover_gap(fid, t.pos[1])
             vspan = self._cover_to(fid, end)
             self._rappend_ph(
                 self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
                 vspan,
-                t,
             )
             return
         # 参序 op 列：("lit", end) 覆盖到 end；("arg", _ArgTok) 子扫文本参。
@@ -3478,6 +3484,7 @@ class Segmenter:
             # else：参数字节并入下一段 lit 覆盖
         ops.append(("lit", end))
         if self.in_arg:
+            self._cover_gap(fid, t.pos[1])  # 命令前间隙 → 字面项（不入 texts）
             texts: list[str] = []
             vstart = -1
             for op, x in ops:
@@ -3491,11 +3498,12 @@ class Segmenter:
             text = "".join(texts)
             if vstart >= 0:
                 self._rappend(
-                    self._gap_surface(fid, cons0, t.pos[1]) + text,
+                    text,
                     text,
                     Span(vstart, len(self.vt)),
                 )
             return
+        self._cover_gap(fid, t.pos[1])  # 同上——字面 piece 不含前隙
         v0 = self._cover_to(fid, int(ops[0][1]))
         self._flush_run(v0.start)
         self._emit(v0.start, v0.end)
