@@ -522,6 +522,28 @@ function handleApi(req: Req, res: Res, url: URL): boolean {
         });
         return true;
     }
+    if (req.method === "POST" && p === "/api/share/import") {
+        // share 包导入演示：kind=share 走完整管线（真后端 fetch/parse/compile 重跑）
+        let body = "";
+        req.on("data", (c: Buffer) => (body += c.toString("latin1")));
+        req.on("end", () => {
+            const fname = /filename="([^"]+)"/.exec(body)?.[1] ?? "bundle.share.zip";
+            const t = seedTask(mkId(), "queued", {
+                kind: "share",
+                title: fname,
+                arxiv_id: "2501.14787",
+                counters: { total: 0, done: 0, cached: 0, failed: 0, tokens: 0 },
+            });
+            drive(t);
+            json(res, 202, {
+                task_id: t.id,
+                status: "queued",
+                events_url: `/api/task/${t.id}`,
+                reader_url: `/api/task/${t.id}/reader`,
+            });
+        });
+        return true;
+    }
     if ((mm = m(/^\/api\/task\/([^/]+)$/)) && req.method === "GET") {
         const t = tasks.get(mm[1]);
         if (!t) return notFound(res), true;

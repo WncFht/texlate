@@ -129,7 +129,12 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
 
     onCleanup(() => {
         engine?.dispose();
-        window.clearTimeout(saveTimer);
+        // 卸载冲刷：防抖窗口内离开（返回列表/切任务）不丢最后一段阅读位置
+        if (saveTimer) {
+            window.clearTimeout(saveTimer);
+            saveTimer = 0;
+            saveNow();
+        }
     });
 
     // Ctrl/Cmd+F → 活动窗格的 findbar（PDF 侧；HTML 侧无 openFind，放行给浏览器原生查找）
@@ -247,24 +252,34 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
 
     // ---------- 位置持久化 + >500px 跳回 ----------
 
+    const saveNow = () => {
+        const positions: Partial<Record<DocId, Pos>> = {};
+        for (const side of ["original", "translated"] as const) {
+            const h = handles()[side];
+            if (!h || !paneVisible(side)) continue;
+            try {
+                positions[side] = capturePos(h);
+            } catch {
+                /* 拆解期 slick 已空——跳过该侧 */
+            }
+        }
+        // 无可写位置（窗格未挂/已卸）不发——空表会覆盖服务端已存位置
+        if (Object.keys(positions).length === 0) return;
+        void api
+            .putPosition(props.taskId, {
+                positions,
+                active: active(),
+                mode: mode(),
+                zoom: zoom(),
+                sync: syncing(),
+                document_version: info()?.documents.translated?.version,
+            })
+            .catch(() => undefined);
+    };
+
     const persistPosition = () => {
         window.clearTimeout(saveTimer);
-        saveTimer = window.setTimeout(() => {
-            const positions: Partial<Record<DocId, Pos>> = {};
-            for (const side of ["original", "translated"] as const) {
-                const h = handles()[side];
-                if (h && paneVisible(side)) positions[side] = capturePos(h);
-            }
-            void api
-                .putPosition(props.taskId, {
-                    positions,
-                    active: active(),
-                    mode: mode(),
-                    zoom: zoom(),
-                    sync: syncing(),
-                })
-                .catch(() => undefined);
-        }, SAVE_DEBOUNCE_MS);
+        saveTimer = window.setTimeout(saveNow, SAVE_DEBOUNCE_MS);
     };
 
     /** 同步关闭时：任一侧与"对侧映射来的期望位置"漂移 >500px → 显示跳回按钮 */

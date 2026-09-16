@@ -72,6 +72,14 @@ export interface TaskSnapshot {
     error?: TaskError | null;
     artifacts?: Record<string, string>;
     last_seq?: number;
+    /** task_usage 行（有 LLM 调用记录才带） */
+    usage?: {
+        model?: string;
+        calls?: number;
+        prompt_tokens?: number;
+        completion_tokens?: number;
+        latency_s?: number;
+    };
 }
 
 export interface StageEvent {
@@ -118,10 +126,12 @@ export interface DoneStats {
     tokens?: number;
     seconds?: number;
     chunks_failed?: number;
+    [k: string]: unknown;
 }
 
 export interface DoneEvent {
-    status: TaskStatus;
+    /** "deleted" 非任务行状态——DELETE 端点对在听的 SSE 流补发的收尾帧 */
+    status: TaskStatus | "deleted";
     artifacts: Record<string, string>;
     stats: DoneStats;
 }
@@ -135,6 +145,8 @@ export interface TranslateOptions {
         concurrency?: number;
         engine?: string;
         prefer?: "reuse" | "fresh";
+        /** 完成后打包 .share.zip 社区缓存包（shared-cache.md §6 opt-in） */
+        share_pack?: boolean;
     };
 }
 
@@ -207,6 +219,8 @@ export interface ReadingState {
     mode?: "original" | "translated" | "split";
     zoom?: string;
     sync?: boolean;
+    /** zh.pdf sha256——不符服务端 409（防旧版位置回灌，§2.5） */
+    document_version?: string;
 }
 
 export interface ReaderInfo {
@@ -270,6 +284,8 @@ export class ApiError extends Error {
         public status: number,
         public detail: string,
         public code?: string,
+        /** 结构化 task_id（409 duplicate_active 等错误体附带） */
+        public taskId?: string,
     ) {
         super(detail);
         this.name = "ApiError";
@@ -281,14 +297,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     if (!res.ok) {
         let detail = res.statusText;
         let code: string | undefined;
+        let taskId: string | undefined;
         try {
             const body = await res.json();
             if (typeof body?.detail === "string") detail = body.detail;
             if (typeof body?.code === "string") code = body.code;
+            if (typeof body?.task_id === "string") taskId = body.task_id;
         } catch {
             /* 非 JSON 错误体 */
         }
-        throw new ApiError(res.status, detail, code);
+        throw new ApiError(res.status, detail, code, taskId);
     }
     if (res.status === 204) return undefined as T;
     const ct = res.headers.get("content-type") ?? "";
@@ -328,6 +346,14 @@ export const api = {
         if (fields?.main) fd.append("main", fields.main);
         if (fields?.options) fd.append("options", JSON.stringify(fields.options));
         return request<TranslateResponse>("/upload", { method: "POST", body: fd });
+    },
+
+    /** .share.zip 共享包导入（model/lang/arxiv_id 由包内 manifest 自描述） */
+    shareImport(file: File, options?: object) {
+        const fd = new FormData();
+        fd.append("file", file);
+        if (options) fd.append("options", JSON.stringify(options));
+        return request<TranslateResponse>("/share/import", { method: "POST", body: fd });
     },
 
     snapshot: (taskId: string) => request<TaskSnapshot>(`/task/${taskId}`),

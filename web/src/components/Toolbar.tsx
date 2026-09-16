@@ -96,7 +96,7 @@ export default function Toolbar(props: Props) {
             </span>
 
             <Segmented
-                ariaLabel="阅读模式"
+                ariaLabel={t.reader.mode}
                 options={[
                     { value: "original", label: t.reader.original },
                     { value: "translated", label: t.reader.translated },
@@ -125,7 +125,7 @@ export default function Toolbar(props: Props) {
                 class="tb-select"
                 value={props.zoom}
                 onChange={(e) => props.onZoom(e.currentTarget.value)}
-                aria-label="缩放"
+                aria-label={t.reader.zoom}
             >
                 <For each={ZOOMS}>
                     {(z) => <option value={z}>{ZOOM_LABEL[z] ?? z}</option>}

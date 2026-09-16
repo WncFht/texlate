@@ -122,10 +122,25 @@ export const taskStore = {
             warning: (e) => setState("live", taskId, "warnings", (ws) => [...ws, e]),
             error: (e) => setState("live", taskId, "error", e),
             done: (e) => {
+                // DELETE 端点的收尾帧——本任务行已删，别回填成 "deleted" 僵尸行
+                if (e.status === "deleted") {
+                    setState("tasks", (list) =>
+                        list.filter((t) => t.task_id !== taskId),
+                    );
+                    setState(
+                        "live",
+                        produce((l) => {
+                            delete l[taskId];
+                        }),
+                    );
+                    channels.delete(taskId);
+                    return;
+                }
+                const status = e.status;
                 setState("live", taskId, "done", e);
                 setState("tasks", (t) => t.task_id === taskId, (t) => ({
                     ...t,
-                    status: e.status,
+                    status,
                     progress: 100,
                     artifacts: e.artifacts,
                 }));

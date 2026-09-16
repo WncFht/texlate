@@ -40,6 +40,8 @@ export default function Home(props: { nav(to: string): void }) {
     const [optConcurrency, setOptConcurrency] = createSignal("");
     const [optEngine, setOptEngine] = createSignal("");
     const [optPrefer, setOptPrefer] = createSignal("");
+    const [optShare, setOptShare] = createSignal("");
+    const [optMain, setOptMain] = createSignal("");
     let fileInput!: HTMLInputElement;
 
     onMount(() => {
@@ -77,6 +79,7 @@ export default function Home(props: { nav(to: string): void }) {
             opts.concurrency = Math.max(1, Math.min(16, Math.floor(conc)));
         }
         if (optEngine()) opts.engine = optEngine();
+        if (optShare()) opts.share_pack = optShare() === "on";
         const pref = optPrefer();
         if (pref === "reuse" || pref === "fresh") opts.prefer = pref;
         if (Object.keys(opts).length) o.options = opts;
@@ -97,9 +100,9 @@ export default function Home(props: { nav(to: string): void }) {
         } catch (e) {
             // 409：同 cache_key 已有活动任务 → 直接跳过去
             if (e instanceof ApiError && e.status === 409) {
-                const m = e.detail.match(/t_[0-9a-f]{16}/);
-                if (m) {
-                    open(m[0]);
+                const existing = e.taskId ?? e.detail.match(/t_[0-9a-f]{16}/)?.[0];
+                if (existing) {
+                    open(existing);
                     return;
                 }
             }
@@ -119,10 +122,24 @@ export default function Home(props: { nav(to: string): void }) {
             const upOpts: Record<string, unknown> = { ...o?.options };
             delete upOpts.prefer;
             if (o?.glossary) upOpts.glossary = o.glossary;
+            // .share.zip 是社区缓存包——走 share/import（包内 manifest 自描述）
+            if (file.name.toLowerCase().endsWith(".share.zip")) {
+                const res = await api.shareImport(
+                    file,
+                    Object.keys(upOpts).length ? upOpts : undefined,
+                );
+                openRes(res);
+                return;
+            }
+            const main = optMain().trim();
             const fields =
-                o &&
-                (o.model || o.target_lang || Object.keys(upOpts).length)
-                    ? { model: o.model, target_lang: o.target_lang, options: upOpts }
+                o || main
+                    ? {
+                          model: o?.model,
+                          target_lang: o?.target_lang,
+                          main: main || undefined,
+                          options: upOpts,
+                      }
                     : undefined;
             const res = await api.upload(file, fields);
             openRes(res);
@@ -258,6 +275,31 @@ export default function Home(props: { nav(to: string): void }) {
                                 <option value="reuse">{t.home.preferReuse}</option>
                                 <option value="fresh">{t.home.preferFresh}</option>
                             </select>
+                        </label>
+                        <label>
+                            <span>
+                                {t.home.optShare}
+                                <em class="muted">{t.home.optShareHint}</em>
+                            </span>
+                            <select
+                                value={optShare()}
+                                onChange={(e) => setOptShare(e.currentTarget.value)}
+                            >
+                                <option value="">{t.home.optDefault}</option>
+                                <option value="on">{t.home.optOn}</option>
+                                <option value="off">{t.home.optOff}</option>
+                            </select>
+                        </label>
+                        <label>
+                            <span>
+                                {t.home.optMain}
+                                <em class="muted">{t.home.optMainHint}</em>
+                            </span>
+                            <input
+                                value={optMain()}
+                                placeholder="main.tex"
+                                onInput={(e) => setOptMain(e.currentTarget.value)}
+                            />
                         </label>
                         <label class="span2">
                             <span>

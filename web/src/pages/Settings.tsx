@@ -12,6 +12,7 @@ export default function Settings() {
     const [glossary, setGlossary] = createSignal("");
     const [engine, setEngine] = createSignal("auto");
     const [concurrency, setConcurrency] = createSignal("3");
+    const [guidance, setGuidance] = createSignal("on");
     const [msg, setMsg] = createSignal("");
     const [testing, setTesting] = createSignal(false);
     let msgTimer = 0;
@@ -29,6 +30,7 @@ export default function Settings() {
                 setGlossary(s.glossary ?? "");
                 setEngine(s.engine ?? "auto");
                 setConcurrency(String(s.concurrency ?? 3));
+                setGuidance(s.context_guidance === false ? "off" : "on");
             }
         } catch (e) {
             // 加载失败表单仍可用，仅提示
@@ -51,6 +53,7 @@ export default function Settings() {
             target_lang: targetLang(),
             glossary: glossary(),
             engine: engine(),
+            context_guidance: guidance() === "on",
         };
         // 空串不送——server 侧 int("") 直接 400
         const conc = Number(concurrency());
@@ -162,6 +165,16 @@ export default function Settings() {
                         value={concurrency()}
                         onInput={(e) => setConcurrency(e.currentTarget.value)}
                     />
+                </label>
+                <label>
+                    <span>
+                        {t.settings.contextGuidance}
+                        <em class="muted">{t.settings.contextGuidanceHint}</em>
+                    </span>
+                    <select value={guidance()} onChange={(e) => setGuidance(e.currentTarget.value)}>
+                        <option value="on">{t.home.optOn}</option>
+                        <option value="off">{t.home.optOff}</option>
+                    </select>
                 </label>
                 <label>
                     <span>
