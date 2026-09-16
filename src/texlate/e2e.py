@@ -42,6 +42,7 @@ from texlate.compile.judge import Verdict, judge
 from texlate.compile.normalize import normalize_project
 from texlate.latex.api import parse_file
 from texlate.latex.placeholder import CHUNK_RX, PH_RX
+from texlate.latex.prose import file_has_prose
 from texlate.latex.reconstruct import (
     _LATIN_ITEM_RX,
     _PAR_RUN_RX,
@@ -191,6 +192,43 @@ def _env_judge_pass(
     return {"enabled": True, "asked": len(targets), "reverted": reverted}
 
 
+def _scan_tree(
+    root: Path,
+) -> tuple[list[tuple[Path, ScanResult]], list[ChunkIn], list[str], list[str]]:
+    """枚举树内 ``.tex`` → 三级分流 → 解析 + chunk 收集。
+
+    文件名闸（``.rtx.tex`` 运行时转储静默跳过、``.code.tex`` tikzlibrary
+    机制件记 support）→ 解析崩记 ``fault_files`` → 无散文记
+    ``support_files``（pstricks/epsf/宏件/gnuplot 转储——送译即腐蚀，
+    按原文保留；与 fault 分流：这里是有意跳过而非失败）。
+    """
+    scans: list[tuple[Path, ScanResult]] = []
+    chunks: list[ChunkIn] = []
+    fault_files: list[str] = []
+    support_files: list[str] = []
+    for f in sorted(f for f in root.rglob("*") if f.suffix.lower() == ".tex"):
+        if f.name.lower().endswith(".rtx.tex"):
+            continue  # REVTeX 运行时转储不进翻译集 (regress4-1003.1717)
+        if f.name.lower().endswith(".code.tex"):
+            support_files.append(f.name)
+            continue
+        try:
+            res = parse_file(f, flatten=False)
+        except Exception:  # noqa: BLE001 -- 单文件解析崩不拖垮整树：
+            fault_files.append(f.name)  # 记名可审计，该文件按原文保留
+            continue
+        if not file_has_prose(res.chunks):
+            support_files.append(f.name)
+            continue
+        idx = len(scans)
+        scans.append((f, res))
+        chunks.extend(
+            chunk_to_in(c, chunk_id=f"{idx}:{c.id}", ph_map=res.ph_map)
+            for c in res.chunks
+        )
+    return scans, chunks, fault_files, support_files
+
+
 def _translate_tree(
     root: Path,
     *,
@@ -202,23 +240,7 @@ def _translate_tree(
     ``env_judge=True`` 时对静态表外的未知 env 块问 LLM 可译性——
     False 的块回落原文不进 splice。
     """
-    scans: list[tuple[Path, ScanResult]] = []
-    chunks: list[ChunkIn] = []
-    fault_files: list[str] = []
-    for f in sorted(f for f in root.rglob("*") if f.suffix.lower() == ".tex"):
-        if f.name.lower().endswith(".rtx.tex"):
-            continue  # REVTeX 运行时转储不进翻译集 (regress4-1003.1717)
-        try:
-            res = parse_file(f, flatten=False)
-        except Exception:  # noqa: BLE001 -- 单文件解析崩不拖垮整树：
-            fault_files.append(f.name)  # 记名可审计，该文件按原文保留
-            continue
-        idx = len(scans)
-        scans.append((f, res))
-        chunks.extend(
-            chunk_to_in(c, chunk_id=f"{idx}:{c.id}", ph_map=res.ph_map)
-            for c in res.chunks
-        )
+    scans, chunks, fault_files, support_files = _scan_tree(root)
 
     pipe = XlatPipeline(
         translator or MockTranslator(),
@@ -263,6 +285,8 @@ def _translate_tree(
         "partial_chunks": n_partial,
         "fault_chunks": n_fault,
         "fault_files": fault_files,
+        "support_files": support_files,
+        "support_skipped": len(support_files),
         "leftover_ph": n_leftover,
         "env_judge": env_stats,
     }

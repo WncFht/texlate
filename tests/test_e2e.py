@@ -63,7 +63,7 @@ def test_translate_tree_two_files(tmp_path: Path) -> None:
     """两文件树：per-file chunk_id 前缀隔离、译文写回、占位符零残留。"""
     _project(tmp_path)
     (tmp_path / "sub.tex").write_text(
-        "A third paragraph in a second file for translation.\n",
+        "A third paragraph in a second file that should also be translated here.\n",
         encoding="utf-8",
     )
     stats = e2e.mock_translate_tree(tmp_path)
@@ -82,9 +82,10 @@ def test_translate_tree_glossary_ph_injection(tmp_path: Path) -> None:
     r"""spec-xlat#10：文件模式链挂 glossary——段内 ``[[X_n]]`` 恒等注入进 system prompt。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\begin{document}\n"
-        "A paragraph with inline math $E=mc^2$ inside it for translation here.\n"
+        "This is a paragraph with the inline math $E=mc^2$ that should be\n"
+        "translated here.\n"
         "\n"
-        "And a second paragraph to keep the chunker honest.\n"
+        "The second paragraph is also here so that the chunker stays honest.\n"
         "\\end{document}\n",
         encoding="utf-8",
     )
