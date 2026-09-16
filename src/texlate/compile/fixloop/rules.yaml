@@ -2001,6 +2001,7 @@ rules:
     engines:
       xelatex: { mode: same }
       tectonic: { mode: same }
+    source_ref: "wave-4 规则批; c6f1511 落地, lookahead 锚定防词干误吃"
     provenance:
       - {
           corpus: "1404.5720 (realpostfix2 shim residuals, task#23)",
