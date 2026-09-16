@@ -1241,7 +1241,7 @@ def _on_misschar(crec: dict) -> bool:
     与 e2e_real_bench._want_fix 同口径；其余 warning 级 partial 不进
     （partial→fail 回退教训）。
     """
-    v = crec.get("verdict") or {}
+    v = (crec.get("metrics") or {}).get("verdict") or {}
     return crec.get("status") == "partial" and (v.get("missing_chars") or 0) > 0
 
 
