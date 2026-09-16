@@ -821,12 +821,22 @@ def _requester_paths(ctx: LoopCtx, eng: Engine, rep: ErrReport) -> list[Path]:
     pst-all 实证 (delta b4akkgal5): meta-wrapper 连发 11 个成员包, 缺谁报谁、
     file:line 锚是要求方自身 —— 一轮补一个要等 8+ 轮 max_rounds; 直接扫
     要求方依赖全表一轮补齐。锚序: 首错行 > ctx > tail 末位 > file_stack
-    内层包文件兜底 (无 ``file:line`` 的老式 ``!`` 错误)。
+    内层包文件兜底 (无 ``file:line`` 的老式 ``!`` 错误) > popped_files
+    尾段 (runaway 把肇事帧先弹走——``\@iiiparbox``/``\next`` 扫描族)。
     """
     names = _REQ_ANCHOR_RE.findall(rep.first or "")
     names += _REQ_ANCHOR_RE.findall(rep.ctx or "")
     names += _REQ_ANCHOR_RE.findall(rep.tail)[::-1]
-    names += [s for s in rep.file_stack[-2:] if s.endswith((".sty", ".cls", ".def"))]
+    stack = [s for s in rep.file_stack[-2:] if s.endswith((".sty", ".cls", ".def"))]
+    if not stack:
+        # runaway 错报位在最近关闭帧（``popped_files[-1]`` 肇事候选，
+        # #78/\@iiiparbox×3/\next 扫描实证）——栈取不到时 popped 尾段递补
+        stack = [
+            s
+            for s in reversed(rep.popped_files)
+            if s.endswith((".sty", ".cls", ".def"))
+        ]
+    names += stack
     out: list[Path] = []
     seen: set[str] = set()
     for name in names:

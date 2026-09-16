@@ -234,6 +234,34 @@ def test_install_requester_fanout_tail_preempt(tmp_path: Path) -> None:
     assert set(eng.install_calls) >= {"pst-node.sty", "pst-poly.sty"}
 
 
+def test_install_requester_fanout_popped_fallback(tmp_path: Path) -> None:
+    r"""file_stack 滤空时 ``popped_files`` 尾段递补要求方（runaway 先弹肇事帧）。
+
+    ``\@iiiparbox``/``\next`` 扫描族实证（#78 契约）：请求方 ``req.sty``
+    在错误行前被 ``)`` 弹进 popped_files，栈里只剩 ``./main.tex``（滤后
+    为空）——旧锚序拿不到要求方 → 成员包逐轮撞；popped 递补让扇出一轮补齐。
+    """
+    (tmp_path / "req.sty").write_text(
+        "\\RequirePackage{dep-a}\n\\RequirePackage{dep-b}\n"
+    )
+    eng = MockEngine(
+        [
+            {
+                "log": "(./main.tex\n(./req.sty\n)\n"
+                "! LaTeX Error: File `dep-a.sty' not found.\n"
+            },
+            {"log": CLEAN_LOG, "pdf": True},
+        ],
+        installable={"dep-a.sty", "dep-b.sty"},
+        available={"article.cls"},
+    )
+    cell = fixloop(make_proj(tmp_path), eng)
+    assert cell["verdict"] == "clean"
+    assert set(eng.install_calls) >= {"dep-a.sty", "dep-b.sty"}
+    detail = next(a["detail"] for a in cell["actions"] if a["rule"] == "install_file")
+    assert "requester deps" in detail
+
+
 def test_install_requester_fanout_input_chain(tmp_path: Path) -> None:
     r"""pstricks-add.tex 实证 (scout-pst): ``\\input`` 行内裸名链扇出。
 
