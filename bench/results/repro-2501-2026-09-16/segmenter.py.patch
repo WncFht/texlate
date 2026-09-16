@@ -1,0 +1,102 @@
+--- a/src/texlate/latex/segmenter.py
++++ b/src/texlate/latex/segmenter.py
+@@ -59,6 +59,7 @@
+     CHUNK_MAX,
+     CHUNK_MIN,
+     CITE_NAMES,
++    COLOR_TEXT_NAMES,
+     COND_RX,
+     ENV_MANDATORY_ARG,
+     FILENAME_CHARS,
+@@ -1225,6 +1226,35 @@
+                 )
+                 i = e
+                 continue
++            if name in COLOR_TEXT_NAMES:
++                # \textcolor[model]{color}{text} 组内对价（主版
++                # _handle_color_text 同形）：cs+间隙留 surface，
++                # [model]?{color} 整段 → [[KEY]]；{text} 组续扫
++                k = i + 1
++                while k < n and toks[k].kind == "space":
++                    k += 1
++                arg0 = k  # [opt]/{color} 起点（key 段首 token）
++                if k < n and toks[k].kind == "other" and toks[k].text == "[":
++                    e2 = self._grp_bal(toks, k, brace=False)
++                    if e2 is not None:
++                        k = e2
++                        while k < n and toks[k].kind == "space":
++                            k += 1
++                e = (
++                    self._grp_bal(toks, k, brace=True)
++                    if k < n and toks[k].kind == "lbrace"
++                    else None
++                )
++                if e is None:
++                    self._cat_surf(out, self._tok_surface(t))
++                    i += 1
++                    continue
++                self._cat_surf(out, self._grp_surfs(toks[i:arg0]))
++                self._cat_surf(
++                    out, self._grp_ph(PhType.KEY, self._grp_surfs(toks[arg0:e]))
++                )
++                i = e
++                continue
+             if name == "hyperref":
+                 # argspec m m（key,text）的组内对价：首个参组（{key} 或
+                 # [label]）随命令进 [[CMD]]，{text} 余参留 surface 续扫
+@@ -1560,6 +1590,12 @@
+             if name == "href":
+                 self._handle_href(t, src)
+                 return
++            # 9b. \textcolor/\colorbox：cs+[model]{color}→[[KEY]]，
++            #     {text} 继续扫（href 同构；argspec chunk-arg 顶层形会
++            #     切碎 <CHUNK_MIN 的夹缝散文 run，TRANSPARENT 又漏色名）
++            if name in COLOR_TEXT_NAMES:
++                self._handle_color_text(t, src, name)
++                return
+             # 10. \input 族漏网（gullet 未解析成功）：LITERAL + inputs[]
+             if name in INPUT_SCAN_CMDS:
+                 self._handle_input_cs(t, src, name)
+@@ -2954,6 +2990,42 @@
+         src.unread([*pulled, *([x] if x is not None else [])])
+         self._rappend_tok(t)
+ 
++    def _handle_color_text(self, t: Tok, src: TokenSource, name: str) -> None:
++        r"""``\textcolor[model]{color}{text}``/``\colorbox`` 色参保护。
++
++        ``{color}`` 是语义 key 非散文——TRANSPARENT 内联会把它漏进
++        chunk content 被翻译（2501.14787 ``\textcolor{blue}`` →
++        xcolor ``Undefined color``）。href 同构：cs 与间隙字面进
++        run，``[model]?{color}`` 整段出 ``[[KEY]]``；``{text}`` 不
++        消费，主流/``in_arg`` 子扫照常内联——caption 内嵌用例同覆盖
++        （chunk-arg 的 in_arg 分支把 key 参留字面，挡不住）。
++        """
++        fid, _a, b = t.pos
++        spec = _chunk_spec_cached("om")  # [model]{color}；{text} 不拉
++        args, _end = self._args_tok(src, fid, spec, b, allow_single_token=False)
++        real = [a for a in args if a.fe > a.fs]
++        mand = next(
++            (a for a in reversed(real) if a.spec is not None and a.spec.kind == "m"),
++            None,
++        )
++        if mand is None:
++            # {color} 缺席（裸名/单 token 参）——回吐按逐字面处理
++            self._unread_args(src, args)
++            self._rappend_tok(t)
++            return
++        self._cover_gap(fid, t.pos[1])
++        vpre = self._cover_to(fid, real[0].fs if real[0].fs > b else b)
++        self._rappend(
++            self.vt.slice(vpre.start, vpre.end),
++            self.vt.slice(vpre.start, vpre.end),
++            vpre,
++        )
++        vph = self._cover_to(fid, mand.fe)  # [model]{color} 整段
++        self._rappend_ph(
++            self._ph(PhType.KEY, self.vt.slice(vph.start, vph.end)),
++            vph,
++        )
++
+     def _handle_input_cs(  # noqa: C901, PLR0912 — 三形平铺（{file}/import 双参/裸名）
+         self, t: Tok, src: TokenSource, name: str
+     ) -> None:

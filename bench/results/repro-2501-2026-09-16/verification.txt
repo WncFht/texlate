@@ -1,0 +1,47 @@
+缺陷 B 补丁验证（PYTHONPATH=/tmp/texlate-shadow = 现树 + tables/segmenter patch）
+================================================================================
+
+== mini.tex —— 顶层 \textcolor/\colorbox
+  chunk[0] ctx=para:
+    'The \textcolor[[KEY_1]]{output} [[MATH_2]] from \textcolor[[KEY_3]]{inputs}
+     and \colorbox[[KEY_4]]{boxed text} here.'
+  KEY phs: [[KEY_1]]='{blue}'  [[KEY_3]]='{red}'  [[KEY_4]]='{yellow}'
+  identity round-trip: TRUE        （单 chunk 不碎、色名出 KEY、{text} 内联）
+
+== mini2.tex —— \caption 内嵌（in_arg 子扫路径）
+  chunk[0] ctx=caption:
+    'A graph of \textcolor[[KEY_1]]{output} [[MATH_2]] from two
+     \textcolor[[KEY_3]]{inputs} here.'
+  chunk[1] ctx=para: 'Top level \textcolor[[KEY_5]]{output} and more ...'
+  identity round-trip: TRUE
+
+== mini3.tex —— 宏展开 \newcommand{\hlout}[1]{\textcolor{blue}{#1}} + [rgb] opt 形
+  chunk[0] ctx=para:
+    ' The macro \textcolor[[KEY_1]]{expanded call} and direct
+      \textcolor[[KEY_3]]{modeled} forms. '
+  KEY phs: [[KEY_1]]='{blue}'  [[KEY_3]]='[rgb]{1,0,0}'   （opt+mand 整段一 KEY）
+  identity round-trip: TRUE    （grp-walk 对价分支覆盖展开组内路径）
+
+== 原论文 src/main.tex —— base 现树 vs shadow
+  chunks:   base=672   shadow=672   （零 chunk 增减）
+  ph total: base=3194  shadow=3196  （恰 +2 = 两个新 KEY）
+  warnings: base=[]    shadow=[]
+  shadow KEYs: [[KEY_1435]]='{blue}'  [[KEY_1437]]='{red}'
+  语义变化唯一处 chunk 383（figure caption）：
+    base:   '... an \textcolor{blue}{output} [[MATH_1435]] from two
+             \textcolor{red}{inputs} [[MATH_1436]] ...'
+    shadow: '... an \textcolor[[KEY_1435]]{output} [[MATH_1436]] from two
+             \textcolor[[KEY_1437]]{inputs} [[MATH_1438]] ...'
+  其余 203/672 "changed" 均为 KEY 占位符插入点下游的 ph 序号平移（+2），无内容差异。
+
+== 回归
+  PYTHONPATH=/tmp/texlate-shadow uv run pytest tests/ \
+      -k "segmenter or expand or latex or parse or recon or placeholder or argspec" -x -q
+  → 536 passed, 1 skipped
+
+== 缺陷 A 补丁验证（normalize.py 已直改现树）
+  uv run pytest tests/ -k "normalize or inject or compile" -x -q
+  → 212 passed, 1 skipped
+  normalize_engine(src/main.tex, 'tectonic') → shim 随 XETEX_COMPATIBILITY 注入文件顶 ✓
+  build-zh 副本（补丁形态）tectonic 编译：14 → 4 errors（余者皆缺陷 B 残留），
+  main.pdf 888 KB 产出；DeclareUnicodeCharacter 相关日志行 0。
