@@ -54,6 +54,19 @@
 - 目标：rescue ≥90%；missing_file 簇靠 shim_map 扩列 + tlpdb-index 预期消化大半；`fixloop_degraded` ≤4。
 - **「不退化底板」已落 `2f12955`**：入口态 pdf 快照（precheck 前现存产物优先、否则 rounds[0]），末态失 pdf 且非 reject → 拷回 + verdict 重落既有公式（`floor_from`/`floor_restored` 留痕，stagerun metrics 带 `floor_restored`，replay_all 门②将兜回计入 regressed）。注意 stagerun post 复判仍直编裸树——record status 反映树真实态，退化观测不受底板遮蔽。
 
+### 4.2.5 clean 率杠杆（scout-partial/misschar/latex209 实证，已分派）
+
+终态 partial 1890 格唯一阻断分布：错误残留 980（51.9%）、缺字唯一阻断 491（26.0%）、invalid_utf8 唯一阻断 405（21.4%）、cjk 计数 14。已派四 fixer 按杠杆序推进：
+
+| # | 杠杆 | 实证 | 可转化 | 属主 |
+| --- | --- | --- | --- | --- |
+| 1 | **译文槽位保护**（fixer-slots，segmenter） | 错误簇 42%=407 格同机理：`\vskip3这是译文`(illegal_unit 138)、`{\scJos`/`\csnamebibitemNoStop` 粘连(104)、`Undefined color '这是译文'`+counter/keyval(91)、`\par` 进短参(62)、array preamble(12) | ~407 | 1d（xlat 侧残留归 peer1） |
+| 2 | **CJK 字体兜底**（fixer-cjkfont，inject） | 缺字 739 格缺的就是 `这是译文` 落在 cmr10/lmroman10/psnfss/nullfont 上下文——xeCJK 兜底够不到非 CJK 字体；missing_char_fix 字面替换已证无效 | 491 直升+~248 解锁 | 1d |
+| 3 | **invalid_utf8 源头转码**（fixer-utf8，输入侧） | 405 格唯一阻断 + latin-1 缺字尾同源 | ~405 直升 | 1d |
+| 4 | **latex209→2e 受限升级器**（fixer-209up，inject 挂点+新模块） | compat 模式禁 `\usepackage` 拒得对（A 臂 11/11 全灭），但探针 9/14 出 zh pdf；414 普查 revtex 169（41%）+article 188；探针产物 `tmp/latex209-probe/` | ~170–270（40–65%） | 1d 建器 + peer1 改 gate 路由 |
+
+1+2+3 全落地理论上限 ~1300 格，clean 率 54.3%→~83%（基数 4565=5108−129skip−414reject）；#4 再额外解锁 reject 池。另：`cjk_chars=0` 14 格实为 splice 没拿到段（上游覆盖问题）；pst-* 可解仍败疑点归 loop2 全量观察。
+
 ### 4.3 中线
 
 - **真网关规模验证**（1e 建议）：xlat-real n50 出数后推 n100-200 拿真 clean-rate 分布——mock 臂今日连修 4 个缺陷，真臂还没同等扫过。
