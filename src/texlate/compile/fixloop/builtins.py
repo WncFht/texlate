@@ -20,6 +20,7 @@ from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
 from texlate.compile.normalize import INTERMEDIATE_SUFFIXES
+from texlate.textutil import mask_tex
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
@@ -162,16 +163,46 @@ def _provides_date(text: str) -> tuple[int, int, int] | None:
     return (int(m.group(1)), int(m.group(2)), int(m.group(3))) if m else None
 
 
-def find_vendored_shadows(ctx: LoopCtx, eng: Engine, exts: tuple[str, ...]) -> list:
-    r"""工程内 .sty/.cls 与系统副本同名且本地更旧 → 遮蔽候选列表。
+def _index_providers(eng: Engine, fname: str) -> list[str]:
+    """``filemap`` + ``ctan_fetch.peek_index`` 查 ``fname`` 的 bundle/TL 提供包。
 
-    比较 ``\\ProvidesPackage``/``\\ProvidesClass`` 日期; 本地无日期或系统
-    无副本不列为候选 (盲删必死 —— 同目录 cls 可能是唯一来源)。
+    只收 ``query`` 精确命中 —— ``suggest`` 前缀猜测面太宽, 不足以佐证
+    撞名遮蔽。
+    """
+    pkgs = list(eng.filemap(fname))
+    if not pkgs:
+        fetcher = getattr(eng, "ctan_fetch", None)
+        peek = getattr(fetcher, "peek_index", None)
+        idx = peek() if callable(peek) else None
+        if idx is not None:
+            pkgs = idx.query(fname)
+    return pkgs
+
+
+def find_vendored_shadows(
+    ctx: LoopCtx, eng: Engine, exts: tuple[str, ...]
+) -> list[tuple[Path, tuple[int, int, int] | None, tuple[int, int, int] | None, str]]:
+    r"""工程内 .sty/.cls 遮蔽候选 → ``(file, 本地日期, 系统日期, 提供方)``。
+
+    xelatex: ``probe_file`` 命中系统副本且 ``\\ProvidesPackage``/``\\ProvidesClass``
+    日期 ``ld < sd`` 确证才列 (盲删必死 —— 同目录 cls 可能是唯一来源)。
+    tectonic: ``probe_file`` 无 cwd 恒 None —— 改查 filemap/tlpdb 索引,
+    撞名被收录 (bundle/TL 有现行副本) 即列 ``sd=None`` advisory 级候选;
+    bundle 内文件无日期面, 提供方记 ``bundle provides <pkg>``, 不走
+    ``ld < sd`` 判据。
     """
     cands = []
+    tectonic = ctx.engine_name == "tectonic"
     for f in ctx.tex_files(exts):
         resolved = eng.probe_file(f.name)
         if not resolved:
+            if tectonic:
+                pkgs = _index_providers(eng, f.name)
+                if pkgs:
+                    local_txt = ctx.read(f)
+                    ld = _provides_date(local_txt) if local_txt else None
+                    prov = f"bundle provides {', '.join(pkgs)}"
+                    cands.append((f, ld, None, prov))
             continue
         rp = Path(resolved) if isinstance(resolved, str) else resolved
         try:
@@ -188,22 +219,33 @@ def find_vendored_shadows(ctx: LoopCtx, eng: Engine, exts: tuple[str, ...]) -> l
             continue
         ld, sd = _provides_date(local_txt), _provides_date(sys_txt)
         if ld is not None and sd is not None and ld < sd:
-            cands.append((f, ld, sd))
+            cands.append((f, ld, sd, str(rp)))
     return cands
 
 
 def vendored_shadow_isolate(
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
-    """确证更旧的工程内 .sty/.cls → rename ``<f>.fixloop-iso`` 隔离 (docs/08:269)。"""
+    """确证更旧的工程内 .sty/.cls → rename ``<f>.fixloop-iso`` 隔离 (docs/08:269)。
+
+    ``sd=None`` 的 tectonic 索引候选是 advisory 级 —— 无日期面确证新旧,
+    不 rename, 记 ``bundle provides <pkg>`` advisory (幂等去重)。
+    """
     del payload
     exts = tuple(params.get("exts") or (".sty", ".cls"))
     suffix = str(params.get("suffix") or ".fixloop-iso")
     moved = []
-    for f, ld, sd in find_vendored_shadows(ctx, eng, exts):
+    for f, ld, sd, prov in find_vendored_shadows(ctx, eng, exts):
+        if sd is None:
+            adv = f"{f.name}: {prov}——vendored 撞名未确证新旧, 保留"
+            if adv not in ctx.advisories:
+                ctx.advisories.append(adv)
+            continue
         f.rename(f.with_name(f.name + suffix))
         moved.append(f"{f.name} ({ld} < {sd})")
-    return (bool(moved)), f"isolate vendored: {', '.join(moved)}"
+    if not moved:
+        return False, "无确证更旧的可隔离遮蔽"
+    return True, f"isolate vendored: {', '.join(moved)}"
 
 
 def non_utf8_recode(
@@ -529,13 +571,20 @@ def legacy_pkg_shim(
     ``\\altaffilmark`` 族, 非 drop-in; emulateapj 为 arXiv 投稿仿 aastex 接口);
     psfig→epsfig 桥可用因 epsfig 的 Gin key 同收 ``figure=``/``file=``。
     """
-    spec = (params.get("shim_map") or {}).get(payload or "")
+    shim_map = params.get("shim_map") or {}
+    fname = payload or ""
+    spec = shim_map.get(fname)
+    if spec is None and not Path(fname).suffix:
+        # `I can't find file `X'` 裸 payload (\input 系): 实体是 X.tex ——
+        # shim 键与 stub 落点都用归一名 (epsf→epsf.tex 实证)。
+        fname = f"{fname}.tex"
+        spec = shim_map.get(fname)
     if not spec:
         return False, f"no legacy shim for {payload}"
     stub = spec.get("body")
     loads = spec.get("loads")
     if not stub and loads:
-        stem = (payload or "").rsplit(".", 1)[0]
+        stem = fname.rsplit(".", 1)[0]
         stub = (
             "\\NeedsTeXFormat{LaTeX2e}\n"
             # 版本串必须以 YYYY/MM/DD 日期开头: \\documentclass 装载时
@@ -555,10 +604,10 @@ def legacy_pkg_shim(
         if eng.probe_file(dep) or eng.install_file(dep):
             continue
         missing.append(dep)
-    target = ctx.wdir / str(payload)
+    target = ctx.wdir / fname
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(stub, encoding="utf-8")
-    note = f"stub {payload} injected"
+    note = f"stub {fname} injected"
     if loads:
         note += f" (\\LoadClassWithOptions{{{loads}}})"
     if missing:
@@ -1202,14 +1251,32 @@ def _mc_apply_warmup(ctx: LoopCtx) -> tuple[bool, str]:
 
 
 def _sub_literal_chars(t: str, repl: dict[str, str]) -> tuple[str, int]:
-    """字面字符 → TeX 命令串逐替换 → (新文本, 替换数)。"""
-    n = 0
+    r"""字面字符 → TeX 命令串逐替换 → (新文本, 替换数)。
+
+    替换域限正文: ``mask_tex`` 等长遮盖视图把 verbatim 族环境体 / comment
+    失活环境 / ``\\verb``/``\\lstinline`` / ``%`` 注释抹成空格——在遮盖
+    视图上取命中 offset 回原文回放, 代码清单与注释里的同码位字面量不被
+    腐蚀成 ``\\ensuremath{...}`` 串 (audit-2026-09-16)。
+    """
+    masked = mask_tex(t)
+    hits: list[tuple[int, str]] = []
     for ch, to in repl.items():
-        cnt = t.count(ch)
-        if cnt:
-            t = t.replace(ch, to)
-            n += cnt
-    return t, n
+        start = 0
+        while (i := masked.find(ch, start)) >= 0:
+            if t[i] == ch:  # 同码位恰落在遮盖位 (' '/'\\n') 时守卫
+                hits.append((i, to))
+            start = i + 1
+    if not hits:
+        return t, 0
+    hits.sort()
+    out: list[str] = []
+    prev = 0
+    for i, to in hits:
+        out.append(t[prev:i])
+        out.append(to)
+        prev = i + 1
+    out.append(t[prev:])
+    return "".join(out), len(hits)
 
 
 # ════════════════════════════════════════════════════════════════

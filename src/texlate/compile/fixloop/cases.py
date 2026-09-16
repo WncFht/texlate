@@ -213,7 +213,11 @@ def stats_backfill(raw: dict[str, Any], cells: list[dict[str, Any]]) -> dict[str
     fires: dict[str, int] = {}
     rescued: dict[str, set[tuple[str, str]]] = {}
     for cell in cells:
-        key = (str(cell.get("project")), str(cell.get("cond")))
+        # 双 schema: fixloop cell 用 "project", load_cases 记录用 "corpus"
+        key = (
+            str(cell.get("project") or cell.get("corpus")),
+            str(cell.get("cond")),
+        )
         for a in cell.get("actions") or []:
             rid = a.get("rule")
             if not rid:

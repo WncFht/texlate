@@ -547,25 +547,34 @@ class CtanFetcher:
         self.mirror = mirror
         self.fetcher = fetcher
         self.caps = caps or FetchCaps()
-        self._index = index
+        # overrides 合并收敛到注入时点一次: 注入索引可能是跨 fetcher 共享
+        # 对象 (fixloop_bench 单例), 原地 update 会让后写污染前写。
+        self._index = self._merged(index) if index is not None else None
         self.last_note: str = ""
+
+    def _merged(self, idx: TlpdbIndex) -> TlpdbIndex:
+        """``idx`` + self.overrides 的合成视图 —— table 共享, overrides 并入新对象。"""
+        if not self.overrides:
+            return idx
+        return TlpdbIndex(idx.table, {**idx.overrides, **self.overrides})
 
     @property
     def index(self) -> TlpdbIndex:
         """首访构建/装载索引 (潜在网络 IO); 之后进程内缓存。
 
         注入的 ``index=`` 同样套 ``overrides`` —— 调用方 (fixloop_bench)
-        常注入共享索引, overrides 只走惰性建分支会被静默丢掉。
+        常注入共享索引, overrides 只走惰性建分支会被静默丢掉。合并发生
+        在注入/ensure 时点一次, 本属性与 peek_index 只读不改。
         """
         if self._index is None:
-            self._index = TlpdbIndex.ensure(
-                self.cache_dir,
-                mirror=self.mirror,
-                fetcher=self.fetcher,
-                caps=self.caps,
+            self._index = self._merged(
+                TlpdbIndex.ensure(
+                    self.cache_dir,
+                    mirror=self.mirror,
+                    fetcher=self.fetcher,
+                    caps=self.caps,
+                )
             )
-        if self.overrides:
-            self._index.overrides.update(self.overrides)
         return self._index
 
     def peek_index(self) -> TlpdbIndex | None:

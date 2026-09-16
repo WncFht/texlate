@@ -86,20 +86,22 @@ class Engine(Protocol):
 
     caps: set[str] | frozenset[str]  # {kpsewhich,tlmgr,updmap,shell_escape,bundle}
 
-    def compile(
+    def compile(  # noqa: PLR0913  # 镜像 impl Engine.compile 调用面
         self,
         wdir: Path,
         main: str,
         *,
         passes: int = 2,
+        timeout: float = 240.0,  # 同 compile/engine.py DEFAULT_TIMEOUT
         flags: Iterable[str] | None = None,
         best_effort: bool = False,
     ) -> CompResLike:
         """沙箱编译 ``main`` (相对 wdir), ≤``passes`` 轮 → CompResLike。
 
-        ``flags`` = ``ctx.engine_flags`` 累计的引擎 CLI flag —— 经 impl 侧
-        seam 落 argv；引擎不收的项进 ``CompResLike.flags_dropped`` (getattr
-        容错读取)。
+        ``timeout`` = 单格编译预算秒 (fixloop 传 ``meta.loop.timeout_sec``
+        或调用方覆盖); ``flags`` = ``ctx.engine_flags`` 累计的引擎 CLI
+        flag —— 经 impl 侧 seam 落 argv；引擎不收的项进
+        ``CompResLike.flags_dropped`` (getattr 容错读取)。
         """
         ...
 
@@ -130,6 +132,42 @@ LlmHook = Callable[["LoopCtx", "ErrReport"], tuple[bool, str]]
 
 class RulesetError(ValueError):
     """rules.yaml 结构校验失败。"""
+
+
+def _when_problems(when: Any, tag: str) -> list[str]:  # noqa: ANN401  # yaml 值天然 Any
+    """``when`` 段键名白名单校验 (typo 键在旧 _when_ok 下是 fail-open 面)。"""
+    if when is None:
+        return []
+    if not isinstance(when, dict):
+        return [f"rule {tag}: when 必须是 map"]
+    probs = [f"rule {tag}: when 未知键 {k!r}" for k in when if k not in _WHEN_KEYS]
+    anys = when.get("any")
+    if anys is not None:
+        if not isinstance(anys, list):
+            probs.append(f"rule {tag}: when.any 必须是 list")
+        else:
+            for j, c in enumerate(anys):
+                if not isinstance(c, dict):
+                    probs.append(f"rule {tag}: when.any[{j}] 必须是 map")
+                else:
+                    probs.extend(
+                        f"rule {tag}: when.any[{j}] 未知键 {k!r}"
+                        for k in c
+                        if k not in _WHEN_ITEM_KEYS
+                    )
+    return probs
+
+
+def _cond_problems(cond: Any, tag: str) -> list[str]:  # noqa: ANN401  # yaml 值天然 Any
+    """``condition`` 段键名白名单 (``any`` 子表递归); 与 _cond_ok 分派同源。"""
+    if cond is None:
+        return []
+    if not isinstance(cond, dict):
+        return [f"rule {tag}: condition 必须是 map"]
+    probs = [f"rule {tag}: condition 未知键 {k!r}" for k in cond if k not in _COND_KEYS]
+    for j, sub in enumerate(cond.get("any") or []):
+        probs.extend(_cond_problems(sub, f"{tag}.any[{j}]"))
+    return probs
 
 
 # ── Engine 适配辅助 (impl-compile CompRes/Engine 的字段名差分吸收) ──
@@ -194,6 +232,31 @@ _ACTION_KINDS = {
 }
 _PHASES = {"gate", "precheck", "loop"}
 _MODES = {"native", "same", "degrade", "unsupported", "skip"}
+#: ``when:`` 段合法键 (顶层) / ``any:`` 子项键 —— 键名 typo (``categry:``)
+#: 旧行为是对全 category 点火 (fail-open), 白名单 load 期拦 + _when_ok
+#: 对无可识别键的候选 fail-closed, 与 _cond_ok 未知键语义对称。
+_WHEN_KEYS = frozenset(
+    {"always", "any", "category", "payload_required", "main_head_contains"}
+)
+_WHEN_ITEM_KEYS = frozenset({"category", "payload_required", "main_head_contains"})
+#: ``condition:`` 段合法键 —— 与 _cond_ok 分派表一一对应。
+_COND_KEYS = frozenset(
+    {
+        "any",
+        "tool_available",
+        "cap_available",
+        "engine_in",
+        "main_head_contains",
+        "source_contains",
+        "ctx_suggests",
+        "fileset",
+        "cache_dir_glob",
+        "vendored_shadow",
+        "package_version_ge",
+        "prim_read_form",
+        "shim_known",
+    }
+)
 
 
 @dataclass(slots=True)
@@ -288,6 +351,8 @@ class Ruleset:
             )
             if r.get("phase") not in _PHASES:
                 probs.append(f"rule {tag}: phase 非法 {r.get('phase')!r}")
+            probs.extend(_when_problems(r.get("when"), tag))
+            probs.extend(_cond_problems(r.get("condition"), tag))
             kind = (r.get("action") or {}).get("kind")
             if kind not in _ACTION_KINDS:
                 probs.append(f"rule {tag}: action.kind 非法 {kind!r}")
@@ -447,13 +512,19 @@ def _substitute(v: Any, payload: str | None) -> Any:  # noqa: ANN401  # yaml 值
 def _when_ok(
     when: dict[str, Any], cat: str | None, pay: str | None, ctx: LoopCtx
 ) -> bool:
-    """When 匹配: ``always`` / ``any:[...]`` / 单条 category 条件。"""
+    """When 匹配: ``always`` / ``any:[...]`` / 单条 category 条件。
+
+    无可识别键的候选 fail-closed (与 _cond_ok 未知键对称)——``categry:``
+    型 typo 旧行为是对全 category 点火; load 期另有 _when_problems 白名单。
+    """
     if not when:
         return False
     if when.get("always"):
         return True
     cands: list[dict[str, Any]] = when.get("any") or [when]
     for c in cands:
+        if not isinstance(c, dict) or not (_WHEN_ITEM_KEYS & c.keys()):
+            continue
         if c.get("category") is not None and c["category"] != cat:
             continue
         if c.get("payload_required") and not pay:
@@ -636,6 +707,11 @@ def _apply_install_file(
         candidates = [params["file"] + e for e in params["try_exts"]]
     else:
         candidates = [params["file"]]
+        if not Path(candidates[0]).suffix:
+            # `I can't find file `X'` 裸 payload (\input/openin 系报错) ——
+            # TeX 语义实际找 X.tex; 裸名照试后补 .tex 变体 (epsf 实证:
+            # filemap/shim_map 键全带扩展名, 裸名恒 miss)。
+            candidates.append(params["file"] + ".tex")
     for fname in candidates:
         font_related = bool(params.get("font_related")) or fname.endswith(font_exts)
         # probe 带 cwd=wdir: 工程内文件/ctan_fetch 平铺落盘均算命中
@@ -681,8 +757,8 @@ def _apply(  # noqa: C901, PLR0911  # action.kind 分派表, 每种一处
     if kind == "regex_rewrite":
         subs = _compile_rewrites(params.get("rewrites") or [])
         n = _patch_files(ctx, params.get("exts") or (".tex", ".sty"), subs)
-        if params.get("engine_flags"):
-            for fl in params["engine_flags"]:
+        if n > 0:  # 0 命中不落 engine_flags——空转规则不该给后续编译注 flag
+            for fl in params.get("engine_flags") or []:
                 if fl not in ctx.engine_flags:
                     ctx.engine_flags.append(fl)
         return (n > 0), f"rewrite in {n} files"
@@ -705,7 +781,7 @@ def _apply(  # noqa: C901, PLR0911  # action.kind 分派表, 每种一处
 # ════════════════════════════════════════════════════════════════
 
 
-def _match_apply(  # noqa: C901, PLR0913, PLR0917  # spike pick_and_apply 签名面
+def _match_apply(  # noqa: C901, PLR0912, PLR0913, PLR0917  # spike pick_and_apply 签名面
     rs: Ruleset,
     ctx: LoopCtx,
     eng: Engine,
@@ -713,7 +789,13 @@ def _match_apply(  # noqa: C901, PLR0913, PLR0917  # spike pick_and_apply 签名
     pay: str | None,
     rep: ErrReport,
 ) -> tuple[Rule | None, str]:
-    """Order 序找第一条 when+condition 过、mode 可行且应用成功的规则。"""
+    """Order 序找第一条 when+condition 过、mode 可行且应用成功的规则。
+
+    ``unsupported`` + ``fallback: escalate_llm`` 不就地烧 LLM——记下首个
+    待 escalate 规则继续扫描, 同 category 的廉价规则全耗尽后才调 hook
+    (missing_pfb_updmap 原位评估会把后置的 font_sub_shim 饿死在 LLM 后面)。
+    """
+    pending_esc: tuple[Rule, str] | None = None
     for rule in rs.phase("loop"):
         key = f"{rule.id}:{pay}"
         if key in ctx.applied:
@@ -725,11 +807,8 @@ def _match_apply(  # noqa: C901, PLR0913, PLR0917  # spike pick_and_apply 签名
         if mode == "skip" or (mode == "degrade" and spec.get("degrade") == "skip"):
             continue
         if mode == "unsupported":
-            if spec.get("fallback") == "escalate_llm" and ctx.llm_hook is not None:
-                applied, note = ctx.llm_hook(ctx, rep)
-                if applied:
-                    ctx.applied.add(key)
-                    return rule, f"escalated: {note}"
+            if spec.get("fallback") == "escalate_llm" and pending_esc is None:
+                pending_esc = (rule, key)
             ctx.advisories.append(f"{rule.id} unsupported on {ctx.engine_name}")
             continue
         ok, why = _cond_ok(rule.condition, rule, ctx, eng, pay)
@@ -748,6 +827,14 @@ def _match_apply(  # noqa: C901, PLR0913, PLR0917  # spike pick_and_apply 签名
         fb = spec.get("fallback")
         if fb == "advisory":
             ctx.advisories.append(f"{rule.id}: {note}")
+    if pending_esc is not None and ctx.llm_hook is not None:
+        rule, key = pending_esc
+        applied, note = ctx.llm_hook(ctx, rep)
+        if applied:
+            ctx.applied.add(key)
+            return rule, f"escalated: {note}"
+        if note:
+            ctx.events.append(f"rule {rule.id}: escalate skip ({note})")
     return None, ""
 
 
@@ -790,6 +877,9 @@ def _gate_eval(  # noqa: PLR0913, PLR0917  # 与 _match_apply 同签名面
 ) -> str | None:
     """Gate phase 规则逐条评估; REJECT note → verdict ``reject:<rid>``。"""
     for rule in rs.phase("gate"):
+        key = f"{rule.id}:{pay}"
+        if key in ctx.applied:  # 非 REJECT 型 gate 已应用过 → 不重发不重记账
+            continue
         if not _when_ok(rule.when, cat, pay, ctx):
             continue
         spec = rule.engine_spec(ctx.engine_name)
@@ -806,7 +896,7 @@ def _gate_eval(  # noqa: PLR0913, PLR0917  # 与 _match_apply 同签名面
         if applied and note.startswith(_REJECT_PREFIX):
             return f"reject:{rule.id}"
         if applied:
-            ctx.applied.add(f"{rule.id}:{pay}")
+            ctx.applied.add(key)
             ctx.actions.append({"round": -1, "rule": rule.id, "detail": note})
     return None
 
@@ -850,6 +940,12 @@ def _wire_engine(eng: Engine, rs: Ruleset, wdir: Path, ctx: LoopCtx) -> None:
     ``filemap.version_guard`` 的 bundle epoch 接线)。
     """
     _wire_filemap_overrides(eng, rs.filemap_cfg.get("overrides") or {}, ctx)
+    # texmfhome 缺省时 ``tlmgr --usermode install`` 落 kpathsea 默认 ~/texmf
+    # ——全局可见树，跨跑污染 base 对照线（modec-rerun 实证：youngtab.sty 进
+    # ~/texmf 后 1306.1931 base 臂 fail→clean 假象）。装包隔离到任务树内。
+    if getattr(eng, "texmfhome", "unset") is None:
+        eng.texmfhome = wdir / "_texmf"  # type: ignore[attr-defined]
+        ctx.events.append("wire texmfhome -> workdir _texmf")
     if ctx.engine_name != "tectonic":
         return
     if getattr(eng, "ctan_fetch", None) is not None or not hasattr(eng, "ctan_fetch"):
@@ -877,6 +973,7 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
     llm_hook: LlmHook | None = None,
     runner: RunFn | None = None,
     case_sink: CaseSink | None = None,
+    compile_timeout: float | None = None,
 ) -> dict[str, Any]:
     """跑一格修复循环 → cell dict (字段与 spike fixloop-results.json 兼容)。
 
@@ -894,6 +991,16 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
     clean_err_max = int(cfg.get("clean_err_max", 3))
     passes = int(cfg.get("compile_passes", 2))
     stuck_n = int(cfg.get("stuck_sig_repeat", 3))
+    # 重编超时: 参数 > meta.loop.timeout_sec > 引擎缺省 (None = 不透传)
+    if compile_timeout is not None:
+        timeout = float(compile_timeout)
+    elif cfg.get("timeout_sec") is not None:
+        timeout = float(cfg["timeout_sec"])
+    else:
+        timeout = None
+    compile_kw: dict[str, Any] = {}
+    if timeout is not None:
+        compile_kw["timeout"] = timeout
 
     cell: dict[str, Any] = {
         "project": corpus_id or wdir.name,
@@ -952,7 +1059,11 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
     last_rep: ErrReport | None = None
     for rnd in range(1, max_rounds + 1):
         res = eng.compile(
-            wdir, ctx.main_rel, passes=passes, flags=list(ctx.engine_flags)
+            wdir,
+            ctx.main_rel,
+            passes=passes,
+            flags=list(ctx.engine_flags),
+            **compile_kw,
         )
         _note_dropped_flags(ctx, res)
         rep = _report_of(res, rs.warn_patterns)
@@ -1035,6 +1146,7 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
             passes=1,
             best_effort=True,
             flags=list(ctx.engine_flags),
+            **compile_kw,
         )
         _note_dropped_flags(ctx, sres)
         srep = _report_of(sres, rs.warn_patterns)

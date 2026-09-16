@@ -23,7 +23,13 @@ __all__ = ["ErrReport", "Taxonomy", "parse_log", "parse_text"]
 
 _CTX_LINES = 8  # spike L62: 首错行后取 8 行上下文
 _TAIL_LINES = 30  # spike L63: tail 30 行
-_LINE_NO_RE = re.compile(r"l\.(\d+)")
+#: ctx 内 ``l.N`` 行号——行首锚对齐 impl-compile ``_L_NUM_RE`` (剥空白后
+#: ``^l\.\d+``) 语义; 非行首的 ``l.5`` 字样 (如 ``file:5:`` 残片/正文)
+#: 不误中。
+_LINE_NO_RE = re.compile(r"(?m)^[ \t]*l\.(\d+)")
+#: subclassify 收窄的冒犯 cs 判定域: ctx 首个 ``l.N`` 行 + cs 名抽取。
+_LN_ROW_RE = re.compile(r"(?m)^l\.\d+[^\n]*")
+_CS_NAME_RE = re.compile(r"\\([a-zA-Z@]+)")
 # `-file-line-error` 模式下错误行是 `path:line: msg` (无 '!' 前缀) ——
 # impl-compile 的 xelatex 命令行带此旗标, 只数 '!' 会漏全部错误。
 # Warning 行 (`./f.tex:5: LaTeX Warning: ...`) 同格式但非错误, 须排除,
@@ -118,6 +124,17 @@ def _payload(entry: dict[str, Any], m: re.Match[str]) -> str | None:
     return next((g for g in m.groups() if g), None)
 
 
+def _ln_tail_cs(ctx: str | None) -> str | None:
+    """首个 ``l.N`` 行的行末控制序列名 (TeX 约定: 冒犯 cs 在该行末)。"""
+    if not ctx:
+        return None
+    m = _LN_ROW_RE.search(ctx)
+    if not m:
+        return None
+    hits = _CS_NAME_RE.findall(m.group(0))
+    return hits[-1] if hits else None
+
+
 class Taxonomy:
     """rules.yaml taxonomy 段的编译态: scope 三段评估序照 spike L67-125。"""
 
@@ -148,18 +165,26 @@ class Taxonomy:
                 m = pat.search(head)
                 if not m:
                     continue
+                pay = _payload(entry, m)
                 sub = entry.get("subclassify")
                 if sub:
-                    sm = re.search(sub["pattern"], head)
-                    if sm:
-                        grp = sub.get("payload_group")
-                        pay = (
+                    # 冒犯域收窄 (audit-2026-09-16): 细分命中须==主 payload
+                    # 或 l.N 行末 cs——ctx8 回显里混入的同名 token (如
+                    # \pdfoutput 环境引用) 不再把真 undefined_cs 抢路由成
+                    # pdftex_prim。
+                    allowed = {pay} if pay else set()
+                    if (ln_cs := _ln_tail_cs(rep.ctx)) is not None:
+                        allowed.add(ln_cs)
+                    grp = sub.get("payload_group")
+                    for sm in re.finditer(sub["pattern"], head):
+                        spay = (
                             sm.group(grp)
                             if grp
                             else next((g for g in sm.groups() if g), None)
                         )
-                        return sub["into"], pay
-                return entry["id"], _payload(entry, m)
+                        if spay is not None and spay in allowed:
+                            return sub["into"], spay
+                return entry["id"], pay
         # —— 无 '!' 行: tail 段回溯 (交互式缺文件/Emergency) ——
         blob = rep.tail
         for entry, pat in self.tail:

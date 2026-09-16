@@ -51,6 +51,7 @@ import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 ROOT = Path(__file__).resolve().parents[2]
 #: TEXLATE_SRC 可指向冻结快照目录（内含 texlate/ 包）——bench 期间 src/ 被
@@ -64,6 +65,7 @@ import fixloop_bench as _fl
 
 from texlate.compile.engine import XelatexEngine, engine_for, route_project
 from texlate.compile.fixloop import CaseSink, fixloop
+from texlate.compile.fixloop.llm_hook import make_llm_hook
 from texlate.compile.inject import InjectRejectError, find_main_tex, prepare_chinese
 from texlate.compile.normalize import normalize_project
 from texlate.e2e import base_condition
@@ -80,6 +82,9 @@ from texlate.xlat.pipeline import (
     chunk_to_in,
 )
 from texlate.xlat.state import StateStore
+
+if TYPE_CHECKING:
+    from texlate.compile.fixloop.engine import LlmHook
 
 CORPUS = ROOT / "bench/corpus_v3"
 WORK = ROOT / "bench/work_e2ereal"
@@ -334,7 +339,12 @@ def _want_fix(rec: dict, mode: str) -> bool:
 
 
 def pipe_fix_condition(
-    src_work: Path, sid: str, main_rel: str, timeout: float, sink: CaseSink
+    src_work: Path,
+    sid: str,
+    main_rel: str,
+    timeout: float,
+    sink: CaseSink,
+    llm_hook: LlmHook | None = None,
 ) -> dict:
     """pipe-fix：pipe-xel 产物树 copy → fixloop(xelatex usermode) → 复判。
 
@@ -369,6 +379,8 @@ def pipe_fix_condition(
             cond="pipe-fix",
             runner=_fl._texmf_runner(texmf),
             case_sink=sink,
+            llm_hook=llm_hook,
+            compile_timeout=timeout,
         )
     except Exception as e:  # 格子崩溃记 verdict 不炸整批（同 fixloop_bench）
         cell = {
@@ -398,6 +410,7 @@ async def run_project(
     base_mode: str,
     fixloop_mode: str,
     sink: CaseSink,
+    llm_hook: LlmHook | None = None,
 ) -> dict:
     src = CORPUS / rel / "extracted"
     sid = safe_id(rel)
@@ -451,7 +464,7 @@ async def run_project(
         rec["base-xel"] = base_xel_condition(src, sid, main_rel, timeout)
     if _want_fix(rec, fixloop_mode):
         rec["pipe-fix"] = pipe_fix_condition(
-            WORK / "pipe-xel" / sid, sid, main_rel, timeout, sink
+            WORK / "pipe-xel" / sid, sid, main_rel, timeout, sink, llm_hook
         )
     return rec
 
@@ -671,6 +684,11 @@ async def amain(args: argparse.Namespace) -> None:
 
     cfg = PipelineConfig(concurrency=args.concurrency)
     sink = CaseSink(out_dir / "cases.jsonl")
+    fl_llm_hook = (
+        make_llm_hook(base_url=args.base_url, api_key=args.api_key, model=args.model)
+        if args.fixloop_llm
+        else None
+    )
     async with ChatClient(args.base_url, args.api_key) as client:
         if not args.no_probe:
             probe = await client.probe_model(args.model)
@@ -702,6 +720,7 @@ async def amain(args: argparse.Namespace) -> None:
                         prev["main"],
                         args.timeout,
                         sink,
+                        fl_llm_hook,
                     )
                     benchlib.append_jsonl(rec_path, prev)
                     out_path.write_text(
@@ -730,6 +749,7 @@ async def amain(args: argparse.Namespace) -> None:
                     args.base,
                     args.fixloop,
                     sink,
+                    fl_llm_hook,
                 )
             except Exception as e:
                 rec = {"id": rel, "status": "bench_error", "error": repr(e)[:400]}
@@ -797,6 +817,11 @@ def main() -> None:
         default="onfail",
         help="pipe-fix 救回臂何时跑（onfail=pipe-xel fail 才救；partial 不救——"
         "fixloop 对 warning 级判据无能为力且 halt_on_error 会丢已有 PDF）",
+    )
+    ap.add_argument(
+        "--fixloop-llm",
+        action="store_true",
+        help="pipe-fix 臂 escalate_llm 规则接 LLM 修复钩（与 --model/--base-url/--api-key 同网关）",
     )
     ap.add_argument("--no-probe", action="store_true", help="跳过模型探活")
     ap.add_argument(

@@ -76,6 +76,7 @@ from texlate.compile.fixloop import (
     fixloop,
     load_ruleset,
 )
+from texlate.compile.fixloop.llm_hook import make_llm_hook
 
 ROOT = Path("~/src/texlate").expanduser().resolve()
 CORPUS = ROOT / "bench/corpus_v2"
@@ -274,6 +275,7 @@ IGNORE = benchlib.copytree_ignore()
 
 ENGINES = ("xelatex", "tectonic")
 INJECT_ZH = False  # --inject-zh: normalize+ctex 注入后再进 fixloop (B3 zh 臂)
+USE_LLM = False  # --llm: escalate_llm 规则接 LLM 修复钩 (默认关)
 
 
 def run_paper(p: dict, todo_engines: tuple[str, ...]) -> list[dict]:
@@ -342,6 +344,7 @@ def run_paper(p: dict, todo_engines: tuple[str, ...]) -> list[dict]:
                 cond="zh" if INJECT_ZH else "fixloop",
                 runner=_texmf_runner(texmf) if eng_name == "xelatex" else None,
                 case_sink=sink,
+                llm_hook=make_llm_hook() if USE_LLM else None,
             )
         except Exception as e:  # 格子崩溃记 verdict 不炸整批
             cell = {
@@ -742,7 +745,7 @@ def report(papers_meta: list[dict]) -> None:
 def main() -> None:
     # --out/--corpus/--work/--cases-from 重绑后 run_paper/report 经全局读
     # 新目录 (v2 整改批次 + v3 cases 复用); 模块级单例配置, noqa 保留直白写法
-    global OUT, CORPUS, WORK, BASE_CELLS, ENGINES, INJECT_ZH  # noqa: PLW0603
+    global OUT, CORPUS, WORK, BASE_CELLS, ENGINES, INJECT_ZH, USE_LLM  # noqa: PLW0603
     ap = argparse.ArgumentParser()
     ap.add_argument("--report", action="store_true")
     ap.add_argument("--jobs", type=int, default=JOBS)
@@ -768,12 +771,18 @@ def main() -> None:
         action="store_true",
         help="zh 条件臂: copytree 后 normalize+prepare_chinese(ctex) 再进 fixloop",
     )
+    ap.add_argument(
+        "--llm",
+        action="store_true",
+        help="escalate_llm 规则接 LLM 修复钩（默认关；网关走 TEXLATE_* env/默认）",
+    )
     args = ap.parse_args()
     OUT = Path(args.out).expanduser().resolve()
     CORPUS = Path(args.corpus).expanduser().resolve()
     WORK = Path(args.work).expanduser().resolve()
     ENGINES = tuple(e.strip() for e in args.engines.split(",") if e.strip())
     INJECT_ZH = args.inject_zh
+    USE_LLM = args.llm
 
     if args.cases_from:
         BASE_CELLS = Path(args.cases_from).expanduser().resolve()
