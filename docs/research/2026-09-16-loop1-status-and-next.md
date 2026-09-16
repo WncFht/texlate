@@ -176,5 +176,12 @@
 - **新归因在飞**（realpostfix2 recode 露头）：0905.4439 `skip:chunk crash` + 2203.13012/2403.15096/hep-ph/9703228 五新 fault——scout-chunkfault 归因是否 splice/emit/cs 波引入；hep-ph/9910403（唯一 fail 级引入格）scout-pf2final 深掘中（1e 侧）。
 - **bundled-shadow 扩展**（scout-bundledshadow 在飞）：aipcheck `\next` 扫描 1109.2354/1206.0565 + svjour 0905.0193 `svepj.clo` 选项文件可见性；**aastex 爆栈**（scout-aastex 在飞）：astro-ph/0104174+0408531 `\begin{document}` 栈溢出，疑 inject×aastex-shim 交互。
 - **新残留类（记档）**：pstricks `\psunit 1cm` 的 `1cm` dimen 操作数进 chunk——动态寄存器名进不了槽表，归 fixloop illegal_unit 桶（非 segmenter 切碎）。
-- **perf 工单（低优先，不堵门）**：2410.00035/2410.17952/2410.17973 三格 parse 稳定 10-28min（非 catscope 回归），逐 .tex parse_tex <0.1s——嫌疑=巨件非-tex 全量读（2410.17952 带 49.7MB anthology.bib）或 parse_file O(n²)，波每轮拖尾 ~25min。
+- **perf 工单（低优先，不堵门）**：2410.00035/2410.17952/2410.17973 三格 parse 稳定 10-28min（非 catscope 回归），逐 .tex parse_tex <0.1s——嫌疑=巨件非-tex 全量读（2410.17952 带 49.7MB anthology.bib）或 parse_file O(n²)，波每轮拖尾 ~25min。scout-parseperf 在飞。
+- **hep-ph/9910403 归因**（scout-pf2final→1d，scout-macropar 在飞）：splice 回放用户 `\renewcommand` macro 体在 `\par` 边界截断——`\abstract{en}` 体 `\parbox{\absize}{<zh>…` 丢 `\par}`+`\end{center}}` → "File ended while scanning use of \@iiiparbox" → no_pdf；base-xel clean = 管线引入。chunk 边界切进 macro 参内，修复面在 segmenter/reconstruct（修不修待 scout 报告裁）。
+- **support-file 翻译腐蚀**（peer1 移交，双层 concur：(a) 上游选件启发式为主 + (b) fixloop restore-from-src 兜底）：e2e.py:200 全 .tex 进 xlat → 宏支持文件被翻炸（epsfsafe.tex `\catcode`\`=% 这是译文` 政权崩、pstricks.tex `\pst@dimg` 切碎、comment.cut 同形）~3-4 格 unfixable。scout-supportfiles 普查判别面在飞。
+- **popped consumer 双半闭合**：1d 半 `a25f0b5`（`_requester_paths` file_stack 滤空时并入 `reversed(popped_files)` 尾段，镜像 `_resolve_err_file` 级联）；llm_hook.py:163 `_resolve_err_file` 半归 peer1。
+- **bbl_regen builtin**（fixer-bblregen 在飞）：2009.11064 旧 biber 产 bbl（格式 <3.3）遇 TL biblatex 3.21 `\sortlist` undefined——`TRANSFORM_FNS` 注册 `ctx.run_tool(["biber",stem])`，rules.yaml 行归 peer1。
+- **embed_cjk_mappings e2e/cli 接线**（fixer-cmaps 在飞）：GB1 ToUnicode 只在 worker:1017 接线，`texlate run` 产 zh PDF 不可复制搜索（spec §3.3 缺口）——cmaps 资源挪公共位 + e2e compile 路径挂点；worker.py 不换行留给 1e 一行 import swap。
+- **spec-xlat #2 已裁**（1e concur (a) 轻接）：`discover_free_models` 链接进 `_FallbackTranslator` 候选枚举，**硬约束**=discovery/probe 只许内置 free 网关、`provider_for_url` 命中外部预设即整条短路（BYOK 零探测）。fixer-freemodel 在飞。
+- **P-E/P-D 已裁**：atend-bbox 头注改写（5 格残 invalid_utf8——`%%BoundingBox: (atend)` + trailer 实值则头行写实值，fixer-atend 在飞）；reject 错误码细分 plain_tex/latex209/garbage（fixer-rejectsplit 在飞，先读 attr report 分桶口径）。
 - **deferred 清单**（§4.3 原位）：v1 退役、e2e_real→lib 降级、L2 编排环共享化、TokenSource Protocol、L2 真 log fixtures——不动。
