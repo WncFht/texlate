@@ -1340,7 +1340,33 @@ rules:
           svmult.cls: { loads: "article" }
           cimento.cls: { loads: "article" }
           eptcs.cls: { loads: "article" }
-          JINST.cls: { loads: "article" }
+          # JINST 升级版 (1e scout-modec-resid 实测 1306.0302 xelatex
+          # 16pp/0err/0miss): JINST 语义 = \begin{document} 自动出标题块
+          # (稿内无 \maketitle) → abstract/keywords stash + AtBeginDocument
+          # 释放; \email/\acknowledgments/\arxiv/\proceeding/\notoc 宏面。
+          JINST.cls:
+            needs: ["graphicx.sty", "hyperref.sty"]
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesClass{JINST}[2026/09/16 fixloop legacy shim -> article + JINST polyfills]
+              \LoadClassWithOptions{article}
+              \RequirePackage{graphicx}
+              \RequirePackage{hyperref}
+              \providecommand{\email}[1]{\href{mailto:#1}{\texttt{#1}}}
+              \def\JINST@abstract{}
+              \def\JINST@keywords{}
+              \providecommand{\abstract}{}
+              \renewcommand{\abstract}[1]{\gdef\JINST@abstract{#1}}
+              \providecommand{\keywords}[1]{\gdef\JINST@keywords{#1}}
+              \providecommand{\acknowledgments}{\section*{Acknowledgments}}
+              \providecommand{\arxiv}[1]{\href{https://arxiv.org/abs/#1}{arXiv:#1}}
+              \providecommand{\proceeding}[1]{}
+              \providecommand{\notoc}[1]{}
+              \AtBeginDocument{%
+                \ifx\@title\@empty\else\maketitle\fi
+                \ifx\JINST@abstract\@empty\else\begin{quotation}\noindent\textbf{Abstract.} \JINST@abstract\end{quotation}\fi
+                \ifx\JINST@keywords\@empty\else\par\noindent\textbf{Keywords:} \JINST@keywords\par\fi}
+              \endinput
           PoS.cls: { loads: "article" }
           appolb.cls: { loads: "article" }
           pasj00.cls: { loads: "article" }
