@@ -10,6 +10,11 @@ r"""引擎层：Engine 协议 + xelatex/tectonic 实现 + 静态路由表（docs
   默认 halt-on-error，engine-matrix §0 已实证）。
 - 静态路由（§4.2）：`route_project` 编译前决策；失败集互补实测联合 clean
   9/12（engine-matrix §0）。
+- OS 沙箱（§4.4）：darwin 走 ``sandbox-exec``（sandbox.py）；linux 无 FS
+  沙箱原语 → bwrap 可用时以 userns + 挂载白名单复刻同语义（``$HOME``
+  影子化只挂白名单子路径、pid/ipc/uts unshare、xelatex 断网、tectonic
+  冷拉 bundle 留网），缺席退回 env 白名单 + TeX 阀层；实落形态记
+  ``CompRes.sandbox_mode``，``TEXLATE_NO_BWRAP=1`` 显式关停。
 - log 解析（§2.3）：`parse_log` 双格式错误计数（`^!` + `file:line:`）、
   `l.NNN` 行号、`(` 文件栈、tail；tectonic 有时不写 .log → stderr 兜底。
 """
@@ -20,7 +25,9 @@ import contextlib
 import json
 import os
 import re
+import sys
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Final, Protocol, runtime_checkable
 
@@ -96,6 +103,10 @@ class CompRes:
     killed_signal: int | None = None
     stdout_tail: str = ""
     deps: list[str] | None = None  # compiled_dependencies（.fls/.mk 权威输入集）
+    #: 本次实际生效的 OS 沙箱形态：``off``（sandbox=False 或未走到 wrap
+    #: 决策）/ ``sandbox-exec``（darwin）/ ``bwrap``（linux）/ ``env``
+    #: （OS 包裹缺席，只剩 env 白名单 + TeX 阀层）——bench/stagerun 归因用。
+    sandbox_mode: str = "off"
     #: ``compile(flags=…)`` 实落 argv 的请求 flag（tectonic 记映射前原拼写）。
     flags_applied: list[str] = field(default_factory=list)
     #: 请求但引擎拒放的 flag（支持子集外 / 会重键输出落点）→ fixloop 记
@@ -194,7 +205,8 @@ _ERROR_RULES: tuple[tuple[str, str], ...] = (
     ("xetexglyph_tfm", r"Cannot use XeTeXglyph with (\S+)"),
     ("missing_pfb", r"Cannot proceed without .vf|physical font"),
     ("fontspec_missing", r'font [“"]([^”"]+)[”"] cannot be found'),
-    ("eps_image", r"image inclusion failed for[^\n]*\.eps|PostScript image"),
+    ("ps_image", r"image inclusion failed for[^\n]*\.eps|PostScript image"),
+    ("inputenc_unicode", r"inputenc is not designed for"),
     ("illegal_unit", r"Illegal unit of measure"),
     ("option_clash", r"Option clash for package ([\w-]+)"),
     ("already_def", r"Command \\?([\w@]+) already defined"),
@@ -398,6 +410,307 @@ def compiled_dependencies(
     return sorted(files)
 
 
+# ================================================================ Linux bwrap 兜底
+#: bwrap 挂载面默认覆盖的系统前缀（ro-bind-try：缺席跳过）。texmf 树不在此列
+#: ——发行版布局分散（arch 把 TEXMFSYSVAR 放 ``/var/lib/texmf``，上游安装进
+#: ``~/texlive/YYYY`` 或 ``/usr/local/texlive``），由 ``_kpathsea_dirs`` 按
+#: texmf.cnf 权威值动态补挂。
+_BWRAP_SYS_RO: Final = (
+    "/usr",
+    "/bin",
+    "/sbin",
+    "/lib",
+    "/lib64",
+    "/opt",
+    "/etc",
+    "/var/cache/fontconfig",
+)
+
+#: 需 RW 进沙箱的 env 键：texmf 可写树 + 自定义 tmp 目录。
+_BWRAP_ENV_RW: Final = {
+    "TEXMFHOME",
+    "TEXMFVAR",
+    "TEXMFCONFIG",
+    "TEXMFSYSVAR",
+    "TEXMFSYSCONFIG",
+    "TMPDIR",
+    "TEMP",
+    "TMP",
+}
+#: env 键里 TMPDIR 系的子集——落 ``/tmp`` 内时不挂（沙箱 /tmp 是私有
+#: tmpfs，挂宿主子目录反而扩写面）。
+_BWRAP_TMP_KEYS: Final = {"TMPDIR", "TEMP", "TMP"}
+#: 需 RO 进沙箱的 env 键：kpathsea 搜索路径列表 + 本地 bundle 文件。
+_BWRAP_ENV_RO: Final = {
+    "TEXINPUTS",
+    "BIBINPUTS",
+    "BSTINPUTS",
+    "TFMFONTS",
+    "VFFONTS",
+    "T1FONTS",
+    "TTFONTS",
+    "OPENTYPEFONTS",
+    "TEXFONTMAPS",
+    "ENCFONTS",
+    "XDVIFONTS",
+    "TEXLATE_TEX_BUNDLE",
+}
+#: kpathsea 树变量：rw 侧是用户树；ro 侧是系统树（用户可写的经
+#: ``os.access(W_OK)`` 升 rw——存在用户可写 SYSVAR 的发行版布局）。
+_BWRAP_KPSE_RW: Final = ("TEXMFHOME", "TEXMFVAR", "TEXMFCONFIG")
+_BWRAP_KPSE_RO: Final = (
+    "TEXMFSYSVAR",
+    "TEXMFSYSCONFIG",
+    "TEXMFLOCAL",
+    "TEXMFDIST",
+    "TEXMFMAIN",
+    "TEXMFINIT",
+)
+_KPATHSEA_ELEM_RX: Final = re.compile(r"[\s,:{}]+")
+_TRUE_VALUES: Final = {"1", "true", "yes", "on"}
+#: 沙箱内私有 tmpfs 挂点字面量——``/tmp`` 下的宿主路径判定专用。
+_SANDBOX_TMP: Final = "/tmp"  # noqa: S108 -- 挂点语义即字面 /tmp
+
+
+def _kpathsea_list(value: str) -> list[str]:
+    """拆 kpathsea 路径列表（``:``/``,``/``{}`` 分隔，剥 ``!`` 与 ``//`` 尾）。"""
+    out = []
+    for elem in _KPATHSEA_ELEM_RX.split(value):
+        p = elem.lstrip("!").removesuffix("//")
+        if p and Path(p).is_absolute():
+            out.append(p)
+    return out
+
+
+def _kpse_var(tool: str, var: str) -> str:
+    """``kpsewhich -var-value <var>`` 单变量查询；任何失败返空串。"""
+    try:
+        rc, out, _, to = run_process(
+            [tool, "-var-value", var], cwd=Path.cwd(), env=child_env(), timeout=15
+        )
+    except OSError:
+        return ""
+    return out if rc == 0 and not to else ""
+
+
+@lru_cache(maxsize=1)
+def _kpathsea_dirs() -> tuple[list[str], list[str]]:
+    """问 kpathsea 各 texmf 树落点 → ``(rw, ro)``（进程内一次性探测）。
+
+    发行版布局分散（arch 的 TEXMFSYSVAR 在 ``/var/lib/texmf``、上游装在
+    ``~/texlive/YYYY`` 或 ``/usr/local/texlive``）——按 texmf.cnf 权威值挂，
+    比写死路径或只按 binary 锚点可靠；kpsewhich 缺席返空表。
+    """
+    tool = find_tool("kpsewhich")
+    if tool is None:
+        return [], []
+    rw: list[str] = []
+    ro: list[str] = []
+    for var in _BWRAP_KPSE_RW:
+        rw += _kpathsea_list(_kpse_var(tool, var))
+    for var in _BWRAP_KPSE_RO:
+        for p in _kpathsea_list(_kpse_var(tool, var)):
+            (rw if os.access(p, os.W_OK) else ro).append(p)
+    return rw, ro
+
+
+def _bwrap_env_paths(env: dict[str, str]) -> tuple[list[str], list[str]]:
+    """编译子进程 env 里的路径值 → ``(rw, ro)`` 挂载名单。"""
+    rw: list[str] = []
+    ro: list[str] = []
+    for key, val in env.items():
+        if not val:
+            continue
+        if key in _BWRAP_ENV_RW:
+            if Path(val).is_absolute() and not (
+                key in _BWRAP_TMP_KEYS and Path(val).is_relative_to(_SANDBOX_TMP)
+            ):
+                rw.append(val)
+        elif key in _BWRAP_ENV_RO:
+            ro += _kpathsea_list(val)
+    return rw, ro
+
+
+def _bwrap_mounts(
+    binary: str,
+    *,
+    root: Path,
+    out: Path,
+    env: dict[str, str],
+    extra_rw: Iterable[Path | str] = (),
+) -> tuple[list[str], list[str]]:
+    """汇总 ``(rw, ro)`` 挂载面——root/out 由调用方单独硬挂，不在返回值里。
+
+    ``$HOME`` 本体不挂：bwrap 为嵌套 bind 自建的父目录是沙箱内 tmpfs，
+    宿主机 ``~/.ssh``/``~/.aws`` 保持不可见——对齐 macOS deny-$HOME 语义。
+    """
+    home = Path.home()
+    rw: list[str] = [
+        *(str(p) for p in sorted(home.glob(".texlive*"))),
+        str(home / "texmf"),
+        str(home / ".cache" / "fontconfig"),
+        str(home / ".cache" / "Tectonic"),
+        str(home / ".cache" / "TectonicProject.Tectonic"),
+        *(str(p) for p in extra_rw),
+    ]
+    ro: list[str] = [
+        str(home / ".fonts"),
+        str(home / ".local" / "share" / "fonts"),
+    ]
+    env_rw, env_ro = _bwrap_env_paths(env)
+    kpse_rw, kpse_ro = _kpathsea_dirs()
+    rw += env_rw + kpse_rw
+    ro += env_ro + kpse_ro
+    # 引擎本体在系统前缀/工程/输出之外时锚发行根（``<dist>/bin/<arch>/<tool>``
+    # 上三级即发行根，连带同级 texmf 树与 bin 伙伴）；锚点过宽（``/``、
+    # ``$HOME``、``/home``）时退化为只挂二进制文件本身——托管/自装引擎
+    # （~/.texlate/tools、~/.local/bin）都是自足单文件，足够。
+    covered = [*_BWRAP_SYS_RO, str(root), str(out)]
+    real = Path(binary).resolve()
+    if not any(real.is_relative_to(p) for p in covered):
+        anchor = real.parent.parent.parent
+        if anchor in (Path("/"), home, home.parent):
+            anchor = real
+        if anchor not in (Path("/"), home, home.parent):
+            ro.append(str(anchor))
+    rw_set = set(rw)
+    return sorted(set(rw)), sorted({p for p in ro if p not in rw_set})
+
+
+@lru_cache(maxsize=1)
+def _bwrap_capable() -> bool:
+    """探测 bwrap 可用性：二进制在 + userns/pid/ipc/uts/net/cap-drop 全旗标可建。
+
+    一次性全量探测——任一 namespace 被内核禁用（如
+    ``kernel.unprivileged_userns_clone=0``）即返 False，编译退回 env-only
+    而不是批量挂掉。``TEXLATE_NO_BWRAP`` 真值 = 显式关停（坏件逃生门）。
+    """
+    if os.environ.get("TEXLATE_NO_BWRAP", "").strip().lower() in _TRUE_VALUES:
+        return False
+    tool = find_tool("bwrap")
+    if tool is None:
+        return False
+    try:
+        rc, _, _, to = run_process(
+            [
+                tool,
+                "--die-with-parent",
+                "--unshare-pid",
+                "--unshare-ipc",
+                "--unshare-uts",
+                "--unshare-net",
+                "--cap-drop",
+                "ALL",
+                "--ro-bind-try",
+                "/",
+                "/",
+                "--",
+                "/bin/true",
+            ],
+            cwd=Path.cwd(),
+            env={},
+            timeout=10,
+        )
+    except OSError:
+        return False
+    return rc == 0 and not to
+
+
+def _bwrap_wrap(  # noqa: PLR0913 -- 挂载面组装参数即签名
+    cmd: list[str],
+    *,
+    root: Path,
+    out: Path,
+    env: dict[str, str],
+    allow_net: bool,
+    extra_rw: Iterable[Path | str] = (),
+) -> list[str] | None:
+    """Linux 用 bwrap 复刻 sandbox-exec 语义；不可用返 ``None``（调用方直通）。
+
+    - ``--die-with-parent`` + unshare pid/ipc/uts：pid-ns init 死亡时内核清
+      场整棵进程树，与 run_process 的 killpg 互为兜底（**不**加
+      ``--new-session``——那会另起进程组让 killpg 打不中孙进程）。
+    - ``allow_net=False`` 追加 ``--unshare-net``：xelatex 工具链全本地可断
+      网；tectonic 冷拉 bundle 必须留网，恒 True。
+    - 挂载白名单见 ``_bwrap_mounts``；``--dir $HOME`` 保底存在（自建的
+      tmpfs 影子目录，mktex 系 mkdir 有落点）。
+    """
+    if not _bwrap_capable():
+        return None
+    tool = find_tool("bwrap") or "bwrap"
+    rw, ro = _bwrap_mounts(cmd[0], root=root, out=out, env=env, extra_rw=extra_rw)
+    argv = [
+        tool,
+        "--die-with-parent",
+        "--unshare-pid",
+        "--unshare-ipc",
+        "--unshare-uts",
+        "--cap-drop",
+        "ALL",
+    ]
+    if not allow_net:
+        argv.append("--unshare-net")
+    argv += [
+        "--dev",
+        "/dev",
+        "--proc",
+        "/proc",
+        "--tmpfs",
+        _SANDBOX_TMP,
+        "--dir",
+        str(Path.home()),
+    ]
+    for prefix in _BWRAP_SYS_RO:
+        argv += ["--ro-bind-try", prefix, prefix]
+    # ro 先挂、rw 后挂：重叠路径上后挂的 rw 生效（如 TEXMFVAR 恰好落在
+    # ro 系统树之下仍保持可写）。
+    for p in ro:
+        argv += ["--ro-bind-try", p, p]
+    argv += ["--bind", str(root), str(root), "--bind", str(out), str(out)]
+    # XDG_CACHE_HOME 不在 env 白名单内、子进程本不可见；宿主设了它则补挂并
+    # --setenv 还原，让 tectonic 继续命中父侧热缓存而不是沙箱内重拉 bundle。
+    xdg = os.environ.get("XDG_CACHE_HOME")
+    if xdg and Path(xdg).is_absolute() and not Path(xdg).is_relative_to(_SANDBOX_TMP):
+        argv += ["--setenv", "XDG_CACHE_HOME", xdg]
+        cache = str(Path(xdg) / "Tectonic")
+        argv += ["--bind-try", cache, cache]
+    for p in rw:
+        argv += ["--bind-try", p, p]
+    argv += ["--", *cmd]
+    return argv
+
+
+def _apply_sandbox(  # noqa: PLR0913 -- 沙箱决策参数面
+    cmd: list[str],
+    *,
+    root: Path,
+    out: Path,
+    env: dict[str, str],
+    enabled: bool,
+    allow_net: bool,
+    extra_rw: Iterable[Path | str] = (),
+) -> tuple[list[str], str]:
+    """OS 沙箱分发 → ``(argv, mode)``，mode 落 ``CompRes.sandbox_mode``。
+
+    ``sandbox=True`` 的既有契约本就含 env 白名单 + TeX 阀（恒在）；本层补
+    OS 包裹：darwin ``sandbox-exec``、linux ``bwrap``、其余/能力缺席退回
+    ``env``（与改动前 linux 行为一致）。
+    """
+    if not enabled:
+        return cmd, "off"
+    wrapped = sandbox_wrap(cmd, root=root, out=out)
+    if wrapped is not cmd:
+        return wrapped, "sandbox-exec"
+    if sys.platform != "linux":
+        return cmd, "env"
+    bw = _bwrap_wrap(
+        cmd, root=root, out=out, env=env, allow_net=allow_net, extra_rw=extra_rw
+    )
+    if bw is None:
+        return cmd, "env"
+    return bw, "bwrap"
+
+
 # ================================================================ Engine 协议
 @runtime_checkable
 class Engine(Protocol):
@@ -592,8 +905,18 @@ class XelatexEngine:
         cmd = self._cmd(
             binary, out, main_path.name, best_effort=best_effort, flags=flags
         )
-        if sandbox:
-            cmd = sandbox_wrap(cmd, root=wdir, out=out)
+        cmd, res.sandbox_mode = _apply_sandbox(
+            cmd,
+            root=wdir,
+            out=out,
+            env=env,
+            enabled=sandbox,
+            # xelatex 工具链（kpsewhich/mktex*/xdvipdfmx）全本地——断网兜底
+            # ``-shell-escape`` flag 穿透场景（fixloop minted 规则可压过
+            # -no-shell-escape）的 curl 外联面。
+            allow_net=False,
+            extra_rw=[self.texmfhome] if self.texmfhome else [],
+        )
         outputs = []
         per_pass = max(10.0, timeout / max(1, passes))
         for p in range(1, passes + 1):
@@ -939,12 +1262,14 @@ class TectonicEngine:
         deps_mk = out / "dependencies.mk"
         for stale in (pdf, log, deps_mk):
             stale.unlink(missing_ok=True)
+        env = child_env(env_extra)
         cmd = self._cmd(
             binary, out, main_path.name, best_effort=best_effort, flags=flist
         )
-        if sandbox:
-            cmd = sandbox_wrap(cmd, root=wdir, out=out)
-        env = child_env(env_extra)
+        # tectonic 冷拉 bundle/包走进程内 HTTPS——不能像 xelatex 那样断网。
+        cmd, res.sandbox_mode = _apply_sandbox(
+            cmd, root=wdir, out=out, env=env, enabled=sandbox, allow_net=True
+        )
         # 冷 bundle 首拉可能超时：缓存热身后重试一次（compile_bench 惯例）。
         outputs = []
         for _attempt in range(_TECTONIC_ATTEMPTS):
