@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import io
 import json
+import sqlite3
 import zipfile
 from http import HTTPStatus
 from typing import TYPE_CHECKING
@@ -381,3 +382,30 @@ class TestShareImportBadBundle:
             r = _import(pb, blob)
             assert r.status_code == HTTPStatus.BAD_REQUEST
             assert r.json()["code"] == "share_invalid"
+
+
+class TestShareImportCleanup:
+    """解包后非预期异常（非 ShareError/_ApiError）→ 500 + 不留孤儿现场。"""
+
+    def test_import_mid_error_no_orphan_dir(
+        self,
+        tmp_path: Path,
+        clean_env: pytest.MonkeyPatch,
+    ) -> None:
+        """``store.create_task`` 抛 ``sqlite3.OperationalError`` → 500，
+        已建 ``tasks/{tid}``（bundle + 解包产物）一并收掉——upload B4 同口径。"""
+        app = make_app(tmp_path)
+        with TestClient(app, raise_server_exceptions=False) as c:
+
+            def boom(*_a: object, **_kw: object) -> None:
+                raise sqlite3.OperationalError
+
+            clean_env.setattr(app.state.store, "create_task", boom)
+            blob = _synth_bundle(tmp_path, [])
+            r = c.post(
+                "/api/share/import",
+                files={"file": ("x.share.zip", blob, "application/zip")},
+            )
+            assert r.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
+            tasks_dir = app.state.data_dir / "tasks"
+            assert not tasks_dir.exists() or list(tasks_dir.iterdir()) == []

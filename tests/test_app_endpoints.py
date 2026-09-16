@@ -22,6 +22,7 @@ pytest.importorskip("starlette.testclient", reason="server extra 未装")
 from conftest import MINI_TEX, make_app, make_targz, upload_tex
 from starlette.testclient import TestClient
 
+import texlate.server.app as app_mod
 from texlate.server.settings import SettingsStore
 
 if TYPE_CHECKING:
@@ -465,6 +466,42 @@ class TestUploadEdges:
         )
         assert r.status_code == HTTPStatus.REQUEST_ENTITY_TOO_LARGE
         assert r.json()["code"] == "upload_too_large"
+
+    @pytest.mark.parametrize("path", ["/api/upload", "/api/share/import"])
+    def test_chunked_no_content_length_oversize_413(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch, path: str
+    ) -> None:
+        """无 Content-Length（chunked 流式体）绕预检——文件字段有界读，
+        累计超 CAP 同语义 413，全量不进 RAM。"""
+        monkeypatch.setattr(app_mod, "UPLOAD_CAP", 16)
+        body = (
+            b"--X\r\n"
+            b'Content-Disposition: form-data; name="file"; filename="big.bin"\r\n'
+            b"Content-Type: application/octet-stream\r\n\r\n"
+            + b"y" * 256
+            + b"\r\n--X--\r\n"
+        )
+        r = client.post(
+            path,
+            content=iter([body]),  # httpx 迭代体 → chunked，无 Content-Length
+            headers={"Content-Type": "multipart/form-data; boundary=X"},
+        )
+        assert r.status_code == HTTPStatus.REQUEST_ENTITY_TOO_LARGE
+        assert r.json()["code"] == "upload_too_large"
+
+    def test_chunked_small_upload_accepted(self, client: TestClient) -> None:
+        """chunked 限额内小体不受影响——multipart 解析与 CL 路径同语义。"""
+        body = (
+            b"--X\r\n"
+            b'Content-Disposition: form-data; name="file"; filename="main.tex"\r\n'
+            b"Content-Type: text/plain\r\n\r\n" + MINI_TEX.encode() + b"\r\n--X--\r\n"
+        )
+        r = client.post(
+            "/api/upload",
+            content=iter([body]),
+            headers={"Content-Type": "multipart/form-data; boundary=X"},
+        )
+        assert r.status_code == HTTPStatus.ACCEPTED
 
     def test_filename_traversal_sanitized(self, client: TestClient) -> None:
         """``../../etc/evil.tex`` → ``Path().name`` 剥目录 + 字符白名单。"""

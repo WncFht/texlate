@@ -178,8 +178,9 @@ async def _parse_multipart(request: Request) -> dict[str, str | UploadPart]:
     """``multipart/form-data`` → ``{name: str | UploadPart}``。
 
     走 starlette ``request.form()``（python-multipart 在 server extra 内）；
-    ``Content-Length`` 超 ``UPLOAD_CAP + overhead`` 先 413 不读体，文件字段
-    的精细上限在 upload handler 里按 payload 判。
+    ``Content-Length`` 超 ``UPLOAD_CAP + overhead`` 先 413 不读体。
+    ``Content-Length`` 缺席（chunked/HTTP2）预检失效——文件字段按剩余
+    额度有界读，累计文件字节超 ``UPLOAD_CAP`` 即 413，无界体进不了 RAM。
     """
     clen = request.headers.get("content-length", "")
     if clen.isdigit() and int(clen) > UPLOAD_CAP + _MULTIPART_OVERHEAD:
@@ -188,9 +189,17 @@ async def _parse_multipart(request: Request) -> dict[str, str | UploadPart]:
         )
     form = await request.form()
     out: dict[str, str | UploadPart] = {}
+    file_bytes = 0
     for name, val in form.multi_items():
         if isinstance(val, StarletteUploadFile):
-            out[name] = UploadPart(filename=val.filename or "", data=await val.read())
+            data = await val.read(UPLOAD_CAP + 1 - file_bytes)
+            file_bytes += len(data)
+            if file_bytes > UPLOAD_CAP:
+                raise _ApiError(
+                    413,
+                    {"detail": f"upload > {UPLOAD_CAP}B", "code": "upload_too_large"},
+                )
+            out[name] = UploadPart(filename=val.filename or "", data=data)
         elif isinstance(val, str):
             out[name] = val
     return out
@@ -852,19 +861,12 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
             )
         tid = new_task_id()
         tdir = root / "tasks" / tid
-        bundle_dir = tdir / "upload"
-        bundle_dir.mkdir(parents=True, exist_ok=True)
-        bundle = bundle_dir / "bundle.share.zip"
-        bundle.write_bytes(data)
         try:
+            bundle_dir = tdir / "upload"
+            bundle_dir.mkdir(parents=True, exist_ok=True)
+            bundle = bundle_dir / "bundle.share.zip"
+            bundle.write_bytes(data)
             mf = unpack_share(bundle, tdir / "share")
-        except ShareError as e:
-            shutil.rmtree(tdir, ignore_errors=True)
-            raise _ApiError(
-                400,
-                {"detail": f"share bundle invalid: {e}", "code": "share_invalid"},
-            ) from e
-        try:
             parts = mf.key_parts
             base, ver_s, model, lang, ver = _share_parts_checked(parts)
             options_raw = _form_text(form, "options")
@@ -901,9 +903,12 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
                 task_id=tid,
                 incoming_bytes=len(data),
             )
-        except _ApiError:
+        except ShareError as e:
             shutil.rmtree(tdir, ignore_errors=True)
-            raise
+            raise _ApiError(
+                400,
+                {"detail": f"share bundle invalid: {e}", "code": "share_invalid"},
+            ) from e
         except sqlite3.IntegrityError:
             # reuse 语义下并发同键撞 ACTIVE 唯一索引——归 duplicate_active
             shutil.rmtree(tdir, ignore_errors=True)
@@ -911,6 +916,11 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
                 409,
                 {"detail": "active task exists", "code": "duplicate_active"},
             ) from None
+        except Exception:
+            # 落盘/解包/校验/建行/入队任何失败（含 _ApiError 与非预期异常）
+            # ——task 目录一并收掉，不留孤儿（upload 端点 B4 同口径）
+            shutil.rmtree(tdir, ignore_errors=True)
+            raise
         if str(row["id"]) != tid:
             # reuse/idempotent 命中旧行——本次解包现场作废（行从未建）
             shutil.rmtree(tdir, ignore_errors=True)
