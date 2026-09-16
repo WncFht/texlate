@@ -3420,7 +3420,33 @@ rules:
     action:
       kind: builtin_transform
       function: missing_char_fix
-      params: {}
+      params:
+        # Latin-1/标点散字补表 (scout-pf2final 盲区: £/ĳ 系落 cmr/cmmi/txmi
+        # 无字形; ø/§/≠/−/è 已在内置 _MC_TABLE)。文本命令一律 \mbox 包裹防
+        # 数学模式缺字复发; 数学符号走 \ensuremath。
+        char_table:
+          - { id: nbsp, cps: [0x00A0], replace: "~" }
+          - { id: pound, cps: [0x00A3], replace: "\\mbox{\\pounds}" }
+          - { id: copyright, cps: [0x00A9], replace: "\\mbox{\\textcopyright}" }
+          - { id: registered, cps: [0x00AE], replace: "\\mbox{\\textregistered}" }
+          - { id: degree, cps: [0x00B0], replace: "\\ensuremath{^\\circ}" }
+          - { id: pm, cps: [0x00B1], replace: "\\ensuremath{\\pm}" }
+          - { id: micro, cps: [0x00B5], replace: "\\ensuremath{\\mu}" }
+          - { id: pilcrow, cps: [0x00B6], replace: "\\mbox{\\P}" }
+          - { id: times, cps: [0x00D7], replace: "\\ensuremath{\\times}" }
+          - { id: divide, cps: [0x00F7], replace: "\\ensuremath{\\div}" }
+          - { id: ij_lig, cps: [0x0133], replace: "\\mbox{\\ij}" }
+          - { id: ij_lig_up, cps: [0x0132], replace: "\\mbox{\\IJ}" }
+          - { id: endash, cps: [0x2013], replace: "\\mbox{--}" }
+          - { id: emdash, cps: [0x2014], replace: "\\mbox{---}" }
+          - { id: lsquo, cps: [0x2018], replace: "\\mbox{`}" }
+          - { id: rsquo, cps: [0x2019], replace: "\\mbox{'}" }
+          - { id: ldquo, cps: [0x201C], replace: "\\mbox{``}" }
+          - { id: rdquo, cps: [0x201D], replace: "\\mbox{''}" }
+          - { id: dagger, cps: [0x2020], replace: "\\mbox{\\textdagger}" }
+          - { id: ddagger, cps: [0x2021], replace: "\\mbox{\\textdaggerdbl}" }
+          - { id: bullet, cps: [0x2022], replace: "\\mbox{\\textbullet}" }
+          - { id: hellip, cps: [0x2026], replace: "\\mbox{\\dots}" }
     risk: low # 预热盒不可见; replace 只动缺字码位本身
     engines:
       xelatex: { mode: native }
