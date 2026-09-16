@@ -48,3 +48,12 @@ verdict 与 salvage 后 verdict 分列），console 逐格 `-> fail` 是首编�
   未愈，其余 unfixable:* 类目如 §1。
 - YamlishError 两条 crash record（2105.11398 后转 acceptable、
   hep-ph/0605134 终 unfixable:syntax）——payload 空，现场在 fixloop.jsonl。
+
+## 4. 口径补丁：compile 回愈格的 fixloop 末条刷新
+
+gate_scorecard 终态规则「有 fixloop record 即以 fixloop 为准」——compile
+--rerun 回愈的 9 格仍背旧 `unfixable:*` 末条，scorecard 少计 pdf。
+**操作惯例**：compile 回愈格须 `fixloop --on all --rerun --ids` 刷末条
+（`--on fail` 会按当前 compile 态把它们滤掉）。本轮 9/9 刷新
+（8 fixloop:clean + 1 acceptable_pdf）后 scorecard 实账：
+pdf 4525/5059 = **89.44%**，距门 **+29**；fixloop:fail 池 40。
