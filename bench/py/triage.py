@@ -30,6 +30,8 @@ from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
 
+import benchlib
+
 BENCH = Path(__file__).resolve().parents[1]
 REPO = BENCH.parent
 RULES_YAML = REPO / "src/texlate/compile/fixloop/rules.yaml"
@@ -75,35 +77,126 @@ def _read_jsonl(path):
         print(f"  warn: {path.name} 跳过 {bad} 行坏 json", file=sys.stderr)
 
 
+def _rec_key(rec):
+    """(id, arm, upstream)——与 stagerun._rec_key 同构（resume 追加同键新行，
+    append 序末条胜）。"""
+    return (
+        str(rec.get("id")),
+        str(rec.get("arm") or "-"),
+        str(rec.get("upstream") or ""),
+    )
+
+
 def load_records(results_dir):
-    """records/{stage}.jsonl → list[dict]; stage 缺省取文件名。"""
+    """records/{stage}.jsonl → list[dict]; stage 缺省取文件名。
+
+    同文件内按 (id,arm,upstream) 末条胜去重（resume 重记同键——对齐
+    stagerun.load_latest；键不含 stage，去重限文件内）。缺 id 的非
+    stagerun 形状行原样保留不丢。
+    """
     recs = []
     rdir = results_dir / "records"
     if not rdir.is_dir():
         return recs
     for fp in sorted(rdir.glob("*.jsonl")):
         stage = fp.stem
+        latest = {}
         for rec in _read_jsonl(fp):
-            if isinstance(rec, dict):
-                rec.setdefault("stage", stage)
+            if not isinstance(rec, dict):
+                continue
+            rec.setdefault("stage", stage)
+            if "id" in rec:
+                latest[_rec_key(rec)] = rec
+            else:
                 recs.append(rec)
+        recs.extend(latest.values())
     return recs
 
 
 # ---------- sig 解析与归类 ----------
 
 
-def record_sig(rec):
-    """record → sig: 优先 rec['sig']; 否则 errors[0] 合成 cat:pay; 兜底 nosig:status。"""
-    sig = str(rec.get("sig") or "").strip()
-    if sig:
-        return sig
+# 归桶规则：stagerun 的 sig payload 常带逐实例细节（fault 计数/member 名/
+# repr/路径），直接聚类会把同一缺陷类碎成 N 张 singleton 票——ticket 按
+# 缺陷类算，不按实例算。
+_STAGE_CATS = {
+    "xlat",
+    "ingest",
+    "inject",
+    "route",
+    "parse",
+    "compile",
+    "upstream",
+}
+# payload 是实例细节、无缺陷类信息量的 cat（_missing_rec 系 member 名/
+# no_extracted 路径/sabotage 台账 id 列表）。对齐 ia_fetch_unwired 的
+# item 级粒度——这些一律比 item 还细，全丢。
+_SIG_DROP_PAY = {
+    "stub_format",
+    "pdf_format",
+    "error_format",
+    "eprint_fetch_unwired",
+    "no_item",
+    "no_extracted",
+    "sabotage_escaped",
+}
+_RE_KV_NUM = re.compile(r"(\w+=)\d+")
+
+
+def bucket_sig(sig, rec):
+    """聚类 sig 归一化：code 比 stage-bucket cat 更细时换 code；实例细节归桶。
+
+    - errors[0].cat 与 sig cat 一致且 code 是另一个缺陷类词 → 按 code 聚类
+      （xlat:leftover_ph/chunks_bad、parse:no_main_tex、inject:inject_reject 等）；
+      e0.cat 不一致（legacy harness 行 cat=None）或 code 含 ':'（fv 组合词）
+      不换，防误并。
+    - harness 系 code='harness:ExcType' 已含类名，repr payload 碎裂 → 留 code。
+    - kv 计数 fault=1 skipped=0 → fault=N skipped=N；code 换名后残留的纯
+      数字 payload（leftover_ph '3'）是计数 → 丢。
+    """
+    prefix = ""
+    s = sig
+    for pre in ("unfixable:", "reject:", "nosig:"):
+        if s.startswith(pre):
+            prefix, s = pre, s[len(pre) :]
+            break
+    if ":" in s:
+        cat, pay = s.split(":", 1)
+    else:
+        cat, pay = s, ""
     errs = rec.get("errors") or []
-    if errs and isinstance(errs[0], dict):
-        cat = errs[0].get("cat") or errs[0].get("code") or "error"
-        pay = errs[0].get("payload")
-        return f"{cat}:{pay}" if pay not in (None, "") else str(cat)
-    return f"nosig:{rec.get('status') or 'unknown'}"
+    e0 = errs[0] if errs and isinstance(errs[0], dict) else {}
+    code = str(e0.get("code") or "").strip()
+    if cat == "harness" and code.startswith("harness:"):
+        return f"{prefix}{code}"
+    swapped = bool(
+        code
+        and ":" not in code
+        and code != cat
+        and cat in _STAGE_CATS
+        and str(e0.get("cat") or "") == cat
+    )
+    if swapped:
+        cat, pay = code, str(e0.get("payload") or pay)
+    if cat in _SIG_DROP_PAY or (swapped and pay.isdigit()):
+        pay = ""
+    pay = _RE_KV_NUM.sub(r"\1N", pay)
+    return f"{prefix}{cat}:{pay}".rstrip(":")
+
+
+def record_sig(rec):
+    """record → 归一化 sig: 优先 rec['sig']; 否则 errors[0] 合成 cat:pay;
+    兜底 nosig:status。"""
+    sig = str(rec.get("sig") or "").strip()
+    if not sig:
+        errs = rec.get("errors") or []
+        if errs and isinstance(errs[0], dict):
+            cat = errs[0].get("cat") or errs[0].get("code") or "error"
+            pay = errs[0].get("payload")
+            sig = f"{cat}:{pay}" if pay not in (None, "") else str(cat)
+        else:
+            sig = f"nosig:{rec.get('status') or 'unknown'}"
+    return bucket_sig(sig, rec)
 
 
 def parse_sig(sig):
@@ -169,7 +262,9 @@ def classify(sig, rep):
         return "rule", "CJK 缺字类规则可扩性 (F4)"
     if cat == "leftover_ph":
         return "core", "占位符字面泄漏进文档——splice/translate 层缺陷, 非规则可修"
-    if cat == "latex209":
+    if cat == "latex209" or pay == "latex209":
+        # sig 形如 inject_reject:latex209 / inject:latex209 —— cat 是阶段桶,
+        # 209 判定落在 payload 位
         return (
             "wontfix",
             "LaTeX2.09 路由层拒绝 (F3: verdict 语义 reject→partial, 非缺陷)",
@@ -180,6 +275,21 @@ def classify(sig, rep):
 
 
 # ---------- records → tickets ----------
+
+
+def _upstream_gated(rec):
+    """上游门记录：errors[0].cat=='upstream' 或 sig 'upstream:*'。
+
+    上游阶段未过/未跑的派生格——归宿在上游工单，本阶段不重复出票
+    （upstream_gate/no_src/not_translated/arm_mismatch/no_parse_tree/
+    no_splice 全系 cat=upstream）。ingest stub_format 等真失败型
+    reject cat≠upstream，不在此豁免。
+    """
+    errs = rec.get("errors") or []
+    e0 = errs[0] if errs and isinstance(errs[0], dict) else {}
+    if str(e0.get("cat") or "") == "upstream":
+        return True
+    return str(rec.get("sig") or "").startswith("upstream:")
 
 
 def build_tickets(recs, results_dir):
@@ -193,6 +303,8 @@ def build_tickets(recs, results_dir):
         has_sig = bool(str(rec.get("sig") or "").strip())
         has_err = bool(rec.get("errors"))
         if st in OK_STATUS | SKIP_STATUS and not (has_sig or has_err):
+            continue
+        if st in SKIP_STATUS and _upstream_gated(rec):
             continue
         key = (str(rec.get("stage") or "?"), record_sig(rec))
         clusters.setdefault(key, []).append(rec)
@@ -239,40 +351,6 @@ def build_tickets(recs, results_dir):
 # arm key → (stage, arm)。e2e_real 三格: pipe-xel=编中(base 对照), base-xel, pipe-fix。
 LEGACY_ARM_MAP = {"pipe-xel": ("compile", "zh"), "base-xel": ("compile", "base")}
 
-RE_MISSING_FILE = re.compile(r"File `([^']+)' not found")
-RE_MISSING_CHAR = re.compile(r"missing_character[×x](\d+)")
-
-
-def _legacy_sig(verdict, first_error):
-    """verdict 块 → sig: cat 为主, cat 模糊 (clean/other/None) 时退回 reasons 头。"""
-    vstatus = verdict.get("status")
-    if vstatus in ("clean", None):
-        return ""
-    cat = verdict.get("category")
-    reasons = [str(r).strip() for r in (verdict.get("reasons") or []) if str(r).strip()]
-    if cat in (None, "clean", "other"):
-        if any(r.startswith("missing_character") for r in reasons):
-            cat = "missing_character"
-        elif cat in (None, "clean") and reasons:
-            head = reasons[0]
-            cat = (
-                head.split("=", 1)[1].split(":")[0]
-                if head.startswith("first_error=")
-                else head.split()[0]
-            )
-    pay = ""
-    if cat == "missing_file":
-        m = RE_MISSING_FILE.search(first_error or "")
-        if m:
-            pay = m.group(1)
-    elif cat == "missing_character":
-        m = RE_MISSING_CHAR.search(" ".join(reasons))
-        if m:
-            pay = f"x{m.group(1)}"
-    if not cat:
-        return f"verdict:{vstatus}"
-    return f"{cat}:{pay}".rstrip(":")
-
 
 def legacy_records(results_dir):
     """旧 results.json → record 形状列表。fixloop 细节取 pipe-fix.fixloop / cases.jsonl。"""
@@ -291,7 +369,9 @@ def legacy_records(results_dir):
                 continue
             verdict = cell.get("verdict") or {}
             vstatus = verdict.get("status") or cell.get("status") or "?"
-            sig = _legacy_sig(verdict, (cell.get("compile") or {}).get("first_error"))
+            sig = benchlib.verdict_sig(
+                verdict, (cell.get("compile") or {}).get("first_error")
+            )
             cat, pay = parse_sig(sig) if sig else ("", "")
             recs.append(
                 {

@@ -10,6 +10,7 @@ records 契约（docs/research/product/2026-09-16-batch-hardening-design.md §6�
 from __future__ import annotations
 
 import json
+import re
 import shutil
 from typing import TYPE_CHECKING
 
@@ -145,8 +146,50 @@ def judge_dict(res, *, expect_cjk: bool) -> dict:
             "reasons": v.reasons,
             "n_errors": v.n_errors,
             "category": v.category,
+            "payload": v.payload,
             "cjk_chars": v.cjk_chars,
             "missing_chars": v.missing_chars,
         },
         "status": v.status,
     }
+
+
+_RE_MISSING_FILE = re.compile(r"File `([^']+)' not found")
+_RE_MISSING_CHAR = re.compile(r"missing_character[×x](\d+)")
+
+
+def verdict_sig(verdict: dict, first_error: str | None = None) -> str:
+    """compile verdict 块 → 聚类 sig（stagerun records 与 triage legacy 降级单源）。
+
+    cat 以 ``verdict.category`` 为准——此时 ``verdict.payload`` 是同字段对配，
+    直接拼。cat 模糊（None/clean/other）时退 reasons 头抠 cat；派生 cat 不拼
+    ``verdict.payload``（它配的是原 cat，拼上即错配），missing_file /
+    missing_character 走正则从 first_error/reasons 回补 payload。
+    """
+    vstatus = verdict.get("status")
+    if vstatus in ("clean", None):
+        return ""
+    cat = verdict.get("category")
+    reasons = [str(r).strip() for r in (verdict.get("reasons") or []) if str(r).strip()]
+    derived = cat in (None, "clean", "other")
+    if derived:
+        if any(r.startswith("missing_character") for r in reasons):
+            cat = "missing_character"
+        elif reasons:
+            head = reasons[0]
+            cat = (
+                head.split("=", 1)[1].split(":")[0]
+                if head.startswith("first_error=")
+                else head.split()[0]
+            )
+    if not cat:
+        return f"verdict:{vstatus}"
+    pay = None if derived else verdict.get("payload")
+    if not pay:
+        if cat == "missing_file":
+            m = _RE_MISSING_FILE.search(first_error or "")
+            pay = m.group(1) if m else ""
+        elif cat == "missing_character":
+            m = _RE_MISSING_CHAR.search(" ".join(reasons))
+            pay = f"x{m.group(1)}" if m else ""
+    return f"{cat}:{pay or ''}".rstrip(":")

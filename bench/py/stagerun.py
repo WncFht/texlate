@@ -88,12 +88,12 @@ from texlate.compile.engine import (
     route_project,
 )
 from texlate.compile.fixloop import CaseSink, fixloop
+from texlate.compile.fixloop.llm_hook import make_llm_hook
 from texlate.compile.inject import (
     InjectRejectError,
     find_main_tex,
     prepare_chinese,
 )
-from texlate.compile.judge import judge
 from texlate.compile.normalize import normalize_project
 from texlate.latex.api import parse_file
 from texlate.latex.placeholder import PH_RX
@@ -243,7 +243,12 @@ def git_rev() -> str:
 
 
 def touch_run_meta(out_dir: Path, args: argparse.Namespace) -> None:
-    """run_meta.json：首建 {created,git_rev,invocations[]}，逐次 append argv。"""
+    """run_meta.json：首建 {created,git_rev,invocations[]}，逐次 append argv。
+
+    ``started_at`` 缺省回填 ``created_at``（run 首触时刻）——triage ``_wall_s``
+    读 started_at/finished_at 算真实墙钟；``finished_at`` 由
+    ``mark_run_finished`` 在每次 invocation 收尾时推进。
+    """
     mp = out_dir / "run_meta.json"
     meta = (
         json.loads(mp.read_text())
@@ -254,6 +259,9 @@ def touch_run_meta(out_dir: Path, args: argparse.Namespace) -> None:
             "invocations": [],
         }
     )
+    meta.setdefault(
+        "started_at", meta.get("created_at") or datetime.now(UTC).isoformat()
+    )
     meta["invocations"].append(
         {
             "ts": datetime.now(UTC).isoformat(),
@@ -263,6 +271,16 @@ def touch_run_meta(out_dir: Path, args: argparse.Namespace) -> None:
             "layers": args.layers,
         }
     )
+    mp.write_text(
+        json.dumps(meta, ensure_ascii=False, indent=1) + "\n", encoding="utf-8"
+    )
+
+
+def mark_run_finished(out_dir: Path) -> None:
+    """run_meta.finished_at = now——末次 invocation 收尾时刻（triage 墙钟右端点）。"""
+    mp = out_dir / "run_meta.json"
+    meta = json.loads(mp.read_text()) if mp.exists() else {}
+    meta["finished_at"] = datetime.now(UTC).isoformat()
     mp.write_text(
         json.dumps(meta, ensure_ascii=False, indent=1) + "\n", encoding="utf-8"
     )
@@ -892,60 +910,6 @@ def stage_xlat(
 
 
 # ================================================================ compile
-def _verdict_sig(
-    vstatus: str, category: str | None, payload: str | None, reasons: list
-) -> str:
-    """triage._legacy_sig 同构：cat 为主，模糊时退 reasons 头。"""
-    if vstatus in ("clean", None):
-        return ""
-    cat = category
-    rs = [str(r).strip() for r in reasons or [] if str(r).strip()]
-    if cat in (None, "clean", "other"):
-        if any(r.startswith("missing_character") for r in rs):
-            cat = "missing_character"
-        elif rs:
-            head = rs[0]
-            cat = (
-                head.split("=", 1)[1].split(":")[0]
-                if head.startswith("first_error=")
-                else head.split()[0]
-            )
-    if not cat:
-        return f"verdict:{vstatus}"
-    return f"{cat}:{payload or ''}".rstrip(":")
-
-
-def _judge_tail(res, *, expect_cjk: bool) -> dict:
-    """``benchlib.judge_dict`` 同形状 + verdict.payload（sig 合成要 cat:pay）。
-
-    不复用 benchlib.judge_dict 的原因：它丢了 payload，而再调一次 judge()
-    会白跑一遍 pdftotext。
-    """
-    v = judge(res, expect_cjk=expect_cjk)
-    return {
-        "compile": {
-            "ok": res.ok,
-            "timed_out": res.timed_out,
-            "seconds": round(res.seconds, 2),
-            "passes": res.passes,
-            "rc": res.rc,
-            "killed_signal": res.killed_signal,
-            "pdf_bytes": res.pdf_bytes,
-            "first_error": res.log.first_error,
-        },
-        "verdict": {
-            "status": v.status,
-            "reasons": v.reasons,
-            "n_errors": v.n_errors,
-            "category": v.category,
-            "payload": v.payload,
-            "cjk_chars": v.cjk_chars,
-            "missing_chars": v.missing_chars,
-        },
-        "status": v.status,
-    }
-
-
 def _compile_judge(
     work: Path, main_rel: str, eng_name: str, timeout: float, *, expect_cjk: bool
 ) -> dict:
@@ -954,7 +918,7 @@ def _compile_judge(
     res = engine_for(eng_name, **kw).compile(
         work, main_rel, timeout=timeout, sandbox=True
     )
-    return _judge_tail(res, expect_cjk=expect_cjk)
+    return benchlib.judge_dict(res, expect_cjk=expect_cjk)
 
 
 def _resolve_engine(
@@ -1083,9 +1047,7 @@ def _compile_one(
         rec["errors"] = [
             {"code": v["category"], "cat": v["category"], "payload": v.get("payload")}
         ]
-    rec["sig"] = _verdict_sig(
-        v["status"], v.get("category"), v.get("payload"), v.get("reasons")
-    )
+    rec["sig"] = benchlib.verdict_sig(v, tail["compile"].get("first_error"))
     rec["dur_s"] = round(time.monotonic() - t0, 2)
     return rec
 
@@ -1183,6 +1145,8 @@ def _fixloop_one(
             cond="fixloop",
             runner=flb._texmf_runner(texmf),
             case_sink=sink,
+            llm_hook=make_llm_hook() if getattr(args, "llm", False) else None,
+            compile_timeout=args.timeout,
         )
     except Exception as e:
         cell = {
@@ -1198,7 +1162,7 @@ def _fixloop_one(
         halt_on_error=False, texmfhome=texmf, repository=flb.TUNA_TLNET
     )
     res = jeng.compile(splice, main_rel, timeout=args.timeout, sandbox=False)
-    tail = _judge_tail(res, expect_cjk=True)
+    tail = benchlib.judge_dict(res, expect_cjk=True)
 
     rounds = cell.get("rounds") or []
     fcat = cell.get("final_cat") or (rounds[-1].get("category") if rounds else None)
@@ -1384,6 +1348,11 @@ def main() -> None:
         help="目标格选择：fail(默认)/nonclean/misschar(缺字 partial 窄口)/clean(幂等探针)/all",
     )
     p_fx.add_argument("--timeout", type=float, default=240.0)
+    p_fx.add_argument(
+        "--llm",
+        action="store_true",
+        help="escalate_llm 规则接 LLM 修复钩（默认关；网关走 TEXLATE_* env/默认）",
+    )
 
     args = ap.parse_args()
     out_dir = out_dir_of(args)
@@ -1440,6 +1409,7 @@ def main() -> None:
             stage_fixloop(args, out_dir, ids, log)
     finally:
         log.close()
+        mark_run_finished(out_dir)
     print(f"done -> {out_dir}/records/{args.stage}.jsonl", flush=True)
 
 
