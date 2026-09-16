@@ -302,6 +302,94 @@ def test_commit_old_style_id_on_fresh_cache(tmp_path: Path) -> None:
     assert cache.get("cond-mat/0408438", 1) is not None
 
 
+def _online_seed(handler: httpx.MockTransport, tmp_path: Path) -> Fetcher:
+    """先在线取一遍铺缓存，返回同一个 fetcher 供离线臂复用。"""
+    f = _fetcher(handler, _Clock())
+    res = acquire_source("2001.00001", fetcher=f, cache=SourceCache(tmp_path))
+    assert res.status is AcquireStatus.OK
+    return f
+
+
+def test_offline_hit_zero_network(tmp_path: Path) -> None:
+    """offline=True：钉版/未钉版命中都零请求；未钉版取已缓存版。"""
+    calls: list[str] = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        calls.append(str(req.url))
+        if req.method == "HEAD":
+            return httpx.Response(
+                HTTP_OK, headers=_head_headers("2001.00001", 1, ".tar.gz", '"E1"')
+            )
+        return httpx.Response(HTTP_OK, content=TINY_TAR_GZ)
+
+    f = _online_seed(httpx.MockTransport(handler), tmp_path)
+    cache = SourceCache(tmp_path)
+    calls.clear()
+
+    hit = acquire_source("2001.00001", fetcher=f, cache=cache, offline=True)
+    assert hit.status is AcquireStatus.HIT
+    assert hit.resolved_version == 1
+    assert hit.entry is not None
+    assert hit.detail == "offline"
+
+    hit_pin = acquire_source("2001.00001v1", fetcher=f, cache=cache, offline=True)
+    assert hit_pin.status is AcquireStatus.HIT
+    hit_kw = acquire_source(
+        "2001.00001", fetcher=f, cache=cache, version=1, offline=True
+    )
+    assert hit_kw.status is AcquireStatus.HIT
+    assert not calls  # 一次请求都不发
+
+
+def test_offline_miss_no_silent_fallback(tmp_path: Path) -> None:
+    """offline 无缓存/钉错版 → error/offline_no_cache，不静默换版也不上网。"""
+    calls: list[str] = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        calls.append(str(req.url))
+        if req.method == "HEAD":
+            return httpx.Response(
+                HTTP_OK, headers=_head_headers("2001.00001", 1, ".tar.gz", '"E1"')
+            )
+        return httpx.Response(HTTP_OK, content=TINY_TAR_GZ)
+
+    transport = httpx.MockTransport(handler)
+    cache = SourceCache(tmp_path)
+    f = _fetcher(transport, _Clock())
+    res = acquire_source("2001.00001", fetcher=f, cache=cache, offline=True)
+    assert res.status is AcquireStatus.ERROR
+    assert "offline_no_cache" in res.detail
+    assert not calls
+
+    f = _online_seed(transport, tmp_path)
+    calls.clear()
+    miss = acquire_source("2001.00001v9", fetcher=f, cache=cache, offline=True)
+    assert miss.status is AcquireStatus.ERROR
+    assert "offline_no_cache:2001.00001v9" in miss.detail
+    other = acquire_source("2001.00002", fetcher=f, cache=cache, offline=True)
+    assert other.status is AcquireStatus.ERROR
+    assert not calls
+
+
+def test_offline_hit_passthrough_terminal_status(tmp_path: Path) -> None:
+    """pdf_only 条目离线命中同样透传终态（不伪装 cache_hit）。"""
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        if req.method == "HEAD":
+            return httpx.Response(
+                HTTP_OK, headers=_head_headers("2001.00002", 1, ".pdf", '"P1"')
+            )
+        return httpx.Response(HTTP_OK, content=b"%PDF-1.4 fake")
+
+    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    cache = SourceCache(tmp_path)
+    seeded = acquire_source("2001.00002", fetcher=f, cache=cache)
+    assert seeded.status is AcquireStatus.PDF_ONLY
+    res = acquire_source("2001.00002", fetcher=f, cache=cache, offline=True)
+    assert res.status is AcquireStatus.PDF_ONLY
+    assert res.detail == "offline"
+
+
 HTTP_OK = 200
 HTTP_NOT_MODIFIED = 304
 HTTP_NOT_FOUND = 404

@@ -42,7 +42,7 @@ from texlate.arxiv.fetch import (
 )
 from texlate.compile import toolchain
 from texlate.compile.sandbox import find_tool
-from texlate.e2e import mock_pipeline_run
+from texlate.e2e import _env_flag, mock_pipeline_run
 from texlate.latex.api import parse_file
 from texlate.share import KEY_PART_FIELDS, ShareError, pack_share, unpack_share
 
@@ -85,10 +85,26 @@ def fetch(
     cache: Annotated[
         Path, typer.Option("--cache", help="source-tier 缓存根")
     ] = _DEFAULT_CACHE,
+    offline: Annotated[
+        bool,
+        typer.Option(
+            "--offline",
+            help="离线模式：只用本地 src-cache、零网络请求（env TEXLATE_OFFLINE=1 等效）",
+        ),
+    ] = False,
 ) -> None:
-    """取 arXiv e-print：HEAD → GET → sniff → unpack → locate，钉版落缓存。"""
+    """取 arXiv e-print：HEAD → GET → sniff → unpack → locate，钉版落缓存。
+
+    ``--offline``/``TEXLATE_OFFLINE=1``：跳过全部网络调用——钉版查
+    ``{id}v{ver}``、未钉版取已缓存最高版；无缓存报 ``offline_no_cache``
+    退出 1，不静默降级上网。
+    """
     res = acquire_source(
-        arxiv_id, fetcher=Fetcher(), cache=SourceCache(cache), version=version
+        arxiv_id,
+        fetcher=Fetcher(),
+        cache=SourceCache(cache),
+        version=version,
+        offline=offline or _env_flag("TEXLATE_OFFLINE", default=False),
     )
     _echo_acquire(res)
     if res.status not in (AcquireStatus.OK, AcquireStatus.HIT):

@@ -597,18 +597,42 @@ def _commit_phase(
     return AcquireResult(acq_status, ids.base, ids.ver, entry, head, warnings)
 
 
+def _offline_phase(base: str, ver_req: int | None, cache: SourceCache) -> AcquireResult:
+    """离线旁路：零网络——钉版精确查 ``{id}v{ver}``、未钉版取最高缓存版。
+
+    缓存终态透传同在线路径（pdf_only/unknown 不伪装 hit）；无缓存或钉的
+    版本未缓存 → ``error/offline_no_cache``，不静默换版本、不降级上网。
+    """
+    entry = cache.get(base, ver_req) if ver_req is not None else cache.get_latest(base)
+    if entry is None:
+        want = f"{base}v{ver_req}" if ver_req is not None else base
+        return AcquireResult(
+            AcquireStatus.ERROR, base, detail=f"offline_no_cache:{want}"
+        )
+    return AcquireResult(
+        _hit_status(entry), base, entry.resolved_version, entry, detail="offline"
+    )
+
+
 def acquire_source(
     arxiv_id: str,
     *,
     fetcher: Fetcher,
     cache: SourceCache,
     version: int | None = None,
+    offline: bool = False,
 ) -> AcquireResult:
-    """端到端取源：HEAD → 缓存命中/重验证 → GET → sniff → unpack → locate → 钉版落盘。"""
+    """端到端取源：HEAD → 缓存命中/重验证 → GET → sniff → unpack → locate → 钉版落盘。
+
+    ``offline=True`` 时完全不触碰 fetcher（HEAD/GET 都不发）：命中本地
+    钉版缓存直接返回，无缓存报 ``offline_no_cache``。
+    """
     base, pin = normalize_arxiv_id(arxiv_id)
     ver_req = version if version is not None else pin
     if not _valid_id(base):
         return AcquireResult(AcquireStatus.ERROR, base, detail=f"bad_id:{base!r}")
+    if offline:
+        return _offline_phase(base, ver_req, cache)
     phased = _head_phase(base, ver_req, fetcher, cache)
     if isinstance(phased[0], AcquireResult):
         return phased[0]
