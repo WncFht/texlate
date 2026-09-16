@@ -291,6 +291,17 @@ def test_get_newer_version_commits_resolved(tmp_path: Path) -> None:
     assert meta["etag"] == '"E2"'
 
 
+def test_commit_old_style_id_on_fresh_cache(tmp_path: Path) -> None:
+    """旧式 id（cond-mat/…）的 dest 嵌在子目录——commit 需自建父目录。"""
+    cache = SourceCache(tmp_path / "cache")
+    staging = cache.stage()
+    (staging / "meta.json").write_text('{"etag": "\\"E1\\""}', encoding="utf-8")
+    entry = cache.commit(staging, "cond-mat/0408438", 1)
+    assert entry.dir == tmp_path / "cache" / "cond-mat" / "0408438v1"
+    assert (entry.dir / "meta.json").is_file()
+    assert cache.get("cond-mat/0408438", 1) is not None
+
+
 HTTP_OK = 200
 HTTP_NOT_MODIFIED = 304
 HTTP_NOT_FOUND = 404

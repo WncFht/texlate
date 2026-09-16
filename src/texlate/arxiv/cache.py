@@ -118,6 +118,7 @@ class SourceCache:
             raise CacheError(msg)
         meta = json.loads(meta_p.read_text(encoding="utf-8"))
         dest = self.entry_dir(arxiv_id, resolved_version)
+        dest.parent.mkdir(parents=True, exist_ok=True)
         backup: Path | None = None
         if dest.exists():
             backup = self.root / f".old-{uuid.uuid4().hex[:12]}"
