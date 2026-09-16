@@ -48,6 +48,7 @@
 | **~150 发/日后 406**      | 按 IP 累计配额惩罚：`/src/` 开始回 406、1–3min 自愈但密度渐升至近 100% → **直采日预算 ≈150–200 发**，超出走批量渠道 |
 
 > 勘误 2026-09-15：park 时长原文 15min，与本文自身「惩罚窗口 >30min」的实测证据矛盾，实现取 1800s；限流实测按路径不按 host；429 响应无 Retry-After。
+> 勘误 2026-09-17：strike 计数实为 **429 与 406 皆计**（ratelimit.py「同 (host,path-class) 连续 N 次 429/406」）——406 本就是本表下行的 IP 配额惩罚信号，计入合理；表行「连续 2 次 429」应读作「429/406 ×2」。
 
 含义：元数据队列与下载队列独立调度；export 持续 429 只 park 元数据队列，下载照常。
 
@@ -99,7 +100,7 @@ candidates = { f ∈ *.{tex,latex,ltx,TEX,…}（扩展名大小写不敏感） 
 ### 2.4 `\input` 拓扑
 
 - 识别：`\input` `\include` `\InputIfFileExists` `\subfile` `\import{dir}{file}` `\subimport` `\includestandalone` `\CatchFileBetweenTags` + **裸文件名形 `\input file`**（1502.01589 实测 20+ 处）。
-- 路径解析：**CWD（编译主目录）→ 项目根 → including 文件目录**（勘误 2026-09-15：原文写「including 目录→项目根」，corpus39 实测序以此为准；including-dir 回退覆盖 import 族语义）；扩展名补全 `.tex` → `.sty` → 裸名。
+- 路径解析：**CWD（编译主目录）→ 项目根 → including 文件目录**（勘误 2026-09-15：原文写「including 目录→项目根」，corpus39 实测序以此为准；including-dir 回退覆盖 import 族语义）；扩展名补全 `.tex` → `.sty` → 裸名。（勘误 2026-09-17：此序是 **locate 建图层**实装（`_bases`），**gullet 展开层**用另一套——including 目录 → 项目根 → top_dir → basename 补 `.tex` → 裸名，五级，语义权威以 gullet 为准；两阶段同一 `\input` 可解析到不同文件，详见 docs/07 §7。）
 - `\bibliography{x}` → **`\jobname.bbl`**（主文件词干；勘误 2026-09-15：原文写 `x.bbl`，1502.01589 实证 24 个 .bib 全缺而 bbl 在——TeX 语义按 jobname）。48.1% 语料自带 .bbl 直消费；仅 5.8% 需现场 bibtex。
 - 环检测：绝对路径 `_seen` 集断环记 warning（防环优先于重复展开语义——留档偏差）。
 
@@ -109,6 +110,8 @@ candidates = { f ∈ *.{tex,latex,ltx,TEX,…}（扩展名大小写不敏感） 
 
 - Atom `id_list` 批量：≤200 篇/次、URL ≤8KB 分批；独立队列调度支持 park/resume。
 - 批量发现走 OAI-PMH `oaipmh.arxiv.org/oai`：`ListRecords` + `resumptionToken` 翻页；`metadataPrefix ∈ {oai_dc, arXiv, arXivOld, arXivRaw}`；**`<license>` 只在 OAI 系**（机读许可唯一来源），arXivRaw 独占版本史；183 set；错误以 200+body 返回。全库回填 ~2000 页 ≈ 2h@3s。
+
+> 勘误 2026-09-17：本节批量能力**无实现对应物**——`arxiv/meta.py` 实装仅单篇路径：Atom `id_list={id}`（`_atom_meta`，钉版透传 `id vN`）+ OAI `GetRecord` 兜底（`_oai_meta`）；`ListRecords`/`resumptionToken` 翻页属语料管线/远期设计。
 - DOI/版本史反查备用：DataCite `api.datacite.org/dois/10.48550/arxiv.{id}` 免 key 全量覆盖，`dates[]` 送 v1–vN。
 
 ### 3.2 Atom → meta schema
@@ -146,7 +149,7 @@ product_tier = sha256(id | resolved_version | model |
 
 - source tier 产物：`raw.*`、`extracted/`、`files.txt`、`mtree.txt`、`meta.json`、`etag`。
 - product tier 产物：`zh.pdf`、`chunks.jsonl`（断点续翻载体）、`glossary.json`、`report.json`、`compile.log`（勘误 2026-09-17：产物命名与 docs/08 §1.4/§1.6 不一致——规格面是 `term_dict.json` 与中间产物五表 `chunks_map/placeholders_map/glossary/state/errors_report`，以 docs/08 为准）。
-- 失效语义：`pipeline_version` 只失效 product 层（升级解析器不重下源码）；`model`/`glossary_hash` 仅重翻。
+- 失效语义：`pipeline_version` 只失效 product 层（升级解析器不重下源码）；`model`/`glossary_hash` 仅重翻。（勘误 2026-09-17：实现键实为 **7 组分**——share.py `KEY_PART_FIELDS` 多含 `prompt_ver`（prompt 模板版本），上方公式漏列。）
 
 ### 4.2 状态机（report.json）
 
@@ -158,6 +161,8 @@ pending → downloading → unpacking → locating → parsing → translating
 ```
 
 `degraded_*` 仍产出译文，状态位供产品层给降级提示。
+
+> 勘误 2026-09-17：本状态机是**目标设计，无逐字实现对应物**。`server/store.py` 实装为另一套 11 态机（任务粒度、含 cancelled/failed 终态）；`e2e.py` 的 `report["status"]` 走 clean/partial 裁决词表；`arxiv/meta.py` DegradeReason/DegradeTier 仅碎片对应。对接实现时以 store.py 为准。
 
 ## 5. 降级链
 

@@ -55,7 +55,7 @@
 
 1. 现有断言矩阵照搬 spike：T01–T29 单点陷阱 + 209×3 组合 + multi×4。
 2. **生长机制**：parsebench 归因（B1-4）和 mechanisms.jsonl 的 `found-in-wild` 条目达到 `covered` 后 → fixture 化（最小复现提取 + `@Tnn` 登记）——语料里每个真坑沉淀为永久断言。
-3. 断言写在 `tests/latex/test_bench_regression.py`（spike `miniscanner_test.py` 移植，import 换 `texlate.latex`）。
+3. 断言写在 `tests/test_bench_regression.py`（spike `miniscanner_test.py` 移植，import 换 `texlate.latex`）。（勘误 2026-09-17：原文路径 `tests/latex/` 为误记——实装平铺在 `tests/` 根，§B2 状态行已写真名。）
 
 **门槛**：33/33 dict 断言全过（勘误 2026-09-15：原文 32/32 是旧口径——实际断言面 = tricky 26 + 209 三项 + multi T14×4 = 33，加 209 parse_ok 行共 34），新增断言只增不减；BUG1 类回归断言（"ph 尾 `\letters`+后继字母"=0）随修复入列——该指标首测分布：corpus39 5333 / corpus_v2 578 / corpus_v3 10487，rewrite 后实测 0。
 

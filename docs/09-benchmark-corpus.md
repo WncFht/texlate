@@ -26,7 +26,7 @@
 | 编译段复用                    | 每引擎×时代 ≥100          | 同底材摊薄                                                               |
 | 比例误差边际                  | n=1,000 → ±2.8%           | n=z²p(1−p)/e²（Cochran 1977 ch.4）                                       |
 
-**结论：1,000 核心 + ~200 补强 = ~1,200**。现有 corpus_v2（137 篇无偏钉版）折入核心层 → 新增 ~1,060；corpus_v2 保留 `channel=direct-fetch` 标签（抽样 frame 不同：HEAD 验证 vs tar 成员），池化时做渠道敏感性检查。
+**结论：1,000 核心 + ~200 补强 = ~1,200**。现有 corpus_v2（137 篇无偏钉版）折入核心层 → 新增 ~1,060；corpus_v2 保留 `channel=direct-fetch` 标签（抽样 frame 不同：HEAD 验证 vs tar 成员），池化时做渠道敏感性检查。（勘误 2026-09-17：同日再增 **expand 层 3,800**——`manifest_expand.jsonl`，管线 `bench/py/build_corpus_expand.py`，QC `bench/results/corpus-expand-qc-2026-09-16/`；四层合计 **5,072** = 1000+200+72+3800，仍守加层不删层约定。）
 
 **先例裁决**：同类 benchmark **没有一篇给 n 写统计论证**（SWE-bench 2,294 是漏斗剩余、Nougat 不披露、olmOCR-bench 按类凑数）——写明论证本身是卖点（Card et al. EMNLP 2020）。规模先例恰好同量级：Image2Struct（NeurIPS 2024）~1,200 篇同从 arXiv 源码抽，其 "max 40/day to induce temporal diversity" 是「月簇内配额上限」的逐字先例；OmniDocBench「大池 200k→聚类→配额均衡 981」即两阶段配额先例；unarXive 两版发行 + LAION "URLs not images" 支撑发布形态。
 
@@ -149,6 +149,7 @@ bench/corpus_v3/                 # manifest 入库，数据 gitignored
   manifest.jsonl                 # 每篇一行（S4 schema）
   manifest_booster.jsonl         # 补强层清单（S3b）
   manifest_hot.jsonl             # 热层清单（2026-09-16 增补，OpenAlex+eprint 渠道）
+  manifest_expand.jsonl          # 扩展层清单（2026-09-16 增补，3800 篇；build_corpus_expand.py）
   mechanisms.jsonl               # 机制台账（S3b）
   {id}/
     meta.json                    # id/source/stratum/features/license

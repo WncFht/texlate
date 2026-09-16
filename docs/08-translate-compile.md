@@ -45,7 +45,7 @@ C9. [[TYPE_n]] tokens (e.g. [[MATH_12]], [[CITE_3]], [[REF_7]], [[ENV_4]],
     verbatim in your output.
 ```
 
-（勘误 2026-09-17：成稿列举补 `[[SP]]`——post-spec 新 token，保护 `\ ` 强制空格，`placeholders.py:62`；条款文本与 `prompts.py` `PLACEHOLDER_CLAUSE` 逐字同步。）
+（勘误 2026-09-17：成稿列举补 `[[SP]]`——post-spec 新 token，保护 `\ ` 强制空格，`placeholders.py:62`；条款文本与 `prompts.py` `PLACEHOLDER_CLAUSE` 逐字同步。勘误 2026-09-17 复核：`PLACEHOLDER_CLAUSE`（prompts.py:176-183）实列 5 枚裸标记 `[[SL]]/[[PL]]/[[SP]]/[[NBSP]]/[[THINSP]]`；保护族全量为 **8 成员**——再加 `[[MEDSP]]/[[THICKSP]]/[[NEGSP]]`（`\:`/`\;`/`\!`，各带 `_RAW` 变体+sentinel，`placeholders.py:64-95`），prompt 措辞不提后三枚。另 spec 公式未记档的 impl 子句：`_FUSION_CLAUSE`(C8a)、`_HEADER`、`_BATCH_CLAUSE`。）
 
 **C10 人名保原语**（para/abstract 末条）：`always keep person names in their original {SRC} form. Never translate, transliterate, or reorder them.`
 
@@ -105,7 +105,7 @@ C9. [[TYPE_n]] tokens (e.g. [[MATH_12]], [[CITE_3]], [[REF_7]], [[ENV_4]],
 | 宏透明性         | 宏表静态分析（docs/07 §5.1）                                                                 | v0 不做                   |
 | 编译修复         | fixloop 规则表                                                                               | 未命中 → LLM 修复器（§5） |
 
-env judge 参数：**temperature=0、max_tokens=16、3 次重试、解析 `true/false` 小写、其余一律 True（fail-open 宁翻勿漏）**；判 content 非 env name；6 few-shot 成稿（含 `\caption` 内嵌→True、纯公式/绘图→False 灰区）。判 False → 整体 `[[ENV_n]]`；判 True → `env_text` chunk 送翻。
+env judge 参数：**temperature=0、max_tokens=16、3 次重试、解析 `true/false` 小写、其余一律 True（fail-open 宁翻勿漏）**（勘误 2026-09-17：impl `ENV_JUDGE_TEMPERATURE=0.01`，`prompts.py:347`——本网关 temperature=0 直接 502，0.01 即近确定性且通行）；判 content 非 env name；6 few-shot 成稿（含 `\caption` 内嵌→True、纯公式/绘图→False 灰区）。判 False → 整体 `[[ENV_n]]`；判 True → `env_text` chunk 送翻。
 
 ### 1.6 并发 / 重试 / 断点
 
@@ -121,7 +121,7 @@ env judge 参数：**temperature=0、max_tokens=16、3 次重试、解析 `true/
 
 ### 1.7 本地默认后端（实测定案）
 
-`http://127.0.0.1:3003/v1/chat/completions` + **`swe-2-medium`**（free tier：大样本硬契约 100%(80/80)、reasoning p50=98 字符、5.9s/chunk）；备选 `swe-2-high`；`swe-2-max` 留修复器；禁用 `swe-1-7*`。免费集运行时动态筛（`/panel/api/models` `cost_tier==free` ∧ promo.active + `/v1/models` 求交 + 探活）。硬约束：每请求 ~160–566 隐藏 prompt token（网关注入 agent 系统提示，批内摊不掉）；reasoning 档 effort=模型名后缀；清单≠可用须实测白名单。付费对照 `glm-5-3-low`/`claude-sonnet-5-medium`。外部 BYOK 走 `provider_for_url` host→provider 预设表。（勘误 2026-09-17：默认后端 impl 实为 tailscale `http://100.105.212.52:3003`——`settings.py:40`/`cli.py:672` 同款，`127.0.0.1` 仅 `client.py` docstring 残留；禁用表 impl 精确两枚 `{"swe-1-7","swe-1-7-medium"}` 非 `swe-1-7*` 通配，`client.py:53`——新 `swe-1-7-*` 变体会逃逸；付费对照 impl 偏好表第 4 位是 `glm-5-2` 非 `glm-5-3-low`，`client.py:51`。）
+`http://127.0.0.1:3003/v1/chat/completions` + **`swe-2-medium`**（free tier：大样本硬契约 100%(80/80)、reasoning p50=98 字符、5.9s/chunk）；备选 `swe-2-high`；`swe-2-max` 留修复器；禁用 `swe-1-7*`。免费集运行时动态筛（`/panel/api/models` `cost_tier==free` ∧ promo.active + `/v1/models` 求交 + 探活）。硬约束：每请求 ~160–566 隐藏 prompt token（网关注入 agent 系统提示，批内摊不掉）；reasoning 档 effort=模型名后缀；清单≠可用须实测白名单。付费对照 `glm-5-3-low`/`claude-sonnet-5-medium`。外部 BYOK 走 `provider_for_url` host→provider 预设表。（勘误 2026-09-17：默认后端 impl 实为 tailscale `http://100.105.212.52:3003`——`settings.py:40`/`cli.py:672` 同款，`127.0.0.1` 仅 `client.py` docstring 残留；禁用表 impl 精确两枚 `{"swe-1-7","swe-1-7-medium"}` 非 `swe-1-7*` 通配，`client.py:53`——新 `swe-1-7-*` 变体会逃逸；付费对照 impl 偏好表第 4 位是 `glm-5-2` 非 `glm-5-3-low`，`client.py:51`；`claude-sonnet-5-medium` 付费对照全代码无踪迹——impl 偏好表共 4 枚全免费模型+denylist 两枚，若属有意取消 spec 已追记。）
 
 ## 2. 校验链（`validate/`）
 
@@ -139,7 +139,7 @@ env judge 参数：**temperature=0、max_tokens=16、3 次重试、解析 `true/
 | `length`      | zh/src 长度比 + 剥占位符后 CJK 占比                                                                      | —                                                                      | 比出 [0.25,2.50]；CJK<30% |
 | `macro`       | zh 控制序列集合 − src 集合（**+ src 命令多重集 ⊆ zh 方向检查**：`\`/`\,`/`\;`/`~` 脆弱间距命令防丢失型） | 命中结构族（`begin/end/documentclass/newcommand/usepackage` 等 31 个） | 其余新 cs                 |
 
-实测：10 类破坏 100% 检出（1323 例）、313 干净对 0 error-FP、135/138 拼错给 lev≤2 修复建议。**大样本再修**：占位符严格序守恒降软信号（`of X`→`X 的` 合法换序 ~95%）；`cs_dropped`（脆弱命令计数差）升硬判据（抓到 `\`+中文熔成 `\和` 未定义 cs 全部真炸弹）。
+实测：10 类破坏 100% 检出（1323 例）、313 干净对 0 error-FP、135/138 拼错给 lev≤2 修复建议。**大样本再修**：占位符严格序守恒降软信号（`of X`→`X 的` 合法换序 ~95%）；`cs_dropped`（脆弱命令计数差）升硬判据（抓到 `\`+中文熔成 `\和` 未定义 cs 全部真炸弹）。（勘误 2026-09-17：impl `l0.py` 共 12 项 `_check_*`——上表 7 行外另有 `_check_ph_anchor`/`_check_item_glue`/`_check_ph_in_cs`/`_check_bare_cs`/`_check_protocol_echo` 未入表。）
 
 ### 2.2 L1 tree-sitter CST 层（可选组件 `texlate[ts-validator]`）
 
@@ -178,7 +178,7 @@ env judge 参数：**temperature=0、max_tokens=16、3 次重试、解析 `true/
 10. `normalize_legacy_cjk`：`CJK/CJKutf8` → xeCJK+Fandol（lualatex→luatexja）。
 11. `use_bundled_bibliography`：`.bib` 缺失但有 `.bbl` → `\bibliography{x}` → `\input{x.bbl}`。
 12. `rebase_project_paths`：`\input/../foo.tex` 越界引用重写为包内正确相对路径。
-13. `_transcode_aux_bib`（树级，非文本 span）：`.bib/.bbl/.bst` + `.aux` 系可再生中间产物非 UTF-8 → UTF-8 转码写回；中间产物另加 8192B 截尾整形（`_trim_intermediate_tail`——XeTeX 写缓冲在边界劈断多字节字符，`\@newl@bel` 扫过 EOF 比非法字节更致命；立项 `research/latex/2026-09-16-aux-cjk-truncation.md`，`4a8d5ce`/`b6ba25a` 系）。
+13. `_transcode_support_files`（树级，非文本 span；勘误 2026-09-17：spec 原名 `_transcode_aux_bib`，impl `normalize.py:981`）：`.bib/.bbl/.bst` + `.aux` 系可再生中间产物非 UTF-8 → UTF-8 转码写回；中间产物另加 8192B 截尾整形（`_trim_intermediate_tail`——XeTeX 写缓冲在边界劈断多字节字符，`\@newl@bel` 扫过 EOF 比非法字节更致命；立项 `research/latex/2026-09-16-aux-cjk-truncation.md`，`4a8d5ce`/`b6ba25a` 系）。（勘误 2026-09-17：impl 另有 3 项未记档手术——`_neutralize_junk_files`/`_shadow_broken_system_packages`/`_sanitize_ps_comments`。）
 
 **分工铁律**：归一化层做无条件手术；条件性手术（microtype/times→newtx 等）留 fixloop——两边不得重复改同一处。
 
@@ -207,6 +207,8 @@ class Engine(Protocol):
     def rebuild_fontmaps() -> None                  # updmap-user | noop
     def filemap(fname) -> list[str]                 # file→pkg 索引
 ```
+
+（勘误 2026-09-17：impl 实为 9 成员——`name: str`、`caps: frozenset[str]`、`detect()`、`compile()`、`probe_file(fname, *, cwd)`、`install_file(fname, *, font_related)`、`rebuild_fontmaps() -> bool`、`filemap()`、`parse_log(res) -> LogInfo`，`engine.py:822-894`；`shell_escape` cap 全代码无踪迹——`XelatexEngine.caps={kpsewhich,tlmgr,updmap,recorder}`。）
 
 - xelatex：`-no-shell-escape -interaction=nonstopmode -halt-on-error -file-line-error -recorder`，≤2 pass，timeout 240s（勘误 2026-09-17：消费方均传 `halt_on_error=False` 对齐 bench 产出——worker.py/e2e.py 刻意参数，fixloop 内部引擎才用默认 True）。
 - tectonic：`-X compile --untrusted --keep-logs --keep-intermediates --makefile-rules <deps.mk> --hide secrets` + `-Z continue-on-errors`（post-spec 加注对齐 nonstopmode）；`TEXINPUTS` 不认——等价物 `-Z search-path`（勘误 2026-09-17：被 `_TECTONIC_Z_OK` 白名单安全面封锁，`engine.py:77`）；bundle pin `tlextras-2022.0r0`。
@@ -244,7 +246,7 @@ class Engine(Protocol):
 ### 5.1 两层 YAML：`taxonomy`（log→类别）+ `rules`（类别→动作）
 
 > **勘误（2026-09-16）**：实现为 `compile/fixloop/` 包（engine/cases/ctan/logparse/\_yamlish/rules.yaml）；
-> taxonomy 段现为 37 个 pattern 条目、rules 段 **36** 条（v3 整改 + 后续扩表：pstricks_dvips_preflight/eps_route/eps_to_pdf/legacy_pkg_shim/font_sub_shim/aux_scan_eof/split_glued_cs 等，HANDOFF-2026-09-16 §2.2/§6）。（勘误 2026-09-17：实 **42** taxonomy/**52** rules——计数持续滞后，以 rules.yaml 为准。）
+> taxonomy 段现为 37 个 pattern 条目、rules 段 **36** 条（v3 整改 + 后续扩表：pstricks_dvips_preflight/eps_route/eps_to_pdf/legacy_pkg_shim/font_sub_shim/aux_scan_eof/split_glued_cs 等，HANDOFF-2026-09-16 §2.2/§6）。（勘误 2026-09-17：实 **42** taxonomy/**52** rules——计数持续滞后，以 rules.yaml 为准。勘误 2026-09-17 复核：**39** taxonomy 条目/**32** category/**59** rules——`ff1a811` 一波 +4：ntheorem_style_undefine/already_def_undefine/acro_v3_key_rename/restore_support_from_src，另 detector 扩 already_def 双签 + cs_table 扩期刊宏与字体熔合族。）
 
 phase：`gate`=每轮分类后最先评估 / `precheck`=编译前一次性 / `loop`=每轮错误驱动；同 phase 按 order 升序、**每轮只应用一条**（便于归因）。
 
@@ -267,7 +269,7 @@ phase：`gate`=每轮分类后最先评估 / `precheck`=编译前一次性 / `lo
 | 15  | `minted_frozencache` | loop/130    | `minted_froz`                                | `{minted}`→`{minted2}` 一行替换（v3 吃 v2 缓存报 50 错实测）     |
 | 16  | `undefined_cs_guess` | loop/900    | `undefined_cs`                               | escalate_llm（恒最后兜底）                                       |
 
-动作原语 7 种：`scan_install / install_file / run_tool / regex_rewrite / builtin_transform / reject_route / escalate_llm`。命名函数注册表仅 3 个（`px_to_bp`/`keep_latin_tokens`/`option_clash_merge`）——社区新规则多数只写 regex，新函数才需 PR 代码。（勘误 2026-09-17：impl `TRANSFORM_FNS` **18** + `REWRITE_FNS` **2**，`builtins.py:140/1686`。）
+动作原语 7 种：`scan_install / install_file / run_tool / regex_rewrite / builtin_transform / reject_route / escalate_llm`。命名函数注册表仅 3 个（`px_to_bp`/`keep_latin_tokens`/`option_clash_merge`）——社区新规则多数只写 regex，新函数才需 PR 代码。（勘误 2026-09-17：impl `TRANSFORM_FNS` **21** + `REWRITE_FNS` **2**，`builtins.py:142/1844`。）
 
 **顺序不变量**：gate 先于一切（`missing_file`+`\documentstyle` 必须先拦，否则给 2.09 白装包）；install 先于 rewrite（缺包时不许动源码）；同 trigger 保守→激进（microtype_off 70 < times_to_newtx 80 + `(rule_id,payload)` dedup）；兜底恒最后（order 900）。防干扰：同 `(cat,pay)` 签名连续 3 轮 → `stuck`；rewrite 幂等逐条审过。
 
