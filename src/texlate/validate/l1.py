@@ -37,6 +37,7 @@ worker 双模：默认读完 stdin 批处理（spawn-per-batch，37ms 摊薄）�
 from __future__ import annotations
 
 import json
+import logging
 import os
 import queue
 import shutil
@@ -53,6 +54,8 @@ __all__ = [
     "TsResult",
     "TsValidator",
 ]
+
+log = logging.getLogger(__name__)
 
 _BATCH_TIMEOUT_S = 30.0  # 批处理 spawn 兜底超时（实测最坏 2.2MB 文件 parse 195ms）
 
@@ -216,7 +219,13 @@ class TsValidator:
                 capture_output=True,
                 timeout=120,
             )
-        except (OSError, subprocess.SubprocessError):
+        except (OSError, subprocess.SubprocessError) as e:
+            detail = (
+                e.stderr.decode(errors="replace").strip()[-300:]
+                if isinstance(e, subprocess.CalledProcessError) and e.stderr
+                else str(e)
+            )
+            log.debug("L1 ensure_deps npm i failed: %s", detail)
             return False
         return (self._node_path / "tree-sitter").is_dir()
 
