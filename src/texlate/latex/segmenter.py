@@ -75,10 +75,13 @@ from texlate.latex.tables import (
     REF_NAMES,
     TRANSPARENT_NAMES,
     VERBATIM_ENVS,
+    argspec_lookup,
+    argspec_lookup_env,
 )
 from texlate.textutil import mask_tex
 
 if TYPE_CHECKING:
+    from texlate.latex.model import ArgspecEntry
     from texlate.latex.mouth import Tok
 
 # 与 scanner.py 同源逐字：可译性口径随 v1（``+`` 折叠会把临界 run 压过
@@ -106,6 +109,13 @@ _PROTECT_TYP = {
 }
 # 组内再生保护段的配对前瞻上限（env/math/delim 扫描步数）
 _GRP_SCAN_CAP = 4000
+
+# 包加载命令：已加载包名集入 ``ScanState.pkgs`` → argspec 门控输入。
+# 全部已在 BOUNDARY_NAMES（非 preamble 文档走 row 14 字面档时同步登记）。
+_PKG_CMDS = frozenset(
+    {"usepackage", "RequirePackage", "documentclass", "documentstyle"}
+)
+_PKG_ARG_SPEC = [ArgSpec("o"), ArgSpec("m")]
 
 
 # ------------------------------------------------------------------ vtex
@@ -1136,6 +1146,14 @@ class Segmenter:
             src.unread(consumed)
             self._cover_to(fid, b)
             return
+        if t.kind == "cs" and t.text in _PKG_CMDS and t.gen == 0:
+            # preamble 包声明：抽出 ``{pkg}`` 名单登记 argspec 门控；
+            # 参数 token 回放照走 preamble 覆盖（含 \input 进来的声明）。
+            args, _e = self._args_tok(src, fid, _PKG_ARG_SPEC, b)
+            self._note_pkgs(args)
+            self._unread_args(src, args)
+            self._cover_to(fid, b)
+            return
         if t.gen > 0:
             if t.origin is not None:
                 self._cover_to(t.origin[0], t.origin[2])
@@ -1176,6 +1194,18 @@ class Segmenter:
         r"""``\\input`` 调用点字节只推进 cons 不进 vtex（输出不含该行）。"""
         if end > self._cons(fid):
             self.cons[fid] = end
+
+    def _note_pkgs(self, args: list[_ArgTok]) -> None:
+        r"""包加载命令已消费的 ``m`` 参 → 包名集入 ``state.pkgs``。
+
+        ``\\usepackage{a,b}`` 逗号名单拆分；参未实消费（零宽占位）跳过。
+        """
+        for a in args:
+            if a.spec is not None and a.spec.kind == "m" and a.fe > a.fs:
+                for raw in "".join(x.text for x in a.toks).split(","):
+                    nm = raw.strip()
+                    if nm:
+                        self.state.pkgs.add(nm)
 
     # ------------------------------------------------------------ 分派
 
@@ -1287,8 +1317,9 @@ class Segmenter:
             if kind in ("opaque", "math"):
                 self._handle_opaque_macro(t, src, m)
                 return
-            # 19. 未知命令：有 {/[ 参数 → [[CMD]]；否则逐字进 run
-            self._handle_unknown_cs(t, src)
+            # 19. 未知命令：宏表未命中先查 argspec 表（包签名驱动分派），
+            #     表外再走 {/[ 探针 → [[CMD]]；否则逐字进 run
+            self._handle_unknown_cs(t, src, name, m)
             return
         if t.kind == "mathshift":
             self._on_math(t, src)
@@ -1535,8 +1566,23 @@ class Segmenter:
         else:
             env, close_t = m.target_env, t
         reg = src.macros.lookup_env(env) if isinstance(src, Gullet) else None
+        # 环境表未命中且族表全不知 → argspec env 条目：body_role 决定体路由
+        # （verbatim/math/protect 走同名路径；text 落下方透明尾）。族表已
+        # 知的 env（含 ARG_TRANSPARENT/ENV_MANDATORY_ARG）不交给 argspec——
+        # 既有语义钉死（如 thebibliography 透明体 @X1 trap），数据侧
+        # body_role 不覆盖族表分类。
+        ae = (
+            argspec_lookup_env(env, self.state.pkgs)
+            if reg is None
+            and env not in VERBATIM_ENVS
+            and env not in MATH_ENVS
+            and env not in PROTECTED_ENVS
+            and env not in ARG_TRANSPARENT_ENVS
+            and env not in ENV_MANDATORY_ARG
+            else None
+        )
         v_begin = self._cover_to(fid, close_t.pos[2])
-        if env in VERBATIM_ENVS:
+        if env in VERBATIM_ENVS or (ae is not None and ae.body_role == "verbatim"):
             self._flush_run(v_begin.start)
             if m is not None:
                 # 宏端点的 \end 面是 \eev 形宏事件——无 \end{env} 字面可
@@ -1583,7 +1629,7 @@ class Segmenter:
             )
             self._skip_past(src, fid, end)
             return
-        if env in MATH_ENVS:
+        if env in MATH_ENVS or (ae is not None and ae.body_role == "math"):
             hit = self._find_env_end(src, env, t.pos)
             if hit is None:
                 self._flush_run(v_begin.start)
@@ -1603,7 +1649,11 @@ class Segmenter:
             )
             self._math_depth(src, 0)
             return
-        if env in PROTECTED_ENVS or (reg is not None and reg.kind == "protected"):
+        if (
+            env in PROTECTED_ENVS
+            or (reg is not None and reg.kind == "protected")
+            or (ae is not None and ae.body_role == "protect")
+        ):
             hit = self._find_env_end(src, env, t.pos)
             if hit is None:
                 self._flush_run(v_begin.start)
@@ -1621,11 +1671,13 @@ class Segmenter:
             return
         # transparent/未知/注册透明 env
         if self.in_arg:
-            transparent = env in ARG_TRANSPARENT_ENVS or (
-                reg is not None and reg.kind in ("transparent", "theorem")
+            transparent = (
+                env in ARG_TRANSPARENT_ENVS
+                or (reg is not None and reg.kind in ("transparent", "theorem"))
+                or ae is not None  # 到尾段即 body_role=text 的 argspec env
             )
             if transparent:
-                end = self._eat_env_args(src, fid, close_t.pos[2], env, reg)
+                end = self._eat_env_args(src, fid, close_t.pos[2], env, reg, ae)
                 vspan = self._cover_to(fid, end)
                 self._rappend_ph(
                     PhType.ENVTAG,
@@ -1658,7 +1710,7 @@ class Segmenter:
             )
             return
         self._flush_run(v_begin.start)
-        end = self._eat_env_args(src, fid, close_t.pos[2], env, reg)
+        end = self._eat_env_args(src, fid, close_t.pos[2], env, reg, ae)
         vrow = self._cover_to(fid, end)
         self._emit(v_begin.start, vrow.end)  # \begin 行（含吃掉的环境参）literal
         self.env_stack.append(env)
@@ -1726,8 +1778,14 @@ class Segmenter:
         self.state.warnings.append(ScanWarning("stray_end", vpos, f"\\end{{{env}}}"))
         return 0
 
-    def _eat_env_args(  # noqa: C901, PLR0912 — opt/mand 两段判定平铺即 v1 行序
-        self, src: TokenSource, fid: int, pos: int, env: str, reg: object | None
+    def _eat_env_args(  # noqa: C901, PLR0912, PLR0913, PLR0917 — opt/mand 两段判定平铺即 v1 行序
+        self,
+        src: TokenSource,
+        fid: int,
+        pos: int,
+        env: str,
+        reg: object | None,
+        ae: ArgspecEntry | None = None,
     ) -> int:
         r"""``\begin`` 行尾 token 版：版式 ``[opt]`` + 强制 ``{arg}`` 数。
 
@@ -1736,7 +1794,10 @@ class Segmenter:
         ``ENV_MANDATORY_ARG`` ∪ 登记 ``spec`` 的 ``m`` 槽数。v1
         ``ws_skip_arg`` 结果恒入 ``pos``——ws token 拉出即消费（字节
         随 ``_cover_to`` 进 begin 行），只参数 token 未中才 ``unread``。
+        ``ae`` 非空且带签名 → :meth:`_eat_env_args_spec` 签名驱动版。
         """
+        if ae is not None and ae.signature:
+            return self._eat_env_args_spec(src, fid, pos, env, ae)
         pulled: list[Tok] = []
         x = self._peek_nonspace(src, pulled)
         if x is None:
@@ -1779,6 +1840,46 @@ class Segmenter:
                 break
             pos = hit[1].pos[2]
         return pos
+
+    def _eat_env_args_spec(
+        self, src: TokenSource, fid: int, pos: int, env: str, e: ArgspecEntry
+    ) -> int:
+        r"""Argspec 签名驱动的 ``\begin`` 尾参：非文本参吃掉进 LITERAL。
+
+        ``text``/``opt-text`` 角色参回吐主流——beamer
+        ``\\begin{frame}{Title}`` 的 ``d{}`` 标题吃进字面段就永不进
+        chunk（今日 ``{title}`` 组随正文流的召回面不能回退）。可选位
+        （``o``/``O``/``d``/``D``）仍过 ``env_opt_is_format``——数据里
+        ``skip`` 角色对 ``[opt]`` 只是「非文本」缺省标注，定理标题
+        ``[Name]`` 不归其管（F6 语义保持）。
+        """
+        spec = _chunk_spec_cached(e.signature)
+        args, _end = self._args_tok(src, fid, spec, pos, allow_single_token=True)
+        eat_end = pos
+        for k, a in enumerate(args):
+            if a.fe <= a.fs:
+                continue  # 零宽占位（all_toks 空）
+            kind = a.spec.kind if a.spec is not None else ""
+            role = e.arg_roles[k] if k < len(e.arg_roles) else "skip"
+            if kind in ("o", "O", "d", "D"):
+                # 可选位：role=text 的定界参是标题（frame ``{Title}``）
+                # 直接回吐——``env_opt_is_format`` 会把单字符标题误判
+                # 成位置字母；``d<>`` 叠层 spec 恒版式（``+-`` 内容不在
+                # 版式字符表）；其余角色过版式判定（``skip`` 对 ``[opt]``
+                # 只是缺省标注，定理 ``[Name]`` 不归其管——F6 语义保持）。
+                content = self.file_texts[fid][a.cs : a.ce]
+                if role == "text" or (
+                    a.spec.delim != "<>" and not env_opt_is_format(env, content)
+                ):
+                    self._unread_args(src, args[k:])
+                    return eat_end
+                eat_end = a.fe
+                continue
+            if role in ("text", "opt-text"):
+                self._unread_args(src, args[k:])
+                return eat_end
+            eat_end = a.fe
+        return eat_end
 
     def _env_with_mined(
         self,
@@ -2750,6 +2851,10 @@ class Segmenter:
             args, e2 = self._args_tok(src, fid, spec, b)
             if any(a.fe > a.fs for a in args):
                 end = e2
+                if name in _PKG_CMDS:
+                    # 无 preamble 文档（无 \begin{document}）：包声明走
+                    # 字面档时同步登记 argspec 门控
+                    self._note_pkgs(args)
             else:
                 self._unread_args(src, args)
         vspan = self._cover_to(fid, end)
@@ -2878,13 +2983,23 @@ class Segmenter:
             t,
         )
 
-    def _handle_unknown_cs(self, t: Tok, src: TokenSource) -> None:
-        r"""未知命令（v1 row19）：有 ``{``/``[`` 参数 → ``[[CMD]]`` 进 run。
+    def _handle_unknown_cs(
+        self, t: Tok, src: TokenSource, name: str = "", m: object | None = None
+    ) -> None:
+        r"""未知命令（v1 row19）：argspec 表兜底 + ``{``/``[`` 探针。
 
-        ``allow_single_token=False``（泄漏机制 A：禁单 token 参——
-        ``\foo x`` 的 ``x`` 是正文）；参数搜索不跨 ``eol_par``。
+        宏表未命中（``m is None``）先查 ``argspec_lookup``——已加载包
+        的签名驱动 policy 分派；表外维持探针：参数命中 → ``[[CMD]]``
+        进 run，否则逐字。``allow_single_token=False``（泄漏机制 A：
+        禁单 token 参——``\foo x`` 的 ``x`` 是正文）；参数搜索不跨
+        ``eol_par``。
         """
         fid, _a, b = t.pos
+        if m is None:
+            e = argspec_lookup(name or t.text, self.state.pkgs)
+            if e is not None:
+                self._handle_argspec_cs(t, src, e)
+                return
         args, end = self._args_tok(
             src, fid, 6, b, has_opt=True, allow_single_token=False
         )
@@ -2899,6 +3014,195 @@ class Segmenter:
             return
         self._unread_args(src, args)
         self._rappend_tok(t)
+
+    def _handle_argspec_cs(self, t: Tok, src: TokenSource, e: ArgspecEntry) -> None:
+        r"""Argspec 表命中分派：policy → literal/boundary/protect/chunk-arg。
+
+        签名即权威（与探针不同：参数读 ``e.signature`` 位序，角色表
+        ``e.arg_roles`` 对齐）。``literal``/``transparent`` 名进 run
+        参数随主流；``boundary`` flush+LITERAL；``protect``/``key``/
+        ``verbatim``（+in_arg 的 boundary）整调用 ``[[CMD]]``；
+        ``chunk-arg`` 走 :meth:`_emit_argspec_chunks`。
+        """
+        fid, _a, b = t.pos
+        if e.policy in ("literal", "transparent"):
+            self._rappend_tok(t)
+            return
+        spec = _chunk_spec_cached(e.signature)
+        args, end = self._args_tok(src, fid, spec, b, allow_single_token=True)
+        if e.policy == "chunk-arg":
+            self._emit_argspec_chunks(t, src, e, args, end, b)
+            return
+        if not any(a.fe > a.fs for a in args):
+            self._unread_args(src, args)
+            if e.policy == "boundary" and not self.in_arg:
+                vspan = self._cover_to(fid, b)
+                self._flush_run(vspan.start)
+                self._emit(vspan.start, vspan.end)
+                return
+            if e.policy in ("protect", "key", "verbatim"):
+                # 签名零参/参数缺席但本体仍要保护（\printindex 类）——
+                # 裸名进 run 会被译文面当真词处理
+                vspan = self._cover_to(fid, b)
+                self._rappend_ph(
+                    PhType.CMD,
+                    self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
+                    vspan,
+                    t,
+                )
+                return
+            self._rappend_tok(t)
+            return
+        vspan = self._cover_to(fid, end)
+        if e.policy == "boundary" and not self.in_arg:
+            self._flush_run(vspan.start)
+            self._emit(vspan.start, vspan.end)
+            return
+        self._rappend_ph(
+            PhType.CMD,
+            self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
+            vspan,
+            t,
+        )
+
+    def _emit_argspec_chunks(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 — 参序 literal/chunk 交替平铺即 _handle_chunk_arg 多参推广
+        self,
+        t: Tok,
+        src: TokenSource,
+        e: ArgspecEntry,
+        args: list[_ArgTok],
+        end: int,
+        b: int,
+    ) -> None:
+        r"""chunk-arg policy：``text``/``opt-text`` 角色参 → 独立 chunk。
+
+        ``_handle_chunk_arg`` 的推广：consumed 参按位序「字面段（含
+        括号与非文本参）→ 子扫渲染 → CHUNK_REF」交替发射；单 token
+        文本参起截停回吐主流（泄漏机制 A 同判）。无文本参但有消费
+        → 整调用 ``[[CMD]]``；零消费 → 名进 run。
+        """
+        fid = t.pos[0]
+        cons0 = self._cons(fid)
+        consumed = [a for a in args if a.fe > a.fs]
+        cut = len(args)
+        for k, a in enumerate(args):
+            if a.fe <= a.fs:
+                continue
+            role = e.arg_roles[k] if k < len(e.arg_roles) else "skip"
+            if role in ("text", "opt-text") and (a.cs, a.ce) == (a.fs, a.fe):
+                cut = k
+                break
+        if cut < len(args):
+            self._unread_args(src, args[cut:])
+            consumed = [a for a in args[:cut] if a.fe > a.fs]
+            end = consumed[-1].fe if consumed else b
+        if not consumed:
+            self._rappend_tok(t)
+            return
+        text_k = {
+            k
+            for k, a in enumerate(args[:cut])
+            if a.fe > a.fs
+            and (e.arg_roles[k] if k < len(e.arg_roles) else "skip")
+            in ("text", "opt-text")
+        }
+        if text_k and self.gen >= MAX_GEN:
+            self.state.warnings.append(
+                ScanWarning("gen_overflow", len(self.vt), f"chunk:{e.name}")
+            )
+            text_k = set()
+        if not text_k:
+            vspan = self._cover_to(fid, end)
+            self._rappend_ph(
+                PhType.CMD,
+                self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
+                vspan,
+                t,
+            )
+            return
+        # 参序 op 列：("lit", end) 覆盖到 end；("arg", _ArgTok) 子扫文本参。
+        # 非文本参/括号字节随相邻 lit 段覆盖——首 op 恒为 lit（text_k 非空）。
+        ops: list[tuple[str, int | _ArgTok]] = []
+        for k, a in enumerate(args[:cut]):
+            if a.fe <= a.fs:
+                continue
+            if k in text_k and self.file_texts[fid][a.cs : a.ce].strip():
+                ops.append(("lit", a.cs))
+                ops.append(("arg", a))
+            # else：参数字节并入下一段 lit 覆盖
+        ops.append(("lit", end))
+        if self.in_arg:
+            texts: list[str] = []
+            vstart = -1
+            for op, x in ops:
+                if op == "lit":
+                    v = self._cover_to(fid, int(x))
+                    if vstart < 0:
+                        vstart = v.start
+                    texts.append(self.vt.slice(v.start, v.end))
+                    continue
+                texts.append(self._subscan_render(x))
+            text = "".join(texts)
+            if vstart >= 0:
+                self._rappend(
+                    self._gap_surface(fid, cons0, t.pos[1]) + text,
+                    text,
+                    Span(vstart, len(self.vt)),
+                )
+            return
+        v0 = self._cover_to(fid, int(ops[0][1]))
+        self._flush_run(v0.start)
+        self._emit(v0.start, v0.end)
+        cur_v = v0.end
+        for op, x in ops[1:]:
+            if op == "lit":
+                v = self._cover_to(fid, int(x))
+                self._emit(v.start, v.end)
+                cur_v = v.end
+                continue
+            rendered = self._subscan_render(x)
+            gspan = Span(cur_v, len(self.vt))
+            refs = "".join(
+                self._new_chunk(part, e.name, gspan, part)
+                for part in self._split_rendered(rendered)
+            )
+            self.pieces.append(
+                Piece(
+                    PieceKind.CHUNK_REF,
+                    gspan,
+                    refs,
+                    self.env_stack[-1] if self.env_stack else None,
+                )
+            )
+            cur_v = gspan.end
+
+    def _subscan_render(self, a: _ArgTok) -> str:
+        r"""文本参内容 token → in_arg 子扫渲染串（含尾字节兜底 + 注释 ph）。
+
+        ``_handle_chunk_arg`` 的子扫段抽出：覆盖经共享 vt/cons 直落父
+        区间（``a.cs`` 前的字面段由调用方先盖），``a.ce`` 内残余字节
+        补盖进渲染串（F-尾丢同款）。
+        """
+        fid = a.fid
+        sub = self.spawn(in_arg=True)
+        sub.scan(_ListSource(list(a.toks)), self.file_texts)
+        sub_end = len(self.vt)
+        self._cover_to(fid, a.ce)
+        rendered = "".join(p.text for p in sub.pieces)
+        if sub_end < len(self.vt):
+            rendered += self.vt.slice(sub_end, len(self.vt))
+        return self._arg_comment_ph(rendered)
+
+    def _arg_comment_ph(self, rendered: str) -> str:
+        r"""渲染串内裸 ``%`` 注释 → ``[[COMMENT]]``（机制 B 同款）。"""
+        return _ARG_COMMENT_RX.sub(
+            lambda m: (
+                m.group(0)
+                if m.group(0).startswith("\\")
+                else self._ph(PhType.COMMENT, m.group(0))
+            ),
+            rendered,
+        )
 
 
 _CHUNK_SPEC_CACHE: dict[str, list[ArgSpec]] = {}

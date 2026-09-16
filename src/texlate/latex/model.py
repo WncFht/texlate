@@ -137,6 +137,29 @@ class EnvEntry:
     kind: str = "transparent"  # "protected" | "transparent"（启发式）
 
 
+@dataclass(frozen=True, slots=True)
+class ArgspecEntry:
+    r"""``data/argspec.json`` 一行：CTAN 宏/环境的包归属 + xparse 签名 + 参数角色。
+
+    ``arg_roles`` 与 ``signature`` token 位序对齐：``text``/``opt-text``
+    可译、``key``/``verbatim``/``skip`` 保护。``policy`` 兜底行为：
+    ``chunk-arg | transparent | key | verbatim | protect | boundary |
+    literal``（env 侧 ``body_role``: ``text | verbatim | math |
+    protect``）。``guessed`` = 签名是族规则推断（source 含
+    ``guessed-signature``），命中可审计回滚。``also_in`` = 跨包
+    重名登记（同名亦由这些包提供）。
+    """
+
+    name: str
+    package: str
+    signature: str = ""
+    arg_roles: tuple[str, ...] = ()
+    policy: str = "protect"
+    body_role: str = ""
+    guessed: bool = False
+    also_in: frozenset[str] = frozenset()
+
+
 @dataclass(slots=True)
 class ScanWarning:
     """可观测性（泄漏类 bug 的第一手线索）。"""
@@ -155,7 +178,7 @@ class ScanResult:
     protected_tex: str
     chunks: list[Chunk]
     ph_map: dict[str, str]  # "[[TYPE_n]]" → 原文段（可内嵌占位符）
-    macros: MacroTable | GulletMacroTable
+    macros: GulletMacroTable  # scope 链单一表示（v1 结果经 flat 表导出转换）
     pieces: list[Piece] = field(default_factory=list)
     inputs: list[tuple[int, str]] = field(default_factory=list)
     warnings: list[ScanWarning] = field(default_factory=list)
@@ -182,7 +205,7 @@ class ScanState:
     issuer: PlaceholderIssuer
     ph_map: dict[str, str]
     chunks: list[Chunk]
-    macros: MacroTable | GulletMacroTable
+    macros: MacroTable | GulletMacroTable  # v1 平表 / v2 scope 链（臂内状态）
     inputs: list[tuple[int, str]]
     warnings: list[ScanWarning]
     ifflags: dict[str, bool] = field(default_factory=dict)
@@ -190,6 +213,9 @@ class ScanState:
     ph_reserved: set[str] = field(
         default_factory=set
     )  # 源文自带 [[X_n]] 形字面 → 签发避让
+    pkgs: set[str] = field(
+        default_factory=set
+    )  # \usepackage/\RequirePackage/\documentclass 已加载包名 → argspec 门控
 
 
 # ---------------------------------------------------------------- 字符级原语

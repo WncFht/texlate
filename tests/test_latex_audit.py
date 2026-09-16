@@ -161,7 +161,7 @@ def test_audit_def_bodyless_warns() -> None:
     assert res.macros.lookup("c") is None
     assert any(w.kind == "def_parse_fail" for w in res.warnings)
     res = parse_tex_v1("\\def\\d#1\n\nNext para {grp} more")
-    assert "d" not in res.macros.cmds
+    assert res.macros.lookup("d") is None
     assert any(w.kind == "def_parse_fail" for w in res.warnings)
     assert reconstruct(res) == "\\def\\d#1\n\nNext para {grp} more"
 

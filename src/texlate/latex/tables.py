@@ -7,9 +7,12 @@ spike ``miniscanner.py`` 常量区的扶正搬迁（含 discard 修正后的终�
 
 from __future__ import annotations
 
+import json
 import re
+from functools import cache
+from importlib import resources
 
-from texlate.latex.model import ArgSpec
+from texlate.latex.model import ArgSpec, ArgspecEntry
 from texlate.textutil import DEAD_ENVS as _DEAD_ENVS
 from texlate.textutil import VERBATIM_ENVS as _VERBATIM_ENVS
 
@@ -508,3 +511,70 @@ BOUNDARY_TAIL: dict[str, list[ArgSpec]] = {
     "usepackage": [ArgSpec("o"), ArgSpec("m")],
     "RequirePackage": [ArgSpec("o"), ArgSpec("m")],
 }
+
+# ---------------------------------------------------------------- argspec.json
+
+# 非真实 ``\usepackage`` 的包名：内核命令 + 合成来源族，无条件激活。
+# 真实包名（beamer/exam/hyperref/…）须 ``ScanState.pkgs`` 命中才启用——
+# 否则 ``\frame``/``\partlabel`` 这类包私有名会误吃普通文档参数。
+ARGSPEC_ALWAYS_PKGS = frozenset(
+    {
+        "latex2e",
+        "manual",
+        "miniscanner",
+        "math-literal",
+        "latex-literal",
+        "single-char",
+        "parser-primitive",
+        "latex-utensils",
+    }
+)
+
+
+@cache
+def argspec_tables() -> tuple[dict[str, ArgspecEntry], dict[str, ArgspecEntry]]:
+    """``data/argspec.json`` → ``(macros, envs)`` 两张 ``name → ArgspecEntry`` 表。
+
+    懒加载 + 进程级缓存（~500KB JSON 只在首个未知 cs 命中时读一次）。
+    条目照抄 JSON 字段；``guessed`` = source 含 ``guessed-signature``
+    （族规则推断签名，审计可回滚）；``also_in`` 收跨包重名登记。
+    """
+    raw = resources.files("texlate.latex").joinpath("data/argspec.json")
+    data = json.loads(raw.read_text(encoding="utf-8"))
+    macros: dict[str, ArgspecEntry] = {}
+    envs: dict[str, ArgspecEntry] = {}
+    for key, dst in (("macros", macros), ("environments", envs)):
+        for name, e in data.get(key, {}).items():
+            dst[name] = ArgspecEntry(
+                name=name,
+                package=e.get("package", ""),
+                signature=e.get("signature", ""),
+                arg_roles=tuple(e.get("arg_roles", ())),
+                policy=e.get("policy", "protect"),
+                body_role=e.get("body_role", ""),
+                guessed="guessed-signature" in e.get("source", ()),
+                also_in=frozenset(e.get("also_in", "").split()),
+            )
+    return macros, envs
+
+
+def argspec_lookup(name: str, pkgs: set[str]) -> ArgspecEntry | None:
+    r"""未知控制序列查表：``package``/``also_in`` 命中已加载包 ∪ 恒激活族。"""
+    e = argspec_tables()[0].get(name)
+    if e is None:
+        return None
+    allowed = pkgs | ARGSPEC_ALWAYS_PKGS
+    if e.package in allowed or e.also_in & allowed:
+        return e
+    return None
+
+
+def argspec_lookup_env(name: str, pkgs: set[str]) -> ArgspecEntry | None:
+    r"""``argspec_lookup`` 的环境侧同名物（``\\begin{X}`` 的 X）。"""
+    e = argspec_tables()[1].get(name)
+    if e is None:
+        return None
+    allowed = pkgs | ARGSPEC_ALWAYS_PKGS
+    if e.package in allowed or e.also_in & allowed:
+        return e
+    return None

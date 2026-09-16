@@ -29,12 +29,13 @@ from itertools import pairwise
 from pathlib import Path
 
 from texlate.latex.flatten import strip_doc_shell
+from texlate.latex.macro_table import MacroTable as _FlatMacroTable
 from texlate.latex.macro_table import (
     body_has_text,
     classify_body,
     protected_param_positions,
 )
-from texlate.latex.model import MacroKind, ScanWarning
+from texlate.latex.model import ArgSpec, MacroKind, ScanWarning
 from texlate.latex.mouth import CC_LETTER, CC_OTHER, CatTable, Mouth, Tok
 from texlate.latex.tables import (
     BOUNDARY_NAMES,
@@ -213,6 +214,108 @@ class MacroTable:
     def resolve(entry: Entry | None) -> MacroDef | IfCond | IfSetter | Tok | str | None:
         """``Alias`` 解引用一层（快照语义）；其余原样返回。"""
         return entry.target if isinstance(entry, Alias) else entry
+
+
+def _spec_to_args(spec: list[ArgSpec]) -> list[Arg]:
+    """``ArgSpec``（v1 字节层签名）→ ``Arg``（gullet 读参槽）映射。
+
+    ``t`` 试字符归 ``star``（缺席不算失配——literal_match 会 raise）；
+    ``d``/``D`` 即定界可选 → ``o`` 带自定界括号；``r``/``R`` 定界强制
+    → ``delim``（闭符单 token）；``v``/``b`` 无对位 → ``m`` 近似。
+    """
+    out: list[Arg] = []
+    for s in spec:
+        k = s.kind
+        if k == "m" or k in ("v", "b"):
+            out.append(Arg("m"))
+        elif k in ("o", "O"):
+            d = (
+                [Tok("other", ch, (-1, -1, -1)) for ch in s.default]
+                if s.default is not None
+                else None
+            )
+            out.append(Arg("o", default=d))
+        elif k == "s":
+            out.append(Arg("star"))
+        elif k == "t":
+            out.append(Arg("star", char=s.delim[0] if s.delim else "*"))
+        elif k in ("d", "D"):
+            out.append(
+                Arg(
+                    "o",
+                    open=s.delim[0] if s.delim else "[",
+                    close=s.delim[-1] if s.delim else "]",
+                )
+            )
+        elif k in ("r", "R"):
+            out.append(
+                Arg(
+                    "delim",
+                    delim=[Tok("other", s.delim[-1], (-1, -1, -1))]
+                    if s.delim
+                    else [Tok("rbrace", "}", (-1, -1, -1))],
+                )
+            )
+        elif k == "e":
+            out.append(
+                Arg(
+                    "e",
+                    delim=[Tok("other", ch, (-1, -1, -1)) for ch in s.delim],
+                )
+            )
+    return out
+
+
+def export_flat_macros(flat: _FlatMacroTable) -> MacroTable:
+    r"""v1 平表 ``MacroTable`` → scope 链表（``ScanResult.macros`` 单型收敛）。
+
+    ``MacroEntry`` → ``MacroDef``：OPAQUE→``opaque``、TRANSPARENT→
+    ``transparent_inline``（体含文本不展开、调用点保护分流——与 gullet
+    pass-through 语义同）、ENV_BEGIN/ENV_END→同名端点、LITERAL→
+    ``IfSetter``（``\\Xtrue``/``\\Xfalse`` 旗标语义）。body 经 ``Mouth``
+    重词法成 token 列（file_id=-1 虚源——导出表只供查询面，body 不再
+    上流连）。``envs`` 同理进 ``env_scopes`` 底帧。
+    """
+    out = MacroTable()
+    for name, e in flat.cmds.items():
+        if e.kind is MacroKind.LITERAL:
+            # \Xtrue/\Xfalse：注册即 IfSetter（v2 \newif 同态）
+            if name.endswith("false"):
+                out.set(name, IfSetter(name[:-5], value=False), scope="global")
+            else:
+                out.set(name, IfSetter(name[:-4], value=True), scope="global")
+            continue
+        kind = {
+            MacroKind.OPAQUE: "opaque",
+            MacroKind.TRANSPARENT: "transparent_inline",
+            MacroKind.ENV_BEGIN: "env_begin",
+            MacroKind.ENV_END: "env_end",
+        }[e.kind]
+        body = list(Mouth(e.body, -1, CatTable())) if e.body else []
+        out.set(
+            name,
+            MacroDef(
+                name=name,
+                spec=_spec_to_args(e.spec),
+                body=body,
+                kind=kind,
+                target_env=e.target_env,
+                protect_args=e.protect_args,
+                scope="global",
+                src=(-1, e.def_site, e.def_site),
+            ),
+            scope="global",
+        )
+    for name, e in flat.envs.items():
+        out.set_env(
+            EnvDef(
+                name=name,
+                spec=[Arg("m")] * e.nargs,
+                kind="protected" if e.kind == "protected" else "transparent",
+            ),
+            scope="global",
+        )
+    return out
 
 
 # ------------------------------------------------------------------ 常量

@@ -57,7 +57,7 @@ def test_row2_def_delimited_degrades() -> None:
     本断言钉 ``parse_tex_v1``，守卫并存期 v1 腿行为不变。
     """
     res = parse_tex_v1(DOC % "\\def\\f(#1){x#1}\nAfter \\f(y).")
-    assert "f" not in res.macros.cmds
+    assert res.macros.lookup("f") is None
     assert any(w.kind == "def_parse_fail" for w in res.warnings)
     assert reconstruct(res) == DOC % "\\def\\f(#1){x#1}\nAfter \\f(y)."
 

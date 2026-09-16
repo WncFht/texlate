@@ -27,6 +27,7 @@ import re
 from bisect import bisect_left
 from typing import NamedTuple
 
+from texlate.latex.gullet import export_flat_macros
 from texlate.latex.macro_table import (
     parse_argspec,
     register_macros_in,
@@ -432,7 +433,7 @@ class Scanner:
             protected_tex="".join(p.text for p in self.pieces),
             chunks=self.state.chunks,
             ph_map=self.state.ph_map,
-            macros=self.state.macros,
+            macros=export_flat_macros(self.state.macros),
             pieces=self.pieces,
             inputs=self.state.inputs,
             warnings=self.state.warnings,
