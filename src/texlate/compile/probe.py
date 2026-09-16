@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING
 
 from texlate.textutil import decode_tex
 
+from .engine import _MINTED_FROZEN_RE
 from .mask import visible_tex
 
 if TYPE_CHECKING:
@@ -48,7 +49,6 @@ _INPUT_BARE_RE = re.compile(r"\\input\s+([^\s{}%\\]+)")
 _DOC_BEGIN_RE = re.compile(r"\\begin\s*\{document\}")
 #: 声明名噪声过滤（fixloop static_precheck 同款）：滤掉 `\@tempb` 类误捕。
 _NAME_RE = re.compile(r"^[\w./+-]+$")
-_MINTED_FROZEN_RE = re.compile(r"frozencache")
 
 #: 声明包名 → (信号, 说明)。信号集：``xelatex`` = tectonic xdvipdfmx 硬墙；
 #: ``shell_escape`` = 需 ``\write18``（xelatex flags 承载，tectonic
