@@ -99,6 +99,10 @@ _MEDIA = {
     "zh-src.zip": "application/zip",
     "compile.log": "text/plain; charset=utf-8",
     "md": "application/zip",
+    "zh.docx": (
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    ),
+    "zh.epub": "application/epub+zip",
 }
 
 
@@ -612,15 +616,12 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
     # ------------------------------------------------------------ §2.4 upload
 
     def _check_upload_route(route: str, babeldoc: str | None, filename: str) -> None:
-        """魔数路由 → 错误面：docx/epub 501、unknown 400、pdf 无 babeldoc 501。"""
-        if route in ("docx", "epub"):
-            raise _ApiError(
-                501,
-                {
-                    "detail": f"{route} 支持在 M2 之前不可用",
-                    "code": "unsupported_format",
-                },
-            )
+        """魔数路由 → 错误面：unknown 400、pdf 无 babeldoc 501。
+
+        docx/epub 经 ``export_document`` 双语插译通路（worker ``_run_doc``），
+        转换器是进程内 export 包（bs4/lxml/python-docx 均为硬依赖），无外部
+        工具探测面。
+        """
         if route == "unknown":
             raise _ApiError(
                 400,
@@ -667,7 +668,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
 
     @app.post("/api/upload")
     async def upload(request: Request) -> Response:
-        """Multipart 上传：魔数路由 upload_tex/upload_pdf（§2.4）。"""
+        """Multipart 上传：魔数路由 upload_tex/upload_pdf/docx/epub（§2.4）。"""
         form = await _parse_multipart(request)
         file = form.get("file")
         if not isinstance(file, UploadPart):

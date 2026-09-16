@@ -211,12 +211,12 @@ class TestUpload:
         assert r.status_code == HTTPStatus.NOT_IMPLEMENTED
         assert r.json()["code"] == "unsupported_format"
 
-    def test_docx_501(self, client: TestClient) -> None:
+    def test_docx_202(self, client: TestClient) -> None:
         r = client.post(
             "/api/upload",
             files={"file": ("a.docx", _docx(), "application/octet-stream")},
         )
-        assert r.status_code == HTTPStatus.NOT_IMPLEMENTED
+        assert r.status_code == HTTPStatus.ACCEPTED
 
     def test_unknown_400(self, client: TestClient) -> None:
         r = client.post(
