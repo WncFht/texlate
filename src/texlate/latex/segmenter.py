@@ -106,6 +106,39 @@ _PROTECT_TYP = {
 }
 # 组内再生保护段的配对前瞻上限（env/math/delim 扫描步数）
 _GRP_SCAN_CAP = 4000
+#: 组内 consumed marker 的非副作用白名单（input 换源 / if 选支回放）；
+#: 其余 tag（def 族/let/catcode/newif/ifundefined…）都在展开时改过宏表，
+#: surface 无法再生其副作用——命中即整组回 literal（_close_group）。
+_GRP_FLOW_TAGS = ("input:", "input_tag:", "endinput", "if:", "fi:")
+
+# 数学内正文参命令：``{..}`` 参重进文本态，体内 ``$`` 属组内配对、不关外
+# 层数学——``_on_math`` 体扫遇此族整参跳扫（``\text{...$x$...}`` 在内层
+# ``$`` 截断外层 = 0806.3472 ``missing_character`` 残留面）。``parbox`` 类
+# 多参命令不在列（正文非首参，定序跳扫够不着）。
+_MATH_TEXTARG_OPT_CAP = 2  # ``makebox``/``framebox`` 式 ``[opt]`` 前缀上限
+_MATH_TEXTARG = frozenset(
+    {
+        "text",
+        "intertext",
+        "shortintertext",
+        "mbox",
+        "hbox",
+        "fbox",
+        "makebox",
+        "framebox",
+        "emph",
+        "textnormal",
+        "textrm",
+        "textit",
+        "textbf",
+        "textsf",
+        "texttt",
+        "textsc",
+        "textsl",
+        "textup",
+        "textmd",
+    }
+)
 
 
 def _cite_ref_type(name: str) -> PhType | None:
@@ -377,6 +410,7 @@ class Segmenter:
         self._open_vspan: Span | None = None  # 该组在 vtex 的落位
         self._open_toks: list[Tok] = []  # 组成员 token（surface 收组时产）
         self._open_pfx = ""  # 展开组调用点前的间隙 surface 前缀
+        self._open_side_effect = False  # 组内展开执行过副作用（def 族/let/…）
         self._run_pending: dict[str, str] = {}  # 组内 surface ph（chunk 化才入 ph_map）
         self._cov_origin: dict[int, int] = {}  # fid → 上次 _cover_to 的 pre-cons
         self._stop = False  # \end{document}/\endinput 顶层截停
@@ -734,6 +768,7 @@ class Segmenter:
         self._open_vspan = vspan
         self._open_toks = []
         self._open_pfx = pfx
+        self._open_side_effect = False
 
     def _close_group(self) -> None:
         """收组：surface 进 run 一项，ident = ``[[EXPAND_n]]``（体=调用切片）。
@@ -743,8 +778,21 @@ class Segmenter:
         """
         if self._open_origin is None or self._open_vspan is None:
             return
-        segs = self._group_surface()
         vspan = self._open_vspan
+        if self._open_side_effect:
+            # 组内展开执行过副作用（def 族/let/catcode/newif…——consumed
+            # marker 不回放）：surface 骨架再生不出等价语义
+            # （\makecommand→\foreach 空壳，\xdef 体被 gullet 吃掉），
+            # 整组回 literal——顶层 _on_consumed 同款 "def 串不落 chunk"。
+            self._flush_run(vspan.start)
+            self._emit(vspan.start, vspan.end)
+            self._open_origin = None
+            self._open_vspan = None
+            self._open_toks = []
+            self._open_pfx = ""
+            self._open_side_effect = False
+            return
+        segs = self._group_surface()
         # 零宽 vspan = callsite 已盖（\end{tabular}→\@checkend 之类内层展开）——
         # 体恒空、identity 无需占位；签发只会零宽 run literal 冲刷时被
         # ``_emit_text`` 连 piece 带 token 丢掉 → dead_ph
@@ -1337,7 +1385,11 @@ class Segmenter:
                 if self._in_group(t):
                     # 组内 marker（gen>0）：消费的是定义体区段（早已覆盖），
                     # 不是流边界——组界不破；input 型仍记 inputs[]。
+                    # input/if/fi 是纯控制流；其余（def 族/let/catcode…）
+                    # 已改宏表副作用 → 记标，收组时整组回 literal。
                     self._note_input(t)
+                    if not t.text.startswith(_GRP_FLOW_TAGS):
+                        self._open_side_effect = True
                     continue
                 self._close_group()
                 self._on_consumed(t)
@@ -1647,6 +1699,12 @@ class Segmenter:
                     src.unread([n2])
                 body.append(x)
                 continue
+            if x.kind == "cs" and x.text in _MATH_TEXTARG:
+                # \text 族正文参重进文本态——体内（含嵌套组）$ 属组内配
+                # 对，不跳扫会在内层 $ 处截断外层数学（0806.3472 残留）。
+                body.append(x)
+                self._math_skip_textarg(src, body)
+                continue
             body.append(x)
         if end_tok is None:
             cons0 = self._cons(fid)
@@ -1663,8 +1721,8 @@ class Segmenter:
             )
             self.state.warnings.append(ScanWarning("unpaired_dollar", vspan.start, "$"))
             if body:
-                if x is None:
-                    # raw 扫描耗尽源：栈顶 Mouth 已被 read() 弹栈，unread 只
+                if x is None and isinstance(src, Gullet):
+                    # Gullet EOF 中止：栈顶 Mouth 已被 read() 弹栈，unread 只
                     # 会建 file_id<0 合成源——主循环尾扫抢先整盖 [cons, EOF)
                     # → 回放 token 全零宽 → $\omega$ 类 ph 体空串静默丢。
                     # 余下字节直接 LITERAL 保真（字节全保，\end{document} 安全）。
@@ -1672,12 +1730,64 @@ class Segmenter:
                     tail = self._cover_to(fid, len(self.file_texts[fid]))
                     self._emit(tail.start, tail.end)
                 else:
+                    # eol_par 中止，或 _ListSource 子扫耗尽——后者 unread
+                    # 同队回插保序、无弹栈合成源问题，恒走回放（否则子扫
+                    # 的 EOF 会把 [cons,文件尾) 整段 LITERAL 抢走主扫字节）。
                     src.unread(body)
             return
         eb = end_tok.pos[2]
         vspan = self._cover_to(fid, eb)
         ph = self._ph(PhType.MATH, self.vt.slice(vspan.start, vspan.end))
         self._rappend_ph(ph, vspan, t)
+
+    @staticmethod
+    def _skip_balanced(src: TokenSource, body: list[Tok], pair: str) -> None:
+        r"""开符已进 ``body`` → 读到配对闭符止（嵌套计深；流尽自然终）。
+
+        ``pair`` ∈ ``"{}"``/``"[]"``——brace 按 kind 判（``\{`` 转义是 cs
+        不误算），bracket 按 ``other``+text 判。
+        """
+        open_kind, open_ch = ("lbrace", "{") if pair == "{}" else ("other", "[")
+        close_kind, close_ch = ("rbrace", "}") if pair == "{}" else ("other", "]")
+        depth = 1
+        while depth:
+            z = src.read()
+            if z is None:
+                return
+            body.append(z)
+            if z.kind == open_kind and z.text == open_ch:
+                depth += 1
+            elif z.kind == close_kind and z.text == close_ch:
+                depth -= 1
+
+    def _math_skip_textarg(self, src: TokenSource, body: list[Tok]) -> None:
+        r"""``\text`` 族正文参整段收进 ``body``：``*``?+``[opt]``≤2+``{..}`` 定序跳扫。
+
+        读到的 token 全进 ``body`` 两路均安全：paired 路只凭 vspan 盖字节、
+        body 不参与；unpaired 路 ``unread(body)`` 原序回放。参非 ``{..}``
+        打头（病态写法）则前缀按原样并入、跳扫提前返回。
+        """
+        opts = 0
+        star_ok = True
+        while True:
+            y = src.read()
+            if y is None:
+                return
+            body.append(y)
+            if y.kind == "space":
+                continue
+            if star_ok and y.kind == "other" and y.text == "*":
+                star_ok = False
+                continue
+            star_ok = False
+            if y.kind == "lbrace":
+                self._skip_balanced(src, body, "{}")
+                return
+            if y.kind == "other" and y.text == "[" and opts < _MATH_TEXTARG_OPT_CAP:
+                self._skip_balanced(src, body, "[]")
+                opts += 1
+                continue
+            return
 
     # ------------------------------------------------------------ verb
 
