@@ -32,13 +32,14 @@ from texlate.textutil import decode_tex
 
 from .mask import visible_tex
 from .sandbox import child_env, find_tool, run_process, sandbox_wrap
+from .toolchain import ensure_tectonic
 
 DEFAULT_TIMEOUT = 240.0  # docs/08 §4.1
 MAX_PASSES = 2
 _TECTONIC_ATTEMPTS = 2  # 冷 bundle 首拉超时后重试（缓存热身）
 
-#: tectonic bundle pin（docs/08 §4.1）；None = 引擎自带默认 bundle。
-#: 可用 env TEXLATE_TEX_BUNDLE 或构造参数覆盖。
+#: tectonic bundle pin（docs/08 §4.1）——引擎默认 bundle；可用 env
+#: TEXLATE_TEX_BUNDLE 或构造参数覆盖，置空串回落引擎自带默认 bundle。
 TECTONIC_BUNDLE_PIN = "https://data1b.fullyjustified.net/tlextras-2022.0r0.tar"
 
 
@@ -742,11 +743,14 @@ class TectonicEngine:
         hide_paths: list[Path] | None = None,
         ctan_fetch: Callable[[str], str | None] | None = None,
     ) -> None:
-        """bundle=None → 引擎自带默认；ctan_fetch=(fname)->落点路径|None。"""
+        """bundle=None → 钉版 tlextras-2022.0r0；ctan_fetch=(fname)->落点|None。"""
         self.binary = binary
-        # bundle=None → 引擎自带默认；env TEXLATE_TEX_BUNDLE 或 pin 可覆盖。
+        # 默认走 pin（docs/08 §4.1）；env TEXLATE_TEX_BUNDLE 覆盖，
+        # 置空串 = 引擎自带默认 bundle。
         self.bundle = (
-            bundle if bundle is not None else os.environ.get("TEXLATE_TEX_BUNDLE")
+            bundle
+            if bundle is not None
+            else os.environ.get("TEXLATE_TEX_BUNDLE", TECTONIC_BUNDLE_PIN)
         )
         # 对齐 nonstopmode 语义（tectonic 默认 halt-on-error）。
         self.continue_on_errors = continue_on_errors
@@ -757,8 +761,8 @@ class TectonicEngine:
         self.filemap_index: dict[str, list[str]] = {}
 
     def detect(self) -> str | None:
-        """Tectonic 二进制探测（ctor 指定优先，否则 PATH/常见落点）。"""
-        return self.binary or find_tool("tectonic")
+        """Ctor 指定 → PATH/常见落点 → 托管件 → 自动下载（toolchain 矩阵）。"""
+        return self.binary or ensure_tectonic()
 
     def _cmd(
         self,

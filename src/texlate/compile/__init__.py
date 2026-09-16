@@ -6,6 +6,7 @@
 - `engine`：Engine Protocol + xelatex/tectonic + 静态路由 + compiled_dependencies
 - `judge`：clean/partial/fail 判定三件套 + 中文渲染检查
 - `sandbox`：env 白名单 + sandbox-exec + killpg
+- `toolchain`：tectonic 五平台 sha256 钉死分发 + 托管件自动安装
 
 fixloop（`compile/fixloop.py`，docs/08 §5）为独立模块另行交付。
 """
@@ -60,6 +61,7 @@ from .normalize import (
     source_path_violations,
 )
 from .sandbox import child_env, find_tool, run_process, sandbox_wrap
+from .toolchain import ensure_tectonic, install_tectonic, resolve_tool
 
 __all__ = [
     "CLEAN_ERR_MAX",
@@ -84,6 +86,7 @@ __all__ = [
     "count_missing_chars",
     "decode_tex",
     "engine_for",
+    "ensure_tectonic",
     "find_docclass_end",
     "find_main_tex",
     "find_tool",
@@ -92,12 +95,14 @@ __all__ = [
     "inject_float_sizing",
     "inject_preamble",
     "inject_table_fitting",
+    "install_tectonic",
     "judge",
     "normalize_engine",
     "normalize_project",
     "parse_log",
     "pdf_cjk_chars",
     "prepare_chinese",
+    "resolve_tool",
     "route_project",
     "run_process",
     "sandbox_wrap",
