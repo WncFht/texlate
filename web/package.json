@@ -13,6 +13,7 @@
     },
     "dependencies": {
         "@pdfslick/solid": "^4.0.2",
+        "dompurify": "^3.4.15",
         "katex": "^0.18.7",
         "marked": "^18.0.13",
         "pdfjs-dist": "^6.3.289",
@@ -20,10 +21,13 @@
     },
     "devDependencies": {
         "@eslint/js": "^10.0.1",
+        "@types/dompurify": "^3.0.5",
+        "@types/jsdom": "^30.0.0",
         "@types/node": "^24.0.0",
         "eslint": "^10.10.0",
         "eslint-plugin-solid": "^0.18.0",
         "globals": "^17.12.0",
+        "jsdom": "^29.1.1",
         "typescript": "~5.9.3",
         "typescript-eslint": "^8.70.0",
         "vite": "^8.3.0",

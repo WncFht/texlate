@@ -1,13 +1,22 @@
 // Home —— arXiv 输入 + 文件上传 + 任务列表（活动任务进度走 SSE）。
 
-import { createSignal, onMount, Show } from "solid-js";
-import { api, ApiError, type Health } from "../api/client";
+import { createSignal, For, onMount, Show } from "solid-js";
+import {
+    api,
+    ApiError,
+    type Health,
+    type TranslateOptions,
+} from "../api/client";
 import { taskStore } from "../stores/tasks";
+import { settingsStore } from "../stores/settings";
 import TaskList from "../components/TaskList";
 import { t } from "../i18n/zh";
 
 const ARXIV_RE =
     /^(?:\d{4}\.\d{4,5}(?:v\d+)?|[a-z-]+(?:\.[A-Z]{2})?\/\d{7}(?:v\d+)?)$/i;
+
+const TARGET_LANGS = ["zh-CN", "zh-TW", "en"];
+const ENGINES = ["auto", "xelatex", "tectonic"];
 
 function parseArxivId(raw: string): string | null {
     const s = raw.trim();
@@ -22,10 +31,19 @@ export default function Home(props: { nav(to: string): void }) {
     const [error, setError] = createSignal("");
     const [health, setHealth] = createSignal<Health | null>(null);
     const [healthPending, setHealthPending] = createSignal(true);
+    // 任务选项（默认收起；空值 = 跟随 settings 默认）
+    const [optModel, setOptModel] = createSignal("");
+    const [optLang, setOptLang] = createSignal("");
+    const [optGlossary, setOptGlossary] = createSignal("");
+    const [optGuidance, setOptGuidance] = createSignal("");
+    const [optConcurrency, setOptConcurrency] = createSignal("");
+    const [optEngine, setOptEngine] = createSignal("");
+    const [optPrefer, setOptPrefer] = createSignal("");
     let fileInput!: HTMLInputElement;
 
     onMount(() => {
         void taskStore.refresh();
+        if (!settingsStore.loaded()) void settingsStore.refresh();
         api.health()
             .then(setHealth)
             .catch(() => setHealth(null))
@@ -42,6 +60,25 @@ export default function Home(props: { nav(to: string): void }) {
 
     const open = (taskId: string) => props.nav(`#/reader/${taskId}`);
 
+    /** 非空字段收成 TranslateOptions；全空返回 undefined（不附带 body 字段） */
+    const collectOptions = (): TranslateOptions | undefined => {
+        const o: TranslateOptions = {};
+        const opts: NonNullable<TranslateOptions["options"]> = {};
+        if (optModel().trim()) o.model = optModel().trim();
+        if (optLang()) o.target_lang = optLang();
+        if (optGlossary().trim()) o.glossary = optGlossary().trim();
+        if (optGuidance()) opts.context_guidance = optGuidance() === "on";
+        const conc = Number(optConcurrency());
+        if (optConcurrency() && Number.isFinite(conc)) {
+            opts.concurrency = Math.max(1, Math.min(16, Math.floor(conc)));
+        }
+        if (optEngine()) opts.engine = optEngine();
+        const pref = optPrefer();
+        if (pref === "reuse" || pref === "fresh") opts.prefer = pref;
+        if (Object.keys(opts).length) o.options = opts;
+        return o.model || o.target_lang || o.glossary || o.options ? o : undefined;
+    };
+
     const submit = async () => {
         const id = parseArxivId(arxivId());
         if (!id) {
@@ -51,7 +88,7 @@ export default function Home(props: { nav(to: string): void }) {
         setError("");
         setBusy(true);
         try {
-            const res = await api.translate(id);
+            const res = await api.translate(id, collectOptions());
             open(res.task_id);
         } catch (e) {
             // 409：同 cache_key 已有活动任务 → 直接跳过去
@@ -72,13 +109,30 @@ export default function Home(props: { nav(to: string): void }) {
         setError("");
         setBusy(true);
         try {
-            const res = await api.upload(file);
+            // upload 的 options 走 multipart JSON 字段；prefer 仅对 arxiv 缓存有意义
+            // （server 上传路恒 prefer=fresh），glossary 在 options 内传递
+            const o = collectOptions();
+            const upOpts: Record<string, unknown> = { ...o?.options };
+            delete upOpts.prefer;
+            if (o?.glossary) upOpts.glossary = o.glossary;
+            const fields =
+                o &&
+                (o.model || o.target_lang || Object.keys(upOpts).length)
+                    ? { model: o.model, target_lang: o.target_lang, options: upOpts }
+                    : undefined;
+            const res = await api.upload(file, fields);
             open(res.task_id);
         } catch (e) {
             setError(e instanceof Error ? e.message : String(e));
         } finally {
             setBusy(false);
         }
+    };
+
+    /** settings 默认值做占位文案（未加载时给通用占位） */
+    const def = (k: "model" | "target_lang" | "engine" | "concurrency") => {
+        const v = settingsStore.settings()?.[k];
+        return v === undefined || v === "" ? "…" : String(v);
     };
 
     return (
@@ -116,7 +170,7 @@ export default function Home(props: { nav(to: string): void }) {
                         ref={(el) => (fileInput = el)}
                         type="file"
                         hidden
-                        accept=".pdf,.tex,.tar,.gz,.tgz,.zip"
+                        accept=".pdf,.tex,.tar,.gz,.tgz,.zip,.docx,.epub"
                         onChange={(e) => {
                             const f = e.currentTarget.files?.[0];
                             if (f) void upload(f);
@@ -125,6 +179,95 @@ export default function Home(props: { nav(to: string): void }) {
                     />
                 </form>
                 <p class="muted upload-formats">{t.home.formats}</p>
+                <details class="task-opts">
+                    <summary>{t.home.options}</summary>
+                    <div class="opts-grid">
+                        <label>
+                            <span>{t.home.optModel}</span>
+                            <input
+                                value={optModel()}
+                                placeholder={def("model")}
+                                onInput={(e) => setOptModel(e.currentTarget.value)}
+                            />
+                        </label>
+                        <label>
+                            <span>{t.home.optLang}</span>
+                            <select
+                                value={optLang()}
+                                onChange={(e) => setOptLang(e.currentTarget.value)}
+                            >
+                                <option value="">
+                                    {t.home.optDefault}（{def("target_lang")}）
+                                </option>
+                                <For each={TARGET_LANGS}>
+                                    {(l) => <option value={l}>{l}</option>}
+                                </For>
+                            </select>
+                        </label>
+                        <label>
+                            <span>{t.home.optEngine}</span>
+                            <select
+                                value={optEngine()}
+                                onChange={(e) => setOptEngine(e.currentTarget.value)}
+                            >
+                                <option value="">
+                                    {t.home.optDefault}（{def("engine")}）
+                                </option>
+                                <For each={ENGINES}>
+                                    {(en) => (
+                                        <option value={en}>
+                                            {en === "auto" ? t.home.engineAuto : en}
+                                        </option>
+                                    )}
+                                </For>
+                            </select>
+                        </label>
+                        <label>
+                            <span>{t.home.optConcurrency}</span>
+                            <input
+                                type="number"
+                                min={1}
+                                max={16}
+                                value={optConcurrency()}
+                                placeholder={def("concurrency")}
+                                onInput={(e) => setOptConcurrency(e.currentTarget.value)}
+                            />
+                        </label>
+                        <label>
+                            <span>{t.home.optGuidance}</span>
+                            <select
+                                value={optGuidance()}
+                                onChange={(e) => setOptGuidance(e.currentTarget.value)}
+                            >
+                                <option value="">{t.home.optDefault}</option>
+                                <option value="on">{t.home.optOn}</option>
+                                <option value="off">{t.home.optOff}</option>
+                            </select>
+                        </label>
+                        <label>
+                            <span>{t.home.optPrefer}</span>
+                            <select
+                                value={optPrefer()}
+                                onChange={(e) => setOptPrefer(e.currentTarget.value)}
+                            >
+                                <option value="">{t.home.optDefault}</option>
+                                <option value="reuse">{t.home.preferReuse}</option>
+                                <option value="fresh">{t.home.preferFresh}</option>
+                            </select>
+                        </label>
+                        <label class="span2">
+                            <span>
+                                {t.home.optGlossary}
+                                <em class="muted">{t.home.optGlossaryHint}</em>
+                            </span>
+                            <textarea
+                                rows={3}
+                                value={optGlossary()}
+                                onInput={(e) => setOptGlossary(e.currentTarget.value)}
+                            />
+                        </label>
+                    </div>
+                </details>
                 <Show when={error()}>
                     <p class="form-error">{error()}</p>
                 </Show>

@@ -142,12 +142,20 @@ const KIND_URL: Record<string, string> = {
     zh_src_zip: "zh-src.zip",
     compile_log: "compile.log",
     md_zip: "md",
+    zh_docx: "zh.docx",
+    zh_epub: "zh.epub",
 };
 
+const isDoc = (t: MockTask) => t.kind === "docx" || t.kind === "epub";
+
 function artifactsOf(t: MockTask): Record<string, string> {
-    const kinds = t.html
-        ? ["dual_json", "md_zip", "compile_log"]
-        : ["en_pdf", "zh_pdf", "dual_pdf", "dual_json", "zh_src_zip", "compile_log"];
+    // doc 管线（export_document 插译）：仅 src_tar + zh_docx/zh_epub，
+    // 无 dual.json → reader 端点按真后端语义 404
+    const kinds = isDoc(t)
+        ? ["src_tar", `zh_${t.kind}`]
+        : t.html
+          ? ["dual_json", "md_zip", "compile_log"]
+          : ["en_pdf", "zh_pdf", "dual_pdf", "dual_json", "zh_src_zip", "compile_log"];
     const out: Record<string, string> = {};
     for (const k of kinds) out[k] = `/api/files/${t.id}/${KIND_URL[k]}`;
     return out;
@@ -342,6 +350,15 @@ seedTask("t_0000000000000a05", "needs_auth", {
     arxiv_id: "2406.99999",
     error: { code: "auth_required", message: "未配置 API Key(mock)", retryable: true },
 });
+// doc 管线演示：done 但 reader 404——产物下载面板的复现种子
+seedTask("t_0000000000000a06", "done", {
+    kind: "docx",
+    title: "Mock doc — Word 产物演示（无对照视图）",
+});
+seedTask("t_0000000000000a07", "done", {
+    kind: "epub",
+    title: "Mock doc — EPUB 产物演示（无对照视图）",
+});
 
 // ---------- 路由 ----------
 
@@ -392,6 +409,14 @@ const FILE_BODY: Record<string, (taskId: string) => { body: Buffer | string; typ
     "src.tar": () => ({ body: Buffer.from("mock tar\n"), type: "application/gzip" }),
     "zh-src.zip": () => ({ body: Buffer.from("PK\x05\x06" + "\0".repeat(18), "latin1"), type: "application/zip" }),
     md: () => ({ body: Buffer.from("PK\x05\x06" + "\0".repeat(18), "latin1"), type: "application/zip" }),
+    "zh.docx": () => ({
+        body: Buffer.from("PK\x05\x06" + "\0".repeat(18), "latin1"),
+        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    }),
+    "zh.epub": () => ({
+        body: Buffer.from("PK\x05\x06" + "\0".repeat(18), "latin1"),
+        type: "application/epub+zip",
+    }),
 };
 
 function handleApi(req: Req, res: Res, url: URL): boolean {
@@ -453,17 +478,25 @@ function handleApi(req: Req, res: Res, url: URL): boolean {
         return true;
     }
     if (req.method === "POST" && p === "/api/upload") {
-        const t = seedTask(mkId(), "queued", {
-            kind: "upload_tex",
-            title: "upload.tex",
-            counters: { total: 0, done: 0, cached: 0, failed: 0, tokens: 0 },
-        });
-        drive(t);
-        json(res, 202, {
-            task_id: t.id,
-            status: "queued",
-            events_url: `/api/task/${t.id}`,
-            reader_url: `/api/task/${t.id}/reader`,
+        // 按扩展名演示 doc 管线（真后端走魔数嗅探，mock 只看文件名）
+        let body = "";
+        req.on("data", (c: Buffer) => (body += c.toString("latin1")));
+        req.on("end", () => {
+            const fname = /filename="([^"]+)"/.exec(body)?.[1] ?? "upload.tex";
+            const ext = fname.toLowerCase().split(".").pop() ?? "";
+            const kind = ext === "docx" || ext === "epub" ? ext : "upload_tex";
+            const t = seedTask(mkId(), "queued", {
+                kind,
+                title: fname,
+                counters: { total: 0, done: 0, cached: 0, failed: 0, tokens: 0 },
+            });
+            drive(t);
+            json(res, 202, {
+                task_id: t.id,
+                status: "queued",
+                events_url: `/api/task/${t.id}`,
+                reader_url: `/api/task/${t.id}/reader`,
+            });
         });
         return true;
     }
@@ -497,6 +530,8 @@ function handleApi(req: Req, res: Res, url: URL): boolean {
     if ((mm = m(/^\/api\/task\/([^/]+)\/reader$/)) && req.method === "GET") {
         const t = tasks.get(mm[1]);
         if (!t) return notFound(res), true;
+        // doc 任务无 dual.json——对齐真后端 404（"dual.json 未产出"）
+        if (isDoc(t)) return notFound(res, "dual.json 未产出"), true;
         json(res, 200, mockReader(t));
         return true;
     }

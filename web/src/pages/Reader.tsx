@@ -61,7 +61,7 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
     const [drift, setDrift] = createSignal<Partial<Record<DocId, boolean>>>({});
     const [fatal, setFatal] = createSignal("");
     const [handles, setHandles] = createSignal<Partial<Record<DocId, AnyHandle>>>({});
-    // reader 404 于终态任务：无产物可读，走结果面板而非裸 fatal
+    // reader 404 于终态任务：doc 类任务无 dual.json（设计如此）→ 产物下载面板
     const [readerGone, setReaderGone] = createSignal(false);
     const [retrying, setRetrying] = createSignal(false);
     const [retryError, setRetryError] = createSignal<{
@@ -84,13 +84,15 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
     // ---------- 数据装载 ----------
 
     const loadReader = async () => {
+        // manifest 独立落地：doc 任务 reader 404 属预期，但下载清单必须
+        // 到位——曾与 reader 同 Promise.all，reader 先拒则 manifest 永不设置
+        void api
+            .files(props.taskId)
+            .then(setManifest)
+            .catch(() => undefined);
         try {
-            const [r, files] = await Promise.all([
-                api.reader(props.taskId),
-                api.files(props.taskId).catch(() => null),
-            ]);
+            const r = await api.reader(props.taskId);
             setInfo(r);
-            setManifest(files);
             // dual.json 同时提供 alignment 兜底与 chunks（HTML 视图必需）
             const dj = await fetch(api.fileUrl(props.taskId, "dual.json"))
                 .then((res) => (res.ok ? (res.json() as Promise<DualJson>) : null))
@@ -104,7 +106,7 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
                 if (rd.active) setActive(rd.active);
             }
         } catch (e) {
-            // 终态任务无产物 → reader 404 属预期，交给结果面板；其余仍 fatal
+            // 终态任务无 reader 数据 → reader 404 属预期，交给结果/产物面板；其余仍 fatal
             const s = task()?.status;
             if (e instanceof ApiError && e.status === 404 && s && isTerminal(s)) {
                 setReaderGone(true);
@@ -343,8 +345,9 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
     };
 
     const title = () => task()?.title || task()?.arxiv_id || props.taskId;
-    // html 视图需 dual.json chunks 到位才成立；登记 html 却无渲染材料 → empty 空态
-    const view = () => resolveReaderView(info(), dual());
+    // html 视图需 dual.json chunks 到位才成立；登记 html 却无渲染材料 → empty 空态；
+    // readerGone（doc 类任务）→ files 产物面板
+    const view = () => resolveReaderView(info(), dual(), readerGone());
     const isPdf = () => view() !== "html";
     const live = () => taskStore.live(props.taskId);
     const activeTask = () => {
@@ -555,6 +558,23 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
                 </Show>
             </div>
         </>
+    );
+
+    /** 产物下载清单（doc 任务面板与有产物的非干净终态共用） */
+    const renderDownloads = () => (
+        <Show when={downloads().length > 0}>
+            <ul class="file-list">
+                <For each={downloads()}>
+                    {(d) => (
+                        <li>
+                            <a href={d.url} download="">
+                                {d.label}
+                            </a>
+                        </li>
+                    )}
+                </For>
+            </ul>
+        </Show>
     );
 
     // ---------- 渲染 ----------
@@ -785,19 +805,20 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
                 </div>
             </Show>
 
-            {/* 无产物的终态（fault/cancelled/interrupted/needs_auth、reader 404、
-                登记 html 却无 chunks）：整页结果面板取代空态 */}
+            {/* 无阅读视图的终态（fault/cancelled/interrupted/needs_auth、reader 404、
+                登记 html 却无 chunks）：整页结果面板取代空态；有产物附下载清单 */}
             <Show
                 when={
                     !fatal() &&
                     !activeTask() &&
                     resultStatus() &&
-                    (readerGone() || view() === "empty")
+                    (view() === "files" || view() === "empty")
                 }
             >
                 <main class="result-panel-wrap">
                     <section class={`result-panel st-${resultStatus()}`}>
                         {renderResultBody(resultStatus()!)}
+                        {renderDownloads()}
                         <button
                             type="button"
                             class="btn-ghost"
@@ -809,27 +830,38 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
                 </main>
             </Show>
 
-            {/* server 登记了 html（md_zip）但 dual.json 无 chunks——出空态而非空面板；
-                done 却 404（readerGone 无 resultStatus）同路 */}
+            {/* done 却无阅读视图：doc 类任务（files）出产物下载面板——下载清单
+                为空（manifest 也没拉到）或登记 html 却无 chunks（empty）回退空态 */}
             <Show
                 when={
                     !fatal() &&
                     !activeTask() &&
                     !resultStatus() &&
-                    (view() === "empty" || readerGone())
+                    (view() === "files" || view() === "empty")
                 }
             >
-                <main class="reader-fatal">
-                    <p class="muted">{t.reader.notReady}</p>
-                    <button type="button" class="btn-ghost" onClick={() => props.nav("#/")}>
-                        ← {t.reader.back}
-                    </button>
+                <main class="result-panel-wrap">
+                    <section class="result-panel">
+                        <Show
+                            when={downloads().length > 0}
+                            fallback={<p class="muted">{t.reader.notReady}</p>}
+                        >
+                            <h2 class="rp-status">{t.reader.filesTitle}</h2>
+                            <p class="muted">{t.reader.filesHint}</p>
+                            {renderDownloads()}
+                        </Show>
+                        <button
+                            type="button"
+                            class="btn-ghost"
+                            onClick={() => props.nav("#/")}
+                        >
+                            ← {t.reader.back}
+                        </button>
+                    </section>
                 </main>
             </Show>
 
-            <Show
-                when={!fatal() && !activeTask() && !readerGone() && view() === "loading"}
-            >
+            <Show when={!fatal() && !activeTask() && view() === "loading"}>
                 <main class="reader-fatal">
                     <p class="muted">{t.reader.loading}</p>
                 </main>

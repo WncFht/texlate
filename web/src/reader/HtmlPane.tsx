@@ -8,6 +8,7 @@ import renderMathInElement from "katex/contrib/auto-render";
 import "katex/dist/katex.min.css";
 
 import type { DocId, Pos } from "./alignment";
+import { sanitizeHtml } from "./sanitize";
 import { capturePos, jumpTo, scrollTopFor, type PageGeom, type PaneLike } from "./sync";
 import type { DualChunk } from "../api/client";
 
@@ -64,14 +65,15 @@ export default function HtmlPane(props: Props) {
     };
 
     onMount(() => {
-        // marked.parse 输出为 string（无异步扩展）；innerHTML 注入后跑 KaTeX。
-        // 内容是自产管线输出（非用户输入），不做额外 sanitize——若未来接外部
-        // markdown 需加 DOMPurify。
+        // marked.parse 输出为 string（无异步扩展）；译文是 LLM 生成物，内联
+        // HTML 原样透传——注入前过 DOMPurify，再跑 KaTeX（产物不经 sanitize）。
         const html = props.chunks
             .map(
                 (c) =>
                     `<section class="chunk" data-chunk="${c.seq}">` +
-                    (marked.parse(chunkText(c, props.side), { async: false }) as string) +
+                    sanitizeHtml(
+                        marked.parse(chunkText(c, props.side), { async: false }) as string,
+                    ) +
                     `</section>`,
             )
             .join("");

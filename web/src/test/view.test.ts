@@ -32,3 +32,22 @@ describe("resolveReaderView（html 视图降级门）", () => {
         expect(resolveReaderView({ view: "html" }, {})).toBe("empty");
     });
 });
+
+describe("done-doc 决议（docx/epub 任务 reader 404 → files 产物面板）", () => {
+    it("info 缺失 + readerGone → files", () => {
+        expect(resolveReaderView(null, undefined, true)).toBe("files");
+        expect(resolveReaderView(undefined, undefined, true)).toBe("files");
+    });
+
+    it("readerGone 缺省/false 时维持 loading（不动旧语义）", () => {
+        expect(resolveReaderView(null, undefined)).toBe("loading");
+        expect(resolveReaderView(null, undefined, false)).toBe("loading");
+    });
+
+    it("info 在则 readerGone 不改既有判定", () => {
+        expect(resolveReaderView({ view: "pdf" }, null, true)).toBe("pdf");
+        expect(resolveReaderView({ view: "html" }, { chunks: [chunk] }, true)).toBe(
+            "html",
+        );
+    });
+});

@@ -24,6 +24,9 @@ function fmtRel(ts: number): string {
     return new Date(ms).toLocaleDateString();
 }
 
+// TODO: 任务删除按钮——后端 DELETE /api/task/{id} 未实装，落地后接
+// client.ts 的 api.deleteTask（confirm 后调用 + taskStore 本地移除）。
+
 export default function TaskList(props: Props) {
     // 终态 fault/partial 的 error 徽标内容
     const errOf = (task: TaskSnapshot): TaskError | null => {

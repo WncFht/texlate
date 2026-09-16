@@ -47,4 +47,14 @@ describe("mergeChunkItems（SSE 增量帧 → dense 累积数组）", () => {
         const prev = [it_(0), it_(1)];
         expect(mergeChunkItems(prev, [])).toEqual(prev);
     });
+
+    // doc 管线（worker._run_doc on_result）seq 从 1 起：seq0 必须补 pending，
+    // 棋盘格不得因缺 0 段而错位
+    it("doc 管线 seq 从 1 起 → seq0 补 pending 占位", () => {
+        const next = mergeChunkItems([], [it_(1), it_(2, "failed")]);
+        expect(next).toHaveLength(3);
+        expect(next[0]).toEqual({ seq: 0, status: "pending" });
+        expect(next[1].status).toBe("ok");
+        expect(next[2].status).toBe("failed");
+    });
 });

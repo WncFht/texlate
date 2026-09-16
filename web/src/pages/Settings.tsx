@@ -10,6 +10,8 @@ export default function Settings() {
     const [model, setModel] = createSignal("");
     const [targetLang, setTargetLang] = createSignal("zh-CN");
     const [glossary, setGlossary] = createSignal("");
+    const [engine, setEngine] = createSignal("auto");
+    const [concurrency, setConcurrency] = createSignal("3");
     const [msg, setMsg] = createSignal("");
     const [testing, setTesting] = createSignal(false);
     let msgTimer = 0;
@@ -25,6 +27,8 @@ export default function Settings() {
                 setModel(s.model ?? "");
                 setTargetLang(s.target_lang ?? "zh-CN");
                 setGlossary(s.glossary ?? "");
+                setEngine(s.engine ?? "auto");
+                setConcurrency(String(s.concurrency ?? 3));
             }
         } catch (e) {
             // 加载失败表单仍可用，仅提示
@@ -46,7 +50,11 @@ export default function Settings() {
             model: model(),
             target_lang: targetLang(),
             glossary: glossary(),
+            engine: engine(),
         };
+        // 空串不送——server 侧 int("") 直接 400
+        const conc = Number(concurrency());
+        if (Number.isFinite(conc) && conc >= 1) patch.concurrency = Math.floor(conc);
         if (apiKey()) patch.api_key = apiKey();
         try {
             await settingsStore.save(patch);
@@ -133,6 +141,27 @@ export default function Settings() {
                 <label>
                     <span>{t.settings.targetLang}</span>
                     <input value={targetLang()} onInput={(e) => setTargetLang(e.currentTarget.value)} />
+                </label>
+                <label>
+                    <span>{t.settings.engine}</span>
+                    <select value={engine()} onChange={(e) => setEngine(e.currentTarget.value)}>
+                        <option value="auto">auto</option>
+                        <option value="xelatex">xelatex</option>
+                        <option value="tectonic">tectonic</option>
+                    </select>
+                </label>
+                <label>
+                    <span>
+                        {t.settings.concurrency}
+                        <em class="muted">{t.settings.concurrencyHint}</em>
+                    </span>
+                    <input
+                        type="number"
+                        min={1}
+                        max={16}
+                        value={concurrency()}
+                        onInput={(e) => setConcurrency(e.currentTarget.value)}
+                    />
                 </label>
                 <label>
                     <span>
