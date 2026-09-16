@@ -1389,14 +1389,17 @@ class XelatexEngine:
         )
 
         for pkg in pkgs:
-            # 网络/解包失败 → 静默试下一候选包 (复核探针是真值)
-            with contextlib.suppress(Exception):
+            # 网络/解包失败 → 试下一候选包 (复核探针是真值), 但不静默——
+            # debug 留名供排障 (suppress 吞错曾让装包层故障零线索)
+            try:
                 fetch_package(
                     pkg,
                     dest,
                     mirror=self.repository or MIRROR,
                     overlay="tree",
                 )
+            except Exception as e:  # noqa: BLE001  # 候选包逐个试, 单包失败不致命
+                log.debug("usertree fetch %s skipped: %r", pkg, e)
             if self.probe_file(fname) is not None:
                 return True
         return False
