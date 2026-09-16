@@ -1,0 +1,14 @@
+% minimal repro for 2203.00092 pgffor scan error
+% mechanism: gullet expands \makecommand -> \foreach \i in {...} tokens;
+% segmenter _tok_surface glues \i + letter 'i','n' -> \iin (missing space).
+\documentclass{article}
+\usepackage{pgffor}
+\newcommand{\makecommand}[3]{%
+	\foreach \i in #3 {%
+    	\expandafter\xdef\csname #1\i\endcsname{{#2{\i}}}%
+  	}%
+}
+\makecommand{sf}{\mathsf}{{GL,SL,O,SO,OSp,U,SU,Sp,Spin,String}}
+\begin{document}
+$\sfGL$
+\end{document}
