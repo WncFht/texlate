@@ -1,0 +1,31 @@
+texlate src freeze snapshot — realpostfix2 bench arm
+=====================================================
+snapshot_path : /tmp/texlate-src-realpostfix2
+created_utc   : 2026-09-16T13:44:5xZ (cp -a src/ -> /tmp)
+purpose       : TEXLATE_SRC for e2e_real_bench.py --tag realpostfix2
+                (real gateway postfix re-run, n=100 seed42 core, --recode)
+
+code-state    : post-c818199 + in-flight dirty overlay @ 2026-09-16T13:44Z
+HEAD          : c818199eb4b5f9f9459fe775fbb6cc3a75926e03
+                feat(bench): armed channel metric — src-legit sig inventory observable
+                (2026-09-16 21:40:54 +0800)
+
+overlay files captured != HEAD (frozen at snapshot time):
+  src/texlate/compile/engine.py
+  src/texlate/compile/fixloop/rules.yaml
+  src/texlate/compile/judge.py
+  src/texlate/latex/data/argspec.json
+  src/texlate/latex/segmenter.py
+  src/texlate/latex/tables.py
+  src/texlate/texlog.py
+
+files dirty in worktree but HEAD version in snapshot
+(dirtied after cp — snapshot is the frozen truth):
+  src/texlate/e2e.py
+  src/texlate/validate/l2.py
+
+expected code stamp (_code_stamp at bench ROOT):
+  c818199-dirty   (src/texlate porcelain non-empty)
+
+note: bench record stamp derives from repo HEAD+porcelain, not this dir;
+this dir only controls which bytes `import texlate.*` resolves to.
