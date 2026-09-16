@@ -862,3 +862,38 @@ def test_transcode_extensionless_utf16_transcoded(tmp_path: Path) -> None:
     stats = normalize_project(tmp_path, "xelatex", "main.tex")
     assert "NOTES" in stats["transcoded_data"]
     assert notes.read_text(encoding="utf-8") == "chécklist\n"
+
+
+def test_normalize_engine_support_file_keeps_primitives(tmp_path: Path) -> None:
+    r"""1306.0294：bundled hpdftex.def 的 ``\pdfinfo``/``\pdfoutput`` 是实现内容——支持件不删。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n",
+        encoding="utf-8",
+    )
+    drv = (
+        "\\def\\PDF@FinishDoc{%\n  \\pdfinfo{%\n    /Author(\\@pdfauthor)%\n  }%\n}\n"
+        "\\pdfoutput=1\n"
+    )
+    (tmp_path / "hpdftex.def").write_text(drv, encoding="utf-8")
+    stats = normalize_project(tmp_path, "xelatex", "main.tex")
+    assert stats["files"] == 2  # noqa: PLR2004 -- main + hpdftex.def
+    assert (tmp_path / "hpdftex.def").read_text(encoding="utf-8") == drv
+
+
+def test_normalize_engine_support_still_rewrites_driver(tmp_path: Path) -> None:
+    r"""支持件仍吃驱动 token 改写——bundled .sty 的 ``[pdftex]`` 装载期语义要修。"""
+    sty = (
+        "\\ProvidesPackage{mymacros}\n"
+        "\\RequirePackage[pdftex]{graphicx}\n"
+        "\\usepackage[dvips]{color}\n"
+    )
+    (tmp_path / "mymacros.sty").write_text(sty, encoding="utf-8")
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n",
+        encoding="utf-8",
+    )
+    normalize_project(tmp_path, "xelatex", "main.tex")
+    out = (tmp_path / "mymacros.sty").read_text(encoding="utf-8")
+    assert "pdftex]{graphicx}" not in out
+    assert "xetex]{graphicx}" in out
+    assert "xetex]{color}" in out

@@ -285,19 +285,27 @@ PDFTEX_OUTPUT_SETTINGS = re.compile(
 )
 
 
-def normalize_pdftex_features(text: str, engine: str) -> str:
+def normalize_pdftex_features(
+    text: str, engine: str, *, doc_source: bool = True
+) -> str:
     r"""删除 XeTeX 后端不存在的 pdfTeX 输出控制；microtype 不支持选项降级。
 
     xdvipdfmx 不吃 pdfTeX 压缩/字形映射设置；microtype 的 expansion/spacing/
     kerning 无 XeTeX 实现，tectonic bundle 版连 tracking 也没有 → 全部改
     `=false`（保留选项位、行数不变）。文档与作者自带 .sty 同策略。
+    ``doc_source=False``（.def/.sty 等支持件）只留 microtype 降级——
+    输出控制删除在驱动件里是砍实现（1306.0294 hpdftex.def）。
     """
     visible = visible_tex(text)
-    edits = [(m.start(), m.end(), "") for m in PDFTEX_OUTPUT_SETTINGS.finditer(visible)]
-    edits.extend(
-        (m.start(), group_end(visible, m.end() - 1), "")
-        for m in re.finditer(r"\\DisableLigatures\s*(?:\[[^]]*\]\s*)?\{", visible)
-    )
+    edits = []
+    if doc_source:
+        edits = [
+            (m.start(), m.end(), "") for m in PDFTEX_OUTPUT_SETTINGS.finditer(visible)
+        ]
+        edits.extend(
+            (m.start(), group_end(visible, m.end() - 1), "")
+            for m in re.finditer(r"\\DisableLigatures\s*(?:\[[^]]*\]\s*)?\{", visible)
+        )
     unsupported = {"expansion", "spacing", "kerning"}
     if engine == "tectonic":
         unsupported.add("tracking")
@@ -430,8 +438,12 @@ _DRIVER_SCOPE_RX: Final = re.compile(
 )
 
 
-def normalize_pdf_primitives(text: str) -> str:
+def normalize_pdf_primitives(text: str, *, doc_source: bool = True) -> str:
     r"""删 `\pdfinfo{...}` 与 `\pdfoutput=1`；输出驱动 token 统一 `xetex`。
+
+    ``doc_source=False``（支持件）只做驱动 token 改写——``.def`` 驱动件里
+    ``\pdfinfo``/``\pdfoutput`` 是条件装载的实现内容，删除即腐蚀
+    （hpdftex.def ``\PDF@FinishDoc`` 内 ``\pdfinfo`` 组整段→空行）。
 
     驱动选项改写面：hyperref/graphicx/graphics/color/xcolor 可选参 +
     `\documentclass` 全局选项 + `\PassOptionsTo{Package,Class}` 首参内的
@@ -442,15 +454,17 @@ def normalize_pdf_primitives(text: str) -> str:
     ``dvipdfm(x)`` 与 XeTeX 兼容，不在改写面。
     """
     visible = visible_tex(text)
-    edits = [
-        (m.start(), group_end(visible, m.end() - 1), "\n")
-        for m in re.finditer(r"\\pdfinfo\s*\{", visible)
-    ]
-    # \pdfoutput=1 是 pdfTeX 专属开关，留着会误导老 hyperref 模板的驱动探测。
-    edits.extend(
-        (m.start(), m.end(), " ")
-        for m in re.finditer(r"\\pdfoutput\s*=?\s*1\b", visible)
-    )
+    edits = []
+    if doc_source:
+        edits = [
+            (m.start(), group_end(visible, m.end() - 1), "\n")
+            for m in re.finditer(r"\\pdfinfo\s*\{", visible)
+        ]
+        # \pdfoutput=1 是 pdfTeX 专属开关，留着误导老 hyperref 模板的驱动探测。
+        edits.extend(
+            (m.start(), m.end(), " ")
+            for m in re.finditer(r"\\pdfoutput\s*=?\s*1\b", visible)
+        )
     text = apply_edits(text, edits)
 
     visible = visible_tex(text)
@@ -789,13 +803,26 @@ def _neutralize_junk_files(root: Path, stats: dict[str, object]) -> None:
 
 
 # ---------------------------------------------------------------- 主编排
-def normalize_engine(text: str, engine: str) -> str:
-    """单文件无条件手术编排（docs/08 §3.2 清单 1–10 的文件内部分）。"""
+#: 文档源后缀——``\pdfinfo``/``\pdfoutput``/输出设置等文档级手术只适用
+#: 文档源；``.def/.sty/.clo`` 支持件里同名原语是条件装载的驱动实现,
+#: 删除即腐蚀 bundled 件 (1306.0294 hpdftex.def)。
+_DOC_SOURCE_SUFFIXES = frozenset({".tex", ".ltx"})
+
+
+def normalize_engine(text: str, engine: str, *, doc_source: bool = True) -> str:
+    r"""单文件无条件手术编排（docs/08 §3.2 清单 1–10 的文件内部分）。
+
+    ``doc_source=False`` 按支持件处理：文档级输出控制删除
+    （``\pdfinfo``/``\pdfoutput``/输出设置/``\DisableLigatures``）与
+    px 像素改写跳过；驱动 token、microtype 降级、编码剥离等
+    装载期语义改写仍生效。
+    """
     text = normalize_comment_terminators(text)
     text = normalize_float_positions(text)
     if engine in ("tectonic", "xelatex"):
-        text = normalize_pdftex_features(text, engine)
-        text = normalize_pixel_dimensions(text)
+        text = normalize_pdftex_features(text, engine, doc_source=doc_source)
+        if doc_source:
+            text = normalize_pixel_dimensions(text)
         visible = visible_tex(text)
         has_document = re.search(r"\\begin\s*\{document\}", visible)
         if (
@@ -819,7 +846,7 @@ def normalize_engine(text: str, engine: str) -> str:
         ):
             text = "\\PassOptionsToPackage{no-math}{fontspec}\n" + text
         text = strip_input_encodings(text)
-        text = normalize_pdf_primitives(text)
+        text = normalize_pdf_primitives(text, doc_source=doc_source)
     if engine in ("tectonic", "xelatex", "lualatex"):
         text = normalize_legacy_cjk(text, engine)
     return text
@@ -1214,7 +1241,11 @@ def normalize_project(root: Path, engine: str, main: str | None = None) -> dict:
         original = path.read_bytes()
         text, verdict = decode_tex_with(original)
         _record_verdict(encodings, root, path, verdict)
-        text = normalize_engine(text, engine)
+        text = normalize_engine(
+            text,
+            engine,
+            doc_source=path.suffix.lower() in _DOC_SOURCE_SUFFIXES,
+        )
         if path.suffix.lower() == ".tex":
             text = use_bundled_bibliography(
                 text, path, cwd=(root / main).parent if main else None
