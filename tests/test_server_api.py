@@ -203,7 +203,11 @@ class TestUpload:
         assert r.status_code == HTTPStatus.ACCEPTED
         assert r.json()["status"] == "queued"
 
-    def test_pdf_no_babeldoc_501(self, client: TestClient) -> None:
+    def test_pdf_no_babeldoc_501(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """501 闸与宿主机 babeldoc 装没装无关——探测钉成未装。"""
+        monkeypatch.setattr("texlate.server.app.find_tool", lambda _n: None)
         r = client.post(
             "/api/upload",
             files={"file": ("a.pdf", b"%PDF-1.4 fake", "application/pdf")},

@@ -30,6 +30,25 @@ texlate = "texlate.cli:app"
 [dependency-groups]
 dev = ["pytest>=8", "pytest-asyncio>=0.24"]
 
+[tool.pytest.ini_options]
+# 裸 pytest 从仓根只收 tests/——tmp/refs/ 参考 clone、bench、web 不入收集；
+# norecursedirs 全量覆盖 pytest 默认值，需把默认集一并列回
+testpaths = ["tests"]
+norecursedirs = [
+  "tmp",
+  "bench",
+  "web",
+  ".*",
+  "*.egg",
+  "_darcs",
+  "build",
+  "CVS",
+  "dist",
+  "node_modules",
+  "venv",
+  "{arch}",
+]
+
 [[tool.uv.index]]
 url = "https://pypi.tuna.tsinghua.edu.cn/simple"
 default = true

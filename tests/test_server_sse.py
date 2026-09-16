@@ -25,7 +25,19 @@ if TYPE_CHECKING:
     from starlette.testclient import TestClient
 
 ARXIV = "2401.00002"
-_FEED_DELAY = 0.3
+
+
+def _has_sub(bus: EventBus, tid: str) -> bool:
+    """bus 是否已有 tid 的订阅者（无公开计数面——读私有表）。"""
+    return bool(bus._subs.get(tid))  # noqa: SLF001
+
+
+def _wait_sub(bus: EventBus, tid: str, timeout: float = 5.0) -> None:
+    """自旋到订阅注册：publish 先于订阅会落重放段，live 扇出路径钉不死。"""
+    deadline = time.monotonic() + timeout
+    while not _has_sub(bus, tid):
+        assert time.monotonic() < deadline, f"task {tid} 订阅未注册"
+        time.sleep(0.01)
 
 
 def _mk_task(client: TestClient) -> str:
@@ -59,7 +71,11 @@ class TestBusStream:
                 return [ev async for ev in b.stream(tid)]
 
             task = asyncio.create_task(sub())
-            await asyncio.sleep(0.05)
+            for _ in range(100):  # sub 首步即挂 _subs——订阅确定再发，走 live 段
+                if _has_sub(b, tid):
+                    break
+                await asyncio.sleep(0)
+            assert _has_sub(b, tid)
             b.publish(tid, "stage", {"stage": "parsing"})
             b.publish(tid, "done", {"status": "done"})
             return await asyncio.wait_for(task, 5)
@@ -138,8 +154,17 @@ class TestHttpSse:
         bus = client.app.state.bus
 
         def feed() -> None:
-            time.sleep(_FEED_DELAY)  # 等 gen 进到 bus.stream 的订阅段
-            client.portal.call(partial(bus.publish, tid, "stage", {"stage": "parsing"}))
+            # 等 gen 进到 bus.stream 订阅段再发——钉死 live 扇出路径；
+            # 订阅若永不注册则只发 done（少 stage → 断言显败，且不挂 iter_lines）
+            subscribed = True
+            try:
+                _wait_sub(bus, tid)
+            except AssertionError:
+                subscribed = False
+            if subscribed:
+                client.portal.call(
+                    partial(bus.publish, tid, "stage", {"stage": "parsing"})
+                )
             client.portal.call(partial(bus.publish, tid, "done", {"status": "done"}))
 
         t = threading.Thread(target=feed)

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+from functools import partial
 from http import HTTPStatus
 from typing import TYPE_CHECKING
 
@@ -26,6 +27,8 @@ from conftest import (
 from starlette.testclient import TestClient
 
 from texlate.arxiv.cache import SourceCache
+from texlate.arxiv.fetch import HeadInfo, SrcResult
+from texlate.server.store import new_task_id
 from texlate.server.worker import chunk_db_id, chunk_error_code
 from texlate.xlat.client import AuthError, ChatClient, ChatError
 from texlate.xlat.pipeline import ChunkResult, GatewayTranslator, MockTranslator
@@ -275,6 +278,130 @@ class TestFaultPaths:
         assert snap["usage"]["prompt_tokens"] >= 11  # noqa: PLR2004 -- 真实账单
         assert snap["usage"]["completion_tokens"] >= 7  # noqa: PLR2004
         assert snap["usage"]["model"] == "m1"
+
+
+class _HeadErrFetcher:
+    """head_src 恒 500 → ``_head_gate`` 短路 ``AcquireStatus.ERROR``。"""
+
+    def head_src(self, arxiv_id: str, version: int | None = None) -> HeadInfo:
+        """500 → ``_head_phase`` 直出 ERROR（不进 GET/缓存）。"""
+        return HeadInfo(
+            http_status=HTTPStatus.INTERNAL_SERVER_ERROR,
+            url=f"https://export.arxiv.org/src/{arxiv_id}",
+            resolved_version=version or 1,
+        )
+
+    def get_src(self, *_a: object, **_kw: object) -> SrcResult:
+        """head 已被 gate 短路——进 GET 即 bug。"""
+        pytest.fail("head 500 应被 _head_gate 短路，不该进 GET")
+
+
+class TestStageErrorCodes:
+    """fetch/parse 段 ``_StageError`` → fault ``error.code``/``retryable`` 终态映射。
+
+    ``no_latex_source``/``arxiv_fetch``/``unsupported_format``/``parse`` 此前
+    零覆盖——每个 code 的 retryable 极性一并钉死（重试面是契约）。
+    """
+
+    def _live(self, tmp_path: Path, **overrides: object) -> TestClient:
+        """worker 起跑的 client（Mock 翻译 + Fake 引擎——失败先于两者触发）。"""
+        app = make_app(
+            tmp_path,
+            start_worker=True,
+            translator_factory=lambda _ctx: MockTranslator(),
+            engine_factory=lambda _name: FakeEngine(),
+            **overrides,
+        )
+        return TestClient(app)
+
+    def test_pdf_only_no_latex_source(
+        self,
+        tmp_path: Path,
+        clean_env: pytest.MonkeyPatch,  # noqa: ARG002
+    ) -> None:
+        """e-print 只出 pdf → ``no_latex_source``，PDF_ONLY ∈ 非重试集。"""
+        with self._live(
+            tmp_path,
+            fetcher=FakeFetcher(b"%PDF-1.4 fake"),
+            source_cache=SourceCache(tmp_path / "src-cache"),
+        ) as c:
+            r = c.post("/api/arxiv/2401.00077/translate", json={})
+            assert r.status_code == HTTPStatus.ACCEPTED
+            snap = wait_terminal(c, r.json()["task_id"])
+        assert snap["status"] == "fault"
+        assert snap["error"]["code"] == "no_latex_source"
+        assert snap["error"]["retryable"] is False
+
+    def test_head_error_arxiv_fetch_retryable(
+        self,
+        tmp_path: Path,
+        clean_env: pytest.MonkeyPatch,  # noqa: ARG002
+    ) -> None:
+        """HEAD 500 → ``arxiv_fetch`` + retryable（瞬时故障值得重试）。"""
+        with self._live(
+            tmp_path,
+            fetcher=_HeadErrFetcher(),
+            source_cache=SourceCache(tmp_path / "src-cache"),
+        ) as c:
+            r = c.post("/api/arxiv/2401.00078/translate", json={})
+            assert r.status_code == HTTPStatus.ACCEPTED
+            snap = wait_terminal(c, r.json()["task_id"])
+        assert snap["status"] == "fault"
+        assert snap["error"]["code"] == "arxiv_fetch"
+        assert snap["error"]["retryable"] is True
+
+    def test_upload_blob_unsupported_format(
+        self,
+        tmp_path: Path,
+        clean_env: pytest.MonkeyPatch,  # noqa: ARG002
+    ) -> None:
+        """worker 侧 ``unsupported_format``：路由 400 与 worker 判别同规则，
+
+        该分支 HTTP 不可达（route ``sniff_upload`` 先拦）——直建行 +
+        runner.enqueue 绕路由驱动（store/runner 皆 loop 线程对象，
+        经 portal.call 入 loop）。
+        """
+        with self._live(tmp_path) as c:
+            tid = new_task_id()
+            updir = c.app.state.data_dir / "tasks" / tid / "upload"
+            updir.mkdir(parents=True)
+            (updir / "blob.bin").write_bytes(b"\x00\x01\x02\x03\x04")
+            c.portal.call(
+                partial(
+                    c.app.state.store.create_task,
+                    task_id=tid,
+                    kind="upload_tex",
+                    target_lang="zh-CN",
+                    model="m",
+                )
+            )
+            c.portal.call(partial(c.app.state.runner.enqueue, tid))
+            snap = wait_terminal(c, tid)
+        assert snap["status"] == "fault"
+        assert snap["error"]["code"] == "unsupported_format"
+        assert snap["error"]["retryable"] is False
+
+    @pytest.mark.parametrize("main", ["missing.tex", "../escape.tex"])
+    def test_main_override_parse_fault(
+        self,
+        tmp_path: Path,
+        clean_env: pytest.MonkeyPatch,  # noqa: ARG002
+        main: str,
+    ) -> None:
+        """options.main 覆盖主文件：不存在/越出 base 两分支 → ``parse`` fault。"""
+        with self._live(tmp_path) as c:
+            r = c.post(
+                "/api/upload",
+                files={
+                    "file": ("main.tex", MINI_TEX.encode(), "application/octet-stream")
+                },
+                data={"main": main},
+            )
+            assert r.status_code == HTTPStatus.ACCEPTED, r.text
+            snap = wait_terminal(c, r.json()["task_id"])
+        assert snap["status"] == "fault"
+        assert snap["error"]["code"] == "parse"
+        assert snap["error"]["retryable"] is False
 
 
 class TestChunkErrorCode:

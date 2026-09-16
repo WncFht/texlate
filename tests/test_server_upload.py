@@ -1,8 +1,4 @@
-"""POST /api/upload 的 docx/epub 接受面（§2.4：export_document 通路入队）。
-
-worker ``_run_doc`` 补丁应用前（tmp/upload501-worker.patch 未落）：
-TestDocPipeline 整类 skip——路由层契约（202/kind/落盘/配额）先行锁定。
-"""
+"""POST /api/upload 的 docx/epub 接受面（§2.4：export_document 通路入队）。"""
 
 from __future__ import annotations
 
@@ -20,7 +16,6 @@ from conftest import make_app, wait_terminal
 from starlette.testclient import TestClient
 
 from texlate.server.settings import SettingsStore
-from texlate.server.worker import PipelineWorker
 
 
 def _settings(data_root: Path, **updates: object) -> None:
@@ -113,7 +108,11 @@ class TestUploadDocGuards:
         assert r.status_code == HTTPStatus.BAD_REQUEST
         assert r.json()["code"] == "unsupported_format"
 
-    def test_pdf_no_babeldoc_501(self, client: TestClient) -> None:
+    def test_pdf_no_babeldoc_501(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """501 闸与宿主机 babeldoc 装没装无关——探测钉成未装。"""
+        monkeypatch.setattr("texlate.server.app.find_tool", lambda _n: None)
         r = client.post(
             "/api/upload",
             files={"file": ("a.pdf", b"%PDF-1.4 fake", "application/pdf")},
@@ -137,13 +136,6 @@ class TestUploadDocGuards:
             assert r.json()["code"] == "quota_exceeded"
 
 
-_HAS_RUN_DOC = hasattr(PipelineWorker, "_run_doc")
-
-
-@pytest.mark.skipif(
-    not _HAS_RUN_DOC,
-    reason="worker _run_doc 未接线（tmp/upload501-worker.patch 待应用）",
-)
 class TestDocPipeline:
     """worker _run_doc 端到端：fake export_document 替身（不触网/不真插译）。"""
 
