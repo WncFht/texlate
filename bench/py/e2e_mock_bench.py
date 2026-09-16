@@ -62,12 +62,16 @@ from texlate.compile.engine import route_project
 from texlate.compile.inject import InjectRejectError, find_main_tex, prepare_chinese
 from texlate.compile.normalize import normalize_project
 from texlate.e2e import base_condition, pipe_condition
-from texlate.latex.api import parse_file
 from texlate.latex.placeholder import PH_RX
 from texlate.latex.reconstruct import reconstruct
 from texlate.validate.l0 import validate_pair
-from texlate.xlat.pipeline import ChunkIn, MockTranslator, XlatPipeline, chunk_to_in
-from texlate.xlat.placeholders import decode_newlines, is_placeholder_only
+from texlate.xlat.glossary import Glossary
+from texlate.xlat.pipeline import MockTranslator, XlatPipeline
+from texlate.xlat.placeholders import (
+    collect_doc_placeholders,
+    decode_newlines,
+    is_placeholder_only,
+)
 
 CORPUS = ROOT / "bench/corpus"
 WORK = ROOT / "bench/work_e2emock"
@@ -286,37 +290,33 @@ def translate_tree(
 ) -> tuple[dict, e2e_mod._TreeRun, list]:
     """``e2e._translate_tree`` 同构 + 带出逐块 results（Mode B/C 归因账本用）。
 
-    与产品面逐点对齐：``chunk_to_in(ph_map=res.ph_map)`` 武装抄回修复臂、
-    env_judge 复用 ``_env_judge_pass``、splice 写回同 ``reconstruct``；
-    额外返回 ``_TreeRun`` 供 L2 回灌复用（与 pipe 臂同一运行态形状）。
+    扫描段直接调 ``e2e._scan_tree`` 原件——文件名四门（dotfile 跳、``.rtx.tex``
+    跳、``.code.tex``/无散文记 support_files）与 ``is_file``/suffix 小写口径
+    单源不漂移；翻译段镜像 ``e2e._translate_tree``（``Glossary.load(
+    placeholders=…)`` + ``cache={}`` + L0 validator + ``_env_judge_pass`` +
+    ``reconstruct`` splice 写回），唯一分叉 = 多返回 ``list[ChunkResult]``
+    与 ``_TreeRun`` 供归因账本/L2 回灌复用（与 pipe 臂同一运行态形状）。
     """
-    scans: list[tuple[Path, object]] = []
-    chunks: list[ChunkIn] = []
-    fault_files: list[str] = []
-    for f in sorted(root.rglob("*.tex")):
-        try:
-            res = parse_file(f, flatten=False)
-        except Exception:
-            fault_files.append(f.name)
-            continue
-        idx = len(scans)
-        scans.append((f, res))
-        chunks.extend(
-            chunk_to_in(c, chunk_id=f"{idx}:{c.id}", ph_map=res.ph_map)
-            for c in res.chunks
-        )
+    scans, chunks, fault_files, support_files = e2e_mod._scan_tree(root)
 
     pipe = XlatPipeline(
         translator,
+        glossary=Glossary.load(
+            placeholders=collect_doc_placeholders(c.content for c in chunks)
+        ),
         validator=lambda s, z: validate_pair(s, z).feedback(),
+        cache={},
     )
     results = asyncio.run(pipe.run(chunks))
     by_file: dict[int, dict[int, str]] = {}
     n_fault = 0
+    n_partial = 0
     for r in results:
         fidx, cid = e2e_mod._split_cid(r.chunk_id)
         if e2e_mod._delivered(r):
             by_file.setdefault(fidx, {})[cid] = r.translation
+            if r.status == "partial":
+                n_partial += 1
         else:
             n_fault += 1
 
@@ -339,8 +339,11 @@ def translate_tree(
     stats = {
         "files": n_files,
         "chunks": len(chunks),
+        "partial_chunks": n_partial,
         "fault_chunks": n_fault,
         "fault_files": fault_files,
+        "support_files": support_files,
+        "support_skipped": len(support_files),
         "leftover_ph": n_leftover,
         "env_judge": env_stats,
     }
@@ -492,7 +495,8 @@ def pipe_mode_condition(
         return rec
     job = e2e_mod._Job(work, main_rel, eng_name, timeout)
     # 0-chunk 主文档不期待 CJK (与 pipe_condition 同口径, F 桶假阳修)
-    tail, res = e2e_mod._compile_judge(job, expect_cjk=stats.get("chunks") != 0)
+    expect_cjk = stats.get("chunks") != 0
+    tail, res = e2e_mod._compile_judge(job, expect_cjk=expect_cjk)
     rec.update(tail)
 
     if rec["status"] != "clean":
@@ -515,14 +519,24 @@ def pipe_mode_condition(
             else fixloop_on
         )
         if rec["status"] != "clean" and fl:
-            fl_rep, tail3, _last = e2e_mod._run_fixloop(
-                job, route_engines or [eng_name], res
+            # timeout=job.timeout: 重编预算吃 --timeout (bench/worker 同口径
+            # compile_timeout=作业超时) 而非 rules.yaml meta.loop.timeout_sec;
+            # expect_cjk 透传——0-chunk 工程终判 tail 不该期待 CJK
+            fl_rep, tail3, res = e2e_mod._run_fixloop(
+                job,
+                route_engines or [eng_name],
+                res,
+                timeout=job.timeout,
+                expect_cjk=expect_cjk,
             )
             rec["fixloop"] = fl_rep
             if tail3 is not None:
                 rec.update(tail3)
         elif rec["status"] != "clean":
             rec["fixloop"] = {"enabled": False, "reason": e2e_mod._ENV_NO_FIXLOOP}
+    # ToUnicode 注入在修复链收敛之后 (pipe_condition 同位, worker 同口径)
+    if res.has_pdf and res.pdf is not None:
+        rec["tounicode_fonts"] = e2e_mod._embed_tounicode(res.pdf)
     return rec
 
 
