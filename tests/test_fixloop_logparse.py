@@ -55,6 +55,29 @@ def test_file_stack_tracked() -> None:
     assert rep.file_stack == ["./main.tex", "./sub/chap.tex"]
 
 
+def test_popped_files_runaway_capture() -> None:
+    """runaway 错：``)`` 先于错误行弹真肇事件——popped_files 找回（#78）。"""
+    rep = parse_text(
+        "(./main.tex\n(./sub/bad.tex\nRunaway argument? )\n"
+        "! File ended while scanning use of \\foo.\nl.5 x\n",
+        WARN,
+    )
+    assert rep.file_stack == ["./main.tex"]
+    assert rep.popped_files == ["./sub/bad.tex"]
+
+
+def test_popped_files_filters_none_frames() -> None:
+    """非文件 ``(`` 的 ``None`` 配对帧不入 popped_files。"""
+    rep = parse_text("(./main.tex\n(draft\nx ) y )\n! Emergency stop.\n", WARN)
+    assert rep.file_stack == []
+    assert rep.popped_files == ["./main.tex"]
+
+
+def test_popped_files_empty_without_error() -> None:
+    rep = parse_text("(./main.tex\n)clean\n", WARN)
+    assert rep.popped_files == []
+
+
 def test_parse_log_missing_path() -> None:
     rep = parse_log(None, WARN)
     assert rep.n_bang == 0

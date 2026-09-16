@@ -64,6 +64,11 @@ class ErrReport:
     tail: str = ""  # 末 30 行
     line_no: int | None = None  # ctx 内 l.N 行号
     file_stack: list[str] = field(default_factory=list)  # 出错时打开的文件栈
+    #: 首错行之前已弹出的文件名（pop 序；``None`` 非文件配对帧已滤）——
+    #: ``File ended while scanning`` 类 runaway 错报位在父文件续行
+    #: （``)`` 先于错误打印），``popped_files[-1]`` = 最近关闭的文件 =
+    #: 肇事候选（#78）。无错误/无弹栈 → 空。
+    popped_files: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)  # 命中的 warning id
     raw: str = ""  # log 全文 (供 escalate_llm context / cases log_excerpt)
 
@@ -105,7 +110,9 @@ def parse_text(
         if m:
             rep.line_no = int(m.group(1))
     if first_i is not None:
-        rep.file_stack = file_stack_at(lines, first_i)
+        popped: list[str | None] = []
+        rep.file_stack = file_stack_at(lines, first_i, popped)
+        rep.popped_files = [t for t in popped if t is not None]
     for w in warn_patterns or []:
         if re.search(w["pattern"], text, re.IGNORECASE | re.MULTILINE):
             rep.warnings.append(w["id"])

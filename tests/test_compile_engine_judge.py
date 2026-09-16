@@ -63,6 +63,26 @@ def test_parse_log_tail_kept() -> None:
     assert "line99" in info.tail
 
 
+def test_parse_log_popped_files_runaway() -> None:
+    """runaway 错报位在父文件续行——首错前弹出序列找回肇事件（#78）。
+
+    与 ``file_stack`` 同位快照：首错之后的弹栈（``./after.tex``）不入列。"""
+    log = (
+        "(./main.tex\n(./sub/bad.tex\nRunaway argument? )\n"
+        "! File ended while scanning use of \\foo.\nl.5 x\n"
+        "(./after.tex\n)closed late\n"
+    )
+    info = parse_log(log)
+    assert info.file_stack == ["./main.tex"]
+    assert info.popped_files == ["./sub/bad.tex"]
+
+
+def test_parse_log_popped_files_filters_none() -> None:
+    """非文件 ``(`` 的 ``None`` 配对帧不入 popped_files。"""
+    info = parse_log("(./main.tex\n(draft\nx ) y )\n! Emergency stop.\n")
+    assert info.popped_files == ["./main.tex"]
+
+
 # ---------------------------------------------------------------- classify
 def test_classify_missing_file() -> None:
     cat, pay = classify_error(

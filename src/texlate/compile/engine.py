@@ -112,6 +112,11 @@ class LogInfo:
     error_ctx: str | None = None
     error_line: int | None = None  # l.NNN
     file_stack: list[str] = field(default_factory=list)
+    #: 首错行位之前已弹出的文件名（pop 序；``None`` 非文件配对帧已滤）——
+    #: ``File ended while scanning`` 类 runaway 错报位在父文件续行
+    #: （``)`` 先于错误打印），``popped_files[-1]`` = 最近关闭的文件 =
+    #: 肇事候选（#78）。与 ``file_stack`` 同位快照（首错时刻），无错 → 空。
+    popped_files: list[str] = field(default_factory=list)
     tail: str = ""
     errors: list[str] = field(default_factory=list)  # 全部 '^!'/'file:line:' 行
     warnings_hit: list[str] = field(default_factory=list)  # judge 红线命中
@@ -203,10 +208,13 @@ def _scan_error_lines(
     """
     ctx_start = -1
     stack: list[str | None] = []
+    #: 弹栈史全程累计——``)`` 先于错误行打印（runaway 报位在父文件续行），
+    #: 仅收集出错行会丢掉真肇事件；首错捕获点与 file_stack 同位快照。
+    popped: list[str | None] = []
     utf8_proj = False
     utf8_sys: set[str] = set()
     for i, ln in enumerate(lines):
-        update_file_stack(ln, stack)
+        update_file_stack(ln, stack, popped)
         if _UTF8_WARN_RE.search(ln):
             inner = next((s for s in reversed(stack) if s), None)
             if is_project_file(inner, project_root):
@@ -222,6 +230,7 @@ def _scan_error_lines(
                 info.first_error = ln.strip()
                 ctx_start = i
                 info.file_stack = [s for s in stack if s]
+                info.popped_files = [t for t in popped if t is not None]
     info.warnings_sys = [f"invalid_utf8@{n}" for n in sorted(utf8_sys)]
     return ctx_start, utf8_proj
 

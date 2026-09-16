@@ -127,6 +127,33 @@ def test_file_stack_at_replays_before_stop() -> None:
     assert file_stack_at(lines, 4) == ["./main.tex", "./b.tex"]
 
 
+def test_file_stack_at_popped_captures_runaway() -> None:
+    """runaway 形态：stop 行前 ``)`` 已弹真肇事件——popped 全程史找回（#78）。"""
+    lines = [
+        "(./main.tex",
+        "(./sub/bad.tex",
+        "Runaway argument? )",
+        "! File ended while scanning use of \\foo.",
+    ]
+    popped: list[str | None] = []
+    assert file_stack_at(lines, 3, popped) == ["./main.tex"]
+    assert popped == ["./sub/bad.tex"]
+
+
+def test_file_stack_at_popped_keeps_none_frames() -> None:
+    """原语层透传 ``None`` 配对帧（滤除是消费端职责）。"""
+    lines = ["(./main.tex", "(draft", "x ) y )", "! err"]
+    popped: list[str | None] = []
+    assert file_stack_at(lines, 3, popped) == []
+    assert popped == [None, "./main.tex"]
+
+
+def test_file_stack_at_popped_default_untouched() -> None:
+    """不传 popped → 行为与旧签名一致（out-param 纯增量）。"""
+    lines = ["(./a.tex", ")x", "(./b.tex"]
+    assert file_stack_at(lines, 3) == ["./b.tex"]
+
+
 # ---------------------------------------------------------- is_project_file 直测
 
 

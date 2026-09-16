@@ -116,11 +116,20 @@ def update_file_stack(
             j += 1
 
 
-def file_stack_at(lines: list[str], stop: int) -> list[str]:
-    """重放 ``lines[:stop]`` 的文件栈，取 stop 行处仍打开的文件名序列。"""
+def file_stack_at(
+    lines: list[str], stop: int, popped: list[str | None] | None = None
+) -> list[str]:
+    """重放 ``lines[:stop]`` 的文件栈，取 stop 行处仍打开的文件名序列。
+
+    ``popped`` 非 None 时把重放全程弹出的栈顶按序追加——与
+    ``update_file_stack`` 同口径含 ``None`` 配对帧（原样透传，滤除是
+    消费端职责）；``popped[-1]`` 即 stop 行前最近关闭的文件，
+    ``File ended while scanning`` 类 runaway 错报位在父文件续行时
+    找回真肇事文件用（#78）。
+    """
     stack: list[str | None] = []
     for ln in lines[:stop]:
-        update_file_stack(ln, stack)
+        update_file_stack(ln, stack, popped)
     return [s for s in stack if s]
 
 
