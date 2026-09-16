@@ -765,6 +765,23 @@ def _bare_cs(body: list[Tok]) -> Tok | None:
     return None
 
 
+def _has_at_cs(body: list[Tok]) -> bool:
+    r"""体含 @-letter cs token（``\@startsection``/``\z@``/裸 ``\@``）。
+
+    @ 收进 cs 名只在 ``\makeatletter`` 语境成立；展开把 ``\@x`` 序列化进
+    正文（@=other）会重解析为 ``\@``+字母（``\spacefactor`` 义）——替换体
+    离开 makeatletter 即不可编译，此类宏只能 opaque 原样保留调用点，编译期
+    由 tex 内被保留的 def 自己展开（0707.3950 ``\section`` 实证）。
+    """
+    if any(t.kind == "cs" and "@" in t.text for t in body):
+        return True
+    # ``\csname a@b\endcsname``：@ 以 letter/other 身份进体，csname 在展开期
+    # 才合成 @-cs——同源泄漏的第二路径，同判 opaque。
+    if any(t.kind == "cs" and t.text == "csname" for t in body):
+        return any(t.kind in ("letter", "other") and t.text == "@" for t in body)
+    return False
+
+
 def expand_def(
     body: list[Tok], params: dict[int, list[Tok] | None], trig: Tok
 ) -> list[Tok]:
@@ -2650,6 +2667,8 @@ class Gullet:
             return "env_begin", target, ()
         if mk is MacroKind.ENV_END:
             return "env_end", target, ()
+        if _has_at_cs(body):
+            return "opaque", "", ()
         if not body_has_text(surf):
             if _bare_cs(body) is not None:
                 # 体=单枚 cs 的纯别名（\nc→\newcommand）：opaque 会让调用点

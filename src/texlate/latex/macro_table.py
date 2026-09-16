@@ -40,6 +40,13 @@ _STRIP_CS1_RX = re.compile(r"\\[^a-zA-Z]")
 _NONALPHA_RX = re.compile(r"[^a-zA-Z]")
 _WORD_RX = re.compile(r"[a-zA-Z]{2,}")
 _PARAM_TOK_RX = re.compile(r"\\[a-zA-Z@]+\*?|#([1-9])")
+# cs 名内含 ``@``（``\@startsection``/``\z@``/裸 ``\@``）——@ 能进 cs 名
+# 只在 makeatletter 语境成立；``\\x@``（``\\`` 换行 + ``@``）稀有误命中
+# 仅致保守 opaque，无害。
+_AT_CS_RX = re.compile(r"\\[a-zA-Z@]*@")
+# ``\csname a@b\endcsname``：@ 是字面字符、@-cs 在展开期才合成——同源第二
+# 路径（gullet ``_has_at_cs`` csname 支对价）。
+_AT_CSNAME_RX = re.compile(r"\\csname(?:(?!\\endcsname).)*@", re.DOTALL)
 
 
 @dataclass(slots=True)
@@ -147,13 +154,22 @@ def register_macro(
     body: str,
     def_site: int = -1,
 ) -> None:
-    """登记宏并做三分类判定（§5.1）。"""
+    r"""登记宏并做三分类判定（§5.1）。
+
+    替换体含 @-letter csname（``\\@startsection``/``\\z@``）→ OPAQUE：
+    该类体离开 makeatletter 语境不可编译，展开只会产出 ``\\@``+字母
+    的断裂文本（gullet ``_has_at_cs`` 的字符串版对价，0707.3950 实证）。
+    """
     if not name:
         return
     entry = MacroEntry(name=name, spec=spec, body=body, def_site=def_site)
     kind, target = classify_body(body)
     if kind is MacroKind.TRANSPARENT:
-        if not body_has_text(body):
+        if (
+            _AT_CS_RX.search(body)
+            or _AT_CSNAME_RX.search(body)
+            or not body_has_text(body)
+        ):
             entry.kind = MacroKind.OPAQUE
         else:
             entry.kind = MacroKind.TRANSPARENT

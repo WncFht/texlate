@@ -378,3 +378,112 @@ def test_user_env_math_role_in_arg() -> None:
         for k, v in res.ph_map.items()
     )
     assert reconstruct(res) == DOC % body
+
+
+# ---------------------------------------------------------------- 机制 E：@-cs 展开泄漏
+
+
+def test_at_cs_body_macro_stays_opaque() -> None:
+    r"""``\makeatletter`` 域内 ``\def`` 的替换体含 @-csname → opaque 不展开。
+
+    0707.3950 实证：``\def\section{\@startsection...}`` 展开后 ``\@startsection``
+    序列化进正文（@=other），``\@`` 重解析为 ``\spacefactor`` → 不可编译。
+    opaque 保调用点原文，编译期由保留的 def 自己展开。
+    """
+    tex = (
+        "\\documentclass{article}\n"
+        "\\makeatletter\n"
+        "\\def\\section{\\@startsection{section}{1}{\\z@}{-3.5ex plus -1ex minus\n"
+        "-.2ex}{2.3ex plus .2ex}{\\large\\bf}}\n"
+        "\\makeatother\n"
+        "\\begin{document}\n"
+        "\\section{Introduction to the topic}\n"
+        "Body text with enough words here.\n"
+        "\\end{document}\n"
+    )
+    res = parse_tex(tex)
+    entry = res.macros.resolve(res.macros.lookup("section"))
+    assert getattr(entry, "kind", "") == "opaque"
+    # 调用点不展开：@ -cs 不进 chunk、不进 ph 体（preamble def 区段本身合法）
+    assert not any(
+        "\\@startsection" in c.content or "\\z@" in c.content for c in res.chunks
+    )
+    assert not any("\\@startsection" in v or "\\z@" in v for v in res.ph_map.values())
+    zh = reconstruct(res, {c.id: "引言译文" for c in res.chunks})
+    post = zh.split("\\begin{document}", 1)[1]
+    assert "\\@startsection" not in post
+    assert "\\z@" not in post
+    assert "\\section{引言译文}" in post  # 调用点保留 + 标题照常可翻
+
+
+def test_at_cs_body_macro_v1_arm() -> None:
+    r"""v1 字节 scanner 臂对称：平表 ``register_macro`` 同判 opaque。"""
+    tex = (
+        "\\documentclass{article}\n"
+        "\\makeatletter\n"
+        "\\def\\section{\\@startsection{section}{1}{\\z@}{-3.5ex}{2.3ex}{\\large\\bf}}\n"
+        "\\makeatother\n"
+        "\\begin{document}\n"
+        "\\section{Introduction to the topic}\n"
+        "Body text with enough words here.\n"
+        "\\end{document}\n"
+    )
+    res = parse_tex_v1(tex)
+    entry = res.macros.resolve(res.macros.lookup("section"))
+    assert getattr(entry, "kind", "") == "opaque"
+    zh = reconstruct(res, {c.id: "引言译文" for c in res.chunks})
+    post = zh.split("\\begin{document}", 1)[1]
+    assert "\\@startsection" not in post
+    assert "\\z@" not in post
+
+
+def test_at_cs_alias_body_stays_opaque() -> None:
+    r"""裸 ``\\@foo`` 别名体同判 opaque——``_bare_cs`` 通道不得放行展开。"""
+    body = (
+        "\\makeatletter\n"
+        "\\def\\nc{\\@startsection}\n"
+        "\\makeatother\n"
+        "Text \\nc{arg} more words in this sentence."
+    )
+    res = scan(body)
+    entry = res.macros.resolve(res.macros.lookup("nc"))
+    assert getattr(entry, "kind", "") == "opaque"
+
+
+def test_non_at_macro_still_expands() -> None:
+    r"""对照组：无 @-cs 的含文本宏照常 transparent_expand（防过度 opaque）。"""
+    res = scan("\\def\\foo{EXPANDED phrase words}\\foo fills the sentence here.")
+    assert any("EXPANDED phrase words" in c.content for c in res.chunks)
+
+
+def test_at_csname_synth_body_stays_opaque() -> None:
+    r"""``\csname a@b\endcsname`` 体：@ 是字符 token、@-cs 展开期才合成——
+    第二路径同判 opaque（体扫描看不到 ``\@`` 形 cs token）。"""
+    body = (
+        "\\makeatletter\n"
+        "\\def\\foo{\\csname @startsection\\endcsname}\n"
+        "\\makeatother\n"
+        "Text \\foo more words in this sentence."
+    )
+    res = scan(body)
+    entry = res.macros.resolve(res.macros.lookup("foo"))
+    assert getattr(entry, "kind", "") == "opaque"
+    out = reconstruct(res, {c.id: "译文" for c in res.chunks})
+    post = out.split("\\begin{document}", 1)[1]
+    assert "\\@" not in post
+
+
+def test_at_csname_synth_body_v1_arm() -> None:
+    r"""v1 字符串臂：``\csname..@..`` 体同判 opaque。"""
+    tex = (
+        "\\documentclass{article}\n"
+        "\\makeatletter\n"
+        "\\def\\foo{\\csname a@b\\endcsname}\n"
+        "\\makeatother\n"
+        "\\begin{document}\n"
+        "Text \\foo more words in this sentence.\n"
+        "\\end{document}\n"
+    )
+    res = parse_tex_v1(tex)
+    entry = res.macros.resolve(res.macros.lookup("foo"))
+    assert getattr(entry, "kind", "") == "opaque"
