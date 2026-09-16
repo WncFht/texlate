@@ -7,13 +7,15 @@ r"""L0 规则校验层 —— stdlib always-on，src↔zh 相对判定（规格 
 设计原则 = "译文不得比原文更坏"：每条检查都是 src↔zh 比较而非 zh 绝对判定，
 src 自带的不平衡/不一致不追责（继承容忍），只报 zh 相对 src 的新增损伤。
 
-八条规则（docs/08 §2.1 表 + E21/E22 修订口径 + 注释区/粘合补丁）：
+九条规则（docs/08 §2.1 表 + E21/E22 修订口径 + 注释区/粘合/回显补丁）：
 
   placeholder  ``[[TYPE_n]]``/``[[SL]]``/``[[PL]]`` multiset diff + lev≤2 修复建议；
                E22：严格序守恒降为 warn（``of X``→``X 的`` 合法换序占违例 ~95%），
-               硬判据只留"结构占位符脱离行首"（BIBITEM 类）。注释豁免只盖
-               内容差异——zh 注释区净多出的占位符是 splice 字面残留，仍报 error
-               （sabotage 实测逃逸：臆造 ``[[MATH_966]]`` 写进 ``%`` 行）。
+               硬判据留结构占位符脱位（BIBITEM 行首锚定 + COMMENT 整行锚定：
+               ``%`` 展开吞到 EOL，同行非注释邻居皆死字节/splice 残留）。
+               注释豁免只盖内容差异——zh 注释区净多出的占位符是 splice 字面
+               残留，仍报 error（sabotage 实测逃逸：臆造 ``[[MATH_966]]``
+               写进 ``%`` 行）。
   brace        ``{}`` 平衡（``\\{`` ``\\}`` 转义、``%`` 注释豁免）。
   env          ``\\begin/\\end`` 栈配对 + 环境名 multiset 签名差分。
   key          ``\\cite*/\\*ref/\\label/\\bibitem/\\bibliography`` key multiset。
@@ -27,6 +29,12 @@ src 自带的不平衡/不一致不追责（继承容忍），只报 zh 相对 s
   item_glue    ``\\item`` 紧跟 ASCII 字母粘成 ``\\itemFSU`` 类非法 cs（管线引入
                签名，8 篇实证 Undefined cs 编译炸弹）——zh 净多出计数 → warn；
                ``\\itemsep`` 等合法 cs 与 src 自带粘连靠 src↔zh 净差豁免。
+  protocol_echo 交付 zh 净多出协议字面 → error（repro-2410b §4b：corrector
+               三段式节标/L0 反馈消息/``slot_validation_failures``/
+               ``[compile_error]`` 被当正文回显——multiset 可吻合而载荷脏，
+               回显行里 ``[[COMMENT_n]]`` splice 出 ``%`` 吞掉同行结构 ``}``
+               实测 early_eof）。词表与 bench ``DIRTY_SIGS`` 同款同序；
+               ``[这是译文]``/``[word]`` 合法产出不在表内不误伤。
 
 实测基线（tmp/exp/rule-validator，cases.jsonl 1636 例）：10 类破坏 100% 检出、
 313 干净对 0 error-FP。
@@ -125,6 +133,34 @@ FRAGILE_CHARS: Final = frozenset("~")
 
 #: 结构占位符：必须保持行首锚定（`\bibitem` 脱位 mid-paragraph → 编译损伤）。
 STRUCTURAL_PH_RX: Final = re.compile(r"\[\[BIBITEM_\d+\]\]")
+
+#: 注释占位符（``%`` 展开吞到 EOL）。src 独占整行的 ``[[COMMENT_n]]`` 在 zh
+#: 所在行必须整行只剩注释占位符——同行非注释邻居，前缀是 splice 残留垃圾、
+#: 后缀是被注释吃掉的死字节（repro-2410b §4c）；src 行中的（ph 恒行尾，
+#: 注释天然吃到换行）zh 尾段同样只许注释占位符。
+COMMENT_PH_RX: Final = re.compile(r"\[\[COMMENT_\d+\]\]")
+_COMMENT_LINE_RX: Final = re.compile(r"[ \t]*(?:\[\[COMMENT_\d+\]\][ \t]*)+")
+_COMMENT_TAIL_RX: Final = re.compile(r"(?:[ \t]*\[\[COMMENT_\d+\]\])*[ \t]*")
+
+#: 协议回显签名（repro-2410b §4b 交付守卫）：与 bench ``DIRTY_SIGS``
+#: （``e2e_mock_bench.py``）同一词表同序——L0 反馈消息实际 emit 串 +
+#: 重试协议字面（三段式节标/``previous_validation_error`` 尾拼/
+#: ``slot_validation_failures`` 字段/``[compile_error]`` L2 回灌标）。
+#: 交付 zh 出现即 prompt/反馈被当正文回显；``[这是译文]``/``[word]``
+#: 行内合法产出不在表内不误伤。
+_ECHO_SIGS: Final = (
+    "占位符缺失:",  # _pair_placeholder_typos
+    "占位符疑似拼错",  # _pair_placeholder_typos lev 配对臂
+    "多余/未识别占位符:",  # _check_placeholder
+    "结构占位符",  # _check_ph_anchor "脱离行首位置"
+    "注释区内臆造占位符",  # _check_placeholder 注释区专项
+    "[Original]",  # prompts.corrector_user 三段式
+    "[Translation]",  # prompts.corrector_user
+    "[Error]",  # prompts.corrector_user
+    "previous_validation_error",  # pipeline 阶梯重试尾拼
+    "slot_validation_failures",  # pipeline 批模式失败槽字段
+    "[compile_error]",  # pipeline L2 回灌重译
+)
 
 #: 阈值常数（E21：长度比下界 0.30 → 0.25，正常 CJK 压缩线）。
 LENGTH_RATIO_LO: Final = 0.25
@@ -308,8 +344,31 @@ def _pair_placeholder_typos(
     return used
 
 
+def _line_of(s: str, start: int, end: int) -> str:
+    r"""``s`` 中含 ``[start, end)`` 的整行（``\n`` 界，剥尾部 ``\r``）。"""
+    lo = s.rfind("\n", 0, start) + 1
+    hi = s.find("\n", end)
+    line = s[lo:] if hi < 0 else s[lo:hi]
+    return line.removesuffix("\r")
+
+
+def _line_tail(s: str, end: int) -> str:
+    r"""``s`` 中 ``end`` 处到行尾的残段（``\n`` 界，剥尾部 ``\r``）。"""
+    hi = s.find("\n", end)
+    tail = s[end:] if hi < 0 else s[end:hi]
+    return tail.removesuffix("\r")
+
+
 def _check_ph_anchor(snc: str, znc: str, issues: list[Issue]) -> None:
-    """行首锚定的结构占位符（BIBITEM 类）脱位 → error（E22 硬判据余量）。"""
+    r"""行锚定占位符脱位 → error（BIBITEM 行首 + COMMENT 整行/行尾两类）。
+
+    BIBITEM 类（E22 硬判据余量）：src 行首锚定的 token 在 zh 带行内前缀
+    → ``\\bibitem`` 落进段中编译损伤。
+    COMMENT 类（repro-2410b §4c）：``%`` 展开吞到 EOL——src 独占整行的
+    ``[[COMMENT_n]]`` 在 zh 同行不得混入非注释内容（前缀是 splice 残留
+    垃圾注入注释槽位，后缀是被注释吃掉的死字节）；src 行中的 ph 恒处
+    行尾（注释天然吃到换行），zh 尾段混入非注释内容同款报错。
+    """
     anchored = {
         m.group(0)
         for m in STRUCTURAL_PH_RX.finditer(snc)
@@ -330,6 +389,33 @@ def _check_ph_anchor(snc: str, znc: str, issues: list[Issue]) -> None:
         and znc[znc.rfind("\n", 0, m.start()) + 1 : m.start()].strip()
     )
 
+    cmt_anchored = {
+        m.group(0)
+        for m in COMMENT_PH_RX.finditer(snc)
+        if _COMMENT_LINE_RX.fullmatch(_line_of(snc, m.start(), m.end()))
+    }
+    for m in COMMENT_PH_RX.finditer(znc):
+        if m.group(0) in cmt_anchored:
+            seg = _line_of(znc, m.start(), m.end())
+            clean = _COMMENT_LINE_RX.fullmatch(seg)
+        else:
+            seg = _line_tail(znc, m.end())
+            clean = _COMMENT_TAIL_RX.fullmatch(seg)
+        if clean:
+            continue
+        issues.append(
+            Issue(
+                "placeholder",
+                Severity.ERROR,
+                f"注释占位符 {m.group(0)} 所在行混入非注释内容"
+                f"（% 展开吞到行尾，同行邻居是死字节/splice 残留）"
+                f": {seg.strip()!r}",
+                m.start(),
+                expected=m.group(0),
+                found=m.group(0),
+            )
+        )
+
 
 def _ph_in_comments(s: str) -> Counter[str]:
     r"""注释区（``%``→行尾，``\%`` 豁免）内正规形占位符计数。
@@ -345,7 +431,7 @@ def _ph_in_comments(s: str) -> Counter[str]:
 
 
 def _check_placeholder(src: str, zh: str, issues: list[Issue]) -> None:
-    """占位符 multiset diff + lev≤2 修复配对 + 序守恒软信号 + BIBITEM 锚定。"""
+    """占位符 multiset diff + lev≤2 修复配对 + 序守恒软信号 + 行锚定（BIBITEM/COMMENT）。"""
     snc, znc = mask_comments(src), mask_comments(zh)
     sseq = PH_ANY_LIKE_RX.findall(snc)
     zseq = PH_ANY_LIKE_RX.findall(znc)
@@ -735,11 +821,38 @@ def _check_item_glue(src: str, zh: str, issues: list[Issue]) -> None:
         )
 
 
+def _check_protocol_echo(src: str, zh: str, issues: list[Issue]) -> None:
+    r"""协议回显守卫：zh 净多出 corrector/L0 协议字面 → error。
+
+    repro-2410b §4b：Mode-B mock 把三段式 prompt 当正文翻，交付块带
+    节标 + ``占位符缺失:`` 反馈行 + body 重复——占位符 multiset 可吻合
+    而载荷脏（反馈行里 ``[[COMMENT_14]]`` splice 出 ``%`` 吞掉 chunk 外
+    ``}`` → early_eof）。真模型 parrot prompt furniture 是同款逃逸通道，
+    与 ``pipeline._intercept_leftover_ph`` 同层（error → 重译/回退原文）。
+    词表 ``_ECHO_SIGS`` 与 bench ``DIRTY_SIGS`` 同款同序——子串直配 +
+    src↔zh 净差（src 自带同形串属忠实翻译不追责；校验行话 + ASCII
+    冒号/节标形态合法译文不产出）。
+    """
+    for sig in _ECHO_SIGS:
+        n = zh.count(sig) - src.count(sig)
+        if n > 0:
+            issues.append(
+                Issue(
+                    "protocol_echo",
+                    Severity.ERROR,
+                    f"协议字面 {sig!r} 进入交付译文 ×{n}"
+                    f"（corrector 反馈/重试协议被当正文回显，载荷脏）",
+                    zh.find(sig),
+                    found=sig,
+                )
+            )
+
+
 # ---------------------------------------------------------------- 主入口
 
 
 def validate_pair(src: str, zh: str) -> L0Report:
-    """对 ``(src_chunk, zh_chunk)`` 跑全部八组检查，返回结构化 verdict。
+    """对 ``(src_chunk, zh_chunk)`` 跑全部九组检查，返回结构化 verdict。
 
     ``report.ok`` 为 True 即可送 L1/拼回；False 时 ``report.feedback()``
     的文本可直接进 corrector 的 ``previous_validation_error`` 字段。
@@ -753,4 +866,5 @@ def validate_pair(src: str, zh: str) -> L0Report:
     _check_length(src, zh, rep.issues)
     _check_macro(src, zh, rep.issues)
     _check_item_glue(src, zh, rep.issues)
+    _check_protocol_echo(src, zh, rep.issues)
     return rep
