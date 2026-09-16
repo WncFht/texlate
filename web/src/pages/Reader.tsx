@@ -11,6 +11,7 @@ import {
     type FileKind,
     type FileManifest,
     type ReaderInfo,
+    type SharePackResponse,
     type TaskSnapshot,
     type TaskStage,
 } from "../api/client";
@@ -61,6 +62,13 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
     } | null>(null);
     // needs_auth 结果面板的内联 API Key 输入（重试随 X-Texlate-Key 透传）
     const [authKey, setAuthKey] = createSignal("");
+    // §6 事后共享：done/partial + 非 share 导入 + 有 arxiv 源 → 可打 .share.zip
+    const [shareBusy, setShareBusy] = createSignal(false);
+    const [shareResult, setShareResult] = createSignal<SharePackResponse | null>(null);
+    const [shareError, setShareError] = createSignal<{
+        code?: string;
+        message: string;
+    } | null>(null);
     // 已用时秒表的走时源（created_at 为 epoch 秒）
     const [now, setNow] = createSignal(Date.now());
     const tick = window.setInterval(() => setNow(Date.now()), 1000);
@@ -408,6 +416,9 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
             });
             taskStore.resetLive(props.taskId);
             setAuthKey(""); // 已用毕即弃，不留在组件态
+            // 重跑换产物——上一轮打包结果作废
+            setShareResult(null);
+            setShareError(null);
         } catch (e) {
             const ae = e instanceof ApiError ? e : null;
             setRetryError({
@@ -419,6 +430,82 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
             setRetrying(false);
         }
     };
+
+    // ---------- 事后共享打包（POST /task/{id}/share/pack，§6） ----------
+
+    /** 可分享：done/partial 终态 + 非 share 导入产物（不自包）+ 有 arxiv 源（寻址必需） */
+    const canShare = () => {
+        const s = task();
+        return (
+            !!s &&
+            (s.status === "done" || s.status === "partial") &&
+            s.kind !== "share" &&
+            !!s.arxiv_id
+        );
+    };
+
+    const SHARE_ERR_TEXT: Record<string, string> = {
+        share_pack_rejected: t.reader.shareErrRejected,
+        share_pack_artifacts: t.reader.shareErrArtifacts,
+        share_pack_failed: t.reader.shareErrFailed,
+    };
+
+    /** code → 可读文案；映射外的错回退服务端 detail */
+    const shareErrText = (ae: ApiError | null, e: unknown) => {
+        const detail = ae?.detail ?? (e instanceof Error ? e.message : String(e));
+        const mapped =
+            ae?.status === 409 ? t.reader.shareErrState : SHARE_ERR_TEXT[ae?.code ?? ""];
+        return mapped ? (detail ? `${mapped}（${detail}）` : mapped) : detail;
+    };
+
+    const onSharePack = async () => {
+        if (shareBusy() || shareResult()) return;
+        setShareBusy(true);
+        setShareError(null);
+        try {
+            setShareResult(await api.sharePack(props.taskId));
+        } catch (e) {
+            const ae = e instanceof ApiError ? e : null;
+            setShareError({ code: ae?.code, message: shareErrText(ae, e) });
+        } finally {
+            setShareBusy(false);
+        }
+    };
+
+    /** 分享块：按钮 → 成功态（share_key + 共享目录提示）/ 可读错误。自门控 canShare */
+    const renderShareBlock = () => (
+        <Show when={canShare()}>
+            <span class="share-pack">
+                <Show
+                    when={!shareResult()}
+                    fallback={
+                        <span class="share-ok">
+                            {t.reader.shareOk}
+                            <code class="share-key">{shareResult()!.share_key}</code>
+                            <span class="muted">{t.reader.shareOkHint}</span>
+                        </span>
+                    }
+                >
+                    <button
+                        type="button"
+                        class="tb-btn share-btn"
+                        disabled={shareBusy()}
+                        title={t.reader.shareBtnTip}
+                        onClick={() => void onSharePack()}
+                    >
+                        {shareBusy() ? t.reader.shareBusy : t.reader.shareBtn}
+                    </button>
+                </Show>
+                <Show when={shareError()}>
+                    {(e) => (
+                        <span class="form-error share-err">
+                            [{e().code ?? "share_pack"}] {e().message}
+                        </span>
+                    )}
+                </Show>
+            </span>
+        </Show>
+    );
 
     // ---------- 进度视图 / 结果面板的数据加工 ----------
 
@@ -579,6 +666,7 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
                 <Show when={st === "needs_auth"}>
                     <span class="muted">{t.reader.retryHintAuth}</span>
                 </Show>
+                {renderShareBlock()}
             </div>
         </>
     );
@@ -823,6 +911,13 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
                         {renderResultBody(resultStatus()!)}
                     </section>
                 </Show>
+                {/* done 且无结果横幅：§6 完成后提示分享（partial 的分享钮在结果横幅内） */}
+                <Show when={task()?.status === "done" && canShare()}>
+                    <section class="result-banner share-banner">
+                        <span class="rp-status">{t.reader.shareBanner}</span>
+                        {renderShareBlock()}
+                    </section>
+                </Show>
                 <div class="panes" classList={{ swapped: swapped(), single: mode() !== "split" }}>
                     <Show when={paneVisible("original")}>{renderPane("original")}</Show>
                     <Show when={paneVisible("translated")}>{renderPane("translated")}</Show>
@@ -874,6 +969,7 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
                             <p class="muted">{t.reader.filesHint}</p>
                             {renderDownloads()}
                         </Show>
+                        {renderShareBlock()}
                         <button
                             type="button"
                             class="btn-ghost"

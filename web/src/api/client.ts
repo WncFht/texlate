@@ -169,6 +169,14 @@ export interface TranslateResponse {
     reader_url?: string;
 }
 
+/** POST /task/{id}/share/pack 200 体（§6 事后打包） */
+export interface SharePackResponse {
+    share_key: string;
+    /** 服务端共享目录内的扁平包文件名——非可点 URL，给其他实例 import 用 */
+    url: string;
+    bytes: number;
+}
+
 export type FileKind =
     | "en.pdf"
     | "zh.pdf"
@@ -371,6 +379,10 @@ export const api = {
             body: fd,
         });
     },
+
+    /** 终态任务事后打 .share.zip 入共享目录（§6；幂等——已打过直返同 share_key） */
+    sharePack: (taskId: string) =>
+        request<SharePackResponse>(`/task/${taskId}/share/pack`, { method: "POST" }),
 
     snapshot: (taskId: string) => request<TaskSnapshot>(`/task/${taskId}`),
     cancel: (taskId: string) => request(`/task/${taskId}/cancel`, { method: "POST" }),

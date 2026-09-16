@@ -85,6 +85,10 @@ interface MockTask {
     listeners: Set<ServerResponse>;
     timer?: ReturnType<typeof setInterval>;
     html?: boolean;
+    /** 演示 share/pack 422 分支："artifacts" 缺产物 / "failed" 打包失败 */
+    share_fail?: "artifacts" | "failed";
+    /** 已打过的 share_key——幂等直返（对齐真后端 index 命中） */
+    share_key?: string;
 }
 
 const tasks = new Map<string, MockTask>();
@@ -381,6 +385,17 @@ seedTask("t_0000000000000a07", "done", {
     kind: "epub",
     title: "Mock doc — EPUB 产物演示（无对照视图）",
 });
+// share/pack 演示：a08 走 422 artifacts 分支；a09 kind=share（UI 不显示按钮、点也 422）
+seedTask("t_0000000000000a08", "done", {
+    title: "Mock paper — share 打包缺产物演示",
+    arxiv_id: "2408.07777",
+    share_fail: "artifacts",
+});
+seedTask("t_0000000000000a09", "done", {
+    kind: "share",
+    title: "Mock share — 导入产物不自包演示",
+    arxiv_id: "2501.14787",
+});
 
 // settings 演示态：GET 出参即真后端 public() 形状（无 api_key 本体）
 const mockSettings = {
@@ -615,6 +630,52 @@ function handleApi(req: Req, res: Res, url: URL): boolean {
         }
         drive(t);
         json(res, 200, { ok: true });
+        return true;
+    }
+    if ((mm = m(/^\/api\/task\/([^/]+)\/share\/pack$/)) && req.method === "POST") {
+        const t = tasks.get(mm[1]);
+        if (!t) return notFound(res), true;
+        // 对齐真后端守卫阶梯：kind=share → 422；非 done/partial → 409；无 arxiv_id → 422
+        if (t.kind === "share") {
+            json(res, 422, {
+                detail: "kind=share 任务不打共享包（导入产物不自包）",
+                code: "share_pack_rejected",
+            });
+            return true;
+        }
+        if (t.status !== "done" && t.status !== "partial") {
+            json(res, 409, {
+                detail: `任务状态 ${t.status}：仅 done/partial 终态可打包`,
+                code: "invalid_state",
+            });
+            return true;
+        }
+        if (!t.arxiv_id) {
+            json(res, 422, {
+                detail: "任务无 arxiv_id（不参与共享寻址）",
+                code: "share_pack_rejected",
+            });
+            return true;
+        }
+        if (t.share_fail === "artifacts") {
+            json(res, 422, {
+                detail: "缺必需产物: ['zh-src.zip'](mock)",
+                code: "share_pack_artifacts",
+            });
+            return true;
+        }
+        if (t.share_fail === "failed") {
+            json(res, 422, { detail: "share 打包失败(mock)", code: "share_pack_failed" });
+            return true;
+        }
+        // 幂等：已打过 → 同 share_key 直返不重打
+        t.share_key ??=
+            `s-${t.arxiv_id.replace(/[^a-z0-9]/gi, "").toLowerCase()}-zh-${t.id.slice(-4)}`;
+        json(res, 200, {
+            share_key: t.share_key,
+            url: `${t.share_key}.share.zip`,
+            bytes: 20480,
+        });
         return true;
     }
     if ((mm = m(/^\/api\/task\/([^/]+)\/reader$/)) && req.method === "GET") {

@@ -1598,6 +1598,23 @@ button {
     flex-wrap: wrap;
 }
 
+/* .share-pack —— §6 事后共享：终态面板/横幅内的打包按钮 + 结果态 */
+.share-pack {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.share-ok {
+    font-size: 13px;
+}
+
+.share-key {
+    font-family: var(--font-mono);
+    font-size: 12px;
+}
+
 .auth-key-input {
     padding: 7px 12px;
     font-size: 13px;
