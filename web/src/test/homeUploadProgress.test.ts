@@ -1,0 +1,147 @@
+// @vitest-environment jsdom
+// Home 上传进度条：api.upload/shareImport 第四参 onProgress →
+// .up-progress 条随回调更新宽度与百分比文案；结案（成功/失败）即隐藏。
+
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+    tasks: vi.fn(),
+    health: vi.fn(),
+    getSettings: vi.fn(),
+    upload: vi.fn(),
+    shareImport: vi.fn(),
+}));
+
+vi.mock("../api/client", async (importOriginal) => {
+    const mod = await importOriginal<typeof import("../api/client")>();
+    return {
+        ...mod,
+        api: {
+            ...mod.api,
+            tasks: mocks.tasks,
+            health: mocks.health,
+            getSettings: mocks.getSettings,
+            upload: mocks.upload,
+            shareImport: mocks.shareImport,
+        },
+    };
+});
+
+import { render } from "solid-js/web";
+import { ApiError } from "../api/client";
+import Home from "../pages/Home";
+
+const RESP = {
+    task_id: "t_0000000000000f01",
+    status: "queued",
+    events_url: "/api/task/t_0000000000000f01",
+    reader_url: "/api/task/t_0000000000000f01/reader",
+};
+
+const flush = () => new Promise((r) => setTimeout(r, 0));
+let dispose: (() => void) | undefined;
+
+function mount() {
+    const nav = vi.fn();
+    dispose = render(() => Home({ nav }), document.body);
+    const file = document.body.querySelector<HTMLInputElement>('input[type="file"]');
+    if (!file) throw new Error("file input missing");
+    return { nav, file };
+}
+
+function pick(el: HTMLInputElement, f: File) {
+    Object.defineProperty(el, "files", { value: [f], configurable: true });
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+beforeEach(() => {
+    for (const m of Object.values(mocks)) m.mockReset();
+    mocks.tasks.mockResolvedValue({ tasks: [] });
+    mocks.health.mockResolvedValue({ ok: true, version: "t", compilers: {} });
+    mocks.getSettings.mockResolvedValue({ has_api_key: false });
+});
+
+afterEach(() => {
+    dispose?.();
+    dispose = undefined;
+    document.body.innerHTML = "";
+});
+
+describe("Home 上传进度条", () => {
+    it("进度回调驱动 .up-bar 宽度与百分比文案", async () => {
+        let onProg: ((l: number, t: number) => void) | undefined;
+        mocks.upload.mockImplementation(
+            (
+                _f: File,
+                _fields: unknown,
+                _byok: unknown,
+                prog?: (l: number, t: number) => void,
+            ) => {
+                onProg = prog;
+                return new Promise(() => {}); // 永不结案——保持上传中态
+            },
+        );
+        const { file } = mount();
+        pick(file, new File(["src"], "paper.tex"));
+
+        await vi.waitFor(() => expect(mocks.upload).toHaveBeenCalled());
+        expect(typeof onProg).toBe("function");
+        await flush();
+
+        const bar = () => document.body.querySelector<HTMLElement>(".up-bar i");
+        const label = () =>
+            document.body.querySelector(".up-label")?.textContent ?? "";
+        expect(bar()).toBeTruthy();
+        expect(bar()!.style.width).toBe("0%");
+
+        onProg!(256, 1024);
+        await flush();
+        expect(bar()!.style.width).toBe("25%");
+        expect(label()).toContain("25%");
+
+        onProg!(1024, 1024);
+        await flush();
+        expect(bar()!.style.width).toBe("100%");
+        expect(label()).toContain("100%");
+    });
+
+    it("上传结案后进度条隐藏（失败亦然），错误文案可见", async () => {
+        mocks.upload.mockRejectedValue(new ApiError(500, "boom"));
+        const { file } = mount();
+        pick(file, new File(["src"], "paper.tex"));
+
+        await vi.waitFor(() => expect(mocks.upload).toHaveBeenCalled());
+        await flush();
+        await flush();
+
+        expect(document.body.querySelector(".up-progress")).toBeNull();
+        expect(
+            document.body.querySelector(".form-error")?.textContent ?? "",
+        ).toContain("boom");
+    });
+
+    it(".share.zip 路 shareImport 也带 progress 参", async () => {
+        let gotProg: unknown;
+        mocks.shareImport.mockImplementation(
+            (_f: File, _o: unknown, _b: unknown, prog?: unknown) => {
+                gotProg = prog;
+                return Promise.resolve(RESP);
+            },
+        );
+        const { nav, file } = mount();
+        pick(file, new File(["z"], "a.share.zip"));
+
+        await vi.waitFor(() => expect(mocks.shareImport).toHaveBeenCalled());
+        await flush();
+        expect(typeof gotProg).toBe("function");
+        expect(nav).toHaveBeenCalledWith("#/reader/t_0000000000000f01");
+    });
+
+    it("translate 提交不出上传进度条", async () => {
+        const { file } = mount();
+        // translate 路径不经 upload——进度条只在上传时出现；
+        // 直接验证初始状态无 .up-progress
+        expect(document.body.querySelector(".up-progress")).toBeNull();
+        expect(file).toBeTruthy();
+    });
+});

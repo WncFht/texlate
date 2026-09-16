@@ -30,6 +30,9 @@ export default function Home(props: { nav(to: string): void }) {
     const [arxivId, setArxivId] = createSignal("");
     const [busy, setBusy] = createSignal(false);
     const [error, setError] = createSignal("");
+    // 上传进度：uploading=文件提交在飞（区别于 translate 的 busy），upPct=已传百分比
+    const [uploading, setUploading] = createSignal(false);
+    const [upPct, setUpPct] = createSignal(0);
     const [health, setHealth] = createSignal<Health | null>(null);
     const [healthPending, setHealthPending] = createSignal(true);
     // 任务选项（默认收起；空值 = 跟随 settings 默认）
@@ -121,6 +124,10 @@ export default function Home(props: { nav(to: string): void }) {
     const upload = async (file: File) => {
         setError("");
         setBusy(true);
+        setUploading(true);
+        setUpPct(0);
+        const onProgress = (loaded: number, total: number) =>
+            setUpPct(Math.min(100, Math.round((loaded / total) * 100)));
         try {
             // upload 的 options 走 multipart JSON 字段；prefer 仅对 arxiv 缓存有意义
             // （server 上传路恒 prefer=fresh），glossary 在 options 内传递
@@ -134,6 +141,7 @@ export default function Home(props: { nav(to: string): void }) {
                     file,
                     Object.keys(upOpts).length ? upOpts : undefined,
                     byok(),
+                    onProgress,
                 );
                 setOptKey("");
                 openRes(res);
@@ -149,13 +157,14 @@ export default function Home(props: { nav(to: string): void }) {
                           options: upOpts,
                       }
                     : undefined;
-            const res = await api.upload(file, fields, byok());
+            const res = await api.upload(file, fields, byok(), onProgress);
             setOptKey("");
             openRes(res);
         } catch (e) {
             setError(e instanceof Error ? e.message : String(e));
         } finally {
             setBusy(false);
+            setUploading(false);
         }
     };
 
@@ -208,6 +217,16 @@ export default function Home(props: { nav(to: string): void }) {
                         }}
                     />
                 </form>
+                <Show when={uploading()}>
+                    <div class="up-progress">
+                        <div class="up-bar">
+                            <i style={{ width: `${upPct()}%` }} />
+                        </div>
+                        <span class="up-label">
+                            {t.home.uploadPct.replace("{n}", String(upPct()))}
+                        </span>
+                    </div>
+                </Show>
                 <p class="muted upload-formats">{t.home.formats}</p>
                 <details class="task-opts">
                     <summary>{t.home.options}</summary>

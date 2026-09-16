@@ -100,8 +100,8 @@ describe("Home 临时 API Key——上传两路", () => {
         await vi.waitFor(() => expect(mocks.upload).toHaveBeenCalled());
         await flush();
 
-        // 未开任务选项 → fields 参缺席
-        expect(mocks.upload).toHaveBeenCalledWith(f, undefined, { apiKey: "sk-up-1" });
+        // 未开任务选项 → fields 参缺席；第四参是上传进度回调（XHR 路开关）
+        expect(mocks.upload).toHaveBeenCalledWith(f, undefined, { apiKey: "sk-up-1" }, expect.any(Function));
         expect(mocks.shareImport).not.toHaveBeenCalled();
         expect(key.value).toBe("");
         expect(nav).toHaveBeenCalledWith("#/reader/t_0000000000000f01");
@@ -116,9 +116,12 @@ describe("Home 临时 API Key——上传两路", () => {
         await vi.waitFor(() => expect(mocks.shareImport).toHaveBeenCalled());
         await flush();
 
-        expect(mocks.shareImport).toHaveBeenCalledWith(f, undefined, {
-            apiKey: "sk-sh-1",
-        });
+        expect(mocks.shareImport).toHaveBeenCalledWith(
+            f,
+            undefined,
+            { apiKey: "sk-sh-1" },
+            expect.any(Function),
+        );
         expect(mocks.upload).not.toHaveBeenCalled();
         expect(key.value).toBe("");
         expect(nav).toHaveBeenCalledWith("#/reader/t_0000000000000f01");
@@ -131,7 +134,12 @@ describe("Home 临时 API Key——上传两路", () => {
 
         await vi.waitFor(() => expect(mocks.upload).toHaveBeenCalled());
 
-        expect(mocks.upload).toHaveBeenCalledWith(f, undefined, undefined);
+        expect(mocks.upload).toHaveBeenCalledWith(
+            f,
+            undefined,
+            undefined,
+            expect.any(Function),
+        );
     });
 
     it("上传失败 → key 字段保留（仅成功即清），错误文案可见", async () => {

@@ -304,6 +304,9 @@ export class ApiError extends Error {
     }
 }
 
+/** 上传进度回调（loaded/total 字节——lengthComputable 才发） */
+export type UploadProgress = (loaded: number, total: number) => void;
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const res = await fetch(`${BASE}${path}`, init);
     if (!res.ok) {
@@ -323,6 +326,57 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     if (res.status === 204) return undefined as T;
     const ct = res.headers.get("content-type") ?? "";
     return (ct.includes("json") ? res.json() : res.text()) as Promise<T>;
+}
+
+/**
+ * XHR 版 request——fetch 无上传进度事件，带 onProgress 的 multipart
+ * 提交走此路。响应解析口径与 request 一致（JSON 错误体 → ApiError，
+ * 网络层失败 → TypeError：createRequest 按「未决」留 idem key）。
+ */
+function xhrRequest<T>(
+    path: string,
+    init: RequestInit,
+    onProgress?: UploadProgress,
+): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open(init.method ?? "POST", `${BASE}${path}`);
+        const headers = (init.headers ?? {}) as Record<string, string>;
+        for (const [k, v] of Object.entries(headers)) xhr.setRequestHeader(k, v);
+        if (onProgress) {
+            xhr.upload.onprogress = (e: ProgressEvent) => {
+                if (e.lengthComputable && e.total > 0) onProgress(e.loaded, e.total);
+            };
+        }
+        xhr.onload = () => {
+            const ct = xhr.getResponseHeader("content-type") ?? "";
+            let body: unknown = xhr.responseText;
+            if (ct.includes("json") && xhr.responseText) {
+                try {
+                    body = JSON.parse(xhr.responseText);
+                } catch {
+                    /* 非 JSON 体按原文 */
+                }
+            }
+            if (xhr.status >= 200 && xhr.status < 300) {
+                resolve((xhr.status === 204 ? undefined : body) as T);
+                return;
+            }
+            let detail = xhr.statusText || `HTTP ${xhr.status}`;
+            let code: string | undefined;
+            let taskId: string | undefined;
+            if (body && typeof body === "object") {
+                const b = body as Record<string, unknown>;
+                if (typeof b.detail === "string") detail = b.detail;
+                if (typeof b.code === "string") code = b.code;
+                if (typeof b.task_id === "string") taskId = b.task_id;
+            }
+            reject(new ApiError(xhr.status, detail, code, taskId));
+        };
+        xhr.onerror = () => reject(new TypeError("failed to fetch"));
+        xhr.onabort = () => reject(new TypeError("upload aborted"));
+        xhr.send((init.body as XMLHttpRequestBodyInit | null) ?? null);
+    });
 }
 
 function byokHeaders(byok?: ByokHeaders): Record<string, string> {
@@ -372,15 +426,26 @@ function fileFp(file: File): string {
     return `${file.name}:${file.size}:${file.lastModified}`;
 }
 
-/** create 三路（translate/upload/shareImport）共用：生成/复用/结案 Idempotency-Key */
-async function createRequest<T>(fp: string, path: string, init: RequestInit): Promise<T> {
+/**
+ * create 三路（translate/upload/shareImport）共用：生成/复用/结案 Idempotency-Key。
+ * onProgress 仅在 multipart 上传路传入（fetch 无上传进度 → xhrRequest）；
+ * JSON 路恒走 fetch。
+ */
+async function createRequest<T>(
+    fp: string,
+    path: string,
+    init: RequestInit,
+    onProgress?: UploadProgress,
+): Promise<T> {
     const headers = { ...(init.headers as Record<string, string> | undefined) };
-    if (headers["Idempotency-Key"]) return request<T>(path, init);
+    const send = (i: RequestInit) =>
+        onProgress ? xhrRequest<T>(path, i, onProgress) : request<T>(path, i);
+    if (headers["Idempotency-Key"]) return send(init);
     const key = pendingCreate.get(fp) ?? newKey();
     pendingCreate.set(fp, key);
     headers["Idempotency-Key"] = key;
     try {
-        const res = await request<T>(path, { ...init, headers });
+        const res = await send({ ...init, headers });
         intentSettle(fp, key);
         return res;
     } catch (e) {
@@ -414,6 +479,7 @@ export const api = {
         file: File,
         fields?: { target_lang?: string; model?: string; main?: string; options?: object },
         byok?: ByokHeaders,
+        onProgress?: UploadProgress,
     ) {
         const fd = new FormData();
         fd.append("file", file);
@@ -425,11 +491,12 @@ export const api = {
             createFp("upload", { file: fileFp(file), fields: fields ?? null }, byok),
             "/upload",
             { method: "POST", headers: byokHeaders(byok), body: fd },
+            onProgress,
         );
     },
 
     /** .share.zip 共享包导入（model/lang/arxiv_id 由包内 manifest 自描述） */
-    shareImport(file: File, options?: object, byok?: ByokHeaders) {
+    shareImport(file: File, options?: object, byok?: ByokHeaders, onProgress?: UploadProgress) {
         const fd = new FormData();
         fd.append("file", file);
         if (options) fd.append("options", JSON.stringify(options));
@@ -437,6 +504,7 @@ export const api = {
             createFp("shareImport", { file: fileFp(file), options: options ?? null }, byok),
             "/share/import",
             { method: "POST", headers: byokHeaders(byok), body: fd },
+            onProgress,
         );
     },
 

@@ -9,6 +9,7 @@ export const t = {
         translate: "翻译",
         upload: "上传文件",
         uploading: "上传中…",
+        uploadPct: "上传中… {n}%",
         formats: "支持 .tex · .pdf · .docx · .epub · 源码包(.tar/.gz/.zip)",
         tasks: "任务列表",
         empty: "还没有任务——输入 arXiv ID 或上传文件开始",

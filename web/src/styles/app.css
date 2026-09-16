@@ -226,6 +226,34 @@ button {
     border-color: var(--ink-3);
 }
 
+.up-progress {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.up-bar {
+    flex: 1;
+    height: 5px;
+    background: var(--paper-2);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.up-bar i {
+    display: block;
+    height: 100%;
+    background: var(--cinnabar);
+    transition: width 0.2s ease;
+}
+
+.up-label {
+    font-size: 12px;
+    color: var(--ink-2);
+    white-space: nowrap;
+}
+
 .form-error {
     color: var(--cinnabar-deep);
     font-size: 13px;
