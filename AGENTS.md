@@ -17,7 +17,7 @@
     - `bench/corpus_v2/` — 139 篇分层随机语料（同上惯例；`MANIFEST.md`+`build_corpus.py` 入库）
     - `bench/corpus_v3/` — 1000 篇核心随机层 + 200 篇补强层 + 热层（OpenAlex 高引近期，分批取源中）（`manifest.jsonl`/`manifest_booster.jsonl`/`manifest_hot.jsonl`/`mechanisms.jsonl`/`MANIFEST.md`/`select_booster.py` 等入库、数据 gitignored；管线 `bench/py/build_corpus_v3.py` + `build_hot_layer.py`）
     - `bench/fixtures/` — 陷阱构造 `.tex`（`% @Tnn` 标记；**逐字节即语义——不要格式化/润色这些文件**）
-    - `bench/results/` — bench 产出目录（report/walkthrough/json 均由脚本重写；划出改写型 formatter——prettier/gfs/eslint/autocorrect，但 tracked 文件仍过 check 类链：shfmt/shellcheck/markdownlint/taplo/ruff）
+    - `bench/results/` — bench 产出目录（report/walkthrough/json 均由脚本重写；**全链划出**——改写型 formatter 与 check 类链都不覆盖：prettier/gfs/eslint/autocorrect 经 ignore/exclude，markdownlint 经 cli2 ignores，ruff 经 extend-exclude，shfmt/shellcheck/taplo 无对应文件类型属 vacuous）
     - `bench/work_*/` — 编译/fixloop 工作区（gitignored 重产物）
 - `tmp/` — scratch 实验区（整目录 gitignored；`tmp/exp/` 实验现场、`tmp/refs/` 参考仓库 clone）
 
@@ -33,7 +33,7 @@
 - `*.toml`：`taplo`（gfs）。
 - `.github/workflows/*`：`actionlint`（check）。
 - `*.tex`：**不进链**——`bench/fixtures/` 是陷阱输入，字节即语义。
-- `bench/results/`：划出改写型 formatter（prettier/gfs/eslint/autocorrect 经 ignore 文件与 hook `exclude`）——脚本产出目录，重跑会重写。**tracked 文件仍在 check 类链内**：CI/hook 的 `git ls-files` 全仓扫描覆盖该目录（shfmt/shellcheck/markdownlint/taplo/ruff check），往此目录入库脚本/Manifest 前请先过对应 check。
+- `bench/results/`：**全链划出**（改写型 formatter 与 check 类链都不覆盖）——脚本产出目录，重跑会重写。formatter 经 ignore 文件与 hook `exclude` 划出；check 侧 markdownlint 经 `.markdownlint-cli2.jsonc` ignores、ruff 经 `ruff.toml` extend-exclude 划出，shfmt/shellcheck/taplo 因目录无对应文件类型而 vacuous。若日后往此目录入库脚本/源文件，需重新评估链覆盖。
 - gitleaks 拦 secret；`.gitleaks.toml` 目前只用默认规则。
 
 CI（`.github/workflows/ci.yml`）与本地同源，本地不过 CI 必挂。
