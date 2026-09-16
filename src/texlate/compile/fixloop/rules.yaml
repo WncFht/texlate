@@ -1482,14 +1482,14 @@ rules:
         exts: [.tex, .sty, .cls]
         rewrites:
           - {
-              pattern: "(?<!ifdefined)(\\\\(pdfoutput|pdfminorversion|pdfcompresslevel|pdfinfo|pdfpagewidth|pdfpageheight|pdfhorigin|pdfvorigin|pdfsuppressptexinfo|pdftrailer|pdfpxdimen|pdflastxpos|pdflastypos))(\\s*=\\s*[^\\n%]*)",
+              pattern: "(?<![\\\\a-zA-Z])(\\\\(pdfoutput|pdfminorversion|pdfcompresslevel|pdfinfo|pdfpagewidth|pdfpageheight|pdfhorigin|pdfvorigin|pdfsuppressptexinfo|pdftrailer|pdfpxdimen|pdflastxpos|pdflastypos))(\\s*=\\s*[^\\n%]*)",
               repl: '\\ifdefined\g<1>\g<0>\\fi',
             }
           - {
-              pattern: "(?<!ifdefined)(\\\\(pdfoutput|pdfminorversion|pdfcompresslevel|pdfinfo|pdfpagewidth|pdfpageheight|pdfhorigin|pdfvorigin|pdfsuppressptexinfo|pdftrailer|pdfpxdimen|pdflastxpos|pdflastypos))(\\s*\\{[^\\n]*\\})",
+              pattern: "(?<![\\\\a-zA-Z])(\\\\(pdfoutput|pdfminorversion|pdfcompresslevel|pdfinfo|pdfpagewidth|pdfpageheight|pdfhorigin|pdfvorigin|pdfsuppressptexinfo|pdftrailer|pdfpxdimen|pdflastxpos|pdflastypos))(\\s*\\{[^\\n]*\\})",
               repl: '\\ifdefined\g<1>\g<0>\\fi',
             }
-    risk: low # lookbehind 防重复套守卫, 幂等
+    risk: low # lookbehind 排除 cs 名紧邻 (\<prim> 前接字母/反斜杠 = ifdefined/chardef/ifnum/let 定义语境 + 自输出第二枚), 幂等; loop1-1306.0036 实证旧 (?<!ifdefined) 会把 polyfill 注入的 \chardef\pdfoutput=1 再套娃改写
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same } # XeTeX 内核, 守卫语义一致
@@ -1963,6 +1963,52 @@ rules:
         }
     stats: { fires: 1, rescued_cells: 1, status: validated } # 1806.06690 tec 实证 clean
     source_ref: "fixloop-v2 整改; tectonic bundle aastex 版本实证"
+
+  # loop1-2410.00012: ieeeaccess.cls \RequirePackage{spotcolor} —— spotcolor
+  # 是 pdfTeX-only 包 (内部 \pdfobj/\pdflastobj 原语), xelatex/tectonic 下
+  # 必炸 undefined_cs; missing_file 通路打不到 (TL 有真包)。xespotcolor
+  # (TL 有) 是同 API 的 xetex 继任 (\AddSpotColor/\SpotSpace/xcolor 的
+  # spotcolor 色彩模型全兼容) → wdir 注同名 stub 遮蔽桥接。
+  - id: spotcolor_xetex_shadow
+    description: "spotcolor (pdfTeX-only) → wdir 注 spotcolor.sty stub 桥 xespotcolor"
+    phase: loop
+    order: 156 # aastex_bundle_shadow(155) 同档: 遮蔽先于逐宏补
+    when: { category: undefined_cs, payload_required: true }
+    condition:
+      source_contains: "\\\\(?:usepackage|RequirePackage)\\s*(\\[[^\\]]*\\])?\\s*\\{[^}]*\\bspotcolor\\b"
+    action:
+      kind: builtin_transform
+      function: bundled_class_shadow
+      params:
+        target: spotcolor.sty
+        needs: ["xespotcolor.sty"]
+        cs_set: # spotcolor 公开 API 名 (l.N 行末 payload 口径)
+          [
+            SpotSpace,
+            AddSpotColor,
+            NewSpotColorSpace,
+            SetPageColorResource,
+            SetPageColorSpace,
+            SpotColor,
+            csgrab,
+          ]
+        body: |
+          \NeedsTeXFormat{LaTeX2e}
+          \ProvidesPackage{spotcolor}[2026/09/16 fixloop shadow -> xespotcolor]
+          \DeclareOption*{\PassOptionsToPackage{\CurrentOption}{xespotcolor}}
+          \ProcessOptions\relax
+          \RequirePackage{xespotcolor}
+          \endinput
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # XeTeX 内核同缺 pdf 原语
+    provenance:
+      - {
+          corpus: "2410.00012 (loop1 stagerun)",
+          error: "ieeeaccess.cls:128 Undefined control sequence (spotcolor \\AddSpotColor→\\pdfobj, payload=SpotSpace)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "loop1 rerun residual; xespotcolor.sty v2.1 API 核对"
 
   # 新增 (fixloop-v2 整改): AAS 期刊缩写宏缺失 —— tectonic bundle 内置
   # aastex 5.0rc3.1 (1999) 没有 \actaa 族 (emulateapj/后期 aastex 才有);
