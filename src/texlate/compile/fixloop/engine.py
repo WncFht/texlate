@@ -40,6 +40,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "Engine",
+    "LlmHook",
     "LoopCtx",
     "Rule",
     "Ruleset",
@@ -350,6 +351,10 @@ class LoopCtx:
     advisories: list[str] = field(default_factory=list)
     runner: RunFn | None = None
     llm_hook: LlmHook | None = None
+    #: 本轮 taxonomy 分类结果 —— llm_hook 的 prompt 装配读这两个字段
+    #: (LlmHook 签名固定 (ctx, rep), cat/pay 经 ctx 传递)。
+    err_cat: str | None = None
+    err_pay: str | None = None
     err_head: str = ""  # 本轮错误 blob (ctx_suggests 条件用)
     _texts: dict[Path, str | None] = field(default_factory=dict, repr=False)
 
@@ -923,6 +928,7 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
         cat, pay = rs.taxonomy.classify(
             rep, timed_out=bool(getattr(res, "timed_out", False))
         )
+        ctx.err_cat, ctx.err_pay = cat, pay
         ctx.err_head = (rep.first or "") + "\n" + (rep.ctx or "")
         pdf = _res_has_pdf(res)
         pdf_bytes = getattr(res, "pdf_bytes", None)
