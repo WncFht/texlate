@@ -186,6 +186,54 @@ def test_install_already_present(tmp_path: Path) -> None:
     assert eng.install_calls == []  # 探测命中即不重装
 
 
+def test_install_requester_fanout(tmp_path: Path) -> None:
+    """pst-all meta-wrapper 实证 (delta): 要求方 ``\\RequirePackage`` 连发一轮补齐。
+
+    file:line 锚 ``./pst-all.sty:25:`` 解出要求方 → 其依赖全表批量装,
+    不再一轮撞一个成员包。"""
+    (tmp_path / "pst-all.sty").write_text(
+        "\\RequirePackage{pst-node}\n\\RequirePackage{pst-arrow}\n"
+    )
+    eng = MockEngine(
+        [
+            {"log": "./pst-all.sty:25: LaTeX Error: File `pst-node.sty' not found.\n"},
+            {"log": CLEAN_LOG, "pdf": True},
+        ],
+        installable={"pst-node.sty", "pst-arrow.sty"},
+        available={"article.cls"},
+    )
+    cell = fixloop(make_proj(tmp_path), eng)
+    assert cell["verdict"] == "clean"
+    assert cell["rounds"][0]["payload"] == "pst-node.sty"
+    assert set(eng.install_calls) >= {"pst-node.sty", "pst-arrow.sty"}
+    detail = next(a["detail"] for a in cell["actions"] if a["rule"] == "install_file")
+    assert "requester deps" in detail
+
+
+def test_install_requester_fanout_tail_preempt(tmp_path: Path) -> None:
+    """tail missing_file preempt 抢路由后, 要求方扇出同样生效。"""
+    (tmp_path / "pst-all.sty").write_text(
+        "\\RequirePackage{pst-node}\n\\RequirePackage{pst-poly}\n"
+    )
+    tail = (
+        "pad line\n" * 12
+        + "./pst-all.sty:25: LaTeX Error: File `pst-node.sty' not found.\n"
+        + "Enter file name: \n! Emergency stop.\n"
+    )
+    eng = MockEngine(
+        [
+            {"log": "! Undefined control sequence.\nl.9 \\foo\n" + tail},
+            {"log": CLEAN_LOG, "pdf": True},
+        ],
+        installable={"pst-node.sty", "pst-poly.sty"},
+        available={"article.cls"},
+    )
+    cell = fixloop(make_proj(tmp_path), eng)
+    assert cell["verdict"] == "clean"
+    assert cell["rounds"][0]["category"] == "missing_file"
+    assert set(eng.install_calls) >= {"pst-node.sty", "pst-poly.sty"}
+
+
 def test_missing_tfm_installs_and_rebuilds_fontmap(tmp_path: Path) -> None:
     eng = MockEngine(
         [

@@ -759,18 +759,11 @@ def _try_install_dep(ctx: LoopCtx, eng: Engine, stem: str) -> Path | None:
     return None
 
 
-def _install_dep_closure(
-    ctx: LoopCtx, eng: Engine, fname: str, path: str | None, *, depth: int = 2
+def _dep_fanout(
+    ctx: LoopCtx, eng: Engine, seeds: Iterable[Path], seen: set[str], *, depth: int
 ) -> None:
-    r"""包装文件的依赖闭包补装: 行首 ``\RequirePackage``/``\LoadClass`` 逐层探测+装。
-
-    2410.00012 实证: 装 mhchem 不装 chemgreek (包内 ``\RequirePackage`` 依赖),
-    texmf 遮蔽下依赖缺席 → log 尾 Emergency stop。``depth`` 界住链长。
-    """
-    if path is None:
-        return
-    seen = set(ctx.installed) | {fname}
-    frontier = [Path(path)]
+    """``seeds`` 各文件行首依赖声明 BFS 补装 (就地改 ``ctx.installed``/``seen``)。"""
+    frontier = list(seeds)
     for _ in range(depth):
         nxt: list[Path] = []
         for p in frontier:
@@ -785,10 +778,66 @@ def _install_dep_closure(
         frontier = nxt
 
 
+def _install_dep_closure(
+    ctx: LoopCtx, eng: Engine, fname: str, path: str | None, *, depth: int = 2
+) -> None:
+    r"""包装文件的依赖闭包补装: 行首 ``\RequirePackage``/``\LoadClass`` 逐层探测+装。
+
+    2410.00012 实证: 装 mhchem 不装 chemgreek (包内 ``\RequirePackage`` 依赖),
+    texmf 遮蔽下依赖缺席 → log 尾 Emergency stop。``depth`` 界住链长。
+    """
+    if path is None:
+        return
+    _dep_fanout(ctx, eng, [Path(path)], set(ctx.installed) | {fname}, depth=depth)
+
+
+#: ``-file-line-error`` 锚里的要求方文件 token (``./pst-all.sty:25:``)
+_REQ_ANCHOR_RE = re.compile(r"([^\s(){}]+?\.(?:sty|cls|def|clo|tex)):\d+:")
+
+
+def _requester_paths(ctx: LoopCtx, eng: Engine, rep: ErrReport) -> list[Path]:
+    r"""missing_file 报错的要求方文件 (``\\RequirePackage`` 宿主) 逐个解析。
+
+    pst-all 实证 (delta b4akkgal5): meta-wrapper 连发 11 个成员包, 缺谁报谁、
+    file:line 锚是要求方自身 —— 一轮补一个要等 8+ 轮 max_rounds; 直接扫
+    要求方依赖全表一轮补齐。锚序: 首错行 > ctx > tail 末位 > file_stack
+    内层包文件兜底 (无 ``file:line`` 的老式 ``!`` 错误)。
+    """
+    names = _REQ_ANCHOR_RE.findall(rep.first or "")
+    names += _REQ_ANCHOR_RE.findall(rep.ctx or "")
+    names += _REQ_ANCHOR_RE.findall(rep.tail)[::-1]
+    names += [s for s in rep.file_stack[-2:] if s.endswith((".sty", ".cls", ".def"))]
+    out: list[Path] = []
+    seen: set[str] = set()
+    for name in names:
+        base = Path(name).name
+        if base in seen:
+            continue
+        seen.add(base)
+        p = Path(name)
+        if not p.is_absolute():
+            p = ctx.wdir / p
+        if not p.exists():
+            hit = _probe(eng, base, cwd=ctx.wdir)
+            if hit is None:
+                continue
+            p = Path(hit)
+        if p not in out:
+            out.append(p)
+    return out
+
+
 def _apply_install_file(
-    ctx: LoopCtx, eng: Engine, params: dict[str, Any]
+    ctx: LoopCtx, eng: Engine, params: dict[str, Any], rep: ErrReport
 ) -> tuple[bool, str]:
     """缺文件 → probe → install_file → 复核; font_related → rebuild_fontmaps (spike L264-276)。"""
+    fanout_seeds = _requester_paths(ctx, eng, rep)
+    if fanout_seeds:
+        before = len(ctx.installed)
+        _dep_fanout(ctx, eng, fanout_seeds, set(ctx.installed), depth=2)
+        fanout_note = f" (+{len(ctx.installed) - before} requester deps)"
+    else:
+        fanout_note = ""
     font_exts = tuple(params.get("font_related_exts") or ())
     candidates = []
     if params.get("try_exts"):
@@ -807,7 +856,7 @@ def _apply_install_file(
         if present := _probe(eng, fname, cwd=ctx.wdir):
             _install_dep_closure(ctx, eng, fname, present)
             if params.get("already_present_ok", True):
-                return True, f"already-present {fname}"
+                return True, f"already-present {fname}{fanout_note}"
             continue
         if not eng.install_file(fname, font_related=font_related):
             pkgs = _filemap_candidates(eng, fname)
@@ -821,8 +870,8 @@ def _apply_install_file(
         _install_dep_closure(ctx, eng, fname, installed)
         if font_related:
             eng.rebuild_fontmaps()
-        return True, f"installed {fname}"
-    return False, f"no candidate file installed for {params['file']}"
+        return True, f"installed {fname}{fanout_note}"
+    return False, f"no candidate file installed for {params['file']}{fanout_note}"
 
 
 def _apply(  # noqa: C901, PLR0911  # action.kind 分派表, 每种一处
@@ -835,7 +884,7 @@ def _apply(  # noqa: C901, PLR0911  # action.kind 分派表, 每种一处
     if kind == "scan_install":
         return _apply_scan_install(ctx, eng, params)
     if kind == "install_file":
-        return _apply_install_file(ctx, eng, params)
+        return _apply_install_file(ctx, eng, params, rep)
     if kind == "run_tool":
         rc, out, to = ctx.run_tool(
             list(params.get("argv") or []), int(params.get("timeout", 120))
