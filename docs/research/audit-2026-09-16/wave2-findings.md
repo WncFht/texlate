@@ -69,6 +69,7 @@
 - 依赖表/web package.json/默认引擎序/PH_RX 形状/TEXLATE_LIVE 门/平台门/conftest helper：核实健康。
 - fixloop 程序化交叉验证：36 规则 category 全由 taxonomy 产出、17 builtin+2 rewrite 全命中注册表、无 order 冲突/重复 id；8 taxonomy 无规则承接=刻意留白。
 - server 哨兵顺序/done 事件配对/单写者纪律/share 对账/dispatcher 死锁修复/L2 cache 跨线程接线：核实干净。
+- 观察项：`test_verbatim_policy_pct_inside_unclosed_group` 随机序下挂一次（KeyError `[[CMD_1]]`，隔离+串行全绿）——排序依赖/共享 argspec 态污染嫌疑，立 ticket 待复现 seed（不阻塞）。
 
 ## loop1 fixloop 结果分析（stagerun-loop1-2026-09-16；聚合报告 REPORT-fixloop-analysis.md 由项目体验方式执笔，本节为 leader 对账+补充）
 
@@ -124,6 +125,13 @@ pst-node×11 / jheppub×9 / citesort×7 / diagrams×7 / axodraw×5 / pst-arrow×
 - 残格归因三落：axessibility×6 → `axessibility_xetex_shadow` order157（`7037301`）；axodraw2×5 → CTAN overlay=tree 兜底 tlmgr non-relocatable rc=0 假成功（`9f08bf3`，同机理或覆盖其他 postaction 包）；pst-all×8 → **install_file 请求方扇出**（`8e6d442`：file:line 锚解要求方→`\RequirePackage` 全表一轮补装）。
 - **peer1 裁定回执**：bug-E 不立规则归 llm_hook（单格半径不值）；prim-guard 注释行命中接受不改；latex209 gate order:1 已 terminal 无需补；bug-G 终裁 warmup 10/10 治愈不落签名规则（autart 同构预期同治，real-postfix 复扫给终证）。
 - **方法论旗标（判读纪律）**：烤疤格=被已修 bug 写坏的 splice 跨 `--rerun` 永存（1306.0036 第30行 `\chardef\ifdefined\pdfoutput\pdfoutput=1\fi` 残行实证），需 pristine-tree 重跑见真值，rundiff 不计入规则退化。
+
+### 定点重跑 34 格收官（peer1 补记7 `e769ebb`，全部先 `--rerun` 洗 pristine splice）
+
+- axessibility×6 → **6/6 pdf**（shadow stub 实证）；axodraw2×5 → **5/5 pdf**（CTAN tree 兜底实证，含 real 臂 hep-ph/0501163）；pst-all×8 → **7/8 pdf**（请求方扇出一轮补全 11 成员实证；残 2105.11398 越过 missing_file 改判 illegal_unit——前进非退化）。
+- 烤疤格实锤：1306.0036 pristine 树 → best_effort（relax 格确为旧套娃残留）；1003.1717 → acceptable（`.rtx` 排除 + revtex4 guard 合流）。**partial→fail 清零**。
+- early_eof×13 → 全数脱离 unfixable；子机理两分：**(a)** `\end occurred when \ifx incomplete`（条件未闭合+稿自带 \errmessage）vs **(b)** `job aborted, no legal \end found`（输入截断/`\endinput` 吞 `\end`）——不同源，归下轮签名归因（rules.yaml peer1 面）。
+- 终盘 unfixable：missing_file ~27（余皆 TL 真缺席 legacy 簇）、pdftex_prim 0、max_rounds 1、**early_eof 成最大残簇**。
 
 ## postfix 真臂 9 格管线引入退化归因（scout-realreg，`postfix-2026-09-16` n≈81 收尾中）
 
