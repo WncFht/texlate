@@ -16,6 +16,7 @@ import {
 } from "../api/client";
 import { taskStore } from "../stores/tasks";
 import { downloadItems } from "../taskFiles";
+import { mergeResultStats } from "../taskStats";
 import Toolbar, { type DownloadItem, type Mode } from "../components/Toolbar";
 import ProgressGrid from "../components/ProgressGrid";
 import PdfPane, { type PaneHandle } from "../reader/PdfPane";
@@ -465,17 +466,9 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
         return ca ? Math.max(0, now() / 1000 - ca) : 0;
     };
 
-    /** 结果面板统计：done.stats 优先，快照 counters 兜底 */
-    const resultStats = () => {
-        const s = live()?.done?.stats;
-        const c = task()?.counters;
-        const tokens = s?.tokens ?? c?.tokens;
-        const seconds = s?.seconds;
-        const failed = s?.chunks_failed ?? c?.failed;
-        return tokens == null && seconds == null && failed == null
-            ? null
-            : { tokens, seconds, failed };
-    };
+    /** 结果面板统计：done.stats 优先 + 快照 counters/usage 兜底（taskStats.ts） */
+    const resultStats = () =>
+        mergeResultStats(live()?.done?.stats, task()?.counters, task()?.usage);
 
     let logPre: HTMLPreElement | undefined;
     let logDrawer: HTMLDetailsElement | undefined;
@@ -523,6 +516,30 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
                             <div class="stat">
                                 <dt>{t.reader.statsTokens}</dt>
                                 <dd class="stat-num">{s().tokens}</dd>
+                            </div>
+                        </Show>
+                        <Show when={s().prompt != null}>
+                            <div class="stat">
+                                <dt>{t.reader.statsPrompt}</dt>
+                                <dd class="stat-num">{s().prompt}</dd>
+                            </div>
+                        </Show>
+                        <Show when={s().completion != null}>
+                            <div class="stat">
+                                <dt>{t.reader.statsCompletion}</dt>
+                                <dd class="stat-num">{s().completion}</dd>
+                            </div>
+                        </Show>
+                        <Show when={s().calls != null}>
+                            <div class="stat">
+                                <dt>{t.reader.statsCalls}</dt>
+                                <dd class="stat-num">{s().calls}</dd>
+                            </div>
+                        </Show>
+                        <Show when={s().latency != null}>
+                            <div class="stat">
+                                <dt>{t.reader.statsLatency}</dt>
+                                <dd class="stat-num">{fmtElapsed(s().latency ?? 0)}</dd>
                             </div>
                         </Show>
                         <Show when={s().seconds != null}>

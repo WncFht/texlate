@@ -54,6 +54,15 @@ export interface TaskError {
     retryable?: boolean;
 }
 
+/** task_usage 行（有 LLM 调用记录才带） */
+export interface TaskUsage {
+    model?: string;
+    calls?: number;
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    latency_s?: number;
+}
+
 export interface TaskSnapshot {
     task_id: string;
     kind: TaskKind;
@@ -72,14 +81,7 @@ export interface TaskSnapshot {
     error?: TaskError | null;
     artifacts?: Record<string, string>;
     last_seq?: number;
-    /** task_usage 行（有 LLM 调用记录才带） */
-    usage?: {
-        model?: string;
-        calls?: number;
-        prompt_tokens?: number;
-        completion_tokens?: number;
-        latency_s?: number;
-    };
+    usage?: TaskUsage;
 }
 
 export interface StageEvent {
@@ -255,6 +257,8 @@ export interface DualJson {
 
 export interface Settings {
     has_api_key?: boolean;
+    /** PUT 伪字段：true → 清除服务端已存 api_key（settings.save 弹化为 ""） */
+    clear_api_key?: boolean;
     base_url?: string;
     model?: string;
     target_lang?: string;

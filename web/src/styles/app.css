@@ -1347,6 +1347,18 @@ button {
     margin-top: 6px;
 }
 
+/* .key-row —— API Key 字段 + 清除按钮同行（按钮对齐输入框下缘） */
+.key-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+}
+
+.key-row > label {
+    flex: 1;
+    min-width: 0;
+}
+
 /* ---------- pdfjs viewer 微调（pdfslick pdf_viewer.css 之上） ---------- */
 
 .pdfSlickContainer {

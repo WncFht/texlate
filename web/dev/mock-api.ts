@@ -131,7 +131,19 @@ function snapshot(t: MockTask) {
         created_at: t.created_at,
         updated_at: t.updated_at,
         last_seq: t.events.length,
-        ...(isDone(t) ? { artifacts: artifactsOf(t) } : {}),
+        ...(isDone(t)
+            ? {
+                  artifacts: artifactsOf(t),
+                  // task_usage 聚合行：从 counters 推演示值（prompt+completion=tokens）
+                  usage: {
+                      model: "mock-model",
+                      calls: t.counters.done,
+                      prompt_tokens: Math.round(t.counters.tokens * 0.72),
+                      completion_tokens: t.counters.tokens - Math.round(t.counters.tokens * 0.72),
+                      latency_s: Math.round(t.counters.done * 1.7),
+                  },
+              }
+            : {}),
     };
 }
 
@@ -369,6 +381,15 @@ seedTask("t_0000000000000a07", "done", {
     kind: "epub",
     title: "Mock doc — EPUB 产物演示（无对照视图）",
 });
+
+// settings 演示态：GET 出参即真后端 public() 形状（无 api_key 本体）
+const mockSettings = {
+    has_api_key: true,
+    base_url: "http://127.0.0.1:3003/v1",
+    model: "swe-2-medium",
+    target_lang: "zh-CN",
+    glossary: "",
+};
 
 // ---------- 路由 ----------
 
@@ -621,19 +642,30 @@ function handleApi(req: Req, res: Res, url: URL): boolean {
         return true;
     }
     if (p === "/api/settings" && req.method === "GET") {
-        json(res, 200, {
-            has_api_key: true,
-            base_url: "http://127.0.0.1:3003/v1",
-            model: "swe-2-medium",
-            target_lang: "zh-CN",
-            glossary: "",
-        });
+        json(res, 200, { ...mockSettings });
         return true;
     }
     if (p === "/api/settings" && req.method === "PUT") {
         let body = "";
         req.on("data", (c) => (body += c));
-        req.on("end", () => json(res, 200, { ok: true, ...JSON.parse(body || "{}") }));
+        req.on("end", () => {
+            const b = JSON.parse(body || "{}") as Record<string, unknown>;
+            // 对齐真后端：clear_api_key 伪字段清 key；api_key 非空才置位
+            if (b.clear_api_key) mockSettings.has_api_key = false;
+            if (typeof b.api_key === "string" && b.api_key) mockSettings.has_api_key = true;
+            for (const k of [
+                "base_url",
+                "model",
+                "target_lang",
+                "glossary",
+                "engine",
+                "concurrency",
+                "context_guidance",
+            ]) {
+                if (k in b) (mockSettings as Record<string, unknown>)[k] = b[k];
+            }
+            json(res, 200, { ...mockSettings });
+        });
         return true;
     }
     if (p === "/api/settings/test" && req.method === "POST") {

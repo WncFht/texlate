@@ -15,6 +15,7 @@ export default function Settings() {
     const [guidance, setGuidance] = createSignal("on");
     const [msg, setMsg] = createSignal("");
     const [testing, setTesting] = createSignal(false);
+    const [clearing, setClearing] = createSignal(false);
     let msgTimer = 0;
 
     onCleanup(() => window.clearTimeout(msgTimer));
@@ -39,8 +40,8 @@ export default function Settings() {
     });
 
     /** 成功提示 3s 后自动清 */
-    const flashSaved = () => {
-        setMsg(t.settings.saved);
+    const flash = (text: string) => {
+        setMsg(text);
         window.clearTimeout(msgTimer);
         msgTimer = window.setTimeout(() => setMsg(""), 3000);
     };
@@ -62,9 +63,25 @@ export default function Settings() {
         try {
             await settingsStore.save(patch);
             setApiKey("");
-            flashSaved();
+            flash(t.settings.saved);
         } catch (e) {
             setMsg(`${t.settings.saveFailed}：${e instanceof Error ? e.message : String(e)}`);
+        }
+    };
+
+    /** 清除服务端已存 key：PUT {clear_api_key:true} → store 响应 has_api_key=false */
+    const clearKey = async () => {
+        if (clearing()) return;
+        setClearing(true);
+        setMsg("");
+        try {
+            await settingsStore.save({ clear_api_key: true });
+            setApiKey("");
+            flash(t.settings.keyCleared);
+        } catch (e) {
+            setMsg(`${t.settings.clearFailed}：${e instanceof Error ? e.message : String(e)}`);
+        } finally {
+            setClearing(false);
         }
     };
 
@@ -104,23 +121,34 @@ export default function Settings() {
                     void save();
                 }}
             >
-                <label>
-                    <span>
-                        {t.settings.apiKey}
-                        <em class="muted">
-                            {settingsStore.settings()?.has_api_key
-                                ? t.settings.apiKeySet
-                                : t.settings.apiKeyUnset}
-                            · {t.settings.apiKeyHint}
-                        </em>
-                    </span>
-                    <input
-                        type="password"
-                        autocomplete="off"
-                        value={apiKey()}
-                        onInput={(e) => setApiKey(e.currentTarget.value)}
-                    />
-                </label>
+                <div class="key-row">
+                    <label>
+                        <span>
+                            {t.settings.apiKey}
+                            <em class="muted">
+                                {settingsStore.settings()?.has_api_key
+                                    ? t.settings.apiKeySet
+                                    : t.settings.apiKeyUnset}
+                                · {t.settings.apiKeyHint}
+                            </em>
+                        </span>
+                        <input
+                            type="password"
+                            autocomplete="off"
+                            value={apiKey()}
+                            onInput={(e) => setApiKey(e.currentTarget.value)}
+                        />
+                    </label>
+                    {/* 无存 key（needs_auth 语义）时禁用——无可清对象 */}
+                    <button
+                        type="button"
+                        class="btn-ghost"
+                        disabled={!settingsStore.settings()?.has_api_key || clearing()}
+                        onClick={() => void clearKey()}
+                    >
+                        {clearing() ? t.settings.clearing : t.settings.clearKey}
+                    </button>
+                </div>
                 <label>
                     <span>{t.settings.baseUrl}</span>
                     <input
