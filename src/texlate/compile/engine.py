@@ -1131,7 +1131,9 @@ class XelatexEngine:
             finally:
                 fcntl.flock(fh, fcntl.LOCK_UN)
 
-    def install_file(self, fname: str, *, font_related: bool = False) -> bool:
+    def install_file(  # noqa: PLR0911  # 每支一条早退, 合并反伤可读
+        self, fname: str, *, font_related: bool = False
+    ) -> bool:
         """经 kpsewhich 验证 → filemap 查包 → `tlmgr --usermode install` → 复核。"""
         if self.probe_file(fname):
             return True
@@ -1169,7 +1171,33 @@ class XelatexEngine:
             return False
         if font_related:
             self.rebuild_fontmaps()
-        return self.probe_file(fname) is not None
+        if self.probe_file(fname) is not None:
+            return True
+        # tlmgr rc=0 却未落盘: postaction 类包在 usermode 整体拒装
+        # ("package X is not relocatable", axodraw2 实证) —— 文件本身
+        # 可直放, 走 CTAN archive 按 tlpdb relpath 铺进 usertree home。
+        return self._fetch_into_usertree(fname, pkgs) if home else False
+
+    def _fetch_into_usertree(self, fname: str, pkgs: list[str]) -> bool:
+        """CTAN ``archive/<pkg>.tar.xz`` → overlay=tree 落 usertree home → 复核。"""
+        from texlate.compile.fixloop.ctan import (  # noqa: PLC0415  # 延迟: 防循环
+            MIRROR,
+            fetch_package,
+        )
+
+        dest = Path(self.texmfhome) / "home"
+        for pkg in pkgs:
+            # 网络/解包失败 → 静默试下一候选包 (复核探针是真值)
+            with contextlib.suppress(Exception):
+                fetch_package(
+                    pkg,
+                    dest,
+                    mirror=self.repository or MIRROR,
+                    overlay="tree",
+                )
+            if self.probe_file(fname) is not None:
+                return True
+        return False
 
     def rebuild_fontmaps(self) -> bool:
         """updmap-user 重建字体 map。"""
