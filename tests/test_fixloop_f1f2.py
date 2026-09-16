@@ -345,7 +345,7 @@ def test_cs_split_fallback_new_residue(
         "itemsep",  # kernel 长度 → guard
         "headerps@out",  # 包内私有 cs (@) → 版本偏斜类不拆
         "Hy@pdfmajorversion",  # 同上
-        "maketitle",  # 无头可拆
+        "authorblock",  # 无头可拆 (maketitle 已收 cs_table 显式条目)
         "includegraphics",  # in 头不收 → 不拆
         "par",  # 头无残余
     ],
