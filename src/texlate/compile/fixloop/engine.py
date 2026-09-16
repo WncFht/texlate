@@ -52,7 +52,7 @@ __all__ = [
 ]
 
 RULES_PATH = Path(__file__).with_name("rules.yaml")
-_DOC_RE = re.compile(r"\\document(class|style)")
+_DOC_RE = re.compile(r"\\(documentclass|documentstyle)(?![a-zA-Z])")
 _REJECT_PREFIX = "REJECT:"
 
 #: yaml 模式串占位符 → builtins 原语族 (扩表免手同步: 1e0e5c8 手工

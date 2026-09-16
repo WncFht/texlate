@@ -34,6 +34,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from texlate.textutil import JSON_FENCE_RX
+from texlate.xlat.client import DEFAULT_BASE_URL, DEFAULT_MODEL
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
 
@@ -43,9 +46,7 @@ if TYPE_CHECKING:
 
 __all__ = ["LlmFixer", "Patch", "make_llm_hook"]
 
-#: 网关默认端点/模型 (cli.py:612 同口径; env 覆盖优先)
-DEFAULT_BASE_URL = "http://100.105.212.52:3003"
-DEFAULT_MODEL = "swe-2-medium"
+#: 网关默认端点/模型单源 = ``xlat.client`` (a91a474; env 覆盖优先)
 DEFAULT_TIMEOUT_S = 60.0  # 单次调用预算 (任务约定)
 #: reasoning 模型 (swe-2-*) 思考链也吃 max_tokens —— 8192 与 xlat 翻译同档
 DEFAULT_MAX_TOKENS = 8192
@@ -65,12 +66,6 @@ _ABANDON_GRACE_S = 10.0
 _GATEWAY_SEM = threading.BoundedSemaphore(4)
 
 _PATCHABLE_EXTS = frozenset({".tex", ".sty", ".cls"})
-
-#: ```json fence 剥皮 (pipeline._JSON_FENCE_RX 同款 —— response_format 在 3003
-#: 网关被静默忽略, 模型按习惯包 fence 是常态)
-_JSON_FENCE_RX = re.compile(
-    r"^\s*```[A-Za-z]*\s*\n(?P<body>.*?)\n?\s*```\s*$", re.DOTALL
-)
 
 #: 文件装载族宏 —— patch ``new`` 里出现绝对路径/``..`` 穿越形态即拒
 _PATH_MACRO = (
@@ -228,7 +223,7 @@ def _rel_label(ctx: LoopCtx, f: Path | None) -> str:
 
 def _strip_fence(raw: str) -> str:
     """整段 ``` 围栏剥一层; 非围栏原文返回。"""
-    m = _JSON_FENCE_RX.match(raw)
+    m = JSON_FENCE_RX.match(raw)
     return m.group("body") if m else raw
 
 

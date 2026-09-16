@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from texlate.compile.engine import _ERR_FILELINE_RE
 from texlate.texlog import file_stack_at
 
 __all__ = ["ErrReport", "Taxonomy", "parse_log", "parse_text"]
@@ -33,8 +34,8 @@ _CS_NAME_RE = re.compile(r"\\([a-zA-Z@]+)")
 # `-file-line-error` 模式下错误行是 `path:line: msg` (无 '!' 前缀) ——
 # impl-compile 的 xelatex 命令行带此旗标, 只数 '!' 会漏全部错误。
 # Warning 行 (`./f.tex:5: LaTeX Warning: ...`) 同格式但非错误, 须排除,
-# 否则 `n_bang==0 → clean` 门永远不通。
-_ERR_FILELINE_RE = re.compile(r"^\S+?:\d+: \S")
+# 否则 `n_bang==0 → clean` 门永远不通。``_ERR_FILELINE_RE`` 单源 =
+# ``compile.engine``（engine 对 fixloop 全 lazy import，无环）。
 _WARN_FILELINE_RE = re.compile(
     r"^\S+?:\d+: (?:LaTeX|Package|Class)\b[^\n]*?\bWarning\b"
 )
