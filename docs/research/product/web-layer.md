@@ -128,7 +128,14 @@ JSON Schema（可直接实现；`progress` 为 0-100 粗粒度）：
     "properties": {
         "task_id": { "type": "string" },
         "kind": {
-            "enum": ["arxiv", "upload_tex", "upload_pdf", "docx", "epub"],
+            "enum": [
+                "arxiv",
+                "upload_tex",
+                "upload_pdf",
+                "docx",
+                "epub",
+                "share",
+            ],
         },
         "status": {
             "enum": [
@@ -176,6 +183,17 @@ JSON Schema（可直接实现；`progress` 为 0-100 粗粒度）：
         "artifacts": {
             "type": "object",
             "additionalProperties": { "type": "string" },
+        },
+        "usage": {
+            "type": "object",
+            "description": "task_usage 聚合行——翻译阶段真实记账，无记录则键缺席",
+            "properties": {
+                "model": { "type": "string" },
+                "calls": { "type": "integer" },
+                "prompt_tokens": { "type": "integer" },
+                "completion_tokens": { "type": "integer" },
+                "latency_s": { "type": "number" },
+            },
         },
         "created_at": { "type": "number" },
         "updated_at": { "type": "number" },
@@ -235,10 +253,13 @@ JSON Schema（可直接实现；`progress` 为 0-100 粗粒度）：
 - `GET /api/health` — `{ok, version, compilers:{tectonic,xelatex,babeldoc}, data_dir}`
 - `GET /api/tasks` — 按 `tenant`（§4）过滤的任务列表（`?status=` 过滤）
 - `POST /api/task/{id}/cancel` / `POST /api/task/{id}/retry`（body 可带 `{main, options}`）
+- `DELETE /api/task/{id}` — 终态任务删除（DB 行级联子表 + `tasks/{id}/` 目录）；ACTIVE 态 409 先 cancel，删前补 `done{status:"deleted"}` 事件让在听 SSE 收尾
 - `GET /api/task/{id}/reader` — `{documents:{original:{version,pages,url},translated:{…}}, alignment, reading}`
 - `PUT /api/task/{id}/reader/position` — 存 `{positions, active, mode, zoom, sync}`；document_version 不符 → 409
-- `GET/PUT /api/settings` + `POST /api/settings/test` — BYOK 管理（§4）；GET 永不回 key 本体，只回 `has_api_key`
+- `GET/PUT /api/settings` + `POST /api/settings/test` — BYOK 管理（§4）；GET 永不回 key 本体，只回 `has_api_key`；PUT 键白名单外 400，伪字段 `clear_api_key:true` 清除已存 key
 - `GET /api/providers` — provider 预设清单
+- `POST /api/share/import` — `.share.zip` multipart 导入：`unpack_share` 机械校验 + key_parts 白名单 → `kind="share"` 任务入队；model/lang/arxiv_id/version 一律取 manifest key_parts（包自描述，上传者配置不进寻址）；§5 信任模型由 worker `_run_share` 全链重跑承担（shared-cache.md §5）
+- `POST /api/task/{id}/share/pack` — 终态任务事后打 `.share.zip` 入共享目录 → `{share_key, url, bytes}`；幂等（`index.jsonl` 已登记且包在场直返不重打）；守卫阶梯：`kind=share`/reuse 命中 → 422 `share_pack_rejected`，非 done/partial → 409 `invalid_state`，缺必需产物（`zh-src.zip`/`dual.json`，zh.pdf 缺席落 partial 包）→ 422 `share_pack_artifacts`，打包失败 → 422 `share_pack_failed`
 
 ---
 
@@ -437,6 +458,8 @@ web/
 三模式 `mode ∈ original|translated|split`：顶栏 Segmented 三态 + 同步开关 + 缩放（`page-fit`/`page-width`/百分比）+ 页码输入 + 下载菜单（zh.pdf/en.pdf/dual.pdf/dual.json/zh-src.zip/log）+ 重试/取消。split 下双 `PdfPane` 各挂一个 `usePDFSlick`，active pane 高亮；**模式切换保位置**（texglot `planModeChange`：切 split 时用当前 active 侧位置 map 出对侧；切单栏时带位置走）。阅读位置 `PUT /reader/position` 防抖 1s 落盘。
 
 任务列表/进行中视图：SSE `chunk` 事件驱动 `done/total` 进度条 + `items[]` 渲染**段落棋盘格**（hjfy 式逐段可视：ok 绿/fallback 黄/failed 红），`stage` 事件驱动阶段步进条，`log` 进折叠日志抽屉。
+
+终态与 BYOK 面（已落地）：终态面板/横幅的 stat-strip 细分七格——tokens/输入/输出/LLM 调用/API 耗时/总耗时/失败段，`mergeResultStats` 合成（done 帧 `stats` 优先、快照 `counters`+`usage` 行兜底，各格独立缺席）；「分享本译文」按钮三挂载点——done 阅读器 share-banner、partial 等非干净终态 result-banner 操作行、doc 类任务整页 result-panel——自门控 `canShare`（done/partial + `kind≠share` + 有 arxiv_id），成功态回显 share_key，错误按 code 映射可读文案；needs_auth 面板内联 key 输入随 retry 透传 `X-Texlate-Key`；Home 高级选项「临时 API Key」per-request 透传同一头（translate/upload/shareImport 三条建任务路径，`.share.zip` 上传自动路由后者），`optShare` 对应 `options.share_pack` 完成钩；Settings 「清除已存 Key」按钮走 `PUT /api/settings {clear_api_key:true}`，`has_api_key` 才可用。
 
 ### 5.3 双 viewer 滚动同步（~100 行伪码）
 

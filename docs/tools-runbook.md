@@ -6,19 +6,21 @@
 
 | 命令                                                        | 用途                                                                                                    |
 | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `texlate fetch <arxiv_id>`                                  | HEAD→GET→sniff→unpack→locate→钉版缓存（`~/.cache/texlate/src/{id}v{ver}/`）                             |
+| `texlate fetch <arxiv_id> [--offline]`                      | HEAD→GET→sniff→unpack→locate→钉版缓存（`~/.cache/texlate/src/{id}v{ver}/`）；`--offline` 零网络只查本地缓存（无缓存报 `offline_no_cache` 退出 1） |
 | `texlate parse <main.tex> [-o chunks.jsonl] [--no-flatten]` | v2 Gullet+Segmenter 半解析分块；`--no-flatten` 不展平 `\input`                                          |
-| `texlate run <id> [--keep -w DIR]`                          | mock 端到端（normalize→mock 翻译→ctex 注入→编译→judge）；退出码 0 clean/partial、1 编译失败、2 路由拒绝 |
-| `texlate run <id> --server URL`                             | 瘦客户端模式：提交到 FastAPI 任务队列，`--wait` 轮询                                                    |
+| `texlate run <id\|dir> [--keep -w DIR] [--offline]`         | mock 端到端（normalize→mock 翻译→ctex 注入→编译→judge）；`--offline`/`TEXLATE_OFFLINE=1` 取源零网络（本地目录源无影响，`--server` 不生效）；退出码 0 clean/partial、1 编译失败、2 路由拒绝 |
+| `texlate run <id> --server URL`                             | 瘦客户端模式：提交到 FastAPI 任务队列，`--wait` 轮询快照；`--model/--api-key/--base-url/--out`（BYOK 走 `x-texlate-*` 头） |
 | `texlate web [--host --port --data-dir]`                    | 起 FastAPI+SSE 服务（缺省 127.0.0.1:8765），SPA 需先 `scripts/build-web.sh`                             |
 | `texlate export <docx/epub>`                                | 双语插译导出                                                                                            |
 | `texlate share pack <task_id>`                              | 任务产物打社区共享包 `{share_key}.share.zip`（七组分键，见 shared-cache.md）                            |
 | `texlate share unpack <bundle>`                             | 共享包解包 + manifest/产物 sha256 全量回验                                                             |
-| `texlate doctor`                                            | 环境自检：python/tectonic/xelatex/ctex/pdftotext/server-extra/babeldoc 逐项 ok/n/a                       |
+| `texlate doctor`                                            | 环境自检：python/tectonic/xelatex/cjk 字体（ctex/fandol/sys-zh）/pdftotext/网关连通/data-dir/server-extra/babeldoc 逐项 ok/warn/fail/n/a |
 | `texlate version`                                           | 打版本号                                                                                                |
 | `texlate tools install-tectonic`                            | tectonic 便携引擎安装（sha256 钉版矩阵）                                                                |
 
 BYOK 环境直配（免 settings.json）：`TEXLATE_BASE_URL` / `TEXLATE_API_KEY` / `TEXLATE_MODEL`。
+
+离线总闸：`TEXLATE_OFFLINE=1` 等效 `fetch`/`run` 的 `--offline`——取源只查本地 src-cache（钉版精确查 `{id}v{ver}`、未钉版取已缓存最高版），无缓存报 `offline_no_cache` 退出 1，不静默降级联网。
 
 ## 2. scripts/ — 运维脚本
 

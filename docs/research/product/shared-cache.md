@@ -7,7 +7,7 @@
 - **寻址**：`share_key = sha256(arxiv_id | resolved_ver | model | prompt_ver | target_lang | glossary_hash | pipeline_ver)`——与本地 dedup 键同构，多 `glossary_hash` 一个组分，且永不拼凭证指纹。
 - **包格式**：`{share_key}.share.zip` = `manifest.json` + `zh-src.zip` + `dual.json` + 可选 `zh.pdf`（partial 包合法——zh.pdf 只是贡献者侧编译证据，译文载荷在 dual.json；manifest artifacts 表即在场清单）。manifest 自校验：key_parts 重算 share_key、逐产物 sha256/bytes 对账。
 - **信任模型**：下载的译文**不直接渲染**——进本地管线只跳 xlat 阶段，splice/validate(L0/L1)/compile/judge 全部本地重跑；对不上的段回原文、validate 不过则该块回原文（v1 零 token 结构承诺：导入链永不消耗 token）。恶意包最坏结果是浪费一次编译，不会产出坏 PDF。
-- **上传 opt-in**：默认关，任务完成后提示；glossary/自定义 prompt 进 key 天然隔离。
+- **上传 opt-in**：默认关，任务完成后提示——已落地四面：`options.share_pack` worker 完成钩、`POST /api/task/{id}/share/pack` 端点、Reader「分享本译文」按钮、CLI `texlate share pack`（同口径打包）；glossary/自定义 prompt 进 key 天然隔离。
 - **服务端 v1**：任意静态托管/对象存储 + `index.jsonl`，不锁定具体实现。
 
 ## 1. 动机：BYOK 下的成本池化
@@ -102,6 +102,8 @@ manifest.json schema:
 
 上传默认**关**：任务完成后 UI 提示「分享本次译文到社区缓存」+ 配置项；v1 不做自动上传。理由直白——译文是用户付费产出，上传即放弃独占，必须显式同意。
 
+落地现状（2026-09-17）：提示面 = Reader「分享本译文」按钮三挂载点（done 阅读器 share-banner、partial 等非干净终态 result-banner 操作行、doc 类任务整页产物面板；`canShare` 门控 = done/partial + `kind≠share` + 有 arxiv_id）→ `POST /api/task/{id}/share/pack`（幂等，响应 `{share_key,url,bytes}`；`kind=share`/reuse 命中 422、非终态 409、缺产物 422）；配置项 = Home 高级选项 `share_pack`（worker `_maybe_share_pack` 完成钩自动打包）；CLI `texlate share pack` 与端点同口径（`share_pack_manifest` 单一派生面）。
+
 隐私面逐组分审过：share key 七组分无凭证/身份；`contributor` 是本地生成的 `c-<16hex>` 匿名 id——刻意不复用 api key 指纹，避免「同一贡献者的所有包」被关联；包内四成员均不含凭证（compile.log 经 `scrub()` 打码才进 files 表，且本就不进包）。自定义 glossary/自定义 prompt 措辞会改变 glossary_hash/prompt_ver → 自然分到不同 key：私有术语表用户的包不污染默认术语表池，反之亦然——**配置差异即隔离，无需额外访问控制**。
 
 一个诚实的提醒：缓存存在性本身是 oracle——任何人可用 share key 探测「某论文是否已被某模型译过」。这与 hjfy 已译列表本就公开同语义，可接受；`per_key` scope 的本地 dedup 与共享上传是两件事，凭证分桶只约束本地表。
@@ -124,7 +126,7 @@ manifest.json schema:
 | `ShareManifest` | frozen dataclass                                                                          | 校验后 manifest 视图（fmt/share_key/key_parts/artifacts/contributor/created_at） |
 | `ShareError`    | Exception                                                                                 | 一切格式/校验失败                                                                |
 
-纯库层：不接 cli/app。接线现状：worker 完成钩已落地（`746e87f`——`options.share_pack` opt-in，`_stage_compile` 三终态出口，`pack_share`+`unpack_share` 回验后 `index_append` 进 `share_dir/index.jsonl`；`kind=="share"` 与 reuse_hit 永不自包）；任务创建 fetch 后（此时 resolved_ver 已知）→ share_key lookup → 命中走 §5 验证通道（#74 post-resolve dedup `7cce5f9` 已落同点位）。
+纯库层：不接 cli/app。接线现状：worker 完成钩已落地（`746e87f`——`options.share_pack` opt-in，`_stage_compile` 三终态出口，`pack_share`+`unpack_share` 回验后 `index_append` 进 `share_dir/index.jsonl`；`kind=="share"` 与 reuse_hit 永不自包）；`POST /api/task/{id}/share/pack` 事后打包端点同口径（`share_pack_manifest` 单一派生面，幂等 + 409/422 守卫阶梯）。消费侧 v1 = 显式导入：`POST /api/share/import`（`unpack_share` 机械校验 + key_parts 白名单 → `kind="share"` 任务，model/lang/arxiv_id/version 取 manifest 自描述值）→ worker `_run_share` 走 §5 全链（fetch→parse→`_stage_share_apply` `(src_file,en)` 对账回灌→compile，零 token——包内 zh-src.zip/zh.pdf 只作证据不解不进产物面）；web 端 `.share.zip` 上传自动路由此端点。translate 时自动查 index 的隐式命中仍未接线——挂点即任务创建 fetch 后（resolved_ver 已知，#74 post-resolve dedup `7cce5f9` 已落同点位）。
 
 ## 9. 开放问题
 
