@@ -115,4 +115,25 @@ pst-node×11 / jheppub×9 / citesort×7 / diagrams×7 / axodraw×5 / pst-arrow×
 
 **1e realarm-repro 包**（12 基线真臂退化归因，`253caab`）：预测-fixed 3 格待 real-postfix A/B；新浮出两 bug 类——**bug-B 主路径 cs+latin 融合**（`\item FSU`→`\itemFSU`，5 格；`_cat_surf` `90aa823` 只修了 group 路径，主路径同款洞；`letters_cut` 只告警）→ fixer-slots 追加。bfuse-scout 定规模（`314af54`，`bench/results/bfuse-scout-2026-09-16/`）：**top-5 系统洞**——spec'd-13 触 48% 篇、宽类并集（`{\it X}` 字体声明组 75% 篇为最大头，bib 条目不译同走 writer 融合）触 **90.4%**、每篇 ~13 暴露点；修复面=通用「cs+latin 首 token」边界（\item-only 只买 35%）；cs+CJK 方向无害（cjk_glue_fix 已盖）；致命条件=译文保 latin 首字母（专名/缩写）；**bug-G elsart `\protect` 测盒 × xeCJK 绑定崩坏**（cond-mat/0307508 全文 4379 缺字，最小 repro `\def\protect{\noexpand\protect\noexpand}`+hbox CJK 通用陷阱）→ peer1 rules 车道，但 cjkfont `CJK_FIRST_USE_WARMUP` 疑似同根已兜（1003.5459 elsart 5485→0），peer1 复核中。gtrap-scout（`7896c7f`，报告 `bench/results/gtrap-scout-2026-09-16/report.md`）补面：**autart.cls 同载体**（`\proc@elem` 与 elsart 逐字节相同，corpus_v3 4 篇：1306.5836/1706.02495/2003.03498/2308.04287），Tier-A trap-live 全表 17 篇即本类验证集；升级标志=「warmup 后 miss 仍在」（接 misschar 判读口径）；若 warmup 有缺口，fixloop 反应式签名+主动 cls 扫描草案在报告 §c 已转 peer1。bug-E（0905.4907 caption 裸 `\alpha`）→ peer1 backstop/prompt。
 
-**fixer-utf8 交付 `673d8ce`**：normalize 四臂（系统包 kpsewhich 遮蔽 ≤8 轮闭包 / EPS `%`-行净化 / ps 驱动 token→xetex / catch-all 转码），真格 invalid_utf8=0；judge 按「警告来源是否工程文件」分流记档待裁。**fixer-209up 交付**：`upgrade_209` + inject 挂点 + 414 普查 **97.8% 过门**（405 格；reject 9 全 ds@ terminal），白名单 +15。
+**fixer-utf8 交付 `673d8ce`**：normalize 四臂（系统包 kpsewhich 遮蔽 ≤8 轮闭包 / EPS `%`-行净化 / ps 驱动 token→xetex / catch-all 转码），真格 invalid_utf8=0；judge 按「警告来源是否工程文件」分流记档待裁。**fixer-209up 交付**：`upgrade_209` + inject 挂点 + 414 普查 **97.8% 过门**（405 格；reject 9 全 ds@ terminal），白名单 +15。**fixer-cjkfont phase-2 五项全落 `f7822a8`**（inject 包同 commit）：CJK_PRESENT_RE 包/类语境收紧灭三假阳 + find_docclass_ends 逐缝注入（depth>0 宏体命中跳过、`\if` 双臂幂等哨兵，真格 9/9）+ `_MISSING_CHAR_RE` tfm `("XXXX)` 分支（197 格解锁）+ `cjk_glyph` spec 字体门 + `font_fallback` builtin（西里尔/组合符/拉丁扩展→`\newunicodechar`+Libertinus Serif；rules.yaml order26 条目草案已转 peer1）。**B 桶 336 格连带治愈**：`CJK_MATH_FALLBACK` \Umathcode 九段重映与是否触发 fixloop 无关，数学内 CJK + texlatefb 兜底西里尔数学缺字——scout「不修」判词被机制性覆盖。
+
+## loop2-delta `b4akkgal5` 收官（records `cd17eb5` + 补记 `581f374`）
+
+- 终态 1310 格：acceptable 669 / best_effort 363 / clean 157 → **出 pdf 90.8%**（loop1 84.0%）；unfixable 112；missing_file **113→32**；nenp **15→1**（残 1803.00012 SIGSEGV）；partial→fail 仅 2。
+- **rundiff vs `5acb956`：improved 73 / degraded 0**——fail→clean 16 + fail→partial 57 全为缺文件簇救回；floor_restored 全格 False。
+- 残格归因三落：axessibility×6 → `axessibility_xetex_shadow` order157（`7037301`）；axodraw2×5 → CTAN overlay=tree 兜底 tlmgr non-relocatable rc=0 假成功（`9f08bf3`，同机理或覆盖其他 postaction 包）；pst-all×8 → **install_file 请求方扇出**（`8e6d442`：file:line 锚解要求方→`\RequirePackage` 全表一轮补装）。
+- **peer1 裁定回执**：bug-E 不立规则归 llm_hook（单格半径不值）；prim-guard 注释行命中接受不改；latex209 gate order:1 已 terminal 无需补；bug-G 终裁 warmup 10/10 治愈不落签名规则（autart 同构预期同治，real-postfix 复扫给终证）。
+- **方法论旗标（判读纪律）**：烤疤格=被已修 bug 写坏的 splice 跨 `--rerun` 永存（1306.0036 第30行 `\chardef\ifdefined\pdfoutput\pdfoutput=1\fi` 残行实证），需 pristine-tree 重跑见真值，rundiff 不计入规则退化。
+
+## postfix 真臂 9 格管线引入退化归因（scout-realreg，`postfix-2026-09-16` n≈81 收尾中）
+
+| id | 归因 | 签名 |
+| --- | --- | --- |
+| 1012.1321 / 2003.10959 / 2105.03900 / 2211.04495 | **bug-B**（`\item`+latin 首词空格融合） | `\itemFSU`/`\itemNGA`/`\itemBalakrishnan`/`\itemOC` |
+| 1003.4522 | bug-B 换行屏障变体 | `\hline`+⏎→`\hlineCd`/`\hlineNb` |
+| 1206.1808 | bug-B `%`-EOL 屏障变体 | `\par`+`%`+⏎→`\pari)`/`\parii)` |
+| 0905.4907 | bug-E（模型直译 "alpha"→裸 `\alpha` 进 caption） | Missing $ ×4；pipe-fix acceptable 兜底 |
+| 0707.3950 | **新机理A**：用户 `\def\section` 替换体含 @-cs 被展开泄漏到非 makeatletter 语境 | `\@`→`\spacefactor` 40 err；pipe-fix best_effort 兜底 |
+| 1109.5963 | **新机理B**：caption 短参被塞进空行 → `\par` 撞 `\NR@gettitle` runaway + Extra } 级联 | l.362/364 五错级联 |
+
+聚合：**bug-B 家族 6/9 是真臂头号杀手**（mock 四字译文 CJK 首字天然免疫，真臂 latin-token 保留才暴露）——修复面=cs+latin 边界的空格/换行/`%`-EOL 三屏障（已转 fixer-slots）。bug-G 残余 0/9 → warmup 真臂成立。新机理 A（含 @-token 宏不应展开/应回写调用形式）与 B（caption 短参空行）记 1d 队列。pipe-fix 仅 2/9 格有记录——`onfail` 覆盖语义已向 1e 求证。

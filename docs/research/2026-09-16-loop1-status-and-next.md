@@ -55,6 +55,13 @@
 - 目标：rescue ≥90%；missing_file 簇靠 shim_map 扩列 + tlpdb-index 预期消化大半；`fixloop_degraded` ≤4。
 - **「不退化底板」已落 `2f12955`**：入口态 pdf 快照（precheck 前现存产物优先、否则 rounds[0]），末态失 pdf 且非 reject → 拷回 + verdict 重落既有公式（`floor_from`/`floor_restored` 留痕，stagerun metrics 带 `floor_restored`，replay_all 门②将兜回计入 regressed）。注意 stagerun post 复判仍直编裸树——record status 反映树真实态，退化观测不受底板遮蔽。
 
+### 4.2+ loop2-delta 收官（peer1 `b4akkgal5`，records 落 `cd17eb5` + 补记 `581f374`）
+
+- 终态 1310 格：**acceptable 669 / best_effort 363 / clean 157 → 出 pdf 90.8%**（loop1 84.0%）；unfixable 112；**missing_file 113→32；nenp 15→1**（残 1803.00012 SIGSEGV）；partial→fail 仅 2。
+- **rundiff vs `5acb956` 基线：improved 73 / degraded 0 / same 1237**——fail→clean 16 + fail→partial 57，全部缺文件簇救回（2410.00012 随双修 fail→partial）；**零退化**——partial→fail 从 loop1 记录面 17 格清零。floor_restored 全格 False（底板未触发，与零退化一致）。
+- 残格归因落地：pdftex_prim×6=axessibility → `axessibility_xetex_shadow` order157（`7037301`）；axodraw2×5=tlmgr usermode non-relocatable rc=0 假成功 → CTAN overlay=tree 兜底（`9f08bf3`）；pst-all×8=meta-wrapper RequirePackage 连发 11 成员超轮 → **install_file 请求方扇出**（file:line 锚解要求方→依赖全表一轮补装，`8e6d442`）。
+- **判读纪律**：烤疤格（pre-`88d0ab9` 套娃残留烤进 splice，`--rerun` 不洗源——1306.0036 型）+ pre-`6752bb0` 假 missing_file 层不计入规则退化；此类格需 pristine-tree 重跑见真值。定点重跑清单：axessibility×6 + axodraw2×5 + pst×8（扇出落地后可跑）+ 1306.0036（先恢复原始 splice）+ early_eof×13 归因复核。
+
 ### 4.2.5 clean 率杠杆（scout-partial/misschar/latex209 实证，已分派）
 
 终态 partial 1890 格唯一阻断分布：错误残留 980（51.9%）、缺字唯一阻断 491（26.0%）、invalid_utf8 唯一阻断 405（21.4%）、cjk 计数 14。已派四 fixer 按杠杆序推进：
@@ -62,7 +69,7 @@
 | # | 杠杆 | 实证 | 可转化 | 属主 |
 | --- | --- | --- | --- | --- |
 | 1 | **译文槽位保护**（fixer-slots，segmenter） | 错误簇 42%=407 格同机理：`\vskip3这是译文`(illegal_unit 138)、`{\scJos`/`\csnamebibitemNoStop` 粘连(104)、`Undefined color '这是译文'`+counter/keyval(91)、`\par` 进短参(62)、array preamble(12) | ~407 | 1d（xlat 侧残留归 peer1） |
-| 2 | **CJK 字体兜底+缺字真修**（fixer-cjkfont，inject+builtins 缺字段） | scout-misschar 重画：663 格缺字 96.4% 行数是 mock 四字假象；真修面=**A 桶 114 格整文中文静默消失**（inject 两 bug：`CJK_PRESENT_RE` 宏体字面量假阳 + `find_docclass_end` 死分支注入）+ tfm 格式 `("XXXX)` 正则缺口（197 格未触发主因）+ warmup 门控（数学内 CJK 注了也白烧）+ font_fallback 动作（西里尔/拉丁扩展真损失）。**已交半**：`CJK_MATH_FALLBACK`（\Umathcode 重映 CJK 九段→FandolSong 符号字体，双 math version）+`CJK_FIRST_USE_WARMUP`（治 elsart 首用即弃，1003.5459 实证 5485→0，疑覆盖 bug-G 同根）；A 桶/正则/font_fallback 在飞 | ~150–220（A 桶为主） | 1d |
+| 2 | **CJK 字体兜底+缺字真修**（fixer-cjkfont，inject+builtins 缺字段） | **已全落 `f7822a8`**：A 桶双 bug 修（`CJK_PRESENT_RE` 收紧包/类花括号语境灭三假阳 + `find_docclass_ends` 逐缝注入带幂等哨兵，真格 9/9）+ tfm `("XXXX)` 正则补分支（197 格解锁）+ `cjk_glyph` spec 字体门（tfm 数学族不白烧）+ `font_fallback` builtin（西里尔/组合符/拉丁扩展→`\newunicodechar`+Libertinus Serif，rules.yaml 条目已转 peer1 order26）。`CJK_MATH_FALLBACK` `\Umathcode` 顺带治愈 B 桶 336 格数学内 CJK + 西里尔/组合符数学缺字（texlatefb 兜底）；warmup 实证治愈 elsart 首用陷阱（bug-G，cmrepro 10/10） | ~150–220 + B 桶 336 连带 | 1d |
 | 3 | **invalid_utf8 净化**（fixer-utf8，normalize 单点） | **已落 `673d8ce`**：四臂（系统包 kpsewhich 遮蔽+EPS 注释净化+ps 驱动 token→xetex+catch-all 转码）单点 `normalize_project`；96% 警告源是系统 texmf 老包 latin-1，真格验证 invalid_utf8=0 | ~530/545 | 1d |
 | 4 | **latex209→2e 受限升级器**（fixer-209up，inject 挂点+新模块） | **已交付**（commit 等 inject.py 同提交）：`upgrade_209` 干跑普查 **405/414=97.8% 过门**（远超 40–65% 估）——article 188/revtex4-2 169/mnras 26 等；reject 9 格全 ds@ 机制性死墙记 terminal；白名单 +15 名已落。门后产出由下游 missing_file/fixloop 决定 | 过门面 405（产出另计） | 1d 建器 + peer1 改 gate 路由 |
 
@@ -70,7 +77,7 @@
 
 ### 4.3 中线
 
-- **真网关规模验证**（1e 建议）：xlat-real n50 出数后推 n100-200 拿真 clean-rate 分布——mock 臂今日连修 4 个缺陷，真臂还没同等扫过。
+- **真网关规模验证**（1e 建议）：xlat-real n50 出数后推 n100-200 拿真 clean-rate 分布——mock 臂今日连修 4 个缺陷，真臂还没同等扫过。**postfix n≈81 已出数（在飞收尾，`bench/results/postfix-2026-09-16/`）**：翻译 81/81 篇、chunk ok 8885/8889（4 partial 0 fault）、splice 占位残留 0；pipe-xel clean 50/fail 6/partial 25（clean 61.7% vs mock 臂 45.3%——真译文反而更稳）；pipe-fix 救回 12/13（acceptable 9+best_effort 1+clean 2）。**管线引入退化 9 格**（pipe 非 clean 且 base clean）scout-realreg 归因在飞：0905.4907 已知 bug-E，其余 8 格待归因（疑 bug-B 主场——真臂 latin-token 保留率远高于 mock 四字）。
 - **share 生态闭环**（1e）：worker 完成钩自动产包 + index.jsonl 服务形态（§8）。
 - **deferred 清单**：v1 退役（倾向不动）、e2e_real→lib 降级、L2 编排环 e2e↔worker 共享化（跨边界需协商落点）、TokenSource Protocol 重构、L2 真 log fixtures。
 - **llm_hook 接线**（1e 已裁）：server 路径走任务 BYOK client 复用 `_make_translator`/usage_sink；有真 api_key 默认开；`kind=share` 一律全关（§5 导入零 token 承诺）。
@@ -79,6 +86,6 @@
 
 | 方 | 当前在飞 | 下一步 |
 | --- | --- | --- |
-| 1d leader | fixer-slots（8 项槽位保护 + bug-B cs+latin 追加）、fixer-cjkfont（A 桶/正则/font_fallback 残件）；fixer-gullet 已交 `ce1dc9f`（alias-macro transparent_expand + newenv body_role 推断，双洞双臂）；已落 `67debb6`/`528edb9`/`673d8ce`/`c6aa712` | inject.py 待 cjkfont 残件后一 commit（209up 挂点+cjkfont 两块已就绪）；delta/loop2 落地后 rundiff 判读（扣 pre-chain 假 missing_file 层）、台账维护 |
-| 项目体验方式 | delta 批 `b4akkgal5` 在跑（pre-`6752bb0` 点火，假 missing_file 层判读扣减）；TEXMFHOME 串链 `6752bb0` 已落（tlmgr 链值坑+`_usertree_env` 解法）、guard 交替同步 `1e0e5c8`、backstop `ea0c73e` | rules.yaml：tail missing_file `preempts` 已挂 ✓；待办=revtex4-array-guard 折入（1e 草案已验证）+ prim-guard 注释行收紧 + `@pdftex_prims` 换字面值 + bug-G 复核（warmup 或已兜住）+ bug-E backstop + latex209 gate 残余=terminal reject |
-| 1e | worker-hardening 12 项（#52）、llm_hook BYOK 接线；realarm-repro 12 格归因 + repro-1306 判决已交付 | #74/#78 残件、share 完成钩、真网关 n100-200、real-postfix A/B 验证（预测-fixed 3 格） |
+| 1d leader | fixer-slots（8 项槽位保护 + bug-B cs+latin 通用边界规格已定）在飞；fixer-cjkfont 五项全落已收 `f7822a8`（inject 包同 commit：209up 挂点+A 桶双修+tfm 正则+spec 门+font_fallback builtin）；install_file 请求方扇出 `8e6d442`（pst-all 型 meta-wrapper 一轮补齐） | 3 scout 报告落地后台账；slots 交付收敛；real-postfix 9 退化格归因（scout-realreg 在飞） |
+| 项目体验方式 | **delta `b4akkgal5` 收官**（1310 格 90.8% 出 pdf、missing_file 113→32、nenp 15→1、rundiff 73 改善 0 退化）；axessibility shadow `7037301` + CTAN overlay 兜底 `9f08bf3` 已落 | rules.yaml：font_fallback 条目（order26，我侧已转草案）；定点重跑组织=axessibility6+axodraw2 5+pst8（扇出已就绪）+1306.0036 pristine+early_eof13 复核 |
+| 1e | worker-hardening 12 项（#52）、llm_hook BYOK 接线；realarm-repro 12 格归因 + repro-1306 判决 + bug-G 复核通告已交付 | #74/#78 残件、share 完成钩、postfix 收尾落库（records 写入中） |
