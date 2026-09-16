@@ -544,9 +544,10 @@ def _bwrap_env_paths(env: dict[str, str]) -> tuple[list[str], list[str]]:
             continue
         if key in _BWRAP_ENV_RW:
             # TMPDIR 系不挂——`_bwrap_wrap` 会 --setenv 进私有 tmpfs，宿主
-            # 路径挂进来既扩写面也可能在沙箱内根本不该存在。
-            if Path(val).is_absolute() and key not in _BWRAP_TMP_KEYS:
-                rw.append(val)
+            # 路径挂进来既扩写面也可能在沙箱内根本不该存在。texmf 树变量
+            # 可以是冒号链（_env 把 ambient 树链进 TEXMFHOME），逐元素拆。
+            if key not in _BWRAP_TMP_KEYS:
+                rw += _kpathsea_list(val)
         elif key in _BWRAP_ENV_RO:
             ro += _kpathsea_list(val)
     return rw, ro
@@ -867,14 +868,33 @@ class XelatexEngine:
         # kpathsea cnf 变量可经 env 覆盖, 放宽输入行缓冲即解 (loop1-1706.02464)。
         add.setdefault("buf_size", "8000000")
         if self.texmfhome:
+            # TEXMFHOME 写冒号链：usertree 居首（可写/优先），ambient
+            # TEXMFHOME（缺席时取 kpathsea 默认 ~/texmf）尾随保持可见——
+            # 否则宿主 ~/texmf 里的 shim/老包在 fixloop 冷树视角下凭空消失
+            # （regress4 假退化根因）。tlmgr/updmap 不认链，走 _usertree_env。
+            home_tree = str(self.texmfhome / "home")
+            tail = os.environ.get("TEXMFHOME") or str(Path.home() / "texmf")
+            homes = [home_tree] + [e for e in tail.split(":") if e and e != home_tree]
             add.update(
                 {
-                    "TEXMFHOME": str(self.texmfhome / "home"),
+                    "TEXMFHOME": ":".join(homes),
                     "TEXMFVAR": str(self.texmfhome / "var"),
                     "TEXMFCONFIG": str(self.texmfhome / "config"),
                 }
             )
         return child_env(add)
+
+    def _usertree_env(self) -> dict[str, str]:
+        """tlmgr/updmap 系 env：TEXMFHOME 退链取首元素。
+
+        tlmgr 把 env 值当字面路径——冒号链会被建成名为 ``texA:`` 的目录
+        且 tlpdb 判定全炸（实测）。kpathsea 读侧（compile/probe）才吃链。
+        """
+        env = self._env(None)
+        home = env.get("TEXMFHOME")
+        if home and ":" in home:
+            env["TEXMFHOME"] = home.split(":", 1)[0]
+        return env
 
     @staticmethod
     def _split_flags(flags: Iterable[str] | None) -> tuple[list[str], list[str]]:
@@ -1064,7 +1084,7 @@ class XelatexEngine:
         rc, out, _, to = run_process(
             [tool, "search", "--global", "--file", "/" + fname],
             cwd=Path.cwd(),
-            env=self._env(None),
+            env=self._usertree_env(),
             timeout=60,
         )
         pkgs: list[str] = []
@@ -1121,7 +1141,7 @@ class XelatexEngine:
         tool = find_tool("tlmgr")
         if tool is None:
             return False
-        env = self._env(None)
+        env = self._usertree_env()
         home = env.get("TEXMFHOME")
         with self._install_lock():
             if self.probe_file(fname):
@@ -1158,7 +1178,7 @@ class XelatexEngine:
             return False
         args = [tool] if tool.endswith("updmap-user") else [tool, "--user"]
         rc, _, _, to = run_process(
-            args, cwd=Path.cwd(), env=self._env(None), timeout=120
+            args, cwd=Path.cwd(), env=self._usertree_env(), timeout=120
         )
         return rc == 0 and not to
 
