@@ -2755,6 +2755,20 @@ class PipelineWorker:
             return v is not False
         return str(v).strip().lower() not in ("0", "false", "no", "off")
 
+    def _fixloop_engine(self, ctx: TaskCtx, eng: Engine) -> Engine:
+        """Fixloop 轮内用引擎：xelatex 独立构造 ``halt_on_error=True``（e2e 权威口径）。
+
+        轮内编译要「首错清晰可分类」——主编译引擎是 best-effort
+        nonstopmode（``halt_on_error=False``），续跑日志会让 post-fix
+        复判混入下游错误、分类签名漂移，故不复用传入引擎。factory 在场
+        尊重注入（测试面）；tectonic 无此旋钮保持原引擎。
+        """
+        if ctx.engine_name != "xelatex":
+            return eng
+        if self._engine_factory is not None:
+            return self._engine_factory("xelatex")
+        return engine_for("xelatex", halt_on_error=True)
+
     def _run_fixloop(
         self, ctx: TaskCtx, work: Path, eng: Engine, first: CompRes
     ) -> CompRes:
@@ -2765,7 +2779,7 @@ class PipelineWorker:
         输入层文件回灌 ``zh/`` 并重打 zh-src.zip——让用户拿到的源码树真能
         编译。返回末次 ``CompRes``（fixloop 崩溃/未编译则原样回传）。
         """
-        rec = _RecEngine(eng)
+        rec = _RecEngine(self._fixloop_engine(ctx, eng))
         hook, hook_usage, hook_clients = self._llm_hook_pack(ctx)
         try:
             cell = fixloop(
@@ -2807,10 +2821,12 @@ class PipelineWorker:
                 and "xelatex" in route_engines
                 and _VERDICT_RANK.get(v_last.status, 0) < _VERDICT_RANK["clean"]
             ):
+                # halt_on_error=True：与 fixloop 轮内同口径（首错可分类），
+                # 不沿主编译的 best-effort nonstopmode
                 xeng = (
                     self._engine_factory("xelatex")
                     if self._engine_factory is not None
-                    else engine_for("xelatex", halt_on_error=False)
+                    else engine_for("xelatex", halt_on_error=True)
                 )
                 xres = xeng.compile(
                     work,

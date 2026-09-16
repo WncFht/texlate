@@ -1747,6 +1747,99 @@ class TestRunFixloopWiring:
         assert s["log_excerpt"] == "! error context tail"
         assert s["trace"][0]["rule"] == "r1"
 
+    def test_xelatex_fixloop_halt_on_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """fixloop 轮内 xelatex 独立构造 ``halt_on_error=True``（e2e 权威口径）。
+
+        主编译引擎是 best-effort nonstopmode（False）——续跑日志会让
+        post-fix 复判混入下游错误、分类签名漂移，故不复用传入引擎。
+        """
+        import texlate.server.worker as worker_mod  # noqa: PLC0415
+
+        ctx, worker, _store = _mk(tmp_path)
+        ctx.engine_name = "xelatex"
+        built: list[dict[str, object]] = []
+
+        def fake_engine_for(name: str, **kw: object) -> RecordingEngine:
+            built.append({"name": name, **kw})
+            return RecordingEngine(name)
+
+        captured: dict[str, object] = {}
+
+        def fake_fixloop(_w: object, eng: object, **_kw: object) -> dict:
+            captured["eng"] = eng
+            return {"verdict": "clean", "rounds": [], "actions": []}
+
+        monkeypatch.setattr(worker_mod, "engine_for", fake_engine_for)
+        monkeypatch.setattr(worker_mod, "fixloop", fake_fixloop)
+        work = tmp_path / "build-zh"
+        work.mkdir()
+        main_eng = RecordingEngine("xelatex")
+        worker._run_fixloop(ctx, work, main_eng, object())  # noqa: SLF001
+        assert built == [{"name": "xelatex", "halt_on_error": True}]
+        rec = captured["eng"]
+        assert isinstance(rec, worker_mod._RecEngine)  # noqa: SLF001
+        assert rec._inner is not main_eng  # noqa: SLF001
+
+    def test_tectonic_fixloop_reuses_passed_engine(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """tectonic 无 halt_on_error 旋钮——fixloop 仍用传入引擎，不重建。"""
+        import texlate.server.worker as worker_mod  # noqa: PLC0415
+
+        ctx, worker, _store = _mk(tmp_path)
+        captured: dict[str, object] = {}
+
+        def fake_fixloop(_w: object, eng: object, **_kw: object) -> dict:
+            captured["eng"] = eng
+            return {"verdict": "clean", "rounds": [], "actions": []}
+
+        def forbidden(*_a: object, **_kw: object) -> None:
+            raise AssertionError
+
+        monkeypatch.setattr(worker_mod, "fixloop", fake_fixloop)
+        monkeypatch.setattr(worker_mod, "engine_for", forbidden)
+        work = tmp_path / "build-zh"
+        work.mkdir()
+        main_eng = RecordingEngine("tectonic")
+        worker._run_fixloop(ctx, work, main_eng, object())  # noqa: SLF001
+        rec = captured["eng"]
+        assert rec._inner is main_eng  # noqa: SLF001
+
+    def test_xelatex_fixloop_respects_engine_factory(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """``engine_factory`` 在场时 fixloop xelatex 引擎也走注入面（不经 engine_for）。"""
+        import texlate.server.worker as worker_mod  # noqa: PLC0415
+
+        made: list[str] = []
+        ctx, worker, _store = _mk(
+            tmp_path,
+            worker_kw={
+                "engine_factory": lambda name: made.append(name)
+                or RecordingEngine(name)
+            },
+        )
+        ctx.engine_name = "xelatex"
+        captured: dict[str, object] = {}
+
+        def fake_fixloop(_w: object, eng: object, **_kw: object) -> dict:
+            captured["eng"] = eng
+            return {"verdict": "clean", "rounds": [], "actions": []}
+
+        def forbidden(*_a: object, **_kw: object) -> None:
+            raise AssertionError
+
+        monkeypatch.setattr(worker_mod, "fixloop", fake_fixloop)
+        monkeypatch.setattr(worker_mod, "engine_for", forbidden)
+        work = tmp_path / "build-zh"
+        work.mkdir()
+        worker._run_fixloop(ctx, work, RecordingEngine("xelatex"), object())  # noqa: SLF001
+        assert made == ["xelatex"]
+        rec = captured["eng"]
+        assert isinstance(rec, worker_mod._RecEngine)  # noqa: SLF001
+
 
 class TestFetcherOwnership:
     """``_fetch_arxiv`` 连接池纪律：自建 Fetcher 随任务关闭；注入实例归调用方。"""
