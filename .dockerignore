@@ -1,0 +1,30 @@
+# 构建上下文只需要: src/ web/ pyproject.toml uv.lock README.md Dockerfile
+
+# VCS / agent 本机层 / 工具缓存
+.git
+.claude
+.crossnote
+.github
+.ruff_cache
+Dockerfile
+.dockerignore
+
+# python
+.venv
+.venv_*
+**/__pycache__
+**/*.pyc
+
+# node（web 由镜像内阶段重建；dev/ 保留——vite.config 静态 import 它）
+node_modules
+web/node_modules
+web/dist
+
+# 非交付面
+tmp
+bench
+tests
+docs
+scripts
+*.log
+.DS_Store
