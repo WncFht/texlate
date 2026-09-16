@@ -62,11 +62,11 @@
 | # | 杠杆 | 实证 | 可转化 | 属主 |
 | --- | --- | --- | --- | --- |
 | 1 | **译文槽位保护**（fixer-slots，segmenter） | 错误簇 42%=407 格同机理：`\vskip3这是译文`(illegal_unit 138)、`{\scJos`/`\csnamebibitemNoStop` 粘连(104)、`Undefined color '这是译文'`+counter/keyval(91)、`\par` 进短参(62)、array preamble(12) | ~407 | 1d（xlat 侧残留归 peer1） |
-| 2 | **CJK 字体兜底**（fixer-cjkfont，inject） | 缺字 739 格缺的就是 `这是译文` 落在 cmr10/lmroman10/psnfss/nullfont 上下文——xeCJK 兜底够不到非 CJK 字体；missing_char_fix 字面替换已证无效 | 491 直升+~248 解锁 | 1d |
-| 3 | **invalid_utf8 源头转码**（fixer-utf8，输入侧） | 405 格唯一阻断 + latin-1 缺字尾同源 | ~405 直升 | 1d |
+| 2 | **CJK 字体兜底+缺字真修**（fixer-cjkfont，inject+builtins 缺字段） | scout-misschar 重画：663 格缺字 96.4% 行数是 mock 四字假象；真修面=**A 桶 114 格整文中文静默消失**（inject 两 bug：`CJK_PRESENT_RE` 宏体字面量假阳 + `find_docclass_end` 死分支注入）+ tfm 格式 `("XXXX)` 正则缺口（197 格未触发主因）+ warmup 门控（数学内 CJK 注了也白烧）+ font_fallback 动作（西里尔/拉丁扩展真损失） | ~150–220（A 桶为主） | 1d |
+| 3 | **invalid_utf8 净化**（fixer-utf8，normalize 单点） | fixer 取证翻案：96% 是**系统/用户 texmf 老包自带 latin-1 坏字节**（algorithm.sty 325 格等）非源文件；方案=cwd 包影遮蔽（kpathsea `.` 首位）+EPS 注释净化+ps 驱动 token 改写+catch-all 转码 | ~530/545 | 1d |
 | 4 | **latex209→2e 受限升级器**（fixer-209up，inject 挂点+新模块） | compat 模式禁 `\usepackage` 拒得对（A 臂 11/11 全灭），但探针 9/14 出 zh pdf；414 普查 revtex 169（41%）+article 188；探针产物 `tmp/latex209-probe/` | ~170–270（40–65%） | 1d 建器 + peer1 改 gate 路由 |
 
-1+2+3 全落地理论上限 ~1300 格，clean 率 54.3%→~83%（基数 4565=5108−129skip−414reject）；#4 再额外解锁 reject 池。另：`cjk_chars=0` 14 格实为 splice 没拿到段（上游覆盖问题）；pst-* 可解仍败疑点归 loop2 全量观察。
+1+2+3 全落地理论上限 ~1120 格（407+~185+~530，misschar/utf8 取证重画后），clean 率 54.3%→~79%（基数 4565=5108−129skip−414reject）；#4 再额外解锁 reject 池。另：`cjk_chars=0` 14 格实为 splice 没拿到段（上游覆盖问题）；pst-* 可解仍败疑点归 loop2 全量观察。
 
 ### 4.3 中线
 

@@ -100,3 +100,11 @@ pst-node×11 / jheppub×9 / citesort×7 / diagrams×7 / axodraw×5 / pst-arrow×
 - **1003.1717**：`install_file` 装 fallback 分支 revtex4 → `\input aps.rtx` 命中被 xlat 污染的 `splice/aps.rtx.tex:322`（`\let\frontmatter@ 这是译文 }{}`——csname 槽位腐蚀，fixer-slots 机理覆盖；但**随包 runtime 文件该不该进翻译集**是 pipeline 边界问题，转 peer1）。
 - **2410.00012**：`install_file` 装 mhchem 没带依赖闭包（chemgreek 被 TEXMFHOME 遮蔽）——依赖闭包安装是 install_file 规则面缺口，归 peer1 rules/engine。
 - **astro-ph/0111575**：rerun 已自愈 acceptable（epsf 裸 payload 修复起效）。
+
+### misschar/invalid_utf8 取证翻案（scout-misschar + fixer-utf8，杠杆面重画）
+
+**misschar 663 格**（scout-misschar，逐格/逐行归因）：96.4% 缺字行是 mock 四字（这是译文）假象；真修组件——**A 桶 114 格整文中文静默消失**（inject 两 bug：`CJK_PRESENT_RE` 被 `\CTeXPreproc` 宏体字面量/`\ctext` 宏名假阳跳注入 + `find_docclass_end` 落死分支）；`_MISSING_CHAR_RE` 只认 `(U+XXXX)` 不认 tfm `("XXXX)` → 416/433 格 missing_char_fix 未触发主因（tfm_only 197 + 码位表外 106 + 无 log 92）；B 桶 336 格数学内 CJK 是 xeCJK interchartoks 够不到的结构洞（warmup 无效，不建议规则修）；D 桶西里尔/拉丁扩展走 `font_fallback` 动作（`\newunicodechar`+fallback 字体）。已全派 fixer-cjkfont（inject.py + builtins 缺字段）；rules.yaml char_table/新条目待交付后转 peer1。
+
+**invalid_utf8 545 格**（fixer-utf8，按 log 括号栈归因到打开文件）：scout 框架「源文件 latin-1」只占小头——**96%（514/538）是系统/用户 texmf 老 CTAN 包自带坏字节**（algorithm.sty 325、algorithmic 206、algorithm2e 120；`/usr/share/texmf-dist` 同族），EPS 头注释 ~20、`[dvips]` 驱动 4（1404.0103 单格 15.7 万条=jpg 全文件扫描）。方案：normalize.py 单点四件套（cwd 包影遮蔽/EPS 注释净化/ps 驱动 token 改写/catch-all 转码），已批准带三防护（不写原工程、vendored 同名跳过、二进制 allowlist 保守）。**judge 语义跟进项**：invalid_utf8 redline 应限定工程文件产生者——物理修复后自然消解，记档待 audit 线裁。
+
+**1e modec-misschar/repro-2501 包**（5 实症，证据 `8fead4c`）：`_on_math` `\)`/`\]` closer 洞 + accent 参数保护 + textcolor/colorbox argspec 遮蔽补丁对 → fixer-slots（并入非文本槽位超簇）；alias-macro opaque（`\nc{\be}{\begin{equation}}` 链断裂）+ `_do_newenv` math-role 推断 → fixer-gullet（新派）。rules.yaml 缺口两枚（DeclareUnicodeCharacter undefined_cs + `Undefined color 'X'` pattern）→ peer1 backstop。
