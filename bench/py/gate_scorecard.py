@@ -8,6 +8,9 @@
 对每篇 paper 取 compile(zh)/fixloop 末条 record 合成终态:
     pdf = 终态 ∈ {clean, partial}（compile 或 fixloop 产出了 PDF）
     union_pdf_rate = pdf / 全部格
+fix 覆盖有门槛：compile 终态须为真编译结果（fail/partial/clean，
+reject/skip 格的 fixloop 记录是 --on all 误编译英文树的产物不计入），
+且 fix.metrics.compile_status_before 须等于当前 compile 终态（否则 fix 陈旧）。
 同时给出 clean 率（严格口径）、各终态分布、距 90% 缺口数。
 依赖: 纯 stdlib。
 """
@@ -21,6 +24,9 @@ DEFAULT_DIR = Path("bench/results/stagerun-loop1-2026-09-16/records")
 GATE = 0.90
 
 
+COMPILED = {"fail", "partial", "clean"}
+
+
 def last_records(path: Path, arm: str | None = None) -> dict[str, dict]:
     last: dict[str, dict] = {}
     if not path.exists():
@@ -32,8 +38,30 @@ def last_records(path: Path, arm: str | None = None) -> dict[str, dict]:
             continue
         if arm is not None and r.get("arm") != arm:
             continue
-        last[r["id"]] = r
+        rid = r.get("id")
+        if not isinstance(rid, str) or not rid:
+            continue
+        last[rid] = r
     return last
+
+
+def pick_final(c: dict, f: dict | None) -> tuple[str, dict, str | None]:
+    """合成终态：(stage, record, drop_reason)。
+
+    fix 只在覆盖真编译结果且未过期时生效——`--on all` 会对
+    inject:reject/skip 格也产出 fixloop 记录（编译被拒英文树），
+    不能计入；compile 在 fix 之后重跑且终态改变时 fix 陈旧作废。
+    """
+    if f is None:
+        return "compile", c, None
+    if c.get("status") not in COMPILED:
+        return "compile", c, "over_noncompiled"
+    csb = (f.get("metrics") or {}).get("compile_status_before")
+    if csb is None:
+        return "compile", c, "no_csb"
+    if csb != c.get("status"):
+        return "compile", c, "stale"
+    return "fixloop", f, None
 
 
 def main() -> int:
@@ -43,12 +71,16 @@ def main() -> int:
 
     end = Counter()
     end_sig = Counter()
+    dropped_fix = Counter()
     for pid, c in comp.items():
         f = fix.get(pid)
-        stage, st = ("fixloop", f["status"]) if f else ("compile", c["status"])
+        stage, r, drop = pick_final(c, f)
+        if drop is not None:
+            dropped_fix[drop] += 1
+        st = r["status"]
         end[f"{stage}:{st}"] += 1
-        if st not in ("clean",):
-            end_sig[(f or c).get("sig") or "?"] += 1
+        if st != "clean":
+            end_sig[r.get("sig") or "?"] += 1
 
     total = sum(end.values())
     pdf = sum(v for k, v in end.items() if k.split(":")[1] in ("clean", "partial"))
@@ -57,12 +89,22 @@ def main() -> int:
     n_norej = total - reject
 
     print(f"records: {rec_dir}")
-    print(f"cells={total}  pdf={pdf} ({pdf/total:.2%})  clean={clean} ({clean/total:.2%})")
-    print(f"gate union-pdf >=90%: {'PASS' if pdf/total >= GATE else f'need +{int(total*GATE)-pdf+1}'}")
-    print(f"  excl-reject(n={n_norej}): pdf {pdf/n_norej:.2%}  clean {clean/n_norej:.2%}")
+    print(
+        f"cells={total}  pdf={pdf} ({pdf / total:.2%})  clean={clean} ({clean / total:.2%})"
+    )
+    print(
+        f"gate union-pdf >=90%: {'PASS' if pdf / total >= GATE else f'need +{int(total * GATE) - pdf + 1}'}"
+    )
+    print(
+        f"  excl-reject(n={n_norej}): pdf {pdf / n_norej:.2%}  clean {clean / n_norej:.2%}"
+    )
     print("\nend-state:")
     for s, c in end.most_common():
         print(f"  {c:5d}  {s}")
+    if dropped_fix:
+        print("\ndropped fixloop overrides:")
+        for s, c in dropped_fix.most_common():
+            print(f"  {c:5d}  {s}")
     print("\ntop non-clean sigs:")
     for s, c in end_sig.most_common(15):
         print(f"  {c:5d}  {s}")
