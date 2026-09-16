@@ -76,8 +76,17 @@ class SourceCache:
         return d
 
     def find_versions(self, arxiv_id: str) -> list[int]:
-        """已缓存版本清单（升序）。id 含 glob 元字符或 ``..`` 段直接空集。"""
-        if not _SAFE_GLOB_ID.fullmatch(arxiv_id) or ".." in arxiv_id.split("/"):
+        """已缓存版本清单（升序）。id 含 glob 元字符或 ``..`` 段直接空集。
+
+        前导 ``/`` 也要拒——``_SAFE_GLOB_ID`` 字符集放行 ``/``，但
+        ``/etc`` 会让 ``root.glob("/etcv*")`` 成绝对模式抛
+        ``NotImplementedError``（审计实证）。
+        """
+        if (
+            not _SAFE_GLOB_ID.fullmatch(arxiv_id)
+            or arxiv_id.startswith("/")
+            or ".." in arxiv_id.split("/")
+        ):
             return []
         return sorted(
             int(p.name.rsplit("v", 1)[-1])
@@ -141,7 +150,12 @@ class SourceCache:
                 backup.rename(dest)  # 回滚
             raise
         if backup is not None:
-            shutil.rmtree(backup, ignore_errors=True)
+            # 备份可能是散文件（dest 位曾被 stray file 占用）——rmtree 对
+            # 非目录静默失败会留 .old-* 残渣（审计实证）
+            if backup.is_dir() and not backup.is_symlink():
+                shutil.rmtree(backup, ignore_errors=True)
+            else:
+                backup.unlink(missing_ok=True)
         return CacheEntry(arxiv_id, resolved_version, dest, meta)
 
     @staticmethod

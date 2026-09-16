@@ -9,6 +9,7 @@ import pytest
 from texlate.arxiv.sniff import BlobKind, sniff
 from texlate.arxiv.unpack import (
     STUB_PREFIX,
+    UnpackError,
     unpack_single,
     unpack_sniffed,
     unpack_tar,
@@ -338,3 +339,180 @@ def test_symlink_member_over_dir_clash(tmp_path: Path) -> None:
     assert (tmp_path / "sub").is_dir()
     assert not (tmp_path / "sub").is_symlink()
     assert "reject_dir_clash" in _warn_kinds(res.warnings)
+
+
+def test_non_utf8_member_name_rejected(tmp_path: Path) -> None:
+    """非 UTF-8 原名（tarfile surrogateescape → 代理区）按 ``reject_path`` 拒。
+
+    此前代理区名能落盘，但 write_manifest / meta.json 写 utf-8 时炸
+    UnicodeEncodeError——拒绝即拒绝，告警文本经 ``_safe`` 转义可编码。
+    """
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w", format=tarfile.USTAR_FORMAT) as tf:
+        info = _reg("ok.tex", 3)
+        tf.addfile(info, io.BytesIO(b"xxx"))
+    raw = bytearray(buf.getvalue())
+    raw[0:7] = b"caf\xe9.te"  # ustar name 头段塞 raw 0xE9（非法 UTF-8）
+    chksum = sum(raw[:148]) + sum(b"        ") + sum(raw[156:512])
+    raw[148:156] = f"{chksum:06o}\x00 ".encode()
+    res = unpack_tar(bytes(raw), tmp_path)
+    assert res.files == []
+    assert "reject_path" in _warn_kinds(res.warnings)
+    # manifest 不再被代理区名炸掉
+    write_manifest(res, tmp_path)
+    assert (tmp_path / "files.txt").read_text() == ""
+    # 告警串本身可 utf-8/json 编码（含转义后的代理区）
+    for w in res.warnings:
+        w.encode("utf-8")
+
+
+def test_corrupt_mid_header_raises(tmp_path: Path) -> None:
+    """成员头 checksum 坏在中途：tarfile 静默停枚举（errorlevel=2 也不抛）。
+
+    尾部残余非零字节 = 有成员未交付——mtree 会谎报完整，按损坏归档 UnpackError。
+    """
+    payload = bytearray(
+        _make_tar([(_reg(n, 5), b"x" * 5) for n in ("a.tex", "b.tex", "c.tex")])
+    )
+    payload[1024 + 148 : 1024 + 150] = b"99"  # b.tex 头 checksum
+    with pytest.raises(UnpackError, match="corrupt member stream"):
+        unpack_tar(bytes(payload), tmp_path)
+
+
+def test_dup_symlink_last_wins(tmp_path: Path) -> None:
+    """同名 symlink 成员重复：last-wins + ``dup_member_overwrite``。
+
+    修复前无条件改名出 ``x~c2`` 幽灵成员、旧链接残留——与 file 的
+    ``_claim`` 语义对齐后只留最后一条。
+    """
+    s1 = tarfile.TarInfo("x.tex")
+    s1.type = tarfile.SYMTYPE
+    s1.linkname = "a.tex"
+    s2 = tarfile.TarInfo("x.tex")
+    s2.type = tarfile.SYMTYPE
+    s2.linkname = "b.tex"
+    payload = _make_tar(
+        [
+            (_reg("a.tex", 3), b"aaa"),
+            (_reg("b.tex", 3), b"bbb"),
+            (s1, b""),
+            (s2, b""),
+        ]
+    )
+    res = unpack_tar(payload, tmp_path)
+    assert "dup_member_overwrite" in _warn_kinds(res.warnings)
+    assert (tmp_path / "x.tex").readlink() == Path("b.tex")
+    assert not (tmp_path / "x~c2.tex").exists()
+    assert not (tmp_path / "x~c2.tex").is_symlink()
+    assert [m.path for m in res.members].count("x.tex") == 1
+
+
+def test_symlink_over_file_replaces_and_mtree_consistent(tmp_path: Path) -> None:
+    """file x 在前、symlink x 在后：last-wins 换成链接，mtree 摘旧 file 条目。"""
+    s = tarfile.TarInfo("x.tex")
+    s.type = tarfile.SYMTYPE
+    s.linkname = "a.tex"
+    payload = _make_tar(
+        [(_reg("a.tex", 3), b"aaa"), (_reg("x.tex", 5), b"filex"), (s, b"")]
+    )
+    res = unpack_tar(payload, tmp_path)
+    assert (tmp_path / "x.tex").is_symlink()
+    assert (tmp_path / "x.tex").readlink() == Path("a.tex")
+    entries = [m for m in res.members if m.path == "x.tex"]
+    assert len(entries) == 1
+    assert entries[0].kind == "symlink"
+    assert "x.tex" not in res.files  # symlink 不计入 files
+
+
+def test_hardlink_does_not_clobber_later_file(tmp_path: Path) -> None:
+    """hardlink x→y 在前、file x 在后：延迟物化不得反盖后到成员。
+
+    修复前 ``_finish_links`` 无条件物化，x.tex 落成 y 的内容而非 file 的。
+    """
+    h = tarfile.TarInfo("x.tex")
+    h.type = tarfile.LNKTYPE
+    h.linkname = "y.tex"
+    payload = _make_tar(
+        [(h, b""), (_reg("x.tex", 4), b"FILE"), (_reg("y.tex", 4), b"HLNK")]
+    )
+    res = unpack_tar(payload, tmp_path)
+    assert (tmp_path / "x.tex").read_bytes() == b"FILE"
+    kinds = {m.path: m.kind for m in res.members}
+    assert kinds["x.tex"] == "file"
+
+
+def test_later_hardlink_still_materializes(tmp_path: Path) -> None:
+    """file x 在前、hardlink x→y 在后：后到 hardlink 正常物化覆盖（last-wins）。"""
+    h = tarfile.TarInfo("x.tex")
+    h.type = tarfile.LNKTYPE
+    h.linkname = "y.tex"
+    payload = _make_tar(
+        [(_reg("x.tex", 4), b"FILE"), (h, b""), (_reg("y.tex", 4), b"HLNK")]
+    )
+    res = unpack_tar(payload, tmp_path)
+    assert (tmp_path / "x.tex").read_bytes() == b"HLNK"
+    kinds = {m.path: m.kind for m in res.members}
+    assert kinds["x.tex"] == "hardlink"
+
+
+def test_long_member_name_member_level_reject(tmp_path: Path) -> None:
+    """PAX longname >255B：ENAMETOOLONG 不再整包流产，成员级 ``reject_io``。"""
+    long_name = "d/" + "x" * 300 + ".tex"
+    payload = _make_tar([(_reg(long_name, 3), b"xxx"), (_reg("ok.tex", 3), b"xxx")])
+    res = unpack_tar(payload, tmp_path)
+    assert res.files == ["ok.tex"]
+    assert "reject_io" in _warn_kinds(res.warnings)
+
+
+def test_dangling_symlink_parent_member_reject(tmp_path: Path) -> None:
+    """保留的 dangling symlink（d→ghost）作父级：成员 ``d/x.tex`` 的
+    mkdir 撞 EEXIST——成员级 ``reject_io`` 而非整包 OSError。"""
+    s = tarfile.TarInfo("d")
+    s.type = tarfile.SYMTYPE
+    s.linkname = "ghost"
+    payload = _make_tar(
+        [(s, b""), (_reg("d/x.tex", 3), b"xxx"), (_reg("ok.tex", 3), b"xxx")]
+    )
+    res = unpack_tar(payload, tmp_path)
+    assert "ok.tex" in res.files
+    assert "d/x.tex" not in res.files
+    assert "reject_io" in _warn_kinds(res.warnings)
+
+
+def test_dir_member_over_file_warns(tmp_path: Path) -> None:
+    """file x 在前、dir 成员 x 在后：此前静默幂等返回，现按 ``reject_dir_clash``
+    告警——与 file-over-dir 对称（先到者保）。"""
+    d = tarfile.TarInfo("x")
+    d.type = tarfile.DIRTYPE
+    payload = _make_tar([(_reg("x", 3), b"abc"), (d, b""), (_reg("ok.tex", 3), b"xxx")])
+    res = unpack_tar(payload, tmp_path)
+    assert (tmp_path / "x").is_file()
+    assert "reject_dir_clash" in _warn_kinds(res.warnings)
+
+
+def test_surrogate_linkname_rejected(tmp_path: Path) -> None:
+    """linkname 带代理区（非 UTF-8 原名）——kept 后 mtree ``-> target`` 会炸
+    编码，按 ``reject_link`` 拒。"""
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w", format=tarfile.USTAR_FORMAT) as tf:
+        tf.addfile(_reg("ok.tex", 3), io.BytesIO(b"xxx"))
+        s = tarfile.TarInfo("ln.tex")
+        s.type = tarfile.SYMTYPE
+        s.linkname = "tgt"  # 占位，下面替换成 raw 0xE9
+        tf.addfile(s, io.BytesIO(b""))
+    raw = bytearray(buf.getvalue())
+    # ln.tex 是第 2 个成员：ok 头(512)+数据(512)、ln 头在 offset 1024；
+    # ustar linkname 字段在头内 offset 157
+    raw[1024 + 157 : 1024 + 160] = b"t\xe9t"
+    chksum = (
+        sum(raw[1024 : 1024 + 148])
+        + sum(b"        ")
+        + sum(raw[1024 + 156 : 1024 + 512])
+    )
+    raw[1024 + 148 : 1024 + 156] = f"{chksum:06o}\x00 ".encode()
+    res = unpack_tar(bytes(raw), tmp_path)
+    assert res.files == ["ok.tex"]
+    assert not any(m.kind == "symlink" for m in res.members)
+    assert "reject_link" in _warn_kinds(res.warnings)
+    for w in res.warnings:
+        w.encode("utf-8")

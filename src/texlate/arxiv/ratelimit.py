@@ -9,6 +9,11 @@ r"""请求纪律：按 host 限速桶 + (host, path) 断路器 + 日预算（doc
   起步），逐次翻倍封顶 2h。
 - **日预算**：直采 ~150–200 发/日护栏（实测 ~150 发后 /src 回 406）。
 - 状态 JSON 落盘（checkpoint 可恢复）；clock/sleep 可注入便于测试。
+
+时间口径：park/间隔用**墙钟**（``time.time``）——monotonic 无法跨进程
+持久化，代价是 NTP 回拨会延长 park。状态文件**单写者假设**：多实例同
+``state_path`` 并发 ``_save`` 丢更新（审计实证 2 实例 3 请求落 2）——
+零并发纪律本身要求单连接单进程，不引锁。
 """
 
 from __future__ import annotations

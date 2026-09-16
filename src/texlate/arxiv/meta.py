@@ -200,16 +200,22 @@ def _parse_oai(body: bytes, pin: int | None) -> PaperMeta | None:
     )
     if rec is None:
         return None
-    versions = tuple(
-        VersionInfo(
-            version=int(v.get("version", "").removeprefix("v")),
-            date=_rfc822_to_iso(_text(v, f"{{{_RAW_NS}}}date")),
-            size=_text(v, f"{{{_RAW_NS}}}size"),
-            source_type=_text(v, f"{{{_RAW_NS}}}source_type"),
+    parsed: list[VersionInfo] = []
+    for v in rec.findall(f"{{{_RAW_NS}}}version"):
+        nv = v.get("version", "").removeprefix("v")
+        # v0/缺号不是真版本——收下会污染 has_version(0)/pin=0 边界（审计实证）
+        if not nv.isdigit() or int(nv) < 1:
+            continue
+        parsed.append(
+            VersionInfo(
+                version=int(nv),
+                date=_rfc822_to_iso(_text(v, f"{{{_RAW_NS}}}date")),
+                size=_text(v, f"{{{_RAW_NS}}}size"),
+                source_type=_text(v, f"{{{_RAW_NS}}}source_type"),
+            )
         )
-        for v in rec.findall(f"{{{_RAW_NS}}}version")
-        if v.get("version", "").removeprefix("v").isdigit()
-    )
+    # 按版本号排序取真值——文档序不保证升序时 published/updated 会颠倒（审计实证）
+    versions = tuple(sorted(parsed, key=lambda v: v.version))
     cats = tuple(_text(rec, f"{{{_RAW_NS}}}categories").split())
     latest = max((v.version for v in versions), default=None)
     resolved = (

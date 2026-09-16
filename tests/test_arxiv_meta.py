@@ -283,6 +283,41 @@ def test_resolve_version_via_atom() -> None:
     assert resolve_version("1412.6980v99", fetcher=f) is None
 
 
+def test_oai_version_history_sorted_and_v0_dropped() -> None:
+    """乱序版本史 + v0 边界：published/updated 按版本号取真值，v0 不算版本。
+
+    修复前 ``versions[0]``/``[-1]`` 信文档序（乱序源 published/updated 颠倒），
+    ``v0`` 成立 has_version(0)/pin=0——版本从 v1 起，v<1 滤除。
+    """
+    body = b"""<?xml version="1.0"?>
+<OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/">
+  <GetRecord><record><metadata>
+    <arXivRaw xmlns="http://arxiv.org/OAI/arXivRaw/">
+      <id>1234.5678</id>
+      <version version="v3"><date>Wed, 01 Jan 2020 00:00:00 GMT</date></version>
+      <version version="v0"><date>Sun, 01 Jan 1989 00:00:00 GMT</date></version>
+      <version version="v1"><date>Tue, 02 Jan 1990 00:00:00 GMT</date></version>
+      <title>t</title><authors>a</authors><categories>cs.LG</categories>
+    </arXivRaw>
+  </metadata></record></GetRecord>
+</OAI-PMH>"""
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        if "/api/query" in req.url.path:
+            msg = "atom down"
+            raise httpx.ConnectError(msg, request=req)
+        return httpx.Response(HTTP_OK, content=body)
+
+    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    meta = fetch_metadata("1234.5678", fetcher=f)
+    assert meta is not None
+    assert [v.version for v in meta.versions] == [1, V3]  # v0 滤除 + 升序
+    assert meta.published == "1990-01-02T00:00:00Z"  # v1 date，不是 v3
+    assert meta.updated == "2020-01-01T00:00:00Z"  # v3 date
+    assert not meta.has_version(0)
+    assert resolve_version("1234.5678", want=0, fetcher=f) is None
+
+
 def test_resolve_version_via_oai_when_atom_down() -> None:
     def handler(req: httpx.Request) -> httpx.Response:
         if "/api/query" in req.url.path:

@@ -216,3 +216,46 @@ def test_parked_until_expired_is_zero() -> None:
     assert rl.parked_until(src) == until > 0
     clk.t = until + 1
     assert rl.parked_until(src) == 0.0
+
+
+def test_parked_acquire_no_budget_cost() -> None:
+    """park 中的 acquire 先于预算检查被拒——parked 探测不烧日预算。"""
+    clk = _Clock()
+    rl = _limiter(clk, daily_budget=100)
+    src = "https://arxiv.org/src/x"
+    _trip(rl, clk, src)
+    used = rl.requests_today
+    with pytest.raises(ParkedError):
+        rl.acquire(src)
+    assert rl.requests_today == used
+
+
+def test_406_strikes_trip_breaker() -> None:
+    """406（IP 配额窗）与 429 同计 strike——文档勘误 2026-09-17 口径。"""
+    clk = _Clock()
+    rl = _limiter(clk)
+    src = "https://arxiv.org/src/x"
+    for _ in range(BREAKER_STRIKES):
+        rl.acquire(src)
+        clk.t += GAP
+        rl.report(src, HTTPStatus.NOT_ACCEPTABLE)
+    with pytest.raises(ParkedError):
+        rl.acquire(src)
+
+
+def test_5xx_neither_strikes_nor_resets() -> None:
+    """5xx 中性：不计 strike 也不证明窗口已过（保持既有 strike 数）。"""
+    clk = _Clock()
+    rl = _limiter(clk)
+    src = "https://arxiv.org/src/x"
+    rl.acquire(src)
+    clk.t += GAP
+    rl.report(src, HTTPStatus.TOO_MANY_REQUESTS)  # 1 strike
+    rl.acquire(src)
+    clk.t += GAP
+    rl.report(src, HTTPStatus.INTERNAL_SERVER_ERROR)  # 中性
+    rl.acquire(src)
+    clk.t += GAP
+    rl.report(src, HTTPStatus.TOO_MANY_REQUESTS)  # 第 2 strike → park
+    with pytest.raises(ParkedError):
+        rl.acquire(src)

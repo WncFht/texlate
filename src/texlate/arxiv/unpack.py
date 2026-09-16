@@ -3,8 +3,13 @@ r"""e-print 解包：逐成员路径安全 + mtree 清单（docs/06 §2.2）。
 逐成员检查（缺一不可）：
 
 - 拒绝：``..``、绝对路径（``/`` 或盘符）、包外 symlink/hardlink、
-  device/fifo/socket 等特殊文件、setuid/setgid 位。
-- 规范化：``./`` 前缀剥离、重复名去重、大小写折叠冲突改名（``~cN``）+ 告警。
+  device/fifo/socket 等特殊文件、setuid/setgid 位、控制字符与非 UTF-8
+  原名（tarfile surrogateescape 代理区——manifest/meta.json 无法编码）。
+- 规范化：``./`` 前缀剥离、重复名去重（last-wins）、大小写折叠冲突
+  改名（``~cN``）+ 告警。
+- 成员级 IO 病态（超长名、dangling/自环链接父级等 errno 白名单）降级
+  ``reject_io``；成员流中途坏头（tarfile 静默停枚举、尾部留非零块）
+  整包 ``UnpackError``——mtree 不能谎报完整。
 - 上限：解压总量 ≤512MB、成员 ≤20k、单文件 ≤100MB。
 - stub：成员 <100B 或 ``%auto-ignore`` 前缀 → 标 stub（留盘但不进抽样）。
 
@@ -18,6 +23,7 @@ r"""e-print 解包：逐成员路径安全 + mtree 清单（docs/06 §2.2）。
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import io
 import re
@@ -41,6 +47,14 @@ _DRIVE_RE: Final = re.compile(r"^[A-Za-z]:")
 #: 成员名/链接名控制字符——POSIX 允许落盘但 TSV manifest（files.txt/mtree.txt）
 #: 行/列结构会被 \t \n 破坏（phantom 行、列错位），按路径非法一并拒绝
 _CTRL_RE: Final = re.compile(r"[\x00-\x1f\x7f]")
+#: 代理区码点——tarfile surrogateescape 解码出的非 UTF-8 原名。POSIX 能落盘，
+#: 但 mtree.txt/meta.json 写 utf-8 时炸 UnicodeEncodeError（审计实证），按非法拒
+_SURROGATE_RE: Final = re.compile(r"[\ud800-\udfff]")
+#: 成员级可拒的 IO 错：超长名、dangling/自环 symlink 父级、环链——纯输入构造
+#: 可触发，降级为告警跳过；ENOSPC/EIO 等全局错仍上抛整包失败
+_MEMBER_ERRNOS: Final = frozenset(
+    {errno.ENAMETOOLONG, errno.ELOOP, errno.EEXIST, errno.ENOTDIR}
+)
 
 
 class UnpackError(Exception):
@@ -92,13 +106,18 @@ class UnpackResult:
         return sorted(m.path for m in self.members if m.stub)
 
 
+def _safe(s: str) -> str:
+    """告警文本中的原始成员名/链接名：代理区转义防 meta.json 编码炸。"""
+    return s.encode("utf-8", "backslashreplace").decode("utf-8")
+
+
 def _norm_member(name: str) -> str | None:
     """成员名规范化 → 相对路径；非法返回 None。
 
-    剥离 ``./`` 与空段；拒绝控制字符（含 NUL）、绝对路径（``/`` 或
-    ``C:`` 盘符）、``..``。
+    剥离 ``./`` 与空段；拒绝控制字符（含 NUL）、代理区（非 UTF-8 原名）、
+    绝对路径（``/`` 或 ``C:`` 盘符）、``..``。
     """
-    if _CTRL_RE.search(name):
+    if _CTRL_RE.search(name) or _SURROGATE_RE.search(name):
         return None
     if name.startswith("/") or _DRIVE_RE.match(name):
         return None
@@ -218,6 +237,13 @@ class _TarWalker:
                 if len(members) > MAX_MEMBERS:
                     msg = f"too_many_members:{len(members)}"
                     raise UnpackError(msg)
+                # getmembers 遇坏头静默停枚举（errorlevel=2 也不抛）——
+                # offset 停在终止扫描的那一块：全零 = 正常 EOF 标记（其后
+                # 残留旧数据尾巴属真实包形态，9702009 实证）；非零 = 无法
+                # 解析的头块、其后成员全丢——mtree 不能谎报完整，硬拒
+                if payload[tf.offset : tf.offset + 512].strip(b"\x00"):
+                    msg = f"corrupt member stream at offset {tf.offset}"
+                    raise UnpackError(msg)
                 for m in members:
                     self._member(m, tf)
         except tarfile.TarError as e:
@@ -252,7 +278,7 @@ class _TarWalker:
         rel = _norm_member(m.name)
         if rel is None or rel == "":
             if rel is None:
-                self.res.warnings.append(f"reject_path:{m.name}")
+                self.res.warnings.append(f"reject_path:{_safe(m.name)}")
             return
         if m.mode and m.mode & 0o6000:
             self.res.warnings.append(f"reject_setuid:{rel}")
@@ -266,34 +292,72 @@ class _TarWalker:
         if not m.isreg():
             self.res.warnings.append(f"reject_special:{rel}")
             return
+        self._file_member(m, tf, rel)
+
+    def _file_member(self, m: tarfile.TarInfo, tf: tarfile.TarFile, rel: str) -> None:
+        """常规文件：容量闸 → 认领名 → 读流落盘。"""
         reject = self._reject_reason(m, rel)
         if reject is not None:
             self.res.warnings.append(reject)
             return
         rel = self._claim(rel)
+        self._drop_pending(rel)
         fobj = tf.extractfile(m)
         data = fobj.read() if fobj else b""
-        if _write_entry(self.res, rel, data, "file"):
+        try:
+            ok = _write_entry(self.res, rel, data, "file")
+        except OSError as e:
+            if e.errno not in _MEMBER_ERRNOS:
+                raise
+            self.res.warnings.append(f"reject_io:{rel}:{e.errno}")
+            return
+        if ok:
             self.total += len(data)
+
+    def _drop_pending(self, rel: str) -> None:
+        """同名后到的非 hardlink 声明压掉未物化的 hardlink 元组（保成员序 last-wins）。"""
+        if self.hardlinks:
+            self.hardlinks = [h for h in self.hardlinks if h[0] != rel]
 
     def _dir_member(self, rel: str) -> None:
         """目录成员：注册 seen + mkdir + mtree；重复幂等、casefold 冲突告警跳过。"""
         low = rel.lower()
         prev = self.seen.get(low)
-        if prev == rel:
-            return  # 同名目录重复成员：幂等，不重复记 mtree
-        if prev is not None:
+        if prev is not None and prev != rel:
             # 大小写折叠冲突（foo/ 对已见 Foo 成员）——大小写不敏感 FS
             # 上会静默合并目录；子成员路径在 tar 里固定无法 rename，
             # 告警留痕后跳过（audit-2026-09-16 codehealth 补漏）
             self.res.warnings.append(f"casefold_dir:{prev}~{rel}")
             return
+        self._drop_pending(rel)
         target = self.res.dest / rel
+        if target.is_dir() and not target.is_symlink():
+            # 同名目录重复成员幂等；隐式目录（成员父级 mkdir 产生、未登记）
+            # 补登记 + mtree
+            if prev is None:
+                self.seen[low] = rel
+                self.res.members.append(
+                    MemberEntry(path=rel, size=0, sha256="", kind="dir")
+                )
+                self.res.member_index.add(rel)
+            return
         if target.parent.exists() and not target.parent.is_dir():
             self.res.warnings.append(f"reject_dir_clash:{rel}")
             return
+        if target.exists() or target.is_symlink():
+            # 同名 file/symlink 已落盘——dir 成员迟到按 clash 拒
+            # （与 file-over-dir 对称：先到者保，后到同类冲突告警跳过）
+            self.res.warnings.append(f"reject_dir_clash:{rel}")
+            return
         self.seen[low] = rel
-        target.mkdir(parents=True, exist_ok=True)
+        try:
+            target.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            if e.errno not in _MEMBER_ERRNOS:
+                raise
+            self.seen.pop(low, None)
+            self.res.warnings.append(f"reject_io:{rel}:{e.errno}")
+            return
         self.res.members.append(MemberEntry(path=rel, size=0, sha256="", kind="dir"))
         self.res.member_index.add(rel)
 
@@ -301,27 +365,43 @@ class _TarWalker:
         ln = m.linkname
         # linkname 先查本体：绝对路径/盘符经 _link_rel 归一化会被折成 in-tree，
         # 只查解析结果会漏掉真实逃逸（symlink_to 用的是原始 linkname）。
-        if not ln or _CTRL_RE.search(ln) or ln.startswith("/") or _DRIVE_RE.match(ln):
-            self.res.warnings.append(f"reject_link:{rel}->{ln}")
+        if (
+            not ln
+            or _CTRL_RE.search(ln)
+            or _SURROGATE_RE.search(ln)
+            or ln.startswith("/")
+            or _DRIVE_RE.match(ln)
+        ):
+            self.res.warnings.append(f"reject_link:{rel}->{_safe(ln)}")
             return
         target_rel = _link_rel(m, rel)
         if not _in_tree(target_rel):
-            self.res.warnings.append(f"reject_link:{rel}->{m.linkname}")
+            self.res.warnings.append(f"reject_link:{rel}->{_safe(m.linkname)}")
             return
-        low = rel.lower()
-        if low in self.seen:
-            new_rel = _unique_rename(rel, self.seen)
-            self.res.warnings.append(f"casefold_rename:{rel}->{new_rel}")
-            rel = new_rel
-        self.seen[rel.lower()] = rel
+        # 与 file 同套 _claim：精确重名 → dup_member_overwrite（last-wins），
+        # 大小写折叠 → 改名。此前无条件 _unique_rename 会把精确重名也改成
+        # ~cN 幽灵成员并让旧链接残留（审计实证）。
+        rel = self._claim(rel)
+        self._drop_pending(rel)
         if m.issym():
             target = self.res.dest / rel
             if _dir_clash(self.res, rel, target):
                 return
-            target.parent.mkdir(parents=True, exist_ok=True)
-            if target.exists() or target.is_symlink():
-                target.unlink()
-            target.symlink_to(m.linkname)
+            try:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                if target.exists() or target.is_symlink():
+                    target.unlink()
+                target.symlink_to(m.linkname)
+            except OSError as e:
+                if e.errno not in _MEMBER_ERRNOS:
+                    raise
+                self.res.warnings.append(f"reject_io:{rel}:{e.errno}")
+                return
+            # 覆盖同名 file 成员时摘掉旧 mtree 条目（_write_entry 同款口径），
+            # 否则 files/mtree 把盘上 symlink 记成 file
+            if rel in self.res.member_index:
+                self.res.members = [mm for mm in self.res.members if mm.path != rel]
+                self.res.member_index.discard(rel)
             self.res.members.append(
                 MemberEntry(
                     path=rel, size=0, sha256="", kind="symlink", link_target=m.linkname
@@ -340,11 +420,24 @@ class _TarWalker:
             if not src.is_file() or src.is_symlink():
                 self.res.warnings.append(f"hardlink_dangling:{rel}->{target_rel}")
                 continue
-            data = src.read_bytes()
+            try:
+                data = src.read_bytes()
+            except OSError as e:
+                if e.errno not in _MEMBER_ERRNOS:
+                    raise
+                self.res.warnings.append(f"reject_io:{rel}:{e.errno}")
+                continue
             if self.total + len(data) > MAX_TOTAL_BYTES:
                 self.res.warnings.append(f"reject_totalcap:{rel}")
                 continue
-            if not _write_entry(self.res, rel, data, "hardlink", target_rel):
+            try:
+                ok = _write_entry(self.res, rel, data, "hardlink", target_rel)
+            except OSError as e:
+                if e.errno not in _MEMBER_ERRNOS:
+                    raise
+                self.res.warnings.append(f"reject_io:{rel}:{e.errno}")
+                continue
+            if not ok:
                 continue
             self.res.warnings.append(f"hardlink_materialized:{rel}->{target_rel}")
             self.total += len(data)
