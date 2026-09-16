@@ -231,7 +231,7 @@ class Engine(Protocol):
 
 ### 4.3 clean 判定三件套（判据，非修复）
 
-`clean` = ① 有 pdf ② `!`≤3 且首错非 missing_*/undefined_cs ③ **log warning 扫描**：`Invalid UTF-8 byte` / `Missing character.*U+FFFD` / tectonic `File.*not found` 降级行 / missing_graphic 红线——任一命中即 dirty。另加**中文实际渲染检查**（`Missing character` 计数==0 或 PDF 字体表含 CJK——hep-th 0 中文字节是全线最坏静默失败）。`partial` = 有 pdf 但 dirty。
+`clean` = ① 有 pdf ② `!`≤3 且首错非 missing_*/undefined_cs ③ **log warning 扫描**：`Invalid UTF-8 byte` / `Missing character`（勘误 2026-09-17：impl 红线为全 `missing_glyph` 族——CJK/U+FFFD/码点不可解三类，`l2.py _REDLINE_CLASSES`，不限 U+FFFD 一形）/ tectonic `File.*not found` 降级行 / missing_graphic 红线——任一命中即 dirty。另加**中文实际渲染检查**（`Missing character` 计数==0 或 PDF 字体表含 CJK——hep-th 0 中文字节是全线最坏静默失败）。`partial` = 有 pdf 但 dirty。
 
 > 勘误（2026-09-16，F3 改判 `87e6a40`）：**策略拒绝不再单列 `reject` 终态**——route/inject/fixloop 三处拒绝统一归 `partial` + `reject_at ∈ {route, inject, fixloop}` 审计字段（语义：拒绝是降级交付不是 fault；worker `_reject` 与 e2e `run()` 同形，`cli.py` 对 `reject_at` 保持 exit 2）。§5 verdict 词汇表同此口径。
 
