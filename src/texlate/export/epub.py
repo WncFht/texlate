@@ -34,6 +34,7 @@ from copy import copy
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
+from urllib.parse import unquote
 
 import defusedxml.ElementTree
 from bs4 import BeautifulSoup, NavigableString, Tag
@@ -52,8 +53,14 @@ from .common import (
     GlossaryArg,
     MalformedEpubError,
     drive_pipeline,
+    safe_language,
 )
-from .filters import is_apparatus_text, is_special_text, normalize_text
+from .filters import (
+    is_apparatus_text,
+    is_special_text,
+    normalize_text,
+    sanitize_xml_text,
+)
 from .markers import (
     INLINE_MARKER_MAX_CHARS,
     INLINE_MARKER_WORDLESS_MAX_CHARS,
@@ -244,7 +251,17 @@ def load_epub(src: Path | str) -> EpubBook:  # noqa: C901, PLR0912, PLR0915 -- �
         order: list[str] = []
         for info in infos:
             if info.filename not in members:  # zip 重名条目只取首个
-                members[info.filename] = zf.read(info)
+                try:
+                    members[info.filename] = zf.read(info)
+                except (
+                    OSError,
+                    RuntimeError,
+                    NotImplementedError,
+                    zipfile.BadZipFile,
+                ) as e:
+                    # 成员级坏 CRC/加密/未知压缩——裸 BadZipFile 会绕过 ExportError 族
+                    msg = f"zip 成员 {info.filename} 读取失败: {e}"
+                    raise MalformedEpubError(msg) from e
                 order.append(info.filename)
 
     if CONTAINER_PATH not in members:
@@ -276,6 +293,20 @@ def load_epub(src: Path | str) -> EpubBook:  # noqa: C901, PLR0912, PLR0915 -- �
             msg = "fixed-layout（pre-paginated）EPUB 不支持插译"
             raise FixedLayoutError(msg)
 
+    def member_path(href: str) -> str | None:
+        """Manifest ``href`` → zip 成员名：percent-decode 优先、原样兜底。
+
+        OPF ``href`` 是 URI——``ch%201.xhtml`` 指成员 ``ch 1.xhtml``（真书
+        InDesign/转换器产物）；``unquote`` 后缺席再试原样（成员名逐字印着
+        ``%20`` 的畸形产物宽容）。
+        """
+        raw = href.split("#", 1)[0]  # manifest href 按 spec 无 fragment
+        for cand in (unquote(raw), raw):
+            path = posixpath.join(opf_dir, cand) if opf_dir else cand
+            if path in members:
+                return path
+        return None
+
     manifest: dict[str, tuple[str, str, str]] = {}
     ncx_path: str | None = None
     for it in opf.iter(f"{_OPF_NS}item"):
@@ -286,7 +317,7 @@ def load_epub(src: Path | str) -> EpubBook:  # noqa: C901, PLR0912, PLR0915 -- �
             continue
         manifest[iid] = (href, mtype, it.get("properties") or "")
         if mtype == "application/x-dtbncx+xml":
-            ncx_path = posixpath.join(opf_dir, href) if opf_dir else href
+            ncx_path = member_path(href)
 
     spine: list[str] = [ir.get("idref") or "" for ir in opf.iter(f"{_OPF_NS}itemref")]
     docs: list[str] = []
@@ -294,15 +325,15 @@ def load_epub(src: Path | str) -> EpubBook:  # noqa: C901, PLR0912, PLR0915 -- �
         entry = manifest.get(idref)
         if entry is None or entry[1] not in XHTML_MEDIA_TYPES:
             continue
-        path = posixpath.join(opf_dir, entry[0]) if opf_dir else entry[0]
-        if path in members and path not in docs:
+        path = member_path(entry[0])
+        if path is not None and path not in docs:
             docs.append(path)
     # spine 之外、manifest 里仍是 xhtml 的（不在 spine 的 nav/封面页）追加在尾
     for href, mtype, _props in manifest.values():
         if mtype not in XHTML_MEDIA_TYPES:
             continue
-        path = posixpath.join(opf_dir, href) if opf_dir else href
-        if path in members and path not in docs:
+        path = member_path(href)
+        if path is not None and path not in docs:
             docs.append(path)
     if not docs:
         msg = "manifest 里没有可翻的 xhtml 文档"
@@ -511,8 +542,10 @@ def _runs_for_owner(  # noqa: C901 -- 事件流→run 的 case 分派，拆分�
 ) -> Iterator[tuple[list, dict[str, Tag], str]]:
     r"""Owner 的事件流 → 各 run 的 ``(run_nodes, markers, text)``。
 
-    两段式分配 marker token：先以 ``\x00{i}\x00`` 哨兵占位组装归一化文本，
+    两段式分配 marker token：先以 ``{i}`` 哨兵占位组装归一化文本，
     再对成品文本做碰撞回避分配（token 须在送模型文本里恰好出现一次）。
+    哨兵用 PUA 而非控制字符：``normalize_text`` 剥 XML 非法字符，\x00 哨兵
+    活不到 replace。
     """
     run_nodes: list = []
     parts: list[str] = []
@@ -538,7 +571,7 @@ def _runs_for_owner(  # noqa: C901 -- 事件流→run 的 case 分派，拆分�
             run_nodes, parts, sentinels, seq = [], [], [], 0
             continue
         if kind == "marker":
-            sentinel = f"\x00{seq}\x00"
+            sentinel = f"{seq}"
             seq += 1
             sentinels.append((sentinel, node))
             parts.append(sentinel)
@@ -687,7 +720,7 @@ def _stamp_translation(span: Tag, source: Tag, language: str) -> Tag:
         cls.append("texlate-zh")
     span["class"] = cls
     for attr in _LANG_ATTRS:
-        if attr in source.attrs:
+        if language and attr in source.attrs:
             span[attr] = language
     return span
 
@@ -814,6 +847,7 @@ def insert_translation(unit: Unit, zh_text: str, language: str) -> str | None:
     """按 §1.4 形态集插译；返回警告行（marker 调和有动作时）。"""
     zh = reconcile_markers(unit.text, zh_text, issued=unit.markers)
     warn = marker_report(unit.job_id, unit.text, zh_text, issued=unit.markers)
+    zh = sanitize_xml_text(zh)  # 译文带 XML 非法字符会把整篇变非法文档
     if unit.ncx_text is not None:
         unit.ncx_text.text = f"{unit.text} / {zh}"
         return warn
@@ -824,7 +858,11 @@ def insert_translation(unit: Unit, zh_text: str, language: str) -> str | None:
     # 第二个顶层元素（对 BeautifulSoup 根 insert_after 直接抛 NotImplementedError）
     # ——与 <body> 同走锚定，锚点是 run 尾节点、其父非空，insert_after 落得住
     root_owner = owner.name == "html" or isinstance(owner, BeautifulSoup)
-    if owner.name in SINGLETON_TAGS or owner.find_parent("nav") is not None:
+    if (
+        owner.name in SINGLETON_TAGS
+        or owner.name == "nav"  # 克隆会把 epub:type 复制成第二个 landmark
+        or owner.find_parent("nav") is not None
+    ):
         inserted = _append_inline_translation(unit.soup, owner, zh, language)
     elif unit.is_multi_run or owner.name == "body" or root_owner:
         inserted = _insert_anchored_translation(unit, zh, language)
@@ -846,6 +884,23 @@ def insert_translation(unit: Unit, zh_text: str, language: str) -> str | None:
 
 _ZH_CSS = ".texlate-zh{color:#555}"
 
+#: 文档开头 ``<?xml ... encoding="X"?>`` 声明的 encoding 值——bs4 序列化原样
+#: 保留 PI（只改写 meta charset），源声明（如 ISO-8859-1）会对 utf-8 字节说谎
+_XML_DECL_ENCODING_RE = re.compile(
+    r"\A(\ufeff?\s*<\?xml\b[^>]*?\bencoding\s*=\s*)([\"'])[^\"']*([\"'])"
+)
+
+
+def _serialize_soup(soup: BeautifulSoup) -> bytes:
+    """DOM → utf-8 成员字节：剥 XML 非法字符 + 改写 xml decl encoding。
+
+    净化在 str 层做（utf-8 多字节续字节 ≥0x80，不会误伤双字节序列）；
+    decl 改写只认文档开头的 ``<?xml``（合法 decl 位置，顶多前带 BOM/空白）。
+    """
+    text = sanitize_xml_text(soup.encode("utf-8").decode("utf-8"))
+    text = _XML_DECL_ENCODING_RE.sub(r"\g<1>\g<2>utf-8\g<3>", text, count=1)
+    return text.encode("utf-8")
+
 
 def _inject_css(soups: dict[str, BeautifulSoup]) -> None:
     """每篇 XHTML ``<head>`` 内嵌 ``<style>``——EPUB2/3 都合法，不动 manifest。"""
@@ -858,12 +913,15 @@ def _inject_css(soups: dict[str, BeautifulSoup]) -> None:
         head.append(style)
 
 
-def _restamp_opf(book: EpubBook, language: str) -> None:
+def _restamp_opf(book: EpubBook, language: str | None) -> None:
     """首条 ``dc:language`` → 目标语言。
 
     ``dc:identifier`` 不动——它是字体混淆的密钥源，照抄 zip 条目即免处理
-    （spec §2.6）。
+    （spec §2.6）。``language=None``（非法 ``target_lang``）时整步跳过——
+    正则文本替换面对注入值没有转义层。
     """
+    if language is None:
+        return
     raw = book.members[book.opf_path]
     try:
         text = raw.decode("utf-8")
@@ -888,12 +946,12 @@ def _restamp_opf(book: EpubBook, language: str) -> None:
 def save_epub(dst: Path | str, book: EpubBook) -> None:
     """OCF 硬约束：``mimetype`` 第一且 ZIP_STORED；其余按原 infolist 序 DEFLATED。"""
     with zipfile.ZipFile(dst, "w") as out:
-        if "mimetype" in book.members:
-            out.writestr(
-                "mimetype",
-                book.members["mimetype"],
-                compress_type=zipfile.ZIP_STORED,
-            )
+        # 输入缺 mimetype 是畸形但可翻——产出侧必须产合法包：写规范值兜底
+        out.writestr(
+            "mimetype",
+            book.members.get("mimetype", b"application/epub+zip"),
+            compress_type=zipfile.ZIP_STORED,
+        )
         written = {"mimetype"}
         for name in book.order:
             if name in written:
@@ -929,6 +987,9 @@ def translate_epub(  # noqa: C901, PLR0913 -- 驱动主链：公共 API 参数�
     src = Path(src)
     dst = Path(dst)
     book = load_epub(src)
+    lang = safe_language(target_lang)
+    if lang is None:
+        log.warning("target_lang 非 BCP47 形态，跳过全部语言章: %r", target_lang)
     soups: dict[str, BeautifulSoup] = {
         p: BeautifulSoup(book.members[p], "html.parser") for p in book.doc_paths
     }
@@ -949,13 +1010,15 @@ def translate_epub(  # noqa: C901, PLR0913 -- 驱动主链：公共 API 参数�
         """
         if translated:
             _inject_css(soups)
-        _restamp_opf(book, target_lang)
+        _restamp_opf(book, lang)
         for path, soup in soups.items():
-            book.members[path] = soup.encode("utf-8")
+            book.members[path] = _serialize_soup(soup)
         if book.ncx_path and ncx_root is not None:
-            book.members[book.ncx_path] = etree.tostring(
-                ncx_root, encoding="utf-8", xml_declaration=True
-            )
+            book.members[book.ncx_path] = sanitize_xml_text(
+                etree.tostring(ncx_root, encoding="utf-8", xml_declaration=True).decode(
+                    "utf-8"
+                )
+            ).encode("utf-8")
         save_epub(dst, book)
 
     def _apply(results: Mapping[str, ChunkResult]) -> ApplyCounts:
@@ -971,7 +1034,7 @@ def translate_epub(  # noqa: C901, PLR0913 -- 驱动主链：公共 API 参数�
             if r.translation.strip() == u.text.strip():
                 counts.unchanged += 1
                 continue
-            warn = insert_translation(u, r.translation, target_lang)
+            warn = insert_translation(u, r.translation, lang or "")
             if warn:
                 counts.warnings.append(warn)
             counts.translated += 1

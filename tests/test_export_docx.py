@@ -16,6 +16,7 @@ import pytest
 from docx import Document
 from docx.oxml.ns import qn
 from docx.oxml.parser import parse_xml
+from lxml import etree
 
 from texlate.export import export_document, sniff_format
 from texlate.export.common import UnsupportedFormatError
@@ -425,3 +426,44 @@ def test_translation_run_lang_stamped(tmp_path: Path) -> None:
     assert lang is not None
     assert lang.get(qn("w:eastAsia")) == "zh-CN"
     assert lang.get(qn("w:val")) == "zh-CN"
+
+
+# ------------------------------------------------------------------ 审计增量
+# 控制字符译文 / 注入型 target_lang
+
+
+class _CtrlTranslator:
+    """译文带 XML 非法控制字符——``insert_after`` 侧必须先剥除。
+
+    回归：``w:t.text = "\\x0b..."`` lxml 直接 ``ValueError``，一条脏译文炸掉
+    整次导出（``_apply`` 无逐条护栏）。
+    """
+
+    async def translate(self, **_kw: object) -> str:
+        return "译\x0b文\x01控\x00制"
+
+
+def test_control_chars_in_translation_stripped(tmp_path: Path) -> None:
+    src = _make_docx(tmp_path / "in.docx", [("Some source text.", None)])
+    dst = tmp_path / "out.docx"
+    report = translate_docx(src, dst, _CtrlTranslator())
+    assert report.translated == 1
+    out = Document(str(dst))
+    assert out.paragraphs[1].text == "译文控制"
+
+
+def test_hostile_target_lang_no_stamp(tmp_path: Path) -> None:
+    """``target_lang`` 带 XML 元字符 → ``safe_language`` 拒章：run ``w:lang``
+    与 core ``dc:language`` 都不写，core.xml 仍合法。"""
+    src = _make_docx(tmp_path / "in.docx", [("Some source text.", None)])
+    dst = tmp_path / "out.docx"
+    report = translate_docx(src, dst, MockTranslator(), target_lang='zh<x="1">')
+    assert report.translated == 1
+    out = Document(str(dst))
+    zh_rpr = out.paragraphs[1].runs[0]._r.find(qn("w:rPr"))  # noqa: SLF001
+    assert zh_rpr is not None
+    assert zh_rpr.find(qn("w:lang")) is None  # 非法语言码不落章
+    with zipfile.ZipFile(dst) as z:
+        core = z.read("docProps/core.xml")
+    etree.fromstring(core)
+    assert b"zh<" not in core

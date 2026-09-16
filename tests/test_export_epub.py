@@ -16,6 +16,7 @@ import pytest
 from bs4 import BeautifulSoup
 from lxml import etree
 
+from texlate.export import sniff_format
 from texlate.export.common import DrmError, FixedLayoutError, MalformedEpubError
 from texlate.export.epub import iter_units, load_epub, translate_epub
 from texlate.export.rights import check_epub
@@ -454,3 +455,218 @@ def test_no_body_doc_anchored_not_clone(tmp_path: Path, xhtml: str) -> None:
         soup = BeautifulSoup(z.read("OEBPS/ch1.xhtml"), "html.parser")
     assert soup.select_one(".texlate-zh") is not None
     assert len(soup.find_all("html")) <= 1  # 克隆路径不许造出第二个顶层 <html>
+
+
+# ---------------------------------------------------------------- 审计增量
+# percent-href / 成员 CRC / 控制字符 / decl 改写 / mimetype 兜底 / nav landmark
+
+
+def _opf_href(href: str) -> str:
+    return f"""<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bid">test-book</dc:identifier>
+    <dc:title>Test</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="c0" href="{href}" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="c0"/>
+  </spine>
+</package>
+"""
+
+
+def test_percent_encoded_href_resolves(tmp_path: Path) -> None:
+    """manifest ``href="ch%201.xhtml"`` 指成员 ``ch 1.xhtml``——URI 必须 decode。
+
+    回归：``posixpath.join`` 原样拼 ``%20`` 找不到成员 → 整本被
+    ``manifest 里没有可翻的 xhtml 文档`` 拒掉。真书（InDesign/转换器产物）
+    空格/非 ASCII 文件名普遍 percent-encoded。
+    """
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("mimetype", "application/epub+zip", compress_type=zipfile.ZIP_STORED)
+        z.writestr("META-INF/container.xml", CONTAINER_XML)
+        z.writestr("OEBPS/content.opf", _opf_href("ch%201.xhtml"))
+        z.writestr(
+            "OEBPS/ch 1.xhtml", XHTML_TMPL.format(body="<p>Spaced name doc.</p>")
+        )
+    src = _write_epub(tmp_path, buf.getvalue())
+    dst = tmp_path / "out.epub"
+    report = translate_epub(src, dst, MockTranslator())
+    assert report.translated == 1
+    with zipfile.ZipFile(dst) as z:
+        ch1 = z.read("OEBPS/ch 1.xhtml").decode("utf-8")
+    assert "这是译文" in ch1
+
+
+def test_corrupt_member_raises_malformed(tmp_path: Path) -> None:
+    """成员级坏 CRC → ``MalformedEpubError``（ExportError 族），不是裸 BadZipFile。
+
+    回归：``zf.read(info)`` 在校验 try 外——坏成员直接穿透 CLI 的
+    ``except ExportError`` 变 traceback。
+    """
+    blob = bytearray(_epub({"ch1.xhtml": "<p>Hello world paragraph here.</p>"}))
+    blob[blob.find(b"Hello")] = ord("X")  # 数据字节翻转 → CRC 必失配
+    src = _write_epub(tmp_path, bytes(blob))
+    with pytest.raises(MalformedEpubError, match="CRC"):
+        translate_epub(src, tmp_path / "out.epub", MockTranslator())
+
+
+class _CtrlTranslator:
+    """译文带 XML 非法控制字符——插入侧必须剥除。"""
+
+    async def translate(self, **_kw: object) -> str:
+        return "译\x0b文\x01控\x00制"
+
+
+def test_control_chars_in_translation_stripped(tmp_path: Path) -> None:
+    """模型回 \\x0b/\\x01/\\x00 → 剥除后插译——输出 XHTML 仍是合法 XML。"""
+    src = _write_epub(
+        tmp_path,
+        _epub({"ch1.xhtml": "<p>Clean source paragraph.</p>"}, ncx=False),
+    )
+    dst = tmp_path / "out.epub"
+    report = translate_epub(src, dst, _CtrlTranslator())
+    assert report.translated == 1
+    with zipfile.ZipFile(dst) as z:
+        raw = z.read("OEBPS/ch1.xhtml")
+    etree.fromstring(raw)  # 不抛即合法
+    assert b"\x0b" not in raw
+    assert b"\x00" not in raw
+    assert "译文控制" in raw.decode("utf-8")
+
+
+def test_control_chars_in_source_cleaned_on_write(tmp_path: Path) -> None:
+    """源文带控制字符（输入已非法）→ 出包序列化剥除——产出物比输入更合法。"""
+    src = _write_epub(
+        tmp_path,
+        _epub_raw(
+            '<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml">'
+            "<body><p>Text with \x0b control inside.</p></body></html>"
+        ),
+    )
+    dst = tmp_path / "out.epub"
+    translate_epub(src, dst, MockTranslator())
+    with zipfile.ZipFile(dst) as z:
+        raw = z.read("OEBPS/ch1.xhtml")
+    assert b"\x0b" not in raw
+    etree.fromstring(raw)
+
+
+def test_non_utf8_decl_restamped(tmp_path: Path) -> None:
+    """源声明 ISO-8859-1、内容是 utf-8 → 输出 decl 必须改写 utf-8。
+
+    回归：bs4 只改写 ``<meta charset>``，``<?xml encoding?>`` PI 原样透传——
+    声明说谎让严格 XML 阅读器按 latin-1 解 utf-8 字节（mojibake/拒绝）。
+    """
+    latin = XHTML_TMPL.format(body="<p>Caf\xe9 latin text here.</p>").replace(
+        'encoding="utf-8"', 'encoding="ISO-8859-1"'
+    )
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("mimetype", "application/epub+zip", compress_type=zipfile.ZIP_STORED)
+        z.writestr("META-INF/container.xml", CONTAINER_XML)
+        z.writestr("OEBPS/content.opf", _opf(["ch1.xhtml"], ncx=False))
+        z.writestr("OEBPS/ch1.xhtml", latin.encode("latin-1"))
+    src = _write_epub(tmp_path, buf.getvalue())
+    dst = tmp_path / "out.epub"
+    translate_epub(src, dst, MockTranslator())
+    with zipfile.ZipFile(dst) as z:
+        raw = z.read("OEBPS/ch1.xhtml")
+    assert raw.startswith(b'<?xml version="1.0" encoding="utf-8"?>')
+    etree.fromstring(raw)  # 按声明解 utf-8 必须成立
+    assert "Café" in raw.decode("utf-8")
+
+
+def test_missing_mimetype_gets_canonical(tmp_path: Path) -> None:
+    """输入缺 mimetype（畸形但可翻）→ 产出补规范首件，出包是合法 EPUB。"""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("META-INF/container.xml", CONTAINER_XML)
+        z.writestr("OEBPS/content.opf", _opf(["ch1.xhtml"], ncx=False))
+        z.writestr("OEBPS/ch1.xhtml", XHTML_TMPL.format(body="<p>No mimetype.</p>"))
+    src = _write_epub(tmp_path, buf.getvalue())
+    dst = tmp_path / "out.epub"
+    report = translate_epub(src, dst, MockTranslator())
+    assert report.translated == 1
+    with zipfile.ZipFile(dst) as z:
+        infos = z.infolist()
+    assert infos[0].filename == "mimetype"
+    assert infos[0].compress_type == zipfile.ZIP_STORED
+
+
+def test_nav_stray_text_no_dup_landmark(tmp_path: Path) -> None:
+    """``<nav epub:type="doc-toc">`` 直挂文本 → owner=nav——克隆路径会把
+    epub:type 复制成第二个 landmark。改走受限容器内部追加。"""
+    nav_body = (
+        '<nav epub:type="doc-toc" xmlns:epub="http://www.idpf.org/2007/ops">'
+        "Stray nav heading text<ol><li><a href='c1.xhtml'>Ch One</a></li></ol></nav>"
+    )
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("mimetype", "application/epub+zip", compress_type=zipfile.ZIP_STORED)
+        z.writestr("META-INF/container.xml", CONTAINER_XML)
+        z.writestr(
+            "OEBPS/content.opf",
+            _opf(["c1.xhtml"], ncx=False).replace(
+                "</manifest>",
+                '    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml"'
+                ' properties="nav"/>\n  </manifest>',
+            ),
+        )
+        z.writestr(
+            "OEBPS/nav.xhtml",
+            XHTML_TMPL.format(body=nav_body),
+        )
+        z.writestr(
+            "OEBPS/c1.xhtml",
+            XHTML_TMPL.format(body="<p>Chapter content paragraph.</p>"),
+        )
+    src = _write_epub(tmp_path, buf.getvalue())
+    dst = tmp_path / "out.epub"
+    report = translate_epub(src, dst, MockTranslator())
+    assert report.fault == 0
+    with zipfile.ZipFile(dst) as z:
+        soup = BeautifulSoup(z.read("OEBPS/nav.xhtml"), "html.parser")
+    navs = soup.find_all("nav")
+    assert len(navs) == 1  # 不许出现第二个 doc-toc landmark
+    assert navs[0].find("span", class_="texlate-zh") is not None
+
+
+def test_hostile_target_lang_no_opf_injection(tmp_path: Path) -> None:
+    """``target_lang`` 带 XML 元字符 → 不写 OPF（正则替换面无转义层）。"""
+    src = _write_epub(
+        tmp_path, _epub({"ch1.xhtml": "<p>Some text paragraph.</p>"}, ncx=False)
+    )
+    dst = tmp_path / "out.epub"
+    report = translate_epub(src, dst, MockTranslator(), target_lang='zh<x="1">')
+    assert report.translated == 1
+    with zipfile.ZipFile(dst) as z:
+        opf = z.read("OEBPS/content.opf")
+    etree.fromstring(opf)  # OPF 仍合法——注入没发生
+    assert b"zh<" not in opf
+
+
+def test_sniff_unsupported_compression_method(tmp_path: Path) -> None:
+    """未知压缩方法的 zip 条目 → sniff 返回 None 而非裸 NotImplementedError。"""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("mimetype", "application/epub+zip", compress_type=zipfile.ZIP_STORED)
+        z.writestr("META-INF/container.xml", "<x/>")
+    blob = bytearray(buf.getvalue())
+    blob[8] = 99  # local header compress_type
+    blob[9] = 0
+    cd = blob.find(b"PK\x01\x02")
+    while cd != -1:
+        nlen = int.from_bytes(blob[cd + 28 : cd + 30], "little")
+        if bytes(blob[cd + 46 : cd + 46 + nlen]) == b"mimetype":
+            blob[cd + 10] = 99
+            blob[cd + 11] = 0
+        cd = blob.find(b"PK\x01\x02", cd + 1)
+    src = tmp_path / "weird.epub"
+    src.write_bytes(bytes(blob))
+    assert sniff_format(src) is None

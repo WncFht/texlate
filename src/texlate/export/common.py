@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -67,6 +68,19 @@ class ExportReport:
 
 #: ``export_*``/``translate_*`` 的 ``glossary`` 入参并集——归一处 ``coerce_glossary``。
 GlossaryArg = Glossary | Mapping[str, str] | str | Path
+
+#: ``target_lang`` 写回面的白名单形态（BCP47 子集）。``_restamp_opf`` 是正则
+#: 文本替换——不校验会把 ``zh<x="1">`` 这类值原样写进 OPF 造成 XML 注入。
+_LANG_SAFE_RE = re.compile(r"[\w-]+")
+
+
+def safe_language(language: str | None) -> str | None:
+    """``target_lang`` → 可安全写入 XML 的语言码；非 BCP47 形态返回 ``None``。
+
+    ``None`` 语义 = 不写任何语言章/语言元素——比把畸形值塞进 OPF 再把
+    整本书变成非法 XML 诚实得多。
+    """
+    return language if language and _LANG_SAFE_RE.fullmatch(language) else None
 
 
 def coerce_glossary(glossary: GlossaryArg | None) -> Glossary | None:

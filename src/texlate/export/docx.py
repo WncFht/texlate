@@ -56,8 +56,14 @@ from .common import (
     GlossaryArg,
     UnsupportedFormatError,
     drive_pipeline,
+    safe_language,
 )
-from .filters import is_apparatus_text, is_special_text, normalize_text
+from .filters import (
+    is_apparatus_text,
+    is_special_text,
+    normalize_text,
+    sanitize_xml_text,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Mapping
@@ -313,6 +319,7 @@ def insert_after(p_el: _Element, zh_text: str, language: str) -> None:
     是逐段唯一锚点 id，克隆必须剥除。``rPr`` 子元素走 ``get_or_add_*``
     按 schema 序落位；``w:lang`` 是 docx 侧的 texlate-zh 标记等价物。
     """
+    zh_text = sanitize_xml_text(zh_text)  # 控制字符会让 lxml 序列化硬炸全链
     new_ct_p = deepcopy(p_el)
     for child in list(new_ct_p):
         if child.tag != qn("w:pPr"):
@@ -333,13 +340,16 @@ def insert_after(p_el: _Element, zh_text: str, language: str) -> None:
     rpr = run._r.get_or_add_rPr()  # noqa: SLF001
     rpr.get_or_add_rFonts().set(qn("w:eastAsia"), "SimSun")
     rpr.get_or_add_color().val = RGBColor(0x55, 0x55, 0x55)  # 双语区分色（v1 钉值）
-    lang = rpr.find(qn("w:lang"))
-    if lang is None:
-        lang = OxmlElement("w:lang")
-        # w:lang 在 rPr schema 序里位于 eastAsianLayout/specVanish/oMath 之前
-        rpr.insert_element_before(lang, "w:eastAsianLayout", "w:specVanish", "w:oMath")
-    lang.set(qn("w:val"), language)
-    lang.set(qn("w:eastAsia"), language)
+    if language:
+        lang = rpr.find(qn("w:lang"))
+        if lang is None:
+            lang = OxmlElement("w:lang")
+            # w:lang 在 rPr schema 序里位于 eastAsianLayout/specVanish/oMath 之前
+            rpr.insert_element_before(
+                lang, "w:eastAsianLayout", "w:specVanish", "w:oMath"
+            )
+        lang.set(qn("w:val"), language)
+        lang.set(qn("w:eastAsia"), language)
 
 
 # ---------------------------------------------------------------- 驱动
@@ -363,6 +373,9 @@ def translate_docx(  # noqa: C901, PLR0913 -- 驱动主链：公共 API 参数�
     """
     src = Path(src)
     dst = Path(dst)
+    lang = safe_language(target_lang)
+    if lang is None:
+        log.warning("target_lang 非 BCP47 形态，跳过全部语言章: %r", target_lang)
     try:
         doc = Document(str(src))
     except Exception as e:
@@ -393,14 +406,15 @@ def translate_docx(  # noqa: C901, PLR0913 -- 驱动主链：公共 API 参数�
             if r.translation.strip() == u.text.strip():
                 counts.unchanged += 1
                 continue
-            insert_after(u.p_el, r.translation, target_lang)
+            insert_after(u.p_el, r.translation, lang or "")
             counts.translated += 1
         return counts
 
     def _commit_and_save(_translated: int) -> None:
         for part, root in parts_to_commit.values():
             _commit_part(part, root)
-        doc.core_properties.language = target_lang
+        if lang is not None:
+            doc.core_properties.language = lang
         doc.save(str(dst))
 
     chunks = [ChunkIn(u.job_id, u.text, "para") for u in units]

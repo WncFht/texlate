@@ -254,7 +254,7 @@ def _graphic_signature(obj: DictionaryObject) -> str:
     return signature.hexdigest()
 
 
-def _graphic_regions(  # noqa: C901, PLR0912 -- content-stream 算子分派即分支表
+def _graphic_regions(  # noqa: C901, PLR0912, PLR0915 -- content-stream 算子分派即分支表
     page: PageObject,
 ) -> list[dict[str, Any]]:
     """扫一页 content stream，产出每个大图形的 ``{"signature","start","end"}``。
@@ -288,9 +288,14 @@ def _graphic_regions(  # noqa: C901, PLR0912 -- content-stream 算子分派即�
         elif op == b"Q":
             matrix = stack.pop() if stack else (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
         elif op == b"cm" and len(args) == 6:  # noqa: PLR2004 -- cm 算子六参
-            matrix = _multiply(tuple(float(n) for n in args), matrix)
-        elif op == b"Do" and args and args[0] in resources:
             try:
+                matrix = _multiply(tuple(float(n) for n in args), matrix)
+            except (TypeError, ValueError) as e:  # 畸形 cm 只丢该变换，不拖整页
+                log.debug("cm 算子参数畸形，跳过: %s", e)
+        elif op == b"Do" and args:
+            try:
+                if args[0] not in resources:  # 非名 operand 的 in 也会炸——进 try
+                    continue
                 obj = resources[args[0]].get_object()
                 if obj.get("/Subtype") not in ("/Form", "/Image"):
                     continue

@@ -405,3 +405,35 @@ def test_regions_broken_art_sibling_survives(tmp_path: Path) -> None:
     regions = align._graphic_regions(pg)  # noqa: SLF001 -- 同上
     assert len(regions) == 1
     assert regions[0]["start"] == pytest.approx(0.1162, abs=1e-3)
+
+
+def test_regions_malformed_ops_lose_only_themselves(tmp_path: Path) -> None:
+    """畸形 ``cm`` 参数与非名 ``Do`` operand 只丢各自算子，不拖整页 regions。
+
+    回归：``float(operand)`` 的 ValueError 与 ``ArrayObject in dict`` 的
+    TypeError 都在算子分派层外炸——一条坏流让整页 figure 区间全丢。
+    """
+    dests = [("figure.1", 0, 480.0)]
+    arts = [(0, (100.0, 500.0, 400.0, 200.0), IMG)]
+    a = _mk_fig_pdf(tmp_path / "a.pdf", dests, arts)
+    r = PdfReader(str(a))
+    pg = r.pages[0]
+    cs = DecodedStreamObject()
+    # 坏 cm（字符串 operand）→ 矩阵不变；[/Arr] Do → 非名 operand 跳过；
+    # /Im0 仍按好 cm 落点 (100,500,400,200)。
+    cs.set_data(b"q (junk) 0 0 1 10 20 cm q 400 0 0 200 100 500 cm [/Arr] Do /Im0 Do Q")
+    pg[NameObject("/Contents")] = cs
+    regions = align._graphic_regions(pg)  # noqa: SLF001 -- 白盒钉私有扫描逻辑
+    assert len(regions) == 1
+    assert regions[0]["start"] == pytest.approx(0.1162, abs=1e-3)
+
+
+def test_chain_keeps_duplicate_positions(tmp_path: Path) -> None:
+    """同页同 ``/Top`` 的锚点（key 完全相等）不构成乱序——``<=`` 链全收。"""
+    dests = [("figure.1", 0, 600.0), ("figure.2", 0, 600.0), ("section.1", 1, 700.0)]
+    a = _mk_fig_pdf(tmp_path / "a.pdf", dests, [])
+    b = _mk_fig_pdf(tmp_path / "b.pdf", dests, [])
+    al = build_alignment(a, b)
+    assert al["kind"] == "landmarks"
+    ids = [p["id"] for p in al["pairs"]]
+    assert ids == ["figure.1", "figure.2", "section.1"]

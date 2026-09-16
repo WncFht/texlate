@@ -13,6 +13,19 @@ import string
 #: 零宽/软连字符：留在文档里，从送模型文本剥掉（软连字符把词切成半 token）
 _INVISIBLE_CHARS_RE = re.compile("[\\u00ad\\u200b\\ufeff]")
 
+#: XML 1.0 非法字符（Char 产生式的补集相关项）：控制字符除 \t\n\r、孤代理、
+#: U+FFFE/U+FFFF。bs4 对它们逐字节透传、lxml 在序列化时硬炸——写回译文与
+#: 出包序列化前必须剥除，否则产出物是连 XML 解析器都打不开的非法文档。
+_XML_ILLEGAL_RE = re.compile(
+    "[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\ud800-\\udfff\\ufffe\\uffff]"
+)
+
+
+def sanitize_xml_text(text: str) -> str:
+    """剥掉 XML 1.0 非法字符（含 NUL——故 marker sentinel 不可用控制字符）。"""
+    return _XML_ILLEGAL_RE.sub("", text)
+
+
 #: bbm helper.py 的 URL 正则（前缀匹配版与全串版分开用）
 _URL_PATTERN = (
     r"(http[s]?://|www\.)+(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|"
@@ -28,8 +41,8 @@ _ISBN_NUM = 80
 
 
 def normalize_text(raw: str) -> str:
-    """送模型文本的归一化：剥零宽字符 + 折叠全部空白 run 为单空格。"""
-    return " ".join(_INVISIBLE_CHARS_RE.sub("", raw).split())
+    """送模型文本的归一化：剥 XML 非法字符 + 零宽字符 + 折叠全部空白 run。"""
+    return " ".join(_INVISIBLE_CHARS_RE.sub("", sanitize_xml_text(raw)).split())
 
 
 def is_special_text(text: str) -> bool:
