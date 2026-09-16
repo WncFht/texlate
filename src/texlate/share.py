@@ -370,3 +370,58 @@ def unpack_share(path: Path, dest: Path) -> ShareManifest:
         if extra:
             log.debug("share bundle extra members ignored: %s", sorted(extra))
         return mf
+
+
+# ---------------------------------------------------------------- index
+
+
+def index_append(
+    index_path: Path, manifest: ShareManifest, url: str, package_bytes: int
+) -> dict[str, Any]:
+    r"""追加一条 index.jsonl 行 ``{share_key, url, key_parts, bytes, created_at, contributor}``。
+
+    行字段直取 ``manifest`` + 入参（设计文 §7：静态托管旁挂清单，一行一
+    已发布包）；父目录缺席自动创建。index 是 append-only——同 share_key
+    重传即追加新行，旧行不删，读取侧 last-wins（见 ``index_lookup``）。
+    UTF-8 单行 JSON + ``\n`` 结尾。返回写入的行 dict。
+    """
+    row: dict[str, Any] = {
+        "share_key": manifest.share_key,
+        "url": url,
+        "key_parts": manifest.key_parts,
+        "bytes": package_bytes,
+        "created_at": manifest.created_at,
+        "contributor": manifest.contributor,
+    }
+    index_path.parent.mkdir(parents=True, exist_ok=True)
+    with index_path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+    return row
+
+
+def index_lookup(index_path: Path, share_key: str) -> dict[str, Any] | None:
+    """线性扫 index.jsonl 取 ``share_key`` 行；文件缺席/未命中 → ``None``。
+
+    空行容忍跳过；行 JSON 解析失败或非 object → ShareError 带行号——
+    索引损坏要响，不能降级成静默 miss。同 share_key 多行时 last-wins
+    （append-only 语义：重传行覆盖旧行）。
+    """
+    try:
+        text = index_path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return None
+    found: dict[str, Any] | None = None
+    for lineno, line in enumerate(text.splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError as e:
+            msg = f"index line {lineno} malformed: {e}"
+            raise ShareError(msg) from e
+        if not isinstance(row, dict):
+            msg = f"index line {lineno} is not a JSON object"
+            raise ShareError(msg)
+        if row.get("share_key") == share_key:
+            found = row
+    return found

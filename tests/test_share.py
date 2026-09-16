@@ -15,6 +15,8 @@ from texlate.share import (
     REQUIRED_ARTIFACTS,
     SHARE_FORMAT,
     ShareError,
+    index_append,
+    index_lookup,
     pack_share,
     share_key,
     unpack_share,
@@ -22,6 +24,8 @@ from texlate.share import (
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from texlate.share import ShareManifest
 
 _PARTS: dict[str, object] = {
     "arxiv_id": "1706.03762",
@@ -324,3 +328,97 @@ def test_share_key_last_part_pipe_unambiguous() -> None:
     with pytest.raises(ShareError, match="must not contain"):
         share_key(**{**_PARTS, "glossary_hash": "g|x", "pipeline_ver": "y"})
     assert tail
+
+
+# ---------------------------------------------------------------- index.jsonl
+
+
+def _packed(root: Path, parts: dict[str, object]) -> tuple[Path, ShareManifest]:
+    """打一包再解出 manifest——index 用例的行字段来源。"""
+    root.mkdir()
+    work = _make_work(root)
+    bundle = pack_share(work, parts, out_dir=root / "out")
+    return bundle, unpack_share(bundle, root / "unpacked")
+
+
+def test_index_append_lookup_roundtrip(tmp_path: Path) -> None:
+    """两个不同 key 的包入索引后都可回读；行字段 = manifest + 入参。"""
+    b1, m1 = _packed(tmp_path / "a", _PARTS)
+    b2, m2 = _packed(tmp_path / "b", {**_PARTS, "model": "qwen-plus"})
+    idx = tmp_path / "idx" / "index.jsonl"
+    row1 = index_append(
+        idx,
+        m1,
+        url=f"https://h.invalid/{m1.share_key}.share.zip",
+        package_bytes=b1.stat().st_size,
+    )
+    row2 = index_append(
+        idx,
+        m2,
+        url=f"https://h.invalid/{m2.share_key}.share.zip",
+        package_bytes=b2.stat().st_size,
+    )
+    assert m1.share_key != m2.share_key
+    assert row1 == {
+        "share_key": m1.share_key,
+        "url": f"https://h.invalid/{m1.share_key}.share.zip",
+        "key_parts": m1.key_parts,
+        "bytes": b1.stat().st_size,
+        "created_at": m1.created_at,
+        "contributor": m1.contributor,
+    }
+    assert index_lookup(idx, m1.share_key) == row1
+    assert index_lookup(idx, m2.share_key) == row2
+    assert idx.read_text(encoding="utf-8").splitlines() == [
+        json.dumps(row1, ensure_ascii=False),
+        json.dumps(row2, ensure_ascii=False),
+    ]
+
+
+def test_index_lookup_last_wins(tmp_path: Path) -> None:
+    """同 share_key 追加两行 → lookup 返回后写的（append-only 重传覆盖）。"""
+    bundle, mf = _packed(tmp_path / "a", _PARTS)
+    idx = tmp_path / "index.jsonl"
+    size = bundle.stat().st_size
+    index_append(idx, mf, url="https://h.invalid/old.zip", package_bytes=size)
+    index_append(idx, mf, url="https://h.invalid/new.zip", package_bytes=size)
+    row = index_lookup(idx, mf.share_key)
+    assert row is not None
+    assert row["url"] == "https://h.invalid/new.zip"
+
+
+def test_index_lookup_miss(tmp_path: Path) -> None:
+    """索引有行但 share_key 不命中 → ``None``。"""
+    bundle, mf = _packed(tmp_path / "a", _PARTS)
+    idx = tmp_path / "index.jsonl"
+    index_append(
+        idx, mf, url="https://h.invalid/x.zip", package_bytes=bundle.stat().st_size
+    )
+    assert index_lookup(idx, _ZERO_SHA) is None
+
+
+def test_index_malformed_line_raises(tmp_path: Path) -> None:
+    """非 JSON object 行 → ShareError 报行号（索引损坏要响，不静默 miss）。"""
+    idx = tmp_path / "index.jsonl"
+    idx.write_text('{"share_key": "a"}\nnot-json\n', encoding="utf-8")
+    with pytest.raises(ShareError, match="line 2"):
+        index_lookup(idx, "a")
+
+
+def test_index_missing_file(tmp_path: Path) -> None:
+    """索引缺席：lookup → ``None``；append 自动建父目录落行。"""
+    idx = tmp_path / "deep" / "dir" / "index.jsonl"
+    assert index_lookup(idx, "a") is None
+    bundle, mf = _packed(tmp_path / "a", _PARTS)
+    index_append(
+        idx, mf, url="https://h.invalid/x.zip", package_bytes=bundle.stat().st_size
+    )
+    assert index_lookup(idx, mf.share_key) is not None
+
+
+def test_index_blank_lines_tolerated(tmp_path: Path) -> None:
+    """空行/纯空白行跳过不报错。"""
+    idx = tmp_path / "index.jsonl"
+    idx.write_text('\n{"share_key": "a"}\n   \n', encoding="utf-8")
+    assert index_lookup(idx, "a") == {"share_key": "a"}
+    assert index_lookup(idx, "b") is None
