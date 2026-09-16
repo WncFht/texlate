@@ -60,7 +60,7 @@ def mask_comments(text: str) -> str:
             continue
         if text[i] == "%":
             j = i
-            while j < n and text[j] != "\n":
+            while j < n and text[j] not in "\r\n":
                 out[j] = " "
                 j += 1
             i = j
@@ -144,7 +144,8 @@ def _inline_verb_end(text: str, i: int, n: int) -> int | None:
         return None
     delimiter = text[start]
     end = text.find("}" if delimiter == "{" else delimiter, start + 1)
-    newline = text.find("\n", start)
+    nl = re.search(r"[\r\n]", text[start:])
+    newline = -1 if nl is None else start + nl.start()
     if end < 0 or (newline >= 0 and newline < end):
         return None
     return end + 1
@@ -164,14 +165,16 @@ def mask_tex(text: str, *, mask_dead: bool = True, keep_verbatim: bool = False) 
     chars = list(text)
 
     def mask(start: int, stop: int) -> None:
-        chars[start:stop] = ["\n" if c == "\n" else " " for c in text[start:stop]]
+        chars[start:stop] = [
+            c if c in "\r\n" else " " for c in text[start:stop]
+        ]
 
     i = 0
     n = len(text)
     while i < n:
         if text[i] == "%":
-            stop = text.find("\n", i)
-            stop = n if stop < 0 else stop
+            nl = re.search(r"[\r\n]", text[i:])
+            stop = n if nl is None else i + nl.start()
             mask(i, stop)
             i = stop
             continue
@@ -733,21 +736,34 @@ def sniff_tex_encoding(blob: bytes) -> EncodingVerdict:  # noqa: C901, PLR0911, 
     return EncodingVerdict("latin-1", "fallback", declared_raw)
 
 
+def _eol_norm(text: str) -> str:
+    r"""``\r\n``/``\r`` → ``\n``——TeX 输入处理同口径。
+
+    下游（mask/词法/mouth）逐 ``\n`` 假设不再逐点设防：CR-only/混合 EOL
+    文件的 ``%`` 注释曾吞到 EOF，整篇 bd 不可见 → no_main_tex
+    （1608.02631/gr-qc/0605005 取证）。
+    """
+    return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
 def decode_tex_with(blob: bytes) -> tuple[str, EncodingVerdict]:
     """``decode_tex`` + 判定归因。永不抛——latin-1 兜底。"""
     verdict = sniff_tex_encoding(blob)
     if verdict.encoding == "utf-8-mixed":
-        return _decode_mixed(blob)[0], verdict
+        return _eol_norm(_decode_mixed(blob)[0]), verdict
     try:
-        return blob.decode(verdict.encoding), verdict
+        return _eol_norm(blob.decode(verdict.encoding)), verdict
     except UnicodeDecodeError:
         # 判定族正确但含零星坏点（SJIS 孤立半对尾）——replace 保住
         # 95% 正确字符，远好于 latin-1 全毁。
-        return blob.decode(verdict.encoding, errors="replace"), verdict
+        return (
+            _eol_norm(blob.decode(verdict.encoding, errors="replace")),
+            verdict,
+        )
     except LookupError:
         pass
     return (
-        blob.decode("latin-1"),
+        _eol_norm(blob.decode("latin-1")),
         EncodingVerdict("latin-1", "fallback", verdict.declared, "decode failed"),
     )
 

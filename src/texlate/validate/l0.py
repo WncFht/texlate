@@ -288,8 +288,8 @@ def _lex(s: str) -> list[tuple[str, str, int]]:
     while i < n:
         c = s[i]
         if c == "%":
-            k = s.find("\n", i)
-            j = n if k < 0 else k
+            nl = re.search(r"[\r\n]", s[i:])
+            j = n if nl is None else i + nl.start()
             out.append(("cmt", s[i:j], i))
             i = j
             continue
