@@ -6,12 +6,13 @@ key 入口优先级（高→低）：请求头 ``X-Texlate-*`` > ``settings.json
 
 四层不落日志防线：异常边界 ``redact()`` 先过、根 logger 挂
 :class:`RedactFilter` 同款正则 scrub、API 出参只给 ``has_api_key``、
-``validate_base_url`` 拒 userinfo/query + 非 localhost 强制 https。
+``validate_base_url`` 拒 userinfo/query + 非 localhost/tailnet 强制 https。
 """
 
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import json
 import logging
 import os
@@ -57,6 +58,20 @@ MODEL_MAX_LEN = 200
 
 _LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 
+# tailnet（CGNAT 段 / *.ts.net）：WireGuard 传输本身已加密，HTTP 放行。
+_TAILNET_V4 = ipaddress.ip_network("100.64.0.0/10")
+
+
+def _is_plaintext_ok_host(hostname: str) -> bool:
+    """HTTP 放行：localhost，或 tailnet 主机（CGNAT 字面量 / ``*.ts.net``）。"""
+    h = hostname.lower()
+    if h in _LOCAL_HOSTS or h.endswith(".ts.net"):
+        return True
+    try:
+        return ipaddress.ip_address(h) in _TAILNET_V4
+    except ValueError:
+        return False
+
 
 def data_dir() -> Path:
     """数据目录：``TEXLATE_DATA_DIR`` > ``~/.texlate``；mkdir 0700。"""
@@ -91,7 +106,7 @@ def cache_scope() -> str:
 def validate_base_url(value: str) -> str:
     """base_url 校验（texglot ``validate_url`` 移植）。
 
-    拒：userinfo/query/fragment 内嵌、非 localhost 的 http。返回归一化串。
+    拒：userinfo/query/fragment 内嵌、非 localhost/tailnet 的 http。返回归一化串。
     """
     v = value.strip().rstrip("/")
     u = urlsplit(v)
@@ -105,8 +120,8 @@ def validate_base_url(value: str) -> str:
     ):
         msg = "invalid base_url（不含 userinfo/query/fragment 的裸服务根）"
         raise ValueError(msg)
-    if u.scheme == "http" and u.hostname.lower() not in _LOCAL_HOSTS:
-        msg = "远程 API 强制 HTTPS；仅 localhost 可用 HTTP"
+    if u.scheme == "http" and not _is_plaintext_ok_host(u.hostname):
+        msg = "远程 API 强制 HTTPS；仅 localhost 或 tailnet 可用 HTTP"
         raise ValueError(msg)
     return normalize_base_url(v)
 
