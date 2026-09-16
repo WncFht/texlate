@@ -4,7 +4,7 @@ r"""stagerun.py — 分阶段批量驱动（batch-hardening §3 执行层）。
 每阶段一子命令、独立 executor、append 式 records jsonl、按 (id, arm, upstream)
 resume。论文流过 DAG 靠 ``work/{id}/`` 中间产物树而非内存对象。
 
-    stagerun.py ingest  --layers core,booster        # 语料物化 → work/{id}/src/
+    stagerun.py ingest  --layers core,booster        # corpus_v3 已物化副本 → work/{id}/src/
     stagerun.py parse   --n 3 --tag smoke            # → records/parse.jsonl + work/{id}/parse.json + zh/
     stagerun.py xlat    --arm mock --n 3 --tag smoke # → records/xlat.jsonl + zh/(译) + xlat-{arm}.jsonl
     stagerun.py compile --arm zh --n 3 --tag smoke   # → records/compile.jsonl + splice/
@@ -42,6 +42,10 @@ resume 语义：records/{stage}.jsonl 里 (id, arm, upstream) 已记且 status �
     编译尾段，跨 stage 文件协议暂不支持（TODO 同 T2 auth 熔断——见 §4 横切洞）。
   - channel=arxiv_eprint 缺 extracted 的条目 ingest 记 reject
     （eprint_fetch_unwired）——规格 §2 说逐篇 API 仅作旁路，未铺。
+  - ingest 的 IA 拉取是 stub：未物化但具 item/member 的条目记 skip
+    （ia_fetch_unwired，下轮自动重试），stub/pdf/error 格式记 reject。
+    具体实现归数据侧（复用 build_corpus_v3 的 scan + item-index.csv
+    成员级单抽）——本文件只保 records/work/{id}/src/ 契约。
 
 executor：ingest ThreadPool(IO) / parse ProcessPool(CPU，pickle 边界=路径)
 / xlat asyncio（--sem 全局信号量压网关 in-flight，默认 4=gwcap 硬闸；--jobs
@@ -58,14 +62,11 @@ from __future__ import annotations
 import argparse
 import asyncio
 import contextlib
-import gzip
-import hashlib
 import json
 import os
 import shutil
 import subprocess
 import sys
-import tarfile
 import time
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
@@ -77,7 +78,6 @@ sys.path.insert(0, os.environ.get("TEXLATE_SRC", str(ROOT / "src")))
 
 # 同目录 bench 脚本经 sys.path[0] 可 import；模块级零副作用（main 均有守卫）。
 import benchlib
-import build_corpus_v3 as bc3
 import e2e_real_bench as erb
 import fixloop_bench as flb
 import translators_bench as tb  # xlat 臂工厂 + sabotage 台账（e2e_mock 注入逻辑由此封装）
@@ -109,8 +109,6 @@ from texlate.xlat.pipeline import (
 from texlate.xlat.state import StateStore
 
 CORPUS = ROOT / "bench/corpus_v3"
-TAR_CACHE_DEFAULT = ROOT / "bench/work_v3/tars"  # build_corpus_v3 的既定 tar 缓存
-IA_DL = bc3.IA_DL  # "https://archive.org/download/{item}/{item}.tar"
 
 #: resume 终态集——记了这些 status 的 (id,arm,upstream) 不再跑；
 #: skip（上游门）与 error（harness 崩）属可重试类。
@@ -125,8 +123,9 @@ def select_ids(entries: list[dict], args: argparse.Namespace, stage: str) -> lis
     """--ids 显式集 或 manifest 全量/--n 抽样子集（--seed 定序）。
 
     ``--n`` 抽样全 stage 共用 ``erb.pick_sample``（候选限 extracted/ 在盘
-    者）——同 --n/--seed 跨 stage 命中同一子集。ingest 的补库职责在全量
-    （--n 0）路径：未物化条目按 item 聚组走 IA 抽成员；--ids 亦可定点。
+    者）——同 --n/--seed 跨 stage 命中同一子集。ingest 全量（--n 0）路径
+    对未物化条目记 skip/reject（IA 拉取留 stub 归数据侧，见模块
+    docstring）；--ids 亦可定点。
     """
     if args.ids:
         want = {i.strip() for i in args.ids.split(",") if i.strip()}
@@ -308,107 +307,43 @@ def _ingest_copy(pid: str, out_dir: Path) -> dict:
     return finish_rec(rec, t0)
 
 
-def _ia_tar(item: str, tar_cache: Path) -> Path:
-    """item tar 落缓存位；缺则 IA 整包下载（.part → rename 原子化）。"""
-    tar_cache.mkdir(parents=True, exist_ok=True)
-    final = tar_cache / f"{item}.tar"
-    if final.exists():
-        return final
-    part = tar_cache / f"{item}.tar.part"
-    with bc3.open_url(IA_DL.format(item=item), timeout=600) as r, part.open("wb") as w:
-        shutil.copyfileobj(r, w, 1 << 20)
-    part.rename(final)
-    return final
+def _missing_rec(entry: dict) -> dict:
+    """未物化条目的 stub 记录。
 
-
-def _materialize_member(tar_path: Path, entry: dict) -> dict:
-    """item tar 里抽 member → blob 校验 → corpus_v3/{id}/ 补库（raw+meta+extracted/）。"""
-    pid = entry["id"]
-    with tarfile.open(tar_path, "r:") as tar:
-        by_name = {m.name: m for m in tar.getmembers() if m.isreg()}
-        tm = by_name.get(entry.get("member") or "")
-        if tm is None:
-            return {
-                "ok": False,
-                "code": "member_missing",
-                "payload": entry.get("member"),
-            }
-        f = tar.extractfile(tm)
-        blob = f.read() if f else b""
-    sha = hashlib.sha256(blob).hexdigest()
-    if entry.get("blob_sha256") and sha != entry["blob_sha256"]:
-        return {"ok": False, "code": "sha256_mismatch", "payload": sha}
-    fmt = entry.get("format")
-    dest = CORPUS / pid
-    dest.mkdir(parents=True, exist_ok=True)
-    # stub/error 在调度层已分流；到这里只余 tar/gz/pdf。
-    raw_name = {"tar": "raw.tar.gz", "gz": "raw.gz", "pdf": "raw.pdf"}.get(fmt)
-    if raw_name:
-        (dest / raw_name).write_bytes(blob)
-    n_ext, warns = (0, [])
-    if fmt in ("tar", "gz"):
-        # 同 build_corpus_v3 约定：fmt="tar" 的 member blob 是 gzip 过的 tar。
-        n_ext, warns = bc3.unpack_blob(
-            gzip.decompress(blob) if fmt == "tar" else blob, fmt, dest
-        )
-    meta = {
-        "arxiv_id": pid,
-        "fetched_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "layer": entry.get("layer"),
-        "channel": entry.get("channel"),
-        "item": entry.get("item"),
-        "member": entry.get("member"),
-        "raw_sha256": sha,
-        "raw_file": raw_name,
-        "format": fmt,
-        "n_files": n_ext,
-        "bytes": len(blob),
-        "warnings": warns,
-        "source": "ia",
+    IA 拉取实现归数据侧（见模块 docstring）：可拉取相（有 item/member）
+    记 skip `ia_fetch_unwired` 留下轮重试；stub/pdf/error 格式或无
+    item 的记 reject（本路径永不可解）。metrics 四键与 cache 路径同形。
+    """
+    t0 = time.monotonic()
+    pid, fmt, ch = entry["id"], entry.get("format"), entry.get("channel")
+    r = base_rec(pid, "ingest", "-")
+    r["metrics"] = {
+        "n_files": 0,
+        "main_tex_guess": None,
+        "source": "ia" if entry.get("item") else None,
+        "sha256_ok": None,
     }
-    (dest / "meta.json").write_text(json.dumps(meta, indent=1, ensure_ascii=False))
-    return {"ok": True, "n_files": n_ext, "warns": warns}
-
-
-def _ingest_item(
-    item: str, entries: list[dict], out_dir: Path, tar_cache: Path
-) -> list[dict]:
-    """同一 IA item 的缺篇整包处理：一次开 tar 抽全部想要 member。"""
-    recs = []
-    try:
-        tar_path = _ia_tar(item, tar_cache)
-    except Exception as e:
-        for e_ in entries:
-            r = base_rec(e_["id"], "ingest", "-")
-            r["status"] = "error"
-            r["errors"] = [
-                {"code": "ia_fetch", "cat": "ingest", "payload": f"{item}: {e!r:.200}"}
-            ]
-            recs.append(finish_rec(r, time.monotonic()))
-        return recs
-    for entry in entries:
-        t0 = time.monotonic()
-        rec = base_rec(entry["id"], "ingest", "-")
-        try:
-            m = _materialize_member(tar_path, entry)
-        except Exception as e:
-            m = {
-                "ok": False,
-                "code": f"unpack:{type(e).__name__}",
-                "payload": repr(e)[:200],
+    if fmt in ("stub", "pdf", "error") or not entry.get("item"):
+        r["status"] = "reject"
+        code = (
+            f"{fmt}_format"
+            if fmt in ("stub", "pdf", "error")
+            else ("eprint_fetch_unwired" if ch == "arxiv_eprint" else "no_item")
+        )
+        # cat=code：sig 要能分流 stub_format/eprint_fetch_unwired 等
+        r["errors"] = [{"code": code, "cat": code, "payload": entry.get("member")}]
+    else:
+        r["status"] = "skip"
+        # cat=code 同 reject 约定；payload 只到 item 级——triage sig 按 IA
+        # item 聚类（一个 tar 一个工单），member 由 id 回 manifest 查。
+        r["errors"] = [
+            {
+                "code": "ia_fetch_unwired",
+                "cat": "ia_fetch_unwired",
+                "payload": f"item={entry['item']}",
             }
-        if not m.get("ok"):
-            rec["status"] = "error"
-            rec["errors"] = [
-                {"code": m["code"], "cat": "ingest", "payload": m["payload"]}
-            ]
-        else:
-            sub = _ingest_copy(entry["id"], out_dir)
-            sub["metrics"]["source"] = "ia"
-            sub["metrics"]["sha256_ok"] = True
-            rec = sub
-        recs.append(finish_rec(rec, t0))
-    return recs
+        ]
+    return finish_rec(r, t0)
 
 
 def stage_ingest(
@@ -428,46 +363,26 @@ def stage_ingest(
         else:
             missing.append(by_id.get(pid) or {"id": pid})
     print(
-        f"ingest: {len(cached)} cached + {len(missing)} to-fetch (jobs={args.jobs})",
+        f"ingest: {len(cached)} cached + {len(missing)} unmaterialized "
+        f"(jobs={args.jobs})",
         flush=True,
     )
     done_n = 0
+    for e in missing:
+        r = _missing_rec(e)
+        log.append(r)
+        done_n += 1
+        print(f"  [{done_n}] {r['id']} -> {r['status']}", flush=True)
     with ThreadPoolExecutor(max_workers=args.jobs) as ex:
-        futs = {}
-        for pid in cached:
-            futs[ex.submit(_ingest_copy, pid, out_dir)] = pid
-        # 缺篇按 item 聚组（整包抽成员）；stub/pdf/eprint 不可解包 → reject。
-        by_item: dict[str, list[dict]] = {}
-        for e in missing:
-            fmt, ch = e.get("format"), e.get("channel")
-            pid, t0 = e["id"], time.monotonic()
-            if fmt in ("stub", "pdf", "error") or not e.get("item"):
-                r = base_rec(pid, "ingest", "-")
-                r["status"] = "reject"
-                code = (
-                    f"{fmt}_format"
-                    if fmt in ("stub", "pdf", "error")
-                    else ("eprint_fetch_unwired" if ch == "arxiv_eprint" else "no_item")
-                )
-                # cat=code：sig 要能分流 stub_format/eprint_fetch_unwired 等
-                r["errors"] = [{"code": code, "cat": code, "payload": e.get("member")}]
-                log.append(finish_rec(r, t0))
-                done_n += 1
-                continue
-            by_item.setdefault(e["item"], []).append(e)
-        tar_cache = Path(args.tar_cache).expanduser()
-        for item, ents in by_item.items():
-            futs[ex.submit(_ingest_item, item, ents, out_dir, tar_cache)] = item
+        futs = {ex.submit(_ingest_copy, pid, out_dir): pid for pid in cached}
         for fut in as_completed(futs):
             try:
-                res = fut.result()
+                r = fut.result()
             except Exception as e:
-                key = futs[fut]
-                res = [crash_rec(key, "ingest", "-", e, time.monotonic())]
-            for r in res if isinstance(res, list) else [res]:
-                log.append(r)
-                done_n += 1
-                print(f"  [{done_n}] {r['id']} -> {r['status']}", flush=True)
+                r = crash_rec(futs[fut], "ingest", "-", e, time.monotonic())
+            log.append(r)
+            done_n += 1
+            print(f"  [{done_n}] {r['id']} -> {r['status']}", flush=True)
 
 
 # ================================================================ parse
@@ -1401,10 +1316,9 @@ def main() -> None:
     sub = ap.add_subparsers(dest="stage", required=True)
 
     p_ing = sub.add_parser(
-        "ingest", help="manifest→copytree/IA 抽成员 → work/{id}/src/"
+        "ingest", help="manifest→copytree → work/{id}/src/（IA 拉取 stub，归数据侧）"
     )
     _add_shared(p_ing, 8)
-    p_ing.add_argument("--tar-cache", default=str(TAR_CACHE_DEFAULT))
 
     p_par = sub.add_parser(
         "parse", help="route+normalize+parse_file → parse.json + zh/"
