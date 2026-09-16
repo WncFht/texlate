@@ -1440,6 +1440,17 @@ class RouteDecision:
     latex209_suspect: bool = False  # \documentstyle 检出：降级为试编标记
 
 
+#: pstricks/位图字体信号的名集单源——route_project 的文本签名与 probe 的
+#: 声明依赖名查表共用（audit wave2 双表合一：probe.py 导入此处常量）。
+#: pstricks 家族语义 = 精确名 ``pstricks`` + 前缀 ``pstricks-``/``pst-``
+#: （pst-node/pst-plot/… 与 pstricks-add 全覆盖——probe 侧旧实现漏
+#: pstricks-add，切名集后补齐）。
+PSTRICKS_PKG_NAMES: Final = frozenset({"pstricks"})
+PST_PKG_PREFIXES: Final = ("pstricks-", "pst-")
+BITMAP_FONT_PKG_NAMES: Final = frozenset(
+    {"bbm", "bbmfonts", "dsfont", "bbold", "yfonts", "wasy", "wasysym"}
+)
+
 #: 高置信 pstricks 依赖签名（visible_tex 遮蔽视图上匹配）：包名元素级
 #: 精确（pstricks / pstricks-add / pst-* 家族——元素边界防 `{notpstricks}`
 #: 类子串误中）+ `pspicture` 环境 + `\psset` 配置宏（vendored/传递装载的
@@ -1453,7 +1464,9 @@ _PSTRICKS_RE = re.compile(
 )
 _MINTED_FROZEN_RE = re.compile(r"frozencache")
 _BITMAP_FONT_PKGS = re.compile(
-    r"\\usepackage(?:\[[^]]*\])?\{[^}]*\b(bbm|bbmfonts|dsfont|bbold|yfonts|wasy|wasysym)\b"
+    r"\\usepackage(?:\[[^]]*\])?\{[^}]*\b("
+    + "|".join(sorted(BITMAP_FONT_PKG_NAMES))
+    + r")\b"
 )
 
 
