@@ -62,15 +62,31 @@ def parse_tex_v1(tex: str) -> ScanResult:
     return sc.scan(tex, preamble_end=preamble_end)
 
 
-def parse_file_v1(path: str | os.PathLike[str], *, flatten: bool = True) -> ScanResult:
-    r"""v1 文件入口：读盘 → ``flatten_inputs`` → ``parse_tex_v1``。"""
+def parse_file_v1(
+    path: str | os.PathLike[str],
+    *,
+    flatten: bool = True,
+    top_dir: str | os.PathLike[str] | None = None,
+) -> ScanResult:
+    r"""v1 文件入口：读盘 → ``flatten_inputs`` → ``parse_tex_v1``。
+
+    ``top_dir`` 透传 ``flatten_inputs`` 的同名兜底查找目录（与 v2
+    ``parse_file`` 参面一致——``TEXLATE_NO_EXPAND`` 回退不丢语义）。
+    """
     main = Path(path).resolve()
     tex = decode_tex(main.read_bytes())
     flat_warnings: list[ScanWarning] = []
     if flatten:
         d = str(main.parent)
         # 主文件预入祖先栈：``\input{self}`` 在 TeX 里是死循环，展平侧直接断
-        tex = flatten_inputs(tex, d, d, _seen={str(main)}, warnings=flat_warnings)
+        tex = flatten_inputs(
+            tex,
+            d,
+            d,
+            _seen={str(main)},
+            warnings=flat_warnings,
+            top_dir=str(top_dir) if top_dir is not None else None,
+        )
     res = parse_tex_v1(tex)
     res.warnings[:0] = flat_warnings
     return res
@@ -98,7 +114,7 @@ def parse_file(
     → 漏网 literal + ``inputs[]`` 记原始名（standalone 单文件语义）。
     """
     if os.environ.get(_NO_EXPAND):
-        return parse_file_v1(path, flatten=flatten)
+        return parse_file_v1(path, flatten=flatten, top_dir=top_dir)
     main = Path(path).resolve()
     tex = decode_tex(main.read_bytes())
     if flatten:

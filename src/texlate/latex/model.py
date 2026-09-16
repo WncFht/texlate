@@ -200,6 +200,8 @@ class ScanState:
 
     ``ifflags`` 是 ``\\newif`` 旗标表（\\\\if 两档求值用，docs/07 §8.2/§8.6）。
     ``steps`` 是展开步数回压计数（BUDGET，docs/07 §8.2/§8.3）。
+    臂归属：``ifflags``/``steps`` 仅 v1 scanner 读写；``pkgs`` 仅 v2
+    segmenter 读写（v1 无 argspec 门控）。
     """
 
     issuer: PlaceholderIssuer
@@ -208,14 +210,14 @@ class ScanState:
     macros: MacroTable | ScopeMacroTable  # v1 平表 / v2 scope 链（臂内状态）
     inputs: list[tuple[int, str]]
     warnings: list[ScanWarning]
-    ifflags: dict[str, bool] = field(default_factory=dict)
-    steps: int = 0
+    ifflags: dict[str, bool] = field(default_factory=dict)  # v1 臂字段
+    steps: int = 0  # v1 臂字段
     ph_reserved: set[str] = field(
         default_factory=set
     )  # 源文自带 [[X_n]] 形字面 → 签发避让
     pkgs: set[str] = field(
         default_factory=set
-    )  # \usepackage/\RequirePackage/\documentclass 已加载包名 → argspec 门控
+    )  # v2 臂字段：\usepackage/\RequirePackage/\documentclass 已加载包名 → argspec 门控
 
 
 # ---------------------------------------------------------------- 字符级原语

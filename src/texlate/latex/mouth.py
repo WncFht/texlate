@@ -23,22 +23,8 @@ from collections import deque
 from dataclasses import dataclass
 
 __all__ = [
-    "CC_ACTIVE",
-    "CC_ALIGNMENT",
-    "CC_BGROUP",
-    "CC_COMMENT",
-    "CC_EGROUP",
-    "CC_EOL",
-    "CC_ESCAPE",
-    "CC_IGNORED",
-    "CC_INVALID",
     "CC_LETTER",
-    "CC_MATHSHIFT",
     "CC_OTHER",
-    "CC_PARAMETER",
-    "CC_SPACE",
-    "CC_SUB",
-    "CC_SUPER",
     "CatTable",
     "Mouth",
     "Tok",
@@ -161,10 +147,6 @@ class Mouth:
     Tokenizer.py:319-331）；缓冲 token 不更新 ``_prev``/state（plasTeX
     同——缓冲 pop 在 ``prev = token`` 之前）。
     """
-
-    S_S = _S
-    S_M = _M
-    S_N = _N
 
     def __init__(
         self, text: str, file_id: int = 0, cats: CatTable | None = None

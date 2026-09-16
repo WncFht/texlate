@@ -29,15 +29,11 @@ from texlate.latex.model import (
     skip_verb_at,
     ws_skip,
 )
-from texlate.latex.tables import MAX_INPUTS, VERBATIM_ENVS
+from texlate.latex.tables import FILENAME_CHARS, MAX_INPUTS, VERBATIM_ENVS
 from texlate.textutil import decode_tex, mask_tex
 
 _DOC_BEGIN_RX = re.compile(r"\\begin\s*\{document\}")
 _DOC_END_RX = re.compile(r"\\end\s*\{document\}")
-
-_FILENAME_CHARS = frozenset(
-    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._/-"
-)
 
 
 def strip_doc_shell(tex: str) -> str:
@@ -69,7 +65,11 @@ def _resolve(
         if fname.lower().endswith(".tex")
         else [fname, fname + ".tex", fname + ".TEX"]  # 野存在大写扩展名（corpus_v3）
     )
-    dirs = (file_dir, root_dir) if top_dir is None else (file_dir, root_dir, top_dir)
+    dirs = tuple(
+        dict.fromkeys(
+            (file_dir, root_dir) if top_dir is None else (file_dir, root_dir, top_dir)
+        )
+    )  # file_dir==root_dir 常见——去重免重复 stat
     for d in dirs:
         for c in cands:
             p = Path(d) / c
@@ -223,9 +223,9 @@ def _try_input(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915, PLR0917 — �
             if not e:
                 return None
             fname, end = tex[pos + 1 : e - 1].strip(), e
-        elif name in ("input", "@input") and pos < n and tex[pos] in _FILENAME_CHARS:
+        elif name in ("input", "@input") and pos < n and tex[pos] in FILENAME_CHARS:
             k = pos
-            while k < n and tex[k] in _FILENAME_CHARS:
+            while k < n and tex[k] in FILENAME_CHARS:
                 k += 1
             fname, end = tex[pos:k], k
         else:

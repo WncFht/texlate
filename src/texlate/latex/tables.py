@@ -462,7 +462,11 @@ _WS_CHARS = " \t\n"
 
 # ---------------------------------------------------------------- 扫描层共享表
 
-# scan 层登记的 \input 触发面（gullet 未解析成功时记 inputs[]）
+# scan 层登记的 \input 触发面（gullet 未解析成功时记 inputs[]）。
+# 与 ``INPUT_CMDS`` 的差 = ``CatchFileBetweenTags``：其形为
+# ``\CatchFileBetweenTags\cs{file}{tag}``，只由 gullet ``_do_input``/
+# flatten 的 tag 区提取处理；scan 层 ``_handle_input_cs`` 只认
+# ``{file}``/import 双参/裸名三形——登记进来会把 ``{file}`` 位读错。
 INPUT_SCAN_CMDS = {
     "input",
     "@input",  # 字节层 read_cmd_name 的 \@input 特判形

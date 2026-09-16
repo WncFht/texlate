@@ -12,8 +12,8 @@ spec 读参 → 代入 → 推回流前端（不动点，不 return）。移植�
   plasTeX 只逐单 token 匹配（``__init__.py:1214``）——多 token 更贴 TeX。
 - ``\if`` 两档（§8.6）：可求值 → ``process_if`` 只推回选中支；不可求值 →
   条件按语法消费 + ``\ifX`` 界标 token 直交分段器，**两分支都进**（召回优先）。
-  ``\ifhmode/\ifvmode`` 常量取 plasTeX 真值 True/False——``tables.py``
-  ``IF_CONST`` 写反了（本文件不消费它）。
+  ``\ifhmode/\ifvmode`` 常量取 plasTeX 真值 True/False（``tables.py``
+  ``IF_CONST`` 已同值修正，v1 scanner 消费它）。
 - 参数不匹配 → ``raise ArgMismatch`` + 全部已读 token 回吐（§3.5）；
   plasTeX 只 log.info 然后 break 继续（``__init__.py:1226``）——"继续"会
   默吞参数字节，对 splice 模型更危险。
@@ -43,6 +43,7 @@ from texlate.latex.tables import (
     CHUNK_ARG_NAMES,
     CITE_NAMES,
     DEF_NAMES,
+    FILENAME_CHARS,
     FONT_SWITCHES,
     INLINE_LITERAL_CMDS,
     INPUT_CMDS,
@@ -711,10 +712,6 @@ _MATH_CS = {
 # `\(`/`\)`/`\[`/`\]` 单字符 cs 也是数学特征
 _MATH_CS |= {"(", ")", "[", "]"}
 
-_FILENAME_CHARS = frozenset(
-    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._/-"
-)
-
 _DIGITS = frozenset("0123456789")
 _REL_CHARS = {"<", ">", "="}
 
@@ -829,9 +826,6 @@ class Gullet:
         self.file_texts: list[str] = []  # file_id → 源文本
         self.file_paths: list[str] = []  # file_id → 路径（'' = 内存源）
         self.ifflags: dict[str, bool] = {}  # \newif 旗标
-        # 分段器在数学开（$/$$/\(/\[/math-env \begin）+1、数学闭（$/$$/\)/\]/
-        # \end）−1，**下一次拉取前**写入 → \ifmmode 求值读到的是当前嵌套深度
-        self.math_depth = 0
         # read() 最近产出（\if 条件段 marker 取端点 / _consumed 端点扩展）
         self._last_read: Tok | None = None
         self.steps = 0
@@ -2068,7 +2062,7 @@ class Gullet:
             t = self._rt(trace)
             if t is None:
                 break
-            if t.kind in ("letter", "other") and t.text in _FILENAME_CHARS:
+            if t.kind in ("letter", "other") and t.text in FILENAME_CHARS:
                 chars.append(t.text)
                 continue
             self._pushback(trace, t)
@@ -2267,9 +2261,11 @@ class Gullet:
         if name == "iffalse":
             return False
         if name == "ifmmode":
-            return self.math_depth > 0
+            # 恒 False——数学区由分段器 raw 拉取成 [[MATH]]，数学体内的
+            # \ifmmode 不经本求值（测试已钉：test_latex_cond.py）
+            return False
         if name == "ifhmode":
-            return True  # plasTeX 常量（Primitives.py:253-257）；tables.IF_CONST 写反了不消费
+            return True  # plasTeX 常量（Primitives.py:253-257），tables.IF_CONST 同值
         if name == "ifvmode":
             return False  # 同上（Primitives.py:247-251）
         if name == "ifinner":

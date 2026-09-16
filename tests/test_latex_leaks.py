@@ -140,3 +140,78 @@ def test_known_unclosable_dollar_degrades() -> None:
     res = scan(body)
     assert any(w.kind == "unpaired_dollar" for w in res.warnings)
     assert reconstruct(res) == DOC % body
+
+
+# ---------------------------------------------------------------- 展开组内再生段（_group_surface）
+
+
+def test_group_verb_protected() -> None:
+    r"""展开组内 ``\verb|raw$|`` → ``[[VERB]]``——逐字内容不泄可译 surface。
+
+    ``_group_surface`` 曾缺 verb 行：``\verb`` 落默认支，``|raw$|`` 逐字
+    进 surface（``$`` 还扰 math 判定）。
+    """
+    body = "\\newcommand{\\vv}{pre \\verb|raw$| post}\nText \\vv tail words here."
+    res = scan(body)
+    assert any(v == "\\verb|raw$|" for v in res.ph_map.values())
+    assert "raw$" not in blob(res)
+    assert "pre" in blob(res)
+    assert "post" in blob(res)
+    assert reconstruct(res) == DOC % body
+
+
+def test_group_verb_unpaired_falls_literal() -> None:
+    r"""组内 ``\verb|x`` 无闭符（EOL 上限）→ 逐字回落，同主流档。"""
+    body = "\\newcommand{\\vv}{pre \\verb|raw\npost}\nText \\vv tail words here."
+    res = scan(body)
+    assert "raw" in blob(res)  # 逐字回落后内容照常进可译面
+    assert reconstruct(res) == DOC % body
+
+
+def test_group_hyperref_text_arg_kept() -> None:
+    r"""展开组内 ``\hyperref[l]{text}``：``[label]`` 随命令保护，``{text}``
+    留可译 surface——``*ref`` 后缀规则曾把整调用吞进 ``[[REF]]`` 丢 text。"""
+    body = (
+        "\\newcommand{\\hh}{\\hyperref[sec:x]{translatable link text}}\n"
+        "See \\hh now ok."
+    )
+    res = scan(body)
+    assert "translatable link text" in blob(res)
+    assert "sec:x" not in blob(res)
+    assert reconstruct(res) == DOC % body
+
+
+def test_group_hyperref_brace_key_form() -> None:
+    r"""``\\hyperref{key}{text}`` 双参形：首参（key）保护、次参留 surface。"""
+    body = (
+        "\\newcommand{\\hh}{\\hyperref{sec:y}{brace key text here}}\nSee \\hh now ok."
+    )
+    res = scan(body)
+    assert "brace key text here" in blob(res)
+    assert "sec:y" not in blob(res)
+    assert reconstruct(res) == DOC % body
+
+
+def test_group_href_url_protected() -> None:
+    r"""展开组内 ``\href{url}{text}``：``{url}`` → ``[[HREF]]``，``{text}``
+    留可译 surface（主版 ``_handle_href`` 同形）。"""
+    body = "\\newcommand{\\hh}{\\href{http://x.y/z}{click me link}}\nSee \\hh ok."
+    res = scan(body)
+    assert any(
+        k.startswith("[[HREF_") and v == "{http://x.y/z}" for k, v in res.ph_map.items()
+    )
+    assert "http://x.y/z" not in blob(res)
+    assert "click me link" in blob(res)
+    assert reconstruct(res) == DOC % body
+
+
+def test_group_url_delim_form() -> None:
+    r"""展开组内 ``\url|http://..|`` 定界形 → ``[[URL]]``（主版 verbatim 支对价）。"""
+    body = "\\newcommand{\\uu}{\\url|http://x.y/|}\nSee \\uu tail text here."
+    res = scan(body)
+    assert any(
+        k.startswith("[[URL_") and v == "\\url|http://x.y/|"
+        for k, v in res.ph_map.items()
+    )
+    assert "http://x.y/" not in blob(res)
+    assert reconstruct(res) == DOC % body
