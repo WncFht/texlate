@@ -12,6 +12,10 @@
 | `texlate run <id> --server URL`                             | 瘦客户端模式：提交到 FastAPI 任务队列，`--wait` 轮询                                                    |
 | `texlate web [--host --port --data-dir]`                    | 起 FastAPI+SSE 服务（缺省 127.0.0.1:8765），SPA 需先 `scripts/build-web.sh`                             |
 | `texlate export <docx/epub>`                                | 双语插译导出                                                                                            |
+| `texlate share pack <task_id>`                              | 任务产物打社区共享包 `{share_key}.share.zip`（七组分键，见 shared-cache.md）                            |
+| `texlate share unpack <bundle>`                             | 共享包解包 + manifest/产物 sha256 全量回验                                                             |
+| `texlate doctor`                                            | 环境自检：python/tectonic/xelatex/ctex/pdftotext/server-extra/babeldoc 逐项 ok/n/a                       |
+| `texlate version`                                           | 打版本号                                                                                                |
 | `texlate tools install-tectonic`                            | tectonic 便携引擎安装（sha256 钉版矩阵）                                                                |
 
 BYOK 环境直配（免 settings.json）：`TEXLATE_BASE_URL` / `TEXLATE_API_KEY` / `TEXLATE_MODEL`。

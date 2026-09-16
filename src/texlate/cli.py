@@ -540,7 +540,7 @@ def web(
         ),
     ] = None,
 ) -> None:
-    """起 web 服务：FastAPI + SSE + 任务队列（需 ``texlate[server]`` extra）。
+    """起 web 服务：FastAPI + SSE + 任务队列（需 ``server`` extra）。
 
     local 形态单实例（web-layer §6）：``<data_dir>/service.lock`` flock
     被持有 → 浏览器打开已运行实例并退出，而不是端口冲突或静默双开。
