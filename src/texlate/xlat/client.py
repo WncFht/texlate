@@ -728,9 +728,13 @@ class ChatClient:
 
     async def list_models(self) -> list[str]:
         """`GET /v1/models` → 模型 id 列表。"""
-        resp = await self._http.get(
-            f"{self.base_url}/v1/models", headers=self._openai_headers()
-        )
+        try:
+            resp = await self._http.get(
+                f"{self.base_url}/v1/models", headers=self._openai_headers()
+            )
+        except (httpx.TransportError, ssl.SSLError) as e:
+            msg = f"transport error: {e}"
+            raise RetryableHTTPError(msg, retryable=True) from e
         if resp.status_code != HTTP_OK:
             raise classify_status(resp.status_code, resp.text, resp.headers)
         data = resp.json()
@@ -738,9 +742,13 @@ class ChatClient:
 
     async def panel_models(self) -> list[dict[str, Any]]:
         """`GET /panel/api/models` → 面板模型表（含 cost_tier/promo/disabled）。"""
-        resp = await self._http.get(
-            f"{self.base_url}/panel/api/models", headers=self._openai_headers()
-        )
+        try:
+            resp = await self._http.get(
+                f"{self.base_url}/panel/api/models", headers=self._openai_headers()
+            )
+        except (httpx.TransportError, ssl.SSLError) as e:
+            msg = f"transport error: {e}"
+            raise RetryableHTTPError(msg, retryable=True) from e
         if resp.status_code != HTTP_OK:
             raise classify_status(resp.status_code, resp.text, resp.headers)
         data = resp.json()
