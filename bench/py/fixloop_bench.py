@@ -401,13 +401,11 @@ def load_baseline() -> dict[tuple[str, str], dict]:
         return {}
     if BASE_CELLS.suffix == ".jsonl":
         out = {}
-        for ln in BASE_CELLS.read_text().splitlines():
-            if ln.strip():
-                c = json.loads(ln)
-                out[(c["paper_id"], c["engine"])] = {
-                    "verdict": c.get("verdict"),
-                    "category": c.get("category"),
-                }
+        for c in benchlib.iter_jsonl(BASE_CELLS):
+            out[(c["paper_id"], c["engine"])] = {
+                "verdict": c.get("verdict"),
+                "category": c.get("category"),
+            }
         return out
     d = json.loads(BASE_CELLS.read_text())
     out = {}
@@ -430,10 +428,7 @@ def _papers_from_cases(
     """
     seen: dict[str, dict] = {}
     hit: set[str] = set()
-    for ln in path.read_text().splitlines():
-        if not ln.strip():
-            continue
-        c = json.loads(ln)
+    for c in benchlib.iter_jsonl(path):
         pid = c["paper_id"]
         seen.setdefault(pid, {"id": pid, "band": c.get("band"), "tags": []})
         if (not only_engine or c.get("engine") == only_engine) and (
@@ -448,11 +443,7 @@ def _papers_from_cases(
 
 def report(papers_meta: list[dict]) -> None:
     rs = _rs()
-    cells = [
-        json.loads(ln)
-        for ln in (OUT / "cells.jsonl").read_text().splitlines()
-        if ln.strip()
-    ]
+    cells = benchlib.read_jsonl(OUT / "cells.jsonl")
     base = load_baseline()
     meta_by_id = {p["id"]: p for p in papers_meta}
     by_paper: dict[str, dict[str, dict]] = defaultdict(dict)
@@ -809,10 +800,8 @@ def main() -> None:
     done = set()
     cells_path = OUT / "cells.jsonl"
     if cells_path.exists():
-        for ln in cells_path.read_text().splitlines():
-            if ln.strip():
-                c = json.loads(ln)
-                done.add((c["paper_id"], c["engine"]))
+        for c in benchlib.iter_jsonl(cells_path):
+            done.add((c["paper_id"], c["engine"]))
     tasks = []
     for p in papers:
         todo = tuple(e for e in ENGINES if (p["id"], e) not in done)
