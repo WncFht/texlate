@@ -2323,6 +2323,27 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "spec 2026-09-16-batch-hardening-design §9 F4"
 
+  # ─── F4b (2026-09-16, fixer-cjkfont 交付 f7822a8): 缺字第二分级 ——
+  # 西里尔/组合符/拉丁扩展带的码位既非 CJK(预热) 也非 char_table 替换
+  # 条目 → newunicodechar 逐字绑定 Libertinus Serif 字体回退。
+  - id: font_fallback
+    description: "Missing character 落西里尔/组合符/拉丁扩展带 → newunicodechar 逐字回退 Libertinus Serif"
+    phase: loop
+    order: 26 # missing_char_fix(25) 之后: replace 表先吃, 残带内码位走字体回退
+    when: { category: warn_missing_char }
+    action:
+      kind: builtin_transform
+      function: font_fallback
+      params: {} # fallback_ranges/fallback_font/char_table 可覆盖
+    risk: low
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - { corpus: "—", error: "Missing character: 西里尔/组合符落在无字形字体" }
+    stats: { fires: 0, status: proposed }
+    source_ref: "fixer-cjkfont 交付 (builtins.py f7822a8); 1d 转办 2026-09-16"
+
   # ─── 兜底: 恒最后 ───
   - id: undefined_cs_guess
     description: "未定义控制序列 → cs→pkg 知识库长射 + LLM 兜底分析 (占位)"
