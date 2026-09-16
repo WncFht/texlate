@@ -447,11 +447,11 @@ class LoopCtx:
 
     def tex_files(self, exts: Iterable[str] = (".tex", ".sty", ".cls")) -> list[Path]:
         """工程内指定扩展名文件 (排序稳定)。"""
-        exts_t = tuple(exts)
+        exts_t = tuple(e.lower() for e in exts)
         return [
             p
             for p in sorted(self.wdir.rglob("*"))
-            if p.suffix in exts_t and p.is_file()
+            if p.suffix.lower() in exts_t and p.is_file()
         ]
 
     def read(self, f: Path) -> str | None:
@@ -1017,7 +1017,7 @@ def find_main_tex(proj: Path) -> Path | None:
     if strict is not None:
         return strict
     cands = []
-    for f in sorted(proj.rglob("*.tex")):
+    for f in sorted(f for f in proj.rglob("*") if f.suffix.lower() == ".tex"):
         with contextlib.suppress(OSError):
             head = decode_tex(f.read_bytes())[:60000]
             if _DOC_RE.search(head):

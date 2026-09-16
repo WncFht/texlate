@@ -322,6 +322,52 @@ def test_find_main_tex_depth_above_mass(tmp_path: Path) -> None:
     assert find_main_tex(tmp_path) == tmp_path / "short_paper.tex"
 
 
+@pytest.mark.parametrize("name", ["MAIN.TEX", "main.Tex", "Paper.TEX"])
+def test_find_main_tex_uppercase_ext(tmp_path: Path, name: str) -> None:
+    r"""大写/混写扩展名主文件入候选——``rglob("*.tex")`` 大小写盲点修复
+    （corpus_v3 loop1 6 cells parse reject ``no_main_tex``）。"""
+    (tmp_path / name).write_text(
+        "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}"
+    )
+    (tmp_path / "macros.tex").write_text("\\def\\a{1}\n")
+    assert find_main_tex(tmp_path) == tmp_path / name
+
+
+def test_find_main_tex_uppercase_is_candidate(tmp_path: Path) -> None:
+    r"""``.TEX`` 与 ``.tex`` 同场竞技：mass 量级差按既有规则仲裁出 ``.TEX``。"""
+    (tmp_path / "a.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n"
+    )
+    (tmp_path / "B.TEX").write_text(
+        "\\documentclass{article}\n\\begin{document}\n"
+        + "much larger body text " * 80
+        + "\\end{document}\n"
+    )
+    assert find_main_tex(tmp_path) == tmp_path / "B.TEX"
+
+
+def test_find_main_tex_uppercase_ranking_unchanged(tmp_path: Path) -> None:
+    r"""``main.tex`` 名加成对厚 ``.TEX`` 候选依旧生效——修复不改既有排序。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n"
+    )
+    (tmp_path / "B.TEX").write_text(
+        "\\documentclass{article}\n\\begin{document}\n"
+        + "much larger body text " * 80
+        + "\\end{document}\n"
+    )
+    assert find_main_tex(tmp_path) == tmp_path / "main.tex"
+
+
+def test_inject_float_sizing_uppercase_ext(tmp_path: Path) -> None:
+    r"""``.TEX`` 主文件的 figure 工程也触发 FLOAT_SIZING 注入。"""
+    (tmp_path / "PAPER.TEX").write_text(
+        "\\documentclass{article}\n\\begin{document}\n"
+        "\\begin{figure}x\\end{figure}\n\\end{document}"
+    )
+    assert inject_float_sizing(tmp_path) == 1
+
+
 def test_inject_float_sizing_only_with_floats(tmp_path: Path) -> None:
     plain = tmp_path / "plain"
     plain.mkdir()

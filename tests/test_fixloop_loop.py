@@ -10,7 +10,7 @@ from pathlib import Path
 
 from texlate.compile.fixloop import Ruleset, builtins, fixloop, load_ruleset
 from texlate.compile.fixloop.ctan import CtanFetcher
-from texlate.compile.fixloop.engine import LoopCtx
+from texlate.compile.fixloop.engine import LoopCtx, find_main_tex
 from texlate.compile.fixloop.logparse import ErrReport
 
 RS = load_ruleset()
@@ -790,3 +790,21 @@ def test_pdftex_prim_polyfill_object_family(tmp_path: Path) -> None:
     assert "\\ifdefined\\pdflastobj" in out
     # 恒头注入: cls 内部读取发生在 \documentclass 加载期间, 类行后太晚
     assert out.index("\\ifdefined\\pdflastobj") < out.index("\\documentclass")
+
+
+def test_find_main_tex_loose_tier_uppercase(tmp_path: Path) -> None:
+    r"""宽松档同样认 ``.TEX``——缺 ``\begin{document}`` 的待修工程不再落空。"""
+    (tmp_path / "BROKEN.TEX").write_text(
+        "\\documentclass{article}\nbody without begin-document\n",
+        encoding="utf-8",
+    )
+    assert find_main_tex(tmp_path) == tmp_path / "BROKEN.TEX"
+
+
+def test_ctx_tex_files_case_insensitive(tmp_path: Path) -> None:
+    r"""``LoopCtx.tex_files`` 扩展名匹配大小写不敏感——``.TEX`` 进 source_blob。"""
+    (tmp_path / "PAPER.TEX").write_text("x", encoding="utf-8")
+    (tmp_path / "a.tex").write_text("x", encoding="utf-8")
+    (tmp_path / "STYLE.STY").write_text("x", encoding="utf-8")
+    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
+    assert {p.name for p in ctx.tex_files()} == {"PAPER.TEX", "a.tex", "STYLE.STY"}

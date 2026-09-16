@@ -118,6 +118,26 @@ def test_translate_tree_validator_fault_keeps_source(
     assert (tmp_path / "main.tex").read_text(encoding="utf-8") == _MAIN
 
 
+def test_translate_tree_uppercase_ext(tmp_path: Path) -> None:
+    """``.TEX`` 主文件进翻译集——不再被 rglob 大小写盲点跳过。"""
+    (tmp_path / "PAPER.TEX").write_text(_MAIN, encoding="utf-8")
+    stats = e2e.mock_translate_tree(tmp_path)
+
+    assert stats["fault_files"] == []
+    assert stats["files"] == 1
+    assert MOCK_ZH in (tmp_path / "PAPER.TEX").read_text(encoding="utf-8")
+
+
+def test_translate_tree_rtx_dump_uppercase_still_excluded(tmp_path: Path) -> None:
+    """``.RTX.TEX`` 运行时转储依旧排除——枚举变宽不放大排除例外。"""
+    (tmp_path / "main.tex").write_text(_MAIN, encoding="utf-8")
+    (tmp_path / "paper.RTX.TEX").write_text("runtime dump\n", encoding="utf-8")
+    stats = e2e.mock_translate_tree(tmp_path)
+
+    assert stats["files"] == 1
+    assert (tmp_path / "paper.RTX.TEX").read_text(encoding="utf-8") == "runtime dump\n"
+
+
 # ---------------------------------------------------------------- mock_pipeline_run
 
 

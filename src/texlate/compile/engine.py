@@ -1620,8 +1620,8 @@ def route_project(root: Path, *, prefer: str = "tectonic") -> RouteDecision:
     """
     vis: dict[Path, str] = {}
     non_utf8 = False
-    for p in root.rglob("*.tex"):
-        if not p.is_file():
+    for p in root.rglob("*"):
+        if not p.is_file() or p.suffix.lower() != ".tex":
             continue
         raw = p.read_bytes()
         try:

@@ -188,3 +188,12 @@ def test_route_psset_still_xelatex(tmp_path: Path) -> None:
         "\\psset{unit=1cm}x\\end{document}\n"
     )
     assert route_project(tmp_path).engines[0] == "xelatex"
+
+
+def test_route_pstricks_uppercase_ext(tmp_path: Path) -> None:
+    r"""``.TEX`` 文件同样进路由扫描——pstricks 不因大写扩展名漏检。"""
+    (tmp_path / "PAPER.TEX").write_text(
+        "\\documentclass{article}\n\\usepackage{pstricks}\n"
+        "\\begin{document}\nx\\end{document}\n"
+    )
+    assert route_project(tmp_path).engines[0] == "xelatex"

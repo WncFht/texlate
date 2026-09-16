@@ -330,7 +330,7 @@ def find_main_tex(root: Path) -> Path | None:
     """
     candidates = []
     bodies = {}
-    for p in sorted(root.rglob("*.tex")):
+    for p in sorted(p for p in root.rglob("*") if p.suffix.lower() == ".tex"):
         try:
             text = visible_tex(decode_tex(p.read_bytes()))
         except OSError:
@@ -513,8 +513,8 @@ def inject_float_sizing(root: Path) -> int:
     供日志回读。返回注入文件数（0/1）。
     """
     sources = {}
-    for path in root.rglob("*.tex"):
-        if path.is_file():
+    for path in root.rglob("*"):
+        if path.is_file() and path.suffix.lower() == ".tex":
             sources[path] = decode_tex(path.read_bytes())
     if not any(
         re.search(r"\\begin\s*\{(?:figure|table)\*?\}", visible_tex(text))

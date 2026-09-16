@@ -197,8 +197,8 @@ def _translate_tree(
     scans: list[tuple[Path, ScanResult]] = []
     chunks: list[ChunkIn] = []
     fault_files: list[str] = []
-    for f in sorted(root.rglob("*.tex")):
-        if f.name.endswith(".rtx.tex"):
+    for f in sorted(f for f in root.rglob("*") if f.suffix.lower() == ".tex"):
+        if f.name.lower().endswith(".rtx.tex"):
             continue  # REVTeX 运行时转储不进翻译集 (regress4-1003.1717)
         try:
             res = parse_file(f, flatten=False)
