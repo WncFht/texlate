@@ -482,7 +482,10 @@ class Segmenter:
         self._stop = False  # \end{document}/\endinput 顶层截停
         self._env_dead: dict[str, _EnvDeadTok] = {}  # F12 未闭合 env 墓标
         self._doc_begin = -1  # fid-0 上 \begin{document} 的 \begin 起点（-1=无）
+        self._doc_opened = False  # \begin{document} 已过（任意 fid——防 preamble 重入）
         self._preamble = False  # preamble 档：token 照过 gullet、分段全 literal
+        self._ph_scan_n = 0  # file_texts 已采样 [[X_n]] 字面保留集的前缀长
+        self._run_brace = 0  # 当前 run 内 dispatch 级 {−} 深度（孤 } 判据）
 
     def spawn(
         self, *, in_arg: bool | None = None, mined: bool | None = None
@@ -683,8 +686,23 @@ class Segmenter:
         )
 
     def _new_chunk(self, content: str, context: str, gspan: Span, ident: str) -> str:
-        """登记 chunk 返回 ``[[CHUNK_id]]``；``ident≠content`` 时入 ph_map。"""
+        """登记 chunk 返回 ``[[CHUNK_id]]``；``ident≠content`` 时入 ph_map。
+
+        源文自带 ``[[CHUNK_n]]`` 形字面时补死位跳号——``chunks[id]`` 索引
+        对齐约束下只能塞空 chunk（碰撞本身已由 ``ph_collision`` 报告）。
+        """
         cid = len(self.state.chunks)
+        while f"[[CHUNK_{cid}]]" in self.state.ph_reserved:
+            # 死位 content = token 自身：expand 环防护把它展开回字面 → 撞号
+            # 字面在 chunk 内容里也逐字还原（identity 不破）
+            self.state.chunks.append(
+                Chunk(
+                    id=cid,
+                    content=f"[[CHUNK_{cid}]]",
+                    span=Span(gspan.start, gspan.start),
+                )
+            )
+            cid += 1
         self.state.chunks.append(
             Chunk(
                 id=cid,
@@ -729,6 +747,7 @@ class Segmenter:
         self._run_start = None
         has_expand = self._run_has_expand
         self._run_has_expand = False
+        self._run_brace = 0
         pending = self._run_pending
         self._run_pending = {}
         if rs is None or not items:
@@ -1884,6 +1903,22 @@ class Segmenter:
         )
         while not self._stop:
             t = src.next_expanded()
+            if isinstance(src, Gullet) and len(self.file_texts) > self._ph_scan_n:
+                # \input 懒加载：新压栈文件的字面 [[X_n]] 采进保留集——签发
+                # 避让只护「之后」签发；先签发后加载的同号碰撞只能
+                # ph_collision 告警留痕（占位符保留集覆盖洞 F2/S1）
+                for ftext in self.file_texts[self._ph_scan_n :]:
+                    hits = PH_RX.findall(ftext)
+                    if hits:
+                        self.state.ph_reserved.update(hits)
+                        self.state.warnings.append(
+                            ScanWarning(
+                                "ph_collision",
+                                len(self.vt),
+                                f"{len(hits)} 处 [[X_n]] 形字面",
+                            )
+                        )
+                self._ph_scan_n = len(self.file_texts)
             if (
                 live_srcs is not None
                 and (
@@ -1927,14 +1962,17 @@ class Segmenter:
             if t is None:
                 break
             if self._preamble:
-                if self._cons(0) > self._doc_begin:
+                if self._doc_begin >= 0 and self._cons(0) > self._doc_begin:
                     # 覆盖已越过 \begin 起点——命中落在 def 体/if 死支等
-                    # 整体消费区内（token 永不到主流）→ preamble literal 收尾
+                    # 整体消费区内（token 永不到主流）→ preamble literal 收尾。
+                    # _doc_begin<0 = 起点不在 fid-0（\input 子文件内）——
+                    # 只能等 \begin{document} token 流经 _preamble_tok 翻档
                     self._emit(
                         self.pieces[-1].span.end if self.pieces else 0,
                         len(self.vt),
                     )
                     self._preamble = False
+                    self._doc_opened = True
                 else:
                     self._preamble_tok(t, src)
                     continue
@@ -1960,6 +1998,21 @@ class Segmenter:
                 self._open_toks.append(t)
                 continue
             self._close_group()
+            if (
+                t.kind == "cs"
+                and t.gen == 0
+                and t.text in ("documentclass", "documentstyle")
+                and not self._doc_opened
+                and not self.in_arg
+                and not self.mined
+                and not self.env_stack
+            ):
+                # preamble 起点不必在 fid-0：``\begin{document}`` 住
+                # ``\input`` 子文件时主流先见 ``\documentclass``——现场翻
+                # preamble 档（F7），收尾交给 _preamble_tok 的 begin 检出
+                self._preamble = True
+                self._preamble_tok(t, src)
+                continue
             self._dispatch(t, src)
         self._close_group()
         # 流耗尽 ≠ 覆盖完备：主文件尾部（尾随注释/空白不产 token）补盖进
@@ -1990,16 +2043,7 @@ class Segmenter:
             else:
                 self._cover_to(fid, b)
             return
-        if t.kind == "cs" and t.text == "begin" and t.gen == 0:
-            env, close_t, consumed = self._env_name(src)
-            if env == "document":
-                self._cover_to(fid, close_t.pos[2])
-                start = self.pieces[-1].span.end if self.pieces else 0
-                self._emit(start, len(self.vt))
-                self._preamble = False
-                return
-            src.unread(consumed)
-            self._cover_to(fid, b)
+        if self._preamble_doc_end(t, src, fid, b):
             return
         if t.kind == "cs" and t.text in _PKG_CMDS and t.gen == 0:
             # preamble 包声明：抽出 ``{pkg}`` 名单登记 argspec 门控；
@@ -2020,6 +2064,42 @@ class Segmenter:
         elif t.kind == "rbrace":
             self._scope_pop(src)
         self._cover_to(fid, b)
+
+    def _preamble_doc_end(self, t: Tok, src: TokenSource, fid: int, b: int) -> bool:
+        r"""``\begin{document}`` 检出（字面或 env_begin 宏端点）→ 翻档。
+
+        字面 ``\begin{document}`` 盖到 ``{document}`` 闭花括号；``\startdoc``
+        形 env_begin 宏端点（gullet 不展开端点宏，主流收到的是 gen=0 调用
+        token 而非 ``\begin`` 字面）盖到该 token 尾——宏包装拼法在
+        ``\input`` 子文件里同样认（F7）。非 document 的 ``\begin{env}``
+        回放名字 token 后只盖 ``\begin`` 本体。返回是否已处理（调用方即返）。
+        """
+        if t.kind != "cs" or t.gen != 0:
+            return False
+        end = -1
+        if t.text == "begin":
+            env, close_t, consumed = self._env_name(src)
+            if env == "document":
+                end = close_t.pos[2]
+            else:
+                src.unread(consumed)
+                self._cover_to(fid, b)
+                return True
+        else:
+            m = self._resolve_macro(src, t.text)
+            if (
+                getattr(m, "kind", "") == "env_begin"
+                and getattr(m, "target_env", "").rstrip("*") == "document"
+            ):
+                end = b
+        if end < 0:
+            return False
+        self._cover_to(fid, end)
+        start = self.pieces[-1].span.end if self.pieces else 0
+        self._emit(start, len(self.vt))
+        self._preamble = False
+        self._doc_opened = True
+        return True
 
     @staticmethod
     def _tok_surface(t: Tok) -> str:
@@ -2217,10 +2297,26 @@ class Segmenter:
             return
         if t.kind == "lbrace":
             self._scope_push(src)
+            self._run_brace += 1
             self._rappend_tok(t)
             return
         if t.kind == "rbrace":
-            self._rappend_tok(t)
+            if self._run_brace > 0:
+                self._run_brace -= 1
+                self._rappend_tok(t)
+            elif not any(it.surface.strip() for it in self._run):
+                # 孤立 } 落在 run 头——配对 { 已被冲刷成字面/消费
+                # （{\let\gl\relax}Body 族）：盖字面不进 run。否则 chunk
+                # 头孤 } 被 LLM 丢改 → 下游花括失衡（L0 只管 [[ph]]
+                # 不管裸括号，F11）。run 中段孤 }（配对 { 在先前
+                # piece/chunk，eol_par 跨组切分等）留 run 保分段——
+                # 两侧不平衡是跨 piece 配对的既有面
+                self._cover_gap(fid, t.pos[1])
+                vspan = self._cover_to(fid, b)
+                self._flush_run(vspan.start)
+                self._emit(vspan.start, vspan.end)
+            else:
+                self._rappend_tok(t)
             self._scope_pop(src)
             return
         # letter/other/space/active/param/杂项 → run
@@ -2595,6 +2691,8 @@ class Segmenter:
                 return
         else:
             env, close_t = m.target_env, t
+        if env == "document":
+            self._doc_opened = True  # 防中段 \documentclass 重入 preamble 档
         reg = self.state.macros.lookup_env(env)
         # 环境表未命中且族表全不知 → argspec env 条目：body_role 决定体路由
         # （verbatim/math/protect 走同名路径；text 落下方透明尾）。族表已
@@ -3446,7 +3544,7 @@ class Segmenter:
                     src.unread([*pulled, x])
                     out.append(_ArgTok(fid, end, end, end, end, spec=s))
             elif s.kind == "t" and s.delim:
-                if x.text == s.delim[0]:
+                if x.kind != "cs" and x.text == s.delim[0]:
                     out.append(
                         _ArgTok(
                             fid,
@@ -3465,7 +3563,7 @@ class Segmenter:
                     out.append(_ArgTok(fid, end, end, end, end, spec=s))
             elif s.kind in ("d", "D", "r", "R") and s.delim:
                 op, cl = s.delim[0], s.delim[-1]
-                if x.text != op:
+                if x.kind == "cs" or x.text != op:
                     src.unread([*pulled, x])
                     if s.kind in ("r", "R"):
                         break  # 定界强制缺失 → 参数不匹配，停读
@@ -3479,7 +3577,7 @@ class Segmenter:
                     if y is None:
                         break
                     dtoks.append(y)
-                    if y.text == cl:
+                    if y.kind != "cs" and y.text == cl:
                         closer = y
                         break
                     inner.append(y)
@@ -3765,13 +3863,13 @@ class Segmenter:
         spec_str, tidx = CHUNK_ARG_SPEC.get(name, ("om", 1))
         spec = _chunk_spec_cached(spec_str)
         args, _end = self._args_tok(src, fid, spec, b, allow_single_token=True)
-        # 可译参数：spec 位序取 tidx，越界退最后实参（零宽缺省参不算）
-        real = [a for a in args if a.fe > a.fs]
+        # 可译参数 = spec 位序 tidx 实参；位空即 bail——不退 ``real[-1]``：
+        # ``\captionof{figure}`` 的末实参是类型名（slot0）不是可译槽，
+        # ``\section[opt]`` 缺 ``{arg}`` 时末实参是可选参——两者翻译成
+        # ``\captionof{译文}``/``\section{译文}`` 都是错体（S4）
         target: _ArgTok | None = None
         if tidx < len(args) and args[tidx].fe > args[tidx].fs:
             target = args[tidx]
-        elif real:
-            target = real[-1]
         if target is not None and self.gen >= MAX_GEN:
             self.state.warnings.append(
                 ScanWarning("gen_overflow", len(self.vt), f"chunk:{name}")
@@ -3859,7 +3957,13 @@ class Segmenter:
         return parts
 
     def _handle_protect_block(self, t: Tok, src: TokenSource) -> None:
-        r"""``\author[opt]{..}`` 整块保护 → ``[[AUTHOR]]``（v1 row12）。"""
+        r"""``\author[opt]{..}`` 整块保护 → ``[[AUTHOR]]``（v1 row12）。
+
+        ``{arg}`` 未跟随时 abort：``end`` 恒停在 ``b``（只护 ``\author``
+        本体，v1 :885 同规）——``[opt]`` 段回放主流重扫。若把 ``[opt]``
+        盖进 ph 体而 token 又回放，同段字节既受保护又进 run surface →
+        译文双份（S2）。
+        """
         fid, _a, b = t.pos
         end = b
         pulled: list[Tok] = []
@@ -3869,7 +3973,6 @@ class Segmenter:
             hit = self._collect_group(src, x, brace=False)
             if hit is not None:
                 inner, closer = hit
-                end = closer.pos[2]
                 opt_toks = [*pulled, x, *inner, closer]
                 pulled.clear()
                 x = self._peek_nonspace(src, pulled)
@@ -4472,14 +4575,9 @@ def scan_v2(g: Gullet) -> ScanResult:
         inputs=[],
         warnings=[],
     )
-    if g.file_texts:
-        # 源文自带 [[X_n]] 形字面 → 签发避让（v1 parse_tex 同检）
-        reserved = PH_RX.findall(g.file_texts[0])
-        if reserved:
-            state.ph_reserved.update(reserved)
-            state.warnings.append(
-                ScanWarning("ph_collision", 0, f"{len(reserved)} 处 [[X_n]] 形字面")
-            )
+    # 源文自带 [[X_n]] 形字面 → 签发避让（v1 parse_tex 同检）：采样在
+    # ``Segmenter.scan`` 主循环按 file_texts 懒增长增量进行——fid-0 与
+    # ``\input`` 后进栈的子文件同规（先签发后加载的碰撞只剩告警）。
     seg = Segmenter(state)
     seg.scan(
         g,
