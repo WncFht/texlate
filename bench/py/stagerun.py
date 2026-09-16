@@ -99,6 +99,7 @@ from texlate.compile.inject import (
 from texlate.compile.normalize import normalize_project
 from texlate.latex.api import parse_file
 from texlate.latex.placeholder import PH_RX
+from texlate.latex.prose import file_has_prose
 from texlate.latex.reconstruct import reconstruct
 from texlate.validate.l0 import validate_pair
 from texlate.xlat.client import ChatClient
@@ -621,13 +622,20 @@ async def _translate_tree(
     scans = []
     chunks = []
     parse_fail: list[str] = []
+    support_files: list[str] = []
     for f in sorted(root.rglob("*.tex")):
         if f.name.startswith(".") or f.name.endswith(".rtx.tex"):
             continue  # 隐文件 + REVTeX 运行时转储不进翻译集 (regress4-1003.1717)
+        if f.name.lower().endswith(".code.tex"):
+            support_files.append(f.name)  # tikzlibrary 机制件硬抛 (e2e._scan_tree 同径)
+            continue
         try:
             res = parse_file(f, flatten=False)
         except Exception as e:
             parse_fail.append(f"{f.relative_to(root)}: {e!r:.120}")
+            continue
+        if not file_has_prose(res.chunks):
+            support_files.append(f.name)  # 无散文=support 件, 送译即腐蚀 (9bd8811 门)
             continue
         idx = len(scans)
         scans.append((f, res))
@@ -650,6 +658,7 @@ async def _translate_tree(
                 "batched": 0,
                 "leftover_ph": 0,
                 "parse_fail": parse_fail,
+                "support_skipped": len(support_files),
                 "warn_kinds": {},
                 "seconds": 0.0,
                 "src_chars": total_chars,
@@ -712,6 +721,7 @@ async def _translate_tree(
         **stats,
         "leftover_ph": n_leftover,
         "parse_fail": parse_fail,
+        "support_skipped": len(support_files),
         "warn_kinds": dict(sorted(warn_kinds.items())),
         "seconds": round(translate_s, 1),
         "src_chars": total_chars,
