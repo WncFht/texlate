@@ -339,10 +339,9 @@ def analyze_pair(pair: dict, min_retention: float) -> dict:
 # ---------------------------------------------------------------- 对子来源
 def pairs_from_manifest(path: Path) -> list[dict]:
     pairs = []
-    for ln, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-        if not line.strip():
+    for ln, row in enumerate(benchlib.iter_jsonl(path), 1):
+        if not (row.get("a") and row.get("b")):
             continue
-        row = json.loads(line)
         a, b = Path(row["a"]), Path(row["b"])
         pairs.append(
             {

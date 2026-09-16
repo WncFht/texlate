@@ -644,11 +644,7 @@ F_MAP = {
 
 
 def report():
-    cases = [
-        json.loads(ln)
-        for ln in (OUT / "cases.jsonl").read_text().splitlines()
-        if ln.strip()
-    ]
+    cases = benchlib.read_jsonl(OUT / "cases.jsonl")
     cells_path = OUT / "cells.json"
     papers = {}
     if cells_path.exists():
@@ -955,9 +951,8 @@ def main():
     done = set()
     cases_path = OUT / "cases.jsonl"
     if cases_path.exists():
-        for ln in cases_path.read_text().splitlines():
-            if ln.strip():
-                c = json.loads(ln)
+        for c in benchlib.iter_jsonl(cases_path):
+            if c.get("paper_id"):
                 done.add(c["paper_id"])
     todo = [p for p in papers if p["id"] not in done]
     print(f"{len(todo)}/{len(papers)} papers to run, jobs={args.jobs}", flush=True)

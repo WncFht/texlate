@@ -1060,11 +1060,7 @@ def main() -> None:
     t0 = time.perf_counter()
 
     if args.replay:
-        cases = [
-            json.loads(line)
-            for line in args.replay.read_text(encoding="utf-8").splitlines()
-            if line.strip()
-        ]
+        cases = benchlib.read_jsonl(args.replay)
         gen_stats = {
             "papers_seen": len({c["paper"] for c in cases}),
             "papers_used": len({c["paper"] for c in cases}),

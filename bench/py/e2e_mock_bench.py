@@ -772,6 +772,19 @@ def write_reports(results: dict, out_dir: Path, corpus_name: str = "corpus39") -
     (out_dir / "summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def seed_results(rec_path: Path, out_path: Path) -> dict:
+    """records.jsonl append 账优先（行在=done 末行胜）；账空（不存在/全坏行）
+    → results.json 快照兜底；快照也坏 → 空。"""
+    results = benchlib.load_records(rec_path) if rec_path.exists() else {}
+    if not results and out_path.exists():
+        try:
+            loaded = json.loads(out_path.read_text())
+        except (OSError, json.JSONDecodeError):
+            loaded = {}
+        results = loaded if isinstance(loaded, dict) else {}
+    return results
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", default=None, help="substring filter on project id")
@@ -813,11 +826,7 @@ def main() -> None:
     rec_path = out_dir / "records.jsonl"
     # records.jsonl 是 append 真账（行在=done，末行胜）；results.json 为
     # 兼容旧 run 目录的兜底种子 + 逐篇快照。
-    results = (
-        benchlib.load_records(rec_path)
-        if rec_path.exists()
-        else (json.loads(out_path.read_text()) if out_path.exists() else {})
-    )
+    results = seed_results(rec_path, out_path)
 
     projects = list_projects(corpus, layers)
     if args.ids:
@@ -846,13 +855,22 @@ def main() -> None:
         if args.limit is not None and idx >= args.limit:
             break
         print(f"===== [{idx}/{len(projects)}] {rel} conds={conditions}", flush=True)
-        rec = run_project(rel, conditions, args.timeout, corpus, work)
-        if rel in results:
-            results[rel].update(rec)
-        else:
-            results[rel] = rec
+        try:
+            rec = run_project(rel, conditions, args.timeout, corpus, work)
+        except Exception as e:
+            # 单篇崩不炸整批（e2e_real bench_error 同口径）
+            rec = {"id": rel, "status": "bench_error", "error": repr(e)[:400]}
+        merged = results.get(rel) or {}
+        merged.update(rec)
+        if "status" not in rec:
+            # 成功 rec 无顶格 status——清掉上次 bench_error 残键防粘滞
+            merged.pop("status", None)
+            merged.pop("error", None)
+        results[rel] = merged
         benchlib.append_jsonl(rec_path, results[rel])
-        out_path.write_text(json.dumps(results, ensure_ascii=False, indent=1))
+        benchlib.atomic_write_text(
+            out_path, json.dumps(results, ensure_ascii=False, indent=1)
+        )
         write_reports(results, out_dir, corpus.name)
         stat = {c: _status(rec, c) for c in conditions}
         print(f"  -> {stat}", flush=True)

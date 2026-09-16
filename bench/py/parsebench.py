@@ -654,7 +654,9 @@ def aggregate(files: list[dict]) -> dict:
     warn: dict[str, int] = {}
     lens: list[int] = []
     for f in meas:
-        recon[f["identity"]] += 1
+        ident = f.get("identity")
+        if ident in recon:
+            recon[ident] += 1
         lk = f["leak"]
         chunks += lk["n_translatable"]
         leaked += lk["n_leaked"]

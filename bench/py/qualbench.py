@@ -485,7 +485,10 @@ async def call_judge(
                 payload = resp.json()
             except json.JSONDecodeError:
                 return {"error": f"non-JSON body: {resp.text[:160]}", "seconds": dt}
-            ch = (payload.get("choices") or [{}])[0]
+            choices = payload.get("choices")
+            ch = choices[0] if isinstance(choices, list) and choices else {}
+            if not isinstance(ch, dict):
+                ch = {}
             content = (ch.get("message") or {}).get("content") or ""
             usage = payload.get("usage") or {}
             return {

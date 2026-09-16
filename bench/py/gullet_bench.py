@@ -105,7 +105,12 @@ def run_doc(ext: Path, arxiv_id: str) -> dict:
     g2 = Measured()
     g2.unread(toks)
     t0 = time.perf_counter()
-    toks2 = g2.expand_all()
+    try:
+        toks2 = g2.expand_all()
+    except Exception as e:
+        row["fp_ms"] = (time.perf_counter() - t0) * 1000
+        row["fp"] = f"refeed_err:{e!r}"
+        return row
     row["fp_ms"] = (time.perf_counter() - t0) * 1000
     row["fp_steps"] = g2.steps
     if len(toks2) != len(toks):

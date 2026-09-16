@@ -66,7 +66,13 @@ LAMBDA = 1.0  # 故障偏向强度: 0=纯比例, 1=按 rel 故障率线性增减
 REUSE_FRAC = 0.3  # 每 cell 配额中优先从旧池（已扫未选）取的比例上限
 POOL_MARGIN = 1.5  # 新池规模安全系数（join_miss/dup/cell 短收）
 MIN_ITEMS_PER_BAND = 3  # 每带至少扫几个 item 摊月份
-RAW_NAME = {"tar": "raw.tar.gz", "gz": "raw.gz", "pdf": "raw.pdf", "stub": "raw.stub"}
+RAW_NAME = {
+    "tar": "raw.tar.gz",
+    "gz": "raw.gz",
+    "pdf": "raw.pdf",
+    "stub": "raw.stub",
+    "error": "raw.bin",
+}
 
 log = b3.log
 
@@ -102,7 +108,9 @@ def load_plan() -> dict:
 
 
 def save_plan(plan: dict) -> None:
-    PLAN_JSON.write_text(json.dumps(plan, indent=1, ensure_ascii=False) + "\n")
+    benchlib.atomic_write_text(
+        PLAN_JSON, json.dumps(plan, indent=1, ensure_ascii=False) + "\n"
+    )
 
 
 def existing_ids() -> set[str]:
@@ -128,7 +136,10 @@ def frame_filter(pool_ids: set[str]) -> dict[str, dict]:
         for line in f:
             pid = line.split("\t", 1)[0]
             if pid in pool_ids:
-                i, ty, yb, cg, pc, lc = line.rstrip("\n").split("\t")
+                parts = line.rstrip("\n").split("\t")
+                if len(parts) < 6:
+                    continue
+                i, ty, yb, cg, pc, lc = parts[:6]
                 lut[i] = {
                     "tar_yymm": ty,
                     "year_band": yb,
@@ -209,7 +220,7 @@ def chunk_yield_by_band() -> dict[str, float]:
         c = tag2chunk.get(fp.stem)
         if c is None:
             continue
-        n = sum(1 for ln in open(fp) if b3.eligible(json.loads(ln)))
+        n = sum(1 for r in benchlib.iter_jsonl(fp) if b3.eligible(r))
         by_band[band_of_yymm(c["yymm"])].append(n)
     return {b: sum(v) / len(v) for b, v in by_band.items()}
 
@@ -430,7 +441,9 @@ def scan_item(it: dict) -> str:
     fjsonl = EFEATURES / f"{item}.jsonl"
     mjsonl = EMEMBERS / f"{item}.jsonl"
     done_members = (
-        {json.loads(ln)["member"] for ln in open(fjsonl)} if fjsonl.exists() else set()
+        {r["member"] for r in benchlib.iter_jsonl(fjsonl) if r.get("member")}
+        if fjsonl.exists()
+        else set()
     )
     tar_path = download_item(it, ETARS)
     n = len(done_members)
@@ -516,8 +529,7 @@ def select_members(args: argparse.Namespace) -> list[dict]:
     new_files = sorted(EFEATURES.glob("*.jsonl"))
     cand: dict[str, dict] = {}
     for fp in old_files + new_files:
-        for ln in open(fp):
-            f = json.loads(ln)
+        for f in benchlib.iter_jsonl(fp):
             if b3.eligible(f) and f["id"] not in excl:
                 cand[f["id"]] = f  # id 去重: 同 id 后记录覆盖
     lut = frame_filter(set(cand))
@@ -564,7 +576,9 @@ def select_members(args: argparse.Namespace) -> list[dict]:
             "new_avail": len(n),
             "deficit": short,
         }
-    (EXP / "select_stats.json").write_text(json.dumps(stats, indent=1))
+    benchlib.atomic_write_text(
+        EXP / "select_stats.json", json.dumps(stats, indent=1)
+    )
     n_def = sum(s["deficit"] for s in stats.values())
     log(f"select: {len(sel)} picks, deficit {n_def} (明细 select_stats.json)")
     return sel
@@ -578,8 +592,7 @@ def offsets_for(item: str, tag_of_item: dict[str, str]) -> dict[str, tuple[int, 
     if not p.exists() and item in tag_of_item:
         p = WORK / "members" / f"{tag_of_item[item]}.jsonl"
     if p.exists():
-        for ln in open(p):
-            r = json.loads(ln)
+        for r in benchlib.iter_jsonl(p):
             out[r["name"]] = (r.get("offset", r.get("offset_data")), r["size"])
     return out
 
@@ -696,16 +709,59 @@ def materialize(rec: dict, blob: bytes, sha: str) -> dict:
     }
 
 
+def manifest_row_from_meta(dest: Path) -> dict | None:
+    """meta.json → manifest 行（截尾回补：materialize 写盘与 manifest append
+    之间崩了会留下 extracted 树但无 manifest 行）。"""
+    try:
+        meta = json.loads((dest / "meta.json").read_text())
+    except Exception:
+        return None
+    roots = (meta.get("features") or {}).get("tex_roots") or []
+    main_sha = None
+    if len(roots) == 1:
+        mp = dest / "extracted" / roots[0]
+        if mp.exists():
+            main_sha = hashlib.sha256(mp.read_bytes()).hexdigest()
+    return {
+        "id": meta.get("arxiv_id") or dest.name,
+        "era": meta.get("era"),
+        "archive": meta.get("archive"),
+        "yymm": meta.get("yymm"),
+        "cluster_id": meta.get("cluster_id"),
+        "layer": meta.get("layer") or "expand",
+        "channel": meta.get("channel"),
+        "item": meta.get("item"),
+        "member": meta.get("member"),
+        "blob_sha256": meta.get("raw_sha256"),
+        "main_tex_sha256": main_sha,
+        "stratum_cell": meta.get("stratum_cell"),
+        "cat_group": meta.get("cat_group"),
+        "license_class": meta.get("license_class"),
+        "format": meta.get("format"),
+        "n_files": meta.get("n_files"),
+        "n_tex": meta.get("tex_files"),
+        "bytes": meta.get("bytes"),
+        "pick_reason": meta.get("pick_reason"),
+        "pool": meta.get("pool"),
+    }
+
+
 def cmd_extract(args: argparse.Namespace) -> None:
     EXP.mkdir(parents=True, exist_ok=True)
     sel = select_members(args)
     if args.limit:
         sel = sel[: args.limit]
     done = {r["id"] for r in benchlib.read_jsonl(MANIFEST_OUT)}
-    # meta.json 在而 manifest 缺的（截尾场景）→ 视为已完成不重复抓取
+    # meta.json 在而 manifest 缺的（截尾场景）→ 从 meta.json 回补 manifest 行；
+    # meta 不可解析则不标 done，走重抓自愈（materialize 重写 meta+行）
     for rec in sel:
-        if rec["id"] not in done and (CORPUS / rec["id"] / "meta.json").exists():
-            done.add(rec["id"])
+        if rec["id"] in done or not (CORPUS / rec["id"] / "meta.json").exists():
+            continue
+        row = manifest_row_from_meta(CORPUS / rec["id"])
+        if row is None:
+            continue
+        benchlib.append_jsonl(MANIFEST_OUT, row)
+        done.add(rec["id"])
     todo = [r for r in sel if r["id"] not in done]
     old_items = {c["item"] for c in b3.load_chunks()}
     tag_of_item = {

@@ -239,15 +239,11 @@ def cmd_fetch(args: argparse.Namespace) -> None:
     """候选 → acquire_source → corpus_v3/{id}/ + manifest_hot.jsonl（可重入续跑）。"""
     if not CANDIDATES.exists():
         sys.exit("先跑 candidates 子命令")
-    cands = [
-        json.loads(line) for line in CANDIDATES.read_text().splitlines() if line.strip()
-    ]
+    cands = benchlib.read_jsonl(CANDIDATES)
     done_ids = set()
     if MANIFEST_HOT.exists():
         done_ids = {
-            json.loads(line)["id"]
-            for line in MANIFEST_HOT.read_text().splitlines()
-            if line.strip()
+            r["id"] for r in benchlib.iter_jsonl(MANIFEST_HOT) if r.get("id")
         }
 
     fetcher = Fetcher()
@@ -256,8 +252,27 @@ def cmd_fetch(args: argparse.Namespace) -> None:
     with MANIFEST_HOT.open("a", encoding="utf-8") as mf:
         for cand in cands:
             pid = cand["id"]
-            if pid in done_ids or (CORPUS / pid / "extracted").is_dir():
+            if pid in done_ids:
                 continue
+            if (CORPUS / pid / "extracted").is_dir():
+                # 上次崩在 copytree~manifest append 之间：meta 在 → 回补
+                # manifest 行；meta 缺/坏 → 树不完整，落回重抓自愈
+                try:
+                    meta = json.loads(
+                        (CORPUS / pid / "meta.json").read_text(encoding="utf-8")
+                    )
+                    mf.write(
+                        json.dumps(
+                            _manifest_row(cand, meta, CORPUS / pid),
+                            ensure_ascii=False,
+                        )
+                        + "\n"
+                    )
+                    mf.flush()
+                    done_ids.add(pid)
+                    continue
+                except (OSError, json.JSONDecodeError):
+                    pass
             if n_new >= args.limit:
                 log(f"limit {args.limit} reached — 明日续跑（预算护栏）")
                 break
@@ -301,11 +316,7 @@ def cmd_fetch(args: argparse.Namespace) -> None:
 
 
 def cmd_report(_args: argparse.Namespace) -> None:
-    rows = [
-        json.loads(line)
-        for line in MANIFEST_HOT.read_text().splitlines()
-        if line.strip()
-    ]
+    rows = benchlib.read_jsonl(MANIFEST_HOT)
     from collections import Counter
 
     strata = Counter(r["pick_reason"] for r in rows)

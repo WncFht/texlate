@@ -38,7 +38,16 @@ RULES_YAML = REPO / "src/texlate/compile/fixloop/rules.yaml"
 
 # 记录状态词汇: ok 系不出票; skip 系(上游断/policy 拒)不计入 attempted。
 OK_STATUS = {"ok", "clean", "done"}
-SKIP_STATUS = {"skip", "skipped", "reject", "rejected", "upstream_fail"}
+SKIP_STATUS = {
+    "skip",
+    "skipped",
+    "reject",
+    "rejected",
+    "upstream_fail",
+    # e2e_real 旧账遗留词（LEGACY_ARM_MAP 流入 triage 同口径）
+    "skipped_oversize",
+    "bench_error",
+}
 # fixloop 救援成功的终态 (含带伤出 pdf)。
 RESCUED_STATUS = {
     "ok",
@@ -562,10 +571,13 @@ def compute_metrics(results_dir, recs, prev_line):
             by_id.setdefault(str(r.get("id")), {})[str(r.get("arm") or "default")] = (
                 str(r.get("status") or "")
             )
+    # zh 侧 skip/reject（上游门/政策拒）与 error（harness 崩）不算管线引入缺陷
     pipe = sorted(
         i
         for i, a in by_id.items()
-        if a.get("zh") and a["zh"] not in OK_STATUS and a.get("base") in OK_STATUS
+        if a.get("zh")
+        and a["zh"] not in OK_STATUS | SKIP_STATUS | {"error"}
+        and a.get("base") in OK_STATUS
     )
     regs += [
         {"kind": "pipeline_introduced", "stage": "compile", "id": i}

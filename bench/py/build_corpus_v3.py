@@ -88,7 +88,7 @@ def load_chunks() -> list[dict]:
 
 
 def save_chunks(chunks: list[dict]) -> None:
-    CHUNKS_JSON.write_text(json.dumps(chunks, indent=1) + "\n")
+    benchlib.atomic_write_text(CHUNKS_JSON, json.dumps(chunks, indent=1) + "\n")
 
 
 def open_url(url: str, headers: dict | None = None, timeout: int = TIMEOUT):
@@ -233,14 +233,18 @@ def fetch_one(c: dict) -> dict:
     final = TARS / f"{c['item']}.tar"
     try:
         # 快路: .tar 已在盘上且尺寸对 → 直接进校验 (状态文件被并发写乱时的自愈)
-        have = (
-            part.stat().st_size
-            if part.exists()
-            else final.stat().st_size
-            if final.exists()
-            else 0
-        )
-        src = part if part.exists() else final
+        if part.exists():
+            have = part.stat().st_size
+            src = part
+        elif final.exists():
+            if final.stat().st_size == c["size"]:
+                have, src = c["size"], final
+            else:
+                # final 只经 verify 后 rename 而来——尺寸不对即腐文件, 重抓
+                final.unlink()
+                have, src = 0, part
+        else:
+            have, src = 0, part
         if have > c["size"]:
             part.unlink(missing_ok=True)
             final.unlink(missing_ok=True)
@@ -719,7 +723,10 @@ def load_frame_lookup() -> dict[str, dict]:
     lut = {}
     with gzip.open(path, "rt") as f:
         for line in f:
-            i, ty, yb, cg, pc, lc = line.rstrip("\n").split("\t")
+            parts = line.rstrip("\n").split("\t")
+            if len(parts) < 6:
+                continue
+            i, ty, yb, cg, pc, lc = parts[:6]
             lut[i] = {
                 "tar_yymm": ty,
                 "year_band": yb,
@@ -764,8 +771,7 @@ def cmd_sample() -> None:
         fp = WORK / "features" / f"{tag}.jsonl"
         if not fp.exists():
             continue
-        for line in open(fp):
-            rec = json.loads(line)
+        for rec in benchlib.iter_jsonl(fp):
             rec["_tag"] = tag
             feats_by_cluster.setdefault(c["cluster_id"], []).append(rec)
 
@@ -1029,8 +1035,10 @@ def cmd_extract() -> None:
                 "cluster_id": cid,
             }
     for tag, members_wanted in wanted.items():
-        for line in open(WORK / "features" / f"{tag}.jsonl"):
-            f = json.loads(line)
+        fp = WORK / "features" / f"{tag}.jsonl"
+        if not fp.exists():
+            continue
+        for f in benchlib.iter_jsonl(fp):
             if f["member"] in members_wanted:
                 feat_lut[f["member"]] = f
 
@@ -1130,8 +1138,9 @@ def cmd_extract() -> None:
                 )
         log(f"extract {tag}: {len(members)} members -> corpus_v3")
 
-    (CORPUS / "manifest.jsonl").write_text(
-        "\n".join(json.dumps(r, ensure_ascii=False) for r in manifest) + "\n"
+    benchlib.atomic_write_text(
+        CORPUS / "manifest.jsonl",
+        "\n".join(json.dumps(r, ensure_ascii=False) for r in manifest) + "\n",
     )
     write_manifest_md(manifest)
     log(f"extract done: {len(manifest)} papers -> {CORPUS}")
@@ -1194,13 +1203,12 @@ def cmd_extract_booster() -> None:
     """
     CORPUS.mkdir(exist_ok=True)
     load_allocation()
-    sel = [json.loads(ln) for ln in open(CORPUS / "booster_selection.jsonl")]
-    want = {s["id"]: s for s in sel}
+    sel = benchlib.read_jsonl(CORPUS / "booster_selection.jsonl")
+    want = {s["id"]: s for s in sel if s.get("id")}
     feat: dict[str, dict] = {}
     for ff in sorted((WORK / "features").glob("*.jsonl")):
-        for line in ff.open():
-            f = json.loads(line)
-            if f["id"] in want:
+        for f in benchlib.iter_jsonl(ff):
+            if f.get("id") in want:
                 feat[f["id"]] = f
     for pid in sorted(set(want) - set(feat)):
         log(f"!! {pid} 无 features 记录（member 定位失败——跳过）")
@@ -1233,7 +1241,7 @@ def cmd_extract_booster() -> None:
                     "gz": "raw.gz",
                     "pdf": "raw.pdf",
                     "stub": "raw.stub",
-                }[fmt]
+                }.get(fmt, "raw.bin")
                 (dest / raw_name).write_bytes(blob)
                 n_ext, warns = (0, [])
                 if fmt in ("tar", "gz"):
@@ -1319,8 +1327,8 @@ def cmd_extract_booster() -> None:
         log(f"extract_booster {item}: {len(members)} members -> corpus_v3")
 
     out = CORPUS / "manifest_booster.jsonl"
-    out.write_text(
-        "\n".join(json.dumps(r, ensure_ascii=False) for r in manifest) + "\n"
+    benchlib.atomic_write_text(
+        out, "\n".join(json.dumps(r, ensure_ascii=False) for r in manifest) + "\n"
     )
     log(f"extract_booster done: {len(manifest)} papers -> {CORPUS}")
 

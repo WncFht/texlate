@@ -33,6 +33,8 @@ from collections import Counter
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import benchlib
+
 from texlate import e2e
 from texlate.compile.engine import CompRes
 from texlate.latex.api import parse_file
@@ -102,7 +104,7 @@ def _build_run(aid: str, work: Path) -> tuple[e2e._TreeRun | None, dict]:
             continue
         if chunk.content == r.get("source"):
             matched += 1
-            if r.get("status") == "ok":
+            if r.get("status") == "ok" and r.get("translation") is not None:
                 trans.setdefault(fidx, {})[cid] = r["translation"]
         else:
             drift_examples.append(r.get("chunk_id") or "?")
@@ -201,50 +203,49 @@ def main() -> int:
         cases.append((aid, pv.get("status"), v.get("main") or "main.tex"))
 
     OUT.mkdir(parents=True, exist_ok=True)
-    rows_out = (OUT / "probe.jsonl").open("w", encoding="utf-8")
-    cases_out = (OUT / "cases.jsonl").open("w", encoding="utf-8")
     oc = Counter()
     per_case = []
 
-    for aid, status, main in cases:
-        work = WORK / aid
-        log = work / (Path(main).stem + ".log")
-        case = {"id": aid, "status": status, "main": main}
-        if not log.exists():
-            case["drop"] = "no_log"
-            per_case.append(case)
-            cases_out.write(json.dumps(case, ensure_ascii=False) + "\n")
-            continue
-        run, info = _build_run(aid, work)
-        case.update(info)
-        if run is None or info["align_ratio"] < ALIGN_MIN:
-            case["drop"] = "drift" if run is not None else info.get("drop")
-            per_case.append(case)
-            cases_out.write(json.dumps(case, ensure_ascii=False) + "\n")
-            continue
+    with (
+        (OUT / "probe.jsonl").open("w", encoding="utf-8") as rows_out,
+        (OUT / "cases.jsonl").open("w", encoding="utf-8") as cases_out,
+    ):
+        for aid, status, main in cases:
+            work = WORK / aid
+            log = work / (Path(main).stem + ".log")
+            case = {"id": aid, "status": status, "main": main}
+            if not log.exists():
+                case["drop"] = "no_log"
+                per_case.append(case)
+                benchlib.write_jsonl(cases_out, case)
+                continue
+            run, info = _build_run(aid, work)
+            case.update(info)
+            if run is None or info["align_ratio"] < ALIGN_MIN:
+                case["drop"] = "drift" if run is not None else info.get("drop")
+                per_case.append(case)
+                benchlib.write_jsonl(cases_out, case)
+                continue
 
-        res_c = CompRes(engine="xelatex", ok=False, log_path=log)
-        verdict = e2e._l2_parse(res_c)
-        case["n_errors"] = verdict.n_errors
-        st = e2e._L2Attr(run, work)
-        n_hits = 0
-        for err in verdict.errors[: e2e._L2_MAX_ERRORS]:
-            row = _classify_error(st, err, work)
-            row["case"] = aid
-            row["verdict"] = status
-            rows_out.write(json.dumps(row, ensure_ascii=False) + "\n")
-            oc[row["outcome"]] += 1
-            if row["outcome"] in ("in_span", "window", "file_level"):
-                n_hits += 1
-        case["attributed"] = n_hits
-        case["dropped_spans"] = sum(
-            sum(1 for v in st.spans[i].values() if v is None) for i in st.spans
-        )
-        per_case.append(case)
-        cases_out.write(json.dumps(case, ensure_ascii=False) + "\n")
-
-    rows_out.close()
-    cases_out.close()
+            res_c = CompRes(engine="xelatex", ok=False, log_path=log)
+            verdict = e2e._l2_parse(res_c)
+            case["n_errors"] = verdict.n_errors
+            st = e2e._L2Attr(run, work)
+            n_hits = 0
+            for err in verdict.errors[: e2e._L2_MAX_ERRORS]:
+                row = _classify_error(st, err, work)
+                row["case"] = aid
+                row["verdict"] = status
+                benchlib.write_jsonl(rows_out, row)
+                oc[row["outcome"]] += 1
+                if row["outcome"] in ("in_span", "window", "file_level"):
+                    n_hits += 1
+            case["attributed"] = n_hits
+            case["dropped_spans"] = sum(
+                sum(1 for v in st.spans[i].values() if v is None) for i in st.spans
+            )
+            per_case.append(case)
+            benchlib.write_jsonl(cases_out, case)
 
     summary = {
         "cases_total": len(cases),

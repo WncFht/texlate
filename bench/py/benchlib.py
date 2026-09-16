@@ -85,6 +85,13 @@ def append_jsonl(path: Path, rec: dict) -> None:
         write_jsonl(fh, rec)
 
 
+def atomic_write_text(path: Path, text: str) -> None:
+    """整文件写：同目录 .tmp 落盘后 replace——截尾只留 .tmp 不伤旧文件。"""
+    tmp = path.with_name(f"{path.name}.tmp")
+    tmp.write_text(text, encoding="utf-8")
+    tmp.replace(path)
+
+
 def load_records(path: Path, key: str = "id") -> dict[str, dict]:
     """append 账 → {key: rec} 末行胜（rerun 重记同 id 自然覆盖）。"""
     out: dict[str, dict] = {}
@@ -145,6 +152,7 @@ def judge_dict(res, *, expect_cjk: bool) -> dict:
             "payload": v.payload,
             "cjk_chars": v.cjk_chars,
             "missing_chars": v.missing_chars,
+            "warnings_hit": v.warnings_hit,
         },
         "status": v.status,
     }

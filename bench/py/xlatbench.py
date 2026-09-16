@@ -339,12 +339,10 @@ def cmd_run(args: argparse.Namespace) -> None:
     outdir.mkdir(parents=True, exist_ok=True)
     done: set[tuple[str, int, str]] = set()
     if args.resume and (outdir / "results.jsonl").exists():
-        for line in (outdir / "results.jsonl").read_text().splitlines():
-            if line.strip():
-                r = json.loads(line)
-                # 只跳成功出译文的记录 —— http 错误/空响应留待补跑
-                if r.get("http") == 200 and r.get("content"):
-                    done.add((r["model"], r["run"], r["sample"]))
+        for r in benchlib.iter_jsonl(outdir / "results.jsonl"):
+            # 只跳成功出译文的记录 —— http 错误/空响应留待补跑
+            if r.get("http") == 200 and r.get("content"):
+                done.add((r["model"], r["run"], r["sample"]))
         print(f"resume: {len(done)} 已有结果将跳过")
     fp = (outdir / "results.jsonl").open("a")
     models = [m.strip() for m in args.models.split(",")]
@@ -400,11 +398,7 @@ def cmd_rejudge(args: argparse.Namespace) -> None:
     for d in args.dirs:
         src_f = Path(d) / "results.jsonl"
         out_f = Path(d) / "results.rejudged.jsonl"
-        recs = [
-            json.loads(line)
-            for line in src_f.read_text(encoding="utf-8").splitlines()
-            if line.strip()
-        ]
+        recs = benchlib.read_jsonl(src_f)
         per_model: dict[str, list[int]] = {}
         flips: list[str] = []
         with out_f.open("w", encoding="utf-8") as fp:
@@ -454,10 +448,7 @@ def aggregate(dirs: list[str]) -> tuple[dict[str, dict], list[dict]]:
     rows: dict[str, dict] = {}
     fails: list[dict] = []
     for d in dirs:
-        for line in (Path(d) / "results.jsonl").read_text().splitlines():
-            if not line.strip():
-                continue
-            r = json.loads(line)
+        for r in benchlib.iter_jsonl(Path(d) / "results.jsonl"):
             m = r["model"]
             st = rows.setdefault(
                 m,

@@ -464,11 +464,7 @@ def write_run_meta(args, engines, phase):
 
 
 def report(args):
-    cases = [
-        json.loads(ln)
-        for ln in (args.out / "cases.jsonl").read_text().splitlines()
-        if ln.strip()
-    ]
+    cases = benchlib.read_jsonl(args.out / "cases.jsonl")
     cells_path = args.out / "cells.json"
     papers = {}
     if cells_path.exists():
@@ -540,11 +536,13 @@ def report(args):
             f"{ncl / n * 100:.1f}% | {npdf / n * 100:.1f}% |"
         )
     lines.append("")
+    pdf_pct = len(pdf_by_id) / n_papers * 100 if n_papers else 0.0
+    clean_pct = len(clean_by_id) / n_papers * 100 if n_papers else 0.0
     lines.append(
         f"联合覆盖: 任一引擎出 pdf {len(pdf_by_id)}/{n_papers} "
-        f"({len(pdf_by_id) / n_papers * 100:.1f}%); "
+        f"({pdf_pct:.1f}%); "
         f"任一引擎 clean {len(clean_by_id)}/{n_papers} "
-        f"({len(clean_by_id) / n_papers * 100:.1f}%); "
+        f"({clean_pct:.1f}%); "
         f"全引擎皆死 {n_papers - len(pdf_by_id)}"
     )
     lines.append("")
@@ -700,7 +698,7 @@ def report(args):
             for eng in engines:
                 r2 = list(v2_cases.get(eng, {}).values())
                 c3 = by_eng.get(eng, [])
-                if r2:
+                if r2 and c3:
                     v2cl = sum(1 for r in r2 if r.get("verdict") == "clean")
                     v2pdf = sum(1 for r in r2 if r.get("pdf"))
                     lines.append(
@@ -717,7 +715,7 @@ def report(args):
                     )
             lines.append(
                 f"| 联合pdf | — | {len(pdf_by_id)}/{n_papers} = "
-                f"{len(pdf_by_id) / n_papers * 100:.1f}% |"
+                f"{pdf_pct:.1f}% |"
             )
             lines.append("")
         except Exception as e:
@@ -742,8 +740,8 @@ def report(args):
             f"top FAIL: {', '.join(f'{k}×{v}' for k, v in top) or '—'}"
         )
     lines.append(
-        f"- 联合天花板: 任一引擎 pdf {len(pdf_by_id) / n_papers * 100:.1f}%, "
-        f"clean {len(clean_by_id) / n_papers * 100:.1f}% —— "
+        f"- 联合天花板: 任一引擎 pdf {pdf_pct:.1f}%, "
+        f"clean {clean_pct:.1f}% —— "
         "fixloop+路由+normalize 需要补的百分点即 90%−此值"
     )
     lines.append("")
@@ -840,10 +838,10 @@ def main():
     done = defaultdict(set)
     cases_path = args.out / "cases.jsonl"
     if cases_path.exists():
-        for ln in cases_path.read_text().splitlines():
-            if ln.strip():
-                c = json.loads(ln)
-                done[c["paper_id"]].add(c["engine"])
+        for c in benchlib.iter_jsonl(cases_path):
+            pid, eng = c.get("paper_id"), c.get("engine")
+            if pid and eng:
+                done[pid].add(eng)
     todo = [p for p in papers if set(engines) - done.get(p["id"], set())]
     print(f"{len(todo)}/{len(papers)} papers to run, jobs={args.jobs}", flush=True)
 
