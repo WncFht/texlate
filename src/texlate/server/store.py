@@ -539,25 +539,38 @@ class Store:
     # ------------------------------------------------------------ chunks
 
     def insert_chunks(self, task_id: str, rows: list[dict[str, Any]]) -> None:
-        """批量插 chunks（parsing 完成物证，§3.4.1）。"""
-        self.conn.executemany(
-            "INSERT INTO chunks (task_id, seq, chunk_id, src_file, byte_start,"
-            " byte_end, kind, src_text) VALUES (?,?,?,?,?,?,?,?)",
-            [
-                (
-                    task_id,
-                    r["seq"],
-                    r["chunk_id"],
-                    r["src_file"],
-                    r["byte_start"],
-                    r["byte_end"],
-                    r["kind"],
-                    r["src_text"],
-                )
-                for r in rows
-            ],
-        )
-        self.conn.commit()
+        """批量插 chunks（parsing 完成物证，§3.4.1）。
+
+        executemany 中途失败会留下未提交的隐式事务——下一个无关
+        ``commit()`` 会把半成品 chunks 静默落库（``has_chunks`` 误判
+        parsing 完成、resume 拿残缺块集跑翻译）。显式事务 + 失败
+        rollback，与 ``flush_chunk_batch`` 同口径。
+        """
+        conn = self.conn
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            conn.executemany(
+                "INSERT INTO chunks (task_id, seq, chunk_id, src_file,"
+                " byte_start, byte_end, kind, src_text)"
+                " VALUES (?,?,?,?,?,?,?,?)",
+                [
+                    (
+                        task_id,
+                        r["seq"],
+                        r["chunk_id"],
+                        r["src_file"],
+                        r["byte_start"],
+                        r["byte_end"],
+                        r["kind"],
+                        r["src_text"],
+                    )
+                    for r in rows
+                ],
+            )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
 
     def has_chunks(self, task_id: str) -> bool:
         """Chunks 有行 = parsing 已完成（断点跳过判据）。"""
@@ -755,6 +768,22 @@ class Store:
     def file_record(self, task_id: str, kind: str) -> dict[str, Any] | None:
         """单条产物记录。"""
         return self.files(task_id).get(kind)
+
+    def delete_file(self, task_id: str, kind: str) -> str | None:
+        """删产物登记行 → 被删行的 ``path``；无行返回 ``None``。
+
+        派生产物失效面（retry 换 main / splice 失效重建）摘行用——磁盘件
+        清理由调用方按返回 path 负责（``delete_task`` 同分工：表行与
+        ``tasks/{id}/`` 文件分两层）。
+        """
+        rec = self.file_record(task_id, kind)
+        if rec is None:
+            return None
+        self.conn.execute(
+            "DELETE FROM files WHERE task_id = ? AND kind = ?", (task_id, kind)
+        )
+        self.conn.commit()
+        return str(rec["path"])
 
     def tenant_usage(self, tenant: str) -> dict[str, int]:
         """租户配额用量：``{tasks, bytes}``——任务行数 + files.bytes 合计。"""

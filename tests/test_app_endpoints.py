@@ -760,20 +760,31 @@ class TestRetryEdges:
 
 
 def _write_dual(client: TestClient, tid: str, doc: dict) -> Path:
-    """tasks/{tid}/dual.json 直写（不跑 worker 的 reader 侧 fixture）。"""
+    """tasks/{tid}/dual.json 直写 + files 登记（不跑 worker 的 reader 侧 fixture）。
+
+    reader_get 以 ``dual_json`` 登记行为准——只落盘不登记即孤儿件 404。
+    """
     tdir = client.app.state.data_dir / "tasks" / tid
     tdir.mkdir(parents=True, exist_ok=True)
     p = tdir / "dual.json"
     p.write_text(json.dumps(doc), encoding="utf-8")
+    client.portal.call(
+        partial(
+            client.app.state.store.put_file,
+            tid,
+            "dual_json",
+            "dual.json",
+            data_dir=tdir,
+        )
+    )
     return p
 
 
 class TestReaderGet:
     def test_corrupted_dual_500(self, client: TestClient) -> None:
+        """已登记但磁盘件损坏 → 解析 500（未登记孤儿件 404 由 test_server_persist 钉）。"""
         tid = _mk(client)
-        tdir = client.app.state.data_dir / "tasks" / tid
-        tdir.mkdir(parents=True, exist_ok=True)
-        (tdir / "dual.json").write_bytes(b"{{{not json")
+        _reg_file(client, tid, "dual_json", "dual.json", b"{{{not json")
         r = client.get(f"/api/task/{tid}/reader")
         assert r.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
         assert r.json()["code"] == "internal"
@@ -781,9 +792,7 @@ class TestReaderGet:
     def test_dual_non_dict_500(self, client: TestClient) -> None:
         """dual.json 是合法 JSON 但顶层非 object → 结构化 500（非裸 AttributeError）。"""
         tid = _mk(client)
-        tdir = client.app.state.data_dir / "tasks" / tid
-        tdir.mkdir(parents=True, exist_ok=True)
-        (tdir / "dual.json").write_text('["not", "a", "dict"]', encoding="utf-8")
+        _reg_file(client, tid, "dual_json", "dual.json", b'["not", "a", "dict"]')
         r = client.get(f"/api/task/{tid}/reader")
         assert r.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
         assert r.json()["code"] == "internal"

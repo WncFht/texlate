@@ -214,6 +214,11 @@ _BAD_ZIP_NAME = re.compile(r"^(?:[a-zA-Z]:|/|\\)")
 #: 任务树内哨兵文件（断点恢复用，不进 zh-src.zip / fixloop 回灌）
 _SENTINELS = frozenset({".fetch-done", ".base-done", ".splice-done", ".compile-done"})
 
+#: splice 失效即作废的派生产物 kind——zh/ 及其下游（译文快照/编译物/
+#: 降级包）全随译文变更过期；en_pdf（base/ 编译）与 src_tar 不依赖
+#: chunks，保留
+_SPLICE_STALE_KINDS = ("zh_pdf", "zh_src_zip", "dual_json", "compile_log", "md_zip")
+
 #: probe diff 聚合行的列表截断上限（一条行不刷屏，超出记 +N）
 _PROBE_LIST_CAP = 8
 
@@ -1355,17 +1360,26 @@ class PipelineWorker:
     def _opt_int(
         self, ctx: TaskCtx, options: Mapping[str, Any], key: str, default: int
     ) -> int:
-        """``options[key]`` 容错 int：存量 options_json 可能残留非数值 → warning + 默认。"""
+        """``options[key]`` 容错 int：非数值 → warning + 默认；≤0 → warning + 钳 1。
+
+        存量 options_json 可残留非法值（早于 ``_clean_task_options`` 闸或经
+        share/retry 旁路写入）。``qps`` 等旋钮下游无 ``__post_init__`` 兜底
+        ——负值会直接进 babeldoc sidecar。
+        """
         raw = options.get(key)
         if not raw:
             return default
         try:
-            return int(raw)  # type: ignore[arg-type] -- JSON 值可为 str/float
+            v = int(raw)  # type: ignore[arg-type] -- JSON 值可为 str/float
         except (TypeError, ValueError):
             self._warning(
                 ctx, "bad_option", f"options.{key}={raw!r} 非数值——按 {default} 处理"
             )
             return default
+        if v < 1:
+            self._warning(ctx, "bad_option", f"options.{key}={raw!r} ≤0——按 1 钳位")
+            return 1
+        return v
 
     # ------------------------------------------------------------ 主入口
 
@@ -2081,6 +2095,11 @@ class PipelineWorker:
         更若不摘哨兵，``_build_zh`` 见哨兵直跳，旧译文永留产物。哨兵一摘
         ``_build_zh`` rmtree zh/ 重建（``.compile-done`` 随之同死重编）；
         无变化不动哨兵，resume 才能直进编译臂。loop 线程直读 store。
+
+        哨兵摘除即旧产物作废：``_SPLICE_STALE_KINDS`` 的 files 行与磁盘件
+        并删——否则重编失败/resume 未到编译段就终态时，files/reader 端点
+        照发上一轮的旧译文产物（reader 直接读 dual.json 磁盘件，仅删行
+        不够）。
         """
         sent = ctx.zh_dir / ".splice-done"
         if not sent.is_file():
@@ -2089,9 +2108,19 @@ class PipelineWorker:
             r["chunk_id"]: (str(r["status"]), str(r["translation"] or ""))
             for r in self.store.all_chunks(ctx.task_id)
         }
-        if post != pre_rows:
-            sent.unlink()
-            self._log(ctx, "译文变更：摘除 .splice-done，编译段将重 splice")
+        if post == pre_rows:
+            return
+        sent.unlink()
+        task_root = ctx.root.resolve()
+        for kind in _SPLICE_STALE_KINDS:
+            rel = self.store.delete_file(ctx.task_id, kind)
+            if rel is None:
+                continue
+            stale = (ctx.root / rel).resolve()
+            if stale.is_relative_to(task_root):
+                with contextlib.suppress(OSError):
+                    stale.unlink(missing_ok=True)
+        self._log(ctx, "译文变更：摘除 .splice-done，编译段将重 splice")
 
     # ------------------------------------------------------------ share 导入
 

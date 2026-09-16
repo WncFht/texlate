@@ -21,7 +21,7 @@ import re
 import shutil
 import sqlite3
 import time
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -1198,7 +1198,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         return JSONResponse({"task_id": task_id, "status": "cancelled"})
 
     @app.post("/api/task/{task_id}/retry")
-    async def task_retry(request: Request, task_id: str) -> Response:  # noqa: C901 -- 校验阶梯平铺
+    async def task_retry(request: Request, task_id: str) -> Response:  # noqa: C901, PLR0912 -- 校验阶梯平铺
         """终态/needs_auth → queued 重入队；body 只收 ``{main, options}``。
 
         ``model``/``target_lang`` 是 cache_key 口径成员——换值得新建任务，
@@ -1236,12 +1236,26 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
             opts.update(_clean_task_options(body["options"]))
         if body.get("main"):
             opts["main"] = str(body["main"])
-            if str(body["main"]) != row.get("main_tex"):
-                # 换主文件 → 解析产物作废（chunks/base/zh 重建，src/ 保留）
-                store.conn.execute("DELETE FROM chunks WHERE task_id = ?", (task_id,))
-                store.conn.commit()
-                for d in ("base", "zh", "build-en", "build-zh"):
-                    shutil.rmtree(root / "tasks" / task_id / d, ignore_errors=True)
+        main_req = str(opts.get("main") or "")
+        if main_req and main_req != str(row.get("main_tex") or ""):
+            # 换主文件（body.main 与 options.main 同口径）→ 解析产物作废
+            # （chunks/base/zh 重建，src/ 保留）；派生产物行与磁盘件并删——
+            # 残行会让 files/reader 照发上一轮产物（en.pdf 也随 base/ 同死：
+            # 换 main 后它编译自另一棵树）
+            store.conn.execute("DELETE FROM chunks WHERE task_id = ?", (task_id,))
+            store.conn.commit()
+            task_root = root / "tasks" / task_id
+            for d in ("base", "zh", "build-en", "build-zh"):
+                shutil.rmtree(task_root / d, ignore_errors=True)
+            resolved_root = task_root.resolve()
+            for kind, rec in store.files(task_id).items():
+                if kind == "src_tar":
+                    continue  # 取源产物不受影响——e-print/上传件仍有效
+                store.delete_file(task_id, kind)
+                stale = (task_root / str(rec["path"])).resolve()
+                if stale.is_relative_to(resolved_root):
+                    with suppress(OSError):
+                        stale.unlink(missing_ok=True)
         store.update_fields(task_id, options_json=json.dumps(opts))
         try:
             store.transition(task_id, "queued", message="重试入队")
@@ -1282,7 +1296,8 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         """``{documents, alignment, reading, view}``（§2.5/§5.4）。"""
         _get_task(request, task_id)
         dual_path = root / "tasks" / task_id / "dual.json"
-        if not dual_path.is_file():
+        if store.file_record(task_id, "dual_json") is None or not dual_path.is_file():
+            # 以登记行为准——磁盘孤儿件（登记前崩溃/失效清理残留）不服务
             return _json_error(404, "dual.json 未产出")
         try:
             dual = json.loads(dual_path.read_text(encoding="utf-8"))

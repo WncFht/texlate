@@ -94,8 +94,9 @@ class EventBus:
                 if ev["type"] == "done":
                     return  # 终态已落盘：重放即终，不进实时等待
             row = self._store.get(task_id)
-            if row is not None and row["status"] in TERMINAL_STATUSES:
-                # 终态但 done 事件缺席（recover_startup 直改库等）——不空等
+            if row is None or row["status"] in TERMINAL_STATUSES:
+                # 终态但 done 事件缺席（recover_startup 直改库等）或行已删
+                # （delete 端点先发 done 再删行——本订阅晚注册即错过）——不空等
                 return
             while True:
                 ev = await q.get()
