@@ -1,12 +1,14 @@
-"""export 包共享件：错误族 + 统一报告。"""
+"""export 包共享件：错误族 + 统一报告 + ``glossary`` 入参归一。"""
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from pathlib import Path
 
-if TYPE_CHECKING:
-    from pathlib import Path
+import yaml
+
+from texlate.xlat.glossary import Glossary, TermEntry
 
 
 class ExportError(Exception):
@@ -48,3 +50,41 @@ class ExportReport:
     fault: int
     documents: int
     warnings: list[str] = field(default_factory=list)
+
+
+#: ``export_*``/``translate_*`` 的 ``glossary`` 入参并集——归一处 ``coerce_glossary``。
+GlossaryArg = Glossary | Mapping[str, str] | str | Path
+
+
+def coerce_glossary(glossary: GlossaryArg | None) -> Glossary | None:
+    """``glossary`` 便利入参 → ``Glossary | None``（``XlatPipeline`` 契约形）。
+
+    - ``None``/``Glossary`` → 原样（``None`` = 无术语层，行为同旧版）；
+    - ``Mapping`` → 逐条成 ``user`` 层 ``TermEntry``——内存输入不隐式叠
+      文件层（``~/.texlate/glossary.yaml``/``default.csv`` 不混入），空 zh
+      同文件层语义落保原语；
+    - ``str``/``Path`` → ``Glossary.load(user_path=…)``——与 tex 主链
+      ``worker._make_glossary`` 同形（user 表叠内建 default 层；``~`` 展开）；
+    - 路径缺席/不可读/格式非法 → ``ExportError``：``Glossary.load`` 对缺席
+      ``user_path`` 静默跳过（分层 API 语义），公开入口先验存在——
+      否则用户表又是静默丢弃。
+    """
+    if glossary is None or isinstance(glossary, Glossary):
+        return glossary
+    if isinstance(glossary, Mapping):
+        return Glossary(
+            terms={
+                en: TermEntry(en, str(zh).strip() or en, "user")
+                for k, zh in glossary.items()
+                if (en := str(k).strip())
+            }
+        )
+    path = Path(glossary).expanduser()
+    if not path.is_file():
+        msg = f"glossary 文件不可读: {path}"
+        raise ExportError(msg)
+    try:
+        return Glossary.load(user_path=path)
+    except (OSError, ValueError, TypeError, yaml.YAMLError) as e:
+        msg = f"glossary 加载失败: {path} ({e})"
+        raise ExportError(msg) from e

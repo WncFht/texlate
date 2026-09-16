@@ -581,6 +581,13 @@ def export(
     model: Annotated[
         str | None, typer.Option("--model", help="模型名（缺省 TEXLATE_MODEL）")
     ] = None,
+    glossary: Annotated[
+        Path | None,
+        typer.Option(
+            "--glossary",
+            help="术语表 .yaml/.csv（user 层，叠内建默认表）",
+        ),
+    ] = None,
     mock: Annotated[
         bool, typer.Option("--mock", help="MockTranslator 干跑（不触网）")
     ] = False,
@@ -594,7 +601,7 @@ def export(
 
     translator = _export_translator(model, mock=mock)
     try:
-        report = export_document(path, out, translator)
+        report = export_document(path, out, translator, glossary=glossary)
     except ExportError as e:
         typer.echo(f"export: {e}", err=True)
         raise typer.Exit(1) from None

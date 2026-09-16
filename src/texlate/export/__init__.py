@@ -22,6 +22,7 @@ from .common import (
     ExportError,
     ExportReport,
     FixedLayoutError,
+    GlossaryArg,
     MalformedEpubError,
     UnsupportedFormatError,
 )
@@ -38,6 +39,7 @@ __all__ = [
     "ExportError",
     "ExportReport",
     "FixedLayoutError",
+    "GlossaryArg",
     "MalformedEpubError",
     "UnsupportedFormatError",
     "export_document",
@@ -73,6 +75,7 @@ def export_epub(  # noqa: PLR0913 -- 公共 API 面，关键字参数
     *,
     target_lang: str = "zh-CN",
     state_dir: Path | None = None,
+    glossary: GlossaryArg | None = None,
     on_result: Callable[[ChunkResult], None] | None = None,
 ) -> ExportReport:
     """EPUB → 双语 EPUB（``epub.translate_epub`` 的转调包装）。"""
@@ -82,6 +85,7 @@ def export_epub(  # noqa: PLR0913 -- 公共 API 面，关键字参数
         translator,
         target_lang=target_lang,
         state_dir=state_dir,
+        glossary=glossary,
         on_result=on_result,
     )
 
@@ -93,6 +97,7 @@ def export_docx(  # noqa: PLR0913 -- 公共 API 面，关键字参数
     *,
     target_lang: str = "zh-CN",
     state_dir: Path | None = None,
+    glossary: GlossaryArg | None = None,
     on_result: Callable[[ChunkResult], None] | None = None,
 ) -> ExportReport:
     """DOCX → 双语 DOCX（``docx.translate_docx`` 的转调包装）。"""
@@ -102,6 +107,7 @@ def export_docx(  # noqa: PLR0913 -- 公共 API 面，关键字参数
         translator,
         target_lang=target_lang,
         state_dir=state_dir,
+        glossary=glossary,
         on_result=on_result,
     )
 
@@ -113,9 +119,14 @@ def export_document(  # noqa: PLR0913 -- 公共 API 面，关键字参数
     *,
     target_lang: str = "zh-CN",
     state_dir: Path | None = None,
+    glossary: GlossaryArg | None = None,
     on_result: Callable[[ChunkResult], None] | None = None,
 ) -> ExportReport:
-    """按内容嗅探分派 EPUB/DOCX；``dst`` 缺省 ``{stem}_bilingual.{ext}``。"""
+    """按内容嗅探分派 EPUB/DOCX；``dst`` 缺省 ``{stem}_bilingual.{ext}``。
+
+    ``glossary`` 三形皆可：``Glossary`` 实例 / ``{en: zh}`` 平表 /
+    yaml|csv 路径（归一见 ``common.coerce_glossary``）。
+    """
     src = Path(src)
     fmt = sniff_format(src)
     if fmt is None:
@@ -130,6 +141,7 @@ def export_document(  # noqa: PLR0913 -- 公共 API 面，关键字参数
             translator,
             target_lang=target_lang,
             state_dir=state_dir,
+            glossary=glossary,
             on_result=on_result,
         )
     return export_docx(
@@ -138,5 +150,6 @@ def export_document(  # noqa: PLR0913 -- 公共 API 面，关键字参数
         translator,
         target_lang=target_lang,
         state_dir=state_dir,
+        glossary=glossary,
         on_result=on_result,
     )

@@ -48,7 +48,12 @@ from texlate.xlat.pipeline import ChunkIn, ChunkResult, XlatPipeline
 from texlate.xlat.placeholders import is_placeholder_only
 from texlate.xlat.state import StateStore
 
-from .common import ExportReport, UnsupportedFormatError
+from .common import (
+    ExportReport,
+    GlossaryArg,
+    UnsupportedFormatError,
+    coerce_glossary,
+)
 from .filters import is_apparatus_text, is_special_text, normalize_text
 
 if TYPE_CHECKING:
@@ -290,10 +295,12 @@ def translate_docx(  # noqa: C901, PLR0913, PLR0915 -- 驱动主链：公共 API
     *,
     target_lang: str = "zh-CN",
     state_dir: Path | None = None,
+    glossary: GlossaryArg | None = None,
     on_result: Callable[[ChunkResult], None] | None = None,
 ) -> ExportReport:
     """DOCX → 双语 DOCX 全链（断点/批量/阶梯与 EPUB 同构，见 ``epub.py``）。
 
+    ``glossary`` 入参归一见 ``common.coerce_glossary``。
     Ctrl-C/异常时按已完成译文写一本半成品双语书再抛出（bbm ``_save_temp_book``
     语义）；``state_dir`` 缺省 ``{dst}.state/``，成功即清理。
     """
@@ -340,7 +347,12 @@ def translate_docx(  # noqa: C901, PLR0913, PLR0915 -- 驱动主链：公共 API
         doc.save(str(dst))
 
     chunks = [ChunkIn(u.job_id, u.text, "para") for u in units]
-    pipe = XlatPipeline(translator, state=store, on_result=on_result)
+    pipe = XlatPipeline(
+        translator,
+        state=store,
+        glossary=coerce_glossary(glossary),
+        on_result=on_result,
+    )
     try:
         results_list = asyncio.run(pipe.run(chunks))
         results = {r.chunk_id: r for r in results_list}

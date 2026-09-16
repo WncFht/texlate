@@ -49,7 +49,9 @@ from .common import (
     DrmError,
     ExportReport,
     FixedLayoutError,
+    GlossaryArg,
     MalformedEpubError,
+    coerce_glossary,
 )
 from .filters import is_apparatus_text, is_special_text, normalize_text
 from .markers import (
@@ -908,12 +910,14 @@ def translate_epub(  # noqa: C901, PLR0913, PLR0915 -- 驱动主链：公共 API
     *,
     target_lang: str = "zh-CN",
     state_dir: Path | None = None,
+    glossary: GlossaryArg | None = None,
     on_result: Callable[[ChunkResult], None] | None = None,
 ) -> ExportReport:
     """EPUB → 双语 EPUB 全链。
 
     ``translator`` 走 ``XlatPipeline`` 全编排（批量/阶梯/断点复用，零改动）；
     ``state_dir`` 缺省 ``{dst}.state/``——中断残留自动续跑，成功即清理。
+    ``glossary`` 入参归一见 ``common.coerce_glossary``。
     Ctrl-C/异常时按已完成译文写一本半成品双语书再抛出（bbm ``_save_temp_book``
     语义）。
     """
@@ -970,7 +974,12 @@ def translate_epub(  # noqa: C901, PLR0913, PLR0915 -- 驱动主链：公共 API
         return n_ok, n_unchanged, n_fault, warnings
 
     chunks = [ChunkIn(u.job_id, u.text, u.kind) for u in units]
-    pipe = XlatPipeline(translator, state=store, on_result=on_result)
+    pipe = XlatPipeline(
+        translator,
+        state=store,
+        glossary=coerce_glossary(glossary),
+        on_result=on_result,
+    )
     try:
         results_list = asyncio.run(pipe.run(chunks))
         results = {r.chunk_id: r for r in results_list}
