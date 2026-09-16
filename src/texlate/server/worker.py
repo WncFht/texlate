@@ -57,7 +57,7 @@ from texlate.compile.normalize import normalize_project
 from texlate.compile.sandbox import find_tool
 from texlate.latex.api import parse_file
 from texlate.latex.reconstruct import reconstruct
-from texlate.server.settings import cache_scope, scrub
+from texlate.server.settings import cache_scope, scrub, validate_model
 from texlate.server.store import (
     ACTIVE_STATUSES,
     TERMINAL_STATUSES,
@@ -507,6 +507,58 @@ class DBStateBridge:
         """收尾（落盘在 worker flush——这里无操作）。"""
 
 
+class _FallbackTranslator:
+    """``options.retry_model`` 接线：primary 抛 retryable ``ChatError`` → 同参切备选模型补一发。
+
+    阶梯（``translate_with_ladder``）属 xlat 属主不在此动——本包装把
+    「chunk 重试换模型」落在 HTTP 失败层：模型级故障/限流时该块的每次
+    调用自带一发备选兜底；non-retryable（401/402/404）换模型无意义，
+    直接上抛。validation 反馈驱动的阶梯内重试仍走 primary。
+    ``.client`` 暴露 primary 的 ChatClient——``_stage_translate`` finally
+    的 ``isinstance(ChatClient)→aclose`` 探测依赖它。
+    """
+
+    def __init__(self, primary: GatewayTranslator, fallback: GatewayTranslator) -> None:
+        self._primary = primary
+        self._fallback = fallback
+        self.client = getattr(primary, "client", None)
+
+    async def translate(
+        self,
+        *,
+        system: str,
+        user: str,
+        temperature: float,
+        max_tokens: int,
+        response_format: dict[str, str] | None = None,
+    ) -> str:
+        """先发 primary；retryable 失败 → 备选模型补一发（仍失败则上抛）。"""
+        try:
+            return await self._primary.translate(
+                system=system,
+                user=user,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                response_format=response_format,
+            )
+        except ChatError as e:
+            if not e.retryable:
+                raise
+            log.warning(
+                "retry_model: primary %s 失败（%s）→ 备选 %s",
+                getattr(self._primary, "model", "?"),
+                e,
+                getattr(self._fallback, "model", "?"),
+            )
+        return await self._fallback.translate(
+            system=system,
+            user=user,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            response_format=response_format,
+        )
+
+
 class _StageError(Exception):
     """阶段内携带错误码的异常（→ ``run()`` 统一落 fault）。"""
 
@@ -658,6 +710,24 @@ def _safe_name(name: str) -> str:
     if not base or not base.lower().endswith((".tex", ".ltx", ".latex", ".txt")):
         base = (base or "main") + ".tex"
     return base
+
+
+def _md_member(src_file: str, seen: set[str]) -> str:
+    """``src_file`` → md.zip 成员名：剥 ``..``/盘符、``.tex`` 系后缀换 ``.md``、重名 ``~N``。"""
+    parts = [
+        p
+        for p in PurePosixPath(src_file.replace("\\", "/")).parts
+        if p not in ("", ".", "..") and not p.endswith(":")
+    ]
+    name = "/".join(parts) or "document"
+    name = re.sub(r"\.(?:tex|ltx|latex|txt)$", "", name, flags=re.IGNORECASE)
+    name = re.sub(r"[^A-Za-z0-9_./+-]", "_", name).strip("/") or "document"
+    cand, n = name + ".md", 1
+    while cand in seen:
+        n += 1
+        cand = f"{name}~{n}.md"
+    seen.add(cand)
+    return cand
 
 
 def _translate_progress(done: int, total: int) -> int:
@@ -1269,6 +1339,7 @@ class PipelineWorker:
         else:
             # fixloop 跑过仍无 pdf → 规则耗尽（fixloop_exhausted），
             # 摘要随 error_json 落库供 triage
+            self._build_md_zip(ctx)
             self._fail(
                 ctx,
                 "fixloop_exhausted" if ctx.fixloop else "compile",
@@ -1496,6 +1567,32 @@ class PipelineWorker:
         atomic_json(ctx.root / "dual.json", doc)
         self._register(ctx, "dual_json", "dual.json")
 
+    def _build_md_zip(self, ctx: TaskCtx) -> None:
+        """md.zip 降级产物（§5.4）：编译彻底失败但译文在库 → 双语 markdown 包。
+
+        ``view:"html"`` 的登记物——HtmlPane 实读 dual.json ``chunks``，本包
+        是同数据的可下载形态（按 ``src_file`` 章节化、seq 锚注释保留 1:1
+        对账位）。零译文不产：登记了而 chunks 无料会让前端落 empty 态。
+        只在 ``_stage_compile`` 无 pdf 终态分支调用，此处 dual.json 已落。
+        """
+        rows = self.store.all_chunks(ctx.task_id)
+        if not rows or not any(r["translation"] for r in rows):
+            return
+        by_file: dict[str, list[dict[str, Any]]] = {}
+        for r in rows:
+            by_file.setdefault(str(r["src_file"]), []).append(r)
+        seen: set[str] = set()
+        with zipfile.ZipFile(ctx.root / "md.zip", "w", zipfile.ZIP_DEFLATED) as zf:
+            for src_file in sorted(by_file):
+                parts = [
+                    f"<!-- chunk:{r['seq']} kind:{r['kind']} -->\n\n"
+                    f"{r['src_text']}\n\n---\n\n{r['translation'] or ''}\n"
+                    for r in sorted(by_file[src_file], key=lambda x: int(x["seq"]))
+                ]
+                zf.writestr(_md_member(src_file, seen), "\n".join(parts))
+        self._register(ctx, "md_zip", "md.zip")
+        self._log(ctx, f"md.zip: {sum(len(v) for v in by_file.values())} chunks")
+
     # ------------------------------------------------------------ pdf 管线
 
     async def _run_pdf(self, ctx: TaskCtx) -> None:
@@ -1580,7 +1677,12 @@ class PipelineWorker:
     # ------------------------------------------------------------ translator
 
     def _make_translator(self, ctx: TaskCtx) -> Translator:
-        """默认工厂：key 或 ``TEXLATE_TRANSLATOR=gateway`` → 网关，否则 Mock。"""
+        """默认工厂：key 或 ``TEXLATE_TRANSLATOR=gateway`` → 网关，否则 Mock。
+
+        ``options.retry_model`` 仅在默认网关路径生效——备选模型与 primary
+        同 client（同 endpoint+key），``translator_factory``/Mock 注入路径
+        由调用方自担语义不包。
+        """
         if self._translator_factory is not None:
             return self._translator_factory(ctx)
         force = os.environ.get("TEXLATE_TRANSLATOR", "").lower()
@@ -1588,7 +1690,22 @@ class PipelineWorker:
             return MockTranslator()
         if force == "gateway" or ctx.secrets.api_key:
             client = ChatClient(ctx.secrets.base_url, ctx.secrets.api_key)
-            return GatewayTranslator(client, ctx.secrets.model or "swe-2-medium")
+            primary = GatewayTranslator(client, ctx.secrets.model or "swe-2-medium")
+            retry_model = str(ctx.options().get("retry_model") or "").strip()
+            if retry_model and retry_model != primary.model:
+                try:
+                    retry_model = validate_model(retry_model)
+                except ValueError:
+                    self._warning(
+                        ctx,
+                        "retry_model",
+                        f"options.retry_model {retry_model!r} 非法，忽略",
+                    )
+                else:
+                    return _FallbackTranslator(
+                        primary, GatewayTranslator(client, retry_model)
+                    )
+            return primary
         return MockTranslator()
 
     def _glossary_path(

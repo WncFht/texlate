@@ -603,6 +603,18 @@ class Store:
         """单条产物记录。"""
         return self.files(task_id).get(kind)
 
+    def tenant_usage(self, tenant: str) -> dict[str, int]:
+        """租户配额用量：``{tasks, bytes}``——任务行数 + files.bytes 合计。"""
+        n = self.conn.execute(
+            "SELECT COUNT(*) AS c FROM tasks WHERE tenant = ?", (tenant,)
+        ).fetchone()["c"]
+        b = self.conn.execute(
+            "SELECT COALESCE(SUM(f.bytes), 0) AS b FROM files f"
+            " JOIN tasks t ON t.id = f.task_id WHERE t.tenant = ?",
+            (tenant,),
+        ).fetchone()["b"]
+        return {"tasks": int(n), "bytes": int(b)}
+
     # ------------------------------------------------------------ translation_cache
 
     def cache_get(self, key: str) -> str | None:

@@ -28,6 +28,7 @@ from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from sse_starlette.sse import EventSourceResponse
 from starlette.datastructures import UploadFile as StarletteUploadFile
@@ -35,6 +36,7 @@ from starlette.datastructures import UploadFile as StarletteUploadFile
 from texlate import __version__
 from texlate.arxiv.fetch import normalize_arxiv_id
 from texlate.compile.sandbox import find_tool
+from texlate.compile.toolchain import resolve_tool
 from texlate.server.events import EventBus, sse_frame
 from texlate.server.settings import (
     TARGET_LANGS,
@@ -271,6 +273,26 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
             resp.headers["Cache-Control"] = "no-store"
         return resp
 
+    # server 形态 CORS allowlist（web-layer §6）：settings.cors_origins 显式配，
+    # 空 = 不挂中间件 = 禁跨域（浏览器同源策略天然拒）。local 形态不读此项——
+    # 跨站防护由 local_only_mw 的 fetch-site/origin 检查承担。
+    if server_mode() == "server":
+        _origins = list(settings_store.load().get("cors_origins") or [])
+        if _origins:
+            app.add_middleware(
+                CORSMiddleware,
+                allow_origins=_origins,
+                allow_methods=["GET", "POST", "PUT", "DELETE"],
+                allow_headers=[
+                    "content-type",
+                    "idempotency-key",
+                    "last-event-id",
+                    "x-texlate-key",
+                    "x-texlate-base-url",
+                    "x-texlate-model",
+                ],
+            )
+
     @app.exception_handler(_ApiError)
     async def _api_error(_req: Request, exc: _ApiError) -> JSONResponse:
         return JSONResponse(exc.body, status_code=exc.status)
@@ -330,6 +352,36 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
             raise _ApiError(400, {"detail": f"bad json: {e}"}) from e
         return data if isinstance(data, dict) else {}
 
+    def _check_quota(auth: AuthContext, incoming_bytes: int) -> None:
+        """Tenant 配额闸（settings.quota_max_*，0=不限）——超限 429。
+
+        任务数按 ``tasks`` 行全量计（含终态行）；字节按已登记产物
+        ``files.bytes`` 合计 + 本次入队载荷。reuse/idempotent 命中不建行，
+        在调用方此处之前就返回，不占配额。
+        """
+        st = settings_store.load()
+        q_tasks = int(st.get("quota_max_tasks") or 0)
+        q_bytes = int(st.get("quota_max_bytes") or 0)
+        if not (q_tasks or q_bytes):
+            return
+        usage = store.tenant_usage(auth.tenant)
+        if q_tasks and usage["tasks"] >= q_tasks:
+            raise _ApiError(
+                429,
+                {
+                    "detail": f"tenant 任务配额已用尽（{q_tasks}）",
+                    "code": "quota_exceeded",
+                },
+            )
+        if q_bytes and usage["bytes"] + incoming_bytes > q_bytes:
+            raise _ApiError(
+                429,
+                {
+                    "detail": f"tenant 字节配额超限（{q_bytes}B）",
+                    "code": "quota_exceeded",
+                },
+            )
+
     def _create_and_enqueue(  # noqa: PLR0913 -- 建行参数面
         request: Request,
         *,
@@ -343,6 +395,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         prefer: str,
         cache_key: str | None,
         task_id: str | None = None,
+        incoming_bytes: int = 0,
     ) -> tuple[dict[str, Any], int, dict[str, Any]]:
         """dedup/reuse/idempotency 判别 + 建行 + 入队。
 
@@ -374,6 +427,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
             done = store.find_reusable(cache_key)
             if done is not None:
                 return done, 200, {"reused": True}
+        _check_quota(auth, incoming_bytes)
         tid = task_id or new_task_id()
         config = {
             "base_url": auth.base_url,
@@ -650,6 +704,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
             prefer="fresh",
             cache_key=None,
             task_id=task_id,
+            incoming_bytes=len(data),
         )
         return _accepted(row, status, extra)
 
@@ -662,7 +717,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
             "ok": True,
             "version": __version__,
             "compilers": {
-                "tectonic": find_tool("tectonic") is not None,
+                "tectonic": resolve_tool("tectonic") is not None,
                 "xelatex": find_tool("xelatex") is not None,
                 "babeldoc": (app.state.babeldoc or find_tool("babeldoc")) is not None,
             },
@@ -798,7 +853,14 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
                 "documents": docs,
                 "alignment": dual.get("alignment") or {"kind": "pages"},
                 "reading": reading,
-                "view": ("html" if store.file_record(task_id, "md_zip") else "pdf"),
+                # md_zip = 无 PDF 路的降级登记物；zh_pdf 在则 pdf 视图优先
+                # （fault→retry 救回出 pdf 后残留的 md_zip 不把视图钉死在 html）
+                "view": (
+                    "html"
+                    if store.file_record(task_id, "md_zip")
+                    and not store.file_record(task_id, "zh_pdf")
+                    else "pdf"
+                ),
             }
         )
 

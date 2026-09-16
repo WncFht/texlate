@@ -135,6 +135,53 @@ def _check_glossary_dir(value: object) -> str:
     return str(gdir)
 
 
+def _parse_origin(value: object) -> str | None:
+    """CORS origin 归一化：``scheme://host[:port]``；非法形态返 None。"""
+    o = str(value or "").strip().rstrip("/")
+    if not o:
+        return None
+    u = urlsplit(o)
+    if (
+        u.scheme not in ("http", "https")
+        or not u.hostname
+        or u.username
+        or u.password
+        or u.query
+        or u.fragment
+        or u.path not in ("", "/")
+    ):
+        return None
+    return o
+
+
+def _check_cors_origins(value: object) -> list[str]:
+    """``cors_origins`` 校验：字符串数组逐项过 ``_parse_origin``，去重保序。"""
+    if not isinstance(value, list) or not all(isinstance(o, str) for o in value):
+        msg = "cors_origins 必须是字符串数组"
+        raise ValueError(msg)
+    out: list[str] = []
+    for raw in value:
+        o = _parse_origin(raw)
+        if o is None:
+            msg = f"invalid cors origin: {raw!r}（须 http(s)://host[:port]）"
+            raise ValueError(msg)
+        out.append(o)
+    return list(dict.fromkeys(out))
+
+
+def _check_quota(value: object, name: str) -> int:
+    """配额字段校验：非负 int（0=不限）。"""
+    try:
+        n = int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        msg = f"{name} 必须是非负整数"
+        raise ValueError(msg) from None
+    if n < 0:
+        msg = f"{name} 必须是非负整数"
+        raise ValueError(msg)
+    return n
+
+
 def _normalize_updates(values: dict[str, Any]) -> None:
     """``save`` 的逐字段归一化/校验（就地改写 ``values``）。"""
     if "base_url" in values:
@@ -155,9 +202,36 @@ def _normalize_updates(values: dict[str, Any]) -> None:
         raise ValueError(msg)
     if "glossary_dir" in values:
         values["glossary_dir"] = _check_glossary_dir(values["glossary_dir"])
+    if "cors_origins" in values:
+        values["cors_origins"] = _check_cors_origins(values["cors_origins"])
+    for q in ("quota_max_tasks", "quota_max_bytes"):
+        if q in values:
+            values[q] = _check_quota(values[q], q)
 
 
 # ---------------------------------------------------------------- 设置存储
+
+
+def _load_origins(value: object) -> list[str]:
+    """``cors_origins`` 容错读：非法项记 warning 丢弃（手改文件不炸 load）。"""
+    if not isinstance(value, list):
+        return []
+    out: list[str] = []
+    for raw in value:
+        o = _parse_origin(raw)
+        if o is None:
+            log.warning("settings.json cors_origins 非法项已丢弃: %r", raw)
+        else:
+            out.append(o)
+    return list(dict.fromkeys(out))
+
+
+def _load_quota(value: object) -> int:
+    """配额字段容错读：非法/负值 → 0（不限）。"""
+    try:
+        return max(0, int(value))  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return 0
 
 
 class SettingsStore:
@@ -178,6 +252,9 @@ class SettingsStore:
         "concurrency",
         "engine",
         "context_guidance",
+        "cors_origins",
+        "quota_max_tasks",
+        "quota_max_bytes",
     )
 
     def __init__(self, root: Path) -> None:
@@ -206,6 +283,9 @@ class SettingsStore:
             "concurrency": int(data.get("concurrency") or 3),
             "engine": str(data.get("engine") or "auto"),
             "context_guidance": bool(data.get("context_guidance", True)),
+            "cors_origins": _load_origins(data.get("cors_origins")),
+            "quota_max_tasks": _load_quota(data.get("quota_max_tasks")),
+            "quota_max_bytes": _load_quota(data.get("quota_max_bytes")),
         }
 
     def save(self, updates: dict[str, Any]) -> dict[str, Any]:
