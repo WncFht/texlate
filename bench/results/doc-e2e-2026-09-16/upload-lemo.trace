@@ -1,0 +1,22 @@
+* Uses proxy env variable no_proxy == 'localhost,127.0.0.1,::1,169.254.0.0/16,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,100.64.0.0/10,100.121.76.120,.ts.net,.tail109937.ts.net,archbox.tail109937.ts.net,100.105.212.52'
+*   Trying 127.0.0.1:8793...
+* Established connection to 127.0.0.1 (127.0.0.1 port 8793) from 127.0.0.1 port 37172 
+* using HTTP/1.x
+> POST /api/upload HTTP/1.1
+> Host: 127.0.0.1:8793
+> User-Agent: curl/8.22.0
+> Accept: */*
+> Content-Length: 148810
+> Content-Type: multipart/form-data; boundary=------------------------n64CrNMVELBhASreq7YDF0
+> 
+} [65331 bytes data]
+* upload completely sent off: 148810 bytes
+< HTTP/1.1 202 Accepted
+< date: Wed, 16 Sep 2026 07:03:36 GMT
+< server: uvicorn
+< content-length: 160
+< content-type: application/json
+< cache-control: no-store
+< 
+{ [160 bytes data]
+* Connection #0 to host 127.0.0.1:8793 left intact

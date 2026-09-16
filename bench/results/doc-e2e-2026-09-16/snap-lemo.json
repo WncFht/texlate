@@ -1,0 +1,26 @@
+{
+    "task_id": "t_f07192f77c5b4343",
+    "kind": "epub",
+    "status": "done",
+    "progress": 100,
+    "message": "\u5b8c\u6210",
+    "created_at": 1789542217.5214925,
+    "updated_at": 1789542217.6741197,
+    "counters": {
+        "total": 45,
+        "done": 45,
+        "cached": 0,
+        "failed": 0,
+        "tokens": 0
+    },
+    "warnings": [],
+    "error": null,
+    "artifacts": {
+        "src_tar": "/api/files/t_f07192f77c5b4343/src.tar",
+        "zh_epub": "/api/files/t_f07192f77c5b4343/zh.epub"
+    },
+    "last_seq": 47,
+    "title": "lemo.epub",
+    "target_lang": "zh-CN",
+    "model": "swe-2-medium"
+}
