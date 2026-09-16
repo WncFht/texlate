@@ -1,0 +1,3 @@
+{"id": "1003.4522", "stage": "ingest", "arm": "-", "upstream": "", "status": "ok", "dur_s": 0.02, "metrics": {"n_files": 5, "main_tex_guess": "ms.tex", "source": "cache", "sha256_ok": null}, "errors": [], "sig": ""}
+{"id": "0707.3950", "stage": "ingest", "arm": "-", "upstream": "", "status": "ok", "dur_s": 0.02, "metrics": {"n_files": 1, "main_tex_guess": "main.tex", "source": "cache", "sha256_ok": null}, "errors": [], "sig": ""}
+{"id": "2203.13039", "stage": "ingest", "arm": "-", "upstream": "", "status": "ok", "dur_s": 0.02, "metrics": {"n_files": 1, "main_tex_guess": "main.tex", "source": "cache", "sha256_ok": null}, "errors": [], "sig": ""}
