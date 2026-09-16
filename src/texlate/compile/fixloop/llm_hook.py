@@ -158,22 +158,35 @@ def _log_excerpt(rep: ErrReport) -> str:
     return blob
 
 
+def _err_tok_path(ctx: LoopCtx, tok: str) -> Path | None:
+    """file_stack/popped_files 单 token → 可落盘路径 (工程内优先, 系统侧作上下文)。"""
+    cand = Path(tok)
+    if not cand.is_absolute():
+        w = ctx.wdir / tok
+        if w.is_file():
+            return w
+        for f in ctx.tex_files():
+            if f.name == tok.rsplit("/", 1)[-1]:
+                return f
+        return None
+    return cand if cand.is_file() else None
+
+
 def _resolve_err_file(ctx: LoopCtx, rep: ErrReport) -> Path | None:
-    """file_stack 顶→底找工程内出错文件; 全不命中退主文件。"""
+    """file_stack 顶→底找工程内出错文件; 再不中退主文件。
+
+    栈全不命中并入 ``reversed(popped_files)`` 递补——
+    ``File ended while scanning`` 类 runaway 错报位在最近关闭帧
+    (``popped_files[-1]`` = 肇事候选, #78)。
+    """
     for tok in reversed(rep.file_stack):
         t = tok.strip()
-        if not t:
-            continue
-        cand = Path(t)
-        if not cand.is_absolute():
-            w = ctx.wdir / t
-            if w.is_file():
-                return w
-            for f in ctx.tex_files():
-                if f.name == t.rsplit("/", 1)[-1]:
-                    return f
-        elif cand.is_file():
-            return cand  # 系统侧文件也作上下文 (patch 闸另行拦写)
+        if t and (hit := _err_tok_path(ctx, t)) is not None:
+            return hit
+    for tok in reversed(rep.popped_files):
+        t = tok.strip()
+        if t and (hit := _err_tok_path(ctx, t)) is not None:
+            return hit
     return ctx.main_path()
 
 

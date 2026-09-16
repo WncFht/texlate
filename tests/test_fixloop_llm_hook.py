@@ -295,3 +295,38 @@ def test_fixloop_escalate_llm_all_rejected_continues(tmp_path: Path) -> None:
     )
     assert cell["verdict"] == "unfixable:undefined_cs"  # 未修复, 循环按原语义收束
     assert tr.calls  # 但 hook 确实被调过
+
+
+# ---------------------------------------------------------------- popped_files 消费 (#78)
+
+
+def test_resolve_err_file_popped_fallback(tmp_path: Path) -> None:
+    """file_stack 全 miss → ``reversed(popped_files)`` 找回最近关闭肇事件。"""
+    ctx = _ctx(tmp_path)
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "sub" / "bad.tex").write_text("bad", encoding="utf-8")
+    rep = ErrReport(
+        file_stack=["./gone.tex"],
+        popped_files=["./sub/older.tex", "./sub/bad.tex"],
+    )
+    hit = llm_hook_mod._resolve_err_file(ctx, rep)  # noqa: SLF001 -- 私有面契约测试
+    assert hit is not None
+    assert hit.name == "bad.tex"  # popped[-1] 先中
+
+
+def test_resolve_err_file_stack_beats_popped(tmp_path: Path) -> None:
+    """file_stack 命中即返——popped 递补不越位。"""
+    ctx = _ctx(tmp_path)
+    rep = ErrReport(file_stack=["./main.tex"], popped_files=["./gone.tex"])
+    hit = llm_hook_mod._resolve_err_file(ctx, rep)  # noqa: SLF001
+    assert hit is not None
+    assert hit.name == "main.tex"
+
+
+def test_resolve_err_file_all_miss_falls_back_main(tmp_path: Path) -> None:
+    """栈+popped 全不命中 → 主文件兜底 (旧语义不变)。"""
+    ctx = _ctx(tmp_path)
+    rep = ErrReport(file_stack=["./gone.tex"], popped_files=["./also_gone.tex"])
+    hit = llm_hook_mod._resolve_err_file(ctx, rep)  # noqa: SLF001
+    assert hit is not None
+    assert hit.name == "main.tex"
