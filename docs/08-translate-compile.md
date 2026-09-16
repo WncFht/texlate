@@ -151,8 +151,8 @@ env judge 参数：**temperature=0、max_tokens=16、3 次重试、解析 `true/
 
 ### 2.3 L2 编译 log 回灌
 
-- 错误计数**双格式**：`^!` + `file:line:`（只数 `!` 漏全部引擎级错误）。
-- `parse_log`：首个 `^!` 行 + 其后 8 行 ctx + `!` 总数 + tail 30 行；ctx 内 `l.(\d+)` 行号 + `(` 开括号文件栈追踪（file_stack 定位出错 .tex/.sty，供 rewrite 规则缩小作用域）。
+- 错误计数**双格式**：`^!` + `file:line:`（只数 `!` 漏全部引擎级错误）。（勘误 2026-09-17：`_FILE_LINE_RX` 扩展名字符集放宽到任意 `[A-Za-z0-9_-]{1,10}`——file:line: 报任何被当输入读的文件（`.eps`/`.pdf_t`/`.lbx`/`.tikz`/`.end` 实测全真错，loop1 7814 log 全扫、扩展名白名单漏 586 行真错含 3 例整体 ok=True 假干净）；行首 `(`/`!` 与 `:`/空白内嵌仍排除。`_NONERR_FILELINE_RX` 反向剔除非错误形——`{LaTeX,Package,Class} … Warning` 行（部分引擎/包给 warning 也打 file:line: 前缀，不排则 `n_errors==0` 干净门永不通）与 `==> Fatal error` 汇总尾行（同一失败复述多计，corpus_v2 2002.05660 实测）。）
+- `parse_log`：首个 `^!` 行 + 其后 8 行 ctx + `!` 总数 + tail 30 行；ctx 内 `l.(\d+)` 行号 + `(` 开括号文件栈追踪（file_stack 定位出错 .tex/.sty，供 rewrite 规则缩小作用域）。（勘误 2026-09-17：runaway 扫描错 `File ended while scanning` 单列 `eof_file` 字段——`)` 弹出已把肇事文件退栈、错误行报的是父文件 `\input` 续行位，取错误行前 `_EOF_POP_WINDOW=16` 行内最后弹出文件；存储面 `errors ≤200` 条（`n_errors` 仍精确计数）、每类 warning 样例 ≤5 条。）
 - 注意：tectonic 有时**不写 .log**——监控不能假设 log 存在。
 - 不过 → 重译该块（错误描述进反馈字段）→ 再不过 → fallback 原文。
 
@@ -186,7 +186,7 @@ env judge 参数：**temperature=0、max_tokens=16、3 次重试、解析 `true/
 
 - 默认 **ctex `[fontset=fandol,UTF8]`**（hjfy 同款、双引擎实测可编译、白拿节名汉化）；**xeCJK+fontspec 为降级路径**（ctex 冲突签名→fixloop 或探测编译切换）。两路径共用注入缝：兼容块 → **文件顶**（勘误 2026-09-17：非 `\begin{document}` 前，PassOptions 语义要求）；字体系块 → `\documentclass{}` 后。
 - `\documentstyle` → **禁止注入**（inject 层兜底拒，账本记 `inject_reject:latex209`——勘误 2026-09-17：`inject.py:576` 先走 `upgrade_209` 转换器，仅不可转（ds@ 类/no_target）才抛拒，「禁止注入」是兜底语义）；路由侧改判 `latex209_suspect` **先试编**、真 2.09 签名（tail 侧 `\documentstyle`/`LaTeX 2.09 COMPATIBILITY MODE`）由 fixloop gate `latex209_reject` 拒绝 → 降级链（改判 `38cc0a7`，推翻 05 裁决 13 的"无条件 reject"——05 已加注）。
-- FLOAT_SIZING 仅在有 figure/table 时注入（`\resizebox*` 缩超高 float + typeout 回读）；TABLE_FITTING hook threeparttable（`adjustbox{max width=\linewidth}`）。
+- FLOAT_SIZING 仅在有 figure/table 时注入（`\resizebox*` 缩超高 float + typeout 回读）；TABLE_FITTING hook threeparttable（`adjustbox{max width=\linewidth}`）。（勘误 2026-09-17：TABLE_FITTING 判定在 `prepare_chinese` 末段对 `visible_tex(new_text)` 无条件扫 `threeparttable`——status=already 工程再进亦生效（出分支统一判，非仅新注入路径）；`\begin{document}` 锚 `_BEGIN_DOC_RE`=`\\begin\s*\{document\}` 空白容忍，`.search` 与 `.split(maxsplit=1)` 切正文同正则；`_closure_has_document` 允许 bd 落在 `\input` 闭包内——主文件不含但 include 图可达即放行。）
 - `embed_cjk_mappings`：编译后给 Identity-H/Adobe-GB1 无 ToUnicode 字体注 `Adobe-GB1-UCS2` cmap——中文 PDF 可复制可搜索。
 
 ### 3.4 target_probe 与 compiled_dependencies
@@ -235,9 +235,11 @@ class Engine(Protocol):
 
 > 勘误（2026-09-16，F3 改判 `87e6a40`）：**策略拒绝不再单列 `reject` 终态**——route/inject/fixloop 三处拒绝统一归 `partial` + `reject_at ∈ {route, inject, fixloop}` 审计字段（语义：拒绝是降级交付不是 fault；worker `_reject` 与 e2e `run()` 同形，`cli.py` 对 `reject_at` 保持 exit 2）。§5 verdict 词汇表同此口径。
 
+> 复核（2026-09-17，红线类集两层各一份、命名不同构）：`engine.py WARNING_RED_LINES` = `[invalid_utf8, fffd_glyph, missing_chars, missing_graphic, degraded_file]`（warning 扫描/judge 面；`degraded_file` 即 tectonic 缺包静默降级行 `^!.*(File|package).*not found`——continue-on-errors 跳包出残页 pdf 的暗雷）；`l2.py _REDLINE_CLASSES` = `{invalid_utf8, missing_glyph, missing_glyph_cjk, fffd_glyph, file_not_found}`（log 回灌面）——按层查名勿求字面全等。`Missing character` 码点形态随引擎代际分叉：老 TL 打 `("8FD9)`、新 TL 打 `(U+8FD9)`（`_MISSING_CHAR_RX` 双形态并收，corpus log 并存、U+ 形约 1/3）。系统 texmf/bundle 件与 dos-eps（魔数 `\xc5\xd0\xd3\xc6`，normalize `dos_eps_skipped` 原样保留的二进制件）的红线命中**降级进 `sys_hits`/`warnings_sys` 观察项**、命中串尾挂 `(dos-eps)` 标（l2 `_mark_redline` 与 engine `_scan_error_lines` 同口径）——老 CTAN 包自带坏字节非工程红线（invalid_utf8 系统件 loop1 归因占 96%）；文件栈 None 帧由 `_patch_graphic_top` 按 graphic 引用 token 补位归因。
+
 ### 4.4 编译沙箱
 
-`--untrusted`（tectonic）/ `-no-shell-escape`（xelatex）+ **env 白名单**（非黑名单；加 `TECTONIC_UNTRUSTED_MODE=1 openin_any=p openout_any=p shell_escape=f`）+ macOS sandbox-exec profile（deny `$HOME` 读 + 全写，白名单放行工程/输出/缓存/字体目录——settings.json/浏览器 profile/SSH key 编译期不可读）+ `killpg` 进程树超时杀。
+`--untrusted`（tectonic）/ `-no-shell-escape`（xelatex）+ **env 白名单**（非黑名单；加 `TECTONIC_UNTRUSTED_MODE=1 openin_any=p openout_any=p shell_escape=f`）+ macOS sandbox-exec profile（deny `$HOME` 读 + 全写，白名单放行工程/输出/缓存/字体目录——settings.json/浏览器 profile/SSH key 编译期不可读）+ `killpg` 进程树超时杀。（勘误 2026-09-17：impl `sandbox_wrap(allow_net=…)` 分档——`allow_net=False` 追加 `(deny network*)`（sandbox-exec profile 尾）/`--unshare-net`（bwrap），xelatex 工具链全本地走 False、tectonic True（bundle 拉取要网）；`start_new_session` 独立进程组 + `killpg` 杀整树，触发面不只超时——`run_process` 在 TimeoutExpired **与一切 BaseException**（KeyboardInterrupt/GeneratorExit）路径都 `_kill_tree` 防孤儿，killpg 失败退 `proc.kill` 单杀；setsid/双 fork 逃逸的孙进程仍握 stdout 写端，二段 wait 超时由调用点兜。）
 
 > 落地注记（2026-09-16）：Linux 侧 bwrap 包装已落 `compile/sandbox.py`（`b260378`；darwin 走 sandbox-exec，`TEXLATE_NO_BWRAP=1` 逃逸开关）+ `tests/test_compile_sandbox.py`。（勘误 2026-09-17：bwrap 三件套实在 `compile/engine.py`——`_bwrap_capable/_bwrap_mounts/_bwrap_wrap`；sandbox.py 只有 env 白名单+sandbox-exec+killpg。）
 

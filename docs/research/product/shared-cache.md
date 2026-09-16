@@ -46,6 +46,8 @@ share key 七组分按下序 `|` 拼接进 sha256：
 
 两个刻意决策值得记：其一，`model` 组分的含义是「译文内容生产者」——BYOK 下 Alice 用 deepseek 译出的包不会命中 Bob 用其他模型的请求，这不是缺陷而是特性（用户只检索自己信任的模型池）；要做「跨模型共享」是另一层产品决策（比如白名单模型互通），v1 不做。其二，前六组分禁止含 `|`（否则分隔歧义可撞键），`pipeline_ver` 是末位组分允许自带 `|`——`worker.PIPELINE_VERSION` 本就长成 `texlate-{ver}|{prompt_ver}`，末位含分隔符无解析歧义。
 
+> 勘误 2026-09-17（组分归一化，impl `share.py`）：七组分进键前逐组分 `strip()`——边缘空白不进键（域内无意义）；manifest 侧 `_key_parts` 同口径归一，且 `version`/`glossary_hash` 两可空组分（`_EMPTY_OK`）的 JSON `null` 与 `""` 同义（latest 别名/无术语表），其余五组分 `None` 或 strip 后空串按缺键拒（`ShareError`）；七键缺一即拒。`version` 另过 `_norm_version`（`3`/`"v3"`/`None` → `v3`/`""` 归一形）。
+
 ## 4. 包格式
 
 `{share_key}.share.zip`（PK zip）成员（`zh.pdf` 可选，缺席即 partial 包）：
@@ -83,6 +85,8 @@ manifest.json schema:
 ```
 
 为什么是 `dual.json` 而不是 `zh-src.zip` 当载荷：`zh/` 树是 splice 的**结果**——消费端若直接展开它就没法重跑 splice/validate，信任模型就空了。`dual.json` 的 `chunks[]` 恰好是 xlat 阶段的输出物形态：消费端把它按 `src_file` + `en` 文本对账到本地 parse 出的 chunks，再从 splice 开始全程本地跑——「只信翻译内容，不信任何下游产物」。`zh-src.zip` 留在包里是冗余但与 hjfy `{id}_zh_CN.tgz` 公开下载同形，人类可直接取用。
+
+> 勘误 2026-09-17（包完整性实装面）：`pack_share` 对每个产物**单次 `read_bytes()`**——同一份字节既进 manifest sha256/bytes 对账字段又写 zip 成员，消灭「对账到写入之间文件被改 → 包自矛盾」的 TOCTOU；发布走临时文件 + 原子 rename（并发同键打包/静态托管读取不见半成品）；单产物 >256MB（`_MEMBER_MAX`）拒。`unpack_share` 校验序：zip 可读 → `manifest.json` 在场且 ≤1MB（`_MANIFEST_MAX`）→ `format`/`key_parts`/`share_key` 重算自洽 → `artifacts` 逐条校验（产物名扁平白名单 `_name_ok`：拒 `/`、`\`、NUL 与 >255B 名；sha256 定长 64hex；`bytes` ∈ [0,256MB] int）→ 逐成员 size+sha256 对账；只抽 manifest 登记成员（多余成员忽略，天然免 zip-slip）；产物先落 `dest` 内临时目录、全部对账过才逐件 rename——中途失败 `dest` 零残留。
 
 ## 5. 信任模型（核心设计）
 

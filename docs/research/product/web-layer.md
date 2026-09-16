@@ -252,9 +252,9 @@ JSON Schema（可直接实现；`progress` 为 0-100 粗粒度）：
 
 - `GET /api/health` — `{ok, version, compilers:{tectonic,xelatex,babeldoc}, data_dir}`
 - `GET /api/tasks` — 按 `tenant`（§4）过滤的任务列表（`?status=` 过滤）
-- `POST /api/task/{id}/cancel` / `POST /api/task/{id}/retry`（body 可带 `{main, options}`）
+- `POST /api/task/{id}/cancel` / `POST /api/task/{id}/retry`（body 可带 `{main, options}`）（勘误 2026-09-17，retry 守卫与清理面：**状态守卫先于一切 mutation**——`status ∉ RETRYABLE_FROM` 纯 409 `invalid_transition`，不得先清产物；`needs_auth` 无 `X-Texlate-Key` → 401 `auth_required`；body 白名单外键一律 400 `invalid_request`——`model`/`target_lang` 是 cache_key 口径成员，换值须新建任务，静默丢弃比报错糟；`main` 变更（body.main 与 options.main 同口径）→ 解析产物作废：`DELETE chunks` + rmtree `base/zh/build-en/build-zh` + `store.delete_file` 逐行删 `files`（`src_tar` 除外——取源产物仍有效）+ 限 task_root 内 unlink 磁盘件（resolve + `is_relative_to` 防越界；en.pdf 随 base/ 同死——换 main 后它编译自另一棵树）。）
 - `DELETE /api/task/{id}` — 终态任务删除（DB 行级联子表 + `tasks/{id}/` 目录）；ACTIVE 态 409 先 cancel，删前补 `done{status:"deleted"}` 事件让在听 SSE 收尾
-- `GET /api/task/{id}/reader` — `{documents:{original:{version,pages,url},translated:{…}}, alignment, reading}`
+- `GET /api/task/{id}/reader` — `{documents:{original:{version,pages,url},translated:{…}}, alignment, reading}`（勘误 2026-09-17：404 为**双条件**——`files` 表 `dual_json` 行与磁盘 `dual.json` 须同时在场，以登记行为准（登记前崩溃/失效清理残留的磁盘孤儿件不服务）；响应另带 `view` 字段——`md_zip` 登记且 `zh_pdf` 缺席 → `"html"`，否则 `"pdf"`（fault→retry 救回出 pdf 后残留的 md_zip 不把视图钉死在 html）；documents 两侧 `url` 挂 `/api/files/{id}/{en.pdf|zh.pdf}`，`alignment` 缺省 `{kind:"pages"}`。）
 - `PUT /api/task/{id}/reader/position` — 存 `{positions, active, mode, zoom, sync}`；document_version 不符 → 409
 - `GET/PUT /api/settings` + `POST /api/settings/test` — BYOK 管理（§4）；GET 永不回 key 本体，只回 `has_api_key`；PUT 键白名单外 400，伪字段 `clear_api_key:true` 清除已存 key
 - `GET /api/providers` — provider 预设清单
@@ -378,6 +378,7 @@ CREATE TABLE task_events (                       -- SSE 重放 + 审计；每任
 2. **chunk 级**：翻译循环每完成一块，`translation_cache` + `chunks` 同事务写入（批量 flush：每 8 块或 500ms 一次事务，兼顾 SSD 寿命与崩溃窗口）；恢复 = `SELECT … WHERE status='pending'` 继续。`fallback_orig` 块记入 `failed_chunks` 并驱动 `partial` 终态。
 3. **事件级**：`task_events` 在每次事件落盘时同事务写 → `Last-Event-ID` 重放与刷新页面后 `snapshot` 重建零成本。
 4. 启动恢复：`UPDATE tasks SET status='interrupted', worker_id=NULL WHERE status IN (active)` → 前端列表面向用户"继续"按钮；`auth_source='header'` 的转 `needs_auth`。
+5. splice 失效恢复（勘误 2026-09-17，impl `worker._invalidate_splice`）：恢复或换主文件后 chunks 与已 splice 产物分叉——diff chunk 行判失效面，unlink `.splice-done` 哨兵 + 删 `_SPLICE_STALE_KINDS`（`zh_pdf`/`zh_src_zip`/`dual_json`/`compile_log`/`md_zip`）files 行与磁盘件；`en_pdf`/`src_tar` 属上游产物保留。options 数值解析 `_opt_int`：非数字 → warning + 落默认；`<1` → warning + clamp 到 1（喂 concurrency/qps——0/负值语义在调用点是"无节制"而非"禁用"，clamp 防静默放大）。
 
 ---
 
@@ -575,12 +576,12 @@ class SyncEngine {
 
 **本地（主形态）**：`uv tool install texlate` → `texlate` 入口三模式（texglot `cli.py` 同构）：
 
-- `texlate web|serve [--port 8765]`：前台跑 `uvicorn`，绑定 127.0.0.1，先 `service.lock` flock（抢不到 → 直接 `open http://127.0.0.1:8765` 复用已有实例）。
+- `texlate web|serve [--port 8765]`：前台跑 `uvicorn`，绑定 127.0.0.1，先 `service.lock` flock（抢不到 → 直接 `open http://127.0.0.1:8765` 复用已有实例）。（勘误 2026-09-17：`--port` 有值域闸——`texlate web` 走 typer `min=1/max=65535`，`python -m texlate.server` 走 argparse `_port` type（1–65535、越界/非数字 exit 2），双入口同口径。）
 - `texlate <arxiv-url|file>`：瘦 HTTP 客户端——健康探测失败就 `spawn python -m texlate.server`（+`--parent-pipe` 可选），等 `/api/health` 起来后走 §2 API，进度 SSE 渲染到终端。
 - `texlate --configure/--list/--status/--resume`：设置与任务管理。
 - 数据目录 `~/.texlate/`（`TEXLATE_DATA_DIR` 覆盖）：`settings.json`(0600) `texlate.db` `tasks/{id}/` `service.lock` `connections.json`。
 
-**打包**：`hatchling` wheel `force-include`: `"web/dist" = "texlate/server/static"`；FastAPI mount `static/assets`+`static/pdfjs`+SPA fallback（texglot `main.py` 尾部同款）；release 流水线 `npm ci --prefix web && vite build` 先于 `uv build`，dist 不入库。
+**打包**：`hatchling` wheel `force-include`: `"web/dist" = "texlate/server/static"`；FastAPI mount `static/assets`+`static/pdfjs`+SPA fallback（texglot `main.py` 尾部同款）（勘误 2026-09-17：impl `staticfiles.mount_spa` 是 `_SpaFiles(StaticFiles, html=True)` **整目录挂 `/`**——前端走 hash 路由（`#/…`），`html=True` 即够、无独立 fallback 路由；缓存策略按实 serve 文件分档：`index.html` → `Cache-Control: no-cache`，`assets/` 哈希产物 → `public, max-age=31536000, immutable`，`pdfjs/` 等稳定名资源走默认条件请求；`TEXLATE_SPA_DIR` 可指 `web/dist` 直挂开发产物，目录无 `index.html` 视为未构建不挂载、`/` 保持 404）；release 流水线 `npm ci --prefix web && vite build` 先于 `uv build`，dist 不入库。
 
 **Docker（服务端形态）**：multi-stage——`node:xx` build web → `python:3.12-slim` + tectonic 预置二进制（校验和）+ fonts-noto-cjk；`ENV TEXLATE_DATA_DIR=/data`（挂卷）、`EXPOSE 8765`；`TEXLATE_MODE=server` 时：绑 0.0.0.0、关 service.lock 单 owner、`REDIS_URL` 启用 Redis 队列后端、tenant 强制 header 指纹、本地 `local_only` 中间件换正式 CORS allowlist。TeXLive xelatex 变体镜像做 tag `texlate:full`（CI/服务端高成功率编译）。
 
@@ -594,4 +595,4 @@ class SyncEngine {
 2. **`_pages` 是 pdf.js 内部字段**：`viewer._pages[i].div` 虽稳定多年但非公开 API；备选 = `container.querySelectorAll('.page')`（`data-page-number`）。实现时抽 `pages()` 一层即可随时换。
 3. **alignment 依赖 hyperref**：arXiv 论文有少数无 hyperref/禁用 dest 的工程 → `kind:"pages"` 退化（同页码映射），体验降级但仍可用；这是 texglot 同款边界。
 4. **pdfslick 单点风险**：个人维护者（1.1k★），但它本质是 pdf.js `web/viewer` 组件的打包封装——最坏情况 fork 或直接掉回 texglot 式裸 pdfjs（有完整先例代码路径）。
-5. **BabelDOC sidecar 进度**：sidecar 进程 stdout 进度行 → 解析后映射成 `chunk`/`stage` 事件（docs/04 §120 行已留此口）。
+5. **BabelDOC sidecar 进度**：sidecar 进程 stdout 进度行 → 解析后映射成 `chunk`/`stage` 事件（docs/04 §120 行已留此口）。（勘误 2026-09-17，`babeldoc.py` 实装面：`_spawn` `start_new_session=True` 独立进程组 + `_kill_tree` killpg SIGKILL→`proc.kill` 兜底（cancel/超时整组带走，防孤儿孙进程）；pty/pipe 双通道合流单解析；`errors` 面 `deque(maxlen=64)` 有界——长跑任务错误行不无限堆积。）

@@ -77,11 +77,14 @@ bytes[0:4] == "%PDF"         → PDF 直投（无源码 → sidecar）
 
 ### 2.2 路径安全（逐成员，缺一不可）
 
-- 拒绝：`..`、绝对路径、包外 symlink/hardlink、device/fifo/socket、setuid。
-- 规范化：`./` 前缀剥离、重复名去重、**大小写折叠冲突检测**（`Fig1.eps`/`fig1.eps` 改名 + 告警，LaTeX 引用按原名）。
-- 上限：解压总量 ≤512MB、成员 ≤20k、单文件 ≤100MB。
-- 落盘：`raw/`（原始 blob 字节原样保存，可重放）+ `extracted/`（过滤后树）。
-- **mtree**：每包一份 `mtree.txt`（path+size+sha256）——缓存完整性校验、跨版本 diff、引用排序去重依据。
+- 拒绝：`..`、绝对路径（`/` 前缀或 `C:` 盘符）、包外 symlink/hardlink、device/fifo/socket、setuid（勘误 2026-09-17：impl 判 `mode & 0o6000`——setuid+setgid 并拒，告警 `reject_setuid`）；另加字符级拒绝——控制字符 `[\x00-\x1f\x7f]` 与 UTF-16 代理区 `[\ud800-\udfff]`（非 UTF-8 原名经 str 层浮出，告警文本经 `backslashreplace` 转义防 meta.json 编码炸），成员名 `reject_path`、linkname `reject_link` 同查；linkname **先按原始形查**绝对路径/盘符再归一化（只查 `_link_rel` 解析结果会漏真实逃逸），归一后 `..` 出根亦 `reject_link`。
+- 规范化：`./` 前缀剥离、空段折叠；同名重复成员 **last-wins**（`dup_member_overwrite` 后到者覆盖，勘误 2026-09-17：非「去重」）；**大小写折叠冲突检测**——file/link 冲突改 `~cN` 后缀名 + `casefold_rename` 告警（LaTeX 引用按原名），dir 成员冲突不可改名只 `casefold_dir` 告警跳过（大小写不敏感 FS 上目录会静默合并、子成员路径固定无法 rename）。
+- 目录/文件冲突双向拒（`reject_dir_clash`）：落点是既有目录（file-over-dir）、父路径段是文件（file-under-file）、dir 成员迟到而同名 file/symlink 已落盘——先到者保、后到者告警跳过。
+- IO 降级与硬拒：落盘 `OSError ∈ {ENAMETOOLONG, ELOOP, EEXIST, ENOTDIR}` 按成员级 `reject_io:{errno}` 告警跳过，不流产整包；**成员流中坏头整包拒**——tarfile `getmembers` 遇坏头静默停枚举，offset 后 512B 非全零即 `UnpackError("corrupt member stream")`（其后成员全丢、mtree 不能谎报完整；全零尾巴属真实包形态，9702009 实证）。
+- 上限：解压总量 ≤512MB、成员 ≤20k（超限整包 `UnpackError("too_many_members")`）、单文件 ≤100MB（`reject_filesize`/`reject_totalcap` 成员级告警）。
+- 落盘：`raw.{tar.gz|gz|pdf|bin}` 单文件（原始 blob 字节原样保存，可重放——勘误 2026-09-17：非 `raw/` 目录，staging 落成单 blob）+ `extracted/`（过滤后树）。
+- **mtree**：每包一份 `mtree.txt`（TSV `path\tsize\tsha256\tkind[\t-> target][\tstub]`，kind ∈ file/dir/symlink/hardlink，symlink/hardlink 记 `-> target`，stub 成员尾挂 `stub` 标记——勘误 2026-09-17：原规格只记 path+size+sha256 三列）——缓存完整性校验、跨版本 diff、引用排序去重依据。
+- 链接语义：包内 symlink 保留落盘 + `link_kept` 告警（安全已查，引用关系对编译语义要紧）；hardlink 目标可能靠后出现 → 延迟二遍物化（`_finish_links`：目标在树 → `hardlink_materialized` 复制实体计入 mtree；缺席/是 symlink → `hardlink_dangling` 告警不落盘）；后到同名非链接成员压掉未物化的 hardlink 声明，与 last-wins 成员序一致。
 - stub 过滤：`member_bytes < 100B` 或解压后 `%auto-ignore` 前缀 → 标 `stub` 不进抽样（实测 42B 占位混入案例）。
 
 ### 2.3 主文件定位算法

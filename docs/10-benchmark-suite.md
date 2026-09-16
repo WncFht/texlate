@@ -107,12 +107,12 @@
 
 **底材**：corpus_v3 子集（先 ~50 篇，后全量）。
 
-**构建方法**（harness 已扶正为 `src/texlate/e2e.py`——`mock_translate_tree`/`pipe_condition`/`base_condition`/`mock_pipeline_run`，CLI `texlate run` 与 `bench/py/e2e_mock_bench.py` 共用；勘误 2026-09-15：原写 `tmp/exp/e2e/pipeline.py` 扶正，实际落地为产品模块而非 bench 脚本，翻译走 XlatPipeline(MockTranslator)+L0 校验器全产品 API）：
+**构建方法**（harness 已扶正为 `src/texlate/e2e.py`——`mock_translate_tree`/`pipe_condition`/`base_condition`/`mock_pipeline_run`，CLI `texlate run` 与 `bench/py/e2e_mock_bench.py` 共用；勘误 2026-09-15：原写 `tmp/exp/e2e/pipeline.py` 扶正，实际落地为产品模块而非 bench 脚本，翻译走 XlatPipeline(MockTranslator)+L0 校验器全产品 API。勘误 2026-09-17：`e2e_mock_bench` 的 translate_tree 已改为单源调 `e2e._scan_tree`、fixloop 参数对齐产品签名（`d240b43`）——harness 不再自持第二份扫描实现）：
 
 1. Mode A 位置忠实 mock：注入 ctex + 占位译文 + splice + 编译 → 验机械链路（已实证 16/16 PDF、0 FAIL、identity 111/111、leftover=0）。
 2. Mode B 幻觉 mock：注入占位符丢失/幻觉 → 验校验链兜底（132 处破坏编译前 132/132 捕获——"出 PDF≠成功"的实证来源）。
-3. Mode C 位置扰动 mock（待跑）：随机移位 ~10% 占位符。
-4. Mode D 真实：B4 真译文接入（M1 后）。
+3. Mode C 位置扰动 mock：随机移位 ~10% 占位符。（勘误 2026-09-17：已实装并跑——`e2e_mock_bench.py` pipeC-xel/pipeC-tec 双臂，结果 `bench/results/mock-sabotage-v3-2026-09-16/`；pipeB 同有 -tec 变体，B/C 每 Mode 双引擎各一臂，原"待跑"标注失效。）
+4. Mode D 真实：B4 真译文接入（M1 后）。（勘误 2026-09-17：已跑——e2e-real n100、chunk ok 99.97%，见 §0 现状列。）
 5. 产出 **漏斗看板**：下载/解包/定位/解析/翻译/校验/编译每环节成功率 + 终态分布（done/partial/fault/degraded_*）——这就是"端到端成功率看板"的实现（docs/02 §测试策略）。
 
 **门槛**：mock A 全绿（PDF+identity+ 零残留占位 + 中文实际渲染）；mock B 破坏 100% 编译前捕获；Mode D 成功率即产品 SLA 观测点。
