@@ -19,6 +19,12 @@
 # +undefined_cs 空 l.N 变体行 (宏/钩展开上下文取末位 cs); syntax 族扩
 # Extra }/\\endgroup/\\fi 等组/条件多 token 错; rules +inputenc_strip(94)
 # +cs_targeted_fix(165, cs→修复表首版 headerps@out/mathbbm)。
+# v4 (2026-09-16 signature-mining 扩列): filemap.overrides +epsf.tex
+# /tcilatex.tex (.tex 索引缺席兜底); taxonomy +missing_graphic/+babel_opt/
+# +hyperref_driver/+float_opt/+pkg_order/+invalid_char/+expl3_backend
+# ("other" 拆家) + ps_image 数字扩展名变体 (metapost); shim_map +mn2e/
+# svjour/slashbox/geom/tcilatex/epsf/svglov3; rules +graphic_case_link(17)
+# +graphic_repair(18) +invalid_char_recode(97)。
 # 社区贡献入口 = 新增/修改本文件条目。
 #
 # 两层结构:
@@ -86,11 +92,14 @@ filemap:
   denylist_prefixes: [tlmgr, tlgs]
   overrides: # 社区贡献: "fname": "tl_pkg" 手工映射兜底
     # 例: "iclr14submit_e.sty": null   # TL 无此包 → 预检扫描的已知噪声
-    # binhex.tex 真身在 kastrup 包, 但 INDEX_EXTS 不含 .tex → 索引缺席 (2211.04574
-    # 实证 unfixable)。注意: overrides 仅接入 tectonic CtanFetcher
-    # (engine._wire_engine); xelatex filemap 不读 overrides —— xelatex 侧靠
-    # legacy_pkg_shim 的 binhex.tex 条目兜底。
-    "binhex.tex": "kastrup"
+    # 2026-09-16 起全引擎生效: tectonic 经 CtanFetcher.index 套入, xelatex
+    # 等经 _wire_engine 的 eng.filemap 实例遮蔽 (overrides-first 包装)。
+    "binhex.tex": "kastrup" # 真身在 kastrup (2211.04574 实证); .tex 入索引后仍留显式钉
+    # .tex 已入 INDEX_EXTS (runfiles 段限定, doc/src 噪声不收) —— 此表
+    # 继续作显式钉与已知噪声登记 (signature-mining 2026-09-16 §2.1;
+    # overrides 是 basename→pkg 直表, 不经 runfiles 过滤)。
+    "epsf.tex": "epsf" # 1706.02568; 真身 tex/generic/epsf/epsf.tex ∈ epsf 包
+    "tcilatex.tex": null # physics/0307021; TL 无 (TCI 私有) → 已知噪声, 走 shim_map stub
   version_guard: # docs/08 §5.2 第9条: ctan_fetch 版本前置检查
     enabled: true # tlnet 只发最新; 新版对 bundle 的 expl3/LaTeX2e 太旧会拒载
     texlive_format_epoch: "2022-07-14" # tectonic bundle 快照年代 (ctanfetch-probe §3.4)
@@ -166,6 +175,14 @@ taxonomy:
       scope: head,
       payload_group: 1,
       pattern: 'image inclusion failed for "([^"]+\.(?:eps|ps|EPS|PS))"|PostScript images are not supported',
+    }
+  # metapost 数字扩展名变体 (0806.4589: diag1.1 实为 EPS 产物; 上行只认
+  # .eps/.ps → 漏归 other)。双引号 xdvipdfmx 形态 + 单引号 Unable-to-load
+  # 形态并列; payload_group 缺省 = 首个非空组。
+  - {
+      id: ps_image,
+      scope: head,
+      pattern: "image inclusion failed for \"([^\"]+\\.[0-9]+)\"|Unable to load picture or PDF file '([^']+\\.[0-9]+)'",
     }
   - {
       id: fontspec_missing,
@@ -252,6 +269,40 @@ taxonomy:
       scope: head,
       pattern: "begin\\{[^}]*\\}.*ended by|Extra \\\\end",
     }
+  # ── 2026-09-16 signature-mining "other" 拆家 (§2.2) ── 精确字面签名须
+  # 先于 syntax 宽词族评估 (syntax 含 Missing/Illegal 等词会抢签)。
+  # file-line-error 形态 (无 '!' 前缀) 也走本段 —— _ERR_FILELINE_RE 已计。
+  - {
+      id: missing_graphic,
+      scope: head,
+      pattern: "Unable to load picture or PDF file '([^']+)'|image inclusion failed for \"([^\"]+\\.(?:pdf|png|jpe?g))\"",
+    }
+  - {
+      id: babel_opt,
+      scope: head,
+      payload_group: 1,
+      pattern: "Package babel Error: Unknown (?:option|language) [`']([^`']+)'",
+    }
+  - {
+      id: hyperref_driver,
+      scope: head,
+      payload_group: 1,
+      pattern: "Wrong DVI mode driver option [`']([^`']+)'",
+    }
+  - {
+      id: float_opt,
+      scope: head,
+      payload_group: 1,
+      pattern: "Unknown float option [`']([^`']+)'",
+    }
+  - {
+      id: pkg_order,
+      scope: head,
+      payload_group: 1,
+      pattern: "Package (\\w+) Error: \\w+ must be loaded (?:before|after)",
+    }
+  - { id: invalid_char, scope: head, pattern: "Text line contains an invalid character" }
+  - { id: expl3_backend, scope: head, pattern: "Backend request inconsistent with engine" }
   # 2026-09-16 扩 syntax 族: Extra }/\\endgroup/\\right/\\middle/\\else/\\fi/\\or
   # 与 Forgotten \\endgroup —— 组/定界/条件多 token 错误归 syntax
   # (astro-ph/0306068 "Extra }, or forgotten $." 原是 other 兜底;
@@ -877,6 +928,129 @@ rules:
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesPackage{math}[2026/09/16 fixloop legacy shim -> no-op]
               \endinput
+          # ── 2026-09-16 signature-mining F 扩列 ──
+          # mn2e.cls (MNRAS 老类名, 2015 改名 mnras; filemap 也提示 mnras)
+          # —— 真身只在 doc/latex/mnras/LEGACY/ → loads 委托新类。
+          # 实证 1109.6007/1206.5620 (双引擎 4 格)。
+          mn2e.cls: { loads: "mnras", needs: ["mnras.cls"] }
+          # svjour.cls (Springer 期刊类, 不在 TL) —— article + svjour 宏面
+          # polyfill: \inst 上标注脚号 / \institute+\subtitle 收集制
+          # (\and→\quad) 挂 \maketitle / \abstract 单参命令式 / \PACS 含
+          # \and 分组打印 / ack+acknowledgement 环境。实证 1404.6180
+          # (\documentclass[epj]{svjour})。
+          svjour.cls:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesClass{svjour}[2026/09/16 fixloop legacy shim -> article + svjour polyfills]
+              \LoadClassWithOptions{article}
+              \providecommand{\journalname}[1]{}
+              \providecommand{\titlerunning}[1]{}
+              \providecommand{\authorrunning}[1]{}
+              \providecommand{\mail}[1]{}
+              \providecommand{\offprints}[1]{}
+              \providecommand{\communicated}[1]{}
+              \providecommand{\dedication}[1]{}
+              \providecommand{\submitted}[1]{}
+              \providecommand{\inst}[1]{\textsuperscript{#1}}
+              \providecommand{\keywords}[1]{\par\noindent\textbf{Keywords:} #1\par}
+              \providecommand{\PACS}[1]{{\let\and\quad\par\noindent\textbf{PACS:} #1\par}}
+              \providecommand{\subclass}[1]{}
+              \providecommand{\CR}[1]{}
+              \def\svj@extra{}
+              \providecommand{\institute}[1]{\g@addto@macro\svj@extra{{\let\and\quad\footnotesize #1}\par}}
+              \providecommand{\subtitle}[1]{\g@addto@macro\svj@extra{{\large #1}\par}}
+              \@ifundefined{ack}{\newenvironment{ack}{\par\noindent\textbf{Acknowledgements.}\space}{\par}}{}
+              \@ifundefined{acknowledgement}{\newenvironment{acknowledgement}{\par\noindent\textbf{Acknowledgement.}\space}{\par}}{}
+              \let\svj@oldabs\abstract
+              \let\svj@oldendabs\endabstract
+              \renewcommand{\abstract}[1]{\svj@oldabs #1\svj@oldendabs}
+              \let\svj@maketitle\maketitle
+              \renewcommand{\maketitle}{\svj@maketitle\begingroup\svj@extra\par\endgroup}
+              \endinput
+          # slashbox.sty (1993 表内斜线包, TL 无) —— diagbox (TL 内) 内置
+          # \slashbox/\backslashbox 无条件定义且自毒 ver@slashbox.sty,
+          # 直接委托。实证 1109.5364。
+          slashbox.sty:
+            needs: ["diagbox.sty"]
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{slashbox}[2026/09/16 fixloop legacy shim -> diagbox]
+              \RequirePackage{diagbox}
+              \endinput
+          # geom.sty (S. Levy 1992, LaTeX2.09 巨型样式; 不在 TL) —— geometry
+          # 桥接 + 宏面 polyfill (0806.0904 \input{geom.sty} 实证)。经 \input
+          # 装载 → @ catcode=12, 本 stub 全禁 @-cs。原包宏面 (CTAN 取件核实):
+          # \fullref/\Fullref/\reftype/\Reftype/\label*/\setlabeltype/\preref/
+          # \ifproofing/\ifautolabel/\presection/\marginparstyle/\markbothsame/
+          # \unnumbered(=\the<cnt>置\relax); \margins 非原包 API (稿自定义)
+          # → providecommand 不覆盖; \ns 原包亦未解析 → no-op。
+          geom.sty:
+            needs: ["geometry.sty"]
+            body: |
+              \typeout{fixloop legacy shim: geom.sty -> geometry + polyfills}
+              \RequirePackage{geometry}
+              \newif\ifproofing \proofingfalse
+              \newif\ifautolabel \autolabelfalse
+              \providecommand{\prooftag}[1]{}
+              \providecommand{\theoremintro}[1]{}
+              \providecommand{\ns}{}
+              \providecommand{\marginparstyle}[1]{}
+              \providecommand{\mediumseries}{\mdseries}
+              \providecommand{\normalshape}{\normalfont}
+              \providecommand{\presection}[1]{\vspace{#1}}
+              \providecommand{\markbothsame}[1]{\markboth{#1}{#1}}
+              \providecommand{\unnumbered}[1]{\expandafter\let\csname the#1\endcsname\relax}
+              \providecommand{\margins}[3][0pt]{\newgeometry{hmargin=#2,vmargin=#3}}
+              \providecommand{\fullref}[1]{\ref{#1}}
+              \providecommand{\Fullref}[1]{\ref{#1}}
+              \providecommand{\reftype}[1]{}
+              \providecommand{\Reftype}[1]{}
+              \providecommand{\setlabeltype}[2]{}
+              \providecommand{\preref}{}
+              \let\geomoriglabel\label
+              \def\label{\futurelet\geomnext\geomlabelx}
+              \def\geomlabelx{\ifx\geomnext*\expandafter\geomlabelstar\else\expandafter\geomoriglabel\fi}
+              \def\geomlabelstar*#1{\geomoriglabel{#1}}
+              \endinput
+          # tcilatex.tex (TCI Scientific Word 私有初始化件, TL 无; 常见
+          # \input{tcilatex} 夹在导言区) —— 裸 stub 回放策略, 缺宏由下游
+          # undefined_cs 归因 (physics/0307021 实证)。
+          tcilatex.tex:
+            body: |
+              % fixloop legacy shim: tcilatex.tex 无公共对应物 —— 空件
+              \endinput
+          # epsf.tex (老 epsf plain-TeX 图件接口; TL epsf 包 tex/generic/epsf/
+          # 已有真身 —— filemap.overrides 直解, 本 stub 为 xelatex 通路
+          # overrides 盲区兜底, 1706.02568 实证) —— graphicx 桥接:
+          # \epsfbox[opt bbox]{f}/\epsffile{f} → \includegraphics; \epsfxsize/
+          # \epsfysize 为真 dimen (>0 时才进 width=/height=); bbox 可选参数
+          # 吞掉降级 (clip 语义不移植)。\input 装载 → 禁 @-cs。
+          epsf.tex:
+            needs: ["graphicx.sty"]
+            body: |
+              \typeout{fixloop legacy shim: epsf.tex -> graphicx bridge}
+              \RequirePackage{graphicx}
+              \newdimen\epsfxsize \newdimen\epsfysize
+              \newif\ifepsfverbose
+              \let\epsfclipon\relax \let\epsfclipoff\relax
+              \def\epsfsize#1#2{\epsfxsize=#1\epsfysize=#2\relax}
+              \def\epsfbox{\futurelet\geomepsnext\geomepsbox}
+              \def\geomepsbox{\ifx\geomepsnext[\expandafter\geomepsboxbb\else\expandafter\geomepsboxplain\fi}
+              \def\geomepsboxbb[#1]#2{\geomepsinclude{#2}}
+              \def\geomepsboxplain#1{\geomepsinclude{#1}}
+              \def\geomepsinclude#1{\ifdim\epsfxsize>0pt
+                \includegraphics[width=\epsfxsize]{#1}%
+                \else\ifdim\epsfysize>0pt
+                \includegraphics[height=\epsfysize]{#1}%
+                \else\includegraphics{#1}\fi\fi}
+              \let\epsffile\epsfbox
+          # svglov3.clo (svjour3 无期刊选项时硬 \input 的版式件, 不在 TL;
+          # 其余 sv*.clo 走 \InputIfFileExists 已可graceful) —— 裸 stub,
+          # 版式差异由 article 面兜底。实证 1608.06693 (zh 臂)。
+          svglov3.clo:
+            body: |
+              % fixloop legacy shim: svglov3.clo -> bare stub
+              \endinput
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same } # stub 注入与引擎无关; needs 装不上则下轮 missing_file 归因
@@ -965,6 +1139,53 @@ rules:
         }
     stats: { fires: 0, status: validated } # 全语料 ps_image 均被 eps_to_pdf 救回, 兜底未点火
     source_ref: "docs/08-translate-compile.md L218, L271; fixloop-v2 整改"
+
+  # ── 2026-09-16 signature-mining "other" 拆家: missing_graphic 两规则 ──
+  # 序: case_link (17) 先行 —— 盘上有大小写变体时改写引用即解; 无变体
+  # 返回未应用 → 落到 repair (18)。repair 内部分级: pdf 且未蒸馏 → gs
+  # 重蒸馏就地覆盖 (留 .fixloop-rd 备份兼已蒸馏标记); 非 pdf/无 gs/蒸馏
+  # 败/marker 在 → \includegraphics 改写 \fbox 占位框保编译。
+  - id: graphic_case_link
+    description: "missing_graphic 盘上存大小写变体 → \\includegraphics 参数改写真名"
+    phase: loop
+    order: 17
+    when: { category: missing_graphic, payload_required: true }
+    action:
+      kind: builtin_transform
+      function: graphic_case_link
+      params: {}
+    risk: low # 只在 ci-glob 命中真实文件时改写引用; 无命中即不动
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "2403.15102/2211.04457 (cbv4 other 拆家)",
+          error: "Unable to load picture or PDF file 'img/sf_08_VX.pdf' (盘存 SF_08_VX.pdf)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "docs/research/product/2026-09-16-signature-mining.md §2.2"
+
+  - id: graphic_repair
+    description: "missing_graphic 在盘但拒载 → gs 重蒸馏就地覆盖, 败则 \\fbox 占位"
+    phase: loop
+    order: 18
+    when: { category: missing_graphic, payload_required: true }
+    action:
+      kind: builtin_transform
+      function: graphic_repair
+      params: {}
+    risk: medium # 重蒸馏覆盖原图 (留 .fixloop-rd 备份); stub 丢图保编译
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1502.06541/1012.5273 (cbv4 other 拆家)",
+          error: "figDY.pdf 合法但双引擎拒载 / zeromode.pdf 转换后仍拒载",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "docs/research/product/2026-09-16-signature-mining.md §2.2"
 
   - id: install_sysfont
     description: "fontspec 'font X cannot be found' → 按 {X}.otf/.ttf/.ttc 搜包安装"
@@ -1282,6 +1503,30 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "docs/research/latex/2026-09-16-aux-cjk-truncation.md"
+
+  # 2026-09-16 signature-mining: head 段 "Text line contains an invalid
+  # character" (二进制垃圾/非 UTF-8 字节) 与 warn_utf8 同病理 → 复用
+  # non_utf8_recode 动作 (cond-mat/0307744 实证, tectonic 格)。
+  - id: invalid_char_recode
+    description: "invalid_char (源码非法字节) → 就地转码 UTF-8"
+    phase: loop
+    order: 97
+    when: { category: invalid_char }
+    action:
+      kind: builtin_transform
+      function: non_utf8_recode # 与 non_utf8_source 同函数; 仅入口类别不同
+      params: { exts: [.tex, .sty, .cls, .bib] }
+    risk: medium # 转码错判会毁源码; 只对真 decode-fail 文件动刀
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "cond-mat/0307744 (cbv4 other 拆家)",
+          error: "Text line contains an invalid character",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "docs/research/product/2026-09-16-signature-mining.md §2.2"
 
   - id: soul_cjk_mbox
     description: "soul 族 (\\hl\\ul\\st\\so\\caps) 参数含 CJK → \\mbox 包裹防逐字重构"
@@ -1604,6 +1849,15 @@ rules:
           # natbib 引用宏 —— 类内 natbib 缺席 (shim 顶替后) 或作者漏装包
           citep: { usepackage: natbib }
           citeyear: { usepackage: natbib }
+        # 表外 fallback (2026-09-16): glue 残骸前缀拆分 —— payload 未命中
+        # cs_table 时, 若 cs = 已知粘连头 + 残余 (大写起首或 ≤4 字符) 则合成
+        # cs_map 拆回 "head rest" (replay 实证 rmPT 型新残骸仍零星冒头,
+        # 逐条收表追不上)。split_guard 挡与头同前缀的真宏名 (part/parbox/
+        # ddot/fraction…); 含 @ 的包内私有 cs 不拆 (版本偏斜非粘连)。
+        # in 头不收: int/indent/input/index/infty 前缀面太热, inV 留显式条目。
+        split_heads: [linebreak, item, hline, nabla, Delta, frac, par, dd, bf, it, rm]
+        split_guard:
+          [part, para, parbox, parskip, itemize, itemsep, ddot, ddots, fraction]
     risk: medium # 剥包/换宏族改版式; 表只收语料实证条目
     engines:
       xelatex: { mode: native }
