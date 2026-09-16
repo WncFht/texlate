@@ -103,6 +103,12 @@ def test_compat_blocks_injected_once() -> None:
     assert out2.count("texlate-native") == out.count("texlate-native")
 
 
+def test_quantumarticle_option_spelled_exactly() -> None:
+    """拼写守卫：类只认 `allowfontchangeintitle`——错一个字母 xkeyval 静默拒收。"""
+    assert "allowfontchangeintitle" in XETEX_COMPATIBILITY
+    assert "allowfontchageintitle" not in XETEX_COMPATIBILITY
+
+
 def test_pixel_block_only_when_pxd_used() -> None:
     plain = "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}"
     out = normalize_engine(plain, "xelatex")

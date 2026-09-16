@@ -180,7 +180,7 @@ XETEX_COMPATIBILITY = r"""% texlate: native XeTeX font and PDF-driver capabiliti
 }
 \AddToHook{package/breakurl/after}{\let\ifpdf\TeXlateSavedIfpdf}
 % This class's optional arXiv check assumes every non-pdfTeX engine writes DVI.
-\PassOptionsToClass{nopdfoutputerror,allowfontchageintitle}{quantumarticle}
+\PassOptionsToClass{nopdfoutputerror,allowfontchangeintitle}{quantumarticle}
 % Embedded PostScript can silently disappear with restricted XeTeX drivers.
 % Record actual drawing operations; merely loading an unused package is harmless.
 \AddToHook{package/pstricks/after}{%
