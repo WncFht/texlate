@@ -1235,11 +1235,22 @@ def _fixloop_one(
     return rec
 
 
-_ON_STATUS = {
-    "fail": {"fail"},
-    "nonclean": {"fail", "partial"},
-    "clean": {"clean"},
-    "all": None,
+def _on_misschar(crec: dict) -> bool:
+    """缺字窄口：partial ∧ missing_chars>0 —— missing_char_fix 可修的子集。
+
+    与 e2e_real_bench._want_fix 同口径；其余 warning 级 partial 不进
+    （partial→fail 回退教训）。
+    """
+    v = crec.get("verdict") or {}
+    return crec.get("status") == "partial" and (v.get("missing_chars") or 0) > 0
+
+
+_ON_PRED: dict[str, object] = {
+    "fail": lambda c: c.get("status") == "fail",
+    "nonclean": lambda c: c.get("status") in {"fail", "partial"},
+    "misschar": _on_misschar,
+    "clean": lambda c: c.get("status") == "clean",
+    "all": lambda _c: True,
 }
 
 
@@ -1247,14 +1258,14 @@ def stage_fixloop(
     args: argparse.Namespace, out_dir: Path, ids: list[str], log: RecLog
 ) -> None:
     comp_recs = load_latest(out_dir / "records" / "compile.jsonl")
-    want = _ON_STATUS[args.on]
+    want = _ON_PRED[args.on]
     todo: list[tuple[str, dict]] = []
     for pid in ids:
         cand = [(k, r) for k, r in comp_recs.items() if k[0] == pid and k[1] == "zh"]
         if not cand:
             continue
         _k, crec = cand[-1]  # 末条=当前 splice/ 的 provenance
-        if want is not None and crec.get("status") not in want:
+        if not want(crec):
             continue
         if log.is_done(pid, "fix", crec.get("upstream") or "") and not args.rerun:
             continue
@@ -1369,8 +1380,8 @@ def main() -> None:
     p_fx.add_argument(
         "--on",
         default="fail",
-        choices=["fail", "nonclean", "clean", "all"],
-        help="目标格选择：fail(默认)/nonclean/clean(幂等探针)/all",
+        choices=["fail", "nonclean", "misschar", "clean", "all"],
+        help="目标格选择：fail(默认)/nonclean/misschar(缺字 partial 窄口)/clean(幂等探针)/all",
     )
     p_fx.add_argument("--timeout", type=float, default=240.0)
 

@@ -46,8 +46,6 @@ DIRTY_FIRST_CATEGORIES = {
     "fontspec_missing",
     "undefined_cs",
     "ps_image",
-    # eps_image: rules.yaml 改名前的旧产出类别名，engine.py 对齐提交后可删
-    "eps_image",
     "latex209",
 }
 
