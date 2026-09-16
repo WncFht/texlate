@@ -632,29 +632,64 @@ def _record_verdict(
         }
 
 
+def _trim_intermediate_tail(text: str) -> str | None:
+    r"""可再生中间产物的截尾整形：砍回最后一个完整行界；无完整行可留 → None。
+
+    XeTeX 写缓冲在 8192B 边界劈断多字节字符 → 自产/shipped ``.aux`` 系
+    文件可能终结于半截 ``\newlabel``——只转码不整形回读时
+    ``\@newl@bel`` 照样扫过 EOF（2211.13013）。TeX 写出的完整行必以
+    ``\n`` 收尾，``text`` 已是解码后字符面，按行界回退即完整字符边界；
+    砍掉的部分引擎下遍重长，零数据损失。仅适用可再生中间产物——
+    .bib/.bbl/.bst 是数据文件，无尾换行的完整末行是合法形态，不能砍。
+    """
+    if not text or text.endswith("\n"):
+        return text
+    end = text.rfind("\n") + 1
+    return text[:end] if end else None
+
+
 def _transcode_aux_bib(
     root: Path, encodings: dict[str, dict[str, str | None]]
-) -> list[str]:
-    """.bib/.bbl/.bst + .aux 系可再生中间产物同档转码：非 UTF-8 转 UTF-8 写回。
+) -> dict[str, list[str]]:
+    r""".bib/.bbl/.bst + .aux 系可再生中间产物同档转码：非 UTF-8 转 UTF-8 写回。
 
     只动字节不动字节序义：aux 由引擎下遍重写，转码只为消掉 shipped
     非 UTF-8 件首遍回读的 invalid_utf8（docs/research/latex/
-    2026-09-16-aux-cjk-truncation.md 立项臂二）。
+    2026-09-16-aux-cjk-truncation.md 立项臂二）。中间产物另加截尾整形
+    （``_trim_intermediate_tail``）——不完整末行比非法字节更致命：
+    ``\@newl@bel`` 的 EOF 扫描发生在参数层，合法 UTF-8 也救不回来。
+
+    返回 ``stats`` 片段（仅非空台账）：``transcoded_aux`` 转码写回 /
+    ``trimmed_intermediates`` 截尾写回 / ``purged_intermediates``
+    无完整行可留已删除。
     """
-    transcoded = []
+    ledgers: dict[str, list[str]] = {
+        "transcoded_aux": [],
+        "trimmed_intermediates": [],
+        "purged_intermediates": [],
+    }
     for path in root.rglob("*"):
-        if (
-            not path.is_file()
-            or path.suffix.lower() not in AUX_BIB_SUFFIXES | INTERMEDIATE_SUFFIXES
-        ):
+        suffix = path.suffix.lower()
+        if not path.is_file() or suffix not in AUX_BIB_SUFFIXES | INTERMEDIATE_SUFFIXES:
             continue
         original = path.read_bytes()
         text, verdict = decode_tex_with(original)
         _record_verdict(encodings, root, path, verdict)
+        rel = path.relative_to(root).as_posix()
+        if suffix in INTERMEDIATE_SUFFIXES:
+            kept = _trim_intermediate_tail(text)
+            if kept is None:
+                path.unlink()
+                ledgers["purged_intermediates"].append(rel)
+                continue
+            if kept != text:
+                path.write_text(kept, encoding="utf-8")
+                ledgers["trimmed_intermediates"].append(rel)
+                continue
         if text.encode("utf-8") != original:
             path.write_text(text, encoding="utf-8")
-            transcoded.append(path.relative_to(root).as_posix())
-    return transcoded
+            ledgers["transcoded_aux"].append(rel)
+    return {k: sorted(v) for k, v in ledgers.items() if v}
 
 
 def normalize_project(root: Path, engine: str, main: str | None = None) -> dict:
@@ -680,11 +715,9 @@ def normalize_project(root: Path, engine: str, main: str | None = None) -> dict:
         if text.encode("utf-8") != original:
             path.write_text(text, encoding="utf-8")
             stats["rewritten"] = int(stats["rewritten"]) + 1
-    transcoded_aux = _transcode_aux_bib(root, encodings)
+    stats.update(_transcode_aux_bib(root, encodings))
     if encodings:
         stats["encodings"] = encodings
-    if transcoded_aux:
-        stats["transcoded_aux"] = sorted(transcoded_aux)
     latin = prepare_legacy_latin_fonts(root)
     if latin:
         stats["legacy_latin_files"] = latin
