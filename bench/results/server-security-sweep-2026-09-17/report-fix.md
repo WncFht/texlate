@@ -42,6 +42,13 @@ tests/test_server_gate.py 新增 28 例全覆盖——解压两维（count>64、
 
 `pytest -k "server or share or app or byok or settings or gate"` → 637 passed, 2 skipped, 5 xfailed；ruff check 净、ruff format --check 净。全量套件 2995 passed，4 处失败在 test_bench_regression/test_segmenter_semantics（latex 层在飞，非本批引入）。leader 复核：test_server_gate+byok+api+fuzz_share 94 passed + 5 xfailed。
 
-## 追加单（SEC-8..12，fuzz-roundtrip 钉住的 5 项 share 缺陷）
+## 追加单（SEC-8..10，fuzz-roundtrip 钉住的 5 项 share 缺陷）——已落地 `e9acff5`
 
-交付时遗漏，leader 复核后已派回：UnicodeDecodeError 逃逸（share.py:300-304）、zlib.error 缺 except（:387-395/:291-299）、NotImplementedError 构造侧缺（:415-421）、pack 侧 manifest 尺寸闸、rename 非原子发布 + test_fuzz_share 5 个 xfail 摘钉。另起 commit 落地。
+首轮交付遗漏，leader 复核派回后补齐：
+
+- **SEC-8 unpack 异常面三漏**：新增 `_ZIP_ERRORS` 统一异常谱常量（OSError/BadZipFile/RuntimeError/NotImplementedError/zlib.error），三条 zip 读取路径拉齐共用；`_read_manifest` 的 `zf.read` 改 `zf.open`+`fp.read(_MANIFEST_MAX+1)` 有界读（顺带堵了目录 file_size 谎报小的 manifest 解压放大洞——与 SEC-1 成员侧同手法）；`json.loads` 捕获面补 UnicodeDecodeError（bytes 先 decode 的逃逸点）+ RecursionError（1MB 上限内可压超深嵌套）；`unpack_share` 构造侧 except 换 `(*_ZIP_ERRORS, UnicodeDecodeError)`——extract_version 超 MAX_EXTRACT_VERSION 的 NotImplementedError 收口。
+- **SEC-9 pack 侧自洽闸**：`pack_share` 序列化 manifest 后校验 ≤`_MANIFEST_MAX`（contributor/created_at/组分串无界即拒）+ 产物合计 ≤`_INFLATED_MAX`——SEC-1 聚合闸在 pack 侧对称钉上，自拒包形态封死。docstring 注明「pack 不产出自拒包」。
+- **SEC-10 rename 发布预检**：校验全过后、rename 循环前先扫全部目标位，`dest/name` 是目录 → IsADirectoryError（OSError 域），确定性冲突整体先拒、零部分发布。docstring 诚实措辞：多文件真原子不可达，环境级中段故障理论上仍可部分发布（rename 不可逆，无回滚承诺）。
+- **xfail 钉处理**：test_fuzz_share.py 5 个 strict-xfail 全摘转正常通过；`_KNOWN_ESCAPES` 常量与 fuzz dead except 分支删除（`import zlib` 随之移除）；用例改名对义（`*_escapes_contract` → `*_share_error`、`partial_publish` → `no_partial_publish`）；`test_pack_huge_caller_field_self_rejects` 改写为 pack 侧 `pytest.raises(ShareError)`。
+
+自验：test_fuzz_share + test_share 73/73；扩展面 646 passed / 2 skipped / 零 xfail；ruff 双净。leader 复核：112 passed，ruff 净。
