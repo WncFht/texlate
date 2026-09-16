@@ -7,11 +7,13 @@ r"""L0 规则校验层 —— stdlib always-on，src↔zh 相对判定（规格 
 设计原则 = "译文不得比原文更坏"：每条检查都是 src↔zh 比较而非 zh 绝对判定，
 src 自带的不平衡/不一致不追责（继承容忍），只报 zh 相对 src 的新增损伤。
 
-七条规则（docs/08 §2.1 表 + E21/E22 修订口径）：
+八条规则（docs/08 §2.1 表 + E21/E22 修订口径 + 注释区/粘合补丁）：
 
   placeholder  ``[[TYPE_n]]``/``[[SL]]``/``[[PL]]`` multiset diff + lev≤2 修复建议；
                E22：严格序守恒降为 warn（``of X``→``X 的`` 合法换序占违例 ~95%），
-               硬判据只留"结构占位符脱离行首"（BIBITEM 类）。
+               硬判据只留"结构占位符脱离行首"（BIBITEM 类）。注释豁免只盖
+               内容差异——zh 注释区净多出的占位符是 splice 字面残留，仍报 error
+               （sabotage 实测逃逸：臆造 ``[[MATH_966]]`` 写进 ``%`` 行）。
   brace        ``{}`` 平衡（``\\{`` ``\\}`` 转义、``%`` 注释豁免）。
   env          ``\\begin/\\end`` 栈配对 + 环境名 multiset 签名差分。
   key          ``\\cite*/\\*ref/\\label/\\bibitem/\\bibliography`` key multiset。
@@ -22,6 +24,9 @@ src 自带的不平衡/不一致不追责（继承容忍），只报 zh 相对 s
                未定义 cs 编译炸弹）；E21/E22：src→zh 方向脆弱间距命令
                （``\\ `` ``\\,`` ``\\;`` ``\\:`` ``\\!`` ``~``）计数差升硬判据
                cs_dropped，其余丢失 cs 报 warn。
+  item_glue    ``\\item`` 紧跟 ASCII 字母粘成 ``\\itemFSU`` 类非法 cs（管线引入
+               签名，8 篇实证 Undefined cs 编译炸弹）——zh 净多出计数 → warn；
+               ``\\itemsep`` 等合法 cs 与 src 自带粘连靠 src↔zh 净差豁免。
 
 实测基线（tmp/exp/rule-validator，cases.jsonl 1636 例）：10 类破坏 100% 检出、
 313 干净对 0 error-FP。
@@ -326,6 +331,19 @@ def _check_ph_anchor(snc: str, znc: str, issues: list[Issue]) -> None:
     )
 
 
+def _ph_in_comments(s: str) -> Counter[str]:
+    r"""注释区（``%``→行尾，``\%`` 豁免）内正规形占位符计数。
+
+    mask 口径下注释区整体不可见，必须单独点算——zh 注释里臆造的占位符
+    splice 后字面残留（sabotage 实测逃逸），src 自带注释占位符作净差豁免。
+    """
+    c: Counter[str] = Counter()
+    for kind, text, _ in _lex(s):
+        if kind == "cmt":
+            c.update(PH_ANY_LIKE_RX.findall(text))
+    return c
+
+
 def _check_placeholder(src: str, zh: str, issues: list[Issue]) -> None:
     """占位符 multiset diff + lev≤2 修复配对 + 序守恒软信号 + BIBITEM 锚定。"""
     snc, znc = mask_comments(src), mask_comments(zh)
@@ -366,6 +384,20 @@ def _check_placeholder(src: str, zh: str, issues: list[Issue]) -> None:
                 "占位符顺序与原文不一致（合法中文换序常见，splice 不伤）",
             )
         )
+
+    # —— 注释区占位符专项检查：zh 注释内净多出的占位符是 splice 字面残留
+    #    （mask 比对看不见，sabotage 实测逃逸）。反向"正文占位符被挪进注释"
+    #    已由上方 masked multiset 的 missing 方向捕获，此处只报多出。
+    extra_cmt = _ph_in_comments(zh) - _ph_in_comments(src)
+    issues.extend(
+        Issue(
+            "placeholder",
+            Severity.ERROR,
+            f"注释区内臆造占位符: {tok} ×{n}（splice 后字面残留）",
+            found=tok,
+        )
+        for tok, n in sorted(extra_cmt.items())
+    )
 
     _check_ph_anchor(snc, znc, issues)
 
@@ -676,11 +708,38 @@ def _check_macro(src: str, zh: str, issues: list[Issue]) -> None:
     )
 
 
+def _check_item_glue(src: str, zh: str, issues: list[Issue]) -> None:
+    r"""``\item``+ASCII 字母粘合签名（``\itemFSU`` 类，管线引入，编译炸弹）。
+
+    走 ``_lex`` cs 流而非裸正则：``\\itemX``（``\\`` 断行 + 文本）不误判，
+    注释区天然豁免。``\itemsep``/``\itemindent`` 等合法 cs 与 src 自带粘连
+    靠 src↔zh 净差豁免；只报 zh 多出计数。
+    """
+    s = Counter(
+        t for k, t, _ in _lex(src) if k == "cs" and t != "item" and t.startswith("item")
+    )
+    z = Counter(
+        t for k, t, _ in _lex(zh) if k == "cs" and t != "item" and t.startswith("item")
+    )
+    extra = z - s
+    if extra:
+        toks = ", ".join(f"\\{t} ×{n}" for t, n in sorted(extra.items()))
+        issues.append(
+            Issue(
+                "item_glue",
+                Severity.WARN,
+                f"\\item 与后随文本粘合成非法控制序列 ×{sum(extra.values())}: "
+                f"{toks}（未定义 cs 编译炸弹，应拆回 \\item + 空格）",
+                found=toks,
+            )
+        )
+
+
 # ---------------------------------------------------------------- 主入口
 
 
 def validate_pair(src: str, zh: str) -> L0Report:
-    """对 ``(src_chunk, zh_chunk)`` 跑全部七组检查，返回结构化 verdict。
+    """对 ``(src_chunk, zh_chunk)`` 跑全部八组检查，返回结构化 verdict。
 
     ``report.ok`` 为 True 即可送 L1/拼回；False 时 ``report.feedback()``
     的文本可直接进 corrector 的 ``previous_validation_error`` 字段。
@@ -693,4 +752,5 @@ def validate_pair(src: str, zh: str) -> L0Report:
     _check_math(src, zh, rep.issues)
     _check_length(src, zh, rep.issues)
     _check_macro(src, zh, rep.issues)
+    _check_item_glue(src, zh, rep.issues)
     return rep
