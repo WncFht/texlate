@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from texlate.compile.fixloop import load_ruleset
-from texlate.compile.fixloop.logparse import parse_log, parse_text
+from texlate.compile.fixloop.logparse import Taxonomy, parse_log, parse_text
 
 RS = load_ruleset()
 TAX = RS.taxonomy
@@ -209,6 +209,54 @@ def test_head_beats_tail() -> None:
     )
     cat, _ = classify(log)
     assert cat == "emergency"
+
+
+def test_tail_fatal_preempts_weak_head() -> None:
+    """regress4-2410.00012: tail 致命收尾抢占弱 head 类别。
+
+    真杀手在 log 尾 (File-not-found + Enter file name), 但首个 '!' 是
+    上游包内 undefined_cs —— 带 ``preempts`` 的 tail 条目可夺路由。"""
+    tax = Taxonomy(
+        [
+            {"id": "undefined_cs", "pattern": "Undefined control sequence"},
+            {
+                "id": "missing_file",
+                "scope": "tail",
+                "pattern": r"File `([^']+)' not found",
+                "guard": "Enter file name",
+                "preempts": ["undefined_cs", "pdftex_prim", "other", "emergency"],
+            },
+        ]
+    )
+    log = (
+        "! Undefined control sequence.\nl.5 \\foo\n"
+        + "pad line\n" * 15
+        + "File `chemgreek.sty' not found.\n! Emergency stop.\nEnter file name:"
+    )
+    assert tax.classify(parse_text(log, WARN)) == ("missing_file", "chemgreek.sty")
+
+
+def test_tail_fatal_no_preempt_unlisted_head() -> None:
+    """preempts 未列名的 head 类别不被抢 (强错误仍先修)。"""
+    tax = Taxonomy(
+        [
+            {"id": "illegal_unit", "pattern": "Illegal unit of measure"},
+            {
+                "id": "missing_file",
+                "scope": "tail",
+                "pattern": r"File `([^']+)' not found",
+                "guard": "Enter file name",
+                "preempts": ["undefined_cs", "other"],
+            },
+        ]
+    )
+    log = (
+        "! Illegal unit of measure (pt inserted).\n"
+        + "pad\n" * 15
+        + "File `x.sty' not found.\nEnter file name:"
+    )
+    cat, _ = tax.classify(parse_text(log, WARN))
+    assert cat == "illegal_unit"
 
 
 # ---------------------------------------------------------------- taxonomy: warnings/timeout/clean

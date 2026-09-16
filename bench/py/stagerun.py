@@ -599,8 +599,8 @@ async def _translate_tree(
     chunks = []
     parse_fail: list[str] = []
     for f in sorted(root.rglob("*.tex")):
-        if f.name.startswith("."):
-            continue
+        if f.name.startswith(".") or f.name.endswith(".rtx.tex"):
+            continue  # 隐文件 + REVTeX 运行时转储不进翻译集 (regress4-1003.1717)
         try:
             res = parse_file(f, flatten=False)
         except Exception as e:

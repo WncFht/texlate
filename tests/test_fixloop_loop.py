@@ -672,6 +672,7 @@ def test_pdftex_prim_polyfill_object_family(tmp_path: Path) -> None:
     ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
     ok, note = builtins.pdftex_prim_polyfill(ctx, None, "pdflastobj", {})
     assert ok, note
-    assert "\\ifdefined\\pdflastobj" in (tmp_path / "main.tex").read_text(
-        encoding="utf-8"
-    )
+    out = (tmp_path / "main.tex").read_text(encoding="utf-8")
+    assert "\\ifdefined\\pdflastobj" in out
+    # 恒头注入: cls 内部读取发生在 \documentclass 加载期间, 类行后太晚
+    assert out.index("\\ifdefined\\pdflastobj") < out.index("\\documentclass")

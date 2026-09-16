@@ -699,6 +699,70 @@ def _filemap_candidates(eng: Engine, fname: str) -> list[str]:
     return pkgs
 
 
+#: 包文件行首依赖声明 —— 注释掉的 ``% \RequirePackage`` 不命中。
+_DEP_DECL_RE = re.compile(
+    r"^[ \t]*\\(?:RequirePackage|RequirePackageWithOptions|LoadClass|usepackage)"
+    r"\s*(?:\[[^\]\n]*\])?\s*\{([^}]*)\}",
+    re.MULTILINE,
+)
+
+
+def _dep_stems(path: Path) -> list[str]:
+    r"""包文件行首 ``\\RequirePackage``/``\\LoadClass`` 声明的依赖名表。"""
+    try:
+        text = path.read_text(errors="replace")
+    except OSError:
+        return []
+    return [
+        stem
+        for m in _DEP_DECL_RE.finditer(text)
+        for stem in (s.strip() for s in m.group(1).split(","))
+        if stem
+    ]
+
+
+def _try_install_dep(ctx: LoopCtx, eng: Engine, stem: str) -> Path | None:
+    """单依赖名探测/补装 → 已解析路径 (供闭包续层)。"""
+    cands = (
+        [stem] if Path(stem).suffix else [f"{stem}.sty", f"{stem}.cls", f"{stem}.tex"]
+    )
+    for cand in cands:
+        if r := _probe(eng, cand, cwd=ctx.wdir):
+            return Path(r)
+        if eng.install_file(cand):
+            ctx.installed.append(cand)
+            if r := _probe(eng, cand, cwd=ctx.wdir):
+                return Path(r)
+            return None
+    return None
+
+
+def _install_dep_closure(
+    ctx: LoopCtx, eng: Engine, fname: str, path: str | None, *, depth: int = 2
+) -> None:
+    r"""包装文件的依赖闭包补装: 行首 ``\RequirePackage``/``\LoadClass`` 逐层探测+装。
+
+    2410.00012 实证: 装 mhchem 不装 chemgreek (包内 ``\RequirePackage`` 依赖),
+    texmf 遮蔽下依赖缺席 → log 尾 Emergency stop。``depth`` 界住链长。
+    """
+    if path is None:
+        return
+    seen = set(ctx.installed) | {fname}
+    frontier = [Path(path)]
+    for _ in range(depth):
+        nxt: list[Path] = []
+        for p in frontier:
+            for stem in _dep_stems(p):
+                if stem in seen:
+                    continue
+                seen.add(stem)
+                if r := _try_install_dep(ctx, eng, stem):
+                    nxt.append(r)
+        if not nxt:
+            return
+        frontier = nxt
+
+
 def _apply_install_file(
     ctx: LoopCtx, eng: Engine, params: dict[str, Any]
 ) -> tuple[bool, str]:
@@ -718,7 +782,8 @@ def _apply_install_file(
         font_related = bool(params.get("font_related")) or fname.endswith(font_exts)
         # probe 带 cwd=wdir: 工程内文件/ctan_fetch 平铺落盘均算命中
         # (tectonic probe_file 无 cwd 恒 None, 复核必败)
-        if _probe(eng, fname, cwd=ctx.wdir):
+        if present := _probe(eng, fname, cwd=ctx.wdir):
+            _install_dep_closure(ctx, eng, fname, present)
             if params.get("already_present_ok", True):
                 return True, f"already-present {fname}"
             continue
@@ -727,10 +792,11 @@ def _apply_install_file(
             hint = f" (candidates: {', '.join(pkgs)})" if pkgs else ""
             ctx.advisories.append(f"no package provides {fname}{hint}")
             continue
-        if not _probe(eng, fname, cwd=ctx.wdir):
+        if not (installed := _probe(eng, fname, cwd=ctx.wdir)):
             ctx.advisories.append(f"installed but {fname} still not found")
             continue
         ctx.installed.append(fname)
+        _install_dep_closure(ctx, eng, fname, installed)
         if font_related:
             eng.rebuild_fontmaps()
         return True, f"installed {fname}"

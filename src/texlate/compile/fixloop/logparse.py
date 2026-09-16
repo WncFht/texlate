@@ -162,12 +162,13 @@ class Taxonomy:
                 self.warn.append(e)
         self.warn_cats = {e["id"] for e in self.warn}
 
-    def classify(  # noqa: C901  # scope 三段评估序即分支
+    def classify(  # noqa: C901, PLR0912  # scope 三段+抢占评估序即分支
         self, rep: ErrReport, *, timed_out: bool = False
     ) -> tuple[str | None, str | None]:
         """→ (category, payload)。payload 供规则定位 (文件名/字体名/cs 名)。"""
         if timed_out:
             return "timeout", None
+        head_hit: tuple[str | None, str | None] | None = None
         if rep.first:
             head = rep.first + ("\n" + rep.ctx if rep.ctx else "")
             for entry, pat in self.head:
@@ -191,8 +192,13 @@ class Taxonomy:
                             else next((g for g in sm.groups() if g), None)
                         )
                         if spay is not None and spay in allowed:
-                            return sub["into"], spay
-                return entry["id"], pay
+                            head_hit = (sub["into"], spay)
+                            break
+                if head_hit is None:
+                    head_hit = (entry["id"], pay)
+                break
+        if head_hit is not None:
+            return self._tail_preempt(head_hit, rep)
         # —— 无 '!' 行: tail 段回溯 (交互式缺文件/Emergency) ——
         blob = rep.tail
         for entry, pat in self.tail:
@@ -204,3 +210,21 @@ class Taxonomy:
             if entry.get("warn_id") in rep.warnings:
                 return entry["id"], None
         return ("other" if rep.first else "clean"), None
+
+    def _tail_preempt(
+        self, head_hit: tuple[str | None, str | None], rep: ErrReport
+    ) -> tuple[str | None, str | None]:
+        """致命 tail 抢占: ``preempts`` 弱类别表内的 head 命中可被尾错夺路由。
+
+        regress4-2410.00012——log 尾的 Emergency stop/File-not-found 是更
+        可行动的真杀手, 不该被先报的非致命头错 (如上游包内
+        undefined_cs) 抢走路由。
+        """
+        for entry, pat in self.tail:
+            pre = entry.get("preempts")
+            if not pre or head_hit[0] not in pre:
+                continue
+            tm = pat.search(rep.tail)
+            if tm and (not entry.get("guard") or re.search(entry["guard"], rep.tail)):
+                return entry["id"], _payload(entry, tm)
+        return head_hit

@@ -201,8 +201,10 @@ def pdftex_prim_polyfill(
     r"""读取型 pdfTeX 原语补定义: ``\\ifdefined\\<prim>\\else\\chardef\\<prim>=1\\fi``。
 
     guard 规则只管 ``\\pdfX=val``/``\\pdfX{..}`` 赋值型; ``\\ifnum\\pdfoutput``
-    这类读取型需要原语已定义 (docs/08:268)。注入点在主文件
-    ``\\documentclass`` 行后; ``ifdefined`` 前缀天然幂等。
+    这类读取型需要原语已定义 (docs/08:268)。注入点恒在主文件头——
+    cls/sty 内部读取发生在 ``\\documentclass`` 加载期间, 类行后注入太晚
+    (2410.00012: ieeeaccess.cls:128 内 ``\\pdfobj``); ``ifdefined``
+    前缀天然幂等。
     """
     del eng  # 签名面统一; 注入发生在主文件源文本
     prim = str(params.get("prim") or payload or "")
@@ -215,12 +217,6 @@ def pdftex_prim_polyfill(
     t = ctx.read(main) or ""
     if f"\\ifdefined\\{prim}" in t:
         return False, f"{prim} already guarded"
-    lines = t.split("\n")
-    for i, ln in enumerate(lines):
-        if "\\documentclass" in ln:
-            lines.insert(i + 1, guard + " % fixloop polyfill")
-            ctx.write(main, "\n".join(lines))
-            return True, f"polyfill \\{prim} after \\documentclass"
     ctx.write(main, guard + " % fixloop polyfill\n" + t)
     return True, f"polyfill \\{prim} at file head"
 
