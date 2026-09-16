@@ -1,0 +1,13 @@
+{
+ "frozen_src": "tmp/exp/src-snapshot-tailfix (texlate/ working-tree copy)",
+ "frozen_at": "2026-09-16T15:58:54",
+ "baseline_ref": "bench/results/modec-v3-2026-09-16 (pre-tail-parity harness)",
+ "harness": "bench/py/e2e_mock_bench.py working tree, post-c69353e (Mode B/C full compile tail)",
+ "arms": [
+  "base-xel",
+  "pipe-xel",
+  "pipeB-xel",
+  "pipeC-xel"
+ ],
+ "n_ids": 50
+}
