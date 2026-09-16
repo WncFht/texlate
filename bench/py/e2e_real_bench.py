@@ -25,7 +25,7 @@ pipe 条件因翻译是 async 在本文件内联同款流程）。
 （manifest_booster.jsonl）。只收 `extracted/` 存在的条目。
 断点续跑：StateStore 落 bench/work_e2ereal/_state/{sid}/（跨 copy 存活），
 重跑同 id 自动续翻已完成 chunk；records.jsonl 逐篇 append（行在=done、
-末行胜），results.json 逐篇 merge 快照兼容旧消费方。
+末行胜），results.json 逐篇整格替换快照（原子写）兼容旧消费方。
 
 用法:
   uv run python bench/py/e2e_real_bench.py --ids 0707.1206     # 单篇 smoke
@@ -45,12 +45,15 @@ from __future__ import annotations
 import argparse
 import asyncio
 import functools
+import hashlib
 import json
 import os
 import random
+import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -508,13 +511,24 @@ def _paper_done(rec: dict | None) -> bool:
 
 @functools.lru_cache(maxsize=1)
 def _code_stamp() -> str:
-    """产码印章：``<sha>`` 或 ``<sha>-dirty``（src/texlate 有未提交改动）。
+    """产码印章：``snap-<sha256[:12]>`` 或 ``<sha>``/``<sha>-dirty``。
 
     记进每格 record——parse/splice 层修复落地后旧格 tex 是陈字节
     （0707.3950 实证：resume 谓词把全 ok 格整篇 carry-over，postfix 臂编译
     打修复前文件，mtime 取证才识破）。``--recode`` 按印章差异强制重跑；
     chunk 级 state 缓存仍在，重翻免费、parse/splice/compile 走新码。
+
+    ``TEXLATE_SRC`` 指向的冻结快照根带 ``snapshot-manifest.txt`` 时，印章
+    钉 manifest 字节（``snap-`` 形态）而非 live repo——bench 期间 repo 被
+    无关 commit/dirty 不再把全格误判 stale（反之快照换字节 manifest 换
+    哈希，陈旧格必被 ``--recode`` 抓到）。无 manifest 回退 repo 戳。
     """
+    src_env = os.environ.get("TEXLATE_SRC")
+    if src_env:
+        manifest = Path(src_env) / "snapshot-manifest.txt"
+        if manifest.is_file():
+            digest = hashlib.sha256(manifest.read_bytes()).hexdigest()
+            return f"snap-{digest[:12]}"
     try:
         sha = subprocess.run(
             ["git", "rev-parse", "--short", "HEAD"],  # noqa: S607
@@ -533,6 +547,54 @@ def _code_stamp() -> str:
     except (OSError, subprocess.CalledProcessError):
         return "unknown"
     return f"{sha}{'-dirty' if dirty else ''}"
+
+
+def _atomic_write(path: Path, text: str) -> None:
+    """tmp+os.replace 原子落盘——results.json/matrix/summary 有 live 消费方，
+    全量重写不留撕写窗（与 ``texlate.xlat.state.atomic_json`` 同式，tmp 名
+    带随机后缀防同路径并发撞名）。"""
+    fd, tmp = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(text)
+        os.replace(tmp, path)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+
+
+_DATE_SUFFIX_RX = re.compile(r"\d{4}-\d{2}-\d{2}")
+
+
+def _warn_date_fork(tag: str, out_dir: Path) -> None:
+    """``--date`` 跨日分叉守卫（醒目警告，不阻断）。
+
+    默认 ``--date`` = 当天 UTC——崩溃后隔日原样重启会新建 ``<tag>-<新日期>``
+    空目录、records 从零开始全量重跑，结果劈进两个日期目录
+    （scout-e2ereal-2026-09-17 §1，realpostfix2 臂实证风险）。目标目录尚不
+    存在而 bench/results/ 已有同 tag 的其他日期目录时，列出最近一个并提示
+    续跑日期；全新首跑（无任何同 tag 目录）保持静默不误警。
+    """
+    if out_dir.exists() or not out_dir.parent.is_dir():
+        return
+    prefix = f"{tag}-"
+    siblings = sorted(
+        d.name
+        for d in out_dir.parent.iterdir()
+        if d.is_dir()
+        and d.name.startswith(prefix)
+        and _DATE_SUFFIX_RX.fullmatch(d.name[len(prefix) :])
+    )
+    if not siblings:
+        return
+    latest = siblings[-1]
+    print(
+        f"*** WARNING: 目标目录 {out_dir.name}/ 不存在——本次将新建空目录从头跑。\n"
+        f"*** 同 tag 已有 {len(siblings)} 个历史日期目录（最近: {latest}）。\n"
+        f"*** 若意在续跑请加 --date {latest[len(prefix) :]}；"
+        "确为全新一跑可无视本警告。",
+        flush=True,
+    )
 
 
 # ---------------------------------------------------------------- 报告
@@ -570,7 +632,7 @@ def write_reports(results: dict, out_dir: Path, meta: dict) -> None:
         "| --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     matrix.extend("| " + " | ".join(str(x) for x in r) + " |" for r in rows)
-    (out_dir / "matrix.md").write_text("\n".join(matrix) + "\n", encoding="utf-8")
+    _atomic_write(out_dir / "matrix.md", "\n".join(matrix) + "\n")
 
     # ---- summary：分环节通过率 + 失败模式分类 ----
     lines = [
@@ -679,12 +741,13 @@ def write_reports(results: dict, out_dir: Path, meta: dict) -> None:
         and rec.get("base-xel", {}).get("verdict", {}).get("status") == "clean"
     ]
     lines += ["", f"- pipe-xel 非 clean 且 base-xel clean（管线引入）: {introduced}"]
-    (out_dir / "summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    _atomic_write(out_dir / "summary.md", "\n".join(lines) + "\n")
 
 
 # ---------------------------------------------------------------- main
 async def amain(args: argparse.Namespace) -> None:
     out_dir = ROOT / "bench/results" / f"{args.tag}-{args.date}"
+    _warn_date_fork(args.tag, out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / "results.json"
     rec_path = out_dir / "records.jsonl"
@@ -729,8 +792,8 @@ async def amain(args: argparse.Namespace) -> None:
         "sample_ids": ids,
         "started_at": datetime.now(UTC).isoformat(),
     }
-    (out_dir / "run_meta.json").write_text(
-        json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8"
+    _atomic_write(
+        out_dir / "run_meta.json", json.dumps(meta, ensure_ascii=False, indent=1)
     )
 
     cfg = PipelineConfig(concurrency=args.concurrency)
@@ -783,9 +846,8 @@ async def amain(args: argparse.Namespace) -> None:
                         != 0,
                     )
                     benchlib.append_jsonl(rec_path, prev)
-                    out_path.write_text(
-                        json.dumps(results, ensure_ascii=False, indent=1),
-                        encoding="utf-8",
+                    _atomic_write(
+                        out_path, json.dumps(results, ensure_ascii=False, indent=1)
                     )
                     write_reports(results, out_dir, meta)
                     print(
@@ -813,14 +875,12 @@ async def amain(args: argparse.Namespace) -> None:
                 )
             except Exception as e:
                 rec = {"id": rel, "status": "bench_error", "error": repr(e)[:400]}
-            if rel in results and isinstance(results[rel], dict):
-                results[rel].update(rec)
-            else:
-                results[rel] = rec
-            benchlib.append_jsonl(rec_path, results[rel])
-            out_path.write_text(
-                json.dumps(results, ensure_ascii=False, indent=1), encoding="utf-8"
-            )
+            # rec 已是完整格记录（与 records.jsonl 末行胜同口径）——整替换
+            # 而非浅合并：旧格不再产的臂键（pipe-fix/base-xel/error/
+            # reject_at）残留进新行会成 matrix 幻影行。
+            results[rel] = rec
+            benchlib.append_jsonl(rec_path, rec)
+            _atomic_write(out_path, json.dumps(results, ensure_ascii=False, indent=1))
             write_reports(results, out_dir, meta)
             t = rec.get("pipe-xel", {}).get("translate", {})
             print(
@@ -893,7 +953,7 @@ def main() -> None:
     ap.add_argument(
         "--recode",
         action="store_true",
-        help="产码印章（record.code=HEAD sha±dirty）不符的格重跑——splice/parse 层修复验证用，chunk 缓存仍在不重翻",
+        help="产码印章（record.code，snap-* 或 HEAD sha±dirty）不符的格重跑——splice/parse 层修复验证用，chunk 缓存仍在不重翻",
     )
     ap.add_argument("--tag", default=RESULTS_DIR_DEFAULT)
     ap.add_argument("--date", default=str(datetime.now(UTC).date()))
