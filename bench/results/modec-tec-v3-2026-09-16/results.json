@@ -1,0 +1,5281 @@
+{
+ "0806.2077": {
+  "id": "0806.2077",
+  "layer": "expand",
+  "main": "article.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 49,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 36,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 2.18,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 556171,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 1582,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "clean",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 0,
+    "hits": {},
+    "note": "no chunk-level attribution"
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "clean",
+    "main": "article.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "ps_image",
+      "pay": "f1.ps",
+      "pdf": false,
+      "n_errors": 1,
+      "rule": "eps_to_pdf",
+      "result": "eps->pdf 18/18 converted, refs rewritten in 1 files"
+     },
+     {
+      "round": 2,
+      "cat": "clean",
+      "pay": null,
+      "pdf": true,
+      "n_errors": 0,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [],
+    "installed": [],
+    "engine_flags": [],
+    "engine_flags_dropped": [],
+    "log_excerpt": "File: f7.pdf Graphic file (type pdf)\n<use f7.pdf>\nFile: f8.pdf Graphic file (type pdf)\n<use f8.pdf>\nFile: f9.pdf Graphic file (type pdf)\n<use f9.pdf>\nFile: f10.pdf Graphic file (type pdf)\n<use f10.pdf>\nFile: f11.pdf Graphic file (type pdf)\n<use f11.pdf>\nFile: f12.pdf Graphic file (type pdf)\n<use f12.pdf>\nFile: f13.pdf Graphic file (type pdf)\n<use f13.pdf>\nFile: f14.pdf Graphic file (type pdf)\n<use f14.pdf>\nFile: f15.pdf Graphic file (type pdf)\n<use f15.pdf>\nFile: f16.pdf Graphic file (type pdf)\n<use f16.pdf>\nFile: f17a.pdf Graphic file (type pdf)\n<use f17a.pdf>\nFile: f17b.pdf Graphic file (type pdf)\n<use f17b.pdf>\n [6] [7] [8] [9] [10] [11] (article.aux)\n\nLaTeX Warning: There were multiply-defined labels.\n\n )\nOutput written on article.xdv (11 pages, 69500 bytes)."
+   }
+  }
+ },
+ "0806.2420": {
+  "id": "0806.2420",
+  "layer": "expand",
+  "main": "main.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 20,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 33,
+    "float_sizing": 0
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.21,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 53850,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 496,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "clean"
+  }
+ },
+ "0806.3179": {
+  "id": "0806.3179",
+  "layer": "expand",
+  "error": "no main tex"
+ },
+ "0806.3338": {
+  "id": "0806.3338",
+  "layer": "expand",
+  "main": "kleinGordonLocalParametricResonance.tex",
+  "route": {
+   "engines": [
+    "xelatex",
+    "tectonic"
+   ],
+   "reject": null,
+   "reasons": [
+    "eps_files=True pstricks=False → xelatex 优先（tectonic xdvipdfmx 硬墙）"
+   ],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 89,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 33,
+    "float_sizing": 0
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.43,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 401634,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 1474,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "clean",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 0,
+    "hits": {},
+    "note": "no chunk-level attribution"
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "clean",
+    "main": "kleinGordonLocalParametricResonance.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "ps_image",
+      "pay": "FaceParametric.eps",
+      "pdf": false,
+      "n_errors": 1,
+      "rule": "eps_to_pdf",
+      "result": "eps->pdf 2/2 converted, refs rewritten in 1 files"
+     },
+     {
+      "round": 2,
+      "cat": "clean",
+      "pay": null,
+      "pdf": true,
+      "n_errors": 0,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [],
+    "installed": [],
+    "engine_flags": [],
+    "engine_flags_dropped": [],
+    "log_excerpt": "[4] [5] [6] [7] [8]\nOverfull \\hbox (8.02573pt too wide) in alignment at lines 341--351\n [][][] []\n []\n\n[9] [10] [11] [12] [13]\nOverfull \\hbox (12.61737pt too wide) in alignment at lines 625--636\n [][][] []\n []\n\n[14] [15]\nOverfull \\hbox (6.73695pt too wide) in alignment at lines 772--782\n [][][] []\n []\n\n[16]\nOverfull \\hbox (17.56671pt too wide) detected at line 828\n\\OT1/cmr/m/n/12 ^^I(\\OML/cmm/m/it/12 t[]; ^^P\\OT1/cmr/m/n/12 )\\OMS/cmsy/m/n/12 \nj[] \\OT1/cmr/m/n/12 = \\OML/cmm/m/it/12 e[]\\OT1/cmr/m/n/12 ^^I(\\OML/cmm/m/it/12 \nt[]; ^^P\\OT1/cmr/m/n/12 )\\OMS/cmsy/m/n/12 j[] \\OT1/cmr/m/n/12 + [][]\\OMS/cmsy/m\n/n/12 j[]\\OML/cmm/m/it/12 :\n []\n\n[17] [18] (kleinGordonLocalParametricResonance.aux)\n\nLaTeX Warning: There were multiply-defined labels.\n\n )\nOutput written on kleinGordonLocalParametricResonance.xdv (18 pages, 92276 byte\ns)."
+   }
+  }
+ },
+ "0806.3472": {
+  "id": "0806.3472",
+  "layer": "expand",
+  "main": "main.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 293,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 33,
+    "float_sizing": 0
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 3.16,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 232859,
+    "first_error": "! Illegal unit of measure (pt inserted)."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "errors>3 (86)",
+     "warn:missing_chars",
+     "missing_character×16"
+    ],
+    "notes": [],
+    "n_errors": 86,
+    "category": "illegal_unit",
+    "cjk_chars": 11546,
+    "missing_chars": 16,
+    "warnings_hit": [
+     "missing_chars"
+    ]
+   },
+   "status": "partial",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 89,
+    "hits": {
+     "0:8": {
+      "file": "main.tex",
+      "line": 227,
+      "head": "! Illegal unit of measure (pt inserted)."
+     }
+    },
+    "retranslated": [
+     "0:8"
+    ],
+    "reverted_l0": [],
+    "kept_transport_err": [],
+    "over_cap": [],
+    "rewritten": [
+     "main.tex"
+    ],
+    "recompiled": "fail",
+    "fallback_src": [
+     "0:8"
+    ],
+    "unresolved": [],
+    "fallback_rewritten": [
+     "main.tex"
+    ],
+    "fallback_unverified": true
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "dirty_pdf",
+    "main": "main.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "illegal_unit",
+      "pay": null,
+      "pdf": true,
+      "n_errors": 86,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [],
+    "installed": [],
+    "engine_flags": [],
+    "engine_flags_dropped": [],
+    "log_excerpt": "! Illegal unit of measure (pt inserted).\n! Illegal unit of measure (pt inserted).\n<to be read again> \n                   这\nl.235 \\vspace{2这是译文}\n                    \\noindent{\\bfDouble 这是译文.} 这是译文 $K_\\La$ 这是译文 $H_\\La$ 这是译...\nDimensions can be in units of em, ex, in, pt, pc,\ncm, mm, dd, cc, bp, or sp; but yours is a new one!\nI'll assume that you meant to say pt, for printer's points."
+   }
+  },
+  "base-tec": {
+   "engine": "tectonic",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.66,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 311271,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": -1,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "clean"
+  }
+ },
+ "0806.3543": {
+  "id": "0806.3543",
+  "layer": "expand",
+  "main": "ghostimaging.tex",
+  "route": {
+   "engines": [
+    "xelatex",
+    "tectonic"
+   ],
+   "reject": null,
+   "reasons": [
+    "eps_files=True pstricks=False → xelatex 优先（tectonic xdvipdfmx 硬墙）"
+   ],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 56,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 53,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.52,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 969264,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 1675,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "clean",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 0,
+    "hits": {},
+    "note": "no chunk-level attribution"
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "clean",
+    "main": "ghostimaging.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "ps_image",
+      "pay": "scattering.eps",
+      "pdf": false,
+      "n_errors": 1,
+      "rule": "eps_to_pdf",
+      "result": "eps->pdf 17/17 converted, refs rewritten in 1 files"
+     },
+     {
+      "round": 2,
+      "cat": "clean",
+      "pay": null,
+      "pdf": true,
+      "n_errors": 0,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [],
+    "installed": [],
+    "engine_flags": [],
+    "engine_flags_dropped": [],
+    "log_excerpt": "File: position.pdf Graphic file (type pdf)\n<use position.pdf>\nFile: coherent.pdf Graphic file (type pdf)\n<use coherent.pdf>\nFile: before.pdf Graphic file (type pdf)\n<use before.pdf>\nFile: before1.pdf Graphic file (type pdf)\n<use before1.pdf>\nFile: middle1.pdf Graphic file (type pdf)\n<use middle1.pdf>\nFile: middle2.pdf Graphic file (type pdf)\n<use middle2.pdf>\nFile: speckle.pdf Graphic file (type pdf)\n<use speckle.pdf>\n[5]\n\nLaTeX Warning: A float is stuck (cannot be placed); try class option [floatfix]\n on input line 528.\n\n[6]\n\nLaTeX Warning: A float is stuck (cannot be placed); try class option [floatfix]\n on input line 536.\n\n[7] (ghostimaging.aux)\n\nLaTeX Warning: There were multiply-defined labels.\n\n )\nOutput written on ghostimaging.xdv (7 pages, 84436 bytes)."
+   }
+  }
+ },
+ "0905.1104": {
+  "id": "0905.1104",
+  "layer": "expand",
+  "main": "preprintVf.tex",
+  "route": {
+   "engines": [
+    "xelatex",
+    "tectonic"
+   ],
+   "reject": null,
+   "reasons": [
+    "eps_files=True pstricks=False → xelatex 优先（tectonic xdvipdfmx 硬墙）"
+   ],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 2,
+    "rewritten": 1,
+    "encodings": {
+     "preprintVf.tex": {
+      "encoding": "utf-8",
+      "basis": "strict-utf8",
+      "declared": "cp1251",
+      "note": "declared cp1251 ignored: bytes are strict utf-8"
+     }
+    }
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 62,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 53,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.92,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 154128,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 2248,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "clean",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 0,
+    "hits": {},
+    "note": "no chunk-level attribution"
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "acceptable_pdf",
+    "main": "preprintVf.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "ps_image",
+      "pay": "Critical-Line-2.eps",
+      "pdf": false,
+      "n_errors": 1,
+      "rule": "eps_to_pdf",
+      "result": "eps->pdf 4/4 converted, refs rewritten in 1 files"
+     },
+     {
+      "round": 2,
+      "cat": "other",
+      "pay": null,
+      "pdf": true,
+      "n_errors": 1,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [],
+    "installed": [],
+    "engine_flags": [],
+    "engine_flags_dropped": [],
+    "log_excerpt": "Vf.tex:216: Underfull \\vbox (badness 5245) has occurred while \\output is active\nVf.tex:216: Underfull \\vbox (badness 5245) has occurred while \\output is active\nwarning: preprintVf.tex:227: Overfull \\hbox (31.67125pt too wide) in alignment at lines 223--227\nwarning: preprintVf.tex:330: Overfull \\hbox (64.90456pt too wide) in alignment at lines 313--330\nwarning: preprintVf.tex:417: Overfull \\hbox (8.5506pt too wide) in alignment at lines 401--417\nwarning: preprintVf.tex:430: Overfull \\hbox (52.65472pt too wide) in alignment at lines 424--430\nwarning: preprintVf.tex:439: Overfull \\hbox (27.9514pt too wide) in alignment at lines 431--439\nwarning: preprintVf.tex:527: Overfull \\hbox (3.19278pt too wide) in alignment at lines 522--527\nwarning: Trying to include PDF file with version (1.7), which is newer than current output PDF setting (1.5)."
+   }
+  }
+ },
+ "1003.1583": {
+  "id": "1003.1583",
+  "layer": "expand",
+  "main": "main.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 116,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 33,
+    "float_sizing": 0
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.25,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 113184,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 2836,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "clean"
+  }
+ },
+ "1109.2475": {
+  "id": "1109.2475",
+  "layer": "core",
+  "main": "lam.tex",
+  "route": {
+   "engines": [
+    "xelatex",
+    "tectonic"
+   ],
+   "reject": null,
+   "reasons": [
+    "eps_files=True pstricks=False → xelatex 优先（tectonic xdvipdfmx 硬墙）"
+   ],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 132,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 33,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.73,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 762848,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 2595,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "clean",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 0,
+    "hits": {},
+    "note": "no chunk-level attribution"
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "clean",
+    "main": "lam.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "ps_image",
+      "pay": "is2din2a.eps",
+      "pdf": false,
+      "n_errors": 1,
+      "rule": "eps_to_pdf",
+      "result": "eps->pdf 4/4 converted, refs rewritten in 1 files"
+     },
+     {
+      "round": 2,
+      "cat": "clean",
+      "pay": null,
+      "pdf": true,
+      "n_errors": 0,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [],
+    "installed": [],
+    "engine_flags": [],
+    "engine_flags_dropped": [],
+    "log_excerpt": "File: lam1.pdf Graphic file (type pdf)\n<use lam1.pdf>\nFile: lam2.pdf Graphic file (type pdf)\n<use lam2.pdf>\n\nTeXlate-Float-Fit: figure 3; height 606.69077pt; limit 533.55855pt\n\nOverfull \\hbox (54.96906pt too wide) in paragraph at lines 311--312\n \\TU/lmtt/m/n/10.53937 2  \\TU/FandolFang-Regular(0)/m/n/10.53937 这 是 译 文 \\TU/lm\ntt/m/n/10.53937 (\\TU/FandolFang-Regular(0)/m/n/10.53937 这 是 译 文\\TU/lmtt/m/n/10.\n53937 )=(2.0* \\TU/FandolFang-Regular(0)/m/n/10.53937 这 是 译 文\\TU/lmtt/m/n/10.539\n37 /(1.0+ \\TU/FandolFang-Regular(0)/m/n/10.53937 这 是 译 文\\TU/lmtt/m/n/10.53937 )\n - 1.0)*2147483647 \n []\n\n\nOverfull \\hbox (0.16432pt too wide) in paragraph at lines 327--328\n \\TU/lmtt/m/n/10.53937 2  \\TU/FandolFang-Regular(0)/m/n/10.53937 这 是 译 文 \\TU/lm\ntt/m/n/10.53937 (\\TU/FandolFang-Regular(0)/m/n/10.53937 这 是 译 文\\TU/lmtt/m/n/10.\n53937 )=2147483647*(4.0* \\TU/FandolFang-Regular(0)/m/n/10.53937 这 是 译 文\\TU/lmtt\n/m/n/10.53937 /(1.0+ \\TU/FandolFang-Regular(0)/m/n/10.53937 这 是 译\n []\n\n[7]\nUnderfull \\hbox (badness 10000) in paragraph at lines 337--338\n\n []\n\n[8] [9] [10] [11] [12] [13] (lam.aux) )\nOutput written on lam.xdv (13 pages, 86568 bytes)."
+   }
+  }
+ },
+ "1206.1639": {
+  "id": "1206.1639",
+  "layer": "expand",
+  "main": "SkeinReps2.tex",
+  "route": {
+   "engines": [
+    "xelatex",
+    "tectonic"
+   ],
+   "reject": null,
+   "reasons": [
+    "eps_files=True pstricks=False → xelatex 优先（tectonic xdvipdfmx 硬墙）"
+   ],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 3,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 228,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 33,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 2.13,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 185276,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 6512,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "clean",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 0,
+    "hits": {},
+    "note": "no chunk-level attribution"
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "clean",
+    "main": "SkeinReps2.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "ps_image",
+      "pay": "SkeinRelation.eps",
+      "pdf": false,
+      "n_errors": 1,
+      "rule": "eps_to_pdf",
+      "result": "eps->pdf 3/3 converted, refs rewritten in 1 files"
+     },
+     {
+      "round": 2,
+      "cat": "clean",
+      "pay": null,
+      "pdf": true,
+      "n_errors": 0,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [],
+    "installed": [],
+    "engine_flags": [],
+    "engine_flags_dropped": [],
+    "log_excerpt": "\n[18]\n\nPackage fontspec Warning: Font \"FandolFang-Regular\" does not contain requested\n(fontspec)                Script \"CJK\".\n\n\nPackage fontspec Info: Font family 'FandolFang-Regular(0)' created for font\n(fontspec)             'FandolFang-Regular' with options\n(fontspec)             [Script={CJK},Extension={.otf}].\n(fontspec)              \n(fontspec)              This font family consists of the following NFSS\n(fontspec)             series/shapes:\n(fontspec)              \n(fontspec)             - 'normal' (m/n) with NFSS spec.:\n(fontspec)             <->\"[FandolFang-Regular.otf]/OT:language=dflt;\"\n(fontspec)             - 'small caps'  (m/sc) with NFSS spec.: \n\n\nOverfull \\hbox (13.45927pt too wide) in paragraph at lines 1149--1149\n[]\\TU/lmr/m/sc/8 Department of Mathematics, University of Southern California, \nLos Angeles CA 90089-\n []\n\n[19] (SkeinReps2.aux)\n\nLaTeX Font Warning: Some font shapes were not available, defaults substituted.\n\n )\nOutput written on SkeinReps2.xdv (19 pages, 233740 bytes)."
+   }
+  }
+ },
+ "1306.0082": {
+  "id": "1306.0082",
+  "layer": "expand",
+  "main": "KRS-RegularityDirectionalArXivV1.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [
+    "bbm/dsfont 类位图字体包 → tectonic 高风险，失败换 xelatex"
+   ],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 2,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 165,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 33,
+    "float_sizing": 0
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 3.03,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 208276,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 5132,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "clean"
+  }
+ },
+ "1306.0364": {
+  "id": "1306.0364",
+  "layer": "expand",
+  "main": "benini-wp.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 2,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 75,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 33,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.64,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX3 Error: Backend request inconsistent with engine: using 'xetex'"
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "notes": [],
+    "n_errors": 6,
+    "category": "other",
+    "cjk_chars": -1,
+    "missing_chars": 0,
+    "warnings_hit": [
+     "invalid_utf8"
+    ]
+   },
+   "status": "fail",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 6,
+    "hits": {
+     "0:0": {
+      "file": "benini-wp.tex",
+      "line": 106,
+      "head": "! Undefined control sequence."
+     }
+    },
+    "retranslated": [
+     "0:0"
+    ],
+    "reverted_l0": [],
+    "kept_transport_err": [],
+    "over_cap": [],
+    "rewritten": [
+     "benini-wp.tex"
+    ],
+    "recompiled": "fail",
+    "fallback_src": [
+     "0:0"
+    ],
+    "unresolved": [
+     "0:1"
+    ],
+    "fallback_rewritten": [
+     "benini-wp.tex"
+    ],
+    "fallback_unverified": true
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "unfixable:other",
+    "main": "benini-wp.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "other",
+      "pay": null,
+      "pdf": false,
+      "n_errors": 6,
+      "rule": null,
+      "result": null
+     },
+     {
+      "round": 2,
+      "cat": null,
+      "pay": null,
+      "pdf": false,
+      "n_errors": 6,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [],
+    "installed": [],
+    "engine_flags": [],
+    "engine_flags_dropped": [],
+    "log_excerpt": "! LaTeX3 Error: Backend request inconsistent with engine: using 'xetex'\n! LaTeX3 Error: Backend request inconsistent with engine: using 'xetex'\n(LaTeX3)        backend.\n\nFor immediate help type H <return>.\n ...                                              \n                                                  \nl.144   { \\sys_load_backend:n { } }\n                                   "
+   }
+  },
+  "base-tec": {
+   "engine": "tectonic",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.39,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": "! Package hyperref Error: Wrong driver option `pdftex',"
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "notes": [],
+    "n_errors": 6,
+    "category": "other",
+    "cjk_chars": -1,
+    "missing_chars": 0,
+    "warnings_hit": [
+     "invalid_utf8"
+    ]
+   },
+   "status": "fail"
+  }
+ },
+ "1306.1931": {
+  "id": "1306.1931",
+  "layer": "expand",
+  "main": "main.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 192,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 33,
+    "float_sizing": 0
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.87,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 149783,
+    "first_error": "! Illegal unit of measure (pt inserted)."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "reject:pstricks_route"
+    ],
+    "notes": [],
+    "n_errors": 0,
+    "category": null,
+    "cjk_chars": -1,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "partial",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 7,
+    "hits": {
+     "0:79": {
+      "file": "main.tex",
+      "line": 405,
+      "head": "! Illegal unit of measure (pt inserted)."
+     },
+     "0:80": {
+      "file": "main.tex",
+      "line": 407,
+      "head": "! Illegal unit of measure (pt inserted)."
+     },
+     "0:114": {
+      "file": "main.tex",
+      "line": 562,
+      "head": "! Illegal unit of measure (pt inserted)."
+     },
+     "0:156": {
+      "file": "main.tex",
+      "line": 816,
+      "head": "! Illegal unit of measure (pt inserted)."
+     },
+     "0:157": {
+      "file": "main.tex",
+      "line": 818,
+      "head": "! Illegal unit of measure (pt inserted)."
+     },
+     "0:158": {
+      "file": "main.tex",
+      "line": 823,
+      "head": "! Illegal unit of measure (pt inserted)."
+     },
+     "0:159": {
+      "file": "main.tex",
+      "line": 825,
+      "head": "! Illegal unit of measure (pt inserted)."
+     }
+    },
+    "retranslated": [
+     "0:79",
+     "0:80",
+     "0:114",
+     "0:156",
+     "0:157",
+     "0:158",
+     "0:159"
+    ],
+    "reverted_l0": [],
+    "kept_transport_err": [],
+    "over_cap": [],
+    "rewritten": [
+     "main.tex"
+    ],
+    "recompiled": "partial",
+    "fallback_src": [
+     "0:114",
+     "0:156",
+     "0:157",
+     "0:158",
+     "0:159",
+     "0:79",
+     "0:80"
+    ],
+    "unresolved": [],
+    "fallback_rewritten": [
+     "main.tex"
+    ],
+    "fallback_unverified": true
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "reject:pstricks_route",
+    "main": "main.tex",
+    "rounds": [],
+    "advisories": [],
+    "installed": [],
+    "engine_flags": [],
+    "engine_flags_dropped": [],
+    "log_excerpt": null
+   },
+   "reject_at": "fixloop"
+  },
+  "base-tec": {
+   "engine": "tectonic",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.27,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 187694,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": -1,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "clean"
+  }
+ },
+ "1511.02951": {
+  "id": "1511.02951",
+  "layer": "expand",
+  "main": "bright.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 73,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 48,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.07,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": "! ! LaTeX Error: File `mn2e.cls' not found.."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "notes": [],
+    "n_errors": 185,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0,
+    "warnings_hit": [
+     "degraded_file"
+    ]
+   },
+   "status": "fail",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 185,
+    "hits": {
+     "0:0": {
+      "file": "bright.tex",
+      "line": 49,
+      "head": "! ! LaTeX Error: File `mn2e.cls' not found.."
+     }
+    },
+    "retranslated": [
+     "0:0"
+    ],
+    "reverted_l0": [],
+    "kept_transport_err": [],
+    "over_cap": [],
+    "rewritten": [
+     "bright.tex"
+    ],
+    "recompiled": "fail",
+    "fallback_src": [
+     "0:0"
+    ],
+    "unresolved": [],
+    "fallback_rewritten": [
+     "bright.tex"
+    ],
+    "fallback_unverified": true
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "unfixable:missing_file",
+    "main": "bright.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "missing_file",
+      "pay": "mn2e.cls",
+      "pdf": false,
+      "n_errors": 185,
+      "rule": null,
+      "result": null
+     },
+     {
+      "round": 2,
+      "cat": null,
+      "pay": null,
+      "pdf": false,
+      "n_errors": 185,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [
+     "no package provides mn2e.cls (candidates: mnras)",
+     "install_file: no candidate file installed for mn2e.cls"
+    ],
+    "installed": [],
+    "engine_flags": [],
+    "engine_flags_dropped": [],
+    "log_excerpt": "! ! LaTeX Error: File `mn2e.cls' not found..\n! ! LaTeX Error: File `mn2e.cls' not found..\n\\@missingfileerror ...or: File `#1.#2' not found.}\n                                                  \nl.49 \\usepackage\n                [fontset=fandol,UTF8]{ctex}  % [texlate injected]\nThis error message was generated by an \\errmessage\ncommand, so I can't give any explicit help.\nPretend that you're Hercule Poirot: Examine all clues,"
+   }
+  },
+  "base-tec": {
+   "engine": "tectonic",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.51,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": "! ! LaTeX Error: File `mn2e.cls' not found.."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "notes": [],
+    "n_errors": 197,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0,
+    "warnings_hit": [
+     "missing_chars",
+     "degraded_file"
+    ]
+   },
+   "status": "fail"
+  }
+ },
+ "1511.06763": {
+  "id": "1511.06763",
+  "layer": "core",
+  "main": "trigger_solar_system_5R1.tex",
+  "route": {
+   "engines": [
+    "xelatex",
+    "tectonic"
+   ],
+   "reject": null,
+   "reasons": [
+    "eps_files=True pstricks=False → xelatex 优先（tectonic xdvipdfmx 硬墙）"
+   ],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 2,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 52,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 36,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.4,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": "! ! LaTeX Error: File `mn2e.cls' not found.."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "notes": [],
+    "n_errors": 622,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0,
+    "warnings_hit": [
+     "missing_chars",
+     "missing_graphic",
+     "degraded_file"
+    ]
+   },
+   "status": "fail",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 622,
+    "hits": {
+     "0:0": {
+      "file": "trigger_solar_system_5R1.tex",
+      "line": 37,
+      "head": "! ! LaTeX Error: File `mn2e.cls' not found.."
+     }
+    },
+    "retranslated": [
+     "0:0"
+    ],
+    "reverted_l0": [],
+    "kept_transport_err": [],
+    "over_cap": [],
+    "rewritten": [
+     "trigger_solar_system_5R1.tex"
+    ],
+    "recompiled": "fail",
+    "fallback_src": [
+     "0:0"
+    ],
+    "unresolved": [],
+    "fallback_rewritten": [
+     "trigger_solar_system_5R1.tex"
+    ],
+    "fallback_unverified": true
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "unfixable:missing_file",
+    "main": "trigger_solar_system_5R1.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "missing_file",
+      "pay": "mn2e.cls",
+      "pdf": false,
+      "n_errors": 622,
+      "rule": null,
+      "result": null
+     },
+     {
+      "round": 2,
+      "cat": null,
+      "pay": null,
+      "pdf": false,
+      "n_errors": 622,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [
+     "no package provides mn2e.cls (candidates: mnras)",
+     "install_file: no candidate file installed for mn2e.cls"
+    ],
+    "installed": [],
+    "engine_flags": [],
+    "engine_flags_dropped": [],
+    "log_excerpt": "! ! LaTeX Error: File `mn2e.cls' not found..\n! ! LaTeX Error: File `mn2e.cls' not found..\n\\@missingfileerror ...or: File `#1.#2' not found.}\n                                                  \nl.37 \\usepackage\n                [fontset=fandol,UTF8]{ctex}  % [texlate injected]\nThis error message was generated by an \\errmessage\ncommand, so I can't give any explicit help.\nPretend that you're Hercule Poirot: Examine all clues,"
+   }
+  },
+  "base-tec": {
+   "engine": "tectonic",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.75,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": "! ! LaTeX Error: File `mn2e.cls' not found.."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "notes": [],
+    "n_errors": 565,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0,
+    "warnings_hit": [
+     "missing_chars",
+     "missing_graphic",
+     "degraded_file"
+    ]
+   },
+   "status": "fail"
+  }
+ },
+ "1608.02631": {
+  "id": "1608.02631",
+  "layer": "core",
+  "error": "no main tex"
+ },
+ "1706.00119": {
+  "id": "1706.00119",
+  "layer": "expand",
+  "main": "subjective-fairness.tex",
+  "route": {
+   "engines": [
+    "xelatex",
+    "tectonic"
+   ],
+   "reject": null,
+   "reasons": [
+    "eps_files=True pstricks=False → xelatex 优先（tectonic xdvipdfmx 硬墙）",
+    "bbm/dsfont 类位图字体包 → tectonic 高风险，失败换 xelatex"
+   ],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 5,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 3,
+    "chunks": 86,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 37,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 3.77,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 98568,
+    "first_error": "! Package pgfkeys Error: I do not know the key '/tikz/这是译文' and I am going to i"
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "errors>3 (28)",
+     "warn:invalid_utf8"
+    ],
+    "notes": [],
+    "n_errors": 28,
+    "category": "other",
+    "cjk_chars": 1263,
+    "missing_chars": 0,
+    "warnings_hit": [
+     "invalid_utf8"
+    ]
+   },
+   "status": "partial",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 28,
+    "hits": {
+     "3:15": {
+      "file": "subjective-fairness.tex",
+      "line": 207,
+      "head": "! Package pgfkeys Error: I do not know the key '/tikz/这是译文' and I am going to i"
+     },
+     "3:22": {
+      "file": "subjective-fairness.tex",
+      "line": 289,
+      "head": "! Package pgfkeys Error: I do not know the key '/tikz/这是译文' and I am going to i"
+     },
+     "3:23": {
+      "file": "subjective-fairness.tex",
+      "line": 294,
+      "head": "! Package pgfkeys Error: I do not know the key '/tikz/这是译文' and I am going to i"
+     },
+     "3:45": {
+      "file": "subjective-fairness.tex",
+      "line": 410,
+      "head": "! Package pgfkeys Error: I do not know the key '/tikz/这是译文' and I am going to i"
+     }
+    },
+    "retranslated": [
+     "3:15",
+     "3:22",
+     "3:23",
+     "3:45"
+    ],
+    "reverted_l0": [],
+    "kept_transport_err": [],
+    "over_cap": [],
+    "rewritten": [
+     "subjective-fairness.tex"
+    ],
+    "recompiled": "partial",
+    "fallback_src": [
+     "3:15",
+     "3:22",
+     "3:23",
+     "3:45"
+    ],
+    "unresolved": [
+     "3:46"
+    ],
+    "fallback_rewritten": [
+     "subjective-fairness.tex"
+    ],
+    "fallback_unverified": true
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "dirty_pdf",
+    "main": "subjective-fairness.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "other",
+      "pay": null,
+      "pdf": true,
+      "n_errors": 28,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [],
+    "installed": [],
+    "engine_flags": [],
+    "engine_flags_dropped": [],
+    "log_excerpt": "! Package pgfkeys Error: I do not know the key '/tikz/这是译文' and I am going to i\n! Package pgfkeys Error: I do not know the key '/tikz/这是译文' and I am going to i\ngnore it. Perhaps you misspelled it.\n\nSee the pgfkeys package documentation for explanation.\nType  H <return>  for immediate help.\n ...                                              \n                                                  \nl.208       \\node[RV]"
+   }
+  },
+  "base-tec": {
+   "engine": "tectonic",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 6.37,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 117921,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "warn:invalid_utf8"
+    ],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": -1,
+    "missing_chars": 0,
+    "warnings_hit": [
+     "invalid_utf8"
+    ]
+   },
+   "status": "partial"
+  }
+ },
+ "1706.00280": {
+  "id": "1706.00280",
+  "layer": "expand",
+  "main": "main.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 6,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 65,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 44,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 5.4,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 1861078,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 1161,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "clean"
+  }
+ },
+ "1803.00234": {
+  "id": "1803.00234",
+  "layer": "expand",
+  "main": "draft.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 153,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 33,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 2.48,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 832693,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "warn:missing_chars",
+     "missing_character×1"
+    ],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 4784,
+    "missing_chars": 1,
+    "warnings_hit": [
+     "missing_chars"
+    ]
+   },
+   "status": "partial",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 3,
+    "hits": {
+     "0:1": {
+      "file": "draft.tex",
+      "line": 127,
+      "head": "! Illegal unit of measure (pt inserted)."
+     },
+     "0:3": {
+      "file": "draft.tex",
+      "line": 135,
+      "head": "! Illegal unit of measure (pt inserted)."
+     }
+    },
+    "retranslated": [
+     "0:1",
+     "0:3"
+    ],
+    "reverted_l0": [],
+    "kept_transport_err": [],
+    "over_cap": [],
+    "rewritten": [
+     "draft.tex"
+    ],
+    "recompiled": "partial",
+    "fallback_src": [
+     "0:1",
+     "0:3"
+    ],
+    "unresolved": [],
+    "fallback_rewritten": [
+     "draft.tex"
+    ],
+    "fallback_unverified": true
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "acceptable_pdf",
+    "main": "draft.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "warn_missing_char",
+      "pay": null,
+      "pdf": true,
+      "n_errors": 0,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [],
+    "installed": [],
+    "engine_flags": [],
+    "engine_flags_dropped": [],
+    "log_excerpt": "<use 250_H_3000_100mu_100tev.pdf>\nFile: 250_H_3000_200mu_100tev.pdf Graphic file (type pdf)\n<use 250_H_3000_200mu_100tev.pdf>\nFile: 250_H_3000_500mu_100tev.pdf Graphic file (type pdf)\n<use 250_H_3000_500mu_100tev.pdf>\n[25] [26] [27]\nFile: future_250_100tev.pdf Graphic file (type pdf)\n<use future_250_100tev.pdf>\nFile: future_diff100_250_100tev.pdf Graphic file (type pdf)\n<use future_diff100_250_100tev.pdf>\nFile: 300_250_mg_mneu1_discovery_100tev.pdf Graphic file (type pdf)\n<use 300_250_mg_mneu1_discovery_100tev.pdf>\nFile: 300_250_mg_mneu1_exclusion_100tev.pdf Graphic file (type pdf)\n<use 300_250_mg_mneu1_exclusion_100tev.pdf>\nFile: 3000_250_mg_mneu1_discovery_100tev.pdf Graphic file (type pdf)\n<use 3000_250_mg_mneu1_discovery_100tev.pdf>\nFile: 3000_250_mg_mneu1_exclusion_100tev.pdf Graphic file (type pdf)\n<use 3000_250_mg_mneu1_exclusion_100tev.pdf>\n [28] [29] [30] [31] (draft.bbl [32] [33] [34] [35] [36] [37]\n[38]\nMissing character: There is no   (U+2009) in font [lmroman10-italic]:mapping=te\nx-text;!\n[39] [40] [41] [42] [43] [44] [45]) [46] (draft.aux)\n\nLaTeX Warning: There were multiply-defined labels.\n\nPackage rerunfilecheck Info: File `draft.out' has not changed.\n(rerunfilecheck)             Checksum: 3E6226911746CA8A2B5CD80DA698B734;1118.\n )\nOutput written on draft.xdv (47 pages, 591420 bytes)."
+   }
+  },
+  "base-tec": {
+   "engine": "tectonic",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 4.25,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 817736,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": -1,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "clean"
+  }
+ },
+ "1907.00081": {
+  "id": "1907.00081",
+  "layer": "expand",
+  "main": "shift_retrieval.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 2,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 26,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 34,
+    "float_sizing": 0
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.3,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 74613,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "warn:invalid_utf8"
+    ],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 834,
+    "missing_chars": 0,
+    "warnings_hit": [
+     "invalid_utf8"
+    ]
+   },
+   "status": "partial",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 0,
+    "hits": {},
+    "note": "no chunk-level attribution"
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "acceptable_pdf",
+    "main": "shift_retrieval.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "warn_utf8",
+      "pay": null,
+      "pdf": true,
+      "n_errors": 0,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [],
+    "installed": [],
+    "engine_flags": [],
+    "engine_flags_dropped": [],
+    "log_excerpt": " []\n\n\nUnderfull \\hbox (badness 3219) in paragraph at lines 117--119\n\\TU/FandolSong-Regular(0)/m/n/10 译 文 $\\OT1/cmr/bx/n/10 C[]y \\OT1/cmr/m/n/10 = [\n](\\OT1/cmr/bx/n/10 x\\OT1/cmr/m/n/10 )[]\\OT1/cmr/bx/n/10 y \\OT1/cmr/m/n/10 = \\OT\n1/cmr/bx/n/10 F[][]\\OT1/cmr/m/n/10 ([])[]\\OT1/cmr/bx/n/10 Fy \\OT1/cmr/m/n/10 =\n []\n\n[1\n\n\n]\nUnderfull \\hbox (badness 2435) in paragraph at lines 162--163\n[]\\TU/FandolSong-Regular(0)/m/n/10 这 是 译 文 $\\OT1/cmr/bx/n/10 A[][][] \\OT1/cmr/m\n/n/10 = \\OT1/cmr/bx/n/10 P[]A[]A$\\TU/ptm/bx/it/10 . \\TU/FandolSong-Regular(0)/m\n/n/10 这 是 译 文\n []\n\n(shift_retrieval.bbl\nUnderfull \\hbox (badness 10000) in paragraph at lines 30--32\n[]\\TU/lmr/m/n/8 C. Rusu, “On learning with shift-invariant structures,”\n []\n\n) [2] (shift_retrieval.aux)\n\nLaTeX Font Warning: Some font shapes were not available, defaults substituted.\n\n )\nOutput written on shift_retrieval.xdv (2 pages, 41968 bytes)."
+   }
+  },
+  "base-tec": {
+   "engine": "tectonic",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.43,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 67365,
+    "first_error": "! LaTeX Error: Something's wrong--perhaps a missing \\item."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "warn:invalid_utf8"
+    ],
+    "notes": [],
+    "n_errors": 1,
+    "category": "syntax",
+    "cjk_chars": -1,
+    "missing_chars": 0,
+    "warnings_hit": [
+     "invalid_utf8"
+    ]
+   },
+   "status": "partial"
+  }
+ },
+ "2104.00094": {
+  "id": "2104.00094",
+  "layer": "expand",
+  "main": "GSI_2021_Wiechers_Eltzner_Huckemann_arxiv.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [
+    "bbm/dsfont 类位图字体包 → tectonic 高风险，失败换 xelatex"
+   ],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 2,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 52,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 38,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 2.88,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 987317,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 1190,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "clean"
+  }
+ },
+ "2105.00056": {
+  "id": "2105.00056",
+  "layer": "expand",
+  "main": "tree_dec_arxiv.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 4,
+    "rewritten": 2
+   },
+   "translate": {
+    "files": 2,
+    "chunks": 110,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 34,
+    "float_sizing": 2
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 5.31,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 277461,
+    "first_error": "! LaTeX Error: No counter '这是译文' defined."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "warn:invalid_utf8"
+    ],
+    "notes": [],
+    "n_errors": 1,
+    "category": "other",
+    "cjk_chars": 1029,
+    "missing_chars": 0,
+    "warnings_hit": [
+     "invalid_utf8"
+    ]
+   },
+   "status": "partial",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 1,
+    "hits": {
+     "0:2": {
+      "file": "tree dec/tree_dec_arxiv.tex",
+      "line": 143,
+      "head": "! LaTeX Error: No counter '这是译文' defined."
+     }
+    },
+    "retranslated": [
+     "0:2"
+    ],
+    "reverted_l0": [],
+    "kept_transport_err": [],
+    "over_cap": [],
+    "rewritten": [
+     "tree dec/tree_dec_arxiv.tex"
+    ],
+    "recompiled": "partial",
+    "fallback_src": [],
+    "unresolved": [
+     "0:12"
+    ]
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "acceptable_pdf",
+    "main": "tree_dec_arxiv.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "other",
+      "pay": null,
+      "pdf": true,
+      "n_errors": 1,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [],
+    "installed": [],
+    "engine_flags": [],
+    "engine_flags_dropped": [],
+    "log_excerpt": "! LaTeX Error: No counter '这是译文' defined.\n! LaTeX Error: No counter '这是译文' defined.\n\nSee the LaTeX manual or LaTeX Companion for explanation.\nType  H <return>  for immediate help.\n ...                                              \n                                                  \nl.143 ...oup\\footnote{这是译文}\\addtocounter{这是译文}{-1}\n                                                  \\endgroup"
+   }
+  },
+  "base-tec": {
+   "engine": "tectonic",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 2.51,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 271664,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "warn:invalid_utf8",
+     "warn:missing_chars"
+    ],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": -1,
+    "missing_chars": 1,
+    "warnings_hit": [
+     "invalid_utf8",
+     "missing_chars"
+    ]
+   },
+   "status": "partial"
+  }
+ },
+ "2105.03954": {
+  "id": "2105.03954",
+  "layer": "expand",
+  "main": "main.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 63,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 33,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 7.23,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 1703383,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 1916,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "clean"
+  }
+ },
+ "2203.00057": {
+  "id": "2203.00057",
+  "layer": "expand",
+  "main": "madjax.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 4,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 44,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 33,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 8.27,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 914020,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 1376,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "clean"
+  }
+ },
+ "2203.00092": {
+  "id": "2203.00092",
+  "layer": "expand",
+  "main": "arXiv_v3.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 5,
+    "rewritten": 2
+   },
+   "translate": {
+    "files": 2,
+    "chunks": 377,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 47,
+    "float_sizing": 0
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.7,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": "! Paragraph ended before \\pgffor@var@add was complete."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "notes": [],
+    "n_errors": 4,
+    "category": "syntax",
+    "cjk_chars": -1,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "fail",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 54,
+    "hits": {},
+    "note": "no chunk-level attribution"
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "unfixable:syntax",
+    "main": "arXiv_v3.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "missing_file",
+      "pay": "xkvltxp.sty",
+      "pdf": false,
+      "n_errors": 54,
+      "rule": "install_file",
+      "result": "installed xkvltxp.sty"
+     },
+     {
+      "round": 2,
+      "cat": "syntax",
+      "pay": null,
+      "pdf": false,
+      "n_errors": 4,
+      "rule": null,
+      "result": null
+     },
+     {
+      "round": 3,
+      "cat": null,
+      "pay": null,
+      "pdf": false,
+      "n_errors": 4,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [],
+    "installed": [
+     "xkvltxp.sty"
+    ],
+    "engine_flags": [],
+    "engine_flags_dropped": [],
+    "log_excerpt": "! Paragraph ended before \\pgffor@var@add was complete.\n! Paragraph ended before \\pgffor@var@add was complete.\n<to be read again> \n                   \\par \nl.30 \n     \nI suspect you've forgotten a `}', causing me to apply this\ncontrol sequence to too much text. How can we recover?\nMy plan is to forget the whole thing and hope for the best."
+   }
+  },
+  "base-tec": {
+   "engine": "tectonic",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 8.76,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": "! ! LaTeX Error: File `xkvltxp.sty' not found.."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "notes": [],
+    "n_errors": 3361,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0,
+    "warnings_hit": [
+     "degraded_file"
+    ]
+   },
+   "status": "fail"
+  }
+ },
+ "2203.13002": {
+  "id": "2203.13002",
+  "layer": "expand",
+  "main": "quintic-kleingordon-6.tex",
+  "route": {
+   "engines": [
+    "xelatex",
+    "tectonic"
+   ],
+   "reject": null,
+   "reasons": [
+    "eps_files=True pstricks=False → xelatex 优先（tectonic xdvipdfmx 硬墙）"
+   ],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 190,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 33,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 2.47,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "reject:pstricks_route"
+    ],
+    "notes": [],
+    "n_errors": 0,
+    "category": null,
+    "cjk_chars": -1,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "partial",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 0,
+    "hits": {},
+    "note": "no chunk-level attribution"
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "reject:pstricks_route",
+    "main": "quintic-kleingordon-6.tex",
+    "rounds": [],
+    "advisories": [],
+    "installed": [],
+    "engine_flags": [],
+    "engine_flags_dropped": [],
+    "log_excerpt": null
+   },
+   "reject_at": "fixloop"
+  },
+  "base-tec": {
+   "engine": "tectonic",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.85,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": -1,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "fail"
+  }
+ },
+ "2211.00020": {
+  "id": "2211.00020",
+  "layer": "expand",
+  "main": "main.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 2,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 158,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 37,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 5.91,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 16260879,
+    "first_error": "! LaTeX Error: Undefined color `这是译文'."
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "notes": [],
+    "n_errors": 3,
+    "category": "other",
+    "cjk_chars": 4775,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "clean"
+  }
+ },
+ "2308.00072": {
+  "id": "2308.00072",
+  "layer": "expand",
+  "main": "main.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 2,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 76,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 33,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 2.37,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": "! Package biblatex Error: Style 'authoryear' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "notes": [],
+    "n_errors": 122,
+    "category": "other",
+    "cjk_chars": -1,
+    "missing_chars": 0,
+    "warnings_hit": [
+     "missing_chars"
+    ]
+   },
+   "status": "fail",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 125,
+    "hits": {
+     "0:1": {
+      "file": "main.tex",
+      "line": 114,
+      "head": "! Illegal unit of measure (pt inserted)."
+     },
+     "0:3": {
+      "file": "main.tex",
+      "line": 143,
+      "head": "! Package biblatex Error: Command '\\cite' undefined."
+     },
+     "0:5": {
+      "file": "main.tex",
+      "line": 144,
+      "head": "! Missing $ inserted."
+     },
+     "0:6": {
+      "file": "main.tex",
+      "line": 145,
+      "head": "! Package biblatex Error: Command '\\cite' undefined."
+     },
+     "0:7": {
+      "file": "main.tex",
+      "line": 146,
+      "head": "! Missing $ inserted."
+     },
+     "0:10": {
+      "file": "main.tex",
+      "line": 148,
+      "head": "! Missing $ inserted."
+     },
+     "0:13": {
+      "file": "main.tex",
+      "line": 152,
+      "head": "! Package biblatex Error: Command '\\cite' undefined."
+     },
+     "0:14": {
+      "file": "main.tex",
+      "line": 154,
+      "head": "! Package biblatex Error: Command '\\cite' undefined."
+     },
+     "0:15": {
+      "file": "main.tex",
+      "line": 155,
+      "head": "! Missing $ inserted."
+     },
+     "0:17": {
+      "file": "main.tex",
+      "line": 163,
+      "head": "! Package biblatex Error: Command '\\cite' undefined."
+     },
+     "0:19": {
+      "file": "main.tex",
+      "line": 164,
+      "head": "! Missing $ inserted."
+     }
+    },
+    "retranslated": [
+     "0:1",
+     "0:3",
+     "0:6",
+     "0:13",
+     "0:14",
+     "0:17"
+    ],
+    "reverted_l0": [
+     "0:5",
+     "0:7",
+     "0:10",
+     "0:15"
+    ],
+    "kept_transport_err": [],
+    "over_cap": [
+     "0:19"
+    ],
+    "rewritten": [
+     "main.tex"
+    ],
+    "recompiled": "fail",
+    "fallback_src": [
+     "0:1",
+     "0:13",
+     "0:14",
+     "0:17",
+     "0:3",
+     "0:6"
+    ],
+    "unresolved": [
+     "0:10",
+     "0:7"
+    ],
+    "fallback_rewritten": [
+     "main.tex"
+    ],
+    "fallback_unverified": true
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "unfixable:other",
+    "main": "main.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "other",
+      "pay": null,
+      "pdf": false,
+      "n_errors": 122,
+      "rule": null,
+      "result": null
+     },
+     {
+      "round": 2,
+      "cat": null,
+      "pay": null,
+      "pdf": false,
+      "n_errors": 122,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [],
+    "installed": [],
+    "engine_flags": [],
+    "engine_flags_dropped": [],
+    "log_excerpt": "! Package biblatex Error: Style 'authoryear' not found.\n! Package biblatex Error: Style 'authoryear' not found.\n\nSee the biblatex package documentation for explanation.\nType  H <return>  for immediate help.\n ...                                              \n                                                  \nl.15895 \\RequireCitationStyle{\\blx@cbxfile}\n                                           "
+   }
+  },
+  "base-tec": {
+   "engine": "tectonic",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.98,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": "! Package biblatex Error: Style 'authoryear' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "notes": [],
+    "n_errors": 122,
+    "category": "other",
+    "cjk_chars": -1,
+    "missing_chars": 0,
+    "warnings_hit": [
+     "missing_chars"
+    ]
+   },
+   "status": "fail"
+  }
+ },
+ "2308.00125": {
+  "id": "2308.00125",
+  "layer": "expand",
+  "main": "manuscript.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 18,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 122,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 34,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 24.25,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": "! No such file or directory (os error 2)"
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "notes": [],
+    "n_errors": 1,
+    "category": "other",
+    "cjk_chars": -1,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "fail",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 0,
+    "hits": {},
+    "note": "no chunk-level attribution"
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "unfixable:other",
+    "main": "manuscript.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "other",
+      "pay": null,
+      "pdf": false,
+      "n_errors": 1,
+      "rule": null,
+      "result": null
+     },
+     {
+      "round": 2,
+      "cat": null,
+      "pay": null,
+      "pdf": false,
+      "n_errors": 1,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [],
+    "installed": [],
+    "engine_flags": [],
+    "engine_flags_dropped": [],
+    "log_excerpt": "! No such file or directory (os error 2)\n! No such file or directory (os error 2)"
+   }
+  },
+  "base-tec": {
+   "engine": "tectonic",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 20.94,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": -1,
+    "missing_chars": 0,
+    "warnings_hit": [
+     "invalid_utf8",
+     "missing_chars"
+    ]
+   },
+   "status": "fail"
+  }
+ },
+ "2308.12689": {
+  "id": "2308.12689",
+  "layer": "expand",
+  "main": "jaasample.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 2,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 64,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 34,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 2.69,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 569415,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "warn:missing_chars",
+     "missing_character×2"
+    ],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 2140,
+    "missing_chars": 2,
+    "warnings_hit": [
+     "missing_chars"
+    ]
+   },
+   "status": "partial",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 0,
+    "hits": {},
+    "note": "no chunk-level attribution"
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "acceptable_pdf",
+    "main": "jaasample.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "warn_missing_char",
+      "pay": null,
+      "pdf": true,
+      "n_errors": 0,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [],
+    "installed": [],
+    "engine_flags": [],
+    "engine_flags_dropped": [],
+    "log_excerpt": "gular(0)/m/n/10 是 译 文\\TU/lmr/m/n/10 , \\TU/FandolSong-Regular(0)/m/n/10 这 是 译 文\\\nTU/lmr/m/n/10 . \\TU/FandolSong-Regular(0)/m/n/10 这 是 译 文\\TU/lmr/m/n/10 . \\TU/Fa\nndolSong-Regular(0)/m/n/10 这 是\n []\n\n\nUnderfull \\hbox (badness 1968) in paragraph at lines 350--350\n\\TU/FandolSong-Regular(0)/m/n/10 译 文\\TU/lmr/m/n/10 . 2017, A&A, 600, \\TU/Fandol\nSong-Regular(0)/m/n/10 这 是 译 文\\TU/lmr/m/n/10 :10.1051/0004-\n []\n\n[6]\nUnderfull \\hbox (badness 1067) in paragraph at lines 364--364\n[]\\TU/FandolSong-Regular(0)/m/n/10 这 是 译 文\\TU/lmr/m/n/10 . \\TU/FandolSong-Regul\nar(0)/m/n/10 这 是 译 文\\TU/lmr/m/n/10 . \\TU/FandolSong-Regular(0)/m/n/10 这 是 译 文\\T\nU/lmr/m/n/10 . \\TU/FandolSong-Regular(0)/m/n/10 这 是 译 文\\TU/lmr/m/n/10 ., & \\TU/\nFandolSong-Regular(0)/m/n/10 这\n []\n\n\nUnderfull \\hbox (badness 3895) in paragraph at lines 364--364\n\\TU/FandolSong-Regular(0)/m/n/10 是 译 文\\TU/lmr/m/n/10 . \\TU/FandolSong-Regular(0\n)/m/n/10 这 是 译 文\\TU/lmr/m/n/10 . 2018, A&A, 610, \\TU/FandolSong-Regular(0)/m/n/\n10 这 是 译\n []\n\n[7\n\n] (jaasample.aux) )\nOutput written on jaasample.xdv (8 pages, 136816 bytes)."
+   }
+  },
+  "base-tec": {
+   "engine": "tectonic",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.77,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 580242,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "warn:missing_chars"
+    ],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": -1,
+    "missing_chars": 2,
+    "warnings_hit": [
+     "missing_chars"
+    ]
+   },
+   "status": "partial"
+  }
+ },
+ "2403.00073": {
+  "id": "2403.00073",
+  "layer": "expand",
+  "main": "main.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 138,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 35,
+    "float_sizing": 0
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 2.84,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 93572,
+    "first_error": "! Undefined control sequence."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "errors>3 (10)",
+     "first_error=undefined_cs:None",
+     "warn:missing_chars",
+     "missing_character×2"
+    ],
+    "notes": [],
+    "n_errors": 10,
+    "category": "undefined_cs",
+    "cjk_chars": 3083,
+    "missing_chars": 2,
+    "warnings_hit": [
+     "missing_chars"
+    ]
+   },
+   "status": "partial",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 24,
+    "hits": {
+     "0:16": {
+      "file": "main.tex",
+      "line": 153,
+      "head": "! Undefined control sequence."
+     },
+     "0:18": {
+      "file": "main.tex",
+      "line": 155,
+      "head": "! Undefined control sequence."
+     },
+     "0:31": {
+      "file": "main.tex",
+      "line": 197,
+      "head": "! Undefined control sequence."
+     },
+     "0:32": {
+      "file": "main.tex",
+      "line": 199,
+      "head": "! Undefined control sequence."
+     },
+     "0:36": {
+      "file": "main.tex",
+      "line": 227,
+      "head": "! Undefined control sequence."
+     },
+     "0:41": {
+      "file": "main.tex",
+      "line": 235,
+      "head": "! Undefined control sequence."
+     }
+    },
+    "retranslated": [
+     "0:16",
+     "0:18",
+     "0:31",
+     "0:32",
+     "0:36",
+     "0:41"
+    ],
+    "reverted_l0": [],
+    "kept_transport_err": [],
+    "over_cap": [],
+    "rewritten": [
+     "main.tex"
+    ],
+    "recompiled": "partial",
+    "fallback_src": [
+     "0:16",
+     "0:18",
+     "0:31",
+     "0:32",
+     "0:36",
+     "0:41"
+    ],
+    "unresolved": [],
+    "fallback_rewritten": [
+     "main.tex"
+    ],
+    "fallback_unverified": true
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "dirty_pdf",
+    "main": "main.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "undefined_cs",
+      "pay": "tinymag",
+      "pdf": true,
+      "n_errors": 10,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [],
+    "installed": [],
+    "engine_flags": [],
+    "engine_flags_dropped": [],
+    "log_excerpt": "! Undefined control sequence.\n! Undefined control sequence.\n<argument> \\tinymag \n                    \nl.161 ...译文 \\begin{equation}  I_{\\mathrm{\\tinymag}\n                                                  }[\\phi,\\pi]:=\\int_{\\mathca...\nThe control sequence at the end of the top line\nof your error message was never \\def'ed. If you have\nmisspelled it (e.g., `\\hobx'), type `I' and the correct"
+   }
+  },
+  "base-tec": {
+   "engine": "tectonic",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 2.6,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 122738,
+    "first_error": "! Undefined control sequence."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "errors>3 (734)",
+     "first_error=undefined_cs:None"
+    ],
+    "notes": [],
+    "n_errors": 734,
+    "category": "undefined_cs",
+    "cjk_chars": -1,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "partial"
+  }
+ },
+ "2410.08770": {
+  "id": "2410.08770",
+  "layer": "hot",
+  "main": "preprint.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 62,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 33,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 8.23,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 3933631,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "warn:invalid_utf8"
+    ],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 1145,
+    "missing_chars": 0,
+    "warnings_hit": [
+     "invalid_utf8"
+    ]
+   },
+   "status": "partial",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 0,
+    "hits": {},
+    "note": "no chunk-level attribution"
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "acceptable_pdf",
+    "main": "preprint.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "warn_utf8",
+      "pay": null,
+      "pdf": true,
+      "n_errors": 0,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [],
+    "installed": [],
+    "engine_flags": [],
+    "engine_flags_dropped": [],
+    "log_excerpt": " []\n\n[5]\nFile: fig_revision/workflow_new.pdf Graphic file (type pdf)\n<use fig_revision/workflow_new.pdf>\n [6] [7]\nFile: fig_revision/causal_diag_simple_new.pdf Graphic file (type pdf)\n<use fig_revision/causal_diag_simple_new.pdf>\nFile: fig_revision/choice_causal_estimand_new.pdf Graphic file (type pdf)\n<use fig_revision/choice_causal_estimand_new.pdf>\nFile: fig_revision/causal_diagram_new.pdf Graphic file (type pdf)\n<use fig_revision/causal_diagram_new.pdf>\n [8]\nOverfull \\hbox (6.79999pt too wide) in paragraph at lines 496--522\n[] \n []\n\n[9] [10] [11] [12] (preprint.bbl [13] [14] [15] [16] [17] [18] [19] [20]\n[21] [22] [23])\n\\tf@thm=\\write6\n\\openout6 = `preprint.thm'.\n\n [24] (preprint.aux)\n\nLaTeX Font Warning: Some font shapes were not available, defaults substituted.\n\nPackage rerunfilecheck Info: File `preprint.out' has not changed.\n(rerunfilecheck)             Checksum: D41D8CD98F00B204E9800998ECF8427E;0.\n )\nOutput written on preprint.xdv (24 pages, 310008 bytes)."
+   }
+  },
+  "base-tec": {
+   "engine": "tectonic",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 4.98,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 3947713,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "warn:invalid_utf8",
+     "warn:missing_chars"
+    ],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": -1,
+    "missing_chars": 4,
+    "warnings_hit": [
+     "invalid_utf8",
+     "missing_chars"
+    ]
+   },
+   "status": "partial"
+  }
+ },
+ "2410.17909": {
+  "id": "2410.17909",
+  "layer": "expand",
+  "main": "main.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 10,
+    "rewritten": 2
+   },
+   "translate": {
+    "files": 8,
+    "chunks": 167,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 70,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.29,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": "! ! LaTeX Error: File `chapter/04Finding.tex' not found.."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "notes": [],
+    "n_errors": 100,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0,
+    "warnings_hit": [
+     "degraded_file"
+    ]
+   },
+   "status": "fail",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 100,
+    "hits": {
+     "8:3": {
+      "file": "main.tex",
+      "line": 301,
+      "head": "! ! LaTeX Error: File `chapter/04Finding.tex' not found.."
+     }
+    },
+    "retranslated": [
+     "8:3"
+    ],
+    "reverted_l0": [],
+    "kept_transport_err": [],
+    "over_cap": [],
+    "rewritten": [
+     "main.tex"
+    ],
+    "recompiled": "fail",
+    "fallback_src": [
+     "8:3"
+    ],
+    "unresolved": [],
+    "fallback_rewritten": [
+     "main.tex"
+    ],
+    "fallback_unverified": true
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "unfixable:missing_file",
+    "main": "main.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "missing_file",
+      "pay": "chapter/04Finding.tex",
+      "pdf": false,
+      "n_errors": 100,
+      "rule": null,
+      "result": null
+     },
+     {
+      "round": 2,
+      "cat": null,
+      "pay": null,
+      "pdf": false,
+      "n_errors": 100,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [
+     "no package provides chapter/04Finding.tex",
+     "install_file: no candidate file installed for chapter/04Finding.tex"
+    ],
+    "installed": [],
+    "engine_flags": [],
+    "engine_flags_dropped": [],
+    "log_excerpt": "! ! LaTeX Error: File `chapter/04Finding.tex' not found..\n! ! LaTeX Error: File `chapter/04Finding.tex' not found..\n\\@missingfileerror ...or: File `#1.#2' not found.}\n                                                  \nl.301 \\input{chapter/04Finding}\n                               \nThis error message was generated by an \\errmessage\ncommand, so I can't give any explicit help.\nPretend that you're Hercule Poirot: Examine all clues,"
+   }
+  },
+  "base-tec": {
+   "engine": "tectonic",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.16,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": "! ! LaTeX Error: File `chapter/04Finding.tex' not found.."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "notes": [],
+    "n_errors": 100,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0,
+    "warnings_hit": [
+     "degraded_file"
+    ]
+   },
+   "status": "fail"
+  }
+ },
+ "2410.17958": {
+  "id": "2410.17958",
+  "layer": "core",
+  "main": "ctlb.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 13,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 11,
+    "chunks": 467,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 33,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.25,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": "! TeX capacity exceeded, sorry [input stack size=5000]."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "notes": [],
+    "n_errors": 1,
+    "category": "capacity",
+    "cjk_chars": -1,
+    "missing_chars": 0,
+    "warnings_hit": [
+     "invalid_utf8"
+    ]
+   },
+   "status": "fail",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 1,
+    "hits": {},
+    "note": "no chunk-level attribution"
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "unfixable:capacity",
+    "main": "ctlb.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "capacity",
+      "pay": null,
+      "pdf": false,
+      "n_errors": 1,
+      "rule": null,
+      "result": null
+     },
+     {
+      "round": 2,
+      "cat": null,
+      "pay": null,
+      "pdf": false,
+      "n_errors": 1,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [],
+    "installed": [],
+    "engine_flags": [],
+    "engine_flags_dropped": [],
+    "log_excerpt": "! TeX capacity exceeded, sorry [input stack size=5000].\n! TeX capacity exceeded, sorry [input stack size=5000].\n\\protect ->\\noexpand \\protect \n                              \\noexpand \nl.43 \\end{restatable}\n                     \nIf you really absolutely need more capacity,\nyou can ask a wizard to enlarge me.\n"
+   }
+  },
+  "base-tec": {
+   "engine": "tectonic",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 13.01,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 441010,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "warn:invalid_utf8",
+     "warn:missing_chars"
+    ],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": -1,
+    "missing_chars": 5,
+    "warnings_hit": [
+     "invalid_utf8",
+     "missing_chars"
+    ]
+   },
+   "status": "partial"
+  }
+ },
+ "astro-ph/0104134": {
+  "id": "astro-ph/0104134",
+  "layer": "expand",
+  "main": "Texas.tex",
+  "route": {
+   "engines": [
+    "xelatex",
+    "tectonic"
+   ],
+   "reject": null,
+   "reasons": [
+    "eps_files=True pstricks=False → xelatex 优先（tectonic xdvipdfmx 硬墙）",
+    "latex209_suspect: Texas.tex \\documentstyle → 试编不定死（fixloop gate 兜底拒）",
+    "非 UTF-8 源 → 需 iconv 转码预处理或 inputenc 路注"
+   ],
+   "non_utf8": true
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1,
+    "encodings": {
+     "Texas.tex": {
+      "encoding": "cp1252",
+      "basis": "detector",
+      "declared": null,
+      "note": ""
+     }
+    }
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 142,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "status": "partial",
+   "reject_at": "inject",
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "latex209"
+    ]
+   }
+  },
+  "base-tec": {
+   "engine": "tectonic",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.49,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 60319,
+    "first_error": "! ! LaTeX Error: File `aipproc.cls' not found.."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "errors>3 (261)",
+     "first_error=missing_file:aipproc.cls",
+     "warn:degraded_file"
+    ],
+    "notes": [],
+    "n_errors": 261,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0,
+    "warnings_hit": [
+     "degraded_file"
+    ]
+   },
+   "status": "partial"
+  }
+ },
+ "astro-ph/0501428": {
+  "id": "astro-ph/0501428",
+  "layer": "expand",
+  "main": "main.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [
+    "latex209_suspect: main.tex \\documentstyle → 试编不定死（fixloop gate 兜底拒）"
+   ],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 16,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "status": "partial",
+   "reject_at": "inject",
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "latex209"
+    ]
+   }
+  },
+  "base-tec": {
+   "engine": "tectonic",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.49,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 29460,
+    "first_error": "! ! LaTeX Error: File `aasms4.sty' not found.."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "errors>3 (7)",
+     "first_error=missing_file:aasms4.sty",
+     "warn:degraded_file"
+    ],
+    "notes": [],
+    "n_errors": 7,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0,
+    "warnings_hit": [
+     "degraded_file"
+    ]
+   },
+   "status": "partial"
+  }
+ },
+ "astro-ph/0605325": {
+  "id": "astro-ph/0605325",
+  "layer": "core",
+  "main": "bianchi_feb07.tex",
+  "route": {
+   "engines": [
+    "xelatex",
+    "tectonic"
+   ],
+   "reject": null,
+   "reasons": [
+    "eps_files=True pstricks=False → xelatex 优先（tectonic xdvipdfmx 硬墙）"
+   ],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 65,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 34,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.59,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": "! ! LaTeX Error: File `mn2e.cls' not found.."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "notes": [],
+    "n_errors": 705,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0,
+    "warnings_hit": [
+     "missing_chars",
+     "missing_graphic",
+     "degraded_file"
+    ]
+   },
+   "status": "fail",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 705,
+    "hits": {
+     "0:0": {
+      "file": "bianchi_feb07.tex",
+      "line": 35,
+      "head": "! ! LaTeX Error: File `mn2e.cls' not found.."
+     }
+    },
+    "retranslated": [
+     "0:0"
+    ],
+    "reverted_l0": [],
+    "kept_transport_err": [],
+    "over_cap": [],
+    "rewritten": [
+     "bianchi_feb07.tex"
+    ],
+    "recompiled": "fail",
+    "fallback_src": [
+     "0:0"
+    ],
+    "unresolved": [],
+    "fallback_rewritten": [
+     "bianchi_feb07.tex"
+    ],
+    "fallback_unverified": true
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "unfixable:missing_file",
+    "main": "bianchi_feb07.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "missing_file",
+      "pay": "mn2e.cls",
+      "pdf": false,
+      "n_errors": 705,
+      "rule": null,
+      "result": null
+     },
+     {
+      "round": 2,
+      "cat": null,
+      "pay": null,
+      "pdf": false,
+      "n_errors": 705,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [
+     "no package provides mn2e.cls (candidates: mnras)",
+     "install_file: no candidate file installed for mn2e.cls"
+    ],
+    "installed": [],
+    "engine_flags": [],
+    "engine_flags_dropped": [],
+    "log_excerpt": "! ! LaTeX Error: File `mn2e.cls' not found..\n! ! LaTeX Error: File `mn2e.cls' not found..\n\\@missingfileerror ...or: File `#1.#2' not found.}\n                                                  \nl.35 \\usepackage\n                [fontset=fandol,UTF8]{ctex}  % [texlate injected]\nThis error message was generated by an \\errmessage\ncommand, so I can't give any explicit help.\nPretend that you're Hercule Poirot: Examine all clues,"
+   }
+  },
+  "base-tec": {
+   "engine": "tectonic",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.34,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": "! ! LaTeX Error: File `mn2e.cls' not found.."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "notes": [],
+    "n_errors": 722,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0,
+    "warnings_hit": [
+     "missing_chars",
+     "missing_graphic",
+     "degraded_file"
+    ]
+   },
+   "status": "fail"
+  }
+ },
+ "cond-mat/0408438": {
+  "id": "cond-mat/0408438",
+  "layer": "expand",
+  "main": "lanlcologne2004.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 2,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 60,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 35,
+    "float_sizing": 0
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.18,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 38136,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 1296,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "clean"
+  }
+ },
+ "cond-mat/0408602": {
+  "id": "cond-mat/0408602",
+  "layer": "expand",
+  "main": "static-critical.tex",
+  "route": {
+   "engines": [
+    "xelatex",
+    "tectonic"
+   ],
+   "reject": null,
+   "reasons": [
+    "eps_files=True pstricks=False → xelatex 优先（tectonic xdvipdfmx 硬墙）"
+   ],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 56,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 33,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.32,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 106638,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 2079,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "clean",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 0,
+    "hits": {},
+    "note": "no chunk-level attribution"
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "clean",
+    "main": "static-critical.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "ps_image",
+      "pay": "fig1-new.eps",
+      "pdf": false,
+      "n_errors": 1,
+      "rule": "eps_to_pdf",
+      "result": "eps->pdf 3/3 converted, refs rewritten in 1 files"
+     },
+     {
+      "round": 2,
+      "cat": "clean",
+      "pay": null,
+      "pdf": true,
+      "n_errors": 0,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [],
+    "installed": [],
+    "engine_flags": [],
+    "engine_flags_dropped": [],
+    "log_excerpt": "\nUnderfull \\hbox (badness 10000) in paragraph at lines 233--235\n[]\\TU/FandolSong-Regular(0)/m/n/10 这 是 译 文 $\\OML/cmm/m/it/10 F\\OT1/cmr/m/n/10 (\n0)$ \\TU/FandolSong-Regular(0)/m/n/10 这 是 译 文 $\\OML/cmm/m/it/10 H\\OT1/cmr/m/n/10\n (0)$\\TU/lmr/m/n/10 , \\TU/FandolSong-Regular(0)/m/n/10 这 是 译 文\\TU/lmr/m/n/10 ,\n []\n\n\nUnderfull \\hbox (badness 1337) in paragraph at lines 243--244\n[]\\TU/FandolSong-Regular(0)/m/n/10 这 是 译 文 \\TU/lmr/m/n/10 (\\TU/FandolSong-Regul\nar(0)/m/n/10 这 是 译 文\\TU/lmr/m/n/10 ) \\TU/FandolSong-Regular(0)/m/n/10 这 是 译 文 \\\nTU/lmr/m/n/10 (\\TU/FandolSong-Regular(0)/m/n/10 这 是 译 文\\TU/lmr/m/n/10 -2001-\n []\n\n[2]\n\nLaTeX Warning: A float is stuck (cannot be placed); try class option [floatfix]\n on input line 247.\n\n\nUnderfull \\hbox (badness 4366) in paragraph at lines 279--281\n []\\TU/FandolSong-Regular(0)/m/n/9.03374 这 是 译 文 $\\OML/cmm/m/it/9.03374 `[] \\OM\nS/cmsy/m/n/9.03374 ^^] \\OML/cmm/m/it/9.03374 `$\\TU/lmr/m/n/9.03374 , \\TU/Fandol\nSong-Regular(0)/m/n/9.03374 这 是 译 文\\TU/lmr/m/n/9.03374 , $\\OMS/cmsy/m/n/9.03374\n h\\OT1/cmr/m/n/9.03374 (\\OML/cmm/m/it/9.03374 ^^Ng\\OT1/cmr/m/n/9.03374 )[]\\OMS/\ncmsy/m/n/9.03374 i[] ^^X\n []\n\n[3] (static-critical.aux) )\nOutput written on static-critical.xdv (3 pages, 74028 bytes)."
+   }
+  }
+ },
+ "cond-mat/0605196": {
+  "id": "cond-mat/0605196",
+  "layer": "core",
+  "main": "20050401rbp_arxiv.tex",
+  "route": {
+   "engines": [
+    "xelatex",
+    "tectonic"
+   ],
+   "reject": null,
+   "reasons": [
+    "eps_files=True pstricks=False → xelatex 优先（tectonic xdvipdfmx 硬墙）",
+    "非 UTF-8 源 → 需 iconv 转码预处理或 inputenc 路注"
+   ],
+   "non_utf8": true
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 2,
+    "rewritten": 2,
+    "encodings": {
+     "bibliography.tex": {
+      "encoding": "cp1252",
+      "basis": "detector",
+      "declared": null,
+      "note": ""
+     },
+     "20050401rbp_arxiv.tex": {
+      "encoding": "utf-8",
+      "basis": "strict-utf8",
+      "declared": "latin1",
+      "note": "declared latin1 ignored: bytes are strict utf-8"
+     }
+    }
+   },
+   "translate": {
+    "files": 2,
+    "chunks": 55,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 33,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.34,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 756397,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 1506,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "clean",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 0,
+    "hits": {},
+    "note": "no chunk-level attribution"
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "clean",
+    "main": "20050401rbp_arxiv.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "ps_image",
+      "pay": "figure1.eps",
+      "pdf": false,
+      "n_errors": 1,
+      "rule": "eps_to_pdf",
+      "result": "eps->pdf 4/4 converted, refs rewritten in 0 files"
+     },
+     {
+      "round": 2,
+      "cat": "clean",
+      "pay": null,
+      "pdf": true,
+      "n_errors": 0,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [],
+    "installed": [],
+    "engine_flags": [],
+    "engine_flags_dropped": [],
+    "log_excerpt": "Underfull \\hbox (badness 10000) in paragraph at lines 298--302\n\\TU/FandolSong-Regular(0)/m/n/10.53937 这 是 译 文 $\\OML/ztmcm/m/it/10.53937 E \\OT1\n/ztmcm/m/n/10.53937 = \\OML/ztmcm/m/it/10.53937 ^^O[] \\OT1/ztmcm/m/n/10.53937 + \n\\OML/ztmcm/m/it/10.53937 E[]$\\TU/ptm/m/it/10.53937 , \\TU/FandolSong-Regular(0)/\nm/n/10.53937 这 是 译 文 $\\OML/ztmcm/m/it/10.53937 ^^O[] \\OT1/ztmcm/m/n/10.53937 =\n []\n\n\nUnderfull \\hbox (badness 2478) in paragraph at lines 298--302\n\\OT1/ztmcm/m/n/10.53937 4\\OML/ztmcm/m/it/10.53937 J [][] []\\OT1/ztmcm/m/n/10.53\n937 (\\OT1/ptm/b/n/10.53937 Ke[]\\OML/ztmcm/m/it/10.53937 =\\OT1/ztmcm/m/n/10.5393\n7 2) []$\\TU/ptm/m/it/10.53937 . \\TU/FandolSong-Regular(0)/m/n/10.53937 这 是 译 文\\\nTU/ptm/m/it/10.53937 , $\\OML/ztmcm/m/it/10.53937 G[]\\OT1/ztmcm/m/n/10.53937 (\\O\nML/ztmcm/m/it/10.53937 E; \\OT1/ptm/b/n/10.53937 r\\OT1/ztmcm/m/n/10.53937 )$\n []\n\n(bibliography [2] [3]\nUnderfull \\hbox (badness 1990) in paragraph at lines 49--50\n []\\TU/FandolSong-Regular(0)/m/n/9.03374 这 是 译 文\\TU/ptm/b/n/9.03374 ., \\TU/Fand\nolSong-Regular(0)/m/it/9.03374 这 是 译 文\\TU/ptm/b/n/9.03374 . \\TU/FandolSong-Regu\nlar(0)/m/n/9.03374 这 是 译 文 \\TU/ptm/b/n/9.03374 (\\TU/FandolSong-Regular(0)/m/n/9\n.03374 这 是 译 文\\TU/ptm/b/n/9.03374 /0508201)\n []\n\n) [4] (20050401rbp_arxiv.aux)\n\nLaTeX Font Warning: Some font shapes were not available, defaults substituted.\n\n )\nOutput written on 20050401rbp_arxiv.xdv (4 pages, 58876 bytes)."
+   }
+  }
+ },
+ "cond-mat/0605532": {
+  "id": "cond-mat/0605532",
+  "layer": "expand",
+  "main": "sis2006_condmat.tex",
+  "route": {
+   "engines": [
+    "xelatex",
+    "tectonic"
+   ],
+   "reject": null,
+   "reasons": [
+    "eps_files=True pstricks=False → xelatex 优先（tectonic xdvipdfmx 硬墙）"
+   ],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 40,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 33,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.43,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 247213,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 1573,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "clean",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 0,
+    "hits": {},
+    "note": "no chunk-level attribution"
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "clean",
+    "main": "sis2006_condmat.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "ps_image",
+      "pay": "Fig1.eps",
+      "pdf": false,
+      "n_errors": 1,
+      "rule": "eps_to_pdf",
+      "result": "eps->pdf 2/2 converted, refs rewritten in 1 files, 1 ps-driver opts stripped"
+     },
+     {
+      "round": 2,
+      "cat": "clean",
+      "pay": null,
+      "pdf": true,
+      "n_errors": 0,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [],
+    "installed": [],
+    "engine_flags": [],
+    "engine_flags_dropped": [],
+    "log_excerpt": "<use Fig1.pdf>\nFile: Fig2.pdf Graphic file (type pdf)\n<use Fig2.pdf>\n [1]\n\nLaTeX Warning: A float is stuck (cannot be placed); try class option [floatfix]\n on input line 184.\n\n\nPackage fontspec Warning: Font \"FandolFang-Regular\" does not contain requested\n(fontspec)                Script \"CJK\".\n\n\nPackage fontspec Info: Font family 'FandolFang-Regular(0)' created for font\n(fontspec)             'FandolFang-Regular' with options\n(fontspec)             [Script={CJK},Extension={.otf}].\n(fontspec)              \n(fontspec)              This font family consists of the following NFSS\n(fontspec)             series/shapes:\n(fontspec)              \n(fontspec)             - 'normal' (m/n) with NFSS spec.:\n(fontspec)             <->\"[FandolFang-Regular.otf]/OT:language=dflt;\"\n(fontspec)             - 'small caps'  (m/sc) with NFSS spec.: \n\n\nClass revtex4 Warning: The references environment is not supported; use thebibl\niography instead..\n\n[2] (sis2006_condmat.aux) )\nOutput written on sis2006_condmat.xdv (2 pages, 54928 bytes)."
+   }
+  }
+ },
+ "cond-mat/9910284": {
+  "id": "cond-mat/9910284",
+  "layer": "core",
+  "main": "paper.tex",
+  "route": {
+   "engines": [
+    "xelatex",
+    "tectonic"
+   ],
+   "reject": null,
+   "reasons": [
+    "eps_files=True pstricks=False → xelatex 优先（tectonic xdvipdfmx 硬墙）",
+    "latex209_suspect: paper.tex \\documentstyle → 试编不定死（fixloop gate 兜底拒）"
+   ],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 168,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "status": "partial",
+   "reject_at": "inject",
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "latex209"
+    ]
+   }
+  },
+  "base-tec": {
+   "engine": "tectonic",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.43,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 83534,
+    "first_error": "! ! LaTeX Error: File `revtex.cls' not found.."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "errors>3 (453)",
+     "first_error=missing_file:revtex.cls",
+     "warn:degraded_file"
+    ],
+    "notes": [],
+    "n_errors": 453,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0,
+    "warnings_hit": [
+     "degraded_file"
+    ]
+   },
+   "status": "partial"
+  }
+ },
+ "hep-ph/0605076": {
+  "id": "hep-ph/0605076",
+  "layer": "expand",
+  "main": "0605076.tex",
+  "route": {
+   "engines": [
+    "xelatex",
+    "tectonic"
+   ],
+   "reject": null,
+   "reasons": [
+    "eps_files=True pstricks=False → xelatex 优先（tectonic xdvipdfmx 硬墙）",
+    "非 UTF-8 源 → 需 iconv 转码预处理或 inputenc 路注"
+   ],
+   "non_utf8": true
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1,
+    "encodings": {
+     "0605076.tex": {
+      "encoding": "cp1252",
+      "basis": "detector",
+      "declared": null,
+      "note": ""
+     }
+    }
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 100,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 33,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 2.08,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 279563,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 2712,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "clean",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 0,
+    "hits": {},
+    "note": "no chunk-level attribution"
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "clean",
+    "main": "0605076.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "ps_image",
+      "pay": "fig1.ps",
+      "pdf": false,
+      "n_errors": 1,
+      "rule": "eps_to_pdf",
+      "result": "eps->pdf 8/8 converted, refs rewritten in 1 files"
+     },
+     {
+      "round": 2,
+      "cat": "clean",
+      "pay": null,
+      "pdf": true,
+      "n_errors": 0,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [],
+    "installed": [],
+    "engine_flags": [],
+    "engine_flags_dropped": [],
+    "log_excerpt": "(fontspec)              \n(fontspec)             - 'normal' (m/n) with NFSS spec.:\n(fontspec)             <->\"[FandolFang-Regular.otf]/OT:language=dflt;\"\n(fontspec)             - 'small caps'  (m/sc) with NFSS spec.: \n\n[1] [2]\nOverfull \\hbox (7.90924pt too wide) detected at line 214\n[]\n []\n\nFile: fig1.pdf Graphic file (type pdf)\n<use fig1.pdf>\n[3] [4] [5] [6] [7]\nFile: fig2.pdf Graphic file (type pdf)\n<use fig2.pdf>\nFile: fig3.pdf Graphic file (type pdf)\n<use fig3.pdf>\n [8]\nFile: fig4.pdf Graphic file (type pdf)\n<use fig4.pdf>\nFile: fig5.pdf Graphic file (type pdf)\n<use fig5.pdf>\nFile: fig6.pdf Graphic file (type pdf)\n<use fig6.pdf>\nFile: fig7.pdf Graphic file (type pdf)\n<use fig7.pdf>\nFile: fig8.pdf Graphic file (type pdf)\n<use fig8.pdf>\n [9] [10] [11] [12] [13] [14] [15] [16] (0605076.aux) )\nOutput written on 0605076.xdv (16 pages, 130484 bytes)."
+   }
+  }
+ },
+ "hep-th/0408076": {
+  "id": "hep-th/0408076",
+  "layer": "expand",
+  "main": "Holopaper1.2.0.tex",
+  "route": {
+   "engines": [
+    "xelatex",
+    "tectonic"
+   ],
+   "reject": null,
+   "reasons": [
+    "eps_files=True pstricks=False → xelatex 优先（tectonic xdvipdfmx 硬墙）"
+   ],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 236,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 238,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.3,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: Missing \\begin{document}."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "notes": [],
+    "n_errors": 2,
+    "category": "syntax",
+    "cjk_chars": -1,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "fail",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 248,
+    "hits": {
+     "0:0": {
+      "file": "Holopaper1.2.0.tex",
+      "line": 239,
+      "head": "! ! LaTeX Error: File `JHEP3.cls' not found.."
+     }
+    },
+    "retranslated": [
+     "0:0"
+    ],
+    "reverted_l0": [],
+    "kept_transport_err": [],
+    "over_cap": [],
+    "rewritten": [
+     "Holopaper1.2.0.tex"
+    ],
+    "recompiled": "fail",
+    "fallback_src": [
+     "0:0"
+    ],
+    "unresolved": [],
+    "fallback_rewritten": [
+     "Holopaper1.2.0.tex"
+    ],
+    "fallback_unverified": true
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "unfixable:syntax",
+    "main": "Holopaper1.2.0.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "missing_file",
+      "pay": "JHEP3.cls",
+      "pdf": false,
+      "n_errors": 248,
+      "rule": "legacy_pkg_shim",
+      "result": "stub JHEP3.cls injected"
+     },
+     {
+      "round": 2,
+      "cat": "syntax",
+      "pay": null,
+      "pdf": false,
+      "n_errors": 2,
+      "rule": null,
+      "result": null
+     },
+     {
+      "round": 3,
+      "cat": null,
+      "pay": null,
+      "pdf": false,
+      "n_errors": 2,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [
+     "no package provides JHEP3.cls",
+     "install_file: no candidate file installed for JHEP3.cls"
+    ],
+    "installed": [],
+    "engine_flags": [],
+    "engine_flags_dropped": [],
+    "log_excerpt": "! LaTeX Error: Missing \\begin{document}.\n! LaTeX Error: Missing \\begin{document}.\n\nSee the LaTeX manual or LaTeX Companion for explanation.\nType  H <return>  for immediate help.\n ...                                              \n                                                  \nl.305 \\abstract\n               {We present a complete quantum mechanical description of a flat"
+   }
+  },
+  "base-tec": {
+   "engine": "tectonic",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.67,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": "! ! LaTeX Error: File `JHEP3.cls' not found.."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "notes": [],
+    "n_errors": 241,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0,
+    "warnings_hit": [
+     "missing_chars",
+     "degraded_file"
+    ]
+   },
+   "status": "fail"
+  }
+ },
+ "math/0307197": {
+  "id": "math/0307197",
+  "layer": "core",
+  "main": "main.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 115,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 35,
+    "float_sizing": 0
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.36,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 139002,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 2545,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "clean",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 4,
+    "hits": {
+     "0:41": {
+      "file": "main.tex",
+      "line": 385,
+      "head": "! Undefined control sequence."
+     },
+     "0:49": {
+      "file": "main.tex",
+      "line": 450,
+      "head": "! Undefined control sequence."
+     },
+     "0:53": {
+      "file": "main.tex",
+      "line": 482,
+      "head": "! Undefined control sequence."
+     },
+     "0:83": {
+      "file": "main.tex",
+      "line": 683,
+      "head": "! Undefined control sequence."
+     }
+    },
+    "retranslated": [
+     "0:41",
+     "0:49",
+     "0:53",
+     "0:83"
+    ],
+    "reverted_l0": [],
+    "kept_transport_err": [],
+    "over_cap": [],
+    "rewritten": [
+     "main.tex"
+    ],
+    "recompiled": "partial",
+    "fallback_src": [
+     "0:41",
+     "0:49",
+     "0:53",
+     "0:83"
+    ],
+    "unresolved": [],
+    "fallback_rewritten": [
+     "main.tex"
+    ],
+    "fallback_unverified": true
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "clean",
+    "main": "main.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "clean",
+      "pay": null,
+      "pdf": true,
+      "n_errors": 0,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [],
+    "installed": [],
+    "engine_flags": [],
+    "engine_flags_dropped": [],
+    "log_excerpt": "\n[20] [21]\nUnderfull \\hbox (badness 10000) in paragraph at lines 766--767\n\n []\n\n[22]\nUnderfull \\hbox (badness 10000) in paragraph at lines 786--787\n\n []\n\n[23]\n\nPackage fontspec Warning: Font \"FandolFang-Regular\" does not contain requested\n(fontspec)                Script \"CJK\".\n\n\nPackage fontspec Info: Font family 'FandolFang-Regular(0)' created for font\n(fontspec)             'FandolFang-Regular' with options\n(fontspec)             [Script={CJK},Extension={.otf}].\n(fontspec)              \n(fontspec)              This font family consists of the following NFSS\n(fontspec)             series/shapes:\n(fontspec)              \n(fontspec)             - 'normal' (m/n) with NFSS spec.:\n(fontspec)             <->\"[FandolFang-Regular.otf]/OT:language=dflt;\"\n(fontspec)             - 'small caps'  (m/sc) with NFSS spec.: \n\n[24] (main.aux) )\nOutput written on main.xdv (24 pages, 142436 bytes)."
+   }
+  }
+ },
+ "math/0408192": {
+  "id": "math/0408192",
+  "layer": "expand",
+  "main": "main.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 24,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 38,
+    "float_sizing": 0
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.26,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 52717,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 834,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "clean"
+  }
+ },
+ "math/9901064": {
+  "id": "math/9901064",
+  "layer": "expand",
+  "main": "sols.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [
+    "latex209_suspect: sols.tex \\documentstyle → 试编不定死（fixloop gate 兜底拒）"
+   ],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 117,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "status": "partial",
+   "reject_at": "inject",
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "latex209"
+    ]
+   }
+  },
+  "base-tec": {
+   "engine": "tectonic",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.45,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 144920,
+    "first_error": "! LaTeX Error: Command \\negmedspace already defined."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "errors>3 (135)",
+     "warn:degraded_file"
+    ],
+    "notes": [],
+    "n_errors": 135,
+    "category": "already_def",
+    "cjk_chars": -1,
+    "missing_chars": 0,
+    "warnings_hit": [
+     "degraded_file"
+    ]
+   },
+   "status": "partial"
+  }
+ },
+ "nucl-th/0307063": {
+  "id": "nucl-th/0307063",
+  "layer": "core",
+  "main": "FIERZ11.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [
+    "latex209_suspect: FIERZ11.tex \\documentstyle → 试编不定死（fixloop gate 兜底拒）",
+    "非 UTF-8 源 → 需 iconv 转码预处理或 inputenc 路注"
+   ],
+   "non_utf8": true
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1,
+    "encodings": {
+     "FIERZ11.tex": {
+      "encoding": "cp1252",
+      "basis": "detector",
+      "declared": null,
+      "note": ""
+     }
+    }
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 103,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "status": "partial",
+   "reject_at": "inject",
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "latex209"
+    ]
+   }
+  },
+  "base-tec": {
+   "engine": "tectonic",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.5,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `fig1.ps' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "notes": [],
+    "n_errors": 16,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0,
+    "warnings_hit": [
+     "invalid_utf8",
+     "missing_graphic",
+     "degraded_file"
+    ]
+   },
+   "status": "fail"
+  }
+ },
+ "physics/0408023": {
+  "id": "physics/0408023",
+  "layer": "expand",
+  "main": "arXiv.tex",
+  "route": {
+   "engines": [
+    "xelatex",
+    "tectonic"
+   ],
+   "reject": null,
+   "reasons": [
+    "eps_files=True pstricks=False → xelatex 优先（tectonic xdvipdfmx 硬墙）"
+   ],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 40,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 33,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.85,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 252273,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 1630,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "clean",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 0,
+    "hits": {},
+    "note": "no chunk-level attribution"
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "clean",
+    "main": "arXiv.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "ps_image",
+      "pay": "Fig1.eps",
+      "pdf": false,
+      "n_errors": 1,
+      "rule": "eps_to_pdf",
+      "result": "eps->pdf 3/3 converted, refs rewritten in 1 files"
+     },
+     {
+      "round": 2,
+      "cat": "clean",
+      "pay": null,
+      "pdf": true,
+      "n_errors": 0,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [],
+    "installed": [],
+    "engine_flags": [],
+    "engine_flags_dropped": [],
+    "log_excerpt": "(fontspec)              \n(fontspec)              This font family consists of the following NFSS\n(fontspec)             series/shapes:\n(fontspec)              \n(fontspec)             - 'normal' (m/n) with NFSS spec.:\n(fontspec)             <->\"[FandolFang-Regular.otf]/OT:language=dflt;\"\n(fontspec)             - 'small caps'  (m/sc) with NFSS spec.: \n\nFile: Fig1.pdf Graphic file (type pdf)\n<use Fig1.pdf>\nFile: Fig2.pdf Graphic file (type pdf)\n<use Fig2.pdf>\n[1]\nUnderfull \\hbox (badness 10000) in paragraph at lines 226--226\n[]\\TU/FandolSong-Regular(0)/m/n/10.53937 这 是 译 文\\TU/lmr/m/n/10.53937 . (9[]) \\T\nU/FandolSong-Regular(0)/m/n/10.53937 这 是 译 文 $\\OT1/cmr/m/n/10.53937 ^^I(\\OML/cm\nm/m/it/10.53937 R; ^^\\\\OT1/cmr/m/n/10.53937 ) =\n []\n\n[2]\nFile: Fig3.pdf Graphic file (type pdf)\n<use Fig3.pdf>\n [3] [4]\nUnderfull \\hbox (badness 1199) in paragraph at lines 327--329\n []\\TU/lmr/m/n/9.03374 W. J. Zakrzewski.  \\TU/lmr/m/it/9.03374 Ukrainian Journa\nl of Physics\\TU/lmr/m/n/9.03374 ,\n []\n\n[5] (arXiv.aux) )\nOutput written on arXiv.xdv (5 pages, 71576 bytes)."
+   }
+  }
+ },
+ "quant-ph/0307209": {
+  "id": "quant-ph/0307209",
+  "layer": "core",
+  "main": "OL.tex",
+  "route": {
+   "engines": [
+    "xelatex",
+    "tectonic"
+   ],
+   "reject": null,
+   "reasons": [
+    "eps_files=True pstricks=False → xelatex 优先（tectonic xdvipdfmx 硬墙）"
+   ],
+   "non_utf8": false
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 40,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 33,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.3,
+    "passes": 1,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 100441,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "notes": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 641,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "clean",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 50,
+    "hits": {
+     "0:0": {
+      "file": "OL.tex",
+      "line": 39,
+      "head": "! ! LaTeX Error: File `psfig.sty' not found.."
+     }
+    },
+    "retranslated": [
+     "0:0"
+    ],
+    "reverted_l0": [],
+    "kept_transport_err": [],
+    "over_cap": [],
+    "rewritten": [
+     "OL.tex"
+    ],
+    "recompiled": "fail",
+    "fallback_src": [
+     "0:0"
+    ],
+    "unresolved": [],
+    "fallback_rewritten": [
+     "OL.tex"
+    ],
+    "fallback_unverified": true
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "clean",
+    "main": "OL.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "missing_file",
+      "pay": "psfig.sty",
+      "pdf": false,
+      "n_errors": 50,
+      "rule": "legacy_pkg_shim",
+      "result": "stub psfig.sty injected"
+     },
+     {
+      "round": 2,
+      "cat": "ps_image",
+      "pay": "lambda.eps",
+      "pdf": false,
+      "n_errors": 1,
+      "rule": "eps_to_pdf",
+      "result": "eps->pdf 4/4 converted, refs rewritten in 1 files, 1 ps-driver opts stripped"
+     },
+     {
+      "round": 3,
+      "cat": "clean",
+      "pay": null,
+      "pdf": true,
+      "n_errors": 0,
+      "rule": null,
+      "result": null
+     }
+    ],
+    "advisories": [
+     "no package provides psfig.sty",
+     "install_file: no candidate file installed for psfig.sty"
+    ],
+    "installed": [],
+    "engine_flags": [],
+    "engine_flags_dropped": [],
+    "log_excerpt": "\n\nLaTeX Font Warning: Font shape `OMX/cmex/m/n' in size <10.53937> not available\n(Font)              size <10.95> substituted on input line 98.\n\n\nOverfull \\hbox (4.66942pt too wide) in alignment at lines 180--184\n [][][] []\n []\n\n[1] [2]\nFile: lambda.pdf Graphic file (type pdf)\n<use lambda.pdf>\nFile: Fig2a.pdf Graphic file (type pdf)\n<use Fig2a.pdf>\nFile: Fig2b.pdf Graphic file (type pdf)\n<use Fig2b.pdf>\nFile: Fig2c.pdf Graphic file (type pdf)\n<use Fig2c.pdf>\n\n\nLaTeX Warning: `h' float specifier changed to `ht'.\n\n[3] [4] (OL.aux)\n\nLaTeX Font Warning: Size substitutions with differences\n(Font)              up to 0.41063pt have occurred.\n\n )\nOutput written on OL.xdv (4 pages, 34344 bytes)."
+   }
+  }
+ }
+}
