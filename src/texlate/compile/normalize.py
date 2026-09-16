@@ -78,6 +78,12 @@ XETEX_COMPATIBILITY = r"""% texlate: native XeTeX font and PDF-driver capabiliti
 \typeout{TeXlate-PostScript-object: #1}\TeXlatePstObject{#1}}%
 \fi
 }
+% \DeclareUnicodeCharacter is pdfTeX/inputenc-only and undefined under XeTeX,
+% but e-print preambles still call it (2501.14787). Emulate via the lccode
+% idiom: make the code point an active char expanding to the replacement.
+\providecommand{\DeclareUnicodeCharacter}[2]{%
+\begingroup\lccode`\~="#1\relax
+\lowercase{\endgroup\catcode`~\active\protected\def~}{#2}}
 """
 
 TECTONIC_FONT_COMPATIBILITY = r"""% texlate: vector double-stroke fonts; Tectonic cannot generate PK fonts
