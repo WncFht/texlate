@@ -742,11 +742,7 @@ def _scan_names(code: str, sp: dict[str, Any]) -> Iterator[str]:
     放行即产 ``sv.tex``/``aip-.tex`` 噪音安装 (svjour/aipcheck 实证)。
     """
     for m in re.finditer(sp["regex"], code):
-        if (
-            m.end() < len(code)
-            and code[m.end()] == "\\"
-            and code[m.end() - 1] != "}"
-        ):
+        if m.end() < len(code) and code[m.end()] == "\\" and code[m.end() - 1] != "}":
             continue  # 匹配被 \ 截断——残头非实名
         names = [m.group(1)]
         if sp.get("split"):
@@ -831,11 +827,7 @@ def _dep_stems(path: Path) -> list[str]:
             g = m.group(1) or m.group(2)
             if not g or "\\" in g:
                 continue  # 构造文件名 (aip-\CurrentOption.tex) 不可探测
-            if (
-                m.group(2) is not None
-                and m.end() < len(code)
-                and code[m.end()] == "\\"
-            ):
+            if m.group(2) is not None and m.end() < len(code) and code[m.end()] == "\\":
                 continue  # 裸名被 \ 截断 (sv\CurrentOption.clo → 'sv' 残头)
             stems.append(g)
     return stems
