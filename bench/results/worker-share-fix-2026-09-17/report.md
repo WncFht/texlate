@@ -23,6 +23,10 @@ worker.py:2290 `except (ShareError, OSError, UnicodeDecodeError)` → `(OSError,
 - test_worker_audit_fixes.py +4 类 10 条：TestSharePoolZhGuard（zh==en 无 CJK→missed+share_miss；空白/非str/缺键→missed；含 CJK→ok；真 zh→ok）、TestLogTextOfFallback（空 log/缺文件/目录/非空胜出/无 log/全空）、TestFlushTranslateSync（sync 契约钉 + pending-cancel 下缓冲块仍落库）、TestShareLookupExceptSurface（目录→OSError 吞为 miss；monkeypatch 抛 ShareError→传播钉死面）。
 - test_share_apply.py +test_import_polluted_zh_counts_as_miss：真管线产包→`_repack_dual` 污染 chunks[1].zh=en/chunks[2].zh=""→导入→partial+failed==2+`error.share{matched:1,missed:2}`+逐块 share_miss。
 
+## F4 add-on（二轮落地，`58eec8f`）
+
+`_fixloop_engine` helper（worker.py:2758）：xelatex 时独立 `engine_for("xelatex", halt_on_error=True)`（e2e 权威口径，fixloop 要 first-error-clean 分类输入）；`_engine_factory` 在场走 factory 尊重测试注入；非 xelatex 原样回传（tectonic 无旋钮）。`_run_fixloop` :2779 改 `_RecEngine(self._fixloop_engine(ctx, eng))`，主编译 `halt_on_error=False` 不动；跨引擎臂 :2830 同款对齐。helper 抽取顺带解 `_run_fixloop` C901 超限。测试 +3：xelatex halt_on_error spy / tectonic 复用传入引擎 / factory 注入优先。engine.py 零触碰（peer 飞区约束守住）。
+
 ## 未修项
 
-`zh != en` 但纯英文无占位符 zh 仍能过 `validate_pair`（CJK WARN）——L0 判定强度问题，超 routed 范围，记档未动。F4（`_run_fixloop` halt_on_error=True）leader 复核时发现未见落盘，已回问（截至报告时待答）。
+`zh != en` 但纯英文无占位符 zh 仍能过 `validate_pair`（CJK WARN）——L0 判定强度问题，超 routed 范围，记档未动。
