@@ -14,10 +14,13 @@ babeldoc 不进产品 venv/import，只 spawn CLI。关键约定：
   网关 400（pdf-path.md §1.1 冒烟坑①）。
 - api_key 写 ``-c`` TOML（configargparse ``[babeldoc]`` 节，
   main.py:36-41），不进 argv → ``ps`` 不可见；文件 0600 落 workdir。
-- 进度：stderr 挂 pty 时 rich Progress 才产增量帧（非 tty 下
-  Live 只在 stop 时吐终态，rich/live.py:269-296）；刮
-  ``translate`` 行 ``N/100``。pty 不可用（非 POSIX/openpty
-  失败）退化为纯日志行，进度只有阶段边界。
+- babeldoc 的 rich Progress 与 ``RichHandler`` 日志都写 **stdout**
+  （main.py:809 ``Progress()`` 无 console 参 + ``basicConfig(
+  handlers=[RichHandler()])`` 默认 stdout）——只接 stderr 会丢全部
+  进度帧与 ``Total tokens:`` 统计行。故 spawn 把 stdout+stderr
+  合并进同一 pty（不可用则 stdout→stderr PIPE 合并），喂给
+  同一 ``_Feed``；pty  tty 语义让 rich Live 产增量帧，刮
+  ``translate`` 行 ``N/100``。
 """
 
 from __future__ import annotations
@@ -63,7 +66,9 @@ _CJK_MIN_RATIO = 0.10
 _LANG_OUT = {"zh-CN": "zh-CN", "zh-TW": "zh-TW", "en": "en"}
 
 #: babeldoc stderr 信号面
-_ANSI_RE = re.compile(r"\x1b(?:\[[0-9;?]*[ -/]*[@-~]|[()][0-2A-B]|[=>#][0-9]?)")
+_ANSI_RE = re.compile(
+    r"\x1b(?:\[[0-9;?]*[ -/]*[@-~]|[()][0-2A-B]|[=>#][0-9]?|\][^\x1b\x07]*(?:\x07|\x1b\\))"
+)
 #: rich ``translate`` 总行（desc 恰为 "translate"，total=100 → N/100 即总进度）；
 #: 首列精确小写「translate」，Stage 行是 Title Case 不误伤
 _OVERALL_RE = re.compile(r"^translate\b.*?(\d+(?:\.\d+)?)\s*/\s*100")
@@ -150,7 +155,7 @@ class BabeldocRun:
 
 
 def write_config(job: BabeldocJob) -> Path:
-    """``[babeldoc] openai_api_key`` TOML（0600）——key 不进 argv/ps。
+    """``[babeldoc] openai-api-key`` TOML（0600）——key 不进 argv/ps。
 
     空 key 落 ``"texlate"`` 占位：CLI 层 ``parser.error`` 要求非空
     （main.py:499-500）；默认本地网关不校验，真 provider 空 key 会
@@ -159,11 +164,24 @@ def write_config(job: BabeldocJob) -> Path:
     cfg = job.workdir / "babeldoc.toml"
     cfg.parent.mkdir(parents=True, exist_ok=True)
     cfg.write_text(
-        f"[babeldoc]\nopenai_api_key = {json.dumps(job.api_key or 'texlate')}\n",
+        f"[babeldoc]\nopenai-api-key = {json.dumps(job.api_key or 'texlate')}\n",
         encoding="utf-8",
     )
     cfg.chmod(0o600)
     return cfg
+
+
+def _openai_sdk_root(base_url: str) -> str:
+    """产品裸服务根 → openai SDK ``base_url``（``{root}/v1``）。
+
+    babeldoc 把 ``--openai-base-url`` 直接喂 ``openai.OpenAI(base_url=…)``，
+    SDK 在其上拼 ``chat/completions``——缺版本段会打 ``/chat/completions``
+    被网关 404；与 ``ChatClient`` 的 ``{root}/v1/chat/completions`` 约定对齐。
+    """
+    v = base_url.strip().rstrip("/")
+    for suffix in ("/v1/chat/completions", "/chat/completions", "/v1"):
+        v = v.removesuffix(suffix)
+    return f"{v}/v1"
 
 
 def build_argv(job: BabeldocJob, binary: str) -> list[str]:
@@ -191,7 +209,7 @@ def build_argv(job: BabeldocJob, binary: str) -> list[str]:
         str(job.workdir / "babeldoc.toml"),
     ]
     if job.base_url:
-        argv += ["--openai-base-url", job.base_url]
+        argv += ["--openai-base-url", _openai_sdk_root(job.base_url)]
     if not job.send_temperature:
         argv.append("--no-send-temperature")
     if not job.dual:
@@ -556,18 +574,29 @@ async def _spawn(
     env["PYTHONUNBUFFERED"] = "1"
     master: int | None = None
     slave: int | None = None
+    # babeldoc 的进度/日志走 stdout（见模块 docstring）——pty 模式
+    # stdout+stderr 同挂 slave；PIPE 退化期 stdout 并入 stderr 流。
     stderr_tgt: Any = asyncio.subprocess.PIPE
+    stdout_tgt: Any = asyncio.subprocess.STDOUT
     if pty is not None:
         try:
             master, slave = pty.openpty()
+            # openpty 给 0×0 winsize——rich 按 fallback 窄宽渲染会把
+            # ``52/100`` 截成 ``52/…``，刮不到进度。钉 120×24。
+            import fcntl  # noqa: PLC0415 -- POSIX-only，pty 分支内惰性
+            import struct  # noqa: PLC0415
+            import termios  # noqa: PLC0415
+
+            fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 24, 120, 0, 0))
             stderr_tgt = slave
+            stdout_tgt = slave
         except OSError:
             master = slave = None
     try:
         proc = await asyncio.create_subprocess_exec(
             *argv,
             stdin=asyncio.subprocess.DEVNULL,
-            stdout=asyncio.subprocess.DEVNULL,
+            stdout=stdout_tgt,
             stderr=stderr_tgt,
             env=env,
         )

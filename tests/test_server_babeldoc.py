@@ -287,7 +287,22 @@ class TestUnit:
         i = argv.index("--lang-out")
         assert argv[i + 1] == "zh-CN"
         j = argv.index("--openai-base-url")
-        assert argv[j + 1] == "http://gw.local:3003"
+        assert argv[j + 1] == "http://gw.local:3003/v1"  # openai SDK 根要 /v1
+
+    def test_openai_base_url_v1_suffix(self, tmp_path: Path) -> None:
+        job = bd.BabeldocJob(
+            src=tmp_path / "a.pdf",
+            outdir=tmp_path / "o",
+            workdir=tmp_path / "w",
+            model="m1",
+            base_url="http://gw.local:3003/v1",
+        )
+        argv = bd.build_argv(job, "/bin/babeldoc")
+        j = argv.index("--openai-base-url")
+        assert argv[j + 1] == "http://gw.local:3003/v1"  # 已带 /v1 不重复
+        job.base_url = "http://gw.local:3003/v1/chat/completions/"
+        argv = bd.build_argv(job, "/bin/babeldoc")
+        assert argv[argv.index("--openai-base-url") + 1] == "http://gw.local:3003/v1"
 
     def test_write_config_0600(self, tmp_path: Path) -> None:
         job = bd.BabeldocJob(
@@ -301,7 +316,7 @@ class TestUnit:
         p = bd.write_config(job)
         assert stat.S_IMODE(p.stat().st_mode) == stat.S_IRUSR | stat.S_IWUSR
         body = p.read_text(encoding="utf-8")
-        assert 'openai_api_key = "k-secret"' in body
+        assert 'openai-api-key = "k-secret"' in body
 
     def test_glossary_csv(self, tmp_path: Path) -> None:
         p = tmp_path / "w" / "g.csv"
