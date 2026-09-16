@@ -110,6 +110,13 @@ axessibility 6 格 + axodraw2 5 格 + pst-all 8 格（待 sibling-closure 或配
 - **axodraw2 ×5 → 5/5 出 pdf**（clean 2 / acceptable 1 / best_effort 2，含 real 臂 hep-ph/0501163）：`install_file` 的 CTAN overlay=tree 兜底实证生效。
 - **pst-all ×8 → 7/8 出 pdf**（clean 3 / acceptable 2 / best_effort 2）：1d 的请求方扇出（`_requester_paths`+`_dep_fanout`，`8e6d442`）一轮补全 11 成员包。唯一未愈格 2105.11398 **越过 missing_file 改判 illegal_unit**——fanout 已通，前进到下一个错误类（稿自身新问题，非退化）。
 - **misschar ×2 → 2/2 出 pdf**：1306.0036 best_effort_pdf（pristine 树证实 `undefined_cs:relax` 确系 88d0ab9 前套娃残留，现行规则不再复现）；1003.1717 acceptable_pdf（.rtx 排除 + `revtex4_array_swap_guard` 合流生效）。**delta 唯二 partial→fail 格清零。**
-- **early_eof ×13 → 0/13，仍 unfixable**：抽 4 格看 tail，至少两个子机理并存——(a) `\end occurred when \ifx on line N was incomplete`（条件未闭合，疑稿自带 \errmessage 分支）；(b) `job aborted, no legal \end found`（输入截断/`\endinput` 吞 `\end{document}`）。签名不同源，归下轮归因清单，不立规则。
+- **early_eof ×13 → 3/13 转 pdf，签名归因完成（全 13 格逐格查 tail）**：
+  - **`Cannot find the file` 缺档 ×3 → 全愈（`3010310`）**：1706.02694/2308.00072/2410.06051 同墙——textgreek.sty:39 `\PackageError` 报 `Cannot find the file lgrenc.def`（无反引号对）逃出两条 missing_file head 签名；进程 halt 后 tail 落 `cannot \read`+`No pages` → 误路由 early_eof 从未进 install。新增 head 签名第三条 → `missing_file:lgrenc.def` → greek-fontenc 一包同时覆盖 hyperref puenc.def:612 要的 `puenc-greek.def`（TL 真身，tlpdb 索引本就有，从未到装包步）。重跑 3/3 → best_effort_pdf。
+  - **`\read` 交互档 ×1**：hep-ph/0111248 — bundled `aipcheck.tex:259` 做终端 `\read`（"Type <return> to continue"），nonstop 模式必死。稿自带交互检查文件，候选处置 = wdir 覆写 aipcheck.tex stub（bundled_class_shadow 同机理，target 不限 cls/sty）。
+  - **`no legal \end found` ×4**：1206.0136（^^M 缺字刷屏后截断）/ 1706.07911（`{` 未闭合 runaway 吞掉 `\end{document}`）/ 1907.00131（`\if` 缺 `\fi`，file ended while skipping conditional）/ 2403.00139（command ignored 后 Emergency）。同签名不同根——每格是独立 doc-level 伤（含疑似译文腐蚀侧枝），无一刀切规则面，逐格归因或归 llm_hook。
+  - **错误帽 100 终止 ×2**：1608.06693（`\firstchoice@false` 系 undefined_cs 连发到 "(That makes 100 errors)"）、2308.12612（pgfsys.sty:17 `Missing \endcsname` 级联）。fatal 表象是 early_eof 零页，真根在上游错——值一条「错误帽」taxonomy 注记，修不修看上游个案。
+  - **svjour 期刊选项 errmessage ×1**：0905.0193 — `\documentclass[epj]{svjour}` 但 svjour 不认 `epj` 选项（class 找 `svj<opt>` 子档失败 → `\errmessage{No valid journal specified}` → `\ifx` 未闭合陪葬）。类选项 shim 候选，单格量。
+  - **译文腐蚀 ×1**：1404.0519 — `\c{S}` 系口音命令参数被译文改写（`-\c3这是译文2\`）→ `Use of \c doesn't match its definition` Emergency。归腐蚀超簇，非规则面。
+  - **SIGKILL 超时 ×1**：2211.13028 — rc=-9 timed_out，log 截断在 citation warning 半途（无 stats 尾）。真挂起/infra 类，非规则缺口。
 
 **小结**：本轮命名簇 21/22 格转 pdf（axessibility+axodraw2+pst 7+misschar 2），1 格前进换类（illegal_unit），early_eof 13 格留作下轮签名归因。

@@ -389,8 +389,44 @@
    ],
    "seed": 42,
    "layers": "core"
+  },
+  {
+   "ts": "2026-09-16T12:33:59.294305+00:00",
+   "stage": "fixloop",
+   "argv": [
+    "fixloop",
+    "--dir",
+    "bench/results/stagerun-loop1-2026-09-16",
+    "--rerun",
+    "--on",
+    "fail",
+    "--ids",
+    "1706.02694,2308.00072,2410.06051",
+    "--jobs",
+    "3"
+   ],
+   "seed": 42,
+   "layers": "core"
+  },
+  {
+   "ts": "2026-09-16T12:42:25.607480+00:00",
+   "stage": "fixloop",
+   "argv": [
+    "fixloop",
+    "--dir",
+    "bench/results/stagerun-loop1-2026-09-16",
+    "--rerun",
+    "--on",
+    "fail",
+    "--ids",
+    "1706.02694,2308.00072,2410.06051",
+    "--jobs",
+    "3"
+   ],
+   "seed": 42,
+   "layers": "core"
   }
  ],
  "started_at": "2026-09-16T05:36:52.326569+00:00",
- "finished_at": "2026-09-16T12:17:20.427858+00:00"
+ "finished_at": "2026-09-16T12:42:40.173468+00:00"
 }
