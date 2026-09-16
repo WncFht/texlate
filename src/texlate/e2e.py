@@ -37,7 +37,9 @@ from texlate.compile.normalize import normalize_project
 from texlate.latex.api import parse_file
 from texlate.latex.placeholder import CHUNK_RX, PH_RX
 from texlate.latex.reconstruct import (
+    _LATIN_ITEM_RX,
     _PAR_RUN_RX,
+    _seg_join,
     reconstruct,
     unicode_math_fix,
 )
@@ -359,7 +361,9 @@ def _expand_tokens(
     未译 chunk 回落 ``chunks[k].content``，typed ph 走 ``ph_map``。
     已译且 context 非 para/item 的 ``[[CHUNK_n]]`` 展开后同样压 ``\n\n``→``\n``
     （reconstruct.expand 的 ``short_arg`` 同则）——缺这步 ``_chunk_spans`` 的
-    ``find`` 必对不上落盘字节，块在 L2 二次归因里整片消失。
+    ``find`` 必对不上落盘字节，块在 L2 二次归因里整片消失。字面/ph 交错段
+    接缝同走 ``_seg_join``（``\cs`` 尾 + 字母头补空格）——本函数只服务
+    译文落盘文件，``reconstruct`` 侧 ``glue_latin`` 恒真。
     """
     if _depth > _EXPAND_MAX_DEPTH:
         return text
@@ -386,7 +390,14 @@ def _expand_tokens(
                 out = _PAR_RUN_RX.sub("\n", out)
         return out
 
-    return PH_RX.sub(rep, text)
+    segs: list[str] = []
+    pos = 0
+    for m in PH_RX.finditer(text):
+        segs.append(text[pos : m.start()])
+        segs.append(rep(m))
+        pos = m.end()
+    segs.append(text[pos:])
+    return _seg_join(segs)
 
 
 def _chunk_spans(
@@ -397,7 +408,10 @@ def _chunk_spans(
     cjk_glue_fix 可能在译文里插空格 → find 失败的块给 ``None``，位置由
     前后块锚定（归因是启发式，丢块可接受）。
     """
-    tokmap = {f"[[CHUNK_{cid}]]": unicode_math_fix(zh) for cid, zh in trans.items()}
+    tokmap = {
+        f"[[CHUNK_{cid}]]": _LATIN_ITEM_RX.sub(r"\\item ", unicode_math_fix(zh))
+        for cid, zh in trans.items()
+    }
     spans: dict[int, tuple[int, int] | None] = {}
     cur = 0
     for c in res.chunks:

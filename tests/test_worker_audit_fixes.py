@@ -829,6 +829,40 @@ class TestL2EofAttribution:
         assert got2 == (0, [res.chunks[0].id])
 
 
+class TestChunkSpansMirror:
+    """``_chunk_spans`` 镜像 ``reconstruct`` 落盘字节：译文侧变换逐项复刻。
+
+    ``_LATIN_ITEM_RX`` 保险丝与 ``_seg_join`` 接缝守卫缺一则 ``find`` 失配、
+    块归 ``None``，L2 归因静默丢块（``4ce255e`` short_arg 同款漂移）。
+    """
+
+    def test_translated_transforms_mirrored(self) -> None:
+        from texlate.e2e import _chunk_spans  # noqa: PLC0415
+        from texlate.latex import parse_tex  # noqa: PLC0415
+        from texlate.latex.reconstruct import reconstruct  # noqa: PLC0415
+
+        tex = (
+            "\\documentclass{article}\n"
+            "\\begin{document}\n"
+            "First paragraph text here with enough words to chunk.\n"
+            "\n"
+            "Second paragraph text here with enough words to chunk.\n"
+            "\\end{document}\n"
+        )
+        res = parse_tex(tex)
+        c0, c1 = res.chunks[:2]
+        trans = {
+            c0.id: "Vector \\itemFSU 内容",
+            c1.id: f"前缀 \\foo[[CHUNK_{c0.id}]] 后缀",
+        }
+        disk = reconstruct(res, trans)
+        assert "\\item FSU 内容" in disk  # _LATIN_ITEM_RX 保险丝生效
+        assert "\\foo Vector \\item FSU 内容" in disk  # _seg_join 接缝插空格
+        spans = _chunk_spans(disk, res, trans)
+        assert spans[c0.id] is not None
+        assert spans[c1.id] is not None
+
+
 class TestLlmHookShareGates:
     """Item C：llm_hook BYOK 接线 + share 零 token 结构闸。"""
 
