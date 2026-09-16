@@ -376,6 +376,53 @@ def test_extra_manifest_artifact_extracted(tmp_path: Path) -> None:
     assert (dest / "extra.txt").read_bytes() == extra
 
 
+def _tampered_last_artifact(tmp_path: Path) -> Path:
+    """造末位成员（dual.json）sha256 对账失败的包——前两成员校验均通过。"""
+    work = _make_work(tmp_path)
+    bundle = pack_share(work, _PARTS, out_dir=tmp_path / "out")
+    manifest = _bundle_manifest(bundle)
+    payloads = _payloads(bundle)
+    # 同长换内容：size 头对账过、sha256 开火——中途失败点
+    payloads["dual.json"] = bytes(len(payloads["dual.json"]))
+    return _repack(tmp_path / "evil.share.zip", manifest, payloads)
+
+
+def test_unpack_mid_failure_no_residue(tmp_path: Path) -> None:
+    """新 dest + 校验中途失败 → dest 整个收走，零残留。"""
+    evil = _tampered_last_artifact(tmp_path)
+    dest = tmp_path / "d"
+    with pytest.raises(ShareError, match="sha256 mismatch"):
+        unpack_share(evil, dest)
+    assert not dest.exists()
+
+
+def test_unpack_mid_failure_preserves_existing_dest(tmp_path: Path) -> None:
+    """dest 既有目录：失败只清临时件——用户文件与同名旧成员原样保留。"""
+    evil = _tampered_last_artifact(tmp_path)
+    dest = tmp_path / "d"
+    dest.mkdir()
+    (dest / "keep.txt").write_text("user data", encoding="utf-8")
+    (dest / "zh.pdf").write_bytes(b"STALE")  # 同名旧件——校验失败不得覆写
+    with pytest.raises(ShareError, match="sha256 mismatch"):
+        unpack_share(evil, dest)
+    assert (dest / "keep.txt").read_text(encoding="utf-8") == "user data"
+    assert (dest / "zh.pdf").read_bytes() == b"STALE"
+    assert {p.name for p in dest.iterdir()} == {"keep.txt", "zh.pdf"}
+
+
+def test_unpack_replaces_and_cleans_tmp(tmp_path: Path) -> None:
+    """成功路径：同名旧件被替换，dest 不留临时目录。"""
+    work = _make_work(tmp_path)
+    bundle = pack_share(work, _PARTS, out_dir=tmp_path / "out")
+    dest = tmp_path / "d"
+    dest.mkdir()
+    (dest / "zh.pdf").write_bytes(b"STALE")
+    mf = unpack_share(bundle, dest)
+    assert set(mf.artifacts) == set(ARTIFACT_NAMES)
+    assert (dest / "zh.pdf").read_bytes() == _PDF_BYTES
+    assert {p.name for p in dest.iterdir()} == set(ARTIFACT_NAMES)
+
+
 # ---------------------------------------------------------------- share_key
 
 

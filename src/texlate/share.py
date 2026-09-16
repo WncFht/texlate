@@ -17,19 +17,22 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import logging
 import os
 import secrets
+import shutil
+import tempfile
 import zipfile
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
-    from pathlib import Path
 
 log = logging.getLogger(__name__)
 
@@ -380,9 +383,9 @@ def unpack_share(path: Path, dest: Path) -> ShareManifest:
 
     校验序：zip 可读 → manifest.json 存在且 ≤ ``_MANIFEST_MAX`` →
     format/key_parts/share_key 重算 → artifacts 表 → 逐成员 size+sha256
-    对账后才写盘。只抽取 manifest 登记成员（白名单），包内多余成员
-    忽略——天然免 zip-slip。``dest`` 建议用全新目录：校验中途失败可能
-    留下已写出的部分成员，由调用方清理。
+    对账。只抽取 manifest 登记成员（白名单），包内多余成员忽略——天然免
+    zip-slip。产物先落 ``dest`` 内临时目录、全部对账过才逐件 rename 进
+    ``dest``——校验中途失败 ``dest`` 零残留（既有同名文件也不被覆写）。
     """
     try:
         zf = zipfile.ZipFile(path)
@@ -395,9 +398,21 @@ def unpack_share(path: Path, dest: Path) -> ShareManifest:
         raise ShareError(msg) from e
     with zf:
         mf = _manifest_checked(_read_manifest(zf))
+        fresh = not dest.exists()
         dest.mkdir(parents=True, exist_ok=True)
-        for name, art in mf.artifacts.items():
-            _extract_verified(zf, name, art, dest)
+        # 校验写入面与 dest 隔离：tmp 与 dest 同目录同设备，rename 即原子发布
+        tmp = Path(tempfile.mkdtemp(prefix=f".{dest.name}.", dir=dest))
+        try:
+            for name, art in mf.artifacts.items():
+                _extract_verified(zf, name, art, tmp)
+            for name in mf.artifacts:
+                (tmp / name).replace(dest / name)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+            if fresh:
+                # 失败路径顺手收掉本次新建的空壳 dest（成功时非空，rmdir 自失败被吞）
+                with contextlib.suppress(OSError):
+                    dest.rmdir()
         extra = set(zf.namelist()) - {MANIFEST_NAME, *mf.artifacts}
         if extra:
             log.debug("share bundle extra members ignored: %s", sorted(extra))

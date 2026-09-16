@@ -85,6 +85,22 @@ def test_normalize_arxiv_id() -> None:
     assert normalize_arxiv_id("https://arxiv.org/pdf/1412.6980") == ("1412.6980", None)
 
 
+def test_fetcher_close_idempotent() -> None:
+    """``close()`` 委托内建 client 关池——幂等，重复调用安全。"""
+    f = Fetcher()
+    assert not f.client.is_closed
+    f.close()
+    assert f.client.is_closed
+    f.close()
+
+
+def test_fetcher_context_manager() -> None:
+    """``with Fetcher()`` 出块自动关连接池。"""
+    with Fetcher() as f:
+        assert not f.client.is_closed
+    assert f.client.is_closed
+
+
 def test_head_src_parses_version_format() -> None:
     def handler(req: httpx.Request) -> httpx.Response:
         assert req.method == "HEAD"

@@ -25,7 +25,7 @@ from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from enum import StrEnum
 from http import HTTPStatus
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, Self
 
 import httpx
 
@@ -243,6 +243,18 @@ class Fetcher:
             follow_redirects=True,
             limits=httpx.Limits(max_connections=1, max_keepalive_connections=1),
         )
+
+    def close(self) -> None:
+        """关内建 ``httpx.Client`` 连接池（幂等——重复调用安全）。"""
+        self.client.close()
+
+    def __enter__(self) -> Self:
+        """进上下文返回自身——``with Fetcher() as f`` 出块自动 ``close()``。"""
+        return self
+
+    def __exit__(self, *_exc: object) -> None:
+        """出上下文关连接池。"""
+        self.close()
 
     # ---- 底层 ----
 
