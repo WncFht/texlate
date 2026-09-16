@@ -146,6 +146,16 @@ taxonomy:
       payload_group: 1,
       pattern: "I can't find file `([^']+)'",
     }
+  # 2026-09-16 第三种缺档措辞: `\PackageError` 自报 "Cannot find the
+  # file X.ext" (无反引号对) —— textgreek.sty:39 lgrenc.def 实证
+  # (1706.02694/2308.00072/2410.06051 三格同墙, greek-fontenc 一包全解);
+  # 不盖 'File `X' not found' 主签名, 互补并列。
+  - {
+      id: missing_file,
+      scope: head,
+      payload_group: 1,
+      pattern: "Cannot find the file\\s+([\\w@.+-]+\\.[a-zA-Z0-9]+)",
+    }
   # —— TFM 字体缺失 (抓字体名=文件名 → install_tfm) ——
   - {
       id: missing_tfm,
