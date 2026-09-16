@@ -6,6 +6,8 @@ argv/env 断言走 monkeypatch ``run_process`` 捕获（不起真引擎）；``\
 
 from __future__ import annotations
 
+import signal
+import subprocess
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -13,8 +15,9 @@ from typing import TYPE_CHECKING, Any
 import pytest
 
 import texlate.compile.engine as eng_mod
+import texlate.compile.sandbox as sb
 from texlate.compile.engine import TectonicEngine, XelatexEngine
-from texlate.compile.sandbox import child_env, find_tool
+from texlate.compile.sandbox import child_env, find_tool, run_process, sandbox_wrap
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -316,3 +319,92 @@ def test_tectonic_real_compile_sandboxed(tmp_path: Path) -> None:
     assert not res.timed_out
     if sys.platform == "linux" and eng_mod._bwrap_capable():  # noqa: SLF001
         assert res.sandbox_mode == "bwrap"
+
+
+# ---------------------------------------------------------------- 审计修复面
+def test_sandbox_wrap_darwin_deny_network(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """allow_net=False → profile 追加 ``(deny network*)``——与 bwrap
+    ``--unshare-net`` 同义（xelatex 侧约定：断网压 shell-escape 穿透的
+    curl 外联面）；默认 True 不加。"""
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.setenv("HOME", str(tmp_path))
+    real_exists = Path.exists
+    monkeypatch.setattr(
+        Path,
+        "exists",
+        lambda p: True if str(p) == "/usr/bin/sandbox-exec" else real_exists(p),
+    )
+    cmd = ["xelatex", "main.tex"]
+    wrapped = sandbox_wrap(cmd, root=tmp_path, out=tmp_path, allow_net=False)
+    assert wrapped[0] == "/usr/bin/sandbox-exec"
+    assert "(deny network*)" in wrapped[2]
+    wrapped_on = sandbox_wrap(cmd, root=tmp_path, out=tmp_path)
+    assert "(deny network*)" not in wrapped_on[2]
+
+
+def test_run_process_keyboardinterrupt_kills_tree(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """communicate 抛 KeyboardInterrupt → killpg 整组再传播——不杀会把
+    编译进程连同 mktex*/dvips 子孙一起孤儿化（sleep 30 探针实证幸存）。"""
+    killed: list[tuple[int, int]] = []
+
+    class FakeProc:
+        pid = 0xFA17
+        returncode: int | None = None
+
+        def __init__(self, *_a: object, **_k: object) -> None:
+            pass
+
+        def communicate(self, timeout: float | None = None) -> tuple[bytes, None]:
+            del timeout
+            raise KeyboardInterrupt
+
+        def wait(self, timeout: float | None = None) -> int:
+            del timeout
+            self.returncode = -9
+            return -9
+
+        def kill(self) -> None:
+            self.returncode = -9
+
+    monkeypatch.setattr(sb.subprocess, "Popen", FakeProc)
+    monkeypatch.setattr(sb.os, "killpg", lambda pid, sig: killed.append((pid, sig)))
+    with pytest.raises(KeyboardInterrupt):
+        run_process(["sleep", "30"], cwd=tmp_path, env={}, timeout=5)
+    assert killed == [(0xFA17, signal.SIGKILL)]
+
+
+def test_run_process_timeout_reap_bounded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """超时后二次 communicate 有界（30s）——setsid/双 fork 逃逸孙进程仍握
+    stdout 写端时不再无限等（旧码裸 communicate 会挂死整格）。"""
+    timeouts: list[float | None] = []
+
+    class FakeProc:
+        pid = 0xFA18
+        returncode = -9
+
+        def __init__(self, *_a: object, **_k: object) -> None:
+            pass
+
+        def communicate(self, timeout: float | None = None) -> tuple[bytes, None]:
+            timeouts.append(timeout)
+            raise subprocess.TimeoutExpired(["sleep", "30"], timeout)
+
+        def wait(self, timeout: float | None = None) -> int:
+            del timeout
+            return -9
+
+        def kill(self) -> None:
+            pass
+
+    monkeypatch.setattr(sb.subprocess, "Popen", FakeProc)
+    monkeypatch.setattr(sb.os, "killpg", lambda _pid, _sig: None)
+    rc, _out, _sec, to = run_process(["sleep", "30"], cwd=tmp_path, env={}, timeout=5)
+    assert to is True
+    assert timeouts == [5, 30]
+    assert rc == -9  # noqa: PLR2004 - SIGKILL

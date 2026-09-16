@@ -81,13 +81,14 @@ def child_env(extra: dict[str, str] | None = None) -> dict[str, str]:
     return env
 
 
-def sandbox_wrap(
+def sandbox_wrap(  # noqa: PLR0913 -- 沙箱决策参数面
     cmd: list[str],
     *,
     root: Path,
     out: Path,
     extra_read: list[Path] | None = None,
     extra_rw: Iterable[Path | str] = (),
+    allow_net: bool = True,
 ) -> list[str]:
     """沙箱包裹命令（sandbox-exec，仅 macOS）；非 darwin / 无 sandbox-exec 原样返回。
 
@@ -99,6 +100,10 @@ def sandbox_wrap(
       系统字体/TeX 树、tmp、工具链目录；
     - 写：输出目录、tectonic 缓存、tmp、`/dev`、工程目录（xelatex 在 cwd
       写 .aux/.log）。
+
+    ``allow_net=False`` 追加 ``(deny network*)``——与 bwrap ``--unshare-net``
+    同义（xelatex 侧调用约定：工具链全本地，断网压 shell-escape 穿透的
+    curl 外联面）；tectonic 冷拉 bundle 走 HTTPS，调用方须保持默认 True。
     """
     if sys.platform != "darwin" or not Path("/usr/bin/sandbox-exec").exists():
         return cmd
@@ -169,11 +174,12 @@ def sandbox_wrap(
         "(version 1)\n(allow default)\n(deny file-read* (subpath "
         + json.dumps(str(home), ensure_ascii=False)
         + "))\n(deny file-write*)\n"
+        + ("(deny network*)\n" if not allow_net else "")
         # deny 的是**内容读**；metadata(stat/目录遍历)放行——否则白名单
         # 子路径内的 shell ``cd``/getcwd 要 stat 祖先目录全被截获，
         # mktexpk 装 pk 字体的 cd 链必死（2211.13013 SIGPIPE 根因）。
         # 密钥/配置内容仍不可读，代价仅是 $HOME 下文件名可枚举。
-        "(allow file-read-metadata (subpath "
+        + "(allow file-read-metadata (subpath "
         + json.dumps(str(home), ensure_ascii=False)
         + "))\n"
     )
@@ -219,7 +225,19 @@ def run_process(
     except subprocess.TimeoutExpired:
         timed_out = True
         _kill_tree(proc)
-        out, _ = proc.communicate()
+        try:
+            out, _ = proc.communicate(timeout=30)
+        except subprocess.TimeoutExpired as e2:
+            # setsid/双 fork 逃逸的孙进程仍握 stdout 写端——killpg 只带走
+            # 本组，无限 communicate 会等孙进程退格才返 → 弃读防整格挂死。
+            partial = e2.output
+            out = b"".join(partial) if isinstance(partial, list) else partial
+    except BaseException:
+        # KeyboardInterrupt/GeneratorExit 等——不杀树会把编译进程连同
+        # mktex*/dvips 子孙一起孤儿化（sleep 30 探针实证幸存）。
+        _kill_tree(proc)
+        proc.wait()
+        raise
     if out is None:
         out = b""
     # 封顶保留**尾部**——消费端是 stdout_tail（tectonic 不写 .log 时的错误

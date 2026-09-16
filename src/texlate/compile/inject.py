@@ -387,7 +387,10 @@ def find_main_tex(root: Path) -> Path | None:
         if not _closure_has_document(resolved, p.resolve(), text):
             continue
         candidates.append(rel)
-        bodies[rel] = text.split(r"\begin{document}", 1)[-1]
+        # 与 _closure_has_document 的 ``\\begin\s*\{document\}`` 同口径——
+        # ``\begin {document}``（空白合法）字面 split 切不到，body 量被
+        # 前导区虚抬。
+        bodies[rel] = _BEGIN_DOC_RE.split(text, maxsplit=1)[-1]
         dc = re.search(r"\\document(?:class|style)\s*(\[[^\]]*\])?", text)
         tpl[rel] = bool(dc and dc.group(1) and "\\" in dc.group(1))
     if not candidates:
@@ -654,12 +657,10 @@ def prepare_chinese(
     main_path = root / main if isinstance(main, str) else main
     text = decode_tex(main_path.read_bytes())
     new_text, info = inject_cjk(text, mode=mode, root=root)
-    if info["status"] == "injected":
-        vis = visible_tex(new_text)
-        if re.search(r"\\begin\s*\{threeparttable\}", vis) or re.search(
-            r"threeparttable", vis
-        ):
-            new_text = inject_table_fitting(new_text)
+    if "threeparttable" in visible_tex(new_text):
+        # 已带 CJK 的工程（status=already）同样要 threeparttable 溢宽钩子。
+        new_text = inject_table_fitting(new_text)
+    if new_text != text:
         main_path.write_text(new_text, encoding="utf-8")
     if float_sizing:
         info["float_sizing"] = inject_float_sizing(root)
