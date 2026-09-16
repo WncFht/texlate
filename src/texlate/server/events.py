@@ -18,6 +18,22 @@ if TYPE_CHECKING:
 
     from texlate.server.store import Store
 
+#: 订阅队列上限——停滞消费者（慢网络/挂起连接）不无限吃内存：
+#: 溢出即摘除订阅并压 ``_RESYNC`` 哨兵断流，客户端按 SSE 协议带
+#: ``Last-Event-ID`` 重连走 ``events_since`` 重放补齐（task_events 是
+#: 重放凭据，丢内存队列不丢事件）。量级参照 ``EVENT_CAP``。
+_SUB_QUEUE_MAX = 512
+
+#: 断流哨兵（队列专用类型，永不落盘/上电线）——stream 读到即 return。
+_RESYNC: dict[str, Any] = {"seq": -1, "type": "_resync", "data": {}}
+
+
+def _cut(q: asyncio.Queue[dict[str, Any]]) -> None:
+    """清空积压压入断流哨兵（有界队列故两步必终止）。"""
+    while not q.empty():
+        q.get_nowait()
+    q.put_nowait(_RESYNC)
+
 
 class EventBus:
     """每任务一组 ``asyncio.Queue`` 订阅者；发布 = 落盘 + 扇出。"""
@@ -33,13 +49,22 @@ class EventBus:
         subs = self._subs.get(task_id)
         if subs:
             item = {"seq": seq, "type": etype, "data": data}
+            stalled: list[asyncio.Queue[dict[str, Any]]] = []
             for q in subs:
-                q.put_nowait(item)
+                try:
+                    q.put_nowait(item)
+                except asyncio.QueueFull:
+                    stalled.append(q)
+            for q in stalled:
+                subs.discard(q)
+                _cut(q)
+            if not subs:
+                self._subs.pop(task_id, None)
         return seq
 
     def subscribe(self, task_id: str) -> asyncio.Queue[dict[str, Any]]:
-        """注册订阅队列（无界——内部缓冲，消费者是 SSE 生成器）。"""
-        q: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+        """注册订阅队列（``_SUB_QUEUE_MAX`` 有界——溢出判停滞断流）。"""
+        q: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=_SUB_QUEUE_MAX)
         self._subs.setdefault(task_id, set()).add(q)
         return q
 
@@ -74,6 +99,8 @@ class EventBus:
                 return
             while True:
                 ev = await q.get()
+                if ev["type"] == "_resync":
+                    return  # 积压溢出被摘除——客户端重连重放补齐
                 seq = int(ev["seq"])
                 if seq <= delivered:
                     continue
@@ -85,7 +112,10 @@ class EventBus:
             self.unsubscribe(task_id, q)
 
     def close_all(self) -> None:
-        """关停：清订阅表（生成器侧 finally 自行收尾）。"""
+        """关停：全员压断流哨兵（唤醒 ``q.get()`` 上 parked 的生成器）再清表。"""
+        for subs in self._subs.values():
+            for q in subs:
+                _cut(q)
         self._subs.clear()
 
 

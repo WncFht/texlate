@@ -119,6 +119,67 @@ class TestBusStream:
         assert frame["event"] == "chunk"
         assert json.loads(frame["data"]) == {"done": 2}
 
+    def test_overflow_cuts_stalled_sub(
+        self, bus: tuple[Store, EventBus], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """订阅队列溢出 → 摘除 + 哨兵断流；重连按 events_since 全量重放。"""
+        monkeypatch.setattr("texlate.server.events._SUB_QUEUE_MAX", 2)
+        store, b = bus
+        tid = self._mk(store)
+
+        async def run() -> list[dict]:
+            out: list[dict] = []
+
+            async def sub() -> None:
+                out.extend([ev async for ev in b.stream(tid)])
+
+            task = asyncio.create_task(sub())
+            for _ in range(100):
+                if _has_sub(b, tid):
+                    break
+                await asyncio.sleep(0)
+            # cap=2：第 3 发触发 QueueFull——积压被清、订阅摘除、哨兵断流
+            for i in range(3):
+                b.publish(tid, "stage", {"i": i})
+            await asyncio.wait_for(task, 5)
+            return out
+
+        seen = asyncio.run(run())
+        assert seen == []  # 积压被 _cut 清掉——内存队列丢了但落盘未丢
+        assert not _has_sub(b, tid)
+        b.publish(tid, "done", {"status": "done"})
+
+        async def replay() -> list[dict]:
+            return [ev async for ev in b.stream(tid)]
+
+        seen2 = asyncio.run(asyncio.wait_for(replay(), 5))
+        assert [e["type"] for e in seen2] == ["stage", "stage", "stage", "done"]
+
+    def test_close_all_wakes_parked(self, bus: tuple[Store, EventBus]) -> None:
+        """close_all 压哨兵唤醒 q.get() 等待者——关停不依赖传输层取消。"""
+        store, b = bus
+        tid = self._mk(store)
+
+        async def run() -> list[dict]:
+            out: list[dict] = []
+
+            async def sub() -> None:
+                out.extend([ev async for ev in b.stream(tid)])
+
+            task = asyncio.create_task(sub())
+            for _ in range(100):
+                if _has_sub(b, tid):
+                    break
+                await asyncio.sleep(0)
+            assert _has_sub(b, tid)
+            b.close_all()
+            await asyncio.wait_for(task, 5)
+            return out
+
+        seen = asyncio.run(run())
+        assert seen == []
+        assert not _has_sub(b, tid)
+
 
 class TestHttpSse:
     """starlette 1.x TestClient 把整个响应缓冲完才返回——流必须先终结再读。

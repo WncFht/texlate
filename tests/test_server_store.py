@@ -256,6 +256,84 @@ class TestErrorCodes:
         assert "inject_reject" in ERROR_CODES
 
 
+class TestIdempotencyKey:
+    def test_create_extracts_column(self, store: Store) -> None:
+        """options.idempotency_key 建行时提升为一等列（find_by_idempotency 走列查）。"""
+        row = _mk(store, options={"idempotency_key": "k-new"})
+        assert row["idempotency_key"] == "k-new"
+        assert store.find_by_idempotency("local", "k-new")["id"] == row["id"]
+        assert store.find_by_idempotency("local", "nope") is None
+        assert store.find_by_idempotency("other", "k-new") is None  # 租户隔离
+        assert _mk(store)["idempotency_key"] is None
+
+    def test_column_migration_backfill(self, tmp_path: Path) -> None:
+        """老库（tasks 无 idempotency_key 列）→ open() 补列 + options_json 回填。"""
+        db = tmp_path / "old.db"
+        conn = sqlite3.connect(db)
+        conn.executescript(
+            "CREATE TABLE tasks ("
+            " id TEXT PRIMARY KEY, kind TEXT NOT NULL,"
+            " status TEXT NOT NULL DEFAULT 'queued',"
+            " stage TEXT, progress INTEGER NOT NULL DEFAULT 0,"
+            " message TEXT NOT NULL DEFAULT '', title TEXT NOT NULL DEFAULT '',"
+            " arxiv_id TEXT, source_name TEXT NOT NULL DEFAULT '',"
+            " main_tex TEXT NOT NULL DEFAULT '', target_lang TEXT NOT NULL,"
+            " model TEXT NOT NULL, config_json TEXT NOT NULL DEFAULT '{}',"
+            " options_json TEXT NOT NULL DEFAULT '{}',"
+            " auth_source TEXT NOT NULL DEFAULT 'settings',"
+            " tenant TEXT NOT NULL DEFAULT 'local', cache_key TEXT,"
+            " total_chunks INTEGER NOT NULL DEFAULT 0,"
+            " done_chunks INTEGER NOT NULL DEFAULT 0,"
+            " cached_chunks INTEGER NOT NULL DEFAULT 0,"
+            " failed_chunks INTEGER NOT NULL DEFAULT 0,"
+            " tokens INTEGER NOT NULL DEFAULT 0, error_json TEXT,"
+            " worker_id TEXT, created_at REAL NOT NULL, updated_at REAL NOT NULL,"
+            " started_at REAL, finished_at REAL);"
+            "INSERT INTO tasks (id, kind, target_lang, model, options_json,"
+            " created_at, updated_at) VALUES ('t_old', 'arxiv', 'zh-CN', 'm',"
+            ' \'{"idempotency_key":"k-old"}\', 1, 1);'
+        )
+        conn.commit()
+        conn.close()
+        s = Store(db)
+        s.open()
+        try:
+            cols = {str(r["name"]) for r in s.conn.execute("PRAGMA table_info(tasks)")}
+            assert "idempotency_key" in cols
+            hit = s.find_by_idempotency("local", "k-old")
+            assert hit is not None
+            assert hit["id"] == "t_old"
+        finally:
+            s.close()
+
+
+class TestHotQueryPlans:
+    """钉查询计划——热查询退成全表扫时索引形同虚设。"""
+
+    def _plan(self, store: Store, sql: str, params: tuple) -> list[str]:
+        return [
+            str(r[3]) for r in store.conn.execute(f"EXPLAIN QUERY PLAN {sql}", params)
+        ]
+
+    def test_idem_uses_composite(self, store: Store) -> None:
+        plan = self._plan(
+            store,
+            "SELECT * FROM tasks WHERE tenant = ? AND idempotency_key = ?"
+            " ORDER BY created_at DESC LIMIT 1",
+            ("local", "k"),
+        )
+        assert any("idx_tasks_idem" in p for p in plan), plan
+
+    def test_cachekey_uses_partial(self, store: Store) -> None:
+        plan = self._plan(
+            store,
+            "SELECT * FROM tasks WHERE cache_key = ?"
+            " AND status IN ('done','partial') ORDER BY created_at DESC LIMIT 1",
+            ("ck",),
+        )
+        assert any("idx_tasks_cachekey" in p for p in plan), plan
+
+
 class TestUsage:
     def test_record_and_snapshot(self, store: Store) -> None:
         """T4：record_usage upsert 累加 + snapshot 带 usage。"""

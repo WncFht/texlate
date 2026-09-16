@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   auth_source   TEXT NOT NULL DEFAULT 'settings',
   tenant        TEXT NOT NULL DEFAULT 'local',
   cache_key     TEXT,
+  idempotency_key TEXT,
   total_chunks  INTEGER NOT NULL DEFAULT 0,
   done_chunks   INTEGER NOT NULL DEFAULT 0,
   cached_chunks INTEGER NOT NULL DEFAULT 0,
@@ -55,6 +56,10 @@ CREATE INDEX IF NOT EXISTS idx_tasks_tenant  ON tasks(tenant, created_at DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_tasks_cachekey_active
   ON tasks(cache_key) WHERE status IN
   ('queued','fetching','parsing','translating','compiling','interrupted');
+-- 终态臂 find_reusable 查不了上面的 ACTIVE 部分唯一索引——无此索引则
+-- cache_key 等值查是全表扫（建行热路径，每次 create 都来）
+CREATE INDEX IF NOT EXISTS idx_tasks_cachekey
+  ON tasks(cache_key) WHERE cache_key IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS chunks (
   task_id    TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
@@ -115,10 +120,31 @@ CREATE TABLE IF NOT EXISTS task_usage (
 """
 
 #: 列级迁移（CREATE IF NOT EXISTS 盖不住的老库加列）：
-#: ``(table, column, ALTER 片段)``——table_info 探测缺失才执行。
-_COLUMN_MIGRATIONS: tuple[tuple[str, str, str], ...] = (
-    ("chunks", "warnings", "ALTER TABLE chunks ADD COLUMN warnings TEXT"),
+#: ``(table, column, ALTER 片段, 补列后回填 SQL|None)``——
+#: table_info 探测缺失才执行 ALTER + 回填。
+_COLUMN_MIGRATIONS: tuple[tuple[str, str, str, str | None], ...] = (
+    ("chunks", "warnings", "ALTER TABLE chunks ADD COLUMN warnings TEXT", None),
+    # idempotency_key 从 options_json 提升为一等列——json_extract 表达式
+    # 索引抢不过 idx_tasks_tenant 的 ORDER BY 红利，热查询必须走真列
+    (
+        "tasks",
+        "idempotency_key",
+        "ALTER TABLE tasks ADD COLUMN idempotency_key TEXT",
+        (
+            "UPDATE tasks SET idempotency_key ="
+            " json_extract(options_json, '$.idempotency_key')"
+            " WHERE json_extract(options_json, '$.idempotency_key') IS NOT NULL"
+        ),
+    ),
 )
+
+#: 依赖迁移列的索引——必须在 ``_COLUMN_MIGRATIONS`` 之后建（老库列未补
+#: 前 CREATE INDEX 引用即炸）；IF NOT EXISTS 幂等，新库重跑无害。
+_POST_DDL = """
+CREATE INDEX IF NOT EXISTS idx_tasks_idem
+  ON tasks(tenant, idempotency_key, created_at DESC)
+  WHERE idempotency_key IS NOT NULL;
+"""
 
 #: 11 态机（§3.3）
 ACTIVE_STATUSES = frozenset(
@@ -242,11 +268,14 @@ class Store:
 
     @staticmethod
     def _migrate(conn: sqlite3.Connection) -> None:
-        """列级迁移：``_COLUMN_MIGRATIONS`` 里探测缺失才 ALTER（幂等）。"""
-        for table, column, ddl in _COLUMN_MIGRATIONS:
+        """列级迁移 + 迁移列索引：探测缺失才 ALTER/回填（幂等）。"""
+        for table, column, ddl, backfill in _COLUMN_MIGRATIONS:
             cols = {str(r["name"]) for r in conn.execute(f"PRAGMA table_info({table})")}
             if column not in cols:
                 conn.execute(ddl)
+                if backfill is not None:
+                    conn.execute(backfill)
+        conn.executescript(_POST_DDL)
         conn.commit()
 
     def close(self) -> None:
@@ -281,11 +310,12 @@ class Store:
     ) -> dict[str, Any]:
         """插入 queued 任务行；cache_key 唯一索引撞 → IntegrityError 上抛。"""
         now = time.time()
+        idem_raw = (options or {}).get("idempotency_key")
         self.conn.execute(
             "INSERT INTO tasks (id, kind, status, title, arxiv_id, source_name,"
             " target_lang, model, config_json, options_json, auth_source,"
-            " tenant, cache_key, created_at, updated_at)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            " tenant, cache_key, idempotency_key, created_at, updated_at)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 task_id,
                 kind,
@@ -300,6 +330,7 @@ class Store:
                 auth_source,
                 tenant,
                 cache_key,
+                str(idem_raw) if idem_raw else None,
                 now,
                 now,
             ),
@@ -353,10 +384,9 @@ class Store:
         return dict(row) if row else None
 
     def find_by_idempotency(self, tenant: str, idem_key: str) -> dict[str, Any] | None:
-        """``options.idempotency_key`` 去重查找（JSON1 json_extract）。"""
+        """``idempotency_key`` 列去重查找（``idx_tasks_idem`` 复合覆盖）。"""
         row = self.conn.execute(
-            "SELECT * FROM tasks WHERE tenant = ?"
-            " AND json_extract(options_json, '$.idempotency_key') = ?"
+            "SELECT * FROM tasks WHERE tenant = ? AND idempotency_key = ?"
             " ORDER BY created_at DESC LIMIT 1",
             (tenant, idem_key),
         ).fetchone()
@@ -835,12 +865,17 @@ class Store:
 
         web 侧 ``warnings?: string[]`` 按 ``[code] message`` 渲染（与 live
         WarningEvent 同形）；EVENT_CAP 滚动截断外的旧警告随之自然消失。
+        ``type='warning'`` 下推 SQL——snapshot 每次调用都走这里，全量
+        事件 json.loads 重放（chunk 事件载荷 KB 级）是白烧的 CPU。
         """
+        rows = self.conn.execute(
+            "SELECT data FROM task_events WHERE task_id = ? AND type = 'warning'"
+            " ORDER BY seq",
+            (task_id,),
+        ).fetchall()
         out: list[str] = []
-        for ev in self.events_since(task_id, 0):
-            if ev["type"] != "warning":
-                continue
-            data = ev["data"]
+        for r in rows:
+            data = json.loads(r["data"])
             if isinstance(data, dict) and "message" in data:
                 out.append(f"[{data.get('code', '?')}] {data['message']}")
             else:
