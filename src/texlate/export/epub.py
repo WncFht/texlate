@@ -820,10 +820,20 @@ def insert_translation(unit: Unit, zh_text: str, language: str) -> str | None:
     owner = unit.owner
     if zh.strip() == unit.text.strip():
         return warn  # 译文=原文（echo/回退）——插入只会制造同文重复
+    # 无 <body> 的畸形文档里 owner 退到 <html> 乃至文档根：克隆会在根部造出
+    # 第二个顶层元素（对 BeautifulSoup 根 insert_after 直接抛 NotImplementedError）
+    # ——与 <body> 同走锚定，锚点是 run 尾节点、其父非空，insert_after 落得住
+    root_owner = owner.name == "html" or isinstance(owner, BeautifulSoup)
     if owner.name in SINGLETON_TAGS or owner.find_parent("nav") is not None:
         inserted = _append_inline_translation(unit.soup, owner, zh, language)
-    elif unit.is_multi_run or owner.name == "body":
+    elif unit.is_multi_run or owner.name == "body" or root_owner:
         inserted = _insert_anchored_translation(unit, zh, language)
+        if root_owner:
+            note = (
+                f"{unit.job_id}: no <body>; owner={owner.name}"
+                " — translation anchored after run"
+            )
+            warn = f"{warn} | {note}" if warn else note
     else:
         inserted = _insert_clone_translation(unit, zh, language)
     if inserted is not None:

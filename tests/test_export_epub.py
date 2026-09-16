@@ -123,6 +123,17 @@ def _write_epub(tmp_path: Path, blob: bytes, name: str = "book.epub") -> Path:
     return src
 
 
+def _epub_raw(xhtml: str) -> bytes:
+    """整篇 xhtml 原文进包——绕过 ``_epub`` 的 ``<body>`` 模板，畸形文档专用。"""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("mimetype", "application/epub+zip", compress_type=zipfile.ZIP_STORED)
+        z.writestr("META-INF/container.xml", CONTAINER_XML)
+        z.writestr("OEBPS/content.opf", _opf(["ch1.xhtml"], ncx=False))
+        z.writestr("OEBPS/ch1.xhtml", xhtml)
+    return buf.getvalue()
+
+
 class _EchoTranslator:
     """原样回显（剥掉批行 ``[n]`` 前缀）——译文 == 原文走 unchanged 分支。"""
 
@@ -414,3 +425,32 @@ def test_resume_from_state(tmp_path: Path) -> None:
     assert "预置译文" in ch1  # 断点译文回放
     assert "这是译文" in ch1  # 剩余单元实跑
     assert not state_dir.exists()  # 成功即清理
+
+
+@pytest.mark.parametrize(
+    "xhtml",
+    [
+        "Bare prose at the document root, no markup at all.",
+        '<?xml version="1.0"?><p>A wrapped paragraph.</p>Stray text at root.',
+        '<?xml version="1.0"?><html><p>A wrapped paragraph.</p>Loose text under html.</html>',
+        '<?xml version="1.0"?><html>Only text directly under html.</html>',
+    ],
+    ids=["bare-text", "stray-root-text", "html-stray-text", "html-only-text"],
+)
+def test_no_body_doc_anchored_not_clone(tmp_path: Path, xhtml: str) -> None:
+    """无 ``<body>`` 的畸形 xhtml：owner 退到 ``<html>``/文档根，锚定插译不抛。
+
+    回归：克隆路径对 BeautifulSoup 根 ``insert_after`` 抛 ``NotImplementedError``
+    （bs4 4.15 显式拒实现），对 ``<html>`` 则造出第二个顶层元素——document 级
+    owner 一律改走锚定并在 ``report.warnings`` 留痕。
+    """
+    src = _write_epub(tmp_path, _epub_raw(xhtml))
+    dst = tmp_path / "out.epub"
+    report = translate_epub(src, dst, MockTranslator())
+    assert report.fault == 0
+    assert report.translated == report.units
+    assert any("no <body>" in w for w in report.warnings)
+    with zipfile.ZipFile(dst) as z:
+        soup = BeautifulSoup(z.read("OEBPS/ch1.xhtml"), "html.parser")
+    assert soup.select_one(".texlate-zh") is not None
+    assert len(soup.find_all("html")) <= 1  # 克隆路径不许造出第二个顶层 <html>
