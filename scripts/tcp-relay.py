@@ -13,9 +13,11 @@ import sys
 
 LISTEN = ("127.0.0.1", int(sys.argv[1]))
 TARGET = (sys.argv[2], int(sys.argv[3]))
+ARGC = 4
 
 
-async def pipe(r, w):
+async def pipe(r: asyncio.StreamReader, w: asyncio.StreamWriter) -> None:
+    """单向泵：r → w，对端耗尽或断连即收。"""
     try:
         while data := await r.read(65536):
             w.write(data)
@@ -26,18 +28,20 @@ async def pipe(r, w):
         w.close()
 
 
-async def handle(cr, cw):
+async def handle(cr: asyncio.StreamReader, cw: asyncio.StreamWriter) -> None:
+    """每连接：起上行连接，双向泵汇合。"""
     sr, sw = await asyncio.open_connection(*TARGET)
     await asyncio.gather(pipe(cr, sw), pipe(sr, cw))
 
 
-async def main():
+async def main() -> None:
+    """起监听并永久服务。"""
     srv = await asyncio.start_server(handle, *LISTEN)
-    print(f"relay {LISTEN[0]}:{LISTEN[1]} -> {TARGET[0]}:{TARGET[1]}")
+    sys.stderr.write(f"relay {LISTEN[0]}:{LISTEN[1]} -> {TARGET[0]}:{TARGET[1]}\n")
     await srv.serve_forever()
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 4:
+    if len(sys.argv) != ARGC:
         sys.exit(__doc__)
     asyncio.run(main())
