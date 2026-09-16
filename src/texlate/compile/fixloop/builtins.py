@@ -402,6 +402,51 @@ def bbl_regen(
     return True, note
 
 
+#: ``\documentclass`` 选项表提取 —— 选项可缺省, 方括号内允跨行空白。
+_DOCCLASS_OPTS_RE = re.compile(r"\\documentclass\s*(?:\[([^\]]*)\])?\s*\{")
+
+
+def svjour_clo_stub(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""svjour.cls 零 .clo 伴船 → 按 ``\documentclass`` 选项写 ``sv<opt>.clo`` noop stub。
+
+    实证根因 (0905.0193): e-print 捆绑 svjour.cls (2003, Springer) 但不带
+    任何 .clo, TeX Live 亦不收录 svjour → ``\DeclareOption*`` 里
+    ``\InputIfFileExists{sv\CurrentOption.clo}`` 逐选项落空,
+    ``\journalopt`` 停在 ``\@empty`` → ``\ClassError{No valid journal
+    specified}`` + ``\stop``。noop ``\endinput`` stub 让 InputIfFileExists
+    走真臂置 ``\journalopt`` 为选项名即过; 盘上已有真 .clo 不覆盖。
+    """
+    del eng, payload, params
+    main = ctx.main_path()
+    t = ctx.read(main) if main is not None else None
+    if t is None:
+        return False, "no main tex"
+    if not _DOCCLASS_OPTS_RE.search(t):
+        return False, "no \\documentclass in main"
+    opts = [
+        o.strip()
+        for m in _DOCCLASS_OPTS_RE.finditer(t)
+        for o in (m.group(1) or "").split(",")
+        if o.strip()
+    ]
+    if not opts:
+        return False, "no documentclass options"
+    written = []
+    for opt in dict.fromkeys(opts):
+        if "/" in opt or "\\" in opt:
+            continue  # 防选项里的路径分隔符穿出 wdir / write_text 炸 OSError
+        target = ctx.wdir / f"sv{opt}.clo"
+        if target.exists():
+            continue  # 盘上真 .clo 优先, 不覆盖
+        ctx.write(target, "% fixloop: svjour option stub (noop)\n\\endinput\n")
+        written.append(target.name)
+    if not written:
+        return False, "all sv*.clo already present, nothing written"
+    return True, f"svjour .clo stubs written: {', '.join(written)}"
+
+
 def font_sub_shim(
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
@@ -1722,6 +1767,7 @@ TRANSFORM_FNS = {
     "non_utf8_recode": non_utf8_recode,
     "bbl_stub_rewrite": bbl_stub_rewrite,
     "bbl_regen": bbl_regen,
+    "svjour_clo_stub": svjour_clo_stub,
     "font_sub_shim": font_sub_shim,
     "pstricks_dvips_preflight": pstricks_dvips_preflight,
     "eps_to_pdf": eps_to_pdf,
