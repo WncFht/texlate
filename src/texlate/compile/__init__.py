@@ -4,6 +4,7 @@
 - `normalize`：pdfTeX→XeTeX 无条件手术 12 项
 - `inject`：ctex/xeCJK 中文注入 + FLOAT_SIZING/TABLE_FITTING
 - `engine`：Engine Protocol + xelatex/tectonic + 静态路由 + compiled_dependencies
+- `probe`：声明依赖静态探针（target_probe）+ 权威输入集差分（deps_diff）
 - `judge`：clean/partial/fail 判定三件套 + 中文渲染检查
 - `sandbox`：env 白名单 + sandbox-exec + killpg
 - `toolchain`：tectonic 五平台 sha256 钉死分发 + 托管件自动安装
@@ -60,6 +61,7 @@ from .normalize import (
     normalize_project,
     source_path_violations,
 )
+from .probe import DepProbe, DepsDiff, ProbeReport, dep_seen, deps_diff, target_probe
 from .sandbox import child_env, find_tool, run_process, sandbox_wrap
 from .toolchain import ensure_tectonic, install_tectonic, resolve_tool
 
@@ -72,9 +74,12 @@ __all__ = [
     "XECJK_BLOCK",
     "XETEX_COMPATIBILITY",
     "CompRes",
+    "DepProbe",
+    "DepsDiff",
     "Engine",
     "InjectRejectError",
     "LogInfo",
+    "ProbeReport",
     "RouteDecision",
     "TectonicEngine",
     "Verdict",
@@ -85,6 +90,8 @@ __all__ = [
     "compiled_dependencies",
     "count_missing_chars",
     "decode_tex",
+    "dep_seen",
+    "deps_diff",
     "engine_for",
     "ensure_tectonic",
     "find_docclass_end",
@@ -107,6 +114,7 @@ __all__ = [
     "run_process",
     "sandbox_wrap",
     "source_path_violations",
+    "target_probe",
     "visible_tex",
     "without_comments",
 ]
