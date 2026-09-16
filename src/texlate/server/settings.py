@@ -19,8 +19,11 @@ import re
 import secrets
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterable
 
 from texlate.xlat.client import (
     PROVIDER_KEY_ENV,
@@ -69,8 +72,20 @@ def server_mode() -> str:
 
 
 def cache_scope() -> str:
-    """``TEXLATE_CACHE_SCOPE``：``shared``（默认跨租户）| ``tenant``。"""
-    return os.environ.get("TEXLATE_CACHE_SCOPE", "shared")
+    """``TEXLATE_CACHE_SCOPE``：``shared``（默认）| ``per_key``。
+
+    ``shared`` = hjfy 对等共享缓存（既定产品特性：公开论文的翻译结果是
+    确定性函数，跨租户 reuse 省下重复 LLM 调用）；``per_key`` 把
+    ``sha256(api_key)[:16]`` 混入缓存键按凭证分桶——消除「探测他租户是否
+    译过某论文」的存在性 oracle，代价是缓存命中按 key 碎片化。
+    旧名 ``tenant`` 同义 ``per_key``；非法值回落 ``shared``。
+    """
+    v = os.environ.get("TEXLATE_CACHE_SCOPE", "shared").strip().lower()
+    if v in ("per_key", "tenant"):
+        return "per_key"
+    if v != "shared":
+        log.warning("TEXLATE_CACHE_SCOPE=%r 非法，回落 shared", v)
+    return "shared"
 
 
 def validate_base_url(value: str) -> str:
@@ -105,6 +120,43 @@ def validate_model(value: str) -> str:
     return v
 
 
+def _check_glossary_dir(value: object) -> str:
+    """``glossary_dir`` 校验：空串放行（=仅 workdir 根）；否则须已存在的绝对目录。"""
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    gdir = Path(raw).expanduser()
+    if not gdir.is_absolute():
+        msg = "glossary_dir 必须是绝对路径"
+        raise ValueError(msg)
+    if not gdir.is_dir():
+        msg = f"glossary_dir 不存在或不是目录: {gdir}"
+        raise ValueError(msg)
+    return str(gdir)
+
+
+def _normalize_updates(values: dict[str, Any]) -> None:
+    """``save`` 的逐字段归一化/校验（就地改写 ``values``）。"""
+    if "base_url" in values:
+        values["base_url"] = validate_base_url(str(values["base_url"]))
+    if "model" in values:
+        values["model"] = validate_model(str(values["model"]))
+    if "concurrency" in values:
+        values["concurrency"] = max(1, min(16, int(values["concurrency"])))
+    if "engine" in values and values["engine"] not in (
+        "auto",
+        "xelatex",
+        "tectonic",
+    ):
+        msg = "engine ∈ auto|xelatex|tectonic"
+        raise ValueError(msg)
+    if "target_lang" in values and values["target_lang"] not in TARGET_LANGS:
+        msg = f"target_lang ∈ {sorted(TARGET_LANGS)}"
+        raise ValueError(msg)
+    if "glossary_dir" in values:
+        values["glossary_dir"] = _check_glossary_dir(values["glossary_dir"])
+
+
 # ---------------------------------------------------------------- 设置存储
 
 
@@ -122,6 +174,7 @@ class SettingsStore:
         "api_key",
         "target_lang",
         "glossary",
+        "glossary_dir",
         "concurrency",
         "engine",
         "context_guidance",
@@ -149,6 +202,7 @@ class SettingsStore:
             "api_key": str(data.get("api_key") or ""),
             "target_lang": str(data.get("target_lang") or DEFAULT_TARGET_LANG),
             "glossary": str(data.get("glossary") or ""),
+            "glossary_dir": str(data.get("glossary_dir") or ""),
             "concurrency": int(data.get("concurrency") or 3),
             "engine": str(data.get("engine") or "auto"),
             "context_guidance": bool(data.get("context_guidance", True)),
@@ -165,22 +219,7 @@ class SettingsStore:
         values = dict(updates)
         values.pop("has_api_key", None)
         clear_key = bool(values.pop("clear_api_key", False))
-        if "base_url" in values:
-            values["base_url"] = validate_base_url(str(values["base_url"]))
-        if "model" in values:
-            values["model"] = validate_model(str(values["model"]))
-        if "concurrency" in values:
-            values["concurrency"] = max(1, min(16, int(values["concurrency"])))
-        if "engine" in values and values["engine"] not in (
-            "auto",
-            "xelatex",
-            "tectonic",
-        ):
-            msg = "engine ∈ auto|xelatex|tectonic"
-            raise ValueError(msg)
-        if "target_lang" in values and values["target_lang"] not in TARGET_LANGS:
-            msg = f"target_lang ∈ {sorted(TARGET_LANGS)}"
-            raise ValueError(msg)
+        _normalize_updates(values)
         if not values.get("api_key"):
             values.pop("api_key", None)
             new_url = str(values.get("base_url", old["base_url"]))
@@ -347,6 +386,12 @@ def scrub(text: str, api_key: str = "") -> str:
     return out
 
 
+#: ``install_log_scrub`` 额外覆盖的具名 logger（uvicorn 系自带 handler，
+#: propagate 链上各自独立判定；texlate 根包 logger 本身无 handler，
+#: 挂上挡本源直写）。
+_LOG_NAMES = ("texlate", "uvicorn", "uvicorn.error", "uvicorn.access")
+
+
 class RedactFilter(logging.Filter):
     """根 logger 脱敏（§4.2 第二道防线，防三方库把请求体打进 traceback）。
 
@@ -382,6 +427,31 @@ class RedactFilter(logging.Filter):
             record.msg = clean
             record.args = ()
         return True
+
+
+def install_log_scrub(
+    key_provider: Callable[[], Iterable[str]] | None = None,
+) -> RedactFilter:
+    """把 :class:`RedactFilter` 挂到 root logger 与其全部现有 handler。
+
+    语义坑：logger 级 filter 只在记录「本源」logger 上判定，传播链上
+    每个 handler 独立判定——所以 root logger 本体（拦直接
+    ``logging.warning(...)`` 的本源记录）+ root handlers（拦
+    ``texlate.*``/三方传播上来的记录）+ uvicorn 系私有 handler 都要挂。
+    重复调用先卸旧 filter 再挂新的（key_provider 轮换/多次装配幂等）。
+    须在 uvicorn log config 就绪后调用（app lifespan 起点）。
+    """
+    filt = RedactFilter(key_provider)
+    loggers = [logging.getLogger(), *(logging.getLogger(n) for n in _LOG_NAMES)]
+    for lg in loggers:
+        for old in (f for f in lg.filters if isinstance(f, RedactFilter)):
+            lg.removeFilter(old)
+        lg.addFilter(filt)
+        for h in lg.handlers:
+            for old in (f for f in h.filters if isinstance(f, RedactFilter)):
+                h.removeFilter(old)
+            h.addFilter(filt)
+    return filt
 
 
 # ---------------------------------------------------------------- providers

@@ -547,8 +547,19 @@ def sniff_tex_encoding(blob: bytes) -> EncodingVerdict:  # noqa: C901, PLR0911, 
             return EncodingVerdict(enc, "detector", declared_raw, "nul-dense")
     try:
         blob.decode("utf-8")
-    except UnicodeDecodeError:
-        pass
+    except UnicodeDecodeError as err:
+        # 尾部半截 UTF-8 序列 = 截断文件（aux/bib 8192B 边界劈断同型，
+        # 2211.13013）——仍属 UTF-8 家族；decode_tex_with 用 replace
+        # 兜一个 FFFD 收尾，远好过误入 gb18030/cp1252 检测器把全文
+        # 炸成乱码后转码写回。判别：已解码前缀须自带多字节序列——
+        # 纯 ASCII 前缀 + 尾部孤立高字节（latin-1 "café" 的 0xE9 同报
+        # "unexpected end of data"）与截断不可区分，交回检测器仲裁。
+        if err.reason == "unexpected end of data" and any(
+            b >= _HIGH_BYTE for b in blob[: err.start]
+        ):
+            return EncodingVerdict(
+                "utf-8", "strict-utf8", declared_raw, "truncated utf-8 tail"
+            )
     else:
         note = (
             ""

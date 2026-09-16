@@ -32,6 +32,21 @@ from .mask import (
 #: 随附文献/书目数据后缀——不是 TeX 手术面，但 XeTeX/biber 一律按
 #: UTF-8 读它们，非 UTF-8 字节须与 .tex 同档判定转码。
 AUX_BIB_SUFFIXES = {".bib", ".bbl", ".bst"}
+#: 引擎 pass 间回读的可再生中间产物（aux/out/toc/lof/lot/nav/snm/vrb/ent）：
+#: shipped 件若带非 UTF-8 字节，首遍回读即 "Invalid UTF-8 byte" —— .aux 的
+#: ``\@newl@bel`` EOF 实证 2211.13013 同族。不进 rebase/violations 扫描面
+#: （机器生成内容，\input 审计无意义），只随 _transcode_aux_bib 转码。
+INTERMEDIATE_SUFFIXES = {
+    ".aux",
+    ".out",
+    ".toc",
+    ".lof",
+    ".lot",
+    ".nav",
+    ".snm",
+    ".vrb",
+    ".ent",
+}
 
 # ---------------------------------------------------------------- 兼容前导块
 # 注入缝统一为 \begin{document} 之前（docs/08 §3.3）；字体系块例外，
@@ -620,10 +635,18 @@ def _record_verdict(
 def _transcode_aux_bib(
     root: Path, encodings: dict[str, dict[str, str | None]]
 ) -> list[str]:
-    """.bib/.bbl/.bst 同档转码：非 UTF-8 字节转 UTF-8 写回，无手术。"""
+    """.bib/.bbl/.bst + .aux 系可再生中间产物同档转码：非 UTF-8 转 UTF-8 写回。
+
+    只动字节不动字节序义：aux 由引擎下遍重写，转码只为消掉 shipped
+    非 UTF-8 件首遍回读的 invalid_utf8（docs/research/latex/
+    2026-09-16-aux-cjk-truncation.md 立项臂二）。
+    """
     transcoded = []
     for path in root.rglob("*"):
-        if not path.is_file() or path.suffix.lower() not in AUX_BIB_SUFFIXES:
+        if (
+            not path.is_file()
+            or path.suffix.lower() not in AUX_BIB_SUFFIXES | INTERMEDIATE_SUFFIXES
+        ):
             continue
         original = path.read_bytes()
         text, verdict = decode_tex_with(original)

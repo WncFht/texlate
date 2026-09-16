@@ -45,7 +45,8 @@ from texlate.arxiv.unpack import (
     UnpackError,
     unpack_sniffed,
 )
-from texlate.compile.engine import Engine, engine_for, route_project
+from texlate.compile.engine import CompRes, Engine, engine_for, route_project
+from texlate.compile.fixloop import CaseSink, fixloop
 from texlate.compile.inject import (
     InjectRejectError,
     find_main_tex,
@@ -145,6 +146,156 @@ _FETCH_NO_RETRY = frozenset(
 #: zip 成员名拒绝面：绝对路径/盘符
 _BAD_ZIP_NAME = re.compile(r"^(?:[a-zA-Z]:|/|\\)")
 
+#: 任务树内哨兵文件（断点恢复用，不进 zh-src.zip / fixloop 回灌）
+_SENTINELS = frozenset({".fetch-done", ".base-done", ".splice-done"})
+
+#: fixloop 回灌 zh/ 的 TeX 输入层扩展名——rewrite 目标面 + ctan_fetch
+#: 平铺落盘面 + install_sysfont 可能投放的字体文件；编译产物
+#: （aux/log/pdf/_tect_out/）不在列
+_FIXLOOP_SRC_EXTS = frozenset(
+    {
+        ".tex",
+        ".ltx",
+        ".latex",
+        ".sty",
+        ".cls",
+        ".bib",
+        ".bst",
+        ".def",
+        ".cfg",
+        ".clo",
+        ".fd",
+        ".tfm",
+        ".vf",
+        ".enc",
+        ".map",
+        ".pro",
+        ".bbl",
+        ".ist",
+        ".ins",
+        ".dtx",
+        ".otf",
+        ".ttf",
+        ".ttc",
+        ".pfb",
+        ".afm",
+    }
+)
+
+
+def _scrub_deep(value: Any, api_key: str) -> Any:  # noqa: ANN401 -- JSON 形状递归天然 Any
+    """递归抹 JSON-able 结构里字符串的 secret 形态（事件载荷落盘前调用）。"""
+    if isinstance(value, str):
+        return scrub(value, api_key)
+    if isinstance(value, list):
+        return [_scrub_deep(v, api_key) for v in value]
+    if isinstance(value, dict):
+        return {k: _scrub_deep(v, api_key) for k, v in value.items()}
+    return value
+
+
+def _fixloop_summary(cell: dict[str, Any]) -> dict[str, Any]:
+    """Fixloop cell → 压缩摘要：每轮 ``{cat,pay,rule,result}`` + 前置动作。
+
+    ``rounds``（cat/pay/pdf/n_errors）与 ``actions``（rule/detail）按 round
+    归并；``round=0/-1`` 是 precheck/gate 动作，单列 ``setup``——salvage
+    轮（round 键为 int、action 键为 ``"salvage"``）单独对齐。
+    """
+    by_round: dict[str, list[dict[str, Any]]] = {}
+    for a in cell.get("actions") or []:
+        by_round.setdefault(str(a.get("round")), []).append(a)
+    trace = []
+    for r in cell.get("rounds") or []:
+        acts = by_round.get("salvage" if r.get("salvage") else str(r.get("round")), [])
+        head = acts[0] if acts else {}
+        trace.append(
+            {
+                "round": r.get("round"),
+                "cat": r.get("category"),
+                "pay": r.get("payload"),
+                "pdf": bool(r.get("pdf")),
+                "n_errors": r.get("n_errors"),
+                "rule": head.get("rule"),
+                "result": head.get("detail"),
+            }
+        )
+    return {
+        "verdict": cell.get("verdict"),
+        "main": cell.get("main"),
+        "engine": cell.get("engine"),
+        "trace": trace,
+        "setup": [
+            {"rule": a.get("rule"), "result": a.get("detail")}
+            for a in cell.get("actions") or []
+            if a.get("round") in (0, -1)
+        ],
+        "installed": cell.get("installed") or [],
+        "advisories": cell.get("advisories") or [],
+    }
+
+
+def _sync_fixed_sources(work: Path, zh: Path) -> int:
+    """Fixloop 改动回灌：``work`` 内 TeX 输入层文件 → ``zh/`` 镜像（含删除）。
+
+    copytree 起点两侧一致，分叉只来自 fixloop 改写/落包/隔离——按
+    ``_FIXLOOP_SRC_EXTS`` 同步并删除 ``zh/`` 侧多余源文件（rename 隔离
+    类规则的删除语义）；``_*`` 前缀目录（_tect_out/_minted-*）与哨兵不进。
+    返回变更文件数。
+    """
+    keep: set[str] = set()
+    n = 0
+    for f in work.rglob("*"):
+        if not f.is_file():
+            continue
+        rel = f.relative_to(work)
+        if rel.parts[0].startswith("_") or f.name in _SENTINELS:
+            continue
+        if f.suffix.lower() not in _FIXLOOP_SRC_EXTS:
+            continue
+        keep.add(rel.as_posix())
+        dst = zh / rel
+        if not dst.is_file() or dst.read_bytes() != f.read_bytes():
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(f, dst)
+            n += 1
+    for f in zh.rglob("*"):
+        if (
+            f.is_file()
+            and f.name not in _SENTINELS
+            and f.suffix.lower() in _FIXLOOP_SRC_EXTS
+            and f.relative_to(zh).as_posix() not in keep
+        ):
+            f.unlink()
+            n += 1
+    return n
+
+
+class _RecEngine:
+    """``Engine`` 透传代理：记录末次 ``CompRes``（fixloop 内部重编终态取回）。
+
+    ``__getattr__``/``__setattr__`` 全落真引擎——``_wire_engine`` 给
+    tectonic 注入 ``ctan_fetch`` callable 必须写在真引擎实例上。
+    """
+
+    _inner: Engine
+    last: CompRes | None
+
+    def __init__(self, inner: Engine) -> None:
+        object.__setattr__(self, "_inner", inner)
+        object.__setattr__(self, "last", None)
+
+    def __getattr__(self, name: str) -> Any:  # noqa: ANN401 -- 代理转发面天然 Any
+        return getattr(object.__getattribute__(self, "_inner"), name)
+
+    def __setattr__(self, name: str, value: Any) -> None:  # noqa: ANN401 -- 同上
+        setattr(object.__getattribute__(self, "_inner"), name, value)
+
+    def compile(self, wdir: Path, main: str, **kw: Any) -> CompRes:  # noqa: ANN401
+        """透传 compile 并记录 CompRes（fixloop 每轮重编都过这里）。"""
+        res = self._inner.compile(wdir, main, **kw)
+        object.__setattr__(self, "last", res)
+        return res
+
 
 @dataclass(slots=True)
 class Secrets:
@@ -170,6 +321,9 @@ class TaskCtx:
     main_rel: str = ""
     engine_name: str = "tectonic"
     tokens_est: int = 0
+    #: fixloop 跑过的压缩摘要（verdict/trace/installed）——_stage_compile
+    #: 终态写 error_json / done 事件载荷用；None = 未跑
+    fixloop: dict[str, Any] | None = None
 
     @property
     def src_dir(self) -> Path:
@@ -207,17 +361,19 @@ def cache_key_for(
     version: int | None,
     model: str,
     target_lang: str,
-    tenant: str,
+    api_key: str = "",
 ) -> str:
     """产物级 dedup 键：``sha256(arxiv_id@ver|model|pipeline_ver|lang)``。
 
-    故意不含 tenant（§4.3：公开论文的确定性函数可跨租户 reuse）；
-    ``TEXLATE_CACHE_SCOPE=tenant`` 时把 tenant 拼进材料。
+    故意不含租户身份（§4.3：公开论文的确定性函数可跨租户 reuse——
+    hjfy 对等共享缓存是既定产品特性）；``cache_scope()=="per_key"``
+    时把 ``sha256(api_key)[:16]`` 拼进材料按凭证分桶，消除跨租户
+    缓存存在性 oracle（匿名桶 key="" 共享一桶，与 tenant_for 同语义）。
     """
     ver = f"v{version}" if version else ""
     material = f"{arxiv_id}@{ver}|{model}|{PIPELINE_VERSION}|{target_lang}"
-    if cache_scope() == "tenant":
-        material += f"|{tenant}"
+    if cache_scope() == "per_key":
+        material += f"|k:{hashlib.sha256(api_key.encode()).hexdigest()[:16]}"
     return hashlib.sha256(material.encode()).hexdigest()
 
 
@@ -241,7 +397,7 @@ class SegmentCache:
         model: str,
         target_lang: str,
     ) -> None:
-        """Prefix = 配置指纹前缀（含 tenant 若 cache_scope=tenant）。"""
+        """Prefix = 配置指纹前缀（含 key 指纹若 cache_scope=per_key）。"""
         self._store = store
         self._prefix = prefix
         self._model = model
@@ -444,13 +600,13 @@ def sniff_upload(data: bytes, filename: str) -> str:
 
 
 def pdf_pages(pdf: Path) -> int:
-    """PDF 页数 best-effort：``/Type /Pages`` 的 ``/Count N``（压流返 0）。"""
+    """PDF 页数 best-effort（pypdf；缺库/坏文件返 0）。"""
     try:
-        blob = pdf.read_bytes()
-    except OSError:
+        from pypdf import PdfReader  # noqa: PLC0415 -- 重依赖惰性加载
+
+        return len(PdfReader(str(pdf)).pages)
+    except Exception:  # noqa: BLE001 -- best-effort：坏文件/缺库都退 0
         return 0
-    m = re.search(rb"/Type\s*/Pages[^/>]*?/Count\s+(\d+)", blob)
-    return int(m.group(1)) if m else 0
 
 
 def _looks_text(data: bytes) -> bool:
@@ -582,7 +738,7 @@ class PipelineWorker:
         if self._current_status(ctx) == "cancelled":
             raise asyncio.CancelledError
 
-    def _fail(
+    def _fail(  # noqa: PLR0913 -- code/message/retryable/stage/detail 即错误面
         self,
         ctx: TaskCtx,
         code: str,
@@ -590,15 +746,19 @@ class PipelineWorker:
         *,
         retryable: bool,
         stage: str | None,
+        detail: dict[str, Any] | None = None,
     ) -> None:
         """致命错误：fault 迁移 + error 事件 + done 事件（终态一致性）。
 
         并发 cancel 竞态守卫：行已入终态则整条跳过（cancel 路径已发 done）。
+        ``detail`` 附加字段进 error_json（fixloop 摘要等审计载荷）。
         """
         if self._current_status(ctx) in TERMINAL_STATUSES:
             return
         clean = scrub(message, ctx.secrets.api_key)
         err = {"code": code, "message": clean, "retryable": retryable}
+        if detail:
+            err.update(detail)
         row = self.store.get(ctx.task_id)
         progress = int(row["progress"]) if row else 0
         self.store.transition(
@@ -626,11 +786,14 @@ class PipelineWorker:
 
     def _stats(self, ctx: TaskCtx) -> dict[str, Any]:
         counts = self.store.chunk_counts(ctx.task_id)
-        return {
+        out: dict[str, Any] = {
             "tokens": ctx.tokens_est,
             "seconds": round(time.time() - float(ctx.row["created_at"]), 1),
             "chunks_failed": counts["failed"],
         }
+        if ctx.fixloop:
+            out["fixloop"] = ctx.fixloop.get("verdict")
+        return out
 
     def _register(self, ctx: TaskCtx, kind: str, rel: str) -> dict[str, Any]:
         """产物登记（bytes/sha256 实测，相对 ``tasks/{id}/``）。"""
@@ -839,13 +1002,20 @@ class PipelineWorker:
         ctx.engine_name = engines[0]
         override = str(ctx.options().get("main") or "")
         if override:
-            # retry body {main} 或 upload main 字段：显式主文件
-            cand = ctx.base_dir / override
+            # retry body {main} 或 upload main 字段：显式主文件——
+            # 必须 confine 在 base/ 内（绝对路径与 ``..`` 逃逸一律拒，
+            # resolve 后判——symlink 逃逸同挡），main_tex/编译产物
+            # 不许落任务目录外。
+            base = ctx.base_dir.resolve()
+            cand = (ctx.base_dir / override).resolve()
+            if not cand.is_relative_to(base):
+                msg = f"main override 越出工程目录: {override}"
+                raise _StageError(code="parse", message=msg)
             if not cand.is_file():
                 raise _StageError(
                     code="parse", message=f"main override 不存在: {override}"
                 )
-            ctx.main_rel = override
+            ctx.main_rel = cand.relative_to(base).as_posix()
         else:
             main = find_main_tex(ctx.base_dir)
             if main is None:
@@ -1063,13 +1233,18 @@ class PipelineWorker:
                 "message": "有 pdf 但判据未全绿或块级失败",
                 "retryable": True,
             }
+            if ctx.fixloop:
+                err["fixloop"] = ctx.fixloop
         else:
+            # fixloop 跑过仍无 pdf → 规则耗尽（fixloop_exhausted），
+            # 摘要随 error_json 落库供 triage
             self._fail(
                 ctx,
-                "compile",
+                "fixloop_exhausted" if ctx.fixloop else "compile",
                 "zh compile: no pdf",
                 retryable=True,
                 stage="compiling",
+                detail={"fixloop": ctx.fixloop} if ctx.fixloop else None,
             )
             return
         self.store.transition(
@@ -1123,10 +1298,14 @@ class PipelineWorker:
         info = prepare_chinese(ctx.zh_dir, ctx.main_rel)
         self._log(ctx, f"inject: {info}")
         (ctx.zh_dir / ".splice-done").write_text("", encoding="utf-8")
+        self._zip_zh(ctx)
+
+    def _zip_zh(self, ctx: TaskCtx) -> None:
+        """``zh/`` → zh-src.zip 登记（fixloop 回灌后重打复用同一函数）。"""
         zip_path = ctx.root / "zh-src.zip"
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
             for f in sorted(ctx.zh_dir.rglob("*")):
-                if f.is_file() and f.name != ".splice-done":
+                if f.is_file() and f.name not in _SENTINELS:
                     zf.write(f, f.relative_to(ctx.zh_dir).as_posix())
         self._register(ctx, "zh_src_zip", "zh-src.zip")
 
@@ -1159,28 +1338,91 @@ class PipelineWorker:
                 f"原文编译未出 pdf（{res.log.first_error or res.stdout_tail[:120]}）",
             )
 
+    def _log_text_of(self, res: CompRes) -> str:
+        """CompRes → log 全文（.log 优先、stdout_tail 兜底——tectonic 常无 .log）。"""
+        if res.log_path and res.log_path.exists():
+            try:
+                return res.log_path.read_text(errors="replace")
+            except OSError:
+                pass
+        return res.stdout_tail or ""
+
+    def _fixloop_enabled(self, ctx: TaskCtx) -> bool:
+        """Fixloop 开关：``options.fixloop`` false 系值或 ``TEXLATE_NO_FIXLOOP`` 真值 → 关（默认开）。"""
+        if os.environ.get("TEXLATE_NO_FIXLOOP", "").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        ):
+            return False
+        v = ctx.options().get("fixloop")
+        if v is None or isinstance(v, bool):
+            return v is not False
+        return str(v).strip().lower() not in ("0", "false", "no", "off")
+
+    def _run_fixloop(
+        self, ctx: TaskCtx, work: Path, eng: Engine, first: CompRes
+    ) -> CompRes:
+        """Fixloop 救援循环（docs/08 §5）：规则引擎在 ``build-zh`` 内重编到出 pdf/放弃。
+
+        摘要留 ``ctx.fixloop`` 并进 ``task_events``（``fixloop`` 事件可重放）+
+        ``fixloop-cases.jsonl`` 沉淀（§5.5）。救回出 pdf 时把改动过的 TeX
+        输入层文件回灌 ``zh/`` 并重打 zh-src.zip——让用户拿到的源码树真能
+        编译。返回末次 ``CompRes``（fixloop 崩溃/未编译则原样回传）。
+        """
+        rec = _RecEngine(eng)
+        try:
+            cell = fixloop(
+                work,
+                rec,
+                engine_name=ctx.engine_name,
+                corpus_id=ctx.task_id,
+                cond="zh",
+                case_sink=CaseSink(self.data_dir / "fixloop-cases.jsonl"),
+            )
+        except Exception as e:  # noqa: BLE001 -- fixloop 崩不拖垮编译段
+            self._log(ctx, f"fixloop crashed: {type(e).__name__}: {e}")
+            return first
+        summary = _scrub_deep(_fixloop_summary(cell), ctx.secrets.api_key)
+        ctx.fixloop = summary
+        self._on_loop(self.bus.publish, ctx.task_id, "fixloop", summary)
+        for ln in cell.get("log") or []:
+            self._log(ctx, f"fixloop: {ln}")
+        if cell.get("main") and cell["main"] != ctx.main_rel:
+            self._log(ctx, f"fixloop: 主文件判定 {cell['main']} ≠ {ctx.main_rel}")
+        if cell.get("final_pdf"):
+            n = _sync_fixed_sources(work, ctx.zh_dir)
+            if n:
+                self._log(ctx, f"fixloop: {n} 个修复文件回灌 zh/，重打 zh-src.zip")
+                self._zip_zh(ctx)
+        return rec.last or first
+
     def _compile_zh(self, ctx: TaskCtx) -> bool:
-        """zh.pdf：zh/ 拷贝编译 + judge(expect_cjk)。返回「终态不 fault」。"""
+        """zh.pdf：zh/ 拷贝编译 +（首判非 clean 时）fixloop 救援 + judge(expect_cjk)。
+
+        返回「终态不 fault」——有 pdf 即 partial 起步。
+        """
         work = ctx.root / "build-zh"
         if work.exists():
             shutil.rmtree(work)
         shutil.copytree(ctx.zh_dir, work)
-        res = self._engine(ctx).compile(
+        eng = self._engine(ctx)
+        res = eng.compile(
             work, ctx.main_rel, timeout=self._compile_timeout, sandbox=True
         )
+        v = judge(res, expect_cjk=True, log_text=self._log_text_of(res))
+        if v.status != "clean" and self._fixloop_enabled(ctx):
+            res = self._run_fixloop(ctx, work, eng, res)
+            v = judge(res, expect_cjk=True, log_text=self._log_text_of(res))
         if res.has_pdf and res.pdf is not None:
             shutil.copyfile(res.pdf, ctx.root / "zh.pdf")
             self._register(ctx, "zh_pdf", "zh.pdf")
-        log_text = ""
-        if res.log_path and res.log_path.exists():
-            log_text = res.log_path.read_text(errors="replace")
-        elif res.stdout_tail:
-            log_text = res.stdout_tail
         (ctx.root / "compile.log").write_text(
-            scrub(log_text, ctx.secrets.api_key), encoding="utf-8"
+            scrub(self._log_text_of(res), ctx.secrets.api_key),
+            encoding="utf-8",
         )
         self._register(ctx, "compile_log", "compile.log")
-        v = judge(res, expect_cjk=True, log_text=log_text)
         for r in v.reasons:
             self._log(ctx, f"judge: {r}")
         for n in v.notes:
@@ -1318,28 +1560,67 @@ class PipelineWorker:
             return GatewayTranslator(client, ctx.secrets.model or "swe-2-medium")
         return MockTranslator()
 
+    def _glossary_path(
+        self, ctx: TaskCtx, gpath: str, glossary_dir: str
+    ) -> Path | None:
+        """``glossary`` 选项 → confine 后的实际路径（None = 拒/无命中）。
+
+        防任意文件读（审计 M2：glossary 内容进 LLM prompt 是外泄通道）：
+        只收**相对路径**，逐个解析根——任务 ``base/`` 优先，然后
+        ``glossary_dir``（settings 指定、运维侧受信目录，经 config_json
+        透传）兜底；绝对路径与 ``..`` 形态即拒，resolve 后仍须
+        is_relative_to 根（symlink 逃逸同挡）。
+        """
+        rel = Path(gpath)
+        if rel.is_absolute() or ".." in rel.parts:
+            self._warning(ctx, "glossary_rejected", f"glossary 路径越界被拒: {gpath!r}")
+            return None
+        roots = [ctx.base_dir.resolve()]
+        if glossary_dir:
+            roots.append(Path(glossary_dir).expanduser().resolve())
+        for base in roots:
+            cand = (base / rel).resolve()
+            if cand.is_relative_to(base) and cand.is_file():
+                return cand
+        self._warning(
+            ctx, "glossary_rejected", f"glossary 不在允许根内或不存在: {gpath!r}"
+        )
+        return None
+
     def _make_glossary(self, ctx: TaskCtx) -> Glossary | None:
-        """术语表：config.glossary 路径优先，缺省内置默认层。"""
+        """术语表：config.glossary 路径优先（confine 后），缺省内置默认层。"""
         try:
             cfg = json.loads(str(ctx.row.get("config_json") or "{}"))
         except json.JSONDecodeError:
             cfg = {}
         gpath = str(cfg.get("glossary") or ctx.options().get("glossary") or "")
         try:
-            return Glossary.load(user_path=Path(gpath)) if gpath else Glossary.load()
+            if not gpath:
+                return Glossary.load()
+            path = self._glossary_path(ctx, gpath, str(cfg.get("glossary_dir") or ""))
+            if path is None:
+                return Glossary.load()
+            return Glossary.load(user_path=path)
         except (OSError, ValueError) as e:
             self._log(ctx, f"glossary load failed: {e}")
             return None
 
     def _make_cache(self, ctx: TaskCtx) -> SegmentCache:
-        """段缓存门面（cfg 指纹前缀含 model/prompt_ver/lang[/tenant]）。"""
-        glossary = str(ctx.options().get("glossary") or "")
+        """段缓存门面（cfg 指纹前缀含 model/prompt_ver/lang[/key 指纹]）。"""
+        try:
+            cfg_row = json.loads(str(ctx.row.get("config_json") or "{}"))
+        except json.JSONDecodeError:
+            cfg_row = {}
+        glossary = str(cfg_row.get("glossary") or ctx.options().get("glossary") or "")
         cfg = hashlib.sha256(
             f"{ctx.row['model']}|{PROMPT_VERSION}|{ctx.row['target_lang']}"
             f"|{glossary}".encode()
         ).hexdigest()[:16]
-        if cache_scope() == "tenant":
-            cfg = f"{ctx.row['tenant']}:{cfg}"
+        if cache_scope() == "per_key":
+            # 与 cache_key_for 同一 oracle 防护：段级 translation_cache
+            # 表同样可被跨租户探测命中，按 key 指纹分桶。
+            key_sha = hashlib.sha256(ctx.secrets.api_key.encode()).hexdigest()[:16]
+            cfg = f"k{key_sha}:{cfg}"
         return SegmentCache(
             self.store,
             prefix=cfg,

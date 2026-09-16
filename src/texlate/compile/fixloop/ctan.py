@@ -29,10 +29,12 @@ import tarfile
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Final
 
 __all__ = [
+    "CtanFetchError",
     "CtanFetcher",
+    "FetchCaps",
     "FetchResult",
     "TlpdbIndex",
     "check_version_compat",
@@ -78,17 +80,98 @@ _PKGLATER_RE = re.compile(
 Fetcher = Callable[[str], bytes]  # url → body (测试注入点)
 
 
+class CtanFetchError(Exception):
+    """远端包校验失败（路径穿越成员 / 超限 / 流损坏）——整包拒收。"""
+
+
+#: 远端拉取/解压安全上限（audit-2026-09-16 H3: tlnet 包按不可信输入处理）。
+#: 实证基线: tlpdb.xz ~2.8MB→20.7MB, 单包 tar.xz 2-136KB —— 下列默认值
+#: 对合法负载有数量级富余, 只拦失陷镜像的炸弹/穿越。
+DEFAULT_DOWNLOAD_CAP: Final = 128 * 1024 * 1024
+DEFAULT_INFLATED_CAP: Final = 512 * 1024 * 1024
+DEFAULT_MEMBER_CAP: Final = 64 * 1024 * 1024
+DEFAULT_TOTAL_CAP: Final = 512 * 1024 * 1024
+DEFAULT_MEMBERS_CAP: Final = 20_000
+
+
+@dataclass(frozen=True, slots=True)
+class FetchCaps:
+    """远端包下载/解压/落盘上限；默认值对 tlnet 合法负载数量级富余。"""
+
+    max_download: int = DEFAULT_DOWNLOAD_CAP  # 单响应体字节
+    max_inflated: int = DEFAULT_INFLATED_CAP  # xz 解压产物字节
+    max_members: int = DEFAULT_MEMBERS_CAP  # tar 成员数
+    max_member_bytes: int = DEFAULT_MEMBER_CAP  # 单成员解压后字节
+    max_total_bytes: int = DEFAULT_TOTAL_CAP  # 单包落盘总量
+
+
+#: 缺省上限单例（frozen+slots 不可变，跨调用共享安全）。
+DEFAULT_CAPS: Final = FetchCaps()
+
+
 def default_cache_dir() -> Path:
     """``$TEXLATE_CACHE`` 或 ``~/.texlate/cache``。"""
     return Path(os.environ.get("TEXLATE_CACHE") or Path.home() / ".texlate" / "cache")
 
 
-def _http_get(url: str) -> bytes:
+def _http_get(url: str, *, cap: int = DEFAULT_DOWNLOAD_CAP) -> bytes:
+    """流式 GET + 下载体上限；超 cap 抛 CtanFetchError（防失陷镜像炸弹）。"""
     import httpx  # noqa: PLC0415  # 延迟加载: 纯索引路径不依赖网络栈
 
-    resp = httpx.get(url, timeout=60.0, follow_redirects=True)
-    resp.raise_for_status()
-    return resp.content
+    with httpx.stream("GET", url, timeout=60.0, follow_redirects=True) as resp:
+        resp.raise_for_status()
+        buf = io.BytesIO()
+        for chunk in resp.iter_bytes(1 << 20):
+            buf.write(chunk)
+            if buf.tell() > cap:
+                msg = f"download exceeds {cap} bytes: {url}"
+                raise CtanFetchError(msg)
+    return buf.getvalue()
+
+
+def _fetch_capped(url: str, fetcher: Fetcher | None, cap: int) -> bytes:
+    """拉取并对注入 fetcher 的返回值同样套下载上限。"""
+    raw = fetcher(url) if fetcher else _http_get(url, cap=cap)
+    if len(raw) > cap:
+        msg = f"download exceeds {cap} bytes: {url}"
+        raise CtanFetchError(msg)
+    return raw
+
+
+def _decompress_xz(raw: bytes, cap: int) -> bytes:
+    """有上限的 xz 解压；超 cap / 截断 / 损坏 → CtanFetchError。"""
+    dec = lzma.LZMADecompressor()
+    try:
+        out = dec.decompress(raw, max_length=cap + 1)
+    except lzma.LZMAError as e:
+        msg = f"corrupt xz stream: {e}"
+        raise CtanFetchError(msg) from e
+    if len(out) > cap:
+        msg = f"xz inflated exceeds {cap} bytes"
+        raise CtanFetchError(msg)
+    if not dec.eof:
+        msg = "truncated xz stream"
+        raise CtanFetchError(msg)
+    return out
+
+
+_MEMBER_DRIVE_RE = re.compile(r"^[A-Za-z]:")
+
+
+def _norm_member_name(name: str) -> str | None:
+    """Tar 成员名 → 包内相对 posix 路径；非法形态返回 None。
+
+    拒绝：NUL、反斜杠（Windows 语义下是分隔符）、绝对路径、盘符、
+    任意位置的 ``..`` 段（中段 ``a/../x`` 与前缀 ``../x`` 同罪）。
+    """
+    if "\x00" in name or "\\" in name:
+        return None
+    if name.startswith("/") or _MEMBER_DRIVE_RE.match(name):
+        return None
+    parts = [p for p in name.split("/") if p not in ("", ".")]
+    if not parts or any(p == ".." for p in parts):
+        return None
+    return "/".join(parts)
 
 
 class TlpdbIndex:
@@ -160,6 +243,7 @@ class TlpdbIndex:
         *,
         mirror: str = MIRROR,
         fetcher: Fetcher | None = None,
+        caps: FetchCaps = DEFAULT_CAPS,
     ) -> TlpdbIndex:
         """有缓存读缓存; 否则拉 tlpdb.xz → 解析 → 存 filemap.json。"""
         try:
@@ -167,7 +251,7 @@ class TlpdbIndex:
         except (OSError, json.JSONDecodeError):
             pass
         d = cache_dir or default_cache_dir()
-        tlpdb_path = fetch_tlpdb(mirror, d, fetcher=fetcher)
+        tlpdb_path = fetch_tlpdb(mirror, d, fetcher=fetcher, caps=caps)
         idx = cls.from_tlpdb(tlpdb_path)
         idx.save(d)
         return idx
@@ -201,70 +285,118 @@ class FetchResult:
     advisory: str | None = None
 
 
-def fetch_tlpdb(mirror: str, dest_dir: Path, *, fetcher: Fetcher | None = None) -> Path:
+def fetch_tlpdb(
+    mirror: str,
+    dest_dir: Path,
+    *,
+    fetcher: Fetcher | None = None,
+    caps: FetchCaps = DEFAULT_CAPS,
+) -> Path:
     """``tlpkg/texlive.tlpdb.xz`` → 解压 ``texlive.tlpdb`` 落 dest_dir。
 
     tmp→os.replace 原子落盘: 并发 ``ensure`` 的 ``from_tlpdb`` 流式读
     只能见到完整的一代 (fixloop-bench 冷启动实测撞过半写文件 →
     索引缺条目 → 假 "no package provides")。
     """
-    get = fetcher or _http_get
-    raw = get(f"{mirror}/{TLPDB_RELPATH}")
+    raw = _fetch_capped(f"{mirror}/{TLPDB_RELPATH}", fetcher, caps.max_download)
     dest_dir.mkdir(parents=True, exist_ok=True)
     out = dest_dir / "texlive.tlpdb"
     tmp = out.with_suffix(".tlpdb.tmp")
-    tmp.write_bytes(lzma.decompress(raw))
+    tmp.write_bytes(_decompress_xz(raw, caps.max_inflated))
     tmp.replace(out)
     return out
 
 
-def _overlay_members(tf: tarfile.TarFile, dest: Path, *, overlay: str) -> list[str]:
+def _overlay_members(
+    tf: tarfile.TarFile, dest: Path, *, overlay: str, caps: FetchCaps
+) -> list[str]:
     """解包 tar 成员到 dest; 返回落盘相对路径表。
 
     overlay="flat": 只取 OVERLAY_EXTS 的 basename 平铺 (cwd 遮蔽 bundle)
     overlay="tree": 剥 texmf-dist/tex 前缀后按 relpath 落 (配 -Z search-path)
+
+    不用 ``extractall(filter="data")``——「消毒后放行」与本层「拒绝即拒收」
+    口径不符，且成员数/单成员/总量上限需逐成员自走（同 unpack.py 取舍）。
+    任何成员名过不了 :func:`_norm_member_name`（穿越/abs/盘符/反斜杠/NUL）
+    或触碰上限 → CtanFetchError 整包拒收 + 撤回本轮已落盘文件。
     """
+    members = tf.getmembers()
+    if len(members) > caps.max_members:
+        msg = f"too_many_members:{len(members)}"
+        raise CtanFetchError(msg)
     landed: list[str] = []
-    for m in tf.getmembers():
-        if not m.isfile():
-            continue
-        name = m.name
-        for pre in _TAR_PREFIXES:
-            if name.startswith(pre):
-                name = name[len(pre) :]
-                break
-        ext = Path(name).suffix.lower()
-        if overlay == "flat":
-            if ext not in OVERLAY_EXTS:
+    total = 0
+    try:
+        for m in members:
+            if not m.isfile():
                 continue
-            rel = Path(name).name  # basename 平铺
-        else:
-            if not name or name.startswith("../"):
+            rel = _member_relpath(m.name, overlay)
+            if rel is None:
                 continue
-            rel = name
-        src = tf.extractfile(m)
-        if src is None:
-            continue
-        target = dest / rel
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(src.read())
-        landed.append(rel)
+            _check_member_caps(m, total, caps)
+            src = tf.extractfile(m)
+            if src is None:
+                continue
+            target = dest / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            data = src.read()
+            target.write_bytes(data)
+            total += len(data)
+            landed.append(rel)
+    except CtanFetchError:
+        # 拒收即零残留：撤回本轮已落盘文件（空目录壳无妨）
+        for rel in landed:
+            with contextlib.suppress(OSError):
+                (dest / rel).unlink()
+        raise
     return landed
 
 
-def fetch_package(
+def _member_relpath(raw_name: str, overlay: str) -> str | None:
+    """成员名 → 落地相对路径；非法名抛 CtanFetchError，非目标成员返回 None。"""
+    name = _norm_member_name(raw_name)
+    if name is None:
+        msg = f"unsafe member name: {raw_name!r}"
+        raise CtanFetchError(msg)
+    for pre in _TAR_PREFIXES:
+        if name.startswith(pre):
+            name = name[len(pre) :]
+            break
+    if overlay == "flat":
+        if Path(name).suffix.lower() not in OVERLAY_EXTS:
+            return None
+        return Path(name).name  # basename 平铺
+    return name or None
+
+
+def _check_member_caps(m: tarfile.TarInfo, total: int, caps: FetchCaps) -> None:
+    """单成员/总量上限检查；超限抛 CtanFetchError。"""
+    if m.size > caps.max_member_bytes:
+        msg = f"member too large: {m.name!r}:{m.size}"
+        raise CtanFetchError(msg)
+    if total + m.size > caps.max_total_bytes:
+        msg = f"extract total exceeds {caps.max_total_bytes} bytes"
+        raise CtanFetchError(msg)
+
+
+def fetch_package(  # noqa: PLR0913  # mirror/overlay/fetcher/caps 注入面即签名
     pkg: str,
     dest_dir: Path,
     *,
     mirror: str = MIRROR,
     overlay: str = "flat",
     fetcher: Fetcher | None = None,
+    caps: FetchCaps = DEFAULT_CAPS,
 ) -> list[str]:
     """``archive/<pkg>.tar.xz`` → 解包投放; 返回落盘文件相对路径表。"""
-    get = fetcher or _http_get
-    raw = get(f"{mirror}/archive/{pkg}.tar.xz")
-    with tarfile.open(fileobj=io.BytesIO(lzma.decompress(raw))) as tf:
-        return _overlay_members(tf, dest_dir, overlay=overlay)
+    raw = _fetch_capped(f"{mirror}/archive/{pkg}.tar.xz", fetcher, caps.max_download)
+    payload = _decompress_xz(raw, caps.max_inflated)
+    try:
+        with tarfile.open(fileobj=io.BytesIO(payload), mode="r:") as tf:
+            return _overlay_members(tf, dest_dir, overlay=overlay, caps=caps)
+    except tarfile.TarError as e:
+        msg = f"not a tar stream: {e}"
+        raise CtanFetchError(msg) from e
 
 
 def check_version_compat(files: list[Path], epoch: str) -> tuple[bool, str | None]:
@@ -294,7 +426,7 @@ def check_version_compat(files: list[Path], epoch: str) -> tuple[bool, str | Non
     return True, None
 
 
-def ctan_fetch(  # noqa: PLR0913  # mirror/overlay/epoch/fetcher 注入面即签名
+def ctan_fetch(  # noqa: PLR0913  # mirror/overlay/epoch/fetcher/caps 注入面即签名
     fname: str,
     wdir: Path,
     index: TlpdbIndex,
@@ -303,6 +435,7 @@ def ctan_fetch(  # noqa: PLR0913  # mirror/overlay/epoch/fetcher 注入面即签
     overlay: str = "flat",
     epoch: str | None = None,
     fetcher: Fetcher | None = None,
+    caps: FetchCaps = DEFAULT_CAPS,
 ) -> FetchResult:
     """``file→包索引→tlnet 拉取→cwd 平铺遮蔽`` 全链 (docs/08:283-288)。
 
@@ -329,7 +462,7 @@ def ctan_fetch(  # noqa: PLR0913  # mirror/overlay/epoch/fetcher 注入面即签
     for pkg in pkgs:
         try:
             landed = fetch_package(
-                pkg, wdir, mirror=mirror, overlay=overlay, fetcher=fetcher
+                pkg, wdir, mirror=mirror, overlay=overlay, fetcher=fetcher, caps=caps
             )
         except Exception as e:  # noqa: BLE001  # 网络/解包失败 → 试下一候选包
             last_note = f"fetch {pkg}: {type(e).__name__}: {e}"
@@ -369,7 +502,7 @@ class CtanFetcher:
     rules.yaml ``filemap:`` 段, 由 fixloop 启动时接线。
     """
 
-    def __init__(  # noqa: PLR0913  # 注入面即签名 (index/cache/overrides/epoch/mirror/fetcher)
+    def __init__(  # noqa: PLR0913  # 注入面即签名 (index/cache/overrides/epoch/mirror/fetcher/caps)
         self,
         wdir: Path,
         *,
@@ -379,6 +512,7 @@ class CtanFetcher:
         epoch: str | None = None,
         mirror: str = MIRROR,
         fetcher: Fetcher | None = None,
+        caps: FetchCaps | None = None,
     ) -> None:
         """接线配置入存 (零 IO; 索引在 index/__call__ 首访时惰性建)。"""
         self.wdir = Path(wdir)
@@ -387,6 +521,7 @@ class CtanFetcher:
         self.epoch = epoch
         self.mirror = mirror
         self.fetcher = fetcher
+        self.caps = caps or FetchCaps()
         self._index = index
         self.last_note: str = ""
 
@@ -395,7 +530,10 @@ class CtanFetcher:
         """首访构建/装载索引 (潜在网络 IO); 之后进程内缓存。"""
         if self._index is None:
             idx = TlpdbIndex.ensure(
-                self.cache_dir, mirror=self.mirror, fetcher=self.fetcher
+                self.cache_dir,
+                mirror=self.mirror,
+                fetcher=self.fetcher,
+                caps=self.caps,
             )
             idx.overrides.update(self.overrides)
             self._index = idx
@@ -414,6 +552,7 @@ class CtanFetcher:
             mirror=self.mirror,
             epoch=self.epoch,
             fetcher=self.fetcher,
+            caps=self.caps,
         )
         self.last_note = res.advisory or res.note
         return str(self.wdir / fname) if res.ok else None

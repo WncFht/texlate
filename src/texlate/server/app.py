@@ -41,6 +41,7 @@ from texlate.server.settings import (
     UPLOAD_CAP,
     AuthContext,
     SettingsStore,
+    install_log_scrub,
     provider_presets,
     resolve_auth,
     scrub,
@@ -210,8 +211,17 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
     )
     runner = TaskRunner(store, bus, worker)
 
+    def _key_provider() -> list[str]:
+        """当前该抹的 key 集合：settings key + 运行中 header key（RedactFilter 动态取）。"""
+        keys = [str(settings_store.load().get("api_key") or "")]
+        keys.extend(s.api_key for s in runner.secrets.values())
+        return [k for k in keys if k]
+
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        # §4.2 第二道防线：uvicorn log config 此时已就绪，filter 落到
+        # root+uvicorn 全部 handler（传播链上各 handler 独立判定）。
+        install_log_scrub(_key_provider)
         store.open()
         recovered = store.recover_startup()
         if recovered["interrupted"] or recovered["needs_auth"]:
@@ -347,6 +357,10 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
                 return hit, 202, {"cache": "idempotent"}
             options = {**options, "idempotency_key": str(idem)}
         if cache_key and prefer == "reuse":
+            # oracle 权衡：shared 模式下 dedup 命中可被他租户探测
+            # （「这篇论文是否译过」存在性侧信道）——hjfy 对等共享缓存是
+            # 既定产品特性，须消除时 TEXLATE_CACHE_SCOPE=per_key 按
+            # 凭证指纹分桶（见 settings.cache_scope）。
             active = store.find_active_by_cache_key(cache_key)
             if active is not None:
                 raise _ApiError(
@@ -364,7 +378,12 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         config = {
             "base_url": auth.base_url,
             "model": model,
-            "glossary": str(options.get("glossary") or ""),
+            "glossary": str(
+                options.get("glossary") or auth.settings.get("glossary") or ""
+            ),
+            # settings 侧受信术语表根（worker 的 glossary 相对路径解析根之一；
+            # 不透传请求面，防调用方自选根绕 confine）
+            "glossary_dir": str(auth.settings.get("glossary_dir") or ""),
             "engine": str(options.get("engine") or "auto"),
             "concurrency": int(options.get("concurrency") or 3),
         }
@@ -441,7 +460,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
             version=ver,
             model=model,
             target_lang=target_lang,
-            tenant=_auth(request).tenant,
+            api_key=_auth(request).api_key,
         )
         row, status, extra = _create_and_enqueue(
             request,

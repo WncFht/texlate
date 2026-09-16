@@ -147,9 +147,14 @@ def _unique_rename(rel: str, seen: dict[str, str]) -> str:
 
 def _write_entry(
     res: UnpackResult, rel: str, data: bytes, kind: str, link: str | None = None
-) -> None:
-    """写文件 + 记 mtree 成员 + stub 标记。"""
+) -> bool:
+    """写文件 + 记 mtree 成员 + stub 标记；落点是既有目录 → 告警并跳过。"""
     target = res.dest / rel
+    if target.is_dir() and not target.is_symlink():
+        # tar 里 dir 与同名 file 成员并存（或 casefold 冲突后的 FS 合并产物）
+        # ——write_bytes 打目录会抛 IsADirectoryError，降级为告警跳过
+        res.warnings.append(f"reject_dir_clash:{rel}")
+        return False
     target.parent.mkdir(parents=True, exist_ok=True)
     if target.is_symlink():
         # 后到 file 覆盖同名 symlink：先摘链再写，否则 write_bytes 穿链改目标
@@ -170,6 +175,7 @@ def _write_entry(
     res.extracted_bytes += len(data)
     if stub:
         res.warnings.append(f"stub_member:{rel}")
+    return True
 
 
 class _TarWalker:
@@ -230,10 +236,7 @@ class _TarWalker:
             self.res.warnings.append(f"reject_setuid:{rel}")
             return
         if m.isdir():
-            (self.res.dest / rel).mkdir(parents=True, exist_ok=True)
-            self.res.members.append(
-                MemberEntry(path=rel, size=0, sha256="", kind="dir")
-            )
+            self._dir_member(rel)
             return
         if m.issym() or m.islnk():
             self._link(m, rel)
@@ -248,8 +251,24 @@ class _TarWalker:
         rel = self._claim(rel)
         fobj = tf.extractfile(m)
         data = fobj.read() if fobj else b""
-        _write_entry(self.res, rel, data, "file")
-        self.total += len(data)
+        if _write_entry(self.res, rel, data, "file"):
+            self.total += len(data)
+
+    def _dir_member(self, rel: str) -> None:
+        """目录成员：注册 seen + mkdir + mtree；重复幂等、casefold 冲突告警跳过。"""
+        low = rel.lower()
+        prev = self.seen.get(low)
+        if prev == rel:
+            return  # 同名目录重复成员：幂等，不重复记 mtree
+        if prev is not None:
+            # 大小写折叠冲突（foo/ 对已见 Foo 成员）——大小写不敏感 FS
+            # 上会静默合并目录；子成员路径在 tar 里固定无法 rename，
+            # 告警留痕后跳过（audit-2026-09-16 codehealth 补漏）
+            self.res.warnings.append(f"casefold_dir:{prev}~{rel}")
+            return
+        self.seen[low] = rel
+        (self.res.dest / rel).mkdir(parents=True, exist_ok=True)
+        self.res.members.append(MemberEntry(path=rel, size=0, sha256="", kind="dir"))
 
     def _link(self, m: tarfile.TarInfo, rel: str) -> None:
         ln = m.linkname
@@ -295,7 +314,8 @@ class _TarWalker:
             if self.total + len(data) > MAX_TOTAL_BYTES:
                 self.res.warnings.append(f"reject_totalcap:{rel}")
                 continue
-            _write_entry(self.res, rel, data, "hardlink", target_rel)
+            if not _write_entry(self.res, rel, data, "hardlink", target_rel):
+                continue
             self.res.warnings.append(f"hardlink_materialized:{rel}->{target_rel}")
             self.total += len(data)
 

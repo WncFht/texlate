@@ -1,8 +1,8 @@
-"""server/* 测试共享件：env 清洗 + fake engine/fetcher + client 工厂。
+"""测试共享件：env 清洗 + fake engine/fetcher + client 工厂。
 
-非 autouse——只服务显式取用 fixture 的 test_server_* 文件。fastapi/starlette
-只走函数内延迟导入：本 conftest 对全测试集生效，server extra 缺装时
-其余测试集不能陪葬。
+非 autouse——只服务显式取用 fixture 的测试文件（test_server_* /
+test_e2e / test_cli）。fastapi/starlette 只走函数内延迟导入：本 conftest
+对全测试集生效，server extra 缺装时其余测试集不能陪葬。
 """
 
 from __future__ import annotations
@@ -34,6 +34,7 @@ _ENV_KEYS = (
     "TEXLATE_MODE",
     "TEXLATE_CACHE_SCOPE",
     "TEXLATE_TRANSLATOR",
+    "TEXLATE_NO_FIXLOOP",
     "TEXLATE_DATA_DIR",
     "OPENAI_API_KEY",
     "ANTHROPIC_API_KEY",
@@ -107,6 +108,85 @@ class FakeEngine:
             passes=passes,
             seconds=0.01,
         )
+
+
+class RecordingEngine:
+    """``texlate.e2e.engine_for`` 替换件：写真 pdf+log、记构造/compile 调用。
+
+    与 FakeEngine 分工：FakeEngine 服务 server worker（无 name 构造参）；
+    本类对齐 ``engine_for(name, **kwargs)`` 签名——xelatex 会收到
+    ``halt_on_error=False``，构造 kwargs 与 compile 调用都可断言。
+    ``produce_pdf=False`` 时返回无 pdf 的 CompRes（编译失败路径）。
+    """
+
+    def __init__(self, name: str, **kwargs: object) -> None:
+        """记构造参数（halt_on_error 等引擎旋钮从此透传）。"""
+        self.name = name
+        self.ctor_kwargs = kwargs
+        self.calls: list[dict[str, object]] = []
+        self.produce_pdf = True
+
+    def compile(  # noqa: PLR0913 -- 与 Engine.compile 同签名，kwarg 名是接口
+        self,
+        wdir: Path,
+        main: str,
+        *,
+        passes: int = 1,
+        timeout: float | None = None,
+        outdir: Path | None = None,  # noqa: ARG002
+        sandbox: bool = True,  # noqa: ARG002
+        env_extra: dict[str, str] | None = None,  # noqa: ARG002
+    ) -> CompRes:
+        """写 ``<stem>.pdf``+干净 ``<stem>.log`` → ``CompRes(ok=True)``。"""
+        from texlate.compile.engine import CompRes  # noqa: PLC0415
+
+        stem = Path(main).stem
+        pdf: Path | None = None
+        pdf_bytes = 0
+        if self.produce_pdf:
+            pdf = wdir / f"{stem}.pdf"
+            pdf.write_bytes(b"%PDF-1.4\n% fake pdf for tests\n")
+            pdf_bytes = pdf.stat().st_size
+        log = wdir / f"{stem}.log"
+        log.write_text(
+            "This is a fake log\nOutput written on disk.\n", encoding="utf-8"
+        )
+        self.calls.append({"wdir": str(wdir), "main": main, "timeout": timeout})
+        return CompRes(
+            engine=self.name,
+            ok=True,
+            pdf=pdf,
+            pdf_bytes=pdf_bytes,
+            log_path=log,
+            rc=0,
+            passes=passes,
+            seconds=0.01,
+        )
+
+
+@pytest.fixture
+def fake_engine(monkeypatch: pytest.MonkeyPatch) -> dict[str, RecordingEngine]:
+    """``texlate.e2e.engine_for`` 换 RecordingEngine + judge CJK 计数钉成 500。
+
+    pdftotext 在假 pdf 上必败（→ -1 降级 note）——patch 成正常值让
+    ``expect_cjk`` 路径判定确定、不受本机 poppler 有无影响。
+    """
+    import importlib  # noqa: PLC0415
+
+    from texlate import e2e  # noqa: PLC0415
+
+    engines: dict[str, RecordingEngine] = {}
+
+    def factory(name: str, **kwargs: object) -> RecordingEngine:
+        eng = RecordingEngine(name, **kwargs)
+        engines.setdefault(name, eng)
+        return eng
+
+    monkeypatch.setattr(e2e, "engine_for", factory)
+    # 包级 re-export 的 judge 函数遮蔽了同名子模块属性路径——按模块对象打
+    judge_mod = importlib.import_module("texlate.compile.judge")
+    monkeypatch.setattr(judge_mod, "pdf_cjk_chars", lambda _p: 500)
+    return engines
 
 
 class FakeFetcher:
