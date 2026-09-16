@@ -2,6 +2,9 @@
 
 from pathlib import Path
 
+import pytest
+
+from texlate.compile import normalize
 from texlate.compile.normalize import (
     PIXEL_COMPATIBILITY,
     TECTONIC_FONT_COMPATIBILITY,
@@ -298,3 +301,215 @@ def test_normalize_project_clean_utf8_no_encodings(tmp_path: Path) -> None:
     stats = normalize_project(tmp_path, "xelatex", "main.tex")
     assert "encodings" not in stats
     assert "transcoded_aux" not in stats
+
+
+# ---------------------------------------------------------------- invalid_utf8 输入侧臂
+def test_sanitize_ps_comments_header_bad_byte(tmp_path: Path) -> None:
+    """EPS 头注释 latin-1/GBK 字节 → UTF-8 净化；diff 仅限注释行。"""
+    blob = (
+        b"%!PS-Adobe-3.0 EPSF-3.0\n"
+        b"%%Title: (C:\\wuga\\\xd7\xc0\xc3\xe6\\fig.eps)\n"
+        b"%%BoundingBox: 0 0 100 100\n"
+        b"%%EndComments\nshowpage\n"
+    )
+    eps = tmp_path / "fig.eps"
+    eps.write_bytes(blob)
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\nx\\end{document}\n"
+    )
+    stats = normalize_project(tmp_path, "xelatex", "main.tex")
+    assert "fig.eps" in stats["sanitized_ps_comments"]
+    new = eps.read_bytes()
+    new.decode("utf-8")  # 不再抛
+    old_lines, new_lines = blob.split(b"\n"), new.split(b"\n")
+    assert len(old_lines) == len(new_lines)  # 行数不变
+    assert sum(a != b for a, b in zip(old_lines, new_lines, strict=True)) == 1
+
+
+def test_sanitize_ps_comments_preserves_binary_section(tmp_path: Path) -> None:
+    """非注释行的坏字节（PS 字符串/数据区）原样保留——字节即语义。"""
+    blob = b"%!PS-Adobe-3.0 EPSF-3.0\n%%BoundingBox: 0 0 10 10\n(caf\xe9) show\n%%EOF\n"
+    eps = tmp_path / "fig.eps"
+    eps.write_bytes(blob)
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\nx\\end{document}\n"
+    )
+    stats = normalize_project(tmp_path, "xelatex", "main.tex")
+    assert "sanitized_ps_comments" not in stats
+    assert eps.read_bytes() == blob  # 逐字节不变
+
+
+def test_sanitize_ps_comments_dos_header_untouched(tmp_path: Path) -> None:
+    """DOS-EPS 二进制头（0xC5D0D3C6）含绝对偏移——整件跳过。"""
+    blob = b"\xc5\xd0\xd3\xc6" + b"\x00" * 24 + b"%!PS\n%%Title: bad\xe9\n"
+    eps = tmp_path / "fig.eps"
+    eps.write_bytes(blob)
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\nx\\end{document}\n"
+    )
+    normalize_project(tmp_path, "xelatex", "main.tex")
+    assert eps.read_bytes() == blob
+
+
+def test_transcode_catchall_data_file(tmp_path: Path) -> None:
+    """未列名文本件（.txt/.dtx/无后缀）catch-all 转码。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\nx\\end{document}\n"
+    )
+    data = tmp_path / "notes.txt"
+    data.write_bytes("André\n".encode("cp1252"))
+    stats = normalize_project(tmp_path, "xelatex", "main.tex")
+    assert "notes.txt" in stats["transcoded_data"]
+    assert "André" in data.read_text(encoding="utf-8")
+
+
+def test_transcode_catchall_binary_untouched(tmp_path: Path) -> None:
+    """二进制 allowlist 件（.png/.jpg/.pdf）坏字节原样保留。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\nx\\end{document}\n"
+    )
+    blob = b"\x89PNG\r\n\x1a\n" + bytes(range(256))
+    png = tmp_path / "fig.png"
+    png.write_bytes(blob)
+    stats = normalize_project(tmp_path, "xelatex", "main.tex")
+    assert "transcoded_data" not in stats
+    assert png.read_bytes() == blob
+
+
+def test_driver_option_dvips_to_xetex() -> None:
+    """ps 系驱动 token → xetex：usepackage + documentclass + PassOptions 三面。"""
+    tex = (
+        "\\documentclass[dvips,twocolumn]{article}\n"
+        "\\usepackage[dvips]{graphicx}\n"
+        "\\PassOptionsToPackage{dvips}{color}\n"
+    )
+    out = normalize_pdf_primitives(tex)
+    assert "[xetex,twocolumn]" in out
+    assert "[xetex]{graphicx}" in out
+    assert "{xetex}{color}" in out
+
+
+def test_driver_option_dvipdfmx_kept() -> None:
+    """dvipdfmx 与 XeTeX 兼容——不改写。"""
+    tex = "\\usepackage[dvipdfmx]{graphicx}"
+    assert normalize_pdf_primitives(tex) == tex
+
+
+def test_shadow_broken_system_package(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """工程引用的系统包带坏字节 → 净化副本落 main 目录遮蔽。"""
+    proj = tmp_path / "proj"
+    sysdir = tmp_path / "sys"  # 须在工程 root 外——root 内件由主循环转码
+    proj.mkdir()
+    sysdir.mkdir()
+    bad = sysdir / "oldpkg.sty"
+    bad.write_bytes(b"%% Copyright Schr\xf6der\n\\ProvidesPackage{oldpkg}\n")
+    (proj / "main.tex").write_text(
+        "\\documentclass{article}\n\\usepackage{oldpkg}\n"
+        "\\begin{document}\nx\\end{document}\n"
+    )
+    monkeypatch.setattr(normalize.shutil, "which", lambda *_a: "/bin/kpsewhich")
+    monkeypatch.setattr(
+        normalize,
+        "_kpse_resolve",
+        lambda filename, *_a: bad if filename == "oldpkg.sty" else None,
+    )
+    stats = normalize_project(proj, "xelatex", "main.tex")
+    shadows = stats["package_shadows"]
+    assert shadows[0]["package"] == "oldpkg.sty"
+    shadow = proj / "oldpkg.sty"
+    assert "Schröder" in shadow.read_text(encoding="utf-8")
+    # 幂等：再跑不再遮蔽（遮蔽件已在 root 内解析命中）
+    stats2 = normalize_project(proj, "xelatex", "main.tex")
+    assert "package_shadows" not in stats2
+
+
+def test_shadow_clean_system_package_noop(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """系统件本身合法 UTF-8 → 不写遮蔽。"""
+    proj = tmp_path / "proj"
+    sysdir = tmp_path / "sys"
+    proj.mkdir()
+    sysdir.mkdir()
+    good = sysdir / "goodpkg.sty"
+    good.write_bytes(b"%% clean\n\\ProvidesPackage{goodpkg}\n")
+    (proj / "main.tex").write_text(
+        "\\documentclass{article}\n\\usepackage{goodpkg}\n"
+        "\\begin{document}\nx\\end{document}\n"
+    )
+    monkeypatch.setattr(normalize.shutil, "which", lambda *_a: "/bin/kpsewhich")
+    monkeypatch.setattr(normalize, "_kpse_resolve", lambda *_a: good)
+    stats = normalize_project(proj, "xelatex", "main.tex")
+    assert "package_shadows" not in stats
+    assert not (proj / "goodpkg.sty").exists()
+
+
+def test_shadow_resolved_inside_root_noop(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """工程自带同名包（kpsewhich 命中 root 内）→ 不遮蔽自身。"""
+    own = tmp_path / "mypkg.sty"
+    own.write_bytes(b"%% mine latin \xe9\n")  # 工程内件由主循环转码
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\usepackage{mypkg}\n"
+        "\\begin{document}\nx\\end{document}\n"
+    )
+    monkeypatch.setattr(normalize.shutil, "which", lambda *_a: "/bin/kpsewhich")
+    monkeypatch.setattr(normalize, "_kpse_resolve", lambda *_a: own)
+    stats = normalize_project(tmp_path, "xelatex", "main.tex")
+    assert "package_shadows" not in stats
+    own.read_bytes().decode("utf-8")  # 且主循环已把工程件转码
+
+
+def test_shadow_vendored_same_name_in_subdir_skipped(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """工程子目录 vendored 同名件 → 即便 kpsewhich 解析到坏系统件也不遮蔽。"""
+    proj = tmp_path / "proj"
+    sysdir = tmp_path / "sys"
+    (proj / "sty").mkdir(parents=True)
+    sysdir.mkdir()
+    (proj / "sty" / "oldpkg.sty").write_bytes(b"%% vendored\n")
+    bad = sysdir / "oldpkg.sty"
+    bad.write_bytes(b"%% Copyright Schr\xf6der\n")
+    (proj / "main.tex").write_text(
+        "\\documentclass{article}\n\\usepackage{oldpkg}\n"
+        "\\begin{document}\nx\\end{document}\n"
+    )
+    monkeypatch.setattr(normalize.shutil, "which", lambda *_a: "/bin/kpsewhich")
+    monkeypatch.setattr(
+        normalize,
+        "_kpse_resolve",
+        lambda filename, *_a: bad if filename == "oldpkg.sty" else None,
+    )
+    stats = normalize_project(proj, "xelatex", "main.tex")
+    assert "package_shadows" not in stats
+    assert not (proj / "oldpkg.sty").exists()
+
+
+def test_transcode_catchall_nul_binary_untouched(tmp_path: Path) -> None:
+    """allowlist 漏网二进制（NUL 且非 UTF-16）→ 不动且不进 encodings 归因。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\nx\\end{document}\n"
+    )
+    blob = b"\x00\x01\x02\xffBINARY\x00DATA"
+    data = tmp_path / "payload.bin"
+    data.write_bytes(blob)
+    stats = normalize_project(tmp_path, "xelatex", "main.tex")
+    assert "transcoded_data" not in stats
+    assert "payload.bin" not in stats.get("encodings", {})
+    assert data.read_bytes() == blob
+
+
+def test_transcode_extensionless_utf16_transcoded(tmp_path: Path) -> None:
+    """无后缀 UTF-16（NUL 占比高但 utf-16 判定先行）→ 仍转码 UTF-8。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\nx\\end{document}\n"
+    )
+    notes = tmp_path / "NOTES"
+    notes.write_bytes("chécklist\n".encode("utf-16-le"))
+    stats = normalize_project(tmp_path, "xelatex", "main.tex")
+    assert "NOTES" in stats["transcoded_data"]
+    assert notes.read_text(encoding="utf-8") == "chécklist\n"
