@@ -33,6 +33,8 @@ class MockRes:
         self.pdf = wdir / f"{stem}.pdf" if spec.get("pdf") else None
         if self.pdf is not None:
             self.pdf.write_bytes(b"%PDF-1.4 fake")
+        if spec.get("aux") is not None:  # 模拟被杀编译驻留的 aux
+            (wdir / f"{stem}.aux").write_text(spec["aux"], encoding="utf-8")
         self.pdf_bytes = self.pdf.stat().st_size if self.pdf else 0
         self.timed_out = bool(spec.get("timed_out"))
         self.seconds = 0.05
@@ -850,3 +852,72 @@ def test_ctx_tex_files_case_insensitive(tmp_path: Path) -> None:
     (tmp_path / "STYLE.STY").write_text("x", encoding="utf-8")
     ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
     assert {p.name for p in ctx.tex_files()} == {"PAPER.TEX", "a.tex", "STYLE.STY"}
+
+
+# ---------------------------------------------------------------- aux 截断清场
+def test_aux_sweep_entry_poison(tmp_path: Path) -> None:
+    r"""1511.06744 型: 被杀编译驻留的 ``\citation{`` 半行 aux → r1 编译前清扫。"""
+    proj = make_proj(tmp_path)
+    (proj / "main.aux").write_text("\\relax \n\\citation{", encoding="utf-8")
+    cell = fixloop(proj, MockEngine([{"log": CLEAN_LOG, "pdf": True}]))
+    assert cell["verdict"] == "clean"
+    assert not (proj / "main.aux").exists()
+    assert any("aux-sweep" in e and "main.aux" in e for e in cell["log"])
+
+
+def test_aux_sweep_midloop(tmp_path: Path) -> None:
+    """round1 崩留截断 aux → round2 编译前清, 不毒化后续轮。"""
+    proj = make_proj(tmp_path)
+    eng = MockEngine(
+        [
+            {
+                "log": "! LaTeX Error: File `zhnumber.sty' not found.\n",
+                "aux": "\\citation{",
+            },
+            {"log": CLEAN_LOG, "pdf": True},
+        ],
+        installable={"zhnumber.sty"},
+    )
+    cell = fixloop(proj, eng)
+    assert cell["verdict"] == "clean"
+    assert not (proj / "main.aux").exists()
+    assert any("aux-sweep" in e for e in cell["log"])
+
+
+def test_aux_sweep_healthy_kept(tmp_path: Path) -> None:
+    """完整 aux (尾换行 + 花括号闭合) 不动——行界齐整缺行同。"""
+    proj = make_proj(tmp_path)
+    good = "\\relax \n\\citation{key1}\n\\newlabel{sec}{{1}{1}}\n"
+    (proj / "main.aux").write_text(good, encoding="utf-8")
+    cell = fixloop(proj, MockEngine([{"log": CLEAN_LOG, "pdf": True}]))
+    assert cell["verdict"] == "clean"
+    assert (proj / "main.aux").read_text(encoding="utf-8") == good
+
+
+def test_aux_sweep_escaped_braces_healthy(tmp_path: Path) -> None:
+    r"""``\{``/``\}`` 转义不计深——含转义的健康 aux 不误删。"""
+    proj = make_proj(tmp_path)
+    good = "\\newlabel{a}{{\\{x\\}}{1}}\n"
+    (proj / "main.aux").write_text(good, encoding="utf-8")
+    fixloop(proj, MockEngine([{"log": CLEAN_LOG, "pdf": True}]))
+    assert (proj / "main.aux").exists()
+
+
+def test_aux_sweep_toc_family(tmp_path: Path) -> None:
+    r"""``.toc`` 同机制件: 截断 ``\contentsline`` 半行一样毒。"""
+    proj = make_proj(tmp_path)
+    (proj / "main.toc").write_text(
+        "\\contentsline{section}{", encoding="utf-8"
+    )
+    fixloop(proj, MockEngine([{"log": CLEAN_LOG, "pdf": True}]))
+    assert not (proj / "main.toc").exists()
+
+
+def test_aux_sweep_final_round_leftover(tmp_path: Path) -> None:
+    """末轮被杀留截断 aux → return 前清场, 格后 post 复判不吃毒。"""
+    proj = make_proj(tmp_path)
+    eng = MockEngine([{"log": "partial\n", "timed_out": True, "aux": "\\citation{"}])
+    cell = fixloop(proj, eng)
+    assert cell["verdict"] == "unfixable:timeout"
+    assert not (proj / "main.aux").exists()
+    assert any("final aux-sweep" in e for e in cell["log"])

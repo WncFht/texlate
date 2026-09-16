@@ -223,6 +223,61 @@ def _note_dropped_flags(ctx: LoopCtx, res: CompResLike) -> None:
             ctx.advisories.append(f"engine flag unsupported on {ctx.engine_name}: {fl}")
 
 
+#: TeX 每轮重写的读回辅助件 —— 被杀/超时编译留下截断形 (``\citation{``
+#: 半行) 驻留 wdir 即毒化后续一切 compile ("File ended while scanning
+#: use of \citation"; 1511.06744 实证, 既有 aux_scan_eof 签名盖不住
+#: \citation 形态)。删可再生件代价至多一遍重排; .bbl/.ind/.bcf 可为
+#: e-print 船货 (bbl_regen 靠它), 不在此表。
+_AUX_WRITE_EXTS = frozenset(
+    {".aux", ".toc", ".lof", ".lot", ".out", ".nav", ".snm", ".vrb"}
+)
+
+
+_LBRACE, _RBRACE, _BSLASH = ord("{"), ord("}"), ord("\\")
+
+
+def _aux_file_bad(f: Path) -> bool:
+    r"""截断辅助件判定: EOF 无尾换行 (半路断行) 或全文花括号不闭合。
+
+    行界齐整的早夭 (尾部整行丢失) 不算毒——缺行重排自生; 毒在断开
+    的命令。``\{``/``\}`` 转义不计深; ``\\{`` 极小样本误删健康件
+    的代价至多一遍重排, 不腐蚀语义。
+    """
+    try:
+        data = f.read_bytes()
+    except OSError:
+        return False
+    if not data:
+        return False
+    if not data.endswith(b"\n"):
+        return True
+    depth = 0
+    prev = -1
+    for b in data:
+        if b == _LBRACE and prev != _BSLASH:
+            depth += 1
+        elif b == _RBRACE and prev != _BSLASH and depth:
+            depth -= 1
+        prev = b
+    return depth != 0
+
+
+def _sweep_bad_aux(wdir: Path) -> list[str]:
+    """删 wdir 内截断辅助件 (aux/toc/out 族), 返回删除的相对名供审计。"""
+    dropped: list[str] = []
+    for f in wdir.rglob("*"):
+        if not f.is_file() or f.suffix.lower() not in _AUX_WRITE_EXTS:
+            continue
+        if not _aux_file_bad(f):
+            continue
+        try:
+            f.unlink()
+        except OSError:
+            continue
+        dropped.append(str(f.relative_to(wdir)))
+    return dropped
+
+
 def _report_of(res: CompResLike, warn_patterns: list[dict[str, Any]]) -> ErrReport:
     """CompRes → ErrReport: 优先 .log 文件; 缺席/空错误时 stdout_tail 兜底。
 
@@ -1247,6 +1302,9 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
     prev_sig, sig_n = "", 0
     last_rep: ErrReport | None = None
     for rnd in range(1, max_rounds + 1):
+        swept = _sweep_bad_aux(wdir)
+        if swept:
+            ctx.events.append(f"r{rnd} aux-sweep: {', '.join(swept)}")
         res = eng.compile(
             wdir,
             ctx.main_rel,
@@ -1338,6 +1396,9 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
         and v_now not in ("clean", "acceptable_pdf", "dirty_pdf", "unfixable:timeout")
         and not (cell["rounds"] and cell["rounds"][-1]["pdf"])
     ):
+        swept = _sweep_bad_aux(wdir)
+        if swept:
+            ctx.events.append(f"salvage aux-sweep: {', '.join(swept)}")
         sres = eng.compile(
             wdir,
             ctx.main_rel,
@@ -1413,6 +1474,11 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
         and cell["verdict"] == "dirty_pdf"
     ):
         cell["verdict"] = "acceptable_pdf"
+    # 末态清场: 末轮/兜底被杀的截断 aux 不驻留毒化格后 post 复判
+    swept = _sweep_bad_aux(wdir)
+    if swept:
+        ctx.events.append(f"final aux-sweep: {', '.join(swept)}")
+        cell["log"] = ctx.events  # 上方已赋值的同一 list 引用, 显式重挂防漂移
     _record_case(
         case_sink, cell, corpus_id=corpus_id, cond=cond, engine_name=engine_name
     )
