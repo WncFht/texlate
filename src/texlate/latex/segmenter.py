@@ -1886,6 +1886,12 @@ class Segmenter:
             if t.origin is not None:
                 self._cover_to(t.origin[0], t.origin[2])
             return
+        # gen==0 组界在 preamble 同样开闭作用域——``{\catcode…}``/``{\makeatletter…}``
+        #  preamble 包（\input 进的 .sty）不写到底帧泄漏（body 档 _dispatch 同型）。
+        if t.kind == "lbrace":
+            self._scope_push(src)
+        elif t.kind == "rbrace":
+            self._scope_pop(src)
         self._cover_to(fid, b)
 
     @staticmethod
@@ -2094,14 +2100,16 @@ class Segmenter:
         self._rappend_tok(t)
 
     def _scope_push(self, src: TokenSource) -> None:
-        """组开 → ``gullet.macros.push_scope``（契约 §4 回报）。"""
+        """组开 → ``gullet.macros.push_scope`` + ``cats.push``（契约 §4 回报）。"""
         if isinstance(src, Gullet):
             src.macros.push_scope()
+            src.cats.push()
 
     def _scope_pop(self, src: TokenSource) -> None:
-        """组闭 → ``pop_scope``（底帧不弹由 MacroTable 兜底）。"""
+        """组闭 → 宏表/cats 对称弹（底帧不弹由两侧各自兜底）。"""
         if isinstance(src, Gullet):
             src.macros.pop_scope()
+            src.cats.pop()
 
     # ------------------------------------------------------------ math
 

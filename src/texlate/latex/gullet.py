@@ -154,7 +154,10 @@ class ArgMismatch(Exception):  # noqa: N818 — 规格 §3.5 定名（非 Error 
 class ScopeMacroTable:
     r"""命令/环境 scope 链（§8.5）。
 
-    scope 事件由**分段器**驱动回报（本层只提供链与查写）：
+    scope 事件由**分段器**驱动回报（本层只提供链与查写），唯二例外是
+    ``\begingroup``/``\bgroup``/``\endgroup``/``\egroup``——cs 形原语由
+    gullet ``_exec_prim`` 在分派点直接推弹（含 ``gen>0`` 展开产物，
+    宏体里的组原语走同一漏斗）：
 
     - **推**：``lbrace``/``\bgroup``/``\begingroup``/``\begin{env}``/数学开
       （``$``/``$$``/``\(``/``\[``/math-env）——含 ``gen>0`` 的 ``\begin``
@@ -350,6 +353,10 @@ _PRIMS = {
     "makeatletter",
     "makeatother",
     "catcode",
+    "begingroup",
+    "endgroup",
+    "bgroup",
+    "egroup",
     "input",
     "@input",
     "include",
@@ -1418,6 +1425,17 @@ class Gullet:
             return t
         if name == "catcode":
             return self._do_catcode(t)
+        if name in ("begingroup", "bgroup"):
+            # 原语组开：宏表+cats 同推。scope 事件唯一属主在此（分段器只
+            # 回报 lbrace/\begin——cs 形不另报，免双推）；token 本体照交
+            # 分段器（vtex 覆盖 = reconstruct identity 的硬理由）。
+            self.macros.push_scope()
+            self.cats.push()
+            return t
+        if name in ("endgroup", "egroup"):
+            self.macros.pop_scope()
+            self.cats.pop()
+            return t
         if name == "endinput":
             if self.inputs:
                 m = self.inputs.pop()  # 当前文件余下字节丢弃（flatten 同语义）

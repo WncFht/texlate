@@ -104,11 +104,17 @@ class Tok:
 
 
 class CatTable:
-    r"""catcode 表（``dict[char, int]``）。
+    r"""catcode 表（``dict[char, int]``）+ 组作用域 undo 栈。
 
     Mouth/Gullet 共享可变——``\makeatletter`` 翻 ``@`` 即查即生效
     （拉取式 tokenize 的硬理由）。
+
+    ``\catcode`` 赋值是组局部的（TeX 同）：``push``/``pop`` 与
+    ``ScopeMacroTable`` 同型，``set`` 在每帧首写某 ch 时记旧值，
+    ``pop`` 回放恢复。底帧不存 undo——顶层写 = 全局写，永不回滚。
     """
+
+    _MISSING = -1  # undo 帧里"写入前未登记"哨兵（catcode 域 0-15 外）
 
     def __init__(self) -> None:
         """建默认 TeX catcode 表（plasTeX DEFAULT_CATEGORIES 同值）。"""
@@ -130,14 +136,38 @@ class CatTable:
         m["~"] = CC_ACTIVE
         m["%"] = CC_COMMENT
         self._m = m
+        self._undo: list[dict[str, int]] = []
 
     def code(self, ch: str) -> int:
         """查 catcode；未登记字符 → ``CC_OTHER``（plasTeX whichCode 同义）。"""
         return self._m.get(ch, CC_OTHER)
 
     def set(self, ch: str, code: int) -> None:
-        r"""``\catcode`/``\makeatletter`` 写入口。"""
+        r"""``\catcode`/``\makeatletter`` 写入口；组内首写记 undo。
+
+        ``\global`` 前缀在 gullet ``_do_prefix`` 不续 catcode 而回吐——
+        带 ``\global`` 的写仍落本帧 undo、组闭照滚（保守方向，比泄漏
+        安全；真 write-through 需前缀链透传，未实现）。
+        """
+        if self._undo:
+            frame = self._undo[-1]
+            if ch not in frame:
+                frame[ch] = self._m.get(ch, self._MISSING)
         self._m[ch] = code
+
+    def push(self) -> None:
+        r"""组开（``{``/``\begingroup``/``\begin``/``$``族回报）→ 开 undo 帧。"""
+        self._undo.append({})
+
+    def pop(self) -> None:
+        """组闭 → 回放本帧写入；无帧（顶层）不弹——底帧写即全局写。"""
+        if not self._undo:
+            return
+        for ch, old in self._undo.pop().items():
+            if old == self._MISSING:
+                self._m.pop(ch, None)
+            else:
+                self._m[ch] = old
 
 
 class Mouth:
