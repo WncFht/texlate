@@ -262,22 +262,79 @@ class L2Verdict:
 
 # ---------------------------------------------------------------- 内部
 
+#: DOS 二进制 EPS 魔数（normalize.py ``_DOS_EPS_MAGIC`` / engine.py 同款）：
+#: 带绝对偏移头的 legacy 格式，normalize 只能字节原样保留进
+#: ``dos_eps_skipped`` 台账，其 invalid_utf8 警告是必然残余而非可修复缺陷。
+_DOS_EPS_MAGIC: Final = b"\xc5\xd0\xd3\xc6"
 
-def _mark_redline(
+#: ``(x.eps`` 类 graphic 打开帧（engine.py ``_GRAPHIC_EXTS`` 同款）——
+#: texlog ``TEX_FILE_EXTS`` 不含 graphic 扩展名，此类 ``(`` 入 ``None``
+#: 配对帧；utf8 归因需要真名，行尾未配对 ``(`` 的 graphic token 补回栈顶。
+_GRAPHIC_EXTS: Final = frozenset({".eps", ".epsf", ".epsi", ".ps", ".mps"})
+
+
+def _is_dos_eps(token: str | None, root: Path | None, cache: dict[str, bool]) -> bool:
+    """文件栈 token → DOS 二进制 EPS 判定（engine.py 同款；按 token 缓存）。"""
+    if not token or root is None:
+        return False
+    if token in cache:
+        return cache[token]
+    p = Path(token)
+    if not p.is_absolute():
+        p = root / p
+    try:
+        with p.open("rb") as fh:
+            ok = fh.read(4) == _DOS_EPS_MAGIC
+    except OSError:
+        ok = False
+    cache[token] = ok
+    return ok
+
+
+def _last_open_graphic_token(ln: str) -> str | None:
+    """行尾最后一个 ``(`` 未被 ``)`` 闭时，取其 graphic 文件名 token。"""
+    lp = ln.rfind("(")
+    if lp < 0 or lp < ln.rfind(")"):
+        return None
+    m = re.match(r"[^\s(){}]+", ln[lp + 1 :])
+    if m and Path(m.group(0)).suffix.lower() in _GRAPHIC_EXTS:
+        return m.group(0)
+    return None
+
+
+def _patch_graphic_top(ln: str, stack: list[str | None]) -> None:
+    """栈顶 ``None`` 配对帧是 graphic 打开时补真名（engine.py 同款）。"""
+    if stack and stack[-1] is None:
+        g = _last_open_graphic_token(ln)
+        if g:
+            stack[-1] = g
+
+
+def _mark_redline(  # noqa: PLR0913 - 归因三件套（栈/root/缓存）拆散反而伤读
     cls: str,
     line: str,
     ws: WarningSummary,
     stack: list[str | None],
+    *,
     project_root: Path | None,
+    dos_eps_cache: dict[str, bool],
 ) -> None:
     """红线打标——``invalid_utf8`` 按 ``stack`` 最内文件归因产生者。
 
     系统 texmf/bundle 件进 ``sys_hits`` 观察项（老 CTAN 包自带坏字节
-    非工程文件问题，fixer-utf8 归因 96% 属此类）；其余类全量进
-    ``redlines``（missing_glyph/file_not_found 按内容论不按产生文件论）。
+    非工程文件问题，fixer-utf8 归因 96% 属此类）；DOS 魔数 EPS
+    （normalize ``dos_eps_skipped`` 原样保留件）视同系统件降级并打
+    ``(dos-eps)`` 标（engine.py ``_scan_error_lines`` 同口径）；其余类
+    全量进 ``redlines``（missing_glyph/file_not_found 按内容论不按产生
+    文件论）。
     """
     if cls == "invalid_utf8":
         inner = next((s for s in reversed(stack) if s), None)
+        if _is_dos_eps(inner, project_root, dos_eps_cache):
+            hit = f"{cls}@{Path(inner).name if inner else '?'}(dos-eps)"
+            if hit not in ws.sys_hits:
+                ws.sys_hits.append(hit)
+            return
         if not is_project_file(inner, project_root):
             hit = f"{cls}@{Path(inner).name if inner else '?'}"
             if hit not in ws.sys_hits:
@@ -293,6 +350,7 @@ def _classify_warning(
     ws: WarningSummary,
     stack: list[str | None],
     project_root: Path | None,
+    dos_eps_cache: dict[str, bool],
 ) -> None:
     """单行 warning 归类 + 红线打标。"""
     if not (_ANY_WARNING_RX.search(line) or _MARKERLESS_WARN_RX.search(line)):
@@ -317,7 +375,9 @@ def _classify_warning(
     if len(bucket) < _MAX_WARN_SAMPLES:
         bucket.append(line.strip())
     if cls in _REDLINE_CLASSES:
-        _mark_redline(cls, line, ws, stack, project_root)
+        _mark_redline(
+            cls, line, ws, stack, project_root=project_root, dos_eps_cache=dos_eps_cache
+        )
 
 
 def _tex_line_from_ctx(ctx: list[str]) -> int | None:
@@ -354,8 +414,9 @@ def parse_log_text(text: str, *, project_root: Path | None = None) -> L2Verdict:
     """解析 log 文本为 ``L2Verdict``（单遍扫描，文件栈增量维护）。
 
     ``project_root`` = 编译工作根：invalid_utf8 红线按产生文件归因，
-    系统 texmf/bundle 源降 ``warnings.sys_hits``；缺席时裸名保守归
-    工程（不掉红线），绝对路径按 texmf 标记启发式。
+    系统 texmf/bundle 源与 DOS 魔数 EPS（normalize ``dos_eps_skipped``
+    原样保留件）降 ``warnings.sys_hits``；缺席时裸名保守归工程
+    （不掉红线），绝对路径按 texmf 标记启发式。
     """
     v = L2Verdict()
     lines = text.splitlines()
@@ -367,9 +428,11 @@ def parse_log_text(text: str, *, project_root: Path | None = None) -> L2Verdict:
     stack: list[str | None] = []
     popped: list[str | None] = []
     last_pop: tuple[int, str] | None = None  # (行 idx, 刚弹出的文件 token)
+    dos_eps_cache: dict[str, bool] = {}
     for i, ln in enumerate(lines):
         popped.clear()
         update_file_stack(ln, stack, popped)
+        _patch_graphic_top(ln, stack)
         for tok in popped:
             if tok is not None:
                 last_pop = (i, tok)
@@ -400,7 +463,7 @@ def parse_log_text(text: str, *, project_root: Path | None = None) -> L2Verdict:
                 v.errors.append(err)
             continue
 
-        _classify_warning(ln, v.warnings, stack, project_root)
+        _classify_warning(ln, v.warnings, stack, project_root, dos_eps_cache)
 
     v.tail = tuple(lines[-_TAIL_LINES:])
     return v

@@ -251,6 +251,22 @@ def test_invalid_utf8_usertree_under_root_is_sys(tmp_path: Path) -> None:
     assert not any("invalid_utf8" in r for r in v.warnings.redlines)
 
 
+def test_invalid_utf8_dos_eps_demoted(tmp_path: Path) -> None:
+    """dos_eps_skipped 件（DOS 魔数二进制 EPS，normalize 原样保留）降 sys
+    ——engine ``_scan_error_lines`` 同口径；graphic 打开帧须补真名归因，
+    否则归因落父 .tex 误报工程红线。"""
+    (tmp_path / "fig.eps").write_bytes(b"\xc5\xd0\xd3\xc6" + b"\x00" * 28)
+    log = f"(./main.tex\n(./fig.eps\n{_UTF8_WARN}))\n"
+    v = parse_log_text(log, project_root=tmp_path)
+    assert v.warnings.sys_hits == ["invalid_utf8@fig.eps(dos-eps)"]
+    assert not any("invalid_utf8" in r for r in v.warnings.redlines)
+    # 普通文本 eps（%!PS 头）仍属工程件——红线照计
+    (tmp_path / "fig2.eps").write_bytes(b"%!PS-Adobe-3.0 EPSF-3.0\n")
+    v2 = parse_log_text(f"(./fig2.eps\n{_UTF8_WARN})\n", project_root=tmp_path)
+    assert any("invalid_utf8" in r for r in v2.warnings.redlines)
+    assert v2.warnings.sys_hits == []
+
+
 # ---------------------------------------------------------------- 审计修复面
 
 
