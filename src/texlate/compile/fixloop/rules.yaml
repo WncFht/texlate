@@ -624,6 +624,16 @@ rules:
           elsart3p.cls: { loads: "elsarticle", needs: ["elsarticle.cls"] }
           elsart5p.cls: { loads: "elsarticle", needs: ["elsarticle.cls"] }
           elsevier.cls: { loads: "elsarticle", needs: ["elsarticle.cls"] }
+          # elsart 旁系 (gtrap-scout-2026-09-16 §a): elsart3/3-1/elsart1、
+          # autart (Automatica, \proc@elem 逐字节同 elsart)、personal
+          # (elsart 克隆) —— 非 ship 声明的 class-not-found 模态同图
+          # elsarticle; ship 真载体的 misschar 毒化由 CJK_FIRST_USE_WARMUP
+          # 覆盖 (cmrepro 10/10 实证), 不属本表。
+          elsart3.cls: { loads: "elsarticle", needs: ["elsarticle.cls"] }
+          elsart3-1.cls: { loads: "elsarticle", needs: ["elsarticle.cls"] }
+          elsart1.cls: { loads: "elsarticle", needs: ["elsarticle.cls"] }
+          autart.cls: { loads: "elsarticle", needs: ["elsarticle.cls"] }
+          personal.cls: { loads: "elsarticle", needs: ["elsarticle.cls"] }
           # sig-alternate (ACM ≤2015 版式) → acmart 官方继任; naturemag → nature。
           sig-alternate.cls: { loads: "acmart", needs: ["acmart.cls"] }
           sig-alternate-05-2015.cls: { loads: "acmart", needs: ["acmart.cls"] }
@@ -2045,6 +2055,53 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "loop1 rerun residual; xespotcolor.sty v2.1 API 核对"
+
+  # 新增 (loop2-delta 残格): axessibility 是 pdfTeX-only 可访问性标注包,
+  # TL 有真包 (missing_file 打不到), 其体内 \pdfcompresslevel/
+  # \pdfoptionpdfminorversion/\pdfglyphtounicode 在 xelatex/tectonic 下
+  # undefined_cs→pdftex_prim。包面无用户命令 (只补丁 \document/\section
+  # 内部做 ActualText 标注) → 空 stub 吞掉 accsupp/tagpdf 选项即可。
+  - id: axessibility_xetex_shadow
+    description: "axessibility (pdfTeX-only) → wdir 注 axessibility.sty 空 stub 吞选项"
+    phase: loop
+    order: 157 # spotcolor_xetex_shadow(156) 同档: 遮蔽先于逐宏补
+    when:
+      any:
+        - { category: undefined_cs, payload_required: true }
+        - { category: pdftex_prim, payload_required: true }
+    condition:
+      source_contains: "\\\\(?:usepackage|RequirePackage)\\s*(\\[[^\\]]*\\])?\\s*\\{[^}]*\\baxessibility\\b"
+    action:
+      kind: builtin_transform
+      function: bundled_class_shadow
+      params:
+        target: axessibility.sty
+        needs: []
+        cs_set: # 包体 pdfTeX 原语全集 (payload 口径可命中任一)
+          [
+            pdfcatalog,
+            pdfcompresslevel,
+            pdfextension,
+            pdfgentounicode,
+            pdfglyphtounicode,
+            pdfoptionpdfminorversion,
+          ]
+        body: |
+          \NeedsTeXFormat{LaTeX2e}
+          \ProvidesPackage{axessibility}[2026/09/16 fixloop shadow -> no-op (pdfTeX-only)]
+          \DeclareOption*{}
+          \ProcessOptions\relax
+          \endinput
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # XeTeX 内核同缺 pdf 原语
+    provenance:
+      - {
+          corpus: "2105.03906/2203.00048/2211.00005/2308.12590/2403.05523/2403.05532 (loop2-delta)",
+          error: "axessibility.sty:349 \\pdfcompresslevel=0 Undefined control sequence → unfixable:pdftex_prim",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "loop2-delta unfixable:pdftex_prim ×6 全为 \\usepackage[accsupp]{axessibility}"
 
   # 新增 (fixloop-v2 整改): AAS 期刊缩写宏缺失 —— tectonic bundle 内置
   # aastex 5.0rc3.1 (1999) 没有 \actaa 族 (emulateapj/后期 aastex 才有);
