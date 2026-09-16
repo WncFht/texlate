@@ -4,25 +4,33 @@
 tail/warnings scope 与 undefined_cs→pdftex_prim subclassify 逐条覆盖。
 """
 
+from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 import pytest
 
-from texlate.compile.fixloop import load_ruleset
+from texlate.compile.fixloop import Ruleset, load_ruleset
 from texlate.compile.fixloop.logparse import Taxonomy, parse_log, parse_text
 
-RS = load_ruleset()
-TAX = RS.taxonomy
-WARN = RS.warn_patterns
+
+@lru_cache(maxsize=1)
+def _rs() -> Ruleset:
+    """ruleset 首用时加载——收集期不 IO（坏 yaml 报 test fail 而非 collection error）。"""
+    return load_ruleset()
+
+
+def _warn() -> list[dict[str, Any]]:
+    return _rs().warn_patterns
 
 
 def classify(text: str, *, timed_out: bool = False) -> tuple[str | None, str | None]:
-    return TAX.classify(parse_text(text, WARN), timed_out=timed_out)
+    return _rs().taxonomy.classify(parse_text(text, _warn()), timed_out=timed_out)
 
 
 # ---------------------------------------------------------------- ErrReport
 def test_bang_and_ctx_and_line_no() -> None:
-    rep = parse_text("pre\n! Undefined control sequence.\nl.12 \\foo\npost\n", WARN)
+    rep = parse_text("pre\n! Undefined control sequence.\nl.12 \\foo\npost\n", _warn())
     assert rep.n_bang == 1
     assert rep.first == "! Undefined control sequence."
     assert "l.12" in rep.ctx
@@ -32,7 +40,9 @@ def test_bang_and_ctx_and_line_no() -> None:
 
 def test_file_line_error_format_counts() -> None:
     # impl xelatex 命令行带 -file-line-error: 错误是 path:line: 无 '!' 前缀
-    rep = parse_text("./main.tex:5: Undefined control sequence.\nl.5 \\foo\nok\n", WARN)
+    rep = parse_text(
+        "./main.tex:5: Undefined control sequence.\nl.5 \\foo\nok\n", _warn()
+    )
     assert rep.n_bang == 1
     assert rep.first == "./main.tex:5: Undefined control sequence."
 
@@ -41,7 +51,7 @@ def test_file_line_warning_not_error() -> None:
     # 同格式的 Warning 行不算错误, 否则 clean 门 (n_bang==0) 永不通过
     rep = parse_text(
         "./main.tex:5: LaTeX Warning: Reference `x' undefined\n./main.tex:9: Package foo Warning: bar\n",
-        WARN,
+        _warn(),
     )
     assert rep.n_bang == 0
     assert rep.first is None
@@ -50,7 +60,7 @@ def test_file_line_warning_not_error() -> None:
 def test_file_stack_tracked() -> None:
     rep = parse_text(
         "(./main.tex\n(./sub/chap.tex\n! Package soul Error: Reconstruction failed.\n",
-        WARN,
+        _warn(),
     )
     assert rep.file_stack == ["./main.tex", "./sub/chap.tex"]
 
@@ -60,7 +70,7 @@ def test_popped_files_runaway_capture() -> None:
     rep = parse_text(
         "(./main.tex\n(./sub/bad.tex\nRunaway argument? )\n"
         "! File ended while scanning use of \\foo.\nl.5 x\n",
-        WARN,
+        _warn(),
     )
     assert rep.file_stack == ["./main.tex"]
     assert rep.popped_files == ["./sub/bad.tex"]
@@ -68,18 +78,18 @@ def test_popped_files_runaway_capture() -> None:
 
 def test_popped_files_filters_none_frames() -> None:
     """非文件 ``(`` 的 ``None`` 配对帧不入 popped_files。"""
-    rep = parse_text("(./main.tex\n(draft\nx ) y )\n! Emergency stop.\n", WARN)
+    rep = parse_text("(./main.tex\n(draft\nx ) y )\n! Emergency stop.\n", _warn())
     assert rep.file_stack == []
     assert rep.popped_files == ["./main.tex"]
 
 
 def test_popped_files_empty_without_error() -> None:
-    rep = parse_text("(./main.tex\n)clean\n", WARN)
+    rep = parse_text("(./main.tex\n)clean\n", _warn())
     assert rep.popped_files == []
 
 
 def test_parse_log_missing_path() -> None:
-    rep = parse_log(None, WARN)
+    rep = parse_log(None, _warn())
     assert rep.n_bang == 0
     assert rep.first is None
     assert rep.tail == ""
@@ -88,12 +98,12 @@ def test_parse_log_missing_path() -> None:
 def test_parse_log_reads_file(tmp_path: Path) -> None:
     p = tmp_path / "main.log"
     p.write_text("x\n! Emergency stop.\n")
-    rep = parse_log(p, WARN)
+    rep = parse_log(p, _warn())
     assert rep.n_bang == 1
 
 
 def test_warn_patterns_scanned() -> None:
-    rep = parse_text("Missing character: There is no (U+FFFD) in font cmr10\n", WARN)
+    rep = parse_text("Missing character: There is no (U+FFFD) in font cmr10\n", _warn())
     assert "invalid_utf8" in rep.warnings
     assert "missing_char" in rep.warnings
 
@@ -263,7 +273,7 @@ def test_tail_fatal_preempts_weak_head() -> None:
         + "pad line\n" * 15
         + "File `chemgreek.sty' not found.\n! Emergency stop.\nEnter file name:"
     )
-    assert tax.classify(parse_text(log, WARN)) == ("missing_file", "chemgreek.sty")
+    assert tax.classify(parse_text(log, _warn())) == ("missing_file", "chemgreek.sty")
 
 
 def test_tail_fatal_no_preempt_unlisted_head() -> None:
@@ -285,7 +295,7 @@ def test_tail_fatal_no_preempt_unlisted_head() -> None:
         + "pad\n" * 15
         + "File `x.sty' not found.\nEnter file name:"
     )
-    cat, _ = tax.classify(parse_text(log, WARN))
+    cat, _ = tax.classify(parse_text(log, _warn()))
     assert cat == "illegal_unit"
 
 

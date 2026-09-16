@@ -359,9 +359,9 @@ def make_app(tmp_path: Path, **overrides: object) -> FastAPI:
 
 def wait_terminal(client: TestClient, task_id: str, timeout: float = 30.0) -> dict:
     """轮询快照直到终态（worker 测试用；超时即断言失败）。"""
-    deadline = time.time() + timeout
+    deadline = time.monotonic() + timeout
     snap: dict = {}
-    while time.time() < deadline:
+    while time.monotonic() < deadline:
         snap = client.get(f"/api/task/{task_id}").json()
         if snap["status"] in (
             "done",

@@ -16,7 +16,6 @@ import os
 import shutil
 import sqlite3
 import tempfile
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import httpx
@@ -29,6 +28,7 @@ from texlate.server.store import DDL
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from pathlib import Path
 
     import pytest
     from conftest import RecordingEngine
@@ -240,12 +240,14 @@ class TestRun:
             msg = "simulated disk full"
             raise OSError(msg)
 
+        # mkdtemp 钉进本用例私有 tmp_path——gettempdir() 共享目录断言会吃
+        # 并行 pytest 会话并发增删 texlate-run-* 的互踩 flake。
+        monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
         monkeypatch.setattr(shutil, "copytree", _boom)
-        before = set(Path(tempfile.gettempdir()).glob("texlate-run-*"))
         result = _RUNNER.invoke(app, ["run", str(src)])
         assert result.exit_code == 1
         assert "工作目录准备失败" in result.stderr
-        assert set(Path(tempfile.gettempdir()).glob("texlate-run-*")) == before
+        assert not list(tmp_path.glob("texlate-run-*"))
 
 
 class TestParse:

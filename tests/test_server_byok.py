@@ -134,14 +134,15 @@ class TestSettingsTest:
         """探活打不通 → ok:false，detail 已脱敏、不含 key。"""
         import socket  # noqa: PLC0415 -- 仅此用例要占即释端口
 
-        sock = socket.socket()
-        sock.bind(("127.0.0.1", 0))
-        port = sock.getsockname()[1]
-        sock.close()  # 即释即死端口——探活必 ECONNREFUSED，不依赖本机 :3003 状态
-        client.put("/api/settings", json={"api_key": "sk-probe-key"})
-        r = client.post(
-            "/api/settings/test", json={"base_url": f"http://127.0.0.1:{port}"}
-        )
+        # bind 但不 listen：用例期间一直占住端口（免疫外部抢占窗口），
+        # 入站 SYN 仍必吃 RST → 探活确定 ECONNREFUSED，不依赖本机 :3003 状态。
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", 0))
+            port = sock.getsockname()[1]
+            client.put("/api/settings", json={"api_key": "sk-probe-key"})
+            r = client.post(
+                "/api/settings/test", json={"base_url": f"http://127.0.0.1:{port}"}
+            )
         assert r.status_code == HTTPStatus.OK
         body = r.json()
         assert body["ok"] is False

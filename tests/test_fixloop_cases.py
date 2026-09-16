@@ -1,8 +1,9 @@
 """cases — cases.jsonl 沉淀 / triage / 回放三门 单测 (docs/08 §5.5)。"""
 
+from functools import lru_cache
 from pathlib import Path
 
-from texlate.compile.fixloop import CaseSink, load_cases, load_ruleset
+from texlate.compile.fixloop import CaseSink, Ruleset, load_cases, load_ruleset
 from texlate.compile.fixloop.cases import (
     replay_all,
     replay_case,
@@ -11,7 +12,13 @@ from texlate.compile.fixloop.cases import (
 )
 from texlate.compile.fixloop.engine import fixloop
 
-RS = load_ruleset()
+
+@lru_cache(maxsize=1)
+def _rs() -> Ruleset:
+    """ruleset 首用时加载——收集期不 IO（坏 yaml 报 test fail 而非 collection error）。"""
+    return load_ruleset()
+
+
 MAIN_TEX = "\\documentclass{article}\n\\begin{document}\nhi\n\\end{document}\n"
 CLEAN_LOG = "This is pdfTeX\nOutput written on main.pdf (1 page).\n"
 
@@ -146,7 +153,7 @@ def test_replay_case_gate1(tmp_path: Path) -> None:
         "verdict": "unfixable:missing_file",
         "started_fail": True,
     }
-    res = replay_case(case, tmp_path, _Eng([(CLEAN_LOG, True)]), RS)
+    res = replay_case(case, tmp_path, _Eng([(CLEAN_LOG, True)]), _rs())
     assert res.verdict_after == "clean"
     assert res.gate1_rescued is True
 
@@ -155,7 +162,7 @@ def test_replay_case_fail_stays(tmp_path: Path) -> None:
     (tmp_path / "main.tex").write_text(MAIN_TEX)
     case = {"corpus": "p", "cond": "c", "verdict": "unfixable:x", "started_fail": True}
     eng = _Eng([("! Bizarre\n", False)])
-    res = replay_case(case, tmp_path, eng, RS)
+    res = replay_case(case, tmp_path, eng, _rs())
     assert res.gate1_rescued is False
     assert res.verdict_after.startswith("unfixable")
 
@@ -175,7 +182,7 @@ def test_replay_all_gate2_regression(tmp_path: Path) -> None:
         [clean_case, fail_case],
         resolve_proj=lambda _c: tmp_path,
         engine_factory=lambda _c: _Eng([(CLEAN_LOG, True)]),
-        ruleset=RS,
+        ruleset=_rs(),
     )
     assert len(results) == 2  # noqa: PLR2004
     assert all(not r.regressed for r in results)
@@ -186,7 +193,7 @@ def test_replay_all_gate2_regression(tmp_path: Path) -> None:
         [clean_case],
         resolve_proj=lambda _c: tmp_path,
         engine_factory=lambda _c: _Eng([("! File `x.sty' not found.\n", False)]),
-        ruleset=RS,
+        ruleset=_rs(),
     )
     assert results[0].regressed is True
     assert results[0].floor_restored is True
@@ -198,7 +205,7 @@ def test_replay_all_skips_missing_proj(tmp_path: Path) -> None:
         [{"corpus": "ghost", "verdict": "unfixable:x"}],
         resolve_proj=lambda _c: tmp_path / "absent",
         engine_factory=lambda _c: _Eng([(CLEAN_LOG, True)]),
-        ruleset=RS,
+        ruleset=_rs(),
     )
     assert results == []
 
@@ -236,7 +243,7 @@ def test_fixloop_writes_case_via_sink(tmp_path: Path) -> None:
     fixloop(
         tmp_path,
         _Eng([("! LaTeX Error: File `x.sty' not found.\n", False)]),
-        ruleset=RS,
+        ruleset=_rs(),
         corpus_id="corp",
         cond="zh",
         case_sink=sink,

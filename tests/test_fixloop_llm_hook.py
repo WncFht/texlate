@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-import time
+import threading
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -29,8 +29,6 @@ MAIN_TEX = (
 )
 UNDEF_CS_LOG = "! Undefined control sequence.\nl.3 \\mycs\n"
 PATCH = {"file": "main.tex", "old": "\\mycs", "new": "\\emph{mycs}"}
-#: 超时放弃测试的墙钟余量 (0.1s 预算 + 线程调度抖动)
-_ABANDON_SLACK_S = 2.0
 
 
 class FakeTranslator:
@@ -40,6 +38,8 @@ class FakeTranslator:
         self.replies = list(replies)
         self.delay = delay
         self.calls: list[dict[str, str]] = []
+        #: 协程跑完即置位——超时放弃用例的事件哨兵 (跨线程可读)
+        self.done = threading.Event()
 
     async def translate(
         self,
@@ -55,6 +55,7 @@ class FakeTranslator:
         if self.delay:
             await asyncio.sleep(self.delay)
         r = self.replies.pop(0) if self.replies else '{"patches":[]}'
+        self.done.set()
         if isinstance(r, BaseException):
             raise r
         return r
@@ -225,9 +226,10 @@ def test_hook_abandoned_on_timeout(
     monkeypatch.setattr(llm_hook_mod, "_ABANDON_GRACE_S", 0.05)
     tr = FakeTranslator(['{"patches":[]}'], delay=5.0)
     hook = make_llm_hook(translator=tr, timeout_s=0.05)
-    t0 = time.monotonic()
     applied, note = hook(_ctx(tmp_path), _rep())
-    assert time.monotonic() - t0 < _ABANDON_SLACK_S
+    # 事件驱动: 返回时翻译协程仍在 5s 睡眠里 = 确证"放弃"而非"等满"——
+    # 若放弃失效钩子会阻塞至协程跑完, done 置位即败。
+    assert not tr.done.is_set()
     assert applied is False
     assert "exceeded" in note
 

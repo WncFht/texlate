@@ -1023,17 +1023,17 @@ class TestSettingsTestEdge:
         """body.api_key 探活失败回显必须脱敏。"""
         import socket  # noqa: PLC0415 -- 仅此用例要占即释端口
 
-        sock = socket.socket()
-        sock.bind(("127.0.0.1", 0))
-        port = sock.getsockname()[1]
-        sock.close()
-        r = client.post(
-            "/api/settings/test",
-            json={
-                "base_url": f"http://127.0.0.1:{port}",
-                "api_key": "sk-body-secret-9",
-            },
-        )
+        # bind 但不 listen：占住端口防外部抢占，入站连接仍必 ECONNREFUSED。
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", 0))
+            port = sock.getsockname()[1]
+            r = client.post(
+                "/api/settings/test",
+                json={
+                    "base_url": f"http://127.0.0.1:{port}",
+                    "api_key": "sk-body-secret-9",
+                },
+            )
         assert r.status_code == HTTPStatus.OK
         assert r.json()["ok"] is False
         assert "sk-body-secret-9" not in json.dumps(r.json())
