@@ -11,7 +11,7 @@ n100 实测（64 篇完跑，swe-2-medium）：翻译契约 5540/5542 ok、splic
 ## 1. 总体形态
 
 ```
-manifest (1272 行；channel=ia + item + member 自带 IA bulk 坐标)
+manifest (1272 存量 + IA 扩库 →5000；channel=ia + item + member 自带 bulk 坐标)
    │
    ▼ stagerun ingest  —— 数据集批量物化 → work/{id}/src/
    ▼ stagerun parse   —— route+normalize+parse_file → records/parse.jsonl + work/{id}/parse.json
@@ -28,10 +28,11 @@ manifest (1272 行；channel=ia + item + member 自带 IA bulk 坐标)
 
 ## 2. 入库层（数据集物化，不走 arXiv API）
 
-- 语料已全集物化：corpus_v3 manifest 1272 行（core 1000 + booster 200 + hot 72）= **1259 实体全部落盘 + 13 stub**（withdrawn 论文，`format=stub`/`n_files=0`、bytes 42-276 即撤稿声明，按设计不物化；`load_pool` 已滤 stub）。无待补缺口。
-- manifest 每行自带 IA bulk 坐标（`channel=ia`、`item=arXiv_src_YYMM_NNN`、`member=YYMM/<name>.gz`、`blob_sha256`）。**成员级 URL 已验证可单抽**：`https://archive.org/download/{item}/{item}.tar/{member}`（2026-09-16 实测 sha256 与 manifest `blob_sha256` 一致）——未来扩层按 member 直取或按 item 整包抽，零逐篇 API。
-- `stagerun ingest` 定义：`work/{id}/src/` ← copytree `{id}/extracted/`（stub 行直接记 record `{status: stub}` 跳过物化）；IA 拉取路径留作扩层备用。record：`{id, n_files, main_tex_guess, source(cache|ia|stub)}`。
-- arXiv 逐篇 API（~85 篇/日）仅留作单篇即兴旁路，不是入库主路；更大规模走 IA bulk 同一通道扩 manifest。
+- 存量：corpus_v3 manifest 1272 行（core 1000 + booster 200 + hot 72）= **1259 实体全部落盘 + 13 stub**（withdrawn，`format=stub`/`n_files=0`，按设计不物化；`load_pool` 已滤 stub）。
+- **扩库目标：+~3740 → 5000 篇做 loop 批主力，gate 批再扩 10000**（sizing 见 §7.1）。抽样策略 = `stratum_cell`（era×cluster）比例扩 + booster 偏向实测故障相关层（n100：missing_file/老 era 主导）——新增量压向最易暴露问题的论文。
+- 机制现成：`tmp/exp/ia-pilot/item-index.csv` 索引 **3243 个 chunk tar**；`build_corpus_v3.py scan` 流式扫整包 → members/features jsonl + tex staging `.gz`（特征含 flags/stub/sha256），扫完按层配额选样。成员命中率高时整包流扫优于单抽；稀疏命中走已验证的成员级 URL `https://archive.org/download/{item}/{item}.tar/{member}`（sha256 对得上 manifest `blob_sha256`）。带宽：~40-60 个 item ≈ 40-100GB ≈ 1-3h。
+- `stagerun ingest` 定义：`work/{id}/src/` ← copytree `{id}/extracted/`（stub 行记 `{status: stub}` 跳过）。扩库产出的新 `extracted/` + manifest 行沿用现有 schema，**加层不删层**。
+- arXiv 逐篇 API（~85 篇/日）仅留作单篇即兴旁路，不是入库主路。
 
 ## 3. 执行层——stagerun 阶段矩阵
 
@@ -105,18 +106,18 @@ bench/results/{run}-{tag}-{date}/
 
 某故障签名在论文级发生率 p 时，要看到 ≥3 次需要 n ≈ 3/p。各阶段按"值得分辨的最稀有签名"定规模——分阶段架构让每阶段独立放量：
 
-| stage         | 规模                                                                          | 依据                                                                                        |
-| ------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| ingest        | 全集已物化（1259 实体 + 13 stub 不物化）                                      | copytree 即走；IA 成员级单抽 URL 已验证，留作扩层备用                                       |
-| parse         | **全集 1272 每轮必跑**                                                        | CPU ~1-3s/篇 ×6 进程 ≈ 10min；warning 签名分辨到 ~0.24%（3/1272），leak 指标要全表面        |
-| xlat mock     | 全集 1272                                                                     | 零 LLM、秒级/篇；结构故障全暴露                                                             |
-| xlat sabotage | 全集 1272                                                                     | escaped==0 硬门——逃逸率真值越小所需样本越大，免费臂直接拉满                                 |
-| xlat real     | **子集 250-300**（≈21k-25k chunks）                                           | gwcap sem=4 限速（见 7.3）；契约违约分辨 ~0.012%/chunk；n100 基线 99.96% 只能找模式不测小差 |
-| compile zh    | mock 产物全集 + real 产物 300                                                 | ~15-25s/篇 ÷8 ≈ 40-80min 全集；结构故障分辨 ~0.24%                                          |
-| compile base  | **首轮全集**建源健康基线，后续只对 zh 非 clean 格补跑归因                     | n100 源挂率 ~50%→首轮 ~1-1.5h；后续按需 ~600 格 ≈ 40min                                     |
-| fixloop       | 产出驱动：全部 compile-fail 格（预期 ~600）+ `--always` 幂等检查 100 clean 格 | 每格 ≤8 轮 ×~10-20s/轮 ≈ 90s/格 ÷8 ≈ 2h；rescue 率 77% 基线下 SE≈1.7pp                      |
+| stage         | 规模                                                                                  | 依据                                                                                        |
+| ------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| ingest        | 存量 1259 即走；**扩库 +3740 → 5000（loop）/ 10000（gate）**                          | IA 整包流扫 ~1-3h 一次性；签名分辨 5000→0.06%、10000→0.03%                                  |
+| parse         | **全集每轮必跑**（1259 → 扩库后 5000）                                                | CPU ~1-3s/篇 ×6 进程 ≈ 10-30min；warning 签名分辨 0.24%→0.06%，leak 指标要全表面            |
+| xlat mock     | 全集（1259→5000）                                                                     | 零 LLM、秒级/篇；结构故障全暴露                                                             |
+| xlat sabotage | 全集（1259→5000）                                                                     | escaped==0 硬门——逃逸率真值越小所需样本越大，免费臂直接拉满                                 |
+| xlat real     | **子集 250-300**（≈21k-25k chunks）                                                   | gwcap sem=4 限速（见 7.3）；契约违约分辨 ~0.012%/chunk；n100 基线 99.96% 只能找模式不测小差 |
+| compile zh    | mock 产物全集 + real 产物 300                                                         | ~15-25s/篇 ÷8 ≈ 40min(1259)→3.5h(5000)；结构故障分辨 0.24%→0.06%                            |
+| compile base  | **首轮全集**建源健康基线，后续只对 zh 非 clean 格补跑归因                             | n100 源挂率 ~50%；首轮 ~1.5h(1259)→4.5h(5000)，后续按需 ~2500 格 ≈ 1.5h                     |
+| fixloop       | 产出驱动：全部 compile-fail 格（~600→扩库后 ~2500）+ `--always` 幂等检查 100 clean 格 | 每格 ≤8 轮 ×~10-20s/轮 ≈ 90s/格 ÷8 ≈ 2h(1259)→7h(5000)；rescue 率 SE≈1.7pp→0.8pp            |
 
-rescue 率这样的头条指标在全集上过强（SE 1.7pp），**绑定约束是稀有签名**——这是全集跑编译/fixloop 的真实理由。real-xlat 同理：不是为测率，是为**发现** LLM 引入破坏模式（断括号/造命令/空响应）。
+rescue 率这样的头条指标在全集上过强（SE 0.8-1.7pp），**绑定约束是稀有签名**——这是扩库 + 全集跑编译/fixloop 的真实理由。real-xlat 同理：不是为测率，是为**发现** LLM 引入破坏模式（断括号/造命令/空响应）。
 
 ### 7.2 中间段实验矩阵（跑实验阶段做什么）
 
@@ -154,7 +155,7 @@ rescue 率这样的头条指标在全集上过强（SE 1.7pp），**绑定约束
 
 **网关并发硬约束（2026-09-16 起）**：archbox 全部出向 tcp/3003 被 nftables `inet gwcap` REDIRECT 到 `gw-cap-proxy`（127.0.0.1:3399），`model` 以 `swe-2-medium` 开头的请求过**全局信号量 4**——任何会话、任何隧道共享。故 real 臂 sem=4；其他模型先查网关侧限流再定。观测 `curl 127.0.0.1:3399/__gwcap/healthz`（inflight/queued）。另：所有脚本/bench 直连 `http://100.105.212.52:3003`（tailscale，禁 loopback）；ssh 隧道仅为 texlate server 产品链保留。
 
-**成本估算（一轮 loop 批）**：ingest 纯 copytree 分钟级；parse 全集 ~10-15min；xlat mock 全集 <30min；compile zh+base 全集 ~2-2.5h；fixloop ~600 格 ~2h；real xlat 300 篇 @sem4 ≈ **5-7h**（~3s/req × ~85 chunks/篇 ÷4 ≈ 64s/篇网关时，流水化后 ~56 篇/h）——real 臂放隔夜跑。Linux 无 FS 沙箱：批量跑第三方 tex 加 `-no-shell-escape` + env 白名单。
+**成本估算（扩库后一轮 loop 批，5000 篇）**：ingest 扩库 ~1-3h 一次性 + copytree 分钟级；parse ~30min；xlat mock <1h；compile zh+base ~7h；fixloop ~2500 格 ~7h；real xlat 300 篇 @sem4 ≈ **5-7h**（不变，gwcap 限死）（~3s/req × ~85 chunks/篇 ÷4 ≈ 64s/篇网关时，流水化后 ~56 篇/h）——real 臂放隔夜跑。Linux 无 FS 沙箱：批量跑第三方 tex 加 `-no-shell-escape` + env 白名单。
 
 ### 7.4 阶段 go/no-go 门（每轮 loop 批的验收线）
 
@@ -204,9 +205,9 @@ fixloop 规则面（n100 签名直接转化）：
 
 1. T1-T7（leader 或 1-2 fixer，一天内）——观测面先正
 2. E1 stagerun 骨架 + E2 → n=20 全 stage smoke 验 records/resume/并发
-3. loop 批：mock 臂 n≈250 全 stage + real xlat n=50 → 首版 tickets（语料已全集物化，无 ingest 前置）
+3. **扩库与首轮并行**：数据侧按 stratum_cell 比例 + 故障偏向扫 IA items（目标 +3740→5000）；同时存量 1259 先跑 loop 批 mock 全 stage + real n=50 → 首版 tickets
 4. F1-F4 fixer 循环；每轮 merge 后 replay_all + 同 seed 重跑受影响 stage
-5. gate 批：mock 全集 1272 + real 子集 300 → 各 stage 硬化结论入 metrics.jsonl
+5. gate 批：扩库全集 5000（常见签名修完后视边际收益上 10000）+ real 子集 300 → 各 stage 硬化结论入 metrics.jsonl
 
 ## 附：与产品线的关系
 
