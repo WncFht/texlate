@@ -170,21 +170,22 @@ def test_pipeline_run_route_reject(
     )
     report = e2e.mock_pipeline_run(work, "auto", timeout=10.0)
 
-    assert report["status"] == "reject"
+    assert report["status"] == "partial"  # F3: 策略拒绝 → partial, reject_at 审计
     assert report["reject_at"] == "route"
     assert "compile" not in report
     assert "inject" not in report
 
 
 def test_pipeline_run_no_main_tex(tmp_path: Path) -> None:
-    """无 documentclass+document 环境 → find_main_tex None → reject。"""
+    """无 documentclass+document 环境 → find_main_tex None → partial+reject_at。"""
     work = tmp_path / "p"
     work.mkdir()
     (work / "frag.tex").write_text("just a fragment\n", encoding="utf-8")
 
     report = e2e.mock_pipeline_run(work, "auto", timeout=10.0)
 
-    assert report["status"] == "reject"
+    assert report["status"] == "partial"
+    assert report["reject_at"] == "route"
     assert "no main tex" in report["route"]["reasons"]
     assert "compile" not in report
 
@@ -196,9 +197,9 @@ def test_pipeline_run_inject_reject_documentstyle(
     work = _project(tmp_path / "p", main=_DOCSTYLE)
     report = e2e.mock_pipeline_run(work, "auto", timeout=10.0)
 
-    assert report["status"] == "reject"
+    assert report["status"] == "partial"  # F3: inject 拒绝合成 partial
     assert report["reject_at"] == "inject"
-    assert report["verdict"]["status"] == "reject"
+    assert report["verdict"]["status"] == "partial"
     assert report["verdict"]["reasons"] == ["latex209"]
     assert report["route"]["latex209_suspect"] is True  # route 不拒、只标记
     assert fake_engine == {}  # 拒在编译前——引擎没被构造

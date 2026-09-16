@@ -271,8 +271,8 @@ def run(  # noqa: C901, PLR0913 -- CLI 选项面即参数面 + 本地/瘦客户�
         verdict = mock_pipeline_run(work, engine, timeout)
         typer.echo(json.dumps(verdict, ensure_ascii=False, indent=2))
         status = verdict.get("status")
-        if status == "reject":
-            raise typer.Exit(2)
+        if verdict.get("reject_at"):
+            raise typer.Exit(2)  # 策略拒绝 (status=partial+reject_at): 保持 exit 2
         if status not in ("clean", "partial"):
             raise typer.Exit(1)
     finally:

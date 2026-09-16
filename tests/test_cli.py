@@ -86,13 +86,15 @@ class TestRun:
         assert (work / "keep.txt").is_file()  # 没被动
 
     def test_reject_exit_2(self, tmp_path: Path) -> None:
-        r"""``\documentstyle`` 工程 → inject 层拒 → status reject → exit 2。"""
+        r"""``\documentstyle`` 工程 → inject 层拒 → partial+reject_at → exit 2。"""
         src = _src(tmp_path, body=_DOCSTYLE)
         result = _RUNNER.invoke(
             app, ["run", str(src), "--work-dir", str(tmp_path / "w")]
         )
         assert result.exit_code == 2  # noqa: PLR2004
-        assert json.loads(result.stdout)["status"] == "reject"
+        rep = json.loads(result.stdout)
+        assert rep["status"] == "partial"  # F3: reject 合成 partial
+        assert rep["reject_at"] == "inject"
 
     def test_compile_fail_exit_1(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

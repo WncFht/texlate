@@ -293,8 +293,10 @@ async def pipe_xel_condition(
     try:
         rec["inject"] = prepare_chinese(work, main_rel)
     except InjectRejectError as e:
-        rec["status"] = "reject"
-        rec["verdict"] = {"status": "reject", "reasons": [e.reason]}
+        # F3: 策略拒绝 → partial + reject_at 审计（与 e2e.py 同形）
+        rec["status"] = "partial"
+        rec["reject_at"] = "inject"
+        rec["verdict"] = {"status": "partial", "reasons": [e.reason]}
         return rec
     rec.update(_compile_judge(work, main_rel, timeout, expect_cjk=True))
     return rec
@@ -319,7 +321,9 @@ def _want_fix(rec: dict, mode: str) -> bool:
     （inject 拒绝=无 ctex，CJK 注定 fail）。always=幂等/回退率探针。
     """
     v = (rec.get("pipe-xel") or {}).get("verdict", {}).get("status")
-    if v is None or v == "reject" or mode == "never":
+    reject_at = (rec.get("pipe-xel") or {}).get("reject_at")
+    if v is None or v == "reject" or reject_at or mode == "never":
+        # v=="reject" 仅兼容 F3 前旧结果文件；新数据走 reject_at 判定
         return False
     return mode == "always" or v == "fail"
 
@@ -395,7 +399,8 @@ async def run_project(
     rec: dict = {"id": rel}
     if not src.is_dir():
         rec["error"] = "no extracted/ dir"
-        rec["status"] = "reject"
+        rec["status"] = "partial"  # F3: 拒跑归降级档 + reject_at
+        rec["reject_at"] = "route"
         return rec
     meta_p = CORPUS / rel / "meta.json"
     if meta_p.exists():
@@ -407,7 +412,8 @@ async def run_project(
     main_path = find_main_tex(src)
     if main_path is None:
         rec["error"] = "no main tex"
-        rec["status"] = "reject"
+        rec["status"] = "partial"
+        rec["reject_at"] = "route"
         return rec
     main_rel = main_path.relative_to(src).as_posix()
     rec["main"] = main_rel
@@ -419,7 +425,8 @@ async def run_project(
         "non_utf8": route.non_utf8,
     }
     if route.reject:
-        rec["status"] = "reject"
+        rec["status"] = "partial"
+        rec["reject_at"] = "route"
         rec["base-xel"] = base_xel_condition(src, sid, main_rel, timeout)
         return rec
 

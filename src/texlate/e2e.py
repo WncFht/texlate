@@ -680,7 +680,10 @@ def _run_fixloop(
     last_res = proxy.last or prev_res
     cell_verdict = str(cell.get("verdict") or "")
     if cell_verdict.startswith("reject:"):
-        tail = _tail_dict(last_res, Verdict(status="reject", reasons=[cell_verdict]))
+        # reject:<rid> = 策略拒绝 (走降级链) → 终态合成 partial, 理由串
+        # 保留 reject 令牌供下游分流审计 (docs/08:185, spec §9 F3)。
+        tail = _tail_dict(last_res, Verdict(status="partial", reasons=[cell_verdict]))
+        tail["reject_at"] = "fixloop"
     else:
         tail = _tail_dict(last_res, judge(last_res, expect_cjk=True))
 
@@ -750,9 +753,10 @@ def pipe_condition(  # noqa: PLR0913 -- 修复链开关面（env 缺省，显式
     try:
         rec["inject"] = prepare_chinese(work, main_rel)
     except InjectRejectError as e:
-        rec["status"] = "reject"
+        # 策略拒绝 → partial (降级链交付), reject_at+reason 留审计 (F3)
+        rec["status"] = "partial"
         rec["reject_at"] = "inject"  # inject_reject 类: 与 route reject 分流
-        rec["verdict"] = {"status": "reject", "reasons": [e.reason]}
+        rec["verdict"] = {"status": "partial", "reasons": [e.reason]}
         return rec
     tail, res = _compile_judge(job, expect_cjk=True)
     rec.update(tail)
@@ -817,12 +821,13 @@ def mock_pipeline_run(  # noqa: PLR0913 -- 同上：开关面穿透到 pipe_cond
         "latex209_suspect": route.latex209_suspect,
     }
     if route.reject:
-        report["status"] = "reject"
+        report["status"] = "partial"  # 策略拒绝 → partial (F3), reject_at 审计
         report["reject_at"] = "route"
         return report
     main_path = find_main_tex(work)
     if main_path is None:
-        report["status"] = "reject"
+        report["status"] = "partial"
+        report["reject_at"] = "route"
         report["route"]["reasons"] = [*route.reasons, "no main tex"]
         return report
     main_rel = main_path.relative_to(work).as_posix()

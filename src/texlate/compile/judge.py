@@ -60,7 +60,7 @@ _CJK_RE = CJK_RX
 class Verdict:
     """`judge` 产物：终态 + 判据明细（落盘可审计）。"""
 
-    status: str  # "clean" | "partial" | "fail" | "reject"
+    status: str  # "clean" | "partial" | "fail"
     reasons: list[str] = field(default_factory=list)  # dirty/fail 判据
     notes: list[str] = field(default_factory=list)  # 信息性记录（不污染 status）
     n_errors: int = 0
