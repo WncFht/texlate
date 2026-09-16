@@ -244,3 +244,150 @@ class TestDocPipeline:
             assert snap["status"] == "fault"
             assert snap["error"]["code"] == "unsupported_format"
             assert snap["error"]["retryable"] is False
+
+    @staticmethod
+    def _events(client: TestClient, task_id: str) -> list[dict[str, object]]:
+        """任务事件落盘面（``events_since`` 同步读——chunk/warning 都过这）。"""
+        from functools import partial  # noqa: PLC0415
+
+        return client.portal.call(  # type: ignore[no-any-return]
+            partial(client.app.state.store.events_since, task_id, 0)
+        )
+
+    def test_glossary_kwarg_unconditional(
+        self,
+        tmp_path: Path,
+        clean_env: pytest.MonkeyPatch,  # noqa: ARG002
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """``_run_doc`` 无条件 ``glossary=_make_glossary(ctx)``——无 options 也
+
+        是 ``Glossary`` 实例（内建 default 层），不是 None。
+        """
+        from texlate.xlat.glossary import Glossary  # noqa: PLC0415
+
+        calls = self._fake_export(monkeypatch)
+        with self._live(tmp_path) as c:
+            body = _post(c, "a.docx", _docx())
+            snap = wait_terminal(c, body["task_id"])
+            assert snap["status"] == "done"
+        g = calls[0]["kw"]["glossary"]
+        assert isinstance(g, Glossary)
+        assert any(e.source == "default" for e in g.terms.values())
+
+    def test_glossary_reaches_prompt_real_path(
+        self,
+        tmp_path: Path,
+        clean_env: pytest.MonkeyPatch,  # noqa: ARG002
+    ) -> None:
+        """Prompt 直证：``options.glossary`` 经 ``glossary_dir`` confine →
+
+        ``_make_glossary`` → ``export_document`` → system 尾块术语行。
+        """
+        from docx import Document  # noqa: PLC0415
+
+        from texlate.xlat.pipeline import MockTranslator  # noqa: PLC0415
+
+        gdir = tmp_path / "gdir"
+        gdir.mkdir()
+        (gdir / "g.yaml").write_text("transformer: 变形金刚\n", encoding="utf-8")
+        _settings(tmp_path / "data", glossary_dir=str(gdir))
+        buf = io.BytesIO()
+        doc = Document()
+        doc.add_paragraph("The transformer architecture relies on attention.")
+        doc.save(buf)
+        mock = MockTranslator()
+        app = make_app(
+            tmp_path, start_worker=True, translator_factory=lambda _ctx: mock
+        )
+        with TestClient(app) as c:
+            body = _post(c, "a.docx", buf.getvalue(), options='{"glossary":"g.yaml"}')
+            snap = wait_terminal(c, body["task_id"])
+            assert snap["status"] == "done"
+        systems = [str(call["system"]) for call in mock.calls]
+        assert systems
+        assert any("- transformer: 变形金刚" in s for s in systems)
+
+    def test_on_result_counters_chunk_event_progress(
+        self,
+        tmp_path: Path,
+        clean_env: pytest.MonkeyPatch,  # noqa: ARG002
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """on_result 回弹面：counters/tokens 落库 + chunk 事件 + progress 离 25。"""
+        self._fake_export(monkeypatch)
+        with self._live(tmp_path) as c:
+            store = c.app.state.store
+            seen: list[int] = []
+            orig = store.update_fields
+
+            def _spy(tid: str, **fields: object) -> None:
+                if "progress" in fields:
+                    seen.append(int(fields["progress"]))  # type: ignore[arg-type]
+                orig(tid, **fields)
+
+            monkeypatch.setattr(store, "update_fields", _spy)
+            body = _post(c, "a.docx", _docx())
+            snap = wait_terminal(c, body["task_id"])
+            assert snap["status"] == "done"
+            assert snap["counters"]["done"] == 1
+            # (len("Hello world") + len("你好世界")) // 4 = 3——无真账时 est 持久化
+            assert snap["counters"]["tokens"] == 3  # noqa: PLR2004 -- 上式定值
+            assert "usage" not in snap  # MockTranslator 无 client → 不落 usage 行
+            chunks = [
+                e["data"]
+                for e in self._events(c, body["task_id"])
+                if e["type"] == "chunk"
+            ]
+            assert chunks == [
+                {
+                    "done": 1,
+                    "total": 0,
+                    "cached": 0,
+                    "failed": 0,
+                    "items": [{"seq": 1, "status": "ok"}],
+                }
+            ]
+            # translating 区间 (25,85)：逐 unit 自增 25+1=26，不再钉 25
+            assert seen == [26]
+
+    def test_mock_fallback_warns(
+        self,
+        tmp_path: Path,
+        clean_env: pytest.MonkeyPatch,  # noqa: ARG002
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """无 key 且未显式 mock → ``mock_translator`` warning 事件留痕。"""
+        self._fake_export(monkeypatch)
+        app = make_app(tmp_path, start_worker=True)  # 无 translator_factory
+        with TestClient(app) as c:
+            body = _post(c, "a.docx", _docx())
+            snap = wait_terminal(c, body["task_id"])
+            assert snap["status"] == "done"
+            warns = [
+                e["data"]["code"]
+                for e in self._events(c, body["task_id"])
+                if e["type"] == "warning"
+            ]
+            assert warns == ["mock_translator"]
+
+    def test_explicit_mock_env_no_warning(
+        self,
+        tmp_path: Path,
+        clean_env: pytest.MonkeyPatch,  # noqa: ARG002
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """``TEXLATE_TRANSLATOR=mock`` 是显式选择——不打 mock_translator 警告。"""
+        monkeypatch.setenv("TEXLATE_TRANSLATOR", "mock")
+        self._fake_export(monkeypatch)
+        app = make_app(tmp_path, start_worker=True)
+        with TestClient(app) as c:
+            body = _post(c, "a.docx", _docx())
+            snap = wait_terminal(c, body["task_id"])
+            assert snap["status"] == "done"
+            warns = [
+                e["data"]["code"]
+                for e in self._events(c, body["task_id"])
+                if e["type"] == "warning"
+            ]
+            assert "mock_translator" not in warns

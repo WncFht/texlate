@@ -1014,6 +1014,9 @@ class PipelineWorker:
         self._compile_timeout = compile_timeout
         self._loop: asyncio.AbstractEventLoop | None = None
         self._loop_tid = 0
+        #: ``mock_translator`` 告警按 task 去重（translate/env_judge/L2/doc 多处
+        #: 调 ``_make_translator``，同一任务只留一条痕）
+        self._mock_warned: set[str] = set()
 
     # ------------------------------------------------------------ 事件辅助
 
@@ -2643,7 +2646,7 @@ class PipelineWorker:
 
     # ------------------------------------------------------------ doc 管线
 
-    async def _run_doc(self, ctx: TaskCtx) -> None:  # noqa: C901 -- 错误面/终态分支即 §2.2 映射表，平铺即清单
+    async def _run_doc(self, ctx: TaskCtx) -> None:
         """docx/epub：``export_document`` 双语插译（无编译链——产物即双语原文档）。
 
         ``export_document`` 内部 ``asyncio.run(XlatPipeline)``——必须
@@ -2669,36 +2672,32 @@ class PipelineWorker:
         self._register(ctx, "src_tar", f"upload/{src.name}")
         self._stage(ctx, "translating", "文档插译", PROGRESS["translating"][0])
         translator = self._make_translator(ctx)
-        client = getattr(translator, "client", None)
+        clients = _translator_clients(translator)
         ext = src.suffix.lower()
         if ext not in (".docx", ".epub"):
             ext = f".{ctx.row['kind']}"
         dst = ctx.root / f"{src.stem}_bilingual{ext}"
         counters = {"done": 0, "failed": 0}
+        usage = {
+            "calls": 0,
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "latency_s": 0.0,
+            "model": "",
+        }
 
-        def on_result(r: ChunkResult) -> None:
-            """逐 unit 计数 + chunk 事件（units 枚举在 export 内部，total 未知填 0）。"""
-            counters["done"] += 1
-            if r.status in ("skipped", "fault"):
-                counters["failed"] += 1
-            ctx.tokens_est += (len(r.source) + len(r.translation)) // 4
-            self._on_loop(
-                self.bus.publish,
-                ctx.task_id,
-                "chunk",
-                {
-                    "done": counters["done"],
-                    "total": 0,
-                    "cached": 0,
-                    "failed": counters["failed"],
-                    "items": [
-                        {
-                            "seq": counters["done"],
-                            "status": _PIPE_TO_DB.get(r.status, "failed"),
-                        }
-                    ],
-                },
-            )
+        def _on_usage(u: UsageRecord) -> None:
+            """真实 token/延迟记账（tex 路 _stage_translate 同款 sink）。"""
+            usage["calls"] += 1
+            usage["prompt_tokens"] += u["prompt_tokens"]
+            usage["completion_tokens"] += u["completion_tokens"]
+            usage["latency_s"] += u["latency_s"]
+            usage["model"] = u["model"]
+
+        for c in clients:
+            c.usage_sink = _on_usage
+
+        on_result = self._doc_on_result(ctx, counters)
 
         try:
             report = await asyncio.to_thread(
@@ -2708,6 +2707,7 @@ class PipelineWorker:
                 translator,
                 target_lang=str(ctx.row["target_lang"]),
                 state_dir=ctx.root / "export-state",
+                glossary=self._make_glossary(ctx),
                 on_result=on_result,
             )
         except ExportError as e:
@@ -2721,12 +2721,12 @@ class PipelineWorker:
             )
             return
         finally:
-            if isinstance(client, ChatClient):
-                # client 在 to_thread 的 ephemeral loop 里跑过——aclose 尽力而为
-                try:
-                    await client.aclose()
-                except Exception:
-                    log.debug("doc client aclose failed", exc_info=True)
+            self._doc_persist_usage(ctx, usage)
+            # clients 在 to_thread 的 ephemeral loop 里跑过——aclose 尽力而为
+            try:
+                await _aclose_clients(clients)
+            except Exception:
+                log.debug("doc client aclose failed", exc_info=True)
         self._check_cancelled(ctx)
         for w in report.warnings:
             self._warning(ctx, "export", w)
@@ -2737,6 +2737,7 @@ class PipelineWorker:
             total_chunks=report.units,
             done_chunks=report.translated + report.unchanged,
             failed_chunks=n_bad,
+            tokens=ctx.tokens_est,
         )
         if self._current_status(ctx) in TERMINAL_STATUSES:
             return  # cancel 竞态：终态已写，不再覆盖
@@ -2767,6 +2768,82 @@ class PipelineWorker:
                 "artifacts": self._artifact_urls(ctx),
                 "stats": self._stats(ctx),
             },
+        )
+
+    def _doc_on_result(
+        self, ctx: TaskCtx, counters: dict[str, int]
+    ) -> Callable[[ChunkResult], None]:
+        """``on_result`` 工厂：逐 unit 计数 + tokens 估算 → ``_doc_emit`` 回弹。"""
+
+        def on_result(r: ChunkResult) -> None:
+            counters["done"] += 1
+            if r.status in ("skipped", "fault"):
+                counters["failed"] += 1
+            ctx.tokens_est += (len(r.source) + len(r.translation)) // 4
+            item: dict[str, Any] = {
+                "seq": counters["done"],
+                "status": _PIPE_TO_DB.get(r.status, "failed"),
+            }
+            code = chunk_error_code(r)
+            if code is not None:
+                item["error_code"] = code
+            self._on_loop(
+                self._doc_emit,
+                ctx,
+                counters["done"],
+                counters["failed"],
+                ctx.tokens_est,
+                {
+                    "done": counters["done"],
+                    "total": 0,
+                    "cached": 0,
+                    "failed": counters["failed"],
+                    "items": [item],
+                },
+            )
+
+        return on_result
+
+    def _doc_emit(
+        self,
+        ctx: TaskCtx,
+        done: int,
+        failed: int,
+        tokens: int,
+        payload: dict[str, Any],
+    ) -> None:
+        """Doc 路逐 unit 回弹段（``_on_loop`` 切回 loop 线程的单写者面）。
+
+        units 枚举在 export 内部、total 事前不可知——progress 按 done 自增
+        近似并钉在 ``hi-1`` 以下（终态 100 由 ``transition`` 写）。
+        """
+        lo, hi = PROGRESS["translating"]
+        self.store.update_fields(
+            ctx.task_id,
+            done_chunks=done,
+            failed_chunks=failed,
+            tokens=tokens,
+            progress=min(hi - 1, lo + done),
+        )
+        self.bus.publish(ctx.task_id, "chunk", payload)
+
+    def _doc_persist_usage(self, ctx: TaskCtx, usage: dict[str, Any]) -> None:
+        """真实 usage 落账（``_teardown_translate`` 同款「有真账用真账」）。
+
+        在 ``_run_doc`` 的 finally 段跑——ExportError/crash 早退也把已发
+        调用的真账留下。
+        """
+        if not usage["calls"]:
+            return
+        ctx.tokens_est = usage["prompt_tokens"] + usage["completion_tokens"]
+        self.store.update_fields(ctx.task_id, tokens=ctx.tokens_est)
+        self.store.record_usage(
+            ctx.task_id,
+            model=str(usage["model"]),
+            calls=int(usage["calls"]),
+            prompt_tokens=int(usage["prompt_tokens"]),
+            completion_tokens=int(usage["completion_tokens"]),
+            latency_s=float(usage["latency_s"]),
         )
 
     # ------------------------------------------------------------ translator
@@ -2801,6 +2878,14 @@ class PipelineWorker:
                         primary, GatewayTranslator(client, retry_model)
                     )
             return primary
+        # 无 key 且未显式 mock/gateway——静默假译文是生产事故面，必须留痕
+        if ctx.task_id not in self._mock_warned:
+            self._mock_warned.add(ctx.task_id)
+            self._warning(
+                ctx,
+                "mock_translator",
+                "未配置 API key——回退 MockTranslator，产出为占位译文而非真实翻译",
+            )
         return MockTranslator()
 
     def _glossary_path(
