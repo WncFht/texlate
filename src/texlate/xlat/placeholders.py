@@ -6,7 +6,8 @@ r"""占位符编解码与 src↔zh 对账（规格 docs/08 §1.3/§1.6，口径�
 - `[[NAME]]` 裸标记仅 SL/PL 换行编码系与 `\ ` 间距保护（`[[SL]]`/`[[PL]]`/`[[SP]]` 及 `_RAW` 变体）——无 `_n` 后缀。
 - 换行编码只接管段内 `\n`（分段边界在 chunk 层管理，`[[PL]]` 仅作 `\n\n+` 防御编码）。
 - 占位符多重集 diff + lev≤2 模糊配对与 `rule_validator.check_placeholder` 同口径——
-  本模块是 xlat 层自带的轻量对账，正式 L0 校验器就绪后经 `PhValidator` 协议替换。
+  本模块是 xlat 层自带的轻量对账，正式校验器经 pipeline 的
+  `validator(src, zh) -> str` 缝替换（返回空串=通过）。
 """
 
 from __future__ import annotations
@@ -242,14 +243,6 @@ def recover_copied_tokens(zh: str, ph_map: Mapping[str, str]) -> tuple[str, list
             zh = zh.replace(fragment, ph, 1)
             recovered.append(ph)
     return zh, recovered
-
-
-#: xlat 侧对账协议——正式 L0 校验器实现同签名即可无缝替换 `diff`
-class PhValidator:
-    """占位符校验器协议（可插拔点：接 `texlate.validate` L0 后用同一签名）。"""
-
-    def __call__(self, src: str, zh: str) -> PhDiff:  # pragma: no cover - 协议声明
-        """返回 src↔zh 占位符对账。"""
 
 
 def collect_doc_placeholders(contents: Iterable[str]) -> list[str]:

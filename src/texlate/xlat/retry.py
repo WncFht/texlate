@@ -29,6 +29,7 @@ import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from .batch import split_long_chunk
 from .client import HTTP_TOO_MANY_REQUESTS, ChatError
 from .placeholders import ANY_PH_RX, decode_newlines, diff, encode_newlines
 
@@ -43,7 +44,7 @@ SLOT_SUFFIX = "⟫"
 SLOT_NAME_RX = re.compile(r"⟪S\d{4,}⟫")
 #: 每批槽位数（docs/08:113）
 SLOTS_PER_BATCH = 8
-#: slots 模式单槽最大字符（过长槽先句界二分——同 batch._best_split 思路内联实现）
+#: slots 模式单槽最大字符（过长槽按 batch.split_long_chunk 句界二分）
 SLOT_MAX_CHARS = 1500
 #: slots 阶段轮数：首轮 + 失败槽重问一轮
 SLOTS_MAX_ROUNDS = 2
@@ -179,25 +180,32 @@ def _make_slots(encoded: str) -> tuple[dict[str, str], list[tuple[str, str]]]:
 
     返回 ({sid: 散文原文}, seq)；seq = [("slot"|"ph"|"raw", payload), ...]。
     空散文段不产生槽位（相邻占位符直接相连），纯空白段以 raw 保留。
+    超 ``SLOT_MAX_CHARS`` 的散文段按句界二分成连续槽位（seq 相邻
+    ``slot`` 项重组时顺序拼接，接缝处由源文自带空白隔开）。
     """
     seq: list[tuple[str, str]] = []
     slots: dict[str, str] = {}
+
+    def emit_prose(seg: str) -> None:
+        for piece in split_long_chunk(seg, max_chars=SLOT_MAX_CHARS):
+            if not piece.strip():
+                continue
+            sid = f"{SLOT_PREFIX}{len(slots):04d}{SLOT_SUFFIX}"
+            slots[sid] = piece
+            seq.append(("slot", sid))
+
     pos = 0
     for m in ANY_PH_RX.finditer(encoded):
         seg = encoded[pos : m.start()]
         if seg.strip():
-            sid = f"{SLOT_PREFIX}{len(slots):04d}{SLOT_SUFFIX}"
-            slots[sid] = seg
-            seq.append(("slot", sid))
+            emit_prose(seg)
         elif seg:
             seq.append(("raw", seg))
         seq.append(("ph", m.group(0)))
         pos = m.end()
     tail = encoded[pos:]
     if tail.strip():
-        sid = f"{SLOT_PREFIX}{len(slots):04d}{SLOT_SUFFIX}"
-        slots[sid] = tail
-        seq.append(("slot", sid))
+        emit_prose(tail)
     elif tail:
         seq.append(("raw", tail))
     return slots, seq

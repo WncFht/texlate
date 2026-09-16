@@ -349,3 +349,26 @@ class TestLadder:
                     slots_fn=self._empty_slots,
                 )
             )
+
+
+def test_make_slots_bisects_long_prose() -> None:
+    """超 ``SLOT_MAX_CHARS`` 散文段按句界拆连续槽位——docs/08:113 spec 参数实装。"""
+    sentence = "This is a fairly long sentence chunk with words. "
+    seg = sentence * (rt.SLOT_MAX_CHARS // len(sentence) + 2)
+    encoded = seg + "[[MATH_1]]tail words"
+    slots, seq = rt._make_slots(encoded)  # noqa: SLF001
+    assert len(slots) >= 2  # noqa: PLR2004 -- 二分生效
+    assert all(len(v) <= rt.SLOT_MAX_CHARS for v in slots.values())
+    # seq 保序：连续 slot 项 + ph + 尾 slot
+    kinds = [k for k, _ in seq]
+    assert kinds == ["slot"] * (len(slots) - 1) + ["ph", "slot"]
+    # 槽文重组覆盖源文非空白全部内容（切点不丢字）
+    joined = "".join(slots[p] for k, p in seq if k == "slot")
+    assert joined.replace("\n", "") == (seg + "tail words").replace("\n", "")
+
+
+def test_make_slots_short_prose_single_slot() -> None:
+    """短散文不切——回归原单槽行为。"""
+    slots, seq = rt._make_slots("short prose [[MATH_1]] tail")  # noqa: SLF001
+    assert len(slots) == 2  # noqa: PLR2004
+    assert [k for k, _ in seq] == ["slot", "ph", "slot"]
