@@ -85,6 +85,7 @@ bytes[0:4] == "%PDF"         → PDF 直投（无源码 → sidecar）
 - 落盘：`raw.{tar.gz|gz|pdf|bin}` 单文件（原始 blob 字节原样保存，可重放——勘误 2026-09-17：非 `raw/` 目录，staging 落成单 blob）+ `extracted/`（过滤后树）。
 - **mtree**：每包一份 `mtree.txt`（TSV `path\tsize\tsha256\tkind[\t-> target][\tstub]`，kind ∈ file/dir/symlink/hardlink，symlink/hardlink 记 `-> target`，stub 成员尾挂 `stub` 标记——勘误 2026-09-17：原规格只记 path+size+sha256 三列）——缓存完整性校验、跨版本 diff、引用排序去重依据。
 - 链接语义：包内 symlink 保留落盘 + `link_kept` 告警（安全已查，引用关系对编译语义要紧）；hardlink 目标可能靠后出现 → 延迟二遍物化（`_finish_links`：目标在树 → `hardlink_materialized` 复制实体计入 mtree；缺席/是 symlink → `hardlink_dangling` 告警不落盘）；后到同名非链接成员压掉未物化的 hardlink 声明，与 last-wins 成员序一致。
+- **别名落点对账**（勘误 2026-09-17）：经 kept symlink 祖先写穿的成员与先到路径共享同一物理落点——后到写穿先到（last-wins），但 mtree 按字面成员路径记账会把先到条目的内容字段留成声明时旧值；解包收尾 `_reconcile_aliases` 以各落点最末成员为赢家，把 size/sha256（涉 symlink 时含 kind/link_target）回填先到条目，字段实际变化者记 `dup_member_overwrite`（与字面重名同语义），记录本就一致的别名不告警。
 - stub 过滤：`member_bytes < 100B` 或解压后 `%auto-ignore` 前缀 → 标 `stub` 不进抽样（实测 42B 占位混入案例）。
 
 ### 2.3 主文件定位算法

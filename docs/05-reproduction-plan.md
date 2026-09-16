@@ -122,7 +122,7 @@ sidecar BabelDOC(AGPL 边界) | 降级链 HTML/PDF | 远期: EPUB/DOCX/批量层
 - 端点分桶限速：`arxiv.org` 与 `export.arxiv.org` 各自 ≥3.05s 全局间隔、零并发；UA 强制 `texlate/{ver} (+repo; mailto:)`。
 - 每个 GET 前先 `HEAD /src/{id}`：content-disposition 拿 resolved_version+ 格式、content-length 上限 150MB、etag 重验证。
 - 退避：单请求 429→+10/30/90s jitter；**同 host 连续 2 次 429 → 队列 park 15min**（实测惩罚窗口 ≥3min，原地重试是浪费），翻倍上限 2h，checkpoint 落盘可恢复。
-- 解包：魔数三态（`1f8b`→gunzip→ustar 嗅探 / `%PDF`→sidecar / 其他→人工）；bsdtar 不碰 gz-非-tar；逐成员路径安全（`..`/绝对路径/link/setuid 拒、大小写折叠冲突检测、≤512MB/≤20k 成员/≤100MB 单文件）；`mtree.txt`（path+sha256）每包一份。
+- 解包：魔数三态（`1f8b`→gunzip→ustar 嗅探 / `%PDF`→sidecar / 其他→人工）；bsdtar 不碰 gz-非-tar；逐成员路径安全（`..`/绝对路径/link/setuid 拒、大小写折叠冲突检测、≤512MB/≤20k 成员/≤100MB 单文件）；`mtree.txt`（path+sha256）每包一份。（勘误 2026-09-17：mtree 实为 TSV `path\tsize\tsha256\tkind[\t-> target][\tstub]` 多列；另增**别名落点对账**——经 kept symlink 祖先写穿的成员，mtree 先到条目以赢家实况记账 + `dup_member_overwrite` 告警；详见 docs/06 §2.2。）
 - 主文件：剥注释匹配 `\documentclass|\documentstyle` → `\begin{document}` 优先 → include 图根 → 文件名先验 → 多根标 `multi_doc` → 零候选走降级。
 - 元数据：Atom `id_list` 批量（≤200/次、URL ≤8KB 分批）；primary_category → 术语包映射；authors → 不可译名单；`resolved_version` 陈旧检测。
 
@@ -176,8 +176,8 @@ sidecar BabelDOC(AGPL 边界) | 降级链 HTML/PDF | 远期: EPUB/DOCX/批量层
 ### 5.7 `texlate/server/` + `web/` —— API/队列/前端（规格：web-layer.md）
 
 - 5 表 DDL + 11 态机 + SSE 协议（snapshot/stage/chunk/log/warning/error/done，200ms 合帧，`Last-Event-ID` 重放）照规格实现。
-- BYOK 四级入口：header > settings.json(0600) > env > CLI configure；key 只活内存，`tenant='k_'+sha256(key+salt)[:12]`；四层脱敏防线。
-- 中间件：TrustedHost(localhost) + 非 GET 校验 Origin/Sec-Fetch-Site + `/api` no-store——本地持 key 服务必须防 CSRF。
+- BYOK 四级入口：header > settings.json(0600) > env > CLI configure；key 只活内存，`tenant='k_'+sha256(key+salt)[:12]`；四层脱敏防线。（勘误 2026-09-17：**server 形态 key 不回落**——`TEXLATE_MODE=server` 且无 `X-Texlate-Key` 时 `resolve_auth` 直出 `api_key=""`/`source=none`，不落 settings.json/env，固定匿名桶永不携带部署方凭据（读面同此）；`validate_model` 加 `isprintable` 闸拒 C0/C1/分隔符族控制字符。）
+- 中间件：TrustedHost(localhost) + 非 GET 校验 Origin/Sec-Fetch-Site + `/api` no-store——本地持 key 服务必须防 CSRF。（勘误 2026-09-17：impl 为单中间件 `request_gate_mw` 两形态共用——local 形态 `Host` 剥端口须 ∈ `{localhost,127.0.0.1,::1}` 违则 403（DNS rebinding 收口，含读面全请求）；mutating `/api`（POST/PUT/DELETE/PATCH）按序：`Origin` 命中 server `cors_origins` allowlist 放行 → `Sec-Fetch-Site: cross-site` 403 → `Origin` 在且 scheme+netloc（含端口）≠ 请求 scheme+`Host` 403（loopback 族内跨端口同拒）→ 两头皆无放行（非浏览器客户端）；server 形态无 `X-Texlate-Key` 的 mutation 一律 401 `auth_required`，allowlist 命中不豁免。旁闸：非空 JSON body 须 `Content-Type: application/json`（容 charset）违则 415——浏览器 simple-request 造不出合法 mutation；`PUT /api/settings` 与 `settings/test` server 形态 403 关停；`settings/test` body 给 `base_url` 不给 `api_key` → 400（跨槽 exfil 闸）；upload 文件名白名单化后落 `.`/`..` → 400 不留孤儿目录。）
 - 前端：三模式 + split 双 PdfPane + SyncEngine（~100 行已成稿）+ 段落棋盘格进度 + HtmlPane 降级（marked+KaTeX，`data-chunk` 1:1 锚比 PDF 锚更准）。
 - `dual.json`：alignment（landmarks|pages）+ 可选 chunks 段对。
 

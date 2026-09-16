@@ -13,7 +13,7 @@
 | `texlate web [--host --port --data-dir]`                    | 起 FastAPI+SSE 服务（缺省 127.0.0.1:8765），SPA 需先 `scripts/build-web.sh`                             |
 | `texlate export <docx/epub>`                                | 双语插译导出                                                                                            |
 | `texlate share pack <task_id>`                              | 任务产物打社区共享包 `{share_key}.share.zip`（七组分键，见 shared-cache.md）                            |
-| `texlate share unpack <bundle>`                             | 共享包解包 + manifest/产物 sha256 全量回验                                                             |
+| `texlate share unpack <bundle>`                             | 共享包解包 + manifest/产物 sha256 全量回验（manifest ≤1MB、artifacts ≤64 条、声明合计 ≤300MB、成员按声明 size+1 有界读对账，违例 ShareError→`share_invalid`） |
 | `texlate doctor`                                            | 环境自检：python/tectonic/xelatex/cjk 字体（ctex/fandol/sys-zh）/pdftotext/网关连通/data-dir/server-extra/babeldoc 逐项 ok/warn/fail/n/a |
 | `texlate version`                                           | 打版本号                                                                                                |
 | `texlate tools install-tectonic`                            | tectonic 便携引擎安装（sha256 钉版矩阵）                                                                |
