@@ -55,3 +55,15 @@ syntax 15 / other 14 / babel_opt 11 / illegal_unit 10 / pdftex_prim 7 / capacity
 **Round 2**（13 格重跑）：**全数落 pdf** —— 11 acceptable_pdf + 2 best_effort_pdf（2304.05202、2211.04482）。
 
 **19 格终态**：14 格出 pdf；残 5 —— 1803.00012（SIGSEGV）、1706.02464（bufsize）、1003.1717（syntax）、1306.0036/2410.00012（undefined_cs）。pst-node/pst-arrow 可解仍败疑点在本批未复现（不在这 19 格内），归 loop2 全量观察。
+
+## 补记 4：残 5 格归因终版（2026-09-16，loop2 点火前）
+
+逐格机理查明，3 格已修入 loop2 数据集：
+
+- **1306.0036 → 规则互踩（已修 `88d0ab9`）**：`pdftex_prim_polyfill` 注入 `\ifdefined\pdfoutput\else\chardef\pdfoutput=1\fi`，下一轮 `pdftex_prim_guard` 的旧 lookbehind `(?<!ifdefined)` 仍放行 `\chardef\` 紧邻的 `\pdfoutput=1` → 套娃改写成 `\chardef\ifdefined\pdfoutput\pdfoutput=1\fi`（复现逐字节吻合）；同理对自输出不幂等、连 `\ifnum\pdfoutput=1` 比较式也误裹。lookbehind 改 `(?<![\\a-zA-Z])`（cs 名紧邻一律不动）后三种语境全免疫且幂等。
+- **2410.00012 → spotcolor 是 pdfTeX-only（已修 `88d0ab9`）**：bundled ieeeaccess.cls `\RequirePackage{spotcolor}`；spotcolor 内部 `\AddSpotColor→\pdfobj/\pdflastobj` 是 pdfTeX 原语，xelatex/tectonic 必炸 undefined_cs（payload=SpotSpace）。TL 有真包 → missing_file 打不到；xespotcolor（TL 有）同 API 面 → 新规则 `spotcolor_xetex_shadow`（order 156）wdir 注 stub 桥接，gate=source_contains{spotcolor}+cs_set。
+- **1706.02464 → bufsize 硬死（已修 `26b760e`）**：bundled TCI 宏转储 `tcilcomm.tex` 单行 3MB，顶穿 web2c buf_size=200000 → `Unable to read an entire line` 无 `!` 收尸。`XelatexEngine._env` setdefault `buf_size=8000000`（kpathsea cnf 经 env 覆盖，实跑验证过线）。过线后暴露第二层伤：该巨行内亦有 `这是译文` 腐蚀 → 属下条超簇，等 segmenter 修后重翻。
+- **1003.1717 → 译文腐蚀超簇成员（fixer-slots 属地）**：bundled `aps.rtx`/`10pt.rtx`（REVTeX 运行时数据文件，makeatletter 域）被当正文翻——`-.25in`→`-.25这是译文`（illegal_unit）、`\let\frontmatter@footnote@produce...`→`\let\frontmatter@ 这是译文`（csname 断裂）。与 1d scout 超簇同机理；补注：.rtx 这类文件 `@` 是字母，segmenter 按普通 .tex tokenize 会错切 cs 名。
+- **1803.00012 → 确定性 xelatex SIGSEGV（ticket-only）**：revtex4 shim 树内 hyperref 初始化段（log 止于 `Plain pages OFF` 后）崩 rc=-11；stack/save/nest_size 放宽无效、`unicode=false` 无效（文档自开 unicode=true）→ 非资源耗尽、非选项门控的真引擎 bug，无规则面可修。
+
+另发现并移交 1d：`shim_known` 条件（engine.py:611）实际不可达（shim_map 键带扩展名 vs `\usepackage{裸名}`）；payload 口径在宏内炸场景偏到展开点行末（真冒犯 cs 在上文 macro-expansion 行末）；`PDFTEX_PRIMS` 缺 pdfobj/pdflastobj 族（wdir 内直用型稿件要靠它 guard/polyfill）。
