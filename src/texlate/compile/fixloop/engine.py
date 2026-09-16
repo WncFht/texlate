@@ -728,19 +728,33 @@ _DEP_DECL_RE = re.compile(
     re.MULTILINE,
 )
 
+#: ``\input stem``/``\input{stem}`` 裸名依赖——行内允许 (pst-* generic 实证:
+#: pstricks-add.tex l.27-32 ``\ifx\PSTnodesLoaded\endinput\else \input pst-node \fi``
+#: 顺序链, 条件不管照装——probe/install 门控天然无害)。
+_DEP_INPUT_RE = re.compile(r"\\input\s+(?:\{([^}\n]*)\}|([^\s{}%\\]+))")
+
+#: 行内注释切尾 —— ``\%`` 转义不算注释起点。
+_COMMENT_CUT_RE = re.compile(r"(?<!\\)%")
+
 
 def _dep_stems(path: Path) -> list[str]:
-    r"""包文件行首 ``\\RequirePackage``/``\\LoadClass`` 声明的依赖名表。"""
+    r"""包文件依赖名表: 行首 ``\\RequirePackage``/``\\LoadClass`` + 行内 ``\\input``。"""
     try:
         text = path.read_text(errors="replace")
     except OSError:
         return []
-    return [
+    stems = [
         stem
         for m in _DEP_DECL_RE.finditer(text)
         for stem in (s.strip() for s in m.group(1).split(","))
         if stem
     ]
+    for line in text.splitlines():
+        code = _COMMENT_CUT_RE.split(line, maxsplit=1)[0]
+        stems += [
+            g for m in _DEP_INPUT_RE.finditer(code) if (g := m.group(1) or m.group(2))
+        ]
+    return stems
 
 
 def _try_install_dep(ctx: LoopCtx, eng: Engine, stem: str) -> Path | None:
@@ -762,7 +776,7 @@ def _try_install_dep(ctx: LoopCtx, eng: Engine, stem: str) -> Path | None:
 def _dep_fanout(
     ctx: LoopCtx, eng: Engine, seeds: Iterable[Path], seen: set[str], *, depth: int
 ) -> None:
-    """``seeds`` 各文件行首依赖声明 BFS 补装 (就地改 ``ctx.installed``/``seen``)。"""
+    """``seeds`` 各文件依赖声明 BFS 补装 (就地改 ``ctx.installed``/``seen``)。"""
     frontier = list(seeds)
     for _ in range(depth):
         nxt: list[Path] = []
@@ -849,6 +863,7 @@ def _apply_install_file(
             # TeX 语义实际找 X.tex; 裸名照试后补 .tex 变体 (epsf 实证:
             # filemap/shim_map 键全带扩展名, 裸名恒 miss)。
             candidates.append(params["file"] + ".tex")
+    missed: list[str] = []
     for fname in candidates:
         font_related = bool(params.get("font_related")) or fname.endswith(font_exts)
         # probe 带 cwd=wdir: 工程内文件/ctan_fetch 平铺落盘均算命中
@@ -861,7 +876,7 @@ def _apply_install_file(
         if not eng.install_file(fname, font_related=font_related):
             pkgs = _filemap_candidates(eng, fname)
             hint = f" (candidates: {', '.join(pkgs)})" if pkgs else ""
-            ctx.advisories.append(f"no package provides {fname}{hint}")
+            missed.append(f"no package provides {fname}{hint}")
             continue
         if not (installed := _probe(eng, fname, cwd=ctx.wdir)):
             ctx.advisories.append(f"installed but {fname} still not found")
@@ -871,6 +886,9 @@ def _apply_install_file(
         if font_related:
             eng.rebuild_fontmaps()
         return True, f"installed {fname}{fanout_note}"
+    # 全候选失败才落 advisory——前候选 miss 后候选成 (裸名→.tex fallback)
+    # 的常态路径不该污染归因统计 (scout-pst 实证噪音)
+    ctx.advisories.extend(missed)
     return False, f"no candidate file installed for {params['file']}{fanout_note}"
 
 

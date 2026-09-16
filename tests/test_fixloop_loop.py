@@ -234,6 +234,56 @@ def test_install_requester_fanout_tail_preempt(tmp_path: Path) -> None:
     assert set(eng.install_calls) >= {"pst-node.sty", "pst-poly.sty"}
 
 
+def test_install_requester_fanout_input_chain(tmp_path: Path) -> None:
+    r"""pstricks-add.tex 实证 (scout-pst): ``\\input`` 行内裸名链扇出。
+
+    generic .tex 的 ``\\ifx\\else \\input stem \\fi`` 顺序链不被
+    ``\\RequirePackage`` 行首扫描覆盖——裸名逐轮暴露烧光 max_rounds;
+    行内 ``\\input`` 扫描让要求方扇出一轮补齐整条链。要求方落在 texmf
+    (生产形态), 由 file:line 锚 + probe fallback 解析——不放 wdir 是刻意的,
+    否则 static_precheck 先扫到它就测不到扇出。"""
+    texmf = tmp_path / "texmf"
+    texmf.mkdir()
+    (texmf / "pstricks-add.tex").write_text(
+        "\\ifx\\PSTnodesLoaded\\endinput\\else \\input pst-node \\fi\n"
+        "\\ifx\\PSTarrowsLoaded\\endinput\\else \\input pst-arrow \\fi\n"
+        "% \\input pst-notreal\n"
+    )
+    (tmp_path / "proj").mkdir()
+    proj = make_proj(tmp_path / "proj")
+
+    class TexmfEngine(MockEngine):
+        def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
+            if cwd is not None and (Path(cwd) / fname).is_file():
+                return str(Path(cwd) / fname)
+            p = texmf / fname
+            return str(p) if p.is_file() else super().probe_file(fname)
+
+        def install_file(self, fname: str, *, font_related: bool = False) -> bool:
+            del font_related
+            self.install_calls.append(fname)
+            if fname in self.installable:
+                (texmf / fname).write_text("")
+                return True
+            return False
+
+    eng = TexmfEngine(
+        [
+            {"log": "./pstricks-add.tex:27: I can't find file `pst-node'.\n"},
+            {"log": CLEAN_LOG, "pdf": True},
+        ],
+        installable={"pst-node.tex", "pst-arrow.tex"},
+        available={"article.cls"},
+    )
+    cell = fixloop(proj, eng)
+    assert cell["verdict"] == "clean"
+    assert cell["rounds"][0]["payload"] == "pst-node"
+    assert set(eng.install_calls) >= {"pst-node.tex", "pst-arrow.tex"}
+    assert not any("pst-notreal" in c for c in eng.install_calls)
+    # 裸名候选 miss 后 .tex fallback 命中——不出 "no package provides" 噪音
+    assert not any("no package provides" in a for a in cell["advisories"])
+
+
 def test_missing_tfm_installs_and_rebuilds_fontmap(tmp_path: Path) -> None:
     eng = MockEngine(
         [
