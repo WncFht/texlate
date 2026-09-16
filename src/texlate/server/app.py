@@ -70,6 +70,7 @@ from texlate.server.worker import (
     cache_key_for,
     sniff_upload,
 )
+from texlate.share import ShareError, unpack_share
 from texlate.xlat.client import ChatClient, ChatError
 from texlate.xlat.state import atomic_json
 
@@ -158,6 +159,52 @@ def _form_text(form: dict[str, str | UploadPart], name: str) -> str:
 
 def _is_valid_arxiv(base: str) -> bool:
     return bool(_NEW_ID_RE.fullmatch(base) or _OLD_ID_RE.fullmatch(base))
+
+
+def _share_parts_checked(
+    parts: dict[str, str],
+) -> tuple[str, str, str, str, int | None]:
+    """Manifest key_parts → ``(base, ver_s, model, lang, ver)`` 白名单校验。
+
+    ``arxiv_id`` 必须裸 id（版本只走 ``version`` 键，嵌 ``vN`` 后缀即
+    400）；``target_lang`` ∈ TARGET_LANGS；``model`` 过 ``validate_model``；
+    ``version`` 只收 ``vN`` 钉版形或空串（``_norm_version`` 可能的
+    非数字形在此闸死，``int()`` 不会炸）。全数违例 → ``share_invalid``。
+    """
+    base, embedded = normalize_arxiv_id(parts["arxiv_id"])
+    if embedded is not None or not _is_valid_arxiv(base):
+        raise _ApiError(
+            400,
+            {
+                "detail": f"key_parts.arxiv_id 非法: {parts['arxiv_id']!r}",
+                "code": "share_invalid",
+            },
+        )
+    lang = parts["target_lang"]
+    if lang not in TARGET_LANGS:
+        raise _ApiError(
+            400,
+            {
+                "detail": f"key_parts.target_lang ∈ {sorted(TARGET_LANGS)}",
+                "code": "share_invalid",
+            },
+        )
+    try:
+        model = validate_model(parts["model"])
+    except ValueError as e:
+        raise _ApiError(
+            400, {"detail": f"key_parts.model: {e}", "code": "share_invalid"}
+        ) from e
+    ver_s = parts["version"]  # "v5" 钉版 / "" latest 别名
+    if ver_s and not re.fullmatch(r"v\d{1,3}", ver_s):
+        raise _ApiError(
+            400,
+            {
+                "detail": f"key_parts.version 须为 vN 钉版形: {ver_s!r}",
+                "code": "share_invalid",
+            },
+        )
+    return base, ver_s, model, lang, (int(ver_s[1:]) if ver_s else None)
 
 
 def _json_error(status: int, detail: str, code: str | None = None) -> JSONResponse:
@@ -708,6 +755,99 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
             task_id=task_id,
             incoming_bytes=len(data),
         )
+        return _accepted(row, status, extra)
+
+    # ------------------------------------------------------------ share 导入
+
+    @app.post("/api/share/import")
+    async def share_import(request: Request) -> Response:
+        """``.share.zip`` → 校验解包 → ``kind="share"`` 任务入队。
+
+        端点只做机械校验（``unpack_share``：format/share_key 自洽/逐产物
+        sha256 对账）+ key_parts 白名单（arxiv_id 形态、target_lang ∈
+        TARGET_LANGS、model 合法性、version 钉版形 ``vN``）；译文可信度
+        由 worker ``_run_share`` 全链重跑承担（shared-cache.md §5）。
+        model/lang/arxiv_id/version 一律取 manifest key_parts（内容生产
+        者口径）——与上传者自身 model 设置不同**不拒**：包自描述，任务行
+        记 manifest 真值，上传者配置不进寻址。``cache_key`` 按钉版形态
+        重算——后来的 ``id@vN`` 请求经 ``find_reusable`` 真命中本产物。
+        """
+        form = await _parse_multipart(request)
+        file = form.get("file")
+        if not isinstance(file, UploadPart):
+            raise _ApiError(400, {"detail": "multipart field 'file' required"})
+        data = file.data
+        if not data:
+            raise _ApiError(400, {"detail": "empty upload"})
+        if len(data) > UPLOAD_CAP:
+            raise _ApiError(
+                413,
+                {"detail": f"upload > {UPLOAD_CAP}B", "code": "upload_too_large"},
+            )
+        tid = new_task_id()
+        tdir = root / "tasks" / tid
+        bundle_dir = tdir / "upload"
+        bundle_dir.mkdir(parents=True, exist_ok=True)
+        bundle = bundle_dir / "bundle.share.zip"
+        bundle.write_bytes(data)
+        try:
+            mf = unpack_share(bundle, tdir / "share")
+        except ShareError as e:
+            shutil.rmtree(tdir, ignore_errors=True)
+            raise _ApiError(
+                400,
+                {"detail": f"share bundle invalid: {e}", "code": "share_invalid"},
+            ) from e
+        try:
+            parts = mf.key_parts
+            base, ver_s, model, lang, ver = _share_parts_checked(parts)
+            options_raw = _form_text(form, "options")
+            try:
+                options = json.loads(options_raw) if options_raw else {}
+            except json.JSONDecodeError:
+                raise _ApiError(400, {"detail": "options 字段不是合法 JSON"}) from None
+            if not isinstance(options, dict):
+                options = {}
+            # 审计载荷强制覆盖——调用方 options 不得伪造 share 来源字段
+            options["share"] = {
+                "share_key": mf.share_key,
+                "contributor": mf.contributor,
+                "created_at": mf.created_at,
+                "key_parts": dict(parts),
+            }
+            row, status, extra = _create_and_enqueue(
+                request,
+                kind="share",
+                arxiv_id=f"{base}{ver_s}",
+                source_name=file.filename or "bundle.share.zip",
+                title="",
+                model=model,
+                target_lang=lang,
+                options=options,
+                prefer="reuse",
+                cache_key=cache_key_for(
+                    arxiv_id=base,
+                    version=ver,
+                    model=model,
+                    target_lang=lang,
+                    api_key=_auth(request).api_key,
+                ),
+                task_id=tid,
+                incoming_bytes=len(data),
+            )
+        except _ApiError:
+            shutil.rmtree(tdir, ignore_errors=True)
+            raise
+        except sqlite3.IntegrityError:
+            # reuse 语义下并发同键撞 ACTIVE 唯一索引——归 duplicate_active
+            shutil.rmtree(tdir, ignore_errors=True)
+            raise _ApiError(
+                409,
+                {"detail": "active task exists", "code": "duplicate_active"},
+            ) from None
+        if str(row["id"]) != tid:
+            # reuse/idempotent 命中旧行——本次解包现场作废（行从未建）
+            shutil.rmtree(tdir, ignore_errors=True)
         return _accepted(row, status, extra)
 
     # ------------------------------------------------------------ §2.5 helpers

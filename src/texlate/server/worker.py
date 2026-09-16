@@ -28,6 +28,7 @@ import shutil
 import threading
 import time
 import zipfile
+from collections import defaultdict, deque
 from collections.abc import Callable
 from concurrent.futures import Future
 from dataclasses import dataclass, field
@@ -371,6 +372,9 @@ class TaskCtx:
     fixloop: dict[str, Any] | None = None
     #: L2 回灌报告（归因 hits/重译/回落名单）——同上进 error_json/done 载荷
     l2: dict[str, Any] | None = None
+    #: share 导入对账统计（matched/dropped/missed/extra）——done stats 与
+    #: partial error_json 的审计载荷；None = 非 share 任务
+    share: dict[str, Any] | None = None
 
     @property
     def src_dir(self) -> Path:
@@ -664,6 +668,54 @@ class _StageError(Exception):
 
 class _RouteRejectError(Exception):
     """路由/主文件策略拒绝载体（F3：``run()`` 归 partial + ``reject_at``，非 fault）。"""
+
+
+class _ShareRejectError(Exception):
+    """共享包本地重验拒绝载体（→ ``run()`` 归 partial + ``reject_at=share_verify``）。"""
+
+
+def _share_pool(raw: list[object]) -> dict[tuple[str, str], deque[str]]:
+    """包内 dual chunks → ``(src_file, en)`` → zh 队列（重复段按序消费）。"""
+    pool: dict[tuple[str, str], deque[str]] = defaultdict(deque)
+    for c in raw:
+        if not isinstance(c, dict):
+            continue
+        src_file, en, zh = c.get("src_file"), c.get("en"), c.get("zh")
+        if isinstance(src_file, str) and isinstance(en, str):
+            pool[(src_file, en)].append(zh if isinstance(zh, str) else "")
+    return pool
+
+
+def _share_row(
+    r: dict[str, Any], pool: dict[tuple[str, str], deque[str]]
+) -> tuple[str, dict[str, Any] | None]:
+    """单 chunk 对账 → ``(outcome, update|None)``。
+
+    outcome ∈ ``ok``/``dropped``/``missed``/``resumed_ok``/``resumed``——
+    非 pending 行（resume 幂等）只归类不重判，``resumed_ok`` 计入 matched
+    防上轮已落库命中在重跑时误判零命中。
+    """
+    if r["status"] != "pending":
+        return ("resumed_ok" if r["status"] == "ok" else "resumed", None)
+    q = pool.get((str(r["src_file"]), str(r["src_text"])))
+    if not q:
+        return "missed", {
+            "status": "fallback_orig",
+            "translation": str(r["src_text"]),
+            "error_code": "share_miss",
+        }
+    zh = q.popleft()
+    rep = validate_pair(str(r["src_text"]), zh)
+    if rep.ok:
+        return "ok", {"status": "ok", "translation": zh}
+    return "dropped", {
+        "status": "fallback_orig",
+        "translation": str(r["src_text"]),
+        "error_code": "validate",
+        "warnings": json.dumps(
+            [f"share_validate: {rep.feedback()}"], ensure_ascii=False
+        ),
+    }
 
 
 # ---------------------------------------------------------------- 上传解包
@@ -1067,7 +1119,15 @@ class PipelineWorker:
             },
         )
 
-    def _reject(self, ctx: TaskCtx, code: str, message: str, *, reject_at: str) -> None:
+    def _reject(  # code/message/reject_at/detail 即错误面
+        self,
+        ctx: TaskCtx,
+        code: str,
+        message: str,
+        *,
+        reject_at: str,
+        detail: dict[str, Any] | None = None,
+    ) -> None:
         """F3 策略拒绝：``partial`` 终态 + error_json 留 ``reject_at`` 审计字段。
 
         与 e2e ``status=partial + reject_at`` 同形——拒绝是降级交付不是
@@ -1084,6 +1144,8 @@ class PipelineWorker:
             "retryable": False,
             "reject_at": reject_at,
         }
+        if detail:
+            err.update(detail)
         row = self.store.get(ctx.task_id)
         self.store.transition(
             ctx.task_id,
@@ -1126,6 +1188,8 @@ class PipelineWorker:
                 "retranslated": len(ctx.l2.get("retranslated") or []),
                 "fallback": len(ctx.l2.get("fallback_src") or []),
             }
+        if ctx.share:
+            out["share"] = ctx.share
         return out
 
     def _register(self, ctx: TaskCtx, kind: str, rel: str) -> dict[str, Any]:
@@ -1149,6 +1213,8 @@ class PipelineWorker:
                 await self._run_pdf(ctx)
             elif ctx.row["kind"] in ("docx", "epub"):
                 await self._run_doc(ctx)
+            elif ctx.row["kind"] == "share":
+                await self._run_share(ctx)
             else:
                 await self._run_tex(ctx)
         except asyncio.CancelledError:
@@ -1204,6 +1270,13 @@ class PipelineWorker:
             )
         except _RouteRejectError as e:
             self._reject(ctx, "route_reject", f"route reject: {e}", reject_at="route")
+        except _ShareRejectError as e:
+            self._reject(
+                ctx,
+                "share_verify",
+                f"share verify: {e}",
+                reject_at="share_verify",
+            )
         except InjectRejectError as e:
             self._reject(
                 ctx,
@@ -1238,7 +1311,7 @@ class PipelineWorker:
         if (ctx.src_dir / ".fetch-done").is_file():
             return
         self._stage(ctx, "fetching", "取源", PROGRESS["fetching"][0])
-        if ctx.row["kind"] == "arxiv":
+        if ctx.row["kind"] in ("arxiv", "share"):
             await asyncio.to_thread(self._fetch_arxiv, ctx)
         else:
             await asyncio.to_thread(self._fetch_upload, ctx)
@@ -1609,10 +1682,96 @@ class PipelineWorker:
             },
         )
 
+    # ------------------------------------------------------------ share 导入
+
+    async def _run_share(self, ctx: TaskCtx) -> None:
+        """kind=share：fetch → parse → 包内 dual.json 对账回灌 → compile。
+
+        ``shared-cache.md §5`` 消费侧——与 ``_run_tex`` 唯一差异是
+        translating 段换成 ``_stage_share_apply``：译文来自共享包而非
+        LLM，但 fetch/parse/splice/inject/compile/judge/dual 全链本地
+        重跑。包内 ``zh-src.zip``/``zh.pdf`` 是贡献者侧证据，不解、不进
+        产物面——读者看到的每个字节都由本源 + 本地管线再生。
+        """
+        ctx.root.mkdir(parents=True, exist_ok=True)
+        await self._stage_fetch(ctx)
+        await self._stage_parse(ctx)
+        await self._stage_share_apply(ctx)
+        await self._stage_compile(ctx, share=True)
+
+    async def _stage_share_apply(self, ctx: TaskCtx) -> None:
+        """translating（共享臂）：包内 chunks 对账本地 chunks → 译文落库。"""
+        self._stage(ctx, "translating", "共享译文对账", PROGRESS["translating"][0])
+        ctx.share = await asyncio.to_thread(self._share_apply, ctx)
+        s = ctx.share
+        self._log(
+            ctx,
+            f"share apply: matched={s['matched']}/{s['total']}"
+            f" dropped={s['dropped']} missed={s['missed']} extra={s['extra']}",
+        )
+        self._stage(ctx, "translating", "对账完成", PROGRESS["translating"][1])
+        self._check_cancelled(ctx)
+
+    def _share_apply(self, ctx: TaskCtx) -> dict[str, int]:
+        """包内 ``dual.json.chunks`` → 本地 chunks 表译文（§5 第 3 步对账）。
+
+        对账键 ``(src_file, en==src_text)``——本地行按 seq 序贪心消费
+        同键包内条目（重复原文段按序各得一份）。命中译文先过
+        ``validate_pair``（与 LLM 产出同款 L0 判据）：过 → ``ok``；
+        不过 → ``fallback_orig`` + ``validate``。本地无包条目的块 →
+        ``fallback_orig`` + ``share_miss``（v1 不回退自译——导入保持
+        零 token）；包内多余条目只记 ``extra`` 忽略。零命中即包与本源
+        不对应 → ``_ShareRejectError``（不写库）。``flush_chunk_batch``
+        单事务落盘——崩溃只有「全没落」一态，resume 重跑即幂等。
+        """
+        dual_path = ctx.root / "share" / "dual.json"
+        try:
+            doc = json.loads(dual_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as e:
+            msg = f"dual.json unreadable: {e}"
+            raise _ShareRejectError(msg) from e
+        raw = doc.get("chunks") if isinstance(doc, dict) else None
+        if not isinstance(raw, list):
+            msg = "dual.json missing chunks[]"
+            raise _ShareRejectError(msg)
+        pool = _share_pool(raw)
+        updates: list[tuple[str, dict[str, Any]]] = []
+        total = matched = dropped = missed = 0
+        for r in self._on_loop(self.store.all_chunks, ctx.task_id):
+            total += 1
+            outcome, upd = _share_row(r, pool)
+            if upd is not None:
+                updates.append((r["chunk_id"], upd))
+            if outcome in ("ok", "resumed_ok"):
+                matched += 1
+            elif outcome == "dropped":
+                dropped += 1
+            elif outcome == "missed":
+                missed += 1
+        if matched == 0:
+            msg = (
+                f"share chunks 对账零命中（包内 {len(raw)} 条 vs 本地 "
+                f"{total} 块）——包与本源不对应"
+            )
+            raise _ShareRejectError(msg)
+        self._flush_chunk_updates(ctx, updates, [])
+        return {
+            "total": total,
+            "matched": matched,
+            "dropped": dropped,
+            "missed": missed,
+            "extra": sum(len(q) for q in pool.values()),
+        }
+
     # ------------------------------------------------------------ compiling
 
-    async def _stage_compile(self, ctx: TaskCtx) -> None:
-        """compiling：en/zh 双侧编译 + zh-src.zip + dual.json + 终态。"""
+    async def _stage_compile(self, ctx: TaskCtx, *, share: bool = False) -> None:
+        """compiling：en/zh 双侧编译 + zh-src.zip + dual.json + 终态。
+
+        ``share=True``（share 导入链）：重编未出 pdf 不归 fault——共享包
+        验证失败是策略拒绝（partial + ``reject_at=share_verify``），
+        与 route/inject reject 同形。
+        """
         self._stage(ctx, "compiling", "编译", PROGRESS["compiling"][0])
         self._ensure_scans(ctx)
         await asyncio.to_thread(self._build_zh, ctx)
@@ -1635,6 +1794,8 @@ class PipelineWorker:
                 "message": "有 pdf 但判据未全绿或块级失败",
                 "retryable": True,
             }
+            if ctx.share:
+                err["share"] = ctx.share
             if ctx.l2:
                 err["l2"] = ctx.l2
             if ctx.fixloop:
@@ -1648,6 +1809,15 @@ class PipelineWorker:
                 detail["l2"] = ctx.l2
             if ctx.fixloop:
                 detail["fixloop"] = ctx.fixloop
+            if share:
+                self._reject(
+                    ctx,
+                    "share_verify",
+                    "share zh compile: no pdf",
+                    reject_at="share_verify",
+                    detail=detail or None,
+                )
+                return
             self._fail(
                 ctx,
                 "fixloop_exhausted" if ctx.fixloop else "compile",
