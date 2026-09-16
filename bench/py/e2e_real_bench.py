@@ -116,7 +116,10 @@ async def preflight() -> list[str]:
             "\\documentclass{article}\n\\begin{document}\nHello world $x^2$.\n"
             "\\end{document}\n"
         )
-        chunks = [chunk_to_in(c, chunk_id=f"0:{c.id}") for c in scans.chunks]
+        chunks = [
+            chunk_to_in(c, chunk_id=f"0:{c.id}", ph_map=scans.ph_map)
+            for c in scans.chunks
+        ]
         pipe = XlatPipeline(
             MockTranslator(),
             validator=lambda s, z: validate_pair(s, z).feedback(),
@@ -181,7 +184,10 @@ async def translate_tree(
             continue
         idx = len(scans)
         scans.append((f, res))
-        chunks.extend(chunk_to_in(c, chunk_id=f"{idx}:{c.id}") for c in res.chunks)
+        chunks.extend(
+            chunk_to_in(c, chunk_id=f"{idx}:{c.id}", ph_map=res.ph_map)
+            for c in res.chunks
+        )
 
     stats: dict[str, int] = {
         "ok": 0,
