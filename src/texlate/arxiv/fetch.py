@@ -441,6 +441,38 @@ def _hit_status(cached: CacheEntry) -> AcquireStatus:
     return AcquireStatus(stored) if stored in _HIT_PASSTHROUGH else AcquireStatus.HIT
 
 
+def _stale_warnings(fetcher: Fetcher, base: str, hit_ver: int) -> list[str]:
+    """§1.4 stale 探测：feed 宣告最新版 > 命中版 → 提示新版（不自动升级）。
+
+    best-effort——``resolve_version``（Atom→OAI 链）把一切失败归一成
+    None，不挡命中；离线臂零网络不走这里。
+    """
+    # 鸭子型 fetcher（测试 fake）无 get_url → 无 feed 臂可探，静默跳过
+    if not hasattr(fetcher, "get_url"):
+        return []
+    # meta 反向依赖本模块（Fetcher/normalize_arxiv_id）——延迟导入破环
+    from texlate.arxiv.meta import resolve_version  # noqa: PLC0415
+
+    latest = resolve_version(base, fetcher=fetcher)
+    if latest is not None and latest > hit_ver:
+        return [f"stale:v{latest} available"]
+    return []
+
+
+def _hit_result(
+    fetcher: Fetcher, base: str, ver: int, cached: CacheEntry, head: HeadInfo
+) -> AcquireResult:
+    """缓存命中结果：终态透传（``_hit_status``）+ stale 新版提示。"""
+    return AcquireResult(
+        _hit_status(cached),
+        base,
+        ver,
+        cached,
+        head,
+        warnings=_stale_warnings(fetcher, base, ver),
+    )
+
+
 def _head_phase(
     base: str, ver_req: int | None, fetcher: Fetcher, cache: SourceCache
 ) -> tuple[HeadInfo | AcquireResult, CacheEntry | None]:
@@ -474,7 +506,7 @@ def _head_phase(
         )
     cached = cache.get(base, ver)
     if cached is not None and head.etag and cached.etag == head.etag:
-        return AcquireResult(_hit_status(cached), base, ver, cached, head), cached
+        return _hit_result(fetcher, base, ver, cached, head), cached
     return head, cached
 
 
@@ -506,7 +538,7 @@ def _get_phase(
         )
         return AcquireResult(st, ids.base, ids.ver, head=head, detail=str(e))
     if res.status is FetchStatus.NOT_MODIFIED and cached is not None:
-        return AcquireResult(_hit_status(cached), ids.base, ids.ver, cached, head)
+        return _hit_result(fetcher, ids.base, ids.ver, cached, head)
     if res.status is FetchStatus.OK:
         return res
     st = {

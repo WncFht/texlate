@@ -47,6 +47,16 @@ TINY_TEX = b"\\documentclass{article}\n\\begin{document}hi\\end{document}\n"
 TINY_TAR_GZ = _tar_gz({"main.tex": TINY_TEX, "figs/x.eps": b"EPS"})
 VER_2 = 2
 
+#: Atom feed：entry id 带 ``v2``——裸 id 查询时 resolved_version=2 即 feed
+#: 宣告的最新版（Atom 无版本史，仅这一字段可取最新版号）。
+_ATOM_LATEST_V2 = """<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <id>http://arxiv.org/abs/2001.00001v2</id>
+    <title>Mock</title>
+  </entry>
+</feed>"""
+
 
 def _head_headers(arxiv_id: str, ver: int, ext: str, etag: str) -> dict[str, str]:
     return {
@@ -260,6 +270,103 @@ def test_304_passthrough_terminal_status(tmp_path: Path) -> None:
     state["etag"] = '"P2"'
     res = acquire_source("2001.00002", fetcher=f, cache=cache)
     assert res.status is AcquireStatus.PDF_ONLY
+
+
+def test_hit_stale_hint_when_feed_newer(tmp_path: Path) -> None:
+    """§1.4：钉 v1 命中、feed 宣告 v2 → hit 带 ``stale:v2`` 提示（不自动升级）。
+
+    etag-hit 与 304-hit 两条命中臂共用同一 stale 探测，都覆盖到。
+    """
+    state = {"etag": '"E1"'}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        if req.method == "HEAD":
+            return httpx.Response(
+                HTTP_OK,
+                headers=_head_headers("2001.00001", 1, ".tar.gz", state["etag"]),
+            )
+        if "/api/query" in req.url.path:
+            return httpx.Response(HTTP_OK, content=_ATOM_LATEST_V2.encode())
+        if req.headers.get("if-none-match") == '"E1"':
+            return httpx.Response(HTTP_NOT_MODIFIED)
+        return httpx.Response(HTTP_OK, content=TINY_TAR_GZ)
+
+    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    cache = SourceCache(tmp_path)
+    seeded = acquire_source("2001.00001v1", fetcher=f, cache=cache)
+    assert seeded.status is AcquireStatus.OK
+
+    hit = acquire_source("2001.00001v1", fetcher=f, cache=cache)
+    assert hit.status is AcquireStatus.HIT
+    assert hit.warnings == ["stale:v2 available"]
+
+    # HEAD etag 变了但 GET 仍 304 → 304-hit 臂同样报 stale
+    state["etag"] = '"E2"'
+    hit304 = acquire_source("2001.00001v1", fetcher=f, cache=cache)
+    assert hit304.status is AcquireStatus.HIT
+    assert hit304.warnings == ["stale:v2 available"]
+
+
+def test_hit_no_stale_when_pinned_is_latest(tmp_path: Path) -> None:
+    """钉的就是 feed 最新版 → hit 干净（不误报 stale）。"""
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        if req.method == "HEAD":
+            return httpx.Response(
+                HTTP_OK, headers=_head_headers("2001.00001", 2, ".tar.gz", '"E1"')
+            )
+        if "/api/query" in req.url.path:
+            return httpx.Response(HTTP_OK, content=_ATOM_LATEST_V2.encode())
+        return httpx.Response(HTTP_OK, content=TINY_TAR_GZ)
+
+    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    cache = SourceCache(tmp_path)
+    acquire_source("2001.00001v2", fetcher=f, cache=cache)
+    hit = acquire_source("2001.00001v2", fetcher=f, cache=cache)
+    assert hit.status is AcquireStatus.HIT
+    assert hit.warnings == []
+
+
+def test_hit_stale_unpinned_feed_ahead(tmp_path: Path) -> None:
+    """未钉版：HEAD 解到已缓存旧版（src CDN 滞后）、feed 已宣告新版 → stale。"""
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        if req.method == "HEAD":
+            return httpx.Response(
+                HTTP_OK, headers=_head_headers("2001.00001", 1, ".tar.gz", '"E1"')
+            )
+        if "/api/query" in req.url.path:
+            return httpx.Response(HTTP_OK, content=_ATOM_LATEST_V2.encode())
+        return httpx.Response(HTTP_OK, content=TINY_TAR_GZ)
+
+    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    cache = SourceCache(tmp_path)
+    acquire_source("2001.00001", fetcher=f, cache=cache)
+    hit = acquire_source("2001.00001", fetcher=f, cache=cache)
+    assert hit.status is AcquireStatus.HIT
+    assert hit.resolved_version == 1
+    assert hit.warnings == ["stale:v2 available"]
+
+
+def test_hit_stale_check_survives_meta_outage(tmp_path: Path) -> None:
+    """stale 探测 best-effort：Atom/OAI 全挂 → warnings 空，hit 不受影响。"""
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        if req.method == "HEAD":
+            return httpx.Response(
+                HTTP_OK, headers=_head_headers("2001.00001", 1, ".tar.gz", '"E1"')
+            )
+        if "/api/query" in req.url.path or req.url.path == "/oai":
+            msg = "meta down"
+            raise httpx.ConnectError(msg, request=req)
+        return httpx.Response(HTTP_OK, content=TINY_TAR_GZ)
+
+    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    cache = SourceCache(tmp_path)
+    acquire_source("2001.00001v1", fetcher=f, cache=cache)
+    hit = acquire_source("2001.00001v1", fetcher=f, cache=cache)
+    assert hit.status is AcquireStatus.HIT
+    assert hit.warnings == []
 
 
 def test_get_newer_version_commits_resolved(tmp_path: Path) -> None:
