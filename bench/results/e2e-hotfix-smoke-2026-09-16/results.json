@@ -1,0 +1,1481 @@
+{
+ "1502.03167": {
+  "id": "1502.03167",
+  "layer": "hot",
+  "cat_group": "Computer Science",
+  "era": "new",
+  "uncompressed_bytes": null,
+  "main": "arx.tex",
+  "route": {
+   "engines": [
+    "xelatex",
+    "tectonic"
+   ],
+   "reject": null,
+   "reasons": [
+    "eps_files=True pstricks=False → xelatex 优先（tectonic xdvipdfmx 硬墙）"
+   ],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 2,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 83,
+    "ok": 83,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 83,
+    "batched": 44,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 38.6,
+    "src_chars": 38446
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.59,
+    "passes": 2,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 473737,
+    "first_error": "/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-xel/1502.03167/arx.tex:36: LaTeX Error: Command \\theHalgorithm already defined."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "warn:invalid_utf8"
+    ],
+    "n_errors": 1,
+    "category": "already_def",
+    "cjk_chars": 8804,
+    "missing_chars": 0
+   },
+   "status": "partial"
+  },
+  "seconds": 40.4,
+  "status": "partial",
+  "base-xel": {
+   "engine": "xelatex",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.16,
+    "passes": 2,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 145822,
+    "first_error": "/home/fanghaotian/src/texlate/bench/work_e2ereal/base-xel/1502.03167/arx.tex:12: LaTeX Error: Command \\theHalgorithm already defined."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "warn:invalid_utf8"
+    ],
+    "n_errors": 1,
+    "category": "already_def",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "partial"
+  },
+  "pipe-fix": {
+   "engine": "xelatex",
+   "fixloop": {
+    "project": "1502.03167",
+    "cond": "pipe-fix",
+    "main": "arx.tex",
+    "engine": "xelatex",
+    "rounds": [
+     {
+      "round": 1,
+      "pdf": false,
+      "pdf_bytes": 0,
+      "n_errors": 1,
+      "category": "already_def",
+      "payload": "theHalgorithm",
+      "warnings": [
+       "invalid_utf8"
+      ],
+      "line_no": 36,
+      "file_stack": [
+       "/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/1502.03167/arx.tex"
+      ],
+      "sec": 0.4
+     },
+     {
+      "round": 2,
+      "pdf": false,
+      "pdf_bytes": 0,
+      "n_errors": 1,
+      "category": "already_def",
+      "payload": "theHalgorithm",
+      "warnings": [
+       "invalid_utf8"
+      ],
+      "line_no": 36,
+      "file_stack": [
+       "/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/1502.03167/arx.tex"
+      ],
+      "sec": 0.4
+     },
+     {
+      "round": 3,
+      "salvage": true,
+      "pdf": false,
+      "pdf_bytes": 0,
+      "n_errors": 3,
+      "category": null,
+      "payload": null,
+      "warnings": [
+       "invalid_utf8",
+       "tectonic_degrade"
+      ],
+      "line_no": 36,
+      "file_stack": [
+       "/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/1502.03167/arx.tex"
+      ],
+      "sec": 0.4
+     }
+    ],
+    "actions": [
+     {
+      "round": 0,
+      "rule": "static_precheck",
+      "detail": "missing files=['algorithm.sty', 'algorithmic.sty'] -> installed ['algorithm.sty', 'algorithmic.sty']",
+      "applied": true
+     },
+     {
+      "round": 1,
+      "rule": "vendored_sty_shadow",
+      "detail": "isolate vendored: stackengine.sty ((2014, 1, 6) < (2021, 7, 22))"
+     },
+     {
+      "round": "salvage",
+      "rule": "_best_effort_pass",
+      "detail": "nonstopmode 兜底: pdf=False err=3"
+     }
+    ],
+    "verdict": "unfixable:already_def",
+    "final_pdf": false,
+    "final_errors": 3,
+    "final_cat": null,
+    "installed": [
+     "algorithm.sty",
+     "algorithmic.sty"
+    ],
+    "advisories": [],
+    "engine_flags": [],
+    "log": [
+     "precheck pstricks_route: skip on xelatex",
+     "r1: pdf=False err=1 cat=already_def pay=theHalgorithm (0.4s)",
+     "rule thm_sibling_strip: skip (rewrite in 0 files)",
+     "apply vendored_sty_shadow: isolate vendored: stackengine.sty ((2014, 1, 6) < (2021, 7, 22))",
+     "r2: pdf=False err=1 cat=already_def pay=theHalgorithm (0.4s)",
+     "rule thm_sibling_strip: skip (rewrite in 0 files)",
+     "salvage best_effort: pdf=False err=3"
+    ],
+    "log_excerpt": "/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/1502.03167/arx.tex:36: LaTeX Error: Command \\theHalgorithm already defined.\n/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/1502.03167/arx.tex:36: LaTeX Error: Command \\theHalgorithm already defined.\n               Or name \\end... illegal, see p.192 of the manual.\n\nSee the LaTeX manual or LaTeX Companion for explanation.\nType  H <return>  for immediate help.\n ...                                              \n                                                  \nl.36 ...ommand{\\theHalgorithm}{\\arabic{algorithm}}",
+    "started_fail": true,
+    "wall_s": 3.4
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.37,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": "/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/1502.03167/arx.tex:36: LaTeX Error: Command \\theHalgorithm already defined."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 3,
+    "category": "already_def",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  }
+ },
+ "1610.05828": {
+  "id": "1610.05828",
+  "layer": "hot",
+  "cat_group": "Mathematics",
+  "era": "new",
+  "uncompressed_bytes": null,
+  "main": "rev_7.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [
+    "bbm/dsfont 类位图字体包 → tectonic 高风险，失败换 xelatex"
+   ],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 226,
+    "ok": 226,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 232,
+    "batched": 122,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 196.7,
+    "src_chars": 88912
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 25,
+    "float_sizing": 0
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.99,
+    "passes": 2,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 561328,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 15354,
+    "missing_chars": 0
+   },
+   "status": "clean"
+  },
+  "seconds": 199.1,
+  "status": "clean"
+ },
+ "1710.09412": {
+  "id": "1710.09412",
+  "layer": "hot",
+  "cat_group": "Computer Science",
+  "era": "new",
+  "uncompressed_bytes": null,
+  "main": "ms.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 8,
+    "rewritten": 2,
+    "encodings": {
+     "iclr2018.bst": {
+      "encoding": "cp1252",
+      "basis": "detector",
+      "declared": null,
+      "note": ""
+     }
+    },
+    "transcoded_aux": [
+     "iclr2018.bst"
+    ]
+   },
+   "translate": {
+    "files": 7,
+    "chunks": 77,
+    "ok": 77,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 75,
+    "batched": 36,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 65.9,
+    "src_chars": 34914
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 26,
+    "float_sizing": 2
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.53,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `siunitx.sty' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  },
+  "seconds": 66.9,
+  "status": "fail",
+  "base-xel": {
+   "engine": "xelatex",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.7,
+    "passes": 2,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 2083,
+    "first_error": "/home/fanghaotian/src/texlate/bench/work_e2ereal/base-xel/1710.09412/ms.tex:1: Undefined control sequence."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "errors>3 (4)",
+     "warn:missing_chars",
+     "warn:degraded_file"
+    ],
+    "n_errors": 4,
+    "category": "pdftex_prim",
+    "cjk_chars": -1,
+    "missing_chars": 2
+   },
+   "status": "partial"
+  },
+  "pipe-fix": {
+   "engine": "xelatex",
+   "fixloop": {
+    "project": "1710.09412",
+    "cond": "pipe-fix",
+    "main": "ms.tex",
+    "engine": "xelatex",
+    "rounds": [
+     {
+      "round": 1,
+      "pdf": true,
+      "pdf_bytes": 609434,
+      "n_errors": 1,
+      "category": "other",
+      "payload": null,
+      "warnings": [
+       "missing_graphic"
+      ],
+      "line_no": 257,
+      "file_stack": [
+       "/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/1710.09412/ms.tex",
+       "/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/1710.09412/experiments.tex"
+      ],
+      "sec": 1.7
+     }
+    ],
+    "actions": [
+     {
+      "round": 0,
+      "rule": "static_precheck",
+      "detail": "missing files=['iclr14submit_e.sty', 'siunitx.sty'] -> installed ['siunitx.sty']",
+      "applied": true
+     }
+    ],
+    "verdict": "acceptable_pdf",
+    "final_pdf": true,
+    "final_errors": 1,
+    "final_cat": "other",
+    "installed": [
+     "siunitx.sty"
+    ],
+    "advisories": [],
+    "engine_flags": [],
+    "log": [
+     "precheck pstricks_route: skip on xelatex",
+     "r1: pdf=True err=1 cat=other pay=None (1.7s)"
+    ],
+    "log_excerpt": "/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/1710.09412/experiments.tex:257: Unable to load picture or PDF file 'images/gan/{example_z=2_grid_0.0_000010}.png'.\n/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/1710.09412/experiments.tex:257: Unable to load picture or PDF file 'images/gan/{example_z=2_grid_0.0_000010}.png'.\n<to be read again> \n                   }\nl.257     }\n           \nThe requested image couldn't be read because\nit was not a recognized image format.\n",
+    "started_fail": false,
+    "wall_s": 5.4
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.94,
+    "passes": 2,
+    "rc": -13,
+    "killed_signal": 13,
+    "pdf_bytes": 316137,
+    "first_error": "/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/1710.09412/ms.tex:100: File ended while scanning use of \\bibcite."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "killed_by_signal:13",
+     "errors>3 (37)",
+     "warn:missing_graphic"
+    ],
+    "n_errors": 37,
+    "category": "other",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "partial"
+  }
+ },
+ "2401.17274": {
+  "id": "2401.17274",
+  "layer": "hot",
+  "cat_group": "Physics and Astronomy",
+  "era": "new",
+  "uncompressed_bytes": null,
+  "main": "erass1_DR1_paper_arXiv_26012024.tex",
+  "route": {
+   "engines": [
+    "xelatex",
+    "tectonic"
+   ],
+   "reject": null,
+   "reasons": [
+    "eps_files=True pstricks=False → xelatex 优先（tectonic xdvipdfmx 硬墙）",
+    "bbm/dsfont 类位图字体包 → tectonic 高风险，失败换 xelatex"
+   ],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 8,
+    "rewritten": 2
+   },
+   "translate": {
+    "files": 6,
+    "chunks": 317,
+    "ok": 317,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 311,
+    "batched": 146,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 348.3,
+    "src_chars": 147124
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 38,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 7.91,
+    "passes": 2,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 8217087,
+    "first_error": "/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-xel/2401.17274/erass1_DR1_paper_arXiv_26012024.tex:154: Undefined control sequence."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "errors>3 (43)",
+     "first_error=undefined_cs:None"
+    ],
+    "n_errors": 43,
+    "category": "undefined_cs",
+    "cjk_chars": 30024,
+    "missing_chars": 0
+   },
+   "status": "partial"
+  },
+  "seconds": 357.5,
+  "status": "partial",
+  "base-xel": {
+   "engine": "xelatex",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 7.03,
+    "passes": 2,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 7703914,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "warn:missing_chars"
+    ],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": -1,
+    "missing_chars": 5
+   },
+   "status": "partial"
+  },
+  "pipe-fix": {
+   "engine": "xelatex",
+   "fixloop": {
+    "project": "2401.17274",
+    "cond": "pipe-fix",
+    "main": "erass1_DR1_paper_arXiv_26012024.tex",
+    "engine": "xelatex",
+    "rounds": [
+     {
+      "round": 1,
+      "pdf": true,
+      "pdf_bytes": 45984,
+      "n_errors": 1,
+      "category": "undefined_cs",
+      "payload": "itUhuru",
+      "warnings": [],
+      "line_no": 154,
+      "file_stack": [
+       "/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/2401.17274/erass1_DR1_paper_arXiv_26012024.tex"
+      ],
+      "sec": 1.1
+     }
+    ],
+    "actions": [
+     {
+      "round": 0,
+      "rule": "static_precheck",
+      "detail": "missing files=[] -> installed []",
+      "applied": true
+     }
+    ],
+    "verdict": "acceptable_pdf",
+    "final_pdf": true,
+    "final_errors": 1,
+    "final_cat": "undefined_cs",
+    "installed": [],
+    "advisories": [],
+    "engine_flags": [],
+    "log": [
+     "precheck pstricks_route: skip on xelatex",
+     "r1: pdf=True err=1 cat=undefined_cs pay=itUhuru (1.1s)",
+     "rule vendored_sty_shadow: cond skip (无遮蔽候选)",
+     "rule aastex_bundle_shadow: cond skip (engine xelatex not in ['tectonic'])",
+     "rule journal_cs_polyfill: skip (itUhuru not a known journal macro)",
+     "rule cs_targeted_fix: skip (itUhuru not in cs-fix table)",
+     "rule undefined_cs_guess: skip (no llm hook; stub (spike L523-527 parity))"
+    ],
+    "log_excerpt": "/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/2401.17274/erass1_DR1_paper_arXiv_26012024.tex:154: Undefined control sequence.\n/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/2401.17274/erass1_DR1_paper_arXiv_26012024.tex:154: Undefined control sequence.\nl.154 ...t recap]{Elvis2020}。这些巡天由 SAS-A {\\itUhuru\n                                                  }\\xspace 卫星 \\citep[1970--1...\nThe control sequence at the end of the top line\nof your error message was never \\def'ed. If you have\nmisspelled it (e.g., `\\hobx'), type `I' and the correct\nspelling (e.g., `I\\hbox'). Otherwise just continue,\nand I'll forget about whatever was undefined.",
+    "started_fail": false,
+    "wall_s": 2.0
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 7.75,
+    "passes": 2,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 8217101,
+    "first_error": "/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/2401.17274/erass1_DR1_paper_arXiv_26012024.tex:154: Undefined control sequence."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "errors>3 (43)",
+     "first_error=undefined_cs:None"
+    ],
+    "n_errors": 43,
+    "category": "undefined_cs",
+    "cjk_chars": 30024,
+    "missing_chars": 0
+   },
+   "status": "partial"
+  }
+ },
+ "2403.17888": {
+  "id": "2403.17888",
+  "layer": "hot",
+  "cat_group": "Computer Science",
+  "era": "new",
+  "uncompressed_bytes": null,
+  "main": "main.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 18,
+    "rewritten": 2
+   },
+   "translate": {
+    "files": 16,
+    "chunks": 112,
+    "ok": 112,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 113,
+    "batched": 62,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 106.4,
+    "src_chars": 38933
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 71,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 6.45,
+    "passes": 2,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 24365563,
+    "first_error": "/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-xel/2403.17888/main.tex:291: Class acmart Error: An attempt to redefine \\baselinestretch detected. Please do not do this for ACM submissions!."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "warn:invalid_utf8"
+    ],
+    "n_errors": 1,
+    "category": "other",
+    "cjk_chars": 8507,
+    "missing_chars": 0
+   },
+   "status": "partial"
+  },
+  "seconds": 113.7,
+  "status": "partial",
+  "base-xel": {
+   "engine": "xelatex",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 6.23,
+    "passes": 2,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 23962770,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "warn:invalid_utf8"
+    ],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "partial"
+  },
+  "pipe-fix": {
+   "engine": "xelatex",
+   "fixloop": {
+    "project": "2403.17888",
+    "cond": "pipe-fix",
+    "main": "main.tex",
+    "engine": "xelatex",
+    "rounds": [
+     {
+      "round": 1,
+      "pdf": false,
+      "pdf_bytes": 0,
+      "n_errors": 2,
+      "category": "missing_file",
+      "payload": "binhex.tex",
+      "warnings": [
+       "tectonic_degrade"
+      ],
+      "line_no": null,
+      "file_stack": [
+       "/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/2403.17888/main.tex",
+       "/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/2403.17888/acmart.cls",
+       "/usr/share/texmf-dist/tex/latex/newtx/newtxmath.sty"
+      ],
+      "sec": 0.3
+     },
+     {
+      "round": 2,
+      "salvage": true,
+      "pdf": false,
+      "pdf_bytes": 0,
+      "n_errors": 2,
+      "category": null,
+      "payload": null,
+      "warnings": [
+       "tectonic_degrade"
+      ],
+      "line_no": null,
+      "file_stack": [
+       "/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/2403.17888/main.tex",
+       "/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/2403.17888/acmart.cls",
+       "/usr/share/texmf-dist/tex/latex/newtx/newtxmath.sty"
+      ],
+      "sec": 0.3
+     }
+    ],
+    "actions": [
+     {
+      "round": 0,
+      "rule": "static_precheck",
+      "detail": "missing files=['algorithm.sty'] -> installed ['algorithm.sty']",
+      "applied": true
+     },
+     {
+      "round": "salvage",
+      "rule": "_best_effort_pass",
+      "detail": "nonstopmode 兜底: pdf=False err=2"
+     }
+    ],
+    "verdict": "unfixable:missing_file",
+    "final_pdf": false,
+    "final_errors": 2,
+    "final_cat": null,
+    "installed": [
+     "algorithm.sty"
+    ],
+    "advisories": [
+     "no package provides binhex.tex"
+    ],
+    "engine_flags": [],
+    "log": [
+     "precheck pstricks_route: skip on xelatex",
+     "r1: pdf=False err=2 cat=missing_file pay=binhex.tex (0.3s)",
+     "rule install_file: skip (no candidate file installed for binhex.tex)",
+     "rule legacy_pkg_shim: skip (no legacy shim for binhex.tex)",
+     "salvage best_effort: pdf=False err=2"
+    ],
+    "log_excerpt": "! LaTeX Error: File `binhex.tex' not found.\n! LaTeX Error: File `binhex.tex' not found.\n\nType X to quit or <RETURN> to proceed,\nor enter new name. (Default extension: tex)\n\nEnter file name: \n/usr/share/texmf-dist/tex/latex/newtx/newtxmath.sty:44: Emergency stop.\n<read *> ",
+    "started_fail": true,
+    "wall_s": 7.1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.31,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `binhex.tex' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  }
+ },
+ "2405.08810": {
+  "id": "2405.08810",
+  "layer": "hot",
+  "cat_group": "Computer Science",
+  "era": "new",
+  "uncompressed_bytes": null,
+  "main": "paper.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [
+    "minted frozencache → tectonic 优先（bundle v2.6 兼容）"
+   ],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 13,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 10,
+    "chunks": 139,
+    "ok": 139,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 140,
+    "batched": 63,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 152.1,
+    "src_chars": 57962
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.19,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `revtex4-1.cls' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  },
+  "seconds": 152.5,
+  "status": "fail",
+  "base-xel": {
+   "engine": "xelatex",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.19,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `revtex4-1.cls' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  },
+  "pipe-fix": {
+   "engine": "xelatex",
+   "fixloop": {
+    "project": "2405.08810",
+    "cond": "pipe-fix",
+    "main": "paper.tex",
+    "engine": "xelatex",
+    "rounds": [
+     {
+      "round": 1,
+      "pdf": false,
+      "pdf_bytes": 0,
+      "n_errors": 2,
+      "category": "missing_file",
+      "payload": "yquant-tools.tex",
+      "warnings": [],
+      "line_no": 42,
+      "file_stack": [
+       "/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/2405.08810/paper.tex",
+       "/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/2405.08810/packages.tex",
+       "/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/2405.08810/yquant.sty"
+      ],
+      "sec": 0.6
+     },
+     {
+      "round": 2,
+      "salvage": true,
+      "pdf": false,
+      "pdf_bytes": 0,
+      "n_errors": 2,
+      "category": null,
+      "payload": null,
+      "warnings": [],
+      "line_no": 42,
+      "file_stack": [
+       "/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/2405.08810/paper.tex",
+       "/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/2405.08810/packages.tex",
+       "/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/2405.08810/yquant.sty"
+      ],
+      "sec": 0.5
+     }
+    ],
+    "actions": [
+     {
+      "round": 0,
+      "rule": "static_precheck",
+      "detail": "missing files=['revtex4-1.cls'] -> installed ['revtex4-1.cls']",
+      "applied": true
+     },
+     {
+      "round": "salvage",
+      "rule": "_best_effort_pass",
+      "detail": "nonstopmode 兜底: pdf=False err=2"
+     }
+    ],
+    "verdict": "unfixable:missing_file",
+    "final_pdf": false,
+    "final_errors": 2,
+    "final_cat": null,
+    "installed": [
+     "revtex4-1.cls"
+    ],
+    "advisories": [
+     "no package provides yquant-tools.tex"
+    ],
+    "engine_flags": [],
+    "log": [
+     "precheck pstricks_route: skip on xelatex",
+     "r1: pdf=False err=2 cat=missing_file pay=yquant-tools.tex (0.6s)",
+     "rule install_file: skip (no candidate file installed for yquant-tools.tex)",
+     "rule legacy_pkg_shim: skip (no legacy shim for yquant-tools.tex)",
+     "salvage best_effort: pdf=False err=2"
+    ],
+    "log_excerpt": "/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/2405.08810/yquant.sty:42: I can't find file `yquant-tools.tex'.\n/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/2405.08810/yquant.sty:42: I can't find file `yquant-tools.tex'.\nl.42 \\input yquant-tools.tex\n                            \n(Press Enter to retry, or Control-D to exit)\nPlease type another input file name\n/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/2405.08810/yquant.sty:42: Emergency stop.\nl.42 \\input yquant-tools.tex\n                            ",
+    "started_fail": true,
+    "wall_s": 3.8
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.55,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": "/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/2405.08810/yquant.sty:42: I can't find file `yquant-tools.tex'."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  }
+ },
+ "2409.11654": {
+  "id": "2409.11654",
+  "layer": "hot",
+  "cat_group": "Biochemistry, Genetics and Molecular Biology",
+  "era": "new",
+  "uncompressed_bytes": null,
+  "main": "main.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 8,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 8,
+    "chunks": 132,
+    "ok": 132,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 132,
+    "batched": 43,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 181.6,
+    "src_chars": 75077
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 4.05,
+    "passes": 2,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 35851100,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 17990,
+    "missing_chars": 0
+   },
+   "status": "clean"
+  },
+  "seconds": 186.2,
+  "status": "clean"
+ },
+ "2410.08770": {
+  "id": "2410.08770",
+  "layer": "hot",
+  "cat_group": "Mathematics",
+  "era": "new",
+  "uncompressed_bytes": null,
+  "main": "preprint.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 1,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 1,
+    "chunks": 62,
+    "ok": 62,
+    "partial": 0,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 62,
+    "batched": 27,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {},
+    "seconds": 45.5,
+    "src_chars": 35383
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.38,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `IEEEtrantools.sty' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  },
+  "seconds": 46.1,
+  "status": "fail",
+  "base-xel": {
+   "engine": "xelatex",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.16,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `IEEEtrantools.sty' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  },
+  "pipe-fix": {
+   "engine": "xelatex",
+   "fixloop": {
+    "project": "2410.08770",
+    "cond": "pipe-fix",
+    "main": "preprint.tex",
+    "engine": "xelatex",
+    "rounds": [
+     {
+      "round": 1,
+      "pdf": false,
+      "pdf_bytes": 0,
+      "n_errors": 2,
+      "category": "missing_file",
+      "payload": "listofitems.sty",
+      "warnings": [
+       "tectonic_degrade"
+      ],
+      "line_no": null,
+      "file_stack": [
+       "/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/2410.08770/preprint.tex",
+       "/usr/share/texmf-dist/tex/latex/stackengine/stackengine.sty"
+      ],
+      "sec": 0.3
+     },
+     {
+      "round": 2,
+      "pdf": true,
+      "pdf_bytes": 4246702,
+      "n_errors": 0,
+      "category": "clean",
+      "payload": null,
+      "warnings": [],
+      "line_no": null,
+      "file_stack": [],
+      "sec": 2.0
+     }
+    ],
+    "actions": [
+     {
+      "round": 0,
+      "rule": "static_precheck",
+      "detail": "missing files=['IEEEtrantools.sty', 'siunitx.sty'] -> installed ['IEEEtrantools.sty', 'siunitx.sty']",
+      "applied": true
+     },
+     {
+      "round": 1,
+      "rule": "install_file",
+      "detail": "installed listofitems.sty"
+     }
+    ],
+    "verdict": "clean",
+    "final_pdf": true,
+    "final_errors": 0,
+    "final_cat": "clean",
+    "installed": [
+     "IEEEtrantools.sty",
+     "siunitx.sty",
+     "listofitems.sty"
+    ],
+    "advisories": [],
+    "engine_flags": [],
+    "log": [
+     "precheck pstricks_route: skip on xelatex",
+     "r1: pdf=False err=2 cat=missing_file pay=listofitems.sty (0.3s)",
+     "apply install_file: installed listofitems.sty",
+     "r2: pdf=True err=0 cat=clean pay=None (2.0s)"
+    ],
+    "log_excerpt": "\nUnderfull \\hbox (badness 6526) in paragraph at lines 590--591\n\\TU/ptm/m/it/12 Record\\TU/FandolSong-Regular(0)/m/n/12 ） ，|  未 反 映 接 受 后 的 改 进 或 任 何 更 正。|  正 式 出 版 版 本 可 在 线 获 取：| []$[][][][][] []\n []\n\n\\tf@thm=\\write6\n\\openout6 = `preprint.thm'.\n\n[32] (/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/2410.08770/preprint.aux)\n ***********\nLaTeX2e <2025-11-01>\nL3 programming layer <2022/07/14>\n ***********\n\n\nLaTeX Font Warning: Some font shapes were not available, defaults substituted.\n\nPackage rerunfilecheck Info: File `preprint.out' has not changed.\n(rerunfilecheck)             Checksum: D41D8CD98F00B204E9800998ECF8427E;0.\n ) \nHere is how much of TeX's memory you used:\n 38351 strings out of 470180\n 854273 string characters out of 5479198\n 1235777 words of memory out of 5000000\n 66306 multiletter control sequences out of 15000+600000\n 637844 words of font info for 104 fonts, out of 8000000 for 9000\n 14 hyphenation exceptions out of 8191\n 93i,6n,133p,2098b,1118s stack positions out of 10000i,1000n,20000p,200000b,200000s\n\nOutput written on /home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/2410.08770/preprint.pdf (32 pages).",
+    "started_fail": true,
+    "wall_s": 13.1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.96,
+    "passes": 2,
+    "rc": 0,
+    "killed_signal": null,
+    "pdf_bytes": 4246702,
+    "first_error": null
+   },
+   "verdict": {
+    "status": "clean",
+    "reasons": [],
+    "n_errors": 0,
+    "category": "clean",
+    "cjk_chars": 8671,
+    "missing_chars": 0
+   },
+   "status": "clean"
+  }
+ },
+ "2504.01669": {
+  "id": "2504.01669",
+  "layer": "hot",
+  "cat_group": "Physics and Astronomy",
+  "era": "new",
+  "uncompressed_bytes": null,
+  "main": "main.tex",
+  "route": {
+   "engines": [
+    "tectonic",
+    "xelatex"
+   ],
+   "reject": null,
+   "reasons": [
+    "bbm/dsfont 类位图字体包 → tectonic 高风险，失败换 xelatex"
+   ],
+   "non_utf8": false
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 76,
+    "rewritten": 1
+   },
+   "translate": {
+    "files": 74,
+    "chunks": 1891,
+    "ok": 1889,
+    "partial": 2,
+    "fault": 0,
+    "skipped": 0,
+    "attempts": 1902,
+    "batched": 579,
+    "leftover_ph": 0,
+    "parse_fail": [],
+    "warn_kinds": {
+     "line-level repair rescued (0 bad lines)": 2,
+     "whole×2 failed": 2
+    },
+    "seconds": 2269.8,
+    "src_chars": 1268145
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 24,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.1,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `revtex4-2.cls' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  },
+  "seconds": 2277.2,
+  "status": "fail",
+  "base-xel": {
+   "engine": "xelatex",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.16,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": "! LaTeX Error: File `revtex4-2.cls' not found."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "n_errors": 2,
+    "category": "missing_file",
+    "cjk_chars": -1,
+    "missing_chars": 0
+   },
+   "status": "fail"
+  },
+  "pipe-fix": {
+   "engine": "xelatex",
+   "fixloop": {
+    "project": "2504.01669",
+    "cond": "pipe-fix",
+    "main": "main.tex",
+    "engine": "xelatex",
+    "rounds": [
+     {
+      "round": 1,
+      "pdf": false,
+      "pdf_bytes": 0,
+      "n_errors": 1,
+      "category": "undefined_cs",
+      "payload": "inputencoding",
+      "warnings": [
+       "invalid_utf8"
+      ],
+      "line_no": 112,
+      "file_stack": [
+       "/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/2504.01669/main.tex"
+      ],
+      "sec": 0.7
+     },
+     {
+      "round": 2,
+      "salvage": true,
+      "pdf": true,
+      "pdf_bytes": 7213124,
+      "n_errors": 103,
+      "category": null,
+      "payload": null,
+      "warnings": [
+       "invalid_utf8",
+       "missing_char"
+      ],
+      "line_no": 112,
+      "file_stack": [
+       "/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/2504.01669/main.tex"
+      ],
+      "sec": 4.3
+     }
+    ],
+    "actions": [
+     {
+      "round": 0,
+      "rule": "static_precheck",
+      "detail": "missing files=['accents.sty', 'algorithm.sty', 'algpseudocode.sty', 'revtex4-2.cls', 'siunitx.sty', 'ulem.sty'] -> installed ['accents.sty', 'algorithm.sty', 'algpseudocode.sty', 'revtex4-2.cls', 'siunitx.sty', 'ulem.sty']",
+      "applied": true
+     },
+     {
+      "round": "salvage",
+      "rule": "_best_effort_pass",
+      "detail": "nonstopmode 兜底: pdf=True err=103"
+     }
+    ],
+    "verdict": "best_effort_pdf",
+    "final_pdf": true,
+    "final_errors": 103,
+    "final_cat": null,
+    "installed": [
+     "accents.sty",
+     "algorithm.sty",
+     "algpseudocode.sty",
+     "revtex4-2.cls",
+     "siunitx.sty",
+     "ulem.sty"
+    ],
+    "advisories": [],
+    "engine_flags": [],
+    "log": [
+     "precheck pstricks_route: skip on xelatex",
+     "r1: pdf=False err=1 cat=undefined_cs pay=inputencoding (0.7s)",
+     "rule vendored_sty_shadow: cond skip (无遮蔽候选)",
+     "rule aastex_bundle_shadow: cond skip (engine xelatex not in ['tectonic'])",
+     "rule journal_cs_polyfill: skip (inputencoding not a known journal macro)",
+     "rule cs_targeted_fix: skip (inputencoding not in cs-fix table)",
+     "rule undefined_cs_guess: skip (no llm hook; stub (spike L523-527 parity))",
+     "salvage best_effort: pdf=True err=103"
+    ],
+    "log_excerpt": "/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/2504.01669/main.tex:112: Undefined control sequence.\n/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/2504.01669/main.tex:112: Undefined control sequence.\nl.112 \\inputencoding\n                    {latin1}\nThe control sequence at the end of the top line\nof your error message was never \\def'ed. If you have\nmisspelled it (e.g., `\\hobx'), type `I' and the correct\nspelling (e.g., `I\\hbox'). Otherwise just continue,\nand I'll forget about whatever was undefined.",
+    "started_fail": true,
+    "wall_s": 26.3
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 8.44,
+    "passes": 2,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 7216252,
+    "first_error": "/home/fanghaotian/src/texlate/bench/work_e2ereal/pipe-fix/2504.01669/main.tex:112: Undefined control sequence."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "errors>3 (103)",
+     "first_error=undefined_cs:None",
+     "warn:invalid_utf8",
+     "warn:missing_chars",
+     "missing_character×2"
+    ],
+    "n_errors": 103,
+    "category": "undefined_cs",
+    "cjk_chars": 27520,
+    "missing_chars": 2
+   },
+   "status": "partial"
+  }
+ }
+}
