@@ -1387,6 +1387,9 @@ def stage_fixloop(
     print(f"fixloop[on={args.on}]: {len(todo)} cells (jobs={args.jobs})", flush=True)
     if not todo:
         return
+    # 坏 yaml 拒开波: 每格 _fixloop_one 内 Ruleset.load()——表挂则逐格 error
+    # ('.\\hbox' 非法转义事故 809 格全 error), preflight 一次挡在波前。
+    Ruleset.load()
     sink = CaseSink(out_dir / "cases.jsonl")
     t_start = time.monotonic()
     with ThreadPoolExecutor(max_workers=args.jobs) as ex:
