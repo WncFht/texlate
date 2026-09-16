@@ -1,0 +1,98 @@
+{
+ "sabotage": {
+  "events": 143,
+  "sabotaged": 45,
+  "moved": 0,
+  "caught": 41,
+  "recovered": 4,
+  "escaped": 0,
+  "escaped_ids": [],
+  "escaped_detail": [],
+  "by_kind": {
+   "fabricate_ph": {
+    "caught": 34,
+    "recovered": 1,
+    "escaped": 0
+   },
+   "drop_ph+fabricate_ph": {
+    "caught": 6,
+    "recovered": 0,
+    "escaped": 0
+   },
+   "drop_ph": {
+    "caught": 1,
+    "recovered": 3,
+    "escaped": 0
+   }
+  }
+ },
+ "translate": {
+  "files": 7,
+  "chunks": 161,
+  "fault_chunks": 7,
+  "fault_files": [],
+  "leftover_ph": 0,
+  "env_judge": {
+   "enabled": false
+  }
+ },
+ "verdict": {
+  "status": "fail",
+  "reasons": [
+   "no_pdf"
+  ],
+  "notes": [],
+  "n_errors": 23,
+  "category": "early_eof",
+  "cjk_chars": -1,
+  "missing_chars": 0,
+  "warnings_hit": [
+   "invalid_utf8"
+  ]
+ },
+ "first_error": "/home/fanghaotian/src/texlate/bench/work_e2emock/corpus_v3/pipeB-xel/2410.17957/main.tex:347: File ended while scanning use of \\caption@xdblarg.",
+ "l2_summary": {
+  "errors": 23,
+  "retranslated": [
+   "3:1",
+   "4:1",
+   "4:18",
+   "4:24",
+   "4:26",
+   "4:38"
+  ],
+  "reverted_l0": [
+   "7:4",
+   "4:14",
+   "4:27",
+   "4:31"
+  ],
+  "over_cap": [
+   "4:41",
+   "5:8",
+   "5:16",
+   "5:19",
+   "5:32",
+   "5:34",
+   "5:47"
+  ],
+  "unresolved": [
+   "3:7",
+   "4:14",
+   "4:19",
+   "4:2",
+   "4:27",
+   "4:31",
+   "4:39",
+   "4:41",
+   "5:16",
+   "5:19",
+   "5:32",
+   "5:34",
+   "5:47",
+   "5:8",
+   "7:4"
+  ]
+ },
+ "fixloop_verdict": "unfixable:early_eof"
+}
