@@ -55,6 +55,7 @@ from texlate.compile.inject import (
 )
 from texlate.compile.judge import judge
 from texlate.compile.normalize import normalize_project
+from texlate.compile.probe import dep_seen, deps_diff, target_probe
 from texlate.compile.sandbox import find_tool
 from texlate.e2e import (
     _ENV_ENV_JUDGE,
@@ -114,7 +115,9 @@ if TYPE_CHECKING:
     from pypdf import PdfWriter
     from pypdf.generic import DictionaryObject
 
+    from texlate.compile.fixloop.ctan import TlpdbIndex
     from texlate.compile.judge import Verdict
+    from texlate.compile.probe import ProbeReport
     from texlate.latex.model import Chunk, ScanResult
     from texlate.server.events import EventBus
 
@@ -178,6 +181,18 @@ _BAD_ZIP_NAME = re.compile(r"^(?:[a-zA-Z]:|/|\\)")
 
 #: 任务树内哨兵文件（断点恢复用，不进 zh-src.zip / fixloop 回灌）
 _SENTINELS = frozenset({".fetch-done", ".base-done", ".splice-done", ".compile-done"})
+
+#: probe diff 聚合行的列表截断上限（一条行不刷屏，超出记 +N）
+_PROBE_LIST_CAP = 8
+
+#: ``dep_seen`` 三值 → missing 复核标签：recorded=曾被 .fls/.mk 记录（路径/
+#: 时序问题，勿装包）；unseen=真缺失（fixloop install_file 候选）；
+#: n/a=引擎未产依赖记录，不可判
+_PROBE_SEEN_TAG: dict[bool | None, str] = {
+    True: "recorded",
+    False: "unseen",
+    None: "n/a",
+}
 
 #: fixloop 回灌 zh/ 的 TeX 输入层扩展名——rewrite 目标面 + ctan_fetch
 #: 平铺落盘面 + install_sysfont 可能投放的字体文件；编译产物
@@ -931,6 +946,7 @@ class PipelineWorker:
         engine_factory: Callable[[str], Engine] | None = None,
         babeldoc: str | None = None,
         compile_timeout: float = COMPILE_TIMEOUT,
+        deps_index: TlpdbIndex | None = None,
     ) -> None:
         """data_dir = ``TEXLATE_DATA_DIR`` 根；任务工作区 ``tasks/{id}/``。"""
         self.store = store
@@ -941,6 +957,8 @@ class PipelineWorker:
         self._src_cache = source_cache
         self._engine_factory = engine_factory
         self._babeldoc = babeldoc
+        #: probe 的 tlpdb 索引注入面：None = `target_probe` 内部惰性 ensure
+        self._deps_index = deps_index
         self._compile_timeout = compile_timeout
         self._loop: asyncio.AbstractEventLoop | None = None
         self._loop_tid = 0
@@ -1790,6 +1808,90 @@ class PipelineWorker:
         kw: dict[str, Any] = {"halt_on_error": False} if eng == "xelatex" else {}
         return engine_for(eng, **kw)
 
+    def _probe_target(self, ctx: TaskCtx, work: Path) -> ProbeReport | None:
+        r"""``target_probe`` best-effort 壳：编译前声明依赖预扫 + 信号播报。
+
+        产物全走 log 事件（最小侵入）：依赖解析计数聚合行 + ``tl_pkg``
+        可装清单 + 逐条 ``rep.notes``（missing 清单/路由信号理由——
+        ``rep.missing`` 即 fixloop ``missing_file`` 前置情报；装包仍是
+        fixloop/tlmgr 职责，此处只播报）。``prefer_engine`` 与
+        ``route_project`` 决策不一致时多记一行——只播报不重复决策。
+        探针崩溃只记行返回 ``None``，绝不阻塞编译。
+        """
+        try:
+            rep = target_probe(work, ctx.main_rel, deps_index=self._deps_index)
+        except Exception as e:  # noqa: BLE001 -- 探针是旁路诊断，崩不拖编译
+            self._log(ctx, f"probe crashed: {type(e).__name__}: {e}")
+            return None
+        parts = [
+            f"deps={len(rep.deps)}",
+            f"local={sum(d.resolved == 'local' for d in rep.deps)}",
+            f"tl_pkg={sum(d.resolved == 'tl_pkg' for d in rep.deps)}",
+            f"missing={len(rep.missing)}",
+        ]
+        if rep.prefer_engine:
+            parts.append(f"prefer_engine={rep.prefer_engine}")
+        if rep.flags:
+            parts.append(f"flags={','.join(rep.flags)}")
+        self._log(ctx, "probe: " + " ".join(parts))
+        if rep.tl_packages:
+            self._log(ctx, f"probe tl_pkg: {','.join(rep.tl_packages)}")
+        for n in rep.notes:
+            self._log(ctx, f"probe: {n}")
+        if rep.prefer_engine and rep.prefer_engine != ctx.engine_name:
+            self._log(
+                ctx,
+                f"probe: prefer_engine={rep.prefer_engine} 与 route 决策 "
+                f"{ctx.engine_name} 不一致（仅记录不切换）",
+            )
+        return rep
+
+    def _probe_diff(self, ctx: TaskCtx, rep: ProbeReport | None, res: CompRes) -> None:
+        r"""编译后 ``deps_diff`` 对拍：期望输入集 vs ``res.deps`` 权威集。
+
+        ``expected`` = 静态 ``\input`` 图（``rep.inputs``）+ local 命中声明
+        的 detail；``unread`` = 期望却未被引擎读取，``undeclared`` = 权威集
+        多出的隐式输入（kpsewhich 解析产物等）——一条聚合行，列表截断。
+        ``rep.missing`` 逐条过 ``dep_seen`` 复核（真缺失 vs 路径/时序，
+        fixloop ``install_file`` 前置判据）；``rep.flags`` 被引擎拒放的
+        （``flags_dropped``）也记一行。全程 best-effort，崩溃只记行。
+        """
+        if rep is None:
+            return
+        try:
+            expected = set(rep.inputs)
+            expected.update(d.detail for d in rep.deps if d.resolved == "local")
+            diff = deps_diff(expected, res.deps)
+            if diff.authoritative:
+                line = (
+                    f"probe diff: seen={len(diff.seen)} "
+                    f"unread={len(diff.unseen)} undeclared={len(diff.extra)}"
+                )
+                if diff.unseen:
+                    line += " unread: " + ",".join(diff.unseen[:_PROBE_LIST_CAP])
+                    if len(diff.unseen) > _PROBE_LIST_CAP:
+                        line += f"+{len(diff.unseen) - _PROBE_LIST_CAP}"
+                self._log(ctx, line)
+                if rep.missing:
+                    tags = ", ".join(
+                        f"{f}={_PROBE_SEEN_TAG[dep_seen(res.deps, f)]}"
+                        for f in rep.missing
+                    )
+                    self._log(ctx, f"probe missing 复核: {tags}")
+            else:
+                self._log(
+                    ctx,
+                    "probe diff: 引擎未产 .fls/.mk 依赖记录——差分不可判",
+                )
+            dropped = [f for f in rep.flags if f in res.flags_dropped]
+            if dropped:
+                self._log(
+                    ctx,
+                    f"probe: 引擎拒放 flags {','.join(dropped)}（flags_dropped）",
+                )
+        except Exception as e:  # noqa: BLE001 -- 差分诊断崩不拖编译
+            self._log(ctx, f"probe diff crashed: {type(e).__name__}: {e}")
+
     def _compile_en(self, ctx: TaskCtx) -> None:
         """en.pdf：base/ 拷贝编译；失败只记 warning（不阻塞译文链）。"""
         if self._has_pdf(ctx, "en_pdf"):
@@ -1798,9 +1900,15 @@ class PipelineWorker:
         if work.exists():
             shutil.rmtree(work)
         shutil.copytree(ctx.base_dir, work)
+        rep = self._probe_target(ctx, work)
         res = self._engine(ctx).compile(
-            work, ctx.main_rel, timeout=self._compile_timeout, sandbox=True
+            work,
+            ctx.main_rel,
+            timeout=self._compile_timeout,
+            sandbox=True,
+            flags=rep.flags if rep else None,
         )
+        self._probe_diff(ctx, rep, res)
         if res.has_pdf and res.pdf is not None:
             shutil.copyfile(res.pdf, ctx.root / "en.pdf")
             self._register(ctx, "en_pdf", "en.pdf")
@@ -2093,9 +2201,15 @@ class PipelineWorker:
             shutil.rmtree(work)
         shutil.copytree(ctx.zh_dir, work)
         eng = self._engine(ctx)
+        rep = self._probe_target(ctx, work)
         res = eng.compile(
-            work, ctx.main_rel, timeout=self._compile_timeout, sandbox=True
+            work,
+            ctx.main_rel,
+            timeout=self._compile_timeout,
+            sandbox=True,
+            flags=rep.flags if rep else None,
         )
+        self._probe_diff(ctx, rep, res)
         v = judge(res, expect_cjk=True, log_text=self._log_text_of(res))
         if v.status != "clean":
             res, v = self._l2_attempt(ctx, work, eng, res, v)
