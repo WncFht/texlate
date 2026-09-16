@@ -1209,6 +1209,23 @@ class TestParseAllUpperTex:
         assert rows, "大写 .TEX 应产出 chunk"
 
 
+class TestParseAllRtxSkip:
+    """REVTeX 运行时转储 ``*.rtx.tex`` 不进翻译集——与 e2e/stagerun 同口径。
+
+    实测案例 1206.0660 ``aps.rtx.tex`` 曾被翻出 +24 CJK。
+    """
+
+    def test_rtx_dump_excluded(self, tmp_path: Path) -> None:
+        ctx, worker, _store = _mk(tmp_path)
+        ctx.base_dir.mkdir(parents=True, exist_ok=True)
+        (ctx.base_dir / "main.tex").write_text(_MATH_TEX, encoding="utf-8")
+        (ctx.base_dir / "aps.rtx.tex").write_text(_MATH_TEX, encoding="utf-8")
+        (ctx.base_dir / "UP.RTX.TEX").write_text(_MATH_TEX, encoding="utf-8")
+        rows, scans = worker._parse_all(ctx)  # noqa: SLF001
+        assert set(scans) == {"main.tex"}
+        assert all(r["src_file"] == "main.tex" for r in rows)
+
+
 class TestOptIntTolerant:
     """#148 追加：存量 options_json 残留非数值 → 默认 + warning，不裸 int() 崩。"""
 
