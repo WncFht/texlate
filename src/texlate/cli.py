@@ -14,9 +14,10 @@ import os
 import shutil
 import tempfile
 import time
+import webbrowser
 from http import HTTPStatus
 from pathlib import Path
-from typing import Annotated
+from typing import IO, Annotated
 
 import httpx
 import typer
@@ -451,6 +452,56 @@ def _thin_download(
 # ---------------------------------------------------------------- web
 
 
+def _connect_url(host: str, port: int) -> str:
+    """浏览器可点地址：通配/空绑定回环化。"""
+    if host in ("0.0.0.0", "::", ""):  # noqa: S104 -- 比较非绑定：通配回环化
+        return f"http://127.0.0.1:{port}"
+    return f"http://{host}:{port}"
+
+
+def _service_lock(
+    root: Path, host: str, port: int
+) -> tuple[IO[bytes] | None, str | None]:
+    """``<data_dir>/service.lock`` 单实例锁（web-layer §6 本地形态）。
+
+    返回 ``(fh, None)`` = 拿到锁——**fh 必须活到进程终止**（flock 随 fd
+    关闭/进程退出自动释放）；``(None, url)`` = 锁被持有即已有实例在跑，
+    url 取自锁文件元数据（缺席按 host/port 推）；``(None, None)`` = 退化
+    放行（``TEXLATE_MODE=server`` 多副本部署 / 无 fcntl 平台 / 锁文件
+    不可写——不加锁也不拦起服）。
+    """
+    from texlate.server.settings import server_mode  # noqa: PLC0415
+
+    if server_mode() == "server":
+        return None, None
+    try:
+        import fcntl  # noqa: PLC0415 -- 平台门：win/无 fcntl 退化为无锁
+    except ImportError:
+        return None, None
+    try:
+        fh = (root / "service.lock").open("a+b")
+    except OSError:
+        return None, None
+    try:
+        fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        url = ""
+        try:
+            fh.seek(0)
+            meta = json.loads(fh.read().decode() or "{}")
+            url = str(meta.get("url") or "")
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+            pass
+        fh.close()
+        return None, url or _connect_url(host, port)
+    # "a+b" 写恒落 EOF——truncate(0) 显式清零再写，免得上任持有者的
+    # 元数据残留拼出非法 JSON（读侧解析失败会回退 host/port 推断）。
+    fh.truncate(0)
+    fh.write(json.dumps({"pid": os.getpid(), "url": _connect_url(host, port)}).encode())
+    fh.flush()
+    return fh, None
+
+
 @app.command()
 def web(
     *,
@@ -463,13 +514,20 @@ def web(
         ),
     ] = None,
 ) -> None:
-    """起 web 服务：FastAPI + SSE + 任务队列（需 ``texlate[server]`` extra）。"""
+    """起 web 服务：FastAPI + SSE + 任务队列（需 ``texlate[server]`` extra）。
+
+    local 形态单实例（web-layer §6）：``<data_dir>/service.lock`` flock
+    被持有 → 浏览器打开已运行实例并退出，而不是端口冲突或静默双开。
+    ``python -m texlate.server`` 是低层入口、不经此锁（瘦客户端自动
+    拉起/容器内的预期通路）。
+    """
     if data_dir is not None:
         os.environ["TEXLATE_DATA_DIR"] = str(data_dir.expanduser())
     try:
         import uvicorn  # noqa: PLC0415 -- server extra 延迟导入
 
         from texlate.server.app import create_app  # noqa: PLC0415
+        from texlate.server.settings import data_dir as _data_dir  # noqa: PLC0415
     except ImportError:
         typer.echo(
             "web 需要 server extra：uv sync --extra server"
@@ -477,5 +535,13 @@ def web(
             err=True,
         )
         raise typer.Exit(1) from None
+    _lock_fh, existing = _service_lock(_data_dir(), host, port)
+    if existing is not None:
+        typer.echo(
+            f"texlate web 已在运行 → {existing}（service.lock 被持有）",
+            err=True,
+        )
+        webbrowser.open(existing)
+        return
     typer.echo(f"texlate web → http://{host}:{port}", err=True)
     uvicorn.run(create_app(), host=host, port=port)
