@@ -5,7 +5,15 @@ description = "arXiv LaTeX 源码 → LLM 段落级翻译 → ctex 重编译中�
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
-dependencies = ["httpx>=0.28", "pypdf>=5.0", "pyyaml>=6.0.3", "typer>=0.12"]
+dependencies = [
+  "beautifulsoup4>=4.15.0",
+  "defusedxml>=0.7.1",
+  "httpx>=0.28",
+  "pypdf>=5.0",
+  "python-docx>=1.2.0",
+  "pyyaml>=6.0.3",
+  "typer>=0.12",
+]
 
 [project.optional-dependencies]
 server = [
@@ -21,13 +29,17 @@ texlate = "texlate.cli:app"
 [dependency-groups]
 dev = ["pytest>=8", "pytest-asyncio>=0.24"]
 
+[[tool.uv.index]]
+url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+default = true
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[[tool.uv.index]]
-url = "https://pypi.tuna.tsinghua.edu.cn/simple"
-default = true
+[tool.hatch.build]
+# SPA 产物拷入位是 gitignored 构建产物（scripts/build-web.sh 生成）——artifacts 强制入包
+artifacts = ["src/texlate/server/static/**"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/texlate"]

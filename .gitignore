@@ -7,11 +7,15 @@ __pycache__/
 # node
 node_modules/
 
+# SPA 产物拷入位 (scripts/build-web.sh 生成,wheel 经 hatch artifacts 携带)
+/src/texlate/server/static/
+
 # bench 重产物 (可重建,不入库)
 bench/corpus/*/
 bench/corpus_v2/*/
 bench/corpus_v2/progress.json
 bench/corpus_v2/build.log
+bench/corpus_v3/*/
 bench/work_*/
 bench/results/babeldoc/
 !bench/corpus/MANIFEST.md
