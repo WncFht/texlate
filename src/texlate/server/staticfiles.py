@@ -18,6 +18,8 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
+    from starlette.responses import Response
+    from starlette.types import Scope
 
 log = logging.getLogger(__name__)
 
@@ -56,6 +58,35 @@ def mount_spa(app: FastAPI) -> bool:
         return False
     from fastapi.staticfiles import StaticFiles  # noqa: PLC0415 -- 延迟导入
 
-    app.mount("/", StaticFiles(directory=static, html=True), name="spa")
+    base = os.path.realpath(static)  # lookup_path 产 realpath——relpath 基准须同尺
+
+    class _SpaFiles(StaticFiles):
+        """SPA 缓存策略：``index.html`` ``no-cache``，``assets/`` 哈希产物 ``immutable``。
+
+        ``pdfjs/`` 等稳定名资源默认（ETag/Last-Modified 条件请求仍有效）。
+        按实际 serve 的文件判（``file_response`` 而非 ``get_response``）
+        ——``/`` normpath 成 ``.``、子目录 index 等请求形都归一到产物面。
+        类定义收在函数内——模块级 import StaticFiles 会破 server/__init__
+        的轻依赖纪律。
+        """
+
+        def file_response(
+            self,
+            full_path: os.PathLike[str],
+            stat_result: os.stat_result,
+            scope: Scope,
+            status_code: int = 200,
+        ) -> Response:
+            resp = super().file_response(
+                full_path, stat_result, scope, status_code=status_code
+            )
+            rel = os.path.relpath(os.fspath(full_path), base)
+            if Path(rel).name == "index.html":
+                resp.headers["Cache-Control"] = "no-cache"
+            elif Path(rel).parts[0] == "assets":
+                resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+            return resp
+
+    app.mount("/", _SpaFiles(directory=static, html=True), name="spa")
     log.info("SPA mounted: %s", static)
     return True

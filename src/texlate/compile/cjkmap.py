@@ -39,6 +39,9 @@ def _font_needs_gb1_cmap(font: DictionaryObject) -> bool:
         return False
     child = font["/DescendantFonts"][0].get_object()
     system = child.get("/CIDSystemInfo", {})
+    if not isinstance(system, dict):
+        # dict.get 不解引用——间接引用的 CIDSystemInfo 先 get_object
+        system = system.get_object()
     return system.get("/Registry") == "Adobe" and system.get("/Ordering") == "GB1"
 
 
@@ -95,7 +98,11 @@ def embed_cjk_mappings(pdf: Path) -> int:
 
     try:
         for font in _iter_pdf_fonts(writer):
-            if not _font_needs_gb1_cmap(font):
+            try:
+                needs = _font_needs_gb1_cmap(font)
+            except (AttributeError, KeyError, IndexError, TypeError):
+                continue  # 结构异常的单字体不拖垮整篇注入
+            if not needs:
                 continue
             if cmap_ref is None:
                 stream = DecodedStreamObject()
@@ -107,7 +114,11 @@ def embed_cjk_mappings(pdf: Path) -> int:
             count += 1
         if count:
             tmp = pdf.with_suffix(".mapped.pdf")
-            writer.write(tmp)
+            try:
+                writer.write(tmp)
+            except BaseException:
+                tmp.unlink(missing_ok=True)  # 半截产物不留孤儿
+                raise
     finally:
         writer.close()
     if count:

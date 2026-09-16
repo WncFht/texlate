@@ -32,8 +32,11 @@ import json
 import logging
 import os
 import re
+import signal
+import sys
 import threading
 import time
+from collections import deque
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -57,6 +60,10 @@ _POLL_S = 0.5
 
 #: tracking 统计采样上限（error_samples 只留前几条供 triage）
 _MAX_ERROR_SAMPLES = 3
+
+#: ``_Feed.errors`` 保留窗口——``_classify_rc`` 只取最新一条；无界 list
+#: 的 O(n²) 去重在全篇报错时会把消费线程（worker loop）拖住
+_MAX_ERRORS = 64
 
 #: CJK 兜底 sanity 阈值：zh 目标 mono PDF 抽文本 CJK 占比低于此 → degraded
 #: （层级③单段异常吞没不进 tracking，唯一旁证是产物文本本身）
@@ -164,11 +171,13 @@ def write_config(job: BabeldocJob) -> Path:
     """
     cfg = job.workdir / "babeldoc.toml"
     cfg.parent.mkdir(parents=True, exist_ok=True)
-    cfg.write_text(
-        f"[babeldoc]\nopenai-api-key = {json.dumps(job.api_key or 'texlate')}\n",
-        encoding="utf-8",
-    )
-    cfg.chmod(0o600)
+    # os.open 带 mode 建文件——write_text 先 0644 再 chmod 的窗口内 key 可被同机读
+    fd = os.open(cfg, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(
+            f"[babeldoc]\nopenai-api-key = {json.dumps(job.api_key or 'texlate')}\n"
+        )
+    cfg.chmod(0o600)  # 预存文件 mode 不随 O_CREAT 变更——兜底钉回
     return cfg
 
 
@@ -347,7 +356,7 @@ class _Feed:
         self.on_progress = on_progress
         self.on_log = on_log
         self.stats: dict[str, Any] = {}
-        self.errors: list[str] = []
+        self.errors: deque[str] = deque(maxlen=_MAX_ERRORS)
         self.scanned = False
         self.stage = ""
         self.progress = -1.0
@@ -559,7 +568,10 @@ async def _spawn(
     ``stderr=STDOUT``，child ``dup2(-2)`` 必 EBADF，pipe 合并是唯一能
     保持「单 fd 混合流」语义的退化形）。
     父进程侧写端副本 spawn 后立即关：留着它子退出后读不到 EIO/EOF，
-    泵线程死等。
+    泵线程死等。``start_new_session`` 让子进程自立进程组（pgid=pid）
+    ——timeout/cancel 走 ``_kill_tree`` 整组 SIGKILL，babeldoc 的
+    multiprocessing 孙进程（pdf_creater.py 字体子集化/clean-save）
+    不留孤儿还占着 pty 写端把泵吊死。
     """
     env = dict(os.environ)
     env.setdefault("OMP_NUM_THREADS", "4")
@@ -595,6 +607,7 @@ async def _spawn(
             stdout=write_fd,
             stderr=write_fd,
             env=env,
+            start_new_session=True,  # POSIX 生效/Windows 忽略——配合 killpg
         )
     except Exception:
         os.close(read_fd)
@@ -611,6 +624,24 @@ def _start_pump(
 ) -> asyncio.Task[None]:
     """起合并流泵任务：pty master/匿名 pipe 读端同走 ``_pump_fd``。"""
     return asyncio.create_task(asyncio.to_thread(_pump_fd, feed_fd, buf, lock))
+
+
+def _kill_tree(proc: asyncio.subprocess.Process) -> None:
+    """整组 SIGKILL（POSIX）——孙进程同灭，孤儿不占 pty/pipe 写端吊死泵线程。
+
+    ``start_new_session`` 后 pgid==子 pid。组已空 → 退化 ``proc.kill()``
+    （send_signal 对已死进程压制 ProcessLookupError）。与
+    ``compile/sandbox._kill_proc`` 同一语义。
+    """
+    if sys.platform != "win32":
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError, OSError):
+            pass
+        else:
+            return
+    with contextlib.suppress(ProcessLookupError, OSError):
+        proc.kill()
 
 
 async def run_babeldoc(
@@ -639,14 +670,13 @@ async def run_babeldoc(
     lock = threading.Lock()
     pump = _start_pump(feed_fd, buf, lock)
 
-    timed_out, cursor = False, 0
+    timed_out = False
     deadline = t0 + job.timeout
 
     def drain() -> None:
-        nonlocal cursor
         with lock:
-            chunk = bytes(buf[cursor:])
-            cursor = len(buf)
+            chunk = bytes(buf)
+            buf.clear()
         if chunk:
             feed.feed(chunk)
 
@@ -655,18 +685,18 @@ async def run_babeldoc(
             await asyncio.sleep(_POLL_S)
             drain()
             if should_cancel is not None and should_cancel():
-                proc.kill()
+                _kill_tree(proc)
                 await proc.wait()
                 raise asyncio.CancelledError
             if time.monotonic() > deadline:
                 timed_out = True
-                proc.kill()
+                _kill_tree(proc)
                 await proc.wait()
                 break
     finally:
         if proc.returncode is None:
             # 外部 cancel/异常逃出：子进程不能留孤儿
-            proc.kill()
+            _kill_tree(proc)
             await proc.wait()
         try:
             await asyncio.wait_for(asyncio.shield(pump), timeout=5.0)
