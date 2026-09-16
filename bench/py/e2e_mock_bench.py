@@ -82,6 +82,31 @@ MODE_B_RATE = 30  # 每段 ~30% 注一次幻觉破坏
 MODE_C_RATE = 10  # 每占位符 ~10% 挪位
 _NUM_LINE_RX = re.compile(r"^(\[\d+\])\s?(.*)$", re.DOTALL)
 
+#: Mode-B 内容通道签名（repro-2410b）：交付 zh 命中任一 → dirty。
+#: L0 反馈行字面 = ``Issue.message`` 原文（``L0Report.feedback`` 直拼进
+#: corrector ``[Error]`` 段 / 阶梯 ``[previous_validation_error]`` 尾拼，mock
+#: 臂 CJK 非散文 run 原样残留进交付）；节标/字段名 = 重试协议字面（mock 会
+#: 翻成 ``[这是译文]`` 不命中，真模型 parrot prompt furniture 同款通道兜底）。
+#: ``[这是译文]`` 独行**不**作签名——源 ``[word]`` 合法产出同款。
+DIRTY_SIGS: tuple[str, ...] = (
+    "占位符缺失:",  # l0._pair_placeholder_typos
+    "占位符疑似拼错",  # l0._pair_placeholder_typos lev 配对臂
+    "多余/未识别占位符:",  # l0._check_placeholder
+    "结构占位符",  # l0._check_ph_anchor "脱离行首位置"
+    "注释区内臆造占位符",  # l0._check_placeholder 注释区专项
+    "[Original]",  # prompts.corrector_user 三段式
+    "[Translation]",  # prompts.corrector_user
+    "[Error]",  # prompts.corrector_user
+    "previous_validation_error",  # pipeline 阶梯重试尾拼
+    "slot_validation_failures",  # pipeline 批模式失败槽字段
+    "[compile_error]",  # pipeline L2 回灌重译
+)
+
+
+def _dirty_hits(zh: str) -> list[str]:
+    """交付译文命中的协议签名列表（序同 ``DIRTY_SIGS``；空 = 干净）。"""
+    return [s for s in DIRTY_SIGS if s in zh]
+
 
 def _h(*parts: str) -> int:
     return int.from_bytes(hashlib.blake2s("|".join(parts).encode()).digest()[:4], "big")
@@ -342,7 +367,9 @@ def pipe_mode_condition(
     """pipe_condition 变体：翻译层换 Mode B/C 破坏 translator，其余全链同产品臂。
 
     Mode B 逐块结局: caught (校验链拦下→原文回退) / recovered (阶梯修回干净)
-    / escaped (校验放行且译文带破坏残留——真逃逸, 门槛 = 0)。
+    / escaped (校验放行且译文占位符 multiset 破坏残留)；dirty = 交付块 zh
+    命中协议回显签名（multiset 可对而载荷脏，escaped 的内容通道盲区，
+    repro-2410b）——门槛 = escaped==0 AND dirty==0。
     Mode C: 挪位天然过 L0, 记账 moved + 落到 splice 的块数 (spliced)。
     编译尾段 = ``pipe_condition`` 同一条链：首编 → L2 回灌 → fixloop，
     inject 拒绝同口径 ``partial``——verdict 与 pipe 臂直接可比。
@@ -367,8 +394,11 @@ def pipe_mode_condition(
                 "caught": 0,
                 "recovered": 0,
                 "escaped": 0,
+                "dirty": 0,
                 "escaped_ids": [],
                 "escaped_detail": [],
+                "dirty_ids": [],
+                "dirty_detail": [],
                 "by_kind": {},
             }
         )
@@ -380,13 +410,23 @@ def pipe_mode_condition(
             continue
         ledger["sabotaged"] += 1
         ledger["moved"] += sum(e.get("moved", 0) for e in evs)
-        spliced_ok = r.status == "ok" and r.chunk_id not in reverted
+        # 交付谓词与 splice 同口径：``_delivered`` 放行 partial（旧 spliced_ok
+        # 严卡 ok 把脏 partial 记成 caught——连 escaped 都不进的反向漏账）。
+        delivered = e2e_mod._delivered(r) and r.chunk_id not in reverted
         if mode == "B":
             kinds = "+".join(sorted({e.get("kind", "?") for e in evs}))
             bk = ledger["by_kind"].setdefault(
-                kinds, {"caught": 0, "recovered": 0, "escaped": 0}
+                kinds, {"caught": 0, "recovered": 0, "escaped": 0, "dirty": 0}
             )
-            if not spliced_ok:
+            hits = _dirty_hits(r.translation) if delivered else []
+            if hits:  # 内容通道独立于 caught/recovered/escaped 划分记脏
+                ledger["dirty"] += 1
+                bk["dirty"] += 1
+                ledger["dirty_ids"].append(r.chunk_id)
+                ledger["dirty_detail"].append(
+                    {"chunk": r.chunk_id, "kinds": kinds, "hits": hits}
+                )
+            if not delivered:
                 ledger["caught"] += 1  # fault/skipped/env回落 → 原文回退
                 bk["caught"] += 1
             elif src_ph(r.translation) != src_ph(r.source):
@@ -406,7 +446,7 @@ def pipe_mode_condition(
             else:
                 ledger["recovered"] += 1
                 bk["recovered"] += 1
-        elif spliced_ok:
+        elif delivered:
             ledger["spliced"] += 1  # 挪位译文进了文档 → 编译判存活
         else:
             ledger["dropped"] += 1
@@ -625,25 +665,35 @@ def write_reports(results: dict, out_dir: Path, corpus_name: str = "corpus39") -
             "caught": 0,
             "recovered": 0,
             "escaped": 0,
+            "dirty": 0,
             "spliced": 0,
             "dropped": 0,
         }
         esc_ids: list[str] = []
+        dirty_ids: list[str] = []
         for _rel, c in recs:
             led = c.get("sabotage", {})
             for k in tot:
                 tot[k] += led.get(k, 0)
             esc_ids.extend(led.get("escaped_ids", []))
+            dirty_ids.extend(led.get("dirty_ids", []))
         lines.append(f"## Mode {mode} 台账 ({cond})")
         if mode == "B":
-            gate = "PASS" if tot["escaped"] == 0 else "FAIL"
+            gate = "PASS" if tot["escaped"] == 0 and tot["dirty"] == 0 else "FAIL"
             lines.append(
                 f"- 注入破坏块 {tot['sabotaged']}（事件 {tot['events']}）→ "
                 f"caught {tot['caught']} / recovered {tot['recovered']} / "
-                f"**escaped {tot['escaped']}** — 门槛 escaped==0: **{gate}**"
+                f"**escaped {tot['escaped']}**"
             )
+            lines.append(
+                f"- dirty {tot['dirty']}（交付 zh 命中协议回显签名——"
+                f"multiset 可对而载荷脏，escaped 的内容通道盲区）"
+            )
+            lines.append(f"- 门槛 escaped==0 AND dirty==0: **{gate}**")
             if esc_ids:
                 lines.append(f"- escaped chunk ids: {esc_ids}")
+            if dirty_ids:
+                lines.append(f"- dirty chunk ids: {dirty_ids}")
         else:
             statuses = [c.get("verdict", {}).get("status") for _r, c in recs]
             dist = {s: statuses.count(s) for s in sorted(set(statuses))}
