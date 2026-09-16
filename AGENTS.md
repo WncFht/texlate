@@ -1,11 +1,11 @@
 # TeXlate
 
 > 开源版「幻觉翻译」(hjfy.top)：arXiv LaTeX 源码 → LLM 段落级翻译 → ctex 重编译中文 PDF，双语对照阅读。
-> 当前状态：**M0 已验收、M1 实质达成、M2/M3 推进中**（2026-09-16 全仓审计 `docs/research/audit-2026-09-16/`；当日交接 `docs/HANDOFF-2026-09-16.md`）。调研完成、方案冻结；决策史 `docs/01–05`，最终技术规格 `docs/06–10`（实现按此执行），过程证据归档 `docs/research/`。已落 `src/texlate/`：`arxiv/`（获取层）、`latex/`（半解析 + 展开机——**v2 Gullet+Segmenter 为默认产品路径**，`TEXLATE_NO_EXPAND=1` 回退 v1；corpus_v3 1955 文件 identity 100%/leak 0.046%）、`xlat/`（编排 + 网关客户端）、`validate/`（L0/L1/L2）、`compile/`（引擎/注入/normalize）+ `compile/fixloop/`（yaml 修复引擎 31 规则）、`server/`（FastAPI+SSE+SQLite+BYOK 实装）、`cli.py`（typer）。
+> 当前状态：**M0 已验收、M1 实质达成、M2/M3 推进中**（2026-09-16 全仓审计 `docs/research/audit-2026-09-16/`；当日交接 `docs/HANDOFF-2026-09-16.md`）。调研完成、方案冻结；决策史 `docs/01–05`，最终技术规格 `docs/06–10`（实现按此执行），过程证据归档 `docs/research/`。已落 `src/texlate/`：`arxiv/`（获取层）、`latex/`（半解析 + 展开机——**v2 Gullet+Segmenter 为默认产品路径**，`TEXLATE_NO_EXPAND=1` 回退 v1；corpus_v3 3937 文件 identity 100%/leak 0.040%）、`xlat/`（编排 + 网关客户端）、`validate/`（L0/L1/L2）、`compile/`（引擎/注入/normalize/probe/sandbox）+ `compile/fixloop/`（yaml 修复引擎 36 规则 + llm_hook）、`server/`（FastAPI+SSE+SQLite+BYOK 实装 + babeldoc sidecar + SPA staticfiles + `cmaps/` GB1 ToUnicode）、`export/`（EPUB/DOCX 双语插译）、`share.py`、`cli.py`（typer：fetch/parse/run/web/export/version/tools）。
 
 ## 仓库布局
 
-- `src/texlate/` — 产品代码（uv 管理，`uv sync` 起 .venv；Python 3.12+）：`arxiv/` 获取层、`latex/` 半解析管线（mouth/gullet/segmenter v2 默认 + v1 对照臂）、`xlat/` 翻译编排、`validate/` 校验三层、`compile/` 引擎 + 注入+normalize+`fixloop/` yaml 修复引擎、`server/`（FastAPI+SSE+SQLite+BYOK+worker 管线，web 后端实装）、`cli.py`（typer）、`align.py`（named-dest 锚点同步）、`e2e.py`（整链编排）、`texlog.py`（编译日志 file stack）、`textutil.py`（编码/文本工具）
+- `src/texlate/` — 产品代码（uv 管理，`uv sync` 起 .venv；Python 3.12+）：`arxiv/` 获取层、`latex/` 半解析管线（mouth/gullet/segmenter v2 默认 + v1 对照臂）、`xlat/` 翻译编排、`validate/` 校验三层、`compile/` 引擎 + 注入+normalize+`fixloop/` yaml 修复引擎、`server/`（FastAPI+SSE+SQLite+BYOK+worker 管线，web 后端实装；app/settings/store/worker/events/staticfiles/babeldoc/`__main__`）、`cli.py`（typer）、`align.py`（named-dest 锚点同步）、`e2e.py`（整链编排）、`texlog.py`（编译日志 file stack）、`textutil.py`（编码/文本工具）、`share.py`、`export/`（EPUB/DOCX）
 - `web/` — SolidJS+Vite+pdfslick 阅读器前端（独立 package.json/tsconfig/vitest；TypeScript 全量，CI web job 跑 tsc/eslint/vitest）
 - `tests/` — pytest（corpus/网关/node 依赖用例均有 skipif/env 守卫，干净 clone 全绿）
 - `docs/` — `README.md` 总索引；决策史 01–05 + 最终技术规格 06–10 + `docs/research/` 调研档案（arxiv/latex/corpus/gateway/product/audit-* 子目录，`lit/` 文献原件 gitignored）

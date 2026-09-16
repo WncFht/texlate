@@ -176,20 +176,21 @@ env judge 参数：**temperature=0、max_tokens=16、3 次重试、解析 `true/
 10. `normalize_legacy_cjk`：`CJK/CJKutf8` → xeCJK+Fandol（lualatex→luatexja）。
 11. `use_bundled_bibliography`：`.bib` 缺失但有 `.bbl` → `\bibliography{x}` → `\input{x.bbl}`。
 12. `rebase_project_paths`：`\input/../foo.tex` 越界引用重写为包内正确相对路径。
+13. `_transcode_aux_bib`（树级，非文本 span）：`.bib/.bbl/.bst` + `.aux` 系可再生中间产物非 UTF-8 → UTF-8 转码写回；中间产物另加 8192B 截尾整形（`_trim_intermediate_tail`——XeTeX 写缓冲在边界劈断多字节字符，`\@newl@bel` 扫过 EOF 比非法字节更致命；立项 `research/latex/2026-09-16-aux-cjk-truncation.md`，`4a8d5ce`/`b6ba25a` 系）。
 
 **分工铁律**：归一化层做无条件手术；条件性手术（microtype/times→newtx 等）留 fixloop——两边不得重复改同一处。
 
 ### 3.3 中文注入
 
 - 默认 **ctex `[fontset=fandol,UTF8]`**（hjfy 同款、双引擎实测可编译、白拿节名汉化）；**xeCJK+fontspec 为降级路径**（ctex 冲突签名→fixloop 或探测编译切换）。两路径共用注入缝：兼容块 → `\begin{document}` 前；字体系块 → `\documentclass{}` 后。
-- `\documentstyle` → **禁止注入 + 无条件 reject**（三引擎实测全死，ptptex.cls 已不可得）→ 走降级链。
+- `\documentstyle` → **禁止注入**（inject 层兜底拒，账本记 `inject_reject:latex209`）；路由侧改判 `latex209_suspect` **先试编**、真 2.09 签名（tail 侧 `\documentstyle`/`LaTeX 2.09 COMPATIBILITY MODE`）由 fixloop gate `latex209_reject` 拒绝 → 降级链（改判 `38cc0a7`，推翻 05 裁决 13 的"无条件 reject"——05 已加注）。
 - FLOAT_SIZING 仅在有 figure/table 时注入（`\resizebox*` 缩超高 float + typeout 回读）；TABLE_FITTING hook threeparttable（`adjustbox{max width=\linewidth}`）。
 - `embed_cjk_mappings`：编译后给 Identity-H/Adobe-GB1 无 ToUnicode 字体注 `Adobe-GB1-UCS2` cmap——中文 PDF 可复制可搜索。
 
 ### 3.4 target_probe 与 compiled_dependencies
 
-- **target_probe**：翻译前先以"译文桩"替换英文词编译一遍（免费），暴露字体/模板问题再花钱；探针失败直接进 fixloop。
-- **compiled_dependencies 为翻译文件集权威**：`.fls` INPUT 行 / tectonic `--makefile-rules` 决定翻哪些 .tex；静态 `\input` 图只作编译失败时降级。
+- **target_probe**：翻译前先以"译文桩"替换英文词编译一遍（免费），暴露字体/模板问题再花钱；探针失败直接进 fixloop。落地注记（2026-09-16）：`compile/probe.py` 已落（`54e1c4b`，声明依赖预扫 + `.fls` deps diff + `latex209_suspect` 标记）；worker 接线为 **best-effort 旁路**（`worker.py::_probe_target`——依赖计数/`tl_pkg` 可装清单/`prefer_engine` 分歧只进 log 播报，探针崩溃不阻塞编译，装包仍归 fixloop/tlmgr）。
+- **compiled_dependencies 为翻译文件集权威**：`.fls` INPUT 行 / tectonic `--makefile-rules` 决定翻哪些 .tex；静态 `\input` 图只作编译失败时降级。落地注记：`dep_seen`/`deps_diff` 已随 probe 一并接入 worker（`54e1c4b`）。
 
 ## 4. 引擎层（`compile/engine.py`）
 
@@ -212,13 +213,13 @@ class Engine(Protocol):
 
 **静态预检路由表**（编译前即可决策）：
 
-| 检测                                            | 路由                                      |
-| ----------------------------------------------- | ----------------------------------------- |
-| `\documentstyle`                                | **无条件 reject**（三引擎全死已实证）     |
-| `*.eps` / `\usepackage{pstricks}` / `pspicture` | **跳过 tectonic 直走 xelatex**（硬墙）    |
-| `frozencache` + minted                          | tectonic 优先（bundle v2.6 兼容 v2 缓存） |
-| bbm/dsfont 类位图字体包                         | tectonic 高风险 → 失败后换 xelatex        |
-| 非 UTF-8 源（latin-5 等）                       | iconv 转码预处理 或 latex 路注 inputenc   |
+| 检测                                            | 路由                                                                                         |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `\documentstyle`                                | **`latex209_suspect` 试编**（inject 拒注入；真 2.09 签名由 fixloop gate 拒，`38cc0a7` 改判） |
+| `*.eps` / `\usepackage{pstricks}` / `pspicture` | **跳过 tectonic 直走 xelatex**（硬墙）                                                       |
+| `frozencache` + minted                          | tectonic 优先（bundle v2.6 兼容 v2 缓存）                                                    |
+| bbm/dsfont 类位图字体包                         | tectonic 高风险 → 失败后换 xelatex                                                           |
+| 非 UTF-8 源（latin-5 等）                       | iconv 转码预处理 或 latex 路注 inputenc                                                      |
 
 - **M0 开发默认 xelatex**（fixloop 地面真值、tlmgr 可修性实测最高：7 FAIL → 7 可推进、链深 1–5 轮）。
 - **分发默认 tectonic 优先 + xelatex 兜底**：便携无 tlmgr 依赖、初始 clean 率更高（7/12 vs 4/12）、热缓存 ≤22s；失败集几乎互补（联合 clean 9/12，全灭仅 hep-th）。
@@ -228,16 +229,20 @@ class Engine(Protocol):
 
 `clean` = ① 有 pdf ② `!`≤3 且首错非 missing_*/undefined_cs ③ **log warning 扫描**：`Invalid UTF-8 byte` / `Missing character.*U+FFFD` / tectonic `File.*not found` 降级行 / missing_graphic 红线——任一命中即 dirty。另加**中文实际渲染检查**（`Missing character` 计数==0 或 PDF 字体表含 CJK——hep-th 0 中文字节是全线最坏静默失败）。`partial` = 有 pdf 但 dirty。
 
+> 勘误（2026-09-16，F3 改判 `87e6a40`）：**策略拒绝不再单列 `reject` 终态**——route/inject/fixloop 三处拒绝统一归 `partial` + `reject_at ∈ {route, inject, fixloop}` 审计字段（语义：拒绝是降级交付不是 fault；worker `_reject` 与 e2e `run()` 同形，`cli.py` 对 `reject_at` 保持 exit 2）。§5 verdict 词汇表同此口径。
+
 ### 4.4 编译沙箱
 
 `--untrusted`（tectonic）/ `-no-shell-escape`（xelatex）+ **env 白名单**（非黑名单；加 `TECTONIC_UNTRUSTED_MODE=1 openin_any=p openout_any=p shell_escape=f`）+ macOS sandbox-exec profile（deny `$HOME` 读 + 全写，白名单放行工程/输出/缓存/字体目录——settings.json/浏览器 profile/SSH key 编译期不可读）+ `killpg` 进程树超时杀。
 
+> 落地注记（2026-09-16）：Linux 侧 bwrap 包装已落 `compile/sandbox.py`（`b260378`；darwin 走 sandbox-exec，`TEXLATE_NO_BWRAP=1` 逃逸开关）+ `tests/test_compile_sandbox.py`。
+
 ## 5. fixloop（`compile/fixloop/` 包）
 
-### 5.1 两层 YAML：`taxonomy`（log→类别，18 regex）+ `rules`（类别→动作）
+### 5.1 两层 YAML：`taxonomy`（log→类别）+ `rules`（类别→动作）
 
 > **勘误（2026-09-16）**：实现为 `compile/fixloop/` 包（engine/cases/ctan/logparse/\_yamlish/rules.yaml）；
-> taxonomy 段现为 28 个 pattern 条目、rules 段 31 条（v3 整改，HANDOFF-2026-09-16 §2.2）。
+> taxonomy 段现为 37 个 pattern 条目、rules 段 **36** 条（v3 整改 + 后续扩表：pstricks_dvips_preflight/eps_route/eps_to_pdf/legacy_pkg_shim/font_sub_shim/aux_scan_eof/split_glued_cs 等，HANDOFF-2026-09-16 §2.2/§6）。
 
 phase：`gate`=每轮分类后最先评估 / `precheck`=编译前一次性 / `loop`=每轮错误驱动；同 phase 按 order 升序、**每轮只应用一条**（便于归因）。
 

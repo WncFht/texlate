@@ -1044,6 +1044,8 @@ _MC_TABLE: list[dict[str, Any]] = [
     {
         "id": "cjk_glyph",
         # CJK 统一表意+假名+谚文+兼容/全角区 —— 落在非 CJK 字体 = xeCJK
+        # (本表是 textutil.CJK_RANGES 的语义超集: 缺字判定要罩住假名/谚文/
+        # 彝文/全角, 勿向 CJK_RANGES 单源回退)
         # 绑定被污染 (elsart 族 \no@harm 下 \protect=\noexpand 使
         # \fontfamily/\selectfont 失效, 首用把 xeCJK/<fam>/<ser>/<sh>/<size>
         # 全局绑到 lmroman —— /tmp/mc-repro 实证), 预热即可。

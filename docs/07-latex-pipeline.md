@@ -96,7 +96,7 @@ class ScanResult:
     protected_tex: str
     chunks: list[Chunk]
     ph_map: dict[str,str]           # "[[TYPE_n]]" → 原文段（可内嵌占位符）
-    macros: MacroTable              # cmds + envs 双表
+    macros: ScopeMacroTable         # scope 链（v1 平表经 export_flat_macros 转换收敛）
     pieces: list[Piece]
     inputs: list[tuple[int,str]]
     warnings: list[ScanWarning]
@@ -341,7 +341,7 @@ Mouth 行为（逐条对应 plasTeX Tokenizer）：回压缓冲 `tokbuf` 先空�
 ```python
 class Gullet:
     inputs: list[Mouth]     # 输入栈；read() 拉栈顶、耗尽弹栈
-    macros: MacroTable      # scope 链（§8.5）
+    macros: ScopeMacroTable # scope 链（§8.5）
     ifflags: dict[str,bool] # \newif 旗标
     math_depth: int         # $/\(/\[/math env 计数 → \ifmmode 求值
     steps: int = 0
@@ -391,7 +391,7 @@ expandables = 宏表 ∪ 原语集 `{def,edef,gdef,xdef,let,newcommand*,newenvir
 ### 8.5 作用域
 
 ```
-MacroTable.scopes: list[dict]
+ScopeMacroTable.scopes: list[dict]
 '{'/\bgroup/\begin{env} 推；'}'/\end 弹（分段器驱动回报）
 \def/\edef/\newcommand/\newenvironment/\let → 顶帧（local——LaTeX 语义，
     plasTeX 一律 global 是简化；局部泄漏代价≈无害）
@@ -525,7 +525,7 @@ warn_kinds 对照（v2 vs v1）：`stray_end` 63/33、`unclosed_env` 31/53、`de
 
 ### 12.3 遗留
 
-- `res.macros` 消费点未适配：`ScanResult.macros` 类型放宽为 `MacroTable | GulletMacroTable`（scope 链对象沿用 MacroTable 接口并存），消费方待后续接线——本轮求行为等价未动。
-- 性能尾：85 文件 >500ms（最坏 2403.15096 8.4s），`_collect_group`/env 体扫描是已知热点——下一性能轮靶。
+- ~~`res.macros` 消费点未适配~~ **已收敛**：`ScanResult.macros` 单型 `ScopeMacroTable`（v1 平表经 `export_flat_macros` 转换）；臂内 `ScanState.macros` 保留 `MacroTable | ScopeMacroTable` union。
+- ~~性能尾：85 文件 >500ms（最坏 2403.15096 8.4s）~~ **两波 perf 已落**（`0278602`/`55db9bc`，201 文件复测口径）：长尾总和 51476→26723ms（-48%）、>500ms 文件 20→11、identity 201/201 全等；`_collect_group`/env 体扫描残余 11 文件仍是已知热点。
 - e2e_mock 编译侧 fail 均为环境性（缺 pstricks/revtex4 系统包），管线三段干净。
 - `chunk` 数口径：v2 124772 vs v1 135170——v2 把含 ph 的 run 整段单 chunk（v1 会在 ph 边界再切），leak 持平证明可译覆盖等价，仅分块粒度不同。
