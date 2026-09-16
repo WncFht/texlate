@@ -842,6 +842,10 @@ class Gullet:
         self._seen: set[str] = set()  # \input 绝对路径祖先栈（W12：进栈压、弹栈撤）
         self._seen_fid: dict[int, str] = {}  # file_id → 已登记绝对路径
         self._trace: list[Tok] = []  # 当前 invoke 已消费 token（回吐用）
+        # 栈成员变更事件钟：read() 弹栈 / push_source / unread 合成源——
+        # 分段器尾字节补盖的 live 快照按此重建（免每 token 全量 diff）。
+        self._pop_seq = 0
+        self._push_seq = 0
         if text:
             self.push_source(text, "")
 
@@ -853,6 +857,7 @@ class Gullet:
         self.file_texts.append(text)
         self.file_paths.append(path)
         self.inputs.append(Mouth(text, fid, self.cats))
+        self._push_seq += 1
         if path:
             r = str(Path(path).resolve())
             self._seen.add(r)
@@ -867,6 +872,7 @@ class Gullet:
                 self._last_read = t
                 return t
             m = self.inputs.pop()
+            self._pop_seq += 1
             r = self._seen_fid.pop(m.file_id, None)
             if r is not None:
                 self._seen.discard(r)  # 祖先栈回撤：兄弟位合法重包含不断
@@ -878,6 +884,7 @@ class Gullet:
             return
         if not self.inputs:
             self.inputs.append(Mouth.from_tokens(list(toks), self.cats))
+            self._push_seq += 1
         else:
             self.inputs[-1].push_tokens(list(toks))
 
@@ -1379,6 +1386,7 @@ class Gullet:
         if name == "endinput":
             if self.inputs:
                 m = self.inputs.pop()  # 当前文件余下字节丢弃（flatten 同语义）
+                self._pop_seq += 1
                 r = self._seen_fid.pop(m.file_id, None)
                 if r is not None:
                     self._seen.discard(r)  # 祖先栈回撤——同 read() 弹栈账

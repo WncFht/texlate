@@ -1,0 +1,96 @@
+         37919582 function calls (37373867 primitive calls) in 8.439 seconds
+
+   Ordered by: cumulative time
+   List reduced from 234 to 40 due to restriction <40>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.013    0.013    8.667    8.667 /home/fanghaotian/src/texlate/src/texlate/latex/api.py:86(parse_file)
+        1    0.000    0.000    8.649    8.649 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:3230(scan_v2)
+   3027/1    0.703    0.000    8.342    8.342 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:1027(scan)
+811537/270334    0.302    0.000    7.361    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:1212(_dispatch)
+ 1692/647    0.009    0.000    5.378    0.008 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:1551(_handle_env_begin)
+ 1045/635    0.005    0.000    4.308    0.007 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:1884(_env_with_mined)
+   791089    0.727    0.000    4.198    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:423(_rappend_tok)
+   819702    0.304    0.000    1.461    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:345(_cover_to)
+     1053    0.277    0.000    1.343    0.001 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:1997(_find_env_end)
+   986190    0.183    0.000    1.313    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/gullet.py:862(read)
+   815646    0.649    0.000    1.299    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:146(slice)
+   986190    0.670    0.000    1.130    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/mouth.py:219(next)
+   816843    0.533    0.000    0.999    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:139(cover)
+   805625    0.403    0.000    0.534    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:417(_rappend)
+      892    0.010    0.000    0.533    0.001 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:2652(_handle_chunk_arg)
+   283356    0.055    0.000    0.491    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/gullet.py:944(next_expanded)
+  4644976    0.363    0.000    0.427    0.000 {built-in method builtins.len}
+    10915    0.025    0.000    0.389    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:496(_flush_run)
+  5414016    0.385    0.000    0.385    0.000 {method 'append' of 'list' objects}
+  1616094    0.215    0.000    0.326    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:341(_cons)
+1708/1694    0.003    0.000    0.324    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:2986(_handle_unknown_cs)
+1103/1089    0.002    0.000    0.309    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:3018(_handle_argspec_cs)
+        1    0.001    0.001    0.301    0.301 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:3222(_doc_begin_of)
+        1    0.060    0.060    0.300    0.300 /home/fanghaotian/src/texlate/src/texlate/textutil.py:129(mask_tex)
+   815646    0.271    0.000    0.271    0.000 {built-in method _bisect.bisect_left}
+   846814    0.182    0.000    0.264    0.000 {method 'join' of 'str' objects}
+     1089    0.009    0.000    0.262    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:3068(_emit_argspec_chunks)
+  3532001    0.261    0.000    0.261    0.000 {method 'get' of 'dict' objects}
+  1245504    0.164    0.000    0.245    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:202(next_expanded)
+     1089    0.003    0.000    0.230    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:3179(_subscan_render)
+    24492    0.206    0.000    0.224    0.000 /home/fanghaotian/src/texlate/src/texlate/textutil.py:106(_inline_verb_end)
+  1080658    0.136    0.000    0.220    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/mouth.py:148(code)
+   701275    0.077    0.000    0.195    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:206(read)
+     7772    0.053    0.000    0.182    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:2211(_collect_group)
+     1723    0.012    0.000    0.152    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:2838(_handle_boundary)
+   826291    0.129    0.000    0.152    0.000 {built-in method builtins.max}
+     9395    0.027    0.000    0.147    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:1365(_on_math)
+     3085    0.012    0.000    0.132    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:2456(_protect_cs)
+     2715    0.012    0.000    0.115    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:2245(_args_tok)
+      910    0.065    0.000    0.108    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:588(_slice_items)
+
+
+         37919582 function calls (37373867 primitive calls) in 8.439 seconds
+
+   Ordered by: internal time
+   List reduced from 234 to 40 due to restriction <40>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+   791089    0.727    0.000    4.198    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:423(_rappend_tok)
+   3027/1    0.703    0.000    8.342    8.342 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:1027(scan)
+   986190    0.670    0.000    1.130    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/mouth.py:219(next)
+   815646    0.649    0.000    1.299    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:146(slice)
+   816843    0.533    0.000    0.999    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:139(cover)
+   805625    0.403    0.000    0.534    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:417(_rappend)
+  5414016    0.385    0.000    0.385    0.000 {method 'append' of 'list' objects}
+  4644976    0.363    0.000    0.427    0.000 {built-in method builtins.len}
+   819702    0.304    0.000    1.461    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:345(_cover_to)
+811537/270334    0.302    0.000    7.361    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:1212(_dispatch)
+     1053    0.277    0.000    1.343    0.001 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:1997(_find_env_end)
+   815646    0.271    0.000    0.271    0.000 {built-in method _bisect.bisect_left}
+  3532001    0.261    0.000    0.261    0.000 {method 'get' of 'dict' objects}
+  1616094    0.215    0.000    0.326    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:341(_cons)
+    24492    0.206    0.000    0.224    0.000 /home/fanghaotian/src/texlate/src/texlate/textutil.py:106(_inline_verb_end)
+   986190    0.183    0.000    1.313    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/gullet.py:862(read)
+   846814    0.182    0.000    0.264    0.000 {method 'join' of 'str' objects}
+  1245504    0.164    0.000    0.245    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:202(next_expanded)
+  1080658    0.136    0.000    0.220    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/mouth.py:148(code)
+   826291    0.129    0.000    0.152    0.000 {built-in method builtins.max}
+   818398    0.089    0.000    0.089    0.000 {built-in method builtins.min}
+  1261204    0.082    0.000    0.082    0.000 {method 'popleft' of 'collections.deque' objects}
+   701275    0.077    0.000    0.195    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:206(read)
+      910    0.065    0.000    0.108    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:588(_slice_items)
+   837751    0.064    0.000    0.064    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:135(__len__)
+   802765    0.062    0.000    0.062    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:1163(_tok_surface)
+        1    0.060    0.060    0.300    0.300 /home/fanghaotian/src/texlate/src/texlate/textutil.py:129(mask_tex)
+   805625    0.056    0.000    0.058    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:356(_gap_surface)
+   283356    0.055    0.000    0.491    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/gullet.py:944(next_expanded)
+   823213    0.054    0.000    0.054    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:710(_in_group)
+     7772    0.053    0.000    0.182    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:2211(_collect_group)
+   814682    0.051    0.000    0.057    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:678(_close_group)
+   814428    0.037    0.000    0.037    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:510(<genexpr>)
+   814428    0.033    0.000    0.033    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:511(<genexpr>)
+   292802    0.029    0.000    0.029    0.000 {method 'items' of 'dict' objects}
+    24492    0.028    0.000    0.049    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/mouth.py:305(_read_escape)
+     9395    0.027    0.000    0.147    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:1365(_on_math)
+    10915    0.025    0.000    0.389    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:496(_flush_run)
+   283357    0.023    0.000    0.023    0.000 {built-in method builtins.id}
+   549470    0.022    0.000    0.022    0.000 /home/fanghaotian/src/texlate/src/texlate/latex/segmenter.py:583(<genexpr>)
+
+

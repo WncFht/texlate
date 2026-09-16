@@ -28,7 +28,7 @@ env_begin/end 宏端点配对。``\\if`` 界标档回放、F12 墓标在 S4。
 from __future__ import annotations
 
 import re
-from bisect import bisect_left
+from bisect import bisect_left, bisect_right
 from collections import deque
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, NamedTuple, Protocol
@@ -198,6 +198,11 @@ class _ListSource:
     def __init__(self, toks: list[Tok]) -> None:
         """持有待发 token 队列。"""
         self._q = deque(toks)
+        # ``_collect_group`` 扫到队尾未配对的 open 位 (pos, gen)：token 列
+        # 构造即定（unread 只回放已见 token、skip_past 只删），「无配对」
+        # 判终身成立——同 open 的后续探针 O(1) fast-fail，不再 O(尾长) 重扫
+        # （2410.17998 实测 145 次失败重扫 = 18.6M/19M token 拉取）。
+        self._unmatched_open: set[tuple[tuple[int, int, int], int]] = set()
 
     def next_expanded(self) -> Tok | None:
         """队首出队。"""
@@ -344,14 +349,24 @@ class Segmenter:
 
     def _cover_to(self, fid: int, end: int) -> Span:
         """``file_texts[fid][cons:end]`` 记入 vtex，返回其 vtex 区间。"""
+        sp, _text = self._cover_text(fid, end)
+        return sp
+
+    def _cover_text(self, fid: int, end: int) -> tuple[Span, str]:
+        """``_cover_to`` + 返回所盖文本。
+
+        省掉刚盖段的 ``vt.slice`` 反查（bisect+join 逐 token 开销，
+        pdotaph2 815K 次）。
+        """
         a = self._cons(fid)
         if end <= a:
             # 已覆盖（回放/乱序）——零宽，锚在当前 vtex 末（不是文件位 a！）
-            return Span(len(self.vt), len(self.vt))
+            return Span(len(self.vt), len(self.vt)), ""
         self._cov_origin[fid] = a  # 间隙 surface 前缀判定的锚（_gap_surface）
-        sp = self.vt.cover(self.file_texts[fid][a:end])
+        text = self.file_texts[fid][a:end]
+        sp = self.vt.cover(text)
         self.cons[fid] = end
-        return sp
+        return sp, text
 
     def _gap_surface(self, fid: int, cons0: int, tok_start: int) -> str:
         r"""Token 前间隙字节的 surface 前缀（``" "`` 或 ``""``）。
@@ -424,10 +439,10 @@ class Segmenter:
         """gen=0 文本 token：覆盖 gap+本体；surface=渲染形，ident=vtex 切片。"""
         fid, _a, b = t.pos
         cons0 = self._cons(fid)
-        vspan = self._cover_to(fid, b)
+        vspan, ident = self._cover_text(fid, b)
         self._rappend(
             self._gap_surface(fid, cons0, t.pos[1]) + self._tok_surface(t),
-            self.vt.slice(vspan.start, vspan.end),
+            ident,
             vspan,
         )
 
@@ -530,8 +545,11 @@ class Segmenter:
         if has_expand:
             # 含展开组的 run 跳过 lead/trail 剥离——整 run 进 content（§2）
             lead, hi = 0, len(s)
-        parts = self._split_bounds(s, items, lead, hi)
-        slices = [self._slice_items(items, p0, p1, hi) for p0, p1 in parts]
+        bounds = [0]
+        for it in items:
+            bounds.append(bounds[-1] + len(it.surface))
+        parts = self._split_bounds(s, bounds, lead, hi)
+        slices = [self._slice_items(items, bounds, p0, p1, hi) for p0, p1 in parts]
         # gspan = 分段项界并集——零宽项（surface==""，归段规则见 _slice_items）
         # 的 callsite 字节随段折入，否则尾部 _emit 把同段字节 raw 再发一遍
         core_vs, core_ve = slices[0][2], slices[-1][3]
@@ -587,18 +605,25 @@ class Segmenter:
 
     @staticmethod
     def _slice_items(
-        items: list[_RunItem], lo: int, hi: int, end: int
+        items: list[_RunItem], bounds: list[int], lo: int, hi: int, end: int
     ) -> tuple[str, str, int, int]:
         """Surface ``[lo,hi)``（项界对齐）→ ``(surface, ident, vstart, vend)``。
 
         零宽项（``surface==""``——eol_par 首段可为空）按 ``lo<=acc<hi`` 归段，
         恰在 ``end`` 的归末段；否则其 ident 双侧段都不收 → dead_ph。
+        ``bounds`` = surface 前缀和（``bounds[i]`` = 项 i 的 acc）。命中项充要
+        ``bounds[i+1]>lo``（或零宽 ``bounds[i]>=lo``）且 ``bounds[i]<hi``
+        （末段放 ``bounds[i]==hi==end``）——bisect 窄化扫描窗，去掉每段对
+        全列的 O(n) 重扫（zwanenburg：281 段 × 全列 → 8.9M 项访）。
         """
-        acc = 0
+        i_lo = min(bisect_right(bounds, lo) - 1, bisect_left(bounds, lo))
+        i_hi = bisect_right(bounds, hi) if hi == end else bisect_left(bounds, hi)
+        i_hi = min(i_hi, len(items))
+        acc = bounds[i_lo]
         out_s: list[str] = []
         out_i: list[str] = []
         vs = ve = -1
-        for it in items:
+        for it in items[i_lo:i_hi]:
             nxt = acc + len(it.surface)
             keep = nxt > lo and acc < hi
             if not it.surface and acc >= lo and (acc < hi or acc == hi == end):
@@ -614,18 +639,15 @@ class Segmenter:
 
     @staticmethod
     def _split_bounds(  # noqa: C901, PLR0912 — 切点优先级链，平铺即 §3.8 规则序
-        s: str, items: list[_RunItem], lo: int, hi: int
+        s: str, bounds: list[int], lo: int, hi: int
     ) -> list[tuple[int, int]]:
         """``s[lo:hi]`` 超大二次切分——返回 surface 区间列，切点 snap 项界。
 
         切点落在项 ``k`` 内部时该项整体归前段（取 vend=bounds[k+1]）——
-        展开组/ph token 永不腰斩（契约 §2）。
+        展开组/ph token 永不腰斩（契约 §2）。``bounds`` = surface 前缀和。
         """
         if hi - lo <= CHUNK_MAX:
             return [(lo, hi)]
-        bounds = [0]
-        for it in items:
-            bounds.append(bounds[-1] + len(it.surface))
         parts: list[tuple[int, int]] = []
         i = lo
         while i < hi:
@@ -1042,9 +1064,25 @@ class Segmenter:
             if gullet_inputs is not None
             else None
         )
+        # 栈成员变更事件门：``_pop_seq``/``_push_seq`` 不变即 live 快照不失真
+        # （fid 进出栈唯一通道是 read() 弹栈 / push_source / unread 合成源，
+        # 均计数）——免每 token 重建 dict diff（pdotaph2 986K 次重建省掉）。
+        stack_ck = (
+            (src._pop_seq, src._push_seq)  # noqa: SLF001 — §4 契约面：同模块事件钟
+            if live_srcs is not None
+            else (0, 0)
+        )
         while not self._stop:
             t = src.next_expanded()
-            if live_srcs is not None:
+            if (
+                live_srcs is not None
+                and (
+                    src._pop_seq,  # noqa: SLF001
+                    src._push_seq,  # noqa: SLF001
+                )
+                != stack_ck
+            ):
+                stack_ck = (src._pop_seq, src._push_seq)  # noqa: SLF001
                 # 子文件源耗尽被 read() 弹栈：尾部不成 token 的字节（注释/
                 # 空白尾）补盖 + 零宽 run 项（surface="" 不落译文面，ident
                 # 随归属 piece 进 identity）——v1 flatten 保留这些字节。
@@ -1326,10 +1364,10 @@ class Segmenter:
             return
         if t.kind == "eol_par":
             cons0 = self._cons(fid)
-            vspan = self._cover_to(fid, b)
+            vspan, ident = self._cover_text(fid, b)
             self._rappend(
                 self._gap_surface(fid, cons0, t.pos[1]) + "\n\n",
-                self.vt.slice(vspan.start, vspan.end),
+                ident,
                 vspan,
             )
             self._flush_run(vspan.end)
@@ -2218,13 +2256,24 @@ class Segmenter:
         参数不匹配处理（字节版 ``match_brace`` 返 None 且 ``pos`` 不动
         的等价物）。``eol_par`` 在组内是普通内容 token（``match_brace``
         不判段界），继续收集。
+
+        ``_unmatched_open``（源侧可选挂载，``_ListSource`` 有）：扫到流尽
+        仍未归零时，深度栈上残留的 open 全是「整流无配对」——配对关系按
+        栈唯一，记入 memo；同 open 再探直返（回吐 open_t 与实扫失败同态）。
         """
+        dead = getattr(src, "_unmatched_open", None)
+        if dead is not None and (open_t.pos, open_t.gen) in dead:
+            src.unread([open_t])
+            return None
         pulled = [open_t]
         inner: list[Tok] = []
+        opens: list[tuple[tuple[int, int, int], int]] = [(open_t.pos, open_t.gen)]
         depth = 1
         while True:
             x = src.read()
             if x is None:
+                if dead is not None:
+                    dead.update(opens)
                 src.unread(pulled)
                 return None
             pulled.append(x)
@@ -2236,10 +2285,12 @@ class Segmenter:
                 is_close = x.kind == "other" and x.text == "]"
             if is_open:
                 depth += 1
+                opens.append((x.pos, x.gen))
             if is_close:
                 depth -= 1
                 if depth == 0:
                     return inner, x
+                opens.pop()
             inner.append(x)
 
     def _args_tok(  # noqa: C901, PLR0912, PLR0913, PLR0915 — argspec 字母各一分支，平铺即 §5.3 表
