@@ -215,3 +215,70 @@ def test_group_url_delim_form() -> None:
     )
     assert "http://x.y/" not in blob(res)
     assert reconstruct(res) == DOC % body
+
+
+# ---------------------------------------------------------------- 间隙剖分
+# ``_cover_gap``：``\cs`` 后被吞空格/``%`` 注释这类非 token 字节先剖成
+# 字面 run 项，不并入右侧 ph 体——否则 in_arg/mined 子扫的 ident 轨渲染
+# 丢空格（``A\foo \cite{x}`` 曾渲成 ``A\foo[[CITE_1]]``，v1 有空格）。
+
+
+def test_gap_before_cite_in_arg() -> None:
+    r"""``\foo \cite`` 的被吞空格：chunk 面 ``\foo [[CITE]]`` 且 ph 体不带前隙。"""
+    body = r"\section{A\foo \cite{x} tail}"
+    res = scan(body)
+    assert "A\\foo [[CITE_1]] tail" in blob(res)
+    assert res.ph_map["[[CITE_1]]"] == "\\cite{x}"
+    assert reconstruct(res) == DOC % body
+
+
+def test_gap_comment_before_ph_in_arg() -> None:
+    r"""``A%note\n \cite{x}``：注释剖出为 ``[[COMMENT]]``，空格留在渲染面。"""
+    body = "\\section{A%note\n \\cite{x} tail}"
+    res = scan(body)
+    text = blob(res)
+    assert "[[COMMENT_" in text
+    assert "\n [[CITE_" in text
+    assert res.ph_map["[[CITE_1]]"] == "\\cite{x}"
+    assert any(v == "%note" for v in res.ph_map.values())
+    assert reconstruct(res) == DOC % body
+
+
+def test_gap_before_envtag_in_arg() -> None:
+    r"""``\begin``/``\end`` 前间隙同样剖分——ENVTAG/ENV 体头即 ``\\``。"""
+    body = "\\section{A\\foo \\begin{itemize}\\item x\\end{itemize} tail}"
+    res = scan(body)
+    assert "A\\foo [[ENVTAG_1]][[CMD_2]] x[[ENVTAG_3]] tail" in blob(res)
+    assert res.ph_map["[[ENVTAG_1]]"] == "\\begin{itemize}"
+    assert res.ph_map["[[ENVTAG_3]]"] == "\\end{itemize}"
+    assert reconstruct(res) == DOC % body
+
+
+def test_gap_before_math_and_verb_in_arg() -> None:
+    r"""``$``/``\\(``/``\\verb`` 前被吞空格不丢——渲染面 ``\\foo [[X]]``。"""
+    for pat, ph, body in (
+        (r"\section{A\foo $x$ tail}", "[[MATH_1]]", "$x$"),
+        (r"\section{A\foo \(x\) tail}", "[[MATH_1]]", "\\(x\\)"),
+        (r"\section{A\foo \verb|v| tail}", "[[VERB_1]]", "\\verb|v|"),
+    ):
+        res = scan(pat)
+        assert f"A\\foo {ph} tail" in blob(res), pat
+        assert res.ph_map[ph] == body
+        assert reconstruct(res) == DOC % pat
+
+
+def test_gap_before_opaque_macro_in_arg() -> None:
+    r"""``\mm`` 类宏调用前间隙剖分——MACRO 体 = ``\\mm`` 本体。"""
+    body = "\\newcommand{\\mm}{X}\n\\section{A\\foo \\mm tail}"
+    res = scan(body)
+    assert "A\\foo [[MACRO_1]] tail" in blob(res)
+    assert res.ph_map["[[MACRO_1]]"] == "\\mm"
+    assert reconstruct(res) == DOC % body
+
+
+def test_gap_toplevel_ph_body_clean() -> None:
+    r"""顶层保护段同样剖分：ph 体首字节 = 构造首字节（``\\``/``$``）。"""
+    res = scan("Para \\foo \\cite{x} and \\begin{equation}y\\end{equation} z.")
+    assert res.ph_map["[[CITE_1]]"] == "\\cite{x}"
+    assert all(not v.startswith((" ", "\n", "%")) for v in res.ph_map.values())
+    assert reconstruct(res) == DOC % "Para \\foo \\cite{x} and \\begin{equation}y\\end{equation} z."
