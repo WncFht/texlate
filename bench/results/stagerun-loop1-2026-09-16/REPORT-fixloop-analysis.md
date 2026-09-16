@@ -136,3 +136,15 @@ wave-2 全批落地验证完毕。**方法同补记 7**：每格先 `compile --a
 **当前残盘**（fixloop.jsonl 每格末条，n=1310）：unfixable 合计 **57** = syntax 15 / illegal_unit 12 / early_eof 11 / undefined_cs 7 / capacity 5 / other 3 / fontspec_missing 2 / babel_opt 1（polutonikogreek）/ missing_file 1；no_errors_no_pdf 1（1803.00012 SIGSEGV，ticket-only）。出 pdf 1247/1310 = 95.2%。already_def/option_clash/pkg_order 三个命名簇清零。
 
 **wave-3 候选**：syntax/illegal_unit 超簇大头即译文腐蚀（fixer-slots 属地）+ 错帽终止下游；early_eof 残 11 = 补记 7 归因的 \read 交互/no-legal-\end/错帽/svjour-option/SIGKILL 各型；undefined_cs 7 残 payload 散（sortlist/maketitle/hb/emFrenkel/eqntopsep/LARGEFun）。
+
+## 补记 9：wave-3 首批——fontspec/typein 两簇清零（2026-09-17 凌晨）
+
+方法同补记 7/8：每格 `compile --arm zh --rerun` 重建 pristine splice 再 `fixloop --rerun`。本轮一处 engine 修复 + 两条新规则 + 一处 taxonomy 签名修正。
+
+- **`FONTCONFIG_FILE` 注入（engine.py，2211.12985 实证）**：fontspec 裸名查找只走 fontconfig，texmf 自带 otf（FontAwesome.otf 等）未注册必炸 `font "X" cannot be found`——ambient 与沙箱同缺，`OSFONTDIR` 不吃。`_env` 写一份 conf（`<include>` 系统 conf + `<dir>` texmf-dist/fonts/opentype + usertree home/fonts/opentype + `<cachedir>` usertree 内——沙箱 HOME 是 tmpfs，不落此每轮重扫数千枚）。conf 落点经两轮修正：usertree 情形须落 `usertree/home/`（根本身不在 bwrap 挂载面，仅 home/var/config 经 env 值挂进）；ambient 落 `~/.cache/texlate/fontconfig/`（已列入 `_bwrap_mounts` rw）。验证链：fc-match 命中 → `_bwrap_wrap` 沙箱内 xelatex 出 pdf → 真格 2211.12985 FontAwesome 解决。
+- **`font_name_substitute`（order 31，install_sysfont 兜底）**：名查找字体真缺（Noto Mono——发行版只有 Noto Sans Mono，带空格名进不了 filemap）→ 引用换 LM **显示名**（首版用 `latinmodern-*.otf` 文件名翻船——真名是 `lmmono10-regular.otf` 系；显示名经 fontconfig 全家族解析，`\textbf` 字重自动命中）。mono→Latin Modern Mono、math→Latin Modern Math、余→Latin Modern Roman，覆盖 `set*font`/`fontspec`/`newfontfamily` 系 + CJK 变体。1706.00240：fontspec 墙越过 → 前进到 `early_eof`（bundled torus.bbl 用新 biblatex 内部宏 `\blx@dlist@type` 系，版本错配连发至错帽——**bbl/biblatex 版本错配新簇**，单格量，归 wave-4 候选）。
+- **`typein_neutralize`（order 180，early_eof 首个消费规则）**：稿自带 `\typein{* Type <return> ...}` 终端读 nonstop 必死 → `\typeout` 忠实 stub（横幅照打、跳过等待）；两参形 `\typein[\cs]` → `\typeout{msg}\def\cs{}`（空输入即作者默许默认）。hep-ph/0111248 bundled aipcheck.tex 12 处 → **best_effort_pdf**。
+- **missing_tfm 签名修正**：`Font X at Npt not loadable` 抓名类 `[a-zA-Z0-9]+`/`(\w+)` 不含 `-`——`SkakNew-Diagram` 截成 `Diagram` → filemap 必 miss（两条签名同病）。改 `[\w-]+` 后 `SkakNew-Diagram.tfm`→skaknew 包装上。2211.12985 → **best_effort_pdf**（本轮双修复叠加：fontspec 墙 + tfm 墙连破）。
+- **pst-pdf 自愈确认**：2111.00051 上轮已转 acceptable_pdf，本轮 pristine 复跑稳态保持。
+
+**残盘**（每格末条，n=1310）：unfixable **54**（57→54）= syntax 15 / illegal_unit 12 / early_eof 11 / undefined_cs 7 / capacity 5 / other 3 / babel_opt 1；fontspec_missing、missing_file 两簇清零（early_eof 数不变但成员换血：hep-ph/0111248 出、1706.00240 bbl 错配入）。出 pdf **1255/1310 = 95.8%**。

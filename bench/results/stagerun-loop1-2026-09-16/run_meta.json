@@ -529,8 +529,161 @@
    ],
    "seed": 42,
    "layers": "core"
+  },
+  {
+   "ts": "2026-09-16T14:01:58.597053+00:00",
+   "stage": "compile",
+   "argv": [
+    "compile",
+    "--dir",
+    ".",
+    "--arm",
+    "zh",
+    "--rerun",
+    "--ids",
+    "1306.0302"
+   ],
+   "seed": 42,
+   "layers": "core",
+   "code": "952eac7-dirty"
+  },
+  {
+   "ts": "2026-09-16T14:02:09.084958+00:00",
+   "stage": "fixloop",
+   "argv": [
+    "fixloop",
+    "--dir",
+    ".",
+    "--on",
+    "fail",
+    "--rerun",
+    "--ids",
+    "1306.0302"
+   ],
+   "seed": 42,
+   "layers": "core",
+   "code": "952eac7-dirty"
+  },
+  {
+   "ts": "2026-09-16T14:28:23.912011+00:00",
+   "stage": "fixloop",
+   "argv": [
+    "fixloop",
+    "--dir",
+    "bench/results/stagerun-loop1-2026-09-16",
+    "--rerun",
+    "--on",
+    "fail",
+    "--ids",
+    "2111.00051"
+   ],
+   "seed": 42,
+   "layers": "core",
+   "code": "e6ecb85-dirty"
+  },
+  {
+   "ts": "2026-09-16T15:52:12.760043+00:00",
+   "stage": "compile",
+   "argv": [
+    "compile",
+    "--dir",
+    ".",
+    "--arm",
+    "zh",
+    "--rerun",
+    "--ids",
+    "2211.12985,1706.00240,hep-ph/0111248,2111.00051"
+   ],
+   "seed": 42,
+   "layers": "core",
+   "code": "71a3df6-dirty"
+  },
+  {
+   "ts": "2026-09-16T15:53:23.560984+00:00",
+   "stage": "fixloop",
+   "argv": [
+    "fixloop",
+    "--dir",
+    ".",
+    "--on",
+    "fail",
+    "--rerun",
+    "--ids",
+    "2211.12985,1706.00240,hep-ph/0111248,2111.00051"
+   ],
+   "seed": 42,
+   "layers": "core",
+   "code": "71a3df6-dirty"
+  },
+  {
+   "ts": "2026-09-16T16:03:08.894483+00:00",
+   "stage": "compile",
+   "argv": [
+    "compile",
+    "--dir",
+    ".",
+    "--arm",
+    "zh",
+    "--rerun",
+    "--ids",
+    "1706.00240"
+   ],
+   "seed": 42,
+   "layers": "core",
+   "code": "29059dd-dirty"
+  },
+  {
+   "ts": "2026-09-16T16:03:12.931798+00:00",
+   "stage": "fixloop",
+   "argv": [
+    "fixloop",
+    "--dir",
+    ".",
+    "--on",
+    "fail",
+    "--rerun",
+    "--ids",
+    "1706.00240"
+   ],
+   "seed": 42,
+   "layers": "core",
+   "code": "29059dd-dirty"
+  },
+  {
+   "ts": "2026-09-16T16:18:12.719620+00:00",
+   "stage": "compile",
+   "argv": [
+    "compile",
+    "--dir",
+    ".",
+    "--arm",
+    "zh",
+    "--rerun",
+    "--ids",
+    "2211.12985"
+   ],
+   "seed": 42,
+   "layers": "core",
+   "code": "a4937cb-dirty"
+  },
+  {
+   "ts": "2026-09-16T16:18:14.317230+00:00",
+   "stage": "fixloop",
+   "argv": [
+    "fixloop",
+    "--dir",
+    ".",
+    "--on",
+    "fail",
+    "--rerun",
+    "--ids",
+    "2211.12985"
+   ],
+   "seed": 42,
+   "layers": "core",
+   "code": "a4937cb-dirty"
   }
  ],
  "started_at": "2026-09-16T05:36:52.326569+00:00",
- "finished_at": "2026-09-16T13:44:40.912453+00:00"
+ "finished_at": "2026-09-16T16:18:55.246608+00:00"
 }

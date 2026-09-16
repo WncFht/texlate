@@ -26,6 +26,7 @@ import json
 import logging
 import os
 import re
+import subprocess
 import sys
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -525,6 +526,22 @@ _TRUE_VALUES: Final = {"1", "true", "yes", "on"}
 _SANDBOX_TMP: Final = "/tmp"  # noqa: S108 -- 挂点语义即字面 /tmp
 
 
+@lru_cache(maxsize=1)
+def _texmfdist() -> str | None:
+    """解 ``TEXMFDIST``（fontconfig conf 的 opentype 树锚点；无 → None）。"""
+    try:
+        out = subprocess.run(
+            ["kpsewhich", "-var-value", "TEXMFDIST"],  # noqa: S607
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        ).stdout.strip()
+    except OSError:
+        return None
+    return out or None
+
+
 def _kpathsea_list(value: str) -> list[str]:
     """拆 kpathsea 路径列表（``:``/``,``/``{}`` 分隔，剥 ``!`` 与 ``//`` 尾）。"""
     out = []
@@ -603,6 +620,7 @@ def _bwrap_mounts(
         *(str(p) for p in sorted(home.glob(".texlive*"))),
         str(home / "texmf"),
         str(home / ".cache" / "fontconfig"),
+        str(home / ".cache" / "texlate"),
         str(home / ".cache" / "Tectonic"),
         str(home / ".cache" / "TectonicProject.Tectonic"),
         *(str(p) for p in extra_rw),
@@ -899,6 +917,13 @@ class XelatexEngine:
         # web2c 默认 buf_size=200000 → `Unable to read an entire line` 硬死。
         # kpathsea cnf 变量可经 env 覆盖, 放宽输入行缓冲即解 (loop1-1706.02464)。
         add.setdefault("buf_size", "8000000")
+        # fontspec 裸名查找走 fontconfig——texmf 自带 otf (FontAwesome.otf
+        # 等) 未注册必炸 "font X cannot be found"。注入一份把
+        # texmf-dist/opentype + usertree 字体注册的 conf（2211.12985 实证：
+        # ambient/sandbox 同缺, OSFONTDIR 不吃, FONTCONFIG_FILE 一注即解）。
+        fc = self._fontconfig_conf()
+        if fc:
+            add.setdefault("FONTCONFIG_FILE", fc)
         if self.texmfhome:
             # TEXMFHOME 写冒号链：usertree 居首（可写/优先），ambient
             # TEXMFHOME（缺席时取 kpathsea 默认 ~/texmf）尾随保持可见——
@@ -915,6 +940,50 @@ class XelatexEngine:
                 }
             )
         return child_env(add)
+
+    def _fontconfig_conf(self) -> str | None:
+        """写一份 fontconfig conf 并返回路径（texmf opentype + usertree 字体注册）。
+
+        ``FONTCONFIG_FILE`` 是整份替换语义——必须 ``<include>`` 系统 conf
+        保住宿主机字体面。conf 落 ``usertree/home`` 之下（该目录经
+        ``TEXMFHOME`` 链入 ``_bwrap_env_paths`` 挂进沙箱；usertree 根本身
+        不在挂载面）；texmfhome 缺席时落 ``~/.cache/texlate/fontconfig/``
+        （已列入 ``_bwrap_mounts`` rw）。重写幂等。
+        """
+        dist = _texmfdist()
+        dirs = []
+        if dist:
+            dirs.append(str(Path(dist) / "fonts" / "opentype"))
+        home_ot = (
+            self.texmfhome / "home" / "fonts" / "opentype"
+            if self.texmfhome
+            else Path.home() / "texmf" / "fonts" / "opentype"
+        )
+        dirs.append(str(home_ot))
+        try:
+            cdir = (
+                self.texmfhome / "home" / "fontconfig"
+                if self.texmfhome
+                else Path.home() / ".cache" / "texlate" / "fontconfig"
+            )
+            cdir.mkdir(parents=True, exist_ok=True)
+            (cdir / "cache").mkdir(parents=True, exist_ok=True)
+            conf = cdir / "fonts.conf"
+            body = [
+                "<?xml version='1.0'?>",
+                "<!DOCTYPE fontconfig SYSTEM 'fonts.dtd'>",
+                "<fontconfig>",
+                '  <include ignore_missing="yes">/etc/fonts/fonts.conf</include>',
+                *(f"  <dir>{d}</dir>" for d in dirs),
+                # texmf opentype 数千枚，首扫几秒级——cachedir 落 usertree 内
+                # 随格多次重编译摊销（沙箱 HOME 是 tmpfs，不落此即每次重扫）。
+                f"  <cachedir>{cdir / 'cache'}</cachedir>",
+                "</fontconfig>",
+            ]
+            conf.write_text("\n".join(body) + "\n", encoding="utf-8")
+        except OSError:
+            return None
+        return str(conf)
 
     def _usertree_env(self) -> dict[str, str]:
         """tlmgr/updmap 系 env：TEXMFHOME 退链取首元素。
