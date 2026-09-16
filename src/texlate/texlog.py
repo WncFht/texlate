@@ -13,11 +13,13 @@ r"""TeX ``.log`` 词法原语 —— engine/l2/fixloop 三处文件栈收敛的�
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from typing import Final
 
 __all__ = [
     "TEX_FILE_EXTS",
     "file_stack_at",
+    "is_project_file",
     "looks_like_tex_file",
     "update_file_stack",
 ]
@@ -105,3 +107,33 @@ def file_stack_at(lines: list[str], stop: int) -> list[str]:
     for ln in lines[:stop]:
         update_file_stack(ln, stack)
     return [s for s in stack if s]
+
+
+#: 系统 texmf/bundle 树路径标记——``root`` 缺席时绝对路径的归因兜底。
+#: 段内含 ``texmf``（``texmf-dist``/``_texmf`` usertree/``~/texmf``）或
+#: Tectonic bundle 缓存均判系统侧——注意 fixloop usertree 落在
+#: ``wdir/_texmf``（root 之内仍是系统语义），故本标记先于 root 前缀判。
+#: 大小写敏感：``Tectonic`` 只认 canonical 大写缓存目录名——小写
+#: ``tectonic/`` 恰是 fixloop 编译工作段名（``wdir/tectonic``），误吃会把
+#: 工程件错判系统。
+_SYS_TREE_RX: Final = re.compile(r"[^/]*texmf[^/]*/|/Tectonic/")
+
+
+def is_project_file(token: str | None, root: Path | None = None) -> bool:
+    """文件栈 token → 工程文件判定（invalid_utf8 类红线按产生者归因用）。
+
+    相对 token（``./x``/``sec/y``）= cwd 相对即工程内；绝对路径先看 texmf
+    标记再按 ``root`` 前缀判（root 给定时界外即系统——沙箱 root=wdir，
+    工程件不可能在其外）。裸名是 tectonic bundle 日志形态：``root`` 给定
+    按 ``root/token`` 存在性分（bundle 件不在工程树），缺席时保守归工程
+    ——不可归因不掉红线。
+    """
+    if token is None:
+        return True
+    if "/" not in token:
+        return root is None or (root / token).is_file()
+    if not token.startswith("/"):
+        return True
+    if _SYS_TREE_RX.search(token):
+        return False
+    return root is None or Path(token).resolve().is_relative_to(Path(root).resolve())

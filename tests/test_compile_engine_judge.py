@@ -699,3 +699,68 @@ def test_bundle_flag_local_path_skips_probe(
     cmd = eng._cmd("/x/tectonic", Path("/o"), "main.tex")  # noqa: SLF001
     i = cmd.index("--bundle")
     assert cmd[i + 1] == "/opt/b.tar"
+
+
+# ------------------------------------------------------------ utf8 归因
+_UTF8_WARN = "Invalid UTF-8 byte or sequence at line 11 replaced by U+FFFD.\n"
+
+
+def test_parse_log_utf8_sysfile_demoted(tmp_path: Path) -> None:
+    """texmf 系统件打开期间的 invalid_utf8 → warnings_sys，不进红线。"""
+    log = (
+        "(./main.tex\n"
+        "(/usr/share/texmf-dist/tex/latex/algorithms/algorithm.sty\n"
+        f"{_UTF8_WARN}"
+        "Package: algorithm 2009/08/24 v0.1\n"
+        "))\n"
+    )
+    info = parse_log(log, project_root=tmp_path)
+    assert "invalid_utf8" not in info.warnings_hit
+    assert info.warnings_sys == ["invalid_utf8@algorithm.sty"]
+
+
+def test_parse_log_utf8_project_file_redline(tmp_path: Path) -> None:
+    """工程件（./ 相对 token 与 root 内绝对路径）产生 → 红线照计。"""
+    for tok in ("./main.tex", str(tmp_path / "main.tex")):
+        info = parse_log(f"({tok}\n{_UTF8_WARN})\n", project_root=tmp_path)
+        assert "invalid_utf8" in info.warnings_hit
+        assert info.warnings_sys == []
+
+
+def test_parse_log_utf8_bare_name_tectonic(tmp_path: Path) -> None:
+    """tectonic bundle 日志只印裸名：root 给定时按 root/name 存在性分。"""
+    (tmp_path / "main.tex").write_text("x")
+    sys_i = parse_log(f"(lineno.sty\n{_UTF8_WARN})\n", project_root=tmp_path)
+    assert "invalid_utf8" not in sys_i.warnings_hit
+    assert sys_i.warnings_sys == ["invalid_utf8@lineno.sty"]
+    proj_i = parse_log(f"(main.tex\n{_UTF8_WARN})\n", project_root=tmp_path)
+    assert "invalid_utf8" in proj_i.warnings_hit
+    # root 缺席：裸名保守归工程——不可归因不掉红线
+    no_root = parse_log(f"(lineno.sty\n{_UTF8_WARN})\n")
+    assert "invalid_utf8" in no_root.warnings_hit
+
+
+def test_judge_sys_utf8_clean_with_note(tmp_path: Path) -> None:
+    """系统件 utf8 警告：verdict clean + notes 留 sys_warn 观察项。"""
+    log = (
+        "(./main.tex\n"
+        "(/usr/share/texmf-dist/tex/latex/algorithmic/algorithmic.sty\n"
+        f"{_UTF8_WARN}"
+        "))\n"
+    )
+    res = _res(tmp_path, pdf=True)
+    res.log = parse_log(log, project_root=tmp_path)
+    res.workdir = tmp_path
+    v = judge(res)
+    assert v.status == "clean"
+    assert any("sys_warn:invalid_utf8@algorithmic.sty" in n for n in v.notes)
+
+
+def test_judge_project_utf8_still_partial(tmp_path: Path) -> None:
+    """工程件 utf8 警告仍是红线：partial + warn:invalid_utf8。"""
+    res = _res(tmp_path, pdf=True)
+    res.log = parse_log(f"(./main.tex\n{_UTF8_WARN})\n", project_root=tmp_path)
+    res.workdir = tmp_path
+    v = judge(res)
+    assert v.status == "partial"
+    assert "warn:invalid_utf8" in v.reasons

@@ -26,7 +26,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Final
 
-from texlate.texlog import looks_like_tex_file, update_file_stack
+from texlate.texlog import (
+    is_project_file,
+    looks_like_tex_file,
+    update_file_stack,
+)
 from texlate.textutil import is_cjk_cp
 
 __all__ = [
@@ -167,13 +171,19 @@ class LogError:
 
 @dataclass(slots=True)
 class WarningSummary:
-    """warning 分类汇总。``redlines`` 命中 docs/08 §4.3 红线信号即 dirty 依据。"""
+    """warning 分类汇总。``redlines`` 命中 docs/08 §4.3 红线信号即 dirty 依据。
+
+    ``sys_hits`` = 系统 texmf/bundle 件产生的红线类命中
+    （``invalid_utf8@<file>``）——观察项不判 dirty（engine 侧
+    ``LogInfo.warnings_sys`` 同口径）。
+    """
 
     total: int = 0
     by_class: dict[str, int] = field(default_factory=dict)
     samples: dict[str, list[str]] = field(default_factory=dict)
     redlines: list[str] = field(default_factory=list)
     cjk_missing: int = 0
+    sys_hits: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, object]:
         """序列化为一级字典。"""
@@ -183,6 +193,7 @@ class WarningSummary:
             "samples": {k: list(v) for k, v in self.samples.items()},
             "redlines": list(self.redlines),
             "cjk_missing": self.cjk_missing,
+            "sys_hits": list(self.sys_hits),
         }
 
 
@@ -240,7 +251,37 @@ class L2Verdict:
 # ---------------------------------------------------------------- 内部
 
 
-def _classify_warning(line: str, ws: WarningSummary) -> None:
+def _mark_redline(
+    cls: str,
+    line: str,
+    ws: WarningSummary,
+    stack: list[str | None],
+    project_root: Path | None,
+) -> None:
+    """红线打标——``invalid_utf8`` 按 ``stack`` 最内文件归因产生者。
+
+    系统 texmf/bundle 件进 ``sys_hits`` 观察项（老 CTAN 包自带坏字节
+    非工程文件问题，fixer-utf8 归因 96% 属此类）；其余类全量进
+    ``redlines``（missing_glyph/file_not_found 按内容论不按产生文件论）。
+    """
+    if cls == "invalid_utf8":
+        inner = next((s for s in reversed(stack) if s), None)
+        if not is_project_file(inner, project_root):
+            hit = f"{cls}@{Path(inner).name if inner else '?'}"
+            if hit not in ws.sys_hits:
+                ws.sys_hits.append(hit)
+            return
+    red = f"{cls}: {line.strip()[:120]}"
+    if red not in ws.redlines:
+        ws.redlines.append(red)
+
+
+def _classify_warning(
+    line: str,
+    ws: WarningSummary,
+    stack: list[str | None],
+    project_root: Path | None,
+) -> None:
     """单行 warning 归类 + 红线打标。"""
     if not (_ANY_WARNING_RX.search(line) or _MARKERLESS_WARN_RX.search(line)):
         return  # 非 warning 形态行（含 error ctx 内的帮助文本）
@@ -260,9 +301,7 @@ def _classify_warning(line: str, ws: WarningSummary) -> None:
     if len(bucket) < _MAX_WARN_SAMPLES:
         bucket.append(line.strip())
     if cls in _REDLINE_CLASSES:
-        red = f"{cls}: {line.strip()[:120]}"
-        if red not in ws.redlines:
-            ws.redlines.append(red)
+        _mark_redline(cls, line, ws, stack, project_root)
 
 
 def _tex_line_from_ctx(ctx: list[str]) -> int | None:
@@ -299,8 +338,13 @@ def _eof_culprit(head: str, last_pop: tuple[int, str] | None, i: int) -> str | N
 # ---------------------------------------------------------------- 主入口
 
 
-def parse_log_text(text: str) -> L2Verdict:
-    """解析 log 文本为 ``L2Verdict``（单遍扫描，文件栈增量维护）。"""
+def parse_log_text(text: str, *, project_root: Path | None = None) -> L2Verdict:
+    """解析 log 文本为 ``L2Verdict``（单遍扫描，文件栈增量维护）。
+
+    ``project_root`` = 编译工作根：invalid_utf8 红线按产生文件归因，
+    系统 texmf/bundle 源降 ``warnings.sys_hits``；缺席时裸名保守归
+    工程（不掉红线），绝对路径按 texmf 标记启发式。
+    """
     v = L2Verdict()
     lines = text.splitlines()
     if lines:
@@ -344,14 +388,18 @@ def parse_log_text(text: str) -> L2Verdict:
                 v.errors.append(err)
             continue
 
-        _classify_warning(ln, v.warnings)
+        _classify_warning(ln, v.warnings, stack, project_root)
 
     v.tail = tuple(lines[-_TAIL_LINES:])
     return v
 
 
-def parse_log(path: str | Path) -> L2Verdict:
-    """从路径读 ``.log`` 解析；文件不存在返回 ``log_missing=True``（不抛异常）。"""
+def parse_log(path: str | Path, *, project_root: Path | None = None) -> L2Verdict:
+    """从路径读 ``.log`` 解析；文件不存在返回 ``log_missing=True``（不抛异常）。
+
+    ``project_root`` 透传 ``parse_log_text``——注意勿以 ``path.parent``
+    猜测：tectonic 日志落在 ``_tect_out/`` 子目录，父目录不是工程根。
+    """
     p = Path(path)
     if not p.exists():
         return L2Verdict(log_missing=True)
@@ -359,4 +407,4 @@ def parse_log(path: str | Path) -> L2Verdict:
         text = p.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return L2Verdict(log_missing=True)
-    return parse_log_text(text)
+    return parse_log_text(text, project_root=project_root)

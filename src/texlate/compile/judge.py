@@ -2,7 +2,8 @@ r"""clean 判定三件套（docs/08 §4.3，判据非修复）：
 
     clean = ① 有 pdf
           ∧ ② `!`≤3 且首错非 missing_*/undefined_cs
-          ∧ ③ log warning 扫描零命中（Invalid UTF-8 byte /
+          ∧ ③ log warning 扫描零命中（Invalid UTF-8 byte——限工程文件
+               产生者，系统 texmf/bundle 件降 notes 观察项 /
                Missing character.*U+FFFD / tectonic `File.*not found` 降级行 /
                missing_graphic 红线）
           ∧ ④ 中文实际渲染检查（`expect_cjk` 时）
@@ -167,6 +168,9 @@ def judge(res: CompRes, *, expect_cjk: bool = False, log_text: str = "") -> Verd
     if cat in DIRTY_FIRST_CATEGORIES:
         v.reasons.append(f"first_error={cat}:{pay}")
     v.reasons.extend(f"warn:{hit}" for hit in res.log.warnings_hit)
+    # 系统 texmf/bundle 件产生的红线（老 CTAN 包自带坏字节）——观察项
+    # 留痕不阻断 clean（fixer-utf8 归因：96% invalid_utf8 属此类）。
+    v.notes.extend(f"sys_warn:{hit}" for hit in res.log.warnings_sys)
 
     full_log = log_text
     if not full_log and res.log_path and res.log_path.exists():

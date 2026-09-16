@@ -37,7 +37,7 @@ if TYPE_CHECKING:
 
     from texlate.compile.fixloop.logparse import ErrReport, Taxonomy
 
-from texlate.texlog import update_file_stack
+from texlate.texlog import is_project_file, update_file_stack
 from texlate.textutil import decode_tex
 
 from .mask import visible_tex
@@ -114,6 +114,9 @@ class LogInfo:
     tail: str = ""
     errors: list[str] = field(default_factory=list)  # 全部 '^!'/'file:line:' 行
     warnings_hit: list[str] = field(default_factory=list)  # judge 红线命中
+    #: 系统 texmf/bundle 树来源的红线命中（``invalid_utf8@<file>``）——
+    #: 工程文件不产生者的警告降为观察项，judge 记 notes 不阻断 clean。
+    warnings_sys: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -122,6 +125,9 @@ class CompRes:
 
     engine: str
     ok: bool = False  # 进程正常跑完（非超时/启动失败）
+    #: 编译工作根（compile 的 ``wdir`` 实参）——log 警告按「是否工程文件
+    #: 产生」归因的根；post-hoc ``parse_log(res)`` 重解析时同源取用。
+    workdir: Path | None = None
     pdf: Path | None = None
     pdf_bytes: int = 0
     log_path: Path | None = None
@@ -163,8 +169,12 @@ _NONERR_FILELINE_RE = re.compile(
 _L_NUM_RE = re.compile(r"^l\.(\d+)")
 
 #: clean 判据的 log warning 红线（docs/08 §4.3）：任一命中即 dirty。
+#: ``invalid_utf8`` 按产生文件归因——仅工程文件源计入 ``warnings_hit``，
+#: 系统 texmf/bundle 件（老 CTAN 包自带坏字节，loop1 归因占 96%）降
+#: ``warnings_sys`` 观察项（fixer-utf8 `673d8ce` normalize 四臂后复审）。
+_UTF8_WARN_RE = re.compile(r"Invalid UTF-8 byte")
 WARNING_RED_LINES: list[tuple[str, str]] = [
-    ("invalid_utf8", r"Invalid UTF-8 byte"),
+    ("invalid_utf8", _UTF8_WARN_RE.pattern),
     ("fffd_glyph", r"Missing character:[^\n]*U\+FFFD"),
     ("missing_chars", r"Missing character: There is no"),
     (
@@ -180,12 +190,28 @@ WARNING_RED_LINES: list[tuple[str, str]] = [
 ]
 
 
-def _scan_error_lines(lines: list[str], info: LogInfo) -> int:
-    """数 `^!`+`file:line:` 错误、记首错位置、追踪 `(` 文件栈。返回首错行号。"""
+def _scan_error_lines(
+    lines: list[str], info: LogInfo, project_root: Path | None = None
+) -> tuple[int, bool]:
+    """数 `^!`+`file:line:` 错误、记首错位置、追踪 `(` 文件栈。
+
+    返回 ``(首错行号, 工程源 invalid_utf8 命中)``：逐行把栈顶最内文件
+    作产生者交 ``is_project_file`` 判定——系统件源名收进
+    ``info.warnings_sys``（``invalid_utf8@<file>``），工程源命中由
+    ``parse_log`` 收口进 ``warnings_hit``。
+    """
     ctx_start = -1
     stack: list[str | None] = []
+    utf8_proj = False
+    utf8_sys: set[str] = set()
     for i, ln in enumerate(lines):
         update_file_stack(ln, stack)
+        if _UTF8_WARN_RE.search(ln):
+            inner = next((s for s in reversed(stack) if s), None)
+            if is_project_file(inner, project_root):
+                utf8_proj = True
+            else:
+                utf8_sys.add(Path(inner).name if inner else "?")
         if _ERR_BANG_RE.match(ln) or (
             _ERR_FILELINE_RE.match(ln) and not _NONERR_FILELINE_RE.match(ln)
         ):
@@ -195,20 +221,25 @@ def _scan_error_lines(lines: list[str], info: LogInfo) -> int:
                 info.first_error = ln.strip()
                 ctx_start = i
                 info.file_stack = [s for s in stack if s]
-    return ctx_start
+    info.warnings_sys = [f"invalid_utf8@{n}" for n in sorted(utf8_sys)]
+    return ctx_start, utf8_proj
 
 
-def parse_log(log_text: str) -> LogInfo:
+def parse_log(log_text: str, *, project_root: Path | None = None) -> LogInfo:
     """解析 TeX log 文本 → LogInfo（引擎无关；调用方负责拿文本）。
 
     错误计数**双格式**：`^!` 行 + `file:line:` 行（只数 `!` 会漏掉
     `-file-line-error` 模式下引擎级错误，docs/08 §2.3）。
+
+    ``project_root`` = 编译工作根（``wdir``）：invalid_utf8 红线按警告
+    产生文件归因，系统 texmf/bundle 源降 ``warnings_sys`` 观察项。
+    缺席时绝对路径按 texmf 标记启发式、裸名保守归工程（不掉红线）。
     """
     info = LogInfo()
     if not log_text:
         return info
     lines = log_text.splitlines()
-    ctx_start = _scan_error_lines(lines, info)
+    ctx_start, utf8_proj = _scan_error_lines(lines, info, project_root)
     if ctx_start >= 0:
         ctx_lines = []
         for j in range(ctx_start, min(ctx_start + 9, len(lines))):
@@ -219,11 +250,12 @@ def parse_log(log_text: str) -> LogInfo:
                     info.error_line = int(m.group(1))
         info.error_ctx = "\n".join(ctx_lines)
     info.tail = "\n".join(lines[-30:])
-    info.warnings_hit = [
-        name
-        for name, pat in WARNING_RED_LINES
-        if re.search(pat, log_text, re.MULTILINE)
-    ]
+    for name, pat in WARNING_RED_LINES:
+        if name == "invalid_utf8":
+            if utf8_proj:
+                info.warnings_hit.append(name)
+        elif re.search(pat, log_text, re.MULTILINE):
+            info.warnings_hit.append(name)
     return info
 
 
@@ -1014,11 +1046,12 @@ class XelatexEngine:
                 break
         _collect_compile_outputs(res, outputs)
         log_text = log.read_text(errors="replace") if log.exists() else ""
-        res.log = parse_log(log_text or res.stdout_tail)
+        res.log = parse_log(log_text or res.stdout_tail, project_root=wdir)
         res.log_path = log if log.exists() else None
         res.pdf = pdf if pdf.exists() else None
         res.pdf_bytes = pdf.stat().st_size if pdf.exists() else 0
         res.ok = not res.timed_out
+        res.workdir = wdir
         res.deps = compiled_dependencies(wdir, main, out, self.name)
         return res
 
@@ -1213,8 +1246,11 @@ class XelatexEngine:
     def parse_log(self, res: CompRes) -> LogInfo:
         """读 res.log_path；缺席时退 stdout_tail。"""
         if res.log_path and res.log_path.exists():
-            return parse_log(res.log_path.read_text(errors="replace"))
-        return parse_log(res.stdout_tail)
+            return parse_log(
+                res.log_path.read_text(errors="replace"),
+                project_root=res.workdir,
+            )
+        return parse_log(res.stdout_tail, project_root=res.workdir)
 
 
 # ================================================================ tectonic
@@ -1343,7 +1379,7 @@ class TectonicEngine:
         cmd.append(main_name)
         return cmd
 
-    def compile(  # noqa: PLR0913 — 签名即 docs/08 §4.1 规格面
+    def compile(  # noqa: PLR0913, PLR0915 — 签名即 docs/08 §4.1 规格面
         self,
         wdir: Path,
         main: str,
@@ -1407,10 +1443,10 @@ class TectonicEngine:
         res.passes = 1
         _collect_compile_outputs(res, outputs)
         log_text = log.read_text(errors="replace") if log.exists() else ""
-        info = parse_log(log_text)
+        info = parse_log(log_text, project_root=wdir)
         if info.first_error is None and not log_text:
             # tectonic 有时不写 .log 就崩（如 \documentstyle）——stderr 兜底。
-            info = parse_log(res.stdout_tail)
+            info = parse_log(res.stdout_tail, project_root=wdir)
             if info.first_error is None:
                 m = re.search(r"^error: (.+)$", res.stdout_tail, re.MULTILINE)
                 if m:
@@ -1421,6 +1457,7 @@ class TectonicEngine:
         res.pdf = pdf if pdf.exists() else None
         res.pdf_bytes = pdf.stat().st_size if pdf.exists() else 0
         res.ok = not res.timed_out
+        res.workdir = wdir
         res.deps = compiled_dependencies(wdir, main, out, self.name)
         return res
 
@@ -1451,8 +1488,11 @@ class TectonicEngine:
     def parse_log(self, res: CompRes) -> LogInfo:
         """读 res.log_path；缺席时退 stdout_tail。"""
         if res.log_path and res.log_path.exists():
-            return parse_log(res.log_path.read_text(errors="replace"))
-        return parse_log(res.stdout_tail)
+            return parse_log(
+                res.log_path.read_text(errors="replace"),
+                project_root=res.workdir,
+            )
+        return parse_log(res.stdout_tail, project_root=res.workdir)
 
 
 # ================================================================ 静态路由表

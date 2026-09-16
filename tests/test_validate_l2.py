@@ -211,3 +211,41 @@ def test_verdict_serialization() -> None:
     assert d["first_error"]["tex_line"] == 1
     assert d["warnings"]["total"] == 1
     assert "FAIL" in str(v)
+
+
+_UTF8_WARN = "Invalid UTF-8 byte or sequence at line 11 replaced by U+FFFD.\n"
+
+
+def test_invalid_utf8_attributed_by_file(tmp_path: Path) -> None:
+    """invalid_utf8 红线按产生文件归因：texmf 系统件降 sys_hits 观察项，
+    工程件照计 redline；观察计数（by_class/total）不降。"""
+    log = (
+        "(./main.tex\n"
+        "(/usr/share/texmf-dist/tex/latex/algorithms/algorithm.sty\n"
+        f"{_UTF8_WARN}"
+        "Package: algorithm 2009/08/24 v0.1\n"
+        ") body\n"
+        "(./sec.tex\n"
+        f"{_UTF8_WARN}"
+        "))\n"
+    )
+    v = parse_log_text(log, project_root=tmp_path)
+    assert v.warnings.by_class.get("invalid_utf8", 0) == 2  # noqa: PLR2004 - 两源各一
+    assert v.warnings.sys_hits == ["invalid_utf8@algorithm.sty"]
+    reds = [r for r in v.warnings.redlines if "invalid_utf8" in r]
+    assert len(reds) == 1  # 仅 ./sec.tex 工程源那条
+
+
+def test_invalid_utf8_bare_name_no_root_conservative() -> None:
+    """root 缺席时 tectonic 式裸名不可归因 → 保守归工程，红线保留。"""
+    v = parse_log_text(f"(lineno.sty\n{_UTF8_WARN})\n")
+    assert any("invalid_utf8" in r for r in v.warnings.redlines)
+    assert v.warnings.sys_hits == []
+
+
+def test_invalid_utf8_usertree_under_root_is_sys(tmp_path: Path) -> None:
+    """fixloop usertree 落 wdir/_texmf——root 之内仍是系统语义。"""
+    log = f"({tmp_path}/_texmf/home/tex/latex/foo/foo.sty\n{_UTF8_WARN})\n"
+    v = parse_log_text(log, project_root=tmp_path)
+    assert v.warnings.sys_hits == ["invalid_utf8@foo.sty"]
+    assert not any("invalid_utf8" in r for r in v.warnings.redlines)

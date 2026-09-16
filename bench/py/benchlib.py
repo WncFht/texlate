@@ -144,6 +144,7 @@ def judge_dict(res, *, expect_cjk: bool) -> dict:
         "verdict": {
             "status": v.status,
             "reasons": v.reasons,
+            "notes": v.notes,
             "n_errors": v.n_errors,
             "category": v.category,
             "payload": v.payload,

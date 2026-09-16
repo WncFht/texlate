@@ -344,9 +344,9 @@ def _compile_judge(
 def _l2_parse(res: CompRes) -> l2_mod.L2Verdict:
     """CompRes → L2Verdict：log_path 优先，缺席退 stdout_tail。"""
     if res.log_path is not None and res.log_path.exists():
-        return l2_mod.parse_log(res.log_path)
+        return l2_mod.parse_log(res.log_path, project_root=res.workdir)
     if res.stdout_tail:
-        return l2_mod.parse_log_text(res.stdout_tail)
+        return l2_mod.parse_log_text(res.stdout_tail, project_root=res.workdir)
     return l2_mod.L2Verdict(log_missing=True)
 
 
