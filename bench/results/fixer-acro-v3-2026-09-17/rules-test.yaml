@@ -368,9 +368,10 @@ taxonomy:
       payload_group: 1,
       pattern: "Package (?:x)?color Error: Undefined color '([^']+)'",
     }
-  # 2026-09-17 fixer-acro-v3: l3keys "key unknown" 行 (acro v3 弃键等)
-  # 此前无 head 签命中 → 落 tail early_eof 误判。payload=键名 (acro/X 形)。
   - {
+      # 2026-09-17 fixer-acro-v3: l3keys 未名键是独立可行动错误类
+      # (acro v3 收 upgrade 模块后 v2 键全部 unknown)。此前无 head 签命中
+      # → 落 tail "No pages" 误判 early_eof (1706.00240 实证)。
       id: key_unknown,
       scope: head,
       payload_group: 1,
@@ -2631,7 +2632,7 @@ rules:
         rewrites:
           - {
               pattern: "\\\\(?:usepackage|RequirePackage)(\\s*\\[[^\\]]*\\])?\\s*\\{ntheorem\\}",
-              repl: '\\makeatletter\\let\\th@{payload}\\@undefined\\makeatother\n\g<0>',
+              repl: '\\makeatletter\\let\\th@{payload}\\@undefined\\makeatother\n\\g<0>',
             }
     risk: medium # amsthm 的 th@X 样式被 ntheorem 定义覆盖 —— 作者装 ntheorem 即意图
     known_gap: "多包连环定义 th@X 时逐轮收敛; ntheorem 经 \\input 间接装载未锚"
@@ -2643,12 +2644,8 @@ rules:
           corpus: "1306.0281 (partial-taxonomy)",
           error: "ntheorem.sty:524 Theorem style plain already defined (shim acmart→amsthm 预定义)",
         }
-      - {
-          corpus: "1306.0281 复跑 (fixer-alreadydef-2026-09-17)",
-          error: "修复前 repl 吞 usepackage 行 → undefined_cs:g 103 错; 修复后 already_def 清除, 残 undefined_cs:numberofauthors",
-        }
-    stats: { fires: 2, status: verified }
-    source_ref: "partial-taxonomy-2026-09-17 散件; ntheorem.sty L515-522 自检; fixer-alreadydef 复跑订正 \\g<0>"
+    stats: { fires: 0, status: proposed }
+    source_ref: "partial-taxonomy-2026-09-17 散件; ntheorem.sty L515-522 自检"
 
   - id: already_def_undefine
     description: "包内 \\NewDocumentCommand 撞先定义 → docclass 后 \\let\\<cs>\\@undefined 清位 (后加载者赢)"
@@ -2663,7 +2660,7 @@ rules:
         rewrites:
           - {
               pattern: "\\\\documentclass(\\s*\\[[^\\]]*\\])?\\s*\\{[^}]+\\}",
-              repl: '\g<0>\n\\makeatletter\\let\\{payload}\\@undefined\\makeatother',
+              repl: '\\g<0>\n\\makeatletter\\let\\{payload}\\@undefined\\makeatother',
             }
     risk: medium # 清掉包/类侧先定义让后载包重定义 —— doc 侧 \newcommand 撞名已由 renew 先行
     known_gap: "多行 \\documentclass (revtex 注释缝) 不锚 → applied=False; usepackage 链内后定义者 (A 先 B 后, 非 docclass 位) 清位时机过早无效"
@@ -2675,12 +2672,8 @@ rules:
           corpus: "1706.07911 (partial-taxonomy)",
           error: "fontspec-xetex.sty:672 Command '\\liningnums' already defined (bundled acmart v1.39→libertine 先定义, inject ctex→fontspec 后撞)",
         }
-      - {
-          corpus: "1706.07911 复跑 (fixer-alreadydef-2026-09-17)",
-          error: "修复前 repl 吞 documentclass 行 → 508 错 best_effort_pdf; 修复后 liningnums 清除, 残 missing_file:binhex.tex",
-        }
-    stats: { fires: 1, status: verified }
-    source_ref: "partial-taxonomy-2026-09-17 散件; \\let\\X\\@undefined 两代检查通吃; fixer-alreadydef 复跑订正 \\g<0>"
+    stats: { fires: 0, status: proposed }
+    source_ref: "partial-taxonomy-2026-09-17 散件; \\let\\X\\@undefined 两代检查通吃"
 
   - id: option_clash_merge
     description: "Option clash: 同包两次 \\usepackage → 合并选项到首处, 注释后处"
@@ -3361,8 +3354,8 @@ rules:
     order: 167 # undefined_color_fallback(166) 之后, revtex4_array_swap_guard(170) 之前
     when:
       any:
-        - { category: key_unknown } # 1706.00240: l3keys 错行原无 head 签 → 落 early_eof 误判
-        - { category: early_eof } # belt: acro 错非首错时仍落 tail 早终签, ctx_suggests 照判
+        - { category: key_unknown }
+        - { category: early_eof }
         - { category: other }
         - { category: emergency }
     condition: { ctx_suggests: "key 'acro/[\\w-]+' is unknown" }
@@ -3385,12 +3378,8 @@ rules:
           corpus: "1706.00240 (partial-taxonomy)",
           error: "draft.sty:141 The key 'acro/short-format' is unknown (v3.8; format/short 冒烟实证可编)",
         }
-      - {
-          corpus: "1706.00240 复跑 (fixer-acro-v3-2026-09-17)",
-          error: "规则原 when=other|emergency 永不可达 (错落 early_eof); key_unknown 签+when 扩类后点火, \\acsetup{short-format=}→{format/short=} 逐字节核对",
-        }
-    stats: { fires: 1, status: verified }
-    source_ref: "acro v3.8 acro.sty deprecated-key 表 (L5988+); format/short 实编通过; fixer-acro-v3 路由修复"
+    stats: { fires: 0, status: proposed }
+    source_ref: "acro v3.8 acro.sty deprecated-key 表 (L5988+); format/short 实编通过"
 
   # repro-1306 (1e 移交, e2e 实证 0 err 7页): revtex4-1 4.1s 的
   # \document@inithook→\switch@array 对 array v2.6n 校验失败仍无条件 \let

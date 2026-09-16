@@ -1,0 +1,102 @@
+{
+ "project": "1706.00240-test",
+ "cond": "fixloop",
+ "main": "torus.tex",
+ "engine": "xelatex",
+ "rounds": [
+  {
+   "round": 1,
+   "pdf": false,
+   "pdf_bytes": 0,
+   "n_errors": 1,
+   "category": "key_unknown",
+   "payload": "acro/short-format",
+   "warnings": [],
+   "line_no": 141,
+   "file_stack": [
+    "/home/fanghaotian/src/texlate/bench/results/fixer-acro-v3-2026-09-17/splice-test/torus.tex",
+    "/home/fanghaotian/src/texlate/bench/results/fixer-acro-v3-2026-09-17/splice-test/draft.sty"
+   ],
+   "sec": 3.7
+  },
+  {
+   "round": 2,
+   "pdf": false,
+   "pdf_bytes": 0,
+   "n_errors": 1,
+   "category": "early_eof",
+   "payload": null,
+   "warnings": [],
+   "line_no": 194,
+   "file_stack": [
+    "/home/fanghaotian/src/texlate/bench/results/fixer-acro-v3-2026-09-17/splice-test/torus.tex",
+    "/home/fanghaotian/src/texlate/bench/results/fixer-acro-v3-2026-09-17/splice-test/apjbib.sty",
+    "/usr/share/texmf-dist/tex/latex/biblatex/biblatex.sty",
+    "/home/fanghaotian/src/texlate/bench/results/fixer-acro-v3-2026-09-17/splice-test/apj.bbx"
+   ],
+   "sec": 4.4
+  },
+  {
+   "round": 3,
+   "salvage": true,
+   "pdf": false,
+   "pdf_bytes": 0,
+   "n_errors": 103,
+   "category": null,
+   "payload": null,
+   "warnings": [],
+   "line_no": 194,
+   "file_stack": [
+    "/home/fanghaotian/src/texlate/bench/results/fixer-acro-v3-2026-09-17/splice-test/torus.tex",
+    "/home/fanghaotian/src/texlate/bench/results/fixer-acro-v3-2026-09-17/splice-test/apjbib.sty",
+    "/usr/share/texmf-dist/tex/latex/biblatex/biblatex.sty",
+    "/home/fanghaotian/src/texlate/bench/results/fixer-acro-v3-2026-09-17/splice-test/apj.bbx"
+   ],
+   "sec": 8.5
+  }
+ ],
+ "actions": [
+  {
+   "round": 0,
+   "rule": "static_precheck",
+   "detail": "missing files=['aaspatch.sty', 'droidmono.sty'] -> installed []",
+   "applied": true
+  },
+  {
+   "round": 1,
+   "rule": "acro_v3_key_rename",
+   "detail": "rewrite in 1 files"
+  },
+  {
+   "round": "salvage",
+   "rule": "_best_effort_pass",
+   "detail": "nonstopmode 兜底: pdf=False err=103"
+  }
+ ],
+ "verdict": "unfixable:early_eof",
+ "floor_restored": false,
+ "final_pdf": false,
+ "final_errors": 103,
+ "final_cat": null,
+ "installed": [],
+ "advisories": [],
+ "engine_flags": [],
+ "engine_flags_dropped": [],
+ "log": [
+  "wire filemap overrides",
+  "precheck pstricks_route: skip on xelatex",
+  "r1: pdf=False err=1 cat=key_unknown pay=acro/short-format (3.7s)",
+  "rule restore_support_from_src: skip (no corrupted support files)",
+  "apply acro_v3_key_rename: rewrite in 1 files",
+  "r2: pdf=False err=1 cat=early_eof pay=None (4.4s)",
+  "rule restore_support_from_src: skip (no corrupted support files)",
+  "rule svjour_clo_stub: cond skip (err ctx 无提示)",
+  "rule acro_v3_key_rename: cond skip (err ctx 无提示)",
+  "rule typein_neutralize: skip (rewrite in 0 files)",
+  "rule hyperref_driver_neutralize: cond skip (源码无该 pattern)",
+  "salvage best_effort: pdf=False err=103"
+ ],
+ "log_excerpt": "/home/fanghaotian/src/texlate/bench/results/fixer-acro-v3-2026-09-17/splice-test/apj.bbx:194: Package biblatex Error: Cannot patch bibliography macro author.\n/home/fanghaotian/src/texlate/bench/results/fixer-acro-v3-2026-09-17/splice-test/apj.bbx:194: Package biblatex Error: Cannot patch bibliography macro author.\n\nSee the biblatex package documentation for explanation.\nType  H <return>  for immediate help.\n ...                                              \n                                                  \nl.194 ...titledelim}}\\usebibmacro{date+extrayear}}\n                                                  ",
+ "started_fail": true,
+ "wall_s": 24.3
+}

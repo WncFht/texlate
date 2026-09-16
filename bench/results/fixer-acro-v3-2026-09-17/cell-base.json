@@ -1,0 +1,74 @@
+{
+ "project": "1706.00240-base",
+ "cond": "fixloop",
+ "main": "torus.tex",
+ "engine": "xelatex",
+ "rounds": [
+  {
+   "round": 1,
+   "pdf": false,
+   "pdf_bytes": 0,
+   "n_errors": 1,
+   "category": "early_eof",
+   "payload": null,
+   "warnings": [],
+   "line_no": 141,
+   "file_stack": [
+    "/home/fanghaotian/src/texlate/bench/results/fixer-acro-v3-2026-09-17/splice-base/torus.tex",
+    "/home/fanghaotian/src/texlate/bench/results/fixer-acro-v3-2026-09-17/splice-base/draft.sty"
+   ],
+   "sec": 3.8
+  },
+  {
+   "round": 2,
+   "salvage": true,
+   "pdf": false,
+   "pdf_bytes": 0,
+   "n_errors": 104,
+   "category": null,
+   "payload": null,
+   "warnings": [],
+   "line_no": 141,
+   "file_stack": [
+    "/home/fanghaotian/src/texlate/bench/results/fixer-acro-v3-2026-09-17/splice-base/torus.tex",
+    "/home/fanghaotian/src/texlate/bench/results/fixer-acro-v3-2026-09-17/splice-base/draft.sty"
+   ],
+   "sec": 7.7
+  }
+ ],
+ "actions": [
+  {
+   "round": 0,
+   "rule": "static_precheck",
+   "detail": "missing files=['aaspatch.sty', 'droidmono.sty'] -> installed []",
+   "applied": true
+  },
+  {
+   "round": "salvage",
+   "rule": "_best_effort_pass",
+   "detail": "nonstopmode 兜底: pdf=False err=104"
+  }
+ ],
+ "verdict": "unfixable:early_eof",
+ "floor_restored": false,
+ "final_pdf": false,
+ "final_errors": 104,
+ "final_cat": null,
+ "installed": [],
+ "advisories": [],
+ "engine_flags": [],
+ "engine_flags_dropped": [],
+ "log": [
+  "wire filemap overrides",
+  "precheck pstricks_route: skip on xelatex",
+  "r1: pdf=False err=1 cat=early_eof pay=None (3.8s)",
+  "rule restore_support_from_src: skip (no corrupted support files)",
+  "rule svjour_clo_stub: cond skip (err ctx 无提示)",
+  "rule typein_neutralize: skip (rewrite in 0 files)",
+  "rule hyperref_driver_neutralize: cond skip (源码无该 pattern)",
+  "salvage best_effort: pdf=False err=104"
+ ],
+ "log_excerpt": "/home/fanghaotian/src/texlate/bench/results/fixer-acro-v3-2026-09-17/splice-base/draft.sty:141: LaTeX Error: The key 'acro/short-format' is unknown and is being ignored.\n/home/fanghaotian/src/texlate/bench/results/fixer-acro-v3-2026-09-17/splice-base/draft.sty:141: LaTeX Error: The key 'acro/short-format' is unknown and is being ignored.\n\nFor immediate help type H <return>.\n ...                                              \n                                                  \nl.141 \\acsetup{single, short-format=\\acsize}\n                                            \n",
+ "started_fail": true,
+ "wall_s": 21.4
+}
