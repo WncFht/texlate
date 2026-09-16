@@ -99,26 +99,69 @@ bench/results/{run}-{tag}-{date}/
 - `metrics.jsonl`（跨 run 追加）：`{run_id, date, stage_rates{}, fixloop{rescue_rate, top_unfixable[]}, regressions[], wall_s}`。
 - 不依赖 server DB（Store 单连接单线程）；worker 侧 SSE/log 链是产品面，bench 以 records 为准。
 
-## 7. 规模与并发参数
+## 7. 规模、并发与中间段实验矩阵
 
-**分层跑法**（每阶段独立放量——分阶段架构的直接红利）：
+### 7.1 规模 sizing 原则：签名可分辨度
 
-- ingest/parse/compile/mock-xlat/fixloop：**可全集 1272**（零 LLM）
-- xlat real：**子集 200-300**（64s/篇中位，墙钟大头）
-- smoke n=10-20 全 stage 通跑；loop 批 n=150-250 分层抽；gate 批 500+/全集
+某故障签名在论文级发生率 p 时，要看到 ≥3 次需要 n ≈ 3/p。各阶段按"值得分辨的最稀有签名"定规模——分阶段架构让每阶段独立放量：
 
-**每阶段 executor**（资源类型不同，不再一刀切）：
+| stage         | 规模                                                                          | 依据                                                                                        |
+| ------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| ingest        | 补齐 225 缺篇 → 全集 1272                                                     | 一次性；IA item 整包抽成员                                                                  |
+| parse         | **全集 1272 每轮必跑**                                                        | CPU ~1-3s/篇 ×6 进程 ≈ 10min；warning 签名分辨到 ~0.24%（3/1272），leak 指标要全表面        |
+| xlat mock     | 全集 1272                                                                     | 零 LLM、秒级/篇；结构故障全暴露                                                             |
+| xlat sabotage | 全集 1272                                                                     | escaped==0 硬门——逃逸率真值越小所需样本越大，免费臂直接拉满                                 |
+| xlat real     | **子集 250-300**（≈21k-25k chunks）                                           | gwcap sem=4 限速（见 7.3）；契约违约分辨 ~0.012%/chunk；n100 基线 99.96% 只能找模式不测小差 |
+| compile zh    | mock 产物全集 + real 产物 300                                                 | ~15-25s/篇 ÷8 ≈ 40-80min 全集；结构故障分辨 ~0.24%                                          |
+| compile base  | **首轮全集**建源健康基线，后续只对 zh 非 clean 格补跑归因                     | n100 源挂率 ~50%→首轮 ~1-1.5h；后续按需 ~600 格 ≈ 40min                                     |
+| fixloop       | 产出驱动：全部 compile-fail 格（预期 ~600）+ `--always` 幂等检查 100 clean 格 | 每格 ≤8 轮 ×~10-20s/轮 ≈ 90s/格 ÷8 ≈ 2h；rescue 率 77% 基线下 SE≈1.7pp                      |
+
+rescue 率这样的头条指标在全集上过强（SE 1.7pp），**绑定约束是稀有签名**——这是全集跑编译/fixloop 的真实理由。real-xlat 同理：不是为测率，是为**发现** LLM 引入破坏模式（断括号/造命令/空响应）。
+
+### 7.2 中间段实验矩阵（跑实验阶段做什么）
+
+每个 stage 的可变维度 × 必收指标：
+
+**xlat stage**（实验面：翻译链内部机制）
+
+- arm ∈ {mock, real, sabotage-B, sabotage-C}；post ∈ {none, l2}
+- 指标：ladder 路径直方图（whole/lines/slots/fallback_orig 各占多少——测 prompt-模型契合）、契约率、leftover_ph、attempts 分布、batched 占比、usage/tokens（T4 落地后）、per-sig L0 规则命中
+- 专项：ph_map 武装前后 A/B（T1 前后同 seed 重跑，leftover_ph 应趋 0——n100 未武装时 1524 例）；sabotage 台账 caught/recovered/**escaped==0 硬门**
+
+**compile stage**（实验面：路由与注入正确性）
+
+- arm ∈ {zh, base}；engine ∈ {auto, xelatex, tectonic}（同 zh 树强制 A/B → 验 `route_project` 决策与 tectonic 覆盖率）
+- 指标：verdict{status,category,payload} 直方图、inject_reject 率、zh-clean − base-clean 回归差、missing_chars/CJK 计数
+- 专项：base 首轮全集 = **源健康基线**（多少论文原文就编不过——n100 估 ~50%）
+
+**fixloop stage**（实验面：修复引擎本身——本计划主角）
+
+- arm ∈ {off 基线，on 默认，always 幂等}
+- 指标：rescue 率、verdict 分布、**per-rule fires/rescues**（stats_backfill 回填）、rounds 深度分布、max_rounds 敏感度（4 vs 8 A/B）
+- 专项：规则消融——新规则入库后定期禁旧规则测边际贡献，`stats.fires==0` 连续 N 轮的规则进淘汰评审；`--always` 100 clean 格幂等门（dirty 必须 0）
+
+**跨 stage**：同 seed 回归集追踪（zh 非 clean ∧ base clean 集合逐轮收敛）、metrics.jsonl 趋势。
+
+### 7.3 每阶段 executor 与硬约束
 
 | stage           | bound      | 并发                      | 备注                                                                    |
 | --------------- | ---------- | ------------------------- | ----------------------------------------------------------------------- |
-| ingest          | IO         | 8 线程                    | IA tar 整包拉取可再高                                                   |
+| ingest          | IO         | 8 线程                    | IA item 整包拉取                                                        |
 | parse           | CPU（py）  | 4-8 进程                  | ProcessPool；pickle 边界=路径 + 配置                                    |
-| xlat（real）    | 网关 IO    | asyncio，全局 sem         | **swe-2-medium 硬闸 4**（archbox gwcap 代理接管本机出向 :3003，见下）   |
+| xlat（real）    | 网关 IO    | asyncio 全局 sem=**4**    | gwcap 硬闸，见下                                                        |
+| xlat（mock 等） | 无         | 与 parse 同池             | 零外部资源                                                              |
 | compile/fixloop | subprocess | 4-8 线程（archbox 12-16） | 每 job 独立 workdir（compile 删同 outdir stale 产物）；tlmgr flock 安全 |
 
-**网关并发硬约束（2026-09-16 起）**：archbox 上全部出向 tcp/3003 被 nftables `inet gwcap` REDIRECT 到本机 `gw-cap-proxy`（127.0.0.1:3399），对 `model` 以 `swe-2-medium` 开头的请求过**全局信号量 4**——任何会话、任何隧道共享此额度。故 xlat real 臂全局 sem = **4**（其他模型另查网关限流）；观测 `curl 127.0.0.1:3399/__gwcap/healthz` 看 inflight/queued。
+**网关并发硬约束（2026-09-16 起）**：archbox 全部出向 tcp/3003 被 nftables `inet gwcap` REDIRECT 到 `gw-cap-proxy`（127.0.0.1:3399），`model` 以 `swe-2-medium` 开头的请求过**全局信号量 4**——任何会话、任何隧道共享。故 real 臂 sem=4；其他模型先查网关侧限流再定。观测 `curl 127.0.0.1:3399/__gwcap/healthz`（inflight/queued）。另：所有脚本/bench 直连 `http://100.105.212.52:3003`（tailscale，禁 loopback）；ssh 隧道仅为 texlate server 产品链保留。
 
-**成本估算**：mock 臂全集 1272 篇 compile+fixloop 段 8 并行 ≈ 4-6h；real xlat 300 篇 @并发 4 ≈ 1.5-2.5h（64s/篇 × 300 ÷ 4 ≈ 80min 起步，含抖动按上限估）。Linux 无 FS 沙箱——批量跑第三方 tex 加 `-no-shell-escape` + env 白名单兜底。
+**成本估算（一轮 loop 批）**：ingest 补缺 ~30-60min 一次性；parse 全集 ~10-15min；xlat mock 全集 <30min；compile zh+base 全集 ~2-2.5h；fixloop ~600 格 ~2h；real xlat 300 篇 @sem4 ≈ **5-7h**（~3s/req × ~85 chunks/篇 ÷4 ≈ 64s/篇网关时，流水化后 ~56 篇/h）——real 臂放隔夜跑。Linux 无 FS 沙箱：批量跑第三方 tex 加 `-no-shell-escape` + env 白名单。
+
+### 7.4 阶段 go/no-go 门（每轮 loop 批的验收线）
+
+- parse：expander leak ≤0.05%、identity 100%（corpus_v3 既定指标沿用）
+- xlat：契约率 ≥99.9%、sabotage escaped==0、auth 熔断生效（连续 3 篇 auth-fail 停跑）
+- compile：zh-clean − base-clean 回归差 →0（管线不得引入新 fail）
+- fixloop：rescue 率单调不降、`--always` dirty==0、replay_all 无 regressed
 
 ## 8. subagent 工作模式
 
