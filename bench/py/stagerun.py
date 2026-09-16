@@ -1265,21 +1265,30 @@ _ON_PRED: dict[str, object] = {
     "nonclean": lambda c: c.get("status") in {"fail", "partial"},
     "misschar": _on_misschar,
     "clean": lambda c: c.get("status") == "clean",
-    "all": lambda _c: True,
+    # reject/skip 无有效 splice 树 —— post-judge 编译被拒英文树会虚增
+    # union-pdf (1e 审计: +414 phantom 上限)。clean 保留供非回归复判。
+    "all": lambda c: c.get("status") not in {"reject", "skip"},
 }
 
 
 def stage_fixloop(
     args: argparse.Namespace, out_dir: Path, ids: list[str], log: RecLog
 ) -> None:
-    comp_recs = load_latest(out_dir / "records" / "compile.jsonl")
     want = _ON_PRED[args.on]
+    want_ids = set(ids)
+    # (pid,zh) 可并存多个 upstream 键 —— load_latest dict 插序是首见序,
+    # cand[-1] 拿到的不是最新 compile 格 (1e 审计); 直扫文件按 append 序取。
+    cand_latest: dict[str, dict] = {}
+    comp_path = out_dir / "records" / "compile.jsonl"
+    if comp_path.exists():
+        for rec in benchlib.iter_jsonl(comp_path):
+            if rec.get("id") in want_ids and rec.get("arm") == "zh":
+                cand_latest[rec["id"]] = rec  # append 序覆盖 = 末条
     todo: list[tuple[str, dict]] = []
     for pid in ids:
-        cand = [(k, r) for k, r in comp_recs.items() if k[0] == pid and k[1] == "zh"]
-        if not cand:
+        crec = cand_latest.get(pid)
+        if crec is None:
             continue
-        _k, crec = cand[-1]  # 末条=当前 splice/ 的 provenance
         if not want(crec):
             continue
         if (
