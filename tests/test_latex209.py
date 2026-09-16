@@ -137,6 +137,58 @@ def test_upgrade_shipped_sty_loses_to_class_opt(tmp_path: Path) -> None:
     assert "usepackage{preprint}" not in out
 
 
+def test_upgrade_revtex_strips_incompat_pkgs() -> None:
+    r"""revtex4-2 ``\incompatible@package`` 名单（cite/mcite/multicol）从
+    ``\usepackage`` 剥除——loaded 即 ``\ClassError``+``\stop``（cls:6453-55）。"""
+    tex = "\\documentstyle[prb,aps,epsfig,multicol,cite,mcite]{revtex}\nx\n"
+    out, info = upgrade_209(tex)
+    assert "\\documentclass[prb,aps]{revtex4-2}" in out
+    assert info["stripped"] == ["multicol", "cite", "mcite"]
+    assert info["pkg_opts"] == ["epsfig"]
+    assert "\\usepackage{epsfig}" in out
+    assert "\\usepackage{multicol" not in out
+    assert "\\usepackage{cite" not in out
+
+
+def test_upgrade_revtex_multicol_passthrough_shim() -> None:
+    r"""剥 multicol 后附 ``multicols`` 透传环境——209 revtex 文稿常用
+    ``\begin{multicols}{2}`` 裹正文（cond-mat/9901156、9901347 实证）。"""
+    tex = (
+        "\\documentstyle[aps,multicol]{revtex}\n"
+        "\\begin{document}\n\\begin{multicols}{2}\nx\n\\end{multicols}\n"
+        "\\end{document}\n"
+    )
+    out, info = upgrade_209(tex)
+    assert info["stripped"] == ["multicol"]
+    assert "\\newenvironment{multicols}" in out
+    assert "\\newcount\\col@number" in out
+    assert "\\begin{multicols}{2}" in out  # 正文原样保留
+
+
+def test_upgrade_multicol_kept_on_other_class() -> None:
+    """非 revtex4-2 目标不剥 multicol——标准类下它是合法 ``\\usepackage``。"""
+    out, info = upgrade_209("\\documentstyle[12pt,multicol]{article}\nx\n")
+    assert "\\usepackage{multicol}" in out
+    assert info["pkg_opts"] == ["multicol"]
+    assert info["stripped"] == []
+    assert "\\newenvironment{multicols}" not in out
+
+
+def test_upgrade_direct_revtex42_also_strips() -> None:
+    """``\\documentstyle{revtex4-2}`` 直写 2e 类名——按解析后 target 剥。"""
+    out, info = upgrade_209("\\documentstyle[aps,multicol]{revtex4-2}\nx\n")
+    assert "\\documentclass[aps]{revtex4-2}" in out
+    assert info["stripped"] == ["multicol"]
+
+
+def test_upgrade_shipped_incompat_sty_stripped(tmp_path: Path) -> None:
+    """随源 ``cite.sty`` 在 revtex4-2 目标下同样剥除——shipped 不豁免硬不兼容。"""
+    (tmp_path / "cite.sty").write_text("% local cite\n")
+    out, info = upgrade_209("\\documentstyle[aps,cite]{revtex}\nx\n", root=tmp_path)
+    assert info["stripped"] == ["cite"]
+    assert "\\usepackage{cite" not in out
+
+
 def test_upgrade_census_whitelist_names() -> None:
     """414 普查实证的真包名（曾静默落类选项位）必须进 ``\\usepackage``。"""
     names = (

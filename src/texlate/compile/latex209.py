@@ -10,9 +10,12 @@ compat 模式在内核层禁用 ``\usepackage``（探针实证：A 臂 11/11 同
   offset 与原文逐字节对齐，回原文做 span 替换；
 - 209 时代类名映射到存续 2e 类（revtex→revtex4-2 等）；未识别类名原样保留，
   缺 ``.cls`` 交 fixloop missing_file → CTAN fetch；
-- 选项三路分派：内核/目标类内建选项 → 类选项（未知选项进类只是
+- 选项三路分派：目标类 ``\incompatible@package`` 硬不兼容名（revtex4-2:
+  cite/mcite/multicol——loaded 即 ``\ClassError``+``\stop``）剥除记账 →
+  内核/目标类内建选项 → 类选项（未知选项进类只是
   "unused global option" warning，错进 ``\usepackage`` 是 missing_file 硬错）；
-  已知宏包名或工程随源 ``<opt>.sty`` → ``\usepackage``；默认落类选项；
+  已知宏包名或工程随源 ``<opt>.sty`` → ``\usepackage``；默认落类选项。
+  multicol 被剥时附 ``\multicols``/``\col@number`` 透传 shim 保正文环境可解析；
 - 转换产物尾部附 ``COMPAT_SHIM``——探针实证的 209 内建残留（``\Box`` 系
   latexsym、``\vruleheight``、``\ifoldfss``、``\footheight``、``\tightenlines``、
   ``\@floats``）；
@@ -252,6 +255,14 @@ _PKG_OPTS = frozenset(
     }
 )
 
+#: 目标类硬不兼容宏包——类内 ``\incompatible@package`` 声明，loaded 即
+#: ``\ClassError``+``\stop``（revtex4-2.cls:6453-6455：cite/mcite/multicol 与
+#: ltxgrid 输出例程互斥）。命中即从选项剥除——留类选项位成 unused-option
+#: warning 失语义，进 ``\usepackage`` 必死；剥除名记入 ``info["stripped"]``。
+_INCOMPAT_PKGS: dict[str, frozenset[str]] = {
+    "revtex4-2": frozenset({"cite", "mcite", "multicol"}),
+}
+
 #: 实证 ds@ 选项机类（随源 .sty 以 ``\ds@<opt>``/``\@namedef{ds@<opt>}`` 分发
 #: 选项；2e 无此机制，ias.cls 也不存在——无树可调时按名硬拒）。
 _DS_AT_CLASSES = frozenset({"ias", "jaa", "julie"})
@@ -268,6 +279,20 @@ COMPAT_SHIM = r"""% texlate: LaTeX 2.09 compatibility shim
 \newif\if@floats
 \makeatother
 \ifx\footheight\undefined\newlength{\footheight}\fi"""
+
+
+#: ``multicols``/``multicols*`` 透传环境——multicol 被剥后正文 ``\begin{multicols}{n}``
+#: 仍需可解析（209 revtex 单栏时代作者常用它裹整个正文凑双栏；revtex4-2 的
+#: ltxgrid 已接管分页，列数参弃之）。``\newcount\col@number`` 置 0 中和
+#: ltxgrid longtable 分支 ``\ifnum\col@number>\@ne`` 的缺数软错。
+_MULTICOLS_SHIM = r"""% texlate: multicol incompatible with target class — env passthrough
+\makeatletter
+\ifx\multicols\@undefined
+\newenvironment{multicols}[1]{}{}
+\newenvironment{multicols*}[1]{}{}
+\newcount\col@number
+\fi
+\makeatother"""
 
 
 def _split_opts(optspan: str | None) -> list[str]:
@@ -306,19 +331,24 @@ def _uses_ds_at(root: Path | None, cls: str) -> bool:
 
 
 def _route_opts(
-    opts: list[str], spec: _ClassSpec | None, root: Path | None
-) -> tuple[list[str], list[str], list[str]]:
-    """选项三路分派 → ``(class_opts, pkg_opts, shipped_hits)``。
+    opts: list[str], spec: _ClassSpec | None, root: Path | None, target: str
+) -> tuple[list[str], list[str], list[str], list[str]]:
+    """选项三路分派 → ``(class_opts, pkg_opts, shipped_hits, stripped)``。
 
-    判别序：209 选项名先经目标类 ``rename`` 表改写成 2e 词汇，再查内核选项
-    → 目标类内建表 → 宏包白名单/随源 ``.sty`` → 默认落类选项。
+    判别序：209 选项名先经目标类 ``rename`` 表改写成 2e 词汇，再查目标类
+    硬不兼容表（剥除）→ 内核选项 → 目标类内建表 → 宏包白名单/随源
+    ``.sty`` → 默认落类选项。
     """
+    incompat = _INCOMPAT_PKGS.get(target, frozenset())
     cls_opts: list[str] = []
     pkg_opts: list[str] = []
     shipped: list[str] = []
+    stripped: list[str] = []
     for opt in opts:
         o = spec.rename.get(opt, opt) if spec is not None else opt
-        if o in _KERNEL_OPTS or (spec is not None and o in spec.options):
+        if o in incompat:
+            stripped.append(o)
+        elif o in _KERNEL_OPTS or (spec is not None and o in spec.options):
             cls_opts.append(o)
         elif o in _PKG_OPTS or _ships_style(root, o):
             pkg_opts.append(o)
@@ -326,7 +356,7 @@ def _route_opts(
                 shipped.append(o)
         else:
             cls_opts.append(o)
-    return cls_opts, pkg_opts, shipped
+    return cls_opts, pkg_opts, shipped, stripped
 
 
 def upgrade_209(tex: str, *, root: Path | None = None) -> tuple[str, dict]:
@@ -354,13 +384,17 @@ def upgrade_209(tex: str, *, root: Path | None = None) -> tuple[str, dict]:
         }
     spec = _CLASS_MAP.get(cls)
     target = spec.target if spec is not None else cls
-    cls_opts, pkg_opts, shipped = _route_opts(_split_opts(m.group(1)), spec, root)
+    cls_opts, pkg_opts, shipped, stripped = _route_opts(
+        _split_opts(m.group(1)), spec, root, target
+    )
     lines = [
         f"\\documentclass[{','.join(cls_opts)}]{{{target}}}"
         if cls_opts
         else f"\\documentclass{{{target}}}",
         COMPAT_SHIM,
     ]
+    if "multicol" in stripped:
+        lines.append(_MULTICOLS_SHIM)
     if pkg_opts:
         # shim 必须先于路由出的 \usepackage——209 时代 .sty 加载时就要见到
         # \footheight/\ifoldfss 等定义（2501.05407 nips.sty 实证）。
@@ -374,4 +408,5 @@ def upgrade_209(tex: str, *, root: Path | None = None) -> tuple[str, dict]:
         "class_opts": cls_opts,
         "pkg_opts": pkg_opts,
         "shipped": shipped,
+        "stripped": stripped,
     }
