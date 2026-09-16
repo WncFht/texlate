@@ -23,7 +23,7 @@ import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol
 
-from texlate.textutil import bare_cs_net, ph_in_cs_net
+from texlate.textutil import JSON_FENCE_RX, bare_cs_net, ph_in_cs_net
 
 from . import placeholders, prompts
 from .batch import (
@@ -207,16 +207,10 @@ class GatewayTranslator:
 #: mock 译文固定串（e2e mock_a 同款：散文段 → 固定中文，token 原位不动）
 MOCK_ZH = "这是译文"
 
-#: slots JSON 应答的 ```json fence 剥皮（response_format 在 3003 网关被静默
-#: 忽略——模型仍可能按习惯包 fence，剥一层再 json.loads 才算尽力）。
-_JSON_FENCE_RX = re.compile(
-    r"^\s*```[A-Za-z]*\s*\n(?P<body>.*?)\n?\s*```\s*$", re.DOTALL
-)
-
 
 def _strip_json_fence(raw: str) -> str:
     """剥掉整段 ``` 围栏；非围栏原文原样返回。"""
-    m = _JSON_FENCE_RX.match(raw)
+    m = JSON_FENCE_RX.match(raw)
     return m.group("body") if m else raw
 
 

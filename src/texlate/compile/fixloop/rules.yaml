@@ -63,7 +63,8 @@ meta:
     warn_driven_fixes: true # v1.1: 错误全无时 warnings 可驱动 warn_* 类别修复轮
 
 # ────────────────────────────────────────────────────────────────
-# 引擎能力位: 决定每条规则的 action 用 native 还是 degrade 路径
+# 引擎能力位（声明式矩阵）: when.cap_available 判的是引擎自报 caps
+# 集合（eng.caps）；本段是各引擎能力对照基线/审计文档，不参与 dispatch
 # ────────────────────────────────────────────────────────────────
 capabilities:
   xelatex:

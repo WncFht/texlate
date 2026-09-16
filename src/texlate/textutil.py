@@ -38,6 +38,7 @@ __all__ = [
     "CJK_RANGES",
     "CJK_RX",
     "DEAD_ENVS",
+    "JSON_FENCE_RX",
     "MATH_CS",
     "VERBATIM_ENVS",
     "EncodingVerdict",
@@ -56,6 +57,14 @@ __all__ = [
 #: ``\begin{document}`` 探测（``\begin {document}`` 空白合法）。消费侧一律
 #: 在遮盖/剥注释视图上判定——注释/verbatim 内的字面命中不算数。
 BEGIN_DOC_RX: Final = re.compile(r"\\begin\s*\{document\}")
+
+
+#: LLM JSON 应答的 ```json fence 剥皮——response_format 在 3003 网关被静默
+#: 忽略，模型按习惯包 fence 是常态；剥一层再 json.loads 才算尽力。
+#: xlat.pipeline slots 应答与 fixloop llm_hook 共用本口径。
+JSON_FENCE_RX: Final = re.compile(
+    r"^\s*```[A-Za-z]*\s*\n(?P<body>.*?)\n?\s*```\s*$", re.DOTALL
+)
 
 
 def mask_comments(text: str) -> str:
