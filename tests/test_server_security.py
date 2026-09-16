@@ -337,6 +337,74 @@ class _Capture(logging.Handler):
         self.messages.append(record.getMessage())
 
 
+class TestUnpackZip:
+    """unpack_zip 与 arxiv.unpack tar 侧同族加固：dup/casefold/dir-clash。"""
+
+    @staticmethod
+    def _zip(members: list[tuple[str, bytes]]) -> bytes:
+        import io  # noqa: PLC0415 -- 测试工具局部依赖
+        import warnings as _warnings  # noqa: PLC0415
+        import zipfile  # noqa: PLC0415
+
+        buf = io.BytesIO()
+        with (
+            _warnings.catch_warnings(),
+            zipfile.ZipFile(buf, "w") as zf,
+        ):
+            _warnings.simplefilter("ignore")  # 故意构造 dup/casefold 成员
+            for name, blob in members:
+                zf.writestr(name, blob)
+        return buf.getvalue()
+
+    def test_dup_member_warns_and_overwrites(self, tmp_path: Path) -> None:
+        from texlate.server.worker import unpack_zip  # noqa: PLC0415
+
+        warnings = unpack_zip(
+            self._zip([("main.tex", b"old"), ("main.tex", b"new")]), tmp_path
+        )
+        assert (tmp_path / "main.tex").read_bytes() == b"new"
+        assert "dup_member_overwrite:main.tex" in warnings
+
+    def test_casefold_conflict_renamed(self, tmp_path: Path) -> None:
+        from texlate.server.worker import unpack_zip  # noqa: PLC0415
+
+        warnings = unpack_zip(
+            self._zip([("Fig1.eps", b"aa"), ("fig1.eps", b"bb")]), tmp_path
+        )
+        assert any(w.startswith("casefold_rename:fig1.eps->fig1~c2") for w in warnings)
+        assert (tmp_path / "Fig1.eps").read_bytes() == b"aa"
+        assert (tmp_path / "fig1~c2.eps").read_bytes() == b"bb"
+
+    def test_member_vs_existing_dir_clash(self, tmp_path: Path) -> None:
+        from texlate.server.worker import unpack_zip  # noqa: PLC0415
+
+        warnings = unpack_zip(
+            self._zip([("a/x.tex", b"x"), ("a", b"file-not-dir")]), tmp_path
+        )
+        assert "reject_dir_clash:a" in warnings
+        assert (tmp_path / "a").is_dir()
+        assert (tmp_path / "a" / "x.tex").read_bytes() == b"x"
+
+    def test_path_segment_vs_existing_file(self, tmp_path: Path) -> None:
+        from texlate.server.worker import unpack_zip  # noqa: PLC0415
+
+        warnings = unpack_zip(self._zip([("f", b"file"), ("f/x.tex", b"x")]), tmp_path)
+        assert "reject_dir_clash:f/x.tex" in warnings
+        assert (tmp_path / "f").read_bytes() == b"file"
+
+    def test_dotdot_and_absolute_still_rejected(self, tmp_path: Path) -> None:
+        from texlate.server.worker import unpack_zip  # noqa: PLC0415
+
+        warnings = unpack_zip(
+            self._zip([("../evil.tex", b"e"), ("/abs.tex", b"a"), ("ok.tex", b"o")]),
+            tmp_path,
+        )
+        assert "reject:../evil.tex" in warnings
+        assert "reject:/abs.tex" in warnings
+        assert (tmp_path / "ok.tex").exists()
+        assert not (tmp_path.parent / "evil.tex").exists()
+
+
 class TestRedactMounted:
     """install_log_scrub：filter 落 root logger + 全部现有 handler。"""
 

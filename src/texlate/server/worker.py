@@ -520,10 +520,26 @@ class _StageError(Exception):
 # ---------------------------------------------------------------- 上传解包
 
 
+def _zip_unique(rel: str, seen: dict[str, str]) -> str:
+    """Casefold 冲突改名：``foo.eps`` → ``foo~c2.eps``（arxiv.unpack 同款语义）。"""
+    stem, dot, ext = rel.rpartition(".")
+    if not stem:
+        stem, suffix = rel, ""
+    else:
+        suffix = dot + ext
+    k = 2
+    while f"{stem}~c{k}{suffix}".lower() in seen:
+        k += 1
+    return f"{stem}~c{k}{suffix}"
+
+
 def unpack_zip(data: bytes, dest: Path) -> list[str]:
     """Zip 安全解包（upload_tex 路线；tar/gz 走 ``unpack_sniffed``）。
 
     拒绝：绝对路径/盘符/``..`` 逃逸/超过 4000 文件/单文件或总量超限。
+    与 ``arxiv.unpack`` tar 侧同族：dup 成员告警覆盖（last-wins）、
+    casefold 冲突改名 ``~cN``、成员名撞已建目录（或其路径段撞已落
+    文件）告警跳过——不静默合并/不抛 IsADirectoryError。
     """
     warnings: list[str] = []
     try:
@@ -537,6 +553,7 @@ def unpack_zip(data: bytes, dest: Path) -> list[str]:
             msg = f"too_many_files:{len(infos)}"
             raise UnpackError(msg)
         total = 0
+        seen: dict[str, str] = {}
         dest.mkdir(parents=True, exist_ok=True)
         for info in infos:
             rel = PurePosixPath(info.filename)
@@ -551,7 +568,21 @@ def unpack_zip(data: bytes, dest: Path) -> list[str]:
             if total > 300 * 1024 * 1024:  # 300MB 解压上限（§2.4）
                 warnings.append("reject_totalcap")
                 break
-            target = dest.joinpath(*parts)
+            rel_s = PurePosixPath(*parts).as_posix()
+            low = rel_s.lower()
+            if low in seen and seen[low] != rel_s:
+                new_rel = _zip_unique(rel_s, seen)
+                warnings.append(f"casefold_rename:{rel_s}->{new_rel}")
+                rel_s, low = new_rel, new_rel.lower()
+            elif low in seen:
+                warnings.append(f"dup_member_overwrite:{rel_s}")
+            seen[low] = rel_s
+            target = dest.joinpath(*PurePosixPath(rel_s).parts)
+            if target.is_dir() or (
+                target.parent.exists() and not target.parent.is_dir()
+            ):
+                warnings.append(f"reject_dir_clash:{rel_s}")
+                continue
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(zf.read(info))
     return warnings
