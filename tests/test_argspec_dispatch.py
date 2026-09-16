@@ -19,9 +19,25 @@ r"""argspec policy 分派黑盒测试——每条 policy 取真实宏端到端�
 
 import pytest
 
+import texlate.latex.segmenter as seg
 from texlate.latex import parse_tex, reconstruct
-from texlate.latex.model import PieceKind, ScanResult
+from texlate.latex.model import ArgspecEntry, PieceKind, ScanResult
 from texlate.latex.reconstruct import validate_result
+from texlate.latex.tables import (
+    ACCENT_CHARS,
+    BOUNDARY_NAMES,
+    CHUNK_ARG_NAMES,
+    CITE_NAMES,
+    COND_RX,
+    FONT_SWITCHES,
+    INLINE_LITERAL_CMDS,
+    INPUT_SCAN_CMDS,
+    PROTECT_BLOCK_NAMES,
+    PROTECT_NAMES,
+    REF_NAMES,
+    TRANSPARENT_NAMES,
+    argspec_tables,
+)
 
 ART = "\\documentclass{article}\n%s\\begin{document}\n%s\n\\end{document}\n"
 BEAMER = "\\documentclass{beamer}\n\\begin{document}\n%s\n\\end{document}\n"
@@ -173,14 +189,60 @@ def test_verbatim_policy_whole_call() -> None:
     assert "http" not in c.content
 
 
-def test_verbatim_policy_pct_arg_degrades() -> None:
-    r"""verbatim policy 走签名读参（非 ``\verb`` 式定界读法）：``%`` 进参
-    → 注释吃行、组未闭 → 退化裸名 ``[[CMD]]`` + 余文注释。
+def test_verbatim_policy_pct_arg_preserved() -> None:
+    r"""verbatim policy 走逐字读参（``\url``/``\path`` 同款字节级配对）：
+    ``%`` 在参数里是字面——整调用 ``[[CMD]]`` 含 ``%20``，不截不断。
 
-    已知边角：真实 LaTeX 里 verbatim 角色参数 ``%`` 是字面——分段器在
-    Mouth 之后已看不到原字节，无法回捞（详见报告）。"""
+    修复前退化形态：``%`` 被 Mouth 当注释吃掉 → 组未闭 → 裸名
+    ``[[CMD]]`` + ``http://x`` 泄漏进 chunk。"""
     res = scan(
-        "Text \\hyperbaseurl{http://x%20y} more words.",
+        "Text \\hyperbaseurl{http://x%20y} more words here.",
+        "\\usepackage{hyperref}\n",
+    )
+    [c] = res.chunks
+    assert c.placeholders == ["[[CMD_1]]"]
+    assert res.ph_map["[[CMD_1]]"] == "\\hyperbaseurl{http://x%20y}"
+    assert c.content == "Text [[CMD_1]] more words here."
+
+
+def test_verbatim_policy_delim_form() -> None:
+    r"""verbatim policy 认 ``\cmd|x|`` 定界形（``_protect_cs(verbatim=True)``
+    首 token 定界符规则——ctan-argspec 的 policy 语义即定界扫描）。"""
+    res = scan(
+        "Text \\nolinkurl|a%20b| more words here.",
+        "\\usepackage{hyperref}\n",
+    )
+    assert res.ph_map["[[CMD_1]]"] == "\\nolinkurl|a%20b|"
+
+
+def test_verbatim_policy_in_arg() -> None:
+    r"""in_arg 内 verbatim policy：``\section{.. \hyperbaseurl{u/x} ..}``
+    → ``[[CMD]]`` 嵌进 chunk content。"""
+    res = scan(
+        "Text \\section{See \\hyperbaseurl{u/x} rest of title} tail.",
+        "\\usepackage{hyperref}\n",
+    )
+    [c] = res.chunks
+    assert c.content == "See [[CMD_1]] rest of title"
+    assert res.ph_map["[[CMD_1]]"] == "\\hyperbaseurl{u/x}"
+
+
+def test_verbatim_policy_pct_inside_unclosed_group() -> None:
+    r"""``%`` 吞掉外层组闭括号时（``\section{..\hyperbaseurl{u%20}..}``——
+    token 层 ``%`` 按 TeX 规则本就是注释）：verbatim 字节级配对仍罩住
+    整调用 ``[[CMD]]`` 含 ``%``，被吞字节经 gap 覆盖回吐字面。"""
+    res = scan(
+        "Text \\section{See \\hyperbaseurl{u%20} rest of title} tail.",
+        "\\usepackage{hyperref}\n",
+    )
+    assert res.ph_map["[[CMD_1]]"] == "\\hyperbaseurl{u%20}"
+    assert "rest of title" in res.protected_tex
+
+
+def test_verbatim_policy_unclosed_falls_back() -> None:
+    r"""verbatim 参未闭（组不配）→ 裸名 ``[[CMD]]``，后续字节主流重扫。"""
+    res = scan(
+        "Text \\hyperbaseurl{http://x more words.",
         "\\usepackage{hyperref}\n",
     )
     assert res.ph_map["[[CMD_1]]"] == "\\hyperbaseurl"
@@ -230,6 +292,19 @@ def test_chunk_arg_key_stays_literal() -> None:
     [c] = [c for c in res.chunks if c.context == "hyperlink"]
     assert c.content == "Jump to section"
     assert "\\hyperlink{sec:intro}{" in res.protected_tex
+
+
+def test_chunk_arg_hyperref_bracket_label() -> None:
+    r"""``\hyperref[label]{text}``（hyperref ``m m`` key+text）：``m`` 位
+    兼收 ``[`` 组——文档形 key 留字面、text 出 chunk；路19 前须在分派
+    row7 把 ``hyperref`` 从 ``*ref`` 后缀规则放出（mand=1 会吞 text）。"""
+    res = scan(
+        "Text \\hyperref[sec:x]{Ref Words Here} end.",
+        "\\usepackage{hyperref}\n",
+    )
+    [c] = [c for c in res.chunks if c.context == "hyperref"]
+    assert c.content == "Ref Words Here"
+    assert "\\hyperref[sec:x]{[[CHUNK_0]]}" in res.protected_tex
 
 
 def test_chunk_arg_beamer_subtitle() -> None:
@@ -308,3 +383,85 @@ def test_env_theorem_opt_title_preserved() -> None:
     )
     [c] = [c for c in res.chunks if c.env == "theorem"]
     assert c.content == "[Fermat]Statement words here."
+
+
+# ------------------------------------------------- 死路径（shadow invariant）
+
+
+def test_transparent_boundary_all_family_shadowed() -> None:
+    r"""遮蔽不变式：argspec ``transparent``/``boundary`` 的每条 macro 必须
+    被 ``_dispatch`` 前段行（verb/begin/end/cite/ref/protect/href/input/
+    chunk-arg/protect-block/transparent/boundary/cond/literal）截获——
+    否则 ``_handle_argspec_cs`` 里"语义正确但未经族表校验"的分支会活过来。
+
+    今天 6/6 transparent ∈ TRANSPARENT_NAMES、45/45 boundary ∈
+    BOUNDARY_NAMES（或 begin/end）；表或族漂移引入未遮蔽条目时此测试响。"""
+    macros, _envs = argspec_tables()
+    row_sets = (
+        TRANSPARENT_NAMES
+        | BOUNDARY_NAMES
+        | PROTECT_NAMES
+        | CHUNK_ARG_NAMES
+        | PROTECT_BLOCK_NAMES
+        | CITE_NAMES
+        | REF_NAMES
+        | INPUT_SCAN_CMDS
+        | INLINE_LITERAL_CMDS
+        | FONT_SWITCHES
+        | {"verb", "verb*", "lstinline", "begin", "end", "href", "endinput"}
+    )
+    offenders = [
+        (name, e.package, e.policy)
+        for name, e in sorted(macros.items())
+        if e.policy in ("transparent", "boundary")
+        and name not in row_sets
+        and not name.startswith("cite")
+        and not name.endswith("ref")
+        and not COND_RX.match(name)
+        and not (len(name) == 1 and (name in ACCENT_CHARS or not name.isalpha()))
+    ]
+    assert not offenders
+
+
+def test_argspec_dead_path_reach_warns(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    r"""``transparent``/``boundary`` 分支今日不可达；一旦漂移使其可达，
+    记 ``argspec_shadowed`` 告警且语义照旧——用假条目强制走通验证。"""
+    real = seg.argspec_lookup
+
+    def fake_lookup(name: str, pkgs: set[str]) -> ArgspecEntry | None:
+        if name == "zztrans":
+            return ArgspecEntry(
+                name="zztrans",
+                package="zzz",
+                signature="m",
+                arg_roles=("key",),
+                policy="transparent",
+            )
+        if name == "zzbreak":
+            return ArgspecEntry(name="zzbreak", package="zzz", policy="boundary")
+        return real(name, pkgs)
+
+    monkeypatch.setattr(seg, "argspec_lookup", fake_lookup)
+
+    res = scan("Text \\zztrans{kk} more words here.")
+    assert any(
+        w.kind == "argspec_shadowed" and w.detail == "zztrans" for w in res.warnings
+    )
+    [c] = res.chunks
+    assert c.content == "Text \\zztrans{kk} more words here."
+
+    res2 = scan(
+        "First column text goes on here with enough words."
+        "\\zzbreak Second column text goes on here too."
+    )
+    assert any(
+        w.kind == "argspec_shadowed" and w.detail == "zzbreak" for w in res2.warnings
+    )
+    [lit] = [p for p in res2.pieces if p.text == "\\zzbreak"]
+    assert lit.kind is PieceKind.LITERAL
+    assert [c.content for c in res2.chunks] == [
+        "First column text goes on here with enough words.",
+        " Second column text goes on here too.",
+    ]

@@ -5474,7 +5474,7 @@
             "name": "hyperref",
             "kind": "macro",
             "package": "hyperref",
-            "signature": "o m",
+            "signature": "m m",
             "arg_roles": ["key", "text"],
             "policy": "chunk-arg",
             "source": ["ctan:hyperref", "manual"]

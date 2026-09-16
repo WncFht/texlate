@@ -1270,11 +1270,13 @@ class Segmenter:
             if name in CITE_NAMES or name.startswith("cite"):
                 self._protect_cs(t, src, PhType.CITE, mand=1)
                 return
-            # 7. ref 族 → [[REF]]（排除 href 与 TRANSPARENT）
+            # 7. ref 族 → [[REF]]（排除 href 与 TRANSPARENT；hyperref 带
+            #    可译 text 参，交 row19 → argspec chunk-arg——``*ref`` 后缀
+            #    规则的 mand=1 会吞 ``[label]{text}`` 的 text 进 [[REF]]）
             if name in REF_NAMES or (
                 name.endswith("ref")
                 and name not in TRANSPARENT_NAMES
-                and name != "href"
+                and name not in ("href", "hyperref")
             ):
                 self._protect_cs(t, src, PhType.REF, mand=1)
                 return
@@ -3066,7 +3068,9 @@ class Segmenter:
         self._unread_args(src, args)
         self._rappend_tok(t)
 
-    def _handle_argspec_cs(self, t: Tok, src: TokenSource, e: ArgspecEntry) -> None:
+    def _handle_argspec_cs(  # noqa: PLR0911 — policy 分派早退平铺，顺序即语义
+        self, t: Tok, src: TokenSource, e: ArgspecEntry
+    ) -> None:
         r"""Argspec 表命中分派：policy → literal/boundary/protect/chunk-arg。
 
         签名即权威（与探针不同：参数读 ``e.signature`` 位序，角色表
@@ -3074,11 +3078,29 @@ class Segmenter:
         参数随主流；``boundary`` flush+LITERAL；``protect``/``key``/
         ``verbatim``（+in_arg 的 boundary）整调用 ``[[CMD]]``；
         ``chunk-arg`` 走 :meth:`_emit_argspec_chunks`。
+
+        ``transparent``/``boundary`` 当前全条目被同名族表先截获——此路
+        不可达；到达即表/族漂移，记 ``argspec_shadowed`` 告警但语义照旧。
         """
         fid, _a, b = t.pos
-        if e.policy in ("literal", "transparent"):
+        if e.policy == "verbatim":
+            # verbatim policy：逐字读参（ctan-argspec 定界式约定）——``%``/``#``
+            # 等在参数里是字面（``\hyperbaseurl{..%20..}``），走 ``\url``/``\path``
+            # 同款字节级配对；token 流会被 ``%`` 吃掉闭括号直排 EOF。
+            spec = _chunk_spec_cached(e.signature)
+            mand = sum(s.kind in ("m", "v") for s in spec)
+            self._protect_cs(t, src, PhType.CMD, mand=mand, verbatim=True)
+            return
+        if e.policy == "literal":
             self._rappend_tok(t)
             return
+        if e.policy in ("transparent", "boundary"):
+            self.state.warnings.append(
+                ScanWarning("argspec_shadowed", len(self.vt), e.name)
+            )
+            if e.policy == "transparent":
+                self._rappend_tok(t)
+                return
         spec = _chunk_spec_cached(e.signature)
         args, end = self._args_tok(src, fid, spec, b, allow_single_token=True)
         if e.policy == "chunk-arg":

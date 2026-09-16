@@ -415,18 +415,40 @@ def test_family_verbatim_beats_argspec_protect() -> None:
     assert body.endswith("\\end{filecontents}")
 
 
-def test_family_ref_suffix_beats_argspec_chunk_arg() -> None:
-    r"""名后缀族规则压 argspec：``\hyperref``（hyperref ``o m m`` key+text）
-    以 ``*ref`` 后缀命中 REF 族——``[[REF]]`` 只罩 ``{key}`` 位，text 位
-    带括号留在 run（argspec 独立 chunk 路径不生效）。"""
+def test_hyperref_argspec_chunk_arg_two_forms() -> None:
+    r"""``\hyperref``（hyperref ``m m`` key+text）自 ``*ref`` 后缀规则放出
+    交 argspec——mand=1 REF 会把 ``[label]{text}`` 的 text 吞进 ``[[REF]]``。
+    ``m`` 签名项兼收 ``[`` 组：文档形 ``[label]{text}`` 与民间
+    ``{label}{text}`` 皆 key 位留字面、text 位出 chunk ctx=hyperref。"""
     res = scan(
-        "Text \\hyperref{sec:x}{Ref Words Here} end.",
+        "Text \\hyperref[sec:x]{Bracket Words Here} end.",
+        "\\usepackage{hyperref}\n",
+    )
+    [c] = [c for c in res.chunks if c.context == "hyperref"]
+    assert c.content == "Bracket Words Here"
+    assert "\\hyperref[sec:x]{[[CHUNK_0]]}" in res.protected_tex
+
+    res2 = scan(
+        "Text \\hyperref{sec:x}{Brace Words Here} end.",
+        "\\usepackage{hyperref}\n",
+    )
+    [c2] = [c for c in res2.chunks if c.context == "hyperref"]
+    assert c2.content == "Brace Words Here"
+    assert "\\hyperref{sec:x}{[[CHUNK_0]]}" in res2.protected_tex
+
+
+def test_family_ref_suffix_still_shadows_key_only_refs() -> None:
+    r"""对照：``*ref`` 后缀规则对 key-only 宏不变——``\autoref{sec:x}``
+    （argspec 有同名 hyperref ``s m`` key 条目）仍整调用 ``[[REF]]``，
+    不走路19 argspec。"""
+    res = scan(
+        "Text \\autoref{sec:x} more words here.",
         "\\usepackage{hyperref}\n",
     )
     [c] = res.chunks
-    assert c.content == "Text [[REF_1]]{Ref Words Here} end."
-    assert res.ph_map["[[REF_1]]"] == "\\hyperref{sec:x}"
-    assert all(c.context != "hyperref" for c in res.chunks)
+    assert c.content == "Text [[REF_1]] more words here."
+    assert res.ph_map["[[REF_1]]"] == "\\autoref{sec:x}"
+    assert all(c.context != "autoref" for c in res.chunks)
 
 
 # ------------------------------------------------------------- parse_file
