@@ -225,7 +225,7 @@ def test_pipeline_run_no_main_tex(tmp_path: Path) -> None:
 
     assert report["status"] == "partial"
     assert report["reject_at"] == "route"
-    assert "no main tex" in report["route"]["reasons"]
+    assert "no main tex:garbage" in report["route"]["reasons"]
     assert "compile" not in report
 
 
