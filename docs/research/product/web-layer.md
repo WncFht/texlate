@@ -127,7 +127,9 @@ JSON Schema（可直接实现；`progress` 为 0-100 粗粒度）：
     ],
     "properties": {
         "task_id": { "type": "string" },
-        "kind": { "enum": ["arxiv", "upload_tex", "upload_pdf"] },
+        "kind": {
+            "enum": ["arxiv", "upload_tex", "upload_pdf", "docx", "epub"],
+        },
         "status": {
             "enum": [
                 "queued",
@@ -186,11 +188,11 @@ JSON Schema（可直接实现；`progress` 为 0-100 粗粒度）：
 //                        {"seq":41,"status":"fallback_orig","error_code":"placeholder_mismatch"}]}
 // error.data   {"code":"provider_rate","message":"…","stage":"translating",
 //               "retryable":true,"chunk_seq":87}
-// done.data    {"status":"partial","artifacts":{"en_pdf":"…","zh_pdf":"…","dual_json":"…","zh_src_zip":"…","log":"…"},
+// done.data    {"status":"partial","artifacts":{"en_pdf":"…","zh_pdf":"…","dual_json":"…","zh_src_zip":"…","compile_log":"…"},
 //               "stats":{"tokens":81233,"seconds":264,"chunks_failed":3}}
 ```
 
-错误码枚举：`arxiv_fetch | no_latex_source | pdf_wrapper | parse | provider_auth | provider_rate | provider_timeout | provider_error | validate | placeholder_mismatch | compile | fixloop_exhausted | internal | auth_required`。
+错误码枚举：`arxiv_fetch | no_latex_source | pdf_wrapper | parse | provider_auth | provider_rate | provider_timeout | provider_error | validate | placeholder_mismatch | compile | fixloop_exhausted | unsupported_format | internal | auth_required`。
 
 进度百分比映射（沿用 texglot 刻度，前端也可只用 stage+counters 自绘）：fetching 3→9 / parsing 9→25 / translating 25→85（按 done/total 线性）/ compiling 90→99 / 终态 100。
 
@@ -199,16 +201,18 @@ JSON Schema（可直接实现；`progress` 为 0-100 粗粒度）：
 - `GET /api/files/{task_id}` → 产物清单 `{artifacts: {kind: {bytes, sha256, created_at}}}`。
 - `GET /api/files/{task_id}/{kind}[?download=1]`：
 
-| kind          | 内容                                     | media_type       |
-| ------------- | ---------------------------------------- | ---------------- |
-| `en.pdf`      | 原文编译产物                             | application/pdf  |
-| `zh.pdf`      | 译文 PDF                                 | application/pdf  |
-| `dual.pdf`    | PDF 路线 BabelDOC 同页双语版             | application/pdf  |
-| `dual.json`   | 双语对照数据（阅读器用，schema 见 §5.4） | application/json |
-| `src.tar`     | arXiv 原始源码包                         | application/gzip |
-| `zh-src.zip`  | 注入 ctex 后的译文工程（含修复手术痕迹） | application/zip  |
-| `compile.log` | 最后一次编译日志                         | text/plain       |
-| `md`          | 降级产物（PDF 路线 MinerU markdown 包）  | application/zip  |
+| kind          | 内容                                                            | media_type                                                                |
+| ------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `en.pdf`      | 原文编译产物                                                    | application/pdf                                                           |
+| `zh.pdf`      | 译文 PDF                                                        | application/pdf                                                           |
+| `dual.pdf`    | PDF 路线 BabelDOC 同页双语版                                    | application/pdf                                                           |
+| `dual.json`   | 双语对照数据（阅读器用，schema 见 §5.4）                        | application/json                                                          |
+| `src.tar`     | arXiv 原始源码包                                                | application/gzip                                                          |
+| `zh-src.zip`  | 注入 ctex 后的译文工程（含修复手术痕迹）                        | application/zip                                                           |
+| `compile.log` | 最后一次编译日志                                                | text/plain                                                                |
+| `md`          | 降级产物（PDF 路线 MinerU markdown 包）                         | application/zip                                                           |
+| `zh.docx`     | DOCX 双语插译产物（`*_bilingual.docx`，artifact key `zh_docx`） | `application/vnd.openxmlformats-officedocument.wordprocessingml.document` |
+| `zh.epub`     | EPUB 双语插译产物（`*_bilingual.epub`，artifact key `zh_epub`） | `application/epub+zip`                                                    |
 
 - `download=1` → `Content-Disposition: attachment; filename="texlate-{arxiv_id}-zh.pdf"`。`?version=` 校验文档 sha256 防阅读器拿旧版（texglot 的 409 模式）。
 - 路径安全：kind 白名单枚举，绝不接任意 path。
@@ -217,13 +221,14 @@ JSON Schema（可直接实现；`progress` 为 0-100 粗粒度）：
 
 `multipart/form-data`：`file`（必）+ `target_lang` `model` `main` `options`(JSON 字符串，同 §2.1)。魔数嗅探而非看后缀：
 
-| 嗅探结果                    | kind         | 路由                                                                                                 |
-| --------------------------- | ------------ | ---------------------------------------------------------------------------------------------------- |
-| `%PDF`                      | `upload_pdf` | BabelDOC sidecar（AGPL 边界：独立进程，未安装→501 提示安装命令）；产出 en.pdf(=原件)+zh.pdf+dual.pdf |
-| gzip/zip/tar 或 `.tex` 文本 | `upload_tex` | 与 arxiv 管线共用 parsing 起点的同一状态机                                                           |
-| `.docx/.epub`               | —            | M2 之前 `501 {"code":"unsupported_format"}`                                                          |
+| 嗅探结果                                                                                                  | kind          | 路由                                                                                                                                                 |
+| --------------------------------------------------------------------------------------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `%PDF`                                                                                                    | `upload_pdf`  | BabelDOC sidecar（AGPL 边界：独立进程，未安装→501 提示安装命令）；产出 en.pdf(=原件)+zh.pdf+dual.pdf                                                 |
+| gzip/tar、`.tex` 文本、非 docx/epub 的 zip                                                                | `upload_tex`  | 与 arxiv 管线共用 parsing 起点的同一状态机                                                                                                           |
+| zip（PK）容器细分：含 `word/document.xml`→docx；`mimetype`=`application/epub+zip` 或含 `content.opf`→epub | `docx`/`epub` | `_run_doc` → `export_document` 双语插译（无编译链）；产物 `*_bilingual.{docx,epub}` 登记 artifact `zh_docx`/`zh_epub`（外加 `src_tar` 指回上传原件） |
+| 无法识别（非上述魔数且不可按文本解码）                                                                    | —             | `400 {"code":"unsupported_format"}`                                                                                                                  |
 
-上限：80MB 上传 / 300MB 解压 / 4000 文件（texglot 常量）。响应同 §2.1 的 202。
+上限：80MB 上传 / 300MB 解压 / 4000 文件（texglot 常量）。响应同 §2.1 的 202。docx/epub 任务无编译段，`_run_doc` 在 translating 段内跑插译；DRM、fixed-layout、畸形包等拒翻情形（`ExportError`）→ fault(`unsupported_format`, retryable=false)。
 
 ### 2.5 辅助端点（texglot 形状，全部本地语义）
 
@@ -253,7 +258,7 @@ PRAGMA foreign_keys = ON;
 
 CREATE TABLE tasks (
   id            TEXT PRIMARY KEY,                -- 't_' + hex16
-  kind          TEXT NOT NULL,                   -- arxiv | upload_tex | upload_pdf
+  kind          TEXT NOT NULL,                   -- arxiv | upload_tex | upload_pdf | docx | epub
   status        TEXT NOT NULL DEFAULT 'queued',  -- 见状态机
   stage         TEXT,                            -- 当前 ACTIVE stage
   progress      INTEGER NOT NULL DEFAULT 0,
@@ -303,7 +308,7 @@ CREATE INDEX idx_chunks_pending ON chunks(task_id, status) WHERE status='pending
 
 CREATE TABLE files (
   task_id  TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-  kind     TEXT NOT NULL,                        -- src_tar|en_pdf|zh_pdf|dual_pdf|dual_json|zh_src_zip|compile_log|md_zip
+  kind     TEXT NOT NULL,                        -- src_tar|en_pdf|zh_pdf|dual_pdf|dual_json|zh_src_zip|compile_log|md_zip|zh_docx|zh_epub
   path     TEXT NOT NULL,                        -- 相对 tasks/{id}/ 的路径
   bytes    INTEGER, sha256 TEXT,
   created_at REAL NOT NULL,
