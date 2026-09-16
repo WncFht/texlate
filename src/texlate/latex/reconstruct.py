@@ -7,6 +7,10 @@ r"""splice 重建 + DAG 递归展开 + validate（docs/07 §9）。
   :func:`validate_translation` 校验缺失/幻觉占位符（由 translate 层消费）。
 - ``cjk_glue_fix``（``\\cmd这是`` → 插空格）是 post-reconstruct 全局修正一步，
   只在有译文时启用（identity 路径保持逐字节）。
+- ``_seg_join`` 接缝守卫（``\cs`` 尾 + 字母头 → 接缝插空格）在 expand/平铺
+  两级生效，同样只随译文启用——latin 版不能用平铺正则（``\itemsep``/
+  ``\parindent``/``\partial``/用户 camelCase 宏全是前缀撞名，语料万级
+  存量），只能打接缝（cs token 永不跨段，``\cs|letter`` 接缝必是分隔被吞）。
 - ``unicode_math_fix``（译文里游离的 ``β``/``∂`` → ``$\beta$``/``$\partial$``）
   是 pre-splice 的逐条译文修正——文本字体没有这些字形，缺字判据见 judge。
 """
@@ -42,6 +46,39 @@ def cjk_glue_fix(s: str) -> str:
     for pos in reversed(hits):
         s = s[:pos] + " " + s[pos:]
     return s
+
+
+#: 段尾控制字（``\foo``/``\@foo``）：译文字母直接贴上即成更长 cs 名
+#: （``\item FSU`` → ``\itemFSU``，realarm bug-B LLM 回显侧融合）。
+#: ``\Z`` 绝对收尾——``\item\n`` 尾已自带分隔，不算接缝命中。
+_CS_TAIL_RX = re.compile(r"\\[a-zA-Z@]+\Z")
+
+#: 译文体内的 ``\itemFSU`` 保险丝（realarm spec）：模型回显把 ``\item``
+#: 与大写首字母黏合。``\\item(?=[A-Z])`` 零误伤——``\item``+大写无合法
+#: 先例（bfuse 普查），``\itemsep`` 类小写前缀撞名天然避开。只打译文体：
+#: 源文侧 ``\cs<letter>`` 本就是一个 cs token，不构成该形。
+_LATIN_ITEM_RX = re.compile(r"\\item(?=[A-Z])")
+
+
+def _seg_join(segs: list[str]) -> str:
+    r"""相邻展开段接缝守卫：``\cs`` 尾 + 字母头 → 接缝插空格。
+
+    源文 ``\cs`` 与后继字母之间恒有分隔（空格/换行/注释——缺省即单
+    cs 名 ``\itemFSU``，segmenter 从不把 cs token 切进两段）——接缝
+    两侧直接拼出 ``\cs<letter>`` 必是分隔被吞（译文回显/占位展开边
+    界），补空格恢复名字边界。体内部的 ``\fooBar`` 用户宏不在接缝
+    上，天然豁免——这也是它比平铺 ``\\item(?=[A-Z])`` 后处理安全
+    的原因（``\itemsep``/``\parindent``/``\partial`` 语料万级存量，
+    平铺即误伤）。
+    """
+    out: list[str] = []
+    for seg in segs:
+        if not seg:
+            continue
+        if out and _CS_TAIL_RX.search(out[-1]) and seg[0].isalpha():
+            out.append(" ")
+        out.append(seg)
+    return "".join(out)
 
 
 # ---------------------------------------------------------------- unicode → math
@@ -133,7 +170,7 @@ def unicode_math_fix(zh: str) -> str:
     return "".join(out)
 
 
-def reconstruct(res: ScanResult, translations: dict[int, str] | None = None) -> str:
+def reconstruct(res: ScanResult, translations: dict[int, str] | None = None) -> str:  # noqa: C901 — expand/expand_body 双闭包 + 校验分支平铺即 §9 伪码
     """按 pieces splice + 占位符 DAG 递归展开（docs/07 §9 伪码原样）。
 
     ``translations``：``{chunk_id: 译文}``；None → identity 重建。
@@ -141,10 +178,14 @@ def reconstruct(res: ScanResult, translations: dict[int, str] | None = None) -> 
     trans = (
         {}
         if translations is None
-        else {f"[[CHUNK_{k}]]": unicode_math_fix(v) for k, v in translations.items()}
+        else {
+            f"[[CHUNK_{k}]]": _LATIN_ITEM_RX.sub(r"\\item ", unicode_math_fix(v))
+            for k, v in translations.items()
+        }
     )
     memo: dict[str, str] = {}
     chunks = res.chunks
+    glue_latin = translations is not None
     active: set[str] = set()
     dangling: set[str] = set()  # 查无实体的 ph token——留字面并记名（原静默残留）
     # 短参 chunk 集：context 非 para/item 的已译 [[CHUNK_n]]——展开后 ``\n\n``
@@ -172,16 +213,27 @@ def reconstruct(res: ScanResult, translations: dict[int, str] | None = None) -> 
             else:
                 dangling.add(token)
                 body = token
-        expanded = PH_RX.sub(lambda mm: expand(mm.group(0)), body)
+        expanded = expand_body(body)
         if token in short_arg:
             expanded = _PAR_RUN_RX.sub("\n", expanded)
         memo[token] = expanded
         active.discard(token)
         return memo[token]
 
+    def expand_body(body: str) -> str:
+        """字面+ph 交错体展开——token 递归展开后过接缝守卫。"""
+        segs: list[str] = []
+        pos = 0
+        for mm in PH_RX.finditer(body):
+            segs.append(body[pos : mm.start()])
+            segs.append(expand(mm.group(0)))
+            pos = mm.end()
+        segs.append(body[pos:])
+        return _seg_join(segs) if glue_latin else "".join(segs)
+
     # LITERAL 段也可能内嵌 ph（短 run / MINED_ONLY run 发渲染文本）——全段展开。
-    out = [PH_RX.sub(lambda m: expand(m.group(0)), p.text) for p in res.pieces]
-    result = "".join(out)
+    out = [expand_body(p.text) for p in res.pieces]
+    result = _seg_join(out) if glue_latin else "".join(out)
     if dangling:
         log.warning(
             "splice unresolved placeholders left literal: %d kinds (e.g. %s)",

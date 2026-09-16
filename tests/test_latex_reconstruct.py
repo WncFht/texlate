@@ -177,3 +177,42 @@ def test_short_arg_untranslated_identity() -> None:
     )
     res = scan(body)
     assert reconstruct(res) == DOC % body
+
+
+# ------------------------------------------------------- bug-B 接缝守卫（_seg_join）
+
+
+def test_latin_glue_ph_joint() -> None:
+    r"""``[[CMD]]→\hline`` 展开尾 + 译文 ``Cd`` 字母头 → 接缝插空格
+    （``\hlineCd`` 实形，1003.4522 换行栅栏变体）。"""
+    res = scan("Text \\section{See \\hline below} more words here.")
+    ch = res.chunks[0]
+    out = reconstruct(res, {ch.id: "See [[CMD_1]]Cd words"})
+    assert "\\hline Cd" in out
+    assert "\\hlineCd" not in out
+
+
+def test_latin_glue_item_translation_internal() -> None:
+    r"""译文体内 ``\itemFSU`` 保险丝：``\\item(?=[A-Z])`` 专款——模型把
+    ``\item`` 回显黏大写时拆开（realarm bug-B spec 原样）。"""
+    res = scan("Para words here enough text and more.")
+    ch = res.chunks[0]
+    out = reconstruct(res, {ch.id: "lead \\itemFSU tail words."})
+    assert "\\item FSU" in out
+
+
+def test_latin_glue_no_fp_prefix_macros() -> None:
+    r"""保守面：``\itemsep``/``\parindent``/``\par`` 族前缀撞名不动——
+    平铺 ``\\item(?=[A-Za-z])`` 会误伤它们，接缝守卫只在段边界生效。"""
+    res = scan(
+        "\\newcommand{\\fooBar}{x}\nText \\parindent=3pt \\fooBar \\itemsep2pt end."
+    )
+    out = reconstruct(res, {c.id: "译文" for c in res.chunks})
+    assert "\\parindent" in out
+    assert "\\itemsep" in out
+
+
+def test_latin_glue_identity_untouched() -> None:
+    r"""identity 路径逐字节——接缝守卫只在有译文时启用。"""
+    res = scan("Text \\parindent=3pt \\itemsep2pt end.")
+    assert reconstruct(res) == DOC % "Text \\parindent=3pt \\itemsep2pt end."
