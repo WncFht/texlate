@@ -337,6 +337,17 @@ taxonomy:
     }
   # tail 行同款收紧 (aastex 横幅会落 tail 30 行内抢签) —— 与 head 行同表。
   - { id: latex209, scope: tail, pattern: "(?m)\\\\documentstyle\\b|LaTeX 2\\.09 COMPATIBILITY MODE|LaTeX2e command[^\\n]*\\bin LaTeX 2\\.09|LaTeX Version 2\\.09|^[ \\t]*Compatibility mode" }
+  # —— 干净日志零页面: TeX 早夭但无 '!' 行 (1706.00175 实证:
+  #   "(\end occurred when \ifx on line 27 was incomplete)" + "No pages of
+  #   output") —— guard 把「有页输出仅带 \end occurred 警告」挡在外面 ——
+  - {
+      id: early_eof,
+      scope: tail,
+      payload_group: 1,
+      pattern: "\\\\end occurred (?:when (\\\\?\\w+)[^\\n]*?incomplete|inside a group)",
+      guard: "No pages of output",
+    }
+  - { id: early_eof, scope: tail, pattern: "No pages of output", payload_group: null }
   # —— warnings 段: 无 '!' 且无 tail 命中, 但 warning 红线命中 (v1.1) ——
   - { id: warn_utf8, scope: warnings, warn_id: invalid_utf8 } # docs/08 §5.2 non_utf8_source 的类别入口
   - { id: warn_missing_char, scope: warnings, warn_id: missing_char } # F4: 无 '!' 错但缺字 → 分诊修复入口
