@@ -167,7 +167,7 @@ class TestChunks:
         store.insert_chunks(row["id"], [_chunk(0), _chunk(1)])
         assert store.has_chunks(row["id"])
         counts = store.chunk_counts(row["id"])
-        assert counts == {"total": 2, "done": 0, "cached": 0, "failed": 0}
+        assert counts == {"total": 2, "done": 0, "failed": 0}
 
     def test_flush_batch_counters(self, store: Store) -> None:
         row = _mk(store)
@@ -184,7 +184,7 @@ class TestChunks:
         )
         counts = store.chunk_counts(row["id"])
         # done = 已处理（ok+fallback_orig+failed）；failed = fallback_orig+failed
-        assert counts == {"total": 3, "done": 3, "cached": 0, "failed": 2}
+        assert counts == {"total": 3, "done": 3, "failed": 2}
         out = store.get(row["id"])
         assert out["done_chunks"] == 3  # noqa: PLR2004 - 三块样本
         assert out["failed_chunks"] == 2  # noqa: PLR2004 - fallback+failed
@@ -317,3 +317,21 @@ class TestSnapshot:
         assert snap["counters"]["total"] == 0
         assert snap["error"] is None
         assert snap["last_seq"] == 0
+
+    def test_warnings_replayed(self, store: Store) -> None:
+        """snapshot.warnings 重放 task_events 的 warning 事件（非恒空）。"""
+        row = _mk(store)
+        assert store.snapshot(row["id"], artifacts={})["warnings"] == []
+        store.append_event(row["id"], "stage", {"stage": "translating"})
+        store.append_event(
+            row["id"], "warning", {"code": "chunks_failed", "message": "2 块回退原文"}
+        )
+        store.append_event(
+            row["id"], "warning", {"code": "mock_translator", "message": "占位"}
+        )
+        snap = store.snapshot(row["id"], artifacts={})
+        assert snap["warnings"] == [
+            "[chunks_failed] 2 块回退原文",
+            "[mock_translator] 占位",
+        ]
+        assert snap["last_seq"] == 3  # noqa: PLR2004 -- stage+warning×2
