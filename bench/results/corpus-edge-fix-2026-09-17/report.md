@@ -20,7 +20,7 @@
 
 `python3 -m py_compile` ok；`ruff check` 净；`ruff format` 已应用并复 check 净。leader 复核同净。
 
-## 追加裁决（在飞）
+## 追加裁决（已落地 `a3e7c87`）
 
-- `largest_remainder` 全零权重 `s=0` → ZeroDivisionError——agent 发现并留裁。leader 裁决：**同属契约违例 fail fast**（静默均分会掩盖上游 bug），已派回补闸。
+- `largest_remainder` 全零权重 `s=0` → ZeroDivisionError——agent 发现并留裁。leader 裁决：**同属契约违例 fail fast**（静默均分会掩盖上游 bug）。落地 build_corpus_expand.py:197-200：`if weights and s == 0: raise ValueError("all weights zero")`（`weights and` 保住空 dict 不迭代仍返回 {}）。探针复验：`{"a":0.0,"b":0.0}` 修前 ZeroDivisionError、修后 ValueError；空 dict/负权重/多负值指名/正常配额回归全过。
 - bench-tsl partial-tree timeout：按要求仅核实为记录在案观察项，未动。
