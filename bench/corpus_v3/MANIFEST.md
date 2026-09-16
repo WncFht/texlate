@@ -1025,3 +1025,31 @@ T01–T29 fixture + W01–W109 野例）；提名审计轨迹 `nominations/{agen
 - B 配额地板全达成：B01–B04 各 30、B05 33、B06 20、B07 26（地板 30/30/30/30/25/20/25）
 - W 机制覆盖：103/109 池内有代表；W41/W42/W51/W63 例证在核心层；W108/W109 池内真空（hunter exhausted）
 - 13 篇 stub/pdf 成员（B07 归因材料，raw 留存不解包，无 extracted/）
+
+## 热层（hot）—— OpenAlex 高引近期论文（2026-09-16 起）
+
+核心层是三十年均匀抽样（IA 月块 ≤2020-10 + TIGER ≤2412），长尾覆盖正确但与真实
+用户负载分布不匹配——hjfy 类产品压倒性服务近期高热度论文。hot 层补这条轴，
+**扩展而非替换**：均匀层/booster 层原样保留。入库清单 `manifest_hot.jsonl`，
+管线脚本 `bench/py/build_hot_layer.py`（candidates → fetch → report 三子命令，
+fetch 可重入续跑）。
+
+两个子层（meta.json `stratum_cell` = `hot|hot-cite` / `hot|hot-recent`，
+`cluster_id="HOT"`，`channel="arxiv_eprint"` 走产品取源 `acquire_source`
+钉版，含 `cited_by_count`/`title`/`field` 等 OpenAlex 字段）：
+
+- **hot-cite**（目标 120）：OpenAlex `locations.source.id=S4306400194`（arXiv）
+    - `from_publication_date≥2024-01-01`，按 `cited_by_count` 降序取头——需求轴
+      （BatchNorm/Attention/LLM survey/YOLO/KAN 级别的高负载论文）。
+- **hot-recent**（目标 40）：同源 2025-06-01+ `sample=` 随机抽——引用尚未积累的
+  最新 LaTeX 惯用法兜底。
+
+限流护栏：取源走 arxiv.org e-print（3.05s/发、日预算 ~180 发 → 每篇 HEAD+GET
+2 发，单轮 `--limit 85` 封顶，次日续跑）。`pdf_only`（无 TeX 源）记
+`bench/work_v3/hot/fetch_fail.jsonl` 跳过。
+
+首日（2026-09-16）取源 85 发：**入库 72 篇**（全 hot-cite，594 个 .tex ·
+671MB；yymm {15:2, 16:3, 17:2, 20:1, 23:5, 24:47, 25:11, 26:1}，CS 37/72≈51%
+——核心层 CS 仅 18%），13 篇 `pdf_only` 跳过（含 1110.3193 等无 TeX 源
+高引论文——真实负载分布的固有类）。余 75 候选（hot-cite 尾部 +
+全部 hot-recent）次日续。

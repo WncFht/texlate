@@ -11,6 +11,12 @@ pipe 条件因翻译是 async 在本文件内联同款流程）。
 每工程条件：
   pipe-xel : copy → normalize → Gateway 翻译(L0 校验/retry 阶梯) → splice →
              prepare_chinese(ctex) → xelatex → judge(expect_cjk)
+  pipe-fix : pipe-xel 产物树 copy → fixloop(xelatex usermode/TUNA/tlpdb 索引)
+             → 救后 xelatex+judge 复判（默认 **仅当 pipe-xel fail 时补跑**——
+             partial 已有 PDF，fixloop 的 halt_on_error 编译+树改写只会丢 PDF
+             且救不了 warning 级判据，实测 partial→fail 回退；
+             --fixloop always 全跑测幂等含 partial 回退率；inject reject
+             不救——无 ctex 的 CJK 注定 fail）
   base-xel : 原样 copy → xelatex（默认 **仅当 pipe-xel 非 clean 时补跑**，
              归因"原文就挂 vs 管线引入"；--base always 可强制全跑）
 
@@ -24,7 +30,8 @@ pipe 条件因翻译是 async 在本文件内联同款流程）。
   uv run python bench/py/e2e_real_bench.py --ids 0707.1206     # 单篇 smoke
   uv run python bench/py/e2e_real_bench.py --n 40 --seed 42    # 首轮样本
       [--model swe-2-medium] [--concurrency 10] [--timeout 240]
-      [--time-budget 1800] [--base onfail|always|never] [--tag NAME]
+      [--time-budget 1800] [--base onfail|always|never]
+      [--fixloop onfail|always|never] [--tag NAME]
 产出: bench/results/e2e-real-<tag>-<date>/{results.json,matrix.md,summary.md,run_meta.json}
 工作区: bench/work_e2ereal/{cond}/{safe_id}/ + _xlat_state/{safe_id}/（gitignored）
 依赖: uv venv（httpx/typer）；xelatex；pdftotext（judge CJK 检查）；
@@ -49,7 +56,12 @@ ROOT = Path(__file__).resolve().parents[2]
 #: 其他代理实时改动时隔离用（NameError 半成品会污染整批 skip 记录）。
 sys.path.insert(0, os.environ.get("TEXLATE_SRC", str(ROOT / "src")))
 
-from texlate.compile.engine import engine_for, route_project
+# fixloop 配方（TUNA 镜像钉 / usertree 三件套 / tlpdb 离线索引 / _NoSandbox）
+# 单源复用 fixloop_bench——同目录脚本经 sys.path[0] 可 import，其模块级无 IO。
+import fixloop_bench as _fl
+
+from texlate.compile.engine import XelatexEngine, engine_for, route_project
+from texlate.compile.fixloop import CaseSink, fixloop
 from texlate.compile.inject import InjectRejectError, find_main_tex, prepare_chinese
 from texlate.compile.judge import judge
 from texlate.compile.normalize import normalize_project
@@ -233,13 +245,8 @@ async def translate_tree(
     }
 
 
-def _compile_judge(
-    work: Path, main_rel: str, timeout: float, *, expect_cjk: bool
-) -> dict:
-    """xelatex best-effort 编译 + judge（同 e2e._compile_judge 产出形状）。"""
-    res = engine_for("xelatex", halt_on_error=False).compile(
-        work, main_rel, timeout=timeout, sandbox=True
-    )
+def _judge_dict(res, *, expect_cjk: bool) -> dict:
+    """CompileResult → {compile, verdict, status}（同 e2e._compile_judge 形状）。"""
     v = judge(res, expect_cjk=expect_cjk)
     return {
         "compile": {
@@ -262,6 +269,16 @@ def _compile_judge(
         },
         "status": v.status,
     }
+
+
+def _compile_judge(
+    work: Path, main_rel: str, timeout: float, *, expect_cjk: bool
+) -> dict:
+    """xelatex best-effort 编译 + judge。"""
+    res = engine_for("xelatex", halt_on_error=False).compile(
+        work, main_rel, timeout=timeout, sandbox=True
+    )
+    return _judge_dict(res, expect_cjk=expect_cjk)
 
 
 async def pipe_xel_condition(
@@ -299,6 +316,77 @@ def base_xel_condition(src: Path, sid: str, main_rel: str, timeout: float) -> di
     return base_condition(work, "xelatex", main_rel, timeout)
 
 
+def _want_fix(rec: dict, mode: str) -> bool:
+    """pipe-xel verdict → 是否补跑 pipe-fix。
+
+    onfail 只接 ``fail``：partial 已产出 PDF（warning 级判据——invalid_utf8/
+    missing_chars 等非编译错误），fixloop 的 halt_on_error 引擎 + 树改写
+    （vendored sty 隔离/tlmgr 装包）只会把 PDF 弄丢而救不了 warning——
+    e2e-hotfix-smoke 实测 partial→fail 回退 2/3。reject 不救
+    （inject 拒绝=无 ctex，CJK 注定 fail）。always=幂等/回退率探针。
+    """
+    v = (rec.get("pipe-xel") or {}).get("verdict", {}).get("status")
+    if v is None or v == "reject" or mode == "never":
+        return False
+    return mode == "always" or v == "fail"
+
+
+def pipe_fix_condition(
+    src_work: Path, sid: str, main_rel: str, timeout: float, sink: CaseSink
+) -> dict:
+    """pipe-fix：pipe-xel 产物树 copy → fixloop(xelatex usermode) → 复判。
+
+    fixloop 只管编译侧可修错误（missing_file/eps/syntax…）；救完统一再过
+    halt_on_error=False compile + judge(expect_cjk)，与 pipe-xel/base-xel
+    同 verdict 刻度可直读矩阵。texmf usertree 复用进复判编译——fixloop
+    经 tlmgr 装的包只在 TEXMFHOME 里活着。
+    """
+    work = WORK / "pipe-fix" / sid
+    if work.exists():
+        shutil.rmtree(work)
+    shutil.copytree(src_work, work)
+    texmf = WORK / "_texmf" / sid
+    if texmf.exists():
+        shutil.rmtree(texmf)  # 重跑从零冷启动，防半成品 usertree 偏暖
+    _fl._init_usertree(texmf)
+    eng = _fl._NoSandbox(
+        XelatexEngine(halt_on_error=True, texmfhome=texmf, repository=_fl.TUNA_TLNET)
+    )
+    idx = _fl._index()
+    if idx is not None:
+        # 实例遮蔽 filemap：install_file 内部 self.filemap 调用也走索引
+        eng.filemap = idx.query
+    t0 = time.monotonic()
+    try:
+        cell = fixloop(
+            work,
+            eng,
+            ruleset=_fl.RS,
+            engine_name="xelatex",
+            corpus_id=sid,
+            cond="pipe-fix",
+            runner=_fl._texmf_runner(texmf),
+            case_sink=sink,
+        )
+    except Exception as e:  # 格子崩溃记 verdict 不炸整批（同 fixloop_bench）
+        cell = {
+            "project": sid,
+            "engine": "xelatex",
+            "verdict": f"harness_crash:{type(e).__name__}",
+            "log_excerpt": str(e)[:500],
+            "rounds": [],
+            "actions": [],
+        }
+    cell["wall_s"] = round(time.monotonic() - t0, 1)
+    rec: dict[str, object] = {"engine": "xelatex", "fixloop": cell}
+    jeng = XelatexEngine(
+        halt_on_error=False, texmfhome=texmf, repository=_fl.TUNA_TLNET
+    )
+    res = jeng.compile(work, main_rel, timeout=timeout, sandbox=False)
+    rec.update(_judge_dict(res, expect_cjk=True))
+    return rec
+
+
 # ---------------------------------------------------------------- 单工程驱动
 async def run_project(
     rel: str,
@@ -306,6 +394,8 @@ async def run_project(
     cfg: PipelineConfig,
     timeout: float,
     base_mode: str,
+    fixloop_mode: str,
+    sink: CaseSink,
 ) -> dict:
     src = CORPUS / rel / "extracted"
     sid = safe_id(rel)
@@ -353,6 +443,10 @@ async def run_project(
     )
     if want_base:
         rec["base-xel"] = base_xel_condition(src, sid, main_rel, timeout)
+    if _want_fix(rec, fixloop_mode):
+        rec["pipe-fix"] = pipe_fix_condition(
+            WORK / "pipe-xel" / sid, sid, main_rel, timeout, sink
+        )
     return rec
 
 
@@ -398,12 +492,13 @@ def write_reports(results: dict, out_dir: Path, meta: dict) -> None:
                 "reject" if rec.get("route", {}).get("reject") else "",
                 _tr(rec),
                 _v(rec, "pipe-xel"),
+                _v(rec, "pipe-fix"),
                 _v(rec, "base-xel"),
             )
         )
     matrix = [
-        "| 工程 | 层 | main | 路由 | translate(ok/chunks leftover) | pipe-xel | base-xel |",
-        "| --- | --- | --- | --- | --- | --- | --- |",
+        "| 工程 | 层 | main | 路由 | translate(ok/chunks leftover) | pipe-xel | pipe-fix | base-xel |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     matrix.extend("| " + " | ".join(str(x) for x in r) + " |" for r in rows)
     (out_dir / "matrix.md").write_text("\n".join(matrix) + "\n", encoding="utf-8")
@@ -438,7 +533,7 @@ def write_reports(results: dict, out_dir: Path, meta: dict) -> None:
         f"- splice 残留占位符: {ph}（应为 0）— gate "
         + ("PASS" if not ph_bad else f"**FAIL** {ph_bad}")
     )
-    for cond in ("pipe-xel", "base-xel"):
+    for cond in ("pipe-xel", "pipe-fix", "base-xel"):
         ran = [r[cond] for r in results.values() if r.get(cond)]
         if not ran:
             continue
@@ -451,6 +546,38 @@ def write_reports(results: dict, out_dir: Path, meta: dict) -> None:
             + " ".join(f"{k} {v}" for k, v in sorted(tally.items()))
             + f" /{len(ran)}"
         )
+
+    ran_fix = [
+        (rel, r["pipe-fix"]) for rel, r in sorted(results.items()) if r.get("pipe-fix")
+    ]
+    if ran_fix:
+        rescued = [rel for rel, f in ran_fix if f.get("status") == "clean"]
+        partial = [rel for rel, f in ran_fix if f.get("status") == "partial"]
+        fl_tally: dict[str, int] = {}
+        for _, f in ran_fix:
+            fv = (f.get("fixloop") or {}).get("verdict") or "?"
+            fl_tally[fv] = fl_tally.get(fv, 0) + 1
+        lines.append(
+            f"- **pipe-fix 救回**: clean {len(rescued)} · partial {len(partial)}"
+            f" /{len(ran_fix)}（fixloop 内部 verdict: "
+            + " ".join(f"{k} {v}" for k, v in sorted(fl_tally.items()))
+            + "）"
+        )
+        # 回退检测：fixloop 的 halt_on_error 编译对 warning 级 partial 可能
+        # 反向（原 best-effort 出 pdf → 修后无 pdf），union 口径取较好者。
+        rank = {"clean": 0, "partial": 1, "fail": 2, "reject": 3, "?": 4}
+        regressed = [
+            rel
+            for rel, f in ran_fix
+            if rank.get(f.get("status") or "?", 4)
+            > rank.get(
+                (results[rel].get("pipe-xel") or {}).get("verdict", {}).get("status")
+                or "?",
+                4,
+            )
+        ]
+        if regressed:
+            lines.append(f"- **pipe-fix 回退**（比 pipe-xel 差）: {regressed}")
 
     lines += ["", "## 失败模式（pipe-xel verdict.reasons 计数）"]
     rcount: dict[str, int] = {}
@@ -521,6 +648,7 @@ async def amain(args: argparse.Namespace) -> None:
         "timeout": args.timeout,
         "time_budget": args.time_budget,
         "base_mode": args.base,
+        "fixloop_mode": args.fixloop,
         "sample_ids": ids,
         "started_at": datetime.now(UTC).isoformat(),
     }
@@ -529,6 +657,7 @@ async def amain(args: argparse.Namespace) -> None:
     )
 
     cfg = PipelineConfig(concurrency=args.concurrency)
+    sink = CaseSink(out_dir / "cases.jsonl")
     async with ChatClient(args.base_url, args.api_key) as client:
         if not args.no_probe:
             probe = await client.probe_model(args.model)
@@ -546,14 +675,48 @@ async def amain(args: argparse.Namespace) -> None:
         for idx, rel in enumerate(ids):
             prev = results.get(rel)
             if not args.rerun and _paper_done(prev):
-                print(
-                    f"===== [{idx}/{len(ids)}] {rel} cached -> {prev['status']}",
-                    flush=True,
-                )
+                # pipe-xel 工作区仍在 → 旧结果可只补 fixloop 臂，不重翻
+                src_work = WORK / "pipe-xel" / safe_id(rel)
+                if (
+                    _want_fix(prev, args.fixloop)
+                    and "pipe-fix" not in prev
+                    and src_work.is_dir()
+                    and prev.get("main")
+                ):
+                    prev["pipe-fix"] = pipe_fix_condition(
+                        src_work,
+                        safe_id(rel),
+                        prev["main"],
+                        args.timeout,
+                        sink,
+                    )
+                    out_path.write_text(
+                        json.dumps(results, ensure_ascii=False, indent=1),
+                        encoding="utf-8",
+                    )
+                    write_reports(results, out_dir, meta)
+                    print(
+                        f"===== [{idx}/{len(ids)}] {rel} cached; pipe-fix "
+                        f"backfill -> {prev['pipe-fix'].get('status')}",
+                        flush=True,
+                    )
+                else:
+                    print(
+                        f"===== [{idx}/{len(ids)}] {rel} cached -> {prev['status']}",
+                        flush=True,
+                    )
                 continue
             print(f"===== [{idx}/{len(ids)}] {rel}", flush=True)
             try:
-                rec = await run_project(rel, translator, cfg, args.timeout, args.base)
+                rec = await run_project(
+                    rel,
+                    translator,
+                    cfg,
+                    args.timeout,
+                    args.base,
+                    args.fixloop,
+                    sink,
+                )
             except Exception as e:
                 rec = {"id": rel, "status": "bench_error", "error": repr(e)[:400]}
             if rel in results and isinstance(results[rel], dict):
@@ -568,7 +731,8 @@ async def amain(args: argparse.Namespace) -> None:
             print(
                 f"  -> status={rec.get('status')} "
                 f"tr={t.get('ok', '-')}/{t.get('chunks', '-')} "
-                f"pipe={_v(rec, 'pipe-xel')} base={_v(rec, 'base-xel')} "
+                f"pipe={_v(rec, 'pipe-xel')} fix={_v(rec, 'pipe-fix')} "
+                f"base={_v(rec, 'base-xel')} "
                 f"({rec.get('seconds', '-')}s)",
                 flush=True,
             )
@@ -586,7 +750,9 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--n", type=int, default=40, help="sample size")
     ap.add_argument("--seed", type=int, default=42, help="sampling seed")
-    ap.add_argument("--layers", default="core", help="core / core,booster")
+    ap.add_argument(
+        "--layers", default="core", help="core / core,booster / core,booster,hot"
+    )
     ap.add_argument("--ids", default=None, help="explicit comma-separated ids (smoke)")
     ap.add_argument("--only", default=None, help="substring filter on sampled ids")
     ap.add_argument("--model", default="swe-2-medium")
@@ -609,6 +775,13 @@ def main() -> None:
         choices=["onfail", "always", "never"],
         default="onfail",
         help="base-xel 归因条件何时跑",
+    )
+    ap.add_argument(
+        "--fixloop",
+        choices=["onfail", "always", "never"],
+        default="onfail",
+        help="pipe-fix 救回臂何时跑（onfail=pipe-xel fail 才救；partial 不救——"
+        "fixloop 对 warning 级判据无能为力且 halt_on_error 会丢已有 PDF）",
     )
     ap.add_argument("--no-probe", action="store_true", help="跳过模型探活")
     ap.add_argument(

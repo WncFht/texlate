@@ -4,6 +4,7 @@
 !MANIFEST.md
 !manifest.jsonl
 !manifest_booster.jsonl
+!manifest_hot.jsonl
 !mechanisms.jsonl
 !nominations/
 !nominations/**
