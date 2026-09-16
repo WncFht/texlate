@@ -335,14 +335,15 @@ def env_judge_system_prompt(
 ) -> str:
     r"""Env 可译性 judge system prompt（6 few-shot，含 \\caption 内嵌→True、纯公式→False 灰区）。
 
-    调用参数纪律（docs/08 §1.5 定案）：temperature=0、max_tokens=16、3 次重试、
+    调用参数纪律（docs/08 §1.5 定案）：temperature≈0（见常量注）、max_tokens=16、3 次重试、
     解析失败一律 True（fail-open 宁翻勿漏）。
     """
     return _fill(_ENV_JUDGE_SYSTEM, src_lang, tgt_lang)
 
 
-#: judge 调用参数（docs/08 §1.5 定案值）
-ENV_JUDGE_TEMPERATURE = 0.0
+#: judge 调用参数（docs/08 §1.5 定案值）。定案本欲 0；实测 3003 网关对
+#: temperature=0 直接 502（qualbench 冒烟发现），0.01 即近确定性且通行。
+ENV_JUDGE_TEMPERATURE = 0.01
 ENV_JUDGE_MAX_TOKENS = 16
 ENV_JUDGE_RETRIES = 3
 
