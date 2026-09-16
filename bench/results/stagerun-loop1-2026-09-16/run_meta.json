@@ -1,0 +1,218 @@
+{
+ "created_at": "2026-09-16T05:36:52.326569+00:00",
+ "git_rev": "7ba0ece",
+ "invocations": [
+  {
+   "ts": "2026-09-16T05:36:52.331311+00:00",
+   "stage": "ingest",
+   "argv": [
+    "ingest",
+    "--layers",
+    "core,booster,hot,expand",
+    "--tag",
+    "loop1",
+    "--jobs",
+    "8"
+   ],
+   "seed": 42,
+   "layers": "core,booster,hot,expand"
+  },
+  {
+   "ts": "2026-09-16T05:41:20.502792+00:00",
+   "stage": "parse",
+   "argv": [
+    "parse",
+    "--layers",
+    "core,booster,hot,expand",
+    "--tag",
+    "loop1",
+    "--jobs",
+    "6"
+   ],
+   "seed": 42,
+   "layers": "core,booster,hot,expand"
+  },
+  {
+   "ts": "2026-09-16T06:25:15.413558+00:00",
+   "stage": "xlat",
+   "argv": [
+    "xlat",
+    "--arm",
+    "mock",
+    "--layers",
+    "core,booster,hot,expand",
+    "--tag",
+    "loop1",
+    "--jobs",
+    "8"
+   ],
+   "seed": 42,
+   "layers": "core,booster,hot,expand"
+  },
+  {
+   "ts": "2026-09-16T06:56:36.774260+00:00",
+   "stage": "xlat",
+   "argv": [
+    "xlat",
+    "--arm",
+    "real",
+    "--layers",
+    "core,booster,hot,expand",
+    "--tag",
+    "loop1",
+    "--n",
+    "50",
+    "--seed",
+    "42",
+    "--jobs",
+    "4"
+   ],
+   "seed": 42,
+   "layers": "core,booster,hot,expand"
+  },
+  {
+   "ts": "2026-09-16T06:57:10.372122+00:00",
+   "stage": "compile",
+   "argv": [
+    "compile",
+    "--arm",
+    "zh",
+    "--xlat-arm",
+    "mock",
+    "--layers",
+    "core,booster,hot,expand",
+    "--tag",
+    "loop1",
+    "--jobs",
+    "8"
+   ],
+   "seed": 42,
+   "layers": "core,booster,hot,expand"
+  },
+  {
+   "ts": "2026-09-16T07:46:54.534660+00:00",
+   "stage": "compile",
+   "argv": [
+    "compile",
+    "--arm",
+    "zh",
+    "--xlat-arm",
+    "real",
+    "--layers",
+    "core,booster,hot,expand",
+    "--tag",
+    "loop1",
+    "--jobs",
+    "8"
+   ],
+   "seed": 42,
+   "layers": "core,booster,hot,expand"
+  },
+  {
+   "ts": "2026-09-16T07:48:06.827043+00:00",
+   "stage": "fixloop",
+   "argv": [
+    "fixloop",
+    "--on",
+    "fail",
+    "--layers",
+    "core,booster,hot,expand",
+    "--tag",
+    "loop1",
+    "--jobs",
+    "8"
+   ],
+   "seed": 42,
+   "layers": "core,booster,hot,expand"
+  },
+  {
+   "ts": "2026-09-16T08:11:40.779369+00:00",
+   "stage": "fixloop",
+   "argv": [
+    "fixloop",
+    "--on",
+    "misschar",
+    "--layers",
+    "core,booster,hot,expand",
+    "--tag",
+    "loop1",
+    "--jobs",
+    "8"
+   ],
+   "seed": 42,
+   "layers": "core,booster,hot,expand"
+  },
+  {
+   "ts": "2026-09-16T09:39:56.319055+00:00",
+   "stage": "fixloop",
+   "argv": [
+    "fixloop",
+    "--on",
+    "fail",
+    "--dir",
+    "bench/results/stagerun-loop1-2026-09-16",
+    "--rerun",
+    "--ids",
+    "1803.00012,1803.00054,1706.02464",
+    "--jobs",
+    "3"
+   ],
+   "seed": 42,
+   "layers": "core"
+  },
+  {
+   "ts": "2026-09-16T09:41:02.829186+00:00",
+   "stage": "fixloop",
+   "argv": [
+    "fixloop",
+    "--on",
+    "misschar",
+    "--dir",
+    "bench/results/stagerun-loop1-2026-09-16",
+    "--rerun",
+    "--ids",
+    "1706.00175,1803.00181,1907.00121,1907.00128,1907.00207,1907.03758,2003.03535,2105.00120,2105.03772,2203.00074,2211.04482,2304.05202,1003.1717,1306.0036,2410.00012,astro-ph/0111575",
+    "--jobs",
+    "6"
+   ],
+   "seed": 42,
+   "layers": "core"
+  },
+  {
+   "ts": "2026-09-16T09:48:29.908966+00:00",
+   "stage": "fixloop",
+   "argv": [
+    "fixloop",
+    "--on",
+    "misschar",
+    "--dir",
+    "bench/results/stagerun-loop1-2026-09-16",
+    "--rerun",
+    "--ids",
+    "1706.00175,1803.00181,1907.00121,1907.00128,1907.00207,1907.03758,2003.03535,2105.00120,2105.03772,2203.00074,2211.04482,2304.05202",
+    "--jobs",
+    "6"
+   ],
+   "seed": 42,
+   "layers": "core"
+  },
+  {
+   "ts": "2026-09-16T09:49:51.141296+00:00",
+   "stage": "fixloop",
+   "argv": [
+    "fixloop",
+    "--on",
+    "fail",
+    "--dir",
+    "bench/results/stagerun-loop1-2026-09-16",
+    "--rerun",
+    "--ids",
+    "1803.00054"
+   ],
+   "seed": 42,
+   "layers": "core"
+  }
+ ],
+ "started_at": "2026-09-16T05:36:52.326569+00:00",
+ "finished_at": "2026-09-16T09:50:09.343093+00:00"
+}
