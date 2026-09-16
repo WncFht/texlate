@@ -10,8 +10,9 @@ r"""B2 fixtures 陷阱断言回归（docs/10 §B2）——spike ``miniscanner_te
 - ``tricky-w.tex``：W 系列野机制 11 条（``@Wnn`` ↔ corpus_v3 mechanisms.jsonl 台账行，
   infix-over/unbraced-args/arg-next-line/eol-pct-join/range-cite/discretionary/
   pct-comment/comment-macro/spaced-env/enddoc-tail/usepackage-comment）；
-- ``tricky-w73/``：``\input{../...}`` 路径逃逸——出 main/ 进 shared/（paper 内）与
-  出 paper 根进 fixtures/（根外），锁 ``_resolve`` 字面跟随 ``../`` 的现行语义；
+- ``tricky-w73/``：``\input{../...}`` 路径逃逸两向断言（gullet C1 openin_any 等价闸）——
+  出 main/ 进 shared/（paper 根内，``top_dir=tricky-w73``）照常 resolved inline；
+  出 paper 根进 fixtures/（根外）被拒 → ``missing_input``，逃逸句不进 chunks；
 - ``tricky-wenc.tex``：W72 混合编码字节件（合法 UTF-8 序列 + 孤立 latin1 字节共存），
   走 ``decode_tex`` 单码选定路径——identity 基准同源改用 ``decode_tex`` 而非
   ``errors="replace"``，断言只锁 latin1 侧 ``café``（单码不可救的 utf8 侧形态留给
@@ -145,13 +146,15 @@ class FixtureScan:
     residue_protect_ph: int = -1
 
 
-def run_fixture(name: str, path: Path, timeout_s: int = 30) -> FixtureScan:
+def run_fixture(
+    name: str, path: Path, timeout_s: int = 30, top_dir: Path | None = None
+) -> FixtureScan:
     """parse + identity/假译文重建一次（spike ``parse_one``+``rebuild_metrics`` 合体）。"""
     t0 = time.perf_counter()
     signal.signal(signal.SIGALRM, _alarm)
     signal.alarm(timeout_s)
     try:
-        res = parse_file(path, flatten=True)
+        res = parse_file(path, flatten=True, top_dir=top_dir)
     except ParseTimeoutError:
         return FixtureScan(
             name=name, ok=False, wall_ms=timeout_s * 1000.0, error="Timeout(>30s)"
@@ -607,16 +610,18 @@ def assert_w(
 
 
 def assert_w73(res: ScanResult | None) -> dict[str, dict[str, str]]:
-    """tricky-w73 ``\\input{../}`` 路径逃逸断言（锁现行字面跟随语义）。"""
+    """tricky-w73 ``\\input{../}`` 路径逃逸两向断言（C1 根内约束闸）。"""
     chunks = chunks_blob(res) if res else ""
+    warns = {w.kind for w in res.warnings} if res else set()
+    denied = "missing_input" in warns and "Outside-root sentence" not in chunks
     return {
         "W73_within_paper_escape": {
             "status": "pass" if "Shared-file sentence" in chunks else "fail",
-            "detail": "../shared/defs.tex（paper 内出目录）resolved inline",
+            "detail": "../shared/defs.tex（出 main/ 未出 paper 根）resolved inline",
         },
         "W73_beyond_root_escape": {
-            "status": "pass" if "Outside-root sentence" in chunks else "fail",
-            "detail": "../../escape-outside.tex（出 paper 根）resolved inline",
+            "status": "pass" if denied else "fail",
+            "detail": "../../escape-outside.tex（出 paper 根）→ missing_input 拒读",
         },
     }
 
@@ -634,7 +639,16 @@ def assert_wenc(res: ScanResult | None) -> dict[str, dict[str, str]]:
 
 # ---------------------------------------------------------------- 模块级测量（7 个小文件，ms 级）
 
-_PARSED = {name: run_fixture(name, path) for name, path in FIXTURE_FILES}
+#: 需要非缺省 ``top_dir`` 的 fixture（w73：paper 根 = tricky-w73/，``../shared``
+#: 在根内可解析、``../../escape-outside`` 出根被 C1 闸拒）。
+_FIXTURE_TOPDIR: dict[str, Path] = {
+    "tricky-w73/main/main.tex": FIXTURES / "tricky-w73",
+}
+
+_PARSED = {
+    name: run_fixture(name, path, top_dir=_FIXTURE_TOPDIR.get(name))
+    for name, path in FIXTURE_FILES
+}
 _t = _PARSED["tricky.tex"]
 _209 = _PARSED["tricky-209.tex"]
 _m = _PARSED["tricky-multi/main.tex"]
@@ -760,13 +774,21 @@ def test_validate_result_clean(name: str) -> None:
     assert validate_result(p.res) == []
 
 
+#: 各 fixture 期望的 warning kind 集（缺省 = 零 warning）。w73 的
+#: ``missing_input`` 是 C1 闸拒根外逃逸的断言面本身，由 ``test_w73`` 两向锁定。
+_EXPECTED_WARN_KINDS: dict[str, set[str]] = {
+    "tricky-w73/main/main.tex": {"missing_input"},
+}
+
+
 @pytest.mark.parametrize("name", ALL_FIXTURE_NAMES)
 def test_no_parse_warnings(name: str) -> None:
-    """解析零 ``ScanWarning``（unclosed_env/unpaired_dollar 等任一出现即回归）。"""
+    """解析 ``ScanWarning`` 精确匹配期望集（缺省零——unclosed_env 等任一即回归）。"""
     p = _PARSED[name]
     assert p.ok, p.error
     assert p.res is not None
-    assert p.res.warnings == []
+    kinds = [w.kind for w in p.res.warnings]
+    assert sorted(kinds) == sorted(_EXPECTED_WARN_KINDS.get(name, set()))
 
 
 @pytest.mark.parametrize("name", ALL_FIXTURE_NAMES)

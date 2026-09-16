@@ -336,6 +336,7 @@ _PRIMS = {
     "long",
     "outer",
     "global",
+    "protected",
     "newcommand",
     "renewcommand",
     "providecommand",
@@ -396,6 +397,14 @@ _PRIMS = {
     "ifinner",
     "ifhmode",
     "ifvmode",
+    "iffontchar",
+    "ifincsname",
+    "ifprimitive",
+    "ifpdfprimitive",
+    "ifabsnum",
+    "ifabsdim",
+    "ifpdfabsnum",
+    "ifpdfabsdim",
 }
 
 # gullet 真展开的宏 kind（其余 pass-through 交分段器保护调用点，§6.2）
@@ -1220,14 +1229,24 @@ class Gullet:
             return None
         out: list[Tok] = []
         level = 1
+        depth = 0  # ``{…}`` 组内深度：``]``/``>`` 自定界参尊重平衡组屏蔽
+        brace_form = close_c == "}"  # ``{…}`` 形由 level 自管，不走 depth
         while True:
             t2 = self._rt(trace)
             if t2 is None:
                 raise ArgMismatch
             if t2.kind != "cs":
-                if t2.text == open_c and (open_c != "{" or t2.kind == "lbrace"):
+                if not brace_form and t2.kind == "lbrace":
+                    depth += 1
+                elif not brace_form and t2.kind == "rbrace" and depth > 0:
+                    depth -= 1
+                elif depth == 0 and (
+                    t2.text == open_c and (open_c != "{" or t2.kind == "lbrace")
+                ):
                     level += 1
-                elif t2.text == close_c or (close_c == "}" and t2.kind == "rbrace"):
+                elif depth == 0 and (
+                    t2.text == close_c or (brace_form and t2.kind == "rbrace")
+                ):
                     level -= 1
                     if level == 0:
                         return out
@@ -1391,7 +1410,7 @@ class Gullet:
                 global_=name in ("gdef", "xdef"),
                 eager=name in ("edef", "xdef"),
             )
-        if name in ("long", "outer", "global"):
+        if name in ("long", "outer", "global", "protected"):
             return self._do_prefix(t, name)
         if name in (
             "newcommand",
@@ -1564,7 +1583,14 @@ class Gullet:
         return trig
 
     def _do_prefix(self, trig: Tok, name: str) -> Tok | None:
-        r"""``\long/\outer/\global`` 前缀：链到 def 族才生效，否则原样交出。"""
+        r"""``\long/\outer/\global/\protected`` 前缀：链到定义族才生效。
+
+        链目标 = ``\def`` 族 + ``\let`` + ``\newif``（任意序前缀均可叠）；
+        ``\global`` 传 scope（``\global\let`` 组内写底帧），
+        ``\long/\outer/\protected`` 消费不传递（语义未建模——吞掉字节防
+        前缀泄 literal）。链外目标 → 回吐 + 本体交出（保守：``\global``
+        续 ``\catcode`` 这类写透未实现，见 ``CatTable.set`` 注）。
+        """
         trace = self._trace = []
         seen_global = name == "global"
         while True:
@@ -1572,7 +1598,12 @@ class Gullet:
             if t is None:
                 self.unread(trace)
                 return trig
-            if t.kind == "cs" and t.text in ("long", "outer", "global"):
+            if t.kind == "cs" and t.text in (
+                "long",
+                "outer",
+                "global",
+                "protected",
+            ):
                 seen_global = seen_global or t.text == "global"
                 continue
             if t.kind == "cs" and t.text in ("def", "edef", "gdef", "xdef"):
@@ -1582,6 +1613,10 @@ class Gullet:
                     eager=t.text in ("edef", "xdef"),
                     head=trig,  # marker/src 从首个前缀 token 起算
                 )
+            if t.kind == "cs" and t.text == "let":
+                return self._do_let(t, global_=seen_global, head=trig)
+            if t.kind == "cs" and t.text == "newif":
+                return self._do_newif(t, global_=seen_global, head=trig)
             self.unread(trace)
             return trig
 
@@ -2017,13 +2052,17 @@ class Gullet:
 
     # ------------------------------------------------------------ \let/\newif/\catcode
 
-    def _do_let(self, trig: Tok) -> Tok | None:
+    def _do_let(
+        self, trig: Tok, *, global_: bool = False, head: Tok | None = None
+    ) -> Tok | None:
         r"""``\let\a[=]\b``（Primitives.py:369-374 + Context.py:1175-1193）。
 
         cs 目标 → 当时表项**快照**（MacroDef/IfCond/IfSetter/原语名 str /
-        None）；非 cs → 字面 token 别名。
+        None）；非 cs → 字面 token 别名。``global_``/``head`` 由
+        ``_do_prefix`` 链透传（``\global\let`` 写底帧、marker 从前缀起算）。
         """
         trace = self._trace = []
+        scope = "global" if global_ else "local"
         nt = self._rt_skip(trace)
         if nt is None or nt.kind not in ("cs", "active"):
             self.unread(trace)
@@ -2041,18 +2080,22 @@ class Gullet:
                 tgt = src.text  # 原语名引用
             else:
                 tgt = None
-            self.macros.set(nt.text, Alias(tgt))
+            self.macros.set(nt.text, Alias(tgt), scope)
         else:
-            self.macros.set(nt.text, Alias(src))
-        return self._consumed(f"let:{nt.text}", trig, trace)
+            self.macros.set(nt.text, Alias(src), scope)
+        return self._consumed(f"let:{nt.text}", trig, trace, head)
 
-    def _do_newif(self, trig: Tok) -> Tok | None:
+    def _do_newif(
+        self, trig: Tok, *, global_: bool = False, head: Tok | None = None
+    ) -> Tok | None:
         r"""``\newif\ifX`` 三项登记（Context.newif Context.py:1008-1041）。
 
         ``\ifX`` → ``IfCond`` 求值项；``\Xtrue``/``\Xfalse`` → ``IfSetter``
-        写 ``ifflags[flag]``，token 本体原样交分段器。
+        写 ``ifflags[flag]``，token 本体原样交分段器。``global_``/``head``
+        由 ``_do_prefix`` 链透传（``\global\newif`` 三项写底帧）。
         """
         trace = self._trace = []
+        scope = "global" if global_ else "local"
         nt = self._rt_skip(trace)
         if nt is None or nt.kind != "cs" or not nt.text.startswith("if"):
             self.unread(trace)
@@ -2060,10 +2103,10 @@ class Gullet:
             return trig
         flag = nt.text[2:]
         self.ifflags[flag] = False
-        self.macros.set(nt.text, IfCond(flag))
-        self.macros.set(flag + "true", IfSetter(flag, value=True))
-        self.macros.set(flag + "false", IfSetter(flag, value=False))
-        return self._consumed(f"newif:{flag}", trig, trace)
+        self.macros.set(nt.text, IfCond(flag), scope)
+        self.macros.set(flag + "true", IfSetter(flag, value=True), scope)
+        self.macros.set(flag + "false", IfSetter(flag, value=False), scope)
+        return self._consumed(f"newif:{flag}", trig, trace, head)
 
     def _do_catcode(self, trig: Tok) -> Tok | None:
         r"""``\catcode`<ch>=<num>``（Primitives.py:401-411）。"""
@@ -2205,36 +2248,53 @@ class Gullet:
         return self.root_dir
 
     @staticmethod
-    def _resolve_input(  # noqa: C901 — 查找序四级候选平铺即 §7 语义
+    def _resolve_input(
         fname: str, file_dir: str, root_dir: str, *, top_dir: str = ""
     ) -> str | None:
-        """查找序：including 目录 → 根目录 → paper topdir → basename 补 ``.tex`` → 裸名。"""
-        cands = (
-            [fname]
-            if fname.lower().endswith(".tex")
-            else [fname, fname + ".tex", fname + ".TEX"]
+        r"""查找序：including 目录 → 根目录 → paper topdir → basename 补 ``.tex`` → 裸名。
+
+        ``openin_any`` 等价闸（C1）：候选的 **real path** 必须落在已解析
+        根集（file_dir/root_dir/top_dir）内——绝对路径或 ``..`` 逃逸出界
+        的候选按 miss 处理，永不进 ``read_bytes``（不可信 e-print 经
+        ``\input`` 读本机文件 = 外泄面）。含根内 symlink 指出界同样拦。
+
+        扩展名序（F8）：``fname`` 无扩展名 → 先 ``.tex``/``.TEX`` 补全再
+        裸名（TeX 对无扩展名 ``\input`` 追加 ``.tex``——裸名垃圾文件不得
+        压过 ``foo.tex``）；带显式扩展名 → 原样查找不追加。
+        """
+        roots: list[Path] = []
+        for d in (file_dir, root_dir, top_dir):
+            if not d:
+                continue
+            try:
+                r = Path(d).resolve()
+            except (OSError, RuntimeError):  # symlink 环等 → 该根出局
+                continue
+            if r not in roots:
+                roots.append(r)
+
+        def _hit(p: Path) -> str | None:
+            """``p`` 存在且 real path 落在任一根内 → 解析后绝对路径。"""
+            try:
+                rp = p.resolve()
+            except (OSError, RuntimeError):
+                return None
+            if rp.exists() and any(rp.is_relative_to(r) for r in roots):
+                return str(rp)
+            return None
+
+        # 阶段序：各根 × 候选名（含 .tex 补全）→ 各根 × basename 补 .tex。
+        # 历史第三段「各根 × 裸名」恒被首段候选覆盖，不再单开。
+        names = (
+            [fname] if Path(fname).suffix else [fname + ".tex", fname + ".TEX", fname]
         )
-        for d in (file_dir, root_dir, top_dir):
-            if not d:
-                continue
-            for c in cands:
-                p = Path(d) / c
-                if p.exists():
-                    return str(p)
         stem = Path(fname).name
-        for d in (file_dir, root_dir, top_dir):
-            if not d:
-                continue
-            for ext in (".tex", ".TEX"):
-                p = Path(d) / (stem + ext)
-                if p.exists():
-                    return str(p)
-        for d in (file_dir, root_dir, top_dir):
-            if not d:
-                continue
-            p = Path(d) / fname
-            if p.exists():
-                return str(p)
+        paths = [r / n for r in roots for n in names]
+        paths += [r / (stem + ext) for r in roots for ext in (".tex", ".TEX")]
+        for p in paths:
+            hit = _hit(p)
+            if hit is not None:
+                return hit
         return None
 
     @staticmethod
@@ -2577,10 +2637,11 @@ class Gullet:
     ) -> int | None:
         r"""``processIfContent`` 移植（TeX.py:531-585）+ 界标夹心。
 
-        原始流收集 case 到 ``\fi``（``\else/\or`` 分案例；任何真 ``if*``
-        计嵌套——但宏表里的 ``if*`` **MacroDef 不计**，``\newif\ifX`` 整对
-        保留）；收尾 ``\fi`` 不推回，``unread`` = 选中支 + 尾部 ``fi:``
-        marker。
+        原始流收集 case 到 ``\fi``（``\else/\or`` 分案例；只计**真条件**
+        嵌套——``\newif`` 注册的 ``IfCond``、``\let`` 到 if 原语的别名、
+        未重定义的原语 if；宏表里的 ``if*`` MacroDef/IfSetter 与未注册
+        名不计，``\newif\ifX`` 整对保留）；收尾 ``\fi`` 不推回，
+        ``unread`` = 选中支 + 尾部 ``fi:`` marker。
 
         返回 ``lead_end`` = 选支首 token 文件起点（空选支 = ``\fi``/末读
         token 末）：调用方 ``if:`` marker 盖 ``[trig.start, lead_end)``
@@ -2607,11 +2668,20 @@ class Gullet:
                 continue
             if name.startswith("if"):
                 r = self.macros.resolve(self.macros.lookup(name))
-                if isinstance(r, (MacroDef, Tok)):
-                    cases[-1].append(t)  # 用户宏 if* → 不计嵌套（scanner 同款修正）
+                # 只有真 TeX 条件计嵌套：\newif 注册的 IfCond、\let 到 if
+                # 原语的别名、未被重定义的原语 if。MacroDef/IfSetter/Tok/
+                # 未注册名不计——\newif\ififx 的 \ifxtrue（IfSetter）名带
+                # if 前缀，etoolbox \ifdef 族包宏形似——二者计入都会把外层
+                # \fi 配错 → if_unterminated 吞文尾（audit F5/probe F）。
+                if (
+                    isinstance(r, IfCond)
+                    or (isinstance(r, str) and r.startswith("if"))
+                    or (r is None and name in _PRIMS)
+                ):
+                    cases[-1].append(t)
+                    nesting += 1
                     continue
                 cases[-1].append(t)
-                nesting += 1
                 continue
             if name == "fi":
                 if not nesting:
