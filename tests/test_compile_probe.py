@@ -165,6 +165,34 @@ def test_main_outside_root_empty_report(tmp_path: Path) -> None:
         outside.unlink()
 
 
+def test_circular_input_terminates(tmp_path: Path) -> None:
+    r"""A↔B 循环 `\input`：visited 去重保证 BFS 终止、inputs 无重复。"""
+    _write(
+        tmp_path,
+        "main.tex",
+        "\\documentclass{article}\n\\input{a}\n\\begin{document}x\\end{document}\n",
+    )
+    _write(tmp_path, "a.tex", "\\input{b}\n")
+    _write(tmp_path, "b.tex", "\\input{a}\n\\input{main}\n")
+    rep = target_probe(tmp_path, "main.tex", _INDEX)
+    assert rep.inputs == ["main.tex", "a.tex", "b.tex"]
+
+
+def test_clean_name_filters_noise_tokens(tmp_path: Path) -> None:
+    r"""`\input{\cs}` / `\input @tempb` 噪声 token 被滤——不进 deps/missing。"""
+    _write(
+        tmp_path,
+        "main.tex",
+        "\\documentclass{article}\n"
+        "\\input{\\foo}\n"
+        "\\input @tempb\n"
+        "\\begin{document}x\\end{document}\n",
+    )
+    rep = target_probe(tmp_path, "main.tex", _INDEX)
+    assert [d for d in rep.deps if d.kind == "input"] == []
+    assert rep.missing == []
+
+
 def test_signal_pstricks_prefers_xelatex(tmp_path: Path) -> None:
     """pstricks 声明 → prefer_engine=xelatex（xdvipdfmx 硬墙）。"""
     _write(
