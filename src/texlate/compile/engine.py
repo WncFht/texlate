@@ -862,6 +862,10 @@ class XelatexEngine:
 
     def _env(self, extra: dict[str, str] | None) -> dict[str, str]:
         add = dict(extra or {})
+        # 单行超长的 legacy 宏转储 (TCI tcilcomm.tex 实测 3MB/行) 会顶穿
+        # web2c 默认 buf_size=200000 → `Unable to read an entire line` 硬死。
+        # kpathsea cnf 变量可经 env 覆盖, 放宽输入行缓冲即解 (loop1-1706.02464)。
+        add.setdefault("buf_size", "8000000")
         if self.texmfhome:
             add.update(
                 {
