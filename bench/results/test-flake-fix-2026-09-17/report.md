@@ -14,6 +14,10 @@
 
 改动文件 245 绿；改动用例 5 连跑 5/5；全量 --ignore 三件在飞 2857 绿 4 skip 2 xfail；ruff 净。唯一失败 test_fuzz_share.py::test_fuzz_unpack_mutated_bytes 为 fuzz-roundtrip 在飞件（zlib.error 面待其裁决）。
 
+## 扩单收口（`bcfaf62`）
+
+5 个 sibling 文件同款 `RS = load_ruleset()` 收集期 IO 全清零：aux_eof/spikereplay/rules 改 `_rs()` 惰性；f1f2 除 `_rs()` 外加 4 个派生惰性访问器（`_shim_params`/`_cs_params`/`_shim_map`/`_cs_table`，15+ 调用点词边界替换）；loop.py 的 `RS` 实为死代码（全文件只吃 mini_rs 合成 ruleset）连同行删。自验 5 文件 169 绿 + fixloop 全簇 363 绿 + ruff 净；tests/ 下模块级 `load_ruleset()` grep 零残余。
+
 ## 遗留
 
-5 个 sibling 文件同款 `load_ruleset()` 收编中（leader 扩单）；其余清单项全处置毕。
+无——清单项与扩单全处置毕。
