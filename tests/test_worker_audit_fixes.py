@@ -28,6 +28,7 @@ from conftest import MINI_TEX, FakeFetcher, RecordingEngine, make_targz
 import texlate.server.babeldoc as babeldoc_mod
 from texlate.arxiv.cache import SourceCache
 from texlate.arxiv.meta import PaperMeta
+from texlate.arxiv.unpack import UnpackError
 from texlate.compile.cjkmap import embed_cjk_mappings
 from texlate.compile.engine import CompRes, LogInfo
 from texlate.server.events import EventBus
@@ -240,6 +241,7 @@ class TestCancelOrphan:
                 sse_items=[],
                 usage={"calls": 0},
                 clients=[],
+                pre_rows={},
             )
             return t
 
@@ -1516,3 +1518,227 @@ class TestSpawnPtyFdCleanup:
         out = asyncio.run(run())
         assert "out-line" in out
         assert "err-line" in out
+
+
+class TestSyncFixedSourcesUnderscore:
+    """``_sync_fixed_sources`` 删除侧与 copy 侧同口径排除 ``_*`` 顶层项。"""
+
+    def test_underscore_dir_survives(self, tmp_path: Path) -> None:
+        import texlate.server.worker as worker_mod  # noqa: PLC0415
+
+        work = tmp_path / "work"
+        zh = tmp_path / "zh"
+        (work / "_minted-main").mkdir(parents=True)
+        (work / "_minted-main" / "x.tex").write_text("minted", encoding="utf-8")
+        (work / "main.tex").write_text("new", encoding="utf-8")
+        (zh / "_minted-main").mkdir(parents=True)
+        keep_file = zh / "_minted-main" / "x.tex"
+        keep_file.write_text("minted", encoding="utf-8")
+        stale = zh / "stale.tex"
+        stale.write_text("old", encoding="utf-8")
+        (zh / "main.tex").write_text("old", encoding="utf-8")
+        (zh / ".splice-done").write_text("", encoding="utf-8")
+
+        n = worker_mod._sync_fixed_sources(work, zh)  # noqa: SLF001
+        assert keep_file.is_file(), "_ 前缀目录内源文件不得被删除"
+        assert not stale.exists()
+        assert (zh / ".splice-done").is_file()
+        assert (zh / "main.tex").read_text(encoding="utf-8") == "new"
+        assert n == 2  # noqa: PLR2004 -- main.tex 覆盖 + stale.tex 删除
+
+
+class TestUnpackZipMemberCorruption:
+    """成员级损坏归 ``UnpackError``——漏 BadZipFile 会成 internal 可重试 fault。"""
+
+    def test_bad_crc_member(self, tmp_path: Path) -> None:
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as zf:
+            zf.writestr("a.tex", "hello latex")
+        data = bytearray(buf.getvalue())
+        idx = data.find(b"hello latex")
+        assert idx > 0
+        data[idx] ^= 0xFF  # 翻 payload → read 时 CRC 校验必炸
+        with pytest.raises(UnpackError, match="bad member"):
+            unpack_zip(bytes(data), tmp_path / "out")
+
+
+class _FailClient:
+    """aclose 可炸的 duck-type client（``_aclose_clients`` 韧性钉）。"""
+
+    def __init__(self, name: str, *, boom: bool = False) -> None:
+        self.name = name
+        self.boom = boom
+        self.closed = False
+
+    async def aclose(self) -> None:
+        if self.boom:
+            msg = "dead conn"
+            raise RuntimeError(msg)
+        self.closed = True
+
+
+class TestAcloseClientsResilience:
+    """单个 aclose 抛错不挡其余、不上浮。"""
+
+    def test_one_failure_does_not_block_rest(self) -> None:
+        import texlate.server.worker as worker_mod  # noqa: PLC0415
+
+        bad = _FailClient("a", boom=True)
+        good = _FailClient("b")
+
+        async def drive() -> None:
+            await worker_mod._aclose_clients([bad, good])  # noqa: SLF001
+
+        asyncio.run(drive())  # 不抛
+        assert good.closed
+
+
+class TestSpliceSentinelInvalidation:
+    """重进翻译段改了 chunks 行 → ``.splice-done`` 摘除，逼编译段重 splice。"""
+
+    def _pre_rows(self, store: Store, task_id: str) -> dict[str, tuple[str, str]]:
+        return {
+            r["chunk_id"]: (str(r["status"]), str(r["translation"] or ""))
+            for r in store.all_chunks(task_id)
+        }
+
+    def _teardown(
+        self,
+        worker: PipelineWorker,
+        ctx: TaskCtx,
+        store: Store,
+        pre_rows: dict[str, tuple[str, str]],
+    ) -> None:
+        asyncio.run(
+            worker._teardown_translate(  # noqa: SLF001
+                ctx=ctx,
+                run_task=None,
+                state=DBStateBridge(store, ctx.task_id),
+                cache=SegmentCache(store, prefix="t", model="m", target_lang="zh-CN"),
+                status_map={},
+                sse_items=[],
+                usage={"calls": 0},
+                clients=[],
+                pre_rows=pre_rows,
+            )
+        )
+
+    def test_changed_rows_drop_sentinel(self, tmp_path: Path) -> None:
+        ctx, worker, store = _mk(tmp_path)
+        _scan(ctx, worker, store, MINI_TEX)
+        ctx.zh_dir.mkdir(parents=True)
+        sent = ctx.zh_dir / ".splice-done"
+        sent.write_text("", encoding="utf-8")
+        pre = self._pre_rows(store, ctx.task_id)
+        # 模拟本段翻译落盘：首块 pending→ok+译文
+        cid = str(store.all_chunks(ctx.task_id)[0]["chunk_id"])
+        store.update_chunk(
+            ctx.task_id,
+            cid,
+            {"status": "ok", "translation": "译文", "attempts": 1},
+        )
+        self._teardown(worker, ctx, store, pre)
+        assert not sent.exists(), "译文变更后 .splice-done 必须摘除"
+
+    def test_unchanged_rows_keep_sentinel(self, tmp_path: Path) -> None:
+        ctx, worker, store = _mk(tmp_path)
+        _scan(ctx, worker, store, MINI_TEX)
+        ctx.zh_dir.mkdir(parents=True)
+        sent = ctx.zh_dir / ".splice-done"
+        sent.write_text("", encoding="utf-8")
+        pre = self._pre_rows(store, ctx.task_id)
+        self._teardown(worker, ctx, store, pre)
+        assert sent.is_file(), "无变化不动哨兵——resume 才能直进编译臂"
+
+
+class TestCacheUserGlossarySig:
+    """``_make_cache`` user 层按内容进指纹：同径换内容分桶、异径同内容合桶。"""
+
+    def test_same_path_content_change_rekeys(self, tmp_path: Path) -> None:
+        ctx, worker, _store = _mk(tmp_path, options={"glossary": "g.yaml"})
+        ctx.base_dir.mkdir(parents=True, exist_ok=True)
+        g = ctx.base_dir / "g.yaml"
+        g.write_text("a: 甲\n", encoding="utf-8")
+        p1 = worker._make_cache(ctx)._prefix  # noqa: SLF001
+        g.write_text("a: 乙\n", encoding="utf-8")
+        p2 = worker._make_cache(ctx)._prefix  # noqa: SLF001
+        assert p1 != p2
+
+    def test_diff_path_same_content_shares(self, tmp_path: Path) -> None:
+        ctx, worker, _store = _mk(tmp_path, options={"glossary": "g.yaml"})
+        ctx.base_dir.mkdir(parents=True, exist_ok=True)
+        (ctx.base_dir / "g.yaml").write_text("a: 甲\n", encoding="utf-8")
+        p1 = worker._make_cache(ctx)._prefix  # noqa: SLF001
+        (ctx.base_dir / "h.yaml").write_text("a: 甲\n", encoding="utf-8")
+        ctx.row["options_json"] = json.dumps({"glossary": "h.yaml"})
+        p2 = worker._make_cache(ctx)._prefix  # noqa: SLF001
+        assert p1 == p2
+
+    def test_user_glossary_default_layer_sig(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """缺省 ``USER_GLOSSARY_PATH`` 层内容也进指纹（与 _make_glossary 缺省口径一致）。"""
+        import texlate.server.worker as worker_mod  # noqa: PLC0415
+
+        udir = tmp_path / "user-g"
+        udir.mkdir()
+        ufile = udir / "glossary.yaml"
+        ufile.write_text("x: 一\n", encoding="utf-8")
+        monkeypatch.setattr(worker_mod, "USER_GLOSSARY_PATH", ufile)
+        ctx, worker, _store = _mk(tmp_path)
+        p1 = worker._make_cache(ctx)._prefix  # noqa: SLF001
+        ufile.write_text("x: 二\n", encoding="utf-8")
+        p2 = worker._make_cache(ctx)._prefix  # noqa: SLF001
+        assert p1 != p2
+
+
+class TestRunFixloopWiring:
+    """``_run_fixloop`` 把 ``compile_timeout`` 带给 fixloop（e2e parity）。"""
+
+    def test_compile_timeout_passthrough(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import texlate.server.worker as worker_mod  # noqa: PLC0415
+
+        timeout = 7.5
+        ctx, worker, _store = _mk(tmp_path, worker_kw={"compile_timeout": timeout})
+        captured: dict[str, object] = {}
+
+        def fake_fixloop(*_a: object, **kw: object) -> dict:
+            captured.update(kw)
+            return {"verdict": "clean", "rounds": [], "actions": []}
+
+        monkeypatch.setattr(worker_mod, "fixloop", fake_fixloop)
+        work = tmp_path / "build-zh"
+        work.mkdir()
+        first = object()
+        out = worker._run_fixloop(  # noqa: SLF001
+            ctx,
+            work,
+            RecordingEngine("tectonic"),
+            first,  # type: ignore[arg-type]
+        )
+        assert captured["compile_timeout"] == timeout
+        assert out is first
+
+    def test_summary_carries_log_excerpt(self) -> None:
+        import texlate.server.worker as worker_mod  # noqa: PLC0415
+
+        cell = {
+            "verdict": "dirty_pdf",
+            "main": "main.tex",
+            "rounds": [
+                {
+                    "round": 1,
+                    "category": "font",
+                    "payload": "x",
+                    "pdf": True,
+                    "n_errors": 2,
+                }
+            ],
+            "actions": [{"round": 1, "rule": "r1", "detail": "patched"}],
+            "log_excerpt": "! error context tail",
+        }
+        s = worker_mod._fixloop_summary(cell)  # noqa: SLF001
+        assert s["log_excerpt"] == "! error context tail"
+        assert s["trace"][0]["rule"] == "r1"

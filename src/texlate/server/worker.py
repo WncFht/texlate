@@ -318,6 +318,7 @@ def _fixloop_summary(cell: dict[str, Any]) -> dict[str, Any]:
         "verdict": cell.get("verdict"),
         "main": cell.get("main"),
         "engine": cell.get("engine"),
+        "log_excerpt": cell.get("log_excerpt"),
         "trace": trace,
         "setup": [
             {"rule": a.get("rule"), "result": a.get("detail")}
@@ -354,12 +355,14 @@ def _sync_fixed_sources(work: Path, zh: Path) -> int:
             shutil.copyfile(f, dst)
             n += 1
     for f in zh.rglob("*"):
-        if (
-            f.is_file()
-            and f.name not in _SENTINELS
-            and f.suffix.lower() in _FIXLOOP_SRC_EXTS
-            and f.relative_to(zh).as_posix() not in keep
-        ):
+        if not f.is_file():
+            continue
+        rel = f.relative_to(zh)
+        # copy 侧不收 ``_*`` 顶层项 → keep 永不含之；删侧同口径排除，
+        # 否则 zh/ 自带的 _ 前缀目录（_tect_out 等）被当多余源清掉
+        if rel.parts[0].startswith("_") or f.name in _SENTINELS:
+            continue
+        if f.suffix.lower() in _FIXLOOP_SRC_EXTS and rel.as_posix() not in keep:
             f.unlink()
             n += 1
     return n
@@ -628,9 +631,37 @@ def _translator_clients(translator: object) -> list[ChatClient]:
 
 
 async def _aclose_clients(clients: list[ChatClient]) -> None:
-    """逐一关 translator 底层 client（L2/env_judge 旁路自建 translator 的收尾）。"""
+    """逐一关 translator 底层 client（L2/env_judge 旁路自建 translator 的收尾）。
+
+    单个 aclose 抛错（连接已坏/半关状态）不挡其余、不上浮——收尾失败
+    不该把任务终态改判 fault，更不该在 ``finally`` 里盖掉真异常。
+    """
     for c in clients:
-        await c.aclose()
+        try:
+            await c.aclose()
+        except Exception as e:  # noqa: BLE001 -- 收尾尽力而为
+            log.debug("client aclose failed: %s: %s", type(e).__name__, e)
+
+
+def _resolve_glossary_path(
+    gpath: str, glossary_dir: str, base_dir: Path
+) -> Path | None:
+    """``_glossary_path`` 的静默版：同一 confine 解析，不告警。
+
+    供 ``_make_cache`` 这类「只想知道生效文件」的调用方用——告警仍由
+    ``_glossary_path``（``_make_glossary`` 路）发，不双发。
+    """
+    rel = Path(gpath)
+    if rel.is_absolute() or ".." in rel.parts:
+        return None
+    roots = [base_dir.resolve()]
+    if glossary_dir:
+        roots.append(Path(glossary_dir).expanduser().resolve())
+    for base in roots:
+        cand = (base / rel).resolve()
+        if cand.is_relative_to(base) and cand.is_file():
+            return cand
+    return None
 
 
 class DBStateBridge:
@@ -870,6 +901,23 @@ def _zip_unique(rel: str, seen: dict[str, str]) -> str:
     return f"{stem}~c{k}{suffix}"
 
 
+def _zip_member_payload(zf: zipfile.ZipFile, info: zipfile.ZipInfo) -> bytes:
+    """成员读归 ``UnpackError``——坏 CRC/未知压缩算法/加密成员与包级同案。
+
+    漏出去会在 ``_stage_fetch`` 异常阶梯里落 ``internal`` 可重试 fault。
+    """
+    try:
+        return zf.read(info)
+    except (
+        zipfile.BadZipFile,
+        NotImplementedError,
+        RuntimeError,
+        OSError,
+    ) as e:
+        msg = f"bad member {info.filename}: {e}"
+        raise UnpackError(msg) from e
+
+
 def unpack_zip(data: bytes, dest: Path) -> list[str]:
     """Zip 安全解包（upload_tex 路线；tar/gz 走 ``unpack_sniffed``）。
 
@@ -927,7 +975,7 @@ def unpack_zip(data: bytes, dest: Path) -> list[str]:
                 warnings.append(f"reject_dir_clash:{rel_s}")
                 continue
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(zf.read(info))
+            target.write_bytes(_zip_member_payload(zf, info))
     return warnings
 
 
@@ -1827,6 +1875,12 @@ class PipelineWorker:
         state = DBStateBridge(self.store, ctx.task_id)
         seq_map = {r["chunk_id"]: int(r["seq"]) for r in rows}
         status_map = {r["chunk_id"]: str(r["status"]) for r in rows}
+        # 本段起跑前快照——retry/resume 重跑翻译若改行（pending→ok/
+        # 重译改译文），既有 .splice-done 即过期，须摘除逼编译段重
+        # splice（zh/ 被 _build_zh rmtree，.compile-done 随之同死）
+        pre_rows = {
+            r["chunk_id"]: (str(r["status"]), str(r["translation"] or "")) for r in rows
+        }
         sse_items: list[dict[str, Any]] = []
         last_flush = time.monotonic()
         # T4：每次成功 chat() 的真实 token/延迟记账（ChatClient 回调）
@@ -1897,6 +1951,7 @@ class PipelineWorker:
                 sse_items=sse_items,
                 usage=usage,
                 clients=clients,
+                pre_rows=pre_rows,
             )
         self._stage(ctx, "translating", "翻译完成", PROGRESS["translating"][1])
         counts = self.store.chunk_counts(ctx.task_id)
@@ -1919,8 +1974,9 @@ class PipelineWorker:
         sse_items: list[dict[str, Any]],
         usage: dict[str, Any],
         clients: list[ChatClient],
+        pre_rows: dict[str, tuple[str, str]],
     ) -> None:
-        """收尾 translating 段（正常/fault/cancel 全走）：撤 run_task → usage 落账 → 残余 buffer flush → client 关闭。"""
+        """收尾 translating 段（正常/fault/cancel 全走）：撤 run_task → usage 落账 → 残余 buffer flush → 过期 splice 哨兵摘除 → client 关闭。"""
         if run_task is not None and not run_task.done():
             # cancel 竞态：poll 循环被 _check_cancelled 抛出时 pipe.run
             # 仍在跑——不撤它就是孤儿任务：剩余 item 全标 skipped、flush
@@ -1945,8 +2001,8 @@ class PipelineWorker:
         with contextlib.suppress(asyncio.CancelledError):
             # fault/cancel 也要把缓冲里的已完块落盘（原先异常路径丢 buffer）
             await self._flush_translate(ctx, state, cache, status_map, sse_items)
-        for c in clients:
-            await c.aclose()
+        self._invalidate_splice(ctx, pre_rows)
+        await _aclose_clients(clients)
 
     async def _flush_translate(
         self,
@@ -2007,6 +2063,27 @@ class PipelineWorker:
             },
         )
 
+    def _invalidate_splice(
+        self, ctx: TaskCtx, pre_rows: dict[str, tuple[str, str]]
+    ) -> None:
+        """本段改了 chunks 行（status/translation 任一变化）→ 摘 ``.splice-done``。
+
+        retry/resume 重进翻译段时 zh/ 可能已 splice 甚至已编译——译文变
+        更若不摘哨兵，``_build_zh`` 见哨兵直跳，旧译文永留产物。哨兵一摘
+        ``_build_zh`` rmtree zh/ 重建（``.compile-done`` 随之同死重编）；
+        无变化不动哨兵，resume 才能直进编译臂。loop 线程直读 store。
+        """
+        sent = ctx.zh_dir / ".splice-done"
+        if not sent.is_file():
+            return
+        post = {
+            r["chunk_id"]: (str(r["status"]), str(r["translation"] or ""))
+            for r in self.store.all_chunks(ctx.task_id)
+        }
+        if post != pre_rows:
+            sent.unlink()
+            self._log(ctx, "译文变更：摘除 .splice-done，编译段将重 splice")
+
     # ------------------------------------------------------------ share 导入
 
     async def _run_share(self, ctx: TaskCtx) -> None:
@@ -2027,6 +2104,11 @@ class PipelineWorker:
     async def _stage_share_apply(self, ctx: TaskCtx) -> None:
         """translating（共享臂）：包内 chunks 对账本地 chunks → 译文落库。"""
         self._stage(ctx, "translating", "共享译文对账", PROGRESS["translating"][0])
+        # retry 换包重对账会改 chunks 行——同款快照供事后摘 .splice-done
+        pre_rows = {
+            r["chunk_id"]: (str(r["status"]), str(r["translation"] or ""))
+            for r in self.store.all_chunks(ctx.task_id)
+        }
         ctx.share = await asyncio.to_thread(self._share_apply, ctx)
         s = ctx.share
         self._log(
@@ -2034,6 +2116,7 @@ class PipelineWorker:
             f"share apply: matched={s['matched']}/{s['total']}"
             f" dropped={s['dropped']} missed={s['missed']} extra={s['extra']}",
         )
+        self._invalidate_splice(ctx, pre_rows)
         self._stage(ctx, "translating", "对账完成", PROGRESS["translating"][1])
         self._check_cancelled(ctx)
 
@@ -2643,6 +2726,7 @@ class PipelineWorker:
                 cond="zh",
                 llm_hook=hook,
                 case_sink=CaseSink(self.data_dir / "fixloop-cases.jsonl"),
+                compile_timeout=self._compile_timeout,
             )
         except Exception as e:  # noqa: BLE001 -- fixloop 崩不拖垮编译段
             self._log(ctx, f"fixloop crashed: {type(e).__name__}: {e}")
@@ -3676,17 +3760,12 @@ class PipelineWorker:
         if rel.is_absolute() or ".." in rel.parts:
             self._warning(ctx, "glossary_rejected", f"glossary 路径越界被拒: {gpath!r}")
             return None
-        roots = [ctx.base_dir.resolve()]
-        if glossary_dir:
-            roots.append(Path(glossary_dir).expanduser().resolve())
-        for base in roots:
-            cand = (base / rel).resolve()
-            if cand.is_relative_to(base) and cand.is_file():
-                return cand
-        self._warning(
-            ctx, "glossary_rejected", f"glossary 不在允许根内或不存在: {gpath!r}"
-        )
-        return None
+        cand = _resolve_glossary_path(gpath, glossary_dir, ctx.base_dir)
+        if cand is None:
+            self._warning(
+                ctx, "glossary_rejected", f"glossary 不在允许根内或不存在: {gpath!r}"
+            )
+        return cand
 
     def _local_glossary(self, ctx: TaskCtx) -> Path | None:
         """论文级 ``glossary.local.yaml`` 探测：任务 ``base/`` 根下同名文件。
@@ -3753,6 +3832,24 @@ class PipelineWorker:
         if local is not None:
             # local 层内容进指纹——同名文件换内容/有无该层都改变有效术语表
             local_sig = hashlib.sha256(local.read_bytes()).hexdigest()[:12]
+        # user 层同按内容进指纹（``_share_glossary_hash`` 同口径）：
+        # 路径字符串当指纹会同名换内容串桶/异名同内容分桶；拒/缺席与
+        # ``_make_glossary`` 同态回落 ``USER_GLOSSARY_PATH`` 缺省层
+        gfile = (
+            _resolve_glossary_path(
+                glossary, str(cfg_row.get("glossary_dir") or ""), ctx.base_dir
+            )
+            if glossary
+            else None
+        )
+        if gfile is None and USER_GLOSSARY_PATH.is_file():
+            gfile = USER_GLOSSARY_PATH
+        user_sig = ""
+        if gfile is not None:
+            try:
+                user_sig = hashlib.sha256(gfile.read_bytes()).hexdigest()[:12]
+            except OSError:
+                user_sig = ""
         # categories 进指纹：不同分类 → category 层术语不同 → 同源句的
         # 翻译函数不同，跨论文共享必须按分类分桶。placeholders 是恒等
         # 注入且逐文档漂移——进指纹会把缓存锁死成单文档桶，不进。
@@ -3763,7 +3860,7 @@ class PipelineWorker:
         base = str(ctx.secrets.base_url or cfg_row.get("base_url") or "")
         cfg = hashlib.sha256(
             f"{ctx.row['model']}|{PROMPT_VERSION}|{ctx.row['target_lang']}"
-            f"|{base}|{glossary}|l:{local_sig}|c:{cats}".encode()
+            f"|{base}|u:{user_sig}|l:{local_sig}|c:{cats}".encode()
         ).hexdigest()[:16]
         if cache_scope() == "per_key":
             # 与 cache_key_for 同一 oracle 防护：段级 translation_cache
