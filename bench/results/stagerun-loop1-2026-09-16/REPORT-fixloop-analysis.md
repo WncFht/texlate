@@ -69,3 +69,12 @@ syntax 15 / other 14 / babel_opt 11 / illegal_unit 10 / pdftex_prim 7 / capacity
 另发现并移交 1d：`shim_known` 条件（engine.py:611）实际不可达（shim_map 键带扩展名 vs `\usepackage{裸名}`）；payload 口径在宏内炸场景偏到展开点行末（真冒犯 cs 在上文 macro-expansion 行末）；`PDFTEX_PRIMS` 缺 pdfobj/pdflastobj 族（wdir 内直用型稿件要靠它 guard/polyfill）。
 
 **pst-node/pst-arrow 疑点核销**：0707.1954 动作链显示 round5 `missing_file: pst-node` 仅记 `no package provides pst-node`——裸名候选 `pst-node.tex` 变体补位是 `3c5aae2`（17:19）才落的，loop1 跑于 15:49 之前。机理无谜：`\input pst-node`（pstricks-add 内裸 input）→ 裸 payload → filemap 查文件名表必 miss。loop2 已含该修复，22 格 pst-* 预期转 installed。
+
+## 补记 5：loop2-delta 在飞期间的我侧落地（2026-09-16 晚）
+
+**注意时点**：delta 批 `b4akkgal5`（543 fail + 540 misschar）点火早于下列三个 commit——跑的是 pre-chain 代码，rundiff 判读时要扣除对应层。
+
+- **`6752bb0` TEXMFHOME 链**（1d 裁定落地）：`XelatexEngine._env` 写 `TEXMFHOME={usertree/home}:{ambient|~/texmf}` 冒号链——usertree 居首可写优先，宿主 ~/texmf 尾随保持可见（regress4 假退化根因修复）。**实测发现 tlmgr 把 env 值当字面路径**——链值会被建成名为 `texA:` 的目录且 tlpdb 判定全炸 → 新增 `_usertree_env()` 退链取首元素，`install_file`/`_filemap_tlmgr`/`rebuild_fontmaps` 全走它；`_bwrap_env_paths` 的 RW 值改走 `_kpathsea_list` 逐元素拆（链值原来会被当一个字面路径塞 --bind）。验证：`pst-plot97.tex`（仅 ~/texmf 有）经链解析命中，`_usertree_env` 输出单路径。签名未动。
+- **`1e0e5c8` 67debb6 后同步**：`pdftex_prim_guard` 交替 13→75（全 PDFTEX_PRIMS，长名优先序）；`spotcolor_xetex_shadow` 的 `when` 改 `any:[undefined_cs, pdftex_prim]` + cs_set 加 `pdfobj`/`pdflastobj`（subclassify 现把宏体内 \pdfobj 炸点改判 `pdftex_prim:pdfobj`，单 undefined_cs gate 会死）。8 case 验证幂等 + cs 紧邻免疫。**技术债**：guard 交替是 yaml 内联字面值，PDFTEX_PRIMS 再扩时需手工同步——建议后续加 `prim_family` 键由 loader 生成（fixloop/engine.py 侧，1d 评估）。
+- **`ea0c73e` 1e 两条兜底**：taxonomy 新增 `undefined_color`（`Package (?:x)?color Error: Undefined color 'X'`，payload=色名，实证 `undefined_color:这是译文`）；新规则 `undefined_color_fallback`(order 166) docclass 锚注 `\definecolor{X}{rgb}{0,0,0}`；`cs_targeted_fix` cs_table 加 `DeclareUnicodeCharacter` polyfill（lccode 惯用法，与 normalize c582736 同源 shim）。test_fixloop_yamlish 计数 37→38。
+- **`.rtx` 边界裁定（我判，实现位在 1d 文件）**：1003.1717 的 `aps.rtx.tex`/`10pt.rtx.tex` 是 e-print 自带的 REVTeX 运行时转储（makeatletter 域纯宏数据），被 `rglob("*.tex")` 收进翻译集 → 407 超簇同款腐蚀。裁定 = **文件面排除 `*.rtx.tex`**（全语料 6 个文件全属此类，零 FP 面）；实现 = `e2e.py:_translate_tree` 与 `stagerun.py:_translate_tree` 两处 glob 加 `not f.name.endswith(".rtx.tex")`（或 1d 认为合适的共享 helper）。更深层的「纯宏数据 .tex」（tcilcomm 型无扩展名信号者）归 fixer-slots 的内容侧检测，不在本裁定内。
