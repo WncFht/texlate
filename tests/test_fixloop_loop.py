@@ -143,6 +143,20 @@ def test_clean_first_round(tmp_path: Path) -> None:
 
 def test_no_main_tex(tmp_path: Path) -> None:
     cell = fixloop(tmp_path, MockEngine([{"log": CLEAN_LOG, "pdf": True}]))
+    assert cell["verdict"] == "no_main_tex:garbage"
+
+
+def test_no_main_tex_plain(tmp_path: Path) -> None:
+    """plain-TeX 树 → ``classify_no_main`` 子码落 verdict 后缀。"""
+    (tmp_path / "note.tex").write_text("\\magnification=1200\ntext\n\\bye\n")
+    cell = fixloop(tmp_path, MockEngine([{"log": CLEAN_LOG, "pdf": True}]))
+    assert cell["verdict"] == "no_main_tex:plain_tex"
+
+
+def test_no_main_tex_ambiguous(tmp_path: Path) -> None:
+    r"""``\begin{document}`` 裸存（无 dc/ds）→ 存疑，verdict 不挂子码。"""
+    (tmp_path / "body.tex").write_text("\\begin{document}\nx\n\\end{document}\n")
+    cell = fixloop(tmp_path, MockEngine([{"log": CLEAN_LOG, "pdf": True}]))
     assert cell["verdict"] == "no_main_tex"
 
 

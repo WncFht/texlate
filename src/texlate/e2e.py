@@ -32,7 +32,12 @@ from typing import TYPE_CHECKING, Any
 from texlate.compile.cjkmap import embed_cjk_mappings
 from texlate.compile.engine import engine_for, route_project
 from texlate.compile.fixloop.engine import LlmHook, fixloop
-from texlate.compile.inject import InjectRejectError, find_main_tex, prepare_chinese
+from texlate.compile.inject import (
+    InjectRejectError,
+    classify_no_main,
+    find_main_tex,
+    prepare_chinese,
+)
 from texlate.compile.judge import Verdict, judge
 from texlate.compile.normalize import normalize_project
 from texlate.latex.api import parse_file
@@ -934,9 +939,13 @@ def mock_pipeline_run(  # noqa: PLR0913 -- 同上：开关面穿透到 pipe_cond
         return report
     main_path = find_main_tex(work)
     if main_path is None:
+        sub = classify_no_main(work)
         report["status"] = "partial"
         report["reject_at"] = "route"
-        report["route"]["reasons"] = [*route.reasons, "no main tex"]
+        report["route"]["reasons"] = [
+            *route.reasons,
+            f"no main tex:{sub}" if sub else "no main tex",
+        ]
         return report
     main_rel = main_path.relative_to(work).as_posix()
     report["main"] = main_rel

@@ -409,6 +409,58 @@ def find_main_tex(root: Path) -> Path | None:
     return root / candidates[0]
 
 
+#: ``classify_no_main`` 的 plain-TeX/AMS-TeX 指纹：``\magnification``/``\magstep``
+#: /``\bye``/``\font\<cs>`` 装载原语、裸 ``\end``（负向断言挡 ``\end{env}``）、
+#: ``\input`` 的 209 前宏包名（attr 报告 §1.2 实测集 + gr-qc/9901068 补）。
+#: 只在无 dc/ds 的空池上判定——LaTeX 工程到不了这层，指纹误伤面天然有界。
+_PLAIN_TEX_RE = re.compile(
+    r"\\magnification\b|\\magstep\b|\\bye\b|\\font\\|\\end\b(?!\s*\{)"
+    r"|\\input\s*\{?\s*(?:harvmac|phyzzx|amstex|amsppt|epsf|jytex|mn|texinfo)\b"
+)
+
+
+def classify_no_main(root: Path) -> str | None:
+    r"""``find_main_tex`` 空池归因：确认不可修的上游形态 → 子码；存疑 → ``None``。
+
+    P-D 细分（bench/results/no-main-tex-attr-2026-09-17/report.md §3）——
+    全树 ``*.tex`` 遮盖视图（注释/verbatim 内命中不算）上归桶：
+
+    - ``"latex209"``：无 ``\documentclass`` 但有 ``\documentstyle``——209 时代
+      池（amsppt 顶物 ``\endtopmatter \document`` 形态；与 route 的
+      ``latex209_suspect`` 同族，upgrade_209 是旁路）。
+    - ``"plain_tex"``：dc/ds/bd 三无但有 plain-TeX/AMS-TeX 指纹
+      （``_PLAIN_TEX_RE``：装载原语 + 209 前 ``\input`` 宏包名）——
+      xelatex/tectonic 路由下本不可编，拒绝正确。
+    - ``"garbage"``：无任何可判 TeX/LaTeX 结构——HTML/DVI 伪装 .tex、撤稿
+      stub、无 driver 残片断、零 ``.tex`` 树。
+    - ``None``：可见 ``\documentclass`` 或 ``\begin{document}`` 但链路未闭——
+      可能是检测缺口或真散件，票面留 ``no_main_tex`` 不归上游。
+
+    消费方记 ``no_main_tex:<sub>``（stagerun errors payload、fixloop verdict
+    后缀、worker/e2e reason 后缀）；``None`` 时票面不变。
+    """
+    has_ds = has_bd = plain = False
+    for p in root.rglob("*"):
+        if not p.is_file() or p.suffix.lower() != ".tex":
+            continue
+        try:
+            vis = visible_tex(decode_tex(p.read_bytes()))
+        except OSError:
+            continue
+        if re.search(r"\\documentclass\b", vis):
+            return None
+        has_ds |= re.search(r"\\documentstyle\b", vis) is not None
+        has_bd |= _BEGIN_DOC_RE.search(vis) is not None
+        plain |= _PLAIN_TEX_RE.search(vis) is not None
+    if has_ds:
+        return "latex209"
+    if has_bd:
+        return None
+    if plain:
+        return "plain_tex"
+    return "garbage"
+
+
 def _docclass_close(vis: str, start: int) -> int:
     r"""从 `\documentclass` 命令名之后扫描 `[opt]{cls}` 配对，返回 `}` 后 offset。
 

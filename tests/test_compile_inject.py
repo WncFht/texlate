@@ -8,6 +8,7 @@ from texlate.compile.inject import (
     CTEX_LINE,
     FLOAT_SIZING,
     InjectRejectError,
+    classify_no_main,
     find_docclass_end,
     find_docclass_ends,
     find_main_tex,
@@ -222,6 +223,53 @@ def test_find_main_tex(tmp_path: Path) -> None:
 def test_find_main_tex_none(tmp_path: Path) -> None:
     (tmp_path / "frag.tex").write_text("just a fragment")
     assert find_main_tex(tmp_path) is None
+
+
+def test_classify_no_main_latex209(tmp_path: Path) -> None:
+    r"""``\documentstyle`` 独存（无 ``\documentclass``）→ latex209。"""
+    (tmp_path / "paper.tex").write_text(
+        "\\documentstyle{amsppt}\n\\topmatter\n\\endtopmatter\n\\document\nx\n"
+    )
+    assert classify_no_main(tmp_path) == "latex209"
+
+
+def test_classify_no_main_plain_tex(tmp_path: Path) -> None:
+    r"""plain-TeX 指纹（``\magnification``/``\input harvmac``/``\bye``）→ plain_tex。"""
+    (tmp_path / "note.tex").write_text(
+        "\\magnification=1200\n\\input harvmac\ntext\n\\bye\n"
+    )
+    assert classify_no_main(tmp_path) == "plain_tex"
+
+
+def test_classify_no_main_garbage(tmp_path: Path) -> None:
+    """无 TeX/LaTeX 结构（HTML 伪装/纯文本）→ garbage。"""
+    (tmp_path / "page.tex").write_text("<html><body>not tex</body></html>\n")
+    assert classify_no_main(tmp_path) == "garbage"
+
+
+def test_classify_no_main_empty_dir(tmp_path: Path) -> None:
+    """零 ``.tex`` 树 → garbage（无任何可判结构）。"""
+    assert classify_no_main(tmp_path) == "garbage"
+
+
+def test_classify_no_main_ambiguous_dc(tmp_path: Path) -> None:
+    r"""``\documentclass`` 可见但 ``\begin{document}`` 无 → None 存疑不归上游。"""
+    (tmp_path / "frag.tex").write_text("\\documentclass{article}\nno body env\n")
+    assert classify_no_main(tmp_path) is None
+
+
+def test_classify_no_main_ambiguous_bd(tmp_path: Path) -> None:
+    r"""``\begin{document}`` 可见但 dc/ds 无 → None（LaTeX 残件存疑）。"""
+    (tmp_path / "body.tex").write_text("\\begin{document}\nx\n\\end{document}\n")
+    assert classify_no_main(tmp_path) is None
+
+
+def test_classify_no_main_masked(tmp_path: Path) -> None:
+    r"""dc/ds 仅在注释内 → 遮盖视图不计，仍按指纹归 plain_tex。"""
+    (tmp_path / "doc.tex").write_text(
+        "% \\documentclass{article}\n% \\documentstyle{amsart}\n\\input phyzzx\n\\bye\n"
+    )
+    assert classify_no_main(tmp_path) == "plain_tex"
 
 
 def test_find_main_tex_body_mass_beats_standalone(tmp_path: Path) -> None:

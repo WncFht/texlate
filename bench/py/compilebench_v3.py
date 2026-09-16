@@ -271,7 +271,7 @@ def run_paper(p, corpus: Path, work: Path, engines: list[str], cond: str = "base
         return paper, []
 
     from texlate.compile.engine import route_project
-    from texlate.compile.inject import find_main_tex
+    from texlate.compile.inject import classify_no_main, find_main_tex
 
     # 检测面用 src: copytree 对 .tex/.eps 等检测对象字节保真, src ≡ wdir
     route = route_project(src)
@@ -285,8 +285,13 @@ def run_paper(p, corpus: Path, work: Path, engines: list[str], cond: str = "base
     p["route"] = paper["route"]  # 回填 sample 记录, _case_base 用
     main = find_main_tex(src)
     if not main:
+        sub = classify_no_main(src) or ""
         for eng in engines:
-            paper["engines"][eng] = {"verdict": "no_main_tex", "engine": eng}
+            paper["engines"][eng] = {
+                "verdict": "no_main_tex",
+                "engine": eng,
+                "verdict_sub": sub,
+            }
         return paper, []
     main_rel = main.relative_to(src).as_posix()
     paper["main"] = main_rel

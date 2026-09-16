@@ -92,6 +92,7 @@ from texlate.compile.fixloop import CaseSink, fixloop
 from texlate.compile.fixloop.llm_hook import make_llm_hook
 from texlate.compile.inject import (
     InjectRejectError,
+    classify_no_main,
     find_main_tex,
     prepare_chinese,
 )
@@ -456,10 +457,12 @@ def _parse_job(pid: str, src_s: str, zh_s: str, pj_s: str, engine_opt: str) -> d
     shutil.copytree(src, zh, ignore=benchlib.copytree_ignore())
     main = find_main_tex(zh)
     if main is None:
+        sub = classify_no_main(zh)
         doc["status"] = "reject"
+        doc["no_main_sub"] = sub
         pj.write_text(json.dumps(doc, ensure_ascii=False, indent=1))
         rec["status"] = "reject"
-        rec["errors"] = [{"code": "no_main_tex", "cat": "parse", "payload": ""}]
+        rec["errors"] = [{"code": "no_main_tex", "cat": "parse", "payload": sub or ""}]
         return finish_rec(rec, t0)
     main_rel = main.relative_to(zh).as_posix()
     eng = (
@@ -1010,7 +1013,13 @@ def _compile_one(
             main_rel = m.relative_to(splice).as_posix() if m else None
         if not main_rel:
             rec["status"] = "reject"
-            rec["errors"] = [{"code": "no_main_tex", "cat": "compile", "payload": ""}]
+            rec["errors"] = [
+                {
+                    "code": "no_main_tex",
+                    "cat": "compile",
+                    "payload": classify_no_main(splice) or "",
+                }
+            ]
             return finish_rec(rec, t0)
         eng = _resolve_engine(args, parse_doc, splice)
         rec["metrics"]["engine"] = eng
@@ -1047,7 +1056,13 @@ def _compile_one(
         main = find_main_tex(src)
         if main is None:
             rec["status"] = "reject"
-            rec["errors"] = [{"code": "no_main_tex", "cat": "compile", "payload": ""}]
+            rec["errors"] = [
+                {
+                    "code": "no_main_tex",
+                    "cat": "compile",
+                    "payload": classify_no_main(src) or "",
+                }
+            ]
             return finish_rec(rec, t0)
         main_rel = main.relative_to(src).as_posix()
         build = wid / "build-base"
@@ -1149,7 +1164,13 @@ def _fixloop_one(
         main_rel = m.relative_to(splice).as_posix() if m else None
     if not main_rel:
         rec["status"] = "error"
-        rec["errors"] = [{"code": "no_main_tex", "cat": "fixloop", "payload": ""}]
+        rec["errors"] = [
+            {
+                "code": "no_main_tex",
+                "cat": "fixloop",
+                "payload": classify_no_main(splice) or "",
+            }
+        ]
         return finish_rec(rec, t0)
 
     texmf = wid / "_texmf"
@@ -1261,7 +1282,10 @@ def stage_fixloop(
         _k, crec = cand[-1]  # 末条=当前 splice/ 的 provenance
         if not want(crec):
             continue
-        if log.is_done(pid, "fix", crec.get("upstream") or "", recode=args.recode) and not args.rerun:
+        if (
+            log.is_done(pid, "fix", crec.get("upstream") or "", recode=args.recode)
+            and not args.rerun
+        ):
             continue
         todo.append((pid, crec))
     print(f"fixloop[on={args.on}]: {len(todo)} cells (jobs={args.jobs})", flush=True)

@@ -32,6 +32,7 @@ from texlate.compile.fixloop.logparse import (
     parse_log,
     parse_text,
 )
+from texlate.compile.inject import classify_no_main as _classify_no_main
 from texlate.compile.inject import find_main_tex as _inject_find_main_tex
 from texlate.textutil import decode_tex
 
@@ -1152,7 +1153,7 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
 
     verdict ∈ clean / acceptable_pdf / dirty_pdf / best_effort_pdf /
     unfixable:<cat> / stuck / max_rounds / reject:<rid> /
-    no_errors_no_pdf / no_main_tex
+    no_errors_no_pdf / no_main_tex[:<sub>]（``classify_no_main`` 细分）
     """
     rs = ruleset or Ruleset.load()
     engine_name = engine_name or getattr(
@@ -1189,7 +1190,8 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
 
     main = find_main_tex(wdir)
     if main is None:
-        cell["verdict"] = "no_main_tex"
+        sub = _classify_no_main(wdir)
+        cell["verdict"] = f"no_main_tex:{sub}" if sub else "no_main_tex"
         _record_case(
             case_sink, cell, corpus_id=corpus_id, cond=cond, engine_name=engine_name
         )
