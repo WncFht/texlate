@@ -172,12 +172,17 @@ class CompRes:
 
 # ================================================================ log 解析
 _ERR_BANG_RE = re.compile(r"^!")
-_ERR_FILELINE_RE = re.compile(r"^\S+?:\d+: \S")  # -file-line-error 引擎级错误
+#: ``file:line:`` 文件名面（l2 ``_FILE_LINE_RX``/fixloop logparse 三层
+#: 同口径单源）：``name.ext`` 必带扩展名、禁 ``()``/空白/``:`` 内嵌——
+#: ``Makefile:5:``/``C:\foo.tex:5:``/``(x.tex:5:`` 畸形形齐拒；扩展名不
+#: 限 tex 系（``.eps``/``.pdf_t``/``.end`` 等皆真错，l2 侧 7814 log 实证）。
+_ERR_FNAME = r"[^()\s:]+\.[A-Za-z0-9_-]{1,10}"
+_ERR_FILELINE_RE = re.compile(r"^" + _ERR_FNAME + r":\d+: \S")  # -file-line-error 引擎级错误
 #: ``file:line:`` 形态的非错误行（与 fixloop/logparse 同口径）：
 #: Warning 行（警告也带 file:line: 前缀时不能计入错误）与
 #: ``==> Fatal error occurred`` 汇总尾行（同一失败的复述，多计一次）。
 _NONERR_FILELINE_RE = re.compile(
-    r"^\S+?:\d+:\s*(?:(?:LaTeX|Package|Class)\b[^\n]*?\bWarning\b|==>)"
+    r"^" + _ERR_FNAME + r":\d+:\s*(?:(?:LaTeX|Package|Class)\b[^\n]*?\bWarning\b|==>)"
 )
 _L_NUM_RE = re.compile(r"^l\.(\d+)")
 

@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from texlate.compile.engine import _ERR_FILELINE_RE
+from texlate.compile.engine import _ERR_FILELINE_RE, _ERR_FNAME
 from texlate.texlog import file_stack_at
 
 __all__ = ["ErrReport", "Taxonomy", "parse_log", "parse_text"]
@@ -37,11 +37,11 @@ _CS_NAME_RE = re.compile(r"\\([a-zA-Z@]+)")
 # 否则 `n_bang==0 → clean` 门永远不通。``_ERR_FILELINE_RE`` 单源 =
 # ``compile.engine``（engine 对 fixloop 全 lazy import，无环）。
 _WARN_FILELINE_RE = re.compile(
-    r"^\S+?:\d+: (?:LaTeX|Package|Class)\b[^\n]*?\bWarning\b"
+    r"^" + _ERR_FNAME + r":\d+: (?:LaTeX|Package|Class)\b[^\n]*?\bWarning\b"
 )
 #: ``==> Fatal error occurred`` 汇总尾行也是 ``file:line:`` 形态——
 #: 同一失败的复述（单空格变体存在），计入会多报一个错误。
-_FATAL_TRAILER_RE = re.compile(r"^\S+?:\d+:\s*==>")
+_FATAL_TRAILER_RE = re.compile(r"^" + _ERR_FNAME + r":\d+:\s*==>")
 
 
 def _is_err_line(ln: str) -> bool:

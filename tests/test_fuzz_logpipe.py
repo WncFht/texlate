@@ -17,11 +17,11 @@ r"""跨层一致性 fuzz —— ``texlog.update_file_stack`` → ``engine.parse_
 - judge 面：``warnings_hit`` → ``warn:*`` reasons；``warnings_sys`` 只进
   ``sys_warn:`` notes；nullfont 命中只进 notes 不进 reasons。
 
-钉住的缺陷（``xfail(strict=True)``——修复后 XPASS 提醒拆钉）：
+历史钉账（均已拆钉——保留作修复史脚注）：
 
-- ``engine._ERR_FILELINE_RE`` 文件名面过宽（l2 ``_FILE_LINE_RX`` 严侧
-  已落：空消息/``!``/tab 行与未锚定 Warning 排除两半已收口）——engine
-  仍收无扩展名/带冒号/带括号文件名（``Makefile:5:`` 系）。
+- ``engine._ERR_FILELINE_RE`` 文件名面曾过宽（``^\S+?`` 收无扩展名/带冒号/
+  带括号文件名）——已收紧为 ``_ERR_FNAME`` 严侧（``name.ext`` 必带扩展名、
+  禁 ``()``/空白/``:``），fixloop logparse 经借用同轨三层合。
 """
 
 from __future__ import annotations
@@ -453,26 +453,17 @@ def test_error_line_three_layer_agree(line: str) -> None:
     assert e == lv == f, f"{line!r}: eng={e} l2={lv} fx={f}"
 
 
-#: 仍分叉：engine._ERR_FILELINE_RE 文件名面 ``^\S+?`` 过宽（收无扩展名/
-#: 含冒号/含开括弧名），l2 严侧 ``name.ext``+无冒号/括弧/空白不收——
-#: 修复向 = engine 文件名面取严（peer 侧，fixloop 经借用同轨）。
-_ERRLINES_WAIT_ENGINE = [
+#: 文件名面三层已对齐严侧（原 strict-xfail——engine `_ERR_FNAME` 单源化后
+#: 无扩展名/含冒号/含开括弧名齐拒，fixloop 经借用同轨）。
+_ERRLINES_BAD_FNAME = [
     "Makefile:5: boom",  # 无扩展名
     "C:\\foo.tex:5: boom",  # 文件名含冒号
     "(x.tex:5: boom",  # 文件名带开括弧
 ]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "engine.py _ERR_FILELINE_RE 文件名面过宽——`^\\S+?:\\d+: \\S` "
-        "收无扩展名/含冒号/含括弧文件名（l2._FILE_LINE_RX 严侧已对齐消息面）；"
-        "fixloop.logparse 借用同一 regex，engine 收紧后三层即合。"
-    ),
-)
-@pytest.mark.parametrize("line", _ERRLINES_WAIT_ENGINE)
-def test_xfail_error_line_filename_width(line: str) -> None:
+@pytest.mark.parametrize("line", _ERRLINES_BAD_FNAME)
+def test_error_line_filename_width(line: str) -> None:
     text = line + "\nrest\n"
     e, lv, f = _three(text)
     assert e == lv == f, f"{line!r}: eng={e} l2={lv} fx={f}"
