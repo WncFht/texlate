@@ -6,6 +6,7 @@ Wants=network-online.target
 [Service]
 User=gwcap
 Group=gwcap
+Environment=GWCAP_LIMIT=20
 ExecStart=/usr/bin/python3 /usr/local/libexec/gwcap/gw-cap-proxy.py
 Restart=always
 RestartSec=1

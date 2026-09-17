@@ -3,7 +3,7 @@
 # 用法：sudo sh scripts/gwcap/install.sh [install|uninstall|status]
 # 机制：nftables `inet gwcap` output nat 把到网关 100.105.212.52 / fd7a:115c:a1e0::e501:d434 的 tcp/3003 REDIRECT 到
 # 127.0.0.1+::1 :3399 的 gw-cap-proxy（gwcap 用户自己的上游连接按 skuid 豁免），
-# 代理对 model 命中 swe-2-medium 的请求过全局信号量 4，其余透传。
+# 代理对 model 命中 swe-2-medium 的请求过全局信号量（GWCAP_LIMIT，unit 内 20），其余透传。
 # 注意：gw-cap-redirect.service 的 ExecStartPost 还会在 `ip filter INPUT` 顶部插
 # `iifname "lo" tcp sport 3003 accept`——代理回包 unNAT 后 src=网关 tailscale IP、
 # iif=lo，会被 tailscaled 的 ts-input 反欺骗规则丢弃；nft base-chain 的 accept
@@ -37,7 +37,7 @@ install)
   # enable + restart：覆盖已运行的旧装时拾新码（enable --now 对运行中 unit 是 no-op）
   systemctl enable gw-cap-proxy.service gw-cap-redirect.service
   systemctl restart gw-cap-proxy.service gw-cap-redirect.service
-  echo "installed: gwcap uid=$uid, proxy :3399, cap=4 on swe-2-medium*"
+  echo "installed: gwcap uid=$uid, proxy :3399, cap=\${GWCAP_LIMIT:-20} on swe-2-medium*"
   ;;
 uninstall)
   systemctl disable --now gw-cap-redirect.service gw-cap-proxy.service 2>/dev/null || true
