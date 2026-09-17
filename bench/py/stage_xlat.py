@@ -183,10 +183,17 @@ async def _xlat_one(
     translator_factory,
     paper_sem: asyncio.Semaphore,
 ) -> dict:
-    t0 = time.monotonic()
+    # t0 进闸才打——闸外等待是跨篇排队不是本格功（此前 dur_s≈99.6% queue
+    # wait，stage 占比全失真，perf 侦察头条）；排队量另记 queue_wait_s。
+    tq = t0 = time.monotonic()
+    qw = 0.0
     try:
         async with paper_sem:
-            return await _xlat_one_inner(pid, out_dir, args, translator_factory, t0)
+            t0 = time.monotonic()
+            qw = t0 - tq
+            rec = await _xlat_one_inner(pid, out_dir, args, translator_factory, t0)
+            rec["queue_wait_s"] = round(qw, 3)
+            return rec
     except AuthTrippedError as e:
         # 篇内连续 auth-fail 熔断抛出 = 凭证死透——erb amain 同型：不收摊的
         # 话其后每篇只会各烧 auth_fail_threshold 块再 error（scout-e2ereal
@@ -194,9 +201,12 @@ async def _xlat_one(
         # 换凭证后同命令续跑。
         rec = sl.crash_rec(pid, "xlat", args.arm, e, t0)
         rec["auth_tripped"] = True
+        rec["queue_wait_s"] = round(qw, 3)
         return rec
     except Exception as e:  # 格子崩溃记 error 不炸整批（CancelledError 仍外抛）
-        return sl.crash_rec(pid, "xlat", args.arm, e, t0)
+        rec = sl.crash_rec(pid, "xlat", args.arm, e, t0)
+        rec["queue_wait_s"] = round(qw, 3)
+        return rec
 
 
 async def _xlat_one_inner(
