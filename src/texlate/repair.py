@@ -17,12 +17,20 @@ refactor-audit-2026-09-17 ★1 收口：两臂各自保留编排（报告形状�
   树注入 restore_support_from_src（worker ``ctx.base_dir`` /
   e2e ``_baseline_snapshot`` 两源同一注入件）
 - E2 批（2026-09-17 自 ``e2e`` 下沉）：env judge 可译性判定
-  （``_env_judge_one``/``_env_judge_all``）+ L2 回灌机械
-  （``_l2_parse``/``_expand_tokens``/``_chunk_spans``/``_resolve_fidx``/
-  ``_L2Attr``/``_l2_localize``/``_retranslate_hits``/``_resplice``，
-  配 ``_TreeRun``/``_split_cid`` 与开关/上限常量）+ glossary confine
-  kernel ``_resolve_glossary_path``（相对路径 + ``..`` 拒 +
-  resolve-jail）——两臂同一实现
+  （``_env_judge_one``/``_env_judge_all`` + 目标谓词 ``unknown_env_of``）
+  + L2 回灌机械（``_l2_parse``/``_expand_tokens``/``_chunk_spans``/
+  ``_resolve_fidx``/``_L2Attr``/``_l2_localize``/``_retranslate_hits``/
+  ``_resplice``，配 ``_TreeRun``/``_split_cid`` 与开关/上限常量）+
+  glossary confine kernel ``_resolve_glossary_path``（相对路径 +
+  ``..`` 拒 + resolve-jail）——两臂同一实现
+- C6 批（2026-09-17 残余收编）：``_ENV_NO_FIXLOOP``/``_ENV_FIXLOOP_LLM``
+  env 名常量补齐（e2e 本地常量 + worker 裸字面量双源归一）、
+  ``embed_tounicode_quiet``（ToUnicode 注入 best-effort 壳）、
+  ``consume_engine_flags``（fixloop ``engine_flags`` 消费尾：
+  dropped→``cross_engine_retry``，applied→审计 note）、
+  ``l2_repair_round``（L2 阶梯骨架——``retranslate``/``recompile``/
+  ``checkpoint`` 三钩两臂注入，e2e ``_l2_repair``/worker
+  ``_l2_repair_zh`` 转 wrapper）
 """
 
 from __future__ import annotations
@@ -33,6 +41,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from texlate.compile.cjkmap import embed_cjk_mappings
 from texlate.compile.fixloop.engine import Ruleset, fixloop
 from texlate.compile.inject import InjectRejectError, prepare_chinese
 from texlate.compile.judge import judge
@@ -81,6 +90,10 @@ _ENV_JUDGE_MAX_CHARS = 2000
 #: 环境开关
 _ENV_NO_L2 = "TEXLATE_NO_L2"
 _ENV_ENV_JUDGE = "TEXLATE_ENV_JUDGE"
+_ENV_NO_FIXLOOP = "TEXLATE_NO_FIXLOOP"
+#: fixloop ``escalate_llm`` 钩开关——默认值两臂有意不同（e2e opt-in False /
+#: worker BYOK 默认 True，见 ``_llm_hook_pack``），本常量只单源名字
+_ENV_FIXLOOP_LLM = "TEXLATE_FIXLOOP_LLM"
 
 #: 静态环境表（已知语义的 env 不问 judge——体是否可译已由表决定）
 _KNOWN_ENVS = MATH_ENVS | VERBATIM_ENVS | PROTECTED_ENVS | ARG_TRANSPARENT_ENVS
@@ -98,6 +111,30 @@ def log_text_of(res: CompRes) -> str:
         with suppress(OSError):
             text = res.log_path.read_text(encoding="utf-8", errors="replace")
     return text or res.stdout_tail or ""
+
+
+def embed_tounicode_quiet(
+    pdf: Path,
+    *,
+    embed_fn: Callable[[Path], int] = embed_cjk_mappings,
+    on_error: Callable[[Exception], None] | None = None,
+) -> int:
+    """``embed_cjk_mappings`` best-effort 壳：后处理崩不拖管线，返注入字体数。
+
+    e2e ``_embed_tounicode`` 与 worker ``_Compile._embed_tounicode`` 同位件——
+    成功计数两臂各自记（e2e 进 ``tounicode_fonts`` 报告键，worker 补
+    ``self._log`` 行），失败统一静默降级 0。``embed_fn`` 默认直调；e2e 臂
+    显式传自家模块全局名，保 ``monkeypatch.setattr(e2e, "embed_cjk_mappings",
+    …)`` 测试缝（test_e2e_wiring 三钉）。``on_error`` 是可选失败钩子——
+    worker 臂借此把异常落任务日志（e2e 仅 debug 留痕）。
+    """
+    try:
+        return embed_fn(pdf)
+    except Exception as e:  # 产物后处理失败不该 fault 整链
+        log.debug("tounicode embed failed", exc_info=True)
+        if on_error is not None:
+            on_error(e)
+        return 0
 
 
 class ResProxy:
@@ -268,6 +305,49 @@ def cross_engine_retry(  # noqa: PLR0913 -- 开关面穿透两臂同一契约
     )
 
 
+def consume_engine_flags(  # noqa: PLR0913 -- 开关面穿透两臂同一契约
+    *,
+    engine_name: str,
+    route_engines: Iterable[str],
+    status_of: Callable[[], str],
+    work: Path,
+    main_rel: str,
+    timeout: float | None,
+    probe_flags: Iterable[str],
+    flags: Sequence[str],
+    dropped: Sequence[str],
+    expect_cjk: bool,
+    make_engine: Callable[[], Engine],
+) -> tuple[CrossRetry | None, str | None]:
+    """Fixloop ``engine_flags`` 消费尾：dropped→跨引擎重试，applied→note。
+
+    dropped 多为 shell-escape 需求——tectonic 沙箱不收 → 换 xelatex 带
+    ``probe_flags``+``flags`` 合并去重后的全量请求经 ``compile(flags=…)``
+    seam 重编取优（机械在 ``cross_engine_retry``）。``status_of`` 惰性取
+    incumbent 判据——worker 臂仅 dropped 路径需要，flags-only 不白费一轮
+    judge。返回 ``(CrossRetry 或 None, 审计 note 或 None)``——两臂各接
+    自家报告形态（e2e ``tail["verdict"]["notes"]`` / worker summary+log
+    行）；note 一律贴换编后的终态上，换臂不丢审计痕迹。
+    """
+    if dropped:
+        xr = cross_engine_retry(
+            engine_name=engine_name,
+            route_engines=route_engines,
+            current_status=status_of(),
+            work=work,
+            main_rel=main_rel,
+            timeout=timeout,
+            flags=list(dict.fromkeys([*probe_flags, *flags])) or None,
+            dropped=dropped,
+            expect_cjk=expect_cjk,
+            make_engine=make_engine,
+        )
+        return xr, f"engine_flags unsupported on {engine_name}: {dropped}"
+    if flags:
+        return None, f"engine_flags applied via CLI seam: {flags}"
+    return None, None
+
+
 # ---------------------------------------------------------------- 运行态/env judge
 
 
@@ -285,6 +365,16 @@ def _split_cid(chunk_id: str) -> tuple[int, int]:
     """``"fidx:cid"`` → (fidx, cid)。"""
     a, _, b = chunk_id.partition(":")
     return int(a), int(b)
+
+
+def unknown_env_of(chunk: Chunk) -> str | None:
+    """静态表外 env 名——体可译性未定的 env 返名，已知/无 env 返 None。
+
+    ``_env_judge_all`` 目标选择谓词（e2e ``_env_judge_pass`` 与 worker
+    ``_env_judge_filter`` 同一闸）。
+    """
+    env_name = (chunk.env or "").strip()
+    return env_name if env_name and env_name not in _KNOWN_ENVS else None
 
 
 async def _env_judge_one(pipe: XlatPipeline, chunk: Chunk, env_name: str) -> bool:
@@ -596,6 +686,80 @@ def _resplice(run: _TreeRun, work: Path, main_rel: str, fidxs: set[int]) -> list
         with suppress(InjectRejectError):
             prepare_chinese(work, main_rel)
     return rewritten
+
+
+def l2_repair_round(  # noqa: PLR0913 -- 阶梯钩子面穿透两臂同一契约
+    run: _TreeRun,
+    work: Path,
+    main_rel: str,
+    res: CompRes,
+    cap: int,
+    *,
+    retranslate: Callable[
+        [_TreeRun, dict[str, dict[str, Any]], int], dict[str, Any]
+    ],
+    recompile: Callable[[], tuple[CompRes, Verdict]],
+    checkpoint: Callable[[], None] | None = None,
+) -> tuple[dict[str, Any], CompRes, Verdict | None]:
+    """L2 回灌一轮骨架：归因 → 重译 → resplice → 重编 → 余孽回落原文。
+
+    ``retranslate``/``recompile`` 两臂注入——e2e 包 ``asyncio.run(
+    _retranslate_hits)`` + ``_compile_judge``（tail dict 臂侧合成）；
+    worker 包 client aclose 同 loop 纪律 + ``eng.compile``+``judge``。
+    ``checkpoint`` 是 cancel 轮询点（worker ``_abort_if_cancelled``
+    同位三处：重译前/后、首编后），缺省无操作。
+    返回 (l2 报告, 最新 CompRes, 新 Verdict 或 None=未重编)。
+    """
+    rep: dict[str, Any] = {"enabled": True, "cap": cap}
+    hits, n_err = _l2_localize(work, run, res)
+    rep["errors"] = n_err
+    rep["hits"] = hits
+    last_res = res
+    if not hits:
+        rep["note"] = "no chunk-level attribution"
+        return rep, last_res, None
+    if checkpoint is not None:
+        checkpoint()
+    retr = retranslate(run, hits, cap)
+    if checkpoint is not None:
+        checkpoint()
+    changed: set[str] = retr.pop("_changed")
+    adopted: set[str] = retr.pop("_adopted")
+    rep.update(retr)
+    if not changed:
+        rep["note"] = "no chunk changed"
+        return rep, last_res, None
+
+    rep["rewritten"] = _resplice(
+        run, work, main_rel, {_split_cid(c)[0] for c in changed}
+    )
+    res2, v2 = recompile()
+    if checkpoint is not None:
+        checkpoint()
+    last_res = res2
+    rep["recompiled"] = v2.status
+    if v2.status == "clean":
+        return rep, last_res, v2
+
+    # 重编仍不过：本轮"重译过且仍被点名"的块回落原文；
+    # 其余归因（含已回落原文仍犯错的——那是源级问题）记名留 fixloop。
+    hits2, _ = _l2_localize(work, run, res2)
+    still_bad = sorted(set(hits2) & adopted)
+    rep["fallback_src"] = still_bad
+    rep["unresolved"] = sorted(set(hits2) - adopted)
+    if still_bad:
+        for cid in still_bad:
+            fidx, ccid = _split_cid(cid)
+            run.trans.get(fidx, {}).pop(ccid, None)
+        rep["fallback_rewritten"] = _resplice(
+            run, work, main_rel, {_split_cid(c)[0] for c in still_bad}
+        )
+        # 回落态即交付树——补一次裸编：fixloop 关/崩/reject 时不再有
+        # 代验兜底，zh-src.zip 不能装未验证树（audit fallback_unverified）
+        res3, v3 = recompile()
+        rep["fallback_verdict"] = v3.status
+        last_res, v2 = res3, v3
+    return rep, last_res, v2
 
 
 # ---------------------------------------------------------------- glossary confine

@@ -14,9 +14,9 @@ from typing import TYPE_CHECKING, Any
 
 from texlate.repair import (
     _ENV_ENV_JUDGE,
-    _KNOWN_ENVS,
     _env_judge_all,
     _resolve_glossary_path,
+    unknown_env_of,
 )
 from texlate.server.settings import (
     cache_scope,
@@ -397,8 +397,8 @@ class _Translate:
         targets: list[tuple[str, Chunk, str]] = []
         for rel, res in ctx.scans.items():
             for c in res.chunks:
-                env_name = (c.env or "").strip()
-                if not env_name or env_name in _KNOWN_ENVS:
+                env_name = unknown_env_of(c)
+                if env_name is None:
                     continue
                 cid = chunk_db_id(rel, c.span.start, c.span.end)
                 if cid in trans:

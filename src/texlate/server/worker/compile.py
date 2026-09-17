@@ -8,7 +8,6 @@ import shutil
 import zipfile
 from typing import TYPE_CHECKING, Any
 
-from texlate.compile.cjkmap import embed_cjk_mappings
 from texlate.compile.fixloop import CaseSink
 from texlate.compile.fixloop.llm_hook import make_llm_hook
 from texlate.compile.inject import (
@@ -23,16 +22,18 @@ from texlate.compile.probe import (
 from texlate.latex.placeholder import PH_RX
 from texlate.latex.reconstruct import reconstruct
 from texlate.repair import (
+    _ENV_FIXLOOP_LLM,
+    _ENV_NO_FIXLOOP,
     _ENV_NO_L2,
     L2_MAX_CHUNKS,
-    _l2_localize,
-    _resplice,
     _retranslate_hits,
     _ruleset_with_baseline,
     _split_cid,
     _TreeRun,
-    cross_engine_retry,
+    consume_engine_flags,
+    embed_tounicode_quiet,
     fixloop_cell_parts,
+    l2_repair_round,
     log_text_of,
     run_fixloop,
 )
@@ -463,7 +464,7 @@ class _Compile:
         return opt_bool(
             ctx.options(),
             "fixloop",
-            lambda: not env_flag("TEXLATE_NO_FIXLOOP", default=False),
+            lambda: not env_flag(_ENV_NO_FIXLOOP, default=False),
         )
 
     def _fixloop_engine(self, ctx: TaskCtx, eng: Engine) -> Engine:
@@ -520,44 +521,43 @@ class _Compile:
         adopted_cross = False
         if dropped:
             summary["flags_unapplied"] = True
-            # 跨引擎消费（e2e _run_fixloop 同臂，机械在 repair.cross_engine_retry）：
-            # dropped 多为 shell-escape 需求——tectonic 沙箱不收 → route 候选
-            # 里的 xelatex 带全量 flag 重编取优。``route_engines`` 是
-            # _build_base 持久化的生效候选列表——显式 engine= 覆盖时
-            # 只剩用户指定那台，臂自熄（尊重显式选型）
-            route_engines = [str(e) for e in ctx.options().get("route_engines") or []]
-            v_last = judge(res, expect_cjk=ctx.expect_cjk, log_text=log_text_of(res))
-            xr = cross_engine_retry(
-                engine_name=ctx.engine_name,
-                route_engines=route_engines,
-                current_status=v_last.status,
-                work=work,
-                main_rel=ctx.main_rel,
-                timeout=self._compile_timeout,
-                flags=list(dict.fromkeys([*ctx.probe_flags, *flags])),
-                dropped=dropped,
-                expect_cjk=ctx.expect_cjk,
-                # halt_on_error=False：与主编译/salvage 同口径 best-effort——
-                # retry 是交付路径终末重编（非轮内分类编译），nonstopmode
-                # 续跑才能把 incumbent=fail 的树救成 partial（裁决见
-                # tmp/b8-e2e/halt-on-error-ruling.md）
-                make_engine=lambda: (
-                    self._engine_factory("xelatex")
-                    if self._engine_factory is not None
-                    else _w.engine_for("xelatex", halt_on_error=False)
-                ),
-            )
-            if xr is not None:
-                summary["cross_engine"] = xr.info
-                if xr.adopted:
-                    res = xr.res
-                    adopted_cross = True
-            self._log(
-                ctx,
-                f"fixloop: engine_flags unsupported on {ctx.engine_name}: {dropped}",
-            )
-        elif flags:
-            self._log(ctx, f"fixloop: engine_flags applied via CLI seam: {flags}")
+        # 跨引擎消费 + 审计 note 的共享尾在 repair.consume_engine_flags
+        # （e2e _run_fixloop 同臂）——dropped 多为 shell-escape 需求，
+        # tectonic 丢的 flag 由 route 候选里的 xelatex 带全量 flag 重编
+        # 取优。``route_engines`` 是 _build_base 持久化的生效候选列表——
+        # 显式 engine= 覆盖时只剩用户指定那台，臂自熄（尊重显式选型）。
+        # status_of 惰性——dropped 路径才需 incumbent 判据，flags-only
+        # 不白费一轮 judge。
+        xr, note = consume_engine_flags(
+            engine_name=ctx.engine_name,
+            route_engines=[str(e) for e in ctx.options().get("route_engines") or []],
+            status_of=lambda: judge(
+                res, expect_cjk=ctx.expect_cjk, log_text=log_text_of(res)
+            ).status,
+            work=work,
+            main_rel=ctx.main_rel,
+            timeout=self._compile_timeout,
+            probe_flags=ctx.probe_flags,
+            flags=flags,
+            dropped=dropped,
+            expect_cjk=ctx.expect_cjk,
+            # halt_on_error=False：与主编译/salvage 同口径 best-effort——
+            # retry 是交付路径终末重编（非轮内分类编译），nonstopmode
+            # 续跑才能把 incumbent=fail 的树救成 partial（裁决见
+            # tmp/b8-e2e/halt-on-error-ruling.md）
+            make_engine=lambda: (
+                self._engine_factory("xelatex")
+                if self._engine_factory is not None
+                else _w.engine_for("xelatex", halt_on_error=False)
+            ),
+        )
+        if xr is not None:
+            summary["cross_engine"] = xr.info
+            if xr.adopted:
+                res = xr.res
+                adopted_cross = True
+        if note is not None:
+            self._log(ctx, f"fixloop: {note}")
         ctx.fixloop = _scrub_deep(summary, ctx.secrets.api_key)
         self._on_loop(self.bus.publish, ctx.task_id, "fixloop", ctx.fixloop)
         for ln in cell.get("log") or []:
@@ -604,7 +604,7 @@ class _Compile:
             opt is False or str(opt).strip().lower() in ("0", "false", "no", "off")
         ):
             return None, None, []
-        if not env_flag("TEXLATE_FIXLOOP_LLM", default=True):
+        if not env_flag(_ENV_FIXLOOP_LLM, default=True):
             return None, None, []
         if self._translator_factory is not None:
             # 注入路径：factory 产 translator 直接给 hook（测试桩语义调用方担）
@@ -692,24 +692,27 @@ class _Compile:
         )
         return run, db_of
 
-    def _l2_repair_zh(  # noqa: C901, PLR0915 -- 命中批→localize→重翻→重编阶梯平铺即 spec
+    def _l2_repair_zh(
         self, ctx: TaskCtx, work: Path, eng: Engine, res: CompRes
     ) -> tuple[dict[str, Any], CompRes, Verdict | None]:
-        """L2 回灌一轮（镜像 e2e ``_l2_repair``）：归因→重译→resplice→重编→余孽回落。
+        """L2 回灌一轮：阶梯骨架在 ``repair.l2_repair_round``（e2e ``_l2_repair`` 同件）。
 
         resplice 只重写 ``build-zh``——DB 回写 + ``_sync_fixed_sources``
         灌回 ``zh/`` + 重打 zh-src.zip 由本层补齐（worker 的成品树是
-        ``zh/`` 而非 work）。返回 (l2 报告, 最新 CompRes, 新 Verdict 或
-        None=未重编）。
+        ``zh/`` 而非 work），仅重编走过（v2 非 None）才回写。``_recompile``
+        内保留 compile→judge 间中止点（repair 侧 ``checkpoint`` 在
+        retranslate 前后/recompile 后另补三拍，合原作粒度超集）。
+        返回 (l2 报告, 最新 CompRes, 新 Verdict 或 None=未重编）。
         """
-        rep: dict[str, Any] = {"enabled": True, "cap": L2_MAX_CHUNKS}
         run, db_of = self._l2_run_state(ctx, work)
         clients = _translator_clients(run.pipe.translator)
         usage = self._meter_usage(clients)
 
-        async def _retr() -> dict[str, Any]:
+        async def _retr(
+            run: _TreeRun, hits: dict[str, dict[str, Any]], cap: int
+        ) -> dict[str, Any]:
             try:
-                return await _retranslate_hits(run, hits, L2_MAX_CHUNKS)
+                return await _retranslate_hits(run, hits, cap)
             finally:
                 # client 用/关收进同一 ephemeral loop——拆两次 asyncio.run
                 # 会在已关 loop 上 aclose（RuntimeError 吞掉 → FD 泄漏）；
@@ -717,74 +720,31 @@ class _Compile:
                 await _w._aclose_clients(clients)  # noqa: SLF001 -- _w 包 attr 缝
                 clients.clear()
 
-        try:
-            hits, n_err = _l2_localize(work, run, res)
-            rep["errors"] = n_err
-            rep["hits"] = hits
-            if not hits:
-                rep["note"] = "no chunk-level attribution"
-                return rep, res, None
-            self._abort_if_cancelled(ctx)
-            retr = asyncio.run(_retr())
-            self._abort_if_cancelled(ctx)
-            changed: set[str] = retr.pop("_changed")
-            adopted: set[str] = retr.pop("_adopted")
-            rep.update(retr)
-            if not changed:
-                rep["note"] = "no chunk changed"
-                return rep, res, None
-            rep["rewritten"] = _resplice(
-                run, work, ctx.main_rel, {_split_cid(c)[0] for c in changed}
-            )
-            res2 = eng.compile(
+        def _recompile() -> tuple[CompRes, Verdict]:
+            r = eng.compile(
                 work,
                 ctx.main_rel,
                 timeout=self._compile_timeout,
                 sandbox=True,
                 flags=ctx.probe_flags or None,
             )
+            # compile 原子段跑完即收敛——judge 前查取消省一轮白费判分
             self._abort_if_cancelled(ctx)
-            v2 = judge(
-                res2, expect_cjk=ctx.expect_cjk, log_text=self._log_text_of(res2)
+            return r, judge(
+                r, expect_cjk=ctx.expect_cjk, log_text=self._log_text_of(r)
             )
-            rep["recompiled"] = v2.status
-            if v2.status != "clean":
-                hits2, _ = _l2_localize(work, run, res2)
-                still_bad = sorted(set(hits2) & adopted)
-                rep["fallback_src"] = still_bad
-                rep["unresolved"] = sorted(set(hits2) - adopted)
-                if still_bad:
-                    for cid in still_bad:
-                        fidx, ccid = _split_cid(cid)
-                        run.trans.get(fidx, {}).pop(ccid, None)
-                    rep["fallback_rewritten"] = _resplice(
-                        run,
-                        work,
-                        ctx.main_rel,
-                        {_split_cid(c)[0] for c in still_bad},
-                    )
-                    # 回落态即交付树——补一次裸编：fixloop 关/崩/reject
-                    # 时不再有代验兜底，zh-src.zip 不能装未验证树
-                    res3 = eng.compile(
-                        work,
-                        ctx.main_rel,
-                        timeout=self._compile_timeout,
-                        sandbox=True,
-                        flags=ctx.probe_flags or None,
-                    )
-                    v3 = judge(
-                        res3,
-                        expect_cjk=ctx.expect_cjk,
-                        log_text=self._log_text_of(res3),
-                    )
-                    rep["fallback_verdict"] = v3.status
-                    res2, v2 = res3, v3
-            self._l2_writeback(ctx, run, db_of, rep)
-            n = _sync_fixed_sources(work, ctx.zh_dir)
-            if n:
-                self._log(ctx, f"l2: {n} 个重译文件回灌 zh/，重打 zh-src.zip")
-                self._zip_zh(ctx)
-            return rep, res2, v2
+
+        try:
+            rep, res2, v2 = l2_repair_round(
+                run,
+                work,
+                ctx.main_rel,
+                res,
+                L2_MAX_CHUNKS,
+                retranslate=lambda r, h, c: asyncio.run(_retr(r, h, c)),
+                recompile=_recompile,
+                checkpoint=lambda: self._abort_if_cancelled(ctx),
+            )
         finally:
             # L2 重译也烧 token——不入账就从 task_usage 里蒸发
             try:
@@ -798,6 +758,13 @@ class _Compile:
                     asyncio.run(_w._aclose_clients(clients))  # noqa: SLF001 -- _w 包 attr 缝
                 except Exception:
                     log.debug("l2 client aclose failed", exc_info=True)
+        if v2 is not None:
+            self._l2_writeback(ctx, run, db_of, rep)
+            n = _sync_fixed_sources(work, ctx.zh_dir)
+            if n:
+                self._log(ctx, f"l2: {n} 个重译文件回灌 zh/，重打 zh-src.zip")
+                self._zip_zh(ctx)
+        return rep, res2, v2
 
     def _l2_writeback(
         self,
@@ -953,12 +920,13 @@ class _Compile:
         return v.status in ("clean", "partial") or res.has_pdf
 
     def _embed_tounicode(self, ctx: TaskCtx, pdf: Path) -> None:
-        """``embed_cjk_mappings`` best-effort 壳：后处理崩不拖编译段。"""
-        try:
-            n = embed_cjk_mappings(pdf)
-        except Exception as e:  # noqa: BLE001 -- 产物后处理失败不该 fault 任务
-            self._log(ctx, f"tounicode embed failed: {type(e).__name__}: {e}")
-            return
+        """``repair.embed_tounicode_quiet`` 委托——失败经 ``on_error`` 落任务日志。"""
+        n = embed_tounicode_quiet(
+            pdf,
+            on_error=lambda e: self._log(
+                ctx, f"tounicode embed failed: {type(e).__name__}: {e}"
+            ),
+        )
         if n:
             self._log(ctx, f"tounicode: {n} 个 GB1 CJK 字体补 ToUnicode cmap")
 
