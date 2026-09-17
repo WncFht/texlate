@@ -160,13 +160,44 @@ def test_normalize_project_bbl_eacces_keeps_other_surgery(
         r"\input { ./main.bbl }",
         r'\input"main.bbl"',
         r'\input"./main.bbl"',
+        r"\input main.bbl",
+        r"\input ./main.bbl",
+        "\\input\tmain.bbl",
+        r"\input main.bbl\relax",
+        r"\input main.bbl trailing",
     ],
 )
 def test_bbl_input_probe_variants(tmp_path: Path, prior: str) -> None:
-    """已注入形态（含 ``./`` 前缀与引号形）被幂等探针认出——不再二次注入。"""
+    """已注入形态（``./`` 前缀、引号形、裸名形）被幂等探针认出——不再二次注入。"""
     main = _mk_bbl(tmp_path)
     main.write_text("\\bibliography{gone}\n" + prior + "\n")
     assert use_bundled_bibliography(main.read_text(), main) == main.read_text()
+
+
+@pytest.mark.parametrize(
+    "prior",
+    [
+        r'\input{main.bbl"',  # { 开 " 收——失配对，\@iinput 扫描错读不出本 bbl
+        r'\input"main.bbl}',  # " 开 } 收——同理
+        r"\input{main.bbl",  # 未闭合组
+        r'\input"main.bbl',  # 未闭合引号
+        r"\input main.bblx",  # 前缀撞名——真读的是 main.bblx（异文件）
+        r"\input main.bbl}",  # } 是文件名成分——真读 main.bbl}
+        r"\input main.bbl]",
+        r"\input main.bbl_x",
+        r'\input main.bbl"x"',  # " 切引号模——拼出 main.bblx
+        r"\input main.bbl'x'",
+        r"\inputmain.bbl",  # 控制词 \inputmain 不是 \input
+    ],
+)
+def test_bbl_input_probe_noninput_forms_still_inject(
+    tmp_path: Path, prior: str
+) -> None:
+    """失配对/前缀撞名/假 ``\\input`` 均非真输入——``\\bibliography`` 照换不误。"""
+    main = _mk_bbl(tmp_path)
+    main.write_text("\\bibliography{gone}\n" + prior + "\n")
+    out = use_bundled_bibliography(main.read_text(), main)
+    assert out.startswith("\\input{main.bbl}\n")
 
 
 def test_bbl_input_probe_other_file_still_injects(tmp_path: Path) -> None:

@@ -696,8 +696,9 @@ def use_bundled_bibliography(text: str, path: Path, cwd: Path | None = None) -> 
     `\input` 目标名都以它为基准（kpathsea `.` 口径）；缺省退回声明文件目录。
     多只 `\bibliography`（multibib/chapterbib）只替换首个缺库者——单份
     .bbl 只能填一个书目位，二次替换会重复排版整个 thebibliography。
-    已注入过 ``\input{<该 .bbl>}`` 时整体不再改——工程级幂等，防逐跑
-    把后续缺库 ``\bibliography`` 再换一遍累加重复书目。
+    已注入过 ``\input{<该 .bbl>}``（含 ``./`` 前缀、引号形与裸名形）时
+    整体不再改——工程级幂等，防逐跑把后续缺库 ``\bibliography`` 再换
+    一遍累加重复书目。
     """
     base = cwd or path.parent
     bbl = path.with_suffix(".bbl")
@@ -716,8 +717,17 @@ def use_bundled_bibliography(text: str, path: Path, cwd: Path | None = None) -> 
     if target.startswith(".."):
         return text  # openin_any=p 拒 ../ 引用——不可达的 .bbl 不改写
     visible = visible_tex(text)
+    # 开闭符号相关：{...} 只许 } 收、"..." 只许 " 收——失配对（\input{x.bbl"）
+    # 在 TeX 里读不出本 bbl（\@iinput 扫描错），不算已填充。
+    # 裸名形 \input x.bbl：文件名扫描止于空白/控制序列/~/&/%（}$#^_'" 等
+    # catcode≤12 字符反而是名字成分——latex 实证）；(?![^\s\\~&%]) 要求
+    # target 后接终结符，挡 main.bblx 前缀撞名。(?![a-zA-Z@]) 防把
+    # \inputmain 类控制词误当 \input。
+    t = re.escape(target)
     if re.search(
-        r"\\input\s*(?:\{\s*(?:\./)?|\"(?:\./)?)" + re.escape(target) + r"(?:\s*\}|\")",
+        r"\\input(?![a-zA-Z@])\s*(?:\{\s*(?:\./)?" + t + r"\s*\}"
+        r"|\"(?:\./)?" + t + r"\""
+        r"|(?:\./)?" + t + r"(?![^\s\\~&%]))",
         visible,
     ):
         return text  # 书目位已由本 .bbl 填充——再换只会重复排版
