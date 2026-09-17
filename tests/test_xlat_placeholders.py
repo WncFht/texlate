@@ -1,5 +1,10 @@
 """placeholders：换行编码 round-trip / 占位符对账 / 恒等排序 / recover_copied_tokens。"""
 
+import subprocess
+import sys
+
+import pytest
+
 from texlate.xlat import placeholders as ph
 
 
@@ -192,3 +197,78 @@ def test_collect_doc_placeholders_stable_order() -> None:
     docs = ["b [[MATH_10]] [[SL]]", "a [[CITE_1]] [[MATH_2]]"]
     out = ph.collect_doc_placeholders(docs)
     assert out == ["[[CITE_1]]", "[[MATH_2]]", "[[MATH_10]]", "[[SL]]"]
+
+
+class TestSentinelClosedLoop:
+    """字面 sentinel 任意深 round-trip——闭链替代定深四相（旧链 level≥3 字面有损）。"""
+
+    def test_literal_sentinel_all_families(self) -> None:
+        """八族 × LIT/LIT2/LIT5 级字面各自无损（LIT2 级正是旧链失真点）。"""
+        for fam in ("SL", "PL", "SP", "NBSP", "THINSP", "MEDSP", "THICKSP", "NEGSP"):
+            for suffix in ("", "2", "5"):
+                src = f"a[[__TEXLATE_{fam}_LIT{suffix}__]]b"
+                enc, _ = ph.encode_newlines(src)
+                assert ph.decode_newlines(enc) == src, (fam, suffix, enc)
+
+    def test_mixed_depth_sentinels(self) -> None:
+        """多级字面混排 + token/RAW 同现——各级各升一层不互吃。"""
+        src = (
+            "x[[__TEXLATE_SL_LIT2__]]y[[__TEXLATE_SL_LIT__]]z"
+            "[[SL]]w[[SL_RAW]]v[[__TEXLATE_SL_LIT7__]]"
+        )
+        enc, _ = ph.encode_newlines(src)
+        assert ph.decode_newlines(enc) == src
+
+    def test_deep_sentinel_with_space_literals(self) -> None:
+        r"""深级哨兵 + 脆弱间距字面 + token/RAW 混合源。"""
+        src = "[[__TEXLATE_SP_LIT4__]]~\\,[[SP]][[SP_RAW]]end"
+        enc, _ = ph.encode_newlines(src)
+        assert ph.decode_newlines(enc) == src
+
+
+class TestFuzzyRxCjkBrackets:
+    """PH_FUZZY_RX lookahead 口径（与 ``l0.PH_FUZZY_RX`` 逐字同源）。"""
+
+    def test_natural_cjk_brackets_not_candidates(self) -> None:
+        """【1】/[[图]]/【图1】 是中文正文自然括号——不标 fuzzy 候选。"""
+        for s in ("【1】", "[[图]]", "【图1】", "[[123]]", "【脚注】"):
+            assert not ph.PH_FUZZY_RX.search(s), s
+
+    def test_ascii_inner_still_candidates(self) -> None:
+        for s in ("【MATH_1】", "[[MATH_1]]", "[[MATH_1]", "[MATH_1]"):
+            assert ph.PH_FUZZY_RX.search(s), s
+
+    def test_cjk_brackets_not_extra_in_diff(self) -> None:
+        """zh 多出自然括号不进 cands——既不上 misspelled 也不上 extra。"""
+        d = ph.diff("a [[MATH_1]] b", "甲 [[MATH_1]] 【1】 注[[图]]")
+        assert d.ok
+
+
+class TestLazyFacade:
+    """包级 PEP 562 惰门面：平名解析 = 子模块同名对象；子模块 import 零重依赖。"""
+
+    def test_flat_names_resolve(self) -> None:
+        import texlate.xlat as x  # noqa: PLC0415 -- 惰门面解析在测试函数内
+        from texlate.xlat import state as st  # noqa: PLC0415
+
+        assert x.StateStore is st.StateStore
+        assert x.encode_newlines is ph.encode_newlines
+        assert "StateStore" in x.__all__
+        assert x.__all__ == sorted(x.__all__)
+        with pytest.raises(AttributeError, match="NO_SUCH_NAME"):
+            getattr(x, "NO_SUCH_NAME")  # noqa: B009 -- 动态探测 __getattr__ 面
+
+    def test_placeholders_import_no_httpx(self) -> None:
+        """``import texlate.xlat.placeholders`` 不经包 init 拉 httpx。"""
+        r = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import sys, texlate.xlat.placeholders;"
+                    "sys.exit(1 if 'httpx' in sys.modules else 0)"
+                ),
+            ],
+            check=False,
+        )
+        assert r.returncode == 0

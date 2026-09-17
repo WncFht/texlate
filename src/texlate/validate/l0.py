@@ -77,6 +77,9 @@ PH_ANY_LIKE_RX: Final = re.compile(r"\[\[[A-Z][A-Z0-9_]*(?:_\d+)?\]\]")
 #: 模糊占位符候选（zh 侧变体）：完整 [[..]] / 缺右括号 / 单层 [X_n] / 全角【..】。
 #: 各臂 lookahead 要求内部至少一枚 ASCII 字母——纯数字/纯 CJK 的
 #: 【1】【图1】[[图]] 是中文正文的自然全角括号用法，非占位符变体。
+#: 与 ``xlat.placeholders.PH_FUZZY_RX`` 逐字同源——validate 不能 import xlat，
+#: 两处改动必须同步（单源化待迁 textutil/latex.placeholder，见
+#: refactor-audit-2026-09-17 B 节）。
 PH_FUZZY_RX: Final = re.compile(
     r"\[\[(?=[^\[\]\n]{0,47}[A-Za-z])[^\[\]\n]{1,48}?\]\]"  # [[..]] 完整
     r"|\[\[(?=[^\[\]\n]{0,47}[A-Za-z])[^\[\]\n]{1,48}?\](?!\])"  # [[..] 缺右括号

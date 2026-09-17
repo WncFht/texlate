@@ -39,26 +39,25 @@ PURE_PH_RX = re.compile(
     rf"\s*(?:{ANY_PH_RX.pattern})(?:\s+(?:{ANY_PH_RX.pattern}))*\s*"
 )
 
-#: 模糊占位符候选（zh 侧）：完整 [[..]] / 缺右括号 / 单层 [X_n] / 【..】（与 L0 同口径）
+#: 模糊占位符候选（zh 侧变体）：完整 [[..]] / 缺右括号 / 单层 [X_n] / 全角【..】。
+#: 各臂 lookahead 要求内部至少一枚 ASCII 字母——纯数字/纯 CJK 的
+#: 【1】【图1】[[图]] 是中文正文的自然全角括号用法，非占位符变体。
+#: 与 ``validate.l0.PH_FUZZY_RX`` 逐字同源——validate 不能 import xlat，
+#: 两处改动必须同步（单源化待迁 textutil/latex.placeholder，见
+#: refactor-audit-2026-09-17 B 节）。
 PH_FUZZY_RX = re.compile(
-    r"\[\[[^\[\]\n]{1,48}?\]\]"  # [[..]] 完整（含全角/空格等变体）
-    r"|\[\[[^\[\]\n]{1,48}?\](?!\])"  # [[..] 缺右括号
+    r"\[\[(?=[^\[\]\n]{0,47}[A-Za-z])[^\[\]\n]{1,48}?\]\]"  # [[..]] 完整
+    r"|\[\[(?=[^\[\]\n]{0,47}[A-Za-z])[^\[\]\n]{1,48}?\](?!\])"  # [[..] 缺右括号
     r"|(?<!\[)\[[A-Za-z_]+_?-?\d+\](?!\])"  # [X_1] 单层括号
-    r"|【[^【】\n]{1,48}?】"  # 【..】 CJK 括号
+    r"|【(?=[^【】\n]{0,47}[A-Za-z])[^【】\n]{1,48}?】"  # 【..】 CJK 括号
 )
 
 #: 换行编码 token
 SOFT_NEWLINE = "[[SL]]"
 PARA_NEWLINE = "[[PL]]"
-#: 源文本字面 `[[SL]]`/`[[PL]]` 的转义形态（防编码碰撞，照 ieeA 两级转义）
+#: 源文本字面 `[[SL]]`/`[[PL]]` 的转义形态（防编码碰撞）
 SOFT_NEWLINE_RAW = "[[SL_RAW]]"
 PARA_NEWLINE_RAW = "[[PL_RAW]]"
-_SOFT_NEWLINE_SENTINEL = "[[__TEXLATE_SL_LIT__]]"
-_PARA_NEWLINE_SENTINEL = "[[__TEXLATE_PL_LIT__]]"
-#: sentinel 字面自身的转义层（第三级——源若真含 sentinel 字面再升一级，
-#: 否则 decode 会把字面 sentinel 落成 [[X_RAW]] 裸 token）
-_SOFT_NEWLINE_SENTINEL2 = "[[__TEXLATE_SL_LIT2__]]"
-_PARA_NEWLINE_SENTINEL2 = "[[__TEXLATE_PL_LIT2__]]"
 #: 脆弱间距命令 `\ ` 的保护 token——裸 `\ ` 对模型不显著（E21/E22 cs_dropped
 #: 实测主因，s40 11/4365 chunk 因此三振），编码成占位符吃 C9 保护契约；
 #: decode 回 `\ ` 后才进校验，L0 计数口径不变。同族扩列 (2026-09-17,
@@ -68,42 +67,85 @@ _PARA_NEWLINE_SENTINEL2 = "[[__TEXLATE_PL_LIT2__]]"
 SOFT_SPACE = "[[SP]]"
 #: 源文本字面 `[[SP]]` 的转义形态
 SOFT_SPACE_RAW = "[[SP_RAW]]"
-_SOFT_SPACE_SENTINEL = "[[__TEXLATE_SP_LIT__]]"
-_SOFT_SPACE_SENTINEL2 = "[[__TEXLATE_SP_LIT2__]]"
 NBSP = "[[NBSP]]"  # `~` 不可断空格
 NBSP_RAW = "[[NBSP_RAW]]"
-_NBSP_SENTINEL = "[[__TEXLATE_NBSP_LIT__]]"
-_NBSP_SENTINEL2 = "[[__TEXLATE_NBSP_LIT2__]]"
 THINSP = "[[THINSP]]"  # `\,`
 THINSP_RAW = "[[THINSP_RAW]]"
-_THINSP_SENTINEL = "[[__TEXLATE_THINSP_LIT__]]"
-_THINSP_SENTINEL2 = "[[__TEXLATE_THINSP_LIT2__]]"
 MEDSP = "[[MEDSP]]"  # `\:`
 MEDSP_RAW = "[[MEDSP_RAW]]"
-_MEDSP_SENTINEL = "[[__TEXLATE_MEDSP_LIT__]]"
-_MEDSP_SENTINEL2 = "[[__TEXLATE_MEDSP_LIT2__]]"
 THICKSP = "[[THICKSP]]"  # `\;`
 THICKSP_RAW = "[[THICKSP_RAW]]"
-_THICKSP_SENTINEL = "[[__TEXLATE_THICKSP_LIT__]]"
-_THICKSP_SENTINEL2 = "[[__TEXLATE_THICKSP_LIT2__]]"
 NEGSP = "[[NEGSP]]"  # `\!` 负 thin
 NEGSP_RAW = "[[NEGSP_RAW]]"
-_NEGSP_SENTINEL = "[[__TEXLATE_NEGSP_LIT__]]"
-_NEGSP_SENTINEL2 = "[[__TEXLATE_NEGSP_LIT2__]]"
 
-#: 脆弱空白族编解码表 —— (token, RAW 形, sentinel, sentinel2, 源字面)。
-#: 转义四相按 sentinel→sentinel2 → RAW→sentinel → token→RAW → 字面→token
-#: 全局依序应用; decode 反向 (token→字面 → RAW→token → sentinel→RAW →
-#: sentinel2→sentinel)。各字面互不为子串 (`\ ` 与 `\,`/`~` 等全不相交),
-#: 四相内序位无关。
-_SPACE_FAM: tuple[tuple[str, str, str, str, str], ...] = (
-    (SOFT_SPACE, SOFT_SPACE_RAW, _SOFT_SPACE_SENTINEL, _SOFT_SPACE_SENTINEL2, "\\ "),
-    (NBSP, NBSP_RAW, _NBSP_SENTINEL, _NBSP_SENTINEL2, "~"),
-    (THINSP, THINSP_RAW, _THINSP_SENTINEL, _THINSP_SENTINEL2, "\\,"),
-    (MEDSP, MEDSP_RAW, _MEDSP_SENTINEL, _MEDSP_SENTINEL2, "\\:"),
-    (THICKSP, THICKSP_RAW, _THICKSP_SENTINEL, _THICKSP_SENTINEL2, "\\;"),
-    (NEGSP, NEGSP_RAW, _NEGSP_SENTINEL, _NEGSP_SENTINEL2, "\\!"),
+#: 字面转义链族表——(tag, token, RAW 形, 源字面)。字面 token 的防碰撞转义是
+#: 不限定深的闭链：``token→RAW→sentinel(2)→sentinel(3)→…`` 逐级升层
+#: （sentinel 级名程序化生成，见 ``_sentinel``），decode 反向逐级降回——
+#: 替代旧定深四相链（开放端：源含 ``LIT2`` 级以上字面时 decode 降级失真）。
+#: SL/PL 族源字面是换行游程不由 lit 位编码（lit 空串占位），其余六族
+#: lit 是 TeX 脆弱间距字面（互不为子串，族内序位无关）。
+_NEWLINE_FAM: tuple[tuple[str, str, str, str], ...] = (
+    ("SL", SOFT_NEWLINE, SOFT_NEWLINE_RAW, ""),
+    ("PL", PARA_NEWLINE, PARA_NEWLINE_RAW, ""),
 )
+_SPACE_FAM: tuple[tuple[str, str, str, str], ...] = (
+    ("SP", SOFT_SPACE, SOFT_SPACE_RAW, "\\ "),
+    ("NBSP", NBSP, NBSP_RAW, "~"),
+    ("THINSP", THINSP, THINSP_RAW, "\\,"),
+    ("MEDSP", MEDSP, MEDSP_RAW, "\\:"),
+    ("THICKSP", THICKSP, THICKSP_RAW, "\\;"),
+    ("NEGSP", NEGSP, NEGSP_RAW, "\\!"),
+)
+#: 全族序——各族 token/RAW/sentinel 名面互不为子串，升降链逐族独立应用。
+_ALL_FAM: tuple[tuple[str, str, str, str], ...] = _NEWLINE_FAM + _SPACE_FAM
+
+#: 各族哨兵级扫描器：``LIT``=level 2、``LIT{n}``=level n+1。
+_SENT_RX = {
+    tag: re.compile(rf"\[\[__TEXLATE_{tag}_LIT(\d*)__\]\]")
+    for tag, _tok, _raw, _lit in _ALL_FAM
+}
+
+#: 转义链首个哨兵级（RAW 之上）——``LIT`` 形无数字后缀。
+_SENT_BASE = 2
+
+
+def _sentinel(tag: str, level: int) -> str:
+    """转义链 level≥2 的哨兵名：2→``[[__TEXLATE_{tag}_LIT__]]``、k≥3→``LIT{k-1}``。"""
+    n = "" if level == _SENT_BASE else str(level - 1)
+    return f"[[__TEXLATE_{tag}_LIT{n}__]]"
+
+
+def _max_sentinel_level(text: str, tag: str) -> int:
+    """文中出现的最高哨兵级（无 → ``_SENT_BASE - 1``）。"""
+    best = _SENT_BASE - 1
+    for d in _SENT_RX[tag].findall(text):
+        best = max(best, _SENT_BASE if not d else int(d) + 1)
+    return best
+
+
+def _escape_family(text: str, tag: str, tok: str, raw: str) -> str:
+    """单族字面转义闭链。
+
+    哨兵自顶向下逐级 bump（sent(k)→sent(k+1)），再 RAW→sent(2)、
+    token→RAW——任意深的字面 token 升一层即脱离当前级，先升高级故产物
+    不会被本级及以下的后续替换二次吃掉。
+    """
+    for k in range(_max_sentinel_level(text, tag), _SENT_BASE - 1, -1):
+        text = text.replace(_sentinel(tag, k), _sentinel(tag, k + 1))
+    return text.replace(raw, _sentinel(tag, _SENT_BASE)).replace(tok, raw)
+
+
+def _unescape_family(text: str, tag: str, tok: str, raw: str) -> str:
+    """解码降链。
+
+    RAW→token、sent(2)→RAW，再 sent(k)→sent(k-1) 自 3 升序——k 级降出的
+    k-1 级是终态字面（其档位已过），不会被二次降。
+    """
+    text = text.replace(raw, tok).replace(_sentinel(tag, _SENT_BASE), raw)
+    for k in range(_SENT_BASE + 1, _max_sentinel_level(text, tag) + 1):
+        text = text.replace(_sentinel(tag, k), _sentinel(tag, k - 1))
+    return text
+
 
 _FUZZY_LEV_CAP = 2
 
@@ -140,25 +182,16 @@ _PARA_BREAK_MIN = 2
 def encode_newlines(text: str) -> tuple[str, dict[str, int]]:
     r"""段内换行 → `[[SL]]`，`\n\n+` → `[[PL]]`（防御编码，正常 chunk 不该有空段）。
 
-    先做字面 token 两级转义防碰撞，再编码；返回 (编码文本, {source_sl, source_pl})。
+    先做字面 token 逐级转义防碰撞（不限定深闭链——族内自顶向下升层，
+    任意深字面 token 都能无损 round-trip），再编码；返回
+    (编码文本, {source_sl, source_pl})。
     """
     normalized = text.replace("\r\n", "\n").replace("\r", "\n")
-    # 字面转义最深级先行：源里若真有 sentinel 字面先升 sentinel2
-    # （否则 decode 落成 [[X_RAW]]），再依次保 RAW/token 两级
-    escaped = normalized.replace(_SOFT_NEWLINE_SENTINEL, _SOFT_NEWLINE_SENTINEL2)
-    escaped = escaped.replace(_PARA_NEWLINE_SENTINEL, _PARA_NEWLINE_SENTINEL2)
-    for _tok, _raw, _sent, _sent2, _lit in _SPACE_FAM:
-        escaped = escaped.replace(_sent, _sent2)
-    escaped = escaped.replace(SOFT_NEWLINE_RAW, _SOFT_NEWLINE_SENTINEL)
-    escaped = escaped.replace(PARA_NEWLINE_RAW, _PARA_NEWLINE_SENTINEL)
-    escaped = escaped.replace(SOFT_NEWLINE, SOFT_NEWLINE_RAW)
-    escaped = escaped.replace(PARA_NEWLINE, PARA_NEWLINE_RAW)
-    for _tok, _raw, _sent, _sent2, _lit in _SPACE_FAM:
-        escaped = escaped.replace(_raw, _sent)
-    for _tok, _raw, _sent, _sent2, _lit in _SPACE_FAM:
-        escaped = escaped.replace(_tok, _raw)
-    for _tok, _raw, _sent, _sent2, _lit in _SPACE_FAM:
-        escaped = escaped.replace(_lit, _tok)
+    escaped = normalized
+    for tag, tok, raw, _lit in _ALL_FAM:
+        escaped = _escape_family(escaped, tag, tok, raw)
+    for _tag, tok, _raw, lit in _SPACE_FAM:
+        escaped = escaped.replace(lit, tok)
 
     out: list[str] = []
     i, n = 0, len(escaped)
@@ -189,20 +222,10 @@ def encode_newlines(text: str) -> tuple[str, dict[str, int]]:
 def decode_newlines(text: str) -> str:
     r"""`[[SL]]`→`\n`、`[[PL]]`→`\n\n`、空白族 token→字面，随后还原被转义的字面 token。"""
     decoded = text.replace(PARA_NEWLINE, "\n\n").replace(SOFT_NEWLINE, "\n")
-    for _tok, _raw, _sent, _sent2, _lit in _SPACE_FAM:
-        decoded = decoded.replace(_tok, _lit)
-    decoded = decoded.replace(SOFT_NEWLINE_RAW, SOFT_NEWLINE)
-    decoded = decoded.replace(PARA_NEWLINE_RAW, PARA_NEWLINE)
-    for _tok, _raw, _sent, _sent2, _lit in _SPACE_FAM:
-        decoded = decoded.replace(_raw, _tok)
-    decoded = decoded.replace(_SOFT_NEWLINE_SENTINEL, SOFT_NEWLINE_RAW)
-    decoded = decoded.replace(_PARA_NEWLINE_SENTINEL, PARA_NEWLINE_RAW)
-    for _tok, _raw, _sent, _sent2, _lit in _SPACE_FAM:
-        decoded = decoded.replace(_sent, _raw)
-    decoded = decoded.replace(_SOFT_NEWLINE_SENTINEL2, _SOFT_NEWLINE_SENTINEL)
-    decoded = decoded.replace(_PARA_NEWLINE_SENTINEL2, _PARA_NEWLINE_SENTINEL)
-    for _tok, _raw, _sent, _sent2, _lit in _SPACE_FAM:
-        decoded = decoded.replace(_sent2, _sent)
+    for _tag, tok, _raw, lit in _SPACE_FAM:
+        decoded = decoded.replace(tok, lit)
+    for tag, tok, raw, _lit in _ALL_FAM:
+        decoded = _unescape_family(decoded, tag, tok, raw)
     return decoded
 
 
