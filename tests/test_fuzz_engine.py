@@ -717,6 +717,166 @@ def test_xelatex_timeout_breaks_loop(
     assert len(calls) == 1 and res.timed_out is True and res.ok is False  # noqa: PT018
 
 
+def test_xelatex_auto_rerun_gate_no_hint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``passes=None`` 自适应档（fix#7）：pass-1 无 rerun 提示 → 不跑第二趟。"""
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(eng_mod, "run_process", _fake_run(calls, side=_write_pdf))
+    (tmp_path / "main.tex").write_text("x")
+    res = XelatexEngine(binary="/bin/true").compile(tmp_path, "main.tex", sandbox=False)
+    assert len(calls) == 1 and res.passes == 1 and res.has_pdf  # noqa: PT018
+
+
+def test_xelatex_auto_rerun_gate_hints(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """自适应档：rerun 提示族逐形命中即续趟；提示出现在趟输出尾段。"""
+    (tmp_path / "main.tex").write_text("x")
+    for hint in (
+        "LaTeX Warning: Label(s) may have changed. Rerun to get cross-references right.",
+        (
+            "Package rerunfilecheck Warning: File `main.out' has changed.\n"
+            "(rerunfilecheck)                Rerun to get outlines right."
+        ),
+        "LaTeX Warning: There were undefined references.",
+        "Package longtable Warning: Table widths have changed. Rerun LaTeX.",
+    ):
+        calls: list[dict[str, object]] = []
+        monkeypatch.setattr(
+            eng_mod, "run_process", _fake_run(calls, out=hint + "\n", side=_write_pdf)
+        )
+        res = XelatexEngine(binary="/bin/true").compile(
+            tmp_path, "main.tex", sandbox=False
+        )
+        assert len(calls) == 2 and res.passes == 2, hint  # noqa: PLR2004, PT018
+
+
+def test_xelatex_auto_rerun_noise_no_pass2(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """自适应档不误续：rerunfilecheck 包名行/biber 请求不构成续趟信号。"""
+    (tmp_path / "main.tex").write_text("x")
+    for noise in (
+        "Package: rerunfilecheck 2022/07/05 v1.10 Rerun check for auxiliary files",
+        (
+            "Package biblatex Warning: Please (re)run Biber on the file: main\n"
+            "(biblatex)                and rerun LaTeX afterwards."
+        ),
+    ):
+        calls: list[dict[str, object]] = []
+        monkeypatch.setattr(
+            eng_mod, "run_process", _fake_run(calls, out=noise + "\n", side=_write_pdf)
+        )
+        res = XelatexEngine(binary="/bin/true").compile(
+            tmp_path, "main.tex", sandbox=False
+        )
+        assert len(calls) == 1 and res.passes == 1, noise  # noqa: PT018
+
+
+def test_xelatex_explicit_passes_ungated(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """显式 ``passes=N`` 不吃 rerun 门——fixloop 收敛终编/bench 口径跑满。"""
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(eng_mod, "run_process", _fake_run(calls, side=_write_pdf))
+    (tmp_path / "main.tex").write_text("x")
+    res = XelatexEngine(binary="/bin/true").compile(
+        tmp_path, "main.tex", passes=3, sandbox=False
+    )
+    assert len(calls) == 3 and res.passes == 3  # noqa: PLR2004, PT018
+
+
+def test_xelatex_error_exit_short_circuits(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """C3：错误退出（rc>0）即停——哪怕已出 pdf 也不空烧第二趟；显式/自适应同闸。"""
+    (tmp_path / "main.tex").write_text("x")
+    for kw in ({"passes": 2}, {}):
+        calls: list[dict[str, object]] = []
+        monkeypatch.setattr(
+            eng_mod, "run_process", _fake_run(calls, rc=1, side=_write_pdf)
+        )
+        res = XelatexEngine(binary="/bin/true").compile(
+            tmp_path,
+            "main.tex",
+            sandbox=False,
+            **kw,  # type: ignore[arg-type]
+        )
+        assert len(calls) == 1 and res.rc == 1 and res.passes == 1, kw  # noqa: PT018
+
+
+def test_xelatex_probe_memo_hit_and_miss(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """树探测按名 memo（fix#3）：命中/阴性都缓存；cwd 直查绕开缓存自失效。"""
+    eng = XelatexEngine(binary="/bin/true")
+    monkeypatch.setattr(eng_mod, "find_tool", lambda _n: "/x/kpsewhich")
+    calls: list[str] = []
+
+    def probe_run(  # noqa: PLR0913
+        cmd: list[str],
+        *,
+        cwd: Path,
+        env: dict[str, str],
+        timeout: float,
+        out_cap: int = 8 * 1024 * 1024,
+        should_cancel: Callable[[], bool] | None = None,
+    ) -> tuple[int | None, str, float, bool]:
+        del cwd, env, timeout, out_cap, should_cancel
+        name = cmd[-1]
+        calls.append(name)
+        if name.startswith("have"):
+            return 0, f"/t/{name}\n", 0.01, False
+        return 1, "", 0.01, False
+
+    monkeypatch.setattr(eng_mod, "run_process", probe_run)
+    assert eng.probe_file("have.sty") == "/t/have.sty"
+    assert eng.probe_file("have.sty") == "/t/have.sty"  # memo 命中不起子进程
+    assert eng.probe_file("gone.sty") is None
+    assert eng.probe_file("gone.sty") is None  # 阴性也缓存
+    assert calls == ["have.sty", "gone.sty"]
+    # cwd 命中走 is_file 直查：wdir 落件不被先前的阴性缓存遮蔽
+    (tmp_path / "gone.sty").write_text("x")
+    assert eng.probe_file("gone.sty", cwd=tmp_path) == str(tmp_path / "gone.sty")
+    assert calls == ["have.sty", "gone.sty"]
+
+
+def test_xelatex_probe_memo_cleared_on_install(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """install_file 动树后清 memo——装了包不重探即「装上还 miss」假阴。"""
+    monkeypatch.setenv("TEXLATE_TLMGR_CACHE", str(tmp_path / "c.json"))
+    monkeypatch.delenv("TEXMFHOME", raising=False)  # 宿主链在场会走 fetch 面
+    eng = XelatexEngine(binary="/bin/true")
+    monkeypatch.setattr(eng_mod, "find_tool", lambda n: f"/x/{n}")
+    monkeypatch.setattr(XelatexEngine, "_fontconfig_conf", lambda _s: None)
+    calls: list[str] = []
+
+    def run(  # noqa: PLR0913
+        cmd: list[str],
+        *,
+        cwd: Path,
+        env: dict[str, str],
+        timeout: float,
+        out_cap: int = 8 * 1024 * 1024,
+        should_cancel: Callable[[], bool] | None = None,
+    ) -> tuple[int | None, str, float, bool]:
+        del cwd, env, timeout, out_cap, should_cancel
+        calls.append(Path(cmd[0]).name)
+        if "kpsewhich" in cmd[0]:
+            return 1, "", 0.01, False  # 树里始终没有
+        return 0, "", 0.01, False  # tlmgr 系成功
+
+    monkeypatch.setattr(eng_mod, "run_process", run)
+    eng._search_cache = {"/pkg.sty": ["somepkg"]}  # 离线 filemap 表直喂  # noqa: SLF001
+    assert eng.probe_file("pkg.sty") is None  # 阴性入 memo
+    assert calls == ["kpsewhich"]
+    assert eng.install_file("pkg.sty") is False  # 树里仍无 → 复核失败
+    # 关键钉：tlmgr 之后 probe 真起了 kpsewhich——缓存被清，不是直接复喂阴性
+    assert calls == ["kpsewhich", "tlmgr", "kpsewhich"]
+
+
 def test_xelatex_stdout_tail_last_only(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1649,7 +1809,10 @@ def test_xelatex_detect_empty_binary_falls_back(
 
 
 def test_xelatex_probe_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """kpsewhich 探测：NUL 短路、rc≠0/超时/空出 → None、多行取首行。"""
+    """kpsewhich 探测：NUL 短路、rc≠0/超时/空出 → None、多行取首行。
+
+    树探测按 fname memo（fix#3）——逐臂换名防缓存把后臂探针吃掉。
+    """
     eng = XelatexEngine(binary="/bin/true")
     monkeypatch.setattr(eng_mod, "find_tool", lambda _n: "/x/kpsewhich")
     assert eng.probe_file("a\x00b.sty") is None  # NUL 不起子进程
@@ -1659,11 +1822,11 @@ def test_xelatex_probe_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     )
     assert eng.probe_file("b.sty", cwd=tmp_path) == "/a/b.sty"
     monkeypatch.setattr(eng_mod, "run_process", _fake_run(calls, rc=1))
-    assert eng.probe_file("b.sty") is None
+    assert eng.probe_file("b2.sty") is None
     monkeypatch.setattr(eng_mod, "run_process", _fake_run(calls, to=True))
-    assert eng.probe_file("b.sty") is None
+    assert eng.probe_file("b3.sty") is None
     monkeypatch.setattr(eng_mod, "find_tool", lambda _n: None)
-    assert eng.probe_file("b.sty") is None
+    assert eng.probe_file("b4.sty") is None
 
 
 def test_filemap_tlmgr_output_filter(

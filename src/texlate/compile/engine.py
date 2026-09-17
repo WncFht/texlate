@@ -8,6 +8,11 @@ r"""引擎层：Engine 协议 + xelatex/tectonic 实现 + 静态路由表（docs
   --untrusted -Z continue-on-errors --keep-logs --keep-intermediates
   --makefile-rules`（continue-on-errors 对齐 nonstopmode 语义——tectonic
   默认 halt-on-error，engine-matrix §0 已实证）。
+- pass 闸（B14 fix#7/C3）：``passes=None``（缺省）= 自适应——pass-1 后按
+  log rerun 提示族（``_RERUN_HINT_RX``）决定续跑，无提示即收；显式 int
+  = 无条件 ≤N 遍（fixloop 收敛终编靠它跑满）。两口径失败路径同闸：
+  错误退出（rc>0 非信号）/exec 失败/无 pdf/超时即停——已炸编译不空烧；
+  信号死（负 rc）保留续趟重试通道（2211.13013 实证可救）。
 - 静态路由（§4.2）：`route_project` 编译前决策；失败集互补实测联合 clean
   9/12（engine-matrix §0）。
 - OS 沙箱（§4.4）在 ``sandbox.py``（darwin ``sandbox-exec`` / linux ``bwrap``
@@ -63,6 +68,20 @@ log = logging.getLogger(__name__)
 DEFAULT_TIMEOUT = 240.0  # docs/08 §4.1
 MAX_PASSES = 2
 _TECTONIC_ATTEMPTS = 2  # 冷 bundle 首拉超时后重试（缓存热身）
+
+#: 续趟判据（B14 fix#7 rerun-gate）：逐趟 stdout 匹配——命中即 LaTeX 自报
+#: 还要一遍。不收裸 ``rerun``（rerunfilecheck 包名行是常态噪音），也不收
+#: biber 系请求（``Please (re)run Biber`` 单跑 latex 救不了 citation）。
+_RERUN_HINT_RX: Final = re.compile(
+    r"rerun to get|label\(s\) may have changed|there were undefined references"
+    r"|table widths have changed",
+    re.IGNORECASE,
+)
+
+#: ``probe_file`` texmf 树探测 memo 条数上限（B14 fix#3）：fixloop 格均
+#: ~10–40 名、跨 cell 名集高重叠，容量远超格均即全覆盖；撞顶整表清——
+#: 树态随 install 漂移，老条目残值低。
+_PROBE_MEMO_MAX: Final = 4096
 #: 重试趟预算上限——首趟已烧满 timeout，重试时缓存已热、只需覆盖真实编译
 #: 时长；再给满 timeout 会把单次调用真超时翻倍且救不了真超时的论文。
 _TECTONIC_RETRY_TIMEOUT = 120.0
@@ -176,7 +195,7 @@ class Engine(Protocol):
         wdir: Path,
         main: str,
         *,
-        passes: int = MAX_PASSES,
+        passes: int | None = None,
         timeout: float = DEFAULT_TIMEOUT,
         outdir: Path | None = None,
         sandbox: bool = True,
@@ -186,6 +205,11 @@ class Engine(Protocol):
         should_cancel: Callable[[], bool] | None = None,
     ) -> CompRes:
         """编译 `wdir/main`（相对路径）；产物落 `outdir`（默认 main 旁）。
+
+        ``passes`` = 遍数上限：``None``（缺省）自适应——xelatex pass-1 后
+        按 log rerun 提示族续跑（上限 ``MAX_PASSES``）；显式 int 无条件
+        ≤N 遍（fixloop 收敛终编/bench 对齐口径）。两口径失败路径同停：
+        错误退出/exec 失败/无 pdf/超时即不再跑下一趟。
 
         ``best_effort=True`` 强制 nonstopmode 兜底语义：xelatex 去掉
         ``-halt-on-error``（TeX 错误恢复跑到底，救残页），tectonic 强制
@@ -297,6 +321,10 @@ class XelatexEngine:
         self.repository = repository or os.environ.get("TEXLATE_TLNET") or None
         self._search_cache: dict[str, list[str]] | None = None
         self._usertree_inited = False
+        #: ``probe_file`` 树探测 memo——键 ``(fname, texmfhome, 宿主
+        #: TEXMFHOME)``，值 None=阴性也缓存（缺件重探是真成本）；树态变动
+        #: 只经本实例 install/updmap 通路，各落件点统一 ``clear()``。
+        self._probe_cache: dict[tuple[str, str, str], str | None] = {}
 
     def detect(self) -> str | None:
         """Xelatex 二进制探测（ctor 指定优先，否则 PATH/常见落点）。"""
@@ -457,7 +485,7 @@ class XelatexEngine:
         wdir: Path,
         main: str,
         *,
-        passes: int = MAX_PASSES,
+        passes: int | None = None,
         timeout: float = DEFAULT_TIMEOUT,
         outdir: Path | None = None,
         sandbox: bool = True,
@@ -466,7 +494,14 @@ class XelatexEngine:
         flags: Iterable[str] | None = None,
         should_cancel: Callable[[], bool] | None = None,
     ) -> CompRes:
-        """执行 xelatex ≤`passes` 遍；-recorder 产 .fls 供 compiled_dependencies。"""
+        """执行 xelatex ≤`passes` 遍；-recorder 产 .fls 供 compiled_dependencies。
+
+        ``passes=None``（缺省）= 自适应门：pass-1 后只在 log 出现 rerun
+        提示族（``_RERUN_HINT_RX``）时续跑，上限 ``MAX_PASSES``；显式 int
+        = 无条件 ≤N 遍。失败路径两口径同闸：超时/错误退出（rc>0 且非信号）
+        /exec 失败（rc=None）/无 pdf 即停——同输入重跑必同炸；信号死
+        （负 rc）是外部截杀非确定性败，留续趟重试通道。
+        """
         res = CompRes(engine=self.name)
         res.flags_applied, res.flags_dropped = self._split_flags(flags)
         binary = self.detect()
@@ -508,10 +543,9 @@ class XelatexEngine:
                 res.flags_dropped += esc
                 cmd = [t for t in cmd if t not in _SHELL_ESCAPE_FLAGS]
         outputs = []
-        per_pass = max(10.0, timeout / max(1, passes))
-        for p in range(1, passes + 1):
-            if p > 1 and not pdf.exists():
-                break
+        eff_passes = MAX_PASSES if passes is None else passes
+        per_pass = max(10.0, timeout / max(1, eff_passes))
+        for p in range(1, eff_passes + 1):
             rc, out_s, sec, to = run_process(
                 cmd, cwd=cwd, env=env, timeout=per_pass, should_cancel=should_cancel
             )
@@ -523,7 +557,16 @@ class XelatexEngine:
             res.timed_out = res.timed_out or to
             res.passes = p
             outputs.append(out_s)
-            if to:
+            # 停趟判据：超时 / exec 失败 / 确定性错误退出（rc>0 非信号）/ 无
+            # pdf；自适应档（passes=None）再补一条——log 无 rerun 提示族即收。
+            # 信号死（负 rc / 包裹层 128+N）是外部截杀非定败，留续趟通道。
+            if (
+                to
+                or rc is None
+                or (rc != 0 and sig is None)
+                or not pdf.exists()
+                or (passes is None and not _RERUN_HINT_RX.search(out_s))
+            ):
                 break
         _collect_compile_outputs(res, outputs)
         try:
@@ -541,15 +584,37 @@ class XelatexEngine:
         return res
 
     def probe_file(self, fname: str, *, cwd: Path | None = None) -> str | None:
-        """用 kpsewhich 探测文件可解析路径。"""
+        """用 kpsewhich 探测文件可解析路径（texmf 树侧结果进程内 memo）。
+
+        ``cwd`` 对应的 ``.`` 搜索元素拆成 ``Path.is_file`` 直查、不进 memo
+        ——wdir 内文件随 fixloop 落件动态出现（vendored 平铺/stub 写件），
+        直查让阴性缓存永不遮蔽新件。texmf 树探测按 ``(fname, texmfhome,
+        宿主 TEXMFHOME)`` 键进 ``_probe_cache``——树内容变动只发生在本实例
+        install/updmap 通路（各落件点统一清缓存）；跨进程同伴装件的陈旧
+        阴性顶多让 tlmgr 空转一趟，``_post_install_verify`` 复核链自清。
+        """
         if "\x00" in fname:
             return None  # NUL 进 argv 炸 Popen ValueError（log 可控面）
+        base = cwd if cwd is not None else Path.cwd()
+        if safe_is_file(cand := base / fname):
+            return str(cand)
+        key = (fname, str(self.texmfhome), os.environ.get("TEXMFHOME") or "")
+        if key in self._probe_cache:
+            return self._probe_cache[key]
+        hit = self._probe_tree(fname)
+        if len(self._probe_cache) >= _PROBE_MEMO_MAX:
+            self._probe_cache.clear()
+        self._probe_cache[key] = hit
+        return hit
+
+    def _probe_tree(self, fname: str) -> str | None:
+        """``kpsewhich`` 纯树探测（``.`` 元素已由 ``probe_file`` cwd 直查覆盖）。"""
         tool = find_tool("kpsewhich")
         if tool is None:
             return None
         rc, out, _, to = run_process(
             [tool, fname],
-            cwd=cwd or Path.cwd(),
+            cwd=Path.cwd(),
             env=self._env(None),
             timeout=15,
         )
@@ -689,6 +754,8 @@ class XelatexEngine:
                 argv += ["--repository", self.repository]
             argv += ["install", *pkgs]
             rc, _, _, to = run_process(argv, cwd=Path.cwd(), env=env, timeout=300)
+        # tlmgr/init-usertree 动过树态——probe memo 清一遍再进复核链
+        self._probe_cache.clear()
         if to or rc != 0:
             return False
         if font_related:
@@ -738,6 +805,7 @@ class XelatexEngine:
             return False
         if (root / "ls-R").is_file() and (tool := find_tool("mktexlsr")):
             run_process([tool, str(root)], cwd=Path.cwd(), timeout=60)
+        self._probe_cache.clear()  # 刚把缺件搬进了树——复核前清 memo
         return self.probe_file(fname) is not None
 
     def _fetch_into_usertree(self, fname: str, pkgs: list[str], dest: Path) -> bool:
@@ -759,6 +827,8 @@ class XelatexEngine:
                 )
             except Exception as e:  # noqa: BLE001  # 候选包逐个试, 单包失败不致命
                 log.debug("usertree fetch %s skipped: %r", pkg, e)
+            # fetch 可能已部分落件——树态变了，复核前清 memo
+            self._probe_cache.clear()
             if self.probe_file(fname) is not None:
                 return True
         return False
@@ -772,6 +842,7 @@ class XelatexEngine:
         rc, _, _, to = run_process(
             args, cwd=Path.cwd(), env=self._usertree_env(), timeout=120
         )
+        self._probe_cache.clear()  # map 重建后字体类探测结果可能变
         return rc == 0 and not to
 
     def parse_log(self, res: CompRes) -> LogInfo:
@@ -937,7 +1008,7 @@ class TectonicEngine:
         wdir: Path,
         main: str,
         *,
-        passes: int = 1,
+        passes: int | None = None,
         timeout: float = DEFAULT_TIMEOUT,
         outdir: Path | None = None,
         sandbox: bool = True,
