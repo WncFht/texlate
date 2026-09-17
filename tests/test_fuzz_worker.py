@@ -513,6 +513,20 @@ class TestShareLookupMarks:
         ctx.row["options_json"] = json.dumps(opts)
         assert worker._share_lookup(ctx) is False  # noqa: SLF001
 
+    def test_nul_url_row_degrades_to_miss(self, tmp_path: Path) -> None:
+        """index 行 url 含 ``\\x00`` → 扁平检查拒、按 miss 回退——钉住与
+        app.py share_pack 同口径的扁平名面（``stat()`` 对 NUL 抛
+        ValueError，此面若改 stat 探测即开口）。"""
+        ctx, worker, _store = self._mk_marked(tmp_path, None, dual=False)
+        key = share_key(**self._KEY_PARTS)  # type: ignore[arg-type]
+        out_dir = tmp_path / "share"
+        out_dir.mkdir(parents=True)
+        (out_dir / "index.jsonl").write_text(
+            json.dumps({"share_key": key, "url": "evil\x00name.share.zip"}) + "\n",
+            encoding="utf-8",
+        )
+        assert worker._share_lookup(ctx) is False  # noqa: SLF001
+
 
 # ---------------------------------------------------------------- store 腐化行 → 段函数
 

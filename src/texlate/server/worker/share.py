@@ -294,7 +294,9 @@ class _Share:
         if hit is None:
             return False
         name = str(hit.get("url") or "")
-        if "/" in name or "\\" in name or name in ("", ".", ".."):
+        # \x00 与 app.py share_pack 扁平检查同口径——is_file 现吞 ValueError，
+        # 两处检查面保持一致防未来改 stat() 时开口
+        if "/" in name or "\\" in name or "\x00" in name or name in ("", ".", ".."):
             self._log(
                 ctx, f"share lookup: index 行 url 非扁平名 {name!r}，按 miss 处理"
             )
