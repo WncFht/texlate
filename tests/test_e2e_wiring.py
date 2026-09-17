@@ -316,7 +316,7 @@ def test_l2_fallback_verified_fixloop_off(
     # 回落态即交付树——其 verdict 就是终态
     assert report["status"] == "clean"
     # 首编 + 重译态重编 + 回落态裸编 = 3 次
-    assert len(engines["xelatex"].calls) == 3
+    assert len(engines["xelatex"].calls) == 3  # noqa: PLR2004
 
 
 def test_l2_cap_limits_retranslate(
@@ -386,6 +386,81 @@ def test_engine_flags_cross_engine_consumed(
     assert any("engine_flags" in n for n in report["verdict"]["notes"])
     # 换编把全部请求 flag 经 seam 带给 xelatex（tectonic dropped 的项在内）
     assert engines["xelatex"].calls[-1]["flags"] == ["-shell-escape"]
+
+
+@pytest.mark.parametrize(
+    ("engine_opt", "expect_cross"), [("auto", True), ("tectonic", False)]
+)
+def test_route_engines_narrowed_by_explicit_engine(
+    tmp_path: Path,
+    engines: dict[str, ScriptedEngine],
+    monkeypatch: pytest.MonkeyPatch,
+    engine_opt: str,
+    expect_cross: bool,  # noqa: FBT001 -- parametrize 差分臂
+) -> None:
+    """显式 ``--engine`` → ``route_engines`` 收窄为该引擎，跨引擎换编臂自熄。
+
+    worker ``_build_base`` 同口径（``engines = route.engines if opt_engine ==
+    "auto" else [opt_engine]``，parse.py:71-75）：route 候选里虽有 xelatex，
+    dropped engine_flags 也不许把显式选型换掉；auto 则保留全量候选。
+    """
+    work = _project(tmp_path / "p")
+    engines["tectonic"] = ScriptedEngine("tectonic", [_fail_unattributable])
+    engines["xelatex"] = ScriptedEngine("xelatex", [_clean])
+
+    def fake_fixloop(proj, eng, **kw) -> dict:  # noqa: ANN001, ANN003, ARG001
+        return {
+            "verdict": "unfixable:minted_froz",
+            "engine_flags": ["-shell-escape"],
+            "engine_flags_dropped": ["-shell-escape"],  # tectonic 不收 → 换编原料
+        }
+
+    monkeypatch.setattr("texlate.repair.fixloop", fake_fixloop)
+    report = e2e.mock_pipeline_run(work, engine_opt, timeout=30.0)
+
+    fl = report["fixloop"]
+    assert fl["engine_flags_dropped"] == ["-shell-escape"]
+    if expect_cross:
+        assert fl["cross_engine"]["engine"] == "xelatex"
+        assert engines["xelatex"].calls
+    else:
+        assert "cross_engine" not in fl
+        assert engines["xelatex"].calls == []
+
+
+def test_fixloop_ruleset_receives_presplice_baseline(
+    tmp_path: Path,
+    engines: dict[str, ScriptedEngine],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """fixloop ruleset 的 ``restore_support_from_src`` 拿到 ``baseline_dir``。
+
+    worker 注入 ``ctx.base_dir``（compile.py:95-110）；e2e 原地翻译无常驻
+    base 树，baseline = normalize 后/翻译前的 pristine 快照（
+    ``_baseline_snapshot``），fixloop 收敛后 tempdir 即回收。
+    """
+    work = _project(tmp_path / "p")
+    engines["xelatex"] = ScriptedEngine("xelatex", [_fail_unattributable])
+    seen: dict[str, str] = {}
+
+    def fake_fixloop(proj, eng, **kw) -> dict:  # noqa: ANN001, ANN003, ARG001
+        for rule in kw["ruleset"].rules:
+            act = rule.raw.get("action") or {}
+            if act.get("function") == "restore_support_from_src":
+                base = Path((act.get("params") or {})["baseline_dir"])
+                seen["dir"] = str(base)
+                seen["main"] = (base / "main.tex").read_text(encoding="utf-8")
+        return {"verdict": "unfixable:probe"}
+
+    monkeypatch.setattr("texlate.repair.fixloop", fake_fixloop)
+    report = e2e.mock_pipeline_run(work, "xelatex", timeout=30.0)
+
+    assert report["fixloop"]["verdict"] == "unfixable:probe"
+    out = (work / "main.tex").read_text(encoding="utf-8")
+    assert "这是译文" in out  # 工作树已原地 splice
+    assert "longer paragraph" in seen["main"]  # baseline 是译前 pristine 快照
+    assert "这是译文" not in seen["main"]
+    assert not Path(seen["dir"]).exists()  # TemporaryDirectory 已回收
 
 
 # ---------------------------------------------------------------- env judge

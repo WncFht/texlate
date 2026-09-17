@@ -23,7 +23,7 @@ from conftest import RecordingEngine
 
 from texlate import e2e
 from texlate.compile.engine import RouteDecision
-from texlate.xlat.pipeline import MOCK_ZH, MockTranslator
+from texlate.xlat.pipeline import MOCK_ZH, ChunkResult, MockTranslator
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -156,6 +156,26 @@ def test_translate_tree_rtx_dump_uppercase_still_excluded(tmp_path: Path) -> Non
 
     assert stats["files"] == 1
     assert (tmp_path / "paper.RTX.TEX").read_text(encoding="utf-8") == "runtime dump\n"
+
+
+def test_delivered_requires_nonempty_translation() -> None:
+    """ok+空译文不交付——worker ``_build_zh`` 同口径。
+
+    ``status=="ok" and r["translation"]``（server/worker/compile.py:297）：
+    空串进 splice 会把该块内容从 zh 树静默擦除，与失败块同回落原文。
+    """
+
+    def mk(status: str, zh: str) -> ChunkResult:
+        return ChunkResult(
+            chunk_id="0:0", source="src", translation=zh, kind="para", status=status
+        )
+
+    assert e2e._delivered(mk("ok", "译"))  # noqa: SLF001
+    assert not e2e._delivered(mk("ok", ""))  # noqa: SLF001
+    assert e2e._delivered(mk("partial", "译"))  # noqa: SLF001
+    assert not e2e._delivered(mk("partial", ""))  # noqa: SLF001
+    assert not e2e._delivered(mk("fault", "src"))  # noqa: SLF001
+    assert not e2e._delivered(mk("skipped", "src"))  # noqa: SLF001
 
 
 # ---------------------------------------------------------------- mock_pipeline_run
