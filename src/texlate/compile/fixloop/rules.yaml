@@ -3407,6 +3407,36 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "docs/08-translate-compile.md L274; ctanfetch-probe.md §3.3"
 
+  # 2026-09-17 wave-2 (apj-bib-scout §S4, 11 格): ADS/apj.bst 时代 .bbl
+  # cite-key 裸 &/_ 在现代内核炸 Missing $/Misplaced alignment tab ——
+  # \bibitem 定义点与 \cite 引用点必须双侧一致重写 (&→A、_→-), .aux
+  # 残留 \bibcite/\citation 陈旧键同源处理。
+  - id: citekey_sanitize
+    description: "旧 .bbl cite-key 裸 &/_ → \\bibitem/\\cite/aux 三侧一致重写"
+    phase: loop
+    order: 141 # bbl_stub_shadow(140) 之后, vendored_sty_shadow(150) 之前
+    when: { category: syntax }
+    condition:
+      fileset: { has_ext: [.bbl] }
+      # 两种 log 形态同盖: file-line-error 形 `ms.bbl:4: Missing $...` 与
+      # '!' 形 `! Missing $ inserted.`（'!' 形文件名入 file_stack 不在
+      # err_head——靠 builtin 自验 unsafe key 存在性兜底, 误签至多白扫一遍）。
+      ctx_suggests: "Missing \\$ inserted|Misplaced alignment tab"
+    action:
+      kind: builtin_transform
+      function: citekey_sanitize
+    risk: low # 双侧一致改写; 无裸 &/_ 键即 no-op 自幂
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "apj-bib-scout-2026-09-17 §S4 (1003.1717/1206.5852/…×11)",
+          error: ".bbl:N: Missing $ inserted / Misplaced alignment tab character &",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "bench/results/apj-bib-scout-2026-09-17/report.md §S4"
+
   # 新增 (docs/08:269): 工程自带旧 .sty/.cls 遮蔽已装新版 ——
   # 错误触发型 (undefined_cs/already_def 反复出现时才怀疑遮蔽),
   # 按 \\ProvidesPackage 日期比较, 盲删必死 (同目录 cls 可能是唯一来源)
@@ -3422,7 +3452,14 @@ rules:
     action:
       kind: builtin_transform
       function: vendored_shadow_isolate
-      params: { exts: [.sty, .cls], suffix: ".fixloop-iso" }
+      params:
+        exts: [.sty, .cls]
+        suffix: ".fixloop-iso"
+        # 同包伴船整组隔离（wave-2, apj-bib-scout §S2/S3）：只隔 biblatex.sty
+        # 会留 vendored .def/.bbx/.cbx/.lbx 继续遮蔽系统件 → 新旧混栈。
+        cohort_map:
+          biblatex.sty:
+            ["biblatex.def", "biblatex.cfg", "blx-*.def", "*.bbx", "*.cbx", "*.lbx", "*.dbx"]
     risk: medium # rename 会改变工程布局; 只在确证更旧时动
     engines:
       xelatex: { mode: native }

@@ -121,6 +121,11 @@ PDFTEX_PRIMS = (
 _DATE_RE = re.compile(
     r"\\Provides(?:Package|Class|ExplPackage|ExplClass)\s*\{[^}]*\}\s*\[(\d{4})[/.-](\d{2})[/.-](\d{2})"
 )
+#: 日期面宏间址——``\ProvidesPackage{x}[\abx@date\space v...]`` 形（biblatex
+#: v3.12 实证：字面日期不在 bracket 而在同文件 ``\def\abx@date{2018/11/02}``）。
+_DATE_INDIRECT_RE = re.compile(
+    r"\\Provides(?:Package|Class|ExplPackage|ExplClass)\s*\{[^}]*\}\s*\[\s*\\([a-zA-Z@]+)"
+)
 
 
 # ════════════════════════════════════════════════════════════════
@@ -242,7 +247,23 @@ def pdftex_prim_polyfill(
 
 
 def _provides_date(text: str) -> tuple[int, int, int] | None:
+    r"""``\ProvidesX{..}[YYYY/MM/DD]`` 字面日期 → ``(y, m, d)``。
+
+    字面缺时 bracket 首 cs 走同文件 ``\def\<cs>{YYYY/MM/DD}`` 宏间址兜底
+    （biblatex v3.12 ``[\abx@date ...]`` 实证；vendored/系统两侧同法，
+    比较仍成立）。
+    """
     m = _DATE_RE.search(text)
+    if m is None:
+        ind = _DATE_INDIRECT_RE.search(text)
+        if ind is None:
+            return None
+        m = re.search(
+            r"\\def\\"
+            + re.escape(ind.group(1))
+            + r"\s*\{(\d{4})[/.-](\d{2})[/.-](\d{2})\}",
+            text,
+        )
     return (int(m.group(1)), int(m.group(2)), int(m.group(3))) if m else None
 
 
@@ -276,6 +297,7 @@ def find_vendored_shadows(
     """
     cands = []
     tectonic = ctx.engine_name == "tectonic"
+    wdir_r = ctx.wdir.resolve()
     for f in ctx.tex_files(exts):
         resolved = eng.probe_file(f.name)
         if not resolved:
@@ -289,8 +311,10 @@ def find_vendored_shadows(
             continue
         rp = Path(resolved) if isinstance(resolved, str) else resolved
         try:
-            if rp.resolve() == f.resolve():
-                continue  # probe 命中工程自身, 非遮蔽
+            rpv = rp.resolve()
+            if rpv == f.resolve() or rpv.is_relative_to(wdir_r):
+                continue  # 命中工程自身/工程内同名副本（kpsewhich 搜 cwd——
+                # 进程 cwd 落在 workdir 内时探到的是 vendored 自件）→ 非遮蔽
         except (OSError, RuntimeError, ValueError):
             continue  # symlink loop/NUL/巨名 → 按非遮蔽计
         local_txt = ctx.read(f)
@@ -313,10 +337,16 @@ def vendored_shadow_isolate(
 
     ``sd=None`` 的 tectonic 索引候选是 advisory 级 —— 无日期面确证新旧,
     不 rename, 记 ``bundle provides <pkg>`` advisory (幂等去重)。
+
+    ``params.cohort_map``：``sty 名 → 同包伴船 glob 表``——确证更旧的包其
+    vendored 伴船件（.def/.bbx/.cbx/.lbx 等）一并隔离，否则留下旧伴船与
+    系统新主件混栈（1907.00257 半栈 biblatex/2003.10727 全栈实证——只隔
+    biblatex.sty 会留 vendored *.def 继续遮蔽系统件）。
     """
     del payload
     exts = tuple(params.get("exts") or (".sty", ".cls"))
     suffix = str(params.get("suffix") or ".fixloop-iso")
+    cohort_map: dict[str, Any] = params.get("cohort_map") or {}
     moved = []
     for f, ld, sd, prov in find_vendored_shadows(ctx, eng, exts):
         if sd is None:
@@ -326,6 +356,12 @@ def vendored_shadow_isolate(
             continue
         f.rename(f.with_name(f.name + suffix))
         moved.append(f"{f.name} ({ld} < {sd})")
+        for pat in cohort_map.get(f.name, ()):
+            for sib in ctx.wdir.rglob(str(pat)):
+                if not sib.is_file() or sib.name.endswith(suffix) or sib == f:
+                    continue
+                sib.rename(sib.with_name(sib.name + suffix))
+                moved.append(f"{sib.relative_to(ctx.wdir)} (cohort)")
     if not moved:
         return False, "无确证更旧的可隔离遮蔽"
     return True, f"isolate vendored: {', '.join(moved)}"
@@ -459,6 +495,79 @@ def bbl_regen(
     if failed:
         parts.append(f"failed: {'; '.join(failed)}")
     return True, "; ".join(parts)
+
+
+#: ``\cite`` 族命令（\cite/\citet/\citep/\nocite/\citeauthor…）可选参后键表组。
+_CITE_FAMILY_RE = re.compile(
+    r"\\[a-zA-Z@]*cite[a-zA-Z@]*\*?\s*(?:\[[^\]\n]*\]\s*)*\{([^}]*)\}"
+)
+#: ``\bibitem[<opt>]{key}`` —— .bbl 键定义点。
+_BIBITEM_KEY_RE = re.compile(r"\\bibitem\s*(?:\[[^\]\n]*\]\s*)?\{([^}]*)\}")
+#: .aux 残留 ``\bibcite{key}{..}``/``\citation{keys}`` —— 陈旧键同源改写。
+_AUX_CITEKEY_RE = re.compile(r"\\(?:bibcite|citation)\s*\{([^}]*)\}")
+
+
+def _rewrite_keylists(
+    text: str, rx: re.Pattern[str], *, masked: bool
+) -> tuple[str, int]:
+    r"""``rx`` 组1 键表逐键 ``&``→``A``、``_``→``-``；返回 (新文本, 改写数)。
+
+    ``masked=True`` 在 ``mask_tex`` 视图上定位、原文上拼接——注释/verbatim
+    内同形 token 不改写（键串是查找语义，展示性出现不必动）。
+    """
+    view = mask_tex(text) if masked else text
+    edits: list[tuple[int, int, str]] = []
+    for m in rx.finditer(view):
+        keys = m.group(1)
+        if "&" not in keys and "_" not in keys:
+            continue
+        new = ",".join(k.replace("&", "A").replace("_", "-") for k in keys.split(","))
+        edits.append((m.start(1), m.end(1), new))
+    for s, e, new in reversed(edits):
+        text = text[:s] + new + text[e:]
+    return text, len(edits)
+
+
+def citekey_sanitize(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""ADS/apj.bst 时代 .bbl cite-key 裸 ``&``/``_`` → 双侧一致重写。
+
+    实证根因 (apj-bib-scout §S4, 11 格)：老导出 key 的 ``&``（A&A bibcode）/
+    ``_``（Allen_90/GW170104_main 形）在现代内核 ``\bibitem``/标签机制下炸
+    ``Missing $ inserted``/``Misplaced alignment tab``——.bbl ``\bibitem{key}``
+    定义点与全部 .tex ``\cite`` 族引用点必须同图改写，单侧改 = 引用断链。
+    .aux 残留 ``\bibcite``/``\citation`` 陈旧键同源改写（防 undefined-citation
+    残响）。
+    """
+    del eng, payload
+    tex_exts = tuple(params.get("tex_exts") or (".tex",))
+    gen_map = (
+        (".bbl", _BIBITEM_KEY_RE),
+        (".bbl", _CITE_FAMILY_RE),
+        (".aux", _AUX_CITEKEY_RE),
+    )
+    changed: list[str] = []
+    for f in ctx.tex_files(tex_exts):
+        t = ctx.read(f)
+        if t is None:
+            continue
+        nt, n = _rewrite_keylists(t, _CITE_FAMILY_RE, masked=True)
+        if n:
+            ctx.write(f, nt)
+            changed.append(f"{f.name}({n})")
+    for ext, rx in gen_map:
+        for f in ctx.tex_files((ext,)):
+            t = ctx.read(f)
+            if t is None:
+                continue
+            nt, n = _rewrite_keylists(t, rx, masked=False)
+            if n:
+                ctx.write(f, nt)
+                changed.append(f"{f.name}({n})")
+    if not changed:
+        return False, "no unsafe cite keys"
+    return True, f"sanitize cite keys &->A/_->-: {', '.join(changed)}"
 
 
 #: ``\documentclass`` 选项表提取 —— 选项可缺省, 方括号内允跨行空白。
@@ -2422,4 +2531,5 @@ TRANSFORM_FNS = {
     "graphic_case_link": graphic_case_link,
     "graphic_repair": graphic_repair,
     "restore_support_from_src": restore_support_from_src,
+    "citekey_sanitize": citekey_sanitize,
 }
