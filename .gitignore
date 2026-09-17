@@ -1,6 +1,7 @@
 # python
 __pycache__/
 *.pyc
+.coverage*
 .venv/
 .venv_*/
 # uv build 产物（release.yml 也产出于此——永远不跟踪）
