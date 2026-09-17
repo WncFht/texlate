@@ -454,11 +454,14 @@ class TestStoreSemantics:
         assert conns[b]["api_key"] == "key-b"
 
     def test_unknown_keys_and_connections_filter(self, tmp_path: Path) -> None:
-        """未知键直写文件（API 层另有白名单闸），``load`` 按 FIELDS 滤掉。"""
+        """未知键 ``save`` 写时即滤（FIELDS 白名单闸直调面）；手改件注入
+        未知键 ``load`` 仍滤。"""
         store = settings.SettingsStore(tmp_path)
         store.save({"totally_unknown": {"x": 1}})
         raw = json.loads((tmp_path / "settings.json").read_text(encoding="utf-8"))
-        assert raw["totally_unknown"] == {"x": 1}
+        assert "totally_unknown" not in raw
+        raw["totally_unknown"] = {"x": 1}
+        (tmp_path / "settings.json").write_text(json.dumps(raw), encoding="utf-8")
         assert "totally_unknown" not in store.load()
         (tmp_path / "connections.json").write_text(
             json.dumps({"a": {"api_key": "k"}, "b": 5, "c": "s", "d": None}),
