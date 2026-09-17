@@ -40,7 +40,7 @@ from texlate.xlat.prompts import normalize_kind
 from .fetch import Fetcher, _valid_id, normalize_arxiv_id
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Mapping
+    from collections.abc import Iterable, Iterator, Mapping
 
 # ---------------------------------------------------------------- 错误分类
 
@@ -373,22 +373,16 @@ def _block_ph(text: str, ph_map: dict[str, str]) -> dict[str, str]:
     return {t: ph_map[t] for t in PH_RX.findall(text) if t in ph_map}
 
 
-def parse_arxiv_html(  # noqa: C901, PLR0915 -- 枚举主循环：块分派 + support/嵌套闸 + footnote 排放，语句即枚举规则
-    html: str, *, arxiv_id: str = ""
-) -> HtmlDoc:
-    """HTML 全文 → 文档序块模型。
+def _enumerate_blocks(  # noqa: C901 -- 块分派 + support/嵌套闸 + footnote 排放，语句即枚举规则
+    art: Tag, ctx: _InlineCtx
+) -> Iterator[tuple[Tag, str, str, str, dict[str, str]]]:
+    """``article.ltx_document`` 内按文档序产 ``(元素, key, context, text, ph)``。
 
-    无 ``article.ltx_document`` → ``HtmlNotAvailableError``（stub/回落页
-    与 fetch 侧同型判据，parse 单用也安全）。
+    唯一枚举真源——``parse_arxiv_html`` 与 ``marked_html`` 共用：key 派生
+    （元素 ``id`` 优先，缺失合成 ``b{n}``，撞号 ``#k``）与 footnote 排放
+    序必须两侧一致，否则 ``data-chunk`` 锚与块表错位。``_inline_text``
+    的 note 排队副作用是枚举语义的一部分，标注用途也照跑。
     """
-    soup = BeautifulSoup(html, "lxml")
-    art = soup.find("article", class_="ltx_document")
-    if art is None:
-        raise HtmlNotAvailableError(
-            arxiv_id, status=HTTPStatus.OK, detail="no article.ltx_document"
-        )
-    ctx = _InlineCtx(_Issuer(PH_RX.findall(art.get_text())), {})
-    blocks: list[HtmlBlock] = []
     seen: set[str] = set()
     synth = 0
 
@@ -406,14 +400,13 @@ def parse_arxiv_html(  # noqa: C901, PLR0915 -- 枚举主循环：块分派 + su
         seen.add(base)
         return base
 
-    def drain_notes() -> None:
+    def drain_notes() -> Iterator[tuple[Tag, str, str, str, dict[str, str]]]:
         # 抽取期排队的 footnote：紧跟宿主块，note 体自身可再产 token/note
         while ctx.notes:
             note = ctx.notes.pop(0)
             content = note.find(class_="ltx_note_content") or note
             text = _inline_text(content, ctx)
-            ph = _block_ph(text, ctx.ph_map)
-            blocks.append(HtmlBlock(key_of(note), "footnote", text, ph))
+            yield note, key_of(note), "footnote", text, _block_ph(text, ctx.ph_map)
 
     for el in (d for d in art.descendants if isinstance(d, Tag)):
         kind = _block_kind(el)
@@ -440,11 +433,49 @@ def parse_arxiv_html(  # noqa: C901, PLR0915 -- 枚举主循环：块分派 + su
         elif kind == "keywords":
             context = "keywords"
             text = _inline_text(el, ctx)
-        blocks.append(HtmlBlock(key_of(el), context, text, _block_ph(text, ctx.ph_map)))
-        drain_notes()
+        yield el, key_of(el), context, text, _block_ph(text, ctx.ph_map)
+        yield from drain_notes()
+
+
+def parse_arxiv_html(html: str, *, arxiv_id: str = "") -> HtmlDoc:
+    """HTML 全文 → 文档序块模型。
+
+    无 ``article.ltx_document`` → ``HtmlNotAvailableError``（stub/回落页
+    与 fetch 侧同型判据，parse 单用也安全）。
+    """
+    soup = BeautifulSoup(html, "lxml")
+    art = soup.find("article", class_="ltx_document")
+    if art is None:
+        raise HtmlNotAvailableError(
+            arxiv_id, status=HTTPStatus.OK, detail="no article.ltx_document"
+        )
+    ctx = _InlineCtx(_Issuer(PH_RX.findall(art.get_text())), {})
+    blocks = [
+        HtmlBlock(key, context, text, ph)
+        for _el, key, context, text, ph in _enumerate_blocks(art, ctx)
+    ]
     title_el = art.find("h1", class_="ltx_title_document")
     title = title_el.get_text(" ", strip=True) if title_el else ""
     return HtmlDoc(blocks, ctx.ph_map, title, arxiv_id)
+
+
+def marked_html(html: str, *, arxiv_id: str = "") -> str:
+    """同源枚举给每个块元素注 ``data-chunk=block.key`` → 序列化全文。
+
+    emit 锚点：en/zh 产物经同一份标记 DOM 派生，``[data-chunk]`` 值与
+    ``HtmlDoc.blocks``/chunks 行 ``chunk_id`` 严格 1:1（DomPane 的
+    PageGeom 契约）。无 ``article.ltx_document`` → ``HtmlNotAvailableError``。
+    """
+    soup = BeautifulSoup(html, "lxml")
+    art = soup.find("article", class_="ltx_document")
+    if art is None:
+        raise HtmlNotAvailableError(
+            arxiv_id, status=HTTPStatus.OK, detail="no article.ltx_document"
+        )
+    ctx = _InlineCtx(_Issuer(PH_RX.findall(art.get_text())), {})
+    for el, key, _context, _text, _ph in _enumerate_blocks(art, ctx):
+        el["data-chunk"] = key
+    return str(soup)
 
 
 # ---------------------------------------------------------------- chunk 出口
