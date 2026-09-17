@@ -11,6 +11,7 @@ key 入口优先级（高→低）：请求头 ``X-Texlate-*`` > ``settings.json
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import ipaddress
 import json
@@ -591,20 +592,35 @@ class RedactFilter(logging.Filter):
                 return []
         return []
 
+    def _scrub(self, text: str) -> str:
+        for key in self._keys():
+            text = text.replace(key, "***")
+        for rx in _KEY_PATTERNS:
+            text = rx.sub("***", text)
+        return text
+
     def filter(self, record: logging.LogRecord) -> bool:
-        """命中 secret 形态时改写 msg 并清空 args（避免二次格式化还原）。"""
+        """命中 secret 形态时改写 msg 并清空 args（避免二次格式化还原）。
+
+        ``exc_info``/``stack_info`` 不走 ``msg``——Formatter 另路渲染；
+        含 key 的异常文本（三方库把请求体打进异常）须先行 format 再
+        洗，写回 ``record.exc_text`` 供 Formatter 直接用缓存值。
+        """
         try:
             msg = record.getMessage()
         except Exception:  # noqa: BLE001 -- 同上，filter 不炸
             return True
-        clean = msg
-        for key in self._keys():
-            clean = clean.replace(key, "***")
-        for rx in _KEY_PATTERNS:
-            clean = rx.sub("***", clean)
+        clean = self._scrub(msg)
         if clean != msg:
             record.msg = clean
             record.args = ()
+        if record.exc_info:
+            with contextlib.suppress(Exception):
+                record.exc_text = self._scrub(
+                    logging.Formatter().formatException(record.exc_info)
+                )
+        if record.stack_info:
+            record.stack_info = self._scrub(record.stack_info)
         return True
 
 

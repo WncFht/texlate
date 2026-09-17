@@ -79,9 +79,6 @@ staticfiles.py / ``__main__`` / cmap 资源：
   浏览器 Origin 恒小写化序列化 → 该条目永不匹配形同虚设；
 - D7 ``server_salt`` TOCTOU：并发首调用各写各盐——后写者覆盖文件，
   先返回者手里盐与落盘盐分叉 → 其租户指纹重启后不可解析；
-- D8 ``RedactFilter`` 只擦 ``msg``/``args`` 不碰 ``exc_info``：
-  ``logger.exception`` 把含 key 的异常文本打进 traceback → 第二道
-  脱敏防线对 traceback 面无效（与 docstring 宣称面不符）；
 - D9 ``_count_trackers`` 对内层结构零 ``isinstance`` 闸：``{"page":"x"}``、
   tracker 非 dict 等可解析 JSON → ``AttributeError`` 穿透
   ``assess_tracking`` → ``run_babeldoc`` 裸抛任务 fault；
@@ -823,16 +820,7 @@ class TestLogScrub:
             n = sum(isinstance(f, settings.RedactFilter) for f in lg.filters)
             assert n == 1, name
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="settings.py:555-569 RedactFilter.filter 只改写 "
-        "``record.msg``/``args``——``Formatter.formatException(record.exc_info)``"
-        "的输出从不经它。``logger.exception`` 捕获含 key 的异常（三方库把请求"
-        "体打进异常恰是 docstring 宣称要防的面）→ traceback 原文外泄。"
-        "修法：filter 内对 exc_info 先 ``formatException``→``scrub``→落 "
-        "``record.exc_text``（Formatter 优先用缓存值）。",
-    )
-    def test_xfail_exc_info_leaks_key(self) -> None:
+    def test_exc_info_leaks_key(self) -> None:
         """exc_info 里的 key 必须被抹掉（当前原样穿透）。"""
         lg, stream = self._capture(settings.RedactFilter(lambda: ["sk-exc-77"]))
         try:
