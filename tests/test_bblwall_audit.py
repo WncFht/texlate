@@ -42,7 +42,10 @@ def _ctx(tmp_path: Path, runner: RunFn | None = None) -> LoopCtx:
 
 def _write_main(tmp_path: Path, head: str, body: str = "hi") -> None:
     (tmp_path / "main.tex").write_text(
-        "\\documentclass{article}\n" + head + "\n\\begin{document}\n" + body
+        "\\documentclass{article}\n"
+        + head
+        + "\n\\begin{document}\n"
+        + body
         + "\n\\end{document}\n",
         encoding="utf-8",
     )
@@ -135,9 +138,7 @@ def test_bbl_regen_mixed_regen_and_drop(tmp_path: Path) -> None:
     """a.bcf 重生成功 + b.bcf 陈旧 drop → True, note 双段齐。"""
     (tmp_path / "a.bcf").write_text("<bcf/>", encoding="utf-8")
     (tmp_path / "b.bcf").write_text("<bcf/>", encoding="utf-8")
-    (tmp_path / "b.bbl").write_text(
-        "bbl format version 2.7\n", encoding="utf-8"
-    )
+    (tmp_path / "b.bbl").write_text("bbl format version 2.7\n", encoding="utf-8")
 
     def _mixed(argv: list[str], _t: int, w: Path) -> tuple:
         if argv[1] == "a":
@@ -189,9 +190,9 @@ def test_physics_detach_real_pkg_abstains(tmp_path: Path) -> None:
     ok, note = physics_stub_detach(_ctx(tmp_path), None, None, {})
     assert not ok
     assert "xparse" in note
-    assert "\\usepackage{physics}" in (
-        tmp_path / "main.tex"
-    ).read_text(encoding="utf-8")
+    assert "\\usepackage{physics}" in (tmp_path / "main.tex").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_physics_detach_no_stub_abstains(tmp_path: Path) -> None:
@@ -204,9 +205,7 @@ def test_physics_detach_no_stub_abstains(tmp_path: Path) -> None:
 
 def test_physics_detach_existing_input_no_dup(tmp_path: Path) -> None:
     """源已有 ``\\input{physics.sty}`` → 剥 usepackage 但不重复补 ``\\input``。"""
-    _write_main(
-        tmp_path, "\\input{physics.sty}\n\\usepackage{amsmath,physics}"
-    )
+    _write_main(tmp_path, "\\input{physics.sty}\n\\usepackage{amsmath,physics}")
     (tmp_path / "physics.sty").write_text(_STUB, encoding="utf-8")
     ok, _note = physics_stub_detach(_ctx(tmp_path), None, None, {})
     assert ok
@@ -239,9 +238,7 @@ def test_physics_detach_idempotent(tmp_path: Path) -> None:
 
 def test_physics_detach_rule_e2e(tmp_path: Path) -> None:
     """端到端: siunitx 硬错签名 → 规则点火 → 下一轮 clean。"""
-    _write_main(
-        tmp_path, "\\usepackage{amsmath,physics,siunitx}", "$\\abs{x}$"
-    )
+    _write_main(tmp_path, "\\usepackage{amsmath,physics,siunitx}", "$\\abs{x}$")
     (tmp_path / "physics.sty").write_text(_STUB, encoding="utf-8")
     rs = mini_rs(
         rules=[
@@ -249,9 +246,7 @@ def test_physics_detach_rule_e2e(tmp_path: Path) -> None:
                 "id": "physics_stub_detach",
                 "phase": "loop",
                 "order": 163,
-                "when": {
-                    "any": [{"category": "undefined_cs"}, {"category": "other"}]
-                },
+                "when": {"any": [{"category": "undefined_cs"}, {"category": "other"}]},
                 "condition": {
                     "cache_dir_glob": "physics.sty",
                     "source_contains": (
@@ -293,9 +288,7 @@ def test_detach_loads_helper_unit() -> None:
     assert n == 1
     assert "\\usepackage{physics-tools}" in nt
     assert "\\input{physics.sty}" in nt
-    nt2, n2 = _detach_physics_loads(
-        "\\usepackage{physics-tools}\n", add_input=True
-    )
+    nt2, n2 = _detach_physics_loads("\\usepackage{physics-tools}\n", add_input=True)
     assert n2 == 0
     assert nt2 == "\\usepackage{physics-tools}\n"
 
@@ -303,9 +296,7 @@ def test_detach_loads_helper_unit() -> None:
 # ---------------------------------------------------------- A5 undefine_for_redef
 def test_undefine_newbox_abstains(tmp_path: Path) -> None:
     """``\\newbox\\splitbox`` 分配名 → abstain (2211.04482 aastex62 实证)。"""
-    (tmp_path / "aastex62.cls").write_text(
-        "\\newbox\\splitbox\n", encoding="utf-8"
-    )
+    (tmp_path / "aastex62.cls").write_text("\\newbox\\splitbox\n", encoding="utf-8")
     _write_main(tmp_path, "")
     ok, note = undefine_for_redef(_ctx(tmp_path), None, "splitbox", {})
     assert not ok
@@ -381,9 +372,7 @@ def _glyphtounicode_rule() -> tuple:
 def test_glyphtounicode_shadow_rule_order() -> None:
     """order 46 先于 pdftex_prim guard(50)/polyfill(51) —— payload 同格先截。"""
     rs, rule = _glyphtounicode_rule()
-    assert rule.order < next(
-        r.order for r in rs.rules if r.id == "pdftex_prim_guard"
-    )
+    assert rule.order < next(r.order for r in rs.rules if r.id == "pdftex_prim_guard")
     assert rule.order < next(
         r.order for r in rs.rules if r.id == "pdftex_prim_polyfill"
     )
@@ -399,9 +388,7 @@ def test_glyphtounicode_shadow_drops_stub(tmp_path: Path) -> None:
     _write_main(tmp_path, "")
     _rs, rule = _glyphtounicode_rule()
     ctx = _ctx(tmp_path)
-    ok, why = _cond_ok(
-        rule.condition, rule, ctx, MockEngine([]), "pdfglyphtounicode"
-    )
+    ok, why = _cond_ok(rule.condition, rule, ctx, MockEngine([]), "pdfglyphtounicode")
     assert ok, why
     applied, note = TRANSFORM_FNS[rule.action["function"]](
         ctx, MockEngine([]), "\\pdfglyphtounicode", rule.action["params"]

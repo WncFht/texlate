@@ -260,7 +260,11 @@ def test_font_fallback_double_inject_no_clash(tmp_path: Path) -> None:
         "Missing character: There is no Ж (U+0416) in font [lmroman10-regular]:mapping=tex-text;!\n"
     )
     eng = MockEngine(
-        [{"log": log1, "pdf": True}, {"log": log2, "pdf": True}, {"log": CLEAN_LOG, "pdf": True}],
+        [
+            {"log": log1, "pdf": True},
+            {"log": log2, "pdf": True},
+            {"log": CLEAN_LOG, "pdf": True},
+        ],
         available={"newunicodechar.sty"},
     )
     cell = fixloop(tmp_path, eng)

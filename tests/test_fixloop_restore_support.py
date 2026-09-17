@@ -22,9 +22,7 @@ _PROSE = (
 
 
 def _ctx(wdir: Path) -> LoopCtx:
-    return LoopCtx(
-        wdir=wdir, engine_name="xelatex", main_rel="main.tex", runner=None
-    )
+    return LoopCtx(wdir=wdir, engine_name="xelatex", main_rel="main.tex", runner=None)
 
 
 def _trees(root: Path) -> tuple[Path, Path]:
@@ -36,9 +34,7 @@ def _trees(root: Path) -> tuple[Path, Path]:
 
 
 def _run(work: Path, base: Path) -> tuple[bool, str]:
-    return restore_support_from_src(
-        _ctx(work), None, None, {"baseline_dir": str(base)}
-    )
+    return restore_support_from_src(_ctx(work), None, None, {"baseline_dir": str(base)})
 
 
 def test_restores_corrupted_support(tmp_path: Path) -> None:
@@ -60,9 +56,7 @@ def test_restores_nested_support(tmp_path: Path) -> None:
     (work / "sub").mkdir()
     (base / "sub").mkdir()
     (base / "sub" / "defs.tex").write_text(_MACH, encoding="utf-8")
-    (work / "sub" / "defs.tex").write_text(
-        _MACH + "中文注入\n", encoding="utf-8"
-    )
+    (work / "sub" / "defs.tex").write_text(_MACH + "中文注入\n", encoding="utf-8")
     ok, note = _run(work, base)
     assert ok
     assert "sub/defs.tex" in note
@@ -141,9 +135,7 @@ def test_code_tex_name_gate_restored(tmp_path: Path) -> None:
     work, base = _trees(tmp_path)
     (base / "tikzlibraryzz.code.tex").write_text(_PROSE, encoding="utf-8")
     (base / "rtxdump.rtx.tex").write_text(_PROSE, encoding="utf-8")
-    (work / "tikzlibraryzz.code.tex").write_text(
-        _PROSE + "中文\n", encoding="utf-8"
-    )
+    (work / "tikzlibraryzz.code.tex").write_text(_PROSE + "中文\n", encoding="utf-8")
     (work / "rtxdump.rtx.tex").write_text(_PROSE + "中文\n", encoding="utf-8")
     ok, note = _run(work, base)
     assert ok
@@ -181,6 +173,5 @@ def test_no_baseline_counterpart_skipped(tmp_path: Path) -> None:
 def test_restore_support_registered() -> None:
     """注册进 TRANSFORM_FNS (rules.yaml function: 面)。"""
     assert (
-        builtins.TRANSFORM_FNS["restore_support_from_src"]
-        is restore_support_from_src
+        builtins.TRANSFORM_FNS["restore_support_from_src"] is restore_support_from_src
     )

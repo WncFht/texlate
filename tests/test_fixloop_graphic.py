@@ -367,9 +367,7 @@ def test_eps_to_pdf_mps_and_uppercase(
     assert "\\includegraphics{OLD.pdf}" in t
 
 
-def test_eps_to_pdf_dos_exts(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_eps_to_pdf_dos_exts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """``.epsi``/``.epsf`` (DOS 约定 EPS) 与 PS_GRAPHIC_SUFFIXES 同步进转换面。"""
     monkeypatch.setattr(shutil, "which", _which_convert)
     monkeypatch.setattr(builtins, "_run_convert", _fake_convert)
