@@ -46,7 +46,7 @@ from texlate.texlog import (
     patch_graphic_top,
     update_file_stack,
 )
-from texlate.textutil import decode_tex, env_flag, safe_is_file
+from texlate.textutil import decode_tex, env_flag, safe_is_file, safe_resolve
 
 from .mask import visible_tex
 from .sandbox import child_env, find_tool, run_process, sandbox_wrap
@@ -177,7 +177,9 @@ _ERR_BANG_RE = re.compile(r"^!")
 #: ``Makefile:5:``/``C:\foo.tex:5:``/``(x.tex:5:`` 畸形形齐拒；扩展名不
 #: 限 tex 系（``.eps``/``.pdf_t``/``.end`` 等皆真错，l2 侧 7814 log 实证）。
 _ERR_FNAME = r"[^()\s:]+\.[A-Za-z0-9_-]{1,10}"
-_ERR_FILELINE_RE = re.compile(r"^" + _ERR_FNAME + r":\d+: \S")  # -file-line-error 引擎级错误
+_ERR_FILELINE_RE = re.compile(
+    r"^" + _ERR_FNAME + r":\d+: \S"
+)  # -file-line-error 引擎级错误
 #: ``file:line:`` 形态的非错误行（与 fixloop/logparse 同口径）：
 #: Warning 行（警告也带 file:line: 前缀时不能计入错误）与
 #: ``==> Fatal error occurred`` 汇总尾行（同一失败的复述，多计一次）。
@@ -550,15 +552,18 @@ _SANDBOX_TMP: Final = "/tmp"  # noqa: S108 -- 挂点语义即字面 /tmp
 def _texmfdist() -> str | None:
     """解 ``TEXMFDIST``（fontconfig conf 的 opentype 树锚点；无 → None）。"""
     try:
-        out = subprocess.run(
+        proc = subprocess.run(
             ["kpsewhich", "-var-value", "TEXMFDIST"],  # noqa: S607
             capture_output=True,
             text=True,
             timeout=10,
             check=False,
-        ).stdout.strip()
-    except OSError:
+        )
+    except (OSError, subprocess.TimeoutExpired):
         return None
+    if proc.returncode != 0:
+        return None
+    out = proc.stdout.strip()
     return out or None
 
 
@@ -949,6 +954,27 @@ def _salvage_driver_fatal(info: LogInfo, res: CompRes) -> None:
             info.first_error = line
 
 
+def _checked_main(wdir: Path, main: str) -> Path:
+    """``compile`` 的 main 参数合法性闸：NUL/``..``/符号链逃逸一律 ValueError。
+
+    返回 ``wdir / main`` 的 normpath 形（折叠 ``.``/``..`` 但不解符号链——
+    stem/cwd 沿用调用方给的拼写）。逃逸检查走 resolve 后双侧比对：
+    ``../main.tex`` 把 cwd 与 ``{stem}.pdf/.log`` 产物落出 wdir，毁掉
+    outdir 回收约定；NUL 路径在 stale unlink 处炸裸 ``ValueError`` 逃过
+    fixloop 轮内捕获——校验先于一切 FS 变更。
+    """
+    if "\x00" in main:
+        msg = f"invalid main {main!r}: embedded null"
+        raise ValueError(msg)
+    main_path = Path(os.path.normpath(wdir / main))
+    wdir_r = safe_resolve(wdir)
+    main_r = safe_resolve(main_path)
+    if wdir_r is None or main_r is None or not main_r.is_relative_to(wdir_r):
+        msg = f"invalid main {main!r}: escapes workdir"
+        raise ValueError(msg)
+    return main_path
+
+
 # ================================================================ xelatex
 class XelatexEngine:
     """TeX Live xelatex：M0 开发默认（tlmgr 可修性实测最高，engine-matrix §5）。"""
@@ -1074,7 +1100,8 @@ class XelatexEngine:
         """engine_flags → (进 argv, 丢弃)。
 
         ``_OUTPUT_REKEY_PREFIXES`` 系 flag 会重键 pdf/log 落点、毁掉按
-        outdir 回收产物的约定 → 拒放进 dropped；两 token 形态
+        outdir 回收产物的约定 → 拒放进 dropped（kpathsea 单双横线等价，
+        ``--output-directory=/x`` 同拒）；两 token 形态
         （``-output-directory /x``）把值 token 一并丢——留在 argv 会被
         xelatex 当第二输入文件处理。其余原样直通。
         """
@@ -1083,7 +1110,10 @@ class XelatexEngine:
         i = 0
         while i < len(flist):
             fl = flist[i]
-            if fl.startswith(_OUTPUT_REKEY_PREFIXES):
+            # kpathsea 长选项单双横线等价——归一成单横线再查重键表，
+            # 否则 ``--output-directory=/x`` 绕过拒放面把 pdf/log 落点重键。
+            norm = "-" + fl.lstrip("-")
+            if norm.startswith(_OUTPUT_REKEY_PREFIXES):
                 dropped.append(fl)
                 if (
                     "=" not in fl
@@ -1149,7 +1179,7 @@ class XelatexEngine:
         if binary is None:
             res.stdout_tail = "xelatex not found"
             return res
-        main_path = wdir / main
+        main_path = _checked_main(wdir, main)
         cwd = main_path.parent
         stem = main_path.stem
         out = (outdir or cwd).resolve()
@@ -1616,7 +1646,7 @@ class TectonicEngine:
         if binary is None:
             res.stdout_tail = "tectonic not found"
             return res
-        main_path = wdir / main
+        main_path = _checked_main(wdir, main)
         cwd = main_path.parent
         stem = main_path.stem
         out = (outdir or cwd / "_tect_out").resolve()
@@ -1680,9 +1710,17 @@ class TectonicEngine:
     def probe_file(self, fname: str, *, cwd: Path | None = None) -> str | None:
         """工程内探测（vendored 文件遮蔽检查）；bundle 探测留 ctan_fetch 层。"""
         if cwd is not None:
-            # fixloop 供给的 fname 是 log 可控面——巨名/NUL 按未命中计。
+            # fixloop 供给的 fname 是 log 可控面——巨名/NUL 按未命中计，
+            # ``../``/绝对路逃逸命中同样拒答：命中须留在 cwd 之内。
             cand = cwd / fname
-            if safe_is_file(cand):
+            cand_r = safe_resolve(cand)
+            cwd_r = safe_resolve(cwd)
+            if (
+                cand_r is not None
+                and cwd_r is not None
+                and cand_r.is_relative_to(cwd_r)
+                and safe_is_file(cand)
+            ):
                 return str(cand)
         return None
 
@@ -1754,6 +1792,11 @@ _PSTRICKS_RE = re.compile(
     r"\\begin\s*\{pspicture\*?\}|\\pspicture\b|\\psset\b"
 )
 _MINTED_FROZEN_RE = re.compile(r"frozencache")
+#: ``frozencache`` 须与 minted 装载共现才翻 tectonic 优先（§4.2
+#: "frozencache + minted"）——散文裸提 ``frozencache`` 词不构成信号。
+_MINTED_PKG_RE = re.compile(
+    r"\\(?:usepackage|RequirePackage)\s*(?:\[[^\]]*\])?\s*\{[^}]*\bminted2?\b"
+)
 _BITMAP_FONT_PKGS = re.compile(
     r"\\usepackage(?:\[[^]]*\])?\{[^}]*\b("
     + "|".join(sorted(BITMAP_FONT_PKG_NAMES))
@@ -1797,9 +1840,11 @@ def route_project(root: Path, *, prefer: str = "tectonic") -> RouteDecision:
     ]
 
     reasons: list[str] = []
-    has_eps = any(p.suffix.lower() == ".eps" for p in root.rglob("*"))
+    has_eps = any(p.suffix.lower() == ".eps" and p.is_file() for p in root.rglob("*"))
     has_pstricks = bool(_PSTRICKS_RE.search(blob_vis))
-    has_minted_frozen = bool(_MINTED_FROZEN_RE.search(blob_vis))
+    has_minted_frozen = bool(
+        _MINTED_FROZEN_RE.search(blob_vis) and _MINTED_PKG_RE.search(blob_vis)
+    )
     has_bitmap_fonts = bool(_BITMAP_FONT_PKGS.search(blob_vis))
 
     engines = (
@@ -1866,7 +1911,13 @@ def load_search_cache() -> dict[str, list[str]]:
         return {}
     if not isinstance(raw, dict):
         return {}
-    return {k: v for k, v in raw.items() if v}
+    # 值型闸：truthy 非标量（str/int/dict）原样进缓存会让 filemap 返回
+    # 非 list[str]，下游 splat 把 "notalist" 散成单字符包名喂 tlmgr。
+    return {
+        k: v
+        for k, v in raw.items()
+        if isinstance(v, list) and v and all(isinstance(e, str) for e in v)
+    }
 
 
 def save_search_cache(cache: dict[str, list[str]]) -> None:

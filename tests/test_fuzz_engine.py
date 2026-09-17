@@ -9,33 +9,37 @@ oracle 方法：工程树/旗标表/log 行/makefile 文本由发生器按种子
 验证 env 隔离/超时杀/重试/pass 门控）或 monkeypatch ``run_process`` 的假进程
 （预算/gating/字段簿记）。真机引擎不可达。
 
-PIN 缺陷（tmp/engine-fuzz/ 探针实证后钉死，src 未修——修复后改断言删标记）：
+PIN 缺陷（tmp/engine-fuzz/ 探针实证钉死，2026-09-17 九钉全修——断言已翻转到
+新行为；本表留档原缺陷语义，行号为当时快照）：
 
 - D1 ``_split_flags`` 前缀表只挡单横线拼写：``--output-directory=/x`` 等
   双横线长选项落 ``applied``——kpathsea 认双横线，pdf/log 落点被重键，
-  outdir 回收约定失守。(engine.py:1086)
+  outdir 回收约定失守。→ 修：dash 归一（``-``+lstrip）再查重键表。
 - D2 ``load_search_cache`` 滤 falsy 不查值型：truthy 非标量原样进缓存，
   ``filemap`` 返回 str/int/dict——签名承诺 ``list[str]``，下游 splat 把
-  ``"notalist"`` 散成单字符包名喂 tlmgr。(engine.py:1869)
+  ``"notalist"`` 散成单字符包名喂 tlmgr。→ 修：list+全 str 元素双闸。
 - D3 ``compile`` stale unlink 先于路径合法性：``main="bad\x00.tex"`` 抛
   ``ValueError: unlink: embedded null``——其它坏 main 形态都走
-  CompRes/rc=None 面，独此炸异常逃过 fixloop 轮内捕获。(engine.py:1158)
+  CompRes/rc=None 面，独此炸异常逃过 fixloop 轮内捕获。
+  → 修：``_checked_main`` 校验先于一切 FS 变更，NUL 走显式 ValueError。
 - D4 ``_texmfdist`` 不查 kpsewhich 退出码：rc=1 + stdout 垃圾 → 垃圾串
-  进 fontconfig conf ``<dir>``。(engine.py:559)
+  进 fontconfig conf ``<dir>``。→ 修：rc!=0/TimeoutExpired → None。
 - D5 ``TectonicEngine.probe_file`` 无 cwd 内约束：``../secret.sty`` 存在
   即返回其路径——fixloop 供给的 log 可控名越出工程目录。
-  (engine.py:1684)
+  → 修：resolve 双侧比对，命中须留在 cwd 内。
 - D6 ``route_project`` eps 信号不查 is_file：名为 ``x.eps`` 的**目录**
-  也翻 xelatex-first（.tex 扫描侧有 is_file 闸 :1779，:1800 没有——
-  不对称）。
+  也翻 xelatex-first（.tex 扫描侧有 is_file 闸，eps 侧没有——不对称）。
+  → 修：eps 扫描补 is_file 闸；目录形态改作诱饵。
 - D7 ``child_env(extra)`` 把 extra 最后套用——``env_extra={"shell_escape":"t"}``
   静默压过 ``shell_escape=f`` 强制阀（openin_any 同理可松）。
-  (sandbox.py:87)
+  → 修：extra 滤 ``_ENV_FORCED`` 同名键，阀值恒赢。
 - D8 ``_MINTED_FROZEN_RE`` 裸子串 ``frozencache``——docstring 宣称
   "frozencache + minted"，散文提及即翻 prefer="xelatex" → tectonic-first，
-  reason 文案谎称 minted。(engine.py:1756)
+  reason 文案谎称 minted。→ 修：``_MINTED_PKG_RE`` 装载共现双闸；
+  fuzz oracle 改 minted/froz 两 conjunct 登记。
 - D9 ``compile`` 的 main 不规范化：``main="../main.tex"`` 把 cwd/产物
-  落出 wdir，outdir 回收面越界。(engine.py:1152)
+  落出 wdir，outdir 回收面越界。→ 修：``_checked_main``  containment
+  （resolve 比对）+ normpath 折叠；tectonic 侧同洞并修。
 """
 
 from __future__ import annotations
@@ -198,7 +202,16 @@ _SIG_PST = (
     "\\pspicture(0,0)(1,1)",
     "\\psset{unit=1cm}",
 )
-_SIG_FROZEN = "we cache with frozencache option"
+_SIG_FROZEN = (
+    "\\usepackage[frozencache]{minted}",
+    "\\usepackage[frozencache=true]{minted2}",
+    "\\RequirePackage[frozencache]{minted}",
+)
+_SIG_MINTED_ONLY = (
+    "\\usepackage{minted}",
+    "\\usepackage{minted2}",
+    "\\RequirePackage[chapter]{minted}",
+)
 _SIG_BITMAP = (
     "\\usepackage{bbm}",
     "\\usepackage{wasysym}",
@@ -229,12 +242,13 @@ _TEX_NAMES = ("main.tex", "a.TEX", "sub/b.tex", "sub/deep/c.TeX")
 _NONTEX_NAMES = ("notes.txt", "README.md")  # 非 .tex 里的信号不得计数
 
 
-def _gen_project(root: Path, rng: random.Random) -> dict[str, object]:  # noqa: C901, PLR0912
+def _gen_project(root: Path, rng: random.Random) -> dict[str, object]:  # noqa: C901, PLR0912, PLR0915
     """随机工程树 + 生成侧路由事实登记。"""
     expect: dict[str, object] = {
         "eps": False,
         "pst": False,
-        "frozen": False,
+        "minted": False,  # minted/minted2 装载行落过 visible tex
+        "froz": False,  # frozencache 子串落过 visible tex
         "bitmap": False,
         "docstyle": set(),
         "non_utf8": False,
@@ -264,12 +278,23 @@ def _gen_project(root: Path, rng: random.Random) -> dict[str, object]:  # noqa: 
                 if is_tex:
                     expect["docstyle"].add(rel)  # type: ignore[attr-defined]
             elif pick < 0.86:  # noqa: PLR2004
-                if rng.random() < 0.4:  # noqa: PLR2004
+                sub = rng.random()
+                if sub < 0.2:  # noqa: PLR2004
                     lines.append("% frozencache mention")  # 遮蔽
-                else:
-                    lines.append(_SIG_FROZEN)
+                elif sub < 0.5:  # noqa: PLR2004
+                    lines.append(rng.choice(_SIG_FROZEN))  # minted 装载+frozencache
                     if is_tex:
-                        expect["frozen"] = True
+                        expect["minted"] = True
+                        expect["froz"] = True
+                elif sub < 0.75:  # noqa: PLR2004
+                    # 裸散文半边——D8 修复后不构成路由信号
+                    lines.append("we cache with frozencache option")
+                    if is_tex:
+                        expect["froz"] = True
+                else:
+                    lines.append(rng.choice(_SIG_MINTED_ONLY))  # 另半边
+                    if is_tex:
+                        expect["minted"] = True
             elif pick < 0.94:  # noqa: PLR2004
                 lines.append(rng.choice(_SIG_BITMAP))
                 if is_tex:
@@ -281,16 +306,15 @@ def _gen_project(root: Path, rng: random.Random) -> dict[str, object]:  # noqa: 
             blob += b"\xff\xfe"  # 非 UTF-8 尾——信号照常算
             expect["non_utf8"] = True
         p.write_bytes(blob)
-    # .eps 成员：文件与**目录**两形态
+    # .eps 成员：文件与**目录**两形态——目录是 D6 修复后的诱饵（不算信号）
     if rng.random() < 0.3:  # noqa: PLR2004
         if rng.random() < 0.4:  # noqa: PLR2004
-            (root / "figs.eps").mkdir(parents=True)
-            # PIN: D6 —— eps 信号漏 is_file 闸，目录名也翻路由；缺陷待修
+            (root / "figs.eps").mkdir(parents=True)  # 目录形态不计
         else:
             eps = root / rng.choice(["fig.eps", "F.EPS", "sub/g.eps"])
             eps.parent.mkdir(parents=True, exist_ok=True)
             eps.write_bytes(b"x")
-        expect["eps"] = True
+            expect["eps"] = True
     return expect
 
 
@@ -298,7 +322,8 @@ def _o_route(root: Path, prefer: str, expect: dict[str, object]) -> dict[str, ob
     """生成侧事实 → 期望 RouteDecision 字段（不复用 impl 判定）。"""
     eps = bool(expect["eps"])
     pst = bool(expect["pst"])
-    frozen = bool(expect["frozen"])
+    # D8 契约：frozencache + minted 装载须共现——半边信号不翻路由
+    frozen = bool(expect["minted"]) and bool(expect["froz"])
     engines = (
         ["xelatex", "tectonic"] if prefer == "xelatex" else ["tectonic", "xelatex"]
     )
@@ -370,14 +395,22 @@ def test_route_project_unreadable_subdir(tmp_path: Path) -> None:
 
 
 def test_route_frozencache_bare_word(tmp_path: Path) -> None:
-    # PIN: D8 —— 裸子串 frozencache 无 minted 共现也翻转 prefer="xelatex"；缺陷待修
+    """D8 已修：裸散文 frozencache（无 minted 装载）不翻路由；共现才翻。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\begin{document}\n"
         "We discuss the frozencache option.\n\\end{document}\n"
     )
     d = route_project(tmp_path, prefer="xelatex")
-    assert d.engines == ["tectonic", "xelatex"]
-    assert d.reasons == ["minted frozencache → tectonic 优先（bundle v2.6 兼容）"]
+    assert d.engines == ["xelatex", "tectonic"]
+    assert d.reasons == []
+    # 共现对照：frozencache + minted 装载 → tectonic-first
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\usepackage[frozencache]{minted}\n"
+        "\\begin{document}\nx\n\\end{document}\n"
+    )
+    d2 = route_project(tmp_path, prefer="xelatex")
+    assert d2.engines == ["tectonic", "xelatex"]
+    assert d2.reasons == ["minted frozencache → tectonic 优先（bundle v2.6 兼容）"]
 
 
 # ================================================================ engine_for
@@ -430,7 +463,9 @@ def _o_split(flags: list[str]) -> tuple[list[str], list[str]]:
     i = 0
     while i < len(flags):
         fl = flags[i]
-        if any(fl.startswith(p) for p in _O_REKEY):
+        # kpathsea 单双横线等价——归一后查表（D1 修复口径）
+        norm = "-" + fl.lstrip("-")
+        if any(norm.startswith(p) for p in _O_REKEY):
             dropped.append(fl)
             if (
                 "=" not in fl
@@ -471,25 +506,22 @@ def test_split_flags_fuzz() -> None:
         applied, dropped = XelatexEngine._split_flags(flags)  # noqa: SLF001
         exp_a, exp_d = _o_split(flags)
         assert applied == exp_a and dropped == exp_d, flags  # noqa: PT018
-        # 不变量：applied 无重复、无单横线 rekey 前缀；dropped 保序
+        # 不变量：applied 无重复、任何横线拼写的 rekey 前缀都不得入；dropped 保序
         assert len(applied) == len(set(applied))
-        assert not any(
-            a.startswith(p)
-            for a in applied
-            for p in _O_REKEY
-            if a.startswith("-o") or not a.startswith("--")
-        )
-        for a in applied:  # 单横线 rekey 永不在 applied
-            assert not any(a.startswith(p) and not a.startswith("--") for p in _O_REKEY)
+        for a in applied:
+            assert not any(("-" + a.lstrip("-")).startswith(p) for p in _O_REKEY)
 
 
 def test_split_flags_doubledash_rekey_bypass() -> None:
-    # PIN: D1 —— 双横线 rekey 拼写漏进 applied；缺陷待修
+    """D1 已修：双横线 rekey 拼写归一查表——落 dropped 不落 applied。"""
     applied, dropped = XelatexEngine._split_flags(  # noqa: SLF001
         ["--output-directory=/evil", "--jobname=x", "-synctex=1"]
     )
-    assert applied == ["--output-directory=/evil", "--jobname=x", "-synctex=1"]
-    assert dropped == []
+    assert applied == ["-synctex=1"]
+    assert dropped == ["--output-directory=/evil", "--jobname=x"]
+    # 两 token 形态双横线同吞值
+    a2, d2 = XelatexEngine._split_flags(["--output-directory", "/evil"])  # noqa: SLF001
+    assert a2 == [] and d2 == ["--output-directory", "/evil"]  # noqa: PT018
 
 
 def test_split_flags_value_consume_edges() -> None:
@@ -795,7 +827,7 @@ def test_xelatex_flags_rekey_not_in_argv(
 def test_xelatex_env_extra_overrides_forced_valve(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # PIN: D7 —— env_extra 最后套用可压 shell_escape=f/openin_any=p 强制阀；缺陷待修
+    """D7 已修：env_extra 同名键滤除——``_ENV_FORCED`` 阀值恒赢。"""
     calls: list[dict[str, object]] = []
     monkeypatch.setattr(eng_mod, "run_process", _fake_run(calls))
     (tmp_path / "main.tex").write_text("x")
@@ -808,13 +840,13 @@ def test_xelatex_env_extra_overrides_forced_valve(
     )
     env = calls[-1]["env"]
     assert isinstance(env, dict)
-    assert env["shell_escape"] == "t"  # 阀被压
-    assert env["openin_any"] == "a"
-    assert env["ARBITRARY_K"] == "v"  # 任意键注入
+    assert env["shell_escape"] == "f"  # 强制阀不被压
+    assert env["openin_any"] == "p"
+    assert env["ARBITRARY_K"] == "v"  # 非阀键增量照常进
 
 
 def test_xelatex_nul_main_raises(tmp_path: Path) -> None:
-    # PIN: D3 —— main 带 NUL 在 stale unlink 处炸 ValueError；缺陷待修
+    """D3 已修：NUL main 在 ``_checked_main`` 显式拒——先于 stale unlink/FS 变更。"""
     (tmp_path / "main.tex").write_text("x")
     with pytest.raises(ValueError, match="embedded null"):
         XelatexEngine(binary="/bin/true").compile(
@@ -822,14 +854,10 @@ def test_xelatex_nul_main_raises(tmp_path: Path) -> None:
         )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="D9: main 带 ../ 无拒绝——cwd 逃逸 wdir 父级、产物落树外；修复落地 XPASS 转红拆钉",
-)
 def test_xelatex_main_parent_escape(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # PIN: D9 —— main="../main.tex" 应像 NUL 一样被 ValueError 拒（缺陷待修）
+    """D9 已修：``main="../main.tex"`` 与 NUL 同走 ValueError。"""
     work = tmp_path / "w"
     work.mkdir()
     (tmp_path / "main.tex").write_text("x")
@@ -1006,12 +1034,8 @@ def test_tectonic_missing_binary(
     assert res.stdout_tail == "tectonic not found" and res.ok is False  # noqa: PT018
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="D5: probe_file 无 cwd 内约束——../ 逃逸命中仍返回解析路径；修复落地 XPASS 转红拆钉",
-)
 def test_tectonic_probe_file_parent_escape(tmp_path: Path) -> None:
-    # PIN: D5 —— ../ 逃逸应回 None（缺陷待修）
+    """D5 已修：``../`` 逃逸命中回 None——probe 须留在 cwd 内。"""
     (tmp_path / "secret.sty").write_text("% x")
     work = tmp_path / "w"
     work.mkdir()
@@ -1688,27 +1712,49 @@ def test_search_cache_roundtrip(
 
 
 def test_search_cache_nonlist_type_confusion(
-    tmp_path: Path, clean_env: pytest.MonkeyPatch
+    tmp_path: Path, clean_env: pytest.MonkeyPatch, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # PIN: D2 —— truthy 非 list 值原样穿透 filemap（类型混乱）；缺陷待修
+    """D2 已修：非 ``list[str]`` 值滤出缓存——filemap 恒返包名表或 ``[]``。"""
     clean_env.setenv("TEXLATE_TLMGR_CACHE", str(tmp_path / "c.json"))
     (tmp_path / "c.json").write_text(
-        json.dumps({"/x.sty": "notalist", "/y.sty": 42, "/z.sty": ["ok"]})
+        json.dumps(
+            {
+                "/x.sty": "notalist",
+                "/y.sty": 42,
+                "/w.sty": ["ok", 7],
+                "/z.sty": ["ok"],
+            }
+        )
     )
     eng = XelatexEngine(binary="/bin/true")
-    assert eng.filemap("x.sty") == "notalist"  # str 冒充 list[str]
+    monkeypatch.setattr(eng_mod, "find_tool", lambda _n: None)  # 无 tlmgr
+    monkeypatch.setattr(
+        XelatexEngine, "_filemap_index", lambda _s, _f: None
+    )  # 索引缺席 → miss 落 []
+    assert eng.filemap("x.sty") == []  # str 值滤出 → 按未命中处理
+    assert eng.filemap("y.sty") == []
+    assert eng.filemap("w.sty") == []  # list 内掺非 str 元素同滤
     assert eng.filemap("z.sty") == ["ok"]
 
 
 def test_texmfdist_rc_ignored(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: ARG001
-    # PIN: D4 —— kpsewhich rc=1 的 stdout 垃圾照收进 fontconfig conf；缺陷待修
+    """D4 已修：kpsewhich rc!=0 → None——stdout 垃圾不进 fontconfig conf。"""
+
     class _P:
         stdout = "GARBAGE\n"
         returncode = 1
 
     monkeypatch.setattr(subprocess, "run", lambda *a, **k: _P())  # noqa: ARG005
     eng_mod._texmfdist.cache_clear()  # noqa: SLF001
-    assert eng_mod._texmfdist() == "GARBAGE"  # noqa: SLF001
+    assert eng_mod._texmfdist() is None  # noqa: SLF001
+
+    class _Q:  # rc=0 正常取 stdout
+        stdout = "/usr/share/texmf-dist\n"
+        returncode = 0
+
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: _Q())  # noqa: ARG005
+    eng_mod._texmfdist.cache_clear()  # noqa: SLF001
+    assert eng_mod._texmfdist() == "/usr/share/texmf-dist"  # noqa: SLF001
 
 
 # ================================================================ 真 shim 子进程

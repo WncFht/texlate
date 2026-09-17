@@ -76,7 +76,11 @@ _ENV_FORCED = {
 
 
 def child_env(extra: dict[str, str] | None = None) -> dict[str, str]:
-    """编译子进程环境：白名单透传 + 安全阀覆盖 + 调用方增量。"""
+    r"""编译子进程环境：白名单透传 + 安全阀覆盖 + 调用方增量。
+
+    ``extra`` 不得松动 ``_ENV_FORCED`` 阀位——``shell_escape=t`` 类增量
+    静默压过强制阀即裸 ``\write18`` 面，同名键直接滤除（阀值恒赢）。
+    """
     env = {
         k: v
         for k, v in os.environ.items()
@@ -84,7 +88,7 @@ def child_env(extra: dict[str, str] | None = None) -> dict[str, str]:
     }
     env.update(_ENV_FORCED)
     if extra:
-        env.update(extra)
+        env.update({k: v for k, v in extra.items() if k not in _ENV_FORCED})
     return env
 
 
