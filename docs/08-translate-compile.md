@@ -176,9 +176,9 @@ env judge 参数：**temperature=0、max_tokens=16、3 次重试、解析 `true/
 8. 删 `\pdfinfo{...}`、删 `\pdfoutput=1`；驱动选项 `pdftex→xetex`（只改 hyperref/graphicx/graphics/color/xcolor 可选参内的独立 token）。
 9. OT1/T1/LY1 → TU 字体族：`ptm→texgyretermes` 等映射表 + `\usefont/\fontfamily` 改写 + `\newfontfamily` 定义块插 `\documentclass{}` **后**（自定义 NFSS 族跳过；不改作者默认字体，只给显式 Type1 选择提供 Unicode 等价物）。
 10. `normalize_legacy_cjk`：`CJK/CJKutf8` → xeCJK+Fandol（lualatex→luatexja）。
-11. `use_bundled_bibliography`：`.bib` 缺失但有 `.bbl` → `\bibliography{x}` → `\input{x.bbl}`。
+11. `use_bundled_bibliography`：`.bib` 缺失但有 `.bbl` → `\bibliography{x}` → `\input{x.bbl}`。（勘误 2026-09-17：改写目标非 `x.bbl` 而是**声明文件词干** `.bbl`（`path.with_suffix(".bbl")`）相对编译 cwd 的 posix 路径——`main.tex`→`\input{main.bbl}`、`chaps/one.tex`→`\input{chaps/one.bbl}`；前置：该 .bbl 存在且含 `\begin{thebibliography}`、relpath 不越 `..`（`openin_any=p` 拒 `../` 引用）；多只 `\bibliography` 只换首个有缺库者（.bib 存在性以编译 cwd 为基准）；visible 已含 `\input{<target>}` 即整体不改——工程级幂等防逐跑累加重排书目。）
 12. `rebase_project_paths`：`\input/../foo.tex` 越界引用重写为包内正确相对路径。
-13. `_transcode_support_files`（树级，非文本 span；勘误 2026-09-17：spec 原名 `_transcode_aux_bib`，impl `normalize.py:981`）：`.bib/.bbl/.bst` + `.aux` 系可再生中间产物非 UTF-8 → UTF-8 转码写回；中间产物另加 8192B 截尾整形（`_trim_intermediate_tail`——XeTeX 写缓冲在边界劈断多字节字符，`\@newl@bel` 扫过 EOF 比非法字节更致命；立项 `research/latex/2026-09-16-aux-cjk-truncation.md`，`4a8d5ce`/`b6ba25a` 系）。（勘误 2026-09-17：impl 另有 3 项未记档手术——`_neutralize_junk_files`/`_shadow_broken_system_packages`/`_sanitize_ps_comments`。）
+13. `_transcode_support_files`（树级，非文本 span；勘误 2026-09-17：spec 原名 `_transcode_aux_bib`，impl `normalize.py:981`）：`.bib/.bbl/.bst` + `.aux` 系可再生中间产物非 UTF-8 → UTF-8 转码写回；中间产物另加 8192B 截尾整形（`_trim_intermediate_tail`——XeTeX 写缓冲在边界劈断多字节字符，`\@newl@bel` 扫过 EOF 比非法字节更致命；立项 `research/latex/2026-09-16-aux-cjk-truncation.md`，`4a8d5ce`/`b6ba25a` 系）。（勘误 2026-09-17：impl 另有 3 项未记档手术——`_neutralize_junk_files`/`_shadow_broken_system_packages`/`_sanitize_ps_comments`。）（勘误 2026-09-17：树级手术/审计面统一豁免隐藏路径——任一路径段以 `.` 前缀即整体跳过（`_hidden_path`；`_normalize_tex_files`/`_tex_sources`/`rebase_project_paths`/`source_path_violations`/`_neutralize_junk_files`/`_transcode_support_files`/`_collect_pending_refs` 同口径）；单件读/写 OSError 不中断整树——跳过保持原样，debug 落日志不进 rewritten 台账。）
 
 **分工铁律**：归一化层做无条件手术；条件性手术（microtype/times→newtx 等）留 fixloop——两边不得重复改同一处。
 
