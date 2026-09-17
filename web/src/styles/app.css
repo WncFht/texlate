@@ -1819,7 +1819,6 @@ button {
     border-color: var(--cinnabar);
 }
 
-.stage-timeline li .dur,
 .stage-timeline li .tl-time {
     font-size: 12px;
     color: var(--ink-2);
