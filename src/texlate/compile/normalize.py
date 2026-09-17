@@ -25,6 +25,8 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
 
 from texlate.textutil import (
+    BEGIN_DOC_RX,
+    CMD_BOUNDARY,
     DECL_TAIL,
     DOCCLASS_OPTS_RX,
     EncodingVerdict,
@@ -46,8 +48,8 @@ log = logging.getLogger(__name__)
 #: 源包 bundled 的已知垃圾件——内容非论文（自检/交互工具），翻译臂会当正文
 #: parse/splice 腐蚀（1109.2354/1206.0565 ``splice/aipcheck.tex:82`` 实证），
 #: 裸编译则 ``\typein`` 挂交互终端读（hep-ph/0111248 early_eof）。覆写为
-#: stub 而非删除——``\input`` 目标须保持存在。stub 体与 fixloop rules.yaml
-#: ``legacy_pkg_shim`` 的 aipcheck.tex 条目同文。
+#: stub 而非删除——``\input`` 目标须保持存在。stub 体与 fixloop
+#: ``rules/90-shim-legacy.yaml`` ``legacy_pkg_shim`` 的 aipcheck.tex 条目同文。
 JUNK_FILE_STUBS: Final[dict[str, str]] = {
     # aipproc/REVTeX4 版本自检件（~18 处 \typein + \def\next#1/#2/#3 魔术）。
     "aipcheck.tex": (
@@ -249,7 +251,7 @@ TECTONIC_FONT_COMPATIBILITY = r"""% texlate: vector double-stroke fonts; Tectoni
 
 def inject_preamble(text: str, block: str) -> str:
     r"""在 `\begin{document}` 前插入前导块；找不到 document 环境则原样返回。"""
-    marker = re.search(r"\\begin\s*\{document\}", visible_tex(text))
+    marker = BEGIN_DOC_RX.search(visible_tex(text))
     if not marker:
         return text
     return text[: marker.start()] + block + text[marker.start() :]
@@ -592,7 +594,7 @@ def prepare_legacy_latin_fonts(root: Path) -> int:
     documents = {
         path
         for path, text in visible.items()
-        if DOCCLASS_OPTS_RX.search(text) and re.search(r"\\begin\s*\{document\}", text)
+        if DOCCLASS_OPTS_RX.search(text) and BEGIN_DOC_RX.search(text)
     }
     if not documents:
         return 0
@@ -643,11 +645,7 @@ def normalize_legacy_cjk(text: str, engine: str) -> str:
     changes = []
     package = "luatexja-fontspec" if engine == "lualatex" else "xeCJK"
     command = "setmainjfont" if engine == "lualatex" else "setCJKmainfont"
-    loader = (
-        "usepackage"
-        if re.search(r"\\begin\s*\{document\}", visible)
-        else "RequirePackage"
-    )
+    loader = "usepackage" if BEGIN_DOC_RX.search(visible) else "RequirePackage"
     native = (
         "\n% texlate: adapted legacy CJK\n\\"
         + loader
@@ -722,7 +720,7 @@ def use_bundled_bibliography(text: str, path: Path, cwd: Path | None = None) -> 
     # 在 TeX 里读不出本 bbl（\@iinput 扫描错），不算已填充。
     # 裸名形 \input x.bbl：文件名扫描止于空白/控制序列/~/&/%（}$#^_'" 等
     # catcode≤12 字符反而是名字成分——latex 实证）；(?![^\s\\~&%]) 要求
-    # target 后接终结符，挡 main.bblx 前缀撞名。(?![a-zA-Z@]) 防把
+    # target 后接终结符，挡 main.bblx 前缀撞名。CMD_BOUNDARY 防把
     # \inputmain 类控制词误当 \input。
     t = re.escape(target)
     alts = [
@@ -735,7 +733,7 @@ def use_bundled_bibliography(text: str, path: Path, cwd: Path | None = None) -> 
     if not re.search(r"[\s\\~&%]", target):
         alts.append(r"(?:\./)?" + t + r"(?![^\s\\~&%])")
     if re.search(
-        r"\\input(?![a-zA-Z@])\s*(?:" + "|".join(alts) + r")",
+        r"\\input" + CMD_BOUNDARY + r"\s*(?:" + "|".join(alts) + r")",
         visible,
     ):
         return text  # 书目位已由本 .bbl 填充——再换只会重复排版
@@ -810,6 +808,9 @@ def rebase_project_paths(root: Path, main: str) -> list[str]:
             text = visible_tex(decode_tex(path.read_bytes()))
         except OSError:
             continue
+        # 成员集刻意窄收 \input/\include：本站是 ``../`` 前缀改写的手术
+        # 面，仅限 tex 包含命令；includegraphics/openin 等更宽越界审计集
+        # 在 source_path_violations（成员集分歧理由见该处注记）。
         for match in re.finditer(
             r"\\(?:input|include)(?![A-Za-z@])\s*"
             r"(?:\{([^{}]*)\}|([^\s{}%]+))",
@@ -858,6 +859,12 @@ def source_path_violations(
             text = visible_tex(decode_tex(p.read_bytes()))
         except OSError:
             continue
+        # \input 族审计集与 textutil ``INPUT_BRACED_RX``/``INPUT_BARE_RX``、
+        # ``arxiv.locate._REF_RES`` 刻意不同集（textutil 注记明写该族不按
+        # 单枚正则单源）：本站收「单路径实参」的越界向量——
+        # input/include/includegraphics + openin/openout 的 ``\cs=<file>``
+        # 形；``_REF_RES`` 拓扑全扫另含双参 import 族/subfile/bibliography
+        # 等不适用单名捕获的命令，rebase 手术面则收窄到 input/include。
         for match in re.finditer(
             r"\\(?:input|include|includegraphics)(?![A-Za-z@])\s*"
             r"(?:\[[^]]*\])?\s*(?:\{([^{}]*)\}|([^\s{}%]+))"
@@ -928,7 +935,7 @@ def normalize_engine(text: str, engine: str, *, doc_source: bool = True) -> str:
         if doc_source:
             text = normalize_pixel_dimensions(text)
         visible = visible_tex(text)
-        has_document = re.search(r"\\begin\s*\{document\}", visible)
+        has_document = BEGIN_DOC_RX.search(visible)
         if (
             r"\pdfpxdimen" in visible
             and has_document
@@ -1219,11 +1226,18 @@ def _transcode_support_files(
 
 # ---------------------------------------------------------------- invalid_utf8 臂三：系统包遮蔽
 #: 工程源里显式引用的包/类名采集面——``\input`` 工程件已转码不查。
+#: 成员集是 textutil ``LOADER_CMDS`` 按实参形态的有意分片而非复抄：
+#: 本式 = ``{names}`` 装载形（usepackage/RequirePackage/
+#: RequirePackageWithOptions）+ ``{opts}{names}`` 传参形
+#: （PassOptionsToPackage/Class）；``LoadClass*`` 归 ``_CLASS_USE_RX``
+#: （.cls 遮蔽面）。成员集不齐属语义分片，勿为对齐词表强并。
 _PACKAGE_USE_RX: Final = re.compile(
     r"\\(?:usepackage|RequirePackage|RequirePackageWithOptions)\s*"
     r"(?:\[[^]]*\]\s*)?\{([^}]+)\}"
     r"|\\PassOptionsTo(?:Package|Class)\s*\{[^}]*\}\s*\{([^}]+)\}"
 )
+#: 类侧 = ``documentclass``（``DOCCLASS_NAMES`` 族成员）+ ``LoadClass*``
+#: （``LOADER_CMDS`` 子集）——跨两个单源族各取一部，无单一集合可组装。
 _CLASS_USE_RX: Final = re.compile(
     r"\\(?:documentclass|LoadClass|LoadClassWithOptions)" + DECL_TAIL
 )
