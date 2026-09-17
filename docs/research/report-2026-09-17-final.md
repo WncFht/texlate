@@ -26,7 +26,7 @@
 | illegal_unit 深链 | 108 id | **108/108 闭环**：96c/6p/0f + held6 直出 6 clean，零回归，unfixable 清零 |
 | M1-B 判别波 | 72 格（T1 58 arg-eaten + T2 14 math-eaten） | **72/72 全出 PDF**，fixloop 终态 c53/p19/f0；残余 19 格分簇路由 |
 | n200 real 臂 | 200 id | union pdf 98.5%，real≈mock 打平，fixloop 救回 23/24 |
-| S6 base 臂 | 5,122 格 | 在飞（~1.5–2.5h），产出 build-base 覆盖 0→全 + 源健康基线 |
+| S6 base 臂 | 5,122 格 | **收线**（records `97d30b0`）：base clean 3,064/partial 1,045/fail 885/reject 65/skip 63——build-base 覆盖 0→全 + 源健康基线 |
 
 ### 1.2 重大修复（按影响排序）
 
@@ -73,10 +73,10 @@
 收线广播已发：各 lane 当前件到交付边界即停、不接新件；本节「已裁决未做」项全部转入 §5 排期。
 
 **收线中**（最后一批交付）：
-- 1d：illegal_unit 残漏修复在飞（`_OPERAND_TERM` 项列复合形统一——`\fontdimen2\font`/`0.5\baselineskip`/宏因子项链，M1-B 残漏实证驱动）
-- peer1：ell 表条目 + `rules_declined`/`decline_notes` 物化（cases.jsonl 补「看见/拒修」面）打包交付中
+- 1d：**已落 `feb5046`**——M1-B 残余 7/7 格闭环（`_TAIL_OPERAND` 因子链文法 + arith/boxspec 两 kind + `\newX` 声明名 +12 + PiCTeX 域容忍；hep-ph-0104029 推回 stub/shim 道）
+- peer1：**已落四件**（`8910a96` rules_declined 物化 / `69649ca` ell 条目 / `526932c` diagrams stub 富化实证 172→0 err / `be03326` routes 档）
 - 1e：E2 迁移验证段（repair +405/e2e −372 已自洽）+ 4 份 fuzz findings 落盘
-- 2f：S6 base 臂 ~62%（3160/5122，~30min 收尾）
+- 2f：S6 base 臂 **已收 5122/5122**（records `97d30b0`：base clean 3064/partial 1045/fail 885/reject 65/skip 63——源健康基线首读；增量 scorecard 简报在产）
 - e8：**已全清**（`4ebfb12`/`ea4d0c4`/`b6d0ede`）
 
 **已裁决未做（下梯次，进排期）**：
