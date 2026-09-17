@@ -5,13 +5,16 @@
 cs 被误报文本域裸 cs）。
 """
 
+from texlate import textutil
 from texlate.textutil import (
     _cs_events_spans,
     _declared_name,
     bare_cs_net,
     decode_tex,
+    decode_tex_with,
     lev_capped,
     mask_comments,
+    mask_tex,
     sniff_tex_encoding,
 )
 
@@ -123,3 +126,46 @@ def test_utf16be_odd_tail_parity_pick() -> None:
     v = sniff_tex_encoding(blob)
     assert v.encoding == "utf-16-be"
     assert decode_tex(blob).startswith("x\\alpha")
+
+
+# ---------------------------------------------------------------- memo 层
+def test_mask_tex_memo_hit_same_content() -> None:
+    """同内容不同对象 → 命中不重算；flag 组合各占独立键。"""
+    textutil._mask_tex_memo.cache_clear()  # noqa: SLF001 — 钉 memo 计数面
+    t1 = "\\begin{comment}\nx\n\\end{comment}\nbody\n"
+    t2 = t1[:-1] + chr(10)  # 同内容新对象——字面量/全片切片在 CPython 会复用
+    a = mask_tex(t1)
+    b = mask_tex(t2)
+    info = textutil._mask_tex_memo.cache_info()  # noqa: SLF001
+    assert a == b
+    assert a is b
+    assert (info.hits, info.misses) == (1, 1)
+    c = mask_tex(t1, mask_dead=False)
+    info2 = textutil._mask_tex_memo.cache_info()  # noqa: SLF001
+    assert c != a  # comment 体可见 vs 遮蔽——flag 进键不错位
+    assert (info2.hits, info2.misses) == (1, 2)
+
+
+def test_decode_tex_with_memo_hit_and_shared_verdict() -> None:
+    """同字节新对象 → 命中；verdict 是 frozen 实例可安全共享。"""
+    textutil._decode_tex_with_memo.cache_clear()  # noqa: SLF001
+    b1 = b"caf\xe9 latin\n"
+    b2 = bytes(bytearray(b1))
+    t1, v1 = decode_tex_with(b1)
+    t2, v2 = decode_tex_with(b2)
+    info = textutil._decode_tex_with_memo.cache_info()  # noqa: SLF001
+    assert t1 == t2
+    assert t1 is t2
+    assert v1 is v2
+    assert (info.hits, info.misses) == (1, 1)
+
+
+def test_memo_size_guard_bypasses_cache() -> None:
+    """超阈输入直调实现——巨型件不 pin 缓存槽。"""
+    textutil._decode_tex_with_memo.cache_clear()  # noqa: SLF001
+    big = b"x" * (textutil._MEMO_MAX_INPUT + 1)  # noqa: SLF001
+    decode_tex_with(big)
+    decode_tex_with(big)
+    info = textutil._decode_tex_with_memo.cache_info()  # noqa: SLF001
+    assert info.misses == 0
+    assert info.hits == 0

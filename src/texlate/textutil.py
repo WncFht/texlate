@@ -35,6 +35,7 @@ import re
 from bisect import bisect_right
 from collections import Counter
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
@@ -513,6 +514,14 @@ def _inline_verb_span(text: str, i: int, n: int) -> tuple[int, int, int] | None:
     return (start + 1, end, end + 1)
 
 
+#: memo 上界：normalize 一次工程内同份文本被 13+ pass 复扫（B14 画像
+#: fix#5），内容键 lru_cache 消重——键即输入对象，改写管线 pass 间文本
+#: 一旦变动自然换新键，无陈旧命中面。条数封顶 + 单件输入阈值防巨型件
+#: pin 双份内存；超阈直调实现，行为不变仅失加速。
+_MEMO_MAXSIZE: Final = 512
+_MEMO_MAX_INPUT: Final = 2 << 20
+
+
 def mask_tex(text: str, *, mask_dead: bool = True, keep_verbatim: bool = False) -> str:
     r"""逐字环境 + 失活环境 + ``\verb``/``\lstinline`` + 行内 ``%`` 的等长遮盖视图。
 
@@ -524,6 +533,12 @@ def mask_tex(text: str, *, mask_dead: bool = True, keep_verbatim: bool = False) 
     ``keep_verbatim=True`` 供检测类消费（arxiv 定位/嗅探）——逐字环境体
     原样保留（其中 ``%`` 仍不算注释），不遮盖；计数场景需要这些字面量。
     """
+    if len(text) > _MEMO_MAX_INPUT:
+        return _mask_tex(text, mask_dead=mask_dead, keep_verbatim=keep_verbatim)
+    return _mask_tex_memo(text, mask_dead=mask_dead, keep_verbatim=keep_verbatim)
+
+
+def _mask_tex(text: str, *, mask_dead: bool = True, keep_verbatim: bool = False) -> str:
     chars = list(text)
 
     def mask(start: int, stop: int) -> None:
@@ -562,6 +577,9 @@ def mask_tex(text: str, *, mask_dead: bool = True, keep_verbatim: bool = False) 
         # i 推到 ~2i，大段注释逃逸遮盖）。
         i = command.end() if command else i + 1
     return "".join(chars)
+
+
+_mask_tex_memo = lru_cache(maxsize=_MEMO_MAXSIZE)(_mask_tex)
 
 
 def iter_depth0(rx: re.Pattern[str], vis: str) -> Iterator[re.Match[str]]:
@@ -997,12 +1015,18 @@ def _decode_mixed(blob: bytes) -> tuple[str, dict[int, str]]:
     return "".join(parts), regions
 
 
-def sniff_tex_encoding(blob: bytes) -> EncodingVerdict:  # noqa: C901, PLR0911, PLR0912, PLR0915 — 分档链即规格序
+def sniff_tex_encoding(blob: bytes) -> EncodingVerdict:
     """按文件归属分档判定编码（不解码大文本时只判不定）。
 
     层级：BOM → strict UTF-8 → 自述声明（strict 可解码且评分不劣于检测器）
     → 检测器（单字节族 + gb18030/big5 全体 argmax 评分）+ UTF-8 混合分段。
     """
+    if len(blob) > _MEMO_MAX_INPUT:
+        return _sniff_tex_encoding(blob)
+    return _sniff_tex_encoding_memo(blob)
+
+
+def _sniff_tex_encoding(blob: bytes) -> EncodingVerdict:  # noqa: C901, PLR0911, PLR0912, PLR0915 — 分档链即规格序
     if blob.startswith(b"\xef\xbb\xbf"):
         return EncodingVerdict("utf-8-sig", "bom")
     if blob.startswith((b"\xff\xfe", b"\xfe\xff")):
@@ -1139,6 +1163,9 @@ def sniff_tex_encoding(blob: bytes) -> EncodingVerdict:  # noqa: C901, PLR0911, 
     return EncodingVerdict("latin-1", "fallback", declared_raw)
 
 
+_sniff_tex_encoding_memo = lru_cache(maxsize=_MEMO_MAXSIZE)(_sniff_tex_encoding)
+
+
 def _eol_norm(text: str) -> str:
     r"""``\r\n``/``\r`` → ``\n``——TeX 输入处理同口径。
 
@@ -1151,6 +1178,12 @@ def _eol_norm(text: str) -> str:
 
 def decode_tex_with(blob: bytes) -> tuple[str, EncodingVerdict]:
     """``decode_tex`` + 判定归因。永不抛——latin-1 兜底。"""
+    if len(blob) > _MEMO_MAX_INPUT:
+        return _decode_tex_with(blob)
+    return _decode_tex_with_memo(blob)
+
+
+def _decode_tex_with(blob: bytes) -> tuple[str, EncodingVerdict]:
     verdict = sniff_tex_encoding(blob)
     if verdict.encoding == "utf-8-mixed":
         return _eol_norm(_decode_mixed(blob)[0]), verdict
@@ -1169,6 +1202,9 @@ def decode_tex_with(blob: bytes) -> tuple[str, EncodingVerdict]:
         _eol_norm(blob.decode("latin-1")),
         EncodingVerdict("latin-1", "fallback", verdict.declared, "decode failed"),
     )
+
+
+_decode_tex_with_memo = lru_cache(maxsize=_MEMO_MAXSIZE)(_decode_tex_with)
 
 
 def decode_tex(blob: bytes) -> str:

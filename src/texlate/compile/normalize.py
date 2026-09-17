@@ -1251,6 +1251,51 @@ def _kpse_resolve(filename: str, progname: str, cwd: Path, kpse: str) -> Path | 
     return Path(proc.stdout.splitlines()[0].strip())
 
 
+def _kpse_resolve_many(
+    filenames: list[str], progname: str, cwd: Path, kpse: str
+) -> dict[str, Path | None]:
+    """``kpsewhich`` 单次多名解析 → ``{请求名: 命中路径|None}``，逐名语义同单名版。
+
+    多名模式逐 argv 位次输出：命中行=路径、miss=空行、末尾连续 miss 整体
+    截断（kpathsea 6.4.2 实证；returncode=miss 计数，不按失败判）——
+    ``splitlines`` 右补空串后与请求序 ``zip`` 即还原逐名映射。输出行数
+    溢出、或命中行 basename 与请求名不符（版本行为漂移）时该名回落
+    ``_kpse_resolve`` 单名复核；子进程本身起不来（缺席/超时/NUL 名）则
+    全量回落——批量是纯加速，单名语义铁律不破。
+    """
+    unique = list(dict.fromkeys(filenames))
+    if not unique:
+        return {}
+    try:
+        proc = subprocess.run(  # noqa: S603 — 固定 argv 无 shell
+            [kpse, "-progname", progname, "--", *unique],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError, ValueError) as e:
+        log.debug("kpsewhich 批量探测失败，回落逐名: %s", e)
+        return {f: _kpse_resolve(f, progname, cwd, kpse) for f in unique}
+    lines = proc.stdout.splitlines()
+    if len(lines) > len(unique):
+        # 位次模型不成立（行为漂移/版本差异）——逐名复核也不错位
+        log.debug(
+            "kpsewhich 批量输出行数溢出 %d > %d，回落逐名", len(lines), len(unique)
+        )
+        return {f: _kpse_resolve(f, progname, cwd, kpse) for f in unique}
+    lines += [""] * (len(unique) - len(lines))
+    resolved: dict[str, Path | None] = {}
+    for name, line in zip(unique, lines, strict=True):
+        hit = line.strip()
+        if hit and Path(hit).name != Path(name).name:
+            resolved[name] = _kpse_resolve(name, progname, cwd, kpse)
+        else:
+            resolved[name] = Path(hit) if hit else None
+    return resolved
+
+
 def _collect_package_refs(text: str) -> tuple[set[str], set[str]]:
     """可见视图上采集 ``(包名集, 类名集)``——逗号列表拆开逐项。"""
     packages: set[str] = set()
@@ -1388,16 +1433,18 @@ def _shadow_broken_system_packages(
     shadows: list[dict[str, str]] = []
     probed: set[str] = set()
 
-    def resolve(req: str) -> Path | None:
-        return _kpse_resolve(req, engine, main_dir, kpse)
-
     for _ in range(_SHADOW_MAX_ROUNDS):
         fresh = [item for item in pending if "".join(item) not in probed]
         if not fresh:
             break
+        # 逐名各起一个 kpsewhich 子进程是 parse 段实测大头（B14 fix#4：
+        # 88 次 ≈ 18.8% stage）——多名模式一次调用拿整轮映射。
+        resolved = _kpse_resolve_many(
+            [name + suffix for name, suffix in fresh], engine, main_dir, kpse
+        )
         for name, suffix in fresh:
             probed.add(name + suffix)
-            entry, more = _try_shadow(name, suffix, root, main_dir, resolve)
+            entry, more = _try_shadow(name, suffix, root, main_dir, resolved.get)
             if entry is None:
                 continue
             shadows.append(entry)
