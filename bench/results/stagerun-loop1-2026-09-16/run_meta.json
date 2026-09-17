@@ -2930,8 +2930,26 @@
    "seed": 42,
    "layers": "core",
    "code": "ddd7d7d-dirty"
+  },
+  {
+   "ts": "2026-09-17T11:05:36.817747+00:00",
+   "stage": "compile",
+   "argv": [
+    "compile",
+    "--arm",
+    "base",
+    "--layers",
+    "core,booster,hot,expand",
+    "--dir",
+    "bench/results/stagerun-loop1-2026-09-16",
+    "--jobs",
+    "8"
+   ],
+   "seed": 42,
+   "layers": "core,booster,hot,expand",
+   "code": "c4ff8fb-dirty"
   }
  ],
  "started_at": "2026-09-16T05:36:52.326569+00:00",
- "finished_at": "2026-09-17T10:52:24.473600+00:00"
+ "finished_at": "2026-09-17T11:44:19.362567+00:00"
 }
