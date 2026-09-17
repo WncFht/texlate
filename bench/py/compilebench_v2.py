@@ -66,7 +66,7 @@ MAX_PASS = 2
 CLEAN_ERR_MAX = 3
 JOBS = 4
 
-TECTONIC = "/opt/homebrew/bin/tectonic"
+TECTONIC = shutil.which("tectonic") or "/opt/homebrew/bin/tectonic"
 XELATEX = "xelatex"
 
 # 首错落这些类 → 有 pdf 也判 dirty(docs/08 §4.3 "首错非 missing_*/undefined_cs")

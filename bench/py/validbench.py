@@ -233,7 +233,7 @@ def rehydrate(s: str, ph_map: dict[str, str]) -> str:
 
 # ---------------------------------------------------------------- 破坏算子
 # (gen_cases.py c01–c10 照搬; rv.PH_RX/KEY_CMD_RX → l0.PH_ANY_LIKE_RX/KEY_CMD_RX 同口径.
-#  产品化修订 (全部有实测漏检出典): 候选一律限注释区外 (l0 规则经 _no_comments
+#  产品化修订 (全部有实测漏检出典): 候选一律限注释区外 (l0 规则经 mask_comments
 #  豁免注释, 注释内破坏是语义 no-op); c06 修 `]` 补回合法 token 的自愈路径与
 #  裸标记无数字回退; c07 用 _lex bs token 选真定界符 (\\[5pt] 的 \[ 不算);
 #  c09 跳过空 key 匹配如 \bibitem[]{}; c08/c10 插入位按"前一字符在注释内即死".)
@@ -557,7 +557,7 @@ def _pick_root(pdir: Path) -> Path | None:
             tex = f.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
-        if _DOCCLASS_RX.search(l0._no_comments(tex)):
+        if _DOCCLASS_RX.search(l0.mask_comments(tex)):
             roots.append(f)
     if roots:
         return roots[0]
