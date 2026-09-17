@@ -95,7 +95,12 @@ class _Translate:
         # 上秒级堵 SSE/心跳/分发；DB 读按单写者纪律留 loop 线程
         prep = await self._to_thread(ctx, self._translate_prep, rows)
         cache: SegmentCache = prep["cache"]
-        state = DBStateBridge(self.store, ctx.task_id, rows=rows)
+        state = DBStateBridge(
+            self.store,
+            ctx.task_id,
+            rows=rows,
+            state_dir=ctx.root / "export-state",
+        )
         seq_map: dict[str, int] = prep["seq_map"]
         status_map: dict[str, str] = prep["status_map"]
         # 本段起跑前快照——retry/resume 重跑翻译若改行（pending→ok/
@@ -150,6 +155,13 @@ class _Translate:
                     self._flush_translate(ctx, state, cache, status_map, sse_items)
                     last_flush = time.monotonic()
             await run_task  # 传播异常（AuthTrippedError → run() 归 provider_auth）
+            if prep["glossary"] is not None:
+                # term_dict 落盘（export-state/term_dict.json）——观测件不毁账：
+                # 写盘失败不把已完成的翻译段记成 fault（bench stage_xlat 同式）
+                with contextlib.suppress(Exception):
+                    state.save_maps(
+                        term_dict=pipe._doc_glossary  # noqa: SLF001 -- 管线内部观测表
+                    )
         finally:
             await self._teardown_translate(
                 ctx=ctx,
@@ -245,9 +257,7 @@ class _Translate:
         # chunk_to_in(ph_map=) 模式；DB chunk_id ↔ scans 按 byte span 对账）
         frag_of = self._ph_frag_map(ctx)
         if "doc_ph" not in ctx.memo:
-            ctx.memo["doc_ph"] = collect_doc_placeholders(
-                r["src_text"] for r in rows
-            )
+            ctx.memo["doc_ph"] = collect_doc_placeholders(r["src_text"] for r in rows)
         return {
             "glossary": self._make_glossary(
                 ctx,

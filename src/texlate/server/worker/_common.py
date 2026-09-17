@@ -27,7 +27,7 @@ from texlate.xlat.pipeline import (
     GatewayTranslator,
 )
 from texlate.xlat.prompts import PROMPT_VERSION
-from texlate.xlat.state import ChunkRecord
+from texlate.xlat.state import ChunkRecord, StateStore, atomic_json
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
@@ -594,11 +594,17 @@ class DBStateBridge:
         task_id: str,
         *,
         rows: list[dict[str, Any]] | None = None,
+        state_dir: Path | None = None,
     ) -> None:
-        """绑定 store 与任务；``rows`` = 段头已读快照——给了 ``load`` 不再全扫。"""
+        """绑定 store 与任务；``rows`` = 段头已读快照——给了 ``load`` 不再全扫。
+
+        ``state_dir`` = ``save_maps`` 三表落盘根（任务 ``export-state/``）；
+        缺省 None = 无落盘面，``save_maps`` 空操作。
+        """
         self._store = store
         self._task_id = task_id
         self._rows = rows
+        self._state_dir = state_dir
         self.buffer: list[ChunkRecord] = []
 
     def load(self) -> tuple[set[str], dict[str, ChunkRecord]]:
@@ -648,6 +654,28 @@ class DBStateBridge:
 
     def finish(self) -> None:
         """收尾（落盘在 worker flush——这里无操作）。"""
+
+    def save_maps(
+        self,
+        *,
+        chunks_map: object = None,
+        placeholders_map: object = None,
+        term_dict: object = None,
+    ) -> None:
+        """``StateStore.save_maps`` 鸭子型：三表落 ``state_dir``，文件名同源。
+
+        ``state_dir`` 未接线即空操作；写盘异常照常上浮——调用侧按
+        「观测件不毁账」语义 suppress（bench ``stage_xlat`` 同式）。
+        """
+        out = self._state_dir
+        if out is None:
+            return
+        if chunks_map is not None:
+            atomic_json(out / StateStore.CHUNKS_MAP, chunks_map)
+        if placeholders_map is not None:
+            atomic_json(out / StateStore.PLACEHOLDERS_MAP, placeholders_map)
+        if term_dict is not None:
+            atomic_json(out / StateStore.GLOSSARY_FILE, term_dict)
 
 
 class _FallbackTranslator:
