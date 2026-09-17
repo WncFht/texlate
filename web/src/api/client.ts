@@ -9,6 +9,7 @@ export * from "./types";
 export { api, landingHash, REQUEST_TIMEOUT_MS } from "./rest";
 export {
     forgetTaskEvents,
+    liveSeqWatermark,
     openTaskEvents,
     type TaskChannel,
     type TaskEventHandlers,

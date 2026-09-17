@@ -429,7 +429,9 @@ class Store:
             "SELECT id, kind, status, stage, progress, message, title, arxiv_id,"  # noqa: S608 -- where 由内部字面量拼装，值全走绑定参数
             " source_name, target_lang, model, created_at, updated_at,"
             " total_chunks, done_chunks, cached_chunks, failed_chunks, tokens,"
-            " error_json"
+            " error_json,"
+            " (SELECT COALESCE(MAX(e.seq), 0) FROM task_events e"
+            " WHERE e.task_id = tasks.id) AS last_seq"
             f" FROM tasks {where}"
             " ORDER BY created_at DESC LIMIT ? OFFSET ?",
             (*params, limit, offset),
@@ -1153,9 +1155,7 @@ class Store:
         except json.JSONDecodeError:
             opts = {}
         if isinstance(opts, dict):
-            user_opts = {
-                k: v for k, v in opts.items() if k not in _SNAPSHOT_OPTS_DROP
-            }
+            user_opts = {k: v for k, v in opts.items() if k not in _SNAPSHOT_OPTS_DROP}
             if user_opts:
                 snap["options"] = user_opts
         try:

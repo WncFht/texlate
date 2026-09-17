@@ -1827,6 +1827,8 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
                         "error": (
                             json.loads(r["error_json"]) if r["error_json"] else None
                         ),
+                        # 行快照水位——前端 refresh reconcile 据以拒旧读回退
+                        "last_seq": r["last_seq"],
                     }
                     for r in rows
                 ],

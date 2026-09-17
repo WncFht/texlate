@@ -56,6 +56,7 @@ _LIST_COLS = (
     "failed_chunks",
     "tokens",
     "error_json",
+    "last_seq",
 )
 
 
@@ -91,6 +92,16 @@ class TestListTasksPage:
         rows, total = store.list_tasks_page("a")
         assert total == 1
         assert rows[0]["id"] == ta
+
+    def test_last_seq_column(self, store: Store) -> None:
+        """last_seq = 任务已落事件 seq 上限（无事件 0）——前端 refresh 守卫数据源。"""
+        tid = mk_task_row(store)["id"]
+        (r,) = store.list_tasks_page("local")[0]
+        assert r["last_seq"] == 0
+        store.append_event(tid, "stage", {"stage": "translating"})
+        store.append_event(tid, "chunk", {"done": 1})
+        (r,) = store.list_tasks_page("local")[0]
+        assert r["last_seq"] == 2  # noqa: PLR2004 -- 两条事件后水位
 
 
 class TestDeleteTaskGuard:

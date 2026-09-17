@@ -6,6 +6,7 @@ import {
     ApiError,
     forgetTaskEvents,
     isTerminal,
+    liveSeqWatermark,
     openTaskEvents,
     type ChunkItem,
     type ChunkEvent,
@@ -399,15 +400,35 @@ export const taskStore = {
 
     async refresh() {
         try {
-            const res = await api.tasks();
-            const list = Array.isArray(res) ? res : (res.tasks ?? []);
+            const list = await api.tasks();
+            const byId = new Map(state.tasks.map((r) => [r.task_id, r]));
+            // 列表行是请求发起时刻的旧读——在飞 SSE 事件已推进的行会被
+            // reconcile 回退；行 last_seq 落后于已消费 seq（SSE 水位线∪
+            // 行内 last_seq）→ store 现行行顶替。offset 翻页在并发插入
+            // 下可能重复见行——task_id 去重兜底
+            const seen = new Set<string>();
+            const merged: TaskSnapshot[] = [];
+            for (const t of list) {
+                if (seen.has(t.task_id)) continue;
+                seen.add(t.task_id);
+                const cur = byId.get(t.task_id);
+                merged.push(
+                    cur !== undefined &&
+                        Math.max(
+                            liveSeqWatermark(t.task_id),
+                            cur.last_seq ?? 0,
+                        ) > (t.last_seq ?? 0)
+                        ? cur
+                        : t,
+                );
+            }
             // reconcile 按 task_id 匹配：在册行字段级合并（引用不变，
             // <For> 行不重挂）；新行插入、消失行移除——一次原子替换
-            setState("tasks", reconcile(list, { key: "task_id" }));
+            setState("tasks", reconcile(merged, { key: "task_id" }));
             setState("loaded", true);
             setState("loadError", undefined);
-            const ids = new Set(list.map((t) => t.task_id));
-            for (const t of list) {
+            const ids = new Set(merged.map((t) => t.task_id));
+            for (const t of merged) {
                 if (!isTerminal(t.status)) {
                     if (!wanted.has(t.task_id))
                         wanted.set(t.task_id, { pin: false });

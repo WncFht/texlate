@@ -238,4 +238,32 @@ describe("taskStore SSE 窗口（MAX_SSE_TASKS）", () => {
         expect(a).toBe(b);
         expect(mocks.openTaskEvents).toHaveBeenCalledTimes(1);
     });
+
+    it("refresh 旧读守卫：行 last_seq 落后于已消费 seq → 现行行不回退", async () => {
+        mocks.tasks.mockResolvedValue([
+            { ...snap("g1", "translating", 50), progress: 90, last_seq: 50 },
+        ]);
+        used.push("g1");
+        await taskStore.refresh();
+        expect(taskStore.task("g1")!.progress).toBe(90);
+
+        // 列表读到更早快照（last_seq=30 < 行内 50）——status/progress 不回退
+        mocks.tasks.mockResolvedValue([
+            {
+                ...snap("g1", "fetching", 10),
+                progress: 40,
+                last_seq: 30,
+            },
+        ]);
+        await taskStore.refresh();
+        expect(taskStore.task("g1")!.status).toBe("translating");
+        expect(taskStore.task("g1")!.progress).toBe(90);
+
+        // last_seq 推进的正常行照常合并
+        mocks.tasks.mockResolvedValue([
+            { ...snap("g1", "translating", 60), progress: 95, last_seq: 60 },
+        ]);
+        await taskStore.refresh();
+        expect(taskStore.task("g1")!.progress).toBe(95);
+    });
 });

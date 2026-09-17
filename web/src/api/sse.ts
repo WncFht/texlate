@@ -69,6 +69,11 @@ export function forgetTaskEvents(taskId: string): void {
     seqWatermark.delete(taskId);
 }
 
+/** 任务已消费事件 seq 水位线（refresh 拒列表旧读回退用——0 = 未见过事件） */
+export function liveSeqWatermark(taskId: string): number {
+    return seqWatermark.get(taskId) ?? 0;
+}
+
 /**
  * 订阅任务 SSE。浏览器 EventSource 自带断线重连 + Last-Event-ID 重放；
  * 终态（done 事件或 snapshot 已是终态）自动关闭，不再重连。
