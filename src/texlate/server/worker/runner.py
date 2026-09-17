@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import secrets as secrets_mod
+import time
 from typing import TYPE_CHECKING
 
 from texlate.server.settings import (
@@ -51,7 +52,9 @@ class TaskRunner:
         self._queue: asyncio.Queue[str] | None = None
         self._dispatcher: asyncio.Task[None] | None = None
         self._ticker: asyncio.Task[None] | None = None
-        self._current: tuple[str, asyncio.Task[None]] | None = None
+        #: ``(task_id, ctx, task)``——ctx 在组里是为 cancel/stop 置
+        #: ``cancel_flag``（线程段轮询面）不靠 worker 反射找
+        self._current: tuple[str, TaskCtx, asyncio.Task[None]] | None = None
 
     # ------------------------------------------------------------ 生命周期
 
@@ -95,19 +98,26 @@ class TaskRunner:
         log.info("replayed %d queued task(s) after restart", len(rows))
 
     async def stop(self) -> None:
-        """关停：cancel ticker/dispatcher/当前任务，等收尾。"""
+        """关停：cancel ticker/dispatcher，当前任务由 dispatcher 的 ``await task`` 传导取消。
+
+        不再显式二次 cancel——``Task.cancel`` 在 ``await task`` 悬置点本就
+        撤子任务；先置 ``cancel_flag`` 让在飞线程段立即开始收敛，
+        ``await dispatcher`` 即覆盖其含 ``_drain_threads`` 的全部收尾。
+        """
         for t in (self._ticker, self._dispatcher):
             if t is not None:
                 t.cancel()
         if self._current is not None:
-            self._current[1].cancel()
+            self._current[1].cancel_flag.set()
         pending = [t for t in (self._ticker, self._dispatcher) if t]
-        if self._current is not None:
-            pending.append(self._current[1])
         for t in pending:
             try:
                 await t
-            except (asyncio.CancelledError, Exception):  # noqa: BLE001,S112 -- 关停吞全部
+            except asyncio.CancelledError:
+                # 被等对象自身的 cancel 正常吞；stop 自身被 cancel 必须重抛
+                if asyncio.current_task().cancelling() > 0:
+                    raise
+            except Exception:  # noqa: BLE001,S112 -- 关停吞全部
                 continue
 
     # ------------------------------------------------------------ 对外
@@ -120,9 +130,14 @@ class TaskRunner:
             self._queue.put_nowait(task_id)
 
     def cancel_running(self, task_id: str) -> bool:
-        """取消正在跑的任务；未在跑（还在队列）返回 False。"""
+        """取消正在跑的任务；未在跑（还在队列）返回 False。
+
+        先置 ``cancel_flag`` 再 ``task.cancel()``——在飞 ``to_thread``
+        段的轮询面即刻开始收敛，不等 coroutine 的 cancel 投递。
+        """
         if self._current is not None and self._current[0] == task_id:
-            self._current[1].cancel()
+            self._current[1].cancel_flag.set()
+            self._current[2].cancel()
             return True
         return False
 
@@ -151,7 +166,7 @@ class TaskRunner:
                 task = asyncio.create_task(
                     self.worker.run(ctx), name=f"texlate-task-{task_id}"
                 )
-                self._current = (task_id, task)
+                self._current = (task_id, ctx, task)
                 try:
                     await task
                 except asyncio.CancelledError:
@@ -166,13 +181,62 @@ class TaskRunner:
                     self._current = None
                     self.secrets.pop(task_id, None)
             except Exception:
-                # 前置段（store.get/claim/ctx 构造）的 DB/IO 异常——单条失败
-                # 只丢这一队列项（行仍 queued，重启 replay 兜底）；透出会把
-                # dispatcher 整个打死，后续任务静默饿死且 secrets 残留
+                # 前置段（store.get/claim/ctx 构造）的 DB/IO 异常——透出会把
+                # dispatcher 整个打死，后续任务静默饿死且 secrets 残留。
+                # 原口径只丢队列项留行 queued（重启 replay 才兜底）——行永
+                # 显示「排队中」同进程内不可见不可 retry；能写库就落 fault
+                # 让行立即可见可 retry，DB 级故障（transition 同挂）则内层
+                # 吞掉仍回 replay 兜底。
                 log.exception("dispatch setup failed for %s", task_id)
                 self.secrets.pop(task_id, None)
+                self._dispatch_fault(task_id)
             finally:
                 self._queue.task_done()
+
+    def _dispatch_fault(self, task_id: str) -> None:
+        """前置段失败 → 行落 fault + error/done 事件（终态一致性）。
+
+        行仍 ``queued`` 才写——task 已创建/已终态的竞态不覆盖。DB 级
+        故障下本函数自身抛错由调用方兜住（行留 queued 等重启 replay）。
+        """
+        try:
+            row = self.store.get(task_id)
+            if row is None or row["status"] != "queued":
+                return
+            err = {
+                "code": "internal",
+                "message": "dispatch setup failed",
+                "retryable": True,
+            }
+            self.store.transition(
+                task_id,
+                "fault",
+                error=err,
+                force=True,
+                message="dispatch setup failed",
+            )
+            self.bus.publish(
+                task_id, "error", {**err, "stage": row["stage"], "chunk_seq": None}
+            )
+            try:
+                seconds = round(time.time() - float(row["created_at"]), 1)
+            except (TypeError, ValueError):
+                seconds = 0.0
+            self.bus.publish(
+                task_id,
+                "done",
+                {
+                    "status": "fault",
+                    "artifacts": {},
+                    "stats": {
+                        "tokens": 0,
+                        "seconds": seconds,
+                        "chunks_failed": 0,
+                    },
+                },
+            )
+        except Exception:
+            log.exception("dispatch fault transition failed for %s", task_id)
 
     async def _heartbeat_loop(self) -> None:
         """每 ``_HEARTBEAT_S`` 秒 bump 当前任务 updated_at。"""

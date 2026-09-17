@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import shutil
+import time
 from typing import TYPE_CHECKING, Any
 
 from texlate.compile.sandbox import find_tool
@@ -21,9 +21,13 @@ from texlate.server.settings import scrub
 from texlate.server.store import TERMINAL_STATUSES
 
 from ._common import (
+    _FLUSH_MS,
+    _FLUSH_N,
     _PIPE_TO_DB,
     PROGRESS,
     TaskCtx,
+    _AbortingTranslator,
+    _new_usage_meter,
     _scrub_deep,
     _translator_clients,
     chunk_error_code,
@@ -33,6 +37,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
 
+    from texlate.export.common import ExportReport
     from texlate.xlat.pipeline import (
         ChunkResult,
     )
@@ -74,7 +79,7 @@ class _Pdf:
             base_url=ctx.secrets.base_url or str(cfg.get("base_url") or ""),
             api_key=ctx.secrets.api_key,
             lang_out=lang_out_for(str(ctx.row["target_lang"])),
-            qps=self._opt_int(ctx, options, "qps", 4),
+            qps=self._opt_int(ctx, options, "qps", 4, hi=50),
             pages=str(options.get("pages") or "") or None,
             dual=bool(options.get("dual", True)),
             alternating=bool(options.get("alternating", True)),
@@ -100,7 +105,7 @@ class _Pdf:
                 completion_tokens=int(run.stats.get("completion_tokens") or 0),
                 latency_s=float(run.seconds),
             )
-        await asyncio.to_thread(self._harvest_pdf_outputs, ctx, run)
+        await self._to_thread(ctx, self._harvest_pdf_outputs, run)
         self._log(ctx, f"babeldoc rc={run.rc} status={run.status} stats={run.stats}")
         if run.status == "failed":
             for ln in run.stderr_tail.strip().splitlines()[-3:]:
@@ -114,7 +119,7 @@ class _Pdf:
                 detail={"babeldoc": _scrub_deep(run.stats, ctx.secrets.api_key)},
             )
             return
-        await asyncio.to_thread(self._build_dual, ctx)
+        await self._to_thread(ctx, self._build_dual)
         if self._current_status(ctx) in TERMINAL_STATUSES:
             return  # cancel 竞态：终态已写，不再覆盖
         status, err = "done", None
@@ -143,6 +148,7 @@ class _Pdf:
 
     def _harvest_pdf_outputs(self, ctx: TaskCtx, run: BabeldocRun) -> None:
         """Sidecar 产物物化（worker 线程）：copyfile + ToUnicode 注入 + 登记。"""
+        self._abort_if_cancelled(ctx)
         mono = run.outputs.get("mono")
         dual = run.outputs.get("dual")
         if mono is not None:
@@ -158,6 +164,7 @@ class _Pdf:
         self, ctx: TaskCtx, src: Path, outdir: Path, workdir: Path
     ) -> None:
         """``upload_pdf`` 前置物化（worker 线程）：en.pdf 回登记 + retry 清旧产物。"""
+        self._abort_if_cancelled(ctx)
         en = ctx.root / "en.pdf"
         if not en.exists():
             shutil.copyfile(src, en)
@@ -187,7 +194,7 @@ class _Pdf:
         src = uploads[0]
         outdir = ctx.root / "babeldoc-out"
         workdir = ctx.root / "babeldoc-work"
-        await asyncio.to_thread(self._prep_pdf_dirs, ctx, src, outdir, workdir)
+        await self._to_thread(ctx, self._prep_pdf_dirs, src, outdir, workdir)
         binary = self._babeldoc or find_tool("babeldoc")
         if binary is None:
             self._fail(
@@ -204,9 +211,9 @@ class _Pdf:
         def on_progress(pct: float, stage: str) -> None:
             nonlocal last_stage
             self._on_loop(
-                self.store.update_fields,
-                ctx.task_id,
-                progress=30 + min(65, round(65 * pct / 100)),
+                self._progress,
+                ctx,
+                30 + min(65, round(65 * pct / 100)),
             )
             if stage and stage != last_stage:
                 last_stage = stage
@@ -217,14 +224,14 @@ class _Pdf:
             binary=binary,
             on_progress=on_progress,
             on_log=lambda line: self._log(ctx, f"babeldoc: {line}"),
-            should_cancel=lambda: self._current_status(ctx) == "cancelled",
+            should_cancel=ctx.cancel_flag.is_set,
         )
         self._check_cancelled(ctx)
         await self._finish_pdf(ctx, run)
 
     # ------------------------------------------------------------ doc 管线
 
-    async def _run_doc(self, ctx: TaskCtx) -> None:
+    async def _run_doc(self, ctx: TaskCtx) -> None:  # noqa: C901 -- 接线/出口阶梯平铺即 spec
         """docx/epub：``export_document`` 双语插译（无编译链——产物即双语原文档）。
 
         ``export_document`` 内部 ``asyncio.run(XlatPipeline)``——必须
@@ -247,31 +254,38 @@ class _Pdf:
             )
             return
         src = uploads[0]
-        await asyncio.to_thread(self._register, ctx, "src_tar", f"upload/{src.name}")
+        await self._to_thread(ctx, self._register, "src_tar", f"upload/{src.name}")
         self._stage(ctx, "translating", "文档插译", PROGRESS["translating"][0])
-        translator = self._make_translator(ctx)
-        clients = _translator_clients(translator)
         ext = src.suffix.lower()
         if ext not in (".docx", ".epub"):
             ext = f".{ctx.row['kind']}"
         dst = ctx.root / f"{src.stem}_bilingual{ext}"
         counters = {"done": 0, "failed": 0}
-        # 真实 token/延迟记账（tex 路 _stage_translate 同款 sink）
-        usage = self._meter_usage(clients)
+        # 真实 token/延迟记账（tex 路 _stage_translate 同款 sink）——
+        # _PerCallTranslator 内建挂 sink；factory 注入路径下补挂到共享 client
+        usage, sink = _new_usage_meter()
+        translator = self._doc_translator(ctx, sink)
+        clients = _translator_clients(translator)
+        for c in clients:
+            c.usage_sink = sink
 
-        on_result = self._doc_on_result(ctx, counters)
+        on_result, flush_items = self._doc_on_result(ctx, counters)
 
-        try:
-            report = await asyncio.to_thread(
-                export_document,
+        def _export(tctx: TaskCtx) -> ExportReport:
+            # 取消传导：export 内嵌管线逐 unit 调 translator——旗标置位即
+            # _SectionAbort 快失败排空（CancelledError 会打死管线 worker）
+            return export_document(
                 src,
                 dst,
-                translator,
-                target_lang=str(ctx.row["target_lang"]),
-                state_dir=ctx.root / "export-state",
-                glossary=self._make_glossary(ctx),
+                _AbortingTranslator(translator, tctx.cancel_flag),
+                target_lang=str(tctx.row["target_lang"]),
+                state_dir=tctx.root / "export-state",
+                glossary=self._make_glossary(tctx),
                 on_result=on_result,
             )
+
+        try:
+            report = await self._to_thread(ctx, _export)
         except ExportError as e:
             # DRM/fixed-layout/畸形包/不识格式——重试无意义的拒翻面
             self._fail(
@@ -283,19 +297,22 @@ class _Pdf:
             )
             return
         finally:
+            flush_items()
             try:
                 self._persist_usage(ctx, usage, replace_est=True)
             except Exception:
                 log.debug("doc usage persist failed", exc_info=True)
-            # clients 在 to_thread 的 ephemeral loop 里跑过——aclose 尽力而为
-            try:
-                await _w._aclose_clients(clients)  # noqa: SLF001 -- _w 包 attr 缝
-            except Exception:
-                log.debug("doc client aclose failed", exc_info=True)
+            # clients 在 to_thread 的 ephemeral loop 里跑过——aclose 尽力而为；
+            # _PerCallTranslator 臂无共享 client（per-call 即关）clients 空跳过
+            if clients:
+                try:
+                    await _w._aclose_clients(clients)  # noqa: SLF001 -- _w 包 attr 缝
+                except Exception:
+                    log.debug("doc client aclose failed", exc_info=True)
         self._check_cancelled(ctx)
         for w in report.warnings:
             self._warning(ctx, "export", w)
-        await asyncio.to_thread(self._register, ctx, f"zh_{ctx.row['kind']}", dst.name)
+        await self._to_thread(ctx, self._register, f"zh_{ctx.row['kind']}", dst.name)
         n_bad = report.skipped + report.fault
         self.store.update_fields(
             ctx.task_id,
@@ -337,8 +354,36 @@ class _Pdf:
 
     def _doc_on_result(
         self, ctx: TaskCtx, counters: dict[str, int]
-    ) -> Callable[[ChunkResult], None]:
-        """``on_result`` 工厂：逐 unit 计数 + tokens 估算 → ``_doc_emit`` 回弹。"""
+    ) -> tuple[Callable[[ChunkResult], None], Callable[[], None]]:
+        """``on_result`` 工厂：逐 unit 计数 + tokens 估算 → ``_doc_emit`` 合批回弹。
+
+        每 unit 一条 chunk 事件会把 ``EVENT_CAP`` 打满（tex 路 ``_FLUSH_N``/
+        ``_FLUSH_MS`` 同口径合批）；返回 ``(on_result, flush)``——flush 由
+        ``_run_doc`` finally 调排空缓冲尾部。
+        """
+        items: list[dict[str, Any]] = []
+        last_flush = time.monotonic()
+
+        def flush() -> None:
+            nonlocal last_flush
+            last_flush = time.monotonic()
+            if not items:
+                return
+            self._on_loop(
+                self._doc_emit,
+                ctx,
+                counters["done"],
+                counters["failed"],
+                ctx.tokens_est,
+                {
+                    "done": counters["done"],
+                    "total": 0,
+                    "cached": 0,
+                    "failed": counters["failed"],
+                    "items": list(items),
+                },
+            )
+            items.clear()
 
         def on_result(r: ChunkResult) -> None:
             counters["done"] += 1
@@ -352,22 +397,11 @@ class _Pdf:
             code = chunk_error_code(r)
             if code is not None:
                 item["error_code"] = code
-            self._on_loop(
-                self._doc_emit,
-                ctx,
-                counters["done"],
-                counters["failed"],
-                ctx.tokens_est,
-                {
-                    "done": counters["done"],
-                    "total": 0,
-                    "cached": 0,
-                    "failed": counters["failed"],
-                    "items": [item],
-                },
-            )
+            items.append(item)
+            if len(items) >= _FLUSH_N or time.monotonic() - last_flush >= _FLUSH_MS:
+                flush()
 
-        return on_result
+        return on_result, flush
 
     def _doc_emit(
         self,

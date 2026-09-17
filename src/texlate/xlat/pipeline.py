@@ -1139,8 +1139,16 @@ class XlatPipeline:
             asyncio.create_task(self._worker(queue, done_map))
             for _ in range(self.cfg.concurrency)
         ]
-        await queue.join()
-        await asyncio.gather(*workers)
+        try:
+            await queue.join()
+        finally:
+            # cancel/异常撕开 join 时 worker 仍在飞——不收尸就揣着半开
+            # client 游离；cancel + gather 收敛（return_exceptions 防
+            # CancelledError 自 gather 再抛一次盖掉原异常链）
+            for w in workers:
+                if not w.done():
+                    w.cancel()
+            await asyncio.gather(*workers, return_exceptions=True)
 
     async def run(self, chunks: list[ChunkIn]) -> list[ChunkResult]:
         """跑完整篇。返回与输入同序的结果表。

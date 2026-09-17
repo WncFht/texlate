@@ -2236,7 +2236,7 @@ class TestResidAuditLoops:
         async def drive() -> None:
             runner.start()
             loop = asyncio.get_running_loop()
-            runner._current = (ctx.task_id, loop.create_future())  # noqa: SLF001
+            runner._current = (ctx.task_id, ctx, loop.create_future())  # noqa: SLF001
             await asyncio.sleep(0.15)
             assert runner._ticker is not None  # noqa: SLF001
             assert not runner._ticker.done(), "sqlite3 面异常不得杀 ticker"  # noqa: SLF001

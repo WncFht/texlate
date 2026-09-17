@@ -100,6 +100,8 @@ class _Core:
             else:
                 await self._run_tex(ctx)
         except asyncio.CancelledError:
+            # 在飞 to_thread 段即刻开始收敛（cancel_running/stop 已置过幂等）
+            ctx.cancel_flag.set()
             # cancel 端点已置 cancelled；只在没有终态时补 interrupted
             if self._current_status(ctx) in ACTIVE_STATUSES:
                 self.store.transition(
@@ -177,6 +179,10 @@ class _Core:
                 retryable=True,
                 stage=ctx.row["stage"],
             )
+        finally:
+            # 有界等在飞 to_thread 段排空——retry/下一任务复跑时孤儿
+            # 线程已死，目录写不交错（原子段残尾见 _drain_threads）
+            await self._drain_threads(ctx)
 
     # ------------------------------------------------------------ tex 管线
 
@@ -192,12 +198,12 @@ class _Core:
         if ctx.reuse_hit is not None:
             return  # post-resolve dedup 命中——产物已物化 + 终态已写
         await self._stage_parse(ctx)
-        if await asyncio.to_thread(self._share_lookup, ctx):
+        if await self._to_thread(ctx, self._share_lookup):
             try:
                 await self._stage_share_apply(ctx)
             except _ShareRejectError as e:
                 self._warning(ctx, "share_apply", f"共享包对账失败，回退自译: {e}")
-                await asyncio.to_thread(self._share_unmark, ctx)
+                await self._to_thread(ctx, self._share_unmark)
             else:
                 await self._stage_compile(ctx, share=True)
                 return

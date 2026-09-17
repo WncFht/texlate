@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import logging
 import threading
 import time
 from concurrent.futures import Future
@@ -24,6 +25,22 @@ if TYPE_CHECKING:
     )
 
 _T = TypeVar("_T")
+
+log = logging.getLogger(__name__)
+
+#: 孤儿线程排空预算——cancel/stop/fault 收尾时等在飞 ``_to_thread``
+#: 段自然收敛的上限：轮询旗标的段 ms 级收敛；``engine.compile`` 这类
+#: 原子段无插桩点只能等其自身 timeout，超限记 warning 放走（不堵
+#: dispatcher 的串行槽）
+_DRAIN_S = 5.0
+
+
+def _wait_events(evs: list[threading.Event], deadline: float) -> None:
+    """顺序等事件集直到全置位/deadline——在辅助线程内跑，不占 loop。"""
+    for ev in evs:
+        left = deadline - time.monotonic()
+        if left <= 0 or not ev.wait(left):
+            return
 
 
 class _Events:
@@ -50,6 +67,77 @@ class _Events:
         self._loop.call_soon_threadsafe(_run)
         return fut.result()
 
+    # ------------------------------------------------------------ 线程段取消协议
+
+    async def _to_thread(
+        self, ctx: TaskCtx, fn: Callable[..., _T], *args: object, **kw: object
+    ) -> _T:
+        """``asyncio.to_thread`` 的取消可感知变体——worker 线程段统一入口。
+
+        ``fn`` 约定为 ``(ctx, *args, **kw)`` 形态（线程段函数清一色
+        ctx 首参）——``fn(ctx, *args, **kw)`` 调用。
+
+        - 旗标已置位直接 CancelledError：coroutine 被 cancel 后 ``await``
+          在悬置点立即抛、工作线程照跑成孤儿——先查旗标不新造在飞段；
+        - 在飞段登记 ``ctx.in_flight``（payload 线程 ``finally`` 置位——
+          注意**不能**在 await 侧摘除：cancel 后 coroutine 先走、线程
+          还活着，摘掉就让 ``_drain_threads`` 看不见它）；``run()``
+          收尾按此有界等排空；
+        - 段内取消由长段轮询 ``ctx.cancel_flag``（``_abort_if_cancelled``）
+          或消费方 ``should_cancel`` 回调传导；段边界照旧
+          ``_check_cancelled``。
+        """
+        if ctx.cancel_flag.is_set():
+            raise asyncio.CancelledError
+        done = threading.Event()
+        ctx.in_flight.add(done)
+
+        def _payload() -> _T:
+            try:
+                return fn(ctx, *args, **kw)
+            finally:
+                done.set()
+
+        return await asyncio.to_thread(_payload)
+
+    def _abort_if_cancelled(self, ctx: TaskCtx) -> None:
+        """线程段内轮询点：旗标置位即抛 CancelledError 尽快放弃长段。
+
+        与 ``_check_cancelled``（段边界、读库）的分工：本函数纯内存检查，
+        可在 ``to_thread`` 段内循环迭代/子调用间高频调——SQLite conn 有
+        线程亲和，线程内查库状态是违例。CancelledError 经
+        ``await _to_thread`` 传播即正常取消语义的收敛路径。
+        """
+        if ctx.cancel_flag.is_set():
+            raise asyncio.CancelledError
+
+    async def _drain_threads(self, ctx: TaskCtx) -> None:
+        """收尾有界等在飞 ``_to_thread`` 段排空（``run()`` finally 调）。
+
+        cancel 端点语义 = 「置 cancelled + 立即返回」，不承诺线程已死；
+        但 retry 进入时旧段还在写同一 ``tasks/{id}/`` 目录就交错。轮询
+        旗标的段 ms 级收敛；``engine.compile`` 类原子段无插桩点，只能等
+        其自身 timeout——按 ``_DRAIN_S`` 预算等，残余记 warning 放走
+        （已知窗口：孤儿最迟随其内部超时死）。等待本体挪辅助线程，
+        ``Event.wait`` 不堵 loop。
+        """
+        deadline = time.monotonic() + _DRAIN_S
+        while True:
+            pending = [ev for ev in ctx.in_flight if not ev.is_set()]
+            if not pending:
+                return
+            await asyncio.to_thread(_wait_events, pending, deadline)
+            pending = [ev for ev in pending if not ev.is_set()]
+            if not pending or time.monotonic() >= deadline:
+                break
+        if pending:
+            log.warning(
+                "task %s: %d 个在飞线程段 %.1fs 内未排空（孤儿残尾）",
+                ctx.task_id,
+                len(pending),
+                _DRAIN_S,
+            )
+
     def _stage(self, ctx: TaskCtx, stage: str, message: str, progress: int) -> None:
         """状态迁移 + stage 事件（先写库再发，同序保证）。
 
@@ -73,29 +161,56 @@ class _Events:
             },
         )
 
-    def _log(self, ctx: TaskCtx, line: str) -> None:
-        self._on_loop(
-            self.bus.publish,
-            ctx.task_id,
-            "log",
-            {"line": scrub(line, ctx.secrets.api_key)},
-        )
+    def _log(self, ctx: TaskCtx, line: str, *, force: bool = False) -> None:
+        """Log 事件（终态守卫——孤儿线程的迟到扇出不再落 task_events）。
 
-    def _warning(self, ctx: TaskCtx, code: str, message: str) -> None:
-        self._on_loop(
-            self.bus.publish,
-            ctx.task_id,
-            "warning",
-            {"code": code, "message": scrub(message, ctx.secrets.api_key)},
-        )
+        ``force=True`` 供有意的终态后审计用——``_share_pack_try`` 的
+        打包/跳过行只在 transition 之后才有机会发，走守卫即失声。
+        """
+
+        def _pub() -> None:
+            if not force and self._current_status(ctx) in TERMINAL_STATUSES:
+                return
+            self.bus.publish(
+                ctx.task_id, "log", {"line": scrub(line, ctx.secrets.api_key)}
+            )
+
+        self._on_loop(_pub)
+
+    def _warning(
+        self, ctx: TaskCtx, code: str, message: str, *, force: bool = False
+    ) -> None:
+        """Warning 事件（终态守卫同 ``_log``——``force`` 用途亦同）。"""
+
+        def _pub() -> None:
+            if not force and self._current_status(ctx) in TERMINAL_STATUSES:
+                return
+            self.bus.publish(
+                ctx.task_id,
+                "warning",
+                {"code": code, "message": scrub(message, ctx.secrets.api_key)},
+            )
+
+        self._on_loop(_pub)
 
     def _current_status(self, ctx: TaskCtx) -> str:
         row = self.store.get(ctx.task_id)
         return str(row["status"]) if row else "fault"
 
+    def _progress(self, ctx: TaskCtx, value: int) -> None:
+        """Progress 字段写（非状态写）——终态后钳写跳过（done 已钉 100）。"""
+        if self._current_status(ctx) in TERMINAL_STATUSES:
+            return
+        self.store.update_fields(ctx.task_id, progress=value)
+
     def _check_cancelled(self, ctx: TaskCtx) -> None:
-        """段边界 cancel 检查：API 置 cancelled 后由本检查收敛 worker。"""
+        """段边界 cancel 检查：API 置 cancelled 后由本检查收敛 worker。
+
+        顺手置 ``cancel_flag``——线程段轮询面（内存）与 DB 态同源，
+        不靠 cancel_running 单点置位。
+        """
         if self._current_status(ctx) == "cancelled":
+            ctx.cancel_flag.set()
             raise asyncio.CancelledError
 
     def _fail(  # noqa: PLR0913 -- code/message/retryable/stage/detail 即错误面
@@ -237,18 +352,32 @@ class _Events:
             blob = full.read_bytes()
             size = len(blob)
             sha = hashlib.sha256(blob).hexdigest()
-        return self._on_loop(
-            self.store.put_file, ctx.task_id, kind, rel, size=size, sha256=sha
-        )
+
+        def _put() -> dict[str, Any]:
+            if self._current_status(ctx) in TERMINAL_STATUSES:
+                # 终态后登记的 files 行让 done 事件已发的产物清单失真——
+                # 孤儿线程残尾只登记不落盘的形态与取消语义一致
+                return {"kind": kind, "path": rel, "bytes": size, "sha256": sha}
+            return self.store.put_file(ctx.task_id, kind, rel, size=size, sha256=sha)
+
+        return self._on_loop(_put)
 
     def _opt_int(
-        self, ctx: TaskCtx, options: Mapping[str, Any], key: str, default: int
+        self,
+        ctx: TaskCtx,
+        options: Mapping[str, Any],
+        key: str,
+        default: int,
+        *,
+        hi: int | None = None,
     ) -> int:
-        """``options[key]`` 容错 int：非数值 → warning + 默认；≤0 → warning + 钳 1。
+        """``options[key]`` 容错 int：非数值 → warning + 默认；≤0 → 钳 1；``hi`` 超上限钳位。
 
         存量 options_json 可残留非法值（早于 ``_clean_task_options`` 闸或经
-        share/retry 旁路写入）。``qps`` 等旋钮下游无 ``__post_init__`` 兜底
-        ——负值会直接进 babeldoc sidecar。
+        share/retry 旁路写入）。``qps``/``concurrency`` 下游无
+        ``__post_init__`` 兜底——负值直接进 sidecar，放大值打爆网关
+        并发/速率面（上限口径对齐 ``app._clean_task_options``：
+        concurrency≤16 / qps≤50）。
         """
         raw = options.get(key)
         if not raw:
@@ -263,4 +392,9 @@ class _Events:
         if v < 1:
             self._warning(ctx, "bad_option", f"options.{key}={raw!r} ≤0——按 1 钳位")
             return 1
+        if hi is not None and v > hi:
+            self._warning(
+                ctx, "bad_option", f"options.{key}={raw!r} 超上限——按 {hi} 钳位"
+            )
+            return hi
         return v

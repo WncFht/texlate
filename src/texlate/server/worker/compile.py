@@ -161,24 +161,24 @@ class _Compile:
         """
         self._stage(ctx, "compiling", "编译", PROGRESS["compiling"][0])
         await self._ensure_scans(ctx)
-        await asyncio.to_thread(self._build_zh, ctx)
+        await self._to_thread(ctx, self._build_zh)
         self._check_cancelled(ctx)
-        self.store.update_fields(ctx.task_id, progress=PROGRESS["compiling"][0] + 4)
-        await asyncio.to_thread(self._compile_en, ctx)
+        self._progress(ctx, PROGRESS["compiling"][0] + 4)
+        await self._to_thread(ctx, self._compile_en)
         ctx.expect_cjk = self._expect_cjk(ctx)
-        ok = await asyncio.to_thread(self._compile_zh, ctx)
+        ok = await self._to_thread(ctx, self._compile_zh)
         self._check_cancelled(ctx)
-        self.store.update_fields(ctx.task_id, progress=PROGRESS["compiling"][1])
+        self._progress(ctx, PROGRESS["compiling"][1])
         # pypdf 页树走查 + named-dest 对齐是 CPU 重活——出 loop 线程，
         # 否则大 PDF 期间 SSE/心跳/分发全停
-        await asyncio.to_thread(self._build_dual, ctx)
+        await self._to_thread(ctx, self._build_dual)
         if self._current_status(ctx) in TERMINAL_STATUSES:
             return  # cancel 竞态：终态已写，不再覆盖
         # fixloop 策略拒绝（verdict reject:<rid>）与 e2e 同案归
         # partial + reject_at=fixloop——拒绝是降级交付不是故障
         verdict = str((ctx.fixloop or {}).get("verdict") or "")
         if verdict.startswith("reject:"):
-            await asyncio.to_thread(self._build_md_zip, ctx)
+            await self._to_thread(ctx, self._build_md_zip)
             detail: dict[str, Any] = {}
             if ctx.l2:
                 detail["l2"] = ctx.l2
@@ -238,7 +238,7 @@ class _Compile:
         fixloop 跑过仍无 pdf → 规则耗尽（``fixloop_exhausted``），摘要随
         error_json 落库供 triage。
         """
-        await asyncio.to_thread(self._build_md_zip, ctx)
+        await self._to_thread(ctx, self._build_md_zip)
         detail: dict[str, Any] = {}
         if ctx.l2:
             detail["l2"] = ctx.l2
@@ -268,6 +268,7 @@ class _Compile:
 
     def _build_zh(self, ctx: TaskCtx) -> None:
         """回写 zh 工程：按 chunks 表译文 splice + ctex 注入 + zip 登记。"""
+        self._abort_if_cancelled(ctx)
         if (ctx.zh_dir / ".splice-done").is_file():
             return
         if ctx.zh_dir.exists():
@@ -282,6 +283,7 @@ class _Compile:
         trans = self._env_judge_filter(ctx, trans, rows)
         n_files = 0
         for rel, res in ctx.scans.items():
+            self._abort_if_cancelled(ctx)  # 逐文件 reconstruct——大工程秒级段
             by_int: dict[int, str] = {}
             for c in res.chunks:
                 cid = chunk_db_id(rel, c.span.start, c.span.end)
@@ -314,6 +316,7 @@ class _Compile:
         zip_path = ctx.root / "zh-src.zip"
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
             for f in sorted(ctx.zh_dir.rglob("*")):
+                self._abort_if_cancelled(ctx)
                 if f.is_file() and f.name not in _SENTINELS:
                     zf.write(f, f.relative_to(ctx.zh_dir).as_posix())
         self._register(ctx, "zh_src_zip", "zh-src.zip")
@@ -412,6 +415,7 @@ class _Compile:
 
     def _compile_en(self, ctx: TaskCtx) -> None:
         """en.pdf：base/ 拷贝编译；失败只记 warning（不阻塞译文链）。"""
+        self._abort_if_cancelled(ctx)
         if self._has_pdf(ctx, "en_pdf"):
             return
         work = ctx.root / "build-en"
@@ -426,6 +430,8 @@ class _Compile:
             sandbox=True,
             flags=rep.flags if rep else None,
         )
+        # eng.compile 是原子段（无插桩点）——跑完即收敛，后续 diff/登记是白费
+        self._abort_if_cancelled(ctx)
         self._probe_diff(ctx, rep, res)
         if res.has_pdf and res.pdf is not None:
             shutil.copyfile(res.pdf, ctx.root / "en.pdf")
@@ -486,6 +492,7 @@ class _Compile:
         """
         hook, hook_usage, hook_clients = self._llm_hook_pack(ctx)
         try:
+            self._abort_if_cancelled(ctx)
             cell, fix_last = run_fixloop(
                 work,
                 self._fixloop_engine(ctx, eng),
@@ -502,6 +509,8 @@ class _Compile:
             return first
         finally:
             self._teardown_llm_hook(ctx, hook_usage, hook_clients)
+        # fixloop 轮间无插桩（repair 属主面外）——出环即收敛
+        self._abort_if_cancelled(ctx)
         summary = _fixloop_summary(cell)
         res = fix_last or first
         flags = [str(f) for f in cell.get("engine_flags") or []]
@@ -637,6 +646,7 @@ class _Compile:
         ``trans`` 取 chunks 表 status='ok' 译文（= work 内已 splice 内容）；
         ``db_of`` 是 ``"fidx:cid"`` → chunks.chunk_id 的 DB 回写映射。
         """
+        self._abort_if_cancelled(ctx)
         ok = {
             r["chunk_id"]: r["translation"]
             for r in self._on_loop(self.store.all_chunks, ctx.task_id)
@@ -680,7 +690,7 @@ class _Compile:
         )
         return run, db_of
 
-    def _l2_repair_zh(
+    def _l2_repair_zh(  # noqa: C901, PLR0915 -- 命中批→localize→重翻→重编阶梯平铺即 spec
         self, ctx: TaskCtx, work: Path, eng: Engine, res: CompRes
     ) -> tuple[dict[str, Any], CompRes, Verdict | None]:
         """L2 回灌一轮（镜像 e2e ``_l2_repair``）：归因→重译→resplice→重编→余孽回落。
@@ -694,6 +704,17 @@ class _Compile:
         run, db_of = self._l2_run_state(ctx, work)
         clients = _translator_clients(run.pipe.translator)
         usage = self._meter_usage(clients)
+
+        async def _retr() -> dict[str, Any]:
+            try:
+                return await _retranslate_hits(run, hits, L2_MAX_CHUNKS)
+            finally:
+                # client 用/关收进同一 ephemeral loop——拆两次 asyncio.run
+                # 会在已关 loop 上 aclose（RuntimeError 吞掉 → FD 泄漏）；
+                # 清空清单让外层 finally 不对已关 client 二次 aclose
+                await _w._aclose_clients(clients)  # noqa: SLF001 -- _w 包 attr 缝
+                clients.clear()
+
         try:
             hits, n_err = _l2_localize(work, run, res)
             rep["errors"] = n_err
@@ -701,7 +722,9 @@ class _Compile:
             if not hits:
                 rep["note"] = "no chunk-level attribution"
                 return rep, res, None
-            retr = asyncio.run(_retranslate_hits(run, hits, L2_MAX_CHUNKS))
+            self._abort_if_cancelled(ctx)
+            retr = asyncio.run(_retr())
+            self._abort_if_cancelled(ctx)
             changed: set[str] = retr.pop("_changed")
             adopted: set[str] = retr.pop("_adopted")
             rep.update(retr)
@@ -718,6 +741,7 @@ class _Compile:
                 sandbox=True,
                 flags=ctx.probe_flags or None,
             )
+            self._abort_if_cancelled(ctx)
             v2 = judge(
                 res2, expect_cjk=ctx.expect_cjk, log_text=self._log_text_of(res2)
             )
@@ -766,6 +790,8 @@ class _Compile:
             except Exception:
                 log.debug("l2 usage persist failed", exc_info=True)
             if clients:
+                # 未走到 _retr 的早退（localize 即崩）——未用 client 在新
+                # loop 上关是平凡路径；_retr 跑过的已自清清单跳过
                 try:
                     asyncio.run(_w._aclose_clients(clients))  # noqa: SLF001 -- _w 包 attr 缝
                 except Exception:
@@ -880,6 +906,7 @@ class _Compile:
         ``zh/``，哨兵与 zh_pdf 记录同生共死；resume 见哨兵+pdf 即跳过重编。
         返回「终态不 fault」——有 pdf 即 partial 起步。
         """
+        self._abort_if_cancelled(ctx)
         if (ctx.zh_dir / ".compile-done").is_file() and self._has_pdf(ctx, "zh_pdf"):
             return True
         work = ctx.root / "build-zh"
@@ -896,10 +923,13 @@ class _Compile:
             sandbox=True,
             flags=rep.flags if rep else None,
         )
+        # eng.compile 原子段跑完即收敛——L2/fixloop/登记是后续白费
+        self._abort_if_cancelled(ctx)
         self._probe_diff(ctx, rep, res)
         v = judge(res, expect_cjk=ctx.expect_cjk, log_text=self._log_text_of(res))
         if v.status != "clean":
             res, v = self._l2_attempt(ctx, work, eng, res, v)
+            self._abort_if_cancelled(ctx)
         if v.status != "clean" and self._fixloop_enabled(ctx):
             res = self._run_fixloop(ctx, work, eng, res)
             v = judge(res, expect_cjk=ctx.expect_cjk, log_text=self._log_text_of(res))
@@ -933,9 +963,10 @@ class _Compile:
     def _build_dual(self, ctx: TaskCtx) -> None:
         """dual.json（§5.4）：documents 版本/pages + 页级 alignment + chunks。
 
-        调用方 ``asyncio.to_thread`` 起（pdf_pages/build_alignment 扫
+        调用方 ``_to_thread`` 起（pdf_pages/build_alignment 扫
         content stream 是 CPU 重活）——store 读一律 ``_on_loop`` 回弹。
         """
+        self._abort_if_cancelled(ctx)
         files = self._on_loop(self.store.files, ctx.task_id)
         doc: dict[str, Any] = {"version": 1, "documents": {}, "chunks": []}
         en = files.get("en_pdf")
@@ -983,6 +1014,7 @@ class _Compile:
         对账位）。零译文不产：登记了而 chunks 无料会让前端落 empty 态。
         只在 ``_stage_compile`` 无 pdf 终态分支调用，此处 dual.json 已落。
         """
+        self._abort_if_cancelled(ctx)
         rows = self._on_loop(self.store.all_chunks, ctx.task_id)
         # 同 dual.json zh 位口径——非 ok 行（fallback_orig/failed 装 en
         # 原文回写）不算译文载荷，全非 ok 即「零译文不产」

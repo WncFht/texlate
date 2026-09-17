@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import json
 import shutil
@@ -148,7 +147,7 @@ class _Share:
             r["chunk_id"]: (str(r["status"]), str(r["translation"] or ""))
             for r in self.store.all_chunks(ctx.task_id)
         }
-        ctx.share = await asyncio.to_thread(self._share_apply, ctx)
+        ctx.share = await self._to_thread(ctx, self._share_apply)
         s = ctx.share
         self._log(
             ctx,
@@ -189,6 +188,7 @@ class _Share:
         updates: list[tuple[str, dict[str, Any]]] = []
         total = matched = dropped = missed = 0
         for r in self._on_loop(self.store.all_chunks, ctx.task_id):
+            self._abort_if_cancelled(ctx)  # 逐行对账轮询——大包/慢校验下秒级段
             total += 1
             outcome, upd = _share_row(r, pool)
             if upd is not None:
@@ -252,6 +252,7 @@ class _Share:
         ``dual.json`` 在场即直返；retry 改 options 致 key 漂移或 ``share``
         载荷伪造/残缺 → ``_share_unmark`` 摘除后按现状重查。
         """
+        self._abort_if_cancelled(ctx)
         if ctx.row["kind"] != "arxiv" or ctx.reuse_hit is not None:
             return False  # share 走 _run_share 自有链；dedup 命中已终态
         opts = ctx.options()
@@ -312,6 +313,7 @@ class _Share:
             shutil.rmtree(dest, ignore_errors=True)  # 校验中途失败可能留半解包现场
             self._log(ctx, f"share lookup: 包校验失败回退自译: {e}")
             return False
+        self._abort_if_cancelled(ctx)
         opts = ctx.options()
         opts["share"] = {
             "share_key": mf.share_key,
@@ -350,6 +352,7 @@ class _Share:
                 ctx.task_id,
                 options_json=ctx.row["options_json"],
             )
+        self._abort_if_cancelled(ctx)
         shutil.rmtree(ctx.root / "share", ignore_errors=True)
 
     # ------------------------------------------------------------ share 打包钩
@@ -438,9 +441,12 @@ class _Share:
         ):
             return
         try:
-            await asyncio.to_thread(self._share_pack_try, ctx)
+            await self._to_thread(ctx, self._share_pack_try)
         except Exception as e:  # noqa: BLE001 -- 共享打包是附加产物，炸不拖累任务终态
-            self._warning(ctx, "share_pack", f"共享打包失败（任务不受影响）: {e}")
+            # force：本钩恒在终态后跑——守卫版 _warning 会把审计面吞掉
+            self._warning(
+                ctx, "share_pack", f"共享打包失败（任务不受影响）: {e}", force=True
+            )
 
     def _share_pack_try(self, ctx: TaskCtx) -> None:
         """Worker 线程侧打包体：key_parts 派生 → ``share_pack_publish`` 发布。
@@ -449,6 +455,7 @@ class _Share:
         ``share_pack_publish``）——API 事后打包端点走同一口径。upload 类
         无 arxiv_id 不参与共享寻址，记行跳过。
         """
+        self._abort_if_cancelled(ctx)
         row = self._on_loop(self.store.get, ctx.task_id)
         if row is None:
             return
@@ -458,8 +465,16 @@ class _Share:
             return
         manifest = self.share_pack_manifest(ctx, row)
         if manifest is None:
-            self._log(ctx, "share pack: 任务无 arxiv_id（不参与共享寻址），跳过打包")
+            self._log(
+                ctx,
+                "share pack: 任务无 arxiv_id（不参与共享寻址），跳过打包",
+                force=True,
+            )
             return
         out_dir = share_dir(self.data_dir)
         bundle, _mf = _w.share_pack_publish(ctx.root, manifest, out_dir)
-        self._log(ctx, f"share pack: {bundle.name} → {out_dir}（index.jsonl 已落行）")
+        self._log(
+            ctx,
+            f"share pack: {bundle.name} → {out_dir}（index.jsonl 已落行）",
+            force=True,
+        )

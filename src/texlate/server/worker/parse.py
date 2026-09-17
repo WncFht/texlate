@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import shutil
 from typing import TYPE_CHECKING, Any
@@ -44,15 +43,15 @@ class _Parse:
         self._stage(ctx, "parsing", "解析工程", PROGRESS["parsing"][0])
         if ctx.row["kind"] == "arxiv_html":
             # DOM 链：无 normalize/主文件——src/index.html 直接出 chunk 行
-            rows = await asyncio.to_thread(self._parse_html, ctx)
+            rows = await self._to_thread(ctx, self._parse_html)
             self.store.insert_chunks(ctx.task_id, rows)
             self._stage(ctx, "parsing", "解析完成", PROGRESS["parsing"][1])
             self._check_cancelled(ctx)
             return
         if not (ctx.base_dir / ".base-done").is_file():
-            await asyncio.to_thread(self._build_base, ctx)
+            await self._to_thread(ctx, self._build_base)
         self._check_cancelled(ctx)
-        rows, scans = await asyncio.to_thread(self._parse_all, ctx)
+        rows, scans = await self._to_thread(ctx, self._parse_all)
         self.store.insert_chunks(ctx.task_id, rows)
         ctx.scans = scans
         self._stage(ctx, "parsing", "解析完成", PROGRESS["parsing"][1])
@@ -60,6 +59,7 @@ class _Parse:
 
     def _build_base(self, ctx: TaskCtx) -> None:
         """``src → base``：route（reject → partial+``reject_at``，F3）→ normalize。"""
+        self._abort_if_cancelled(ctx)
         if ctx.base_dir.exists():
             shutil.rmtree(ctx.base_dir)
         shutil.copytree(ctx.src_dir, ctx.base_dir)
@@ -99,6 +99,7 @@ class _Parse:
                 raise _RouteRejectError(msg)
             ctx.main_rel = main.relative_to(ctx.base_dir).as_posix()
         stats = normalize_project(ctx.base_dir, ctx.engine_name, ctx.main_rel)
+        self._abort_if_cancelled(ctx)
         self._log(ctx, f"normalize: {stats}")
         # 引擎路由与主文件持久化——resume 后编译段还要用同一台引擎；
         # route_engines 供 fixloop 跨引擎臂（tectonic 丢 flag → xelatex
@@ -129,6 +130,7 @@ class _Parse:
             for p in ctx.base_dir.rglob("*")
             if p.is_file() and p.suffix.lower() == ".tex"
         ):
+            self._abort_if_cancelled(ctx)  # 逐文件轮询——大工程半解析是秒级段
             name = f.name.lower()
             if f.name.startswith(".") or name.endswith(".rtx.tex"):
                 continue  # 隐文件 + REVTeX 运行时转储不进翻译集（同 e2e/stagerun）
@@ -167,7 +169,7 @@ class _Parse:
     async def _ensure_scans(self, ctx: TaskCtx) -> None:
         """Resume 场景：chunks 已有但内存 scans 空 → 重解析 base/ 补建。"""
         if not ctx.scans:
-            _rows, ctx.scans = await asyncio.to_thread(self._parse_all, ctx)
+            _rows, ctx.scans = await self._to_thread(ctx, self._parse_all)
 
     def _ph_frag_map(self, ctx: TaskCtx) -> dict[str, dict[str, str]]:
         """``chunk_db_id → ph_fragments``：scans × ph_map 全量映射。

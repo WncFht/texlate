@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import shutil
 import sqlite3
@@ -48,18 +47,32 @@ class _Fetch:
             return
         self._stage(ctx, "fetching", "取源", PROGRESS["fetching"][0])
         if ctx.row["kind"] in ("arxiv", "share"):
-            await asyncio.to_thread(self._fetch_arxiv, ctx)
+            await self._to_thread(ctx, self._fetch_arxiv)
         elif ctx.row["kind"] == "arxiv_html":
-            await asyncio.to_thread(self._fetch_html, ctx)
+            await self._to_thread(ctx, self._fetch_html)
         else:
-            await asyncio.to_thread(self._fetch_upload, ctx)
+            await self._to_thread(ctx, self._fetch_upload)
         if ctx.reuse_hit is not None:
             # dedup 命中——不落哨兵：崩溃在终态写入前时 resume 重跑
             # fetch 重查 dedup，等幂
-            if self._current_status(ctx) not in TERMINAL_STATUSES:
-                await asyncio.to_thread(self._materialize_reuse, ctx, ctx.reuse_hit)
-                self._finish_reuse(ctx, ctx.reuse_hit)
-            return
+            if self._current_status(ctx) in TERMINAL_STATUSES:
+                return
+            hit = ctx.reuse_hit
+            if await self._to_thread(ctx, self._materialize_reuse, hit):
+                self._finish_reuse(ctx, hit)
+                return
+            # 命中行产物在拷贝前被并发清空（delete_task 竞态）——零物化
+            # 判 done 是假交付；熔断 dedup（reuse_dead 挡二次命中同腐行）
+            # 回退自跑——entry 还在 SourceCache，重跑 acquire 是 HIT 廉价路径
+            self._log(ctx, f"reuse: 任务 {hit['id']} 产物零物化——回退自跑")
+            ctx.reuse_hit = None
+            ctx.reuse_dead = True
+            refetch = (
+                self._fetch_html
+                if ctx.row["kind"] == "arxiv_html"
+                else self._fetch_arxiv
+            )
+            await self._to_thread(ctx, refetch)
         (ctx.src_dir / ".fetch-done").write_text("", encoding="utf-8")
         opts = ctx.options()
         if opts.pop("reuse_hit", None) is not None:
@@ -71,6 +84,7 @@ class _Fetch:
 
     def _fetch_arxiv(self, ctx: TaskCtx) -> None:
         """``acquire_source`` → extracted → ``src/``；raw blob → ``src.tar``。"""
+        self._abort_if_cancelled(ctx)
         arxiv_id = str(ctx.row["arxiv_id"])
         cache = self._src_cache or SourceCache(self.data_dir / "src-cache")
         own_fetcher = self._fetcher is None
@@ -79,6 +93,7 @@ class _Fetch:
         )
         try:
             res = _w.acquire_source(arxiv_id, fetcher=fetcher, cache=cache)
+            self._abort_if_cancelled(ctx)  # 网络段跑完先收敛——拷贝/登记是白费
             if res.status not in (AcquireStatus.OK, AcquireStatus.HIT):
                 code = (
                     "no_latex_source"
@@ -117,10 +132,9 @@ class _Fetch:
                     ctx.row["options_json"] = json.dumps(opts, ensure_ascii=False)
                     fields["options_json"] = ctx.row["options_json"]
             self._on_loop(self.store.update_fields, ctx.task_id, **fields)
-            if self._post_resolve_reuse(
-                ctx, entry.arxiv_id, entry.resolved_version
-            ):
+            if self._post_resolve_reuse(ctx, entry.arxiv_id, entry.resolved_version):
                 return  # 钉版键命中已完成任务——产物物化由 _stage_fetch 接管
+            self._abort_if_cancelled(ctx)
             if ctx.src_dir.exists():
                 shutil.rmtree(ctx.src_dir)
             shutil.copytree(entry.extracted_dir, ctx.src_dir)
@@ -173,7 +187,13 @@ class _Fetch:
         )
         if resolved_key == stored:
             return False
-        hit = self._on_loop(self.store.find_reusable, resolved_key)
+        # reuse_dead：上轮命中物化零产物（hit 行被并发清空）——回退自跑
+        # 时同一腐行还会被 find_reusable 返回，熔断查臂直走 re-key
+        hit = (
+            None
+            if ctx.reuse_dead
+            else self._on_loop(self.store.find_reusable, resolved_key)
+        )
         if hit is not None:
             ctx.reuse_hit = hit
             return True
@@ -187,14 +207,17 @@ class _Fetch:
             ctx.row["cache_key"] = resolved_key
         return False
 
-    def _materialize_reuse(self, ctx: TaskCtx, hit: dict[str, Any]) -> None:
+    def _materialize_reuse(self, ctx: TaskCtx, hit: dict[str, Any]) -> int:
         """把命中任务的 files 产物物理拷进本任务目录并登记（worker 线程）。
 
         下载面按 ``tasks/{id}/{path}`` 解析——只建行不拷文件会让产物
-        链接 404。盘上缺失的产物跳过（文件面以实拷为准）。
+        链接 404。盘上缺失的产物跳过（文件面以实拷为准）。返回实拷
+        产物数——0 = 命中行已被并发清空，``_stage_fetch`` 回退自跑。
         """
         hit_root = self.data_dir / "tasks" / str(hit["id"])
+        n = 0
         for kind, f in self._on_loop(self.store.files, str(hit["id"])).items():
+            self._abort_if_cancelled(ctx)
             rel = Path(str(f["path"]))
             src = hit_root / rel
             dst = ctx.root / rel
@@ -211,6 +234,8 @@ class _Fetch:
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(src, dst)
             self._register(ctx, kind, rel.as_posix())
+            n += 1
+        return n
 
     def _finish_reuse(self, ctx: TaskCtx, hit: dict[str, Any]) -> None:
         """post-resolve dedup 收尾：终态镜像命中行 + done 事件（loop 线程）。
@@ -262,6 +287,7 @@ class _Fetch:
 
     def _fetch_upload(self, ctx: TaskCtx) -> None:
         """upload_tex：解包 ``upload/`` blob → ``src/``；原文登记 src_tar。"""
+        self._abort_if_cancelled(ctx)
         uploads = sorted((ctx.root / "upload").glob("*"))
         if not uploads:
             msg = "upload payload missing"

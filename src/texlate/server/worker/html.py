@@ -8,14 +8,16 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import re
 import shutil
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
+
+if TYPE_CHECKING:
+    from bs4.element import Tag
 
 import texlate.server.worker as _w
 from texlate.arxiv.cache import SourceCache
@@ -39,7 +41,16 @@ from ._common import (
 
 #: sanitize 剥除的活性内容 tag（script/iframe/表单件——媒体与样式保留：
 #: object.ltx_graphics 是 arXiv 图形载体，<style> 固化 ltx_* 排版）
-_DROP_TAGS = ("script", "noscript", "template", "iframe", "form", "button", "dialog", "select")
+_DROP_TAGS = (
+    "script",
+    "noscript",
+    "template",
+    "iframe",
+    "form",
+    "button",
+    "dialog",
+    "select",
+)
 
 #: href/src 系属性的危险 scheme——``data:`` 仅剥非 image（img src 内嵌
 #: 位图是合法形态）；第二道防线在前端 DOMPurify（DomPane 双保险）
@@ -60,7 +71,7 @@ def _bad_url(el_name: str, url: str) -> bool:
 
 
 def _abs_srcset(el_name: str, srcset: str, base_url: str) -> str:
-    """srcset 候选表逐条过 scheme 检查 + 相对化（``url [desc]`` 逗号分隔）。"""
+    """Srcset 候选表逐条过 scheme 检查 + 相对化（``url [desc]`` 逗号分隔）。"""
     out = []
     for cand in srcset.split(","):
         parts = cand.strip().split()
@@ -73,6 +84,14 @@ def _abs_srcset(el_name: str, srcset: str, base_url: str) -> str:
             url = urljoin(base_url, url)
         out.append(" ".join([url, *desc]))
     return ", ".join(out)
+
+
+def _attached_to(soup: BeautifulSoup, el: Tag) -> bool:
+    """锚元素是否仍在 ``soup`` 活树内——clear 摘出的死节点需重查。"""
+    node: Tag | BeautifulSoup = el
+    while node.parent is not None:
+        node = node.parent
+    return node is soup
 
 
 def _resolved_version(html: str, base: str) -> int | None:
@@ -96,12 +115,11 @@ class _Html:
         dedup 语义与入队键一致不劣化）。HtmlDoc 在 fetch 臂预解析：
         早验文档结构 + title 字段，``_parse_html``/``_html_doc`` 复用。
         """
+        self._abort_if_cancelled(ctx)
         arxiv_id = str(ctx.row["arxiv_id"])
         base, pin = normalize_arxiv_id(arxiv_id)
         if not _valid_id(base) or (pin is not None and pin < 1):
-            raise _StageError(
-                code="arxiv_fetch", message=f"bad arxiv id: {arxiv_id!r}"
-            )
+            raise _StageError(code="arxiv_fetch", message=f"bad arxiv id: {arxiv_id!r}")
         cache = self._src_cache or SourceCache(self.data_dir / "src-cache")
         own = self._fetcher is None
         fetcher = self._fetcher or _w.Fetcher(
@@ -160,11 +178,10 @@ class _Html:
 
     def _html_doc(self, ctx: TaskCtx) -> HtmlDoc:
         """HtmlDoc 单例：fetch 预解析命中，否则 ``src/index.html`` 惰性重解析（resume）。"""
+        self._abort_if_cancelled(ctx)
         if ctx.html_doc is None:
             html = (ctx.src_dir / "index.html").read_text(encoding="utf-8")
-            ctx.html_doc = _w.parse_arxiv_html(
-                html, arxiv_id=str(ctx.row["arxiv_id"])
-            )
+            ctx.html_doc = _w.parse_arxiv_html(html, arxiv_id=str(ctx.row["arxiv_id"]))
         return ctx.html_doc
 
     def _parse_html(self, ctx: TaskCtx) -> list[dict[str, Any]]:
@@ -176,6 +193,7 @@ class _Html:
         DomPane 几何序严格同源 1:1。``kind`` 已由 ``doc_chunks`` 经
         ``normalize_kind`` 归一（bibitem/figure 等 support 块不产行）。
         """
+        self._abort_if_cancelled(ctx)
         doc = self._html_doc(ctx)
         ordinal = {b.key: i for i, b in enumerate(doc.blocks)}
         rows: list[dict[str, Any]] = []
@@ -202,7 +220,7 @@ class _Html:
             await super()._ensure_scans(ctx)
             return
         if ctx.html_doc is None:
-            await asyncio.to_thread(self._html_doc, ctx)
+            await self._to_thread(ctx, self._html_doc)
 
     def _ph_frag_map(self, ctx: TaskCtx) -> dict[str, dict[str, str]]:
         """``chunk_id → ph_fragments`` 的 DOM 版（块内 token→原 HTML 片段）。
@@ -241,9 +259,9 @@ class _Html:
         改名成本远大于收益，message 层区分（"生成阅读页"）。
         """
         self._stage(ctx, "compiling", "生成阅读页", PROGRESS["compiling"][0])
-        await asyncio.to_thread(self._emit_html_dom, ctx)
+        await self._to_thread(ctx, self._emit_html_dom)
         self._check_cancelled(ctx)
-        await asyncio.to_thread(self._build_dual_html, ctx)
+        await self._to_thread(ctx, self._build_dual_html)
         if self._current_status(ctx) in TERMINAL_STATUSES:
             return  # cancel 竞态守卫同 _stage_compile
         failed = self.store.chunk_counts(ctx.task_id)["failed"]
@@ -285,6 +303,7 @@ class _Html:
         ``reinsert(translation)``——fallback/failed 块落 ``src_text``
         （token 回插后等价原文片段，降级语义同 TeX 路 splice）。
         """
+        self._abort_if_cancelled(ctx)
         html = (ctx.src_dir / "index.html").read_text(encoding="utf-8")
         marked = _w.marked_html(html)
         # ph 片段取自 marked 文档再解析——note 等被标记元素进片段时自带
@@ -298,9 +317,23 @@ class _Html:
         self._register(ctx, "en_html", "en.html")
         zh = BeautifulSoup(marked, "lxml")
         self._sanitize_dom(zh, base_url)
+        # 一遍 find_all 建锚索引——逐行 zh.find 是 O(块×树) 全扫；
+        # setdefault 保 first-match（footnote 包装层内可嵌同锚元素，
+        # find 的文档序首个语义不能变）
+        zh_index: dict[str, Any] = {}
+        for el in zh.find_all(attrs={"data-chunk": True}):
+            zh_index.setdefault(str(el["data-chunk"]), el)
         missed = 0
         for r in self._on_loop(self.store.all_chunks, ctx.task_id):
-            el = zh.find(attrs={"data-chunk": str(r["chunk_id"])})
+            self._abort_if_cancelled(ctx)  # 逐行回插轮询——大块数是秒级段
+            key = str(r["chunk_id"])
+            el = zh_index.get(key)
+            if el is not None and not _attached_to(zh, el):
+                # 宿主块 clear 会把锚元素整棵摘出，reinsert 还原的副本
+                # 才是活锚（footnote 场景）——活树重查并回填索引
+                el = zh.find(attrs={"data-chunk": key})
+                if el is not None:
+                    zh_index[key] = el
             if el is None:
                 missed += 1  # 合成键在一次 marked_html 内稳定——缺失=契约违反
                 continue
@@ -353,6 +386,7 @@ class _Html:
         1:1，mapper 的 pages 退化臂即同序映射。``chunks`` 段与 tex 路
         同构（all_chunks 行直出）。
         """
+        self._abort_if_cancelled(ctx)
         files = self._on_loop(self.store.files, ctx.task_id)
         rows = self._on_loop(self.store.all_chunks, ctx.task_id)
         doc: dict[str, Any] = {"version": 1, "documents": {}, "chunks": []}

@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import threading
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -28,7 +29,7 @@ from texlate.xlat.prompts import PROMPT_VERSION
 from texlate.xlat.state import ChunkRecord
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterable
     from pathlib import Path
 
     from texlate.arxiv.html import HtmlDoc
@@ -37,6 +38,7 @@ if TYPE_CHECKING:
     )
     from texlate.server.events import EventBus
     from texlate.server.store import Store
+    from texlate.xlat.pipeline import Translator
 
 
 log = logging.getLogger(__name__)
@@ -241,6 +243,17 @@ class TaskCtx:
     #: ``rep.flags`` 直连；L2 重编/cross-engine 重试经此续传（e2e
     #: ``job.probe_flags`` 同式，缺了重试臂在另一套条件下编译）
     probe_flags: list[str] = field(default_factory=list)
+    #: 线程级取消旗标：``cancel_running``/``stop``/``run()`` 取消臂置位。
+    #: coroutine cancel 递不进在跑的 ``to_thread`` 工作线程——长段内
+    #: 轮询本旗标尽快放弃（``_abort_if_cancelled``/``should_cancel``），
+    #: 段边界照旧 ``_check_cancelled`` 读库收口
+    cancel_flag: threading.Event = field(default_factory=threading.Event)
+    #: 在飞 ``_to_thread`` 段的完成事件集——``run()`` 收尾据此有界等
+    #: 排空，retry 进入时孤儿线程已死，消除目录写交错窗口
+    in_flight: set[threading.Event] = field(default_factory=set)
+    #: reuse 命中零物化的熔断——hit 行被并发删干净时回退自跑，重跑
+    #: fetch 不得再撞同一腐行（``find_reusable`` 返回的还是它）
+    reuse_dead: bool = False
 
     @property
     def src_dir(self) -> Path:
@@ -309,9 +322,13 @@ class SegmentCache:
 
     键 = ``{cfg_hash}:{seg_key}``——``cfg_hash`` 由
     ``sha256(model|prompt_ver|target_lang|base_url|glossary)[:16]`` 派生，管线内部
-    ``_seg_key`` 再叠 src_text+kind+masked 快照。读穿透 SELECT，写进
-    pending 缓冲由 ``drain`` 随 chunk flush 事务落盘。
+    ``_seg_key`` 再叠 src_text+kind+masked 快照。``prewarm`` 后读面 =
+    ``_pending ∪ _written ∪ _pre`` 纯内存；未预载保持逐键读穿透。
+    写进 pending 缓冲由 ``drain`` 随 chunk flush 事务落盘。
     """
+
+    #: ``prewarm`` 分批 IN 查询的批大小（SQLITE_MAX_VARIABLE_NUMBER 下限 999 留余量）
+    _PREWARM_BATCH = 500
 
     def __init__(
         self,
@@ -327,17 +344,46 @@ class SegmentCache:
         self._model = model
         self._lang = target_lang
         self._pending: dict[str, str] = {}
+        #: drain 落盘后的本 run 内可读副本——run 内 dedup（同文档重复段）
+        #: 靠它保持命中语义，不靠回表 SELECT
+        self._written: dict[str, str] = {}
+        #: prewarm 预载命中表；None = 未预载（走逐键读穿透旧路）
+        self._pre: dict[str, str] | None = None
         self.hits = 0
 
     def _full(self, seg_key: str) -> str:
         return f"{self._prefix}:{seg_key}"
 
+    def prewarm(self, seg_keys: Iterable[str]) -> None:
+        """一次性 ``IN`` 批查预载命中——替掉 ``__contains__``/``__getitem__`` 逐键 SELECT。
+
+        逐键读的代价：5k 块 = 5k 次 loop 线程同步查询（单写者纪律下 conn
+        只在 loop 线程用，缓存读全部堵在主循环上）。预载后单写者下本
+        run 期间无第三方写入，漏读不存在；run 内自写经 ``_written`` 续命。
+        只能在 loop 线程调（conn 线程亲和）。
+        """
+        keys = list(dict.fromkeys(seg_keys))
+        pre: dict[str, str] = {}
+        for i in range(0, len(keys), self._PREWARM_BATCH):
+            batch = keys[i : i + self._PREWARM_BATCH]
+            qmarks = ",".join("?" * len(batch))
+            rows = self._store.conn.execute(
+                "SELECT key, translation FROM translation_cache"  # noqa: S608 -- 占位符批查，值全参数化
+                f" WHERE key IN ({qmarks})",
+                [self._full(k) for k in batch],
+            ).fetchall()
+            for r in rows:
+                pre[str(r["key"])[len(self._prefix) + 1 :]] = str(r["translation"])
+        self._pre = pre
+
     def __contains__(self, seg_key: object) -> bool:
         """存在性探测（不 bump hit_count——命中计数只在 ``__getitem__``）。"""
         if not isinstance(seg_key, str):
             return False
-        if seg_key in self._pending:
+        if seg_key in self._pending or seg_key in self._written:
             return True
+        if self._pre is not None:
+            return seg_key in self._pre
         row = self._store.conn.execute(
             "SELECT 1 FROM translation_cache WHERE key = ?",
             (self._full(seg_key),),
@@ -345,18 +391,50 @@ class SegmentCache:
         return row is not None
 
     def __getitem__(self, seg_key: str) -> str:
-        """读穿透：pending 优先，然后表（命中记 hit_count）。"""
-        if seg_key in self._pending:
-            return self._pending[seg_key]
+        """读穿透：pending/written → 预载表/表（命中记 hit_count）。"""
+        hit = self._pending.get(seg_key)
+        if hit is None:
+            hit = self._written.get(seg_key)
+        if hit is not None:
+            self.hits += 1
+            return hit
+        if self._pre is not None:
+            if seg_key not in self._pre:
+                raise KeyError(seg_key)
+            self._count_hit(seg_key)
+            self.hits += 1
+            return self._pre[seg_key]
         hit = self._store.cache_get(self._full(seg_key))
         if hit is None:
             raise KeyError(seg_key)
         self.hits += 1
         return hit
 
+    def _count_hit(self, seg_key: str) -> None:
+        """预载命中的 ``hit_count`` 记账——借 store 延迟聚合桶（无 SELECT 开销）。"""
+        hits_map = getattr(self._store, "_cache_hits", None)  # store 延迟记账桶借道
+        if isinstance(hits_map, dict):
+            full = self._full(seg_key)
+            hits_map[full] = hits_map.get(full, 0) + 1
+
     def __setitem__(self, seg_key: str, translation: str) -> None:
         """写进 pending 缓冲（drain 前对同 key 读可见）。"""
         self._pending[seg_key] = translation
+
+    def __delitem__(self, seg_key: str) -> None:
+        """毒条目摘除（``_cache_hit`` 的 ``del self.cache[key]``）：内存面 + 库行同清。
+
+        此前类上无 ``__delitem__``——``del`` 直接 TypeError，毒条目逃逸成
+        worker crash-skip 而非自愈重翻。DELETE 只能 loop 线程跑（conn 亲和）。
+        """
+        self._pending.pop(seg_key, None)
+        self._written.pop(seg_key, None)
+        if self._pre is not None:
+            self._pre.pop(seg_key, None)
+        self._store.conn.execute(
+            "DELETE FROM translation_cache WHERE key = ?", (self._full(seg_key),)
+        )
+        self._store.conn.commit()
 
     def __len__(self) -> int:
         """待写缓冲长度。"""
@@ -368,6 +446,7 @@ class SegmentCache:
             (self._full(k), v, self._model, self._lang)
             for k, v in self._pending.items()
         ]
+        self._written.update(self._pending)
         self._pending.clear()
         return out
 
@@ -572,13 +651,16 @@ class _FallbackTranslator:
 
 
 class _PerCallTranslator:
-    """llm_hook 的 BYOK translator：每次 ``translate`` 新建 ``ChatClient`` 即弃。
+    """ephemeral-loop 消费面的 BYOK translator：每次 ``translate`` 新建 ``ChatClient`` 即弃。
 
-    ``LlmFixer._drive`` 把每次调用扔进**新线程 + ``asyncio.run`` 新 loop**
-    ——共享 ``ChatClient`` 的 httpx 池跨 loop 复用会炸
-    （"attached to a different loop"，``llm_hook.py`` docstring 明示的坑），
-    故网关面做成 per-call 工厂。``usage_sink`` 仍接同一 meter——
-    旁路烧的 token 不从 ``task_usage`` 蒸发。
+    ``LlmFixer._drive``（llm_hook）与 ``export_document``（doc 路）都把
+    消费跑进**自有 ``asyncio.run`` 临时 loop**——共享 ``ChatClient`` 的
+    httpx 池跨 loop 复用会炸（"attached to a different loop"，
+    ``llm_hook.py`` docstring 明示的坑），用毕的 aclose 也回不去已关
+    loop（RuntimeError 吞掉 → 连接 FD 泄漏）。per-call 即开即关是唯一
+    与消费侧 loop 生命周期一致的形态；``usage_sink`` 仍接同一
+    meter——旁路烧的 token 不从 ``task_usage`` 蒸发。``retry_model``
+    备选模型与 primary 同 per-call client（同 endpoint+key）。
     """
 
     def __init__(
@@ -587,10 +669,13 @@ class _PerCallTranslator:
         api_key: str,
         model: str,
         sink: Callable[[UsageRecord], None],
+        *,
+        retry_model: str = "",
     ) -> None:
         self._base_url = base_url
         self._api_key = api_key
         self._model = model
+        self._retry_model = retry_model
         self._sink = sink
 
     async def translate(
@@ -604,7 +689,25 @@ class _PerCallTranslator:
     ) -> str:
         client = ChatClient(self._base_url, self._api_key, usage_sink=self._sink)
         try:
-            return await GatewayTranslator(client, self._model).translate(
+            primary = GatewayTranslator(client, self._model)
+            try:
+                return await primary.translate(
+                    system=system,
+                    user=user,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    response_format=response_format,
+                )
+            except ChatError as e:
+                if not self._retry_model or not e.retryable:
+                    raise
+                log.warning(
+                    "retry_model: primary %s 失败（%s）→ 备选 %s",
+                    self._model,
+                    e,
+                    self._retry_model,
+                )
+            return await GatewayTranslator(client, self._retry_model).translate(
                 system=system,
                 user=user,
                 temperature=temperature,
@@ -613,6 +716,54 @@ class _PerCallTranslator:
             )
         finally:
             await client.aclose()
+
+
+class _SectionAbort(Exception):  # noqa: N818 -- 取消控制流信号非 Error 语义
+    """线程段内取消哨兵——**不是** ``CancelledError``。
+
+    export 内嵌管线的 ``_worker`` 按 ``except Exception`` 归 crash-skip——
+    取消信号折成普通异常，剩余 unit 逐条快失败排空队列（零 token 消耗），
+    段边界 ``_check_cancelled`` 再收敛成真 cancel。抛 CancelledError 会
+    把 ``_worker`` task 直接打死，``queue.join()`` 永久挂起（孤儿线程
+    更糟）。
+    """
+
+
+class _AbortingTranslator:
+    """``_run_doc`` 的取消传导包装：``cancel_flag`` 置位 → ``translate()`` 抛 ``_SectionAbort``。
+
+    ``export_document`` 在 ``to_thread`` 内开 ephemeral loop——外层
+    ``task.cancel()`` 递不进去；把旗标折成调用面快失败是唯一收敛通道。
+    ``__getattr__`` 透传 ``.client``/``.clients``——``_translator_clients``
+    的 aclose/usage_sink 接线面不受影响。
+    """
+
+    def __init__(self, inner: Translator, flag: threading.Event) -> None:
+        self._inner = inner
+        self._flag = flag
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._inner, name)
+
+    async def translate(
+        self,
+        *,
+        system: str,
+        user: str,
+        temperature: float,
+        max_tokens: int,
+        response_format: dict[str, str] | None = None,
+    ) -> str:
+        if self._flag.is_set():
+            msg = "task cancelled"
+            raise _SectionAbort(msg)
+        return await self._inner.translate(
+            system=system,
+            user=user,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            response_format=response_format,
+        )
 
 
 class _StageError(Exception):
