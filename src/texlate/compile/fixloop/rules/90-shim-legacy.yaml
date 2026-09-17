@@ -51,7 +51,34 @@ rules:
               \providecommand{\accepted}[1]{}
               \providecommand{\paperid}[1]{}
               \endinput
-          revtex.cls: { loads: "revtex4-2", needs: ["revtex4-2.cls"] }
+          # revtex.cls (REVTeX 3.x 老名): 裸 loads 桥曾把 2.09 宏面丢给
+          # revtex4-2 的刻意删除面 (\twocolumn/\@makecol 被 \let\@undefined,
+          # frontmatter 机器 begin-doc 才武装) —— 13 格实证簇残面。
+          # 注: normalize/latex209 已将 \documentstyle{revtex} 改写为
+          # {revtex4-2} → 本 shim 对那 13 格是 misroute (修复点在
+          # 95-targeted cs_table/polyfill 车道); 本体仍升级覆盖直写
+          # \documentclass{revtex} 的存量稿。
+          revtex.cls:
+            needs: ["revtex4-2.cls"]
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesClass{revtex}[2026/09/18 fixloop legacy shim -> revtex4-2]
+              \LoadClassWithOptions{revtex4-2}
+              % frontmatter 机器提前武装 (同 prl/apl/revtex4 先例)
+              \frontmatter@init
+              \let\frontmatter@init\relax
+              % revtex4-2 故意 \let\twocolumn\@undefined; 2.09 稿
+              % \twocolumn[frontmatter块] 需回排式 polyfill —— 直接吐内容
+              % (noop 吞参会丢整页 frontmatter)
+              \providecommand{\twocolumn}[1][]{#1}
+              % \@makecol 同被删 (revtex3 output routine 内件); 回退
+              % 最简内核语义 (box 回写, 丢 float/footnote 处理但保编译)
+              \@ifundefined{@makecol}{\def\@makecol{\setbox\@outputbox\vbox{\unvbox\@cclv}}}{}
+              % \pacs 全期容忍: revtex4-2 版在 \maketitle 后调 → ClassError
+              % (revtex_pacs 5 格实证)。begin-doc 起改直印 —— 前置调用失去
+              % frontmatter 注册但文本可见且不炸 (2.09 老稿多后置)。
+              \AtBeginDocument{\def\pacs##1{\par\noindent\textbf{PACS:} ##1\par}}
+              \endinput
           psfig.sty:
             needs: ["epsfig.sty"]
             body: |
@@ -73,31 +100,206 @@ rules:
               % fixloop legacy shim: psfig.tex -> epsfig (官方 (e)psfig emulation)
               \RequirePackage{epsfig}
               \endinput
-          # ── AAS v4 系 2.09 选项文件 (批七, 22 格全量面调查) ──
+          # ── AAS v4 系 2.09 选项文件 (批七 + C-bucket 残盘 16 格并面) ──
           # \documentstyle[...,aasms4/aaspp4/aas2pp4]{article} 经 legacy
-          # 重写成 \usepackage{...} → TL 不载 → missing_file。22 格使用面
-          # 普查并集: \affil/\keywords/\received/\accepted/\journalid/
-          # \articleid/\slugcomment/\lefthead/\righthead —— 元数据 noop +
-          # 渲染保留宏。三体同面 (v4 family), anchor 复用。
+          # 重写成 \usepackage{...} → TL 不载 → missing_file。三体同面
+          # (v4 family) 共享超集 body = apjprepr 面 + preamble 安全化:
+          # \slugcomment 系 PRE 调用 → 存值 + \AtBeginDocument 吐页眉行
+          # (旧体即时排版 → no_begindoc 4 格实证); \title/\author/\affil
+          # BOD 调用 → 即时排版 (doc2sty 范式, 16 格里 \maketitle 仅 1 现)。
+          # 多名同 body 双载防御: 首载置 \aasfour@done, 后载即 \endinput
+          # (ver@ 已注册无副作用) —— 0111197/9901091/9910131 等 7 格
+          # aasms4+aaspp4 同载实证, \newenvironment/\newcounter 裸跑必撞。
           aasms4.sty:
-            needs: []
+            needs: ["amssymb.sty", "epsf.sty"]
             body: &aas4_body |
               \NeedsTeXFormat{LaTeX2e}
-              \ProvidesPackage{aas4x}[2026/09/17 fixloop legacy shim -> article + AAS meta]
-              \providecommand{\received}[1]{}
-              \providecommand{\accepted}[1]{}
-              \providecommand{\journalid}[2]{}
-              \providecommand{\articleid}[2]{}
-              \providecommand{\slugcomment}[1]{\par\noindent{\footnotesize #1\par}}
-              \providecommand{\keywords}[1]{\par\noindent\textbf{Keywords:} #1\par}
-              \providecommand{\affil}[1]{\par\noindent{\small #1\par}}
-              \providecommand{\lefthead}[1]{\markboth{#1}{}}
-              \providecommand{\righthead}[1]{\markboth{}{#1}}
+              \ProvidesPackage{aas4x}[2026/09/18 fixloop legacy shim -> article + AAS v4 surface]
+              \@ifundefined{aasfour@done}{}{\endinput}
+              \def\aasfour@done{1}
+              \RequirePackage{amssymb}
+              \@ifundefined{epsfbox}{\RequirePackage{epsf}}{}
+              % ── 导言区 meta: noop 或存值 ──
+              \def\received#1{}
+              \def\accepted#1{}
+              \def\journalid#1#2{}
+              \def\articleid#1#2{}
+              \def\notetoeditor#1{}
+              \def\subjectheadings#1{}
+              \def\lefthead#1{\markboth{#1}{}}
+              \def\righthead#1{\markboth{}{#1}}
+              \def\aas@slug{}
+              \def\aas@email{}
+              \def\slugcomment#1{\gdef\aas@slug{#1}}
+              \def\authoremail#1{\gdef\aas@email{#1}}
+              \AtBeginDocument{\ifx\aas@slug\@empty\else\noindent{\footnotesize\aas@slug}\par\fi
+                \ifx\aas@email\@empty\else\noindent{\footnotesize\aas@email}\par\fi}
+              % ── 正文区 frontmatter: doc2sty 即时排版 ──
+              \def\title#1{\begin{center}\large\bfseries#1\end{center}}
+              \def\author#1{\begin{center}\normalsize#1\end{center}}
+              \def\affil#1{\begin{center}\small#1\end{center}}
+              \def\and{\begin{center}and\end{center}}
+              \let\authoraddr=\@gobble
+              \def\altaffilmark#1{\textsuperscript{#1}}
+              \def\altaffiltext#1#2{\par\medskip\noindent\textsuperscript{#1}\,#2\par}
+              \def\keywords#1{\par\noindent\textbf{Keywords:} #1\par}
+              \def\acknowledgments{\section*{Acknowledgments}}
+              \let\acknowledgements=\acknowledgments
+              \def\tighten{\def\baselinestretch{1.0}}
+              \let\tightenlines=\tighten
+              \def\singlespace{\def\baselinestretch{1.0}\normalsize}
+              \def\doublespace{\def\baselinestretch{1.6}\normalsize}
+              \def\eqsecnum{\@addtoreset{equation}{section}%
+              \def\theequation{\thesection-\arabic{equation}}}
+              % ── deluxetable 复合面 (aaspp4 实证模型): \@delspec 延迟开张 ──
+              \newenvironment{deluxetable}[1]{\begin{table}[htbp]\centering\def\@delspec{#1}}{\end{table}}
+              \newenvironment{deluxetable*}[1]{\begin{table}[htbp]\centering\def\@delspec{#1}}{\end{table}}
+              \let\planotable=\deluxetable
+              \let\endplanotable=\enddeluxetable
+              \def\tablewidth#1{}
+              \def\tablecolumns#1{}
+              \def\tablecaption#1{\caption{#1}}
+              \def\tablehead#1{\tabular{\@delspec}#1\\\hline}
+              \def\tabletail#1{}
+              \def\tableheadfrac#1{}
+              \def\startdata{}
+              \def\enddata{\endtabular}
+              \def\nl{\\}
+              \let\nextline=\nl
+              \def\tableline{\hline}
+              \def\colhead#1{#1}
+              \def\tablevspace#1{\noalign{\vskip#1}}
+              \def\tablebreak{\\}
+              \def\cutinhead#1{\hline#1\\\hline}
+              \def\sidehead#1{\noalign{\vskip1.5ex}#1\\\noalign{\vskip.5ex}}
+              \def\tablenum#1{\def\thetable{#1}\let\@currentlabel\thetable\addtocounter{table}{\m@ne}}
+              \def\figurenum#1{\def\thefigure{#1}\let\@currentlabel\thefigure\addtocounter{figure}{\m@ne}}
+              \let\placetable=\@gobble
+              \let\placefigure=\@gobble
+              \let\placeplate=\@gobble
+              \def\phs{\phantom{0}}
+              \def\phn{\phantom{0}}
+              \def\phd{\phantom{.}}
+              \def\phm#1{\phantom{#1}}
+              \def\tablenotetext#1#2{\par\smallskip\noindent\textsuperscript{#1}\,#2\par}
+              \def\tablenotemark#1{\textsuperscript{#1}}
+              \def\tablerefs#1{\par\medskip\noindent References. --- #1\par}
+              \def\tablecomments#1{\par\medskip\noindent Note. --- #1\par}
+              \newcommand{\figcaption}[2][]{\par\medskip\noindent\textbf{Figure.} #2\par}
+              \newcounter{cureqno}
+              \newenvironment{mathletters}{\refstepcounter{equation}%
+              \setcounter{cureqno}{\value{equation}}%
+              \let\@curtheeqn\theequation%
+              \edef\cur@eqn{\theequation}%
+              \def\theequation{\cur@eqn\alph{equation}}%
+              \setcounter{equation}{0}}%
+              {\let\theequation\@curtheeqn%
+              \setcounter{equation}{\value{cureqno}}}
+              \def\eqnum#1{\def\theequation{#1}\let\@currentlabel\theequation\addtocounter{equation}{\m@ne}}
+              % ── references 环境 + \reference→\refpar (9910131×47 实证大户) ──
+              \def\references{\subsection*{References}%
+              \bgroup\parindent=\z@\parskip=\itemsep
+              \def\refpar{\par\hangindent=3em\hangafter=1}}
+              \def\endreferences{\refpar\egroup}
+              \def\markcite{}
+              \def\reference{\refpar}
+              % ── epsf 系图片件 ──
+              \def\eps@scaling{.95}
+              \def\epsscale#1{\def\eps@scaling{#1}}
+              \def\plotone#1{\par\medskip\centering\leavevmode
+              \epsfxsize=\eps@scaling\columnwidth\epsfbox{#1}\par\medskip}
+              \def\plottwo#1#2{\par\medskip\centering\leavevmode
+              \epsfxsize=.45\columnwidth\epsfbox{#1}\hfil
+              \epsfxsize=.45\columnwidth\epsfbox{#2}\par\medskip}
+              % \plotfiddle{file}{voff}{rot}{hsf}{vsf}{htrans}{vtrans} (aastex
+              % 7参变换形, 9901236 实证 28 调) → 降级吃 file+忽略变换
+              \def\plotfiddle#1#2#3#4#5#6#7{\par\medskip\centering\leavevmode
+              \epsfxsize=\eps@scaling\columnwidth\epsfbox{#1}\par\medskip}
+              % ── 物理记号/单位件 ──
+              \def\sun{\hbox{$\odot$}}
+              \def\earth{\hbox{$\oplus$}}
+              \def\sq{\hbox{\rlap{$\sqcap$}$\sqcup$}}
+              \let\la=\lesssim
+              \let\ga=\gtrsim
+              \def\arcdeg{\hbox{$^\circ$}}
+              \def\arcmin{\hbox{$^\prime$}}
+              \def\arcsec{\hbox{$^{\prime\prime}$}}
+              \def\fd{\hbox{$.\!\!^{\rm d}$}}
+              \def\fh{\hbox{$.\!\!^{\rm h}$}}
+              \def\fm{\hbox{$.\!\!^{\rm m}$}}
+              \def\fs{\hbox{$.\!\!^{\rm s}$}}
+              \def\fdg{\hbox{$.\!\!^\circ$}}
+              \def\farcm{\hbox{$.\mkern-4mu^\prime$}}
+              \def\farcs{\hbox{$.\!\!^{\prime\prime}$}}
+              \def\fp{\hbox{$.\!\!^{\scriptscriptstyle\rm p}$}}
+              \def\micron{\hbox{$\mu$m}}
+              \def\case#1#2{\hbox{$\frac{#1}{#2}$}}
+              \def\slantfrac#1#2{\hbox{$\,^#1\!/_#2$}}
+              \def\onehalf{\slantfrac{1}{2}}
+              \def\onethird{\slantfrac{1}{3}}
+              \def\twothirds{\slantfrac{2}{3}}
+              \def\onequarter{\slantfrac{1}{4}}
+              \def\threequarters{\slantfrac{3}{4}}
+              \def\ubvr{\hbox{$U\!BV\!R$}}
+              \def\ub{\hbox{$U\!-\!B$}}
+              \def\bv{\hbox{$B\!-\!V$}}
+              \def\vr{\hbox{$V\!-\!R$}}
+              \def\ur{\hbox{$U\!-\!R$}}
+              \def\ion#1#2{#1$\;${\small\rm\@Roman{#2}}\relax}
+              \def\nodata{ ~$\cdots$~ }
+              % ── 期刊缩写全表 (emulateapj/apjprepr 同表) ──
+              \def\aj{AJ}
+              \def\araa{ARA\&A}
+              \def\apj{ApJ}
+              \def\apjl{ApJ}
+              \def\apjs{ApJS}
+              \def\ao{Appl.~Opt.}
+              \def\apss{Ap\&SS}
+              \def\aap{A\&A}
+              \def\aapr{A\&A~Rev.}
+              \def\aaps{A\&AS}
+              \def\azh{AZh}
+              \def\baas{BAAS}
+              \def\jrasc{JRASC}
+              \def\memras{MmRAS}
+              \def\mnras{MNRAS}
+              \def\pra{Phys.~Rev.~A}
+              \def\prb{Phys.~Rev.~B}
+              \def\prc{Phys.~Rev.~C}
+              \def\prd{Phys.~Rev.~D}
+              \def\pre{Phys.~Rev.~E}
+              \def\prl{Phys.~Rev.~Lett.}
+              \def\pasp{PASP}
+              \def\pasj{PASJ}
+              \def\qjras{QJRAS}
+              \def\skytel{S\&T}
+              \def\solphys{Sol.~Phys.}
+              \def\sovast{Soviet~Ast.}
+              \def\ssr{Space~Sci.~Rev.}
+              \def\zap{ZAp}
+              \def\nat{Nature}
+              \def\iaucirc{IAU~Circ.}
+              \def\aplett{Astrophys.~Lett.}
+              \def\apspr{Astrophys.~Space~Phys.~Res.}
+              \def\bain{Bull.~Astron.~Inst.~Netherlands}
+              \def\fcp{Fund.~Cosmic~Phys.}
+              \def\gca{Geochim.~Cosmochim.~Acta}
+              \def\grl{Geophys.~Res.~Lett.}
+              \def\jcp{J.~Chem.~Phys.}
+              \def\jgr{J.~Geophys.~Res.}
+              \def\jqsrt{J.~Quant.~Spec.~Radiat.~Transf.}
+              \def\memsai{Mem.~Soc.~Astron.~Italiana}
+              \def\nphysa{Nucl.~Phys.~A}
+              \def\physrep{Phys.~Rep.}
+              \def\physscr{Phys.~Scr}
+              \def\planss{Planet.~Space~Sci.}
+              \def\procspie{Proc.~SPIE}
+              \let\astap=\aap
+              \let\apjlett=\apjl
+              \let\apjsupp=\apjs
+              \let\applopt=\ao
               \endinput
-          # aaspp4.sty 不在此 —— 下方 fuller body (deluxetable 面,
-          # 9703134 实证) 才是真身条目; 旧 anchor 键曾在此造成 yaml
-          # dup-key 后写赢死影, 批八清除。
-          aas2pp4.sty: { needs: [], body: *aas4_body }
+          aas2pp4.sty: { needs: ["amssymb.sty", "epsf.sty"], body: *aas4_body }
           # eqsecnum 2.09 选项文件 (wave-final 单格): 公式按节编号 ——
           # .sty 语境 @ 即字母, 无需 makeatletter 包装 (cs_table eqnobysec
           # 条目是 docclass 后注入, 语境不同才需要)。
@@ -216,7 +418,7 @@ rules:
               % aastex6x \startlongtable 把 deluxetable 拉成长表; emulateapj 的
               % deluxetable 本就是 longtable 实现 —— no-op 语义一致
               \providecommand{\startlongtable}{}
-              \providecommand{\endlongtable}{}
+              \@ifundefined{endlongtable}{\@namedef{endlongtable}{}}{}
               \providecommand{\watermark}[1]{}
               \providecommand{\rotate}{}
               \endinput
@@ -387,6 +589,70 @@ rules:
               \providecommand{\email}[1]{\texttt{#1}}
               \providecommand{\acknowledgements}{\par\medskip\noindent\textbf{Acknowledgements.}\space}
               \providecommand{\thesaurus}[1]{}
+              % C-bucket 残盘 (aa_cls_surface 3 格): \sidecaption 版式指示
+              % cs (figure* 内裸调, 1003.4471 实证) → noop; \fm/\fs/\fd/
+              % \fh/\fdg/\farcm/\farcs/\fp 角分角秒族 (0501259 实测
+              % \farcm×6/\farcs×59) —— apjprepr 同款抄值; 期刊缩写全表
+              % (\apj/\mnras/\aap 系 bibitem 内高频, 1206.0719 满表命中)。
+              \providecommand{\sidecaption}{}
+              \providecommand{\fd}{\hbox{$.\!\!^{\rm d}$}}
+              \providecommand{\fh}{\hbox{$.\!\!^{\rm h}$}}
+              \providecommand{\fm}{\hbox{$.\!\!^{\rm m}$}}
+              \providecommand{\fs}{\hbox{$.\!\!^{\rm s}$}}
+              \providecommand{\fdg}{\hbox{$.\!\!^\circ$}}
+              \providecommand{\farcm}{\hbox{$.\mkern-4mu^\prime$}}
+              \providecommand{\farcs}{\hbox{$.\!\!^{\prime\prime}$}}
+              \providecommand{\fp}{\hbox{$.\!\!^{\scriptscriptstyle\rm p}$}}
+              \providecommand{\aj}{AJ}
+              \providecommand{\araa}{ARA\&A}
+              \providecommand{\apj}{ApJ}
+              \providecommand{\apjl}{ApJ}
+              \providecommand{\apjs}{ApJS}
+              \providecommand{\ao}{Appl.~Opt.}
+              \providecommand{\apss}{Ap\&SS}
+              \providecommand{\aap}{A\&A}
+              \providecommand{\aapr}{A\&A~Rev.}
+              \providecommand{\aaps}{A\&AS}
+              \providecommand{\azh}{AZh}
+              \providecommand{\baas}{BAAS}
+              \providecommand{\jrasc}{JRASC}
+              \providecommand{\memras}{MmRAS}
+              \providecommand{\mnras}{MNRAS}
+              \providecommand{\pra}{Phys.~Rev.~A}
+              \providecommand{\prb}{Phys.~Rev.~B}
+              \providecommand{\prc}{Phys.~Rev.~C}
+              \providecommand{\prd}{Phys.~Rev.~D}
+              \providecommand{\pre}{Phys.~Rev.~E}
+              \providecommand{\prl}{Phys.~Rev.~Lett.}
+              \providecommand{\pasp}{PASP}
+              \providecommand{\pasj}{PASJ}
+              \providecommand{\qjras}{QJRAS}
+              \providecommand{\skytel}{S\&T}
+              \providecommand{\solphys}{Sol.~Phys.}
+              \providecommand{\sovast}{Soviet~Ast.}
+              \providecommand{\ssr}{Space~Sci.~Rev.}
+              \providecommand{\zap}{ZAp}
+              \providecommand{\nat}{Nature}
+              \providecommand{\iaucirc}{IAU~Circ.}
+              \providecommand{\aplett}{Astrophys.~Lett.}
+              \providecommand{\apspr}{Astrophys.~Space~Phys.~Res.}
+              \providecommand{\bain}{Bull.~Astron.~Inst.~Netherlands}
+              \providecommand{\fcp}{Fund.~Cosmic~Phys.}
+              \providecommand{\gca}{Geochim.~Cosmochim.~Acta}
+              \providecommand{\grl}{Geophys.~Res.~Lett.}
+              \providecommand{\jcp}{J.~Chem.~Phys.}
+              \providecommand{\jgr}{J.~Geophys.~Res.}
+              \providecommand{\jqsrt}{J.~Quant.~Spec.~Radiat.~Transf.}
+              \providecommand{\memsai}{Mem.~Soc.~Astron.~Italiana}
+              \providecommand{\nphysa}{Nucl.~Phys.~A}
+              \providecommand{\physrep}{Phys.~Rep.}
+              \providecommand{\physscr}{Phys.~Scr}
+              \providecommand{\planss}{Planet.~Space~Sci.}
+              \providecommand{\procspie}{Proc.~SPIE}
+              \providecommand{\astap}{A\&A}
+              \providecommand{\apjlett}{ApJ}
+              \providecommand{\apjsupp}{ApJS}
+              \providecommand{\applopt}{Appl.~Opt.}
               \endinput
           # IOP 系 (iopart.cls 作者工具包, 1996 版起不在 TL): 实证 wdir 常自带
           # iopart.cls 只缺 \@ptsize 尺寸 .clo (1306.5813) —— article 同构,
@@ -751,27 +1017,128 @@ rules:
               \endinput
           osajnl2.cls: { body: *osa_body }
           # SISSA 高能类 (JHEP/JHEP3/jhep/jcap 作者包, 不在 TL) —— article +
-          # polyfill; \preprint/\keywords/\emailAdd/\affiliation 全在导言区
-          # 调用 → 收集制 (affiliation 攒到 \maketitle 后输出), 其余 no-op。
+          # 真 JHEP3.cls 面 (corpus_v3/0806.2278 随稿件): 导言区全收集制
+          # (\abstract/\author/\email/\keywords/\preprint/\received/\revised/
+          # \accepted/\dedicated/\JHEPspecialurl 皆 PRE 调用 → 存值,
+          # \AtBeginDocument 自动 emit —— 真件 \auto@maketitle 同款;
+          # 1404.0033 \maketitle 被注释, 显式调用路径靠不住)。
+          # \author 单参多调用累积 (\renewcommand 即 \long —— 1404.0033
+          # \author 实参含空行, 内核短参 \def 会 Paragraph-ended 炸);
+          # \FIGURE/\TABLE/\EPSFIGURE/\TABULAR/\DOUBLEFIGURE/\DOUBLETABLE
+          # 是 floatflt 系速记 → 降级成 figure/table/tabular, 强制 [htbp]
+          # (稿里 [float]/[v]/[h] 当版式词非法位)。amssymb 是真件依赖
+          # (0905.1170/hep-th--0307148 \mathbb + 0408134 \Box 实证)。
           JHEP.cls:
+            needs: ["amssymb.sty"]
             body: &sissa_body |
               \NeedsTeXFormat{LaTeX2e}
-              \ProvidesClass{jhep-family}[2026/09/16 fixloop legacy shim -> article + SISSA polyfills]
+              \ProvidesClass{jhep-family}[2026/09/18 fixloop legacy shim -> article + SISSA polyfills]
               \LoadClassWithOptions{article}
-              \providecommand{\preprint}[1]{}
-              \providecommand{\keywords}[1]{}
-              \providecommand{\emailAdd}[1]{}
-              \providecommand{\arxivnumber}[1]{}
-              \providecommand{\proceeding}[1]{}
-              \providecommand{\collaboration}[1]{}
-              \def\fixsissa@affils{}
-              \providecommand{\affiliation}[2][]{\g@addto@macro\fixsissa@affils{\par{\footnotesize #2}}}
-              \let\fixsissa@maketitle\maketitle
-              \renewcommand{\maketitle}{\fixsissa@maketitle\begingroup\fixsissa@affils\par\endgroup}
+              \RequirePackage{amssymb}
+              % 存值位: \let 初始化保证 \ifx\@empty 判定真 (\gdef 短参 store
+              % 同款; \renewcommand 产出 \long 宏永远 \ifx-不等 \@empty)
+              \let\sissa@abstract\@empty
+              \let\sissa@keywords\@empty
+              \let\sissa@preprint\@empty
+              \let\sissa@received\@empty
+              \let\sissa@revised\@empty
+              \let\sissa@accepted\@empty
+              \let\sissa@dedicated\@empty
+              \let\sissa@subheader\@empty
+              \let\sissa@collaboration\@empty
+              \let\sissa@proceeding\@empty
+              \let\sissa@arxivnumber\@empty
+              \def\sissa@affils{}
+              \providecommand{\abstract}{}
+              \renewcommand{\abstract}[1]{\gdef\sissa@abstract{#1}}
+              \providecommand{\keywords}[1]{\gdef\sissa@keywords{#1}}
+              \providecommand{\preprint}[1]{\gdef\sissa@preprint{#1}}
+              \providecommand{\received}[1]{\gdef\sissa@received{#1}}
+              \providecommand{\revised}[1]{\gdef\sissa@revised{#1}}
+              \providecommand{\accepted}[1]{\gdef\sissa@accepted{#1}}
+              \providecommand{\dedicated}[1]{\gdef\sissa@dedicated{#1}}
+              \providecommand{\subheader}[1]{\gdef\sissa@subheader{#1}}
+              \providecommand{\collaboration}[1]{\gdef\sissa@collaboration{#1}}
+              \providecommand{\collaborationImg}[2][]{\gdef\sissa@collaboration{#2}}
+              \providecommand{\proceeding}[1]{\gdef\sissa@proceeding{#1}}
+              \providecommand{\arxivnumber}[1]{\gdef\sissa@arxivnumber{#1}}
+              \providecommand{\affiliation}[2][]{\g@addto@macro\sissa@affils{\par#2}}
+              \providecommand{\JHEPspecialurl}[1]{}
+              \providecommand{\JHEP}[1]{}
+              \providecommand{\hepth}[1]{hep-th/#1}
+              \providecommand{\email}[1]{\texttt{#1}}
+              \providecommand{\emailAdd}[1]{\g@addto@macro\sissa@affils{\par\texttt{#1}}}
+              \providecommand{\note}[2][]{\thanks{#2}}
+              \providecommand{\speaker}[1]{}
+              \providecommand{\conference}[1]{}
+              \providecommand{\acknowledgments}{\section*{Acknowledgments}}
+              \providecommand{\acknowledgements}{\section*{Acknowledgements}}
+              \providecommand{\xtumfont}[1]{\textsc{#1}}
+              \providecommand{\notoc}{}
+              \providecommand{\compress}{}
+              \providecommand{\toccontinuous}{}
+              \providecommand{\beforetochook}{}
+              \providecommand{\afterLogoSpace}{}\providecommand{\afterSubheaderSpace}{}
+              \providecommand{\afterProceedingsSpace}{}\providecommand{\afterTitleSpace}{}
+              \providecommand{\afterRuleSpace}{}\providecommand{\afterCollaborationSpace}{}
+              \providecommand{\afterCollaborationImgSpace}{}
+              \providecommand{\afterAuthorSpace}{}\providecommand{\afterAffiliationSpace}{}
+              \providecommand{\afterEmailSpace}{}\providecommand{\afterXtumSpace}{}
+              \providecommand{\afterAbstractSpace}{}\providecommand{\afterKeywordsSpace}{}
+              \providecommand{\afterArxivSpace}{}\providecommand{\afterDedicatedSpace}{}
+              \providecommand{\afterTocSpace}{}\providecommand{\afterTocRuleSpace}{}
+              \providecommand{\correctionref}[3]{\gdef\sissa@dedicated{Erratum #1 #3}}
+              \providecommand{\erratum}[4][ibid.~]{Erratum #1{\bfseries#2} (#3) #4}
+              \providecommand{\addendum}[4][ibid.~]{Addendum #1{\bfseries#2} (#3) #4}
+              \providecommand{\ibid}[3]{ibid.~{\bfseries#1} (#2) #3}
+              % \author 单参多调用累积: 块内含 \\ + \email/\thanks/\it 全保留,
+              % article maketitle tabular 内逐块换行输出
+              \newif\if@sissaauth\@sissaauthfalse
+              \renewcommand{\author}[1]{%
+                \if@sissaauth\g@addto@macro\@author{\\#1}%
+                \else\gdef\@author{#1}\@sissaauthtrue\fi}
+              % JHEP3 floatflt 系 float 速记 → 标准 env 降级 (可选参数是
+              % 版式词非 placement, 一律 [htbp])
+              \providecommand{\FIGURE}[2][]{\begin{figure}[htbp]\centering#2\end{figure}}
+              \providecommand{\TABLE}[2][]{\begin{table}[htbp]\centering#2\end{table}}
+              \providecommand{\EPSFIGURE}[3][]{\begin{figure}[htbp]\centering
+                \@ifundefined{includegraphics}{}{\includegraphics{#2}}\caption{#3}\end{figure}}
+              \providecommand{\DOUBLEFIGURE}[5][]{\begin{figure}[htbp]\centering
+                \@ifundefined{includegraphics}{}{\includegraphics{#2}\hfil\includegraphics{#3}}%
+                \caption{#4}\par{\small#5}\end{figure}}
+              \providecommand{\TABULAR}[4][]{\begin{table}[htbp]\centering\begin{tabular}{#2}#3\end{tabular}\caption{#4}\end{table}}
+              \providecommand{\DOUBLETABLE}[5][]{\begin{table}[htbp]\centering#2\caption{#4}\end{table}%
+                \begin{table}[htbp]\centering#3\caption{#5}\end{table}}
+              % \auto@maketitle: emit 在 AtBeginDocument (真件同款), 随后冻结
+              % \maketitle —— 稿显式调用成 no-op, 不调也不丢 frontmatter
+              \let\sissa@mk\maketitle
+              \AtBeginDocument{%
+                \ifx\sissa@preprint\@empty\else\noindent{\footnotesize\sissa@preprint}\par\fi
+                \sissa@mk
+                \ifx\sissa@collaboration\@empty\else\par\noindent{\itshape\sissa@collaboration}\par\fi
+                \ifx\sissa@affils\@empty\else\par\noindent{\small\sissa@affils}\par\fi
+                \ifx\sissa@dedicated\@empty\else\par\noindent{\itshape\sissa@dedicated}\par\fi
+                \ifx\sissa@proceeding\@empty\else\par\noindent{\small\itshape\sissa@proceeding}\par\fi
+                \ifx\sissa@abstract\@empty\else\begin{quote}\textbf{\abstractname.}\enspace\sissa@abstract\end{quote}\fi
+                \ifx\sissa@keywords\@empty\else\par\noindent\textbf{Keywords:} \sissa@keywords\par\fi
+                \ifx\sissa@arxivnumber\@empty\else\par\noindent{\small arXiv:\sissa@arxivnumber}\par\fi
+                \ifx\sissa@subheader\@empty\else\par\noindent{\small\sissa@subheader}\par\fi
+                \begingroup
+                  \def\sissa@dline{}\def\sissa@sep{}%
+                  \ifx\sissa@received\@empty\else\gdef\sissa@sep{~}\fi
+                  \ifx\sissa@revised\@empty\else\ifx\sissa@received\@empty\else\def\sissa@sep{; }\fi\fi
+                  \ifx\sissa@received\@empty\else Received \sissa@received\sissa@sep\fi
+                  \ifx\sissa@revised\@empty\else revised \sissa@revised;\space\fi
+                  \ifx\sissa@accepted\@empty\else accepted \sissa@accepted\fi
+                \endgroup\par
+                \let\maketitle\relax}
+              \providecommand{\ps@myplain}{\let\@mkboth\@gobbletwo
+                \let\@oddhead\@empty\def\@oddfoot{\hfil-- \thepage\ --\hfil}%
+                \let\@evenhead\@oddhead\let\@evenfoot\@oddfoot}
               \endinput
-          JHEP3.cls: { body: *sissa_body }
-          jhep.cls: { body: *sissa_body }
-          jcap.cls: { body: *sissa_body }
+          JHEP3.cls: { needs: ["amssymb.sty"], body: *sissa_body }
+          jhep.cls: { needs: ["amssymb.sty"], body: *sissa_body }
+          jcap.cls: { needs: ["amssymb.sty"], body: *sissa_body }
           # CUP jpp.cls (J. Plasma Physics 作者包, 不在 TL) —— article +
           # 双参 \title/\author (jpp 约定 \title[short]{long})。
           jpp.cls:
@@ -804,17 +1171,52 @@ rules:
           # mn2e.cls (MNRAS 老类名, 2015 改名 mnras; filemap 也提示 mnras)
           # —— 真身只在 doc/latex/mnras/LEGACY/ → loads 委托新类。
           # 实证 1109.6007/1206.5620 (双引擎 4 格)。
-          mn2e.cls: { loads: "mnras", needs: ["mnras.cls"] }
+          # 残盘 3 格 (mn2e_opts): mn2e 时代选项 usegraphicx 透传给 mnras
+          # 后, mnras.cls:79 的 \ds@usegraphicx 实现 = \usepackage{graphicx}
+          # —— 在类 Options Section 内调用直接炸 "\RequirePackage in
+          # Options Section"。body 侧把 usegraphicx 从 \@classoptionslist
+          # 剔除 (useAMS/usenatbib 的 \ds@ 只置 if, 透传安全), LoadClass
+          # 完再补装 graphicx。
+          mn2e.cls:
+            needs: ["mnras.cls"]
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesClass{mn2e}[2026/09/18 fixloop legacy shim -> mnras]
+              \newif\ifmn@graphicx
+              \DeclareOption*{}\ProcessOptions\relax
+              \def\mn@gx{usegraphicx}
+              \def\mn@clean{}
+              \@for\mn@o:=\@classoptionslist\do{%
+                \ifx\mn@o\mn@gx \mn@graphicxtrue\else
+                  \ifx\mn@clean\@empty\edef\mn@clean{\mn@o}%
+                  \else\edef\mn@clean{\mn@clean,\mn@o}\fi
+                \fi}
+              \let\@classoptionslist\mn@clean
+              \LoadClass{mnras}
+              \ifmn@graphicx\RequirePackage{graphicx}\fi
+              \endinput
           # svjour.cls (Springer 期刊类, 不在 TL) —— article + svjour 宏面
           # polyfill: \inst 上标注脚号 / \institute+\subtitle 收集制
           # (\and→\quad) 挂 \maketitle / \abstract 单参命令式 / \PACS 含
           # \and 分组打印 / ack+acknowledgement 环境。实证 1404.6180
           # (\documentclass[epj]{svjour})。
+          # 残盘增补: \email (2104.00026 \abstract 实参内) / \qed+\proofname
+          # +proof 环境 (proof ×11 调) / theorem 计数器+环境 (doc 的
+          # \newtheorem{defn}[theorem] 依赖预置 theorem counter) /
+          # \abstract 双形 (\@ifnextchar\bgroup 分派 cmd/env —— 旧体
+          # 单参 renew 会把 \begin{abstract} 后续 token 吞成参数) /
+          # biblatex v2.8 bbl polyfill (1706.00221 MaxDiss.bbl 格式偏斜:
+          # \sortlist/\entry/\name/\field/\list/\strng/\endentry 全未武装
+          # → 按 bbl 调用序直排版, \name 第 4 参 {{hash}{k=v..}} 序列走
+          # keyval 解 family/given)。amssymb 供 \square (\qed)。
           svjour.cls:
+            needs: ["amssymb.sty", "keyval.sty"]
             body: |
               \NeedsTeXFormat{LaTeX2e}
-              \ProvidesClass{svjour}[2026/09/16 fixloop legacy shim -> article + svjour polyfills]
+              \ProvidesClass{svjour}[2026/09/18 fixloop legacy shim -> article + svjour polyfills]
               \LoadClassWithOptions{article}
+              \RequirePackage{amssymb}
+              \RequirePackage{keyval}
               \providecommand{\journalname}[1]{}
               \providecommand{\titlerunning}[1]{}
               \providecommand{\authorrunning}[1]{}
@@ -823,9 +1225,11 @@ rules:
               \providecommand{\communicated}[1]{}
               \providecommand{\dedication}[1]{}
               \providecommand{\submitted}[1]{}
+              \providecommand{\email}[1]{\texttt{#1}}
               \providecommand{\inst}[1]{\textsuperscript{#1}}
               \providecommand{\keywords}[1]{\par\noindent\textbf{Keywords:} #1\par}
               \providecommand{\PACS}[1]{{\let\and\quad\par\noindent\textbf{PACS:} #1\par}}
+              \providecommand{\MSC}[1]{{\let\and\quad\par\noindent\textbf{MSC:} #1\par}}
               \providecommand{\subclass}[1]{}
               \providecommand{\CR}[1]{}
               \def\svj@extra{}
@@ -833,11 +1237,102 @@ rules:
               \providecommand{\subtitle}[1]{\g@addto@macro\svj@extra{{\large #1}\par}}
               \@ifundefined{ack}{\newenvironment{ack}{\par\noindent\textbf{Acknowledgements.}\space}{\par}}{}
               \@ifundefined{acknowledgement}{\newenvironment{acknowledgement}{\par\noindent\textbf{Acknowledgement.}\space}{\par}}{}
+              % theorem/proof 基座 (真件预置族): doc \newtheorem{defn}[theorem]
+              % 依赖共享计数器 —— 预置 theorem env + counter (2104.00026)
+              \@ifundefined{theorem}{\newtheorem{theorem}{Theorem}}{}
+              \providecommand{\proofname}{Proof}
+              \@ifundefined{proof}{\newenvironment{proof}{\par\noindent\textbf{\proofname.}\space}{\qed\par}}{}
+              \providecommand{\qed}{\hfill$\square$}
+              % \abstract cmd/env 双形: \begin{abstract} 走原 env-begin
+              % (\@ifnextchar 见到 env 体首 token 非 { → 老路), \abstract{txt}
+              % 走包装 (2104.00026 cmd 形 / 1706.00221 env 形两证)
               \let\svj@oldabs\abstract
               \let\svj@oldendabs\endabstract
-              \renewcommand{\abstract}[1]{\svj@oldabs #1\svj@oldendabs}
+              \def\svj@abscmd#1{\svj@oldabs #1\svj@oldendabs}
+              \renewcommand{\abstract}{\@ifnextchar\bgroup{\svj@abscmd}{\svj@oldabs}}
               \let\svj@maketitle\maketitle
               \renewcommand{\maketitle}{\svj@maketitle\begingroup\svj@extra\par\endgroup}
+              % ── biblatex v2.8 bbl polyfill (格式偏斜保底) ──
+              % \list/\entry/\field/\name 只准活在 \sortlist 组内 ——
+              % 内核 \list 是所有 list 系环境的基底, 全局重定义全崩
+              \def\svj@fld@title{title}\def\svj@fld@booktitle{booktitle}
+              \def\svj@fld@jtitle{journaltitle}\def\svj@fld@year{year}
+              \def\svj@fld@vol{volume}\def\svj@fld@num{number}
+              \def\svj@fld@pages{pages}\def\svj@fld@note{note}
+              \def\svj@fld@series{series}\def\svj@fld@school{school}
+              \def\svj@fld@inst{institution}\def\svj@fld@org{organization}
+              \def\svj@fldemit#1#2{\def\svj@fk{#1}%
+                \ifx\svj@fk\svj@fld@title\textit{#2} \fi
+                \ifx\svj@fk\svj@fld@booktitle\textit{#2} \fi
+                \ifx\svj@fk\svj@fld@jtitle#2 \fi
+                \ifx\svj@fk\svj@fld@year#2 \fi
+                \ifx\svj@fk\svj@fld@vol#2 \fi
+                \ifx\svj@fk\svj@fld@num#2 \fi
+                \ifx\svj@fk\svj@fld@pages#2 \fi
+                \ifx\svj@fk\svj@fld@note#2 \fi
+                \ifx\svj@fk\svj@fld@series#2 \fi
+                \ifx\svj@fk\svj@fld@school#2 \fi
+                \ifx\svj@fk\svj@fld@inst#2 \fi
+                \ifx\svj@fk\svj@fld@org#2 \fi}
+              % \name 第 4 参 {{hash}{k=v..}} 序列: 逐元素 keyval 解出
+              % prefix/given/family/suffix 直印 (遍历用 \def+\ifx 宏比较 —
+              % 裸 \ifx 比多 token 实参会吞首 token 毁流)
+              \define@key{svjn}{family}{\def\svj@fam{#1}}
+              \define@key{svjn}{given}{\def\svj@giv{#1}}
+              \define@key{svjn}{prefix}{\def\svj@pre{#1}}
+              \define@key{svjn}{suffix}{\def\svj@suf{#1}}
+              \define@key{svjn}{familyi}{}\define@key{svjn}{giveni}{}
+              \define@key{svjn}{prefixi}{}\define@key{svjn}{suffixi}{}
+              \define@key{svjn}{hash}{}\define@key{svjn}{useprefix}{}
+              \define@key{svjn}{usehash}{}\define@key{svjn}{gender}{}
+              \def\svj@nil{\svj@nil}
+              \def\svj@nelt#1#2{\let\svj@fam\@empty\let\svj@giv\@empty
+                \let\svj@pre\@empty\let\svj@suf\@empty
+                \setkeys{svjn}{#2}%
+                \ifx\svj@pre\@empty\else\svj@pre~\fi
+                \ifx\svj@giv\@empty\else\svj@giv~\fi
+                \ifx\svj@fam\@empty\else\svj@fam\fi
+                \ifx\svj@suf\@empty\else, \svj@suf\fi, }
+              \def\svj@nwalk#1{\def\svj@cur{#1}\ifx\svj@cur\svj@nil
+                \else\svj@nelt#1\expandafter\svj@nwalk\fi}
+              % bib*/sortlist 面让位真 biblatex: 整面缓到 AtBeginDocument ——
+              % cls 装载期先 provide 会抢占 biblatex 后到的 \newcommand 名
+              % (bibinitdelim/bibnamedelim*/bibrangedash/revsdnamepunct,
+              %  1706.00221 实证 already_def×6); \begin{document} 期 biblatex
+              % 已就位 → provide 自动 no-op, 未装时 polyfill 兜底 (bbl 总在
+              % 正文 \printbibliography 才读)。注意 AtBeginDocument 存储链
+              % (\xdef 经由) 吃掉一层 # —— 组内 \def 用 ## 而非 #### (实测)。
+              \AtBeginDocument{%
+                \providecommand{\bibinitperiod}{.}%
+                \providecommand{\bibinitdelim}{}%
+                \providecommand{\bibnamedelima}{ }%
+                \providecommand{\bibnamedelimb}{ }%
+                \providecommand{\bibnamedelimd}{ }%
+                \providecommand{\bibrangedash}{--}%
+                \providecommand{\revsdnamepunct}{,}%
+                % \current@color 双兜底: xcolor AtBeginDocument 有
+                % \let\default@color\current@color 快照 (条目级 \normalcolor
+                % 会再 \let\current@color\default@color 回放) —— 此 arm 必须
+                % 在快照前 (cls 最先注册 hook, 序天然满足)
+                \@ifundefined{current@color}{\global\@namedef{current@color}{gray 0}}{}%
+                \@ifundefined{default@color}{\global\@namedef{default@color}{gray 0}}{}%
+                \providecommand{\sortlist}[2][]{\par\subsection*{\refname}%
+                  % biblatex 条目级 \set@color 推栈依赖 \current@color ——
+                  % color+xcolor 双载偏斜下 hook 期值仍被后 \let 回 undefined,
+                  % 在 bbl 入口当场兜底 (1706.00221 实测); 灰度 0 = xetex
+                  % normalcolor 同款值
+                  \@ifundefined{current@color}{\def\current@color{gray 0}}{}%
+                  \begingroup\parindent=\z@\parskip=\itemsep
+                  \def\list##1##2##3{##3 }%
+                  \def\entry##1##2##3{\par\hangindent=1.5em\hangafter=1\noindent}%
+                  \def\endentry{}%
+                  \def\strng##1##2{}%
+                  \def\name##1##2##3##4{\svj@nwalk##4\svj@nil}%
+                  \def\field##1##2{\svj@fldemit{##1}{##2}}}%
+                % \end* 名被内核 \@ifdefinable 保留 (\newcommand/\providecommand
+                % 恒炸 "already defined") —— 经 \@namedef 旁路, 保 provide 语义
+                \@ifundefined{endsortlist}{\@namedef{endsortlist}{\par\endgroup}}{}%
+              }
               \endinput
           # slashbox.sty (1993 表内斜线包, TL 无) —— diagbox (TL 内) 内置
           # \slashbox/\backslashbox 无条件定义且自毒 ver@slashbox.sty,
@@ -1058,26 +1553,77 @@ rules:
               \providecommand{\keywords}[1]{\par\noindent\textbf{Keywords:} #1\par}
               \providecommand{\subclass}[1]{}
               \providecommand{\pacs}[1]{\par\noindent\textbf{PACS:} #1\par}
+              % \PACS/\MSC 大写形 (svjour2 腔, 1206.5684 undef_cs:\PACS 实证);
+              % \and 分隔多码 → \quad 驯化
+              \providecommand{\PACS}[1]{{\let\and\quad\par\noindent\textbf{PACS:} #1\par}}
+              \providecommand{\MSC}[1]{{\let\and\quad\par\noindent\textbf{MSC:} #1\par}}
               \providecommand{\communicated}[1]{}
               \providecommand{\dedication}[1]{}
               \providecommand{\mail}[1]{}
               \providecommand{\offprints}[1]{}
               \endinput
           svjour2.cls: { body: *svjour_body }
-          # EPL epl2.cls (Europhysics Letters, 期刊外发): \abstract 为命令
-          # 形态、\pacs 双参、\shortauthor/\shorttitle/\shortinstitute。
+          # EPL epl2.cls (Europhysics Letters, 期刊外发): 旧体 \abstract/
+          # \pacs/\institute 即时排版 → 导言区调用 no_begindoc (0905.1214
+          # 双格实证)。全真件 epl2.cls 结构 (corpus_v3/1206.2258 随稿):
+          # PRE 收集制 (\abstract/\pacs/\institute 存值, \maketitle 吐),
+          # bbl-struct 宏族抄真件 L1312-1344 (\Name/\Review/\REVIEW/\Book/
+          # \Publ/\Vol/\Year/\Page/\Pages/\Editor/\Section/\SAME +
+          # \ifepl@book 条件 + bibitem 前置钩), acknowledgments 环境 +
+          # \acknowledgments/\acknowledgements/\stars cs 形,
+          # \shrinkacknowledgments/\enlargeacknowledgments 旋钮 noop。
+          # \and 在 \Name 实参内 → \Name 组内局部重绑防 \crcr 坍塌。
           epl2.cls:
             body: |
               \NeedsTeXFormat{LaTeX2e}
-              \ProvidesClass{epl2}[2026/09/16 fixloop legacy shim -> article + epl polyfills]
+              \ProvidesClass{epl2}[2026/09/18 fixloop legacy shim -> article + epl polyfills]
               \LoadClassWithOptions{article}
+              % ── frontmatter 存值 (PRE 调用, \maketitle 包装吐) ──
+              \let\epl@abstract\@empty
+              \let\epl@inst\@empty
+              \def\epl@pacs{}
+              \providecommand{\abstract}{}
+              \renewcommand{\abstract}[1]{\gdef\epl@abstract{#1}}
+              \providecommand{\institute}[1]{\gdef\epl@inst{#1}}
+              \providecommand{\pacs}[2]{\g@addto@macro\epl@pacs{\par\noindent\textbf{PACS:} #1\quad #2\par}}
+              \providecommand{\inst}[1]{\textsuperscript{#1}}
               \providecommand{\shorttitle}[1]{}
               \providecommand{\shortauthor}[1]{}
               \providecommand{\shortinstitute}[1]{}
-              \providecommand{\institute}[1]{}
-              \providecommand{\pacs}[2]{\par\noindent\textbf{PACS:} #1\quad #2\par}
-              \providecommand{\abstract}{}
-              \renewcommand{\abstract}[1]{\begin{quotation}\noindent\textbf{Abstract.} #1\end{quotation}}
+              \providecommand{\email}[1]{\texttt{#1}}
+              \let\epl@mk\maketitle
+              \renewcommand{\maketitle}{\epl@mk
+                \ifx\epl@inst\@empty\else\par\noindent{\small\epl@inst}\par\fi
+                \ifx\epl@abstract\@empty\else\begin{quote}\textbf{Abstract.}---\enspace\epl@abstract\end{quote}\fi
+                \epl@pacs}
+              % ── acknowledgments 双形: \newenvironment 的 begin 段即
+              % 排版体 —— 裸 \acknowledgments 调用与 \begin{...} 环境
+              % 两形通吃 (0905.1214 cs 形 / 1003.0792 env 形实证)。
+              % \stars 真件里是 \acknowledgments 别名。
+              \newenvironment{acknowledgments}{\par\medskip\noindent\textbf{Acknowledgments.}\space}{\par}
+              \newenvironment{acknowledgements}{\par\medskip\noindent\textbf{Acknowledgements.}\space}{\par}
+              \providecommand{\stars}{\par\medskip\noindent\textbf{Acknowledgments.}\space}
+              \providecommand{\shrinkacknowledgments}[1]{}
+              \providecommand{\enlargeacknowledgments}[1]{}
+              % ── bbl-struct 宏族 (真件抄值): \bibitem 前置复位 + \ifepl@book ──
+              \newif\ifepl@book\epl@bookfalse
+              \newif\ifepl@gotand\epl@gotandfalse
+              \let\epl@org@bibitem\bibitem
+              \def\bibitem{\epl@bookfalse\epl@org@bibitem}
+              \providecommand{\Name}[1]{{\let\and\epl@and\scshape #1},}
+              \providecommand{\Review}[1]{\epl@bookfalse{\itshape #1},}
+              \providecommand{\REVIEW}[4]{\Review{#1} \Vol{#2} \Year{#3} \Page{#4}}
+              \providecommand{\Book}[1]{\epl@booktrue{\itshape #1}}
+              \providecommand{\Vol}[1]{\ifepl@book\else{\bfseries #1}\fi}
+              \providecommand{\Year}[1]{\ifepl@book\else(#1)\fi}
+              \providecommand{\Page}[1]{\ifepl@book\else p.~#1\fi}
+              \providecommand{\Pages}[1]{\ifepl@book\else pp.~#1\fi}
+              \providecommand{\Publ}[1]{\ifepl@book\unskip\ \fi{\normalfont(#1)}}
+              \providecommand{\Editor}[1]{\epl@gotandfalse{\let\and\epl@and\normalfont #1}, ed.}
+              \providecommand{\Section}[1]{#1}
+              \providecommand{\SAME}[3]{}
+              \def\epl@and{\unskip\ and\ }
+              \let\And\and
               \endinput
           # IMS imsart.cls (TL 无): article 底 + frontmatter 常用件。
           imsart.cls:
@@ -1092,16 +1638,24 @@ rules:
               \providecommand{\runauthor}[1]{}
               \endinput
           # ACM conm-p-l.cls (90s 会议 preprint 版式) → acmart 官方继任。
-          conm-p-l.cls: { loads: "acmart", needs: ["acmart.cls"] }
-          # JHEP 作者样式、Elsevier espcrc1 —— TL 全数缺席, noop 保底。
-          # (jinstpub 槽已删: vendor/stubs/jinstpub.sty S1 真 stub 在,
-          #  scan_install vendored 预检先于 missing_file 分类落件,
-          #  shim_map 永远轮不到此名 —— 死配置)
-          jheppub.sty:
+          # 1003.0067 实证: acmart→unicode-math 装载后 \Psi 类希腊字母变
+          # \mitPsi chardef —— 稿内 \section{...$\pdo$...} 在 hyperref
+          # \pdfstringdef (bookmark) 展开时 `` `\mitPsi `` 炸 "Improper
+          # alphabetic constant" + intcalc 级联 → \pdfstringdefDisableCommands
+          # 域内把 \pdo 降级成纯文本。
+          conm-p-l.cls:
+            needs: ["acmart.cls"]
             body: |
               \NeedsTeXFormat{LaTeX2e}
-              \ProvidesPackage{jheppub}[2026/09/16 fixloop noop stub - JHEP author kit, not in TL]
+              \ProvidesClass{conm-p-l}[2026/09/18 fixloop legacy shim -> acmart]
+              \LoadClassWithOptions{acmart}
+              \AtBeginDocument{\@ifundefined{pdfstringdefDisableCommands}{}{%
+                \pdfstringdefDisableCommands{\def\pdo{PsiDO}}}}
               \endinput
+          # JHEP 作者样式、Elsevier espcrc1 —— TL 全数缺席, noop 保底。
+          # (jinstpub/jheppub 槽已删: vendor/stubs/{jinstpub,jheppub}.sty
+          #  S1 真 stub 在, scan_install vendored 预检先于 missing_file
+          #  分类落件, shim_map 永远轮不到此名 —— 死配置)
           # espcrc1 noop -> \address/\addressmark provides (astro-ph/0408286):
           # 稿把 \address[IoA]{...}/\addressmark[IoA] 编进 \@author, article 的
           # \maketitle 展开时炸 undefined_cs。内联输出, 任何版式面都安全。
@@ -1318,62 +1872,9 @@ rules:
           # ── 2026-09-17 latex209 白名单实证批 (1e scout-pf2final) ──────────
           # upgrade_209 把 2.09 选项转 \usepackage 后这些 1990s 包在 TL 全灭
           # → 逐案实证 body。aaspp4 (AAS preprint substyle, 9703134 实证
-          # 0 err/31pg): deluxetable = table+tabular 复合 —— 延迟开张
-          # (\@delspec stash, 环境开张与 \tablehead 间可夹 \scriptsize 类
-          # 字体命令) + 低层 \tabular/\endtabular (\begin{tabular} 会把夹缝
-          # 命令吞成 cell 且 \enddata 对 \@currenvir 错位)。
-          aaspp4.sty:
-            needs: ["amssymb.sty"]
-            body: |
-              \NeedsTeXFormat{LaTeX2e}
-              \ProvidesPackage{aaspp4}[2026/09/17 fixloop legacy shim]
-              \RequirePackage{amssymb}
-              \def\slugcomment#1{}
-              \def\received#1{}
-              \def\accepted#1{}
-              \def\journalid#1#2{}
-              \def\articleid#1#2{}
-              \def\keywords#1{}
-              \def\subjectheadings#1{}
-              \def\acknowledgments{\section*{Acknowledgments}}
-              \def\altaffilmark#1{\textsuperscript{#1}}
-              \def\altaffiltext#1#2{\par\medskip\noindent\textsuperscript{#1}\,#2\par}
-              \newenvironment{deluxetable}[1]{\begin{table}[htbp]\centering\def\@delspec{#1}}{\end{table}}
-              \newenvironment{deluxetable*}[1]{\begin{table}[htbp]\centering\def\@delspec{#1}}{\end{table}}
-              \def\tablewidth#1{}
-              \def\tablecolumns#1{}
-              \def\tablecaption#1{\caption{#1}}
-              \def\tablehead#1{\tabular{\@delspec}#1\\\hline}
-              \def\startdata{}
-              \def\enddata{\endtabular}
-              \def\nl{\\}
-              \def\tableline{\hline}
-              \def\colhead#1{#1}
-              \def\phs{\phantom{0}}
-              \def\phn{\phantom{0}}
-              \def\tablenotetext#1#2{\par\smallskip\noindent\textsuperscript{#1}\,#2\par}
-              \def\tablenotemark#1{\textsuperscript{#1}}
-              \newcommand{\figcaption}[2][]{\par\medskip\noindent\textbf{Figure.} #2\par}
-              \def\arcdeg{\ensuremath{^\circ}}
-              \def\arcmin{\ensuremath{'}}
-              \def\arcsec{\ensuremath{''}}
-              \def\apj{ApJ}
-              \def\apjl{ApJ}
-              \def\apjs{ApJS}
-              \def\aj{AJ}
-              \def\mnras{MNRAS}
-              \def\aap{A\&A}
-              \def\aaps{A\&AS}
-              \def\pasp{PASP}
-              \def\pasj{PASJ}
-              \def\nat{Nature}
-              \def\iaucirc{IAU Circ.}
-              \def\jgr{JGR}
-              \def\ssr{Space Sci. Rev.}
-              \def\physrep{Phys. Rep.}
-              \def\spr{Sol. Phys.}
-              \def\araa{ARA\&A}
-              \endinput
+          # 0 err/31pg): 原独立 body 已并入上方 aas4_body 超集 anchor —
+          # v4 family 三体同面, 双载安全由 \aasfour@done 守卫承担。
+          aaspp4.sty: { needs: ["amssymb.sty", "epsf.sty"], body: *aas4_body }
           # apjprepr: aaspp4 同族前身 (1995 doc2sty 同谱系, vendored 本随
           # 9703152 实证可用) —— shim 只在缺文件时点火, 面取 aaspp4 超集:
           # title/author 直排版 (2.09 范式无 \maketitle), \eqsecnum/\tighten
@@ -1576,15 +2077,6 @@ rules:
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesPackage{flushrt}[2026/09/17 fixloop legacy shim]
               \AtBeginDocument{\raggedleft}
-              \endinput
-          # eqsecnum: 公式按节编号 (cond-mat/9703161 实证清 missing_file;
-          # 残余是 revtex frontmatter 序问题, 另案)。
-          eqsecnum.sty:
-            body: |
-              \NeedsTeXFormat{LaTeX2e}
-              \ProvidesPackage{eqsecnum}[2026/09/17 fixloop legacy shim]
-              \@addtoreset{equation}{section}
-              \renewcommand{\theequation}{\thesection.\arabic{equation}}
               \endinput
           # crckapb.cls (Kluwer crckap 书章类): article 底 + opening env +
           # \institute 并入 author + AtBeginDocument 前置 \maketitle
