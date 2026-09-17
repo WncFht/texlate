@@ -608,7 +608,7 @@ requires-dist = [
     { name = "typer", specifier = ">=0.12" },
     { name = "uvicorn", marker = "extra == 'server'", specifier = ">=0.30" },
 ]
-provides-extras = ["server"]
+provides-extras = ["server", "ts-validator"]
 
 [package.metadata.requires-dev]
 dev = [
