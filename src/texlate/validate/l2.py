@@ -385,13 +385,20 @@ def _classify_warning(  # noqa: PLR0913 - 归因参数组与 _mark_redline 同�
     dos_eps_cache: dict[str, bool],
     *,
     log_line: int,
+    next_ln: str = "",
 ) -> None:
-    """单行 warning 归类 + 红线打标 + 命中条留存（``hits`` 归因载荷原料）。"""
+    r"""单行 warning 归类 + 红线打标 + 命中条留存（``hits`` 归因载荷原料）。
+
+    ``next_ln``：misschar 行的下一物理行——79 列 wrap 会把 ``in font ...``
+    声明推进续行，规则检索面拼上它使限界窗可跨一个 ``\n``（与
+    engine/judge 同口径）；记录/打标仍用物理 ``line``。
+    """
     if not (_ANY_WARNING_RX.search(line) or _MARKERLESS_WARN_RX.search(line)):
         return  # 非 warning 形态行（含 error ctx 内的帮助文本）
     cls = "generic"
+    probe = line + "\n" + next_ln if next_ln else line
     for name, rx in _WARNING_RULES:
-        if rx.search(line):
+        if rx.search(probe):
             cls = name
             break
     if cls == "missing_glyph":
@@ -496,7 +503,23 @@ def parse_log_text(text: str, *, project_root: Path | None = None) -> L2Verdict:
             continue
 
         _classify_warning(
-            ln, v.warnings, stack, project_root, dos_eps_cache, log_line=i + 1
+            ln,
+            v.warnings,
+            stack,
+            project_root,
+            dos_eps_cache,
+            log_line=i + 1,
+            # misschar 行无 "in font " 声明（疑似 79 列 wrap 推走）且续行
+            # 含 "in font" 时才拼行——这是 join 唯一能改变判定的情形；
+            # 续行为独立 warning 行（如 Invalid UTF-8）时不拼，防抢归类。
+            next_ln=(
+                lines[i + 1]
+                if "Missing character:" in ln
+                and "in font " not in ln
+                and i + 1 < len(lines)
+                and "in font" in lines[i + 1]
+                else ""
+            ),
         )
 
     v.tail = tuple(lines[-_TAIL_LINES:])

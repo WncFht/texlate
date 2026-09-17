@@ -31,9 +31,9 @@ oracle 方法：判定树/窗口语义/选项路由按 docstring 承诺**独立�
   豁免、l2 漏吃归 ``missing_glyph_cjk`` 判红——违「无一层判红」；
   (b) 已声明真字体后行尾挂 ``in font nullfont`` 字样 → engine 窗判红、
   l2 误豁免——违「已声明字体的消息不被后行误豁免」（logpipe pin#2）。
-  **J4b 已修**：l2 pattern 换共享 ``_MISSCHAR_NULLFONT_PROBE``（窗口
-  语义单源）。**J4a 仍 xfail**：l2 严格逐行检索使续行物理不可见——
-  pattern 层无解，需 ``l2.py`` 拼续行（已报 leader 裁决）。
+  **已修**：l2 pattern 换共享 ``_MISSCHAR_NULLFONT_PROBE``（窗口语义
+  单源，J4b）+ ``l2.py`` misschar 行无 ``in font `` 时把续行拼进
+  规则检索面（``next_ln``，记录面仍物理行，J4a）。
 
 观测语义钉（非缺陷——当前行为即取舍，改动前先读这段）：
 
@@ -543,15 +543,6 @@ class TestRedlines:
             assert v.warnings.by_class.get("missing_glyph_nullfont") == 1
             assert v.warnings.redlines == []
 
-    @pytest.mark.xfail(
-        reason=(
-            "J4a CONFIRMED——折行 nullfont misschar：engine/judge 限界窗跨 "
-            "\\n 豁免，l2 逐行检索续行不可见 → 归 missing_glyph_cjk 判红，违"
-            "「无一层判红」。l2 pattern 已换共享 _MISSCHAR_NULLFONT_PROBE"
-            "（redlines.py），仍缺 l2.py 归类前拼续行——待 leader 裁决越界"
-        ),
-        strict=True,
-    )
     def test_l2_wrapped_nullfont_should_not_redline(self) -> None:
         """J4a：``in font nullfont`` 落续行 → l2 应仍归观察类不判红。"""
         text = (
