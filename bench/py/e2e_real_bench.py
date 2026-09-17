@@ -524,7 +524,7 @@ def _paper_done(rec: dict | None) -> bool:
     """
     if not isinstance(rec, dict) or not rec.get("status"):
         return False
-    if rec["status"] == "bench_error":
+    if rec["status"] == benchlib.BENCH_ERROR_STATUS:
         return False
     tr = (rec.get("pipe-xel") or {}).get("translate") or {}
     return not (tr.get("skipped") or tr.get("fault"))
@@ -618,7 +618,9 @@ def _dedup_cases(path: Path) -> int:
                 parsed.append(
                     (key if key and any(key) else ("__keep__", len(parsed)), s)
                 )
-            last = {k: i for i, (k, _) in enumerate(parsed)}
+            last = benchlib.latest_by(
+                enumerate(parsed), keyfn=lambda t: t[1][0], valfn=lambda t: t[0]
+            )
             kept = [s for i, (k, s) in enumerate(parsed) if last[k] == i]
             removed += len(parsed) - len(kept)
             if removed:
@@ -635,12 +637,11 @@ def _stored_sample(out_dir: Path) -> list[str] | None:
 
     须在 amain 重写 run_meta 之前读——它记的是「本目录这一跑」的样本集。
     """
-    mp = out_dir / "run_meta.json"
-    if not mp.exists():
-        return None
     try:
-        meta = json.loads(mp.read_text())
-    except (OSError, json.JSONDecodeError):
+        meta = benchlib.load_run_meta(out_dir)
+    except OSError:
+        return None
+    if meta is None:
         return None
     ids = meta.get("sample_ids")
     return [str(i) for i in ids] if isinstance(ids, list) else None

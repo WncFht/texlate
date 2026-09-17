@@ -36,33 +36,18 @@ BENCH = Path(__file__).resolve().parents[1]
 REPO = BENCH.parent
 RULES_YAML = REPO / "src/texlate/compile/fixloop/rules.yaml"
 
-# 记录状态词汇: ok 系不出票; skip 系(上游断/policy 拒)不计入 attempted。
-OK_STATUS = {"ok", "clean", "done"}
-SKIP_STATUS = {
-    "skip",
-    "skipped",
-    "reject",
-    "rejected",
-    "upstream_fail",
-    # e2e_real 旧账遗留词（LEGACY_ARM_MAP 流入 triage 同口径）
-    "skipped_oversize",
-    "bench_error",
-}
+# 记录状态词汇 (单源 benchlib): ok 系不出票; skip 系(上游断/policy 拒)
+# 不计入 attempted——含 e2e_real 旧账遗留词 skipped_oversize/bench_error。
+OK_STATUS = benchlib.OK_STATUS
+SKIP_STATUS = benchlib.SKIP_STATUS
 # fixloop 救援成功的终态 (含带伤出 pdf)。
-RESCUED_STATUS = {
-    "ok",
-    "clean",
-    "acceptable_pdf",
-    "best_effort_pdf",
-    "dirty_pdf",
-    "partial",
-}
+RESCUED_STATUS = benchlib.RESCUED_STATUS
 # fixloop 终态词 → core 单 (规则面之外的引擎缺口)。
-TERMINAL_WORDS = {"stuck", "max_rounds"}
+TERMINAL_WORDS = benchlib.TERMINAL_WORDS
 
 #: 状态序数表 (高=好): fixloop_degraded 跨段退化判定与 rundiff 逐格迁移共用;
 #: 表外词 (skip/error/...) 一律按 -1 计。
-STATUS_RANK = {"clean": 3, "ok": 3, "partial": 2, "fail": 1, "reject": 0}
+STATUS_RANK = benchlib.STATUS_RANK
 
 MAX_EXAMPLES = 5
 MAX_REG_IDS = 50
@@ -77,27 +62,14 @@ KNOWN_RETIRED = {"elsart.cls", "aastex.cls", "aastex63.cls", "revtex.cls", "psfi
 
 
 def _read_jsonl(path):
-    bad = 0
-    for ln in path.read_text(errors="replace").splitlines():
-        line = ln.strip()
-        if not line:
-            continue
-        try:
-            yield json.loads(line)
-        except json.JSONDecodeError:
-            bad += 1
-    if bad:
-        print(f"  warn: {path.name} 跳过 {bad} 行坏 json", file=sys.stderr)
+    """容错 jsonl 读：坏 utf-8 → U+FFFD 不崩；坏 json 计数、读完 stderr 汇总。"""
+    return benchlib.iter_jsonl(path, on_bad="warn", errors="replace")
 
 
 def _rec_key(rec):
-    """(id, arm, upstream)——与 stagerun._rec_key 同构（resume 追加同键新行，
-    append 序末条胜）。"""
-    return (
-        str(rec.get("id")),
-        str(rec.get("arm") or "-"),
-        str(rec.get("upstream") or ""),
-    )
+    """(id, arm, upstream)——与 stagerun._rec_key 同键（resume 追加同键新行，
+    append 序末条胜）；单源 ``benchlib.rec_key``。"""
+    return benchlib.rec_key(rec)
 
 
 def load_records(results_dir):
@@ -113,16 +85,16 @@ def load_records(results_dir):
         return recs
     for fp in sorted(rdir.glob("*.jsonl")):
         stage = fp.stem
-        latest = {}
+        keyed = []
         for rec in _read_jsonl(fp):
             if not isinstance(rec, dict):
                 continue
             rec.setdefault("stage", stage)
             if "id" in rec:
-                latest[_rec_key(rec)] = rec
+                keyed.append(rec)
             else:
                 recs.append(rec)
-        recs.extend(latest.values())
+        recs.extend(benchlib.latest_by(keyed, benchlib.rec_key).values())
     return recs
 
 
@@ -416,11 +388,7 @@ def legacy_records(results_dir):
                     fpay = rd.get("pay") or rd.get("payload")
                     break
             fv = str(fl["verdict"])
-            sig = fv
-            if fv.startswith("unfixable:") and fcat and f"{fcat}" not in fv:
-                sig = f"{fv}:{fcat}"
-            if fpay:
-                sig = f"{sig}:{fpay}"
+            sig = benchlib.fixloop_sig(fv, fcat, fpay)
             status = (
                 "ok"
                 if fv in RESCUED_STATUS and fl.get("final_pdf")
@@ -480,29 +448,16 @@ def legacy_records(results_dir):
 
 
 def _run_meta(results_dir):
-    mp = results_dir / "run_meta.json"
-    if mp.exists():
-        try:
-            return json.loads(mp.read_text())
-        except json.JSONDecodeError:
-            return {}
-    return {}
+    """run_meta.json → dict（缺/腐 → {}）；读径单源 benchlib.load_run_meta。"""
+    return benchlib.load_run_meta(results_dir, default=dict)
 
 
 def _iso(s):
-    try:
-        return datetime.fromisoformat(str(s))
-    except (ValueError, TypeError):
-        return None
+    return benchlib.parse_iso(s)
 
 
 def _wall_s(results_dir, recs, meta):
-    t0, t1 = (
-        _iso(meta.get("started_at")),
-        _iso(
-            meta.get("finished_at") or meta.get("ended_at") or meta.get("completed_at")
-        ),
-    )
+    t0, t1 = benchlib.meta_window(meta)
     if t0 and t1 and t1 > t0:
         return round((t1 - t0).total_seconds(), 1)
     return round(sum(float(r.get("dur_s") or 0) for r in recs), 1)
@@ -647,13 +602,7 @@ def _last_metrics_line(metrics_file, exclude_run=None):
     if not metrics_file.exists():
         return None
     last = None
-    for line in metrics_file.read_text(errors="replace").splitlines():
-        if not line.strip():
-            continue
-        try:
-            row = json.loads(line)
-        except json.JSONDecodeError:
-            continue
+    for row in benchlib.iter_jsonl(metrics_file, errors="replace"):
         if exclude_run is not None and row.get("run_id") == exclude_run:
             continue
         last = row

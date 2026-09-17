@@ -15,30 +15,27 @@ reject/skip 格的 fixloop 记录是 --on all 误编译英文树的产物不计�
 依赖: 纯 stdlib。
 """
 
-import json
 import math
 import sys
 from collections import Counter
 from pathlib import Path
 
+import benchlib
+
 DEFAULT_DIR = Path("bench/results/stagerun-loop1-2026-09-16/records")
 GATE = 0.90
 
 
-COMPILED = {"fail", "partial", "clean"}
+COMPILED = benchlib.COMPILED_STATUS
 
 
 def last_records(
     path: Path, arm: str | None = None, upstream: str | None = "mock"
 ) -> dict[str, dict]:
-    last: dict[str, dict] = {}
     if not path.exists():
-        return last
-    for line in path.open():
-        try:
-            r = json.loads(line)
-        except json.JSONDecodeError:
-            continue
+        return {}
+    kept = []
+    for r in benchlib.iter_jsonl(path):
         if arm is not None and r.get("arm") != arm:
             continue
         # 双臂波次防串：对臂记录不进本口径——upstream 字段缺失按 mock
@@ -52,8 +49,8 @@ def last_records(
         rid = r.get("id")
         if not isinstance(rid, str) or not rid:
             continue
-        last[rid] = r
-    return last
+        kept.append(r)
+    return benchlib.latest_by(kept, lambda r: r["id"])
 
 
 def pick_final(c: dict, f: dict | None) -> tuple[str, dict, str | None]:

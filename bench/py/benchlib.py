@@ -12,6 +12,8 @@ from __future__ import annotations
 import json
 import re
 import shutil
+import sys
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -55,17 +57,28 @@ def safe_id(rel: str) -> str:
 
 
 # ---------------------------------------------------------------- records
-def iter_jsonl(path: Path):
-    """逐行 yield dict；空行跳过，**不可解码行跳过**（append 账的 kill 截尾
-    是常态——容忍坏行保住续跑）。"""
-    for raw in path.read_text(encoding="utf-8").splitlines():
+def iter_jsonl(path: Path, *, on_bad="skip", errors: str = "strict"):
+    """逐行 yield 解析值；空行跳过，坏 json 行按 ``on_bad`` 处置。
+
+    append 账的 kill 截尾是常态——容忍坏行保住续跑。``on_bad``：
+    ``"skip"`` 静默跳（默认）；``"warn"`` 读完向 stderr 汇总一行
+    （triage 口径）；callable 逐坏行回调 ``on_bad(raw_line, exc)``。
+    ``errors`` 透传 decode——``"strict"`` 截尾多字节炸 UnicodeDecodeError
+    （gate/benchlib 原口径），``"replace"`` 留 U+FFFD 续跑（triage 口径）。
+    """
+    bad = 0
+    for raw in path.read_text(encoding="utf-8", errors=errors).splitlines():
         line = raw.strip()
         if not line:
             continue
         try:
             yield json.loads(line)
-        except json.JSONDecodeError:
-            continue
+        except json.JSONDecodeError as e:
+            bad += 1
+            if callable(on_bad):
+                on_bad(raw, e)
+    if bad and on_bad == "warn":
+        print(f"  warn: {path.name} 跳过 {bad} 行坏 json", file=sys.stderr)
 
 
 def read_jsonl(path: Path) -> list[dict]:
@@ -92,13 +105,137 @@ def atomic_write_text(path: Path, text: str) -> None:
     tmp.replace(path)
 
 
+def latest_by(items, keyfn, valfn=None) -> dict:
+    """``keyfn`` 末条胜去重 → {key: item}（dict 插序 = 首见键序）。
+
+    ``valfn`` 指定时存 ``valfn(item)`` 代替 item 本体——末位索引这类
+    派生值去重（``enumerate`` + ``valfn=lambda t: t[0]``）。
+    """
+    out = {}
+    for item in items:
+        out[keyfn(item)] = valfn(item) if valfn else item
+    return out
+
+
+def rec_key(rec: dict) -> tuple[str, str, str]:
+    """stagerun/triage 账键 (id, arm, upstream)——resume 追加同键新行、末条胜。"""
+    return (
+        str(rec.get("id")),
+        str(rec.get("arm") or "-"),
+        str(rec.get("upstream") or ""),
+    )
+
+
 def load_records(path: Path, key: str = "id") -> dict[str, dict]:
     """append 账 → {key: rec} 末行胜（rerun 重记同 id 自然覆盖）。"""
-    out: dict[str, dict] = {}
-    for r in iter_jsonl(path):
-        if key in r:
-            out[str(r[key])] = r
-    return out
+    return latest_by((r for r in iter_jsonl(path) if key in r), lambda r: str(r[key]))
+
+
+# ---------------------------------------------------------------- status 词汇
+#: 各消费方原表原样下沉——口径不对称是既有行为（triage 认 legacy 词
+#: gate_scorecard 不认），单源≠拉齐。
+BENCH_ERROR_STATUS = "bench_error"
+
+#: 记录状态词汇: ok 系不出票; skip 系(上游断/policy 拒)不计入 attempted。
+OK_STATUS = {"ok", "clean", "done"}
+SKIP_STATUS = {
+    "skip",
+    "skipped",
+    "reject",
+    "rejected",
+    "upstream_fail",
+    # e2e_real 旧账遗留词（LEGACY_ARM_MAP 流入 triage 同口径）
+    "skipped_oversize",
+    BENCH_ERROR_STATUS,
+}
+#: fixloop 救援成功的终态 (含带伤出 pdf)。
+RESCUED_STATUS = {
+    "ok",
+    "clean",
+    "acceptable_pdf",
+    "best_effort_pdf",
+    "dirty_pdf",
+    "partial",
+}
+#: fixloop 终态词 → core 单 (规则面之外的引擎缺口)。
+TERMINAL_WORDS = {"stuck", "max_rounds"}
+
+#: 状态序数表 (高=好): fixloop_degraded 跨段退化判定与 rundiff 逐格迁移共用;
+#: 表外词 (skip/error/...) 一律按 -1 计。
+STATUS_RANK = {"clean": 3, "ok": 3, "partial": 2, "fail": 1, "reject": 0}
+
+#: stagerun resume 谓词终态集——落账即 done（skip/error 可重试）。
+DONE_STATUS = {"ok", "partial", "clean", "fail", "reject", "fault", "dirty_pdf"}
+RETRIABLE_STATUS = {"skip", "error"}
+
+#: gate_scorecard fix 覆盖门槛——真编译结果集（reject/skip 格的 fixloop 不计）。
+COMPILED_STATUS = {"fail", "partial", "clean"}
+
+
+# ---------------------------------------------------------------- 签名合成
+def errors_sig(errors: list[dict]) -> str:
+    """errors[0] → ``cat:pay`` 签名（triage 契约：ok 级无 sig）。"""
+    if not errors:
+        return ""
+    cat = str(errors[0].get("cat") or errors[0].get("code") or "error")
+    pay = str(errors[0].get("payload") or "")
+    return f"{cat}:{pay}".rstrip(":")
+
+
+def fixloop_sig(fv, fcat=None, fpay=None) -> str:
+    """fixloop verdict → 记录 sig：裸 ``unfixable:`` 补 final_cat，再拼末轮非空
+    payload（stagerun._fixloop_one / triage.legacy_records 同源两处）。"""
+    sig = str(fv)
+    if sig.startswith("unfixable:") and fcat and str(fcat) not in sig:
+        sig = f"{sig}:{fcat}"
+    if fpay:
+        sig = f"{sig}:{fpay}"
+    return sig
+
+
+# ---------------------------------------------------------------- run_meta
+def parse_iso(s):
+    """ISO 串 → datetime；不可解 → None（run_meta 字段容错共用）。"""
+    try:
+        return datetime.fromisoformat(str(s))
+    except (ValueError, TypeError):
+        return None
+
+
+def load_run_meta(results_dir: Path, *, strict: bool = False, default=None):
+    """``results_dir/run_meta.json`` → 解析值（union schema 读径归一）。
+
+    stagerun 形 ``{created_at,started_at,invocations,finished_at,git_rev}`` 与
+    e2e 形 ``{seed,code,layers,...,ended_at,end_reason}`` 共用此读径——字段
+    不校验，解析结果原样返回（形状归消费方判）。
+
+    缺文件 → ``default``；坏 JSON → ``strict`` 原样抛 JSONDecodeError
+    （stagerun 写方口径：腐 meta 不静默吞），否则 ``default``。``default``
+    为 callable 时仅缺席才调用——惰性默认值（git_rev 这类付代价的）。
+    """
+    mp = results_dir / "run_meta.json"
+    if not mp.exists():
+        return default() if callable(default) else default
+    try:
+        return json.loads(mp.read_text())
+    except json.JSONDecodeError:
+        if strict:
+            raise
+        return default() if callable(default) else default
+
+
+def meta_window(meta: dict):
+    """run_meta → (t0, t1)：started_at → finished_at|ended_at|completed_at。
+
+    e2e 词 ``ended_at``（``completed_at`` 兜底）与 stagerun ``finished_at``
+    在此并轨；不可解端 → None（消费方回退 dur_s 求和口径）。
+    """
+    return (
+        parse_iso(meta.get("started_at")),
+        parse_iso(
+            meta.get("finished_at") or meta.get("ended_at") or meta.get("completed_at")
+        ),
+    )
 
 
 # ---------------------------------------------------------------- manifest

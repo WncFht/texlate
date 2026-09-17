@@ -115,10 +115,10 @@ from texlate.xlat.state import StateStore
 
 CORPUS = ROOT / "bench/corpus_v3"
 
-#: resume 终态集——记了这些 status 的 (id,arm,upstream) 不再跑；
-#: skip（上游门）与 error（harness 崩）属可重试类。
-DONE_STATUS = {"ok", "partial", "clean", "fail", "reject", "fault", "dirty_pdf"}
-RETRIABLE_STATUS = {"skip", "error"}
+#: resume 终态集（单源 benchlib）——记了这些 status 的 (id,arm,upstream)
+#: 不再跑；skip（上游门）与 error（harness 崩）属可重试类。
+DONE_STATUS = benchlib.DONE_STATUS
+RETRIABLE_STATUS = benchlib.RETRIABLE_STATUS
 
 STAGES = ("ingest", "parse", "xlat", "compile", "fixloop")
 
@@ -150,11 +150,7 @@ def select_ids(entries: list[dict], args: argparse.Namespace, stage: str) -> lis
 
 
 def _rec_key(rec: dict) -> tuple[str, str, str]:
-    return (
-        str(rec.get("id")),
-        str(rec.get("arm") or "-"),
-        str(rec.get("upstream") or ""),
-    )
+    return benchlib.rec_key(rec)
 
 
 @functools.cache
@@ -200,20 +196,16 @@ class RecLog:
 
 def load_latest(path: Path) -> dict[tuple[str, str, str], dict]:
     """records 文件 → {(id,arm,upstream): 末条记录}（append 序后者胜）。"""
-    out: dict[tuple[str, str, str], dict] = {}
-    if path.exists():
-        for rec in benchlib.iter_jsonl(path):
-            out[_rec_key(rec)] = rec
-    return out
+    return (
+        benchlib.latest_by(benchlib.iter_jsonl(path), benchlib.rec_key)
+        if path.exists()
+        else {}
+    )
 
 
 def make_sig(errors: list[dict]) -> str:
     """triage 契约：ok 级无 sig；否则 errors[0] 的 cat:pay 合成签名。"""
-    if not errors:
-        return ""
-    cat = str(errors[0].get("cat") or errors[0].get("code") or "error")
-    pay = str(errors[0].get("payload") or "")
-    return f"{cat}:{pay}".rstrip(":")
+    return benchlib.errors_sig(errors)
 
 
 def base_rec(pid: str, stage: str, arm: str, upstream: str = "") -> dict:
@@ -265,6 +257,15 @@ def git_rev() -> str:
         return "?"
 
 
+def _new_run_meta() -> dict:
+    """首建 meta（load_run_meta 惰性 default——缺席才付 git_rev 子进程）。"""
+    return {
+        "created_at": datetime.now(UTC).isoformat(),
+        "git_rev": git_rev(),
+        "invocations": [],
+    }
+
+
 def touch_run_meta(out_dir: Path, args: argparse.Namespace) -> None:
     """run_meta.json：首建 {created,git_rev,invocations[]}，逐次 append argv。
 
@@ -273,15 +274,7 @@ def touch_run_meta(out_dir: Path, args: argparse.Namespace) -> None:
     ``mark_run_finished`` 在每次 invocation 收尾时推进。
     """
     mp = out_dir / "run_meta.json"
-    meta = (
-        json.loads(mp.read_text())
-        if mp.exists()
-        else {
-            "created_at": datetime.now(UTC).isoformat(),
-            "git_rev": git_rev(),
-            "invocations": [],
-        }
-    )
+    meta = benchlib.load_run_meta(out_dir, strict=True, default=_new_run_meta)
     meta.setdefault(
         "started_at", meta.get("created_at") or datetime.now(UTC).isoformat()
     )
@@ -303,7 +296,7 @@ def touch_run_meta(out_dir: Path, args: argparse.Namespace) -> None:
 def mark_run_finished(out_dir: Path) -> None:
     """run_meta.finished_at = now——末次 invocation 收尾时刻（triage 墙钟右端点）。"""
     mp = out_dir / "run_meta.json"
-    meta = json.loads(mp.read_text()) if mp.exists() else {}
+    meta = benchlib.load_run_meta(out_dir, strict=True, default=dict)
     meta["finished_at"] = datetime.now(UTC).isoformat()
     mp.write_text(
         json.dumps(meta, ensure_ascii=False, indent=1) + "\n", encoding="utf-8"
@@ -1211,12 +1204,46 @@ def _fixloop_one(
 
     splice/ 即 zh 臂编后树（normalize+译+inject+编译产物）；修复终态落同目录，
     ``post`` 复判编译与 compile 记录同 verdict 刻度。
+    ``--rerun`` = 以当前 zh/ 从头重跑本 stage——上波 fixloop 就地变异
+    （shim 落盘/preamble 注入/补丁）不得带入新轮（2211.04482 实证脏
+    splice 泄漏：二轮规则在假树上复跑）。重建与 ``_compile_one`` 同式：
+    copytree(zh→splice) + prepare_chinese。
     """
     t0 = time.monotonic()
     upstream = comp_rec.get("upstream") or ""
     rec = base_rec(pid, "fixloop", "fix", upstream)
     wid = workdir(out_dir, pid)
     splice = wid / "splice"
+    if args.rerun:
+        zh = wid / "zh"
+        marker_p = zh / ".xlat-arm.json"
+        if not zh.is_dir() or not marker_p.exists():
+            rec["status"] = "error"
+            rec["errors"] = [
+                {
+                    "code": "rerun_no_zh",
+                    "cat": "upstream",
+                    "payload": "zh/ missing or no .xlat-arm.json",
+                }
+            ]
+            return finish_rec(rec, t0)
+        marker_arm = json.loads(marker_p.read_text()).get("arm") or ""
+        if upstream and marker_arm and marker_arm != upstream:
+            # 与 _compile_one 的 arm 门同口径：zh/ 已被别的 xlat 臂重译，
+            # 重建会混臂——skip 让位而非在错位树上误修。
+            rec["status"] = "skip"
+            rec["errors"] = [
+                {
+                    "code": "arm_mismatch",
+                    "cat": "upstream",
+                    "payload": f"zh/ is {marker_arm}, compile was {upstream}",
+                }
+            ]
+            return finish_rec(rec, t0)
+        if splice.exists():
+            shutil.rmtree(splice)
+        shutil.copytree(zh, splice, ignore=benchlib.copytree_ignore())
+        rec["metrics"]["splice_rebuilt"] = True
     if not splice.is_dir():
         rec["status"] = "skip"
         rec["errors"] = [
@@ -1240,6 +1267,18 @@ def _fixloop_one(
             }
         ]
         return finish_rec(rec, t0)
+    if args.rerun:
+        # 重建的 splice 是纯 zh/ 副本——ctex 注入须与 compile 同式重做，
+        # 否则 fixloop 修的是未注入树（与编译期口径不一致）。
+        try:
+            rec["metrics"]["inject"] = prepare_chinese(splice, main_rel)
+        except InjectRejectError as e:
+            rec["status"] = "reject"
+            rec["errors"] = [
+                {"code": "inject_reject", "cat": "inject", "payload": e.reason}
+            ]
+            rec["metrics"]["verdict"] = {"status": "reject", "reasons": [e.reason]}
+            return finish_rec(rec, t0)
 
     texmf = wid / "_texmf"
     if texmf.exists():
@@ -1321,13 +1360,8 @@ def _fixloop_one(
         }
     )
     if rec["status"] != "clean":
-        sig = fv
-        if fv.startswith("unfixable:") and fcat and str(fcat) not in fv:
-            sig = f"{fv}:{fcat}"
-        if fpay:
-            sig = f"{sig}:{fpay}"
         rec["errors"] = [{"code": fv, "cat": fcat, "payload": fpay}]
-        rec["sig"] = sig
+        rec["sig"] = benchlib.fixloop_sig(fv, fcat, fpay)
     rec["dur_s"] = round(time.monotonic() - t0, 2)
     return rec
 
@@ -1364,13 +1398,18 @@ def stage_fixloop(
     cand_latest: dict[str, dict] = {}
     comp_path = out_dir / "records" / "compile.jsonl"
     if comp_path.exists():
-        for rec in benchlib.iter_jsonl(comp_path):
-            if rec.get("id") in want_ids and rec.get("arm") == "zh":
+        cand_latest = benchlib.latest_by(
+            (
+                rec
+                for rec in benchlib.iter_jsonl(comp_path)
+                if rec.get("id") in want_ids
+                and rec.get("arm") == "zh"
                 # 多 xlat 臂并存时同键 append 互覆 —— 指定 --xlat-arm 则只认
                 # 该臂记录 (arm_mismatch skip 的 upstream 为空, 自然滤除)
-                if args.xlat_arm and (rec.get("upstream") or "") != args.xlat_arm:
-                    continue
-                cand_latest[rec["id"]] = rec  # append 序覆盖 = 末条
+                and (not args.xlat_arm or (rec.get("upstream") or "") == args.xlat_arm)
+            ),
+            lambda r: r["id"],  # append 序覆盖 = 末条
+        )
     todo: list[tuple[str, dict]] = []
     for pid in ids:
         crec = cand_latest.get(pid)
