@@ -121,6 +121,16 @@ class TestStateStore:
         assert not p.exists()
         assert len(list(tmp_path.glob("state-invalid-*.json"))) == 1
 
+    def test_deep_state_quarantined(self, tmp_path: Path) -> None:
+        """超深嵌套 JSON → RecursionError（非 JSONDecodeError）同样走隔离。"""
+        p = tmp_path / "state.json"
+        p.write_text("[" * 50000 + "]" * 50000, encoding="utf-8")
+        completed, recs = st.StateStore(tmp_path).load()
+        assert completed == set()
+        assert recs == {}
+        assert not p.exists()
+        assert len(list(tmp_path.glob("state-invalid-*.json"))) == 1
+
     def test_save_maps(self, tmp_path: Path) -> None:
         store = st.StateStore(tmp_path)
         store.save_maps(
@@ -174,6 +184,15 @@ class TestCache:
         assert not bad.exists()
         quarantined = list(tmp_path.glob("cache-x-invalid-*.json"))
         assert len(quarantined) == 1
+
+    def test_deep_cache_quarantined(self, tmp_path: Path) -> None:
+        """超深嵌套 JSON → RecursionError 逃出 except → 曾 load_cache 硬炸。"""
+        bad = tmp_path / "cache-x.json"
+        bad.write_text("[" * 50000 + "]" * 50000, encoding="utf-8")
+        store = st.StateStore(tmp_path)
+        assert store.load_cache("x") == {}
+        assert not bad.exists()
+        assert len(list(tmp_path.glob("cache-x-invalid-*.json"))) == 1
 
     def test_cache_filters_non_str(self, tmp_path: Path) -> None:
         f = tmp_path / "cache-y.json"

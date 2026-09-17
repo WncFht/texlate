@@ -112,7 +112,7 @@ def load_cache(path: Path) -> dict[str, str]:
         return {}
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, UnicodeDecodeError, OSError) as e:
+    except (json.JSONDecodeError, UnicodeDecodeError, OSError, RecursionError) as e:
         bad = path.with_name(f"{path.stem}-invalid-{secrets.token_hex(4)}{path.suffix}")
         path.rename(bad)
         log.warning("cache %s corrupted (%s) → quarantined as %s", path, e, bad.name)
@@ -195,7 +195,7 @@ class StateStore:
             return set(), {}
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, UnicodeDecodeError, OSError) as e:
+        except (json.JSONDecodeError, UnicodeDecodeError, OSError, RecursionError) as e:
             # 与 load_cache 同口径：隔离留诊断现场，不覆盖不删除
             bad = path.with_name(
                 f"{path.stem}-invalid-{secrets.token_hex(4)}{path.suffix}"
