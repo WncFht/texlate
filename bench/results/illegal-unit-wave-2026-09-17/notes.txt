@@ -1,0 +1,43 @@
+illegal_unit wave — rerun id-set 构造口径（2026-09-17, rerun-idset）
+
+目标结果目: bench/results/stagerun-loop1-2026-09-16/（原始 layers=core,booster,hot,expand，xlat 臂 mock，compile --arm zh --xlat-arm mock）。
+
+== 集合构成 ==
+
+rerun_ids.txt = 108 unique id，每行一个、manifest slash 形（hep-ph/0307181）。
+
+- 89: bench/results/illegal-unit-scout-2026-09-17/report.md 90-id 分类账去掉 quant-ph/9703040。
+- +19: bench/results/m1-residue-scout-2026-09-17/m1_assign_ids.txt（27 文件行 → 23 unique 论文，取 work/<safe_id>/zh/<file> 目录段、-- 还原 /）中不在账内者。其余 4 格（1511.06628、1907.10397、physics/9901057、quant-ph/9910050）本在 ledger，并入后不重复计。
+
+rerun_ids_ledger90.txt = 账本子集 89 id（90 账 − true*），供与 union diff 对照。
+excluded_true_star.txt = quant-ph/9703040 单列备查。
+
+== 126 格 → 108 id 的折叠 ==
+
+题面 "~126 格"/peer1 remeasure 的数字是 compile.jsonl+fixloop.jsonl 原始行数（含历次重跑 append）。按 scout 口径 (id, arm) 末条胜去重后：compile/partial 18 + compile/clean 11 + fixloop/partial(acceptable_pdf) 71 + fixloop/fail(unfixable:illegal_unit) 1 = 101 record-cells，覆盖 90 unique id。
+
+在 records 上重算同一谓词（末条 errors[] 的 code/cat/payload 任一段或 sig 含 illegal_unit）：unique id 集与 90 账完全一致，delta = 0——账本未过时、无漏记无多记。108 = 89（账去 true*）+ 0（records 无新增）+ 19（m1 新增）。
+
+== excluded 判定 ==
+
+quant-ph/9703040 是账内唯一 true*：源文件 24ptA/24ptSoon 单位后跟字母本就非法，TeX 两臂同式自恢复（非致命错、输出等价），segmenter 修复对它无验证价值；且其 bulk 实为 108x missing_number（\bffam 族，别的问题），illegal_unit 只是 first_error。排除出 rerun 集，单列 excluded_true_star.txt 供回查。
+
+== --rerun 格式验证 ==
+
+- stagerun.py 的 --ids 走 stagerun_lib.select_ids：逗号分隔、逐项 strip、与 manifest e["id"] 比对（want−have 不剔除仍传入）。所以 id 必须用 manifest slash 形；work/<dir> 的 -- 形是 benchlib.safe_id 的 /→-- 目录映射，只出现在文件系统层。
+- tmp/rerun-wave.sh --ids-file 接受每行一个 id（逗号分隔也行，空白/# 注释行忽略），内部按 compile 末条分类后同样拼 CSV 喂 --ids——本 rerun_ids.txt 两路都兼容。
+- 108/108 在 manifest（layers core,booster,hot,expand 共 5135 条）内且在盘 work/<safe_id>/；0 格 records 有记录但 work/ 缺。
+- fixloop --on 可选性（compile 末条 upstream=mock arm=zh 分类）：fail 5 + partial 20 + clean 83，norecord 0、unrunnable(reject/skip/error) 0 → --on all 一批全覆盖，无 rerun-wave.sh 头注所述选不中格。
+
+== 核验过的命令行 ==
+
+segmenter 层修复须全链 parse→xlat→compile→fixloop（zh/ 由 parse 重建、xlat 就地重译、compile 重建 splice、fixloop 收尾）：
+
+  IDS=$(tr '\n' ',' < bench/results/illegal-unit-wave-2026-09-17/rerun_ids.txt | sed 's/,$//')
+  D=bench/results/stagerun-loop1-2026-09-16
+  uv run python bench/py/stagerun.py parse   --dir "$D" --rerun --layers core,booster,hot,expand --jobs 8 --ids "$IDS"
+  uv run python bench/py/stagerun.py xlat    --dir "$D" --rerun --arm mock --layers core,booster,hot,expand --jobs 8 --ids "$IDS"
+  uv run python bench/py/stagerun.py compile --dir "$D" --rerun --arm zh --xlat-arm mock --layers core,booster,hot,expand --jobs 8 --ids "$IDS"
+  uv run python bench/py/stagerun.py fixloop --dir "$D" --rerun --on all --xlat-arm mock --layers core,booster,hot,expand --jobs 8 --ids "$IDS"
+
+尾部 compile+fixloop 两阶段可走 bash tmp/rerun-wave.sh --ids-file bench/results/illegal-unit-wave-2026-09-17/rerun_ids.txt --stage chain --dir "$D" --xlat-arm mock --go（脚本内部做同样的 compile-末条分类与 --ids CSV 拼接）；但它不覆盖 parse/xlat——本波前两阶段不可省。records 单写者纪律：同结果目同时只允许一个 stagerun 进程。
