@@ -285,10 +285,12 @@ def _scrub_deep(value: Any, api_key: str) -> Any:  # noqa: ANN401 -- JSON 形状
     """递归抹 JSON-able 结构里字符串的 secret 形态（事件载荷落盘前调用）。"""
     if isinstance(value, str):
         return scrub(value, api_key)
-    if isinstance(value, list):
+    if isinstance(value, (list, tuple)):
         return [_scrub_deep(v, api_key) for v in value]
     if isinstance(value, dict):
-        return {k: _scrub_deep(v, api_key) for k, v in value.items()}
+        return {
+            _scrub_deep(k, api_key): _scrub_deep(v, api_key) for k, v in value.items()
+        }
     return value
 
 

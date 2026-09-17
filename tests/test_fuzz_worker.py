@@ -12,10 +12,6 @@ cancel/teardown 中途失败级联；verdict/审计载荷持久化；SSE 扇出�
   ``RuntimeError`` 逃逸出 ``sniff_upload``，上传边界落 500 而非干净
   拒绝。修法：同 ``_zip_member_payload`` 口径把成员读异常归一类
   （补捕 ``RuntimeError`` 或直接退 ``upload_tex`` 交解包处报错）。
-- W2 ``_scrub_deep``（worker.py:284-292）：只递归 ``list``/``dict`` 值
-  与 ``str``——tuple 成员与 dict 键原样放行，``json.dumps`` 后 secret
-  明文进 error_json/task_events。修法：``isinstance(value, (list,
-  tuple))`` 递归 + dict 键也过 ``scrub``。
 - W3 ``_flush_translate``/``_teardown_translate``（worker.py:2080,
   2039-2041）：``state.buffer`` 在 ``flush_chunk_batch`` **之前**清空
   ——瞬逝 DB 错（locked/disk I/O）让已译完的 ChunkRecord 永久丢失
@@ -320,13 +316,6 @@ class TestScrubDeep:
         )
         assert self._KEY not in json.dumps(out)
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "W2: worker.py:288-291 只递归 list/dict 值——tuple 成员与 dict 键 "
-            "原样放行，json.dumps 后 secret 明文落 error_json/task_events"
-        ),
-    )
     def test_tuple_and_dict_key_scrubbed(self) -> None:
         out = _scrub_deep(
             {"k": (f"prefix {self._KEY}", "y"), f"nested-{self._KEY}": 1},
