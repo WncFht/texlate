@@ -390,7 +390,7 @@ def pipe_mode_condition(
     rec["normalize"] = normalize_project(work, eng_name, main_rel)
     tr = SabotageTranslator() if mode == "B" else PerturbTranslator()
     ej = (
-        e2e_mod._env_flag(e2e_mod._ENV_ENV_JUDGE, default=False)
+        e2e_mod.env_flag(e2e_mod._ENV_ENV_JUDGE, default=False)
         if env_judge is None
         else env_judge
     )
@@ -501,7 +501,7 @@ def pipe_mode_condition(
 
     if rec["status"] != "clean":
         l2 = (
-            (not e2e_mod._env_flag(e2e_mod._ENV_NO_L2, default=False))
+            (not e2e_mod.env_flag(e2e_mod._ENV_NO_L2, default=False))
             if l2_on is None
             else l2_on
         )
@@ -514,7 +514,7 @@ def pipe_mode_condition(
             rec["l2"] = {"enabled": False, "reason": e2e_mod._ENV_NO_L2}
 
         fl = (
-            (not e2e_mod._env_flag(e2e_mod._ENV_NO_FIXLOOP, default=False))
+            (not e2e_mod.env_flag(e2e_mod._ENV_NO_FIXLOOP, default=False))
             if fixloop_on is None
             else fixloop_on
         )

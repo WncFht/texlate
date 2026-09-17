@@ -10,8 +10,8 @@ texglot-patterns §5），服务 ``uv tool install`` 一键可用语义：
   后落盘，绝不执行未过校验的产物。
 - 归档只提 ``tectonic`` 单文件（成员 basename 匹配且恰好一个）；先写
   ``<tools>/tectonic.download`` → ``chmod 0o755`` → ``replace()`` 原子落位。
-- 托管根 ``TEXLATE_DATA_DIR`` > ``~/.texlate``（与 ``server/settings.data_dir``
-  同根的独立实现——compile 层不反向依赖 server）。
+- 托管根 ``TEXLATE_DATA_DIR`` > ``~/.texlate``（单源 ``textutil.data_root``——
+  compile 层不反向依赖 server）。
 - 开关：``TEXLATE_NO_DOWNLOAD`` 真值关；``CI`` 真值环境默认关（CI 引擎腿
   显式装引擎）；显式 ``TEXLATE_NO_DOWNLOAD=0`` 可在 CI 强制开。
 - 矩阵 hash 抄自 texglot 钉值，2026-09-16 已对 GitHub release 实下载五条
@@ -34,6 +34,8 @@ from functools import lru_cache
 from pathlib import Path
 
 import httpx
+
+from texlate.textutil import data_root, env_flag
 
 from .sandbox import find_tool
 
@@ -70,14 +72,6 @@ ASSETS: dict[tuple[str, str], tuple[str, str]] = {
 _DOWNLOAD_CAP = 150 * 1024 * 1024
 _TIMEOUT = httpx.Timeout(90.0, connect=15.0)
 
-_TRUE = ("1", "true", "yes", "on")
-
-
-def data_root() -> Path:
-    """数据根：``TEXLATE_DATA_DIR`` > ``~/.texlate``（settings.data_dir 同款）。"""
-    raw = os.environ.get("TEXLATE_DATA_DIR")
-    return Path(raw).expanduser() if raw else Path.home() / ".texlate"
-
 
 def tools_dir() -> Path:
     """托管二进制目录 ``<data>/tools``——只定位不 mkdir（探测面不产副作用）。"""
@@ -86,10 +80,9 @@ def tools_dir() -> Path:
 
 def download_allowed() -> bool:
     """自动下载开关：``TEXLATE_NO_DOWNLOAD`` 显式设置优先；``CI`` 真值默认关。"""
-    v = os.environ.get("TEXLATE_NO_DOWNLOAD")
-    if v is not None:
-        return v.strip().lower() not in _TRUE
-    return os.environ.get("CI", "").strip().lower() not in _TRUE
+    if os.environ.get("TEXLATE_NO_DOWNLOAD") is not None:
+        return not env_flag("TEXLATE_NO_DOWNLOAD", default=False)
+    return not env_flag("CI", default=False)
 
 
 def asset_for(system: str, machine: str) -> tuple[str, str, str]:

@@ -16,13 +16,13 @@ from typing import TYPE_CHECKING, Any
 from texlate.e2e import (
     _ENV_ENV_JUDGE,
     _KNOWN_ENVS,
-    _env_flag,
     _env_judge_all,
 )
 from texlate.server.settings import (
     cache_scope,
     validate_model,
 )
+from texlate.textutil import env_flag
 from texlate.validate.l0 import validate_pair
 from texlate.xlat.client import ChatClient
 from texlate.xlat.glossary import (
@@ -349,7 +349,7 @@ class _Translate:
             if isinstance(v, bool):
                 return v
             return str(v).strip().lower() not in ("0", "false", "no", "off")
-        return _env_flag(_ENV_ENV_JUDGE, default=False)
+        return env_flag(_ENV_ENV_JUDGE, default=False)
 
     def _env_judge_filter(  # noqa: C901 -- 守卫/回退阶梯平铺即 spec 的跳过面
         self,

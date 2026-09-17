@@ -46,9 +46,10 @@ from texlate.arxiv.fetch import (
 )
 from texlate.compile import toolchain
 from texlate.compile.sandbox import find_tool
-from texlate.e2e import _env_flag, mock_pipeline_run
+from texlate.e2e import mock_pipeline_run
 from texlate.latex.api import parse_file
 from texlate.share import KEY_PART_FIELDS, ShareError, pack_share, unpack_share
+from texlate.textutil import data_root, env_flag
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -159,7 +160,7 @@ def fetch(
         arxiv_id,
         cache,
         version=version,
-        offline=offline or _env_flag("TEXLATE_OFFLINE", default=False),
+        offline=offline or env_flag("TEXLATE_OFFLINE", default=False),
     )
     _echo_acquire(res)
     if res.status not in (AcquireStatus.OK, AcquireStatus.HIT):
@@ -408,7 +409,7 @@ def run(  # noqa: PLR0913 -- CLI 选项面即参数面 + 本地/瘦客户端双�
         raise typer.Exit(2)
 
     src_dir = _resolve_source(
-        source, cache, offline=offline or _env_flag("TEXLATE_OFFLINE", default=False)
+        source, cache, offline=offline or env_flag("TEXLATE_OFFLINE", default=False)
     )
     if src_dir is None:
         raise typer.Exit(1)
@@ -938,8 +939,7 @@ def _share_data_root(data_dir: Path | None) -> Path:
     """
     if data_dir is not None:
         return data_dir.expanduser()
-    raw = os.environ.get("TEXLATE_DATA_DIR")
-    return Path(raw).expanduser() if raw else Path.home() / ".texlate"
+    return data_root()
 
 
 def _share_task_dir(arg: str, data_dir: Path | None) -> Path:

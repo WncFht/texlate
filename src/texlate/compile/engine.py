@@ -46,7 +46,7 @@ from texlate.texlog import (
     patch_graphic_top,
     update_file_stack,
 )
-from texlate.textutil import decode_tex, safe_is_file
+from texlate.textutil import decode_tex, env_flag, safe_is_file
 
 from .mask import visible_tex
 from .sandbox import child_env, find_tool, run_process, sandbox_wrap
@@ -537,7 +537,6 @@ _BWRAP_KPSE_RO: Final = (
     "TEXMFINIT",
 )
 _KPATHSEA_ELEM_RX: Final = re.compile(r"[\s,:{}]+")
-_TRUE_VALUES: Final = {"1", "true", "yes", "on"}
 #: 沙箱内私有 tmpfs 挂点字面量——``/tmp`` 下的宿主路径判定专用。
 _SANDBOX_TMP: Final = "/tmp"  # noqa: S108 -- 挂点语义即字面 /tmp
 
@@ -673,7 +672,7 @@ def _bwrap_capable() -> bool:
     ``kernel.unprivileged_userns_clone=0``）即返 False，编译退回 env-only
     而不是批量挂掉。``TEXLATE_NO_BWRAP`` 真值 = 显式关停（坏件逃生门）。
     """
-    if os.environ.get("TEXLATE_NO_BWRAP", "").strip().lower() in _TRUE_VALUES:
+    if env_flag("TEXLATE_NO_BWRAP", default=False):
         return False
     tool = find_tool("bwrap")
     if tool is None:
@@ -1324,9 +1323,7 @@ class XelatexEngine:
             finally:
                 fcntl.flock(fh, fcntl.LOCK_UN)
 
-    def install_file(
-        self, fname: str, *, font_related: bool = False
-    ) -> bool:
+    def install_file(self, fname: str, *, font_related: bool = False) -> bool:
         """经 kpsewhich 验证 → filemap 查包 → `tlmgr --usermode install` → 复核。"""
         if self.probe_file(fname):
             return True

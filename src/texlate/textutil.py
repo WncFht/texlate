@@ -19,20 +19,25 @@ xlat 轻量对账共用一个实现，防两份 DP 各自漂移。
 旧兜底链 ``utf-8 → gb18030 → cp1252 → latin-1`` 有系统性误吃：gb18030 把
 latin 对字节（``é``+ASCII 字母是合法 gb 二字节）解成 CJK——字节探测必须先
 判定编码族再解码，判定依据逐文件落 ``EncodingVerdict`` 供 normalize 归因。
+
+``env_flag``/``data_root``：``TEXLATE_*`` env 读取的单一事实源——布尔旗标
+统一 ``1/true/yes/on`` 真值表（strip+lower 后判定）；数据根统一
+``TEXLATE_DATA_DIR`` > ``~/.texlate``（只定位不 mkdir，副作用归调用方）。
 """
 
 from __future__ import annotations
 
 import codecs
+import os
 import re
 from bisect import bisect_right
 from collections import Counter
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
-    from pathlib import Path
 
 __all__ = [
     "BEGIN_DOC_RX",
@@ -45,10 +50,12 @@ __all__ = [
     "VERBATIM_ENVS",
     "EncodingVerdict",
     "bare_cs_net",
+    "data_root",
     "dead_end_anchored",
     "dead_env_end",
     "decode_tex",
     "decode_tex_with",
+    "env_flag",
     "is_cjk_cp",
     "lev_capped",
     "mask_comments",
@@ -1147,3 +1154,21 @@ def safe_is_file(path: Path) -> bool:
         return path.is_file()
     except (OSError, ValueError):
         return False
+
+
+# ------------------------------------------------------------------ env 读取
+_TRUE_WORDS: Final = frozenset({"1", "true", "yes", "on"})
+
+
+def env_flag(name: str, *, default: bool) -> bool:
+    """读布尔 env：``1/true/yes/on``（strip+lower 后）为真；未设置取 ``default``。"""
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in _TRUE_WORDS
+
+
+def data_root() -> Path:
+    """数据根：``TEXLATE_DATA_DIR`` > ``~/.texlate``——只定位不 mkdir。"""
+    raw = os.environ.get("TEXLATE_DATA_DIR")
+    return Path(raw).expanduser() if raw else Path.home() / ".texlate"

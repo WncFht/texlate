@@ -27,7 +27,6 @@ from texlate.compile.probe import (
 from texlate.e2e import (
     _ENV_NO_L2,
     L2_MAX_CHUNKS,
-    _env_flag,
     _l2_localize,
     _resplice,
     _retranslate_hits,
@@ -47,6 +46,7 @@ from texlate.server.upload import (
     _md_member,
     pdf_pages,
 )
+from texlate.textutil import env_flag
 from texlate.validate.l0 import validate_pair
 from texlate.xlat.pipeline import (
     ChunkIn,
@@ -470,12 +470,7 @@ class _Compile:
 
     def _fixloop_enabled(self, ctx: TaskCtx) -> bool:
         """Fixloop 开关：``options.fixloop`` false 系值或 ``TEXLATE_NO_FIXLOOP`` 真值 → 关（默认开）。"""
-        if os.environ.get("TEXLATE_NO_FIXLOOP", "").strip().lower() in (
-            "1",
-            "true",
-            "yes",
-            "on",
-        ):
+        if env_flag("TEXLATE_NO_FIXLOOP", default=False):
             return False
         v = ctx.options().get("fixloop")
         if v is None or isinstance(v, bool):
@@ -595,7 +590,7 @@ class _Compile:
             if isinstance(v, bool):
                 return v
             return str(v).strip().lower() not in ("0", "false", "no", "off")
-        return not _env_flag(_ENV_NO_L2, default=False)
+        return not env_flag(_ENV_NO_L2, default=False)
 
     def _llm_hook_pack(
         self, ctx: TaskCtx
@@ -618,7 +613,7 @@ class _Compile:
             opt is False or str(opt).strip().lower() in ("0", "false", "no", "off")
         ):
             return None, None, []
-        if not _env_flag("TEXLATE_FIXLOOP_LLM", default=True):
+        if not env_flag("TEXLATE_FIXLOOP_LLM", default=True):
             return None, None, []
         if self._translator_factory is not None:
             # 注入路径：factory 产 translator 直接给 hook（测试桩语义调用方担）

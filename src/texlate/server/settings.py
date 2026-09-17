@@ -29,6 +29,7 @@ from urllib.parse import urlsplit
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
 
+from texlate.textutil import data_root
 from texlate.xlat.client import (
     _LOOPBACK_HOSTS,
     _TAILNET_V4,
@@ -91,8 +92,7 @@ def _is_plaintext_ok_host(hostname: str) -> bool:
 
 def data_dir() -> Path:
     """数据目录：``TEXLATE_DATA_DIR`` > ``~/.texlate``；mkdir 0700。"""
-    raw = os.environ.get("TEXLATE_DATA_DIR")
-    root = Path(raw).expanduser() if raw else Path.home() / ".texlate"
+    root = data_root()
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
     return root
 

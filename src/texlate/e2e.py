@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from contextlib import suppress
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -62,6 +61,7 @@ from texlate.repair import (
     log_text_of,
     run_fixloop,
 )
+from texlate.textutil import env_flag
 from texlate.validate import l2 as l2_mod
 from texlate.validate.l0 import validate_pair
 from texlate.xlat import prompts as xlat_prompts
@@ -101,14 +101,6 @@ _ENV_ENV_JUDGE = "TEXLATE_ENV_JUDGE"
 
 #: 静态环境表（已知语义的 env 不问 judge——体是否可译已由表决定）
 _KNOWN_ENVS = MATH_ENVS | VERBATIM_ENVS | PROTECTED_ENVS | ARG_TRANSPARENT_ENVS
-
-
-def _env_flag(name: str, *, default: bool) -> bool:
-    """读布尔 env：``1/true/yes/on`` 为真；未设置取 default。"""
-    raw = os.environ.get(name)
-    if raw is None:
-        return default
-    return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
 # ---------------------------------------------------------------- 翻译树
@@ -321,7 +313,7 @@ def mock_translate_tree(
     ``translator`` 可注入真网关 Translator；``env_judge`` 缺省读
     ``TEXLATE_ENV_JUDGE``（默认关——静态表外 env 的可译性 LLM 判定）。
     """
-    ej = _env_flag(_ENV_ENV_JUDGE, default=False) if env_judge is None else env_judge
+    ej = env_flag(_ENV_ENV_JUDGE, default=False) if env_judge is None else env_judge
     stats, _run = _translate_tree(root, translator=translator, env_judge=ej)
     return stats
 
@@ -786,7 +778,7 @@ def _run_fixloop(  # noqa: PLR0913 -- 开关面穿透同 pipe_condition
     （None=用 yaml 值）。``llm_hook`` 未传时 ``TEXLATE_FIXLOOP_LLM=1``
     可经 env 启用 escalate_llm 钩（网关走 TEXLATE_* 三件套）。
     """
-    if llm_hook is None and _env_flag("TEXLATE_FIXLOOP_LLM", default=False):
+    if llm_hook is None and env_flag("TEXLATE_FIXLOOP_LLM", default=False):
         from texlate.compile.fixloop.llm_hook import make_llm_hook  # noqa: PLC0415
 
         llm_hook = make_llm_hook()
@@ -867,7 +859,7 @@ def _repair_chain(  # noqa: PLR0913 -- 修复链开关面穿透
     L2 崩不丢整条 rec（worker._l2_attempt 同款包）；fixloop 只在仍非
     clean 时跑。返回最新 ``CompRes`` 供 ToUnicode 注入判产物。
     """
-    l2 = (not _env_flag(_ENV_NO_L2, default=False)) if l2_on is None else l2_on
+    l2 = (not env_flag(_ENV_NO_L2, default=False)) if l2_on is None else l2_on
     if l2:
         try:
             l2_rep, res, tail2 = _l2_repair(job, run, res, l2_max_chunks)
@@ -881,7 +873,7 @@ def _repair_chain(  # noqa: PLR0913 -- 修复链开关面穿透
         rec["l2"] = {"enabled": False, "reason": _ENV_NO_L2}
 
     fl = (
-        (not _env_flag(_ENV_NO_FIXLOOP, default=False))
+        (not env_flag(_ENV_NO_FIXLOOP, default=False))
         if fixloop_on is None
         else fixloop_on
     )
@@ -923,7 +915,7 @@ def pipe_condition(  # noqa: PLR0913 -- 修复链开关面（env 缺省，显式
     """
     rec: dict[str, object] = {"engine": eng_name}
     rec["normalize"] = normalize_project(work, eng_name, main_rel)
-    ej = _env_flag(_ENV_ENV_JUDGE, default=False) if env_judge is None else env_judge
+    ej = env_flag(_ENV_ENV_JUDGE, default=False) if env_judge is None else env_judge
     stats, run = _translate_tree(work, translator=translator, env_judge=ej)
     rec["translate"] = stats
     try:
