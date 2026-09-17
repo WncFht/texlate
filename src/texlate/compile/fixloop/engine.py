@@ -15,6 +15,7 @@ phase 语义 (rules.yaml 注释复制):
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import re
 import shutil
@@ -1292,6 +1293,7 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
     runner: RunFn | None = None,
     case_sink: CaseSink | None = None,
     compile_timeout: float | None = None,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
     """跑一格修复循环 → cell dict (字段与 spike fixloop-results.json 兼容)。
 
@@ -1391,22 +1393,53 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
     prev_sig, sig_n = "", 0
     last_rep: ErrReport | None = None
     for rnd in range(1, max_rounds + 1):
+        if should_cancel is not None and should_cancel():
+            raise asyncio.CancelledError
         swept = _sweep_bad_aux(wdir)
         if swept:
             ctx.events.append(f"r{rnd} aux-sweep: {', '.join(swept)}")
         res = eng.compile(
             wdir,
             ctx.main_rel,
-            passes=passes,
+            passes=1,  # 分类轮只读 pass-1 log——第二遍不产新分类信号
             flags=list(ctx.engine_flags),
             **compile_kw,
         )
         _note_dropped_flags(ctx, res)
         rep = _report_of(res, rs.warn_patterns)
-        last_rep = rep
         cat, pay = rs.taxonomy.classify(
             rep, timed_out=bool(getattr(res, "timed_out", False))
         )
+        round_sec = float(getattr(res, "seconds", getattr(res, "sec", 0.0)))
+        if (  # pass-1 判收敛 → 同轮全遍终编定稿: rungen_stub 类机制靠
+            # 第二遍 \write 填实成品; 复编重分类回流下方同一决策面,
+            # pass-2-emergent 错照常进 gate/修复路径。tectonic 自定遍数
+            # (impl del passes)、超时轮 (重跑大概率再超时) 不升遍。
+            passes > 1
+            and engine_name != "tectonic"
+            and not getattr(res, "timed_out", False)
+            and _res_has_pdf(res)
+            and rep.n_bang == 0
+            and cat not in rs.taxonomy.warn_cats
+        ):
+            res = eng.compile(
+                wdir,
+                ctx.main_rel,
+                passes=passes,
+                flags=list(ctx.engine_flags),
+                **compile_kw,
+            )
+            _note_dropped_flags(ctx, res)
+            rep = _report_of(res, rs.warn_patterns)
+            cat, pay = rs.taxonomy.classify(
+                rep, timed_out=bool(getattr(res, "timed_out", False))
+            )
+            round_sec += float(getattr(res, "seconds", getattr(res, "sec", 0.0)))
+            ctx.events.append(
+                f"r{rnd} finalize: pass-1 clean → {passes}-pass "
+                f"(pdf={_res_has_pdf(res)} err={rep.n_bang} cat={cat})"
+            )
+        last_rep = rep
         ctx.err_cat, ctx.err_pay = cat, pay
         ctx.err_head = (rep.first or "") + "\n" + (rep.ctx or "")
         pdf = _res_has_pdf(res)
@@ -1427,7 +1460,7 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
             "warnings": list(rep.warnings),
             "line_no": rep.line_no,
             "file_stack": rep.file_stack,
-            "sec": round(float(getattr(res, "seconds", getattr(res, "sec", 0.0))), 1),
+            "sec": round(round_sec, 1),
         }
         cell["rounds"].append(entry)
         ctx.events.append(

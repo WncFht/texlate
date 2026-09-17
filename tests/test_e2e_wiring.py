@@ -20,6 +20,8 @@ from texlate.latex.model import Chunk, Span
 from texlate.xlat.pipeline import ChunkIn, MockTranslator, XlatPipeline
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from texlate.compile.engine import CompRes
 
 _MAIN = (
@@ -107,6 +109,7 @@ class ScriptedEngine:
         env_extra: dict[str, str] | None = None,  # noqa: ARG002
         best_effort: bool = False,  # noqa: ARG002 -- fixloop salvage 会传
         flags: list[str] | None = None,
+        should_cancel: Callable[[], bool] | None = None,  # noqa: ARG002
     ) -> CompRes:
         """按剧本写 ``<stem>.log``（+可选 pdf）→ CompRes。"""
         from texlate.compile.engine import CompRes, parse_log  # noqa: PLC0415
@@ -192,7 +195,9 @@ def test_fixloop_runs_on_fail_and_recovers(
     assert "cat" in fl["rounds"][0]
     assert "rule" in fl["rounds"][0]
     assert report["verdict"]["status"] == "clean"
-    assert len(engines["xelatex"].calls) == 2  # noqa: PLR2004 -- 首编 + fixloop r1
+    assert len(engines["xelatex"].calls) == 3  # noqa: PLR2004 -- 首编 + fixloop r1 (p1 探 + 全遍终编)
+    # fixloop 分类轮 p1、收敛终编轮 compile_passes=2（perf-fix: passes 分层）
+    assert [c["passes"] for c in engines["xelatex"].calls[1:]] == [1, 2]
 
 
 def test_fixloop_disabled_by_env(
@@ -613,7 +618,7 @@ def test_tounicode_embed_once_after_fixloop(
     report = e2e.mock_pipeline_run(work, "xelatex", timeout=30.0)
 
     assert report["status"] == "clean"
-    assert len(engines["xelatex"].calls) == 2  # noqa: PLR2004 -- 首编 + fixloop r1
+    assert len(engines["xelatex"].calls) == 3  # noqa: PLR2004 -- 首编 + fixloop r1 (p1 探 + 全遍终编)
     assert calls == [work / "main.pdf"]
     assert report["tounicode_fonts"] == 1
 
