@@ -59,14 +59,15 @@ def safe_id(rel: str) -> str:
 
 
 # ---------------------------------------------------------------- records
-def iter_jsonl(path: Path, *, on_bad="skip", errors: str = "strict"):
+def iter_jsonl(path: Path, *, on_bad="skip", errors: str = "replace"):
     """逐行 yield 解析值；空行跳过，坏 json 行按 ``on_bad`` 处置。
 
     append 账的 kill 截尾是常态——容忍坏行保住续跑。``on_bad``：
     ``"skip"`` 静默跳（默认）；``"warn"`` 读完向 stderr 汇总一行
     （triage 口径）；callable 逐坏行回调 ``on_bad(raw_line, exc)``。
-    ``errors`` 透传 decode——``"strict"`` 截尾多字节炸 UnicodeDecodeError
-    （gate/benchlib 原口径），``"replace"`` 留 U+FFFD 续跑（triage 口径）。
+    ``errors`` 透传 decode——默认 ``"replace"`` 截尾多字节留 U+FFFD
+    → 坏行按 ``on_bad`` 跳；``"strict"`` 炸 UnicodeDecodeError（需硬
+    失败口径的调用方自钉）。
     """
     bad = 0
     for raw in path.read_text(encoding="utf-8", errors=errors).splitlines():
@@ -130,7 +131,10 @@ def rec_key(rec: dict) -> tuple[str, str, str]:
 
 def load_records(path: Path, key: str = "id") -> dict[str, dict]:
     """append 账 → {key: rec} 末行胜（rerun 重记同 id 自然覆盖）。"""
-    return latest_by((r for r in iter_jsonl(path) if key in r), lambda r: str(r[key]))
+    return latest_by(
+        (r for r in iter_jsonl(path) if isinstance(r, dict) and key in r),
+        lambda r: str(r[key]),
+    )
 
 
 # ---------------------------------------------------------------- status 词汇
@@ -177,10 +181,13 @@ COMPILED_STATUS = {"fail", "partial", "clean"}
 # ---------------------------------------------------------------- 签名合成
 def errors_sig(errors: list[dict]) -> str:
     """errors[0] → ``cat:pay`` 签名（triage 契约：ok 级无 sig）。"""
-    if not errors:
+    if not isinstance(errors, (list, tuple)) or not errors:
         return ""
-    cat = str(errors[0].get("cat") or errors[0].get("code") or "error")
-    pay = str(errors[0].get("payload") or "")
+    e0 = errors[0]
+    if not isinstance(e0, dict):
+        return ""
+    cat = str(e0.get("cat") or e0.get("code") or "error")
+    pay = str(e0.get("payload") or "")
     return f"{cat}:{pay}".rstrip(":")
 
 
@@ -312,8 +319,14 @@ def verdict_sig(verdict: dict, first_error: str | None = None) -> str:
     vstatus = verdict.get("status")
     if vstatus in ("clean", None):
         return ""
+    fe = first_error if isinstance(first_error, str) else ""
     cat = verdict.get("category")
-    reasons = [str(r).strip() for r in (verdict.get("reasons") or []) if str(r).strip()]
+    raw = verdict.get("reasons")
+    if isinstance(raw, str):
+        raw = [raw]
+    elif not isinstance(raw, (list, tuple)):
+        raw = []
+    reasons = [str(r).strip() for r in raw if str(r).strip()]
     derived = cat in (None, "clean", "other")
     if derived:
         if any(r.startswith("missing_character") for r in reasons):
@@ -330,7 +343,7 @@ def verdict_sig(verdict: dict, first_error: str | None = None) -> str:
     pay = None if derived else verdict.get("payload")
     if not pay:
         if cat == "missing_file":
-            m = _RE_MISSING_FILE.search(first_error or "")
+            m = _RE_MISSING_FILE.search(fe)
             pay = m.group(1) if m else ""
         elif cat == "missing_character":
             m = _RE_MISSING_CHAR.search(" ".join(reasons))

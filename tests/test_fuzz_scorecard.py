@@ -25,14 +25,6 @@
   total；rescued ≤ attempted；rate ∈ [0,1]；pipeline_introduced ⊆
   compile zh 非 ok/skip/error ∧ base ok 的 id。
 - 真实 records 变异回放：字段值级变异下聚合不崩且守恒。
-
-已钉缺陷（``xfail(strict=True)``——修复后 XPASS 提醒拆钉）：
-
-- ``iter_jsonl``/``load_records``（benchlib.py:58-101）同病：截尾 UTF-8
-  UnicodeDecodeError；非 dict 行 ``key in r``/``r[key]`` TypeError。
-- ``verdict_sig``（benchlib.py:177/194）：``reasons`` 非可迭代 →
-  TypeError；``first_error`` 真值非 str → re.search TypeError；
-  ``reasons`` 为 str 时被逐字符迭代产垃圾 sig（如 'm'）。
 """
 
 from __future__ import annotations
@@ -312,17 +304,10 @@ def test_verdict_sig_edge_shapes() -> None:
     assert isinstance(sig, str)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="benchlib.py:194 _RE_MISSING_FILE.search(first_error or '') — "
-    "first_error 真值非 str（dict/list/int/bool）→ TypeError；"
-    "records 里 compile.first_error 类型混淆即全崩；"
-    "修：isinstance(first_error, str) 守卫后取 ''",
-)
 @pytest.mark.parametrize(
     "bad_fe", [{"f": 1}, ["x"], 5, True], ids=["dict", "list", "int", "bool"]
 )
-def test_pin_verdict_sig_nonstr_first_error(bad_fe: object) -> None:
+def test_verdict_sig_nonstr_first_error(bad_fe: object) -> None:
     v = {
         "status": "fail",
         "category": "missing_file",
@@ -332,25 +317,13 @@ def test_pin_verdict_sig_nonstr_first_error(bad_fe: object) -> None:
     assert benchlib.verdict_sig(v, bad_fe).startswith("missing_file")
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="benchlib.py:177 `for r in (verdict.get('reasons') or [])` — "
-    "reasons 非可迭代（int/float/bool）→ TypeError；"
-    "修：isinstance(reasons, list) 之类守卫后按 [] 处理",
-)
 @pytest.mark.parametrize("bad_reasons", [5, 3.14, True], ids=["int", "float", "bool"])
-def test_pin_verdict_sig_noniterable_reasons(bad_reasons: object) -> None:
+def test_verdict_sig_noniterable_reasons(bad_reasons: object) -> None:
     v = {"status": "fail", "category": None, "reasons": bad_reasons}
     assert isinstance(benchlib.verdict_sig(v), str)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="benchlib.py:177 reasons 为 str 时被逐字符迭代——"
-    "'missing_character×3' → sig 'm'（首字符当 cat）；"
-    "修：str 包装为单元素列表或拒非 list",
-)
-def test_pin_verdict_sig_string_reasons() -> None:
+def test_verdict_sig_string_reasons() -> None:
     v = {"status": "fail", "category": None, "reasons": "missing_character×3"}
     sig = benchlib.verdict_sig(v)
     # 两种合理修法都接受：按单条 reason 解析 / 拒绝非 list 退 verdict:fail
@@ -639,30 +612,18 @@ def test_compute_metrics_nondict_metrics(tmp_path: Path, bad_metrics: object) ->
 
 
 # ================================================================ benchlib 账读
-@pytest.mark.xfail(
-    strict=True,
-    reason="benchlib.py:61 read_text(encoding='utf-8') strict —— kill 截尾 "
-    "UTF-8 → UnicodeDecodeError；docstring 自称容忍截尾但只盖 JSON 层；"
-    "修：errors='replace'",
-)
-def test_pin_benchlib_iter_jsonl_truncated_utf8(tmp_path: Path) -> None:
+def test_benchlib_iter_jsonl_truncated_utf8(tmp_path: Path) -> None:
     p = tmp_path / "r.jsonl"
     p.write_bytes(b'{"id":"a"}\n{"id":"b","\xe4\xb8')
     assert [r["id"] for r in benchlib.iter_jsonl(p)] == ["a"]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="benchlib.py:99 `if key in r` — 非 dict 行：int/float/bool/None → "
-    "TypeError('not iterable')；含 key 的 str/list 行 → r[key] TypeError；"
-    "修：isinstance(r, dict) 守卫",
-)
 @pytest.mark.parametrize(
     "line",
     ["5", '"id"', '["id"]', "null", "true", "3.14"],
     ids=["int", "str_hit", "list_hit", "null", "bool", "float"],
 )
-def test_pin_benchlib_load_records_nondict(tmp_path: Path, line: str) -> None:
+def test_benchlib_load_records_nondict(tmp_path: Path, line: str) -> None:
     p = tmp_path / "r.jsonl"
     p.write_text(f'{line}\n{{"id":"a","v":1}}\n', encoding="utf-8")
     assert list(benchlib.load_records(p)) == ["a"]
@@ -677,6 +638,21 @@ def test_benchlib_load_records_benign_lines(tmp_path: Path) -> None:
     )
     out = benchlib.load_records(p)
     assert out == {"a": {"id": "a", "v": 2}}  # 末行胜
+
+
+@pytest.mark.parametrize(
+    ("errors", "want"),
+    [
+        (["oops"], ""),
+        (5, ""),
+        (None, ""),
+        ([{"cat": "c", "payload": "p"}], "c:p"),
+    ],
+    ids=["str_entry", "int_nonlist", "none", "ok"],
+)
+def test_benchlib_errors_sig_guards(errors: object, want: str) -> None:
+    """errors_sig 边界形状不崩：非 list/非 dict 首元 → 空 sig。"""
+    assert benchlib.errors_sig(errors) == want
 
 
 # ================================================================ triage 归桶
