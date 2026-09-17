@@ -297,22 +297,38 @@ rules:
   # maketitle-then-abstract。ctx_suggests 限定仅 abstract payload 点火,
   # 其他 env_undefined (如 document/frontmatter) 不误排。
   - id: abstract_frontmatter_hoist
-    description: "revtex4 系 abstract 环境仅 frontmatter 期存活 → abstract 块+间隔段前移 \\maketitle 前"
+    description: "revtex4 系 abstract 环境仅 frontmatter 期存活 → abstract 块+间隔段前移 \\maketitle 前; 209 裸 \\abstract..\\endabstract 对先 env 化再同链前移"
     phase: loop
     order: 168 # acro_v3_key_rename(167) 与 revtex4_array_swap_guard(170) 之间
-    when: { category: env_undefined }
-    condition: { ctx_suggests: "Environment abstract" }
+    when:
+      any:
+        - { category: env_undefined } # env 形: Environment abstract undefined
+        - { category: undefined_cs } # 209 裸 \abstract/\endabstract 对: payload=abstract
+    condition:
+      any:
+        - { ctx_suggests: "Environment abstract" } # env_undefined 签
+        - { ctx_suggests: "\\\\abstract\\b" } # undefined_cs 签: l.N 行裸 \abstract (\b 拦 \abstractname)
     action:
       kind: regex_rewrite
       params:
         exts: [.tex]
         rewrites:
+          # env 化先行: 同 pass 内裸对转 env 后, 下两条 hoist 立即接住 →
+          # 内联裸对一轮收敛; \endabstract 内 abstract 前无 \ 不误伤。
+          - { pattern: "\\\\abstract\\b", repl: '\\begin{abstract}' }
+          - { pattern: "\\\\endabstract\\b", repl: '\\end{abstract}' }
           - {
               pattern: "(?s)\\\\maketitle(.*?)\\\\begin\\{abstract\\}(.*?)\\\\end\\{abstract\\}",
               repl: '\\begin{abstract}\g<2>\\end{abstract}\g<1>\\maketitle',
             }
+          # 跨文件变体: 摘要在 \input{abstract} 件内 —— gap 限空白+注释行,
+          # input 行整体移到 \maketitle 前 (hep-ph/0104029 实证形态)。
+          - {
+              pattern: "(?s)\\\\maketitle((?:\\s|%[^\\n]*)*?)\\\\input\\{\\s*abstract\\s*\\}",
+              repl: '\\input{abstract}\g<1>\\maketitle',
+            }
     risk: medium # 摘要块物理前移改文档结构; gap 段 (\pacs 等) 随块落 frontmatter 区, revtex 系正解
-    known_gap: "abstract 体含 \\end{abstract} 字面嵌套/未配对括号时短匹截断; 稿面已是 abstract→maketitle 序时模式不中 → applied=False 无害"
+    known_gap: "abstract 体含 \\end{abstract} 字面嵌套/未配对括号时短匹截断; 稿面已是 abstract→maketitle 序时模式不中 → applied=False 无害; 裸对→env 转换链自收敛: 一轮内 env 化+前移同落, 漏网形态由下轮 env_undefined 兜住"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -321,8 +337,94 @@ rules:
           corpus: "wave-final-2026-09-17 env_undefined ×47 (revtex4_legacy_class_rewrite 副面)",
           error: "LaTeX Error: Environment abstract undefined (revtex4-2.cls:2685 \\let\\abstract\\@undefined post-frontmatter)",
         }
+      - {
+          corpus: "hep-ph/0104029 (wiring-2026-09-17, verify/ 两遍 xelatex rc=0 20页)",
+          error: "Undefined control sequence \\abstract (209 裸对 + \\input{abstract} 跨文件后置)",
+        }
     stats: { fires: 0, status: proposed }
-    source_ref: "revtex4-2.cls:2685/3143 frontmatter@abstract let-bound; 47/47 格 maketitle-then-abstract 序逐格核验"
+    source_ref: "revtex4-2.cls:2685/3143 frontmatter@abstract let-bound; 47/47 格 maketitle-then-abstract 序逐格核验; tmp/hepph-0104029/wiring.md 建议3"
+
+  # 2026-09-17 B4 wiring (tmp/hepph-0104029/wiring.md 建议2): 209 稿
+  # \table/\endtable 裸浮体对与现代 \begin{table}/\end{table} env 混写 ——
+  # \table≡\begin{table} 本就合法, 双开套娃炸 "Not in outer par mode"。
+  # 塌缩=去冗余内层开/闭; \table+tabular+\caption 无内 env 块的形态不命中。
+  - id: latex209_table_pair
+    description: "209 裸 \\table 浮体开再遇 \\begin{table} → 塌缩双开双闭 (env-cs 等价下嵌套浮体)"
+    phase: loop
+    order: 169 # abstract_frontmatter_hoist(168) 与 revtex4_array_swap_guard(170) 之间
+    when: { category: syntax }
+    condition:
+      ctx_suggests: "Not in outer par mode"
+      source_contains: "(?m)^[ \\t]*\\\\table[ \\t]*$" # 行首裸 \table 才点火
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "\\\\table[ \\t]*\\n((?:[ \\t]*\\n|[ \\t]*%[^\\n]*\\n)*)[ \\t]*\\\\begin\\{table\\}",
+              repl: '\g<1>\\begin{table}',
+            }
+          - {
+              pattern: "\\\\end\\{table\\}[ \\t]*(\\n(?:[ \\t]*\\n|[ \\t]*%[^\\n]*\\n)*)[ \\t]*\\\\endtable\\b",
+              repl: '\\end{table}\g<1>',
+            }
+    risk: low # \table≡\begin{table} 等价塌缩只去冗余嵌套; 裸 \table 无内 env 块形态不命中
+    known_gap: "闭侧独立点火: 无 \\table 前置的 \\end{table}\\endtable 紧邻对塌缩仍正确 (\\endtable 本是悬空 \\@float 闭); 无配对裸 \\endtable 残留由 Extra \\end 另议"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "hep-ph/0104029 (wiring-2026-09-17, verify/ 两遍 xelatex rc=0 20页)",
+          error: "LaTeX Error: Not in outer par mode (开对 56,57/196,197、闭对 83,84/352,353)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/hepph-0104029/wiring.md 建议2; \\table≡\\begin{table} 209 内建等价"
+
+  # 2026-09-17 B4 wiring §遗留 (nlin/0104012): revtex4-2 的 \pacs/\keywords/
+  # \begin{abstract} 被 \aftermaketitle@chk 门 (cls:3086) —— \maketitle 后
+  # 调用炸 "Class revtex4-2 Error: \X must be used before \maketitle"
+  # (taxonomy 归 other: "Package \w+ Error: must be loaded" 形不盖
+  # "Class ... used" 形)。209 升级稿常见 maketitle→pacs 尾签 (209 revtex
+  # 无此前置约束) —— 修形=把 \pacs{...}/\keywords{...} (可跨行花括号体)
+  # 前移到 \maketitle 前; 同族 abstract 面由 abstract_frontmatter_hoist 管。
+  - id: frontmatter_order_hoist
+    description: "revtex4-2 frontmatter-序门 (\\pacs/\\keywords 后置 \\maketitle) → 单参块前移 \\maketitle 前"
+    phase: loop
+    order: 169.5 # latex209_table_pair(169) 与 revtex4_array_swap_guard(170) 之间
+    when:
+      any:
+        - { category: other } # 非 file-line 形: '! Class X Error:' 行落 head 兜底
+        # file-line-error 形 (halt_on_error 0 页): head 无命中 → tail
+        # "No pages of output" 抢签 early_eof, ctx_suggests 仍见 err 行照判
+        - { category: early_eof }
+    condition:
+      ctx_suggests: "must be used before \\\\maketitle"
+      # 源面确有后置签名才点火 (err 若是 \begin{abstract} 形而源无后置
+      # \pacs/\keywords → applied=False 不扣 applied 位)
+      source_contains: "(?s)\\\\maketitle.*\\\\(pacs|keywords)\\s*\\{"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "(?s)\\\\maketitle(.*?)\\\\(pacs|keywords)\\s*(\\{(?:[^{}]|\\{[^{}]*\\})*\\})",
+              repl: '\\\g<2>\g<3>\g<1>\\maketitle',
+            }
+    risk: medium # frontmatter 元数据物理前移 —— revtex 系 canonical frontmatter 序正解
+    known_gap: "跨文件残面: \\maketitle 与 \\pacs 分居两文件 (\\input 拆分) 单文件 sub 不达 → applied=False; \\begin{abstract} 同签名抽象面交 env_undefined 链; 参数体两层以上花括号嵌套超出 [^{}] 窗"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "nlin/0104012 (wiring-2026-09-17 §遗留)",
+          error: "Class revtex4-2 Error: \\pacs must be used before \\maketitle (209 升级稿 maketitle→abstract→pacs 老版式)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/hepph-0104029/wiring.md §遗留; revtex4-2.cls:3086 aftermaketitle@chk 门 \\keywords/\\pacs/\\begin{abstract}"
 
   # repro-1306 (1e 移交, e2e 实证 0 err 7页): revtex4-1 4.1s 的
   # \document@inithook→\switch@array 对 array v2.6n 校验失败仍无条件 \let

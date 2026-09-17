@@ -1093,16 +1093,14 @@ rules:
               \endinput
           # ACM conm-p-l.cls (90s 会议 preprint 版式) → acmart 官方继任。
           conm-p-l.cls: { loads: "acmart", needs: ["acmart.cls"] }
-          # JHEP/JINST 作者样式、Elsevier espcrc1 —— TL 全数缺席, noop 保底。
+          # JHEP 作者样式、Elsevier espcrc1 —— TL 全数缺席, noop 保底。
+          # (jinstpub 槽已删: vendor/stubs/jinstpub.sty S1 真 stub 在,
+          #  scan_install vendored 预检先于 missing_file 分类落件,
+          #  shim_map 永远轮不到此名 —— 死配置)
           jheppub.sty:
             body: |
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesPackage{jheppub}[2026/09/16 fixloop noop stub - JHEP author kit, not in TL]
-              \endinput
-          jinstpub.sty:
-            body: |
-              \NeedsTeXFormat{LaTeX2e}
-              \ProvidesPackage{jinstpub}[2026/09/16 fixloop noop stub - JINST author kit, not in TL]
               \endinput
           # espcrc1 noop -> \address/\addressmark provides (astro-ph/0408286):
           # 稿把 \address[IoA]{...}/\addressmark[IoA] 编进 \@author, article 的

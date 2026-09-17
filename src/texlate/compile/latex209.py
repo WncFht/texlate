@@ -289,7 +289,13 @@ COMPAT_SHIM = r"""% texlate: LaTeX 2.09 compatibility shim
 \makeatletter
 \newif\if@floats
 \makeatother
-\ifx\footheight\undefined\newlength{\footheight}\fi"""
+\ifx\footheight\undefined\newlength{\footheight}\fi
+% 209 revtex d 列 (decimal) → 兜底为居中列; \newcolumntype 撞已注册列型
+% 会报错, 须以 array 内部注册点 \NC@find@<char> 的 \@ifundefined 守护。
+% d→c 而非 dcolumn D 列: 胞元含裸 $ 对时 D 列数学包壳翻转出 math 报错。
+\makeatletter
+\@ifundefined{NC@find@d}{\RequirePackage{array}\newcolumntype{d}{c}}{}
+\makeatother"""
 
 
 #: ``multicols``/``multicols*`` 透传环境——multicol 被剥后正文 ``\begin{multicols}{n}``
