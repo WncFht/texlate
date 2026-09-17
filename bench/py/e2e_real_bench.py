@@ -76,19 +76,16 @@ from texlate.compile.inject import (
     prepare_chinese,
 )
 from texlate.compile.normalize import normalize_project
-from texlate.e2e import base_condition
-from texlate.latex.api import parse_file
+from texlate.e2e import _scan_tree, base_condition
 from texlate.latex.placeholder import PH_RX
 from texlate.latex.reconstruct import reconstruct
 from texlate.validate.l0 import validate_pair
 from texlate.xlat.client import ChatClient
 from texlate.xlat.pipeline import (
     AuthTrippedError,
-    ChunkIn,
     GatewayTranslator,
     PipelineConfig,
     XlatPipeline,
-    chunk_to_in,
 )
 from texlate.xlat.state import StateStore
 
@@ -143,27 +140,18 @@ safe_id = benchlib.safe_id
 async def translate_tree(
     work: Path, translator: GatewayTranslator, state_dir: Path, cfg: PipelineConfig
 ) -> dict:
-    """work 内全部 .tex → XlatPipeline(GatewayTranslator)+L0 → splice 写回。
+    """work 内可译 .tex → XlatPipeline(GatewayTranslator)+L0 → splice 写回。
 
     对齐 ``texlate.e2e.mock_translate_tree`` 的编排（chunk_id = file_idx:cid、
     reconstruct 回写、PH_RX 数残留），差异：async + StateStore 续跑 +
     per-status 统计 + 调用量/耗时计量。
+
+    扫描段单源 ``e2e._scan_tree``——文件名四门（dotfile 跳、``.rtx.tex`` 跳、
+    ``.code.tex``/无散文记 support_files）与 ``is_file``/suffix 小写口径同
+    e2e/mock 臂不漂移（★3 收敛 2026-09-17：此前零闸送译 support 件，新旧 run
+    体积类指标口径断点见 report.md §4）。
     """
-    scans = []
-    chunks: list[ChunkIn] = []
-    parse_fail: list[str] = []
-    for f in sorted(work.rglob("*.tex")):
-        try:
-            res = parse_file(f, flatten=False)
-        except Exception as e:
-            parse_fail.append(f"{f.relative_to(work)}: {e!r:.120}")
-            continue
-        idx = len(scans)
-        scans.append((f, res))
-        chunks.extend(
-            chunk_to_in(c, chunk_id=f"{idx}:{c.id}", ph_map=res.ph_map)
-            for c in res.chunks
-        )
+    scans, chunks, fault_files, support_files = _scan_tree(work)
 
     total_chars = sum(len(c.content) for c in chunks)
     if total_chars > MAX_TOTAL_CHARS:
@@ -178,7 +166,9 @@ async def translate_tree(
             "attempts": 0,
             "batched": 0,
             "leftover_ph": 0,
-            "parse_fail": parse_fail,
+            "fault_files": fault_files,
+            "support_files": support_files,
+            "support_skipped": len(support_files),
             "warn_kinds": {},
             "seconds": 0.0,
             "src_chars": total_chars,
@@ -241,7 +231,9 @@ async def translate_tree(
         "chunks": len(chunks),
         **stats,
         "leftover_ph": n_leftover,
-        "parse_fail": parse_fail,
+        "fault_files": fault_files,
+        "support_files": support_files,
+        "support_skipped": len(support_files),
         "warn_kinds": dict(sorted(warn_kinds.items())),
         "seconds": round(translate_s, 1),
         "src_chars": total_chars,
