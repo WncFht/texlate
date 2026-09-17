@@ -100,7 +100,7 @@ def _dest_yfrac(dest: object, height: float) -> float | None:
     try:
         top = dest.get("/Top")  # type: ignore[attr-defined]
         y = float(top) / height if top is not None else None
-    except (AttributeError, TypeError, ValueError) as e:
+    except Exception as e:  # noqa: BLE001 -- float(巨型 NumberObject) OverflowError 等畸形 dest 当缺锚，不作废整侧
         log.debug("named dest /Top 解析失败，按页顶锚处理: %s", e)
         return None
     if y is None or not math.isfinite(y):
