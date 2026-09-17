@@ -30,6 +30,7 @@ from texlate.latex.tables import (
     TRANSPARENT_HEAD_SPEC,
     TRANSPARENT_NAMES,
 )
+from texlate.textutil import DOCCLASS_NAMES
 
 from ._common import (
     _GRP_FLOW_TAGS,
@@ -188,7 +189,7 @@ class _MainLoop:
             if (
                 t.kind == "cs"
                 and t.gen == 0
-                and t.text in ("documentclass", "documentstyle")
+                and t.text in DOCCLASS_NAMES
                 and not self._doc_opened
                 and not self.in_arg
                 and not self.mined

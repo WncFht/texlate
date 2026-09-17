@@ -39,19 +39,32 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Iterable, Iterator
 
 __all__ = [
     "BEGIN_DOC_RX",
     "CJK_RANGES",
     "CJK_RX",
+    "CMD_BOUNDARY",
     "DEAD_ENVS",
+    "DECL_NAME_RX",
+    "DECL_TAIL",
+    "DOCCLASS_DECL_RX",
+    "DOCCLASS_NAMES",
+    "DOCCLASS_ONLY_RX",
+    "DOCCLASS_OPTS_RX",
+    "DOCCLASS_RX",
+    "DOCSTYLE_DECL_RX",
+    "DOCSTYLE_RX",
+    "INPUT_BARE_RX",
+    "INPUT_BRACED_RX",
     "JSON_FENCE_RX",
     "MATH_CS",
     "PH_FUZZY_RX",
     "VERBATIM_ENVS",
     "EncodingVerdict",
     "bare_cs_net",
+    "clean_decl_name",
     "data_root",
     "dead_end_anchored",
     "dead_env_end",
@@ -61,6 +74,7 @@ __all__ = [
     "env_float",
     "env_str",
     "is_cjk_cp",
+    "iter_depth0",
     "lev_capped",
     "mask_comments",
     "mask_tex",
@@ -74,6 +88,40 @@ __all__ = [
 #: ``\begin{document}`` 探测（``\begin {document}`` 空白合法）。消费侧一律
 #: 在遮盖/剥注释视图上判定——注释/verbatim 内的字面命中不算数。
 BEGIN_DOC_RX: Final = re.compile(r"\\begin\s*\{document\}")
+
+# ------------------------------------------------------------------
+# ``\documentclass``/``\documentstyle`` 声明探测族（单源：audit-2026-09 §2.2
+# 「六站三方言」收编）。边界统一 ``@`` 排外——``\makeatletter`` 语境的
+# ``\documentclass@foo`` 是异名 cs 而非声明命令；``\b``/``(?![a-zA-Z])`` 旧
+# 写法分别误吞 ``@`` 后随、误拒 ``_``/数字后随，均弃。
+#: 视图归调用方（visible_tex/mask_tex/剥注释面），本族只管 pattern。
+CMD_BOUNDARY: Final = r"(?![a-zA-Z@])"
+
+#: 探测用 cs 名集——token 层（segmenter mainloop）与正则层同源。
+DOCCLASS_NAMES: Final = frozenset({"documentclass", "documentstyle"})
+
+#: ``\documentclass``/``\documentstyle`` 命令名探测（无实参约束）。group(1)
+#: 为命中命令名。
+DOCCLASS_RX: Final = re.compile(r"\\(documentclass|documentstyle)" + CMD_BOUNDARY)
+#: ``\documentstyle`` 单名版（209 检出/升级面专用）。
+DOCSTYLE_RX: Final = re.compile(r"\\documentstyle" + CMD_BOUNDARY)
+#: ``\documentclass`` 单名版。
+DOCCLASS_ONLY_RX: Final = re.compile(r"\\documentclass" + CMD_BOUNDARY)
+
+#: 声明实参尾形 ``[opts]{name}``——命令集不同的复合探测（probe/shadow 的
+#: ``LoadClass`` 族）拿本片段拼自己的交替，尾形唯一事实源。自带两捕：
+#: ``(opts, name)``——拼接方按 offset 读组。
+DECL_TAIL: Final = r"\s*(?:\[([^\]]*)\])?\s*\{([^}]*)\}"
+#: 完整声明形：``(cmd, opts, name)`` 三组。
+DOCCLASS_DECL_RX: Final = re.compile(
+    r"\\(documentclass|documentstyle)" + CMD_BOUNDARY + DECL_TAIL
+)
+DOCSTYLE_DECL_RX: Final = re.compile(r"\\documentstyle" + CMD_BOUNDARY + DECL_TAIL)
+#: ``\documentclass`` 选项→``{`` 锚定形（opts 一捕）——svjour stub 与
+#: legacy-latin 注入锚同形。
+DOCCLASS_OPTS_RX: Final = re.compile(
+    r"\\documentclass" + CMD_BOUNDARY + r"\s*(?:\[([^\]]*)\])?\s*\{"
+)
 
 
 #: LLM JSON 应答的 ```json fence 剥皮——response_format 在 3003 网关被静默
@@ -95,6 +143,29 @@ PH_FUZZY_RX: Final = re.compile(
     r"|(?<!\[)\[[A-Za-z_]+_?-?\d+\](?!\])"  # [X_1] 单层括号
     r"|【(?=[^【】\n]{0,47}[A-Za-z])[^【】\n]{1,48}?】"  # 【..】 CJK 括号
 )
+
+
+#: ``\input`` 族目标扫描（compile probe/inject 同源口径：braced/bare 两形；
+#: ``\b`` 词界使 ``\includegraphics`` 不误命中 ``\include``）。named
+#: groups——``verb`` 给 ``\InputIfFileExists`` 的 optional 判定，``arg``
+#: 是声明文件名；消费方按名取组、位序脱钩。
+INPUT_BRACED_RX: Final = re.compile(
+    r"\\(?P<verb>input|include|InputIfFileExists)\b\s*\{(?P<arg>[^}]+)\}"
+)
+INPUT_BARE_RX: Final = re.compile(r"\\input\s+(?P<arg>[^\s{}%\\]+)")
+
+#: 声明名噪声过滤：``\w./+-`` 白名单字符集——含控制序列/括号/注释符的
+#: 噪声 token 一律拒（``\input`` 巨参、``\@tempb`` 类误捕；fixloop
+#: static_precheck 同款口径）。
+DECL_NAME_RX: Final = re.compile(r"^[\w./+-]+$")
+
+
+def clean_decl_name(raw: str) -> str | None:
+    """声明参数 → 干净文件名；含控制序列/括号/注释符的噪声 token → ``None``。"""
+    name = raw.strip().strip('"').strip()
+    if not name or not DECL_NAME_RX.match(name):
+        return None
+    return name
 
 
 def mask_comments(text: str) -> str:
@@ -491,6 +562,32 @@ def mask_tex(text: str, *, mask_dead: bool = True, keep_verbatim: bool = False) 
         # i 推到 ~2i，大段注释逃逸遮盖）。
         i = command.end() if command else i + 1
     return "".join(chars)
+
+
+def iter_depth0(rx: re.Pattern[str], vis: str) -> Iterator[re.Match[str]]:
+    r"""``rx`` 在遮盖视图上、起始位置 brace 深度 0 的全部命中。
+
+    花括号配对走查随 finditer 游标推进；``\\`` 双字符跳过不吃配对。
+    ``\bgroup``/``[..]`` 非字符花括号不计深度——与 TeX 语义一致。
+    ``inject.find_docclass_ends`` 与 ``latex209._primary_docstyle`` 共用
+    （原逐字复抄，单源后落本模块——两层都不能反依赖 compile 层）。
+    """
+    depth = 0
+    pos = 0
+    for m in rx.finditer(vis):
+        while pos < m.start():
+            c = vis[pos]
+            if c == "\\":
+                pos += 2
+                continue
+            if c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+            pos += 1
+        pos = m.end()
+        if depth == 0:
+            yield m
 
 
 # ---------------------------------------------------------------- 编码判定

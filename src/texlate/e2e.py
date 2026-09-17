@@ -41,26 +41,27 @@ from texlate.compile.inject import (
 from texlate.compile.judge import Verdict, judge
 from texlate.compile.normalize import normalize_project
 from texlate.compile.probe import target_probe
-from texlate.latex.api import parse_file
+from texlate.latex.api import scan_tex_tree
 from texlate.latex.placeholder import PH_RX
-from texlate.latex.prose import file_has_prose
 from texlate.latex.reconstruct import reconstruct
 from texlate.repair import (
     _ENV_ENV_JUDGE,
+    _ENV_FIXLOOP_LLM,
+    _ENV_NO_FIXLOOP,
     _ENV_NO_L2,
-    _KNOWN_ENVS,
     L2_MAX_CHUNKS,
     _env_judge_all,
-    _l2_localize,
-    _resplice,
     _retranslate_hits,
     _ruleset_with_baseline,
     _split_cid,
     _TreeRun,
-    cross_engine_retry,
+    consume_engine_flags,
+    embed_tounicode_quiet,
     fixloop_cell_parts,
+    l2_repair_round,
     log_text_of,
     run_fixloop,
+    unknown_env_of,
 )
 from texlate.textutil import env_flag
 from texlate.validate.l0 import validate_pair
@@ -82,9 +83,6 @@ if TYPE_CHECKING:
     from texlate.xlat.pipeline import ChunkResult, Translator
 
 log = logging.getLogger(__name__)
-
-#: 环境开关
-_ENV_NO_FIXLOOP = "TEXLATE_NO_FIXLOOP"
 
 
 # ---------------------------------------------------------------- 翻译树
@@ -115,8 +113,8 @@ def _env_judge_pass(
             continue
         fidx, cid = _split_cid(r.chunk_id)
         chunk = scans[fidx][1].chunks[cid]
-        env_name = (chunk.env or "").strip()
-        if env_name and env_name not in _KNOWN_ENVS:
+        env_name = unknown_env_of(chunk)
+        if env_name is not None:
             targets.append((r.chunk_id, chunk, env_name))
     verdicts = asyncio.run(_env_judge_all(pipe, targets))
     reverted = sorted(cid for cid, keep in verdicts.items() if not keep)
@@ -129,43 +127,26 @@ def _env_judge_pass(
 def _scan_tree(
     root: Path,
 ) -> tuple[list[tuple[Path, ScanResult]], list[ChunkIn], list[str], list[str]]:
-    """枚举树内 ``.tex`` → 三级分流 → 解析 + chunk 收集。
+    """枚举树内 ``.tex`` → 四级分流 → 解析 + chunk 收集。
 
-    文件名闸（``.rtx.tex`` 运行时转储静默跳过、``.code.tex`` tikzlibrary
-    机制件记 support）→ 解析崩记 ``fault_files`` → 无散文记
-    ``support_files``（pstricks/epsf/宏件/gnuplot 转储——送译即腐蚀，
-    按原文保留；与 fault 分流：这里是有意跳过而非失败）。
+    扫描段单源 ``latex.api.scan_tex_tree``（文件名闸 ``.rtx.tex`` 运行时
+    转储静默跳过、``.code.tex`` tikzlibrary 机制件记 support → 解析崩
+    记 ``fault_files`` → 无散文记 ``support_files``——pstricks/epsf/
+    宏件/gnuplot 转储送译即腐蚀，按原文保留；与 fault 分流：有意跳过
+    而非失败）。本壳只把 ``parsed`` 桶折成 ``(scans, chunks)``——
+    chunk_id ``{idx}:{c.id}`` 方案归本臂。
     """
+    tree = scan_tex_tree(root)
     scans: list[tuple[Path, ScanResult]] = []
     chunks: list[ChunkIn] = []
-    fault_files: list[str] = []
-    support_files: list[str] = []
-    for f in sorted(
-        f for f in root.rglob("*") if f.is_file() and f.suffix.lower() == ".tex"
-    ):
-        if f.name.startswith("."):
-            continue  # 隐文件不进翻译集 (同 worker._parse_all/stagerun)
-        if f.name.lower().endswith(".rtx.tex"):
-            continue  # REVTeX 运行时转储不进翻译集 (regress4-1003.1717)
-        rel = f.relative_to(root).as_posix()
-        if f.name.lower().endswith(".code.tex"):
-            support_files.append(rel)
-            continue
-        try:
-            res = parse_file(f, flatten=False)
-        except Exception:  # noqa: BLE001 -- 单文件解析崩不拖垮整树：
-            fault_files.append(rel)  # 记名可审计，该文件按原文保留
-            continue
-        if not file_has_prose(res.chunks):
-            support_files.append(rel)
-            continue
+    for f, _rel, res in tree.parsed:
         idx = len(scans)
         scans.append((f, res))
         chunks.extend(
             chunk_to_in(c, chunk_id=f"{idx}:{c.id}", ph_map=res.ph_map)
             for c in res.chunks
         )
-    return scans, chunks, fault_files, support_files
+    return scans, chunks, [rel for rel, _exc in tree.fault], tree.support
 
 
 def _translate_tree(
@@ -311,15 +292,10 @@ def _probe_flags_of(work: Path, main_rel: str) -> tuple[str, ...]:
         return ()
 
 
-def _compile_judge(
+def _compile_judge_verdict(
     job: _Job, *, expect_cjk: bool, flags: list[str] | None = None
-) -> tuple[dict, CompRes]:
-    """编译 + 判定公共尾段 → (报告 dict, CompRes)。
-
-    best-effort 语义：xelatex halt_on_error=False 对齐 bench；
-    tectonic 无此旋钮——恒 ``-Z continue-on-errors``。``flags`` 透传
-    fixloop engine_flags（跨引擎臂用——tectonic 丢的 flag 由 xelatex 接）。
-    """
+) -> tuple[CompRes, Verdict]:
+    """``_compile_judge`` 的 ``(CompRes, Verdict)`` 产件——tail 由调用方按需合成。"""
     kw: dict[str, object] = (
         {"halt_on_error": False} if job.eng_name == "xelatex" else {}
     )
@@ -330,17 +306,30 @@ def _compile_judge(
         sandbox=True,
         flags=list(dict.fromkeys([*job.probe_flags, *(flags or [])])) or None,
     )
-    v = judge(res, expect_cjk=expect_cjk, log_text=log_text_of(res))
+    return res, judge(res, expect_cjk=expect_cjk, log_text=log_text_of(res))
+
+
+def _compile_judge(
+    job: _Job, *, expect_cjk: bool, flags: list[str] | None = None
+) -> tuple[dict, CompRes]:
+    """编译 + 判定公共尾段 → (报告 dict, CompRes)。
+
+    best-effort 语义：xelatex halt_on_error=False 对齐 bench；
+    tectonic 无此旋钮——恒 ``-Z continue-on-errors``。``flags`` 透传
+    fixloop engine_flags（跨引擎臂用——tectonic 丢的 flag 由 xelatex 接）。
+    """
+    res, v = _compile_judge_verdict(job, expect_cjk=expect_cjk, flags=flags)
     return _tail_dict(res, v), res
 
 
 def _embed_tounicode(pdf: Path) -> int:
-    """``embed_cjk_mappings`` best-effort 壳：后处理崩不拖管线（对齐 worker 语义）。"""
-    try:
-        return embed_cjk_mappings(pdf)
-    except Exception:  # 产物后处理失败不该 fault 整链
-        log.debug("tounicode embed failed", exc_info=True)
-        return 0
+    """``repair.embed_tounicode_quiet`` 委托——bench(``e2e_mock_bench``) 钉住名保签名。
+
+    显式传本模块 ``embed_cjk_mappings`` 全局名——调用时查名使
+    ``monkeypatch.setattr(e2e, "embed_cjk_mappings", …)`` 缝继续生效
+    （test_e2e_wiring 三钉）。
+    """
+    return embed_tounicode_quiet(pdf, embed_fn=embed_cjk_mappings)
 
 
 # ---------------------------------------------------------------- L2 回灌
@@ -351,53 +340,21 @@ def _l2_repair(
 ) -> tuple[dict, CompRes, dict | None]:
     """L2 回灌一轮：归因 → 重译 → resplice → 重编一次 → 余孽回落。
 
+    阶梯骨架单源 ``repair.l2_repair_round``——本层注入 e2e 编译件
+    （``_compile_judge_verdict``）并把末态 Verdict 换回 tail dict 报告形。
     返回 (l2 报告, 最新 CompRes, 新尾段或 None)。
     """
-    rep: dict[str, Any] = {"enabled": True, "cap": cap}
-    hits, n_err = _l2_localize(job.work, run, res)
-    rep["errors"] = n_err
-    rep["hits"] = hits
-    last_res = res
-    if not hits:
-        rep["note"] = "no chunk-level attribution"
-        return rep, last_res, None
-
-    retr = asyncio.run(_retranslate_hits(run, hits, cap))
-    changed: set[str] = retr.pop("_changed")
-    adopted: set[str] = retr.pop("_adopted")
-    rep.update(retr)
-    if not changed:
-        rep["note"] = "no chunk changed"
-        return rep, last_res, None
-
-    rep["rewritten"] = _resplice(
-        run, job.work, job.main_rel, {_split_cid(c)[0] for c in changed}
+    rep, last_res, v = l2_repair_round(
+        run,
+        job.work,
+        job.main_rel,
+        res,
+        cap,
+        retranslate=lambda r, h, c: asyncio.run(_retranslate_hits(r, h, c)),
+        recompile=lambda: _compile_judge_verdict(job, expect_cjk=True),
     )
-    tail2, res2 = _compile_judge(job, expect_cjk=True)
-    last_res = res2
-    rep["recompiled"] = tail2["verdict"]["status"]
-    if tail2["status"] == "clean":
-        return rep, last_res, tail2
-
-    # 重编仍不过：本轮"重译过且仍被点名"的块回落原文；
-    # 其余归因（含已回落原文仍犯错的——那是源级问题）记名留 fixloop。
-    hits2, _ = _l2_localize(job.work, run, res2)
-    still_bad = sorted(set(hits2) & adopted)
-    rep["fallback_src"] = still_bad
-    rep["unresolved"] = sorted(set(hits2) - adopted)
-    if still_bad:
-        for cid in still_bad:
-            fidx, ccid = _split_cid(cid)
-            run.trans.get(fidx, {}).pop(ccid, None)
-        rep["fallback_rewritten"] = _resplice(
-            run, job.work, job.main_rel, {_split_cid(c)[0] for c in still_bad}
-        )
-        # 回落态即交付树——补一次裸编：fixloop 关/崩/reject 时不再有
-        # 代验兜底，zh-src.zip 不能装未验证树（audit fallback_unverified）
-        tail3, res3 = _compile_judge(job, expect_cjk=True)
-        rep["fallback_verdict"] = tail3["verdict"]["status"]
-        last_res, tail2 = res3, tail3
-    return rep, last_res, tail2
+    tail = _tail_dict(last_res, v) if v is not None else None
+    return rep, last_res, tail
 
 
 # ---------------------------------------------------------------- fixloop
@@ -467,7 +424,7 @@ def _run_fixloop(  # noqa: PLR0913 -- 开关面穿透同 pipe_condition
     worker ``ctx.base_dir`` 同件注入），缺席走默认 ruleset（restore_support_from_src
     fail-safe 空转，bench 直调臂即此形态）。
     """
-    if llm_hook is None and env_flag("TEXLATE_FIXLOOP_LLM", default=False):
+    if llm_hook is None and env_flag(_ENV_FIXLOOP_LLM, default=False):
         from texlate.compile.fixloop.llm_hook import make_llm_hook  # noqa: PLC0415
 
         llm_hook = make_llm_hook()
@@ -504,32 +461,29 @@ def _run_fixloop(  # noqa: PLR0913 -- 开关面穿透同 pipe_condition
     dropped: list[str] = rep["engine_flags_dropped"]
     if dropped:
         rep["flags_unapplied"] = True
-        # 跨引擎消费：dropped 多为 shell-escape 需求——tectonic --untrusted
-        # 下不收 → 换 xelatex 重编并把全部请求 flag 经 seam 带给它（retry
-        # 机械在 repair.cross_engine_retry——本臂沿 _compile_judge 的
-        # best-effort 旋钮与 probe_flags 合并）
-        xr = cross_engine_retry(
-            engine_name=job.eng_name,
-            route_engines=route_engines,
-            current_status=tail["status"],
-            work=job.work,
-            main_rel=job.main_rel,
-            timeout=job.timeout,
-            flags=list(dict.fromkeys([*job.probe_flags, *flags])) or None,
-            dropped=dropped,
-            expect_cjk=expect_cjk,
-            make_engine=lambda: engine_for("xelatex", halt_on_error=False),
-        )
-        if xr is not None:
-            rep["cross_engine"] = xr.info
-            if xr.adopted:
-                tail, last_res = _tail_dict(xr.res, xr.verdict), xr.res
-        # 注在换编之后——贴到最终采用的 tail 上，换臂不丢审计痕迹
-        tail["verdict"]["notes"].append(
-            f"engine_flags unsupported on {job.eng_name}: {dropped}"
-        )
-    elif flags:
-        tail["verdict"]["notes"].append(f"engine_flags applied via CLI seam: {flags}")
+    # 跨引擎消费 + 审计 note 的共享尾在 repair.consume_engine_flags——
+    # dropped 多为 shell-escape 需求，tectonic 丢的 flag 由 xelatex 接
+    # （本臂沿 _compile_judge 的 best-effort 旋钮，probe_flags 合并在内层）
+    xr, note = consume_engine_flags(
+        engine_name=job.eng_name,
+        route_engines=route_engines,
+        status_of=lambda: tail["status"],
+        work=job.work,
+        main_rel=job.main_rel,
+        timeout=job.timeout,
+        probe_flags=job.probe_flags,
+        flags=flags,
+        dropped=dropped,
+        expect_cjk=expect_cjk,
+        make_engine=lambda: engine_for("xelatex", halt_on_error=False),
+    )
+    if xr is not None:
+        rep["cross_engine"] = xr.info
+        if xr.adopted:
+            tail, last_res = _tail_dict(xr.res, xr.verdict), xr.res
+    # 注在换编之后——贴到最终采用的 tail 上，换臂不丢审计痕迹
+    if note is not None:
+        tail["verdict"]["notes"].append(note)
     return rep, tail, last_res
 
 

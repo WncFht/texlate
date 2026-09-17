@@ -25,6 +25,8 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
 
 from texlate.textutil import (
+    DECL_TAIL,
+    DOCCLASS_OPTS_RX,
     EncodingVerdict,
     decode_tex,
     decode_tex_with,
@@ -590,8 +592,7 @@ def prepare_legacy_latin_fonts(root: Path) -> int:
     documents = {
         path
         for path, text in visible.items()
-        if re.search(r"\\documentclass\s*(?:\[[^]]*\]\s*)?\{", text)
-        and re.search(r"\\begin\s*\{document\}", text)
+        if DOCCLASS_OPTS_RX.search(text) and re.search(r"\\begin\s*\{document\}", text)
     }
     if not documents:
         return 0
@@ -616,7 +617,7 @@ def prepare_legacy_latin_fonts(root: Path) -> int:
     block = _latin_family_block(needed)
     for path in documents:
         text = sources[path]
-        match = re.search(r"\\documentclass\s*(?:\[[^]]*\]\s*)?\{", visible_tex(text))
+        match = DOCCLASS_OPTS_RX.search(visible_tex(text))
         if match:
             end = group_end(text, match.end() - 1)
             sources[path] = text[:end] + block + text[end:]
@@ -1224,8 +1225,7 @@ _PACKAGE_USE_RX: Final = re.compile(
     r"|\\PassOptionsTo(?:Package|Class)\s*\{[^}]*\}\s*\{([^}]+)\}"
 )
 _CLASS_USE_RX: Final = re.compile(
-    r"\\(?:documentclass|LoadClass|LoadClassWithOptions)\s*"
-    r"(?:\[[^]]*\]\s*)?\{([^}]+)\}"
+    r"\\(?:documentclass|LoadClass|LoadClassWithOptions)" + DECL_TAIL
 )
 #: 遮蔽传递闭包轮数上限——遮蔽件自身 ``\RequirePackage`` 再拉系统件时补探。
 _SHADOW_MAX_ROUNDS: Final = 8
@@ -1261,7 +1261,9 @@ def _collect_package_refs(text: str) -> tuple[set[str], set[str]]:
             if raw:
                 packages.update(n.strip() for n in raw.split(",") if n.strip())
     for match in _CLASS_USE_RX.finditer(visible):
-        classes.add(match[1].strip())
+        name = match[2].strip()
+        if name:
+            classes.add(name)
     return packages, classes
 
 

@@ -32,6 +32,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from texlate import e2e
+from texlate.latex import api as latex_api
 from texlate.xlat.pipeline import MockTranslator, PipelineConfig
 
 if TYPE_CHECKING:
@@ -61,8 +62,12 @@ def _write(root: Path, rel: str, text: str) -> Path:
 
 
 def _crash_on(monkeypatch: pytest.MonkeyPatch, names: set[str]) -> None:
-    """``e2e.parse_file`` 换成按文件名崩的版本——fault 闸原料（真输入探针不崩）。"""
-    real_parse = e2e.parse_file
+    """``latex.api.parse_file`` 换成按文件名崩的版本——fault 闸原料（真输入探针不崩）。
+
+    补丁打 ``scan_tex_tree`` 的模块全局查找点——``e2e._scan_tree`` 薄壳委托
+    ``latex.api`` 扫描段后，崩注面随件迁（C5 收编）。
+    """
+    real_parse = latex_api.parse_file
 
     def flaky(path: Path, **kw: object) -> ScanResult:
         if path.name in names:
@@ -70,7 +75,7 @@ def _crash_on(monkeypatch: pytest.MonkeyPatch, names: set[str]) -> None:
             raise RuntimeError(msg)
         return real_parse(path, **kw)
 
-    monkeypatch.setattr(e2e, "parse_file", flaky)
+    monkeypatch.setattr(latex_api, "parse_file", flaky)
 
 
 def _mega_tree(root: Path) -> dict[str, list[str]]:

@@ -40,6 +40,7 @@ from texlate.latex.tables import (
     VERBATIM_ENVS,
 )
 from texlate.textutil import (
+    DOCCLASS_RX,
     mask_tex,
 )
 
@@ -585,7 +586,6 @@ def _chunk_spec_cached(spec_str: str) -> list[ArgSpec]:
     return _CHUNK_SPEC_CACHE[spec_str]
 
 
-_PREAMBLE_RX = re.compile(r"\\(documentclass|documentstyle)(?![a-zA-Z])")
 _DOC_BEGIN_RX = re.compile(r"\\begin\s*\{document\}")
 
 
@@ -593,5 +593,5 @@ def _doc_begin_of(tex0: str) -> int:
     r"""fid-0 ``\\begin{document}`` 的 ``\\begin`` 起点（v1 mask 视图双门同规则）。"""
     masked = mask_tex(tex0)
     mdoc = _DOC_BEGIN_RX.search(masked)
-    mpream = _PREAMBLE_RX.search(masked)
+    mpream = DOCCLASS_RX.search(masked)
     return mdoc.start() if (mpream and mdoc) else -1

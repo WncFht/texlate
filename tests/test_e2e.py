@@ -23,6 +23,7 @@ from conftest import RecordingEngine
 
 from texlate import e2e
 from texlate.compile.engine import RouteDecision
+from texlate.latex import api as latex_api
 from texlate.xlat.pipeline import MOCK_ZH, ChunkResult, MockTranslator
 
 if TYPE_CHECKING:
@@ -104,7 +105,7 @@ def test_translate_tree_parse_fault_isolated(
     _project(tmp_path)
     (tmp_path / "broken.tex").write_text("Anything\n", encoding="utf-8")
 
-    real_parse_file = e2e.parse_file
+    real_parse_file = latex_api.parse_file
 
     def flaky_parse(path: Path, **kw: object) -> object:
         if path.name == "broken.tex":
@@ -112,7 +113,8 @@ def test_translate_tree_parse_fault_isolated(
             raise RuntimeError(msg)
         return real_parse_file(path, **kw)
 
-    monkeypatch.setattr(e2e, "parse_file", flaky_parse)
+    # scan_tex_tree（e2e._scan_tree 的委托正源）模块全局查找点
+    monkeypatch.setattr(latex_api, "parse_file", flaky_parse)
     stats = e2e.mock_translate_tree(tmp_path)
 
     assert stats["fault_files"] == ["broken.tex"]

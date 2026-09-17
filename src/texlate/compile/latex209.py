@@ -34,22 +34,18 @@ import shutil
 import subprocess
 from typing import TYPE_CHECKING, NamedTuple
 
-from texlate.textutil import decode_tex
+from texlate.textutil import (
+    DOCSTYLE_DECL_RX,
+    DOCSTYLE_RX,
+    decode_tex,
+    iter_depth0,
+)
 
 from .mask import visible_tex
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
     from pathlib import Path
-
-_DOCSTYLE_RE = re.compile(
-    r"\\documentstyle(?![a-zA-Z@])(?:\s*\[([^\]]*)\])?\s*\{([^}]*)\}"
-)
-
-#: 残余 ``\documentstyle`` 记号清扫（仅命令名，实参不动）——转换只升级
-#: 首个深度 0 声明，宏体/分支里剩下的同名命令逐 token 改名 ``\documentclass``，
-#: 免得 compat 模式下二次声明照样炸（fuzz I5）。
-_DS_TOKEN_RE = re.compile(r"\\documentstyle(?![a-zA-Z@])")
 
 #: 选项名/类名的 glob 安全字符集——进 ``root.rglob`` 模式串前必须过闸。
 _GLOB_SAFE_RE = re.compile(r"[A-Za-z0-9_.+-]+")
@@ -412,25 +408,8 @@ def _primary_docstyle(vis: str) -> re.Match[str] | None:
 
     深度>0 命中（``\newcommand{\ds}{\documentstyle{..}}`` 宏体、``\ifmain{..}``
     实参）不是声明点——全文搜首个会把 COMPAT_SHIM 塞进 def 体（fuzz I5）。
-    与 inject.find_docclass_ends 同款深度走查（latex209 不能反依赖 inject）。
     """
-    depth = 0
-    pos = 0
-    for m in _DOCSTYLE_RE.finditer(vis):
-        while pos < m.start():
-            c = vis[pos]
-            if c == "\\":
-                pos += 2
-                continue
-            if c == "{":
-                depth += 1
-            elif c == "}":
-                depth -= 1
-            pos += 1
-        pos = m.end()
-        if depth == 0:
-            return m
-    return None
+    return next(iter_depth0(DOCSTYLE_DECL_RX, vis), None)
 
 
 def upgrade_209(tex: str, *, root: Path | None = None) -> tuple[str, dict]:
@@ -487,7 +466,7 @@ def upgrade_209(tex: str, *, root: Path | None = None) -> tuple[str, dict]:
     new_tex = tex[: m.start()] + "\n".join(lines) + tex[m.end() :]
     # 残余 \documentstyle 记号改名（遮盖视图定位、原文回填，倒序保 offset）。
     vis2 = visible_tex(new_tex)
-    for dm in reversed([*_DS_TOKEN_RE.finditer(vis2)]):
+    for dm in reversed([*DOCSTYLE_RX.finditer(vis2)]):
         new_tex = new_tex[: dm.start()] + "\\documentclass" + new_tex[dm.end() :]
     return new_tex, {
         "status": "converted",

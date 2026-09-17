@@ -14,22 +14,24 @@ from __future__ import annotations
 
 import errno
 import re
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 if TYPE_CHECKING:
     import os
+    from collections.abc import Callable
 
 from texlate.latex.flatten import flatten_inputs
 from texlate.latex.gullet import Gullet
 from texlate.latex.macro_table import MacroTable
 from texlate.latex.model import ScanResult, ScanState, ScanWarning
 from texlate.latex.placeholder import PH_RX, PlaceholderIssuer
+from texlate.latex.prose import file_has_prose
 from texlate.latex.scanner import Scanner
 from texlate.latex.segmenter import parse_tex_v2, scan_v2
-from texlate.textutil import decode_tex, env_flag, mask_tex
+from texlate.textutil import DOCCLASS_RX, decode_tex, env_flag, mask_tex
 
-_PREAMBLE_RX = re.compile(r"\\(documentclass|documentstyle)(?![a-zA-Z])")
 _DOC_BEGIN_RX = re.compile(r"\\begin\s*\{document\}")
 _NO_EXPAND = "TEXLATE_NO_EXPAND"
 
@@ -61,7 +63,7 @@ def parse_tex_v1(tex: str) -> ScanResult:
     # 命中的 offset 与原文逐字节对齐（W11 留档弱点修复——曾接受不修）。
     masked = mask_tex(tex)
     mdoc = _DOC_BEGIN_RX.search(masked)
-    mpream = _PREAMBLE_RX.search(masked)
+    mpream = DOCCLASS_RX.search(masked)
     preamble_end = mdoc.end() if (mpream and mdoc) else 0
     return sc.scan(tex, preamble_end=preamble_end)
 
@@ -136,3 +138,64 @@ def parse_file(
         g = Gullet()
         g.push_source(tex)
     return scan_v2(g)
+
+
+# ------------------------------------------------------------------ 树扫描段
+#: ``.rtx.tex``（REVTeX 运行时转储，regress4-1003.1717）——静默跳过不进任何
+#: 名单。
+RTX_TEX_SUFFIX: Final = ".rtx.tex"
+#: ``.code.tex``（tikzlibrary 机制件）——散文门前置记 support，按原文保留。
+CODE_TEX_SUFFIX: Final = ".code.tex"
+#: 名闸并集——凭文件名即知非翻译内容件；fixloop ``_SUPPORT_SUFFIXES``
+#: （builtins.py）同表，待换指本常量。
+NAME_GATED_TEX_SUFFIXES: Final = (RTX_TEX_SUFFIX, CODE_TEX_SUFFIX)
+
+
+@dataclass(slots=True)
+class TexTreeScan:
+    """``scan_tex_tree`` 产物：四级分流后三桶。"""
+
+    #: ``(abspath, root 相对 posix, ScanResult)``——过散文门的内容件，序稳定。
+    parsed: list[tuple[Path, str, ScanResult]] = field(default_factory=list)
+    #: 有意不进翻译集（``.code.tex`` 机制件/无散文宏件转储）——按原文保留。
+    support: list[str] = field(default_factory=list)
+    #: 解析崩记名 ``(rel, exc)``——该文件按原文保留；异常随行供记 log。
+    fault: list[tuple[str, Exception]] = field(default_factory=list)
+
+
+def scan_tex_tree(
+    root: Path, *, on_file: Callable[[Path], None] | None = None
+) -> TexTreeScan:
+    r"""枚举树内 ``.tex`` → 四级分流（e2e/worker 两臂共享的扫描段单源）。
+
+    门序：dotfile 跳过 → ``.rtx.tex`` 跳过 → ``.code.tex`` 记 support →
+    解析崩记 fault（不拖垮整树）→ 无散文记 support → 余者入 ``parsed``。
+    ``on_file`` 逐文件回调——worker 取消轮询挂点，CLI/bench 臂缺省。
+    """
+    out = TexTreeScan()
+    for f in sorted(
+        p for p in root.rglob("*") if p.is_file() and p.suffix.lower() == ".tex"
+    ):
+        if on_file is not None:
+            on_file(f)
+        if f.name.startswith("."):
+            continue  # 隐文件不进翻译集
+        lowered = f.name.lower()
+        if lowered.endswith(RTX_TEX_SUFFIX):
+            continue  # REVTeX 运行时转储不进翻译集
+        rel = f.relative_to(root).as_posix()
+        if lowered.endswith(CODE_TEX_SUFFIX):
+            out.support.append(rel)
+            continue
+        try:
+            res = parse_file(f, flatten=False)
+        except Exception as exc:  # noqa: BLE001 -- 单文件解析崩不拖垮整树
+            out.fault.append((rel, exc))  # 记名可审计，该文件按原文保留
+            continue
+        if not file_has_prose(res.chunks):
+            # 无散文（pstricks/epsf/宏件/gnuplot 转储）——送译即腐蚀，
+            # 按原文保留；与 fault 分流：这里是有意跳过而非失败
+            out.support.append(rel)
+            continue
+        out.parsed.append((f, rel, res))
+    return out

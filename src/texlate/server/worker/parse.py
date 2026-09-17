@@ -11,8 +11,7 @@ from texlate.compile.inject import (
     find_main_tex,
 )
 from texlate.compile.normalize import normalize_project
-from texlate.latex.api import parse_file
-from texlate.latex.prose import file_has_prose
+from texlate.latex.api import scan_tex_tree
 from texlate.xlat.pipeline import chunk_to_in
 from texlate.xlat.prompts import normalize_kind
 
@@ -119,42 +118,28 @@ class _Parse:
     def _parse_all(
         self, ctx: TaskCtx
     ) -> tuple[list[dict[str, Any]], dict[str, ScanResult]]:
-        """逐文件半解析 → (chunk 行, scans)。单文件崩不拖全树。"""
+        """逐文件半解析 → (chunk 行, scans)。单文件崩不拖全树。
+
+        四级分流单源 ``latex.api.scan_tex_tree``（e2e ``_scan_tree`` 同件）——
+        ``on_file`` 挂逐文件取消轮询，fault 桶携异常记 log。
+        """
+        tree = scan_tex_tree(
+            ctx.base_dir, on_file=lambda _p: self._abort_if_cancelled(ctx)
+        )
+        ctx.support_files = list(tree.support)
+        ctx.fault_files = []
+        for rel, exc in tree.fault:
+            ctx.fault_files.append(rel)
+            self._log(ctx, f"parse skip {rel}: {exc}")
         rows: list[dict[str, Any]] = []
         scans: dict[str, ScanResult] = {}
-        ctx.support_files = []
-        ctx.fault_files = []
-        seq = 0
-        for f in sorted(
-            p
-            for p in ctx.base_dir.rglob("*")
-            if p.is_file() and p.suffix.lower() == ".tex"
-        ):
-            self._abort_if_cancelled(ctx)  # 逐文件轮询——大工程半解析是秒级段
-            name = f.name.lower()
-            if f.name.startswith(".") or name.endswith(".rtx.tex"):
-                continue  # 隐文件 + REVTeX 运行时转储不进翻译集（同 e2e/stagerun）
-            rel = f.relative_to(ctx.base_dir).as_posix()
-            if name.endswith(".code.tex"):
-                ctx.support_files.append(rel)  # tikzlibrary 机制件按原文保留
-                continue
-            try:
-                res = parse_file(f, flatten=False)
-            except Exception as e:  # noqa: BLE001 -- 单文件解析崩记名跳过
-                ctx.fault_files.append(rel)
-                self._log(ctx, f"parse skip {rel}: {e}")
-                continue
-            if not file_has_prose(res.chunks):
-                # 无散文（pstricks/epsf/宏件/gnuplot 转储）——送译即腐蚀，
-                # 按原文保留；与 parse skip 分流：这里是有意跳过而非失败
-                ctx.support_files.append(rel)
-                continue
+        for _f, rel, res in tree.parsed:
             scans[rel] = res
             for c in res.chunks:
                 cid = chunk_db_id(rel, c.span.start, c.span.end)
                 rows.append(
                     {
-                        "seq": seq,
+                        "seq": len(rows),
                         "chunk_id": cid,
                         "src_file": rel,
                         "byte_start": c.span.start,
@@ -163,7 +148,6 @@ class _Parse:
                         "src_text": c.content,
                     }
                 )
-                seq += 1
         return rows, scans
 
     async def _ensure_scans(self, ctx: TaskCtx) -> None:

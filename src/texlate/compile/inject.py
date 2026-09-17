@@ -25,8 +25,16 @@ from typing import TYPE_CHECKING
 from texlate.textutil import (
     BEGIN_DOC_RX,
     DEAD_ENVS,
+    DOCCLASS_DECL_RX,
+    DOCCLASS_ONLY_RX,
+    DOCCLASS_RX,
+    DOCSTYLE_RX,
+    INPUT_BARE_RX,
+    INPUT_BRACED_RX,
     VERBATIM_ENVS,
+    clean_decl_name,
     decode_tex,
+    iter_depth0,
     safe_is_file,
     safe_resolve,
 )
@@ -275,8 +283,6 @@ TEXT_8BIT_FALLBACK = r"""
 \fi
 """
 
-_DOC_RE = re.compile(r"\\(documentclass|documentstyle)(?![a-zA-Z@])")
-
 #: ``\begin{逐字/失活环境}`` opener——遮盖视图把 opener 本身也抹成空白，
 #: 判断 docclass 行尾是否藏吞行环境必须查原文 tail（fuzz I4）。
 _ENV_OPEN_RE = re.compile(
@@ -292,12 +298,6 @@ _MAIN_TEX_SUFFIXES = (".tex", ".ltx")
 
 #: \documentclass 调用参数扫描上限（防御畸形输入死循环）。
 _DOCCLASS_SCAN_LIMIT = 4000
-
-#: ``\input`` 族目标扫描（probe.py 同款口径：braced/bare 两形；
-#: ``\b`` 词界使 ``\includegraphics`` 不误命中 ``\include``）。
-_INPUT_BRACED_RE = re.compile(r"\\(?:input|include|InputIfFileExists)\b\s*\{([^}]+)\}")
-_INPUT_BARE_RE = re.compile(r"\\input\s+([^\s{}%\\]+)")
-_INPUT_NAME_RE = re.compile(r"^[\w./+-]+$")
 
 #: ``_body_mass`` BFS 文件数上界——分数只是排序键，够分胜负即可，
 #: 病态工程（数千 .tex）不拖死选取。
@@ -404,11 +404,11 @@ def _walk_inputs(
     while queue and len(seen) <= _MASS_FILE_CAP:
         src, vis = queue.pop()
         for match in (
-            *_INPUT_BRACED_RE.finditer(vis),
-            *_INPUT_BARE_RE.finditer(vis),
+            *INPUT_BRACED_RX.finditer(vis),
+            *INPUT_BARE_RX.finditer(vis),
         ):
-            name = match[1].strip().strip('"').strip()
-            if not name or not _INPUT_NAME_RE.match(name):
+            name = clean_decl_name(match["arg"])
+            if name is None:
                 continue
             tgt = _resolve_input(root, src.parent, name)
             if tgt is None or tgt in seen:
@@ -483,7 +483,7 @@ def find_main_tex(root: Path) -> Path | None:
             text = visible_tex(decode_tex(p.read_bytes()))
         except OSError:
             continue
-        if not re.search(r"\\(?:documentclass|documentstyle)\b", text):
+        if not DOCCLASS_RX.search(text):
             continue
         rel = p.relative_to(root).as_posix()
         if not _closure_has_document(resolved, p.resolve(), text):
@@ -493,8 +493,8 @@ def find_main_tex(root: Path) -> Path | None:
         # ``\begin {document}``（空白合法）字面 split 切不到，body 量被
         # 前导区虚抬。
         bodies[rel] = BEGIN_DOC_RX.split(text, maxsplit=1)[-1]
-        dc = re.search(r"\\document(?:class|style)\s*(\[[^\]]*\])?", text)
-        tpl[rel] = bool(dc and dc.group(1) and "\\" in dc.group(1))
+        dc = DOCCLASS_DECL_RX.search(text)
+        tpl[rel] = bool(dc and dc.group(2) and "\\" in dc.group(2))
     if not candidates:
         return None
 
@@ -560,9 +560,9 @@ def classify_no_main(root: Path) -> str | None:
             vis = visible_tex(decode_tex(p.read_bytes()))
         except OSError:
             continue
-        if re.search(r"\\documentclass\b", vis):
+        if DOCCLASS_ONLY_RX.search(vis):
             return None
-        has_ds |= re.search(r"\\documentstyle\b", vis) is not None
+        has_ds |= DOCSTYLE_RX.search(vis) is not None
         has_bd |= BEGIN_DOC_RX.search(vis) is not None
         plain |= _PLAIN_TEX_RE.search(vis) is not None
     if has_ds:
@@ -611,30 +611,6 @@ def _docclass_close(vis: str, start: int) -> int:
     return j
 
 
-def _iter_depth0(rx: re.Pattern[str], vis: str) -> Iterator[re.Match[str]]:
-    r"""``rx`` 在遮盖视图上、起始位置 brace 深度 0 的全部命中。
-
-    花括号配对走查随 finditer 游标推进；``\\`` 双字符跳过不吃配对。
-    ``\bgroup``/``[..]`` 非字符花括号不计深度——与 TeX 语义一致。
-    """
-    depth = 0
-    pos = 0
-    for m in rx.finditer(vis):
-        while pos < m.start():
-            c = vis[pos]
-            if c == "\\":
-                pos += 2
-                continue
-            if c == "{":
-                depth += 1
-            elif c == "}":
-                depth -= 1
-            pos += 1
-        pos = m.end()
-        if depth == 0:
-            yield m
-
-
 def find_docclass_ends(tex: str) -> list[tuple[int, int, str]]:
     r"""全部可用的 `\documentclass`/`\documentstyle` 注入缝 `(pos, lineno, cmd)`。
 
@@ -650,7 +626,7 @@ def find_docclass_ends(tex: str) -> list[tuple[int, int, str]]:
     vis = visible_tex(tex)
     hits: list[tuple[int, int, str]] = []
     seen_pos: set[int] = set()
-    for m in _iter_depth0(_DOC_RE, vis):
+    for m in iter_depth0(DOCCLASS_RX, vis):
         close = _docclass_close(vis, m.end())
         if close > 0 and vis[close - 1] == "}":
             eol = tex.find("\n", close)
@@ -700,7 +676,7 @@ def _macro_proxy_seams(tex: str, vis: str) -> list[tuple[int, int, str]]:
         if brace < 0:
             continue
         body_end = group_end(vis, brace)
-        dm = _DOC_RE.search(vis, brace, body_end)
+        dm = DOCCLASS_RX.search(vis, brace, body_end)
         if dm is not None:
             proxy[m.group(1)] = dm.group(1)
             def_sites.add(m.start(1) - 1)  # 定义位的 \name token 不算调用
@@ -709,7 +685,7 @@ def _macro_proxy_seams(tex: str, vis: str) -> list[tuple[int, int, str]]:
     names = "|".join(sorted(proxy))
     invoke_re = re.compile(rf"\\(?:{names})(?![a-zA-Z@])")
     hits: list[tuple[int, int, str]] = []
-    for m in _iter_depth0(invoke_re, vis):
+    for m in iter_depth0(invoke_re, vis):
         if m.start() in def_sites:
             continue
         eol = tex.find("\n", m.end())
@@ -826,9 +802,7 @@ def _float_sized(text: str) -> str:
     ``\let\texlate@endfloatbox\@endfloatbox`` 二次捕获已补丁版本会自递归）。
     """
     vis = visible_tex(text)
-    if FLOAT_SIZING.strip() in text or not re.search(
-        r"\\(?:documentclass|documentstyle)\b", vis
-    ):
+    if FLOAT_SIZING.strip() in text or not DOCCLASS_RX.search(vis):
         return text
     if BEGIN_DOC_RX.search(vis):
         return inject_preamble(text, FLOAT_SIZING)

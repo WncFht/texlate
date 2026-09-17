@@ -18,7 +18,15 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
 
-from texlate.textutil import decode_tex, safe_is_file, safe_resolve
+from texlate.textutil import (
+    DECL_TAIL,
+    INPUT_BARE_RX,
+    INPUT_BRACED_RX,
+    clean_decl_name,
+    decode_tex,
+    safe_is_file,
+    safe_resolve,
+)
 
 from .engine import (
     _MINTED_FROZEN_RE,
@@ -43,17 +51,11 @@ __all__ = [
 ]
 
 _PKG_RE = re.compile(r"\\(?:usepackage|RequirePackage)\s*(?:\[[^\]]*\])?\s*\{([^}]+)\}")
-_CLS_RE = re.compile(
-    r"\\(documentclass|documentstyle|LoadClass)\s*(?:\[[^\]]*\])?\s*\{([^}]+)\}"
-)
-_INPUT_BRACED_RE = re.compile(r"\\(input|include|InputIfFileExists)\b\s*\{([^}]+)\}")
-_INPUT_BARE_RE = re.compile(r"\\input\s+([^\s{}%\\]+)")
+_CLS_RE = re.compile(r"\\(documentclass|documentstyle|LoadClass)" + DECL_TAIL)
 _DOC_BEGIN_RE = re.compile(r"\\begin\s*\{document\}")
 #: 死尾边界：首个 ``\end{document}``/``\endinput`` 之后引擎不再读本文件——
 #: 其后的 ``\input`` 不产生 missing_file，扫它只会报假缺失。
 _DEAD_TAIL_RE = re.compile(r"\\end\s*\{document\}|\\endinput\b")
-#: 声明名噪声过滤（fixloop static_precheck 同款）：滤掉 `\@tempb` 类误捕。
-_NAME_RE = re.compile(r"^[\w./+-]+$")
 
 #: 声明包名 → (信号, 说明)。信号集：``xelatex`` = tectonic xdvipdfmx 硬墙；
 #: ``shell_escape`` = 需 ``\write18``（xelatex flags 承载，tectonic
@@ -123,14 +125,6 @@ def _load_index() -> TlpdbIndex | None:
         return TlpdbIndex.ensure()
     except Exception:  # noqa: BLE001  # 索引拉取失败降级「无索引」判定，不阻塞探针
         return None
-
-
-def _clean_name(raw: str) -> str | None:
-    """声明参数 → 干净文件名；含控制序列/括号/注释符的噪声 token → None。"""
-    name = raw.strip().strip('"').strip()
-    if not name or not _NAME_RE.match(name):
-        return None
-    return name
 
 
 def _find_local(root: Path, cwd: Path, fname: str) -> Path | None:
@@ -209,18 +203,18 @@ def _record_dep(
 
 def _scan_inputs(ctx: _ScanCtx, live: str, rel: str, queue: list[Path]) -> None:
     r"""`\input`/`\include`/`\InputIfFileExists` + 裸 `\input` 登记与跟进。"""
-    for match in _INPUT_BRACED_RE.finditer(live):
-        name = _clean_name(match.group(2))
+    for match in INPUT_BRACED_RX.finditer(live):
+        name = clean_decl_name(match["arg"])
         if name is None:
             continue
-        optional = match.group(1) == "InputIfFileExists"
+        optional = match["verb"] == "InputIfFileExists"
         probe = _record_dep(ctx, rel, name, "input", optional=optional)
         if probe.resolved == "local" and probe.fname.lower().endswith(".tex"):
             queued = safe_resolve(ctx.root / probe.detail)
             if queued is not None:
                 queue.append(queued)
-    for match in _INPUT_BARE_RE.finditer(live):
-        name = _clean_name(match.group(1))
+    for match in INPUT_BARE_RX.finditer(live):
+        name = clean_decl_name(match["arg"])
         if name is None:
             continue
         probe = _record_dep(ctx, rel, name, "input")
@@ -246,11 +240,11 @@ def _scan_file(ctx: _ScanCtx, tex: Path, rel: str, queue: list[Path]) -> None:
     live = vis[: dead.start()] if dead is not None else vis
     for match in _PKG_RE.finditer(preamble):
         for raw in match.group(1).split(","):
-            name = _clean_name(raw)
+            name = clean_decl_name(raw)
             if name is not None:
                 _record_dep(ctx, rel, name, "package")
     for match in _CLS_RE.finditer(preamble):
-        name = _clean_name(match.group(2))
+        name = clean_decl_name(match.group(3))
         if name is not None:
             _record_dep(ctx, rel, name, "class")
         if match.group(1) == "documentstyle":

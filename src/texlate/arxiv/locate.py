@@ -26,7 +26,7 @@ from typing import Final
 
 from texlate.arxiv._texutil import TEX_EXT, strip_comments
 from texlate.arxiv.sniff import check_pdf_wrapper
-from texlate.textutil import BEGIN_DOC_RX, decode_tex
+from texlate.textutil import BEGIN_DOC_RX, DOCCLASS_RX, decode_tex
 
 _FILENAME_PRIOR: Final = frozenset(
     {"main", "paper", "ms", "root", "manuscript", "thesis"}
@@ -34,7 +34,6 @@ _FILENAME_PRIOR: Final = frozenset(
 _MAX_DEPTH: Final = 64
 _MULTI_ROOT: Final = 2
 
-_DOCCLASS_RE: Final = re.compile(r"\\(?:documentclass|documentstyle)(?![a-zA-Z@])")
 _PLAIN_RE: Final = re.compile(r"\\bye(?![a-zA-Z@])")
 _CONTEXT_RE: Final = re.compile(
     r"\\(?:starttext|startdocument|startcomponent)(?![a-zA-Z@])"
@@ -409,7 +408,7 @@ def _scan_nodes(
             path=rel,
             stripped=stripped,
             scanned=scanned,
-            has_documentclass=bool(_DOCCLASS_RE.search(scanned)),
+            has_documentclass=bool(DOCCLASS_RX.search(scanned)),
             has_begin_document=bool(BEGIN_DOC_RX.search(scanned)),
             refs=_scan_refs(rel, scanned),
         )

@@ -80,9 +80,7 @@ from texlate.compile.judge import (
 )
 from texlate.compile.latex209 import (
     _CLASS_MAP,
-    _DOCSTYLE_RE,
     _DS_AT_CLASSES,
-    _DS_TOKEN_RE,
     _INCOMPAT_PKGS,
     _KERNEL_OPTS,
     _MULTICOLS_SHIM,
@@ -102,6 +100,7 @@ from texlate.redlines import (
     LayerSpec,
     name_pattern,
 )
+from texlate.textutil import DOCSTYLE_DECL_RX, DOCSTYLE_RX
 from texlate.validate import l2
 
 if TYPE_CHECKING:
@@ -839,7 +838,7 @@ def _oracle_primary(vis: str) -> re.Match[str] | None:
     """
     depth = 0
     pos = 0
-    for m in _DOCSTYLE_RE.finditer(vis):
+    for m in DOCSTYLE_DECL_RX.finditer(vis):
         while pos < m.start():
             c = vis[pos]
             if c == "\\":
@@ -915,7 +914,7 @@ def _oracle_209(  # noqa: C901 -- 分派链逐支重述
         lines.append("\\usepackage{" + ",".join(pkg_opts) + "}")
     out = tex[: m.start()] + "\n".join(lines) + tex[m.end() :]
     vis2 = visible_tex(out)
-    for dm in reversed([*_DS_TOKEN_RE.finditer(vis2)]):
+    for dm in reversed([*DOCSTYLE_RX.finditer(vis2)]):
         out = out[: dm.start()] + "\\documentclass" + out[dm.end() :]
     return _Oracle209(
         "converted", None, cls, target, cls_opts, pkg_opts, shipped, stripped, out
@@ -1023,7 +1022,7 @@ class TestLatex209:
                 assert info["shipped"] == exp.shipped
                 assert info["stripped"] == exp.stripped
                 vis = visible_tex(out)
-                assert _DS_TOKEN_RE.search(vis) is None  # 无活 docstyle 残留
+                assert DOCSTYLE_RX.search(vis) is None  # 无活 docstyle 残留
                 assert COMPAT_SHIM in out
                 # 分派守恒：三路输出 == 改名后选项多重集
                 renamed = [
