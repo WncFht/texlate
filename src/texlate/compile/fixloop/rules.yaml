@@ -4506,6 +4506,8 @@ rules:
           - { id: prime_2032, cps: [0x2032], replace: "\\ensuremath{'}" }
           - { id: astop_2217, cps: [0x2217], replace: "\\ensuremath{\\ast}" }
           - { id: sumop_2211, cps: [0x2211], replace: "\\ensuremath{\\sum}" }
+          # M1-B 残余 (1502.06189): .bbl 字面 ℓ 落 lmroman9 无槽
+          - { id: ell, cps: [0x2113], replace: "\\ensuremath{\\ell}" }
     risk: low # 预热盒不可见; replace 只动缺字码位本身
     engines:
       xelatex: { mode: native }
