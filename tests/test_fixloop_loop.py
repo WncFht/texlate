@@ -10,7 +10,12 @@ from pathlib import Path
 
 from texlate.compile.fixloop import Ruleset, builtins, fixloop
 from texlate.compile.fixloop.ctan import CtanFetcher
-from texlate.compile.fixloop.engine import LoopCtx, _dep_stems, find_main_tex
+from texlate.compile.fixloop.engine import (
+    LoopCtx,
+    _dep_stems,
+    _report_of,
+    find_main_tex,
+)
 from texlate.compile.fixloop.logparse import ErrReport
 
 CLEAN_LOG = "This is pdfTeX\nOutput written on main.pdf (1 page).\n"
@@ -37,6 +42,8 @@ class MockRes:
         self.timed_out = bool(spec.get("timed_out"))
         self.seconds = 0.05
         self.stdout_tail = spec.get("tail", "")
+        #: 镜像 CompRes.log_text (编译期已读 .log 原文)——缺省 "" 走文件读。
+        self.log_text = spec.get("log_text", "")
 
     @property
     def has_pdf(self) -> bool:
@@ -1003,8 +1010,9 @@ def test_classify_rounds_pass1_final_pass2(tmp_path: Path) -> None:
     cell = fixloop(make_proj(tmp_path), eng)
     assert cell["verdict"] == "clean"
     assert len(cell["rounds"]) == 2  # noqa: PLR2004 - 修复轮 + 收敛轮
-    # r1 分类轮 p1; r2 收敛轮 p1 探 + 全遍终编——成品来自 passes=2 编译
-    assert [c["passes"] for c in eng.calls] == [1, 1, 2]
+    # r1 分类轮 p1; r2 收敛轮 p1 探 + 终编——compile_passes=2 ≤自适应上限
+    # → passes=None (rerun-hint 才升遍, 引擎 MAX_PASSES=2 同值语义)
+    assert [c["passes"] for c in eng.calls] == [1, 1, None]
     assert not any(c["best_effort"] for c in eng.calls)
 
 
@@ -1014,7 +1022,7 @@ def test_first_round_clean_probes_then_finalizes(tmp_path: Path) -> None:
     cell = fixloop(make_proj(tmp_path), eng)
     assert cell["verdict"] == "clean"
     assert len(cell["rounds"]) == 1
-    assert [c["passes"] for c in eng.calls] == [1, 2]
+    assert [c["passes"] for c in eng.calls] == [1, None]
 
 
 def test_nonconverging_cell_all_pass1(tmp_path: Path) -> None:
@@ -1055,5 +1063,26 @@ def test_finalize_recompile_resurfaces_errors(tmp_path: Path) -> None:
     assert len(cell["rounds"]) == 3  # noqa: PLR2004 - r1修 + r2终编浮err修 + r3收敛
     assert cell["rounds"][1]["category"] == "missing_file"
     assert cell["rounds"][1]["payload"] == "other.sty"
-    assert [c["passes"] for c in eng.calls] == [1, 1, 2, 1, 2]
+    assert [c["passes"] for c in eng.calls] == [1, 1, None, 1, None]
     assert {"zhnumber.sty", "other.sty"} <= set(cell["installed"])
+
+
+def test_finalize_compile_passes_gt2_passthrough(tmp_path: Path) -> None:
+    """``compile_passes > 2`` 超自适应上限的显式诉求——原样透传不吞成 None。"""
+    rs = mini_rs(rules=[], taxonomy=[], loop_cfg={"compile_passes": 3})
+    eng = PassRecordingEngine([{"log": CLEAN_LOG, "pdf": True}])
+    cell = fixloop(make_proj(tmp_path), eng, ruleset=rs)
+    assert cell["verdict"] == "clean"
+    assert [c["passes"] for c in eng.calls] == [1, 3]
+
+
+def test_report_of_prefers_compres_log_text(tmp_path: Path) -> None:
+    """``_report_of`` 复用 ``res.log_text`` (fix#10)——盘面 .log 不再二次开读。
+
+    log_text 与 .log 文件分歧时以 log_text (编译期读到的原文) 为准。
+    """
+    res = MockRes(tmp_path, "main.tex", {"log": "! BOOM on-disk\n", "pdf": True})
+    res.log_text = "! CACHED in-memory\nl.9 \\x\n"
+    rep = _report_of(res, [])
+    assert rep.first == "! CACHED in-memory"
+    assert rep.n_bang == 1

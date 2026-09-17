@@ -89,3 +89,42 @@ def test_dep_input_braced_no_space_form(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     assert _dep_stems(f) == ["realdep", "sub/fig.tex", "spaced", "baredep"]
+
+
+# ------------------------------------------------------------ Ruleset.load 缓存
+def test_load_cache_hit_returns_independent_object(tmp_path: Path) -> None:
+    """同路径二次 load 命中缓存: 内容一致但深拷贝隔离——非同一对象。"""
+    shard = tmp_path / "a.yaml"
+    shard.write_text(_shard(_RULE_A), encoding="utf-8")
+    rs1 = Ruleset.load(shard)
+    rs2 = Ruleset.load(shard)
+    assert rs1 is not rs2
+    assert rs1.rules[0].raw is not rs2.rules[0].raw
+    assert [r.id for r in rs2.rules] == ["a"]
+
+
+def test_load_cache_mutation_isolation(tmp_path: Path) -> None:
+    """命中件原地改写 (ruleset_with_baseline 注 baseline_dir 形态) 不回流缓存。"""
+    shard = tmp_path / "a.yaml"
+    shard.write_text(_shard(_RULE_A), encoding="utf-8")
+    rs1 = Ruleset.load(shard)
+    rs1.rules[0].raw["baseline_dir"] = "/x"
+    rs2 = Ruleset.load(shard)
+    assert "baseline_dir" not in rs2.rules[0].raw
+
+
+def test_load_cache_shard_edit_invalidates(tmp_path: Path) -> None:
+    """分片改动 (mtime/size 漂移) → 指纹失效重载: 改文本即见新内容。"""
+    shard = tmp_path / "a.yaml"
+    shard.write_text(_shard(_RULE_A), encoding="utf-8")
+    assert len(Ruleset.load(shard).rules) == 1
+    shard.write_text(_shard(_RULE_A, _RULE_B), encoding="utf-8")
+    assert [r.id for r in Ruleset.load(shard).rules] == ["a", "b"]
+
+
+def test_load_cache_shard_add_invalidates(tmp_path: Path) -> None:
+    """目录面新增分片同样漂移指纹——多片装载的缓存正确性。"""
+    (tmp_path / "10-a.yaml").write_text(_shard(_RULE_A), encoding="utf-8")
+    assert len(Ruleset.load(tmp_path).rules) == 1
+    (tmp_path / "20-b.yaml").write_text(_shard(_RULE_B), encoding="utf-8")
+    assert [r.id for r in Ruleset.load(tmp_path).rules] == ["a", "b"]

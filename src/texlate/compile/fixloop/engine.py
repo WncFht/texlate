@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import copy
 import re
 import shutil
 import subprocess
@@ -312,7 +313,13 @@ def _report_of(res: CompResLike, warn_patterns: list[dict[str, Any]]) -> ErrRepo
     ``error: msg`` 行归一成 ``! msg`` 喂同一套 taxonomy。
     """
     log_path = getattr(res, "log_path", None)
-    rep = parse_log(Path(log_path) if log_path else None, warn_patterns)
+    # CompRes.log_text = 引擎编译期已读的 .log 原文 —— 复用免二次开文件
+    # (B14 fix#10); 假值 (老调用方/test double 不填) 走原文件读路径。
+    text = getattr(res, "log_text", "") or ""
+    if text:
+        rep = parse_text(text, warn_patterns)
+    else:
+        rep = parse_log(Path(log_path) if log_path else None, warn_patterns)
     if rep.n_bang == 0:
         tail = getattr(res, "stdout_tail", "") or ""
         if tail:
@@ -423,6 +430,37 @@ class Rule:
         return self.engines.get(engine_name) or {"mode": "native"}
 
 
+#: ``Ruleset.load`` 进程内缓存 —— ``{str(path): (分片指纹, 展开后纯数据)}``。
+#: 指纹 = load_yaml 选片口径下每件分片的 ``(name, mtime_ns, size)`` 元组,
+#: 任一分片增删改即漂移重载 (B14 fix#8: 每格 ~300ms yaml 装载 → ~3ms
+#: deepcopy)。缓存的是展开后 *数据* 而非 Ruleset, 返回一律 deepcopy:
+#: ``repair.ruleset_with_baseline`` 会原地改写 ``rule.raw`` 注 baseline_dir,
+#: 共享对象会把 per-task 态漏回缓存。
+_RULESET_CACHE: dict[str, tuple[tuple[tuple[str, int, int], ...], dict[str, Any]]] = {}
+_RULESET_CACHE_MAX = 16
+
+
+def _ruleset_fingerprint(p: Path) -> tuple[tuple[str, int, int], ...] | None:
+    """``load_yaml`` 实际会读到的分片集快照; ``None`` = 不确定, 别缓存。
+
+    选片口径与 ``load_yaml`` 严格对齐 (目录: 排序 *.yaml/*.yml 普通文件;
+    否则自身单文件)。stat/iterdir OSError、目录无分片 (load_yaml 会抛错)
+    都返回 ``None`` —— 错误态走原路径照常抛, 不进缓存。
+    """
+    try:
+        if p.is_dir():
+            shards = sorted(
+                f for f in p.iterdir() if f.is_file() and f.suffix in {".yaml", ".yml"}
+            )
+            if not shards:
+                return None
+        else:
+            shards = [p]
+        return tuple((f.name, f.stat().st_mtime_ns, f.stat().st_size) for f in shards)
+    except OSError:
+        return None
+
+
 class Ruleset:
     """``rules/`` 规则库装载结果: meta + taxonomy + rules + filemap/capabilities。"""
 
@@ -496,9 +534,24 @@ class Ruleset:
 
     @classmethod
     def load(cls, path: Path | None = None) -> Ruleset:
-        """装载规则库 (默认本包附带 ``rules/`` 目录; 也接受单文件路径)。"""
+        """装载规则库 (默认本包附带 ``rules/`` 目录; 也接受单文件路径)。
+
+        进程内按 ``(路径, 分片指纹)`` 缓存展开后纯数据, 命中 deepcopy 返回
+        (见 ``_RULESET_CACHE`` 注 —— 调用方原地改写不外溢); 指纹漂移
+        (分片增/删/改) 或不可 stat 时重走全量装载。
+        """
         p = path or RULES_PATH
-        return cls(_expand_family_tokens(load_yaml(p)), path=p)
+        fp = _ruleset_fingerprint(p)
+        if fp is None:
+            return cls(_expand_family_tokens(load_yaml(p)), path=p)
+        key = str(p)
+        hit = _RULESET_CACHE.get(key)
+        if hit is None or hit[0] != fp:
+            if len(_RULESET_CACHE) >= _RULESET_CACHE_MAX:
+                _RULESET_CACHE.clear()
+            hit = (fp, _expand_family_tokens(load_yaml(p)))
+            _RULESET_CACHE[key] = hit
+        return cls(copy.deepcopy(hit[1]), path=p)
 
     def phase(self, name: str) -> list[Rule]:
         """某 phase 的规则按 order 升序。"""
@@ -1454,7 +1507,10 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
             res = eng.compile(
                 wdir,
                 ctx.main_rel,
-                passes=passes,
+                # yaml ``compile_passes`` 权威依旧: >1 才进本臂; 值 ≤2 时传
+                # ``None`` 走引擎自适应门 (rerun-hint 才升遍, MAX_PASSES=2
+                # 同值), >2 是超自适应上限的显式诉求, 原样透传无条件执行。
+                passes=None if passes <= 2 else passes,  # noqa: PLR2004 - 2 = compile/engine.py MAX_PASSES 自适应上限
                 flags=list(ctx.engine_flags),
                 **compile_kw,
             )

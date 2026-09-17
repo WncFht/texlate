@@ -787,6 +787,31 @@ def test_xelatex_explicit_passes_ungated(
     assert len(calls) == 3 and res.passes == 3  # noqa: PLR2004, PT018
 
 
+def _write_pdf_and_log(cmd: list[str], _cwd: Path, _n: int) -> None:
+    out = _xe_out(cmd)
+    (out / "main.pdf").write_bytes(b"%PDF-fake")
+    (out / "main.log").write_text(
+        "This is XeTeX\n! cached log body\n", encoding="utf-8"
+    )
+
+
+def test_compile_log_text_carried_no_reread(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``res.log_text`` 载编译期已读 .log 原文（fix#10）——parse_log(res) 免开文件。"""
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        eng_mod, "run_process", _fake_run(calls, side=_write_pdf_and_log)
+    )
+    (tmp_path / "main.tex").write_text("x")
+    eng = XelatexEngine(binary="/bin/true")
+    res = eng.compile(tmp_path, "main.tex", sandbox=False)
+    assert res.log_text == "This is XeTeX\n! cached log body\n"
+    res.log_path.unlink()  # 盘面抹掉——parse_log 仍应复用 log_text
+    info = eng.parse_log(res)
+    assert info.n_errors == 1
+
+
 def test_xelatex_error_exit_short_circuits(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

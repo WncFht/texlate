@@ -137,6 +137,7 @@ class ScriptedEngine:
             pdf_bytes=pdf_bytes,
             log_path=log,
             log=parse_log(log_text),
+            log_text=log_text,
             rc=0,
             passes=passes,
             seconds=0.01,
@@ -197,8 +198,9 @@ def test_fixloop_runs_on_fail_and_recovers(
     assert "rule" in fl["rounds"][0]
     assert report["verdict"]["status"] == "clean"
     assert len(engines["xelatex"].calls) == 3  # noqa: PLR2004 -- 首编 + fixloop r1 (p1 探 + 全遍终编)
-    # fixloop 分类轮 p1、收敛终编轮 compile_passes=2（perf-fix: passes 分层）
-    assert [c["passes"] for c in engines["xelatex"].calls[1:]] == [1, 2]
+    # fixloop 分类轮 p1、收敛终编轮 passes=None 走引擎自适应门
+    # (compile_passes=2 ≤ MAX_PASSES → rerun-hint 才升遍; perf-fix#1)
+    assert [c["passes"] for c in engines["xelatex"].calls[1:]] == [1, None]
 
 
 def test_fixloop_disabled_by_env(

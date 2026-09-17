@@ -64,7 +64,7 @@ meta:
     dedup_key: "{rule_id}:{payload}" # ctx.applied, 同规则同负载不重复 (L552,561)
     stuck_sig_repeat: 3 # 同 category:payload 连续 3 轮 → verdict=stuck (L756-761)
     clean_err_max: 3 # pdf 且 '!' 错 ≤3 → acceptable (L41, L786-791)
-    compile_passes: 2 # 第二轮仅在已出 pdf 时跑 (L628-630)
+    compile_passes: 2 # 终编臂开关 (>1 启用) + 遍数语义: ≤2 → 引擎自适应门 (rerun-hint 才升遍); >2 → 显式无条件遍数透传 (L628-630)
     timeout_sec: 120
     warn_demote: false # warnings 只记录不改判; §4.3 clean 三件套在 pipeline 层做
     warn_driven_fixes: true # v1.1: 错误全无时 warnings 可驱动 warn_* 类别修复轮

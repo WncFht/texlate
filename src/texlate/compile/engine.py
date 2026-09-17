@@ -148,6 +148,11 @@ class CompRes:
     pdf_bytes: int = 0
     log_path: Path | None = None
     log: LogInfo = field(default_factory=LogInfo)
+    #: 编译期已读的 ``.log`` 文件全文（空/缺席/读失败为 ``""``；stdout_tail
+    #: 兜底逻辑归消费方自理，与各家 ``or stdout_tail`` 口径一致）——fixloop
+    #: ``_report_of``/``log_text_of``/``_l2_parse``/``parse_log(res)`` 直接复用，
+    #: 同一文本不再重复开文件（B14 fix#10 格内 ~4× 文件读 → 1×）。
+    log_text: str = ""
     timed_out: bool = False
     seconds: float = 0.0
     passes: int = 0
@@ -575,6 +580,7 @@ class XelatexEngine:
             log_text = ""
         res.log = parse_log(log_text or res.stdout_tail, project_root=wdir)
         _salvage_driver_fatal(res.log, res)
+        res.log_text = log_text
         res.log_path = log if log.exists() else None
         res.pdf = pdf if pdf.exists() else None
         res.pdf_bytes = pdf.stat().st_size if pdf.exists() else 0
@@ -846,9 +852,9 @@ class XelatexEngine:
         return rc == 0 and not to
 
     def parse_log(self, res: CompRes) -> LogInfo:
-        """读 res.log_path；缺席/空文件/读失败时退 stdout_tail。"""
-        text = ""
-        if res.log_path is not None:
+        """编译期已读的 ``res.log_text`` 优先；缺席退 res.log_path，再 stdout_tail。"""
+        text = res.log_text
+        if not text and res.log_path is not None:
             with contextlib.suppress(OSError):
                 text = res.log_path.read_text(encoding="utf-8", errors="replace")
         info = parse_log(text or res.stdout_tail, project_root=res.workdir)
@@ -1083,6 +1089,7 @@ class TectonicEngine:
                     info.first_error = "! " + m.group(1)
                     info.n_errors = max(1, info.n_errors)
         res.log = info
+        res.log_text = log_text
         res.log_path = log if log.exists() else None
         res.pdf = pdf if pdf.exists() else None
         res.pdf_bytes = pdf.stat().st_size if pdf.exists() else 0
@@ -1125,7 +1132,12 @@ class TectonicEngine:
         return False
 
     def parse_log(self, res: CompRes) -> LogInfo:
-        """读 res.log_path；缺席/空文件时退 stdout_tail + ``error:`` 扫描。"""
+        """读 res.log_path；缺席/空文件时退 stdout_tail + ``error:`` 扫描。
+
+        ``res.log_text`` 不可作 ``text`` 源——它已合并 stdout_tail，而下方
+        ``error:`` 扫描门钉在「.log 文件侧为空」上（合并值会把空 .log +
+        非空 stdout 的形态错挡在门外）。
+        """
         text = ""
         if res.log_path is not None:
             with contextlib.suppress(OSError):

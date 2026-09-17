@@ -107,8 +107,8 @@ def log_text_of(res: CompRes) -> str:
     让 missing-char 等只存在于 stdout 的信号静默丢失；缺席/空文件/读
     失败一律退 ``stdout_tail``。
     """
-    text = ""
-    if res.log_path is not None:
+    text = getattr(res, "log_text", "") or ""
+    if not text and res.log_path is not None:
         with suppress(OSError):
             text = res.log_path.read_text(encoding="utf-8", errors="replace")
     return text or res.stdout_tail or ""
@@ -444,8 +444,8 @@ def _l2_parse(res: CompRes) -> l2_mod.L2Verdict:
     被杀编译留 0 字节 ``.log``——``exists()`` 判据下 0 错返回 L2 臂
     静默空转（engine.parse_log 同款修复，worker 共享本函数同愈）。
     """
-    text = ""
-    if res.log_path is not None:
+    text = getattr(res, "log_text", "") or ""
+    if not text and res.log_path is not None:
         with suppress(OSError):
             text = res.log_path.read_text(encoding="utf-8", errors="replace")
     if text or res.stdout_tail:
@@ -721,9 +721,7 @@ def l2_repair_round(  # noqa: PLR0913 -- 阶梯钩子面穿透两臂同一契约
     res: CompRes,
     cap: int,
     *,
-    retranslate: Callable[
-        [TreeRun, dict[str, dict[str, Any]], int], dict[str, Any]
-    ],
+    retranslate: Callable[[TreeRun, dict[str, dict[str, Any]], int], dict[str, Any]],
     recompile: Callable[[], tuple[CompRes, Verdict]],
     checkpoint: Callable[[], None] | None = None,
 ) -> tuple[dict[str, Any], CompRes, Verdict | None]:
@@ -791,9 +789,7 @@ def l2_repair_round(  # noqa: PLR0913 -- 阶梯钩子面穿透两臂同一契约
 # ---------------------------------------------------------------- glossary confine
 
 
-def resolve_glossary_path(
-    gpath: str, glossary_dir: str, base_dir: Path
-) -> Path | None:
+def resolve_glossary_path(gpath: str, glossary_dir: str, base_dir: Path) -> Path | None:
     """``_glossary_path`` 的静默版：同一 confine 解析，不告警。
 
     供 ``_make_cache`` 这类「只想知道生效文件」的调用方用——告警仍由
