@@ -35,7 +35,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import unquote
-from xml.sax.saxutils import escape
 
 import defusedxml.ElementTree
 from bs4 import BeautifulSoup, NavigableString, Tag
@@ -1063,6 +1062,25 @@ def _sanitize_doctype(soup: BeautifulSoup, node: Doctype) -> None:
         node.replace_with(Doctype(name))
 
 
+_RAW_TEXT_AMP_RE = re.compile(
+    r"&(?!#[0-9]+;|#[xX][0-9a-fA-F]+;|amp;|lt;|gt;|quot;|apos;)"
+)
+
+
+def _escape_raw_text(text: str) -> str:
+    """raw-text 节点内容的 XML 化转义：``&`` 只在不构成合法 XML 实体时补转。
+
+    ``html.parser`` 对 ``<script>``/``<style>``/``<template>`` 不解实体——
+    源里的 ``&amp;`` 已是序列化形，``saxutils.escape`` 无脑转 ``&`` 会产出
+    ``&amp;amp;``，产出重进管线逐轮累积 ``amp;``（非幂等）。裸 ``&`` 与
+    ``<``/``>`` 仍须转义（``<`` 防提前终结、``>`` 防 ``]]>`` 非法序列）；
+    ``&nbsp;`` 等非预定义实体转为字面量 ``&amp;nbsp;``——EPUB XHTML 无 DTD，
+    保留原名会产出未定义实体非法件。
+    """
+    text = _RAW_TEXT_AMP_RE.sub("&amp;", text)
+    return text.replace("<", "&lt;").replace(">", "&gt;")
+
+
 def _sanitize_dom(soup: BeautifulSoup) -> None:
     """载入时一次性 DOM 净化：html.parser 宽容构造 → 可序列化为合法 XML。
 
@@ -1075,7 +1093,7 @@ def _sanitize_dom(soup: BeautifulSoup) -> None:
     _ensure_single_root(soup)
     for node in list(soup.descendants):
         if isinstance(node, (Script, Stylesheet, TemplateString)):
-            node.replace_with(type(node)(escape(str(node))))
+            node.replace_with(type(node)(_escape_raw_text(str(node))))
         elif isinstance(node, Comment):
             node.replace_with(Comment(re.sub(r"-{2,}", "-", str(node)).rstrip("-")))
         elif isinstance(node, ProcessingInstruction):

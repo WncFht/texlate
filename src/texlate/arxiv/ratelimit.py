@@ -21,6 +21,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import math
 import re
 import time
 from dataclasses import dataclass
@@ -44,10 +45,20 @@ PARK_BASE_SECONDS: Final = 1800.0
 PARK_MAX_SECONDS: Final = 7200.0
 #: 断路器触发阈值：同 (host,path) 连续 N 次 429/406
 BREAKER_STRIKES: Final = 2
+#: park 时长 jitter 上限（jitter span 0.2 → 合法 park ≤ 1.2×park_max，取 1.25 余量）
+_PARK_JITTER_HI: Final = 1.25
+#: park_step 钳制上限——只喂 ``2**step`` 指数退避，park_max 在 step=2 即饱和；
+#: ≥1024 时 ``float * int`` 即 OverflowError（损坏状态/超长会话可达）
+_PARK_STEP_MAX: Final = 60
 
 _CONTENT_PATH_RE: Final = re.compile(
     r"^/(?:src|pdf|abs|html|e-print|list|rss|catchup|refs|cits|format)(?:/|$)"
 )
+
+
+def _clamp_finite(v: float, upper: float) -> float:
+    """落盘时间戳 → 合法域：非有限按 0（未记录/未 park），超上限钳到上限。"""
+    return min(v, upper) if math.isfinite(v) else 0.0
 
 
 def path_class(path: str) -> str:
@@ -140,13 +151,19 @@ class RateLimiter:
         try:
             data = json.loads(self.state_path.read_text(encoding="utf-8"))
             day = str(data.get("day", ""))
-            n = int(data.get("requests_today", 0))
+            n = max(int(data.get("requests_today", 0)), 0)
+            now = self._now()
             buckets = {
                 key: _Bucket(
-                    last_ts=float(b.get("last_ts", 0.0)),
-                    consec_429=int(b.get("consec_429", 0)),
-                    park_until=float(b.get("park_until", 0.0)),
-                    park_step=int(b.get("park_step", 0)),
+                    # 非有限/越界值会让 acquire 睡到 OverflowError 或永久
+                    # park——按字段钳回合法域（类型错仍走整份重零的老路）
+                    last_ts=_clamp_finite(float(b.get("last_ts", 0.0)), now),
+                    consec_429=max(int(b.get("consec_429", 0)), 0),
+                    park_until=_clamp_finite(
+                        float(b.get("park_until", 0.0)),
+                        now + self.policy.park_max * _PARK_JITTER_HI,
+                    ),
+                    park_step=min(max(int(b.get("park_step", 0)), 0), _PARK_STEP_MAX),
                 )
                 for key, b in data.get("buckets", {}).items()
             }
@@ -245,7 +262,8 @@ class RateLimiter:
             b.consec_429 += 1
             if b.consec_429 >= BREAKER_STRIKES:
                 dur = min(
-                    self.policy.park_base * (2**b.park_step), self.policy.park_max
+                    self.policy.park_base * (2 ** min(b.park_step, _PARK_STEP_MAX)),
+                    self.policy.park_max,
                 )
                 dur *= jitter(key + str(self._now()))
                 b.park_until = self._now() + dur

@@ -85,13 +85,17 @@ class TsBaseline:
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> TsBaseline:
-        """从协议字段反序列化。"""
-        return cls(
-            parse_errors=int(d.get("parse_errors", 0)),
-            env_mismatches=int(d.get("env_mismatches", 0)),
-            unclosed_math=int(d.get("unclosed_math", 0)),
-            brace_balance=int(d.get("brace_balance", 0)),
-        )
+        """从协议字段反序列化；schema 违例 → ``L1Error``（同 TsResult 契约）。"""
+        try:
+            return cls(
+                parse_errors=int(d.get("parse_errors", 0)),
+                env_mismatches=int(d.get("env_mismatches", 0)),
+                unclosed_math=int(d.get("unclosed_math", 0)),
+                brace_balance=int(d.get("brace_balance", 0)),
+            )
+        except (TypeError, ValueError, AttributeError, OverflowError) as e:
+            msg = f"L1 baseline schema 违例: {e}"
+            raise L1Error(msg) from e
 
 
 @dataclass(slots=True)
@@ -139,7 +143,7 @@ class TsResult:
                 parse_ms=float(d.get("parse_ms") or 0.0),
                 error=d.get("error"),
             )
-        except (TypeError, ValueError, AttributeError) as e:
+        except (TypeError, ValueError, AttributeError, OverflowError) as e:
             msg = f"L1 worker 响应 schema 违例: {e}"
             raise L1Error(msg) from e
 

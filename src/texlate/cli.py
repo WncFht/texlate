@@ -739,7 +739,7 @@ def _service_lock(
             fh.seek(0)
             meta = json.loads(fh.read().decode() or "{}")
             url = str(meta.get("url") or "")
-        except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError, AttributeError):
             pass
         fh.close()
         return None, url or _connect_url(host, port)

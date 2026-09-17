@@ -701,25 +701,40 @@ def use_bundled_bibliography(text: str, path: Path, cwd: Path | None = None) -> 
     """
     base = cwd or path.parent
     bbl = path.with_suffix(".bbl")
-    if not bbl.is_file() or r"\begin{thebibliography}" not in decode_tex(
-        bbl.read_bytes()
-    ):
+    try:
+        usable = bbl.is_file() and r"\begin{thebibliography}" in decode_tex(
+            bbl.read_bytes()
+        )
+    except OSError:
+        # bbl 在但读不动（EACCES 等）只弃书目步——放任上抛会让调用方逐文件
+        # OSError 兜底连坐丢掉转码/引擎手术
+        log.debug("bbl 读失败，跳过书目替换: %s", bbl)
+        return text
+    if not usable:
         return text
     target = Path(os.path.relpath(bbl, base)).as_posix()
     if target.startswith(".."):
         return text  # openin_any=p 拒 ../ 引用——不可达的 .bbl 不改写
     visible = visible_tex(text)
-    if re.search(r"\\input\s*\{" + re.escape(target) + r"\}", visible):
+    if re.search(
+        r"\\input\s*(?:\{\s*(?:\./)?|\"(?:\./)?)" + re.escape(target) + r"(?:\s*\}|\")",
+        visible,
+    ):
         return text  # 书目位已由本 .bbl 填充——再换只会重复排版
     for match in re.finditer(r"\\bibliography\s*\{([^}]+)\}", visible):
-        databases = [
-            base / (v.strip() if v.strip().endswith(".bib") else v.strip() + ".bib")
-            for v in match[1].split(",")
-        ]
-        if any(not safe_is_file(p) for p in databases):
-            return (
-                text[: match.start()] + r"\input{" + target + "}" + text[match.end() :]
-            )
+        for v in match[1].split(","):
+            name = v.strip()
+            name = name if name.endswith(".bib") else name + ".bib"
+            ref = Path(name)
+            # openin_any=p 拒绝对路径与 .. 引用——盘上在也编译够不着，按缺席计
+            if ref.is_absolute() or ".." in ref.parts or not safe_is_file(base / name):
+                return (
+                    text[: match.start()]
+                    + r"\input{"
+                    + target
+                    + "}"
+                    + text[match.end() :]
+                )
     return text
 
 
