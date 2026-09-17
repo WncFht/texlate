@@ -29,7 +29,7 @@ from urllib.parse import urlsplit
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
 
-from texlate.textutil import data_root, env_flag
+from texlate.textutil import data_root, env_flag, env_str
 from texlate.xlat.client import (
     _LOOPBACK_HOSTS,
     _TAILNET_V4,
@@ -99,7 +99,7 @@ def data_dir() -> Path:
 
 def server_mode() -> str:
     """``TEXLATE_MODE``：``local``（默认）| ``server``（多租户部署形态）。"""
-    return os.environ.get("TEXLATE_MODE", "local")
+    return env_str("TEXLATE_MODE") or "local"
 
 
 def cache_scope() -> str:
