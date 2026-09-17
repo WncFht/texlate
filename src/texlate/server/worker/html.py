@@ -64,7 +64,7 @@ class _Html:
         """``GET /html/{id}`` → ``src/index.html`` + HtmlDoc + 钉版字段。
 
         与 ``_fetch_arxiv`` 同构但更薄：无 e-print 解包、无 raw blob tar——
-        源产物即 ``src/index.html``（``src_tar`` 槽位登记）。版本解析：
+        源产物即 ``src/index.html``（``src_html`` 槽位登记）。版本解析：
         ``fetch_html`` 不暴露 resolved URL，从 canonical/self-link 反推
         vN（``_resolved_version`` best-effort——拿不到则键保持 alias 形，
         dedup 语义与入队键一致不劣化）。HtmlDoc 在 fetch 臂预解析：
@@ -124,7 +124,7 @@ class _Html:
                 shutil.rmtree(ctx.src_dir)
             ctx.src_dir.mkdir(parents=True, exist_ok=True)
             (ctx.src_dir / "index.html").write_text(html, encoding="utf-8")
-            self._register(ctx, "src_tar", "src/index.html")
+            self._register(ctx, "src_html", "src/index.html")
         finally:
             # 自建实例随任务关连接池；注入的 self._fetcher 归调用方所有
             if own:
@@ -261,6 +261,10 @@ class _Html:
         """
         html = (ctx.src_dir / "index.html").read_text(encoding="utf-8")
         marked = _w.marked_html(html)
+        # ph 片段取自 marked 文档再解析——note 等被标记元素进片段时自带
+        # data-chunk：宿主块回插还原的 note 副本仍带锚，footnote 译文
+        # 换子树才找得到（用 parse 期 ph_map 则还原件无锚，note 行全 missed）
+        ph_map = _w.parse_arxiv_html(marked).ph_map
         base_url = f"https://arxiv.org/html/{ctx.row['arxiv_id']}/"
         en = BeautifulSoup(marked, "lxml")
         self._sanitize_dom(en, base_url)
@@ -268,7 +272,6 @@ class _Html:
         self._register(ctx, "en_html", "en.html")
         zh = BeautifulSoup(marked, "lxml")
         self._sanitize_dom(zh, base_url)
-        ph_map = self._html_doc(ctx).ph_map
         missed = 0
         for r in self._on_loop(self.store.all_chunks, ctx.task_id):
             el = zh.find(attrs={"data-chunk": str(r["chunk_id"])})
@@ -277,9 +280,14 @@ class _Html:
                 continue
             text = str(r["translation"] or r["src_text"] or "")
             frag = BeautifulSoup(reinsert(text, ph_map), "html.parser")
-            el.clear()
+            target = el
+            if "ltx_note" in (el.get("class") or []):
+                # footnote 锚注在整个 note span 上，译文只覆盖 content 子树——
+                # 整 clear 会连 mark/触发包装一起丢（点击展开 UX 失效）
+                target = el.find(class_="ltx_note_content") or el
+            target.clear()
             for node in list(frag.contents):
-                el.append(node)
+                target.append(node)
         if missed:
             self._log(ctx, f"emit: {missed} 块无 data-chunk 锚——译文未回插")
         (ctx.root / "zh.html").write_text(str(zh), encoding="utf-8")

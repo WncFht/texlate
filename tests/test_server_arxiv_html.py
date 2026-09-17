@@ -87,6 +87,10 @@ class TestArxivHtmlE2E:
         assert "Item text one." not in zh.text  # 译文替换块内文
         en = html_client.get(f"/api/files/{tid}/en.html")
         assert "Item text one." in en.text  # en 侧保持原文
+        # footnote 块只换 .ltx_note_content 子树——mark/触发包装留存
+        assert 'class="ltx_note_mark"' in zh.text
+        assert 'class="ltx_note_outer"' in zh.text
+        assert "Note text here." not in zh.text  # note 体已被译文换掉
 
     def test_dual_json_dom_shape(self, html_client: TestClient) -> None:
         tid = _post_html(html_client)

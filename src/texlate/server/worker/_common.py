@@ -88,6 +88,7 @@ KIND_URL = {
     "md_zip": "md",
     "zh_docx": "zh.docx",
     "zh_epub": "zh.epub",
+    "src_html": "src.html",
     "en_html": "en.html",
     "zh_html": "zh.html",
 }
