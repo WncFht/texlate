@@ -322,6 +322,10 @@ def verdict_sig(verdict: dict, first_error: str | None = None) -> str:
     首错 cat 时 sig 改挂众数——首错遮 bulk 纠偏（quant-ph/9703040：110 错
     108×syntax，category 却是自恢复的 illegal_unit）；平票仍归
     首错（TeX 级联中首错是因果上游）。众数 payload 取 ``error_pay`` 首见值。
+
+    裁决 2026-09-17（overseer）：sig 只担 dominant-error 分桶——missing_char
+    等 warning 派生信号不并入（混进 error sig 是 phantom-payload 类 bug 温床）；
+    misschar 检索走 ``verdict.missing_chars`` / ``warn:missing_chars`` reason。
     """
     vstatus = verdict.get("status")
     if vstatus in ("clean", None):
