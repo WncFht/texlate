@@ -330,7 +330,7 @@ def judge_dict(res, *, expect_cjk: bool) -> dict:
     聚合桶 (other/errors>3/syntax) 由 dossier/triage 直读细分。
     """
     from texlate.compile.judge import judge
-    from texlate.repair import _l2_parse
+    from texlate.repair_l2 import _l2_parse
 
     v = judge(res, expect_cjk=expect_cjk)
     return {

@@ -25,17 +25,19 @@ from texlate.latex.reconstruct import reconstruct
 from texlate.repair import (
     ENV_FIXLOOP_LLM,
     ENV_NO_FIXLOOP,
-    ENV_NO_L2,
-    L2_MAX_CHUNKS,
-    TreeRun,
     consume_engine_flags,
     embed_tounicode_quiet,
     fixloop_cell_parts,
-    l2_repair_round,
     log_text_of,
-    retranslate_hits,
     ruleset_with_baseline,
     run_fixloop,
+)
+from texlate.repair_l2 import (
+    ENV_NO_L2,
+    L2_MAX_CHUNKS,
+    TreeRun,
+    l2_repair_round,
+    retranslate_hits,
     split_cid,
 )
 from texlate.server.settings import scrub
@@ -551,9 +553,9 @@ class _Compile:
         xr, note = consume_engine_flags(
             engine_name=ctx.engine_name,
             route_engines=[str(e) for e in ctx.options().get("route_engines") or []],
-            status_of=lambda: judge(
-                res, expect_cjk=ctx.expect_cjk, log_text=log_text_of(res)
-            ).status,
+            status_of=lambda: (
+                judge(res, expect_cjk=ctx.expect_cjk, log_text=log_text_of(res)).status
+            ),
             work=work,
             main_rel=ctx.main_rel,
             timeout=self._compile_timeout,
@@ -661,10 +663,8 @@ class _Compile:
             except Exception:
                 log.debug("llm_hook client aclose failed", exc_info=True)
 
-    def _l2_run_state(
-        self, ctx: TaskCtx, work: Path
-    ) -> tuple[TreeRun, dict[str, str]]:
-        """``repair.TreeRun`` 形态重建：scans 指向 work 内文件 + trans/chunk_ins。
+    def _l2_run_state(self, ctx: TaskCtx, work: Path) -> tuple[TreeRun, dict[str, str]]:
+        """``repair_l2.TreeRun`` 形态重建：scans 指向 work 内文件 + trans/chunk_ins。
 
         ``trans`` 取 chunks 表 status='ok' 译文（= work 内已 splice 内容）；
         ``db_of`` 是 ``"fidx:cid"`` → chunks.chunk_id 的 DB 回写映射。
@@ -754,9 +754,7 @@ class _Compile:
             )
             # compile 原子段跑完即收敛——judge 前查取消省一轮白费判分
             self._abort_if_cancelled(ctx)
-            return r, judge(
-                r, expect_cjk=ctx.expect_cjk, log_text=self._log_text_of(r)
-            )
+            return r, judge(r, expect_cjk=ctx.expect_cjk, log_text=self._log_text_of(r))
 
         try:
             rep, res2, v2 = l2_repair_round(

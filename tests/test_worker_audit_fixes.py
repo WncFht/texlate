@@ -820,7 +820,7 @@ class TestL2EofAttribution:
     def test_attr_eof_remap(self, tmp_path: Path) -> None:
         """``L2Attr.attr_error``：eof_file 改派肇事文件，行号丢弃。"""
         from texlate.latex.api import parse_file  # noqa: PLC0415
-        from texlate.repair import L2Attr, TreeRun  # noqa: PLC0415
+        from texlate.repair_l2 import L2Attr, TreeRun  # noqa: PLC0415
         from texlate.validate.l2 import LogError  # noqa: PLC0415
 
         work = tmp_path / "work"
@@ -858,7 +858,7 @@ class TestL2EofAttribution:
     def test_attr_forward_exclusion(self, tmp_path: Path) -> None:
         """起点越过错误行行尾的块被顺序读取不变量排除（repro-2501 形态）。"""
         from texlate.latex.api import parse_file  # noqa: PLC0415
-        from texlate.repair import L2Attr, TreeRun  # noqa: PLC0415
+        from texlate.repair_l2 import L2Attr, TreeRun  # noqa: PLC0415
         from texlate.validate.l2 import LogError  # noqa: PLC0415
 
         work = tmp_path / "work"
@@ -908,7 +908,7 @@ class TestChunkSpansMirror:
     def test_translated_transforms_mirrored(self) -> None:
         from texlate.latex import parse_tex  # noqa: PLC0415
         from texlate.latex.reconstruct import reconstruct  # noqa: PLC0415
-        from texlate.repair import chunk_spans  # noqa: PLC0415
+        from texlate.repair_l2 import chunk_spans  # noqa: PLC0415
 
         tex = (
             "\\documentclass{article}\n"

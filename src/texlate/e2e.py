@@ -45,21 +45,23 @@ from texlate.latex.api import scan_tex_tree
 from texlate.latex.placeholder import PH_RX
 from texlate.latex.reconstruct import reconstruct
 from texlate.repair import (
-    ENV_ENV_JUDGE,
     ENV_FIXLOOP_LLM,
     ENV_NO_FIXLOOP,
+    consume_engine_flags,
+    embed_tounicode_quiet,
+    fixloop_cell_parts,
+    log_text_of,
+    ruleset_with_baseline,
+    run_fixloop,
+)
+from texlate.repair_l2 import (
+    ENV_ENV_JUDGE,
     ENV_NO_L2,
     L2_MAX_CHUNKS,
     TreeRun,
-    consume_engine_flags,
-    embed_tounicode_quiet,
     env_judge_all,
-    fixloop_cell_parts,
     l2_repair_round,
-    log_text_of,
     retranslate_hits,
-    ruleset_with_baseline,
-    run_fixloop,
     split_cid,
     unknown_env_of,
 )

@@ -12,7 +12,7 @@
   ScanResult 的 chunks/ph_map）。
 
 方法：对每条 log 错误复跑**真** `_l2_localize` 路径（`L2Attr` +
-`_resolve_fidx` + `chunk_spans`，原样 import src/texlate/repair.py 内部件，
+`_resolve_fidx` + `chunk_spans`，原样 import src/texlate/repair_l2.py 内部件，
 不重实现），逐错误记归因结果与距离/命中形态；再按规则粗分
 归对/归错/不可归因三档，window 命中落明细供人工复核。
 
@@ -35,7 +35,7 @@ from typing import TYPE_CHECKING
 
 import benchlib
 
-from texlate import repair
+from texlate import repair_l2
 from texlate.compile.engine import CompRes
 from texlate.latex.api import parse_file
 
@@ -55,7 +55,7 @@ ALIGN_MIN = 0.9
 _CJK_RX = re.compile(r"[一-鿿]")
 
 
-def _build_run(aid: str, work: Path) -> tuple[repair.TreeRun | None, dict]:
+def _build_run(aid: str, work: Path) -> tuple[repair_l2.TreeRun | None, dict]:
     """建 TreeRun：scans=(work路径, 源树parse结果)，trans=state ok 译文。"""
     st_path = STATE / aid / "state.json"
     if not st_path.exists():
@@ -117,11 +117,11 @@ def _build_run(aid: str, work: Path) -> tuple[repair.TreeRun | None, dict]:
         "skipped_files": skipped,
         "drift_examples": drift_examples[:5],
     }
-    run = repair.TreeRun(scans=scans, trans=trans, chunk_ins={}, pipe=None)
+    run = repair_l2.TreeRun(scans=scans, trans=trans, chunk_ins={}, pipe=None)
     return run, info
 
 
-def _classify_error(st: repair.L2Attr, err: l2_mod.LogError, work: Path) -> dict:
+def _classify_error(st: repair_l2.L2Attr, err: l2_mod.LogError, work: Path) -> dict:
     """单条错误的归因明细：outcome + 距离 + 行内容证据。"""
     row: dict = {
         "head": err.head[:200],
@@ -134,7 +134,7 @@ def _classify_error(st: repair.L2Attr, err: l2_mod.LogError, work: Path) -> dict
     if src_tok is None:
         row["outcome"] = "no_loc"
         return row
-    fidx = repair._resolve_fidx(src_tok, st.run, work)
+    fidx = repair_l2._resolve_fidx(src_tok, st.run, work)
     if fidx is None:
         row["outcome"] = "unresolved_file"
         row["src_tok"] = src_tok
@@ -149,7 +149,7 @@ def _classify_error(st: repair.L2Attr, err: l2_mod.LogError, work: Path) -> dict
     if err.tex_line is None:
         row["outcome"] = (
             "file_level"
-            if len(sres.chunks) <= repair.L2_MAX_CHUNKS
+            if len(sres.chunks) <= repair_l2.L2_MAX_CHUNKS
             else "no_line_big_file"
         )
         return row
@@ -164,7 +164,7 @@ def _classify_error(st: repair.L2Attr, err: l2_mod.LogError, work: Path) -> dict
     row["line_text"] = line_txt[:200]
     row["line_cjk"] = bool(_CJK_RX.search(line_txt))
 
-    best_cid, best_gap, in_span = None, repair._L2_ATTR_WINDOW + 1, False
+    best_cid, best_gap, in_span = None, repair_l2._L2_ATTR_WINDOW + 1, False
     for cid, sp in st.spans[fidx].items():
         if sp is None:
             continue
@@ -178,7 +178,7 @@ def _classify_error(st: repair.L2Attr, err: l2_mod.LogError, work: Path) -> dict
     if in_span:
         row["outcome"] = "in_span"
         row["cid"] = best_cid
-    elif best_cid is not None and best_gap <= repair._L2_ATTR_WINDOW:
+    elif best_cid is not None and best_gap <= repair_l2._L2_ATTR_WINDOW:
         row["outcome"] = "window"
         row["cid"] = best_cid
         row["gap"] = best_gap
@@ -228,11 +228,11 @@ def main() -> int:
                 continue
 
             res_c = CompRes(engine="xelatex", ok=False, log_path=log)
-            verdict = repair._l2_parse(res_c)
+            verdict = repair_l2._l2_parse(res_c)
             case["n_errors"] = verdict.n_errors
-            st = repair.L2Attr(run, work)
+            st = repair_l2.L2Attr(run, work)
             n_hits = 0
-            for err in verdict.errors[: repair._L2_MAX_ERRORS]:
+            for err in verdict.errors[: repair_l2._L2_MAX_ERRORS]:
                 row = _classify_error(st, err, work)
                 row["case"] = aid
                 row["verdict"] = status

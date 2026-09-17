@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from texlate import e2e, repair
+from texlate import e2e, repair_l2
 from texlate.latex.model import Chunk, Span
 from texlate.xlat.pipeline import ChunkIn, MockTranslator, XlatPipeline
 
@@ -538,7 +538,7 @@ def test_env_judge_bad_answer_fails_open() -> None:
     不许把怪应答炸成管线崩溃（worker 复用同一 ``env_judge_all``）。"""
     pipe = XlatPipeline(_JudgeBadReturn())
     chunk = Chunk(id=0, content="body", context="para", span=Span(0, 4))
-    assert asyncio.run(repair._env_judge_one(pipe, chunk, "mybox")) is True  # noqa: SLF001
+    assert asyncio.run(repair_l2._env_judge_one(pipe, chunk, "mybox")) is True  # noqa: SLF001
 
 
 # ---------------------------------------------------------------- 抄回修复

@@ -58,7 +58,7 @@ sys.path.insert(0, os.environ.get("TEXLATE_SRC", str(ROOT / "src")))
 import benchlib
 
 from texlate import e2e as e2e_mod
-from texlate import repair as repair_mod
+from texlate import repair_l2 as repair_mod
 from texlate.compile.engine import route_project
 from texlate.compile.inject import InjectRejectError, find_main_tex, prepare_chinese
 from texlate.compile.normalize import normalize_project

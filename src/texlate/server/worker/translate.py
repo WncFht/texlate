@@ -12,12 +12,8 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from texlate.repair import (
-    ENV_ENV_JUDGE,
-    env_judge_all,
-    resolve_glossary_path,
-    unknown_env_of,
-)
+from texlate.repair import resolve_glossary_path
+from texlate.repair_l2 import ENV_ENV_JUDGE, env_judge_all, unknown_env_of
 from texlate.server.settings import (
     cache_scope,
     validate_model,
