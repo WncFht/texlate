@@ -101,7 +101,7 @@ def test_generic_scan_eof_not_aux() -> None:
     """非回读宏的 EOF 扫描（如截断的 main.tex 撞上 \\section）不归本类。"""
     rep = parse_text("! File ended while scanning use of \\section.\nl.9 x\n")
     cat, _ = _rs().taxonomy.classify(rep)
-    assert cat == "other"
+    assert cat == "runaway_scan"  # 2026-09-17 通用签名接管非 aux 宏 (aux 族仍专属)
 
 
 # ---------------------------------------------------------------- builtin 单测
