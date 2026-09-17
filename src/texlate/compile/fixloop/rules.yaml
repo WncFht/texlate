@@ -142,14 +142,16 @@ filemap:
 warnings:
   - {
       id: invalid_utf8,
-      pattern: "Invalid UTF-8 byte|Missing character.*U\\+FFFD",
+      pattern: "Invalid UTF-8 byte|Missing character.*U\\+FFFD|replaced by U\\+FFFD",
     }
   # missing_char 排除 nullfont 行: 测量盒/\write 上下文按设计不可印
-  # (scout-misschar ×5 pids 纯噪音)。tempered 窗口允许 log wrap 续行,
-  # 且不越过下一条 Missing character 起点——真字体行紧邻 nullfont 行仍中。
+  # (scout-misschar ×5 pids 纯噪音)。tempered 窗口限本消息体内——不越过
+  # 下一条 Missing character 起点与本消息 in font 终止符,至多跨一个
+  # 折行续行——真字体行紧邻 nullfont 行仍中,已声明字体的消息不被后行
+  # "in font nullfont" 字样误豁免。
   - {
       id: missing_char,
-      pattern: "Missing character(?!(?:(?!Missing character)[\\s\\S]){0,90}?in font nullfont)",
+      pattern: "Missing character:(?!(?:(?!Missing character|in font )[^\\n]){0,90}?(?:\\n(?:(?!Missing character|in font )[^\\n]){0,90}?)?in font nullfont)",
     } # CJK 渲染检查原料
   - {
       id: missing_graphic,

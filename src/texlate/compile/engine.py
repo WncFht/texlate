@@ -187,7 +187,9 @@ _L_NUM_RE = re.compile(r"^l\.(\d+)")
 #: ``warnings_sys`` 观察项（fixer-utf8 `673d8ce` normalize 四臂后复审）。
 #: 红线表单源 = ``texlate.redlines``（★2 收敛——本层发射名/pattern 即
 #: registry ``engine`` 切片；rules.yaml ``warnings:``/judge/l2 同表别层）。
-_UTF8_WARN_RE = re.compile(name_pattern(REDLINES_BY_ID["invalid_utf8"].engine)[1])
+_UTF8_WARN_RE = re.compile(
+    name_pattern(REDLINES_BY_ID["invalid_utf8"].engine)[1], re.IGNORECASE
+)
 WARNING_RED_LINES: list[tuple[str, str]] = list(ENGINE_RED_LINES)
 
 

@@ -3,9 +3,9 @@ r"""红线信号单源注册表（★2 收敛点）：同一概念的多层拼�
 背景：同一红线概念曾四层三拼写——``missing_chars``（engine）/
 ``missing_char``（rules.yaml warnings:）/``missing_glyph``（l2）——
 nullfont 豁免三联改（36f926d/89b2784/0f5c1d6）靠人肉同步，已漂过。
-且各层 pattern **有真分歧**而非纯拼写问题：``invalid_utf8`` 三层三种
-写法（engine 裸串 / rules 折叠 FFFD misschar / l2 行级 ``replaced by``
-形态）；l2 ``file_not_found`` 是 engine ``missing_graphic`` +
+且各层 pattern **有真分歧**而非纯拼写问题：``invalid_utf8`` 曾三层三种
+写法，现 engine/l2 同形（裸串 + ``replaced by U\+FFFD`` 变体）、rules
+另折叠 FFFD misschar；l2 ``file_not_found`` 是 engine ``missing_graphic`` +
 ``degraded_file`` 两条的粒度并集；judge 持 gate+nullfont 双生探针。
 强收单 pattern 必改行为，故本表按 concept 行登记各层
 ``(发射名, pattern)``，消费者各取本层切片，分歧并列可见即防再漂。
@@ -42,17 +42,25 @@ __all__ = [
     "name_pattern",
 ]
 
-#: ``Missing character`` 门控（非 nullfont）——tempered lookahead 限界窗：
+#: ``Missing character:`` 门控（非 nullfont）——tempered lookahead 限界窗：
 #: 排除 ``in font nullfont``（试排/测量盒吞字良性，nullfont-scout-2026-09-17
-#: ~30/37 格纯噪音）；{0,90} 窗允许 79 列折行续行、不越过下一条
-#: ``Missing character`` 起点（真字体行紧邻 nullfont 行仍中）。
+#: ~30/37 格纯噪音）。窗口界 = 本消息体内——逐字符 temper 于
+#: ``Missing character``（下一条缺字起点）与 ``in font ``（本消息字体声明
+#: 终止符）双闸：消息已声明字体后同行的 ``in font nullfont`` 字样不再误豁免
+#: （logpipe pin#2）；至多跨一个折行续行（79 列 wrap），续行内同域再限
+#: {0,90}。冒号前缀即真消息形态——``Missing characters ...`` 行文不计缺字
+#: （logpipe pin#4，与 l2 census 口径同源）。
 #: engine ``missing_chars`` / rules ``missing_char`` / judge 门控三处共用。
+_MISSCHAR_WINDOW: Final = (
+    r"(?:(?!Missing character|in font )[^\n]){0,90}?"
+    r"(?:\n(?:(?!Missing character|in font )[^\n]){0,90}?)?"
+)
 _MISSCHAR_GATE: Final = (
-    r"Missing character(?!(?:(?!Missing character)[\s\S]){0,90}?in font nullfont)"
+    r"Missing character:(?!" + _MISSCHAR_WINDOW + r"in font nullfont)"
 )
 #: 同一限界窗正向取——nullfont 良性命中进 judge notes 观察项。
 _MISSCHAR_NULLFONT_PROBE: Final = (
-    r"Missing character(?=(?:(?!Missing character)[\s\S]){0,90}?in font nullfont)"
+    r"Missing character:(?=" + _MISSCHAR_WINDOW + r"in font nullfont)"
 )
 
 
@@ -87,9 +95,10 @@ REDLINES: Final[tuple[RedLine, ...]] = (
         id="invalid_utf8",
         # rules 层把 FFFD misschar 折叠进本行 pattern（与 fffd_glyph 分行
         # 相对——fixloop 侧 ``warn_utf8`` 单路由吃掉两种源）。
-        engine=LayerSpec("invalid_utf8", r"Invalid UTF-8 byte"),
+        engine=LayerSpec("invalid_utf8", r"Invalid UTF-8 byte|replaced by U\+FFFD"),
         rules=LayerSpec(
-            "invalid_utf8", r"Invalid UTF-8 byte|Missing character.*U\+FFFD"
+            "invalid_utf8",
+            r"Invalid UTF-8 byte|Missing character.*U\+FFFD|replaced by U\+FFFD",
         ),
         l2=LayerSpec("invalid_utf8", r"Invalid UTF-8 byte|replaced by U\+FFFD"),
         l2_redline=True,
@@ -99,7 +108,7 @@ REDLINES: Final[tuple[RedLine, ...]] = (
         # 缺 U+FFFD 替换符字形——invalid_utf8 源被排版成缺字。engine 层
         # 独占行（pattern = gate 窗 + FFFD 码点段）；rules 层折叠进
         # invalid_utf8；l2 层为 missing_glyph 命中的码点==0xFFFD 派生类。
-        engine=LayerSpec("fffd_glyph", _MISSCHAR_GATE + r':[^\n]*\((?:"|U\+)FFFD\)'),
+        engine=LayerSpec("fffd_glyph", _MISSCHAR_GATE + r'[^\n]*\((?:"|U\+)FFFD\)'),
         l2=LayerSpec("fffd_glyph"),
         l2_redline=True,
     ),

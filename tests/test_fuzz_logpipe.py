@@ -19,16 +19,9 @@ r"""跨层一致性 fuzz —— ``texlog.update_file_stack`` → ``engine.parse_
 
 钉住的缺陷（``xfail(strict=True)``——修复后 XPASS 提醒拆钉）：
 
-- misschar 90 字窗可越过非 misschar 行：真字体 misschar 后 90 字内任何
-  ``in font nullfont`` 字样（非 misschar 行）会误豁免真缺字；
 - ``engine._ERR_FILELINE_RE`` 文件名面过宽（l2 ``_FILE_LINE_RX`` 严侧
   已落：空消息/``!``/tab 行与未锚定 Warning 排除两半已收口）——engine
-  仍收无扩展名/带冒号/带括号文件名（``Makefile:5:`` 系）；
-- misschar 三闸（judge/engine/rules.yaml）认裸 ``Missing character``
-  无冒号前缀——``Missing characters ...`` 类行文误计缺字，l2 census
-  （要冒号）口径才是真消息形态；
-- l2 ``invalid_utf8`` 规则 IGNORECASE + ``replaced by U+FFFD`` 变体，
-  engine ``_UTF8_WARN_RE`` 只认大写 ``Invalid UTF-8 byte``。
+  仍收无扩展名/带冒号/带括号文件名（``Makefile:5:`` 系）。
 """
 
 from __future__ import annotations
@@ -115,7 +108,7 @@ def test_misschar_gate_nullfont_exact_partition() -> None:
         text = "\n".join(lines)
         gate = count_missing_chars(text)
         nf = len(_MISSCHAR_NULLFONT_RX.findall(text))
-        total = text.count("Missing character")
+        total = text.count("Missing character:")
         assert gate + nf == total, f"partition broke: {gate}+{nf} != {total}\n{text!r}"
         assert gate == len(_MISSCHAR_GATE_RX.findall(text))
 
@@ -152,7 +145,7 @@ def test_misschar_no_cross_contamination() -> None:
 def test_misschar_window_bound_at_90() -> None:
     """90 字限界是硬边界：中间字符数 ≤90 即豁免、>90 不豁免。"""
     for pad in (88, 89, 90, 91, 120):
-        t = "Missing character" + "x" * pad + "in font nullfont"
+        t = "Missing character:" + "x" * pad + "in font nullfont"
         gate = count_missing_chars(t)
         assert gate == (0 if pad <= 90 else 1), (pad, gate)  # noqa: PLR2004
 
@@ -430,18 +423,9 @@ def test_fffd_nullfont_benign() -> None:
     assert v.status == "clean"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "judge.py:96 _MISSCHAR_GATE_RX / engine.py missing_chars / "
-        "rules.yaml missing_char 的 tempered 窗可越过非 misschar 行——"
-        "真字体 misschar 后 ≤90 字内任何 'in font nullfont' 字样（非缺字行）"
-        "会误豁免真缺字（实测 gate=0）。修复: 窗内至多跨一个换行且续行内限长，"
-        "如 `\\n[ \\t]{0,20}in font nullfont` 收紧第二行匹配域。"
-    ),
-)
-def test_xfail_misschar_window_swallows_real() -> None:
-    """真 misschar + 后行 'in font nullfont' 字样 → 现误豁免为 0。"""
+def test_misschar_window_no_swallow_real() -> None:
+    """真 misschar + 后行 'in font nullfont' 字样 → 窗被本消息 in font 终止符
+    截断，不误豁免（原 strict-xfail——redlines 窗口已收进消息体域）。"""
     text = _mc("cmr10") + "\nsome trailing text in font nullfont"
     assert count_missing_chars(text) == 1
     assert "missing_chars" in eng_parse_log(text).warnings_hit
@@ -492,29 +476,14 @@ def test_xfail_error_line_filename_width(line: str) -> None:
     assert e == lv == f, f"{line!r}: eng={e} l2={lv} fx={f}"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "misschar 三闸认裸 'Missing character' 无冒号前缀——judge.py:96 "
-        "_MISSCHAR_GATE_RX / engine.py missing_chars / rules.yaml "
-        "missing_char 均未要冒号; 'Missing characters ...' 行文误计缺字。"
-        "l2 census（Missing character:）才是真消息形态。修复: 三处加冒号。"
-    ),
-)
-def test_xfail_misschar_requires_colon() -> None:
+def test_misschar_requires_colon() -> None:
+    """裸 ``Missing character`` 无冒号前缀非消息形态——三闸均不计（原
+    strict-xfail——redlines gate/probe 已加冒号）。"""
     text = "Missing characters will be silently dropped by this package.\n"
     assert count_missing_chars(text) == 0
     assert "missing_chars" not in eng_parse_log(text).warnings_hit
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "l2 invalid_utf8 规则 IGNORECASE + 'replaced by U+FFFD' 变体，"
-        "engine._UTF8_WARN_RE 只认大写 'Invalid UTF-8 byte'——l2 红线 "
-        "engine 侧零命中（跨层证据断裂）。修复: 两端 pattern 对齐。"
-    ),
-)
 @pytest.mark.parametrize(
     "line",
     [
@@ -522,7 +491,9 @@ def test_xfail_misschar_requires_colon() -> None:
         "LaTeX Warning: Char replaced by U+FFFD on input line 5.",
     ],
 )
-def test_xfail_utf8_variant_cross_layer(line: str) -> None:
+def test_utf8_variant_cross_layer(line: str) -> None:
+    """invalid_utf8 变体跨层同命中——engine._UTF8_WARN_RE 已对齐 l2
+    （IGNORECASE + ``replaced by U+FFFD``，原 strict-xfail）。"""
     text = "(./main.tex\n" + line + "\n)\n"
     v = parse_log_text(text)
     assert v.warnings.by_class.get("invalid_utf8") == 1  # l2 已认
