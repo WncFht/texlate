@@ -76,9 +76,11 @@ def check_epub(path: Path | str) -> str:  # noqa: PLR0911 -- 每条 return 即�
                 return "ok"
             try:
                 declaration = archive.read(ENCRYPTION_FILE)
-            except (OSError, KeyError, RuntimeError):
+            except (OSError, ValueError, KeyError, RuntimeError):
                 return "drm"
-    except (OSError, zipfile.BadZipFile):
+    except (OSError, ValueError, zipfile.BadZipFile):
+        # ValueError 两臂分工：内层=声明读不出按有害判 drm；外层=文件开不了
+        # （内嵌 NUL 的路径走 io.open 抛 ValueError，非 OSError 子类）归 ok。
         return "ok"
 
     try:

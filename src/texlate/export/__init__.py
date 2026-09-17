@@ -63,8 +63,9 @@ def sniff_format(path: Path) -> str | None:
                     return "epub"
             if "word/document.xml" in names:
                 return "docx"
-    except (OSError, RuntimeError, NotImplementedError, zipfile.BadZipFile):
-        # 加密/未知压缩方法的条目也会走到这里——嗅探失败即"无法识别"
+    except (OSError, ValueError, RuntimeError, NotImplementedError, zipfile.BadZipFile):
+        # 加密/未知压缩方法的条目也会走到这里——嗅探失败即"无法识别"；
+        # ValueError 面 = 内嵌 NUL 的病态路径（io.open 抛，非 OSError 子类）
         pass
     return None
 

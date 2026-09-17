@@ -15,7 +15,11 @@ language。
 - ``load_epub`` 只让 ``ExportError`` 族逃逸（含 Malformed/FixedLayout/
   Drm）；返回即 ``EpubBook`` 自洽（members/order/doc_paths 一致）。
 - ``save_epub`` OCF 硬约束：``mimetype`` 首条 ZIP_STORED、内容恰为
-  ``application/epub+zip``，其余 DEFLATED。
+  ``application/epub+zip``，其余 DEFLATED；成员名门禁（E1/E2 修复后
+  契约）——空名/控制字符（含 NUL）/``..`` 段/``/`` 绝对/``\\`` 分隔/
+  ``X:`` 驱动器形 → ``MalformedEpubError``，先于建包拒绝不留半截包；
+  ``zipfile.ZipInfo`` 读写两侧都在首个 NUL 截断，「逐字节保留 NUL 名」
+  在 stdlib 层不可实现，拒绝是唯一诚实契约。
 - ``drive_pipeline``：apply_fn/save_fn 异常原样传播（半成品回放路径
   ``except Exception`` 兜底不再抛）；translator 永抛 → 管线内部降级
   完成；store 脏态 ``load()`` 优雅空集。
@@ -86,6 +90,7 @@ from _fuzzkit import (
     xfail_confirmed,
 )
 
+from texlate.export import sniff_format
 from texlate.export.common import (
     ApplyCounts,
     ExportError,
@@ -288,14 +293,8 @@ class TestCheckEpub:
         """目录路径 → ``"ok"``（OSError 族归 ok 臂）。"""
         assert check_epub(tmp_path) == "ok"
 
-    @xfail_confirmed(
-        "E0 CONFIRMED——check_epub 对含 \\x00 路径抛 ValueError 逃逸"
-        "（rights.py:81 只兜 OSError/BadZipFile；io.open 的 embedded null "
-        "是 ValueError 非 OSError）——docstring「不存在的文件返回 ok」"
-        "契约破，load_epub 首步即被穿透"
-    )
     def test_nul_path_ok(self, tmp_path: Path) -> None:
-        """期望契约：NUL 路径同其它不可读形态 → ``"ok"``。"""
+        """E0 已修：NUL 路径同其它不可读形态 → ``"ok"``（ValueError 入兜）。"""
         assert check_epub(tmp_path / "a\x00b.epub") == "ok"
 
     def test_fuzz_member_names_never_raises(self, tmp_path: Path) -> None:
@@ -544,6 +543,15 @@ class TestLoadEpub:
         )
         assert book.members["../evil"] == b"E"
 
+    def test_nul_src_path_export_error(self, tmp_path: Path) -> None:
+        """E0 衍生面：NUL 源路径 → ``ExportError`` 族，``ValueError`` 不裸逃。"""
+        with pytest.raises(ExportError):
+            load_epub(tmp_path / "a\x00b.epub")
+
+    def test_nul_path_sniff_none(self, tmp_path: Path) -> None:
+        """E0 同族面：``sniff_format`` 对 NUL 路径归 ``None``（无法识别）。"""
+        assert sniff_format(tmp_path / "a\x00b.epub") is None
+
     def test_fuzz_member_sets_never_non_export_error(self, tmp_path: Path) -> None:
         """随机成员集+container 形态 → 逃逸型恒 ExportError 或 EpubBook。"""
         rng = fuzz_rng(_SEED_LOAD)
@@ -605,43 +613,59 @@ class TestSaveEpub:
             assert z.namelist().count("mimetype") == 1
             assert z.read("mimetype") == b"application/epub+zip"
 
-    @xfail_confirmed(
-        "E1 CONFIRMED——save_epub 成员名含 \\x00 → zipfile 静默截断 "
-        "（a\\x00evil 写成 a）→ 与真 a 成员撞名 → 出包重名 + 先写者被顶替；"
-        "敌意 EPUB 中央目录可携 NUL 名（load_epub 原样收）→ 出包腐蚀"
-    )
-    def test_nul_member_name_preserved_or_rejected(self, tmp_path: Path) -> None:
-        """期望契约：NUL 名要么逐字节保留要么显式拒绝——不许静默截断。"""
+    def test_nul_member_name_rejected(self, tmp_path: Path) -> None:
+        """E1 已修：NUL 名显式拒绝——``zipfile`` 读写两侧都在 NUL 截断，
+        「逐字节保留」不可实现，``ExportError`` 是唯一诚实契约。"""
         book = _book({"a\x00evil": b"EVIL", "a": b"REAL"})
         dst = tmp_path / "nul.epub"
-        save_epub(dst, book)
-        with zipfile.ZipFile(dst) as z:
-            names = z.namelist()
-            assert "a\x00evil" in names  # 当前实现截断成 "a" → 重名撞塌
-            assert len(names) == len(set(names))
+        with pytest.raises(ExportError, match="成员名"):
+            save_epub(dst, book)
+        assert not dst.exists()  # 先于建包拒绝——不留半截包
 
-    @xfail_confirmed(
-        "E2 CONFIRMED——save_epub 原样透传 ../绝对/控制字符成员名进出包"
-        "（OCF 成员名应受限相对路径；zip-slip 形态流向按名落盘的下游）"
+    @pytest.mark.parametrize(
+        "bad",
+        [
+            "../evil",
+            "a/../b",
+            "..",
+            ".. ",
+            "...",
+            "/abs/name",
+            "a\x01b",
+            "a\\b",
+            "C:/x",
+            "",
+        ],
+        ids=[
+            "dotdot",
+            "mid_dotdot",
+            "bare_dotdot",
+            "dotdot_space",
+            "dots3",
+            "abs",
+            "ctrl",
+            "backslash",
+            "drive",
+            "empty",
+        ],
     )
-    def test_hostile_member_names_not_passthrough(self, tmp_path: Path) -> None:
-        """期望契约：出包成员名不得含 ``..``/绝对形/控制字符。"""
-        book = _book({"../evil": b"E", "/abs/name": b"A", "a\x01b": b"C", "ok": b"o"})
+    def test_hostile_member_names_rejected(self, tmp_path: Path, bad: str) -> None:
+        """E2 已修：``..`` 段（含 Windows 归一化变体）/绝对形/控制字符/
+        ``\\``/``X:``/空名全拒。"""
+        book = _book({bad: b"E", "ok": b"o"})
         dst = tmp_path / "h.epub"
-        save_epub(dst, book)
-        with zipfile.ZipFile(dst) as z:
-            for n in z.namelist():
-                assert ".." not in n
-                assert not n.startswith("/")
-                assert all(ord(c) >= 0x20 for c in n)  # noqa: PLR2004 -- ASCII 控制字符界即语义
+        with pytest.raises(ExportError, match="成员名"):
+            save_epub(dst, book)
+        assert not dst.exists()
 
-    def test_hostile_names_currently_verbatim(self, tmp_path: Path) -> None:
-        """现状签名钉（与 E2 同面）：敌意名当前原样进出包——记录非背书。"""
+    def test_space_only_name_still_verbatim(self, tmp_path: Path) -> None:
+        """观察钉（E2 修复后口径）：``"  "`` 非敌意形态仍原样进出包——
+        门禁只拦遍历/绝对/控制字符，不替 OCF 做美学审查。"""
         dst = tmp_path / "v.epub"
-        save_epub(dst, _book({"../evil": b"E", "  ": b"S"}))
+        save_epub(dst, _book({"  ": b"S", "ok": b"o"}))
         with zipfile.ZipFile(dst) as z:
-            assert "../evil" in z.namelist()
             assert "  " in z.namelist()
+            assert "ok" in z.namelist()
 
     def test_order_members_desync_keyerror(self, tmp_path: Path) -> None:
         """观察钉：order 含 members 缺席名 → 裸 ``KeyError``（内部不变量面）。"""
@@ -687,7 +711,13 @@ class TestSaveEpub:
                 with zipfile.ZipFile(dst) as z:
                     return tuple((e.filename, z.read(e.filename)) for e in z.infolist())
 
-            first = assert_deterministic(roundtrip)
+            try:
+                first = assert_deterministic(roundtrip)
+            except ExportError:
+                # 敌意名（如 ``..`` 段）走拒绝臂——拒绝也须确定：同输入同拒
+                with pytest.raises(ExportError):
+                    save_epub(dst, _book(members))
+                continue
             assert first[0] == ("mimetype", b"application/epub+zip"), short(members)
 
 
