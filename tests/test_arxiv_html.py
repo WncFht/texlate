@@ -236,6 +236,94 @@ def test_item_para_text() -> None:
     assert "Item text" not in p2.text
 
 
+#: pre-2000 样本——hep-ph/9703228 真实形态：标题是 ltx_titlepage 内
+#: font-size:120% 加粗 span（无 ltx_title*），同 p 内还有 ltx_ERROR 兄弟。
+TITLEPAGE_FIXTURE = """<!DOCTYPE html><html><body>
+<article class="ltx_document">
+<div id="id1" class="ltx_titlepage">
+<p id="id1.1" class="ltx_p ltx_align_right">CERN-TH/96-339</p>
+<p id="id1.2" class="ltx_p"><span id="id1.2.1" class="ltx_ERROR undefined">{centering}</span><span id="id1.2.2" class="ltx_text ltx_font_bold" style="font-size:120%;">Old Style Title
+<br class="ltx_break"/>With <math class="ltx_Math" alttext="Q^2" display="inline"><semantics><msup><mi>Q</mi><mn>2</mn></msup><annotation encoding="application/x-tex">Q^2</annotation></semantics></math> Math</span></p>
+<p id="id1.3" class="ltx_p"><span class="ltx_text ltx_font_bold">D. Author</span></p>
+</div>
+<div id="p1" class="ltx_para"><p id="p1.1" class="ltx_p">Body text.</p></div>
+</article>
+</body></html>"""
+
+#: hep-ph/9910555 真实形态：标题 span（font-size:144%）与作者裸文本同处
+#: 一个 p.ltx_p，整个裹在 ltx_logical-block > ltx_para 里。
+LOGBLOCK_FIXTURE = """<!DOCTYPE html><html><body>
+<article class="ltx_document">
+<div id="id1" class="ltx_logical-block">
+<div id="p1" class="ltx_para">
+<p id="p1.1" class="ltx_p ltx_align_center"><span id="p1.1.1" class="ltx_text ltx_font_bold" style="font-size:144%;">ALL CAPS OLD TITLE
+<br class="ltx_break"/></span>
+A. AUTHOR, B. AUTHOR</p>
+<p id="p1.2" class="ltx_p ltx_align_center"><span class="ltx_text ltx_font_italic">Some Institute</span></p>
+</div>
+</div>
+<div id="p2" class="ltx_para"><p id="p2.1" class="ltx_p">Body text.</p></div>
+</article>
+</body></html>"""
+
+
+def test_fallback_title_titlepage() -> None:
+    """ltx_titlepage 内 font-size>100% span → title 块 + doc.title，宿主 p 不双计。"""
+    doc = parse_arxiv_html(TITLEPAGE_FIXTURE, arxiv_id="hep-ph/9703228")
+    title = next(b for b in doc.blocks if b.context == "title")
+    assert title.key == "id1.2.2"
+    assert title.text == "Old Style Title With [[MATH_2]] Math"
+    assert doc.title == "Old Style Title With Q 2 Q^2 Math"
+    # 宿主 p 只留 {centering} CMD token——标题文本不双计
+    host = next(b for b in doc.blocks if b.key == "id1.2")
+    assert host.text == "[[CMD_1]]"
+    # titlepage 其余 p 仍按 para 产出
+    keys = [b.key for b in doc.blocks]
+    assert keys.index("id1.2.2") == keys.index("id1.2") + 1
+
+
+def test_fallback_title_logical_block() -> None:
+    """ltx_logical-block 内标题 span → title 块；同 p 作者裸文本留宿主 para。"""
+    doc = parse_arxiv_html(LOGBLOCK_FIXTURE, arxiv_id="hep-ph/9910555")
+    title = next(b for b in doc.blocks if b.context == "title")
+    assert title.key == "p1.1.1"
+    assert title.text == "ALL CAPS OLD TITLE"
+    assert doc.title == "ALL CAPS OLD TITLE"
+    host = next(b for b in doc.blocks if b.key == "p1")
+    assert "ALL CAPS" not in host.text
+    assert "A. AUTHOR, B. AUTHOR" in host.text
+
+
+def test_fallback_title_gated_by_titledoc() -> None:
+    """有 h1.ltx_title_document 时兜底不点火（1706.02737 形态防回归）。"""
+    doc = _doc()  # FIXTURE 无 ltx_titlepage/logical-block
+    assert [b.context for b in doc.blocks].count("title") == 1
+    # titledoc + 容器共存：兜底关闭，唯一 title 块仍属 h1
+    html = FIXTURE.replace(
+        '<article class="ltx_document">',
+        '<article class="ltx_document"><div class="ltx_logical-block">'
+        '<div class="ltx_para"><p class="ltx_p">'
+        '<span style="font-size:144%;">DECOY</span></p></div></div>',
+    )
+    doc2 = parse_arxiv_html(html)
+    titles = [b for b in doc2.blocks if b.context == "title"]
+    assert len(titles) == 1
+    assert titles[0].text == "Test Paper Title"
+    assert doc2.title == "Test Paper Title"
+
+
+def test_fallback_title_marked_anchors() -> None:
+    """兜底 title 块锚注在 span 本体，[data-chunk] 序 == blocks key 序。"""
+    doc = parse_arxiv_html(TITLEPAGE_FIXTURE)
+    soup = BeautifulSoup(marked_html(TITLEPAGE_FIXTURE), "lxml")
+    marked = [str(e["data-chunk"]) for e in soup.select("[data-chunk]")]
+    assert marked == [b.key for b in doc.blocks]
+    el = soup.find(attrs={"data-chunk": "id1.2.2"})
+    assert el is not None
+    assert el.name == "span"
+    assert "ltx_font_bold" in (el.get("class") or [])
+
+
 # ---------------------------------------------------------------- fetch_html
 
 

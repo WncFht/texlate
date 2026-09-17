@@ -7,6 +7,9 @@ r"""arXiv 原生 HTML 降级链 phase 1（latexml-spike 裁决 arxiv-html-first�
   照挖，对齐 latex segmenter 语义）；``li.ltx_bibitem``、``figure.ltx_*``、
   listing/authors/dates → support 块（不译——``\bibitem``/``\author`` 在
   latex 侧即 ``[[BIB]]``/``[[AUTHOR]]`` 保护族，降级链保持同口径）。
+  pre-2000 e-print 无 ``ltx_title_document``：首个 ``ltx_titlepage``/
+  ``ltx_logical-block`` 容器内首个 ``font-size`` 超过 100% 的元素兜底为
+  title 块，宿主 para/p 内联时跳过该元素防文本双计。
 - 行内保护：``<math>`` 与 ``*.ltx_equation*`` → ``[[MATH_n]]``；
   ``cite.ltx_cite`` → ``[[CITE_n]]``；``a[href^="#"]`` → ``[[REF_n]]``；
   ``span.ltx_note`` → ``[[NOTE_n]]``（note 体另产 footnote 块，对齐
@@ -132,11 +135,16 @@ class _Issuer:
 
 @dataclass(slots=True)
 class _InlineCtx:
-    """行内抽取共享态：签发器 + 全局 ph_map + 迟发 footnote 队列。"""
+    """行内抽取共享态：签发器 + 全局 ph_map + 迟发 footnote 队列。
+
+    ``title_el`` = pre-2000 兜底题元（``_fallback_title`` 判出）——宿主块
+    内联时整体跳过：title 块独立产出，文本不双计入账。
+    """
 
     issuer: _Issuer
     ph_map: dict[str, str]
     notes: list[Tag] = field(default_factory=list)
+    title_el: Tag | None = None
 
     def tok(self, typ: str, el: Tag) -> str:
         """元素 → 两侧带空格的 token 串（空格靠 squash 归一）。"""
@@ -224,6 +232,8 @@ def _inline_node(  # noqa: C901, PLR0911, PLR0912 -- 行内元素→token/跳过
         return
     name = node.name or ""
     cls = _classes(node)
+    if node is ctx.title_el:
+        return  # 兜底题元——title 块已产出，宿主块不吞其文本
     if (
         name in _SKIP_TAGS
         or _has_prefix(cls, _SKIP_CLASS_PREFIX)
@@ -286,6 +296,11 @@ _SUPPORT_ANCESTOR: Final = frozenset(
     }
 )
 _TITLE_SUFFIX_RX: Final = re.compile(r"ltx_title_(\w+)")
+#: pre-2000 题录容器——老转换器把 \title 渲成容器内放大字体的 span
+_TITLEBOX_CLS: Final = frozenset({"ltx_titlepage", "ltx_logical-block"})
+_FONT_PCT_RX: Final = re.compile(r"font-size:\s*(\d+(?:\.\d+)?)\s*%")
+#: 容器内放大字体阈值（%）——题面 120%/144%，摘要等缩小体 90% 不入选
+_TITLE_FONT_PCT: Final = 100.0
 #: ``ltx_title_*`` 后缀 → latex 风 context（normalize_kind 直接消费）
 _TITLE_CTX: Final = {
     "document": "title",
@@ -373,7 +388,26 @@ def _block_ph(text: str, ph_map: dict[str, str]) -> dict[str, str]:
     return {t: ph_map[t] for t in PH_RX.findall(text) if t in ph_map}
 
 
-def _enumerate_blocks(  # noqa: C901 -- 块分派 + support/嵌套闸 + footnote 排放，语句即枚举规则
+def _fallback_title(art: Tag) -> Tag | None:
+    r"""pre-2000 兜底题元（无 ``h1.ltx_title_document`` 时启用）。
+
+    首个 ``ltx_titlepage``/``ltx_logical-block`` 容器内首个 ``font-size``
+    超 100% 的元素即文档标题——老转换器把 ``\title`` 渲成容器内放大字体
+    而非 ltx_title*。无容器或无放大字体 → ``None``。
+    """
+    if art.find("h1", class_="ltx_title_document") is not None:
+        return None
+    for box in art.find_all("div"):
+        if not _classes(box) & _TITLEBOX_CLS:
+            continue
+        for el in (d for d in box.descendants if isinstance(d, Tag)):
+            m = _FONT_PCT_RX.search(el.get("style") or "")
+            if m and float(m.group(1)) > _TITLE_FONT_PCT:
+                return el
+    return None
+
+
+def _enumerate_blocks(  # noqa: C901, PLR0915 -- 块分派 + support/嵌套闸 + footnote 排放，语句即枚举规则
     art: Tag, ctx: _InlineCtx
 ) -> Iterator[tuple[Tag, str, str, str, dict[str, str]]]:
     """``article.ltx_document`` 内按文档序产 ``(元素, key, context, text, ph)``。
@@ -385,6 +419,7 @@ def _enumerate_blocks(  # noqa: C901 -- 块分派 + support/嵌套闸 + footnote
     """
     seen: set[str] = set()
     synth = 0
+    ctx.title_el = _fallback_title(art)
 
     def key_of(el: Tag) -> str:
         nonlocal synth
@@ -409,6 +444,12 @@ def _enumerate_blocks(  # noqa: C901 -- 块分派 + support/嵌套闸 + footnote
             yield note, key_of(note), "footnote", text, _block_ph(text, ctx.ph_map)
 
     for el in (d for d in art.descendants if isinstance(d, Tag)):
+        if el is ctx.title_el:
+            # pre-2000 兜底题元——元素本身非块类，在自身文档序位产 title 块
+            text = _inline_text(el, ctx)
+            yield el, key_of(el), "title", text, _block_ph(text, ctx.ph_map)
+            yield from drain_notes()
+            continue
         kind = _block_kind(el)
         if not kind:
             continue
@@ -454,8 +495,12 @@ def parse_arxiv_html(html: str, *, arxiv_id: str = "") -> HtmlDoc:
         HtmlBlock(key, context, text, ph)
         for _el, key, context, text, ph in _enumerate_blocks(art, ctx)
     ]
-    title_el = art.find("h1", class_="ltx_title_document")
-    title = title_el.get_text(" ", strip=True) if title_el else ""
+    title_el = art.find("h1", class_="ltx_title_document") or _fallback_title(art)
+    title = (
+        " ".join(title_el.get_text(" ", strip=True).split())
+        if title_el is not None
+        else ""
+    )
     return HtmlDoc(blocks, ctx.ph_map, title, arxiv_id)
 
 
