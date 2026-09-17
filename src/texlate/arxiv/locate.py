@@ -18,6 +18,7 @@ LaTeX（plain TeX ``\bye`` / ConTeXt ``\starttext``）→ 进降级链。
 
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -26,7 +27,7 @@ from typing import Final
 
 from texlate.arxiv._texutil import TEX_EXT, strip_comments
 from texlate.arxiv.sniff import check_pdf_wrapper
-from texlate.textutil import BEGIN_DOC_RX, DOCCLASS_RX, decode_tex
+from texlate.textutil import BEGIN_DOC_RX, CMD_BOUNDARY, DOCCLASS_RX, decode_tex
 
 _FILENAME_PRIOR: Final = frozenset(
     {"main", "paper", "ms", "root", "manuscript", "thesis"}
@@ -40,18 +41,28 @@ _CONTEXT_RE: Final = re.compile(
 )
 
 _BRACED: Final = r"\{([^{}]+)\}"
-_BOUND: Final = r"(?![a-zA-Z@])"
 
 
 def _cmd(name: str, tail: str) -> re.Pattern[str]:
-    return re.compile(r"\\" + name + _BOUND + tail)
+    return re.compile(r"\\" + name + CMD_BOUNDARY + tail)
 
 
 # (command, pattern, arg_group, dir_group)。八形态 + bibliography；
 # 全部带控制词边界（\\include 不会误吞 \includegraphics）。
+# 对 textutil INPUT_BRACED_RX/INPUT_BARE_RX 是有意超集而非漂移复抄：
+# 那对服务 compile probe/inject，只盖 input/include/InputIfFileExists
+# 的 braced/bare 高频形（\b 词界、named-group 取参）；本表做拓扑全扫，
+# 多收 subfile/includestandalone/CatchFileBetweenTags/双参 import 族/
+# bibliography，边界统一 CMD_BOUNDARY（@ 排外，与声明探测族同口径），
+# arg 按位序组取。两族口径不同属刻意，勿盲目单源化。
 _REF_RES: Final = (
     ("input", _cmd("input", r"\s*" + _BRACED), 1, None),
-    ("input_bare", re.compile(r"\\input" + _BOUND + r"\s+([^\s{]\S*)"), 1, None),
+    (
+        "input_bare",
+        re.compile(r"\\input" + CMD_BOUNDARY + r"\s+([^\s{]\S*)"),
+        1,
+        None,
+    ),
     ("include", _cmd("include", r"\s*" + _BRACED), 1, None),
     ("InputIfFileExists", _cmd("InputIfFileExists", r"\s*" + _BRACED), 1, None),
     ("subfile", _cmd("subfile", r"\s*(?:\[[^\]]*\])?\s*" + _BRACED), 1, None),
@@ -139,12 +150,24 @@ class LocateResult:
 
 
 def _iter_files(root: Path) -> list[str]:
-    r"""全树相对路径（posix 形），含非 .tex（\input 可指 .sty/无后缀）。"""
-    out = [
-        p.relative_to(root).as_posix()
-        for p in root.rglob("*")
-        if p.is_file() or p.is_symlink()
-    ]
+    r"""全树相对路径（posix 形），含非 .tex（\input 可指 .sty/无后缀）。
+
+    ``os.walk(followlinks=False)`` 而非 ``rglob``——py3.12 ``rglob`` 跟随
+    目录符号链且无环检测，unpack 放行的 in-tree symlink 环会炸
+    RecursionError。walk 下 dir symlink 不递归但仍列 dirnames——按
+    ``is_symlink`` 收为叶条目（原 ``is_file() or is_symlink()`` 口径同款）。
+    """
+    out: list[str] = []
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+        base = Path(dirpath)
+        for name in filenames:
+            p = base / name
+            if p.is_file() or p.is_symlink():
+                out.append(p.relative_to(root).as_posix())
+        for name in dirnames:
+            p = base / name
+            if p.is_symlink():
+                out.append(p.relative_to(root).as_posix())
     return sorted(out)
 
 

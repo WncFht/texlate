@@ -152,6 +152,16 @@ class RateLimiter:
             data = json.loads(self.state_path.read_text(encoding="utf-8"))
             day = str(data.get("day", ""))
             n = max(int(data.get("requests_today", 0)), 0)
+            if n > self.policy.daily_budget:
+                # 越域值（acquire 在 >=budget 即拒，正常路径产不出超预算计数
+                # ——必为腐坏写入/政策收缩）。钳回预算：语义仍是「今日耗尽」
+                # fail-closed，但 9e9 之类巨值不再原样落盘续存。
+                log.warning(
+                    "ratelimit requests_today=%d over daily budget %d, clamped",
+                    n,
+                    self.policy.daily_budget,
+                )
+                n = self.policy.daily_budget
             now = self._now()
             buckets = {
                 key: _Bucket(

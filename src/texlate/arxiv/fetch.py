@@ -321,7 +321,43 @@ class Fetcher:
         msg = f"transport failed after retries: {last_exc}"
         raise httpx.TransportError(msg) from last_exc
 
-    def _across_hosts(self, fn: Callable[[str], httpx.Response]) -> httpx.Response:
+    def _request_get_body(
+        self, url: str, headers: dict[str, str]
+    ) -> tuple[httpx.Response, bytes]:
+        """流式 GET + 收 body（``DL_CAP``+1B 即断）。退避/限速纪律同 ``_request``。
+
+        ``client.stream`` 只收 header 后逐 chunk 累计——恶意超大响应不再
+        ``resp.content`` 全量进内存后才查闸。返回的 ``resp`` 已出 stream
+        上下文（流已关），status/headers/url 仍可读，body 不再可读；
+        ``body`` 截断在 ``DL_CAP+1`` 处由上层判 ``TOO_LARGE``。非 200 或
+        瞬时重试耗尽的 body 归 ``b""``（上层只按 status 裁决）。
+        """
+        last_exc: Exception | None = None
+        last_resp: httpx.Response | None = None
+        for attempt in range(len(RETRY_DELAYS) + 1):
+            if attempt:
+                delay = _retry_delay(url, attempt, last_resp)
+                if not math.isfinite(delay):
+                    break
+                self._sleep(delay)
+            try:
+                self.limiter.acquire(url)
+                with self.client.stream("GET", url, headers=headers) as resp:
+                    self.limiter.report(url, resp.status_code)
+                    if resp.status_code in TRANSIENT_STATUS:
+                        last_exc, last_resp = None, resp
+                        continue
+                    if resp.status_code != HTTPStatus.OK:
+                        return resp, b""
+                    return resp, _read_capped(resp)
+            except (httpx.TransportError, OSError) as e:
+                last_exc, last_resp = e, None
+        if last_resp is not None:
+            return last_resp, b""
+        msg = f"transport failed after retries: {last_exc}"
+        raise httpx.TransportError(msg) from last_exc
+
+    def _across_hosts[T](self, fn: Callable[[str], T]) -> T:
         """按 hosts 序尝试，跳过被 park 的 host；全 park 抛首个 ParkedError。"""
         first_park: ParkedError | None = None
         last_err: Exception | None = None
@@ -398,14 +434,14 @@ class Fetcher:
         if last_modified:
             cond["If-Modified-Since"] = last_modified
         try:
-            resp = self._across_hosts(
-                lambda host: self._request("GET", _src_url(host, base, ver), cond)
+            resp, body = self._across_hosts(
+                lambda host: self._request_get_body(_src_url(host, base, ver), cond)
             )
         except ParkedError as e:
             return SrcResult(FetchStatus.PARKED, head, detail=str(e))
         except (httpx.RequestError, OSError) as e:
             return SrcResult(FetchStatus.ERROR, head, detail=str(e))
-        return _body_result(resp, head)
+        return _body_result(resp, head, body)
 
 
 def _head_gate(head: HeadInfo) -> SrcResult | None:
@@ -419,8 +455,18 @@ def _head_gate(head: HeadInfo) -> SrcResult | None:
     return None
 
 
-def _body_result(resp: httpx.Response, head: HeadInfo) -> SrcResult:
-    """GET 响应 → SrcResult（304/404/200 + 魔数判别）。"""
+def _read_capped(resp: httpx.Response) -> bytes:
+    """流式收 body，``DL_CAP``+1B 即断——恶意超大响应不整量进内存。"""
+    buf = bytearray()
+    for chunk in resp.iter_bytes(chunk_size=65536):
+        buf += chunk
+        if len(buf) > DL_CAP:
+            return bytes(buf[: DL_CAP + 1])
+    return bytes(buf)
+
+
+def _body_result(resp: httpx.Response, head: HeadInfo, body: bytes) -> SrcResult:
+    """GET 响应 → SrcResult（304/404/200 + 魔数判别）。body 已截到 cap+1。"""
     early = {
         HTTPStatus.NOT_MODIFIED: FetchStatus.NOT_MODIFIED,
         HTTPStatus.NOT_FOUND: FetchStatus.NOT_FOUND,
@@ -429,7 +475,6 @@ def _body_result(resp: httpx.Response, head: HeadInfo) -> SrcResult:
         return SrcResult(early, head)
     if resp.status_code != HTTPStatus.OK:
         return SrcResult(FetchStatus.ERROR, head, detail=f"get:{resp.status_code}")
-    body = resp.content
     if len(body) > DL_CAP:
         return SrcResult(FetchStatus.TOO_LARGE, head)
     refreshed = _refresh_head(resp, head)
