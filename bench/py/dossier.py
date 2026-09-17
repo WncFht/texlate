@@ -240,6 +240,22 @@ def _classify_text(text: str) -> dict | None:
     return {"category": cat, "payload": pay}
 
 
+def _rec_taxo(rec: dict | None, *path: str) -> dict | None:
+    """records 物化 taxonomy（judge_dict 写侧口径 {cat,pay}）→ {category,payload}。
+
+    ``path`` 如 ``("post", "taxonomy")`` 取 ``metrics.post.taxonomy``。
+    cat 为 None 视为缺席（advisory 判不上时写侧落双 None）。
+    """
+    node = (rec or {}).get("metrics") or {}
+    for k in path:
+        node = node.get(k) if isinstance(node, dict) else None
+        if node is None:
+            return None
+    if not isinstance(node, dict) or node.get("cat") is None:
+        return None
+    return {"category": node.get("cat"), "payload": node.get("pay")}
+
+
 def work_inventory(wdir: Path) -> dict:
     inv: dict = {"path": str(wdir), "present": wdir.is_dir()}
     if not wdir.is_dir():
@@ -384,9 +400,13 @@ def _evidence(run_dir: Path, pid: str, recs: dict[str, list[dict]],
     fl = _latest_of(recs, "fixloop")
     post = ((fl or {}).get("metrics") or {}).get("post") or {}
     excerpt = (cases[-1].get("log_excerpt") if cases else None) or None
+    # records 物化 taxonomy 优先（judge 判的那份 log），自算降级
+    fe_tax = _rec_taxo(comp, "taxonomy")
+    if fe_tax is None:
+        fe_tax = _classify_text(first_err or "")
     return {
         "first_error_line": first_err or (post.get("compile") or {}).get("first_error"),
-        "first_error_taxonomy": _classify_text(first_err or ""),
+        "first_error_taxonomy": fe_tax,
         "log_excerpt": excerpt[:_EXCERPT_HEAD] if excerpt else None,
         "repro_path": inv.get("path") if inv.get("present") else None,
         "splice_dir": bool(inv.get("splice")),
@@ -473,16 +493,26 @@ def _rules_section(recs: dict[str, list[dict]], cases: list[dict], inv: dict) ->
     for c in cases:
         for a in c.get("actions") or []:
             hits.append(f"r{a.get('round')}:{a.get('rule')} → {a.get('result')}")
-    # taxonomy_class：优先 splice 全 log，退 first_error 行
+    # taxonomy_class：records 物化面优先（post.taxonomy=fixloop 后判残墙，
+    # metrics.taxonomy=compile 判），退 splice 全 log 自算，再退 first_error 行
+    fl = _latest_of(recs, "fixloop")
     tax = None
-    sc = inv.get("splice_compile") or {}
-    if sc.get("taxonomy"):
-        tax = {**sc["taxonomy"], "source": "splice_log"}
+    t0 = _rec_taxo(fl, "post", "taxonomy")
+    if t0:
+        tax = {**t0, "source": "records.post"}
     else:
-        fe = ((comp.get("metrics") or {}).get("compile") or {}).get("first_error")
-        t2 = _classify_text(fe or "")
-        if t2:
-            tax = {**t2, "source": "first_error_line"}
+        t0 = _rec_taxo(comp, "taxonomy")
+        if t0:
+            tax = {**t0, "source": "records.compile"}
+    if tax is None:
+        sc = inv.get("splice_compile") or {}
+        if sc.get("taxonomy"):
+            tax = {**sc["taxonomy"], "source": "splice_log"}
+        else:
+            fe = ((comp.get("metrics") or {}).get("compile") or {}).get("first_error")
+            t2 = _classify_text(fe or "")
+            if t2:
+                tax = {**t2, "source": "first_error_line"}
     return {
         "taxonomy_class": tax,
         "candidate_rules": _candidate_rules(cat, pay),
