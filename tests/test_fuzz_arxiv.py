@@ -53,7 +53,6 @@ import pytest
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-from _fuzzkit import xfail_confirmed
 from conftest import make_targz
 
 from texlate.arxiv._texutil import strip_comments
@@ -370,13 +369,24 @@ def test_fuzz_sniff_random_blobs() -> None:
         _sniff_oracle(res, blob, _GZIP_CAP)
 
 
+def _tar_oracle(payload: bytes) -> bool:
+    """tar 独立 oracle：stdlib ``tarfile`` 能否开流（全零非空 = 零成员包）。"""
+    if payload and payload.count(0) == len(payload):
+        return True
+    try:
+        with tarfile.open(fileobj=io.BytesIO(payload), mode="r:"):
+            return True
+    except (tarfile.TarError, OSError, EOFError, ValueError):
+        return False
+
+
 def test_fuzz_sniff_gzip_roundtrip() -> None:
-    """gzip 往返：未超限 ⇒ payload 逐字节等于原始；tar 与否按 ustar@257 判。"""
+    """gzip 往返：未超限 ⇒ payload 逐字节等于原始；tar 与否按可解析性判。"""
     rng = random.Random(_SEED + 3)  # noqa: S311 -- 确定性种子
     for _ in range(300):
         payload = rng.randbytes(rng.randint(0, 3000))
         if rng.random() < _P_USTAR:
-            # 在 257 偏移埋 ustar → 应判 TAR
+            # 在 257 偏移埋 ustar 字面——撞字面的非 tar payload 应判 SINGLE
             payload = payload[:257].ljust(257, b"\0") + b"ustar" + payload[262:]
         blob = gzip.compress(payload)
         res = sniff(blob, max_inflated=_GZIP_CAP)
@@ -385,7 +395,7 @@ def test_fuzz_sniff_gzip_roundtrip() -> None:
             continue
         assert not res.oversized
         assert res.payload == payload
-        want = BlobKind.TAR if payload[257:262] == b"ustar" else BlobKind.SINGLE
+        want = BlobKind.TAR if _tar_oracle(payload) else BlobKind.SINGLE
         assert res.kind is want
 
 
@@ -1507,37 +1517,27 @@ def _extracted_files(res: AcquireResult) -> list[str]:
 # ---------------------------------------------------------------- D1 空 tar.gz
 
 
-@xfail_confirmed(
-    "D1: sniff.py:111 — 全零 tar（合法空包）无 ustar@257 落 SINGLE 臂，"
-    "unpack_single 把 10KB NUL 落成幻影 {stem}.tex 并 OK 落库"
-)
 def test_empty_targz_phantom_tex(tmp_path: Path) -> None:
-    """空 tar.gz e-print：判 TAR→空树 或 判 UNKNOWN 都合规，不该产幻影文件。"""
+    """D1 回归：空 tar.gz e-print 判 TAR→空树，不落幻影 {stem}.tex。"""
     f, _clk = _acq_fetcher(_src_handler(make_targz({})))
     res = acquire_source("2001.00001", fetcher=f, cache=SourceCache(tmp_path))
     if res.status is AcquireStatus.OK:
         assert _extracted_files(res) == []
 
 
-def test_empty_targz_current_behavior_pin(tmp_path: Path) -> None:
-    """观察钉：现行行为快照——幻影 NUL 文件 + OK 状态（修复后此钉需同步翻）。"""
+def test_empty_targz_empty_tree(tmp_path: Path) -> None:
+    """D1 回归钉：零成员 tar 走 unpack 空树——OK 且 extracted 零文件。"""
     f, _clk = _acq_fetcher(_src_handler(make_targz({})))
     res = acquire_source("2001.00001", fetcher=f, cache=SourceCache(tmp_path))
     assert res.status is AcquireStatus.OK
-    files = _extracted_files(res)
-    assert len(files) == 1
-    assert (res.entry.dir / "extracted" / files[0]).read_bytes().strip(b"\x00") == b""
+    assert _extracted_files(res) == []
 
 
 # ---------------------------------------------------------------- D2 ustar 误判
 
 
-@xfail_confirmed(
-    "D2: sniff.py:91 — 单文件 .tex.gz 解压后 offset257 恰 'ustar' 即误判 TAR，"
-    "合法单文件 e-print 被 UNPACK_ERROR 拒收"
-)
 def test_ustar_in_tex_payload_misclassified(tmp_path: Path) -> None:
-    """payload[257:262]=='ustar' 的 .tex 应回退 SINGLE，不是 tar 硬拒。"""
+    """D2 回归：payload[257:262]=='ustar' 的 .tex 回退 SINGLE，不是 tar 硬拒。"""
     tex = b"\\documentclass{article}\n" + b"a" * 300
     tex = tex[:257].ljust(257, b"a") + b"ustar" + tex[262:]
     tex += b"\n\\begin{document}hi\\end{document}\n"
@@ -1546,14 +1546,18 @@ def test_ustar_in_tex_payload_misclassified(tmp_path: Path) -> None:
     assert res.status is AcquireStatus.OK
 
 
-def test_ustar_in_tex_current_pin(tmp_path: Path) -> None:
-    """观察钉：现行走 TAR→corrupt stream→UNPACK_ERROR（修复后翻此钉）。"""
+def test_ustar_in_tex_lands_single(tmp_path: Path) -> None:
+    """D2 回归钉：ustar 字面误撞的 .tex 按单文件落盘（唯一 .tex 成员）。"""
     tex = b"\\documentclass{article}\n" + b"a" * 300
     tex = tex[:257].ljust(257, b"a") + b"ustar" + tex[262:]
     tex += b"\n\\begin{document}hi\\end{document}\n"
     f, _clk = _acq_fetcher(_src_handler(gzip.compress(tex)))
     res = acquire_source("2001.00001", fetcher=f, cache=SourceCache(tmp_path))
-    assert res.status is AcquireStatus.UNPACK_ERROR
+    assert res.status is AcquireStatus.OK
+    files = _extracted_files(res)
+    assert len(files) == 1
+    assert files[0].endswith(".tex")
+    assert (res.entry.dir / "extracted" / files[0]).read_bytes() == tex
 
 
 # ---------------------------------------------------------------- e2e 敌意包
@@ -1653,13 +1657,12 @@ def test_e2e_get_cd_version_lost(tmp_path: Path) -> None:
     assert res.resolved_version == 1
 
 
-@xfail_confirmed(
-    "D5: cache.py:101 — cd 钉版位数无界，entry dir 名超 NAME_MAX 时 "
-    "cache.get stat meta.json → OSError(ENAMETOOLONG) 逃逸 acquire_source"
-    "（服务器可控字段 → 崩溃路径；应归干净 ERROR）"
-)
 def test_e2e_huge_cd_version_clean_error(tmp_path: Path) -> None:
-    """300 位版本号 cd：int 可解析但目录名超 NAME_MAX → 归 ERROR 不崩。"""
+    """300 位版本号 cd：int 可解析但目录名超 NAME_MAX → 归 ERROR 不崩。
+
+    D5 回归：entry_dir 对越界版本回哨兵（get→miss、exists→False），
+    commit 写闸硬拒 CacheError → _commit_phase 兜成干净 ERROR。
+    """
     cd = 'attachment; filename="arXiv-2001.00001v' + "9" * 300 + '.tar.gz"'
     f, _clk = _acq_fetcher(
         _src_handler(make_targz({"m.tex": _TINY_TEX_FULL}), head_cd=cd)
@@ -2054,12 +2057,8 @@ def test_locate_arxiv_id_filename_prior(tmp_path: Path) -> None:
 _BURN_BOUND = 30  # 版本回退探测的合理上界（真版本史 rarely >30）
 
 
-@xfail_confirmed(
-    "D3: meta.py:381 — /html 逐版本回退信任 feed 宣告的 latest 无上界，"
-    "phantom v300 烧满 180 日预算才停"
-)
 def test_degrade_version_fallback_unbounded() -> None:
-    """feed 宣告 latest=300 + /html 全 404 → 回退探测应有界，不是烧满预算。"""
+    """D3 回归：feed 宣告 latest=300 + /html 全 404 → 回退探测有界不烧预算。"""
     atom = (
         b'<?xml version="1.0"?>'
         b'<feed xmlns="http://www.w3.org/2005/Atom">'
@@ -2209,12 +2208,8 @@ def test_fuzz_parse_html_random_soup() -> None:
                 assert set(c.ph_fragments) <= set(res.ph_map)
 
 
-@xfail_confirmed(
-    "D4: html.py:224 — _inline_node 递归实现，块内 ~900+ 层非块元素嵌套"
-    "（span/em/…）越递归上限 → RecursionError 逃逸 parse/marked"
-)
 def test_parse_html_deep_inline_nesting() -> None:
-    """深嵌套行内元素应降级处理（HtmlError 或截断），不是 RecursionError。"""
+    """D4 回归：深嵌套行内元素应降级处理（HtmlError 或截断），不是 RecursionError。"""
     doc = (
         '<article class="ltx_document"><div class="ltx_para">'
         + "<span>" * 2000

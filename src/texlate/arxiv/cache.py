@@ -23,11 +23,23 @@ import shutil
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Final
 
 log = logging.getLogger(__name__)
 
 #: find_versions 的 glob 消毒：id 只许这些字符（glob 元字符 ``*?[]`` 全拒）
 _SAFE_GLOB_ID: re.Pattern[str] = re.compile(r"[A-Za-z0-9._/-]+")
+
+#: ``resolved_version`` 入路径前的上界——版本号取自 content-disposition
+#: 文件名/调用方钉版，无界会把 ``{id}v{ver}`` 目录名吹超 NAME_MAX，stat
+#: 抛 ENAMETOOLONG 成崩溃路径。真实 arXiv 版本远低于此。
+_MAX_RESOLVED_VERSION: Final = 999_999
+
+#: 版本越界时 ``entry_dir`` 返回的哨兵名——定长、``{id}v*`` glob 永不命中
+#: （rsplit("v") 尾巴非数字被滤）、无写入方会创建：越界版本的目录不可
+#: 表示 ⇒ 读侧归「无此条目」（``get``→miss、``.exists()``→False）；写侧
+#: 由 ``commit`` 另行硬拒 ``CacheError``，哨兵永不落盘。
+_UNREPR_DIR: Final = ".bad-version"
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,11 +80,20 @@ class SourceCache:
         self.root = Path(root)
 
     def entry_dir(self, arxiv_id: str, resolved_version: int) -> Path:
-        """条目目录（旧式 id 自带 archive/ 段，自然嵌套）。"""
+        """条目目录（旧式 id 自带 archive/ 段，自然嵌套）。
+
+        id 逃逸 root → ``CacheError``（路径穿越必响，入路径前最后拦截点）。
+        版本号越界（<1 或超 ``_MAX_RESOLVED_VERSION``）→ 哨兵
+        ``_UNREPR_DIR``：高位版本把目录名吹超 NAME_MAX，不可表示即
+        「无此条目」——``get`` 归 miss、``.exists()`` 归 False；写路径
+        由 ``commit`` 硬拒，不会写到哨兵名。
+        """
         d = self.root / f"{arxiv_id}v{resolved_version}"
         if not d.resolve().is_relative_to(self.root.resolve()):
             msg = f"arxiv_id escapes cache root: {arxiv_id!r}"
             raise CacheError(msg)
+        if not 1 <= resolved_version <= _MAX_RESOLVED_VERSION:
+            return self.root / _UNREPR_DIR
         return d
 
     def find_versions(self, arxiv_id: str) -> list[int]:
@@ -137,6 +158,10 @@ class SourceCache:
         meta = json.loads(meta_p.read_text(encoding="utf-8"))
         if not isinstance(meta, dict):
             msg = f"staging meta.json not an object: {staging}"
+            raise CacheError(msg)
+        if not 1 <= resolved_version <= _MAX_RESOLVED_VERSION:
+            # entry_dir 对越界版本回哨兵——写闸必须独立硬拒，防落 .bad-version
+            msg = f"resolved_version out of range: {resolved_version}"
             raise CacheError(msg)
         dest = self.entry_dir(arxiv_id, resolved_version)
         dest.parent.mkdir(parents=True, exist_ok=True)

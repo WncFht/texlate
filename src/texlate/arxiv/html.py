@@ -214,67 +214,82 @@ def _has_prefix(cls: set[str], prefixes: tuple[str, ...]) -> bool:
 
 
 def _inline_text(el: Tag, ctx: _InlineCtx) -> str:
-    """元素内联文本：保护元素 token 化，其余递归取文本，空白 squash。"""
+    """元素内联文本：保护元素 token 化，其余按文档序取文本，空白 squash。
+
+    迭代 + 显式栈（栈存子代迭代器）——深层行内嵌套（数千层 span/em）
+    不触递归上限：RecursionError 不在 ``HtmlError`` 族内，逃逸会掀翻
+    降级链调用方的 ``except HtmlError``。
+    """
     parts: list[str] = []
-    for node in el.children:
-        _inline_node(node, ctx, parts)
+    stack: list[Iterator[Tag | NavigableString]] = [iter(el.children)]
+    while stack:
+        node = next(stack[-1], None)
+        if node is None:
+            stack.pop()
+            continue
+        child = _inline_node(node, ctx, parts)
+        if child is not None:
+            stack.append(iter(child.children))
     return " ".join("".join(parts).split())
 
 
-def _inline_node(  # noqa: C901, PLR0911, PLR0912 -- 行内元素→token/跳过/递归的分派表，分支即 DOM 契约条目
+def _inline_node(  # noqa: C901, PLR0911, PLR0912 -- 行内元素→token/跳过/下钻的分派表，分支即 DOM 契约条目
     node: Tag | NavigableString, ctx: _InlineCtx, parts: list[str]
-) -> None:
+) -> Tag | None:
+    """单节点分派：token/文本入账返回 ``None``；透明内联容器返回自身。
+
+    由 ``_inline_text`` 显式栈下钻其子代（保文档序、免递归）。
+    """
     if isinstance(node, NavigableString):
         if not isinstance(node, _NON_TEXT):
             parts.append(str(node))
-        return
+        return None
     if not isinstance(node, Tag):
-        return
+        return None
     name = node.name or ""
     cls = _classes(node)
     if node is ctx.title_el:
-        return  # 兜底题元——title 块已产出，宿主块不吞其文本
+        return None  # 兜底题元——title 块已产出，宿主块不吞其文本
     if (
         name in _SKIP_TAGS
         or _has_prefix(cls, _SKIP_CLASS_PREFIX)
         or cls & _SKIP_BLOCK_CLS
     ):
-        return
+        return None
     if name == "math" or _has_prefix(cls, _EQN_PREFIX):
         parts.append(ctx.tok("MATH", node))
-        return
+        return None
     if "ltx_cite" in cls:
         parts.append(ctx.tok("CITE", node))
-        return
+        return None
     if "ltx_note" in cls:
         parts.append(ctx.tok("NOTE", node))
         ctx.notes.append(node)
-        return
+        return None
     if "ltx_ERROR" in cls:
         parts.append(ctx.tok("CMD", node))
-        return
+        return None
     if "ltx_tabular" in cls:
         parts.append(ctx.tok("TABLE", node))
-        return
+        return None
     if name in _MEDIA_TAGS or "ltx_graphics" in cls or "ltx_transformed_outer" in cls:
         parts.append(ctx.tok("GRAPHICS", node))
-        return
+        return None
     if name == "a":
         href = node.get("href") or ""
         if "ltx_url" in cls:
             parts.append(ctx.tok("URL", node))
-            return
+            return None
         if href.startswith("#"):
             parts.append(ctx.tok("REF", node))
-            return
+            return None
         # 外链：锚文本照译（latex ``\href{url}{text}`` 文本臂同口径）
     if name in {"ul", "ol"}:
-        return  # item 体自带 ltx_para 块，列表节点不吞文本
+        return None  # item 体自带 ltx_para 块，列表节点不吞文本
     if name == "br":
         parts.append(" ")
-        return
-    for ch in node.children:
-        _inline_node(ch, ctx, parts)
+        return None
+    return node  # 透明内联容器——子代入显式栈续走
 
 
 # ---------------------------------------------------------------- 块分派

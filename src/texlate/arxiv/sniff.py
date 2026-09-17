@@ -3,12 +3,12 @@ r"""e-print 线缆格式判别与 pdf_wrapper 源码壳检测（docs/06 §2.1）
 判别顺序（魔数优先，content-disposition 只作预检提示）::
 
     bytes[0:2] == 1f 8b   → gzip 封装
-      └ gunzip → offset 257 起 "ustar" → tar 多文件
-                 否则                  → 单文件 .tex 本体
+      └ gunzip → tarfile 试开成功 → tar 多文件
+                 否则             → 单文件 .tex 本体
     bytes[0:4] == "%PDF"  → PDF 直投（无源码 → sidecar）
     其他                  → 遗留格式告警（实测已绝迹，95% 上界 <1.6%）
 
-另补一条 docs 未写的廉价分支：裸 blob 直接命中 ustar → 未压缩 tar
+另补一条 docs 未写的廉价分支：裸 blob 能开 tar 流 → 未压缩 tar
 （arXiv 历史上出现过未压缩 tar 提交）。
 
 第四态 ``pdf_wrapper``：源码包合法、有 ``\documentclass``，但正文是
@@ -21,6 +21,7 @@ from __future__ import annotations
 import gzip
 import io
 import re
+import tarfile
 import zlib
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -31,9 +32,6 @@ from texlate.textutil import BEGIN_DOC_RX
 
 GZIP_MAGIC: Final = b"\x1f\x8b"
 PDF_MAGIC: Final = b"%PDF"
-USTAR_MAGIC: Final = b"ustar"
-USTAR_OFFSET: Final = 257
-USTAR_LEN: Final = 5
 
 #: 解包规格上限（docs/06 §2.2）：解压总量 ≤512MB。
 MAX_INFLATED: Final = 512 * 1024 * 1024
@@ -89,9 +87,22 @@ def _gunzip(blob: bytes, cap: int) -> tuple[bytes | None, int, bool]:
 
 
 def _is_tar(payload: bytes) -> bool:
-    return len(payload) >= USTAR_OFFSET + USTAR_LEN and (
-        payload[USTAR_OFFSET : USTAR_OFFSET + USTAR_LEN] == USTAR_MAGIC
-    )
+    """判定 payload 是否 tar 流——``tarfile`` 试开裁决而非 ustar 魔数硬分。
+
+    魔数命中只说明 offset 257 有 ``ustar`` 字面：单文件 .tex 正文撞字面
+    曾误判 TAR 致合法 e-print 整包拒收；零成员空 tar 全零无魔数曾落
+    SINGLE 臂写成幻影 ``{stem}.tex``。真值 = ``unpack_tar`` 同口径
+    ``mode="r:"`` 能否开流——与解包端判定天然一致（v7 无魔数 tar 同获
+    覆盖）。全零非空 payload 先分流 TAR：零成员包无头可验，且新版
+    tarfile 对全零流直接 ReadError——走 unpack 空树不落幻影文件。
+    """
+    if payload and payload.count(0) == len(payload):
+        return True
+    try:
+        with tarfile.open(fileobj=io.BytesIO(payload), mode="r:"):
+            return True
+    except (tarfile.TarError, OSError, EOFError, ValueError):
+        return False
 
 
 def sniff(blob: bytes, *, max_inflated: int = MAX_INFLATED) -> SniffResult:

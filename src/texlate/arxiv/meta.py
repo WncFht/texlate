@@ -340,6 +340,11 @@ class DegradeResult:
 #: §5 路由：解析/编译失败 → L2 优先；%PDF/404/stub → L3 优先
 _L2_FIRST: Final = frozenset({DegradeReason.PARSE_FAILED, DegradeReason.COMPILE_FAILED})
 
+#: L2 逐版本回退窗口上界——feed 宣告的 latest 无上界（phantom vN 曾把
+#: 逐版 HEAD 探测烧满日预算）；只回探最近若干版——老版本有 latexml
+#: HTML 的概率递减，且前段钉版/裸 id 探测与 L3 兜底还需额度。
+_HTML_FALLBACK_MAX: Final = 24
+
 
 def _head(
     fetcher: Fetcher, base: str, kind: str, ver: int | None, probed: list[str]
@@ -365,21 +370,28 @@ def _head(
 def _probe_html(
     fetcher: Fetcher, base: str, ver_req: int | None, probed: list[str]
 ) -> tuple[str, int | None] | None:
-    """L2：钉版 → 裸 id（最新版）→ 逐版本回退 v(latest-1)..v1（§5 探测序）。"""
+    """L2：钉版 → 裸 id（最新版）→ 逐版本回退（窗口有界，§5 探测序）。
+
+    feed 宣告的 latest 无上界——phantom vN 会逐版空探烧满日预算，故
+    回退只覆盖 ``latest-1 .. max(latest-_HTML_FALLBACK_MAX, 1)``；有真
+    版本史（OAI）时 ``has_version`` 再滤掉空洞版本号，零发浪费。
+    """
     tried: set[int] = set()
     order: list[int | None] = ([ver_req] if ver_req else []) + [None]
     for v in order:
         hit = _head(fetcher, base, "html", v, probed)
         if hit is not None:
             return hit
-    latest = resolve_version(base, fetcher=fetcher)
+    meta = fetch_metadata(base, fetcher=fetcher)
+    latest = meta.latest_version if meta is not None else None
     if latest is None:
         return None
     tried.add(latest)  # 裸 id 探的就是最新版
     if ver_req:
         tried.add(ver_req)
-    for v in range(latest - 1, 0, -1):
-        if v in tried:
+    floor = max(latest - _HTML_FALLBACK_MAX, 1)
+    for v in range(latest - 1, floor - 1, -1):
+        if v in tried or not meta.has_version(v):
             continue
         hit = _head(fetcher, base, "html", v, probed)
         if hit is not None:
