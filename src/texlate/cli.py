@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import math
 import os
 import re
 import shutil
@@ -293,6 +294,13 @@ def run(  # noqa: PLR0913 -- CLI 选项面即参数面 + 本地/瘦客户端双�
     客户端栈）→ 产物 sha256 校验下载。同 cache_key 重跑会自然
     attach 到进行中任务（409 duplicate_active 复用其 task_id）。
     """
+    # typer min=0.0 拦不住 nan（nan<0 恒假）——非有限秒数让超时/等待语义失效
+    if not math.isfinite(timeout) or (wait is not None and not math.isfinite(wait)):
+        typer.echo("--timeout/--wait 需要有限秒数", err=True)
+        raise typer.Exit(2)
+    if not source.strip():
+        typer.echo("source 为空——需要 arXiv id 或本地工程目录", err=True)
+        raise typer.Exit(2)
     if engine not in ("auto", "xelatex", "tectonic"):
         typer.echo(
             f"unknown --engine {engine!r} (expect auto|xelatex|tectonic)", err=True
@@ -462,7 +470,7 @@ def _thin_run(  # noqa: PLR0913 -- 与 run 的 --server 选项面一一对应
             if status in ("done", "partial"):
                 return 0
             return 2 if status == "needs_auth" else 1
-    except (httpx.HTTPError, json.JSONDecodeError) as e:
+    except (httpx.HTTPError, httpx.InvalidURL, json.JSONDecodeError) as e:
         typer.echo(f"server 传输错: {e}", err=True)
         return 2
 
@@ -836,8 +844,11 @@ def _share_task_dir(arg: str, data_dir: Path | None) -> Path:
     if p.is_dir():
         return p
     if arg.startswith("t_"):
-        cand = _share_data_root(data_dir) / "tasks" / arg
-        if cand.is_dir():
+        tasks_root = _share_data_root(data_dir) / "tasks"
+        cand = tasks_root / arg
+        # arg 是任务 id 定位键不是路径段——resolve 后必须落 tasks/ 直子级，
+        # 否则 t_x/../../x 形态借 is_dir 解析穿出仓
+        if cand.is_dir() and cand.resolve().parent == tasks_root.resolve():
             return cand
         typer.echo(f"任务目录不存在: {cand}", err=True)
         raise typer.Exit(1)
