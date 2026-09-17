@@ -8,6 +8,7 @@ bench/py 是纯 stdlib 脚本目——triage/benchlib 直接可 import；stageru
 from __future__ import annotations
 
 import json
+import shutil
 from argparse import Namespace
 from typing import TYPE_CHECKING
 
@@ -310,3 +311,132 @@ def test_fixloop_degraded_regression(tmp_path: Path) -> None:
     assert [r["id"] for r in degs] == ["p1"]
     assert degs[0]["before"] == "partial"
     assert degs[0]["after"] == "fail"
+
+
+# ---------------------------------------------------------------- fixloop --rerun 重建
+def _stub_fixloop_io(
+    stagerun: types.ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> list[bool]:
+    """_fixloop_one 的外部面全部替身——只留 workdir 编排逻辑可观测。"""
+    injected: list[bool] = []
+
+    class _Eng:
+        def __init__(self, *_a: object, **_k: object) -> None:
+            pass
+
+        def compile(self, *_a: object, **_k: object) -> object:
+            return object()
+
+    monkeypatch.setattr(
+        stagerun,
+        "prepare_chinese",
+        lambda *_a, **_k: injected.append(True) or {},
+    )
+    monkeypatch.setattr(stagerun, "XelatexEngine", _Eng)
+    monkeypatch.setattr(stagerun.flb, "_index", lambda: None)
+    monkeypatch.setattr(stagerun.flb, "_init_usertree", lambda _p: None)
+    monkeypatch.setattr(stagerun.flb, "_NoSandbox", lambda e: e)
+    monkeypatch.setattr(stagerun.flb, "_texmf_runner", lambda _t: None)
+    monkeypatch.setattr(
+        stagerun,
+        "fixloop",
+        lambda *_a, **_k: {"verdict": "clean", "rounds": [], "actions": []},
+    )
+    monkeypatch.setattr(
+        stagerun.benchlib,
+        "judge_dict",
+        lambda *_a, **_k: {"verdict": {"status": "clean", "reasons": []}},
+    )
+    return injected
+
+
+def _seed_workdir(wid: Path, *, arm: str = "mock") -> Path:
+    """zh/ + 脏 splice/ + parse.json 的最小 workdir。"""
+    zh = wid / "zh"
+    zh.mkdir(parents=True)
+    (zh / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n",
+        encoding="utf-8",
+    )
+    (zh / ".xlat-arm.json").write_text(json.dumps({"arm": arm}), encoding="utf-8")
+    splice = wid / "splice"
+    splice.mkdir()
+    (splice / "main.tex").write_text("DIRTY MUTATION", encoding="utf-8")
+    (splice / "shim.sty").write_text("% shim", encoding="utf-8")
+    (wid / "parse.json").write_text(json.dumps({"main_rel": "main.tex"}))
+    return splice
+
+
+def test_fixloop_rerun_rebuilds_splice(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """fixloop --rerun 重建 splice 自 zh/——上波就地变异不得带入新轮。
+
+    2211.04482 实证脏 splice 泄漏：二轮规则在假树上复跑。重建与
+    _compile_one 同式（copytree zh→splice + prepare_chinese 重做）。
+    """
+    stagerun: types.ModuleType = pytest.importorskip("stagerun")
+    injected = _stub_fixloop_io(stagerun, monkeypatch)
+    splice = _seed_workdir(tmp_path / "work" / "p1")
+    args = Namespace(rerun=True, on="all", timeout=1, llm=False, recode=False)
+    rec = stagerun._fixloop_one(  # noqa: SLF001 - 私有编排函数直测
+        "p1", tmp_path, args, {"upstream": "mock", "metrics": {}}, None
+    )
+    assert rec["status"] == "clean"
+    assert rec["metrics"]["splice_rebuilt"] is True
+    assert injected == [True]
+    assert not (splice / "shim.sty").exists()
+    assert "DIRTY" not in (splice / "main.tex").read_text()
+
+
+def test_fixloop_no_rerun_keeps_splice(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """非 --rerun 契约不变：splice/ 就地复用（resume 语义），不重建不重注。"""
+    stagerun: types.ModuleType = pytest.importorskip("stagerun")
+    injected = _stub_fixloop_io(stagerun, monkeypatch)
+    splice = _seed_workdir(tmp_path / "work" / "p1")
+    args = Namespace(rerun=False, on="all", timeout=1, llm=False, recode=False)
+    rec = stagerun._fixloop_one(  # noqa: SLF001 - 私有编排函数直测
+        "p1", tmp_path, args, {"upstream": "mock", "metrics": {}}, None
+    )
+    assert rec["status"] == "clean"
+    assert "splice_rebuilt" not in rec["metrics"]
+    assert injected == []
+    assert (splice / "shim.sty").exists()
+
+
+def test_fixloop_rerun_arm_mismatch_skips(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """zh/ 臂已换代 → arm_mismatch skip（同 _compile_one 门），脏 splice 不动。"""
+    stagerun: types.ModuleType = pytest.importorskip("stagerun")
+    injected = _stub_fixloop_io(stagerun, monkeypatch)
+    splice = _seed_workdir(tmp_path / "work" / "p1", arm="real")
+    args = Namespace(rerun=True, on="all", timeout=1, llm=False, recode=False)
+    rec = stagerun._fixloop_one(  # noqa: SLF001 - 私有编排函数直测
+        "p1", tmp_path, args, {"upstream": "mock", "metrics": {}}, None
+    )
+    assert rec["status"] == "skip"
+    assert rec["errors"][0]["code"] == "arm_mismatch"
+    assert injected == []
+    assert "DIRTY" in (splice / "main.tex").read_text()
+
+
+def test_fixloop_rerun_no_zh_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """compile 记录在而 zh/ 缺席是异常 → error（不在脏树上误修）。"""
+    stagerun: types.ModuleType = pytest.importorskip("stagerun")
+    injected = _stub_fixloop_io(stagerun, monkeypatch)
+    wid = tmp_path / "work" / "p1"
+    splice = _seed_workdir(wid)
+    shutil.rmtree(wid / "zh")
+    args = Namespace(rerun=True, on="all", timeout=1, llm=False, recode=False)
+    rec = stagerun._fixloop_one(  # noqa: SLF001 - 私有编排函数直测
+        "p1", tmp_path, args, {"upstream": "mock", "metrics": {}}, None
+    )
+    assert rec["status"] == "error"
+    assert rec["errors"][0]["code"] == "rerun_no_zh"
+    assert injected == []
+    assert "DIRTY" in (splice / "main.tex").read_text()
