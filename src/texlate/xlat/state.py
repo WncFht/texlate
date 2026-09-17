@@ -217,6 +217,14 @@ class StateStore:
                 bad.name,
             )
             return set(), {}
+        if data.get("version") != STATE_VERSION:
+            # warn-and-proceed：字段级容错本就逐条隔离坏记录，版本差只提示
+            log.warning(
+                "state %s version %r ≠ %r — 按当前格式尽力解析",
+                path,
+                data.get("version"),
+                STATE_VERSION,
+            )
         try:
             completed = set(data.get("completed") or [])
             results: dict[str, ChunkRecord] = {}

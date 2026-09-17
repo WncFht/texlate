@@ -1,8 +1,11 @@
 """state：原子落盘 / state.json schema / 续跑 round-trip / 缓存键与隔离。"""
 
 import json
+import logging
 import stat
 from pathlib import Path
+
+import pytest
 
 from texlate.xlat import state as st
 
@@ -88,6 +91,25 @@ class TestStateStore:
         quarantined = list(tmp_path.glob("state-invalid-*.json"))
         assert len(quarantined) == 1
         assert quarantined[0].read_text(encoding="utf-8") == "{not json"
+
+    def test_version_mismatch_warns_and_proceeds(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """version ≠ STATE_VERSION → warn 记档、按当前格式尽力解析（非损坏不隔离）。"""
+        store = st.StateStore(tmp_path)
+        store.start(1)
+        store.record(st.ChunkRecord(chunk_id="c1", source="s", translation="t"))
+        store.finish()
+        p = tmp_path / "state.json"
+        data = json.loads(p.read_text(encoding="utf-8"))
+        data["version"] = "9.9"
+        p.write_text(json.dumps(data), encoding="utf-8")
+        with caplog.at_level(logging.WARNING, logger="texlate.xlat.state"):
+            completed, recs = st.StateStore(tmp_path).load()
+        assert completed == {"c1"}
+        assert recs["c1"].translation == "t"
+        assert p.exists()  # 版本差不隔离
+        assert any("9.9" in r.message for r in caplog.records)
 
     def test_malformed_state_quarantined(self, tmp_path: Path) -> None:
         """JSON 合法但顶层非 dict（手改/串文件）——曾 ``data.get`` 炸 AttributeError。"""
