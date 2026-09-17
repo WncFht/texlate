@@ -27,6 +27,8 @@ interface Props {
     /** usePDFSlick 回传的 PDFSlickThumbnails 组件（绑定同一 store） */
     Thumbs: typeof PDFSlickThumbnails;
     onOpenFind(): void;
+    /** 暴露 rail ⌕ 钮给宿主——findbar 关闭时焦点回触发源 */
+    findBtnRef?(el: HTMLButtonElement): void;
     onToggleInfo(): void;
     /** 「下载带批注副本」文件名（缺省按 store.filename 派生） */
     annotName?: string;
@@ -177,6 +179,7 @@ export default function PaneSidebar(props: Props) {
                 <button
                     type="button"
                     class="rail-btn"
+                    ref={(el) => props.findBtnRef?.(el)}
                     title={`${t.pane.find}（Ctrl+F）`}
                     aria-label={t.pane.find}
                     onClick={() => props.onOpenFind()}

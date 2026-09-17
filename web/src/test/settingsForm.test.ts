@@ -38,9 +38,8 @@ function mount() {
     const num = form.querySelector<HTMLInputElement>('input[type="number"]');
     const url = form.querySelector<HTMLInputElement>('input[type="url"]');
     const pwd = form.querySelector<HTMLInputElement>('input[type="password"]');
-    const modelInput = form.querySelector<HTMLInputElement>(
-        'input[list="provider-models"]',
-    );
+    // model 字段随预设态在 input/select 间切换——name 属性做稳定查询口
+    const modelInput = form.querySelector<HTMLInputElement>('[name="model"]');
     if (!num || !url || !pwd || !modelInput) throw new Error("fields missing");
     return { form, num, url, pwd, modelInput };
 }
@@ -106,6 +105,7 @@ describe("Settings 表单提交", () => {
         const { form, url, pwd, modelInput } = mount();
         await flush();
         type(url, "  https://gw2/v1  ");
+        // providers mock 为空 → 自定义态 → model 是自由 input
         type(modelInput, "  m2  ");
         type(pwd, "  sk-trim  ");
 

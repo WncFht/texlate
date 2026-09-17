@@ -3,7 +3,15 @@
 // 进行中 → TaskProgress，终态可读 → ReaderView（同步/持久化/窗格机制全在
 // reader/ 子组件内），无阅读视图的终态 → 结果面板 / 产物下载面板。
 
-import { createEffect, createMemo, createSignal, For, onMount, Show } from "solid-js";
+import {
+    createEffect,
+    createMemo,
+    createSignal,
+    For,
+    onCleanup,
+    onMount,
+    Show,
+} from "solid-js";
 import {
     api,
     ApiError,
@@ -17,6 +25,7 @@ import {
 import { taskStore } from "../stores/tasks";
 import { downloadItems } from "../taskFiles";
 import { mergeResultStats } from "../taskStats";
+import ProgressGrid from "../components/ProgressGrid";
 import type { DownloadItem, Mode } from "../components/Toolbar";
 import type { DocId } from "../reader/alignment";
 import { resolveReaderView } from "../reader/view";
@@ -67,12 +76,17 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
             .then(setManifest)
             .catch(() => undefined);
         try {
-            const r = await api.reader(props.taskId);
+            // reader 与 dual.json 无相互依赖——并行省 1 RTT
+            // （dual.json 同时提供 alignment 兜底与 chunks，HTML 视图必需）
+            const [r, dj] = await Promise.all([
+                api.reader(props.taskId),
+                fetch(api.fileUrl(props.taskId, "dual.json"))
+                    .then((res) =>
+                        res.ok ? (res.json() as Promise<DualJson>) : null,
+                    )
+                    .catch(() => null),
+            ]);
             setInfo(r);
-            // dual.json 同时提供 alignment 兜底与 chunks（HTML 视图必需）
-            const dj = await fetch(api.fileUrl(props.taskId, "dual.json"))
-                .then((res) => (res.ok ? (res.json() as Promise<DualJson>) : null))
-                .catch(() => null);
             setDual(dj);
             const rd = r.reading;
             if (rd) {
@@ -83,6 +97,13 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
                 const rds = rd as typeof rd & { swapped?: boolean };
                 if (typeof rds.swapped === "boolean") setSwapped(rds.swapped);
             }
+            // 窄屏（≤640px）无已存偏好 → 默认单栏译文（U14；分栏在手机上不可读）
+            if (
+                !rd?.mode &&
+                typeof window.matchMedia === "function" &&
+                window.matchMedia("(max-width: 640px)").matches
+            )
+                setMode("translated");
         } catch (e) {
             // 终态任务无 reader 数据 → reader 404 属预期，交给结果/产物面板；其余仍 fatal
             const s = task()?.status;
@@ -94,7 +115,7 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
         }
     };
 
-    onMount(async () => {
+    const boot = async () => {
         try {
             const snap = await api.snapshot(props.taskId);
             setTask(snap);
@@ -106,7 +127,19 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
         } catch (e) {
             setFatal(e instanceof Error ? e.message : String(e));
         }
-    });
+    };
+
+    /** fatal 死路页重试：清闸重走装载（U7） */
+    const reload = () => {
+        setFatal("");
+        readerRequested = false;
+        void boot();
+    };
+
+    onMount(() => void boot());
+
+    // 卸载摘 pin：watch 的 SSE 槽/pin 意愿不随组件消失自动释放（M2）
+    onCleanup(() => taskStore.unwatch(props.taskId));
 
     // SSE：任务在 store 里被 watch；终态到达 → 装阅读器
     createEffect(() => {
@@ -114,6 +147,70 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
         if (done && !info()) void loadReader();
         const snap = taskStore.task(props.taskId);
         if (snap) setTask(snap);
+    });
+
+    // ---------- document.title（U9 进度可见 / U10 后台完成闪烁） ----------
+
+    const baseTitle = document.title;
+    let flashTimer = 0;
+    const stopFlash = () => {
+        if (flashTimer) {
+            window.clearInterval(flashTimer);
+            flashTimer = 0;
+        }
+    };
+
+    const computeTitle = () => {
+        const s = task();
+        if (!s) return baseTitle;
+        return activeTask() ? `${Math.round(s.progress)}% · ${title()}` : title();
+    };
+
+    createEffect(() => {
+        if (flashTimer) return; // 闪烁期标题归闪灯管
+        document.title = computeTitle();
+    });
+
+    // 活动 → 终态的迁移在后台 tab 发生 → 标题闪【完成】；回前台/卸载即停。
+    // SSE done 帧与轮询降级两路都走 status 翻转，单点判定迁移沿。
+    let wasActive = false;
+    const startFlash = () => {
+        if (flashTimer) return;
+        let on = false;
+        const name = title();
+        flashTimer = window.setInterval(() => {
+            on = !on;
+            document.title = on ? `【${t.status.done}】${name}` : name;
+        }, 1000);
+    };
+    createEffect(() => {
+        if (activeTask()) {
+            wasActive = true;
+            return;
+        }
+        if (
+            wasActive &&
+            task() &&
+            isTerminal(task()!.status) &&
+            document.hidden
+        )
+            startFlash();
+        wasActive = false;
+    });
+
+    onMount(() => {
+        const onVis = () => {
+            if (document.hidden) return;
+            stopFlash();
+            document.title = computeTitle();
+        };
+        document.addEventListener("visibilitychange", onVis);
+        onCleanup(() => document.removeEventListener("visibilitychange", onVis));
+    });
+
+    onCleanup(() => {
+        stopFlash();
+        document.title = baseTitle;
     });
 
     // ---------- 页面流转派生 ----------
@@ -231,10 +328,17 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
         setHtmlBusy(true);
         setHtmlErr("");
         try {
+            // M10：原任务 options/glossary 全量透传（glossary/concurrency/
+            // guidance/prefer…），只改 source——idempotency_key 摘除（服务端
+            // 按它 dedup，带过去会把新任务吞成旧任务命中）。
+            const options: Record<string, unknown> = { ...(s.options ?? {}) };
+            delete options.idempotency_key;
+            options.source = "html";
             const res = await api.translate(s.arxiv_id, {
                 model: s.model,
                 target_lang: s.target_lang,
-                options: { source: "html" },
+                glossary: s.glossary,
+                options,
             });
             props.nav(landingHash(res));
         } catch (e) {
@@ -269,6 +373,22 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
         />
     );
 
+    /** partial/fault 的段落棋盘格——settleLive 保留 chunkItems，直接复用（U11） */
+    const gridSlot = () => {
+        const c = live()?.chunk;
+        const items = live()?.chunkItems ?? [];
+        if (!c || !items.length) return undefined;
+        return (
+            <ProgressGrid
+                total={c.total}
+                done={c.done}
+                cached={c.cached}
+                failed={c.failed}
+                items={items}
+            />
+        );
+    };
+
     /** 终态面板主体：状态文案 + 错误 + 警告 + 统计 + 重试（横幅与整页共用） */
     const renderResultBody = (st: string) => (
         <ResultBody
@@ -284,6 +404,7 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
             htmlErr={htmlErr()}
             onTryHtml={() => void onTryHtml()}
             stats={resultStats()}
+            grid={gridSlot()}
             share={renderShare()}
         />
     );
@@ -312,6 +433,9 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
             <Show when={fatal()}>
                 <main class="reader-fatal">
                     <p>{fatal()}</p>
+                    <button type="button" class="tb-btn" onClick={reload}>
+                        {t.reader.retry}
+                    </button>
                     <button type="button" class="btn-ghost" onClick={() => props.nav("#/")}>
                         ← {t.reader.back}
                     </button>
@@ -343,6 +467,7 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
                     dual={dual()}
                     status={task()?.status}
                     title={title()}
+                    arxivId={task()?.arxiv_id}
                     downloads={downloads()}
                     mode={mode()}
                     setMode={setMode}

@@ -110,8 +110,9 @@ describe("Home 上传进度条", () => {
 
         onProg!(1024, 1024);
         await flush();
-        expect(bar()!.style.width).toBe("100%");
-        expect(label()).toContain("100%");
+        // 100% = 字节送完、服务端建单中——回不定态扫条 + 处理中文案（U14）
+        expect(bar()!.style.width).toBe("35%");
+        expect(label()).toContain("处理中");
     });
 
     it("上传结案后进度条隐藏（失败亦然），错误文案可见", async () => {

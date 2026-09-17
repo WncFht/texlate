@@ -6,6 +6,7 @@ import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
 import type { TaskSnapshot, TaskStage } from "../api/client";
 import type { TaskLive } from "../stores/tasks";
 import ProgressGrid from "../components/ProgressGrid";
+import ChunkPreview from "./ChunkPreview";
 import { fmtClock, fmtElapsed } from "./timefmt";
 import { t } from "../i18n/zh";
 
@@ -54,14 +55,30 @@ export default function TaskProgress(props: Props) {
         scrollLog();
     });
 
+    // transport 四态徽标（connecting/polling 由 fe-live 侧 transport 契约扩展；
+    // live 正常不显示）。宽转 string——契约字段落地前后都能编
+    const transportText = () => {
+        switch (props.live?.transport as string | undefined) {
+            case "connecting":
+                return t.progress.connecting;
+            case "polling":
+                return t.progress.polling;
+            case "closed":
+                return t.progress.closed;
+            default:
+                return t.progress.reconnecting;
+        }
+    };
+
     return (
         <main class="task-progress">
             <h1 class="tp-title">{props.title}</h1>
             <Show when={props.live?.transport && props.live!.transport !== "live"}>
-                <p class="transport-badge" role="status">
-                    {props.live!.transport === "closed"
-                        ? t.progress.closed
-                        : t.progress.reconnecting}
+                <p
+                    class={`transport-badge ${props.live!.transport}`}
+                    role="status"
+                >
+                    {transportText()}
                 </p>
             </Show>
             <ol class="stage-stepper">
@@ -82,7 +99,14 @@ export default function TaskProgress(props: Props) {
                     }}
                 </For>
             </ol>
-            <div class="tp-bar">
+            <div
+                class="tp-bar"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(props.task?.progress ?? 0)}
+                aria-label={t.progress.chunks}
+            >
                 <i style={{ width: `${props.task?.progress ?? 0}%` }} />
             </div>
             <Show when={props.task?.message}>
@@ -139,6 +163,11 @@ export default function TaskProgress(props: Props) {
                         items={props.live?.chunkItems ?? []}
                     />
                 )}
+            </Show>
+            {/* 翻译段流式预览：已译 chunk 只读列表（taskChunks 轮询，
+                组件未随阶段离开即停） */}
+            <Show when={props.task?.status === "translating" && props.task.task_id}>
+                {(id) => <ChunkPreview taskId={id()} />}
             </Show>
             <Show when={(props.live?.warnings.length ?? 0) > 0}>
                 <p class="warn-title muted">{t.progress.warnings}</p>

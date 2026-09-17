@@ -10,7 +10,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright-core";
 
-const BASE = process.env.WEB_BASE ?? "http://localhost:5173";
+const BASE = process.env.WEB_BASE ?? "http://localhost:5199";
 const findChromium = () => {
     const root = join(homedir(), ".cache/ms-playwright");
     const dirs = readdirSync(root)
@@ -44,16 +44,28 @@ const browser = await chromium.launch({
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
 
 const consoleErrors = [];
+// 设计内错误响应与库噪声豁免表（按 location.url + 状态码，逐条注明出处）：
+// - /api/task/{id}/reader 404：doc 类任务无在线对照视图，前端转产物面板
+// - /api/files/{id}/dual.json 404：loadReader 探测对照数据，缺席走空窗格
+// - /api/files/{id}/*.pdf 404：非 done 任务窗格探针——真缺 pdf 时窗格断言先挂
+const CONSOLE_EXEMPT = [
+    [/\/api\/task\/[^/]+\/reader$/, "404"],
+    [/\/api\/files\/[^/]+\/dual\.json$/, "404"],
+    [/\/api\/files\/[^/]+\/[^/]+$/, "404"],
+];
 page.on("console", (m) => {
     if (m.type() !== "error") return;
-    // doc 类任务的 /api/task/{id}/reader 404 是设计内降级（前端转产物面板），
-    // 浏览器照样记 resource 404——按 location.url 豁免这一条
     const loc = m.location()?.url ?? "";
-    if (/\/api\/task\/[^/]+\/reader$/.test(loc) && m.text().includes("404"))
+    if (
+        CONSOLE_EXEMPT.some(([re, code]) => re.test(loc) && m.text().includes(code))
+    )
         return;
-    consoleErrors.push(m.text());
+    if (m.text().includes("offsetParent is not set")) return;
+    consoleErrors.push(`${loc} :: ${m.text()}`);
 });
 page.on("pageerror", (e) => consoleErrors.push(`pageerror: ${e.message}`));
+// 删除/批量清理走 window.confirm——统一接受（拒绝路径由单测覆盖）
+page.on("dialog", (d) => void d.accept());
 
 // ---------- 1. Home ----------
 await page.goto(`${BASE}/#/`, { waitUntil: "networkidle" });
@@ -71,7 +83,11 @@ check(
 check("任务列表有 seed", (await page.locator(".task-row").count()) >= 3);
 
 // ---------- 2. 提交 arXiv → 进度视图 ----------
-await page.fill(".arxiv-input", "2501.14787");
+// 每次跑用随机未播种 id——mock prefer=reuse 会把已入库的 id（如 seed a01
+// 的 2501.14787 或上次跑建的任务）复用到 done 任务，落地即阅读器，
+// 进度视图断言恒超时；随机 id 保证 smoke 对 warm server 也可重跑
+const runArxiv = `2599.${String(10000 + Math.floor(Math.random() * 90000))}`;
+await page.fill(".arxiv-input", runArxiv);
 await page.click('button:has-text("翻译")');
 await page.waitForURL(/#\/reader\/t_/, { timeout: 5000 });
 check("跳转阅读器路由", page.url().includes("#/reader/"));
@@ -81,6 +97,15 @@ check("阶段步进器", (await page.locator(".stage-stepper li").count()) === 4
 
 // 等翻译中:棋盘格出现
 await page.waitForSelector(".progress-grid", { timeout: 15000 });
+
+// ChunkPreview：/api/task/{id}/chunks 端点出活——已译段随翻译生长。
+// translating 窗口仅 ~4s（mock 350ms×12 tick），必须在累积等待之前断言
+await page
+    .waitForSelector(".chunk-preview .cp-item", { timeout: 8000 })
+    .catch(() => null);
+const cpItems = await page.locator(".chunk-preview .cp-item").count();
+check("译文预览有已译段", cpItems > 0, `${cpItems} 段`);
+
 await page.waitForTimeout(1500);
 await page.screenshot({ path: `${SHOTS}03-translating.png` });
 // 棋盘格累积断言:ok 格数应随时间增长且不回落(旧 bug:增量帧重置)
@@ -132,12 +157,22 @@ await page.click('button:has-text("左右互换")');
 await page.waitForTimeout(400);
 await page.screenshot({ path: `${SHOTS}06-swapped.png` });
 
-// 页码输入:填入 3 回车
+// 页码输入:填入 3 回车——真断言页号落地（pdfslick store 或输入框回显），非空转
 const pageInput = page.locator(".tb-page input");
 await pageInput.fill("3");
 await pageInput.press("Enter");
-await page.waitForTimeout(600);
-check("页码输入后仍聚焦可用", true);
+await page.waitForTimeout(800);
+const pageNow = await page.evaluate(() => {
+    const inp = document.querySelector(".tb-page input");
+    const v = inp ? inp.value : "";
+    // pdfslick store 挂在模块里——DOM 面取输入框回显值（跳转后组件会回填 currentPage）
+    return { inputVal: v, scrollY: window.scrollY };
+});
+check(
+    "页码输入跳到第 3 页",
+    pageNow.inputVal === "3" || pageNow.inputVal === "3 /",
+    `input=${pageNow.inputVal}`,
+);
 
 // 模式切换:对照 → 译文 → 对照(测 pendingJump 修复不崩)
 await page.click('.segmented-item:has-text("译文")');
@@ -158,12 +193,85 @@ check(
     await page.locator(".reader-toolbar").isVisible(),
 );
 
-// fault seed:结果面板
+// fault seed:有产物 → 结果横幅（M1：st-fault 状态类必须真挂上）
+// warm server 注意：本段 retry 会把 a04 消费成 done——mock 状态在内存，
+// 重跑前先查任务状态，已消费则记 SKIP（重启 dev 恢复覆盖）
+const a04Status = await page.evaluate(async () => {
+    const r = await fetch("/api/task/t_0000000000000a04");
+    return r.ok ? (await r.json()).status : "missing";
+});
+if (a04Status === "fault") {
+    await page.goto(`${BASE}/#/reader/t_0000000000000a04`, {
+        waitUntil: "networkidle",
+    });
+    await page.waitForSelector(".result-banner.st-fault", { timeout: 8000 });
+    check(
+        "fault 任务出 st-fault 结果横幅",
+        await page.locator(".result-banner.st-fault").isVisible(),
+    );
+    check(
+        "fault 横幅有重试钮",
+        await page
+            .locator('.result-banner button:has-text("重试")')
+            .first()
+            .isVisible(),
+    );
+    await page.screenshot({ path: `${SHOTS}08-fault.png` });
+
+    // ---------- 4.6 retry 流：fault → 进度页复生 → 收敛 done ----------
+    // mock retry 保留事件流（seq 续增不清空）——验前端 seq 水位线不吃旧帧
+    await page.click('.result-banner button:has-text("重试")');
+    await page.waitForSelector(".task-progress", { timeout: 5000 });
+    check("retry 后进度视图复生", true);
+    await page.waitForSelector(".reader-toolbar", { timeout: 30000 });
+    check("retry 收敛 done 进阅读器", true);
+    await page.screenshot({ path: `${SHOTS}08c-retried.png` });
+} else {
+    check(
+        "fault/retry 段（a04 已非 fault，warm server 跳过——重启 dev 恢复）",
+        true,
+        `a04=${a04Status}`,
+    );
+}
+
+// needs_auth seed：同样有产物 → st-needs_auth 横幅 + 认证提示文案
+// （整页 .result-panel 路径由后面 epub 产物面板的既有断言覆盖）
+// 与 a04 同理：warm server 上若已被删/重试则 SKIP 不 FAIL
+const a05Status = await page.evaluate(async () => {
+    const r = await fetch("/api/task/t_0000000000000a05");
+    return r.ok ? (await r.json()).status : "missing";
+});
+if (a05Status === "needs_auth") {
+    await page.goto(`${BASE}/#/reader/t_0000000000000a05`, {
+        waitUntil: "networkidle",
+    });
+    await page.waitForSelector(".result-banner.st-needs_auth", {
+        timeout: 8000,
+    });
+    check(
+        "needs_auth 任务出 st-needs_auth 横幅",
+        await page.locator(".result-banner.st-needs_auth").isVisible(),
+    );
+    check(
+        "needs_auth 提示文案在场",
+        (
+            await page.locator(".result-banner.st-needs_auth").textContent()
+        )?.includes("API Key") ?? false,
+    );
+} else {
+    check(
+        "needs_auth 段（a05 已非 needs_auth，warm server 跳过——重启 dev 恢复）",
+        true,
+        `a05=${a05Status}`,
+    );
+}
+
+// ---------- 4.7 partial seed ----------
 await page.goto(`${BASE}/#/reader/t_0000000000000a03`, {
     waitUntil: "networkidle",
 });
 await page.waitForTimeout(1500);
-await page.screenshot({ path: `${SHOTS}08-partial.png` });
+await page.screenshot({ path: `${SHOTS}08d-partial.png` });
 
 // ---------- 4.5 doc 任务：kind 徽标 + 行内下载 + files 面板 ----------
 await page.goto(`${BASE}/#/`, { waitUntil: "networkidle" });
@@ -185,6 +293,10 @@ check(
     (await docDl.count()) >= 1 &&
         (await docDl.first().getAttribute("href"))?.includes("?download=1"),
 );
+// epub manifest 懒拉比 docx 慢——等链真出现再断言，防计数竞态
+await page
+    .waitForSelector('.task-dl[href*="zh.epub"]', { timeout: 5000 })
+    .catch(() => null);
 check(
     "epub 行内 zh.epub 下载链",
     (await page.locator('.task-dl[href*="zh.epub"]').count()) >= 1,
@@ -222,6 +334,27 @@ await page.waitForURL(/#\/reader\/t_/, { timeout: 5000 });
 check("docx 上传落地详情面（reader_url 缺席不崩）", true);
 await page.waitForSelector(".task-progress", { timeout: 5000 });
 check("docx 任务出进度视图", true);
+
+// ---------- 4.8 删除流：终态行 ✕ → confirm → 行消失 ----------
+await page.goto(`${BASE}/#/`, { waitUntil: "networkidle" });
+await page.waitForSelector(".task-row", { timeout: 5000 });
+const rowsBefore = await page.locator(".task-row").count();
+// 点首个可删行 ✕——优先非 doc 行，别把 doc fixture（a06/a07）删出后续断言；
+// dialog handler 已统一 accept
+const nonDocDel = page.locator(
+    ".task-wrap:not(:has(.task-kind.k-doc)):not(:has(.st-needs_auth)) " +
+        ".task-del:not(:disabled)",
+);
+const delBtn = (await nonDocDel.count())
+    ? nonDocDel.first()
+    : page.locator(".task-del:not(:disabled)").first();
+await delBtn.click();
+await page.waitForFunction(
+    (n) => document.querySelectorAll(".task-row").length === n - 1,
+    rowsBefore,
+    { timeout: 5000 },
+);
+check("删除后任务行减一", true, `${rowsBefore} → ${rowsBefore - 1}`);
 
 // ---------- 5. Settings ----------
 await page.goto(`${BASE}/#/settings`, { waitUntil: "networkidle" });

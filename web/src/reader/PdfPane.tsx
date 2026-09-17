@@ -44,6 +44,8 @@ interface Props {
     onPageChange?(page: number, numPages: number): void;
     onActivate?(): void;
     onScroll?(): void;
+    /** 加载失败 veil 的重试——调用方换 key 整体重挂（url 不可在位换，§5.1） */
+    onReload?(): void;
 }
 
 interface PdfPageViewLike {
@@ -78,6 +80,8 @@ export default function PdfPane(props: Props) {
     const [findOpen, setFindOpen] = createSignal(false);
     const [infoOpen, setInfoOpen] = createSignal(false);
     let findInput: HTMLInputElement | undefined;
+    // findbar 关闭焦点回触发源（rail ⌕ 钮；Ctrl+F 开时同样是它承接，一致可预期）
+    let findBtn: HTMLButtonElement | undefined;
 
     // 页面几何缓存：滚动路径高频调 pages()，_pages[].div 的 offsetTop/Height
     // 只在缩放/旋转/换文档时变化——eventBus 事件 + 容器 RO 失效
@@ -90,6 +94,11 @@ export default function PdfPane(props: Props) {
         setFindOpen(true);
         props.onActivate?.();
         queueMicrotask(() => findInput?.focus());
+    };
+
+    const closeFind = () => {
+        setFindOpen(false);
+        findBtn?.focus();
     };
 
     const handle: PaneHandle = {
@@ -233,6 +242,7 @@ export default function PdfPane(props: Props) {
                 thumbsRef={thumbsRef}
                 Thumbs={PDFSlickThumbnails}
                 onOpenFind={openFind}
+                findBtnRef={(el) => (findBtn = el)}
                 onToggleInfo={() => setInfoOpen((v) => !v)}
                 annotName={props.annotName}
             />
@@ -242,7 +252,7 @@ export default function PdfPane(props: Props) {
                     slick={pdfSlick}
                     open={findOpen()}
                     inputRef={(el) => (findInput = el)}
-                    onClose={() => setFindOpen(false)}
+                    onClose={closeFind}
                 />
                 <Show when={infoOpen()}>
                     <DocInfo store={pdfSlickStore} onClose={() => setInfoOpen(false)} />
@@ -254,9 +264,23 @@ export default function PdfPane(props: Props) {
                 </Show>
                 <Show when={error()}>
                     {(e) => (
-                        <div class="pane-veil pane-error">
-                            {t.pane.pdfError}
-                            {String(e())}
+                        <div
+                            class="pane-veil pane-error"
+                            style={{ "flex-direction": "column", gap: "8px" }}
+                        >
+                            <span>
+                                {t.pane.pdfError}
+                                {String(e())}
+                            </span>
+                            <Show when={props.onReload}>
+                                <button
+                                    type="button"
+                                    class="btn-ghost"
+                                    onClick={() => props.onReload?.()}
+                                >
+                                    {t.reader.retry}
+                                </button>
+                            </Show>
                         </div>
                     )}
                 </Show>

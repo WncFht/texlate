@@ -14,6 +14,7 @@ import type { FileKind, TaskStatus } from "../api/client";
 import { isTerminal } from "../api/client";
 import { t } from "../i18n/zh";
 import type { DocId } from "../reader/alignment";
+import { ti18n } from "../reader/paneUtils";
 
 export type Mode = "original" | "translated" | "split";
 
@@ -34,6 +35,10 @@ interface Props {
     active: DocId;
     swapped: boolean;
     downloads: DownloadItem[];
+    /** arXiv 任务 → 顶栏出 arxiv.org/abs 原文直达链 */
+    arxivId?: string;
+    /** 页码控件单位文案（html/dom 视图定位单位是段不是页） */
+    pageUnit?: string;
     /** false（HTML 视图）时禁用页码跳转 */
     canGotoPage?: boolean;
     /** false 时禁用缩放选择 */
@@ -72,6 +77,7 @@ export default function Toolbar(props: Props) {
     const [draft, setDraft] = createSignal(untrack(() => String(props.page)));
     const [editing, setEditing] = createSignal(false);
     let menuWrap!: HTMLDivElement;
+    let menuBtn: HTMLButtonElement | undefined;
 
     createEffect(() => {
         const p = props.page;
@@ -92,14 +98,17 @@ export default function Toolbar(props: Props) {
         }
     };
 
-    // 下载菜单：外部点击 / Escape 关闭
+    // 下载菜单：外部点击 / Escape 关闭（Escape 焦点回触发钮）
     onMount(() => {
         const onDown = (e: PointerEvent) => {
             if (menuOpen() && !menuWrap.contains(e.target as Node))
                 setMenuOpen(false);
         };
         const onKey = (e: KeyboardEvent) => {
-            if (e.key === "Escape") setMenuOpen(false);
+            if (e.key === "Escape" && menuOpen()) {
+                setMenuOpen(false);
+                menuBtn?.focus();
+            }
         };
         document.addEventListener("pointerdown", onDown);
         document.addEventListener("keydown", onKey);
@@ -108,6 +117,41 @@ export default function Toolbar(props: Props) {
             document.removeEventListener("keydown", onKey);
         });
     });
+
+    /** 菜单内方向键 roving（menuitem 间循环）；Tab 顺走自然收菜单 */
+    const onMenuKey = (e: KeyboardEvent) => {
+        const items = [
+            ...(e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>(
+                "a[role='menuitem']",
+            ),
+        ];
+        if (!items.length) return;
+        const idx = items.indexOf(document.activeElement as HTMLElement);
+        let next = -1;
+        if (e.key === "ArrowDown") next = idx < 0 ? 0 : (idx + 1) % items.length;
+        else if (e.key === "ArrowUp")
+            next = idx <= 0 ? items.length - 1 : idx - 1;
+        else if (e.key === "Home") next = 0;
+        else if (e.key === "End") next = items.length - 1;
+        else if (e.key === "Tab") {
+            setMenuOpen(false);
+            return;
+        } else return;
+        e.preventDefault();
+        items[next]?.focus();
+    };
+
+    /** 触发钮 ArrowDown：开菜单并聚焦首项（ARIA menu 钮模式） */
+    const onMenuBtnKey = (e: KeyboardEvent) => {
+        if (e.key !== "ArrowDown") return;
+        e.preventDefault();
+        setMenuOpen(true);
+        queueMicrotask(() =>
+            menuWrap
+                .querySelector<HTMLElement>("a[role='menuitem']")
+                ?.focus(),
+        );
+    };
 
     const noGoto = () => props.canGotoPage === false;
     const noZoom = () => props.canZoom === false;
@@ -125,6 +169,20 @@ export default function Toolbar(props: Props) {
             <span class="tb-title" title={props.title}>
                 {props.title}
             </span>
+            <Show when={props.arxivId}>
+                {(id) => (
+                    <a
+                        class="tb-btn"
+                        href={`https://arxiv.org/abs/${id()}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={ti18n(t.reader, "arxivLink", "arXiv 原文")}
+                        aria-label={ti18n(t.reader, "arxivLink", "arXiv 原文")}
+                    >
+                        arXiv ↗
+                    </a>
+                )}
+            </Show>
 
             <Segmented
                 ariaLabel={t.reader.mode}
@@ -192,7 +250,7 @@ export default function Toolbar(props: Props) {
                         commitPage();
                         setEditing(false);
                     }}
-                    aria-label={t.reader.page}
+                    aria-label={props.pageUnit ?? t.reader.page}
                 />
                 / {props.numPages || "—"}
             </span>
@@ -228,10 +286,12 @@ export default function Toolbar(props: Props) {
                 <button
                     type="button"
                     class="tb-btn"
+                    ref={(el) => (menuBtn = el)}
                     aria-haspopup="menu"
                     aria-expanded={menuOpen()}
                     disabled={props.downloads.length === 0}
                     onClick={() => setMenuOpen((v) => !v)}
+                    onKeyDown={onMenuBtnKey}
                 >
                     ⬇ {t.reader.download}
                 </button>
@@ -240,10 +300,16 @@ export default function Toolbar(props: Props) {
                         class="tb-menu"
                         role="menu"
                         onClick={() => setMenuOpen(false)}
+                        onKeyDown={onMenuKey}
                     >
                         <For each={props.downloads}>
                             {(d) => (
-                                <a href={d.url} download="" role="menuitem">
+                                <a
+                                    href={d.url}
+                                    download=""
+                                    role="menuitem"
+                                    tabIndex={-1}
+                                >
                                     {d.label}
                                 </a>
                             )}

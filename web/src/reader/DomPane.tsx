@@ -9,11 +9,13 @@
 //   - fetch 产物 → DOMPurify dom profile → innerHTML
 //   - 服务端 emit 已 _sanitize_dom + absolutize，这里是第二道防线：
 //     sanitize + 兜底把漏网的相对 URL 补到 arxiv.org origin
+//   - 拉取期 veil + 失败态重试钮（不再与真空态同文案）
 
-import { createEffect, onCleanup, onMount, untrack } from "solid-js";
+import { createEffect, createSignal, onCleanup, onMount, Show, untrack } from "solid-js";
 
 import type { DocId, Pos } from "./alignment";
 import { sanitizeDomHtml } from "./sanitize";
+import { externalLinksBlank } from "./paneUtils";
 import {
     bindChunkGeom,
     capturePos,
@@ -29,6 +31,8 @@ export interface DomPaneHandle extends PaneLike {
     capture(): Pos;
     jump(pos: Pos): void;
     scrollTopFor(pos: Pos): number | null;
+    /** html/dom 缩放落点：正文字号（px） */
+    setFontSize?(px: number): void;
 }
 
 interface Props {
@@ -57,6 +61,8 @@ function fixupRelativeUrls(root: HTMLElement): void {
 export default function DomPane(props: Props) {
     let scrollEl!: HTMLDivElement;
     let bodyEl!: HTMLDivElement;
+    const [phase, setPhase] = createSignal<"loading" | "ready" | "error">("loading");
+    const [errMsg, setErrMsg] = createSignal("");
     const geom = bindChunkGeom(
         () => scrollEl,
         () => bodyEl,
@@ -82,35 +88,49 @@ export default function DomPane(props: Props) {
         scrollTopFor(pos) {
             return scrollTopFor(this, pos);
         },
+        setFontSize(px) {
+            bodyEl.style.fontSize = `${px}px`;
+        },
     };
 
     let disposed = false;
-    const ac = new AbortController();
-    onMount(async () => {
-        // 产物是完整 HTML 文档——只取 <body> 内文进 pane，头壳（arxiv
-        // 的 nav/meta/link）丢弃。ltx_page 主容器及以下才是论文本体。
+    let ac: AbortController | null = null;
+
+    const load = async () => {
+        ac?.abort();
+        const ctl = (ac = new AbortController());
+        setPhase("loading");
+        setErrMsg("");
         try {
-            const res = await fetch(props.url, { signal: ac.signal });
+            const res = await fetch(props.url, { signal: ctl.signal });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const raw = await res.text();
+            // 产物是完整 HTML 文档——只取 <body> 内文进 pane，头壳（arxiv
+            // 的 nav/meta/link）丢弃。ltx_page 主容器及以下才是论文本体。
             const doc = new DOMParser().parseFromString(raw, "text/html");
             const page = doc.querySelector(".ltx_page_main") ?? doc.body;
             if (disposed) return;
             bodyEl.innerHTML = sanitizeDomHtml(page.innerHTML);
             fixupRelativeUrls(bodyEl);
+            externalLinksBlank(bodyEl);
             geom.rebind();
-        } catch {
-            if (disposed) return;
-            // 拉取/解析失败降级空态文案——不炸整页（HtmlPane 单 chunk
-            // 失败同款策略）
-            bodyEl.innerHTML = `<p class="chunk-empty">${t.reader.chunkEmpty}</p>`;
-            geom.rebind();
+            setPhase("ready");
+        } catch (e) {
+            // 重试先 abort 在途——旧请求的回包不再落盘
+            if (disposed || (e instanceof DOMException && e.name === "AbortError"))
+                return;
+            setErrMsg(e instanceof Error ? e.message : String(e));
+            setPhase("error");
         }
-        props.onReady?.(handle);
+    };
+
+    onMount(async () => {
+        await load();
+        if (!disposed) props.onReady?.(handle);
     });
     onCleanup(() => {
         disposed = true;
-        ac.abort();
+        ac?.abort();
         geom.dispose();
         props.onDispose?.(handle);
     });
@@ -134,6 +154,29 @@ export default function DomPane(props: Props) {
             {/* pane-html-body 复用 HtmlPane 排版样式；ltx_* 类样式由 worker
                 emit 时内联固化进产物 <style>，产物自足 */}
             <div ref={(el) => (bodyEl = el)} class="pane-html-body" />
+            <Show when={phase() === "loading"}>
+                <div class="pane-veil">
+                    <div class="spinner" role="status" aria-label={t.pane.loading} />
+                </div>
+            </Show>
+            <Show when={phase() === "error"}>
+                <div
+                    class="pane-veil pane-error"
+                    style={{ "flex-direction": "column", gap: "8px" }}
+                >
+                    <span>
+                        {t.pane.loadFailed}
+                        {errMsg()}
+                    </span>
+                    <button
+                        type="button"
+                        class="btn-ghost"
+                        onClick={() => void load()}
+                    >
+                        {t.reader.retry}
+                    </button>
+                </div>
+            </Show>
         </div>
     );
 }

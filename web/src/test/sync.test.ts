@@ -62,6 +62,32 @@ describe("capturePos / jumpTo", () => {
         jumpTo(p, pos);
         expect(p.fel.scrollTop).toBe(900);
     });
+
+    it("capture：反向索引遍历——pages 数组不可迭代也正常工作（不复制整表）", () => {
+        const geoms = [
+            { page: 1, top: 0, height: 800 },
+            { page: 2, top: 800, height: 800 },
+            { page: 3, top: 1600, height: 800 },
+        ];
+        // 迭代器炸掉——[...pages] 式复制会抛；索引遍历不受影响
+        Object.defineProperty(geoms, Symbol.iterator, {
+            value: () => {
+                throw new Error("pages must not be iterated/copied");
+            },
+        });
+        const fel = new FakeEl();
+        fel.scrollTop = 900;
+        const pane: PaneLike = {
+            side: "original",
+            get el() {
+                return fel as unknown as HTMLElement;
+            },
+            pages: () => geoms,
+        };
+        const pos = capturePos(pane);
+        expect(pos.page).toBe(2);
+        expect(pos.fraction).toBeCloseTo(0.25);
+    });
 });
 
 describe("SyncEngine", () => {

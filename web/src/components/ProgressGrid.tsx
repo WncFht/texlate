@@ -1,7 +1,11 @@
 // 段落棋盘格 —— hjfy 式逐段可视：ok 绿 / fallback 黄 / failed 红 / 未到灰。
-// items 是 dense 累积数组：下标即 seq，缺位一律 pending。
+// items 是 dense 数组：下标即 seq，缺位一律 pending。
+//
+// 粒度设计（P2）：cells 由 total 派生的定长下标表 + <Index> 按位复用；
+// 每格独立 memo 读 items[i].status——chunk 帧只触达被写动的格，
+// 不再每帧 O(total) slice+全量重建（5000 段 × 5000 帧的教训）。
 
-import { createMemo, For } from "solid-js";
+import { createMemo, Index } from "solid-js";
 import type { ChunkItem } from "../api/client";
 import { t } from "../i18n/zh";
 
@@ -20,14 +24,10 @@ const STATUS_CLASS: Record<string, string> = {
 };
 
 export default function ProgressGrid(props: Props) {
-    const cells = createMemo(() => {
-        const items = props.items;
-        const out: string[] = [];
-        for (let i = 0; i < Math.max(0, props.total); i++) {
-            out.push(items?.[i]?.status ?? "pending");
-        }
-        return out;
-    });
+    // 定长下标表——total 不变即引用不变，<Index> 行零重建
+    const idxs = createMemo(() =>
+        Array.from({ length: Math.max(0, props.total) }, (_, i) => i),
+    );
 
     return (
         <div class="progress-grid-wrap">
@@ -47,11 +47,18 @@ export default function ProgressGrid(props: Props) {
                 role="img"
                 aria-label={`${t.progress.chunks} ${props.done}/${props.total}`}
             >
-                <For each={cells()}>
-                    {(status) => (
-                        <i class={STATUS_CLASS[status] ?? "cell-pending"} />
-                    )}
-                </For>
+                <Index each={idxs()}>
+                    {(i) => {
+                        // 每格只订 items[i()]——store 侧增量写哪格哪格才重算
+                        const cls = createMemo(
+                            () =>
+                                STATUS_CLASS[
+                                    props.items?.[i()]?.status ?? "pending"
+                                ] ?? "cell-pending",
+                        );
+                        return <i class={cls()} />;
+                    }}
+                </Index>
             </div>
         </div>
     );

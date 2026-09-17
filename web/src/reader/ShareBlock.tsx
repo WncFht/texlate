@@ -6,6 +6,7 @@
 import { createSignal, Show } from "solid-js";
 import { api, ApiError, type SharePackResponse } from "../api/client";
 import { t } from "../i18n/zh";
+import { ti18n } from "./paneUtils";
 
 export interface ShareError {
     code?: string;
@@ -64,6 +65,19 @@ interface Props {
 }
 
 export default function ShareBlock(props: Props) {
+    const [copied, setCopied] = createSignal(false);
+    const copyKey = async () => {
+        const key = props.result?.share_key;
+        if (!key) return;
+        try {
+            // 非安全上下文（http://LAN）无 clipboard——静默失败，key 已在屏可手选
+            await navigator.clipboard?.writeText(key);
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 1500);
+        } catch {
+            /* 同上 */
+        }
+    };
     return (
         <Show when={props.when}>
             <span class="share-pack">
@@ -73,6 +87,16 @@ export default function ShareBlock(props: Props) {
                         <span class="share-ok">
                             {t.reader.shareOk}
                             <code class="share-key">{props.result!.share_key}</code>
+                            <button
+                                type="button"
+                                class="tb-btn share-copy"
+                                title={ti18n(t.reader, "shareCopy", "复制 share key")}
+                                onClick={() => void copyKey()}
+                            >
+                                {copied()
+                                    ? ti18n(t.reader, "copied", "已复制")
+                                    : ti18n(t.reader, "copy", "复制")}
+                            </button>
                             <span class="muted">{t.reader.shareOkHint}</span>
                         </span>
                     }

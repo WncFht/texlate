@@ -34,7 +34,15 @@ export function capturePos(pane: PaneLike): Pos {
     const h = el.clientHeight;
     const focus = t + h * FOCUS_LINE;
     const pages = pane.pages();
-    const p = [...pages].reverse().find((pg) => pg.top <= focus) ?? pages[0];
+    // 反向索引遍历——滚动每帧走到这，[...pages].reverse() 每帧复制整表是白烧
+    let p: PageGeom | undefined;
+    for (let i = pages.length - 1; i >= 0; i--) {
+        if (pages[i].top <= focus) {
+            p = pages[i];
+            break;
+        }
+    }
+    p ??= pages[0];
     if (!p) return { page: 1, fraction: 0 };
     const y = Math.min(Math.max(focus, p.top), p.top + p.height);
     return {

@@ -7,6 +7,7 @@ import {
     fmtDate,
     outlineColor,
     pageSizeText,
+    zoomToFontPx,
 } from "../reader/paneUtils";
 
 describe("fmtBytes", () => {
@@ -99,5 +100,25 @@ describe("annotFileName（带批注副本文件名）", () => {
     it("{task}-{en|zh}-annotated.pdf", () => {
         expect(annotFileName("t_abc", "original")).toBe("t_abc-en-annotated.pdf");
         expect(annotFileName("t_abc", "translated")).toBe("t_abc-zh-annotated.pdf");
+    });
+});
+
+describe("zoomToFontPx（html/dom 缩放 → 正文字号）", () => {
+    it("非百分比的具名档位 → 默认 15px", () => {
+        expect(zoomToFontPx("page-width")).toBe(15);
+        expect(zoomToFontPx("page-fit")).toBe(15);
+        expect(zoomToFontPx("auto")).toBe(15);
+    });
+
+    it("百分比 → 60%..200% 线性映射到 12..22px", () => {
+        expect(zoomToFontPx("60%")).toBe(12);
+        expect(zoomToFontPx("100%")).toBeCloseTo(14.9, 1);
+        expect(zoomToFontPx("150%")).toBeCloseTo(18.4, 1);
+        expect(zoomToFontPx("200%")).toBe(22);
+    });
+
+    it("出界百分比夹取到端点", () => {
+        expect(zoomToFontPx("10%")).toBe(12);
+        expect(zoomToFontPx("500%")).toBe(22);
     });
 });

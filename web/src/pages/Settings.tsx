@@ -18,6 +18,8 @@ export default function Settings() {
     const [saving, setSaving] = createSignal(false);
     const [testing, setTesting] = createSignal(false);
     const [clearing, setClearing] = createSignal(false);
+    // 服务商预设（U14）："" = 自定义；选定即回填 base_url + 首选 model
+    const [provider, setProvider] = createSignal("");
     // store.refresh 内部吞错——settings() 仍 null 即加载失败（与"还没配置"区分）
     const [loadErr, setLoadErr] = createSignal(false);
     let msgTimer = 0;
@@ -34,6 +36,11 @@ export default function Settings() {
         }
         setBaseUrl(s.base_url ?? "");
         setModel(s.model ?? "");
+        // 回填后反查预设：base_url 命中即归位，否则落「自定义」
+        setProvider(
+            settingsStore.providers().find((p) => p.base_url === s.base_url)
+                ?.id ?? "",
+        );
         setTargetLang(s.target_lang ?? "zh-CN");
         setGlossary(s.glossary ?? "");
         setEngine(s.engine ?? "auto");
@@ -128,15 +135,25 @@ export default function Settings() {
         }
     };
 
-    const models = () => {
-        // provider preset 可能是 models[] 或单数 model
-        const all = settingsStore
-            .providers()
-            .flatMap(
-                (p) =>
-                    p.models ?? (typeof p.model === "string" ? [p.model] : []),
-            );
-        return [...new Set(all)];
+    /** 当前选中预设（undefined = 自定义） */
+    const curProvider = () =>
+        settingsStore.providers().find((p) => p.id === provider());
+
+    /** 预设的模型清单：models[] 或单数 model；自定义预设 → 空表走自由输入 */
+    const provModels = () => {
+        const p = curProvider();
+        if (!p) return [];
+        return p.models ?? (typeof p.model === "string" ? [p.model] : []);
+    };
+
+    /** 预设选择即回填 base_url + 首选 model——model 留空值时用户再挑 */
+    const pickProvider = (id: string) => {
+        setProvider(id);
+        const p = settingsStore.providers().find((x) => x.id === id);
+        if (!p) return;
+        setBaseUrl(p.base_url ?? "");
+        const ms = p.models ?? (p.model ? [p.model] : []);
+        if (ms.length && !ms.includes(model())) setModel(ms[0]);
     };
 
     return (
@@ -191,6 +208,37 @@ export default function Settings() {
                         {clearing() ? t.settings.clearing : t.settings.clearKey}
                     </button>
                 </div>
+                {/* 后端回执 ignored：白名单外字段被静默丢弃——明示防「存了没生效」 */}
+                <Show when={settingsStore.settings()?.ignored?.length}>
+                    <p class="form-warn" role="status">
+                        {t.settings.ignoredWarn.replace(
+                            "{names}",
+                            (settingsStore.settings()?.ignored ?? []).join(
+                                "、",
+                            ),
+                        )}
+                    </p>
+                </Show>
+                <Show when={settingsStore.providers().length > 0}>
+                    <label>
+                        <span>{t.settings.provider}</span>
+                        <select
+                            value={provider()}
+                            onChange={(e) =>
+                                pickProvider(e.currentTarget.value)
+                            }
+                        >
+                            <option value="">{t.settings.providerCustom}</option>
+                            <For each={settingsStore.providers()}>
+                                {(p) => (
+                                    <option value={p.id}>
+                                        {p.name ?? p.id}
+                                    </option>
+                                )}
+                            </For>
+                        </select>
+                    </label>
+                </Show>
                 <label>
                     <span>{t.settings.baseUrl}</span>
                     <input
@@ -202,14 +250,37 @@ export default function Settings() {
                 </label>
                 <label>
                     <span>{t.settings.model}</span>
-                    <input
-                        list="provider-models"
-                        value={model()}
-                        onInput={(e) => setModel(e.currentTarget.value)}
-                    />
-                    <datalist id="provider-models">
-                        <For each={models()}>{(m) => <option value={m} />}</For>
-                    </datalist>
+                    {/* 预设带 models → select；自定义/无 models → 自由输入（BYOK 任意端点） */}
+                    <Show
+                        when={provModels().length > 0}
+                        fallback={
+                            <input
+                                name="model"
+                                value={model()}
+                                onInput={(e) =>
+                                    setModel(e.currentTarget.value)
+                                }
+                            />
+                        }
+                    >
+                        <select
+                            name="model"
+                            value={model()}
+                            onChange={(e) => setModel(e.currentTarget.value)}
+                        >
+                            {/* 现值不在预设清单（旧配置）也保留为可选，防静默改值 */}
+                            <Show
+                                when={
+                                    model() && !provModels().includes(model())
+                                }
+                            >
+                                <option value={model()}>{model()}</option>
+                            </Show>
+                            <For each={provModels()}>
+                                {(m) => <option value={m}>{m}</option>}
+                            </For>
+                        </select>
+                    </Show>
                 </label>
                 <label>
                     <span>{t.settings.targetLang}</span>
@@ -265,6 +336,24 @@ export default function Settings() {
                         value={glossary()}
                         onInput={(e) => setGlossary(e.currentTarget.value)}
                     />
+                </label>
+                <label>
+                    <span>{t.settings.theme}</span>
+                    <select
+                        value={settingsStore.theme()}
+                        onChange={(e) =>
+                            settingsStore.setTheme(
+                                e.currentTarget.value as
+                                    | "auto"
+                                    | "light"
+                                    | "dark",
+                            )
+                        }
+                    >
+                        <option value="auto">{t.settings.themeAuto}</option>
+                        <option value="light">{t.settings.themeLight}</option>
+                        <option value="dark">{t.settings.themeDark}</option>
+                    </select>
                 </label>
                 <div class="settings-actions">
                     <button

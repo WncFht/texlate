@@ -1,6 +1,6 @@
 // 任务列表/活动任务 store —— solid store 承载 §2 快照 + SSE 增量。
 
-import { createStore, produce } from "solid-js/store";
+import { createStore, produce, reconcile } from "solid-js/store";
 import {
     api,
     ApiError,
@@ -36,6 +36,14 @@ export interface TaskLive {
 //: 病态 seq 上限——超大 seq 帧防填洞 OOM（真实 chunks 量阶远低）
 export const MAX_CHUNK_SEQ = 100_000;
 
+/** chunk delta 单段合法性（seq 整数、0≤seq≤cap）——merge/增量写共用口径 */
+function chunkItemOk(it: ChunkItem, cap: number): boolean {
+    return Number.isInteger(it.seq) && it.seq >= 0 && it.seq <= cap;
+}
+
+const chunkCap = (limit?: number) =>
+    limit == null ? MAX_CHUNK_SEQ : Math.min(limit, MAX_CHUNK_SEQ);
+
 /**
  * chunk 事件 items[] 只带变化段——按 seq 覆盖合并进 dense 数组；
  * 越界空洞补 pending 占位。非法 seq（<0/非整数/>limit/>MAX_CHUNK_SEQ）
@@ -46,10 +54,10 @@ export function mergeChunkItems(
     delta: ChunkItem[],
     limit?: number,
 ): ChunkItem[] {
-    const cap = limit == null ? MAX_CHUNK_SEQ : Math.min(limit, MAX_CHUNK_SEQ);
+    const cap = chunkCap(limit);
     const next = prev.slice();
     for (const it of delta) {
-        if (!Number.isInteger(it.seq) || it.seq < 0 || it.seq > cap) continue;
+        if (!chunkItemOk(it, cap)) continue;
         while (next.length < it.seq)
             next.push({ seq: next.length, status: "pending" });
         next[it.seq] = it;
@@ -73,6 +81,14 @@ const channels = new Map<string, TaskChannel>();
 const pollers = new Map<string, ReturnType<typeof setInterval>>();
 /** 观测意愿集：pin=显式 watch（reader 聚焦）优先占 SSE 槽 */
 const wanted = new Map<string, { pin: boolean }>();
+/**
+ * 服务端终结的 SSE（readyState CLOSED ≈ HTTP 错——404 删行/5xx）：
+ * ensureChannel 不得复活它们——复活即 404 重连循环（M6）。探活/轮询
+ * 兜底在 probeAfterClose；resetLive（retry 新轮）与 dropTask 清除。
+ */
+const sseDead = new Set<string>();
+/** watch 句柄按任务缓存——幂等 watch 返回同一对象（close→unwatch 语义） */
+const watchHandles = new Map<string, TaskChannel>();
 
 //: 同源 HTTP/1.1 每域 6 连接上限——SSE 每任务常开一条，占满则 API/PDF
 //: 拉取全排队假死；窗口外非终态任务降级 interval 轮询 snapshot
@@ -84,17 +100,25 @@ const freshLive = (): TaskLive => ({
     chunkItems: [],
     logs: [],
     warnings: [],
-    transport: "reconnecting",
+    transport: "connecting",
 });
 
+function ensureLive(taskId: string): void {
+    setState("live", taskId, (l) => l ?? freshLive());
+}
+
+/**
+ * 字段级写回行——行对象引用不变，TaskList 的 <For> 不整行重挂（M9）。
+ * reconcile 对对象节点 in-place 合并：新增键落位、缺席键清 undefined
+ * （快照语义——服务端不发即无此值）、等值叶不触写。
+ */
 function upsertTask(snap: TaskSnapshot) {
-    setState("tasks", (list) => {
-        const i = list.findIndex((t) => t.task_id === snap.task_id);
-        if (i < 0) return [snap, ...list];
-        const next = [...list];
-        next[i] = { ...next[i], ...snap };
-        return next;
-    });
+    const i = state.tasks.findIndex((t) => t.task_id === snap.task_id);
+    if (i < 0) {
+        setState("tasks", (list) => [snap, ...list]);
+        return;
+    }
+    setState("tasks", i, reconcile(snap));
 }
 
 /** 终态收敛：释放 append-only 缓冲（logs/stages 会话内单调增长）；
@@ -126,8 +150,10 @@ function unwant(taskId: string) {
     stopPoll(taskId);
 }
 
-/** 任务行已删（本地 remove / 服务端 deleted 帧 / 轮询 404）——观测+状态+水位线全清 */
+/** 任务行已删（本地 remove / 服务端 deleted 帧 / 轮询 404 / SSE 探活 404）——观测+状态+水位线全清 */
 function dropTask(taskId: string) {
+    sseDead.delete(taskId);
+    watchHandles.delete(taskId);
     unwant(taskId);
     forgetTaskEvents(taskId);
     setState("tasks", (list) => list.filter((t) => t.task_id !== taskId));
@@ -140,6 +166,8 @@ function dropTask(taskId: string) {
 }
 
 function startPoll(taskId: string) {
+    ensureLive(taskId);
+    setState("live", taskId, "transport", "polling");
     if (pollers.has(taskId)) return;
     const tick = async () => {
         try {
@@ -164,6 +192,30 @@ function startPoll(taskId: string) {
         setInterval(() => void tick(), POLL_INTERVAL_MS),
     );
     void tick();
+}
+
+/**
+ * SSE 被服务端终结（探活兜底，M6）：snapshot 一次定去留——
+ * 404 → 行已删 dropTask；终态 → 收敛摘除；仍在跑 → 降级轮询接着盯
+ * （SSE 不再复活）；探活本身失败 → 轮询让 tick 侧慢慢判。
+ */
+async function probeAfterClose(taskId: string) {
+    try {
+        const s = await api.snapshot(taskId);
+        if (!wanted.has(taskId)) return;
+        upsertTask(s);
+        if (isTerminal(s.status)) {
+            settleLive(taskId);
+            unwant(taskId);
+        } else {
+            startPoll(taskId);
+        }
+    } catch (e) {
+        if (!wanted.has(taskId)) return;
+        if (e instanceof ApiError && e.status === 404) dropTask(taskId);
+        else startPoll(taskId);
+    }
+    rebalance();
 }
 
 /** pin 优先、其后按任务 updated_at 新→旧占 SSE 槽 */
@@ -199,10 +251,11 @@ function rebalance() {
             const sseIds = new Set(ids.slice(0, MAX_SSE_TASKS));
             for (const id of ids) {
                 if (!wanted.has(id)) continue; // 派发中被摘除
-                if (sseIds.has(id)) {
+                if (sseIds.has(id) && !sseDead.has(id)) {
                     stopPoll(id);
                     ensureChannel(id);
                 } else {
+                    // 槽外 / SSE 已被服务端终结——轮询通道
                     closeChannel(id);
                     startPoll(id);
                 }
@@ -216,11 +269,43 @@ function rebalance() {
 function ensureChannel(taskId: string): TaskChannel {
     const existing = channels.get(taskId);
     if (existing && !existing.closed) return existing;
-    setState("live", taskId, (l) => l ?? freshLive());
-    // 重连（旧 channel 已 closed）也先回到 reconnecting，等 onopen 翻 live
-    setState("live", taskId, "transport", "reconnecting");
+    ensureLive(taskId);
+    // 首连/重建都先报 connecting——reconnecting 专指传输错误后的自动重连
+    setState("live", taskId, "transport", "connecting");
     const ch = openTaskEvents(taskId, {
-        transport: (s) => setState("live", taskId, "transport", s),
+        transport: (s) => {
+            setState("live", taskId, "transport", s);
+            // 服务端终拒（404 等 readyState=CLOSED）：仍 wanted 说明非本侧
+            // 主动关——标记 sseDead 防 rebalance 复活，探活定去留
+            if (s === "closed" && wanted.has(taskId) && !sseDead.has(taskId)) {
+                sseDead.add(taskId);
+                void probeAfterClose(taskId);
+            }
+        },
+        resync: () => {
+            // 重放缺口：水位线已被 client 重置——清 chunk 派生态（不可信），
+            // 拉 snapshot 对齐任务面；SSE 仍活着，不降轮询
+            if (!wanted.has(taskId)) return;
+            setState("live", taskId, "chunk", undefined);
+            setState("live", taskId, "chunkItems", []);
+            void api
+                .snapshot(taskId)
+                .then((s) => {
+                    if (!wanted.has(taskId)) return;
+                    upsertTask(s);
+                    if (isTerminal(s.status)) {
+                        settleLive(taskId);
+                        unwant(taskId);
+                        rebalance();
+                    }
+                })
+                .catch((e: unknown) => {
+                    if (e instanceof ApiError && e.status === 404) {
+                        dropTask(taskId);
+                        rebalance();
+                    }
+                });
+        },
         snapshot: (s) => {
             upsertTask(s);
             if (isTerminal(s.status)) {
@@ -232,23 +317,31 @@ function ensureChannel(taskId: string): TaskChannel {
         stage: (e) => {
             setState("live", taskId, "stage", e);
             setState("live", taskId, "stages", (ss) => [...ss, e]);
-            setState(
-                "tasks",
-                (t) => t.task_id === taskId,
-                (t) => ({
-                    ...t,
-                    status: e.stage,
-                    stage: e.stage,
-                    progress: e.progress,
-                    message: e.message,
-                }),
-            );
+            // 字段级补丁——行引用不变，<For> 不整行重挂（M9）
+            const i = state.tasks.findIndex((t) => t.task_id === taskId);
+            if (i >= 0) {
+                setState("tasks", i, "status", e.stage);
+                setState("tasks", i, "stage", e.stage);
+                setState("tasks", i, "progress", e.progress);
+                setState("tasks", i, "message", e.message);
+            }
         },
         chunk: (e) => {
             setState("live", taskId, "chunk", e);
-            setState("live", taskId, "chunkItems", (items) =>
-                mergeChunkItems(items, e.items, e.total),
-            );
+            // 增量写：只动帧携带的 seq——ProgressGrid 按格订阅，
+            // 免每帧 slice+全量重建（P2）；越界空洞补 pending 占位
+            const cap = chunkCap(e.total);
+            for (const it of e.items) {
+                if (!chunkItemOk(it, cap)) continue;
+                const len = state.live[taskId]?.chunkItems.length ?? 0;
+                for (let s = len; s < it.seq; s++) {
+                    setState("live", taskId, "chunkItems", s, {
+                        seq: s,
+                        status: "pending",
+                    });
+                }
+                setState("live", taskId, "chunkItems", it.seq, it);
+            }
         },
         log: (e) =>
             setState("live", taskId, "logs", (ls) => [...ls.slice(-499), e]),
@@ -264,16 +357,12 @@ function ensureChannel(taskId: string): TaskChannel {
             }
             setState("live", taskId, "done", e);
             const status = e.status;
-            setState(
-                "tasks",
-                (t) => t.task_id === taskId,
-                (t) => ({
-                    ...t,
-                    status,
-                    progress: 100,
-                    artifacts: e.artifacts,
-                }),
-            );
+            const i = state.tasks.findIndex((t) => t.task_id === taskId);
+            if (i >= 0) {
+                setState("tasks", i, "status", status);
+                setState("tasks", i, "progress", 100);
+                setState("tasks", i, "artifacts", e.artifacts);
+            }
             settleLive(taskId);
             unwant(taskId);
             rebalance();
@@ -283,16 +372,6 @@ function ensureChannel(taskId: string): TaskChannel {
     return ch;
 }
 
-/** 轮询态任务的 watch 返回值——SSE 槽被更高优先级占满时的降级句柄 */
-function pollHandle(taskId: string): TaskChannel {
-    return {
-        close: () => taskStore.unwatch(taskId),
-        get closed() {
-            return !wanted.has(taskId);
-        },
-    };
-}
-
 export const taskStore = {
     state,
 
@@ -300,7 +379,11 @@ export const taskStore = {
         try {
             const res = await api.tasks();
             const list = Array.isArray(res) ? res : (res.tasks ?? []);
-            setState({ tasks: list, loaded: true, loadError: undefined });
+            // reconcile 按 task_id 匹配：在册行字段级合并（引用不变，
+            // <For> 行不重挂）；新行插入、消失行移除——一次原子替换
+            setState("tasks", reconcile(list, { key: "task_id" }));
+            setState("loaded", true);
+            setState("loadError", undefined);
             const ids = new Set(list.map((t) => t.task_id));
             for (const t of list) {
                 if (!isTerminal(t.status)) {
@@ -326,25 +409,41 @@ export const taskStore = {
         }
     },
 
-    /** 订阅任务（pin=聚焦优先占 SSE 槽；幂等——重复调用复用同一 channel） */
+    /**
+     * 订阅任务（pin=聚焦优先占 SSE 槽；幂等——重复调用复用同一句柄）。
+     * 句柄 close() 恒等于 unwatch：SSE 与轮询双轨同一 detach 语义（M2）。
+     */
     watch(taskId: string): TaskChannel {
         wanted.set(taskId, { pin: true });
         rebalance();
-        return channels.get(taskId) ?? pollHandle(taskId);
+        let h = watchHandles.get(taskId);
+        if (!h) {
+            h = {
+                close: () => taskStore.unwatch(taskId),
+                get closed() {
+                    return !wanted.has(taskId);
+                },
+            };
+            watchHandles.set(taskId, h);
+        }
+        return h;
     },
 
+    /** 摘除观测（幂等公开）：close() 句柄与显式调用等价 */
     unwatch(taskId: string) {
         unwant(taskId);
         rebalance();
     },
 
-    /** 本地补丁任务行（retry 后乐观更新；SSE snapshot 随后来覆盖为准） */
+    /** 本地补丁任务行（retry 后乐观更新；SSE snapshot 随后来覆盖为准）。
+     *  逐字段写——行引用保持（M9）；undefined 值跳过（patch 只带要改的键） */
     patch(taskId: string, p: Partial<TaskSnapshot>) {
-        setState(
-            "tasks",
-            (t) => t.task_id === taskId,
-            (t) => ({ ...t, ...p }),
-        );
+        const i = state.tasks.findIndex((t) => t.task_id === taskId);
+        if (i < 0) return;
+        for (const [k, v] of Object.entries(p)) {
+            if (v === undefined) continue;
+            (setState as (...a: unknown[]) => void)("tasks", i, k, v);
+        }
     },
 
     /** 删除任务：先 DELETE 后端（404 视为已删同样本地移除），再清 SSE/列表/live */
@@ -360,6 +459,7 @@ export const taskStore = {
 
     /** retry 复用同一 task_id：清掉上一轮 SSE 痕迹再重新订阅（seq 水位线保留——旧轮重放帧照丢） */
     resetLive(taskId: string) {
+        sseDead.delete(taskId); // 新轮给 SSE 一次复活机会
         unwant(taskId);
         setState("live", taskId, freshLive());
         taskStore.watch(taskId);

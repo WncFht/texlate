@@ -25,6 +25,31 @@
     --font-mono: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
 }
 
+/* 暗色主题（U6）——html[data-theme] 由 settings store / index.html 预置脚本落；
+   auto 模式已解析成具体值，这里只承载确定态。文本用途色（deep）在暗底上
+   反而要调亮——对比度方向反转 */
+[data-theme="dark"] {
+    --paper: #17140f;
+    --paper-2: #1f1b15;
+    --panel: #26211a;
+    --ink: #e6ddcb;
+    --ink-2: #a89b85;
+    --ink-3: #7d7462;
+    --line: #3b342a;
+    --line-strong: #4d4436;
+    --cinnabar: #d45b41;
+    --cinnabar-deep: #ec8468;
+    --pine: #63a884;
+    --ochre: #cfa226;
+    --ochre-deep: #e0bc4d;
+    --shadow: 0 1px 2px rgb(0 0 0 / 35%), 0 4px 16px rgb(0 0 0 / 30%);
+    color-scheme: dark;
+}
+
+[data-theme="light"] {
+    color-scheme: light;
+}
+
 * {
     box-sizing: border-box;
 }
@@ -306,6 +331,13 @@ button {
     margin-top: 10px;
 }
 
+/* 非阻断警示（如 PUT 回执 ignored 字段）——与 form-error 同层级不同色 */
+.form-warn {
+    color: var(--ochre-deep);
+    font-size: 13px;
+    margin-top: 10px;
+}
+
 .form-msg {
     color: var(--pine);
     font-size: 13px;
@@ -420,6 +452,107 @@ button {
     opacity: 0.8;
     color: var(--ochre-deep);
     border-color: var(--ochre);
+}
+
+/* 列表工具行（U5）：搜索 + 筛选 chips + 批量清理 */
+.task-tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.task-search {
+    flex: 1;
+    min-width: 180px;
+    padding: 6px 10px;
+    font-size: 13px;
+    color: var(--ink);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+}
+
+.task-search:focus-visible {
+    outline: 2px solid var(--cinnabar);
+    outline-offset: 1px;
+    border-color: transparent;
+}
+
+.task-chips {
+    display: inline-flex;
+    gap: 4px;
+    padding: 2px;
+    background: var(--paper-2);
+    border-radius: 7px;
+}
+
+.task-chip {
+    padding: 3px 10px;
+    font-size: 12px;
+    color: var(--ink-2);
+    background: transparent;
+    border: 0;
+    border-radius: 5px;
+}
+
+.task-chip.on {
+    background: var(--panel);
+    color: var(--ink);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 10%);
+}
+
+.task-clean {
+    padding: 5px 12px;
+    font-size: 12px;
+    color: var(--ink-2);
+    background: transparent;
+    border: 1px solid var(--line-strong);
+    border-radius: 6px;
+}
+
+.task-clean:hover:not(:disabled) {
+    color: var(--cinnabar-deep);
+    border-color: var(--cinnabar);
+}
+
+.task-clean:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+/* 行内快捷臂（U8）：⏻ 取消 / ↻ 重试 / ⚙ 设置链——与 .task-del 同一克制存在级 */
+.task-act {
+    flex: none;
+    width: 26px;
+    height: 26px;
+    display: grid;
+    place-items: center;
+    font-size: 13px;
+    line-height: 1;
+    color: var(--ink-3);
+    text-decoration: none;
+    background: transparent;
+    border: 1px solid var(--line-strong);
+    border-radius: 6px;
+    opacity: 0.45;
+    transition: opacity 0.15s;
+}
+
+.task-wrap:hover .task-act:not(:disabled),
+.task-act:focus-visible {
+    opacity: 1;
+}
+
+.task-act:hover:not(:disabled) {
+    color: var(--ink);
+    border-color: var(--ink-3);
+}
+
+.task-act:disabled {
+    opacity: 0.3;
+    cursor: default;
 }
 
 .task-del-err {
@@ -710,6 +843,66 @@ button {
     margin-top: 20px;
 }
 
+/* ---------- 翻译中流式预览（U1，ChunkPreview） ---------- */
+
+.chunk-preview {
+    margin-top: 18px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+    padding: 8px 14px;
+}
+
+.cp-head {
+    margin: 0 0 6px;
+    font-size: 12px;
+}
+
+.cp-list {
+    max-height: 320px;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-right: 4px;
+}
+
+.cp-item {
+    min-width: 0;
+}
+
+.cp-meta {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+
+.cp-kind {
+    font-style: normal;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 0 4px;
+    font-size: 10px;
+    color: var(--ink-3);
+}
+
+.cp-text {
+    margin: 2px 0 0;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--ink);
+    overflow-wrap: break-word;
+}
+
+.warn-title {
+    margin: 14px 0 4px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ochre-deep);
+}
+
 /* ---------- 棋盘格 ---------- */
 
 .progress-grid-wrap {
@@ -944,6 +1137,17 @@ button {
 .panes.swapped .pane-slot + .pane-slot {
     border-inline-start: 0;
     border-inline-end: 1px solid var(--line-strong);
+}
+
+/* 分栏拖拽条——几何尺寸在 ReaderView 内联钉死，这里只管可感底色 */
+.pane-divider {
+    background: transparent;
+    transition: background 0.15s ease;
+}
+
+.pane-divider:hover,
+.pane-divider:active {
+    background: color-mix(in srgb, var(--cinnabar) 45%, transparent);
 }
 
 .pane {
@@ -1660,9 +1864,20 @@ button {
     color: var(--pine);
 }
 
+/* connecting=首连在途（中性）；reconnecting=断线重连（警示色） */
+.transport-badge.connecting {
+    color: var(--ink-2);
+}
+
 .transport-badge.reconnecting {
     background: color-mix(in srgb, var(--ochre) 14%, transparent);
     color: var(--ochre-deep);
+}
+
+/* polling=降级轮询兜底——可工作但非实时的中间态 */
+.transport-badge.polling {
+    background: color-mix(in srgb, var(--ochre) 10%, transparent);
+    color: var(--ink-2);
 }
 
 .transport-badge.closed {
@@ -1681,12 +1896,18 @@ button {
     color: var(--ink-2);
 }
 
-.result-banner.warn {
+/* M1：结果横幅直接按任务态着色——st-* 与既有 warn/bad 修饰同规则复用 */
+.result-banner.warn,
+.result-banner.st-partial {
     background: color-mix(in srgb, var(--ochre) 10%, var(--panel));
     color: var(--ochre-deep);
 }
 
-.result-banner.bad {
+.result-banner.bad,
+.result-banner.st-fault,
+.result-banner.st-cancelled,
+.result-banner.st-interrupted,
+.result-banner.st-needs_auth {
     background: color-mix(in srgb, var(--cinnabar) 8%, var(--panel));
     color: var(--cinnabar-deep);
 }
@@ -1736,19 +1957,22 @@ button {
     gap: 10px;
 }
 
-.result-panel.bad {
+.result-panel.bad,
+.result-panel.st-fault,
+.result-panel.st-cancelled,
+.result-panel.st-interrupted,
+.result-panel.st-needs_auth {
     border-color: color-mix(in srgb, var(--cinnabar) 35%, var(--line));
+}
+
+.result-panel.st-partial {
+    border-color: color-mix(in srgb, var(--ochre) 40%, var(--line));
 }
 
 .result-panel h2 {
     font-family: var(--font-serif);
     font-size: 17px;
     margin: 0;
-}
-
-.result-panel .err-line {
-    font-size: 13px;
-    color: var(--cinnabar-deep);
 }
 
 .rp-actions {
@@ -1936,6 +2160,42 @@ button {
     background: color-mix(in srgb, var(--panel) 60%, transparent);
 }
 
+/* 列表加载骨架行（U14）——替换裸「…」，尺寸对齐 .task-row 防跳动 */
+.skel-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.skel-rows i {
+    height: 62px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: linear-gradient(
+        100deg,
+        var(--panel) 40%,
+        var(--paper-2) 50%,
+        var(--panel) 60%
+    );
+    background-size: 200% 100%;
+    animation: skel-sweep 1.4s ease-in-out infinite;
+}
+
+@keyframes skel-sweep {
+    from {
+        background-position: 120% 0;
+    }
+    to {
+        background-position: -80% 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .skel-rows i {
+        animation: none;
+    }
+}
+
 /* ---------- 响应式 ---------- */
 
 @media (max-width: 720px) {
@@ -1990,6 +2250,62 @@ button {
     .task-time {
         display: none;
     }
+}
+
+/* ---------- 快捷键帮助浮层（U13，ReaderView） ---------- */
+
+.kbd-help {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: color-mix(in srgb, var(--ink) 35%, transparent);
+}
+
+.kbd-help-card {
+    background: var(--panel);
+    border: 1px solid var(--line-strong);
+    border-radius: 10px;
+    padding: 18px 22px;
+    min-width: 280px;
+    box-shadow: 0 12px 40px rgb(0 0 0 / 0.25);
+}
+
+.kbd-help-list {
+    margin: 12px 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.kbd-help-row {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    font-size: 13px;
+}
+
+.kbd-help-row dt {
+    flex: none;
+    width: 96px;
+    text-align: right;
+}
+
+.kbd-help-row dd {
+    margin: 0;
+    color: var(--ink-2);
+}
+
+.kbd-help-row kbd {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    border: 1px solid var(--line-strong);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    padding: 1px 5px;
+    background: var(--paper-2);
 }
 
 @media (prefers-reduced-motion: reduce) {

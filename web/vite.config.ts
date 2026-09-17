@@ -104,8 +104,13 @@ export default defineConfig({
         pdfjsAssetsPlugin(),
     ],
     server: useMock
-        ? { port: 5173 }
-        : { port: 5173, proxy: { "/api": "http://127.0.0.1:8765" } },
+        ? // strictPort：smoke.mjs 等外部脚本按 5199 直连——漂移必须显式失败而非静默换口
+          { port: 5199, strictPort: true }
+        : {
+              port: 5199,
+              strictPort: true,
+              proxy: { "/api": "http://127.0.0.1:8765" },
+          },
     build: {
         target: "es2022",
         // Reader 分包后最大块是 reader-*.js（pdfjs 全家桶 ~1MB）——

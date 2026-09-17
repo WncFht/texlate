@@ -2,8 +2,12 @@
 // （chunks→marked）/ pdf → PdfPane 三层分发。dom 与 pdf 同按 doc.version
 // keyed 重挂——重译后旧产物不留残影；document 缺侧（该侧无产物）→ 占位 veil。
 // 同步关闭且漂移 >500px 时叠 jump-back 钮（ReaderView 判定，props.drift 驱动）。
+//
+// U3：切栏不再卸载隐藏侧——props.hidden → display:none 保活（pdf.js
+// ResizeObserver 自愈重排），PdfPane 不再因 split↔单栏整份重载。
+// PdfPane 错误重试经 onReload → nonce 换 key 整体重挂（url 不可在位换，§5.1）。
 
-import { Show } from "solid-js";
+import { createSignal, Show } from "solid-js";
 import PdfPane, { type PaneHandle } from "./PdfPane";
 import HtmlPane, { type HtmlPaneHandle } from "./HtmlPane";
 import DomPane, { type DomPaneHandle } from "./DomPane";
@@ -28,6 +32,10 @@ interface Props {
     /** 「下载带批注副本」文件名（仅 PdfPane 用） */
     annotName: string;
     active: boolean;
+    /** true → 槽位 display:none 但保持挂载（切栏保活，U3） */
+    hidden?: boolean;
+    /** 分栏拖拽比例落点：flex-grow（仅 split 传入） */
+    grow?: number;
     /** 同步关闭漂移 >500px → 显示跳回钮 */
     drift?: boolean;
     onReady(h: AnyHandle): void;
@@ -39,8 +47,19 @@ interface Props {
 }
 
 export default function PaneSlot(props: Props) {
+    // PdfPane 错误重试：nonce 并进 keyed key——重挂即重取（版本未变也强制）
+    const [pdfNonce, bumpPdfNonce] = createSignal(0);
+    const pdfKey = () =>
+        props.version ? `${props.version}#${pdfNonce()}` : undefined;
+
     return (
-        <div class="pane-slot">
+        <div
+            class="pane-slot"
+            style={{
+                display: props.hidden ? "none" : "",
+                "flex-grow": props.grow != null ? String(props.grow) : "",
+            }}
+        >
             <Show
                 when={props.view !== "dom"}
                 fallback={
@@ -82,7 +101,7 @@ export default function PaneSlot(props: Props) {
                     }
                 >
                     <Show
-                        when={props.version}
+                        when={pdfKey()}
                         keyed
                         fallback={
                             <div class="pane-veil pane-empty">
@@ -101,6 +120,7 @@ export default function PaneSlot(props: Props) {
                                 onPageChange={(p) => props.onPageChange(p)}
                                 onActivate={() => props.onActivate()}
                                 onScroll={() => props.onScroll()}
+                                onReload={() => bumpPdfNonce((n) => n + 1)}
                             />
                         )}
                     </Show>

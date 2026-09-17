@@ -1,14 +1,15 @@
 // HtmlPane —— 降级视图（upload_pdf MinerU markdown / 编译失败但译文在库）。
 // marked 渲染 + KaTeX auto-render；[data-chunk] 块当"页"用，chunk 对严格 1:1
 // （seq 直映），同步复用 SyncEngine —— 比 PDF 锚更准（§5.4）。
+//
+// marked/katex（~300KB）只服务本视图——dynamic import 挪出 pdf/dom 常用路
+// （P1）；css 同捆进本 chunk。拉取/解析期给 veil，不白屏。
 
-import { createEffect, onCleanup, onMount, untrack } from "solid-js";
-import { marked } from "marked";
-import renderMathInElement from "katex/contrib/auto-render";
-import "katex/dist/katex.min.css";
+import { createEffect, createSignal, onCleanup, onMount, Show, untrack } from "solid-js";
 
 import type { DocId, Pos } from "./alignment";
 import { escapeHtml, sanitizeHtml } from "./sanitize";
+import { externalLinksBlank } from "./paneUtils";
 import {
     bindChunkGeom,
     capturePos,
@@ -25,6 +26,8 @@ export interface HtmlPaneHandle extends PaneLike {
     capture(): Pos;
     jump(pos: Pos): void;
     scrollTopFor(pos: Pos): number | null;
+    /** html/dom 缩放落点：正文字号（px） */
+    setFontSize?(px: number): void;
 }
 
 interface Props {
@@ -44,6 +47,7 @@ function chunkText(c: DualChunk, side: DocId): string {
 export default function HtmlPane(props: Props) {
     let scrollEl!: HTMLDivElement;
     let bodyEl!: HTMLDivElement;
+    const [ready, setReady] = createSignal(false);
     const geom = bindChunkGeom(
         () => scrollEl,
         () => bodyEl,
@@ -70,9 +74,19 @@ export default function HtmlPane(props: Props) {
         scrollTopFor(pos) {
             return scrollTopFor(this, pos);
         },
+        setFontSize(px) {
+            bodyEl.style.fontSize = `${px}px`;
+        },
     };
 
-    onMount(() => {
+    let disposed = false;
+    onMount(async () => {
+        const [{ marked }, { default: renderMathInElement }] = await Promise.all([
+            import("marked"),
+            import("katex/contrib/auto-render"),
+            import("katex/dist/katex.min.css"),
+        ]);
+        if (disposed) return;
         // marked.parse 输出为 string（无异步扩展）；译文是 LLM 生成物，内联
         // HTML 原样透传——注入前过 DOMPurify，再跑 KaTeX（产物不经 sanitize）。
         const html = props.chunks
@@ -90,6 +104,7 @@ export default function HtmlPane(props: Props) {
             })
             .join("");
         bodyEl.innerHTML = html || `<p class="chunk-empty">${t.reader.chunkEmpty}</p>`;
+        externalLinksBlank(bodyEl);
         try {
             renderMathInElement(bodyEl, {
                 delimiters: [
@@ -104,9 +119,11 @@ export default function HtmlPane(props: Props) {
             /* KaTeX 整体失败时保留纯文本 */
         }
         geom.rebind();
+        setReady(true);
         props.onReady?.(handle);
     });
     onCleanup(() => {
+        disposed = true;
         geom.dispose();
         props.onDispose?.(handle);
     });
@@ -128,6 +145,11 @@ export default function HtmlPane(props: Props) {
             onPointerDown={() => props.onActivate?.()}
         >
             <div ref={(el) => (bodyEl = el)} class="pane-html-body" />
+            <Show when={!ready()}>
+                <div class="pane-veil">
+                    <div class="spinner" role="status" aria-label={t.pane.loading} />
+                </div>
+            </Show>
         </div>
     );
 }

@@ -1,4 +1,10 @@
-import { createSignal, For, Show } from "solid-js";
+import {
+    createMemo,
+    createSignal,
+    For,
+    onCleanup,
+    Show,
+} from "solid-js";
 import type { FileManifest, TaskError, TaskSnapshot } from "../api/client";
 import { api, isTerminal } from "../api/client";
 import { taskStore } from "../stores/tasks";
@@ -14,10 +20,10 @@ const MIN = 60_000;
 const HOUR = 3_600_000;
 const DAY = 86_400_000;
 
-/** 相对时间：7 天内用 t.time 模板，超出回退日期 */
-function fmtRel(ts: number): string {
+/** 相对时间：7 天内用 t.time 模板，超出回退日期；now 由调用方 60s tick 驱动 */
+function fmtRel(ts: number, now: number): string {
     const ms = ts < 1e12 ? ts * 1000 : ts;
-    const diff = Date.now() - ms;
+    const diff = now - ms;
     const n = (v: number, tpl: string) => tpl.replace("{n}", String(v));
     if (diff < MIN) return t.time.justNow;
     if (diff < HOUR) return n(Math.floor(diff / MIN), t.time.minAgo);
@@ -25,6 +31,25 @@ function fmtRel(ts: number): string {
     if (diff < 7 * DAY) return n(Math.floor(diff / DAY), t.time.dayAgo);
     return new Date(ms).toLocaleDateString();
 }
+
+type Filter = "all" | "active" | "done" | "failed";
+
+/** 「异常」筛选桶：终态里非 done 的全部 */
+const FAILED_SET = new Set([
+    "fault",
+    "partial",
+    "cancelled",
+    "interrupted",
+    "needs_auth",
+]);
+
+/** 行内 ↻ 重试臂：终态可重跑的状态集（needs_auth 缺 key，走 ⚙ 设置链接） */
+const RETRYABLE = new Set([
+    "fault",
+    "partial",
+    "cancelled",
+    "interrupted",
+]);
 
 /**
  * 终态任务行内产物下载：折叠钮展开直链清单。snapshot.artifacts（SSE
@@ -102,6 +127,52 @@ function TaskDownloads(props: { task: TaskSnapshot }) {
 export default function TaskList(props: Props) {
     const [deleting, setDeleting] = createSignal<string | null>(null);
     const [delError, setDelError] = createSignal("");
+    const [filter, setFilter] = createSignal<Filter>("all");
+    const [query, setQuery] = createSignal("");
+    const [acting, setActing] = createSignal<string | null>(null);
+    const [cleaning, setCleaning] = createSignal(false);
+    // fmtRel 60s tick——相对时间随墙钟刷新，不靠任务事件顺带更新
+    const [now, setNow] = createSignal(Date.now());
+    const tick = setInterval(() => setNow(Date.now()), 60_000);
+    onCleanup(() => clearInterval(tick));
+
+    const FILTERS: { value: Filter; label: string }[] = [
+        { value: "all", label: t.home.fAll },
+        { value: "active", label: t.home.fActive },
+        { value: "done", label: t.home.fDone },
+        { value: "failed", label: t.home.fFailed },
+    ];
+
+    /**
+     * 可见行 = 筛选桶 ∩ 搜索子串；活动任务恒置顶（pin 分组），组内按
+     * created_at 新→旧。<For> 按行引用 diff——store 侧 reconcile/patch
+     * 保引用（M9），这里排序只挪 DOM 不重挂行。
+     */
+    const visible = createMemo(() => {
+        const q = query().trim().toLowerCase();
+        const f = filter();
+        const list = props.tasks.filter((task) => {
+            if (f === "active" && isTerminal(task.status)) return false;
+            if (f === "done" && task.status !== "done") return false;
+            if (f === "failed" && !FAILED_SET.has(task.status)) return false;
+            if (q) {
+                const hay =
+                    `${task.title ?? ""} ${task.arxiv_id ?? ""} ${task.task_id}`.toLowerCase();
+                if (!hay.includes(q)) return false;
+            }
+            return true;
+        });
+        return [...list].sort((a, b) => {
+            const ta = isTerminal(a.status) ? 1 : 0;
+            const tb = isTerminal(b.status) ? 1 : 0;
+            if (ta !== tb) return ta - tb;
+            return b.created_at - a.created_at;
+        });
+    });
+
+    const doneCount = createMemo(
+        () => props.tasks.filter((x) => x.status === "done").length,
+    );
 
     // 终态 fault/partial 的 error 徽标内容
     const errOf = (task: TaskSnapshot): TaskError | null => {
@@ -127,12 +198,98 @@ export default function TaskList(props: Props) {
         }
     };
 
+    /** 行内 ⏻：取消在途任务——终态由 SSE/轮询回推，不做本地乐观写 */
+    const cancelTask = async (task: TaskSnapshot) => {
+        if (isTerminal(task.status) || acting() !== null) return;
+        setActing(task.task_id);
+        setDelError("");
+        try {
+            await api.cancel(task.task_id);
+        } catch (e) {
+            setDelError(e instanceof Error ? e.message : String(e));
+        } finally {
+            setActing(null);
+        }
+    };
+
+    /** 行内 ↻：retry 复用 task_id——resetLive 清上轮痕迹重订阅，refresh 拉新快照 */
+    const retryTask = async (task: TaskSnapshot) => {
+        if (!RETRYABLE.has(task.status) || acting() !== null) return;
+        setActing(task.task_id);
+        setDelError("");
+        try {
+            await api.retry(task.task_id);
+            taskStore.resetLive(task.task_id);
+            void taskStore.refresh();
+        } catch (e) {
+            setDelError(e instanceof Error ? e.message : String(e));
+        } finally {
+            setActing(null);
+        }
+    };
+
+    /** 批量清理已完成：逐行走 taskStore.remove（复用 404 容忍与 dropTask 清理） */
+    const cleanDone = async () => {
+        if (cleaning() || deleting() !== null || acting() !== null) return;
+        if (!window.confirm(t.home.cleanDoneConfirm)) return;
+        setCleaning(true);
+        setDelError("");
+        try {
+            for (const task of props.tasks) {
+                if (task.status !== "done") continue;
+                try {
+                    await taskStore.remove(task.task_id);
+                } catch {
+                    setDelError(t.home.delFailed);
+                }
+            }
+        } finally {
+            setCleaning(false);
+        }
+    };
+
     return (
         <div class="task-list">
+            <div class="task-tools">
+                <input
+                    class="task-search"
+                    type="search"
+                    placeholder={t.home.search}
+                    aria-label={t.home.searchLabel}
+                    value={query()}
+                    onInput={(e) => setQuery(e.currentTarget.value)}
+                />
+                <div class="task-chips" role="group" aria-label={t.home.tasks}>
+                    <For each={FILTERS}>
+                        {(f) => (
+                            <button
+                                type="button"
+                                class="task-chip"
+                                classList={{ on: filter() === f.value }}
+                                aria-pressed={filter() === f.value}
+                                onClick={() => setFilter(f.value)}
+                            >
+                                {f.label}
+                            </button>
+                        )}
+                    </For>
+                </div>
+                <button
+                    type="button"
+                    class="task-clean"
+                    disabled={cleaning() || doneCount() === 0}
+                    onClick={() => void cleanDone()}
+                >
+                    {cleaning() ? t.home.cleanDoneBusy : t.home.cleanDone}
+                </button>
+            </div>
             <Show when={props.tasks.length === 0}>
                 <p class="task-empty">{t.home.empty}</p>
             </Show>
-            <For each={props.tasks}>
+            <Show when={props.tasks.length > 0 && visible().length === 0}>
+                <p class="task-empty">{t.home.searchEmpty}</p>
+            </Show>
+            <For each={visible()}>
                 {(task) => (
                     <div class="task-wrap">
                         <button
@@ -147,7 +304,7 @@ export default function TaskList(props: Props) {
                                 {t.status[task.status] ?? task.status}
                             </span>
                             <span class="task-time">
-                                {fmtRel(task.created_at)}
+                                {fmtRel(task.created_at, now())}
                             </span>
                             <span class="task-meta muted">
                                 <span
@@ -198,6 +355,42 @@ export default function TaskList(props: Props) {
                                 />
                             </span>
                         </button>
+                        {/* 行内快捷臂（U8）：在途 ⏻ 取消；可重试终态 ↻；
+                            needs_auth 缺 key——↻ 原地打转，给 ⚙ 设置入口 */}
+                        <Show when={!isTerminal(task.status)}>
+                            <button
+                                type="button"
+                                class="task-act"
+                                disabled={acting() !== null}
+                                title={t.home.cancelTip}
+                                aria-label={t.home.cancelTask}
+                                onClick={() => void cancelTask(task)}
+                            >
+                                ⏻
+                            </button>
+                        </Show>
+                        <Show when={task.status === "needs_auth"}>
+                            <a
+                                class="task-act"
+                                href="#/settings"
+                                title={t.home.authTip}
+                                aria-label={t.home.goSettings}
+                            >
+                                ⚙
+                            </a>
+                        </Show>
+                        <Show when={RETRYABLE.has(task.status)}>
+                            <button
+                                type="button"
+                                class="task-act"
+                                disabled={acting() !== null}
+                                title={t.home.retryTip}
+                                aria-label={t.home.retry}
+                                onClick={() => void retryTask(task)}
+                            >
+                                ↻
+                            </button>
+                        </Show>
                         <Show when={isTerminal(task.status)}>
                             <TaskDownloads task={task} />
                         </Show>

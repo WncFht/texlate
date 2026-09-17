@@ -1,12 +1,16 @@
 // ReaderView —— 终态三模式阅读器：Toolbar + 横幅槽 + 双栏窗格。
 // pane 机制全体内聚：同步引擎（split + 双 handle 就位才建）、模式切换保位置
-// （pendingJump 补偿）、位置持久化（1s 防抖 + 卸载冲刷）、>500px 漂移跳回、
-// 缩放落地（usePDFSlick 初值恒 page-width 的 §5.1 坑走 zoom×handles effect）、
-// Ctrl/Cmd+F 路由到活动窗格 findbar。
+// （pendingJump 补偿）、位置持久化（1s 防抖 + 卸载/pagehide 冲刷）、>500px
+// 漂移跳回、缩放落地（pdf 走 setScale；html/dom 走 setFontSize 档位）、
+// Ctrl/Cmd+F 路由到活动窗格 findbar、1/2/3·s·[/]·? 键盘面、分栏拖拽 divider。
 //
 // mode/syncing/zoom/active/swapped 五个信号属页面态——loadReader 的 reading
 // 恢复与 retry 后模式保留都要求它们比本组件长寿，由 Reader 持有、经 props
 // 值+setter 读写；下方别名使迁移过来的逻辑与拆分前逐字一致。
+//
+// U3：两侧 PaneSlot 常驻挂载、隐藏侧 display:none——split↔单栏不再重挂
+// PdfPane（pdf.js RO 自愈重排）；hidden 侧 handle 仍在 handles() 里，
+// 位置捕获/同步只认 paneVisible 一侧。
 
 import {
     createEffect,
@@ -27,14 +31,29 @@ import {
 } from "../api/client";
 import Toolbar, { type DownloadItem, type Mode } from "../components/Toolbar";
 import { createPositionMapper, type DocId, type Pos } from "./alignment";
-import { annotFileName } from "./paneUtils";
+import { annotFileName, ti18n, zoomToFontPx } from "./paneUtils";
 import { capturePos, jumpTo, scrollTopFor, SyncEngine } from "./sync";
 import type { PaneHandle } from "./PdfPane";
+import type { HtmlPaneHandle } from "./HtmlPane";
+import type { DomPaneHandle } from "./DomPane";
 import PaneSlot, { type AnyHandle } from "./PaneSlot";
 import type { ReaderViewState } from "./view";
+import { t } from "../i18n/zh";
 
 const JUMPBACK_PX = 500;
 const SAVE_DEBOUNCE_MS = 1000;
+/** 分栏拖拽比例上下限（15%–85%），dblclick 回 50/50 */
+const SPLIT_MIN = 0.15;
+const SPLIT_MAX = 0.85;
+
+// putPosition 的 keepalive 透传项由 fe-live 侧契约补型——本地宽类型先行
+// （参数形一致后该别名即冗余，删了无妨）
+type PutPosition = (
+    taskId: string,
+    state: ReadingState & { swapped?: boolean },
+    opts?: { keepalive?: boolean },
+) => Promise<unknown>;
+const putPosition = api.putPosition as PutPosition;
 
 interface Props {
     taskId: string;
@@ -45,6 +64,8 @@ interface Props {
     dual: DualJson | null | undefined;
     status: TaskStatus | undefined;
     title: string;
+    /** arXiv 任务 → 顶栏原文直达链 */
+    arxivId?: string;
     downloads: DownloadItem[];
     mode: Mode;
     setMode(m: Mode): void;
@@ -85,25 +106,88 @@ export default function ReaderView(props: Props) {
     });
     const [drift, setDrift] = createSignal<Partial<Record<DocId, boolean>>>({});
     const [handles, setHandles] = createSignal<Partial<Record<DocId, AnyHandle>>>({});
+    const [helpOpen, setHelpOpen] = createSignal(false);
+    const [splitPct, setSplitPct] = createSignal(0.5);
 
     let engine: SyncEngine | null = null;
     let pendingJump: { from: DocId; pos: Pos } | null = null;
     const restoredSides = new Set<DocId>();
     let saveTimer = 0;
     let driftRaf = 0;
+    let panesEl!: HTMLDivElement;
 
-    // Ctrl/Cmd+F → 活动窗格的 findbar（PDF 侧；HTML 侧无 openFind，放行给浏览器原生查找）
+    const stepPage = (d: number) => {
+        const cur = pageNums()[active()] ?? 1;
+        const total = pageCounts()[active()] || 1;
+        const n = Math.min(total, Math.max(1, cur + d));
+        handles()[active()]?.gotoPage?.(n);
+    };
+
+    // 键盘面：1/2/3 模式、s 同步、[/] 翻页（段）、? 帮助浮层。
+    // 输入控件/编辑区聚焦时不抢键；Ctrl/Cmd+F 路由到活动窗格 findbar。
     onMount(() => {
         const onKey = (e: KeyboardEvent) => {
-            if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "f") return;
-            const h = handles()[active()];
-            if (h && "openFind" in h) {
-                e.preventDefault();
-                h.openFind();
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
+                const h = handles()[active()];
+                if (h && "openFind" in h) {
+                    e.preventDefault();
+                    h.openFind();
+                }
+                return;
+            }
+            if (e.ctrlKey || e.metaKey || e.altKey) return;
+            const t = e.target as HTMLElement | null;
+            const tag = t?.tagName;
+            if (
+                tag === "INPUT" ||
+                tag === "TEXTAREA" ||
+                tag === "SELECT" ||
+                t?.isContentEditable
+            )
+                return;
+            switch (e.key) {
+                case "1":
+                    planModeChange("split");
+                    break;
+                case "2":
+                    planModeChange("translated");
+                    break;
+                case "3":
+                    planModeChange("original");
+                    break;
+                case "s":
+                case "S":
+                    setSync(!syncing());
+                    break;
+                case "[":
+                    stepPage(-1);
+                    break;
+                case "]":
+                    stepPage(1);
+                    break;
+                case "?":
+                    setHelpOpen((v) => !v);
+                    break;
+                case "Escape":
+                    if (helpOpen()) {
+                        setHelpOpen(false);
+                        e.preventDefault();
+                    }
+                    break;
+                default:
+                    return;
             }
         };
         document.addEventListener("keydown", onKey);
         onCleanup(() => document.removeEventListener("keydown", onKey));
+    });
+
+    // pagehide 冲刷：关 tab/退导航时防抖窗口内的最后位置，
+    // keepalive 让请求活到发出为止（普通 fetch 随页面销毁被掐）
+    onMount(() => {
+        const onHide = () => saveNow({ keepalive: true });
+        window.addEventListener("pagehide", onHide);
+        onCleanup(() => window.removeEventListener("pagehide", onHide));
     });
 
     onCleanup(() => {
@@ -179,8 +263,8 @@ export default function ReaderView(props: Props) {
                 next === "split" ? (from === "original" ? "translated" : "original") : next;
             const dst = handles()[target];
             if (dst) {
-                // 目标窗格仍在挂载态（split→单栏留下的一侧），paneReady 不会再火——
-                // 立即跳，不留 pendingJump 污染下次挂载
+                // 目标窗格仍在挂载态（U3 后单栏切换两侧俱在）——立即跳，
+                // 不留 pendingJump 污染下次挂载
                 const to = from === target ? pos : mapper()(pos, from);
                 requestAnimationFrame(() => dst.jump(to));
             } else {
@@ -188,6 +272,8 @@ export default function ReaderView(props: Props) {
             }
         }
         setMode(next);
+        // 单栏下活动侧跟随可见侧——页码/翻页键/批注都对准可见窗格
+        if (next !== "split") setActive(next as DocId);
         persistPosition();
     };
 
@@ -220,7 +306,7 @@ export default function ReaderView(props: Props) {
 
     // ---------- 位置持久化 + >500px 跳回 ----------
 
-    const saveNow = () => {
+    const saveNow = (opts?: { keepalive?: boolean }) => {
         const positions: Partial<Record<DocId, Pos>> = {};
         for (const side of ["original", "translated"] as const) {
             const h = handles()[side];
@@ -243,7 +329,7 @@ export default function ReaderView(props: Props) {
             swapped: swapped(),
             document_version: info()?.documents.translated?.version,
         };
-        void api.putPosition(props.taskId, state).catch(() => undefined);
+        void putPosition(props.taskId, state, opts).catch(() => undefined);
     };
 
     const persistPosition = () => {
@@ -279,24 +365,48 @@ export default function ReaderView(props: Props) {
         persistPosition();
     };
 
-    const onUserScroll = () => {
+    // 滚动侧记小旗，rAF 里一次采样——scroll 事件每帧多次也只读一次几何
+    let scrolledSide: DocId | null = null;
+
+    const onUserScroll = (side: DocId) => {
         persistPosition();
+        scrolledSide = side;
         // 双侧滚动+程序化回声每事件都进来——合帧到一次几何采样
         if (driftRaf) return;
         driftRaf = window.requestAnimationFrame(() => {
             driftRaf = 0;
+            const s = scrolledSide;
+            scrolledSide = null;
+            // 滚动侧页码回写（dom/html 无 pdfjs pagechanging 事件，走 capturePos；
+            // 几何缓存已在，成本近零；pdf 侧与 onPageChange 同源一致）
+            if (s) {
+                const h = handles()[s];
+                if (h) {
+                    try {
+                        const p = capturePos(h).page;
+                        if (p !== pageNums()[s])
+                            setPageNums((prev) => ({ ...prev, [s]: p }));
+                    } catch {
+                        /* 拆解期 slick 已空 */
+                    }
+                }
+            }
             updateDrift();
         });
     };
 
     // ---------- 缩放 / 页码 ----------
 
-    /** 缩放值落单个窗格：% → setScale；命名值 → setScaleValue；HTML 侧无接口跳过 */
+    /** 缩放值落单个窗格：pdf → setScale/setScaleValue；html/dom → setFontSize 档位 */
     const applyZoomTo = (h: AnyHandle | undefined, z: string) => {
-        const ph = h as PaneHandle | undefined;
-        if (!z || !ph?.setScaleValue) return;
-        if (z.endsWith("%")) ph.setScale(Number(z.slice(0, -1)) / 100);
-        else ph.setScaleValue(z);
+        if (!h || !z) return;
+        const ph = h as PaneHandle;
+        if (ph.setScaleValue) {
+            if (z.endsWith("%")) ph.setScale(Number(z.slice(0, -1)) / 100);
+            else ph.setScaleValue(z);
+            return;
+        }
+        (h as HtmlPaneHandle | DomPaneHandle).setFontSize?.(zoomToFontPx(z));
     };
 
     // zoom × handles 响应式落地：usePDFSlick 初值恒 page-width（§5.1 坑），
@@ -338,6 +448,31 @@ export default function ReaderView(props: Props) {
     const isDom = () => props.view === "dom";
     const isPdf = () => props.view !== "html" && props.view !== "dom";
 
+    // ---------- 分栏拖拽 divider ----------
+
+    const onDividerDown = (e: PointerEvent) => {
+        e.preventDefault();
+        const bar = e.currentTarget as HTMLElement;
+        bar.setPointerCapture(e.pointerId);
+        const move = (ev: PointerEvent) => {
+            const r = panesEl.getBoundingClientRect();
+            if (r.width <= 0) return;
+            const frac = (ev.clientX - r.left) / r.width;
+            // DOM 序恒 original|divider|translated；swapped 仅视觉翻转
+            // （row-reverse）——指针越靠右 original 槽越小，取反
+            const logical = swapped() ? 1 - frac : frac;
+            setSplitPct(Math.min(SPLIT_MAX, Math.max(SPLIT_MIN, logical)));
+        };
+        const up = () => {
+            bar.removeEventListener("pointermove", move);
+            bar.removeEventListener("pointerup", up);
+            bar.removeEventListener("pointercancel", up);
+        };
+        bar.addEventListener("pointermove", move);
+        bar.addEventListener("pointerup", up);
+        bar.addEventListener("pointercancel", up);
+    };
+
     // ---------- 渲染 ----------
 
     const renderSlot = (side: DocId) => (
@@ -349,15 +484,31 @@ export default function ReaderView(props: Props) {
             chunks={dual()?.chunks ?? []}
             annotName={annotFileName(props.taskId, side)}
             active={active() === side}
+            hidden={!paneVisible(side)}
+            grow={
+                mode() === "split"
+                    ? side === "original"
+                        ? splitPct()
+                        : 1 - splitPct()
+                    : undefined
+            }
             drift={drift()[side]}
             onReady={(h) => paneReady(side, h)}
             onDispose={(h) => paneDisposed(side, h)}
             onPageChange={(p) => setPageNums((s) => ({ ...s, [side]: p }))}
             onActivate={() => setActive(side)}
-            onScroll={onUserScroll}
+            onScroll={() => onUserScroll(side)}
             onJumpBack={() => jumpBack(side)}
         />
     );
+
+    const HELP_ITEMS: [string, string][] = [
+        ["1 / 2 / 3", ti18n(t.reader, "helpModes", "对照 / 译文 / 原文")],
+        ["S", ti18n(t.reader, "helpSync", "开关同步滚动")],
+        ["[ / ]", ti18n(t.reader, "helpPages", "上/下一页（段）")],
+        ["Ctrl+F", ti18n(t.reader, "helpFind", "窗格内查找")],
+        ["?", ti18n(t.reader, "helpHelp", "本帮助")],
+    ];
 
     return (
         <>
@@ -373,8 +524,11 @@ export default function ReaderView(props: Props) {
                 active={active()}
                 swapped={swapped()}
                 downloads={props.downloads}
+                arxivId={props.arxivId}
+                pageUnit={
+                    isPdf() ? undefined : ti18n(t.reader, "pageUnitChunk", "段")
+                }
                 canGotoPage={isPdf() || isDom()}
-                canZoom={isPdf()}
                 onMode={planModeChange}
                 onSync={setSync}
                 onZoom={applyZoom}
@@ -387,10 +541,63 @@ export default function ReaderView(props: Props) {
             />
             {props.banner}
             {props.shareBanner}
-            <div class="panes" classList={{ swapped: swapped(), single: mode() !== "split" }}>
-                <Show when={paneVisible("original")}>{renderSlot("original")}</Show>
-                <Show when={paneVisible("translated")}>{renderSlot("translated")}</Show>
+            <div
+                class="panes"
+                ref={(el) => (panesEl = el)}
+                classList={{ swapped: swapped(), single: mode() !== "split" }}
+            >
+                {renderSlot("original")}
+                <Show when={mode() === "split"}>
+                    <div
+                        class="pane-divider"
+                        role="separator"
+                        aria-orientation="vertical"
+                        aria-label={ti18n(t.reader, "splitDivider", "调整分栏比例")}
+                        title={ti18n(
+                            t.reader,
+                            "splitDividerTip",
+                            "拖拽调整分栏比例，双击恢复均分",
+                        )}
+                        style={{
+                            cursor: "col-resize",
+                            flex: "none",
+                            width: "5px",
+                            "margin-inline": "-2px",
+                            "z-index": 7,
+                        }}
+                        onPointerDown={onDividerDown}
+                        onDblClick={() => setSplitPct(0.5)}
+                    />
+                </Show>
+                {renderSlot("translated")}
             </div>
+            <Show when={helpOpen()}>
+                <div
+                    class="kbd-help"
+                    role="dialog"
+                    aria-label={ti18n(t.reader, "helpTitle", "键盘快捷键")}
+                    onClick={() => setHelpOpen(false)}
+                >
+                    <div
+                        class="kbd-help-card"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <h2 class="rp-status">
+                            {ti18n(t.reader, "helpTitle", "键盘快捷键")}
+                        </h2>
+                        <dl class="kbd-help-list">
+                            {HELP_ITEMS.map(([k, d]) => (
+                                <div class="kbd-help-row">
+                                    <dt>
+                                        <kbd>{k}</kbd>
+                                    </dt>
+                                    <dd>{d}</dd>
+                                </div>
+                            ))}
+                        </dl>
+                    </div>
+                </div>
+            </Show>
         </>
     );
 }

@@ -8,7 +8,7 @@ interface Props<T extends string> {
 }
 
 export default function Segmented<T extends string>(props: Props<T>) {
-    // radio 组语义：方向键循环切换，roving tabindex
+    // radio 组语义：方向键循环切换，Home/End 跳首尾（U15），roving tabindex
     const onKeyDown = (e: KeyboardEvent) => {
         const opts = props.options;
         const cur = opts.findIndex((o) => o.value === props.value);
@@ -17,6 +17,8 @@ export default function Segmented<T extends string>(props: Props<T>) {
             next = (cur + 1) % opts.length;
         else if (e.key === "ArrowLeft" || e.key === "ArrowUp")
             next = (cur - 1 + opts.length) % opts.length;
+        else if (e.key === "Home") next = 0;
+        else if (e.key === "End") next = opts.length - 1;
         if (next < 0 || next === cur) return;
         e.preventDefault();
         props.onChange(opts[next].value);

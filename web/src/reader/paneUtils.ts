@@ -75,3 +75,31 @@ export function fmtDate(d: Date | null | undefined): string {
 export function annotFileName(taskId: string, side: DocId): string {
     return `${taskId}-${side === "original" ? "en" : "zh"}-annotated.pdf`;
 }
+
+/**
+ * 缩放选择值 → html/dom 窗格正文字号（px）。pdf 走 setScale 不经过这里。
+ * "%" 值按比例进 0.6–2.0 区间线性映射 12–22px；命名值（page-width 等
+ * pdf 语义档）对文本视图无意义 → 回基准 15px（= .pane-html-body 默认值）。
+ */
+export function zoomToFontPx(z: string): number {
+    const m = z.match(/^(\d+(?:\.\d+)?)%$/);
+    if (!m) return 15;
+    const ratio = Math.min(2, Math.max(0.6, Number(m[1]) / 100));
+    return Math.round((12 + ((ratio - 0.6) * 10) / 1.4) * 10) / 10;
+}
+
+/** 渲染产物里的 http(s) 外链一律新开标签页 + noopener——pane 内默认跳转会顶掉阅读器 */
+export function externalLinksBlank(root: ParentNode): void {
+    for (const a of root.querySelectorAll<HTMLAnchorElement>('a[href^="http"]')) {
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+    }
+}
+
+/**
+ * zh.ts 未就位键的宽读兜底：键落地（i18n 补齐）即返回真文案，
+ * 未就位回退内联文案——调用处与「i18n 待加」清单一一对应。
+ */
+export function ti18n(ns: object, key: string, fallback: string): string {
+    return (ns as Record<string, string | undefined>)[key] ?? fallback;
+}

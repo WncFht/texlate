@@ -455,12 +455,14 @@ const mockChunks = [
     },
 ];
 
-function mockDual(taskId: string) {
+function mockDual() {
     return {
         version: 1,
         documents: {
-            original: { version: `mock-en-${taskId}`, pages: EN_PAGES },
-            translated: { version: `mock-zh-${taskId}`, pages: ZH_PAGES },
+            // version 恒 "mock"——与 files manifest sha256 / position 校验 /
+            // ?version= 参数同一常量，三层口径一致（真后端是各文件 sha256）
+            original: { version: "mock", pages: EN_PAGES },
+            translated: { version: "mock", pages: ZH_PAGES },
         },
         alignment: {
             kind: "landmarks",
@@ -499,24 +501,24 @@ function mockReader(task: MockTask) {
         documents: task.html
             ? {
                   original: {
-                      version: `mock-en-${task.id}`,
+                      version: "mock",
                       pages: EN_PAGES,
                       url: `/api/files/${task.id}/en.pdf`,
                   },
               }
             : {
                   original: {
-                      version: `mock-en-${task.id}`,
+                      version: "mock",
                       pages: EN_PAGES,
                       url: `/api/files/${task.id}/en.pdf`,
                   },
                   translated: {
-                      version: `mock-zh-${task.id}`,
+                      version: "mock",
                       pages: ZH_PAGES,
                       url: `/api/files/${task.id}/zh.pdf`,
                   },
               },
-        alignment: mockDual(task.id).alignment,
+        alignment: mockDual().alignment,
         // server 恒返 dict（reading.json 缺席 → {}），不是 null
         reading: {},
     };
@@ -761,8 +763,8 @@ const FILE_BODY: Record<
     "en.pdf": () => ({ body: enPdf, type: "application/pdf" }),
     "zh.pdf": () => ({ body: zhPdf, type: "application/pdf" }),
     "dual.pdf": () => ({ body: dualPdf, type: "application/pdf" }),
-    "dual.json": (id) => ({
-        body: JSON.stringify(mockDual(id)),
+    "dual.json": () => ({
+        body: JSON.stringify(mockDual()),
         type: "application/json",
     }),
     "compile.log": () => ({
@@ -1340,6 +1342,39 @@ function handleApi(req: Req, res: Res, url: URL): boolean {
             }
             json(res, 200, { ok: true });
         });
+        return true;
+    }
+    if (
+        (mm = m(/^\/api\/task\/([^/]+)\/chunks$/)) &&
+        req.method === "GET"
+    ) {
+        const t = tasks.get(mm[1]);
+        if (!t) return (notFound(res), true);
+        const total = t.counters.total || TOTAL_CHUNKS;
+        // 已译段数跟 counters.done（drive() 逐拍推进）；done 终态视作全量
+        const doneN = t.status === "done" ? total : t.counters.done;
+        const off = Math.max(
+            0,
+            Number(url.searchParams.get("offset") ?? 0) || 0,
+        );
+        const lim = Number(url.searchParams.get("limit") ?? 0) || 60;
+        const rows = [];
+        for (let i = off; i < Math.min(total, off + lim); i++) {
+            const src = mockChunks[i] ?? {
+                kind: "text",
+                en: `[mock] paragraph ${i + 1} source text.`,
+                zh: `[mock] 第 ${i + 1} 段译文。`,
+            };
+            rows.push({
+                seq: i,
+                kind: src.kind,
+                // 未译到段 zh 留空——ChunkPreview 按 zh 非空过滤，预览随推进生长
+                status: i < doneN ? "ok" : "pending",
+                en: src.en,
+                zh: i < doneN ? src.zh : "",
+            });
+        }
+        json(res, 200, { chunks: rows, total });
         return true;
     }
     if ((mm = m(/^\/api\/files\/([^/]+)$/)) && req.method === "GET") {

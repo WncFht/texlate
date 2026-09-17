@@ -17,7 +17,6 @@ vi.mock("marked", () => ({
 import { render } from "solid-js/web";
 import HtmlPane from "../reader/HtmlPane";
 
-const flush = () => new Promise((r) => setTimeout(r, 0));
 let dispose: (() => void) | undefined;
 
 afterEach(() => {
@@ -42,13 +41,14 @@ describe("HtmlPane chunk 解析失败兜底", () => {
                 }),
             document.body,
         );
-        await flush();
-        await flush();
+        // marked/katex 现走动态 import——渲染完成轮询等待（跳数不确定，不数 tick）
+        await vi.waitFor(() => {
+            const body = document.body.querySelector(".pane-html-body");
+            expect(body?.querySelectorAll("[data-chunk]").length).toBe(3);
+        });
 
         const body = document.body.querySelector(".pane-html-body");
-        expect(body).not.toBeNull();
         const chunks = body!.querySelectorAll("[data-chunk]");
-        expect(chunks.length).toBe(3);
         // 坏块：源文按纯文本转义呈现——<b> 不成元素
         expect(chunks[1].innerHTML).toContain("&lt;b&gt;raw&lt;/b&gt;");
         expect(chunks[1].querySelector("b")).toBeNull();
@@ -70,11 +70,13 @@ describe("HtmlPane chunk 解析失败兜底", () => {
                 }),
             document.body,
         );
-        await flush();
-        await flush();
+        await vi.waitFor(() =>
+            expect(
+                document.body.querySelectorAll("[data-chunk]").length,
+            ).toBe(2),
+        );
 
         const chunks = document.body.querySelectorAll("[data-chunk]");
-        expect(chunks.length).toBe(2);
         expect(chunks[1].getAttribute("data-chunk")).toBe('1"><img onerror="x()">');
         expect(chunks[1].querySelector("img")).toBeNull();
     });

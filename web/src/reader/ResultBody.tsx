@@ -31,6 +31,8 @@ interface Props {
     onTryHtml(): void;
     /** mergeResultStats 合成结果；null 时 stat-strip 整段缺席 */
     stats: ResultStats | null;
+    /** partial/fault 的段落棋盘格（ProgressGrid 实例，自门控有数据才给） */
+    grid?: JSX.Element;
     /** 分享块槽（ShareBlock 实例，自门控 canShare） */
     share?: JSX.Element;
 }
@@ -119,12 +121,14 @@ export default function ResultBody(props: Props) {
                     </dl>
                 )}
             </Show>
+            {props.grid}
             <div class="rp-actions">
                 <Show when={props.st === "needs_auth"}>
                     <input
                         type="password"
                         class="auth-key-input"
                         placeholder={t.reader.authKeyPlaceholder}
+                        aria-label={t.reader.authKeyPlaceholder}
                         value={props.authKey}
                         disabled={props.retrying}
                         onInput={(e) => props.onAuthKey(e.currentTarget.value)}

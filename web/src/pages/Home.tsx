@@ -19,6 +19,10 @@ const ARXIV_RE =
 const TARGET_LANGS = ["zh-CN", "zh-TW", "en"];
 const ENGINES = ["auto", "xelatex", "tectonic"];
 
+/** 上传客户端预检（U14）：80MB 上限 + 扩展名白名单——早于 XHR 失败给出本地错 */
+const MAX_UPLOAD_BYTES = 80 * 1024 * 1024;
+const UPLOAD_EXT = /\.(pdf|tex|tar|gz|tgz|zip|docx|epub)$/i;
+
 // 服务端 normalize_arxiv_id 的轻量版：剥 arXiv: 前缀、各路径段 URL、
 // 尾部斜杠与 .pdf，再按新/旧 id 形白名单判
 export function parseArxivId(raw: string): string | null {
@@ -150,8 +154,20 @@ export default function Home(props: { nav(to: string): void }) {
         }
     };
 
-    const upload = async (file: File) => {
+    /** 客户端预检——返回错误文案或 null 放行（.share.zip 走 .zip 白名单） */
+    const precheck = (f: File): string | null => {
+        if (f.size > MAX_UPLOAD_BYTES) return t.home.uploadTooBig;
+        if (!UPLOAD_EXT.test(f.name)) return t.home.uploadBadExt;
+        return null;
+    };
+
+    const upload = async (file: File, land = true) => {
         if (busy()) return;
+        const bad = precheck(file);
+        if (bad) {
+            setError(`${file.name}：${bad}`);
+            return;
+        }
         setError("");
         setBusy(true);
         setUploading(true);
@@ -177,7 +193,7 @@ export default function Home(props: { nav(to: string): void }) {
                 );
                 if (!alive) return;
                 setOptKey("");
-                openRes(res);
+                if (land) openRes(res);
                 return;
             }
             const main = optMain().trim();
@@ -193,13 +209,81 @@ export default function Home(props: { nav(to: string): void }) {
             const res = await api.upload(file, fields, byok(), onProgress);
             if (!alive) return;
             setOptKey("");
-            openRes(res);
+            if (land) openRes(res);
         } catch (e) {
-            if (alive) setError(e instanceof Error ? e.message : String(e));
+            if (alive)
+                setError(
+                    `${file.name}：${e instanceof Error ? e.message : String(e)}`,
+                );
         } finally {
             setBusy(false);
             setUploading(false);
         }
+    };
+
+    /**
+     * 多文件批传（U14）：顺序提交不并发——单文件落地阅读器照旧，
+     * 批量模式不抢路由，全跑完 refresh 让新任务行自己冒出来。
+     * 单文件失败不阻断后续；错误汇总到 error 行。
+     */
+    const uploadBatch = async (files: File[]) => {
+        if (files.length === 1) {
+            await upload(files[0]);
+            return;
+        }
+        const errs: string[] = [];
+        // 与单文件路同一套 multipart 字段（prefer/source 是 arxiv 概念剔除）
+        const o = collectOptions();
+        const upOpts: Record<string, unknown> = { ...o?.options };
+        delete upOpts.prefer;
+        delete upOpts.source;
+        if (o?.glossary) upOpts.glossary = o.glossary;
+        for (const f of files) {
+            const bad = precheck(f);
+            if (bad) {
+                errs.push(`${f.name}：${bad}`);
+                continue;
+            }
+            setError("");
+            setBusy(true);
+            setUploading(true);
+            setUpPct(-1);
+            const onProgress = (loaded: number, total: number) =>
+                setUpPct(Math.min(100, Math.round((loaded / total) * 100)));
+            try {
+                if (f.name.toLowerCase().endsWith(".share.zip")) {
+                    await api.shareImport(
+                        f,
+                        Object.keys(upOpts).length ? upOpts : undefined,
+                        byok(),
+                        onProgress,
+                    );
+                } else {
+                    const main = optMain().trim();
+                    const fields =
+                        o || main
+                            ? {
+                                  model: o?.model,
+                                  target_lang: o?.target_lang,
+                                  main: main || undefined,
+                                  options: upOpts,
+                              }
+                            : undefined;
+                    await api.upload(f, fields, byok(), onProgress);
+                }
+            } catch (e) {
+                errs.push(
+                    `${f.name}：${e instanceof Error ? e.message : String(e)}`,
+                );
+            } finally {
+                setBusy(false);
+                setUploading(false);
+            }
+            if (!alive) return;
+        }
+        setOptKey("");
+        if (errs.length) setError(errs.join("；"));
+        void taskStore.refresh();
     };
 
     /** settings 默认值做占位文案（未加载时给通用占位） */
@@ -237,13 +321,13 @@ export default function Home(props: { nav(to: string): void }) {
                 e.preventDefault();
                 dragDepth = 0;
                 setDragOn(false);
-                const f = e.dataTransfer?.files?.[0];
-                if (!f) return;
+                const files = [...(e.dataTransfer?.files ?? [])];
+                if (!files.length) return;
                 if (busy()) {
                     setError(t.home.dropBusy);
                     return;
                 }
-                void upload(f);
+                void uploadBatch(files);
             }}
         >
             <section class="hero">
@@ -291,10 +375,11 @@ export default function Home(props: { nav(to: string): void }) {
                         ref={(el) => (fileInput = el)}
                         type="file"
                         hidden
+                        multiple
                         accept=".pdf,.tex,.tar,.gz,.tgz,.zip,.docx,.epub"
                         onChange={(e) => {
-                            const f = e.currentTarget.files?.[0];
-                            if (f) void upload(f);
+                            const files = [...(e.currentTarget.files ?? [])];
+                            if (files.length) void uploadBatch(files);
                             e.currentTarget.value = "";
                         }}
                     />
@@ -308,26 +393,36 @@ export default function Home(props: { nav(to: string): void }) {
                     <div class="up-progress">
                         <div
                             class="up-bar"
-                            classList={{ indet: upPct() < 0 }}
+                            classList={{ indet: upPct() < 0 || upPct() >= 100 }}
                             role="progressbar"
                             aria-label={t.home.upload}
                             aria-valuemin={0}
                             aria-valuemax={100}
-                            aria-valuenow={upPct() >= 0 ? upPct() : undefined}
+                            aria-valuenow={
+                                upPct() >= 0 && upPct() < 100
+                                    ? upPct()
+                                    : undefined
+                            }
                         >
                             <i
                                 style={{
-                                    width: upPct() < 0 ? "35%" : `${upPct()}%`,
+                                    width:
+                                        upPct() < 0 || upPct() >= 100
+                                            ? "35%"
+                                            : `${upPct()}%`,
                                 }}
                             />
                         </div>
                         <span class="up-label" aria-live="polite">
-                            {upPct() >= 0
-                                ? t.home.uploadPct.replace(
-                                      "{n}",
-                                      String(upPct()),
-                                  )
-                                : t.home.uploading}
+                            {/* 100% = 字节已送完、服务端建单中——回不定态防「卡 100%」错觉 */}
+                            {upPct() >= 100
+                                ? t.home.processing
+                                : upPct() >= 0
+                                  ? t.home.uploadPct.replace(
+                                        "{n}",
+                                        String(upPct()),
+                                    )
+                                  : t.home.uploading}
                         </span>
                     </div>
                 </Show>
@@ -554,7 +649,13 @@ export default function Home(props: { nav(to: string): void }) {
                 </Show>
                 <Show
                     when={taskStore.state.loaded}
-                    fallback={<p class="muted">…</p>}
+                    fallback={
+                        <div class="skel-rows" aria-hidden="true">
+                            <i />
+                            <i />
+                            <i />
+                        </div>
+                    }
                 >
                     <TaskList tasks={taskStore.state.tasks} onOpen={open} />
                 </Show>
