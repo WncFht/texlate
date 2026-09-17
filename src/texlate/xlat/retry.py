@@ -45,6 +45,20 @@ SLOT_NAME_RX = re.compile(r"⟪S\d{4,}⟫")
 #: 槽/占位符 token 的括号字符集——``_valid_slot_text`` 按字符出现拒收，
 #: 罩住规范形与非规范残码（texglot 同款过滤的超集）。
 _SLOT_PH_BRACKETS = ("⟪", "⟫", "[[", "]]")
+#: 槽值"非空"判定的零宽字符集——``str.strip()``/``isspace`` 不吃
+#: ``\u200b`` ZWSP/``\ufeff`` BOM 系，零宽-only 应答会判非空放行，
+#: 该槽正文静默丢进装配译文（含 ZWNJ/ZWJ/WJ/SHY/MVS）。
+_SLOT_ZW_CHARS = "\u200b\u200c\u200d\ufeff\u2060\u00ad\u180e"
+#: 象形括号邻 ``S\d{4,}`` 的槽 token 形变回显（``⟦S0000⟧``/``《S0000》``/
+#: ``「S0000」``/``［S0000］``/``⟨S0000⟩``/``｟S0000｠``/``【S0000】`` 系，
+#: 含半边形态）——这些括号本身是合法中文标点（``［1］`` 引用号不误伤：
+#: 无 ``S`` 前缀、不足四位数），括号贴 ``S``+四位数只会是 ``⟪S0000⟫``
+#: 的形变；``diff`` 看不见这类残码，须在槽值入口拒。
+_SLOT_ECHO_RX = re.compile(
+    r"[⟦⟨｟《「［【]\s*[Ss]\d{4,}\s*[⟧⟩｠》」］】]"
+    r"|[⟦⟨｟《「［【]\s*[Ss]\d{4,}"
+    r"|[Ss]\d{4,}\s*[⟧⟩｠》」］】]"
+)
 #: 每批槽位数（docs/08:113）
 SLOTS_PER_BATCH = 8
 #: slots 模式单槽最大字符（过长槽按 batch.split_long_chunk 句界二分）
@@ -110,6 +124,9 @@ async def call_with_backoff[T](
     timeout → ≥`timeout_floor`；`Retry-After` 头从其值（>60s 已在 client 层拒掉）。
     """
     p = policy or RetryPolicy()
+    if p.max_tries < 1:
+        msg = f"call_with_backoff: max_tries={p.max_tries} < 1"
+        raise ValueError(msg)
     last: BaseException | None = None
     for attempt in range(p.max_tries):
         try:
@@ -174,8 +191,14 @@ def _split_lines_scoped(text: str) -> list[str]:
             continue
         i += 1
     if start < n:
-        parts.append(text[start:])
-    return [p for p in parts if p.strip()] or [text]
+        tail = text[start:]
+        if parts and not tail.strip():
+            # 纯空白尾片（`\t`/`\xa0` 等非分隔空白）并入前片——独立成项过不了
+            # 非空判定会被过滤，`join(parts)` 丢尾部字节
+            parts[-1] += tail
+        else:
+            parts.append(tail)
+    return parts or [text]
 
 
 def _make_slots(encoded: str) -> tuple[dict[str, str], list[tuple[str, str]]]:
@@ -192,6 +215,9 @@ def _make_slots(encoded: str) -> tuple[dict[str, str], list[tuple[str, str]]]:
     def emit_prose(seg: str) -> None:
         for piece in split_long_chunk(seg, max_chars=SLOT_MAX_CHARS):
             if not piece.strip():
+                # 散文段内 >SLOT_MAX_CHARS 空白 run 被二分出的整片——按 raw
+                # 记账保 seq 平铺编码文，丢弃则装配译文静默丢字节
+                seq.append(("raw", piece))
                 continue
             sid = f"{SLOT_PREFIX}{len(slots):04d}{SLOT_SUFFIX}"
             slots[sid] = piece
@@ -220,11 +246,14 @@ def _valid_slot_text(v: object) -> bool:
     规范槽位是 ``⟪S0000⟫``、占位符是 ``[[X]]`` 系；模型回显的残码不限
     规范形（``⟪S1⟫``/``⟪s0000⟫``/未闭合半边/``[[math_1]]`` 小写态），
     括号字符 ``⟪⟫[[ ]]`` 任一出现即拒——畸形 token 放行会原文进装配译文。
+    象形括号 ``⟦⟧《》`` 系贴 ``S``+四位数的形变回显同拒（``_SLOT_ECHO_RX``）；
+    "非空"按可见字符计——零宽字符（``_SLOT_ZW_CHARS``）不算内容。
     """
     return (
         isinstance(v, str)
-        and bool(v.strip())
+        and any(not c.isspace() and c not in _SLOT_ZW_CHARS for c in v)
         and not any(m in v for m in _SLOT_PH_BRACKETS)
+        and _SLOT_ECHO_RX.search(v) is None
     )
 
 
@@ -315,6 +344,9 @@ async def _slots_round(
     keys = list(pending)
     for i in range(0, len(keys), SLOTS_PER_BATCH):
         group = {k: pending[k] for k in keys[i : i + SLOTS_PER_BATCH]}
+        # 结算按发送时键快照迭代——slots_fn 收同一 dict，回调原地 clear/pop
+        # 会丢弃自己的有效应答并把"框架丢答"误记成 "no answer"
+        group_sids = list(group)
         ctx.attempts += 1
         feedback = json.dumps(failures, ensure_ascii=False) if failures else ""
         try:
@@ -324,7 +356,7 @@ async def _slots_round(
         except Exception as e:  # noqa: BLE001 -- 槽位调用崩→该批留 pending 重问
             log.debug("slots batch failed: %s", e)
             continue
-        for sid in group:
+        for sid in group_sids:
             v = got.get(sid) if isinstance(got, dict) else None
             if _valid_slot_text(v):
                 translated[sid] = v

@@ -158,20 +158,100 @@ def split_long_chunk(text: str, *, max_chars: int = CHUNK_HARD_LIMIT) -> list[st
 #: 切点避让的原子 span：占位符（``[[X_n]]``/``[[SL]]`` 系）与控制字/转义
 #: （``\cmd``/``\%``）——切开占位符两半都过不了对账；切开 ``\cmd`` 会在
 #: 重组译文里留下 ``\``+CJK 熔合或 ``%`` 起头注释吞行（undefined cs/吞文本）。
+#: ``\cmd`` 后随的 ``[opt]``/``{arg}`` 参数组并入同一原子（可叠多组、允许
+#: 空白间隔、仅罩非嵌套组——TeX 参数扫描本就跳过组间空白）——cs 名与参数组
+#: 切开会让前片悬 ``\cmd`` 收尾、后片孤儿 ``{arg}`` 起头，两半独立送翻都
+#: 失去配对结构。嵌套/未闭合组的接缝残余由 ``_safe_cut`` 兜底。
 _ATOMIC_CUT_RX = re.compile(
-    r"\[\[[A-Z][A-Z_]*\]\]|\[\[[A-Z_]+_\d+\]\]|\\[a-zA-Z@]+\*?|\\."
+    r"\[\[[A-Z][A-Z_]*\]\]|\[\[[A-Z_]+_\d+\]\]"
+    r"|\\[a-zA-Z@]+\*?(?:\s*\[[^\[\]]*\])?(?:\s*\{[^{}]*\})*"
+    r"|\\."
 )
+#: cs 名收尾判定（``_safe_cut`` 复合原子兜底用——组头前窗口 rstrip 后以
+#: ``\cmd`` 结尾即 cs↔参数组接缝）。
+_CS_TAIL_RX = re.compile(r"\\[a-zA-Z@]+\*?$")
+
+
+def _group_end(text: str, start: int, cap: int) -> int | None:
+    r"""``text[start]``（``{``/``[``）起的配对括号组尾后位置。
+
+    ``\\`` 转义双跳；超 ``cap`` 或未闭合 → ``None``。
+    """
+    close = "}" if text[start] == "{" else "]"
+    depth = 0
+    i, n = start, min(len(text), cap)
+    while i < n:
+        c = text[i]
+        if c == "\\":
+            i += 2
+            continue
+        if c == text[start]:
+            depth += 1
+        elif c == close:
+            depth -= 1
+            if depth == 0:
+                return i + 1
+        i += 1
+    return None
+
+
+def _cs_arg_heads(text: str, cut: int, w: int) -> list[int]:
+    r"""``cut`` 处的候选参数组头（内→外）。
+
+    - ``cut`` 自身是 ``{``/``[``（组缝/组开头切点）；
+    - ``[w, cut)`` 内未闭合的组头栈（``cut`` 在组内的切点，含嵌套——
+      ``_ATOMIC_CUT_RX`` 只罩非嵌套组的残余面）；
+    - 紧邻 ``cut`` 左侧刚闭合的组头（``}{``/``]{`` 参数组链接缝，组间
+      空白跳过——TeX 参数扫描本就忽略组间空白）。
+
+    ``\\`` 转义双跳；配型错位的闭括号忽略。
+    """
+    heads: list[int] = []
+    if cut < len(text) and text[cut] in "{[":
+        heads.append(cut)
+    stack: list[tuple[str, int]] = []
+    last_closed: tuple[int, int] | None = None  # (头, 尾后)
+    i = w
+    while i < cut:
+        c = text[i]
+        if c == "\\":
+            i += 2
+            continue
+        if c in "{[":
+            stack.append((c, i))
+        elif c in "}]":
+            want = "{" if c == "}" else "["
+            if stack and stack[-1][0] == want:
+                last_closed = (stack.pop()[1], i + 1)
+        i += 1
+    heads.extend(pos for _c, pos in reversed(stack))
+    if last_closed is not None and not text[last_closed[1] : cut].strip():
+        heads.append(last_closed[0])
+    return heads
 
 
 def _safe_cut(text: str, cut: int, lo: int) -> int:
     """``cut`` 落在原子 span 内部时退到 span 头（头越不过 ``lo`` 则进到 span 尾）。
 
     span 都很短（≤40 字符），只在 cut 附近 ±64 窗口里找——不切实际的长 span
-    也不会被漏（``[[`` token/控制字没有 >40 字符的形态）。
+    也不会被漏（``[[`` token/控制字没有 >40 字符的形态）。cs 复合原子的
+    嵌套/未闭合组残余由 ``_cs_arg_heads`` 兜底同则退/进。
     """
     for m in _ATOMIC_CUT_RX.finditer(text, max(0, cut - 64), min(len(text), cut + 64)):
         if m.start() < cut < m.end():
             return m.start() if m.start() >= lo else m.end()
+    for head in _cs_arg_heads(text, cut, max(0, cut - 128)):
+        m = _CS_TAIL_RX.search(text[max(0, head - 128) : head].rstrip())
+        if m is None:
+            continue
+        cs = max(0, head - 128) + m.start()
+        if cs >= lo:
+            return cs
+        end = _group_end(text, head, cut + 64)
+        if end is not None:
+            return end
+        if cs >= 1:
+            return cs
     return cut
 
 

@@ -5,23 +5,22 @@
 失败形态、``_stage_slots`` 三端（exhaustion/重问/无散文）；``test_xlat_retry``
 钉退避节奏与阶梯 happy/sad 主路径。本文件收残余面：
 
-- ``call_with_backoff`` 退化策略面：``max_tries=0`` 的 ``"unreachable"``
-  消息名不副实（CONFIRMED 可达）、错误自带 ``max_tries`` 收窄/不可放宽、
+- ``call_with_backoff`` 退化策略面：``max_tries<1`` 入口即拒
+  （``ValueError``——曾落名不副实的 ``"unreachable"`` ChatError，可达且
+  ``fn`` 零调用）、错误自带 ``max_tries`` 收窄/不可放宽、
   非 ``(ChatError, TimeoutError)`` 异常零翻身直接穿透、``retry_after``
   对非 429 同样优先；
-- ``_split_lines_scoped`` 平铺不变量（``join(parts)`` 恒为 ``text`` 前缀，
-  余部只许纯空白——含转义句号/``{}`` 深度/未闭合 ``{``/``\\t``/``\\xa0``
-  非分隔的对抗形；CONFIRMED：纯 ``\\t``/``\\xa0`` 尾片过不了 strip 过滤
-  被丢）；
+- ``_split_lines_scoped`` 平铺不变量（``join(parts)`` 恒为 ``text``——
+  切点后纯 ``\\t``/``\\xa0`` 尾片并入前片保字节；含转义句号/``{}`` 深度/
+  未闭合 ``{``/``\\t``/``\\xa0`` 非分隔的对抗形）；
 - ``_make_slots``：seq 平铺编码文的覆盖 oracle、>``SLOT_MAX_CHARS`` 空白
-  run 的整片丢弃（CONFIRMED：seq 不再覆盖 encoded，装配静默丢字节）、
-  cs 名与其 ``{arg}`` 之间允许切分（CONFIRMED：槽尾悬 ``\\textbf``、
-  下一槽以孤儿 ``{arg}`` 起头）、槽号 ``%04d`` 超 4 位仍规范、槽散文含
+  run 整片按 ``raw`` 记账保 seq 平铺（曾整片丢弃静默丢字节）、cs 名与其
+  ``{arg}`` 之间不再允许切分、槽号 ``%04d`` 超 4 位仍规范、槽散文含
   字面 ``[[x]]`` 的拒收张力（echo 必拒、丢弃零信号）；
 - ``_slots_round``：跨组应答键被忽略（不提前落 ``translated``）、非 dict
   Mapping 拒收、``CancelledError`` 穿透 ``except Exception``、跨轮
-  ``failures`` 反馈含 ``"no answer"`` 项、组参 ``group`` mutation 丢答
-  （CONFIRMED：结算循环后读回调可变 dict，清空了连自己应答一并弃，
+  ``failures`` 反馈含 ``"no answer"`` 项、组参 ``group`` mutation 不再丢答
+  （结算按发送时键快照迭代——曾重读可变 dict，回调清空连自己应答一并弃，
   失败归因误记 ``"no answer"``）、组内 ``ChatError`` 即抛截断本轮；
 - 阶梯不变量：乱注 chaos 下终止有界 + ``status``↔``stage`` 一致 +
   ``fallback_orig`` 时 ``translation==source`` 逐字节 + warning 序列定式 +
@@ -29,10 +28,10 @@
   ``best_zh``（不走 fallback）、``translate_fn`` 收编码文 vs
   ``corrector_fn`` 收原文的不对称、``repair_fn`` 抄回警告面、默认校验的
   echo 盲点、行级逐行必发 + 行败可互消、槽位进展不续轮、部分答成全弃；
-- ``_valid_slot_text`` 象形括号面：``⟦⟧《》「」［］⟨⟩｟｠`` 全放行且
-  ``diff`` 同样不可见（装配后字面落 PDF；``【..】`` 独被 ``PH_FUZZY_RX``
-  下游兜底）、``\\u200b``/``\\ufeff`` 零宽-only 值放行（PLAUSIBLE：
-  ``str.strip()`` 不吃零宽字符）、裸 ``S0000`` 不误伤。
+- ``_valid_slot_text`` 象形括号面：``⟦⟧《》「」［］⟨⟩｟｠`` 贴
+  ``S\\d{4,}`` 的形变回显拒收（``_SLOT_ECHO_RX``——``diff`` 看不见这类
+  残码，入口拒是唯一兜网；裸 ``S0000``/``［1］`` 不误伤）、
+  ``\\u200b``/``\\ufeff`` 零宽-only 值按无可见字符拒收。
 """
 
 from __future__ import annotations
@@ -82,17 +81,17 @@ async def _empty_slots(_group: dict[str, str], _failures: str) -> dict[str, str]
 
 
 class TestBackoffEdges:
-    def test_zero_max_tries_raises_unreachable_without_calling(self) -> None:
-        """CONFIRMED 名不副实：``max_tries=0`` 时循环体不执行、``last=None``
-        落到 ``ChatError("call_with_backoff: unreachable")``——消息声称
-        不可达的分支其实可达，且 ``fn`` 零调用。"""
+    def test_zero_max_tries_rejected_without_calling(self) -> None:
+        """``max_tries<1`` 入口即拒 ``ValueError``——原先循环体不执行、
+        ``last=None`` 落到 ``ChatError("unreachable")`` 名不副实（可达）；
+        策略配置错误应响，``fn`` 零调用不变。"""
         calls: list[int] = []
 
         async def fn() -> str:
             calls.append(1)
             return "x"
 
-        with pytest.raises(ChatError, match="unreachable"):
+        with pytest.raises(ValueError, match="max_tries"):
             asyncio.run(
                 rt.call_with_backoff(
                     fn, policy=rt.RetryPolicy(max_tries=0, base_delay=0.0)
@@ -220,15 +219,15 @@ class TestSplitLinesScoped:
         ]:
             assert "".join(_split_lines(t)) == t
 
-    def test_trailing_whitespace_only_tail_dropped(self) -> None:
-        """CONFIRMED：``\\t``/``\\xa0`` 不在分隔符后随空白消费集
-        （``" \\n"``）——切点后残留的纯空白尾片过不了 ``p.strip()``
-        被过滤，``join(parts)`` 丢失文本尾部空白（行级修复路径上
-        译行反正 ``\\n.join`` 重组，实际损失仅限幻觉面）。"""
-        assert _split_lines("a. \t") == ["a. "]
-        assert _split_lines("a. \xa0") == ["a. "]
-        assert _split_lines("a. b. \t") == ["a. ", "b. "]
-        # 但 " "/"\\n" 尾随被切点消费进前片——不丢
+    def test_trailing_whitespace_only_tail_merged(self) -> None:
+        """``\\t``/``\\xa0`` 不在分隔符后随空白消费集（``" \\n"``）——
+        切点后残留的纯空白尾片并入前片而非独立成项（独立项过不了非空判定
+        会被丢：``join(parts)`` 丢尾部字节——已修为并入语义，平铺恒等）。"""
+        assert _split_lines("a. \t") == ["a. \t"]
+        assert _split_lines("a. \xa0") == ["a. \xa0"]
+        assert _split_lines("a. b. \t") == ["a. ", "b. \t"]
+        assert "".join(_split_lines("a. \t b. ")) == "a. \t b. "
+        # " "/"\\n" 尾随照旧被切点消费进前片
         assert "".join(_split_lines("a.   ")) == "a.   "
         assert "".join(_split_lines("a. \n")) == "a. \n"
 
@@ -302,30 +301,27 @@ class TestMakeSlotsAdversarial:
             recon = "".join(slots[p] if k == "slot" else p for k, p in seq)
             assert recon == enc, enc
 
-    def test_whitespace_run_piece_dropped(self) -> None:
-        """CONFIRMED 缺陷：散文段内 >``SLOT_MAX_CHARS`` 的纯空白 run 经
-        ``split_long_chunk`` 拆出的整片是 whitespace-only——``emit_prose``
-        的 ``piece.strip()`` 判定把它整体丢弃，seq 不再覆盖 encoded——
-        装配译文静默丢失 ~1500 字符空白（``raw`` 项只兜整段空白，
-        兜不住切分中间片）。"""
+    def test_whitespace_run_piece_kept_as_raw(self) -> None:
+        """散文段内 >``SLOT_MAX_CHARS`` 的纯空白 run 经 ``split_long_chunk``
+        拆出的整片按 ``raw`` 记账——seq 仍平铺覆盖 encoded，装配译文不丢
+        字节（曾整体丢弃：seq 无痕迹、静默丢 ~1500 字符空白）。"""
         seg = "a" + " " * (rt.SLOT_MAX_CHARS * 2) + "b"
         slots, seq = _make_slots(seg)
         recon = "".join(slots[p] if k == "slot" else p for k, p in seq)
-        assert recon != seg
-        assert len(seg) - len(recon) >= rt.SLOT_MAX_CHARS
-        # 两槽相邻——丢失的空白片在 seq 里无任何痕迹
-        assert [k for k, _ in seq] == ["slot", "slot"]
+        assert recon == seg
+        # 空白整片以 raw 项留在 seq——两槽之间不再无声
+        assert [k for k, _ in seq] == ["slot", "raw", "slot"]
 
-    def test_cut_between_cs_name_and_arg(self) -> None:
-        """CONFIRMED：``_best_split`` 只护 ``\\cmd`` 名原子 span 内部——
-        切点可落在 cs 名与 ``{arg}`` 之间：前一槽以悬 ``\\textbf`` 收尾、
-        后一槽以孤儿 ``{arg}`` 起头，两槽独立送翻——模型看不到配对结构。"""
+    def test_no_cut_between_cs_name_and_arg(self) -> None:
+        """cs 名与其 ``{arg}`` 是复合原子——切点不再落在 ``\\textbf`` 与
+        ``{AAAA}`` 之间（曾：前一槽悬 ``\\textbf`` 收尾、后一槽孤儿 ``{arg}``
+        起头，两槽独立送翻模型看不到配对结构）。"""
         head = "x" * (rt.SLOT_MAX_CHARS - 7)
         seg = head + "\\textbf{AAAA} " + "y" * 800
         slots, _seq = _make_slots(seg)
         vals = list(slots.values())
-        assert vals[0].endswith("\\textbf")
-        assert vals[1].startswith("{AAAA}")
+        assert vals[0].endswith("x")
+        assert vals[1].startswith("\\textbf{AAAA}")
 
     def test_slot_names_canonical_past_four_digits(self) -> None:
         """observed: ``%04d`` 是最小宽度——第 10001 槽 ``⟪S10000⟫`` 仍命中
@@ -448,12 +444,10 @@ class TestSlotsRoundAdversarial:
         with pytest.raises(asyncio.CancelledError):
             asyncio.run(_slots_round(ctx, {"⟪S0000⟫": "p"}, {}, {}))
 
-    def test_group_arg_mutation_drops_answers(self) -> None:
-        """CONFIRMED 缺陷：结算循环 ``for sid in group`` 在 ``slots_fn``
-        返回后重读同一 dict——回调清空/弹出入参 ``group`` 会丢弃自己的
-        有效应答，槽留 pending 且 ``failures`` 记 ``"no answer"``（与
-        异常路径同口径，把"框架丢答"误报成"模型没答"）。``pending``
-        账本本身不被腐蚀（键值原样）。"""
+    def test_group_arg_mutation_cannot_drop_answers(self) -> None:
+        """结算循环按发送时键快照迭代——回调清空/弹出入参 ``group`` 不再
+        丢弃自己的有效应答（曾重读可变 dict：应答全丢 + ``failures`` 把
+        "框架丢答"误记成 ``"no answer"``）。``pending`` 账本正常结算。"""
 
         async def vandal(group: dict[str, str], _fb: str) -> dict[str, str]:
             out = dict.fromkeys(group, "zh")
@@ -465,10 +459,9 @@ class TestSlotsRoundAdversarial:
         translated: dict[str, str] = {}
         failures: dict[str, str] = {}
         asyncio.run(_slots_round(ctx, pending, translated, failures))
-        # 应答全丢 + pending 原样 + 误归因 "no answer"
-        assert not translated
-        assert pending == {f"⟪S{i:04d}⟫": f"p{i}" for i in range(3)}
-        assert all(failures[sid] == "no answer" for sid in pending)
+        assert translated == {f"⟪S{i:04d}⟫": "zh" for i in range(3)}
+        assert not pending
+        assert not failures
 
     def test_cross_round_feedback_carries_no_answer(self) -> None:
         """observed: 首轮整组崩 → 第二轮 feedback JSON 带
@@ -839,10 +832,11 @@ class TestLadderInvariants:
 
 
 class TestValidSlotTextLookalikes:
-    def test_lookalike_brackets_accepted_and_leak(self) -> None:
-        """PLAUSIBLE 缺陷族：``⟦⟧《》「」［］⟨⟩｟｠`` 象形括号不在
-        ``_SLOT_PH_BRACKETS`` 黑名单也不在 ``PH_FUZZY_RX`` 口径——
-        槽值带 ``⟦S0000⟧`` 形残码全链放行，装配后字面落 PDF。"""
+    def test_lookalike_bracket_slot_echo_rejected(self) -> None:
+        """``⟦⟧《》「」［］⟨⟩｟｠`` 象形括号贴 ``S``+四位数的槽 token 形变
+        回显在 ``_valid_slot_text`` 拒收——这些括号本身是合法中文标点不能进
+        ``_SLOT_PH_BRACKETS`` 字符黑名单，但括号+``S\\d{4,}`` 只会是
+        ``⟪S0000⟫`` 形变；``diff`` 看不见它（下游无兜网，须入口拒）。"""
         for tok in [
             "⟦S0000⟧",
             "《S0000》",
@@ -850,27 +844,31 @@ class TestValidSlotTextLookalikes:
             "［S0000］",
             "⟨S0000⟩",
             "｟S0000｠",
+            "⟦S0000",  # 半边形态同拒
+            "S0000⟧",
         ]:
-            assert _vst(f"译文 {tok}")
+            assert not _vst(f"译文 {tok}"), tok
             d = ph.diff("alpha [[MATH_1]]", f"译文 {tok} [[MATH_1]]")
-            assert d.ok, tok  # 下游 diff 同样看不见——无兜网
+            assert d.ok, tok  # diff 确实看不见——入口拒是唯一兜网
 
-    def test_cjk_corner_bracket_caught_downstream(self) -> None:
-        """observed: ``【S0000】`` 过 ``_valid_slot_text`` 但命中
-        ``PH_FUZZY_RX`` 的 ``【..】`` 臂（内含 ASCII 字母）——
-        ``diff`` 计 extra，整段判死（象形族里唯一被下游兜住的形）。"""
-        assert _vst("译文 【S0000】")
+    def test_cjk_corner_bracket_caught_at_entry_and_downstream(self) -> None:
+        """``【S0000】`` 现在 ``_valid_slot_text`` 即拒（``_SLOT_ECHO_RX``
+        含 ``【】``）；下游 ``PH_FUZZY_RX`` 的 ``【..】`` 臂仍是第二道兜网。"""
+        assert not _vst("译文 【S0000】")
         d = ph.diff("alpha [[MATH_1]]", "译文 【S0000】 [[MATH_1]]")
         assert "【S0000】" in d.extra
 
-    def test_zero_width_only_values_accepted(self) -> None:
-        """PLAUSIBLE 缺陷：``\\u200b`` ZWSP/``\\ufeff`` BOM 不在
-        ``str.strip()`` 空白口径——零宽-only 槽值判「非空」放行，
-        不可见字符静默进装配译文（对照：真空白族照拒）。"""
-        assert _vst("\u200b")
-        assert _vst("﻿")
-        assert not _vst(" ")
-        assert not _vst("　")
+    def test_zero_width_only_values_rejected(self) -> None:
+        """``\\u200b`` ZWSP/``\\ufeff`` BOM/``\\u200d`` ZWJ 等零宽-only
+        槽值按"无可见字符"拒收——零宽应答等于该槽正文静默丢进装配译文
+        （``str.strip()`` 不吃零宽字符；可见字符夹杂零宽不误伤）。"""
+        assert not _vst("\u200b")
+        assert not _vst("\ufeff")
+        assert not _vst("\u200b \u200d\ufeff")
+        assert not _vst(" ")
+        assert not _vst("\u3000")
+        assert _vst("译\u200b文")  # 零宽夹在可见字符间放行
+        assert _vst("\u200c\u200djoiner")  # 零宽起头的真实文本放行
 
     def test_bare_slot_id_text_accepted(self) -> None:
         """observed 不误伤：裸 ``S0000``（无括号）是合法译文成分——
@@ -879,8 +877,9 @@ class TestValidSlotTextLookalikes:
         assert _vst("在文献 ［1］ 中")
 
     def test_fuzz_bracket_charset_only_gate(self) -> None:
-        """随机 soup：``_valid_slot_text`` 判定 ⟺ 非空 str + 无 ``⟪⟫[[ ]]``
-        四字符——独立 oracle 逐条对账。"""
+        """随机 soup：``_valid_slot_text`` 判定 ⟺ 有可见字符（非空白非零宽）
+        + 无 ``⟪⟫[[ ]]`` 四字符 + 无象形括号 ``S\\d{4,}`` 形变——oracle
+        逐条对账（口径随零宽/象形族修复同步更新）。"""
         rng = random.Random(20260917)  # noqa: S311 -- 确定性种子
         soup = [
             "a",
@@ -898,13 +897,20 @@ class TestValidSlotTextLookalikes:
             "S0000",
             "译文",
             "\u200b",
-            " ",
+            "\xa0",
             "\n",
         ]
         for _ in range(_FUZZ_MED):
             v = "".join(rng.choice(soup) for _ in range(rng.randint(0, 8)))
-            want = bool(v.strip()) and not any(
-                m in v
-                for m in rt._SLOT_PH_BRACKETS  # noqa: SLF001
+            want = (
+                any(
+                    not c.isspace() and c not in rt._SLOT_ZW_CHARS  # noqa: SLF001
+                    for c in v
+                )
+                and not any(
+                    m in v
+                    for m in rt._SLOT_PH_BRACKETS  # noqa: SLF001
+                )
+                and rt._SLOT_ECHO_RX.search(v) is None  # noqa: SLF001
             )
             assert _vst(v) == want, v
