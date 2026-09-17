@@ -20,9 +20,14 @@ bench/corpus_v2/progress.json
 bench/corpus_v2/build.log
 bench/corpus_v3/*/
 bench/work_*/
+bench/results/*/work/
 bench/results/babeldoc/
 !bench/corpus/MANIFEST.md
 !bench/corpus_v2/MANIFEST.md
+
+# status-panel 运行时状态 (pidfile+速率状态; run.log 由 *.log 覆盖, tasks.d 台账照入库)
+bench/results/status-panel/panel.pid
+bench/results/status-panel/rate-state.json
 
 # tex 编译中间产物
 *.aux
