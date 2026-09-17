@@ -31,48 +31,35 @@
 - ``fallback_candidates``：并发调用只跑一次发现（锁 + memoize）；结果
   ≤ ``FALLBACK_MAX_CANDIDATES``；非网关端点恒 ``[]`` 零请求。
 
-缺陷钉账（本文件 `xfail(strict=True)` 钉住**期望**契约——修复落地后
-XPASS 转红即拆钉；观测语义类钉用普通断言 + CONFIRMED/PLAUSIBLE 注脚）：
+缺陷钉账（修复前用 `xfail(strict=True)` 钉住**期望**契约——2026-09-17
+七族 CONFIRMED 全修落地、钉已拆；逃逸计数断言翻转为钉零，非零即回归；
+观测语义类钉用普通断言 + OBSERVED/WONTFIX 注脚）：
 
-- C1 ``_retry_after`` Unicode 数字缝（client.py:176-178）：``str.isdigit()``
-  覆盖 ``float()`` 不可解析的 No 类字符（上标 ¹²³）——``Retry-After``
-  值为 latin-1 线上字节 0xB9/0xB2/0xB3（``httpx.Headers`` 按 latin-1
-  解码）→ ``ValueError`` 裸逃出 ``classify_status`` → 穿透 ``chat``/
-  ``list_models``/``chat_stream``/``panel_models`` 全部公开面。**CONFIRMED**。
-- C2 ``_sse_events`` 形状缝（client.py:702-722）：``data: <非 dict JSON>``
-  （``5``/``null``/``"x"``/``[1]``/``true``）、``choices`` 非 list、成员/
-  ``delta`` 非 dict → ``AttributeError``/``TypeError`` 裸逃出
-  ``chat_stream``——docstring 承诺「坏行跳过」且公开面只许 ``ChatError``。
-  **CONFIRMED**。
-- C3 ``_parse_openai`` 形状缝（client.py:494-532）：JSON 合法但形状错的
-  200 体（choices 成员/message/usage 非 dict、content 非 str、usage
-  token 非数值、``1e999`` inf → ``int()``）→ ``AttributeError``/``TypeError``/
-  ``ValueError``/``KeyError``/``OverflowError`` 裸逃出 ``chat()``——
-  ``MalformedResponseError`` docstring 明言覆盖「形状不符」。**CONFIRMED**。
-  次生后果：逃逸绕过 ``chat`` 降级臂（``except ChatError`` 捕不到），
-  零候选探测直接崩出。
-- C4 ``_parse_anthropic`` 同族（client.py:566-603）：error/content/usage
-  非 dict、blk 非 dict、text/thinking 非 str（join 炸）、usage 非数值。
-  **CONFIRMED**。
-- C5 ``discover_free_models`` 成员字段缝（client.py:882-895）：``promo``
-  非 dict → ``AttributeError``；``context_tokens`` 非数值/``1e999`` →
-  ``ValueError``/``TypeError``/``OverflowError``——直调裸逃；
-  ``fallback_candidates`` 里被 ``except Exception`` 兜底成 ``[]``（降级臂
-  路径无感）。**CONFIRMED**。
-- C6 ``panel_models`` ``models`` 字段不可迭代缝（client.py:817）：
-  ``{"models": 5}``/``true`` → ``TypeError`` 裸逃——姊妹面
-  ``list_models`` 对同形态 ``data`` 字段回 ``MalformedResponseError``。
-  **CONFIRMED**。
-- C7 非 ASCII ``api_key``（如 ``künstlîch``）→ 请求头 ASCII 编码在
-  ``_chat_once`` 请求构造期炸 ``UnicodeEncodeError`` 裸逃。**CONFIRMED**。
-- P1 ``LengthTruncatedError.status == -1``（client.py:136-138）：同族
-  200-合同违约错误里 Empty/Malformed 显式记 200，唯独它漏记——
-  ``retry._backoff_delay`` 把 ``status<0`` 当传输超时走 ``timeout_floor``
-  （≥10s）而非 ``base·2^attempt``；且 status=-1 对记账/日志谎称
-  「传输层失败」（实际 200 已回）。**PLAUSIBLE**（三兄弟语义不齐）。
+- C1 ``_retry_after`` Unicode 数字缝：**FIXED**——``isascii() and isdigit()``
+  收窄，上标数字退化为 ``None``（同 HTTP-date 待遇）。
+- C2 ``_sse_events`` 形状缝：**FIXED**——chunk 非 dict/``choices`` 非 list
+  整行跳过；成员/``delta`` 非 dict 逐成员跳过。
+- C3 ``_parse_openai`` 形状缝：**FIXED**——choices/message/usage/details
+  容器类型 + content 为 str + usage 字段 ``_usage_int`` 数值化校验，形状错
+  一律 ``MalformedResponseError`` → ``chat`` 降级臂恢复可达。
+- C4 ``_parse_anthropic`` 同族：**FIXED**——error/content/blk/text/
+  thinking/usage 同口径校验。
+- C5 ``discover_free_models`` 成员字段缝：**FIXED**——``promo`` 非 dict
+  滤除该成员（对齐 oracle 过滤序）；``context_tokens`` 经 ``_safe_int``
+  coerce 失败退化 0（展示元数据不挡入集）。
+- C6 ``panel_models`` ``models`` 字段不可迭代缝：**FIXED**——非可迭代
+  标量报 ``MalformedResponseError``（对齐 ``list_models`` 同形态口径）；
+  可迭代非 list（str/dict）仍逐成员过滤回 ``[]``。
+- C7 非 ASCII ``api_key``：**FIXED**——``_require_ascii_key`` 在双方言
+  header 构造点前置校验，``ChatError``（non-retryable）替代
+  ``UnicodeEncodeError`` 裸逃。
+- P1 ``LengthTruncatedError.status``：**FIXED**（评估升级为 CONFIRMED——
+  status=-1 是事实错误字段且把退避倒挂到 ``timeout_floor``）——记
+  ``status=HTTP_OK``，退避与 Empty/Malformed 同档 ``base·2^attempt``。
 - P2 ``httpx.LocalProtocolError``（客户端协议违例——真线上非法 header
   值如含换行的 api_key 触发）被归 ``RetryableHTTPError`` 传输重试族，
-  会烧满退避再死。**PLAUSIBLE**（误分类非破坏）。
+  会烧满退避再死。**PLAUSIBLE→OBSERVED**（误分类非破坏；C7 已前置
+  拦掉非 ASCII 子集）。
 - P3 ``usage_sink`` 记 ``payload.model``（响应自报）而非请求模型——
   网关不回 ``model`` 字段时记 ``""``，回错名时错账。观测语义钉。
 - P4 ``list_models``/``discover`` uid 走 ``str()`` 强转：``None``→``"None"``、
@@ -82,7 +69,8 @@ XPASS 转红即拆钉；观测语义类钉用普通断言 + CONFIRMED/PLAUSIBLE 
   键（``body.update(extra)`` 在最后）。观测语义钉——调用方 footgun。
 - P6 ``_anthropic_body`` 对缺 ``role``/``content`` 键或非 dict 成员的
   messages 裸抛 ``KeyError``/``TypeError``——调用方输入边界无校验。
-  **PLAUSIBLE**（caller-side 输入面，纪律归属可议）。
+  **WONTFIX**（caller-side 输入合同违例，非响应形状逃逸；本波只收
+  wire 侧裸逃面）。
 - P7 ``is_free_gateway_url`` 观测面：只看 host 不看 scheme
   （``ftp://127.0.0.1`` → True——下游 ``InvalidURL`` fail-closed 兜底）；
   schemeless ``127.0.0.1:3003`` → False；``urlsplit`` 剥 ``\\t\\r\\n``
@@ -135,11 +123,11 @@ _FUZZ_ITERS = 2000
 _FUZZ_ITERS_MED = 800
 _FUZZ_ITERS_WIRE = 250
 
-#: C3/C4 形状缝的观测逃逸族（CONFIRMED 缺陷——修复后本集合应收空）
+#: C3/C4 形状缝的历史逃逸族——2026-09-17 修复后应收空，非零即回归
 _PARSE_ESCAPES = (AttributeError, TypeError, ValueError, KeyError, OverflowError)
-#: C2 SSE 形状缝的观测逃逸族
+#: C2 SSE 形状缝的历史逃逸族——同上应收空
 _SSE_ESCAPES = (AttributeError, TypeError)
-#: C5 discover 成员字段缝的观测逃逸族
+#: C5 discover 成员字段缝的历史逃逸族——同上应收空
 _DISCOVER_ESCAPES = (AttributeError, TypeError, ValueError, OverflowError)
 
 
@@ -431,15 +419,6 @@ class TestClassifyStatusFuzz:
         h = httpx.Headers({"retry-after": "Wed, 21 Oct 2026 07:28:00 GMT"})
         assert cl._retry_after(h) is None  # noqa: SLF001
 
-    @pytest.mark.xfail(
-        reason=(
-            "CONFIRMED defect C1: str.isdigit() 覆盖 float() 不可解析的 "
-            "No 类字符——Retry-After 线上字节 0xB9/0xB2/0xB3（latin-1 解码为 "
-            "上标数字）炸 ValueError 裸逃出 classify_status；期望退化为 "
-            "None（同 HTTP-date 待遇）"
-        ),
-        strict=True,
-    )
     @pytest.mark.parametrize("raw", [b"\xb2", b"\xb3", b"\xb9"])
     def test_retry_after_superscript_digit_degrades(self, raw: bytes) -> None:
         """C1：上标数字头应退化 ``None`` 而非炸 ``ValueError``。"""
@@ -534,7 +513,7 @@ class TestSseEvents:
             assert events == []
 
     def test_fuzz_json_lines_escape_family(self) -> None:
-        """``data: <随机 JSON>``：产出事件或落 C2 逃逸族——绝不静默出 done。"""
+        """``data: <随机 JSON>``：产出事件或跳过——绝不静默出 done、零逃逸。"""
         rng = random.Random(20261107)  # noqa: S311
         escapes: dict[str, int] = {}
         for _ in range(_FUZZ_ITERS):
@@ -542,22 +521,14 @@ class TestSseEvents:
             try:
                 events, done = self._sse(line)
             except _SSE_ESCAPES as e:
-                # CONFIRMED defect C2：非 dict/形状错 chunk 裸逃——记账到族
+                # C2 已修——任何残余逃逸都记账到族，下方断言钉零
                 escapes[type(e).__name__] = escapes.get(type(e).__name__, 0) + 1
                 continue
             assert not done  # 只有 [DONE] 字面触发 done
             for ev in events:
                 assert ev.kind in ("reasoning", "content", "done")
-        assert escapes  # C2 逃逸面确实被 fuzz 命中过
+        assert not escapes  # C2 修复后逃逸面恒空——非零即回归
 
-    @pytest.mark.xfail(
-        reason=(
-            "CONFIRMED defect C2: data: <非 dict JSON> / choices 非 list / "
-            "成员或 delta 非 dict → AttributeError/TypeError 裸逃；"
-            "期望与坏 JSON 同待遇——跳过"
-        ),
-        strict=True,
-    )
     @pytest.mark.parametrize(
         "line",
         [
@@ -600,13 +571,6 @@ class TestSseEvents:
         assert [e.kind for e in events] == ["reasoning", "content", "done"]
         assert events[2].finish_reason == "stop"
 
-    @pytest.mark.xfail(
-        reason=(
-            "CONFIRMED defect C2 wire-level: chat_stream 遇形状错 data 行 "
-            "裸抛 AttributeError；期望跳过（流续走）或 ChatError"
-        ),
-        strict=True,
-    )
     def test_stream_bad_chunk_survivable(self) -> None:
         """C2 e2e：流中夹杂 ``data: 5`` 应不炸流。"""
         sse = (
@@ -669,23 +633,15 @@ class TestParseOpenaiFuzz:
             except cl.ChatError:
                 outcomes["chaterror"] += 1
             except _PARSE_ESCAPES:
-                # CONFIRMED defect C3：形状错非 MalformedResponseError
+                # C3 已修——残余逃逸记账，下方断言钉零
                 outcomes["escape"] += 1
             else:
                 outcomes["result"] += 1
                 _result_invariants(r, 0.5)
         assert outcomes["result"] > 0
-        assert outcomes["escape"] > 0  # C3 逃逸面被命中
+        assert outcomes["escape"] == 0  # C3 修复后逃逸面恒空——非零即回归
         assert outcomes["chaterror"] > 0
 
-    @pytest.mark.xfail(
-        reason=(
-            "CONFIRMED defect C3: JSON 合法但形状错的 200 体裸抛 "
-            "AttributeError/TypeError/ValueError——MalformedResponseError "
-            "docstring 明言覆盖「形状不符」"
-        ),
-        strict=True,
-    )
     @pytest.mark.parametrize(
         "payload",
         [
@@ -719,15 +675,14 @@ class TestParseOpenaiFuzz:
         with pytest.raises(cl.MalformedResponseError):
             asyncio.run(c.chat("m1", _MSGS))
 
-    def test_wire_nonfinite_usage_escapes(self) -> None:
-        """C3 wire 面：``1e999`` JSON 数值 → ``int(inf)`` ``OverflowError`` 裸逃。"""
+    def test_wire_nonfinite_usage_typed(self) -> None:
+        """C3 wire 面：``1e999`` JSON 数值 → ``MalformedResponseError``（修复前 ``int(inf)`` 裸逃 ``OverflowError``）。"""
         body = (
             '{"choices":[{"message":{"content":"x"},"finish_reason":"stop"}],'
             '"usage":{"prompt_tokens":1e999}}'
         )
         c = _mock(lambda _r: httpx.Response(200, text=body), base_url=_BYOK)
-        # CONFIRMED defect C3 观测钉：OverflowError 而非 MalformedResponseError
-        with pytest.raises(OverflowError):
+        with pytest.raises(cl.MalformedResponseError):
             asyncio.run(c.chat("m1", _MSGS))
 
     def test_result_field_type_pollution_observed(self) -> None:
@@ -750,8 +705,13 @@ class TestParseOpenaiFuzz:
         assert r.finish_reason == 5  # noqa: PLR2004
         assert r.reasoning == 5  # noqa: PLR2004
 
-    def test_escape_bypasses_fallback_arm_observed(self) -> None:
-        """C3 次生后果观测钉：解析逃逸不是 ``ChatError`` → 降级臂整体不触发。"""
+    def test_malformed_shape_enters_fallback_arm(self) -> None:
+        """C3 修复钉：形状错降级为 ``MalformedResponseError`` → 降级臂正常枚举。
+
+        修复前裸逃 ``AttributeError`` 绕过 ``except ChatError``，零探测直接崩；
+        现在臂触发——panel/v1models/探活请求链走完（候选探活同形状被打死
+        → ``probe_ok=False`` → 候选空 → 上抛最后失败）。
+        """
         reqs: list[str] = []
 
         def handler(r: httpx.Request) -> httpx.Response:
@@ -762,10 +722,15 @@ class TestParseOpenaiFuzz:
                 return _json({"models": [_panel_entry("alt")]})
             return _json({"data": [{"id": "alt"}]})
 
-        c = _mock(handler)  # loopback 网关——本应触发发现
-        with pytest.raises(AttributeError):  # CONFIRMED C3：裸逃且零探测
+        c = _mock(handler)  # loopback 网关——触发发现链
+        with pytest.raises(cl.MalformedResponseError):
             asyncio.run(c.chat("m1", _MSGS))
-        assert reqs == ["/v1/chat/completions"]
+        assert reqs == [
+            "/v1/chat/completions",  # m1 首发
+            "/panel/api/models",  # 降级臂惰性发现
+            "/v1/models",
+            "/v1/chat/completions",  # alt 探活（同形状 → probe_ok=False）
+        ]
 
 
 class TestParseAnthropicFuzz:
@@ -780,23 +745,16 @@ class TestParseAnthropicFuzz:
             except cl.ChatError:
                 outcomes["chaterror"] += 1
             except _PARSE_ESCAPES:
-                # CONFIRMED defect C4
+                # C4 已修——残余逃逸记账，下方断言钉零
                 outcomes["escape"] += 1
             else:
                 outcomes["result"] += 1
                 assert r.content.strip()
                 assert r.finish_reason != "max_tokens"
         assert outcomes["result"] > 0
-        assert outcomes["escape"] > 0  # C4 逃逸面被命中
+        assert outcomes["escape"] == 0  # C4 修复后逃逸面恒空——非零即回归
         assert outcomes["chaterror"] > 0
 
-    @pytest.mark.xfail(
-        reason=(
-            "CONFIRMED defect C4: anthropic 方言同族形状缝——error/content/"
-            "usage 非 dict、blk 非 dict、text 非 str 全裸逃"
-        ),
-        strict=True,
-    )
     @pytest.mark.parametrize(
         "payload",
         [
@@ -835,7 +793,7 @@ class TestParseAnthropicFuzz:
         """P6 观测钉：缺键/非 dict messages → ``KeyError``/``TypeError`` 裸逃
         ``chat()``（调用方输入边界无校验）。"""
         c = _mock(lambda _r: _json({}), base_url=_ANTHROPIC)
-        with pytest.raises(KeyError):  # CONFIRMED P6：缺 content
+        with pytest.raises(KeyError):  # P6 WONTFIX：调用方输入边界不校验
             asyncio.run(c.chat("m", [{"role": "system"}]))
         with pytest.raises(KeyError):  # 缺 role
             asyncio.run(c.chat("m", [{"content": "x"}]))
@@ -918,20 +876,12 @@ class TestDiscoverFuzz:
             try:
                 got = asyncio.run(c.discover_free_models(probe=False))
             except _DISCOVER_ESCAPES:
-                escapes += 1  # CONFIRMED defect C5：promo 非 dict / ctx 非数值
+                escapes += 1  # C5 已修——残余逃逸记账，下方断言钉零
                 continue
-            # 无逃逸 ⇒ 成员全良形或提前被滤——oracle 必须精确复现
+            # 无逃逸 ⇒ oracle 必须精确复现（promo 非 dict 滤除、ctx coerce 0）
             assert [m.uid for m in got] == self._oracle(members, set(v1))
-        assert escapes > 0  # C5 逃逸面被命中
+        assert escapes == 0  # C5 修复后逃逸面恒空——非零即回归
 
-    @pytest.mark.xfail(
-        reason=(
-            "CONFIRMED defect C5: promo 非 dict → AttributeError、"
-            "context_tokens 非数值/inf → ValueError/TypeError/OverflowError "
-            "裸逃 discover_free_models；期望类型化错误或跳过该成员"
-        ),
-        strict=True,
-    )
     @pytest.mark.parametrize(
         "member",
         [
@@ -952,8 +902,8 @@ class TestDiscoverFuzz:
             return  # 类型化错误属可接受修复
         assert isinstance(out, list)
 
-    def test_context_tokens_inf_escapes_observed(self) -> None:
-        """C5 观测钉：``context_tokens: 1e999`` → ``OverflowError`` 裸逃。"""
+    def test_context_tokens_inf_coerced_zero(self) -> None:
+        """C5 修复钉：``context_tokens: 1e999`` → coerce 0，成员照常入集（修复前 ``OverflowError`` 裸逃）。"""
 
         def handler(req: httpx.Request) -> httpx.Response:
             if req.url.path == "/panel/api/models":
@@ -969,12 +919,13 @@ class TestDiscoverFuzz:
             return _json(_chat_payload("OK"))
 
         c = _mock(handler)
-        # CONFIRMED defect C5：OverflowError 而非类型化错误
-        with pytest.raises(OverflowError):
-            asyncio.run(c.discover_free_models(probe=False))
+        out = asyncio.run(c.discover_free_models(probe=False))
+        assert [m.uid for m in out] == ["a"]
+        assert out[0].context_tokens == 0
 
-    def test_malformed_member_swallowed_via_fallback_observed(self) -> None:
-        """C5 两层观测：同一畸形成员经 ``fallback_candidates`` 被兜底成 ``[]``。"""
+    def test_malformed_member_filtered_via_fallback_observed(self) -> None:
+        """C5 修复钉：``promo`` 非 dict 成员在过滤层被剔除——
+        ``fallback_candidates`` 得 ``[]``（修复前靠臂级 ``except Exception`` 兜底）。"""
         c = _mock(self._gateway([_panel_entry("a", promo="yes")], ["a"], []))
         assert asyncio.run(c.fallback_candidates()) == []
 
@@ -1003,22 +954,12 @@ class TestListPanelAsymmetry:
         with pytest.raises(cl.MalformedResponseError):
             asyncio.run(c.list_models())
 
-    @pytest.mark.xfail(
-        reason=(
-            "CONFIRMED defect C6: models 字段不可迭代（int/bool）→ TypeError "
-            "裸逃；期望与 list_models 同口径 MalformedResponseError 或 []"
-        ),
-        strict=True,
-    )
     @pytest.mark.parametrize("field", [5, True])
     def test_noniterable_models_field_typed(self, field: object) -> None:
-        """C6：``{"models": <非可迭代>}`` 应类型化报错或回 ``[]``。"""
+        """C6：``{"models": <非可迭代>}`` 应与 ``list_models`` 同口径 ``MalformedResponseError``。"""
         c = _mock(lambda _r: _json({"models": field}), base_url=_BYOK)
-        try:
-            out = asyncio.run(c.panel_models())
-        except cl.MalformedResponseError:
-            return
-        assert out == []
+        with pytest.raises(cl.MalformedResponseError):
+            asyncio.run(c.panel_models())
 
     def test_iterable_nondict_models_filtered_observed(self) -> None:
         """观测：``models`` 为 str/dict/混合 list → 逐成员 dict 过滤。"""
@@ -1318,13 +1259,6 @@ class TestRequestAssembly:
         asyncio.run(c.chat("m", _MSGS))
         assert reqs[0].url.path == "/v1/messages"
 
-    @pytest.mark.xfail(
-        reason=(
-            "CONFIRMED defect C7: 非 ASCII api_key 在请求头编码期炸 "
-            "UnicodeEncodeError 裸逃 chat()；期望类型化 ChatError"
-        ),
-        strict=True,
-    )
     def test_nonascii_api_key_typed(self) -> None:
         """C7：``künstlîch`` 类 key 应报 ``ChatError`` 而非裸 UnicodeEncodeError。"""
         c = _mock(lambda _r: _json(_chat_payload()), api_key="künstlîch")
@@ -1461,7 +1395,7 @@ class TestUsageSinkFuzz:
             except cl.ChatError:
                 assert recs == []
             except _PARSE_ESCAPES:
-                # CONFIRMED defect C3 wire 面：形状逃逸同样不记账
+                # C3 已修——残余逃逸兜底断言：裸逃同样不得记账
                 assert recs == []
             else:
                 _result_invariants(r, r.latency_s)
@@ -1527,24 +1461,22 @@ class TestProbeFuzz:
 
 
 class TestErrorFieldSemantics:
-    def test_length_status_minus_one_observed(self) -> None:
-        """P1 观测钉：``LengthTruncatedError.status == -1``——同族
-        Empty/Malformed 记 200，独它谎称传输层。"""
+    def test_length_status_200(self) -> None:
+        """P1 修复钉：``LengthTruncatedError.status == 200``——与同族
+        Empty/Malformed 齐平（修复前 -1 谎称传输层失败）。"""
         e = cl.LengthTruncatedError("x")
-        assert e.status == -1  # PLAUSIBLE defect：应为 200
+        assert e.status == 200  # noqa: PLR2004
         assert cl.EmptyContentError("x").status == 200  # noqa: PLR2004
         assert cl.MalformedResponseError("x").status == 200  # noqa: PLR2004
 
-    def test_length_backoff_timeout_floor_observed(self) -> None:
-        """P1 次生观测：status<0 走 ``timeout_floor``——合同违约拿传输级退避。"""
+    def test_length_backoff_base_delay(self) -> None:
+        """P1 次生修复：status=200 → ``base·2^attempt``——合同违约不再吃传输级 ``timeout_floor``。"""
         p = RetryPolicy()
         d_length = _backoff_delay(cl.LengthTruncatedError("x"), 0, p)
         d_empty = _backoff_delay(cl.EmptyContentError("x"), 0, p)
         assert d_length is not None
         assert d_empty is not None
-        assert d_length == p.timeout_floor
-        assert d_empty == p.base_delay
-        assert d_length > d_empty  # 10s vs 1s——观测倒挂
+        assert d_length == p.base_delay == d_empty  # 合同违约同档退避
 
     def test_error_fields_roundtrip(self) -> None:
         """``ChatError`` 字段构造面：status/retryable/retry_after/max_tries。"""
@@ -1568,8 +1500,8 @@ class TestErrorFieldSemantics:
 
 class TestChatWireFuzz:
     def test_fuzz_only_known_outcomes(self) -> None:
-        """任意 (status, payload) 下 ``chat()`` 三分天下：
-        ChatResult | ChatError | C3 逃逸族——绝不静默返回错误内容。"""
+        """任意 (status, payload) 下 ``chat()`` 两分天下：
+        ChatResult | ChatError——绝不静默返回错误内容、零裸逃。"""
         rng = random.Random(20261118)  # noqa: S311
         escapes = 0
         for _ in range(_FUZZ_ITERS_WIRE):
@@ -1585,17 +1517,18 @@ class TestChatWireFuzz:
             except cl.ChatError as e:
                 err = e
             except _PARSE_ESCAPES:
-                escapes += 1  # CONFIRMED defect C3：200 形状缝裸逃
+                escapes += 1  # C3 已修——残余逃逸记账，下方断言钉零
             else:
                 _result_invariants(r, r.latency_s)
             if err is not None and status != 200:  # noqa: PLR2004
                 assert err.status == status
-        assert escapes > 0  # C3 逃逸面被命中
+        assert escapes == 0  # C3 修复后逃逸面恒空——非零即回归
 
     def test_fuzz_stream_only_known_outcomes(self) -> None:
-        """随机 SSE 字节汤 → 事件流 | ChatError | C2 逃逸族；
+        """随机 SSE 字节汤 → 事件流 | ChatError（坏形状行跳过）；
         ``[DONE]`` 之后绝不再产事件。"""
         rng = random.Random(20261119)  # noqa: S311
+        escapes = 0
         soup_lines = [
             'data: {"choices":[{"delta":{"content":"x"}}]}',
             'data: {"choices":[{"finish_reason":"stop"}]}',
@@ -1622,7 +1555,8 @@ class TestChatWireFuzz:
             except cl.ChatError:
                 continue
             except _SSE_ESCAPES:
-                continue  # CONFIRMED defect C2：形状缝裸逃
+                escapes += 1  # C2 已修——残余逃逸记账，末尾断言钉零
+                continue
             # [DONE] 命中即 return——其后行不得产事件
             done_idx = next(
                 (i for i, ln in enumerate(lines) if ln.strip() == "data: [DONE]"),
@@ -1634,3 +1568,4 @@ class TestChatWireFuzz:
                 1 for e in events if e.kind == "content" and e.delta == "x"
             )
             assert got_content == max_content
+        assert escapes == 0  # C2 修复后逃逸面恒空——非零即回归

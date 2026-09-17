@@ -25,6 +25,7 @@ import logging
 import re
 import ssl
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Self, TypedDict
 from urllib.parse import urlsplit
@@ -131,11 +132,13 @@ class LengthTruncatedError(ChatError):
     重试，外层再吃满 policy.max_tries 会把慢性截断块放大到 ~10 请求/块
     （audit 2026-09-16）。封顶后单模型 ≤4 次 API 调用；免费集降级臂命中时
     每个候选再各起一轮（≤ ``FALLBACK_MAX_CANDIDATES`` 个）。
+    ``status`` 记 200——与 Empty/Malformed 同族合同违约，退避走
+    base·2^attempt 而非 timeout_floor（status<0 会被当传输超时）。
     """
 
     def __init__(self, message: str, *, partial_content: str = "") -> None:
         """截断错误：携带已收到的部分正文（可留作降级材料）。"""
-        super().__init__(message, retryable=True, max_tries=2)
+        super().__init__(message, status=HTTP_OK, retryable=True, max_tries=2)
         self.partial_content = partial_content
 
 
@@ -173,7 +176,9 @@ def _retry_after(headers: httpx.Headers) -> float | None:
     if not raw:
         return None
     raw = raw.strip()
-    if raw.isdigit():
+    # isascii 闸：str.isdigit 覆盖 Unicode No 类（²³¹ 等上标——latin-1 线上字节
+    # 0xB9/0xB2/0xB3 解码形态），float() 解析不了它们，不闸会漏 ValueError
+    if raw.isascii() and raw.isdigit():
         secs = float(raw)
         return secs if secs <= MAX_RETRY_AFTER_S else None
     # HTTP-date 形态退化为 None（不值得为它引 email.utils 解析链）
@@ -413,6 +418,23 @@ def redact(text: str, api_key: str = "") -> str:
     return out
 
 
+def _usage_int(value: object) -> int:
+    """响应 usage 数值字段 → int；非数值/非有限值（str 不可解析、容器、NaN/inf）一律 ``MalformedResponseError``。"""
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError, OverflowError) as e:
+        msg = f"usage field is not a finite integer (got {type(value).__name__})"
+        raise MalformedResponseError(msg) from e
+
+
+def _safe_int(value: object) -> int:
+    """面板元数据字段 → int；coerce 失败退化 0——展示元数据非合同字段，单字段畸形不挡成员入集。"""
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError, OverflowError):
+        return 0
+
+
 # ---------------------------------------------------------------- 客户端
 
 
@@ -466,8 +488,17 @@ class ChatClient:
 
     # ------------------------------------------------------------ OpenAI 方言
 
+    def _require_ascii_key(self) -> None:
+        """非 ASCII api_key 前置类型化——否则在请求头 ASCII 编码期炸 UnicodeEncodeError 裸逃。"""
+        if not self.api_key.isascii():
+            msg = "api_key contains non-ASCII characters"
+            raise ChatError(msg)
+
     def _openai_headers(self) -> dict[str, str]:
-        return {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
+        if not self.api_key:
+            return {}
+        self._require_ascii_key()
+        return {"Authorization": f"Bearer {self.api_key}"}
 
     @staticmethod
     def _openai_body(
@@ -492,22 +523,42 @@ class ChatClient:
         return body
 
     def _parse_openai(self, payload: dict[str, Any], latency: float) -> ChatResult:
+        """OpenAI 200 体 → ``ChatResult``；结构形状不符一律 ``MalformedResponseError``。
+
+        强校验只覆盖结构形状（choices/message/usage 容器类型、content 为
+        str、usage 字段可数值化）；标量字段类型污染（finish_reason/model/
+        reasoning_content 非 str 原样穿透）属观测容忍面，不在此拦。
+        """
         choices = payload.get("choices") or []
-        if not choices:
+        if not isinstance(choices, list) or not choices:
             msg = "response has no choices"
             raise MalformedResponseError(msg)
         ch = choices[0]
+        if not isinstance(ch, dict):
+            msg = "choices[0] is not an object"
+            raise MalformedResponseError(msg)
         msg_obj = ch.get("message") or {}
+        if not isinstance(msg_obj, dict):
+            msg = "message field is not an object"
+            raise MalformedResponseError(msg)
         content = msg_obj.get("content") or ""
+        if not isinstance(content, str):
+            msg = "message.content is not a string"
+            raise MalformedResponseError(msg)
         reasoning = msg_obj.get("reasoning_content") or ""
         finish = ch.get("finish_reason") or ""
         usage_raw = payload.get("usage") or {}
+        if not isinstance(usage_raw, dict):
+            msg = "usage field is not an object"
+            raise MalformedResponseError(msg)
+        details = usage_raw.get("prompt_tokens_details") or {}
+        if not isinstance(details, dict):
+            msg = "usage.prompt_tokens_details is not an object"
+            raise MalformedResponseError(msg)
         usage = Usage(
-            prompt_tokens=int(usage_raw.get("prompt_tokens") or 0),
-            completion_tokens=int(usage_raw.get("completion_tokens") or 0),
-            cached_tokens=int(
-                (usage_raw.get("prompt_tokens_details") or {}).get("cached_tokens") or 0
-            ),
+            prompt_tokens=_usage_int(usage_raw.get("prompt_tokens")),
+            completion_tokens=_usage_int(usage_raw.get("completion_tokens")),
+            cached_tokens=_usage_int(details.get("cached_tokens")),
             raw=usage_raw,
         )
         if finish == "length" and not content:
@@ -534,6 +585,7 @@ class ChatClient:
     # ------------------------------------------------------------ Anthropic 方言
 
     def _anthropic_headers(self) -> dict[str, str]:
+        self._require_ascii_key()
         return {
             "x-api-key": self.api_key,
             "anthropic-version": "2023-06-01",
@@ -563,20 +615,44 @@ class ChatClient:
             body["stream"] = True
         return body
 
+    @staticmethod
+    def _anthropic_blocks(payload: dict[str, Any]) -> tuple[str, str]:
+        """响应 content 块列 → (text 合, thinking 合)；形状不符一律 ``MalformedResponseError``。"""
+        raw = payload.get("content") or []
+        if not isinstance(raw, list):
+            msg = "content field is not a list"
+            raise MalformedResponseError(msg)
+        texts: list[str] = []
+        thinks: list[str] = []
+        for blk in raw:
+            if not isinstance(blk, dict):
+                msg = "content block is not an object"
+                raise MalformedResponseError(msg)
+            if blk.get("type") == "text":
+                text = blk.get("text") or ""
+                if not isinstance(text, str):
+                    msg = "text block value is not a string"
+                    raise MalformedResponseError(msg)
+                texts.append(text)
+            elif blk.get("type") == "thinking":
+                thinking = blk.get("thinking") or ""
+                if not isinstance(thinking, str):
+                    msg = "thinking block value is not a string"
+                    raise MalformedResponseError(msg)
+                thinks.append(thinking)
+        return "".join(texts), "".join(thinks)
+
     def _parse_anthropic(self, payload: dict[str, Any], latency: float) -> ChatResult:
+        """Anthropic 200 体 → ``ChatResult``；结构形状不符一律 ``MalformedResponseError``。"""
         if payload.get("type") == "error":
             err = payload.get("error") or {}
+            if not isinstance(err, dict):
+                msg = "error field is not an object"
+                raise MalformedResponseError(msg)
             detail = redact(str(err.get("message") or ""), self.api_key)
             msg = f"anthropic error {err.get('type')}: {detail}"
             raise ChatError(msg)
-        texts: list[str] = []
-        thinks: list[str] = []
-        for blk in payload.get("content") or []:
-            if blk.get("type") == "text":
-                texts.append(blk.get("text") or "")
-            elif blk.get("type") == "thinking":
-                thinks.append(blk.get("thinking") or "")
-        content = "".join(texts)
+        content, reasoning = self._anthropic_blocks(payload)
         finish = payload.get("stop_reason") or ""
         if finish == "max_tokens" and not content:
             msg = "anthropic stop_reason=max_tokens, empty"
@@ -588,14 +664,17 @@ class ChatClient:
             msg = "empty content in response"
             raise EmptyContentError(msg)
         u = payload.get("usage") or {}
+        if not isinstance(u, dict):
+            msg = "usage field is not an object"
+            raise MalformedResponseError(msg)
         return ChatResult(
             content=content,
-            reasoning="".join(thinks),
+            reasoning=reasoning,
             finish_reason=finish,
             usage=Usage(
-                prompt_tokens=int(u.get("input_tokens") or 0),
-                completion_tokens=int(u.get("output_tokens") or 0),
-                cached_tokens=int(u.get("cache_read_input_tokens") or 0),
+                prompt_tokens=_usage_int(u.get("input_tokens")),
+                completion_tokens=_usage_int(u.get("output_tokens")),
+                cached_tokens=_usage_int(u.get("cache_read_input_tokens")),
                 raw=u,
             ),
             model=payload.get("model") or "",
@@ -699,8 +778,23 @@ class ChatClient:
         return result
 
     @staticmethod
+    def _sse_choice_events(ch: dict[str, Any]) -> list[StreamEvent]:
+        """单个 SSE choice 成员 → 事件列；``delta`` 非 dict 的畸形成员回空。"""
+        delta = ch.get("delta") or {}
+        if not isinstance(delta, dict):
+            return []
+        events: list[StreamEvent] = []
+        if delta.get("reasoning_content"):
+            events.append(StreamEvent("reasoning", delta["reasoning_content"]))
+        if delta.get("content"):
+            events.append(StreamEvent("content", delta["content"]))
+        if ch.get("finish_reason"):
+            events.append(StreamEvent("done", finish_reason=ch["finish_reason"]))
+        return events
+
+    @staticmethod
     def _sse_events(line: str) -> tuple[list[StreamEvent], bool]:
-        """解析一行 SSE `data:` payload → (events, done?)；非 data/坏 JSON 跳过。"""
+        """解析一行 SSE `data:` payload → (events, done?)；非 data/坏 JSON/形状错一律跳过。"""
         events: list[StreamEvent] = []
         if not line.startswith("data:"):
             return events, False
@@ -711,14 +805,14 @@ class ChatClient:
             chunk = json.loads(data)
         except (json.JSONDecodeError, RecursionError):
             return events, False
-        for ch in chunk.get("choices") or []:
-            delta = ch.get("delta") or {}
-            if delta.get("reasoning_content"):
-                events.append(StreamEvent("reasoning", delta["reasoning_content"]))
-            if delta.get("content"):
-                events.append(StreamEvent("content", delta["content"]))
-            if ch.get("finish_reason"):
-                events.append(StreamEvent("done", finish_reason=ch["finish_reason"]))
+        if not isinstance(chunk, dict):
+            return events, False
+        choices = chunk.get("choices") or []
+        if not isinstance(choices, list):
+            return events, False
+        for ch in choices:
+            if isinstance(ch, dict):
+                events.extend(ChatClient._sse_choice_events(ch))
         return events, False
 
     async def chat_stream(
@@ -814,7 +908,15 @@ class ChatClient:
             msg = f"non-JSON response: {redact(resp.text[:200], self.api_key)}"
             raise MalformedResponseError(msg) from e
         if isinstance(data, dict):
-            return [m for m in data.get("models") or [] if isinstance(m, dict)]
+            models = data.get("models") or []
+            # 可迭代但非 list（str/dict）走逐成员过滤回 []；不可迭代标量
+            # （int/bool/float）与 list_models 的 data 字段同口径报畸形
+            if not isinstance(models, Iterable):
+                msg = (
+                    f"unexpected models field: {redact(resp.text[:200], self.api_key)}"
+                )
+                raise MalformedResponseError(msg)
+            return [m for m in models if isinstance(m, dict)]
         if isinstance(data, list):
             return [m for m in data if isinstance(m, dict)]
         return []
@@ -879,8 +981,8 @@ class ChatClient:
                 continue
             if m.get("disabled"):
                 continue
-            promo = m.get("promo") or {}
-            if not promo.get("active"):
+            promo = m.get("promo")
+            if not isinstance(promo, dict) or not promo.get("active"):
                 continue
             uid = str(m.get("uid") or "")
             if not uid or (v1_ids and uid not in v1_ids):
@@ -889,7 +991,7 @@ class ChatClient:
                 FreeModel(
                     uid=uid,
                     promo_end=str(promo.get("end_date") or ""),
-                    context_tokens=int(m.get("context_tokens") or 0),
+                    context_tokens=_safe_int(m.get("context_tokens")),
                     supports_thinking=bool(m.get("supports_thinking")),
                 )
             )
