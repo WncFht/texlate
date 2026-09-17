@@ -1398,7 +1398,9 @@ rules:
               % FRAME{data}{w}{h}{vshift}{caption}{label}{name}{body} —— 真身
               % 按 data 首字母 (i/d/f) 分 inline/display/float 三型; shim 保文
               % 降版式: fbox+parbox 装 body, caption 小字附尾。
-              \def\FRAME#1#2#3#4#5#6#7#8{\par\fbox{\parbox{\linewidth}{#8\par{\footnotesize #5\par}}}\par}
+              % 顶层 \par 在 array/equation* 数学格炸 Missing$ (1803.03154)——
+              % \mbox 包裹双模安全 (95-targeted cs_table FRAME 同式)。
+              \def\FRAME#1#2#3#4#5#6#7#8{\mbox{\fbox{\parbox{\linewidth}{#8\par{\footnotesize #5\par}}}}}
               % SW pragma 族 —— 排版指令通道, 全 noop/passthru (真身抄值)
               \@ifundefined{QTP}{\def\QTP#1{}}{}
               \@ifundefined{QEXCLUDE}{\def\QEXCLUDE#1{}}{}
