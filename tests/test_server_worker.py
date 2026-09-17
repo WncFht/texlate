@@ -185,9 +185,14 @@ class TestFaultPaths:
         with TestClient(app) as c:
             tid = upload_tex(c)["task_id"]
             snap = wait_terminal(c, tid)
+            r = c.get(f"/api/files/{tid}/dual.json")
         assert snap["status"] == "partial"
         assert snap["counters"]["failed"] == snap["counters"]["total"]
         assert snap["counters"]["total"] >= 1
+        # 非 ok 行 zh 位不得装 en 原文（fallback_orig 回写）——空串才是
+        # 对账/阅读器认的 miss 形态
+        assert r.status_code == HTTPStatus.OK
+        assert all(ch["zh"] == "" for ch in r.json()["chunks"])
 
     def test_cancel_during_run(self, live_client: TestClient) -> None:
         """排队中的任务 cancel → cancelled（不进入 running 态也成立）。"""

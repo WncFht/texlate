@@ -984,8 +984,12 @@ class _Compile:
                 "src_file": r["src_file"],
                 "en": r["src_text"],
                 # TEXT 列动态类型可落 BLOB——非 str 译文按空 coerce，
-                # 不让单格 atomic_json TypeError 挡掉 dual.json 落盘
-                "zh": r["translation"] if isinstance(r["translation"], str) else "",
+                # 不让单格 atomic_json TypeError 挡掉 dual.json 落盘；
+                # 非 ok 行（fallback_orig 装的是 en 原文回写）zh 位留空——
+                # 原文进 zh 槽会让 share 对账把英文当译文 ok 落库续传
+                "zh": r["translation"]
+                if r["status"] == "ok" and isinstance(r["translation"], str)
+                else "",
                 "kind": r["kind"],
             }
             for r in self._on_loop(self.store.all_chunks, ctx.task_id)
@@ -1002,7 +1006,9 @@ class _Compile:
         只在 ``_stage_compile`` 无 pdf 终态分支调用，此处 dual.json 已落。
         """
         rows = self._on_loop(self.store.all_chunks, ctx.task_id)
-        if not rows or not any(r["translation"] for r in rows):
+        # 同 dual.json zh 位口径——非 ok 行（fallback_orig/failed 装 en
+        # 原文回写）不算译文载荷，全非 ok 即「零译文不产」
+        if not rows or not any(r["status"] == "ok" and r["translation"] for r in rows):
             return
         by_file: dict[str, list[dict[str, Any]]] = {}
         for r in rows:
@@ -1012,7 +1018,8 @@ class _Compile:
             for src_file in sorted(by_file):
                 parts = [
                     f"<!-- chunk:{r['seq']} kind:{r['kind']} -->\n\n"
-                    f"{r['src_text']}\n\n---\n\n{r['translation'] or ''}\n"
+                    f"{r['src_text']}\n\n---\n\n"
+                    f"{r['translation'] if r['status'] == 'ok' and isinstance(r['translation'], str) else ''}\n"
                     for r in sorted(by_file[src_file], key=lambda x: int(x["seq"]))
                 ]
                 zf.writestr(_md_member(src_file, seen), "\n".join(parts))
