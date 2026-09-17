@@ -76,8 +76,9 @@ C9. [[TYPE_n]] tokens (e.g. [[MATH_12]], [[CITE_3]], [[REF_7]], [[ENV_4]],
 ### 1.3 批量协议
 
 - 分桶：`content < 300 字符 → short`（打包编号批量），否则 long（逐条单翻）。
-- 打包：short 桶贪心装箱 ≤2000 字符/批（**按 token 控可放宽 ~2000–4000 tok ≈ ≤8000 字符**——成本实测：prompt 摊销占输入 68%，批阈值是最大杠杆）；编号 `[1]…[n]` 协议，`@@` 兜底，响应按 `\[(\d+)\]` 解析。
-- 回退：数量不符/序号越界/解析失败 → **整批退化逐条单翻**（复用并发额度）；超大原子 chunk 先切分再入批。
+- 打包：short 桶贪心装箱 ≤2000 字符/批（**按 token 控可放宽 ~2000–4000 tok ≈ ≤8000 字符**——成本实测：prompt 摊销占输入 68%，批阈值是最大杠杆）；请求编号 `[1]…[n]` 协议，`@@` 独占行兜底分隔。
+- 解析：响应先归一全部 Unicode 行界（`\r\n`/`\r`/VT/FF/NEL/U+2028/U+2029 → `\n`）再切——主协议只认**行首锚定** `^\s*\[(\d+)\]`（MULTILINE），序号多重集恰为 {1..n}（乱序归位）且段段非空；编号路径失败（缺席/不齐/空段）按 `@@` 独占行兜底切分，段数恰 n 才收。（勘误 2026-09-17，`164a9e0`：非锚定 `[n]` 退路已移除——行内 `[k]` 与正文引用号 token 层不可区分（`[1] 结果如文献 [2] 所示` 恰凑齐多重集时，引用残段会被静默配给成员 2 落进 PDF），单行全挤/行内混编响应整批拒收退单翻；编号段内 `@@` 独占行按协议残码剥除、剥后空段视同空段拒收；`@@` 段含非嵌套 `[k]`（1≤k≤n）判序号泄漏拒收——剥掉会腐蚀真实引用号、保留则协议标记原文进译文，`[0]`/`[k]` k>n/`[[k]]` 非序号形态按字面放行；`@@` 段的裸 `[n]` 桩段按空槽丢弃防 n=1 回显原样漏成译文。）
+- 回退：数量不符/序号越界/解析歧义 → **整批退化逐条单翻**（复用并发额度）；超大原子 chunk 先切分再入批。
 - 跳过：纯占位符 chunk（`^[[TYPE_n]]$`）不发请求，translation=source 直落盘。
 - 换行编码：段内 `\n` 编码为 `[[SL]]` 送翻、回来解码；分段边界在 chunk 层管理（勘误 2026-09-17：impl 另有两枚防御 token——`[[PL]]` 编码 `\n\n+` 空段保底、`[[SP]]` 保护 `\ ` 强制空格，`placeholders.py:51-64/95-149`）。
 
@@ -112,7 +113,7 @@ env judge 参数：**temperature=0、max_tokens=16、3 次重试、解析 `true/
 - `asyncio.Semaphore(10)`（按 provider 限额 10~50 可调）；**首发单飞暖前缀缓存**，其余并发。
 - 退避：指数 `retry_delay·2^attempt`（429 用 `3^attempt` 下限 5s；timeout 下限 10s；`Retry-After` 从其值）；3~5 试；失败回退原文 + `skipped`+`skip_reason` 不阻塞整批。（勘误 2026-09-15 B4a 实测：本网关 429 的 retry_after 在 **body `error.retry_after`（秒）** 而非 HTTP header——解析序 body→header→默认退避；429 系多租户共享流量触发，与本地并发宽度无关。）
 - 温度：翻译 0.2~0.3；judge/抽取 0。
-- **重试阶梯**：整段×2（字段化反馈）→ 行级修复（闭合 scope 边界按句号切）→ slots JSON 兜底（`⟪S0000⟫` 槽位、`response_format json_object`、8 槽/批、**失败槽只重问失败批**）→ 三振 `fallback_orig` + warning → `partial` 终态（勘误 2026-09-17：`fallback_orig` 在 impl 块级落 `status=fault`+`skipped` 标记，`partial` 是论文级终态语义；块级 `partial` 另有出处=阶梯 recovered，见 §6）。
+- **重试阶梯**：整段×2（字段化反馈）→ 行级修复（闭合 scope 边界按句号切）→ slots JSON 兜底（`⟪S0000⟫` 槽位、`response_format json_object`、8 槽/批、**失败槽只重问失败批**）→ 三振 `fallback_orig` + warning → `partial` 终态（勘误 2026-09-17：`fallback_orig` 在 impl 块级落 `status=fault`+`skipped` 标记，`partial` 是论文级终态语义；块级 `partial` 另有出处=阶梯 recovered，见 §6）。（勘误 2026-09-17：槽译文合法性闸 `_valid_slot_text`（`retry.py:217`）按**字符出现**拒收——`⟪`/`⟫`/`[[`/`]]` 任一出现即非法，覆盖非规范/未闭合/小写残码（`⟪S1⟫`/`⟪s0000⟫`/半边/`[[math_1]]`），不止规范 `⟪S0000⟫` 一形；畸形 token 放行会原文进装配译文。）
 - `recover_copied_tokens`：模型把受保护原文抄回时，**唯一出现**才换回 token（exact+unique 才修，不瞎猜）。
 - HTTP 层：状态码分类表（401/403 认证、402 余额、404 地址、408/409/425/429/5xx 重试 ≤2、余 4xx 拒、`finish_reason==length` 截断错）；`redact()` provider 无关脱敏。
 - **断点**：`state.json` 逐块原子落盘 `{version, meta{model,pipeline_version,total_chunks}, completed[], results[], errors_report[]}`；中间产物五表 `chunks_map/placeholders_map/glossary/state/errors_report`——重建器只读 map 表。
@@ -241,7 +242,7 @@ class Engine(Protocol):
 
 `--untrusted`（tectonic）/ `-no-shell-escape`（xelatex）+ **env 白名单**（非黑名单；加 `TECTONIC_UNTRUSTED_MODE=1 openin_any=p openout_any=p shell_escape=f`）+ macOS sandbox-exec profile（deny `$HOME` 读 + 全写，白名单放行工程/输出/缓存/字体目录——settings.json/浏览器 profile/SSH key 编译期不可读）+ `killpg` 进程树超时杀。（勘误 2026-09-17：impl `sandbox_wrap(allow_net=…)` 分档——`allow_net=False` 追加 `(deny network*)`（sandbox-exec profile 尾）/`--unshare-net`（bwrap），xelatex 工具链全本地走 False、tectonic True（bundle 拉取要网）；`start_new_session` 独立进程组 + `killpg` 杀整树，触发面不只超时——`run_process` 在 TimeoutExpired **与一切 BaseException**（KeyboardInterrupt/GeneratorExit）路径都 `_kill_tree` 防孤儿，killpg 失败退 `proc.kill` 单杀；setsid/双 fork 逃逸的孙进程仍握 stdout 写端，二段 wait 超时由调用点兜。）
 
-> 落地注记（2026-09-16）：Linux 侧 bwrap 包装已落 `compile/sandbox.py`（`b260378`；darwin 走 sandbox-exec，`TEXLATE_NO_BWRAP=1` 逃逸开关）+ `tests/test_compile_sandbox.py`。（勘误 2026-09-17：bwrap 三件套实在 `compile/engine.py`——`_bwrap_capable/_bwrap_mounts/_bwrap_wrap`；sandbox.py 只有 env 白名单+sandbox-exec+killpg。）（勘误 2026-09-17，`e9c10fd` env 单源化：`TEXLATE_*` 布尔旗标统一走 `textutil.env_flag`——真值集 `{1,true,yes,on}`（strip+lower），`TEXLATE_NO_BWRAP`/`NO_DOWNLOAD`/`NO_L2`/`NO_FIXLOOP`/`ENV_JUDGE`/`FIXLOOP_LLM`/`OFFLINE` 同此口径；`TEXLATE_DATA_DIR` 定位单源 `textutil.data_root`（只定位不 mkdir，副作用归调用方）。例外登记：`TEXLATE_FIXLOOP_LLM` 双臂默认有意不同——e2e 默认关、worker 默认开，裁决登记不修；`TEXLATE_NO_EXPAND` 曾非空即真、已收敛同口径（docs/07 勘误）。）
+> 落地注记（2026-09-16）：Linux 侧 bwrap 包装已落 `compile/sandbox.py`（`b260378`；darwin 走 sandbox-exec，`TEXLATE_NO_BWRAP=1` 逃逸开关）+ `tests/test_compile_sandbox.py`。（勘误 2026-09-17：bwrap 三件套实在 `compile/engine.py`——`_bwrap_capable/_bwrap_mounts/_bwrap_wrap`；sandbox.py 只有 env 白名单+sandbox-exec+killpg。）（勘误 2026-09-17，`e9c10fd` env 单源化：`TEXLATE_*` 布尔旗标统一走 `textutil.env_flag`——真值集 `{1,true,yes,on}`（strip+lower），`TEXLATE_NO_BWRAP`/`NO_DOWNLOAD`/`NO_L2`/`NO_FIXLOOP`/`ENV_JUDGE`/`FIXLOOP_LLM`/`OFFLINE` 同此口径；`TEXLATE_DATA_DIR` 定位单源 `textutil.data_root`（只定位不 mkdir，副作用归调用方）。例外登记：`TEXLATE_FIXLOOP_LLM` 双臂默认有意不同——e2e 默认关、worker 默认开，裁决登记不修；`TEXLATE_NO_EXPAND` 曾非空即真、已收敛同口径（docs/07 勘误）。）（勘误 2026-09-17，`af304ea`/`8c59faf` 数值与选择器同收敛：`textutil.env_float`（strip 后 `float()`，未设置/解析失败/nan/inf 一律回默认）——`TEXLATE_COMPILE_TIMEOUT` 经 worker `_env_timeout` 再加 (0,86400]s 钳制（默认 240s，server 路径唯一全局调节口，`worker/_common.py:65-74`）；`textutil.env_str`（strip+lower、未设置返 `""`）——`TEXLATE_TRANSLATOR` 选择器三处（cli `_export_translator` + worker translate/compile 两工厂）白名单 `mock|gateway`，其他非空值 exit 2 显式拒不静默回落；`TEXLATE_MODEL_PROBE` 亦收敛 `env_flag`（默认开）——`settings.py:833`，set-empty/`=0`/`=false` 等非真值写法现在显式关闭 save 期探活（离线/CI 兜底闸）；旧裸读无标准真值集，非真值设置静默照探。）
 
 ## 5. fixloop（`compile/fixloop/` 包）
 
