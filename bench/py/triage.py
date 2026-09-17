@@ -241,6 +241,16 @@ def classify(sig, rep):
             pay = str(e0.get("payload") or "")
     base = Path(pay).name if pay else ""
 
+    # unfixable 零触发分流：fixloop 全程无规则动作 = 规则库覆盖缺口
+    # （与触发但修不动的规则力不足分桶——wontfix 裁定面据此自动拆出）。
+    # n_actions 缺席（旧记录）视为不可判，走既有 cat 分支。
+    if sig.startswith("unfixable:") and (rep.get("metrics") or {}).get(
+        "n_actions"
+    ) == 0:
+        return (
+            "ruleset_gap",
+            "n_actions=0——fixloop 全程零规则触发 = 覆盖缺口, wontfix 候选",
+        )
     if cat == "missing_file" and base and base in retired_names():
         return "shim_table", f"{base} 退役/改名包 → legacy_pkg_shim shim_map 扩列 (F1)"
     if cat == "missing_file":

@@ -180,6 +180,14 @@ def _fixloop_one(
     fv = str(cell.get("verdict") or "?")
     v = tail["verdict"]
     rec["status"] = v["status"]
+    csb = comp_rec.get("status")
+    # post.regressed 物化：csb→post rank 回落——与 triage fixloop_degraded
+    # 同式（STATUS_RANK 表外取 -1，非终态词恒不判退化），写侧一次消三处自算
+    # （gate.pick_final stale 是跨记录校验，不在此物化面）。
+    tail["regressed"] = benchlib.STATUS_RANK.get(
+        str(v["status"] or ""), -1
+    ) < benchlib.STATUS_RANK.get(str(csb or ""), -1)
+    actions = cell.get("actions") or []
     rec["metrics"].update(
         {
             "mode": args.on,
@@ -187,7 +195,10 @@ def _fixloop_one(
             "fixloop_verdict": fv,
             "final_cat": fcat,
             "rounds": len(rounds),
-            "n_actions": len(cell.get("actions") or []),
+            "n_actions": len(actions),
+            "rules_fired": list(
+                dict.fromkeys(str(a["rule"]) for a in actions if a.get("rule"))
+            ),
             "installed": cell.get("installed") or [],
             "floor_restored": bool(cell.get("floor_restored")),
             "fixloop_wall_s": cell_wall,
