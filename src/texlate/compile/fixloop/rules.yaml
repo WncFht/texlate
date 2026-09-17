@@ -1710,8 +1710,32 @@ rules:
             needs: ["axodraw2.sty"]
             body: |
               \NeedsTeXFormat{LaTeX2e}
-              \ProvidesPackage{axodraw}[2026/09/16 fixloop legacy shim -> axodraw2]
-              \RequirePackage{axodraw2}
+              \ProvidesPackage{axodraw}[2026/09/17 fixloop legacy shim -> axodraw2 + fallback noops]
+              % needs 装不上时死端实证 (0905.4380/0806.1498/hep-ph/0501163):
+              % IfFileExists 双轨 —— 装到走真包, 装不上落常用绘图宏 noop
+              % (坐标定界参形), 保编译不保图, 残差归 undefined_cs 轮。
+              \IfFileExists{axodraw2.sty}{\RequirePackage{axodraw2}}{%
+                \def\Line(#1,#2)(#3,#4){}%
+                \def\DashLine(#1,#2)(#3,#4)#5{}%
+                \def\ArrowLine(#1,#2)(#3,#4){}%
+                \def\DashArrowLine(#1,#2)(#3,#4)#5{}%
+                \def\Gluon(#1,#2)(#3,#4)#5#6{}%
+                \def\Photon(#1,#2)(#3,#4)#5#6{}%
+                \def\ZigZag(#1,#2)(#3,#4)#5#6{}%
+                \def\ArrowArc(#1,#2)(#3,#4,#5){}%
+                \def\GlueArc(#1,#2)(#3,#4,#5)#6#7{}%
+                \def\PhotonArc(#1,#2)(#3,#4,#5)#6#7{}%
+                \def\ZigZagArc(#1,#2)(#3,#4,#5)#6#7{}%
+                \def\Vertex(#1,#2)#3{}%
+                \def\ECirc(#1,#2)#3{}%
+                \def\BCirc(#1,#2)#3{}%
+                \def\GCirc(#1,#2)#3#4{}%
+                \def\Text(#1,#2)#3[#4]#5{#5}%
+                \def\EText(#1,#2)#3{}%
+                \def\GOval(#1,#2)#3#4(#5,#6)[#7]{}%
+                \def\BBox(#1,#2)(#3,#4){}%
+                \def\BBoxc(#1,#2)(#3,#4){}%
+              }
               \endinput
           # emulateapj5/emulateapj 只有 .cls 实体 (TL 无 .sty)——老稿以
           # \usepackage 形态借 deluxetable 面, noop 保底 (1d 转办)。
@@ -2283,6 +2307,107 @@ rules:
               \def\runningtitle#1{}
               \def\runningauthor#1{}
               \AtBeginDocument{\maketitle}
+              \endinput
+          # ── 批九 missing_file 真残尾 (scout-shimfire-2026-09-17, 8 件
+          # 全数 kpsewhich 实证 TL 缺席) ──
+          # nato.sty: NATO ASI 系 2.09 选项件 (astro-ph/9901364
+          # \documentstyle[nato]{crckapb}) —— 版式微调件, noop 保底。
+          nato.sty:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{nato}[2026/09/17 fixloop noop stub - NATO ASI option, not in TL]
+              \endinput
+          # laa.cls: 期刊外发类 (physics/9910044) → article 桥。
+          laa.cls: { loads: "article" }
+          # dina4.sty: DIN A4 版心选项件 (chao-dyn/9703017 2.09 option) —
+          # article 默认 letter 会偏版心, 直落 A4 尺寸近似。
+          dina4.sty:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{dina4}[2026/09/17 fixloop shim - DIN A4 layout, not in TL]
+              \setlength{\paperheight}{297mm}\setlength{\paperwidth}{210mm}
+              \setlength{\textheight}{257mm}\setlength{\textwidth}{160mm}
+              \endinput
+          # prabib.sty: revtex 2.09 PRA 书目选项件 (cond-mat/9910442
+          # \documentstyle[...,prabib,...]{revtex}) —— noop, 书目链由
+          # revtex 本体/bbl 件自带。
+          prabib.sty:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{prabib}[2026/09/17 fixloop noop stub - PRA biblio option, not in TL]
+              \endinput
+          # BoxedEPS.tex / FEYNMAN.tex: 老图宏 \input 碎片 (cond-mat/
+          # 0408520, hep-th/9703071) —— 宏面无公共对应物, 裸 stub; 正文
+          # 调用下轮 undefined_cs 归因 (同 feynman.tex/diagrams.tex 先例)。
+          BoxedEPS.tex:
+            body: |
+              % fixloop stub (cond-mat/0408520: \input{BoxedEPS} boxed-eps kit, not in TL)
+              \endinput
+          FEYNMAN.tex:
+            body: |
+              % fixloop stub (hep-th/9703071: \input{FEYNMAN} pre-feynmf kit, not in TL)
+              \endinput
+          # kapjrnls.tex: KAP/crckapb 刊名缩写表 (astro-ph/9901364 实证
+          # \apj/\mnras/\apjs/\aj) —— 抄 builtins._JOURNAL_MACROS 全表值,
+          # providecommand 不抢宿主类已定义者。
+          kapjrnls.tex:
+            body: |
+              % fixloop stub: kapjrnls journal-abbrev table (KAP kit, not in TL)
+              \providecommand{\aj}{AJ}
+              \providecommand{\araa}{ARA\&A}
+              \providecommand{\apj}{ApJ}
+              \providecommand{\apjl}{ApJ~Lett.}
+              \providecommand{\apjs}{ApJS}
+              \providecommand{\ao}{Appl.~Opt.}
+              \providecommand{\apss}{Ap\&SS}
+              \providecommand{\aap}{A\&A}
+              \providecommand{\aapr}{A\&A~Rev.}
+              \providecommand{\aaps}{A\&AS}
+              \providecommand{\azh}{AZh}
+              \providecommand{\baas}{BAAS}
+              \providecommand{\icarus}{Icarus}
+              \providecommand{\jrasc}{JRASC}
+              \providecommand{\memras}{MmRAS}
+              \providecommand{\mnras}{MNRAS}
+              \providecommand{\pra}{Phys.~Rev.~A}
+              \providecommand{\prb}{Phys.~Rev.~B}
+              \providecommand{\prc}{Phys.~Rev.~C}
+              \providecommand{\prd}{Phys.~Rev.~D}
+              \providecommand{\pre}{Phys.~Rev.~E}
+              \providecommand{\prl}{Phys.~Rev.~Lett.}
+              \providecommand{\pasp}{PASP}
+              \providecommand{\pasj}{PASJ}
+              \providecommand{\qjras}{QJRAS}
+              \providecommand{\skytel}{S\&T}
+              \providecommand{\solphys}{Sol.~Phys.}
+              \providecommand{\sovast}{Soviet~Ast.}
+              \providecommand{\ssr}{Space~Sci.~Rev.}
+              \providecommand{\zap}{ZAp}
+              \providecommand{\nat}{Nature}
+              \providecommand{\iaucirc}{IAU~Circ.}
+              \providecommand{\aplett}{Astrophys.~Lett.}
+              \providecommand{\apspr}{Astrophys.~Space~Phys.~Res.}
+              \providecommand{\bain}{Bull.~Astron.~Inst.~Netherlands}
+              \providecommand{\fcp}{Fund.~Cosmic~Phys.}
+              \providecommand{\gca}{Geochim.~Cosmochim.~Acta}
+              \providecommand{\grl}{Geophys.~Res.~Lett.}
+              \providecommand{\jcp}{J.~Chem.~Phys.}
+              \providecommand{\jgr}{J.~Geophys.~Res.}
+              \providecommand{\jqsrt}{J.~Quant.~Spec.~Radiat.~Transf.}
+              \providecommand{\memsai}{Mem.~Soc.~Astron.~Italiana}
+              \providecommand{\nphysa}{Nucl.~Phys.~A}
+              \providecommand{\physrep}{Phys.~Rep.}
+              \providecommand{\physscr}{Phys.~Scr.}
+              \providecommand{\planss}{Planet.~Space~Sci.}
+              \providecommand{\procspie}{Proc.~SPIE}
+              \providecommand{\actaa}{Acta Astron.}
+              \providecommand{\caa}{Chinese Astron. Astrophys.}
+              \providecommand{\cjaa}{Chinese J. Astron. Astrophys.}
+              \providecommand{\jcap}{J.~Cosmology Astropart.~Phys.}
+              \providecommand{\na}{New~A}
+              \providecommand{\nar}{New~A~Rev.}
+              \providecommand{\pasa}{PASA}
+              \providecommand{\rmxaa}{Rev.~Mexicana Astron.~Astrofis.}
               \endinput
     engines:
       xelatex: { mode: native }
