@@ -45,6 +45,63 @@ from ._common import (
 
 r"""``Segmenter`` 跨边界待绑参与组 surface 收拢。"""
 
+_VERB_LIKE = ("verb", "verb*", "lstinline")
+_ENV_CS = ("begin", "end")
+_MATH_DELIM_CS = ("[", "(", "]", ")")
+_MATH_OPEN_CS = ("[", "(")
+_IMPORT2 = ("import", "subimport")
+
+
+def _accent_cs(name: str) -> bool:
+    r"""Accent 族行谓词（``_dispatch``/``_pend_spec_of``/``_group_surface`` 同判据）。"""
+    return len(name) == 1 and name in ACCENT_CHARS
+
+
+# ``_group_surface`` 行序的名级投影——``mainloop._DISPATCH_FAMS`` 的镜像钉
+# （``tests/test_dispatch_mirror.py`` 逐名裁决两表族序）。行 =
+# ``(族 tag, 名集 | 谓词 | None)``；``None`` = env 宏/argspec/探针动态行。
+# 行序即 ``_group_surface`` 分派序，改动须同步投影。
+_GRP_SURFACE_FAMS: tuple[tuple[str, object], ...] = (
+    ("verb", _VERB_LIKE),
+    ("env", _ENV_CS),
+    ("math-open", _MATH_OPEN_CS),
+    ("cite-ref", _cite_ref_type),
+    ("protect", PROTECT_NAMES),
+    ("href", "href"),
+    ("hyperref", "hyperref"),
+    ("cond", COND_RX.match),
+    ("input-scan", INPUT_SCAN_CMDS),
+    ("env-macro", None),  # _grp_env_macro：env_begin/env_end 宏端点
+    ("boundary", BOUNDARY_NAMES),  # BOUNDARY_TAIL/DIMEN_TAIL 尾参内嵌本行
+    ("bsbs", "\\"),
+    ("transparent-head", TRANSPARENT_HEAD_SPEC),
+    ("tail", DIMEN_TAIL_KIND),  # 非 BOUNDARY 的 dimen/assign 尾参兜收
+    ("accent", _accent_cs),
+    ("argspec", None),
+    ("probe", None),  # _grp_probe_end → 逐字
+)
+
+# ``_pend_spec_of`` 行序投影（同表第三镜像——跨界待绑参槽形分派）。
+_PEND_SPEC_FAMS: tuple[tuple[str, object], ...] = (
+    ("verb", _VERB_LIKE),
+    ("env", _ENV_CS),
+    ("math-delim", _MATH_DELIM_CS),
+    ("cite-ref", _cite_ref_type),
+    ("protect", PROTECT_NAMES),
+    ("href", "href"),
+    ("hyperref", "hyperref"),
+    ("cond", COND_RX.match),
+    ("input-scan", INPUT_SCAN_CMDS),
+    ("env-macro", None),
+    ("boundary", BOUNDARY_NAMES),  # BOUNDARY_TAIL 位序槽内嵌本行
+    ("bsbs", "\\"),
+    ("transparent-head", TRANSPARENT_HEAD_SPEC),
+    ("accent", _accent_cs),
+    ("argspec", None),
+    ("keyarg", None),  # _keyarg_tail 宏体尾 key-arg
+    ("probe", None),  # _PEND_PROBE 槽
+)
+
 
 class _Pending:
     def _slots_walk_toks(  # noqa: C901, PLR0911, PLR0912, PLR0915 — 槽字母各一分支，平铺即 _grp_call_end 通用化
@@ -397,11 +454,11 @@ class _Pending:
         cite/ref/PROTECT/宏体尾 key-arg——吸纳后仍未绑到 ``{key}``
         时 ``keyarg_unbound`` 告警。
         """
-        if name in ("verb", "verb*", "lstinline"):
+        if name in _VERB_LIKE:
             return None, ""  # 定界体无法 token 配对回吸
-        if name in ("begin", "end"):
+        if name in _ENV_CS:
             return ["m"], ""
-        if name in ("[", "(", "]", ")"):
+        if name in _MATH_DELIM_CS:
             return None, ""
         if _cite_ref_type(name) is not None:
             return [
@@ -420,11 +477,7 @@ class _Pending:
         if COND_RX.match(name):
             return None, ""
         if name in INPUT_SCAN_CMDS:
-            return (
-                list(_PEND_CALL2)
-                if name in ("import", "subimport")
-                else list(_PEND_CALL1)
-            ), ""
+            return (list(_PEND_CALL2) if name in _IMPORT2 else list(_PEND_CALL1)), ""
         m = self._resolve_macro(src, name)
         if getattr(m, "kind", "") in ("env_begin", "env_end"):
             return None, ""  # env 尾参走 ``_grp_env_args_end`` 另一机制
@@ -441,7 +494,7 @@ class _Pending:
             return ["s", "b"], ""
         if name in TRANSPARENT_HEAD_SPEC:
             return ["o", "m"], ""  # {red} 头参非文本；{text} 留主流
-        if len(name) == 1 and name in ACCENT_CHARS:
+        if _accent_cs(name):
             return ["a"], ""
         e = _seg.argspec_lookup(name, self.state.pkgs)
         if e is not None:
@@ -631,7 +684,7 @@ class _Pending:
             # 分派行序镜像 _dispatch：verb 定界形（row1）→ env tag → 定界
             # 数学 → cite/ref（共享谓词）→ PROTECT → href/hyperref →
             # input 族 → \if 族 → env 宏端点 → 默认逐字
-            if name in ("verb", "verb*", "lstinline"):
+            if name in _VERB_LIKE:
                 j = self._grp_verb_end(toks, i)
                 if j is None:
                     self._cat_surf(out, self._tok_surface(t))
@@ -642,7 +695,7 @@ class _Pending:
                 )
                 i = j
                 continue
-            if name in ("begin", "end"):
+            if name in _ENV_CS:
                 hit = self._grp_envtag(toks, i)
                 if hit is None:
                     self._cat_surf(
@@ -674,7 +727,7 @@ class _Pending:
                 )
                 i = j
                 continue
-            if name in ("[", "("):
+            if name in _MATH_OPEN_CS:
                 j = self._grp_delim_end(toks, i, "]" if name == "[" else ")")
                 if j is not None:
                     self._cat_surf(
@@ -787,9 +840,7 @@ class _Pending:
                     # （主流 else 臂同规，R4）
                     j = k + 1
                 else:
-                    j = self._grp_call_end(
-                        toks, i, 2 if name in ("import", "subimport") else 1
-                    )
+                    j = self._grp_call_end(toks, i, 2 if name in _IMPORT2 else 1)
                 self._cat_surf(
                     out, self._grp_ph(PhType.CMD, self._grp_surfs(toks[i:j]))
                 )
@@ -886,7 +937,7 @@ class _Pending:
                 )
                 i = j2
                 continue
-            if len(name) == 1 and name in ACCENT_CHARS:
+            if _accent_cs(name):
                 # accent 单参保护（主流 _handle_accent 对价）：{x} 组或
                 # 单 token 参随 cs 进 [[CMD]]——参字母裸落 surface 会被
                 # 翻译（0806.3144 同族，花括号形前由探针兜底、裸参形是洞）

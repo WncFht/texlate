@@ -53,6 +53,52 @@ if TYPE_CHECKING:
 
 r"""``Segmenter`` 主循环/preamble/分派/math/verb。"""
 
+_VERB_LIKE = ("verb", "verb*", "lstinline")
+_MATH_CLOSE_CS = ("]", ")")
+
+
+def _accent_cs(name: str) -> bool:
+    r"""Accent 族行谓词：``\c{c}``/``\~n`` 单参保护（``_group_surface`` 镜像行同判据）。"""
+    return len(name) == 1 and name in ACCENT_CHARS
+
+
+def _inline_lit_cs(name: str) -> bool:
+    r"""行内字面行谓词：符号/品牌/旧式字体开关/无参单字符命令。"""
+    return (
+        name in INLINE_LITERAL_CMDS
+        or name in FONT_SWITCHES
+        or (len(name) == 1 and not name.isalpha())
+    )
+
+
+# ``_dispatch`` 行序的名级投影——``pending._GRP_SURFACE_FAMS``/``_PEND_SPEC_FAMS``
+# 的镜像钉（``tests/test_dispatch_mirror.py`` 逐名裁决两表族序）。行 =
+# ``(族 tag, 名集 | 谓词 | None)``；``None`` = 宏表/argspec/探针动态行，
+# 名级不可静态判定。行序即 ``_dispatch`` 分派序，改动须同步投影。
+_DISPATCH_FAMS: tuple[tuple[str, object], ...] = (
+    ("verb", _VERB_LIKE),
+    ("env", ("begin", "end")),
+    ("cite-ref", _cite_ref_type),
+    ("protect", PROTECT_NAMES),
+    ("href", "href"),
+    ("input-scan", INPUT_SCAN_CMDS),
+    ("chunk-arg", CHUNK_ARG_NAMES),
+    ("protect-block", PROTECT_BLOCK_NAMES),
+    ("transparent-head", TRANSPARENT_HEAD_SPEC),
+    ("box-tail", BOX_TAIL_NAMES),
+    ("transparent", TRANSPARENT_NAMES),
+    ("boundary", BOUNDARY_NAMES),
+    ("endinput", "endinput"),
+    ("cond", COND_RX.match),
+    ("math-open", ("[", "(")),
+    ("math-close", _MATH_CLOSE_CS),
+    ("bsbs", "\\"),
+    ("accent", _accent_cs),
+    ("inline-literal", _inline_lit_cs),
+    ("macro", None),  # row18：gullet 宏表 env_begin/env_end/opaque/math
+    ("unknown", None),  # row19：尾参扫→keyarg→argspec→探针→逐字
+)
+
 
 class _MainLoop:
     # ------------------------------------------------------------ 主循环
@@ -354,7 +400,7 @@ class _MainLoop:
         if t.kind == "cs":
             name = t.text
             # 1. \verb|..|/\lstinline 定界形（EOL 上限，W9/W10）
-            if name in ("verb", "verb*", "lstinline"):
+            if name in _VERB_LIKE:
                 self._handle_verb(t, src)
                 return
             # 2/3. \def/\newif 族：gullet 消费发 consumed marker（主流首段
@@ -437,7 +483,7 @@ class _MainLoop:
             if name == "(":
                 self._on_math_delim(t, src, ")")
                 return
-            if name in ("]", ")"):
+            if name in _MATH_CLOSE_CS:
                 self._rappend_tok(t)
                 return
             # 16b. ``\\`` 的可选 dimen 参：``\\[5pt]``/``\\*[2em]`` 整调用
@@ -447,15 +493,11 @@ class _MainLoop:
                 return
             # 16c. accent 族单参保护：``\c{c}``/``\~n`` 参字母+CJK 恒无意义
             #      （0806.3144 参被译 ``\c{这是译文}``→组合符无字槽）
-            if len(name) == 1 and name in ACCENT_CHARS:
+            if _accent_cs(name):
                 self._handle_accent(t, src)
                 return
             # 17. 行内字面（符号/品牌/旧式字体开关/无参单字符命令）
-            if (
-                name in INLINE_LITERAL_CMDS
-                or name in FONT_SWITCHES
-                or (len(name) == 1 and not name.isalpha())
-            ):
+            if _inline_lit_cs(name):
                 self._rappend_tok(t)
                 return
             # 18. gullet 宏表命中：env_begin/env_end 宏端点走 \begin/\end
