@@ -610,7 +610,7 @@ rules:
     source_ref: "docs/08-translate-compile.md L218, L271; fixloop-v2 整改"
 
   - id: static_precheck
-    mechanisms: [W11, W47, W61]
+    mechanisms: [W11, W47, W61, B05, W80]
     description: "静态扫全部源码的 \\usepackage|\\RequirePackage|\\documentclass → 探测缺失 → filemap 批量装包 (一次装好, 省 N 轮循环)"
     phase: precheck
     order: 0
@@ -637,6 +637,9 @@ rules:
             }
         verify: file_probe # kpsewhich / 本地探测
         batch: true # 聚合后单次安装 (L611-617)
+        # install_file 全链败 → repo vendored 兜底落 wdir (vendored_fetch 同源;
+        # 穿透型缺件: missing_file 非首错时轮级分类看不到 —— hep-ph/0104121)
+        vendored: true
         noise_filter: "^[\\w.-]+$" # 滤掉 '\\\\@tempb.sty' 类误捕 token (见 known_gaps)
     engines:
       xelatex: { mode: native }

@@ -15,7 +15,7 @@ from pathlib import Path
 from texlate.compile.engine import XelatexEngine
 from texlate.compile.fixloop import Ruleset, load_ruleset
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
-from texlate.compile.fixloop.engine import LoopCtx
+from texlate.compile.fixloop.engine import LoopCtx, _apply_scan_install
 
 
 @lru_cache(maxsize=1)
@@ -182,3 +182,95 @@ def test_relocate_doc_only_probe_miss_reports_false(tmp_path: Path) -> None:
     eng.probe_file = lambda fname, *, cwd=None: None  # noqa: ARG005
     assert not eng._relocate_doc_only("mn2e.cls", home)  # noqa: SLF001 - 同上
     assert (home / "tex" / "latex" / "mn2e.cls").is_file()  # 搬了但复核没过
+
+
+# ------------------------------------------------------- scan_install vendored 兜底
+
+
+class _EngNoInstall:
+    """probe 全缺 / install 全败的最小引擎替身 (vendored 兜底才有得走)。"""
+
+    name = "xelatex"
+
+    def __init__(self) -> None:
+        self.install_calls: list[str] = []
+
+    def probe_file(self, fname: str, cwd: Path | None = None) -> None:  # noqa: ARG002
+        return None
+
+    def install_file(self, fname: str, *, font_related: bool = False) -> bool:  # noqa: ARG002
+        self.install_calls.append(fname)
+        return False
+
+
+def _scan_params(root: Path, **kw: object) -> dict:
+    p = {
+        "dir": str(root),
+        "vendored": True,
+        "scan_patterns": [
+            {
+                "regex": r"\\(?:usepackage|RequirePackage)\s*(?:\[[^\]]*\])?\s*\{([^}]+)\}",
+                "split": ",",
+                "suffix": ".sty",
+            }
+        ],
+    }
+    p.update(kw)
+    return p
+
+
+def test_scan_install_vendored_fallback(tmp_path: Path) -> None:
+    """static_precheck vendored 臂: install 全链败 → basename 查件落 wdir。
+
+    round-0 预检落件不依赖 first-error 序位 (hep-ph/0104121 机制缝:
+    doc-local fixes.sty 的 undefined_cs 抢在 missing_file 前)。
+    """
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\usepackage{eqsecnum}\n"
+    )
+    root = _vendor(tmp_path)
+    (root / "stubs" / "eqsecnum.sty").write_text("\\ProvidesPackage{eqsecnum}\n")
+    ctx, eng = _ctx(tmp_path), _EngNoInstall()
+    ok, note = _apply_scan_install(ctx, eng, _scan_params(root))
+    assert ok
+    assert (tmp_path / "eqsecnum.sty").is_file()
+    assert "eqsecnum.sty" in ctx.installed
+    assert "vendored ['eqsecnum.sty']" in note
+
+
+def test_scan_install_vendored_flag_off(tmp_path: Path) -> None:
+    """params.vendored 缺省/False → 不落件, note 无 vendored 段。"""
+    (tmp_path / "main.tex").write_text("\\usepackage{eqsecnum}\n")
+    root = _vendor(tmp_path)
+    (root / "stubs" / "eqsecnum.sty").write_text("x")
+    ctx, eng = _ctx(tmp_path), _EngNoInstall()
+    p = {k: v for k, v in _scan_params(root).items() if k != "vendored"}
+    ok, note = _apply_scan_install(ctx, eng, p)
+    assert ok
+    assert not (tmp_path / "eqsecnum.sty").exists()
+    assert "vendored" not in note
+
+
+def test_scan_install_vendored_traversal_guard(tmp_path: Path) -> None:
+    """扫出 ``../escape`` 构造名 → vendored 守卫拒落, 不泄出 wdir。"""
+    (tmp_path / "main.tex").write_text("\\usepackage{../escape}\n")
+    root = _vendor(tmp_path)
+    (root / "stubs" / "escape.sty").write_text("x")
+    ctx, eng = _ctx(tmp_path), _EngNoInstall()
+    ok, _ = _apply_scan_install(ctx, eng, _scan_params(root))
+    assert ok
+    assert not (tmp_path.parent / "escape.sty").exists()
+    assert "escape.sty" not in ctx.installed
+
+
+def test_scan_install_vendored_dep_fanout(tmp_path: Path) -> None:
+    """vendored 落件依赖闭包预装: 落件内 \\RequirePackage → install 种子。"""
+    (tmp_path / "main.tex").write_text("\\usepackage{eqsecnum}\n")
+    root = _vendor(tmp_path)
+    (root / "stubs" / "eqsecnum.sty").write_text(
+        "\\ProvidesPackage{eqsecnum}\n\\RequirePackage{auxdep}\n"
+    )
+    ctx, eng = _ctx(tmp_path), _EngNoInstall()
+    ok, _ = _apply_scan_install(ctx, eng, _scan_params(root))
+    assert ok
+    assert "auxdep.sty" in eng.install_calls  # 落件依赖喂回装包链

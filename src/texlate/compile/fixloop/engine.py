@@ -21,7 +21,7 @@ import shutil
 import subprocess
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any, Protocol
 
 from texlate.compile.fixloop import builtins, ctan
@@ -792,7 +792,54 @@ def _apply_scan_install(
     missing = sorted(f for f in need if not _probe(eng, f, cwd=ctx.wdir))
     installed = [f for f in missing if eng.install_file(f)]
     ctx.installed.extend(installed)
-    return True, f"missing files={missing} -> installed {installed}"
+    note = f"missing files={missing} -> installed {installed}"
+    if params.get("vendored"):
+        vendored = _scan_vendored(ctx, eng, params, missing, set(installed))
+        if vendored:
+            note += f" vendored {vendored}"
+    return True, note
+
+
+def _scan_vendored(
+    ctx: LoopCtx,
+    eng: Engine,
+    params: dict[str, Any],
+    missing: list[str],
+    got: set[str],
+) -> list[str]:
+    r"""Install 全链败件 → repo vendored 兜底平铺 + 落点依赖闭包预装。
+
+    ``builtins.vendored_fetch`` 同款语义 (basename 查件 / ``..``-绝对-NUL
+    守卫 / payload 相对径落位)——预检在 round-0 落件, 不依赖 first-error
+    序位 (hep-ph/0104121: ``fixes.sty:41`` 的 undefined_cs 抢在
+    ``missing_file`` 前, 轮级分类永远看不到 vendored 可救的缺件)。
+    落件喂 ``_dep_fanout``: 真件 ``\RequirePackage`` 依赖同轮预装
+    (aastex62→revtex4-1 类二阶缺件前置, 免穿透轮)。
+    """
+    root = builtins._vendor_root(params)  # noqa: SLF001 - vendored 查件单源
+    dropped: list[Path] = []
+    out: list[str] = []
+    for fname in missing:
+        if fname in got:
+            continue
+        rel = PurePosixPath(fname)
+        if rel.is_absolute() or ".." in rel.parts or "\x00" in fname:
+            continue
+        src = builtins._vendored_source(root, fname)  # noqa: SLF001 - 同上
+        if src is None:
+            continue
+        dst = ctx.wdir / Path(*rel.parts)
+        try:
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(src, dst)
+        except OSError:
+            continue
+        out.append(fname)
+        ctx.installed.append(fname)
+        dropped.append(dst)
+    if dropped:
+        _dep_fanout(ctx, eng, dropped, set(ctx.installed), depth=2)
+    return out
 
 
 def _filemap_candidates(eng: Engine, fname: str) -> list[str]:
