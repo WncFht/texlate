@@ -22,6 +22,19 @@
   ``OverflowError``，穿透 ``_reader_landmarks`` 把整侧锚点提取作废；
   修复后改捕 ``Exception``（逐锚隔离），``test_reader_landmarks_giant_int_top``
   钉回归。
+
+观察钉（pin 当前契约，非缺陷——裁决留负责人）：
+
+- ``extract_landmarks`` 公共入口对垃圾字节/缺路径抛（pypdf 错误系裸逃），
+  与 ``build_alignment`` 的吞咽式降级不对称——src 内无调用方。
+- ``build_alignment`` 的 pypdf 缺席早退 ``{"kind": "pages"}`` 无
+  ``heights`` 键，与常规降级 ``{"kind": "pages", "heights": {...}}``
+  形状不齐（web 端 ``heights?.[side]`` 可选链容忍）。
+- ``_reader_landmarks`` 的 ``named_destinations`` 抛错时连已算出的
+  heights 一并丢——build_alignment 只能按整侧死回退（PLAUSIBLE，见
+  tmp/fuzz-texlog/findings.md P3）。
+- writer 全收敌意 dest 名（NUL/空/5k 长/Unicode）并原样回环进
+  ``pairs[].id`` → JSON 合法转义、前端容忍。
 """
 
 from __future__ import annotations
@@ -29,11 +42,13 @@ from __future__ import annotations
 import itertools
 import math
 import random
+import sys
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
 import pytest
 from pypdf import PdfWriter
+from pypdf.errors import PdfReadError
 from pypdf.generic import (
     DecodedStreamObject,
     Destination,
@@ -47,7 +62,7 @@ from pypdf.generic import (
 )
 
 from texlate import align
-from texlate.align import _WEIGHT, build_alignment
+from texlate.align import _WEIGHT, build_alignment, extract_landmarks
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -503,3 +518,199 @@ def test_category_prefix_table() -> None:
     }
     for name, want in cases.items():
         assert align._category(name) == want, name  # noqa: SLF001
+
+
+# ---------------------------------------------------------------- 降级形状钉
+
+
+def test_build_alignment_both_dead_heights_empty(tmp_path: Path) -> None:
+    """双侧都不可读 → ``{"kind":"pages","heights":{}}``——heights 键在但空。"""
+    bad1 = tmp_path / "b1.pdf"
+    bad2 = tmp_path / "b2.pdf"
+    bad1.write_bytes(b"garbage one")
+    bad2.write_bytes(b"garbage two")
+    assert build_alignment(bad1, bad2) == {"kind": "pages", "heights": {}}
+
+
+def test_build_alignment_one_dead_keeps_survivor_heights(tmp_path: Path) -> None:
+    """一侧坏掉 → ``pages`` 降级但存活侧真实 ``heights`` 保留。"""
+    rng = random.Random(20260924)  # noqa: S311 -- 确定性种子
+    good = _mk_pdf(tmp_path / "g.pdf", [("section.1", 0, PAGE_H)], 3, rng)
+    bad = tmp_path / "b.pdf"
+    bad.write_bytes(b"%PDF-1.4 truncated")
+    al = build_alignment(bad, good)
+    assert al == {
+        "kind": "pages",
+        "heights": {"translated": [1.0, 1.0, 1.0]},
+    }
+
+
+def test_pypdf_absent_bare_pages_shape(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """观察钉：pypdf 缺席 → ``{"kind":"pages"}`` 无 ``heights`` 键。
+
+    与常规降级 ``{"kind":"pages","heights":{...}}`` 形状不齐——web 端
+    ``heights?.[side]`` 可选链容忍，属防御面不齐非功能缺陷。
+    """
+    monkeypatch.setitem(sys.modules, "pypdf", None)
+    rng = random.Random(20260925)  # noqa: S311 -- 确定性种子
+    a = _mk_pdf(tmp_path / "a.pdf", [("section.1", 0, PAGE_H)], 2, rng)
+    assert build_alignment(a, a) == {"kind": "pages"}
+
+
+def test_zero_page_pdf(tmp_path: Path) -> None:
+    """0 页 PDF：landmarks 空视图 + ``pages`` 降级，heights 双侧空表。"""
+    z = tmp_path / "z.pdf"
+    w = PdfWriter()
+    with z.open("wb") as fh:
+        w.write(fh)
+    lm = extract_landmarks(z)
+    assert lm == {"dests": {}, "heights": [], "npages": 0}
+    assert build_alignment(z, z) == {
+        "kind": "pages",
+        "heights": {"original": [], "translated": []},
+    }
+
+
+def test_extract_landmarks_unreadable_raises(tmp_path: Path) -> None:
+    """观察钉：公共入口对垃圾字节/缺路径裸抛——与 ``build_alignment``
+    吞咽式降级不对称（src 内无调用方，bench/测试才用）。"""
+    bad = tmp_path / "bad.pdf"
+    bad.write_bytes(b"not a pdf")
+    with pytest.raises(PdfReadError):
+        extract_landmarks(bad)
+    with pytest.raises(FileNotFoundError):
+        extract_landmarks(tmp_path / "missing.pdf")
+
+
+# ---------------------------------------------------------------- 敌意 dest 名
+
+
+def test_hostile_dest_names_roundtrip(tmp_path: Path) -> None:
+    """NUL/空/超长/Unicode dest 名经 writer 回环原样进 dests→pairs[].id。
+
+    观察钉：JSON 序列化对 NUL/换行合法转义，前端按 str key 容忍——
+    但锚名不做任何净化即进 dual.json 载荷，值得留档。
+    """
+    names = ["", "a\x00b", "x" * 5000, "锚.1", "fig\nure", "..", " figure.2"]
+    dests = [(n, 0, PAGE_H) for n in names]
+    rng = random.Random(20260926)  # noqa: S311 -- 确定性种子
+    a = _mk_pdf(tmp_path / "a.pdf", dests, 2, rng)
+    lm = extract_landmarks(a)
+    assert set(names) <= set(lm["dests"])
+    al = build_alignment(a, a)
+    assert al["kind"] == "landmarks"
+    ids = [p["id"] for p in al["pairs"]]
+    assert "a\x00b" in ids
+    assert "" in ids
+
+
+# ---------------------------------------------------------------- _dest_yfrac 直测
+
+
+@pytest.mark.parametrize(
+    "top",
+    [
+        None,
+        0,
+        -1.0,
+        PAGE_H,
+        1e9,
+        float("nan"),
+        float("inf"),
+        "x",
+        b"2",
+        [1],
+        {"a": 1},
+        True,
+    ],
+    ids=[
+        "none",
+        "zero",
+        "neg",
+        "page_h",
+        "huge",
+        "nan",
+        "inf",
+        "str",
+        "bytes",
+        "list",
+        "dict",
+        "bool",
+    ],
+)
+def test_dest_yfrac_hostile_values(top: object) -> None:
+    """``/Top`` 敌意值恒收 ``None`` 或 [0,1]——逐锚隔离不抛。"""
+    out = align._dest_yfrac({"/Top": top}, PAGE_H)  # noqa: SLF001
+    assert out is None or 0.0 <= out <= 1.0
+
+
+def test_dest_yfrac_zero_height() -> None:
+    """height=0 除零亦被 except 收——内部调用方恒 >0，直测兜底。"""
+    assert align._dest_yfrac({"/Top": 5.0}, 0.0) is None  # noqa: SLF001
+
+
+# ---------------------------------------------------------------- 私有面崩坏隔离
+
+
+class _DestsBoomReader:
+    """named_destinations 抛错的 stub reader——heights 可算但整侧丢。"""
+
+    def __init__(self, pages: list[object]) -> None:
+        self.pages = pages
+
+    @property
+    def named_destinations(self) -> dict[str, Any]:
+        msg = "names tree corrupt"
+        raise RuntimeError(msg)
+
+    @staticmethod
+    def get_destination_page_number(dest: object) -> int:  # noqa: ARG004
+        return 0
+
+
+def test_reader_landmarks_dests_boom_loses_heights() -> None:
+    """观察钉：``named_destinations`` 抛 → ``_reader_landmarks`` 整调用炸——
+    heights 已算出也被丢弃（build_alignment 只能按整侧死回退）。P3 台账。"""
+    r = _DestsBoomReader([_StubPage(), _StubPage()])
+    with pytest.raises(RuntimeError, match="names tree corrupt"):
+        align._reader_landmarks(r)  # noqa: SLF001 -- 白盒钉私有提取
+
+
+class _BoomPage:
+    """``get_inherited`` 裸炸的页——``_graphic_regions`` 上半段在 try 外。"""
+
+    def get_inherited(self, _key: str, _default: object = None) -> object:
+        msg = "resources boom"
+        raise RuntimeError(msg)
+
+
+def test_match_figure_regions_page_crash_isolated() -> None:
+    """单页 content 解析崩只丢该页 regions——``_match_figure_regions``
+    的 per-page try 把 ``_graphic_regions`` 任意异常收成空表。"""
+    readers = {
+        "original": SimpleNamespace(pages=[_BoomPage()]),
+        "translated": SimpleNamespace(pages=[_BoomPage()]),
+    }
+    commons = [
+        (
+            "figure.1",
+            {"page": 1, "yfrac": 0.5, "fit": "?"},
+            {"page": 1, "yfrac": 0.5, "fit": "?"},
+        )
+    ]
+    assert align._match_figure_regions(readers, commons) == []  # noqa: SLF001
+
+
+def test_match_figure_regions_skips_non_figure_and_none() -> None:
+    """region 归属只认 figure.*/subfigure.* 且双侧 yfrac 非 None。"""
+    readers = {
+        "original": SimpleNamespace(pages=[_BoomPage()]),
+        "translated": SimpleNamespace(pages=[_BoomPage()]),
+    }
+    commons = [
+        ("table.1", {"page": 1, "yfrac": 0.5}, {"page": 1, "yfrac": 0.5}),
+        ("figure.2", {"page": 1, "yfrac": None}, {"page": 1, "yfrac": 0.5}),
+    ]
+    assert align._match_figure_regions(readers, commons) == []  # noqa: SLF001
