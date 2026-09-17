@@ -1,0 +1,343 @@
+# rules/85-shim.yaml — fixloop 规则库分片：shim/shadow/polyfill —— vendored 隔离与 bundle 遮蔽族
+#
+# 分片约定：本文件只是 rules: 列表的一段，按文件名序与其他分片经
+# _yamlish.load_yaml 目录合并装载；同 phase 调度按 order 字段升序（与文件
+# 拼接序无关）。schema/语义约定（phase/when/condition/engines/stats 字段、
+# provenance 义务、书写约束 flow 集合单行写完）见 rules/30-route.yaml 头注。
+# 新增规则：挑所属域文件追加条目即可；条目数不手维护 —— 统计用
+# `grep -c '^  - id: ' src/texlate/compile/fixloop/rules/*.yaml`。
+version: 1
+
+rules:
+  # 新增 (docs/08:269): 工程自带旧 .sty/.cls 遮蔽已装新版 ——
+  # 错误触发型 (undefined_cs/already_def 反复出现时才怀疑遮蔽),
+  # 按 \\ProvidesPackage 日期比较, 盲删必死 (同目录 cls 可能是唯一来源)
+  - id: vendored_sty_shadow
+    mechanisms: [W100, B05]
+    description: "工程自带旧 .sty/.cls 比系统新装版本旧 → rename 隔离 (.fixloop-iso)"
+    phase: loop
+    order: 150
+    when:
+      any:
+        - { category: undefined_cs }
+        - { category: already_def }
+    condition: { vendored_shadow: true } # builtin 探测: 本地副本日期 < 系统副本日期
+    action:
+      kind: builtin_transform
+      function: vendored_shadow_isolate
+      params:
+        exts: [.sty, .cls]
+        suffix: ".fixloop-iso"
+        # 同包伴船整组隔离（wave-2, apj-bib-scout §S2/S3）：只隔 biblatex.sty
+        # 会留 vendored .def/.bbx/.cbx/.lbx 继续遮蔽系统件 → 新旧混栈。
+        cohort_map:
+          biblatex.sty:
+            [
+              "biblatex.def",
+              "biblatex.cfg",
+              "blx-*.def",
+              "*.bbx",
+              "*.cbx",
+              "*.lbx",
+              "*.dbx",
+            ]
+    risk: medium # rename 会改变工程布局; 只在确证更旧时动
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # tectonic 同理: cwd 旧版遮蔽 bundle 新版
+    provenance:
+      - { corpus: "—", error: "装了新包但错误依旧 → 工程内旧 .sty 遮蔽" }
+    stats: { fires: 0, status: proposed }
+    source_ref: "docs/08-translate-compile.md L269"
+
+  # ── 2026-09-17 支援件腐蚀复原 (prose gate 落地前残案兜底) ──
+  # builtin 五条件全 conjunctive 自判 (baseline 同名件在 ∧ 字节异 ∧ 无
+  # % texlate/% fixloop 自有标记 ∧ 工作件 CJK 计数超 baseline ∧ baseline
+  # 判 support); baseline_dir 由 worker/stagerun 按 transform 名运行时
+  # 注入, 缺席即 False 空转 —— when 放宽 always 每轮便宜扫一遍。
+  - id: restore_support_from_src
+    description: "被翻译写脏的 support 件 → 从 baseline 树逐字节复原"
+    phase: loop
+    order: 154 # vendored_sty_shadow(150) 后, shadow/bbl_regen 族(155-159) 前
+    when: { always: true }
+    action:
+      kind: builtin_transform
+      function: restore_support_from_src # params.baseline_dir 由调用侧注入
+    risk: low # 五条件全中才动; parse 崩/baseline 非 support → 不碰
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "scout-supportfiles 残案 (pstricks/epsf/tikzlibrary 宏件)",
+          error: "support 件被注入 CJK → illegal_unit/undefined_cs 级联 (0707.4206 \\psunit 同族)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "builtins.py restore_support_from_src (c47e844) + worker 挂点 (2f1daf5)"
+
+  # 新增 (fixloop-v2 整改): tectonic bundle 内建类太老遮蔽 —— 内置
+  # aastex 5.0rc3.1 (1999) 缺 \actaa/deluxetable 宏族, missing_file 打不到
+  # (bundle 能解析), 只能 undefined_cs 确证后往 wdir 注 stub 遮蔽换 emulateapj
+  # (全 API 面一次补齐, 含 \rotate no-op; emulateapj 经 ctan_fetch 拉进 wdir)。
+  - id: aastex_bundle_shadow
+    mechanisms: [W86, W96]
+    description: "tectonic 内置 aastex 5.0rc3 缺新宏 → wdir 注 aastex.cls stub 遮蔽 (→emulateapj)"
+    phase: loop
+    order: 155 # journal_cs_polyfill(160) 之前: 遮蔽换类比逐宏补表更彻底
+    when: { category: undefined_cs, payload_required: true }
+    condition:
+      engine_in: [tectonic] # bundle 内建类问题只存在于 tectonic
+      # 同款注释-FP 收紧: %\documentclass{aastex} 注释行不得触发遮蔽
+      # (行锚同 :369 latex209 gate 先例)。
+      source_contains: "(?m)^[ \\t]*\\\\documentclass[ \\t]*(\\[[^\\]]*\\])?[ \\t]*\\{aastex\\}"
+    action:
+      kind: builtin_transform
+      function: bundled_class_shadow
+      params:
+        target: aastex.cls
+        needs: ["emulateapj.cls"]
+        include_journal_table: true # \\actaa 族也算触发宏
+        cs_set: # aastex 5.0rc3 缺失的 deluxetable/新宏族 (emulateapj 全覆盖)
+          [
+            tabletypesize,
+            tablefontsize,
+            tablewidth,
+            tablenum,
+            tablehead,
+            colhead,
+            startdata,
+            enddata,
+            tablecomments,
+            tablerefs,
+            rotate,
+            deluxetable,
+            tablebreak,
+            figset,
+            platecomment,
+            splittablenotes,
+          ]
+        body: |
+          \NeedsTeXFormat{LaTeX2e}
+          \ProvidesClass{aastex}[2026/09/15 fixloop bundle shadow -> emulateapj]
+          % emulateapj5 自指递归保险 —— ver@/opt@ 预注册同 shim_map aastex.cls 条
+          \expandafter\def\csname ver@emulateapj5.sty\endcsname{2026/09/17}
+          \expandafter\def\csname opt@emulateapj5.sty\endcsname{twocolumn,onecolumn}
+          \LoadClassWithOptions{emulateapj}
+          \providecommand{\rotate}{}
+          \endinput
+    engines:
+      xelatex: { mode: native } # 实际不可达: engine_in 门只放行 tectonic
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1806.06690 tectonic 臂 (fixloop-corpusv2)",
+          error: "Undefined control sequence \\actaa → \\tabletypesize (aastex 5.0rc3.1 连环缺)",
+        }
+    stats: { fires: 1, rescued_cells: 1, status: validated } # 1806.06690 tec 实证 clean
+    source_ref: "fixloop-v2 整改; tectonic bundle aastex 版本实证"
+
+  # loop1-2410.00012: ieeeaccess.cls \RequirePackage{spotcolor} —— spotcolor
+  # 是 pdfTeX-only 包 (内部 \pdfobj/\pdflastobj 原语), xelatex/tectonic 下
+  # 必炸 undefined_cs; missing_file 通路打不到 (TL 有真包)。xespotcolor
+  # (TL 有) 是同 API 的 xetex 继任 (\AddSpotColor/\SpotSpace/xcolor 的
+  # spotcolor 色彩模型全兼容) → wdir 注同名 stub 遮蔽桥接。
+  - id: spotcolor_xetex_shadow
+    description: "spotcolor (pdfTeX-only) → wdir 注 spotcolor.sty stub 桥 xespotcolor"
+    phase: loop
+    order: 156 # aastex_bundle_shadow(155) 同档: 遮蔽先于逐宏补
+    when:
+      any: # 67debb6 起 subclassify 把宏体内 pdf 原语改判 pdftex_prim:pdfobj
+        - { category: undefined_cs, payload_required: true }
+        - { category: pdftex_prim, payload_required: true }
+    condition:
+      source_contains: "\\\\(?:usepackage|RequirePackage)\\s*(\\[[^\\]]*\\])?\\s*\\{[^}]*\\bspotcolor\\b"
+    action:
+      kind: builtin_transform
+      function: bundled_class_shadow
+      params:
+        target: spotcolor.sty
+        needs: ["xespotcolor.sty"]
+        cs_set: # spotcolor 公开 API 名 + 其内部 pdfTeX 原语 (两口径 payload)
+          [
+            SpotSpace,
+            AddSpotColor,
+            NewSpotColorSpace,
+            SetPageColorResource,
+            SetPageColorSpace,
+            SpotColor,
+            csgrab,
+            pdfobj,
+            pdflastobj,
+          ]
+        body: |
+          \NeedsTeXFormat{LaTeX2e}
+          \ProvidesPackage{spotcolor}[2026/09/16 fixloop shadow -> xespotcolor]
+          \DeclareOption*{\PassOptionsToPackage{\CurrentOption}{xespotcolor}}
+          \ProcessOptions\relax
+          \RequirePackage{xespotcolor}
+          \endinput
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # XeTeX 内核同缺 pdf 原语
+    provenance:
+      - {
+          corpus: "2410.00012 (loop1 stagerun)",
+          error: "ieeeaccess.cls:128 Undefined control sequence (spotcolor \\AddSpotColor→\\pdfobj, payload=SpotSpace)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "loop1 rerun residual; xespotcolor.sty v2.1 API 核对"
+
+  # 新增 (loop2-delta 残格): axessibility 是 pdfTeX-only 可访问性标注包,
+  # TL 有真包 (missing_file 打不到), 其体内 \pdfcompresslevel/
+  # \pdfoptionpdfminorversion/\pdfglyphtounicode 在 xelatex/tectonic 下
+  # undefined_cs→pdftex_prim。包面无用户命令 (只补丁 \document/\section
+  # 内部做 ActualText 标注) → 空 stub 吞掉 accsupp/tagpdf 选项即可。
+  - id: axessibility_xetex_shadow
+    description: "axessibility (pdfTeX-only) → wdir 注 axessibility.sty 空 stub 吞选项"
+    phase: loop
+    order: 157 # spotcolor_xetex_shadow(156) 同档: 遮蔽先于逐宏补
+    when:
+      any:
+        - { category: undefined_cs, payload_required: true }
+        - { category: pdftex_prim, payload_required: true }
+    condition:
+      source_contains: "\\\\(?:usepackage|RequirePackage)\\s*(\\[[^\\]]*\\])?\\s*\\{[^}]*\\baxessibility\\b"
+    action:
+      kind: builtin_transform
+      function: bundled_class_shadow
+      params:
+        target: axessibility.sty
+        needs: []
+        cs_set: # 包体 pdfTeX 原语全集 (payload 口径可命中任一)
+          [
+            pdfcatalog,
+            pdfcompresslevel,
+            pdfextension,
+            pdfgentounicode,
+            pdfglyphtounicode,
+            pdfoptionpdfminorversion,
+          ]
+        body: |
+          \NeedsTeXFormat{LaTeX2e}
+          \ProvidesPackage{axessibility}[2026/09/16 fixloop shadow -> no-op (pdfTeX-only)]
+          \DeclareOption*{}
+          \ProcessOptions\relax
+          \endinput
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # XeTeX 内核同缺 pdf 原语
+    provenance:
+      - {
+          corpus: "2105.03906/2203.00048/2211.00005/2308.12590/2403.05523/2403.05532 (loop2-delta)",
+          error: "axessibility.sty:349 \\pdfcompresslevel=0 Undefined control sequence → unfixable:pdftex_prim",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "loop2-delta unfixable:pdftex_prim ×6 全为 \\usepackage[accsupp]{axessibility}"
+
+  # 0905.0193: e-print 捆绑 svjour.cls (2003) 但零 .clo 伴船, TL 亦不收录
+  # → \DeclareOption* 里 \InputIfFileExists{sv\CurrentOption.clo} 逐选项
+  # 落空, \journalopt 停 \@empty → "Class SVJour Error: No valid journal
+  # specified" + \stop。builtin 按 \documentclass 选项写 sv<opt>.clo noop
+  # stub (\endinput), InputIfFileExists 走真臂置 \journalopt 即过; 盘上
+  # 真 .clo 不覆盖。taxonomy 无专类: '!' 行落 other, 尾部 \stop 抢签时
+  # 归 emergency —— ctx_suggests 正则 err_head 两类归属下都判别。
+  # 与 shim_map svjour.cls 条不冲突: 那条管缺类, 这条管有类缺 clo。
+  - id: svjour_clo_stub
+    mechanisms: [B05]
+    description: "svjour.cls 在场但零 .clo 伴船 → 按 docclass 选项写 sv<opt>.clo noop stub"
+    phase: loop
+    order: 159 # shadow/bbl_regen 族(155-158)同档: wdir 注件先于逐宏补
+    when:
+      any:
+        - { category: other }
+        - { category: emergency }
+        - { category: early_eof } # \stop 截断尾亦抢 early_eof 签 (0905.0193 实测)
+    condition:
+      ctx_suggests: "No valid journal specified"
+    action:
+      kind: builtin_transform
+      function: svjour_clo_stub
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "0905.0193 (1d fixer-svjour 实证)",
+          error: "Class SVJour Error: No valid journal specified (sv*.clo 零伴船)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "builtins.py svjour_clo_stub (3e292eb)"
+
+  # 新增 (fixloop-v2 整改): AAS 期刊缩写宏缺失 —— tectonic bundle 内置
+  # aastex 5.0rc3.1 (1999) 没有 \actaa 族 (emulateapj/后期 aastex 才有);
+  # undefined_cs payload (l.N 行末 cs 名) 命中期刊表 → 全表 \providecommand
+  # 注入主文件 \documentclass 后。payload 不命中 → False 落 guess。
+  - id: journal_cs_polyfill
+    mechanisms: [W96]
+    description: "AAS 期刊缩写宏缺失 (老 aastex/内置类太旧) → 注入期刊宏表 providecommand"
+    phase: loop
+    order: 160 # vendored_sty_shadow(150) 之后, undefined_cs_guess(900) 之前
+    when: { category: undefined_cs, payload_required: true }
+    action:
+      kind: builtin_transform
+      function: journal_cs_polyfill
+      params:
+        # fixable-data (astro-ph/0605222): aastex 族天文缩写宏 —— 稿写
+        # [O~{\sciii}] 形 (O 字面), 故 sciii 展开为 {\sc iii} 而非 AAS 的
+        # [O\,{\sc iii}] 全形; hb/ha 巴尔末线, arcsec 角秒。
+        macros:
+          sciii: '{\sc iii}'
+          scii: '{\sc ii}'
+          ha: 'H$\alpha$'
+          hb: 'H$\beta$'
+          arcsec: "''"
+          # fixer-polyfill-journal 2026-09-17: \farcs=AAS 角秒小数
+          # (0\farcs60→.″60, 1003.0851 实证); \hbox{$''$} 双模安全
+          farcs: ".\\hbox{$''$}"
+          # aa.cls 系裸 \acknowledgements 章头 —— 0806.3705/astro-ph/0408064/
+          # astro-ph/0501615; env 形 \begin{acknowledgements} 别签名不进此表
+          acknowledgements: '\section*{Acknowledgements}'
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1806.06690 tectonic 臂 (fixloop-corpusv2)",
+          error: "Undefined control sequence \\actaa (bundle 内 aastex 5.0rc3.1 无此宏)",
+        }
+    stats: { fires: 0, status: proposed } # 本语料唯一命中格被 order155 shadow 先接住
+    source_ref: "fixloop-v2 整改; emulateapj.cls L1201-1256 期刊表"
+
+  # 2026-09-17 fixer-bblwall W3 (1706.00240 wall-3, fixer-apjbbx spec):
+  # e-print 捆绑 2012 手写 physics.sty stub (\dbar\ord\bra\ket 族) 撞
+  # siunitx v3 \AtBeginDocument 的 \@ifpackageloaded{physics} 硬报错 →
+  # \begin{document} 处 undefined_cs:begin。三步: usepackage 名单剥
+  # physics 原位 \input{physics.sty} 续载 (\input 不进 ver@ 注册) +
+  # stub \ProvidesPackage{physics} 中和 physics-stub + 双载守卫;
+  # 真 CTAN physics (xparse \DeclareDocumentCommand 形) 弃权归 LLM。
+  - id: physics_stub_detach
+    mechanisms: [W100]
+    description: "bundled physics.sty stub 撞 siunitx \\@ifpackageloaded{physics} → 脱注册 \\input 续载 + ProvidesPackage 中和"
+    phase: loop
+    order: 163 # biblatex_bbx_rename(161) 与 detab_end_scanlines(164) 之间
+    when:
+      any:
+        - { category: undefined_cs }
+        - { category: other }
+    condition:
+      cache_dir_glob: physics.sty # wdir 根有 stub 候选 (子目录件不遮蔽装载)
+      source_contains: "\\\\(?:usepackage|RequirePackage)\\s*(\\[[^\\]]*\\])?\\s*\\{[^}]*\\bphysics\\b"
+    action:
+      kind: builtin_transform
+      function: physics_stub_detach
+    risk: medium # 改写 usepackage 名单 + stub 件
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1706.00240 (stagerun-loop1 wall-3; fixer-apjbbx-2026-09-17)",
+          error: "Undefined control sequence \\begin{document} → siunitx v3 \\@ifpackageloaded{physics} 硬报错 (bundled 2012 physics.sty stub)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "fixer-bblwall-2026-09-17 spec W3; fixer-apjbbx verification.txt L70-86"

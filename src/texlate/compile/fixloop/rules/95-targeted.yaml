@@ -1,0 +1,396 @@
+# rules/95-targeted.yaml — fixloop 规则库分片：cs_targeted_fix —— undefined_cs → 定点修复表（单条独占）
+#
+# 分片约定：本文件只是 rules: 列表的一段，按文件名序与其他分片经
+# _yamlish.load_yaml 目录合并装载；同 phase 调度按 order 字段升序（与文件
+# 拼接序无关）。schema/语义约定（phase/when/condition/engines/stats 字段、
+# provenance 义务、书写约束 flow 集合单行写完）见 rules/30-route.yaml 头注。
+# 新增规则：挑所属域文件追加条目即可；条目数不手维护 —— 统计用
+# `grep -c '^  - id: ' src/texlate/compile/fixloop/rules/*.yaml`。
+version: 1
+
+rules:
+  # 新增 (2026-09-16): undefined_cs 无包映射项的 cs→修复表 —— spec 支持
+  # strip_pkg/usepackage+装文件/cs_map/polyfill 组合 (builtins.cs_targeted_fix)。
+  # 首版表: headerps@out→剥 breakurl (dvips 钩子在 Unicode 引擎无定义),
+  # mathbbm→xelatex 装 bbm / tectonic 换 dsfont\mathds。
+  - id: cs_targeted_fix
+    mechanisms: [W17, W96, B01]
+    description: "undefined_cs payload 命中 cs 修复表 → 剥包/装包/宏改写/polyfill 定向修"
+    phase: loop
+    order: 165 # journal_cs_polyfill(160) 之后, undefined_cs_guess(900) 之前
+    when:
+      any:
+        - { category: undefined_cs, payload_required: true }
+        # 批七扩类: pkg_obsolete payload=废弃包名, 同表 strip_pkg+usepackage
+        # 语义 (amstex→amsmath)。builtin 不验 category, 表查询与来源无关。
+        - { category: pkg_obsolete, payload_required: true }
+    action:
+      kind: builtin_transform
+      function: cs_targeted_fix
+      params:
+        # 默认表 = builtins._CS_FIX_TABLE; 此 cs_table 叠加在其上。
+        # n100 undefined_cs 逐签名归因: 全部 24 个 payload 均为 splice/join
+        # 合并残骸 (cs+后 token 粘连), 非缺包 —— cs_map 拆回原形
+        # (\\old\b 词边界定, 不碰更长 cs)。笔误类 llm_hook 候选本批为零。
+        cs_table:
+          # \item+X: 1012.1321/2003.10959/2009.11013/2105.03900/2410.06025/
+          # math--0307301 —— itemize 内 \item 与首词粘连
+          itemFSU: { cs_map: { itemFSU: "item FSU" } }
+          itemNGA: { cs_map: { itemNGA: "item NGA" } }
+          itemCM: { cs_map: { itemCM: "item CM" } }
+          itemBalakrishnan:
+            { cs_map: { itemBalakrishnan: "item Balakrishnan" } }
+          itemSPELL: { cs_map: { itemSPELL: "item SPELL" } }
+          itemFlop: { cs_map: { itemFlop: "item Flop" } }
+          # \par+罗马号: 1206.1808 —— 原文 "\pari) 在 \cite..." 即 "\par i)"
+          pari: { cs_map: { pari: "par i" } }
+          parii: { cs_map: { parii: "par ii" } }
+          # {\it+op}: 2203.13109 —— 同文上行就有正确的 {\it op.cit.}
+          itop: { cs_map: { itop: "it op" } }
+          # \hline+Cd: 1003.4522 deluxetable 行 "Cd~\textsc{i}"
+          hlineCd: { cs_map: { hlineCd: "hline Cd" } }
+          # \linebreak+GF: math--0605301 bibitem "quotient ring GF(2)"
+          linebreakGF: { cs_map: { linebreakGF: "linebreak GF" } }
+          # 1511.02908 ×13: 自定义 \def\dd{\operatorname{d}} 被粘 (\ddr=d/dr 等);
+          # \frac/\bf/\Delta/\nabla/\in 同型合并
+          ddr: { cs_map: { ddr: "dd r" } }
+          ddf: { cs_map: { ddf: "dd f" } }
+          ddt: { cs_map: { ddt: "dd t" } }
+          ddR: { cs_map: { ddR: "dd R" } }
+          ddF: { cs_map: { ddF: "dd F" } }
+          frack: { cs_map: { frack: "frac k" } }
+          fracr: { cs_map: { fracr: "frac r" } }
+          Deltau: { cs_map: { Deltau: "Delta u" } }
+          nablau: { cs_map: { nablau: "nabla u" } }
+          bfr: { cs_map: { bfr: "bf r" } }
+          bfv: { cs_map: { bfv: "bf v" } }
+          bfk: { cs_map: { bfk: "bf k" } }
+          inV: { cs_map: { inV: "in V" } }
+          # {\it/\rm+首词} 粘连 —— 2401.17274 (aa.cls 缺类后级联面) +
+          # hep-ph/9910403: {\it Uhuru}/{\rm and} 同型
+          itUhuru: { cs_map: { itUhuru: "it Uhuru" } }
+          itEinstein: { cs_map: { itEinstein: "it Einstein" } }
+          itChandra: { cs_map: { itChandra: "it Chandra" } }
+          itXMM: { cs_map: { itXMM: "it XMM" } }
+          rmROSAT: { cs_map: { rmROSAT: "rm ROSAT" } }
+          rmSRG: { cs_map: { rmSRG: "rm SRG" } }
+          rmand: { cs_map: { rmand: "rm and" } }
+          # natbib 引用宏 —— 类内 natbib 缺席 (shim 顶替后) 或作者漏装包
+          citep: { usepackage: natbib }
+          citeyear: { usepackage: natbib }
+          # 2501.14787 (repro-2501-2026-09-16): \DeclareUnicodeCharacter 是
+          # inputenc 私有 cs, XeTeX 内核恒未定义 (en/zh 两臂同炸) → lccode
+          # 惯用法 polyfill。normalize.XETEX_COMPATIBILITY 同源 shim
+          # (c582736 已源头落); 本条目兜底绕开 normalize 的编译路径。
+          DeclareUnicodeCharacter:
+            {
+              polyfill: "\n\\providecommand{\\DeclareUnicodeCharacter}[2]{\\begingroup\\lccode`\\~=\"#1\\relax\\lowercase{\\endgroup\\catcode`~\\active\\protected\\def~}{#2}}",
+            }
+          # ── 2026-09-17 partial-taxonomy §C 期刊/类宏缺位族 ──
+          # 全表 polyfill 带 \n 前缀 —— _inject_after_docclass 在 docclass
+          # 行尾缝注入, 行尾 % 注释会整吞无前缀 snippet (1404.0346 %!PN
+          # 实证, applied=True 死注入); \n 逃出注释落下一行。
+          # elsarticle \corauth[label]{注} → 批八升级: 桥 elsarticle
+          # \cortext (与 elsart.cls shim body 同式); 无 cortext 时静默
+          corauth:
+            {
+              polyfill: "\n\\providecommand{\\corauth}[2][]{\\ifdefined\\cortext\\cortext[#1]{#2}\\fi}",
+            }
+          # svjour/amsthm \smartqed 重定义 \qed → noop (qed 保持包默认)
+          smartqed: { polyfill: "\n\\providecommand{\\smartqed}{}" }
+          # 期刊投稿注 \submitto{journal} → noop
+          submitto: { polyfill: "\n\\providecommand{\\submitto}[1]{}" }
+          # \keywords{...} 渲染保留而非丢文 (article 系无此 cs)
+          keywords:
+            {
+              polyfill: "\n\\providecommand{\\keywords}[1]{\\medskip\\par\\noindent\\textbf{Keywords:} #1\\medskip}",
+            }
+          # IEEEtran \PARstart{首}{余} 首字下沉 → 平排保字母
+          PARstart: { polyfill: "\n\\providecommand{\\PARstart}[2]{#1#2}" }
+          # elsarticle/acmart \email → tt 渲染 (防 em 头把 email 误拆 \em ail)
+          email: { polyfill: "\n\\providecommand{\\email}[1]{\\texttt{#1}}" }
+          # REPLACE (fixer-polyfill-journal 2026-09-17): 原裸 \maketitle 兜底
+          # 在类已定义时 no-op 不治病根 —— ~25 格 maketitle payload 全是
+          # l.N 行末抢签, 真炸点 \email/\authorblockN/A 藏 \@author 展开体。
+          # 全家桶幂等注入; \n 前缀逃 docclass 行尾 % 注释吞注入
+          # (1404.0346 %!PN 实证; _inject_after_docclass eol 缝点缺陷,
+          # builtin 根治归 1d)。实证: 0905.0440/1003.0851 clean, 1404.0346 愈。
+          maketitle:
+            {
+              polyfill: "\n\\providecommand{\\maketitle}{}\n\\providecommand{\\email}[1]{\\texttt{#1}}\n\\providecommand{\\authorblockN}[1]{#1}\n\\providecommand{\\authorblockA}[1]{\\\\[1ex]{\\small #1}}\n\\providecommand{\\authorrunning}[1]{}\n\\providecommand{\\titlerunning}[1]{}\n\\providecommand{\\inst}[1]{\\textsuperscript{#1}}\n\\providecommand{\\institute}[1]{}",
+            }
+          # 同块挂直接 payload 键 (\authorblockN 裸调顶层时 payload 直达)
+          authorblockN:
+            {
+              polyfill: "\n\\providecommand{\\email}[1]{\\texttt{#1}}\n\\providecommand{\\authorblockN}[1]{#1}\n\\providecommand{\\authorblockA}[1]{\\\\[1ex]{\\small #1}}",
+            }
+          authorblockA:
+            {
+              polyfill: "\n\\providecommand{\\email}[1]{\\texttt{#1}}\n\\providecommand{\\authorblockN}[1]{#1}\n\\providecommand{\\authorblockA}[1]{\\\\[1ex]{\\small #1}}",
+            }
+          # 元数据宏裸调直达键 (aaspp4/svjour 系 preamble 散调)
+          authorrunning:
+            { polyfill: "\n\\providecommand{\\authorrunning}[1]{}" }
+          titlerunning: { polyfill: "\n\\providecommand{\\titlerunning}[1]{}" }
+          institute: { polyfill: "\n\\providecommand{\\institute}[1]{}" }
+          inst:
+            { polyfill: "\n\\providecommand{\\inst}[1]{\\textsuperscript{#1}}" }
+          affil: { polyfill: "\n\\providecommand{\\affil}[1]{#1}" } # aaspp4
+          # \csname bibitemStop\endcsname 融合残留 —— NoStop 条目对偶
+          # (10-11 格)。拆回 → \bibitemStop 在场则调, 未定义也安全 (\relax)
+          csnamebibitemStop:
+            { cs_map: { csnamebibitemStop: "csname bibitemStop" } }
+          # recmath 系 wide-abstract \wideabs{...} —— cond-mat/0104373
+          # /9901011/9910489, nucl-th/0104002 (~5 格)。quote 块保全文面
+          wideabs:
+            {
+              polyfill: "\n\\providecommand{\\wideabs}[1]{\\begin{quote}\\small\\noindent #1\\end{quote}}",
+            }
+          # imsart/EJS 局部定义区定界 (1012.2012/1206.1960/1811.10292)。
+          # ★ \endlocaldefs 不可 \providecommand —— \@ifdefinable 拒 \end
+          #   前缀名 (1206.1960 already_def 级联实证) → \ifdefined..\else
+          #   \def..\fi 守卫式; 两键对称先到先注。
+          startlocaldefs:
+            {
+              polyfill: "\n\\providecommand{\\startlocaldefs}{}\n\\ifdefined\\endlocaldefs\\else\\def\\endlocaldefs{}\\fi",
+            }
+          endlocaldefs:
+            {
+              polyfill: "\n\\providecommand{\\startlocaldefs}{}\n\\ifdefined\\endlocaldefs\\else\\def\\endlocaldefs{}\\fi",
+            }
+          # 老 AMS/期刊 running-head 对 (1012.1584, astro-ph/9901236/9901311)
+          lefthead:
+            { polyfill: "\n\\providecommand{\\lefthead}[1]{\\markboth{#1}{}}" }
+          righthead:
+            { polyfill: "\n\\providecommand{\\righthead}[1]{\\markboth{}{#1}}" }
+          # epstopdf 包宏 (2104.00126) —— 稿依赖而 preamble 未装, 直接装包
+          epstopdfDeclareGraphicsRule: { usepackage: epstopdf }
+          # 2.09 \eqnobysec (equation 按节重置) —— \@addtoreset 需
+          # makeatletter 包住定义时刻, 调用处 catcode 无关
+          eqnobysec:
+            {
+              polyfill: "\n\\makeatletter\\providecommand{\\eqnobysec}{\\@addtoreset{equation}{section}\\renewcommand{\\theequation}{\\thesection.\\arabic{equation}}}\\makeatother",
+            }
+          # \hboxto 作者笔误 (0707.4206 等 ~15 格): \hboxto5cm → \hbox to5cm
+          hboxto: { cs_map: { hboxto: "hbox to" } }
+          # \csname bibitemNoStop\endcsname 融合残留 (revtex \BibitemShut
+          # 展开件, 45 格) —— 补回空格即复原 \csname..\endcsname 完整形,
+          # \endcsname 本就在场, 展开的 \bibitemNoStop 未定义自动 \relax
+          csnamebibitemNoStop:
+            { cs_map: { csnamebibitemNoStop: "csname bibitemNoStop" } }
+          # 1306.0281: acm_proc_article-sp→acmart shim 后老稿 \numberofauthors{N}
+          # 未定义 (acmart 自动计数, 老类手动设) —— 元数据提示宏, no-op 无损
+          numberofauthors:
+            { polyfill: "\n\\providecommand{\\numberofauthors}[1]{}" }
+          # pkg_obsolete 面 (批七, wave-final ×6): TL amstex.sty 本身即
+          # 废弃 stub 自报 "Package `amstex' is obsolete" → 剥装载点 +
+          # amsmath 补位 (amstex 功能是 amsmath 子集)。_drop_pkg_loads
+          # 覆盖 list/solo 两形。
+          amstex: { strip_pkg: "amstex", usepackage: "amsmath" }
+          # ── 批七 shim-surface 面 (1d 移交, 0707.0128 实证): iopams/
+          # setstack TL-missing, shim stub 落 wdir 但无公共 cs 面 →
+          # \Tref/\Fref/\Eref/\Sref/\br/\mr/\ns/\bb/\bc 连串 undefined_cs。
+          # iopart.cls 公共宏族抄值 —— 引用宏带参需 freeform polyfill
+          # (journal_cs_polyfill 表只产无参形), 各键互挂同一幂等块:
+          # \providecommand 重复注入无害; \n 前缀逃 docclass 行尾注释缝。
+          Tref:
+            {
+              polyfill: "\n\\providecommand{\\Tref}[1]{Table~\\ref{#1}}\n\\providecommand{\\Fref}[1]{Figure~\\ref{#1}}\n\\providecommand{\\Eref}[1]{Eq.~(\\ref{#1})}\n\\providecommand{\\Sref}[1]{Section~\\ref{#1}}\n\\providecommand{\\br}{\\hline}\n\\providecommand{\\mr}{\\hline}\n\\providecommand{\\ns}{\\\\}\n\\providecommand{\\bb}{}\n\\providecommand{\\bc}{}",
+            }
+          Fref:
+            {
+              polyfill: "\n\\providecommand{\\Tref}[1]{Table~\\ref{#1}}\n\\providecommand{\\Fref}[1]{Figure~\\ref{#1}}\n\\providecommand{\\Eref}[1]{Eq.~(\\ref{#1})}\n\\providecommand{\\Sref}[1]{Section~\\ref{#1}}\n\\providecommand{\\br}{\\hline}\n\\providecommand{\\mr}{\\hline}\n\\providecommand{\\ns}{\\\\}\n\\providecommand{\\bb}{}\n\\providecommand{\\bc}{}",
+            }
+          Eref:
+            {
+              polyfill: "\n\\providecommand{\\Tref}[1]{Table~\\ref{#1}}\n\\providecommand{\\Fref}[1]{Figure~\\ref{#1}}\n\\providecommand{\\Eref}[1]{Eq.~(\\ref{#1})}\n\\providecommand{\\Sref}[1]{Section~\\ref{#1}}\n\\providecommand{\\br}{\\hline}\n\\providecommand{\\mr}{\\hline}\n\\providecommand{\\ns}{\\\\}\n\\providecommand{\\bb}{}\n\\providecommand{\\bc}{}",
+            }
+          Sref:
+            {
+              polyfill: "\n\\providecommand{\\Tref}[1]{Table~\\ref{#1}}\n\\providecommand{\\Fref}[1]{Figure~\\ref{#1}}\n\\providecommand{\\Eref}[1]{Eq.~(\\ref{#1})}\n\\providecommand{\\Sref}[1]{Section~\\ref{#1}}\n\\providecommand{\\br}{\\hline}\n\\providecommand{\\mr}{\\hline}\n\\providecommand{\\ns}{\\\\}\n\\providecommand{\\bb}{}\n\\providecommand{\\bc}{}",
+            }
+          br:
+            {
+              polyfill: "\n\\providecommand{\\Tref}[1]{Table~\\ref{#1}}\n\\providecommand{\\Fref}[1]{Figure~\\ref{#1}}\n\\providecommand{\\Eref}[1]{Eq.~(\\ref{#1})}\n\\providecommand{\\Sref}[1]{Section~\\ref{#1}}\n\\providecommand{\\br}{\\hline}\n\\providecommand{\\mr}{\\hline}\n\\providecommand{\\ns}{\\\\}\n\\providecommand{\\bb}{}\n\\providecommand{\\bc}{}",
+            }
+          mr:
+            {
+              polyfill: "\n\\providecommand{\\Tref}[1]{Table~\\ref{#1}}\n\\providecommand{\\Fref}[1]{Figure~\\ref{#1}}\n\\providecommand{\\Eref}[1]{Eq.~(\\ref{#1})}\n\\providecommand{\\Sref}[1]{Section~\\ref{#1}}\n\\providecommand{\\br}{\\hline}\n\\providecommand{\\mr}{\\hline}\n\\providecommand{\\ns}{\\\\}\n\\providecommand{\\bb}{}\n\\providecommand{\\bc}{}",
+            }
+          ns:
+            {
+              polyfill: "\n\\providecommand{\\Tref}[1]{Table~\\ref{#1}}\n\\providecommand{\\Fref}[1]{Figure~\\ref{#1}}\n\\providecommand{\\Eref}[1]{Eq.~(\\ref{#1})}\n\\providecommand{\\Sref}[1]{Section~\\ref{#1}}\n\\providecommand{\\br}{\\hline}\n\\providecommand{\\mr}{\\hline}\n\\providecommand{\\ns}{\\\\}\n\\providecommand{\\bb}{}\n\\providecommand{\\bc}{}",
+            }
+          bb:
+            {
+              polyfill: "\n\\providecommand{\\Tref}[1]{Table~\\ref{#1}}\n\\providecommand{\\Fref}[1]{Figure~\\ref{#1}}\n\\providecommand{\\Eref}[1]{Eq.~(\\ref{#1})}\n\\providecommand{\\Sref}[1]{Section~\\ref{#1}}\n\\providecommand{\\br}{\\hline}\n\\providecommand{\\mr}{\\hline}\n\\providecommand{\\ns}{\\\\}\n\\providecommand{\\bb}{}\n\\providecommand{\\bc}{}",
+            }
+          bc:
+            {
+              polyfill: "\n\\providecommand{\\Tref}[1]{Table~\\ref{#1}}\n\\providecommand{\\Fref}[1]{Figure~\\ref{#1}}\n\\providecommand{\\Eref}[1]{Eq.~(\\ref{#1})}\n\\providecommand{\\Sref}[1]{Section~\\ref{#1}}\n\\providecommand{\\br}{\\hline}\n\\providecommand{\\mr}{\\hline}\n\\providecommand{\\ns}{\\\\}\n\\providecommand{\\bb}{}\n\\providecommand{\\bc}{}",
+            }
+          # ── 批八 shim-surface 补面 (loop1 残盘 undefined_cs 普查实证) ──
+          # iopart 表系裸调 (稿未走 iopart.cls 路径时): \fl 行首回退需
+          # \mathindent (真身 6pc); \ams 是分类号脚注行; \PRL 刊名缩写;
+          # \iopamstrue 是 \newif 开关直调 (iopams.sty body 同式守卫)
+          fl:
+            {
+              polyfill: "\n\\ifdefined\\mathindent\\else\\newdimen\\mathindent\\mathindent=6pc\\fi\n\\providecommand{\\fl}{\\hspace*{-\\mathindent}}",
+            }
+          ams:
+            {
+              polyfill: "\n\\providecommand{\\ams}[1]{{\\it AMS subject classification:}\\ #1}",
+            }
+          PRL: { polyfill: "\n\\providecommand{\\PRL}{Phys.~Rev.~Lett.}" }
+          iopamstrue:
+            {
+              polyfill: "\n\\ifdefined\\iopamstrue\\else\\newif\\ifiopams\\iopamstrue\\fi",
+            }
+          # NFSS1 时代字选开关 (psfonts/oldt1enc 族 preamble 散调) ——
+          # 现代 NFSS2 路径恒 false 即真值
+          ifnfssone:
+            { polyfill: "\n\\ifdefined\\ifnfssone\\else\\newif\\ifnfssone\\fi" }
+          # NFSS2 对偶开关 (verifier-batch8 残面) —— LaTeX2e 下真值 true
+          ifnfsstwo:
+            {
+              polyfill: "\n\\ifdefined\\ifnfsstwo\\else\\newif\\ifnfsstwo\\nfsstwotrue\\fi",
+            }
+          # tcilatex.tex 用户面 (稿 \input 缺席或被剥时裸调直达) ——
+          # 与 shim body 同式抄值; QQQ/EXPAND/NOEXPAND 非 providecommand
+          # 可表达形 → ifdefined 守卫 raw def
+          func:
+            {
+              polyfill: "\n\\providecommand{\\func}[1]{\\mathop{\\rm #1}\\nolimits}",
+            }
+          limfunc:
+            { polyfill: "\n\\providecommand{\\limfunc}[1]{\\mathop{\\rm #1}}" }
+          unit:
+            {
+              polyfill: "\n\\providecommand{\\unit}[1]{\\mathord{\\thinspace\\rm #1}}",
+            }
+          dsum:
+            {
+              polyfill: "\n\\providecommand{\\dsum}{\\mathop{\\displaystyle\\sum}}",
+            }
+          QQQ:
+            {
+              polyfill: "\n\\ifdefined\\QQQ\\else\\long\\def\\QQQ#1#2{\\long\\expandafter\\def\\csname#1\\endcsname{#2}}\\fi",
+            }
+          FRAME:
+            {
+              polyfill: "\n\\providecommand{\\FRAME}[8]{\\par\\fbox{\\parbox{\\linewidth}{#8\\par{\\footnotesize #5\\par}}}\\par}",
+            }
+          QTP: { polyfill: "\n\\providecommand{\\QTP}[1]{}" }
+          QEXCLUDE: { polyfill: "\n\\providecommand{\\QEXCLUDE}[1]{}" }
+          Qlb: { polyfill: "\n\\providecommand{\\Qlb}[1]{#1}" }
+          Qlt: { polyfill: "\n\\providecommand{\\Qlt}[1]{#1}" }
+          QQA: { polyfill: "\n\\providecommand{\\QQA}[2]{}" }
+          QTR:
+            {
+              polyfill: "\n\\providecommand{\\QTR}[2]{{\\csname#1\\endcsname{#2}}}",
+            }
+          TeXButton: { polyfill: "\n\\providecommand{\\TeXButton}[2]{#2}" }
+          QSubDoc: { polyfill: "\n\\providecommand{\\QSubDoc}[2]{#2}" }
+          HTML: { polyfill: "\n\\providecommand{\\HTML}[1]{}" }
+          TCIIcon: { polyfill: "\n\\providecommand{\\TCIIcon}[4]{}" }
+          correctchoice:
+            { polyfill: "\n\\providecommand{\\correctchoice}{\\relax}" }
+          EXPAND:
+            {
+              polyfill: "\n\\ifdefined\\EXPAND\\else\\def\\EXPAND#1[#2]#3{}\\fi",
+            }
+          NOEXPAND:
+            {
+              polyfill: "\n\\ifdefined\\NOEXPAND\\else\\def\\NOEXPAND#1[#2]#3{}\\fi",
+            }
+          # Science 类 section 快捷 (scii=\\subsection, sciii=\\subsubsection)
+          scii: { polyfill: "\n\\providecommand{\\scii}{\\subsection}" }
+          sciii: { polyfill: "\n\\providecommand{\\sciii}{\\subsubsection}" }
+          # aa.cls 面 (thesaurus 吞码表; acknowledgements 无号小节头)
+          acknowledgements:
+            {
+              polyfill: "\n\\providecommand{\\acknowledgements}{\\par\\medskip\\noindent\\textbf{Acknowledgements.}\\space}",
+            }
+          thesaurus: { polyfill: "\n\\providecommand{\\thesaurus}[1]{}" }
+          # elsart/aipproc 散调 \address —— 脚注块保文
+          address:
+            {
+              polyfill: "\n\\providecommand{\\address}[1]{\\par{\\footnotesize #1\\par}}",
+            }
+          # IEEEtran 版式越权开关 —— 真身即版式宏, 保编译 noop
+          overrideIEEEmargins:
+            { polyfill: "\n\\providecommand{\\overrideIEEEmargins}{}" }
+          # siamltex \\diag (算子) + \\Bar (上划线, 物理均值记法) —— \\Bar
+          # 须 AtBeginDocument 强制定义: docclass 缝的 providecommand 会被
+          # 后载 amsmath \\def\\Bar{\\bar} 覆写, 而 eulervm/TU 下 \\bar 死
+          # (1206.1993 fired-but-noop 实证); 仅当格曾因 \\Bar 裸调点火,
+          # 覆写无害且修复死别名。
+          diag:
+            { polyfill: "\n\\providecommand{\\diag}{\\mathop{\\mathrm{diag}}}" }
+          Bar: { polyfill: "\n\\AtBeginDocument{\\def\\Bar#1{\\overline{#1}}}" }
+          # hyperref 配置宏裸调 (jheppub 系稿 preamble 散调) —— 装真包
+          hypersetup: { usepackage: hyperref }
+        # 表外 fallback (2026-09-16): glue 残骸前缀拆分 —— payload 未命中
+        # cs_table 时, 若 cs = 已知粘连头 + 残余 (大写起首或 ≤4 字符) 则合成
+        # cs_map 拆回 "head rest" (replay 实证 rmPT 型新残骸仍零星冒头,
+        # 逐条收表追不上)。split_guard 挡与头同前缀的真宏名 (part/parbox/
+        # ddot/fraction…); 含 @ 的包内私有 cs 不拆 (版本偏斜非粘连)。
+        # in 头不收: int/indent/input/index/infty 前缀面太热, inV 留显式条目。
+        # 2026-09-17 +字体开关头族 (1e partial-taxonomy §C ≥100 格):
+        # \emPhys \itJHK \scpin \bfB \rmeff \emcf 全是 reconstruct 丢 \em/\it
+        # 保护块尾随空格的熔合残骸 → head+大写残余自动拆回。em/sc/sf/sl/tt/cal
+        # 补位; emph/texttt/sfcode/sloppy/slash 等同前缀真宏进 guard。
+        split_heads:
+          [
+            linebreak,
+            item,
+            hline,
+            nabla,
+            Delta,
+            frac,
+            par,
+            dd,
+            bf,
+            it,
+            rm,
+            em,
+            sc,
+            sf,
+            sl,
+            tt,
+            cal,
+          ]
+        split_guard:
+          [
+            part,
+            para,
+            parbox,
+            parskip,
+            itemize,
+            itemsep,
+            ddot,
+            ddots,
+            fraction,
+            emph,
+            texttt,
+            sfcode,
+            sloppy,
+            slash,
+          ]
+    risk: medium # 剥包/换宏族改版式; 表只收语料实证条目
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1909.05039 (fixloop-v2)",
+          error: "\\headerps@out ← breakurl shipout 钩在 hdvipdfm 下无定义",
+        }
+      - {
+          corpus: "2301.01267 (fixloop-v2)",
+          error: "\\mathbbm ← bbm 对 tectonic 是 MF-only 死路",
+        }
+    # 2026-09-16 实跑: 1909.05039 xelatex headerps@out→剥 breakurl,
+    # 上圈 unfixable:undefined_cs → clean (fixloop-v2-rules 对照)
+    stats: { fires: 1, rescued_cells: 1, status: validated }
+    source_ref: "handoff-2026-09-15 §2.2 undefined_cs 无包映射项"

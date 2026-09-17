@@ -1,0 +1,179 @@
+# rules/40-install.yaml — fixloop 规则库分片：缺档装包 —— missing_file/missing_tfm → install/fetch + babel 选项
+#
+# 分片约定：本文件只是 rules: 列表的一段，按文件名序与其他分片经
+# _yamlish.load_yaml 目录合并装载；同 phase 调度按 order 字段升序（与文件
+# 拼接序无关）。schema/语义约定（phase/when/condition/engines/stats 字段、
+# provenance 义务、书写约束 flow 集合单行写完）见 rules/30-route.yaml 头注。
+# 新增规则：挑所属域文件追加条目即可；条目数不手维护 —— 统计用
+# `grep -c '^  - id: ' src/texlate/compile/fixloop/rules/*.yaml`。
+version: 1
+
+rules:
+  # ─── loop: install 系 —— 环境缺失优先于源码改写 ───
+  - id: install_file
+    mechanisms: [W19, W47, W52, W98, W51, W21]
+    description: "缺文件 (.sty/.cls/.fd/.def/…) → filemap 查包 → 安装 → 探测复核"
+    phase: loop
+    order: 10
+    when: { category: missing_file, payload_required: true }
+    action:
+      kind: install_file
+      params:
+        file: "{payload}"
+        font_related_exts: [tfm, pfb, vf, fd, map, enc] # 命中扩展名 → 装后重建 map (L307)
+        verify: file_probe # 装后复核; 仍缺 → applied=False 落后续规则 (L274-275)
+        already_present_ok: true # 探测已在 → 记 applied (L268-269; 见 known_gaps 归因噪音)
+    engines:
+      xelatex:
+        { mode: native, via: "tlmgr search --file → tlmgr --usermode install" }
+      tectonic:
+        mode: degrade
+        degrade: ctan_fetch # filemap(tlpdb 索引)→tlnet archive→解包到工作目录/本地 texmf
+        fallback: advisory # 索引查不到 → 产出建议性报错 (附候选包名)
+    provenance:
+      - { corpus: "1706.03762/baseline", error: "File `import.sty' not found" }
+      - {
+          corpus: "1810.04805/*",
+          error: "File `xifthen.sty' / `ifmtarg.sty' not found",
+        }
+      - {
+          corpus: "*/ctex|zh (14格)",
+          error: "File `zhnumber.sty' not found (ctex 注入链)",
+        }
+    stats: { fires: 26, rescued_cells: 17 }
+    source_ref: "fixloop.py L301-311, L264-276"
+
+  # 2026-09-16 wave-2: babel_opt 类目原无消费规则 (纯死端)。机理=稿传
+  # [german]/[russian] 等老语言选项 → babel 找不到对应 ldf (babel-<lang>
+  # 包未装; Arch 侧 tlpdb 注册装了但 runfiles 缺席 → 系统树假在场)。
+  # payload=语言名 → try_exts 拼 {lang}.ldf / {lang}b.ldf 双候选
+  # (russian→russianb.ldf 实证命名) → filemap → babel-<lang> 真包。
+  # 覆盖 31/33; ukrainian(ukraineb)/polutonikogreek(TL 无此 ldf) 残留。
+  - id: babel_lang_ldf_install
+    description: "babel 语言选项缺 ldf → filemap 装 babel-<lang> 包"
+    phase: loop
+    order: 11 # install_file(10) 后, legacy_pkg_shim(12) 前
+    when: { category: babel_opt, payload_required: true }
+    action:
+      kind: install_file
+      params:
+        file: "{payload}"
+        try_exts: [".ldf", "b.ldf"]
+    engines:
+      xelatex:
+        {
+          mode: native,
+          via: "filemap {lang}.ldf→babel-<lang> → usermode install",
+        }
+      tectonic:
+        mode: degrade
+        degrade: ctan_fetch # 同 install_file 降级通路
+    provenance:
+      - {
+          corpus: "loop2-delta babel_opt×11 (+loop1 共 33)",
+          error: "Package babel Error: Unknown option 'german'",
+        }
+    stats: { fires: 0 }
+    source_ref: "wave-2 落地: taxonomy babel_opt (:301) 首个消费规则"
+
+  # 2026-09-17 wave-4: off-CTAN 件仓内 vendor 平移 (cbucket-scout 清点)。
+  # install_file(10) 查无真包 → 本规则 basename 查 vendor/{files,stubs}
+  # (files=真件平移, stubs=实测救援 stub) → 命中平铺进 wdir; 查无 →
+  # decline 落 legacy_pkg_shim(12) 内建 shim 兜底。自闸 builtin, 无需新
+  # condition 原语。同名 payload 相对路径落位 (a/b.sty → wdir/a/b.sty),
+  # ../绝对/NUL 闸在 builtin 内。
+  - id: vendored_fetch
+    mechanisms: [B05, W80]
+    description: "off-CTAN 缺件 → 包内 vendor/{files,stubs} basename 平移 wdir"
+    phase: loop
+    order: 11.5 # install_file(10) 后: CTAN 真包优先; legacy_pkg_shim(12) 前: vendor 件优先于内建 shim
+    when: { category: missing_file, payload_required: true }
+    action:
+      kind: builtin_transform
+      function: vendored_fetch
+      params: {} # dir 缺省 = 包内 vendor/; 测试用 params.dir 指 fixture
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "cbucket-vendored-inventory (files 8 真件 + stubs 13)",
+          error: "File `aastex.cls' not found (CTAN 下架/改名件)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "wave-4 落地: bench/results/cbucket-vendored-inventory/ dispositions"
+
+  # fixable-data 裁定 (1003.2165): polutonikogreek 是弃名, greek.polutoniko
+  # 亦走 locale/invalid/ 弃名桩必炸。现行 ini 正形是 `greek.polytonic`
+  # (locale/el/babel-polytonicgreek.tex 自证 "Provided: greek.polytonic";
+  # 裸 `polytonicgreek` 选项反而炸 —— \languageattribute{greek} 要求 greek
+  # 语言本体已载)。装 babel-greek 的 greek.ldf 更糟: XeTeX 下 ldf 硬拒。
+  # 只改选项位 (方括号列表 + PassOptionsToPackage/Class 首参)。
+  - id: babel_opt_polutoniko_rewrite
+    description: "babel 弃名 polutonikogreek / greek.polutoniko → greek.polytonic (ini 机制)"
+    phase: loop
+    order: 13 # babel_lang_ldf_install(11) 之后: 装得上真 ldf 的先装, 此条兜无档语言
+    when: { category: babel_opt, payload_required: false }
+    condition:
+      any:
+        - { source_contains: "polutonikogreek" }
+        - { source_contains: "greek\\.polutoniko" }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          # 选项括号可跨行 (1003.2165 docclass 选项表逐行注释排版实证)
+          - {
+              pattern: "\\[([^\\]]*)\\bgreek\\.polutoniko\\b",
+              repl: "[\\g<1>greek.polytonic",
+            }
+          - {
+              pattern: "\\[([^\\]]*)\\bpolutonikogreek\\b",
+              repl: "[\\g<1>greek.polytonic",
+            }
+          - {
+              pattern: "(\\\\PassOptionsTo(?:Package|Class)\\s*\\{[^}]*)\\bgreek\\.polutoniko\\b",
+              repl: "\\g<1>greek.polytonic",
+            }
+          - {
+              pattern: "(\\\\PassOptionsTo(?:Package|Class)\\s*\\{[^}]*)\\bpolutonikogreek\\b",
+              repl: "\\g<1>greek.polytonic",
+            }
+    risk: low # 同语言现行属性形; ini 路由 XeTeX 原生支持
+    known_gap: "\\selectlanguage{polutonikogreek} 等正文引用不改 (选项修正后 greek 语言在位, 旧名引用 babel 兼容层接住); 需 babel ≥3.x ini 机制"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "fixable-data adjudication (1003.2165)",
+          error: "Package babel Error: Unknown option 'polutonikogreek' (src 写 greek.polutoniko, ini 弃名桩报错)",
+        }
+    stats: { fires: 0 }
+    source_ref: "scout-fail59 fixable-data 杂项; babel_lang_ldf_install 残留格"
+
+  - id: install_tfm
+    mechanisms: [W95]
+    description: "Font X not loadable (TFM 缺) → 装 {X}.tfm 所在包 + 重建 map"
+    phase: loop
+    order: 20
+    when: { category: missing_tfm, payload_required: true }
+    action:
+      kind: install_file
+      params: { file: "{payload}.tfm", font_related: true, verify: file_probe }
+    engines:
+      xelatex: { mode: native }
+      tectonic:
+        mode: degrade
+        degrade: ctan_fetch # tfm 文件可落工作目录直接可用
+        fallback: advisory
+        note: "updmap 不存在: TFM 直读不需要 map; 若后端还要 pfb map → escalate"
+    provenance:
+      - {
+          corpus: "1511.06432/1512.03385/1810.04805/2106.09685 baseline",
+          error: "Font phvb at Npt not loadable → helvetic",
+        }
+      - { corpus: "1906.08237/*", error: "rsfs10 → rsfs" }
+    stats: { fires: 13, rescued_cells: 13 }
+    source_ref: "fixloop.py L314-321"

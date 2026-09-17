@@ -1,0 +1,135 @@
+# rules/55-prim.yaml — fixloop 规则库分片：引擎原语 —— pdftex_prim/expl3 后端与 glyphtounicode 遮蔽
+#
+# 分片约定：本文件只是 rules: 列表的一段，按文件名序与其他分片经
+# _yamlish.load_yaml 目录合并装载；同 phase 调度按 order 字段升序（与文件
+# 拼接序无关）。schema/语义约定（phase/when/condition/engines/stats 字段、
+# provenance 义务、书写约束 flow 集合单行写完）见 rules/30-route.yaml 头注。
+# 新增规则：挑所属域文件追加条目即可；条目数不手维护 —— 统计用
+# `grep -c '^  - id: ' src/texlate/compile/fixloop/rules/*.yaml`。
+version: 1
+
+rules:
+  # 2026-09-16 wave-2: expl3_backend×4 (0905.4874/1306.0364/hep-ph0501170/
+  # 9910403) —— 全局驱动选项 (dvips/pdftex) 经 documentclass 传给 expl3
+  # 后端探测 → "Backend request inconsistent with engine: using 'xetex'"
+  # 于 ctex→expl3 装载点炸。xelatex 自决 xdvipdfmx, 驱动选项纯属死重 →
+  # 从 \documentclass[..] 剥除 (多余逗号槽 LaTeX 选项解析器忽略, 安全)。
+  - id: expl3_driver_opt_strip
+    description: "documentclass 驱动选项 (dvips/pdftex 系) 与 xelatex 后端冲突 → 剥除"
+    phase: loop
+    order: 35
+    when: { category: expl3_backend }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "(\\\\documentclass\\s*\\[[^\\]]*?),?\\s*\\b(?:dvips|dvipdfm|dvipdfmx|pdftex|pdflatex|xdvi|oztex|textures|vtex)\\b\\s*,?",
+              repl: "\\g<1>",
+            }
+    risk: low # 剥错向: dvipdfmx 名义上与 xetex 自决同路, 剥了不亏
+    engines:
+      xelatex: { mode: native }
+      tectonic:
+        mode: same # tectonic 后端固定, 同理由剥除
+    provenance:
+      - {
+          corpus: "loop2-delta expl3_backend×4",
+          error: "expl3.sty:154 Backend request inconsistent with engine: using 'xetex'",
+        }
+    stats: { fires: 0 }
+    source_ref: "wave-2: expl3_backend 类目首个消费规则"
+
+  # 2026-09-17 fixer-bblwall A3 (2105.03753): lipics-v2021.cls:510
+  # `\IfFileExists{glyphtounicode.tex}{\input glyphtounicode}` —— texmf-dist
+  # 里真文件在故守卫开火, 体首 \pdfglyphtounicode/\pdfgentounicode 是
+  # pdfTeX 原语 → xelatex 下 undefined_cs→pdftex_prim 细分。order 必须
+  # 先于 guard(50)/polyfill(51) 截走 payload——守卫/polyfill 治不了
+  # "文件存在但原语缺" 的形态, 空 stub 让 \input 路径整个短路。
+  - id: glyphtounicode_shadow
+    mechanisms: [W104]
+    description: "cls \\IfFileExists 守卫触发真 glyphtounicode.tex (pdfTeX 原语件) → wdir 注空 stub 遮蔽"
+    phase: loop
+    order: 46 # pdftex_prim_guard(50)/polyfill(51) 之前 —— payload 同格先截
+    when:
+      any:
+        - { category: pdftex_prim, payload_required: true }
+        - { category: undefined_cs, payload_required: true }
+    condition:
+      source_contains: "glyphtounicode" # 源/cls 确有 \input 引用链才落 stub
+    action:
+      kind: builtin_transform
+      function: bundled_class_shadow
+      params:
+        target: glyphtounicode.tex
+        cs_set: [pdfglyphtounicode, pdfgentounicode]
+        body: |
+          % fixloop shadow: cls-guarded \input of pdftex-only glyphtounicode
+          \ifdefined\pdfglyphtounicode\else\def\pdfglyphtounicode#1#2{}\fi
+          \ifdefined\pdfgentounicode\else\newcount\pdfgentounicode\fi
+          \endinput
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # XeTeX 内核同缺 pdf 原语
+    provenance:
+      - {
+          corpus: "2105.03753 (41 recut; fixer-bblwall-2026-09-17 A3)",
+          error: "Undefined control sequence \\pdfglyphtounicode (lipics-v2021.cls:510 \\IfFileExists 守卫开火 input 真文件)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "fixer-bblwall-2026-09-17 spec A3; \\pdfgentounicode 是 count 赋值形故 \\newcount"
+
+  # ─── loop: 源码改写系 —— 按"保守→激进"排序 ───
+  - id: pdftex_prim_guard
+    description: "pdfTeX 原语裸用 (@pdftex_prims 族 token, load 期展开成 PDFTEX_PRIMS 交替) → \\ifdefined 守卫, xelatex 下静默跳过"
+    phase: loop
+    order: 50
+    when: { category: pdftex_prim }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          - {
+              pattern: "(?<![\\\\a-zA-Z])(\\\\@pdftex_prims)(\\s*=\\s*[^\\n%]*)",
+              repl: '\\ifdefined\g<1>\g<0>\\fi',
+            }
+          - {
+              pattern: "(?<![\\\\a-zA-Z])(\\\\@pdftex_prims)(\\s*\\{[^\\n]*\\})",
+              repl: '\\ifdefined\g<1>\g<0>\\fi',
+            }
+    risk: low # lookbehind 排除 cs 名紧邻 (\<prim> 前接字母/反斜杠 = ifdefined/chardef/ifnum/let 定义语境 + 自输出第二枚), 幂等; loop1-1306.0036 实证旧 (?<!ifdefined) 会把 polyfill 注入的 \chardef\pdfoutput=1 再套娃改写
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # XeTeX 内核, 守卫语义一致
+    provenance:
+      - {
+          corpus: "1412.6980/*",
+          error: "Undefined control sequence \\pdfoutput",
+        }
+    stats: { fires: 3, rescued_cells: 3 }
+    source_ref: "fixloop.py L344-361, L284-298"
+
+  # 新增 (docs/08:268): guard 只管赋值型; 读取型 \ifnum\pdfoutput 要补定义
+  - id: pdftex_prim_polyfill
+    description: "读取型 pdfTeX 原语 (\\ifnum\\pdfoutput 等) → 前导注入 \\ifdefined..\\else\\chardef=1\\fi"
+    phase: loop
+    order: 51 # 与 guard 同 trigger; dedup 后第二轮轮到它
+    when: { category: pdftex_prim, payload_required: true }
+    condition: { prim_read_form: "{payload}" } # 源码确有 \\if*\\<prim> 读取语境才注入
+    action:
+      kind: builtin_transform
+      function: pdftex_prim_polyfill
+      params: { prim: "{payload}" } # 在主文件 \\documentclass 行后注入守卫
+    risk: low
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "—",
+          error: "Undefined control sequence (\\ifnum\\pdfoutput 读取型)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "docs/08-translate-compile.md L268"

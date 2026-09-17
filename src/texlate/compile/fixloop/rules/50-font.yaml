@@ -1,0 +1,216 @@
+# rules/50-font.yaml — fixloop 规则库分片：字体 —— fontspec/missing_pfb 字体替换与度量族
+#
+# 分片约定：本文件只是 rules: 列表的一段，按文件名序与其他分片经
+# _yamlish.load_yaml 目录合并装载；同 phase 调度按 order 字段升序（与文件
+# 拼接序无关）。schema/语义约定（phase/when/condition/engines/stats 字段、
+# provenance 义务、书写约束 flow 集合单行写完）见 rules/30-route.yaml 头注。
+# 新增规则：挑所属域文件追加条目即可；条目数不手维护 —— 统计用
+# `grep -c '^  - id: ' src/texlate/compile/fixloop/rules/*.yaml`。
+version: 1
+
+rules:
+  - id: install_sysfont
+    description: "fontspec 'font X cannot be found' → 按 {X}.otf/.ttf/.ttc 搜包安装"
+    phase: loop
+    order: 30
+    when: { category: fontspec_missing, payload_required: true }
+    action:
+      kind: install_file
+      params:
+        {
+          file: "{payload}",
+          try_exts: [".otf", ".ttf", ".ttc"],
+          font_related: true,
+        }
+    engines:
+      xelatex: { mode: native }
+      tectonic:
+        mode: degrade
+        degrade: ctan_fetch_font # 拉包装字体文件; 但 fontspec 按名查找需 fontconfig 可见
+        fallback: advisory # 建议: 换 bundle 内字体名 / 注入 fontspec Path=./ / 装系统字体
+        note: "放 workdir 不够, 需配合源改写 Path= 或字体注册 → 标 partial"
+    provenance:
+      - {
+          corpus: "*/ctex|zh (14格)",
+          error: "font “FandolSong-Regular” cannot be found → fandol",
+        }
+    stats: { fires: 14, rescued_cells: 14 }
+    source_ref: "fixloop.py L324-332"
+
+  # 2026-09-16 wave-3: install_sysfont 失败后的二级出路 —— 名查找的字体
+  # (fontconfig 面) 根本不在 TL 包索引 (Noto Mono: 发行版只有 Noto Sans
+  # Mono; 名字带空格亦进不了 filemap) → 把文档对 {payload} 的引用换成
+  # LM 显示名。用显示名不用文件名: 全家族解析 (\textbf/\textit 自动
+  # 命中字重), 裸 .otf 只给单重; "Latin Modern *" 经 engine 注入的
+  # FONTCONFIG_FILE (texmf opentype 注册) 保证可解, 每个 TL 都有 lm。
+  - id: font_name_substitute
+    description: "fontspec 名查找字体真缺 (install 无解) → 引用换成 Latin Modern 显示名"
+    phase: loop
+    order: 31 # install_sysfont(30) 装不上才轮到换名
+    when: { category: fontspec_missing, payload_required: true }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          - {
+              pattern: "(\\\\setmonofont|\\\\setCJKmonofont)(\\s*(?:\\[[^\\]]*\\]\\s*)?)\\{\\s*{payload}\\s*\\}",
+              repl: '\g<1>\g<2>{Latin Modern Mono}',
+            }
+          - {
+              pattern: "(\\\\setmathfont)(\\s*(?:\\[[^\\]]*\\]\\s*)?)\\{\\s*{payload}\\s*\\}",
+              repl: '\g<1>\g<2>{Latin Modern Math}',
+            }
+          - {
+              pattern: "(\\\\setmainfont|\\\\setsansfont|\\\\setromanfont|\\\\setmathrm|\\\\fontspec|\\\\setCJKmainfont|\\\\setCJKsansfont|\\\\setfontfamily)(\\s*(?:\\[[^\\]]*\\]\\s*)?)\\{\\s*{payload}\\s*\\}",
+              repl: '\g<1>\g<2>{Latin Modern Roman}',
+            }
+          - {
+              pattern: "(\\\\newfontfamily|\\\\newfontface|\\\\setfontface|\\\\newCJKfontfamily)(\\s*(?:\\[[^\\]]*\\]\\s*)?)(\\s*\\{[^}]*\\}|\\\\[a-zA-Z@]+)(\\s*(?:\\[[^\\]]*\\]\\s*)?)\\{\\s*{payload}\\s*\\}",
+              repl: '\g<1>\g<2>\g<3>\g<4>{Latin Modern Roman}',
+            }
+    risk: medium # 字体观感改变 (Noto→LM); 只对已确认装不上的字体动手
+    known_gap: "显示名解析依赖 engine 的 FONTCONFIG_FILE 注入 (texmf opentype 注册); payload 含正则元字符会过配 (brace 边界已挡大部分); addfontfeatures 等冷门 cs 未覆盖 → applied=False"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "loop2-delta fontspec_missing (1706.00240)",
+          error: "The font \"Noto Mono\" cannot be found (\\setmonofont, bundled font-termes.sty)",
+        }
+    stats: { fires: 0 }
+    source_ref: "wave-3: fontspec_missing 名替换面 (install_sysfont 兜底)"
+
+  - id: missing_pfb_updmap
+    description: "xdvipdfmx 物理字体缺失 (.vf/pfb) → updmap-user 重建 map"
+    phase: loop
+    order: 40
+    when: { category: missing_pfb }
+    action:
+      kind: run_tool
+      params: { argv: ["updmap-user"], once_per_payload: true, timeout: 120 }
+    engines:
+      xelatex: { mode: native }
+      tectonic:
+        mode: unsupported # tectonic 无 updmap, map 由 bundle 管
+        fallback: escalate_llm # 建议路由回 xelatex 或人工
+    provenance:
+      - {
+          corpus: "—",
+          error: "xdvipdfmx:fatal: Cannot proceed without .vf/physical font",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "fixloop.py L335-341"
+
+  # 新增 (docs/08:275): tectonic 下 missing_pfb 的改写出路 ——
+  # 物理字体投放已实证死路 (ctanfetch-probe §3.5), 换 Type1 近亲 shim
+  - id: font_sub_shim
+    mechanisms: [W103]
+    description: "MF-only 字体包 (bbm 等) → Type1 近亲 (dsfont/dsrom) shim 改写"
+    phase: loop
+    order: 45 # missing_pfb 在 tectonic 的顺位 (updmap unsupported → 落此)
+    when: { category: missing_pfb, payload_required: false }
+    condition:
+      engine_in: [tectonic]
+      shim_known: true # 工程须用了 shim_map 内的 MF-only 包
+    action:
+      kind: builtin_transform
+      function: font_sub_shim
+      params:
+        exts: [.tex, .sty]
+        shim_map:
+          bbm:
+            {
+              usepackage: "dsfont",
+              cs_map:
+                { mathbbm: "mathds", mathbmss: "mathds", mathbmtt: "mathtt" },
+            }
+          # 探针实证改写 (ctanfetch-probe §3.5): 注掉 bbm, dsfont 已在 bundle 内
+    engines:
+      tectonic: { mode: native }
+      xelatex: { mode: skip } # xelatex 有 updmap, 不需要 shim
+    provenance:
+      - {
+          corpus: "2305.14335 (ctanfetch-probe)",
+          error: "xdvipdfmx: bbm10 physical font dead",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "docs/08-translate-compile.md L275; ctanfetch-probe.md §3.5"
+
+  - id: px_to_bp
+    description: "非法单位 px → bp 换算 (CSS 96dpi: 1px = 0.75bp)"
+    phase: loop
+    order: 60
+    when: { category: illegal_unit }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty]
+        rewrites:
+          - { pattern: "(\\d*\\.?\\d+)\\s*px\\b", function: px_to_bp }
+          # px_to_bp: repl = fmt(num*0.75, 去尾零) + "bp"
+    risk: low
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1810.04805/*",
+          error: "Illegal unit of measure (px inserted)",
+        }
+    stats: { fires: 3, rescued_cells: 3 }
+    source_ref: "fixloop.py L364-375"
+
+  - id: microtype_off
+    description: "XeTeXglyph×TFM (microtype 探针量不了 TFM) → 关 protrusion/expansion"
+    phase: loop
+    order: 70 # 同 trigger 的 times_to_newtx(80) 之前: 先保守关特性
+    when: { category: xetexglyph_tfm }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          - {
+              pattern: "\\\\(usepackage|RequirePackage)\\s*(\\[[^\\]]*\\])?\\s*\\{microtype\\}",
+              repl: '\\\g<1>[protrusion=false,expansion=false]{microtype}',
+            }
+    risk: low
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1706.03762/ctex|zh, 1906.08237/ctex|zh",
+          error: "Cannot use XeTeXglyph with ptmr8c",
+        }
+    stats: { fires: 4, rescued_cells: 4 }
+    source_ref: "fixloop.py L378-393"
+
+  - id: times_to_newtx
+    description: "times/mathptmx/mathptm (T1 TFM 字体族) → newtxtext/newtxmath (OTF)"
+    phase: loop
+    order: 80 # 与 microtype_off 同 trigger; dedup 使同 payload 二轮才轮到它
+    when: { category: xetexglyph_tfm }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty]
+        rewrites:
+          - {
+              pattern: "\\{mathptmx\\}|\\{mathptm\\}",
+              repl: "{newtxtext,newtxmath}",
+            }
+          - { pattern: "\\{times\\}", repl: "{newtxtext}" }
+    risk: medium # 换字体族改版式
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "—",
+          error: "xetexglyph_tfm 的二线方案 (microtype_off 修不动时)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "fixloop.py L396-406"

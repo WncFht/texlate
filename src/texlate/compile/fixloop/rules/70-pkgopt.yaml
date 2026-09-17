@@ -1,0 +1,306 @@
+# rules/70-pkgopt.yaml — fixloop 规则库分片：包选项 —— option_clash/pkg_order/minted/hyperref 驱动与类选项
+#
+# 分片约定：本文件只是 rules: 列表的一段，按文件名序与其他分片经
+# _yamlish.load_yaml 目录合并装载；同 phase 调度按 order 字段升序（与文件
+# 拼接序无关）。schema/语义约定（phase/when/condition/engines/stats 字段、
+# provenance 义务、书写约束 flow 集合单行写完）见 rules/30-route.yaml 头注。
+# 新增规则：挑所属域文件追加条目即可；条目数不手维护 —— 统计用
+# `grep -c '^  - id: ' src/texlate/compile/fixloop/rules/*.yaml`。
+version: 1
+
+rules:
+  - id: option_clash_merge
+    mechanisms: [W48]
+    description: "Option clash: 同包两次 \\usepackage → 合并选项到首处, 注释后处"
+    phase: loop
+    order: 120
+    when: { category: option_clash, payload_required: true }
+    action:
+      kind: builtin_transform # 非单条 regex: 找重复加载→合并选项→注释后者
+      function: option_clash_merge # params.pkg = payload; 详见 builtins.py 函数注册表
+      params: { pkg: "{payload}", exts: [.tex, .sty, .cls] }
+    risk: medium # 合并选项可能改变语义
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - { corpus: "—", error: "Option clash for package X" }
+    stats: { fires: 0, status: proposed }
+    source_ref: "fixloop.py L459-494"
+
+  # 2026-09-16 wave-2: option_clash 跨文件形态 (cls 先载 vs doc 后载) ——
+  # option_clash_merge 只合单文件双载; 0905.0081 elsart 先载 graphicx[] +
+  # doc \usepackage[dvips]{graphicx} 够不到。驱动选项在 xelatex 下纯属错向
+  # → doc 侧含驱动词的整括号剥除, 类端配置全量胜出。先于 passopts 规则:
+  # 驱动词在场时绝不向上游传 (passopts 会把 dvips 注进 cls 装载)。
+  - id: option_clash_loadopt_strip
+    mechanisms: [W48]
+    description: "option_clash 且 doc 侧选项含驱动词 (dvips 系) → 剥整括号, 类端配置胜出"
+    phase: loop
+    order: 121
+    when: { category: option_clash, payload_required: true }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "\\\\(?:usepackage|RequirePackage)\\s*\\[[^\\]]*\\b(?:dvips|dvipdfm|dvipdfmx|pdftex|pdflatex|xdvi|oztex|textures|vtex|xetex|latex)\\b[^\\]]*\\]\\s*(\\{[^{}]*\\b{payload}\\b[^{}]*\\})",
+              repl: "\\\\usepackage\\g<1>",
+            }
+    risk: low # 驱动选项在 xelatex/tectonic 下本就错向; 同括号非驱动词顺带丢 (罕见)
+    known_gap: "撞名载点在 \\input 的 .tex 内同样覆盖 (exts 面); doc 双侧同文件撞已由 merge(120) 先收"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "loop2-delta option_clash (0905.0081)",
+          error: "Option clash for package graphicx (cls 先载 [], doc 要 [dvips])",
+        }
+    stats: { fires: 0 }
+    source_ref: "wave-2: option_clash 跨文件形态 driver 面"
+
+  # 非驱动选项形态: doc 要 [authoryear] 但 cls shim 先载 natbib[]
+  # (astro-ph/0501556, aa.cls shim 内置 \RequirePackage{natbib}) ——
+  # 把 doc 选项经 \PassOptionsToPackage 挂到 documentclass 之前, 让首次
+  # 装载 (无论发生在哪个文件) 就带上 doc 意图, doc 侧括号剥除 → 裸请求
+  # ⊆ 实载选项 → 静默收敛, 意图零损失。
+  - id: option_clash_passopts
+    mechanisms: [W48]
+    description: "option_clash 非驱动选项 → \\PassOptionsToPackage 挂 documentclass 前, doc 括号剥除"
+    phase: loop
+    order: 122
+    when: { category: option_clash, payload_required: true }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "(\\n[ \\t]*)(\\\\documentclass)([\\s\\S]*?)(\\n[ \\t]*\\\\usepackage\\s*)\\[([^\\]]+)\\](\\s*\\{[^{}]*\\b{payload}\\b[^{}]*\\})",
+              repl: '\g<1>\\PassOptionsToPackage{\g<5>}{{payload}}\g<1>\g<2>\g<3>\g<4>\g<6>',
+            }
+    risk: medium # PassOptions 把 doc 选项注进首次装载; 装载点在他文件时兜底同效
+    known_gap: "documentclass/usepackage 须在非注释行首 (%行被 \\n[ \\t]*\\\\ 排除); 分文件 (\\input 拆) 或 documentclass 居文件 0 字节 → applied=False; 每文件仅首处括号载点获 hoist"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "loop2-delta option_clash (astro-ph/0501556)",
+          error: "Option clash for package natbib (cls shim 先载 [], doc 要 [authoryear])",
+        }
+    stats: { fires: 0 }
+    source_ref: "wave-2: option_clash 跨文件形态语义选项面"
+
+  # pkg_order 首规则 (2308.12712): bundled 老 acmart.cls
+  # \RequirePackage{hyperxmp} 先于 hyperref, 新 hyperxmp v5+ 硬检
+  # \@ifpackageloaded 报错。两装载行夹 \\let 三明治 (存 pre-hyperref
+  # 脚注记号) —— 不能互换位置, 只能把 hyperxmp 整行下沉到 hyperref 之后。
+  - id: pkg_order_hyperxmp_relocate
+    description: "hyperxmp 先于 hyperref 装载 → hyperxmp 整行下沉到 hyperref 载点后"
+    phase: loop
+    order: 123
+    when: { category: pkg_order, payload_required: true }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          - {
+              pattern: "(\\\\(?:RequirePackage|usepackage)\\s*(?:\\[[^\\]]*\\])?\\s*\\{hyperxmp\\})([\\s\\S]*?)(\\\\(?:RequirePackage|usepackage)\\s*(?:\\[[^\\]]*\\])?\\s*\\{hyperref\\})",
+              repl: '\g<2>\g<3>\n\g<1>',
+            }
+    risk: low # 纯重排, 中间行 (\\let 三明治) 原位保留仍在 hyperref 之前
+    known_gap: "仅 hyperxmp↔hyperref 序对; hyperref 装载不在同文件/从未装载 → applied=False"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "loop2-delta pkg_order (2308.12712)",
+          error: "hyperxmp.sty:279 Package hyperxmp Error: hyperref must be loaded before hyperxmp",
+        }
+    stats: { fires: 0 }
+    source_ref: "wave-2: pkg_order 类目首个消费规则"
+
+  - id: minted_frozencache
+    mechanisms: [W40, B05]
+    description: "minted frozencache 版本错配 → 有 pygmentize 则去 frozencache 选项 (需 -shell-escape)"
+    phase: loop
+    order: 130
+    when: { category: minted_froz }
+    condition: { tool_available: pygmentize } # 无 pygmentize → applied=False (L502-505)
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - { pattern: "frozencache\\s*,?\\s*", repl: "" }
+        engine_flags: ["-shell-escape"]
+    risk: medium
+    engines:
+      xelatex: { mode: native }
+      tectonic:
+        mode: degrade
+        degrade: partial # shell-escape 受限 → 建议改写 listings 或 advisory
+        fallback: advisory
+    provenance:
+      - { corpus: "—", error: "frozencache/Cannot highlight code" }
+    stats: { fires: 0, status: proposed }
+    source_ref: "fixloop.py L497-505"
+
+  # 新增 (docs/08:270): xelatex 侧 minted v3 装包 × 工程自带 v2 frozencache
+  # → 改挂 minted2 (v2 API 包)。注意改写只打包装载点: minted2 的 env 名仍是
+  # {minted}, \begin{minted} 绝不能动 (盲改 {minted}→{minted2} 会毁 env)。
+  - id: minted_v3_rewrite
+    mechanisms: [W40, B05]
+    description: "minted v3 装包 × 工程 v2 frozencache → \\usepackage{minted}→{minted2} 装载点改写"
+    phase: loop
+    order: 135 # frozencache 剥选项(130)先试; 它放弃/复发才轮到
+    when: { category: minted_froz }
+    condition:
+      engine_in: [xelatex]
+      cache_dir_glob: "_minted-*" # 工程确有 frozencache 目录才是 v3×v2 错配
+      package_version_ge: { file: "minted.sty", version: 3 }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "\\\\(usepackage|RequirePackage)(\\s*\\[[^\\]]*\\])?\\s*\\{minted\\}",
+              repl: '\\\g<1>\g<2>{minted2}',
+            }
+          - {
+              pattern: "\\\\PassOptionsToPackage(\\{[^}]*\\})\\{minted\\}",
+              repl: '\\PassOptionsToPackage\g<1>{minted2}',
+            }
+    risk: medium
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: skip } # tectonic 侧 minted 版本由 bundle 管, 无此错配
+    provenance:
+      - {
+          corpus: "—",
+          error: "minted v3 读 v2 frozencache 报 ~50 错 (docs/08:257)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "docs/08-translate-compile.md L257, L270"
+
+  # fixable-data 裁定 (2211.13028/2308.12612, 1d 已批): doc 强指 dvi/pdf
+  # 驱动给 hyperref 家族, xelatex 下必炸 "Wrong driver option"/
+  # "Wrong hyperref driver"。剥除一切选项括号内的驱动词让 hyperref/
+  # graphicx 自侦 hxetex —— docclass 全局选项同样覆盖 (剥离对 xetex
+  # 恒正确: 这些驱动在 XeTeX 下本来就走不通)。hypdvips 整包换 hyperref
+  # (它只为 dvips 路由存在; doc 若另载 hyperref, 二次加载无害)。
+  - id: hyperref_driver_neutralize
+    description: "hyperref 家族驱动选项 (pdftex/dvips/…) + hypdvips → 剥词/换包, 交自侦"
+    phase: loop
+    order: 181 # typein_neutralize(180) 之后; early_eof/hyperref_driver 双签兜底
+    when:
+      any:
+        - { category: hyperref_driver, payload_required: false }
+        - { category: early_eof, payload_required: false }
+    condition:
+      source_contains: "hypdvips|\\[[^\\]]*\\b(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\b"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          # hypdvips → hyperref (选项面保留, 多为 hyp* 公共键)
+          - {
+              pattern: "(\\\\(?:usepackage|RequirePackage)\\s*(?:\\[[^\\]\\n]*\\]\\s*)?)\\{hypdvips\\}",
+              repl: "\\g<1>{hyperref}",
+            }
+          # 全驱动括号: [dvips] / [dvips,pdftex] → [] (括号可跨行)
+          - {
+              pattern: "\\[\\s*(?:(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|vtexpdfmark|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\s*,?\\s*)+\\]",
+              repl: "[]",
+            }
+          # 括号首位驱动词: [dvips,opt] → [opt]
+          - {
+              pattern: "\\[\\s*(?:(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|vtexpdfmark|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\s*,\\s*)+",
+              repl: "[",
+            }
+          # 中段/末位驱动词: [opt,dvips,opt2] / [opt,dvips] → [opt,opt2]/[opt]
+          - {
+              pattern: "(\\[[^\\]]*?)(?:,\\s*(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|vtexpdfmark|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\s*)+(?=,|\\])",
+              repl: "\\g<1>",
+            }
+          # PassOptionsToPackage/Class 首参同三套 (大括号形)
+          - {
+              pattern: "(\\\\PassOptionsTo(?:Package|Class)\\s*\\{)\\s*(?:(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|vtexpdfmark|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\s*,?\\s*)+\\}",
+              repl: "\\g<1>}",
+            }
+          - {
+              pattern: "(\\\\PassOptionsTo(?:Package|Class)\\s*\\{)\\s*(?:(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|vtexpdfmark|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\s*,\\s*)+",
+              repl: "\\g<1>",
+            }
+          - {
+              pattern: "(\\\\PassOptionsTo(?:Package|Class)\\s*\\{[^}]*?)(?:,\\s*(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|vtexpdfmark|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\s*)+(?=,|\\})",
+              repl: "\\g<1>",
+            }
+          # 空括号清扫: \usepackage[]{x} → \usepackage{x}
+          - {
+              pattern: "(\\\\(?:documentclass|usepackage|RequirePackage))\\s*\\[\\s*\\]",
+              repl: "\\g<1>",
+            }
+    risk: low # xetex 下这些驱动本就失效; 自侦即作者意图
+    known_gap: "doc 若用 hypdvips 专属 cs (嵌入 PS 钩子) 会前进到 undefined_cs → cs_targeted_fix; \\hypersetup 内驱动键、非括号赋值 (\\def\\@driver) 未覆盖"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # XeTeX 内核同驱动面
+    provenance:
+      - {
+          corpus: "fixable-data adjudication (2211.13028, 2308.12612)",
+          error: "hypdvips: Wrong hyperref driver `hxetex' / hyperref: Wrong driver option `pdftex'",
+        }
+    stats: { fires: 0 }
+    source_ref: "scout-fail59 fixable-data §4 驱动剥除 (1d 批准); taxonomy hyperref_driver 签名同期扩三形态"
+
+  - id: docclass_post_option_normalize
+    mechanisms: [W67]
+    description: "\\documentclass{X}[opts] 后置选项畸形 → 孤儿 [opts] 行归位 \\documentclass[opts]{X}"
+    phase: loop
+    order: 183 # revtex4_legacy_class_rewrite(182) 之后, undefined_cs_guess(900) 之前
+    when:
+      any:
+        - { category: syntax }
+        - { category: undefined_cs }
+    condition:
+      # 孤儿选项行: segmenter 把 src 同行 `\documentclass{X}[opts]` 的
+      # [opts] 段拆成独立块, splice 落 preamble 孤行 → Missing \begin{document}。
+      source_contains: "(?m)^[ \\t]*\\[[0-9a-zA-Z,=.\\- ]+\\][ \\t]*$"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          # 既有选项 → 尾部合并: \documentclass[a]{X}…^[o]$ → \documentclass[a,o]{X}
+          # 中间段以 \begin{document} 回火——正文内孤立 [x] 行不越界吞。
+          - {
+              pattern: "(\\\\documentclass[ \\t]*\\[[^\\]\\n]*)\\]([ \\t]*\\{[^}\\n]*\\})((?:(?!\\\\begin\\{document\\})[\\s\\S])*?)^[ \\t]*\\[([0-9a-zA-Z,=.\\- ]+)\\][ \\t]*$",
+              repl: "\\g<1>,\\g<4>]\\g<2>\\g<3>",
+              flags: [MULTILINE],
+            }
+          # 无既有选项 → 新建选项组: \documentclass{X}…^[o]$ → \documentclass[o]{X}
+          - {
+              pattern: "(\\\\documentclass[ \\t]*)(\\{[^}\\n]*\\})((?:(?!\\\\begin\\{document\\})[\\s\\S])*?)^[ \\t]*\\[([0-9a-zA-Z,=.\\- ]+)\\][ \\t]*$",
+              repl: "\\g<1>[\\g<4>]\\g<2>\\g<3>",
+              flags: [MULTILINE],
+            }
+    risk: low # 选项归位是源作者本意; 仅 preamble 内孤行, 正文 [x] 行不达
+    known_gap: "多孤儿行只归位最近一条 (per-docclass 单匹配); 选项序改变 (o 尾插) 与源序不同但语义同"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "loop1 unfixable:syntax (1206.2111 schulze.tex src l.1 `\\documentclass{article}[12pt]`)",
+          error: "LaTeX Error: Missing \\begin{document} @ splice l.36 (孤儿 [12pt] 行)",
+        }
+    stats: { fires: 0 }
+    source_ref: "1206.2111 zh l.41 孤儿 [12pt] 在 inject 块后 preamble 内; src 原形 \\documentclass{article}[12pt] 同行后置"

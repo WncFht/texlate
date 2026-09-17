@@ -1,0 +1,111 @@
+# rules/65-encoding.yaml — fixloop 规则库分片：编码 —— inputenc/非 UTF-8 源/aux 中间件腐蚀
+#
+# 分片约定：本文件只是 rules: 列表的一段，按文件名序与其他分片经
+# _yamlish.load_yaml 目录合并装载；同 phase 调度按 order 字段升序（与文件
+# 拼接序无关）。schema/语义约定（phase/when/condition/engines/stats 字段、
+# provenance 义务、书写约束 flow 集合单行写完）见 rules/30-route.yaml 头注。
+# 新增规则：挑所属域文件追加条目即可；条目数不手维护 —— 统计用
+# `grep -c '^  - id: ' src/texlate/compile/fixloop/rules/*.yaml`。
+version: 1
+
+rules:
+  # 新增 (2026-09-16, compilebench-v3 失败构成): inputenc 对 Unicode 引擎
+  # 整包拒载 → 剥装载点 + \inputencoding 调用。源真为非 UTF-8 时下一轮
+  # 由 non_utf8_source(95) 接续转码 —— 两轮分工, 本轮只动声明。
+  - id: inputenc_strip
+    mechanisms: [B02, W10, W13]
+    description: "inputenc 拒绝 xetex/luatex → 剥 \\usepackage{inputenc} 装载点与 \\inputencoding 调用"
+    phase: loop
+    order: 94
+    when: { category: inputenc_unicode }
+    action:
+      kind: builtin_transform
+      function: strip_inputenc
+      params: { exts: [.tex, .sty, .cls] }
+    risk: low # 只剥 Unicode 引擎下必拒载的包; 列表装载外科摘除不波及同列包
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1012.1124/1206.5628/1608.02354/2308.04174 (compilebench-v3)",
+          error: "Package inputenc Error: inputenc is not designed for xetex or luatex",
+        }
+    # 2026-09-16 fixloop-rules 实跑 (5 篇 xelatex 格): fires=5 → clean×3
+    # (1012.1124/1206.5832/1608.02354) + best_effort_pdf×2 (1206.5628/2308.04174);
+    # tectonic 格全部死于 tlextras-2022 pin bundle os error 2 (环境), 与本规则无关
+    stats: { fires: 5, rescued_cells: 5, status: validated }
+    source_ref: "handoff-2026-09-15 §2.2; compilebench-v3 失败构成"
+
+  # 新增 (docs/08:272): xelatex 对非 UTF-8 源静默出 U+FFFD —— warning 驱动轮
+  - id: non_utf8_source
+    mechanisms: [B02, W72, W13]
+    description: "xelatex 静默 U+FFFD (latin-5 等非 UTF-8 源) → 就地转码 UTF-8"
+    phase: loop
+    order: 95
+    when: { category: warn_utf8 } # warnings 段 invalid_utf8 命中升级的伪类别
+    condition: { engine_in: [xelatex] }
+    action:
+      kind: builtin_transform
+      function: non_utf8_recode # 逐文件 utf-8 解码失败 → cp1252/latin-1 重读重写
+      params: { exts: [.tex, .sty, .cls, .bib] }
+    risk: medium # 转码错判会毁源码; 只对真 decode-fail 文件动刀
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "非 UTF-8 语料 (docs/08 §4.2 路由表)",
+          error: "Invalid UTF-8 byte / U+FFFD 静默",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "docs/08-translate-compile.md L221, L272"
+
+  # 2026-09-16 compile-hard 新增 (2211.13013 闭环·引擎自产臂): aux_scan_eof
+  # 命中 → 删「utf-8 解码失败 或 末行不完整」的 aux 族可再生件, 下遍
+  # 引擎重生成; shipped 件归 normalize.INTERMEDIATE_SUFFIXES 转码兜底。
+  - id: aux_purge_regen
+    description: "aux 族回读 EOF (中间件被 8192B 劈断) → 删除损坏可再生件后重跑"
+    phase: loop
+    order: 96
+    when: { category: aux_scan_eof }
+    action:
+      kind: builtin_transform
+      function: purge_corrupt_intermediates
+      params: { exts: [.aux, .out, .toc, .lof, .lot, .nav, .snm, .vrb, .ent] }
+    risk: low # 谓词自检损坏才删; 健康件 (xr \externaldocument 外链 aux) 保留
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "2211.13013 (aux-cjk-truncation 留档)",
+          error: "Invalid UTF-8 byte → File ended while scanning use of \\@newl@bel",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "docs/research/latex/2026-09-16-aux-cjk-truncation.md"
+
+  # 2026-09-16 signature-mining: head 段 "Text line contains an invalid
+  # character" (二进制垃圾/非 UTF-8 字节) 与 warn_utf8 同病理 → 复用
+  # non_utf8_recode 动作 (cond-mat/0307744 实证, tectonic 格)。
+  - id: invalid_char_recode
+    mechanisms: [B02, W72]
+    description: "invalid_char (源码非法字节) → 就地转码 UTF-8"
+    phase: loop
+    order: 97
+    when: { category: invalid_char }
+    action:
+      kind: builtin_transform
+      function: non_utf8_recode # 与 non_utf8_source 同函数; 仅入口类别不同
+      params: { exts: [.tex, .sty, .cls, .bib] }
+    risk: medium # 转码错判会毁源码; 只对真 decode-fail 文件动刀
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "cond-mat/0307744 (cbv4 other 拆家)",
+          error: "Text line contains an invalid character",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "docs/research/product/2026-09-16-signature-mining.md §2.2"

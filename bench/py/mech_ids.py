@@ -3,7 +3,7 @@
 用法：
   python3 bench/py/mech_ids.py B01 W45              # 多 tag 并集 → stdout id 表
   python3 bench/py/mech_ids.py W45 --out /tmp/ids.txt
-  python3 bench/py/mech_ids.py --rule <rule-name>   # rules.yaml mechanisms: 反查
+  python3 bench/py/mech_ids.py --rule <rule-name>   # rules/ 分片 mechanisms: 反查
   python3 bench/py/mech_ids.py W45 --plus-random 10 --seed 42   # 加对照随机格
   python3 bench/py/mech_ids.py W45 --validate       # 校验 id 在 corpus manifest 内
 
@@ -19,7 +19,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 CORPUS = ROOT / "bench" / "corpus_v3"
-RULES = ROOT / "src" / "texlate" / "compile" / "fixloop" / "rules.yaml"
+RULES_DIR = ROOT / "src" / "texlate" / "compile" / "fixloop" / "rules"
 MANIFESTS = ["manifest.jsonl", "manifest_booster.jsonl", "manifest_hot.jsonl"]
 
 
@@ -43,10 +43,14 @@ def tag_ids(tags: set[str]) -> dict[str, list[str]]:
 
 
 def rule_tags(name: str) -> list[str]:
-    """rules.yaml 里 `- id: <name>` 块的 mechanisms: 字段（声明式映射，peer1 schema）。"""
+    """rules/ 分片里 `- id: <name>` 块的 mechanisms: 字段（声明式映射，peer1 schema）。"""
     tags: list[str] = []
     in_rule = False
-    for line in RULES.read_text().splitlines():
+    for line in (
+        ln
+        for f in sorted(RULES_DIR.glob("*.yaml"))
+        for ln in f.read_text().splitlines()
+    ):
         if line.strip() == f"- id: {name}":
             in_rule = True
             continue
@@ -77,7 +81,7 @@ def main() -> int:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     ap.add_argument("tags", nargs="*", help="机制 tag（B##/T##/W##），多个取并集")
-    ap.add_argument("--rule", help="rules.yaml 规则名 → 读其 mechanisms: 字段反查 tag")
+    ap.add_argument("--rule", help="rules/ 规则名 → 读其 mechanisms: 字段反查 tag")
     ap.add_argument(
         "--plus-random", type=int, default=0, metavar="N", help="追加 N 个随机对照格"
     )

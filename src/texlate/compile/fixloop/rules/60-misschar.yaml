@@ -1,0 +1,227 @@
+# rules/60-misschar.yaml — fixloop 规则库分片：缺字分诊 —— warn_missing_char/warn_utf8 驱动的缺字修复族
+#
+# 分片约定：本文件只是 rules: 列表的一段，按文件名序与其他分片经
+# _yamlish.load_yaml 目录合并装载；同 phase 调度按 order 字段升序（与文件
+# 拼接序无关）。schema/语义约定（phase/when/condition/engines/stats 字段、
+# provenance 义务、书写约束 flow 集合单行写完）见 rules/30-route.yaml 头注。
+# 新增规则：挑所属域文件追加条目即可；条目数不手维护 —— 统计用
+# `grep -c '^  - id: ' src/texlate/compile/fixloop/rules/*.yaml`。
+version: 1
+
+rules:
+  # ─── F4 (2026-09-16): 缺字分诊 —— warnings 段 missing_char 升级类别驱动 ───
+  # 两条互斥子路径都在 missing_char_fix 内 (码位×字体 查表):
+  #   CJK 落非 CJK 字体 = xeCJK 字体绑定被污染 (elsart \no@harm → \protect
+  #   重定义 → \selectfont 失效 → 首用把 xeCJK/<fam>/<ser>/<sh>/<size> 绑死
+  #   lmroman; cond-mat/0307508 实跑 4379 缺字根因, /tmp/mc-repro 复现)
+  #   → \AtBeginDocument 预热盒在干净上下文先绑常用 size;
+  #   符号/拉丁缺字 (≠ U+2260 / − U+2212 / § U+A7 / ø U+F8 / è U+E8)
+  #   → char→命令字面替换, 表条目见 builtins._MC_TABLE, params.char_table 可扩。
+  - id: missing_char_fix
+    mechanisms: [W42, W43]
+    description: "无 '!' 错但 log 有 Missing character → 码位分级: CJK→xeCJK 绑定预热, 符号/拉丁→字面替换"
+    phase: loop
+    order: 25 # 与类别独占, 序位只影响同 category 规则间
+    when:
+      any:
+        - { category: warn_missing_char }
+        # warn_utf8 终类的格带缺字共存时原永不评估本族 (类别排他 quirk,
+        # scout-misschar-coverage ×6 rows): log 无 missing char 时自然
+        # applied=False 落穿, 有则先修缺字再让 utf8 规则接手。
+        - { category: warn_utf8 }
+    action:
+      kind: builtin_transform
+      function: missing_char_fix
+      params:
+        # cls_pretokenized (scout-misschar ×2): jetpl.cls 把西里尔字面编进
+        # \addtocontents/token 寄存器 —— cls 装载即 token 化, 注入够不到;
+        # 源级字面替换须在 token 化前改字节 → exts 扩 .cls/.sty/.bbl。
+        exts: [.tex, .cls, .sty, .bbl]
+        # Latin-1/标点散字补表 (scout-pf2final 盲区: £/ĳ 系落 cmr/cmmi/txmi
+        # 无字形; ø/§/≠/−/è 已在内置 _MC_TABLE)。文本命令一律 \mbox 包裹防
+        # 数学模式缺字复发; 数学符号走 \ensuremath。
+        char_table:
+          - { id: nbsp, cps: [0x00A0], replace: "~" }
+          - { id: pound, cps: [0x00A3], replace: "\\mbox{\\pounds}" }
+          - { id: copyright, cps: [0x00A9], replace: "\\mbox{\\textcopyright}" }
+          - {
+              id: registered,
+              cps: [0x00AE],
+              replace: "\\mbox{\\textregistered}",
+            }
+          - { id: degree, cps: [0x00B0], replace: "\\ensuremath{^\\circ}" }
+          - { id: pm, cps: [0x00B1], replace: "\\ensuremath{\\pm}" }
+          - { id: micro, cps: [0x00B5], replace: "\\ensuremath{\\mu}" }
+          - { id: pilcrow, cps: [0x00B6], replace: "\\mbox{\\P}" }
+          - { id: times, cps: [0x00D7], replace: "\\ensuremath{\\times}" }
+          - { id: divide, cps: [0x00F7], replace: "\\ensuremath{\\div}" }
+          - { id: ij_lig, cps: [0x0133], replace: "\\mbox{\\ij}" }
+          - { id: ij_lig_up, cps: [0x0132], replace: "\\mbox{\\IJ}" }
+          - { id: endash, cps: [0x2013], replace: "\\mbox{--}" }
+          - { id: emdash, cps: [0x2014], replace: "\\mbox{---}" }
+          - { id: lsquo, cps: [0x2018], replace: "\\mbox{`}" }
+          - { id: rsquo, cps: [0x2019], replace: "\\mbox{'}" }
+          - { id: ldquo, cps: [0x201C], replace: "\\mbox{``}" }
+          - { id: rdquo, cps: [0x201D], replace: "\\mbox{''}" }
+          - { id: dagger, cps: [0x2020], replace: "\\mbox{\\textdagger}" }
+          - { id: ddagger, cps: [0x2021], replace: "\\mbox{\\textdaggerdbl}" }
+          - { id: bullet, cps: [0x2022], replace: "\\mbox{\\textbullet}" }
+          - { id: hellip, cps: [0x2026], replace: "\\mbox{\\dots}" }
+          # ── outband 覆盖 (scout-misschar-coverage 2026-09-17, ×13 pids) ──
+          # FFFD 替换符 = 源 mojibake 破折号 (bibitem 页码 '2481–2508') → 连字符
+          - { id: fffd_repl, cps: [0xFFFD], replace: "-" }
+          # C1 控制符 / LRM / ZWSP / BOM —— 零宽不可见, 空组剥除
+          - { id: c1_ctrl, ranges: [[0x80, 0x9F]], replace: "{}" }
+          - { id: zero_width, cps: [0x200B, 0x200E, 0xFEFF], replace: "{}" }
+          - { id: pua_f047, cps: [0xF047], replace: "{}" }
+          - { id: boxdraw_252c, cps: [0x252C], replace: "{}" }
+          # 数学/标点散字 → \ensuremath 双模无恙
+          - { id: fracslash, cps: [0x2044], replace: "/" }
+          - { id: prime_2032, cps: [0x2032], replace: "\\ensuremath{'}" }
+          - { id: astop_2217, cps: [0x2217], replace: "\\ensuremath{\\ast}" }
+          - { id: sumop_2211, cps: [0x2211], replace: "\\ensuremath{\\sum}" }
+          # M1-B 残余 (1502.06189): .bbl 字面 ℓ 落 lmroman9 无槽
+          - { id: ell, cps: [0x2113], replace: "\\ensuremath{\\ell}" }
+    risk: low # 预热盒不可见; replace 只动缺字码位本身
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "cond-mat/0307508 (n100-postcutover)",
+          error: "Missing character×4379 in lmroman10-regular (CJK 绑定污染)",
+        }
+      - {
+          corpus: "0707.3950 / 0905.4907 / 0806.1079 / 1003.1464 / 1608.02516 / 2403.15096 (n100)",
+          error: "Missing character: CJK in cmr/lmroman + ≠−§øè in cm*",
+        }
+      - {
+          corpus: "0806.2630 jetpl.cls (scout-misschar-coverage-2026-09-17)",
+          error: "cls 预 token 化西里尔 → exts 扩列; outband FFFD/C1/LRM/PUA/2044/2032/2217/2211/252C → char_table 补 9 条",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "spec 2026-09-16-batch-hardening-design §9 F4; scout-misschar-coverage findings.yaml §outband_coverage+cls_pretokenized"
+
+  # ─── F4c (2026-09-17, scout-misschar-coverage 0327 群 ~62 pids) ───
+  # accent cs (\c \~ \^ \' \" \u \v 族) 在无预组字形基字符上产
+  # base+combining-mark 节点, ambient 字体无 U+0300-036F → 缺字;
+  # 附加符由 accent 机制生成, 非输入字符 → newunicodechar 拦不到。
+  # 源级站点改写: NFC 预组 → 字面量 + 自注回退行; 无预组 → 剥 accent。
+  - id: accent_mark_fix
+    mechanisms: [T27]
+    description: "组合附加符缺字 → 文本域 accent cs 站点改写预组字/剥 accent (数学域不动)"
+    phase: loop
+    order: 25.5 # missing_char_fix(25)/font_fallback(26) 之间; int() 取整同值 25 时按表内位次排
+    when:
+      any:
+        - { category: warn_missing_char }
+        - { category: warn_utf8 } # 同 missing_char_fix —— 类别排他 quirk 补漏
+    action:
+      kind: builtin_transform
+      function: accent_mark_fix
+      params:
+        exts: [.tex, .bbl, .cls]
+    risk: low # 改写限文本域 accent 站点; 无预组剥 accent 总比缺字强
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1206.1954 / 2308.00063 (scout-misschar-coverage-2026-09-17)",
+          error: "Missing character U+0327 由 \\c{t} accent 机制生成, 非输入字符",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "scout-misschar-coverage-2026-09-17 findings.yaml §combining_mark_accent_generated"
+
+  # ─── F4b (2026-09-16, fixer-cjkfont 交付 f7822a8): 缺字第二分级 ——
+  # 西里尔/组合符/拉丁扩展带的码位既非 CJK(预热) 也非 char_table 替换
+  # 条目 → newunicodechar 逐字绑定 Libertinus Serif 字体回退。
+  - id: font_fallback
+    mechanisms: [W42, W43]
+    description: "Missing character 落西里尔/组合符/拉丁扩展带 → newunicodechar 逐字回退 Libertinus Serif"
+    phase: loop
+    order: 26 # missing_char_fix(25) 之后: replace 表先吃, 残带内码位走字体回退
+    when:
+      any:
+        - { category: warn_missing_char }
+        - { category: warn_utf8 } # 同 missing_char_fix —— 类别排他 quirk 补漏
+    action:
+      kind: builtin_transform
+      function: font_fallback
+      params:
+        # 显式重述 _FB_RANGES 三带 + 希腊块 (scout-misschar outband:
+        # 0x3A5-0x3F5 观测; Libertinus Serif 全希腊覆盖)。数学模式内
+        # 字面量仍待 \ifmmode 模板 (builtins, 1d lane)。
+        fallback_ranges:
+          [[0x400, 0x4FF], [0x300, 0x36F], [0xC0, 0x17F], [0x370, 0x3FF]]
+    risk: low
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - { corpus: "—", error: "Missing character: 西里尔/组合符落在无字形字体" }
+      - {
+          corpus: "scout-misschar-coverage-2026-09-17 outband greek 带",
+          error: "Missing character: 希腊字面 U+3A5-3F5 落无希腊字形字体",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "fixer-cjkfont 交付 (builtins.py f7822a8); 1d 转办 2026-09-16; greek 带 scout-misschar-coverage findings.yaml"
+
+  # ─── E(b) 残余安全网 (fixer-font-fallback-8bit 交付, 批七并入) ───
+  # CJK 码位落类/fontenc 内置 8-bit tfm 文本字体 (ec-lmr12/t1xr/futr8t/
+  # mdbchr8t/aer*/cmr*…) —— 缺字字体名无 [/: 前缀, cjk_glyph 条目的
+  # spec-font gate 不接; font_fallback 默认带只盖西里尔/组合/拉丁扩展,
+  # CJK 段带外 → 第三路兜底。inject f7822a8 (ctex+fandol 路由) 已根治
+  # wave-561368d 全部 42 个 E(b) 证据格 (CJK-in-tfm 残例=0) —— 本规则是
+  # 复发安全网, 非活跃修面。builtin 侧 fallback_cs/font_not params 已由
+  # fixer-misschar A2 批落地 (827674d): \ifdefined 守卫防撞名 + 逐字
+  # \newunicodechar 去重幂等。
+  - id: cjk_font_fallback
+    description: "CJK 缺字落 8-bit tfm 文本字体 (绑定污染残例) → newunicodechar 逐字回退 FandolSong"
+    phase: loop
+    order: 27 # font_fallback(26) 之后; CJK 段与非 CJK 带互不重叠, 两规独立挂
+    when:
+      any:
+        - { category: warn_missing_char }
+        - { category: warn_utf8 } # 同 missing_char_fix —— 类别排他 quirk 补漏
+    action:
+      kind: builtin_transform
+      function: font_fallback
+      params:
+        # 与 _MC_TABLE cjk_glyph 同款 CJK 段表 (语义超集, 勿回退 textutil.CJK_RANGES)
+        fallback_ranges:
+          - [0x2E80, 0x303F]
+          - [0x3040, 0x30FF]
+          - [0x3100, 0x31EF]
+          - [0x3200, 0x33FF]
+          - [0x3400, 0x4DBF]
+          - [0x4E00, 0x9FFF]
+          - [0xA000, 0xA4CF]
+          - [0xAC00, 0xD7AF]
+          - [0xF900, 0xFAFF]
+          - [0xFE30, 0xFE4F]
+          - [0xFF00, 0xFFEF]
+          - [0x20000, 0x2FA1F]
+        # 文件形式命名 (kpathsea 解析, 不依赖 fontconfig; 与 inject
+        # texlatecjk <->"[FandolSong-Regular.otf]" 同口径, bwrap 内实证可达)
+        fallback_font: "FandolSong-Regular.otf"
+        # 独立 cs 名 —— 与 font_fallback(26) 的 txlatefallback 实例并存不撞
+        fallback_cs: txlatecjkfb
+        # 缺字字体名已含 CJK 字体特征时跳过 —— 真缺字形不归本规管, 防自回环
+        font_not: "fandol|noto.*cjk|source.?han|uming|ukai|wqy|cjk"
+    risk: low # newunicodechar 逐字绑; 不碰 xeCJK 路由, 失败即回原缺字
+    known_gap: "死 \\selectfont 上下文内无效 (绑定锻造点, 真缺字发生在活上下文)"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "loop1 E(b) 42-cell census: 0806.3020(ec-lmr12) 1109.5500(t1xr) 2105.00099(futr8t/futrc8t) 1404.0161(mdbchr8t) 1511.02648(aer9) 2203.00075(t1-stixgeneral) 等",
+          error: 'Missing character: There is no 这 ("8FD9) in font futr8t!',
+        }
+      - {
+          corpus: "jpp/fourier 类 futr8t (T1/futs→futr8t tfm): \\title{\\bf 这是译文} 在 \\maketitle frontmatter vbox 首用绑定落 tfm",
+          error: "CJK 落非 spec 字体名 → cjk_glyph font-gate 跳过, font_fallback 带外",
+        }
+    stats: { fires: 0, status: proposed } # 当前波面零活例 —— inject 已根治
+    source_ref: "fixer-font-fallback-8bit-2026-09-17 fragment; builtin params=A2 (827674d fixer-misschar 迟交付)"

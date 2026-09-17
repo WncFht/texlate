@@ -1,0 +1,27 @@
+# rules/20-warnings.yaml — log 红线 warning 扫描表（redlines.py 注册表
+# ``rules`` 切片的镜像面，逐条 (id, pattern) 序由 tests/test_redlines.py pin）
+version: 1
+
+# ────────────────────────────────────────────────────────────────
+# log 尾部红线 warning 扫描 (docs/08 §4.3): 只记录进 cell.warnings,
+# 其中 invalid_utf8 在无 '!' 错时升级为 warn_utf8 类别驱动修复轮。
+# ────────────────────────────────────────────────────────────────
+warnings:
+  - {
+      id: invalid_utf8,
+      pattern: "Invalid UTF-8 byte|Missing character.*U\\+FFFD|replaced by U\\+FFFD",
+    }
+  # missing_char 排除 nullfont 行: 测量盒/\write 上下文按设计不可印
+  # (scout-misschar ×5 pids 纯噪音)。tempered 窗口限本消息体内——不越过
+  # 下一条 Missing character 起点与本消息 in font 终止符,至多跨一个
+  # 折行续行——真字体行紧邻 nullfont 行仍中,已声明字体的消息不被后行
+  # "in font nullfont" 字样误豁免。
+  - {
+      id: missing_char,
+      pattern: "Missing character:(?!(?:(?!Missing character|in font )[^\\n]){0,90}?(?:\\n(?:(?!Missing character|in font )[^\\n]){0,90}?)?in font nullfont)",
+    } # CJK 渲染检查原料
+  - {
+      id: missing_graphic,
+      pattern: "File `[^']+\\.(eps|png|jpg|pdf)' not found|cannot (find|open) image",
+    }
+  - { id: tectonic_degrade, pattern: "^!+ .*not found" } # tectonic File..not found 降级行

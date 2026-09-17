@@ -1,0 +1,336 @@
+# rules/10-taxonomy.yaml — 分类学段（scope:head 按序首命中，序即语义）
+# 段内条目顺序为分类评估序，插入新类须想清楚落点。来源同 00-base.yaml。
+version: 1
+
+# ════════════════════════════════════════════════════════════════
+# 第一层: 分类学 —— log → (category, payload)
+# 评估序: 存在 '!' 行时按序首命中 (scope:head, 输入='!'行+其后8行);
+#         全文无 '!' 行时评估 scope:tail 段 (输入=log 末 30 行);
+#         仍无命中但有 warning 命中 → scope:warnings 驱动 warn_* 类。
+# 对应 fixloop.py classify() L67-125。
+# ════════════════════════════════════════════════════════════════
+taxonomy:
+  # —— 文件缺失类 (抓文件名 → install_file) ——
+  - {
+      id: missing_file,
+      scope: head,
+      payload_group: 1,
+      pattern: "File `([^']+\\.[a-zA-Z0-9]+)' not found",
+    }
+  - {
+      id: missing_file,
+      scope: head,
+      payload_group: 1,
+      pattern: "I can't find file `([^']+)'",
+    }
+  # 2026-09-16 第三种缺档措辞: `\PackageError` 自报 "Cannot find the
+  # file X.ext" (无反引号对) —— textgreek.sty:39 lgrenc.def 实证
+  # (1706.02694/2308.00072/2410.06051 三格同墙, greek-fontenc 一包全解);
+  # 不盖 'File `X' not found' 主签名, 互补并列。
+  - {
+      id: missing_file,
+      scope: head,
+      payload_group: 1,
+      pattern: "Cannot find the file\\s+([\\w@.+-]+\\.[a-zA-Z0-9]+)",
+    }
+  # —— TFM 字体缺失 (抓字体名=文件名 → install_tfm) ——
+  # payload 类须含 "-": SkakNew-Diagram 型名按 [a-zA-Z0-9]/\w 抓会在
+  # 连字符处截断成 "Diagram" → filemap 必 miss (loop1-2211.12985 实证)。
+  - {
+      id: missing_tfm,
+      scope: head,
+      payload_group: 1,
+      pattern: "Font \\\\?\\S*?=?\\s*([\\w-]+) at [0-9.]+pt not loadable",
+    }
+  - {
+      id: missing_tfm,
+      scope: head,
+      payload_group: 1,
+      pattern: "Metric \\(TFM\\) file[^\\n]*?([\\w-]+)\\.(tfm)",
+    }
+  # —— fontspec 时代错配 / 系统字体缺失 ——
+  - {
+      id: xetexglyph_tfm,
+      scope: head,
+      payload_group: 1,
+      pattern: "Cannot use XeTeXglyph with (\\S+)",
+    }
+  - {
+      id: missing_pfb,
+      scope: head,
+      pattern: "Cannot proceed without .vf|physical font",
+    }
+  # —— xdvipdfmx PS 硬墙 (tectonic 无 gs 通道; 实证签名 fixloop-v2 整改) ——
+  # compilebench taxonomy 对应类别名 ps_image; 首错为
+  # "! something bad happened inside xdvipdfmx" (stdout_tail 归一),
+  # ctx8 内含 "caused by: pdf: image inclusion failed for "X.eps""。
+  - {
+      id: ps_image,
+      scope: head,
+      payload_group: 1,
+      pattern: 'image inclusion failed for "([^"]+\.(?:eps|ps|EPS|PS))"|PostScript images are not supported',
+    }
+  # metapost 数字扩展名变体 (0806.4589: diag1.1 实为 EPS 产物; 上行只认
+  # .eps/.ps → 漏归 other)。双引号 xdvipdfmx 形态 + 单引号 Unable-to-load
+  # 形态并列; payload_group 缺省 = 首个非空组。
+  - {
+      id: ps_image,
+      scope: head,
+      pattern: "image inclusion failed for \"([^\"]+\\.[0-9]+)\"|Unable to load picture or PDF file '([^']+\\.[0-9]+)'",
+    }
+  - {
+      id: fontspec_missing,
+      scope: head,
+      payload_group: 1,
+      pattern: 'font [“"]([^”"]+)[”"] cannot be found',
+    }
+  # —— 源码级 ——
+  - { id: illegal_unit, scope: head, pattern: "Illegal unit of measure" }
+  - {
+      id: option_clash,
+      scope: head,
+      payload_group: 1,
+      pattern: "Option clash for package ([\\w-]+)",
+    }
+  - {
+      id: already_def,
+      scope: head,
+      payload_group: 1,
+      pattern: "Command '?\\\\?([\\w@]+)'? already defined",
+    }
+  - {
+      # ntheorem 自检错 (Theorem style X already defined) —— amsthm/thmtools
+      # 预定义同名 th@X 样式撞车, payload=样式名 (非 cs 名)
+      id: already_def,
+      scope: head,
+      payload_group: 1,
+      pattern: "Theorem style ([\\w@]+) already defined",
+    }
+  - {
+      id: soul_err,
+      scope: head,
+      pattern: "Package soul Error|Reconstruction failed",
+    }
+  - { id: hyphenation, scope: head, pattern: "Not a letter" }
+  - {
+      id: minted_froz,
+      scope: head,
+      pattern: "frozencache|Cannot highlight code",
+    }
+  # —— 2026-09-16 新增 (compilebench-v3 失败构成): inputenc 对 Unicode
+  # 引擎整包拒载 (inputenc.sty:164), xelatex 走 -file-line-error 形态时
+  # 首错即此。剥装载点见 inputenc_strip 规则 ——
+  - {
+      id: inputenc_unicode,
+      scope: head,
+      pattern: "inputenc is not designed for",
+    }
+  # 2026-09-16 收紧 (对齐 compile/engine.py _LATEX209_TAIL_RE): 裸
+  # "LaTeX2.09" 字样误中 aastex 系 cls 的 info 横幅 "Original \LaTeX2.09
+  # style" (LaTeX2e 文档; 2211.04503/1803.08927/1803.09046/2203.04385 四案
+  # 实证)。真 2.09 只认: \documentstyle cs 本体 / 内核 compat-mode 横幅 /
+  # "in LaTeX 2.09" 错文 / "LaTeX Version 2.09" 上古版横幅。
+  - {
+      id: latex209,
+      scope: head,
+      pattern: "(?m)\\\\documentstyle\\b|LaTeX 2\\.09 COMPATIBILITY MODE|LaTeX2e command[^\\n]*\\bin LaTeX 2\\.09|LaTeX Version 2\\.09|^[ \\t]*Compatibility mode",
+    }
+  # 冒犯 cs 取上下文"顶行"末位 (TeX 约定: 顶行末 token 即肇事者;
+  # 宏展开时 l.N 行只是调用点——payload-scout-2026-09-17: 284/1146 存证
+  # excerpt 抓到 \end/\maketitle 等调用点 cs, pdftex_prim 欠路由 ~23 格)。
+  # head 内错误行重复两次 (first + ctx[0]), 必有后行; 顶行无 \cs 时本行
+  # 不命中, 由下行裸短语兜底 payload=None。尾部非可选——可选组会在行0
+  # 命中空串、永不锚到行1。旧"空 l.N 行"变体被顶行抓取完全吞并。
+  - id: undefined_cs
+    scope: head
+    pattern: "Undefined control sequence[^\\n]*\\n[^\\n]*\\\\([a-zA-Z@]+)[^\\\\\\n]*(?:\\n|$)"
+    payload_group: 1
+    subclassify:
+      { pattern: "\\\\(pdf[a-zA-Z@]+)", into: pdftex_prim, payload_group: 1 }
+  - { id: undefined_cs, scope: head, pattern: "Undefined control sequence" }
+  - { id: capacity, scope: head, pattern: "TeX capacity exceeded" }
+  # 2026-09-16 compile-hard 新增 (2211.13013, aux-cjk-truncation 留档):
+  # 引擎自产 aux 族中间件被 8192B 写缓冲劈断多字节字符 → 下遍回读
+  # "Invalid UTF-8 byte" + "! File ended while scanning use of \@newl@bel"。
+  # 须在 emergency 前评估——'!' 行后 ctx8 可能混入 Emergency stop 抢签;
+  # cs 名单覆盖 aux/toc/lof 回读宏族 (\@newl@bel/\@writefile/\contentsline)。
+  - {
+      id: aux_scan_eof,
+      scope: head,
+      payload_group: 1,
+      pattern: "File ended while scanning use of \\\\?@?(newl@?bel|writefile|contentsline)",
+    }
+  # 2026-09-17 fixer-filemap (1706.07911): comment.sty 排除扫描器逐行找
+  # 顶格 \end{<env>}, 源生 tab 缩进的终结行不认 → 扫到 EOF runaway。
+  # 通用形排在 aux_scan_eof 窄签之后 (aux 族保持专属路由), emergency
+  # 之前 ("File ended" 行的 ctx8 常混进 Emergency stop 抢签)。
+  - {
+      id: runaway_scan,
+      scope: head,
+      payload_group: 1,
+      pattern: "File ended while scanning use of (\\\\[A-Za-z@]+)",
+    }
+  - {
+      id: emergency,
+      scope: head,
+      pattern: "Emergency stop|cannot \\\\read|Fatal error|job aborted",
+    }
+  - {
+      id: env_mismatch,
+      scope: head,
+      pattern: "begin\\{[^}]*\\}.*ended by|Extra \\\\end",
+    }
+  # ── 2026-09-17 wave-final 残面 (批七) ──
+  # env_undefined ×47: revtex4-2 把 abstract 环境仅 frontmatter 期
+  # let-bound (cls:2685 \let\abstract\@undefined), legacy-rewrite
+  # 后稿面 \maketitle→abstract 老版式全炸此签。payload=环境名。
+  - {
+      id: env_undefined,
+      scope: head,
+      payload_group: 1,
+      pattern: "Environment ([A-Za-z@*]+) undefined",
+    }
+  # pkg_obsolete ×6: TL 自带废弃包 stub 自报错 ("Package `amstex' is
+  # obsolete" / 直引号形) —— payload=包名, cs_targeted_fix 表查
+  # strip_pkg+usepackage。
+  - {
+      id: pkg_obsolete,
+      scope: head,
+      payload_group: 1,
+      pattern: "Package [`']([\\w-]+)' is obsolete",
+    }
+  # ── 2026-09-16 signature-mining "other" 拆家 (§2.2) ── 精确字面签名须
+  # 先于 syntax 宽词族评估 (syntax 含 Missing/Illegal 等词会抢签)。
+  # file-line-error 形态 (无 '!' 前缀) 也走本段 —— _ERR_FILELINE_RE 已计。
+  - {
+      id: missing_graphic,
+      scope: head,
+      pattern: "Unable to load picture or PDF file '([^']+)'|image inclusion failed for \"([^\"]+\\.(?:pdf|png|jpe?g))\"",
+    }
+  - {
+      id: babel_opt,
+      scope: head,
+      payload_group: 1,
+      pattern: "Package babel Error: Unknown (?:option|language) [`']([^`']+)'",
+    }
+  - {
+      id: hyperref_driver,
+      scope: head,
+      payload_group: 1,
+      # 三形态合一: "Wrong DVI mode driver option `X'" (hyperref 老文案) /
+      # "Wrong driver option `X'" (hyperref 现行) / "Wrong hyperref driver `X'"
+      # (hypdvips 自检) —— 2211.13028/2308.12612 曾因此漏签落 early_eof。
+      pattern: "Wrong (?:hyperref driver|(?:DVI mode )?driver option) [`']([^`']+)'",
+    }
+  - {
+      id: float_opt,
+      scope: head,
+      payload_group: 1,
+      pattern: "Unknown float option [`']([^`']+)'",
+    }
+  - {
+      id: pkg_order,
+      scope: head,
+      payload_group: 1,
+      pattern: "Package (\\w+) Error: \\w+ must be loaded (?:before|after)",
+    }
+  # 2026-09-16 repro-2501 缺陷B: 色名参槽被译文/mock 污染 ({blue}→'这是译文')
+  # → (x)color Undefined color; payload=色名, 供 undefined_color_fallback 兜底。
+  - {
+      id: undefined_color,
+      scope: head,
+      payload_group: 1,
+      pattern: "Package (?:x)?color Error: Undefined color '([^']+)'",
+    }
+  # 2026-09-17 fixer-acro-v3: l3keys "key unknown" 行 (acro v3 弃键等)
+  # 此前无 head 签命中 → 落 tail early_eof 误判。payload=键名 (acro/X 形)。
+  - {
+      id: key_unknown,
+      scope: head,
+      payload_group: 1,
+      pattern: "The key '([\\w@./-]+)' is unknown and is being ignored",
+    }
+  # 2026-09-17 fixer-apjbbx: biblatex \patchcmd 失败走 PackageError
+  # (file-line-error 形, 可无 '!' 前缀) —— bundled .bbx 撞 3.8+ 改名宏。
+  - {
+      id: cannot_patch_macro,
+      scope: head,
+      payload_group: 1,
+      pattern: "Cannot patch (?:bibliography|citation) macro ([\\w@:+-]+)",
+    }
+  - {
+      id: invalid_char,
+      scope: head,
+      pattern: "Text line contains an invalid character",
+    }
+  - {
+      id: expl3_backend,
+      scope: head,
+      pattern: "Backend request inconsistent with engine",
+    }
+  # 2026-09-16 扩 syntax 族: Extra }/\\endgroup/\\right/\\middle/\\else/\\fi/\\or
+  # 与 Forgotten \\endgroup —— 组/定界/条件多 token 错误归 syntax
+  # (astro-ph/0306068 "Extra }, or forgotten $." 原是 other 兜底;
+  # Extra \\end 已由 env_mismatch 先行接住, 不重复列)。
+  - id: syntax
+    scope: head
+    pattern: "Missing|Runaway|Paragraph ended|Misplaced|Double subscript|Illegal|There's no line|Lonely|Bad math|Something's wrong|not in outer par|allowed only in math|improper|Extra \\}|Forgotten \\\\endgroup|Extra \\\\(?:endgroup|right|middle|else|fi|or)\\b"
+  - { id: other, scope: head, pattern: "^!" } # 兜底: 有 '!' 行必命中
+  # —— tail 段: 仅当全文 0 个 '!' 行时评估 (交互式缺文件/Emergency) ——
+  # preempts: 致命尾错夺弱 head 类的路由 (regress4-2410.00012: chemgreek
+  # 缺档是真杀手, 此前永远被上游包内 undefined_cs 抢路由)。early_eof
+  # 不挂——零页是后果不是可修因, 抢占会盖住可行动的 head 错。
+  - {
+      id: missing_file,
+      scope: tail,
+      payload_group: 1,
+      pattern: "File `([^']+\\.[a-zA-Z0-9]+)' not found",
+      guard: "Enter file name|Emergency",
+      preempts: [undefined_cs, pdftex_prim, other, emergency],
+    }
+  - {
+      id: missing_file,
+      scope: tail,
+      payload_group: null,
+      pattern: "Enter file name",
+      preempts: [undefined_cs, pdftex_prim, other, emergency],
+    }
+  # tail 行同款收紧 (aastex 横幅会落 tail 30 行内抢签) —— 与 head 行同表。
+  - {
+      id: latex209,
+      scope: tail,
+      pattern: "(?m)\\\\documentstyle\\b|LaTeX 2\\.09 COMPATIBILITY MODE|LaTeX2e command[^\\n]*\\bin LaTeX 2\\.09|LaTeX Version 2\\.09|^[ \\t]*Compatibility mode",
+    }
+  # —— cls/sty 「求档文」尾段: 类文件内部 \IfFileExists 失败→\stop 死路
+  #   (aastex61 "Please update your system to include revtex4-1.cls" 实证:
+  #   \stop 夹在条件内 → \end occurred incomplete, 无 '!' 无 missing_file
+  #   行) —— plea 提出的文件名即 actionable payload, 归 missing_file 让
+  #   install/shim 链接手; 须排在 early_eof 之前 (同尾共存时 plea 优先) ——
+  - {
+      id: missing_file,
+      scope: tail,
+      payload_group: 1,
+      pattern: "(?:include|download|install|get|need)\\s+(\\S+\\.(?:cls|sty|clo|tex|def|fd|map|cfg))",
+      guard: "No pages of output",
+      preempts: [undefined_cs, pdftex_prim, other, emergency],
+    }
+  # —— 干净日志零页面: TeX 早夭但无 '!' 行 (1706.00175 实证:
+  #   "(\end occurred when \ifx on line 27 was incomplete)" + "No pages of
+  #   output") —— guard 把「有页输出仅带 \end occurred 警告」挡在外面 ——
+  - {
+      id: early_eof,
+      scope: tail,
+      payload_group: 1,
+      pattern: "\\\\end occurred (?:when (\\\\?\\w+)[^\\n]*?incomplete|inside a group)",
+      guard: "No pages of output",
+    }
+  - {
+      id: early_eof,
+      scope: tail,
+      pattern: "No pages of output",
+      payload_group: null,
+    }
+  # —— warnings 段: 无 '!' 且无 tail 命中, 但 warning 红线命中 (v1.1) ——
+  - { id: warn_utf8, scope: warnings, warn_id: invalid_utf8 } # docs/08 §5.2 non_utf8_source 的类别入口
+  - { id: warn_missing_char, scope: warnings, warn_id: missing_char } # F4: 无 '!' 错但缺字 → 分诊修复入口
+  # 都不中: err 为空 → clean; err 非空 → other

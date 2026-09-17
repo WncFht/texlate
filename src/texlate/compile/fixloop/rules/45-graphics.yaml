@@ -1,0 +1,149 @@
+# rules/45-graphics.yaml — fixloop 规则库分片：图形 —— ps_image/missing_graphic 的 eps 链与图档修复
+#
+# 分片约定：本文件只是 rules: 列表的一段，按文件名序与其他分片经
+# _yamlish.load_yaml 目录合并装载；同 phase 调度按 order 字段升序（与文件
+# 拼接序无关）。schema/语义约定（phase/when/condition/engines/stats 字段、
+# provenance 义务、书写约束 flow 集合单行写完）见 rules/30-route.yaml 头注。
+# 新增规则：挑所属域文件追加条目即可；条目数不手维护 —— 统计用
+# `grep -c '^  - id: ' src/texlate/compile/fixloop/rules/*.yaml`。
+version: 1
+
+rules:
+  # 1404.5720 实证: \includegraphics{feedforward.eps} 缺件但同 stem .pdf 在盘
+  # (arXiv 源常图文不配套)。签名归 missing_file 非 missing_graphic —— 图链
+  # (17/18) 够不着; install(10)/shim(12) 对工程数据件必拒。本规则剥引用扩展名
+  # → graphicx \Gin@extensions 自选 (.pdf 先中)。sibling 缺席时 fileset 闸
+  # 不点火落后续; 真无图可解次轮以无 ext 名再报缺, ctx_suggests 闸防回环。
+  - id: graphic_ext_relax
+    mechanisms: [W21]
+    description: "missing_file 的 .eps/.ps 图引用剥扩展名 → graphicx 自选同 stem sibling"
+    phase: loop
+    order: 14 # legacy_pkg_shim(12)/babel_opt(13) 后, eps_to_pdf(15) 前
+    when: { category: missing_file, payload_required: true }
+    condition:
+      ctx_suggests: "\\.(eps|ps|epsi|epsf)' not found"
+      any:
+        - { fileset: { has_ext: [.pdf] } }
+        - { fileset: { has_ext: [.png] } }
+        - { fileset: { has_ext: [.jpg] } }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty]
+        rewrites:
+          # lookahead 锚定 payload (允许路径前缀, 须 \}-终止防词干误吃);
+          # \g<2> 保住 stem (含路径) 只剥扩展名
+          - {
+              pattern: "(\\\\includegraphics\\s*\\*?\\s*(?:\\[[^\\]]*\\])?\\s*\\{)(?=(?:[^{}/]*/)*{payload}\\})([^{}]*?)\\.(?:eps|ps|epsi|epsf)\\}",
+              repl: '\g<1>\g<2>}',
+            }
+    risk: low # 改写仅限 payload 精确引用; 无 sibling 时 fileset 闸拦住
+    engines:
+      xelatex: { mode: same }
+      tectonic: { mode: same }
+    source_ref: "wave-4 规则批; c6f1511 落地, lookahead 锚定防词干误吃"
+    provenance:
+      - {
+          corpus: "1404.5720 (realpostfix2 shim residuals, task#23)",
+          error: "5× File `X.eps' not found 且 X.pdf 同目录在盘",
+        }
+    stats: { fires: 0, status: proposed }
+
+  # 新增 (fixloop-v2 整改): log 确证的 PS 硬墙 → 先救后拒。
+  # 实证: tectonic 对 .eps 工程分两类 —— 能出 pdf~ 的 (eps 引用未真正进
+  # xdvipdfmx 路径) 与撞墙的 ("image inclusion failed for X.eps")。
+  # epstopdf/gs 全量转换 + 显式引用改写可救后者 (0903.0543/1406.1994 手测出 pdf)。
+  - id: eps_to_pdf
+    description: "xdvipdfmx 'image inclusion failed for X.eps' → 全量 eps→pdf 转换 + .tex/.sty 显式引用改写"
+    phase: loop
+    order: 15
+    when: { category: ps_image }
+    action:
+      kind: builtin_transform
+      function: eps_to_pdf
+      params: { exts: [.tex, .sty] }
+    risk: low # 只加 .pdf 产物 + 改已死路径的引用; 扩展名引用改写有等价物
+    engines:
+      tectonic: { mode: native }
+      xelatex: { mode: same } # xelatex 撞此墙罕见 (xdvipdfmx 内嵌 gs), 撞上同法可救
+    provenance:
+      - {
+          corpus: "fixloop-corpusv2 ps_image 9 格 (tectonic)",
+          error: 'image inclusion failed for "*.eps" (xdvipdfmx unrecoverable)',
+        }
+    stats: { fires: 11, rescued_cells: 11, status: validated } # fixloop-v2-rules-2026-09-15 实测
+    source_ref: "fixloop-v2 整改; texglot app/graphics.py 同思路"
+
+  # 兜底拒: 转换工具缺席或全数失败时才拒 —— 替代原 precheck fileset 版,
+  # 后者实证把 baseline pdf~ 格也 0 轮拒掉 (0812.4521/nucl-th/0104042 回归)。
+  - id: eps_route
+    mechanisms: [W87]
+    description: "log 确证 PS 硬墙且 eps_to_pdf 不可行 → 路由 xelatex"
+    phase: loop
+    order: 16
+    when: { category: ps_image }
+    action:
+      kind: reject_route
+      params:
+        {
+          route: "xelatex",
+          reason: "PS image hard wall (log-confirmed; epstopdf/gs 缺席或转换失败)",
+        }
+    engines:
+      tectonic: { mode: native }
+      xelatex: { mode: skip } # xelatex 侧救不动则 unfixable:ps_image 诚实上报
+    provenance:
+      - {
+          corpus: "fixloop-corpusv2 eps_route 11 拒格复盘",
+          error: "fileset 静态拒 → log 确证拒 (v2)",
+        }
+    stats: { fires: 0, status: validated } # 全语料 ps_image 均被 eps_to_pdf 救回, 兜底未点火
+    source_ref: "docs/08-translate-compile.md L218, L271; fixloop-v2 整改"
+
+  # ── 2026-09-16 signature-mining "other" 拆家: missing_graphic 两规则 ──
+  # 序: case_link (17) 先行 —— 盘上有大小写变体时改写引用即解; 无变体
+  # 返回未应用 → 落到 repair (18)。repair 内部分级: pdf 且未蒸馏 → gs
+  # 重蒸馏就地覆盖 (留 .fixloop-rd 备份兼已蒸馏标记); 非 pdf/无 gs/蒸馏
+  # 败/marker 在 → \includegraphics 改写 \fbox 占位框保编译。
+  - id: graphic_case_link
+    mechanisms: [W53]
+    description: "missing_graphic 盘上存大小写变体 → \\includegraphics 参数改写真名"
+    phase: loop
+    order: 17
+    when: { category: missing_graphic, payload_required: true }
+    action:
+      kind: builtin_transform
+      function: graphic_case_link
+      params: {}
+    risk: low # 只在 ci-glob 命中真实文件时改写引用; 无命中即不动
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "2403.15102/2211.04457 (cbv4 other 拆家)",
+          error: "Unable to load picture or PDF file 'img/sf_08_VX.pdf' (盘存 SF_08_VX.pdf)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "docs/research/product/2026-09-16-signature-mining.md §2.2"
+
+  - id: graphic_repair
+    description: "missing_graphic 在盘但拒载 → gs 重蒸馏就地覆盖, 败则 \\fbox 占位"
+    phase: loop
+    order: 18
+    when: { category: missing_graphic, payload_required: true }
+    action:
+      kind: builtin_transform
+      function: graphic_repair
+      params: {}
+    risk: medium # 重蒸馏覆盖原图 (留 .fixloop-rd 备份); stub 丢图保编译
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1502.06541/1012.5273 (cbv4 other 拆家)",
+          error: "figDY.pdf 合法但双引擎拒载 / zeromode.pdf 转换后仍拒载",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "docs/research/product/2026-09-16-signature-mining.md §2.2"

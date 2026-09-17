@@ -1,7 +1,7 @@
 """fixloop — yaml 规则驱动的 LaTeX 编译自动修复循环 (docs/08 §5)。
 
 bench/py/fixloop.py spike (16 规则, 22 格 16/16 救回) 的产品化移植:
-``rules.yaml`` 两层声明式规则库 (taxonomy + rules) + ``engine.fixloop``
+``rules/`` 目录多分片两层声明式规则库 (taxonomy + rules) + ``engine.fixloop``
 主循环 + ``ctan`` tectonic 降级原语 + ``cases`` 沉淀/回放机制。
 
 引擎边界: 只依赖 :class:`~.engine.Engine` Protocol, 不实现引擎本体。

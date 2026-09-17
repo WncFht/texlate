@@ -51,7 +51,10 @@ __all__ = [
     "load_ruleset",
 ]
 
-RULES_PATH = Path(__file__).with_name("rules.yaml")
+#: 规则库根: 2026-09-17 起为 ``rules/`` 目录（_yamlish.load_yaml 目录感知
+#: 合并多分片; 序敏感段 taxonomy/warnings 各自单文件承载）。``Ruleset.load``
+#: 传显式单文件路径仍兼容（部分规则集亦可单独校验装载）。
+RULES_PATH = Path(__file__).with_name("rules")
 _DOC_RE = re.compile(r"\\(documentclass|documentstyle)(?![a-zA-Z])")
 _REJECT_PREFIX = "REJECT:"
 
@@ -397,7 +400,7 @@ class Rule:
 
 
 class Ruleset:
-    """rules.yaml 装载结果: meta + taxonomy + rules + filemap/capabilities。"""
+    """``rules/`` 规则库装载结果: meta + taxonomy + rules + filemap/capabilities。"""
 
     def __init__(self, data: dict[str, Any], path: Path | None = None) -> None:
         """校验 data → 切 meta/taxonomy/rules 三段 + phase 索引。"""
@@ -467,7 +470,7 @@ class Ruleset:
 
     @classmethod
     def load(cls, path: Path | None = None) -> Ruleset:
-        """装载 rules.yaml (默认本包附带; PyYAML 在则走全量解析)。"""
+        """装载规则库 (默认本包附带 ``rules/`` 目录; 也接受单文件路径)。"""
         p = path or RULES_PATH
         return cls(_expand_family_tokens(load_yaml(p)), path=p)
 
@@ -1547,7 +1550,9 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
     cell["installed"] = ctx.installed
     # 「看见/拒修」物化: rules_fired (actions 列) 的互补面 —— when 命中
     # 但 cond/applied 败阵的规则 id 去重列 + 带因注记 (去重同条目)。
-    cell["rules_declined"] = list(dict.fromkeys(d.split(":", 1)[0] for d in ctx.declined))
+    cell["rules_declined"] = list(
+        dict.fromkeys(d.split(":", 1)[0] for d in ctx.declined)
+    )
     cell["decline_notes"] = ctx.declined
     cell["advisories"] = ctx.advisories
     cell["engine_flags"] = ctx.engine_flags

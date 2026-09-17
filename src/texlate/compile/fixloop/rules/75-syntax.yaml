@@ -1,0 +1,456 @@
+# rules/75-syntax.yaml — fixloop 规则库分片：语法与宏面改写 —— syntax/already_def/散件杂项 + 兜底 escalate
+#
+# 分片约定：本文件只是 rules: 列表的一段，按文件名序与其他分片经
+# _yamlish.load_yaml 目录合并装载；同 phase 调度按 order 字段升序（与文件
+# 拼接序无关）。schema/语义约定（phase/when/condition/engines/stats 字段、
+# provenance 义务、书写约束 flow 集合单行写完）见 rules/30-route.yaml 头注。
+# 新增规则：挑所属域文件追加条目即可；条目数不手维护 —— 统计用
+# `grep -c '^  - id: ' src/texlate/compile/fixloop/rules/*.yaml`。
+version: 1
+
+rules:
+  - id: hyphenation_sane
+    description: "\\hyphenation{} 参数混入非拉丁 token (中文) → 剥离, 只留 [a-zA-Z-]"
+    phase: loop
+    order: 90
+    when: { category: hyphenation }
+    condition: { ctx_suggests: "\\hyphenation" } # "Not a letter" 也可能来自别处, 有 ctx 复核更稳
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          - {
+              pattern: "\\\\hyphenation\\{([^}]*)\\}",
+              flags: [DOTALL],
+              function: keep_latin_tokens,
+            }
+          # keep_latin_tokens: re.findall(r"[a-zA-Z][a-zA-Z-]*") → " ".join
+    risk: low
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1512.03385/zh",
+          error: "Not a letter (\\hyphenation 混入 CJK token)",
+        }
+    stats: { fires: 1, rescued_cells: 1 }
+    source_ref: "fixloop.py L409-426"
+
+  - id: soul_cjk_mbox
+    description: "soul 族 (\\hl\\ul\\st\\so\\caps) 参数含 CJK → \\mbox 包裹防逐字重构"
+    phase: loop
+    order: 100
+    when: { category: soul_err }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          - {
+              pattern: "\\\\(hl|ul|st|so|caps)\\{((?:[^{}]|\\{[^{}]*\\})*[\\u4e00-\\u9fff\\u3000-\\u303f\\uff00-\\uffef](?:[^{}]|\\{[^{}]*\\})*)\\}",
+              repl: '\\\g<1>{\\mbox{\g<2>}}',
+            }
+    risk: low
+    known_gap: "2005.11401/zh 触发 soul_err 但 regex 0 文件命中 → skip → dirty_pdf; 实际 soul 错因不在此 pattern 覆盖范围, 沉淀队列头号 case"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - { corpus: "2005.11401/zh", error: "Package soul Error (6 errs 残留)" }
+    stats: { fires: 0, note: "唯一触发格 0 命中 → 已知覆盖缺口" }
+    source_ref: "fixloop.py L429-445"
+
+  - id: thm_sibling_strip
+    description: "thmtools sibling= 定理计数器冲突 (already defined) → 剥 sibling 选项, 各定理独立编号"
+    phase: loop
+    order: 110
+    when: { category: already_def }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty]
+        rewrites:
+          - { pattern: "sibling\\s*=\\s*\\w+\\s*,?\\s*", repl: "" }
+    risk: medium # 改变定理编号
+    known_gap: "sibling= 0 命中时泛化 newtheorem 去重未实现 → applied=False (L453-455)"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "—",
+          error: "Command \\c@thm already defined (thmtools sibling)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "fixloop.py L448-456"
+
+  # 2026-09-16 wave-2: already_def 泛化 (1003.0344/cond-mat-0501638) ——
+  # 稿自带 \newcommand{\Ref}[1]{(\ref{#1})} 撞包先定义 (varioref 系),
+  # thm_sibling_strip 只剥 sibling= 够不到。作者意图是自家定义胜出 →
+  # \newcommand→\renewcommand 字面换词 ([n]{body} 槽位原样保留)。
+  - id: already_def_newcmd_renew
+    mechanisms: [W45, W49]
+    description: "\\newcommand{\\X} 撞包先定义 → 换 \\renewcommand (作者书写面胜出)"
+    phase: loop
+    order: 111
+    when: { category: already_def, payload_required: true }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          - {
+              pattern: "\\\\newcommand(\\s*\\*?\\s*)\\{?\\s*\\\\{payload}(?![a-zA-Z@])\\s*\\}?",
+              repl: '\\renewcommand\g<1>{\\{payload}}',
+            }
+    risk: low # renew 保留作者定义; 对自重复定义场景同样收敛
+    known_gap: "newenvironment/DeclareRobustCommand/\\def 形撞名未覆盖 → applied=False; 稿内双 \\newcommand{同X} 时首个也被换成 renew (renew 未定义 cs 会新炸, 罕见)"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "loop2-delta already_def×2 (1003.0344, cond-mat/0501638)",
+          error: "Command \\Ref already defined",
+        }
+    stats: { fires: 0 }
+    source_ref: "wave-2: already_def 类目首个泛化消费规则"
+
+  # ── 2026-09-17 partial-taxonomy 包间撞名中性化 ──
+  # 新签 "LaTeX cmd Error: Command '\X' already defined" (ltcmd 层
+  # \NewDocumentCommand 严格化) 与 ntheorem "Theorem style X already defined"
+  # 都不被 renew 规则覆盖: 重定义方在包内 (非作者书写面)。清位语义 = 让
+  # 后加载包赢——\let\<cs>\@undefined 同时骗过两代检查 (\ifcsname 假阴性
+  # 走 undefined 分支, \ifdefined 见 undefined 义; \relax 形只够前者)。
+  - id: ntheorem_style_undefine
+    mechanisms: [W49]
+    description: "amsthm 预定义 th@<style> 撞 ntheorem 自检 → \\usepackage{ntheorem} 前清 th@X 位"
+    phase: loop
+    order: 112 # renew(111) 之后: doc 侧 \newcommand 撞名仍先走 renew
+    when: { category: already_def, payload_required: true }
+    condition: { ctx_suggests: "Theorem style" }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          - {
+              pattern: "\\\\(?:usepackage|RequirePackage)(\\s*\\[[^\\]]*\\])?\\s*\\{ntheorem\\}",
+              repl: '\\makeatletter\\let\\th@{payload}\\@undefined\\makeatother\n\g<0>',
+            }
+    risk: medium # amsthm 的 th@X 样式被 ntheorem 定义覆盖 —— 作者装 ntheorem 即意图
+    known_gap: "多包连环定义 th@X 时逐轮收敛; ntheorem 经 \\input 间接装载未锚"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1306.0281 (partial-taxonomy)",
+          error: "ntheorem.sty:524 Theorem style plain already defined (shim acmart→amsthm 预定义)",
+        }
+      - {
+          corpus: "1306.0281 复跑 (fixer-alreadydef-2026-09-17)",
+          error: "修复前 repl 吞 usepackage 行 → undefined_cs:g 103 错; 修复后 already_def 清除, 残 undefined_cs:numberofauthors",
+        }
+    stats: { fires: 2, status: verified }
+    source_ref: "partial-taxonomy-2026-09-17 散件; ntheorem.sty L515-522 自检; fixer-alreadydef 复跑订正 \\g<0>"
+
+  - id: already_def_undefine
+    mechanisms: [W49]
+    description: "包内 \\NewDocumentCommand 撞先定义 → docclass 后 \\let\\<cs>\\@undefined 清位 (寄存器/盒型分配名护栏, 后加载者赢)"
+    phase: loop
+    order: 113 # ntheorem_style_undefine(112) 之后 —— 只接 Command 形签名
+    when: { category: already_def, payload_required: true }
+    condition: { ctx_suggests: "Command" }
+    action:
+      kind: builtin_transform # regex→builtin 升级: 规则层做不了寄存器护栏
+      function: undefine_for_redef # \newbox/\newcount/\newif 族分配名 abstain
+    risk: medium # 清掉包/类侧先定义让后载包重定义 —— doc 侧 \newcommand 撞名已由 renew 先行
+    known_gap: "寄存器/盒型分配名 (\\newbox\\splitbox 族 + \\newif 伴生 \\Xtrue) 弃权交 LLM; usepackage 链内后定义者 (A 先 B 后, 非 docclass 位) 清位时机过早无效"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1706.07911 (partial-taxonomy)",
+          error: "fontspec-xetex.sty:672 Command '\\liningnums' already defined (bundled acmart v1.39→libertine 先定义, inject ctex→fontspec 后撞)",
+        }
+      - {
+          corpus: "1706.07911 复跑 (fixer-alreadydef-2026-09-17)",
+          error: "修复前 repl 吞 documentclass 行 → 508 错 best_effort_pdf; 修复后 liningnums 清除, 残 missing_file:binhex.tex",
+        }
+      - {
+          corpus: "2211.04482 (fixer-bblwall-2026-09-17 A5)",
+          error: "aastex62.cls \\newbox\\splitbox 被 undefine → adjustbox 占名 → 类内 \\setbox\\splitbox Missing number",
+        }
+    stats: { fires: 1, status: verified }
+    source_ref: "partial-taxonomy-2026-09-17 散件; \\let\\X\\@undefined 两代检查通吃; fixer-bblwall A5 升级 builtin (eol+1 缝 + 寄存器护栏)"
+
+  # 2026-09-17 fixer-filemap (1706.07911): comment.sty 排除扫描器逐行找
+  # 顶格 `\end{<env>}`; 源生 tab/空格缩进的 \end 行不匹配 → 扫到 EOF
+  # runaway。detab 全部 \end{ 行首: verbatim/minted 体内字面 \end 行
+  # 会被去缩进 (显示位移, 可接受) —— 不修则整篇无 PDF。
+  - id: detab_end_scanlines
+    mechanisms: [W07]
+    description: "缩进 \\end{env} 行去前导空白 —— comment.sty 排除扫描器要求顶格终结行"
+    phase: loop
+    order: 164 # biblatex_bbx_rename(161) 与 cs_targeted_fix(165) 之间
+    when: { category: runaway_scan }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - { pattern: "(?m)^[ \\t]+(\\\\end\\{)", repl: "\\g<1>" }
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1706.07911 (stagerun-loop1; fixer-filemap-2026-09-17)",
+          error: "File ended while scanning use of \\next (comment.sty CCSXML 排除 env, 源生 tab 缩进 \\end{CCSXML})",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "fixer-filemap-2026-09-17 minimal-repro (顶格过/tab 挂)"
+
+  # repro-2501 缺陷B 规则侧兜底: 色名参被段切漏保 (TRANSPARENT_NAMES 遮蔽
+  # argspec → {blue} 翻成中文) → xcolor Undefined color。真修在 segmenter/
+  # tables; 此规则把未知色名注册成黑保住编译链, 逐色名 dedup 各注一行。
+  - id: undefined_color_fallback
+    description: "(x)color Undefined color 'X' → 主文件 docclass 后注 \\definecolor{X}{rgb}{0,0,0} 兜底黑"
+    phase: loop
+    order: 166 # cs_targeted_fix(165) 之后, undefined_cs_guess(900) 之前
+    when: { category: undefined_color, payload_required: true }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "\\\\documentclass(\\[[^\\]\\n]*\\])?\\{[^}\\n]+\\}",
+              repl: '\g<0>\n\\definecolor{payload}{rgb}{0,0,0} % fixloop: undefined-color fallback',
+            }
+    risk: low # 注册色名不改版式; 色名参槽由错误先决条件保证 (x)color 已载
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "2501.14787 (repro-2501-2026-09-16)",
+          error: "Package xcolor Error: Undefined color '这是译文' ×4",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "repro-2501-2026-09-16/README.md 缺陷B; 1e cross-session handoff"
+
+  # ── 2026-09-17 partial-taxonomy 散件: acro v2→v3 键改名 ──
+  # bundled/旧稿 \acsetup{X-format=...} 在 acro v3.8 下键已废 (旧键兼容表
+  # 存在于源但实测不注册, "acro/short-format unknown" 实证); v3 原名
+  # format/X。定点只改 \acsetup{...} 花括号内, 不动他处 -format 字样。
+  - id: acro_v3_key_rename
+    description: "acro v2 旧键 (short|long|extra|foreign|first-long)-format → v3 format/X"
+    phase: loop
+    order: 167 # undefined_color_fallback(166) 之后, revtex4_array_swap_guard(170) 之前
+    when:
+      any:
+        - { category: key_unknown } # 1706.00240: l3keys 错行原无 head 签 → 落 early_eof 误判
+        - { category: early_eof } # belt: acro 错非首错时仍落 tail 早终签, ctx_suggests 照判
+        - { category: other }
+        - { category: emergency }
+    condition: { ctx_suggests: "key 'acro/[\\w-]+' is unknown" }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty]
+        rewrites:
+          - {
+              pattern: "(\\\\acsetup\\s*\\{[^{}]*?)(first-long|short|long|extra|foreign)-format",
+              repl: '\g<1>format/\g<2>',
+            }
+    risk: low # 仅 \acsetup{} 槽内键名改写; v3 等价键语义同
+    known_gap: "list-short-format/list-long-format/single-form 等被移除键未映射; 多组 \\acsetup 内嵌套 {} 超 [^{}] 窗"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1706.00240 (partial-taxonomy)",
+          error: "draft.sty:141 The key 'acro/short-format' is unknown (v3.8; format/short 冒烟实证可编)",
+        }
+      - {
+          corpus: "1706.00240 复跑 (fixer-acro-v3-2026-09-17)",
+          error: "规则原 when=other|emergency 永不可达 (错落 early_eof); key_unknown 签+when 扩类后点火, \\acsetup{short-format=}→{format/short=} 逐字节核对",
+        }
+    stats: { fires: 1, status: verified }
+    source_ref: "acro v3.8 acro.sty deprecated-key 表 (L5988+); format/short 实编通过; fixer-acro-v3 路由修复"
+
+  # 2026-09-17 wave-final 批七: legacy-rewrite 副产品 ×47 —— \documentstyle
+  # {revtex}→revtex4-2 后, revtex4-2.cls:2685 把 abstract 环境仅 frontmatter
+  # 期 let-bound (frontmatter@abstract, cls:3143 区域), \maketitle 后
+  # \let\abstract\@undefined → 稿面老版式 maketitle→abstract 炸
+  # Environment abstract undefined。preamble polyfill 无效 (cls 在
+  # \maketitle 主动 undefine, polyfill 先被清)。修形=源级重排:
+  # \begin{abstract}…\end{abstract} 连同与 \maketitle 间的间隔段
+  # (\pacs/\keywords 等 frontmatter 散件) 整体前移至 \maketitle 前
+  # —— revtex 系 canonical frontmatter 序。47/47 格核验均为
+  # maketitle-then-abstract。ctx_suggests 限定仅 abstract payload 点火,
+  # 其他 env_undefined (如 document/frontmatter) 不误排。
+  - id: abstract_frontmatter_hoist
+    description: "revtex4 系 abstract 环境仅 frontmatter 期存活 → abstract 块+间隔段前移 \\maketitle 前"
+    phase: loop
+    order: 168 # acro_v3_key_rename(167) 与 revtex4_array_swap_guard(170) 之间
+    when: { category: env_undefined }
+    condition: { ctx_suggests: "Environment abstract" }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "(?s)\\\\maketitle(.*?)\\\\begin\\{abstract\\}(.*?)\\\\end\\{abstract\\}",
+              repl: '\\begin{abstract}\g<2>\\end{abstract}\g<1>\\maketitle',
+            }
+    risk: medium # 摘要块物理前移改文档结构; gap 段 (\pacs 等) 随块落 frontmatter 区, revtex 系正解
+    known_gap: "abstract 体含 \\end{abstract} 字面嵌套/未配对括号时短匹截断; 稿面已是 abstract→maketitle 序时模式不中 → applied=False 无害"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "wave-final-2026-09-17 env_undefined ×47 (revtex4_legacy_class_rewrite 副面)",
+          error: "LaTeX Error: Environment abstract undefined (revtex4-2.cls:2685 \\let\\abstract\\@undefined post-frontmatter)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "revtex4-2.cls:2685/3143 frontmatter@abstract let-bound; 47/47 格 maketitle-then-abstract 序逐格核验"
+
+  # repro-1306 (1e 移交, e2e 实证 0 err 7页): revtex4-1 4.1s 的
+  # \document@inithook→\switch@array 对 array v2.6n 校验失败仍无条件 \let
+  # 换旧协议 \@mkpream/\insert@column → \xdef\@preamble 展开失衡 →
+  # Extra \or ×30 → Incomplete \iffalse → Emergency。守卫=\begin{document}
+  # 前存真值 + AtBeginDocument 恢复 (排在 revtex inithook 后)。
+  # 坑: 只恢复 \@mkpream 会 HANG——mkpream+insert@column 必须成对。
+  - id: revtex4_array_swap_guard
+    description: "revtex4-1 'Unrecognized array package' 指纹 (校验失败仍换旧协议 \\\\@mkpream/\\\\insert@column) → \\\\begin{document} 前注守卫: 存真值 + AtBeginDocument 恢复"
+    phase: loop
+    order: 170 # undefined_color_fallback(166) 之后, undefined_cs_guess(900) 之前
+    when: { category: syntax }
+    condition:
+      source_contains: "\\\\documentclass\\s*(\\[[^\\]]*\\])?\\s*\\{revtex4"
+      ctx_suggests: "Extra \\\\or"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "\\\\begin\\s*\\{document\\}",
+              repl: '\\makeatletter\n\\let\\TEXLATE@sv@mkpream\\@mkpream\n\\let\\TEXLATE@sv@insertcol\\insert@column\n\\AtBeginDocument{%\n\\let\\@mkpream\\TEXLATE@sv@mkpream\n\\let\\insert@column\\TEXLATE@sv@insertcol}%\n\\makeatother\n\g<0>',
+            }
+    risk: low # 守卫幂等 no-op: array 未载/校验已通过时, 存回的就是当前值
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # bundle 内核旧 → 校验或已通过; 守卫仍为 no-op
+    provenance:
+      - {
+          corpus: "1306.0067 (modec-expand-2026-09-16, expand layer)",
+          error: "Extra \\or. l.150 \\begin{tabular}{>{\\centering\\arraybackslash}m{1.25in}...} — revtex4-1+dcolumn(array v2.6n) 签名失配",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "bench/results/repro-1306-2026-09-16/ (probe-* 全矩阵 + e2e 7页实证); draft revtex4-array-guard.yaml (1e, d2d82e8)"
+
+  # 上古 REVTeX 4 系 (v4.0rc ~/texmf 阴影件 / revtex4b* TL 缺席) vs 现代内核:
+  # \@uclcnotmath 路径上 \NoCaseChange{##} 塌缩成裸 # → \protected@edef
+  # \reserved@a 撞 Illegal parameter number (traced, zh/en 同炸 —— 类文件
+  # 本体过时非译文问题); revtex4b4 直接 missing_file。revtex4-2 是现行
+  # TL 兼容实现, docclass 改写 6 格实测全出 pdf (slac_one/slac_two .rtx
+  # 期刊子式在 4-2 下仅 unknown-option warning)。
+  - id: revtex4_legacy_class_rewrite
+    description: "\\documentclass{revtex4{,b*}} (v4.0rc 上古系) → revtex4-2"
+    phase: loop
+    order: 182 # hyperref_driver_neutralize(181) 之后, undefined_cs_guess(900) 之前
+    when:
+      any:
+        - { category: syntax }
+        - { category: missing_file }
+        - { category: capacity }
+    condition:
+      # 花括号精确形 {revtex4}/{revtex4b4}: revtex4-1/revtex4-2 不误中;
+      # 括号组 [^\]] 允许 docclass 选项跨行 (babel 组先例)。
+      source_contains: "\\\\documentclass(?:\\s*\\[[^\\]]*\\])?\\s*\\{revtex4(?:b\\d*)?\\}"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex] # suffix 匹配 lowercase, .TEX 同收 (physics/0104031)
+        rewrites:
+          # 只改 docclass 花括号: \ProvidesClass{revtex4} (bundled cls 内)
+          # 与正文散见 {revtex4} 字串不动。
+          - {
+              pattern: "(\\\\documentclass\\s*(?:\\[[^\\]]*\\]\\s*)?\\{)revtex4(?:b\\d*)?\\}",
+              repl: "\\g<1>revtex4-2}",
+            }
+    risk: low # revtex4-2 向后兼容 4.0 文档面; 上古 cls 在现代内核已无救
+    known_gap: "revtex4 专属旧 cs (\\preprint/旧 \\iftwocolumn 面) 若用则前进 undefined_cs → cs_targeted_fix; endfloats 等旧选项 4-2 有同名面"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # 内核不兼容与引擎无关
+    provenance:
+      - {
+          corpus: "loop1 unfixable cluster (1109.2144/1109.2205/1109.5313/1012.1830/hep-ph--0605134 均 slac_one|slac_two+revtex4; physics/0104031 revtex4b4)",
+          error: "Illegal parameter number in definition of \\reserved@a / File `revtex4b4.cls' not found / TeX capacity exceeded",
+        }
+    stats: { fires: 0 }
+    source_ref: "manual bisect 1109.2205: revtex4+ctex+title+maketitle+section 充要, 纯 en 同炸 → 类文件/内核不兼容; revtex4-2 替换 6/6 出 pdf"
+
+  # 2026-09-16 wave-3: early_eof 交互档 (hep-ph/0111248 bundled
+  # aipcheck.tex) —— 稿自带 "press <return> to continue" \typein 终端读,
+  # nonstop 模式必死。忠实 stub 而非注释: \typein{msg} → \typeout{msg}
+  # (横幅照常打印, 跳过等待); 两参形 \typein[\cs]{msg} 是"读入存 cs",
+  # 空输入即作者默许的默认 → \typeout{msg}\def\cs{}。
+  - id: typein_neutralize
+    mechanisms: [W78]
+    description: "\\typein 交互读 → \\typeout 打印 (两参形补 \\def\\cs{} 默认空)"
+    phase: loop
+    order: 180
+    when: { category: early_eof, payload_required: false }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          - {
+              pattern: "\\\\typein\\s*\\[\\s*(\\\\[a-zA-Z@]+)\\s*\\]\\s*(\\{[^{}]*\\})",
+              repl: '\\typeout\g<2>\\def\g<1>{}',
+            }
+          - { pattern: "\\\\typein(\\s*\\{)", repl: '\\typeout\g<1>' }
+    risk: low # nonstop 下交互本就不可能; msg 保留在 transcript
+    known_gap: "msg 内嵌套 {} 时两参形不命中 ({[^{}]*} 边界) → 落单参形也不中 (后跟 [) → applied=False; 裸 \\read-1 原语未覆盖"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "loop2-delta early_eof (hep-ph/0111248)",
+          error: "aipcheck.tex \\typein{* Type <return> to continue ...} → \\end occurred, 0 pages",
+        }
+    stats: { fires: 0 }
+    source_ref: "wave-3: early_eof 类目首个消费规则 (交互面)"
+
+  # ─── 兜底: 恒最后 ───
+  - id: undefined_cs_guess
+    description: "未定义控制序列 → cs→pkg 知识库长射 + LLM 兜底分析 (占位)"
+    phase: loop
+    order: 900 # 所有具体规则放弃后才轮到
+    when: { category: undefined_cs }
+    action:
+      kind: escalate_llm
+      params:
+        hint: "cs 名→sty 长射未实现; 交 LLM 判: 缺宏定义/缺包/拼写错误"
+        context: [first_bang, ctx8, file_stack, line_no]
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - { corpus: "—", error: "Undefined control sequence (非 pdf 原语类)" }
+    stats: { fires: 0, status: stub } # spike L523-527 恒返回 False
+    source_ref: "fixloop.py L523-527"

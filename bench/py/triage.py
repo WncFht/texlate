@@ -18,7 +18,7 @@ triage.py — stagerun records → tickets.jsonl 聚类 + metrics.jsonl 趋势 +
 
 旧 harness 目录 (无 records/) 自动降级: 从 results.json verdict + cases.jsonl
 推 pseudo-records, records 子命令产出 tickets-legacy.jsonl (不污染新管线命名)。
-纯 stdlib + 可选 pyyaml (读 rules.yaml shim_map); 系统 python3 可跑。
+纯 stdlib + 可选 pyyaml (读 rules/ 分片 shim_map); 系统 python3 可跑。
 """
 
 import argparse
@@ -35,7 +35,7 @@ import benchlib
 
 BENCH = Path(__file__).resolve().parents[1]
 REPO = BENCH.parent
-RULES_YAML = REPO / "src/texlate/compile/fixloop/rules.yaml"
+RULES_DIR = REPO / "src/texlate/compile/fixloop/rules"
 
 # 记录状态词汇 (单源 benchlib): ok 系不出票; skip 系(上游断/policy 拒)
 # 不计入 attempted——含 e2e_real 旧账遗留词 skipped_oversize/bench_error。
@@ -209,22 +209,22 @@ def parse_sig(sig):
 
 
 def retired_names():
-    """rules.yaml legacy_pkg_shim.shim_map 键 ∪ 常识集; yaml 不可用时退回常识集。"""
+    """rules/ 分片 legacy_pkg_shim.shim_map 键 ∪ 常识集; yaml 不可用时退回常识集。"""
     names = set(KNOWN_RETIRED)
     try:
         import yaml
 
-        doc = yaml.safe_load(RULES_YAML.read_text()) or {}
-        for rule in doc.get("rules") or []:
+        rules: list[dict] = []
+        for part in sorted(RULES_DIR.glob("*.yaml")):
+            rules.extend((yaml.safe_load(part.read_text()) or {}).get("rules") or [])
+        for rule in rules:
             if rule.get("id") == "legacy_pkg_shim":
                 names |= set(
                     ((rule.get("action") or {}).get("params") or {}).get("shim_map")
                     or {}
                 )
     except Exception as e:  # shim 表只是归类提示, 读不到不致命
-        print(
-            f"  warn: rules.yaml shim_map 读取失败 ({e}); 用内置退役表", file=sys.stderr
-        )
+        print(f"  warn: rules/ shim_map 读取失败 ({e}); 用内置退役表", file=sys.stderr)
     return names
 
 
@@ -244,9 +244,10 @@ def classify(sig, rep):
     # unfixable 零触发分流：fixloop 全程无规则动作 = 规则库覆盖缺口
     # （与触发但修不动的规则力不足分桶——wontfix 裁定面据此自动拆出）。
     # n_actions 缺席（旧记录）视为不可判，走既有 cat 分支。
-    if sig.startswith("unfixable:") and (rep.get("metrics") or {}).get(
-        "n_actions"
-    ) == 0:
+    if (
+        sig.startswith("unfixable:")
+        and (rep.get("metrics") or {}).get("n_actions") == 0
+    ):
         return (
             "ruleset_gap",
             "n_actions=0——fixloop 全程零规则触发 = 覆盖缺口, wontfix 候选",
