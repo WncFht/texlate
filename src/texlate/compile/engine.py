@@ -182,7 +182,13 @@ _L_NUM_RE = re.compile(r"^l\.(\d+)")
 _UTF8_WARN_RE = re.compile(r"Invalid UTF-8 byte")
 WARNING_RED_LINES: list[tuple[str, str]] = [
     ("invalid_utf8", _UTF8_WARN_RE.pattern),
-    ("fffd_glyph", r'Missing character:[^\n]*\((?:"|U\+)FFFD\)'),
+    # fffd_glyph 同 missing_chars 的 nullfont 豁免（1e logpipe-fuzz 实证
+    # 层内自相矛盾：notes 已豁，红线层仍 flag）——tempered lookahead
+    # 限界窗与上一条同口径。
+    (
+        "fffd_glyph",
+        r'Missing character(?!(?:(?!Missing character)[\s\S]){0,90}?in font nullfont):[^\n]*\((?:"|U\+)FFFD\)',
+    ),
     # tempered lookahead 排除 `in font nullfont`（试排/测量盒吞字良性，
     # nullfont-scout-2026-09-17 ~30/37 格纯噪音）——与 judge.py
     # _MISSCHAR_GATE_RX / rules.yaml missing_char 同口径：限界窗允许
