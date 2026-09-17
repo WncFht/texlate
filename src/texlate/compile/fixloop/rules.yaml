@@ -511,6 +511,7 @@ rules:
   # spike 语义: 主循环 L748-755 在 pick_and_apply 之前短路,
   # 等效于最高优先级 → 用 phase:gate 显式建模。
   - id: latex209_reject
+    mechanisms: [B01, W80, W88]
     description: "LaTeX 2.09 文档 (\\documentstyle/化石 cls) → 路由拒绝, 转 latex+dvips 通道"
     phase: gate
     order: 1
@@ -539,6 +540,7 @@ rules:
 
   # 新增 (docs/08:273): pstricks 文档走 dvips 路由前的 .pro 前置检查
   - id: pstricks_dvips_preflight
+    mechanisms: [B05]
     description: "pstricks 文档被路由 latex+dvips 前, 预检 pst-tools.pro 等 dvips 资源存在"
     phase: gate
     order: 0 # 先于 latex209_reject(1): pstricks 时先记 .pro 预检信息再路由
@@ -573,6 +575,7 @@ rules:
   # 出 pdf)。.eps 文件 → 循环内 log 确证的 ps_image 规则处理 (见 loop);
   # 此处只留代码级 PS 依赖 (pstricks/pspicture) 的预检路由 —— 无转换路径。
   - id: pstricks_route
+    mechanisms: [B05]
     description: "pstricks/pspicture/\\psset 源码依赖 → tectonic 无可行路径, 预检路由 xelatex"
     phase: precheck
     order: -10 # 路由决策先于装包预检
@@ -607,6 +610,7 @@ rules:
     source_ref: "docs/08-translate-compile.md L218, L271; fixloop-v2 整改"
 
   - id: static_precheck
+    mechanisms: [W11, W47, W61]
     description: "静态扫全部源码的 \\usepackage|\\RequirePackage|\\documentclass → 探测缺失 → filemap 批量装包 (一次装好, 省 N 轮循环)"
     phase: precheck
     order: 0
@@ -648,6 +652,7 @@ rules:
 
   # ─── loop: install 系 —— 环境缺失优先于源码改写 ───
   - id: install_file
+    mechanisms: [W19, W47, W52, W98, W51, W21]
     description: "缺文件 (.sty/.cls/.fd/.def/…) → filemap 查包 → 安装 → 探测复核"
     phase: loop
     order: 10
@@ -715,6 +720,7 @@ rules:
   # condition 原语。同名 payload 相对路径落位 (a/b.sty → wdir/a/b.sty),
   # ../绝对/NUL 闸在 builtin 内。
   - id: vendored_fetch
+    mechanisms: [B05, W80]
     description: "off-CTAN 缺件 → 包内 vendor/{files,stubs} basename 平移 wdir"
     phase: loop
     order: 11.5 # install_file(10) 后: CTAN 真包优先; legacy_pkg_shim(12) 前: vendor 件优先于内建 shim
@@ -789,6 +795,7 @@ rules:
   # psfig→epsfig 桥可用因 epsfig 的 Gin key 同收 figure=/file= (graphics pkg,
   # TL 内装得上)。真 2.09 文档到不了这里 —— gate 先拒, 语义分层干净。
   - id: legacy_pkg_shim
+    mechanisms: [B05, W80]
     description: "退役/改名包 (aastex/revtex.cls/psfig.sty 老名) → wdir 注入同名 stub + 装依赖"
     phase: loop
     order: 12 # install_file(10) 之后: 真包装得上先用真包, 查无才 shim
@@ -2496,6 +2503,7 @@ rules:
     source_ref: "fixloop-v2 整改; tlpdb filemap 实证 + 本机编译验证; aastex.cls 面扩 fixer-aastex-stub (0104174/0408531/0707.1778 复跑 0 stub 错)"
 
   - id: install_tfm
+    mechanisms: [W95]
     description: "Font X not loadable (TFM 缺) → 装 {X}.tfm 所在包 + 重建 map"
     phase: loop
     order: 20
@@ -2525,6 +2533,7 @@ rules:
   # → graphicx \Gin@extensions 自选 (.pdf 先中)。sibling 缺席时 fileset 闸
   # 不点火落后续; 真无图可解次轮以无 ext 名再报缺, ctx_suggests 闸防回环。
   - id: graphic_ext_relax
+    mechanisms: [W21]
     description: "missing_file 的 .eps/.ps 图引用剥扩展名 → graphicx 自选同 stem sibling"
     phase: loop
     order: 14 # legacy_pkg_shim(12)/babel_opt(13) 后, eps_to_pdf(15) 前
@@ -2586,6 +2595,7 @@ rules:
   # 兜底拒: 转换工具缺席或全数失败时才拒 —— 替代原 precheck fileset 版,
   # 后者实证把 baseline pdf~ 格也 0 轮拒掉 (0812.4521/nucl-th/0104042 回归)。
   - id: eps_route
+    mechanisms: [W87]
     description: "log 确证 PS 硬墙且 eps_to_pdf 不可行 → 路由 xelatex"
     phase: loop
     order: 16
@@ -2614,6 +2624,7 @@ rules:
   # 重蒸馏就地覆盖 (留 .fixloop-rd 备份兼已蒸馏标记); 非 pdf/无 gs/蒸馏
   # 败/marker 在 → \includegraphics 改写 \fbox 占位框保编译。
   - id: graphic_case_link
+    mechanisms: [W53]
     description: "missing_graphic 盘上存大小写变体 → \\includegraphics 参数改写真名"
     phase: loop
     order: 17
@@ -2784,6 +2795,7 @@ rules:
   # 新增 (docs/08:275): tectonic 下 missing_pfb 的改写出路 ——
   # 物理字体投放已实证死路 (ctanfetch-probe §3.5), 换 Type1 近亲 shim
   - id: font_sub_shim
+    mechanisms: [W103]
     description: "MF-only 字体包 (bbm 等) → Type1 近亲 (dsfont/dsrom) shim 改写"
     phase: loop
     order: 45 # missing_pfb 在 tectonic 的顺位 (updmap unsupported → 落此)
@@ -2822,6 +2834,7 @@ rules:
   # 先于 guard(50)/polyfill(51) 截走 payload——守卫/polyfill 治不了
   # "文件存在但原语缺" 的形态, 空 stub 让 \input 路径整个短路。
   - id: glyphtounicode_shadow
+    mechanisms: [W104]
     description: "cls \\IfFileExists 守卫触发真 glyphtounicode.tex (pdfTeX 原语件) → wdir 注空 stub 遮蔽"
     phase: loop
     order: 46 # pdftex_prim_guard(50)/polyfill(51) 之前 —— payload 同格先截
@@ -3017,6 +3030,7 @@ rules:
   # 整包拒载 → 剥装载点 + \inputencoding 调用。源真为非 UTF-8 时下一轮
   # 由 non_utf8_source(95) 接续转码 —— 两轮分工, 本轮只动声明。
   - id: inputenc_strip
+    mechanisms: [B02, W10, W13]
     description: "inputenc 拒绝 xetex/luatex → 剥 \\usepackage{inputenc} 装载点与 \\inputencoding 调用"
     phase: loop
     order: 94
@@ -3042,6 +3056,7 @@ rules:
 
   # 新增 (docs/08:272): xelatex 对非 UTF-8 源静默出 U+FFFD —— warning 驱动轮
   - id: non_utf8_source
+    mechanisms: [B02, W72, W13]
     description: "xelatex 静默 U+FFFD (latin-5 等非 UTF-8 源) → 就地转码 UTF-8"
     phase: loop
     order: 95
@@ -3091,6 +3106,7 @@ rules:
   # character" (二进制垃圾/非 UTF-8 字节) 与 warn_utf8 同病理 → 复用
   # non_utf8_recode 动作 (cond-mat/0307744 实证, tectonic 格)。
   - id: invalid_char_recode
+    mechanisms: [B02, W72]
     description: "invalid_char (源码非法字节) → 就地转码 UTF-8"
     phase: loop
     order: 97
@@ -3164,6 +3180,7 @@ rules:
   # thm_sibling_strip 只剥 sibling= 够不到。作者意图是自家定义胜出 →
   # \newcommand→\renewcommand 字面换词 ([n]{body} 槽位原样保留)。
   - id: already_def_newcmd_renew
+    mechanisms: [W45, W49]
     description: "\\newcommand{\\X} 撞包先定义 → 换 \\renewcommand (作者书写面胜出)"
     phase: loop
     order: 111
@@ -3197,6 +3214,7 @@ rules:
   # 后加载包赢——\let\<cs>\@undefined 同时骗过两代检查 (\ifcsname 假阴性
   # 走 undefined 分支, \ifdefined 见 undefined 义; \relax 形只够前者)。
   - id: ntheorem_style_undefine
+    mechanisms: [W49]
     description: "amsthm 预定义 th@<style> 撞 ntheorem 自检 → \\usepackage{ntheorem} 前清 th@X 位"
     phase: loop
     order: 112 # renew(111) 之后: doc 侧 \newcommand 撞名仍先走 renew
@@ -3229,6 +3247,7 @@ rules:
     source_ref: "partial-taxonomy-2026-09-17 散件; ntheorem.sty L515-522 自检; fixer-alreadydef 复跑订正 \\g<0>"
 
   - id: already_def_undefine
+    mechanisms: [W49]
     description: "包内 \\NewDocumentCommand 撞先定义 → docclass 后 \\let\\<cs>\\@undefined 清位 (寄存器/盒型分配名护栏, 后加载者赢)"
     phase: loop
     order: 113 # ntheorem_style_undefine(112) 之后 —— 只接 Command 形签名
@@ -3259,6 +3278,7 @@ rules:
     source_ref: "partial-taxonomy-2026-09-17 散件; \\let\\X\\@undefined 两代检查通吃; fixer-bblwall A5 升级 builtin (eol+1 缝 + 寄存器护栏)"
 
   - id: option_clash_merge
+    mechanisms: [W48]
     description: "Option clash: 同包两次 \\usepackage → 合并选项到首处, 注释后处"
     phase: loop
     order: 120
@@ -3282,6 +3302,7 @@ rules:
   # → doc 侧含驱动词的整括号剥除, 类端配置全量胜出。先于 passopts 规则:
   # 驱动词在场时绝不向上游传 (passopts 会把 dvips 注进 cls 装载)。
   - id: option_clash_loadopt_strip
+    mechanisms: [W48]
     description: "option_clash 且 doc 侧选项含驱动词 (dvips 系) → 剥整括号, 类端配置胜出"
     phase: loop
     order: 121
@@ -3314,6 +3335,7 @@ rules:
   # 装载 (无论发生在哪个文件) 就带上 doc 意图, doc 侧括号剥除 → 裸请求
   # ⊆ 实载选项 → 静默收敛, 意图零损失。
   - id: option_clash_passopts
+    mechanisms: [W48]
     description: "option_clash 非驱动选项 → \\PassOptionsToPackage 挂 documentclass 前, doc 括号剥除"
     phase: loop
     order: 122
@@ -3372,6 +3394,7 @@ rules:
     source_ref: "wave-2: pkg_order 类目首个消费规则"
 
   - id: minted_frozencache
+    mechanisms: [W40, B05]
     description: "minted frozencache 版本错配 → 有 pygmentize 则去 frozencache 选项 (需 -shell-escape)"
     phase: loop
     order: 130
@@ -3400,6 +3423,7 @@ rules:
   # → 改挂 minted2 (v2 API 包)。注意改写只打包装载点: minted2 的 env 名仍是
   # {minted}, \begin{minted} 绝不能动 (盲改 {minted}→{minted2} 会毁 env)。
   - id: minted_v3_rewrite
+    mechanisms: [W40, B05]
     description: "minted v3 装包 × 工程 v2 frozencache → \\usepackage{minted}→{minted2} 装载点改写"
     phase: loop
     order: 135 # frozencache 剥选项(130)先试; 它放弃/复发才轮到
@@ -3436,6 +3460,7 @@ rules:
   # 新增 (docs/08:274): tectonic 自动 bibtex 产 stub bbl 在内存层遮蔽真 bbl
   # (ctanfetch-probe §3.3 铁证: missing \item 真凶), 改写断链
   - id: bbl_stub_shadow
+    mechanisms: [W06, W16, W36]
     description: "有 .bbl 无 .bib → \\bibliography{x} 改写 \\input{main.bbl}, 阻断 tectonic 自动 bibtex stub 遮蔽"
     phase: loop
     order: 140
@@ -3464,6 +3489,7 @@ rules:
   # \bibitem 定义点与 \cite 引用点必须双侧一致重写 (&→A、_→-), .aux
   # 残留 \bibcite/\citation 陈旧键同源处理。
   - id: citekey_sanitize
+    mechanisms: [W23]
     description: "旧 .bbl cite-key 裸 &/_ → \\bibitem/\\cite/aux 三侧一致重写"
     phase: loop
     order: 141 # bbl_stub_shadow(140) 之后, vendored_sty_shadow(150) 之前
@@ -3493,6 +3519,7 @@ rules:
   # 错误触发型 (undefined_cs/already_def 反复出现时才怀疑遮蔽),
   # 按 \\ProvidesPackage 日期比较, 盲删必死 (同目录 cls 可能是唯一来源)
   - id: vendored_sty_shadow
+    mechanisms: [W100, B05]
     description: "工程自带旧 .sty/.cls 比系统新装版本旧 → rename 隔离 (.fixloop-iso)"
     phase: loop
     order: 150
@@ -3551,6 +3578,7 @@ rules:
   # (bundle 能解析), 只能 undefined_cs 确证后往 wdir 注 stub 遮蔽换 emulateapj
   # (全 API 面一次补齐, 含 \rotate no-op; emulateapj 经 ctan_fetch 拉进 wdir)。
   - id: aastex_bundle_shadow
+    mechanisms: [W86, W96]
     description: "tectonic 内置 aastex 5.0rc3 缺新宏 → wdir 注 aastex.cls stub 遮蔽 (→emulateapj)"
     phase: loop
     order: 155 # journal_cs_polyfill(160) 之前: 遮蔽换类比逐宏补表更彻底
@@ -3738,6 +3766,7 @@ rules:
   # 归 emergency —— ctx_suggests 正则 err_head 两类归属下都判别。
   # 与 shim_map svjour.cls 条不冲突: 那条管缺类, 这条管有类缺 clo。
   - id: svjour_clo_stub
+    mechanisms: [B05]
     description: "svjour.cls 在场但零 .clo 伴船 → 按 docclass 选项写 sv<opt>.clo noop stub"
     phase: loop
     order: 159 # shadow/bbl_regen 族(155-158)同档: wdir 注件先于逐宏补
@@ -3767,6 +3796,7 @@ rules:
   # undefined_cs payload (l.N 行末 cs 名) 命中期刊表 → 全表 \providecommand
   # 注入主文件 \documentclass 后。payload 不命中 → False 落 guess。
   - id: journal_cs_polyfill
+    mechanisms: [W96]
     description: "AAS 期刊缩写宏缺失 (老 aastex/内置类太旧) → 注入期刊宏表 providecommand"
     phase: loop
     order: 160 # vendored_sty_shadow(150) 之后, undefined_cs_guess(900) 之前
@@ -3811,6 +3841,7 @@ rules:
   # 且自身新名 patch 先失败时, 改写会成自指 → capacity 兜住,
   # 属换墙非静默腐蚀; 今零 acmauthoryear 格发 Cannot-patch。
   - id: biblatex_bbx_rename
+    mechanisms: [B05]
     description: "bundled .bbx/.cbx/.sty 补丁 biblatex>=3.8 已改名宏 → 源级更名 date/labelyear+extrayear→+extradate"
     phase: loop
     order: 161 # journal_cs_polyfill(160) 与 cs_targeted_fix(165) 之间
@@ -3841,6 +3872,7 @@ rules:
   # stub \ProvidesPackage{physics} 中和 physics-stub + 双载守卫;
   # 真 CTAN physics (xparse \DeclareDocumentCommand 形) 弃权归 LLM。
   - id: physics_stub_detach
+    mechanisms: [W100]
     description: "bundled physics.sty stub 撞 siunitx \\@ifpackageloaded{physics} → 脱注册 \\input 续载 + ProvidesPackage 中和"
     phase: loop
     order: 163 # biblatex_bbx_rename(161) 与 detab_end_scanlines(164) 之间
@@ -3871,6 +3903,7 @@ rules:
   # runaway。detab 全部 \end{ 行首: verbatim/minted 体内字面 \end 行
   # 会被去缩进 (显示位移, 可接受) —— 不修则整篇无 PDF。
   - id: detab_end_scanlines
+    mechanisms: [W07]
     description: "缩进 \\end{env} 行去前导空白 —— comment.sty 排除扫描器要求顶格终结行"
     phase: loop
     order: 164 # biblatex_bbx_rename(161) 与 cs_targeted_fix(165) 之间
@@ -3897,6 +3930,7 @@ rules:
   # 首版表: headerps@out→剥 breakurl (dvips 钩子在 Unicode 引擎无定义),
   # mathbbm→xelatex 装 bbm / tectonic 换 dsfont\mathds。
   - id: cs_targeted_fix
+    mechanisms: [W17, W96, B01]
     description: "undefined_cs payload 命中 cs 修复表 → 剥包/装包/宏改写/polyfill 定向修"
     phase: loop
     order: 165 # journal_cs_polyfill(160) 之后, undefined_cs_guess(900) 之前
@@ -4411,6 +4445,7 @@ rules:
   #   符号/拉丁缺字 (≠ U+2260 / − U+2212 / § U+A7 / ø U+F8 / è U+E8)
   #   → char→命令字面替换, 表条目见 builtins._MC_TABLE, params.char_table 可扩。
   - id: missing_char_fix
+    mechanisms: [W42, W43]
     description: "无 '!' 错但 log 有 Missing character → 码位分级: CJK→xeCJK 绑定预热, 符号/拉丁→字面替换"
     phase: loop
     order: 25 # 与类别独占, 序位只影响同 category 规则间
@@ -4494,6 +4529,7 @@ rules:
   # 附加符由 accent 机制生成, 非输入字符 → newunicodechar 拦不到。
   # 源级站点改写: NFC 预组 → 字面量 + 自注回退行; 无预组 → 剥 accent。
   - id: accent_mark_fix
+    mechanisms: [T27]
     description: "组合附加符缺字 → 文本域 accent cs 站点改写预组字/剥 accent (数学域不动)"
     phase: loop
     order: 25.5 # missing_char_fix(25)/font_fallback(26) 之间; int() 取整同值 25 时按表内位次排
@@ -4522,6 +4558,7 @@ rules:
   # 西里尔/组合符/拉丁扩展带的码位既非 CJK(预热) 也非 char_table 替换
   # 条目 → newunicodechar 逐字绑定 Libertinus Serif 字体回退。
   - id: font_fallback
+    mechanisms: [W42, W43]
     description: "Missing character 落西里尔/组合符/拉丁扩展带 → newunicodechar 逐字回退 Libertinus Serif"
     phase: loop
     order: 26 # missing_char_fix(25) 之后: replace 表先吃, 残带内码位走字体回退
@@ -4615,6 +4652,7 @@ rules:
   # (横幅照常打印, 跳过等待); 两参形 \typein[\cs]{msg} 是"读入存 cs",
   # 空输入即作者默许的默认 → \typeout{msg}\def\cs{}。
   - id: typein_neutralize
+    mechanisms: [W78]
     description: "\\typein 交互读 → \\typeout 打印 (两参形补 \\def\\cs{} 默认空)"
     phase: loop
     order: 180
@@ -4761,6 +4799,7 @@ rules:
     source_ref: "manual bisect 1109.2205: revtex4+ctex+title+maketitle+section 充要, 纯 en 同炸 → 类文件/内核不兼容; revtex4-2 替换 6/6 出 pdf"
 
   - id: docclass_post_option_normalize
+    mechanisms: [W67]
     description: "\\documentclass{X}[opts] 后置选项畸形 → 孤儿 [opts] 行归位 \\documentclass[opts]{X}"
     phase: loop
     order: 183 # revtex4_legacy_class_rewrite(182) 之后, undefined_cs_guess(900) 之前
