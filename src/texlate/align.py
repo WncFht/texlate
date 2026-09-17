@@ -83,7 +83,14 @@ def extract_landmarks(path: Path) -> dict[str, Any]:
     """抽一份 PDF 的锚点视图（``_reader_landmarks`` 的路径入口）。"""
     from pypdf import PdfReader  # noqa: PLC0415 -- 重依赖惰性加载
 
-    return _reader_landmarks(PdfReader(str(path)))
+    r = PdfReader(str(path))
+    try:
+        return _reader_landmarks(r)
+    finally:
+        try:
+            r.close()
+        except Exception as e:  # noqa: BLE001 -- close 失败不掩已抽取锚点
+            log.debug("PdfReader close failed for %s: %s", path, e)
 
 
 def _page_height(p: PageObject) -> float:
@@ -417,40 +424,48 @@ def build_alignment(en_pdf: Path, zh_pdf: Path) -> dict[str, Any]:
         return {"kind": "pages"}
     readers: dict[str, PdfReader] = {}
     marks: dict[str, dict[str, Any]] = {}
-    for side, pdf in (("original", en_pdf), ("translated", zh_pdf)):
-        try:
-            r = PdfReader(str(pdf))
-            marks[side] = _reader_landmarks(r)
-            readers[side] = r
-        except Exception as e:  # noqa: BLE001 -- 截断/加密 PDF 只丢该侧同步精度
-            log.debug("landmark extraction failed for %s: %s", pdf, e)
-    ea, eb = marks.get("original"), marks.get("translated")
-    if ea is None or eb is None:
+    try:
+        for side, pdf in (("original", en_pdf), ("translated", zh_pdf)):
+            try:
+                r = PdfReader(str(pdf))
+                readers[side] = r  # 先登记再抽——抽取抛错时 fd 仍由 finally 收
+                marks[side] = _reader_landmarks(r)
+            except Exception as e:  # noqa: BLE001 -- 截断/加密 PDF 只丢该侧同步精度
+                log.debug("landmark extraction failed for %s: %s", pdf, e)
+        ea, eb = marks.get("original"), marks.get("translated")
+        if ea is None or eb is None:
+            return {
+                "kind": "pages",
+                "heights": {s: m["heights"] for s, m in marks.items()},
+            }
+        heights = {"original": ea["heights"], "translated": eb["heights"]}
+        commons = [
+            (n, ea["dests"][n], eb["dests"][n])
+            for n in sorted(set(ea["dests"]) & set(eb["dests"]))
+        ]
+        chain = _monotonic_chain(commons)
+        if not chain:
+            return {"kind": "pages", "heights": heights}
+        lut = {n: (a, b) for n, a, b in commons}
+        pairs = [
+            {
+                "id": n,
+                "original": _pos(lut[n][0]),
+                "translated": _pos(lut[n][1]),
+            }
+            for n in chain
+        ]
+        regions = _match_figure_regions(readers, commons)
         return {
-            "kind": "pages",
-            "heights": {s: m["heights"] for s, m in marks.items()},
+            "kind": "landmarks",
+            "heights": heights,
+            "pairs": pairs,
+            "regions": regions,
         }
-    heights = {"original": ea["heights"], "translated": eb["heights"]}
-    commons = [
-        (n, ea["dests"][n], eb["dests"][n])
-        for n in sorted(set(ea["dests"]) & set(eb["dests"]))
-    ]
-    chain = _monotonic_chain(commons)
-    if not chain:
-        return {"kind": "pages", "heights": heights}
-    lut = {n: (a, b) for n, a, b in commons}
-    pairs = [
-        {
-            "id": n,
-            "original": _pos(lut[n][0]),
-            "translated": _pos(lut[n][1]),
-        }
-        for n in chain
-    ]
-    regions = _match_figure_regions(readers, commons)
-    return {
-        "kind": "landmarks",
-        "heights": heights,
-        "pairs": pairs,
-        "regions": regions,
-    }
+    finally:
+        # PdfReader 自持 path stream——worker 长驻进程不显式收即 fd 泄漏
+        for r in readers.values():
+            try:
+                r.close()
+            except Exception as e:  # noqa: BLE001 -- close 失败不掩已产出结果
+                log.debug("PdfReader close failed: %s", e)

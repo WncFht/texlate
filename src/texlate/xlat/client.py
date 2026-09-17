@@ -210,8 +210,12 @@ def classify_status(status: int, body: str, headers: httpx.Headers) -> ChatError
     429 的 retry_after 解析序：body `error.retry_after` → header `Retry-After`
     → 无（退 `3^attempt` 下限 5s）。429 是多租户共享流量触发（healthz 常驻他户
     22~26 active），与本地并发宽度无关——不为它缩 Semaphore。
+
+    ``body`` 进异常消息前函数内过 ``redact``（模式级、幂等——调用侧已按
+    api_key 预脱敏者二次过不变；新调用点忘脱敏也不再漏 secret 形态进
+    异常文本）。``_body_retry_after`` 仍吃原文——脱敏串不保证 JSON 可解析。
     """
-    msg = f"HTTP {status}: {body[:300]}"
+    msg = f"HTTP {status}: {redact(body)[:300]}"
     if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
         return AuthError(msg, status=status)
     if status == HTTP_PAYMENT_REQUIRED:

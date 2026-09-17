@@ -145,11 +145,12 @@ def update_file_stack(
             j += 1
 
 
-#: ``(x.eps`` 类 graphic 打开帧（engine.py ``_GRAPHIC_EXTS`` 同款，此处为
-#: 下沉单源）——形状判定拒收的 graphic token（逗号/截断形，如 ``fig,1.eps``）
-#: 入 ``None`` 配对帧；engine/l2/fixloop 三处栈消费都把行尾未配对 ``(``
-#: 的 graphic token 补回栈顶真名。
-_GRAPHIC_EXTS: Final = frozenset({".eps", ".epsf", ".epsi", ".ps", ".mps"})
+#: ``(x.eps`` 类 graphic 打开帧的 PS 族扩展名面——与 fixloop builtins 的
+#: 全图形族 ``_GRAPHIC_EXTS``（含 pdf/png/jpg）**同名不同物**，故名加
+#: ``_PS_`` 前缀区分。形状判定拒收的 graphic token（逗号/截断形，如
+#: ``fig,1.eps``）入 ``None`` 配对帧；engine/l2/fixloop 三处栈消费都把
+#: 行尾未配对 ``(`` 的 graphic token 补回栈顶真名。
+_PS_GRAPHIC_EXTS: Final = frozenset({".eps", ".epsf", ".epsi", ".ps", ".mps"})
 
 
 def patch_graphic_top(ln: str, stack: list[str | None]) -> None:
@@ -164,7 +165,7 @@ def patch_graphic_top(ln: str, stack: list[str | None]) -> None:
     if lp < 0 or lp < ln.rfind(")"):
         return
     m = _OPEN_TOKEN_RX.match(ln, lp + 1)
-    if m and Path(m.group(0)).suffix.lower() in _GRAPHIC_EXTS:
+    if m and Path(m.group(0)).suffix.lower() in _PS_GRAPHIC_EXTS:
         stack[-1] = m.group(0)
 
 

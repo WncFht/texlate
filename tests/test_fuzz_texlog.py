@@ -249,7 +249,7 @@ def test_file_stack_at_bounds() -> None:
 # oracle 重放只吃 update；patch 不改栈深但会把栈顶 None 补成 graphic 名，
 # 故本节独立钉 patch 回放面的不变量。
 
-_GRAPHIC_EXTS = texlog_mod._GRAPHIC_EXTS  # noqa: SLF001 -- patch 补名合法性判定
+_GRAPHIC_EXTS = texlog_mod._PS_GRAPHIC_EXTS  # noqa: SLF001 -- patch 补名合法性判定
 _ERR_RES = (
     texlog_mod._ERR_FILELINE_RE,  # noqa: SLF001 -- 错误行原语面,logparse/loginfo 单源
     texlog_mod._NONERR_FILELINE_RE,  # noqa: SLF001
