@@ -90,6 +90,10 @@ from texlate.latex.tables import (
     TRANSPARENT_NAMES,
     VERBATIM_ENVS,
 )
+from texlate.textutil import (
+    DEAD_ENVS,
+    dead_env_end,
+)
 
 _PROTECT_TYP = {
     "includegraphics": PhType.GRAPHICS,
@@ -670,7 +674,7 @@ class Scanner:
             and m.target_env.rstrip("*") == target
         )
 
-    def _find_env_end(self, i: int, env: str) -> tuple[int, int] | None:  # noqa: C901, PLR0912, PLR0915 — begin/end/verb/宏端点四分支单遍查找，平铺即 §3.5
+    def _find_env_end(self, i: int, env: str) -> tuple[int, int] | None:  # noqa: C901, PLR0911, PLR0912, PLR0915 — begin/end/verb/宏端点四分支单遍查找，平铺即 §3.5
         r"""找 env 的匹配 ``\end``（含宏端点），注释安全 + ``*`` 归一。
 
         两侧 ``rstrip('*')`` 归一比较（``\begin{multline*}…\end{multline}``
@@ -682,14 +686,29 @@ class Scanner:
         """
         tex, n = self._tex, len(self._tex)
         target = env.rstrip("*")
-        dead = self._env_dead.get(target)
+        # comment 族终结是纯字面行锚——墓标键用未剥 * 的 env 本名
+        # （comment/comment* 终结子串不同，共享 target 键会交叉误命中）
+        dkey = env if env in DEAD_ENVS else target
+        dead = self._env_dead.get(dkey)
         if dead is not None and i > dead.anchor and dead.sig == self._env_sig(target):
+            if env in DEAD_ENVS:
+                return None  # dead 墓标 = 该 env 行锚 \end 全图不存在
             sj = bisect_left(dead.begins, i) - bisect_left(dead.end_at, i)
             for k in range(bisect_left(dead.end_at, i), len(dead.end_at)):
                 if dead.s_end[k] == sj:
                     return dead.end_ret[k]
             return None
         i0 = i
+        if env in DEAD_ENVS:
+            # comment 族行锚整行终结、体不嵌套（_env_stop dead 臂同式）——
+            # raw 文本直查；行中 \end{env}、\end<env> 字面、宏端点全不算
+            dk = dead_env_end(tex, env, i)
+            if dk < 0:
+                self._env_dead[dkey] = _EnvDead(
+                    i0, self._env_sig(target), [], [], [], []
+                )
+                return None
+            return dk + len("\\end{" + env + "}"), dk
         depth = 1
         begins: list[int] = []
         end_at: list[int] = []
@@ -709,9 +728,13 @@ class Scanner:
                 if name == "begin":
                     sub, e2 = env_name_at(tex, j)
                     if sub in VERBATIM_ENVS:
-                        # verbatim 类环境体内一切字面（含假 \end{target}）
+                        # verbatim 类环境体内一切字面（含假 \end{target}）；
+                        # comment 族须行锚整行终结（_env_stop dead 臂同式）
                         pat = "\\end{" + sub + "}"
-                        k2 = tex.find(pat, e2 or j)
+                        if sub in DEAD_ENVS:
+                            k2 = dead_env_end(tex, sub, e2 or j)
+                        else:
+                            k2 = tex.find(pat, e2 or j)
                         i = k2 + len(pat) if k2 >= 0 else n
                         continue
                     if sub is not None and sub.rstrip("*") == target:
@@ -750,7 +773,7 @@ class Scanner:
                 i = j
                 continue
             i += 1
-        self._env_dead[target] = _EnvDead(
+        self._env_dead[dkey] = _EnvDead(
             i0,
             self._env_sig(target),
             begins,
@@ -1036,7 +1059,11 @@ class Scanner:
         if env in VERBATIM_ENVS:
             self._flush_run(i)
             pat = "\\end{" + env + "}"
-            if env.startswith("filecontents"):
+            if env in DEAD_ENVS:
+                # comment 族行锚整行终结（_env_stop dead 臂同式）——行中
+                # \end{comment} 是体字面，不闭合
+                k = dead_env_end(tex, env, j)
+            elif env.startswith("filecontents"):
                 # 与 v2 segmenter 同款锚定（W26）：filecontents 闭环境须行首
                 # 独占——裸 find 会被体内 PostScript/注释的行中 \end 诱饵截短
                 fm = re.compile(rf"(?m)^[ \t]*{re.escape(pat)}").search(tex, j)

@@ -43,6 +43,8 @@ __all__ = [
     "VERBATIM_ENVS",
     "EncodingVerdict",
     "bare_cs_net",
+    "dead_end_anchored",
+    "dead_env_end",
     "decode_tex",
     "decode_tex_with",
     "is_cjk_cp",
@@ -319,12 +321,44 @@ def _env_stop(text: str, env: str, pos: int, *, dead: bool) -> int:
     """
     # 锚定 pos 搜索零切片——env 集有界，re 内部编译缓存兜住逐次 compile。
     if dead:
-        ending = re.compile(
-            r"(?<=[\r\n])\\end\{" + re.escape(env) + r"\} *(?=[\r\n]|\Z)"
-        ).search(text, pos)
+        ending = _dead_end_rx(env).search(text, pos)
     else:
         ending = re.compile(r"\\end\{" + re.escape(env) + r"\}").search(text, pos)
     return ending.end() if ending else len(text)
+
+
+def _dead_end_rx(env: str) -> re.Pattern[str]:
+    r"""``\\end{env}`` 行锚式（comment.sty ``\ifx`` 行比对单一事实源）。"""
+    return re.compile(r"(?<=[\r\n])\\end\{" + re.escape(env) + r"\} *(?=[\r\n]|\Z)")
+
+
+def dead_env_end(text: str, env: str, pos: int) -> int:
+    r"""``pos`` 起首个行锚 ``\\end{env}`` 的 ``\\`` 起点；无命中 ``-1``。
+
+    ``_env_stop`` dead 臂同一式——scan 视图（flatten/scanner/segmenter）
+    三消费点共用；返回值给的是 ``\\`` 起点（``\\end{env}`` 段长调用方自加）。
+    """
+    m = _dead_end_rx(env).search(text, pos)
+    return -1 if m is None else m.start()
+
+
+def dead_end_anchored(text: str, env: str, a: int, e: int) -> bool:
+    r"""核验 ``[a, e)`` 恰为行锚 ``\\end{env}``——``_env_stop`` dead 臂的 token 侧等价。
+
+    ``a`` = ``\\`` 起点、``e`` = ``}`` 后一字符。字面段须逐字节 ==
+    ``\\end{env}``（``\\end {env}``/``\\end{ env }`` 断序列不终结）；
+    ``a`` 前列须换行（文件头不算，``(?<=[\r\n])`` 同式）、``e`` 后仅
+    `` *`` 到行尾/EOF。
+    """
+    if text[a:e] != "\\end{" + env + "}":
+        return False
+    if a == 0 or text[a - 1] not in "\r\n":
+        return False
+    i = e
+    n = len(text)
+    while i < n and text[i] == " ":
+        i += 1
+    return i == n or text[i] in "\r\n"
 
 
 def _inline_verb_span(text: str, i: int, n: int) -> tuple[int, int, int] | None:

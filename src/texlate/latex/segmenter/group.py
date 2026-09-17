@@ -21,6 +21,10 @@ from texlate.latex.tables import (
     argspec_lookup_env,
     looks_like_colspec,
 )
+from texlate.textutil import (
+    DEAD_ENVS,
+    dead_end_anchored,
+)
 
 from ._common import (
     _GRP_BSBS_CONTENT_RX,
@@ -115,8 +119,13 @@ class _Group:
     def _grp_find_env_end(  # noqa: C901 — begin/end/cs-end/宏端点四臂单遍深度扫描平铺
         self, toks: list[Tok], i: int, env: str
     ) -> int | None:
-        r"""``i`` 起找配对 ``\\end{env}``（同名 begin/宏端点计深度）→ j_end。"""
+        r"""``i`` 起找配对 ``\\end{env}``（同名 begin/宏端点计深度）→ j_end。
+
+        comment 族体不嵌套、仅行锚 ``\\end{env}`` 终结（``_env_stop`` dead
+        臂同式）——行中 ``\\end{comment}``/``\\end<env>`` 字面/宏端点全不算。
+        """
         target = env.rstrip("*")
+        dead = env in DEAD_ENVS
         depth = 1
         j = i
         while j < len(toks) and j - i < _GRP_SCAN_CAP:
@@ -125,13 +134,28 @@ class _Group:
                 hit = self._grp_envtag(toks, j)
                 if hit is not None:
                     n2, e = hit
+                    if dead:
+                        if (
+                            x.text == "end"
+                            and n2 == env
+                            and x.pos[0] == toks[e - 1].pos[0]
+                            and dead_end_anchored(
+                                self.file_texts[x.pos[0]],
+                                env,
+                                x.pos[1],
+                                toks[e - 1].pos[2],
+                            )
+                        ):
+                            return e
+                        j = e
+                        continue
                     if n2.rstrip("*") == target:
                         depth += 1 if x.text == "begin" else -1
                         if depth == 0:
                             return e
                     j = e
                     continue
-            elif x.kind == "cs":
+            elif x.kind == "cs" and not dead:
                 # ``\end<env>`` 字面端点（csname 合成/旧式）——主流
                 # ``_find_env_end`` 同名判据的组内镜像（R1）
                 if x.text == "end" + target:

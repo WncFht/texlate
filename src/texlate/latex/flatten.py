@@ -30,7 +30,7 @@ from texlate.latex.model import (
     ws_skip,
 )
 from texlate.latex.tables import FILENAME_CHARS, MAX_INPUTS, VERBATIM_ENVS
-from texlate.textutil import decode_tex, mask_tex
+from texlate.textutil import DEAD_ENVS, dead_env_end, decode_tex, mask_tex
 
 _DOC_BEGIN_RX = re.compile(r"\\begin\s*\{document\}")
 _DOC_END_RX = re.compile(r"\\end\s*\{document\}")
@@ -134,7 +134,11 @@ def flatten_inputs(  # noqa: C901, PLR0912, PLR0913, PLR0915 — 单遍逐字符
         c = tex[i]
         if verb_env is not None:
             pat = "\\end{" + verb_env + "}"
-            if verb_env.startswith("filecontents"):
+            if verb_env in DEAD_ENVS:
+                # comment 族行锚整行终结（_env_stop dead 臂同式）——行中
+                # \end{comment} 是体字面，不闭合
+                k = dead_env_end(tex, verb_env, i)
+            elif verb_env.startswith("filecontents"):
                 # 与 v2 segmenter 同款锚定（W26）：filecontents 闭环境须行首
                 # 独占——裸 find 会被体内 PostScript/注释的行中 \end 诱饵截短
                 fm = re.compile(rf"(?m)^[ \t]*{re.escape(pat)}").search(tex, i)

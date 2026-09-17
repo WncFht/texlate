@@ -27,6 +27,11 @@ from texlate.latex.tables import (
     VERBATIM_ENVS,
     looks_like_colspec,
 )
+from texlate.textutil import (
+    DEAD_ENVS,
+    dead_end_anchored,
+    dead_env_end,
+)
 
 from ._common import (
     TokenSource,
@@ -146,7 +151,11 @@ class _Env:
                 )
                 return
             pat = "\\end{" + env + "}"
-            if env.startswith("filecontents"):
+            if env in DEAD_ENVS:
+                # comment 族行锚整行终结（_env_stop dead 臂同式）——行中
+                # \end{comment} 是体字面，不闭合
+                k = dead_env_end(self.file_texts[fid], env, close_t.pos[2])
+            elif env.startswith("filecontents"):
                 # filecontents 逐行读体、end 行首独占才算闭合（kernel 语义）——
                 # 裸 find 会被体内 PostScript/注释里的行中 \end decoy 截短（W26）
                 rx = re.compile(rf"(?m)^[ \t]*{re.escape(pat)}")
@@ -570,8 +579,13 @@ class _Env:
         """
         target = env.rstrip("*")
         sig = self._env_sig_tok(src, target)
-        dead = self._env_dead.get(target)
+        # comment 族终结是纯字面行锚——墓标键用未剥 * 的 env 本名
+        # （comment/comment* 终结子串不同，共享 target 键会交叉误命中）
+        dkey = env if env in DEAD_ENVS else target
+        dead = self._env_dead.get(dkey)
         if dead is not None and dead.sig == sig:
+            if env in DEAD_ENVS:
+                return None  # dead 墓标 = 该 env 行锚 \end 全图不存在
             k_q = dead.bidx.get(qpos, -1)
             if k_q >= 0:
                 qs = dead.begins[k_q]
@@ -594,7 +608,7 @@ class _Env:
             x = src.read()
             if x is None:
                 src.unread(collected)
-                self._env_dead[target] = _EnvDeadTok(
+                self._env_dead[dkey] = _EnvDeadTok(
                     sig,
                     begins,
                     begin_pos,
@@ -633,6 +647,20 @@ class _Env:
                     src.unread(grp)
                     continue
                 collected.extend(grp)
+                if env in DEAD_ENVS:
+                    # comment 族行锚整行终结、体不嵌套（_env_stop dead 臂
+                    # 同式）——行中/断序列 \end{env}、异名交叉 \end、体内
+                    # \begin{env} 与 verb/verbatim 跳读资格全不落，纯体字面
+                    if (
+                        x.text == "end"
+                        and n == env
+                        and x.pos[0] == c.pos[0]
+                        and dead_end_anchored(
+                            self.file_texts[x.pos[0]], env, x.pos[1], c.pos[2]
+                        )
+                    ):
+                        return x, c, collected[: -(1 + len(grp))]
+                    continue
                 if n.rstrip("*") != target:
                     if n in VERBATIM_ENVS and x.text == "begin":
                         self._skip_verbatim_env_toks(src, n, collected)
@@ -654,14 +682,15 @@ class _Env:
             # （``\begin{tabular}…\endtabular``——LaTeX 内核 ``\end{X}``
             # 即 ``\csname endX\endcsname``）都按 env_end 计对（R1）。
             # 先于宏解析——重定义 ``\endfoo`` 为别体的边缘形也按端点配对。
-            if x.text == "end" + target:
+            # dead 族不算：comment.sty 只认行锚 ``\end{env}`` 字面行。
+            if env not in DEAD_ENVS and x.text == "end" + target:
                 depth -= 1
                 if depth == 0:
                     return x, x, collected[:-1]
                 ends.append(seq)
                 end_tag.append((x.pos[0], x.pos[1], x.pos[2]))
                 continue
-            if x.text == "csname":
+            if env not in DEAD_ENVS and x.text == "csname":
                 # 直用 ``\csname end<env>\endcsname``：raw 前瞻不触发
                 # csname 合成（``_read_csname`` 的 token 版镜像）——收名
                 # 到 ``\endcsname`` 止，命中 ``end+target`` 按 env_end
@@ -685,7 +714,11 @@ class _Env:
             m = self._resolve_macro(src, x.text)
             kind = getattr(m, "kind", "")
             tgt = getattr(m, "target_env", "")
-            if kind in ("env_begin", "env_end") and tgt.rstrip("*") == target:
+            if (
+                env not in DEAD_ENVS
+                and kind in ("env_begin", "env_end")
+                and tgt.rstrip("*") == target
+            ):
                 if kind == "env_begin":
                     depth += 1
                     begins.append(seq)
@@ -736,7 +769,13 @@ class _Env:
     def _skip_verbatim_env_toks(
         self, src: TokenSource, env: str, collected: list[Tok]
     ) -> None:
-        r"""嵌套 verbatim env 体整段跳读（体内 ``\end{target}`` 是字面）。"""
+        r"""嵌套 verbatim env 体整段跳读（体内 ``\end{target}`` 是字面）。
+
+        comment 族体不嵌套、仅行锚 ``\\end{env}`` 终结（``_env_stop`` dead
+        臂同式）——行中 ``\\end{comment}`` 与体内 ``\\begin{comment}``
+        全是体字面。
+        """
+        dead = env in DEAD_ENVS
         depth = 1
         while True:
             x = src.read()
@@ -745,11 +784,22 @@ class _Env:
             collected.append(x)
             if x.kind != "cs" or x.text not in ("begin", "end"):
                 continue
-            n, _c, grp = self._env_name(src)
+            n, c, grp = self._env_name(src)
             if n is None:
                 src.unread(grp)  # 回吐重分派（同 _find_env_end）
                 continue
             collected.extend(grp)
+            if dead:
+                if (
+                    x.text == "end"
+                    and n == env
+                    and x.pos[0] == c.pos[0]
+                    and dead_end_anchored(
+                        self.file_texts[x.pos[0]], env, x.pos[1], c.pos[2]
+                    )
+                ):
+                    return
+                continue
             if n != env:
                 continue
             depth += 1 if x.text == "begin" else -1
