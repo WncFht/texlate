@@ -568,6 +568,8 @@ def rescue_en_baselines(
                 "pdf": res.pdf_bytes,
                 "seconds": round(res.seconds, 1),
                 "first_error": res.log.first_error,
+                "error_cats": v.error_cats,
+                "error_pay": v.error_pay,
             }
         except Exception as e:
             return {

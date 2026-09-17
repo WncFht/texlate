@@ -351,6 +351,8 @@ def run_paper(p, corpus: Path, work: Path, engines: list[str], cond: str = "base
             "n_errors": v.n_errors,
             "warnings_hit": v.warnings_hit,
             "missing_chars": v.missing_chars,
+            "error_cats": v.error_cats,
+            "error_pay": v.error_pay,
             "pdf": res.has_pdf,
             "pdf_bytes": res.pdf_bytes,
             "passes": res.passes,
