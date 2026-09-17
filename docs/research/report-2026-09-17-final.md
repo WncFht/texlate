@@ -47,6 +47,7 @@
 ## 2. 关键数字
 
 - **scorecard**（5,124 格）：pdf **97.89%** / clean **84.99%**（M1-B 归因迁移 fixloop+51/compile−47 非质量位移；illegal_unit 波净 +14，集内 +82 被并发波 csb stale-677 churn 对冲 68——波次调度碰撞面已立档）。
+- **S6 源健康基线**（base 臂 5,122 格，`97d30b0`）：base clean 59.8%/fail 17.3%——其中 missing_file 占 92.1%（arXiv 老稿 tarball 自带缺件=**源级烂**非管线伤）；**管线引入致命伤仅 2/3,064 = 0.065%**（go/no-go「回归集→0」实质达成），降级 clean→partial 3.4%，下游 vendored+fixloop 救回 862/885=97.4%，真死格 ~23 成攻坚尾池。build-base 覆盖 97.5%。
 - **墙钟分解**：xlat real 臂 ~24s/id inner；单篇 e2e 中位 77.7s 其中网关翻译 96.8%；compile 15.3s/id（xelatex 本体 94.7%）；fixloop 14s/行；parse 2.1s。
 - **real 臂吞吐**：conc20 实测 90s/格 ≈ 40–72 格/h；server 侧 conc=3 ~260s/篇 vs 管线 conc=10 ~78s。
 - **规模账**：corpus_v3 四层 5,133 篇；mechanisms.jsonl 144 条；frame.parquet 宇宙 3,164,528 行。
@@ -75,8 +76,8 @@
 **收线中**（最后一批交付）：
 - 1d：**已落 `feb5046`**——M1-B 残余 7/7 格闭环（`_TAIL_OPERAND` 因子链文法 + arith/boxspec 两 kind + `\newX` 声明名 +12 + PiCTeX 域容忍；hep-ph-0104029 推回 stub/shim 道）
 - peer1：**已落四件**（`8910a96` rules_declined 物化 / `69649ca` ell 条目 / `526932c` diagrams stub 富化实证 172→0 err / `be03326` routes 档）
-- 1e：E2 迁移验证段（repair +405/e2e −372 已自洽）+ 4 份 fuzz findings 落盘
-- 2f：S6 base 臂 **已收 5122/5122**（records `97d30b0`：base clean 3064/partial 1045/fail 885/reject 65/skip 63——源健康基线首读；增量 scorecard 简报在产）
+- 1e：E2 迁移批**已落 `9539bcc`**（repair +430/e2e −397，19 符号下沉+D6 jail+`_ruleset_with_baseline` 单源化）+ glossary fuzz `59ddfb3`（17 xfail-strict 钉 9 CONFIRMED）；残余=client/engine/judge 三份 findings + client fuzz 文件
+- 2f：S6 base 臂 **已收**（records `97d30b0` + 简报 `e0b3dff`——源健康基线数字见 §2）
 - e8：**已全清**（`4ebfb12`/`ea4d0c4`/`b6d0ede`）
 
 **已裁决未做（下梯次，进排期）**：
