@@ -51,16 +51,16 @@ bg 准入条件 = bucketUsed + 1 ≤ quota − reserve   （其余 sendable/latc
 
 gate 已经算出了所有这些值，零成本 piggyback：
 
-| 头 | 含义 |
-| --- | --- |
-| `X-Gate-Lane` | 实际服务的 lane 名 |
-| `X-Gate-Class` | 回显分类 fg/bg |
-| `X-Gate-Window-Used` / `X-Gate-Window-Quota` | 准入时该 lane 桶用量/配额 |
-| `X-Gate-Window-Reset` | 到 `window_next` 的秒数 |
-| `X-Gate-Wait-Ms` | 本次在闸内排队耗时 |
-| `X-Gate-Reason` | 仅 429：`quota`（桶满/预留不足）\| `latch`（冷却闩）\| `hold`（排队超时） |
+| 头                                           | 含义                                                                      |
+| -------------------------------------------- | ------------------------------------------------------------------------- |
+| `X-Gate-Lane`                                | 实际服务的 lane 名                                                        |
+| `X-Gate-Class`                               | 回显分类 fg/bg                                                            |
+| `X-Gate-Window-Used` / `X-Gate-Window-Quota` | 准入时该 lane 桶用量/配额                                                 |
+| `X-Gate-Window-Reset`                        | 到 `window_next` 的秒数                                                   |
+| `X-Gate-Wait-Ms`                             | 本次在闸内排队耗时                                                        |
+| `X-Gate-Reason`                              | 仅 429：`quota`（桶满/预留不足）\| `latch`（冷却闩）\| `hold`（排队超时） |
 
-客户端拿到这些后可以从轮询 /admin/accounts（3s 粒度、有额外流量）降级为**纯被动调度**：429+`X-Gate-Reason: quota` 就直接睡 `Retry-After` 秒，成功响应带 reset/used 就实时校准自己的余量模型。落点：devin.go L769 `gate.wait` 返回处已知 wait 耗时与 lane 身份，往响应 writer/ctx 里stamp 即可；429 路径 L632 附近同理。
+客户端拿到这些后可以从轮询 /admin/accounts（3s 粒度、有额外流量）降级为**纯被动调度**：429+`X-Gate-Reason: quota` 就直接睡 `Retry-After` 秒，成功响应带 reset/used 就实时校准自己的余量模型。落点：devin.go L769 `gate.wait` 返回处已知 wait 耗时与 lane 身份，往响应 writer/ctx 里 stamp 即可；429 路径 L632 附近同理。
 
 ### R4 — 管理面增量（可选，便宜就上）
 
@@ -71,8 +71,8 @@ gate 已经算出了所有这些值，零成本 piggyback：
 ### R5 — 配置（`config.yaml`，沿用现有 gate_* 命名）
 
 ```yaml
-gate_bg_max_hold_seconds: 120   # bg waiter 最长闸内排队（fg 仍 15s）
-gate_bg_reserve_margin: 4       # reserve 里的固定安全边际
+gate_bg_max_hold_seconds: 120 # bg waiter 最长闸内排队（fg 仍 15s）
+gate_bg_reserve_margin: 4 # reserve 里的固定安全边际
 # fg_rate EMA 半衰期如需可配再加，不建议第一版就加
 ```
 
