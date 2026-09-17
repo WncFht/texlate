@@ -23,4 +23,13 @@
 %    防顶破 halign。内联输出形任何版式面安全） ——
 \providecommand{\addressmark}[1][]{\textsuperscript{#1}}
 \providecommand{\address}[2][]{{\let\\\newline\textsuperscript{#1}{\footnotesize #2}}}
+% —— \readRCS$Id: f,v ver date …$：RCS 美元定界串五参解析（真件 espcrc1
+%    抄值——$#1: #2 #3 #4 #5$ 定界形，非普参；产 \filename/\fileversion/
+%    \filedate 喂后随 \ProvidesFile[…] 的 \xdef，纯吞参会让两 cs 残成新
+%    undef。hep-ph/0408075 实证全 decline→salvage err=106） ——
+\def\readRCS$#1: #2 #3 #4 #5${%
+  \def\filename{#2}%
+  \def\fileversion{#3}%
+  \def\filedate{#4}%
+}
 \endinput

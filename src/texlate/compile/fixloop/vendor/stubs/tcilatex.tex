@@ -70,4 +70,13 @@
 % —— remark env（math/0104275 实证 env_undefined；doc 自定义优先） ——
 \expandafter\ifx\csname remark\endcsname\relax
   \newenvironment{remark}{\par\noindent\textbf{Remark.}\enspace\ignorespaces}{\par}\fi
+% —— \proof/\endproof 裸 cs 对（真件 L570-571 抄值：SWP Proof 钮面——文档
+%    直接 \proof…\endproof 裸调，math/0104275 实证；amsthm proof env 同名
+%    不同物，doc 自定义/amsthm 先载则跳过。\endproof 名属 end* 前缀——
+%    \@ifdefinable 恒拒（"name \end... illegal"），须 \def 不可
+%    \providecommand/\newcommand） ——
+\expandafter\ifx\csname proof\endcsname\relax
+  \def\proof{\noindent{\bfseries Proof.} }\fi
+\expandafter\ifx\csname endproof\endcsname\relax
+  \def\endproof{\mbox{\ \rule{.1in}{.1in}}}\fi
 \endinput
