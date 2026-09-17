@@ -43,6 +43,48 @@ STAGES = ("ingest", "parse", "xlat", "compile", "fixloop")
 
 
 # ================================================================ 选样与 records
+def canon_id(pid: str) -> str:
+    """论文 id 规范形：``--`` → ``/``——``benchlib.safe_id`` 的逆。
+
+    arXiv id 本体永不含 ``--``（旧式 ``archive/YYMMNNN`` 的 archive 只带
+    单 ``-``，新式 ``YYMM.NNNNN`` 无 dash），故 ``--`` 必为 safe_id 单层
+    目录名的回流拼写（从 ``work/`` 目名拷进 ``--ids``）。归一幂等：输出
+    无 ``--``，再调不变。``math--0408287``/``math/0408287`` 归同一规范形
+    → 同 records 键、同 workdir、单任务（loop1 实证 65 对双拼写并存，
+    fixloop --rerun 同 wid 并发互 rmtree 罩 post 复判的根因）。
+    """
+    return str(pid).replace("--", "/")
+
+
+def dedup_wids(ids: list[str]) -> list[str]:
+    """同 workdir 任务去重闸——同 wid 只留一个任务（首见者），撞名者丢弃 +
+    stderr 显式化。
+
+    ``canon_id`` 归一后 id 无 ``--``，safe_id 在该空间单射——同 wid ⟺ 同
+    id，本闸正常路径恒不裁；兜住的是绕过 ``select_ids`` 直调 stage_* 的
+    调用方（撞名对并发 = 双任务同树互 rmtree，同键双记 append 账）。丢弃
+    即「同 wid 串行化」的最强形：同 wid 的两任务是同一份功，串行也只是
+    重复跑。
+    """
+    seen: dict[str, str] = {}  # sid → 首见 raw（撞名报告对偶）
+    out: list[str] = []
+    dropped: list[str] = []
+    for raw in ids:
+        pid = canon_id(raw)
+        sid = benchlib.safe_id(pid)
+        if sid in seen:
+            dropped.append(f"{raw}≡{seen[sid]}")
+            continue
+        seen[sid] = raw
+        out.append(pid)
+    if dropped:
+        print(
+            f"  wid 撞名去重: {len(dropped)} 个任务丢弃（同 workdir）: {dropped}",
+            file=sys.stderr,
+        )
+    return out
+
+
 def select_ids(entries: list[dict], args: argparse.Namespace, stage: str) -> list[str]:
     """--ids 显式集 或 manifest 全量/--n 抽样子集（--seed 定序）。
 
@@ -50,26 +92,46 @@ def select_ids(entries: list[dict], args: argparse.Namespace, stage: str) -> lis
     者）——同 --n/--seed 跨 stage 命中同一子集。ingest 全量（--n 0）路径
     对未物化条目记 skip/reject（IA 拉取留 stub 归数据侧，见 stagerun.py
     docstring）；--ids 亦可定点。
+
+    所有产出 id 经 ``canon_id`` 归一——``--ids`` 收 flat 拼写自动回规范形
+    （撞名对 set 语义坍缩成单任务）；``--only`` 子串过滤同口径 canon。
     """
     if args.ids:
-        want = {i.strip() for i in args.ids.split(",") if i.strip()}
-        have = {e["id"] for e in entries}
+        raw = [i.strip() for i in args.ids.split(",") if i.strip()]
+        want = {canon_id(i) for i in raw}
+        changed = sorted({f"{i}→{canon_id(i)}" for i in raw if i != canon_id(i)})
+        if changed:
+            print(f"  id 拼写归一: {', '.join(changed)}", file=sys.stderr)
+        have = {canon_id(e["id"]) for e in entries}
         return sorted((want & have) | (want - have))
     if args.n and args.n > 0:
-        pool = benchlib.pick_sample(entries, CORPUS, args.n, args.seed)
+        pool = sorted(
+            {
+                canon_id(i)
+                for i in benchlib.pick_sample(entries, CORPUS, args.n, args.seed)
+            }
+        )
     elif stage == "ingest":
-        pool = sorted({e["id"] for e in entries})
+        pool = sorted({canon_id(e["id"]) for e in entries})
     else:
         pool = sorted(
-            {e["id"] for e in entries if (CORPUS / e["id"] / "extracted").is_dir()}
+            {
+                canon_id(e["id"])
+                for e in entries
+                if (CORPUS / e["id"] / "extracted").is_dir()
+            }
         )
     if args.only:
-        pool = [i for i in pool if args.only in i]
+        only = canon_id(args.only)
+        pool = [i for i in pool if only in i]
     return pool
 
 
 def _rec_key(rec: dict) -> tuple[str, str, str]:
-    return benchlib.rec_key(rec)
+    """records 账键——id 分量 canon 归一：flat 拼写存量账与规范形新账同键
+    （loop1 双拼写并存实证：65 对 id 分裂成两套 done 键 → resume 互不认）。"""
+    pid, arm, upstream = benchlib.rec_key(rec)
+    return (canon_id(pid), arm, upstream)
 
 
 @functools.cache
@@ -98,7 +160,7 @@ class RecLog:
     def is_done(
         self, pid: str, arm: str, upstream: str = "", recode: bool = False
     ) -> bool:
-        code = self.done.get((pid, arm, upstream))
+        code = self.done.get((canon_id(pid), arm, upstream))
         if code is None:
             return False
         # --recode：印章不符/缺印 = 陈字节格, 不续跑（与 e2e _paper_done 同型修复）
@@ -114,11 +176,13 @@ class RecLog:
 
 
 def load_latest(path: Path) -> dict[tuple[str, str, str], dict]:
-    """records 文件 → {(id,arm,upstream): 末条记录}（append 序后者胜）。"""
+    """records 文件 → {(id,arm,upstream): 末条记录}（append 序后者胜）。
+
+    键经 ``_rec_key`` canon 归一——flat 拼写存量账按规范形键命中；
+    同篇双拼写并存时 append 序跨拼写末条胜。
+    """
     return (
-        benchlib.latest_by(benchlib.iter_jsonl(path), benchlib.rec_key)
-        if path.exists()
-        else {}
+        benchlib.latest_by(benchlib.iter_jsonl(path), _rec_key) if path.exists() else {}
     )
 
 

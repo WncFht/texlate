@@ -159,6 +159,7 @@ def _parse_job(pid: str, src_s: str, zh_s: str, pj_s: str, engine_opt: str) -> d
 def stage_parse(
     args: argparse.Namespace, out_dir: Path, ids: list[str], log: sl.RecLog
 ) -> None:
+    ids = sl.dedup_wids(ids)  # 同 wid 单任务闸——直调本驱动的调用方也兜住
     todo = []
     for pid in ids:
         if log.is_done(pid, "-", recode=args.recode) and not args.rerun:

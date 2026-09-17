@@ -95,7 +95,8 @@ def stage_ingest(
     entries: list[dict],
     log: sl.RecLog,
 ) -> None:
-    by_id = {e["id"]: e for e in entries}
+    ids = sl.dedup_wids(ids)  # 同 wid 单任务闸——直调本驱动的调用方也兜住
+    by_id = {sl.canon_id(e["id"]): e for e in entries}  # pid 已 canon 归一
     cached, missing = [], []
     for pid in ids:
         if log.is_done(pid, "-", recode=args.recode) and not args.rerun:

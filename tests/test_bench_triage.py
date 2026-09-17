@@ -440,3 +440,78 @@ def test_fixloop_rerun_no_zh_errors(
     assert rec["errors"][0]["code"] == "rerun_no_zh"
     assert injected == []
     assert "DIRTY" in (splice / "main.tex").read_text()
+
+
+# ---------------------------------------------------------------- safe_id 撞名归一
+def test_canon_id_unflattens() -> None:
+    """``canon_id`` = safe_id 逆：``--``→``/``；幂等，新式/规范形不动。"""
+    sl = pytest.importorskip("stagerun_lib")
+    assert sl.canon_id("math--0408287") == "math/0408287"
+    assert sl.canon_id("cond-mat--0605673") == "cond-mat/0605673"
+    assert sl.canon_id("0707.0005") == "0707.0005"
+    assert sl.canon_id("math/0408287") == "math/0408287"
+    assert sl.canon_id(sl.canon_id("math--0408287")) == "math/0408287"
+
+
+def test_workdir_collision_invariant(tmp_path: Path) -> None:
+    """双拼写同 wid 是既有事实（存量 workdir 不迁）——归一在 id 层不在 wid 层。"""
+    sl = pytest.importorskip("stagerun_lib")
+    assert sl.workdir(tmp_path, "math/0408287") == sl.workdir(tmp_path, "math--0408287")
+
+
+def test_select_ids_dual_spelling_dedups() -> None:
+    """--ids 收 flat+slash 双拼写 → 归一坍缩成单任务（loop1 撞名实证形）。"""
+    sl = pytest.importorskip("stagerun_lib")
+    args = Namespace(
+        ids="math--0408287,math/0408287,0707.0005", n=0, seed=42, only=None
+    )
+    entries = [{"id": "math/0408287"}, {"id": "0707.0005"}]
+    ids = sl.select_ids(entries, args, "compile")
+    assert ids == ["0707.0005", "math/0408287"]
+    # flat 拼写不在 manifest 也照归一（定点 smoke 不受 manifest 成员约束）
+    args2 = Namespace(ids="math--0408287", n=0, seed=42, only=None)
+    assert sl.select_ids([], args2, "compile") == ["math/0408287"]
+
+
+def test_dedup_wids_drops_collision(capsys) -> None:  # noqa: ANN001
+    """同 wid 只留一个任务（保规范形），撞名者丢弃 + stderr 显式化对偶。"""
+    sl = pytest.importorskip("stagerun_lib")
+    ids = sl.dedup_wids(["math--0408287", "math/0408287", "0707.0005"])
+    assert ids == ["math/0408287", "0707.0005"]
+    err = capsys.readouterr().err
+    assert "math/0408287≡math--0408287" in err
+
+
+def test_reclog_canon_resume_cross_spelling(tmp_path: Path) -> None:
+    """flat 存量账 → canon pid ``is_done`` 命中——双拼写 resume 连续。
+
+    loop1 records 实证 65 对双拼写并存；不 canon 则规范形续跑全漏判。
+    """
+    sl = pytest.importorskip("stagerun_lib")
+    rp = tmp_path / "records" / "parse.jsonl"
+    rp.parent.mkdir(parents=True)
+    rp.write_text(
+        json.dumps(_rec("math--0408287", "parse", "ok")) + "\n", encoding="utf-8"
+    )
+    log = sl.RecLog(rp)
+    try:
+        assert log.is_done("math/0408287", "-")
+        assert log.is_done("math--0408287", "-")
+        log.append(_rec("hep-th/9901001", "parse", "ok"))
+        assert log.is_done("hep-th--9901001", "-")
+    finally:
+        log.close()
+
+
+def test_load_latest_canon_cross_spelling(tmp_path: Path) -> None:
+    """同篇双拼写并存 → canon 键下 append 序末条胜（跨拼写）。"""
+    sl = pytest.importorskip("stagerun_lib")
+    rp = tmp_path / "compile.jsonl"
+    rows = [
+        _rec("math--0408287", "compile", "fail", arm="zh"),
+        _rec("math/0408287", "compile", "clean", arm="zh"),
+    ]
+    rp.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    latest = sl.load_latest(rp)
+    assert latest[("math/0408287", "zh", "")]["status"] == "clean"
+    assert ("math--0408287", "zh", "") not in latest

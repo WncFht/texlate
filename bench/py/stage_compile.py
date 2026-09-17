@@ -207,6 +207,7 @@ def stage_compile(
     xlat_recs: dict,
 ) -> None:
     todo = []
+    ids = sl.dedup_wids(ids)  # 同 wid 单任务闸——直调本驱动的调用方也兜住
     # zh 臂 resume 还要核 xlat 换代：同臂 --rerun 会重建 zh/ 树，陈记的
     # (id,zh,arm) 键仍命中——对照末条 metrics.xlat_ts 与当前 marker.ts
     latest = sl.load_latest(log.path) if args.arm == "zh" else {}

@@ -35,6 +35,12 @@ marker.ts 变，末条 metrics.xlat_ts 不符（含旧记缺印）即重编不�
 zh/ 与 splice/ 是臂间共享树：real 臂翻译会覆盖 mock 产物
 （records 按臂分记、marker 记 provenance，compile --xlat-arm 可钉住预期）。
 
+id 规范形：``--ids`` 收 safe_id flat 拼写（``work/`` 目名 ``math--X``）自动
+归一回 ``math/X``——``canon_id`` 是 safe_id 逆；records 账键同口径 canon，
+flat 存量账按规范形命中 resume。同 wid 任务去重（``dedup_wids``）：双拼写
+撞名对坍缩成单任务，不再并发同树互 rmtree（loop1 实证 65 对并存，
+``math--0408287`` 复判被罩的根因）。
+
 与规格 §1/§3 的有意偏差（目录归谁写）：
   - zh/ 由 parse 建（normalize 必须有落点；src/ 留生料给 base 臂）；
     §1 图把 zh/ 画在 xlat 下——物理上 zh/ 是跨阶段共享演化的产品树。
@@ -90,6 +96,8 @@ RETRIABLE_STATUS = sl.RETRIABLE_STATUS
 STAGES = sl.STAGES
 RecLog = sl.RecLog
 select_ids = sl.select_ids
+canon_id = sl.canon_id
+dedup_wids = sl.dedup_wids
 load_latest = sl.load_latest
 make_sig = sl.make_sig
 base_rec = sl.base_rec
@@ -225,7 +233,9 @@ def main() -> None:
     entries = benchlib.load_manifest_rows(
         sl.CORPUS, sorted(set(args.layers.split(",")))
     )
-    ids = sl.select_ids(entries, args, args.stage)
+    # select_ids 已 canon 归一；dedup_wids 是同 wid 单任务闸（撞名对并发 =
+    # 同树互 rmtree——math--0408287 复判被罩实证），五 stage 共此入口。
+    ids = sl.dedup_wids(sl.select_ids(entries, args, args.stage))
     print(
         f"== {args.stage} n={len(ids)} layers={args.layers} seed={args.seed} -> {out_dir}",
         flush=True,

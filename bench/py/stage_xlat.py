@@ -338,6 +338,7 @@ def stage_xlat(
     parse_recs: dict,
 ) -> None:
     upstream_ok = set((args.upstream or "ok").split(","))
+    ids = sl.dedup_wids(ids)  # 同 wid 单任务闸——直调本驱动的调用方也兜住
     todo = []
     for pid in ids:
         if log.is_done(pid, args.arm, recode=args.recode) and not args.rerun:
