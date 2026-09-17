@@ -51,6 +51,21 @@ ATOM_EMPTY = """<?xml version="1.0" encoding="UTF-8"?>
   </entry>
 </feed>"""
 
+ATOM_FEED_NOVER = """<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:arxiv="http://arxiv.org/schemas/atom">
+  <entry>
+    <id>http://arxiv.org/abs/1412.6980</id>
+    <updated>2017-01-30T17:27:54Z</updated>
+    <published>2014-12-22T13:54:29Z</published>
+    <title>Adam: A Method for Stochastic Optimization</title>
+    <summary>We introduce Adam, an algorithm.</summary>
+    <author><name>Diederik P. Kingma</name></author>
+    <arxiv:primary_category term="cs.LG"/>
+    <category term="cs.LG"/>
+    <link rel="alternate" type="text/html" href="http://arxiv.org/abs/1412.6980"/>
+  </entry>
+</feed>"""
+
 OAI_RAW = """<?xml version="1.0" encoding="UTF-8"?>
 <OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/">
   <responseDate>2026-09-14T13:32:46Z</responseDate>
@@ -443,3 +458,36 @@ def test_degrade_mirror_failover() -> None:
     assert res.tier is DegradeTier.PDF
     assert "arxiv.org" in calls
     assert "export.arxiv.org" in calls
+
+
+def test_fetch_metadata_atom_nover_falls_back_to_oai() -> None:
+    """Atom entry ``<id>`` 无 vN（``resolved_version=None``）——``or`` 短路
+    不再吞掉 OAI 版本史解析机会。"""
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        if "/api/query" in req.url.path:
+            return httpx.Response(HTTP_OK, content=ATOM_FEED_NOVER.encode())
+        return httpx.Response(HTTP_OK, content=OAI_RAW.encode())
+
+    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    meta = fetch_metadata("1412.6980", fetcher=f)
+    assert meta is not None
+    assert meta.source == "oai-raw"
+    assert meta.resolved_version == LATEST
+    assert [v.version for v in meta.versions] == [1, V2, LATEST]
+
+
+def test_fetch_metadata_atom_nover_kept_when_oai_fails() -> None:
+    """OAI 也挂时 Atom 残值（``resolved_version=None``）仍返回——比 None 有用。"""
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        if "/api/query" in req.url.path:
+            return httpx.Response(HTTP_OK, content=ATOM_FEED_NOVER.encode())
+        return httpx.Response(HTTP_OK, content=OAI_ERROR.encode())
+
+    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    meta = fetch_metadata("1412.6980", fetcher=f)
+    assert meta is not None
+    assert meta.source == "atom"
+    assert meta.resolved_version is None
+    assert meta.title == "Adam: A Method for Stochastic Optimization"

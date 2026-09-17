@@ -104,3 +104,19 @@ def test_pdf_wrapper_commented_includepdf() -> None:
     v = check_pdf_wrapper(src)
     assert not v.is_wrapper
     assert not v.has_includepdf
+
+
+def test_pdf_wrapper_section_optional_arg_counts() -> None:
+    r"""``\section[short]{long}`` 可选参形态计入 n_sections——漏判曾把
+    ``\includepdf`` + 可选参 section 的真文档判成 is_stub → wrapper 假阳。"""
+    src = (
+        "\\documentclass{article}\n\\begin{document}\n"
+        "\\includepdf{paper.pdf}\n"
+        "\\section[Short]{Long}\n\\subsection*[s]{l}\n\\paragraph{p}\n"
+        "\\end{document}\n"
+    )
+    v = check_pdf_wrapper(src)
+    assert v.n_sections == 3  # noqa: PLR2004 -- 钉命中数
+    assert v.has_includepdf
+    assert not v.is_stub
+    assert not v.is_wrapper

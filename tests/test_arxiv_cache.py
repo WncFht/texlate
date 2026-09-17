@@ -119,3 +119,14 @@ def test_commit_nested_old_style_id(tmp_path: Path) -> None:
     e = cache.commit(staging, "hep-th/9901001", 2)
     assert e.dir == cache.root / "hep-th/9901001v2"
     assert (e.dir / "meta.json").is_file()
+
+
+def test_entry_dir_nul_raises_cache_error(tmp_path: Path) -> None:
+    """NUL 内嵌 id：``resolve`` 裸 ``ValueError`` 收口为 ``CacheError``——
+    与逃逸臂同契约（textutil ``safe_resolve`` 同款 catch 集）。"""
+    cache = SourceCache(tmp_path / "src")
+    for bad in ("a\x00b", "\x00"):
+        with pytest.raises(CacheError, match="not path-representable"):
+            cache.entry_dir(bad, 1)
+        with pytest.raises(CacheError, match="not path-representable"):
+            cache.get(bad, 1)

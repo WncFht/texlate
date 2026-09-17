@@ -277,12 +277,20 @@ def _oai_meta(fetcher: Fetcher, base: str, pin: int | None) -> PaperMeta | None:
 
 
 def fetch_metadata(arxiv_id: str, *, fetcher: Fetcher) -> PaperMeta | None:
-    """Atom 主源 → OAI-PMH 兜底。无网/超时/park/无条目 → ``None``。"""
+    """Atom 主源 → OAI-PMH 兜底。无网/超时/park/无条目 → ``None``。
+
+    Atom entry ``<id>`` 无 vN 尾巴（裸 abs URL 形态）时 ``resolved_version``
+    为 ``None``——``or`` 短路会把版本史解析机会吞掉，故显式续走 OAI；
+    OAI 也挂时 Atom 残值（无版本号的 meta）仍比 ``None`` 有用。
+    """
     base, pin = normalize_arxiv_id(arxiv_id)
     if not _valid_id(base):
         msg = f"bad arxiv id: {arxiv_id!r}"
         raise ValueError(msg)
-    return _atom_meta(fetcher, base, pin) or _oai_meta(fetcher, base, pin)
+    meta = _atom_meta(fetcher, base, pin)
+    if meta is not None and meta.resolved_version is not None:
+        return meta
+    return _oai_meta(fetcher, base, pin) or meta
 
 
 def resolve_version(

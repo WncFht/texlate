@@ -83,13 +83,21 @@ class SourceCache:
         """条目目录（旧式 id 自带 archive/ 段，自然嵌套）。
 
         id 逃逸 root → ``CacheError``（路径穿越必响，入路径前最后拦截点）。
+        NUL/ENAMETOOLONG/symlink loop 等病态 id → 同 ``CacheError``（resolve
+        裸 ``ValueError``/``OSError``/``RuntimeError`` 按 textutil
+        ``safe_resolve`` 同款口径收口——调用方错误语义与逃逸臂一致）。
         版本号越界（<1 或超 ``_MAX_RESOLVED_VERSION``）→ 哨兵
         ``_UNREPR_DIR``：高位版本把目录名吹超 NAME_MAX，不可表示即
         「无此条目」——``get`` 归 miss、``.exists()`` 归 False；写路径
         由 ``commit`` 硬拒，不会写到哨兵名。
         """
         d = self.root / f"{arxiv_id}v{resolved_version}"
-        if not d.resolve().is_relative_to(self.root.resolve()):
+        try:
+            resolved = d.resolve()
+        except (OSError, RuntimeError, ValueError) as e:
+            msg = f"arxiv_id not path-representable: {arxiv_id!r}"
+            raise CacheError(msg) from e
+        if not resolved.is_relative_to(self.root.resolve()):
             msg = f"arxiv_id escapes cache root: {arxiv_id!r}"
             raise CacheError(msg)
         if not 1 <= resolved_version <= _MAX_RESOLVED_VERSION:
