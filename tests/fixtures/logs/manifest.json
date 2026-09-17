@@ -300,11 +300,9 @@
     },
     "warnings": {
       "by_class_min": {
-        "missing_glyph": 2
+        "missing_glyph_nullfont": 2
       },
-      "redline_contains": [
-        "missing_glyph"
-      ],
+      "redline_contains": [],
       "sys_hits_contains": [],
       "cjk_missing_min": 0
     },

@@ -82,6 +82,10 @@ _WARNING_RULES: Final = (
         "invalid_utf8",
         re.compile(r"Invalid UTF-8 byte|replaced by U\+FFFD", re.IGNORECASE),
     ),
+    (
+        "missing_glyph_nullfont",
+        re.compile(r"Missing character:.*in font nullfont", re.IGNORECASE),
+    ),
     ("missing_glyph", re.compile(r"Missing character:", re.IGNORECASE)),
     ("citation", re.compile(r"Citation.*undefined|undefined citations", re.IGNORECASE)),
     (
@@ -134,6 +138,9 @@ _EOF_POP_WINDOW: Final = 16
 #: engine 侧 ``WARNING_RED_LINES`` 同名红线的 L2 对应类）。
 #: ``missing_glyph``（非 CJK/非 FFFD/码点不可解）同入红线——judge 的
 #: ``missing_chars`` 对全部缺字形判 dirty，§4.3 渲染检查亦要求计数==0。
+#: ``missing_glyph_nullfont``（试排/测量盒良性吞字）**不入**红线——
+#: 计数留 by_class/samples 观察面，redlines 保净（judge 门控同口径
+#: 排除，裁决证据 bench/results/nullfont-scout-2026-09-17/）。
 _REDLINE_CLASSES: Final = frozenset(
     {
         "invalid_utf8",

@@ -88,9 +88,36 @@ def pdf_cjk_chars(pdf: Path, *, timeout: float = 60) -> int:
     return len(_CJK_RE.findall(out))
 
 
+#: 门控缺字形计数：排除 `in font nullfont`——试排/测量盒吞字是良性
+#: （37 纯 nullfont 格零 CJK 实证见 bench/results/nullfont-scout-2026-09-17/）。
+#: TeX ~79 列折行会把字体名推入续行；tempered lookahead 限界到下一条
+#: misschar 行前，防邻接真字体行被误豁免。与 rules.yaml missing_char
+#: 签名同口径。
+_MISSCHAR_GATE_RX = re.compile(
+    r"Missing character(?!(?:(?!Missing character)[\s\S]){0,90}?in font nullfont)"
+)
+#: nullfont 命中（良性）计数——同一限界窗正向取，进 notes 观察项
+_MISSCHAR_NULLFONT_RX = re.compile(
+    r"Missing character(?=(?:(?!Missing character)[\s\S]){0,90}?in font nullfont)"
+)
+
+
 def count_missing_chars(log_text: str) -> int:
-    """统计 log 里 `Missing character:` 行数（缺字形告警=中文静默丢失信号）。"""
-    return len(re.findall(r"Missing character:", log_text))
+    """统计 log 里 `Missing character` 行数（缺字形告警=中文静默丢失信号）。
+
+    `in font nullfont` 命中不计入——良性试排吞字非正文丢字。
+    """
+    return len(_MISSCHAR_GATE_RX.findall(log_text))
+
+
+def _missing_char_check(v: Verdict, full_log: str, *, expect_cjk: bool) -> None:
+    """缺字形门控计数（nullfont 排除）+ nullfont 命中进 notes 观察项。"""
+    v.missing_chars = count_missing_chars(full_log)
+    nf_misses = len(_MISSCHAR_NULLFONT_RX.findall(full_log))
+    if nf_misses:
+        v.notes.append(f"missing_character_nullfont×{nf_misses}")
+    if expect_cjk and v.missing_chars > 0:
+        v.reasons.append(f"missing_character×{v.missing_chars}")
 
 
 def _signal_attribution(res: CompRes) -> int | None:
@@ -178,9 +205,7 @@ def judge(res: CompRes, *, expect_cjk: bool = False, log_text: str = "") -> Verd
             full_log = res.log_path.read_text(errors="replace")
         except OSError:
             full_log = ""
-    v.missing_chars = count_missing_chars(full_log)
-    if expect_cjk and v.missing_chars > 0:
-        v.reasons.append(f"missing_character×{v.missing_chars}")
+    _missing_char_check(v, full_log, expect_cjk=expect_cjk)
 
     if expect_cjk:
         _cjk_render_check(v, res)
