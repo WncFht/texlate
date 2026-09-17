@@ -8,11 +8,14 @@ import lzma
 import tarfile
 from pathlib import Path
 
+import pytest
+
 from texlate.compile.fixloop.ctan import (
     CtanFetcher,
     TlpdbIndex,
     check_version_compat,
     ctan_fetch,
+    default_cache_dir,
     fetch_package,
 )
 
@@ -237,3 +240,16 @@ def test_ctan_fetcher_epoch_wired(tmp_path: Path) -> None:
     assert cf("foo.sty") is None  # 版本过新 → 拒装
     assert not (wdir / "foo.sty").exists()
     assert "requires" in cf.last_note
+
+
+def test_default_cache_dir_env_precedence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """TEXLATE_CACHE > TEXLATE_DATA_DIR/cache > ~/.texlate/cache (wave-5c 归并)。"""
+    monkeypatch.delenv("TEXLATE_CACHE", raising=False)
+    monkeypatch.delenv("TEXLATE_DATA_DIR", raising=False)
+    assert default_cache_dir() == Path.home() / ".texlate" / "cache"
+    monkeypatch.setenv("TEXLATE_DATA_DIR", str(tmp_path / "droot"))
+    assert default_cache_dir() == tmp_path / "droot" / "cache"
+    monkeypatch.setenv("TEXLATE_CACHE", str(tmp_path / "explicit"))
+    assert default_cache_dir() == tmp_path / "explicit"

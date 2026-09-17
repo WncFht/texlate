@@ -12,9 +12,9 @@
   - tlnet 只发最新版 → version_guard 比对 expl3/LaTeX2e 要求,
     新版过新则跳过 (ctex 2.6.5 vs bundle expl3 2022/07/14 实证)
 
-缓存约定: ``$TEXLATE_CACHE`` 或 ``~/.texlate/cache/`` 下
-``texlive.tlpdb`` 原件 + ``filemap.json`` 索引 (远端仓库知识,
-与环境冷热无关 —— spike L17-18 同款理由)。
+缓存约定: ``$TEXLATE_CACHE`` > ``data_root()/cache`` (``TEXLATE_DATA_DIR``
+> ``~/.texlate``) 下 ``texlive.tlpdb`` 原件 + ``filemap.json`` 索引
+(远端仓库知识, 与环境冷热无关 —— spike L17-18 同款理由)。
 """
 
 from __future__ import annotations
@@ -30,6 +30,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Final
+
+from texlate.textutil import data_root
 
 __all__ = [
     "CtanFetchError",
@@ -119,8 +121,9 @@ DEFAULT_CAPS: Final = FetchCaps()
 
 
 def default_cache_dir() -> Path:
-    """``$TEXLATE_CACHE`` 或 ``~/.texlate/cache``。"""
-    return Path(os.environ.get("TEXLATE_CACHE") or Path.home() / ".texlate" / "cache")
+    """``$TEXLATE_CACHE`` > ``data_root()/cache`` (``TEXLATE_DATA_DIR`` > ``~/.texlate``)。"""
+    raw = os.environ.get("TEXLATE_CACHE")
+    return Path(raw).expanduser() if raw else data_root() / "cache"
 
 
 def _http_get(url: str, *, cap: int = DEFAULT_DOWNLOAD_CAP) -> bytes:
