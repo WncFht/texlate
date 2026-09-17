@@ -1,0 +1,54 @@
+citekey_sanitize verification — 11 target cells (apj-bib-scout §S4)
+==================================================================
+Date: 2026-09-17
+Method: copied each cell's zh/ tree to scratch, ran
+  texlate.compile.fixloop.builtins.citekey_sanitize(LoopCtx(wdir=copy), None, None, {})
+directly (zh == splice for the relevant .bbl; confirmed byte-identical on 1003.1717).
+"unsafe key" = \bibitem/\cite-family/\bibcite/\citation group-1 key containing bare & or _.
+Note: key counts below count individual keys inside multi-key lists; the builtin's (n)
+counts regex matches (edits) — one \cite{a,b} = 1 edit covering 2 keys. Both consistent.
+
+id           | unsafe_keys(bbl bibitem / tex cite) | fired | sample old -> new                  | idempotent | compile_delta
+-------------+-----------------------------------+-------+------------------------------------+------------+--------------
+1003.1717    | 31 / 168                          | y     | Allen_90 -> Allen-90               | y          | n/t (revtex4.cls noise)
+1206.5852    | 1 / 2                             | y     | 2005A&A...429..161T -> 2005AAA...429..161T | y    | n/t
+1306.0013    | 2 / 22                            | y     | 1998A&A...333L..87D -> 1998AAA...333L..87D | y    | n/t
+1306.0179    | 2 / 6                             | y     | 2001A&A...370..680A -> 2001AAA...370..680A | y    | n/t
+1306.2317    | 1 / 1                             | y     | SUZAKU_XIS -> SUZAKU-XIS           | y          | n/t
+1404.0089    | 0 / 0                             | n     | —                                  | y          | n/t
+1511.02843   | 2 / 2                             | y     | 1996A&A...313..697B -> 1996AAA...313..697B | y    | n/t
+1706.00024   | 3 / 56                            | y     | GW170104_GMG -> GW170104-GMG       | y          | n/t
+1803.00181   | 4 / 46                            | y     | 1996A&AS..117..393B -> 1996AAAS..117..393B | y  | n/t
+1907.03795   | 2 / 4                             | y     | 1992A&A...262..131H -> 1992AAA...262..131H | y  | 3 -> 0 err, rc=0, PDF 773191B
+2009.11106   | 3 / 3                             | y     | Faucher_Gigu_re_2011 -> Faucher-Gigu-re-2011 | y | 4 -> 0 err, rc=0, PDF 3857339B
+
+Summary
+-------
+- Fix reaches 10/11 cells: builtin fires, rewrites both sides (.bbl \bibitem
+  definitions + all .tex \cite-family references) in the same pass, and a second
+  run returns (False, "no unsafe cite keys") — fully idempotent.
+- All post-transform recounts show ZERO unsafe keys on live surfaces.
+- Rule gate confirmed live: all 11 cells' recorded compile first_error contains
+  `<name>.bbl:<N>: Missing $ inserted|Misplaced alignment tab character &` —
+  ctx_suggests regex matches; all cells carry .bbl so fileset has_ext holds;
+  category syntax matches recorded verdicts.
+- 1404.0089 — DOES NOT FIRE (expected). bbl:173 `Missing $` root cause is
+  `\doi{10.1007/978-1-84800-155-8_7}` — `_` inside a DOI value, not a cite key.
+  Zero unsafe keys exist, builtin correctly no-ops. Gate condition WILL match
+  the log so the rule attempts, burns one no-op round, error survives — the
+  subtype variant the scout report already flagged ("亚型略异", needs separate
+  \doi text-side patch or adjacent family).
+- 1706.00024 residual: one `GW170104_SwiftXRT` key survives post-transform —
+  it sits on a %-commented line (grb170105.tex:176), mask_tex skips it by
+  design. Dead code, no live-cite impact.
+- .aux surface: vacuous — no .aux files exist in any of the 11 zh trees
+  (engine artefacts are cleaned). Code path present but untested here.
+- Minor observation: keys with leading space in \cite lists (` Mauch_2020`)
+  are rewritten preserving the space (` Mauch-2020`) — harmless, TeX strips
+  key spaces.
+- Compile delta (2 cells, xelatex TL2026, nonstopmode, 60s): both cells went
+  from citekey-error partial to rc=0 clean compile with full PDF output —
+  the citekey errors were the ONLY `!`-level errors in these two docs.
+
+Verdict: citekey_sanitize (rules.yaml:3440, order 141) works as designed on
+10/11 cells; the 11th (1404.0089) is a known out-of-scope subtype.
