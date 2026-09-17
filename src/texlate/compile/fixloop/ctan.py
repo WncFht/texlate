@@ -581,7 +581,7 @@ class CtanFetcher:
         return self._index
 
     def peek_index(self) -> TlpdbIndex | None:
-        """已构建才返回索引, 不触发拉取 (advisory 提示用, 见 engine._apply_install_file)。"""
+        """已构建才返回索引, 不触发拉取 (advisory 提示用, 见 actions._apply_install_file)。"""
         return self._index
 
     def __call__(self, fname: str) -> str | None:

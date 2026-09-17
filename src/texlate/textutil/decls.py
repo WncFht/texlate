@@ -52,7 +52,7 @@ DOCCLASS_OPTS_RX: Final = re.compile(
     r"\\documentclass" + CMD_BOUNDARY + r"\s*(?:\[([^\]]*)\])?\s*\{"
 )
 
-#: 包/类加载命令名集——全仓各站现有集合的并集单源化（fixloop
+#: 包/类加载命令名集——全仓各站现有集合的并集单源化（fixloop actions
 #: ``_DEP_DECL_RE`` / normalize ``_PACKAGE_USE_RX``·``_CLASS_USE_RX`` /
 #: probe ``_PKG_RE``·``_CLS_RE`` / inject / fixloop.builtins /
 #: segmenter ``_PKG_CMDS`` 逐站归并）。``documentclass``/``documentstyle``
