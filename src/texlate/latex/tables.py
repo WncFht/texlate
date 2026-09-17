@@ -607,9 +607,75 @@ DIMEN_TAIL_KIND: dict[str, str] = {
 # 的 ``{red}``/``[model]`` 进 [[CMD]]、``{text}`` 留主流——argspec 同名条目
 # 是 chunk-arg policy 但 ``textcolor`` 只挂 xcolor 包（文档靠 color/类定义
 # 引入时门控失效），族表先行为确定性修正。
+#
+# graphicx/内核盒族同理且更强：argspec ``chunk-arg`` 的 in_arg 臂把字面
+# 参段裸字节并进 run surface（``\multirow{5}{*}{\rotatebox[origin=c]{90}``
+# 的 ``[origin=c]`` 进 chunk 被译——2310.16788 实证），本表 in_arg/组内
+# 两路都是 spec 驱动 ``[[CMD]]``，确定性盖过签名表。spec 只列到头参为
+# 止——其后 ``{text}`` 组随主流可译。``\makebox``/``\framebox`` 的
+# picture-mode ``(x,y)`` 参不收：``(`` 前导在散文里撞真括号（picture
+# 环境体本就整段保护，不吃这门）。
 TRANSPARENT_HEAD_SPEC: dict[str, list[ArgSpec]] = {
     "textcolor": [ArgSpec("o"), ArgSpec("m")],
     "colorbox": [ArgSpec("o"), ArgSpec("m")],
+    # \resizebox*{w}{h}{text}（graphicx，* 变体同形）
+    "resizebox": [ArgSpec("s"), ArgSpec("m"), ArgSpec("m")],
+    # \scalebox{h}[v]{text}
+    "scalebox": [ArgSpec("m"), ArgSpec("o")],
+    # \rotatebox[origin]{ang}{text}
+    "rotatebox": [ArgSpec("o"), ArgSpec("m")],
+    # \raisebox{lift}[above][below]{text}
+    "raisebox": [ArgSpec("m"), ArgSpec("o"), ArgSpec("o")],
+    # \makebox[w][pos]{text} / \framebox[w][pos]{text}
+    "makebox": [ArgSpec("o"), ArgSpec("o")],
+    "framebox": [ArgSpec("o"), ArgSpec("o")],
+    # \parbox[pos][h][ipos]{w}{text}
+    "parbox": [ArgSpec("o"), ArgSpec("o"), ArgSpec("o"), ArgSpec("m")],
+    # \savebox{cmd}[w][pos]{text} / \sbox{cmd}{text} / \usebox{cmd}
+    "savebox": [ArgSpec("m"), ArgSpec("o"), ArgSpec("o")],
+    "sbox": [ArgSpec("m")],
+    "usebox": [ArgSpec("m")],
+    # titlesec/titletoc 族：全结构参无 text 位——spec 驱动三路径全收
+    # （BOUNDARY_TAIL 组内/参内路只数 mand 个数，``m o m m m m o`` 交错
+    # 签名在那两条路漏尾参）。签名以 titlesec.sty/titletoc.sty 实测为准：
+    # titleformat = 星变体 cmd+fmt 两参 / 全形 cmd shape fmt label sep
+    # before after。
+    "titleformat": [
+        ArgSpec("s"),
+        ArgSpec("m"),
+        ArgSpec("o"),
+        ArgSpec("m"),
+        ArgSpec("m"),
+        ArgSpec("m"),
+        ArgSpec("m"),
+        ArgSpec("o"),
+    ],
+    # \titlespacing*{cmd}{left}{before}{after}[right]（``s``+4×``m``+
+    # 尾 ``o``——.sty ``\ttl@spacing@i`` 是四强制参，mission 手抄三参少一）
+    "titlespacing": [
+        ArgSpec("s"),
+        ArgSpec("m"),
+        ArgSpec("m"),
+        ArgSpec("m"),
+        ArgSpec("m"),
+        ArgSpec("o"),
+    ],
+    # \titlelabel{fmt} / \titleclass{cmd}[super]{class}——``[super]``
+    # 在两序都出现过（.sty 读序 opt-在-class-前，文档常写反），双 ``o`` 盖
+    "titlelabel": [ArgSpec("m")],
+    "titleclass": [ArgSpec("m"), ArgSpec("o"), ArgSpec("m"), ArgSpec("o")],
+    # \titlecontents{sec}[left]{above}{num}{nonum}{filler}[below][after]
+    "titlecontents": [
+        ArgSpec("s"),
+        ArgSpec("m"),
+        ArgSpec("o"),
+        ArgSpec("m"),
+        ArgSpec("m"),
+        ArgSpec("m"),
+        ArgSpec("m"),
+        ArgSpec("o"),
+        ArgSpec("o"),
+    ],
 }
 
 # ---------------------------------------------------------------- argspec.json
