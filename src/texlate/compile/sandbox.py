@@ -7,6 +7,8 @@
   SSH key 编译期不可读。
 - 进程组隔离（`start_new_session`）+ `killpg` 杀整棵进程树；非 POSIX 降级
   为 `proc.kill()`。子进程输出封顶 8MB 防内存炸。
+- POSIX rlimits 纵深：exec 前经 preexec_fn 装 AS/NOFILE/CPU 软帽——失控
+  TeX 吃不光宿主内存与 fd，自旋进程墙钟之外还有 SIGXCPU 第二闸。
 """
 
 from __future__ import annotations
@@ -23,8 +25,13 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+if sys.platform != "win32":
+    import resource
+else:
+    resource = None  # type: ignore[assignment]
+
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Callable, Iterable
 
 #: 透传父进程的 env 名（白名单）。
 _ENV_PASS_EXACT = {
@@ -188,6 +195,49 @@ def sandbox_wrap(  # noqa: PLR0913 -- 沙箱决策参数面
     return ["/usr/bin/sandbox-exec", "-p", profile, *cmd]
 
 
+#: 子进程地址空间软帽（字节）——TeX 正常编译峰值 <1GiB，4GiB 只拦失控
+#: 分配；macOS 不强制 RLIMIT_AS，设之无害。
+_RLIMIT_AS_BYTES = 4 * 1024**3
+#: 文件描述符软帽——kpathsea 正常并发 fd 峰值远低于 1024。
+_RLIMIT_NOFILE = 1024
+#: CPU 秒软帽下限：cap = max(2×墙钟, 本下限)——timeout/killpg 仍是主杀器，
+#: CPU 帽兜「100% 自旋但墙钟面失守」的逃逸（SIGXCPU → engine 信号归因
+#: 照常吃）；短 timeout 探针调用也拿 600s 地板，永不误杀。
+_RLIMIT_CPU_FLOOR = 600
+
+
+def _cap_rlimit(what: int, cap: int) -> None:
+    """把 *what* 软帽降到 ``cap``（已低于 cap 则不动）；hard 保持原值。
+
+    TeX 系进程从不自行 setrlimit——降 hard 是永久自残且无收益。单件失败
+    （平台缺该 limit / 容器拒设）静默跳过：rlimits 是纵深兜底不是主闸。
+    """
+    try:
+        soft, hard = resource.getrlimit(what)
+    except (OSError, ValueError):
+        return
+    if soft == resource.RLIM_INFINITY or soft > cap:
+        with contextlib.suppress(OSError, ValueError):
+            resource.setrlimit(what, (cap, hard))
+
+
+def _rlimit_preexec(timeout: float) -> Callable[[], None] | None:
+    """返回 Popen ``preexec_fn``：exec 前装 AS/NOFILE/CPU 软帽；非 POSIX → None。"""
+    if resource is None:
+        return None
+    caps = {resource.RLIMIT_CPU: max(2 * int(timeout), _RLIMIT_CPU_FLOOR)}
+    if hasattr(resource, "RLIMIT_AS"):
+        caps[resource.RLIMIT_AS] = _RLIMIT_AS_BYTES
+    if hasattr(resource, "RLIMIT_NOFILE"):
+        caps[resource.RLIMIT_NOFILE] = _RLIMIT_NOFILE
+
+    def _install() -> None:
+        for what, cap in caps.items():
+            _cap_rlimit(what, cap)
+
+    return _install
+
+
 def run_process(
     cmd: list[str],
     *,
@@ -196,10 +246,11 @@ def run_process(
     timeout: float,
     out_cap: int = 8 * 1024 * 1024,
 ) -> tuple[int | None, str, float, bool]:
-    """同步跑子进程：进程组隔离 + 超时 killpg + 输出封顶。
+    """同步跑子进程：进程组隔离 + 超时 killpg + 输出封顶 + POSIX rlimits。
 
     返回 `(rc, output, seconds, timed_out)`；timeout 后 SIGKILL 整组
     （latex→dvips/mktextfm 子进程一并带走），非 POSIX 平台降级 proc.kill。
+    子进程 exec 前装资源软帽（仅降不升），硬顶之外的纵深兜底。
     """
     t0 = time.time()
     try:
@@ -214,6 +265,9 @@ def run_process(
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             start_new_session=(sys.platform != "win32"),
+            # PLW1509: rlimits 只能 fork 后 exec 前装——回调只碰
+            # resource.setrlimit（纯 syscall 封套，不取锁不分配）。
+            preexec_fn=_rlimit_preexec(timeout),  # noqa: PLW1509
         )
     except OSError as e:
         # 二进制缺席/cwd 失效等 exec 失败——返回 rc=None 而非炸掉调用方

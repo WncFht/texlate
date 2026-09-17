@@ -19,6 +19,9 @@ import texlate.compile.sandbox as sb
 from texlate.compile.engine import TectonicEngine, XelatexEngine
 from texlate.compile.sandbox import child_env, find_tool, run_process, sandbox_wrap
 
+if sys.platform != "win32":
+    import resource
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
 
@@ -408,3 +411,85 @@ def test_run_process_timeout_reap_bounded(
     assert to is True
     assert timeouts == [5, 30]
     assert rc == -9  # noqa: PLR2004 - SIGKILL
+
+
+# ---------------------------------------------------------------- rlimits
+requires_posix = pytest.mark.skipif(sys.platform == "win32", reason="rlimits 仅 POSIX")
+
+
+@requires_posix
+def test_cap_rlimit_lowers_only() -> None:
+    """_cap_rlimit 只降不升、hard 保持——宿主 soft 已低于 cap 时不动。"""
+    what = resource.RLIMIT_NOFILE
+    soft, hard = resource.getrlimit(what)
+    if soft == resource.RLIM_INFINITY or soft <= 2:  # noqa: PLR2004
+        pytest.skip("宿主 soft 无下降空间")
+    try:
+        sb._cap_rlimit(what, soft - 1)  # noqa: SLF001
+        assert resource.getrlimit(what) == (soft - 1, hard)
+        sb._cap_rlimit(what, soft + 100)  # noqa: SLF001
+        assert resource.getrlimit(what)[0] == soft - 1
+    finally:
+        resource.setrlimit(what, (soft, hard))
+
+
+@requires_posix
+def test_run_process_rlimit_as_kills_hog(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """RLIMIT_AS 实证：512MB 帽下分配 2GB → MemoryError，失控进程吃不光宿主。"""
+    monkeypatch.setattr(sb, "_RLIMIT_AS_BYTES", 512 * 1024**2)
+    rc, out, _sec, to = run_process(
+        [sys.executable, "-c", "b = bytearray(2 * 1024**3); print(len(b))"],
+        cwd=tmp_path,
+        env=child_env(),
+        timeout=30,
+    )
+    assert to is False
+    assert rc not in (None, 0)
+    assert "MemoryError" in out
+
+
+@requires_posix
+def test_run_process_rlimit_cpu_sigxcpu(tmp_path: Path) -> None:
+    """RLIMIT_CPU 实证：_cap_rlimit 装 2s CPU 帽的自旋子进程被 SIGXCPU 收。
+
+    run_process 的 cap 公式恒 ≥2×墙钟（纯兜底、可验证路径不存在）——直接
+    用同一 ``preexec_fn`` 机制装小帽，验证的是机制本身而非数值。
+    """
+    proc = subprocess.Popen(
+        [sys.executable, "-c", "while True: pass"],
+        cwd=tmp_path,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+        # PLW1509: 与 sandbox.py 同机制——回调只碰 resource.setrlimit。
+        preexec_fn=lambda: sb._cap_rlimit(resource.RLIMIT_CPU, 2),  # noqa: PLW1509, SLF001
+    )
+    proc.wait(timeout=30)
+    assert proc.returncode == -signal.SIGXCPU
+
+
+@requires_posix
+def test_run_process_rlimit_nofile_emfile(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """RLIMIT_NOFILE 实证：cap=24 时保活 open 撞 EMFILE。"""
+    monkeypatch.setattr(sb, "_RLIMIT_NOFILE", 24)
+    rc, out, _sec, to = run_process(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import os; print(len([os.open('/dev/null', os.O_RDONLY) "
+                "for _ in range(200)]))"
+            ),
+        ],
+        cwd=tmp_path,
+        env=child_env(),
+        timeout=30,
+    )
+    assert to is False
+    assert rc not in (None, 0)
+    assert "Too many open files" in out
