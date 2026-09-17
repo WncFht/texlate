@@ -34,6 +34,7 @@ from ._common import (
     _MATH_TEXTARG,
     _PKG_CMDS,
     _PROTECT_TYP,
+    _TAIL_CAP,
     TokenSource,
     _ArgTok,
     _chunk_spec_cached,
@@ -841,7 +842,7 @@ class _Args:
         不再主流重放。
         """
         fid, _a, b = t.pos
-        m = _BSBS_OPT_RX.match(self.file_texts[fid], b)
+        m = _BSBS_OPT_RX.match(self.file_texts[fid], b, b + _TAIL_CAP)
         if m is None or m.end() <= b:
             self._rappend_tok(t)
             return

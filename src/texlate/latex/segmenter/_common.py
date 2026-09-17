@@ -105,15 +105,27 @@ _DIMEN_UNIT = (
 # 尾参间隙：TeX 空白语义——空格/制表/单换行/``%`` 行注释皆可分隔操作数
 # （``\hskip\n 1em`` 2105.00030、``\\\n[8pt]`` hep-ph/0307181、
 # ``\\[0pt%\n]`` 1511.06628 实证）；``\n\n`` 段界不跨（par 后是正文）。
-_WS_NOPAR = r"[^\S\n]|%[^\n]*|\n(?![ \t\n]*\n)"
+# 原子组：三选一首字符互斥（ws/`%`/`\n`），但 ``%[^\n]*`` 变长片在
+# ``(?:W)*`` 外层星号下对 ``%%%%``/``%====`` 注释墙有 2^N 重分段——
+# ATOM 失配即 ReDoS（illegal_unit 波 held6 实证：老论文头部注释横幅）。
+# ``(?>`` 提交单次选择消重分段，语义不变。
+_WS_NOPAR = r"(?>[^\S\n]|%[^\n]*|\n(?![ \t\n]*\n))"
+# cs 名带 ``(?![a-zA-Z@])`` 边界：切片窗可能切在名中（``_TAIL_CAP``），
+# 无边界则 ``\\foo``|``bar`` 斩名半吞。
 _DIMEN_ATOM = (
-    r"[+-]?[ \t]*(?:\\[a-zA-Z@]+|" + _DIMEN_NUM + r"[ \t]*" + _DIMEN_UNIT + r")"
+    r"[+-]?[ \t]*(?:\\[a-zA-Z@]+(?![a-zA-Z@])|"
+    + _DIMEN_NUM
+    + r"[ \t]*"
+    + _DIMEN_UNIT
+    + r")"
 )
 # 计数器操作数：裸整数/``'oct``/``"hex``/``\`char``/cs 寄存器——``=N`` 无
 # 单位形是 count 赋值（``\hangafter=1``/``\tolerance=800``），ATOM 的单位
 # 硬要求罩不住（illegal_unit 波 A 簇 74 行粘连残证实证）。
 _COUNT_OPERAND = (
-    r"[+-]?(?:" + _WS_NOPAR + r")*(?:\d+|'[0-7]+|\"[0-9A-Fa-f]+|\\[a-zA-Z@]+)"
+    r"[+-]?(?:"
+    + _WS_NOPAR
+    + r")*(?:\d+|'[0-7]+|\"[0-9A-Fa-f]+|\\[a-zA-Z@]+(?![a-zA-Z@]))"
 )
 # 扫描终止符：TeX 数/胶扫描遇 ``\relax`` 即停——``1em plus..\relax``/``=1\relax``
 # 是惯用收束形，尾随 ``\relax`` 随操作数同收（裸 ``\relax`` 留在表面会被
@@ -205,6 +217,10 @@ _GRP_BSBS_CONTENT_RX = re.compile(
 )
 # 组内尾参扫的 surface join 字符窗上限
 _GRP_TAIL_CAP = 96
+# 主路尾参扫的字节窗上限——尾参物理上数十字节级（数+单位+plus/minus 项），
+# 窗帽让任何未来正则病灶代价有界（held6 ReDoS 教训：嵌 _WS_NOPAR 的匹配
+# 一律不裸跑全文 haystack）
+_TAIL_CAP = 512
 
 # ---- 跨边界待绑参（key-arg 泄漏修复）：展开组尾 cs 的调用点参数吸回组内 ----
 # ``\def\r{\ref}``+``\r{key}``：``\ref`` 是展开产物（pos=定义体、origin=

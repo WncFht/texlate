@@ -644,3 +644,23 @@ def test_genfrac_all_args_protected() -> None:
     body = chunk_text(res)
     assert "0pt" not in body
     assert "genfrac" not in body
+
+
+def test_percent_wall_tail_scan_no_redos() -> None:
+    r"""ReDoS 回归钉（held6 实证）：尾参 cs + ``%%%%``/``%==`` 注释墙 +
+    失配尾——``_WS_NOPAR`` 非原子化时 ``%[^\n]*`` 变长片在外层星号下
+    2^N 重分段回溯爆炸（0905.1090 等 6 格 parse 卡死）。原子组化 +
+    ``_TAIL_CAP`` 窗帽后本用例即时间闸（旧码跑到套件超时被杀）。"""
+    wall = "%" * 300 + "\n" + "%=" * 150 + "\n"
+    tex = ART % (
+        "",
+        (
+            "Head words \\vskip " + wall + "NOT_A_TAIL words fill the "
+            "paragraph out nicely.\n"
+            "Line one \\\\" + wall + "[text] tail words here fill up.\n"
+        ),
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert "NOT_A_TAIL" in body

@@ -37,6 +37,7 @@ from ._common import (
     _PKG_ARG_SPEC,
     _PKG_CMDS,
     _PROTECT_TYP,
+    _TAIL_CAP,
     _TAIL_RX,
     TokenSource,
     _ArgTok,
@@ -756,12 +757,13 @@ class _MainLoop:
     def _tail_scan_end(self, fid: int, pos: int, kind: str) -> int | None:
         r"""``pos`` 起的非文本尾参字节扫 → end；形不合 → None。
 
-        ``kind`` ∈ ``_TAIL_RX``：``dimen``/``rule``/``font``/``assign``
-        （通用 ``=ATOM``——``\foo=2pt`` 的赋值形对一切未知名生效）。
-        只认 ``[ \\t]`` 间隙——换行分隔的操作数不进覆盖（语料未见，
-        par 边界语义不跨）。
+        ``kind`` ∈ ``_TAIL_RX``：``dimen``/``count``/``rule``/``font``/
+        ``assign``（通用 ``=ATOM|=<count>``——``\foo=2pt``/``\foo=2`` 的
+        赋值形对一切未知名生效）。间隙 = ``_WS_NOPAR``（空格/制表/单换行/
+        ``%`` 注释——``\hskip\n1em`` 收，``\n\n`` 段界不跨）。haystack
+        切 ``_TAIL_CAP`` 窗：尾参数十字节级，窗帽使正则病灶代价有界。
         """
-        m = _TAIL_RX[kind].match(self.file_texts[fid], pos)
+        m = _TAIL_RX[kind].match(self.file_texts[fid], pos, pos + _TAIL_CAP)
         return m.end() if m is not None and m.end() > pos else None
 
     def _tikz_tail_end(  # noqa: C901, PLR0911, PLR0912 — 字节级 ; 定界扫：深度/注释/终止判定逐字符平铺
