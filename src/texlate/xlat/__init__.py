@@ -1,136 +1,105 @@
-"""翻译编排层：prompt 套件 / 批量 / 重试阶梯 / 术语表 / 断点续跑（规格 docs/08）。"""
+"""翻译编排层：prompt 套件 / 批量 / 重试阶梯 / 术语表 / 断点续跑（规格 docs/08）。
 
-from .batch import (
-    BATCH_MAX_CHARS,
-    CHUNK_HARD_LIMIT,
-    SHORT_CHAR_LIMIT,
-    encode_batch,
-    pack_batches,
-    parse_batch_response,
-    split_long_chunk,
-)
-from .client import (
-    ChatClient,
-    ChatError,
-    ChatOptions,
-    ChatResult,
-    FreeModel,
-    Usage,
-    pick_model,
-    provider_for_url,
-    redact,
-)
-from .glossary import Glossary, TermEntry
-from .pipeline import (
-    ChunkIn,
-    ChunkResult,
-    GatewayTranslator,
-    MockTranslator,
-    PipelineConfig,
-    Translator,
-    XlatPipeline,
-)
-from .placeholders import (
-    ANY_PH_RX,
-    BARE_PH_RX,
-    PH_FUZZY_RX,
-    TYPED_PH_RX,
-    PhDiff,
-    collect_doc_placeholders,
-    decode_newlines,
-    diff,
-    encode_newlines,
-    is_placeholder_only,
-    recover_copied_tokens,
-    sort_key,
-)
-from .prompts import (
-    ENV_JUDGE_MAX_TOKENS,
-    ENV_JUDGE_RETRIES,
-    ENV_JUDGE_TEMPERATURE,
-    NAME_CLAUSE,
-    PLACEHOLDER_CLAUSE,
-    PROMPT_VERSION,
-    build_system_prompt,
-    corrector_system_prompt,
-    corrector_user_prompt,
-    env_judge_system_prompt,
-    normalize_kind,
-    parse_env_judge_answer,
-    render_glossary_block,
-)
-from .retry import (
-    RetryPolicy,
-    call_with_backoff,
-    translate_with_ladder,
-)
-from .state import (
-    ChunkRecord,
-    StateStore,
-    atomic_json,
-    file_cache_key,
-    load_cache,
-    segment_key,
-)
+惰性门面（PEP 562）：``__all__`` 平名经 ``__getattr__`` 映射回子模块惰性
+解析——``import texlate.xlat.placeholders`` 不再经包 init 拉入 httpx 等
+重依赖（audit: 全仓消费者均为子模块级 import，平名零消费者）。
+"""
 
-__all__ = [
-    "ANY_PH_RX",
-    "BARE_PH_RX",
-    "BATCH_MAX_CHARS",
-    "CHUNK_HARD_LIMIT",
-    "ENV_JUDGE_MAX_TOKENS",
-    "ENV_JUDGE_RETRIES",
-    "ENV_JUDGE_TEMPERATURE",
-    "NAME_CLAUSE",
-    "PH_FUZZY_RX",
-    "PLACEHOLDER_CLAUSE",
-    "PROMPT_VERSION",
-    "SHORT_CHAR_LIMIT",
-    "TYPED_PH_RX",
-    "ChatClient",
-    "ChatError",
-    "ChatOptions",
-    "ChatResult",
-    "ChunkIn",
-    "ChunkRecord",
-    "ChunkResult",
-    "FreeModel",
-    "GatewayTranslator",
-    "Glossary",
-    "MockTranslator",
-    "PhDiff",
-    "PipelineConfig",
-    "RetryPolicy",
-    "StateStore",
-    "TermEntry",
-    "Translator",
-    "Usage",
-    "XlatPipeline",
-    "atomic_json",
-    "build_system_prompt",
-    "call_with_backoff",
-    "collect_doc_placeholders",
-    "corrector_system_prompt",
-    "corrector_user_prompt",
-    "decode_newlines",
-    "diff",
-    "encode_batch",
-    "encode_newlines",
-    "env_judge_system_prompt",
-    "file_cache_key",
-    "is_placeholder_only",
-    "load_cache",
-    "normalize_kind",
-    "pack_batches",
-    "parse_batch_response",
-    "parse_env_judge_answer",
-    "pick_model",
-    "provider_for_url",
-    "recover_copied_tokens",
-    "redact",
-    "render_glossary_block",
-    "segment_key",
-    "sort_key",
-    "split_long_chunk",
-    "translate_with_ladder",
-]
+from __future__ import annotations
+
+import importlib
+
+_SUBMODULE_EXPORTS: dict[str, tuple[str, ...]] = {
+    "batch": (
+        "BATCH_MAX_CHARS",
+        "CHUNK_HARD_LIMIT",
+        "SHORT_CHAR_LIMIT",
+        "encode_batch",
+        "pack_batches",
+        "parse_batch_response",
+        "split_long_chunk",
+    ),
+    "client": (
+        "ChatClient",
+        "ChatError",
+        "ChatOptions",
+        "ChatResult",
+        "FreeModel",
+        "Usage",
+        "pick_model",
+        "provider_for_url",
+        "redact",
+    ),
+    "glossary": ("Glossary", "TermEntry"),
+    "pipeline": (
+        "ChunkIn",
+        "ChunkResult",
+        "GatewayTranslator",
+        "MockTranslator",
+        "PipelineConfig",
+        "Translator",
+        "XlatPipeline",
+    ),
+    "placeholders": (
+        "ANY_PH_RX",
+        "BARE_PH_RX",
+        "PH_FUZZY_RX",
+        "TYPED_PH_RX",
+        "PhDiff",
+        "collect_doc_placeholders",
+        "decode_newlines",
+        "diff",
+        "encode_newlines",
+        "is_placeholder_only",
+        "recover_copied_tokens",
+        "sort_key",
+    ),
+    "prompts": (
+        "ENV_JUDGE_MAX_TOKENS",
+        "ENV_JUDGE_RETRIES",
+        "ENV_JUDGE_TEMPERATURE",
+        "NAME_CLAUSE",
+        "PLACEHOLDER_CLAUSE",
+        "PROMPT_VERSION",
+        "build_system_prompt",
+        "corrector_system_prompt",
+        "corrector_user_prompt",
+        "env_judge_system_prompt",
+        "normalize_kind",
+        "parse_env_judge_answer",
+        "render_glossary_block",
+    ),
+    "retry": ("RetryPolicy", "call_with_backoff", "translate_with_ladder"),
+    "state": (
+        "ChunkRecord",
+        "StateStore",
+        "atomic_json",
+        "file_cache_key",
+        "load_cache",
+        "segment_key",
+    ),
+}
+
+_LAZY: dict[str, str] = {
+    name: mod for mod, names in _SUBMODULE_EXPORTS.items() for name in names
+}
+
+# 由映射表生成——单一事实源，避免两份清单漂移
+__all__ = sorted(_LAZY)  # noqa: PLE0605
+
+
+def __getattr__(name: str) -> object:
+    """平名惰性解析 → 子模块属性；子模块名本身也走惰性 import。"""
+    mod = _LAZY.get(name)
+    if mod is not None:
+        value = getattr(importlib.import_module(f".{mod}", __name__), name)
+        globals()[name] = value
+        return value
+    if name in _SUBMODULE_EXPORTS:
+        return importlib.import_module(f".{name}", __name__)
+    msg = f"module {__name__!r} has no attribute {name!r}"
+    raise AttributeError(msg)
+
+
+def __dir__() -> list[str]:
+    return __all__
