@@ -315,7 +315,7 @@ def test_fixloop_degraded_regression(tmp_path: Path) -> None:
 
 # ---------------------------------------------------------------- fixloop --rerun 重建
 def _stub_fixloop_io(
-    stagerun: types.ModuleType, monkeypatch: pytest.MonkeyPatch
+    stage_fx: types.ModuleType, monkeypatch: pytest.MonkeyPatch
 ) -> list[bool]:
     """_fixloop_one 的外部面全部替身——只留 workdir 编排逻辑可观测。"""
     injected: list[bool] = []
@@ -328,22 +328,22 @@ def _stub_fixloop_io(
             return object()
 
     monkeypatch.setattr(
-        stagerun,
+        stage_fx,
         "prepare_chinese",
         lambda *_a, **_k: injected.append(True) or {},
     )
-    monkeypatch.setattr(stagerun, "XelatexEngine", _Eng)
-    monkeypatch.setattr(stagerun.flb, "_index", lambda: None)
-    monkeypatch.setattr(stagerun.flb, "_init_usertree", lambda _p: None)
-    monkeypatch.setattr(stagerun.flb, "_NoSandbox", lambda e: e)
-    monkeypatch.setattr(stagerun.flb, "_texmf_runner", lambda _t: None)
+    monkeypatch.setattr(stage_fx, "XelatexEngine", _Eng)
+    monkeypatch.setattr(stage_fx.flb, "_index", lambda: None)
+    monkeypatch.setattr(stage_fx.flb, "_init_usertree", lambda _p: None)
+    monkeypatch.setattr(stage_fx.flb, "_NoSandbox", lambda e: e)
+    monkeypatch.setattr(stage_fx.flb, "_texmf_runner", lambda _t: None)
     monkeypatch.setattr(
-        stagerun,
+        stage_fx,
         "fixloop",
         lambda *_a, **_k: {"verdict": "clean", "rounds": [], "actions": []},
     )
     monkeypatch.setattr(
-        stagerun.benchlib,
+        stage_fx.benchlib,
         "judge_dict",
         lambda *_a, **_k: {"verdict": {"status": "clean", "reasons": []}},
     )
@@ -375,11 +375,11 @@ def test_fixloop_rerun_rebuilds_splice(
     2211.04482 实证脏 splice 泄漏：二轮规则在假树上复跑。重建与
     _compile_one 同式（copytree zh→splice + prepare_chinese 重做）。
     """
-    stagerun: types.ModuleType = pytest.importorskip("stagerun")
-    injected = _stub_fixloop_io(stagerun, monkeypatch)
+    stage_fx: types.ModuleType = pytest.importorskip("stage_fixloop")
+    injected = _stub_fixloop_io(stage_fx, monkeypatch)
     splice = _seed_workdir(tmp_path / "work" / "p1")
     args = Namespace(rerun=True, on="all", timeout=1, llm=False, recode=False)
-    rec = stagerun._fixloop_one(  # noqa: SLF001 - 私有编排函数直测
+    rec = stage_fx._fixloop_one(  # noqa: SLF001 - 私有编排函数直测
         "p1", tmp_path, args, {"upstream": "mock", "metrics": {}}, None
     )
     assert rec["status"] == "clean"
@@ -393,11 +393,11 @@ def test_fixloop_no_rerun_keeps_splice(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """非 --rerun 契约不变：splice/ 就地复用（resume 语义），不重建不重注。"""
-    stagerun: types.ModuleType = pytest.importorskip("stagerun")
-    injected = _stub_fixloop_io(stagerun, monkeypatch)
+    stage_fx: types.ModuleType = pytest.importorskip("stage_fixloop")
+    injected = _stub_fixloop_io(stage_fx, monkeypatch)
     splice = _seed_workdir(tmp_path / "work" / "p1")
     args = Namespace(rerun=False, on="all", timeout=1, llm=False, recode=False)
-    rec = stagerun._fixloop_one(  # noqa: SLF001 - 私有编排函数直测
+    rec = stage_fx._fixloop_one(  # noqa: SLF001 - 私有编排函数直测
         "p1", tmp_path, args, {"upstream": "mock", "metrics": {}}, None
     )
     assert rec["status"] == "clean"
@@ -410,11 +410,11 @@ def test_fixloop_rerun_arm_mismatch_skips(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """zh/ 臂已换代 → arm_mismatch skip（同 _compile_one 门），脏 splice 不动。"""
-    stagerun: types.ModuleType = pytest.importorskip("stagerun")
-    injected = _stub_fixloop_io(stagerun, monkeypatch)
+    stage_fx: types.ModuleType = pytest.importorskip("stage_fixloop")
+    injected = _stub_fixloop_io(stage_fx, monkeypatch)
     splice = _seed_workdir(tmp_path / "work" / "p1", arm="real")
     args = Namespace(rerun=True, on="all", timeout=1, llm=False, recode=False)
-    rec = stagerun._fixloop_one(  # noqa: SLF001 - 私有编排函数直测
+    rec = stage_fx._fixloop_one(  # noqa: SLF001 - 私有编排函数直测
         "p1", tmp_path, args, {"upstream": "mock", "metrics": {}}, None
     )
     assert rec["status"] == "skip"
@@ -427,13 +427,13 @@ def test_fixloop_rerun_no_zh_errors(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """compile 记录在而 zh/ 缺席是异常 → error（不在脏树上误修）。"""
-    stagerun: types.ModuleType = pytest.importorskip("stagerun")
-    injected = _stub_fixloop_io(stagerun, monkeypatch)
+    stage_fx: types.ModuleType = pytest.importorskip("stage_fixloop")
+    injected = _stub_fixloop_io(stage_fx, monkeypatch)
     wid = tmp_path / "work" / "p1"
     splice = _seed_workdir(wid)
     shutil.rmtree(wid / "zh")
     args = Namespace(rerun=True, on="all", timeout=1, llm=False, recode=False)
-    rec = stagerun._fixloop_one(  # noqa: SLF001 - 私有编排函数直测
+    rec = stage_fx._fixloop_one(  # noqa: SLF001 - 私有编排函数直测
         "p1", tmp_path, args, {"upstream": "mock", "metrics": {}}, None
     )
     assert rec["status"] == "error"
