@@ -76,7 +76,7 @@
 
 **门槛（M2 出口）**：200 篇语料 zh 条件编译成功率 ≥90%（hjfy 95% 为渐近线）；reject 判定正确率 100%（路由标签对拍）；无回归（clean 格不被规则改脏）。
 
-**状态（2026-09-15）：fixloop 臂已落地**——`bench/py/fixloop_bench.py` + `bench/results/fixloop-corpusv2-2026-09-15/`：corpus_v2 40 篇无偏样本 × 25 规则库（2026-09-17 勘误：规则库现 67 条），union baseline pdf 26/40 → fixloop pdf **36/40**（clean 层 31/40）；xelatex 臂 FAIL→pdf 25/34。已知缺口：tectonic 臂 eps_route 预检过度拒收（baseline pdf~ 格被 0r 拒 6 例）、legacy 包 shim 缺位（revtex.cls/psfig.sty/aastex.cls 类）。
+**状态（2026-09-15）：fixloop 臂已落地**——`bench/py/fixloop_bench.py` + `bench/results/fixloop-corpusv2-2026-09-15/`：corpus_v2 40 篇无偏样本 × 25 规则库（2026-09-17 勘误：规则库计数不再手维护——现行规则库为 `src/texlate/compile/fixloop/rules/` 分片目录，条目数以生成源为准），union baseline pdf 26/40 → fixloop pdf **36/40**（clean 层 31/40）；xelatex 臂 FAIL→pdf 25/34。已知缺口：tectonic 臂 eps_route 预检过度拒收（baseline pdf~ 格被 0r 拒 6 例）、legacy 包 shim 缺位（revtex.cls/psfig.sty/aastex.cls 类）。
 
 > 更新（2026-09-16）：base×双引擎臂已跑完——compilebench-v4 全量 180 样本（`61a9e16`），baseline 仅 1 格判定更正性迁移；fixloop 臂联合 pdf 127/172→**154/172（89.5%）**，xel missing_file 109 FAIL→84 pdf（tlmgr usermode 装包层实证），归因 `bench/results/compilebench-v4-2026-09-16/summary-diff-v3.md`。zh 条件臂首跑 `compilebench-v3-zh`/`fixloop-zh-cbv3`（union pdf 86.3%）。B3 zh 臂距门槛 200 篇 ≥90% 仍差 n 补齐。
 
