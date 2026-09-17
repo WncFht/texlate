@@ -70,7 +70,7 @@
 1. 网格 = `paper × condition × engine`：condition ∈ {base 原文 / zh-injected 注入 ctex / mock-translated 占位译文}（mock 用 B5 管线产）；engine ∈ {xelatex, tectonic}（路由预检先行：documentstyle→reject、eps/pstricks→xelatex、minted-frozencache→tectonic）。
 2. 每格：`normalize → inject → Engine.compile(沙箱, ≤2 pass, 240s) → fixloop(yaml) → clean 判定三件套`（docs/08 §4.3）。
 3. 逐格落 `results.jsonl`：verdict（clean/pdf~/FAIL/reject）+ 每轮 `{cat,pay,rule,result}` + log_excerpt → **直接灌 `cases.jsonl` 沉淀机制**（docs/08 §5.5）。
-4. 归因表：首错类别分布 × 规则触发谱（spike 实测：missing_* 16 格救回 16/16、install 系占触发 87%）。
+4. 归因表：sig 聚类分布 × 规则触发谱（sig=首错 cat，错误构成众数严格多数时改挂众数——verdict_sig 口径；spike 实测：missing_* 16 格救回 16/16、install 系占触发 87%）。
 
 **指标**：clean 率（分 condition/引擎/时代带）、救回率（fail→clean|pdf~）、规则 fires/rescues、stuck/unfixable 率、修复轮数分布。
 

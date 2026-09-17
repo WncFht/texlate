@@ -64,7 +64,7 @@ manifest (1272 存量 + IA 扩库 →5000；channel=ia + item + member 自带 bu
 | ------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
 | parse   | `res.warnings` kind、unresolved_inputs、parsebench leak/identity        | bench 只收 warn_kinds 计数，丢 warning 详情（pos/detail）——records 要带全量   |
 | xlat    | L0 `validate_pair` 7 规则 inline、chunk status、leftover_ph 硬门        | **error_code 两写不一致**；**warnings 不落库**；**partial→ok 抹掉 recovered** |
-| compile | judge verdict{status,category,payload,n_errors,missing_chars,cjk_chars} | judge 只看末次 log——fixloop per-round category 要并进 compile record          |
+| compile | judge verdict{status,category,payload,n_errors,error_cats,error_pay,missing_chars,cjk_chars} | judge 只看末次 log——fixloop per-round category 要并进 compile record          |
 | fixloop | taxonomy 22 类 + per-round rule trace                                   | `unfixable:*`/`stuck`/`max_rounds` 即工单来源                                 |
 | 归因    | `compile --arm base` 对照                                               | 已有                                                                          |
 
