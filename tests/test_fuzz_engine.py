@@ -156,15 +156,16 @@ def _fake_run(  # noqa: PLR0913
 ) -> Callable[..., tuple[int | None, str, float, bool]]:
     """捕获 (cmd, cwd, env, timeout) 的假 run_process；side 在记账后跑。"""
 
-    def fake(
+    def fake(  # noqa: PLR0913
         cmd: list[str],
         *,
         cwd: Path,
         env: dict[str, str],
         timeout: float,
         out_cap: int = 8 * 1024 * 1024,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> tuple[int | None, str, float, bool]:
-        del out_cap
+        del out_cap, should_cancel
         calls.append(
             {"cmd": list(cmd), "cwd": Path(cwd), "env": dict(env), "timeout": timeout}
         )
@@ -682,15 +683,16 @@ def test_xelatex_midloop_signal_retained(
     """中途被信号杀、末趟跑完：killed_signal 留 SIGPIPE，ok 照末趟 rc。"""
     rcs = iter([-13, 0])
 
-    def seq(
+    def seq(  # noqa: PLR0913
         cmd: list[str],  # noqa: ARG001
         *,
         cwd: Path,
         env: dict[str, str],
         timeout: float,
         out_cap: int = 8 * 1024 * 1024,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> tuple[int | None, str, float, bool]:
-        del env, timeout, out_cap
+        del env, timeout, out_cap, should_cancel
         (cwd / "main.pdf").write_bytes(b"%PDF")
         return next(rcs), "", 0.1, False
 
@@ -721,15 +723,16 @@ def test_xelatex_stdout_tail_last_only(
     """stdout_tail = 末趟输出的尾部 4000——前趟内容不拼接。"""
     outs = iter(["A" * 5000, "B" * 100])
 
-    def seq(
+    def seq(  # noqa: PLR0913
         cmd: list[str],  # noqa: ARG001
         *,
         cwd: Path,
         env: dict[str, str],
         timeout: float,
         out_cap: int = 8 * 1024 * 1024,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> tuple[int | None, str, float, bool]:
-        del env, timeout, out_cap
+        del env, timeout, out_cap, should_cancel
         (cwd / "main.pdf").write_bytes(b"%PDF")
         return 0, next(outs), 0.1, False
 
@@ -967,15 +970,16 @@ def test_tectonic_retry_clears_timed_out(
     """首趟超时重试成功：timed_out 取**末趟**态——首拉超时不再背 fail。"""
     state = {"n": 0}
 
-    def seq(
+    def seq(  # noqa: PLR0913
         cmd: list[str],
         *,
         cwd: Path,
         env: dict[str, str],
         timeout: float,
         out_cap: int = 8 * 1024 * 1024,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> tuple[int | None, str, float, bool]:
-        del env, out_cap
+        del env, out_cap, should_cancel
         state["n"] += 1
         if state["n"] == 1:
             return None, "", timeout, True

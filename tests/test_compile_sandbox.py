@@ -43,15 +43,16 @@ _SECRETS = (
 def _fake_run(calls: list[dict[str, Any]]) -> FakeRun:
     """捕获 ``(cmd, env)`` 的假 run_process——直接 rc=0 不干活。"""
 
-    def fake(
+    def fake(  # noqa: PLR0913
         cmd: list[str],
         *,
         cwd: Path,
         env: dict[str, str],
         timeout: float,
         out_cap: int = 8 * 1024 * 1024,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> tuple[int | None, str, float, bool]:
-        del cwd, timeout, out_cap
+        del cwd, timeout, out_cap, should_cancel
         calls.append({"cmd": list(cmd), "env": dict(env)})
         return 0, "", 0.1, False
 

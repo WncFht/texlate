@@ -35,6 +35,7 @@ refactor-audit-2026-09-17 ★1 收口：两臂各自保留编排（报告形状�
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from contextlib import suppress
 from dataclasses import dataclass, field
@@ -142,27 +143,40 @@ class ResProxy:
 
     ``__setattr__`` 透传到内层——fixloop ``_wire_engine`` 会给 tectonic
     注入 ``ctan_fetch`` callable，必须落到真引擎实例上；``_inner``/
-    ``last`` 两键保留在代理自身（读侧经实例 attr 命中，不走转发）。
+    ``last``/``_should_cancel`` 三键保留在代理自身（读侧经实例 attr
+    命中，不走转发）。
     """
 
-    def __init__(self, inner: Engine) -> None:
-        """包一层引擎。"""
+    def __init__(
+        self, inner: Engine, should_cancel: Callable[[], bool] | None = None
+    ) -> None:
+        """包一层引擎；``should_cancel`` 是 worker 取消旗标轮询钩。"""
         object.__setattr__(self, "_inner", inner)
         object.__setattr__(self, "last", None)
+        object.__setattr__(self, "_should_cancel", should_cancel)
 
     def __getattr__(self, name: str) -> Any:  # noqa: ANN401 -- 代理转发面天然 Any
         """未命中的 attr 转发到内层引擎。"""
         return getattr(self._inner, name)
 
     def __setattr__(self, name: str, value: Any) -> None:  # noqa: ANN401 -- 同上
-        """``_inner``/``last`` 写代理自身，其余写穿到内层引擎。"""
-        if name in {"_inner", "last"}:
+        """``_inner``/``last``/``_should_cancel`` 写代理自身，其余写穿。"""
+        if name in {"_inner", "last", "_should_cancel"}:
             object.__setattr__(self, name, value)
         else:
             setattr(self._inner, name, value)
 
     def compile(self, *args: Any, **kwargs: Any) -> CompRes:  # noqa: ANN401
-        """转发 compile 并记录 CompRes（fixloop 每轮重编都过这里）。"""
+        """转发 compile 并记录 CompRes（fixloop 每轮重编都过这里）。
+
+        ``should_cancel`` 已置位直接抛 ``CancelledError``（轮内不再点
+        火新编译）；否则透传给引擎做进程级轮询杀树。
+        """
+        sc = self._should_cancel
+        if sc is not None:
+            if sc():
+                raise asyncio.CancelledError
+            kwargs.setdefault("should_cancel", sc)
         res: CompRes = self._inner.compile(*args, **kwargs)
         object.__setattr__(self, "last", res)
         return res
@@ -204,13 +218,14 @@ def fixloop_cell_parts(
     return rounds, setup
 
 
-def run_fixloop(
+def run_fixloop(  # noqa: PLR0913 -- 开关面穿透两臂同一契约
     work: Path,
     engine: Engine,
     *,
     engine_name: str,
     llm_hook: LlmHook | None = None,
     compile_timeout: float | None = None,
+    should_cancel: Callable[[], bool] | None = None,
     **kw: Any,  # noqa: ANN401 -- fixloop 开关面透传，键集由 fixloop 签名定
 ) -> tuple[dict[str, Any], CompRes | None]:
     """``ResProxy`` 包装 + ``fixloop()`` 调用 + 末次 ``CompRes`` 取回。
@@ -218,14 +233,17 @@ def run_fixloop(
     ``**kw`` 透传 fixloop 的其余开关面（``ruleset``/``corpus_id``/
     ``cond``/``case_sink`` 等，worker 臂使用）。异常不吞——两臂各自
     决定兜底形态（e2e 产 error dict、worker 记日志返回原 res）。
+    ``should_cancel`` 双落：``fixloop`` 轮顶轮询 + ``ResProxy.compile``
+    注入引擎进程级杀树。
     """
-    proxy = ResProxy(engine)
+    proxy = ResProxy(engine, should_cancel)
     cell = fixloop(
         work,
         proxy,
         engine_name=engine_name,
         llm_hook=llm_hook,
         compile_timeout=compile_timeout,
+        should_cancel=should_cancel,
         **kw,
     )
     return cell, proxy.last
@@ -272,6 +290,7 @@ def cross_engine_retry(  # noqa: PLR0913 -- 开关面穿透两臂同一契约
     dropped: Sequence[str],
     expect_cjk: bool,
     make_engine: Callable[[], Engine],
+    should_cancel: Callable[[], bool] | None = None,
 ) -> CrossRetry | None:
     """消费 dropped ``engine_flags``：tectonic→xelatex 重试 → ``CrossRetry``/None。
 
@@ -289,7 +308,12 @@ def cross_engine_retry(  # noqa: PLR0913 -- 开关面穿透两臂同一契约
     if VERDICT_RANK.get(current_status, 0) >= VERDICT_RANK["clean"]:
         return None
     xres = make_engine().compile(
-        work, main_rel, timeout=timeout, sandbox=True, flags=flags
+        work,
+        main_rel,
+        timeout=timeout,
+        sandbox=True,
+        flags=flags,
+        should_cancel=should_cancel,
     )
     xv = judge(xres, expect_cjk=expect_cjk, log_text=log_text_of(xres))
     info = {
@@ -318,6 +342,7 @@ def consume_engine_flags(  # noqa: PLR0913 -- 开关面穿透两臂同一契约
     dropped: Sequence[str],
     expect_cjk: bool,
     make_engine: Callable[[], Engine],
+    should_cancel: Callable[[], bool] | None = None,
 ) -> tuple[CrossRetry | None, str | None]:
     """Fixloop ``engine_flags`` 消费尾：dropped→跨引擎重试，applied→note。
 
@@ -341,6 +366,7 @@ def consume_engine_flags(  # noqa: PLR0913 -- 开关面穿透两臂同一契约
             dropped=dropped,
             expect_cjk=expect_cjk,
             make_engine=make_engine,
+            should_cancel=should_cancel,
         )
         return xr, f"engine_flags unsupported on {engine_name}: {dropped}"
     if flags:

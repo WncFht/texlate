@@ -183,6 +183,7 @@ class Engine(Protocol):
         env_extra: dict[str, str] | None = None,
         best_effort: bool = False,
         flags: Iterable[str] | None = None,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> CompRes:
         """编译 `wdir/main`（相对路径）；产物落 `outdir`（默认 main 旁）。
 
@@ -194,6 +195,10 @@ class Engine(Protocol):
         的落点）：xelatex 原样追加 argv（kpathsea last-wins，可压
         ``-no-shell-escape``）；tectonic 只放 ``_map_flags`` 支持子集，
         其余记 ``CompRes.flags_dropped`` 降级为 advisory。
+
+        ``should_cancel`` = 取消旗标轮询钩（worker 喂
+        ``ctx.cancel_flag.is_set``）——置位即杀进程树抛
+        ``asyncio.CancelledError``，不再等满 timeout 的孤儿编译段。
         """
         ...
 
@@ -459,6 +464,7 @@ class XelatexEngine:
         env_extra: dict[str, str] | None = None,
         best_effort: bool = False,
         flags: Iterable[str] | None = None,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> CompRes:
         """执行 xelatex ≤`passes` 遍；-recorder 产 .fls 供 compiled_dependencies。"""
         res = CompRes(engine=self.name)
@@ -506,7 +512,9 @@ class XelatexEngine:
         for p in range(1, passes + 1):
             if p > 1 and not pdf.exists():
                 break
-            rc, out_s, sec, to = run_process(cmd, cwd=cwd, env=env, timeout=per_pass)
+            rc, out_s, sec, to = run_process(
+                cmd, cwd=cwd, env=env, timeout=per_pass, should_cancel=should_cancel
+            )
             res.rc = rc
             sig = _rc_to_signal(rc, res.sandbox_mode)
             if sig is not None:
@@ -936,6 +944,7 @@ class TectonicEngine:
         env_extra: dict[str, str] | None = None,
         best_effort: bool = False,
         flags: Iterable[str] | None = None,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> CompRes:
         """执行 tectonic 单趟编译（自带 rerun 决策）；deps.mk 供 compiled_dependencies。"""
         del passes  # tectonic 自动决定 pass 数
@@ -973,7 +982,9 @@ class TectonicEngine:
         for budget in (timeout, min(timeout, _TECTONIC_RETRY_TIMEOUT))[
             :_TECTONIC_ATTEMPTS
         ]:
-            rc, out_s, sec, to = run_process(cmd, cwd=cwd, env=env, timeout=budget)
+            rc, out_s, sec, to = run_process(
+                cmd, cwd=cwd, env=env, timeout=budget, should_cancel=should_cancel
+            )
             res.rc = rc
             sig = _rc_to_signal(rc, res.sandbox_mode)
             if sig is not None:
@@ -1136,9 +1147,7 @@ def route_project(root: Path, *, prefer: str = "tectonic") -> RouteDecision:
 
     # --- \documentstyle → latex209_suspect 标记（任何文件里出现都算）
     latex209_suspect = [
-        str(p.relative_to(root))
-        for p, v in vis.items()
-        if DOCSTYLE_RX.search(v)
+        str(p.relative_to(root)) for p, v in vis.items() if DOCSTYLE_RX.search(v)
     ]
 
     reasons: list[str] = []

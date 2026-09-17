@@ -9,6 +9,7 @@ import json
 import os
 import signal
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from types import ModuleType
 
@@ -522,15 +523,16 @@ def test_tectonic_retry_success_clears_timed_out(
     outdir = tmp_path / "out"
     calls = {"n": 0}
 
-    def fake_run(
+    def fake_run(  # noqa: PLR0913
         cmd: list[str],
         *,
         cwd: Path,
         env: dict[str, str],
         timeout: float,
         out_cap: int = 8 * 1024 * 1024,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> tuple[int | None, str, float, bool]:
-        _ = (cmd, cwd, env, out_cap)  # mock 签名对齐 run_process
+        _ = (cmd, cwd, env, out_cap, should_cancel)  # mock 签名对齐 run_process
         calls["n"] += 1
         if calls["n"] == 1:
             return None, "", timeout, True  # 首拉超时
@@ -654,15 +656,16 @@ def test_xelatex_compile_flags_in_argv(
     main.write_text("\\documentclass{article}\\begin{document}x\\end{document}")
     captured: dict[str, list[str]] = {}
 
-    def fake_run(
+    def fake_run(  # noqa: PLR0913
         cmd: list[str],
         *,
         cwd: Path,
         env: dict[str, str],
         timeout: float,
         out_cap: int = 8 * 1024 * 1024,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> tuple[int | None, str, float, bool]:
-        _ = (cwd, env, timeout, out_cap)  # mock 签名对齐 run_process
+        _ = (cwd, env, timeout, out_cap, should_cancel)  # mock 签名对齐 run_process
         captured["cmd"] = cmd
         (tmp_path / "main.pdf").write_bytes(b"%PDF-fake")
         (tmp_path / "main.log").write_text("Output written\n", encoding="utf-8")
@@ -719,15 +722,16 @@ def test_tectonic_compile_flags_map_and_drop(
     outdir = tmp_path / "out"
     captured: dict[str, list[str]] = {}
 
-    def fake_run(
+    def fake_run(  # noqa: PLR0913
         cmd: list[str],
         *,
         cwd: Path,
         env: dict[str, str],
         timeout: float,
         out_cap: int = 8 * 1024 * 1024,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> tuple[int | None, str, float, bool]:
-        _ = (cwd, env, timeout, out_cap)  # mock 签名对齐 run_process
+        _ = (cwd, env, timeout, out_cap, should_cancel)  # mock 签名对齐 run_process
         captured["cmd"] = cmd
         outdir.mkdir(parents=True, exist_ok=True)
         (outdir / "main.pdf").write_bytes(b"%PDF-fake")
@@ -909,15 +913,16 @@ def test_compile_ok_false_on_exec_failure(
     """run_process rc=None（二进制 exec 失败）→ ok=False——此前错报 ok=True。"""
     (tmp_path / "main.tex").write_text("x\n", encoding="utf-8")
 
-    def fake_run(
+    def fake_run(  # noqa: PLR0913
         cmd: list[str],
         *,
         cwd: Path,
         env: dict[str, str],
         timeout: float,
         out_cap: int = 8 * 1024 * 1024,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> tuple[int | None, str, float, bool]:
-        _ = (cmd, cwd, env, timeout, out_cap)
+        _ = (cmd, cwd, env, timeout, out_cap, should_cancel)
         return None, "exec failed: nope", 0.1, False
 
     monkeypatch.setattr("texlate.compile.engine.run_process", fake_run)
@@ -934,15 +939,16 @@ def test_compile_ok_false_on_signal_kill(
     """末 pass 被信号杀（rc<0）→ ok=False + killed_signal 记录信号号。"""
     (tmp_path / "main.tex").write_text("x\n", encoding="utf-8")
 
-    def fake_run(
+    def fake_run(  # noqa: PLR0913
         cmd: list[str],
         *,
         cwd: Path,
         env: dict[str, str],
         timeout: float,
         out_cap: int = 8 * 1024 * 1024,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> tuple[int | None, str, float, bool]:
-        _ = (cmd, cwd, env, timeout, out_cap)
+        _ = (cmd, cwd, env, timeout, out_cap, should_cancel)
         return -11, "", 0.1, False  # SIGSEGV
 
     monkeypatch.setattr("texlate.compile.engine.run_process", fake_run)
@@ -1013,15 +1019,16 @@ def test_install_file_init_usertree_failure_not_latched(
     )
     runs: list[list[str]] = []
 
-    def fake_run(
+    def fake_run(  # noqa: PLR0913
         cmd: list[str],
         *,
         cwd: Path,
         env: dict[str, str],
         timeout: float,
         out_cap: int = 8 * 1024 * 1024,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> tuple[int | None, str, float, bool]:
-        _ = (cwd, env, timeout, out_cap)
+        _ = (cwd, env, timeout, out_cap, should_cancel)
         runs.append(list(cmd))
         if "init-usertree" in cmd:
             return 1, "", 0.1, False  # init 失败
@@ -1057,15 +1064,16 @@ def test_install_file_ambient_texmfhome_fetch_dest(
     monkeypatch.setattr(eng, "filemap", lambda _f: ["pkg"])
     monkeypatch.setattr("texlate.compile.engine.find_tool", lambda _n: "/x/tlmgr")
 
-    def fake_run(
+    def fake_run(  # noqa: PLR0913
         cmd: list[str],
         *,
         cwd: Path,
         env: dict[str, str],
         timeout: float,
         out_cap: int = 8 * 1024 * 1024,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> tuple[int | None, str, float, bool]:
-        _ = (cwd, env, timeout, out_cap)
+        _ = (cwd, env, timeout, out_cap, should_cancel)
         if "init-usertree" in cmd:
             return 1, "", 0.1, False
         return 0, "", 0.1, False
@@ -1086,15 +1094,16 @@ def test_tectonic_compile_dropped_z_not_in_flags_applied(
     )
     outdir = tmp_path / "out"
 
-    def fake_run(
+    def fake_run(  # noqa: PLR0913
         cmd: list[str],
         *,
         cwd: Path,
         env: dict[str, str],
         timeout: float,
         out_cap: int = 8 * 1024 * 1024,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> tuple[int | None, str, float, bool]:
-        _ = (cmd, cwd, env, timeout, out_cap)
+        _ = (cmd, cwd, env, timeout, out_cap, should_cancel)
         outdir.mkdir(parents=True, exist_ok=True)
         (outdir / "main.pdf").write_bytes(b"%PDF-fake")
         (outdir / "main.log").write_text("Output written\n", encoding="utf-8")

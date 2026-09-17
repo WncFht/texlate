@@ -17,6 +17,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import json
 import os
@@ -250,19 +251,57 @@ def _rlimit_preexec(timeout: float) -> Callable[[], None] | None:
     return _install
 
 
-def run_process(
+#: ``should_cancel`` 轮询步长（server.babeldoc ``_POLL_S`` 同口径）——
+#: cancel 置位到进程树死透收敛在亚秒级
+_CANCEL_POLL_S = 0.5
+
+
+def _communicate_cancellable(
+    proc: subprocess.Popen[bytes],
+    cmd: list[str],
+    timeout: float,
+    should_cancel: Callable[[], bool],
+) -> bytes | None:
+    """``_CANCEL_POLL_S`` 分片轮询版 communicate——旗标置位抛 ``CancelledError``。
+
+    ``communicate`` 在 ``TimeoutExpired`` 后可合法重入续读不丢输出；
+    真超时（``TimeoutExpired``）与取消都抛给 ``run_process`` 的外层
+    臂收树——kill 语义单点不散。
+    """
+    deadline = time.time() + timeout
+    while True:
+        if should_cancel():
+            raise asyncio.CancelledError
+        left = deadline - time.time()
+        if left <= 0:
+            raise subprocess.TimeoutExpired(cmd, timeout)
+        try:
+            out, _ = proc.communicate(timeout=min(_CANCEL_POLL_S, left))
+        except subprocess.TimeoutExpired:
+            continue
+        return out
+
+
+def run_process(  # noqa: PLR0913 -- 子进程参数面集中声明，kwarg 各承一职
     cmd: list[str],
     *,
     cwd: Path,
     env: dict[str, str],
     timeout: float,
     out_cap: int = 8 * 1024 * 1024,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> tuple[int | None, str, float, bool]:
     """同步跑子进程：进程组隔离 + 超时 killpg + 输出封顶 + POSIX rlimits。
 
     返回 `(rc, output, seconds, timed_out)`；timeout 后 SIGKILL 整组
     （latex→dvips/mktextfm 子进程一并带走），非 POSIX 平台降级 proc.kill。
     子进程 exec 前装资源软帽（仅降不升），硬顶之外的纵深兜底。
+
+    ``should_cancel`` 给了就把单发 ``communicate(timeout)`` 换成
+    ``_CANCEL_POLL_S`` 分片轮询——``communicate`` 在 ``TimeoutExpired``
+    后可合法重入续读不丢输出；旗标置位即抛 ``asyncio.CancelledError``
+    （``except BaseException`` 臂照常 ``_kill_tree`` 收树，编译段孤儿
+    不再等满 timeout 才死）。
     """
     t0 = time.time()
     try:
@@ -287,7 +326,10 @@ def run_process(
         return None, f"exec failed: {e}", time.time() - t0, False
     timed_out = False
     try:
-        out, _ = proc.communicate(timeout=timeout)
+        if should_cancel is None:
+            out, _ = proc.communicate(timeout=timeout)
+        else:
+            out = _communicate_cancellable(proc, cmd, timeout, should_cancel)
     except subprocess.TimeoutExpired:
         timed_out = True
         _kill_tree(proc)
