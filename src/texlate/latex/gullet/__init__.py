@@ -24,109 +24,12 @@ spec 读参 → 代入 → 推回流前端（不动点，不 return）。移植�
 from __future__ import annotations
 
 # ------------------------------------------------------------------ 兼容面
-# 旧单文件的模块属性面整体保留（含泄漏的导入名）——``from texlate.latex.gullet
-# import X`` / ``gullet.X`` 旧式访问全部继续可用；BUDGET 是 tests
-# monkeypatch 面（core._can_expand 经 ``_g.BUDGET`` 取包属性）。
-import re as re
-from dataclasses import (
-    dataclass as dataclass,
-)
-from dataclasses import (
-    field as field,
-)
-from itertools import (
-    pairwise as pairwise,
-)
-from pathlib import (
-    Path as Path,
-)
-
-from texlate.latex.flatten import (
-    strip_doc_shell as strip_doc_shell,
-)
-from texlate.latex.macro_table import (
-    MacroTable as _FlatMacroTable,  # noqa: F401 — 兼容面：旧模块属性名
-)
-from texlate.latex.macro_table import (
-    body_has_text as body_has_text,
-)
-from texlate.latex.macro_table import (
-    classify_body as classify_body,
-)
-from texlate.latex.macro_table import (
-    protected_param_positions as protected_param_positions,
-)
-from texlate.latex.model import (
-    ArgSpec as ArgSpec,
-)
-from texlate.latex.model import (
-    MacroKind as MacroKind,
-)
-from texlate.latex.model import (
-    ScanWarning as ScanWarning,
-)
-from texlate.latex.mouth import (
-    CC_LETTER as CC_LETTER,
-)
-from texlate.latex.mouth import (
-    CC_OTHER as CC_OTHER,
-)
-from texlate.latex.mouth import (
-    CatTable as CatTable,
-)
-from texlate.latex.mouth import (
-    Mouth as Mouth,
-)
-from texlate.latex.mouth import (
-    Tok as Tok,
-)
-from texlate.latex.tables import (
-    BOUNDARY_NAMES as BOUNDARY_NAMES,
-)
+# 旧单文件模块属性面的在役子集：``BUDGET``（core._can_expand 经 ``_g.BUDGET``
+# 取包属性——tests monkeypatch 面）、``export_flat_macros``（scanner v1 臂
+# 消费）、``_tok_eq``（bench gullet_bench 消费）。其余泄漏导入名零消费
+# 已修剪；``__all__`` 即公共面。
 from texlate.latex.tables import (
     BUDGET as BUDGET,
-)
-from texlate.latex.tables import (
-    CHUNK_ARG_NAMES as CHUNK_ARG_NAMES,
-)
-from texlate.latex.tables import (
-    CITE_NAMES as CITE_NAMES,
-)
-from texlate.latex.tables import (
-    DEF_NAMES as DEF_NAMES,
-)
-from texlate.latex.tables import (
-    FILENAME_CHARS as FILENAME_CHARS,
-)
-from texlate.latex.tables import (
-    FONT_SWITCHES as FONT_SWITCHES,
-)
-from texlate.latex.tables import (
-    INLINE_LITERAL_CMDS as INLINE_LITERAL_CMDS,
-)
-from texlate.latex.tables import (
-    INPUT_CMDS as INPUT_CMDS,
-)
-from texlate.latex.tables import (
-    MATH_ENVS as MATH_ENVS,
-)
-from texlate.latex.tables import (
-    MAX_GEN as MAX_GEN,
-)
-from texlate.latex.tables import (
-    MAX_INPUTS as MAX_INPUTS,
-)
-from texlate.latex.tables import (
-    PROTECT_NAMES as PROTECT_NAMES,
-)
-from texlate.latex.tables import (
-    REF_NAMES as REF_NAMES,
-)
-from texlate.latex.tables import (
-    TRANSPARENT_NAMES as TRANSPARENT_NAMES,
-)
-from texlate.textutil import (
-    decode_tex as decode_tex,
 )
 
 from .args import (
@@ -158,12 +61,6 @@ from .entries import (
     ScopeMacroTable,
 )
 from .entries import (
-    Entry as Entry,
-)
-from .entries import (
-    _spec_to_args as _spec_to_args,
-)
-from .entries import (
     export_flat_macros as export_flat_macros,
 )
 from .expand import (
@@ -171,36 +68,6 @@ from .expand import (
 )
 from .input import (
     _Input,
-)
-from .tables import (
-    _BUILTINS as _BUILTINS,
-)
-from .tables import (
-    _DIGITS as _DIGITS,
-)
-from .tables import (
-    _EXPAND_KINDS as _EXPAND_KINDS,
-)
-from .tables import (
-    _MATH_CS as _MATH_CS,
-)
-from .tables import (
-    _MATH_OPEN_CS as _MATH_OPEN_CS,
-)
-from .tables import (
-    _PRIMS as _PRIMS,
-)
-from .tables import (
-    _REL_CHARS as _REL_CHARS,
-)
-from .tokutil import (
-    _bare_cs as _bare_cs,
-)
-from .tokutil import (
-    _has_at_cs as _has_at_cs,
-)
-from .tokutil import (
-    _surface as _surface,
 )
 from .tokutil import (
     _tok_eq as _tok_eq,

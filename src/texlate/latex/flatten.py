@@ -30,9 +30,15 @@ from texlate.latex.model import (
     ws_skip,
 )
 from texlate.latex.tables import FILENAME_CHARS, MAX_INPUTS, VERBATIM_ENVS
-from texlate.textutil import DEAD_ENVS, dead_env_end, decode_tex, mask_tex
+from texlate.textutil import (
+    BEGIN_DOC_RX,
+    DEAD_ENVS,
+    dead_env_end,
+    decode_tex,
+    mask_tex,
+)
 
-_DOC_BEGIN_RX = re.compile(r"\\begin\s*\{document\}")
+# TODO(textutil-END_DOC_RX): 待 textutil 侧落地后换指  # noqa: TD003, FIX002
 _DOC_END_RX = re.compile(r"\\end\s*\{document\}")
 
 
@@ -44,7 +50,7 @@ def strip_doc_shell(tex: str) -> str:
     （arXiv 子文件常见注释掉的备用壳）不参与定位（W11 同源修复）。
     """
     masked = mask_tex(tex)
-    b = _DOC_BEGIN_RX.search(masked)
+    b = BEGIN_DOC_RX.search(masked)
     if not b:
         return tex
     body = tex[b.end() :]

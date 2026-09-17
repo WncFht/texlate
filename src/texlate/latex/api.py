@@ -13,7 +13,6 @@ preamble；preamble 整段 LITERAL + 只登记宏。两枚正则都跑在
 from __future__ import annotations
 
 import errno
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
@@ -30,9 +29,8 @@ from texlate.latex.placeholder import PH_RX, PlaceholderIssuer
 from texlate.latex.prose import file_has_prose
 from texlate.latex.scanner import Scanner
 from texlate.latex.segmenter import parse_tex_v2, scan_v2
-from texlate.textutil import DOCCLASS_RX, decode_tex, env_flag, mask_tex
+from texlate.textutil import BEGIN_DOC_RX, DOCCLASS_RX, decode_tex, env_flag, mask_tex
 
-_DOC_BEGIN_RX = re.compile(r"\\begin\s*\{document\}")
 _NO_EXPAND = "TEXLATE_NO_EXPAND"
 
 
@@ -62,7 +60,7 @@ def parse_tex_v1(tex: str) -> ScanResult:
     # 等长遮盖视图：注释/verbatim 内的假 \begin{document} 不参与判定，
     # 命中的 offset 与原文逐字节对齐（W11 留档弱点修复——曾接受不修）。
     masked = mask_tex(tex)
-    mdoc = _DOC_BEGIN_RX.search(masked)
+    mdoc = BEGIN_DOC_RX.search(masked)
     mpream = DOCCLASS_RX.search(masked)
     preamble_end = mdoc.end() if (mpream and mdoc) else 0
     return sc.scan(tex, preamble_end=preamble_end)

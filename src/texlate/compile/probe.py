@@ -19,6 +19,7 @@ from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
 
 from texlate.textutil import (
+    BEGIN_DOC_RX,
     DECL_TAIL,
     INPUT_BARE_RX,
     INPUT_BRACED_RX,
@@ -50,9 +51,9 @@ __all__ = [
     "target_probe",
 ]
 
+# TODO(textutil-LOADER_CMDS): 词表单源待 textutil 侧落地  # noqa: TD003, FIX002
 _PKG_RE = re.compile(r"\\(?:usepackage|RequirePackage)\s*(?:\[[^\]]*\])?\s*\{([^}]+)\}")
 _CLS_RE = re.compile(r"\\(documentclass|documentstyle|LoadClass)" + DECL_TAIL)
-_DOC_BEGIN_RE = re.compile(r"\\begin\s*\{document\}")
 #: 死尾边界：首个 ``\end{document}``/``\endinput`` 之后引擎不再读本文件——
 #: 其后的 ``\input`` 不产生 missing_file，扫它只会报假缺失。
 _DEAD_TAIL_RE = re.compile(r"\\end\s*\{document\}|\\endinput\b")
@@ -117,7 +118,7 @@ class _ScanCtx:
 
 def _load_index() -> TlpdbIndex | None:
     """默认 tlpdb 离线索引（`TlpdbIndex.ensure` 同款惰性缓存；失败 → None）。"""
-    from texlate.compile.fixloop.ctan import (  # noqa: PLC0415  # 延迟: 防循环
+    from texlate.compile.fixloop.ctan import (  # noqa: PLC0415  # 延迟: fixloop/__init__ 链重(cases→fcntl 平台门)
         TlpdbIndex,
     )
 
@@ -234,7 +235,7 @@ def _scan_file(ctx: _ScanCtx, tex: Path, rel: str, queue: list[Path]) -> None:
         return
     vis = visible_tex(decode_tex(blob))
     ctx.blob_parts.append(vis)
-    m = _DOC_BEGIN_RE.search(vis)
+    m = BEGIN_DOC_RX.search(vis)
     preamble = vis[: m.start()] if m is not None else vis
     dead = _DEAD_TAIL_RE.search(vis)
     live = vis[: dead.start()] if dead is not None else vis

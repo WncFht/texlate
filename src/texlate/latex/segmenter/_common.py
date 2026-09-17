@@ -19,9 +19,6 @@ from typing import (
     Protocol,
 )
 
-from texlate.latex.macro_table import (
-    parse_argspec,
-)
 from texlate.latex.model import (
     ArgSpec,
     PhType,
@@ -40,8 +37,19 @@ from texlate.latex.tables import (
     VERBATIM_ENVS,
 )
 from texlate.textutil import (
+    BEGIN_DOC_RX,
     DOCCLASS_RX,
     mask_tex,
+)
+
+from .tables import (  # noqa: F401 -- 七常量单源转口（args/core/env/group/mainloop/pending 经本模块取）
+    _CLEAN_CMD_RX,
+    _CLEAN_NONALPHA_RX,
+    _LEAD_WS_RX,
+    _LETTER_TAIL_RX,
+    _PROTECT_TYP,
+    _TRAIL_WS_RX,
+    _chunk_spec_cached,
 )
 
 if TYPE_CHECKING:
@@ -53,21 +61,10 @@ if TYPE_CHECKING:
         Tok,
     )
 
-# 与 scanner.py 同源逐字：可译性口径随 v1（``+`` 折叠会把临界 run 压过
-# CHUNK_MIN 阈值 → chunk 召回降，验收门不许）
-_CLEAN_CMD_RX = re.compile(r"\\[a-zA-Z@]+\*?|\\[^a-zA-Z]")
-_CLEAN_NONALPHA_RX = re.compile(r"[^a-zA-Z]")
-_LEAD_WS_RX = re.compile(r"\s*")
-_TRAIL_WS_RX = re.compile(r"\s*$")
 _COMMENT_GAP_RX = re.compile(r"%[^\n]*")
 # 参数体内裸 ``%`` 注释（``\%`` 转义由 ``\\.`` 分支先吃掉）——in_arg 渲染串
 # 的 ``%`` 必为真注释（token 层已证非 \verb/url 体内）
 _ARG_COMMENT_RX = re.compile(r"\\.|%[^\n]*")
-# —— 与 scanner.py 同源的保护/豁免表（S2 scanner 退役时合入 tables.py）
-# 尾字符必须真字母：孤 ``\@`` 是控制符号而非控制词尾——``\@x`` 的 ``@``
-# 不吞后继空格，``_rappend``/``_seg_join`` 若按 ``\\[@]+`` 收它会补伪
-# ``" "`` 破 identity（S1）；``\ds@list`` 族中位 ``@`` 不受影响。
-_LETTER_TAIL_RX = re.compile(r"\\[a-zA-Z@]*[a-zA-Z]\Z")
 
 
 def _starts_letter(s: str) -> bool:
@@ -75,15 +72,6 @@ def _starts_letter(s: str) -> bool:
     return bool(s) and s[0].isascii() and s[0].isalpha()
 
 
-_PROTECT_TYP = {
-    "includegraphics": PhType.GRAPHICS,
-    "url": PhType.URL,
-    "path": PhType.URL,
-    "label": PhType.LABEL,
-    "bibliography": PhType.BIB,
-    "bibliographystyle": PhType.BIB,
-    "bibitem": PhType.BIB,
-}
 # 组内再生保护段的配对前瞻上限（env/math/delim 扫描步数）
 _GRP_SCAN_CAP = 4000
 #: 组内 consumed marker 的非副作用白名单（input 换源 / if 选支回放）；
@@ -576,22 +564,9 @@ class _ArgTok:
     spec: ArgSpec | None = None
 
 
-_CHUNK_SPEC_CACHE: dict[str, list[ArgSpec]] = {}
-
-
-def _chunk_spec_cached(spec_str: str) -> list[ArgSpec]:
-    """``CHUNK_ARG_SPEC`` 签名串 → ``list[ArgSpec]``（解析一次缓存）。"""
-    if spec_str not in _CHUNK_SPEC_CACHE:
-        _CHUNK_SPEC_CACHE[spec_str] = parse_argspec(spec_str)
-    return _CHUNK_SPEC_CACHE[spec_str]
-
-
-_DOC_BEGIN_RX = re.compile(r"\\begin\s*\{document\}")
-
-
 def _doc_begin_of(tex0: str) -> int:
     r"""fid-0 ``\\begin{document}`` 的 ``\\begin`` 起点（v1 mask 视图双门同规则）。"""
     masked = mask_tex(tex0)
-    mdoc = _DOC_BEGIN_RX.search(masked)
+    mdoc = BEGIN_DOC_RX.search(masked)
     mpream = DOCCLASS_RX.search(masked)
     return mdoc.start() if (mpream and mdoc) else -1

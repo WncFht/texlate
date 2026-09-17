@@ -29,7 +29,6 @@ from typing import NamedTuple
 
 from texlate.latex.gullet import export_flat_macros
 from texlate.latex.macro_table import (
-    parse_argspec,
     register_macros_in,
     register_newif,
     scan_macro_def,
@@ -61,6 +60,15 @@ from texlate.latex.model import (
     ws_skip_arg,
 )
 from texlate.latex.placeholder import PH_RX
+from texlate.latex.segmenter.tables import (
+    _CLEAN_CMD_RX,
+    _CLEAN_NONALPHA_RX,
+    _LEAD_WS_RX,
+    _LETTER_TAIL_RX,
+    _PROTECT_TYP,
+    _TRAIL_WS_RX,
+    _chunk_spec_cached,
+)
 from texlate.latex.tables import (
     ACCENT_CHARS,
     ARG_TRANSPARENT_ENVS,
@@ -95,26 +103,9 @@ from texlate.textutil import (
     dead_env_end,
 )
 
-_PROTECT_TYP = {
-    "includegraphics": PhType.GRAPHICS,
-    "url": PhType.URL,
-    "path": PhType.URL,
-    "label": PhType.LABEL,
-    "bibliography": PhType.BIB,
-    "bibliographystyle": PhType.BIB,
-    "bibitem": PhType.BIB,
-}
-
-_LETTER_TAIL_RX = re.compile(
-    r"\\[a-zA-Z@]*[a-zA-Z]\Z"
-)  # \Z 严格串尾：体尾 \n 已阻断 token 合并；尾字符须真字母（\@ 是控制符号）
 # math-debt 豁免：体内容里的 ``$`` 是逐字/注释死字符（verbatim 定界、注释、
 # verbatim 参数括号），不是 TeX mathshift——压栈只会误吞后文真数学（W 类）。
 _DEBT_EXEMPT = frozenset({PhType.VERB, PhType.COMMENT, PhType.URL, PhType.HREF})
-_CLEAN_CMD_RX = re.compile(r"\\[a-zA-Z@]+\*?|\\[^a-zA-Z]")
-_CLEAN_NONALPHA_RX = re.compile(r"[^a-zA-Z]")
-_LEAD_WS_RX = re.compile(r"\s*")
-_TRAIL_WS_RX = re.compile(r"\s*$")
 # ``_eval_if`` 认得的原语 ``if*`` 名（``_is_if_opener`` 用）。只求值失败的
 # ``\ifdefined/\ifcsname`` 仍占一席——界标化不改其配 ``\fi`` 的结构事实。
 _IF_PRIM_NAMES = (
@@ -1737,13 +1728,3 @@ class Scanner:
                 break
         self._ph_into_run(typ, tex[i:end], i, end)
         return end
-
-
-_CHUNK_SPEC_CACHE: dict[str, list[ArgSpec]] = {}
-
-
-def _chunk_spec_cached(spec_str: str) -> list[ArgSpec]:
-    """``CHUNK_ARG_SPEC`` 签名串 → ``list[ArgSpec]``（解析一次缓存）。"""
-    if spec_str not in _CHUNK_SPEC_CACHE:
-        _CHUNK_SPEC_CACHE[spec_str] = parse_argspec(spec_str)
-    return _CHUNK_SPEC_CACHE[spec_str]
