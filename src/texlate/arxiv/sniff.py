@@ -28,7 +28,7 @@ from enum import StrEnum
 from typing import Final
 
 from texlate.arxiv._texutil import strip_comments
-from texlate.textutil import BEGIN_DOC_RX
+from texlate.textutil import BEGIN_DOC_RX, END_DOC_RX
 
 GZIP_MAGIC: Final = b"\x1f\x8b"
 PDF_MAGIC: Final = b"%PDF"
@@ -152,7 +152,6 @@ class WrapperVerdict:
     matched: list[str] = field(default_factory=list)
 
 
-_END_DOC_RE: Final = re.compile(r"\\end\s*\{document\}")
 # \includepdf / \includepdfmerge / \includepdfset（pdfpages 宏包）
 _INCLUDEPDF_RE: Final = re.compile(r"\\includepdf\w*")
 #: 可选 ``[short]`` 实参须放行——``\section[s]{l}`` 漏计曾低估 n_sections
@@ -172,7 +171,7 @@ def _body_text(source: str) -> str:
     m = BEGIN_DOC_RX.search(source)
     if not m:
         return ""
-    end = _END_DOC_RE.search(source, m.end())
+    end = END_DOC_RX.search(source, m.end())
     return source[m.end() : end.start() if end else len(source)]
 
 

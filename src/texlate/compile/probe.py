@@ -51,8 +51,13 @@ __all__ = [
     "target_probe",
 ]
 
-# TODO(textutil-LOADER_CMDS): 词表单源待 textutil 侧落地  # noqa: TD003, FIX002
+#: ``textutil.LOADER_CMDS`` 真子集直写——``PassOptionsToPackage``/
+#: ``PassOptionsToClass`` 的首个 ``{}`` 实参是选项表而非包名（并进并集
+#: group(1) 会抓错名）；``LoadClass`` 族是类加载归 ``_CLS_RE`` 一侧；
+#: ``RequirePackageWithOptions`` 首参虽为包名但原面不收（差异留档非漏收）。
 _PKG_RE = re.compile(r"\\(?:usepackage|RequirePackage)\s*(?:\[[^\]]*\])?\s*\{([^}]+)\}")
+#: ``textutil.DOCCLASS_NAMES`` ∪ ``{LoadClass}`` 内联——``LoadClassWithOptions``
+#: 首参同为类名可收但原面不含（同上留档）。
 _CLS_RE = re.compile(r"\\(documentclass|documentstyle|LoadClass)" + DECL_TAIL)
 #: 死尾边界：首个 ``\end{document}``/``\endinput`` 之后引擎不再读本文件——
 #: 其后的 ``\input`` 不产生 missing_file，扫它只会报假缺失。

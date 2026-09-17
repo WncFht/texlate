@@ -116,7 +116,9 @@ def legacy_pkg_shim(
 
 
 #: ``\documentclass`` 选项表提取 —— 选项可缺省, 方括号内允跨行空白。
-#: 单源 ``textutil.DOCCLASS_OPTS_RX``；私名保留为 builtins 门面回引柄。
+#: 单源 ``textutil.DOCCLASS_OPTS_RX``；私名仍挂 builtins 门面 ``__all__``
+#: 再导出位, 但门面路径零消费 (B12 死回引在册)——唯一用点是本叶
+#: ``svjour_clo_stub``。
 _DOCCLASS_OPTS_RE = DOCCLASS_OPTS_RX
 
 

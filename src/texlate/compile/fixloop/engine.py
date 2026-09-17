@@ -90,7 +90,7 @@ def _expand_family_tokens(node: Any) -> Any:  # noqa: ANN401  # yaml 树天然 A
 class CompResLike(Protocol):
     """``Engine.compile`` 返回的结构化结果 (属性级 duck-typing)。
 
-    对接 impl-compile ``compile/engine.py`` 的 ``CompRes`` (L120-154):
+    对接 impl-compile ``compile/engine.py`` 的 ``CompRes`` (L139-178):
     ``pdf: Path|None`` + ``has_pdf`` + ``pdf_bytes`` + ``seconds`` +
     ``stdout_tail`` (tectonic 无 .log 兜底)。spike 时代字段名 ``sec``
     经 getattr 链兼容。
@@ -105,7 +105,7 @@ class CompResLike(Protocol):
 class Engine(Protocol):
     """编译引擎适配层 —— xelatex/tectonic 各一实现 (impl-compile 侧)。
 
-    与 impl ``Engine`` Protocol (compile/engine.py:159) 的调用面兼容:
+    与 impl ``Engine`` Protocol (compile/engine.py:183) 的调用面兼容:
     本模块只用 ``compile(wdir, main, passes=...)`` / ``probe_file(fname[, cwd])``
     / ``install_file(fname, font_related=...)`` / ``rebuild_fontmaps()`` /
     ``filemap(fname)`` 五个方法 + ``caps``。
@@ -309,7 +309,7 @@ def _sweep_bad_aux(wdir: Path) -> list[str]:
 def _report_of(res: CompResLike, warn_patterns: list[dict[str, Any]]) -> ErrReport:
     """CompRes → ErrReport: 优先 .log 文件; 缺席/空错误时 stdout_tail 兜底。
 
-    tectonic 有时不写 .log (impl engine.py:1056-1068 同策略); stderr 的
+    tectonic 有时不写 .log (impl engine.py:1083-1090、:1146-1150 同策略); stderr 的
     ``error: msg`` 行归一成 ``! msg`` 喂同一套 taxonomy。
     """
     log_path = getattr(res, "log_path", None)
@@ -940,6 +940,9 @@ def _filemap_candidates(eng: Engine, fname: str) -> list[str]:
 
 
 #: 包文件行首依赖声明 —— 注释掉的 ``% \RequirePackage`` 不命中。
+#: ``textutil.LOADER_CMDS`` 真子集: ``PassOptionsToPackage``/``PassOptionsToClass``
+#: 首 ``{}`` 实参是选项表, group(1) 抓错名会产噪音安装件; ``LoadClassWithOptions``
+#: 首参虽为类名可收但原面不含 (差异留档非漏收)。
 _DEP_DECL_RE = re.compile(
     r"^[ \t]*\\(?:RequirePackage|RequirePackageWithOptions|LoadClass|usepackage)"
     r"\s*(?:\[[^\]\n]*\])?\s*\{([^}]*)\}",

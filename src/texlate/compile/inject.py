@@ -64,7 +64,9 @@ XECJK_BLOCK = r"""
 #: `mactex` 类包名假阳（loop1 A 桶实证：误判 already → 整跳注入 →
 #: 整篇中文静默缺失）。花括号内 `ctex\w*`——`ctexart`/`ctexbook`/
 #: `ctexrep`/`ctexbeamer`/`ctexsize` 类名与 `CJKutf8`/`CJKfontspec`
-#: 包名全命中。
+#: 包名全命中。词表是 ``textutil.LOADER_CMDS`` 真子集 + ``documentclass``：
+#: ``PassOptionsToPackage``/``PassOptionsToClass`` 首个 ``{}`` 实参是选项表，
+#: ``{ctex*}`` 落选项位会把「传选项未载包」误判成已有 CJK 跳注入。
 CJK_PRESENT_RE = re.compile(
     r"\\(?:usepackage|RequirePackage|LoadClass|documentclass)"
     r"[^\n%{]*\{[^}\n%]*\b(?:ctex\w*|xeCJK\w*|CJK\w*|luatexja\w*)\b"

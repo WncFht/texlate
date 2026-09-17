@@ -33,13 +33,11 @@ from texlate.latex.tables import FILENAME_CHARS, MAX_INPUTS, VERBATIM_ENVS
 from texlate.textutil import (
     BEGIN_DOC_RX,
     DEAD_ENVS,
+    END_DOC_RX,
     dead_env_end,
     decode_tex,
     mask_tex,
 )
-
-# TODO(textutil-END_DOC_RX): 待 textutil 侧落地后换指  # noqa: TD003, FIX002
-_DOC_END_RX = re.compile(r"\\end\s*\{document\}")
 
 
 def strip_doc_shell(tex: str) -> str:
@@ -54,7 +52,7 @@ def strip_doc_shell(tex: str) -> str:
     if not b:
         return tex
     body = tex[b.end() :]
-    e = _DOC_END_RX.search(mask_tex(body))
+    e = END_DOC_RX.search(mask_tex(body))
     return body[: e.start()] if e else body
 
 
