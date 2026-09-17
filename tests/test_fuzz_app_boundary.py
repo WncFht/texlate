@@ -5,29 +5,6 @@ SEC-1..7 入站闸（Host 白名单→Origin/fetch-site→CT→auth）由 test_s
 **闸后解析面**：``_parse_multipart``/``_read_body`` 下游、``settings`` 并发
 churn、share_pack 索引敌意行、SSE 参数形态、task_id/arxiv_id/kind 路径变形、
 上传字段 Content-Type×大小组合。全离线 TestClient，枚举输入即确定性。
-
-已确认缺陷（``xfail(strict=True)``——修复落地即 XPASS 翻红）：
-
-- ``json.loads`` 只捕 ``JSONDecodeError``：巨 int 字面量（>4300 位，
-  CPython int↔str 转换上限）抛 ``ValueError``、超深嵌套抛
-  ``RecursionError``——均逃逸成 500。三处同源：``_read_body``
-  （translate/retry/settings/reader position 共用）、``_upload_fields``
-  与 ``share_import`` 的 ``options`` 字段解析。
-- ``settings._normalize_updates``：``concurrency`` 收到非数值类型
-  （None/dict/list）时 ``int()`` 抛 ``TypeError`` 逃逸成 500——同族
-  ``quota_max_*`` 走 ``_check_quota`` 双捕 (TypeError, ValueError) → 400，
-  两口径不齐。
-- 畸形 multipart 体：python-multipart 引擎抛 ``FormParserError``/
-  ``MultipartParseError``（boundary 与声明不符、体内伪 boundary 行、
-  重复 boundary 参数、裸 ``boundary`` 无值）——starlette 只把自家回调
-  侧的 ``MultiPartException`` 包成 400，引擎错直穿成 500。
-- ``Last-Event-ID`` ≥ 2^63：``int()`` 大整数过闸 → ``events_since``
-  SQLite 绑参 ``OverflowError``——snapshot 帧发出后流中道崩断，
-  客户端拿到截断流。
-- 媒体类型大小写：``Accept: TEXT/EVENT-STREAM`` 被 ``"text/event-stream"
-  not in accept`` 大小写敏感子串判退成 JSON 快照；``Content-Type:
-  MULTIPART/FORM-DATA`` 被 starlette 大小写敏感比较当非 multipart →
-  表单清空 → 400 file required（RFC 9110 媒体类型大小写不敏感）。
 """
 
 from __future__ import annotations
@@ -185,10 +162,6 @@ def _share_bundle(path: Path, artifacts: dict[str, bytes]) -> Path:
 class TestReadBodyJsonFuzz:
     """``_read_body``：``json.loads`` 非 JSONDecodeError 失败逃逸成 500。"""
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="巨 int 字面量 → ValueError(4300 位上限) 逃逸 _read_body → 500",
-    )
     def test_huge_int_translate_400(self, raw_client: TestClient) -> None:
         body = b'{"options": {"k": ' + b"1" * _HUGE_INT_DIGITS + b"}}"
         r = raw_client.post(
@@ -198,10 +171,6 @@ class TestReadBodyJsonFuzz:
         )
         assert r.status_code == HTTPStatus.BAD_REQUEST
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="巨 int 字面量 → ValueError 逃逸 → settings PUT 500",
-    )
     def test_huge_int_settings_put_400(self, raw_client: TestClient) -> None:
         r = raw_client.put(
             "/api/settings",
@@ -210,10 +179,6 @@ class TestReadBodyJsonFuzz:
         )
         assert r.status_code == HTTPStatus.BAD_REQUEST
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="巨 int 字面量 → ValueError 逃逸 → reader position PUT 500",
-    )
     def test_huge_int_reader_position_400(self, raw_client: TestClient) -> None:
         tid = _mk(raw_client)
         r = raw_client.put(
@@ -223,10 +188,6 @@ class TestReadBodyJsonFuzz:
         )
         assert r.status_code == HTTPStatus.BAD_REQUEST
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="超深嵌套 → RecursionError 逃逸 _read_body → 500",
-    )
     def test_deep_nest_translate_400(self, raw_client: TestClient) -> None:
         body = b"[" * _DEEP_NEST + b"]" * _DEEP_NEST
         r = raw_client.post(
@@ -236,10 +197,6 @@ class TestReadBodyJsonFuzz:
         )
         assert r.status_code == HTTPStatus.BAD_REQUEST
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="upload options 字段 json.loads 同漏捕 ValueError → 500",
-    )
     def test_huge_int_upload_options_400(self, raw_client: TestClient) -> None:
         r = raw_client.post(
             "/api/upload",
@@ -248,10 +205,6 @@ class TestReadBodyJsonFuzz:
         )
         assert r.status_code == HTTPStatus.BAD_REQUEST
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="share_import options 字段 json.loads 同漏捕 ValueError → 500",
-    )
     def test_huge_int_share_options_400(
         self, raw_client: TestClient, tmp_path: Path
     ) -> None:
@@ -331,10 +284,6 @@ class TestReadBodyJsonFuzz:
 class TestMultipartStructureFuzz:
     """``_parse_multipart`` 上游：python-multipart 引擎错误的 HTTP 归一化。"""
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="parser 引擎错(FormParserError)非 MultiPartException → 500",
-    )
     @pytest.mark.parametrize(
         ("body", "ct"),
         [
@@ -445,10 +394,6 @@ class TestMultipartStructureFuzz:
         r = _post_raw(client, _mp([_file_part(MINI_TEX.encode())]), ct)
         assert r.status_code == HTTPStatus.ACCEPTED
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="MULTIPART/FORM-DATA 大小写差异被当非 multipart → 表单清空 400",
-    )
     def test_multipart_media_type_case(self, raw_client: TestClient) -> None:
         r = _post_raw(
             raw_client,
@@ -701,10 +646,6 @@ class TestSseBoundary:
                 if ln.startswith("event:")
             ]
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="last_event_id ≥ 2^63 → SQLite 绑参 OverflowError → 流中道崩断",
-    )
     def test_huge_last_event_id_graceful(self, client: TestClient) -> None:
         tid = _mk(client)
         _force(client, tid, "done")
@@ -731,10 +672,6 @@ class TestSseBoundary:
         events = self._sse_events(client, tid, leid)
         assert events == ["snapshot", "stage", "done"]
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="Accept 大小写敏感子串判——TEXT/EVENT-STREAM 退成 JSON 快照",
-    )
     def test_accept_media_type_case(self, client: TestClient) -> None:
         tid = _mk(client)
         _publish_done(client, tid)
@@ -984,11 +921,6 @@ class TestSettingsChurn:
         data_dir = client.app.state.data_dir
         assert isinstance(json.loads((data_dir / "settings.json").read_text()), dict)
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="concurrency 非数值 → int() TypeError 逃逸 → 500"
-        "（quota_* 同族双捕 TypeError → 400）",
-    )
     @pytest.mark.parametrize("bad", [None, {"x": 1}, [1]])
     def test_concurrency_non_numeric_400(
         self, raw_client: TestClient, bad: object

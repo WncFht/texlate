@@ -36,6 +36,11 @@ from sse_starlette.sse import EventSourceResponse
 from starlette._utils import get_route_path  # 路由匹配同一条路径视图（剥 root_path）
 from starlette.datastructures import UploadFile as StarletteUploadFile
 
+try:
+    import python_multipart as _pymp
+except ModuleNotFoundError:  # pragma: no cover -- 旧式包名回落（同 starlette）
+    import multipart as _pymp  # type: ignore[no-redef]
+
 from texlate import __version__
 from texlate.arxiv.fetch import _valid_id, normalize_arxiv_id
 from texlate.compile.sandbox import find_tool
@@ -216,7 +221,29 @@ async def _parse_multipart(request: Request) -> dict[str, str | UploadPart]:
             413, {"detail": f"upload > {UPLOAD_CAP}B", "code": "upload_too_large"}
         )
     _cap_request_body(request)
-    form = await request.form()
+    # starlette 的 multipart 判定是 media-type token byte-equal——带参数时
+    # ``MULTIPART/FORM-DATA; boundary=X``（RFC 9110 大小写不敏感）被当非
+    # multipart 清空表单。就地归一媒体 token（参数原样保留）：
+    # ``scope["headers"]`` 与缓存 ``request._headers`` 共享同一 list 对象，
+    # 原地改写才能让随后 ``request.form()`` 的判定看到（``MutableHeaders``/
+    # ``Headers.raw`` 在 starlette 1.6 都是防御性复制，改了不生效）。
+    ctype = request.headers.get("content-type", "")
+    media, sep, params = ctype.partition(";")
+    if media.strip().lower() == "multipart/form-data" and (
+        media.strip() != "multipart/form-data"
+    ):
+        normalized = f"multipart/form-data{sep}{params}".encode("latin-1")
+        raw_headers = request.scope["headers"]
+        for i, (k, _v) in enumerate(raw_headers):
+            if k == b"content-type":
+                raw_headers[i] = (k, normalized)
+                break
+    try:
+        form = await request.form()
+    except _pymp.exceptions.ParseError as e:
+        # python-multipart 引擎错（boundary 不符/伪 boundary 行/参数畸形）——
+        # starlette 只包自家回调侧 MultiPartException，引擎错直穿成 500
+        raise _ApiError(400, {"detail": f"malformed multipart: {e}"}) from e
     out: dict[str, str | UploadPart] = {}
     file_bytes = 0
     for name, val in form.multi_items():
@@ -635,7 +662,9 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
             )
         try:
             data = json.loads(raw)
-        except json.JSONDecodeError as e:
+        except (ValueError, RecursionError) as e:
+            # ValueError 含 JSONDecodeError 与巨 int 字面量（int↔str 上限）；
+            # RecursionError 是超深嵌套——不入网即 500
             raise _ApiError(400, {"detail": f"bad json: {e}"}) from e
         return data if isinstance(data, dict) else {}
 
@@ -828,7 +857,8 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         """快照 or SSE 流（Accept: text/event-stream；Last-Event-ID 重放）。"""
         _get_task(request, task_id)
         accept = request.headers.get("accept", "")
-        if "text/event-stream" not in accept:
+        # RFC 9110：媒体类型大小写不敏感——TEXT/EVENT-STREAM 也应进 SSE
+        if "text/event-stream" not in accept.lower():
             return JSONResponse(
                 store.snapshot(task_id, artifacts=_artifacts(store, task_id))
             )
@@ -836,6 +866,10 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
             last_id = int(request.headers.get("last-event-id", "0") or 0)
         except ValueError:
             last_id = 0
+        # SQLite 绑参 int64 界——超界声明夹到界值（语义=客户端已见至该 seq，
+        # 大值→无重放，负值→全量重放）；不夹则 events_since OverflowError
+        # 在 snapshot 帧发出后炸断流。
+        last_id = max(-(2**63), min(last_id, 2**63 - 1))
 
         async def gen() -> AsyncIterator[dict[str, Any]]:
             snap = store.snapshot(task_id, artifacts=_artifacts(store, task_id))
@@ -938,7 +972,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         options_raw = _form_text(form, "options")
         try:
             options = json.loads(options_raw) if options_raw else {}
-        except json.JSONDecodeError:
+        except (ValueError, RecursionError):
             raise _ApiError(400, {"detail": "options 字段不是合法 JSON"}) from None
         if not isinstance(options, dict):
             options = {}
@@ -1052,7 +1086,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
             options_raw = _form_text(form, "options")
             try:
                 options = json.loads(options_raw) if options_raw else {}
-            except json.JSONDecodeError:
+            except (ValueError, RecursionError):
                 raise _ApiError(400, {"detail": "options 字段不是合法 JSON"}) from None
             if not isinstance(options, dict):
                 options = {}
@@ -1485,7 +1519,9 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
             return _json_error(400, f"settings 未知字段: {bad_keys}")
         try:
             settings_store.save(body)
-        except ValueError as e:
+        except (TypeError, ValueError) as e:
+            # 字段值类型错（concurrency 收 None/dict/list 时 int() TypeError）
+            # 与校验错同归 400——非数值输入是客户端错误非服务端故障
             return _json_error(400, str(e))
         return JSONResponse(settings_store.public())
 
