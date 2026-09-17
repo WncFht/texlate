@@ -9,10 +9,7 @@ import zipfile
 from typing import TYPE_CHECKING, Any
 
 from texlate.compile.cjkmap import embed_cjk_mappings
-from texlate.compile.fixloop import (
-    CaseSink,
-    Ruleset,
-)
+from texlate.compile.fixloop import CaseSink
 from texlate.compile.fixloop.llm_hook import make_llm_hook
 from texlate.compile.inject import (
     InjectRejectError,
@@ -23,18 +20,17 @@ from texlate.compile.probe import (
     dep_seen,
     deps_diff,
 )
-from texlate.e2e import (
+from texlate.latex.placeholder import PH_RX
+from texlate.latex.reconstruct import reconstruct
+from texlate.repair import (
     _ENV_NO_L2,
     L2_MAX_CHUNKS,
     _l2_localize,
     _resplice,
     _retranslate_hits,
+    _ruleset_with_baseline,
     _split_cid,
     _TreeRun,
-)
-from texlate.latex.placeholder import PH_RX
-from texlate.latex.reconstruct import reconstruct
-from texlate.repair import (
     cross_engine_retry,
     fixloop_cell_parts,
     log_text_of,
@@ -92,24 +88,6 @@ if TYPE_CHECKING:
 import texlate.server.worker as _w
 
 log = logging.getLogger(__name__)
-
-
-def _ruleset_with_baseline(ctx: TaskCtx) -> Ruleset:
-    """加载默认 ruleset 并把 ``ctx.base_dir`` 注入 restore_support_from_src 的 params。
-
-    ``baseline_dir`` 是运行时路径（任务级 pristine base 树），``_substitute``
-    只展开 ``{payload}`` 模板——这里按 transform 名直接改写加载后的规则
-    raw dict。规则行未落地时为空转 no-op。
-    """
-    rs = Ruleset.load()
-    for rule in rs.rules:
-        act = rule.raw.get("action") or {}
-        if (
-            act.get("kind") == "builtin_transform"
-            and act.get("function") == "restore_support_from_src"
-        ):
-            act.setdefault("params", {})["baseline_dir"] = str(ctx.base_dir)
-    return rs
 
 
 def _fixloop_summary(cell: dict[str, Any]) -> dict[str, Any]:
@@ -511,7 +489,7 @@ class _Compile:
             cell, fix_last = run_fixloop(
                 work,
                 self._fixloop_engine(ctx, eng),
-                ruleset=_ruleset_with_baseline(ctx),
+                ruleset=_ruleset_with_baseline(ctx.base_dir),
                 engine_name=ctx.engine_name,
                 corpus_id=ctx.task_id,
                 cond="zh",
@@ -654,7 +632,7 @@ class _Compile:
     def _l2_run_state(
         self, ctx: TaskCtx, work: Path
     ) -> tuple[_TreeRun, dict[str, str]]:
-        """``e2e._TreeRun`` 形态重建：scans 指向 work 内文件 + trans/chunk_ins。
+        """``repair._TreeRun`` 形态重建：scans 指向 work 内文件 + trans/chunk_ins。
 
         ``trans`` 取 chunks 表 status='ok' 译文（= work 内已 splice 内容）；
         ``db_of`` 是 ``"fidx:cid"`` → chunks.chunk_id 的 DB 回写映射。

@@ -6,7 +6,6 @@ import hashlib
 import json
 import logging
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from texlate import __version__
@@ -30,6 +29,7 @@ from texlate.xlat.state import ChunkRecord
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from pathlib import Path
 
     from texlate.arxiv.html import HtmlDoc
     from texlate.latex.model import (
@@ -82,9 +82,10 @@ def opt_bool(options: dict[str, Any], key: str, env_on: Callable[[], bool]) -> b
     return env_on()
 
 
-#: 编译超时（docs/08 §4.1 默认值；server 路径无 --timeout flag，
-#: ``TEXLATE_COMPILE_TIMEOUT`` 秒数是唯一全局调节口——CLI/bench 走参数
-#: 化 ``timeout`` 链，唯独本常量钉死 create_app 不传 ctor 参的路径）
+#: 编译超时（docs/08 §4.1 默认值；server 路径无 --timeout flag）——
+#: 全链优先级 ``TEXLATE_COMPILE_TIMEOUT`` env > settings.json
+#: ``compile_timeout`` > 240s，``create_app`` 装配时解析透传；本常量
+#: 兜非 app 构造方（测试/内嵌直 new PipelineWorker 不走 settings）
 COMPILE_TIMEOUT = _env_timeout("TEXLATE_COMPILE_TIMEOUT", 240.0)
 
 #: files.kind → URL kind（§2.3 白名单表）
@@ -452,27 +453,6 @@ async def _aclose_clients(clients: list[ChatClient]) -> None:
             await c.aclose()
         except Exception as e:  # noqa: BLE001 -- 收尾尽力而为
             log.debug("client aclose failed: %s: %s", type(e).__name__, e)
-
-
-def _resolve_glossary_path(
-    gpath: str, glossary_dir: str, base_dir: Path
-) -> Path | None:
-    """``_glossary_path`` 的静默版：同一 confine 解析，不告警。
-
-    供 ``_make_cache`` 这类「只想知道生效文件」的调用方用——告警仍由
-    ``_glossary_path``（``_make_glossary`` 路）发，不双发。
-    """
-    rel = Path(gpath)
-    if rel.is_absolute() or ".." in rel.parts:
-        return None
-    roots = [base_dir.resolve()]
-    if glossary_dir:
-        roots.append(Path(glossary_dir).expanduser().resolve())
-    for base in roots:
-        cand = (base / rel).resolve()
-        if cand.is_relative_to(base) and cand.is_file():
-            return cand
-    return None
 
 
 class DBStateBridge:

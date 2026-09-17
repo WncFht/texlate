@@ -12,10 +12,11 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from texlate.e2e import (
+from texlate.repair import (
     _ENV_ENV_JUDGE,
     _KNOWN_ENVS,
     _env_judge_all,
+    _resolve_glossary_path,
 )
 from texlate.server.settings import (
     cache_scope,
@@ -51,7 +52,6 @@ from ._common import (
     TaskCtx,
     _FallbackTranslator,
     _new_usage_meter,
-    _resolve_glossary_path,
     _tgt_lang,
     _translate_progress,
     _translator_clients,

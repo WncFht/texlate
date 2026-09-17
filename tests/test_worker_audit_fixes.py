@@ -769,8 +769,8 @@ class TestL2EofAttribution:
 
     def test_attr_eof_remap(self, tmp_path: Path) -> None:
         """``_L2Attr.attr_error``：eof_file 改派肇事文件，行号丢弃。"""
-        from texlate.e2e import _L2Attr, _TreeRun  # noqa: PLC0415
         from texlate.latex.api import parse_file  # noqa: PLC0415
+        from texlate.repair import _L2Attr, _TreeRun  # noqa: PLC0415
         from texlate.validate.l2 import LogError  # noqa: PLC0415
 
         work = tmp_path / "work"
@@ -807,8 +807,8 @@ class TestL2EofAttribution:
 
     def test_attr_forward_exclusion(self, tmp_path: Path) -> None:
         """起点越过错误行行尾的块被顺序读取不变量排除（repro-2501 形态）。"""
-        from texlate.e2e import _L2Attr, _TreeRun  # noqa: PLC0415
         from texlate.latex.api import parse_file  # noqa: PLC0415
+        from texlate.repair import _L2Attr, _TreeRun  # noqa: PLC0415
         from texlate.validate.l2 import LogError  # noqa: PLC0415
 
         work = tmp_path / "work"
@@ -856,9 +856,9 @@ class TestChunkSpansMirror:
     """
 
     def test_translated_transforms_mirrored(self) -> None:
-        from texlate.e2e import _chunk_spans  # noqa: PLC0415
         from texlate.latex import parse_tex  # noqa: PLC0415
         from texlate.latex.reconstruct import reconstruct  # noqa: PLC0415
+        from texlate.repair import _chunk_spans  # noqa: PLC0415
 
         tex = (
             "\\documentclass{article}\n"
@@ -1120,7 +1120,9 @@ class TestOffLoopHeavySegments:
         ctx, worker, store = _mk(tmp_path)
         _scan(ctx, worker, store, _MATH_TEX)
         row = store.all_chunks(ctx.task_id)[0]
-        store.update_chunk(ctx.task_id, row["chunk_id"], {"translation": "译文"})
+        store.update_chunk(
+            ctx.task_id, row["chunk_id"], {"status": "ok", "translation": "译文"}
+        )
         seen: list[int] = []
         real = store.all_chunks
 

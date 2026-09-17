@@ -58,6 +58,7 @@ sys.path.insert(0, os.environ.get("TEXLATE_SRC", str(ROOT / "src")))
 import benchlib
 
 from texlate import e2e as e2e_mod
+from texlate import repair as repair_mod
 from texlate.compile.engine import route_project
 from texlate.compile.inject import InjectRejectError, find_main_tex, prepare_chinese
 from texlate.compile.normalize import normalize_project
@@ -287,7 +288,7 @@ def _seg_of(r_source: str, seg: str) -> bool:
 
 def translate_tree(
     root: Path, translator: MockTranslator, *, env_judge: bool = False
-) -> tuple[dict, e2e_mod._TreeRun, list]:
+) -> tuple[dict, repair_mod._TreeRun, list]:
     """``e2e._translate_tree`` 同构 + 带出逐块 results（Mode B/C 归因账本用）。
 
     扫描段直接调 ``e2e._scan_tree`` 原件——文件名四门（dotfile 跳、``.rtx.tex``
@@ -312,7 +313,7 @@ def translate_tree(
     n_fault = 0
     n_partial = 0
     for r in results:
-        fidx, cid = e2e_mod._split_cid(r.chunk_id)
+        fidx, cid = repair_mod._split_cid(r.chunk_id)
         if e2e_mod._delivered(r):
             by_file.setdefault(fidx, {})[cid] = r.translation
             if r.status == "partial":
@@ -347,7 +348,7 @@ def translate_tree(
         "leftover_ph": n_leftover,
         "env_judge": env_stats,
     }
-    run = e2e_mod._TreeRun(
+    run = repair_mod._TreeRun(
         scans=scans,
         trans=by_file,
         chunk_ins={c.chunk_id: c for c in chunks},
@@ -366,7 +367,7 @@ def pipe_mode_condition(
     env_judge: bool | None = None,
     l2_on: bool | None = None,
     fixloop_on: bool | None = None,
-    l2_max_chunks: int = e2e_mod.L2_MAX_CHUNKS,
+    l2_max_chunks: int = repair_mod.L2_MAX_CHUNKS,
     route_engines: list[str] | None = None,
 ) -> dict:
     """pipe_condition 变体：翻译层换 Mode B/C 破坏 translator，其余全链同产品臂。
@@ -390,7 +391,7 @@ def pipe_mode_condition(
     rec["normalize"] = normalize_project(work, eng_name, main_rel)
     tr = SabotageTranslator() if mode == "B" else PerturbTranslator()
     ej = (
-        e2e_mod.env_flag(e2e_mod._ENV_ENV_JUDGE, default=False)
+        e2e_mod.env_flag(repair_mod._ENV_ENV_JUDGE, default=False)
         if env_judge is None
         else env_judge
     )
@@ -501,7 +502,7 @@ def pipe_mode_condition(
 
     if rec["status"] != "clean":
         l2 = (
-            (not e2e_mod.env_flag(e2e_mod._ENV_NO_L2, default=False))
+            (not e2e_mod.env_flag(repair_mod._ENV_NO_L2, default=False))
             if l2_on is None
             else l2_on
         )
@@ -511,7 +512,7 @@ def pipe_mode_condition(
             if tail2 is not None:
                 rec.update(tail2)
         else:
-            rec["l2"] = {"enabled": False, "reason": e2e_mod._ENV_NO_L2}
+            rec["l2"] = {"enabled": False, "reason": repair_mod._ENV_NO_L2}
 
         fl = (
             (not e2e_mod.env_flag(e2e_mod._ENV_NO_FIXLOOP, default=False))

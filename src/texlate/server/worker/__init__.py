@@ -40,6 +40,7 @@ from texlate.compile.engine import (  # noqa: F401 -- test monkeypatch 面
     route_project,
 )
 from texlate.compile.probe import target_probe  # noqa: F401 -- test monkeypatch 面
+from texlate.repair import _resolve_glossary_path, _ruleset_with_baseline
 from texlate.server.upload import (
     _md_member,
     pdf_pages,
@@ -77,7 +78,6 @@ from ._common import (
     _FallbackTranslator,
     _new_usage_meter,
     _PerCallTranslator,
-    _resolve_glossary_path,
     _RouteRejectError,
     _scrub_deep,
     _ShareRejectError,
@@ -92,7 +92,6 @@ from ._common import (
 from .compile import (
     _Compile,
     _fixloop_summary,
-    _ruleset_with_baseline,
     _sync_fixed_sources,
 )
 from .core import _Core
