@@ -27,7 +27,12 @@ from pathlib import Path
 from typing import Final
 
 from texlate.redlines import L2_REDLINE_CLASSES, L2_WARNING_RULES
-from texlate.texlog import is_dos_eps, is_project_file, update_file_stack
+from texlate.texlog import (
+    is_dos_eps,
+    is_project_file,
+    patch_graphic_top,
+    update_file_stack,
+)
 from texlate.textutil import is_cjk_cp
 
 __all__ = [
@@ -46,16 +51,21 @@ __all__ = [
 #: ``.tikz``/``.end``/``.lof``/``.fgx`` 实测全为真错误，loop1 语料 7814
 #: log 全扫、扩展名白名单漏 586 行真错含 3 例整体 ok=True 假干净）。
 #: 行首 ``(``/``!`` 与 ``:``/空白内嵌仍排除（避免误吃普通行）。
+#: 消息面与 engine ``_ERR_FILELINE_RE`` 同口径——``: `` 单空格后须非空白
+#: 消息（空消息/``:!msg``/tab 分隔等畸形形不收，msg 原样进组 3 不做
+#: ``!`` 剥离，``! LaTeX Warning`` 伪豁免面随之封死）。
 _FILE_LINE_RX: Final = re.compile(
-    r"^([^()\s:]+\.[A-Za-z0-9_-]{1,10}):(\d+):[ \t]*!?[ \t]*(.*)$"
+    r"^([^()\s:]+\.[A-Za-z0-9_-]{1,10}):(\d+): (\S[^\n]*)$"
 )
 
 #: ``file:line:`` 形态的非错误行（与 fixloop/logparse 同口径）：
 #: Warning 行（部分引擎/包给 warning 也打 file:line: 前缀——fixloop 实测坑，
 #: 不排会让 ``n_errors==0`` 干净门永不通）与 ``==> Fatal error`` 汇总尾行
 #: （同一失败的复述，多计一次——bench/corpus_v2/2002.05660 colt2020.log 实测）。
+#: 锚定消息起点（组 3 即 ``: `` 后全文）——``See LaTeX Warning:`` 中段
+#: 命中不误豁免真错（engine ``_NONERR_FILELINE_RE`` 同口径）。
 _NONERR_FILELINE_RX: Final = re.compile(
-    r"(?:LaTeX|Package|Class)\b[^\n]*?\bWarning\b|^\s*==>"
+    r"^(?:(?:LaTeX|Package|Class)\b[^\n]*?\bWarning\b|==>)"
 )
 
 #: 经典错误行。
@@ -260,32 +270,6 @@ class L2Verdict:
 
 # ---------------------------------------------------------------- 内部
 
-#: ``(x.eps`` 类 graphic 打开帧（engine.py ``_GRAPHIC_EXTS`` 同款）——
-#: texlog ``TEX_FILE_EXTS`` 不含 graphic 扩展名，此类 ``(`` 入 ``None``
-#: 配对帧；utf8 归因需要真名，行尾未配对 ``(`` 的 graphic token 补回栈顶。
-#: （``looks_like_input_file`` 形状路径已收 ``.eps`` 等新面，本补丁仍兜
-#: 形状拒收/截断 token 的 ``None`` 帧。）
-_GRAPHIC_EXTS: Final = frozenset({".eps", ".epsf", ".epsi", ".ps", ".mps"})
-
-
-def _last_open_graphic_token(ln: str) -> str | None:
-    """行尾最后一个 ``(`` 未被 ``)`` 闭时，取其 graphic 文件名 token。"""
-    lp = ln.rfind("(")
-    if lp < 0 or lp < ln.rfind(")"):
-        return None
-    m = re.match(r"[^\s(){}]+", ln[lp + 1 :])
-    if m and Path(m.group(0)).suffix.lower() in _GRAPHIC_EXTS:
-        return m.group(0)
-    return None
-
-
-def _patch_graphic_top(ln: str, stack: list[str | None]) -> None:
-    """栈顶 ``None`` 配对帧是 graphic 打开时补真名（engine.py 同款）。"""
-    if stack and stack[-1] is None:
-        g = _last_open_graphic_token(ln)
-        if g:
-            stack[-1] = g
-
 
 def _mark_redline(  # noqa: PLR0913 - 归因三件套（栈/root/缓存）拆散反而伤读
     cls: str,
@@ -409,7 +393,7 @@ def parse_log_text(text: str, *, project_root: Path | None = None) -> L2Verdict:
     for i, ln in enumerate(lines):
         popped.clear()
         update_file_stack(ln, stack, popped)
-        _patch_graphic_top(ln, stack)
+        patch_graphic_top(ln, stack)
         for tok in popped:
             if tok is not None:
                 last_pop = (i, tok)

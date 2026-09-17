@@ -24,6 +24,7 @@ __all__ = [
     "is_dos_eps",
     "is_project_file",
     "looks_like_input_file",
+    "patch_graphic_top",
     "update_file_stack",
 ]
 
@@ -140,6 +141,29 @@ def update_file_stack(
             j += 1
 
 
+#: ``(x.eps`` 类 graphic 打开帧（engine.py ``_GRAPHIC_EXTS`` 同款，此处为
+#: 下沉单源）——形状判定拒收的 graphic token（逗号/截断形，如 ``fig,1.eps``）
+#: 入 ``None`` 配对帧；engine/l2/fixloop 三处栈消费都把行尾未配对 ``(``
+#: 的 graphic token 补回栈顶真名。
+_GRAPHIC_EXTS: Final = frozenset({".eps", ".epsf", ".epsi", ".ps", ".mps"})
+
+
+def patch_graphic_top(ln: str, stack: list[str | None]) -> None:
+    """栈顶 ``None`` 配对帧是 graphic 打开时补真名（engine/l2 同款补丁）。
+
+    只补行尾最后一个未配对 ``(`` 后的 graphic token——已被 ``)`` 闭合或
+    栈顶为具名帧时不动作；``None`` 占位语义其余位置不受影响。
+    """
+    if not stack or stack[-1] is not None:
+        return
+    lp = ln.rfind("(")
+    if lp < 0 or lp < ln.rfind(")"):
+        return
+    m = _OPEN_TOKEN_RX.match(ln, lp + 1)
+    if m and Path(m.group(0)).suffix.lower() in _GRAPHIC_EXTS:
+        stack[-1] = m.group(0)
+
+
 def file_stack_at(
     lines: list[str], stop: int, popped: list[str | None] | None = None
 ) -> list[str]:
@@ -149,11 +173,13 @@ def file_stack_at(
     ``update_file_stack`` 同口径含 ``None`` 配对帧（原样透传，滤除是
     消费端职责）；``popped[-1]`` 即 stop 行前最近关闭的文件，
     ``File ended while scanning`` 类 runaway 错报位在父文件续行时
-    找回真肇事文件用（#78）。
+    找回真肇事文件用（#78）。重放逐行套用 ``patch_graphic_top``——
+    形状拒收的 ``(fig,1.eps`` 类帧与 engine/l2 同口径补真名。
     """
     stack: list[str | None] = []
     for ln in lines[:stop]:
         update_file_stack(ln, stack, popped)
+        patch_graphic_top(ln, stack)
     return [s for s in stack if s]
 
 

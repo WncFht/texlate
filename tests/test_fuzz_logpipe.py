@@ -19,23 +19,16 @@ r"""跨层一致性 fuzz —— ``texlog.update_file_stack`` → ``engine.parse_
 
 钉住的缺陷（``xfail(strict=True)``——修复后 XPASS 提醒拆钉）：
 
-- ``engine.py`` ``WARNING_RED_LINES[fffd_glyph]`` 缺 nullfont 豁免——
-  ``Missing character: There is no ("FFFD) in font nullfont``（坏字节进
-  测量盒）仍命中 ``warn:fffd_glyph`` → partial，而 ``missing_chars`` 闸与
-  l2 ``missing_glyph_nullfont`` 类同案判良性——层内自相矛盾；
 - misschar 90 字窗可越过非 misschar 行：真字体 misschar 后 90 字内任何
   ``in font nullfont`` 字样（非 misschar 行）会误豁免真缺字；
-- ``l2._FILE_LINE_RX`` 与 ``engine._ERR_FILELINE_RE`` 错误行口径分叉：
-  l2 收无消息/``!``/tab 行（``f.tex:5:`` 系），engine 收无扩展名/带冒号
-  /带括号文件名（``Makefile:5:`` 系）；l2 ``_NONERR_FILELINE_RX`` 的
-  Warning 排除未锚定（``See LaTeX Warning:`` 中段命中误豁免真错）；
+- ``engine._ERR_FILELINE_RE`` 文件名面过宽（l2 ``_FILE_LINE_RX`` 严侧
+  已落：空消息/``!``/tab 行与未锚定 Warning 排除两半已收口）——engine
+  仍收无扩展名/带冒号/带括号文件名（``Makefile:5:`` 系）；
 - misschar 三闸（judge/engine/rules.yaml）认裸 ``Missing character``
   无冒号前缀——``Missing characters ...`` 类行文误计缺字，l2 census
   （要冒号）口径才是真消息形态；
 - l2 ``invalid_utf8`` 规则 IGNORECASE + ``replaced by U+FFFD`` 变体，
-  engine ``_UTF8_WARN_RE`` 只认大写 ``Invalid UTF-8 byte``；
-- ``texlog.file_stack_at``（fixloop 用）无 graphic 补丁——形状拒收的
-  ``(fig,1.eps`` 类帧在 engine/l2 补真名、fixloop 侧丢帧。
+  engine ``_UTF8_WARN_RE`` 只认大写 ``Invalid UTF-8 byte``。
 """
 
 from __future__ import annotations
@@ -425,17 +418,10 @@ def test_judge_warn_hit_propagation() -> None:
 # ================================================================ 钉住的缺陷
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "engine.py WARNING_RED_LINES[fffd_glyph] 缺 nullfont 豁免——"
-        '坏字节进测量盒（("FFFD) in font nullfont）仍 warn:fffd_glyph→partial，'
-        "而 missing_chars 闸/l2 missing_glyph_nullfont 同案判良性。修复: "
-        "fffd_glyph 模式前置同款 tempered lookahead 排除 in font nullfont。"
-    ),
-)
-def test_xfail_fffd_nullfont_benign() -> None:
-    """repro: ``Missing character: There is no ("FFFD) in font nullfont!``。"""
+def test_fffd_nullfont_benign() -> None:
+    """repro: ``Missing character: There is no ("FFFD) in font nullfont!``。
+    原 strict-xfail（fffd_glyph 缺 nullfont 豁免）——engine.py 豁免已落。"""
+
     text = 'Missing character: There is no ("FFFD) in font nullfont!\n'
     info = eng_parse_log(text)
     assert "fffd_glyph" not in info.warnings_hit  # 现状: 命中 → warn:fffd_glyph
@@ -461,40 +447,46 @@ def test_xfail_misschar_window_swallows_real() -> None:
     assert "missing_chars" in eng_parse_log(text).warnings_hit
 
 
-#: 三层错误行口径分叉集（repro 行 → (engine, l2, fixloop) 现值）。
-#: l2._FILE_LINE_RX 要 ``name.ext`` 且消息可空/``!``/tab；engine/fixloop
-#: ``^\S+?:\d+: \S`` 只要非空白文件名+非空消息。l2._NONERR_FILELINE_RX 的
-#: Warning 排除对 msg 未锚定——``See LaTeX Warning:`` 中段命中即误豁免。
-#: 真实语料 1504 log 零分歧——全是畸形形分歧；修复向: 两边 fileline 正则
-#: 与 Warning 排除各取严侧并单源化（engine._ERR_FILELINE_RE 已是 fixloop 单源，
-#: l2 的 _FILE_LINE_RX/_NONERR_FILELINE_RX 是第二实现）。
-_DIVERGENT_ERRLINES = [
-    # l2 收、engine/fixloop 不收（l2 消息面过宽）
-    "./main.tex:5:",  # 空消息
+#: 三层错误行口径一致集——l2._FILE_LINE_RX 消息面与 Warning 排除锚定已
+#: 对齐 engine._ERR_FILELINE_RE/_NONERR_FILELINE_RE（严侧）；
+#: 真实语料 1504 log 零分歧——分叉全是畸形形。
+_ERRLINES_AGREED = [
+    "./main.tex:5:",  # 空消息——三层均不收
     "./main.tex:5:!boom",  # 冒号后无空格
     "./main.tex:5:\tboom",  # tab 分隔
-    # engine/fixloop 收、l2 不收（文件名面过宽/过窄不对称）
+    "./f.tex:5: See LaTeX Warning: x",  # Warning 字样在 msg 中段→真错
+    "./f.tex:5: ! LaTeX Warning: x",  # msg 带 ! 前缀→Warning 排除不命中
+    "./f.tex:5: ! ==> Fatal error occurred",  # ==> 不在 msg 起点→真错
+]
+
+
+@pytest.mark.parametrize("line", _ERRLINES_AGREED)
+def test_error_line_three_layer_agree(line: str) -> None:
+    text = line + "\nrest\n"
+    e, lv, f = _three(text)
+    assert e == lv == f, f"{line!r}: eng={e} l2={lv} fx={f}"
+
+
+#: 仍分叉：engine._ERR_FILELINE_RE 文件名面 ``^\S+?`` 过宽（收无扩展名/
+#: 含冒号/含开括弧名），l2 严侧 ``name.ext``+无冒号/括弧/空白不收——
+#: 修复向 = engine 文件名面取严（peer 侧，fixloop 经借用同轨）。
+_ERRLINES_WAIT_ENGINE = [
     "Makefile:5: boom",  # 无扩展名
     "C:\\foo.tex:5: boom",  # 文件名含冒号
     "(x.tex:5: boom",  # 文件名带开括弧
-    # l2 Warning 排除未锚定（漏真错方向）
-    "./f.tex:5: See LaTeX Warning: x",
-    "./f.tex:5: ! LaTeX Warning: x",
-    "./f.tex:5: ! ==> Fatal error occurred",
 ]
 
 
 @pytest.mark.xfail(
     strict=True,
     reason=(
-        "file:line: 错误行三层口径分叉——l2.py:48 _FILE_LINE_RX vs "
-        "engine.py:168 _ERR_FILELINE_RE vs logparse.py 借用后者; "
-        "l2.py:56 _NONERR_FILELINE_RX Warning 排除未锚定 vs "
-        "engine.py:172 _NONERR_FILELINE_RE 锚定。"
+        "engine.py _ERR_FILELINE_RE 文件名面过宽——`^\\S+?:\\d+: \\S` "
+        "收无扩展名/含冒号/含括弧文件名（l2._FILE_LINE_RX 严侧已对齐消息面）；"
+        "fixloop.logparse 借用同一 regex，engine 收紧后三层即合。"
     ),
 )
-@pytest.mark.parametrize("line", _DIVERGENT_ERRLINES)
-def test_xfail_error_line_three_layer_agree(line: str) -> None:
+@pytest.mark.parametrize("line", _ERRLINES_WAIT_ENGINE)
+def test_xfail_error_line_filename_width(line: str) -> None:
     text = line + "\nrest\n"
     e, lv, f = _three(text)
     assert e == lv == f, f"{line!r}: eng={e} l2={lv} fx={f}"
@@ -537,16 +529,7 @@ def test_xfail_utf8_variant_cross_layer(line: str) -> None:
     assert "invalid_utf8" in eng_parse_log(text).warnings_hit  # engine 漏
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "texlog.py:143 file_stack_at（fixloop.logparse 重放栈用）无 graphic "
-        "补丁——形状拒收的 (fig,1.eps 类帧在 engine.py:_last_open_graphic_token /"
-        " l2.py:291 _patch_graphic_top 各自补真名、fixloop 侧丢帧，"
-        "file_stack 三层不同口径。"
-    ),
-)
-def test_xfail_graphic_frame_parity() -> None:
+def test_graphic_frame_parity() -> None:
     text = "(./main.tex\n(fig,1.eps\n! Undefined control sequence.\nl.5 \\foo\n"
     e = eng_parse_log(text)
     v = parse_log_text(text)
