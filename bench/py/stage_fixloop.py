@@ -242,9 +242,12 @@ def stage_fixloop(
     args: argparse.Namespace, out_dir: Path, ids: list[str], log: sl.RecLog
 ) -> None:
     want = _ON_PRED[args.on]
+    ids = sl.dedup_wids(ids)  # 同 wid 单任务闸（canon 归一+去重）
     want_ids = set(ids)
     # (pid,zh) 可并存多个 upstream 键 —— load_latest dict 插序是首见序,
     # cand[-1] 拿到的不是最新 compile 格 (1e 审计); 直扫文件按 append 序取。
+    # id 全程 canon 归一 —— flat 拼写存量 compile 账按规范形命中
+    # (loop1 双拼写并存实证, 不 canon 则 flat 账静默落选)。
     cand_latest: dict[str, dict] = {}
     comp_path = out_dir / "records" / "compile.jsonl"
     if comp_path.exists():
@@ -252,13 +255,13 @@ def stage_fixloop(
             (
                 rec
                 for rec in benchlib.iter_jsonl(comp_path)
-                if rec.get("id") in want_ids
+                if sl.canon_id(str(rec.get("id") or "")) in want_ids
                 and rec.get("arm") == "zh"
                 # 多 xlat 臂并存时同键 append 互覆 —— 指定 --xlat-arm 则只认
                 # 该臂记录 (arm_mismatch skip 的 upstream 为空, 自然滤除)
                 and (not args.xlat_arm or (rec.get("upstream") or "") == args.xlat_arm)
             ),
-            lambda r: r["id"],  # append 序覆盖 = 末条
+            lambda r: sl.canon_id(str(r["id"])),  # append 序覆盖 = 末条
         )
     todo: list[tuple[str, dict]] = []
     for pid in ids:

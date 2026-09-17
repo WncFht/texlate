@@ -515,3 +515,39 @@ def test_load_latest_canon_cross_spelling(tmp_path: Path) -> None:
     latest = sl.load_latest(rp)
     assert latest[("math/0408287", "zh", "")]["status"] == "clean"
     assert ("math--0408287", "zh", "") not in latest
+
+
+def test_fixloop_cand_flat_compile_rec(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """compile 账 flat 拼写存量 → canon pid 候选命中（不静默落选）。
+
+    调度只到 _fixloop_one 编排面——monkeypatch 替身观测派发的
+    (pid, crec.id) 对：pid 须规范形，crec 是盘上原始 flat 记录。
+    """
+    stage_fx = pytest.importorskip("stage_fixloop")
+    sl = pytest.importorskip("stagerun_lib")
+    recs_dir = tmp_path / "records"
+    recs_dir.mkdir()
+    (recs_dir / "compile.jsonl").write_text(
+        json.dumps(_rec("math--0408287", "compile", "fail", arm="zh", upstream="mock"))
+        + "\n",
+        encoding="utf-8",
+    )
+    seen: list[tuple[str, str]] = []
+
+    def _stub(pid, out_dir, args, crec, sink) -> dict:  # noqa: ANN001,ARG001
+        seen.append((pid, crec["id"]))
+        return sl.base_rec(pid, "fixloop", "fix")
+
+    monkeypatch.setattr(stage_fx, "_fixloop_one", _stub)
+    monkeypatch.setattr(stage_fx.Ruleset, "load", classmethod(lambda _cls: None))
+    args = Namespace(
+        on="all", xlat_arm=None, recode=False, rerun=False, jobs=2, time_budget=0
+    )
+    log = sl.RecLog(recs_dir / "fixloop.jsonl")
+    try:
+        stage_fx.stage_fixloop(args, tmp_path, ["math/0408287"], log)
+    finally:
+        log.close()
+    assert seen == [("math/0408287", "math--0408287")]
