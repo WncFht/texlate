@@ -1,9 +1,9 @@
 % texlate vendored stub — 原许可禁分发，最小兼容面
 % diagrams.sty S1+ 替身：Paul Taylor 交换图 DSL，"no redistribution"
-% 许可（TL 除名件）→ 不可 vendored。设计取渲染降级路线而非吞体：
+% 许可（TL 除名件）→ 不可 vendored。设计取真网格路线而非吞体：
 % \diagram…\enddiagram 与 \begin{diagram}…\end{diagram} 两式共用
-% 一对 cs 映射进 displaymath，箭头 cs 直映真数学符号——节点/标签
-% 照常排版，仅网格定位丢失（线性串排），无吞体/组泄风险。
+% 一对 cs，网格走真 \halign（节点二维成形），箭头 cs 直映真数学
+% 符号——仅无真件的箭头宽度/伸缩自适应，无吞体/组泄风险。
 \NeedsTeXFormat{LaTeX2e}
 \ProvidesPackage{diagrams}[texlate stub — original not redistributable]
 \PackageWarningNoLine{texlate-stub}{diagrams.sty is a compatibility shim}
@@ -14,21 +14,26 @@
 \ProcessOptions\relax
 
 % —— 两种调用式：\begin{diagram} 走 env 机制调 \diagram/\enddiagram；
-%    plain 式 \diagram…\enddiagram 同名直达。网格分隔符降级:
-%    &/\cr 在 displaymath 里非法 → 组内局部降为空白 (同格实证:
-%    misplaced & ×88 + \cr ×22 占残余大头)。& 须先 active 化
-%    才可 \def —— 外层组预激活让体内 token 以 active 形入宏。
-\begingroup
-\catcode`\&=\active
-\gdef\diagram{\begingroup
-  \let\\=\space \let\cr\space
-  \catcode`\&=\active \def&{\ }%
-  \ifmmode \let\diagrams@disp=\relax \else \let\diagrams@disp=\] \[\fi}
-\endgroup
-% {diagram} 可嵌进 {equation} 等数学环境 (同格实证) —— 已处数学域
-% 不开 \[, \diagrams@disp 记 \relax; 否则记 \] 供 \enddiagram 对称
-% 关域 (不能现测 \ifmmode: 开过的 \[ 里恒真会漏关)。
-\def\enddiagram{\diagrams@disp\endgroup}
+%    plain 式 \diagram…\enddiagram 同名直达。网格分隔符开真 \halign:
+%    体内 catcode-4 & 于外层 entry 扫描展开本宏时内层 halign 已开,
+%    天然作内层 tab, 不需任何 catcode/\let 操作 (0905.0946 {diagram}
+%    嵌 align* 实测成形); \\ 经 \def\\{\cr} 映行末——不可用
+%    \let\\=\cr: \let 源 token 的 cmd 若为 span/car_ret/对齐制表,
+%    外层 alignment entry 扫描器会当格/行终结符截获报 "Missing
+%    \endgroup"; \def 把 \cr 藏进宏体花括号躲过截获。preamble 首列
+%    \hfil$#$\hfil 其后各列带 \enskip 前距; \cr 直接作行末亦可。
+\def\diagram{\begingroup
+  \def\\{\cr}%
+  \ifmmode
+    \let\diagrams@disp=\relax \vcenter\bgroup
+  \else
+    \def\diagrams@disp{\]}\[\vcenter\bgroup
+  \fi
+  \halign\bgroup\hfil$##$\hfil&&\enskip\hfil$##$\hfil\cr}
+% {diagram} 可嵌进 {equation}/align* 等数学环境 —— 已处数学域不开
+% \[ (\vcenter 在 mmode 合法), \diagrams@disp 记 \relax; 否则 \[ 开域
+% + \] 供 \enddiagram 对称关域。\crcr 兜末行无 \cr 尾。
+\def\enddiagram{\crcr\egroup\egroup\diagrams@disp\endgroup}
 
 % —— Taylor 箭头族 → 真箭头映射 ——
 \providecommand{\rTo}{\to}
@@ -56,6 +61,20 @@
 \providecommand{\vDots}{\vdots}
 \providecommand{\uDots}{\vdots}
 \providecommand{\dDots}{\ddots}
+% —— Dashto 虚线箭头族 (0905.0946 实证: 真件内建默认箭头, 稿零
+%    \newarrow 自声明)。r/l/h 映 amssymb \dashrightarrow 系——用点
+%    \@ifundefined 判定: 稿未装 amssymb 时降实线, 保 defined 不炸;
+%    u/d/v 与对角四向真件有虚线形但数学字体无对应符 → 实线近似 ——
+\providecommand{\rDashto}{\@ifundefined{dashrightarrow}{\rightarrow}{\dashrightarrow}}
+\providecommand{\lDashto}{\@ifundefined{dashleftarrow}{\leftarrow}{\dashleftarrow}}
+\providecommand{\hDashto}{\@ifundefined{dashrightarrow}{\rightarrow}{\dashrightarrow}}
+\providecommand{\uDashto}{\uparrow}
+\providecommand{\dDashto}{\downarrow}
+\providecommand{\vDashto}{\downarrow}
+\providecommand{\ruDashto}{\nearrow}
+\providecommand{\rdDashto}{\searrow}
+\providecommand{\luDashto}{\nwarrow}
+\providecommand{\ldDashto}{\swarrow}
 % —— 结构杂项 ——
 \providecommand{\pile}[1]{\begin{array}{c}#1\end{array}}
 \providecommand{\eps}{\varepsilon}
@@ -65,7 +84,10 @@
 % (2105.03808 实证)；defer 后包侧定义恒赢，无包时落 noop。
 \AtBeginDocument{\providecommand{\spreadlines}[1]{}}
 \providecommand{\diagrams@activate}{}
-\providecommand{\diagramstyle}[1]{}
+% \diagramstyle[settings] 真件为可选方括号参 (0905.0946
+% [labelstyle=\scriptstyle] 实证)——曾误作强制参, [ 被吃成参数后
+% 残留 settings] 流入文本域炸 Missing $
+\providecommand{\diagramstyle}[1][]{}
 
 % —— \newarrow{Name}<spec5>: Taylor 自定义箭头宏。spec 含 '='
 %    → 双线族 (Rightarrow 系), 否则单线 (to 系); r/l/u/d + h/v

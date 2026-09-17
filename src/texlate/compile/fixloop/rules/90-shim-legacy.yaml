@@ -1126,6 +1126,35 @@ rules:
               \providecommand{\ps@myplain}{\let\@mkboth\@gobbletwo
                 \let\@oddhead\@empty\def\@oddfoot{\hfil-- \thepage\ --\hfil}%
                 \let\@evenhead\@oddhead\let\@evenfoot\@oddfoot}
+              % JHEP3 三参期刊宏族 (hep-th/0408134 实证 \bibitem 五连):
+              % \npb{76}{1974}{310} → "Nucl.~Phys.~B 76 (1974) 310"。
+              % \@ifnextchar\bgroup 双态分派: 带 brace = 全引文排版,
+              % 裸调 = 缩写直印——与 aas4_body 式 0 参缩写面同形兼容,
+              % 不撞 (本 body 原无期刊缩写定义, 0408134 全三参形)。
+              \def\sissa@jrnl#1{\@ifnextchar\bgroup{\sissa@jrnl@x{#1}}{#1}}
+              \def\sissa@jrnl@x#1#2#3#4{#1 {\bfseries#2} (#3) #4}
+              \providecommand{\npb}{\sissa@jrnl{Nucl.~Phys.~B}}
+              \providecommand{\plb}{\sissa@jrnl{Phys.~Lett.~B}}
+              \providecommand{\prl}{\sissa@jrnl{Phys.~Rev.~Lett.}}
+              \providecommand{\prd}{\sissa@jrnl{Phys.~Rev.~D}}
+              \providecommand{\pre}{\sissa@jrnl{Phys.~Rev.~E}}
+              \providecommand{\pra}{\sissa@jrnl{Phys.~Rev.~A}}
+              \providecommand{\prb}{\sissa@jrnl{Phys.~Rev.~B}}
+              \providecommand{\prc}{\sissa@jrnl{Phys.~Rev.~C}}
+              \providecommand{\pr}{\sissa@jrnl{Phys.~Rev.}}
+              \providecommand{\epjc}{\sissa@jrnl{Eur.~Phys.~J.~C}}
+              \providecommand{\zpc}{\sissa@jrnl{Z.~Phys.~C}}
+              \providecommand{\jphg}{\sissa@jrnl{J.~Phys.~G}}
+              \providecommand{\tmp}{\sissa@jrnl{Theor.~Math.~Phys.}}
+              \providecommand{\ijmpa}{\sissa@jrnl{Int.~J.~Mod.~Phys.~A}}
+              \providecommand{\mpla}{\sissa@jrnl{Mod.~Phys.~Lett.~A}}
+              \providecommand{\cqg}{\sissa@jrnl{Class.~Quant.~Grav.}}
+              \providecommand{\physrep}{\sissa@jrnl{Phys.~Rep.}}
+              \providecommand{\rmp}{\sissa@jrnl{Rev.~Mod.~Phys.}}
+              \providecommand{\cmp}{\sissa@jrnl{Commun.~Math.~Phys.}}
+              \providecommand{\ncim}{\sissa@jrnl{Nuovo~Cim.}}
+              \providecommand{\jhep}{\sissa@jrnl{JHEP}}
+              \providecommand{\jcap}{\sissa@jrnl{JCAP}}
               \endinput
           JHEP3.cls: { needs: ["amssymb.sty"], body: *sissa_body }
           jhep.cls: { needs: ["amssymb.sty"], body: *sissa_body }

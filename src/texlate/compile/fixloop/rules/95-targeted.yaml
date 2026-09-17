@@ -374,6 +374,8 @@ rules:
           Bar: { polyfill: "\n\\AtBeginDocument{\\def\\Bar#1{\\overline{#1}}}" }
           # hyperref 配置宏裸调 (jheppub 系稿 preamble 散调) —— 装真包
           hypersetup: { usepackage: hyperref }
+          # 2112.00025: jheppub 系稿 \subsection 内裸调 hyperref 双参宏
+          texorpdfstring: { usepackage: hyperref }
           # ── C-bucket 残面通用件 (routing §3 四类净增量) ──
           # \cal: 2.09 字体开关 (elsart 系稿自义 \def\CX{{\cal X}} 族,
           # 0707.4465) —— DeclareOldFontCommand 声明式复原, 词边界下

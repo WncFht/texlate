@@ -1,7 +1,82 @@
 % texlate vendored stub — 原许可禁分发，最小兼容面
 % texsort.sty S0 替身：fetch_failed（CTAN obsolete/corpus 均无档）
 % → stub。citation 排序 no-op，同 citesort 档。
+% —— IMS 数组 API 补面 ——
+% arximspdf/arxstspdf.cls \RequirePackage{texsort} 后 \volume/\issue 走
+% \initarray/\getarraylenght/\compresslist (0806.3286/1003.5240/
+% 1012.1161/1206.0576 实证)。真件 = S. Tolusis texsort 2000 (LPPL,
+% 参照 bench/work_v3/staging/C14/1306.5757/texsort.sty.gz)，此处自写
+% 等价面：数组记法 <base>@<n> 元素 + <base>@lenght 计数 (真件 lenght
+% 拼写照抄)；\compresslist 连续段压区间——段长 1 直印 / 长 2 用 sepA /
+% 长 ≥3 用 sepB，段间恒以 sepA 相连 (真件同义 "single elements
+% separated by #3, multi by #4")。heap 排序族 (sortlist/sortlistarray/
+% upheap/downheap/insertheapelem/removetop) 未补——语料零调用。
 \NeedsTeXFormat{LaTeX2e}
 \ProvidesPackage{texsort}[texlate stub — original not redistributable]
-\PackageWarningNoLine{texlate-stub}{texsort.sty is a no-op shim}
+\PackageWarningNoLine{texlate-stub}{texsort.sty is a minimal-surface shim}
+
+\newcount\ts@tmpa
+\newcount\ts@tmpb
+\newcount\ts@tmpc
+
+% \initarray{base}{csv}: 逐项存 \<base>@1..N。0 前缀读数法归一 ("03"→3,
+% 残项滞留 hbox → \wd0>0 告警，真件同款)。
+\def\initarray#1#2{%
+  \begingroup
+    \@tempcnta=\z@
+    \@for\ts@item:=#2\do{%
+      \advance\@tempcnta by\@ne
+      \setbox\z@\hbox{\global\ts@tmpa=0\ts@item\relax}%
+      \ifdim\wd\z@>\z@\relax
+        \PackageWarningNoLine{texlate-stub}{texsort: non-numeric array item}\fi
+      \expandafter\xdef\csname#1@\the\@tempcnta\endcsname{\the\ts@tmpa}%
+    }%
+    \expandafter\xdef\csname#1@lenght\endcsname{\the\@tempcnta}%
+  \endgroup}
+
+% \getarraylenght{base}: 可展开计数，喂 \@tempcnta\getarraylenght{..}\relax
+\def\getarraylenght#1{\@ifundefined{#1@lenght}{0}{\csname#1@lenght\endcsname}}
+\def\setarraylenght#1#2{\expandafter\xdef\csname#1@lenght\endcsname{#2}}
+\def\getarrayitem#1#2\to#3{%
+  \expandafter\xdef\csname#3\endcsname{\csname#1@#2\endcsname}}
+\def\setarrayitem#1#2#3{\expandafter\xdef\csname#1@#2\endcsname{#3}}
+\def\outarray#1\sep#2{%
+  \@tempcnta=\z@ \@tempcntb=\getarraylenght{#1}\relax
+  \loop\ifnum\@tempcnta<\@tempcntb
+    \advance\@tempcnta by\@ne
+    \ifnum\@tempcnta>\@ne#2\fi\csname#1@\the\@tempcnta\endcsname
+  \repeat}
+
+% \compresslist{csv}\to{name}\sep{sep2}{sepmul}: 目标 cs 经 \ts@tgt
+% 单 token 容器拆包，逐项 \g@addto@macro 全局累积 (\xdef 系出组不失)。
+\def\ts@emit#1{\expandafter\expandafter\expandafter\g@addto@macro
+  \expandafter\ts@tgt\expandafter{#1}}
+\def\ts@flushrun#1#2{% 收 run [a,b]: 长≥3 → sepmul+b, 长2 → sep2+b
+  \ifnum\ts@tmpa<\ts@tmpb
+    \@tempcnta=\ts@tmpb \advance\@tempcnta by-\ts@tmpa
+    \ifnum\@tempcnta>1\relax \ts@emit{#2}\else \ts@emit{#1}\fi
+    \ts@emit{\the\ts@tmpb}%
+  \fi}
+\def\compresslist#1\to#2\sep#3#4{%
+  \begingroup
+    \expandafter\def\csname#2\endcsname{}%
+    \expandafter\def\expandafter\ts@tgt\expandafter{\csname#2\endcsname}%
+    \ts@tmpa=-1\relax % run 起点哨兵：<0 = 未开段
+    \@for\ts@item:=#1\do{%
+      \ts@tmpc=\ts@item\relax
+      \ifnum\ts@tmpa<\z@
+        \ts@tmpa=\ts@tmpc \ts@tmpb=\ts@tmpc
+        \ts@emit{\the\ts@tmpc}%
+      \else
+        \@tempcnta=\ts@tmpb \advance\@tempcnta by\@ne
+        \ifnum\@tempcnta=\ts@tmpc
+          \ts@tmpb=\ts@tmpc % 连续：延 run 不出字
+        \else
+          \ts@flushrun{#3}{#4}% 段断：先收前段尾
+          \ts@emit{#3}\ts@emit{\the\ts@tmpc}% 段间 sep2 + 新段头
+          \ts@tmpa=\ts@tmpc \ts@tmpb=\ts@tmpc
+        \fi
+      \fi}%
+    \ts@flushrun{#3}{#4}% 收末段
+  \endgroup}
 \endinput
