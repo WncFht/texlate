@@ -1,9 +1,10 @@
 r"""``export/`` 对抗 fuzz——EPUB/DOCX 双语插译写出的结构与协议不变量。
 
-三层 + 定向缺陷钉。生成器刻意避开已钉缺陷面（raw-text 元素内 ``<``/``&``、
-注释 ``--``/尾 ``-``、doctype 内部子集、含 ``<`` 的 PI、``<p<div>`` 形错位
-tag、``<n>`` 哨兵形字面、``../`` manifest href、fragment 文档、
-超深嵌套、源侧 ``texlate-zh`` 类名），主 fuzz 面保持绿。
+三层 + 定向缺陷回归钉。raw-text 元素内 ``<``/``&``、注释 ``--``/尾 ``-``、
+未终结 PI、``<p<div>`` 形错位 tag 等直通面已修并入池；仍避开的是改变
+sent/source 文本关系或需额外簿记的面（``<n>`` 哨兵形字面、
+``../`` manifest href、fragment 文档、doctype 内部子集、超深嵌套、源侧
+``texlate-zh`` 类名）——由文件尾的定向回归测试覆盖。
 
 L1 纯函数（markers/filters/common）：
 
@@ -58,26 +59,6 @@ L3 端到端（``translate_epub``/``translate_docx`` 正常返回时）：
   （OCF 首条/strict XML/可 sniff），``{dst}.state`` 保留供续跑。
 - ``export_document`` 按内容嗅探分派（docx 身 epub 名 → docx 管线）；
   ``sniff_format`` 对任意成员集不炸且 epub 判定蕴含规范 mimetype。
-
-已钉缺陷（``xfail(strict=True)``——修复后 XPASS 提醒拆钉）：
-
-- ``_serialize_soup``（epub.py:894-903）直通面：raw-text 元素 ``<``/``&``、
-  注释 ``--``、doctype 内部子集在首个 ``>`` 截断、含 ``<`` 的 PI 变
-  ``<?..`` 未终结、``<p<div>`` 错位 tag 名——全部产出非法成员 XML；
-- ``member_path``（epub.py:296-308）``posixpath.join`` 后无 normpath →
-  ``href="../ch1.xhtml"`` 的合法书 ``MalformedEpubError``；
-- ``_runs_for_owner``（epub.py:563/574）PUA 哨兵 ``{seq}``
-  与源文逐字同形碰撞 → marker 落错位 + 哨兵泄漏进 sent 文本；
-- ``insert_translation``（epub.py:860-877）``root_owner`` 判定只盖
-  ``html``/文档根——fragment 文档顶层 ``<p>`` 走克隆 → 双根非法 XML；
-- 空译文插出空 ``texlate-zh`` 节点且计 translated（epub ``_apply``
-  ~epub.py:1030 + docx ``insert_after`` docx.py:314-353 同病）；
-- ``_separate_brs``/``_owner_events``（epub.py:470-478/502-504）``<pre>``
-  内 ``<br>`` 无分隔无 barrier → 两侧词粘连 ``alphabeta`` 送模型；
-- ``save_epub``（epub.py:950-954）输入 mimetype 成员内容照抄 → 出包
-  不可被 ``sniff_format`` 识别；
-- ``iter_units``（epub.py:605）``body.descendants`` 递归 → ~2000 层
-  行内嵌套 ``RecursionError`` 逃逸 ``ExportError`` 族。
 """
 
 from __future__ import annotations
@@ -114,6 +95,7 @@ from texlate.export.docx import iter_units as iter_docx_units
 from texlate.export.epub import (
     EpubBook,
     Unit,
+    book_soups,
     insert_translation,
     iter_units,
     load_epub,
@@ -222,8 +204,9 @@ _ELEM_POOL = [
     "短",
 ]
 
-#: 注释内容池——禁 ``--``/``<!--``/尾 ``-``（注释直通缺陷已钉）。
-_COMMENT_POOL = [" note text ", "TODO fix later", "中注"]
+#: 注释内容池——``--``/尾 ``-`` 由 ``_sanitize_dom`` 折叠净化，可入池；
+#: ``<!--`` 仍禁（会提前闭合注释改变输入结构）。
+_COMMENT_POOL = [" note text ", "TODO fix later", "中注", "a -- b tail-"]
 #: CDATA 内容池——禁 ``]]>``（提前闭合）；``<``/``&`` 在 CDATA 内合法。
 _CDATA_POOL = ["raw <b> not markup", "a && b || c", "x < y > z"]
 
@@ -334,8 +317,8 @@ def _write_epub(tmp: Path, name: str, members: dict[str, bytes]) -> Path:
 
 
 def _book_soups(book: EpubBook) -> dict[str, BeautifulSoup]:
-    """与 ``translate_epub`` 同构的 soup 表。"""
-    return {p: BeautifulSoup(book.members[p], "html.parser") for p in book.doc_paths}
+    """与 ``translate_epub`` 同构的 soup 表（同一 ``book_soups`` 构造口）。"""
+    return book_soups(book)
 
 
 def _mini_book(body: str, *, ncx_labels: list[str] | None = None) -> dict[str, bytes]:
@@ -361,8 +344,8 @@ def _mini_book(body: str, *, ncx_labels: list[str] | None = None) -> dict[str, b
 
 
 def _gen_attrs(rng: random.Random, *, allow_epub_type: bool = True) -> str:
-    """随机属性组（值取自安全池——bs4 对 ``<``/``&``/``"`` 的转义面已钉缺陷
-    会借道 attr 直通，本组只放合法值）。每项按独立概率附加。"""
+    """随机属性组（值取自安全池——attr 名/值直通面由 ``_sanitize_dom`` 净化，
+    本组仍只放合法值以保 oracle 可复算）。每项按独立概率附加。"""
     table: list[tuple[float, Callable[[], str]]] = [
         (0.25, lambda: f'class="{rng.choice(_CLASS_POOL)}"'),
         (0.15, lambda: f'id="e{rng.randrange(10**6)}"'),
@@ -445,6 +428,9 @@ def _il_protected(rng: random.Random, _depth: int) -> str:
     return f"<{tag}{_gen_attrs(rng)}>{inner}</{tag}>"
 
 
+#: script/style 变体里"安全内容"占比（另一半是 ``<``/``&`` 对抗形）
+_P_RAW_SAFE = 0.5
+
 #: 行内发生器权重表（累计点即概率阈值——表数据免 PLR2004 提名噪音）
 _INLINE_GENS: list[tuple[float, Callable[[random.Random, int], str]]] = [
     (0.42, lambda rng, _d: rng.choice(_PROSE_POOL)),
@@ -458,10 +444,26 @@ _INLINE_GENS: list[tuple[float, Callable[[random.Random, int], str]]] = [
     (0.04, lambda rng, _d: f"<!--{rng.choice(_COMMENT_POOL)}-->"),
     (0.03, lambda rng, _d: f"<![CDATA[{rng.choice(_CDATA_POOL)}]]>"),
     (0.02, lambda rng, _d: f"<?pi v{rng.randrange(9)} d?>"),
-    (0.03, lambda rng, _d: f"<script>var x = {rng.randrange(99)};</script>"),
-    (0.03, lambda rng, _d: f"<style>.a{{color:rgb({rng.randrange(9)},1,1)}}</style>"),
-    # 结构性错位碎片——html.parser 宽容面（``<p<div>`` 是已钉缺陷，不进池）
-    (0.03, lambda rng, _d: rng.choice(["</p>", "<b>", "</div>", "<>"])),
+    (0.01, lambda rng, _d: f"<?pi v{rng.randrange(9)} d>"),  # 未终结 PI
+    (
+        0.03,
+        lambda rng, _d: (
+            f"<script>var x = {rng.randrange(99)};</script>"
+            if rng.random() < _P_RAW_SAFE
+            else "<script>if (a < b && c) { go(); }</script>"
+        ),
+    ),
+    (
+        0.03,
+        lambda rng, _d: (
+            f"<style>.a{{color:rgb({rng.randrange(9)},1,1)}}</style>"
+            if rng.random() < _P_RAW_SAFE
+            else "<style>a > b && c { x: 1 }</style>"
+        ),
+    ),
+    # 结构性错位碎片——html.parser 宽容面（``<p<div>`` 错位 tag 名由
+    # ``_sanitize_dom`` 整形）
+    (0.03, lambda rng, _d: rng.choice(["</p>", "<b>", "</div>", "<>", "<p<div>"])),
     (0.02, lambda rng, _d: rng.choice(_PROSE_POOL)),
 ]
 
@@ -641,9 +643,10 @@ _P_NCX = 0.4
 def _gen_book(rng: random.Random) -> dict[str, bytes]:
     """随机合法书的成员表。
 
-    刻意避开已钉面：无 ``../`` manifest href、无 fragment 文档、无 ``--``
-    注释、doctype 只出裸 ``<!DOCTYPE html>``、script/style 内容无
-    ``<``/``&``、无 ``<p<div>`` 错位 tag、无 PUA 哨兵形字面。
+    仍避开：``../`` manifest href（member 簿记须按 normpath 落位）、
+    fragment 文档（``_xhtml`` 恒包裹）、doctype 内部子集（模板只出裸
+    ``<!DOCTYPE html>``）、PUA 哨兵形字面（会改变 sent/source 文本关系
+    破子串 oracle）、超深嵌套——均由文件尾定向回归钉覆盖。
     """
     opf_dir = rng.choice(["OEBPS", "OEBPS", "OPS", ""])
     opf_path = f"{opf_dir}/content.opf" if opf_dir else "content.opf"
@@ -788,7 +791,7 @@ _CHAOS_VARIANTS: list[Callable[[str, list[str]], str]] = [
     lambda _c, t: f"译\x00\x0b\x1f文{' '.join(t)}",
     lambda _c, t: "长" * _LONG_ZH_LEN + " ".join(t),
     lambda _c, t: " ".join(t),  # 纯 token / 空
-    lambda _c, _t: "",  # 空译文（已钉缺陷面——结构断言仍须过）
+    lambda _c, _t: "",  # 空译文（回归钉面——结构断言仍须过）
     lambda _c, t: f"译文 {' '.join(t[1:])}".strip(),  # 丢 token → 阶梯走穿
     lambda _c, t: f"译{' '.join(t)} {t[0] if t else ''}".strip(),  # 重复 token
     lambda _c, t: f"نص {' '.join(t)} 🎉行",
@@ -1719,11 +1722,11 @@ def test_fuzz_sniff_format(tmp_path: Path) -> None:
             assert "word/document.xml" not in members
 
 
-# ------------------------------------------------------------------ 已钉缺陷
+# ------------------------------------------------------------- 定向缺陷回归
 
 
 def _pin_book(doc: str | bytes, tmp: Path, name: str) -> Path:
-    """单文档缺陷钉书：str → ``_xhtml`` 包裹；bytes → 全档逐字节。"""
+    """单文档回归钉书：str → ``_xhtml`` 包裹；bytes → 全档逐字节。"""
     members = {
         "mimetype": _MIMETYPE,
         _CONTAINER_PATH: _container_xml("OEBPS/content.opf").encode(),
@@ -1740,11 +1743,6 @@ def _pin_book(doc: str | bytes, tmp: Path, name: str) -> Path:
     return _write_epub(tmp, name, members)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="epub.py _serialize_soup(~894): script/style raw-text 内容直通——"
-    "`a < b && c`/`a > b && c` 原样进成员 → 非法 XHTML",
-)
 @pytest.mark.parametrize(
     "frag",
     [
@@ -1753,13 +1751,13 @@ def _pin_book(doc: str | bytes, tmp: Path, name: str) -> Path:
     ],
     ids=["script_lt", "style_gt"],
 )
-def test_pin_rawtext_script_style(frag: str, tmp_path: Path) -> None:
-    """raw-text 元素内的 ``<``/``&`` 不进转义层 → 成员 malformed。"""
+def test_rawtext_script_style_escaped(frag: str, tmp_path: Path) -> None:
+    """raw-text 元素内的 ``<``/``&`` 预转义 → 成员 well-formed。"""
     src = _pin_book(f"<p>Para text words here.</p>{frag}", tmp_path, "r")
     dst = tmp_path / "r.out.epub"
     translate_epub(src, dst, MockTranslator())
     with zipfile.ZipFile(dst) as z:
-        _strict_xml(z.read("OEBPS/ch1.xhtml"))  # 当前 XMLFAIL
+        _strict_xml(z.read("OEBPS/ch1.xhtml"))
 
 
 _VERBATIM_DOCTYPE = (
@@ -1771,12 +1769,6 @@ _VERBATIM_DOCTYPE = (
 )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="epub.py _serialize_soup(~894): html.parser 宽容解析逐字节透传——"
-    "注释 `--` / doctype 内部子集截断 / PI 含 `<` 成未终结 `<?..` / "
-    "`<p<div>` 错位 tag 名——成员即非法 XML（doctype/PI 输入本身合法）",
-)
 @pytest.mark.parametrize(
     "doc",
     [
@@ -1787,23 +1779,17 @@ _VERBATIM_DOCTYPE = (
     ],
     ids=["comment_dash", "doctype_subset", "pi_lt", "bad_tagname"],
 )
-def test_pin_verbatim_constructs(doc: str | bytes, tmp_path: Path) -> None:
-    """宽容解析构造逐字节直通 → 输出成员非法 XML。"""
+def test_verbatim_constructs_sanitized(doc: str | bytes, tmp_path: Path) -> None:
+    """宽容解析构造经 ``_sanitize_dom`` 整形 → 输出成员 strict-parse。"""
     src = _pin_book(doc, tmp_path, "v")
     dst = tmp_path / "v.out.epub"
     translate_epub(src, dst, MockTranslator())
     with zipfile.ZipFile(dst) as z:
-        _strict_xml(z.read("OEBPS/ch1.xhtml"))  # 当前 XMLFAIL
+        _strict_xml(z.read("OEBPS/ch1.xhtml"))
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="epub.py member_path(~296-308): posixpath.join 后无 normpath——"
-    '`href="../ch1.xhtml"` 解出 `OEBPS/../ch1.xhtml` 查无成员 → '
-    "manifest 空 → MalformedEpubError；URI `..` 段是合法相对引用",
-)
-def test_pin_dotdot_href(tmp_path: Path) -> None:
-    """manifest ``../`` href：member_path 不 normpath → 合法书被拒。"""
+def test_dotdot_href(tmp_path: Path) -> None:
+    """manifest ``../`` href：合法 URI 相对引用须 normpath 解析。"""
     members = {
         "mimetype": _MIMETYPE,
         _CONTAINER_PATH: _container_xml("OEBPS/content.opf").encode(),
@@ -1813,18 +1799,12 @@ def test_pin_dotdot_href(tmp_path: Path) -> None:
         "ch1.xhtml": _xhtml("<p>Dotdot chapter prose words here.</p>"),
     }
     src = _write_epub(tmp_path, "dd", members)
-    book = load_epub(src)  # 当前 MalformedEpubError
+    book = load_epub(src)
     assert "ch1.xhtml" in book.doc_paths
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="epub.py _runs_for_owner(~563/574): 哨兵 `\\ue000{seq}\\ue001` "
-    "与源文逐字 PUA 形碰撞——`text.replace` 先中字面位，真哨兵残留进 "
-    "sent 文本送模型并漏进出包",
-)
-def test_pin_pua_sentinel_collision(tmp_path: Path) -> None:
-    """源文逐字印着 ``0`` → 抢占 seq-0 哨兵位。"""
+def test_pua_sentinel_collision(tmp_path: Path) -> None:
+    """源文逐字印着 ``0`` → 不得抢占哨兵位/漏进 sent 文本。"""
     body = '<p>Before 0 literal then <img src="i.png"/> after.</p>'
     src = _pin_book(body, tmp_path, "pua")
     book = load_epub(src)
@@ -1835,35 +1815,23 @@ def test_pin_pua_sentinel_collision(tmp_path: Path) -> None:
         assert "" not in u.text, u.text
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="epub.py insert_translation(~860-877): root_owner 判定只盖 "
-    "owner=html/文档根——顶层 block owner（fragment 文档的 <p>）仍走克隆，"
-    "在文档根造出第二个顶层元素 → 双根非法 XML",
-)
-def test_pin_fragment_double_root(tmp_path: Path) -> None:
-    """单根 fragment 文档 ``<p>x</p>``：well-formed 输入 → 双根输出。"""
+def test_fragment_single_root(tmp_path: Path) -> None:
+    """单根 fragment 文档 ``<p>x</p>``：插译锚定不造双根。"""
     src = _pin_book(b"<p>Fragment para prose words.</p>", tmp_path, "frag")
     dst = tmp_path / "frag.out.epub"
     translate_epub(src, dst, MockTranslator())
     with zipfile.ZipFile(dst) as z:
-        _strict_xml(z.read("OEBPS/ch1.xhtml"))  # 当前两个顶层 <p>
+        _strict_xml(z.read("OEBPS/ch1.xhtml"))
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="epub.py _apply(~1030)/insert_translation(~855): echo 判据只比 "
-    "zh==src——空译文不等价原文，空 `texlate-zh` 节点照样插入且计 "
-    "translated（docx insert_after 同病，空 run 段落插出）",
-)
-def test_pin_empty_translation_inserted(tmp_path: Path) -> None:
-    """空译文 → 空 ``texlate-zh`` 节点存在且被计数——不应插也不应计。"""
+def test_empty_translation_skipped(tmp_path: Path) -> None:
+    """空/纯序号桩译文 → 不插 ``texlate-zh`` 也不计 ``translated``。"""
     src = _pin_book("<p>Para one words.</p><p>Para two words.</p>", tmp_path, "e")
     dst = tmp_path / "e.out.epub"
     rep = translate_epub(src, dst, _EmptyTranslator())
     out = BeautifulSoup(zipfile.ZipFile(dst).read("OEBPS/ch1.xhtml"), "html.parser")
     zh_nodes = out.select(".texlate-zh")
-    assert rep.translated == 0  # 当前 translated=2 + 空节点
+    assert rep.translated == 0
     assert not zh_nodes
 
     doc = Document()
@@ -1877,13 +1845,8 @@ def test_pin_empty_translation_inserted(tmp_path: Path) -> None:
     assert len(dparas) == 1
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="epub.py _separate_brs/_owner_events(~470/502): <pre> 内 <br> "
-    "不切 run 也不插分隔——`alpha<br>beta` 归并成 'alphabeta' 一个错词送模型",
-)
-def test_pin_pre_br_word_glue(tmp_path: Path) -> None:
-    """``<pre>`` 内 ``<br>`` 两侧词粘连。"""
+def test_pre_br_word_boundary(tmp_path: Path) -> None:
+    """``<pre>`` 内 ``<br>`` 必须形成词边界（渲染等价换行）。"""
     src = _pin_book("<pre>alpha<br>beta</pre>", tmp_path, "pre")
     book = load_epub(src)
     units = list(iter_units(book, _book_soups(book)))
@@ -1893,12 +1856,7 @@ def test_pin_pre_br_word_glue(tmp_path: Path) -> None:
     assert any("alpha" in t and "beta" in t for t in texts)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="epub.py save_epub(~950-954): 输入 mimetype 成员内容照抄——"
-    "垃圾输入产出垃圾 mimetype，出包不可被 sniff_format 识别",
-)
-def test_pin_mimetype_passthrough(tmp_path: Path) -> None:
+def test_mimetype_canonical(tmp_path: Path) -> None:
     """非法 mimetype 成员 → 出包必须写规范值。"""
     members = {
         "mimetype": b"TOTALLY WRONG",
@@ -1911,16 +1869,10 @@ def test_pin_mimetype_passthrough(tmp_path: Path) -> None:
     src = _write_epub(tmp_path, "mime", members)
     dst = tmp_path / "mime.out.epub"
     translate_epub(src, dst, MockTranslator())
-    assert sniff_format(dst) == "epub"  # 当前 None
+    assert sniff_format(dst) == "epub"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="epub.py iter_units(~605) body.descendants 递归 + 写回 "
-    "soup.encode 递归——超深嵌套（~2000 层）RecursionError 裸逃，"
-    "不属 ExportError 族",
-)
-def test_pin_deep_nesting_recursion(tmp_path: Path) -> None:
+def test_deep_nesting_recursion(tmp_path: Path) -> None:
     """2000 层行内嵌套：要么翻译成功、要么 ExportError 干净拒绝。"""
     body = f"<p>{'<span>' * _DEEP_NEST}deep{('</span>' * _DEEP_NEST)}</p>"
     src = _pin_book(body, tmp_path, "deep")

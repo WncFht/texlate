@@ -51,6 +51,7 @@ from texlate.xlat.placeholders import is_placeholder_only
 from texlate.xlat.state import StateStore
 
 from .common import (
+    STUB_ONLY_RE,
     ApplyCounts,
     ExportReport,
     GlossaryArg,
@@ -403,7 +404,14 @@ def translate_docx(  # noqa: C901, PLR0913 -- 驱动主链：公共 API 参数�
                 if r.status == "fault":
                     counts.fault += 1
                 continue
-            if r.translation.strip() == u.text.strip():
+            # 与 insert_after 的 sanitize 同口径预判：空译文/echo 不插不计
+            # （插了也只是无字空壳段，zh_total 计数不变量会破）
+            zh = sanitize_xml_text(r.translation)
+            if (
+                not zh.strip()
+                or STUB_ONLY_RE.fullmatch(zh)
+                or zh.strip() == u.text.strip()
+            ):
                 counts.unchanged += 1
                 continue
             insert_after(u.p_el, r.translation, lang or "")

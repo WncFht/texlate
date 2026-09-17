@@ -429,28 +429,37 @@ def test_resume_from_state(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    "xhtml",
+    ("xhtml", "warns"),
     [
-        "Bare prose at the document root, no markup at all.",
-        '<?xml version="1.0"?><p>A wrapped paragraph.</p>Stray text at root.',
-        '<?xml version="1.0"?><html><p>A wrapped paragraph.</p>Loose text under html.</html>',
-        '<?xml version="1.0"?><html>Only text directly under html.</html>',
+        ("Bare prose at the document root, no markup at all.", False),
+        (
+            '<?xml version="1.0"?><p>A wrapped paragraph.</p>Stray text at root.',
+            False,
+        ),
+        (
+            '<?xml version="1.0"?><html><p>A wrapped paragraph.</p>Loose text under html.</html>',
+            True,
+        ),
+        ('<?xml version="1.0"?><html>Only text directly under html.</html>', True),
     ],
     ids=["bare-text", "stray-root-text", "html-stray-text", "html-only-text"],
 )
-def test_no_body_doc_anchored_not_clone(tmp_path: Path, xhtml: str) -> None:
+def test_no_body_doc_anchored_not_clone(
+    tmp_path: Path, xhtml: str, *, warns: bool
+) -> None:
     """无 ``<body>`` 的畸形 xhtml：owner 退到 ``<html>``/文档根，锚定插译不抛。
 
     回归：克隆路径对 BeautifulSoup 根 ``insert_after`` 抛 ``NotImplementedError``
     （bs4 4.15 显式拒实现），对 ``<html>`` 则造出第二个顶层元素——document 级
-    owner 一律改走锚定并在 ``report.warnings`` 留痕。
+    owner 一律改走锚定并在 ``report.warnings`` 留痕。裸文本/多顶层成员的文档由
+    ``_sanitize_dom`` 套 ``<html><body>`` 补出 body——走正常 owner 路无 warning。
     """
     src = _write_epub(tmp_path, _epub_raw(xhtml))
     dst = tmp_path / "out.epub"
     report = translate_epub(src, dst, MockTranslator())
     assert report.fault == 0
     assert report.translated == report.units
-    assert any("no <body>" in w for w in report.warnings)
+    assert any("no <body>" in w for w in report.warnings) is warns
     with zipfile.ZipFile(dst) as z:
         soup = BeautifulSoup(z.read("OEBPS/ch1.xhtml"), "html.parser")
     assert soup.select_one(".texlate-zh") is not None
