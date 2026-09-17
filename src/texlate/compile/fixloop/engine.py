@@ -310,6 +310,9 @@ _ACTION_KINDS = {
 }
 _PHASES = {"gate", "precheck", "loop"}
 _MODES = {"native", "same", "degrade", "unsupported", "skip"}
+#: 可选声明字段 ``mechanisms:`` 的 mech_id 形 (corpus_v3 注册表值域
+#: B/T/W 族; 注册表成员核验在 bench/py/mech_ids.py --validate)。
+_MECH_ID_RX = re.compile(r"^[BTW]\d+$")
 #: ``when:`` 段合法键 (顶层) / ``any:`` 子项键 —— 键名 typo (``categry:``)
 #: 旧行为是对全 category 点火 (fail-open), 白名单 load 期拦 + _when_ok
 #: 对无可识别键的候选 fail-closed, 与 _cond_ok 未知键语义对称。
@@ -357,6 +360,11 @@ class Rule:
     def order(self) -> float:
         """同 phase 内升序键 (缺省 0; 允许 11.5 类插位小数)。"""
         return float(self.raw.get("order", 0))
+
+    @property
+    def mechanisms(self) -> list[str]:
+        """声明式机制标签 (corpus_v3 mech_id 表; 缺省 [])。"""
+        return list(self.raw.get("mechanisms") or [])
 
     @property
     def when(self) -> dict[str, Any]:
@@ -445,6 +453,12 @@ class Ruleset:
                 for rw in rewrites
                 if "function" in rw and rw["function"] not in builtins.REWRITE_FNS
             )
+            mechs = r.get("mechanisms")
+            if mechs is not None and not (
+                isinstance(mechs, list)
+                and all(isinstance(m, str) and _MECH_ID_RX.match(m) for m in mechs)
+            ):
+                probs.append(f"rule {tag}: mechanisms 必须是 [BTW]\\d+ 形标签列表")
             for eng_name, spec in (r.get("engines") or {}).items():
                 mode = (spec or {}).get("mode")
                 if mode not in _MODES:

@@ -190,6 +190,28 @@ def test_warn_driven_fixes_toggle() -> None:
     assert rs.taxonomy.warn_cats == set()
 
 
+def test_mechanisms_field_optional_validated() -> None:
+    """``mechanisms:`` 可选声明字段 (wave-5b): [BTW]\\d+ 列表合法且经
+    ``rule.mechanisms`` 读出; 异形 (非列表/坏 id) 被 _validate 拒。"""
+    good = {
+        "id": "x",
+        "phase": "loop",
+        "when": {},
+        "action": {"kind": "run_tool"},
+        "mechanisms": ["W45", "B01"],
+    }
+    rs = Ruleset({"version": 1, "rules": [good]})
+    assert rs.rules[0].mechanisms == ["W45", "B01"]
+    bare = Ruleset(
+        {"version": 1, "rules": [{k: v for k, v in good.items() if k != "mechanisms"}]}
+    )
+    assert bare.rules[0].mechanisms == []
+    for bad_mechs in ("W45", ["bogus"], [12], [{"m": "W45"}]):
+        bad = {**good, "mechanisms": bad_mechs}
+        with pytest.raises(RulesetError):
+            Ruleset({"version": 1, "rules": [bad]})
+
+
 # ---------------------------------------------------------------- when
 def test_when_always() -> None:
     assert _when_ok({"always": True}, None, None, ctx_for(Path.cwd()))
