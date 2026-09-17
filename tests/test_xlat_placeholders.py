@@ -227,7 +227,7 @@ class TestSentinelClosedLoop:
 
 
 class TestFuzzyRxCjkBrackets:
-    """PH_FUZZY_RX lookahead 口径（与 ``l0.PH_FUZZY_RX`` 逐字同源）。"""
+    """PH_FUZZY_RX lookahead 口径（单源在 ``textutil``，l0 同用）。"""
 
     def test_natural_cjk_brackets_not_candidates(self) -> None:
         """【1】/[[图]]/【图1】 是中文正文自然括号——不标 fuzzy 候选。"""

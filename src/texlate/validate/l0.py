@@ -55,6 +55,7 @@ from typing import Final
 from texlate.textutil import (
     CJK_RX,
     MATH_CS,
+    PH_FUZZY_RX,
     bare_cs_net,
     lev_capped,
     mask_comments,
@@ -73,19 +74,6 @@ __all__ = [
 #: 刻意是 ``latex.placeholder.PH_RX`` 的超集——校验侧要认出"长得像占位符"
 #: 的一切 token（含 issuer 不会产出的畸形变体），故不能复用产品严格形。
 PH_ANY_LIKE_RX: Final = re.compile(r"\[\[[A-Z][A-Z0-9_]*(?:_\d+)?\]\]")
-
-#: 模糊占位符候选（zh 侧变体）：完整 [[..]] / 缺右括号 / 单层 [X_n] / 全角【..】。
-#: 各臂 lookahead 要求内部至少一枚 ASCII 字母——纯数字/纯 CJK 的
-#: 【1】【图1】[[图]] 是中文正文的自然全角括号用法，非占位符变体。
-#: 与 ``xlat.placeholders.PH_FUZZY_RX`` 逐字同源——validate 不能 import xlat，
-#: 两处改动必须同步（单源化待迁 textutil/latex.placeholder，见
-#: refactor-audit-2026-09-17 B 节）。
-PH_FUZZY_RX: Final = re.compile(
-    r"\[\[(?=[^\[\]\n]{0,47}[A-Za-z])[^\[\]\n]{1,48}?\]\]"  # [[..]] 完整
-    r"|\[\[(?=[^\[\]\n]{0,47}[A-Za-z])[^\[\]\n]{1,48}?\](?!\])"  # [[..] 缺右括号
-    r"|(?<!\[)\[[A-Za-z_]+_?-?\d+\](?!\])"  # [X_1] 单层括号
-    r"|【(?=[^【】\n]{0,47}[A-Za-z])[^【】\n]{1,48}?】"  # 【..】 CJK 括号
-)
 
 #: 从模糊候选里剥出核心 token（去括号/空白），供 lev 配对。
 _PH_CORE_RX: Final = re.compile(r"[A-Za-z0-9_]+")

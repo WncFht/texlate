@@ -41,6 +41,7 @@ __all__ = [
     "DEAD_ENVS",
     "JSON_FENCE_RX",
     "MATH_CS",
+    "PH_FUZZY_RX",
     "VERBATIM_ENVS",
     "EncodingVerdict",
     "bare_cs_net",
@@ -69,6 +70,19 @@ BEGIN_DOC_RX: Final = re.compile(r"\\begin\s*\{document\}")
 #: xlat.pipeline slots 应答与 fixloop llm_hook 共用本口径。
 JSON_FENCE_RX: Final = re.compile(
     r"^\s*```[A-Za-z]*\s*\n(?P<body>.*?)\n?\s*```\s*$", re.DOTALL
+)
+
+
+#: 模糊占位符候选（zh 侧变体）：完整 ``[[..]]`` / 缺右括号 / 单层 ``[X_n]``
+#: / 全角 ``【..】``。各臂 lookahead 要求内部至少一枚 ASCII 字母——纯数字/
+#: 纯 CJK 的 ``【1】`` ``【图1】`` ``[[图]]`` 是中文正文的自然全角括号用法，
+#: 非占位符变体。L0 ``_check_placeholder`` 与 xlat ``placeholders.diff``
+#: 共用本口径（validate 不能 import xlat，单源落本模块）。
+PH_FUZZY_RX: Final = re.compile(
+    r"\[\[(?=[^\[\]\n]{0,47}[A-Za-z])[^\[\]\n]{1,48}?\]\]"  # [[..]] 完整
+    r"|\[\[(?=[^\[\]\n]{0,47}[A-Za-z])[^\[\]\n]{1,48}?\](?!\])"  # [[..] 缺右括号
+    r"|(?<!\[)\[[A-Za-z_]+_?-?\d+\](?!\])"  # [X_1] 单层括号
+    r"|【(?=[^【】\n]{0,47}[A-Za-z])[^【】\n]{1,48}?】"  # 【..】 CJK 括号
 )
 
 
