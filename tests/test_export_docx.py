@@ -449,7 +449,12 @@ def test_control_chars_in_translation_stripped(tmp_path: Path) -> None:
     report = translate_docx(src, dst, _CtrlTranslator())
     assert report.translated == 1
     out = Document(str(dst))
-    assert out.paragraphs[1].text == "译文控制"
+    # \x0b 是 Unicode 行界——batch 层 _EOL_RX 先归一成 \n（XML 合法）；\x01/\x00 剥除
+    assert out.paragraphs[1].text == "译\n文控制"
+    with zipfile.ZipFile(dst) as z:
+        raw = z.read("word/document.xml")
+    assert b"\x0b" not in raw
+    assert b"\x00" not in raw
 
 
 def test_hostile_target_lang_no_stamp(tmp_path: Path) -> None:

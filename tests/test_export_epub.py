@@ -533,7 +533,7 @@ class _CtrlTranslator:
 
 
 def test_control_chars_in_translation_stripped(tmp_path: Path) -> None:
-    """模型回 \\x0b/\\x01/\\x00 → 剥除后插译——输出 XHTML 仍是合法 XML。"""
+    """模型回 \\x0b/\\x01/\\x00 → \\x0b 归一 \\n、\\x01/\\x00 剥除——输出 XHTML 仍是合法 XML。"""
     src = _write_epub(
         tmp_path,
         _epub({"ch1.xhtml": "<p>Clean source paragraph.</p>"}, ncx=False),
@@ -546,7 +546,7 @@ def test_control_chars_in_translation_stripped(tmp_path: Path) -> None:
     etree.fromstring(raw)  # 不抛即合法
     assert b"\x0b" not in raw
     assert b"\x00" not in raw
-    assert "译文控制" in raw.decode("utf-8")
+    assert "译\n文控制" in raw.decode("utf-8")
 
 
 def test_control_chars_in_source_cleaned_on_write(tmp_path: Path) -> None:
