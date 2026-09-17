@@ -35,6 +35,30 @@ def _cut(q: asyncio.Queue[dict[str, Any]]) -> None:
     q.put_nowait(_RESYNC)
 
 
+def _gap_frame(
+    replay: list[dict[str, Any]], last_event_id: int
+) -> dict[str, Any] | None:
+    """重放缺口检测 → ``resync`` 提示帧（无缺口 / 新连 ``last_event_id=0`` → ``None``）。
+
+    缺口 = 首个可重放 seq 跳号（``last_event_id+1 .. first_seq-1`` 已被
+    EVENT_CAP 滚动淘汰）。帧 ``seq`` 取 ``first_seq-1``：大于客户端
+    水位线故前端 dedup 不吞；又小于后续真实帧，客户端 Last-Event-ID
+    推进到它后断线重连仍从 ``first_seq`` 续放，零漏帧。
+    ``data = {gap_after, resume_from}``——前端据它拉新 snapshot 重置
+    水位线（旧版客户端无 ``resync`` 监听器，静默忽略不坏事）。
+    """
+    if not replay or last_event_id <= 0:
+        return None
+    first_seq = int(replay[0]["seq"])
+    if first_seq <= last_event_id + 1:
+        return None
+    return {
+        "seq": first_seq - 1,
+        "type": "resync",
+        "data": {"gap_after": last_event_id, "resume_from": first_seq},
+    }
+
+
 class EventBus:
     """每任务一组 ``asyncio.Queue`` 订阅者；发布 = 落盘 + 扇出。"""
 
@@ -44,8 +68,14 @@ class EventBus:
         self._subs: dict[str, set[asyncio.Queue[dict[str, Any]]]] = {}
 
     def publish(self, task_id: str, etype: str, data: dict[str, Any]) -> int:
-        """事件落盘并扇出；返回分配的 seq。"""
+        """事件落盘并扇出；返回分配的 seq。
+
+        ``append_event`` 返 ``0`` = 任务行已删、事件未落盘——不扇出
+        （订阅侧靠 delete 前的 done 帧已收场，幽灵帧只会污染水位线）。
+        """
         seq = self._store.append_event(task_id, etype, data)
+        if seq == 0:
+            return 0
         subs = self._subs.get(task_id)
         if subs:
             item = {"seq": seq, "type": etype, "data": data}
@@ -86,11 +116,16 @@ class EventBus:
         事件落地）且队列排空后流自然结束。retry 复活过的任务重放段含
         上一轮 ``done`` 帧——只有落在重放段末尾且当前 status 仍终态的
         ``done`` 才终流；其余（旧轮残留 / 任务已复活）跳过防假死。
+        ``last_event_id`` 落在已淘汰区段（首个重放 seq 跳号）时先 yield
+        ``resync`` 提示帧再续放（契约见 :func:`_gap_frame`）。
         """
         q = self.subscribe(task_id)
         delivered = last_event_id
         try:
             replay = self._store.events_since(task_id, delivered)
+            gap = _gap_frame(replay, last_event_id)
+            if gap is not None:
+                yield gap
             for i, ev in enumerate(replay):
                 delivered = int(ev["seq"])
                 if ev["type"] == "done":

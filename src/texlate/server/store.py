@@ -11,6 +11,7 @@ import contextlib
 import hashlib
 import json
 import secrets
+import shutil
 import sqlite3
 import time
 from typing import TYPE_CHECKING, Any
@@ -166,6 +167,26 @@ RETRYABLE_FROM = frozenset(
 #: task_events 每任务滚动上限（§3.2 表注）
 EVENT_CAP = 2000
 
+#: ``chunks_page`` 单页上限——``src_text``/``translation`` 全文列，页大即 MB 级载荷
+_CHUNKS_PAGE_MAX = 500
+
+#: ``snapshot.warnings`` 回放上限——只留最近 N 条 warning 事件
+_WARNINGS_CAP = 200
+
+#: ``snapshot.options`` 摘除键——app._RESERVED_OPTION_KEYS 的镜像
+#: （worker 写入的内部审计字段）+ ``idempotency_key`` 一次性入参。
+#: 环形依赖不许反向 import app，键集漂移时两侧同步改。
+_SNAPSHOT_OPTS_DROP = frozenset(
+    {
+        "reuse_hit",
+        "arxiv_categories",
+        "engine_resolved",
+        "route_engines",
+        "share",
+        "idempotency_key",
+    }
+)
+
 #: 错误码枚举（§2.2）
 ERROR_CODES = frozenset(
     {
@@ -211,6 +232,19 @@ _TASK_ID_LEN = len(_TASK_ID_PREFIX) + 16  # t_ + 16 hex
 
 #: transition 参数的"未传"哨兵（None 是合法值——清 error/stage 要用）
 _UNSET: Any = object()
+
+
+def _dir_size(d: Path) -> int:
+    """目录树文件字节合计（扫描期单文件 OSError 跳过，整目录缺席→0）。"""
+    total = 0
+    try:
+        for p in d.rglob("*"):
+            with contextlib.suppress(OSError):
+                if p.is_file():
+                    total += p.stat().st_size
+    except OSError:
+        pass
+    return total
 
 
 def new_task_id() -> str:
@@ -356,10 +390,14 @@ class Store:
         ).fetchone()
         return dict(row) if row else None
 
-    def list_tasks(
+    def _list_tasks_all(
         self, tenant: str, status: str | None = None
     ) -> list[dict[str, Any]]:
-        """任务列表（按 tenant 隔离 + 可选 status 过滤），created_at 倒序。"""
+        """未分页全量任务列表——**测试专用**（``list_tasks_page`` 的排序对账 oracle）。
+
+        生产面一律走分页版：全量 ``SELECT *`` 无 LIMIT，任务行膨胀后是
+        白烧的内存/loop 时间，故降级为私有名只留测试引用。
+        """
         if status:
             rows = self.conn.execute(
                 "SELECT * FROM tasks WHERE tenant = ? AND status = ?"
@@ -388,7 +426,7 @@ class Store:
             where += " AND status = ?"
             params.append(status)
         rows = self.conn.execute(
-            "SELECT id, kind, status, stage, progress, message, title, arxiv_id,"
+            "SELECT id, kind, status, stage, progress, message, title, arxiv_id,"  # noqa: S608 -- where 由内部字面量拼装，值全走绑定参数
             " source_name, target_lang, model, created_at, updated_at,"
             " total_chunks, done_chunks, cached_chunks, failed_chunks, tokens,"
             " error_json"
@@ -398,7 +436,8 @@ class Store:
         ).fetchall()
         total = int(
             self.conn.execute(
-                f"SELECT COUNT(*) AS c FROM tasks {where}", params
+                f"SELECT COUNT(*) AS c FROM tasks {where}",  # noqa: S608 -- 同上
+                params,
             ).fetchone()["c"]
         )
         return rows, total
@@ -431,6 +470,24 @@ class Store:
         ).fetchone()
         return dict(row) if row else None
 
+    def task_ids(self) -> list[str]:
+        """全量任务 id——启动孤儿目录清扫（``_sweep_orphan_task_dirs``）的已知集合。"""
+        rows = self.conn.execute("SELECT id FROM tasks").fetchall()
+        return [str(r["id"]) for r in rows]
+
+    def queued_rows(self) -> list[dict[str, Any]]:
+        """库内残留 ``queued`` 行（header 源除外）——``TaskRunner`` 重启补放面。
+
+        窄列 ``id``/``model``，``created_at, id`` 升序——与内存队列 FIFO
+        同口径。header 凭证随进程死亡不可恢复（``recover_startup`` 已分流
+        ``needs_auth``），此处防御性排除。
+        """
+        rows = self.conn.execute(
+            "SELECT id, model FROM tasks WHERE status = 'queued'"
+            " AND auth_source != 'header' ORDER BY created_at, id"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
     def delete_task(self, task_id: str) -> bool:
         """删任务行——FK ``ON DELETE CASCADE`` 带走 chunks/files/events/usage。
 
@@ -453,6 +510,66 @@ class Store:
             cur = self.conn.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
         self.conn.commit()
         return cur.rowcount > 0
+
+    def sweep_retention(
+        self, tasks_dir: Path, *, max_age_s: float, max_total_bytes: int
+    ) -> dict[str, Any]:
+        """产物 GC（两阶段；``0`` 关闭对应阶段；``ACTIVE`` 任务永不删）。
+
+        阶段一（``max_age_s > 0``）：终态且 ``COALESCE(finished_at,
+        updated_at)`` 早于 ``now - max_age_s`` 的任务删行 + ``tasks/{id}/``
+        目录。阶段二（``max_total_bytes > 0``）：清后 ``tasks_dir`` 总字节
+        仍超限，剩余终态任务按完成时间 oldest-first 继续删到达标或候选
+        穷尽——目录不在库内的孤儿条目只计入总量、不由本函数删（启动期
+        ``_sweep_orphan_task_dirs`` 的职责）。
+
+        删序先行后目录：中途被杀留孤儿目录（启动清扫可回收），不留
+        「行在而产物蒸发」的假活任务。返回 ``{"removed": [id...],
+        "freed_bytes": n}``。
+
+        rmtree/目录遍历是重 I/O——本函数在调用方线程同步跑，调用方
+        （loop 线程）应 ``to_thread`` 卸载。``share_dir``/``index.jsonl``
+        不在本函数范围。
+        """
+        removed: list[str] = []
+        freed = 0
+
+        def _drop(tid: str) -> int:
+            """删行 + rmtree 目录 → 目录字节数（无效 id 拒动返 0）。"""
+            if not valid_task_id(tid):
+                return 0
+            sz = _dir_size(tasks_dir / tid)
+            self.delete_task(tid)
+            shutil.rmtree(tasks_dir / tid, ignore_errors=True)
+            removed.append(tid)
+            return sz
+
+        now = time.time()
+        term = sorted(TERMINAL_STATUSES)
+        qmarks = ",".join("?" * len(term))
+        if max_age_s > 0:
+            rows = self.conn.execute(
+                f"SELECT id FROM tasks WHERE status IN ({qmarks})"  # noqa: S608 -- '?' 占位符拼接，值全走绑定参数
+                " AND COALESCE(finished_at, updated_at) < ?",
+                (*term, now - max_age_s),
+            ).fetchall()
+            for r in rows:
+                freed += _drop(str(r["id"]))
+        if max_total_bytes > 0:
+            total = _dir_size(tasks_dir)
+            if total > max_total_bytes:
+                rows = self.conn.execute(
+                    f"SELECT id FROM tasks WHERE status IN ({qmarks})"  # noqa: S608 -- 同上
+                    " ORDER BY COALESCE(finished_at, updated_at), id",
+                    term,
+                ).fetchall()
+                for r in rows:
+                    if total <= max_total_bytes:
+                        break
+                    sz = _drop(str(r["id"]))
+                    freed += sz
+                    total -= sz
+        return {"removed": removed, "freed_bytes": freed}
 
     # ------------------------------------------------------------ 状态迁移
 
@@ -638,6 +755,36 @@ class Store:
             "SELECT * FROM chunks WHERE task_id = ? ORDER BY seq", (task_id,)
         ).fetchall()
         return [dict(r) for r in rows]
+
+    def delete_chunks(self, task_id: str) -> int:
+        """清任务全部 chunks（retry 换 main 等解析产物作废面）→ 删行数。"""
+        cur = self.conn.execute("DELETE FROM chunks WHERE task_id = ?", (task_id,))
+        self.conn.commit()
+        return cur.rowcount
+
+    def chunks_page(
+        self, task_id: str, *, offset: int = 0, limit: int = 100
+    ) -> tuple[list[dict[str, Any]], int]:
+        """Chunks 窄列分页（流式预览端点 U1 供）→ ``(rows, total)``，seq 升序。
+
+        只选预览消费列（``seq/chunk_id/kind/status/src_text/translation``）；
+        ``src_text``/``translation`` 是全文列，``limit`` 钳
+        ``[0, _CHUNKS_PAGE_MAX]``、``offset`` 钳 ``≥0``——负值/超限按边界
+        收，不炸调用方。
+        """
+        lim = max(0, min(int(limit), _CHUNKS_PAGE_MAX))
+        off = max(0, int(offset))
+        rows = self.conn.execute(
+            "SELECT seq, chunk_id, kind, status, src_text, translation"
+            " FROM chunks WHERE task_id = ? ORDER BY seq LIMIT ? OFFSET ?",
+            (task_id, lim, off),
+        ).fetchall()
+        total = int(
+            self.conn.execute(
+                "SELECT COUNT(*) AS c FROM chunks WHERE task_id = ?", (task_id,)
+            ).fetchone()["c"]
+        )
+        return [dict(r) for r in rows], total
 
     def update_chunk(self, task_id: str, chunk_id: str, fields: dict[str, Any]) -> None:
         """单块状态更新（由批量 flush 事务调用，不单独 commit）。"""
@@ -893,18 +1040,35 @@ class Store:
     # ------------------------------------------------------------ task_events
 
     def append_event(self, task_id: str, etype: str, data: dict[str, Any]) -> int:
-        """事件落盘 → 分配递增 seq；同事务滚动截断到 EVENT_CAP。"""
+        """事件落盘 → 分配递增 seq；同事务滚动截断到 EVENT_CAP。
+
+        任务行已被 ``DELETE`` 的迟到 publish（FK 无从依附，裸 INSERT 会
+        ``IntegrityError`` 炸回 worker）：``INSERT…SELECT…WHERE EXISTS``
+        静默丢弃，返回 ``0`` 哨兵（``0`` 即 snapshot 合成帧 seq，天然
+        「未落盘」语义）——调用方据 ``0`` 跳过扇出。正常路径返回
+        ``MAX(seq)+1`` 不变。
+        """
         conn = self.conn
         row = conn.execute(
             "SELECT COALESCE(MAX(seq), 0) AS mx FROM task_events WHERE task_id = ?",
             (task_id,),
         ).fetchone()
         seq = int(row["mx"]) + 1
-        conn.execute(
+        cur = conn.execute(
             "INSERT INTO task_events (task_id, seq, type, data, created_at)"
-            " VALUES (?,?,?,?,?)",
-            (task_id, seq, etype, json.dumps(data, ensure_ascii=False), time.time()),
+            " SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM tasks WHERE id = ?)",
+            (
+                task_id,
+                seq,
+                etype,
+                json.dumps(data, ensure_ascii=False),
+                time.time(),
+                task_id,
+            ),
         )
+        if cur.rowcount == 0:
+            conn.rollback()
+            return 0
         conn.execute(
             "DELETE FROM task_events WHERE task_id = ? AND seq <= ?",
             (task_id, seq - EVENT_CAP),
@@ -974,21 +1138,48 @@ class Store:
         ):
             if row.get(opt_key):
                 snap[snap_key] = row[opt_key]
+        self._snapshot_user_fields(row, snap)
         return snap
+
+    @staticmethod
+    def _snapshot_user_fields(row: sqlite3.Row, snap: dict[str, Any]) -> None:
+        """用户入参 options/glossary 回显（前端 try-html/克隆任务透传源）。
+
+        内部审计键（share/reuse_hit/engine_resolved 等 worker 写入面）与
+        一次性 idempotency_key 不回显：传过去会污染新任务的 dedup/对账面。
+        """
+        try:
+            opts = json.loads(str(row.get("options_json") or "{}"))
+        except json.JSONDecodeError:
+            opts = {}
+        if isinstance(opts, dict):
+            user_opts = {
+                k: v for k, v in opts.items() if k not in _SNAPSHOT_OPTS_DROP
+            }
+            if user_opts:
+                snap["options"] = user_opts
+        try:
+            cfg = json.loads(str(row.get("config_json") or "{}"))
+        except json.JSONDecodeError:
+            cfg = {}
+        if isinstance(cfg, dict) and cfg.get("glossary"):
+            snap["glossary"] = cfg["glossary"]
 
     def _warnings(self, task_id: str) -> list[str]:
         """task_events 重放 warning 事件 → snapshot ``warnings`` 串列。
 
         web 侧 ``warnings?: string[]`` 按 ``[code] message`` 渲染（与 live
         WarningEvent 同形）；EVENT_CAP 滚动截断外的旧警告随之自然消失。
-        ``type='warning'`` 下推 SQL——snapshot 每次调用都走这里，全量
-        事件 json.loads 重放（chunk 事件载荷 KB 级）是白烧的 CPU。
+        ``type='warning'`` 下推 SQL + ``DESC LIMIT`` 只物化最近
+        ``_WARNINGS_CAP`` 条再反序——snapshot 每次调用都走这里，全量
+        warning 事件 json.loads 重放是白烧的 CPU。
         """
         rows = self.conn.execute(
             "SELECT data FROM task_events WHERE task_id = ? AND type = 'warning'"
-            " ORDER BY seq",
-            (task_id,),
+            " ORDER BY seq DESC LIMIT ?",
+            (task_id, _WARNINGS_CAP),
         ).fetchall()
+        rows.reverse()
         out: list[str] = []
         for r in rows:
             data = json.loads(r["data"])

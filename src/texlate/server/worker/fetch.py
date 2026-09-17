@@ -74,11 +74,12 @@ class _Fetch:
             )
             await self._to_thread(ctx, refetch)
         (ctx.src_dir / ".fetch-done").write_text("", encoding="utf-8")
-        opts = ctx.options()
-        if opts.pop("reuse_hit", None) is not None:
+        if ctx.options().get("reuse_hit") is not None:
             # 本跑自产——上轮的 reuse 标记随产物来历失效即摘
-            ctx.row["options_json"] = json.dumps(opts, ensure_ascii=False)
-            self.store.update_fields(ctx.task_id, options_json=ctx.row["options_json"])
+            self.store.update_fields(
+                ctx.task_id,
+                options_json=ctx.update_options(lambda o: o.pop("reuse_hit", None)),
+            )
         self._stage(ctx, "fetching", "取源完成", PROGRESS["fetching"][1])
         self._check_cancelled(ctx)
 
@@ -126,11 +127,8 @@ class _Fetch:
                     if c
                 ]
                 if cats:
-                    opts = ctx.options()
-                    opts["arxiv_categories"] = cats
-                    # ctx.row 是入队快照——同步内存面防 _build_base 写回丢键
-                    ctx.row["options_json"] = json.dumps(opts, ensure_ascii=False)
-                    fields["options_json"] = ctx.row["options_json"]
+                    # set_option 同步 ctx.row 内存面——防 _build_base 写回丢键
+                    fields["options_json"] = ctx.set_option("arxiv_categories", cats)
             self._on_loop(self.store.update_fields, ctx.task_id, **fields)
             if self._post_resolve_reuse(ctx, entry.arxiv_id, entry.resolved_version):
                 return  # 钉版键命中已完成任务——产物物化由 _stage_fetch 接管
@@ -232,7 +230,13 @@ class _Fetch:
                 self._log(ctx, f"reuse: 产物缺失跳过 {rel}")
                 continue
             dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(src, dst)
+            try:
+                shutil.copyfile(src, dst)
+            except OSError:
+                # is_file→copyfile 间被并发清空（delete_task 竞态 TOCTOU）
+                # ——按缺失跳过；n=0 落既有零物化熔断臂回退自跑
+                self._log(ctx, f"reuse: 产物拷贝失败跳过 {rel}")
+                continue
             self._register(ctx, kind, rel.as_posix())
             n += 1
         return n
@@ -262,11 +266,9 @@ class _Fetch:
         # 行级持久化 reuse 命中标记——事后 share 打包端点据以拒自包（命中
         # 任务的生效术语表不可知，错标 glossary_hash 比不打包更糟）。真跑
         # 取源落 .fetch-done 时摘除（标记只描述当前产物的来历）。
-        opts = ctx.options()
-        opts["reuse_hit"] = str(hit["id"])
-        upd["options_json"] = json.dumps(opts, ensure_ascii=False)
-        ctx.row["options_json"] = upd["options_json"]
+        upd["options_json"] = ctx.set_option("reuse_hit", str(hit["id"]))
         self.store.update_fields(ctx.task_id, **upd)
+        self._mark_terminal(ctx, status)
         self.store.transition(
             ctx.task_id,
             status,

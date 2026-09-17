@@ -282,17 +282,28 @@ class TestTenantQuota:
         monkeypatch: pytest.MonkeyPatch,
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002
     ) -> None:
-        """server 模式配额按 tenant 指纹分桶：A 用尽不误伤 B。"""
+        """server 模式配额按 tenant 指纹分桶：A 用尽不误伤**异 IP** 的 B。
+
+        per-IP 兜底桶与 tenant 桶叠加——同 IP 换 key 刷请求撞的是
+        ``同 IP 任务配额`` 桶（key 轮转不改对端事实），故 B 的探活
+        须换一个对端地址。
+        """
         monkeypatch.setenv("TEXLATE_MODE", "server")
         _settings(tmp_path / "data", quota_max_tasks=1)
-        with TestClient(make_app(tmp_path)) as c:
+        app = make_app(tmp_path)
+        with TestClient(app) as c:
             assert self._arxiv(c, "2401.00003", key="sk-A").status_code == (
                 HTTPStatus.ACCEPTED
             )
             assert self._arxiv(c, "2401.00004", key="sk-A").status_code == (
                 HTTPStatus.TOO_MANY_REQUESTS
             )
+            # 同 IP 换 key：tenant 桶是新的，但 per-IP 兜底桶已满 → 429
             assert self._arxiv(c, "2401.00005", key="sk-B").status_code == (
+                HTTPStatus.TOO_MANY_REQUESTS
+            )
+        with TestClient(app, client=("10.9.9.9", 1)) as c2:
+            assert self._arxiv(c2, "2401.00005", key="sk-B").status_code == (
                 HTTPStatus.ACCEPTED
             )
 

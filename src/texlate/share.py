@@ -72,6 +72,12 @@ _INFLATED_MAX = 300 << 20
 _SHA256_HEX_LEN = 64
 #: 产物名字节上限——主流文件系统 NAME_MAX=255，超限名写盘必炸，校验段先拒。
 _NAME_MAX = 255
+#: manifest 字符串字段 UTF-8 字节上限（contributor/created_at/key_parts
+#: 各组分）——``options["share"]`` 审计载荷在 64KB options 闸之后注入
+#: 任务行，字段级先收敛到 ≤256B，单侧洪泛（如 MB 级 contributor）不会
+#: 把 options_json 拖成巨型行。正常值量级：contributor ``c-<16hex>``、
+#: created_at ISO8601、组分 ≤100B。
+_MANIFEST_FIELD_MAX = 256
 #: zipfile 读取面统一异常谱——``ZipFile()`` 构造（中央目录解析）与成员
 #: 解压两侧共用，一律归一 ShareError：``NotImplementedError`` 覆盖未知
 #: 压缩方法与中央目录 ``extract_version`` 超 ``MAX_EXTRACT_VERSION``，
@@ -190,6 +196,9 @@ def _key_parts(manifest: Mapping[str, object]) -> dict[str, str]:
         if not value and field not in _EMPTY_OK:
             msg = f"manifest key part empty: {field}"
             raise ShareError(msg)
+        if len(value.encode("utf-8", "replace")) > _MANIFEST_FIELD_MAX:
+            msg = f"manifest key part too large: {field} > {_MANIFEST_FIELD_MAX}B"
+            raise ShareError(msg)
         parts[field] = value
     return parts
 
@@ -207,6 +216,27 @@ def _derive_key(parts: Mapping[str, str]) -> str:
     )
 
 
+def _pack_member(
+    zf: zipfile.ZipFile, name: str, src: Path
+) -> tuple[dict[str, object], int]:
+    """单产物 1MB 块流式进 zip，边写边算 sha256 → ``(manifest artifacts 条目, 字节数)``。
+
+    实时字节计数超 ``_MEMBER_MAX`` → ShareError（stat 预检后文件增长的兜底）。
+    单读同时完成写入与哈希——manifest 记的是真实入包字节流的指纹。
+    """
+    digest = hashlib.sha256()
+    written = 0
+    with zf.open(name, "w") as member, src.open("rb") as fh:
+        while chunk := fh.read(1 << 20):
+            written += len(chunk)
+            if written > _MEMBER_MAX:
+                msg = f"artifact too large: {name} ({written}B > {_MEMBER_MAX}B)"
+                raise ShareError(msg)
+            member.write(chunk)
+            digest.update(chunk)
+    return {"sha256": digest.hexdigest(), "bytes": written}, written
+
+
 def pack_share(
     work_dir: Path,
     manifest: Mapping[str, object],
@@ -222,10 +252,14 @@ def pack_share(
     超 ``_MEMBER_MAX`` → ShareError；``zh.pdf`` 缺席则不登记不打包——
     manifest artifacts 表即在场清单（缺席即 partial 包，与 unpack 的
     ``REQUIRED_ARTIFACTS`` 口径对称）。生成 manifest 序列化超
-    ``_MANIFEST_MAX``（``contributor``/``created_at``/组分串调用方控，
-    无上界会产出自家 unpack 拒收的包）或产物合计超 ``_INFLATED_MAX``
-    → ShareError——pack 不产出自拒包。返回包路径（``out_dir`` 缺省
-    = ``work_dir``）。
+    ``_MANIFEST_MAX`` 或产物合计超 ``_INFLATED_MAX`` → ShareError——
+    pack 不产出自拒包（``contributor``/``created_at``/组分串同受
+    ``_MANIFEST_FIELD_MAX`` 闸，与 unpack 校验同口径）。返回包路径
+    （``out_dir`` 缺省 = ``work_dir``）。
+
+    写体流式：产物边读边算 sha256 边进 zip（``ZipFile.open`` 成员流），
+    不整载进 RAM——单读同时消灭「哈希到写入之间文件被改 → 包自矛盾」
+    的 TOCTOU 窗口（manifest 记的是真实写入的字节流指纹）。
     """
     parts = _key_parts(manifest)
     key = _derive_key(parts)
@@ -233,8 +267,7 @@ def pack_share(
     if given is not None and str(given) != key:
         msg = f"share_key mismatch: given {given!r} != derived {key}"
         raise ShareError(msg)
-    artifacts: dict[str, dict[str, object]] = {}
-    blobs: dict[str, bytes] = {}
+    planned: list[tuple[str, Path]] = []
     for name in ARTIFACT_NAMES:
         src = work_dir / name
         if not src.is_file():
@@ -244,47 +277,46 @@ def pack_share(
             log.info("optional artifact absent, omitted from bundle: %s", name)
             continue
         if src.stat().st_size > _MEMBER_MAX:
-            # 先 stat 拒大件避免整块读进内存
+            # 先 stat 快拒大件；写入期间再按实际字节数兜底（文件可增长）
             msg = f"artifact too large: {name}"
             raise ShareError(msg)
-        blob = src.read_bytes()
-        if len(blob) > _MEMBER_MAX:
-            msg = f"artifact too large: {name} ({len(blob)}B > {_MEMBER_MAX}B)"
-            raise ShareError(msg)
-        # 同一份字节既进 manifest 对账又写 zip 成员——单读消灭
-        # 「哈希到写入之间文件被改 → 包自矛盾」的 TOCTOU 窗口
-        artifacts[name] = {
-            "sha256": hashlib.sha256(blob).hexdigest(),
-            "bytes": len(blob),
-        }
-        blobs[name] = blob
+        planned.append((name, src))
     doc: dict[str, object] = {
         "format": SHARE_FORMAT,
         "share_key": key,
         "key_parts": parts,
-        "artifacts": artifacts,
-        "contributor": str(manifest.get("contributor") or f"c-{secrets.token_hex(8)}"),
-        "created_at": str(manifest.get("created_at") or _utcnow()),
+        # artifacts 在流式写期间回填——写入多少哈希多少
+        "artifacts": {},
+        "contributor": _manifest_field_str(manifest, "contributor")
+        or f"c-{secrets.token_hex(8)}",
+        "created_at": _manifest_field_str(manifest, "created_at") or _utcnow(),
     }
-    # 自洽闸：pack 产出必须可被自家 unpack 消费——manifest 序列化尺寸与
-    # 产物声明合计两侧口径对齐（unpack 侧同上限拒收）
-    manifest_blob = (json.dumps(doc, ensure_ascii=False, indent=2) + "\n").encode()
-    if len(manifest_blob) > _MANIFEST_MAX:
-        msg = f"manifest too large: {len(manifest_blob)}B > {_MANIFEST_MAX}B"
-        raise ShareError(msg)
-    total = sum(len(b) for b in blobs.values())
-    if total > _INFLATED_MAX:
-        msg = f"artifacts too large in aggregate: {total}B > {_INFLATED_MAX}B"
-        raise ShareError(msg)
     out = (out_dir or work_dir) / f"{key}.share.zip"
     out.parent.mkdir(parents=True, exist_ok=True)
     # 临时文件 + 原子 rename 发布——并发同键打包/静态托管读取不会看到半成品
     tmp = out.with_name(f".{out.name}.{secrets.token_hex(4)}.tmp")
     try:
         with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zf:
+            artifacts: dict[str, dict[str, object]] = {}
+            total = 0
+            for name, src in planned:
+                entry, written = _pack_member(zf, name, src)
+                artifacts[name] = entry
+                total += written
+                if total > _INFLATED_MAX:
+                    msg = (
+                        f"artifacts too large in aggregate: {total}B > {_INFLATED_MAX}B"
+                    )
+                    raise ShareError(msg)
+            doc["artifacts"] = artifacts
+            # 自洽闸：pack 产出必须可被自家 unpack 消费（unpack 侧同上限拒收）
+            manifest_blob = (
+                json.dumps(doc, ensure_ascii=False, indent=2) + "\n"
+            ).encode()
+            if len(manifest_blob) > _MANIFEST_MAX:
+                msg = f"manifest too large: {len(manifest_blob)}B > {_MANIFEST_MAX}B"
+                raise ShareError(msg)
             zf.writestr(MANIFEST_NAME, manifest_blob)
-            for name, blob in blobs.items():
-                zf.writestr(name, blob)
         tmp.replace(out)
     finally:
         tmp.unlink(missing_ok=True)
@@ -371,6 +403,20 @@ def _artifact_checked(name: object, entry: object) -> ShareArtifact:
     return ShareArtifact(sha256=str(sha), size=int(size))
 
 
+def _manifest_field_str(doc: Mapping[str, Any], name: str) -> str:
+    """``contributor``/``created_at`` 取串 + ``_MANIFEST_FIELD_MAX`` 字节闸。
+
+    缺省 ``""``（pack 侧同字段有自产缺省）；超限 ``ShareError``——字段
+    会原样进 ``options["share"]`` 审计载荷，无上限的串是 options_json
+    膨胀面。
+    """
+    value = str(doc.get(name) or "")
+    if len(value.encode("utf-8", "replace")) > _MANIFEST_FIELD_MAX:
+        msg = f"manifest {name} too large: >{_MANIFEST_FIELD_MAX}B"
+        raise ShareError(msg)
+    return value
+
+
 def _manifest_checked(doc: Mapping[str, Any]) -> ShareManifest:
     """Manifest dict → ShareManifest（format + key_parts + share_key 自校验 + artifacts 表）。"""
     fmt = doc.get("format")
@@ -407,8 +453,8 @@ def _manifest_checked(doc: Mapping[str, Any]) -> ShareManifest:
         share_key=derived,
         key_parts=parts,
         artifacts=arts,
-        contributor=str(doc.get("contributor") or ""),
-        created_at=str(doc.get("created_at") or ""),
+        contributor=_manifest_field_str(doc, "contributor"),
+        created_at=_manifest_field_str(doc, "created_at"),
     )
 
 

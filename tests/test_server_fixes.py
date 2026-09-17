@@ -70,10 +70,11 @@ class TestListTasksPage:
         rows2, total2 = store.list_tasks_page("local", limit=2, offset=2)
         assert total2 == total
         assert not set(ids) & {r["id"] for r in rows2}
-        # created_at 倒序与 list_tasks 同口径
+        # created_at 倒序与 _list_tasks_all（测试专用全量版）同口径
         all_rows, _ = store.list_tasks_page("local", limit=100)
         assert [r["id"] for r in all_rows] == [
-            r["id"] for r in store.list_tasks("local")
+            r["id"]
+            for r in store._list_tasks_all("local")  # noqa: SLF001 -- 私有测试专用方法正是本测试对账对象
         ]
 
     def test_columns_cover_serializer(self, store: Store) -> None:

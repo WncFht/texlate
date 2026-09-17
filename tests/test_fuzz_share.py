@@ -46,6 +46,7 @@ _EMPTYABLE = frozenset({"version", "glossary_hash"})
 _FIRST_SIX = KEY_PART_FIELDS[:6]
 _ANON_RX = re.compile(r"c-[0-9a-f]{16}")
 _MEMBER_CAP = 4096  # monkeypatch 后 _MEMBER_MAX 测试值
+_FIELD_MAX = 256  # share._MANIFEST_FIELD_MAX 镜像——字段级字节闸
 
 #: 发生器概率常量（PLR2004：阈值字面量一律提名）。
 _P_DROP_FIELD = 0.05
@@ -150,7 +151,8 @@ def _norm_ver(v: object) -> str:
 
 
 def _norm_parts_pack(parts: Mapping[str, object]) -> dict[str, str] | None:
-    """pack/unpack 侧 ``_key_parts`` 契约 oracle：七键在场 + 非空闸 → 归一组分。"""
+    """pack/unpack 侧 ``_key_parts`` 契约 oracle：七键在场 + 非空闸 +
+    ``_MANIFEST_FIELD_MAX`` 字节闸 → 归一组分。"""
     out: dict[str, str] = {}
     for f in KEY_PART_FIELDS:
         if f not in parts:
@@ -163,6 +165,8 @@ def _norm_parts_pack(parts: Mapping[str, object]) -> dict[str, str] | None:
             continue
         s = _norm_ver(raw) if f == "version" else str(raw).strip()
         if not s and f not in _EMPTYABLE:
+            return None
+        if len(s.encode("utf-8", "replace")) > _FIELD_MAX:
             return None
         out[f] = s
     return out
@@ -197,6 +201,10 @@ def _expect_pack_ok(
     given = parts.get("share_key")
     if given is not None and str(given) != key:
         return None, None
+    # contributor/created_at 同受 ``_MANIFEST_FIELD_MAX`` 闸（``_manifest_field_str``）
+    for name in ("contributor", "created_at"):
+        if len(str(parts.get(name) or "").encode("utf-8", "replace")) > _FIELD_MAX:
+            return None, None
     return norm, key
 
 

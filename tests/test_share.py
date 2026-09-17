@@ -26,6 +26,8 @@ from texlate.share import (
 )
 
 if TYPE_CHECKING:
+    from typing import BinaryIO, Self
+
     from texlate.share import ShareManifest
 
 _PARTS: dict[str, object] = {
@@ -118,20 +120,43 @@ def test_pack_share_key_given_and_consistent(tmp_path: Path) -> None:
 def test_pack_artifact_single_read(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """产物单读语义：同一份字节既进 manifest 对账又写 zip 成员——
-    读取后磁盘件再被改不产生自矛盾包（TOCTOU 窗口已消）。"""
+    """产物单读语义：``_pack_member`` 单开单流——同一字节流既写 zip 成员
+    又算 manifest sha256，成员读完后磁盘件再被改不产生自矛盾包。"""
     work = _make_work(tmp_path)
-    original = Path.read_bytes
+    original = Path.open
     calls: list[str] = []
 
-    def once(self: Path) -> bytes:
-        calls.append(self.name)
-        data = original(self)
-        if self.name == "zh.pdf":
-            self.write_bytes(b"MUTATED after hash read")
-        return data
+    class _MutateAtEof:
+        """``zh.pdf`` 读流 EOF 时改源文件——模拟读-写间隙 TOCTOU。"""
 
-    monkeypatch.setattr(Path, "read_bytes", once)
+        def __init__(self, fh: BinaryIO, path: Path) -> None:
+            self._fh = fh
+            self._path = path
+
+        def read(self, n: int = -1) -> bytes:
+            data = self._fh.read(n)
+            if not data:
+                self._path.write_bytes(b"MUTATED after stream consumed")
+            return data
+
+        def __enter__(self) -> Self:
+            return self
+
+        def __exit__(self, *_exc: object) -> None:
+            self._fh.close()
+
+        def __getattr__(self, name: str) -> object:
+            return getattr(self._fh, name)
+
+    def open_once(self: Path, mode: str = "r", *args: object, **kw: object) -> object:
+        fh = original(self, mode, *args, **kw)
+        if "r" in mode and "b" in mode and self.parent == work:
+            calls.append(self.name)
+            if self.name == "zh.pdf":
+                return _MutateAtEof(fh, self)
+        return fh
+
+    monkeypatch.setattr(Path, "open", open_once)
     bundle = pack_share(work, _PARTS, out_dir=tmp_path / "out")
     monkeypatch.undo()
     assert sorted(calls) == sorted(ARTIFACT_NAMES)

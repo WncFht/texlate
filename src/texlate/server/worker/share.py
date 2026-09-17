@@ -145,7 +145,7 @@ class _Share:
         # retry 换包重对账会改 chunks 行——同款快照供事后摘 .splice-done
         pre_rows = {
             r["chunk_id"]: (str(r["status"]), str(r["translation"] or ""))
-            for r in self.store.all_chunks(ctx.task_id)
+            for r in self._all_chunks(ctx)
         }
         ctx.share = await self._to_thread(ctx, self._share_apply)
         s = ctx.share
@@ -187,7 +187,7 @@ class _Share:
         pool = _share_pool(raw)
         updates: list[tuple[str, dict[str, Any]]] = []
         total = matched = dropped = missed = 0
-        for r in self._on_loop(self.store.all_chunks, ctx.task_id):
+        for r in self._on_loop(self._all_chunks, ctx):
             self._abort_if_cancelled(ctx)  # 逐行对账轮询——大包/慢校验下秒级段
             total += 1
             outcome, upd = _share_row(r, pool)
@@ -206,6 +206,7 @@ class _Share:
             )
             raise _ShareRejectError(msg)
         self._flush_chunk_updates(ctx, updates, [])
+        ctx.chunks_cache = None  # 对账落库——缓存行失效
         return {
             "total": total,
             "matched": matched,
@@ -269,12 +270,11 @@ class _Share:
             ):
                 if not str(opts.get("reuse_hit") or "").startswith("share:"):
                     # 来历标记被 fetch 摘除/外力抹掉——补回保持拒自包面完整
-                    opts["reuse_hit"] = f"share:{key}"
-                    ctx.row["options_json"] = json.dumps(opts, ensure_ascii=False)
+                    options_json = ctx.set_option("reuse_hit", f"share:{key}")
                     self._on_loop(
                         self.store.update_fields,
                         ctx.task_id,
-                        options_json=ctx.row["options_json"],
+                        options_json=options_json,
                     )
                 return True  # resume/retry 重验通过——已接线状态直走对账
             self._share_unmark(ctx)
@@ -314,19 +314,21 @@ class _Share:
             self._log(ctx, f"share lookup: 包校验失败回退自译: {e}")
             return False
         self._abort_if_cancelled(ctx)
-        opts = ctx.options()
-        opts["share"] = {
+        share_payload = {
             "share_key": mf.share_key,
             "contributor": mf.contributor,
             "created_at": mf.created_at,
             "key_parts": dict(mf.key_parts),
         }
-        opts["reuse_hit"] = f"share:{mf.share_key}"
-        ctx.row["options_json"] = json.dumps(opts, ensure_ascii=False)
+        options_json = ctx.update_options(
+            lambda o: o.update(
+                {"share": share_payload, "reuse_hit": f"share:{mf.share_key}"}
+            )
+        )
         self._on_loop(
             self.store.update_fields,
             ctx.task_id,
-            options_json=ctx.row["options_json"],
+            options_json=options_json,
         )
         self._log(
             ctx,
@@ -340,17 +342,21 @@ class _Share:
         retry 换 options 致 key 漂移、伪造 ``share`` 载荷、对账失败回退
         共用。dedup 来源的 ``reuse_hit``（task id 形）不摘——归 dedup 面管。
         """
+
+        def _unmark(o: dict[str, Any]) -> None:
+            o.pop("share", None)
+            if str(o.get("reuse_hit") or "").startswith("share:"):
+                o.pop("reuse_hit", None)
+
         opts = ctx.options()
-        dirty = opts.pop("share", None) is not None
-        if str(opts.get("reuse_hit") or "").startswith("share:"):
-            opts.pop("reuse_hit", None)
-            dirty = True
-        if dirty:
-            ctx.row["options_json"] = json.dumps(opts, ensure_ascii=False)
+        if opts.get("share") is not None or str(opts.get("reuse_hit") or "").startswith(
+            "share:"
+        ):
+            options_json = ctx.update_options(_unmark)
             self._on_loop(
                 self.store.update_fields,
                 ctx.task_id,
-                options_json=ctx.row["options_json"],
+                options_json=options_json,
             )
         self._abort_if_cancelled(ctx)
         shutil.rmtree(ctx.root / "share", ignore_errors=True)

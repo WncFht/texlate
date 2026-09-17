@@ -20,11 +20,13 @@ import ipaddress
 import json
 import logging
 import re
+import secrets
 import shutil
 import sqlite3
 import stat as stat_mod
 import subprocess
 import time
+from collections import OrderedDict
 from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -71,6 +73,7 @@ from texlate.server.staticfiles import mount_spa
 from texlate.server.store import (
     ACTIVE_STATUSES,
     RETRYABLE_FROM,
+    TERMINAL_STATUSES,
     Store,
     StoreError,
     TransitionError,
@@ -101,6 +104,7 @@ from texlate.xlat.state import atomic_json
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Awaitable, Callable
+    from typing import BinaryIO
 
     from starlette.types import Message
 
@@ -136,6 +140,9 @@ _MEDIA = {
 _DUAL_JSON_KINDS = frozenset(
     {"arxiv", "share", "upload_tex", "upload_pdf", "arxiv_html"}
 )
+
+#: ``/api/tasks?status=`` 过滤的合法值域——11 态机全集（ACTIVE+TERMINAL）。
+_ALL_STATUSES = ACTIVE_STATUSES | TERMINAL_STATUSES
 
 
 def _probe_git_commit() -> str:
@@ -209,18 +216,65 @@ class _ApiError(Exception):
 
 @dataclass(frozen=True, slots=True)
 class UploadPart:
-    """multipart 文件字段（``request.form()`` 产出归一到本形态）。"""
+    """multipart 文件字段——流式落盘后的 spool 引用（不进 RAM）。
+
+    ``path`` 是 ``_parse_multipart`` 在 data_dir spool 目录落的临时文件；
+    消费端 ``Path.replace`` 走改名（同文件系统零拷贝），处理完毕或异常
+    由调用方兜底 ``unlink(missing_ok=True)``——已 rename 走的 no-op。
+    """
 
     filename: str
-    data: bytes
+    path: Path
+    size: int
+
+
+def _spool_part(src: BinaryIO, dst: Path, budget: int) -> int:
+    """``src`` fileobj → ``dst`` 流式拷贝（64KB 块），返回写入字节数。
+
+    超 ``budget`` 即中断抛 413（文件字段合计额度在 ``_parse_multipart``
+    累计）；任何失败清掉半成品 dst——TOCTOU 无所谓，dst 名是本调用独占
+    的随机串。
+    """
+    written = 0
+    try:
+        with dst.open("wb") as out:
+            while True:
+                # max(1, …)：budget 耗尽后再读 1B 探溢出——read(≤0) 会
+                # 全量回拉剩余流，把有界读打成无界
+                chunk = src.read(min(1 << 16, max(1, budget - written + 1)))
+                if not chunk:
+                    break
+                written += len(chunk)
+                out.write(chunk)
+                if written > budget:
+                    break
+    except BaseException:
+        dst.unlink(missing_ok=True)
+        raise
+    if written > budget:
+        dst.unlink(missing_ok=True)
+        raise _ApiError(
+            413,
+            {
+                "detail": f"upload > {UPLOAD_CAP}B",
+                "code": "upload_too_large",
+            },
+        )
+    return written
 
 
 _MULTIPART_OVERHEAD = 65536
 _FILENAME_MAX = 255  # POSIX NAME_MAX（字节）——净化名全 ASCII，len 即字节数
 
+#: JSON 端点 body 上限——``_read_body`` 消费面（translate/retry/reader PUT/
+#: settings PUT/settings test）。与 upload 的 ``UPLOAD_CAP`` 分开：JSON
+#: 端点无文件载荷，合法体远小于 4MB（options 本身再受 ``_OPTIONS_JSON_CAP``
+#: 64KB 约束），共享 80MB 闸只放大解析面内存账。
+_JSON_BODY_CAP = 4 << 20
 
-def _cap_request_body(request: Request) -> None:
-    """给 ``request`` 的 receive 通道装字节闸：累计体超 ``UPLOAD_CAP + overhead`` → 413。
+
+def _cap_request_body(request: Request, cap: int, code: str, label: str) -> None:
+    """给 ``request`` 的 receive 通道装字节闸：累计体超 ``cap`` → 413。
 
     ``stream()``/``body()``/``form()`` 全经 ``self._receive``——此处包一层
     计数即覆盖一切体消费方，且保持流式语义（文件字段仍走 spool，不整读
@@ -234,34 +288,37 @@ def _cap_request_body(request: Request) -> None:
         nonlocal seen
         msg = await inner()
         seen += len(msg.get("body", b""))
-        if seen > UPLOAD_CAP + _MULTIPART_OVERHEAD:
+        if seen > cap:
             raise _ApiError(
                 413,
-                {
-                    "detail": f"upload > {UPLOAD_CAP}B",
-                    "code": "upload_too_large",
-                },
+                {"detail": f"{label} > {cap}B", "code": code},
             )
         return msg
 
     request._receive = capped  # noqa: SLF001 -- 同上：替换实例 receive 通道
 
 
-async def _parse_multipart(request: Request) -> dict[str, str | UploadPart]:
+async def _parse_multipart(
+    request: Request, spool_dir: Path
+) -> dict[str, str | UploadPart]:
     """``multipart/form-data`` → ``{name: str | UploadPart}``。
 
     走 starlette ``request.form()``（python-multipart 在 server extra 内）；
     ``Content-Length`` 超 ``UPLOAD_CAP + overhead`` 先 413 不读体。
     ``Content-Length`` 缺席（chunked/HTTP2）预检失效——``_cap_request_body``
-    的流式字节闸对 str/文件全部字段合计上界，超界即 413；文件字段再按
-    剩余额度有界读，累计文件字节超 ``UPLOAD_CAP`` 即 413。
+    的流式字节闸对 str/文件全部字段合计上界，超界即 413。文件字段流式
+    落 ``spool_dir`` 临时文件（``_spool_part`` 64KB 块拷贝，剩余额度有界，
+    累计超 ``UPLOAD_CAP`` 即 413）——``val.read()`` 全量回拉 RAM 的旧面
+    取消，峰值内存随并发数不再按整文件翻倍。
     """
     clen = request.headers.get("content-length", "")
     if clen.isdigit() and int(clen) > UPLOAD_CAP + _MULTIPART_OVERHEAD:
         raise _ApiError(
             413, {"detail": f"upload > {UPLOAD_CAP}B", "code": "upload_too_large"}
         )
-    _cap_request_body(request)
+    _cap_request_body(
+        request, UPLOAD_CAP + _MULTIPART_OVERHEAD, "upload_too_large", "upload"
+    )
     # starlette 的 multipart 判定是 media-type token byte-equal——带参数时
     # ``MULTIPART/FORM-DATA; boundary=X``（RFC 9110 大小写不敏感）被当非
     # multipart 清空表单。就地归一媒体 token（参数原样保留）：
@@ -284,19 +341,21 @@ async def _parse_multipart(request: Request) -> dict[str, str | UploadPart]:
     except _pymp.exceptions.ParseError as e:
         # python-multipart 引擎错（boundary 不符/伪 boundary 行/参数畸形）——
         # starlette 只包自家回调侧 MultiPartException，引擎错直穿成 500
-        raise _ApiError(400, {"detail": f"malformed multipart: {e}"}) from e
+        raise _ApiError(
+            400,
+            {"detail": f"malformed multipart: {e}", "code": "invalid_request"},
+        ) from e
     out: dict[str, str | UploadPart] = {}
     file_bytes = 0
     for name, val in form.multi_items():
         if isinstance(val, StarletteUploadFile):
-            data = await val.read(UPLOAD_CAP + 1 - file_bytes)
-            file_bytes += len(data)
-            if file_bytes > UPLOAD_CAP:
-                raise _ApiError(
-                    413,
-                    {"detail": f"upload > {UPLOAD_CAP}B", "code": "upload_too_large"},
-                )
-            out[name] = UploadPart(filename=val.filename or "", data=data)
+            await val.seek(0)
+            tmp = spool_dir / f".part-{secrets.token_hex(8)}"
+            size = await asyncio.to_thread(
+                _spool_part, val.file, tmp, UPLOAD_CAP - file_bytes
+            )
+            file_bytes += size
+            out[name] = UploadPart(filename=val.filename or "", path=tmp, size=size)
         elif isinstance(val, str):
             out[name] = val
     return out
@@ -379,6 +438,10 @@ _SERVER_SETTINGS_HIDDEN = frozenset({"cors_origins", "glossary_dir"})
 #: 键集（glossary/main/source/engine/concurrency/idempotency_key…）。
 _OPTIONS_JSON_CAP = 65536
 
+#: per-IP 配额兜底桶表界（``_check_quota``）——distinct peer 数有界防洪泛，
+#: LRU 头出。4096 个 IPv6 字面量键 ≈ 数百 KB，量级无害。
+_IP_QUOTA_MAX_PEERS = 4096
+
 
 def _options_json_checked(options: dict[str, Any]) -> str:
     """``options`` → JSON 串：不可序列化或超 ``_OPTIONS_JSON_CAP`` → 400。"""
@@ -415,18 +478,26 @@ def _settings_write_gate() -> None:
                 "detail": (
                     "server 模式下 settings 由部署方管理（settings.json/env），"
                     "API 写关闭"
-                )
+                ),
+                "code": "forbidden",
             },
         )
 
 
-def _clean_task_options(options: dict[str, Any]) -> dict[str, Any]:
+def _clean_task_options(
+    options: dict[str, Any], *, inject_defaults: bool = True
+) -> dict[str, Any]:
     """任务 options 入参闸（就地改写 + 返回）：摘保留键 + 白名单校验。
 
     ``engine`` 此前无入参校验——非法值要跑到编译段 ``engine_for`` 才炸成
     fault；``concurrency`` 裸 ``int()`` 对非数值输入直接 500。两闸与
     settings 同口径：engine ∈ ``_ENGINE_NAMES``；concurrency 须可转
     int 并 clamp 1–16。
+
+    ``inject_defaults=False`` 是 retry 合并臂：只对 body 真实出现的键
+    校验+归一，不注 ``source`` 默认——创建侧把 ``source`` 规范化回写
+    无妨，retry 往存量 options 合并时注默认会把 ``html`` 任务的
+    ``source`` 静默改回 ``eprint``。
     """
     for k in _RESERVED_OPTION_KEYS:
         options.pop(k, None)
@@ -441,16 +512,17 @@ def _clean_task_options(options: dict[str, Any]) -> dict[str, Any]:
         )
     # 取源闸：eprint（默认，e-print tar 链）| html（ar5iv DOM 链）——
     # 与 arxiv 获取层「取源」同词；值规范化回写，worker 侧恒可读
-    source = str(options.get("source") or "eprint")
-    if source not in ("eprint", "html"):
-        raise _ApiError(
-            400,
-            {
-                "detail": "options.source ∈ eprint|html",
-                "code": "invalid_request",
-            },
-        )
-    options["source"] = source
+    if inject_defaults or "source" in options:
+        source = str(options.get("source") or "eprint")
+        if source not in ("eprint", "html"):
+            raise _ApiError(
+                400,
+                {
+                    "detail": "options.source ∈ eprint|html",
+                    "code": "invalid_request",
+                },
+            )
+        options["source"] = source
     if "concurrency" in options:
         try:
             options["concurrency"] = max(1, min(16, int(options["concurrency"])))
@@ -584,6 +656,12 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         ),
     )
     runner = TaskRunner(store, bus, worker)
+    #: multipart 文件字段流式落盘目录（``_parse_multipart`` 写入面）；
+    #: 残骸由 lifespan 启动段清扫。
+    spool_dir = root / "tmp" / "upload-spool"
+    #: per-IP 配额兜底桶（进程内累计，peer → ``[tasks, bytes]``）——
+    #: tenant=sha256(key) 换 key 即新桶，本桶按网络对端记账封轮转。
+    _ip_quota: OrderedDict[str, list[int]] = OrderedDict()
 
     def _key_provider() -> list[str]:
         """当前该抹的 key 集合：settings key + 运行中 header key（RedactFilter 动态取）。"""
@@ -601,9 +679,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         tasks_root = root / "tasks"
         if not tasks_root.is_dir():
             return 0
-        known = {
-            str(r[0]) for r in store.conn.execute("SELECT id FROM tasks").fetchall()
-        }
+        known = set(store.task_ids())
         n = 0
         for d in tasks_root.iterdir():
             if not (valid_task_id(d.name) and d.name not in known):
@@ -616,6 +692,32 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
             n += 1
         return n
 
+    async def _retention_loop() -> None:
+        """产物保留策略周期 sweep（每 10min 一拍；``retention_*`` 全 0 = 关）。
+
+        ``Store.sweep_retention`` 按 tasks/ 目录占用 + 行龄做淘汰；失败只
+        log——保留策略是后台清扫面，故障绝不拖垮服务。settings 每拍重读
+        （PUT 即生效，不用重启）。
+        """
+        while True:
+            await asyncio.sleep(600)
+            try:
+                st = settings_store.load()
+                days = int(st.get("retention_days") or 0)
+                max_gb = int(st.get("retention_max_gb") or 0)
+                if days <= 0 and max_gb <= 0:
+                    continue
+                report = await asyncio.to_thread(
+                    store.sweep_retention,
+                    root / "tasks",
+                    max_age_s=float(days * 86400) if days > 0 else 0.0,
+                    max_total_bytes=max_gb * (1 << 30) if max_gb > 0 else 0,
+                )
+                if report.get("removed"):
+                    log.info("retention sweep: %s", report)
+            except Exception as e:  # noqa: BLE001 -- 后台清扫失败只留 warning
+                log.warning("retention sweep failed: %s", e)
+
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         # §4.2 第二道防线：uvicorn log config 此时已就绪，filter 落到
@@ -624,16 +726,27 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         store.open()
         recovered = store.recover_startup()
         orphans = _sweep_orphan_task_dirs()
+        # 上传 spool 目录只收流式落盘的临时件——进程被杀留的残骸启动即清
+        spool_dir.mkdir(parents=True, exist_ok=True)
+        for stale in spool_dir.iterdir():
+            with suppress(OSError):
+                stale.unlink()
         if recovered["interrupted"] or recovered["needs_auth"]:
             log.info("startup recovery: %s", recovered)
         if orphans:
             log.info("swept %d orphan task dir(s)", orphans)
+        retention = asyncio.create_task(_retention_loop())
         if start_worker:
             runner.start()
-        yield
-        await runner.stop()
-        bus.close_all()
-        store.close()
+        try:
+            yield
+        finally:
+            retention.cancel()
+            with suppress(asyncio.CancelledError):
+                await retention
+            await runner.stop()
+            bus.close_all()
+            store.close()
 
     app = FastAPI(title="texlate-server", version=__version__, lifespan=lifespan)
     app.state.data_dir = root
@@ -669,10 +782,12 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         if server_mode() != "server":
             peer = request.client.host if request.client is not None else ""
             if not _loopback_peer(request):
-                return _json_error(403, f"peer {peer} not allowed")
+                return _json_error(403, f"peer {peer} not allowed", "forbidden")
             host = request.headers.get("host", "")
             if not host or _host_only(host) not in _LOOPBACK_HOSTS:
-                return _json_error(403, f"host {host or '<absent>'} not allowed")
+                return _json_error(
+                    403, f"host {host or '<absent>'} not allowed", "forbidden"
+                )
         mutating = request.method in (
             "POST",
             "PUT",
@@ -685,9 +800,9 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         if origin and origin in getattr(app.state, "cors_origins", ()):
             pass  # 部署方 CORS allowlist 显式放行的跨域源
         elif request.headers.get("sec-fetch-site") == "cross-site":
-            return _json_error(403, "cross-site request rejected")
+            return _json_error(403, "cross-site request rejected", "forbidden")
         elif origin and not _same_origin(request, origin):
-            return _json_error(403, f"origin {origin} not allowed")
+            return _json_error(403, f"origin {origin} not allowed", "forbidden")
         if server_mode() == "server" and not request.headers.get("x-texlate-key"):
             return _json_error(
                 401,
@@ -702,7 +817,11 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
     ) -> Response:
         resp = await call_next(request)
         if get_route_path(request.scope).startswith("/api"):
-            resp.headers["Cache-Control"] = "no-store"
+            # 端点可经 request.state.cache_control 覆盖——内容寻址产物
+            # （/api/files ?version=sha 匹配）放 private,immutable
+            resp.headers["Cache-Control"] = (
+                getattr(request.state, "cache_control", None) or "no-store"
+            )
         return resp
 
     # server 形态 CORS allowlist（web-layer §6）：settings.cors_origins 显式配，
@@ -783,7 +902,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
                 salt=salt,
             )
         except ValueError as e:
-            raise _ApiError(400, {"detail": str(e)}) from e
+            raise _ApiError(400, {"detail": str(e), "code": "invalid_request"}) from e
         request.state.auth_ctx = auth
         return auth
 
@@ -812,7 +931,8 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         闸死后跨站表单构造不了有效 JSON mutation。空 body（无 CT 的
         curl 式 POST）照旧放行。
         """
-        _cap_request_body(request)  # 与 multipart 同闸——无 CL 时 body() 原无界读
+        # JSON 端点独立小闸（_JSON_BODY_CAP）——无 CL 时 body() 原是无界读
+        _cap_request_body(request, _JSON_BODY_CAP, "body_too_large", "body")
         raw = await request.body()
         if not raw:
             return {}
@@ -830,7 +950,9 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         except (ValueError, RecursionError) as e:
             # ValueError 含 JSONDecodeError 与巨 int 字面量（int↔str 上限）；
             # RecursionError 是超深嵌套——不入网即 500
-            raise _ApiError(400, {"detail": f"bad json: {e}"}) from e
+            raise _ApiError(
+                400, {"detail": f"bad json: {e}", "code": "invalid_request"}
+            ) from e
         if not isinstance(data, dict):
             # 非 object JSON（[1]/"x"/null）——静默当 {} 会让 PUT settings 等
             # 端点 200 无操作，调用方无从察觉体被整个丢弃
@@ -840,12 +962,19 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
             )
         return data
 
-    def _check_quota(auth: AuthContext, incoming_bytes: int) -> None:
+    def _check_quota(auth: AuthContext, incoming_bytes: int, peer: str = "") -> None:
         """Tenant 配额闸（settings.quota_max_*，0=不限）——超限 429。
 
         任务数按 ``tasks`` 行全量计（含终态行）；字节按已登记产物
         ``files.bytes`` 合计 + 本次入队载荷。reuse/idempotent 命中不建行，
         在调用方此处之前就返回，不占配额。
+
+        ``peer`` 非空时再叠加进程内 per-IP 兜底桶（同字节口径累计）：
+        tenant=sha256(key) 的锅——换 key 即新桶，轮转 key 刷 upload 把
+        tenant 配额打成筛子。IP 桶按对端地址记进程内累计，key 轮转不改
+        对端事实。局限（记注释不瞒）：进程重启清零、NAT 后多用户共 IP
+        会互占额度、local 形态全量请求共享回环桶（同机用户配额同桶，
+        语义上可接受——local 本就是单机面）。
         """
         st = auth.settings  # 与 _auth 同一份请求快照——不再读一次盘
         q_tasks = int(st.get("quota_max_tasks") or 0)
@@ -869,6 +998,35 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
                     "code": "quota_exceeded",
                 },
             )
+        if not peer:
+            return
+        bucket = _ip_quota.get(peer)
+        if bucket is None:
+            if len(_ip_quota) >= _IP_QUOTA_MAX_PEERS:
+                _ip_quota.popitem(last=False)  # LRU 头出——有界表防 IP 洪泛
+            bucket = [0, 0]
+            _ip_quota[peer] = bucket
+        else:
+            _ip_quota.move_to_end(peer)
+        if q_tasks and bucket[0] >= q_tasks:
+            raise _ApiError(
+                429,
+                {
+                    "detail": f"同 IP 任务配额已用尽（{q_tasks}）",
+                    "code": "quota_exceeded",
+                },
+            )
+        if q_bytes and bucket[1] + incoming_bytes > q_bytes:
+            raise _ApiError(
+                429,
+                {
+                    "detail": f"同 IP 字节配额超限（{q_bytes}B）",
+                    "code": "quota_exceeded",
+                },
+            )
+        # 过闸才累计——被拒请求不占桶；建行失败的多计是保守方向
+        bucket[0] += 1
+        bucket[1] += incoming_bytes
 
     def _create_and_enqueue(  # noqa: C901, PLR0913 -- dedup/reuse/建行阶梯 + 参数面平铺
         request: Request,
@@ -933,7 +1091,11 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
                         )
                 else:
                     return done, 200, {"reused": True}
-        _check_quota(auth, incoming_bytes)
+        _check_quota(
+            auth,
+            incoming_bytes,
+            request.client.host if request.client is not None else "",
+        )
         tid = task_id or new_task_id()
         config = {
             "base_url": auth.base_url,
@@ -1008,27 +1170,33 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         """建 arxiv 任务：202 + cache_key dedup/reuse（§2.1）。"""
         base, ver = normalize_arxiv_id(arxiv_id)
         if not _valid_id(base):
-            return _json_error(400, f"invalid arxiv id: {arxiv_id!r}")
+            return _json_error(
+                400, f"invalid arxiv id: {arxiv_id!r}", "invalid_request"
+            )
         body = await _read_body(request)
         try:
             options = dict(body.get("options") or {})
         except (TypeError, ValueError):
-            return _json_error(400, "options 须为 object 或 KV 对列表")
+            return _json_error(
+                400, "options 须为 object 或 KV 对列表", "invalid_request"
+            )
         options = _clean_task_options(options)
         try:
             model = validate_model(str(body.get("model") or _auth(request).model))
         except ValueError as e:
-            return _json_error(400, str(e))
+            return _json_error(400, str(e), "invalid_request")
         target_lang = str(
             body.get("target_lang") or _auth(request).settings["target_lang"]
         )
         if target_lang not in TARGET_LANGS:
-            return _json_error(400, f"target_lang ∈ {sorted(TARGET_LANGS)}")
+            return _json_error(
+                400, f"target_lang ∈ {sorted(TARGET_LANGS)}", "invalid_request"
+            )
         if body.get("glossary"):
             options["glossary"] = str(body["glossary"])
         prefer = str(options.get("prefer") or "reuse")
         if prefer not in ("reuse", "fresh"):
-            return _json_error(400, "options.prefer ∈ reuse|fresh")
+            return _json_error(400, "options.prefer ∈ reuse|fresh", "invalid_request")
         # source 已经 _clean_task_options 白名单规范化（eprint|html）。
         # eprint 是历史默认、键材料不动（存量缓存续命）——仅非默认源追加
         # ``source=`` 成分（与 worker cache_key_for 的 no-op 默认同语义，
@@ -1089,6 +1257,36 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
 
         return EventSourceResponse(gen(), ping=15)
 
+    @app.get("/api/task/{task_id}/chunks")
+    async def task_chunks(
+        request: Request,
+        task_id: str,
+        offset: Annotated[int, Query(ge=0)] = 0,
+        limit: Annotated[int, Query(ge=1, le=1000)] = 200,
+    ) -> Response:
+        """Chunk 窄列分页（翻译中流式预览面，fe-U1 配套）。
+
+        返回 ``{chunks: [{seq, kind, status, en, zh}], total}``——pending
+        块 ``zh`` 为空串；``total`` 是全集大小供前端翻页/进度条。
+        """
+        _get_task(request, task_id)
+        rows, total = store.chunks_page(task_id, offset=offset, limit=limit)
+        return JSONResponse(
+            {
+                "chunks": [
+                    {
+                        "seq": r["seq"],
+                        "kind": r["kind"],
+                        "status": r["status"],
+                        "en": r.get("src_text") or "",
+                        "zh": r.get("translation") or "",
+                    }
+                    for r in rows
+                ],
+                "total": total,
+            }
+        )
+
     # ------------------------------------------------------------ §2.3 files
 
     @app.get("/api/files/{task_id}")
@@ -1107,7 +1305,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         return JSONResponse({"artifacts": out})
 
     @app.get("/api/files/{task_id}/{kind}")
-    async def file_get(  # noqa: PLR0911 -- 校验阶梯每层一个早退 return
+    async def file_get(  # noqa: C901, PLR0911 -- 校验阶梯每层一个早退 return
         request: Request,
         task_id: str,
         kind: str,
@@ -1118,26 +1316,30 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         row = _get_task(request, task_id)
         db_kind = URL_KIND.get(kind)
         if db_kind is None:
-            return _json_error(404, f"unknown kind {kind!r}")
+            return _json_error(404, f"unknown kind {kind!r}", "not_found")
         rec = store.file_record(task_id, db_kind)
         if rec is None:
-            return _json_error(404, f"no artifact {kind}")
+            return _json_error(404, f"no artifact {kind}", "not_found")
         if version and rec.get("sha256") and version != rec["sha256"]:
             return _json_error(
                 409,
                 f"version mismatch: have {rec['sha256'][:12]}",
                 "version_mismatch",
             )
+        if version and rec.get("sha256"):
+            # ``?version=<sha256>`` 内容寻址命中——响应随 sha 不变而异变，
+            # 私有缓存可钉死。no_store_mw 认 request.state 标记。
+            request.state.cache_control = "private, immutable"
         task_root = (root / "tasks" / task_id).resolve()
         path = (task_root / rec["path"]).resolve()
         if not path.is_relative_to(task_root):
-            return _json_error(404, "artifact file missing")
+            return _json_error(404, "artifact file missing", "not_found")
         try:
             stat_res = path.stat()
         except OSError:
-            return _json_error(404, "artifact file missing")
+            return _json_error(404, "artifact file missing", "not_found")
         if not stat_mod.S_ISREG(stat_res.st_mode):
-            return _json_error(404, "artifact file missing")
+            return _json_error(404, "artifact file missing", "not_found")
         headers = None
         if download:
             # 旧式 arxiv_id 含 '/'（hep-th/9901001）——filename 白名单化防畸形 header
@@ -1153,7 +1355,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
             )
         except OSError:
             # src.tar 魔数嗅探 open() 竞删——与 stat 同归 404
-            return _json_error(404, "artifact file missing")
+            return _json_error(404, "artifact file missing", "not_found")
         if media.startswith("text/html"):
             # html 产物同源伺服——直接导航时文档内幸存脚本可在同源上下文
             # 打 mutating /api；CSP sandbox（无 allow-*）整文档脚本全灭。
@@ -1203,19 +1405,28 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         try:
             options = json.loads(options_raw) if options_raw else {}
         except (ValueError, RecursionError):
-            raise _ApiError(400, {"detail": "options 字段不是合法 JSON"}) from None
+            raise _ApiError(
+                400,
+                {"detail": "options 字段不是合法 JSON", "code": "invalid_request"},
+            ) from None
         if not isinstance(options, dict):
             options = {}
         options = _clean_task_options(options)
         try:
             model = validate_model(_form_text(form, "model") or _auth(request).model)
         except ValueError as e:
-            raise _ApiError(400, {"detail": str(e)}) from e
+            raise _ApiError(400, {"detail": str(e), "code": "invalid_request"}) from e
         target_lang = _form_text(form, "target_lang") or str(
             _auth(request).settings["target_lang"]
         )
         if target_lang not in TARGET_LANGS:
-            raise _ApiError(400, {"detail": f"target_lang ∈ {sorted(TARGET_LANGS)}"})
+            raise _ApiError(
+                400,
+                {
+                    "detail": f"target_lang ∈ {sorted(TARGET_LANGS)}",
+                    "code": "invalid_request",
+                },
+            )
         if _form_text(form, "main"):
             options["main"] = _form_text(form, "main")
         return model, target_lang, options
@@ -1223,63 +1434,90 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
     @app.post("/api/upload")
     async def upload(request: Request) -> Response:
         """Multipart 上传：魔数路由 upload_tex/upload_pdf/docx/epub（§2.4）。"""
-        form = await _parse_multipart(request)
+        form = await _parse_multipart(request, spool_dir)
         file = form.get("file")
         if not isinstance(file, UploadPart):
-            raise _ApiError(400, {"detail": "multipart field 'file' required"})
-        data = file.data
-        if not data:
-            raise _ApiError(400, {"detail": "empty upload"})
-        if len(data) > UPLOAD_CAP:
             raise _ApiError(
-                413,
-                {"detail": f"upload > {UPLOAD_CAP}B", "code": "upload_too_large"},
+                400,
+                {
+                    "detail": "multipart field 'file' required",
+                    "code": "invalid_request",
+                },
             )
-        filename = file.filename or "upload.bin"
-        route = sniff_upload(data, filename)
-        _check_upload_route(
-            route, app.state.babeldoc or find_tool("babeldoc"), filename
-        )
-        model, target_lang, options = _upload_fields(request, form)
-        # re.sub 白名单放行 ``.``——``..`` 原样幸存会打成目录写（500+孤儿
-        # task 目录），建行前先拒。>255B 名（NAME_MAX）会让 write_bytes
-        # 抛 ENAMETOOLONG 成 500——同闸先拒。
-        safe = re.sub(r"[^A-Za-z0-9_.+-]", "_", Path(filename).name)
-        if safe in (".", "..") or len(safe) > _FILENAME_MAX:
-            raise _ApiError(400, {"detail": f"unsafe filename: {filename!r}"})
-        # 先落 blob（建行前），再建行+入队——task_id 两侧共用
-        task_id = new_task_id()
-        updir = root / "tasks" / task_id / "upload"
         try:
-            updir.mkdir(parents=True, exist_ok=True)
-            (updir / (safe or "upload.bin")).write_bytes(data)
-            row, status, extra = _create_and_enqueue(
-                request,
-                kind=route,
-                arxiv_id=None,
-                source_name=filename,
-                title=filename,
-                model=model,
-                target_lang=target_lang,
-                options=options,
-                prefer="fresh",
-                cache_key=None,
-                task_id=task_id,
-                incoming_bytes=len(data),
+            if file.size == 0:
+                raise _ApiError(
+                    400, {"detail": "empty upload", "code": "invalid_request"}
+                )
+            filename = file.filename or "upload.bin"
+            # 魔数路由读全 blob（gzip/zip 容器判定非头字节可定）——CPU+读盘
+            # 秒级，卸出事件循环；临时 bytes 不出本函数域
+            route = await asyncio.to_thread(
+                sniff_upload, file.path.read_bytes(), filename
             )
-        except Exception:
-            # 建行/入队任何失败——upload blob 目录一并收掉，不留孤儿（B4）
-            shutil.rmtree(root / "tasks" / task_id, ignore_errors=True)
-            raise
-        if str(row["id"]) != task_id:
-            # idempotent 命中旧行——本次落盘 blob 成孤儿，连带目录清掉（B4）
-            shutil.rmtree(root / "tasks" / task_id, ignore_errors=True)
-        return _accepted(row, status, extra)
+            _check_upload_route(
+                route, app.state.babeldoc or find_tool("babeldoc"), filename
+            )
+            model, target_lang, options = _upload_fields(request, form)
+            # re.sub 白名单放行 ``.``——``..`` 原样幸存会打成目录写（500+
+            # 孤儿 task 目录），建行前先拒。>255B 名（NAME_MAX）会让落盘
+            # 抛 ENAMETOOLONG 成 500——同闸先拒。
+            safe = re.sub(r"[^A-Za-z0-9_.+-]", "_", Path(filename).name)
+            if safe in (".", "..") or len(safe) > _FILENAME_MAX:
+                raise _ApiError(
+                    400,
+                    {
+                        "detail": f"unsafe filename: {filename!r}",
+                        "code": "invalid_request",
+                    },
+                )
+            # 先落 blob（建行前），再建行+入队——task_id 两侧共用
+            task_id = new_task_id()
+            updir = root / "tasks" / task_id / "upload"
+
+            def _stage() -> None:
+                updir.mkdir(parents=True, exist_ok=True)
+                # spool → 任务目录同文件系统 rename——零拷贝交接
+                file.path.replace(updir / (safe or "upload.bin"))
+
+            try:
+                await asyncio.to_thread(_stage)
+                row, status, extra = _create_and_enqueue(
+                    request,
+                    kind=route,
+                    arxiv_id=None,
+                    source_name=filename,
+                    title=filename,
+                    model=model,
+                    target_lang=target_lang,
+                    options=options,
+                    prefer="fresh",
+                    cache_key=None,
+                    task_id=task_id,
+                    incoming_bytes=file.size,
+                )
+            except Exception:
+                # 建行/入队任何失败——upload blob 目录一并收掉，不留孤儿（B4）；
+                # rmtree 是重 I/O，卸出事件循环
+                await asyncio.to_thread(
+                    shutil.rmtree, root / "tasks" / task_id, ignore_errors=True
+                )
+                raise
+            if str(row["id"]) != task_id:
+                # idempotent 命中旧行——本次落盘 blob 成孤儿，连带目录清掉（B4）
+                await asyncio.to_thread(
+                    shutil.rmtree, root / "tasks" / task_id, ignore_errors=True
+                )
+            return _accepted(row, status, extra)
+        finally:
+            # spool 件已 rename 走则 no-op；仍躺 spool 即本次未消费——收掉
+            with suppress(OSError):
+                file.path.unlink(missing_ok=True)
 
     # ------------------------------------------------------------ share 导入
 
     @app.post("/api/share/import")
-    async def share_import(request: Request) -> Response:  # noqa: C901 -- 校验/落盘/建阶梯平铺
+    async def share_import(request: Request) -> Response:
         """``.share.zip`` → 校验解包 → ``kind="share"`` 任务入队。
 
         端点只做机械校验（``unpack_share``：format/share_key 自洽/逐产物
@@ -1291,90 +1529,108 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         记 manifest 真值，上传者配置不进寻址。``cache_key`` 按钉版形态
         重算——后来的 ``id@vN`` 请求经 ``find_reusable`` 真命中本产物。
         """
-        form = await _parse_multipart(request)
+        form = await _parse_multipart(request, spool_dir)
         file = form.get("file")
         if not isinstance(file, UploadPart):
-            raise _ApiError(400, {"detail": "multipart field 'file' required"})
-        data = file.data
-        if not data:
-            raise _ApiError(400, {"detail": "empty upload"})
-        if len(data) > UPLOAD_CAP:
-            raise _ApiError(
-                413,
-                {"detail": f"upload > {UPLOAD_CAP}B", "code": "upload_too_large"},
-            )
-        tid = new_task_id()
-        tdir = root / "tasks" / tid
-
-        def _stage() -> ShareManifest:
-            bundle_dir = tdir / "upload"
-            bundle_dir.mkdir(parents=True, exist_ok=True)
-            bundle = bundle_dir / "bundle.share.zip"
-            bundle.write_bytes(data)
-            return unpack_share(bundle, tdir / "share")
-
-        try:
-            # 逐成员 sha256+解压跑满 CPU 秒级——卸出事件循环（share_pack 同口径）
-            mf = await asyncio.to_thread(_stage)
-            parts = mf.key_parts
-            base, ver_s, model, lang, ver = _share_parts_checked(parts)
-            options_raw = _form_text(form, "options")
-            try:
-                options = json.loads(options_raw) if options_raw else {}
-            except (ValueError, RecursionError):
-                raise _ApiError(400, {"detail": "options 字段不是合法 JSON"}) from None
-            if not isinstance(options, dict):
-                options = {}
-            options = _clean_task_options(options)
-            # 审计载荷强制覆盖——调用方 options 不得伪造 share 来源字段
-            options["share"] = {
-                "share_key": mf.share_key,
-                "contributor": mf.contributor,
-                "created_at": mf.created_at,
-                "key_parts": dict(parts),
-            }
-            row, status, extra = _create_and_enqueue(
-                request,
-                kind="share",
-                arxiv_id=f"{base}{ver_s}",
-                source_name=file.filename or "bundle.share.zip",
-                title="",
-                model=model,
-                target_lang=lang,
-                options=options,
-                prefer="reuse",
-                cache_key=cache_key_for(
-                    arxiv_id=base,
-                    version=ver,
-                    model=model,
-                    target_lang=lang,
-                    api_key=_auth(request).api_key,
-                ),
-                task_id=tid,
-                incoming_bytes=len(data),
-            )
-        except ShareError as e:
-            shutil.rmtree(tdir, ignore_errors=True)
             raise _ApiError(
                 400,
-                {"detail": f"share bundle invalid: {e}", "code": "share_invalid"},
-            ) from e
-        except sqlite3.IntegrityError:
-            # reuse 语义下并发同键撞 ACTIVE 唯一索引——归 duplicate_active
-            shutil.rmtree(tdir, ignore_errors=True)
-            raise _ApiError(
-                409,
-                {"detail": "active task exists", "code": "duplicate_active"},
-            ) from None
-        except Exception:
-            # 落盘/解包/校验/建行/入队任何失败（含 _ApiError 与非预期异常）
-            # ——task 目录一并收掉，不留孤儿（upload 端点 B4 同口径）
-            shutil.rmtree(tdir, ignore_errors=True)
-            raise
-        if str(row["id"]) != tid:
-            # reuse/idempotent 命中旧行——本次解包现场作废（行从未建）
-            shutil.rmtree(tdir, ignore_errors=True)
-        return _accepted(row, status, extra)
+                {
+                    "detail": "multipart field 'file' required",
+                    "code": "invalid_request",
+                },
+            )
+        try:
+            if file.size == 0:
+                raise _ApiError(
+                    400, {"detail": "empty upload", "code": "invalid_request"}
+                )
+            tid = new_task_id()
+            tdir = root / "tasks" / tid
+
+            def _stage() -> ShareManifest:
+                bundle_dir = tdir / "upload"
+                bundle_dir.mkdir(parents=True, exist_ok=True)
+                bundle = bundle_dir / "bundle.share.zip"
+                file.path.replace(bundle)  # spool → 任务目录同 fs rename
+                return unpack_share(bundle, tdir / "share")
+
+            try:
+                # 逐成员 sha256+解压跑满 CPU 秒级——卸出事件循环（share_pack 同口径）
+                mf = await asyncio.to_thread(_stage)
+                parts = mf.key_parts
+                base, ver_s, model, lang, ver = _share_parts_checked(parts)
+                options_raw = _form_text(form, "options")
+                try:
+                    options = json.loads(options_raw) if options_raw else {}
+                except (ValueError, RecursionError):
+                    raise _ApiError(
+                        400,
+                        {
+                            "detail": "options 字段不是合法 JSON",
+                            "code": "invalid_request",
+                        },
+                    ) from None
+                if not isinstance(options, dict):
+                    options = {}
+                options = _clean_task_options(options)
+                # 审计载荷强制覆盖——调用方 options 不得伪造 share 来源字段。
+                # 注入在 64KB 闸之后发生（manifest 字段已经
+                # ``_manifest_field_max`` 收敛），注入后重跑尺寸闸兜底。
+                options["share"] = {
+                    "share_key": mf.share_key,
+                    "contributor": mf.contributor,
+                    "created_at": mf.created_at,
+                    "key_parts": dict(parts),
+                }
+                _options_json_checked(options)
+                row, status, extra = _create_and_enqueue(
+                    request,
+                    kind="share",
+                    arxiv_id=f"{base}{ver_s}",
+                    source_name=file.filename or "bundle.share.zip",
+                    title="",
+                    model=model,
+                    target_lang=lang,
+                    options=options,
+                    prefer="reuse",
+                    cache_key=cache_key_for(
+                        arxiv_id=base,
+                        version=ver,
+                        model=model,
+                        target_lang=lang,
+                        api_key=_auth(request).api_key,
+                    ),
+                    task_id=tid,
+                    incoming_bytes=file.size,
+                )
+            except ShareError as e:
+                await asyncio.to_thread(shutil.rmtree, tdir, ignore_errors=True)
+                raise _ApiError(
+                    400,
+                    {
+                        "detail": f"share bundle invalid: {e}",
+                        "code": "share_invalid",
+                    },
+                ) from e
+            except sqlite3.IntegrityError:
+                # reuse 语义下并发同键撞 ACTIVE 唯一索引——归 duplicate_active
+                await asyncio.to_thread(shutil.rmtree, tdir, ignore_errors=True)
+                raise _ApiError(
+                    409,
+                    {"detail": "active task exists", "code": "duplicate_active"},
+                ) from None
+            except Exception:
+                # 落盘/解包/校验/建行/入队任何失败（含 _ApiError 与非预期异常）
+                # ——task 目录一并收掉，不留孤儿（upload 端点 B4 同口径）
+                await asyncio.to_thread(shutil.rmtree, tdir, ignore_errors=True)
+                raise
+            if str(row["id"]) != tid:
+                # reuse/idempotent 命中旧行——本次解包现场作废（行从未建）
+                await asyncio.to_thread(shutil.rmtree, tdir, ignore_errors=True)
+            return _accepted(row, status, extra)
+        finally:
+            with suppress(OSError):
+                file.path.unlink(missing_ok=True)
 
     # ------------------------------------------------------------ share 导出
 
@@ -1425,7 +1681,9 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
             secrets=Secrets(),
             root=task_root,
         )
-        manifest = worker.share_pack_manifest(ctx, row)
+        # manifest 派生会读生效术语表文件算 hash（重 I/O）——卸出 loop；
+        # 与 worker 侧 ``_share_pack_try`` 的 ``_to_thread`` 口径对齐
+        manifest = await asyncio.to_thread(worker.share_pack_manifest, ctx, row)
         if manifest is None:
             return _json_error(
                 422,
@@ -1443,7 +1701,8 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         )
         out_dir = share_dir(root)
         try:
-            hit = index_lookup(out_dir / "index.jsonl", key)
+            # index.jsonl 整读全扫——append-only 索引随时间增长，卸出 loop
+            hit = await asyncio.to_thread(index_lookup, out_dir / "index.jsonl", key)
         except (OSError, UnicodeDecodeError) as e:
             # 索引读挂不挡重打——index_lookup 实抛面即此二类（坏行内部跳过，
             # 不抛 ShareError）；append-only last-wins 读出侧自愈
@@ -1491,9 +1750,18 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
 
     @app.get("/api/health")
     async def health() -> dict[str, Any]:
-        """``{ok}`` 探活最小集；local 形态附加 ``version/commit/started_at/compilers/data_dir``。"""
+        """``{ok}`` 探活最小集；server 附加 ``db``/``queue_depth``；local 附加 ``version/commit/started_at/compilers/data_dir``。"""
         if server_mode() == "server":
-            return {"ok": True}
+            # 深度探活：db=真实 SELECT 探测（queued_rows 顺带产出队列深度），
+            # 探挂只降 db=False 不 503——健康面只报不掩
+            db_ok = True
+            queue_depth: int | None = None
+            try:
+                queue_depth = len(store.queued_rows())
+            except (StoreError, sqlite3.Error) as e:
+                log.warning("health db probe failed: %s", e)
+                db_ok = False
+            return {"ok": True, "db": db_ok, "queue_depth": queue_depth}
         return {
             "ok": True,
             "version": __version__,
@@ -1514,10 +1782,18 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         limit: Annotated[int, Query(ge=1, le=1000)] = 100,
         offset: Annotated[int, Query(ge=0)] = 0,
     ) -> Response:
-        """Tenant 过滤任务列表（``?status=`` 再过滤；``limit``/``offset`` 分页）。
+        """Tenant 过滤任务列表（``?status=`` 枚举校验再过滤；``limit``/``offset`` 分页）。
 
         ``total`` = 过滤后全集大小（非本页行数），前端分页条用。
+        非法 ``status`` 值 400——不校验会静默返空 200，调用方无从分辨
+        「无匹配」与「参数打错」。
         """
+        if status and status not in _ALL_STATUSES:
+            return _json_error(
+                400,
+                f"status ∈ {sorted(_ALL_STATUSES)}",
+                "invalid_request",
+            )
         rows, total = store.list_tasks_page(
             _auth(request).tenant,
             status=status or None,
@@ -1586,7 +1862,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         return JSONResponse({"task_id": task_id, "status": "cancelled"})
 
     @app.post("/api/task/{task_id}/retry")
-    async def task_retry(request: Request, task_id: str) -> Response:  # noqa: C901, PLR0912 -- 校验阶梯平铺
+    async def task_retry(request: Request, task_id: str) -> Response:  # noqa: C901 -- 校验阶梯平铺
         """终态/needs_auth → queued 重入队；body 只收 ``{main, options}``。
 
         ``model``/``target_lang`` 是 cache_key 口径成员——换值得新建任务，
@@ -1621,7 +1897,10 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         if not isinstance(opts, dict):
             opts = {}
         if isinstance(body.get("options"), dict):
-            opts.update(_clean_task_options(body["options"]))
+            # 合并臂不注默认——``inject_defaults=False`` 只校验 body 真实
+            # 出现的键，缺席的 ``source`` 不会被改回 ``eprint``（html 任务
+            # 的存量 source 原样保留）
+            opts.update(_clean_task_options(body["options"], inject_defaults=False))
         if body.get("main"):
             opts["main"] = str(body["main"])
         main_req = str(opts.get("main") or "")
@@ -1637,20 +1916,28 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
                 # （chunks/base/zh 重建，src/ 保留）；派生产物行与磁盘件并删——
                 # 残行会让 files/reader 照发上一轮产物（en.pdf 也随 base/
                 # 同死：换 main 后它编译自另一棵树）
-                store.conn.execute("DELETE FROM chunks WHERE task_id = ?", (task_id,))
-                store.conn.commit()
+                store.delete_chunks(task_id)
                 task_root = root / "tasks" / task_id
-                for d in ("base", "zh", "build-en", "build-zh"):
-                    shutil.rmtree(task_root / d, ignore_errors=True)
-                resolved_root = task_root.resolve()
-                for kind, rec in store.files(task_id).items():
-                    if kind == "src_tar":
-                        continue  # 取源产物不受影响——e-print/上传件仍有效
+                recs = [
+                    (kind, rec)
+                    for kind, rec in store.files(task_id).items()
+                    if kind != "src_tar"  # 取源产物不受影响——e-print/上传件仍有效
+                ]
+
+                def _wipe() -> None:
+                    """FS 侧清理（rmtree×4 + 失效产物 unlink）——重 I/O 离 loop。"""
+                    for d in ("base", "zh", "build-en", "build-zh"):
+                        shutil.rmtree(task_root / d, ignore_errors=True)
+                    resolved_root = task_root.resolve()
+                    for _kind, rec in recs:
+                        stale = (task_root / str(rec["path"])).resolve()
+                        if stale.is_relative_to(resolved_root):
+                            with suppress(OSError):
+                                stale.unlink(missing_ok=True)
+
+                await asyncio.to_thread(_wipe)
+                for kind, _rec in recs:
                     store.delete_file(task_id, kind)
-                    stale = (task_root / str(rec["path"])).resolve()
-                    if stale.is_relative_to(resolved_root):
-                        with suppress(OSError):
-                            stale.unlink(missing_ok=True)
             store.update_fields(task_id, options_json=json.dumps(opts))
         except Exception:
             # 已抢 queued 但清理/写 options 折了——不留 queued 半成品给
@@ -1691,7 +1978,10 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
                 "invalid_transition",
             )
         runner.secrets.pop(task_id, None)
-        shutil.rmtree(root / "tasks" / task_id, ignore_errors=True)
+        # 任务目录可能是 GB 级产物树——rmtree 重 I/O 卸出 loop
+        await asyncio.to_thread(
+            shutil.rmtree, root / "tasks" / task_id, ignore_errors=True
+        )
         return JSONResponse({"task_id": task_id, "status": "deleted"})
 
     # ------------------------------------------------------------ reader
@@ -1702,10 +1992,13 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
     ) -> Response:
         """``{documents, alignment, reading, view}``（§2.5/§5.4）。"""
         row = _get_task(request, task_id)
+        # files 表一次取——file_record 每次全量 SELECT，本端点要查 4 个
+        # kind（dual_json/zh_html/md_zip/zh_pdf），串发即 mini-N+1
+        files = store.files(task_id)
         dual_path = root / "tasks" / task_id / "dual.json"
-        if store.file_record(task_id, "dual_json") is None:
+        if files.get("dual_json") is None:
             # 以登记行为准——磁盘孤儿件（登记前崩溃/失效清理残留）不服务
-            return _json_error(404, "dual.json 未产出")
+            return _json_error(404, "dual.json 未产出", "not_found")
 
         def _load() -> dict[str, Any]:
             if not dual_path.is_file():
@@ -1719,7 +2012,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
             # 数 MB 级读+解析——卸出事件循环
             dual = await asyncio.to_thread(_load)
         except FileNotFoundError:
-            return _json_error(404, "dual.json 未产出")
+            return _json_error(404, "dual.json 未产出", "not_found")
         except (json.JSONDecodeError, TypeError):
             return _json_error(500, "dual.json 损坏", "internal")
         docs = dual.get("documents") or {}
@@ -1755,11 +2048,10 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
                 # 钉死在 html）
                 "view": (
                     "dom"
-                    if store.file_record(task_id, "zh_html")
+                    if files.get("zh_html")
                     else (
                         "html"
-                        if store.file_record(task_id, "md_zip")
-                        and not store.file_record(task_id, "zh_pdf")
+                        if files.get("md_zip") and not files.get("zh_pdf")
                         else "pdf"
                     )
                 ),
@@ -1768,15 +2060,18 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
 
     @app.put("/api/task/{task_id}/reader/position")
     async def reader_put(request: Request, task_id: str) -> Response:
-        """阅读位置落盘（``tasks/{id}/reading.json``）；版本不符 409。"""
+        """阅读位置落盘（``tasks/{id}/reading.json``）；版本不符 409。
+
+        字段级合并：body 出现的键更新、缺席的保留——整覆写会让「单栏
+        保存」抹掉对侧位置（``positions`` 再按侧键深合并，en/zh 互补）。
+        """
         _get_task(request, task_id)
+        files = store.files(task_id)  # 一次取——串发 file_record 是 mini-N+1
         body = await _read_body(request)
         want = str(body.get("document_version") or "")
         if want:
             # arxiv_html 无 zh_pdf——回落 zh_html（dom 路也吃防旧版位置回灌）
-            rec = store.file_record(task_id, "zh_pdf") or store.file_record(
-                task_id, "zh_html"
-            )
+            rec = files.get("zh_pdf") or files.get("zh_html")
             cur = str((rec or {}).get("sha256") or "")
             if cur and want != cur:
                 return _json_error(409, "document_version mismatch", "version_mismatch")
@@ -1789,7 +2084,20 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         def _persist() -> None:
             tdir = root / "tasks" / task_id
             tdir.mkdir(parents=True, exist_ok=True)
-            atomic_json(tdir / "reading.json", keep)
+            path = tdir / "reading.json"
+            existing: dict[str, Any] = {}
+            try:
+                raw = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                raw = None
+            if isinstance(raw, dict):
+                existing = raw
+            merged = {**existing, **keep}
+            old_pos = existing.get("positions")
+            new_pos = keep.get("positions")
+            if isinstance(old_pos, dict) and isinstance(new_pos, dict):
+                merged["positions"] = {**old_pos, **new_pos}
+            atomic_json(path, merged)
 
         await asyncio.to_thread(_persist)
         return JSONResponse({"ok": True})
@@ -1810,15 +2118,16 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         """合并更新（0600 原子写 + connections 分槽）。
 
         键白名单 = ``SettingsStore.FIELDS`` + ``clear_api_key``/``has_api_key``
-        两个伪字段——未知键直接 400，否则 save 会原样写进 settings.json
-        攒垃圾键（load 侧 FIELDS 过滤只是读时兜底）。
+        两个伪字段（出参回显/显式控制）。未识别键不落盘——在响应
+        ``ignored`` 字段原样回显：静默丢弃的 200 会让调用方以为写入
+        生效（前端可凭 ``ignored`` 出告警）。
         """
         _settings_write_gate()
         body = await _read_body(request)
         allowed = set(SettingsStore.FIELDS) | {"clear_api_key", "has_api_key"}
-        bad_keys = sorted(set(body) - allowed)
-        if bad_keys:
-            return _json_error(400, f"settings 未知字段: {bad_keys}")
+        ignored = sorted(set(body) - allowed)
+        for k in ignored:
+            body.pop(k)
         try:
             # save 内含同步 httpx 探活（timeout 不盖 DNS getaddrinfo，
             # 死 DNS 网络可卡数十秒）——to_thread 卸载防冻结事件循环；
@@ -1827,8 +2136,11 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         except (TypeError, ValueError) as e:
             # 字段值类型错（concurrency 收 None/dict/list 时 int() TypeError）
             # 与校验错同归 400——非数值输入是客户端错误非服务端故障
-            return _json_error(400, str(e))
-        return JSONResponse(settings_store.public())
+            return _json_error(400, str(e), "invalid_request")
+        resp = settings_store.public()
+        if ignored:
+            resp["ignored"] = ignored
+        return JSONResponse(resp)
 
     @app.post("/api/settings/test")
     async def settings_test(request: Request) -> Response:
@@ -1838,7 +2150,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         if body.get("base_url") and not body.get("api_key"):
             # 跨槽组合即已存 key 被打向任意出站地址的 exfil oracle——
             # 与 settings.save 的「新槽按新 base_url 查 key」同设计。
-            return _json_error(400, "覆盖 base_url 须同给 api_key")
+            return _json_error(400, "覆盖 base_url 须同给 api_key", "invalid_request")
         cur = settings_store.load()
         base_url = str(body.get("base_url") or cur["base_url"])
         api_key = str(body.get("api_key") or cur["api_key"])
@@ -1846,7 +2158,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         try:
             base_url = validate_base_url(base_url)
         except ValueError as e:
-            return _json_error(400, str(e))
+            return _json_error(400, str(e), "invalid_request")
         client = ChatClient(base_url, api_key)
         try:
             models = await client.list_models()

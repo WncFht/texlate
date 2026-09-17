@@ -46,6 +46,12 @@ import texlate.server.worker as _w
 
 log = logging.getLogger(__name__)
 
+#: babeldoc ``on_progress`` 回弹节流——pct 动 ≥1pt 或距上次 ≥0.2s 才
+#: 经 ``_on_loop`` 写 progress（sidecar 逐 tick 扇出成本高；终态 100
+#: 由 ``transition`` 写不在此面）
+_PROGRESS_MIN_DPCT = 1.0
+_PROGRESS_MIN_S = 0.2
+
 
 class _Pdf:
     """upload_pdf/docx/epub 产物臂 mixin（babeldoc/export）。"""
@@ -130,6 +136,7 @@ class _Pdf:
                 "message": scrub(run.error, ctx.secrets.api_key),
                 "retryable": True,
             }
+        self._mark_terminal(ctx, status)
         self.store.transition(
             ctx.task_id,
             status,
@@ -207,14 +214,24 @@ class _Pdf:
             return
         job = self._babeldoc_job(ctx, src, outdir, workdir)
         last_stage = ""
+        last_pct = -1.0
+        last_emit = 0.0
 
         def on_progress(pct: float, stage: str) -> None:
-            nonlocal last_stage
-            self._on_loop(
-                self._progress,
-                ctx,
-                30 + min(65, round(65 * pct / 100)),
-            )
+            # sidecar 逐 tick 扇出节流（_PROGRESS_MIN_* 口径）
+            nonlocal last_stage, last_pct, last_emit
+            now = time.monotonic()
+            if (
+                abs(pct - last_pct) >= _PROGRESS_MIN_DPCT
+                or now - last_emit >= _PROGRESS_MIN_S
+            ):
+                last_pct = pct
+                last_emit = now
+                self._on_loop(
+                    self._progress,
+                    ctx,
+                    30 + min(65, round(65 * pct / 100)),
+                )
             if stage and stage != last_stage:
                 last_stage = stage
                 self._log(ctx, f"babeldoc stage: {stage}")
@@ -303,7 +320,8 @@ class _Pdf:
             except Exception:
                 log.debug("doc usage persist failed", exc_info=True)
             # clients 在 to_thread 的 ephemeral loop 里跑过——aclose 尽力而为；
-            # _PerCallTranslator 臂无共享 client（per-call 即关）clients 空跳过
+            # _PerCallTranslator 臂 client 懒绑消费侧 loop（export run 包装
+            # finally 内自关），此处 clients 空跳过
             if clients:
                 try:
                     await _w._aclose_clients(clients)  # noqa: SLF001 -- _w 包 attr 缝
@@ -334,6 +352,7 @@ class _Pdf:
                 ),
                 "retryable": bool(report.fault),
             }
+        self._mark_terminal(ctx, status)
         self.store.transition(
             ctx.task_id,
             status,

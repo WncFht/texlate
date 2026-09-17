@@ -587,7 +587,7 @@ def test_snapshot_counters_consistency(tmp_path: Path) -> None:
 
 
 def test_task_queries(tmp_path: Path) -> None:
-    """list_tasks 租户隔离 + 过滤；find_active_by_cache_key；tenant_usage；
+    """_list_tasks_all 租户隔离 + 过滤；find_active_by_cache_key；tenant_usage；
     delete_file 幂等回执。"""
     s = _store(tmp_path)
     ta = _mk_task(s, tenant="a", cache_key="k1")
@@ -595,8 +595,8 @@ def test_task_queries(tmp_path: Path) -> None:
     tc = _mk_task(s, tenant="b")
     _install(s, ta, "translating")
     _install(s, tb, "done")
-    assert {r["id"] for r in s.list_tasks("a")} == {ta, tb}
-    assert [r["id"] for r in s.list_tasks("a", status="done")] == [tb]
+    assert {r["id"] for r in s._list_tasks_all("a")} == {ta, tb}  # noqa: SLF001 -- 测试专用私有方法
+    assert [r["id"] for r in s._list_tasks_all("a", status="done")] == [tb]  # noqa: SLF001
     active = s.find_active_by_cache_key("k1")
     assert active is not None
     assert active["id"] == ta

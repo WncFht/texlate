@@ -31,9 +31,11 @@ from test_worker_audit_fixes import _mk
 
 import texlate.server.worker.events as worker_events
 from texlate.server.events import EventBus
-from texlate.server.store import new_task_id
+from texlate.server.store import Store, new_task_id
 from texlate.server.worker import (
     _FLUSH_N,
+    PipelineWorker,
+    Secrets,
     SegmentCache,
     TaskCtx,
     TaskRunner,
@@ -146,6 +148,8 @@ class TestTerminalGuards:
         ctx, worker, store = _mk(tmp_path)
         worker._progress(ctx, 33)  # noqa: SLF001
         worker._log(ctx, "live log")  # noqa: SLF001
+        assert ctx.log_buf == ["live log"], "非终态行先缓冲（合批契约）"
+        worker._flush_logs(ctx)  # noqa: SLF001
         assert store.get(ctx.task_id)["progress"] == 33  # noqa: PLR2004
         assert any(e["type"] == "log" for e in store.events_since(ctx.task_id, 0))
 
@@ -438,3 +442,276 @@ class TestDocOnResultBatching:
         assert len(evs) == 2  # noqa: PLR2004
         assert len(evs[1]["data"]["items"]) == 1
         assert store.get(ctx.task_id)["done_chunks"] == _FLUSH_N + 1
+
+
+class TestRunProcessShouldCancel:
+    """review2 worker#1：``run_process(should_cancel=)`` 分片轮询中断臂。
+
+    ``communicate`` 在 ``TimeoutExpired`` 后可合法重入续读——按
+    ``_CANCEL_POLL_S`` 切片间查旗标，置位抛 ``CancelledError`` 落既有
+    ``except BaseException`` → ``_kill_tree`` 收树（孤儿收敛亚秒级）。
+    """
+
+    def test_should_cancel_kills_sleeper(self, tmp_path: Path) -> None:
+        import sys  # noqa: PLC0415
+
+        from texlate.compile.sandbox import run_process  # noqa: PLC0415
+
+        flag = threading.Event()
+        timer = threading.Timer(0.2, flag.set)
+        timer.start()
+        t0 = time.monotonic()
+        try:
+            with pytest.raises(asyncio.CancelledError):
+                run_process(
+                    [sys.executable, "-c", "import time; time.sleep(60)"],
+                    cwd=tmp_path,
+                    env={},
+                    timeout=60,
+                    should_cancel=flag.is_set,
+                )
+        finally:
+            timer.cancel()
+        assert time.monotonic() - t0 < 10, "旗标置位须远早于 timeout 收敛"  # noqa: PLR2004
+
+    def test_should_cancel_pre_set(self, tmp_path: Path) -> None:
+        """旗标在 communicate 前已置位——首个轮询点即抛不空转。"""
+        import sys  # noqa: PLC0415
+
+        from texlate.compile.sandbox import run_process  # noqa: PLC0415
+
+        with pytest.raises(asyncio.CancelledError):
+            run_process(
+                [sys.executable, "-c", "print('never')"],
+                cwd=tmp_path,
+                env={},
+                timeout=30,
+                should_cancel=lambda: True,
+            )
+
+    def test_no_flag_unchanged(self, tmp_path: Path) -> None:
+        """``should_cancel=None`` 旧路径：单发 communicate 正常回。"""
+        import sys  # noqa: PLC0415
+
+        from texlate.compile.sandbox import run_process  # noqa: PLC0415
+
+        rc, out, _s, timed_out = run_process(
+            [sys.executable, "-c", "print('ok-line')"],
+            cwd=tmp_path,
+            env={},
+            timeout=30,
+        )
+        assert rc == 0
+        assert "ok-line" in out
+        assert not timed_out
+
+
+class TestLogBatching:
+    """review2 worker#3：``_log`` 行合批——N 行/计时/边界排空合并成单事件。"""
+
+    def _logs(self, store: Store, task_id: str) -> list[dict]:
+        return [e for e in store.events_since(task_id, 0) if e["type"] == "log"]
+
+    def test_n_lines_single_event(self, tmp_path: Path) -> None:
+        ctx, worker, store = _mk(tmp_path)
+        n = worker_events._LOG_FLUSH_N  # noqa: SLF001
+        for i in range(n):
+            worker._log(ctx, f"l{i}")  # noqa: SLF001
+        evs = self._logs(store, ctx.task_id)
+        assert len(evs) == 1, "满批应只发一条合并事件"
+        assert evs[0]["data"]["line"].splitlines() == [f"l{i}" for i in range(n)]
+        assert ctx.log_buf == []
+
+    def test_time_threshold_flushes(self, tmp_path: Path) -> None:
+        ctx, worker, store = _mk(tmp_path)
+        worker._log(ctx, "a")  # noqa: SLF001
+        assert ctx.log_buf == ["a"], "首行缓冲不立即发"
+        ctx.log_last -= worker_events._LOG_FLUSH_S + 0.01  # noqa: SLF001 -- 推过计时闸
+        worker._log(ctx, "b")  # noqa: SLF001
+        evs = self._logs(store, ctx.task_id)
+        assert len(evs) == 1
+        assert evs[0]["data"]["line"].splitlines() == ["a", "b"]
+
+    def test_residual_flushed_at_stage_boundary(self, tmp_path: Path) -> None:
+        ctx, worker, store = _mk(tmp_path)
+        worker._log(ctx, "l1")  # noqa: SLF001
+        worker._log(ctx, "l2")  # noqa: SLF001
+        assert not self._logs(store, ctx.task_id), "未满批不得提前扇出"
+        worker._stage(ctx, "parsing", "解析", 9)  # noqa: SLF001
+        evs = self._logs(store, ctx.task_id)
+        assert len(evs) == 1
+        assert evs[0]["data"]["line"].splitlines() == ["l1", "l2"]
+        types = [e["type"] for e in store.events_since(ctx.task_id, 0)]
+        assert types.index("log") < types.index("stage"), "log 不得越过 stage"
+
+    def test_mark_terminal_flushes_and_drops(self, tmp_path: Path) -> None:
+        ctx, worker, store = _mk(tmp_path)
+        worker._mock_warned.add(ctx.task_id)  # noqa: SLF001
+        worker._log(ctx, "tail")  # noqa: SLF001
+        worker._mark_terminal(ctx, "done")  # noqa: SLF001
+        assert [e["data"]["line"] for e in self._logs(store, ctx.task_id)] == [
+            "tail"
+        ], "终态迁移前残余行须先排空"
+        assert ctx.terminal == "done"
+        assert ctx.task_id not in worker._mock_warned, "终态摘除 mock 告警登记"  # noqa: SLF001
+        worker._log(ctx, "after")  # noqa: SLF001
+        assert ctx.log_buf == [], "terminal 置位后 _log 直接丢"
+
+    def test_warning_orders_after_buffer(self, tmp_path: Path) -> None:
+        ctx, worker, store = _mk(tmp_path)
+        worker._log(ctx, "l1")  # noqa: SLF001
+        worker._warning(ctx, "w1", "warn-msg")  # noqa: SLF001
+        types = [e["type"] for e in store.events_since(ctx.task_id, 0)]
+        assert types.index("log") < types.index("warning")
+
+
+class TestMaterializeCopyfileToctou:
+    """review2 worker#9：``is_file``→``copyfile`` 间并发清空 → OSError 按缺失跳过。"""
+
+    def test_copyfile_oserror_skips(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import shutil  # noqa: PLC0415
+
+        ctx, worker, store = _mk(tmp_path)
+        donor = store.create_task(
+            task_id=new_task_id(),
+            kind="arxiv",
+            target_lang="zh-CN",
+            model="m",
+            arxiv_id="2401.00002",
+            options={},
+        )
+        hit_root = tmp_path / "tasks" / donor["id"]
+        hit_root.mkdir(parents=True)
+        (hit_root / "zh.pdf").write_bytes(b"%PDF-1.4 hit")
+        store.put_file(donor["id"], "zh_pdf", "zh.pdf", data_dir=hit_root)
+        ctx.root.mkdir(parents=True)
+
+        def boom(*_a: object, **_kw: object) -> None:
+            msg = "vanished between is_file and copyfile"
+            raise FileNotFoundError(msg)
+
+        monkeypatch.setattr(shutil, "copyfile", boom)
+        n = worker._materialize_reuse(ctx, dict(donor))  # noqa: SLF001
+        assert n == 0, "拷贝失败按缺失跳过——n=0 落零物化熔断臂"
+        assert not (ctx.root / "zh.pdf").exists()
+        worker._flush_logs(ctx)  # noqa: SLF001
+        evs = [e for e in store.events_since(ctx.task_id, 0) if e["type"] == "log"]
+        assert any("拷贝失败" in e["data"]["line"] for e in evs)
+
+
+class TestBabeldocProgressThrottle:
+    """review2 worker#7：on_progress 节流——pct Δ≥1pt 或距上次 ≥0.2s 才回弹。"""
+
+    def test_ticks_throttled(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import texlate.server.worker.pdf as pdf_mod  # noqa: PLC0415
+        from texlate.server.babeldoc import BabeldocRun  # noqa: PLC0415
+
+        ctx, worker, store = _mk(tmp_path, worker_kw={"babeldoc": "/bin/true"})
+        ctx.secrets = Secrets(api_key="k", base_url="http://b", model="m")
+        ctx.root.mkdir(parents=True)
+        up = ctx.root / "upload"
+        up.mkdir()
+        (up / "p.pdf").write_bytes(b"%PDF-1.4 fake")
+
+        writes: list[int] = []
+
+        def spy(_c: TaskCtx, v: int) -> None:
+            writes.append(v)
+
+        monkeypatch.setattr(worker, "_progress", spy)
+        monkeypatch.setattr(worker, "_build_dual", lambda *_a: None)
+        ticks = 200
+
+        async def fake_run(_job: object, **kw: object) -> BabeldocRun:
+            on_progress = kw["on_progress"]
+            for i in range(ticks):
+                on_progress(i * 0.4, "stage-a")
+            return BabeldocRun(rc=0, seconds=0.1, status="ok", outputs={})
+
+        monkeypatch.setattr(pdf_mod, "run_babeldoc", fake_run)
+
+        async def drive() -> None:
+            worker._loop = asyncio.get_running_loop()  # noqa: SLF001
+            worker._loop_tid = threading.get_ident()  # noqa: SLF001
+            await worker._run_pdf(ctx)  # noqa: SLF001
+
+        asyncio.run(drive())
+        assert 1 <= len(writes) <= ticks // 2, "0.4pt 步进的 tick 大多被节流"
+        assert store.get(ctx.task_id)["status"] == "done"
+
+
+class TestPendingEnqueue:
+    """review2 worker#15：``_queue is None`` 窗 enqueue 暂存——secrets 不只登不消。"""
+
+    def test_prestart_enqueue_drains_on_start(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        store = Store(tmp_path / "t.db")
+        store.open()
+        try:
+            bus = EventBus(store)
+            worker = PipelineWorker(store, bus, tmp_path)
+            runner = TaskRunner(store, bus, worker)
+            row = store.create_task(
+                task_id=new_task_id(),
+                kind="arxiv",
+                target_lang="zh-CN",
+                model="m",
+                auth_source="header",  # replay 防御性排除——唯 _pending_enqueue 送达
+            )
+            tid = str(row["id"])
+            runner.enqueue(tid, Secrets(api_key="k"))
+            assert runner._queue is None  # noqa: SLF001 -- start() 前窗
+            assert tid in runner.secrets, "secrets 登记不丢"
+
+            ran: list[str] = []
+
+            async def fake_run(_self: PipelineWorker, c: TaskCtx) -> None:
+                ran.append(c.task_id)
+
+            monkeypatch.setattr(PipelineWorker, "run", fake_run)
+
+            async def drive() -> None:
+                runner.start()
+                await asyncio.sleep(0.2)
+                assert ran == [tid], "start() 须把暂存条目灌进队列"
+                await runner.stop()
+
+            asyncio.run(drive())
+        finally:
+            store.close()
+
+
+class TestStageSeconds:
+    """review2 worker#13：``_stage`` 首入点 monotonic → done 载荷 ``stage_seconds``。"""
+
+    def test_stage_marks_first_touch(self, tmp_path: Path) -> None:
+        ctx, worker, _store = _mk(tmp_path)
+        assert ctx.stage_marks == {}
+        worker._stage(ctx, "fetching", "取源", 3)  # noqa: SLF001
+        worker._stage(ctx, "parsing", "解析", 9)  # noqa: SLF001
+        assert set(ctx.stage_marks) == {"fetching", "parsing"}
+        first = ctx.stage_marks["fetching"]
+        worker._stage(ctx, "fetching", "取源完成", 8)  # noqa: SLF001
+        assert ctx.stage_marks["fetching"] == first, "setdefault 不覆写首入点"
+
+    def test_stage_seconds_diff_and_done_payload(self, tmp_path: Path) -> None:
+        ctx, worker, store = _mk(tmp_path)
+        now = time.monotonic()
+        ctx.stage_marks["fetching"] = now - 10.0
+        ctx.stage_marks["parsing"] = now - 4.0
+        ctx.stage_marks["translating"] = now - 1.0
+        ss = worker._stats(ctx)["stage_seconds"]  # noqa: SLF001
+        assert 5.9 <= ss["fetch"] <= 6.1  # noqa: PLR2004
+        assert 2.9 <= ss["parse"] <= 3.1  # noqa: PLR2004
+        assert ss["translate"] >= 0.9  # noqa: PLR2004 -- 末段计到构建点
+        assert "compile" not in ss, "未跑段无 mark 自然缺席"
+        worker._fail(ctx, "x", "boom", retryable=False, stage=None)  # noqa: SLF001
+        done = [e for e in store.events_since(ctx.task_id, 0) if e["type"] == "done"][
+            -1
+        ]
+        assert done["data"]["stats"]["stage_seconds"]["fetch"] == ss["fetch"]

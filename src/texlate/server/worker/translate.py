@@ -81,7 +81,7 @@ class _Translate:
 
     async def _stage_translate(self, ctx: TaskCtx) -> None:
         """translating：XlatPipeline 跑 chunks pending 集（批量 flush 落盘）。"""
-        rows = self.store.all_chunks(ctx.task_id)
+        rows = self._all_chunks(ctx)
         if not rows:
             self._stage(ctx, "translating", "无可译块", PROGRESS["translating"][1])
             return
@@ -95,7 +95,7 @@ class _Translate:
         # 上秒级堵 SSE/心跳/分发；DB 读按单写者纪律留 loop 线程
         prep = await self._to_thread(ctx, self._translate_prep, rows)
         cache: SegmentCache = prep["cache"]
-        state = DBStateBridge(self.store, ctx.task_id)
+        state = DBStateBridge(self.store, ctx.task_id, rows=rows)
         seq_map: dict[str, int] = prep["seq_map"]
         status_map: dict[str, str] = prep["status_map"]
         # 本段起跑前快照——retry/resume 重跑翻译若改行（pending→ok/
@@ -139,7 +139,9 @@ class _Translate:
         try:
             run_task = asyncio.create_task(pipe.run(inputs))
             while not run_task.done():
-                await asyncio.sleep(0.05)
+                # wait 代 sleep：任务完成即醒（无残 50ms 尾延），超时兜底
+                # 0.5s 维持 cancel/flush 轮询节奏
+                await asyncio.wait({run_task}, timeout=0.5)
                 self._check_cancelled(ctx)
                 if (
                     len(state.buffer) >= _FLUSH_N
@@ -190,8 +192,9 @@ class _Translate:
             # 后继续写 buffer/sse_items/done_map，且 clients 在任务脚下
             # 被 aclose
             run_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await run_task
+            # asyncio.wait 不回传 run_task 的 CancelledError——await 直等
+            # 会把外层 worker 自身的二次 cancel 一并吞掉（同型异常不可分）
+            await asyncio.wait({run_task})
         in_flight = sys.exc_info()[0] is not None
         tail_exc: Exception | None = None
         try:
@@ -241,10 +244,14 @@ class _Translate:
         # recover_copied_tokens 抄回修复臂整条死代码（_l2_run_state 同款
         # chunk_to_in(ph_map=) 模式；DB chunk_id ↔ scans 按 byte span 对账）
         frag_of = self._ph_frag_map(ctx)
+        if "doc_ph" not in ctx.memo:
+            ctx.memo["doc_ph"] = collect_doc_placeholders(
+                r["src_text"] for r in rows
+            )
         return {
             "glossary": self._make_glossary(
                 ctx,
-                placeholders=collect_doc_placeholders(r["src_text"] for r in rows),
+                placeholders=ctx.memo["doc_ph"],
             ),
             "cache": self._make_cache(ctx),
             "frag_of": frag_of,
@@ -315,6 +322,7 @@ class _Translate:
             "progress": _translate_progress(n_done, len(status_map)),
         }
         self.store.flush_chunk_batch(ctx.task_id, updates, cache.drain(), counts)
+        ctx.chunks_cache = None  # chunks 行已写——物化缓存失效
         # 落盘成功才丢缓冲——瞬逝 DB 错时记录留 buffer 等下一轮 flush 重投
         state.buffer = []
         items_now = list(sse_items)
@@ -351,7 +359,7 @@ class _Translate:
             return
         post = {
             r["chunk_id"]: (str(r["status"]), str(r["translation"] or ""))
-            for r in self.store.all_chunks(ctx.task_id)
+            for r in self._all_chunks(ctx)
         }
         if post == pre_rows:
             return
@@ -629,7 +637,13 @@ class _Translate:
         五层序：user > local(``base/glossary.local.yaml``) > categories
         （arXiv 声明分类 → ``terms/*.csv`` 经 index.yaml）> default >
         placeholders（``[[X_n]]`` 恒等注入逼模型原样回抄）。
+
+        每任务 2~4 调（主链/env_judge/L2/pdf 臂同形构造）——``ctx.memo``
+        按 ``("glossary", frozenset(placeholders))`` 备忘复用。
         """
+        mkey = ("glossary", frozenset(placeholders))
+        if mkey in ctx.memo:
+            return ctx.memo[mkey]
         try:
             cfg = json.loads(str(ctx.row.get("config_json") or "{}"))
         except json.JSONDecodeError:
@@ -638,24 +652,27 @@ class _Translate:
         local = self._local_glossary(ctx)
         cats = self._arxiv_categories(ctx)
         try:
-            if not gpath:
-                return Glossary.load(
-                    local_path=local, categories=cats, placeholders=placeholders
-                )
-            path = self._glossary_path(ctx, gpath, str(cfg.get("glossary_dir") or ""))
-            if path is None:
-                return Glossary.load(
-                    local_path=local, categories=cats, placeholders=placeholders
-                )
-            return Glossary.load(
-                user_path=path,
-                local_path=local,
-                categories=cats,
-                placeholders=placeholders,
+            path = (
+                self._glossary_path(ctx, gpath, str(cfg.get("glossary_dir") or ""))
+                if gpath
+                else None
             )
+            if path is None:
+                g = Glossary.load(
+                    local_path=local, categories=cats, placeholders=placeholders
+                )
+            else:
+                g = Glossary.load(
+                    user_path=path,
+                    local_path=local,
+                    categories=cats,
+                    placeholders=placeholders,
+                )
         except Exception as e:  # noqa: BLE001 -- 术语表是增强件：load 面 TypeError/yaml.YAMLError 等非 OSError/ValueError 同降级无表
             self._log(ctx, f"glossary load failed: {e}")
-            return None
+            g = None
+        ctx.memo[mkey] = g
+        return g
 
     def _make_cache(self, ctx: TaskCtx) -> SegmentCache:
         """段缓存门面（cfg 指纹前缀含 model/prompt_ver/lang[/key 指纹]）。"""

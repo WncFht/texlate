@@ -43,6 +43,8 @@ from texlate.xlat.glossary import Glossary
 from texlate.xlat.pipeline import MockTranslator
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from fastapi import FastAPI
 
 _ERR_LOG = "! Undefined control sequence.\nl.5 \\badcs\n"
@@ -90,6 +92,7 @@ class FlakyEngine:
         env_extra: dict[str, str] | None = None,  # noqa: ARG002
         best_effort: bool = False,
         flags: list[str] | None = None,
+        should_cancel: Callable[[], bool] | None = None,  # noqa: ARG002
     ) -> CompRes:
         """同 wdir 首调失败（! 错 log）、其后成功出假 pdf。"""
         first = str(wdir) not in self.seen

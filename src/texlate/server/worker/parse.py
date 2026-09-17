@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import shutil
 from typing import TYPE_CHECKING, Any
 
@@ -44,6 +43,7 @@ class _Parse:
             # DOM 链：无 normalize/主文件——src/index.html 直接出 chunk 行
             rows = await self._to_thread(ctx, self._parse_html)
             self.store.insert_chunks(ctx.task_id, rows)
+            ctx.chunks_cache = None
             self._stage(ctx, "parsing", "解析完成", PROGRESS["parsing"][1])
             self._check_cancelled(ctx)
             return
@@ -52,6 +52,7 @@ class _Parse:
         self._check_cancelled(ctx)
         rows, scans = await self._to_thread(ctx, self._parse_all)
         self.store.insert_chunks(ctx.task_id, rows)
+        ctx.chunks_cache = None
         ctx.scans = scans
         self._stage(ctx, "parsing", "解析完成", PROGRESS["parsing"][1])
         self._check_cancelled(ctx)
@@ -103,15 +104,19 @@ class _Parse:
         # 引擎路由与主文件持久化——resume 后编译段还要用同一台引擎；
         # route_engines 供 fixloop 跨引擎臂（tectonic 丢 flag → xelatex
         # 重编）判定——显式 engine 覆盖时只剩用户指定那台，跨臂自熄
-        opts = ctx.options()
-        opts["engine_resolved"] = ctx.engine_name
-        opts["route_engines"] = list(engines)
-        ctx.row["options_json"] = json.dumps(opts, ensure_ascii=False)
+        options_json = ctx.update_options(
+            lambda o: o.update(
+                {
+                    "engine_resolved": ctx.engine_name,
+                    "route_engines": list(engines),
+                }
+            )
+        )
         self._on_loop(
             self.store.update_fields,
             ctx.task_id,
             main_tex=ctx.main_rel,
-            options_json=ctx.row["options_json"],
+            options_json=options_json,
         )
         (ctx.base_dir / ".base-done").write_text("", encoding="utf-8")
 

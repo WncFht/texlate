@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import shutil
 import zipfile
@@ -167,7 +168,7 @@ class _Compile:
         self._progress(ctx, PROGRESS["compiling"][0] + 4)
         await self._to_thread(ctx, self._compile_en)
         ctx.expect_cjk = self._expect_cjk(ctx)
-        ok = await self._to_thread(ctx, self._compile_zh)
+        ok = await self._compile_zh_or_salvage(ctx)
         self._check_cancelled(ctx)
         self._progress(ctx, PROGRESS["compiling"][1])
         # pypdf 页树走查 + named-dest 对齐是 CPU 重活——出 loop 线程，
@@ -214,6 +215,7 @@ class _Compile:
             await self._no_pdf_finish(ctx, share=share)
             await self._maybe_share_pack(ctx)
             return
+        self._mark_terminal(ctx, status)
         self.store.transition(
             ctx.task_id,
             status,
@@ -232,6 +234,22 @@ class _Compile:
             },
         )
         await self._maybe_share_pack(ctx)
+
+    async def _compile_zh_or_salvage(self, ctx: TaskCtx) -> bool:
+        """``_compile_zh`` + 异常降级臂：编译段崩也把在库译文包出来。
+
+        dual/md_zip 只吃 chunks 表不依赖编译成败——尽力补出再走 fault。
+        cancel 在飞不救（旗标已置即用户要它死，不再花秒级补产物）；
+        CancelledError 是 BaseException 不经 ``except Exception`` 臂。
+        """
+        try:
+            return await self._to_thread(ctx, self._compile_zh)
+        except Exception:
+            if not ctx.cancel_flag.is_set():
+                for salvage in (self._build_dual, self._build_md_zip):
+                    with contextlib.suppress(Exception):
+                        await self._to_thread(ctx, salvage)
+            raise
 
     async def _no_pdf_finish(self, ctx: TaskCtx, *, share: bool) -> None:
         """无 pdf 终态臂：md.zip 降级产物 → share 归策略拒绝 / tex 归 fault。
@@ -275,7 +293,7 @@ class _Compile:
         if ctx.zh_dir.exists():
             shutil.rmtree(ctx.zh_dir)
         shutil.copytree(ctx.base_dir, ctx.zh_dir)
-        rows = self._on_loop(self.store.all_chunks, ctx.task_id)
+        rows = self._on_loop(self._all_chunks, ctx)
         trans = {
             r["chunk_id"]: r["translation"]
             for r in rows
@@ -430,6 +448,7 @@ class _Compile:
             timeout=self._compile_timeout,
             sandbox=True,
             flags=rep.flags if rep else None,
+            should_cancel=ctx.cancel_flag.is_set,
         )
         # eng.compile 是原子段（无插桩点）——跑完即收敛，后续 diff/登记是白费
         self._abort_if_cancelled(ctx)
@@ -504,6 +523,7 @@ class _Compile:
                 llm_hook=hook,
                 case_sink=CaseSink(self.data_dir / "fixloop-cases.jsonl"),
                 compile_timeout=self._compile_timeout,
+                should_cancel=ctx.cancel_flag.is_set,
             )
         except Exception as e:  # noqa: BLE001 -- fixloop 崩不拖垮编译段
             self._log(ctx, f"fixloop crashed: {type(e).__name__}: {e}")
@@ -550,6 +570,7 @@ class _Compile:
                 if self._engine_factory is not None
                 else _w.engine_for("xelatex", halt_on_error=False)
             ),
+            should_cancel=ctx.cancel_flag.is_set,
         )
         if xr is not None:
             summary["cross_engine"] = xr.info
@@ -651,7 +672,7 @@ class _Compile:
         self._abort_if_cancelled(ctx)
         ok = {
             r["chunk_id"]: r["translation"]
-            for r in self._on_loop(self.store.all_chunks, ctx.task_id)
+            for r in self._on_loop(self._all_chunks, ctx)
             if r["status"] == "ok" and r["translation"]
         }
         rels = sorted(ctx.scans)
@@ -668,14 +689,16 @@ class _Compile:
                 zh = ok.get(db_cid)
                 if zh is not None:
                     trans.setdefault(fidx, {})[c.id] = zh
+        if "doc_ph" not in ctx.memo:
+            ctx.memo["doc_ph"] = collect_doc_placeholders(
+                ci.content for ci in chunk_ins.values()
+            )
         pipe = XlatPipeline(
             self._make_translator(ctx),
             config=PipelineConfig(tgt_lang=_tgt_lang(str(ctx.row["target_lang"]))),
             glossary=self._make_glossary(
                 ctx,
-                placeholders=collect_doc_placeholders(
-                    ci.content for ci in chunk_ins.values()
-                ),
+                placeholders=ctx.memo["doc_ph"],
             ),
             validator=lambda s, z: validate_pair(s, z).feedback(),
         )
@@ -727,6 +750,7 @@ class _Compile:
                 timeout=self._compile_timeout,
                 sandbox=True,
                 flags=ctx.probe_flags or None,
+                should_cancel=ctx.cancel_flag.is_set,
             )
             # compile 原子段跑完即收敛——judge 前查取消省一轮白费判分
             self._abort_if_cancelled(ctx)
@@ -830,6 +854,7 @@ class _Compile:
                 "progress": int(row["progress"]) if row else 0,
             }
             self.store.flush_chunk_batch(ctx.task_id, applied, cache_puts, counters)
+            ctx.chunks_cache = None  # chunks 行已写——物化缓存失效
 
         self._on_loop(_flush)
 
@@ -891,6 +916,7 @@ class _Compile:
             timeout=self._compile_timeout,
             sandbox=True,
             flags=rep.flags if rep else None,
+            should_cancel=ctx.cancel_flag.is_set,
         )
         # eng.compile 原子段跑完即收敛——L2/fixloop/登记是后续白费
         self._abort_if_cancelled(ctx)
@@ -971,7 +997,7 @@ class _Compile:
                 else "",
                 "kind": r["kind"],
             }
-            for r in self._on_loop(self.store.all_chunks, ctx.task_id)
+            for r in self._on_loop(self._all_chunks, ctx)
         ]
         atomic_json(ctx.root / "dual.json", doc)
         self._register(ctx, "dual_json", "dual.json")
@@ -985,7 +1011,7 @@ class _Compile:
         只在 ``_stage_compile`` 无 pdf 终态分支调用，此处 dual.json 已落。
         """
         self._abort_if_cancelled(ctx)
-        rows = self._on_loop(self.store.all_chunks, ctx.task_id)
+        rows = self._on_loop(self._all_chunks, ctx)
         # 同 dual.json zh 位口径——非 ok 行（fallback_orig/failed 装 en
         # 原文回写）不算译文载荷，全非 ok 即「零译文不产」
         if not rows or not any(r["status"] == "ok" and r["translation"] for r in rows):

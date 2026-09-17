@@ -163,8 +163,22 @@ def drive_pipeline(  # noqa: PLR0913 -- 骨架即双驱共享参数面（chunks/
         glossary=g,
         on_result=on_result,
     )
+
+    async def _run() -> list[ChunkResult]:
+        try:
+            return await pipe.run(chunks)
+        finally:
+            # loop 绑定 client（worker._PerCallTranslator）的回收——
+            # aclose 须在本 ephemeral loop 存活时于其内 await
+            aclose = getattr(translator, "aclose", None)
+            if aclose is not None:
+                try:
+                    await aclose()
+                except Exception:
+                    log.debug("translator aclose failed", exc_info=True)
+
     try:
-        results = {r.chunk_id: r for r in asyncio.run(pipe.run(chunks))}
+        results = {r.chunk_id: r for r in asyncio.run(_run())}
     except BaseException:
         _completed, recs = store.load()
         partial = {

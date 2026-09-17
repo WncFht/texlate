@@ -12,6 +12,7 @@ key 入口优先级（高→低）：请求头 ``X-Texlate-*`` > ``settings.json
 from __future__ import annotations
 
 import contextlib
+import copy
 import hashlib
 import ipaddress
 import json
@@ -278,8 +279,37 @@ def _check_compile_timeout(value: object) -> float:
         raise ValueError(msg) from None
 
 
+#: 标量 str 字段——dict/list 落进来会被 ``str()`` 成字面量持久化
+#: （脏值再读不回原样）。``engine``/``target_lang`` 先查 str 还顺手挡掉
+#: ``dict in frozenset`` 的 TypeError（非 hashable 值撞枚举校验是
+#: 500 不是 400）。
+_SCALAR_STR_FIELDS = (
+    "base_url",
+    "model",
+    "api_key",
+    "target_lang",
+    "engine",
+    "glossary",
+    "glossary_dir",
+)
+
+
+def _check_scalar_types(values: dict[str, Any]) -> None:
+    """标量字段类型闸：str 字段拒容器；``context_guidance`` 限 bool。"""
+    for f in _SCALAR_STR_FIELDS:
+        if f in values and not isinstance(values[f], str):
+            msg = f"{f} 必须是字符串"
+            raise ValueError(msg)
+    if "context_guidance" in values and not isinstance(
+        values["context_guidance"], bool
+    ):
+        msg = "context_guidance 必须是布尔值"
+        raise ValueError(msg)
+
+
 def _normalize_updates(values: dict[str, Any]) -> None:  # noqa: C901 -- 逐字段分派链
     """``save`` 的逐字段归一化/校验（就地改写 ``values``）。"""
+    _check_scalar_types(values)
     if "base_url" in values:
         values["base_url"] = validate_base_url(str(values["base_url"]))
     if "model" in values:
@@ -298,7 +328,12 @@ def _normalize_updates(values: dict[str, Any]) -> None:  # noqa: C901 -- 逐字�
         values["glossary_dir"] = _check_glossary_dir(values["glossary_dir"])
     if "cors_origins" in values:
         values["cors_origins"] = _check_cors_origins(values["cors_origins"])
-    for q in ("quota_max_tasks", "quota_max_bytes"):
+    for q in (
+        "quota_max_tasks",
+        "quota_max_bytes",
+        "retention_days",
+        "retention_max_gb",
+    ):
         if q in values:
             values[q] = _check_quota(values[q], q)
 
@@ -401,6 +436,8 @@ class SettingsStore:
         "cors_origins",
         "quota_max_tasks",
         "quota_max_bytes",
+        "retention_days",
+        "retention_max_gb",
     )
 
     def __init__(self, root: Path) -> None:
@@ -425,8 +462,9 @@ class SettingsStore:
     def load(self) -> dict[str, Any]:
         """读 settings.json；缺席/损坏回落默认。
 
-        返回缓存本体的浅拷贝——``public()`` 会 ``pop("api_key")``，
-        调用方就地改不污染缓存。
+        返回缓存本体的深拷贝——``public()`` 会 ``pop("api_key")``、
+        调用方可能就地改 ``cors_origins`` 等嵌套容器；浅拷贝会让
+        改动穿透进缓存体，污染后续全部 ``load()``。
         """
         try:
             st = self.path.stat()
@@ -435,7 +473,7 @@ class SettingsStore:
             sig = None  # 文件缺席也按签名缓存——缺席是常态不是异常
         with self._load_lock:
             if self._load_cache is not None and self._load_cache[0] == sig:
-                return dict(self._load_cache[1])
+                return copy.deepcopy(self._load_cache[1])
             data: dict[str, Any] = {}
             if sig is not None:
                 try:
@@ -446,7 +484,7 @@ class SettingsStore:
                     log.warning("settings.json 损坏（%s）→ 用默认值", e)
             out = self._normalize(data)
             self._load_cache = (sig, out)
-            return dict(out)
+            return copy.deepcopy(out)
 
     @staticmethod
     def _normalize(data: dict[str, Any]) -> dict[str, Any]:
@@ -467,6 +505,8 @@ class SettingsStore:
             "cors_origins": _load_origins(data.get("cors_origins")),
             "quota_max_tasks": _load_quota(data.get("quota_max_tasks")),
             "quota_max_bytes": _load_quota(data.get("quota_max_bytes")),
+            "retention_days": _load_quota(data.get("retention_days")),
+            "retention_max_gb": _load_quota(data.get("retention_max_gb")),
         }
 
     def save(self, updates: dict[str, Any]) -> dict[str, Any]:

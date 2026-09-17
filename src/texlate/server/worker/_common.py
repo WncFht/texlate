@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -199,33 +200,31 @@ class Secrets:
 
 @dataclass(slots=True)
 class TaskCtx:
-    """单次 run 的工作上下文：任务行快照 + 目录布局 + 内存态。"""
+    """单次 run 的工作上下文：任务行快照 + 目录布局 + 内存态（字段按段分节）。"""
 
+    # ---- 装配面：dispatcher 注入（全段共用） ----
     store: Store
     bus: EventBus
     task_id: str
     row: dict[str, Any]
     secrets: Secrets
     root: Path  # tasks/{id}/
-    scans: dict[str, ScanResult] = field(default_factory=dict)
-    main_rel: str = ""
-    engine_name: str = "tectonic"
-    tokens_est: int = 0
-    #: fixloop 跑过的压缩摘要（verdict/trace/installed）——_stage_compile
-    #: 终态写 error_json / done 事件载荷用；None = 未跑
-    fixloop: dict[str, Any] | None = None
-    #: L2 回灌报告（归因 hits/重译/回落名单）——同上进 error_json/done 载荷
-    l2: dict[str, Any] | None = None
-    #: share 导入对账统计（matched/dropped/missed/extra）——done stats 与
-    #: partial error_json 的审计载荷；None = 非 share 任务
-    share: dict[str, Any] | None = None
+
+    # ---- fetch 段 ----
     #: #74 post-resolve dedup 命中行（钉版键二次 ``find_reusable``）——
     #: ``_stage_fetch`` 物化其产物后任务直接终态，parse/translate 不跑
     reuse_hit: dict[str, Any] | None = None
-    #: judge 的 expect_cjk：0-chunk 主文档（includepdf 壳等）cjk_chars=0
-    #: 是正确终态。``_stage_compile`` 在 loop 线程算好——store conn
-    #: 有线程亲和，编译线程内不可查
-    expect_cjk: bool = True
+    #: reuse 命中零物化的熔断——hit 行被并发删干净时回退自跑，重跑
+    #: fetch 不得再撞同一腐行（``find_reusable`` 返回的还是它）
+    reuse_dead: bool = False
+    #: arxiv_html 链的 DOM 块模型（fetch/parse 建、emit 用 ph_map 回插）——
+    #: tex 链恒 None；resume 路径由 ``_html_doc`` 从 src/index.html 重解析
+    html_doc: HtmlDoc | None = None
+
+    # ---- parse 段 ----
+    scans: dict[str, ScanResult] = field(default_factory=dict)
+    main_rel: str = ""
+    engine_name: str = "tectonic"
     #: 散文门分流出的 support 文件（.code.tex 机制件/无散文宏件转储）——
     #: 按原文保留不进翻译集，送译即腐蚀（同 e2e._scan_tree 三级分流）；
     #: _stats 审计面消费
@@ -233,16 +232,36 @@ class TaskCtx:
     #: _parse_all 单文件解析崩的记名单（e2e ``fault_files`` 同位）——
     #: 此前只有 log 行无结构化面，_stats 落账
     fault_files: list[str] = field(default_factory=list)
+
+    # ---- translate 段（share 对账是同段替代臂） ----
+    tokens_est: int = 0
+    #: share 导入对账统计（matched/dropped/missed/extra）——done stats 与
+    #: partial error_json 的审计载荷；None = 非 share 任务
+    share: dict[str, Any] | None = None
+    #: ``all_chunks`` 全量行的 run 内物化缓存（``_all_chunks`` 惰性填）——
+    #: 每任务曾 5~7 次 ``SELECT *`` 全扫全在 loop 线程；chunk 写点
+    #: （insert/flush 调用侧）置 None 失效
+    chunks_cache: list[dict[str, Any]] | None = None
+
+    # ---- compile 段 ----
+    #: fixloop 跑过的压缩摘要（verdict/trace/installed）——_stage_compile
+    #: 终态写 error_json / done 事件载荷用；None = 未跑
+    fixloop: dict[str, Any] | None = None
+    #: L2 回灌报告（归因 hits/重译/回落名单）——同上进 error_json/done 载荷
+    l2: dict[str, Any] | None = None
+    #: judge 的 expect_cjk：0-chunk 主文档（includepdf 壳等）cjk_chars=0
+    #: 是正确终态。``_stage_compile`` 在 loop 线程算好——store conn
+    #: 有线程亲和，编译线程内不可查
+    expect_cjk: bool = True
     #: splice 译文里的残余占位符计数（e2e ``leftover_ph`` 同位）——
     #: _build_zh 逐文件累计
     leftover_ph: int = 0
-    #: arxiv_html 链的 DOM 块模型（fetch/parse 建、emit 用 ph_map 回插）——
-    #: tex 链恒 None；resume 路径由 ``_html_doc`` 从 src/index.html 重解析
-    html_doc: HtmlDoc | None = None
     #: _probe_target 探出的引擎 flags（-shell-escape 类）——首编经
     #: ``rep.flags`` 直连；L2 重编/cross-engine 重试经此续传（e2e
     #: ``job.probe_flags`` 同式，缺了重试臂在另一套条件下编译）
     probe_flags: list[str] = field(default_factory=list)
+
+    # ---- 运行态：取消/排空/终态旗标/日志合批/阶段计时/备忘 ----
     #: 线程级取消旗标：``cancel_running``/``stop``/``run()`` 取消臂置位。
     #: coroutine cancel 递不进在跑的 ``to_thread`` 工作线程——长段内
     #: 轮询本旗标尽快放弃（``_abort_if_cancelled``/``should_cancel``），
@@ -251,9 +270,21 @@ class TaskCtx:
     #: 在飞 ``_to_thread`` 段的完成事件集——``run()`` 收尾据此有界等
     #: 排空，retry 进入时孤儿线程已死，消除目录写交错窗口
     in_flight: set[threading.Event] = field(default_factory=set)
-    #: reuse 命中零物化的熔断——hit 行被并发删干净时回退自跑，重跑
-    #: fetch 不得再撞同一腐行（``find_reusable`` 返回的还是它）
-    reuse_dead: bool = False
+    #: 本地终态旗标（终态 status 字符串，空=未终态）——worker 自迁的
+    #: 终态点自置；事件写路径守卫先查它短路，空旗才 ``store.get`` 兜底
+    #: （外部 cancel 不立旗，库读仍是权威）
+    terminal: str = ""
+    #: ``_log`` 行缓冲（日志合批）：``_LOG_FLUSH_N``/``_LOG_FLUSH_S``
+    #: 阈值或 ``_stage``/``_warning``/终态边界排空；``log_last`` 记上次
+    #: 排空 monotonic——突发行（fixloop/babeldoc 逐行扇出）合并成单事件
+    log_buf: list[str] = field(default_factory=list)
+    log_last: float = 0.0
+    #: ``_stage`` 首次进入点的 monotonic——done 载荷 ``stage_seconds``
+    #: 由相邻 mark 差值推导（末段计到 ``_stats`` 构建时）
+    stage_marks: dict[str, float] = field(default_factory=dict)
+    #: 每任务备忘袋：``_make_glossary``/``_make_cache`` 这类每任务重复
+    #: 构造的段内复用位（键由消费点自取，如 ``"glossary"``）
+    memo: dict[str, Any] = field(default_factory=dict)
 
     @property
     def src_dir(self) -> Path:
@@ -277,6 +308,22 @@ class TaskCtx:
         except json.JSONDecodeError:
             return {}
         return data if isinstance(data, dict) else {}
+
+    def update_options(self, fn: Callable[[dict[str, Any]], None]) -> str:
+        """options「读-改-序列化-同步 row 快照」单点；返回新 options_json。
+
+        ``fn`` 拿到反序列化 dict 原地改键。**写库留给调用点**——多站点
+        捎带 ``main_tex`` 等合并字段一笔 ``update_fields``，收口进这里
+        反而拆事务/多写一次。
+        """
+        opts = self.options()
+        fn(opts)
+        self.row["options_json"] = json.dumps(opts, ensure_ascii=False)
+        return self.row["options_json"]
+
+    def set_option(self, key: str, value: Any) -> str:  # noqa: ANN401 -- options 值面天然 Any
+        """``update_options`` 的单键便捷形。"""
+        return self.update_options(lambda opts: opts.update({key: value}))
 
 
 def chunk_db_id(src_file: str, byte_start: int, byte_end: int) -> str:
@@ -541,17 +588,27 @@ class DBStateBridge:
     skipped/fault 续跑必须重试）；``record`` → 待写缓冲由 worker flush。
     """
 
-    def __init__(self, store: Store, task_id: str) -> None:
-        """绑定 store 与任务。"""
+    def __init__(
+        self,
+        store: Store,
+        task_id: str,
+        *,
+        rows: list[dict[str, Any]] | None = None,
+    ) -> None:
+        """绑定 store 与任务；``rows`` = 段头已读快照——给了 ``load`` 不再全扫。"""
         self._store = store
         self._task_id = task_id
+        self._rows = rows
         self.buffer: list[ChunkRecord] = []
 
     def load(self) -> tuple[set[str], dict[str, ChunkRecord]]:
         """Chunks 行 → (completed, recs)（``_load_resumed`` 契约）。"""
         completed: set[str] = set()
         recs: dict[str, ChunkRecord] = {}
-        for r in self._store.all_chunks(self._task_id):
+        rows = self._rows
+        if rows is None:
+            rows = self._store.all_chunks(self._task_id)
+        for r in rows:
             status = r["status"]
             if status not in _DB_TO_PIPE:
                 continue
@@ -651,16 +708,20 @@ class _FallbackTranslator:
 
 
 class _PerCallTranslator:
-    """ephemeral-loop 消费面的 BYOK translator：每次 ``translate`` 新建 ``ChatClient`` 即弃。
+    """ephemeral-loop 消费面的 BYOK translator：client 懒绑**运行中 loop**。
 
     ``LlmFixer._drive``（llm_hook）与 ``export_document``（doc 路）都把
     消费跑进**自有 ``asyncio.run`` 临时 loop**——共享 ``ChatClient`` 的
     httpx 池跨 loop 复用会炸（"attached to a different loop"，
-    ``llm_hook.py`` docstring 明示的坑），用毕的 aclose 也回不去已关
-    loop（RuntimeError 吞掉 → 连接 FD 泄漏）。per-call 即开即关是唯一
-    与消费侧 loop 生命周期一致的形态；``usage_sink`` 仍接同一
-    meter——旁路烧的 token 不从 ``task_usage`` 蒸发。``retry_model``
-    备选模型与 primary 同 per-call client（同 endpoint+key）。
+    ``llm_hook.py`` docstring 明示的坑），aclose 也回不去已关 loop
+    （RuntimeError → 连接 FD 泄漏）。原 per-call 即开即关每调用一对
+    connect/teardown（TLS 握手 ×N 调用）；改按 ``running loop`` 懒建
+    复用——同 loop 内整段共享一条连接池，消费侧收尾经 ``aclose()``
+    （须在**该 loop 存活时**于其内 await，export/common.py 的 run 包装
+    finally 即此钩）。死 loop 条目在下次 ``_client()`` 按
+    ``loop.is_closed`` 摘除（回不了死 loop 关，FD 归 GC——泄漏上界
+    同原形态）。``usage_sink`` 仍接同一 meter；``retry_model`` 备选与
+    primary 同 loop client（同 endpoint+key）。
     """
 
     def __init__(
@@ -677,6 +738,32 @@ class _PerCallTranslator:
         self._model = model
         self._retry_model = retry_model
         self._sink = sink
+        self._clients: dict[asyncio.AbstractEventLoop, ChatClient] = {}
+
+    @property
+    def clients(self) -> list[ChatClient]:
+        """存活 loop 的 client 面——``_translator_clients`` 接线用（死 loop 不可关不列）。"""
+        return [c for lp, c in self._clients.items() if not lp.is_closed()]
+
+    def _client(self) -> ChatClient:
+        """本 running loop 的懒建 client（顺带摘除死 loop 条目）。"""
+        loop = asyncio.get_running_loop()
+        for dead in [lp for lp in self._clients if lp.is_closed()]:
+            del self._clients[dead]
+        client = self._clients.get(loop)
+        if client is None:
+            client = ChatClient(self._base_url, self._api_key, usage_sink=self._sink)
+            self._clients[loop] = client
+        return client
+
+    async def aclose(self) -> None:
+        """关**本 running loop** 的 client——消费侧 loop 收尾钩（export run 包装 finally）。"""
+        client = self._clients.pop(asyncio.get_running_loop(), None)
+        if client is not None:
+            try:
+                await client.aclose()
+            except Exception as e:  # noqa: BLE001 -- 收尾尽力而为
+                log.debug("per-call client aclose failed: %s: %s", type(e).__name__, e)
 
     async def translate(
         self,
@@ -687,35 +774,32 @@ class _PerCallTranslator:
         max_tokens: int,
         response_format: dict[str, str] | None = None,
     ) -> str:
-        client = ChatClient(self._base_url, self._api_key, usage_sink=self._sink)
+        client = self._client()
+        primary = GatewayTranslator(client, self._model)
         try:
-            primary = GatewayTranslator(client, self._model)
-            try:
-                return await primary.translate(
-                    system=system,
-                    user=user,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    response_format=response_format,
-                )
-            except ChatError as e:
-                if not self._retry_model or not e.retryable:
-                    raise
-                log.warning(
-                    "retry_model: primary %s 失败（%s）→ 备选 %s",
-                    self._model,
-                    e,
-                    self._retry_model,
-                )
-            return await GatewayTranslator(client, self._retry_model).translate(
+            return await primary.translate(
                 system=system,
                 user=user,
                 temperature=temperature,
                 max_tokens=max_tokens,
                 response_format=response_format,
             )
-        finally:
-            await client.aclose()
+        except ChatError as e:
+            if not self._retry_model or not e.retryable:
+                raise
+            log.warning(
+                "retry_model: primary %s 失败（%s）→ 备选 %s",
+                self._model,
+                e,
+                self._retry_model,
+            )
+        return await GatewayTranslator(client, self._retry_model).translate(
+            system=system,
+            user=user,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            response_format=response_format,
+        )
 
 
 class _SectionAbort(Exception):  # noqa: N818 -- 取消控制流信号非 Error 语义

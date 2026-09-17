@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator
+    from collections.abc import Callable, Iterable, Iterator
 
     from fastapi import FastAPI
     from starlette.testclient import TestClient
@@ -219,6 +219,7 @@ class FakeEngine:
         sandbox: bool = True,  # noqa: ARG002
         env_extra: dict[str, str] | None = None,  # noqa: ARG002
         flags: list[str] | None = None,  # noqa: ARG002
+        should_cancel: Callable[[], bool] | None = None,  # noqa: ARG002
     ) -> CompRes:
         """不写真引擎：%PDF 假字节 + rc=0。judge 走 has_pdf 路径。"""
         from texlate.compile.engine import CompRes  # noqa: PLC0415
@@ -272,10 +273,15 @@ class RecordingEngine:
         env_extra: dict[str, str] | None = None,  # noqa: ARG002
         best_effort: bool = False,  # noqa: ARG002 -- fixloop salvage 旋钮
         flags: Iterable[str] | None = None,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> CompRes:
         """写 ``<stem>.pdf``+干净 ``<stem>.log`` → ``CompRes(ok=True)``。"""
+        import asyncio  # noqa: PLC0415
+
         from texlate.compile.engine import CompRes  # noqa: PLC0415
 
+        if should_cancel is not None and should_cancel():
+            raise asyncio.CancelledError
         stem = Path(main).stem
         pdf: Path | None = None
         pdf_bytes = 0

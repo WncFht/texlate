@@ -930,13 +930,14 @@ class TestSettingsChurn:
             assert r.status_code == HTTPStatus.BAD_REQUEST, bad
 
     def test_lenient_coercions(self, client: TestClient) -> None:
-        """宽容归一钉：float 截断 / int→str 强转（语义钉非缺陷）。"""
+        """宽容归一钉：float 截断（语义钉非缺陷）；标量字段非 str → 400。"""
         r = client.put("/api/settings", json={"concurrency": 3.9})
         assert r.json()["concurrency"] == 3  # noqa: PLR2004 -- 截断钉
         r = client.put("/api/settings", json={"quota_max_tasks": 3.7})
         assert r.json()["quota_max_tasks"] == 3  # noqa: PLR2004 -- 同上
+        # 标量闸：model 收 int 不再 str() 强转持久化字面量
         r = client.put("/api/settings", json={"model": 42})
-        assert r.json()["model"] == "42"
+        assert r.status_code == HTTPStatus.BAD_REQUEST
 
 
 # ------------------------------------------------------------ 方法/其它面

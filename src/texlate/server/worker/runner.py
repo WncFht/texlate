@@ -50,6 +50,10 @@ class TaskRunner:
         self.worker_id = worker_id or f"w-{secrets_mod.token_hex(6)}"
         self.secrets: dict[str, Secrets] = {}
         self._queue: asyncio.Queue[str] | None = None
+        #: ``_queue`` 未建（``start()`` 前）的入队暂存——此刻 enqueue
+        #: 登记 secrets 却排不进队，header-BYOK 行会成 replay 不捞的
+        #: 僵尸；暂存后 ``start()`` 建队即补灌
+        self._pending_enqueue: list[str] = []
         self._dispatcher: asyncio.Task[None] | None = None
         self._ticker: asyncio.Task[None] | None = None
         #: ``(task_id, ctx, task)``——ctx 在组里是为 cancel/stop 置
@@ -61,6 +65,9 @@ class TaskRunner:
     def start(self) -> None:
         """起 dispatcher + 心跳 ticker（必须在 loop 线程调）。"""
         self._queue = asyncio.Queue()
+        pending, self._pending_enqueue = self._pending_enqueue, []
+        for task_id in pending:
+            self._queue.put_nowait(task_id)
         self._replay_queued()
         self._dispatcher = asyncio.create_task(
             self._dispatch_loop(), name="texlate-dispatch"
@@ -123,11 +130,17 @@ class TaskRunner:
     # ------------------------------------------------------------ 对外
 
     def enqueue(self, task_id: str, secrets: Secrets | None = None) -> None:
-        """入队；``secrets`` 给了就登记（header BYOK 任务的唯一凭证通道）。"""
+        """入队；``secrets`` 给了就登记（header BYOK 任务的唯一凭证通道）。
+
+        ``start()`` 前队列未建——暂存 ``_pending_enqueue`` 由 ``start()``
+        补灌，不丢任务也不让 secrets 只登不消。
+        """
         if secrets is not None:
             self.secrets[task_id] = secrets
         if self._queue is not None:
             self._queue.put_nowait(task_id)
+        else:
+            self._pending_enqueue.append(task_id)
 
     def cancel_running(self, task_id: str) -> bool:
         """取消正在跑的任务；未在跑（还在队列）返回 False。

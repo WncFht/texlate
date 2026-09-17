@@ -104,6 +104,7 @@ class _Core:
             ctx.cancel_flag.set()
             # cancel 端点已置 cancelled；只在没有终态时补 interrupted
             if self._current_status(ctx) in ACTIVE_STATUSES:
+                self._mark_terminal(ctx, "interrupted")
                 self.store.transition(
                     ctx.task_id,
                     "interrupted",

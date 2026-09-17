@@ -30,6 +30,8 @@ from texlate.server.worker import PipelineWorker, Secrets, TaskCtx, TaskRunner
 from texlate.xlat.pipeline import MockTranslator
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from fastapi import FastAPI
 
 
@@ -124,6 +126,7 @@ class L2FlakyEngine:
         env_extra: dict[str, str] | None = None,  # noqa: ARG002
         best_effort: bool = False,
         flags: list[str] | None = None,  # noqa: ARG002
+        should_cancel: Callable[[], bool] | None = None,  # noqa: ARG002
     ) -> CompRes:
         """同 wdir 前 n_fail 次写出错 log 无 pdf，其后出假 pdf。"""
         n = sum(1 for c in self.calls if c["wdir"] == str(wdir))
@@ -330,7 +333,7 @@ class TestL2Repair:
             assert "fallback_unverified" not in l2_data
             # 首编 + 重译态重编 + 回落态裸编 = build-zh 同 wdir 共 3 次
             n_work = sum(1 for call in eng.calls if "build-zh" in call["wdir"])
-            assert n_work == 3
+            assert n_work == 3  # noqa: PLR2004 -- 首编+重译重编+回落裸编
             rows = _chunks(c, tid)
             assert any(
                 r["status"] == "fallback_orig" and r["error_code"] == "l2_reverted"

@@ -8,7 +8,6 @@
 
 from __future__ import annotations
 
-import json
 import re
 import shutil
 from typing import TYPE_CHECKING, Any
@@ -157,10 +156,7 @@ class _Html:
                     if c
                 ]
                 if cats:
-                    opts = ctx.options()
-                    opts["arxiv_categories"] = cats
-                    ctx.row["options_json"] = json.dumps(opts, ensure_ascii=False)
-                    fields["options_json"] = ctx.row["options_json"]
+                    fields["options_json"] = ctx.set_option("arxiv_categories", cats)
             self._on_loop(self.store.update_fields, ctx.task_id, **fields)
             if self._post_resolve_reuse(ctx, base, ver, source="html"):
                 return  # 钉版键命中已完成任务——产物物化由 _stage_fetch 接管
@@ -277,6 +273,7 @@ class _Html:
                 },
             )
         )
+        self._mark_terminal(ctx, status)
         self.store.transition(
             ctx.task_id,
             status,
@@ -311,12 +308,12 @@ class _Html:
         # 换子树才找得到（用 parse 期 ph_map 则还原件无锚，note 行全 missed）
         ph_map = _w.parse_arxiv_html(marked).ph_map
         base_url = f"https://arxiv.org/html/{ctx.row['arxiv_id']}/"
-        en = BeautifulSoup(marked, "lxml")
-        self._sanitize_dom(en, base_url)
-        (ctx.root / "en.html").write_text(str(en), encoding="utf-8")
-        self._register(ctx, "en_html", "en.html")
+        # 单树两用：sanitize 后先序列化出 en.html，再原地 reinsert 出 zh——
+        # 双侧 sanitize 输入同一份 marked，独立解析第二棵纯属浪费
         zh = BeautifulSoup(marked, "lxml")
         self._sanitize_dom(zh, base_url)
+        (ctx.root / "en.html").write_text(str(zh), encoding="utf-8")
+        self._register(ctx, "en_html", "en.html")
         # 一遍 find_all 建锚索引——逐行 zh.find 是 O(块×树) 全扫；
         # setdefault 保 first-match（footnote 包装层内可嵌同锚元素，
         # find 的文档序首个语义不能变）
@@ -324,7 +321,7 @@ class _Html:
         for el in zh.find_all(attrs={"data-chunk": True}):
             zh_index.setdefault(str(el["data-chunk"]), el)
         missed = 0
-        for r in self._on_loop(self.store.all_chunks, ctx.task_id):
+        for r in self._on_loop(self._all_chunks, ctx):
             self._abort_if_cancelled(ctx)  # 逐行回插轮询——大块数是秒级段
             key = str(r["chunk_id"])
             el = zh_index.get(key)
@@ -388,7 +385,7 @@ class _Html:
         """
         self._abort_if_cancelled(ctx)
         files = self._on_loop(self.store.files, ctx.task_id)
-        rows = self._on_loop(self.store.all_chunks, ctx.task_id)
+        rows = self._on_loop(self._all_chunks, ctx)
         doc: dict[str, Any] = {"version": 1, "documents": {}, "chunks": []}
         n_pages = len(self._html_doc(ctx).blocks)
         en = files.get("en_html")

@@ -2375,3 +2375,89 @@ class TestResidAuditSharePackGate:
         ctx, worker, store = _mk(tmp_path, options={"share_pack": True})
         store.transition(ctx.task_id, "fault", force=True)
         assert self._drive(ctx, worker) == 1
+
+
+class TestSetOption:
+    """review2 worker#11：``set_option``/``update_options``——options 读-改-写
+    + row 快照同步的单点封装（落库键 ``options_json`` 由调用点回写）。"""
+
+    def test_set_and_update_sync_row(self, tmp_path: Path) -> None:
+        ctx, _worker, store = _mk(tmp_path, options={"a": 1})
+        out = ctx.set_option("b", "x")
+        assert json.loads(out) == {"a": 1, "b": "x"}
+        assert ctx.row["options_json"] == out, "row 快照必须同步"
+        assert ctx.options()["b"] == "x"
+        out2 = ctx.update_options(lambda o: o.update({"c": 2, "a": 9}))
+        assert json.loads(out2) == {"a": 9, "b": "x", "c": 2}
+        assert ctx.options()["a"] == 9  # noqa: PLR2004
+        store.update_fields(ctx.task_id, options_json=out2)
+        db = json.loads(str(store.get(ctx.task_id)["options_json"]))
+        assert db["c"] == 2  # noqa: PLR2004
+        assert db["a"] == 9  # noqa: PLR2004
+
+    def test_update_options_pop(self, tmp_path: Path) -> None:
+        """删键形态也走同一封装（``reuse_hit`` 摘除臂同款）。"""
+        ctx, _worker, _store = _mk(tmp_path, options={"reuse_hit": "t1", "k": 1})
+        out = ctx.update_options(lambda o: o.pop("reuse_hit", None))
+        assert "reuse_hit" not in json.loads(out)
+        assert json.loads(out)["k"] == 1
+        assert ctx.row["options_json"] == out
+
+
+class TestDBStateBridgeRows:
+    """review2 worker#2：构造传 ``rows``（段头已读快照）时 ``load()`` 不再全扫。"""
+
+    def test_rows_param_skips_scan(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _ctx, _worker, store = _mk(tmp_path)
+
+        def boom(_tid: str) -> list:
+            pytest.fail("构造给了 rows——load 不许再 all_chunks")
+
+        monkeypatch.setattr(store, "all_chunks", boom)
+        rows = [
+            {
+                "chunk_id": "c1",
+                "status": "ok",
+                "src_text": "src-one",
+                "translation": "译文一",
+                "kind": "para",
+                "attempts": 1,
+                "warnings": "[]",
+            },
+            {
+                "chunk_id": "c2",
+                "status": "fallback_orig",
+                "src_text": "src-two",
+                "translation": "src-two",
+                "kind": "para",
+                "attempts": 0,
+                "warnings": "",
+            },
+        ]
+        completed, recs = DBStateBridge(store, "t1", rows=rows).load()
+        assert completed == {"c1"}, "completed 只收 ok"
+        assert recs["c1"].translation == "译文一"
+        assert recs["c2"].status == "skipped"
+
+    def test_none_rows_falls_back_to_store(self, tmp_path: Path) -> None:
+        """不传 rows 走既有 ``all_chunks`` 全扫（旧路径不回退）。"""
+        ctx, _worker, store = _mk(tmp_path)
+        store.insert_chunks(
+            ctx.task_id,
+            [
+                {
+                    "chunk_id": "c1",
+                    "seq": 0,
+                    "src_file": "main.tex",
+                    "src_text": "src",
+                    "kind": "para",
+                    "byte_start": 0,
+                    "byte_end": 3,
+                }
+            ],
+        )
+        completed, recs = DBStateBridge(store, ctx.task_id).load()
+        assert completed == set()
+        assert recs == {}, "pending 不在 _DB_TO_PIPE 映射面"

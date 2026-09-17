@@ -23,7 +23,7 @@ from texlate.server.store import Store
 from texlate.server.worker import PipelineWorker, Secrets, TaskCtx
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Callable, Iterable
 
 #: minted → ``-shell-escape`` flag；ghostpkg 本地/tlpdb 两空 → missing
 _TEX_MINTED = (
@@ -82,6 +82,7 @@ class _ProbeEngine:
         env_extra: dict[str, str] | None = None,  # noqa: ARG002
         best_effort: bool = False,  # noqa: ARG002
         flags: Iterable[str] | None = None,
+        should_cancel: Callable[[], bool] | None = None,  # noqa: ARG002
     ) -> CompRes:
         """写假 pdf 返回 CompRes；``deps`` 按构造参数回填。"""
         pdf = wdir / f"{Path(main).stem}.pdf"
@@ -141,12 +142,19 @@ def _ctx(
 
 
 def _log_lines(store: Store, task_id: str) -> list[str]:
-    """``task_events`` 里 type=log 的行文本序列（``_log`` 的落点）。"""
+    """``task_events`` 里 type=log 的行文本序列（合批 ``\\n`` 拆开）。"""
     return [
-        str(e["data"]["line"])
+        line
         for e in store.events_since(task_id, 0)
         if e["type"] == "log"
+        for line in str(e["data"]["line"]).splitlines()
     ]
+
+
+def _lines(worker: PipelineWorker, ctx: TaskCtx, store: Store) -> list[str]:
+    """``_log`` 合批后的读法：先排空 ``ctx.log_buf`` 再取库内 log 行。"""
+    worker._flush_logs(ctx, force=True)  # noqa: SLF001 -- 直调段内函数无 _stage 自然排空点
+    return _log_lines(store, ctx.task_id)
 
 
 def _zh_tree(ctx: TaskCtx, tex: str) -> None:
@@ -165,7 +173,7 @@ class TestCompileZhProbe:
         _zh_tree(ctx, _TEX_MINTED)
         ok = worker._compile_zh(ctx)  # noqa: SLF001 -- 接线点即被测对象
         assert ok
-        lines = _log_lines(store, ctx.task_id)
+        lines = _lines(worker, ctx, store)
         summary = [line for line in lines if line.startswith("probe: deps=")]
         assert summary, f"probe 摘要行缺席: {lines}"
         assert "missing=1" in summary[0]
@@ -187,7 +195,7 @@ class TestCompileZhProbe:
         ctx, worker, store = _ctx(tmp_path, index=TlpdbIndex({}), engine=_ProbeEngine())
         _zh_tree(ctx, _TEX_PSTRICKS)
         worker._compile_zh(ctx)  # noqa: SLF001
-        lines = _log_lines(store, ctx.task_id)
+        lines = _lines(worker, ctx, store)
         assert any("prefer_engine=xelatex" in line for line in lines)
         assert any("不一致" in line and "tectonic" in line for line in lines)
 
@@ -200,7 +208,7 @@ class TestCompileZhProbe:
             "Sub file body paragraph.\n", encoding="utf-8"
         )
         worker._compile_zh(ctx)  # noqa: SLF001
-        lines = _log_lines(store, ctx.task_id)
+        lines = _lines(worker, ctx, store)
         diff = [line for line in lines if line.startswith("probe diff:")]
         assert diff, f"差分行缺席: {lines}"
         assert "seen=2" in diff[0]  # main.tex + sub.tex
@@ -216,7 +224,7 @@ class TestCompileZhProbe:
         )
         _zh_tree(ctx, _TEX_MINTED)
         worker._compile_zh(ctx)  # noqa: SLF001
-        lines = _log_lines(store, ctx.task_id)
+        lines = _lines(worker, ctx, store)
         assert any("差分不可判" in line for line in lines)
 
     def test_probe_crash_fail_open(
@@ -237,7 +245,7 @@ class TestCompileZhProbe:
         assert ok
         assert eng.calls
         assert eng.calls[0]["flags"] == []
-        lines = _log_lines(store, ctx.task_id)
+        lines = _lines(worker, ctx, store)
         assert any("probe crashed" in line for line in lines)
         assert not any(line.startswith("probe diff:") for line in lines)
 
@@ -251,7 +259,7 @@ class TestCompileEnProbe:
         ctx.base_dir.mkdir(parents=True)
         (ctx.base_dir / "main.tex").write_text(_TEX_MINTED, encoding="utf-8")
         worker._compile_en(ctx)  # noqa: SLF001
-        lines = _log_lines(store, ctx.task_id)
+        lines = _lines(worker, ctx, store)
         assert any(line.startswith("probe: deps=") for line in lines)
         assert any("ghostpkg.sty" in line for line in lines)
         assert eng.calls[0]["flags"] == ["-shell-escape"]
@@ -267,7 +275,7 @@ class TestCompileEnProbe:
         worker._register(ctx, "en_pdf", "en.pdf")  # noqa: SLF001
         worker._compile_en(ctx)  # noqa: SLF001
         assert eng.calls == []
-        lines = _log_lines(store, ctx.task_id)
+        lines = _lines(worker, ctx, store)
         assert not any(line.startswith("probe:") for line in lines)
 
 
@@ -280,7 +288,7 @@ class TestProbeIndexReuse:
         ctx, worker, store = _ctx(tmp_path, index=index, engine=_ProbeEngine())
         _zh_tree(ctx, _TEX_INPUT)
         worker._compile_zh(ctx)  # noqa: SLF001
-        lines = _log_lines(store, ctx.task_id)
+        lines = _lines(worker, ctx, store)
         summary = [line for line in lines if line.startswith("probe: deps=")]
         assert summary
         assert "tl_pkg=1" in summary[0]

@@ -34,6 +34,12 @@ log = logging.getLogger(__name__)
 #: dispatcher 的串行槽）
 _DRAIN_S = 5.0
 
+#: ``_log`` 行合批阈值（仿 ``_doc_emit`` 的 N/秒双闸）——fixloop/
+#: babeldoc on_log 这类逐行源单事件扇出成本高；满 N 行或距上次排空
+#: 超 S 秒合并成单条 ``\n`` 拼接 log 事件
+_LOG_FLUSH_N = 20
+_LOG_FLUSH_S = 0.2
+
 
 def _wait_events(evs: list[threading.Event], deadline: float) -> None:
     """顺序等事件集直到全置位/deadline——在辅助线程内跑，不占 loop。"""
@@ -143,10 +149,14 @@ class _Events:
 
         cancel 竞态守卫同 ``_fail``/``_reject``：行已入终态则跳过——
         否则 cancel 后的下一拍 ``_stage`` 会把 cancelled 覆写回
-        ACTIVE，终态 done 事件之后又补 stage 事件。
+        ACTIVE，终态 done 事件之后又补 stage 事件。段边界是日志缓冲
+        的自然排空点（stage 事件不得越过先产出的 log 行）；首入点
+        monotonic 记 ``ctx.stage_marks`` 供 done 载荷 ``stage_seconds``。
         """
         if self._current_status(ctx) in TERMINAL_STATUSES:
             return
+        self._flush_logs(ctx)
+        ctx.stage_marks.setdefault(stage, time.monotonic())
         self.store.transition(
             ctx.task_id, stage, message=message, progress=progress, force=True
         )
@@ -162,25 +172,71 @@ class _Events:
         )
 
     def _log(self, ctx: TaskCtx, line: str, *, force: bool = False) -> None:
-        """Log 事件（终态守卫——孤儿线程的迟到扇出不再落 task_events）。
+        r"""Log 事件（终态守卫 + 行合批——孤儿线程的迟到扇出不再落 task_events）。
 
-        ``force=True`` 供有意的终态后审计用——``_share_pack_try`` 的
-        打包/跳过行只在 transition 之后才有机会发，走守卫即失声。
+        逐行 publish 对 fixloop/babeldoc on_log 这类逐行源扇出成本高——
+        行先入 ``ctx.log_buf``，满 ``_LOG_FLUSH_N`` 行/距上次排空超
+        ``_LOG_FLUSH_S`` 秒/``force`` 时合并成单条 ``\n`` 拼接事件；
+        ``_stage``/``_warning``/``_mark_terminal`` 是自然排空点
+        （跨类型事件时序不破）。``force=True`` 供有意的终态后审计用
+        ——``_share_pack_try`` 的打包/跳过行只在 transition 之后才
+        有机会发，走守卫即失声。
         """
+        if not force and ctx.terminal:
+            return
+        if not ctx.log_buf:
+            ctx.log_last = time.monotonic()  # 批计时自缓冲首行起（0 值会立 flush）
+        ctx.log_buf.append(line)
+        if (
+            force
+            or len(ctx.log_buf) >= _LOG_FLUSH_N
+            or time.monotonic() - ctx.log_last >= _LOG_FLUSH_S
+        ):
+            self._flush_logs(ctx, force=force)
+
+    def _flush_logs(self, ctx: TaskCtx, *, force: bool = False) -> None:
+        """``ctx.log_buf`` 排空成单条 log 事件（时序锚点专用）。
+
+        发布侧仍过 ``_current_status`` 守卫——``ctx.terminal`` 只覆盖
+        worker 自迁终态，外部 cancel（API 置库）由库读兜底。
+        """
+        lines = ctx.log_buf
+        if not lines:
+            return
+        ctx.log_buf = []
+        ctx.log_last = 0.0  # 0 = 无在批行——下次 append 重新起表
 
         def _pub() -> None:
             if not force and self._current_status(ctx) in TERMINAL_STATUSES:
                 return
             self.bus.publish(
-                ctx.task_id, "log", {"line": scrub(line, ctx.secrets.api_key)}
+                ctx.task_id,
+                "log",
+                {"line": scrub("\n".join(lines), ctx.secrets.api_key)},
             )
 
         self._on_loop(_pub)
 
+    def _mark_terminal(self, ctx: TaskCtx, status: str) -> None:
+        """Worker 自迁终态点：排空日志 → 置本地终态旗 → 摘 mock 告警登记。
+
+        须在 ``store.transition`` **前**、同一（loop）线程调：残余
+        log 行按时序先于 done 落扇出；``ctx.terminal`` 置位后事件写
+        路径守卫短路免 ``store.get``；``_mock_warned`` 摘除防终态后
+        集合只增不减。
+        """
+        self._flush_logs(ctx, force=True)
+        ctx.terminal = status
+        self._mock_warned.discard(ctx.task_id)
+
     def _warning(
         self, ctx: TaskCtx, code: str, message: str, *, force: bool = False
     ) -> None:
-        """Warning 事件（终态守卫同 ``_log``——``force`` 用途亦同）。"""
+        """Warning 事件（终态守卫同 ``_log``——``force`` 用途亦同）。
+
+        先排空 log 缓冲——warning 不得越过先产出的 log 行。
+        """
+        self._flush_logs(ctx, force=force)
 
         def _pub() -> None:
             if not force and self._current_status(ctx) in TERMINAL_STATUSES:
@@ -194,6 +250,9 @@ class _Events:
         self._on_loop(_pub)
 
     def _current_status(self, ctx: TaskCtx) -> str:
+        """行 status——``ctx.terminal`` 本地旗标短路，空旗才读库兜底。"""
+        if ctx.terminal:
+            return ctx.terminal
         row = self.store.get(ctx.task_id)
         return str(row["status"]) if row else "fault"
 
@@ -230,6 +289,7 @@ class _Events:
         """
         if self._current_status(ctx) in TERMINAL_STATUSES:
             return
+        self._mark_terminal(ctx, "fault")
         clean = scrub(message, ctx.secrets.api_key)
         err = {"code": code, "message": clean, "retryable": retryable}
         if detail:
@@ -274,6 +334,7 @@ class _Events:
         """
         if self._current_status(ctx) in TERMINAL_STATUSES:
             return
+        self._mark_terminal(ctx, "partial")
         err = {
             "code": code,
             "message": scrub(message, ctx.secrets.api_key),
@@ -301,6 +362,17 @@ class _Events:
             },
         )
 
+    def _all_chunks(self, ctx: TaskCtx) -> list[dict[str, Any]]:
+        """``all_chunks`` 的 run 内物化缓存——loop 线程专用（conn 亲和）。
+
+        每任务曾 5~7 次 ``SELECT *`` 全扫；首调物化进 ``ctx.chunks_cache``，
+        chunk 写点（insert/flush 调用侧）置 ``None`` 失效后下调用重读。
+        """
+        rows = ctx.chunks_cache
+        if rows is None:
+            rows = ctx.chunks_cache = self.store.all_chunks(ctx.task_id)
+        return rows
+
     def _artifact_urls(self, ctx: TaskCtx) -> dict[str, str]:
         """Files 行 → ``{db_kind: /api/files/{id}/{url_kind}}``。"""
         return {
@@ -308,7 +380,7 @@ class _Events:
             for kind in self.store.files(ctx.task_id)
         }
 
-    def _stats(self, ctx: TaskCtx) -> dict[str, Any]:
+    def _stats(self, ctx: TaskCtx) -> dict[str, Any]:  # noqa: C901 -- 审计载荷条件阶梯平铺
         counts = self.store.chunk_counts(ctx.task_id)
         # created_at 可经直写腐化（update_fields 无字段白名单）——坏格按 0
         # 秒容错，不能让 _fail/_reject 在落终态后、publish done 前炸
@@ -321,6 +393,28 @@ class _Events:
             "seconds": seconds,
             "chunks_failed": counts["failed"],
         }
+        # 阶段耗时：相邻 ``_stage`` 首入点差值；末段计到本构建点。
+        # resume/reuse 命中的未跑段无 mark 自然缺席。
+        if ctx.stage_marks:
+            order = (
+                ("fetching", "fetch"),
+                ("parsing", "parse"),
+                ("translating", "translate"),
+                ("compiling", "compile"),
+            )
+            marks = ctx.stage_marks
+            stage_seconds: dict[str, float] = {}
+            for i, (stage, key) in enumerate(order):
+                t0 = marks.get(stage)
+                if t0 is None:
+                    continue
+                t1 = next(
+                    (marks[s] for s, _ in order[i + 1 :] if s in marks),
+                    time.monotonic(),
+                )
+                stage_seconds[key] = round(t1 - t0, 1)
+            if stage_seconds:
+                out["stage_seconds"] = stage_seconds
         if ctx.fault_files:
             out["fault_files"] = ctx.fault_files
         if ctx.support_files:

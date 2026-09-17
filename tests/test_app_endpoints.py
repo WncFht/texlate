@@ -559,9 +559,10 @@ class TestUploadEdges:
     def test_chunked_json_body_bounded_413(
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """``_read_body`` 同闸：无 CL 的 JSON 体超界 413（修前 ``request.body()``
-        无界读进 RAM 后正常 202）。"""
-        monkeypatch.setattr(app_mod, "UPLOAD_CAP", 16)
+        """``_cap_request_body`` 的 JSON 闸：无 CL 的 JSON 体超 ``_JSON_BODY_CAP``
+        → 413 ``body_too_large``（修前 ``request.body()`` 无界读进 RAM 后正常 202；
+        JSON 端点与 upload 的 ``UPLOAD_CAP`` 已分闸）。"""
+        monkeypatch.setattr(app_mod, "_JSON_BODY_CAP", 16)
         big = b'{"options": {"k": "' + b"v" * 80000 + b'"}}'
         r = client.post(
             f"/api/arxiv/{ARXIV}/translate",
@@ -569,7 +570,7 @@ class TestUploadEdges:
             headers={"Content-Type": "application/json"},
         )
         assert r.status_code == HTTPStatus.REQUEST_ENTITY_TOO_LARGE
-        assert r.json()["code"] == "upload_too_large"
+        assert r.json()["code"] == "body_too_large"
 
     def test_filename_traversal_sanitized(self, client: TestClient) -> None:
         """``../../etc/evil.tex`` → ``Path().name`` 剥目录 + 字符白名单。"""
@@ -647,12 +648,13 @@ class TestUploadEdges:
 
 
 class TestTasksListEdges:
-    def test_status_bogus_empty(self, client: TestClient) -> None:
-        """未识别 status 值不校验 → 空列表（参数化查询，无注入面）。"""
+    def test_status_bogus_400(self, client: TestClient) -> None:
+        """未识别 status 值 → 400 枚举校验——静默返空会让调用方分不清
+        「无匹配」与「参数打错」。"""
         mk_api_task(client, ARXIV)
         r = client.get("/api/tasks", params={"status": "bogus'"})
-        assert r.status_code == HTTPStatus.OK
-        assert r.json()["tasks"] == []
+        assert r.status_code == HTTPStatus.BAD_REQUEST
+        assert r.json()["code"] == "invalid_request"
 
     def test_error_field_shape(self, client: TestClient) -> None:
         """error_json 反序列化成 dict 进列表项；counters 五键齐。"""
@@ -1089,13 +1091,15 @@ class TestSettingsPut:
         client.put("/api/settings", json={"clear_api_key": True})
         assert client.get("/api/settings").json()["has_api_key"] is False
 
-    def test_unknown_field_400(self, client: TestClient) -> None:
-        """未知键直接 400——旧行为是静默写进 settings.json 攒垃圾键。"""
+    def test_unknown_field_ignored(self, client: TestClient) -> None:
+        """未知键不落盘、响应 ``ignored`` 回显——静默丢弃的 200 会让调用方
+        以为写入生效（旧行为是静默写进 settings.json 攒垃圾键）。"""
         r = client.put("/api/settings", json={"bogus_field": 1})
-        assert r.status_code == HTTPStatus.BAD_REQUEST
-        assert "bogus_field" in r.json()["detail"]
-        # 400 在 save 之前 → settings.json 根本没落盘
-        assert not (client.app.state.data_dir / "settings.json").exists()
+        assert r.status_code == HTTPStatus.OK
+        assert r.json()["ignored"] == ["bogus_field"]
+        # 未知键被摘除后才进 save——落盘文件里没有它
+        stored = client.get("/api/settings").json()
+        assert "bogus_field" not in stored
 
     def test_pseudo_keys_pass(self, client: TestClient) -> None:
         """has_api_key（出参回显）/clear_api_key（控制键）不算未知键。"""
@@ -1496,9 +1500,14 @@ class TestServerModeSettingsGate:
     def test_health_minimal(
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """server 模式 health 只回探活最小集——version/compilers/data_dir 属部署拓扑。"""
+        """server 模式 health = 探活 + 深度集 ``{ok, db, queue_depth}``——
+        version/compilers/data_dir 属部署拓扑仍不外露。"""
         monkeypatch.setenv("TEXLATE_MODE", "server")
-        assert client.get("/api/health").json() == {"ok": True}
+        assert client.get("/api/health").json() == {
+            "ok": True,
+            "db": True,
+            "queue_depth": 0,
+        }
 
     def test_settings_topology_hidden(
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
