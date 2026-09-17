@@ -1602,7 +1602,10 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         if bad_keys:
             return _json_error(400, f"settings 未知字段: {bad_keys}")
         try:
-            settings_store.save(body)
+            # save 内含同步 httpx 探活（timeout 不盖 DNS getaddrinfo，
+            # 死 DNS 网络可卡数十秒）——to_thread 卸载防冻结事件循环；
+            # merge 串行语义由 SettingsStore._save_lock 接管
+            await asyncio.to_thread(settings_store.save, body)
         except (TypeError, ValueError) as e:
             # 字段值类型错（concurrency 收 None/dict/list 时 int() TypeError）
             # 与校验错同归 400——非数值输入是客户端错误非服务端故障

@@ -382,6 +382,10 @@ class SettingsStore:
         self.root = root
         self.path = root / SETTINGS_FILE
         self.connections_path = root / CONNECTIONS_FILE
+        #: ``save`` 临界区串行锁——load→merge→write 原靠事件循环单线程
+        #: 隐式串行；``settings_put`` 经 ``asyncio.to_thread`` 卸载后并发
+        #: PUT 在 worker 线程真并行，无锁会丢更新
+        self._save_lock = threading.Lock()
         #: 最近一次 ``save`` 探活的模型可用性警告（进程瞬态不落盘；
         #: ``None`` = 无警告或未知），``public()`` 随出参透给前端
         self._model_warning: str | None = None
@@ -420,6 +424,11 @@ class SettingsStore:
         base_url 变更时从 connections 槽找回该 endpoint 的历史 key
         （texglot merge_settings 语义）。
         """
+        with self._save_lock:
+            return self._save(updates)
+
+    def _save(self, updates: dict[str, Any]) -> dict[str, Any]:
+        """``save`` 临界区本体——调用方须已持 ``_save_lock``。"""
         old = self.load()
         values = dict(updates)
         values.pop("has_api_key", None)

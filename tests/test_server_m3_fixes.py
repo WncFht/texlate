@@ -9,7 +9,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import threading
 from datetime import datetime
 from http import HTTPStatus
 from typing import TYPE_CHECKING
@@ -27,6 +29,7 @@ from texlate.server.settings import SettingsStore
 if TYPE_CHECKING:
     from collections.abc import Iterator
     from pathlib import Path
+    from typing import Any
 
     from starlette.testclient import TestClient
 
@@ -246,6 +249,58 @@ class TestB2ModelWarning:
         assert "typo-m" in r.json()["model_warning"]
         # GET 复现同一警告（进程瞬态口径）
         assert "model_warning" in client.get("/api/settings").json()
+
+    def test_put_probe_off_event_loop(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """探活须在 worker 线程跑——若回退为 loop 内同步调用，3s+（DNS
+        getaddrinfo 盲区可达数十秒）的同步 httpx 会冻结 SSE 与全部请求。"""
+        on_loop: list[bool] = []
+
+        def spy(*_a: object, **_k: object) -> list[str]:
+            try:
+                asyncio.get_running_loop()
+            except RuntimeError:
+                on_loop.append(False)
+            else:
+                on_loop.append(True)
+            return ["real-m"]
+
+        monkeypatch.setattr(settings_mod, "list_provider_models", spy)
+        r = client.put("/api/settings", json={"model": "typo-m"})
+        assert r.status_code == HTTPStatus.OK
+        assert on_loop == [False]
+        # 语义保持：警告仍随 PUT 响应透出
+        assert "typo-m" in r.json()["model_warning"]
+
+    def test_save_serializes_under_lock(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """``save`` 全程持 ``_save_lock``——to_thread 卸载后并发 PUT 的
+        load→merge→write 不能再靠事件循环单线程隐式串行。"""
+        monkeypatch.setattr(
+            settings_mod, "list_provider_models", lambda *_a, **_k: ["m2"]
+        )
+        store = SettingsStore(tmp_path)
+        entered = threading.Event()
+        orig = store._save  # noqa: SLF001
+
+        def spy(updates: dict[str, Any]) -> dict[str, Any]:
+            entered.set()
+            return orig(updates)
+
+        monkeypatch.setattr(store, "_save", spy)
+        store._save_lock.acquire()  # noqa: SLF001
+        t = threading.Thread(target=store.save, args=({"model": "m2"},))
+        t.start()
+        try:
+            # 锁被占时 save 进不了临界区（反向等待——永不置位才算过）
+            assert not entered.wait(1.0)
+        finally:
+            store._save_lock.release()  # noqa: SLF001
+        t.join(10)
+        assert entered.is_set()
+        assert store.load()["model"] == "m2"
 
     def test_list_provider_models_parse(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """同步探活解析形：``data[*].id`` 抽取；非 2xx/坏 JSON → None。"""
