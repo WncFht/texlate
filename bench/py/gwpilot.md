@@ -12,22 +12,38 @@
 
 ## 调速算法（Governor）
 
-每个打向 `/v1/chat/completions|/v1/messages` 的 POST 先过闸，其余路径直通。
+每个打向 `/v1/chat/completions|/v1/messages` 的 POST 先过闸，其余路径直通。v2 起有两层：**精确桶算术**（主）+ **AIMD 兜底**（accounts 数据过期或上游行为漂移时接管）。
+
+### 精确桶算术（/admin/accounts，默认 3s 轮询）
+
+网关多 lane 池（当前 yanjian + randall 两条，每条 window_quota=80/自然分钟桶）。每轮读出每 lane `window_used/window_quota/latched/sendable/waiters/inflight`，聚合：
 
 ```
-天花板 ceiling = min(max_cap, C_rpm, C_burst)，下限 min_cap(=2) 保底细流
-  C_rpm   = (rpm_budget − ext_rpm) × lat_ewma / 60     # Little 定律：配额换并发
-  C_burst = ext_inflight=0 → max_cap
-            否则 max(min_cap, max_cap − yield_per_ext × ext_inflight)   # 每个外部在途让 8 槽
-cap 在天花板内 AIMD：2xx 成功 +0.5；上游 429 → 砍半 + cooldown_until=now+Retry-After；
-5xx/传输错 ×0.85（传输错另上 3s 短闩防空转）。
+win_remaining = Σ_可用lane (window_quota − window_used)     # 本桶还剩多少条
+ext_rate      = EMA( (Δused_total − Δ我方发送) / Δt )        # 外部到达率（条/秒）
+reserve       = ext_rate × t_left + ext_waiters + margin(4)  # 给外部留的余量
+allowance     = max(0, win_remaining − reserve)              # 我方本桶还能发几条
+我方已发 sent_win ≥ allowance → 睡到 min(window_next) 开新桶；换桶自动清零计数。
 ```
+
+`latched`/`sendable=false`/`lane.healthy=false` 的 lane 不进 remaining——冷却闩在**吃 429 之前**就看见了。`ext_waiters` 进 reserve 是因为排队请求在窗口一开就落桶。
+
+### 兜底与并发顶
+
+```
+eff_cap = min(cap, ceiling)；ceiling = min(max_cap, C_rpm, C_burst)
+  C_rpm   = (quota_total 或 rpm_budget=72 — 外部速率) × lat_ewma / 60   # Little 定律
+  C_burst = ext_inflight=0 → max_cap；否则 max(min_cap, max_cap − 8×ext_inflight)
+cap AIMD：2xx +0.5；上游 429 → 砍半 + 冷却至 Retry-After；5xx/传输错 ×0.85。
+```
+
+accounts 数据 >12s 未刷新 → 精确桶门失效回退到纯天花板路径，啥都不假设。
 
 排队语义与网关不同：请求**排队等待**而非快败——队满（128）或排队超 `queue_wait=100s` 才合成 `429+Retry-After`（body `error.retry_after` 与 xlat client 解析口径一致），客户端按自有退避再来。因为冷却闩期上游把被拒也计数，闸内等待比放出去吃 429 更省。
 
-轮询：`/healthz` 每 4s（`ext_inflight = active_requests − 我方 inflight`），`/admin/stats` 每 30s（`ext_rpm = recent_rpm − 我方实发速率`）。healthz 连续 3 次失败 → `up_ok=false`，`run` 暂停发新任务。
+轮询：`/admin/accounts` 每 3s（闸门全态）；`/healthz` 每 4s（up_ok 活性 + accounts 过期时的 ext_inflight 兜底）。healthz 连续 3 次失败 → `up_ok=false`，`run` 暂停发新任务。
 
-效果实测（2026-09-17 晚）：外部 42 在途/130rpm 时 `eff_cap=2` 全让；无人时 cap 爬坡至 40 顶格。
+效果实测（2026-09-17 晚）：外部 143rpm 把可用 lane 桶打到剩 1 条时 `win_allowance=0` 全让、显示 23.9s 后开新桶；无人时 cap 爬坡至 40 顶格。
 
 ## 用法
 

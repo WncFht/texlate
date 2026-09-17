@@ -9,9 +9,10 @@ r"""gwpilot — 见缝插针网关调度器：自适应并发闸代理 + 断点�
     60s），闩内仅 8s 滴灌探针、其余全部立即 429+Retry-After=闩剩余。
   * 本机 Claude 会话（claude-opus-4-6→swe-2-max 别名）与 texlate 产品链
     共用同一 lane——白天互动流量要优先，夜里空档要能吃满。
-  * 退役 gwcap 是固定 sem=4 硬闸；本工具换成**自适应闸**：用网关自己暴露
-    的 /healthz(active_requests) + /admin/stats(recent_rpm) 量出「别人占了
-    多少」，剩下全是我们的；429 时按 Retry-After 全局冷却再半开爬坡。
+  * 退役 gwcap 是固定 sem=4 硬闸；本工具换成**自适应闸**：直读网关
+    /admin/accounts 的每-lane 闸门态（window_used/quota/latched/sendable/
+    waiters/inflight）做精确桶算术——配额剩多少、外部来多快、何时开新桶
+    全是实时值不是估计；429 时按 Retry-After 全局冷却再半开爬坡兜底。
 
 用法：
 
@@ -108,7 +109,8 @@ class GovConfig:
     queue_wait: float = 100.0  # 排队上限（客户 180s 超时内）；超出合成 429
     max_queue: int = 128
     healthz_poll: float = 4.0
-    stats_poll: float = 30.0
+    accounts_poll: float = 3.0  # /admin/accounts 轮询——lane 闸门精确算术的源
+    reserve_margin: int = 4  # 本桶给外部预留的兜底条数（ext_rate 预测之外）
     pause_file: str = ""  # 存在即全员让路（min_cap 细流）
 
 
@@ -144,8 +146,20 @@ class Governor:
         self.ext_inflight = 0
         self.ext_rpm = 0.0
         self.up_ok = True
-        self._sent: deque[float] = deque()
+        self._sent: deque[float] = deque()  # 我方发送时刻（60s 滑窗=our_rpm）
         self.paused = False
+        # ---- 精确桶算术（/admin/accounts 轮询填充）----
+        self.acct_seen = 0.0  # 上次成功抓取的墙钟时刻；>12s 视为过期回退估算
+        self.win_remaining = 0.0  # 本桶全体可用 lane 的剩余配额合计
+        self.win_reset_ts = 0.0  # 最近可用 lane 的窗口重置 epoch（秒）
+        self.quota_total = 0.0  # 可用 lane 的 window_quota 合计（=真实总预算）
+        self.ext_waiters = 0  # 网关各 lane 上排队中的外部请求（窗口一开即耗量）
+        self.ext_rate = 0.0  # 外部到达率 EMA（条/秒，同桶内 used 增量扣我方）
+        self._win_key = ""  # 当前桶标识（win_reset_ts 串），换桶清零 _sent_win
+        self._sent_win = 0  # 本桶内我方已发送数
+        self._prev_used = 0  # 上轮 total_used 基线（同桶内差分）
+        self._prev_our = 0
+        self._prev_t = 0.0
         self.stats = {
             "admitted": 0,
             "up2xx": 0,
@@ -167,9 +181,19 @@ class Governor:
         return float(len(self._sent))
 
     def ceiling(self) -> float:
-        """当前允许的我方 in-flight 天花板（实时算，随外部占用浮动）。"""
+        """当前允许的我方 in-flight 天花板（实时算，随外部占用浮动）。
+
+        预算源二选一：accounts 新鲜时用真实总配额（Σ 可用 lane 的
+        window_quota，当前 2 lane =160rpm），过期回退配置 rpm_budget。
+        """
         lat = max(self.lat_ewma, 5.0)
-        c_rpm = max(0.0, self.cfg.rpm_budget - self.ext_rpm) * lat / 60.0
+        fresh = time.time() - self.acct_seen <= 12.0
+        budget = (
+            self.quota_total
+            if (fresh and self.quota_total > 0)
+            else self.cfg.rpm_budget
+        )
+        c_rpm = max(0.0, budget - self.ext_rpm) * lat / 60.0
         if self.ext_inflight <= 0:
             c_burst = float(self.cfg.max_cap)
         else:
@@ -209,8 +233,13 @@ class Governor:
                         wait = 1.0
                     elif now < self.cooldown_until:
                         wait = min(self.cooldown_until - now, 1.0)
+                    elif self._win_blocked(now):
+                        # 本桶配额（扣外部预测）已尽——睡到窗口重置再来
+                        wait = min(max(self.win_reset_ts - time.time(), 0.3), 1.0)
                     elif self.inflight < self.eff_cap():
                         self.inflight += 1
+                        self._sent.append(now)
+                        self._sent_win += 1
                         self.stats["admitted"] += 1
                         return
                     else:
@@ -226,7 +255,6 @@ class Governor:
             self.inflight = max(0, self.inflight - 1)
             now = time.monotonic()
             if 200 <= status < 300:
-                self._sent.append(now)
                 self.lat_ewma = 0.8 * self.lat_ewma + 0.2 * max(elapsed, 0.5)
                 self.cap = min(self.cap + 0.5, float(self.cfg.max_cap))
                 self.stats["up2xx"] += 1
@@ -249,6 +277,94 @@ class Governor:
                 self.stats["up4xx"] += 1
             self.cond.notify_all()
 
+    # ---- 窗口算术 ----------------------------------------------------
+
+    def _win_blocked(self, now_mono: float) -> bool:
+        """精确桶判定：accounts 数据新鲜且本桶配额（扣外部预测）耗尽。"""
+        if time.time() - self.acct_seen > 12.0:
+            return False  # 数据过期——回退 C_rpm 估算路径，不瞎拦
+        return self._sent_win >= self._allowance()
+
+    def _allowance(self) -> float:
+        """本桶我方可用配额 = 剩余总量 − 外部到达预测 − 外部排队 − 兜底。"""
+        t_left = max(0.0, self.win_reset_ts - time.time())
+        reserve = self.ext_rate * t_left + self.ext_waiters + self.cfg.reserve_margin
+        return max(0.0, self.win_remaining - reserve)
+
+    def _poll_accounts(self) -> None:
+        """/admin/accounts：每 lane 的 window_used/quota/latched/sendable/inflight。"""
+        base = self.cfg.upstream.rstrip("/")
+        while not self._stop.is_set():
+            try:
+                req = urllib.request.Request(  # noqa: S310 — 内网网关
+                    f"{base}/admin/accounts",
+                    headers={"Authorization": f"Bearer {self.cfg.key}"},
+                )
+                with urllib.request.urlopen(req, timeout=8) as r:  # noqa: S310 — 内网网关
+                    d = json.loads(r.read())
+                self._ingest_accounts(d.get("data", {}).get("accounts") or [])
+            except Exception as e:
+                _LOG.debug("accounts poll fail: %s", e)
+            self._stop.wait(self.cfg.accounts_poll)
+
+    def _ingest_accounts(self, lanes: list[dict]) -> None:
+        """聚合 lane 态 → win_remaining/ext_inflight/ext_rate + 换桶检测。"""
+        now = time.time()
+        remaining = 0.0
+        quota_total = 0.0
+        used_total = 0
+        waiters = 0
+        ext_inflight = 0
+        reset_ts = float("inf")
+        for a in lanes:
+            if a.get("disabled"):
+                continue
+            g = a.get("gate") or {}
+            lane = a.get("lane") or {}
+            used_total += int(g.get("window_used") or 0)
+            waiters += int(g.get("waiters") or 0)
+            ext_inflight += int(a.get("inflight") or 0)
+            if not (
+                g.get("sendable") and not g.get("latched") and lane.get("healthy", True)
+            ):
+                continue
+            remaining += float(g.get("window_quota") or 0) - float(
+                g.get("window_used") or 0
+            )
+            quota_total += float(g.get("window_quota") or 0)
+            ts = _parse_ts(g.get("window_next"))
+            if ts:
+                reset_ts = min(reset_ts, ts)
+
+        with self.cond:
+            # reset_ts 有效且前进 = 换桶（无可用 lane 时保持旧桶计数——
+            # 全闩态本就被拦，乱清零会低估我方已耗量导致解闩后超发）
+            if reset_ts != float("inf") and f"{reset_ts:.0f}" != self._win_key:
+                self._win_key = f"{reset_ts:.0f}"
+                self._sent_win = 0
+                self._prev_used = used_total
+                self._prev_our = 0
+                self._prev_t = now
+            else:
+                dt = now - self._prev_t
+                if dt >= 1.0:
+                    d_used = used_total - self._prev_used
+                    d_our = self._sent_win - self._prev_our
+                    ext_inst = max(0.0, (d_used - d_our) / dt)
+                    self.ext_rate = 0.6 * self.ext_rate + 0.4 * ext_inst
+                    self._prev_used = used_total
+                    self._prev_our = self._sent_win
+                    self._prev_t = now
+            self.win_remaining = remaining
+            self.quota_total = quota_total
+            self.win_reset_ts = reset_ts if reset_ts != float("inf") else now + 60
+            self.ext_waiters = waiters
+            # accounts 的 inflight 合计即全局在途——比 healthz 更准（同源）
+            self.ext_inflight = max(0, ext_inflight - self.inflight)
+            self.ext_rpm = self.ext_rate * 60.0
+            self.acct_seen = now
+            self.cond.notify_all()  # 窗口重置/解闩时唤醒排队者
+
     # ---- 外部占用轮询 ----------------------------------------------
 
     def poller_healthz(self) -> None:
@@ -262,7 +378,9 @@ class Governor:
                 active = int(d.get("active_requests", 0))
                 fails = 0
                 with self.cond:
-                    self.ext_inflight = max(0, active - self.inflight)
+                    # accounts 新鲜时以它的 Σinflight 为准（含 waiters 语义更全）
+                    if time.time() - self.acct_seen > 12.0:
+                        self.ext_inflight = max(0, active - self.inflight)
                     self.up_ok = True
             except Exception as e:
                 fails += 1
@@ -272,33 +390,10 @@ class Governor:
                         self.up_ok = False
             self._stop.wait(self.cfg.healthz_poll)
 
-    def poller_stats(self) -> None:
-        """admin/stats.recent_rpm 是全局 rpm——减去我方实测发送速率即外部 rpm。"""
-        base = self.cfg.upstream.rstrip("/")
-        while not self._stop.is_set():
-            try:
-                req = urllib.request.Request(  # noqa: S310 — 内网网关
-                    f"{base}/admin/stats",
-                    headers={"Authorization": f"Bearer {self.cfg.key}"},
-                )
-                with urllib.request.urlopen(req, timeout=8) as r:  # noqa: S310 — 内网网关
-                    d = json.loads(r.read())
-                data = d.get("data", {})
-                total = float(data.get("rpm_stats", {}).get("recent_rpm") or 0.0)
-                if total <= 0:
-                    total = float(
-                        data.get("recent", {}).get("s60", {}).get("rpm") or 0.0
-                    )
-                with self.cond:
-                    self.ext_rpm = max(0.0, total - self.our_rpm())
-            except Exception as e:
-                _LOG.debug("stats poll fail: %s", e)
-            self._stop.wait(self.cfg.stats_poll)
-
     def start_pollers(self) -> None:
         threading.Thread(target=self.poller_healthz, daemon=True, name="gov-hz").start()
         threading.Thread(
-            target=self.poller_stats, daemon=True, name="gov-stats"
+            target=self._poll_accounts, daemon=True, name="gov-acct"
         ).start()
 
     def shutdown(self) -> None:
@@ -325,6 +420,12 @@ class Governor:
                 "paused": self._paused(),
                 "ext_inflight": self.ext_inflight,
                 "ext_rpm": round(self.ext_rpm, 1),
+                "win_remaining": round(self.win_remaining, 1),
+                "win_allowance": round(self._allowance(), 1),
+                "win_reset_in_s": round(max(0.0, self.win_reset_ts - time.time()), 1),
+                "quota_total": self.quota_total,
+                "sent_win": self._sent_win,
+                "acct_fresh": time.time() - self.acct_seen <= 12.0,
                 "our_rpm": self.our_rpm(),
                 "rpm_budget": self.cfg.rpm_budget,
                 "lat_ewma_s": round(self.lat_ewma, 1),
@@ -333,6 +434,18 @@ class Governor:
 
 
 # ---------------------------------------------------------------- 代理转发
+
+
+def _parse_ts(s: object) -> float | None:
+    """RFC3339 → epoch 秒（accounts 的 window_next 是带时区串）。"""
+    if not isinstance(s, str):
+        return None
+    try:
+        from datetime import datetime
+
+        return datetime.fromisoformat(s).timestamp()
+    except ValueError:
+        return None
 
 
 def _read_chunked(rfile) -> bytes:
@@ -595,6 +708,8 @@ def _cfg_from(args: argparse.Namespace) -> GovConfig:
         yield_per_ext=args.yield_per_ext,
         queue_wait=args.queue_wait,
         max_queue=args.max_queue,
+        accounts_poll=args.accounts_poll,
+        reserve_margin=args.reserve_margin,
         pause_file=args.pause_file,
     )
 
@@ -610,6 +725,8 @@ def _add_gov_flags(p: argparse.ArgumentParser) -> None:
     p.add_argument("--yield-per-ext", type=int, default=8)
     p.add_argument("--queue-wait", type=float, default=100.0)
     p.add_argument("--max-queue", type=int, default=128)
+    p.add_argument("--accounts-poll", type=float, default=3.0)
+    p.add_argument("--reserve-margin", type=int, default=4)
     p.add_argument("--pause-file", default="", help="存在即让路的哨兵文件")
 
 
@@ -634,8 +751,12 @@ def cmd_serve(args: argparse.Namespace) -> int:
         f"(healthz /__gwpilot/healthz)",
         flush=True,
     )
-    signal.signal(signal.SIGTERM, lambda *_: srv.shutdown())
-    signal.signal(signal.SIGINT, lambda *_: srv.shutdown())
+    # shutdown() 必须跨线程调——信号 handler 跑在主线程会跟 serve_forever 死锁
+    def _sig(*_a: object) -> None:
+        threading.Thread(target=srv.shutdown, daemon=True).start()
+
+    signal.signal(signal.SIGTERM, _sig)
+    signal.signal(signal.SIGINT, _sig)
     try:
         srv.serve_forever()
     finally:
