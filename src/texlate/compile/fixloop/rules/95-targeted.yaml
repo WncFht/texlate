@@ -268,17 +268,61 @@ rules:
             {
               polyfill: "\n\\providecommand{\\unit}[1]{\\mathord{\\thinspace\\rm #1}}",
             }
+          # ── tci-math-kit (C-bucket 残面 §3, 7 格 stubs=[] 无 shim 可挂) ──
+          # SW/SWP 转储裸调 {d,t}{int,sum,prod} 尺寸算子 + \stackunder/
+          # \TEXTsymbol/\text —— 各键互挂同一幂等块 (vendor/stubs/
+          # tcilatex.tex 抄值, \def→\providecommand 幂等化; amsmath 后载对
+          # \text 静默接管)。实证: dprod=1003.0732 dint=1306.0259
+          # tsum=1803.03154 tint=1907.00292 text=2105.11405
+          # TEXTsymbol=cond-mat/0307193 stackunder=quant-ph/0408002
+          dprod:
+            {
+              polyfill: "\n\\providecommand{\\dint}{\\mathop{\\displaystyle\\int}}\n\\providecommand{\\tint}{\\mathop{\\textstyle\\int}}\n\\providecommand{\\dsum}{\\mathop{\\displaystyle\\sum}}\n\\providecommand{\\tsum}{\\mathop{\\textstyle\\sum}}\n\\providecommand{\\dprod}{\\mathop{\\displaystyle\\prod}}\n\\providecommand{\\tprod}{\\mathop{\\textstyle\\prod}}\n\\providecommand{\\stackunder}[2]{\\mathrel{\\mathop{#2}\\limits_{#1}}}\n\\providecommand{\\TEXTsymbol}[1]{\\mbox{$#1$}}\n\\providecommand{\\text}[1]{\\mbox{#1}}",
+            }
+          tprod:
+            {
+              polyfill: "\n\\providecommand{\\dint}{\\mathop{\\displaystyle\\int}}\n\\providecommand{\\tint}{\\mathop{\\textstyle\\int}}\n\\providecommand{\\dsum}{\\mathop{\\displaystyle\\sum}}\n\\providecommand{\\tsum}{\\mathop{\\textstyle\\sum}}\n\\providecommand{\\dprod}{\\mathop{\\displaystyle\\prod}}\n\\providecommand{\\tprod}{\\mathop{\\textstyle\\prod}}\n\\providecommand{\\stackunder}[2]{\\mathrel{\\mathop{#2}\\limits_{#1}}}\n\\providecommand{\\TEXTsymbol}[1]{\\mbox{$#1$}}\n\\providecommand{\\text}[1]{\\mbox{#1}}",
+            }
+          dint:
+            {
+              polyfill: "\n\\providecommand{\\dint}{\\mathop{\\displaystyle\\int}}\n\\providecommand{\\tint}{\\mathop{\\textstyle\\int}}\n\\providecommand{\\dsum}{\\mathop{\\displaystyle\\sum}}\n\\providecommand{\\tsum}{\\mathop{\\textstyle\\sum}}\n\\providecommand{\\dprod}{\\mathop{\\displaystyle\\prod}}\n\\providecommand{\\tprod}{\\mathop{\\textstyle\\prod}}\n\\providecommand{\\stackunder}[2]{\\mathrel{\\mathop{#2}\\limits_{#1}}}\n\\providecommand{\\TEXTsymbol}[1]{\\mbox{$#1$}}\n\\providecommand{\\text}[1]{\\mbox{#1}}",
+            }
+          tint:
+            {
+              polyfill: "\n\\providecommand{\\dint}{\\mathop{\\displaystyle\\int}}\n\\providecommand{\\tint}{\\mathop{\\textstyle\\int}}\n\\providecommand{\\dsum}{\\mathop{\\displaystyle\\sum}}\n\\providecommand{\\tsum}{\\mathop{\\textstyle\\sum}}\n\\providecommand{\\dprod}{\\mathop{\\displaystyle\\prod}}\n\\providecommand{\\tprod}{\\mathop{\\textstyle\\prod}}\n\\providecommand{\\stackunder}[2]{\\mathrel{\\mathop{#2}\\limits_{#1}}}\n\\providecommand{\\TEXTsymbol}[1]{\\mbox{$#1$}}\n\\providecommand{\\text}[1]{\\mbox{#1}}",
+            }
+          tsum:
+            {
+              polyfill: "\n\\providecommand{\\dint}{\\mathop{\\displaystyle\\int}}\n\\providecommand{\\tint}{\\mathop{\\textstyle\\int}}\n\\providecommand{\\dsum}{\\mathop{\\displaystyle\\sum}}\n\\providecommand{\\tsum}{\\mathop{\\textstyle\\sum}}\n\\providecommand{\\dprod}{\\mathop{\\displaystyle\\prod}}\n\\providecommand{\\tprod}{\\mathop{\\textstyle\\prod}}\n\\providecommand{\\stackunder}[2]{\\mathrel{\\mathop{#2}\\limits_{#1}}}\n\\providecommand{\\TEXTsymbol}[1]{\\mbox{$#1$}}\n\\providecommand{\\text}[1]{\\mbox{#1}}",
+            }
           dsum:
             {
-              polyfill: "\n\\providecommand{\\dsum}{\\mathop{\\displaystyle\\sum}}",
+              polyfill: "\n\\providecommand{\\dint}{\\mathop{\\displaystyle\\int}}\n\\providecommand{\\tint}{\\mathop{\\textstyle\\int}}\n\\providecommand{\\dsum}{\\mathop{\\displaystyle\\sum}}\n\\providecommand{\\tsum}{\\mathop{\\textstyle\\sum}}\n\\providecommand{\\dprod}{\\mathop{\\displaystyle\\prod}}\n\\providecommand{\\tprod}{\\mathop{\\textstyle\\prod}}\n\\providecommand{\\stackunder}[2]{\\mathrel{\\mathop{#2}\\limits_{#1}}}\n\\providecommand{\\TEXTsymbol}[1]{\\mbox{$#1$}}\n\\providecommand{\\text}[1]{\\mbox{#1}}",
+            }
+          stackunder:
+            {
+              polyfill: "\n\\providecommand{\\dint}{\\mathop{\\displaystyle\\int}}\n\\providecommand{\\tint}{\\mathop{\\textstyle\\int}}\n\\providecommand{\\dsum}{\\mathop{\\displaystyle\\sum}}\n\\providecommand{\\tsum}{\\mathop{\\textstyle\\sum}}\n\\providecommand{\\dprod}{\\mathop{\\displaystyle\\prod}}\n\\providecommand{\\tprod}{\\mathop{\\textstyle\\prod}}\n\\providecommand{\\stackunder}[2]{\\mathrel{\\mathop{#2}\\limits_{#1}}}\n\\providecommand{\\TEXTsymbol}[1]{\\mbox{$#1$}}\n\\providecommand{\\text}[1]{\\mbox{#1}}",
+            }
+          TEXTsymbol:
+            {
+              polyfill: "\n\\providecommand{\\dint}{\\mathop{\\displaystyle\\int}}\n\\providecommand{\\tint}{\\mathop{\\textstyle\\int}}\n\\providecommand{\\dsum}{\\mathop{\\displaystyle\\sum}}\n\\providecommand{\\tsum}{\\mathop{\\textstyle\\sum}}\n\\providecommand{\\dprod}{\\mathop{\\displaystyle\\prod}}\n\\providecommand{\\tprod}{\\mathop{\\textstyle\\prod}}\n\\providecommand{\\stackunder}[2]{\\mathrel{\\mathop{#2}\\limits_{#1}}}\n\\providecommand{\\TEXTsymbol}[1]{\\mbox{$#1$}}\n\\providecommand{\\text}[1]{\\mbox{#1}}",
+            }
+          # \text: SW 稿假定 amsmath 恒在 (2105.11405 缺载实证) —— 装真包为
+          # 主修, 块内 providecommand 兜底 (amsmath 后到静默接管)
+          text:
+            {
+              usepackage: "amsmath",
+              polyfill: "\n\\providecommand{\\dint}{\\mathop{\\displaystyle\\int}}\n\\providecommand{\\tint}{\\mathop{\\textstyle\\int}}\n\\providecommand{\\dsum}{\\mathop{\\displaystyle\\sum}}\n\\providecommand{\\tsum}{\\mathop{\\textstyle\\sum}}\n\\providecommand{\\dprod}{\\mathop{\\displaystyle\\prod}}\n\\providecommand{\\tprod}{\\mathop{\\textstyle\\prod}}\n\\providecommand{\\stackunder}[2]{\\mathrel{\\mathop{#2}\\limits_{#1}}}\n\\providecommand{\\TEXTsymbol}[1]{\\mbox{$#1$}}\n\\providecommand{\\text}[1]{\\mbox{#1}}",
             }
           QQQ:
             {
               polyfill: "\n\\ifdefined\\QQQ\\else\\long\\def\\QQQ#1#2{\\long\\expandafter\\def\\csname#1\\endcsname{#2}}\\fi",
             }
+          # FRAME 会进 array/equation* 数学格 (1803.03154 SW 排图法) ——
+          # 顶层 \\par 在数学态炸 Missing$, \\mbox 包裹双模安全
           FRAME:
             {
-              polyfill: "\n\\providecommand{\\FRAME}[8]{\\par\\fbox{\\parbox{\\linewidth}{#8\\par{\\footnotesize #5\\par}}}\\par}",
+              polyfill: "\n\\providecommand{\\FRAME}[8]{\\mbox{\\fbox{\\parbox{\\linewidth}{#8\\par{\\footnotesize #5\\par}}}}}",
             }
           QTP: { polyfill: "\n\\providecommand{\\QTP}[1]{}" }
           QEXCLUDE: { polyfill: "\n\\providecommand{\\QEXCLUDE}[1]{}" }
@@ -330,6 +374,24 @@ rules:
           Bar: { polyfill: "\n\\AtBeginDocument{\\def\\Bar#1{\\overline{#1}}}" }
           # hyperref 配置宏裸调 (jheppub 系稿 preamble 散调) —— 装真包
           hypersetup: { usepackage: hyperref }
+          # ── C-bucket 残面通用件 (routing §3 四类净增量) ──
+          # \cal: 2.09 字体开关 (elsart 系稿自义 \def\CX{{\cal X}} 族,
+          # 0707.4465) —— DeclareOldFontCommand 声明式复原, 词边界下
+          # calX 粘连仍走 split_heads 通道不冲突
+          cal:
+            {
+              polyfill: "\n\\ifdefined\\cal\\else\\DeclareOldFontCommand{\\cal}{\\normalfont\\rmfamily}{\\mathcal}\\fi",
+            }
+          # \underset (1206.0026: iopams+setstack 系但无 amsmath) —— 不能
+          # 装真包: 该类预定义 equation* 环境, amsmath 载入即撞
+          # "Command \equation* already defined" (amsmath.sty:2949 实证)
+          underset:
+            {
+              polyfill: "\n\\providecommand{\\underset}[2]{\\mathrel{\\mathop{#2}\\limits_{#1}}}",
+            }
+          # amssymb 未载面 (\mathbb ×4 / \lesssim ×3 cells, §3 频率表)
+          mathbb: { usepackage: amssymb }
+          lesssim: { usepackage: amssymb }
         # 表外 fallback (2026-09-16): glue 残骸前缀拆分 —— payload 未命中
         # cs_table 时, 若 cs = 已知粘连头 + 残余 (大写起首或 ≤4 字符) 则合成
         # cs_map 拆回 "head rest" (replay 实证 rmPT 型新残骸仍零星冒头,
@@ -394,3 +456,338 @@ rules:
     # 上圈 unfixable:undefined_cs → clean (fixloop-v2-rules 对照)
     stats: { fires: 1, rescued_cells: 1, status: validated }
     source_ref: "handoff-2026-09-15 §2.2 undefined_cs 无包映射项"
+
+  # ═══ 2026-09-18 C-bucket 残面单格件 (stagerun-loop1-2026-09-16 wave,
+  # tmp/c-bucket-residual/routing.md §2/§6 P2) —— order 184-190 填
+  # docclass_post_option_normalize(183) 与 undefined_cs_guess(900) 间空档 ═══
+
+  # 0806.2574: 老稿 float 选项逗号分隔 \begin{figure}[t,b] →
+  # "Unknown float option `,'" (kernel 要连排 [tb])。贪心 [^\]] 段每次
+  # sub 剥末位逗号, 列两遍兜 [t,b,p] 双逗号形。
+  - id: float_opt_comma_strip
+    description: "float env 选项表逗号分隔形 [t,b] → 剥逗号并合"
+    phase: loop
+    order: 184
+    when: { category: float_opt }
+    condition:
+      source_contains: "\\\\begin\\{(figure|table|float|wrapfigure|wraptable|sidewaysfigure|sidewaystable|algorithm)\\*?\\}\\[[^\\]\\n]*,"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "(\\\\begin\\{(?:figure|table|float|wrapfigure|wraptable|sidewaysfigure|sidewaystable|algorithm)\\*?\\}\\[[^\\]\\n]*),([^\\]\\n]*\\])",
+              repl: "\\g<1>\\g<2>",
+            }
+          - {
+              pattern: "(\\\\begin\\{(?:figure|table|float|wrapfigure|wraptable|sidewaysfigure|sidewaystable|algorithm)\\*?\\}\\[[^\\]\\n]*),([^\\]\\n]*\\])",
+              repl: "\\g<1>\\g<2>",
+            }
+    risk: low
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "0806.2574 (stagerun-loop1-2026-09-16 C-bucket)",
+          error: "LaTeX Error: Unknown float option `,' @ \\begin{figure}[t,b]",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/c-bucket-residual/routing.md §2 float_opt_comma"
+
+  # 0806.2594: mathtext.sty 补丁 \DeclareFontEncoding → 附带
+  # \DeclareSymbolFont{<enc>letters}{<enc>}\rmdefault\mddefault\updefault
+  # (sty:103), 但 TU 编码经内核/字体层先于补丁声明 → TUletters 缺面,
+  # "Symbol font `TUletters' is not defined"。\begin{document} 前同式
+  # 预声明 (preamble-only cs), symTUletters 存在性守卫防重复点火重炸。
+  - id: symbolfont_tuletters
+    description: "mathtext TU 编码漏补丁 → \\DeclareSymbolFont{TUletters} 预声明"
+    phase: loop
+    order: 185
+    when: { any: [{ category: other }, { category: early_eof }] }
+    condition:
+      ctx_suggests: "Symbol font `TUletters' is not defined"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "(\\\\begin\\{document\\})",
+              repl: "\\\\ifcsname symTUletters\\\\endcsname\\\\else\\\\DeclareSymbolFont{TUletters}{TU}{\\\\rmdefault}{\\\\mddefault}{\\\\updefault}\\\\fi\n\\g<0>",
+            }
+    risk: low
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "0806.2594 (stagerun-loop1-2026-09-16 C-bucket)",
+          error: "LaTeX Error: Symbol font `TUletters' is not defined. @ \\begin{document}",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/c-bucket-residual/routing.md §2 other_singles; mathtext.sty:103"
+
+  # astro-ph/0408240: vendored aastex(authoryear) + 数字 bbl → natbib
+  # \AtEndDocument 向 aux 写 \NAT@force@numbers (natbib.sty:967-981),
+  # 次遍 aux 读期炸 "Bibliography not compatible with author-year
+  # citations"。\PassOptionsToPackage{numbers} 会被 aastex 类内
+  # \@citestyle{aas}→\bibpunct 的 \NAT@numbersfalse 复位吞掉 →
+  # preamble 末直接翻 \NAT@numberstrue (ifdefined 守卫, 无 natbib 稿空转)。
+  - id: natbib_numbers_pass
+    description: "author-year 类 + 数字 bbl → \\NAT@numberstrue 预翻, \\NAT@force@numbers 空转"
+    phase: loop
+    order: 186
+    when: { any: [{ category: other }, { category: early_eof }] }
+    condition:
+      ctx_suggests: "Bibliography not compatible with author-year"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "(\\\\begin\\{document\\})",
+              repl: "\\\\makeatletter\\\\ifdefined\\\\NAT@numberstrue\\\\NAT@numberstrue\\\\fi\\\\makeatother\n\\g<0>",
+            }
+    risk: low
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "astro-ph/0408240 (stagerun-loop1-2026-09-16 C-bucket)",
+          error: "Package natbib Error: Bibliography not compatible with author-year citations. (aux \\NAT@force@numbers)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/c-bucket-residual/routing.md §2 other_singles; natbib.sty:974"
+
+  # 1003.0067 (conm-p-l→acmart shim 面): 稿自义 \pdo=\Psi{\rm DO} 进
+  # \section, hyperref pdfstringdef 展开体内多字符 cs 撞 `` ` `` 字母
+  # 常量扫描 → Improper alphabetic constant。pdfstring 域内把 \pdo 降格
+  # 纯文本 (正文侧 \pdo 原样)。routing 归 rbody conm-p-l_body; 本键按
+  # 签名自含修复 (syntax 类与 body 面不互斥), 重复覆盖在报告中标注。
+  - id: conmp_pdo_pdfstring
+    description: "\\pdo 类自义宏入书签炸 pdfstring → \\pdfstringdefDisableCommands 降格"
+    phase: loop
+    order: 187
+    when: { category: syntax }
+    condition:
+      ctx_suggests: "Improper alphabetic constant"
+      source_contains: "\\\\pdo\\b"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "(\\\\begin\\{document\\})",
+              repl: "\\\\ifdefined\\\\pdfstringdefDisableCommands\\\\pdfstringdefDisableCommands{\\\\def\\\\pdo{PDO}}\\\\fi\n\\g<0>",
+            }
+    risk: low
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1003.0067 (stagerun-loop1-2026-09-16 C-bucket)",
+          error: "Improper alphabetic constant. @ \\section{...$\\pdo$...} (hyperref pdfstringdef)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/c-bucket-residual/routing.md §2 syntax_singles"
+
+  # hep-ph/0111062 (+dup hep-ph--0111062 同 workdir 同错): "Illegal unit
+  # of measure" —— \vspace*{0.035truein} 无空格粘连形 (格今编译自愈,
+  # wave 期 log 被复跑覆写无法逐字归因; 规则按签名防御性覆盖)。px_to_bp
+  # (60) 先签 px 失配自降, 本条接数字+true+单位粘连归一化; true 只合法
+  # 修饰物理单位 (pt/pc/in/bp/cm/mm/dd/cc/sp), 不收 em/ex/mu。
+  - id: dimen_true_unit_space
+    description: "数字+true+物理单位粘连 (0.035truein) → 双侧补空格归一化"
+    phase: loop
+    order: 188
+    when: { category: illegal_unit }
+    condition:
+      source_contains: "[0-9]true(pt|pc|in|bp|cm|mm|dd|cc|sp)"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty]
+        rewrites:
+          - {
+              pattern: "([0-9])\\s*true\\s*(pt|pc|in|bp|cm|mm|dd|cc|sp)\\b",
+              repl: "\\g<1> true \\g<2>",
+            }
+    risk: low
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "hep-ph/0111062 (stagerun-loop1-2026-09-16 C-bucket, ×2 dup)",
+          error: "Illegal unit of measure @ \\vspace*{0.035truein} (粘连形)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/c-bucket-residual/routing.md §2 dimen_true_unit"
+
+  # 1206.5304: citekey_sanitize(141) 的 _BIBITEM_KEY_RE opt-arg 段
+  # [^\]\n]* 跨不了折行 —— 本 bbl 每条 \bibitem[折行 opt]{Name_NN} 全漏,
+  # .tex 侧已被 builtin 改写而 .bbl 侧仍裸 _ → Missing $ 残留 + 引用
+  # 断链。同签 mop-up: 条目在 _patch_files 一遍内顺序执行, 列两遍兜
+  # 多 _ 键 (本格 55 键全单 _); \\cite 族同步补 builtin 同款漏面。
+  - id: citekey_wrap_sanitize
+    description: "折行 opt-arg \\bibitem/\\cite 键内 _ → - (citekey_sanitize 漏面补)"
+    phase: loop
+    order: 189
+    when: { category: syntax }
+    condition:
+      fileset: { has_ext: [.bbl] }
+      ctx_suggests: "Missing \\$ inserted|Misplaced alignment tab"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.bbl, .tex]
+        rewrites:
+          - {
+              pattern: "(\\\\bibitem\\s*(\\[[^\\]]*\\])?\\s*\\{[^}_]*)_",
+              repl: "\\g<1>-",
+            }
+          - {
+              pattern: "(\\\\bibitem\\s*(\\[[^\\]]*\\])?\\s*\\{[^}_]*)_",
+              repl: "\\g<1>-",
+            }
+          - {
+              pattern: "(\\\\[a-zA-Z@]*cite[a-zA-Z@]*\\*?\\s*(\\[[^\\]]*\\]\\s*)*\\{[^},_]*)_",
+              repl: "\\g<1>-",
+            }
+          - {
+              pattern: "(\\\\[a-zA-Z@]*cite[a-zA-Z@]*\\*?\\s*(\\[[^\\]]*\\]\\s*)*\\{[^},_]*)_",
+              repl: "\\g<1>-",
+            }
+    risk: low
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1206.5304 (stagerun-loop1-2026-09-16 C-bucket)",
+          error: ".bbl:5 Missing $ inserted @ \\bibitem[折行 opt]{Angelini_01} (builtin opt-arg \\n 缺口)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/c-bucket-residual/routing.md §2 math_delim; _builtins_bib.py:128"
+
+  # 1109.5364: slashbox stub \(back)slashbox=\makebox{#2 #3} 退化形 ——
+  # 参内 \\ 在 tabular 受限横态变行尾 → Missing }/Extra }。源面把参内
+  # \\ 抹成空格 (stub 渲染本就是退化文本形, 参内换行无语义损失)。贪心
+  # [^}] 段每条目剥末位 \\: 参1 列三条、参2 列两条。stub 侧参净化归
+  # c6 车道, 本条按签名兜底。
+  - id: slashbox_arg_newline
+    description: "\\(back)slashbox 参内 \\\\ 断行符 → 空格 (tabular 内变行尾炸)"
+    phase: loop
+    order: 190
+    when: { category: syntax }
+    condition:
+      ctx_suggests: "Missing \\} inserted|Extra \\}"
+      source_contains: "slashbox"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "(\\\\(back)?slashbox\\s*(\\[[^\\]\\n]*\\])?\\s*\\{[^}]*)\\x5c\\x5c",
+              repl: "\\g<1> ",
+            }
+          - {
+              pattern: "(\\\\(back)?slashbox\\s*(\\[[^\\]\\n]*\\])?\\s*\\{[^}]*)\\x5c\\x5c",
+              repl: "\\g<1> ",
+            }
+          - {
+              pattern: "(\\\\(back)?slashbox\\s*(\\[[^\\]\\n]*\\])?\\s*\\{[^}]*)\\x5c\\x5c",
+              repl: "\\g<1> ",
+            }
+          - {
+              pattern: "(\\\\(back)?slashbox\\s*(\\[[^\\]\\n]*\\])?\\s*\\{[^}]*\\}\\s*\\{[^}]*)\\x5c\\x5c",
+              repl: "\\g<1> ",
+            }
+          - {
+              pattern: "(\\\\(back)?slashbox\\s*(\\[[^\\]\\n]*\\])?\\s*\\{[^}]*\\}\\s*\\{[^}]*)\\x5c\\x5c",
+              repl: "\\g<1> ",
+            }
+    risk: low
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1109.5364 (stagerun-loop1-2026-09-16 C-bucket)",
+          error: "Missing } inserted @ \\backslashbox{\\\\climate\\\\ variable}{zone} (\\ 变行尾)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/c-bucket-residual/routing.md §2 brace_residue"
+
+  # 1003.0067 残面: unicode-math 下重音命令裸 cs 参数 (\bar \calA 形)
+  # 炸 "Missing { inserted" (<to be read again> \__um_group_begin:)。
+  # um 重音要求 {} 组参; 给参数套花括号语义恒等 (\bar\foo ≡ \bar{\foo}),
+  # 全局重写安全。条件双签: err ctx Missing{ + 源码含裸重音形, 缺一空转。
+  - id: um_accent_brace_wrap
+    description: "um 重音命令裸 cs 参 \\bar\\calX → \\bar{\\calX} (语义恒等)"
+    phase: loop
+    order: 191
+    when: { category: syntax }
+    condition:
+      ctx_suggests: "Missing \\{ inserted"
+      source_contains: "\\\\(bar|vec|hat|tilde|dot|ddot|breve|check|acute|grave|mathring|widehat|widetilde)[ \\t]*\\\\[a-zA-Z]"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "(\\\\(?:bar|vec|hat|tilde|dot|ddot|breve|check|acute|grave|mathring|widehat|widetilde))[ \\t]*(\\\\[a-zA-Z@]+\\b)",
+              repl: "\\g<1>{\\g<2>}",
+            }
+    risk: low
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1003.0067 (stagerun-loop1-2026-09-16 C-bucket)",
+          error: "Missing { inserted. <to be read again> \\__um_group_begin: @ $$\\bar \\calA",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/rtarget/ — pdo 修复后残面实跑发现"
+
+  # 1003.0067 残面2: acmart 自载 setspace (acmart.cls:290) 并存
+  # \ACM@origbaselinestretch 快照 (:3627), AtEndDocument \ifx 比对
+  # 不一致即 ClassError。触发点在包链/钩子内 (稿面无字面量) —— 在
+  # \begin{document} 后立刻重拍快照 (post begin-doc hooks), 使比对恒真。
+  # makeatletter 包裹 @ 名; 仅 acmart 签名命中, 非 acmart 稿空转。
+  - id: acmart_baselinestretch_resnap
+    description: "acmart \\baselinestretch 守卫 → begin-doc 后重拍 \\ACM@origbaselinestretch"
+    phase: loop
+    order: 192
+    when: { any: [{ category: other }, { category: syntax }] }
+    condition:
+      ctx_suggests: "redefine \\\\baselinestretch detected"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "(\\\\begin\\{document\\})",
+              repl: "\\g<0>\n\\\\makeatletter\\\\ifdefined\\\\ACM@origbaselinestretch\\\\let\\\\ACM@origbaselinestretch\\\\baselinestretch\\\\fi\\\\makeatother",
+            }
+    risk: low
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1003.0067 (stagerun-loop1-2026-09-16 C-bucket)",
+          error: "Class acmart Error: An attempt to redefine \\baselinestretch detected. @ \\end{document}",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/rtarget/ — um_accent 修复后残面实跑发现; acmart.cls:3627"
