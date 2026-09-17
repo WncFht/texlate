@@ -27,6 +27,7 @@ import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from texlate.redlines import REDLINES_BY_ID, name_pattern
 from texlate.textutil import CJK_RX
 
 from .engine import CompRes, classify_error
@@ -90,16 +91,12 @@ def pdf_cjk_chars(pdf: Path, *, timeout: float = 60) -> int:
 
 #: 门控缺字形计数：排除 `in font nullfont`——试排/测量盒吞字是良性
 #: （37 纯 nullfont 格零 CJK 实证见 bench/results/nullfont-scout-2026-09-17/）。
-#: TeX ~79 列折行会把字体名推入续行；tempered lookahead 限界到下一条
-#: misschar 行前，防邻接真字体行被误豁免。与 rules.yaml missing_char
-#: 签名同口径。
-_MISSCHAR_GATE_RX = re.compile(
-    r"Missing character(?!(?:(?!Missing character)[\s\S]){0,90}?in font nullfont)"
-)
-#: nullfont 命中（良性）计数——同一限界窗正向取，进 notes 观察项
-_MISSCHAR_NULLFONT_RX = re.compile(
-    r"Missing character(?=(?:(?!Missing character)[\s\S]){0,90}?in font nullfont)"
-)
+#: 两 pattern + reason 词干单源在 ``texlate.redlines``（★2，与 engine
+#: missing_chars/rules missing_char/l2 missing_glyph 同概念行）。
+_MISSCHAR_GATE = name_pattern(REDLINES_BY_ID["missing_char"].judge)
+_MISSCHAR_NULLFONT = name_pattern(REDLINES_BY_ID["missing_char_nullfont"].judge)
+_MISSCHAR_GATE_RX = re.compile(_MISSCHAR_GATE[1])
+_MISSCHAR_NULLFONT_RX = re.compile(_MISSCHAR_NULLFONT[1])
 
 
 def count_missing_chars(log_text: str) -> int:
@@ -115,9 +112,9 @@ def _missing_char_check(v: Verdict, full_log: str, *, expect_cjk: bool) -> None:
     v.missing_chars = count_missing_chars(full_log)
     nf_misses = len(_MISSCHAR_NULLFONT_RX.findall(full_log))
     if nf_misses:
-        v.notes.append(f"missing_character_nullfont×{nf_misses}")
+        v.notes.append(f"{_MISSCHAR_NULLFONT[0]}×{nf_misses}")
     if expect_cjk and v.missing_chars > 0:
-        v.reasons.append(f"missing_character×{v.missing_chars}")
+        v.reasons.append(f"{_MISSCHAR_GATE[0]}×{v.missing_chars}")
 
 
 def _signal_attribution(res: CompRes) -> int | None:

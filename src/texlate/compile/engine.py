@@ -38,6 +38,7 @@ if TYPE_CHECKING:
 
     from texlate.compile.fixloop.logparse import ErrReport, Taxonomy
 
+from texlate.redlines import ENGINE_RED_LINES, REDLINES_BY_ID, name_pattern
 from texlate.texlog import is_dos_eps, is_project_file, update_file_stack
 from texlate.textutil import decode_tex
 
@@ -179,35 +180,10 @@ _L_NUM_RE = re.compile(r"^l\.(\d+)")
 #: 系统 texmf/bundle 件（老 CTAN 包自带坏字节，loop1 归因占 96%）与
 #: ``dos_eps_skipped`` 二进制件（normalize 原样保留、警告是必然残余）降
 #: ``warnings_sys`` 观察项（fixer-utf8 `673d8ce` normalize 四臂后复审）。
-_UTF8_WARN_RE = re.compile(r"Invalid UTF-8 byte")
-WARNING_RED_LINES: list[tuple[str, str]] = [
-    ("invalid_utf8", _UTF8_WARN_RE.pattern),
-    # fffd_glyph 同 missing_chars 的 nullfont 豁免（1e logpipe-fuzz 实证
-    # 层内自相矛盾：notes 已豁，红线层仍 flag）——tempered lookahead
-    # 限界窗与上一条同口径。
-    (
-        "fffd_glyph",
-        r'Missing character(?!(?:(?!Missing character)[\s\S]){0,90}?in font nullfont):[^\n]*\((?:"|U\+)FFFD\)',
-    ),
-    # tempered lookahead 排除 `in font nullfont`（试排/测量盒吞字良性，
-    # nullfont-scout-2026-09-17 ~30/37 格纯噪音）——与 judge.py
-    # _MISSCHAR_GATE_RX / rules.yaml missing_char 同口径：限界窗允许
-    # 79 列折行续行、不越过下一条 Missing character 起点。
-    (
-        "missing_chars",
-        r"Missing character(?!(?:(?!Missing character)[\s\S]){0,90}?in font nullfont)",
-    ),
-    (
-        "missing_graphic",
-        (
-            r"File `[^']+\.(?:pdf|png|jpg|jpeg|eps|mps|bb)' not found"
-            r"|Cannot determine size of graphic|Unknown graphics extension"
-        ),
-    ),
-    # tectonic 缺包静默降级行（continue-on-errors 把 missing .sty 降级为可恢复，
-    # 跳包继续出残页 pdf——engine-matrix §7.4 的暗雷）
-    ("degraded_file", r"^!.*(?:File|package)[^\n]*not found"),
-]
+#: 红线表单源 = ``texlate.redlines``（★2 收敛——本层发射名/pattern 即
+#: registry ``engine`` 切片；rules.yaml ``warnings:``/judge/l2 同表别层）。
+_UTF8_WARN_RE = re.compile(name_pattern(REDLINES_BY_ID["invalid_utf8"].engine)[1])
+WARNING_RED_LINES: list[tuple[str, str]] = list(ENGINE_RED_LINES)
 
 #: ``(x.eps`` 类 graphic 打开帧——``TEX_FILE_EXTS`` 不含 graphic 扩展名，
 #: texlog 对此入 ``None`` 配对帧；utf8 归因需要真名，故本函数把行尾最后

@@ -26,6 +26,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Final
 
+from texlate.redlines import L2_REDLINE_CLASSES, L2_WARNING_RULES
 from texlate.texlog import is_dos_eps, is_project_file, update_file_stack
 from texlate.textutil import is_cjk_cp
 
@@ -74,19 +75,22 @@ _MISSING_CHAR_RX: Final = re.compile(
     r'Missing character: There is no (?:\S+ )?\((?:"|U\+)([0-9A-Fa-f]{4,6})\)'
 )
 
+
 #: warning 分类规则（按序首中即归）。类别名即 by_class 键。
 #: 注意预筛：只对有 warning 形态的行归类——error ctx 内的帮助文本
 #: （``type `I\font<same font id>...'``）不打 Warning 标，曾被 font_subst 误吃。
+#: 红线相关类的 ``(类名, pattern)`` 单源在 ``texlate.redlines``（★2）——
+#: ``_rl`` 按 canonical id 取本层发射名与行级模式；citation/rerun 等
+#: 非红线观察类仍本层自持。
+def _rl(rid: str) -> tuple[str, re.Pattern[str]]:
+    name, pat = L2_WARNING_RULES[rid]
+    return name, re.compile(pat, re.IGNORECASE)
+
+
 _WARNING_RULES: Final = (
-    (
-        "invalid_utf8",
-        re.compile(r"Invalid UTF-8 byte|replaced by U\+FFFD", re.IGNORECASE),
-    ),
-    (
-        "missing_glyph_nullfont",
-        re.compile(r"Missing character:.*in font nullfont", re.IGNORECASE),
-    ),
-    ("missing_glyph", re.compile(r"Missing character:", re.IGNORECASE)),
+    _rl("invalid_utf8"),
+    _rl("missing_char_nullfont"),
+    _rl("missing_char"),
     ("citation", re.compile(r"Citation.*undefined|undefined citations", re.IGNORECASE)),
     (
         "reference",
@@ -101,13 +105,7 @@ _WARNING_RULES: Final = (
         "font_subst",
         re.compile(r"Font shape.*undefined|Some font shapes", re.IGNORECASE),
     ),
-    (
-        "file_not_found",
-        re.compile(
-            r"File `[^']+' not found|cannot (?:find|open)|Could not locate",
-            re.IGNORECASE,
-        ),
-    ),
+    _rl("missing_graphic"),
     ("overfull", re.compile(r"(?:Over|Under)full \\[hv]box", re.IGNORECASE)),
 )
 
@@ -133,23 +131,16 @@ _EOF_ERR_RX: Final = re.compile(r"File ended while scanning")
 #: ``)`` 弹出到错误打印的最大行距（日志折行/font dump 可隔几行）。
 _EOF_POP_WINDOW: Final = 16
 
-#: docs/08 §4.3 红线 warning 类（命中即记入 ``WarningSummary.redlines``）。
-#: ``fffd_glyph`` = 缺 U+FFFD 替换符字形（invalid_utf8 源被排版成缺字——
-#: engine 侧 ``WARNING_RED_LINES`` 同名红线的 L2 对应类）。
-#: ``missing_glyph``（非 CJK/非 FFFD/码点不可解）同入红线——judge 的
-#: ``missing_chars`` 对全部缺字形判 dirty，§4.3 渲染检查亦要求计数==0。
+#: docs/08 §4.3 红线 warning 类（命中即记入 ``WarningSummary.redlines``）
+#: ——集合单源 ``texlate.redlines.L2_REDLINE_CLASSES``（★2）。``fffd_glyph``
+#: = 缺 U+FFFD 替换符字形（invalid_utf8 源被排版成缺字——engine 侧
+#: ``WARNING_RED_LINES`` 同名红线的 L2 对应类）。``missing_glyph``
+#: （非 CJK/非 FFFD/码点不可解）同入红线——judge 的 ``missing_chars``
+#: 对全部缺字形判 dirty，§4.3 渲染检查亦要求计数==0。
 #: ``missing_glyph_nullfont``（试排/测量盒良性吞字）**不入**红线——
 #: 计数留 by_class/samples 观察面，redlines 保净（judge 门控同口径
 #: 排除，裁决证据 bench/results/nullfont-scout-2026-09-17/）。
-_REDLINE_CLASSES: Final = frozenset(
-    {
-        "invalid_utf8",
-        "missing_glyph",
-        "missing_glyph_cjk",
-        "fffd_glyph",
-        "file_not_found",
-    }
-)
+_REDLINE_CLASSES: Final = L2_REDLINE_CLASSES
 
 
 # ---------------------------------------------------------------- 数据
