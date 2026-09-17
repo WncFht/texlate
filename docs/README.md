@@ -16,8 +16,9 @@
 | `09-benchmark-corpus.md`    | corpus_v3 语料构建管线（底材）                                          | **现行规范**                                      |
 | `10-benchmark-suite.md`     | 评测器套件 B1–B7（评测器）                                              | **现行规范**                                      |
 | `original.md`               | hjfy.top 实现原文（知乎存档，目标系统参照）                             | 归档原文                                          |
-| `research/`                 | 73 篇调研/审计报告 + `research/README.md` 索引                          | 证据档案                                          |
+| `research/`                 | 调研/审计报告档案 + `research/README.md` 索引                           | 证据档案                                          |
 | `tools-runbook.md`          | 工具与运维手册：产品 CLI / `scripts/` / `bench/py/` 全表 + 运维手法沉淀 | 现役手册（随工具增补更新）                        |
+| `CONVENTIONS.md`            | 文档写作/维护约定：SUPERSEDED 横幅、research 索引登记、勘误引用粒度     | 现役约定                                          |
 | `HANDOFF-2026-09-15.md`     | archbox 迁移交接：当日落地清单 + 全部剩余工作 inventory                 | 运维交接（随里程碑更新）                          |
 | `HANDOFF-2026-09-16.md`     | v2 产品面切换日交接：17 commit 全录 + 剩余项                            | 运维交接（随里程碑更新）                          |
 
@@ -28,3 +29,4 @@
 - 改规范（06–10）时若推翻 05 §3 裁决表条目 → 同步改 05，并在规范行文补证据出处。
 - 新实验证据进 `docs/research/`；规范只引用、不复述实测细节。
 - 01–04 不追改内容；裁决发生变化时在对应文档加状态注记而非改写历史。
+- 文档维护约定（SUPERSEDED 横幅 / research 索引登记 / 勘误引用粒度）见 [`CONVENTIONS.md`](CONVENTIONS.md)；行号锚点均为时点快照。

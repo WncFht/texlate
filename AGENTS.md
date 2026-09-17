@@ -1,7 +1,7 @@
 # TeXlate
 
 > 开源版「幻觉翻译」(hjfy.top)：arXiv LaTeX 源码 → LLM 段落级翻译 → ctex 重编译中文 PDF，双语对照阅读。
-> 当前状态：**M0 已验收、M1 实质达成、M2/M3 推进中**（2026-09-16 全仓审计 `docs/research/audit-2026-09-16/`；当日交接 `docs/HANDOFF-2026-09-16.md`）。调研完成、方案冻结；决策史 `docs/01–05`，最终技术规格 `docs/06–10`（实现按此执行），过程证据归档 `docs/research/`。已落 `src/texlate/`：`arxiv/`（获取层）、`latex/`（半解析 + 展开机——**v2 Gullet+Segmenter 为默认产品路径**，`TEXLATE_NO_EXPAND=1` 回退 v1；corpus_v3 3937 文件 identity 100%/leak 0.040%）、`xlat/`（编排 + 网关客户端）、`validate/`（L0/L1/L2）、`compile/`（引擎/注入/normalize/probe/sandbox）+ `compile/fixloop/`（yaml 修复引擎 67 规则 + llm_hook）、`server/`（FastAPI+SSE+SQLite+BYOK 实装 + babeldoc sidecar + SPA staticfiles + `cmaps/` GB1 ToUnicode）、`export/`（EPUB/DOCX 双语插译）、`share.py`、`cli.py`（typer：fetch/parse/run/web/export/version/tools）。
+> 当前状态：**M0 已验收、M1 实质达成、M2/M3 推进中**（2026-09-16 全仓审计 `docs/research/audit-2026-09-16/`；当日交接 `docs/HANDOFF-2026-09-16.md`）。调研完成、方案冻结；决策史 `docs/01–05`，最终技术规格 `docs/06–10`（实现按此执行），过程证据归档 `docs/research/`。已落 `src/texlate/`：`arxiv/`（获取层）、`latex/`（半解析 + 展开机——**v2 Gullet+Segmenter 为默认产品路径**，`TEXLATE_NO_EXPAND=1` 回退 v1；corpus_v3 identity 100%/leak 0.040%（parsebench 实测，时点 3937 文件））、`xlat/`（编排 + 网关客户端）、`validate/`（L0/L1/L2）、`compile/`（引擎/注入/normalize/probe/sandbox）+ `compile/fixloop/`（yaml 修复引擎 + llm_hook；规则库 = `rules/` 分片目录，自 rules.yaml 拆出，条目数以生成源为准）、`server/`（FastAPI+SSE+SQLite+BYOK 实装 + babeldoc sidecar + SPA staticfiles + `cmaps/` GB1 ToUnicode）、`export/`（EPUB/DOCX 双语插译）、`share.py`、`cli.py`（typer：fetch/parse/run/web/export/version/tools）。
 
 ## 仓库布局
 
@@ -15,7 +15,7 @@
     - `bench/ts/` — js 侧 bench（latex-utensils/unified-latex/tree-sitter-latex），独立 package.json，CommonJS
     - `bench/corpus/` — 39 篇手挑陷阱语料（子目录 gitignored，`MANIFEST.md` 入库）
     - `bench/corpus_v2/` — 139 篇分层随机语料（同上惯例；`MANIFEST.md`+`build_corpus.py` 入库）
-    - `bench/corpus_v3/` — 1000 篇核心随机层 + 200 篇补强层 + 热层（OpenAlex 高引近期，分批取源中）（`manifest.jsonl`/`manifest_booster.jsonl`/`manifest_hot.jsonl`/`mechanisms.jsonl`/`MANIFEST.md`/`select_booster.py` 等入库、数据 gitignored；管线 `bench/py/build_corpus_v3.py` + `build_hot_layer.py`）
+    - `bench/corpus_v3/` — 核心随机层 + 策展补强层 + 热层（OpenAlex 高引近期）+ expand 扩展层，最新分层口径以 `MANIFEST.md` 为准（`manifest*.jsonl`/`mechanisms.jsonl`/`select_booster.py` 等入库、数据 gitignored；管线 `bench/py/build_corpus_v3.py` + `build_hot_layer.py` + `build_corpus_expand.py`）
     - `bench/fixtures/` — 陷阱构造 `.tex`（`% @Tnn` 标记；**逐字节即语义——不要格式化/润色这些文件**）
     - `bench/results/` — bench 产出目录（report/walkthrough/json 均由脚本重写；**全链划出**——改写型 formatter 与 check 类链都不覆盖：prettier/gfs/eslint/autocorrect 经 ignore/exclude，markdownlint 经 cli2 ignores，ruff 经 extend-exclude，shfmt/shellcheck/taplo 无对应文件类型属 vacuous）
     - `bench/work_*/` — 编译/fixloop 工作区（gitignored 重产物）
