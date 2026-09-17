@@ -155,6 +155,7 @@ class RateLimiter:
             json.JSONDecodeError,
             TypeError,
             ValueError,
+            OverflowError,
             AttributeError,
         ) as e:
             # 状态损坏（非 JSON 或字段类型错）→ 干净起步，不拦请求路径

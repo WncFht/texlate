@@ -22,30 +22,6 @@
   开头、dead_files == nodes ∖ order、edges ⊆ fileset、warning 前缀已登记；
   同树两次调用结果全等（进程内确定性）。
 
-已确认缺陷以 ``xfail(strict=True)`` 钉住——修复落地自动翻红：
-
-- D1 ``_parse_head``/``_refresh_head`` 无护 ``int()``：content-disposition
-  版本号超 ``sys.get_int_max_str_digits``（4300）位、或 content-length 是
-  isdigit-真但 int-假的 unicode 数字（如 latin-1 ``²``）→ ValueError 逃逸
-  ``acquire_source`` 分类网。cd 头部不受 h11 帧校验，**wire 可达**。
-- D2 ``SourceCache.get`` 对非 UTF-8 meta.json 抛 UnicodeDecodeError——
-  ``except (OSError, json.JSONDecodeError)`` 漏了 ValueError 兄弟类；
-  ``_head_phase``/``_offline_phase`` 调用点不捕 → 损坏缓存条目让
-  acquire_source 整体崩溃（在线与离线两臂同病）。
-- D3 ``_valid_id``/``normalize_arxiv_id`` 用 ``\\d`` 匹配全 unicode 十进制
-  数字（全角/阿拉伯-印度数字均过）→ 不可能存在的 id 通过校验烧请求；
-  且 ``_SAFE_GLOB_ID`` 是 ASCII 白名单 → entry_dir 收、find_versions 拒，
-  离线未钉版 ``get_latest`` 对已存在条目失明。
-- D4 ``RateLimiter._load`` 对 ``1e999`` 形浮点字段 ``int()`` 抛
-  OverflowError——不在「损坏 → 干净起步」的 ValueError 族内，构造即崩。
-- D5 恶意 ``Retry-After: 1e999`` → ``float`` 得 inf 不触发 ValueError →
-  ``max(delay, inf)`` → ``time.sleep(inf)`` 立刻 OverflowError——wire 可达
-  崩溃；巨大有限值则是无上限睡眠（「从其值」无封顶，见报告观察项）。
-- D6 ``_gunzip`` 捕 ``(OSError, EOFError)`` 但 deflate 流中段损坏抛
-  ``zlib.error``（纯 Exception，非 OSError 子类）→ ``sniff`` 契约
-  「只抛 SniffError」被穿透；``_body_result`` 的 ``except SniffError``
-  拦不住 → 逃出 ``acquire_source``——损坏 e-print 包 wire 可达崩溃。
-
 全离线：一律 ``httpx.MockTransport`` + 注入 clock/sleep，零真网络零真等待。
 """
 
@@ -60,7 +36,6 @@ import random
 import re
 import tarfile
 import time
-import zlib
 from datetime import UTC, datetime
 from http import HTTPStatus
 from pathlib import Path, PurePosixPath
@@ -203,10 +178,9 @@ _TINY_TGZ = _tar_gz({"main.tex": _TINY_TEX})
 
 # ---------------------------------------------------------------- normalize
 
-#: 随机汤 token 池——**有意不含 unicode 十进制数字**（²٣９ 等）：``\d`` 默认
-#: UNICODE 语义会把它们算进 id/版本位，那是 D3 的 xfail 靶；混进汤里会让
-#: 主 fuzz 变红而非钉住缺陷。其余脏字符（unicode 非数字、控制符、括号、
-#: URL 碎片）照常放。
+#: 随机汤 token 池——unicode 十进制数字（²٣９ 等）定向覆盖在
+#: test_normalize_unicode_digit_id_rejected；其余脏字符（unicode 非数字、
+#: 控制符、括号、URL 碎片）照常放。
 _ID_TOKENS = (
     "1412.6980",
     "2001.00001",
@@ -324,11 +298,6 @@ def test_normalize_valid_roundtrip() -> None:
         assert normalize_arxiv_id(base) == (base, None)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="D3: \\d 收 unicode 十进制数字——不可能存在的 id 过校验；"
-    "且与 _SAFE_GLOB_ID(ASCII) 不对称 → get_latest 对已缓存条目失明",
-)
 def test_normalize_unicode_digit_id_rejected() -> None:
     """全角/阿拉伯-印度数字 id 不应通过合法性校验（fetch.py:148-149 ``\\d``）。"""
     for s in ["２００１.００００１", "٢٠٠١.٠٠٠٠١", "１２３４.５６７８"]:
@@ -339,11 +308,11 @@ def test_normalize_unicode_digit_id_rejected() -> None:
 
 
 def test_normalize_unicode_digit_offline_blindness(tmp_path: Path) -> None:
-    """D3 后果实证：unicode 数字 id 可 commit（entry_dir 放行）但 find_versions
-    全拒 → 离线未钉版 lookup 对已存在缓存失明。
+    """unicode 数字 id 可 commit（entry_dir 放行）但 find_versions 全拒 →
+    离线未钉版 lookup 对已存在缓存失明。
 
-    不钉 xfail——commit 本身不校验 id 合法性（合法形状由上游保证），这里只
-    记录不对称事实供修复时核对。
+    上游 ``_valid_id`` 已按 ASCII 拒 unicode 数字 id，此不对称仅存在于缓存层
+    接口面——commit 不校验 id 合法性（合法形状由上游保证），这里记录该事实。
     """
     uid = "２００１.００００１"
     cache = SourceCache(tmp_path)
@@ -385,8 +354,6 @@ def test_fuzz_sniff_random_blobs() -> None:
             res = sniff(blob, max_inflated=_GZIP_CAP)
         except SniffError:
             continue
-        except zlib.error:
-            continue  # D6 逃逸面——定向 xfail 钉 test_sniff_zlib_error_escape
         _sniff_oracle(res, blob, _GZIP_CAP)
 
 
@@ -429,8 +396,6 @@ def test_fuzz_sniff_mutated_gzip() -> None:
             res = sniff(bytes(blob), max_inflated=_GZIP_CAP)
         except SniffError:
             continue
-        except zlib.error:
-            continue  # D6 逃逸面——定向 xfail 钉 test_sniff_zlib_error_escape
         _sniff_oracle(res, bytes(blob), _GZIP_CAP)
 
 
@@ -441,21 +406,12 @@ def _zlib_error_blob() -> bytes:
     return bytes(blob)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="D6: _gunzip 捕 (OSError, EOFError) 漏 zlib.error——"
-    "deflate 中段损坏以纯 Exception 逃逸 sniff 的 SniffError 契约",
-)
 def test_sniff_zlib_error_escape() -> None:
     """sniff.py:83——中段损坏 gzip 应归 SniffError，不是 zlib.error 穿透。"""
     with pytest.raises(SniffError):
         sniff(_zlib_error_blob(), max_inflated=_GZIP_CAP)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="D6 e2e: zlib.error 穿出 _body_result→get_src→_get_phase→acquire_source",
-)
 def test_acquire_corrupt_gzip_body_e2e(tmp_path: Path) -> None:
     """GET 200 + 中段损坏 gzip body → 应归 ERROR，不是崩溃。"""
 
@@ -624,10 +580,7 @@ def test_ratelimit_state_roundtrip(tmp_path: Path) -> None:
 
 
 def test_fuzz_ratelimit_corrupt_state(tmp_path: Path) -> None:
-    """损坏状态文件（非法 JSON/错型/垃圾字节）→ 干净起步，不抛。
-
-    池内**不含**浮点溢出值（1e999）——那是 D4 的 xfail 靶。
-    """
+    """损坏状态文件（非法 JSON/错型/浮点溢出/垃圾字节）→ 干净起步，不抛。"""
     rng = random.Random(_SEED + 10)  # noqa: S311 -- 确定性种子
     blobs = [
         b"",
@@ -640,12 +593,15 @@ def test_fuzz_ratelimit_corrupt_state(tmp_path: Path) -> None:
         b'{"requests_today": "abc"}',
         b'{"requests_today": -5}',
         b'{"requests_today": 1e20}',
+        b'{"requests_today": 1e999}',
         b'{"buckets": []}',
         b'{"buckets": {"k": 5}}',
         b'{"buckets": {"h|c": {"park_until": "x"}}}',
         b'{"buckets": {"h|c": {"park_until": 1e999}}}',
         b'{"buckets": {"h|c": {"last_ts": -1}}}',
         b'{"buckets": {"h|c": {"consec_429": "2"}}}',
+        b'{"buckets": {"h|c": {"consec_429": 1e999}}}',
+        b'{"buckets": {"h|c": {"park_step": 1e999}}}',
         b"\xff\xfe corrupt bytes",
     ]
     for i, blob in enumerate(blobs):
@@ -658,11 +614,6 @@ def test_fuzz_ratelimit_corrupt_state(tmp_path: Path) -> None:
         RateLimiter(sp, clock=_Clock().now, sleep=_no_sleep)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="D4: _load 的 int() 遇 1e999 浮点抛 OverflowError——"
-    "不在 (OSError, JSONDecodeError, TypeError, ValueError, AttributeError) 网内",
-)
 def test_ratelimit_state_float_overflow(tmp_path: Path) -> None:
     """ratelimit.py:143/148——``int(float('inf'))`` 逃逸损坏容错。"""
     for field in ("requests_today", "consec_429", "park_step"):
@@ -710,20 +661,13 @@ def test_fuzz_find_versions_never_raises(tmp_path: Path) -> None:
 
 
 def test_fuzz_cache_get_corrupt_meta(tmp_path: Path) -> None:
-    """meta.json 任意 **UTF-8 可解码** 垃圾 → miss 或合法 entry，绝不抛。
-
-    非 UTF-8 的崩溃面走 D2 的 xfail 钉——此处过滤保证主 fuzz 绿。
-    """
+    """meta.json 任意字节垃圾（含非 UTF-8）→ miss 或合法 entry，绝不抛。"""
     rng = random.Random(_SEED + 12)  # noqa: S311 -- 确定性种子
     cache = SourceCache(tmp_path)
     d = tmp_path / "2001.00001v1"
     d.mkdir()
     for _ in range(_CACHE_ITERS):
         blob = rng.randbytes(rng.randint(0, 300))
-        try:
-            blob.decode("utf-8")
-        except UnicodeDecodeError:
-            continue
         (d / "meta.json").write_bytes(blob)
         e = cache.get("2001.00001", 1)
         if e is not None:
@@ -732,14 +676,8 @@ def test_fuzz_cache_get_corrupt_meta(tmp_path: Path) -> None:
             assert isinstance(e.meta, dict)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="D2: cache.get 对非 UTF-8 meta.json 抛 UnicodeDecodeError——"
-    "except (OSError, JSONDecodeError) 漏 ValueError 兄弟类；"
-    "_head_phase/_offline_phase 不捕 → acquire 整体崩",
-)
 def test_cache_get_nonutf8_meta_crashes(tmp_path: Path) -> None:
-    """cache.py:104-108 缺陷钉：损坏条目应按未命中返回 None。"""
+    """cache.py 缺陷钉：非 UTF-8 损坏条目应按未命中返回 None。"""
     cache = SourceCache(tmp_path)
     d = tmp_path / "2001.00001v1"
     d.mkdir()
@@ -747,10 +685,6 @@ def test_cache_get_nonutf8_meta_crashes(tmp_path: Path) -> None:
     assert cache.get("2001.00001", 1) is None
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="D2 e2e: 非 UTF-8 meta 缓存在线/离线两臂都让 acquire_source 崩",
-)
 def test_acquire_corrupt_meta_crash_e2e(tmp_path: Path) -> None:
     """在线臂：HEAD 200 → cache.get 崩；离线臂：get/get_latest 同崩。"""
     cache = SourceCache(tmp_path)
@@ -876,11 +810,6 @@ def test_fuzz_parse_head() -> None:
         _head_oracle(_parse_head(resp, url, pin), url)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="D1: cd 版本号 >4300 位 → int() ValueError 逃逸 acquire 分类网；"
-    "content-disposition 不受 h11 帧校验 → wire 可达崩溃",
-)
 def test_head_cd_version_overflow_e2e(tmp_path: Path) -> None:
     """fetch.py:192——恶意 cd filename ``v``+5000 位 → acquire 应归 ERROR。"""
     cd = (
@@ -898,10 +827,6 @@ def test_head_cd_version_overflow_e2e(tmp_path: Path) -> None:
     assert res.status is AcquireStatus.ERROR
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="D1: GET 侧 _refresh_head 同型 int() 无护（fetch.py:416）",
-)
 def test_get_cd_version_overflow_e2e(tmp_path: Path) -> None:
     """HEAD 干净、GET 的 cd 带 5000 位版本 → _body_result→_refresh_head 崩。"""
     good_cd = 'attachment; filename="arXiv-2001.00001v1.tar.gz"'
@@ -927,10 +852,6 @@ def test_get_cd_version_overflow_e2e(tmp_path: Path) -> None:
     assert res.status is AcquireStatus.ERROR
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="D1: content-length isdigit() 门放行 int() 不可解析字符（²）→ ValueError",
-)
 def test_head_cl_unicode_digit() -> None:
     """fetch.py:197——latin-1 ``²`` 经 bytes header 进入（isdigit 真、int 假）。
 
@@ -943,11 +864,6 @@ def test_head_cl_unicode_digit() -> None:
     assert head.content_length is None  # 期望：判不出就当没有
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="D5: Retry-After 1e999 → float inf → sleep(inf) OverflowError；"
-    "wire 可达（fetch.py:216-222 无封顶）",
-)
 def test_retry_after_inf_crashes(tmp_path: Path) -> None:
     """429 + ``Retry-After: 1e999`` → 首次重试即 OverflowError 逃逸。"""
 
@@ -1046,8 +962,8 @@ def _seed_cache(cache: SourceCache, aid: str, ver: int, rng: random.Random) -> N
 def test_fuzz_acquire_source_scenarios(tmp_path: Path) -> None:
     """端到端情景 fuzz：任意响应组合 → 归约 AcquireResult 不崩 + 缓存不变量。
 
-    崩溃面（非 UTF-8 meta / 4300+ 位版本 / unicode CL / inf Retry-After）
-    由 xfail 钉单列，不进本池。
+    前崩溃面（非 UTF-8 meta / 4300+ 位版本 / unicode CL / inf Retry-After /
+    zlib.error）已由定向用例覆盖——现一律归 ERROR，不再穿透分类网。
     """
     rng = random.Random(_SEED + 15)  # noqa: S311 -- 确定性种子
     for i in range(_ACQ_ITERS):
@@ -1083,10 +999,7 @@ def test_fuzz_acquire_source_scenarios(tmp_path: Path) -> None:
 
         clk = _Clock()
         f = _fetcher(handler, clk)
-        try:
-            res = acquire_source(aid, fetcher=f, cache=cache, offline=offline)
-        except zlib.error:
-            continue  # D6 逃逸面（corrupt_gz body）——定向 xfail 钉单列
+        res = acquire_source(aid, fetcher=f, cache=cache, offline=offline)
         # —— 结果契约 ——
         assert isinstance(res, AcquireResult)
         assert res.status in AcquireStatus

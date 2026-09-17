@@ -102,8 +102,9 @@ class SourceCache:
             return None
         try:
             meta = json.loads(meta_p.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as e:
-            # 损坏条目按未命中处理（重取会覆盖），但留痕——静默重下会烧日预算
+        except (OSError, ValueError) as e:
+            # 损坏条目按未命中处理（重取会覆盖），但留痕——静默重下会烧日预算。
+            # ValueError 涵盖 JSONDecodeError 与非 UTF-8 的 UnicodeDecodeError。
             log.warning("cache meta unreadable, treating as miss: %s (%s)", meta_p, e)
             return None
         if not isinstance(meta, dict):

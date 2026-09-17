@@ -19,6 +19,7 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import json
+import math
 import re
 import time
 from dataclasses import dataclass, field, replace
@@ -144,11 +145,13 @@ _ID_URL_RE: Final = re.compile(
     r"arxiv\s*:\s*)",
     re.IGNORECASE,
 )
-_VER_RE: Final = re.compile(r"^(?P<base>.+?)[vV](?P<ver>\d{1,3})$")
-_NEW_ID_RE: Final = re.compile(r"^\d{4}\.\d{4,5}$")
-_OLD_ID_RE: Final = re.compile(r"^[a-zA-Z-]+(?:\.[A-Z][a-zA-Z]+)?/\d{7}$")
+_VER_RE: Final = re.compile(r"^(?P<base>.+?)[vV](?P<ver>\d{1,3})$", re.ASCII)
+_NEW_ID_RE: Final = re.compile(r"^\d{4}\.\d{4,5}$", re.ASCII)
+_OLD_ID_RE: Final = re.compile(r"^[a-zA-Z-]+(?:\.[A-Z][a-zA-Z]+)?/\d{7}$", re.ASCII)
 _CD_FN_RE: Final = re.compile(r'filename="?([^";]+)')
-_CD_VER_RE: Final = re.compile(r"[vV](\d+)\.(tar\.gz|gz|pdf)$", re.IGNORECASE)
+_CD_VER_RE: Final = re.compile(
+    r"[vV](\d+)\.(tar\.gz|gz|pdf)$", re.IGNORECASE | re.ASCII
+)
 
 
 def normalize_arxiv_id(raw: str) -> tuple[str, int | None]:
@@ -183,18 +186,27 @@ def _cd_filename(headers: httpx.Headers) -> str:
     return m.group(1) if m else ""
 
 
+def _safe_int(digits: str) -> int | None:
+    """数字串 → int；``int()`` 不可解析的 wire 异常（位数超限/unicode 数字）归 None。"""
+    try:
+        return int(digits)
+    except ValueError:
+        return None
+
+
 def _parse_head(resp: httpx.Response, url: str, pinned: int | None) -> HeadInfo:
     cd = _cd_filename(resp.headers)
     ver: int | None = pinned
     hint = ""
     m = _CD_VER_RE.search(cd)
     if m:
-        ver = int(m.group(1))
+        parsed = _safe_int(m.group(1))
+        ver = parsed if parsed is not None else pinned
         hint = m.group(2).lower()
     elif cd.lower().endswith(".pdf"):
         hint = "pdf"
     cl = resp.headers.get("content-length")
-    content_length = int(cl) if cl and cl.isdigit() else None
+    content_length = _safe_int(cl) if cl and cl.isdigit() else None
     return HeadInfo(
         http_status=resp.status_code,
         url=url,
@@ -218,6 +230,8 @@ def _retry_delay(url: str, attempt: int, resp: httpx.Response | None) -> float:
     ra = resp.headers.get("retry-after") if resp is not None else None
     if ra:
         with contextlib.suppress(ValueError):
+            # 非有限值（1e999→inf）原样返回——sleep(inf) 会 OverflowError，
+            # 由 _request 的 isfinite 闸截停转终态；nan 经 max 比较恒 False 回落 delay
             delay = max(delay, float(ra))
     return delay
 
@@ -279,7 +293,12 @@ class Fetcher:
         last_resp: httpx.Response | None = None
         for attempt in range(len(RETRY_DELAYS) + 1):
             if attempt:
-                self._sleep(_retry_delay(url, attempt, last_resp))
+                delay = _retry_delay(url, attempt, last_resp)
+                if not math.isfinite(delay):
+                    # Retry-After 要求不可兑现的等待（inf）——重试无意义，
+                    # 归最后响应为终态（429 → 上层 ERROR/PARKED 分类）
+                    break
+                self._sleep(delay)
             try:
                 resp = self._request_once(method, url, headers)
             except (httpx.TransportError, OSError) as e:
@@ -389,16 +408,23 @@ def _head_gate(head: HeadInfo) -> SrcResult | None:
 
 def _body_result(resp: httpx.Response, head: HeadInfo) -> SrcResult:
     """GET 响应 → SrcResult（304/404/200 + 魔数判别）。"""
-    if resp.status_code == HTTPStatus.NOT_MODIFIED:
-        return SrcResult(FetchStatus.NOT_MODIFIED, head)
-    if resp.status_code == HTTPStatus.NOT_FOUND:
-        return SrcResult(FetchStatus.NOT_FOUND, head)
+    early = {
+        HTTPStatus.NOT_MODIFIED: FetchStatus.NOT_MODIFIED,
+        HTTPStatus.NOT_FOUND: FetchStatus.NOT_FOUND,
+    }.get(resp.status_code)
+    if early is not None:
+        return SrcResult(early, head)
     if resp.status_code != HTTPStatus.OK:
         return SrcResult(FetchStatus.ERROR, head, detail=f"get:{resp.status_code}")
     body = resp.content
     if len(body) > DL_CAP:
         return SrcResult(FetchStatus.TOO_LARGE, head)
-    head = _refresh_head(resp, head)
+    refreshed = _refresh_head(resp, head)
+    if refreshed is None:
+        return SrcResult(
+            FetchStatus.ERROR, head, body=body, detail="malformed_cd_version"
+        )
+    head = refreshed
     try:
         sniffed = sniff(body)
     except SniffError as e:
@@ -406,14 +432,23 @@ def _body_result(resp: httpx.Response, head: HeadInfo) -> SrcResult:
     return SrcResult(FetchStatus.OK, head, body=body, sniffed=sniffed)
 
 
-def _refresh_head(resp: httpx.Response, head: HeadInfo) -> HeadInfo:
-    """GET 的 cd/etag 比 HEAD 新（两请求间可能发了新版）——以 GET 为准。"""
+def _refresh_head(resp: httpx.Response, head: HeadInfo) -> HeadInfo | None:
+    """GET 的 cd/etag 比 HEAD 新（两请求间可能发了新版）——以 GET 为准。
+
+    cd 文件名带版本标记但版本不可解析 → None（malformed wire 数据，不可
+    盲目沿用 HEAD 版本钉入缓存，上层归 ERROR）。
+    """
     cd = _cd_filename(resp.headers)
     m = _CD_VER_RE.search(cd)
+    new_ver = head.resolved_version
+    if m:
+        new_ver = _safe_int(m.group(1))
+        if new_ver is None:
+            return None
     return replace(
         head,
         cd_filename=cd or head.cd_filename,
-        resolved_version=int(m.group(1)) if m else head.resolved_version,
+        resolved_version=new_ver,
         etag=resp.headers.get("etag", head.etag),
         last_modified=resp.headers.get("last-modified", head.last_modified),
     )
@@ -526,6 +561,12 @@ def _head_phase(
             None,
         )
     cached = cache.get(base, ver)
+    if cached is None and cache.entry_dir(base, ver).exists():
+        # 条目目录在但 meta 不可读——缓存损坏不静默重下（烧日预算），归 error 待清理
+        return (
+            AcquireResult(AcquireStatus.ERROR, base, head=head, detail="corrupt_cache"),
+            None,
+        )
     if cached is not None and head.etag and cached.etag == head.etag:
         return _hit_result(fetcher, base, ver, cached, head), cached
     return head, cached

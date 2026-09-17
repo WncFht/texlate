@@ -21,6 +21,7 @@ from __future__ import annotations
 import gzip
 import io
 import re
+import zlib
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Final
@@ -80,7 +81,7 @@ def _gunzip(blob: bytes, cap: int) -> tuple[bytes | None, int, bool]:
                 out.write(chunk)
                 if out.tell() > cap:
                     return None, out.tell(), True
-    except (OSError, EOFError) as e:
+    except (OSError, EOFError, zlib.error) as e:
         msg = f"corrupt gzip stream: {e}"
         raise SniffError(msg) from e
     data = out.getvalue()
