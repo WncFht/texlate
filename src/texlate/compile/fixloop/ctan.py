@@ -527,7 +527,7 @@ class CtanFetcher:
 
     tlpdb 索引惰性构建 —— 首个真缺文件的 ctan_fetch 调用才拉 ~2.8MB
     texlive.tlpdb (clean 工程零网络开销)。``overrides``/``epoch`` 来自
-    rules.yaml ``filemap:`` 段, 由 fixloop 启动时接线。
+    rules/ ``filemap:`` 段, 由 fixloop 启动时接线。
     """
 
     def __init__(  # noqa: PLR0913  # 注入面即签名 (index/cache/overrides/epoch/mirror/fetcher/caps)

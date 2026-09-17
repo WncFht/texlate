@@ -28,6 +28,7 @@ from typing import Final
 
 from texlate.redlines import L2_REDLINE_CLASSES, L2_WARNING_RULES
 from texlate.texlog import (
+    _ERR_FNAME,
     is_dos_eps,
     is_project_file,
     patch_graphic_top,
@@ -51,19 +52,18 @@ __all__ = [
 #: ``.tikz``/``.end``/``.lof``/``.fgx`` 实测全为真错误，loop1 语料 7814
 #: log 全扫、扩展名白名单漏 586 行真错含 3 例整体 ok=True 假干净）。
 #: 行首 ``(``/``!`` 与 ``:``/空白内嵌仍排除（避免误吃普通行）。
-#: 消息面与 engine ``_ERR_FILELINE_RE`` 同口径——``: `` 单空格后须非空白
+#: 文件名字符集单源 = texlog ``_ERR_FNAME``（组 1）；消息面与 texlog
+#: ``_ERR_FILELINE_RE`` 同口径——``: `` 单空格后须非空白
 #: 消息（空消息/``:!msg``/tab 分隔等畸形形不收，msg 原样进组 3 不做
 #: ``!`` 剥离，``! LaTeX Warning`` 伪豁免面随之封死）。
-_FILE_LINE_RX: Final = re.compile(
-    r"^([^()\s:]+\.[A-Za-z0-9_-]{1,10}):(\d+): (\S[^\n]*)$"
-)
+_FILE_LINE_RX: Final = re.compile(r"^(" + _ERR_FNAME + r"):(\d+): (\S[^\n]*)$")
 
 #: ``file:line:`` 形态的非错误行（与 fixloop/logparse 同口径）：
 #: Warning 行（部分引擎/包给 warning 也打 file:line: 前缀——fixloop 实测坑，
 #: 不排会让 ``n_errors==0`` 干净门永不通）与 ``==> Fatal error`` 汇总尾行
 #: （同一失败的复述，多计一次——bench/corpus_v2/2002.05660 colt2020.log 实测）。
 #: 锚定消息起点（组 3 即 ``: `` 后全文）——``See LaTeX Warning:`` 中段
-#: 命中不误豁免真错（engine ``_NONERR_FILELINE_RE`` 同口径）。
+#: 命中不误豁免真错（texlog ``_NONERR_FILELINE_RE`` 同口径）。
 _NONERR_FILELINE_RX: Final = re.compile(
     r"^(?:(?:LaTeX|Package|Class)\b[^\n]*?\bWarning\b|==>)"
 )
@@ -146,7 +146,7 @@ _EOF_POP_WINDOW: Final = 16
 
 #: docs/08 §4.3 红线 warning 类（命中即记入 ``WarningSummary.redlines``）
 #: ——集合单源 ``texlate.redlines.L2_REDLINE_CLASSES``（★2）。``fffd_glyph``
-#: = 缺 U+FFFD 替换符字形（invalid_utf8 源被排版成缺字——engine 侧
+#: = 缺 U+FFFD 替换符字形（invalid_utf8 源被排版成缺字——loginfo 侧
 #: ``WARNING_RED_LINES`` 同名红线的 L2 对应类）。``missing_glyph``
 #: （非 CJK/非 FFFD/码点不可解）同入红线——judge 的 ``missing_chars``
 #: 对全部缺字形判 dirty，§4.3 渲染检查亦要求计数==0。
@@ -197,7 +197,7 @@ class WarningSummary:
     r"""warning 分类汇总。``redlines`` 命中 docs/08 §4.3 红线信号即 dirty 依据。
 
     ``sys_hits`` = 系统 texmf/bundle 件产生的红线类命中
-    （``invalid_utf8@<file>``）——观察项不判 dirty（engine 侧
+    （``invalid_utf8@<file>``）——观察项不判 dirty（loginfo 侧
     ``LogInfo.warnings_sys`` 同口径）。
 
     ``hits`` = 每类结构化命中条（``{file, line, head, log_line}``，
@@ -339,7 +339,7 @@ def _mark_redline(  # noqa: PLR0913 - 归因三件套（栈/root/缓存）拆散
     系统 texmf/bundle 件进 ``sys_hits`` 观察项（老 CTAN 包自带坏字节
     非工程文件问题，fixer-utf8 归因 96% 属此类）；DOS 魔数 EPS
     （normalize ``dos_eps_skipped`` 原样保留件）视同系统件降级并打
-    ``(dos-eps)`` 标（engine.py ``_scan_error_lines`` 同口径）；其余类
+    ``(dos-eps)`` 标（loginfo.py ``_scan_error_lines`` 同口径）；其余类
     全量进 ``redlines``（missing_glyph/file_not_found 按内容论不按产生
     文件论）。
     """
@@ -396,7 +396,7 @@ def _classify_warning(  # noqa: PLR0913 - 归因参数组与 _mark_redline 同�
 
     ``next_ln``：misschar 行的下一物理行——79 列 wrap 会把 ``in font ...``
     声明推进续行，规则检索面拼上它使限界窗可跨一个 ``\n``（与
-    engine/judge 同口径）；记录/打标仍用物理 ``line``。调用侧只在续行
+    loginfo/judge 同口径）；记录/打标仍用物理 ``line``。调用侧只在续行
     是裸折行碎片时拼接——续行自身命中 warning 形态（独立消息行而非
     折行残段）时不拼，防 probe 内第二锚点窃走本行归类（D4）。
     """

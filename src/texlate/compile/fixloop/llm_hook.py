@@ -1,6 +1,6 @@
 r"""llm_hook — ``escalate_llm`` 动作的统一出口 (LLM 修编译错误的补丁契约层)。
 
-rules.yaml ``action.kind: escalate_llm`` / ``engines.*.fallback: escalate_llm``
+rules/ ``action.kind: escalate_llm`` / ``engines.*.fallback: escalate_llm``
 命中时 engine 调 ``ctx.llm_hook(ctx, rep)`` (engine.py LlmHook 协议既有通路,
 spike L523-527 恒 False stub 的实装位)。本模块只含机制本体::
 

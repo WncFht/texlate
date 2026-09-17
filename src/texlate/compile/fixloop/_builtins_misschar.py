@@ -219,7 +219,7 @@ def _mc_parse_log(log: str) -> dict[int, tuple[str, str]]:
         font = m.group("font").rstrip(".,;")
         if font == "nullfont":
             # 测量盒/\write 上下文的缺字按设计不可印 (scout-misschar ×5)——
-            # 签名侧经 rules.yaml missing_char pattern 排除, 这里兜底 wrap 漏网。
+            # 签名侧经 rules/ missing_char pattern 排除, 这里兜底 wrap 漏网。
             continue
         cp = _mc_codepoint(m.group("what"), m.group("cp"))
         if cp is not None and cp not in seen:

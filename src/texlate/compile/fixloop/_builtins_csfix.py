@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from texlate.compile.fixloop.engine import Engine, LoopCtx
 
 
-#: undefined_cs → 定向修复表 (cs_targeted_fix 的默认表, rules.yaml
+#: undefined_cs → 定向修复表 (cs_targeted_fix 的默认表, rules/
 #: params.cs_table 可扩)。spec 键: strip_pkg / usepackage / cs_map /
 #: polyfill / engines{eng: 覆盖 spec} —— 组合语义见 cs_targeted_fix。
 _CS_FIX_TABLE: dict[str, dict[str, Any]] = {

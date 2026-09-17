@@ -1,4 +1,4 @@
-"""rules.yaml 装载薄封装：PyYAML safe_load + 文件路径上下文错误。
+"""``rules/`` 目录装载薄封装：PyYAML safe_load + 文件路径上下文错误。
 
 历史注记：早期为保持 venv 零依赖内置过 YAML 子集解析器；PyYAML 成为正式
 依赖后退役，本模块只剩统一错误类型与入口。

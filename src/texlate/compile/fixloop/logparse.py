@@ -1,11 +1,11 @@
-"""logparse — .log 解析 + taxonomy 分类 (rules.yaml 第一层)。
+"""logparse — .log 解析 + taxonomy 分类 (rules/ 目录第一层)。
 
 移植自 bench/py/fixloop.py L48-125 (`first_error`/`classify`), 增强两点
 (docs/research/latex/fixloop-rules.md §5 spec):
   - ctx 内 ``l.<N>`` 行号 → ``ErrReport.line_no``
   - ``(`` 开括号文件栈追踪 → ``ErrReport.file_stack`` (定位出错 .tex/.sty)
 
-另加 rules.yaml ``warnings:`` 段扫描 (docs/08 §4.3 红线) → ``warnings`` 字段;
+另加 rules/ ``warnings:`` 段扫描 (docs/08 §4.3 红线) → ``warnings`` 字段;
 ``invalid_utf8`` 命中在无 '!' 错时升级为 ``warn_utf8`` 伪类别 (v1.1 扩展,
 驱动 non_utf8_source 修复轮)。
 """
@@ -35,11 +35,17 @@ _CS_NAME_RE = re.compile(r"\\([a-zA-Z@]+)")
 # Warning 行 (`./f.tex:5: LaTeX Warning: ...`) 同格式但非错误, 须排除,
 # 否则 `n_bang==0 → clean` 门永远不通。``_ERR_FILELINE_RE`` 单源 =
 # ``texlate.texlog``（叶子层——fixloop→compile.engine 环边已掐）。
+#: 与 texlog ``_NONERR_FILELINE_RE``（Warning|``==>`` 并集单源）逐字节
+#: 分歧：该源 ``:\s*`` 宽松前导，本侧 Warning 腿锁 ``: `` 字面单空格
+#: 更严形态。本对仅在 ``_ERR_FILELINE_RE`` 闸内咨询（其 ``:\d+: \S``
+#: 已钉死空格+非空白界），闸内两形等价——保留更严形态防豁免面无意
+#: 扩到闸外非错误形态行。
 _WARN_FILELINE_RE = re.compile(
     r"^" + _ERR_FNAME + r":\d+: (?:LaTeX|Package|Class)\b[^\n]*?\bWarning\b"
 )
 #: ``==> Fatal error occurred`` 汇总尾行也是 ``file:line:`` 形态——
 #: 同一失败的复述（单空格变体存在），计入会多报一个错误。
+#: 本腿与 texlog ``_NONERR_FILELINE_RE`` 的 ``==>`` 支同形（``:\s*``）。
 _FATAL_TRAILER_RE = re.compile(r"^" + _ERR_FNAME + r":\d+:\s*==>")
 
 
@@ -152,7 +158,7 @@ def _ctx_tail_css(ctx: str | None) -> set[str]:
 
 
 class Taxonomy:
-    """rules.yaml taxonomy 段的编译态: scope 三段评估序照 spike L67-125。"""
+    """rules/ taxonomy 段的编译态: scope 三段评估序照 spike L67-125。"""
 
     def __init__(self, entries: list[dict[str, Any]]) -> None:
         """编译 taxonomy 条目 → head/tail/warnings 三个有序评估表。"""

@@ -1,7 +1,7 @@
 r"""红线信号单源注册表（★2 收敛点）：同一概念的多层拼写在此并列登记。
 
 背景：同一红线概念曾四层三拼写——``missing_chars``（engine）/
-``missing_char``（rules.yaml warnings:）/``missing_glyph``（l2）——
+``missing_char``（rules/ warnings:）/``missing_glyph``（l2）——
 nullfont 豁免三联改（36f926d/89b2784/0f5c1d6）靠人肉同步，已漂过。
 且各层 pattern **有真分歧**而非纯拼写问题：``invalid_utf8`` 曾三层三种
 写法，现 engine/l2 同形（裸串 + ``replaced by U\+FFFD`` 变体）、rules
@@ -14,7 +14,7 @@ nullfont 豁免三联改（36f926d/89b2784/0f5c1d6）靠人肉同步，已漂过
 
 - ``engine`` → ``compile/engine.py`` ``WARNING_RED_LINES``（全文检索 →
   ``LogInfo.warnings_hit`` → judge ``warn:*`` reasons）
-- ``rules``  → ``compile/fixloop/rules.yaml`` ``warnings:`` 段——**镜像**，
+- ``rules``  → ``compile/fixloop/rules/`` ``warnings:`` 段——**镜像**，
   fixloop loader 照旧读 yaml；一致性由 ``tests/test_redlines.py`` pin
 - ``l2``     → ``validate/l2.py`` ``_WARNING_RULES`` 行级归类名/模式 +
   ``_REDLINE_CLASSES`` 红线集（``l2_redline`` 标记）
@@ -84,7 +84,7 @@ class RedLine:
 
     id: str  # canonical 概念 id（注册表内部键，不外发）
     engine: LayerSpec | None = None  # engine.py WARNING_RED_LINES 条目
-    rules: LayerSpec | None = None  # rules.yaml warnings: 镜像条目
+    rules: LayerSpec | None = None  # rules/ warnings: 镜像条目
     l2: LayerSpec | None = None  # l2 _WARNING_RULES 行级类
     l2_redline: bool = False  # l2 类是否入 _REDLINE_CLASSES
     judge: LayerSpec | None = None  # judge 门控/探针 regex + reason 词干
@@ -188,7 +188,7 @@ ENGINE_RED_LINES: Final[tuple[tuple[str, str], ...]] = tuple(
     name_pattern(r.engine) for r in REDLINES if r.engine is not None
 )
 
-#: rules.yaml ``warnings:`` 段镜像期望 ``(id, pattern)`` 保持登记序——
+#: rules/ ``warnings:`` 段镜像期望 ``(id, pattern)`` 保持登记序——
 #: ``tests/test_redlines.py`` 用它 pin 住镜像（yaml 照旧由 fixloop loader 读）。
 RULES_WARNINGS: Final[tuple[tuple[str, str], ...]] = tuple(
     name_pattern(r.rules) for r in REDLINES if r.rules is not None
