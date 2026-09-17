@@ -708,6 +708,32 @@ rules:
     stats: { fires: 0 }
     source_ref: "wave-2 落地: taxonomy babel_opt (:301) 首个消费规则"
 
+  # 2026-09-17 wave-4: off-CTAN 件仓内 vendor 平移 (cbucket-scout 清点)。
+  # install_file(10) 查无真包 → 本规则 basename 查 vendor/{files,stubs}
+  # (files=真件平移, stubs=实测救援 stub) → 命中平铺进 wdir; 查无 →
+  # decline 落 legacy_pkg_shim(12) 内建 shim 兜底。自闸 builtin, 无需新
+  # condition 原语。同名 payload 相对路径落位 (a/b.sty → wdir/a/b.sty),
+  # ../绝对/NUL 闸在 builtin 内。
+  - id: vendored_fetch
+    description: "off-CTAN 缺件 → 包内 vendor/{files,stubs} basename 平移 wdir"
+    phase: loop
+    order: 11.5 # install_file(10) 后: CTAN 真包优先; legacy_pkg_shim(12) 前: vendor 件优先于内建 shim
+    when: { category: missing_file, payload_required: true }
+    action:
+      kind: builtin_transform
+      function: vendored_fetch
+      params: {} # dir 缺省 = 包内 vendor/; 测试用 params.dir 指 fixture
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "cbucket-vendored-inventory (files 8 真件 + stubs 13)",
+          error: "File `aastex.cls' not found (CTAN 下架/改名件)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "wave-4 落地: bench/results/cbucket-vendored-inventory/ dispositions"
+
   # fixable-data 裁定 (1003.2165): polutonikogreek 是弃名, greek.polutoniko
   # 亦走 locale/invalid/ 弃名桩必炸。现行 ini 正形是 `greek.polytonic`
   # (locale/el/babel-polytonicgreek.tex 自证 "Provided: greek.polytonic";

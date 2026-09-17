@@ -570,6 +570,57 @@ def citekey_sanitize(
     return True, f"sanitize cite keys &->A/_->-: {', '.join(changed)}"
 
 
+#: repo 随发 vendored 件子层 —— ``files/`` 真件 (许可逐件核过) 先于
+#: ``stubs/`` 最小宏面 stub; disposition 路由在 inventory 侧已结清。
+_VENDOR_SUBDIRS = ("files", "stubs")
+
+
+def _vendor_root(params: dict[str, Any]) -> Path:
+    """Repo vendored 件根: ``params.dir`` 覆盖, 默认包内 ``vendor/``。"""
+    d = params.get("dir")
+    return Path(d) if d else Path(__file__).resolve().parent / "vendor"
+
+
+def _vendored_source(root: Path, fname: str) -> Path | None:
+    """Basename 查件: files/ → stubs/ 序; 命中返回源路径否则 None。"""
+    base = PurePosixPath(fname).name
+    if not base:
+        return None
+    for sub in _VENDOR_SUBDIRS:
+        cand = root / sub / base
+        if safe_is_file(cand):
+            return cand
+    return None
+
+
+def vendored_fetch(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""missing_file 命中 repo vendored 件 → 平铺进 wdir (两臂同式)。
+
+    off-CTAN 绝版宏 (aastex/psfig/iopart/elsart/svjour…) 无包可装,
+    ``ctan_fetch`` 的 cwd 平铺遮蔽已是实证通路 —— 本动作同源, 只是把
+    取件点从 tlnet 换成随包 ``vendor/`` (零网络零安装)。落盘保 payload
+    相对径 (``\input{sub/x}`` 期径); basename 查件。
+    """
+    del eng
+    fname = (payload or "").strip()
+    rel = PurePosixPath(fname)
+    if not fname or rel.is_absolute() or ".." in rel.parts or "\x00" in fname:
+        return False, f"unsafe vendored name {fname!r}"
+    src = _vendored_source(_vendor_root(params), fname)
+    if src is None:
+        return False, f"{fname} not vendored"
+    dst = ctx.wdir / Path(*rel.parts)
+    try:
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(src, dst)
+    except OSError as e:
+        return False, f"vendored copy {src.name} failed: {e}"
+    tier = "files" if src.parent.name == "files" else "stubs"
+    return True, f"vendored[{tier}] {src.name} -> {dst.relative_to(ctx.wdir)}"
+
+
 #: ``\documentclass`` 选项表提取 —— 选项可缺省, 方括号内允跨行空白。
 _DOCCLASS_OPTS_RE = re.compile(r"\\documentclass\s*(?:\[([^\]]*)\])?\s*\{")
 
@@ -2532,4 +2583,5 @@ TRANSFORM_FNS = {
     "graphic_repair": graphic_repair,
     "restore_support_from_src": restore_support_from_src,
     "citekey_sanitize": citekey_sanitize,
+    "vendored_fetch": vendored_fetch,
 }

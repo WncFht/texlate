@@ -354,9 +354,9 @@ class Rule:
         return self.raw["phase"]
 
     @property
-    def order(self) -> int:
-        """同 phase 内升序键 (缺省 0)。"""
-        return int(self.raw.get("order", 0))
+    def order(self) -> float:
+        """同 phase 内升序键 (缺省 0; 允许 11.5 类插位小数)。"""
+        return float(self.raw.get("order", 0))
 
     @property
     def when(self) -> dict[str, Any]:

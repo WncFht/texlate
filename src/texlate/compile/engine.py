@@ -26,6 +26,7 @@ import json
 import logging
 import os
 import re
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass, field
@@ -1323,7 +1324,7 @@ class XelatexEngine:
             finally:
                 fcntl.flock(fh, fcntl.LOCK_UN)
 
-    def install_file(  # noqa: PLR0911  # 每支一条早退, 合并反伤可读
+    def install_file(
         self, fname: str, *, font_related: bool = False
     ) -> bool:
         """经 kpsewhich 验证 → filemap 查包 → `tlmgr --usermode install` → 复核。"""
@@ -1364,12 +1365,52 @@ class XelatexEngine:
             return False
         if font_related:
             self.rebuild_fontmaps()
+        return self._post_install_verify(fname, pkgs, home)
+
+    def _post_install_verify(
+        self, fname: str, pkgs: list[str], home: str | None
+    ) -> bool:
+        """装后复核: tlmgr rc=0 未落盘走 CTAN overlay → doc-only 搬迁两兜底。
+
+        postaction 类包在 usermode 整体拒装 ("package X is not relocatable",
+        axodraw2 实证) —— 文件本身可直放, 走 CTAN archive 按 tlpdb relpath
+        铺进 usertree home。mn2e.cls 类连 overlay 都落在 TEXINPUTS 外的
+        doc/ 树 (mnras → doc/latex/mnras/LEGACY/) —— basename 恰一命中才
+        搬进 tex/latex/。
+        """
         if self.probe_file(fname) is not None:
             return True
-        # tlmgr rc=0 却未落盘: postaction 类包在 usermode 整体拒装
-        # ("package X is not relocatable", axodraw2 实证) —— 文件本身
-        # 可直放, 走 CTAN archive 按 tlpdb relpath 铺进 usertree home。
-        return self._fetch_into_usertree(fname, pkgs, Path(home)) if home else False
+        if not home:
+            return False
+        dest = Path(home)
+        if self._fetch_into_usertree(fname, pkgs, dest):
+            return True
+        return self._relocate_doc_only(fname, dest)
+
+    def _relocate_doc_only(self, fname: str, home: Path) -> bool:
+        """把 doc/ 树落位的缺件搬进 tex/latex/ + kpsewhich 复核。"""
+        base = Path(fname.replace("\\", "/")).name
+        if not base or "\x00" in fname:
+            return False
+        try:
+            root = home.resolve()
+        except (OSError, RuntimeError, ValueError):
+            return False
+        doc = root / "doc"
+        if not doc.is_dir():
+            return False
+        hits = [p for p in doc.rglob(base) if p.is_file()]
+        if len(hits) != 1:  # 0=没装进来; >1=多副本歧义不猜
+            return False
+        dest = root / "tex" / "latex" / base
+        try:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(hits[0], dest)
+        except OSError:
+            return False
+        if (root / "ls-R").is_file() and (tool := find_tool("mktexlsr")):
+            run_process([tool, str(root)], cwd=Path.cwd(), timeout=60)
+        return self.probe_file(fname) is not None
 
     def _fetch_into_usertree(self, fname: str, pkgs: list[str], dest: Path) -> bool:
         """CTAN ``archive/<pkg>.tar.xz`` → overlay=tree 落 usertree home → 复核。"""
