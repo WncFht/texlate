@@ -122,6 +122,7 @@ class _Parse:
         rows: list[dict[str, Any]] = []
         scans: dict[str, ScanResult] = {}
         ctx.support_files = []
+        ctx.fault_files = []
         seq = 0
         for f in sorted(
             p
@@ -138,6 +139,7 @@ class _Parse:
             try:
                 res = parse_file(f, flatten=False)
             except Exception as e:  # noqa: BLE001 -- 单文件解析崩记名跳过
+                ctx.fault_files.append(rel)
                 self._log(ctx, f"parse skip {rel}: {e}")
                 continue
             if not file_has_prose(res.chunks):

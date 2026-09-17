@@ -32,6 +32,7 @@ from texlate.e2e import (
     _split_cid,
     _TreeRun,
 )
+from texlate.latex.placeholder import PH_RX
 from texlate.latex.reconstruct import reconstruct
 from texlate.repair import (
     cross_engine_retry,
@@ -70,6 +71,7 @@ from ._common import (
     _tgt_lang,
     _translator_clients,
     chunk_db_id,
+    opt_bool,
 )
 from .share import (
     _share_sourced,
@@ -312,6 +314,7 @@ class _Compile:
                 continue
             out = reconstruct(res, by_int)
             (ctx.zh_dir / rel).write_text(out, encoding="utf-8")
+            ctx.leftover_ph += len(PH_RX.findall(out))
             n_files += 1
         self._log(ctx, f"splice: {n_files} files rewritten")
         try:
@@ -468,13 +471,16 @@ class _Compile:
         return self.store.chunk_counts(ctx.task_id)["total"] != 0
 
     def _fixloop_enabled(self, ctx: TaskCtx) -> bool:
-        """Fixloop 开关：``options.fixloop`` false 系值或 ``TEXLATE_NO_FIXLOOP`` 真值 → 关（默认开）。"""
-        if env_flag("TEXLATE_NO_FIXLOOP", default=False):
-            return False
-        v = ctx.options().get("fixloop")
-        if v is None or isinstance(v, bool):
-            return v is not False
-        return str(v).strip().lower() not in ("0", "false", "no", "off")
+        """Fixloop 开关：``options.fixloop`` 显式 > ``TEXLATE_NO_FIXLOOP``（默认开）。
+
+        与 ``_l2_enabled``/``_env_judge_enabled``/e2e 同序——显式参数优先；
+        曾 env 胜 options（相反序），同侧两开关不一致已统一。
+        """
+        return opt_bool(
+            ctx.options(),
+            "fixloop",
+            lambda: not env_flag("TEXLATE_NO_FIXLOOP", default=False),
+        )
 
     def _fixloop_engine(self, ctx: TaskCtx, eng: Engine) -> Engine:
         """Fixloop 轮内用引擎：xelatex 独立构造 ``halt_on_error=True``（e2e 权威口径）。
@@ -541,7 +547,7 @@ class _Compile:
                 work=work,
                 main_rel=ctx.main_rel,
                 timeout=self._compile_timeout,
-                flags=flags,
+                flags=list(dict.fromkeys([*ctx.probe_flags, *flags])),
                 dropped=dropped,
                 expect_cjk=ctx.expect_cjk,
                 # halt_on_error=True：与 fixloop 轮内同口径（首错可分类），
@@ -584,12 +590,9 @@ class _Compile:
         """
         if _share_sourced(ctx):
             return False
-        v = ctx.options().get("l2")
-        if v is not None:
-            if isinstance(v, bool):
-                return v
-            return str(v).strip().lower() not in ("0", "false", "no", "off")
-        return not env_flag(_ENV_NO_L2, default=False)
+        return opt_bool(
+            ctx.options(), "l2", lambda: not env_flag(_ENV_NO_L2, default=False)
+        )
 
     def _llm_hook_pack(
         self, ctx: TaskCtx
@@ -731,7 +734,11 @@ class _Compile:
                 run, work, ctx.main_rel, {_split_cid(c)[0] for c in changed}
             )
             res2 = eng.compile(
-                work, ctx.main_rel, timeout=self._compile_timeout, sandbox=True
+                work,
+                ctx.main_rel,
+                timeout=self._compile_timeout,
+                sandbox=True,
+                flags=ctx.probe_flags or None,
             )
             v2 = judge(
                 res2, expect_cjk=ctx.expect_cjk, log_text=self._log_text_of(res2)
@@ -759,6 +766,7 @@ class _Compile:
                         ctx.main_rel,
                         timeout=self._compile_timeout,
                         sandbox=True,
+                        flags=ctx.probe_flags or None,
                     )
                     v3 = judge(
                         res3,
@@ -902,6 +910,7 @@ class _Compile:
         shutil.copytree(ctx.zh_dir, work)
         eng = self._engine(ctx)
         rep = self._probe_target(ctx, work)
+        ctx.probe_flags = [str(f) for f in (rep.flags if rep else [])]
         res = eng.compile(
             work,
             ctx.main_rel,

@@ -57,6 +57,7 @@ from ._common import (
     _translator_clients,
     chunk_db_id,
     chunk_error_code,
+    opt_bool,
 )
 from .share import (
     _share_sourced,
@@ -343,12 +344,11 @@ class _Translate:
         """
         if _share_sourced(ctx):
             return False
-        v = ctx.options().get("env_judge")
-        if v is not None:
-            if isinstance(v, bool):
-                return v
-            return str(v).strip().lower() not in ("0", "false", "no", "off")
-        return env_flag(_ENV_ENV_JUDGE, default=False)
+        return opt_bool(
+            ctx.options(),
+            "env_judge",
+            lambda: env_flag(_ENV_ENV_JUDGE, default=False),
+        )
 
     def _env_judge_filter(  # noqa: C901 -- 守卫/回退阶梯平铺即 spec 的跳过面
         self,

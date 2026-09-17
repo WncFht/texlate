@@ -68,6 +68,20 @@ def _env_timeout(name: str, default: float) -> float:
     return v if 0.0 < v <= _ENV_TIMEOUT_MAX_S else default
 
 
+def opt_bool(options: dict[str, Any], key: str, env_on: Callable[[], bool]) -> bool:
+    """options[key] 显式值 > env_on()——worker 开关统一 explicit 优先（e2e 同式）。
+
+    options 值容忍 bool 与 ``"0"/"false"/"no"/"off"`` 字符串 false 系；
+    env_on 是「开」语义的零参 callable（NO_ 系 env 由调用侧取反喂入）。
+    """
+    v = options.get(key)
+    if v is not None:
+        if isinstance(v, bool):
+            return v
+        return str(v).strip().lower() not in ("0", "false", "no", "off")
+    return env_on()
+
+
 #: 编译超时（docs/08 §4.1 默认值；server 路径无 --timeout flag，
 #: ``TEXLATE_COMPILE_TIMEOUT`` 秒数是唯一全局调节口——CLI/bench 走参数
 #: 化 ``timeout`` 链，唯独本常量钉死 create_app 不传 ctor 参的路径）
@@ -210,11 +224,22 @@ class TaskCtx:
     #: 有线程亲和，编译线程内不可查
     expect_cjk: bool = True
     #: 散文门分流出的 support 文件（.code.tex 机制件/无散文宏件转储）——
-    #: 按原文保留不进翻译集，送译即腐蚀（同 e2e._scan_tree 三级分流）
+    #: 按原文保留不进翻译集，送译即腐蚀（同 e2e._scan_tree 三级分流）；
+    #: _stats 审计面消费
     support_files: list[str] = field(default_factory=list)
+    #: _parse_all 单文件解析崩的记名单（e2e ``fault_files`` 同位）——
+    #: 此前只有 log 行无结构化面，_stats 落账
+    fault_files: list[str] = field(default_factory=list)
+    #: splice 译文里的残余占位符计数（e2e ``leftover_ph`` 同位）——
+    #: _build_zh 逐文件累计
+    leftover_ph: int = 0
     #: arxiv_html 链的 DOM 块模型（fetch/parse 建、emit 用 ph_map 回插）——
     #: tex 链恒 None；resume 路径由 ``_html_doc`` 从 src/index.html 重解析
     html_doc: HtmlDoc | None = None
+    #: _probe_target 探出的引擎 flags（-shell-escape 类）——首编经
+    #: ``rep.flags`` 直连；L2 重编/cross-engine 重试经此续传（e2e
+    #: ``job.probe_flags`` 同式，缺了重试臂在另一套条件下编译）
+    probe_flags: list[str] = field(default_factory=list)
 
     @property
     def src_dir(self) -> Path:

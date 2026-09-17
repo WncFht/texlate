@@ -206,6 +206,12 @@ class _Events:
             "seconds": seconds,
             "chunks_failed": counts["failed"],
         }
+        if ctx.fault_files:
+            out["fault_files"] = ctx.fault_files
+        if ctx.support_files:
+            out["support_files"] = ctx.support_files
+        if ctx.leftover_ph:
+            out["leftover_ph"] = ctx.leftover_ph
         if ctx.fixloop:
             out["fixloop"] = ctx.fixloop.get("verdict")
         if ctx.l2:
