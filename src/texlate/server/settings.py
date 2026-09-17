@@ -64,6 +64,16 @@ ENGINES = frozenset({"auto", "xelatex", "tectonic"})
 #: 模型名长度上限（防滥用长串）
 MODEL_MAX_LEN = 200
 
+#: ``save`` 期 ``/v1/models`` 探活超时——不可达不阻断保存（M3 smoke B2：
+#: 存了 provider 拒收的 model 会持续毒化后续任务，值得警告但不值得硬拒）
+_MODEL_PROBE_TIMEOUT_S = 3.0
+
+#: 探活清单 TTL——同 endpoint 连续 ``save`` 不重复打 ``/models``
+_MODEL_PROBE_CACHE_TTL_S = 20.0
+
+#: ``save`` 里触发模型可用性重估的字段（凭证/端点/模型任一变更才可能改变可达性）
+_MODEL_PROBE_FIELDS = frozenset({"base_url", "model", "api_key", "clear_api_key"})
+
 
 def _is_plaintext_ok_host(hostname: str) -> bool:
     """HTTP 放行：localhost，或 tailnet 主机（CGNAT 字面量 / ``*.ts.net``）。
@@ -372,6 +382,9 @@ class SettingsStore:
         self.root = root
         self.path = root / SETTINGS_FILE
         self.connections_path = root / CONNECTIONS_FILE
+        #: 最近一次 ``save`` 探活的模型可用性警告（进程瞬态不落盘；
+        #: ``None`` = 无警告或未知），``public()`` 随出参透给前端
+        self._model_warning: str | None = None
 
     def load(self) -> dict[str, Any]:
         """读 settings.json；缺席/损坏回落默认。"""
@@ -445,6 +458,13 @@ class SettingsStore:
         self.connections_path.chmod(0o600)
         atomic_json(self.path, merged)
         self.path.chmod(0o600)
+        if _MODEL_PROBE_FIELDS & set(updates):
+            # 凭证/端点/模型变更后 best-effort 探活——provider 清单不含
+            # 当前 model 时存警告（保存照存：不可用模型仍允许入设置，
+            # 但 PUT 响应带 model_warning 提醒后续任务会毒化 fault）
+            self._model_warning = model_availability_warning(
+                str(merged["base_url"]), str(merged["api_key"]), str(merged["model"])
+            )
         return merged
 
     def connections(self) -> dict[str, dict[str, str]]:
@@ -470,9 +490,15 @@ class SettingsStore:
         return out
 
     def public(self) -> dict[str, Any]:
-        """出参形态：剥 key 本体 + ``has_api_key``（§4.2 第三道防线）。"""
+        """出参形态：剥 key 本体 + ``has_api_key``（§4.2 第三道防线）。
+
+        ``model_warning`` 仅在上次 ``save`` 探活判定模型未被 provider
+        清单广告时出现——PUT 响应即时透出毒化模型警告，GET 复现同一警告。
+        """
         data = self.load()
         data["has_api_key"] = bool(data.pop("api_key"))
+        if self._model_warning:
+            data["model_warning"] = self._model_warning
         return data
 
 
@@ -727,6 +753,88 @@ def install_log_scrub(
 
 
 # ---------------------------------------------------------------- providers
+
+
+#: ``base_url → (monotonic 时间戳, 清单或 None)`` 探活缓存；进程级共享——
+#: 清单是 endpoint 形态不是 store 形态
+_MODELS_CACHE: dict[str, tuple[float, list[str] | None]] = {}
+_MODELS_CACHE_LOCK = threading.Lock()
+
+
+def list_provider_models(
+    base_url: str, api_key: str = "", *, timeout: float = _MODEL_PROBE_TIMEOUT_S
+) -> list[str] | None:
+    """同步 ``GET {root}/v1/models`` → 模型 id 清单；任何失败 → ``None``。
+
+    ``ChatClient.list_models`` 的同步退化形（openai 方言 Bearer 头，与其
+    ``_openai_headers`` 同口径）。``SettingsStore.save`` 是同步路径；探活
+    失败面一律收敛 ``None``——离线/不可达 provider 绝不阻断 settings UX。
+    """
+    import httpx  # noqa: PLC0415 -- 重依赖惰性加载
+
+    root = normalize_base_url(base_url)
+    if not root:
+        return None
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+    try:
+        resp = httpx.get(
+            f"{root}/v1/models",
+            headers=headers,
+            timeout=timeout,
+            follow_redirects=True,
+        )
+    except Exception:  # noqa: BLE001 -- 探活失败面收敛 None
+        return None
+    if not resp.is_success:
+        return None
+    try:
+        data = resp.json()
+    except json.JSONDecodeError:
+        return None
+    items = data.get("data") if isinstance(data, dict) else None
+    if not isinstance(items, list):
+        return None
+    return [str(m["id"]) for m in items if isinstance(m, dict) and "id" in m]
+
+
+def _cached_provider_models(base_url: str, api_key: str) -> list[str] | None:
+    """TTL 缓存的 ``list_provider_models``——``save`` 高频调用不重复探活。
+
+    按 ``base_url`` 单键缓存（不细分 api_key）：清单不可达/鉴权失败的
+    ``None`` 同样缓存 TTL 期——探活是 UX 警告不是正确性闸，短窗口内
+    用旧 verdict 可接受。
+    """
+    now = time.monotonic()
+    with _MODELS_CACHE_LOCK:
+        hit = _MODELS_CACHE.get(base_url)
+        if hit is not None and now - hit[0] < _MODEL_PROBE_CACHE_TTL_S:
+            return hit[1]
+    models = list_provider_models(base_url, api_key)
+    with _MODELS_CACHE_LOCK:
+        _MODELS_CACHE[base_url] = (time.monotonic(), models)
+    return models
+
+
+def _model_probe_enabled() -> bool:
+    """``TEXLATE_MODEL_PROBE``：``0/false/no`` 关闭 save 期探活（离线/CI 兜底闸）。"""
+    return os.environ.get("TEXLATE_MODEL_PROBE", "1").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+    )
+
+
+def model_availability_warning(base_url: str, api_key: str, model: str) -> str | None:
+    """``/models`` 清单不含当前 model → UX 警告；探活失败/清单命中 → ``None``。"""
+    if not _model_probe_enabled():
+        return None
+    models = _cached_provider_models(base_url, api_key)
+    if models is None or model in models:
+        return None
+    return (
+        f"model {model!r} 不在 provider /models 清单内——已保存；"
+        "若属拼写错误，后续任务会在翻译阶段失败"
+    )
 
 
 def provider_presets(settings: dict[str, Any]) -> list[dict[str, Any]]:
