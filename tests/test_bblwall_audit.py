@@ -349,10 +349,11 @@ def test_undefine_docclass_comment_eol_seam(tmp_path: Path) -> None:
     ok, _note = undefine_for_redef(_ctx(tmp_path), None, "foo", {})
     assert ok
     t = (tmp_path / "main.tex").read_text(encoding="utf-8")
-    first = t.splitlines()[0]
-    assert first.endswith("%!TEX program=xelatex")
-    assert "\\@undefined" not in first
-    assert "\\let\\foo\\@undefined" in t.splitlines()[1]
+    lines = t.splitlines()
+    assert lines[0].endswith("%!TEX program=xelatex")
+    assert "\\@undefined" not in lines[0]
+    let_ln = next(i for i, ln in enumerate(lines) if "\\let\\foo\\@undefined" in ln)
+    assert 0 < let_ln < lines.index("\\begin{document}")
 
 
 def test_allocated_cs_names_prims() -> None:

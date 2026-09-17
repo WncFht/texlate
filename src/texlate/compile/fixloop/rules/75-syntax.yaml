@@ -9,6 +9,47 @@
 version: 1
 
 rules:
+  # ─── o2-builtin-cs (m1b-residue-routes-2026-09-17 §2): 缺字第三子路 ───
+  # §/ø 类缺字由 \S/\o 等 cs 在 TFM 字体下产出 —— 源内无字面字符,
+  # missing_char_fix(25) 字面替换与 font_fallback(26) newunicodechar 都
+  # 够不到。order 25.7 抢在 26 前: 0xF8 落 font_fallback 拉丁扩展带,
+  # 慢一拍会被无回效的 \newunicodechar{ø} 白烧该格 (applied 键占位)。
+  # 居本分片因 60-misschar.yaml 归他线名下 (文件级互斥) —— order
+  # 全局排序与文件位次无关。
+  - id: missing_char_cs_rebind
+    mechanisms: [W42, W43]
+    description: "缺字码位有产出 cs (\\S→§/\\o→ø) 且源无字面 → \\protected\\def 重绑回退字体"
+    phase: loop
+    order: 25.7 # missing_char_fix(25)/accent_mark_fix(25.5) 后, font_fallback(26) 前 —— 抢收 cs 产出面防字面回退白烧
+    when:
+      any:
+        - { category: warn_missing_char }
+        - { category: warn_utf8 } # 同 missing_char_fix —— 类别排他 quirk 补漏
+    action:
+      kind: builtin_transform
+      function: cs_rebind
+      params:
+        # char_table 条目可带 produced_by: "<cs>" 扩产出面; producers
+        # hex 键直给码位→cs 覆盖。fallback_cs 与 font_fallback 同族
+        # 共享 \ifdefined 守卫 (\newfontfamily 不互踩)。
+        fallback_cs: txlatefallback
+    risk: low # \protected\def 只绑已缺字 cs; \ifmmode 双域模板; moving-arg 实证 (\markboth/\cite[\S 7])
+    known_gap: "cs 兼产多码位/参数化产出 (\\char\\NN) 未覆盖; 字面与产出并存时字面路先修, 本规下轮接手"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "2403.15096 (m1b-residue-routes-2026-09-17 §2)",
+          error: 'Missing character: no § ("A7) in font cmr10 — 31×\S 零字面 §',
+        }
+      - {
+          corpus: "physics/9901057 (同上)",
+          error: 'no ø ("F8) in font cmr9 ×2 — \o 在 \markboth/\bibitem 内产出',
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "peer1-residue-routes.md §2 簇; produced_by 键 = char_table 扩口; \\protected\\def 超 spec \\renewcommand 建议 (moving-arg 安全)"
+
   - id: hyphenation_sane
     description: "\\hyphenation{} 参数混入非拉丁 token (中文) → 剥离, 只留 [a-zA-Z-]"
     phase: loop
@@ -85,6 +126,94 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "fixloop.py L448-456"
+
+  # ─── o2-builtin-cs (m1b-residue-routes-2026-09-17 §2): already_def 批量清位 ──
+  # journal_abbrev 族: mnras.cls 预定义 \aj/\mnras 系, 稿内 \newcommand
+  # 6-11 名连环撞 —— renew(111) payload-bound 逐轮一名, 10+ 撞名烧尽轮次。
+  # halt_on_error 下每轮 log 只见首撞名 → 本规按"撞名 ∪ 撞名站点所在
+  # 文件的全部 \newcommand 族站点"计数 ≥min_batch, 一轮把 guilty 文件
+  # 内全部"名必须未定义"族站点前置 \let\@undefined (未撞名站点前置是
+  # 语义无操作: undefine+define≡define; 1206.0299 实证 12 名单轮清,
+  # verdict 由 best_effort 升 clean) + 证实撞名 docclass 块双修。孤站
+  # 单撞名格仍让位 renew(111)/undefine(113) 已验证路径。other 臂接反
+  # 引号签 ``Command `\X' already defined`` (ltcmd/老 \@ifdefinable 形,
+  # taxonomy 落 other 无 payload —— builtin 侧 min_batch 恒按 1, 该面
+  # 无下家)。
+  - id: already_def_batch_undefine
+    mechanisms: [W45, W49]
+    description: "already_def 撞名∪同文件站点簇 ≥2 (或反引号 other 签) → 一轮批清 \\let\\X\\@undefined (站点前置+docclass 块双修)"
+    phase: loop
+    order: 110.5 # thm_sibling_strip(110) 后, renew(111) 前 —— 批量先收, 单撞名落 111/113
+    when:
+      any:
+        - { category: already_def, payload_required: true }
+        - { category: other } # 反引号签 `` `X' already defined`` 无 payload
+    condition:
+      ctx_suggests: "already defined"
+    action:
+      kind: builtin_transform
+      function: undefine_for_redef
+      params:
+        min_batch: 2 # payload=None (other 臂) 时 builtin 内恒按 1
+    risk: medium # 同 already_def_undefine(113): 清先定义位让后定义者赢; 寄存器/盒型分配名护栏同套
+    known_gap: "log 截断时撞名集不全 → 残名下轮补扫; 站点在非 wdir 外 (\\input 树外) 未锚; Theorem-style payload 非 cs 自动丢弃"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1206.0299 (m1b-residue §2 journal_abbrev)",
+          error: "odg.tex:221-226 Command \\aj/\\jcap/\\prd/\\pasp/\\mnras/\\physrep already defined ×6 (mnras.cls 预定义)",
+        }
+      - {
+          corpus: "1706.00106 (同上)",
+          error: "ms.tex:217-229 \\mnras/\\aap/\\aapr/\\pasp/\\rmxaa/\\nar/\\nat/\\physrep/\\pasj/\\pasa ×10",
+        }
+      - {
+          corpus: "astro-ph/0408445 (同上 mathalpha_redef)",
+          error: 'PolarShapelets.tex:342/344 Command `\mathbfit''/`\mathbfss'' already defined (bm 包后定义窗口 → 站点前置修形)',
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "peer1-residue-routes.md §2; undefine_for_redef 批量化 (site_cmds 表可扩)"
+
+  # ─── o2-builtin-cs (wontfix-scout 裁决1, wontfix→rule 改判): fontspec
+  # merge 表撞车 ── IMS 系 cls \renewcommand\sldefault{it} (arximspdf:227/
+  # arxstspdf:181) → fontspec 2.9g \__fontspec_merge_default_shapes 的
+  # \tl_const:cn 展开产 4 组重名 (it_sc/sc_it/scit_it/scit_n)。签名落
+  # other (无 Command 关键字 —— "Control sequence \c__fontspec_shape_*_tl
+  # already defined")。修 = preamble 顶 (\documentclass 前) hook 对:
+  # before 存 cls 值+复位 \sldefault{sl} 让 merge 表展开不撞, after 还原。
+  # 错发在 preamble 期包加载 (注入 ctex→xeCJK→fontspec 链), hook 完全可达;
+  # fixprobe 实测 0 错 PDF 正常 (tmp/wontfix-scout/work/fixprobe.tex)。
+  - id: fontspec_double_merge
+    description: "cls 重定义 \\sldefault 撞 fontspec merge 常量表 → \\documentclass 前注 fontspec before/after hook 对暂存-复位-还原"
+    phase: loop
+    order: 110.7 # batch_undefine(110.5) 同面 —— 该签名无 Command 形 cs, 上家自 decline 后落此
+    when: { category: other } # "Control sequence" 签不落 already_def taxonomy
+    condition:
+      ctx_suggests: "Control sequence \\\\c__fontspec_shape_\\w+ already defined"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "^[ \\t]*\\\\documentclass",
+              flags: [M],
+              repl: "\\AddToHook{package/fontspec/before}{\\let\\TeXlateSldefault\\sldefault \\def\\sldefault{sl}}\n\\AddToHook{package/fontspec/after}{\\let\\sldefault\\TeXlateSldefault} % fixloop: fontspec shape-merge guard\n\\g<0>",
+            }
+    risk: low # hook 对为纯守卫: \sldefault 未被 cls 动过时存-复位-还原同值, 等同 no-op
+    known_gap: "cls 自体在 \\documentclass 内加载 fontspec 的极端序仍盖 (hook 先于类载入); 多 docclass \\if 分支各臂同注, hook 幂等"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "0806.3286/1003.5240/1206.0576 (arximspdf.cls:227) + 1012.1161 (arxstspdf.cls:181)",
+          error: "fontspec-xetex.sty:4166 Control sequence \\c__fontspec_shape_{it_sc,sc_it,scit_it,scit_n}_tl already defined ×4",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/wontfix-scout/verdict.md 裁决1 + work/fixprobe.tex 实测 0 错"
 
   # 2026-09-16 wave-2: already_def 泛化 (1003.0344/cond-mat-0501638) ——
   # 稿自带 \newcommand{\Ref}[1]{(\ref{#1})} 撞包先定义 (varioref 系),
@@ -187,6 +316,35 @@ rules:
         }
     stats: { fires: 1, status: verified }
     source_ref: "partial-taxonomy-2026-09-17 散件; \\let\\X\\@undefined 两代检查通吃; fixer-bblwall A5 升级 builtin (eol+1 缝 + 寄存器护栏)"
+
+  # ─── o2-builtin-cs (m1b-residue-routes-2026-09-17 §3): AMS 上古字体 cs ──
+  # hep-th/9703214: AMS 时代稿用 \<size><fam> 缩名 (\fivmi/\tensy 族),
+  # \font 定义躺在 \doit{0} 死宏参块 → 活 \skewchar\fivmi/\textfont9=\tenex
+  # 全链 undefined_cs ×83 (非 missing_tfm —— 无 \font 装载动作,
+  # install_tfm 接不到)。shim = docclass 后 \font\<cs>=<cm 等价>
+  # (fivmi→cmmi5, elvrm→cmr10 at 10.95pt): 先绑定后定义赢序, 稿内
+  # 后到的活 \font/\def 仍覆盖, 只对真缺定义位生效。
+  - id: ams_font_cs_shim
+    mechanisms: [W96]
+    description: "AMS 上古字体缩名 cs (\\<size><fam>: \\fivmi/\\tenmib 族) 用而未定义 → \\font\\<cs>=CM 等价注入"
+    phase: loop
+    order: 162 # biblatex_bbx_rename(161) 与 physics_stub_detach(163) 之间 —— journal_cs_polyfill(160) 不收的先截
+    when: { category: undefined_cs, payload_required: true }
+    action:
+      kind: builtin_transform
+      function: font_cs_shim # params.sizes/fams 可扩表; payload 不匹 <size><fam> 模式即落穿
+    risk: low # 窄谓词 (<size><fam> 全词锚) + 死定义豁免 (\\def 系有定义证据不接管); 先绑后定义赢序
+    known_gap: "非 <size><fam> 形字体 cs 不收; 死块 \\font 定义不可见 → 报错名恒重注 (可见 \\font 定义必为死定义)"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "hep-th/9703214 (m1b-residue-routes-2026-09-17 §3, 83 errs)",
+          error: "l.201 \\skewchar\\fivmi → Undefined control sequence (fivmi..twfvmi mi+sy 族, \\doit{0} 死块内 \\font 定义不执行)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "peer1-residue-routes.md §3; AMS 命名 <size>mi/sy/ex/bf 谱 (amsfonts 2.x 上古档通用)"
 
   # 2026-09-17 fixer-filemap (1706.07911): comment.sty 排除扫描器逐行找
   # 顶格 `\end{<env>}`; 源生 tab/空格缩进的 \end 行不匹配 → 扫到 EOF
@@ -460,6 +618,44 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "bench/results/repro-1306-2026-09-16/ (probe-* 全矩阵 + e2e 7页实证); draft revtex4-array-guard.yaml (1e, d2d82e8)"
+
+  # ─── o2-builtin-cs (m1b-residue-routes-2026-09-17 §2): env_undefined
+  # 泛化 noop polyfill ── abstract_frontmatter_hoist(168) 只接 abstract
+  # 专名; 老类 (svjour/siamltex/aasms4) 不产现内核定理环, 或定义躺在
+  # \ifnfssone/\doit{0} 死块 (math/0104275 tcilatex 族) → Environment
+  # example/definition/theorem undefined 多 env 同轮齐缺。修形 =
+  # docclass 后 \ifcsname 守卫 \newenvironment{X}{}{} noop (数学 env 给
+  # \[..\] 壳) —— cls 其实有定义的残余格幂等, 一轮清全部缺名。
+  - id: undefined_env_polyfill
+    description: "Environment X undefined → docclass 后 \\ifcsname 守卫 \\newenvironment noop (数学 env 给 \\[..\\] 壳), 一轮批清"
+    phase: loop
+    order: 172 # revtex4_array_swap_guard(170) 与 typein_neutralize(180) 之间; abstract 专名面已由 168 先行
+    when: { category: env_undefined, payload_required: true }
+    action:
+      kind: builtin_transform
+      function: undefined_env_polyfill
+      params:
+        deny: [document] # 不可 noop 化的环境名
+    risk: medium # noop env 吞体不改版式但吃掉定理编号/交叉引用锚 —— 比整篇无 PDF 可接受
+    known_gap: "env 体有语义结构 (proof/sidebar) 被 noop 吞 → 内容仍在样式空; \\newenvironment 含参形 ([n]) 不产"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1012.1059 (m1b-residue §2 env_stub_gap)",
+          error: "LaTeX Error: Environment example/definition/theorem undefined (svjour 类不产定理环)",
+        }
+      - {
+          corpus: "1206.0593 (同上)",
+          error: "Environment definition/theorem/proposition undefined ×3 同轮",
+        }
+      - {
+          corpus: "math/0104275 (同上)",
+          error: "tcilatex 族 \\ifnfssone 死块内 env 定义不执行",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "peer1-residue-routes.md §2 env_stub_gap 面; MATH_ENVS 数学环表"
 
   # 上古 REVTeX 4 系 (v4.0rc ~/texmf 阴影件 / revtex4b* TL 缺席) vs 现代内核:
   # \@uclcnotmath 路径上 \NoCaseChange{##} 塌缩成裸 # → \protected@edef

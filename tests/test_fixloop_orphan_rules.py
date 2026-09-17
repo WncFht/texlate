@@ -611,3 +611,508 @@ def test_orphan_rule_ids_in_ruleset() -> None:
         if fn is not None:
             assert (by_id[rid].raw.get("action") or {}).get("function") == fn
     assert builtins.generated_stub is TRANSFORM_FNS["generated_stub"]
+
+
+# ═══════════════ o2-builtin-cs 面 (m1b-residue-routes-2026-09-17) ═══════════
+# 四个 builtin: undefined_env_polyfill / undefine_for_redef 批量+站点 /
+# font_cs_shim (AMS 上古字体) / cs_rebind (produced-by-cs 缺字)。
+# log 侧固定走 ``{main stem}.log`` (_fixloop_log 定位序)。
+
+_MAIN_DOCCLASS = "\\documentclass{article}\n"
+
+
+def _write_main(tmp_path: Path, body: str) -> None:
+    (tmp_path / "main.tex").write_text(_MAIN_DOCCLASS + body)
+
+
+# ─── undefined_env_polyfill ───
+
+
+def test_env_polyfill_multi_env_batch(tmp_path: Path) -> None:
+    """1012.1059 形: 一轮 log 三 env 同缺 → 一次全清 (\\ifcsname 守卫 noop)。"""
+    _write_main(
+        tmp_path,
+        "\\begin{document}\n"
+        "\\begin{example}e\\end{example}\n"
+        "\\begin{definition}d\\end{definition}\n"
+        "\\begin{theorem}t\\end{theorem}\n"
+        "\\end{document}\n",
+    )
+    (tmp_path / "main.log").write_text(
+        "main.tex:3: LaTeX Error: Environment example undefined.\n"
+        "main.tex:4: LaTeX Error: Environment definition undefined.\n"
+        "main.tex:5: LaTeX Error: Environment theorem undefined.\n"
+    )
+    ok, note = TRANSFORM_FNS["undefined_env_polyfill"](
+        _ctx(tmp_path), None, "example", {"deny": ["document"]}
+    )
+    assert ok, note
+    t = (tmp_path / "main.tex").read_text()
+    for e in ("example", "definition", "theorem"):
+        assert f"\\newenvironment{{{e}}}{{}}" in t, e
+        assert f"\\ifcsname {e}\\endcsname" in t
+
+
+def test_env_polyfill_math_env_shell(tmp_path: Path) -> None:
+    """数学 env 给 ``\\[..\\]`` 壳兜底数学域 (MATH_ENVS 表)。"""
+    _write_main(
+        tmp_path,
+        "\\begin{document}\n$\\begin{gather}a=b\\end{gather}$\n\\end{document}\n",
+    )
+    (tmp_path / "main.log").write_text(
+        "main.tex:2: LaTeX Error: Environment gather undefined.\n"
+    )
+    ok, note = TRANSFORM_FNS["undefined_env_polyfill"](
+        _ctx(tmp_path), None, "gather", {}
+    )
+    assert ok, note
+    t = (tmp_path / "main.tex").read_text()
+    assert "\\newenvironment{gather}{\\[}{\\]}" in t
+
+
+def test_env_polyfill_unused_env_declines(tmp_path: Path) -> None:
+    """log 报了但源无 ``\\begin{env}`` 站点 → 不注 (窄谓词)。"""
+    _write_main(tmp_path, "\\begin{document}\nx\n\\end{document}\n")
+    (tmp_path / "main.log").write_text(
+        "main.tex:2: LaTeX Error: Environment sidebar undefined.\n"
+    )
+    ok, note = TRANSFORM_FNS["undefined_env_polyfill"](
+        _ctx(tmp_path), None, "sidebar", {}
+    )
+    assert not ok
+    assert "not \\begin-used" in note
+
+
+def test_env_polyfill_halt_expansion(tmp_path: Path) -> None:
+    r"""halt_on_error 单行 log 只见 ``example`` —— 批扩把全部在用且无
+    in-doc 定义证据的 env 一轮清 (1012.1059 实证 8env); 内核 env
+    (figure) 与 ``\\newtheorem`` 已定义名 (corollary) 不注; 注入位在
+    ``\\begin{document}`` 前 (``\\ifcsname`` 才能见包定义名)。"""
+    _write_main(
+        tmp_path,
+        "\\usepackage{amsmath}\n"
+        "\\newtheorem{corollary}{Cor}\n"
+        "\\begin{document}\n"
+        "\\begin{example}e\\end{example}\n"
+        "\\begin{lemma}l\\end{lemma}\n"
+        "\\begin{corollary}c\\end{corollary}\n"
+        "\\begin{figure}f\\end{figure}\n"
+        "\\end{document}\n",
+    )
+    (tmp_path / "main.log").write_text(
+        "main.tex:4: LaTeX Error: Environment example undefined.\n"
+    )
+    ok, note = TRANSFORM_FNS["undefined_env_polyfill"](
+        _ctx(tmp_path), None, "example", {}
+    )
+    assert ok, note
+    t = (tmp_path / "main.tex").read_text()
+    for e in ("example", "lemma"):
+        assert f"\\ifcsname {e}\\endcsname" in t, e
+    # corollary 有 \newtheorem 活定义 → 扩面剔除; figure 内核 env → 不注
+    assert "\\ifcsname corollary\\endcsname" not in t
+    assert "\\ifcsname figure\\endcsname" not in t
+    # 注入位在 \begin{document} 行首之前 (包装载已执行, 守卫才正确)
+    assert t.index("\\ifcsname example\\endcsname") < t.index("\\begin{document}")
+    # amsmath 在载 → gather 类包定义 env 若在用, 守卫行是死化无操作 ——
+    # 本例未用 gather 故无其行
+    assert "\\ifcsname gather\\endcsname" not in t
+
+
+def test_env_polyfill_idempotent(tmp_path: Path) -> None:
+    """二轮再点火: \\ifcsname 标记已见 → applied=False 不占轮次。"""
+    _write_main(
+        tmp_path,
+        "\\begin{document}\n\\begin{lemma}l\\end{lemma}\n\\end{document}\n",
+    )
+    (tmp_path / "main.log").write_text(
+        "main.tex:2: LaTeX Error: Environment lemma undefined.\n"
+    )
+    ctx = _ctx(tmp_path)
+    ok, _ = TRANSFORM_FNS["undefined_env_polyfill"](ctx, None, "lemma", {})
+    assert ok
+    ok, note = TRANSFORM_FNS["undefined_env_polyfill"](ctx, None, "lemma", {})
+    assert not ok
+    assert "already polyfilled" in note
+
+
+def test_env_polyfill_deny_document(tmp_path: Path) -> None:
+    """document 环境在 deny 表 —— 永不 noop 化。"""
+    _write_main(tmp_path, "\\begin{document}\nx\n\\end{document}\n")
+    (tmp_path / "main.log").write_text(
+        "main.tex:2: LaTeX Error: Environment document undefined.\n"
+    )
+    ok, note = TRANSFORM_FNS["undefined_env_polyfill"](
+        _ctx(tmp_path), None, "document", {"deny": ["document"]}
+    )
+    assert not ok
+    assert "no undefined env" in note
+
+
+# ─── undefine_for_redef: 批量 + 站点前置 + other 签 ───
+
+
+def test_undefine_batch_journal_cluster(tmp_path: Path) -> None:
+    """1206.0299 形 (halt_on_error 实证): log 只报首撞名 \\aj, 同文件
+    \\newcommand 站点簇扩 → 一轮全清 (站点前置, 不靠多行 log)。"""
+    _write_main(
+        tmp_path,
+        "\\newcommand{\\aj}{AJ}\n"
+        "\\newcommand{\\jcap}{JCAP}\n"
+        "\\newcommand{\\mnras}{MNRAS}\n"
+        "\\begin{document}\nx\n\\end{document}\n",
+    )
+    (tmp_path / "main.log").write_text(
+        "odg.tex:221: LaTeX Error: Command \\aj already defined.\n"
+    )
+    ok, note = TRANSFORM_FNS["undefine_for_redef"](
+        _ctx(tmp_path), None, "aj", {"min_batch": 2}
+    )
+    assert ok, note
+    t = (tmp_path / "main.tex").read_text()
+    for cs in ("aj", "jcap", "mnras"):
+        assert f"\\let\\{cs}\\@undefined" in t, cs
+    # 站点前置在 \newcommand 行紧邻处
+    assert (
+        "\\makeatletter\\let\\mnras\\@undefined\\makeatother\n\\newcommand{\\mnras}"
+        in t
+    )
+
+
+def test_undefine_batch_multiline_log_still_batch(tmp_path: Path) -> None:
+    """非 halt 轮 (post-verify/salvage) 多行 log: 撞名集全扫仍一轮批清。"""
+    _write_main(
+        tmp_path,
+        "\\newcommand{\\aj}{AJ}\n"
+        "\\newcommand{\\jcap}{JCAP}\n"
+        "\\newcommand{\\mnras}{MNRAS}\n"
+        "\\begin{document}\nx\n\\end{document}\n",
+    )
+    (tmp_path / "main.log").write_text(
+        "odg.tex:221: LaTeX Error: Command \\aj already defined.\n"
+        "odg.tex:222: LaTeX Error: Command \\jcap already defined.\n"
+        "odg.tex:226: LaTeX Error: Command \\mnras already defined.\n"
+    )
+    ok, note = TRANSFORM_FNS["undefine_for_redef"](
+        _ctx(tmp_path), None, "aj", {"min_batch": 2}
+    )
+    assert ok, note
+    t = (tmp_path / "main.tex").read_text()
+    for cs in ("aj", "jcap", "mnras"):
+        assert f"\\let\\{cs}\\@undefined" in t, cs
+
+
+def test_undefine_batch_single_collision_declines(tmp_path: Path) -> None:
+    """min_batch=2 门: 孤站单撞名格 (文件仅一处站点) 让位 renew(111)。"""
+    _write_main(
+        tmp_path,
+        "\\newcommand{\\Ref}[1]{(\\ref{#1})}\n\\begin{document}\nx\n\\end{document}\n",
+    )
+    (tmp_path / "main.log").write_text(
+        "main.tex:1: LaTeX Error: Command \\Ref already defined.\n"
+    )
+    ok, note = TRANSFORM_FNS["undefine_for_redef"](
+        _ctx(tmp_path), None, "Ref", {"min_batch": 2}
+    )
+    assert not ok
+    assert "<2" in note  # 撞名∪站点兄弟 <2 → 单撞名路径
+
+
+def test_undefine_single_default_path(tmp_path: Path) -> None:
+    """缺省 min_batch=1 (already_def_undefine@113 路径) —— 单撞名仍修。"""
+    _write_main(
+        tmp_path,
+        "\\begin{document}\nx\n\\end{document}\n",
+    )
+    (tmp_path / "main.log").write_text(
+        "main.tex:1: LaTeX Error: Command \\liningnums already defined.\n"
+    )
+    ok, note = TRANSFORM_FNS["undefine_for_redef"](
+        _ctx(tmp_path), None, "liningnums", {}
+    )
+    assert ok, note
+    assert "\\let\\liningnums\\@undefined" in (tmp_path / "main.tex").read_text()
+
+
+def test_undefine_backtick_other_signature(tmp_path: Path) -> None:
+    r"""astro-ph/0408445 形: ``Command `\X' already defined`` 反引号签
+    (taxonomy 落 other, payload=None → min_batch 恒 1); halt 单行 log
+    只见 \\mathbfit, 站点簇扩把 \\mathbfss 同轮清。"""
+    _write_main(
+        tmp_path,
+        "\\usepackage{bm}\n"
+        "\\DeclareMathAlphabet{\\mathbfit}{OT1}{cmm}{b}{it}\n"
+        "\\DeclareMathAlphabet{\\mathbfss}{OT1}{cmss}{bx}{n}\n"
+        "\\begin{document}\nx\n\\end{document}\n",
+    )
+    (tmp_path / "main.log").write_text(
+        "PolarShapelets.tex:342: LaTeX Error: Command `\\mathbfit' already defined.\n"
+    )
+    ok, note = TRANSFORM_FNS["undefine_for_redef"](
+        _ctx(tmp_path), None, None, {"min_batch": 2}
+    )
+    assert ok, note
+    t = (tmp_path / "main.tex").read_text()
+    assert (
+        "\\makeatletter\\let\\mathbfit\\@undefined\\makeatother\n"
+        "\\DeclareMathAlphabet{\\mathbfit}"
+    ) in t
+    assert "\\let\\mathbfss\\@undefined" in t
+
+
+def test_undefine_allocated_name_guard(tmp_path: Path) -> None:
+    """2211.04482 护栏: \\newbox\\splitbox 分配名 → 弃修 (Let 后名被抢占炸 Missing number)。"""
+    _write_main(
+        tmp_path,
+        "\\newbox\\splitbox\n\\begin{document}\nx\n\\end{document}\n",
+    )
+    (tmp_path / "main.log").write_text(
+        "main.tex:1: LaTeX Error: Command \\splitbox already defined.\n"
+    )
+    ok, note = TRANSFORM_FNS["undefine_for_redef"](_ctx(tmp_path), None, "splitbox", {})
+    assert not ok
+    assert "allocated" in note  # 与 bblwall 钉同一 abstain 注记面
+
+
+def test_undefine_cls_site_no_catcode_wrap(tmp_path: Path) -> None:
+    r"""1706.00221 实证: .cls/.sty 内 @ 本是 letter —— 站点前置在包文件
+    内必须裸 ``\\let`` (无 ``\\makeatletter`` 对); 尾部 ``\\makeatother``
+    会把 @ 翻回 catcode-12, 其后 ``\\define@key`` 族全烂。"""
+    _write_main(tmp_path, "\\begin{document}\nx\n\\end{document}\n")
+    (tmp_path / "foo.cls").write_text(
+        "\\newcommand{\\aj}{AJ}\n\\newcommand{\\jcap}{J}\n\\def\\define@key#1{#1}\n",
+    )
+    (tmp_path / "main.log").write_text(
+        "foo.cls:1: LaTeX Error: Command \\aj already defined.\n"
+    )
+    ok, note = TRANSFORM_FNS["undefine_for_redef"](
+        _ctx(tmp_path), None, "aj", {"min_batch": 2}
+    )
+    assert ok, note
+    t = (tmp_path / "foo.cls").read_text()
+    assert "\\let\\aj\\@undefined\n\\newcommand{\\aj}" in t
+    assert "\\let\\jcap\\@undefined\n\\newcommand{\\jcap}" in t
+    assert "makeatletter" not in t
+    assert "makeatother" not in t
+
+
+def test_undefine_theorem_style_payload_dropped(tmp_path: Path) -> None:
+    """Theorem-style payload (plain, 非 cs) 不在 Command 扫集 → 丢弃只信 log。"""
+    _write_main(tmp_path, "\\begin{document}\nx\n\\end{document}\n")
+    (tmp_path / "main.log").write_text(
+        "ntheorem.sty:524: LaTeX Error: Theorem style plain already defined.\n"
+        "main.tex:9: LaTeX Error: Command \\foo already defined.\n"
+        "main.tex:10: LaTeX Error: Command \\bar already defined.\n"
+    )
+    ok, note = TRANSFORM_FNS["undefine_for_redef"](
+        _ctx(tmp_path), None, "plain", {"min_batch": 2}
+    )
+    assert ok, note
+    t = (tmp_path / "main.tex").read_text()
+    assert "\\let\\plain\\@undefined" not in t  # 非 Command 签 payload 不送信
+    assert "\\let\\foo\\@undefined" in t
+    assert "\\let\\bar\\@undefined" in t
+
+
+def test_undefine_site_prepend_idempotent(tmp_path: Path) -> None:
+    """二轮: 站点已有 \\let 前置 + docclass 块已注 → applied=False。"""
+    _write_main(
+        tmp_path,
+        "\\newcommand{\\aj}{AJ}\n\\newcommand{\\mnras}{M}\n"
+        "\\begin{document}\nx\n\\end{document}\n",
+    )
+    (tmp_path / "main.log").write_text(
+        "main.tex:1: LaTeX Error: Command \\aj already defined.\n"
+        "main.tex:2: LaTeX Error: Command \\mnras already defined.\n"
+    )
+    ctx = _ctx(tmp_path)
+    ok, _ = TRANSFORM_FNS["undefine_for_redef"](ctx, None, "aj", {"min_batch": 2})
+    assert ok
+    ok, note = TRANSFORM_FNS["undefine_for_redef"](ctx, None, "aj", {"min_batch": 2})
+    assert not ok
+    assert "already cleared" in note
+
+
+# ─── font_cs_shim (AMS 上古字体 cs) ───
+
+
+def test_font_cs_shim_skewchar_chain(tmp_path: Path) -> None:
+    r"""hep-th/9703214 形: \\doit{0} 死块内 \\font 定义不执行 →
+    活 \\skewchar\\fivmi 链 undefined_cs → \\font\\fivmi=cmmi10 at 5pt 注入
+    (eng=None 不可探 tfm → at-尺寸兜底)。"""
+    _write_main(
+        tmp_path,
+        "\\def\\doit#1#2{\\ifnum#1>0 #2\\fi}\n"
+        "\\doit{0}{\\font\\fivmi=cmmi5 \\font\\fivsy=cmsy5}\n"
+        "\\begin{document}\n\\skewchar\\fivmi=127 \\skewchar\\fivsy=48 x\n"
+        "\\end{document}\n",
+    )
+    (tmp_path / "main.log").write_text(
+        "main.tex:4: Undefined control sequence.\nl.4 \\skewchar\\fivmi\n"
+        "main.tex:4: Undefined control sequence.\nl.4 \\skewchar\\fivsy\n"
+    )
+    ok, note = TRANSFORM_FNS["font_cs_shim"](_ctx(tmp_path), None, "fivmi", {})
+    assert ok, note
+    t = (tmp_path / "main.tex").read_text()
+    assert "\\font\\fivmi=cmmi10 at 5pt" in t
+    assert "\\font\\fivsy=cmsy10 at 5pt" in t
+
+
+def test_font_cs_shim_nonfont_payload_declines(tmp_path: Path) -> None:
+    """窄谓词: payload 不匹 <size><fam> 模式 → 落穿 cs_targeted_fix/guess。"""
+    _write_main(tmp_path, "\\begin{document}\n\\textbf x\n\\end{document}\n")
+    (tmp_path / "main.log").write_text(
+        "main.tex:2: Undefined control sequence.\nl.2 \\textbf\n"
+    )
+    ok, note = TRANSFORM_FNS["font_cs_shim"](_ctx(tmp_path), None, "textbf", {})
+    assert not ok
+    assert "not an AMS-era font name" in note
+
+
+def test_font_cs_shim_def_evidence_excluded(tmp_path: Path) -> None:
+    """<size><fam> 名若另有 \\def 系定义证据 → 不接管 (真宏撞名防毁)。"""
+    _write_main(
+        tmp_path,
+        "\\def\\tenbf{bold macro}\n\\begin{document}\n\\textfont9=\\tenbf\n"
+        "\\end{document}\n",
+    )
+    (tmp_path / "main.log").write_text("")  # log 无 undefined 报错
+    ok, note = TRANSFORM_FNS["font_cs_shim"](_ctx(tmp_path), None, "tenbf", {})
+    assert not ok
+    assert "no AMS font cs" in note
+
+
+def test_font_cs_shim_idempotent(tmp_path: Path) -> None:
+    """二轮: \\font\\<cs>= 已在文本且该 cs 本轮未报错 → applied=False。"""
+    _write_main(
+        tmp_path,
+        "\\begin{document}\n\\skewchar\\ninmi=60 x\n\\end{document}\n",
+    )
+    (tmp_path / "main.log").write_text(
+        "main.tex:2: Undefined control sequence.\nl.2 \\skewchar\\ninmi\n"
+    )
+    ctx = _ctx(tmp_path)
+    ok, _ = TRANSFORM_FNS["font_cs_shim"](ctx, None, "ninmi", {})
+    assert ok
+    # 二轮 log 无报错 (清干净后) → pos_used 名有活 \\font 定义 → 跳
+    (tmp_path / "main.log").write_text("This is XeTeX log — clean\n")
+    ctx.invalidate(tmp_path / "main.log")
+    ok, note = TRANSFORM_FNS["font_cs_shim"](ctx, None, "ninmi", {})
+    assert not ok
+    assert "already shimmed" in note
+
+
+# ─── cs_rebind (produced-by-cs 缺字) ───
+
+
+def test_cs_rebind_section_sign(tmp_path: Path) -> None:
+    r"""2403.15096 形: \\S→§ 在 cmr10 缺字, 源无字面 § →
+    \\protected\\def\\S 绑 txlatefallback。"""
+    _write_main(
+        tmp_path,
+        "\\begin{document}\nSee \\S 7 and \\S 9 for details.\n\\end{document}\n",
+    )
+    (tmp_path / "main.log").write_text(
+        'Missing character: There is no § ("A7) in font cmr10!\n'
+    )
+    ok, note = TRANSFORM_FNS["cs_rebind"](_ctx(tmp_path), None, None, {})
+    assert ok, note
+    t = (tmp_path / "main.tex").read_text()
+    assert "\\newfontfamily\\txlatefallback{Libertinus Serif}" in t
+    assert "\\protected\\def\\S{\\ifmmode\\mbox{\\txlatefallback §}" in t
+
+
+def test_cs_rebind_literal_char_owns(tmp_path: Path) -> None:
+    """字面 § 在源 → literal 面 (missing_char_fix/font_fallback) 先修, 本规退。"""
+    _write_main(
+        tmp_path,
+        "\\begin{document}\nSee § 7 and \\S 9.\n\\end{document}\n",
+    )
+    (tmp_path / "main.log").write_text(
+        'Missing character: There is no § ("A7) in font cmr10!\n'
+    )
+    ok, note = TRANSFORM_FNS["cs_rebind"](_ctx(tmp_path), None, None, {})
+    assert not ok
+    assert "no produced-by-cs" in note
+
+
+def test_cs_rebind_no_producer_declines(tmp_path: Path) -> None:
+    """缺字码位无 cs 生产者 (源无 \\o) → 不落本规。"""
+    _write_main(tmp_path, "\\begin{document}\nplain text\n\\end{document}\n")
+    (tmp_path / "main.log").write_text(
+        'Missing character: There is no ø ("F8) in font cmr9!\n'
+    )
+    ok, note = TRANSFORM_FNS["cs_rebind"](_ctx(tmp_path), None, None, {})
+    assert not ok
+    assert "no produced-by-cs" in note
+
+
+def test_cs_rebind_producers_param(tmp_path: Path) -> None:
+    """params.producers hex 键扩面: 0x2022(\\bullet 产出)→\\textbullet 式 cs。"""
+    _write_main(
+        tmp_path,
+        "\\begin{document}\n\\mydotsep item\n\\end{document}\n",
+    )
+    (tmp_path / "main.log").write_text(
+        'Missing character: There is no • ("2022) in font cmr10!\n'
+    )
+    ok, note = TRANSFORM_FNS["cs_rebind"](
+        _ctx(tmp_path), None, None, {"producers": {"2022": "mydotsep"}}
+    )
+    assert ok, note
+    t = (tmp_path / "main.tex").read_text()
+    assert "\\protected\\def\\mydotsep" in t
+    assert "•" in t
+
+
+def test_cs_rebind_idempotent(tmp_path: Path) -> None:
+    """二轮: 注入块自带字面 ø → ``ch in blob`` 先行短路 → applied=False 不重注。"""
+    _write_main(
+        tmp_path,
+        "\\begin{document}\nFr\\o{}berg\n\\end{document}\n",
+    )
+    (tmp_path / "main.log").write_text(
+        'Missing character: There is no ø ("F8) in font cmr9!\n'
+    )
+    ctx = _ctx(tmp_path)
+    ok, _ = TRANSFORM_FNS["cs_rebind"](ctx, None, None, {})
+    assert ok
+    ok, _note = TRANSFORM_FNS["cs_rebind"](ctx, None, None, {})
+    assert not ok
+    t = (tmp_path / "main.tex").read_text()
+    assert t.count("\\protected\\def\\o") == 1  # 不重注
+
+
+# ─── 注册/装载面 (本批) ───
+
+
+def test_bcs_builtins_registered() -> None:
+    """本批三个新 builtin + 复用 undefine_for_redef 均注册进 TRANSFORM_FNS。"""
+    for name in (
+        "undefined_env_polyfill",
+        "font_cs_shim",
+        "cs_rebind",
+        "undefine_for_redef",
+    ):
+        assert callable(TRANSFORM_FNS[name])
+
+
+def test_bcs_rule_ids_in_ruleset() -> None:
+    """四条新规则 id 在合并 ruleset 内且 function/序位对上。"""
+    by_id = {r.id: r for r in load_ruleset().rules}
+    want = {
+        "missing_char_cs_rebind": "cs_rebind",
+        "already_def_batch_undefine": "undefine_for_redef",
+        "ams_font_cs_shim": "font_cs_shim",
+        "undefined_env_polyfill": "undefined_env_polyfill",
+    }
+    for rid, fn in want.items():
+        assert rid in by_id, rid
+        assert (by_id[rid].raw.get("action") or {}).get("function") == fn
+    # 序位钉: 批清位在 renew(111) 前; cs_rebind 在 font_fallback(26) 前;
+    # font shim 在 cs_targeted_fix(165) 前; env polyfill 在 abstract(168) 后
+    orders = {r.id: r.order for r in load_ruleset().rules}
+    assert orders["already_def_batch_undefine"] < orders["already_def_newcmd_renew"]
+    assert orders["missing_char_cs_rebind"] < orders["font_fallback"]
+    assert orders["ams_font_cs_shim"] < orders["cs_targeted_fix"]
+    assert orders["undefined_env_polyfill"] > orders["abstract_frontmatter_hoist"]
