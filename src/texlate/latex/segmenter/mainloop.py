@@ -2,6 +2,8 @@ r"""``latex/segmenter`` 子模块——god-class 机械拆分（行为零变）�
 
 from __future__ import annotations
 
+import re
+import weakref
 from typing import TYPE_CHECKING
 
 from texlate.latex.gullet import (
@@ -12,6 +14,14 @@ from texlate.latex.model import (
     PhType,
     ScanWarning,
     match_brace,
+)
+from texlate.latex.mouth import (
+    CC_ALIGNMENT,
+    CC_LETTER,
+    CC_OTHER,
+    CC_PARAMETER,
+    CC_SUB,
+    CC_SUPER,
 )
 from texlate.latex.placeholder import (
     PH_RX,
@@ -44,10 +54,12 @@ from ._common import (
     TokenSource,
     _ArgTok,
     _cite_ref_type,
+    _ListSource,
 )
 
 if TYPE_CHECKING:
     from texlate.latex.mouth import (
+        CatTable,
         Tok,
     )
 
@@ -98,6 +110,45 @@ _DISPATCH_FAMS: tuple[tuple[str, object], ...] = (
     ("macro", None),  # row18：gullet 宏表 env_begin/env_end/opaque/math
     ("unknown", None),  # row19：尾参扫→keyarg→argspec→探针→逐字
 )
+
+
+# ---- 文本 run 批量化（fix#9 cut-2） ------------------------------------------
+# 可批 catcode 集：这些猫码逐字符产「surface=原字符」文本 token——排除
+# ESCAPE/BGROUP/EGROUP/MATHSHIFT/EOL/SPACE/COMMENT/IGNORED/INVALID（折叠
+# 空白/注释/结构字节无法字节再生），``CC_ACTIVE``（``~``）亦剔出买保险
+# （未来可展开化风险）。未登记字符恒 ``CC_OTHER`` → 天然在 run 集。
+_RUN_CATCODES = frozenset(
+    {CC_LETTER, CC_OTHER, CC_SUPER, CC_SUB, CC_ALIGNMENT, CC_PARAMETER}
+)
+# 可发起 run 的 token kind——gen==0 源 token 专属（展开产物 gen>0 走组路）。
+_TEXT_RUN_HEADS = frozenset({"letter", "other", "param", "active"})
+# 猫码表 → 派生 run 正则缓存：``CatTable._v`` 版本钟在 set/pop 改表时递增。
+_RUN_RX_CACHE: weakref.WeakKeyDictionary[CatTable, tuple[int, re.Pattern[str]]] = (
+    weakref.WeakKeyDictionary()
+)
+
+
+def _text_run_rx(cats: CatTable) -> re.Pattern[str]:
+    r"""当前猫码表的 run 正则：``T+(␣T+)*``——内部只许字面 ``" "`` 夹心。
+
+    ``T`` = run 集字符类的补（``SPACE``/``EOL`` 猫码字符本就不在 run 集，
+    无须另排）；夹心空格取字面 ``" "``——space token surface 恒 ``" "``，
+    仅当原字节就是它时合并才不偏 surface。``cats._v`` 失配即重建——
+    ``\catcode``/``\makeatletter`` 改表后沿用旧正则会静默错切（proto 实证）。
+    """
+    ent = _RUN_RX_CACHE.get(cats)
+    if ent is not None and ent[0] == cats._v:  # noqa: SLF001 — 版本钟即缓存契约面
+        return ent[1]
+    dead = "".join(
+        sorted(
+            ch
+            for ch, c in cats._m.items()  # noqa: SLF001 — 同库内部表
+            if c not in _RUN_CATCODES
+        )
+    )
+    rx = re.compile("[^" + re.escape(dead) + "]+(?: [^" + re.escape(dead) + "]+)*")
+    _RUN_RX_CACHE[cats] = (cats._v, rx)  # noqa: SLF001
+    return rx
 
 
 class _MainLoop:
@@ -394,9 +445,80 @@ class _MainLoop:
 
     # ------------------------------------------------------------ 分派
 
+    def _text_run_end(self, t: Tok, src: TokenSource) -> int | None:
+        r"""gen=0 文本头起的连续文本 run 末位（不含）；不可批 → ``None``。
+
+        Gullet 臂：``t`` 须是栈顶 ``Mouth`` 刚产的 token——``file_id`` 同、
+        ``tokbuf`` 空、``i==t.pos[2]`` 三守卫缺一即落回逐 token（探针回放/
+        ``unread``/拉参缓冲必经 fallback）。守卫过则猫码派生正则把 ``m.i``
+        直推 run 尾——run 内字符永不物化 token。``_ListSource`` 臂：deque
+        队首 gen==0、``pos`` 严格相接的文本 token 出队合并；space 仅作
+        夹心项——原字节须恒 ``" "``（``\t`` 等的 surface 渲染不同）且
+        后继须为相接文本头（run 以 ws 收尾会破 ``_slice_items`` lead/trail
+        strip——item 粒度剥不进内部）。
+        """
+        fid, _a, b = t.pos
+        if isinstance(src, Gullet):
+            if not src.inputs:
+                return None
+            m = src.inputs[-1]
+            if m.file_id != fid or m.tokbuf or m.i != b:
+                return None
+            mm = _text_run_rx(src.cats).match(m.buf, b)
+            if mm is None:
+                return None
+            m.skip_text(mm.end())
+            return mm.end()
+        if isinstance(src, _ListSource):
+            return self._list_run_end(src, fid, b)
+        return None
+
+    def _list_run_end(self, src: _ListSource, fid: int, b: int) -> int | None:
+        r"""``_ListSource`` 臂：deque 队首 gen==0 且 ``pos`` 严格相接的文本 token 出队合并。
+
+        → run 末位；无后继可并 → ``None``。
+        """
+        q = src._q  # noqa: SLF001 — 同包契约面：deque 队首即待发 token
+        end = b
+        kinds = _TEXT_RUN_HEADS | {"space"}
+        i, n = 0, len(q)
+        while i < n:
+            nxt = q[i]
+            if (
+                nxt.gen != 0
+                or nxt.kind not in kinds
+                or nxt.pos[0] != fid
+                or nxt.pos[1] != end
+            ):
+                break
+            if nxt.kind == "space":
+                n2 = q[i + 1] if i + 1 < n else None
+                if (
+                    self.file_texts[fid][nxt.pos[1] : nxt.pos[2]] != " "
+                    or n2 is None
+                    or n2.gen != 0
+                    or n2.kind not in _TEXT_RUN_HEADS
+                    or n2.pos[0] != fid
+                    or n2.pos[1] != nxt.pos[2]
+                ):
+                    break
+            end = nxt.pos[2]
+            i += 1
+        for _ in range(i):
+            q.popleft()
+        return end if end > b else None
+
     def _dispatch(self, t: Tok, src: TokenSource) -> None:  # noqa: C901, PLR0911, PLR0912, PLR0915 — §3.2 分派表 19 行平铺，顺序即语义
         r"""cs/结构 token 主分派——v1 ``_dispatch_cmd`` 的 token 版逐行移植。"""
         fid, _a, b = t.pos
+        if t.kind in _TEXT_RUN_HEADS and t.gen == 0:
+            # 纯文本 run 批量化快路（fix#9 cut-2）——非 ``_DISPATCH_FAMS`` 行，
+            # 是行表前的入口捷径；守卫不齐 ``_text_run_end`` 返回 ``None``
+            # 即落回下方逐 token 路径（``_rappend_tok`` 语义不变）。
+            end = self._text_run_end(t, src)
+            if end is not None:
+                self._rappend_text_run(fid, t.pos[1], end)
+                return
         if t.kind == "cs":
             name = t.text
             # 1. \verb|..|/\lstinline 定界形（EOL 上限，W9/W10）

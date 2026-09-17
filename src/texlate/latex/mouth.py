@@ -137,6 +137,9 @@ class CatTable:
         m["%"] = CC_COMMENT
         self._m = m
         self._undo: list[dict[str, int]] = []
+        # 内容版本钟：set/pop 改表递增——派生缓存（segmenter 文本 run 正则）
+        # 的失效键；不改表的 push/空帧 pop 不递增，免每 ``}`` 重建缓存。
+        self._v = 0
 
     def code(self, ch: str) -> int:
         """查 catcode；未登记字符 → ``CC_OTHER``（plasTeX whichCode 同义）。"""
@@ -154,6 +157,7 @@ class CatTable:
             if ch not in frame:
                 frame[ch] = self._m.get(ch, self._MISSING)
         self._m[ch] = code
+        self._v += 1
 
     def push(self) -> None:
         r"""组开（``{``/``\begingroup``/``\begin``/``$``族回报）→ 开 undo 帧。"""
@@ -163,7 +167,10 @@ class CatTable:
         """组闭 → 回放本帧写入；无帧（顶层）不弹——底帧写即全局写。"""
         if not self._undo:
             return
-        for ch, old in self._undo.pop().items():
+        frame = self._undo.pop()
+        if frame:
+            self._v += 1  # 本帧有写入回放——_m 内容可能变
+        for ch, old in frame.items():
             if old == self._MISSING:
                 self._m.pop(ch, None)
             else:
@@ -216,6 +223,16 @@ class Mouth:
         self._prev_kind = ""
         self.tokbuf.clear()
         self.tokbuf.extend(keep)
+
+    def skip_text(self, end: int) -> None:
+        r"""纯文本 run 快进：``i`` 只前进、``state`` 归 ``_M``。
+
+        ``resync`` 的批量化轻量形（segmenter 文本 run 直推游标）——不清
+        ``tokbuf``/``_prev_kind``：调用方保证 ``tokbuf`` 空；run 尾恒为
+        文本字符，``_prev_kind`` 留头 token 的文本 kind 即正确值。
+        """
+        self.i = max(self.i, end)
+        self.state = _M
 
     def __iter__(self) -> Mouth:
         """迭代协议：``next()`` 耗尽即停。"""

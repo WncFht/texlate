@@ -248,6 +248,29 @@ class _Core:
             vspan,
         )
 
+    def _rappend_text_run(self, fid: int, a: int, end: int) -> None:
+        r"""连续文本 run ``[a,end)`` 一次合并进 run——``_rappend_tok`` 的批量形。
+
+        surface=ident=原字节切片：run 集内 catcode 恒产「surface=原字符」
+        token、内部夹心空格的原字节恒为 ``" "``（space token surface 同值），
+        逐 token 拼接与本切片逐字节相等。分派侧保证 run 首/尾非 ws——
+        ``_slice_items`` 的 lead/trail strip 是 surface 坐标系，切不进
+        item 内部，ws 进首/尾会漏 strip（proto 实测 protected_tex −1 字符）。
+        """
+        cons0 = self._cons(fid)
+        if self._run_start is None and a > cons0:
+            vgap = self._cover_to(fid, a)
+            self._emit(vgap.start, vgap.end)
+            vspan, ident = self._cover_text(fid, end)
+            self._rappend(self.file_texts[fid][a:end], ident, vspan)
+            return
+        vspan, ident = self._cover_text(fid, end)
+        self._rappend(
+            self._gap_surface(fid, cons0, a) + self.file_texts[fid][a:end],
+            ident,
+            vspan,
+        )
+
     # ------------------------------------------------------------ piece 发射
 
     def _emit(self, vstart: int, vend: int) -> None:
