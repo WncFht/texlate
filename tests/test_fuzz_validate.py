@@ -755,9 +755,10 @@ def _o_skip_star_opts(t: str, i: int) -> int:
 
 
 _O_KEY_NAME_RX = re.compile(r"[a-zA-Z@]+")
+_O_CITES_RX = re.compile(r"[a-zA-Z@]*[Cc]ites")
 _O_KEY_CMD_RX = re.compile(
-    r"[a-zA-Z@]*cite[a-zA-Z]*|[a-zA-Z@]*ref|label|bibitem"
-    r"|addbibresource|addsectionbib|[a-zA-Z@]*bibliography(?:style)?"
+    r"[a-zA-Z@]*[Cc]ite[a-zA-Z]*|[a-zA-Z@]*ref|[a-zA-Z@]*label|bibitem"
+    r"|addbibresource|addglobalbib|addsectionbib|[a-zA-Z@]*bibliography(?:style)?"
 )
 _O_REFRANGE_RX = re.compile(r"[a-zA-Z@]*refrange")
 
@@ -767,6 +768,19 @@ def _o_add_keys(c: Counter[str], grp: str) -> None:
         key = raw.strip()
         if key:
             c[key] += 1
+
+
+def _o_extra_braces(t: str, i: int, c: Counter[str], limit: int | None) -> int:
+    """从 i 起相邻 ``{..}`` 逐对入 c（至多 limit 个，None 不限），返回新位置。"""
+    n = len(t)
+    taken = 0
+    while i < n and t[i] == "{" and (limit is None or taken < limit):
+        g = _o_grab_brace(t, i)
+        if g is None:
+            break
+        _o_add_keys(c, g[0])
+        i, taken = g[1], taken + 1
+    return i
 
 
 def _o_key_multiset(s: str) -> Counter[str]:
@@ -784,17 +798,18 @@ def _o_key_multiset(s: str) -> Counter[str]:
             continue
         name = m.group(0)
         end = i + 1  # 匹配失败时与 finditer 同义：起点 +1 重扫
-        if _O_REFRANGE_RX.fullmatch(name):
+        if _O_CITES_RX.fullmatch(name):
             j = _o_skip_ws(t, _o_skip_star_opts(t, m.end()))
             g1 = _o_grab_brace(t, j)
             if g1 is not None:
-                end = g1[1]
                 _o_add_keys(c, g1[0])
-                if end < n and t[end] == "{":  # 第二参相邻才算
-                    g2 = _o_grab_brace(t, end)
-                    if g2 is not None:
-                        _o_add_keys(c, g2[0])
-                        end = g2[1]
+                end = _o_extra_braces(t, g1[1], c, None)  # 相邻 {..} 连写全算
+        elif _O_REFRANGE_RX.fullmatch(name):
+            j = _o_skip_ws(t, _o_skip_star_opts(t, m.end()))
+            g1 = _o_grab_brace(t, j)
+            if g1 is not None:
+                _o_add_keys(c, g1[0])
+                end = _o_extra_braces(t, g1[1], c, 1)  # 第二参相邻才算
         elif _O_KEY_CMD_RX.fullmatch(name):
             j = _o_skip_ws(t, _o_skip_star_opts(t, m.end()))
             g1 = _o_grab_brace(t, j)
@@ -1419,14 +1434,6 @@ def test_fuzz_key_comma_list_partial_drop() -> None:
         assert got == want, f"{src!r} -> {zh!r}\n{rep}"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "key 规则覆盖缺口：大写 \\Cite 族/\\zlabel/\\addglobalbib/\\cites 多参 "
-        "的 key 丢失静默（regex 大小写敏感 + label 无前缀 + 单参抓取）——"
-        "译文丢引用不过闸，属 L0 主阀假阴"
-    ),
-)
 @pytest.mark.parametrize(
     ("src", "zh", "lost_key"),
     [
@@ -1439,7 +1446,7 @@ def test_fuzz_key_comma_list_partial_drop() -> None:
     ],
     ids=["Cite", "Citet", "parenCite", "zlabel", "addglobalbib", "cites-2nd"],
 )
-def test_key_gap_family_xfail(src: str, zh: str, lost_key: str) -> None:
+def test_key_gap_family(src: str, zh: str, lost_key: str) -> None:
     rep = validate_pair(src, zh)
     iss = [i for i in rep.issues if i.rule == "key" and i.severity is Severity.ERROR]
     assert any(i.expected == lost_key for i in iss), str(rep)

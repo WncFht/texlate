@@ -92,19 +92,28 @@ _PH_CORE_RX: Final = re.compile(r"[A-Za-z0-9_]+")
 #: ``\\`` 控制符号 + ``[[PH]]`` 由必需字母排除。
 _PH_IN_CS_RX: Final = re.compile(r"\\[a-zA-Z@]+\[\[[^\[\]\n]{1,48}?\]\][a-zA-Z@]")
 
-#: key 承载命令：*cite* 族（cite/paracite/footcite/nocite/mcite……
-#: 前后缀皆收）/ *ref 族 / *refrange 双 key 族（crefrange/cpagerefrange）/
-#: label / bibitem / addbibresource / bibliography 族。只抓 {..} key
+#: key 承载命令：*cite* 族（cite/Cite/paracite/footcite/nocite/mcite……
+#: 前后缀皆收、首字母大小写皆收）/ *cites 多 key 参族（整段 {..}{..}
+#: 连写抓一组，消费端逐对剥）/ *ref 族 / *refrange 双 key 族
+#: （crefrange/cpagerefrange）/ *label 族（label/zlabel……）/ bibitem /
+#: addbibresource / addglobalbib / bibliography 族。只抓 {..} key
 #: 参数，可选 [..] 先吃掉；refrange 臂多抓第二个 {..}。
 KEY_CMD_RX: Final = re.compile(
-    r"\\(?:[a-zA-Z@]*cite[a-zA-Z]*|[a-zA-Z@]*ref|label|bibitem"
-    r"|addbibresource|addsectionbib|[a-zA-Z@]*bibliography(?:style)?)\*?"
+    r"\\[a-zA-Z@]*[Cc]ites\*?"
+    r"(?:\s*\[[^\]\n]*\])*"
+    r"\s*((?:\{[^{}]*\})+)"  # *cites 相邻 {..} 连写整段抓——带空格多为正文 {..}
+    r"|\\(?:[a-zA-Z@]*[Cc]ite[a-zA-Z]*|[a-zA-Z@]*ref|[a-zA-Z@]*label|bibitem"
+    r"|addbibresource|addglobalbib|addsectionbib|[a-zA-Z@]*bibliography(?:style)?)\*?"
     r"(?:\s*\[[^\]\n]*\])*"
     r"\s*\{([^{}]*)\}"
     r"|\\[a-zA-Z@]*refrange\*?"
     r"(?:\s*\[[^\]\n]*\])*"
     r"\s*\{([^{}]*)\}(?:\{([^{}]*)\})?"  # 第二参相邻才算——带空格多为正文 {..}
 )
+
+#: ``*cites`` 臂组内逐对 ``{..}`` 剥 key 用（其余臂组内容本就不含花括号，
+#: findall 空集时回落整组原文）。
+_BRACE_SEQ_RX: Final = re.compile(r"\{([^{}]*)\}")
 
 ENV_RX: Final = re.compile(r"\\(begin|end)\s*\{([^{}]*)\}")
 
@@ -648,14 +657,15 @@ def _key_multiset(s: str) -> Counter[str]:
     """
     c: Counter[str] = Counter()
     for m in KEY_CMD_RX.finditer(mask_comments(s)):
-        for gi in (1, 2, 3):
+        for gi in (1, 2, 3, 4):
             grp = m.group(gi)
             if grp is None:
                 continue
-            for raw in grp.split(","):
-                key = raw.strip()
-                if key:
-                    c[key] += 1
+            for piece in _BRACE_SEQ_RX.findall(grp) or [grp]:
+                for raw in piece.split(","):
+                    key = raw.strip()
+                    if key:
+                        c[key] += 1
     return c
 
 
