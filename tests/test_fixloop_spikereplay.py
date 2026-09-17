@@ -1,14 +1,18 @@
 """spike 回放验证 —— tests/fixtures/ 入库真 log 常跑 + bench/work_fixloop/ 终态 .log 走 taxonomy 分类。
 
-入库 fixture（裁自 stagerun-loop1, 干净 clone 也跑）:
-  - xelatex-missing-file.log → missing_file:setstack.sty
-  - xelatex-fileline-syntax.log → syntax
+入库 fixture（干净 clone 也跑）:
+  - fixtures/logs/manifest.json 全行 fixloop 锚点（n_bang/category/payload 由
+    extractor 实算生成）——本表直接派生自 manifest，不另手写漂移
+  - fixtures/ 顶级两件（不在 logs/ 内, 保持手写）:
+    xelatex-missing-file.log → missing_file:setstack.sty
+    xelatex-fileline-syntax.log → syntax
 work_* 是 gitignored 重产物, 缺席时仅跳过 work 扫描用例; 在本地实证:
   - 全量主 log 可解析不崩 (ErrReport 字段健全)
   - 两个已知识别锚点: 2005.11401/zh → soul_err (soul 残留错),
     2106.09685/ctex → missing_tfm:phvb (metric TFM 缺)
 """
 
+import json
 from functools import lru_cache
 from pathlib import Path
 
@@ -19,6 +23,7 @@ from texlate.compile.fixloop.logparse import parse_log
 
 WORK = Path(__file__).resolve().parents[1] / "bench/work_fixloop"
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
+LOGS = FIXTURES / "logs"
 
 
 @lru_cache(maxsize=1)
@@ -31,11 +36,23 @@ NEED_WORK = pytest.mark.skipif(
     not WORK.is_dir(), reason="bench/work_fixloop 不在本机 (gitignored 重产物)"
 )
 
-# 入库真 log 锚点: 文件名 → (n_bang, taxonomy 类, payload)
-_FIXTURE_CATS = {
-    "xelatex-missing-file.log": (2, "missing_file", "setstack.sty"),
-    "xelatex-fileline-syntax.log": (2, "syntax", None),
+# 入库真 log 锚点: 路径 → (n_bang, taxonomy 类, payload)
+# fixtures/logs/ 行派生自 manifest.json fixloop 字段；顶级两件为 manifest 前
+# 入库的早期 fixture, 不在 logs/ 内故保持手写。
+_FIXTURE_CATS: dict[Path, tuple[int, str, str | None]] = {
+    LOGS / row["file"]: (
+        row["fixloop"]["n_bang"],
+        row["fixloop"]["category"],
+        row["fixloop"]["payload"],
+    )
+    for row in json.loads((LOGS / "manifest.json").read_text(encoding="utf-8"))
 }
+_FIXTURE_CATS[FIXTURES / "xelatex-missing-file.log"] = (
+    2,
+    "missing_file",
+    "setstack.sty",
+)
+_FIXTURE_CATS[FIXTURES / "xelatex-fileline-syntax.log"] = (2, "syntax", None)
 
 
 def _main_logs() -> list[Path]:
@@ -49,9 +66,9 @@ def _main_logs() -> list[Path]:
 
 
 def test_fixture_logs_classify() -> None:
-    """入库真 log 走 taxonomy —— 干净 clone 常跑, 锚定 missing_file/syntax 两类。"""
-    for name, (n_bang, cat, pay) in _FIXTURE_CATS.items():
-        rep = parse_log(FIXTURES / name, _rs().warn_patterns)
+    """入库真 log 走 taxonomy —— manifest 全行 + 顶级两件, 干净 clone 常跑。"""
+    for path, (n_bang, cat, pay) in _FIXTURE_CATS.items():
+        rep = parse_log(path, _rs().warn_patterns)
         assert rep.n_bang == n_bang
         assert rep.tail is not None
         got_cat, got_pay = _rs().taxonomy.classify(rep)

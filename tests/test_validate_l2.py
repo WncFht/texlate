@@ -1,4 +1,4 @@
-"""L2 编译 log 解析测试 —— tests/fixtures/ 入库真 log 常跑 + bench/work_compile 大样例 + 合成 file:line: 格式。"""
+"""L2 编译 log 解析测试 —— tests/fixtures/ 入库真 log 常跑 + bench/work_compile 大样例独例 + 合成 file:line: 格式。"""
 
 from pathlib import Path
 
@@ -19,12 +19,6 @@ _FILELINE_LOG = (
 )  # 0707.0382: file:line:error 格式 Missing \begin{document}
 
 _ERR_LOG = WORK / "1810.04805" / "baseline" / "main.log"  # 21 个 ! 错误
-_WARN_LOG = (
-    WORK / "1511.06432" / "baseline" / "_tect_out" / "iclr2016_conference.log"
-)  # tectonic 格式 + natbib citation warning
-_CLEAN_LOG = WORK / "1512.03385" / "baseline" / "residual_v1_arxiv_release.log"  # 0 错
-_CJK_LOG = WORK / "2203.02155" / "zh" / "neurips_2021.log"  # CJK 缺字形
-_UTF8_LOG = WORK / "2501.14787" / "zh" / "_tect_out" / "main.log"  # Invalid UTF-8 红线
 
 ERR_COUNT_MAIN = 21  # _ERR_LOG 实测 ! 行数
 ERR_LINE_MAIN = 44  # 首错 l.NNN 源码行号
@@ -36,67 +30,26 @@ N_ERR_FIXTURE = 2  # 两条 fixture 各 2 错：! 主错 + file:line Emergency s
 FIXTURE_ESTOP_LINE = 31  # missing-file fixture 的 file:line Emergency stop 行号
 FILELINE_ERR_LINE = 24  # fileline fixture 首错 ./AMSbsy.sty:24
 
-_REAL_LOGS = (_ERR_LOG, _WARN_LOG, _CLEAN_LOG, _CJK_LOG, _UTF8_LOG)
-
-# 五件套全查：缺 _CLEAN_LOG 时 parse_log 回 log_missing 会让 clean 用例空转假绿
-NEED_LOGS = pytest.mark.skipif(
-    not all(p.is_file() for p in _REAL_LOGS),
-    reason="bench/work_compile 重产物不在场（五件钉死 log 缺一即整组跳过）",
+# 唯一残留 gated 面：``^!`` 格式错的 tex_line 走 ctx ``l.NNN`` 兜底
+# （``_tex_line_from_ctx``）——fixtures/logs/manifest.json 全部
+# first_error.tex_line 均出自 ``file:line:`` 格式（``^!`` 首错一律 null），
+# 此归因路径无入库件覆盖，仍需 bench 重产物在场才跑。
+NEED_ERR_LOG = pytest.mark.skipif(
+    not _ERR_LOG.is_file(),
+    reason="bench/work_compile 重产物不在场（l.N ctx→tex_line 独例）",
 )
 
 
-@NEED_LOGS
+@NEED_ERR_LOG
 def test_real_log_bang_count() -> None:
     v = parse_log(_ERR_LOG)
     assert not v.ok
     assert v.n_errors == ERR_COUNT_MAIN
     assert v.first_error is not None
     assert "Illegal unit" in v.first_error.head
-    assert v.first_error.tex_line == ERR_LINE_MAIN  # ctx 内 l.44
+    assert v.first_error.tex_line == ERR_LINE_MAIN  # ctx 内 l.44——^! 格式唯一锚
     assert v.engine == "XeTeX"
     assert not v.log_missing
-
-
-@NEED_LOGS
-def test_real_log_first_error_ctx_and_stack() -> None:
-    v = parse_log(_ERR_LOG)
-    fe = v.first_error
-    assert fe is not None
-    assert len(fe.ctx) <= CTX_MAX
-    assert any(f"l.{ERR_LINE_MAIN}" in ln for ln in fe.ctx)
-    assert fe.file_stack  # (./main.tex 或包文件至少一层
-    assert any(s.endswith((".tex", ".sty", ".cls")) for s in fe.file_stack)
-
-
-@NEED_LOGS
-def test_real_log_clean() -> None:
-    v = parse_log(_CLEAN_LOG)
-    assert v.ok
-    assert v.n_errors == 0
-    assert v.first_error is None
-
-
-@NEED_LOGS
-def test_real_log_warnings_classified() -> None:
-    v = parse_log(_WARN_LOG)
-    wc = v.warnings.by_class
-    assert v.warnings.total > 0
-    assert "citation" in wc  # natbib undefined citations
-
-
-@NEED_LOGS
-def test_real_log_cjk_missing_glyph_redline() -> None:
-    v = parse_log(_CJK_LOG)
-    assert v.warnings.cjk_missing > 0
-    assert v.warnings.by_class.get("missing_glyph_cjk", 0) > 0
-    assert any("missing_glyph_cjk" in r for r in v.warnings.redlines)
-
-
-@NEED_LOGS
-def test_real_log_invalid_utf8_redline() -> None:
-    v = parse_log(_UTF8_LOG)
-    assert v.warnings.by_class.get("invalid_utf8", 0) > 0
-    assert any("invalid_utf8" in r for r in v.warnings.redlines)
 
 
 def test_fixture_missing_file_log() -> None:
