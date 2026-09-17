@@ -1,0 +1,82 @@
+% texlate vendored stub — 原许可禁分发，最小兼容面
+% jheppub.sty S1 替身：JHEP author kit（© SISSA/IOP，不在 TL）→ stub。
+% 面按真件抄值（corpus_v3/1803.00136 随稿 354 行本）：frontmatter 全取
+% 参存值，\maketitle 包装后吐 abstract/keywords/affiliation/email/
+% arxivnumber/proceeding/collaboration/preprint 块；\RequirePackage{amsmath}
+% 与真件 line8 同款——\allowdisplaybreaks 由此而来（1907.03745 实证）。
+% 与 jinstpub stub 同族（JINST=JHEP 姊妹刊同套件）。本 stub 在场则
+% shim_map jheppub 条成死配置（vendored 预检先于 missing_file 落件，
+% 同 jinstpub 先例）。
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{jheppub}[texlate stub — original not redistributable]
+\PackageWarningNoLine{texlate-stub}{jheppub.sty is a compatibility shim}
+
+\DeclareOption*{}
+\ProcessOptions\relax
+
+\RequirePackage{amsmath}
+
+% —— frontmatter 存值面（preamble 期调用，\maketitle 时释放） ——
+\def\@subheader{}\def\@keywords{}\def\@abstract{}\def\@dedicated{}
+\def\@arxivnumber{}\def\@collaboration{}\def\@proceeding{}\def\@preprint{}
+\def\@jhep@affils{}\def\@jhep@emails{}
+\providecommand{\subheader}[1]{\gdef\@subheader{#1}}
+\providecommand{\keywords}[1]{\gdef\@keywords{#1}}
+\renewcommand{\abstract}[1]{\gdef\@abstract{#1}}
+\providecommand{\dedicated}[1]{\gdef\@dedicated{#1}}
+\providecommand{\arxivnumber}[1]{\gdef\@arxivnumber{#1}}
+\providecommand{\proceeding}[1]{\gdef\@proceeding{#1}}
+\providecommand{\preprint}[1]{\gdef\@preprint{#1}}
+\providecommand{\collaboration}[2][t]{\gdef\@collaboration{#2}}
+\providecommand{\collaborationImg}[2][]{\gdef\@collaboration{#2}}
+\providecommand{\correctionref}[3]{\gdef\@dedicated{Erratum #1 #3}}
+\providecommand{\affiliation}[2][]{\g@addto@macro\@jhep@affils{\par#2}}
+\providecommand{\emailAdd}[1]{\g@addto@macro\@jhep@emails{\par\texttt{#1}}}
+\providecommand{\note}[2][]{\thanks{#2}}
+\providecommand{\acknowledgments}{\section*{Acknowledgments}}
+\providecommand{\jname}{JHEP}
+\providecommand{\xtumfont}[1]{\textsc{#1}}
+% —— 版式旋钮 no-op：只保 defined 让稿内 \renewcommand 不炸 ——
+\providecommand{\notoc}{}
+\providecommand{\compress}{}
+\providecommand{\toccontinuous}{}
+\providecommand{\beforetochook}{}
+\providecommand{\afterLogoSpace}{}\providecommand{\afterSubheaderSpace}{}
+\providecommand{\afterProceedingsSpace}{}\providecommand{\afterTitleSpace}{}
+\providecommand{\afterRuleSpace}{}\providecommand{\afterCollaborationSpace}{}
+\providecommand{\afterCollaborationImgSpace}{}
+\providecommand{\afterAuthorSpace}{}\providecommand{\afterAffiliationSpace}{}
+\providecommand{\afterEmailSpace}{}\providecommand{\afterXtumSpace}{}
+\providecommand{\afterAbstractSpace}{}\providecommand{\afterKeywordsSpace}{}
+\providecommand{\afterArxivSpace}{}\providecommand{\afterDedicatedSpace}{}
+\providecommand{\afterTocSpace}{}\providecommand{\afterTocRuleSpace}{}
+% —— 勘误/引用帮手（正文/bib 内调用，内联出文字） ——
+\providecommand{\erratum}[4][ibid.~]{Erratum #1{\bfseries#2} (#3) #4}
+\providecommand{\addendum}[4][ibid.~]{Addendum #1{\bfseries#2} (#3) #4}
+\providecommand{\ibid}[3]{ibid.~{\bfseries#1} (#2) #3}
+% —— \author[affil]{name} 多调用累积（真件签名同此；首调覆盖
+%    article 的 "No \author given" 占位） ——
+\newif\if@jhepauth\@jhepauthfalse
+\renewcommand{\author}[2][]{%
+  \if@jhepauth\g@addto@macro\@author{\and#2}%
+  \else\gdef\@author{#2}\@jhepauthtrue\fi}
+% —— \maketitle 包装：article 原块之后吐 JHEP frontmatter ——
+\providecommand{\abstractname}{Abstract}
+\let\texlate@jhep@mk\maketitle
+\renewcommand{\maketitle}{%
+  \texlate@jhep@mk
+  \ifx\@collaboration\@empty\else\par\noindent{\itshape\@collaboration}\par\fi
+  \ifx\@jhep@affils\@empty\else\par\noindent{\small\@jhep@affils}\par\fi
+  \ifx\@jhep@emails\@empty\else\par\noindent{\small\@jhep@emails}\par\fi
+  \ifx\@dedicated\@empty\else\par\noindent{\itshape\@dedicated}\par\fi
+  \ifx\@proceeding\@empty\else\par\noindent{\small\itshape\@proceeding}\par\fi
+  \ifx\@abstract\@empty\else\begin{quote}\textbf{\abstractname.}\enspace\@abstract\end{quote}\fi
+  \ifx\@keywords\@empty\else\par\noindent\textbf{Keywords:} \@keywords\par\fi
+  \ifx\@arxivnumber\@empty\else\par\noindent{\small arXiv:\@arxivnumber}\par\fi
+  \ifx\@preprint\@empty\else\par\noindent{\small\@preprint}\par\fi
+  \ifx\@subheader\@empty\else\par\noindent{\small\@subheader}\par\fi}
+% —— JHEP myplain 页式（稿偶直调 \pagestyle{myplain}） ——
+\providecommand{\ps@myplain}{\let\@mkboth\@gobbletwo
+  \let\@oddhead\@empty\def\@oddfoot{\hfil-- \thepage\ --\hfil}%
+  \let\@evenhead\@oddhead\let\@evenfoot\@oddfoot}
+\endinput
