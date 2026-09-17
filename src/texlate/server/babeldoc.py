@@ -40,6 +40,8 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from texlate.xlat.client import redact
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
     from pathlib import Path
@@ -64,6 +66,9 @@ _MAX_ERROR_SAMPLES = 3
 #: ``_Feed.errors`` 保留窗口——``_classify_rc`` 只取最新一条；无界 list
 #: 的 O(n²) 去重在全篇报错时会把消费线程（worker loop）拖住
 _MAX_ERRORS = 64
+
+#: fault message 携带的 stderr 尾摘要上限——单条 message 不塞整段 traceback
+_ERR_TAIL_CHARS = 500
 
 #: CJK 兜底 sanity 阈值：zh 目标 mono PDF 抽文本 CJK 占比低于此 → degraded
 #: （层级③单段异常吞没不进 tracking，唯一旁证是产物文本本身）
@@ -466,16 +471,38 @@ def _pump_fd(fd: int, buf: bytearray, lock: threading.Lock) -> None:
         os.close(fd)
 
 
-def _classify_rc(feed: _Feed) -> tuple[str, str, bool]:
-    """非零退出码 → ``(code, message, retryable)``。"""
+def _err_tail(feed: _Feed, api_key: str) -> str:
+    """``feed.tail`` 末 ``_ERR_TAIL_CHARS`` 字符的单行脱敏摘要（空流 → ``""``）。
+
+    先脱敏再截尾——key 命中段被 ``***`` 替换后截断不还原；``feed.tail``
+    本身只有 40 行窗口，摘要不等于全量 stderr。换行折成 `` | `` 让
+    message 保持单行形态（error.message/事件载荷消费侧均按单行渲染）。
+    """
+    tail = redact(feed.tail, api_key).strip()
+    if len(tail) > _ERR_TAIL_CHARS:
+        tail = f"…{tail[-_ERR_TAIL_CHARS:]}"
+    return re.sub(r"\s*\n\s*", " | ", tail)
+
+
+def _classify_rc(
+    feed: _Feed, *, api_key: str = "", rc: int | None = None
+) -> tuple[str, str, bool]:
+    """非零退出码 → ``(code, message, retryable)``。
+
+    ``rc`` 提供时缀进消息——``rc=2``（argparse 服务标志缺失）与
+    ``rc=137``（SIGKILL/OOM）肉眼可分；``api_key`` 供摘出文本脱敏，
+    babeldoc 报错行可能回显请求/配置内容。
+    """
     tail = feed.tail
     msg = feed.errors[-1] if feed.errors else tail.strip().splitlines()[-1:]
     text = msg if isinstance(msg, str) else (msg[0] if msg else "")
+    text = redact(text, api_key)
     if _AUTH_RE.search(tail):
         return "provider_auth", text or "LLM 凭证被拒", False
     if _RATE_RE.search(tail):
         return "provider_rate", text or "上游限流", True
-    return "compile", text or "babeldoc 未产出译文 pdf", True
+    suffix = f"（rc={rc}）" if rc is not None else ""
+    return "compile", f"{text or 'babeldoc 未产出译文 pdf'}{suffix}", True
 
 
 def harvest_outputs(job: BabeldocJob) -> dict[str, Path]:
@@ -517,7 +544,7 @@ def glob_escape(s: str) -> str:
     return glob.escape(s)
 
 
-def _judge_run(  # noqa: PLR0913, PLR0911 -- 退出码判定表平铺即 §三 assess 契约
+def _judge_run(  # noqa: C901, PLR0913, PLR0911 -- 退出码判定表平铺即 §三 assess 契约
     job: BabeldocJob,
     *,
     rc: int,
@@ -538,10 +565,15 @@ def _judge_run(  # noqa: PLR0913, PLR0911 -- 退出码判定表平铺即 §三 a
             False,
         )
     if rc != 0:
-        code, msg, retryable = _classify_rc(feed)
+        code, msg, retryable = _classify_rc(feed, api_key=job.api_key, rc=rc)
         return "failed", code, msg, retryable
     if not outputs.get("mono") and not outputs.get("dual"):
-        return "failed", "compile", "babeldoc 未产出译文 pdf", True
+        # rc=0 静默无产物——根因只活在 stderr（服务标志缺失/空跑路径），
+        # 尾摘要必须进 message，否则 fault 面恒为裸「未产出」
+        detail = f"rc={rc}"
+        if excerpt := _err_tail(feed, job.api_key):
+            detail = f"{detail}，stderr 尾: {excerpt}"
+        return "failed", "compile", f"babeldoc 未产出译文 pdf（{detail}）", True
     total, errors, fallbacks = (
         track["total"],
         track["errors"],
@@ -562,8 +594,12 @@ def _judge_run(  # noqa: PLR0913, PLR0911 -- 退出码判定表平铺即 §三 a
         and feed.stats.get("cache_hit_prompt_tokens", 0) == 0
         and total == 0
     ):
-        # 一次 API 都没打出去（全 cache 命中时 cache_hit>0 不误伤）
-        return "failed", "zero_tokens", "babeldoc 未发起任何翻译调用", True
+        # 一次 API 都没打出去（全 cache 命中时 cache_hit>0 不误伤）——
+        # 根因常在 stderr（凭证缺失/服务标志/上游拒连），尾摘要随消息带
+        msg = "babeldoc 未发起任何翻译调用"
+        if excerpt := _err_tail(feed, job.api_key):
+            msg = f"{msg}（stderr 尾: {excerpt}）"
+        return "failed", "zero_tokens", msg, True
     if job.lang_out.startswith("zh") and (mono := outputs.get("mono")) is not None:
         ratio = cjk_ratio(mono)
         if ratio is not None and ratio < _CJK_MIN_RATIO:
@@ -756,5 +792,5 @@ async def run_babeldoc(
         retryable=retryable,
         outputs=outputs,
         stats=stats,
-        stderr_tail=feed.tail[-2048:],
+        stderr_tail=redact(feed.tail, job.api_key)[-2048:],
     )
