@@ -106,7 +106,7 @@ BYOK 环境直配（免 settings.json）：`TEXLATE_BASE_URL` / `TEXLATE_API_KEY
 - **stagerun 五子命令序**：`ingest→parse→xlat --arm mock→compile --arm zh --xlat-arm mock→compile --arm base→fixloop --on nonclean`；同结果目录只许一个 stagerun 进程（records 单写者 append）；跨天续跑钉 `--dir`。records 速览：per-file `wc -l` + `command grep -c '"status": "ok"\|"clean"\|"partial"'`。
 - **triage.py**：`--selftest` 合成自检；`all DIR` 三件套；无 records 旧目录自动降级 `tickets-legacy.jsonl`；**冒烟跑必带 `--no-global`**（metrics.jsonl 是 git 跟踪文件，会污染）。
 - **zh/ 是臂间共享就地演化树**：compile zh(mock) 必先于 real/sabotage；sabotage 两臂放全批最后（污染 zh/）；续跑靠同 `--n/--seed/--layers` 确定性选样 + `--xlat-arm` 钉 provenance。
-- **fixloop 只在 fail 上跑**：partial 已有 PDF，halt_on_error+ 树改写会弄丢它（实测回退 2/3）。
+- **fixloop 只在 fail 上跑**：partial 已有 PDF，halt_on_error+ 树改写会弄丢它（实测回退 2/3）。（勘误 2026-09-17：floor 机制落地后 fixloop 亦收 misschar/error 类 partial——`_want_fix` 改判 fail+特定 partial，floor_snap 保入场 PDF 回退；见 docs/10 L120 勘误。）
 - **records.jsonl append = 行在即 done**；results.json 整体重写崩一次全丢。SIGTERM 后同参重启即无损续跑（`_paper_done` 秒跳）；**但运行中改 bench 脚本本身**会新旧逻辑混用（进程持旧内存映像，resume 按新代码跑）。
 - **tectonic 版本岔路**：0.15 裸 CLI 用 `--bundle`，0.17 `-X compile` 要 `--web-bundle`；`-vv` 放 `-X` 后 `compile` 前；bundle 不可达时**静默卡**——先 `curl -sI` 探活 + `XDG_CACHE_HOME` 隔离复现。
 - **uv.lock churn**：UV_DEFAULT_INDEX 抖动让每个 commit 前都得 `git checkout uv.lock`——约 15 次/会话，入链前先看 diff 是不是纯 index churn。

@@ -248,7 +248,7 @@ class Engine(Protocol):
 ### 5.1 两层 YAML：`taxonomy`（log→类别）+ `rules`（类别→动作）
 
 > **勘误（2026-09-16）**：实现为 `compile/fixloop/` 包（engine/cases/ctan/logparse/\_yamlish/rules.yaml）；
-> taxonomy 段现为 37 个 pattern 条目、rules 段 **36** 条（v3 整改 + 后续扩表：pstricks_dvips_preflight/eps_route/eps_to_pdf/legacy_pkg_shim/font_sub_shim/aux_scan_eof/split_glued_cs 等，HANDOFF-2026-09-16 §2.2/§6）。（勘误 2026-09-17：实 **42** taxonomy/**52** rules——计数持续滞后，以 rules.yaml 为准。勘误 2026-09-17 复核：**39** taxonomy 条目/**32** category/**59** rules——`ff1a811` 一波 +4：ntheorem_style_undefine/already_def_undefine/acro_v3_key_rename/restore_support_from_src，另 detector 扩 already_def 双签 + cs_table 扩期刊宏与字体熔合族。）
+> taxonomy 段现为 37 个 pattern 条目、rules 段 **36** 条（v3 整改 + 后续扩表：pstricks_dvips_preflight/eps_route/eps_to_pdf/legacy_pkg_shim/font_sub_shim/aux_scan_eof/split_glued_cs 等，HANDOFF-2026-09-16 §2.2/§6——勘误标注：此列名混层，`aux_scan_eof` 实为 category（消费规则 `aux_purge_regen`）、`split_glued_cs` 实为 builtins 内部 helper `_split_glued_cs`（builtins.py:1013），余者才是规则 id）。（勘误 2026-09-17：实 **42** taxonomy/**52** rules——计数持续滞后，以 rules.yaml 为准。勘误 2026-09-17 复核：**39** taxonomy 条目/**32** category/**59** rules——`ff1a811` 一波 +4：ntheorem_style_undefine/already_def_undefine/acro_v3_key_rename/restore_support_from_src，另 detector 扩 already_def 双签 + cs_table 扩期刊宏与字体熔合族。）（勘误 2026-09-17 三复核：**46** taxonomy 条目/**36** category/**62** rules（2 gate+2 precheck+58 loop）——`9d9ebe5` 新增 category `cannot_patch_macro`/`runaway_scan`（消费规则 biblatex_bbx_rename:161/detab_end_scanlines:164）；`env_mismatch`/`float_opt` 有 taxonomy 条目尚无消费规则（实消 34 cat）。另：文件实为**三层**——顶层 `warnings:` 段（4 warn_id：invalid_utf8/missing_char/missing_graphic/tectonic_degrade）载 warn-driven fix 的签名面， taxonomy/rules 之外独立；rules.yaml 头部自注释"36 条:2+2+32"自身已陈旧。）
 
 phase：`gate`=每轮分类后最先评估 / `precheck`=编译前一次性 / `loop`=每轮错误驱动；同 phase 按 order 升序、**每轮只应用一条**（便于归因）。
 
@@ -271,7 +271,7 @@ phase：`gate`=每轮分类后最先评估 / `precheck`=编译前一次性 / `lo
 | 15  | `minted_frozencache` | loop/130    | `minted_froz`                                | `{minted}`→`{minted2}` 一行替换（v3 吃 v2 缓存报 50 错实测）     |
 | 16  | `undefined_cs_guess` | loop/900    | `undefined_cs`                               | escalate_llm（恒最后兜底）                                       |
 
-动作原语 7 种：`scan_install / install_file / run_tool / regex_rewrite / builtin_transform / reject_route / escalate_llm`。命名函数注册表仅 3 个（`px_to_bp`/`keep_latin_tokens`/`option_clash_merge`）——社区新规则多数只写 regex，新函数才需 PR 代码。（勘误 2026-09-17：impl `TRANSFORM_FNS` **21** + `REWRITE_FNS` **2**，`builtins.py:142/1844`。）
+动作原语 7 种：`scan_install / install_file / run_tool / regex_rewrite / builtin_transform / reject_route / escalate_llm`。命名函数注册表仅 3 个（`px_to_bp`/`keep_latin_tokens`/`option_clash_merge`）——社区新规则多数只写 regex，新函数才需 PR 代码。（勘误 2026-09-17：impl `TRANSFORM_FNS` **21** + `REWRITE_FNS` **2**，`builtins.py:142/1844`。再勘误同日：**22**+2，`builtins.py:144/2147`——`827674d` 增 `accent_mark_fix`。）
 
 **顺序不变量**：gate 先于一切（`missing_file`+`\documentstyle` 必须先拦，否则给 2.09 白装包）；install 先于 rewrite（缺包时不许动源码）；同 trigger 保守→激进（microtype_off 70 < times_to_newtx 80 + `(rule_id,payload)` dedup）；兜底恒最后（order 900）。防干扰：同 `(cat,pay)` 签名连续 3 轮 → `stuck`；rewrite 幂等逐条审过。
 
@@ -325,6 +325,8 @@ fixloop(proj, eng, ruleset):
 
 终止判据：pdf+0 错→clean；cat clean/None→判 pdf；gate 命中→reject；sig×3→stuck。
 
+> 落地勘误（2026-09-17，对照 `fixloop/engine.py`）：伪代码未画的已提交机制——**warn-driven fix rounds**（`meta.warn_driven_fixes` + `scope: warnings` 条目 warn_utf8/warn_missing_char + engine.py:1371 `warn_cats` 豁免——编译过但带红线 warning 也进修复轮）；**best-effort salvage**（engine.py:1402-1451 → `best_effort_pdf` verdict）；**floor_snap** 入场 PDF 回退 + `floor_from` 字段（engine.py:1273-1284/1456-1471——修复轮产出比入场更差时回退）；per-round `_sweep_bad_aux`。另超时分层：`meta.loop.timeout_sec=120` 是 fixloop 内部单轮编译预算（`fixloop(compile_timeout=)` 可覆盖），§4.1 的 240s 是引擎层墙钟——两层独立，非矛盾。
+
 ### 5.5 沉淀机制（"新失败 → 新规则"）
 
 ```
@@ -356,7 +358,7 @@ fixloop(proj, eng, ruleset):
 | 块态 | chunk/segment `status` | `ok` / `partial`（阶梯 recovered）/ `fault`（翻译或校验错；`fallback_orig` 回退原文亦落 fault+skipped 标记）/ `skipped`（门控跳过）（勘误 2026-09-17：原表漏 `partial` 第四值，impl `pipeline.py:107/614-630`） | `xlat/pipeline.py` |
 | 注入态 | inject `status` | `injected` / `already`（已有 CJK 支持）/ `no-docline`（无 documentclass 锚） | `compile/inject.py` |
 | fixloop 判决 | cases `verdict` / `fixloop_verdict` | `clean` / `acceptable_pdf`（有 pdf 即收，misschar 档）/ `best_effort_pdf`（有 pdf 残留错）/ `dirty_pdf` / `unfixable:{cat}` / `stuck`（轮内无进展）/ `no_errors_no_pdf`（干净日志零页面）/ `reject:<rid>`（gate 直通）/ `no_main_tex` / `max_rounds`（勘误 2026-09-17：原表缺后三值） | `fixloop/engine.py`、`fixloop/cases.py` |
-| 规则态 | rules.yaml `status` | `stub` / `proposed` / `active` / `retired` / `validated`（裁定 2026-09-17：**审计元数据非门控**——全部状态同序同权上场，排序/触发由 `order`+`when` 驱动；proposed→active 升迁走回放门 ③ 写 `stats`/复核，不拦 firing。bench 语义要"全手上场"，retired 例外=规则条目删除前位） | `fixloop/rules.yaml` |
+| 规则态 | rules.yaml `status` | `stub` / `proposed` / `active` / `retired` / `validated`（裁定 2026-09-17：**审计元数据非门控**——全部状态同序同权上场，排序/触发由 `order`+`when` 驱动；proposed→active 升迁走回放门 ③ 写 `stats`/复核，不拦 firing。bench 语义要"全手上场"，retired 例外=规则条目删除前位。勘误同日：impl 实际在用值为 stub×1/proposed×29/validated×5/**verified×4**（biblatex_bbx_rename/acro_v3_key_rename/ntheorem_style_undefine/already_def_undefine——表内枚举原缺 verified）；active/retired 零使用；另有规则仅 stats.fires 无 status 键） | `fixloop/rules.yaml` |
 | 任务态 | job `status`（11 态机） | active：`queued`/`fetching`/`parsing`/`translating`/`compiling`；terminal：`done`/`partial`/`fault`/`cancelled`/`interrupted`/`needs_auth` | `server/store.py:150` |
 
 跨段退化口径：终态 `fixloop.status` 不得低于上游 `compile.status`（clean>partial>fail>reject）；loop1 实证 17 格中 13 格为基建杀伤假象（修复后引擎直编出 pdf），真退化判定须直编复验。
