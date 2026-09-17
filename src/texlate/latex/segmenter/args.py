@@ -67,6 +67,13 @@ _OPAQUE_ARG_PROSE_RX = re.compile(
 )
 _OPAQUE_ARG_WORD_RX = re.compile(r"[A-Za-z]{2,}")
 
+#: 吞块宏名闸（opaque 臂 + 探针臂同罩）：``\comment{...}`` 按惯例是隐藏批注
+#: 宏（comment.sty / 作者自定义 ``\newcommand{\comment}[1]{}``），参内散文
+#: 抬进译文面会把源 PDF 本不显示的内部注记印进译文 PDF（W50 语义）。
+#: ``todo``/``fixme``/``note`` 不收——todonotes/fixme 包默认内联渲染参数，
+#: 误收会把真可见文本藏起来；``comment`` 是唯一不歧义的吞块约定名。
+_SWALLOW_ARG_NAMES = frozenset({"comment"})
+
 
 class _Args:
     # ------------------------------------------------------------ 参数读取（token 版 _args）
@@ -1126,7 +1133,11 @@ class _Args:
                 self.state.warnings.append(
                     ScanWarning("keyarg_unbound", len(self.vt), f"\\{ka} 尾参缺席")
                 )
-        prose_args = [a for a in args if self._opaque_arg_prose(fid, a)]
+        prose_args = (
+            []
+            if t.text in _SWALLOW_ARG_NAMES
+            else [a for a in args if self._opaque_arg_prose(fid, a)]
+        )
         if prose_args and self.gen >= MAX_GEN:
             # 子扫代数触底——散文参不挖，整调用维持 opaque（``_handle_chunk_arg``
             # 同款回压：宁可不译也不超代数）。
@@ -1181,9 +1192,10 @@ class _Args:
 
         宏表未命中（``m is None``）先查 ``argspec_lookup``——已加载包
         的签名驱动 policy 分派；表外维持探针：参数命中 → ``[[CMD]]``
-        进 run，否则逐字。``allow_single_token=False``（泄漏机制 A：
-        禁单 token 参——``\foo x`` 的 ``x`` 是正文）；参数搜索不跨
-        ``eol_par``。
+        进 run（``{散文}`` 参抠出子扫渲 surface——``_opaque_arg_prose``
+        判据同 opaque 宏臂），否则逐字。``allow_single_token=False``
+        （泄漏机制 A：禁单 token 参——``\foo x`` 的 ``x`` 是正文）；
+        参数搜索不跨 ``eol_par``。
         """
         fid, _a, b = t.pos
         # 裸操作数/赋值尾参先扫——literal-policy 名（``\hangindent``/``\kern``/
@@ -1265,7 +1277,30 @@ class _Args:
             src, fid, 6, b, has_opt=True, allow_single_token=False
         )
         if any(a.fe > a.fs for a in args):
+            # 与 ``_handle_opaque_macro`` 同款散文参挖掘：投机参里的 ``{散文}``
+            # 抠出 [[CMD]] 覆盖子扫渲进 run surface——``\@maketitle{…prose…}``
+            # 类调用块不再整块蒸发（1803.00127 实测）。宏名/非散文参/散文参
+            # 花括号所在结构段仍 [[CMD]] 原文。
+            prose_args = (
+                []
+                if (name or t.text) in _SWALLOW_ARG_NAMES
+                else [a for a in args if self._opaque_arg_prose(fid, a)]
+            )
+            if prose_args and self.gen >= MAX_GEN:
+                self.state.warnings.append(
+                    ScanWarning("gen_overflow", len(self.vt), f"probe:{t.text}")
+                )
+                prose_args = []
             self._cover_gap(fid, t.pos[1])
+            for a in prose_args:
+                vspan = self._cover_to(fid, a.cs)
+                self._rappend_ph(
+                    self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
+                    vspan,
+                )
+                vmark = len(self.vt)
+                rendered = self._subscan_render(a)
+                self._rappend(rendered, rendered, Span(vmark, len(self.vt)))
             vspan = self._cover_to(fid, end)
             self._rappend_ph(
                 self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
