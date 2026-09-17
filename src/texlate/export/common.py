@@ -8,7 +8,7 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 import yaml
 
@@ -17,7 +17,7 @@ from texlate.xlat.pipeline import ChunkIn, ChunkResult, XlatPipeline
 from texlate.xlat.placeholders import collect_doc_placeholders
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterable
 
     from texlate.xlat.pipeline import Translator
     from texlate.xlat.state import StateStore
@@ -134,6 +134,62 @@ class ApplyCounts:
 #: ``parse_batch_response`` 序号路径会把裸 ``[1]``（单块批的"空槽"回复）
 #: 原样当译文留下——插出去是根号渣，按空译判 unchanged。
 STUB_ONLY_RE = re.compile(r"\s*(?:\[\d+\]\s*)+")
+
+
+class _ApplyUnit(Protocol):
+    """``apply_translations`` 对单元的最低面：结果键 ``job_id`` + echo 比对 ``text``。"""
+
+    job_id: str
+    text: str
+
+
+def _all_units(_unit: _ApplyUnit) -> bool:
+    return True
+
+
+def apply_translations[U: _ApplyUnit](
+    units: Iterable[U],
+    results: Mapping[str, ChunkResult],
+    *,
+    preview_zh: Callable[[U, ChunkResult], str],
+    insert: Callable[[U, ChunkResult], str | None],
+    counts_unchanged: Callable[[U], bool] = _all_units,
+) -> ApplyCounts:
+    """``_apply`` 公共骨架——EPUB/DOCX 两臂的回放-预判-插译-计数全同构。
+
+    差异三点经参数面注入：
+
+    - ``preview_zh``: 与各自 insert 同口径的"净化后译文"预判（DOCX 只
+      ``sanitize_xml_text``；EPUB 先 ``reconcile_markers`` 再 sanitize）；
+    - ``counts_unchanged``: 该单元是否参与 unchanged 预判——EPUB 的 ncx
+      单元无条件写回故除外；缺省全参与；
+    - ``insert``: 真插译，返回警告行（无警告 ``None``——DOCX
+      ``insert_after`` 本无返回，lambda 包一层即 ``None``）。
+
+    unchanged 三判据（空译/纯 ``[n]`` 序号桩/echo 原文）与两侧 insert 内部
+    的跳过判据同口径：预判不过即不会真插，计 ``unchanged``——插了也只是
+    无字空壳段，``translated`` 计数不变量会破。
+    """
+    counts = ApplyCounts()
+    for u in units:
+        r = results.get(u.job_id)
+        if r is None:
+            continue
+        if r.status in ("skipped", "fault"):
+            if r.status == "fault":
+                counts.fault += 1
+            continue
+        zh = preview_zh(u, r)
+        if counts_unchanged(u) and (
+            not zh.strip() or STUB_ONLY_RE.fullmatch(zh) or zh.strip() == u.text.strip()
+        ):
+            counts.unchanged += 1
+            continue
+        warn = insert(u, r)
+        if warn:
+            counts.warnings.append(warn)
+        counts.translated += 1
+    return counts
 
 
 def drive_pipeline(  # noqa: PLR0913 -- 骨架即双驱共享参数面（chunks/翻译/断点/回调/apply/save 七件）

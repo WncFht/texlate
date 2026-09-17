@@ -64,6 +64,7 @@ from .common import (
     FixedLayoutError,
     GlossaryArg,
     MalformedEpubError,
+    apply_translations,
     drive_pipeline,
     safe_language,
 )
@@ -1265,7 +1266,7 @@ def save_epub(dst: Path | str, book: EpubBook) -> None:
 # ---------------------------------------------------------------- 驱动
 
 
-def translate_epub(  # noqa: C901, PLR0913, PLR0915 -- 驱动主链：公共 API 参数面 + apply/flush 闭包，语句数即编排步骤数
+def translate_epub(  # noqa: PLR0913 -- 驱动主链：公共 API 参数面 + apply/flush 闭包，语句数即编排步骤数
     src: Path | str,
     dst: Path | str,
     translator: Translator,
@@ -1323,32 +1324,17 @@ def translate_epub(  # noqa: C901, PLR0913, PLR0915 -- 驱动主链：公共 API
         save_epub(dst, book)
 
     def _apply(results: Mapping[str, ChunkResult]) -> ApplyCounts:
-        counts = ApplyCounts()
-        for u in units:
-            r = results.get(u.job_id)
-            if r is None:
-                continue
-            if r.status in ("skipped", "fault"):
-                if r.status == "fault":
-                    counts.fault += 1
-                continue
-            # 与 insert_translation 同口径预判（ncx 单元无条件写回故除外）：
-            # 调和+净化后为空/纯序号桩/echo 原文 → 不会真插，按 unchanged 计
-            zh = sanitize_xml_text(
+        # preview 与 insert_translation 同口径（调和+净化）；ncx 单元无条件
+        # 写回故不参与 unchanged 预判（见 common.apply_translations）
+        return apply_translations(
+            units,
+            results,
+            preview_zh=lambda u, r: sanitize_xml_text(
                 reconcile_markers(u.text, r.translation, issued=u.markers)
-            )
-            if u.ncx_text is None and (
-                not zh.strip()
-                or STUB_ONLY_RE.fullmatch(zh)
-                or zh.strip() == u.text.strip()
-            ):
-                counts.unchanged += 1
-                continue
-            warn = insert_translation(u, r.translation, lang or "")
-            if warn:
-                counts.warnings.append(warn)
-            counts.translated += 1
-        return counts
+            ),
+            insert=lambda u, r: insert_translation(u, r.translation, lang or ""),
+            counts_unchanged=lambda u: u.ncx_text is None,
+        )
 
     chunks = [ChunkIn(u.job_id, u.text, u.kind) for u in units]
     try:
