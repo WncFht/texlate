@@ -9,8 +9,13 @@
   同一位 → basename 恰一命中搬进 ``tex/latex/`` 复核。
 """
 
+import re
+import shutil
+import subprocess
 from functools import lru_cache
 from pathlib import Path
+
+import pytest
 
 from texlate.compile.engine import XelatexEngine
 from texlate.compile.fixloop import Ruleset, load_ruleset
@@ -274,3 +279,55 @@ def test_scan_install_vendored_dep_fanout(tmp_path: Path) -> None:
     ok, _ = _apply_scan_install(ctx, eng, _scan_params(root))
     assert ok
     assert "auxdep.sty" in eng.install_calls  # 落件依赖喂回装包链
+
+
+# ------------------------------------------------------- diagrams stub 富化 (M1-B)
+
+
+@pytest.mark.skipif(shutil.which("xelatex") is None, reason="xelatex not installed")
+def test_diagrams_stub_enriched_surface(tmp_path: Path) -> None:
+    """stub 富化面真编译钉：options 吞掉 / &-\\-\\cr 分隔降级 / \\newarrow
+    自定义族 / {diagram} 嵌 {equation} / plain 式 —— 全零 ``!`` 错。
+
+    实证基线 1206.1835: 裸 stub 172 errs (misplaced &×88 + \\cr×22
+    + unknown-option×2 + \\newarrow/\\xyoption undef + 域错级联)。
+    """
+    stub = (
+        Path(__file__).resolve().parent.parent
+        / "src/texlate/compile/fixloop/vendor/stubs/diagrams.sty"
+    )
+    shutil.copy(stub, tmp_path / "diagrams.sty")
+    (tmp_path / "main.tex").write_text(
+        r"""% !TeX program = xelatex
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage[PostScript=dvips,noPS]{diagrams}
+\xyoption{all}
+\newarrow{Equalto}{=}{=}{=}{=}{=}
+\begin{document}
+text
+\begin{diagram}
+A &\rTo^{f}& B \cr
+\dTo_{g} && \dEqualto \cr
+C &\rEqualto& D \cr
+\end{diagram}
+\begin{equation}\begin{diagram}
+X &\rTo& Y \\ \dTo && \dTo \\ Z &\rTo& W
+\end{diagram}\end{equation}
+\diagram E &\rTo& F \cr G &\dTo& H \enddiagram
+\end{document}
+""",
+        encoding="utf-8",
+    )
+    xelatex = shutil.which("xelatex")
+    subprocess.run(  # noqa: S603 -- argv[0] 来自 shutil.which 绝对路径
+        [xelatex, "-interaction=nonstopmode", "main.tex"],
+        cwd=tmp_path,
+        capture_output=True,
+        timeout=120,
+        check=False,
+    )
+    log = (tmp_path / "main.log").read_text(encoding="utf-8", errors="replace")
+    n_err = len(re.findall(r"^! ", log, re.MULTILINE))
+    assert n_err == 0, f"stub 富化后仍 {n_err} 个 '!' 错"
+    assert (tmp_path / "main.pdf").is_file()

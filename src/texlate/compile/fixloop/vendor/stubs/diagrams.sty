@@ -8,10 +8,27 @@
 \ProvidesPackage{diagrams}[texlate stub — original not redistributable]
 \PackageWarningNoLine{texlate-stub}{diagrams.sty is a compatibility shim}
 
+% —— 包选项静默吞：PostScript=dvips/noPS 等渲染开关对不画网格的
+%    stub 无义, 不声明会出 Unknown option 错 (1206.1835 实证) ——
+\DeclareOption*{}
+\ProcessOptions\relax
+
 % —— 两种调用式：\begin{diagram} 走 env 机制调 \diagram/\enddiagram；
-%    plain 式 \diagram…\enddiagram 同名直达 ——
-\def\diagram{\begingroup\let\\=\space\[}
-\def\enddiagram{\]\endgroup}
+%    plain 式 \diagram…\enddiagram 同名直达。网格分隔符降级:
+%    &/\cr 在 displaymath 里非法 → 组内局部降为空白 (同格实证:
+%    misplaced & ×88 + \cr ×22 占残余大头)。& 须先 active 化
+%    才可 \def —— 外层组预激活让体内 token 以 active 形入宏。
+\begingroup
+\catcode`\&=\active
+\gdef\diagram{\begingroup
+  \let\\=\space \let\cr\space
+  \catcode`\&=\active \def&{\ }%
+  \ifmmode \let\diagrams@disp=\relax \else \let\diagrams@disp=\] \[\fi}
+\endgroup
+% {diagram} 可嵌进 {equation} 等数学环境 (同格实证) —— 已处数学域
+% 不开 \[, \diagrams@disp 记 \relax; 否则记 \] 供 \enddiagram 对称
+% 关域 (不能现测 \ifmmode: 开过的 \[ 里恒真会漏关)。
+\def\enddiagram{\diagrams@disp\endgroup}
 
 % —— Taylor 箭头族 → 真箭头映射 ——
 \providecommand{\rTo}{\to}
@@ -46,4 +63,25 @@
 \providecommand{\spreadlines}[1]{}
 \providecommand{\diagrams@activate}{}
 \providecommand{\diagramstyle}[1]{}
+
+% —— \newarrow{Name}<spec5>: Taylor 自定义箭头宏。spec 含 '='
+%    → 双线族 (Rightarrow 系), 否则单线 (to 系); r/l/u/d + h/v
+%    六枚一次定义 (1206.1835: \newarrow{Equalto}=====\r/dEqualto) ——
+\def\newarrow#1#2#3#4#5#6{%
+  \in@{=}{#2#3#4#5#6}%
+  \ifin@
+    \diagrams@defarrow{#1}\Rightarrow\Leftarrow\Uparrow\Downarrow
+  \else
+    \diagrams@defarrow{#1}\to\leftarrow\uparrow\downarrow
+  \fi}
+\def\diagrams@defarrow#1#2#3#4#5{%
+  \expandafter\def\csname r#1\endcsname{#2}%
+  \expandafter\def\csname l#1\endcsname{#3}%
+  \expandafter\def\csname u#1\endcsname{#4}%
+  \expandafter\def\csname d#1\endcsname{#5}%
+  \expandafter\def\csname h#1\endcsname{#2}%
+  \expandafter\def\csname v#1\endcsname{#5}}
+
+% —— xypic 串件：\xyoption{all} 只装特性包, stub 无特性可选 → 吞 ——
+\providecommand{\xyoption}[1]{}
 \endinput
