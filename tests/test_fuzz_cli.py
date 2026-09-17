@@ -690,30 +690,19 @@ class TestThinClient:
             "not-an-id",
         ],
     )
-    @pytest.mark.xfail(
-        strict=True,
-        reason="瘦客户端无 _valid_id 闸——畸形 id 原样进 POST path，"
-        "'..' 借 httpx 规范化逃出 /api/arxiv/ 命名空间（cli.py:423/486）",
-    )
     def test_unvalidated_id_submission(
         self, monkeypatch: pytest.MonkeyPatch, source: str
     ) -> None:
-        """期望：客户端先校验 id 形（与 fetch/run 本地路径同闸），畸形 id 本地拒。
+        """回归钉（8a3d822 已修）：``_valid_id`` 闸在构造 URL 前拒非法 id。
 
-        实际：``normalize_arxiv_id`` 对非法输入返回原样 base →
-        ``POST /api/arxiv/{raw}/translate``——``..`` 经 httpx dot-segment
-        归一化落到 ``/api/y/translate``，越出预期端点命名空间。
+        旧缺陷：``..`` 借 httpx dot-segment 归一化逃出 ``/api/arxiv/``
+        命名空间落 ``/api/y/translate``。现行：本地 exit 2 零请求。
         """
         calls = _patch_httpx(monkeypatch, self._handler_terminal)
         result = _RUNNER.invoke(app, ["run", source, "--server", "http://s"])
         _clean(result)
-        assert calls, "应已发出提交请求"
-        m = re.fullmatch(
-            r"POST /api/arxiv/(?:\d{4}\.\d{4,5}|[a-zA-Z-]+(?:\.[A-Z][a-zA]+)?/\d{7})"
-            r"(?:v\d{1,3})?/translate",
-            calls[0],
-        )
-        assert m, f"提交的 id 段非法或逃逸命名空间: {calls[0]!r}"
+        assert result.exit_code == 2  # noqa: PLR2004
+        assert not calls, f"非法 id 不得发出请求: {calls!r}"
 
     def test_valid_id_baseline(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """合法 id：``POST /api/arxiv/2001.00001v2/translate`` + done → exit 0。"""
