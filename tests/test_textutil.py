@@ -7,6 +7,8 @@ cs 被误报文本域裸 cs）。
 
 from texlate import textutil
 from texlate.textutil import (
+    END_DOC_RX,
+    LOADER_CMDS,
     _cs_events_spans,
     _declared_name,
     bare_cs_net,
@@ -169,3 +171,31 @@ def test_memo_size_guard_bypasses_cache() -> None:
     info = textutil._decode_tex_with_memo.cache_info()  # noqa: SLF001
     assert info.misses == 0
     assert info.hits == 0
+
+
+# ---------------------------------------------------------------- 新 export 形状钉
+def test_end_doc_rx_mirror_begin() -> None:
+    r"""``\end{document}`` 对端——空白合法、``{documentx}`` 不误命中。"""
+    assert END_DOC_RX.search("\\end{document}")
+    assert END_DOC_RX.search("\\end {document}")
+    assert not END_DOC_RX.search("\\end{documentx}")
+    assert not END_DOC_RX.search("end{document}")
+
+
+def test_loader_cmds_membership() -> None:
+    """加载命令名集 = 各站并集钉死；文档声明族（``DOCCLASS_NAMES``）不在列。"""
+    assert (
+        frozenset(
+            {
+                "usepackage",
+                "RequirePackage",
+                "RequirePackageWithOptions",
+                "LoadClass",
+                "LoadClassWithOptions",
+                "PassOptionsToPackage",
+                "PassOptionsToClass",
+            }
+        )
+        == LOADER_CMDS
+    )
+    assert not (LOADER_CMDS & {"documentclass", "documentstyle"})

@@ -57,9 +57,11 @@ __all__ = [
     "DOCCLASS_RX",
     "DOCSTYLE_DECL_RX",
     "DOCSTYLE_RX",
+    "END_DOC_RX",
     "INPUT_BARE_RX",
     "INPUT_BRACED_RX",
     "JSON_FENCE_RX",
+    "LOADER_CMDS",
     "MATH_CS",
     "PH_FUZZY_RX",
     "VERBATIM_ENVS",
@@ -89,6 +91,8 @@ __all__ = [
 #: ``\begin{document}`` 探测（``\begin {document}`` 空白合法）。消费侧一律
 #: 在遮盖/剥注释视图上判定——注释/verbatim 内的字面命中不算数。
 BEGIN_DOC_RX: Final = re.compile(r"\\begin\s*\{document\}")
+#: ``\end{document}`` 探测——``BEGIN_DOC_RX`` 的对端，同视图约定。
+END_DOC_RX: Final = re.compile(r"\\end\s*\{document\}")
 
 # ------------------------------------------------------------------
 # ``\documentclass``/``\documentstyle`` 声明探测族（单源：audit-2026-09 §2.2
@@ -124,6 +128,23 @@ DOCCLASS_OPTS_RX: Final = re.compile(
     r"\\documentclass" + CMD_BOUNDARY + r"\s*(?:\[([^\]]*)\])?\s*\{"
 )
 
+#: 包/类加载命令名集——全仓各站现有集合的并集单源化（fixloop
+#: ``_DEP_DECL_RE`` / normalize ``_PACKAGE_USE_RX``·``_CLASS_USE_RX`` /
+#: probe ``_PKG_RE``·``_CLS_RE`` / inject / fixloop.builtins /
+#: segmenter ``_PKG_CMDS`` 逐站归并）。``documentclass``/``documentstyle``
+#: 属文档声明族、``DOCCLASS_NAMES`` 已单源，不在此列。
+LOADER_CMDS: Final = frozenset(
+    {
+        "usepackage",
+        "RequirePackage",
+        "RequirePackageWithOptions",
+        "LoadClass",
+        "LoadClassWithOptions",
+        "PassOptionsToPackage",
+        "PassOptionsToClass",
+    }
+)
+
 
 #: LLM JSON 应答的 ```json fence 剥皮——response_format 在 3003 网关被静默
 #: 忽略，模型按习惯包 fence 是常态；剥一层再 json.loads 才算尽力。
@@ -154,6 +175,11 @@ INPUT_BRACED_RX: Final = re.compile(
     r"\\(?P<verb>input|include|InputIfFileExists)\b\s*\{(?P<arg>[^}]+)\}"
 )
 INPUT_BARE_RX: Final = re.compile(r"\\input\s+(?P<arg>[^\s{}%\\]+)")
+#: 更宽的 ``\input`` 族谱系（subfile/import/subimport/includestandalone/
+#: CatchFileBetweenTags/bibliography）刻意不单源成一枚 ``*_RX``——import 系
+#: 双参（dir+file）、CatchFileBetweenTags 前导 token 参、bibliography 逗号
+#: 分片，per-command 参数组语义单正则承载不了；超集口径仍在
+#: ``arxiv.locate._REF_RES``。
 
 #: 声明名噪声过滤：``\w./+-`` 白名单字符集——含控制序列/括号/注释符的
 #: 噪声 token 一律拒（``\input`` 巨参、``\@tempb`` 类误捕；fixloop
