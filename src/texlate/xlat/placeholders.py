@@ -31,6 +31,11 @@ TYPED_PH_RX = PH_RX
 #: PhType 成员、走带号 [[ENV_n]] 形态。本正则取超集口径（zh 侧任何裸 ALLCAPS
 #: 标记都算候选，含模型臆造的 [[ENV]] 类变体），与 TYPED_PH_RX 不相交——
 #: `[A-Z_]+` 不吃数字。
+#: 盲区登记（2026-09-17，不修）：转义哨兵 `[[__TEXLATE_{tag}_LIT{n}__]]` 以 `_`
+#: 起头对 ANY_PH_RX/PH_ANY_LIKE_RX 均不可见——src/zh 对称不可见故保留即干净，
+#: 但源字面即哨兵形时模型丢弃哨兵无信号（静默丢字面）。触发条件=源 .tex 字面
+#: 含哨兵语法（真实语料≈0，自指/对抗文档才命中）；单级转义 `[[SL_RAW]]` 已在
+#: 管辖内。若要收口须同步扩 ANY_PH_RX 与 l0.PH_ANY_LIKE_RX 两处口径。
 BARE_PH_RX = re.compile(r"\[\[[A-Z][A-Z_]*\]\]")
 #: 任一占位符形态
 ANY_PH_RX = re.compile(rf"(?:{TYPED_PH_RX.pattern})|(?:{BARE_PH_RX.pattern})")
