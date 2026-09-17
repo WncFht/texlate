@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from texlate.compile.fixloop._builtins_common import PDFTEX_PRIMS
-from texlate.textutil import mask_tex
+from texlate.textutil import DOCCLASS_OPTS_RX, mask_tex
 
 if TYPE_CHECKING:
     from texlate.compile.fixloop.engine import Engine, LoopCtx
@@ -104,7 +104,8 @@ def legacy_pkg_shim(
 
 
 #: ``\documentclass`` 选项表提取 —— 选项可缺省, 方括号内允跨行空白。
-_DOCCLASS_OPTS_RE = re.compile(r"\\documentclass\s*(?:\[([^\]]*)\])?\s*\{")
+#: 单源 ``textutil.DOCCLASS_OPTS_RX``；私名保留为 builtins 门面回引柄。
+_DOCCLASS_OPTS_RE = DOCCLASS_OPTS_RX
 
 
 def svjour_clo_stub(

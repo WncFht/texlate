@@ -34,7 +34,7 @@ from texlate.compile.fixloop.logparse import (
 )
 from texlate.compile.inject import classify_no_main as _classify_no_main
 from texlate.compile.inject import find_main_tex as _inject_find_main_tex
-from texlate.textutil import decode_tex
+from texlate.textutil import DOCCLASS_RX, decode_tex
 
 if TYPE_CHECKING:
     from texlate.compile.fixloop.cases import CaseSink
@@ -55,7 +55,6 @@ __all__ = [
 #: 合并多分片; 序敏感段 taxonomy/warnings 各自单文件承载）。``Ruleset.load``
 #: 传显式单文件路径仍兼容（部分规则集亦可单独校验装载）。
 RULES_PATH = Path(__file__).with_name("rules")
-_DOC_RE = re.compile(r"\\(documentclass|documentstyle)(?![a-zA-Z])")
 _REJECT_PREFIX = "REJECT:"
 
 #: yaml 模式串占位符 → builtins 原语族 (扩表免手同步: 1e0e5c8 手工
@@ -1176,7 +1175,7 @@ def find_main_tex(proj: Path) -> Path | None:
     for f in sorted(f for f in proj.rglob("*") if f.suffix.lower() == ".tex"):
         with contextlib.suppress(OSError):
             head = decode_tex(f.read_bytes())[:60000]
-            if _DOC_RE.search(head):
+            if DOCCLASS_RX.search(head):
                 has_body = "\\begin{document}" in head
                 depth = len(f.relative_to(proj).parts)
                 cands.append((depth, 0 if has_body else 1, str(f)))
