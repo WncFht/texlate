@@ -837,11 +837,11 @@ class _Pending:
                     if e2 is not None:
                         j = e2
                 elif spec is not None:
-                    # ``n`` 计入 mand——``_grp_call_end`` 只认 ``{..}`` 组，
-                    # 花括号形 ``\setlength{\parskip}{4pt}`` 全收；裸 cs 形
-                    # 组内 spec-blind 是 M6 记档残留
-                    mand = sum(1 for a in spec if a.kind in ("m", "v", "n"))
-                    j = self._grp_call_end(toks, i, mand)
+                    # 位序走参——``n`` 槽认裸 cs token（``\setlength\parskip``
+                    # 组内形）；旧 ``_grp_call_end`` 只数 ``{..}`` 组，裸名形
+                    # 漏 ``{4pt}`` 进 surface（illegal_unit 波实证：
+                    # 1608.02270 ``\setlength\arraycolsep{2pt}`` 34 处残留）
+                    j = self._grp_spec_args_end(toks, i + 1, spec, (), None)
                 self._cat_surf(
                     out, self._grp_ph(PhType.CMD, self._grp_surfs(toks[i:j]))
                 )

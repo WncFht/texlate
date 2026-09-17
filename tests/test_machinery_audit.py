@@ -395,3 +395,252 @@ def test_cite_two_groups_unchanged() -> None:
     body = chunk_text(res)
     assert "keya" not in body
     assert "{tail}" in body
+
+
+# ------------------------------------------------- illegal_unit 波（2026-09-17）
+# 实证机制（stagerun-loop1 残留 ~25 格逐线复核）：逗号小数、单位字母词界、
+# 换行/注释间隙、计数器裸整数赋值、组内 n 槽 spec-blind、multirow 可选参、
+# env argspec 缺口、genfrac literal 空签名。
+
+
+def test_raise_comma_decimal_dimen() -> None:
+    r"""``\raise 1,5pt``——欧陆逗号小数（TeX 认 ``,`` 为小数点）进 dimen 尾扫
+    （0806.4203：``1,5`` 残留 + ``pt`` 被译 → ``1,5 这是译文``）。"""
+    tex = ART % (
+        "",
+        "Text \\raise 1,5pt \\hbox{,} tail words here to fill the paragraph.\n",
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert "1,5pt" not in body
+    assert "raise" not in body
+    assert "tail words" in body
+
+
+def test_bsbs_comma_decimal_opt() -> None:
+    r"""``\\[1,5cm]``——换行可选参同认逗号小数（0905.0575）。"""
+    tex = ART % (
+        "",
+        "First line words here \\\\[1,5cm] second line words fill the para.\n",
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    assert "1,5cm" not in chunk_text(res)
+
+
+def test_bsbs_opt_after_newline() -> None:
+    r"""``\\`` 行尾 + 次行 ``[8pt]``——单换行是 TeX 空白语义（hep-ph/0307181
+    titlepage 区 ``[8这是译文]`` 残留）。"""
+    tex = ART % (
+        "",
+        "First line words here \\\\\n[8pt] second line words fill the para.\n",
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    assert "8pt" not in chunk_text(res)
+
+
+def test_bsbs_opt_comment_interrupted() -> None:
+    r"""``\\[0pt%`` + 次行 ``]``——``%`` 注释吞行尾后 ``]`` 续参
+    （1511.06628 ``\\[0pt%`` 形）。"""
+    tex = ART % (
+        "",
+        "First line \\\\\nmore \\\\[0pt%\n] tail words here fill the para.\n",
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    assert "0pt" not in chunk_text(res)
+
+
+def test_tail_operand_after_newline() -> None:
+    r"""``\\hskip`` 行尾 + 次行 ``1em plus..``——换行分隔操作数随尾扫
+    （2105.00030 文献区 ``1em\\relax``→``1这是译文``）；``\\relax`` 归
+    INLINE_LITERAL 不裸进 surface。"""
+    tex = ART % (
+        "",
+        (
+            "Text.\\hskip\n  1em plus 0.5em minus 0.4em\\relax Avignon "
+            "words here to fill the paragraph out nicely.\n"
+        ),
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    for tok in ("1em", "0.5em", "0.4em", "hskip", "relax"):
+        assert tok not in body
+    assert "Avignon" in body
+
+
+def test_tail_operand_par_boundary_kept() -> None:
+    r"""``\\hskip\\n\\n1em``——``\\n\\n`` 段界不跨：``1em`` 另起段是正文。"""
+    tex = ART % (
+        "",
+        "Text.\\hskip\n\n1em next para words here to fill the paragraph.\n",
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    assert "1em" in chunk_text(res)
+
+
+def test_dimen_unit_no_letter_boundary() -> None:
+    r"""``\\baselineskip=10ptReceived``——TeX 单位是定长关键字匹配（无词界），
+    ``10pt`` 随尾扫、``Received`` 留正文（physics/9901057 center 块实证）。"""
+    tex = ART % (
+        "",
+        "{\\footnotesize\\baselineskip=10ptReceived 3 October 1997 words.}\n",
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert "10pt" not in body
+    assert "baselineskip" not in body
+    assert "Received" in body
+
+
+def test_vskip_unit_prefix_word_split() -> None:
+    r"""``\\vskip-0.015inside``——``in`` 是合法单位：收 ``-0.015in``、
+    ``side`` 作正文（与 TeX 同式；旧前瞻拒配曾致整尾漏）。"""
+    tex = ART % (
+        "",
+        "Text \\vskip-0.015inside tail words here to fill the paragraph.\n",
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert "0.015in" not in body
+    assert "side" in body
+
+
+def test_count_register_assigns() -> None:
+    r"""计数器寄存器：``\\hangafter=1``/``\\looseness=-1``/``\\tolerance=800``/
+    ``\\hbadness 10000``（无等号形）全收（M1-A 簇 ``hangafter=1这是译文``
+    74 行粘连实证）。"""
+    tex = ART % (
+        "",
+        (
+            "Text \\hangafter=1 and \\looseness=-1 \\tolerance=800 \\hbadness "
+            "10000 tail words fill the paragraph.\n"
+        ),
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    for tok in ("hangafter", "looseness", "tolerance", "hbadness", "=1", "10000"):
+        assert tok not in body
+    assert "tail words" in body
+
+
+def test_unknown_cs_bare_int_assign() -> None:
+    r"""表外名 ``\\foo=2``——通用 assign 兜底裸整数（``=N`` 非散文）。"""
+    tex = ART % (
+        "",
+        "Text \\foo=2 tail words here to fill the paragraph out nicely.\n",
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert "=2" not in body
+    assert "foo" not in body
+
+
+def test_hskip_dot_pt() -> None:
+    r"""``\\hskip.pt``——裸 ``.``+单位 atom（TeX missing-number 形，覆盖保真
+    优于 ``pt`` 漏译；1511.02686 文献区实证）。"""
+    tex = ART % (
+        "",
+        "Preprint arXiv:\\hskip.pt 1504.00586v1 [math-ph] words to fill.\n",
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    assert ".pt" not in chunk_text(res)
+
+
+def test_setlength_bare_cs_inside_group() -> None:
+    r"""组内 ``{\\setlength\\arraycolsep{2pt} ..}``——BOUNDARY 臂改走
+    ``_grp_spec_args_end`` 位序：``n`` 槽收裸 cs token（1608.02270
+    ``\\setlength\\arraycolsep{2pt}`` 34 处残留实证）。"""
+    tex = ART % (
+        "",
+        "{Pre \\setlength\\arraycolsep{2pt} post words here fill para.}\n",
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert "2pt" not in body
+    assert "arraycolsep" not in body
+    assert "post words" in body
+
+
+def test_multirow_fixup_opt_args() -> None:
+    r"""``\\multirow{2}{*}[2.5em]{text}``——签名 ``s m o m o m``：fixup
+    可选参收、``{text}`` 可译留 surface（1608.02289/2009.11016/2104.00138
+    ``[2.5em]``→``[2.5这是译文]`` 实证）。旧版 ``{n}[b]{w}{t}`` 序同盖。"""
+    tex = ART % (
+        "\\usepackage{multirow}\n",
+        (
+            "\\begin{tabular}{cc}\n"
+            "\\multirow{2}{*}[2.5em]{Text cell one} & x \\\\\n"
+            "\\multirow{2}[6]{*}{Text cell two} & y \\\\\n"
+            "\\end{tabular}\n"
+            "After words here to fill the paragraph out nicely and more.\n"
+        ),
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert "2.5em" not in body
+    assert "6]" not in body
+    assert "Text cell one" in body
+
+
+def test_adjustwidth_env_dimen_args() -> None:
+    r"""``\\begin{adjustwidth*}{1em}{0em}``——env argspec ``m m`` 收双
+    dimen 参（1706.02447 ``{1这是译文}{0这是译文}`` 实证）；体是正文。"""
+    tex = ART % (
+        "\\usepackage{changepage}\n",
+        (
+            "\\begin{adjustwidth*}{1em}{0em}\n"
+            "Inner text words here to fill the paragraph out nicely.\n"
+            "\\end{adjustwidth*}\n"
+        ),
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert "1em" not in body
+    assert "0em" not in body
+    assert "Inner text" in body
+
+
+def test_hangparas_env_dimen_args() -> None:
+    r"""``\\begin{hangparas}{.25in}{1}``——env argspec ``m m``
+    （1803.00111 ``{.25这是译文}{1}``×36 实证）。"""
+    tex = ART % (
+        "\\usepackage{hanging}\n",
+        (
+            "\\begin{hangparas}{.25in}{1}\n"
+            "Reference text words here to fill the paragraph out.\n"
+            "\\end{hangparas}\n"
+        ),
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert ".25in" not in body
+    assert "Reference text" in body
+
+
+def test_genfrac_all_args_protected() -> None:
+    r"""``\\genfrac{}{}{0pt}{}{a}{b}``——六参签名 + protect：math-literal 族
+    空签名在散文漏 ``{0pt}``（2308.04175 ``\\be`` 未定义致数学区塌进
+    散文的实证）。"""
+    tex = ART % (
+        "\\usepackage{amsmath}\n",
+        "Text then \\genfrac{}{}{0pt}{}{a}{b} tail words fill the para.\n",
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert "0pt" not in body
+    assert "genfrac" not in body

@@ -4898,10 +4898,10 @@
             "name": "genfrac",
             "kind": "macro",
             "package": "math-literal",
-            "signature": "",
-            "arg_roles": [],
-            "policy": "literal",
-            "source": ["math-literal-family", "no-signature"]
+            "signature": "m m m m m m",
+            "arg_roles": ["skip", "skip", "skip", "skip", "skip", "skip"],
+            "policy": "protect",
+            "source": ["math-literal-family", "illegal-unit-wave:2308.04175"]
         },
         "geometry": {
             "name": "geometry",
@@ -7835,10 +7835,10 @@
             "name": "multirow",
             "kind": "macro",
             "package": "manual",
-            "signature": "m m m",
-            "arg_roles": ["skip", "skip", "text"],
+            "signature": "s m o m o m",
+            "arg_roles": ["skip", "skip", "skip", "skip", "skip", "text"],
             "policy": "chunk-arg",
-            "source": ["manual", "guessed-signature"]
+            "source": ["manual", "guessed-signature", "illegal-unit-wave:fixup-opt"]
         },
         "multispan": {
             "name": "multispan",
@@ -14693,6 +14693,26 @@
             "policy": "text",
             "source": ["ctan:beamer", "default-text"]
         },
+        "adjustwidth": {
+            "name": "adjustwidth",
+            "kind": "env",
+            "package": "manual",
+            "signature": "m m",
+            "arg_roles": ["skip", "skip"],
+            "body_role": "text",
+            "policy": "text",
+            "source": ["manual-env", "illegal-unit-wave:1706.02447"]
+        },
+        "adjustwidth*": {
+            "name": "adjustwidth*",
+            "kind": "env",
+            "package": "manual",
+            "signature": "m m",
+            "arg_roles": ["skip", "skip"],
+            "body_role": "text",
+            "policy": "text",
+            "source": ["manual-env", "illegal-unit-wave:1706.02447"]
+        },
         "alertblock": {
             "name": "alertblock",
             "kind": "env",
@@ -15568,6 +15588,16 @@
             "body_role": "math",
             "policy": "protect",
             "source": ["miniscanner math-env / inMathMode", "no-signature"]
+        },
+        "hangparas": {
+            "name": "hangparas",
+            "kind": "env",
+            "package": "manual",
+            "signature": "m m",
+            "arg_roles": ["skip", "skip"],
+            "body_role": "text",
+            "policy": "text",
+            "source": ["manual-env", "illegal-unit-wave:1803.00111"]
         },
         "iexample": {
             "name": "iexample",

@@ -93,48 +93,116 @@ _GRP_FLOW_TAGS = ("input:", "input_tag:", "endinput", "if:", "fi:")
 # at 12pt`` 的非文本槽位不在 ``{}`` 组内——探针与组参规则都够不着，单位
 # 字母裸进 surface 即被翻译（illegal_unit 主错因）。原子 = cs 操作数
 # （``\hskip \labelsep``）或 NUM+UNIT——UNIT 硬性要求（裸数字不是
-# dimension，``\vskip-0.015inside`` 这类半截形不盖）。
-_DIMEN_NUM = r"(?:\d+\.\d*|\.\d+|\d+)"
+# dimension）。UNIT 不做字母词界前瞻：TeX 单位扫描是定长关键字匹配，
+# ``10ptReceived`` = ``10pt`` + ``Received`` 文本（physics/9901057 实证——
+# ``\baselineskip=10pt`` 后紧跟 Received 无空格，前瞻拒配曾致整尾漏进
+# surface）。``1in`` 后 ``put`` 等同理。
+_DIMEN_NUM = r"(?:\d+[.,]\d*|[.,]\d+|\d+|\.)"
 _DIMEN_UNIT = (
     r"(?:true[ \t]*)?"
     r"(?:filll|fill|fil|pt|pc|in|bp|cm|mm|dd|cc|sp|em|ex|mu|zw|zh|px|Q|H)"
-    r"(?![a-zA-Z])"
 )
+# 尾参间隙：TeX 空白语义——空格/制表/单换行/``%`` 行注释皆可分隔操作数
+# （``\hskip\n 1em`` 2105.00030、``\\\n[8pt]`` hep-ph/0307181、
+# ``\\[0pt%\n]`` 1511.06628 实证）；``\n\n`` 段界不跨（par 后是正文）。
+_WS_NOPAR = r"[^\S\n]|%[^\n]*|\n(?![ \t\n]*\n)"
 _DIMEN_ATOM = (
     r"[+-]?[ \t]*(?:\\[a-zA-Z@]+|" + _DIMEN_NUM + r"[ \t]*" + _DIMEN_UNIT + r")"
 )
+# 计数器操作数：裸整数/``'oct``/``"hex``/``\`char``/cs 寄存器——``=N`` 无
+# 单位形是 count 赋值（``\hangafter=1``/``\tolerance=800``），ATOM 的单位
+# 硬要求罩不住（illegal_unit 波 A 簇 74 行粘连残证实证）。
+_COUNT_OPERAND = (
+    r"[+-]?(?:" + _WS_NOPAR + r")*(?:\d+|'[0-7]+|\"[0-9A-Fa-f]+|\\[a-zA-Z@]+)"
+)
+# 扫描终止符：TeX 数/胶扫描遇 ``\relax`` 即停——``1em plus..\relax``/``=1\relax``
+# 是惯用收束形，尾随 ``\relax`` 随操作数同收（裸 ``\relax`` 留在表面会被
+# INLINE_LITERAL 原样进 chunk）。``(?![a-zA-Z@])`` 防 ``\relaxX`` 长名腰斩。
+_TAIL_RELAX = r"(?:(?:" + _WS_NOPAR + r")*\\relax(?![a-zA-Z@]))?"
 _TAIL_RX = {
-    # skip/dimen：``[=]? ATOM (plus|minus ATOM)*``
+    # skip/dimen：``[=]? ATOM (plus|minus ATOM)* [\relax]``
     "dimen": re.compile(
-        r"[ \t]*=?[ \t]*"
+        r"(?:"
+        + _WS_NOPAR
+        + r")*=?(?:"
+        + _WS_NOPAR
+        + r")*"
         + _DIMEN_ATOM
-        + r"(?:[ \t]*(?:plus|minus)(?![a-zA-Z])[ \t]*"
+        + r"(?:(?:"
+        + _WS_NOPAR
+        + r")*(?:plus|minus)(?![a-zA-Z])(?:"
+        + _WS_NOPAR
+        + r")*"
         + _DIMEN_ATOM
         + r")*"
+        + _TAIL_RELAX
+    ),
+    # 计数器赋值/操作数：``[=]? <count> [\relax]``（``\hangafter 1`` 无等号形同收）
+    "count": re.compile(
+        r"(?:"
+        + _WS_NOPAR
+        + r")*=?(?:"
+        + _WS_NOPAR
+        + r")*"
+        + _COUNT_OPERAND
+        + _TAIL_RELAX
     ),
     # ``\hrule``/``\vrule``：``(width|height|depth [=]? ATOM)+``
     "rule": re.compile(
-        r"(?:[ \t]*(?:width|height|depth)(?![a-zA-Z])[ \t]*=?[ \t]*"
+        r"(?:(?:"
+        + _WS_NOPAR
+        + r")*(?:width|height|depth)(?![a-zA-Z])(?:"
+        + _WS_NOPAR
+        + r")*=?(?:"
+        + _WS_NOPAR
+        + r")*"
         + _DIMEN_ATOM
         + r")+"
+        + _TAIL_RELAX
     ),
     # ``\font\cs=name [at ATOM|scaled NUM]``
     "font": re.compile(
-        r"[ \t]*\\[a-zA-Z@]+[ \t]*=?[ \t]*[A-Za-z0-9._/-]+"
+        r"(?:" + _WS_NOPAR + r")*\\[a-zA-Z@]+[ \t]*=?[ \t]*[A-Za-z0-9._/-]+"
         r"(?:[ \t]+at(?![a-zA-Z])[ \t]*"
         + _DIMEN_ATOM
         + r"|[ \t]+scaled(?![a-zA-Z])[ \t]*[+-]?"
         + _DIMEN_NUM
         + r")?"
+        + _TAIL_RELAX
     ),
-    # 通用赋值：``= ATOM``（``\foo=2pt`` 的 ``=2pt`` 永不可能是散文）
-    "assign": re.compile(r"[ \t]*=[ \t]*" + _DIMEN_ATOM),
+    # 通用赋值：``= ATOM|<count>``（``\foo=2pt``/``\foo=2`` 的 ``=N`` 永不
+    # 可能是散文——count 形兜底一切表外名，``\hangafter=1`` 同收）
+    "assign": re.compile(
+        r"(?:"
+        + _WS_NOPAR
+        + r")*=(?:"
+        + _WS_NOPAR
+        + r")*(?:"
+        + _DIMEN_ATOM
+        + r"|"
+        + _COUNT_OPERAND
+        + r")"
+        + _TAIL_RELAX
+    ),
 }
 # ``\\[5pt]``/``\\*[2em]`` 的可选 dimen 参（``\\`` 走单字符字面行，
-# ``[5pt]`` 裸落 surface → illegal_unit——slots① 第二形态）
-_BSBS_OPT_RX = re.compile(r"\*?[ \t]*\[[ \t]*" + _DIMEN_ATOM + r"[ \t]*\]")
+# ``[5pt]`` 裸落 surface → illegal_unit——slots① 第二形态）；``\\`` 与
+# ``[`` 间允许单换行/注释（``\\\n[8pt]``/``\\[0pt%\n]`` 同收）。
+_BSBS_OPT_RX = re.compile(
+    r"\*?(?:"
+    + _WS_NOPAR
+    + r")*\[(?:"
+    + _WS_NOPAR
+    + r")*"
+    + _DIMEN_ATOM
+    + r"(?:"
+    + _WS_NOPAR
+    + r")*\]"
+)
 # 组内 ``\\`` opt 参的内容判据（``_grp_bsbs`` 的 fullmatch 版）
-_GRP_BSBS_CONTENT_RX = re.compile(r"[ \t]*" + _DIMEN_ATOM + r"[ \t]*")
+_GRP_BSBS_CONTENT_RX = re.compile(
+    r"(?:" + _WS_NOPAR + r")*" + _DIMEN_ATOM + r"(?:" + _WS_NOPAR + r")*"
+)
 # 组内尾参扫的 surface join 字符窗上限
 _GRP_TAIL_CAP = 96
 
