@@ -220,6 +220,9 @@ _MOCK_TOKEN_RX = re.compile(
     r"\[\[[A-Z_]+_\d+\]\]|\[\[[A-Z][A-Z_]*\]\]|\\[a-zA-Z@]+\*?|\\(?!\[\[).|[][(){}|~$&]"
 )
 #: 行内字母 run（mock 译文替换单位；``[^\n]`` 不跨行——保住换行布局）
+#: 勘误 2026-09-17（登记不修）：ASCII 盲区——西里尔/希腊文等非 ASCII 散文
+#: 原样回显不进译文（scout-triage-2026-09-17 F-echo 1 格，low；
+#: ``bench/py/qualbench.py`` 同源副本同盲区）。
 _PROSE_RUN_RX = re.compile(r"[a-zA-Z][^\n]*[a-zA-Z]|[a-zA-Z]")
 #: 批行 `[n]` 前缀识别（mock 回显编号用）
 _MOCK_NUM_RX = re.compile(r"^(\[\d+\])\s?(.*)$", re.DOTALL)
