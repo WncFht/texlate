@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 from texlate.compile.fixloop._builtins_common import (
     PDFTEX_PRIMS,
     _inject_after_docclass,
+    _live_matches,
 )
 from texlate.compile.fixloop._builtins_csfix import _fixloop_log
 from texlate.compile.fixloop._builtins_misschar import (
@@ -264,8 +265,8 @@ def bundled_class_shadow(
     实证: tectonic 内置 aastex 5.0rc3.1 (1999) 缺 ``\actaa``/deluxetable
     宏族 —— missing_file 永远打不到 (bundle 能解析), 只能 undefined_cs 确证后
     遮蔽换 emulateapj。``cs_set`` 命中 + ``include_journal_table`` 并集判
-    payload; stub ``body`` 由 rules.yaml 提供 (版本串须日期开头, 见
-    legacy_pkg_shim 注)。
+    payload; stub ``body`` 由 rules/ 分片条目提供 (85-shim.yaml 三处 +
+    55-prim.yaml; 版本串须日期开头, 见 legacy_pkg_shim 注)。
     """
     cs = (payload or "").lstrip("\\")
     cs_set = {str(x).lstrip("\\") for x in params.get("cs_set") or []}
@@ -744,3 +745,75 @@ def cs_rebind(
         return False, "cs-rebind block already present"
     names = ", ".join(f"\\{cs}->U+{cp:04X}" for cp, cs in fresh)
     return True, f"cs rebind: {names}"
+
+
+# ═══ 209→revtex4-2 升级稿面 polyfill (revtex209_surface/revtex_pacs 13 格) ═══
+
+#: latex209 ``upgrade_209`` 落盘的 COMPAT_SHIM 首行面包屑——该串唯一出处
+#: 即 latex209.py 兼容垫块, 字面在 = 209 升级跑过。它本身是注释行 (遮盖
+#: 视图遮没), 只能在原文判。
+_209_SHIM_MARK = "% texlate: LaTeX 2.09 compatibility shim"
+
+#: live ``\documentclass{revtex4-2}``——遮盖视图定位 + span 逐段复核
+#: (``_live_matches``): 注释/verbatim 内假装载不锚; ``{revtex4}``/
+#: ``{revtex4-1}`` 邻名不中。
+_REVTEX42_DOCCLASS_RE = re.compile(
+    r"\\documentclass\s*(?:\[[^\]]*\])?\s*\{\s*revtex4-2\s*\}"
+)
+
+#: 注入面——与 90-shim-legacy.yaml ``shim_map.revtex.cls`` stub body 同义,
+#: 剥去 cls 装载件 (``\LoadClassWithOptions`` 已由升级稿 docclass 行完成),
+#: 补 ``\makeatletter`` 包装 (主文件语境 ``@`` 是 catcode-12, cls 内免费)。
+#: ``\AtBeginDocument`` 参数内 ``##1`` 双写沿用 stub 体原样——hook 宏存
+#: token 时 ``##`` 折叠为字面 ``#``, 否则 begin-doc 展开炸非法参数号。
+_REVTEX209_POLYFILL = (
+    "% fixloop: revtex 2.09 surface polyfill (upgraded doc on revtex4-2)\n"
+    "\\makeatletter\n"
+    "\\frontmatter@init\n"
+    "\\let\\frontmatter@init\\relax\n"
+    "\\providecommand{\\twocolumn}[1][]{#1}\n"
+    "\\@ifundefined{@makecol}"
+    "{\\def\\@makecol{\\setbox\\@outputbox\\vbox{\\unvbox\\@cclv}}}{}\n"
+    "\\AtBeginDocument{\\def\\pacs##1{\\par\\noindent\\textbf{PACS:} ##1\\par}}\n"
+    "\\makeatother"
+)
+
+
+def revtex209_surface_polyfill(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""``\documentstyle{revtex}`` 209 升级稿 → revtex4-2 删除面整块 polyfill。
+
+    ``upgrade_209`` 把 ``\documentstyle{revtex}`` 改写成
+    ``\documentclass{revtex4-2}`` + COMPAT_SHIM——改写稿不再经 revtex.cls
+    stub (90-shim-legacy ``legacy_pkg_shim`` 只答 ``missing_file``, 升级稿
+    的类装载链里没有 revtex.cls 可缺), 却照样踩 revtex4-2 刻意删掉的 2.09
+    宏面: ``\twocolumn``/``\@makecol`` 被 ``\let\@undefined`` (cls:4512/
+    3912), frontmatter 机原生 ``\begin{document}`` 才武装而序言 ``\author``
+    先炸 (``\collaboration@sw`` 生于 ``\frontmatter@init``, cls:2145),
+    ``\pacs`` 在 ``\maketitle`` 后 ClassError (cls:2530)。corpus_v3 13 格
+    实证簇: revtex209_surface 8 格 (undefined_cs 首错) + revtex_pacs 5 格
+    (other 首错)。
+
+    锚定双条件缺一不可: 原文含 ``_209_SHIM_MARK`` 面包屑 (∧) 遮盖视图存在
+    live ``\documentclass{revtex4-2}`` (span 复核排死区——注释掉的 docclass
+    不算, 直写 ``\documentclass{revtex4-2}`` 的非 209 稿无面包屑不中)。
+
+    注入位 ``_inject_after_docclass``——类装载缝是最早合法点: 序言
+    ``\author`` 调用须先看到已武装的 frontmatter 机, ``\begin{document}``
+    前注入太晚 (chao-dyn/9901009 ``\author``:207 vs ``\begin{document}``:237
+    实证)。``snippet in t`` 幂等 + 注入体全 ``\providecommand``/guard 面,
+    重入与叠加安全。
+    """
+    del eng, payload, params  # 锚定全在主文件源码面; 无 params 键
+    main = ctx.main_path()
+    t = ctx.read(main) if main is not None else None
+    if t is None:
+        return False, "no main tex"
+    if _209_SHIM_MARK not in t:
+        return False, "no 209-upgrade breadcrumb"
+    if not _live_matches(_REVTEX42_DOCCLASS_RE, t):
+        return False, "live docclass target not revtex4-2"
+    if not _inject_after_docclass(ctx, _REVTEX209_POLYFILL):
+        return False, "polyfill block already present"
+    return True, "revtex 2.09 surface polyfill injected after docclass"

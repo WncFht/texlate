@@ -54,9 +54,10 @@ rules:
           # revtex.cls (REVTeX 3.x 老名): 裸 loads 桥曾把 2.09 宏面丢给
           # revtex4-2 的刻意删除面 (\twocolumn/\@makecol 被 \let\@undefined,
           # frontmatter 机器 begin-doc 才武装) —— 13 格实证簇残面。
-          # 注: normalize/latex209 已将 \documentstyle{revtex} 改写为
-          # {revtex4-2} → 本 shim 对那 13 格是 misroute (修复点在
-          # 95-targeted cs_table/polyfill 车道); 本体仍升级覆盖直写
+          # 注: normalize/latex209 将 \documentstyle{revtex} 改写为
+          # {revtex4-2} → 那 13 格不走 missing_file, 本 shim 打不到;
+          # 已由 revtex209_surface_polyfill 规则 (本文件尾) 按
+          # COMPAT_SHIM 面包屑锚接。本体仍覆盖直写
           # \documentclass{revtex} 的存量稿。
           revtex.cls:
             needs: ["revtex4-2.cls"]
@@ -2213,3 +2214,36 @@ rules:
         }
     stats: { fires: 1, rescued_cells: 1, status: validated } # 1806.06690 xel FAIL→clean 实证
     source_ref: "fixloop-v2 整改; tlpdb filemap 实证 + 本机编译验证; aastex.cls 面扩 fixer-aastex-stub (0104174/0408531/0707.1778 复跑 0 stub 错)"
+
+  - id: revtex209_surface_polyfill
+    phase: loop
+    order: 145 # bbl 族(140-141)之后, vendored_sty_shadow(150)/shadow 族(155-159)/逐宏补(160+)之前: 整块面先落
+    when:
+      any:
+        # 13 格实证首错两簇: revtex209_surface 8 格 undefined_cs
+        # (\twocolumn/\collaboration@sw/\@makecol) + revtex_pacs 5 格
+        # other (\pacs post-\maketitle ClassError)。
+        - { category: undefined_cs }
+        - { category: other }
+    condition:
+      # 廉价原文预筛: 面包屑本身是注释行 (遮盖视图遮没), 只查 raw;
+      # builtin 内另做 live docclass revtex4-2 的 masked span 复核
+      # (注释死区/邻名 {revtex4}/{revtex4-1} 均不锚)。
+      source_contains: '% texlate: LaTeX 2\.09 compatibility shim'
+    action:
+      kind: builtin_transform
+      function: revtex209_surface_polyfill
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # 注入与引擎无关
+    provenance:
+      - {
+          corpus: "corpus_v3 revtex209_surface 8 格 (chao-dyn/9901009, cond-mat/0104108, cond-mat/0307206, cond-mat/9901292, gr-qc/9901082, hep-ex/9910040 ×2, patt-sol/9910002)",
+          error: "Undefined control sequence \\twocolumn/\\collaboration@sw/\\@makecol — latex209 改写 \\documentclass{revtex4-2} 后踩其刻意删除面",
+        }
+      - {
+          corpus: "corpus_v3 revtex_pacs 5 格 (astro-ph/9901028, cond-mat/0307221, hep-ph/0104104, hep-th/9910106, nlin/0104012)",
+          error: "revtex4-2 ClassError: \\pacs must be called before \\maketitle (2.09 稿惯后置)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/c-bucket-residual/routing.md :29/:41/:119 (o2-revtex-209 车道); 注入面与本文件 shim_map.revtex.cls 条同义"

@@ -74,6 +74,7 @@ from texlate.compile.fixloop._builtins_shim import (
     journal_cs_polyfill,
     legacy_pkg_shim,
     pdftex_prim_polyfill,
+    revtex209_surface_polyfill,
     shim_pkgs_in_use,
     svjour_clo_stub,
     undefined_env_polyfill,
@@ -163,6 +164,7 @@ __all__ = [
     "purge_corrupt_intermediates",
     "px_to_bp",
     "restore_support_from_src",
+    "revtex209_surface_polyfill",
     "shim_pkgs_in_use",
     "strip_inputenc",
     "svg_prepare",
@@ -941,4 +943,5 @@ TRANSFORM_FNS = {
     "undefined_env_polyfill": undefined_env_polyfill,
     "font_cs_shim": font_cs_shim,
     "cs_rebind": cs_rebind,
+    "revtex209_surface_polyfill": revtex209_surface_polyfill,
 }
