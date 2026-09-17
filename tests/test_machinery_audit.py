@@ -179,6 +179,12 @@ def test_settowidth_family_bare_cs_arg() -> None:
     for tok in ("mylen", "myht", "mydp", "Calib text"):
         assert tok not in body
     assert "Body text" in body
+    # 机制钉：BOUNDARY 臂整调用单 LITERAL piece（argspec key 臂则拆
+    # ``\settowidth`` 名 ph + ``\mylen{..}`` 探针 ph 两碎片）
+    lits = [p.text for p in res.pieces if p.kind is PieceKind.LITERAL]
+    assert "\\settowidth\\mylen{Calib text one}" in lits
+    assert "\\settoheight\\myht{Calib text two}" in lits
+    assert "\\settodepth\\mydp{Calib text three}" in lits
 
 
 def test_settowidth_braced_form() -> None:
@@ -196,6 +202,8 @@ def test_settowidth_braced_form() -> None:
     body = chunk_text(res)
     assert "Calib text" not in body
     assert "mylen" not in body
+    lits = [p.text for p in res.pieces if p.kind is PieceKind.LITERAL]
+    assert "\\settowidth{\\mylen}{Calib text}" in lits
 
 
 def test_settowidth_bare_cs_in_arg() -> None:
@@ -213,6 +221,9 @@ def test_settowidth_bare_cs_in_arg() -> None:
     assert "mylen" not in body
     assert "xx" not in body
     assert "Cap " in body
+    # 机制钉：参内边界臂 spec 收参 → 单 ``[[CMD]]`` 罩整调用（argspec
+    # key 臂则名/探针双 ph）
+    assert "\\settowidth\\mylen{xx}" in res.ph_map.values()
 
 
 def test_parse_argspec_n_letter() -> None:

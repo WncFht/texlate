@@ -14,6 +14,7 @@ from texlate.latex.mouth import (
 from texlate.latex.tables import (
     ACCENT_CHARS,
     BOUNDARY_NAMES,
+    BOUNDARY_TAIL,
     COND_RX,
     DIMEN_TAIL_KIND,
     FILENAME_CHARS,
@@ -35,7 +36,6 @@ from ._common import (
     _SLOT_TEST_LEN,
     _TAIL_RX,
     TokenSource,
-    _boundary_spec_of,
     _chunk_spec_cached,
     _cite_ref_type,
     _env_ph_type,
@@ -429,7 +429,7 @@ class _Pending:
         if getattr(m, "kind", "") in ("env_begin", "env_end"):
             return None, ""  # env 尾参走 ``_grp_env_args_end`` 另一机制
         if name in BOUNDARY_NAMES:
-            spec = _boundary_spec_of(name)
+            spec = BOUNDARY_TAIL.get(name)
             if spec is None:
                 return None, ""
             # 强制参位按位映射槽字母（``n``→``"n"`` 裸名槽——``m`` 不跨 ``\``）
@@ -829,7 +829,7 @@ class _Pending:
                 # 翻译 ``mm``/``pt``（illegal_unit，loop1 slots①）。
                 # spec 缺席不预吃 ``[opt]``——``\item[label]`` 的 label 是
                 # 可译文本须留 surface（主流同规）。
-                spec = _boundary_spec_of(name)
+                spec = BOUNDARY_TAIL.get(name)
                 j = i + 1
                 kind = DIMEN_TAIL_KIND.get(name)
                 if kind is not None:

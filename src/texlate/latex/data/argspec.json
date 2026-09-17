@@ -10478,33 +10478,6 @@
             "policy": "boundary",
             "source": ["miniscanner-family", "no-signature"]
         },
-        "settodepth": {
-            "name": "settodepth",
-            "kind": "macro",
-            "package": "latex2e",
-            "signature": "m m",
-            "arg_roles": ["key", "skip"],
-            "policy": "key",
-            "source": ["ctan:latex2e", "manual"]
-        },
-        "settoheight": {
-            "name": "settoheight",
-            "kind": "macro",
-            "package": "latex2e",
-            "signature": "m m",
-            "arg_roles": ["key", "skip"],
-            "policy": "key",
-            "source": ["ctan:latex2e", "manual"]
-        },
-        "settowidth": {
-            "name": "settowidth",
-            "kind": "macro",
-            "package": "latex2e",
-            "signature": "m m",
-            "arg_roles": ["key", "skip"],
-            "policy": "key",
-            "source": ["ctan:latex2e", "manual"]
-        },
         "sf": {
             "name": "sf",
             "kind": "macro",

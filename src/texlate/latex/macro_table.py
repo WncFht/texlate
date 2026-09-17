@@ -241,11 +241,13 @@ def register_newif(state: ScanState, cond: str, def_site: int = -1) -> None:
 
 
 def parse_argspec(spec_str: str) -> list[ArgSpec]:  # noqa: C901, PLR0912 — argspec 字母各一分支，平铺即 §5.2 表
-    """Xparse 参数签名串 → ``list[ArgSpec]``（§5.2）。
+    r"""Xparse 参数签名串 → ``list[ArgSpec]``（§5.2）。
 
-    ``m`` 强制 ``{}``；``o`` 可选 ``[]``；``O{def}`` 带默认；``s`` 星号；
-    ``d<>/D<>{d}`` 定界可选/带默认；``r<>/R<>`` 定界强制；``v`` 逐字；
-    ``e{}/t<>`` 修饰/测试（解析即跳过语义）；``b`` 环境体；空白/未知跳过。
+    ``m`` 强制 ``{}``；``n`` 裸 cs 名参（``\setlength\parskip`` 形——cs
+    token 或 ``{}``/``[]`` 组）；``o`` 可选 ``[]``；``O{def}`` 带默认；
+    ``s`` 星号；``d<>/D<>{d}`` 定界可选/带默认；``r<>/R<>`` 定界强制；
+    ``v`` 逐字；``e{}/t<>`` 修饰/测试（解析即跳过语义）；``b`` 环境体；
+    空白/未知跳过。
     """
     out: list[ArgSpec] = []
     i, n = 0, len(spec_str)
@@ -277,6 +279,8 @@ def parse_argspec(spec_str: str) -> list[ArgSpec]:  # noqa: C901, PLR0912 — ar
             out.append(spec)
         elif ch == "v":
             out.append(ArgSpec("v"))
+        elif ch == "n":
+            out.append(ArgSpec("n"))
         elif ch == "e":
             d, i = _spec_braced(spec_str, i, "{", "}")
             # token 表入 delim（``e{^_}``→"^_"）——调用点按它试吃修饰参

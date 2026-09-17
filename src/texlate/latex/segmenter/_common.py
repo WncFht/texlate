@@ -31,7 +31,6 @@ from texlate.latex.placeholder import (
     PH_RX,
 )
 from texlate.latex.tables import (
-    BOUNDARY_TAIL,
     CHUNK_MAX,
     CITE_NAMES,
     MATH_ENVS,
@@ -238,23 +237,6 @@ def _pend_slot_of(s: ArgSpec) -> str | None:  # noqa: PLR0911 — 槽字母各�
     if k in ("d", "D", "r", "R") and s.delim:
         return "d" + s.delim[0] + s.delim[-1]
     return None
-
-
-# BOUNDARY_TAIL 的本地 ``n`` 覆盖（M2）：``\setlength``/``\addtolength``
-# 首参是寄存器 cs——``\setlength\parskip{4pt}`` 裸名形里族表 ``[m,m]``
-# 的 ``m`` 不跨 ``\``，``\parskip`` 成孤探针、``{4pt}`` 落 chunk。
-# ``n`` 槽直收 cs token 或 ``{..}``/``[..]`` 组两形。``setcounter``/
-# ``addtocounter`` 首参是计数器**名**（字母非 cs）——核签名后留 ``m``；
-# ``settowidth`` 族不在 BOUNDARY_NAMES，argspec ``key`` 条目已全形保护。
-_BOUNDARY_TAIL_N: dict[str, list[ArgSpec]] = {
-    "setlength": [ArgSpec("n"), ArgSpec("m")],
-    "addtolength": [ArgSpec("n"), ArgSpec("m")],
-}
-
-
-def _boundary_spec_of(name: str) -> list[ArgSpec] | None:
-    r"""``BOUNDARY_TAIL`` + ``n`` 覆盖的单一查询口（三消费点共用）。"""
-    return _BOUNDARY_TAIL_N.get(name) or BOUNDARY_TAIL.get(name)
 
 
 def _env_ph_type(

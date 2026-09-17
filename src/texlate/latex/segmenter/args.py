@@ -19,6 +19,7 @@ from texlate.latex.model import (
     match_brace,
 )
 from texlate.latex.tables import (
+    BOUNDARY_TAIL,
     CHUNK_ARG_SPEC,
     CHUNK_MAX,
     DIMEN_TAIL_KIND,
@@ -35,7 +36,6 @@ from ._common import (
     _PROTECT_TYP,
     TokenSource,
     _ArgTok,
-    _boundary_spec_of,
     _chunk_spec_cached,
     _cite_ref_type,
     _ListSource,
@@ -762,7 +762,7 @@ class _Args:
         fid, _a, b = t.pos
         kind = DIMEN_TAIL_KIND.get(name)
         tail_end = self._tail_scan_end(fid, b, kind) if kind is not None else None
-        spec = _boundary_spec_of(name)
+        spec = BOUNDARY_TAIL.get(name)
         if self.in_arg:
             if tail_end is not None:
                 self._cover_gap(fid, t.pos[1])

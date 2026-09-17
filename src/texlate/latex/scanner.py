@@ -602,6 +602,29 @@ class Scanner:
                 else:
                     out.append(ArgSpan(Span(pos, pos + 1), Span(pos, pos + 1), s))
                     pos += 1
+            elif s.kind == "n":
+                # 裸 cs 名参（``\setlength\parskip``）：cs token 直收或
+                # ``{..}``/``[..]`` 组——其余形失配即停（强制参同 m）
+                if c == "\\":
+                    nm, e2 = read_cmd_name(tex, pos)
+                    if not nm and e2 <= pos + 1:
+                        break  # EOF 沿孤 ``\`` 不成名
+                    out.append(ArgSpan(Span(pos, e2), Span(pos, e2), s))
+                    pos = e2
+                elif c == "{":
+                    e = match_brace(tex, pos)
+                    if e is None:
+                        break
+                    out.append(ArgSpan(Span(pos + 1, e - 1), Span(pos, e), s))
+                    pos = e
+                elif c == "[":
+                    e = match_bracket(tex, pos)
+                    if e is None:
+                        break
+                    out.append(ArgSpan(Span(pos + 1, e - 1), Span(pos, e), s))
+                    pos = e
+                else:
+                    break
             elif s.kind in ("o", "O"):
                 if c == "[":
                     e = match_bracket(tex, pos)
