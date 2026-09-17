@@ -7,7 +7,7 @@
 (docs/08:198-225 签名), 不实现引擎 —— xelatex/tectonic 引擎由
 impl-compile 并行开发, 结构上满足本 Protocol 即可对接。
 
-phase 语义 (rules.yaml 注释复制):
+phase 语义 (rules/ 分片注释复制):
   ``gate``     每轮分类后最先评估 (spike 里 latex209 硬编码短路, L748-755)
   ``precheck`` 编译前一次性 (静态路由 + 装包预检)
   ``loop``     每轮错误驱动; 同 phase 按 order 升序, 每轮至多一条成功应用
@@ -89,7 +89,7 @@ def _expand_family_tokens(node: Any) -> Any:  # noqa: ANN401  # yaml 树天然 A
 class CompResLike(Protocol):
     """``Engine.compile`` 返回的结构化结果 (属性级 duck-typing)。
 
-    对接 impl-compile ``compile/engine.py`` 的 ``CompRes`` (L56-76):
+    对接 impl-compile ``compile/engine.py`` 的 ``CompRes`` (L120-154):
     ``pdf: Path|None`` + ``has_pdf`` + ``pdf_bytes`` + ``seconds`` +
     ``stdout_tail`` (tectonic 无 .log 兜底)。spike 时代字段名 ``sec``
     经 getattr 链兼容。
@@ -104,7 +104,7 @@ class CompResLike(Protocol):
 class Engine(Protocol):
     """编译引擎适配层 —— xelatex/tectonic 各一实现 (impl-compile 侧)。
 
-    与 impl ``Engine`` Protocol (compile/engine.py:366) 的调用面兼容:
+    与 impl ``Engine`` Protocol (compile/engine.py:159) 的调用面兼容:
     本模块只用 ``compile(wdir, main, passes=...)`` / ``probe_file(fname[, cwd])``
     / ``install_file(fname, font_related=...)`` / ``rebuild_fontmaps()`` /
     ``filemap(fname)`` 五个方法 + ``caps``。
@@ -157,7 +157,7 @@ LlmHook = Callable[["LoopCtx", "ErrReport"], tuple[bool, str]]
 
 
 class RulesetError(ValueError):
-    """rules.yaml 结构校验失败。"""
+    """``rules/`` 规则库结构校验失败。"""
 
 
 def _when_problems(when: Any, tag: str) -> list[str]:  # noqa: ANN401  # yaml 值天然 Any
@@ -193,6 +193,30 @@ def _cond_problems(cond: Any, tag: str) -> list[str]:  # noqa: ANN401  # yaml �
     probs = [f"rule {tag}: condition 未知键 {k!r}" for k in cond if k not in _COND_KEYS]
     for j, sub in enumerate(cond.get("any") or []):
         probs.extend(_cond_problems(sub, f"{tag}.any[{j}]"))
+    return probs
+
+
+def _dup_id_problems(rules: list[Any]) -> list[str]:  # yaml 值天然 Any
+    """``rules:`` 段 id 唯一性校验 (合并表序位双出处)。
+
+    rules/ 目录装载经 ``_yamlish._merge_into`` list 段 extend 不去重——两片
+    同 ``id`` 曾静默拼成双规则 (``applied`` 键 ``{id}:{payload}`` 亦互相
+    遮蔽)。``(phase, order)`` 撞位不拦: 同序位合法——出厂四条 loop 规则
+    同挂 ``order: 9`` (rungen_stub/nonctan_input_stub/docstrip_generate/
+    svg_prepare, 触发面互斥、稳定序按分片文件名序)。
+    """
+    probs: list[str] = []
+    seen: dict[str, int] = {}  # id → 合并表首见序位
+    for i, r in enumerate(rules):
+        rid = r.get("id") if isinstance(r, dict) else None
+        if not isinstance(rid, str):
+            continue
+        if rid in seen:
+            probs.append(
+                f"rule {rid}: id {rid!r} 重复定义 (rules[{seen[rid]}] 与 rules[{i}])"
+            )
+        else:
+            seen[rid] = i
     return probs
 
 
@@ -284,7 +308,7 @@ def _sweep_bad_aux(wdir: Path) -> list[str]:
 def _report_of(res: CompResLike, warn_patterns: list[dict[str, Any]]) -> ErrReport:
     """CompRes → ErrReport: 优先 .log 文件; 缺席/空错误时 stdout_tail 兜底。
 
-    tectonic 有时不写 .log (impl engine.py:749-756 同策略); stderr 的
+    tectonic 有时不写 .log (impl engine.py:1056-1068 同策略); stderr 的
     ``error: msg`` 行归一成 ``! msg`` 喂同一套 taxonomy。
     """
     log_path = getattr(res, "log_path", None)
@@ -299,7 +323,7 @@ def _report_of(res: CompResLike, warn_patterns: list[dict[str, Any]]) -> ErrRepo
 
 
 # ════════════════════════════════════════════════════════════════
-# Ruleset —— rules.yaml 的校验装载 + phase 查询
+# Ruleset —— rules/ 规则库的校验装载 + phase 查询
 # ════════════════════════════════════════════════════════════════
 
 _ACTION_KINDS = {
@@ -345,7 +369,7 @@ _COND_KEYS = frozenset(
 
 @dataclass(slots=True)
 class Rule:
-    """单条规则 (rules.yaml ``rules:`` 列表元素的校验视图)。"""
+    """单条规则 (rules/ ``rules:`` 列表元素的校验视图)。"""
 
     raw: dict[str, Any]
 
@@ -408,7 +432,8 @@ class Ruleset:
         self.raw = data
         problems = self._validate(data)
         if problems:
-            raise RulesetError("rules.yaml 校验失败:\n" + "\n".join(problems))
+            where = str(self.path) if self.path is not None else "rules/"
+            raise RulesetError(f"规则库 {where} 校验失败:\n" + "\n".join(problems))
         self.meta: dict[str, Any] = data.get("meta") or {}
         self.loop_cfg: dict[str, Any] = self.meta.get("loop") or {}
         self.filemap_cfg: dict[str, Any] = data.get("filemap") or {}
@@ -431,6 +456,7 @@ class Ruleset:
             return ["顶层必须是 map"]
         if data.get("version") != 1:
             probs.append(f"version 应为 1, 得 {data.get('version')!r}")
+        probs.extend(_dup_id_problems(data.get("rules") or []))
         for i, r in enumerate(data.get("rules") or []):
             tag = r.get("id", f"#{i}")
             probs.extend(
@@ -869,8 +895,11 @@ _DEP_DECL_RE = re.compile(
 
 #: ``\input stem``/``\input{stem}`` 裸名依赖——行内允许 (pst-* generic 实证:
 #: pstricks-add.tex l.27-32 ``\ifx\PSTnodesLoaded\endinput\else \input pst-node \fi``
-#: 顺序链, 条件不管照装——probe/install 门控天然无害)。
-_DEP_INPUT_RE = re.compile(r"\\input\s+(?:\{([^}\n]*)\}|([^\s{}%\\]+))")
+#: 顺序链, 条件不管照装——probe/install 门控天然无害)。花括号形吃 ``\s*``
+#: (``\input{x}`` 零空白是 LaTeX 主导形态; arxiv/locate.py:53 同口径),
+#: 裸名仍要求 ``\s+``——否则 ``\inputfoo``/``\inputlineno`` 被前缀误吃成
+#: ``foo``/``lineno`` 伪依赖 (lineno.sty 真实存在, 会真装)。
+_DEP_INPUT_RE = re.compile(r"\\input(?:\s*\{([^}\n]*)\}|\s+([^\s{}%\\]+))")
 
 #: 行内注释切尾 —— ``\%`` 转义不算注释起点。
 _COMMENT_CUT_RE = re.compile(r"(?<!\\)%")
@@ -1255,7 +1284,7 @@ def _wire_engine(eng: Engine, rs: Ruleset, wdir: Path, ctx: LoopCtx) -> None:
 
     ``filemap.overrides`` 手工映射对全引擎生效 (实例遮蔽 ``eng.filemap``);
     tectonic 追加: ``install_file`` 内部走 ``self.ctan_fetch`` callable ——
-    未注入时这里装上 CtanFetcher (惰性 tlpdb 索引 + rules.yaml
+    未注入时这里装上 CtanFetcher (惰性 tlpdb 索引 + rules/
     ``filemap.version_guard`` 的 bundle epoch 接线)。
     """
     _wire_filemap_overrides(eng, rs.filemap_cfg.get("overrides") or {}, ctx)
