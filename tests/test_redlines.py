@@ -13,7 +13,7 @@ from functools import lru_cache
 from pathlib import Path
 
 import texlate.redlines
-from texlate.compile import engine as eng
+from texlate.compile import loginfo
 from texlate.compile.fixloop import Ruleset, load_ruleset
 from texlate.compile.judge import _MISSCHAR_GATE_RX, _MISSCHAR_NULLFONT_RX
 from texlate.redlines import (
@@ -70,9 +70,9 @@ def _rs() -> Ruleset:
 
 
 def test_engine_slice_matches_consumption() -> None:
-    """engine.WARNING_RED_LINES == registry engine 切片（序+名+pattern）。"""
-    assert list(ENGINE_RED_LINES) == eng.WARNING_RED_LINES
-    assert [n for n, _ in eng.WARNING_RED_LINES] == _ENGINE_EMIT
+    """loginfo.WARNING_RED_LINES == registry engine 切片（序+名+pattern）。"""
+    assert list(ENGINE_RED_LINES) == loginfo.WARNING_RED_LINES
+    assert [n for n, _ in loginfo.WARNING_RED_LINES] == _ENGINE_EMIT
 
 
 def test_rules_yaml_warnings_mirror() -> None:
@@ -126,18 +126,18 @@ def test_judge_gate_behavior() -> None:
 
 
 def test_engine_scan_end_to_end() -> None:
-    """engine.parse_log 抽查：graphic 缺档中 missing_graphic；nullfont
+    """loginfo.parse_log 抽查：graphic 缺档中 missing_graphic；nullfont
     misschar 不中 missing_chars；``!`` not-found 中 degraded_file。"""
     log = (
         "This is XeTeX, Version 3\n"
         "File `fig.png' not found\n"
         "Missing character: There is no x (U+0078) in font nullfont\n"
     )
-    info = eng.parse_log(log)
+    info = loginfo.parse_log(log)
     assert "missing_graphic" in info.warnings_hit
     assert "missing_chars" not in info.warnings_hit
     bang = "This is XeTeX\n! File `foo.sty' not found.\n"
-    assert "degraded_file" in eng.parse_log(bang).warnings_hit
+    assert "degraded_file" in loginfo.parse_log(bang).warnings_hit
 
 
 def test_l2_classify_end_to_end() -> None:
@@ -159,7 +159,12 @@ def test_no_orphan_misschar_literal() -> None:
     pat = re.compile(r"Missing character\(\?!")
     offenders = [
         f"{rel}:{i}"
-        for rel in ("compile/engine.py", "compile/judge.py", "validate/l2.py")
+        for rel in (
+            "compile/engine.py",
+            "compile/loginfo.py",
+            "compile/judge.py",
+            "validate/l2.py",
+        )
         for i, line in enumerate((src / rel).read_text().splitlines(), start=1)
         if pat.search(line)
     ]

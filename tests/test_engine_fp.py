@@ -7,7 +7,8 @@ bench/results/fixloop-replay-baseline-2026-09-16/SUMMARY.md
 
 from pathlib import Path
 
-from texlate.compile.engine import classify_error, route_project
+from texlate.compile.engine import route_project
+from texlate.compile.loginfo import classify_error
 
 #: aastex61/62/63x cls 的 \typeout 横幅在 .log 里的实落形态（\protect 使
 #: \LaTeX/\LaTeXe 逐字输出）——1803.08927 proj/apjl_jets.log 实测段。

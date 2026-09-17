@@ -1,4 +1,4 @@
-r"""跨层一致性 fuzz —— ``texlog.update_file_stack`` → ``engine.parse_log`` /
+r"""跨层一致性 fuzz —— ``texlog.update_file_stack`` → ``loginfo.parse_log`` /
 ``l2.parse_log_text`` / ``fixloop.logparse.parse_text`` → ``judge`` 门控。
 
 四层各自独立实现同一套 log 语义，本文件只测**跨层协议不变量**：
@@ -6,7 +6,7 @@ r"""跨层一致性 fuzz —— ``texlog.update_file_stack`` → ``engine.parse_
 - misschar 划分：``_MISSCHAR_GATE_RX``（判入）+ ``_MISSCHAR_NULLFONT_RX``
   （良性观察）应恰好覆盖全部 ``Missing character`` 出现位——两支正则只在
   lookahead 正负号上不同，划分须逐点成立；rules.yaml ``missing_char`` 与
-  engine ``WARNING_RED_LINES[missing_chars]`` 是同源第三/第四副本。
+  loginfo ``WARNING_RED_LINES[missing_chars]`` 是同源第三/第四副本。
 - 折行/交错对抗：nullfont 行的 ``in font nullfont`` 落续行仍豁免；真字体
   行紧邻 nullfont 行不被误豁免（tempered 窗限界到下一条 misschar）。
 - l2 ``by_class`` 缺字四分类（missing_glyph / missing_glyph_cjk /
@@ -33,7 +33,6 @@ from pathlib import Path
 import pytest
 
 from texlate.compile.engine import CompRes
-from texlate.compile.engine import parse_log as eng_parse_log
 from texlate.compile.fixloop._yamlish import load_yaml
 from texlate.compile.fixloop.engine import RULES_PATH
 from texlate.compile.fixloop.logparse import parse_text as fx_parse_text
@@ -43,6 +42,7 @@ from texlate.compile.judge import (
     count_missing_chars,
     judge,
 )
+from texlate.compile.loginfo import parse_log as eng_parse_log
 from texlate.texlog import update_file_stack
 from texlate.validate.l2 import _REDLINE_CLASSES, parse_log_text
 

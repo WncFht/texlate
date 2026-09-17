@@ -16,7 +16,8 @@ import benchlib
 import pytest
 import triage
 
-from texlate.compile.engine import CompRes, parse_log
+from texlate.compile.engine import CompRes
+from texlate.compile.loginfo import parse_log
 
 if TYPE_CHECKING:
     import types

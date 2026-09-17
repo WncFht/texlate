@@ -69,7 +69,7 @@ from pypdf.generic import (
 
 from texlate.compile import latex209
 from texlate.compile.cjkmap import _GB1_UCS2_CMAP, embed_cjk_mappings
-from texlate.compile.engine import CompRes, classify_error, parse_log
+from texlate.compile.engine import CompRes
 from texlate.compile.judge import (
     CJK_MIN_CHARS,
     CLEAN_ERR_MAX,
@@ -92,6 +92,7 @@ from texlate.compile.latex209 import (
     _uses_ds_at,
     upgrade_209,
 )
+from texlate.compile.loginfo import classify_error, parse_log
 from texlate.compile.mask import visible_tex
 from texlate.redlines import (
     L2_REDLINE_CLASSES,
