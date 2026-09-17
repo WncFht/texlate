@@ -26,6 +26,7 @@ from texlate.compile.inject import (
     find_main_tex,
     prepare_chinese,
 )
+from texlate.repair import ResProxy
 
 if TYPE_CHECKING:
     import argparse
@@ -140,9 +141,12 @@ def _fixloop_one(
             ):
                 act.setdefault("params", {})["baseline_dir"] = str(wid / "src")
     try:
+        # ResProxy 记末次 CompRes——与产品侧 run_fixloop (repair.py:207) 同式
+        # 接线，但直调 fixloop 保留本模块的 monkeypatch 缝 (test_bench_triage)。
+        proxy = ResProxy(eng)
         cell = fixloop(
             splice,
-            eng,
+            proxy,
             ruleset=rs,
             engine_name="xelatex",
             corpus_id=pid,
@@ -152,6 +156,7 @@ def _fixloop_one(
             llm_hook=make_llm_hook() if getattr(args, "llm", False) else None,
             compile_timeout=args.timeout,
         )
+        fix_last = proxy.last
     except Exception as e:
         cell = {
             "project": pid,
@@ -161,11 +166,23 @@ def _fixloop_one(
             "rounds": [],
             "actions": [],
         }
+        fix_last = None
     cell_wall = round(time.monotonic() - t0, 1)
-    jeng = XelatexEngine(
-        halt_on_error=False, texmfhome=texmf, repository=flb.TUNA_TLNET
-    )
-    res = jeng.compile(splice, main_rel, timeout=args.timeout, sandbox=False)
+    # post 复判吃 fixloop 末轮 CompRes——与产品侧 ``res = fix_last or first``
+    # 同口径 (worker/compile.py:516)：判定输入仍是末轮编译产物+judge 输出，
+    # 只是不再 fresh compile 白跑一遍 (B14 画像: 此编译占 row dur ~33%)。
+    # 兜底走旧 fresh-compile 路径的情形：fixloop 早退无编译 (no_main_tex/
+    # precheck reject/max_rounds=0)、harness 崩溃、fixloop 宽松档选的主档
+    # 与 stage main_rel 错位 (cell["main"] 是 fixloop 实测主档)。
+    if fix_last is not None and cell.get("main") == main_rel:
+        res = fix_last
+        post_src = "fixloop_last"
+    else:
+        jeng = XelatexEngine(
+            halt_on_error=False, texmfhome=texmf, repository=flb.TUNA_TLNET
+        )
+        res = jeng.compile(splice, main_rel, timeout=args.timeout, sandbox=False)
+        post_src = "fresh_compile"
     # 复判沿用 compile 臂的 CJK 期待口径 (0-chunk 主文档不判 cjk_chars=0)
     expect_cjk = (comp_rec.get("metrics") or {}).get("expect_cjk", True)
     tail = benchlib.judge_dict(res, expect_cjk=expect_cjk)
@@ -206,6 +223,9 @@ def _fixloop_one(
             "installed": cell.get("installed") or [],
             "floor_restored": bool(cell.get("floor_restored")),
             "fixloop_wall_s": cell_wall,
+            # post 复判来源：fixloop_last=末轮 CompRes 复用 (主路径) /
+            # fresh_compile=兜底重编 (早退/崩溃/主档错位) —— 下游可观测复用率
+            "post_src": post_src,
             "post": tail,
         }
     )
