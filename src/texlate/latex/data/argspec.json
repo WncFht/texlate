@@ -6120,6 +6120,15 @@
             "policy": "literal",
             "source": ["literal-family", "no-signature"]
         },
+        "joref": {
+            "name": "joref",
+            "kind": "macro",
+            "package": "manual",
+            "signature": "m m m m m",
+            "arg_roles": ["skip", "skip", "skip", "skip", "skip"],
+            "policy": "protect",
+            "source": ["manual"]
+        },
         "k": {
             "name": "k",
             "kind": "macro",

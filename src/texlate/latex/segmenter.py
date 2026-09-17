@@ -184,6 +184,8 @@ _GRP_TAIL_CAP = 96
 #   e   = ws + ``{..}``|``[..]`` 任选一组（hyperref 首参形；失配终止）
 #   a   = accent 参（``{..}``|单 letter/other|单字符名 cs；失配终止）
 #   b   = ws + ``[dimen]``（``\\`` 尾参；内容须 fullmatch _GRP_BSBS_CONTENT_RX）
+#   n   = ws + 单 cs token 或 ``{..}``/``[..]`` 组（``\setlength\parskip``
+#         裸名参；强制——失配即调用终止）
 #   dXY = ws + ``X..Y`` 定界对（argspec d/D/r/R；可选——失配过槽）
 #   tC  = ws + 单测试字符（argspec t；可选）
 _PEND_CALL1 = ("s", "o", "o", "o", "m")  # ``_grp_call_end`` mand=1 形
@@ -253,11 +255,13 @@ def _pend_call_slots(name: str) -> list[str]:
     return list(_PEND_CALL2 if name == "inputminted" else _PEND_CALL1)
 
 
-def _pend_slot_of(s: ArgSpec) -> str | None:
+def _pend_slot_of(s: ArgSpec) -> str | None:  # noqa: PLR0911 — 槽字母各一分支，平铺即映射表
     r"""``ArgSpec`` → 待绑参槽字母；``e``/``b``/无 delim 形 → ``None``（槽形截尾）。"""
     k = s.kind
     if k in ("m", "v"):
         return "m"
+    if k == "n":
+        return "n"
     if k in ("o", "O"):
         return "o"
     if k == "s":
@@ -267,6 +271,23 @@ def _pend_slot_of(s: ArgSpec) -> str | None:
     if k in ("d", "D", "r", "R") and s.delim:
         return "d" + s.delim[0] + s.delim[-1]
     return None
+
+
+# BOUNDARY_TAIL 的本地 ``n`` 覆盖（M2）：``\setlength``/``\addtolength``
+# 首参是寄存器 cs——``\setlength\parskip{4pt}`` 裸名形里族表 ``[m,m]``
+# 的 ``m`` 不跨 ``\``，``\parskip`` 成孤探针、``{4pt}`` 落 chunk。
+# ``n`` 槽直收 cs token 或 ``{..}``/``[..]`` 组两形。``setcounter``/
+# ``addtocounter`` 首参是计数器**名**（字母非 cs）——核签名后留 ``m``；
+# ``settowidth`` 族不在 BOUNDARY_NAMES，argspec ``key`` 条目已全形保护。
+_BOUNDARY_TAIL_N: dict[str, list[ArgSpec]] = {
+    "setlength": [ArgSpec("n"), ArgSpec("m")],
+    "addtolength": [ArgSpec("n"), ArgSpec("m")],
+}
+
+
+def _boundary_spec_of(name: str) -> list[ArgSpec] | None:
+    r"""``BOUNDARY_TAIL`` + ``n`` 覆盖的单一查询口（三消费点共用）。"""
+    return _BOUNDARY_TAIL_N.get(name) or BOUNDARY_TAIL.get(name)
 
 
 def _env_ph_type(
@@ -1333,8 +1354,11 @@ class Segmenter:
                 break
             x = toks[k]
             if s.kind in ("m", "v"):
-                if x.kind == "lbrace":
-                    e = self._grp_bal(toks, k, brace=True)
+                if x.kind == "lbrace" or (x.kind == "other" and x.text == "["):
+                    # ``m`` 认 ``[`` 定界组（``_args_tok`` :3955 同规）——
+                    # ``restatable[N]{t}{c}`` 的 ``[N]`` 参组内不被 ``m``
+                    # 吃掉则 ``]{t}{c}`` 漏进 surface
+                    e = self._grp_bal(toks, k, brace=x.kind == "lbrace")
                     if e is None:
                         break
                     if role in ("text", "opt-text"):
@@ -1346,6 +1370,22 @@ class Segmenter:
                 k += 1  # 单 token 参（env 路 allow_single_token=True 同规）
                 end = k
                 continue
+            if s.kind == "n":
+                # 裸 cs 名参（``\setlength\parskip{4pt}``）：cs token 直收
+                # 或 ``{..}``/``[..]`` 组——其余形失配即终止（强制参同 m）
+                if x.kind == "cs":
+                    k += 1
+                    end = k
+                    continue
+                if x.kind == "lbrace" or (x.kind == "other" and x.text == "["):
+                    e = self._grp_bal(toks, k, brace=x.kind == "lbrace")
+                    if e is None:
+                        break
+                    if role in ("text", "opt-text"):
+                        break
+                    k = end = e
+                    continue
+                break
             if s.kind in ("o", "O"):
                 if x.kind == "other" and x.text == "[":
                     e = self._grp_bal(toks, k, brace=False)
@@ -1548,6 +1588,19 @@ class Segmenter:
                 j = e
                 si += 1
                 continue
+            if s == "n":
+                # 裸名参：cs 单 token 或 {..}/[..] 组（强制——失配终止）
+                if x.kind == "cs":
+                    j = k + 1
+                elif x.kind == "lbrace" or (x.kind == "other" and x.text == "["):
+                    e = self._grp_bal(toks, k, brace=x.kind == "lbrace")
+                    if e is None:
+                        return None
+                    j = e
+                else:
+                    return None
+                si += 1
+                continue
             if s == "e":
                 if x.kind != "lbrace" and not (
                     x.kind == "other" and x.text == "["
@@ -1689,6 +1742,25 @@ class Segmenter:
                 pulled.extend((x, *inner, closer))
                 committed = len(pulled)
                 continue
+            if s == "n":
+                # 裸名参（``\setlength\parskip``）：cs 单 token 或 {..}/[..] 组
+                if x.kind == "cs":
+                    pulled.append(x)
+                    committed = len(pulled)
+                    continue
+                if x.kind != "lbrace" and not (
+                    x.kind == "other" and x.text == "["
+                ):
+                    unpull(x)
+                    break
+                hit = self._collect_group(src, x, brace=x.kind == "lbrace")
+                if hit is None:
+                    unpull()
+                    break
+                inner, closer = hit
+                pulled.extend((x, *inner, closer))
+                committed = len(pulled)
+                continue
             if s == "e":
                 if x.kind != "lbrace" and not (
                     x.kind == "other" and x.text == "["
@@ -1795,6 +1867,20 @@ class Segmenter:
             return None
         return self._keyarg_tail(m2, src, depth + 1)
 
+    def _cite_ref_mand(self, name: str) -> int:
+        r"""cite/ref 名的强制参数目——argspec 签名优先，无条目回落 1。
+
+        ``\joref{a}{j}{v}{p}{y}``/``\crefrange{a}{b}`` 这类多参书目宏：
+        硬编 ``mand=1`` 只保首参、尾参 ``{b}``/``{y}`` 漏进 chunk——签名
+        里 ``m``/``v``/``n`` 位计数目即真参目（``o``/``s`` 由 ``_protect_cs``
+        自身的星/可选步覆盖）。``\cite`` ``o m`` → 1，行为不变。
+        """
+        e = argspec_lookup(name, self.state.pkgs)
+        if e is None or not e.signature:
+            return 1
+        spec = _chunk_spec_cached(e.signature)
+        return max(1, sum(1 for s in spec if s.kind in ("m", "v", "n")))
+
     def _pend_spec_of(  # noqa: C901, PLR0911, PLR0912 — _group_surface 分派行序镜像，平铺即语义
         self, name: str, src: TokenSource
     ) -> tuple[list[str] | None, str]:
@@ -1812,7 +1898,13 @@ class Segmenter:
         if name in ("[", "(", "]", ")"):
             return None, ""
         if _cite_ref_type(name) is not None:
-            return list(_PEND_CALL1), name
+            return [
+                "s",
+                "o",
+                "o",
+                "o",
+                *(["m"] * self._cite_ref_mand(name)),
+            ], name
         if name in PROTECT_NAMES:
             return _pend_call_slots(name), name
         if name == "href":
@@ -1829,11 +1921,16 @@ class Segmenter:
         if getattr(m, "kind", "") in ("env_begin", "env_end"):
             return None, ""  # env 尾参走 ``_grp_env_args_end`` 另一机制
         if name in BOUNDARY_NAMES:
-            spec = BOUNDARY_TAIL.get(name)
+            spec = _boundary_spec_of(name)
             if spec is None:
                 return None, ""
-            mand = sum(1 for a in spec if a.kind == "m")
-            return ["s", "o", "o", "o", *(["m"] * mand)], ""
+            # 强制参位按位映射槽字母（``n``→``"n"`` 裸名槽——``m`` 不跨 ``\``）
+            mslots = [
+                "n" if a.kind == "n" else "m"
+                for a in spec
+                if a.kind in ("m", "v", "n")
+            ]
+            return ["s", "o", "o", "o", *mslots], ""
         if name == "\\":
             return ["s", "b"], ""
         if name in TRANSPARENT_HEAD_SPEC:
@@ -1857,8 +1954,13 @@ class Segmenter:
                     slots.append(sl)
                 return slots or None, ""
             # protect/key/verbatim/boundary → 整调用 _grp_call_end 形
-            mand = sum(1 for s2 in spec2 if s2.kind in ("m", "v"))
-            return ["s", "o", "o", "o", *(["m"] * mand)], ""
+            # 强制位按位映射（``n`` 裸名参槽——``m`` 槽不跨 ``\``）
+            mslots = [
+                "n" if s2.kind == "n" else "m"
+                for s2 in spec2
+                if s2.kind in ("m", "v", "n")
+            ]
+            return ["s", "o", "o", "o", *mslots], ""
         ka = self._keyarg_tail(m, src)
         if ka is not None:
             return _pend_call_slots(ka), ka
@@ -2080,7 +2182,7 @@ class Segmenter:
                 continue
             fam = _cite_ref_type(name)
             if fam is not None:
-                j = self._grp_call_end(toks, i, 1)
+                j = self._grp_call_end(toks, i, self._cite_ref_mand(name))
                 self._cat_surf(out, self._grp_ph(fam, self._grp_surfs(toks[i:j])))
                 i = j
                 continue
@@ -2222,7 +2324,7 @@ class Segmenter:
                 # 翻译 ``mm``/``pt``（illegal_unit，loop1 slots①）。
                 # spec 缺席不预吃 ``[opt]``——``\item[label]`` 的 label 是
                 # 可译文本须留 surface（主流同规）。
-                spec = BOUNDARY_TAIL.get(name)
+                spec = _boundary_spec_of(name)
                 j = i + 1
                 kind = DIMEN_TAIL_KIND.get(name)
                 if kind is not None:
@@ -2230,7 +2332,10 @@ class Segmenter:
                     if e2 is not None:
                         j = e2
                 elif spec is not None:
-                    mand = sum(1 for a in spec if a.kind == "m")
+                    # ``n`` 计入 mand——``_grp_call_end`` 只认 ``{..}`` 组，
+                    # 花括号形 ``\setlength{\parskip}{4pt}`` 全收；裸 cs 形
+                    # 组内 spec-blind 是 M6 记档残留
+                    mand = sum(1 for a in spec if a.kind in ("m", "v", "n"))
                     j = self._grp_call_end(toks, i, mand)
                 self._cat_surf(
                     out, self._grp_ph(PhType.CMD, self._grp_surfs(toks[i:j]))
@@ -2335,7 +2440,7 @@ class Segmenter:
                         )
                         i = j3
                         continue
-                mand = sum(1 for s in spec2 if s.kind in ("m", "v"))
+                mand = sum(1 for s in spec2 if s.kind in ("m", "v", "n"))
                 j2 = self._grp_call_end(toks, i, mand)
                 self._cat_surf(
                     out, self._grp_ph(PhType.CMD, self._grp_surfs(toks[i:j2]))
@@ -2671,7 +2776,7 @@ class Segmenter:
             #    带可译 text 参除外——交 href 行 / row19 argspec chunk-arg）
             fam = _cite_ref_type(name)
             if fam is not None:
-                self._protect_cs(t, src, fam, mand=1)
+                self._protect_cs(t, src, fam, mand=self._cite_ref_mand(name))
                 return
             # 8. PROTECT_NAMES → 类型映射；url/path 认逐字定界形
             if name in PROTECT_NAMES:
@@ -3990,6 +4095,45 @@ class Segmenter:
                         )
                     )
                     end = x.pos[2]
+            elif s.kind == "n":
+                # 裸 cs 名参（``\setlength\parskip{4pt}``）：cs token 直收、
+                # 或 {..}/[..] 组——其余形失配即终止（强制参同 m）
+                if x.kind == "cs":
+                    out.append(
+                        _ArgTok(
+                            fid,
+                            x.pos[1],
+                            x.pos[2],
+                            x.pos[1],
+                            x.pos[2],
+                            [x],
+                            [*pulled, x],
+                            s,
+                        )
+                    )
+                    end = x.pos[2]
+                elif x.kind == "lbrace" or (x.kind == "other" and x.text == "["):
+                    hit = self._collect_group(src, x, brace=x.kind == "lbrace")
+                    if hit is None:
+                        src.unread(pulled)
+                        break
+                    inner, closer = hit
+                    out.append(
+                        _ArgTok(
+                            fid,
+                            x.pos[2],
+                            closer.pos[1],
+                            x.pos[1],
+                            closer.pos[2],
+                            inner,
+                            [*pulled, x, *inner, closer],
+                            s,
+                        )
+                    )
+                    end = closer.pos[2]
+                else:
+                    src.unread([*pulled, x])
+                    break
             elif s.kind in ("o", "O"):
                 if x.kind == "other" and x.text == "[":
                     hit = self._collect_group(src, x, brace=False)
@@ -4487,7 +4631,9 @@ class Segmenter:
         self._flush_run(vspan.start)
         self._emit_ph(PhType.AUTHOR, vspan.start, vspan.end, body)
 
-    def _handle_boundary(self, t: Tok, src: TokenSource, name: str) -> None:
+    def _handle_boundary(  # noqa: C901, PLR0912 — tail/spec/in_arg 三路分派平铺即边界语义
+        self, t: Tok, src: TokenSource, name: str
+    ) -> None:
         r"""边界命令：flush + LITERAL（含 ``BOUNDARY_TAIL``/dimen 尾参）。
 
         ``\item`` 置 ``force_chunk``（label ``[o]`` 不收——可译文本留 run）。
@@ -4498,6 +4644,7 @@ class Segmenter:
         fid, _a, b = t.pos
         kind = DIMEN_TAIL_KIND.get(name)
         tail_end = self._tail_scan_end(fid, b, kind) if kind is not None else None
+        spec = _boundary_spec_of(name)
         if self.in_arg:
             if tail_end is not None:
                 self._cover_gap(fid, t.pos[1])
@@ -4507,11 +4654,27 @@ class Segmenter:
                     vspan,
                 )
                 self._skip_past(src, fid, tail_end)
+            elif spec is not None:
+                # 参内边界命令同样按 spec 收参（``\setlength\parskip{4pt}``
+                # 的 ``{4pt}`` 在参内照样漏 chunk）——token 已被
+                # ``_args_tok`` 消费，无需 ``_skip_past``
+                args, e2 = self._args_tok(src, fid, spec, b)
+                if any(a.fe > a.fs for a in args):
+                    self._cover_gap(fid, t.pos[1])
+                    vspan = self._cover_to(fid, e2)
+                    self._rappend_ph(
+                        self._ph(
+                            PhType.CMD, self.vt.slice(vspan.start, vspan.end)
+                        ),
+                        vspan,
+                    )
+                else:
+                    self._unread_args(src, args)
+                    self._protect_cs(t, src, PhType.CMD)
             else:
                 self._protect_cs(t, src, PhType.CMD)
             return
         end = b
-        spec = BOUNDARY_TAIL.get(name)
         if tail_end is not None:
             end = tail_end
         elif spec is not None:
@@ -4893,7 +5056,7 @@ class Segmenter:
             # 等在参数里是字面（``\hyperbaseurl{..%20..}``），走 ``\url``/``\path``
             # 同款字节级配对；token 流会被 ``%`` 吃掉闭括号直排 EOF。
             spec = _chunk_spec_cached(e.signature)
-            mand = sum(s.kind in ("m", "v") for s in spec)
+            mand = sum(s.kind in ("m", "v", "n") for s in spec)
             self._protect_cs(t, src, PhType.CMD, mand=mand, verbatim=True)
             return
         if e.policy == "literal":
@@ -5021,23 +5184,21 @@ class Segmenter:
         ops.append(("lit", end))
         if self.in_arg:
             self._cover_gap(fid, t.pos[1])  # 命令前间隙 → 字面项（不入 texts）
-            texts: list[str] = []
-            vstart = -1
+            vmark = len(self.vt)  # 已覆盖到 vtex 位——下一 op 的 vstart
             for op, x in ops:
                 if op == "lit":
+                    # 非文本参/括号字面段不进 run surface——``[[CMD]]`` 代位
+                    # （2310.16788 ``[origin=c]``→``[这是译文]`` 机理：凡
+                    # argspec chunk-arg 名 in_arg 皆漏）
                     v = self._cover_to(fid, int(x))
-                    if vstart < 0:
-                        vstart = v.start
-                    texts.append(self.vt.slice(v.start, v.end))
+                    self._rappend_ph(
+                        self._ph(PhType.CMD, self.vt.slice(v.start, v.end)), v
+                    )
+                    vmark = v.end
                     continue
-                texts.append(self._subscan_render(x))
-            text = "".join(texts)
-            if vstart >= 0:
-                self._rappend(
-                    text,
-                    text,
-                    Span(vstart, len(self.vt)),
-                )
+                rendered = self._subscan_render(x)
+                self._rappend(rendered, rendered, Span(vmark, len(self.vt)))
+                vmark = len(self.vt)
             return
         self._cover_gap(fid, t.pos[1])  # 同上——字面 piece 不含前隙
         v0 = self._cover_to(fid, int(ops[0][1]))

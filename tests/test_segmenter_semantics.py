@@ -346,10 +346,14 @@ def test_chunk_arg_key_role_stays_literal() -> None:
 
 def test_chunk_arg_nested_in_arg_inlines() -> None:
     r"""in_arg 侧 chunk-arg 不另开段：``\section{T \alert{inner} rest}``
-    → ``\alert{..}`` 整体内联进 content（括号保留，不挖洞）。"""
+    → 命令名/括号字面段成 ``[[CMD]]`` 代位，text 参仍内联进 content
+    （M1：lit 段不再进 run surface——``\rotatebox[origin=c]{90}`` 的
+    ``[origin=c]`` 同款字面段曾在参内被译）。"""
     res = scan("\\section{Title \\alert{inner words} rest} tail.")
     [c] = res.chunks
-    assert c.content == "Title \\alert{inner words} rest"
+    assert c.content == "Title [[CMD_1]]inner words[[CMD_2]] rest"
+    assert res.ph_map["[[CMD_1]]"] == "\\alert{"
+    assert res.ph_map["[[CMD_2]]"] == "}"
 
 
 # ------------------------------------------------------- \usepackage 门控

@@ -110,7 +110,7 @@ class MacroKind(Enum):
 class ArgSpec:
     """xparse 参数签名项（docs/07 §5.2）。"""
 
-    kind: str  # 'm'|'o'|'O'|'s'|'d'|'D'|'r'|'R'|'v'|'e'|'t'|'b'
+    kind: str  # 'm'|'o'|'O'|'s'|'d'|'D'|'r'|'R'|'v'|'e'|'t'|'b'|'n'
     delim: str = ""  # d/D/r/R/t 的定界符（'<>'）或 e 的 token 表（'^_'）
     default: str | None = None  # O/D/R 的默认值
 
