@@ -335,16 +335,17 @@ def test_verdict_sig_string_reasons() -> None:
 def test_verdict_sig_bulk_dominant_override() -> None:
     """首错遮 bulk 纠偏：众数 cat 错误量严格大于首错 → sig 挂众数。
 
-    quant-ph/9703040 实证锚点：110 错中 108 missing_number，category
-    却是自恢复的 illegal_unit——首错 sig 会误导分桶归因。
+    quant-ph/9703040 实证锚点：110 错中 108 syntax（Missing number
+    行裸分类落 syntax），category 却是自恢复的 illegal_unit——首错
+    sig 会误导分桶归因。
     """
     v = {
         "status": "fail",
         "category": "illegal_unit",
         "payload": "24ptA",
-        "error_cats": {"illegal_unit": 1, "missing_number": 108},
+        "error_cats": {"illegal_unit": 1, "syntax": 108},
     }
-    assert benchlib.verdict_sig(v) == "missing_number"
+    assert benchlib.verdict_sig(v) == "syntax"
 
 
 def test_verdict_sig_bulk_dominant_pay() -> None:
@@ -368,7 +369,7 @@ def test_verdict_sig_bulk_tie_keeps_first() -> None:
         "status": "fail",
         "category": "illegal_unit",
         "payload": "24ptA",
-        "error_cats": {"illegal_unit": 1, "missing_number": 1},
+        "error_cats": {"illegal_unit": 1, "syntax": 1},
     }
     assert benchlib.verdict_sig(v) == "illegal_unit:24ptA"
 

@@ -69,7 +69,7 @@ class Verdict:
     category: str | None = None
     payload: str | None = None
     #: 逐错误行 cat 构成（``res.log.errors`` 全量分类计数）——首错 cat
-    #: 遮 bulk 的纠偏原料（quant-ph/9703040：110 错中 108 missing_number
+    #: 遮 bulk 的纠偏原料（quant-ph/9703040：110 错中 108 syntax
     #: 而 category=illegal_unit）；签名聚合取众数用。
     error_cats: dict[str, int] = field(default_factory=dict)
     #: cat → 首见 payload（``error_cats`` 同键子集，仅非空 payload 收录）。

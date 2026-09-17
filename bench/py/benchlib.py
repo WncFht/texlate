@@ -320,7 +320,7 @@ def verdict_sig(verdict: dict, first_error: str | None = None) -> str:
 
     ``error_cats``（judge 逐错误行构成）在场且众数 cat 错误量**严格大于**
     首错 cat 时 sig 改挂众数——首错遮 bulk 纠偏（quant-ph/9703040：110 错
-    108×missing_number，category 却是自恢复的 illegal_unit）；平票仍归
+    108×syntax，category 却是自恢复的 illegal_unit）；平票仍归
     首错（TeX 级联中首错是因果上游）。众数 payload 取 ``error_pay`` 首见值。
     """
     vstatus = verdict.get("status")
