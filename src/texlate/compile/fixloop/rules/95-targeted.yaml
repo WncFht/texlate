@@ -14,7 +14,7 @@ rules:
   # 首版表: headerps@out→剥 breakurl (dvips 钩子在 Unicode 引擎无定义),
   # mathbbm→xelatex 装 bbm / tectonic 换 dsfont\mathds。
   - id: cs_targeted_fix
-    mechanisms: [W17, W96, B01]
+    mechanisms: [W17, W96, B01, W112, W113, W114, W122, W125]
     description: "undefined_cs payload 命中 cs 修复表 → 剥包/装包/宏改写/polyfill 定向修"
     phase: loop
     order: 165 # journal_cs_polyfill(160) 之后, undefined_cs_guess(900) 之前
@@ -465,6 +465,7 @@ rules:
   # "Unknown float option `,'" (kernel 要连排 [tb])。贪心 [^\]] 段每次
   # sub 剥末位逗号, 列两遍兜 [t,b,p] 双逗号形。
   - id: float_opt_comma_strip
+    mechanisms: [W115]
     description: "float env 选项表逗号分隔形 [t,b] → 剥逗号并合"
     phase: loop
     order: 184
@@ -502,6 +503,7 @@ rules:
   # "Symbol font `TUletters' is not defined"。\begin{document} 前同式
   # 预声明 (preamble-only cs), symTUletters 存在性守卫防重复点火重炸。
   - id: symbolfont_tuletters
+    mechanisms: [W116, W126]
     description: "mathtext TU 编码漏补丁 → \\DeclareSymbolFont{TUletters} 预声明"
     phase: loop
     order: 185
@@ -536,6 +538,7 @@ rules:
   # \@citestyle{aas}→\bibpunct 的 \NAT@numbersfalse 复位吞掉 →
   # preamble 末直接翻 \NAT@numberstrue (ifdefined 守卫, 无 natbib 稿空转)。
   - id: natbib_numbers_pass
+    mechanisms: [W117, W126]
     description: "author-year 类 + 数字 bbl → \\NAT@numberstrue 预翻, \\NAT@force@numbers 空转"
     phase: loop
     order: 186
@@ -569,6 +572,7 @@ rules:
   # 纯文本 (正文侧 \pdo 原样)。routing 归 rbody conm-p-l_body; 本键按
   # 签名自含修复 (syntax 类与 body 面不互斥), 重复覆盖在报告中标注。
   - id: conmp_pdo_pdfstring
+    mechanisms: [W118]
     description: "\\pdo 类自义宏入书签炸 pdfstring → \\pdfstringdefDisableCommands 降格"
     phase: loop
     order: 187
@@ -603,6 +607,7 @@ rules:
   # (60) 先签 px 失配自降, 本条接数字+true+单位粘连归一化; true 只合法
   # 修饰物理单位 (pt/pc/in/bp/cm/mm/dd/cc/sp), 不收 em/ex/mu。
   - id: dimen_true_unit_space
+    mechanisms: [W119]
     description: "数字+true+物理单位粘连 (0.035truein) → 双侧补空格归一化"
     phase: loop
     order: 188
@@ -636,6 +641,7 @@ rules:
   # 断链。同签 mop-up: 条目在 _patch_files 一遍内顺序执行, 列两遍兜
   # 多 _ 键 (本格 55 键全单 _); \\cite 族同步补 builtin 同款漏面。
   - id: citekey_wrap_sanitize
+    mechanisms: [W120]
     description: "折行 opt-arg \\bibitem/\\cite 键内 _ → - (citekey_sanitize 漏面补)"
     phase: loop
     order: 189
@@ -682,6 +688,7 @@ rules:
   # [^}] 段每条目剥末位 \\: 参1 列三条、参2 列两条。stub 侧参净化归
   # c6 车道, 本条按签名兜底。
   - id: slashbox_arg_newline
+    mechanisms: [W121]
     description: "\\(back)slashbox 参内 \\\\ 断行符 → 空格 (tabular 内变行尾炸)"
     phase: loop
     order: 190
@@ -731,6 +738,7 @@ rules:
   # um 重音要求 {} 组参; 给参数套花括号语义恒等 (\bar\foo ≡ \bar{\foo}),
   # 全局重写安全。条件双签: err ctx Missing{ + 源码含裸重音形, 缺一空转。
   - id: um_accent_brace_wrap
+    mechanisms: [W123]
     description: "um 重音命令裸 cs 参 \\bar\\calX → \\bar{\\calX} (语义恒等)"
     phase: loop
     order: 191
@@ -765,6 +773,7 @@ rules:
   # \begin{document} 后立刻重拍快照 (post begin-doc hooks), 使比对恒真。
   # makeatletter 包裹 @ 名; 仅 acmart 签名命中, 非 acmart 稿空转。
   - id: acmart_baselinestretch_resnap
+    mechanisms: [W124]
     description: "acmart \\baselinestretch 守卫 → begin-doc 后重拍 \\ACM@origbaselinestretch"
     phase: loop
     order: 192
