@@ -112,7 +112,7 @@ def load_cache(path: Path) -> dict[str, str]:
         return {}
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError) as e:
+    except (json.JSONDecodeError, UnicodeDecodeError, OSError) as e:
         bad = path.with_name(f"{path.stem}-invalid-{secrets.token_hex(4)}{path.suffix}")
         path.rename(bad)
         log.warning("cache %s corrupted (%s) → quarantined as %s", path, e, bad.name)
@@ -195,7 +195,7 @@ class StateStore:
             return set(), {}
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError) as e:
+        except (json.JSONDecodeError, UnicodeDecodeError, OSError) as e:
             # 与 load_cache 同口径：隔离留诊断现场，不覆盖不删除
             bad = path.with_name(
                 f"{path.stem}-invalid-{secrets.token_hex(4)}{path.suffix}"
@@ -217,34 +217,51 @@ class StateStore:
                 bad.name,
             )
             return set(), {}
-        completed = set(data.get("completed") or [])
-        results: dict[str, ChunkRecord] = {}
-        for r in data.get("results") or []:
-            try:
-                rec = ChunkRecord(
-                    chunk_id=str(r["chunk_id"]),
-                    source=str(r.get("source", "")),
-                    translation=str(r.get("translation", "")),
-                    status=str(r.get("status", "ok")),
-                    kind=str(r.get("kind", "para")),
-                    batched=bool(r.get("batched", False)),
-                    batch_id=r.get("batch_id"),
-                    skipped=bool(r.get("skipped", False)),
-                    skip_reason=str(r.get("skip_reason", "")),
-                    attempts=int(r.get("attempts", 0)),
-                    warnings=list(r.get("warnings") or []),
-                    error_kind=str(r.get("error_kind") or ""),
-                )
-            except (KeyError, TypeError, ValueError) as e:
-                log.warning("state record skipped: %s", e)
-                continue
-            results[rec.chunk_id] = rec
-        self._completed = dict.fromkeys(data.get("completed") or [])
-        self._results = list(data.get("results") or [])
-        self._errors = list(data.get("errors_report") or [])
-        meta = data.get("meta") or {}
-        self._started_at = meta.get("started_at") or self._started_at
-        self._total_chunks = int(meta.get("total_chunks") or 0)
+        try:
+            completed = set(data.get("completed") or [])
+            results: dict[str, ChunkRecord] = {}
+            for r in data.get("results") or []:
+                try:
+                    rec = ChunkRecord(
+                        chunk_id=str(r["chunk_id"]),
+                        source=str(r.get("source", "")),
+                        translation=str(r.get("translation", "")),
+                        status=str(r.get("status", "ok")),
+                        kind=str(r.get("kind", "para")),
+                        batched=bool(r.get("batched", False)),
+                        batch_id=r.get("batch_id"),
+                        skipped=bool(r.get("skipped", False)),
+                        skip_reason=str(r.get("skip_reason", "")),
+                        attempts=int(r.get("attempts", 0)),
+                        warnings=list(r.get("warnings") or []),
+                        error_kind=str(r.get("error_kind") or ""),
+                    )
+                except (KeyError, TypeError, ValueError) as e:
+                    log.warning("state record skipped: %s", e)
+                    continue
+                results[rec.chunk_id] = rec
+            completed_raw = dict.fromkeys(data.get("completed") or [])
+            results_raw = list(data.get("results") or [])
+            errors_raw = list(data.get("errors_report") or [])
+            meta = data.get("meta") or {}
+            # meta 非 dict 时 .get 抛 AttributeError——同属字段级脏，一并隔离
+            started_at = meta.get("started_at")
+            total_chunks = int(meta.get("total_chunks") or 0)
+        except (TypeError, ValueError, AttributeError) as e:
+            # 字段级类型脏同属损坏——与 top-level 非 dict 同口径隔离回空
+            bad = path.with_name(
+                f"{path.stem}-invalid-{secrets.token_hex(4)}{path.suffix}"
+            )
+            path.rename(bad)
+            log.warning(
+                "state %s malformed (%s) → quarantined as %s", path, e, bad.name
+            )
+            return set(), {}
+        self._completed = completed_raw
+        self._results = results_raw
+        self._errors = errors_raw
+        self._started_at = started_at or self._started_at
+        self._total_chunks = total_chunks
         return completed, results
 
     def start(self, total_chunks: int) -> None:

@@ -28,29 +28,20 @@
   record→load 逐字段往返、任意字节/结构变异 ``load`` 只回 ``(set, dict)``
   或在已钉缺陷族内断言复现逃逸。
 
-钉住的缺陷（``xfail(strict=True)``）：
+回归钉（首轮 fuzz 钉住的 4 族缺陷已全部修复，以下转常设回归用例）：
 
-- ``placeholders.diff``（src/texlate/xlat/placeholders.py:222）缺 L0
-  ``_check_placeholder`` 的 ``src_literal`` 净差豁免（validate/l0.py:468-480）
-  ——src 自带 ``[RS80]``/``[a_1]`` 形 verbatim 字面在 zh 侧被无条件计
-  ``extra``，docstring「与 L0 同口径」不实。缺省 validator 路径下这类
-  chunk 的逐字正确译文必判 invalid → 阶梯三振 → 恒 fallback_orig；
-- ``encode_newlines``/``decode_newlines``（placeholders.py:129-186）对
-  sentinel 字面 ``[[__TEXLATE_*_LIT__]]`` round-trip 破坏——解码落成
-  ``[[X_RAW]]`` 裸占位符。转义三相只防 token/RAW 两层，sentinel 层自身
-  无转义（失败安全：下游 diff 计 extra → 升格拦截 fallback，不进 splice）；
-- ``StateStore.load``/``load_cache``（state.py:197-207 / 113-119）的损坏
-  兜网漏 ``UnicodeDecodeError``——非 UTF-8 字节的 state.json/cache-*.json
-  不隔离不改名、异常直穿 run/load（docstring 承诺「损坏从头来」，续跑
-  入口就此崩在脏文件上）。``except (JSONDecodeError, OSError)`` 应并收
-  ``UnicodeDecodeError``（或退化为 ``errors="replace"`` 后走 JSON 分支）；
-- ``StateStore.load`` 字段级类型脏穿兜网（state.py:220-247）——top-level
-  dict 检查只管容器外形：``completed``/``results``/``errors_report`` 真值
-  非可迭代（或 ``completed`` 含不可哈希成员）→ ``TypeError``；``meta``
-  真值非 dict → ``AttributeError``；``meta.total_chunks`` 非数值 →
-  ``TypeError``/``ValueError``。复现：``state.json`` 写 ``{"meta": "x"}``
-  → ``load()`` 抛 ``AttributeError``。per-record try 管不到这些行——
-  修法同上一族（字段级 try 或类型守卫后隔离）。
+- ``placeholders.diff`` 补上了 L0 ``_check_placeholder`` 的 ``src_literal``
+  净差豁免（src 自带 ``[RS80]``/``[a_1]`` 形 verbatim 字面不再计 ``extra``；
+  此前缺省 validator 路径下逐字正确译文必判 invalid → 阶梯三振 →
+  恒 fallback_orig）——``test_diff_src_literal_fuzzy_exempt``；
+- ``encode_newlines``/``decode_newlines`` 转义链加深为四相
+  （sentinel→sentinel2 最内层），sentinel 字面 ``[[__TEXLATE_*_LIT__]]``
+  round-trip 恢复——``test_sentinel_literal_roundtrip``；
+- ``StateStore.load``/``load_cache`` 损坏兜网并收 ``UnicodeDecodeError``——
+  非 UTF-8 字节同样隔离改名回空——``test_state_load_non_utf8_quarantines``；
+- ``StateStore.load`` 字段级类型脏纳入兜网（非可迭代/不可哈希/非 dict
+  ``meta``/非数值 ``total_chunks`` → 隔离回 ``(set(), {})``）——
+  ``test_state_load_malformed_fields_quarantine`` 8 参数族。
 """
 
 from __future__ import annotations
@@ -222,15 +213,8 @@ def test_fuzz_encode_counts_oracle() -> None:
         assert (counts["source_sl"], counts["source_pl"]) == (sl, pl)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="sentinel 字面 [[__TEXLATE_*_LIT__]] 过 encode 后 decode 落成 "
-    "[[X_RAW]] 裸占位符——转义三相的最内层自身无转义（round-trip 破坏；"
-    "失败安全：下游 diff 计 extra → 升格拦截 fallback，不进 splice）。"
-    "placeholders.py encode_newlines/decode_newlines",
-)
-def test_sentinel_literal_breaks_roundtrip() -> None:
-    """已确认缺陷钉：源含 sentinel 字面 → ``decode(encode(s)) != s``。"""
+def test_sentinel_literal_roundtrip() -> None:
+    """回归钉：源含 sentinel 字面 → 三层转义后 ``decode(encode(s)) == s``。"""
     for s in _SENTINELS:
         enc, _ = ph.encode_newlines(f"a {s} b")
         assert ph.decode_newlines(enc) == f"a {s} b"
@@ -369,19 +353,11 @@ def test_fuzz_diff_detects_drop_and_inject() -> None:
         assert "[[ZZZ_9]]" in d2.extra
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="xlat placeholders.diff 缺 L0 _check_placeholder 的 src_literal "
-    "净差豁免（l0.py:468-480 把 zh_fuzzy 减去 src 侧同形字面；xlat "
-    "placeholders.py:236-241 无条件全计）——src 自带 [RS80]/[a_1] 形 "
-    "verbatim 字面在 zh 侧计 extra：默认 validator 对逐字正确译文报 "
-    "invalid，该 chunk 阶梯三振后恒 fallback_orig。修复=同口径净差豁免。",
-)
 def test_diff_src_literal_fuzzy_exempt() -> None:
-    """已确认缺陷钉：``[Xn]`` 形字面 verbatim 复制应判 ok（L0 判 ok）。"""
+    """回归钉：``[Xn]`` 形字面 verbatim 复制判 ok（与 L0 豁免同口径）。"""
     src = "see [RS80] and [a_1] in the references"
     assert validate_pair(src, src).ok  # L0 有豁免——对照组必须过
-    assert ph.diff(src, src).ok  # xlat diff 无豁免——现实现报 extra
+    assert ph.diff(src, src).ok  # xlat diff 同口径净差豁免
 
 
 def test_fuzz_is_placeholder_only_oracle() -> None:
@@ -986,38 +962,10 @@ def test_fuzz_state_record_load_roundtrip(tmp_path: Path) -> None:
             assert loaded[cid].status == expect["status"]
 
 
-def _load_escape_exc(doc: dict[str, Any]) -> type[Exception] | None:
-    """模拟 ``StateStore.load`` 字段级未兜住的逃逸面（已钉缺陷族判据）。
-
-    ``None`` = 应正常返回；否则为预期逃逸的异常类型。逐字段按 load()
-    执行序模拟：per-record try 只罩 ``results`` 成员构造——成员级脏
-    （KeyError/TypeError/ValueError）全部被收，只有字段级操作逃逸。
-    """
-    v = doc.get("completed") or []
-    try:
-        dict.fromkeys(v)  # set()/fromkeys 同要求：可迭代且成员可哈希
-    except TypeError:
-        return TypeError
-    for key in ("results", "errors_report"):
-        v = doc.get(key) or []
-        try:
-            iter(v)
-        except TypeError:
-            return TypeError
-    meta = doc.get("meta") or {}
-    if not isinstance(meta, dict):
-        return AttributeError
-    try:
-        int(meta.get("total_chunks") or 0)
-    except (TypeError, ValueError) as e:
-        return type(e)
-    return None
-
-
 def test_fuzz_state_load_never_raises(tmp_path: Path) -> None:
     """state.json 字节/结构级变异：``load`` 只回 ``(set, dict)`` 绝不抛——
-    已钉字段级逃逸族（``test_state_load_malformed_fields_escape``）断言
-    逐例复现，兜网修复落地后此断言连同 xfail 钉一并转红。"""
+    字段级类型脏（``test_state_load_malformed_fields_quarantine``）同样
+    走隔离回空。"""
     rng = random.Random(20261016)  # noqa: S311 -- 确定性种子
     base = {
         "version": "1.0",
@@ -1049,25 +997,13 @@ def test_fuzz_state_load_never_raises(tmp_path: Path) -> None:
             k = rng.choice(["completed", "results", "errors_report", "meta", "version"])
             doc[k] = rng.choice([None, [], {}, "x", 7, [None, {"x": 1}]])
             p.write_text(json.dumps(doc))
-            esc = _load_escape_exc(doc)
-            if esc is not None:
-                with pytest.raises(esc):
-                    StateStore(d).load()
-                continue
         completed, recs = StateStore(d).load()
         assert isinstance(completed, set)
         assert all(isinstance(v.chunk_id, str) for v in recs.values())
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="StateStore.load/load_cache 的损坏兜网只收 (JSONDecodeError, "
-    "OSError)——非 UTF-8 字节触发 UnicodeDecodeError 直穿（state.py:197/"
-    "113），docstring 承诺「损坏从头来/隔离」落空。复现：state.json 写 "
-    "b'\\xff\\xfe' → load() 抛。修法：except 并收 UnicodeDecodeError。",
-)
 def test_state_load_non_utf8_quarantines(tmp_path: Path) -> None:
-    """已确认缺陷钉：非 UTF-8 state/cache 文件应隔离回空而非抛。"""
+    """回归钉：非 UTF-8 state/cache 文件隔离回空而非抛。"""
     d1 = tmp_path / "state"
     d1.mkdir()
     (d1 / "state.json").write_bytes(b"\xff\xfe\x00garbage")
@@ -1080,28 +1016,20 @@ def test_state_load_non_utf8_quarantines(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     "doc",
     [
-        {"meta": "x"},  # 真值非 dict → meta.get AttributeError
+        {"meta": "x"},  # 真值非 dict → meta.get 崩（现隔离）
         {"meta": 7},
         {"meta": [1]},
-        {"completed": 7},  # 真值非可迭代 → set() TypeError
-        {"completed": [{"x": 1}]},  # 成员不可哈希 → fromkeys TypeError
-        {"results": 7},  # 真值非可迭代 → for TypeError
-        {"errors_report": 7},  # list() TypeError
-        {"meta": {"total_chunks": "x"}},  # int() ValueError
+        {"completed": 7},  # 真值非可迭代 → set() 崩（现隔离）
+        {"completed": [{"x": 1}]},  # 成员不可哈希 → set() 崩（现隔离）
+        {"results": 7},  # 真值非可迭代 → for 崩（现隔离）
+        {"errors_report": 7},  # list() 崩（现隔离）
+        {"meta": {"total_chunks": "x"}},  # int() 崩（现隔离）
     ],
 )
-@pytest.mark.xfail(
-    strict=True,
-    reason="StateStore.load 的损坏兜网只挡 top-level 非 dict——字段级类型脏"
-    "逃逸：completed/results/errors_report 真值非可迭代（或含不可哈希成员）→"
-    " TypeError；meta 真值非 dict → AttributeError；meta.total_chunks 非数值"
-    '→ ValueError（state.py:220-247）。复现：state.json 写 {"meta": "x"}'
-    " → load() 抛。修法：字段级 try/类型守卫，脏则隔离回空。",
-)
-def test_state_load_malformed_fields_escape(
+def test_state_load_malformed_fields_quarantine(
     tmp_path: Path, doc: dict[str, Any]
 ) -> None:
-    """已确认缺陷钉：字段级类型脏应隔离回 ``(set(), {})`` 而非抛。"""
+    """回归钉：字段级类型脏隔离回 ``(set(), {})`` 而非抛。"""
     d = tmp_path / "s"
     d.mkdir()
     (d / "state.json").write_text(json.dumps(doc), encoding="utf-8")

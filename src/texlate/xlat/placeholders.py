@@ -55,6 +55,10 @@ SOFT_NEWLINE_RAW = "[[SL_RAW]]"
 PARA_NEWLINE_RAW = "[[PL_RAW]]"
 _SOFT_NEWLINE_SENTINEL = "[[__TEXLATE_SL_LIT__]]"
 _PARA_NEWLINE_SENTINEL = "[[__TEXLATE_PL_LIT__]]"
+#: sentinel 字面自身的转义层（第三级——源若真含 sentinel 字面再升一级，
+#: 否则 decode 会把字面 sentinel 落成 [[X_RAW]] 裸 token）
+_SOFT_NEWLINE_SENTINEL2 = "[[__TEXLATE_SL_LIT2__]]"
+_PARA_NEWLINE_SENTINEL2 = "[[__TEXLATE_PL_LIT2__]]"
 #: 脆弱间距命令 `\ ` 的保护 token——裸 `\ ` 对模型不显著（E21/E22 cs_dropped
 #: 实测主因，s40 11/4365 chunk 因此三振），编码成占位符吃 C9 保护契约；
 #: decode 回 `\ ` 后才进校验，L0 计数口径不变。同族扩列 (2026-09-17,
@@ -65,33 +69,40 @@ SOFT_SPACE = "[[SP]]"
 #: 源文本字面 `[[SP]]` 的转义形态
 SOFT_SPACE_RAW = "[[SP_RAW]]"
 _SOFT_SPACE_SENTINEL = "[[__TEXLATE_SP_LIT__]]"
+_SOFT_SPACE_SENTINEL2 = "[[__TEXLATE_SP_LIT2__]]"
 NBSP = "[[NBSP]]"  # `~` 不可断空格
 NBSP_RAW = "[[NBSP_RAW]]"
 _NBSP_SENTINEL = "[[__TEXLATE_NBSP_LIT__]]"
+_NBSP_SENTINEL2 = "[[__TEXLATE_NBSP_LIT2__]]"
 THINSP = "[[THINSP]]"  # `\,`
 THINSP_RAW = "[[THINSP_RAW]]"
 _THINSP_SENTINEL = "[[__TEXLATE_THINSP_LIT__]]"
+_THINSP_SENTINEL2 = "[[__TEXLATE_THINSP_LIT2__]]"
 MEDSP = "[[MEDSP]]"  # `\:`
 MEDSP_RAW = "[[MEDSP_RAW]]"
 _MEDSP_SENTINEL = "[[__TEXLATE_MEDSP_LIT__]]"
+_MEDSP_SENTINEL2 = "[[__TEXLATE_MEDSP_LIT2__]]"
 THICKSP = "[[THICKSP]]"  # `\;`
 THICKSP_RAW = "[[THICKSP_RAW]]"
 _THICKSP_SENTINEL = "[[__TEXLATE_THICKSP_LIT__]]"
+_THICKSP_SENTINEL2 = "[[__TEXLATE_THICKSP_LIT2__]]"
 NEGSP = "[[NEGSP]]"  # `\!` 负 thin
 NEGSP_RAW = "[[NEGSP_RAW]]"
 _NEGSP_SENTINEL = "[[__TEXLATE_NEGSP_LIT__]]"
+_NEGSP_SENTINEL2 = "[[__TEXLATE_NEGSP_LIT2__]]"
 
-#: 脆弱空白族编解码表 —— (token, RAW 形, sentinel, 源字面)。
-#: 转义三相按 RAW→sentinel → token→RAW → 字面→token 全局依序应用;
-#: decode 反向 (token→字面 → RAW→token → sentinel→RAW)。各字面互不
-#: 为子串 (`\ ` 与 `\,`/`~` 等全不相交), 三相内序位无关。
-_SPACE_FAM: tuple[tuple[str, str, str, str], ...] = (
-    (SOFT_SPACE, SOFT_SPACE_RAW, _SOFT_SPACE_SENTINEL, "\\ "),
-    (NBSP, NBSP_RAW, _NBSP_SENTINEL, "~"),
-    (THINSP, THINSP_RAW, _THINSP_SENTINEL, "\\,"),
-    (MEDSP, MEDSP_RAW, _MEDSP_SENTINEL, "\\:"),
-    (THICKSP, THICKSP_RAW, _THICKSP_SENTINEL, "\\;"),
-    (NEGSP, NEGSP_RAW, _NEGSP_SENTINEL, "\\!"),
+#: 脆弱空白族编解码表 —— (token, RAW 形, sentinel, sentinel2, 源字面)。
+#: 转义四相按 sentinel→sentinel2 → RAW→sentinel → token→RAW → 字面→token
+#: 全局依序应用; decode 反向 (token→字面 → RAW→token → sentinel→RAW →
+#: sentinel2→sentinel)。各字面互不为子串 (`\ ` 与 `\,`/`~` 等全不相交),
+#: 四相内序位无关。
+_SPACE_FAM: tuple[tuple[str, str, str, str, str], ...] = (
+    (SOFT_SPACE, SOFT_SPACE_RAW, _SOFT_SPACE_SENTINEL, _SOFT_SPACE_SENTINEL2, "\\ "),
+    (NBSP, NBSP_RAW, _NBSP_SENTINEL, _NBSP_SENTINEL2, "~"),
+    (THINSP, THINSP_RAW, _THINSP_SENTINEL, _THINSP_SENTINEL2, "\\,"),
+    (MEDSP, MEDSP_RAW, _MEDSP_SENTINEL, _MEDSP_SENTINEL2, "\\:"),
+    (THICKSP, THICKSP_RAW, _THICKSP_SENTINEL, _THICKSP_SENTINEL2, "\\;"),
+    (NEGSP, NEGSP_RAW, _NEGSP_SENTINEL, _NEGSP_SENTINEL2, "\\!"),
 )
 
 _FUZZY_LEV_CAP = 2
@@ -132,16 +143,21 @@ def encode_newlines(text: str) -> tuple[str, dict[str, int]]:
     先做字面 token 两级转义防碰撞，再编码；返回 (编码文本, {source_sl, source_pl})。
     """
     normalized = text.replace("\r\n", "\n").replace("\r", "\n")
-    # 字面转义：先保 sentinel 级（源里若真有 [[SL_RAW]] 不能再被第二轮吃掉）
-    escaped = normalized.replace(SOFT_NEWLINE_RAW, _SOFT_NEWLINE_SENTINEL)
+    # 字面转义最深级先行：源里若真有 sentinel 字面先升 sentinel2
+    # （否则 decode 落成 [[X_RAW]]），再依次保 RAW/token 两级
+    escaped = normalized.replace(_SOFT_NEWLINE_SENTINEL, _SOFT_NEWLINE_SENTINEL2)
+    escaped = escaped.replace(_PARA_NEWLINE_SENTINEL, _PARA_NEWLINE_SENTINEL2)
+    for _tok, _raw, _sent, _sent2, _lit in _SPACE_FAM:
+        escaped = escaped.replace(_sent, _sent2)
+    escaped = escaped.replace(SOFT_NEWLINE_RAW, _SOFT_NEWLINE_SENTINEL)
     escaped = escaped.replace(PARA_NEWLINE_RAW, _PARA_NEWLINE_SENTINEL)
     escaped = escaped.replace(SOFT_NEWLINE, SOFT_NEWLINE_RAW)
     escaped = escaped.replace(PARA_NEWLINE, PARA_NEWLINE_RAW)
-    for _tok, _raw, _sent, _lit in _SPACE_FAM:
+    for _tok, _raw, _sent, _sent2, _lit in _SPACE_FAM:
         escaped = escaped.replace(_raw, _sent)
-    for _tok, _raw, _sent, _lit in _SPACE_FAM:
+    for _tok, _raw, _sent, _sent2, _lit in _SPACE_FAM:
         escaped = escaped.replace(_tok, _raw)
-    for _tok, _raw, _sent, _lit in _SPACE_FAM:
+    for _tok, _raw, _sent, _sent2, _lit in _SPACE_FAM:
         escaped = escaped.replace(_lit, _tok)
 
     out: list[str] = []
@@ -173,16 +189,20 @@ def encode_newlines(text: str) -> tuple[str, dict[str, int]]:
 def decode_newlines(text: str) -> str:
     r"""`[[SL]]`→`\n`、`[[PL]]`→`\n\n`、空白族 token→字面，随后还原被转义的字面 token。"""
     decoded = text.replace(PARA_NEWLINE, "\n\n").replace(SOFT_NEWLINE, "\n")
-    for _tok, _raw, _sent, _lit in _SPACE_FAM:
+    for _tok, _raw, _sent, _sent2, _lit in _SPACE_FAM:
         decoded = decoded.replace(_tok, _lit)
     decoded = decoded.replace(SOFT_NEWLINE_RAW, SOFT_NEWLINE)
     decoded = decoded.replace(PARA_NEWLINE_RAW, PARA_NEWLINE)
-    for _tok, _raw, _sent, _lit in _SPACE_FAM:
+    for _tok, _raw, _sent, _sent2, _lit in _SPACE_FAM:
         decoded = decoded.replace(_raw, _tok)
     decoded = decoded.replace(_SOFT_NEWLINE_SENTINEL, SOFT_NEWLINE_RAW)
     decoded = decoded.replace(_PARA_NEWLINE_SENTINEL, PARA_NEWLINE_RAW)
-    for _tok, _raw, _sent, _lit in _SPACE_FAM:
+    for _tok, _raw, _sent, _sent2, _lit in _SPACE_FAM:
         decoded = decoded.replace(_sent, _raw)
+    decoded = decoded.replace(_SOFT_NEWLINE_SENTINEL2, _SOFT_NEWLINE_SENTINEL)
+    decoded = decoded.replace(_PARA_NEWLINE_SENTINEL2, _PARA_NEWLINE_SENTINEL)
+    for _tok, _raw, _sent, _sent2, _lit in _SPACE_FAM:
+        decoded = decoded.replace(_sent2, _sent)
     return decoded
 
 
@@ -234,11 +254,19 @@ def diff(src: str, zh: str) -> PhDiff:
     # 模糊候选 = zh 侧多余完整 token + 拼变体；扫未遮盖 zh 与 L0 同口径
     # （注释里的候选一样喂 lev 配对——错了顶多多一条 misspelled 提示）
     cands = list((zcnt - scnt).elements())
-    cands += [
+    # src 里 verbatim 存在的同形 token（如引用标号 [RS80]）是原文内容而非
+    # 臆造占位符——按净差计数豁免，与 L0 _check_placeholder 同口径
+    src_literal = Counter(
+        m.group(0)
+        for m in PH_FUZZY_RX.finditer(src)
+        if not ANY_PH_RX.fullmatch(m.group(0))
+    )
+    zh_fuzzy = Counter(
         m.group(0)
         for m in PH_FUZZY_RX.finditer(zh)
         if not ANY_PH_RX.fullmatch(m.group(0))
-    ]
+    )
+    cands += list((zh_fuzzy - src_literal).elements())
     used: set[int] = set()
     out = PhDiff()
     for ph in missing:
