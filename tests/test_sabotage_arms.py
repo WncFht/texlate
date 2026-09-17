@@ -17,6 +17,7 @@ r"""sabotage/perturb 臂注入与台账契约钉——``translators_bench`` + ``
 from __future__ import annotations
 
 import asyncio
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -31,6 +32,9 @@ from texlate.xlat.pipeline import (  # noqa: E402
     _mock_translate_text,
 )
 from texlate.xlat.placeholders import encode_newlines  # noqa: E402
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 _SRC = "Paragraph body carries [[MATH_1]] and [[EQ_2]] tokens here."
 _CLEAN_ZH = "译文 [[MATH_1]] 和 [[EQ_2]] 文本。"
@@ -50,6 +54,16 @@ def _corruptible_seg() -> str:
             return s
     pytest.fail("no corruptible seg in 500")
     return ""  # unreachable — pytest.fail raises
+
+
+def _seg_of_kind(kind: str | None, prefix: str) -> str:
+    """确定性计划扫描：找 ``_plan_b`` 判 ``kind``（None = 计划外）的探测段。"""
+    for i in range(3000):
+        s = f"{prefix} {i} embeds [[MATH_{i}]] plus [[EQ_{i}]] inline."
+        if emb._plan_b(s) == kind:  # noqa: SLF001
+            return s
+    pytest.fail(f"no {kind} seg in 3000")
+    return ""  # unreachable
 
 
 class TestArmFactory:
@@ -242,3 +256,135 @@ class TestEndToEnd:
         assert led["sabotaged"] == 1
         assert led["escaped"] == 0
         assert led["caught"] + led["recovered"] == 1
+
+
+class TestResumeRecheck:
+    """续跑洞钉（sabotage-resume 2026-09-17）：state 恢复行零事件——
+    ``finalize`` 按 blake2s 计划从 ``r.source`` 复算靶向，drop 型逃逸不漏账。"""
+
+    def test_resume_state_row_escape_counted(self, tmp_path: Path) -> None:
+        """真实续跑复现：drop 破坏译文 ok 落 state → 第二轮全恢复零事件 →
+        ``finalize`` 必须把 state 行的 multiset 破坏记 escaped（修复前静默漏账）。"""
+        from texlate.xlat.state import StateStore  # noqa: PLC0415 -- 延迟到用点
+
+        seg = _seg_of_kind("drop_ph", "Resume probe")
+        chunks = [ChunkIn(chunk_id="0:0", content=seg, kind="para")]
+        # 第一轮：放行校验器 → drop 破坏译文以 ok 落 state（逃逸既成事实；
+        # zh⊆src 过 reload 三网，下一轮按 completed 直还原不再发请求）
+        tr1 = tb.make_translator("sabotage-b")
+        pipe1 = XlatPipeline(
+            tr1, state=StateStore(tmp_path), validator=lambda _s, _z: ""
+        )
+        r1 = asyncio.run(pipe1.run(chunks))
+        assert r1[0].status == "ok"
+        assert len(tr1.events) == 1
+        # 第二轮（续跑语义）：全新 translator + 同 state → 零调用零事件
+        tr2 = tb.make_translator("sabotage-b")
+        pipe2 = XlatPipeline(
+            tr2, state=StateStore(tmp_path), validator=lambda _s, _z: ""
+        )
+        r2 = asyncio.run(pipe2.run(chunks))
+        assert tr2.calls == []
+        assert tr2.events == []
+        led = tr2.finalize(r2)
+        assert led["n_events"] == 0
+        assert led["sabotaged"] == 1
+        assert led["escaped"] == 1
+        assert led["escaped_ids"] == ["0:0"]
+
+    def test_restored_row_without_events_rechecked(self) -> None:
+        """台账面直测：零事件 + state 恢复形行（ok + drop 破坏译文）→ escaped。"""
+        seg = _seg_of_kind("drop_ph", "Direct probe")
+        zh, _detail = emb._apply_b(  # noqa: SLF001
+            _mock_translate_text(seg, "这是译文"), seg, "drop_ph"
+        )
+        tr = tb.make_translator("sabotage-b")  # 全新实例 = 续跑语义（events 空）
+        led = tr.finalize([_mk("0:0", seg, zh, "ok")])
+        assert led["sabotaged"] == 1
+        assert led["escaped"] == 1
+        assert led["escaped_ids"] == ["0:0"]
+
+    def test_restored_clean_row_counts_recovered(self) -> None:
+        """靶向恢复行交付译文 multiset 对齐 → recovered 不 escaped。"""
+        seg = _seg_of_kind("drop_ph", "Clean probe")
+        zh = _mock_translate_text(seg, "这是译文")  # token 原位保留 → multiset 对齐
+        tr = tb.make_translator("sabotage-b")
+        led = tr.finalize([_mk("0:0", seg, zh, "ok")])
+        assert led["sabotaged"] == 1
+        assert led["recovered"] == 1
+        assert led["escaped"] == 0
+
+    def test_restored_fault_row_counts_caught(self) -> None:
+        """靶向恢复行未交付（fault 回退原文）→ caught——交付谓词同事件口径。"""
+        seg = _seg_of_kind("drop_ph", "Fault probe")
+        tr = tb.make_translator("sabotage-b")
+        led = tr.finalize([_mk("0:0", seg, seg, "fault", skipped=True)])
+        assert led["sabotaged"] == 1
+        assert led["caught"] == 1
+        assert led["escaped"] == 0
+
+    def test_untargeted_restored_row_untouched(self) -> None:
+        """计划外恢复行（``_plan_b`` None）→ 不计 sabotaged——复算不放大覆盖。"""
+        seg = _seg_of_kind(None, "Quiet probe")
+        tr = tb.make_translator("sabotage-b")
+        led = tr.finalize([_mk("0:0", seg, "译文。", "ok")])
+        assert led["sabotaged"] == 0
+        assert led["escaped"] == 0
+
+    def test_mixed_event_and_restored_rows(self) -> None:
+        """混合轮：本轮发请求块走事件账 + 恢复行走复算——两路并账各记一次。"""
+        seg_a = _seg_of_kind("drop_ph", "Alpha probe")
+        seg_b = _seg_of_kind("drop_ph", "Beta probe")
+        tr = tb.make_translator("sabotage-b")
+        out_a = asyncio.run(
+            tr.translate(system="s", user=seg_a, temperature=0, max_tokens=99)
+        )
+        assert len(tr.events) == 1
+        zh_b, _detail = emb._apply_b(  # noqa: SLF001
+            _mock_translate_text(seg_b, "这是译文"), seg_b, "drop_ph"
+        )
+        led = tr.finalize(
+            [
+                _mk("0:0", seg_a, out_a, "ok"),  # 事件块
+                _mk("0:1", seg_b, zh_b, "ok"),  # 恢复行（零事件）
+            ]
+        )
+        assert led["sabotaged"] == 2  # noqa: PLR2004
+        assert led["escaped"] == 2  # noqa: PLR2004
+        assert sorted(led["escaped_ids"]) == ["0:0", "0:1"]
+
+    def test_event_row_not_double_counted(self) -> None:
+        """事件块同时被复算命中——evs 优先不双计（事件驱动计数口径不变）。"""
+        seg = _seg_of_kind("drop_ph", "Once probe")
+        tr = tb.make_translator("sabotage-b")
+        out = asyncio.run(
+            tr.translate(system="s", user=seg, temperature=0, max_tokens=99)
+        )
+        assert len(tr.events) == 1
+        led = tr.finalize([_mk("0:0", seg, out, "ok")])
+        assert led["sabotaged"] == 1
+        assert led["escaped"] == 1
+        assert led["escaped_ids"] == ["0:0"]
+
+    def test_mode_c_restored_row_spliced(self) -> None:
+        """Mode C 恢复行：规范形 ``_apply_c`` 复算 moved>0 → spliced + moved 入账。"""
+        seg = mv = 0
+        for i in range(3000):
+            cand = f"Delta {i} has [[MATH_{i}]] and [[EQ_{i}]] plus [[FIG_{i}]] text."
+            _, mv = emb._apply_c(  # noqa: SLF001
+                _mock_translate_text(cand, "这是译文"), cand
+            )
+            if mv:
+                seg = cand
+                break
+        if not seg:
+            pytest.fail("no movable seg in 3000")
+        pert, _ = emb._apply_c(  # noqa: SLF001
+            _mock_translate_text(seg, "这是译文"), seg
+        )
+        tr = tb.make_translator("perturb")
+        led = tr.finalize([_mk("0:0", seg, pert, "ok")])
+        assert led["sabotaged"] == 1
+        assert led["spliced"] == 1
+        assert led["dropped"] == 0
+        assert led["moved"] == mv

@@ -24,6 +24,12 @@ r"""translators_bench.py — stagerun ``xlat --arm`` 的 translator 适配层。
   口径：段可能是 encoded 全段/行切片/原文），就地填计数器并返回
   ``ledger``——stagerun 落 ``rec["metrics"]["sabotage"]``。幂等：
   重复 finalize 先清零重数。
+- 靶向判定 = 事件 ∪ 确定性复算（``_replan``）：本轮发请求的块走
+  ``events`` 明细；续跑 StateStore 恢复行（ok/partial 直还原、
+  ``translate`` 零调用零事件）按 blake2s 计划从 ``r.source`` 重放
+  「应否被破坏」——drop 型逃逸（zh⊆src）reload 三网不拦、崩溃轮
+  落 state 后不再按「无事件即未破坏」漏账；fabricate 型（zh 带源外
+  token）reload 已被 ``_intercept_leftover_ph`` 降 fault 重翻自愈。
 - mock 臂返回裸 ``pipeline.MockTranslator``（无台账面）；
   ``hasattr(tr, "finalize")`` / ``getattr(tr, "finalize", None)`` 是
   探测点（stagerun ``_SemTranslator`` 经 ``__getattr__`` 透传）。
@@ -32,7 +38,8 @@ ledger schema（``sabotaged`` = 命中事件的块数；``moved`` = C 模式挪�
 
     events    list[dict]  注入事件明细（与 .events 同对象）
     n_events  int         len(events)，finalize 时刷新
-    sabotaged moved       int
+    sabotaged int         事件命中 ∪ 计划复算靶向的块数（续跑恢复行计入）
+    moved     int         C 模式挪位总数（恢复行按规范首调形态复算）
     sabotage-b 另含: caught / recovered / escaped / escaped_ids
     sabotage-c·perturb 另含: spliced / dropped
 
@@ -54,11 +61,58 @@ import e2e_mock_bench as _emb  # Mode B/C 注入实现唯一事实源
 
 from texlate.e2e import _delivered
 from texlate.latex.placeholder import PH_RX
-from texlate.xlat.pipeline import ChunkResult, MockTranslator, Translator
+from texlate.xlat.batch import split_long_chunk
+from texlate.xlat.pipeline import (
+    MOCK_ZH,
+    ChunkResult,
+    MockTranslator,
+    Translator,
+    _mock_translate_text,
+)
+from texlate.xlat.placeholders import encode_newlines
 
 
-def _finalize(ledger: dict, results: list[ChunkResult], mode: str) -> dict:
-    """逐块归因填计数器——e2e_mock ``pipe_mode_condition`` 台账同构，幂等。"""
+def _replan(r: ChunkResult, mode: str, *, zh: str = MOCK_ZH) -> tuple[bool, int]:
+    """零事件行的破坏计划确定性复算 → (是否靶向, moved 复算值)。
+
+    续跑 StateStore 恢复行不走 ``translate`` → 本轮 ``events`` 零入账；
+    blake2s 决策 = f(段内容) 使「应否被破坏」可从 ``r.source``（state
+    ``results[]`` 落盘字段，无需再派生）重放。调用面 seg 形态复刻
+    ``_route_chunks``：``hard_limit`` 默认阈值切片、逐片
+    ``encode_newlines``——``_canon`` 在 encoded/原文间归一，encoded
+    重放即同决策。Mode B 另查原文形 ``_plan_b(piece)``：corrector/L2
+    回灌的 seg 是未编码原文，含字面占位族 token 的源下两类 canon
+    哈希可分歧，并集宁宽勿漏。Mode C moved 按规范首调形态
+    ``_apply_c(mock(enc))`` 复算——重试/corrector 形 ``out`` 位置不
+    保证，确定性近似（raw 形 canon 的 flagged 不展开：挪位保
+    multiset 过 L0，注入块几乎走不到 corrector）。
+    """
+    targeted = False
+    moved = 0
+    for piece in split_long_chunk(r.source):
+        enc = encode_newlines(piece)[0]
+        if mode == "B":
+            targeted = targeted or (
+                _emb._plan_b(enc) is not None or _emb._plan_b(piece) is not None
+            )
+        else:
+            _, mv = _emb._apply_c(_mock_translate_text(enc, zh), enc)
+            moved += mv
+    if mode == "C":
+        targeted = moved > 0
+    return targeted, moved
+
+
+def _finalize(
+    ledger: dict, results: list[ChunkResult], mode: str, *, zh: str = MOCK_ZH
+) -> dict:
+    """逐块归因填计数器——e2e_mock ``pipe_mode_condition`` 台账同构，幂等。
+
+    靶向判定 = 事件 ∪ ``_replan``：有事件块按 ``events`` 明细（实际
+    注入证据，moved 取真值）；零事件块（续跑恢复/缓存命中旁路）按
+    确定性计划复算——交付/multiset 谓词对两类行同口径施加于
+    ``r.source``/``r.translation``（均为 state 落盘字段）。
+    """
     src_ph = lambda s: sorted(PH_RX.findall(s))  # noqa: E731
     events = ledger["events"]
     ledger["n_events"] = len(events)
@@ -70,10 +124,15 @@ def _finalize(ledger: dict, results: list[ChunkResult], mode: str) -> dict:
         ledger.update(spliced=0, dropped=0)
     for r in results:
         evs = [e for e in events if _emb._seg_of(r.source, e["seg"])]
-        if not evs:
+        if evs:
+            targeted = True
+            n_moved = sum(e.get("moved", 0) for e in evs)
+        else:
+            targeted, n_moved = _replan(r, mode, zh=zh)
+        if not targeted:
             continue
         ledger["sabotaged"] += 1
-        ledger["moved"] += sum(e.get("moved", 0) for e in evs)
+        ledger["moved"] += n_moved
         # 交付谓词与 splice/e2e 台账同口径：ok | partial+译文——partial（阶梯
         # recovered）译文照进文档，严卡 ok 会把脏 partial 记 caught 漏 escaped。
         delivered = _delivered(r)
@@ -108,7 +167,9 @@ class _Ledgered:
 
     def finalize(self, results: list[ChunkResult]) -> dict:
         """pipeline 结果 → 结局计数器（caught/recovered/escaped 或 spliced/dropped）。"""
-        return _finalize(self.ledger, results, self._MODE)
+        return _finalize(
+            self.ledger, results, self._MODE, zh=getattr(self, "zh", MOCK_ZH)
+        )
 
 
 class SabotageTranslator(_Ledgered, _emb.SabotageTranslator):
