@@ -1,0 +1,83 @@
+envarg scout: dimen/number-arg environments census (2026-09-17)
+================================================================
+
+SCOPE
+  \\begin{ENV} occurrences across
+    bench/results/stagerun-loop1-2026-09-16/work/*/src/**/*.tex  (10914 files / 5059 papers)
+    bench/corpus_v3/*/extracted/**/*.tex                       ( 9704 files / 4053 papers, cross-check)
+  Goal: environments whose leading {...} args are all dimen/number-shaped
+  ({1em}, {0.5}, {3}, {2\linewidth}) -- unit-letter leak candidates for
+  argspec.json env entries. adjustwidth*/hangparas excluded (sibling fixer in flight).
+
+METHOD
+  regex \\begin\{env\} -> run of consecutive {...} groups (optional leading [opt] -> o flag).
+  Each arg classified num|dimen|star|dimexpr|empty|other.
+  Verdicts: strict (all in num/dimen/star), expr (also dimexpr/empty),
+  partial (first shaped, later not -- all reviewed, nothing uncovered).
+  Real-vs-commented split by %-position on source line.
+  Coverage checked against argspec.json environments + MATH_ENVS / PROTECTED_ENVS /
+  VERBATIM_ENVS / ARG_TRANSPARENT_ENVS / ENV_MANDATORY_ARG (src/texlate/latex/tables.py).
+  Raw data: scan_stagerun.json, scan_corpusv3.json; scanner: scan_envargs.py.
+
+RANKED CANDIDATES (currently uncovered)
+  env                    shaped(stg+cv3)  real(stg)  papers  signature   package                evidence
+  ---------------------  --------------  ---------  ------  ----------  ---------------------  ------------------------------------------
+  varwidth                     90           86         4     o m         varwidth               usepackage confirmed 4/4; [t]{2\linewidth},{5cm}
+  lrbox                        31           14        10     m           latex2e                arg = save-box cs name {\commentbox}; same fix path
+  numcases                     42           19         6     m           cases                  usepackage confirmed 4/4; LHS math arg, usually {}
+  turn                         17            9         8     m           rotating               {90}/{-90} angle
+  rotate                       17           10         5     m           rotating               same arg shape
+  boxedminipage                10            5         3     m           boxedminipage          {\linewidth}/{13cm}; confirmed 2/3
+  listing                       6            6         5     o m         moreverb / listing     [1]{9} = [start]{step}
+  floatingfigure                8            2         2     o m         floatflt               [r]{43mm}; confirmed both papers
+  textblock* (+textblock)       6            1         2     m           textpos                {5cm}(130mm,-10mm); trailing (x,y) argspec can't express
+  changemargin                 10            2         4     m m         chngpage/changepage    {.8cm}{.5cm}; cls-transitive, most hits commented
+  chapthebibliography           3            3         3     m           bibunits / contrib cls {9}/{} widest-label, like thebibliography
+  dingautolist                  1            1         1     m           pifont                 {192} symbol number
+  lyxlist                       2            1         1     m           paper-defined (LyX)    \newenvironment{lyxlist}[1]; {00.00.0000} widest-label; stable LyX pattern -> manual fit
+  addmargin                     1            0         1     o m         scrextend (KOMA)       [1em]{1.7em} commented only; tail
+  chronology                    2            0         1     o m m m m   chronology             [20]{1}{42}{3ex}{\textwidth} commented only; tail
+
+  Zero-hit same-package siblings worth adding (same signature):
+  subnumcases/widercases (cases), floatingtable (floatflt),
+  textblock unstarred (textpos), addmargin* (scrextend).
+
+SAMPLE LINES
+  varwidth        work/1706.00221/src/MaxDiss.tex:239 \begin{varwidth}[t]{2\linewidth} ; :1302 {\begin{varwidth}{5cm}Let $\mathcal{S}$...
+  lrbox           work/1811.10096/src/main.tex:65 \begin{lrbox}{\commentbox} ; work/1907.00102/src/macros.tex:660
+  numcases        work/2105.03733/src/content/gac.tex:45 \begin{numcases}{} ; work/0905.0940/src/preamble_anima.tex:16
+  turn            corpus_v3/1907.00079/extracted/coclite.tex:294 \raisebox{0ex}{\begin{turn}{90} \end{turn}}
+  rotate          work/0905.0052/src/optimalscrap.tex:339 \put(-0.1,2.5){\begin{rotate}{90}Population\end{rotate}}
+  boxedminipage   work/1206.0136/src/Paper.tex:381 {\linewidth} ; work/1511.02943/src/QuantumEquivalence-v3.tex:93 {13cm}
+  listing         work/cs--0111043/src/langevine-et-al.tex:1011 [1]{1} ; :1023 [1]{9}
+  floatingfigure  work/0707.3673/src/ck04.tex:367 [r]{43mm}
+  textblock*      work/1404.0096/src/draft_-_prl.tex:67 {5cm}(130mm,-10mm) ; work/2310.16788/src/root.tex:98 {17cm}(20mm,1mm)
+  changemargin    work/1206.5536/src/GSC_2038_0293.tex:88 {.8cm}{.5cm} ; work/1306.0560/src/g301.tex:160
+  chapthebibl.    work/astro-ph--0408466/src/Vlahakis_revised.tex:234 {1} ; work/cond-mat--0104460/src/contrib.tex:119 {9}
+  dingautolist    work/nucl-ex--0111004/src/nchAnalysis.tex:436 {192}
+  lyxlist         work/1003.5474/src/pamipap3.tex:925 {00.00.0000} (def :34 \newenvironment{lyxlist}[1])
+  addmargin       work/1907.00141/src/sec-probdef.tex:89 [1em]{1.7em} (commented)
+  chronology      work/1706.00177/src/MedHoc2017_v6.tex:324 [20]{1}{42}{3ex}{\textwidth} (commented)
+
+PAPER-DEFINED / NOT ARGSPEC-WORTHY
+  \newenvironment in paper's own sources: net (32 real, 1003.4562), wide (14, 0905.0107),
+  topbox (10, 1404.0447), indentation (4, 1706.00295 own indent.sty), resumeenumerate (5,
+  1012.1541), tightlist (3 shaped of 7, 2112.00133), labeledcd, frameminipage, widespace,
+  customthm. Class/journal-defined: thefigures/thetables {99} (physics--0501058), @abssec.
+  Non-dimen arg envs out of scope: msc/adjustbox/macro/IEEEbiography/references/
+  thereferences/theunbibliography/frontmatter/letter/AIbox/Mizar/noindentlist (empty or
+  cs/text args), nota/lema/definicion/corolary/theo ({\bf }, 1003.4853).
+  minipae = misspelled \begin{minipage} in a comment -- noise.
+
+ALREADY COVERED (context)
+  minipage (1380 strict), subfigure (7364 expr), thebibliography (4402), tabular*/tabularx/
+  tabulary/list/spacing/subtable/spreadlines -- via ENV_MANDATORY_ARG/argspec/tables.
+  multicols already argspec:multicol gated (254 strict, 63 papers -- highest-volume dimen env).
+  adjustwidth alone: 76 shaped, 11 papers -- was top uncovered before sibling fix.
+
+VERDICT
+  19 names in env_candidates.txt (14 evidence-backed + 5 same-package siblings).
+  Frequency justifies top 8: varwidth/lrbox/numcases/turn/rotate/boxedminipage/listing/
+  floatingfigure. Mid-tier confirmed-signature: textblock*/changemargin/chapthebibliography.
+  Tail (dingautolist/lyxlist/addmargin/chronology): known-signature, near-zero hits --
+  add if entries are cheap, skip if gated on evidence.

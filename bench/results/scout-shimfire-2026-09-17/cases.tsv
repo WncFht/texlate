@@ -1,0 +1,430 @@
+corpus	ts	verdict	engine	last_missing_file	class	reason	evidence
+0707.0128	2026-09-16 15:48:11	unfixable:missing_file	xelatex	iopams.sty	A	c	stub iopams.sty injected
+0707.0128	2026-09-16 15:48:11	unfixable:missing_file	xelatex	iopart.cls	A	c	stub iopart.cls injected
+0707.0128	2026-09-16 15:48:11	unfixable:missing_file	xelatex	setstack.sty	A	d	pay_hit, loop_rules=['legacy_pkg_shim', 'legacy_pkg_shim']
+0707.3719	2026-09-16 15:48:40	unfixable:missing_file	xelatex	svmult.cls	A	d	pay_hit, loop_rules=[]
+0707.3720	2026-09-16 15:48:42	unfixable:missing_file	xelatex	citesort.sty	A	d	pay_hit, loop_rules=[]
+0707.1954	2026-09-16 15:49:01	unfixable:missing_file	xelatex	IEEEtran.cls	?	I	precheck installed
+0707.1954	2026-09-16 15:49:01	unfixable:missing_file	xelatex	pst-all.sty	B	I	precheck installed
+0806.1498	2026-09-16 15:49:32	unfixable:missing_file	xelatex	axodraw.sty	A	d	pay_hit, loop_rules=[]
+0806.1498	2026-09-16 15:49:32	unfixable:missing_file	xelatex	pst-node.sty	B	I	precheck installed
+0806.1498	2026-09-16 15:49:32	unfixable:missing_file	xelatex	pst-text.sty	B	I	precheck installed
+0806.1498	2026-09-16 15:49:32	unfixable:missing_file	xelatex	pstricks.sty	B	I	precheck installed
+0806.2040	2026-09-16 15:49:32	unfixable:missing_file	xelatex	emulateapj.sty	A	d	pay_hit, loop_rules=[]
+0806.1931	2026-09-16 15:50:09	unfixable:missing_file	xelatex	llncs.cls	?	I	precheck installed
+0806.1931	2026-09-16 15:50:09	unfixable:missing_file	xelatex	pst-all.sty	B	I	precheck installed
+0806.3028	2026-09-16 15:50:37	unfixable:missing_file	xelatex	multind.sty	A	d	pay_hit, loop_rules=[]
+0806.3286	2026-09-16 15:50:50	unfixable:missing_file	xelatex	imstoc.sty	?	b	never payload; last_pay=texsort.sty
+0806.3286	2026-09-16 15:50:50	unfixable:missing_file	xelatex	texsort.sty	A	d	pay_hit, loop_rules=[]
+0806.3681	2026-09-16 15:51:35	unfixable:missing_file	xelatex	pst-all.sty	B	I	precheck installed
+0905.0044	2026-09-16 15:51:37	unfixable:missing_file	xelatex	algorithm.sty	B	I	precheck installed
+0905.0044	2026-09-16 15:51:37	unfixable:missing_file	xelatex	ams.sty	A	d	pay_hit, loop_rules=[]
+0905.0537	2026-09-16 15:51:46	unfixable:missing_file	xelatex	diagrams.sty	A	d	pay_hit, loop_rules=[]
+0905.0876	2026-09-16 15:51:50	unfixable:missing_file	xelatex	svjour2.cls	A	d	pay_hit, loop_rules=[]
+0905.0946	2026-09-16 15:51:52	unfixable:missing_file	xelatex	diagrams.sty	A	d	pay_hit, loop_rules=[]
+0905.1214	2026-09-16 15:52:02	unfixable:missing_file	xelatex	epl2.cls	A	d	pay_hit, loop_rules=[]
+0905.1214	2026-09-16 15:52:02	unfixable:missing_file	xelatex	revtex4.cls	A	I	precheck installed
+0905.4380	2026-09-16 15:52:08	unfixable:missing_file	xelatex	axodraw.sty	A	d	pay_hit, loop_rules=[]
+0905.4620	2026-09-16 15:52:11	unfixable:missing_file	xelatex	cimento.cls	A	d	pay_hit, loop_rules=[]
+0905.4200	2026-09-16 15:52:15	unfixable:missing_file	xelatex	diagrams.sty	A	d	pay_hit, loop_rules=[]
+0905.4200	2026-09-16 15:52:15	unfixable:missing_file	xelatex	stmaryrd.sty	B	I	precheck installed
+1003.0067	2026-09-16 15:52:17	unfixable:missing_file	xelatex	conm-p-l.cls	A	d	pay_hit, loop_rules=[]
+1003.0381	2026-09-16 15:52:39	unfixable:missing_file	xelatex	epsf.sty	B	I	precheck installed
+1003.0381	2026-09-16 15:52:39	unfixable:missing_file	xelatex	eptcs.cls	A	d	pay_hit, loop_rules=[]
+1003.0792	2026-09-16 15:52:47	unfixable:missing_file	xelatex	epl2.cls	A	d	pay_hit, loop_rules=[]
+1003.0945	2026-09-16 15:52:55	unfixable:missing_file	xelatex	pasj00.cls	A	d	pay_hit, loop_rules=[]
+1003.4727	2026-09-16 15:53:09	unfixable:missing_file	xelatex	ol2.sty	A	d	pay_hit, loop_rules=[]
+1003.4727	2026-09-16 15:53:09	unfixable:missing_file	xelatex	osajnl2.sty	?	b	never payload; last_pay=ol2.sty
+1003.5240	2026-09-16 15:53:16	unfixable:missing_file	xelatex	imstoc.sty	?	b	never payload; last_pay=texsort.sty
+1003.5240	2026-09-16 15:53:16	unfixable:missing_file	xelatex	texsort.sty	A	d	pay_hit, loop_rules=[]
+1012.1161	2026-09-16 15:53:21	unfixable:missing_file	xelatex	texsort.sty	A	d	pay_hit, loop_rules=[]
+1012.1738	2026-09-16 15:53:23	unfixable:missing_file	xelatex	picins.sty	?	b	never payload; last_pay=undertilde.sty
+1012.1738	2026-09-16 15:53:23	unfixable:missing_file	xelatex	undertilde.sty	A	d	pay_hit, loop_rules=[]
+1012.2012	2026-09-16 15:53:30	unfixable:missing_file	xelatex	epsf.sty	B	I	precheck installed
+1012.2012	2026-09-16 15:53:30	unfixable:missing_file	xelatex	imsart.cls	A	d	pay_hit, loop_rules=[]
+1003.2152	2026-09-16 15:53:42	unfixable:missing_file	xelatex	pst-3d.sty	?	I	precheck installed
+1003.2152	2026-09-16 15:53:42	unfixable:missing_file	xelatex	pst-plot.sty	B	I	precheck installed
+1003.2152	2026-09-16 15:53:42	unfixable:missing_file	xelatex	pstcol.sty	?	I	precheck installed
+1003.1224	2026-09-16 15:53:46	unfixable:missing_file	xelatex	thmtools.sty	?	I	precheck installed
+1003.1224	2026-09-16 15:53:46	unfixable:missing_file	xelatex	vaucanson-g.sty	?	I	precheck installed
+1206.0026	2026-09-16 15:53:55	unfixable:missing_file	xelatex	iopams.sty	A	c	stub iopams.sty injected
+1206.0026	2026-09-16 15:53:55	unfixable:missing_file	xelatex	iopart.cls	A	c	stub iopart.cls injected
+1206.0026	2026-09-16 15:53:55	unfixable:missing_file	xelatex	setstack.sty	A	d	pay_hit, loop_rules=['legacy_pkg_shim', 'legacy_pkg_shim']
+1012.5197	2026-09-16 15:54:08	unfixable:missing_file	xelatex	cctbase.sty	?	b	never payload; last_pay=citesort.sty
+1012.5197	2026-09-16 15:54:08	unfixable:missing_file	xelatex	citesort.sty	A	d	pay_hit, loop_rules=[]
+1012.5197	2026-09-16 15:54:08	unfixable:missing_file	xelatex	epsf.sty	B	I	precheck installed
+1012.5197	2026-09-16 15:54:08	unfixable:missing_file	xelatex	mathdots.sty	B	I	precheck installed
+1012.5197	2026-09-16 15:54:08	unfixable:missing_file	xelatex	stmaryrd.sty	B	I	precheck installed
+1012.5197	2026-09-16 15:54:08	unfixable:missing_file	xelatex	yhmath.sty	?	I	precheck installed
+1206.0368	2026-09-16 15:54:20	unfixable:missing_file	xelatex	conm-p-l.cls	A	d	pay_hit, loop_rules=[]
+1206.0530	2026-09-16 15:54:29	unfixable:missing_file	xelatex	iopart.cls	A	c	stub iopart.cls injected
+1206.0530	2026-09-16 15:54:29	unfixable:missing_file	xelatex	setstack.sty	A	d	pay_hit, loop_rules=['legacy_pkg_shim']
+1206.0576	2026-09-16 15:54:35	unfixable:missing_file	xelatex	imstoc.sty	?	b	never payload; last_pay=texsort.sty
+1206.0576	2026-09-16 15:54:35	unfixable:missing_file	xelatex	texsort.sty	A	d	pay_hit, loop_rules=[]
+1206.0087	2026-09-16 15:54:40	unfixable:missing_file	xelatex	algorithm.sty	B	I	precheck installed
+1206.0087	2026-09-16 15:54:40	unfixable:missing_file	xelatex	algorithmic.sty	B	I	precheck installed
+1206.0087	2026-09-16 15:54:40	unfixable:missing_file	xelatex	pst-grad.sty	?	I	precheck installed
+1206.0087	2026-09-16 15:54:40	unfixable:missing_file	xelatex	pst-plot.sty	B	I	precheck installed
+1206.0087	2026-09-16 15:54:40	unfixable:missing_file	xelatex	pstricks.sty	B	I	precheck installed
+1206.0756	2026-09-16 15:54:53	unfixable:missing_file	xelatex	elsarticle.cls	?	I	precheck installed
+1206.0756	2026-09-16 15:54:53	unfixable:missing_file	xelatex	numcompress.sty	A	d	pay_hit, loop_rules=[]
+1206.0627	2026-09-16 15:54:56	unfixable:missing_file	xelatex	docs.sty	A	d	pay_hit, loop_rules=[]
+1206.0627	2026-09-16 15:54:56	unfixable:missing_file	xelatex	revtex4.cls	A	I	precheck installed
+1206.1835	2026-09-16 15:54:58	unfixable:missing_file	xelatex	diagrams.sty	A	d	pay_hit, loop_rules=[]
+1206.1960	2026-09-16 15:55:01	unfixable:missing_file	xelatex	imsart.cls	A	d	pay_hit, loop_rules=[]
+1206.5554	2026-09-16 15:55:12	unfixable:missing_file	xelatex	citesort.sty	A	d	pay_hit, loop_rules=[]
+1206.0275	2026-09-16 15:55:15	unfixable:missing_file	xelatex	pst-3d.sty	?	I	precheck installed
+1206.0275	2026-09-16 15:55:15	unfixable:missing_file	xelatex	pst-3dplot.sty	?	I	precheck installed
+1206.0275	2026-09-16 15:55:15	unfixable:missing_file	xelatex	pst-eps.sty	?	I	precheck installed
+1206.0275	2026-09-16 15:55:15	unfixable:missing_file	xelatex	pst-node.sty	B	I	precheck installed
+1206.0275	2026-09-16 15:55:15	unfixable:missing_file	xelatex	pst-plot.sty	B	I	precheck installed
+1206.0275	2026-09-16 15:55:15	unfixable:missing_file	xelatex	pst-text.sty	B	I	precheck installed
+1206.0275	2026-09-16 15:55:15	unfixable:missing_file	xelatex	pstricks-add.sty	B	I	precheck installed
+1206.0275	2026-09-16 15:55:15	unfixable:missing_file	xelatex	pstricks.sty	B	I	precheck installed
+1206.0275	2026-09-16 15:55:15	unfixable:missing_file	xelatex	revtex4-1.cls	A	I	precheck installed
+1206.5684	2026-09-16 15:55:20	unfixable:missing_file	xelatex	revtex4.cls	A	I	precheck installed
+1206.5684	2026-09-16 15:55:20	unfixable:missing_file	xelatex	svjour2.cls	A	d	pay_hit, loop_rules=[]
+1306.0302	2026-09-16 15:55:34	unfixable:missing_file	xelatex	JINST.cls	A	d	pay_hit, loop_rules=[]
+1306.0498	2026-09-16 15:55:43	unfixable:missing_file	xelatex	svjour3.cls	A	d	pay_hit, loop_rules=[]
+1306.0281	2026-09-16 15:55:44	unfixable:missing_file	xelatex	acm_proc_article-sp.cls	A	d	pay_hit, loop_rules=[]
+1306.0281	2026-09-16 15:55:44	unfixable:missing_file	xelatex	stmaryrd.sty	B	I	precheck installed
+1306.1932	2026-09-16 15:56:02	unfixable:missing_file	xelatex	appolb.cls	A	d	pay_hit, loop_rules=[]
+1306.5919	2026-09-16 15:56:09	unfixable:missing_file	xelatex	PoS.cls	A	d	pay_hit, loop_rules=[]
+1306.6030	2026-09-16 15:56:10	unfixable:missing_file	xelatex	conm-p-l.cls	A	d	pay_hit, loop_rules=[]
+1404.0176	2026-09-16 15:56:22	unfixable:missing_file	xelatex	jheppub.sty	A	d	pay_hit, loop_rules=[]
+1404.0460	2026-09-16 15:56:40	unfixable:missing_file	xelatex	default.sty	A	d	pay_hit, loop_rules=[]
+1404.0460	2026-09-16 15:56:40	unfixable:missing_file	xelatex	revtex4-1.cls	A	I	precheck installed
+1404.2073	2026-09-16 15:56:47	unfixable:missing_file	xelatex	soul.sty	B	I	precheck installed
+1404.2073	2026-09-16 15:56:47	unfixable:missing_file	xelatex	undertilde.sty	A	d	pay_hit, loop_rules=[]
+1404.2351	2026-09-16 15:56:47	unfixable:missing_file	xelatex	aastex.cls	A	b	never payload; last_pay=emulateapj-rtx4.cls
+1404.2351	2026-09-16 15:56:47	unfixable:missing_file	xelatex	apjfonts.sty	A	b	never payload; last_pay=emulateapj-rtx4.cls
+1404.2351	2026-09-16 15:56:47	unfixable:missing_file	xelatex	emulateapj-rtx4.cls	A	d	pay_hit, loop_rules=[]
+1404.0339	2026-09-16 15:57:03	unfixable:missing_file	xelatex	bibgerm.sty	?	I	precheck installed
+1404.0339	2026-09-16 15:57:03	unfixable:missing_file	xelatex	pst-3dplot.sty	?	I	precheck installed
+1404.0339	2026-09-16 15:57:03	unfixable:missing_file	xelatex	pst-all.sty	B	I	precheck installed
+1404.0339	2026-09-16 15:57:03	unfixable:missing_file	xelatex	pst-math.sty	?	I	precheck installed
+1404.0339	2026-09-16 15:57:03	unfixable:missing_file	xelatex	pst-node.sty	B	I	precheck installed
+1404.0339	2026-09-16 15:57:03	unfixable:missing_file	xelatex	pst-plot.sty	B	I	precheck installed
+1404.0339	2026-09-16 15:57:03	unfixable:missing_file	xelatex	pstricks-add.sty	B	I	precheck installed
+1404.0339	2026-09-16 15:57:03	unfixable:missing_file	xelatex	pstricks.sty	B	I	precheck installed
+1502.06317	2026-09-16 15:57:05	unfixable:missing_file	xelatex	svjour3.cls	A	d	pay_hit, loop_rules=[]
+1404.5993	2026-09-16 15:57:05	unfixable:missing_file	xelatex	jheppub.sty	A	d	pay_hit, loop_rules=[]
+1404.5993	2026-09-16 15:57:05	unfixable:missing_file	xelatex	revtex4.cls	A	I	precheck installed
+1404.2225	2026-09-16 15:57:08	unfixable:missing_file	xelatex	pst-plot.sty	B	I	precheck installed
+1404.2225	2026-09-16 15:57:08	unfixable:missing_file	xelatex	pstricks.sty	B	I	precheck installed
+1608.07091	2026-09-16 15:57:32	unfixable:missing_file	xelatex	iopams.sty	A	c	stub iopams.sty injected
+1608.07091	2026-09-16 15:57:32	unfixable:missing_file	xelatex	iopart.cls	A	c	stub iopart.cls injected
+1706.00222	2026-09-16 15:57:57	unfixable:missing_file	xelatex	jinstpub.sty	A	d	pay_hit, loop_rules=[]
+1706.00222	2026-09-16 15:57:57	unfixable:missing_file	xelatex	siunitx.sty	B	I	precheck installed
+1706.00224	2026-09-16 15:58:00	unfixable:missing_file	xelatex	hepnames.sty	?	I	precheck installed
+1706.00224	2026-09-16 15:58:00	unfixable:missing_file	xelatex	jinstpub.sty	A	d	pay_hit, loop_rules=[]
+1706.00224	2026-09-16 15:58:00	unfixable:missing_file	xelatex	siunitx.sty	B	I	precheck installed
+1706.00166	2026-09-16 15:58:07	unfixable:missing_file	xelatex	algorithm2e.sty	?	I	precheck installed
+1706.00166	2026-09-16 15:58:07	unfixable:missing_file	xelatex	algorithmic.sty	B	I	precheck installed
+1706.00166	2026-09-16 15:58:07	unfixable:missing_file	xelatex	llncsdoc.sty	A	d	pay_hit, loop_rules=[]
+1706.00166	2026-09-16 15:58:07	unfixable:missing_file	xelatex	soul.sty	B	I	precheck installed
+1706.00166	2026-09-16 15:58:07	unfixable:missing_file	xelatex	stmaryrd.sty	B	I	precheck installed
+1706.00240	2026-09-16 15:58:09	unfixable:fontspec_missing	xelatex	aaspatch.sty	?	b	never payload; last_pay=Noto Mono
+1706.00240	2026-09-16 15:58:09	unfixable:fontspec_missing	xelatex	droidmono.sty	?	b	never payload; last_pay=Noto Mono
+1706.00240	2026-09-16 15:58:09	unfixable:fontspec_missing	xelatex	siunitx.sty	B	I	precheck installed
+1706.00371	2026-09-16 15:58:12	unfixable:missing_file	xelatex	slashbox.sty	A	b	never payload; last_pay=svjour3.cls
+1706.00371	2026-09-16 15:58:12	unfixable:missing_file	xelatex	svjour3.cls	A	d	pay_hit, loop_rules=[]
+1706.02511	2026-09-16 15:59:01	unfixable:missing_file	xelatex	mhchem.sty	?	I	precheck installed
+1706.02511	2026-09-16 15:59:01	unfixable:missing_file	xelatex	widetext.sty	A	d	pay_hit, loop_rules=['install_file']
+1706.00379	2026-09-16 15:59:05	unfixable:missing_file	xelatex	pst-grad.sty	?	I	precheck installed
+1706.00379	2026-09-16 15:59:05	unfixable:missing_file	xelatex	pst-plot.sty	B	I	precheck installed
+1706.00379	2026-09-16 15:59:05	unfixable:missing_file	xelatex	pstricks.sty	B	I	precheck installed
+1706.00379	2026-09-16 15:59:05	unfixable:missing_file	xelatex	stmaryrd.sty	B	I	precheck installed
+1706.07710	2026-09-16 15:59:20	unfixable:missing_file	xelatex	revtex4-1.cls	A	I	precheck installed
+1706.07710	2026-09-16 15:59:20	unfixable:missing_file	xelatex	soul.sty	B	I	precheck installed
+1706.07710	2026-09-16 15:59:20	unfixable:missing_file	xelatex	svjour3.cls	A	d	pay_hit, loop_rules=[]
+1706.07710	2026-09-16 15:59:20	unfixable:missing_file	xelatex	ulem.sty	?	I	precheck installed
+1803.00118	2026-09-16 15:59:28	unfixable:missing_file	xelatex	nature2.cls	A	d	pay_hit, loop_rules=[]
+1803.00118	2026-09-16 15:59:28	unfixable:missing_file	xelatex	tocstyle.sty	A	b	never payload; last_pay=nature2.cls
+1803.00138	2026-09-16 15:59:41	unfixable:missing_file	xelatex	algorithm.sty	B	I	precheck installed
+1803.00138	2026-09-16 15:59:41	unfixable:missing_file	xelatex	algpseudocode.sty	B	I	precheck installed
+1803.03089	2026-09-16 15:59:50	unfixable:missing_file	xelatex	jheppub.sty	A	d	pay_hit, loop_rules=[]
+1803.03089	2026-09-16 15:59:50	unfixable:missing_file	xelatex	ulem.sty	?	I	precheck installed
+1811.10292	2026-09-16 15:59:57	unfixable:missing_file	xelatex	imsart.cls	A	d	pay_hit, loop_rules=[]
+1907.00076	2026-09-16 16:00:14	unfixable:missing_file	xelatex	diagrams.sty	A	d	pay_hit, loop_rules=[]
+1907.00076	2026-09-16 16:00:14	unfixable:missing_file	xelatex	pstricks.sty	B	I	precheck installed
+1811.03607	2026-09-16 16:00:28	unfixable:missing_file	xelatex	algorithm.sty	B	I	precheck installed
+1811.03607	2026-09-16 16:00:28	unfixable:missing_file	xelatex	algpseudocode.sty	B	I	precheck installed
+1811.03607	2026-09-16 16:00:28	unfixable:missing_file	xelatex	default.sty	A	d	pay_hit, loop_rules=[]
+1811.03607	2026-09-16 16:00:28	unfixable:missing_file	xelatex	mathdots.sty	B	I	precheck installed
+1811.03607	2026-09-16 16:00:28	unfixable:missing_file	xelatex	revtex4-1.cls	A	I	precheck installed
+1811.03607	2026-09-16 16:00:28	unfixable:missing_file	xelatex	youngtab.sty	?	I	precheck installed
+1811.03607	2026-09-16 16:00:28	unfixable:missing_file	xelatex	ytableau.sty	?	I	precheck installed
+1907.03780	2026-09-16 16:00:35	unfixable:missing_file	xelatex	jheppub.sty	A	d	pay_hit, loop_rules=[]
+1907.03745	2026-09-16 16:00:37	unfixable:missing_file	xelatex	jheppub.sty	A	d	pay_hit, loop_rules=[]
+1907.03745	2026-09-16 16:00:37	unfixable:missing_file	xelatex	revtex4-1.cls	A	I	precheck installed
+1907.00206	2026-09-16 16:00:55	unfixable:missing_file	xelatex	iopams.sty	A	c	stub iopams.sty injected
+1907.00206	2026-09-16 16:00:55	unfixable:missing_file	xelatex	iopart.cls	A	c	stub iopart.cls injected
+1907.00206	2026-09-16 16:00:55	unfixable:missing_file	xelatex	pst-plot.sty	B	I	precheck installed
+1907.10363	2026-09-16 16:00:57	unfixable:missing_file	xelatex	algorithm.sty	B	I	precheck installed
+1907.10363	2026-09-16 16:00:57	unfixable:missing_file	xelatex	algorithmic.sty	B	I	precheck installed
+1907.10363	2026-09-16 16:00:57	unfixable:missing_file	xelatex	svjour3.cls	A	d	pay_hit, loop_rules=[]
+2104.00067	2026-09-16 16:01:46	unfixable:missing_file	xelatex	jheppub.sty	A	d	pay_hit, loop_rules=[]
+2104.00109	2026-09-16 16:01:50	unfixable:missing_file	xelatex	jinstpub.sty	A	d	pay_hit, loop_rules=[]
+2105.03808	2026-09-16 16:02:10	unfixable:missing_file	xelatex	diagrams.sty	A	d	pay_hit, loop_rules=[]
+2105.03894	2026-09-16 16:02:24	unfixable:missing_file	xelatex	bpchem.sty	?	I	precheck installed
+2105.03894	2026-09-16 16:02:24	unfixable:missing_file	xelatex	revtex4-1.cls	A	I	precheck installed
+2112.00025	2026-09-16 16:02:51	unfixable:missing_file	xelatex	jheppub.sty	A	d	pay_hit, loop_rules=[]
+2105.11398	2026-09-16 16:03:03	unfixable:missing_file	xelatex	Mittelbach.sty	?	b	never payload; last_pay=pst-node
+2105.11398	2026-09-16 16:03:03	unfixable:missing_file	xelatex	Samarin.sty	?	b	never payload; last_pay=pst-node
+2105.11398	2026-09-16 16:03:03	unfixable:missing_file	xelatex	har2nat.sty	?	I	precheck installed
+2105.11398	2026-09-16 16:03:03	unfixable:missing_file	xelatex	pst-pdf.sty	?	b	never payload; last_pay=pst-node
+2111.00051	2026-09-16 16:03:27	unfixable:missing_file	xelatex	auto-pst-pdf.sty	?	I	precheck installed
+2111.00051	2026-09-16 16:03:27	unfixable:missing_file	xelatex	faktor.sty	B	I	precheck installed
+2111.00051	2026-09-16 16:03:27	unfixable:missing_file	xelatex	mathdots.sty	B	I	precheck installed
+2111.00051	2026-09-16 16:03:27	unfixable:missing_file	xelatex	pst-node.sty	B	I	precheck installed
+2111.00051	2026-09-16 16:03:27	unfixable:missing_file	xelatex	shuffle.sty	?	I	precheck installed
+2111.00051	2026-09-16 16:03:27	unfixable:missing_file	xelatex	stmaryrd.sty	B	I	precheck installed
+2111.00051	2026-09-16 16:03:27	unfixable:missing_file	xelatex	ytableau.sty	?	I	precheck installed
+2203.13069	2026-09-16 16:03:49	unfixable:missing_file	xelatex	diagrams.sty	A	d	pay_hit, loop_rules=[]
+2203.13069	2026-09-16 16:03:49	unfixable:missing_file	xelatex	mathdots.sty	B	I	precheck installed
+2203.13069	2026-09-16 16:03:49	unfixable:missing_file	xelatex	mathpartir.sty	?	I	precheck installed
+2203.13069	2026-09-16 16:03:49	unfixable:missing_file	xelatex	numcompress.sty	A	b	never payload; last_pay=diagrams.sty
+2203.13069	2026-09-16 16:03:49	unfixable:missing_file	xelatex	stmaryrd.sty	B	I	precheck installed
+2211.04441	2026-09-16 16:03:51	unfixable:missing_file	xelatex	jheppub.sty	A	d	pay_hit, loop_rules=['install_file']
+2308.00026	2026-09-16 16:03:54	unfixable:missing_file	xelatex	jheppub.sty	A	d	pay_hit, loop_rules=[]
+2211.12985	2026-09-16 16:04:25	unfixable:fontspec_missing	xelatex	algorithm.sty	B	I	precheck installed
+2211.12985	2026-09-16 16:04:25	unfixable:fontspec_missing	xelatex	algorithmicx.sty	?	I	precheck installed
+2211.12985	2026-09-16 16:04:25	unfixable:fontspec_missing	xelatex	commath.sty	?	I	precheck installed
+2211.12985	2026-09-16 16:04:25	unfixable:fontspec_missing	xelatex	faktor.sty	B	I	precheck installed
+2211.12985	2026-09-16 16:04:25	unfixable:fontspec_missing	xelatex	pst-plot.sty	B	I	precheck installed
+2211.12985	2026-09-16 16:04:25	unfixable:fontspec_missing	xelatex	skak.sty	?	I	precheck installed
+2203.13060	2026-09-16 16:04:33	unfixable:missing_file	xelatex	algorithm.sty	B	I	precheck installed
+2203.13060	2026-09-16 16:04:33	unfixable:missing_file	xelatex	algorithmic.sty	B	I	precheck installed
+2203.13060	2026-09-16 16:04:33	unfixable:missing_file	xelatex	algpseudocode.sty	B	I	precheck installed
+2203.13060	2026-09-16 16:04:33	unfixable:missing_file	xelatex	mathdots.sty	B	I	precheck installed
+2203.13060	2026-09-16 16:04:33	unfixable:missing_file	xelatex	mathtime.sty	?	b	never payload; last_pay=pst-arrow
+2203.13060	2026-09-16 16:04:33	unfixable:missing_file	xelatex	mt11p.sty	?	b	never payload; last_pay=pst-arrow
+2203.13060	2026-09-16 16:04:33	unfixable:missing_file	xelatex	mtpro2.sty	?	b	never payload; last_pay=pst-arrow
+2203.13060	2026-09-16 16:04:33	unfixable:missing_file	xelatex	physics.sty	?	I	precheck installed
+2203.13060	2026-09-16 16:04:33	unfixable:missing_file	xelatex	pst-node.sty	B	I	precheck installed
+2203.13060	2026-09-16 16:04:33	unfixable:missing_file	xelatex	pst-plot.sty	B	I	precheck installed
+2203.13060	2026-09-16 16:04:33	unfixable:missing_file	xelatex	pstricks-add.sty	B	I	precheck installed
+2203.13060	2026-09-16 16:04:33	unfixable:missing_file	xelatex	pstricks.sty	B	I	precheck installed
+2203.13060	2026-09-16 16:04:33	unfixable:missing_file	xelatex	siunitx.sty	B	I	precheck installed
+2203.13060	2026-09-16 16:04:33	unfixable:missing_file	xelatex	yhmath.sty	?	I	precheck installed
+2403.05529	2026-09-16 16:06:30	unfixable:missing_file	xelatex	algorithm.sty	B	I	precheck installed
+2403.05529	2026-09-16 16:06:30	unfixable:missing_file	xelatex	algorithm2e.sty	?	I	precheck installed
+2403.05529	2026-09-16 16:06:30	unfixable:missing_file	xelatex	algpseudocode.sty	B	I	precheck installed
+2403.05529	2026-09-16 16:06:30	unfixable:missing_file	xelatex	physics.sty	?	I	precheck installed
+2403.05529	2026-09-16 16:06:30	unfixable:missing_file	xelatex	pstricks-add.sty	B	I	precheck installed
+2403.05529	2026-09-16 16:06:30	unfixable:missing_file	xelatex	pstricks.sty	B	I	precheck installed
+2403.05529	2026-09-16 16:06:30	unfixable:missing_file	xelatex	stmaryrd.sty	B	I	precheck installed
+2403.05529	2026-09-16 16:06:30	unfixable:missing_file	xelatex	thm-restate.sty	?	I	precheck installed
+2403.05529	2026-09-16 16:06:30	unfixable:missing_file	xelatex	thmtools.sty	?	I	precheck installed
+astro-ph/0104067	2026-09-16 16:07:12	unfixable:missing_file	xelatex	aastex.cls	A	c	stub aastex.cls injected
+astro-ph/0104067	2026-09-16 16:07:12	unfixable:missing_file	xelatex	emulateapj5.sty	A	d	pay_hit, loop_rules=['legacy_pkg_shim', 'install_file', 'install_file']
+astro-ph/0104346	2026-09-16 16:07:21	unfixable:missing_file	xelatex	aa501.cls	A	d	pay_hit, loop_rules=[]
+astro-ph/0111329	2026-09-16 16:07:47	unfixable:missing_file	xelatex	aastex.cls	A	c	stub aastex.cls injected
+astro-ph/0111329	2026-09-16 16:07:47	unfixable:missing_file	xelatex	emulateapj5.sty	A	d	pay_hit, loop_rules=['legacy_pkg_shim', 'install_file', 'install_file']
+astro-ph/0307107	2026-09-16 16:07:55	unfixable:missing_file	xelatex	aastex.cls	A	c	stub aastex.cls injected
+astro-ph/0307107	2026-09-16 16:07:55	unfixable:missing_file	xelatex	emulateapj5.sty	A	d	pay_hit, loop_rules=['legacy_pkg_shim', 'install_file', 'install_file']
+astro-ph/0307121	2026-09-16 16:08:01	unfixable:missing_file	xelatex	aastex.cls	A	c	stub aastex.cls injected
+astro-ph/0307121	2026-09-16 16:08:01	unfixable:missing_file	xelatex	emulateapj5.sty	A	d	pay_hit, loop_rules=['legacy_pkg_shim', 'install_file', 'install_file']
+astro-ph/0408286	2026-09-16 16:08:36	unfixable:missing_file	xelatex	espcrc1.sty	A	d	pay_hit, loop_rules=[]
+astro-ph/0408466	2026-09-16 16:08:53	unfixable:missing_file	xelatex	T1enc.sty	?	b	never payload; last_pay=kapproc.cls
+astro-ph/0408466	2026-09-16 16:08:53	unfixable:missing_file	xelatex	kapproc.cls	A	d	pay_hit, loop_rules=[]
+astro-ph/0408466	2026-09-16 16:08:53	unfixable:missing_file	xelatex	m-times.sty	?	b	never payload; last_pay=kapproc.cls
+astro-ph/0408466	2026-09-16 16:08:53	unfixable:missing_file	xelatex	procps.sty	A	b	never payload; last_pay=kapproc.cls
+astro-ph/0501599	2026-09-16 16:09:36	unfixable:missing_file	xelatex	mn2e.cls	A	c	stub mn2e.cls injected (\LoadClassWithOptions{mnras})
+astro-ph/9910160	2026-09-16 16:10:01	unfixable:missing_file	xelatex	emulateapj.sty	A	d	pay_hit, loop_rules=[]
+astro-ph/9910160	2026-09-16 16:10:01	unfixable:missing_file	xelatex	psfig.sty	A	b	never payload; last_pay=emulateapj.sty
+cond-mat/0104037	2026-09-16 16:10:10	unfixable:missing_file	xelatex	revtex4.cls	A	I	precheck installed
+cond-mat/0104037	2026-09-16 16:10:10	unfixable:missing_file	xelatex	umlaut.sty	A	d	pay_hit, loop_rules=[]
+cond-mat/9910091	2026-09-16 16:10:23	unfixable:missing_file	xelatex	sw20lart.sty	A	d	pay_hit, loop_rules=[]
+cond-mat/0408611	2026-09-16 16:10:25	unfixable:missing_file	xelatex	isolatin1.sty	A	d	pay_hit, loop_rules=[]
+cond-mat/0408611	2026-09-16 16:10:25	unfixable:missing_file	xelatex	revtex4.cls	A	I	precheck installed
+hep-ph/0104074	2026-09-16 16:10:45	unfixable:missing_file	xelatex	axodraw.sty	A	d	pay_hit, loop_rules=[]
+hep-ph/0104074	2026-09-16 16:10:45	unfixable:missing_file	xelatex	epsf.sty	B	I	precheck installed
+hep-ph/0408075	2026-09-16 16:10:48	unfixable:missing_file	xelatex	axodraw.sty	A	d	pay_hit, loop_rules=[]
+hep-ph/0408075	2026-09-16 16:10:48	unfixable:missing_file	xelatex	espcrc2.sty	A	b	never payload; last_pay=axodraw.sty
+hep-ph/0501163	2026-09-16 16:10:52	unfixable:missing_file	xelatex	axodraw.sty	A	d	pay_hit, loop_rules=['legacy_pkg_shim']
+hep-ph/0501163	2026-09-16 16:10:52	unfixable:missing_file	xelatex	svjour.cls	A	c	stub svjour.cls injected
+hep-th/0307203	2026-09-16 16:11:01	unfixable:missing_file	xelatex	citesort.sty	A	d	pay_hit, loop_rules=[]
+hep-th/0408027	2026-09-16 16:11:02	unfixable:missing_file	xelatex	citesort.sty	A	d	pay_hit, loop_rules=[]
+cond-mat/0605429	2026-09-16 16:11:05	unfixable:missing_file	xelatex	pst-node.sty	B	I	precheck installed
+cond-mat/0605429	2026-09-16 16:11:05	unfixable:missing_file	xelatex	pst-plot.sty	B	I	precheck installed
+cond-mat/0605429	2026-09-16 16:11:05	unfixable:missing_file	xelatex	pstricks.sty	B	I	precheck installed
+cond-mat/0605429	2026-09-16 16:11:05	unfixable:missing_file	xelatex	revtex4.cls	A	I	precheck installed
+hep-ph/0605174	2026-09-16 16:11:06	unfixable:missing_file	xelatex	axodraw.sty	A	b	never payload; last_pay=citesort.sty
+hep-ph/0605174	2026-09-16 16:11:06	unfixable:missing_file	xelatex	citesort.sty	A	d	pay_hit, loop_rules=['legacy_pkg_shim']
+hep-ph/0605174	2026-09-16 16:11:06	unfixable:missing_file	xelatex	elsart.cls	A	c	stub elsart.cls injected (\LoadClassWithOptions{elsarticle})
+hep-ex/0408061	2026-09-16 16:11:13	unfixable:missing_file	xelatex	multido.sty	?	I	precheck installed
+hep-ex/0408061	2026-09-16 16:11:13	unfixable:missing_file	xelatex	psfig.sty	A	c	stub psfig.sty injected
+hep-ex/0408061	2026-09-16 16:11:13	unfixable:missing_file	xelatex	pst-all.sty	B	I	precheck installed
+hep-ex/0408061	2026-09-16 16:11:13	unfixable:missing_file	xelatex	pst-coil.sty	?	I	precheck installed
+hep-ex/0408061	2026-09-16 16:11:13	unfixable:missing_file	xelatex	pst-grad.sty	?	I	precheck installed
+hep-ex/0408061	2026-09-16 16:11:13	unfixable:missing_file	xelatex	pst-poly.sty	?	I	precheck installed
+math/0104242	2026-09-16 16:11:20	unfixable:missing_file	xelatex	amsart2000.cls	A	d	pay_hit, loop_rules=[]
+math/0104242	2026-09-16 16:11:20	unfixable:missing_file	xelatex	amscd2000.sty	A	b	never payload; last_pay=amsart2000.cls
+math/0104242	2026-09-16 16:11:20	unfixable:missing_file	xelatex	pstricks.sty	B	I	precheck installed
+math/9901015	2026-09-16 16:11:21	unfixable:missing_file	xelatex	citesort.sty	A	d	pay_hit, loop_rules=[]
+nucl-ex/0104026	2026-09-16 16:11:22	unfixable:missing_file	xelatex	espcrc1.sty	A	d	pay_hit, loop_rules=[]
+nucl-th/0104004	2026-09-16 16:11:25	unfixable:missing_file	xelatex	espcrc1.sty	A	d	pay_hit, loop_rules=[]
+0905.4380	2026-09-16 18:22:30	unfixable:missing_file	xelatex	axodraw.sty	A	c	stub axodraw.sty injected; deps still missing: axodraw2.sty
+0806.1498	2026-09-16 18:22:33	unfixable:missing_file	xelatex	axodraw.sty	A	c	stub axodraw.sty injected; deps still missing: axodraw2.sty
+0806.1498	2026-09-16 18:22:33	unfixable:missing_file	xelatex	pst-node.sty	B	I	precheck installed
+0806.1498	2026-09-16 18:22:33	unfixable:missing_file	xelatex	pst-text.sty	B	I	precheck installed
+0806.1498	2026-09-16 18:22:33	unfixable:missing_file	xelatex	pstricks.sty	B	I	precheck installed
+1003.4727	2026-09-16 18:22:35	unfixable:missing_file	xelatex	ol2.sty	A	d	pay_hit, loop_rules=[]
+1003.4727	2026-09-16 18:22:35	unfixable:missing_file	xelatex	osajnl2.sty	?	b	never payload; last_pay=ol2.sty
+1306.1932	2026-09-16 18:23:37	unfixable:missing_file	xelatex	appolb.cls	A	d	pay_hit, loop_rules=[]
+0905.4380	2026-09-16 18:27:42	unfixable:missing_file	xelatex	axodraw2.sty	?	d	pay_hit, loop_rules=[]
+0806.1498	2026-09-16 18:27:45	unfixable:missing_file	xelatex	axodraw2.sty	?	d	pay_hit, loop_rules=[]
+0806.1498	2026-09-16 18:27:45	unfixable:missing_file	xelatex	pst-node.sty	B	I	precheck installed
+0806.1498	2026-09-16 18:27:45	unfixable:missing_file	xelatex	pst-text.sty	B	I	precheck installed
+0806.1498	2026-09-16 18:27:45	unfixable:missing_file	xelatex	pstricks.sty	B	I	precheck installed
+1003.4727	2026-09-16 18:27:47	unfixable:missing_file	xelatex	ol2.sty	A	d	pay_hit, loop_rules=[]
+1003.4727	2026-09-16 18:27:47	unfixable:missing_file	xelatex	osajnl2.sty	?	b	never payload; last_pay=ol2.sty
+1306.1932	2026-09-16 18:28:39	unfixable:missing_file	xelatex	appolb.cls	A	d	pay_hit, loop_rules=[]
+hep-ph/0501163	2026-09-16 18:33:53	unfixable:missing_file	xelatex	axodraw.sty	A	c	stub axodraw.sty injected; deps still missing: axodraw2.sty
+0707.3719	2026-09-16 18:46:32	unfixable:missing_file	xelatex	svmult.cls	A	d	pay_hit, loop_rules=[]
+0806.3028	2026-09-16 18:48:30	unfixable:missing_file	xelatex	bk1.tex	?	b	never payload; last_pay=multind.sty
+0806.3028	2026-09-16 18:48:30	unfixable:missing_file	xelatex	multind.sty	A	d	pay_hit, loop_rules=[]
+0905.0044	2026-09-16 18:49:31	unfixable:missing_file	xelatex	algorithm.sty	B	I	precheck installed
+0905.0044	2026-09-16 18:49:31	unfixable:missing_file	xelatex	ams.sty	A	d	pay_hit, loop_rules=[]
+0905.4620	2026-09-16 18:50:11	unfixable:missing_file	xelatex	cimento.cls	A	d	pay_hit, loop_rules=[]
+1003.0381	2026-09-16 18:50:47	unfixable:missing_file	xelatex	epsf.sty	B	I	precheck installed
+1003.0381	2026-09-16 18:50:47	unfixable:missing_file	xelatex	eptcs.cls	A	d	pay_hit, loop_rules=[]
+1003.0945	2026-09-16 18:51:02	unfixable:missing_file	xelatex	pasj00.cls	A	d	pay_hit, loop_rules=[]
+1206.0627	2026-09-16 18:52:58	unfixable:missing_file	xelatex	docs.sty	A	d	pay_hit, loop_rules=[]
+1206.0627	2026-09-16 18:52:58	unfixable:missing_file	xelatex	revtex4.cls	A	I	precheck installed
+1206.0756	2026-09-16 18:53:05	unfixable:missing_file	xelatex	elsarticle.cls	?	I	precheck installed
+1206.0756	2026-09-16 18:53:05	unfixable:missing_file	xelatex	numcompress.sty	A	d	pay_hit, loop_rules=[]
+1306.0302	2026-09-16 18:53:48	unfixable:missing_file	xelatex	JINST.cls	A	d	pay_hit, loop_rules=[]
+1306.0281	2026-09-16 18:53:53	unfixable:missing_file	xelatex	acm_proc_article-sp.cls	A	d	pay_hit, loop_rules=[]
+1306.0281	2026-09-16 18:53:53	unfixable:missing_file	xelatex	modreduction.tex	?	b	never payload; last_pay=acm_proc_article-sp.cls
+1306.0281	2026-09-16 18:53:53	unfixable:missing_file	xelatex	stmaryrd.sty	B	I	precheck installed
+1306.5919	2026-09-16 18:54:29	unfixable:missing_file	xelatex	PoS.cls	A	d	pay_hit, loop_rules=[]
+1404.2351	2026-09-16 18:55:28	unfixable:missing_file	xelatex	aastex.cls	A	b	never payload; last_pay=emulateapj-rtx4.cls
+1404.2351	2026-09-16 18:55:28	unfixable:missing_file	xelatex	apjfonts.sty	A	b	never payload; last_pay=emulateapj-rtx4.cls
+1404.2351	2026-09-16 18:55:28	unfixable:missing_file	xelatex	emulateapj-rtx4.cls	A	d	pay_hit, loop_rules=[]
+1706.00166	2026-09-16 18:56:33	unfixable:missing_file	xelatex	algorithm2e.sty	?	I	precheck installed
+1706.00166	2026-09-16 18:56:33	unfixable:missing_file	xelatex	algorithmic.sty	B	I	precheck installed
+1706.00166	2026-09-16 18:56:33	unfixable:missing_file	xelatex	llncsdoc.sty	A	d	pay_hit, loop_rules=[]
+1706.00166	2026-09-16 18:56:33	unfixable:missing_file	xelatex	scalability.tex	?	b	never payload; last_pay=llncsdoc.sty
+1706.00166	2026-09-16 18:56:33	unfixable:missing_file	xelatex	soul.sty	B	I	precheck installed
+1706.00166	2026-09-16 18:56:33	unfixable:missing_file	xelatex	stmaryrd.sty	B	I	precheck installed
+1706.00240	2026-09-16 18:56:44	unfixable:fontspec_missing	xelatex	aaspatch.sty	?	b	never payload; last_pay=Noto Mono
+1706.00240	2026-09-16 18:56:44	unfixable:fontspec_missing	xelatex	droidmono.sty	?	b	never payload; last_pay=Noto Mono
+1706.00240	2026-09-16 18:56:44	unfixable:fontspec_missing	xelatex	siunitx.sty	B	I	precheck installed
+1706.02511	2026-09-16 18:57:47	unfixable:missing_file	xelatex	mhchem.sty	?	I	precheck installed
+1706.02511	2026-09-16 18:57:47	unfixable:missing_file	xelatex	widetext.sty	A	d	pay_hit, loop_rules=['install_file']
+1803.00118	2026-09-16 18:58:37	unfixable:missing_file	xelatex	nature2.cls	A	d	pay_hit, loop_rules=[]
+1803.00118	2026-09-16 18:58:37	unfixable:missing_file	xelatex	tocstyle.sty	A	b	never payload; last_pay=nature2.cls
+1803.00138	2026-09-16 18:58:47	unfixable:missing_file	xelatex	algorithm.sty	B	I	precheck installed
+1803.00138	2026-09-16 18:58:47	unfixable:missing_file	xelatex	algpseudocode.sty	B	I	precheck installed
+2111.00051	2026-09-16 19:01:51	unfixable:missing_file	xelatex	auto-pst-pdf.sty	?	I	precheck installed
+2111.00051	2026-09-16 19:01:51	unfixable:missing_file	xelatex	faktor.sty	B	I	precheck installed
+2111.00051	2026-09-16 19:01:51	unfixable:missing_file	xelatex	mathdots.sty	B	I	precheck installed
+2111.00051	2026-09-16 19:01:51	unfixable:missing_file	xelatex	pst-node.sty	B	I	precheck installed
+2111.00051	2026-09-16 19:01:51	unfixable:missing_file	xelatex	shuffle.sty	?	I	precheck installed
+2111.00051	2026-09-16 19:01:51	unfixable:missing_file	xelatex	stmaryrd.sty	B	I	precheck installed
+2111.00051	2026-09-16 19:01:51	unfixable:missing_file	xelatex	ytableau.sty	?	I	precheck installed
+2211.12985	2026-09-16 19:02:58	unfixable:fontspec_missing	xelatex	algorithm.sty	B	I	precheck installed
+2211.12985	2026-09-16 19:02:58	unfixable:fontspec_missing	xelatex	algorithmicx.sty	?	I	precheck installed
+2211.12985	2026-09-16 19:02:58	unfixable:fontspec_missing	xelatex	commath.sty	?	I	precheck installed
+2211.12985	2026-09-16 19:02:58	unfixable:fontspec_missing	xelatex	faktor.sty	B	I	precheck installed
+2211.12985	2026-09-16 19:02:58	unfixable:fontspec_missing	xelatex	pst-plot.sty	B	I	precheck installed
+2211.12985	2026-09-16 19:02:58	unfixable:fontspec_missing	xelatex	skak.sty	?	I	precheck installed
+astro-ph/0104346	2026-09-16 19:06:45	unfixable:missing_file	xelatex	aa501.cls	A	d	pay_hit, loop_rules=[]
+astro-ph/0104346	2026-09-16 19:06:45	unfixable:missing_file	xelatex	eps.tex	?	b	never payload; last_pay=aa501.cls
+astro-ph/0408466	2026-09-16 19:08:43	unfixable:missing_file	xelatex	T1enc.sty	?	b	never payload; last_pay=kapproc.cls
+astro-ph/0408466	2026-09-16 19:08:43	unfixable:missing_file	xelatex	kapproc.cls	A	d	pay_hit, loop_rules=[]
+astro-ph/0408466	2026-09-16 19:08:43	unfixable:missing_file	xelatex	m-times.sty	?	b	never payload; last_pay=kapproc.cls
+astro-ph/0408466	2026-09-16 19:08:43	unfixable:missing_file	xelatex	procps.sty	A	b	never payload; last_pay=kapproc.cls
+cond-mat/0104037	2026-09-16 19:09:44	unfixable:missing_file	xelatex	revtex4.cls	A	I	precheck installed
+cond-mat/0104037	2026-09-16 19:09:44	unfixable:missing_file	xelatex	umlaut.sty	A	d	pay_hit, loop_rules=[]
+cond-mat/0408611	2026-09-16 19:09:53	unfixable:missing_file	xelatex	isolatin1.sty	A	d	pay_hit, loop_rules=[]
+cond-mat/0408611	2026-09-16 19:09:53	unfixable:missing_file	xelatex	revtex4.cls	A	I	precheck installed
+cond-mat/9910091	2026-09-16 19:09:58	unfixable:missing_file	xelatex	sw20lart.sty	A	d	pay_hit, loop_rules=[]
+cond-mat/9910091	2026-09-16 19:09:58	unfixable:missing_file	xelatex	tcilatex.tex	A	b	never payload; last_pay=sw20lart.sty
+hep-ph/0104074	2026-09-16 19:10:19	unfixable:missing_file	xelatex	axodraw.sty	A	c	stub axodraw.sty injected; deps still missing: axodraw2.sty
+hep-ph/0104074	2026-09-16 19:10:19	unfixable:missing_file	xelatex	epsf.sty	B	I	precheck installed
+hep-ph/0408075	2026-09-16 19:10:25	unfixable:missing_file	xelatex	axodraw.sty	A	c	stub axodraw.sty injected; deps still missing: axodraw2.sty
+hep-ph/0408075	2026-09-16 19:10:25	unfixable:missing_file	xelatex	espcrc2.sty	A	b	never payload; last_pay=axodraw2.sty
+hep-th/9703079	2026-09-16 19:10:46	unfixable:missing_file	xelatex	tcilatex.tex	A	b	never payload; last_pay=thmsupp.tex
+hep-th/9703079	2026-09-16 19:10:46	unfixable:missing_file	xelatex	thmsupp.tex	A	d	pay_hit, loop_rules=[]
+hep-th/9910011	2026-09-16 19:10:47	unfixable:missing_file	xelatex	feynman.tex	A	d	pay_hit, loop_rules=[]
+math/0104242	2026-09-16 19:10:51	unfixable:missing_file	xelatex	amsart2000.cls	A	d	pay_hit, loop_rules=[]
+math/0104242	2026-09-16 19:10:51	unfixable:missing_file	xelatex	amscd2000.sty	A	b	never payload; last_pay=amsart2000.cls
+math/0104242	2026-09-16 19:10:51	unfixable:missing_file	xelatex	pstricks.sty	B	I	precheck installed
+1803.00118	2026-09-16 21:01:11	unfixable:missing_file	xelatex	nature2.cls	A	c	stub nature2.cls injected (\LoadClassWithOptions{nature})
+1803.00118	2026-09-16 21:01:11	unfixable:missing_file	xelatex	tocstyle.sty	A	d	pay_hit, loop_rules=['legacy_pkg_shim']
+astro-ph/0408466	2026-09-16 21:01:16	unfixable:missing_file	xelatex	kapproc.cls	A	c	stub kapproc.cls injected (\LoadClassWithOptions{article})
+astro-ph/0408466	2026-09-16 21:01:16	unfixable:missing_file	xelatex	procps.sty	A	d	pay_hit, loop_rules=['legacy_pkg_shim']
+math/0104242	2026-09-16 21:01:24	unfixable:missing_file	xelatex	amsart2000.cls	A	c	stub amsart2000.cls injected (\LoadClassWithOptions{amsart})
+math/0104242	2026-09-16 21:01:24	unfixable:missing_file	xelatex	amscd2000.sty	A	d	pay_hit, loop_rules=['legacy_pkg_shim']
+math/0104250	2026-09-16 21:08:42	unfixable:missing_file	xelatex	diagrams.tex	A	d	pay_hit, loop_rules=['babel_lang_ldf_install']
+1706.00240	2026-09-16 23:53:32	unfixable:fontspec_missing	xelatex	aaspatch.sty	?	b	never payload; last_pay=latinmodern-mono
+1706.00240	2026-09-16 23:53:32	unfixable:fontspec_missing	xelatex	droidmono.sty	?	b	never payload; last_pay=latinmodern-mono
+2211.12985	2026-09-16 23:53:38	unfixable:missing_tfm	xelatex	faktor.sty	B	I	precheck installed
+2211.12985	2026-09-16 23:53:38	unfixable:missing_tfm	xelatex	skak.sty	?	I	precheck installed
+physics/0104031	2026-09-17 01:28:35	unfixable:missing_file	xelatex	revtex4b4.cls	A	d	pay_hit, loop_rules=[]
+astro-ph/0104303	2026-09-17 05:24:43	unfixable:missing_file	xelatex	aasms4.sty	A	d	pay_hit, loop_rules=[]
+astro-ph/0111599	2026-09-17 05:25:05	unfixable:missing_file	xelatex	aasms4.sty	A	d	pay_hit, loop_rules=[]
+astro-ph/0408576	2026-09-17 05:26:19	unfixable:missing_file	xelatex	psfig.tex	A	d	pay_hit, loop_rules=[]
+astro-ph/0501428	2026-09-17 05:26:40	unfixable:missing_file	xelatex	aasms4.sty	A	d	pay_hit, loop_rules=[]
+astro-ph/9703087	2026-09-17 05:27:16	unfixable:missing_file	xelatex	aas2pp4.sty	A	d	pay_hit, loop_rules=[]
+astro-ph/9703087	2026-09-17 05:27:16	unfixable:missing_file	xelatex	psfig.sty	A	b	never payload; last_pay=aas2pp4.sty
+astro-ph/9703185	2026-09-17 05:27:28	unfixable:missing_file	xelatex	eqsecnum.sty	A	c	stub eqsecnum.sty injected
+astro-ph/9703185	2026-09-17 05:27:28	unfixable:missing_file	xelatex	psfig.tex	A	d	pay_hit, loop_rules=['legacy_pkg_shim']
+astro-ph/9703200	2026-09-17 05:27:29	unfixable:missing_file	xelatex	aasms4.sty	A	d	pay_hit, loop_rules=[]
+astro-ph/9901011	2026-09-17 05:27:29	unfixable:missing_file	xelatex	aasms4.sty	A	d	pay_hit, loop_rules=[]
+astro-ph/9901109	2026-09-17 05:27:39	unfixable:missing_file	xelatex	psfig.tex	A	d	pay_hit, loop_rules=[]
+astro-ph/9901037	2026-09-17 05:27:41	unfixable:missing_file	xelatex	aaspp4.sty	A	c	stub aaspp4.sty injected
+astro-ph/9901037	2026-09-17 05:27:41	unfixable:missing_file	xelatex	psfig.tex	A	d	pay_hit, loop_rules=['legacy_pkg_shim', 'restore_support_from_src']
+astro-ph/9901145	2026-09-17 05:27:44	unfixable:missing_file	xelatex	aasms4.sty	A	d	pay_hit, loop_rules=[]
+astro-ph/9901200	2026-09-17 05:27:45	unfixable:missing_file	xelatex	aasms4.sty	A	d	pay_hit, loop_rules=[]
+astro-ph/9901328	2026-09-17 05:27:53	unfixable:missing_file	xelatex	aasms4.sty	A	d	pay_hit, loop_rules=[]
+astro-ph/9901364	2026-09-17 05:27:57	unfixable:missing_file	xelatex	crckapb.cls	A	c	stub crckapb.cls injected
+astro-ph/9901364	2026-09-17 05:27:57	unfixable:missing_file	xelatex	kapjrnls.tex	?	b	never payload; last_pay=nato.sty
+astro-ph/9901364	2026-09-17 05:27:57	unfixable:missing_file	xelatex	nato.sty	?	d	pay_hit, loop_rules=['legacy_pkg_shim']
+astro-ph/9901424	2026-09-17 05:27:58	unfixable:missing_file	xelatex	aas2pp4.sty	A	d	pay_hit, loop_rules=[]
+astro-ph/9901424	2026-09-17 05:27:58	unfixable:missing_file	xelatex	psfig.sty	A	b	never payload; last_pay=aas2pp4.sty
+astro-ph/9910044	2026-09-17 05:27:59	unfixable:missing_file	xelatex	laa.cls	?	d	pay_hit, loop_rules=[]
+chao-dyn/9703017	2026-09-17 05:28:16	unfixable:missing_file	xelatex	dina4.sty	?	d	pay_hit, loop_rules=[]
+cond-mat/0104497	2026-09-17 05:28:34	unfixable:missing_file	xelatex	psfig.tex	A	d	pay_hit, loop_rules=[]
+cond-mat/0408520	2026-09-17 05:29:02	unfixable:missing_file	xelatex	BoxedEPS.tex	?	d	pay_hit, loop_rules=[]
+cond-mat/9910442	2026-09-17 05:29:41	unfixable:missing_file	xelatex	prabib.sty	?	d	pay_hit, loop_rules=[]
+hep-lat/0501006	2026-09-17 05:30:12	unfixable:missing_file	xelatex	psfig.tex	A	d	pay_hit, loop_rules=[]
+hep-ph/9901352	2026-09-17 05:31:25	unfixable:missing_file	xelatex	psfig.tex	A	d	pay_hit, loop_rules=[]
+hep-th/9703071	2026-09-17 05:32:05	unfixable:missing_file	xelatex	FEYNMAN.tex	?	d	pay_hit, loop_rules=[]
+nucl-th/0104064	2026-09-17 05:33:40	unfixable:missing_file	xelatex	hangcaption.sty	?	d	pay_hit, loop_rules=[]
+nucl-th/0104064	2026-09-17 05:33:40	unfixable:missing_file	xelatex	psfig.sty	A	b	never payload; last_pay=hangcaption.sty
+astro-ph/0104303	2026-09-17 07:57:17	unfixable:missing_file	xelatex	aasms4.sty	A	d	pay_hit, loop_rules=[]
+astro-ph/0111599	2026-09-17 07:57:37	unfixable:missing_file	xelatex	aasms4.sty	A	d	pay_hit, loop_rules=[]
+astro-ph/0408576	2026-09-17 07:58:46	unfixable:missing_file	xelatex	psfig.tex	A	d	pay_hit, loop_rules=[]
+astro-ph/0501428	2026-09-17 07:58:59	unfixable:missing_file	xelatex	aasms4.sty	A	d	pay_hit, loop_rules=[]
+astro-ph/9703087	2026-09-17 07:59:28	unfixable:missing_file	xelatex	aas2pp4.sty	A	d	pay_hit, loop_rules=[]
+astro-ph/9703087	2026-09-17 07:59:28	unfixable:missing_file	xelatex	psfig.sty	A	b	never payload; last_pay=aas2pp4.sty
+astro-ph/9703200	2026-09-17 07:59:35	unfixable:missing_file	xelatex	aasms4.sty	A	d	pay_hit, loop_rules=[]
+astro-ph/9703185	2026-09-17 07:59:36	unfixable:missing_file	xelatex	eqsecnum.sty	A	c	stub eqsecnum.sty injected
+astro-ph/9703185	2026-09-17 07:59:36	unfixable:missing_file	xelatex	psfig.tex	A	d	pay_hit, loop_rules=['legacy_pkg_shim']
+astro-ph/9901011	2026-09-17 07:59:40	unfixable:missing_file	xelatex	aasms4.sty	A	d	pay_hit, loop_rules=[]
+astro-ph/9901037	2026-09-17 07:59:45	unfixable:missing_file	xelatex	aaspp4.sty	A	c	stub aaspp4.sty injected
+astro-ph/9901037	2026-09-17 07:59:45	unfixable:missing_file	xelatex	psfig.tex	A	d	pay_hit, loop_rules=['legacy_pkg_shim']
+astro-ph/9901109	2026-09-17 07:59:46	unfixable:missing_file	xelatex	psfig.tex	A	d	pay_hit, loop_rules=[]
+astro-ph/9901145	2026-09-17 07:59:50	unfixable:missing_file	xelatex	aasms4.sty	A	d	pay_hit, loop_rules=[]
+astro-ph/9901200	2026-09-17 07:59:51	unfixable:missing_file	xelatex	aasms4.sty	A	d	pay_hit, loop_rules=[]
+astro-ph/9901328	2026-09-17 07:59:59	unfixable:missing_file	xelatex	aasms4.sty	A	d	pay_hit, loop_rules=[]
+astro-ph/9901364	2026-09-17 08:00:02	unfixable:missing_file	xelatex	crckapb.cls	A	c	stub crckapb.cls injected
+astro-ph/9901364	2026-09-17 08:00:02	unfixable:missing_file	xelatex	kapjrnls.tex	?	b	never payload; last_pay=nato.sty
+astro-ph/9901364	2026-09-17 08:00:02	unfixable:missing_file	xelatex	nato.sty	?	d	pay_hit, loop_rules=['legacy_pkg_shim']
+astro-ph/9910044	2026-09-17 08:00:02	unfixable:missing_file	xelatex	laa.cls	?	d	pay_hit, loop_rules=[]
+astro-ph/9901424	2026-09-17 08:00:03	unfixable:missing_file	xelatex	aas2pp4.sty	A	d	pay_hit, loop_rules=[]
+astro-ph/9901424	2026-09-17 08:00:03	unfixable:missing_file	xelatex	psfig.sty	A	b	never payload; last_pay=aas2pp4.sty
+chao-dyn/9703017	2026-09-17 08:00:16	unfixable:missing_file	xelatex	dina4.sty	?	d	pay_hit, loop_rules=[]
+cond-mat/0104497	2026-09-17 08:00:28	unfixable:missing_file	xelatex	psfig.tex	A	d	pay_hit, loop_rules=[]
+cond-mat/0408520	2026-09-17 08:00:40	unfixable:missing_file	xelatex	BoxedEPS.tex	?	d	pay_hit, loop_rules=[]
+cond-mat/9910442	2026-09-17 08:00:57	unfixable:missing_file	xelatex	prabib.sty	?	d	pay_hit, loop_rules=[]
+hep-lat/0501006	2026-09-17 08:01:14	unfixable:missing_file	xelatex	psfig.tex	A	d	pay_hit, loop_rules=[]
+hep-ph/9901352	2026-09-17 08:02:00	unfixable:missing_file	xelatex	psfig.tex	A	d	pay_hit, loop_rules=[]
+hep-th/9703071	2026-09-17 08:02:16	unfixable:missing_file	xelatex	FEYNMAN.tex	?	d	pay_hit, loop_rules=[]
+nucl-th/0104064	2026-09-17 08:02:51	unfixable:missing_file	xelatex	hangcaption.sty	?	d	pay_hit, loop_rules=[]
+nucl-th/0104064	2026-09-17 08:02:51	unfixable:missing_file	xelatex	psfig.sty	A	b	never payload; last_pay=hangcaption.sty

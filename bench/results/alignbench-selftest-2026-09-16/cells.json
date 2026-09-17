@@ -1,0 +1,79 @@
+{
+ "n_pairs": 5,
+ "n_error": 0,
+ "n_invalid": 1,
+ "n_degraded": 1,
+ "n_hyperref": 3,
+ "n_low": 1,
+ "retention": {
+  "n": 3,
+  "min": 0.7142857142857143,
+  "p50": 1.0,
+  "mean": 0.9048,
+  "p95": 1.0,
+  "max": 1.0
+ },
+ "chain_w_ratio": {
+  "n": 3,
+  "min": 0.8148,
+  "p50": 1.0,
+  "mean": 0.9383,
+  "p95": 1.0,
+  "max": 1.0
+ },
+ "by_kind": {
+  "selftest": {
+   "n": 4,
+   "degraded": 1,
+   "low": 1,
+   "retention": {
+    "n": 3,
+    "min": 0.7142857142857143,
+    "p50": 1.0,
+    "mean": 0.9048,
+    "p95": 1.0,
+    "max": 1.0
+   }
+  }
+ },
+ "blame_tally": {
+  "unknown": 1
+ },
+ "low_pairs": [
+  {
+   "id": "selftest/drop",
+   "retention": 0.7142857142857143,
+   "lost": [
+    "section.2",
+    "section.3"
+   ],
+   "blame": "unknown",
+   "product_arm": null,
+   "zh_compile_verdict": null,
+   "pipe_xel_verdict": null,
+   "pipe_fix_verdict": null
+  }
+ ],
+ "invalid_pairs": [
+  {
+   "id": "selftest/corrupt",
+   "side": "b",
+   "detail": "PdfStreamError: Stream has ended unexpectedly"
+  }
+ ],
+ "error_pairs": [],
+ "min_retention": 0.95,
+ "gates": {
+  "no_pair_errors": true,
+  "hyperref_retention": false,
+  "degraded_path_ok": true
+ },
+ "gates_pass": false,
+ "meta": {
+  "out": "/home/fanghaotian/src/texlate/bench/results/alignbench-selftest-2026-09-16",
+  "date": "2026-09-16",
+  "min_retention": 0.95,
+  "source": "selftest",
+  "selftest_fails": []
+ }
+}

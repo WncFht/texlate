@@ -1,0 +1,276 @@
+{
+ "0807.3917": {
+  "id": "0807.3917",
+  "main": "main.tex",
+  "route": {
+   "engines": [
+    "xelatex",
+    "tectonic"
+   ],
+   "reject": null,
+   "reasons": [
+    "eps_files=True pstricks=True → xelatex 优先（tectonic xdvipdfmx 硬墙）",
+    "非 UTF-8 源 → 需 iconv 转码预处理或 inputenc 路注"
+   ],
+   "non_utf8": true
+  },
+  "base-xel": {
+   "engine": "xelatex",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 1.11,
+    "passes": 2,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 57178,
+    "first_error": "/home/fanghaotian/texmf/tex/generic/pstricks/pstricks.tex:1228: Undefined control sequence."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "errors>3 (126)",
+     "first_error=undefined_cs:ifpst@useCalc",
+     "warn:invalid_utf8",
+     "warn:fffd_glyph",
+     "warn:missing_chars"
+    ],
+    "notes": [],
+    "n_errors": 126,
+    "category": "undefined_cs",
+    "payload": "ifpst@useCalc",
+    "cjk_chars": -1,
+    "missing_chars": 1,
+    "warnings_hit": [
+     "invalid_utf8",
+     "fffd_glyph",
+     "missing_chars"
+    ]
+   },
+   "status": "partial"
+  },
+  "pipe-xel": {
+   "engine": "xelatex",
+   "normalize": {
+    "files": 14,
+    "rewritten": 1,
+    "encodings": {
+     "main.tex": {
+      "encoding": "cp1252",
+      "basis": "detector",
+      "declared": null,
+      "note": ""
+     }
+    }
+   },
+   "translate": {
+    "files": 11,
+    "chunks": 313,
+    "partial_chunks": 0,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "support_files": [],
+    "support_skipped": 0,
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 40,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 16.03,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 342391,
+    "first_error": "/home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/0807.3917/main.tex:265: LaTeX Error: Environment keywords undefined."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "errors>3 (27)"
+    ],
+    "notes": [],
+    "n_errors": 27,
+    "category": "env_undefined",
+    "payload": "keywords",
+    "cjk_chars": 8796,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "partial",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 126,
+    "hits": {},
+    "note": "no chunk-level attribution"
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "best_effort_pdf",
+    "main": "main.tex",
+    "rounds": [
+     {
+      "round": 1,
+      "cat": "undefined_cs",
+      "pay": "ifpst@useCalc",
+      "pdf": false,
+      "n_errors": 1,
+      "rule": "vendored_sty_shadow",
+      "result": "isolate vendored: IEEEtran.cls ((2002, 11, 18) < (2015, 8, 26)), pstricks.sty ((2008, 1, 22) < (2024, 2, 2)), stfloats.sty ((1999, 10, 22) < (2025, 6, 18))"
+     },
+     {
+      "round": 2,
+      "cat": "env_undefined",
+      "pay": "keywords",
+      "pdf": false,
+      "n_errors": 1,
+      "rule": null,
+      "result": null
+     },
+     {
+      "round": 3,
+      "cat": null,
+      "pay": null,
+      "pdf": true,
+      "n_errors": 27,
+      "rule": "_best_effort_pass",
+      "result": "nonstopmode 兜底: pdf=True err=27"
+     }
+    ],
+    "setup": [
+     {
+      "rule": "static_precheck",
+      "result": "missing files=[] -> installed []"
+     }
+    ],
+    "advisories": [],
+    "installed": [],
+    "engine_flags": [],
+    "engine_flags_dropped": [],
+    "log_excerpt": "/home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/0807.3917/main.tex:265: LaTeX Error: Environment keywords undefined.\n/home/fanghaotian/src/texlate/bench/work_e2emock/pipe-xel/0807.3917/main.tex:265: LaTeX Error: Environment keywords undefined.\n\nSee the LaTeX manual or LaTeX Companion for explanation.\nType  H <return>  for immediate help.\n ...                                              \n                                                  \nl.265 \\begin{keywords}\n                       这是译文."
+   },
+   "tounicode_fonts": 3
+  },
+  "pipe-tec": {
+   "engine": "tectonic",
+   "normalize": {
+    "files": 14,
+    "rewritten": 1,
+    "encodings": {
+     "main.tex": {
+      "encoding": "cp1252",
+      "basis": "detector",
+      "declared": null,
+      "note": ""
+     }
+    }
+   },
+   "translate": {
+    "files": 11,
+    "chunks": 313,
+    "partial_chunks": 0,
+    "fault_chunks": 0,
+    "fault_files": [],
+    "support_files": [],
+    "support_skipped": 0,
+    "leftover_ph": 0,
+    "env_judge": {
+     "enabled": false
+    }
+   },
+   "inject": {
+    "status": "injected",
+    "mode": "ctex",
+    "line": 49,
+    "float_sizing": 1
+   },
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.48,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": "! ! LaTeX Error: File `pstricks.tex' not found.."
+   },
+   "verdict": {
+    "status": "partial",
+    "reasons": [
+     "reject:pstricks_route"
+    ],
+    "notes": [],
+    "n_errors": 0,
+    "category": null,
+    "payload": null,
+    "cjk_chars": -1,
+    "missing_chars": 0,
+    "warnings_hit": []
+   },
+   "status": "partial",
+   "l2": {
+    "enabled": true,
+    "cap": 10,
+    "errors": 100,
+    "hits": {},
+    "note": "no chunk-level attribution"
+   },
+   "fixloop": {
+    "enabled": true,
+    "verdict": "reject:pstricks_route",
+    "main": "main.tex",
+    "rounds": [],
+    "setup": [
+     {
+      "rule": "pstricks_route",
+      "result": "REJECT: route=xelatex pstricks/pspicture hard wall on tectonic"
+     }
+    ],
+    "advisories": [],
+    "installed": [],
+    "engine_flags": [],
+    "engine_flags_dropped": [],
+    "log_excerpt": null
+   },
+   "reject_at": "fixloop"
+  },
+  "base-tec": {
+   "engine": "tectonic",
+   "compile": {
+    "ok": true,
+    "timed_out": false,
+    "seconds": 0.17,
+    "passes": 1,
+    "rc": 1,
+    "killed_signal": null,
+    "pdf_bytes": 0,
+    "first_error": "! ! LaTeX Error: File `pstricks.tex' not found.."
+   },
+   "verdict": {
+    "status": "fail",
+    "reasons": [
+     "no_pdf"
+    ],
+    "notes": [],
+    "n_errors": 100,
+    "category": "missing_file",
+    "payload": "pstricks.tex",
+    "cjk_chars": -1,
+    "missing_chars": 0,
+    "warnings_hit": [
+     "degraded_file"
+    ]
+   },
+   "status": "fail"
+  }
+ }
+}

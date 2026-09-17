@@ -1,0 +1,3727 @@
+{
+ "list": {
+  "strict": 1,
+  "expr": 47,
+  "partial": 6,
+  "opt": 0,
+  "n_papers": 36,
+  "classes": {
+   "other": 40,
+   "empty": 73,
+   "dimexpr": 4,
+   "num": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/0806.4088/src/9986.tex:492: \\begin{list}{}{}",
+   "bench/results/stagerun-loop1-2026-09-16/work/0806.4088/src/9986.tex:650: \\begin{list}{}{}",
+   "bench/results/stagerun-loop1-2026-09-16/work/0806.4088/src/9986.tex:1229: \\begin{list}{}{}",
+   "bench/results/stagerun-loop1-2026-09-16/work/0806.4088/src/9986.tex:1327: \\begin{list}{}{}"
+  ],
+  "arg_shapes": {
+   "0": 25,
+   "0 0": 21,
+   "0 ?": 5,
+   "n": 1,
+   "D ?": 1
+  }
+ },
+ "tabular": {
+  "strict": 0,
+  "expr": 55,
+  "partial": 1,
+  "opt": 0,
+  "n_papers": 21,
+  "classes": {
+   "other": 8976,
+   "empty": 57,
+   "dimexpr": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1706.00186/src/p-rich_mass_arxiv.tex:504: % \\begin{tabular}{} command.",
+   "bench/results/stagerun-loop1-2026-09-16/work/1706.00186/src/p-rich_mass_arxiv.tex:515: % \\begin{tabular}{}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1706.00186/src/p-rich_mass_arxiv.tex:527: % \\begin{tabular}{}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1404.5720/src/trcs_paper.tex:271: % \\begin{tabular}{} command."
+  ],
+  "arg_shapes": {
+   "0": 55,
+   "D ?": 1
+  }
+ },
+ "thebibliography": {
+  "strict": 2507,
+  "expr": 410,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 2818,
+  "classes": {
+   "num": 2504,
+   "empty": 410,
+   "other": 190,
+   "star": 2,
+   "dimen": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/0806.2361/src/riemann6.tex:387: \\begin{thebibliography}{1}",
+   "bench/results/stagerun-loop1-2026-09-16/work/cond-mat--0111036/src/fs-art.tex:619: \\begin{thebibliography}{99}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1003.5011/src/Dolcini_Grabert_ArXiv_v2.tex:292: \\begin{thebibliography}{10}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1206.0037/src/PRD_final_-_27.11.tex:1240: \\begin{thebibliography} {99}"
+  ],
+  "arg_shapes": {
+   "n": 2504,
+   "0": 410,
+   "*": 2,
+   "d": 1
+  }
+ },
+ "multicols": {
+  "strict": 156,
+  "expr": 0,
+  "partial": 2,
+  "opt": 0,
+  "n_papers": 62,
+  "classes": {
+   "num": 158,
+   "other": 13
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/cond-mat--0111036/src/fs-art.tex:42: \\begin{multicols}{2}",
+   "bench/results/stagerun-loop1-2026-09-16/work/cond-mat--0111406/src/dotcap5.tex:30: \\begin{multicols}{2}\\narrowtext\\noindent",
+   "bench/results/stagerun-loop1-2026-09-16/work/cond-mat--0111406/src/dotcap5.tex:73: \\begin{multicols}{2}",
+   "bench/results/stagerun-loop1-2026-09-16/work/0806.4685/src/jones-final.tex:26: %\\newcommand{\\endlarge}{\\vspace{0.2cm}\\ruleright\\begin{multicols}{2}"
+  ],
+  "arg_shapes": {
+   "n": 156,
+   "n ?": 1,
+   "n ? ? ? ? ? ? ? ? ? ? ? ?": 1
+  }
+ },
+ "array": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 11682,
+   "num": 4,
+   "empty": 13,
+   "dimexpr": 10
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "equation": {
+  "strict": 0,
+  "expr": 74,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 43,
+  "classes": {
+   "other": 884,
+   "empty": 25,
+   "dimexpr": 50
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1206.1873/src/gi73_spires_.tex:1452: \\begin{equation}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1206.1873/src/gi73_spires_.tex:1484: \\begin{equation}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1109.5575/src/Initial_conditions.tex:495: \\begin{equation}",
+   "bench/results/stagerun-loop1-2026-09-16/work/2304.05202/src/main.tex:1658: \\begin{equation}"
+  ],
+  "arg_shapes": {
+   "D": 50,
+   "0": 24
+  }
+ },
+ "IEEEbiography": {
+  "strict": 0,
+  "expr": 2,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "dimexpr": 2,
+   "other": 33
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1404.2259/src/main.tex:695: \\begin{IEEEbiography}{\\authorluan}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1404.2259/src/main.tex:699: \\begin{IEEEbiography}{\\authortaylor}"
+  ],
+  "arg_shapes": {
+   "D": 2
+  }
+ },
+ "IEEEbiographynophoto": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 59
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "align": {
+  "strict": 0,
+  "expr": 17,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 12,
+  "classes": {
+   "other": 170,
+   "empty": 6,
+   "dimexpr": 11
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/2105.03883/src/draft.tex:964: \\begin{align}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1706.00287/src/Homogenisation_SPDEs.tex:307: \\begin{align}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1206.0473/src/SubmitTopGerms.tex:1637: \\begin{align}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1907.00252/src/draft1.tex:332: \\begin{align}"
+  ],
+  "arg_shapes": {
+   "D": 11,
+   "0": 6
+  }
+ },
+ "proof": {
+  "strict": 0,
+  "expr": 2,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 2,
+  "classes": {
+   "other": 39,
+   "empty": 2
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1306.6164/src/sigma13-061.tex:293: \\begin{proof}",
+   "bench/results/stagerun-loop1-2026-09-16/work/hep-th--0605038/src/SDrel.tex:2644: \\begin{proof}"
+  ],
+  "arg_shapes": {
+   "0": 2
+  }
+ },
+ "center": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 1,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "other": 299,
+   "empty": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/0806.2215/src/jfa02.tex:17: \\begin{center}{}{\\bf INVARIANT MEASURES FOR"
+  ],
+  "arg_shapes": {
+   "0 ?": 1
+  }
+ },
+ "enumerate": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 2
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "algorithm": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 7
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "corollary": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 2
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "subfigure": {
+  "strict": 18,
+  "expr": 3663,
+  "partial": 0,
+  "opt": 2315,
+  "n_papers": 226,
+  "classes": {
+   "dimexpr": 3655,
+   "dimen": 18,
+   "empty": 8,
+   "other": 16
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/2403.00140/src/In_Vivo_Linear_Regression_arxiv_v1.tex:420: \\begin{subfigure}{.3\\textwidth}",
+   "bench/results/stagerun-loop1-2026-09-16/work/2403.00140/src/In_Vivo_Linear_Regression_arxiv_v1.tex:424: \\begin{subfigure}{.3\\textwidth}",
+   "bench/results/stagerun-loop1-2026-09-16/work/2403.00140/src/In_Vivo_Linear_Regression_arxiv_v1.tex:429: \\begin{subfigure}{.3\\textwidth}",
+   "bench/results/stagerun-loop1-2026-09-16/work/2403.00140/src/In_Vivo_Linear_Regression_arxiv_v1.tex:443: \\begin{subfigure}{0.9\\textheight}"
+  ],
+  "arg_shapes": {
+   "o D": 2297,
+   "D": 1358,
+   "o d": 18,
+   "0": 8
+  }
+ },
+ "spacing": {
+  "strict": 23,
+  "expr": 7,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 15,
+  "classes": {
+   "num": 23,
+   "dimexpr": 7
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/2403.00140/src/In_Vivo_Linear_Regression_arxiv_v1.tex:468: \\begin{spacing}{1.5}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1803.00131/src/article.tex:31: \\begin{spacing}{1.25}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1803.00131/src/article.tex:43: \\begin{spacing}{1}   % use double spacing for rest of manuscript",
+   "bench/results/stagerun-loop1-2026-09-16/work/1404.2334/src/TR-2013-JDG003.tex:205: \\begin{spacing}{\\bodySpacing}%"
+  ],
+  "arg_shapes": {
+   "n": 23,
+   "D": 7
+  }
+ },
+ "longtable": {
+  "strict": 1,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "other": 58,
+   "num": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/2003.03444/src/tab_results.tex:1: % \\begin{longtable}{2}"
+  ],
+  "arg_shapes": {
+   "n": 1
+  }
+ },
+ "minipage": {
+  "strict": 772,
+  "expr": 2389,
+  "partial": 78,
+  "opt": 1515,
+  "n_papers": 453,
+  "classes": {
+   "dimexpr": 2400,
+   "other": 93,
+   "dimen": 839
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1803.00116/src/main.tex:197: \\newcommand{\\Bemerk}[1]{\\begin{center}\\framebox{\\begin{minipage}{1.0\\textwidth}#1\\end{minipage}}\\end{center}}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1803.00116/src/runtimes.tex:2: \\begin{minipage}{0.5\\textwidth}\\tiny",
+   "bench/results/stagerun-loop1-2026-09-16/work/1803.00116/src/runtimes.tex:417: \\begin{minipage}{0.5\\textwidth}\\tiny",
+   "bench/results/stagerun-loop1-2026-09-16/work/1706.00364/src/article.tex:63: %\t\t\\begin{minipage}{0.77\\linewidth}"
+  ],
+  "arg_shapes": {
+   "D": 1300,
+   "o D": 1089,
+   "o d": 421,
+   "d": 351,
+   "d ?": 62
+  }
+ },
+ "algo": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 23,
+   "empty": 3
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "abstract": {
+  "strict": 0,
+  "expr": 3,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 3,
+  "classes": {
+   "other": 19,
+   "empty": 2,
+   "dimexpr": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1706.00346/src/EFTcomp.tex:177: \\begin{abstract}",
+   "bench/results/stagerun-loop1-2026-09-16/work/nucl-th--9703050/src/main.tex:16: \\begin{abstract}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1404.5865/src/paper_v3.tex:114: \\begin{abstract}"
+  ],
+  "arg_shapes": {
+   "0": 2,
+   "D": 1
+  }
+ },
+ "adjustbox": {
+  "strict": 0,
+  "expr": 3,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "other": 103,
+   "empty": 3
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/2203.00003/src/main.tex:298: \\begin{adjustbox}{}%{width=0.4\\textwidth}",
+   "bench/results/stagerun-loop1-2026-09-16/work/2203.00003/src/main.tex:509: \\begin{adjustbox}{}%{width=0.4\\textwidth}",
+   "bench/results/stagerun-loop1-2026-09-16/work/2203.00003/src/main.tex:562: \\begin{adjustbox}{}%{width=0.4\\textwidth}"
+  ],
+  "arg_shapes": {
+   "0": 3
+  }
+ },
+ "eqnarray": {
+  "strict": 1,
+  "expr": 30,
+  "partial": 1,
+  "opt": 0,
+  "n_papers": 20,
+  "classes": {
+   "other": 436,
+   "dimexpr": 18,
+   "empty": 13,
+   "num": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/0905.1619/src/COTR-Imager_final.tex:3508: \\begin{eqnarray}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1803.00145/src/tateiwa.tex:236: \\begin{eqnarray}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1907.00207/src/hammurabiX.tex:755: \\begin{eqnarray}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1608.02270/src/ZJarxiv-upd-ref-revision.tex:1278: \\begin{eqnarray}"
+  ],
+  "arg_shapes": {
+   "D": 17,
+   "0": 13,
+   "n": 1,
+   "D ?": 1
+  }
+ },
+ "tabular*": {
+  "strict": 14,
+  "expr": 168,
+  "partial": 13,
+  "opt": 0,
+  "n_papers": 61,
+  "classes": {
+   "dimexpr": 172,
+   "other": 15,
+   "dimen": 23
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/0707.0559/src/Graphene_LIU.tex:670: \\begin{tabular*}{0.75\\textwidth}{lll}",
+   "bench/results/stagerun-loop1-2026-09-16/work/2308.00020/src/mnras_guide.tex:326: \\begin{tabular*}{\\columnwidth}{@{}l@{\\hspace*{50pt}}l@{\\hspace*{50pt}}l@{}}",
+   "bench/results/stagerun-loop1-2026-09-16/work/2308.00020/src/mnras_guide.tex:353: \\begin{tabular*}{\\columnwidth}{l@{\\hspace*{40pt}}l@{\\hspace*{40pt}}l}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1811.03412/src/Paper2.tex:249: \\begin{tabular*}{3.5in}{p{0.2in} p{0.2in} p{0.08in} p{0.3in} p{0.3in} p{0.2in} p{0.52in} p{0.52in}}"
+  ],
+  "arg_shapes": {
+   "D": 168,
+   "d": 14,
+   "d ?": 9,
+   "D ?": 4
+  }
+ },
+ "adjustwidth": {
+  "strict": 32,
+  "expr": 6,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 9,
+  "classes": {
+   "dimen": 69,
+   "other": 6,
+   "dimexpr": 4,
+   "empty": 9
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/2410.00079/src/arxivversion.tex:78: \\begin{adjustwidth}{1pt}{7pt}%",
+   "bench/results/stagerun-loop1-2026-09-16/work/2403.00016/src/Extra/extra.tex:7: %\\begin{adjustwidth}{-\\extralength}{0cm}",
+   "bench/results/stagerun-loop1-2026-09-16/work/2403.00016/src/Extra/extra.tex:49: %\\begin{adjustwidth}{-\\extralength}{0cm}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1907.03665/src/main.tex:501: \\begin{adjustwidth}{-1.0in}{-1.0in}"
+  ],
+  "arg_shapes": {
+   "d d": 32,
+   "D d": 2,
+   "D 0": 2,
+   "d 0": 2
+  }
+ },
+ "wrapfigure": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 174,
+   "dimexpr": 131,
+   "dimen": 34
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "tabularx": {
+  "strict": 1,
+  "expr": 63,
+  "partial": 148,
+  "opt": 0,
+  "n_papers": 47,
+  "classes": {
+   "dimexpr": 192,
+   "other": 153,
+   "dimen": 20
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/2410.00079/src/arxivversion.tex:395: \\begin{tabularx}{\\textwidth}{ll}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1706.00377/src/arxiv_morphfitting.tex:204: \\begin{tabularx}{0.48\\textwidth}{lll}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1706.00377/src/arxiv_morphfitting.tex:231: \\begin{tabularx}{\\linewidth}{X XXX}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1706.00377/src/arxiv_morphfitting.tex:323: \\begin{tabularx}{\\linewidth}{l l l}"
+  ],
+  "arg_shapes": {
+   "D ?": 129,
+   "D": 63,
+   "d ?": 19,
+   "d": 1
+  }
+ },
+ "matrix": {
+  "strict": 1,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "other": 8,
+   "num": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1907.00173/src/appendix.tex:366: MN\\left[ {\\begin{matrix}"
+  ],
+  "arg_shapes": {
+   "n": 1
+  }
+ },
+ "split": {
+  "strict": 0,
+  "expr": 16,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 9,
+  "classes": {
+   "other": 45,
+   "dimexpr": 8,
+   "empty": 8
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1306.0267/src/wtpp.tex:1786: \\begin{split}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1306.0267/src/wtpp.tex:1798: \\begin{split}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1706.00287/src/Homogenisation_SPDEs.tex:291: \\begin{split}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1404.2475/src/prd2fforproofa.tex:746: %%\\begin{split}"
+  ],
+  "arg_shapes": {
+   "D": 8,
+   "0": 8
+  }
+ },
+ "changemargin": {
+  "strict": 5,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 4,
+  "classes": {
+   "dimen": 10
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1109.5575/src/titre.tex:40: %\\begin{changemargin}{3cm}{3cm}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1109.5575/src/titre.tex:137: %\\begin{changemargin}{3cm}{3cm}",
+   "bench/results/stagerun-loop1-2026-09-16/work/2009.11130/src/main.tex:322: %\\begin{changemargin}{50pt}{50pt}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1306.0560/src/g301.tex:160: \\begin{changemargin}{.8cm}{.5cm}"
+  ],
+  "arg_shapes": {
+   "d d": 5
+  }
+ },
+ "equation*": {
+  "strict": 0,
+  "expr": 11,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 9,
+  "classes": {
+   "other": 33,
+   "empty": 2,
+   "dimexpr": 9
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/math--0307008/src/esi.tex:1594: \\begin{equation*}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1404.0464/src/main.tex:428: \\begin{equation*}",
+   "bench/results/stagerun-loop1-2026-09-16/work/2308.00112/src/main.tex:3018: \\begin{equation*}",
+   "bench/results/stagerun-loop1-2026-09-16/work/2308.00112/src/main.tex:3079: \\begin{equation*}"
+  ],
+  "arg_shapes": {
+   "D": 9,
+   "0": 2
+  }
+ },
+ "alignat*": {
+  "strict": 69,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 30,
+  "classes": {
+   "num": 69
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/0806.0463/src/per2.tex:2804: \\begin{alignat*}{2}",
+   "bench/results/stagerun-loop1-2026-09-16/work/0806.0463/src/per2.tex:3725: \\begin{alignat*}{4}",
+   "bench/results/stagerun-loop1-2026-09-16/work/0806.0463/src/per2.tex:3733: \\begin{alignat*}{3}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1706.00331/src/main.tex:1488: \\begin{alignat*}{2}"
+  ],
+  "arg_shapes": {
+   "n": 69
+  }
+ },
+ "flushright": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 25
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "conjecture": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 2
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "footnote": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 3
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "IEEEeqnarray": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 216
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "minted": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 115
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "deluxetable": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 400
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "quotation": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 2
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "restatable": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 224
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "quote": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 13
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "definition": {
+  "strict": 0,
+  "expr": 1,
+  "partial": 0,
+  "opt": 1,
+  "n_papers": 1,
+  "classes": {
+   "other": 43,
+   "dimexpr": 2
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1404.6037/src/workA.tex:734: \\begin{definition}[{\\BI} structures]"
+  ],
+  "arg_shapes": {
+   "o D": 1
+  }
+ },
+ "observation": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 3
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "sloppypar": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "CJK*": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 30,
+   "empty": 4
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "chapthebibliography": {
+  "strict": 2,
+  "expr": 1,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 3,
+  "classes": {
+   "num": 2,
+   "empty": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/astro-ph--0408466/src/Vlahakis_revised.tex:234: \\begin{chapthebibliography}{1}",
+   "bench/results/stagerun-loop1-2026-09-16/work/astro-ph--0501207/src/feigelson.tex:351: \\begin{chapthebibliography}{}",
+   "bench/results/stagerun-loop1-2026-09-16/work/cond-mat--0104460/src/contrib.tex:119: \\begin{chapthebibliography}{9}"
+  ],
+  "arg_shapes": {
+   "n": 2,
+   "0": 1
+  }
+ },
+ "floatingfigure": {
+  "strict": 2,
+  "expr": 2,
+  "partial": 0,
+  "opt": 2,
+  "n_papers": 2,
+  "classes": {
+   "dimen": 2,
+   "dimexpr": 2
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/0707.3673/src/ck04.tex:367: \\begin{floatingfigure}[r]{43mm}",
+   "bench/results/stagerun-loop1-2026-09-16/work/0707.3673/src/ck04.tex:915: \\begin{floatingfigure}[r]{45mm}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1306.0504/src/main.tex:680: %\\begin{floatingfigure}{.93\\figurewidth}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1306.0504/src/main.tex:767: %\\begin{floatingfigure}{.93\\figurewidth}"
+  ],
+  "arg_shapes": {
+   "o d": 2,
+   "D": 2
+  }
+ },
+ "oldthebibliography": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 3
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "otherlanguage": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 3
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "blockarray": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 7
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "block": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 12
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "small": {
+  "strict": 0,
+  "expr": 1,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "other": 2,
+   "empty": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/2211.04479/src/Name.tex:114: \\begin{small}"
+  ],
+  "arg_shapes": {
+   "0": 1
+  }
+ },
+ "aligned": {
+  "strict": 0,
+  "expr": 13,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 9,
+  "classes": {
+   "other": 21,
+   "empty": 10,
+   "dimexpr": 3
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/q-alg--9703036/src/brdifsub.tex:3648: \\begin{aligned}",
+   "bench/results/stagerun-loop1-2026-09-16/work/q-alg--9703036/src/brdifsub.tex:3653: \\begin{aligned}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1012.1723/src/Toffoli_v2.tex:209: %\\begin{aligned}",
+   "bench/results/stagerun-loop1-2026-09-16/work/math--0104242/src/orbifolds.tex:1397: \\begin{aligned}"
+  ],
+  "arg_shapes": {
+   "0": 10,
+   "D": 3
+  }
+ },
+ "pmatrix": {
+  "strict": 0,
+  "expr": 6,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 4,
+  "classes": {
+   "other": 82,
+   "empty": 2,
+   "dimexpr": 4
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/0806.3068/src/main.tex:552: \\begin{pmatrix}{ }",
+   "bench/results/stagerun-loop1-2026-09-16/work/0806.3068/src/main.tex:557: \\begin{pmatrix}{}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1803.08883/src/articlear.tex:248: \\;{\\cal L}= \\begin{pmatrix}",
+   "bench/results/stagerun-loop1-2026-09-16/work/2112.00069/src/si.tex:662: \\begin{pmatrix}"
+  ],
+  "arg_shapes": {
+   "D": 4,
+   "0": 2
+  }
+ },
+ "mycomment": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "deluxetable*": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 109
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "wraptable": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 36,
+   "dimen": 7,
+   "dimexpr": 28
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "alignat": {
+  "strict": 82,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 32,
+  "classes": {
+   "num": 82,
+   "other": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1706.00240/src/torus.tex:363: \\begin{alignat}{2}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1706.00240/src/torus.tex:376: \\begin{alignat}{2}",
+   "bench/results/stagerun-loop1-2026-09-16/work/2308.12649/src/sample.tex:325: \\begin{alignat}{2}",
+   "bench/results/stagerun-loop1-2026-09-16/work/2308.12649/src/sample.tex:755: \\begin{alignat}{2}"
+  ],
+  "arg_shapes": {
+   "n": 82
+  }
+ },
+ "numcases": {
+  "strict": 0,
+  "expr": 21,
+  "partial": 1,
+  "opt": 0,
+  "n_papers": 5,
+  "classes": {
+   "empty": 22,
+   "other": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/2105.03733/src/content/gac.tex:45: \\begin{numcases}{}",
+   "bench/results/stagerun-loop1-2026-09-16/work/2105.03733/src/content/gac.tex:190: \\begin{numcases}{}",
+   "bench/results/stagerun-loop1-2026-09-16/work/2105.03733/src/content/appendix.tex:62: \\begin{numcases}{}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1511.02818/src/main.tex:1524: \\begin{numcases}{}"
+  ],
+  "arg_shapes": {
+   "0": 21,
+   "0 ?": 1
+  }
+ },
+ "gather": {
+  "strict": 0,
+  "expr": 3,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "empty": 3,
+   "other": 2
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/hep-th--0104019/src/main.tex:230: \\begin{gather}",
+   "bench/results/stagerun-loop1-2026-09-16/work/hep-th--0104019/src/main.tex:241: \\begin{gather}",
+   "bench/results/stagerun-loop1-2026-09-16/work/hep-th--0104019/src/main.tex:1078: \\begin{gather}"
+  ],
+  "arg_shapes": {
+   "0": 3
+  }
+ },
+ "boxedminipage": {
+  "strict": 1,
+  "expr": 4,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 3,
+  "classes": {
+   "dimexpr": 4,
+   "dimen": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1206.0136/src/Paper.tex:381: \\begin{boxedminipage}{\\linewidth}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1206.0136/src/Paper.tex:2484: \\begin{boxedminipage}{\\linewidth}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1511.02943/src/QuantumEquivalence-v3.tex:93: \\begin{boxedminipage}{13cm}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1706.02733/src/upper.tex:16: \\begin{boxedminipage}{\\textwidth}"
+  ],
+  "arg_shapes": {
+   "D": 4,
+   "d": 1
+  }
+ },
+ "eqnarray*": {
+  "strict": 0,
+  "expr": 3,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 3,
+  "classes": {
+   "other": 46,
+   "empty": 2,
+   "dimexpr": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1206.5602/src/bessatsu_arXiv.tex:686: \\begin{eqnarray*}",
+   "bench/results/stagerun-loop1-2026-09-16/work/0806.3824/src/main.tex:1137: \\begin{eqnarray*}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1306.0319/src/main.tex:516: \\begin{eqnarray*}"
+  ],
+  "arg_shapes": {
+   "0": 2,
+   "D": 1
+  }
+ },
+ "Mizar": {
+  "strict": 0,
+  "expr": 1,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "other": 6,
+   "empty": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/2410.00065/src/m24_fin.tex:771: \\begin{Mizar}{}"
+  ],
+  "arg_shapes": {
+   "0": 1
+  }
+ },
+ "turn": {
+  "strict": 14,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 8,
+  "classes": {
+   "num": 14
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/0806.3247/src/article.tex:173: % \\hspace*{-0.5in% \\begin{turn}{90}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1907.00315/src/mnras-f-v2-last.tex:394: %\\begin{turn}{-90}",
+   "bench/results/stagerun-loop1-2026-09-16/work/hep-ph--0111218/src/ContrTrento_17_11_01.tex:214: %\\begin{turn}{-90}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1907.00079/src/coclite.tex:294: \\raisebox{0ex}{\\begin{turn}{90} \\end{turn}}"
+  ],
+  "arg_shapes": {
+   "n": 14
+  }
+ },
+ "theorem": {
+  "strict": 0,
+  "expr": 2,
+  "partial": 0,
+  "opt": 1,
+  "n_papers": 2,
+  "classes": {
+   "empty": 1,
+   "other": 5,
+   "dimexpr": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/0806.3284/src/main.tex:1275: \\begin{theorem}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1404.6037/src/workA.tex:2002: \\begin{theorem}[Cut admissibility in \\LBIN]"
+  ],
+  "arg_shapes": {
+   "0": 1,
+   "o D": 1
+  }
+ },
+ "document": {
+  "strict": 0,
+  "expr": 2,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 2,
+  "classes": {
+   "other": 8,
+   "empty": 2
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/2211.04472/src/astro_ph_version.tex:66: \\begin{document}{}",
+   "bench/results/stagerun-loop1-2026-09-16/work/hep-th--0408064/src/main.tex:93: \\begin{document}"
+  ],
+  "arg_shapes": {
+   "0": 2
+  }
+ },
+ "references": {
+  "strict": 0,
+  "expr": 2,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 2,
+  "classes": {
+   "empty": 2
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/astro-ph--0111213/src/ms.tex:319: \\begin{references}{}",
+   "bench/results/stagerun-loop1-2026-09-16/work/cond-mat--0104117/src/tempsl_sbp.tex:625: \\begin{references}{}"
+  ],
+  "arg_shapes": {
+   "0": 2
+  }
+ },
+ "pseudocode": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 5,
+   "empty": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "align*": {
+  "strict": 0,
+  "expr": 13,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 9,
+  "classes": {
+   "other": 23,
+   "empty": 5,
+   "dimexpr": 8
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/2105.03883/src/draft.tex:936: \\begin{align*}",
+   "bench/results/stagerun-loop1-2026-09-16/work/math--0408094/src/main.tex:852: \\begin{align*}",
+   "bench/results/stagerun-loop1-2026-09-16/work/math--0408094/src/main.tex:859: \\begin{align*}",
+   "bench/results/stagerun-loop1-2026-09-16/work/2203.12994/src/main.tex:171: \\begin{align*}"
+  ],
+  "arg_shapes": {
+   "D": 8,
+   "0": 5
+  }
+ },
+ "filecontents*": {
+  "strict": 0,
+  "expr": 1,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "other": 85,
+   "empty": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1404.0222/src/mulders.tex:16: %\\begin{filecontents*}{}"
+  ],
+  "arg_shapes": {
+   "0": 1
+  }
+ },
+ "mydef": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 2
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "APPENDIX": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 2
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "varwidth": {
+  "strict": 2,
+  "expr": 84,
+  "partial": 0,
+  "opt": 4,
+  "n_papers": 4,
+  "classes": {
+   "dimexpr": 84,
+   "dimen": 2
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1706.00221/src/MaxDiss.tex:239: \\newcommand{\\shrinkeqnnew}[2]{\\resizebox{#1\\linewidth}{!}{\\begin{varwidth}[t]{2\\linewidth}\\ensuremath{\\displaystyle{#2}}\\end{varwidth}}}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1706.00221/src/MaxDiss.tex:240: \\newcommand{\\fshrinkeqnnew}[2]{\\resizebox{#1\\linewidth}{!}{\\fbox{\\begin{varwidth}[t]{2\\linewidth}\\ensuremath{\\displaystyle{#2}}\\end{varwidth}}}}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1706.00221/src/MaxDiss.tex:1302: \\node[right, align=left]   at (sg-6-4.east)                      {\\begin{varwidth}{5cm}Let $\\mathcal{S}$ be the sol. set of Eq.~\\eqref{eq:trig}. \\\\ $\\displaystyle \\alpha_* \\in 2\\pi \\mathbb{N} + \\argmi",
+   "bench/results/stagerun-loop1-2026-09-16/work/1706.00221/src/MaxDiss.tex:1303: \\node[right, align=left]   at ([yshift=-2.5ex]sg-6-6.north east) {\\begin{varwidth}{5cm} $x_{*,n} = A_{nn}^{-1}(b_n - A_{nt} r_* \\cos \\alpha_*$ \\\\ \\hphantom{$x_{*,n} = A_{nn}^{-1}(b_n$} $ - A_{no} r_* "
+  ],
+  "arg_shapes": {
+   "D": 80,
+   "o D": 4,
+   "d": 2
+  }
+ },
+ "rotate": {
+  "strict": 11,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 4,
+  "classes": {
+   "num": 11
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/0905.0052/src/optimalscrap.tex:339: \\put(-0.1,2.5){\\begin{rotate}{90}Population\\end{rotate}}",
+   "bench/results/stagerun-loop1-2026-09-16/work/0905.0052/src/optimalscrap.tex:525: \\put(-0,0.2){\\begin{rotate}{90}Pulse intensity / Rabi frequency",
+   "bench/results/stagerun-loop1-2026-09-16/work/0905.0052/src/optimalscrap.tex:587: \\put(-0.1,3){\\begin{rotate}{90}$\\Delta_P$\\end{rotate}}",
+   "bench/results/stagerun-loop1-2026-09-16/work/0905.0052/src/optimalscrap.tex:606: \\put(-.1,3){\\begin{rotate}{90}$\\Delta_P$\\end{rotate}}"
+  ],
+  "arg_shapes": {
+   "n": 11
+  }
+ },
+ "pgfpicture": {
+  "strict": 3,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "dimen": 12
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/math--0307008/src/esi.tex:482: \\begin{pgfpicture} {0cm}{0cm}{4cm}{4.5cm}",
+   "bench/results/stagerun-loop1-2026-09-16/work/math--0307008/src/esi.tex:538: \\begin{pgfpicture}{0cm}{0cm}{4cm}{4.5cm}",
+   "bench/results/stagerun-loop1-2026-09-16/work/math--0307008/src/esi.tex:1108: \\begin{pgfpicture} {0cm}{0cm}{4cm}{4.7cm}"
+  ],
+  "arg_shapes": {
+   "d d d d": 3
+  }
+ },
+ "rema": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 2
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "subtable": {
+  "strict": 0,
+  "expr": 62,
+  "partial": 0,
+  "opt": 28,
+  "n_papers": 16,
+  "classes": {
+   "dimexpr": 62
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/2403.00111/src/paper.tex:559: \\begin{subtable}[h]{0.45\\textwidth}",
+   "bench/results/stagerun-loop1-2026-09-16/work/2403.00111/src/paper.tex:583: \\begin{subtable}[h]{0.45\\textwidth}",
+   "bench/results/stagerun-loop1-2026-09-16/work/2003.03461/src/semi_stylegan.tex:244: \\begin{subtable}{\\linewidth}",
+   "bench/results/stagerun-loop1-2026-09-16/work/2003.03461/src/semi_stylegan.tex:288: \\begin{subtable}{\\linewidth}"
+  ],
+  "arg_shapes": {
+   "D": 34,
+   "o D": 28
+  }
+ },
+ "multline": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 10
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "Remark": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 3
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "bmatrix": {
+  "strict": 0,
+  "expr": 3,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 3,
+  "classes": {
+   "other": 14,
+   "dimexpr": 3
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1803.00186/src/counterexample_constrained.tex:44: We will now show that for any perturbation along the tangent space at $U$, the objective value strictly increases, thereby showing that $U$ satisfies second order optimality conditions. Any perturbati",
+   "bench/results/stagerun-loop1-2026-09-16/work/1907.00191/src/FullTracking_v21_FS_arXiv.tex:675: \\Phi := \\begin{bmatrix}",
+   "bench/results/stagerun-loop1-2026-09-16/work/2403.00125/src/pfdg_method.tex:989: \\begin{bmatrix}"
+  ],
+  "arg_shapes": {
+   "D": 3
+  }
+ },
+ "keywords": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 5
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "mini": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 38,
+   "empty": 8
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "mini*": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 16,
+   "empty": 16
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "mini!": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 3
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "maxi": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 8,
+   "empty": 2
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "argmini": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 6,
+   "empty": 2
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "argmaxi": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 2,
+   "empty": 2
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "alignedat": {
+  "strict": 59,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 8,
+  "classes": {
+   "num": 59
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1803.03185/src/style/optidef.tex:1189: \\begin{alignedat}{5}",
+   "bench/results/stagerun-loop1-2026-09-16/work/q-alg--9703036/src/brdifsub.tex:777: \\begin{alignedat}{2}",
+   "bench/results/stagerun-loop1-2026-09-16/work/q-alg--9703036/src/brdifsub.tex:3297: \\begin{alignedat}{3}",
+   "bench/results/stagerun-loop1-2026-09-16/work/0905.0936/src/main.tex:667: \\begin{alignedat}{1}"
+  ],
+  "arg_shapes": {
+   "n": 59
+  }
+ },
+ "paragraph": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 15
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "frame": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 20
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "talk": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 6
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "gathered": {
+  "strict": 0,
+  "expr": 1,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "empty": 1,
+   "other": 8
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/q-alg--9703036/src/brdifsub.tex:3388: \\begin{gathered}"
+  ],
+  "arg_shapes": {
+   "0": 1
+  }
+ },
+ "listing": {
+  "strict": 6,
+  "expr": 0,
+  "partial": 0,
+  "opt": 6,
+  "n_papers": 1,
+  "classes": {
+   "num": 6
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/cs--0111043/src/langevine-et-al.tex:1011: \\begin{listing}[1]{1}",
+   "bench/results/stagerun-loop1-2026-09-16/work/cs--0111043/src/langevine-et-al.tex:1023: \\begin{listing}[1]{9}",
+   "bench/results/stagerun-loop1-2026-09-16/work/cs--0111043/src/langevine-et-al.tex:1122: \\begin{listing}[1]{1}",
+   "bench/results/stagerun-loop1-2026-09-16/work/cs--0111043/src/langevine-et-al.tex:1162: \\begin{listing}[1]{37}"
+  ],
+  "arg_shapes": {
+   "o n": 6
+  }
+ },
+ "theunbibliography": {
+  "strict": 0,
+  "expr": 1,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "empty": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/2308.12689/src/jaasample.tex:310: \\begin{theunbibliography}{}"
+  ],
+  "arg_shapes": {
+   "0": 1
+  }
+ },
+ "IEEEeqnarray*": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 41
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "mycover": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "assumption": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "lemma": {
+  "strict": 0,
+  "expr": 2,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "other": 7,
+   "empty": 2
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1109.5522/src/model.tex:385: \\begin{lemma}{}\\label{lemma_merryOperatorCanBeComputedEfficiently}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1109.5522/src/preliminaries.tex:239: \\begin{lemma}{}\\label{lemma_mixedSumRule}"
+  ],
+  "arg_shapes": {
+   "0": 2
+  }
+ },
+ "translatedabstract": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 6
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "lrbox": {
+  "strict": 0,
+  "expr": 16,
+  "partial": 1,
+  "opt": 0,
+  "n_papers": 10,
+  "classes": {
+   "dimexpr": 17,
+   "other": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1907.00102/src/macros.tex:660: \\begin{lrbox}{\\frameminipageboiteavecunnomsuperlongdesortequonnepuissepaslereutiliser}%",
+   "bench/results/stagerun-loop1-2026-09-16/work/1811.10096/src/main.tex:65: \\begin{lrbox}{\\commentbox}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1811.10096/src/main.tex:69: {\\begin{lrbox}{\\commentbox}}}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1003.4800/src/mycommands.tex:133: \\begin{lrbox}{\\fminibox}\\begin{minipage}{\\fminilength}}"
+  ],
+  "arg_shapes": {
+   "D": 16,
+   "D ?": 1
+  }
+ },
+ "frameminipage": {
+  "strict": 0,
+  "expr": 1,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "dimexpr": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1907.00102/src/macros.tex:670: \\begin{frameminipage}{\\linewidth}"
+  ],
+  "arg_shapes": {
+   "D": 1
+  }
+ },
+ "algoblocprocedure": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "algoblocfor": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "cases": {
+  "strict": 1,
+  "expr": 6,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 3,
+  "classes": {
+   "other": 22,
+   "empty": 1,
+   "dimexpr": 5,
+   "num": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/math--0307301/src/bcz.tex:879: \\begin{cases}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1012.1149/src/main.tex:2134: \\begin{cases}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1012.1149/src/main.tex:2141: \\begin{cases}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1012.1149/src/main.tex:2152: \\begin{cases}"
+  ],
+  "arg_shapes": {
+   "D": 5,
+   "0": 1,
+   "n": 1
+  }
+ },
+ "parbox": {
+  "strict": 1,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "dimen": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/2009.03605/src/main.tex:2126: \\begin{parbox}{118mm}{\\footnotesize  Grigorii Horosh$^{1}$, Nadeghda  Malyutina$^{2}$,  Alexandra Scerbacova$^{3}$,   Victor Shcherbacov$^{4}$"
+  ],
+  "arg_shapes": {
+   "d": 1
+  }
+ },
+ "tabulary": {
+  "strict": 0,
+  "expr": 1,
+  "partial": 9,
+  "opt": 0,
+  "n_papers": 3,
+  "classes": {
+   "dimexpr": 10,
+   "other": 9
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/2211.04534/src/goal.tex:939: \\begin{tabulary}{\\textwidth}{LLLLL}",
+   "bench/results/stagerun-loop1-2026-09-16/work/2211.04534/src/GOAL arxiv/goal.tex:939: \\begin{tabulary}{\\textwidth}{LLLLL}",
+   "bench/results/stagerun-loop1-2026-09-16/work/2211.04534/src/GOAL arxiv/goal_appendix.tex:303: \\begin{tabulary}{\\textwidth}{LLLLL}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1502.02341/src/table_n_biographies_all_short.tex:1: \\begin{tabulary}{\\linewidth}{lRRLL}"
+  ],
+  "arg_shapes": {
+   "D ?": 9,
+   "D": 1
+  }
+ },
+ "cor": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 2
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "supertabular": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 2
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "thanks": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "pgfonlayer": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 193
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "Large": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "overpic": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 165
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "pf": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 2
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "flushleft": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 17
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "mthm": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 2
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "mcor": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "mprop": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "matr": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 6
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "section": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 38
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "subsection": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 25
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "thm": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 8
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "propos": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "corol": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "defeni": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "remark": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 3
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "subbibitems": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 8
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "VCPicture": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 16
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "verse": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 2
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "large": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 2
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "Eqnarray": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "thetables": {
+  "strict": 1,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "num": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/physics--0501058/src/rel.tex:1168: \\begin{thetables}{99}"
+  ],
+  "arg_shapes": {
+   "n": 1
+  }
+ },
+ "thefigures": {
+  "strict": 1,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "num": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/physics--0501058/src/rel.tex:1208: \\begin{thefigures}{99}"
+  ],
+  "arg_shapes": {
+   "n": 1
+  }
+ },
+ "proposition": {
+  "strict": 0,
+  "expr": 1,
+  "partial": 0,
+  "opt": 1,
+  "n_papers": 1,
+  "classes": {
+   "other": 4,
+   "dimexpr": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1404.6037/src/workA.tex:1817: \\begin{proposition}[Sufficiency of \\code{RepCandidate}]"
+  ],
+  "arg_shapes": {
+   "o D": 1
+  }
+ },
+ "flalign": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 20
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "chronology": {
+  "strict": 0,
+  "expr": 1,
+  "partial": 0,
+  "opt": 1,
+  "n_papers": 1,
+  "classes": {
+   "num": 2,
+   "dimen": 1,
+   "dimexpr": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1706.00177/src/MedHoc2017_v6.tex:324: %\\begin{chronology}[20]{1}{42}{3ex}{\\textwidth}"
+  ],
+  "arg_shapes": {
+   "o n n d D": 1
+  }
+ },
+ "th": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "pr": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 2
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "rem": {
+  "strict": 0,
+  "expr": 1,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "other": 1,
+   "empty": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/hep-th--0605038/src/SDrel.tex:2784: \\begin{rem}"
+  ],
+  "arg_shapes": {
+   "0": 1
+  }
+ },
+ "LawJml": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 3
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "prop": {
+  "strict": 0,
+  "expr": 1,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "other": 4,
+   "dimexpr": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1003.4853/src/main.tex:57: \\newcommand\\bp{\\begin{prop}{\\bf }}"
+  ],
+  "arg_shapes": {
+   "D": 1
+  }
+ },
+ "subsubsection": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 2
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "frontmatter": {
+  "strict": 0,
+  "expr": 1,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "empty": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/2211.00056/src/main.tex:80: \\begin{frontmatter}{}"
+  ],
+  "arg_shapes": {
+   "0": 1
+  }
+ },
+ "subarray": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 80
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "janclenum": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 2,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "other": 8,
+   "dimexpr": 2
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/0905.0369/src/NourNourFin2.tex:247: \\begin{janclenum}{\\alph}{)}",
+   "bench/results/stagerun-loop1-2026-09-16/work/0905.0369/src/NourNourFin2.tex:318: \\begin{janclenum}{\\arabic}{)}"
+  ],
+  "arg_shapes": {
+   "D ?": 2
+  }
+ },
+ "boxedarray": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 30
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "acknowledgments": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 3
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "indentation": {
+  "strict": 4,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "dimen": 8
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1706.00295/src/cdmstdcmds.tex:58: \\newenvironment{case}[2]{\\noindent \\textsc{Case #1}: #2:\\begin{indentation}{1.5em}{0em}\\setlength{\\parindent}{0em}}{\\end{indentation}}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1706.00295/src/cdmstdcmds.tex:59: \\newenvironment{ulindent}[1]{\\noindent \\underline{#1:}\\begin{indentation}{1.5em}{0em}\\setlength{\\parindent}{0em}}{\\end{indentation}}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1706.00295/src/cdmstdcmds.tex:62: \\newenvironment{basecase}[1]{\\noindent \\textsc{Base case}: #1:\\begin{indentation}{1.5em}{0em}}{\\end{indentation}}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1706.00295/src/cdmstdcmds.tex:63: \\newenvironment{inductionstep}[1]{\\noindent \\textsc{Induction step}: #1:\\begin{indentation}{1.5em}{0em}}{\\end{indentation}}"
+  ],
+  "arg_shapes": {
+   "d d": 4
+  }
+ },
+ "repeatresult": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 6
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "table*": {
+  "strict": 0,
+  "expr": 5,
+  "partial": 0,
+  "opt": 4,
+  "n_papers": 2,
+  "classes": {
+   "empty": 5
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1907.00331/src/eqstate.tex:515: \\begin{table*}{}",
+   "bench/results/stagerun-loop1-2026-09-16/work/2111.00014/src/WZDR.tex:583: \\begin{table*}[h!]{ }",
+   "bench/results/stagerun-loop1-2026-09-16/work/2111.00014/src/WZDR.tex:608: \\begin{table*}[h!]{ }",
+   "bench/results/stagerun-loop1-2026-09-16/work/2111.00014/src/WZDR.tex:633: \\begin{table*}[h!]{ }"
+  ],
+  "arg_shapes": {
+   "o 0": 4,
+   "0": 1
+  }
+ },
+ "displaymath": {
+  "strict": 0,
+  "expr": 2,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 2,
+  "classes": {
+   "other": 20,
+   "empty": 1,
+   "dimexpr": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/0905.0244/src/main.tex:554: \\begin{displaymath}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1803.03037/src/PenKSPK17.tex:1036: \\begin{displaymath}"
+  ],
+  "arg_shapes": {
+   "0": 1,
+   "D": 1
+  }
+ },
+ "widespace": {
+  "strict": 0,
+  "expr": 1,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "dimexpr": 1,
+   "dimen": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1811.03607/src/preambel/newcommands.tex:51: % \\begin{widespace}{-\\marginwidth}{0pt}"
+  ],
+  "arg_shapes": {
+   "D d": 1
+  }
+ },
+ "appendix": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "CJK": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 8
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "multline*": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 4
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "CD": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "lyxlist": {
+  "strict": 1,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "num": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1003.5474/src/pamipap3.tex:925: \\begin{lyxlist}{00.00.0000}"
+  ],
+  "arg_shapes": {
+   "n": 1
+  }
+ },
+ "textblock*": {
+  "strict": 3,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 2,
+  "classes": {
+   "dimen": 3
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1404.0096/src/draft_-_prl.tex:67: \\begin{textblock*}{5cm}(130mm,-10mm)",
+   "bench/results/stagerun-loop1-2026-09-16/work/2310.16788/src/root.tex:98: \\begin{textblock*}{17cm}(20mm,1mm)    % tweak here: {box width}(leftposition, rightposition)",
+   "bench/results/stagerun-loop1-2026-09-16/work/2310.16788/src/root.tex:110: \\begin{textblock*}{17cm}(20mm,1mm)    % tweak here: {box width}(leftposition, rightposition)"
+  ],
+  "arg_shapes": {
+   "d": 3
+  }
+ },
+ "longtable*": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 2
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "problem": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "framed": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "mdframed": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "theo": {
+  "strict": 0,
+  "expr": 1,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "other": 4,
+   "dimexpr": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1003.4853/src/main.tex:59: \\newcommand\\bt{\\begin{theo}{\\bf }}"
+  ],
+  "arg_shapes": {
+   "D": 1
+  }
+ },
+ "IEEEproof": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "topbox": {
+  "strict": 10,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "dimen": 20
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1404.0447/src/manuscript.tex:2132: \\dblknew{\\begin{topbox}{2em}{2em} \\vspace{2pt} \\center{\\Proc{\\curproc}} \\end{topbox}}{2}{17}{,fill=proccolor};",
+   "bench/results/stagerun-loop1-2026-09-16/work/1404.0447/src/manuscript.tex:2136: \\dblknew{\\begin{topbox}{3em}{3em} \\vspace{2pt} \\center{\\Proc{\\curproc}} \\end{topbox}}{3}{21.5}{,fill=proccolor};",
+   "bench/results/stagerun-loop1-2026-09-16/work/1404.0447/src/manuscript.tex:2149: \\blk{\\begin{topbox}{2em}{3em} \\vspace{2pt} \\center{\\Proc{\\curproc}} \\end{topbox}}{2}{3}{17}{21.5}{,fill=proccolor};",
+   "bench/results/stagerun-loop1-2026-09-16/work/1404.0447/src/manuscript.tex:2152: \\blk{\\begin{topbox}{3em}{2em} \\vspace{2pt} \\center{\\Proc{\\curproc}} \\end{topbox}}{3}{2}{21.5}{17}{,fill=proccolor};"
+  ],
+  "arg_shapes": {
+   "d d": 10
+  }
+ },
+ "dingautolist": {
+  "strict": 1,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "num": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/nucl-ex--0111004/src/nchAnalysis.tex:436: \\begin{dingautolist}{192}"
+  ],
+  "arg_shapes": {
+   "n": 1
+  }
+ },
+ "manualtheorem": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 2
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "keyword": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "tblr": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 2
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "tab": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "dmath*": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 141
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "defn": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 3
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "ex": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "lemma1": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 12
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "filecontents": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 107
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "tcolorbox": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "tabu": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 4
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "empheq": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 9
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "lstlisting": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 4
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "defproblemx": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 2
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "reptheorem": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "centering": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 4
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "Definition": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 3
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "wide": {
+  "strict": 14,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "dimen": 28
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/0905.0107/src/nuhmDDp.tex:823: \\begin{wide}{-1in}{-1in}",
+   "bench/results/stagerun-loop1-2026-09-16/work/0905.0107/src/nuhmDDp.tex:971: \\begin{wide}{-1in}{-1in}",
+   "bench/results/stagerun-loop1-2026-09-16/work/0905.0107/src/nuhmDDp.tex:1100: \\begin{wide}{-1in}{-1in}",
+   "bench/results/stagerun-loop1-2026-09-16/work/0905.0107/src/nuhmDDp.tex:1165: \\begin{wide}{-1in}{-1in}"
+  ],
+  "arg_shapes": {
+   "d d": 14
+  }
+ },
+ "Example": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "Proposition": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "table": {
+  "strict": 0,
+  "expr": 3,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 2,
+  "classes": {
+   "other": 5,
+   "empty": 3
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/0707.2897/src/form_factors_v3.tex:1120: \\begin{table}{}",
+   "bench/results/stagerun-loop1-2026-09-16/work/0707.2897/src/form_factors_v3.tex:1159: \\begin{table}{}",
+   "bench/results/stagerun-loop1-2026-09-16/work/2009.11002/src/mnras_ms_arxiv.tex:707: \\begin{table}{}"
+  ],
+  "arg_shapes": {
+   "0": 3
+  }
+ },
+ "boxitpara": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "Sbox": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 2
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "intermediate": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 2
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "vmatrix": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 2
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "NiceTabular": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 45
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "Section": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 5
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "SubSection": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 3
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "IEEEeqnarraybox": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "figure": {
+  "strict": 0,
+  "expr": 1,
+  "partial": 0,
+  "opt": 1,
+  "n_papers": 1,
+  "classes": {
+   "other": 7,
+   "empty": 1,
+   "dimexpr": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1003.0145/src/PaperII19may2010RevisedMS6.tex:226: \\begin{figure}[t]{}"
+  ],
+  "arg_shapes": {
+   "o 0": 1
+  }
+ },
+ "itemize": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "comment": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 3
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "example": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 2
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "msc": {
+  "strict": 0,
+  "expr": 5,
+  "partial": 0,
+  "opt": 5,
+  "n_papers": 1,
+  "classes": {
+   "empty": 5
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1907.00231/src/sec/background.tex:8: \\begin{msc}[large values, /msc/level height=0.6cm, /msc/label distance=0.5ex , /msc/first level height=0.6cm, /msc/last level height=0.6cm, /msc/top head dist=0, /msc/bottom foot dist=0, /msc/environm",
+   "bench/results/stagerun-loop1-2026-09-16/work/1907.00231/src/sec/background.tex:48: \\begin{msc}[large values, /msc/level height=0.6cm, /msc/label distance=0.5ex , /msc/first level height=0.6cm, /msc/last level height=0.6cm, /msc/top head dist=0, /msc/bottom foot dist=0, /msc/environm",
+   "bench/results/stagerun-loop1-2026-09-16/work/1907.00231/src/sec/background.tex:90: \\begin{msc}[large values, /msc/level height=0.6cm, /msc/label distance=0.5ex , /msc/first level height=0.6cm, /msc/last level height=0.6cm, /msc/top head dist=0, /msc/bottom foot dist=0, /msc/environm",
+   "bench/results/stagerun-loop1-2026-09-16/work/1907.00231/src/sec/befs.tex:22: \\begin{msc}[large values, /msc/level height=0.6cm, /msc/label distance=0.5ex , /msc/first level height=0.6cm, /msc/last level height=0.6cm, /msc/top head dist=0, /msc/bottom foot dist=0, /msc/environm"
+  ],
+  "arg_shapes": {
+   "o 0": 5
+  }
+ },
+ "hangparas": {
+  "strict": 1,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "dimen": 1,
+   "num": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1803.00111/src/paper.tex:290: \\begin{hangparas}{.25in}{1}"
+  ],
+  "arg_shapes": {
+   "d n": 1
+  }
+ },
+ "net": {
+  "strict": 5,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "num": 10
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1003.4562/src/main.tex:169: \\begin{net}{40}{45}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1003.4562/src/main.tex:202: \\begin{net}{200}{40}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1003.4562/src/main.tex:275: \\begin{net}{250}{165}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1003.4562/src/main.tex:341: \\begin{net}{200}{80}"
+  ],
+  "arg_shapes": {
+   "n n": 5
+  }
+ },
+ "mnet": {
+  "strict": 2,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "num": 4
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1003.4562/src/main.tex:277: \\begin{mnet}{102}{50}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1003.4562/src/main.tex:305: \\begin{mnet}{102}{50}"
+  ],
+  "arg_shapes": {
+   "n n": 2
+  }
+ },
+ "multicols*": {
+  "strict": 1,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "num": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1306.6111/src/socialcom-2013_ase.tex:69: \\begin{multicols*}{2}"
+  ],
+  "arg_shapes": {
+   "n": 1
+  }
+ },
+ "planotable": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 7
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "thereferences": {
+  "strict": 0,
+  "expr": 1,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "empty": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/astro-ph--0307150/src/edge.tex:784: \\begin{thereferences}{}"
+  ],
+  "arg_shapes": {
+   "0": 1
+  }
+ },
+ "narrow": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "Bew": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 5
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "IEEEkeywords": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "fmffile": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 38
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "sideways": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 3
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "mybox": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 6
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "say": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "addmargin": {
+  "strict": 1,
+  "expr": 0,
+  "partial": 0,
+  "opt": 1,
+  "n_papers": 1,
+  "classes": {
+   "dimen": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1907.00141/src/sec-probdef.tex:89: %\\begin{addmargin}[1em]{1.7em}"
+  ],
+  "arg_shapes": {
+   "o d": 1
+  }
+ },
+ "color": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 7
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "noindentlist": {
+  "strict": 0,
+  "expr": 1,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "empty": 2
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/math--9901070/src/main.tex:54: \\begin{noindentlist}{}{}"
+  ],
+  "arg_shapes": {
+   "0 0": 1
+  }
+ },
+ "thing": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "letter": {
+  "strict": 0,
+  "expr": 1,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "empty": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/2112.00119/src/cover_letter.tex:11: \\begin{letter}{}"
+  ],
+  "arg_shapes": {
+   "0": 1
+  }
+ },
+ "xalignat*": {
+  "strict": 12,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 2,
+  "classes": {
+   "num": 12
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1306.0019/src/recursive-sorting.tex:285: \\begin{xalignat*}{5}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1306.0019/src/recursive-sorting.tex:366: \\begin{xalignat*}{3}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1306.0019/src/recursive-sorting.tex:391: \\begin{xalignat*}{3}",
+   "bench/results/stagerun-loop1-2026-09-16/work/0806.4130/src/MSSW.tex:497: \\begin{xalignat*}{2}"
+  ],
+  "arg_shapes": {
+   "n": 12
+  }
+ },
+ "gather*": {
+  "strict": 0,
+  "expr": 1,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "other": 2,
+   "dimexpr": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1706.00246/src/preprint-Melnyk-2017.tex:1036: \\begin{gather*}"
+  ],
+  "arg_shapes": {
+   "D": 1
+  }
+ },
+ "macro": {
+  "strict": 0,
+  "expr": 2,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "dimexpr": 2
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1003.2165/src/main.tex:6798: % \\begin{macro}{\\Set}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1003.2165/src/main.tex:7018: % \\begin{macro}{\\rounded}"
+  ],
+  "arg_shapes": {
+   "D": 2
+  }
+ },
+ "namedtheorem": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "namedproof": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "email": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 4
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "address": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 3
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "tightlist": {
+  "strict": 1,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "dimen": 3
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/2112.00133/src/sections/intro.tex:37: \\begin{tightlist}{1em}{0.3em}{0.3em}"
+  ],
+  "arg_shapes": {
+   "d d d": 1
+  }
+ },
+ "subfigmatrix": {
+  "strict": 1,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "num": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1706.00248/src/03_method.tex:122: % % \\begin{subfigmatrix}{4}"
+  ],
+  "arg_shapes": {
+   "n": 1
+  }
+ },
+ "docCommand": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 4,
+   "empty": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "dispListing*": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 2
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "finding": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 4
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "raggedright": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 2
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "centerline": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "verbatim": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "assu": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 2
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "customthm": {
+  "strict": 1,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "num": 1,
+   "other": 4
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/2105.11423/src/bounds_A.tex:102: \\begin{customthm}{2}"
+  ],
+  "arg_shapes": {
+   "n": 1
+  }
+ },
+ "labeledcd": {
+  "strict": 1,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "num": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/2105.03798/src/purity_arxiv1.tex:1480: \\begin{labeledcd}{5} \\label{eq: ses FTA}"
+  ],
+  "arg_shapes": {
+   "n": 1
+  }
+ },
+ "biography": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "adjustwidth*": {
+  "strict": 1,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "dimen": 2
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1706.02447/src/main.tex:624: \\begin{adjustwidth*}{1em}{0em}"
+  ],
+  "arg_shapes": {
+   "d d": 1
+  }
+ },
+ "minipae": {
+  "strict": 0,
+  "expr": 1,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "dimexpr": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/physics--9901022/src/mucollider.tex:2907: %\\begin{minipae}{2.05\\linewidth} % fig"
+  ],
+  "arg_shapes": {
+   "D": 1
+  }
+ },
+ "resumeenumerate": {
+  "strict": 5,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "num": 5
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1012.1541/src/main.tex:510: \\begin{resumeenumerate}{2}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1012.1541/src/main.tex:612: \\begin{resumeenumerate}{2}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1012.1541/src/main.tex:639: \\begin{resumeenumerate}{2}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1012.1541/src/main.tex:648: \\begin{resumeenumerate}{3}"
+  ],
+  "arg_shapes": {
+   "n": 5
+  }
+ },
+ "customconj": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "thmbis": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "statement": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 1
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "Figure": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 6
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "Diagram": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 23
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "definicion": {
+  "strict": 0,
+  "expr": 1,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "dimexpr": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1003.4853/src/main.tex:53: \\newcommand\\bd{\\begin{definicion}{\\bf }}"
+  ],
+  "arg_shapes": {
+   "D": 1
+  }
+ },
+ "lema": {
+  "strict": 0,
+  "expr": 1,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "dimexpr": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1003.4853/src/main.tex:55: \\newcommand\\bl{\\begin{lema}{\\bf }}"
+  ],
+  "arg_shapes": {
+   "D": 1
+  }
+ },
+ "nota": {
+  "strict": 0,
+  "expr": 1,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "dimexpr": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1003.4853/src/main.tex:63: \\newcommand\\bn{\\begin{nota}{\\bf }}"
+  ],
+  "arg_shapes": {
+   "D": 1
+  }
+ },
+ "corolary": {
+  "strict": 0,
+  "expr": 1,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "dimexpr": 1
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1003.4853/src/main.tex:65: \\newcommand\\bc{\\begin{corolary}{\\bf }}"
+  ],
+  "arg_shapes": {
+   "D": 1
+  }
+ },
+ "@abssec": {
+  "strict": 0,
+  "expr": 2,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 1,
+  "classes": {
+   "dimexpr": 2
+  },
+  "samples": [
+   "bench/results/stagerun-loop1-2026-09-16/work/1306.0093/src/main.tex:47: \\newenvironment{keywords}{\\begin{@abssec}{\\keywordsname}}{\\end{@abssec}}",
+   "bench/results/stagerun-loop1-2026-09-16/work/1306.0093/src/main.tex:48: \\newenvironment{AMS}{\\begin{@abssec}{\\AMSname}}{\\end{@abssec}}"
+  ],
+  "arg_shapes": {
+   "D": 2
+  }
+ },
+ "eq": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 163
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "defi": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 2
+  },
+  "samples": [],
+  "arg_shapes": {}
+ },
+ "instructionframe": {
+  "strict": 0,
+  "expr": 0,
+  "partial": 0,
+  "opt": 0,
+  "n_papers": 0,
+  "classes": {
+   "other": 5
+  },
+  "samples": [],
+  "arg_shapes": {}
+ }
+}
