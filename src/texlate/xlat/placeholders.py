@@ -102,35 +102,68 @@ def _sentinel(tag: str, level: int) -> str:
     return f"[[__TEXLATE_{tag}_LIT{n}__]]"
 
 
-def _max_sentinel_level(text: str, tag: str) -> int:
-    """文中出现的最高哨兵级（无 → ``_SENT_BASE - 1``）。"""
-    best = _SENT_BASE - 1
-    for d in _SENT_RX[tag].findall(text):
-        best = max(best, _SENT_BASE if not d else int(d) + 1)
-    return best
+def _sent_d(tag: str, d: str) -> str:
+    """按哨兵后缀 d 直取名（``""``=level 2）——免 ``int()`` 的任意长后缀路径。"""
+    return f"[[__TEXLATE_{tag}_LIT{d}__]]"
+
+
+def _sentinel_ds(text: str, tag: str) -> list[str]:
+    """文中规范哨兵后缀升序去重表（``""``=level 2 恒排首）。
+
+    ``_SENT_RX`` 命中的非规范后缀（``"0"``/``"1"``/前导零形）不在升降链
+    管辖内——编码双向均不产出也不吃，原样透传，此剔除。级序走
+    ``(len, 字典序)`` 而非 ``int()``：稀疏在册级迭代不撑开区间
+    （``LIT99999999`` 级字面曾致 ~1e8 次空转 replace），且任意长后缀
+    不触 int 位限（``LIT{9×5000}`` 曾 ValueError 炸链）。
+    """
+    ds = {
+        d for d in _SENT_RX[tag].findall(text) if d == "" or (d[0] != "0" and d != "1")
+    }
+    return sorted(ds, key=lambda d: (d != "", len(d), d))
+
+
+def _dec_succ(d: str) -> str:
+    """规范十进制后缀 +1（字符串进位——任意长不触 int 位限）。"""
+    i = len(d) - 1
+    while i >= 0 and d[i] == "9":
+        i -= 1
+    if i < 0:
+        return "1" + "0" * len(d)
+    return d[:i] + chr(ord(d[i]) + 1) + "0" * (len(d) - i - 1)
+
+
+def _dec_pred(d: str) -> str:
+    """规范十进制后缀 -1（仅 d≥``"2"`` 调用；``"2"→""`` 即 level 3→2 降档）。"""
+    if d == "2":
+        return ""
+    i = len(d) - 1
+    while d[i] == "0":
+        i -= 1
+    return (d[:i] + chr(ord(d[i]) - 1) + "9" * (len(d) - i - 1)).lstrip("0")
 
 
 def _escape_family(text: str, tag: str, tok: str, raw: str) -> str:
     """单族字面转义闭链。
 
-    哨兵自顶向下逐级 bump（sent(k)→sent(k+1)），再 RAW→sent(2)、
+    在册哨兵自顶向下逐级 bump（sent(k)→sent(k+1)），再 RAW→sent(2)、
     token→RAW——任意深的字面 token 升一层即脱离当前级，先升高级故产物
     不会被本级及以下的后续替换二次吃掉。
     """
-    for k in range(_max_sentinel_level(text, tag), _SENT_BASE - 1, -1):
-        text = text.replace(_sentinel(tag, k), _sentinel(tag, k + 1))
+    for d in reversed(_sentinel_ds(text, tag)):
+        succ = "2" if d == "" else _dec_succ(d)
+        text = text.replace(_sent_d(tag, d), _sent_d(tag, succ))
     return text.replace(raw, _sentinel(tag, _SENT_BASE)).replace(tok, raw)
 
 
 def _unescape_family(text: str, tag: str, tok: str, raw: str) -> str:
     """解码降链。
 
-    RAW→token、sent(2)→RAW，再 sent(k)→sent(k-1) 自 3 升序——k 级降出的
+    RAW→token、sent(2)→RAW，再在册 sent(k)→sent(k-1) 自 3 升序——k 级降出的
     k-1 级是终态字面（其档位已过），不会被二次降。
     """
     text = text.replace(raw, tok).replace(_sentinel(tag, _SENT_BASE), raw)
-    for k in range(_SENT_BASE + 1, _max_sentinel_level(text, tag) + 1):
-        text = text.replace(_sentinel(tag, k), _sentinel(tag, k - 1))
+    for d in _sentinel_ds(text, tag):
+        text = text.replace(_sent_d(tag, d), _sent_d(tag, _dec_pred(d)))
     return text
 
 
