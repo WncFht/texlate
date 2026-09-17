@@ -9,8 +9,9 @@ l0 ``validate_pair`` 侧（oracle 全部独立代码路径）：
   math 奇数 ``$`` 与 length CJK 占比两类继承信号；
 - ``_lex`` 结构不变量：token 拼接恒还原输入、pos 对齐、kind 合法；
 - 占位符分类全量 oracle：独立「前导反斜杠 run 奇偶」遮盖器 + 自写
-  ``[[..]]`` 严格形/模糊四臂/注释区/行锚定扫描器，预测 missing/extra/typo/
-  cmtfab/order/anchor 签名多重集与实现一致；
+  ``[[..]]`` 严格形/模糊四臂/注释区/行锚定扫描器 + lev≤2 递归增广路
+  最大匹配，预测 missing/extra/typo/cmtfab/order/anchor 签名多重集
+  与实现一致；
 - ``src_literal`` 净差豁免口径（src 自带模糊形 verbatim 不算臆造）；
 - ``%`` 前 ``\\`` run 奇偶决定 token 落「注释区臆造」还是「正文多出」；
 - key/brace/math/env/cs_names/item_glue/macro/echo/length 逐规则独立
@@ -545,6 +546,40 @@ def _o_comment_tail_only(tail: str) -> bool:
         i = m.end()
 
 
+def _o_ph_match(missing: list[str], cands: list[str]) -> dict[int, int]:
+    """拼错配对 oracle：与 impl 同义的 Kuhn 增广路最大匹配 → ``{missing: cand}``。
+
+    邻接按 (lev, 下标) 升序、逐 missing 一轮 DFS、seen 按轮隔离；
+    递归形与 impl ``_ph_max_pairs`` 迭代栈异路径。
+    """
+    adj: list[list[int]] = []
+    for ph_tok in missing:
+        core = ph_tok.strip("[]")
+        row: list[tuple[int, int]] = []
+        for ci, cand in enumerate(cands):
+            m = _PH_CORE_RX.search(cand)
+            ccore = m.group(0) if m else cand
+            d = min(_o_lev(core.upper(), ccore.upper()), _LEV_CAP + 1)
+            if d <= _LEV_CAP:
+                row.append((d, ci))
+        adj.append([ci for _, ci in sorted(row)])
+    match_of = [-1] * len(cands)
+
+    def _aug(mi: int, seen: set[int]) -> bool:
+        for ci in adj[mi]:
+            if ci in seen:
+                continue
+            seen.add(ci)
+            if match_of[ci] < 0 or _aug(match_of[ci], seen):
+                match_of[ci] = mi
+                return True
+        return False
+
+    for mi in range(len(missing)):
+        _aug(mi, set())
+    return {mi: ci for ci, mi in enumerate(match_of) if mi >= 0}
+
+
 def _o_ph_sigs(src: str, zh: str) -> list[tuple[str, ...]]:  # noqa: C901,PLR0912 -- 全规则重放内在复杂
     """``_check_placeholder`` 全量签名 oracle——每条产 issue 归一为一枚签名。"""
     sm, zm = _o_mask(src), _o_mask(zh)
@@ -557,24 +592,14 @@ def _o_ph_sigs(src: str, zh: str) -> list[tuple[str, ...]]:  # noqa: C901,PLR091
     missing = sorted((scnt - zcnt).elements())
     cands = list((zcnt - scnt).elements())
     cands += list((Counter(zfz) - src_lit).elements())
+    paired = _o_ph_match(missing, cands)
     sigs: list[tuple[str, ...]] = []
-    used: set[int] = set()
-    for ph_tok in missing:
-        core = ph_tok.strip("[]")
-        best, bestd = -1, _LEV_CAP + 1
-        for ci, cand in enumerate(cands):
-            if ci in used:
-                continue
-            m = _PH_CORE_RX.search(cand)
-            ccore = m.group(0) if m else cand
-            d = min(_o_lev(core.upper(), ccore.upper()), _LEV_CAP + 1)
-            if d < bestd:
-                best, bestd = ci, d
-        if best < 0:
-            sigs.append(("missing", ph_tok))
+    for mi, ph_tok in enumerate(missing):
+        if mi in paired:
+            sigs.append(("typo", ph_tok, cands[paired[mi]]))
         else:
-            used.add(best)
-            sigs.append(("typo", ph_tok, cands[best]))
+            sigs.append(("missing", ph_tok))
+    used = set(paired.values())
     for ci, cand in enumerate(cands):
         if ci not in used:
             sigs.append(("extra", cand))
@@ -1452,15 +1477,9 @@ def test_key_gap_family(src: str, zh: str, lost_key: str) -> None:
     assert any(i.expected == lost_key for i in iss), str(rep)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "lev≤2 拼错配对是逐缺失贪心——[[AABB]] 本可与 [[AAAB]]（d=1）配对、"
-        "[[AAAA]] 让位 [[CCAA]]（d=2）得两枚修复建议；贪心先抓 AAAB 致 "
-        "AABB 误报缺失 + CCAA 误报多余——最大匹配可救两枚"
-    ),
-)
-def test_ph_pairing_greedy_suboptimal_xfail() -> None:
+def test_ph_pairing_maximum_matching() -> None:
+    """lev≤2 配对是最大匹配而非逐缺失贪心：``AAAA`` 让位 ``CCAA``（d=2）、
+    ``AABB`` 配对 ``AAAB``（d=1）——两枚拼错修复建议，无缺报/多报。"""
     rep = validate_pair("见 [[AAAA]] 与 [[AABB]] 结。", "见 [[AAAB]] 与 [[CCAA]] 结。")
     iss = [i for i in rep.issues if i.rule == "placeholder"]
     assert len(iss) == 2, str(rep)  # noqa: PLR2004 -- 两枚拼错修复建议是断言目标
@@ -1593,14 +1612,6 @@ def test_one_non_json_line_fails() -> None:
         v._one({"id": "x", "tex": "t"})  # noqa: SLF001
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "通道 schema 违例泄 TypeError/ValueError/AttributeError——"
-        "from_dict 对字段类型零防御，越过 ``L1Error``「协议错误统一异常」契约"
-        "（_one 只兜 JSONDecodeError）"
-    ),
-)
 @pytest.mark.parametrize(
     "line",
     [
@@ -1611,7 +1622,8 @@ def test_one_non_json_line_fails() -> None:
     ],
     ids=["int-field", "str-int-field", "toplevel-list", "toplevel-str"],
 )
-def test_one_schema_violation_l1error_xfail(line: str) -> None:
+def test_one_schema_violation_l1error(line: str) -> None:
+    """通道 schema 违例 → ``L1Error``（协议错误统一异常契约，不泄内建异常）。"""
     v = TsValidator(timeout=5)
     _inject(v, [line + "\n"])
     with pytest.raises(L1Error):
@@ -1670,13 +1682,10 @@ def test_validate_batch_channel_failures(
         v.validate_batch(recs)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="批处理通道 schema 违例泄 TypeError——同 _one 通道契约缺口",
-)
-def test_batch_schema_violation_l1error_xfail(
+def test_batch_schema_violation_l1error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """批处理通道 schema 违例 → ``L1Error``（同 _one 通道契约）。"""
     v = _batch_validator(tmp_path)
     monkeypatch.setattr(
         subprocess,

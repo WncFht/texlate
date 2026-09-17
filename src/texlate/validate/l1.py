@@ -120,19 +120,28 @@ class TsResult:
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> TsResult:
-        """从 worker JSON 行反序列化。"""
-        return cls(
-            id=d.get("id"),
-            ok=bool(d.get("ok")),
-            ok_relative=d.get("ok_relative"),
-            parse_errors=list(d.get("parse_errors") or []),
-            env_mismatches=list(d.get("env_mismatches") or []),
-            unclosed_math=int(d.get("unclosed_math") or 0),
-            brace_balance=int(d.get("brace_balance") or 0),
-            placeholders=dict(d.get("placeholders") or {}),
-            parse_ms=float(d.get("parse_ms") or 0.0),
-            error=d.get("error"),
-        )
+        """从 worker JSON 行反序列化；schema 违例 → ``L1Error``。
+
+        字段类型零防御是刻意的——worker 输出违协议即协议错误，统一归
+        ``L1Error``（``_one``/``validate_batch`` 只另兜 ``JSONDecodeError``），
+        不让 ``TypeError``/``ValueError``/``AttributeError`` 泄出通道契约。
+        """
+        try:
+            return cls(
+                id=d.get("id"),
+                ok=bool(d.get("ok")),
+                ok_relative=d.get("ok_relative"),
+                parse_errors=list(d.get("parse_errors") or []),
+                env_mismatches=list(d.get("env_mismatches") or []),
+                unclosed_math=int(d.get("unclosed_math") or 0),
+                brace_balance=int(d.get("brace_balance") or 0),
+                placeholders=dict(d.get("placeholders") or {}),
+                parse_ms=float(d.get("parse_ms") or 0.0),
+                error=d.get("error"),
+            )
+        except (TypeError, ValueError, AttributeError) as e:
+            msg = f"L1 worker 响应 schema 违例: {e}"
+            raise L1Error(msg) from e
 
     def baseline_signature(self) -> TsBaseline:
         """把本结果当签名用（对 src 跑 validate 后取签名即 baseline）。"""

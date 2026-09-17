@@ -340,40 +340,99 @@ def _lex(s: str) -> list[tuple[str, str, int]]:
 # ---------------------------------------------------------------- 规则组
 
 
+def _ph_typo_adjacency(
+    missing: list[str], cands: list[str]
+) -> tuple[list[list[int]], list[dict[int, int]]]:
+    """缺失↔候选 lev≤2 邻接表（(lev, 下标) 升序）+ 距离表。
+
+    大小写折叠后比较：issuer 恒产大写形，``[[math_1]]`` 类小写变体视为
+    同一 token 的拼错（lev 只差在大小写上），给出修复建议。
+    """
+    adj: list[list[int]] = []
+    cost: list[dict[int, int]] = []
+    for ph in missing:
+        ph_core = ph.strip("[]")
+        row: list[tuple[int, int]] = []
+        cmap: dict[int, int] = {}
+        for ci, cand in enumerate(cands):
+            core = _PH_CORE_RX.search(cand)
+            cand_core = core.group(0) if core else cand
+            d = lev_capped(ph_core.upper(), cand_core.upper(), _LEV_CAP)
+            if d <= _LEV_CAP:
+                row.append((d, ci))
+                cmap[ci] = d
+        adj.append([ci for _, ci in sorted(row)])
+        cost.append(cmap)
+    return adj, cost
+
+
+def _ph_max_pairs(adj: list[list[int]], n_cands: int) -> list[int]:
+    """Kuhn 增广路最大二分匹配 → ``match_of[cand]=missing``（-1=未配）。
+
+    逐缺失贪心先抓近候选会让后位缺失饿死（``AAAA`` 抢走 ``AAAB`` 致
+    ``AABB`` 误报缺失 + ``CCAA`` 误报多余——同 lev 界内本可配两对）。
+    DFS 用迭代栈——缺失规模随输入走，不赌解释器递归深限。
+    """
+    match_of = [-1] * n_cands
+    for start in range(len(adj)):
+        seen: set[int] = set()  # 本轮已试探的 cand
+        it = [0] * len(adj)  # 各 missing 邻接扫描游标
+        stack = [start]  # DFS 路径上的 missing 下标
+        pc = [-1]  # 与 stack 平行：stack[k] 经由 pc[k] 号 cand 被引入
+        free = -1
+        while stack and free < 0:
+            cur = stack[-1]
+            ci = -1
+            while it[cur] < len(adj[cur]):
+                cand = adj[cur][it[cur]]
+                it[cur] += 1
+                if cand not in seen:
+                    seen.add(cand)
+                    ci = cand
+                    break
+            if ci < 0:
+                stack.pop()
+                pc.pop()
+            elif match_of[ci] < 0:
+                free = ci
+            else:
+                stack.append(match_of[ci])
+                pc.append(ci)
+        if free >= 0:  # 沿 DFS 路径回翻转整链匹配
+            ci = free
+            for j in range(len(stack) - 1, 0, -1):
+                match_of[ci] = stack[j]
+                ci = pc[j]
+            match_of[ci] = stack[0]
+    return match_of
+
+
 def _pair_placeholder_typos(
     missing: list[str], cands: list[str], issues: list[Issue]
 ) -> set[int]:
-    """缺失占位符 ↔ 模糊候选 lev≤2 贪心配对；返回已消耗的候选下标。"""
+    """缺失占位符 ↔ 模糊候选 lev≤2 最大匹配配对；返回已消耗的候选下标。"""
+    adj, cost = _ph_typo_adjacency(missing, cands)
+    match_of = _ph_max_pairs(adj, len(cands))
+    paired = {mi: ci for ci, mi in enumerate(match_of) if mi >= 0}
     used: set[int] = set()
-    for ph in missing:
-        ph_core = ph.strip("[]")
-        best: tuple[int, str] | None = None
-        bestd = _LEV_CAP + 1
-        for ci, cand in enumerate(cands):
-            if ci in used:
-                continue
-            core = _PH_CORE_RX.search(cand)
-            cand_core = core.group(0) if core else cand
-            # 大小写折叠后比较：issuer 恒产大写形，[[math_1]] 类小写变体
-            # 视为同一 token 的拼错（lev 只差在大小写上），给出修复建议。
-            d = lev_capped(ph_core.upper(), cand_core.upper(), _LEV_CAP)
-            if d < bestd:
-                best, bestd = (ci, cand), d
-        if best is not None:
-            used.add(best[0])
-            issues.append(
-                Issue(
-                    "placeholder",
-                    Severity.ERROR,
-                    f"占位符疑似拼错: '{best[1]}' 应为 '{ph}' (lev={bestd}, 可自动修复)",
-                    expected=ph,
-                    found=best[1],
-                )
-            )
-        else:
+    for mi, ph in enumerate(missing):
+        ci = paired.get(mi)
+        if ci is None:
             issues.append(
                 Issue("placeholder", Severity.ERROR, f"占位符缺失: {ph}", expected=ph)
             )
+            continue
+        used.add(ci)
+        issues.append(
+            Issue(
+                "placeholder",
+                Severity.ERROR,
+                f"占位符疑似拼错: '{cands[ci]}' 应为 '{ph}' "
+                f"(lev={cost[mi][ci]}, 可自动修复)",
+                expected=ph,
+                found=cands[ci],
+            )
+        )
     return used
 
 
