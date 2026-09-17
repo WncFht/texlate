@@ -18,12 +18,9 @@ r"""latex-audit-2026-09-17 波次 segmenter 发现回归（F1/F2/S2/S4/F4/F11/F7
 from pathlib import Path
 
 import pytest
+from conftest import DOC, check_invariants, chunk_text
 
 from texlate.latex import parse_file, parse_tex, reconstruct
-from texlate.latex.model import ScanResult
-from texlate.latex.reconstruct import validate_result
-
-ART = "\\documentclass{article}\n\\begin{document}\n%s\n\\end{document}\n"
 
 
 @pytest.fixture(autouse=True)
@@ -32,28 +29,12 @@ def _pin_v2(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("TEXLATE_NO_EXPAND", raising=False)
 
 
-def check_invariants(res: ScanResult, tex: str) -> None:
-    """公共断言：恒等重建 + 校验零告警 + pieces 无缝平铺 vtex。"""
-    assert reconstruct(res) == tex
-    assert validate_result(res) == []
-    pos = 0
-    for p in res.pieces:
-        assert p.span.start == pos
-        pos = p.span.end
-    assert pos == len(res.vtex)
-
-
-def chunk_text(res: ScanResult) -> str:
-    """全部 chunk surface 拼接——泄漏断言的统一口径。"""
-    return " ".join(c.content for c in res.chunks)
-
-
 # ------------------------------------------------------------------ F1
 
 
 def test_f1_literal_chunk0_gets_dead_slot() -> None:
     r"""源内字面 ``[[CHUNK_0]]``：0 号补死位，真 chunk 顺延到 1。"""
-    tex = ART % (
+    tex = DOC % (
         "The placeholder [[CHUNK_0]] is literal text in this sentence, "
         "long enough to be a chunk of its own right."
     )
@@ -66,7 +47,7 @@ def test_f1_literal_chunk0_gets_dead_slot() -> None:
 
 def test_f1_literal_chunk_n_later_slots_skip() -> None:
     r"""字面 ``[[CHUNK_1]]`` 同理跳号——真实 chunk 不占被撞的 1 号。"""
-    tex = ART % (
+    tex = DOC % (
         "First chunk sentence is here with enough words to stand alone.\n\n"
         "Second para holds the literal [[CHUNK_1]] marker in a long sentence."
     )
@@ -88,7 +69,7 @@ def test_f2_subfile_literal_placeholder_not_unfolded(tmp_path: Path) -> None:
         "literal [[MATH_1]] markers and $x+y$ math plus more words for chunk.\n"
     )
     main = tmp_path / "main.tex"
-    main.write_text(ART % "\\input{sub}")
+    main.write_text(DOC % "\\input{sub}")
     res = parse_file(main)
     out = reconstruct(res)
     # 字面 [[MATH_1]] 不被展开成签发的数学体
@@ -102,7 +83,7 @@ def test_f2_subfile_chunk_literal_dead_slot(tmp_path: Path) -> None:
     sub = tmp_path / "sub.tex"
     sub.write_text("literal [[CHUNK_0]] marker plus more words to make a chunk.\n")
     main = tmp_path / "main.tex"
-    main.write_text(ART % "Lead text.\\input{sub}")
+    main.write_text(DOC % "Lead text.\\input{sub}")
     res = parse_file(main)
     assert res.chunks[0].content == "[[CHUNK_0]]"  # 死位自引用
     assert res.chunks[1].content.startswith("literal [[CHUNK_0]]")
@@ -114,7 +95,7 @@ def test_f2_subfile_chunk_literal_dead_slot(tmp_path: Path) -> None:
 
 def test_s2_author_opt_without_arg_no_double_cover() -> None:
     r"""``\\author[opt]`` 无 ``{arg}``：abort 只护 ``\\author``，``[opt]`` 不双份。"""
-    tex = ART % "\\author[Short Names]Then body prose goes here to make a full chunk."
+    tex = DOC % "\\author[Short Names]Then body prose goes here to make a full chunk."
     res = parse_tex(tex)
     check_invariants(res, tex)
     authors = [v for k, v in res.ph_map.items() if k.startswith("[[AUTHOR")]
@@ -125,7 +106,7 @@ def test_s2_author_opt_without_arg_no_double_cover() -> None:
 
 def test_s2_author_opt_with_arg_still_protected() -> None:
     r"""正常面：``\\author[opt]{arg}`` 整块保护不变。"""
-    tex = ART % "\\author[Short]{Long Name}Then body prose goes here for chunk."
+    tex = DOC % "\\author[Short]{Long Name}Then body prose goes here for chunk."
     res = parse_tex(tex)
     check_invariants(res, tex)
     authors = [v for k, v in res.ph_map.items() if k.startswith("[[AUTHOR")]
@@ -135,7 +116,7 @@ def test_s2_author_opt_with_arg_still_protected() -> None:
 
 def test_s2_author_opt_unclosed_brace_no_double_cover() -> None:
     r"""``\\author[opt]{`` 未闭合同样 abort——``[opt]`` 只重扫一次。"""
-    tex = ART % "\\author[Short Names]{unclosed then body prose for the chunk."
+    tex = DOC % "\\author[Short Names]{unclosed then body prose for the chunk."
     res = parse_tex(tex)
     check_invariants(res, tex)
     assert chunk_text(res).count("[Short Names]") == 1
@@ -146,7 +127,7 @@ def test_s2_author_opt_unclosed_brace_no_double_cover() -> None:
 
 def test_s4_captionof_type_arg_not_translated() -> None:
     r"""``\\captionof{figure}`` 缺 ``{text}``：类型名不进 chunk 单独翻译。"""
-    tex = ART % "\\captionof{figure}\nBody text here long enough to be its own chunk."
+    tex = DOC % "\\captionof{figure}\nBody text here long enough to be its own chunk."
     res = parse_tex(tex)
     check_invariants(res, tex)
     # bail：整调用连同 {figure} 留 run——花括号在 chunk 内保持字面形态
@@ -157,7 +138,7 @@ def test_s4_captionof_type_arg_not_translated() -> None:
 def test_s4_section_opt_alone_not_chunked() -> None:
     r"""``\\section[Draft Short]`` 无 ``{arg}``：可选参不被当正文 chunk。"""
     tex = (
-        ART % "\\section[Draft Short]\nBody text here long enough to be its own chunk."
+        DOC % "\\section[Draft Short]\nBody text here long enough to be its own chunk."
     )
     res = parse_tex(tex)
     check_invariants(res, tex)
@@ -166,7 +147,7 @@ def test_s4_section_opt_alone_not_chunked() -> None:
 
 def test_s4_normal_chunk_args_unaffected() -> None:
     r"""正常面：``\\section{T}``/``\\captionof{type}{text}`` 挖参不变。"""
-    tex = ART % (
+    tex = DOC % (
         "\\section{Real Title}\nBody text here long enough to be its own chunk."
     )
     res = parse_tex(tex)
@@ -174,7 +155,7 @@ def test_s4_normal_chunk_args_unaffected() -> None:
     assert res.chunks[0].content == "Real Title"
     assert res.chunks[0].context == "section"
 
-    tex2 = ART % (
+    tex2 = DOC % (
         "\\captionof{figure}{A real caption}Body text here long enough chunk."
     )
     res2 = parse_tex(tex2)
@@ -228,7 +209,7 @@ def test_f4_real_delimited_arg_still_works() -> None:
 
 def test_f11_orphan_rbrace_after_let_goes_literal() -> None:
     r"""``{\\let\\gl\\relax}Body``：孤 ``}`` 盖字面——chunk 头不再带 ``}``。"""
-    tex = ART % "{\\let\\gl\\relax}Body text long enough for own chunk yes indeed."
+    tex = DOC % "{\\let\\gl\\relax}Body text long enough for own chunk yes indeed."
     res = parse_tex(tex)
     check_invariants(res, tex)
     [c] = res.chunks
@@ -237,7 +218,7 @@ def test_f11_orphan_rbrace_after_let_goes_literal() -> None:
 
 def test_f11_orphan_rbrace_after_def_goes_literal() -> None:
     r"""``{\\def\\gd{G}}`` 同款：孤 ``}`` 不进 chunk。"""
-    tex = ART % "{\\def\\gd{G}}Body text long enough for own chunk yes \\gd."
+    tex = DOC % "{\\def\\gd{G}}Body text long enough for own chunk yes \\gd."
     res = parse_tex(tex)
     check_invariants(res, tex)
     assert not any(c.content.startswith("}") for c in res.chunks)
@@ -249,7 +230,7 @@ def test_f11_balanced_group_unchanged() -> None:
         "{zz}Body text long enough for own chunk yes indeed more.",
         "{\\relax}Body text long enough for own chunk yes indeed.",
     ):
-        tex = ART % body
+        tex = DOC % body
         res = parse_tex(tex)
         check_invariants(res, tex)
         assert res.chunks[0].content.startswith("{")  # 配对组整进 chunk
@@ -257,7 +238,7 @@ def test_f11_balanced_group_unchanged() -> None:
 
 def test_f11_midrun_orphan_rbrace_stays() -> None:
     r"""run 中段孤 ``}``（eol_par 跨组切分）留 run——分段不变。"""
-    tex = ART % "Text {first words here\n\nsecond words here} tail words fill out."
+    tex = DOC % "Text {first words here\n\nsecond words here} tail words fill out."
     res = parse_tex(tex)
     check_invariants(res, tex)
     contents = [c.content for c in res.chunks]

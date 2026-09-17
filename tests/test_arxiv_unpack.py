@@ -5,6 +5,7 @@ import tarfile
 from pathlib import Path
 
 import pytest
+from conftest import make_tar, tar_reg
 
 from texlate.arxiv.sniff import BlobKind, sniff
 from texlate.arxiv.unpack import (
@@ -19,22 +20,6 @@ from texlate.arxiv.unpack import (
 CORPUS_V2 = Path(__file__).resolve().parent.parent / "bench" / "corpus_v2"
 
 BLOBS = sorted(CORPUS_V2.rglob("raw.*")) if CORPUS_V2.exists() else []
-
-
-def _make_tar(members: list[tuple[tarfile.TarInfo, bytes]]) -> bytes:
-    buf = io.BytesIO()
-    with tarfile.open(fileobj=buf, mode="w") as tf:
-        for info, data in members:
-            tf.addfile(info, io.BytesIO(data))
-    return buf.getvalue()
-
-
-def _reg(name: str, size: int, **kw: object) -> tarfile.TarInfo:
-    info = tarfile.TarInfo(name)
-    info.size = size
-    for k, v in kw.items():
-        setattr(info, k, v)
-    return info
 
 
 def _warn_kinds(warnings: list[str]) -> set[str]:
@@ -71,11 +56,11 @@ def test_unpack_corpus(blob: Path, tmp_path: Path) -> None:
 
 
 def test_reject_dotdot(tmp_path: Path) -> None:
-    payload = _make_tar(
+    payload = make_tar(
         [
-            (_reg("../evil.tex", 5), b"xxxxx"),
-            (_reg("a/../../deep.tex", 5), b"xxxxx"),
-            (_reg("ok.tex", 5), b"xxxxx"),
+            (tar_reg("../evil.tex", 5), b"xxxxx"),
+            (tar_reg("a/../../deep.tex", 5), b"xxxxx"),
+            (tar_reg("ok.tex", 5), b"xxxxx"),
         ]
     )
     res = unpack_tar(payload, tmp_path)
@@ -85,11 +70,11 @@ def test_reject_dotdot(tmp_path: Path) -> None:
 
 
 def test_reject_absolute_and_drive(tmp_path: Path) -> None:
-    payload = _make_tar(
+    payload = make_tar(
         [
-            (_reg("/etc/passwd", 3), b"xxx"),
-            (_reg("C:/win/evil.tex", 3), b"xxx"),
-            (_reg("sub/./ok.tex", 3), b"xxx"),
+            (tar_reg("/etc/passwd", 3), b"xxx"),
+            (tar_reg("C:/win/evil.tex", 3), b"xxx"),
+            (tar_reg("sub/./ok.tex", 3), b"xxx"),
         ]
     )
     res = unpack_tar(payload, tmp_path)
@@ -102,10 +87,10 @@ def test_nul_truncated_and_dotdot_normalized(tmp_path: Path) -> None:
 
     ``./././bare.tex`` 的 ``./`` 前缀剥离后正常落盘。
     """
-    payload = _make_tar(
+    payload = make_tar(
         [
-            (_reg("a\x00b.tex", 3), b"xxx"),
-            (_reg("./././bare.tex", 3), b"xxx"),
+            (tar_reg("a\x00b.tex", 3), b"xxx"),
+            (tar_reg("./././bare.tex", 3), b"xxx"),
         ]
     )
     res = unpack_tar(payload, tmp_path)
@@ -113,7 +98,7 @@ def test_nul_truncated_and_dotdot_normalized(tmp_path: Path) -> None:
 
 
 def test_symlink_escape_rejected_in_tree_kept(tmp_path: Path) -> None:
-    good = _reg("figs", 0)
+    good = tar_reg("figs", 0)
     good.type = tarfile.DIRTYPE
     sym_ok = tarfile.TarInfo("figs/link.tex")
     sym_ok.type = tarfile.SYMTYPE
@@ -121,8 +106,8 @@ def test_symlink_escape_rejected_in_tree_kept(tmp_path: Path) -> None:
     sym_bad = tarfile.TarInfo("evil.tex")
     sym_bad.type = tarfile.SYMTYPE
     sym_bad.linkname = "../../etc/passwd"
-    payload = _make_tar(
-        [(good, b""), (_reg("real.tex", 4), b"xxxx"), (sym_ok, b""), (sym_bad, b"")]
+    payload = make_tar(
+        [(good, b""), (tar_reg("real.tex", 4), b"xxxx"), (sym_ok, b""), (sym_bad, b"")]
     )
     res = unpack_tar(payload, tmp_path)
     assert "reject_link" in _warn_kinds(res.warnings)
@@ -138,7 +123,9 @@ def test_hardlink_materialized_and_dangling(tmp_path: Path) -> None:
     hl_bad = tarfile.TarInfo("lost.tex")
     hl_bad.type = tarfile.LNKTYPE
     hl_bad.linkname = "ghost.tex"
-    payload = _make_tar([(hl_ok, b""), (hl_bad, b""), (_reg("real.tex", 6), b"abcdef")])
+    payload = make_tar(
+        [(hl_ok, b""), (hl_bad, b""), (tar_reg("real.tex", 6), b"abcdef")]
+    )
     res = unpack_tar(payload, tmp_path)
     assert (tmp_path / "dup.tex").read_bytes() == b"abcdef"
     kinds = _warn_kinds(res.warnings)
@@ -149,8 +136,8 @@ def test_hardlink_materialized_and_dangling(tmp_path: Path) -> None:
 def test_reject_special_and_setuid(tmp_path: Path) -> None:
     fifo = tarfile.TarInfo("pipe")
     fifo.type = tarfile.FIFOTYPE
-    suid = _reg("suid.tex", 3, mode=0o4755)
-    payload = _make_tar([(fifo, b""), (suid, b"xxx"), (_reg("ok.tex", 3), b"xxx")])
+    suid = tar_reg("suid.tex", 3, mode=0o4755)
+    payload = make_tar([(fifo, b""), (suid, b"xxx"), (tar_reg("ok.tex", 3), b"xxx")])
     res = unpack_tar(payload, tmp_path)
     assert res.files == ["ok.tex"]
     kinds = _warn_kinds(res.warnings)
@@ -159,11 +146,11 @@ def test_reject_special_and_setuid(tmp_path: Path) -> None:
 
 
 def test_casefold_rename_and_dup(tmp_path: Path) -> None:
-    payload = _make_tar(
+    payload = make_tar(
         [
-            (_reg("Fig1.eps", 2), b"aa"),
-            (_reg("fig1.eps", 2), b"bb"),
-            (_reg("Fig1.eps", 2), b"cc"),
+            (tar_reg("Fig1.eps", 2), b"aa"),
+            (tar_reg("fig1.eps", 2), b"bb"),
+            (tar_reg("Fig1.eps", 2), b"cc"),
         ]
     )
     res = unpack_tar(payload, tmp_path)
@@ -178,11 +165,11 @@ def test_casefold_rename_and_dup(tmp_path: Path) -> None:
 def test_stub_marking(tmp_path: Path) -> None:
     auto_body = STUB_PREFIX + b" rest" + b"x" * 100
     big_body = b"y" * 200
-    payload = _make_tar(
+    payload = make_tar(
         [
-            (_reg("tiny.tex", 10), b"0123456789"),
-            (_reg("auto.tex", len(auto_body)), auto_body),
-            (_reg("big.tex", len(big_body)), big_body),
+            (tar_reg("tiny.tex", 10), b"0123456789"),
+            (tar_reg("auto.tex", len(auto_body)), auto_body),
+            (tar_reg("big.tex", len(big_body)), big_body),
         ]
     )
     res = unpack_tar(payload, tmp_path)
@@ -194,10 +181,10 @@ def test_file_size_cap(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """不实体化 100MB——把上限压到 8B，10B 文件即触发拒绝。"""
     monkeypatch.setattr("texlate.arxiv.unpack.MAX_FILE_BYTES", 8)
     big_body = b"0123456789"
-    payload = _make_tar(
+    payload = make_tar(
         [
-            (_reg("huge.bin", len(big_body)), big_body),
-            (_reg("ok.tex", 3), b"xxx"),
+            (tar_reg("huge.bin", len(big_body)), big_body),
+            (tar_reg("ok.tex", 3), b"xxx"),
         ]
     )
     res = unpack_tar(payload, tmp_path)
@@ -235,8 +222,8 @@ def test_absolute_and_drive_linkname_rejected(tmp_path: Path) -> None:
     drv = tarfile.TarInfo("drv.tex")
     drv.type = tarfile.SYMTYPE
     drv.linkname = "C:/win/x"
-    payload = _make_tar(
-        [(sym, b""), (hl, b""), (drv, b""), (_reg("ok.tex", 3), b"xxx")]
+    payload = make_tar(
+        [(sym, b""), (hl, b""), (drv, b""), (tar_reg("ok.tex", 3), b"xxx")]
     )
     res = unpack_tar(payload, tmp_path)
     assert res.files == ["ok.tex"]
@@ -250,8 +237,8 @@ def test_file_over_symlink_replaces_link(tmp_path: Path) -> None:
     sym = tarfile.TarInfo("a.tex")
     sym.type = tarfile.SYMTYPE
     sym.linkname = "b.tex"
-    payload = _make_tar(
-        [(_reg("b.tex", 3), b"old"), (sym, b""), (_reg("a.tex", 3), b"new")]
+    payload = make_tar(
+        [(tar_reg("b.tex", 3), b"old"), (sym, b""), (tar_reg("a.tex", 3), b"new")]
     )
     res = unpack_tar(payload, tmp_path)
     assert not (tmp_path / "a.tex").is_symlink()
@@ -264,12 +251,12 @@ def test_file_over_symlink_replaces_link(tmp_path: Path) -> None:
 def test_control_char_member_names_rejected(tmp_path: Path) -> None:
     """成员名带 ``\\t``/``\\n``：POSIX 能落盘但 TSV manifest（files.txt/mtree.txt）
     行列结构被破坏（phantom 行）——按路径非法拒绝。"""
-    payload = _make_tar(
+    payload = make_tar(
         [
-            (_reg("a\tb.tex", 3), b"xxx"),
-            (_reg("c\nd.tex", 3), b"xxx"),
-            (_reg("e\rf.tex", 3), b"xxx"),
-            (_reg("ok.tex", 3), b"xxx"),
+            (tar_reg("a\tb.tex", 3), b"xxx"),
+            (tar_reg("c\nd.tex", 3), b"xxx"),
+            (tar_reg("e\rf.tex", 3), b"xxx"),
+            (tar_reg("ok.tex", 3), b"xxx"),
         ]
     )
     res = unpack_tar(payload, tmp_path)
@@ -289,7 +276,7 @@ def test_control_char_linkname_rejected(tmp_path: Path) -> None:
     sym2 = tarfile.TarInfo("ln2.tex")
     sym2.type = tarfile.SYMTYPE
     sym2.linkname = "real\ntex"
-    payload = _make_tar([(sym, b""), (sym2, b""), (_reg("ok.tex", 3), b"xxx")])
+    payload = make_tar([(sym, b""), (sym2, b""), (tar_reg("ok.tex", 3), b"xxx")])
     res = unpack_tar(payload, tmp_path)
     assert res.files == ["ok.tex"]
     assert not any(m.kind in ("symlink", "hardlink") for m in res.members)
@@ -299,11 +286,11 @@ def test_control_char_linkname_rejected(tmp_path: Path) -> None:
 def test_file_then_child_member_skipped(tmp_path: Path) -> None:
     """``foo``（file）后出现 ``foo/bar.tex``——mkdir 撞文件会 FileExistsError
     整包流产；按成员级 ``reject_dir_clash`` 告警跳过。"""
-    payload = _make_tar(
+    payload = make_tar(
         [
-            (_reg("foo", 3), b"abc"),
-            (_reg("foo/bar.tex", 3), b"def"),
-            (_reg("ok.tex", 3), b"xxx"),
+            (tar_reg("foo", 3), b"abc"),
+            (tar_reg("foo/bar.tex", 3), b"def"),
+            (tar_reg("ok.tex", 3), b"xxx"),
         ]
     )
     res = unpack_tar(payload, tmp_path)
@@ -317,8 +304,8 @@ def test_dir_member_parent_is_file_skipped(tmp_path: Path) -> None:
     """``foo``（file）后出现 ``foo/bar``（dir 成员）——同 clash 路径。"""
     d = tarfile.TarInfo("foo/bar")
     d.type = tarfile.DIRTYPE
-    payload = _make_tar(
-        [(_reg("foo", 3), b"abc"), (d, b""), (_reg("ok.tex", 3), b"xxx")]
+    payload = make_tar(
+        [(tar_reg("foo", 3), b"abc"), (d, b""), (tar_reg("ok.tex", 3), b"xxx")]
     )
     res = unpack_tar(payload, tmp_path)
     assert (tmp_path / "foo").is_file()
@@ -332,8 +319,8 @@ def test_symlink_member_over_dir_clash(tmp_path: Path) -> None:
     sym = tarfile.TarInfo("sub")
     sym.type = tarfile.SYMTYPE
     sym.linkname = "ok.tex"
-    payload = _make_tar(
-        [(_reg("sub/x.tex", 3), b"xxx"), (_reg("ok.tex", 3), b"xxx"), (sym, b"")]
+    payload = make_tar(
+        [(tar_reg("sub/x.tex", 3), b"xxx"), (tar_reg("ok.tex", 3), b"xxx"), (sym, b"")]
     )
     res = unpack_tar(payload, tmp_path)
     assert (tmp_path / "sub").is_dir()
@@ -349,7 +336,7 @@ def test_non_utf8_member_name_rejected(tmp_path: Path) -> None:
     """
     buf = io.BytesIO()
     with tarfile.open(fileobj=buf, mode="w", format=tarfile.USTAR_FORMAT) as tf:
-        info = _reg("ok.tex", 3)
+        info = tar_reg("ok.tex", 3)
         tf.addfile(info, io.BytesIO(b"xxx"))
     raw = bytearray(buf.getvalue())
     raw[0:7] = b"caf\xe9.te"  # ustar name 头段塞 raw 0xE9（非法 UTF-8）
@@ -372,7 +359,7 @@ def test_corrupt_mid_header_raises(tmp_path: Path) -> None:
     尾部残余非零字节 = 有成员未交付——mtree 会谎报完整，按损坏归档 UnpackError。
     """
     payload = bytearray(
-        _make_tar([(_reg(n, 5), b"x" * 5) for n in ("a.tex", "b.tex", "c.tex")])
+        make_tar([(tar_reg(n, 5), b"x" * 5) for n in ("a.tex", "b.tex", "c.tex")])
     )
     payload[1024 + 148 : 1024 + 150] = b"99"  # b.tex 头 checksum
     with pytest.raises(UnpackError, match="corrupt member stream"):
@@ -391,10 +378,10 @@ def test_dup_symlink_last_wins(tmp_path: Path) -> None:
     s2 = tarfile.TarInfo("x.tex")
     s2.type = tarfile.SYMTYPE
     s2.linkname = "b.tex"
-    payload = _make_tar(
+    payload = make_tar(
         [
-            (_reg("a.tex", 3), b"aaa"),
-            (_reg("b.tex", 3), b"bbb"),
+            (tar_reg("a.tex", 3), b"aaa"),
+            (tar_reg("b.tex", 3), b"bbb"),
             (s1, b""),
             (s2, b""),
         ]
@@ -412,8 +399,8 @@ def test_symlink_over_file_replaces_and_mtree_consistent(tmp_path: Path) -> None
     s = tarfile.TarInfo("x.tex")
     s.type = tarfile.SYMTYPE
     s.linkname = "a.tex"
-    payload = _make_tar(
-        [(_reg("a.tex", 3), b"aaa"), (_reg("x.tex", 5), b"filex"), (s, b"")]
+    payload = make_tar(
+        [(tar_reg("a.tex", 3), b"aaa"), (tar_reg("x.tex", 5), b"filex"), (s, b"")]
     )
     res = unpack_tar(payload, tmp_path)
     assert (tmp_path / "x.tex").is_symlink()
@@ -432,8 +419,8 @@ def test_hardlink_does_not_clobber_later_file(tmp_path: Path) -> None:
     h = tarfile.TarInfo("x.tex")
     h.type = tarfile.LNKTYPE
     h.linkname = "y.tex"
-    payload = _make_tar(
-        [(h, b""), (_reg("x.tex", 4), b"FILE"), (_reg("y.tex", 4), b"HLNK")]
+    payload = make_tar(
+        [(h, b""), (tar_reg("x.tex", 4), b"FILE"), (tar_reg("y.tex", 4), b"HLNK")]
     )
     res = unpack_tar(payload, tmp_path)
     assert (tmp_path / "x.tex").read_bytes() == b"FILE"
@@ -446,8 +433,8 @@ def test_later_hardlink_still_materializes(tmp_path: Path) -> None:
     h = tarfile.TarInfo("x.tex")
     h.type = tarfile.LNKTYPE
     h.linkname = "y.tex"
-    payload = _make_tar(
-        [(_reg("x.tex", 4), b"FILE"), (h, b""), (_reg("y.tex", 4), b"HLNK")]
+    payload = make_tar(
+        [(tar_reg("x.tex", 4), b"FILE"), (h, b""), (tar_reg("y.tex", 4), b"HLNK")]
     )
     res = unpack_tar(payload, tmp_path)
     assert (tmp_path / "x.tex").read_bytes() == b"HLNK"
@@ -458,7 +445,9 @@ def test_later_hardlink_still_materializes(tmp_path: Path) -> None:
 def test_long_member_name_member_level_reject(tmp_path: Path) -> None:
     """PAX longname >255B：ENAMETOOLONG 不再整包流产，成员级 ``reject_io``。"""
     long_name = "d/" + "x" * 300 + ".tex"
-    payload = _make_tar([(_reg(long_name, 3), b"xxx"), (_reg("ok.tex", 3), b"xxx")])
+    payload = make_tar(
+        [(tar_reg(long_name, 3), b"xxx"), (tar_reg("ok.tex", 3), b"xxx")]
+    )
     res = unpack_tar(payload, tmp_path)
     assert res.files == ["ok.tex"]
     assert "reject_io" in _warn_kinds(res.warnings)
@@ -470,8 +459,8 @@ def test_dangling_symlink_parent_member_reject(tmp_path: Path) -> None:
     s = tarfile.TarInfo("d")
     s.type = tarfile.SYMTYPE
     s.linkname = "ghost"
-    payload = _make_tar(
-        [(s, b""), (_reg("d/x.tex", 3), b"xxx"), (_reg("ok.tex", 3), b"xxx")]
+    payload = make_tar(
+        [(s, b""), (tar_reg("d/x.tex", 3), b"xxx"), (tar_reg("ok.tex", 3), b"xxx")]
     )
     res = unpack_tar(payload, tmp_path)
     assert "ok.tex" in res.files
@@ -484,7 +473,9 @@ def test_dir_member_over_file_warns(tmp_path: Path) -> None:
     告警——与 file-over-dir 对称（先到者保）。"""
     d = tarfile.TarInfo("x")
     d.type = tarfile.DIRTYPE
-    payload = _make_tar([(_reg("x", 3), b"abc"), (d, b""), (_reg("ok.tex", 3), b"xxx")])
+    payload = make_tar(
+        [(tar_reg("x", 3), b"abc"), (d, b""), (tar_reg("ok.tex", 3), b"xxx")]
+    )
     res = unpack_tar(payload, tmp_path)
     assert (tmp_path / "x").is_file()
     assert "reject_dir_clash" in _warn_kinds(res.warnings)
@@ -495,7 +486,7 @@ def test_surrogate_linkname_rejected(tmp_path: Path) -> None:
     编码，按 ``reject_link`` 拒。"""
     buf = io.BytesIO()
     with tarfile.open(fileobj=buf, mode="w", format=tarfile.USTAR_FORMAT) as tf:
-        tf.addfile(_reg("ok.tex", 3), io.BytesIO(b"xxx"))
+        tf.addfile(tar_reg("ok.tex", 3), io.BytesIO(b"xxx"))
         s = tarfile.TarInfo("ln.tex")
         s.type = tarfile.SYMTYPE
         s.linkname = "tgt"  # 占位，下面替换成 raw 0xE9

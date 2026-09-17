@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import pytest
+from conftest import mk_task_row
 
 from texlate.server.store import (
     ERROR_CODES,
@@ -33,14 +34,6 @@ def store(tmp_path: Path) -> Iterator[Store]:
     s.close()
 
 
-def _mk(store: Store, **kw: Any) -> dict:  # noqa: ANN401 -- 建行参数透传
-    kw.setdefault("task_id", new_task_id())
-    kw.setdefault("kind", "arxiv")
-    kw.setdefault("target_lang", "zh-CN")
-    kw.setdefault("model", "m")
-    return store.create_task(**kw)
-
-
 class TestTaskId:
     def test_shape(self) -> None:
         tid = new_task_id()
@@ -58,13 +51,13 @@ class TestTaskId:
 
 class TestStateMachine:
     def test_create_defaults(self, store: Store) -> None:
-        row = _mk(store)
+        row = mk_task_row(store)
         assert row["status"] == "queued"
         assert row["auth_source"] == "settings"
         assert row["tenant"] == "local"
 
     def test_cancel_active_ok(self, store: Store) -> None:
-        row = _mk(store)
+        row = mk_task_row(store)
         out = store.transition(row["id"], "cancelled")
         assert out["status"] == "cancelled"
 
@@ -72,25 +65,25 @@ class TestStateMachine:
         "src", ["fault", "partial", "cancelled", "interrupted", "needs_auth"]
     )
     def test_retry_from_terminal(self, store: Store, src: str) -> None:
-        row = _mk(store)
+        row = mk_task_row(store)
         store.transition(row["id"], src, force=True)
         out = store.transition(row["id"], "queued")
         assert out["status"] == "queued"
 
     def test_retry_from_done_rejected(self, store: Store) -> None:
-        row = _mk(store)
+        row = mk_task_row(store)
         store.transition(row["id"], "done", force=True)
         with pytest.raises(TransitionError):
             store.transition(row["id"], "queued")
 
     def test_cancel_terminal_rejected(self, store: Store) -> None:
-        row = _mk(store)
+        row = mk_task_row(store)
         store.transition(row["id"], "done", force=True)
         with pytest.raises(TransitionError):
             store.transition(row["id"], "cancelled")
 
     def test_forward_needs_force(self, store: Store) -> None:
-        row = _mk(store)
+        row = mk_task_row(store)
         with pytest.raises(TransitionError):
             store.transition(row["id"], "translating")
         out = store.transition(row["id"], "translating", force=True)
@@ -101,7 +94,7 @@ class TestStateMachine:
             store.transition("t_" + "0" * 16, "cancelled")
 
     def test_queued_clears_error(self, store: Store) -> None:
-        row = _mk(store)
+        row = mk_task_row(store)
         store.transition(row["id"], "fault", force=True, error={"code": "parse"})
         out = store.transition(row["id"], "queued")
         assert out["error_json"] is None
@@ -110,38 +103,38 @@ class TestStateMachine:
 
 class TestRecoverStartup:
     def test_active_to_interrupted(self, store: Store) -> None:
-        row = _mk(store)
+        row = mk_task_row(store)
         store.transition(row["id"], "translating", force=True)
         out = store.recover_startup()
         assert out == {"interrupted": 1, "needs_auth": 0}
         assert store.get(row["id"])["status"] == "interrupted"
 
     def test_header_source_to_needs_auth(self, store: Store) -> None:
-        row = _mk(store, auth_source="header")
+        row = mk_task_row(store, auth_source="header")
         store.transition(row["id"], "compiling", force=True)
         out = store.recover_startup()
         assert out == {"interrupted": 0, "needs_auth": 1}
         assert store.get(row["id"])["status"] == "needs_auth"
 
     def test_queued_untouched(self, store: Store) -> None:
-        row = _mk(store)
+        row = mk_task_row(store)
         store.recover_startup()
         assert store.get(row["id"])["status"] == "queued"
 
 
 class TestCacheKey:
     def test_unique_while_active(self, store: Store) -> None:
-        _mk(store, cache_key="ck1")
+        mk_task_row(store, cache_key="ck1")
         with pytest.raises(sqlite3.IntegrityError):
-            _mk(store, cache_key="ck1")
+            mk_task_row(store, cache_key="ck1")
 
     def test_done_frees_key(self, store: Store) -> None:
-        row = _mk(store, cache_key="ck2")
+        row = mk_task_row(store, cache_key="ck2")
         store.transition(row["id"], "done", force=True)
-        _mk(store, cache_key="ck2")  # 不撞
+        mk_task_row(store, cache_key="ck2")  # 不撞
 
     def test_find_active_and_reusable(self, store: Store) -> None:
-        row = _mk(store, cache_key="ck3")
+        row = mk_task_row(store, cache_key="ck3")
         assert store.find_active_by_cache_key("ck3")["id"] == row["id"]
         assert store.find_reusable("ck3") is None
         store.transition(row["id"], "done", force=True)
@@ -163,14 +156,14 @@ def _chunk(seq: int) -> dict:
 
 class TestChunks:
     def test_insert_and_counts(self, store: Store) -> None:
-        row = _mk(store)
+        row = mk_task_row(store)
         store.insert_chunks(row["id"], [_chunk(0), _chunk(1)])
         assert store.has_chunks(row["id"])
         counts = store.chunk_counts(row["id"])
         assert counts == {"total": 2, "done": 0, "failed": 0}
 
     def test_flush_batch_counters(self, store: Store) -> None:
-        row = _mk(store)
+        row = mk_task_row(store)
         store.insert_chunks(row["id"], [_chunk(i) for i in range(3)])
         store.flush_chunk_batch(
             row["id"],
@@ -198,7 +191,7 @@ class TestChunks:
 
     def test_warnings_persisted(self, store: Store) -> None:
         """T3：chunk warnings 落 chunks.warnings（JSON 列）。"""
-        row = _mk(store)
+        row = mk_task_row(store)
         store.insert_chunks(row["id"], [_chunk(0)])
         store.flush_chunk_batch(
             row["id"],
@@ -259,12 +252,12 @@ class TestErrorCodes:
 class TestIdempotencyKey:
     def test_create_extracts_column(self, store: Store) -> None:
         """options.idempotency_key 建行时提升为一等列（find_by_idempotency 走列查）。"""
-        row = _mk(store, options={"idempotency_key": "k-new"})
+        row = mk_task_row(store, options={"idempotency_key": "k-new"})
         assert row["idempotency_key"] == "k-new"
         assert store.find_by_idempotency("local", "k-new")["id"] == row["id"]
         assert store.find_by_idempotency("local", "nope") is None
         assert store.find_by_idempotency("other", "k-new") is None  # 租户隔离
-        assert _mk(store)["idempotency_key"] is None
+        assert mk_task_row(store)["idempotency_key"] is None
 
     def test_column_migration_backfill(self, tmp_path: Path) -> None:
         """老库（tasks 无 idempotency_key 列）→ open() 补列 + options_json 回填。"""
@@ -337,7 +330,7 @@ class TestHotQueryPlans:
 class TestUsage:
     def test_record_and_snapshot(self, store: Store) -> None:
         """T4：record_usage upsert 累加 + snapshot 带 usage。"""
-        row = _mk(store)
+        row = mk_task_row(store)
         assert store.usage_for(row["id"]) is None
         snap = store.snapshot(row["id"], artifacts={})
         assert "usage" not in snap
@@ -369,7 +362,7 @@ class TestUsage:
 
 class TestEvents:
     def test_seq_monotonic(self, store: Store) -> None:
-        row = _mk(store)
+        row = mk_task_row(store)
         s1 = store.append_event(row["id"], "stage", {"stage": "parsing"})
         s2 = store.append_event(row["id"], "chunk", {"done": 1})
         assert s1 == 1
@@ -377,7 +370,7 @@ class TestEvents:
         assert store.last_seq(row["id"]) == s2
 
     def test_events_since(self, store: Store) -> None:
-        row = _mk(store)
+        row = mk_task_row(store)
         store.append_event(row["id"], "a", {})
         store.append_event(row["id"], "b", {"x": 1})
         evs = store.events_since(row["id"], 1)
@@ -387,7 +380,7 @@ class TestEvents:
 
 class TestSnapshot:
     def test_schema(self, store: Store) -> None:
-        row = _mk(store, title="T", arxiv_id="2401.00001")
+        row = mk_task_row(store, title="T", arxiv_id="2401.00001")
         snap = store.snapshot(row["id"], artifacts={"zh_pdf": "/x"})
         assert snap["task_id"] == row["id"]
         assert snap["status"] == "queued"
@@ -398,7 +391,7 @@ class TestSnapshot:
 
     def test_warnings_replayed(self, store: Store) -> None:
         """snapshot.warnings 重放 task_events 的 warning 事件（非恒空）。"""
-        row = _mk(store)
+        row = mk_task_row(store)
         assert store.snapshot(row["id"], artifacts={})["warnings"] == []
         store.append_event(row["id"], "stage", {"stage": "translating"})
         store.append_event(

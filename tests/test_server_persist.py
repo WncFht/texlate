@@ -26,6 +26,8 @@ import pytest
 pytest.importorskip("fastapi", reason="server extra 未装")
 pytest.importorskip("starlette.testclient", reason="server extra 未装")
 
+from conftest import mk_task_row
+
 from texlate.server.events import EventBus
 from texlate.server.store import Store, new_task_id
 from texlate.server.worker import (
@@ -48,14 +50,6 @@ def _mk_store(tmp_path: Path) -> Store:
     return s
 
 
-def _mk_task(store: Store, **kw: object) -> dict:
-    kw.setdefault("task_id", new_task_id())
-    kw.setdefault("kind", "arxiv")
-    kw.setdefault("target_lang", "zh-CN")
-    kw.setdefault("model", "m")
-    return store.create_task(**kw)  # type: ignore[arg-type]
-
-
 def _chunk(seq: int, cid: str | None = None) -> dict:
     return {
         "seq": seq,
@@ -74,7 +68,7 @@ class TestDeleteFile:
     def test_delete_returns_path_and_frees_quota(self, tmp_path: Path) -> None:
         store = _mk_store(tmp_path)
         try:
-            row = _mk_task(store)
+            row = mk_task_row(store)
             tdir = tmp_path / "tasks" / row["id"]
             tdir.mkdir(parents=True)
             (tdir / "zh.pdf").write_bytes(b"%PDF fake")
@@ -99,7 +93,7 @@ class TestDeleteFile:
         """delete_file 摘单行不碍 delete_task 级联清剩余行。"""
         store = _mk_store(tmp_path)
         try:
-            row = _mk_task(store)
+            row = mk_task_row(store)
             store.put_file(row["id"], "zh_pdf", "zh.pdf", size=1, sha256="x")
             store.put_file(row["id"], "en_pdf", "en.pdf", size=1, sha256="y")
             store.delete_file(row["id"], "zh_pdf")
@@ -118,7 +112,7 @@ class TestInsertChunksTxn:
     def test_failed_batch_leaves_no_partial(self, tmp_path: Path) -> None:
         store = _mk_store(tmp_path)
         try:
-            row = _mk_task(store)
+            row = mk_task_row(store)
             store.insert_chunks(row["id"], [_chunk(0)])
             # 第二批 c0 撞 (task_id, chunk_id) PK——executemany 中途炸
             with pytest.raises(sqlite3.IntegrityError):
@@ -139,7 +133,7 @@ class TestSpliceInvalidationArtifacts:
         store = _mk_store(tmp_path)
         bus = EventBus(store)
         worker = PipelineWorker(store, bus, tmp_path)
-        row = _mk_task(store, arxiv_id="2401.00001")
+        row = mk_task_row(store, arxiv_id="2401.00001")
         ctx = TaskCtx(
             store=store,
             bus=bus,
@@ -406,7 +400,7 @@ class TestOptIntClamp:
         try:
             bus = EventBus(store)
             worker = PipelineWorker(store, bus, tmp_path)
-            row = _mk_task(store)
+            row = mk_task_row(store)
             ctx = TaskCtx(
                 store=store,
                 bus=bus,

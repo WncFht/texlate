@@ -11,6 +11,7 @@ import tarfile
 from pathlib import Path
 
 import pytest
+from conftest import make_tar, tar_dir, tar_reg
 
 from texlate.arxiv.unpack import unpack_tar
 from texlate.compile.fixloop.ctan import (
@@ -32,32 +33,10 @@ def make_tarxz(
     buf = io.BytesIO()
     with tarfile.open(fileobj=buf, mode="w") as tf:
         if isinstance(members, dict):
-            members = [(_tar_reg(n, len(d)), d) for n, d in members.items()]
+            members = [(tar_reg(n, len(d)), d) for n, d in members.items()]
         for info, data in members:
             tf.addfile(info, io.BytesIO(data))
     return lzma.compress(buf.getvalue())
-
-
-def _tar_reg(name: str, size: int) -> tarfile.TarInfo:
-    info = tarfile.TarInfo(name)
-    info.size = size
-    return info
-
-
-def make_tar(members: list[tuple[tarfile.TarInfo, bytes]]) -> bytes:
-    """裸 tar（unpack_tar 直吃解压后字节）。"""
-    buf = io.BytesIO()
-    with tarfile.open(fileobj=buf, mode="w") as tf:
-        for info, data in members:
-            tf.addfile(info, io.BytesIO(data))
-    return buf.getvalue()
-
-
-def _tar_dir(name: str) -> tarfile.TarInfo:
-    info = tarfile.TarInfo(name)
-    info.type = tarfile.DIRTYPE
-    info.size = 0
-    return info
 
 
 # ---------------------------------------------------------------- 成员名穿越（tree 档主战场，flat 档同口径拒收）
@@ -196,8 +175,8 @@ def test_ctan_fetch_hostile_pkg_falls_through(tmp_path: Path) -> None:
 def test_unpack_dir_casefold_collision_warns(tmp_path: Path) -> None:
     payload = make_tar(
         [
-            (_tar_dir("Foo/"), b""),
-            (_tar_dir("foo/"), b""),
+            (tar_dir("Foo/"), b""),
+            (tar_dir("foo/"), b""),
         ]
     )
     res = unpack_tar(payload, tmp_path)
@@ -210,8 +189,8 @@ def test_unpack_dir_then_lower_file_renames(tmp_path: Path) -> None:
     """dir ``Foo/`` 后到的 file ``foo``：不覆盖既有目录，走 casefold 改名。"""
     payload = make_tar(
         [
-            (_tar_dir("Foo/"), b""),
-            (_tar_reg("foo", 3), b"abc"),
+            (tar_dir("Foo/"), b""),
+            (tar_reg("foo", 3), b"abc"),
         ]
     )
     res = unpack_tar(payload, tmp_path)
@@ -224,8 +203,8 @@ def test_unpack_file_member_hitting_dir_skips(tmp_path: Path) -> None:
     """同名 dir+file 成员并存：file 落点是目录 → reject_dir_clash 而非崩溃。"""
     payload = make_tar(
         [
-            (_tar_dir("d/"), b""),
-            (_tar_reg("d", 3), b"abc"),
+            (tar_dir("d/"), b""),
+            (tar_reg("d", 3), b"abc"),
         ]
     )
     res = unpack_tar(payload, tmp_path)
@@ -234,7 +213,7 @@ def test_unpack_file_member_hitting_dir_skips(tmp_path: Path) -> None:
 
 
 def test_unpack_dup_dir_member_idempotent(tmp_path: Path) -> None:
-    payload = make_tar([(_tar_dir("a/"), b""), (_tar_dir("a/"), b"")])
+    payload = make_tar([(tar_dir("a/"), b""), (tar_dir("a/"), b"")])
     res = unpack_tar(payload, tmp_path)
     assert [m.path for m in res.members] == ["a"]  # 重复目录成员不重复记
     assert res.warnings == []

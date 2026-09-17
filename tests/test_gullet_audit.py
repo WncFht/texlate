@@ -13,8 +13,9 @@ import os
 from typing import TYPE_CHECKING
 
 import pytest
+from conftest import DOC, scan_doc
 
-from texlate.latex import parse_file, parse_tex, reconstruct
+from texlate.latex import parse_file, reconstruct
 from texlate.latex.gullet import Arg, Gullet, MacroDef
 from texlate.latex.mouth import Tok
 
@@ -25,8 +26,6 @@ pytestmark = pytest.mark.skipif(
     bool(os.environ.get("TEXLATE_NO_EXPAND")),
     reason="v2-only audit pins (TEXLATE_NO_EXPAND set)",
 )
-
-DOC = "\\documentclass{article}\n\\begin{document}\n%s\n\\end{document}\n"
 
 
 def surface(ts: list[Tok]) -> str:
@@ -153,7 +152,7 @@ def test_audit_f8_explicit_ext_keeps_name(tmp_path: Path) -> None:
 def test_audit_c4_bracket_arg_respects_brace_shield() -> None:
     r"""``\foo[{]}]X``：``{…}`` 内 ``]`` 不提前闭合可选参（xparse/TeX 同）。"""
     body = "\\newcommand{\\foo}[1][d]{SEE #1 END}\n\\foo[{]}]X tail text."
-    res = parse_tex(DOC % body)
+    res = scan_doc(body)
     assert reconstruct(res) == DOC % body
     # 展开体里 {]} 整组代入——若 ] 早闭合，} 会滞留流面
     b = "\n".join(c.content for c in res.chunks)
@@ -355,7 +354,7 @@ def test_audit_f9b_parse_level_identity() -> None:
         "\\protected\\def\\pd{A}Body text long enough for its own chunk "
         "yes indeed \\pd end."
     )
-    res = parse_tex(DOC % body)
+    res = scan_doc(body)
     assert reconstruct(res) == DOC % body
     assert res.macros.lookup("pd") is not None
 
@@ -363,7 +362,7 @@ def test_audit_f9b_parse_level_identity() -> None:
         "\\def\\real{REALMACRO}\n"
         "{\\global\\let\\gl\\real}Body text long enough for own chunk \\gl."
     )
-    res2 = parse_tex(DOC % body2)
+    res2 = scan_doc(body2)
     assert reconstruct(res2) == DOC % body2
     e = res2.macros.lookup("gl")
     assert e is not None

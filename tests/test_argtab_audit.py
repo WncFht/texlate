@@ -12,34 +12,15 @@ chunk、文本参仍进 chunk）。
 """
 
 import pytest
+from conftest import ART, check_invariants, chunk_text
 
-from texlate.latex import parse_tex, reconstruct
-from texlate.latex.model import ScanResult
-from texlate.latex.reconstruct import validate_result
-
-ART = "\\documentclass{article}\n%s\\begin{document}\n%s\n\\end{document}\n"
+from texlate.latex import parse_tex
 
 
 @pytest.fixture(autouse=True)
 def _pin_v2(monkeypatch: pytest.MonkeyPatch) -> None:
     """钉死 v2（Gullet+Segmenter）路径——外部 ``TEXLATE_NO_EXPAND`` 不串扰。"""
     monkeypatch.delenv("TEXLATE_NO_EXPAND", raising=False)
-
-
-def check_invariants(res: ScanResult, tex: str) -> None:
-    """公共断言：恒等重建 + 校验零告警 + pieces 无缝平铺 vtex。"""
-    assert reconstruct(res) == tex
-    assert validate_result(res) == []
-    pos = 0
-    for p in res.pieces:
-        assert p.span.start == pos
-        pos = p.span.end
-    assert pos == len(res.vtex)
-
-
-def chunk_text(res: ScanResult) -> str:
-    """全部 chunk surface 拼接——泄漏断言的统一口径。"""
-    return " ".join(c.content for c in res.chunks)
 
 
 # ------------------------------------------------------------- titlesec 族
@@ -574,11 +555,7 @@ def test_epic_coords_protected() -> None:
     r"""``\\begin{epic}`` 同族同收——坐标与 ``\\path`` 命令名不进 chunk。"""
     tex = ART % (
         "\\usepackage{epic}\n",
-        (
-            "\\begin{epic}(6,4)\n"
-            "\\path(0.75,0.5)(1.5,1.5)\n"
-            "\\end{epic}\n"
-        ),
+        ("\\begin{epic}(6,4)\n\\path(0.75,0.5)(1.5,1.5)\n\\end{epic}\n"),
     )
     res = parse_tex(tex)
     check_invariants(res, tex)

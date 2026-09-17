@@ -23,7 +23,7 @@ import pytest
 pytest.importorskip("fastapi", reason="server extra 未装")
 pytest.importorskip("starlette.testclient", reason="server extra 未装")
 
-from conftest import MINI_TEX, make_app
+from conftest import MINI_TEX, make_app, mk_api_task
 from starlette.testclient import TestClient
 
 from texlate.server.settings import SettingsStore
@@ -61,13 +61,6 @@ def raw_client(
     """``raise_server_exceptions=False``——探测 5xx 错误面专用。"""
     with TestClient(make_app(tmp_path), raise_server_exceptions=False) as c:
         yield c
-
-
-def _mk(client: TestClient, arxiv_id: str = ARXIV, **kw: object) -> str:
-    """POST translate → task_id（缺省 202 断言）。"""
-    r = client.post(f"/api/arxiv/{arxiv_id}/translate", json=dict(kw))
-    assert r.status_code == HTTPStatus.ACCEPTED, r.text
-    return str(r.json()["task_id"])
 
 
 def _force(client: TestClient, tid: str, status: str) -> None:
@@ -180,7 +173,7 @@ class TestReadBodyJsonFuzz:
         assert r.status_code == HTTPStatus.BAD_REQUEST
 
     def test_huge_int_reader_position_400(self, raw_client: TestClient) -> None:
-        tid = _mk(raw_client)
+        tid = mk_api_task(raw_client, ARXIV)
         r = raw_client.put(
             f"/api/task/{tid}/reader/position",
             content=b'{"zoom": ' + b"1" * _HUGE_INT_DIGITS + b"}",
@@ -647,7 +640,7 @@ class TestSseBoundary:
             ]
 
     def test_huge_last_event_id_graceful(self, client: TestClient) -> None:
-        tid = _mk(client)
+        tid = mk_api_task(client, ARXIV)
         _force(client, tid, "done")
         # 期望：超界 last_id 被夹住/视为空——流干净终结（无已发事件可放）
         events = self._sse_events(client, tid, str(2**80))
@@ -655,7 +648,7 @@ class TestSseBoundary:
 
     def test_int64_max_last_event_id(self, client: TestClient) -> None:
         """int64 上限内：无重放事件（seq 全 ≤id）→ snapshot 帧后即终。"""
-        tid = _mk(client)
+        tid = mk_api_task(client, ARXIV)
         _publish_done(client, tid)
         _force(client, tid, "done")
         events = self._sse_events(client, tid, str(_INT64_MAX))
@@ -666,14 +659,14 @@ class TestSseBoundary:
         self, client: TestClient, leid: str
     ) -> None:
         """解析失败/负值 → last_id=0 → 全量重放含 done 帧收尾。"""
-        tid = _mk(client)
+        tid = mk_api_task(client, ARXIV)
         _publish_done(client, tid)
         _force(client, tid, "done")
         events = self._sse_events(client, tid, leid)
         assert events == ["snapshot", "stage", "done"]
 
     def test_accept_media_type_case(self, client: TestClient) -> None:
-        tid = _mk(client)
+        tid = mk_api_task(client, ARXIV)
         _publish_done(client, tid)
         _force(client, tid, "done")
         r = client.get(f"/api/task/{tid}", headers={"Accept": "TEXT/EVENT-STREAM"})
@@ -688,7 +681,7 @@ class TestSseBoundary:
         ],
     )
     def test_accept_superset_still_sse(self, client: TestClient, accept: str) -> None:
-        tid = _mk(client)
+        tid = mk_api_task(client, ARXIV)
         _publish_done(client, tid)
         _force(client, tid, "done")
         r = client.get(f"/api/task/{tid}", headers={"Accept": accept})
@@ -755,7 +748,7 @@ class TestPathParamFuzz:
         ["ZH.PDF", "src", "en.pdf/extra", "zh.pdf%00", "%2e%2e"],
     )
     def test_kind_shapes_404_or_400(self, client: TestClient, kind: str) -> None:
-        tid = _mk(client)
+        tid = mk_api_task(client, ARXIV)
         r = client.get(f"/api/files/{tid}/{kind}")
         assert r.status_code in (HTTPStatus.NOT_FOUND, HTTPStatus.BAD_REQUEST)
 
@@ -768,7 +761,7 @@ class TestSharePackIndexHostility:
 
     def _done_arxiv_task(self, client: TestClient) -> tuple[str, str]:
         """done 任务 + 真 share_key（manifest 派生与端点同口径）。"""
-        tid = _mk(client)
+        tid = mk_api_task(client, ARXIV)
         _force(client, tid, "done")
         store = client.app.state.store
         row = client.portal.call(partial(store.get, tid))
@@ -957,7 +950,7 @@ class TestMethodSurface:
 
     def test_reader_position_lenient_values(self, client: TestClient) -> None:
         """白名单键内值不做类型闸——positions 非 dict 也原样落盘（语义钉）。"""
-        tid = _mk(client)
+        tid = mk_api_task(client, ARXIV)
         r = client.put(
             f"/api/task/{tid}/reader/position",
             json={"positions": "not-a-dict", "zoom": "high", "sync": 7},

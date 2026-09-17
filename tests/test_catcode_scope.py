@@ -21,12 +21,11 @@ import re
 from pathlib import Path
 
 import pytest
+from conftest import DOC, blob, check_invariants
 
-from texlate.latex import parse_file, parse_tex, reconstruct
+from texlate.latex import parse_file, parse_tex
 from texlate.latex.model import ScanResult
-from texlate.latex.reconstruct import validate_result
 
-DOC = "\\documentclass{article}\n\\begin{document}\n%s\n\\end{document}\n"
 CORPUS_V3 = Path(__file__).resolve().parent.parent / "bench" / "corpus_v3"
 PSTRICKS = CORPUS_V3 / "0707.4206" / "extracted" / "pstricks.tex"
 
@@ -40,17 +39,6 @@ _CHOPPED_CS_RX = re.compile(r"\\[pt]\s")
 def _pin_v2(monkeypatch: pytest.MonkeyPatch) -> None:
     """钉死 v2（Gullet+Segmenter）路径——外部 ``TEXLATE_NO_EXPAND`` 不串扰。"""
     monkeypatch.delenv("TEXLATE_NO_EXPAND", raising=False)
-
-
-def check_invariants(res: ScanResult, tex: str) -> None:
-    """公共断言：恒等重建 + 校验零告警 + pieces 无缝平铺 vtex。"""
-    assert reconstruct(res) == tex
-    assert validate_result(res) == []
-    pos = 0
-    for p in res.pieces:
-        assert p.span.start == pos
-        pos = p.span.end
-    assert pos == len(res.vtex)
 
 
 def scan(body: str, preamble: str = "") -> ScanResult:
@@ -73,10 +61,6 @@ def scan(body: str, preamble: str = "") -> ScanResult:
 def base_names(res: ScanResult) -> set[str]:
     """末态 scope 链全帧可见名（底帧+未弹帧并查）。"""
     return {n for s in res.macros.scopes for n in s}
-
-
-def blob(res: ScanResult) -> str:
-    return "\n".join(c.content for c in res.chunks)
 
 
 # ------------------------------------------------------------ brace 组回收

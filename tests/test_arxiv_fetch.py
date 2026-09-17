@@ -1,13 +1,11 @@
-import gzip
-import io
 import json
 import os
-import tarfile
 import time
 from pathlib import Path
 
 import httpx
 import pytest
+from conftest import make_targz
 
 from texlate.arxiv.cache import CacheError, SourceCache
 from texlate.arxiv.fetch import (
@@ -33,18 +31,8 @@ class _Clock:
         self.t += d
 
 
-def _tar_gz(members: dict[str, bytes]) -> bytes:
-    buf = io.BytesIO()
-    with tarfile.open(fileobj=buf, mode="w") as tf:
-        for name, data in members.items():
-            info = tarfile.TarInfo(name)
-            info.size = len(data)
-            tf.addfile(info, io.BytesIO(data))
-    return gzip.compress(buf.getvalue())
-
-
 TINY_TEX = b"\\documentclass{article}\n\\begin{document}hi\\end{document}\n"
-TINY_TAR_GZ = _tar_gz({"main.tex": TINY_TEX, "figs/x.eps": b"EPS"})
+TINY_TAR_GZ = make_targz({"main.tex": TINY_TEX, "figs/x.eps": b"EPS"})
 VER_2 = 2
 
 #: Atom feed：entry id 带 ``v2``——裸 id 查询时 resolved_version=2 即 feed

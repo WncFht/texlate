@@ -12,7 +12,7 @@ import pytest
 
 pytest.importorskip("fastapi", reason="server extra 未装")
 
-from conftest import MINI_TEX
+from conftest import MINI_TEX, mk_api_task
 
 import texlate.server.app as app_mod
 
@@ -28,12 +28,6 @@ def _docx() -> bytes:
     with zipfile.ZipFile(buf, "w") as zf:
         zf.writestr("word/document.xml", "<doc/>")
     return buf.getvalue()
-
-
-def _mk_task(client: TestClient) -> str:
-    r = client.post(f"/api/arxiv/{ARXIV}/translate", json={"model": "mock-m"})
-    assert r.status_code == HTTPStatus.ACCEPTED
-    return r.json()["task_id"]
 
 
 class TestHealth:
@@ -86,7 +80,7 @@ class TestArxivTranslate:
         assert r.status_code == HTTPStatus.BAD_REQUEST
 
     def test_duplicate_active_409(self, client: TestClient) -> None:
-        tid = _mk_task(client)
+        tid = mk_api_task(client, ARXIV, model="mock-m")
         r = client.post(f"/api/arxiv/{ARXIV}/translate", json={"model": "mock-m"})
         assert r.status_code == HTTPStatus.CONFLICT
         body = r.json()
@@ -94,7 +88,7 @@ class TestArxivTranslate:
         assert body["code"] == "duplicate_active"
 
     def test_different_model_new_task(self, client: TestClient) -> None:
-        tid1 = _mk_task(client)
+        tid1 = mk_api_task(client, ARXIV, model="mock-m")
         r = client.post(f"/api/arxiv/{ARXIV}/translate", json={"model": "other"})
         assert r.status_code == HTTPStatus.ACCEPTED
         assert r.json()["task_id"] != tid1
@@ -111,7 +105,7 @@ class TestArxivTranslate:
 
 class TestCacheReuse:
     def test_reuse_after_done(self, client: TestClient) -> None:
-        tid = _mk_task(client)
+        tid = mk_api_task(client, ARXIV, model="mock-m")
         store = client.app.state.store
         client.portal.call(partial(store.transition, tid, "done", force=True))
         r = client.post(f"/api/arxiv/{ARXIV}/translate", json={"model": "mock-m"})
@@ -120,7 +114,7 @@ class TestCacheReuse:
         assert r.json()["task_id"] == tid
 
     def test_fresh_bypasses(self, client: TestClient) -> None:
-        tid = _mk_task(client)
+        tid = mk_api_task(client, ARXIV, model="mock-m")
         r = client.post(
             f"/api/arxiv/{ARXIV}/translate",
             json={"model": "mock-m", "options": {"prefer": "fresh"}},
@@ -131,7 +125,7 @@ class TestCacheReuse:
 
 class TestTaskGet:
     def test_snapshot(self, client: TestClient) -> None:
-        tid = _mk_task(client)
+        tid = mk_api_task(client, ARXIV, model="mock-m")
         r = client.get(f"/api/task/{tid}")
         assert r.status_code == HTTPStatus.OK
         snap = r.json()
@@ -150,7 +144,7 @@ class TestTaskGet:
 
 class TestCancelRetry:
     def test_cancel_queued(self, client: TestClient) -> None:
-        tid = _mk_task(client)
+        tid = mk_api_task(client, ARXIV, model="mock-m")
         r = client.post(f"/api/task/{tid}/cancel")
         assert r.status_code == HTTPStatus.OK
         assert r.json()["status"] == "cancelled"
@@ -158,38 +152,38 @@ class TestCancelRetry:
         assert snap["status"] == "cancelled"
 
     def test_cancel_terminal_409(self, client: TestClient) -> None:
-        tid = _mk_task(client)
+        tid = mk_api_task(client, ARXIV, model="mock-m")
         client.post(f"/api/task/{tid}/cancel")
         r = client.post(f"/api/task/{tid}/cancel")
         assert r.status_code == HTTPStatus.CONFLICT
 
     def test_retry_cancelled(self, client: TestClient) -> None:
-        tid = _mk_task(client)
+        tid = mk_api_task(client, ARXIV, model="mock-m")
         client.post(f"/api/task/{tid}/cancel")
         r = client.post(f"/api/task/{tid}/retry", json={})
         assert r.status_code == HTTPStatus.ACCEPTED
         assert client.get(f"/api/task/{tid}").json()["status"] == "queued"
 
     def test_retry_active_409(self, client: TestClient) -> None:
-        tid = _mk_task(client)
+        tid = mk_api_task(client, ARXIV, model="mock-m")
         r = client.post(f"/api/task/{tid}/retry", json={})
         assert r.status_code == HTTPStatus.CONFLICT
 
 
 class TestFiles:
     def test_files_list_empty(self, client: TestClient) -> None:
-        tid = _mk_task(client)
+        tid = mk_api_task(client, ARXIV, model="mock-m")
         r = client.get(f"/api/files/{tid}")
         assert r.status_code == HTTPStatus.OK
         assert r.json()["artifacts"] == {}
 
     def test_unknown_kind_404(self, client: TestClient) -> None:
-        tid = _mk_task(client)
+        tid = mk_api_task(client, ARXIV, model="mock-m")
         r = client.get(f"/api/files/{tid}/evil.exe")
         assert r.status_code == HTTPStatus.NOT_FOUND
 
     def test_missing_artifact_404(self, client: TestClient) -> None:
-        tid = _mk_task(client)
+        tid = mk_api_task(client, ARXIV, model="mock-m")
         r = client.get(f"/api/files/{tid}/zh.pdf")
         assert r.status_code == HTTPStatus.NOT_FOUND
 
@@ -315,7 +309,7 @@ class TestSettings:
 
 class TestReader:
     def test_position_roundtrip(self, client: TestClient) -> None:
-        tid = _mk_task(client)
+        tid = mk_api_task(client, ARXIV, model="mock-m")
         r = client.put(
             f"/api/task/{tid}/reader/position",
             json={"positions": {"original": 3}, "active": "original"},
@@ -324,14 +318,14 @@ class TestReader:
         assert r.json()["ok"] is True
 
     def test_reader_404_without_dual(self, client: TestClient) -> None:
-        tid = _mk_task(client)
+        tid = mk_api_task(client, ARXIV, model="mock-m")
         r = client.get(f"/api/task/{tid}/reader")
         assert r.status_code == HTTPStatus.NOT_FOUND
 
 
 class TestTasksList:
     def test_list(self, client: TestClient) -> None:
-        _mk_task(client)
+        mk_api_task(client, ARXIV, model="mock-m")
         r = client.get("/api/tasks")
         assert r.status_code == HTTPStatus.OK
         tasks = r.json()["tasks"]
@@ -340,7 +334,7 @@ class TestTasksList:
         assert tasks[0]["arxiv_id"] == ARXIV
 
     def test_status_filter(self, client: TestClient) -> None:
-        tid = _mk_task(client)
+        tid = mk_api_task(client, ARXIV, model="mock-m")
         client.post(f"/api/task/{tid}/cancel")
         r = client.get("/api/tasks?status=cancelled")
         assert [t["task_id"] for t in r.json()["tasks"]] == [tid]

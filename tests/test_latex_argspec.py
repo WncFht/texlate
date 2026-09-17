@@ -9,6 +9,8 @@ r"""argspec.json 表 + 分段器接线：包门控 / policy 分派 / env 体路�
 分派）与 ``_handle_env_begin``（族表不知的 env → body_role 路由）。
 """
 
+from conftest import ART
+
 from texlate.latex import parse_tex, parse_tex_v1, reconstruct
 from texlate.latex.gullet import IfSetter, MacroDef, ScopeMacroTable
 from texlate.latex.model import ScanResult
@@ -19,7 +21,6 @@ from texlate.latex.tables import (
     argspec_tables,
 )
 
-ART = "\\documentclass{article}\n%s\\begin{document}\n%s\n\\end{document}\n"
 BEAMER = "\\documentclass{beamer}\n\\begin{document}\n%s\n\\end{document}\n"
 
 

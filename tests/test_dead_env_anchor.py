@@ -15,6 +15,7 @@ comment.sty 排除环境按**行**吞体：``\end{env}`` 须列 0 起、行内�
 from pathlib import Path
 
 import pytest
+from conftest import DOC, blob
 
 from texlate.latex import parse_tex, reconstruct
 from texlate.latex.api import new_state
@@ -23,8 +24,6 @@ from texlate.latex.model import ScanResult
 from texlate.latex.reconstruct import validate_result
 from texlate.latex.scanner import Scanner
 from texlate.textutil import dead_end_anchored, dead_env_end
-
-DOC = "\\documentclass{article}\n\\begin{document}\n%s\n\\end{document}\n"
 
 
 @pytest.fixture(autouse=True)
@@ -45,10 +44,6 @@ def scan_v1(body: str) -> ScanResult:
     res = Scanner(new_state()).scan(DOC % body)
     assert reconstruct(res) == DOC % body
     return res
-
-
-def _chunked(res: ScanResult) -> str:
-    return "\n".join(c.content for c in res.chunks)
 
 
 # ---------------------------------------------------------------- helper 单测
@@ -93,7 +88,7 @@ def test_v2_midline_end_does_not_terminate() -> None:
         "Beta live words here."
     )
     res = scan_v2(body)
-    chunked = _chunked(res)
+    chunked = blob(res)
     assert "Beta live words here." in chunked
     assert "still dead words" not in chunked
     assert "dead line" not in chunked
@@ -122,7 +117,7 @@ def test_v2_broken_sequence_end() -> None:
         "Beta live words here."
     )
     res = scan_v2(body)
-    chunked = _chunked(res)
+    chunked = blob(res)
     assert "Beta live words here." in chunked
     assert "more dead words" not in chunked
 
@@ -138,7 +133,7 @@ def test_v2_star_cross_end() -> None:
         "Beta live words here."
     )
     res = scan_v2(body)
-    chunked = _chunked(res)
+    chunked = blob(res)
     assert "Beta live words here." in chunked
     assert "still dead words" not in chunked
 
@@ -155,7 +150,7 @@ def test_v2_no_nesting_begin_inside() -> None:
         "Beta live words here."
     )
     res = scan_v2(body)
-    chunked = _chunked(res)
+    chunked = blob(res)
     assert "Beta live words here." in chunked
 
 
@@ -169,7 +164,7 @@ def test_v1_midline_end_does_not_terminate() -> None:
         "Beta live words here."
     )
     res = scan_v1(body)
-    chunked = _chunked(res)
+    chunked = blob(res)
     assert "Beta live words here." in chunked
     assert "still dead words" not in chunked
 
@@ -187,7 +182,7 @@ def test_v1_nested_dead_env_skip_anchored() -> None:
         "Beta live words here."
     )
     res = scan_v1(body)
-    chunked = _chunked(res)
+    chunked = blob(res)
     assert "Beta live words here." in chunked
     assert "still dead" not in chunked
 

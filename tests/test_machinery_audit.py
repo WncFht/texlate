@@ -5,7 +5,7 @@ r"""segmenter 机制波回归（fixer-machinery，illegal_unit 机制半场）�
 - M1 ``_emit_argspec_chunks`` in_arg 臂 lit 段 → ``[[CMD]]`` 代位
   （``\multirow{2}{*}{\parbox{3cm}{x}}`` 的 ``{3cm}`` 不裸进参内 chunk）；
 - M2 新参种 ``n`` = 裸 cs 名参（``\setlength\parskip{4pt}`` 的 ``{4pt}`` 不漏），
-  走 ``_BOUNDARY_TAIL_N`` 本地覆盖（``BOUNDARY_TAIL`` 属 tables.py 车道）；
+  ``BOUNDARY_TAIL`` 直载（v1 ``_args``/v2 ``_args_tok`` 双侧 ``n`` 臂）；
 - M3 ``\\[dim]`` 尾参；M4 ``\parindent[=]4pt`` 赋形尾；
 - M5 ``_grp_spec_args_end`` ``m`` 臂认 ``[`` 定界组（restatable ``[N]``）；
 - 残留：``\joref``/``\crefrange`` 多参书目宏签名驱动 mand——``{b}`` 不漏。
@@ -15,34 +15,19 @@ r"""segmenter 机制波回归（fixer-machinery，illegal_unit 机制半场）�
 """
 
 import pytest
+from conftest import ART, check_invariants, chunk_text
 
-from texlate.latex import parse_tex, reconstruct
-from texlate.latex.model import ScanResult
-from texlate.latex.reconstruct import validate_result
-
-ART = "\\documentclass{article}\n%s\\begin{document}\n%s\n\\end{document}\n"
+from texlate.latex import parse_tex
+from texlate.latex.api import new_state
+from texlate.latex.macro_table import parse_argspec
+from texlate.latex.model import ArgSpec, PieceKind
+from texlate.latex.scanner import Scanner
 
 
 @pytest.fixture(autouse=True)
 def _pin_v2(monkeypatch: pytest.MonkeyPatch) -> None:
     """钉死 v2（Gullet+Segmenter）路径——外部 ``TEXLATE_NO_EXPAND`` 不串扰。"""
     monkeypatch.delenv("TEXLATE_NO_EXPAND", raising=False)
-
-
-def check_invariants(res: ScanResult, tex: str) -> None:
-    """公共断言：恒等重建 + 校验零告警 + pieces 无缝平铺 vtex。"""
-    assert reconstruct(res) == tex
-    assert validate_result(res) == []
-    pos = 0
-    for p in res.pieces:
-        assert p.span.start == pos
-        pos = p.span.end
-    assert pos == len(res.vtex)
-
-
-def chunk_text(res: ScanResult) -> str:
-    """全部 chunk surface 拼接——泄漏断言的统一口径。"""
-    return " ".join(c.content for c in res.chunks)
 
 
 # ------------------------------------------------------------- M1 in_arg lit 段
@@ -172,6 +157,91 @@ def test_setcounter_keeps_m_spec() -> None:
     body = chunk_text(res)
     assert "{page}" not in body
     assert "{3}" not in body
+
+
+def test_settowidth_family_bare_cs_arg() -> None:
+    r"""M2 同族迁移：``\settowidth``/``\settoheight``/``\settodepth`` 迁入
+    BOUNDARY_NAMES——裸名形 ``\settowidth\mylen{xx}`` 整调用 LITERAL，
+    校准内容不译（迁前走 argspec ``key``：名本体 ``[[CMD]]`` + ``\mylen``
+    孤探针，两碎片同罩但族语义不齐）。"""
+    tex = ART % (
+        "",
+        (
+            "\\settowidth\\mylen{Calib text one}\n"
+            "\\settoheight\\myht{Calib text two}\n"
+            "\\settodepth\\mydp{Calib text three}\n"
+            "Body text here to fill the paragraph out nicely and more.\n"
+        ),
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    for tok in ("mylen", "myht", "mydp", "Calib text"):
+        assert tok not in body
+    assert "Body text" in body
+
+
+def test_settowidth_braced_form() -> None:
+    r"""M2 迁移花括号形：``\settowidth{\mylen}{xx}``——``n`` 槽认 ``{..}`` 组，
+    整调用照常全收。"""
+    tex = ART % (
+        "",
+        (
+            "\\settowidth{\\mylen}{Calib text}\n"
+            "Body text here to fill the paragraph out nicely and more.\n"
+        ),
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert "Calib text" not in body
+    assert "mylen" not in body
+
+
+def test_settowidth_bare_cs_in_arg() -> None:
+    r"""M2 迁移参内形：``\caption{..\settowidth\mylen{x}..}`` 整调用 ``[[CMD]]``。"""
+    tex = ART % (
+        "",
+        (
+            "\\caption{Cap \\settowidth\\mylen{xx} tail words}\n"
+            "Body text here to fill the paragraph out nicely and more.\n"
+        ),
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert "mylen" not in body
+    assert "xx" not in body
+    assert "Cap " in body
+
+
+def test_parse_argspec_n_letter() -> None:
+    r"""M2 签名语言补齐：``parse_argspec`` 认 ``n``——``"n m"`` → ``[n, m]``
+    （迁前无 ``n`` 臂静默跳过 → ``arg_roles`` 位序错位隐患）。"""
+    assert parse_argspec("n m") == [ArgSpec("n"), ArgSpec("m")]
+    assert parse_argspec("s n") == [ArgSpec("s"), ArgSpec("n")]
+
+
+def test_v1_setlength_bare_cs_whole_literal() -> None:
+    r"""M2 v1 对价：``BOUNDARY_TAIL`` 直载 ``[n, m]`` 后 v1 ``_args`` ``n``
+    臂收裸名——``\setlength\parskip{4pt}`` 整段单 LITERAL（迁前 v1
+    ``m`` 臂遇 ``\`` 即停 → ``\parskip{4pt}`` 走未知探针碎罩）。"""
+    tex = ART % (
+        "",
+        (
+            "\\setlength\\parskip{4pt}\n"
+            "\\settowidth\\mylen{xx}\n"
+            "Body text here to fill the paragraph out nicely and more.\n"
+        ),
+    )
+    res = Scanner(new_state()).scan(tex)
+    lits = [p.text for p in res.pieces if p.kind is PieceKind.LITERAL]
+    assert "\\setlength\\parskip{4pt}" in lits
+    assert "\\settowidth\\mylen{xx}" in lits
+    body = chunk_text(res)
+    assert "4pt" not in body
+    assert "parskip" not in body
+    assert "Body text" in body
 
 
 # ------------------------------------------------------------- M3 \\[dim] 尾参

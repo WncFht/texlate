@@ -21,35 +21,16 @@ chunk（或反方向——该 literal 的结构件被展开物质化）。每条
 """
 
 import pytest
+from conftest import ART, check_invariants, chunk_text
 
 from texlate.latex import parse_tex, reconstruct
-from texlate.latex.model import ScanResult
-from texlate.latex.reconstruct import validate_result
 from texlate.latex.tables import looks_like_colspec
-
-ART = "\\documentclass{article}\n%s\\begin{document}\n%s\n\\end{document}\n"
 
 
 @pytest.fixture(autouse=True)
 def _pin_v2(monkeypatch: pytest.MonkeyPatch) -> None:
     """钉死 v2（Gullet+Segmenter）路径——外部 ``TEXLATE_NO_EXPAND`` 不串扰。"""
     monkeypatch.delenv("TEXLATE_NO_EXPAND", raising=False)
-
-
-def check_invariants(res: ScanResult, tex: str) -> None:
-    """公共断言：恒等重建 + 校验零告警 + pieces 无缝平铺 vtex。"""
-    assert reconstruct(res) == tex
-    assert validate_result(res) == []
-    pos = 0
-    for p in res.pieces:
-        assert p.span.start == pos
-        pos = p.span.end
-    assert pos == len(res.vtex)
-
-
-def chunk_text(res: ScanResult) -> str:
-    """全部 chunk surface 拼接——泄漏断言的统一口径。"""
-    return " ".join(c.content for c in res.chunks)
 
 
 # ------------------------------------------------------------------ R1

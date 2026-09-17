@@ -17,13 +17,12 @@ r"""分段器 S3 语义黑盒测试 —— ``parse_tex``/``parse_file`` 端到�
 from pathlib import Path
 
 import pytest
+from conftest import ART, check_invariants
 
-from texlate.latex import parse_file, parse_tex, reconstruct
+from texlate.latex import parse_file, parse_tex
 from texlate.latex.gullet import Gullet
 from texlate.latex.model import PieceKind, ScanResult
-from texlate.latex.reconstruct import validate_result
 
-ART = "\\documentclass{article}\n%s\\begin{document}\n%s\n\\end{document}\n"
 BEAMER = "\\documentclass{beamer}\n\\begin{document}\n%s\n\\end{document}\n"
 
 
@@ -31,17 +30,6 @@ BEAMER = "\\documentclass{beamer}\n\\begin{document}\n%s\n\\end{document}\n"
 def _pin_v2(monkeypatch: pytest.MonkeyPatch) -> None:
     """钉死 v2（Gullet+Segmenter）路径——外部 ``TEXLATE_NO_EXPAND`` 不串扰。"""
     monkeypatch.delenv("TEXLATE_NO_EXPAND", raising=False)
-
-
-def check_invariants(res: ScanResult, tex: str) -> None:
-    """公共断言：恒等重建 + 校验零告警 + pieces 无缝平铺 vtex。"""
-    assert reconstruct(res) == tex
-    assert validate_result(res) == []
-    pos = 0
-    for p in res.pieces:
-        assert p.span.start == pos
-        pos = p.span.end
-    assert pos == len(res.vtex)
 
 
 def scan(body: str, preamble: str = "", doc: str = ART) -> ScanResult:
@@ -500,6 +488,7 @@ def test_parse_file_flatten_false(tmp_path: Path) -> None:
     assert "\\input{sub}" in res.protected_tex
     assert res.inputs[0][1] == "sub"
     assert any(w.kind == "missing_input" for w in res.warnings)
+
 
 # ------------------------------------------------------- 弹栈尾盖闸
 

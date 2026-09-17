@@ -15,8 +15,10 @@ import pytest
 pytest.importorskip("fastapi", reason="server extra 未装")
 pytest.importorskip("starlette.testclient", reason="server extra 未装")
 
+from conftest import mk_api_task, mk_task_row
+
 from texlate.server.events import EventBus, sse_frame
-from texlate.server.store import Store, new_task_id
+from texlate.server.store import Store
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -40,12 +42,6 @@ def _wait_sub(bus: EventBus, tid: str, timeout: float = 5.0) -> None:
         time.sleep(0.01)
 
 
-def _mk_task(client: TestClient) -> str:
-    r = client.post(f"/api/arxiv/{ARXIV}/translate", json={})
-    assert r.status_code == HTTPStatus.ACCEPTED
-    return r.json()["task_id"]
-
-
 class TestBusStream:
     """直连 EventBus（不走路由层）——重放/实时/done 语义。"""
 
@@ -57,14 +53,9 @@ class TestBusStream:
         yield store, b
         store.close()
 
-    def _mk(self, store: Store) -> str:
-        return store.create_task(
-            task_id=new_task_id(), kind="arxiv", target_lang="zh-CN", model="m"
-        )["id"]
-
     def test_replay_then_live(self, bus: tuple[Store, EventBus]) -> None:
         store, b = bus
-        tid = self._mk(store)
+        tid = mk_task_row(store)["id"]
 
         async def run() -> list[dict]:
             async def sub() -> list[dict]:
@@ -86,7 +77,7 @@ class TestBusStream:
 
     def test_last_event_id_skips(self, bus: tuple[Store, EventBus]) -> None:
         store, b = bus
-        tid = self._mk(store)
+        tid = mk_task_row(store)["id"]
         b.publish(tid, "a", {"n": 1})
         b.publish(tid, "b", {"n": 2})
 
@@ -104,7 +95,7 @@ class TestBusStream:
 
     def test_replayed_done_terminates(self, bus: tuple[Store, EventBus]) -> None:
         store, b = bus
-        tid = self._mk(store)
+        tid = mk_task_row(store)["id"]
         b.publish(tid, "done", {"status": "done"})
 
         async def run() -> list[dict]:
@@ -125,7 +116,7 @@ class TestBusStream:
         """订阅队列溢出 → 摘除 + 哨兵断流；重连按 events_since 全量重放。"""
         monkeypatch.setattr("texlate.server.events._SUB_QUEUE_MAX", 2)
         store, b = bus
-        tid = self._mk(store)
+        tid = mk_task_row(store)["id"]
 
         async def run() -> list[dict]:
             out: list[dict] = []
@@ -158,7 +149,7 @@ class TestBusStream:
     def test_close_all_wakes_parked(self, bus: tuple[Store, EventBus]) -> None:
         """close_all 压哨兵唤醒 q.get() 等待者——关停不依赖传输层取消。"""
         store, b = bus
-        tid = self._mk(store)
+        tid = mk_task_row(store)["id"]
 
         async def run() -> list[dict]:
             out: list[dict] = []
@@ -190,7 +181,7 @@ class TestHttpSse:
 
     def test_snapshot_frame_first(self, client: TestClient) -> None:
         """首帧 = 合成 snapshot(id:0)；落盘事件随重放流出，done 终流。"""
-        tid = _mk_task(client)
+        tid = mk_api_task(client, ARXIV)
         bus = client.app.state.bus
         client.portal.call(partial(bus.publish, tid, "stage", {"stage": "parsing"}))
         client.portal.call(partial(bus.publish, tid, "done", {"status": "done"}))
@@ -211,7 +202,7 @@ class TestHttpSse:
 
     def test_live_publish_then_done(self, client: TestClient) -> None:
         """订阅建立后的 publish 走实时队列扇出。"""
-        tid = _mk_task(client)
+        tid = mk_api_task(client, ARXIV)
         bus = client.app.state.bus
 
         def feed() -> None:
@@ -238,7 +229,7 @@ class TestHttpSse:
         assert events == ["snapshot", "stage", "done"]
 
     def test_last_event_id_replay(self, client: TestClient) -> None:
-        tid = _mk_task(client)
+        tid = mk_api_task(client, ARXIV)
         bus = client.app.state.bus
         client.portal.call(partial(bus.publish, tid, "stage", {"stage": "a"}))
         client.portal.call(partial(bus.publish, tid, "done", {"status": "done"}))

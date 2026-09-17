@@ -23,6 +23,7 @@ import tarfile
 from typing import TYPE_CHECKING
 
 import pytest
+from conftest import make_tar, tar_dir, tar_reg
 
 from texlate.arxiv.unpack import (
     STUB_PREFIX,
@@ -61,28 +62,6 @@ _KNOWN_WARNS = frozenset(
 _NAME_MAX = 255
 _STUB_P = 0.08
 _REPAIR_P = 0.5
-
-
-def _make_tar(members: list[tuple[tarfile.TarInfo, bytes]]) -> bytes:
-    buf = io.BytesIO()
-    with tarfile.open(fileobj=buf, mode="w") as tf:
-        for info, data in members:
-            tf.addfile(info, io.BytesIO(data))
-    return buf.getvalue()
-
-
-def _reg(name: str, size: int, **kw: object) -> tarfile.TarInfo:
-    info = tarfile.TarInfo(name)
-    info.size = size
-    for k, v in kw.items():
-        setattr(info, k, v)
-    return info
-
-
-def _dir(name: str) -> tarfile.TarInfo:
-    info = tarfile.TarInfo(name)
-    info.type = tarfile.DIRTYPE
-    return info
 
 
 def _sym(name: str, linkname: str) -> tarfile.TarInfo:
@@ -291,7 +270,7 @@ def _gen_member(rng: random.Random) -> tuple[tarfile.TarInfo, bytes]:
     )[0]
     name = rng.choice(_PATHS)
     if kind == "dir":
-        return _dir(name), b""
+        return tar_dir(name), b""
     if kind == "sym":
         return _sym(name, rng.choice(_LINKNAMES)), b""
     if kind == "lnk":
@@ -301,11 +280,11 @@ def _gen_member(rng: random.Random) -> tuple[tarfile.TarInfo, bytes]:
         info.type = tarfile.FIFOTYPE
         return info, b""
     if kind == "setuid":
-        return _reg(name, 4, mode=0o4755), b"suid"
+        return tar_reg(name, 4, mode=0o4755), b"suid"
     data = rng.randbytes(rng.randint(0, 1500))
     if rng.random() < _STUB_P:
         data = STUB_PREFIX + data
-    return _reg(name, len(data)), data
+    return tar_reg(name, len(data)), data
 
 
 def test_fuzz_random_member_streams(tmp_path: Path) -> None:
@@ -313,7 +292,7 @@ def test_fuzz_random_member_streams(tmp_path: Path) -> None:
     rng = random.Random(20260917)  # noqa: S311 -- 确定性种子
     for i in range(500):
         members = [_gen_member(rng) for _ in range(rng.randint(1, 22))]
-        payload = _make_tar(members)
+        payload = make_tar(members)
         dest = tmp_path / f"d{i}"
         res = unpack_tar(payload, dest)
         _check_result(res, dest)
@@ -338,9 +317,9 @@ def _mutate(payload: bytes, rng: random.Random, *, repair: bool) -> bytes:
 
 
 _BASE_MEMBERS: list[tuple[tarfile.TarInfo, bytes]] = [
-    (_dir("sub"), b""),
-    (_reg("sub/a.tex", 120), b"x" * 120),
-    (_reg("b.sty", 300), b"y" * 300),
+    (tar_dir("sub"), b""),
+    (tar_reg("sub/a.tex", 120), b"x" * 120),
+    (tar_reg("b.sty", 300), b"y" * 300),
     (_sym("sub/l.tex", "a.tex"), b""),
     (_lnk("h.tex", "b.sty"), b""),
 ]
@@ -349,7 +328,7 @@ _BASE_MEMBERS: list[tuple[tarfile.TarInfo, bytes]] = [
 def test_fuzz_byte_mutations_never_lie(tmp_path: Path) -> None:
     """脏字节变异（含 checksum 修复让字段生效）：UnpackError 或盘上实况一致。"""
     rng = random.Random(20260918)  # noqa: S311 -- 确定性种子
-    payload = _make_tar(_BASE_MEMBERS)
+    payload = make_tar(_BASE_MEMBERS)
     for i in range(600):
         mutated = _mutate(payload, rng, repair=rng.random() < _REPAIR_P)
         dest = tmp_path / f"m{i}"
@@ -363,7 +342,7 @@ def test_fuzz_byte_mutations_never_lie(tmp_path: Path) -> None:
 def test_fuzz_garbage_payloads(tmp_path: Path) -> None:
     """纯随机/截断/空载荷：只许 UnpackError（非 tar 流）。"""
     rng = random.Random(20260919)  # noqa: S311 -- 确定性种子
-    payload = _make_tar(_BASE_MEMBERS)
+    payload = make_tar(_BASE_MEMBERS)
     for i in range(200):
         blob = rng.randbytes(rng.randint(0, 3000))
         if rng.random() < _REPAIR_P:
@@ -377,7 +356,7 @@ def test_fuzz_garbage_payloads(tmp_path: Path) -> None:
 
 def test_truncation_sweep(tmp_path: Path) -> None:
     """逐段截断：mid-header/mid-data/边界切点全覆盖——UnpackError 或前缀一致。"""
-    payload = _make_tar(_BASE_MEMBERS)
+    payload = make_tar(_BASE_MEMBERS)
     cuts = set(range(0, len(payload), 53)) | {
         n * 512 + d for n in range(6) for d in (0, 1, 148, 156, 511)
     }
@@ -393,8 +372,8 @@ def test_truncation_sweep(tmp_path: Path) -> None:
 # ---------------------------------------------------------------- 定向对抗
 
 _TYPE_MAKERS = {
-    "file": lambda n: (_reg(n, 4), b"DATA"),
-    "dir": lambda n: (_dir(n), b""),
+    "file": lambda n: (tar_reg(n, 4), b"DATA"),
+    "dir": lambda n: (tar_dir(n), b""),
     "sym": lambda n: (_sym(n, "tgt.tex"), b""),
     "lnk": lambda n: (_lnk(n, "tgt.tex"), b""),
 }
@@ -406,9 +385,9 @@ def test_dup_member_cross_type_last_wins(
     tmp_path: Path, first: str, second: str
 ) -> None:
     """同路径异类型重复成员全矩阵：后到者语义 + mtree 与盘上一致。"""
-    tgt = _reg("tgt.tex", 5)
+    tgt = tar_reg("tgt.tex", 5)
     members = [(tgt, b"TTTTT"), _TYPE_MAKERS[first]("x"), _TYPE_MAKERS[second]("x")]
-    res = unpack_tar(_make_tar(members), tmp_path / "d")
+    res = unpack_tar(make_tar(members), tmp_path / "d")
     _check_result(res, tmp_path / "d")
     xs = [m for m in res.members if m.path == "x"]
     assert len(xs) <= 1  # 留下至多一条，且不留幽灵
@@ -418,12 +397,12 @@ def test_alias_via_symlinked_dir_lies_in_mtime(tmp_path: Path) -> None:
     """别名落点对账回归钉：``d``→``e`` symlink 后，``d/x`` 与 ``e/x`` 别名
     同实文件——后到写穿先到，``_reconcile_aliases`` 把先到条目的 sha 改记
     为盘上实况（赢家 B），并记 ``dup_member_overwrite``。"""
-    payload = _make_tar(
+    payload = make_tar(
         [
-            (_dir("e"), b""),
+            (tar_dir("e"), b""),
             (_sym("d", "e"), b""),
-            (_reg("d/x.tex", 1), b"A"),
-            (_reg("e/x.tex", 1), b"B"),
+            (tar_reg("d/x.tex", 1), b"A"),
+            (tar_reg("e/x.tex", 1), b"B"),
         ]
     )
     dest = tmp_path / "d"
@@ -442,14 +421,10 @@ def test_hardlink_chain_order_dependent(tmp_path: Path) -> None:
     """
     h1 = _lnk("h1.tex", "f.tex")
     h2 = _lnk("h2.tex", "h1.tex")
-    f = _reg("f.tex", 4)
-    res_fwd = unpack_tar(
-        _make_tar([(h1, b""), (h2, b""), (f, b"DATA")]), tmp_path / "a"
-    )
+    f = tar_reg("f.tex", 4)
+    res_fwd = unpack_tar(make_tar([(h1, b""), (h2, b""), (f, b"DATA")]), tmp_path / "a")
     assert set(res_fwd.files) == {"f.tex", "h1.tex", "h2.tex"}
-    res_rev = unpack_tar(
-        _make_tar([(h2, b""), (h1, b""), (f, b"DATA")]), tmp_path / "b"
-    )
+    res_rev = unpack_tar(make_tar([(h2, b""), (h1, b""), (f, b"DATA")]), tmp_path / "b")
     assert set(res_rev.files) == {"f.tex", "h1.tex"}
     assert "hardlink_dangling:h2.tex->h1.tex" in res_rev.warnings
 
@@ -460,8 +435,12 @@ def test_name_max_boundary(tmp_path: Path) -> None:
     ok_leaf = ok_name.split("/", 1)[1]
     assert len(ok_leaf.encode()) == _NAME_MAX
     bad_name = "d/" + "y" * (_NAME_MAX + 1)  # 单段 256B
-    payload = _make_tar(
-        [(_dir("d"), b""), (_reg(ok_name, 3), b"xxx"), (_reg(bad_name, 3), b"yyy")]
+    payload = make_tar(
+        [
+            (tar_dir("d"), b""),
+            (tar_reg(ok_name, 3), b"xxx"),
+            (tar_reg(bad_name, 3), b"yyy"),
+        ]
     )
     res = unpack_tar(payload, tmp_path)
     assert ok_name in res.files
@@ -474,8 +453,8 @@ def test_pax_longname_bad_utf8_rejected(tmp_path: Path) -> None:
     buf = io.BytesIO()
     long_name = "d/" + "x" * 150 + ".tex"
     with tarfile.open(fileobj=buf, mode="w", format=tarfile.PAX_FORMAT) as tf:
-        tf.addfile(_reg(long_name, 3), io.BytesIO(b"xxx"))
-        tf.addfile(_reg("ok.tex", 3), io.BytesIO(b"yyy"))
+        tf.addfile(tar_reg(long_name, 3), io.BytesIO(b"xxx"))
+        tf.addfile(tar_reg("ok.tex", 3), io.BytesIO(b"yyy"))
     raw = bytearray(buf.getvalue())
     idx = raw.find(b"path=" + long_name.encode()[:20])
     assert idx != -1, "pax path record not found"
@@ -488,7 +467,7 @@ def test_pax_longname_bad_utf8_rejected(tmp_path: Path) -> None:
 
 def test_max_members_cap(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("texlate.arxiv.unpack.MAX_MEMBERS", 3)
-    payload = _make_tar([(_reg(f"f{i}.tex", 3), b"xxx") for i in range(4)])
+    payload = make_tar([(tar_reg(f"f{i}.tex", 3), b"xxx") for i in range(4)])
     with pytest.raises(UnpackError, match="too_many_members"):
         unpack_tar(payload, tmp_path)
 

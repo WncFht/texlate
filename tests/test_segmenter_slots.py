@@ -27,12 +27,10 @@ r"""非文本槽位保护回归 —— loop1 stagerun 五类腐蚀形态钉版�
 """
 
 import pytest
+from conftest import DOC, blob, check_invariants
 
-from texlate.latex import parse_tex, reconstruct
+from texlate.latex import parse_tex
 from texlate.latex.model import PieceKind, ScanResult
-from texlate.latex.reconstruct import validate_result
-
-DOC = "\\documentclass{article}\n\\begin{document}\n%s\n\\end{document}\n"
 
 
 @pytest.fixture(autouse=True)
@@ -41,26 +39,11 @@ def _pin_v2(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("TEXLATE_NO_EXPAND", raising=False)
 
 
-def check_invariants(res: ScanResult, tex: str) -> None:
-    """公共断言：恒等重建 + 校验零告警 + pieces 无缝平铺 vtex。"""
-    assert reconstruct(res) == tex
-    assert validate_result(res) == []
-    pos = 0
-    for p in res.pieces:
-        assert p.span.start == pos
-        pos = p.span.end
-    assert pos == len(res.vtex)
-
-
 def scan(body: str) -> ScanResult:
     tex = DOC % body
     res = parse_tex(tex)
     check_invariants(res, tex)
     return res
-
-
-def blob(res: ScanResult) -> str:
-    return "\n".join(c.content for c in res.chunks)
 
 
 # ------------------------------------------------------------- 类1 维度操作数

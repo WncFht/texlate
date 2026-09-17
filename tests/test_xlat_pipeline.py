@@ -5,19 +5,12 @@ import json
 from pathlib import Path
 
 import pytest
+from conftest import mk_chunk, run_pipeline
 
 from texlate.xlat import pipeline as pl
 from texlate.xlat.client import AuthError
 from texlate.xlat.glossary import Glossary, TermEntry
 from texlate.xlat.state import StateStore
-
-
-def _run(chunks: list[pl.ChunkIn], **kw: object) -> list[pl.ChunkResult]:
-    return asyncio.run(pl.XlatPipeline(**kw).run(chunks))
-
-
-def _mk(content: str, cid: str, kind: str = "para") -> pl.ChunkIn:
-    return pl.ChunkIn(chunk_id=cid, content=content, kind=kind)
 
 
 class _BadBatchTranslator(pl.MockTranslator):
@@ -56,12 +49,12 @@ class TestEndToEnd:
     def test_mixed_chunks_all_ok(self) -> None:
         t = pl.MockTranslator()
         chunks = [
-            _mk("Short one [[MATH_1]]", "s1"),
-            _mk("Short two [[CITE_2]]", "s2"),
-            _mk("Long prose " + "x" * 400 + " [[REF_3]]", "l1"),
-            _mk("[[MATH_9]]", "ph1"),
+            mk_chunk("Short one [[MATH_1]]", "s1"),
+            mk_chunk("Short two [[CITE_2]]", "s2"),
+            mk_chunk("Long prose " + "x" * 400 + " [[REF_3]]", "l1"),
+            mk_chunk("[[MATH_9]]", "ph1"),
         ]
-        out = _run(chunks, translator=t)
+        out = run_pipeline(chunks, translator=t)
         assert [r.chunk_id for r in out] == ["s1", "s2", "l1", "ph1"]
         assert all(r.status == "ok" for r in out)
         # 短块走了批量路径
@@ -80,8 +73,8 @@ class TestEndToEnd:
 
     def test_batch_degrade_to_singles(self) -> None:
         t = _BadBatchTranslator()
-        chunks = [_mk("A [[MATH_1]]", "a"), _mk("B [[CITE_2]]", "b")]
-        out = _run(chunks, translator=t)
+        chunks = [mk_chunk("A [[MATH_1]]", "a"), mk_chunk("B [[CITE_2]]", "b")]
+        out = run_pipeline(chunks, translator=t)
         assert all(r.status == "ok" for r in out)
         # 批解析失败 → 成员走单块阶梯，仍拿到含占位符的译文
         assert "[[MATH_1]]" in out[0].translation
@@ -90,8 +83,8 @@ class TestEndToEnd:
         assert len(t.calls) >= 3  # noqa: PLR2004 -- 批1+单翻2
 
     def test_batch_auth_error_skips_all(self) -> None:
-        chunks = [_mk("A", "a"), _mk("B", "b")]
-        out = _run(chunks, translator=_AuthFailTranslator())
+        chunks = [mk_chunk("A", "a"), mk_chunk("B", "b")]
+        out = run_pipeline(chunks, translator=_AuthFailTranslator())
         assert all(r.status == "skipped" for r in out)
         assert all(r.skipped for r in out)
         assert all(r.translation == r.source for r in out)
@@ -100,7 +93,9 @@ class TestEndToEnd:
     def test_split_chunk_merged_under_parent_id(self) -> None:
         cfg = pl.PipelineConfig(hard_limit=80, short_limit=40)
         big = "Sentence one here. " * 20  # ~380 chars → 切多片
-        out = _run([_mk(big, "big")], translator=pl.MockTranslator(), config=cfg)
+        out = run_pipeline(
+            [mk_chunk(big, "big")], translator=pl.MockTranslator(), config=cfg
+        )
         assert len(out) == 1
         assert out[0].chunk_id == "big"
         assert out[0].status == "ok"
@@ -112,8 +107,8 @@ class TestEndToEnd:
         def always_bad(_src: str, _zh: str) -> str:
             return "always fails"
 
-        out = _run(
-            [_mk("Long prose " + "y" * 400, "l")],
+        out = run_pipeline(
+            [mk_chunk("Long prose " + "y" * 400, "l")],
             translator=pl.MockTranslator(),
             validator=always_bad,
         )
@@ -128,8 +123,8 @@ class TestEndToEnd:
             async def translate(self, *, user: str, **_kw: object) -> str:
                 return user + " [[MATH_99]]"  # 幻觉 token 穿透
 
-        out = _run(
-            [_mk("Long prose " + "x" * 400, "c1")],
+        out = run_pipeline(
+            [mk_chunk("Long prose " + "x" * 400, "c1")],
             translator=Hallucinator(),
             validator=lambda _s, _z: "",  # 校验放行——模拟 B7 穿透路径
         )
@@ -137,8 +132,8 @@ class TestEndToEnd:
         assert out[0].translation == out[0].source
         assert "leftover_ph:1" in out[0].warnings
 
-        clean = _run(
-            [_mk("Long prose " + "x" * 400, "c2")],
+        clean = run_pipeline(
+            [mk_chunk("Long prose " + "x" * 400, "c2")],
             translator=pl.MockTranslator(),
         )
         assert not any(w.startswith("leftover_ph") for w in clean[0].warnings)
@@ -147,22 +142,22 @@ class TestEndToEnd:
 class TestResumeAndCache:
     def test_resume_skips_completed(self, tmp_path: Path) -> None:
         outdir = tmp_path / "out"
-        chunks = [_mk("Long prose " + "x" * 400 + " [[MATH_1]]", "c1")]
+        chunks = [mk_chunk("Long prose " + "x" * 400 + " [[MATH_1]]", "c1")]
         t1 = pl.MockTranslator()
-        r1 = _run(chunks, translator=t1, state=StateStore(outdir))
+        r1 = run_pipeline(chunks, translator=t1, state=StateStore(outdir))
         assert r1[0].status == "ok"
 
         # 第二轮：全新 translator + 同 outdir → completed 跳过、零调用
         t2 = pl.MockTranslator()
-        r2 = _run(chunks, translator=t2, state=StateStore(outdir))
+        r2 = run_pipeline(chunks, translator=t2, state=StateStore(outdir))
         assert t2.calls == []
         assert r2[0].translation == r1[0].translation
 
     def test_resume_retries_fault(self, tmp_path: Path) -> None:
         """fault/skipped 块不进 completed——续跑必须重试（瞬时失败不该永久冻结）。"""
         outdir = tmp_path / "out"
-        chunks = [_mk("Long prose " + "x" * 400 + " [[MATH_1]]", "c1")]
-        r1 = _run(
+        chunks = [mk_chunk("Long prose " + "x" * 400 + " [[MATH_1]]", "c1")]
+        r1 = run_pipeline(
             chunks,
             translator=pl.MockTranslator(),
             state=StateStore(outdir),
@@ -171,20 +166,20 @@ class TestResumeAndCache:
         assert r1[0].status == "fault"
 
         t2 = pl.MockTranslator()
-        r2 = _run(chunks, translator=t2, state=StateStore(outdir))
+        r2 = run_pipeline(chunks, translator=t2, state=StateStore(outdir))
         assert t2.calls  # 重试真实发生
         assert r2[0].status == "ok"
 
     def test_resume_source_drift_retranslates(self, tmp_path: Path) -> None:
         """同 chunk_id 但 source 漂移 → 旧记录不命中、重翻覆盖（splice 残留防线）。"""
         outdir = tmp_path / "out"
-        old = [_mk("Long prose " + "x" * 400 + " [[MATH_1]]", "c1")]
-        r1 = _run(old, translator=pl.MockTranslator(), state=StateStore(outdir))
+        old = [mk_chunk("Long prose " + "x" * 400 + " [[MATH_1]]", "c1")]
+        r1 = run_pipeline(old, translator=pl.MockTranslator(), state=StateStore(outdir))
         assert r1[0].status == "ok"
 
-        new = [_mk("Long prose " + "y" * 400 + " [[MATH_1]]", "c1")]
+        new = [mk_chunk("Long prose " + "y" * 400 + " [[MATH_1]]", "c1")]
         t2 = pl.MockTranslator()
-        r2 = _run(new, translator=t2, state=StateStore(outdir))
+        r2 = run_pipeline(new, translator=t2, state=StateStore(outdir))
         assert t2.calls  # 漂移不命中 → 真实重翻
         assert r2[0].source == new[0].content
         assert r2[0].status == "ok"
@@ -192,7 +187,7 @@ class TestResumeAndCache:
     def test_worker_survives_emit_failure(self) -> None:
         """on_result/state 落盘抛错不能杀 worker——一死 queue.join() 就死等。"""
         chunks = [
-            _mk("Long prose " + "x" * 400 + f" [[MATH_{i}]]", f"c{i}")
+            mk_chunk("Long prose " + "x" * 400 + f" [[MATH_{i}]]", f"c{i}")
             for i in range(1, 5)
         ]
 
@@ -200,25 +195,27 @@ class TestResumeAndCache:
             msg = "emit exploded"
             raise RuntimeError(msg)
 
-        out = _run(chunks, translator=pl.MockTranslator(), on_result=bad_callback)
+        out = run_pipeline(
+            chunks, translator=pl.MockTranslator(), on_result=bad_callback
+        )
         assert len(out) == len(chunks)
         assert all(r.status == "ok" for r in out)
 
     def test_segment_cache_hit(self) -> None:
         cache: dict[str, str] = {}
-        chunks = [_mk("Long prose " + "x" * 400 + " [[MATH_1]]", "c1")]
-        r1 = _run(chunks, translator=pl.MockTranslator(), cache=cache)
+        chunks = [mk_chunk("Long prose " + "x" * 400 + " [[MATH_1]]", "c1")]
+        r1 = run_pipeline(chunks, translator=pl.MockTranslator(), cache=cache)
         assert cache  # 段级缓存已写
 
         t2 = pl.MockTranslator()
-        r2 = _run(chunks, translator=t2, cache=cache)
+        r2 = run_pipeline(chunks, translator=t2, cache=cache)
         assert t2.calls == []
         assert r2[0].translation == r1[0].translation
 
     def test_state_records_five_tables(self, tmp_path: Path) -> None:
         outdir = tmp_path / "out"
-        chunks = [_mk("Long prose " + "x" * 400, "c1")]
-        _run(chunks, translator=pl.MockTranslator(), state=StateStore(outdir))
+        chunks = [mk_chunk("Long prose " + "x" * 400, "c1")]
+        run_pipeline(chunks, translator=pl.MockTranslator(), state=StateStore(outdir))
         data = json.loads((outdir / "state.json").read_text(encoding="utf-8"))
         assert data["completed"] == ["c1"]
         assert data["results"][0]["status"] == "ok"
@@ -272,7 +269,7 @@ class TestAuthGate:
 
     def test_trip_raises(self) -> None:
         pipe = pl.XlatPipeline(translator=_AuthFailTranslator())
-        chunks = [_mk(f"para {i} text", f"a{i}") for i in range(4)]
+        chunks = [mk_chunk(f"para {i} text", f"a{i}") for i in range(4)]
         with pytest.raises(pl.AuthTrippedError):
             asyncio.run(pipe.run(chunks))
         assert pipe.auth_gate.tripped
@@ -282,7 +279,7 @@ class TestAuthGate:
         """2 块全 auth-fail 不够闸——run 正常返回，但 all_failed 置证
         （跨篇熔断器读这个：连续全 auth 败的论文数）。"""
         pipe = pl.XlatPipeline(translator=_AuthFailTranslator())
-        out = asyncio.run(pipe.run([_mk("a", "a"), _mk("b", "b")]))
+        out = asyncio.run(pipe.run([mk_chunk("a", "a"), mk_chunk("b", "b")]))
         assert all(r.skipped and r.error_kind == "auth" for r in out)
         assert not pipe.auth_gate.tripped
         assert pipe.auth_gate.all_failed
@@ -292,11 +289,11 @@ class TestAuthGate:
         cfg = pl.PipelineConfig(concurrency=1, short_limit=0)
         t = _SelectiveAuthTranslator()
         chunks = [
-            _mk("BAD one", "b1"),
-            _mk("BAD two", "b2"),
-            _mk("good para", "g1"),
-            _mk("BAD three", "b3"),
-            _mk("BAD four", "b4"),
+            mk_chunk("BAD one", "b1"),
+            mk_chunk("BAD two", "b2"),
+            mk_chunk("good para", "g1"),
+            mk_chunk("BAD three", "b3"),
+            mk_chunk("BAD four", "b4"),
         ]
         out = asyncio.run(pl.XlatPipeline(t, config=cfg).run(chunks))
         assert len(t.seen) == len(chunks)  # 每块真发过请求
@@ -309,7 +306,7 @@ class TestAuthGate:
         cfg = pl.PipelineConfig(concurrency=1, short_limit=0)
         t = _SelectiveAuthTranslator()
         pipe = pl.XlatPipeline(t, config=cfg)
-        chunks = [_mk(f"BAD text {i}", f"c{i}") for i in range(6)]
+        chunks = [mk_chunk(f"BAD text {i}", f"c{i}") for i in range(6)]
         with pytest.raises(pl.AuthTrippedError):
             asyncio.run(pipe.run(chunks))
         assert len(t.seen) == 3  # noqa: PLR2004 -- 闸断后零请求
@@ -319,11 +316,11 @@ class TestAuthGate:
         """run() 开头重置闸——同一 pipe 二跑不吃上篇的连续计数。"""
         cfg = pl.PipelineConfig(concurrency=1, short_limit=0)
         pipe = pl.XlatPipeline(_AuthFailTranslator(), config=cfg)
-        bad = [_mk(f"text {i}", f"c{i}") for i in range(3)]
+        bad = [mk_chunk(f"text {i}", f"c{i}") for i in range(3)]
         with pytest.raises(pl.AuthTrippedError):
             asyncio.run(pipe.run(bad))
         pipe.translator = pl.MockTranslator()
-        out = asyncio.run(pipe.run([_mk("fine", "g1")]))
+        out = asyncio.run(pipe.run([mk_chunk("fine", "g1")]))
         assert out[0].status == "ok"
         assert not pipe.auth_gate.tripped
         assert not pipe.auth_gate.all_failed
@@ -344,7 +341,7 @@ class TestAuthGate:
         """auth_fail_threshold<=0 → 闸停用（auth-fail 仍照常记 skipped）。"""
         cfg = pl.PipelineConfig(auth_fail_threshold=0)
         pipe = pl.XlatPipeline(_AuthFailTranslator(), config=cfg)
-        out = asyncio.run(pipe.run([_mk(f"t{i}", f"c{i}") for i in range(4)]))
+        out = asyncio.run(pipe.run([mk_chunk(f"t{i}", f"c{i}") for i in range(4)]))
         assert all(r.skipped for r in out)
         assert not pipe.auth_gate.tripped
 
@@ -354,8 +351,8 @@ class TestConfigClamps:
         """concurrency=0 曾饿死 worker → queue.join() 死等；钳到 ≥1。"""
         cfg = pl.PipelineConfig(concurrency=0)
         assert cfg.concurrency == 1
-        out = _run(
-            [_mk("Long prose " + "x" * 400, "c")],
+        out = run_pipeline(
+            [mk_chunk("Long prose " + "x" * 400, "c")],
             translator=pl.MockTranslator(),
             config=cfg,
         )
@@ -395,11 +392,11 @@ class TestPromptReset:
         t = pl.MockTranslator()
         pipe = pl.XlatPipeline(translator=t, glossary=g)
 
-        asyncio.run(pipe.run([_mk("attention mechanism " + "x" * 400, "a")]))
+        asyncio.run(pipe.run([mk_chunk("attention mechanism " + "x" * 400, "a")]))
         sys1 = t.calls[0]["system"]
         assert "注意力" in sys1
 
-        asyncio.run(pipe.run([_mk("totally different " + "y" * 400, "b")]))
+        asyncio.run(pipe.run([mk_chunk("totally different " + "y" * 400, "b")]))
         sys2 = t.calls[-1]["system"]
         assert "注意力" not in sys2
 
@@ -413,21 +410,23 @@ class TestCachePoisonGuard:
                 return "译文 \\fo[[MATH_1]]o 其余照旧 " + "译" * 100
 
         cache: dict[str, str] = {}
-        c = _mk("Long prose " + "x" * 400 + " [[MATH_1]]", "c1")
-        r1 = _run([c], translator=Fuser(), cache=cache, validator=lambda _s, _z: "")
+        c = mk_chunk("Long prose " + "x" * 400 + " [[MATH_1]]", "c1")
+        r1 = run_pipeline(
+            [c], translator=Fuser(), cache=cache, validator=lambda _s, _z: ""
+        )
         assert r1[0].status == "fault"
         assert cache == {}  # ph_in_cs 毒译未落缓存
 
     def test_legacy_poisoned_entry_evicted_on_hit(self) -> None:
         """旧版写入侧放行过的毒条目：命中即清 + 落回重翻自愈。"""
         cache: dict[str, str] = {}
-        c = _mk("Long prose " + "x" * 400 + " [[MATH_1]]", "c1")
+        c = mk_chunk("Long prose " + "x" * 400 + " [[MATH_1]]", "c1")
         pipe = pl.XlatPipeline(translator=pl.MockTranslator(), cache=cache)
         key = pipe._seg_key(c)  # noqa: SLF001
         cache[key] = "译文 \\fo[[MATH_1]]o 其余照旧"
 
         t2 = pl.MockTranslator()
-        r2 = _run([c], translator=t2, cache=cache, validator=lambda _s, _z: "")
+        r2 = run_pipeline([c], translator=t2, cache=cache, validator=lambda _s, _z: "")
         assert t2.calls  # 毒条目被清 → 真实重翻
         assert r2[0].status == "ok"
         assert "\\fo[[MATH_1]]o" not in cache[key]  # 已改写为干净译文
@@ -436,7 +435,7 @@ class TestCachePoisonGuard:
         """写入侧三网同拒：leftover_ph / ph_in_cs / bare_cs。"""
         cache: dict[str, str] = {}
         pipe = pl.XlatPipeline(translator=pl.MockTranslator(), cache=cache)
-        c = _mk("src text [[MATH_1]]", "c")
+        c = mk_chunk("src text [[MATH_1]]", "c")
         pipe._cache_store(c, "译 [[MATH_99]]")  # noqa: SLF001 -- leftover_ph
         pipe._cache_store(c, "译 \\fo[[MATH_1]]o")  # noqa: SLF001 -- ph_in_cs
         pipe._cache_store(c, "译 \\alpha 发射体")  # noqa: SLF001 -- bare_cs

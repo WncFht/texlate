@@ -2,19 +2,13 @@ r"""W11/W12/W14 留档弱点的行为钉测试 + 回压/正文字内定义（acc
 
 from pathlib import Path
 
+from conftest import DOC, scan_doc
+
 from texlate.latex import parse_file, parse_tex, reconstruct
 from texlate.latex.api import new_state
 from texlate.latex.flatten import flatten_inputs
-from texlate.latex.model import ScanResult
 from texlate.latex.scanner import Scanner
 from texlate.latex.tables import BUDGET, MAX_GEN
-
-DOC = "\\documentclass{article}\n\\begin{document}\n%s\n\\end{document}\n"
-
-
-def scan(body: str) -> ScanResult:
-    return parse_tex(DOC % body)
-
 
 # ---------------------------------------------------------------- W11
 
@@ -102,7 +96,7 @@ def test_w14_unpaired_dollar_linear() -> None:
     r"""W14：``$`` 配对逐次向前扫（理论上最坏 O(n²)），行为钉：
     不配对的 ``$`` → literal + ``unpaired_dollar`` warning，不吞后文。"""
     body = "Text with $unclosed dollar sign here.\n\nNext para text."
-    res = scan(body)
+    res = scan_doc(body)
     assert any(w.kind == "unpaired_dollar" for w in res.warnings)
     assert reconstruct(res) == DOC % body
 
@@ -115,7 +109,7 @@ def test_math_debt_repair() -> None:
     断言面 = ``$x$`` 完整 MATH + 无 unpaired_dollar + identity。
     """
     body = "Text \\foo{a $b} and $x$ more text."
-    res = scan(body)
+    res = scan_doc(body)
     assert reconstruct(res) == DOC % body
     assert any(v == "$x$" for v in res.ph_map.values())
     assert not any(w.kind == "unpaired_dollar" for w in res.warnings)
@@ -127,7 +121,7 @@ def test_math_debt_repair() -> None:
 def test_budget_backpressure() -> None:
     r"""``state.steps`` 超 BUDGET → 宏不再分流，整调用 ``[[MACRO]]`` + warning。"""
     # state 不可经 parse_tex 外取——直接构造超支场景：steps 灌到 BUDGET
-    _ = scan("\\newcommand{\\m}{\\ensuremath{x}}\n" + "\\m " * 50)
+    _ = scan_doc("\\newcommand{\\m}{\\ensuremath{x}}\n" + "\\m " * 50)
 
     state = new_state()
     state.steps = BUDGET  # 下一次宏调用 → BUDGET+1 → 恰触发一次性 warning
@@ -152,7 +146,7 @@ def test_max_gen_guard() -> None:
 
 def test_def_in_body_registers() -> None:
     r"""正文里的 ``\newcommand`` 同样登记（分派行 2 不在 preamble 也生效）。"""
-    res = scan("Text \\newcommand{\\late}{L} then \\late more text here.")
+    res = scan_doc("Text \\newcommand{\\late}{L} then \\late more text here.")
     assert res.macros.lookup("late") is not None
     assert (
         reconstruct(res)
@@ -167,7 +161,7 @@ def test_env_begin_macro_endpoint() -> None:
         "\\newcommand{\\eeq}{\\end{equation}}\n"
         "\\beq x=1 \\eeq\nText after."
     )
-    res = scan(body)
+    res = scan_doc(body)
     assert any(v == "\\beq x=1 \\eeq" for v in res.ph_map.values())
     assert reconstruct(res) == DOC % body
 

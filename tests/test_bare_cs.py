@@ -13,22 +13,11 @@ import asyncio
 import re
 from pathlib import Path
 
+from conftest import mk_chunk, pass_validate, run_pipeline
+
 from texlate.latex import parse_tex, reconstruct
 from texlate.xlat import pipeline as pl
 from texlate.xlat.state import ChunkRecord, StateStore
-
-
-def _run(chunks: list[pl.ChunkIn], **kw: object) -> list[pl.ChunkResult]:
-    return asyncio.run(pl.XlatPipeline(**kw).run(chunks))
-
-
-def _mk(content: str, cid: str, kind: str = "para") -> pl.ChunkIn:
-    return pl.ChunkIn(chunk_id=cid, content=content, kind=kind)
-
-
-def _pass(_src: str, _zh: str) -> str:
-    """校验恒放行——隔离 ladder/validator，专测拦截臂。"""
-    return ""
 
 
 class _Injector(pl.MockTranslator):
@@ -84,8 +73,10 @@ class TestIntercept:
     def test_math_cs_out_of_math_faults(self) -> None:
         """0905.4907 签名：``\\alpha 发射体`` 文本域裸写 → fault。"""
         src = "Long prose [[MATH_1]] " + "x" * 400
-        out = _run(
-            [_mk(src, "c1")], translator=_Injector("\\alpha 发射体"), validator=_pass
+        out = run_pipeline(
+            [mk_chunk(src, "c1")],
+            translator=_Injector("\\alpha 发射体"),
+            validator=pass_validate,
         )
         r = out[0]
         assert r.status == "fault"
@@ -98,7 +89,9 @@ class TestIntercept:
     def test_fused_cs_faults(self) -> None:
         """``\\textbfXY`` 粘合形 → fault。"""
         src = "Long prose \\textbf[[MATH_1]] " + "x" * 400
-        out = _run([_mk(src, "c1")], translator=_Fuser(), validator=_pass)
+        out = run_pipeline(
+            [mk_chunk(src, "c1")], translator=_Fuser(), validator=pass_validate
+        )
         r = out[0]
         assert r.status == "fault"
         assert r.skipped
@@ -108,13 +101,13 @@ class TestIntercept:
     def test_mixed_run_only_dirty_chunk_faults(self) -> None:
         """论文级降格粒度：脏块 fault、净块 ok——不拖全篇。"""
         chunks = [
-            _mk("dirty-marker prose [[MATH_1]] " + "x" * 400, "dirty"),
-            _mk("clean prose " + "y" * 400, "clean"),
+            mk_chunk("dirty-marker prose [[MATH_1]] " + "x" * 400, "dirty"),
+            mk_chunk("clean prose " + "y" * 400, "clean"),
         ]
-        out = _run(
+        out = run_pipeline(
             chunks,
             translator=_Injector("\\alpha 发射体", marker="dirty-marker"),
-            validator=_pass,
+            validator=pass_validate,
         )
         by_id = {r.chunk_id: r for r in out}
         assert by_id["dirty"].status == "fault"
@@ -127,8 +120,10 @@ class TestNoFalsePositive:
     def test_math_cs_inside_math_ok(self) -> None:
         """zh 自加 ``$\\alpha$``——数学域内是合法修正方向, 不拦。"""
         src = "Long prose [[MATH_1]] " + "x" * 400
-        out = _run(
-            [_mk(src, "c1")], translator=_Injector(" $\\alpha$"), validator=_pass
+        out = run_pipeline(
+            [mk_chunk(src, "c1")],
+            translator=_Injector(" $\\alpha$"),
+            validator=pass_validate,
         )
         assert out[0].status == "ok"
         assert not any(w.startswith("bare_cs") for w in out[0].warnings)
@@ -141,16 +136,18 @@ class TestNoFalsePositive:
                 return user
 
         src = "Long prose \\alpha particle " + "x" * 400
-        out = _run([_mk(src, "c1")], translator=Echo(), validator=_pass)
+        out = run_pipeline(
+            [mk_chunk(src, "c1")], translator=Echo(), validator=pass_validate
+        )
         assert out[0].status == "ok"
 
     def test_zh_comment_bare_exempt(self) -> None:
         """zh 注释内的 ``\\alpha`` 被 ``mask_comments`` 屏蔽——不拦。"""
         src = "Long prose [[MATH_1]] " + "x" * 400
-        out = _run(
-            [_mk(src, "c1")],
+        out = run_pipeline(
+            [mk_chunk(src, "c1")],
             translator=_Injector("\n% 备注 \\alpha"),
-            validator=_pass,
+            validator=pass_validate,
         )
         assert out[0].status == "ok"
 
@@ -163,16 +160,18 @@ class TestNoFalsePositive:
                 raw = await super().translate(user=user, **kw)
                 return raw.replace("\\cite", "\\citep")
 
-        out = _run([_mk(src, "c1")], translator=Citep(), validator=_pass)
+        out = run_pipeline(
+            [mk_chunk(src, "c1")], translator=Citep(), validator=pass_validate
+        )
         assert out[0].status == "ok"
 
     def test_new_legit_text_cs_ok(self) -> None:
         """zh 新增 ``\\footnote{注}``——定义内文本 cs 非炸弹, 不拦。"""
         src = "Long prose " + "x" * 400
-        out = _run(
-            [_mk(src, "c1")],
+        out = run_pipeline(
+            [mk_chunk(src, "c1")],
             translator=_Injector("\\footnote{这是译文}"),
-            validator=_pass,
+            validator=pass_validate,
         )
         assert out[0].status == "ok"
 
@@ -182,7 +181,7 @@ class TestCacheAndResume:
 
     def test_poisoned_cache_hit_evicted_and_retranslated(self) -> None:
         """脏缓存命中 → 命中即清 + 落回重翻自愈（曾永远 fault 冻结：命中→拦截→fault 每轮循环）。"""
-        c = _mk("Long prose [[MATH_1]] " + "x" * 400, "c1")
+        c = mk_chunk("Long prose [[MATH_1]] " + "x" * 400, "c1")
         cache: dict[str, str] = {}
         t = pl.MockTranslator()
         pipe = pl.XlatPipeline(t, cache=cache)
@@ -211,7 +210,9 @@ class TestCacheAndResume:
         store.finish()
 
         t = pl.MockTranslator()
-        out = _run([_mk(src, "c1")], translator=t, state=StateStore(outdir))
+        out = run_pipeline(
+            [mk_chunk(src, "c1")], translator=t, state=StateStore(outdir)
+        )
         assert t.calls  # 旧记录被拦截踢出 completed——真重翻发生
         assert out[0].status == "ok"
 
@@ -232,7 +233,7 @@ class TestDownstreamContract:
         chunks = [
             pl.chunk_to_in(c, chunk_id=str(c.id), ph_map=res.ph_map) for c in res.chunks
         ]
-        out = _run(chunks, translator=_Fuser(), validator=_pass)
+        out = run_pipeline(chunks, translator=_Fuser(), validator=pass_validate)
         assert any(r.status == "fault" for r in out)
 
         # e2e 口径：仅 status==ok 进 trans dict，其余 reconstruct 回源文
@@ -243,8 +244,10 @@ class TestDownstreamContract:
 
     def test_retranslate_bare_falls_back(self) -> None:
         """L2 回灌同受拦截——重译产物带裸 cs → fault，调用方回落原文。"""
-        pipe = pl.XlatPipeline(translator=_Injector("\\alpha 发射体"), validator=_pass)
-        c = _mk("Long prose [[MATH_1]] " + "x" * 400, "c1")
+        pipe = pl.XlatPipeline(
+            translator=_Injector("\\alpha 发射体"), validator=pass_validate
+        )
+        c = mk_chunk("Long prose [[MATH_1]] " + "x" * 400, "c1")
         r = asyncio.run(pipe.retranslate_chunk(c, "compile error here"))
         assert r is not None
         assert r.status == "fault"
@@ -254,8 +257,12 @@ class TestDownstreamContract:
 
     def test_intercepted_chunk_is_non_auth_outcome(self) -> None:
         """真发过请求的拦截块计 non_auth——与正常非-auth 结果同口径。"""
-        pipe = pl.XlatPipeline(translator=_Injector("\\alpha 发射体"), validator=_pass)
-        out = asyncio.run(pipe.run([_mk("Long prose [[MATH_1]] " + "x" * 400, "c1")]))
+        pipe = pl.XlatPipeline(
+            translator=_Injector("\\alpha 发射体"), validator=pass_validate
+        )
+        out = asyncio.run(
+            pipe.run([mk_chunk("Long prose [[MATH_1]] " + "x" * 400, "c1")])
+        )
         assert out[0].error_kind == "validate"
         assert pipe.auth_gate.non_auth == 1
         assert not pipe.auth_gate.tripped

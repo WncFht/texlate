@@ -9,21 +9,18 @@ chunk。``\r``/``\S`` 等单字母名与 accent/INLINE_LITERAL 族撞名走各�
 既有行（``\r a`` 是 ring accent）——S3 用 ``\R`` 避开撞名面。
 """
 
-from texlate.latex import parse_tex, reconstruct
+from conftest import DOC, blob, scan_doc
+
+from texlate.latex import reconstruct
 from texlate.latex.model import ScanResult
 
-DOC = "\\documentclass{article}\n\\begin{document}\n%s\n\\end{document}\n"
 PROSE = " and the paragraph continues with enough plain prose to form a chunk."
 
 
 def scan(body: str) -> ScanResult:
-    res = parse_tex(DOC % body)
+    res = scan_doc(body)
     assert reconstruct(res) == DOC % body  # 每个用例都过 identity
     return res
-
-
-def blob(res: ScanResult) -> str:
-    return "\n".join(c.content for c in res.chunks)
 
 
 def ph_body(res: ScanResult, typ: str) -> str:
@@ -144,9 +141,7 @@ def test_s2_math_env_tail_label() -> None:
 def test_s2_tail_text_then_ref() -> None:
     r"""``\newcommand{\eref}{Eq.~\,\ref}`` + ``\eref{eq:y}``：体中文本照出、
     尾参 ``{eq:y}`` 绑 ``[[REF]]``。"""
-    res = scan(
-        "\\newcommand{\\eref}{Eq.~\\,\\ref}\nWe refer to \\eref{eq:y}" + PROSE
-    )
+    res = scan("\\newcommand{\\eref}{Eq.~\\,\\ref}\nWe refer to \\eref{eq:y}" + PROSE)
     assert "{eq:y}" not in blob(res)
     assert "Eq.~" in blob(res)
     assert ph_body(res, "REF") == "\\ref{eq:y}"
@@ -172,9 +167,7 @@ def test_s3_noexpand_alias_binds() -> None:
 
 def test_s3_noexpand_bare_warns() -> None:
     r"""``\noexpand\R`` 无参：cs-only ``[[REF]]`` + ``keyarg_unbound``。"""
-    res = scan(
-        "\\def\\R{\\ref}\nWe discuss \\noexpand\\R and then prose" + PROSE
-    )
+    res = scan("\\def\\R{\\ref}\nWe discuss \\noexpand\\R and then prose" + PROSE)
     assert ph_body(res, "REF") == "\\R"
     assert "\\R" not in blob(res)
     assert any(w.kind == "keyarg_unbound" for w in res.warnings)
@@ -183,9 +176,7 @@ def test_s3_noexpand_bare_warns() -> None:
 def test_s3_noexpand_par_boundary() -> None:
     r"""``\noexpand\R\n\n{sec:a}``：参不跨段界——cs-only + 告警，``{sec:a}``
     留字面。"""
-    res = scan(
-        "\\def\\R{\\ref}\nWe discuss \\noexpand\\R\n\n{sec:a}" + PROSE
-    )
+    res = scan("\\def\\R{\\ref}\nWe discuss \\noexpand\\R\n\n{sec:a}" + PROSE)
     assert ph_body(res, "REF") == "\\R"
     assert any(w.kind == "keyarg_unbound" for w in res.warnings)
 

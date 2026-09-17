@@ -47,6 +47,8 @@ import pytest
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+from conftest import make_targz
+
 from texlate.arxiv._texutil import strip_comments
 from texlate.arxiv.cache import CacheError, SourceCache
 from texlate.arxiv.fetch import (
@@ -162,18 +164,8 @@ def _fetcher(
     )
 
 
-def _tar_gz(members: dict[str, bytes]) -> bytes:
-    buf = io.BytesIO()
-    with tarfile.open(fileobj=buf, mode="w") as tf:
-        for name, data in members.items():
-            info = tarfile.TarInfo(name)
-            info.size = len(data)
-            tf.addfile(info, io.BytesIO(data))
-    return gzip.compress(buf.getvalue())
-
-
 _TINY_TEX = b"\\documentclass{article}\n\\begin{document}hi\\end{document}\n"
-_TINY_TGZ = _tar_gz({"main.tex": _TINY_TEX})
+_TINY_TGZ = make_targz({"main.tex": _TINY_TEX})
 
 
 # ---------------------------------------------------------------- normalize

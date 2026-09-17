@@ -28,6 +28,9 @@ if TYPE_CHECKING:
 
     from texlate.arxiv.fetch import HeadInfo, SrcResult
     from texlate.compile.engine import CompRes
+    from texlate.latex.model import ScanResult
+    from texlate.server.store import Store
+    from texlate.xlat.pipeline import ChunkIn, ChunkResult
 
 #: BYOK/行为相关 env——测试必须拿到确定性无凭证环境。
 #: ``TEXLATE_`` 前缀由 ``clean_env`` 全扫覆盖（新行为旗标自动免疫）；
@@ -51,6 +54,12 @@ MINI_TEX = (
     "And a second paragraph here.\n"
     "\\end{document}\n"
 )
+
+#: 单 %s 槽文档模板（body 入槽）——latex 半解析测试的统一外壳。
+DOC = "\\documentclass{article}\n\\begin{document}\n%s\n\\end{document}\n"
+
+#: 双 %s 槽文档模板（preamble, body）——导言区机关测试用。
+ART = "\\documentclass{article}\n%s\\begin{document}\n%s\n\\end{document}\n"
 
 
 @pytest.fixture
@@ -154,16 +163,42 @@ def _testclient_loopback_host() -> Iterator[None]:
         TestClient.__init__ = orig_init  # type: ignore[method-assign]
 
 
-def make_targz(files: dict[str, str]) -> bytes:
+def make_targz(files: dict[str, str | bytes]) -> bytes:
     """内存构造 tar.gz（arxiv FakeFetcher 的 e-print 载荷）。"""
     buf = io.BytesIO()
     with tarfile.open(fileobj=buf, mode="w:gz") as tf:
         for name, content in files.items():
-            blob = content.encode()
+            data = content.encode() if isinstance(content, str) else content
             info = tarfile.TarInfo(name)
-            info.size = len(blob)
-            tf.addfile(info, io.BytesIO(blob))
+            info.size = len(data)
+            tf.addfile(info, io.BytesIO(data))
     return buf.getvalue()
+
+
+def make_tar(members: list[tuple[tarfile.TarInfo, bytes]]) -> bytes:
+    """内存构造裸 tar——TarInfo 由调用方造（对抗性元数据成员专用）。"""
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w") as tf:
+        for info, data in members:
+            tf.addfile(info, io.BytesIO(data))
+    return buf.getvalue()
+
+
+def tar_reg(name: str, size: int, **kw: object) -> tarfile.TarInfo:
+    """普通文件 TarInfo；``**kw`` setattr 附加元数据（mode/uid/type 等）。"""
+    info = tarfile.TarInfo(name)
+    info.size = size
+    for k, v in kw.items():
+        setattr(info, k, v)
+    return info
+
+
+def tar_dir(name: str) -> tarfile.TarInfo:
+    """目录 TarInfo。"""
+    info = tarfile.TarInfo(name)
+    info.type = tarfile.DIRTYPE
+    info.size = 0
+    return info
 
 
 class FakeEngine:
@@ -446,3 +481,82 @@ def upload_tex(client: TestClient, tex: str = MINI_TEX) -> dict:
     )
     assert r.status_code == HTTPStatus.ACCEPTED, r.text
     return r.json()
+
+
+def scan_doc(body: str) -> ScanResult:
+    """``parse_tex(DOC % body)``——v2 臂 canonical 小入口。"""
+    from texlate.latex import parse_tex  # noqa: PLC0415
+
+    return parse_tex(DOC % body)
+
+
+def check_invariants(res: ScanResult, tex: str) -> None:
+    """公共断言：恒等重建 + 校验零告警 + pieces 无缝平铺 vtex。"""
+    from texlate.latex import reconstruct  # noqa: PLC0415
+    from texlate.latex.reconstruct import validate_result  # noqa: PLC0415
+
+    assert reconstruct(res) == tex
+    assert validate_result(res) == []
+    pos = 0
+    for p in res.pieces:
+        assert p.span.start == pos
+        pos = p.span.end
+    assert pos == len(res.vtex)
+
+
+def chunk_text(res: ScanResult) -> str:
+    """全部 chunk surface 拼接——泄漏断言的统一口径。"""
+    return " ".join(c.content for c in res.chunks)
+
+
+def blob(res: ScanResult) -> str:
+    """全部 chunk content 的换行拼接。"""
+    return "\n".join(c.content for c in res.chunks)
+
+
+def mk_chunk(content: str, cid: str, kind: str = "para") -> ChunkIn:
+    """``ChunkIn(chunk_id=cid, content=content, kind=kind)`` 小工厂。"""
+    from texlate.xlat import pipeline as pl  # noqa: PLC0415
+
+    return pl.ChunkIn(chunk_id=cid, content=content, kind=kind)
+
+
+def run_pipeline(chunks: list[ChunkIn], **kw: object) -> list[ChunkResult]:
+    """``asyncio.run(XlatPipeline(**kw).run(chunks))`` 同步壳。"""
+    import asyncio  # noqa: PLC0415
+
+    from texlate.xlat import pipeline as pl  # noqa: PLC0415
+
+    return asyncio.run(pl.XlatPipeline(**kw).run(chunks))
+
+
+def pass_validate(_src: str, _zh: str) -> str:
+    """恒放行 validate hook——隔离校验层专测拦截臂。"""
+    return ""
+
+
+def mk_task_row(store: Store, **kw: object) -> dict:
+    """create_task 缺省四字段（task_id/kind/target_lang/model），``**kw`` 透传。"""
+    from texlate.server.store import new_task_id  # noqa: PLC0415
+
+    kw.setdefault("task_id", new_task_id())
+    kw.setdefault("kind", "arxiv")
+    kw.setdefault("target_lang", "zh-CN")
+    kw.setdefault("model", "m")
+    return store.create_task(**kw)  # type: ignore[arg-type]
+
+
+def mk_api_task(
+    client: TestClient,
+    arxiv_id: str,
+    headers: dict | None = None,
+    **json_kw: object,
+) -> str:
+    """POST ``/api/arxiv/{arxiv_id}/translate`` → task_id（缺省 202 断言）。"""
+    r = client.post(
+        f"/api/arxiv/{arxiv_id}/translate",
+        json=dict(json_kw),
+        headers=headers or {},
+    )
+    assert r.status_code == HTTPStatus.ACCEPTED, r.text
+    return r.json()["task_id"]

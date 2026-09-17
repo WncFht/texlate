@@ -18,6 +18,7 @@ r"""argspec policy 分派黑盒测试——每条 policy 取真实宏端到端�
 """
 
 import pytest
+from conftest import ART
 
 import texlate.latex.segmenter as seg
 from texlate.latex import parse_tex, reconstruct
@@ -39,7 +40,6 @@ from texlate.latex.tables import (
     argspec_tables,
 )
 
-ART = "\\documentclass{article}\n%s\\begin{document}\n%s\n\\end{document}\n"
 BEAMER = "\\documentclass{beamer}\n\\begin{document}\n%s\n\\end{document}\n"
 
 

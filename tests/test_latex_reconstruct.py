@@ -2,8 +2,10 @@ r"""reconstruct DAG 展开 + validate 的单测（docs/07 §9）。"""
 
 import re
 
-from texlate.latex import parse_tex, reconstruct
-from texlate.latex.model import Chunk, ScanResult
+from conftest import DOC, scan_doc
+
+from texlate.latex import reconstruct
+from texlate.latex.model import Chunk
 from texlate.latex.reconstruct import (
     cjk_glue_fix,
     unicode_math_fix,
@@ -11,23 +13,17 @@ from texlate.latex.reconstruct import (
     validate_translation,
 )
 
-DOC = "\\documentclass{article}\n\\begin{document}\n%s\n\\end{document}\n"
-
-
-def scan(body: str) -> ScanResult:
-    return parse_tex(DOC % body)
-
 
 def test_identity() -> None:
     body = (
         "Para \\cite{a} $x$ \\emph{em} text.\n\\begin{figure}\\caption{C}\\end{figure}"
     )
-    res = scan(body)
+    res = scan_doc(body)
     assert reconstruct(res) == DOC % body
 
 
 def test_fake_translation() -> None:
-    res = scan("Para one long text here \\cite{a}.")
+    res = scan_doc("Para one long text here \\cite{a}.")
     trans = {
         c.id: f"译文{i} {''.join(c.placeholders)}" for i, c in enumerate(res.chunks)
     }
@@ -39,7 +35,7 @@ def test_fake_translation() -> None:
 def test_dag_nested_ph() -> None:
     r"""三层嵌套：chunk 内含 ``[[ENV]]``，其体内含 ``[[CITE]]``——DAG 递归展开。"""
     body = "\\begin{figure}\\caption{Cap \\cite{x} text}\\end{figure}"
-    res = scan(body)
+    res = scan_doc(body)
     env_ph = [k for k, v in res.ph_map.items() if v.startswith("\\begin{figure}")]
     assert env_ph
     body_env = res.ph_map[env_ph[0]]
@@ -48,7 +44,7 @@ def test_dag_nested_ph() -> None:
 
 
 def test_validate_translation_contract() -> None:
-    res = scan("Text \\cite{a} long text here.")
+    res = scan_doc("Text \\cite{a} long text here.")
     ch = next(c for c in res.chunks if c.placeholders)
     keep = "".join(ch.placeholders)
     ok = validate_translation(ch, "译文 " + keep)
@@ -71,14 +67,14 @@ def test_validate_translation_multiset() -> None:
 
 def test_validate_result_clean() -> None:
     body = "Para \\cite{a}.\n\\begin{figure}\\caption{C cap}\\end{figure}"
-    res = scan(body)
+    res = scan_doc(body)
     assert validate_result(res) == []
 
 
 def test_cjk_glue_only_with_translations() -> None:
     r"""``cjk_glue_fix`` 只在译文路径启用（identity 逐字节）。"""
     assert cjk_glue_fix("\\cmd这是") == "\\cmd 这是"
-    res = scan("\\LaTeX 紧跟文字")
+    res = scan_doc("\\LaTeX 紧跟文字")
     assert reconstruct(res) == DOC % "\\LaTeX 紧跟文字"  # identity 不动
 
 
@@ -106,7 +102,7 @@ def test_unicode_math_fix() -> None:
 
 def test_unicode_math_fix_in_reconstruct() -> None:
     """端到端：translation 值进 reconstruct 前先过 unicode_math_fix。"""
-    res = scan("Para one long text here \\cite{a}.")
+    res = scan_doc("Para one long text here \\cite{a}.")
     ch = res.chunks[0]
     phs = "".join(ch.placeholders)
     out = reconstruct(res, {ch.id: f"β 粒子 {phs}"})
@@ -115,7 +111,7 @@ def test_unicode_math_fix_in_reconstruct() -> None:
 
 def test_short_run_ph_survives() -> None:
     r"""短 run（<CHUNK_MIN）里的 ``[[CITE]]`` 不丢——LITERAL piece 带渲染文本。"""
-    res = scan("See \\cite{a}.")
+    res = scan_doc("See \\cite{a}.")
     assert "[[CITE_" in res.protected_tex
     assert reconstruct(res) == DOC % "See \\cite{a}."
 
@@ -123,7 +119,7 @@ def test_short_run_ph_survives() -> None:
 def test_chunk_split_max() -> None:
     r"""超 ``CHUNK_MAX`` 的 chunk 二次切分：切点不在 ``[[X_n]]`` 中间。"""
     long_text = ("Sentence one with words. " * 200) + "\\cite{a} " + ("tail. " * 100)
-    res = scan("\\section{" + long_text + "}")
+    res = scan_doc("\\section{" + long_text + "}")
     total = "".join(c.content for c in res.chunks)
     assert "\\cite{a}" not in total  # cite 应已占位符化
     for c in res.chunks:
@@ -135,7 +131,7 @@ def test_chunk_split_max() -> None:
 def test_short_arg_par_collapse() -> None:
     r"""短参（caption）译文内的 ``\n\n`` 压单 ``\n``——``\par`` 进非 ``\long``
     移动参（nameref ``\NR@gettitle`` 等）即 runaway（1109.5963 实证）。"""
-    res = scan(
+    res = scan_doc(
         "\\begin{figure}\\caption{The allowed region by $K$ mixing here.}\\end{figure}"
     )
     cap = next(c for c in res.chunks if c.context == "caption")
@@ -149,7 +145,7 @@ def test_short_arg_par_collapse() -> None:
 def test_short_arg_par_collapse_ph_boundary() -> None:
     r"""译文尾 ``\n`` 叠 ph 体前导 ``\n  `` 在参数内合成 ``\n\n`` —— 边界合并
     形态同压（1109.5963 实际机理：``由\n`` + ``[[MATH]]``=``\n  $K..$``）。"""
-    res = scan(
+    res = scan_doc(
         "\\begin{figure}\\caption{The allowed region by $K$ mixing here.}\\end{figure}"
     )
     cap = next(c for c in res.chunks if c.context == "caption")
@@ -165,7 +161,7 @@ def test_short_arg_par_collapse_ph_boundary() -> None:
 def test_short_arg_fold_preserves_ph_internal_pars() -> None:
     r"""短参折叠不穿透嵌套 ph 体——ph 展开体内部 ``\n\n``（受保环境的真
     段落界）原样保留；只有字面段与字面↔ph 接缝进折叠域（S3）。"""
-    res = scan(
+    res = scan_doc(
         "\\begin{figure}\\caption{The allowed region by $K$ mixing here.}\\end{figure}"
     )
     cap = next(c for c in res.chunks if c.context == "caption")
@@ -177,7 +173,7 @@ def test_short_arg_fold_preserves_ph_internal_pars() -> None:
 
 def test_para_chunk_keeps_par_break() -> None:
     r"""正文段（``para``）译文的 ``\n\n`` 是合法段落断——不折叠。"""
-    res = scan("Body paragraph with enough words to form a chunk here.")
+    res = scan_doc("Body paragraph with enough words to form a chunk here.")
     para = next(c for c in res.chunks if c.context == "para")
     out = reconstruct(res, {para.id: "第一段文字。\n\n第二段文字。"})
     assert "第一段文字。\n\n第二段文字。" in out
@@ -188,7 +184,7 @@ def test_short_arg_untranslated_identity() -> None:
     body = (
         "\\begin{figure}\\caption{The allowed region by $K$ mixing here.}\\end{figure}"
     )
-    res = scan(body)
+    res = scan_doc(body)
     assert reconstruct(res) == DOC % body
 
 
@@ -198,7 +194,7 @@ def test_short_arg_untranslated_identity() -> None:
 def test_latin_glue_ph_joint() -> None:
     r"""``[[CMD]]→\hline`` 展开尾 + 译文 ``Cd`` 字母头 → 接缝插空格
     （``\hlineCd`` 实形，1003.4522 换行栅栏变体）。"""
-    res = scan("Text \\section{See \\hline below} more words here.")
+    res = scan_doc("Text \\section{See \\hline below} more words here.")
     ch = res.chunks[0]
     out = reconstruct(res, {ch.id: "See [[CMD_1]]Cd words"})
     assert "\\hline Cd" in out
@@ -208,7 +204,7 @@ def test_latin_glue_ph_joint() -> None:
 def test_latin_glue_item_translation_internal() -> None:
     r"""译文体内 ``\itemFSU`` 保险丝：``\\item(?=[A-Z])`` 专款——模型把
     ``\item`` 回显黏大写时拆开（realarm bug-B spec 原样）。"""
-    res = scan("Para words here enough text and more.")
+    res = scan_doc("Para words here enough text and more.")
     ch = res.chunks[0]
     out = reconstruct(res, {ch.id: "lead \\itemFSU tail words."})
     assert "\\item FSU" in out
@@ -217,7 +213,7 @@ def test_latin_glue_item_translation_internal() -> None:
 def test_latin_glue_no_fp_prefix_macros() -> None:
     r"""保守面：``\itemsep``/``\parindent``/``\par`` 族前缀撞名不动——
     平铺 ``\\item(?=[A-Za-z])`` 会误伤它们，接缝守卫只在段边界生效。"""
-    res = scan(
+    res = scan_doc(
         "\\newcommand{\\fooBar}{x}\nText \\parindent=3pt \\fooBar \\itemsep2pt end."
     )
     out = reconstruct(res, {c.id: "译文" for c in res.chunks})
@@ -227,5 +223,5 @@ def test_latin_glue_no_fp_prefix_macros() -> None:
 
 def test_latin_glue_identity_untouched() -> None:
     r"""identity 路径逐字节——接缝守卫只在有译文时启用。"""
-    res = scan("Text \\parindent=3pt \\itemsep2pt end.")
+    res = scan_doc("Text \\parindent=3pt \\itemsep2pt end.")
     assert reconstruct(res) == DOC % "Text \\parindent=3pt \\itemsep2pt end."

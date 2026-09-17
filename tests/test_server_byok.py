@@ -11,6 +11,8 @@ import pytest
 
 pytest.importorskip("fastapi", reason="server extra 未装")
 
+from conftest import mk_api_task
+
 if TYPE_CHECKING:
     from starlette.testclient import TestClient
 
@@ -18,18 +20,10 @@ ARXIV = "2401.00004"
 HDR = {"X-Texlate-Key": "sk-header-secret-1"}
 
 
-def _mk(client: TestClient, headers: dict | None = None) -> str:
-    r = client.post(
-        f"/api/arxiv/{ARXIV}/translate", json={"model": "m"}, headers=headers or {}
-    )
-    assert r.status_code == HTTPStatus.ACCEPTED
-    return r.json()["task_id"]
-
-
 class TestPriorityChain:
     def test_header_over_settings(self, client: TestClient) -> None:
         client.put("/api/settings", json={"api_key": "sk-settings-key"})
-        tid = _mk(client, headers=HDR)
+        tid = mk_api_task(client, ARXIV, model="m", headers=HDR)
         sec = client.app.state.runner.secrets[tid]
         assert sec.api_key == "sk-header-secret-1"
         row = client.portal.call(partial(client.app.state.store.get, tid))
@@ -37,7 +31,7 @@ class TestPriorityChain:
 
     def test_settings_fallback(self, client: TestClient) -> None:
         client.put("/api/settings", json={"api_key": "sk-settings-key"})
-        tid = _mk(client)
+        tid = mk_api_task(client, ARXIV, model="m")
         assert client.app.state.runner.secrets[tid].api_key == "sk-settings-key"
         row = client.portal.call(partial(client.app.state.store.get, tid))
         assert row["auth_source"] == "settings"
@@ -46,17 +40,17 @@ class TestPriorityChain:
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv("TEXLATE_API_KEY", "sk-env-key")
-        tid = _mk(client)
+        tid = mk_api_task(client, ARXIV, model="m")
         assert client.app.state.runner.secrets[tid].api_key == "sk-env-key"
 
     def test_none_source(self, client: TestClient) -> None:
-        tid = _mk(client)
+        tid = mk_api_task(client, ARXIV, model="m")
         assert client.app.state.runner.secrets[tid].api_key == ""
 
 
 class TestTenant:
     def test_local_tenant(self, client: TestClient) -> None:
-        tid = _mk(client, headers=HDR)
+        tid = mk_api_task(client, ARXIV, model="m", headers=HDR)
         row = client.portal.call(partial(client.app.state.store.get, tid))
         assert row["tenant"] == "local"
 
@@ -64,7 +58,7 @@ class TestTenant:
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv("TEXLATE_MODE", "server")
-        tid = _mk(client, headers={"X-Texlate-Key": "k-A"})
+        tid = mk_api_task(client, ARXIV, model="m", headers={"X-Texlate-Key": "k-A"})
         row = client.portal.call(partial(client.app.state.store.get, tid))
         assert row["tenant"].startswith("k_")
         assert "k-A" not in row["tenant"]
@@ -74,7 +68,7 @@ class TestTenant:
     ) -> None:
         """server 模式下别的租户看不到本任务（404）。"""
         monkeypatch.setenv("TEXLATE_MODE", "server")
-        tid = _mk(client, headers={"X-Texlate-Key": "k-A"})
+        tid = mk_api_task(client, ARXIV, model="m", headers={"X-Texlate-Key": "k-A"})
         r = client.get(f"/api/task/{tid}", headers={"X-Texlate-Key": "k-B"})
         assert r.status_code == HTTPStatus.NOT_FOUND
         r = client.get("/api/tasks", headers={"X-Texlate-Key": "k-B"})
@@ -84,7 +78,7 @@ class TestTenant:
 class TestNeedsAuth:
     def test_retry_without_header_401(self, client: TestClient) -> None:
         """auth_source=header 的任务重试必须重带 key（凭证只活内存）。"""
-        tid = _mk(client, headers=HDR)
+        tid = mk_api_task(client, ARXIV, model="m", headers=HDR)
         store = client.app.state.store
         client.portal.call(partial(store.transition, tid, "needs_auth", force=True))
         r = client.post(f"/api/task/{tid}/retry", json={})
@@ -92,7 +86,7 @@ class TestNeedsAuth:
         assert r.json()["code"] == "auth_required"
 
     def test_retry_with_header_202(self, client: TestClient) -> None:
-        tid = _mk(client, headers=HDR)
+        tid = mk_api_task(client, ARXIV, model="m", headers=HDR)
         store = client.app.state.store
         client.portal.call(partial(store.transition, tid, "needs_auth", force=True))
         r = client.post(f"/api/task/{tid}/retry", json={}, headers=HDR)
@@ -102,7 +96,7 @@ class TestNeedsAuth:
 class TestNoKeyLeak:
     def test_key_not_in_db(self, client: TestClient) -> None:
         """header key 不进任何库表/事件。"""
-        tid = _mk(client, headers=HDR)
+        tid = mk_api_task(client, ARXIV, model="m", headers=HDR)
         store = client.app.state.store
         rows = client.portal.call(
             partial(
