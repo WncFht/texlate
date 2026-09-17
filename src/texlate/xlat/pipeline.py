@@ -1054,17 +1054,25 @@ class XlatPipeline:
         self,
         queue: asyncio.Queue[tuple[str, Any] | None],
         done_map: dict[str, ChunkResult],
+        fatal: list[BaseException],
     ) -> None:
         """消费循环：哨兵退出；item 级 crash 兜底成 skipped。
 
         worker 不死——否则 queue.join() 死等 + done_map 缺口在 run() 末行
-        炸 KeyError。
+        炸 KeyError。BaseException 族（KI/SE/GE）同样不可任 worker 带其
+        死掉：sentinel 与 worker 一一对应，死者那份无人消费，join() 死锁
+        （E3）。记入 ``fatal`` 降级成 skipped 后继续消费；``fatal`` 已挂
+        时只吃不做排空到 sentinel——提前 return 会让剩余项无人 task_done，
+        join() 照样死等——由 _drain 收敛后重抛。
         """
         while True:
             item = await queue.get()
             try:
                 if item is None:
                     return
+                if fatal:
+                    # 致命异常已挂：排空队列项保 join 会计，不再发翻译请求
+                    continue
                 if self.auth_gate.tripped:
                     # auth 闸已断：剩余块不再发请求，直接按 auth 失败记账
                     results = [
@@ -1078,6 +1086,13 @@ class XlatPipeline:
                         # _process 各分支已兜底；真逃逸（bug/中断）也要把受影响
                         # 块记成 skipped 而不是拖死整个消费循环。
                         log.exception("worker item crashed")
+                        results = [
+                            self._skip(c, f"worker crash: {e}", kind=_kind_of(e))
+                            for c in _item_chunks(item)
+                        ]
+                    except BaseException as e:  # 收账转 _drain 重抛
+                        log.exception("worker item crashed fatally")
+                        fatal.append(e)
                         results = [
                             self._skip(c, f"worker crash: {e}", kind=_kind_of(e))
                             for c in _item_chunks(item)
@@ -1135,8 +1150,9 @@ class XlatPipeline:
 
         for _ in range(self.cfg.concurrency):
             queue.put_nowait(None)
+        fatal: list[BaseException] = []
         workers = [
-            asyncio.create_task(self._worker(queue, done_map))
+            asyncio.create_task(self._worker(queue, done_map, fatal))
             for _ in range(self.cfg.concurrency)
         ]
         try:
@@ -1149,6 +1165,8 @@ class XlatPipeline:
                 if not w.done():
                     w.cancel()
             await asyncio.gather(*workers, return_exceptions=True)
+        if fatal:
+            raise fatal[0]
 
     async def run(self, chunks: list[ChunkIn]) -> list[ChunkResult]:
         """跑完整篇。返回与输入同序的结果表。

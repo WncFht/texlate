@@ -44,13 +44,16 @@ language。
   ``../evil``/绝对名/控制字符进出包（OCF 成员名应受限相对路径；
   zip-slip 形态随出包流向任何按名落盘的下游提取器）。``load_epub``
   侧 ``members`` 同样不拒，进出全链零过滤。
-- CONFIRMED E3（跨界，根在 ``xlat/pipeline.py``）：translator 内抛
-  ``KeyboardInterrupt``/``SystemExit``/``GeneratorExit`` 全被
-  ``gather(*workers, return_exceptions=True)``（pipeline.py:1151）
-  收成静默结果值——``drive_pipeline`` 正常返回，Ctrl-C 族语义被
-  吞。修法候选：gather 后对结果集重抛非 ``CancelledError`` 的
-  ``BaseException``。经 ``drive_pipeline`` 面可达，钉在本文件
-  （xlat 侧归属待 leader 裁决路由）。
+- FIXED E3（跨界，根在 ``xlat/pipeline.py``）：translator 内抛
+  ``KeyboardInterrupt``/``SystemExit``/``GeneratorExit``——sentinel
+  与 worker 一一对应，带 BaseException 死掉的 worker 令其 sentinel
+  无人消费 → ``queue.join()`` 死锁（KI/SE 另经 ``Task.__step``
+  重抛沿事件循环层逃逸，gather 自始至终够不到）。修法：worker 把
+  非 ``Exception`` 收进 ``fatal`` 账、只吃不做排空到 sentinel 保
+  join 会计（fatal 后退场过早同样死锁——剩余项多于存活 worker 时
+  残余 task_done 无人发），``_drain`` 在 join 收敛后重抛。回归钉
+  走 single 工作项布阵让异常落在 worker 路径（warmup 臂本就直传，
+  钉不到 worker）；形态钉 conc=2 + 6 项直钉 ``XlatPipeline``。
 
 观察钉（pin observed——当前行为即取舍，定性留裁决）：
 
@@ -77,6 +80,7 @@ language。
 
 from __future__ import annotations
 
+import asyncio
 import zipfile
 from typing import TYPE_CHECKING
 
@@ -87,7 +91,6 @@ from _fuzzkit import (
     short,
     soup_join,
     soup_pick,
-    xfail_confirmed,
 )
 
 from texlate.export import sniff_format
@@ -101,7 +104,12 @@ from texlate.export.docx import insert_after
 from texlate.export.epub import EpubBook, load_epub, save_epub
 from texlate.export.markers import marker_report
 from texlate.export.rights import FONT_OBFUSCATION, PROTECTION_FILES, check_epub
-from texlate.xlat.pipeline import ChunkIn, MockTranslator, XlatPipeline
+from texlate.xlat.pipeline import (
+    ChunkIn,
+    MockTranslator,
+    PipelineConfig,
+    XlatPipeline,
+)
 from texlate.xlat.state import StateStore
 
 if TYPE_CHECKING:
@@ -822,6 +830,37 @@ class _BoomTranslator:
         raise RuntimeError(msg)
 
 
+class _TripTranslator:
+    """``user`` 含 ``TRIPBASE`` 抛 ``exc``，余委托 MockTranslator——E3 钉用。
+
+    签名必须与 ``Translator`` 协议一致（kw-only）——``translate(self, req)``
+    形桩会让 ``TypeError`` 先于 ``exc`` 爆出，走 Exception 降级面钉个寂寞。
+    """
+
+    def __init__(self, exc: BaseException) -> None:
+        self._exc = exc
+        self._mock = MockTranslator()
+
+    async def translate(
+        self,
+        *,
+        system: str,
+        user: str,
+        temperature: float,
+        max_tokens: int,
+        response_format: dict[str, str] | None = None,
+    ) -> str:
+        if "TRIPBASE" in user:
+            raise self._exc
+        return await self._mock.translate(
+            system=system,
+            user=user,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            response_format=response_format,
+        )
+
+
 class TestDrivePipeline:
     """``drive_pipeline`` 失败路径与半成品回放。"""
 
@@ -924,30 +963,61 @@ class TestDrivePipeline:
         [KeyboardInterrupt(), SystemExit(3), GeneratorExit()],
         ids=["KeyboardInterrupt", "SystemExit", "GeneratorExit"],
     )
-    @xfail_confirmed(
-        "E3 CONFIRMED——translate 内 BaseException 族被 gather"
-        "(return_exceptions=True)（pipeline.py:1151）收成静默结果 → "
-        "drive_pipeline 正常返回，KI/SE/GE 语义被吞；期望：传播"
-    )
     def test_translate_baseexception_propagates(
         self, tmp_path: Path, exc: BaseException
     ) -> None:
-        """期望契约：translate 内抛的 BaseException 穿透 drive_pipeline。"""
+        """契约钉：translate 内抛的 BaseException 穿透 drive_pipeline。
 
-        class _Base:
-            async def translate(self, req: object) -> object:  # noqa: ARG002
-                raise exc
-
+        E3 回归钉。12 块各 ≥300 字符 → 12 个 ``("single", …)`` 工作项 >
+        默认 conc=10：warmup 消化首项后 worker 吃到 ``TRIPBASE`` 块挂
+        ``fatal``，此刻队列剩余项多于存活 worker——「worker 带
+        BaseException 死亡（sentinel 孤儿）」与「fatal 后吃一条即退
+        （剩余项无人 task_done）」两种 join 死锁形都被罩住；修复后
+        worker 只吃不做排空到 sentinel、``_drain`` 在 join 收敛后重抛。
+        """
+        prose = "word " * 80  # ≥SHORT_CHAR_LIMIT(300) → 每块一个 single 工作项
+        chunks = [
+            ChunkIn(
+                chunk_id=f"c{i}",
+                content=prose + ("TRIPBASE" if i == 1 else ""),
+                kind="para",
+            )
+            for i in range(12)  # 工作项数须 > 默认 conc=10 才钉得住 drain 语义
+        ]
         with pytest.raises(type(exc)):
             drive_pipeline(
-                [ChunkIn(chunk_id="c", content="para words here ok", kind="para")],
-                translator=_Base(),
+                chunks,
+                translator=_TripTranslator(exc),
                 store=self._store(tmp_path, "x"),
                 glossary=None,
                 on_result=None,
                 apply_fn=lambda r: ApplyCounts(translated=len(r)),
                 save_fn=lambda _n: None,
             )
+
+    def test_worker_baseexception_drains_queue(self) -> None:
+        """E3 形态钉：``fatal`` 挂起后 worker 排空队列而非退场。
+
+        conc=2 + 6 工作项——fatal 时剩余项 > 存活 worker 数：若 fatal
+        后吃一条即退，残余项 ``task_done`` 无人发 → ``queue.join()``
+        死锁、重抛永远到不了。直钉 ``XlatPipeline`` 层（``drive_pipeline``
+        的 concurrency 不可配）。
+        """
+        prose = "word " * 80
+        chunks = [
+            ChunkIn(
+                chunk_id=f"c{i}",
+                content=prose + ("TRIPBASE" if i == 1 else ""),
+                kind="para",
+            )
+            for i in range(6)
+        ]
+        pipe = XlatPipeline(
+            _TripTranslator(GeneratorExit()),
+            config=PipelineConfig(concurrency=2),
+        )
+        with pytest.raises(GeneratorExit):
+            asyncio.run(pipe.run(chunks))
 
     def test_dirty_store_tolerated_on_replay(self, tmp_path: Path) -> None:
         """脏态 ``chunks.jsonl`` → ``store.load()`` 回放面优雅空集。"""
