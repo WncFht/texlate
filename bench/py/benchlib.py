@@ -9,15 +9,17 @@ records 契约（docs/research/product/2026-09-16-batch-hardening-design.md §6�
 
 from __future__ import annotations
 
+import functools
+import hashlib
 import json
+import os
+import random
 import re
 import shutil
+import subprocess
 import sys
 from datetime import datetime
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from pathlib import Path
+from pathlib import Path
 
 #: tlnet 镜像统一钉 tuna——mirror.ctan.org round-robin 本机不通
 #:（fixloop_bench/compilebench_v3 2026-09-15 实测；usertree `option repository`
@@ -334,3 +336,137 @@ def verdict_sig(verdict: dict, first_error: str | None = None) -> str:
             m = _RE_MISSING_CHAR.search(" ".join(reasons))
             pay = f"x{m.group(1)}" if m else ""
     return f"{cat}:{pay or ''}".rstrip(":")
+
+
+# ---------------------------------------------------------------- 语料抽样
+def pick_sample(entries: list[dict], corpus: Path, n: int, seed: int) -> list[str]:
+    """分层不区分地随机抽 n 个 id（``corpus/{id}/extracted/`` 在盘者）；排序返回。
+
+    e2e_real_bench.pick_sample 单源（★6 下沉）——corpus 由调用方传入
+    （benchlib 无 CORPUS 常量）。``random.Random(seed)`` 是复现语义非密码学。
+    """
+    avail = [e["id"] for e in entries if (corpus / e["id"] / "extracted").is_dir()]
+    avail = sorted(set(avail))
+    rng = random.Random(seed)
+    picked = rng.sample(avail, min(n, len(avail)))
+    return sorted(picked)
+
+
+# ---------------------------------------------------------------- 产码印章
+@functools.lru_cache(maxsize=1)
+def code_stamp() -> str:
+    """产码印章：``snap-<sha256[:12]>`` 或 ``<sha>``/``<sha>-dirty``。
+
+    记进每格 record——parse/splice 层修复落地后旧格 tex 是陈字节
+    （0707.3950 实证：resume 谓词把全 ok 格整篇 carry-over，postfix 臂编译
+    打修复前文件，mtime 取证才识破）。``--recode`` 按印章差异强制重跑；
+    chunk 级 state 缓存仍在，重翻免费、parse/splice/compile 走新码。
+
+    ``TEXLATE_SRC`` 指向的冻结快照根带 ``snapshot-manifest.txt`` 时，印章
+    钉 manifest 字节（``snap-`` 形态）而非 live repo——bench 期间 repo 被
+    无关 commit/dirty 不再把全格误判 stale（反之快照换字节 manifest 换
+    哈希，陈旧格必被 ``--recode`` 抓到）。无 manifest 回退 repo 戳。
+
+    e2e_real_bench._code_stamp 单源（★6 下沉）——进程内一次（lru_cache），
+    repo 根按本文件位置算（``bench/py/benchlib.py`` → parents[2]）。
+    """
+    src_env = os.environ.get("TEXLATE_SRC")
+    if src_env:
+        manifest = Path(src_env) / "snapshot-manifest.txt"
+        if manifest.is_file():
+            digest = hashlib.sha256(manifest.read_bytes()).hexdigest()
+            return f"snap-{digest[:12]}"
+    repo = Path(__file__).resolve().parents[2]
+    try:
+        sha = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],  # noqa: S607
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        dirty = subprocess.run(
+            ["git", "status", "--porcelain", "--", "src/texlate"],  # noqa: S607
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return "unknown"
+    return f"{sha}{'-dirty' if dirty else ''}"
+
+
+# ---------------------------------------------------------------- 配额/auth 闸
+#: 单篇可翻译总字符上限——超过记 skipped_oversize/oversize 终态不烧配额
+#:（B5 首轮保守闸；e2e_real_bench.MAX_TOTAL_CHARS 单源，★6 下沉）。
+MAX_TOTAL_CHARS = 250_000
+
+#: 连续「全 auth 败」论文数熔断阈值——凭证中途死透时停跑不空烧
+#:（probe 只探开局；篇内阈值块熔断由 AuthTrippedError 即停，本闸兜的是
+#: 篇均不足阈值块、逐篇全 401 的慢速失血）。erb._AUTH_DEAD_STREAK 单源。
+AUTH_DEAD_STREAK = 2
+
+
+# ---------------------------------------------------------------- verdict 谓词
+def misschar_partial(status, verdict: dict) -> bool:
+    """缺字窄口：``partial`` ∧ ``missing_chars>0`` —— missing_char_fix 可修子集。
+
+    stagerun._on_misschar / e2e_real_bench._want_fix 的 misschar 判定单源
+    （★6 收敛）；其余 warning 级 partial 不进 fixloop（partial→fail 回退
+    教训——fixloop 的 halt_on_error 编译只会丢已有 PDF）。
+    """
+    return status == "partial" and (verdict.get("missing_chars") or 0) > 0
+
+
+# ---------------------------------------------------------------- 启动自检
+async def preflight() -> list[str]:
+    """起 bench 前的一致性检查——0 网络，烧配额前拦下半成品源码树。
+
+    2026-09-15 实证：`src/texlate/` 被并行代理 mid-refactor 时，l0/placeholders
+    引用未定义名（``_no_comments``/``mask_comments``）——导入面正常但调用即
+    NameError，整批 chunk 静默 skipped。模块在进程启动加载一次即冻结，
+    因此"启动时全量导入 + 无网走一遍 mock 链"即可免疫运行期被改。
+
+    e2e_real_bench.preflight 单源（★6 下沉）——texlate.* 全部函数内延迟
+    import（benchlib 模块级零 texlate 依赖不破；调用方须已把 src/ 上
+    sys.path，stagerun_lib/erb 顶部各有一份 TEXLATE_SRC 惯例）。
+    """
+    import importlib
+    import pkgutil
+
+    import texlate
+    from texlate.latex.api import parse_tex
+    from texlate.validate.l0 import validate_pair
+    from texlate.xlat.pipeline import (
+        MockTranslator,
+        XlatPipeline,
+        chunk_to_in,
+    )
+
+    errs: list[str] = []
+    for m in pkgutil.walk_packages(texlate.__path__, "texlate."):
+        try:
+            importlib.import_module(m.name)
+        except Exception as e:
+            errs.append(f"import {m.name}: {e!r}")
+
+    try:
+        scans = parse_tex(
+            "\\documentclass{article}\n\\begin{document}\nHello world $x^2$.\n"
+            "\\end{document}\n"
+        )
+        chunks = [
+            chunk_to_in(c, chunk_id=f"0:{c.id}", ph_map=scans.ph_map)
+            for c in scans.chunks
+        ]
+        pipe = XlatPipeline(
+            MockTranslator(),
+            validator=lambda s, z: validate_pair(s, z).feedback(),
+        )
+        results = await pipe.run(chunks)
+        if any(r.status == "fault" for r in results):
+            errs.append("mock chain: fault chunk in self-check")
+    except Exception as e:
+        errs.append(f"mock chain: {e!r}")
+    return errs

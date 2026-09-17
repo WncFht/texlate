@@ -45,14 +45,10 @@ from __future__ import annotations
 import argparse
 import asyncio
 import fcntl
-import functools
-import hashlib
 import json
 import os
-import random
 import re
 import shutil
-import subprocess
 import sys
 import tempfile
 import time
@@ -81,7 +77,7 @@ from texlate.compile.inject import (
 )
 from texlate.compile.normalize import normalize_project
 from texlate.e2e import base_condition
-from texlate.latex.api import parse_file, parse_tex
+from texlate.latex.api import parse_file
 from texlate.latex.placeholder import PH_RX
 from texlate.latex.reconstruct import reconstruct
 from texlate.validate.l0 import validate_pair
@@ -106,55 +102,23 @@ RESULTS_DIR_DEFAULT = "e2e-real"
 
 #: 单篇可翻译总字符上限——超过记 skipped_oversize 终态不烧配额
 #:（B5 首轮保守闸；translate 记录带 oversize=True，base/fix 臂不补跑）。
-MAX_TOTAL_CHARS = 250_000
+#: 单源 ``benchlib.MAX_TOTAL_CHARS``（★6 下沉；stagerun real 臂同闸）。
+MAX_TOTAL_CHARS = benchlib.MAX_TOTAL_CHARS
 
 #: 连续「全 auth 败」论文数熔断阈值——凭证中途死透时停跑不空烧
 #:（probe 只探开局；篇内 3 连熔断由 AuthTrippedError 即停，本闸兜的是
-#: 篇均不足阈值块、逐篇全 401 的慢速失血）。
-_AUTH_DEAD_STREAK = 2
+#: 篇均不足阈值块、逐篇全 401 的慢速失血）。单源 ``benchlib.AUTH_DEAD_STREAK``。
+_AUTH_DEAD_STREAK = benchlib.AUTH_DEAD_STREAK
 
 
 # ---------------------------------------------------------------- 启动自检
 async def preflight() -> list[str]:
     """起 bench 前的一致性检查——0 网络，烧配额前拦下半成品源码树。
 
-    2026-09-15 实证：`src/texlate/` 被并行代理 mid-refactor 时，l0/placeholders
-    引用未定义名（``_no_comments``/``mask_comments``）——导入面正常但调用即
-    NameError，整批 chunk 静默 skipped。模块在进程启动加载一次即冻结，
-    因此"启动时全量导入 + 无网走一遍 mock 链"即可免疫运行期被改。
+    单源 ``benchlib.preflight``（★6 下沉——实现与迁移前逐字同；delegate
+    保 realn200 restart-safe：重启进程 import 本模块拿到的语义不变）。
     """
-    import importlib
-    import pkgutil
-
-    import texlate
-    from texlate.xlat.pipeline import MockTranslator
-
-    errs: list[str] = []
-    for m in pkgutil.walk_packages(texlate.__path__, "texlate."):
-        try:
-            importlib.import_module(m.name)
-        except Exception as e:
-            errs.append(f"import {m.name}: {e!r}")
-
-    try:
-        scans = parse_tex(
-            "\\documentclass{article}\n\\begin{document}\nHello world $x^2$.\n"
-            "\\end{document}\n"
-        )
-        chunks = [
-            chunk_to_in(c, chunk_id=f"0:{c.id}", ph_map=scans.ph_map)
-            for c in scans.chunks
-        ]
-        pipe = XlatPipeline(
-            MockTranslator(),
-            validator=lambda s, z: validate_pair(s, z).feedback(),
-        )
-        results = await pipe.run(chunks)
-        if any(r.status == "fault" for r in results):
-            errs.append("mock chain: fault chunk in self-check")
-    except Exception as e:
-        errs.append(f"mock chain: {e!r}")
-    return errs
+    return await benchlib.preflight()
 
 
 # ---------------------------------------------------------------- 语料抽样
@@ -164,12 +128,12 @@ def load_manifest(layers: set[str]) -> list[dict]:
 
 
 def pick_sample(entries: list[dict], n: int, seed: int) -> list[str]:
-    """分层不区分地随机抽 n 个 id（extracted/ 存在）；返回排序后 id 列表。"""
-    avail = [e["id"] for e in entries if (CORPUS / e["id"] / "extracted").is_dir()]
-    avail = sorted(set(avail))
-    rng = random.Random(seed)
-    picked = rng.sample(avail, min(n, len(avail)))
-    return sorted(picked)
+    """分层不区分地随机抽 n 个 id（extracted/ 存在）；返回排序后 id 列表。
+
+    单源 ``benchlib.pick_sample``（★6 下沉——corpus 参数由本模块 CORPUS 注入，
+    抽样序与旧实现逐项同）。
+    """
+    return benchlib.pick_sample(entries, CORPUS, n, seed)
 
 
 safe_id = benchlib.safe_id
@@ -365,8 +329,9 @@ def _want_fix(rec: dict, mode: str) -> bool:
     # error 级 partial（n_errors>0 = 带 `!` 错也出了 PDF）是 fixloop 最可能
     # 救回的对象——1e 语义查实：原门槛把它与 warning 级 partial 混同排除，
     # 且 hotfix-smoke 的 2/3 回退率测于底板（floor_restored）落地之前。
+    # misschar 支走单源 benchlib.misschar_partial（与 stagerun._on_misschar 同核）。
     return v == "partial" and (
-        (verdict.get("missing_chars") or 0) > 0 or (verdict.get("n_errors") or 0) > 0
+        benchlib.misschar_partial(v, verdict) or (verdict.get("n_errors") or 0) > 0
     )
 
 
@@ -530,44 +495,14 @@ def _paper_done(rec: dict | None) -> bool:
     return not (tr.get("skipped") or tr.get("fault"))
 
 
-@functools.lru_cache(maxsize=1)
 def _code_stamp() -> str:
-    """产码印章：``snap-<sha256[:12]>`` 或 ``<sha>``/``<sha>-dirty``。
+    """产码印章——单源 ``benchlib.code_stamp``（★6 下沉）。
 
-    记进每格 record——parse/splice 层修复落地后旧格 tex 是陈字节
-    （0707.3950 实证：resume 谓词把全 ok 格整篇 carry-over，postfix 臂编译
-    打修复前文件，mtime 取证才识破）。``--recode`` 按印章差异强制重跑；
-    chunk 级 state 缓存仍在，重翻免费、parse/splice/compile 走新码。
-
-    ``TEXLATE_SRC`` 指向的冻结快照根带 ``snapshot-manifest.txt`` 时，印章
-    钉 manifest 字节（``snap-`` 形态）而非 live repo——bench 期间 repo 被
-    无关 commit/dirty 不再把全格误判 stale（反之快照换字节 manifest 换
-    哈希，陈旧格必被 ``--recode`` 抓到）。无 manifest 回退 repo 戳。
+    语义不变：``snap-<sha256[:12]>``（TEXLATE_SRC 冻结快照带
+    snapshot-manifest.txt 时）或 ``<sha>``/``<sha>-dirty``；进程内一次
+    （benchlib 侧 lru_cache）。
     """
-    src_env = os.environ.get("TEXLATE_SRC")
-    if src_env:
-        manifest = Path(src_env) / "snapshot-manifest.txt"
-        if manifest.is_file():
-            digest = hashlib.sha256(manifest.read_bytes()).hexdigest()
-            return f"snap-{digest[:12]}"
-    try:
-        sha = subprocess.run(
-            ["git", "rev-parse", "--short", "HEAD"],  # noqa: S607
-            cwd=ROOT,
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout.strip()
-        dirty = subprocess.run(
-            ["git", "status", "--porcelain", "--", "src/texlate"],  # noqa: S607
-            cwd=ROOT,
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout.strip()
-    except (OSError, subprocess.CalledProcessError):
-        return "unknown"
-    return f"{sha}{'-dirty' if dirty else ''}"
+    return benchlib.code_stamp()
 
 
 def _atomic_write(path: Path, text: str) -> None:
