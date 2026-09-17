@@ -1,0 +1,25 @@
+\documentclass{acmart}
+\makeatletter
+\typeout{===after class: \meaning\@begintheorem}
+\typeout{===after class: \meaning\@opargbegintheorem}
+\makeatother
+\usepackage[amsmath,thmmarks,hyperref]{ntheorem}
+\makeatletter
+\typeout{===after ntheorem: \meaning\@begintheorem}
+\makeatother
+\theoremstyle{plain}
+\makeatletter
+\typeout{===after theoremstyle: \meaning\@begintheorem}
+\makeatother
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\makeatletter
+\AtBeginDocument{\typeout{===at begindoc: \meaning\@begintheorem}%
+\typeout{===at begindoc oparg: \meaning\@opargbegintheorem}%
+\typeout{===at begindoc xthm: \meaning\@xthm}}
+\makeatother
+\begin{document}
+\section{S}
+\begin{definition}\label{def:a} Some definition text.
+\end{definition}
+\end{document}

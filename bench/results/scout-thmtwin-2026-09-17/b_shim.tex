@@ -1,0 +1,47 @@
+\documentclass{acmart}
+% --- texlate THEOREM_ANCHOR_SHIM verbatim ---
+\makeatletter
+\def\TeXlate@thmtwin{%
+  \@ifundefined{MakeLinkTarget}{}{%
+  \@ifundefined{@currentcounter}{}{%
+  \@ifundefined{theH\@currentcounter}{}{%
+    \ifx\@currenvir\@currentcounter
+      \@ifundefined{alias@ctr@\@currenvir}{}{%
+        \edef\TeXlate@twin{\csname alias@ctr@\@currenvir\endcsname}%
+        \TeXlate@emit}%
+    \else
+      \@ifundefined{the\@currenvir}{}{%
+        \let\TeXlate@twin\@currenvir
+        \TeXlate@emit}%
+    \fi}}}%
+}%
+\def\TeXlate@emit{%
+  \begingroup
+  \let\TeXlate@save\@currentHref
+  \edef\TeXlate@name{\TeXlate@twin.\csname theH\@currentcounter\endcsname}%
+  \MakeLinkTarget*{\TeXlate@name}%
+  \global\let\@currentHref\TeXlate@save
+  \endgroup}%
+\AddToHook{cmd/@begintheorem/before}{\TeXlate@thmtwin}%
+\AddToHook{cmd/@opargbegintheorem/before}{\TeXlate@thmtwin}%
+\makeatother
+% --- end shim ---
+\usepackage[amsmath,thmmarks,hyperref]{ntheorem}
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{claim}[theorem]{Claim}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\begin{document}
+\section{S}
+Body text.
+\begin{definition}\label{def:a} Some definition text.
+\end{definition}
+
+\begin{lemma}\label{lem:a} Some lemma text.
+\end{lemma}
+
+\begin{lemma}[{\cite[Lemma~3.1]{key}}]\label{lem:b} Noted lemma.
+\end{lemma}
+\end{document}

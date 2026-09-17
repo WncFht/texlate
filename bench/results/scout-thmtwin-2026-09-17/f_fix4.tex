@@ -1,0 +1,26 @@
+\documentclass{acmart}
+\usepackage[amsmath,thmmarks,hyperref]{ntheorem}
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{claim}[theorem]{Claim}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\makeatletter
+\AtBeginDocument{\@ifpackageloaded{ntheorem}{%
+  \def\@begintheorem#1#2{\item[\hskip\labelsep \theorem@headerfont #1\ #2.]}%
+  \def\@opargbegintheorem#1#2#3{\item[\hskip\labelsep \theorem@headerfont #1\ #2\ (#3).]}%
+}{}}
+\makeatother
+\begin{document}
+\section{S}
+Body text.
+\begin{definition}\label{def:a} Some definition text.
+\end{definition}
+
+\begin{lemma}\label{lem:a} Some lemma text.
+\end{lemma}
+
+\begin{lemma}[{{\cite[Lemma~3.1]{key}}}]\label{lem:b} Noted lemma.
+\end{lemma}
+\end{document}
