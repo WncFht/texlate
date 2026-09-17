@@ -5,6 +5,7 @@
 """
 
 import json
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -13,6 +14,7 @@ from types import SimpleNamespace
 import pytest
 
 from texlate.validate.l1 import L1Error, TsBaseline, TsResult, TsValidator
+from texlate.validate.report import aggregate
 
 REPO = Path(__file__).resolve().parents[1]
 BENCH_NM = REPO / "bench" / "ts" / "node_modules"
@@ -336,3 +338,71 @@ def test_batch_blank_lines_ignored(
     res = v.validate_batch([{"id": "a", "tex": "x"}, {"id": "b", "tex": "y"}])
     assert [r.id for r in res] == ["a", "b"]
     assert res[1].ok is False
+
+
+# ------------------------------------------------- A2：env 白名单钉
+
+
+def test_env_whitelist_strips_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``_env`` 只透传 node 启动必需面——secret/业务 env 不进子进程，
+    ``NODE_PATH`` 注入值盖掉透传。"""
+    monkeypatch.setenv("TEXLATE_API_KEY", "sk-fake")
+    monkeypatch.setenv("TEXLATE_GATEWAY_KEY", "gw-fake")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "aws-fake")
+    monkeypatch.setenv("TEXLATE_TS_NODE_PATH", "/should-not-leak")
+    monkeypatch.setenv("PATH", "/usr/bin")
+    monkeypatch.setenv("HOME", "/home/x")
+    monkeypatch.setenv("LC_ALL", "C.UTF-8")
+    env = TsValidator(node_path="/nonexistent/nm")._env()  # noqa: SLF001
+    for leaked in (
+        "TEXLATE_API_KEY",
+        "TEXLATE_GATEWAY_KEY",
+        "AWS_SECRET_ACCESS_KEY",
+        "TEXLATE_TS_NODE_PATH",
+    ):
+        assert leaked not in env
+    assert env["PATH"] == "/usr/bin"
+    assert env["HOME"] == "/home/x"
+    assert env["LC_ALL"] == "C.UTF-8"
+    assert env["NODE_PATH"] == "/nonexistent/nm"
+
+
+def test_env_whitelist_minimal_node_surface(monkeypatch: pytest.MonkeyPatch) -> None:
+    """清空 environ 后白名单不捏造缺失键——env 可小到只剩 NODE_PATH。"""
+    for k in list(os.environ):
+        monkeypatch.delenv(k)
+    env = TsValidator(node_path="/n")._env()  # noqa: SLF001
+    assert env == {"NODE_PATH": "/n"}
+
+
+# ------------------------------------------------- C8：TsResult.to_dict 钉
+
+
+def test_result_to_dict_roundtrip() -> None:
+    """``to_dict`` 是 ``from_dict`` 的对偶：全字段往返相等，
+    ``verdict_ok`` 计算字段随序列化落盘。"""
+    res = TsResult(
+        id="c1",
+        ok=False,
+        ok_relative=False,
+        parse_errors=[{"type": "ERROR", "row": 3, "snippet": "\\foo"}],
+        env_mismatches=[
+            {"kind": "name_mismatch", "begin_env": "a", "end_env": "b", "line": 1}
+        ],
+        unclosed_math=1,
+        brace_balance=-1,
+        placeholders={"missing": ["MATH_1"], "unexpected": [], "typos": []},
+        parse_ms=1.5,
+        error=None,
+    )
+    d = res.to_dict()
+    assert d["id"] == "c1"
+    assert d["verdict_ok"] is False
+    assert TsResult.from_dict(d) == res
+
+
+def test_report_l1_uses_to_dict() -> None:
+    """report.to_dict 的 l1 节与 ``TsResult.to_dict`` 同形——字段表不再手抄。"""
+    l1 = TsResult(id="x", ok=True, parse_ms=0.5)
+    rep = aggregate("c", l1=l1)
+    assert rep.to_dict()["l1"] == l1.to_dict()

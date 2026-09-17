@@ -140,20 +140,7 @@ class ValidationReport:
             "n_error": self.n_error,
             "n_warn": self.n_warn,
             "l0": self.l0.to_dict() if self.l0 else None,
-            "l1": {
-                "ok": self.l1.ok,
-                "ok_relative": self.l1.ok_relative,
-                "verdict_ok": self.l1.verdict_ok,
-                "parse_errors": self.l1.parse_errors,
-                "env_mismatches": self.l1.env_mismatches,
-                "unclosed_math": self.l1.unclosed_math,
-                "brace_balance": self.l1.brace_balance,
-                "placeholders": self.l1.placeholders,
-                "parse_ms": self.l1.parse_ms,
-                "error": self.l1.error,
-            }
-            if self.l1
-            else None,
+            "l1": self.l1.to_dict() if self.l1 else None,
             "l2": self.l2.to_dict() if self.l2 else None,
         }
 

@@ -60,6 +60,29 @@ log = logging.getLogger(__name__)
 
 _BATCH_TIMEOUT_S = 30.0  # 批处理 spawn 兜底超时（实测最坏 2.2MB 文件 parse 195ms）
 
+#: node worker 子进程 env 白名单（**非黑名单**）：``dict(os.environ)``
+#: 全量继承会把 ``TEXLATE_API_KEY``/``TEXLATE_GATEWAY_KEY`` 等 secret 灌进
+#: worker 环境块（``/proc/<pid>/environ``、崩溃转储、孙进程 exec 链均可见）。
+#: validator.js 不消费任何业务 env——只经 ``NODE_PATH``（``_env`` 显式注入）
+#: 解析 npm 依赖；白名单收敛到 node 启动必需面：PATH（execvp 裸名解析）、
+#: HOME、locale、tmpdir 与 Windows MSVCRT 初始化必需的 SystemRoot/WINDIR。
+_ENV_PASS_EXACT = frozenset(
+    {
+        "HOME",
+        "PATH",
+        "NODE_PATH",
+        "TMPDIR",
+        "TEMP",
+        "TMP",
+        "LANG",
+        "SystemRoot",
+        "WINDIR",
+    }
+)
+
+#: env 白名单前缀面（locale 家族）。
+_ENV_PASS_PREFIX = ("LC_",)
+
 
 class L1Error(RuntimeError):
     """L1 层不可用/协议错误的统一异常。"""
@@ -177,6 +200,27 @@ class TsResult:
             raise L1Error(msg)
         return res
 
+    def to_dict(self) -> dict[str, Any]:
+        """序列化为 dict——``from_dict`` 的对偶（``report.to_dict`` 经此落盘）。
+
+        键集 = ``from_dict`` 消费的协议键全集 + 计算字段 ``verdict_ok``
+        （生产判定结果随盘可读，消费侧不必重算 baseline 归并）；
+        ``from_dict`` 忽略 ``verdict_ok``，往返无损。
+        """
+        return {
+            "id": self.id,
+            "ok": self.ok,
+            "ok_relative": self.ok_relative,
+            "verdict_ok": self.verdict_ok,
+            "parse_errors": self.parse_errors,
+            "env_mismatches": self.env_mismatches,
+            "unclosed_math": self.unclosed_math,
+            "brace_balance": self.brace_balance,
+            "placeholders": self.placeholders,
+            "parse_ms": self.parse_ms,
+            "error": self.error,
+        }
+
     def baseline_signature(self) -> TsBaseline:
         """把本结果当签名用（对 src 跑 validate 后取签名即 baseline）。"""
         return TsBaseline(
@@ -254,8 +298,18 @@ class TsValidator:
     # ---------------- 传输 ----------------
 
     def _env(self) -> dict[str, str]:
-        env = dict(os.environ)
-        env["NODE_PATH"] = str(self._node_path)
+        """Node worker 最小 env：白名单透传 + ``NODE_PATH`` 注入。
+
+        全量 ``os.environ`` 继承会把 secret 写进 worker 环境块——
+        validator.js 只经 ``NODE_PATH`` 解析依赖，其余一律不继承
+        （白名单表见 ``_ENV_PASS_*``）。
+        """
+        env = {
+            k: v
+            for k, v in os.environ.items()
+            if k in _ENV_PASS_EXACT or k.startswith(_ENV_PASS_PREFIX)
+        }
+        env["NODE_PATH"] = str(self._node_path)  # 显式注入盖掉透传值
         return env
 
     def _require_available(self) -> str:
