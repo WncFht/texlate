@@ -403,8 +403,8 @@ CREATE TABLE task_events (                       -- SSE 重放 + 审计；每任
 ### 4.3 缓存与隔离
 
 - `tasks.tenant`：`local`（单机）或 `'k_'+sha256(api_key+server_salt)[:12]`（服务端模式从 key 派生指纹，**指纹入库、key 不入库**）。`GET /api/tasks`、文件下载、SSE 全部按 tenant 过滤——这是"我的任务列表"隔离。
-- `translation_cache` 默认**跨租户共享**：内容寻址（key 由 src_text+model+prompt_ver+lang 决定），不含任何用户数据，命中是双赢；paranoid 部署开 `TEXLATE_CACHE_SCOPE=tenant` 把 tenant 拼进缓存键即可，零 schema 变更（key 仍是单列主键）。
-- `tasks.cache_key`（产物级 dedup）= `sha256(arxiv_id@ver|model|pipeline_ver|target_lang)` —— **故意不含 tenant**：同一 arXiv+ 同配置，A 译过 B 可直接 reuse（产物是公开论文的确定性函数）；要求租户间物理隔离的部署同样用 `CACHE_SCOPE=tenant` 一键切。
+- `translation_cache` 默认**跨租户共享**：内容寻址（key 由 src_text+model+prompt_ver+lang 决定），不含任何用户数据，命中是双赢；paranoid 部署开 `TEXLATE_CACHE_SCOPE=per_key`（旧名 `tenant` 同义保留）把 tenant 拼进缓存键即可，零 schema 变更（key 仍是单列主键）。
+- `tasks.cache_key`（产物级 dedup）= `sha256(arxiv_id@ver|model|pipeline_ver|target_lang)` —— **故意不含 tenant**：同一 arXiv+ 同配置，A 译过 B 可直接 reuse（产物是公开论文的确定性函数）；要求租户间物理隔离的部署同样用 `CACHE_SCOPE=per_key` 一键切。
 
 ---
 
