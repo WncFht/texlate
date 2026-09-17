@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from texlate.compile.normalize import INTERMEDIATE_SUFFIXES
-from texlate.latex.api import parse_file
+from texlate.latex.api import NAME_GATED_TEX_SUFFIXES, parse_file
 from texlate.latex.prose import file_has_prose
 from texlate.textutil import CJK_RX
 
@@ -93,9 +93,10 @@ def purge_corrupt_intermediates(
 #: 回滚会撤销 deliberate fix。
 _OWN_MARKERS = ("% texlate", "% fixloop")
 
-#: support 判定的文件名闸 —— 与 e2e._scan_tree 同表 (``.rtx.tex`` REVTeX
-#: 运行时转储 / ``.code.tex`` tikzlibrary 机制件), 命中即 support 免散文判。
-_SUPPORT_SUFFIXES = (".rtx.tex", ".code.tex")
+#: support 判定的文件名闸 —— 单源 ``latex.api.NAME_GATED_TEX_SUFFIXES``
+#: (``.rtx.tex`` REVTeX 运行时转储 / ``.code.tex`` tikzlibrary 机制件),
+#: 命中即 support 免散文判；私名保留为 facade 回引柄。
+_SUPPORT_SUFFIXES = NAME_GATED_TEX_SUFFIXES
 
 
 def _is_support_baseline(path: Path) -> bool:
