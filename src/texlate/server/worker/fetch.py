@@ -1,0 +1,281 @@
+"""``PipelineWorker._Fetch``——fetching 段：arxiv 获取/upload 物化/复用命中。"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import shutil
+import sqlite3
+from pathlib import Path
+from typing import Any
+
+import texlate.server.worker as _w
+from texlate.arxiv.cache import (
+    CacheEntry,
+    SourceCache,
+)
+from texlate.arxiv.fetch import (
+    AcquireStatus,
+)
+from texlate.arxiv.ratelimit import RateLimiter
+from texlate.arxiv.sniff import (
+    BlobKind,
+    SniffError,
+    sniff,
+)
+from texlate.arxiv.unpack import unpack_sniffed
+from texlate.server.store import TERMINAL_STATUSES
+from texlate.server.upload import (
+    _looks_text,
+    _safe_name,
+    unpack_zip,
+)
+
+from ._common import (
+    _FETCH_NO_RETRY,
+    PROGRESS,
+    TaskCtx,
+    _StageError,
+    cache_key_for,
+)
+
+
+class _Fetch:
+    """fetching 段 mixin：arxiv 获取/upload 物化/复用命中。"""
+
+    async def _stage_fetch(self, ctx: TaskCtx) -> None:
+        """fetching：源树就绪 + src.tar 登记（哨兵 .fetch-done 幂等）。"""
+        if (ctx.src_dir / ".fetch-done").is_file():
+            return
+        self._stage(ctx, "fetching", "取源", PROGRESS["fetching"][0])
+        if ctx.row["kind"] in ("arxiv", "share"):
+            await asyncio.to_thread(self._fetch_arxiv, ctx)
+        else:
+            await asyncio.to_thread(self._fetch_upload, ctx)
+        if ctx.reuse_hit is not None:
+            # dedup 命中——不落哨兵：崩溃在终态写入前时 resume 重跑
+            # fetch 重查 dedup，等幂
+            if self._current_status(ctx) not in TERMINAL_STATUSES:
+                await asyncio.to_thread(self._materialize_reuse, ctx, ctx.reuse_hit)
+                self._finish_reuse(ctx, ctx.reuse_hit)
+            return
+        (ctx.src_dir / ".fetch-done").write_text("", encoding="utf-8")
+        opts = ctx.options()
+        if opts.pop("reuse_hit", None) is not None:
+            # 本跑自产——上轮的 reuse 标记随产物来历失效即摘
+            ctx.row["options_json"] = json.dumps(opts, ensure_ascii=False)
+            self.store.update_fields(ctx.task_id, options_json=ctx.row["options_json"])
+        self._stage(ctx, "fetching", "取源完成", PROGRESS["fetching"][1])
+        self._check_cancelled(ctx)
+
+    def _fetch_arxiv(self, ctx: TaskCtx) -> None:
+        """``acquire_source`` → extracted → ``src/``；raw blob → ``src.tar``。"""
+        arxiv_id = str(ctx.row["arxiv_id"])
+        cache = self._src_cache or SourceCache(self.data_dir / "src-cache")
+        own_fetcher = self._fetcher is None
+        fetcher = self._fetcher or _w.Fetcher(
+            RateLimiter(cache.root / "ratelimit.json")
+        )
+        try:
+            res = _w.acquire_source(arxiv_id, fetcher=fetcher, cache=cache)
+            if res.status not in (AcquireStatus.OK, AcquireStatus.HIT):
+                code = (
+                    "no_latex_source"
+                    if res.status
+                    in (AcquireStatus.PDF_ONLY, AcquireStatus.UNKNOWN_FORMAT)
+                    else "arxiv_fetch"
+                )
+                raise _StageError(
+                    code,
+                    res.detail or res.status.value,
+                    retryable=res.status not in _FETCH_NO_RETRY,
+                )
+            assert res.entry is not None  # noqa: S101 -- ok/hit 必有 entry
+            entry = res.entry
+            fields: dict[str, Any] = {
+                "arxiv_id": f"{entry.arxiv_id}v{entry.resolved_version}",
+                "title": str(entry.meta.get("title") or ""),
+            }
+            # cache meta.json 无 categories——单独 Atom/OAI 拉一次喂
+            # glossary category 层；best-effort，挂了只丢该层术语
+            try:
+                meta = _w.fetch_metadata(arxiv_id, fetcher=fetcher)
+            except Exception as e:  # noqa: BLE001 -- 元数据臂不拦主链
+                self._log(ctx, f"arxiv meta: {type(e).__name__}: {e}")
+                meta = None
+            if meta is not None:
+                cats = [
+                    c
+                    for c in dict.fromkeys([meta.primary_category, *meta.categories])
+                    if c
+                ]
+                if cats:
+                    opts = ctx.options()
+                    opts["arxiv_categories"] = cats
+                    # ctx.row 是入队快照——同步内存面防 _build_base 写回丢键
+                    ctx.row["options_json"] = json.dumps(opts, ensure_ascii=False)
+                    fields["options_json"] = ctx.row["options_json"]
+            self._on_loop(self.store.update_fields, ctx.task_id, **fields)
+            if self._post_resolve_reuse(ctx, entry):
+                return  # 钉版键命中已完成任务——产物物化由 _stage_fetch 接管
+            if ctx.src_dir.exists():
+                shutil.rmtree(ctx.src_dir)
+            shutil.copytree(entry.extracted_dir, ctx.src_dir)
+            raw = entry.raw_path
+            if raw is not None and raw.is_file():
+                shutil.copyfile(raw, ctx.root / "src.tar")
+                self._register(ctx, "src_tar", "src.tar")
+            for w in res.warnings:
+                self._log(ctx, f"fetch warn: {w}")
+        finally:
+            # 自建实例随任务关连接池；注入的 self._fetcher 归调用方所有
+            if own_fetcher:
+                fetcher.close()
+
+    def _post_resolve_reuse(self, ctx: TaskCtx, entry: CacheEntry) -> bool:
+        """#74：latest-alias 任务 fetch 定版后按钉版键二次 dedup + re-key。
+
+        入队时 ``id``（无版本）与 ``id@vN`` 产不同 cache_key 材料——enqueue
+        的 ``find_reusable`` 拿 alias 键查不到钉版完成的产物。定版后补查
+        钉版键：命中 → ``ctx.reuse_hit`` 置位（``_stage_fetch`` 物化产物）；
+        未命中且无同键 ACTIVE 任务 → 本行 re-key 成钉版形，让后来的
+        ``id@vN`` 请求 enqueue 即命中（双向补齐 dedup 面）。
+
+        跳过条件：非 arxiv 任务（share 必须走 ``_share_apply`` 对账链，
+        不得吃 reuse 捷径）；``prefer=fresh``；无 cache_key（fresh 撞键
+        降级行）；键形同（本就钉版）。re-key 撞 ACTIVE 唯一索引 → 放弃
+        re-key 保留 alias 键（无妨——对方任务覆盖钉版方向）。
+        """
+        if ctx.row["kind"] != "arxiv":
+            return False
+        stored = str(ctx.row.get("cache_key") or "")
+        if not stored or str(ctx.options().get("prefer") or "reuse") == "fresh":
+            return False
+        resolved_key = cache_key_for(
+            arxiv_id=entry.arxiv_id,
+            version=entry.resolved_version,
+            model=str(ctx.row["model"]),
+            target_lang=str(ctx.row["target_lang"]),
+            api_key=ctx.secrets.api_key,
+        )
+        if resolved_key == stored:
+            return False
+        hit = self._on_loop(self.store.find_reusable, resolved_key)
+        if hit is not None:
+            ctx.reuse_hit = hit
+            return True
+        if self._on_loop(self.store.find_active_by_cache_key, resolved_key) is None:
+            try:
+                self._on_loop(
+                    self.store.update_fields, ctx.task_id, cache_key=resolved_key
+                )
+            except sqlite3.IntegrityError:
+                return False
+            ctx.row["cache_key"] = resolved_key
+        return False
+
+    def _materialize_reuse(self, ctx: TaskCtx, hit: dict[str, Any]) -> None:
+        """把命中任务的 files 产物物理拷进本任务目录并登记（worker 线程）。
+
+        下载面按 ``tasks/{id}/{path}`` 解析——只建行不拷文件会让产物
+        链接 404。盘上缺失的产物跳过（文件面以实拷为准）。
+        """
+        hit_root = self.data_dir / "tasks" / str(hit["id"])
+        for kind, f in self._on_loop(self.store.files, str(hit["id"])).items():
+            rel = Path(str(f["path"]))
+            src = hit_root / rel
+            dst = ctx.root / rel
+            if (
+                rel.is_absolute()
+                or ".." in rel.parts
+                or not dst.resolve().is_relative_to(ctx.root.resolve())
+            ):
+                self._log(ctx, f"reuse: 路径越界跳过 {rel}")
+                continue
+            if not src.is_file():
+                self._log(ctx, f"reuse: 产物缺失跳过 {rel}")
+                continue
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(src, dst)
+            self._register(ctx, kind, rel.as_posix())
+
+    def _finish_reuse(self, ctx: TaskCtx, hit: dict[str, Any]) -> None:
+        """post-resolve dedup 收尾：终态镜像命中行 + done 事件（loop 线程）。
+
+        cancel 竞态守卫同 ``_fail``——行已入终态则整条跳过（cancel 路径
+        已发 done），不复活用户取消的任务。
+        """
+        if self._current_status(ctx) in TERMINAL_STATUSES:
+            return
+        self._log(ctx, f"reuse: 命中任务 {hit['id']} 产物（post-resolve dedup）")
+        status = "done" if hit["status"] == "done" else "partial"
+        err: dict[str, Any] | None = None
+        if status == "partial" and hit.get("error_json"):
+            try:
+                raw = json.loads(str(hit["error_json"]))
+                err = raw if isinstance(raw, dict) else None
+            except json.JSONDecodeError:
+                err = None
+        upd: dict[str, Any] = {"progress": 100}
+        if hit.get("main_tex"):
+            upd["main_tex"] = str(hit["main_tex"])
+        if hit.get("title") and not ctx.row.get("title"):
+            upd["title"] = str(hit["title"])
+        # 行级持久化 reuse 命中标记——事后 share 打包端点据以拒自包（命中
+        # 任务的生效术语表不可知，错标 glossary_hash 比不打包更糟）。真跑
+        # 取源落 .fetch-done 时摘除（标记只描述当前产物的来历）。
+        opts = ctx.options()
+        opts["reuse_hit"] = str(hit["id"])
+        upd["options_json"] = json.dumps(opts, ensure_ascii=False)
+        ctx.row["options_json"] = upd["options_json"]
+        self.store.update_fields(ctx.task_id, **upd)
+        self.store.transition(
+            ctx.task_id,
+            status,
+            progress=100,
+            error=err,
+            force=True,
+            message="完成" if status == "done" else "部分完成",
+        )
+        self.bus.publish(
+            ctx.task_id,
+            "done",
+            {
+                "status": status,
+                "artifacts": self._artifact_urls(ctx),
+                "stats": self._stats(ctx),
+            },
+        )
+
+    def _fetch_upload(self, ctx: TaskCtx) -> None:
+        """upload_tex：解包 ``upload/`` blob → ``src/``；原文登记 src_tar。"""
+        uploads = sorted((ctx.root / "upload").glob("*"))
+        if not uploads:
+            msg = "upload payload missing"
+            raise _StageError(code="internal", message=msg)
+        blob_path = uploads[0]
+        data = blob_path.read_bytes()
+        ctx.src_dir.mkdir(parents=True, exist_ok=True)
+        warnings: list[str] = []
+        try:
+            s = sniff(data)
+        except SniffError:
+            s = None
+        if s is not None and s.kind in (BlobKind.TAR, BlobKind.SINGLE):
+            res = unpack_sniffed(s, ctx.src_dir, stem_hint=blob_path.name)
+            warnings = res.warnings
+        elif data[:4] == b"PK\x03\x04":
+            warnings = unpack_zip(data, ctx.src_dir)
+        elif _looks_text(data) or blob_path.suffix.lower() in (
+            ".tex",
+            ".ltx",
+            ".latex",
+            ".txt",
+        ):
+            (ctx.src_dir / _safe_name(blob_path.name)).write_bytes(data)
+        else:
+            msg = f"unrecognized upload format: {blob_path.name}"
+            raise _StageError(code="unsupported_format", message=msg)
+        for w in warnings:
+            self._log(ctx, f"unpack: {w}")
+        self._register(ctx, "src_tar", f"upload/{blob_path.name}")
