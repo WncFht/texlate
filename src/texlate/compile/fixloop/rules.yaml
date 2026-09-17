@@ -341,6 +341,25 @@ taxonomy:
       scope: head,
       pattern: "begin\\{[^}]*\\}.*ended by|Extra \\\\end",
     }
+  # ── 2026-09-17 wave-final 残面 (批七) ──
+  # env_undefined ×47: revtex4-2 把 abstract 环境仅 frontmatter 期
+  # let-bound (cls:2685 \let\abstract\@undefined), legacy-rewrite
+  # 后稿面 \maketitle→abstract 老版式全炸此签。payload=环境名。
+  - {
+      id: env_undefined,
+      scope: head,
+      payload_group: 1,
+      pattern: "Environment ([A-Za-z@*]+) undefined",
+    }
+  # pkg_obsolete ×6: TL 自带废弃包 stub 自报错 ("Package `amstex' is
+  # obsolete" / 直引号形) —— payload=包名, cs_targeted_fix 表查
+  # strip_pkg+usepackage。
+  - {
+      id: pkg_obsolete,
+      scope: head,
+      payload_group: 1,
+      pattern: "Package [`']([\\w-]+)' is obsolete",
+    }
   # ── 2026-09-16 signature-mining "other" 拆家 (§2.2) ── 精确字面签名须
   # 先于 syntax 宽词族评估 (syntax 含 Missing/Illegal 等词会抢签)。
   # file-line-error 形态 (无 '!' 前缀) 也走本段 —— _ERR_FILELINE_RE 已计。
@@ -790,6 +809,16 @@ rules:
               \ProvidesPackage{psfig}[2026/09/15 fixloop legacy shim -> epsfig]
               \RequirePackage{epsfig}
               \let\psfig\epsfig
+              \endinput
+          # \input psfig / \input{psfig.tex} 裸装载形 (批七 wave-final ×1):
+          # 同桥 epsfig —— \input 语境必在导言区 (psfig 史前装载惯例),
+          # \RequirePackage 合法; 若真有正文内 \input 会报 preamble-only 错
+          # 再议 (未观测)。
+          psfig.tex:
+            needs: ["epsfig.sty"]
+            body: |
+              % fixloop legacy shim: psfig.tex -> epsfig (官方 (e)psfig emulation)
+              \RequirePackage{epsfig}
               \endinput
           # ── 2026-09-16 n100 F1 扩列 ──────────────────────────────────
           # elsart 家族 → elsarticle: Elsevier 官方继任类, 明确兼容 elsart 稿
@@ -3292,7 +3321,12 @@ rules:
     description: "undefined_cs payload 命中 cs 修复表 → 剥包/装包/宏改写/polyfill 定向修"
     phase: loop
     order: 165 # journal_cs_polyfill(160) 之后, undefined_cs_guess(900) 之前
-    when: { category: undefined_cs, payload_required: true }
+    when:
+      any:
+        - { category: undefined_cs, payload_required: true }
+        # 批七扩类: pkg_obsolete payload=废弃包名, 同表 strip_pkg+usepackage
+        # 语义 (amstex→amsmath)。builtin 不验 category, 表查询与来源无关。
+        - { category: pkg_obsolete, payload_required: true }
     action:
       kind: builtin_transform
       function: cs_targeted_fix
@@ -3448,6 +3482,53 @@ rules:
           # 未定义 (acmart 自动计数, 老类手动设) —— 元数据提示宏, no-op 无损
           numberofauthors:
             { polyfill: "\n\\providecommand{\\numberofauthors}[1]{}" }
+          # pkg_obsolete 面 (批七, wave-final ×6): TL amstex.sty 本身即
+          # 废弃 stub 自报 "Package `amstex' is obsolete" → 剥装载点 +
+          # amsmath 补位 (amstex 功能是 amsmath 子集)。_drop_pkg_loads
+          # 覆盖 list/solo 两形。
+          amstex: { strip_pkg: "amstex", usepackage: "amsmath" }
+          # ── 批七 shim-surface 面 (1d 移交, 0707.0128 实证): iopams/
+          # setstack TL-missing, shim stub 落 wdir 但无公共 cs 面 →
+          # \Tref/\Fref/\Eref/\Sref/\br/\mr/\ns/\bb/\bc 连串 undefined_cs。
+          # iopart.cls 公共宏族抄值 —— 引用宏带参需 freeform polyfill
+          # (journal_cs_polyfill 表只产无参形), 各键互挂同一幂等块:
+          # \providecommand 重复注入无害; \n 前缀逃 docclass 行尾注释缝。
+          Tref:
+            {
+              polyfill: "\n\\providecommand{\\Tref}[1]{Table~\\ref{#1}}\n\\providecommand{\\Fref}[1]{Figure~\\ref{#1}}\n\\providecommand{\\Eref}[1]{Eq.~(\\ref{#1})}\n\\providecommand{\\Sref}[1]{Section~\\ref{#1}}\n\\providecommand{\\br}{\\hline}\n\\providecommand{\\mr}{\\hline}\n\\providecommand{\\ns}{\\\\}\n\\providecommand{\\bb}{}\n\\providecommand{\\bc}{}",
+            }
+          Fref:
+            {
+              polyfill: "\n\\providecommand{\\Tref}[1]{Table~\\ref{#1}}\n\\providecommand{\\Fref}[1]{Figure~\\ref{#1}}\n\\providecommand{\\Eref}[1]{Eq.~(\\ref{#1})}\n\\providecommand{\\Sref}[1]{Section~\\ref{#1}}\n\\providecommand{\\br}{\\hline}\n\\providecommand{\\mr}{\\hline}\n\\providecommand{\\ns}{\\\\}\n\\providecommand{\\bb}{}\n\\providecommand{\\bc}{}",
+            }
+          Eref:
+            {
+              polyfill: "\n\\providecommand{\\Tref}[1]{Table~\\ref{#1}}\n\\providecommand{\\Fref}[1]{Figure~\\ref{#1}}\n\\providecommand{\\Eref}[1]{Eq.~(\\ref{#1})}\n\\providecommand{\\Sref}[1]{Section~\\ref{#1}}\n\\providecommand{\\br}{\\hline}\n\\providecommand{\\mr}{\\hline}\n\\providecommand{\\ns}{\\\\}\n\\providecommand{\\bb}{}\n\\providecommand{\\bc}{}",
+            }
+          Sref:
+            {
+              polyfill: "\n\\providecommand{\\Tref}[1]{Table~\\ref{#1}}\n\\providecommand{\\Fref}[1]{Figure~\\ref{#1}}\n\\providecommand{\\Eref}[1]{Eq.~(\\ref{#1})}\n\\providecommand{\\Sref}[1]{Section~\\ref{#1}}\n\\providecommand{\\br}{\\hline}\n\\providecommand{\\mr}{\\hline}\n\\providecommand{\\ns}{\\\\}\n\\providecommand{\\bb}{}\n\\providecommand{\\bc}{}",
+            }
+          br:
+            {
+              polyfill: "\n\\providecommand{\\Tref}[1]{Table~\\ref{#1}}\n\\providecommand{\\Fref}[1]{Figure~\\ref{#1}}\n\\providecommand{\\Eref}[1]{Eq.~(\\ref{#1})}\n\\providecommand{\\Sref}[1]{Section~\\ref{#1}}\n\\providecommand{\\br}{\\hline}\n\\providecommand{\\mr}{\\hline}\n\\providecommand{\\ns}{\\\\}\n\\providecommand{\\bb}{}\n\\providecommand{\\bc}{}",
+            }
+          mr:
+            {
+              polyfill: "\n\\providecommand{\\Tref}[1]{Table~\\ref{#1}}\n\\providecommand{\\Fref}[1]{Figure~\\ref{#1}}\n\\providecommand{\\Eref}[1]{Eq.~(\\ref{#1})}\n\\providecommand{\\Sref}[1]{Section~\\ref{#1}}\n\\providecommand{\\br}{\\hline}\n\\providecommand{\\mr}{\\hline}\n\\providecommand{\\ns}{\\\\}\n\\providecommand{\\bb}{}\n\\providecommand{\\bc}{}",
+            }
+          ns:
+            {
+              polyfill: "\n\\providecommand{\\Tref}[1]{Table~\\ref{#1}}\n\\providecommand{\\Fref}[1]{Figure~\\ref{#1}}\n\\providecommand{\\Eref}[1]{Eq.~(\\ref{#1})}\n\\providecommand{\\Sref}[1]{Section~\\ref{#1}}\n\\providecommand{\\br}{\\hline}\n\\providecommand{\\mr}{\\hline}\n\\providecommand{\\ns}{\\\\}\n\\providecommand{\\bb}{}\n\\providecommand{\\bc}{}",
+            }
+          bb:
+            {
+              polyfill: "\n\\providecommand{\\Tref}[1]{Table~\\ref{#1}}\n\\providecommand{\\Fref}[1]{Figure~\\ref{#1}}\n\\providecommand{\\Eref}[1]{Eq.~(\\ref{#1})}\n\\providecommand{\\Sref}[1]{Section~\\ref{#1}}\n\\providecommand{\\br}{\\hline}\n\\providecommand{\\mr}{\\hline}\n\\providecommand{\\ns}{\\\\}\n\\providecommand{\\bb}{}\n\\providecommand{\\bc}{}",
+            }
+          bc:
+            {
+              polyfill: "\n\\providecommand{\\Tref}[1]{Table~\\ref{#1}}\n\\providecommand{\\Fref}[1]{Figure~\\ref{#1}}\n\\providecommand{\\Eref}[1]{Eq.~(\\ref{#1})}\n\\providecommand{\\Sref}[1]{Section~\\ref{#1}}\n\\providecommand{\\br}{\\hline}\n\\providecommand{\\mr}{\\hline}\n\\providecommand{\\ns}{\\\\}\n\\providecommand{\\bb}{}\n\\providecommand{\\bc}{}",
+            }
         # 表外 fallback (2026-09-16): glue 残骸前缀拆分 —— payload 未命中
         # cs_table 时, 若 cs = 已知粘连头 + 残余 (大写起首或 ≤4 字符) 则合成
         # cs_map 拆回 "head rest" (replay 实证 rmPT 型新残骸仍零星冒头,
@@ -3555,6 +3636,45 @@ rules:
         }
     stats: { fires: 1, status: verified }
     source_ref: "acro v3.8 acro.sty deprecated-key 表 (L5988+); format/short 实编通过; fixer-acro-v3 路由修复"
+
+  # 2026-09-17 wave-final 批七: legacy-rewrite 副产品 ×47 —— \documentstyle
+  # {revtex}→revtex4-2 后, revtex4-2.cls:2685 把 abstract 环境仅 frontmatter
+  # 期 let-bound (frontmatter@abstract, cls:3143 区域), \maketitle 后
+  # \let\abstract\@undefined → 稿面老版式 maketitle→abstract 炸
+  # Environment abstract undefined。preamble polyfill 无效 (cls 在
+  # \maketitle 主动 undefine, polyfill 先被清)。修形=源级重排:
+  # \begin{abstract}…\end{abstract} 连同与 \maketitle 间的间隔段
+  # (\pacs/\keywords 等 frontmatter 散件) 整体前移至 \maketitle 前
+  # —— revtex 系 canonical frontmatter 序。47/47 格核验均为
+  # maketitle-then-abstract。ctx_suggests 限定仅 abstract payload 点火,
+  # 其他 env_undefined (如 document/frontmatter) 不误排。
+  - id: abstract_frontmatter_hoist
+    description: "revtex4 系 abstract 环境仅 frontmatter 期存活 → abstract 块+间隔段前移 \\maketitle 前"
+    phase: loop
+    order: 168 # acro_v3_key_rename(167) 与 revtex4_array_swap_guard(170) 之间
+    when: { category: env_undefined }
+    condition: { ctx_suggests: "Environment abstract" }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "(?s)\\\\maketitle(.*?)\\\\begin\\{abstract\\}(.*?)\\\\end\\{abstract\\}",
+              repl: '\\begin{abstract}\g<2>\\end{abstract}\g<1>\\maketitle',
+            }
+    risk: medium # 摘要块物理前移改文档结构; gap 段 (\pacs 等) 随块落 frontmatter 区, revtex 系正解
+    known_gap: "abstract 体含 \\end{abstract} 字面嵌套/未配对括号时短匹截断; 稿面已是 abstract→maketitle 序时模式不中 → applied=False 无害"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "wave-final-2026-09-17 env_undefined ×47 (revtex4_legacy_class_rewrite 副面)",
+          error: "LaTeX Error: Environment abstract undefined (revtex4-2.cls:2685 \\let\\abstract\\@undefined post-frontmatter)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "revtex4-2.cls:2685/3143 frontmatter@abstract let-bound; 47/47 格 maketitle-then-abstract 序逐格核验"
 
   # repro-1306 (1e 移交, e2e 实证 0 err 7页): revtex4-1 4.1s 的
   # \document@inithook→\switch@array 对 array v2.6n 校验失败仍无条件 \let
@@ -3738,6 +3858,65 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "fixer-cjkfont 交付 (builtins.py f7822a8); 1d 转办 2026-09-16; greek 带 scout-misschar-coverage findings.yaml"
+
+  # ─── E(b) 残余安全网 (fixer-font-fallback-8bit 交付, 批七并入) ───
+  # CJK 码位落类/fontenc 内置 8-bit tfm 文本字体 (ec-lmr12/t1xr/futr8t/
+  # mdbchr8t/aer*/cmr*…) —— 缺字字体名无 [/: 前缀, cjk_glyph 条目的
+  # spec-font gate 不接; font_fallback 默认带只盖西里尔/组合/拉丁扩展,
+  # CJK 段带外 → 第三路兜底。inject f7822a8 (ctex+fandol 路由) 已根治
+  # wave-561368d 全部 42 个 E(b) 证据格 (CJK-in-tfm 残例=0) —— 本规则是
+  # 复发安全网, 非活跃修面。builtin 侧 fallback_cs/font_not params 已由
+  # fixer-misschar A2 批落地 (827674d): \ifdefined 守卫防撞名 + 逐字
+  # \newunicodechar 去重幂等。
+  - id: cjk_font_fallback
+    description: "CJK 缺字落 8-bit tfm 文本字体 (绑定污染残例) → newunicodechar 逐字回退 FandolSong"
+    phase: loop
+    order: 27 # font_fallback(26) 之后; CJK 段与非 CJK 带互不重叠, 两规独立挂
+    when:
+      any:
+        - { category: warn_missing_char }
+        - { category: warn_utf8 } # 同 missing_char_fix —— 类别排他 quirk 补漏
+    action:
+      kind: builtin_transform
+      function: font_fallback
+      params:
+        # 与 _MC_TABLE cjk_glyph 同款 CJK 段表 (语义超集, 勿回退 textutil.CJK_RANGES)
+        fallback_ranges:
+          - [0x2E80, 0x303F]
+          - [0x3040, 0x30FF]
+          - [0x3100, 0x31EF]
+          - [0x3200, 0x33FF]
+          - [0x3400, 0x4DBF]
+          - [0x4E00, 0x9FFF]
+          - [0xA000, 0xA4CF]
+          - [0xAC00, 0xD7AF]
+          - [0xF900, 0xFAFF]
+          - [0xFE30, 0xFE4F]
+          - [0xFF00, 0xFFEF]
+          - [0x20000, 0x2FA1F]
+        # 文件形式命名 (kpathsea 解析, 不依赖 fontconfig; 与 inject
+        # texlatecjk <->"[FandolSong-Regular.otf]" 同口径, bwrap 内实证可达)
+        fallback_font: "FandolSong-Regular.otf"
+        # 独立 cs 名 —— 与 font_fallback(26) 的 txlatefallback 实例并存不撞
+        fallback_cs: txlatecjkfb
+        # 缺字字体名已含 CJK 字体特征时跳过 —— 真缺字形不归本规管, 防自回环
+        font_not: "fandol|noto.*cjk|source.?han|uming|ukai|wqy|cjk"
+    risk: low # newunicodechar 逐字绑; 不碰 xeCJK 路由, 失败即回原缺字
+    known_gap: "死 \\selectfont 上下文内无效 (绑定锻造点, 真缺字发生在活上下文)"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "loop1 E(b) 42-cell census: 0806.3020(ec-lmr12) 1109.5500(t1xr) 2105.00099(futr8t/futrc8t) 1404.0161(mdbchr8t) 1511.02648(aer9) 2203.00075(t1-stixgeneral) 等",
+          error: "Missing character: There is no 这 (\"8FD9) in font futr8t!",
+        }
+      - {
+          corpus: "jpp/fourier 类 futr8t (T1/futs→futr8t tfm): \\title{\\bf 这是译文} 在 \\maketitle frontmatter vbox 首用绑定落 tfm",
+          error: "CJK 落非 spec 字体名 → cjk_glyph font-gate 跳过, font_fallback 带外",
+        }
+    stats: { fires: 0, status: proposed } # 当前波面零活例 —— inject 已根治
+    source_ref: "fixer-font-fallback-8bit-2026-09-17 fragment; builtin params=A2 (827674d fixer-misschar 迟交付)"
 
   # 2026-09-16 wave-3: early_eof 交互档 (hep-ph/0111248 bundled
   # aipcheck.tex) —— 稿自带 "press <return> to continue" \typein 终端读,
