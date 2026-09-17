@@ -1,5 +1,7 @@
 # gateway-3003 免费模型横评（en→zh LaTeX 段落翻译）
 
+> **⚠️ SUPERSEDED 2026-09-17**：免费默认推荐已改判 `swe-2-medium`（唯一 100% 硬契约，promo 至 2026-10-16）。现状唯一事实源 = [`free-model-ranking.md`](free-model-ranking.md)；本文仅留 glm 族契约/延迟实测作历史参考，勿再据此派工。
+
 日期：2026-09-14。探针 `tmp/exp/gwbench/gateway_xlat_glm.py`（串行、≥1s 间隔、timeout 180s、temp 0.2、max_tokens 8192），原始数据 `tmp/exp/gwbench/gateway_xlat_glm.json`（含全部译文全文/usage/reasoning 长度）。样例与前测逐字节一致（A/B/C = 1706.03762 chunk #15/#21/#58，D = 手写压力样例），评测方法同 `gateway-3003-xlat.md`。
 
 ## TL;DR

@@ -89,3 +89,4 @@
 | [codehealth.md](codehealth.md) | 代码健康 + 安全   | ruff 净；5 个真实安全发现                  |
 | [evidence.md](evidence.md)     | 数字对账          | HANDOFF 全部声明 MATCH                     |
 | [docs.md](docs.md)             | 文档漂移          | 里程碑标签/索引/工具链三处最需更新         |
+| [wave2-findings.md](wave2-findings.md) | 波二 9-scout 台账 | 发现处置路由全录（fixed/fixer/routed/deferred/wontfix） |
