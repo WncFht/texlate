@@ -1,0 +1,967 @@
+#!/usr/bin/env python3
+"""Read-only local status panel for texlate bench/fleet monitoring.
+
+stdlib-only. Serves a single self-refreshing HTML page on 127.0.0.1.
+All data sources are files or read-only commands; collectors are
+independently fault-isolated and cached.
+
+Run detached:
+    setsid nohup python3 bench/py/status_panel.py \
+        >> bench/results/status-panel/run.log 2>&1 </dev/null &
+Stop:
+    kill "$(cat bench/results/status-panel/panel.pid)"
+
+Task board convention: agents report progress via
+    python3 bench/py/task_ping.py <name> --status running --done N --total M
+(see bench/results/status-panel/README.md)
+"""
+
+from __future__ import annotations
+
+import collections
+import datetime as dt
+import glob
+import html
+import json
+import os
+import re
+import signal
+import subprocess
+import time
+import urllib.error
+import urllib.request
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parents[2]
+RESULTS_DIR = REPO / "bench" / "results"
+PANEL_DIR = RESULTS_DIR / "status-panel"
+PIDFILE = PANEL_DIR / "panel.pid"
+TASKS_DIR = PANEL_DIR / "tasks.d"
+N200_DIR = RESULTS_DIR / "realn200-2026-09-17"
+N200_PID = 439968
+SESSIONS_GLOB = os.path.expanduser("~/.claude/sessions/*.json")
+VENV_PY = REPO / ".venv" / "bin" / "python"
+REFRESH_SECONDS = 45
+STALE_TASK_SECONDS = 900
+HOST = "127.0.0.1"
+PORT = int(os.environ.get("PANEL_PORT", "8766"))
+
+C_CLEAN = "#2da44e"
+C_FAIL = "#cf222e"
+C_PART = "#d4a72c"
+C_SKIP = "#8b949e"
+C_INFO = "#0969da"
+C_PURPLE = "#8250df"
+
+STATUS_COLOR = {
+    "clean": C_CLEAN, "fail": C_FAIL, "partial": C_PART,
+    "skipped": C_SKIP, "reject": C_FAIL,
+}
+STATUS_ZH = {
+    "clean": "干净", "fail": "失败", "partial": "部分",
+    "skipped": "跳过", "reject": "拒收",
+}
+TASK_STATUS_COLOR = {
+    "starting": C_SKIP, "running": C_INFO, "blocked": C_PART,
+    "done": C_CLEAN, "failed": C_FAIL,
+}
+TASK_STATUS_ZH = {
+    "starting": "启动", "running": "运行", "blocked": "阻塞",
+    "done": "完成", "failed": "失败",
+}
+
+_cache: dict[str, tuple[float, object]] = {}
+
+
+def cached(key: str, ttl: float, fn):
+    now = time.time()
+    hit = _cache.get(key)
+    if hit and now - hit[0] < ttl:
+        return hit[1]
+    val = fn()
+    _cache[key] = (now, val)
+    return val
+
+
+def run_cmd(argv: list[str], timeout: float) -> str:
+    proc = subprocess.run(
+        argv, cwd=REPO, capture_output=True, text=True,
+        timeout=timeout, check=False,
+    )
+    out = (proc.stdout + proc.stderr).strip()
+    return out or f"(exit {proc.returncode}, no output)"
+
+
+def pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def fmt_age(ts: float) -> str:
+    delta = max(0, time.time() - ts)
+    if delta < 60:
+        return f"{delta:.0f} 秒前"
+    if delta < 3600:
+        return f"{delta / 60:.0f} 分钟前"
+    if delta < 86400:
+        return f"{delta / 3600:.1f} 小时前"
+    return f"{delta / 86400:.1f} 天前"
+
+
+def fmt_dur(seconds: float) -> str:
+    seconds = max(0, int(seconds))
+    h, rem = divmod(seconds, 3600)
+    m = rem // 60
+    return f"{h} 小时 {m:02d} 分" if h else f"{m} 分钟"
+
+
+def esc(s: object) -> str:
+    return html.escape(str(s))
+
+
+# ---------- html fragments
+
+
+def chip(label: str, value: str, sub: str = "", cls: str = "") -> str:
+    return (
+        f"<div class='chip {cls}'><div class='k'>{esc(label)}</div>"
+        f"<div class='v'>{esc(value)}</div>"
+        f"<div class='s'>{esc(sub)}</div></div>"
+    )
+
+
+def hbar(label: str, n: float, maxn: float, color: str, extra: str = "") -> str:
+    pct = n / maxn * 100 if maxn else 0
+    return (
+        f"<div class='hrow'><div class='hl'>{esc(label)}</div>"
+        f"<div class='hb'><div class='hf' style='width:{pct:.1f}%;"
+        f"background:{color}'></div></div>"
+        f"<div class='hn'>{n:g}{esc(extra)}</div></div>"
+    )
+
+
+def stacked(parts: list[tuple[str, int, str]], total: int) -> str:
+    segs, legend = [], []
+    for label, n, color in parts:
+        if not n or not total:
+            continue
+        w = n / total * 100
+        segs.append(
+            f"<div class='seg' style='width:{w:.2f}%;background:{color}' "
+            f"title='{esc(label)} {n}'></div>"
+        )
+        legend.append(
+            f"<span class='lg'><i style='background:{color}'></i>"
+            f"{esc(label)} {n}</span>"
+        )
+    return (
+        "<div class='stack'>" + "".join(segs) + "</div>"
+        "<div class='legend'>" + "".join(legend) + "</div>"
+    )
+
+
+def badge(text: str, color: str) -> str:
+    return (
+        f"<span class='bdg' style='background:{color}1a;color:{color};"
+        f"border-color:{color}55'>{esc(text)}</span>"
+    )
+
+
+def table(headers: list[str], rows: list[list[str]]) -> str:
+    th = "".join(f"<th>{esc(h)}</th>" for h in headers)
+    trs = "".join(
+        "<tr>" + "".join(f"<td>{c}</td>" for c in row) + "</tr>"
+        for row in rows
+    )
+    return f"<table><thead><tr>{th}</tr></thead><tbody>{trs}</tbody></table>"
+
+
+def minibar(done: float, total: float) -> str:
+    pct = min(done / total * 100, 100) if total else 0
+    return (
+        f"<div class='mb'><div class='mf' style='width:{pct:.0f}%'></div></div>"
+        f"<span class='mbn'>{done:g}/{total:g}</span>"
+    )
+
+
+# ---------- data collectors
+
+
+def scorecard_raw() -> str:
+    def collect() -> str:
+        if not VENV_PY.exists():
+            return f".venv python missing: {VENV_PY}"
+        return run_cmd([str(VENV_PY), "bench/py/gate_scorecard.py"], 180)
+
+    return cached("scorecard", 60, collect)
+
+
+def scorecard_data() -> dict:
+    raw = scorecard_raw()
+    m = re.search(
+        r"cells=(\d+)\s+pdf=(\d+)\s+\(([\d.]+)%\)\s+clean=(\d+)\s+\(([\d.]+)%\)",
+        raw,
+    )
+    gate = re.search(r"gate union-pdf >=(90)%: (\w+)", raw)
+    excl = re.search(
+        r"excl-reject\(n=(\d+)\): pdf ([\d.]+)%\s+clean ([\d.]+)%", raw
+    )
+    blocks: dict[str, list[tuple[str, int]]] = {}
+    cur: str | None = None
+    for line in raw.splitlines():
+        hdr = re.match(r"^([a-z][\w -]*):\s*$", line)
+        if hdr:
+            cur = hdr.group(1)
+            blocks[cur] = []
+            continue
+        item = re.match(r"^\s+(\d+)\s+(.+?)\s*$", line)
+        if cur and item:
+            blocks[cur].append((item.group(2), int(item.group(1))))
+    return {
+        "cells": int(m.group(1)) if m else 0,
+        "pdf_n": int(m.group(2)) if m else 0,
+        "pdf_pct": float(m.group(3)) if m else 0.0,
+        "clean_n": int(m.group(4)) if m else 0,
+        "clean_pct": float(m.group(5)) if m else 0.0,
+        "gate": gate.group(2) if gate else "?",
+        "excl": (
+            {"n": int(excl.group(1)), "pdf": excl.group(2), "clean": excl.group(3)}
+            if excl else None
+        ),
+        "end_state": blocks.get("end-state", []),
+        "top_sigs": blocks.get("top non-clean sigs", []),
+    }
+
+
+RATE_STATE = PANEL_DIR / "rate-state.json"
+RATE_WINDOW_S = 30 * 60
+RATE_KEEP_S = 6 * 3600
+RATE_MIN_SPAN_S = 120
+
+
+def _rate_sample(done: int) -> tuple[float | None, float]:
+    """追加 (ts, done) 采样 → (窗口速率/s, 窗口跨度) 或 (None, 0)。
+
+    records.jsonl 跨重启 append-only 而 run_meta.started_at 是重启点，
+    elapsed 口径在断点续跑后失真——改用最近 ``RATE_WINDOW_S`` 滑窗的
+    Δcount/Δt；窗口样本不足（<2 个或跨度 < ``RATE_MIN_SPAN_S``）回退
+    None 由调用侧走全程均速。
+    """
+    now = time.time()
+    try:
+        samples = json.loads(RATE_STATE.read_text())
+    except (OSError, json.JSONDecodeError):
+        samples = []
+    if not isinstance(samples, list):
+        samples = []
+    samples.append([now, done])
+    samples = [s for s in samples if now - s[0] <= RATE_KEEP_S]
+    try:
+        RATE_STATE.write_text(json.dumps(samples))
+    except OSError:
+        pass
+    win = [s for s in samples if now - s[0] <= RATE_WINDOW_S]
+    if len(win) >= 2 and (span := win[-1][0] - win[0][0]) >= RATE_MIN_SPAN_S:
+        return (win[-1][1] - win[0][1]) / span, span
+    return None, 0.0
+
+
+def n200_stats() -> dict:
+    def collect() -> dict:
+        records = N200_DIR / "records.jsonl"
+        meta = json.loads((N200_DIR / "run_meta.json").read_text())
+        recs = [
+            json.loads(line)
+            for line in records.read_bytes().splitlines()
+            if line.strip()
+        ]
+        total = len(meta.get("sample_ids", [])) or meta.get("n_requested") or 0
+        started = dt.datetime.fromisoformat(meta["started_at"])
+        elapsed = (dt.datetime.now(dt.UTC) - started).total_seconds()
+        top = collections.Counter(r.get("status", "?") for r in recs)
+        fix_stat = collections.Counter()
+        base_stat = collections.Counter()
+        chunks = collections.Counter()
+        reasons = collections.Counter()
+        strip = []
+        xlat_secs = 0.0
+        xlat_exec = pdf_pipe = pdf_union = 0
+        for r in recs:
+            px = r.get("pipe-xel") or {}
+            t = px.get("translate") or {}
+            xlat_secs += t.get("seconds", 0) or 0
+            if t.get("chunks"):
+                xlat_exec += 1
+            for k in ("ok", "partial", "fault", "skipped", "chunks", "leftover_ph"):
+                chunks[k] += t.get(k, 0) or 0
+            pipe_pdf = bool((px.get("compile") or {}).get("pdf_bytes"))
+            fix_pdf = bool(
+                ((r.get("pipe-fix") or {}).get("compile") or {}).get("pdf_bytes")
+            )
+            pdf_pipe += pipe_pdf
+            pdf_union += pipe_pdf or fix_pdf
+            v = px.get("verdict") or {}
+            for rs in v.get("reasons", []):
+                reasons[re.sub(r"\s*\(\d+\)\s*$", "", rs)] += 1
+            if "pipe-fix" in r:
+                fix_stat[(r.get("pipe-fix") or {}).get("status", "?")] += 1
+            if "base-xel" in r:
+                base_stat[(r.get("base-xel") or {}).get("status", "?")] += 1
+            strip.append((r.get("id", "?"), r.get("status", "?")))
+        seen_ids: set[str] = set()
+        in_flight: list[str] = []
+        log = N200_DIR / "run.log"
+        if log.exists():
+            lines = log.read_text(errors="replace").splitlines()
+            last_result = -1
+            for i, line in enumerate(lines):
+                m = re.match(r"===== \[(\d+)/\d+\] (\S+)(.*)", line)
+                if m:
+                    seen_ids.add(m.group(2))
+                    if "->" in m.group(3):  # `cached -> status` inline
+                        last_result = i
+                    continue
+                if re.match(r"\s*->\s*status=", line):
+                    last_result = i
+            for line in lines[last_result + 1:]:
+                m = re.match(r"===== \[\d+/\d+\] (\S+)", line)
+                if m:
+                    in_flight.append(m.group(1))
+        queued = [i for i in meta.get("sample_ids", []) if i not in seen_ids]
+        rate_ps, rate_span = _rate_sample(len(recs))
+        return {
+            "done": len(recs), "total": total, "elapsed": elapsed,
+            "rate_ps": rate_ps, "rate_span": rate_span,
+            "started": started, "top": top, "fix": fix_stat,
+            "base": base_stat, "chunks": chunks, "reasons": reasons,
+            "strip": strip, "meta": meta, "xlat_secs": xlat_secs,
+            "xlat_exec": xlat_exec, "pdf_pipe": pdf_pipe,
+            "pdf_union": pdf_union, "mtime": records.stat().st_mtime,
+            "in_flight": in_flight, "queued": queued,
+        }
+
+    return cached("n200", 30, collect)
+
+
+def gw_status() -> str:
+    def probe() -> str:
+        meta = n200_stats()["meta"]
+        base = (meta.get("base_url") or "").rstrip("/")
+        if not base:
+            return "未知"
+        try:
+            with urllib.request.urlopen(base + "/", timeout=3) as resp:
+                return f"可达 HTTP {resp.status}"
+        except urllib.error.HTTPError as exc:
+            return f"可达 HTTP {exc.code}"
+        except Exception:
+            return "不可达"
+
+    return cached("gw", 60, probe)
+
+
+def milestones() -> list[tuple[str, str]]:
+    files = sorted(glob.glob(str(REPO / "docs/HANDOFF-*.md")))
+    status_map = {
+        "已验收": "done", "实质达成": "done", "达成": "done",
+        "完成": "done", "推进中": "active", "在飞": "active",
+        "未启": "pending", "规划": "pending",
+    }
+    found: dict[str, str] = {}
+    if files:
+        text = Path(files[-1]).read_text(errors="replace")[:4000]
+        for m in re.finditer(
+            r"M(\d)(?:/M(\d))?\s*(已验收|实质达成|达成|推进中|在飞|完成|未启\w*|规划\w*)",
+            text,
+        ):
+            state = status_map.get(m.group(3), "pending")
+            found[f"M{m.group(1)}"] = (m.group(3), state)
+            if m.group(2):
+                found[f"M{m.group(2)}"] = (m.group(3), state)
+    if not found:
+        found = {
+            "M0": ("已验收", "done"), "M1": ("实质达成", "done"),
+            "M2": ("推进中", "active"), "M3": ("推进中", "active"),
+        }
+    return [(k, *v) for k, v in sorted(found.items())]
+
+
+def tasks() -> list[dict]:
+    out = []
+    if not TASKS_DIR.exists():
+        return out
+    for f in TASKS_DIR.glob("*.json"):
+        try:
+            t = json.loads(f.read_text())
+            t["_file"] = f.stem
+            out.append(t)
+        except (OSError, json.JSONDecodeError):
+            continue
+    rank = {"starting": 0, "running": 0, "blocked": 1, "failed": 2, "done": 3}
+    out.sort(key=lambda t: (rank.get(t.get("status"), 4), -t.get("ts", 0)))
+    return out
+
+
+# ---------- page sections
+
+
+def sec_chips() -> str:
+    chips: list[str] = []
+    sc = scorecard_data()
+    gate_ok = sc["gate"] == "PASS"
+    chips.append(chip(
+        "M2 联合 PDF",
+        f"{sc['pdf_pct']:.2f}%",
+        f"{sc['pdf_n']}/{sc['cells']} · 门槛 ≥90% {sc['gate']}",
+        "good" if gate_ok else "bad",
+    ))
+    chips.append(chip(
+        "clean 率", f"{sc['clean_pct']:.2f}%",
+        f"{sc['clean_n']}/{sc['cells']}",
+    ))
+    st = n200_stats()
+    chips.append(chip(
+        "n200 进度", f"{st['done']}/{st['total']}",
+        f"{st['done'] / st['total'] * 100:.0f}% · 已跑 {fmt_dur(st['elapsed'])}",
+    ))
+    c = st["chunks"]
+    if c["chunks"]:
+        ok_ph = not c["leftover_ph"] and not c["fault"]
+        chips.append(chip(
+            "chunk 通过", f"{c['ok'] / c['chunks'] * 100:.2f}%",
+            f"残留占位符 {c['leftover_ph']}",
+            "good" if ok_ph else "bad",
+        ))
+    df_tmp = run_cmd(["df", "-h", "/tmp"], 5).splitlines()
+    if len(df_tmp) > 1:
+        pct = int(re.search(r"(\d+)%", df_tmp[1]).group(1))
+        chips.append(chip(
+            "tmpfs /tmp", f"{pct}%",
+            f"剩 {df_tmp[1].split()[3]}",
+            "bad" if pct >= 80 else "",
+        ))
+    load = Path("/proc/loadavg").read_text().split()
+    chips.append(chip("负载", load[0], f"5m {load[1]} · 15m {load[2]}"))
+    gw = gw_status()
+    chips.append(chip(
+        "翻译网关", "在线" if gw.startswith("可达") else "离线",
+        f"{gw} · swe-2-medium",
+        "good" if gw.startswith("可达") else "bad",
+    ))
+    return "<div class='chips'>" + "".join(chips) + "</div>"
+
+
+def sec_milestones() -> str:
+    steps = []
+    for name, zh, state in milestones():
+        cls = {"done": "ms-done", "active": "ms-act", "pending": "ms-pend"}[state]
+        extra = ""
+        if name == "M2":
+            sc = scorecard_data()
+            extra = (
+                f"<div class='msx'>联合 pdf {sc['pdf_pct']:.2f}% "
+                f"(门≥90%) " +
+                (badge("PASS", C_CLEAN) if sc["gate"] == "PASS"
+                 else badge("FAIL", C_FAIL))
+                + "</div>"
+            )
+        steps.append(
+            f"<div class='ms {cls}'><div class='msn'>{esc(name)}</div>"
+            f"<div class='mss'>{esc(zh)}</div>{extra}</div>"
+        )
+    return "<div class='msrow'>" + "<div class='msarr'>→</div>".join(steps) + "</div>"
+
+
+def sec_tasks() -> str:
+    ts = tasks()
+    hint = (
+        "<div class='cap'>上报：<code>python3 bench/py/task_ping.py "
+        "&lt;名&gt; --status running --done N --total M --note …"
+        "</code> · 完结 <code>--finish</code> · 撤下 <code>--remove</code>"
+        "（约定见 bench/results/status-panel/README.md）</div>"
+    )
+    if not ts:
+        return hint + "<div class='prow'>看板为空</div>"
+    rows = []
+    now = time.time()
+    for t in ts:
+        status = t.get("status", "?")
+        stale = status in ("starting", "running", "blocked") and now - t.get(
+            "ts", now
+        ) > STALE_TASK_SECONDS
+        total, done = t.get("total") or 0, t.get("done") or 0
+        prog = minibar(done, total) if total else esc(done)
+        sb = badge(TASK_STATUS_ZH.get(status, status),
+                   TASK_STATUS_COLOR.get(status, C_SKIP))
+        if stale:
+            sb += " " + badge("静默>15m", C_PART)
+        note = str(t.get("note") or "")[:60]
+        rows.append([
+            f"<b>{esc(t.get('name', '?'))}</b>",
+            esc(t.get("owner", "?")),
+            prog, sb, esc(fmt_age(t.get("ts", now))), esc(note),
+        ])
+    return table(["任务", "属主", "进度", "状态", "上报", "备注"], rows) + hint
+
+
+def sec_n200() -> str:
+    st = n200_stats()
+    done, total = st["done"], st["total"]
+    if st["rate_ps"] is not None:
+        rate = st["rate_ps"] * 3600
+        basis = f"近{fmt_dur(st['rate_span'])}均速"
+    else:
+        rate = done / st["elapsed"] * 3600 if st["elapsed"] > 0 else 0
+        basis = "全程均速"
+    eta_s = (total - done) / (rate / 3600) if rate > 0 else 0
+    eta_at = dt.datetime.now() + dt.timedelta(seconds=eta_s)
+    conc = st["meta"].get("concurrency")
+    pid, note = N200_PID, "钉选"
+    if not pid_alive(pid):
+        probe = run_cmd(["pgrep", "-f", "e2e_real_bench.*realn200"], 5).split()
+        pid, note = (int(probe[0]), "自动发现") if probe else (0, "未发现")
+    alive = pid and pid_alive(pid)
+    parts = [
+        f"<div class='prow'><b>{done}</b> / {total} 篇 "
+        f"({done / total * 100:.1f}%) — 速率 {rate:.1f} 篇/时({basis}) · "
+        f"并发 {conc if conc is not None else '?'} · "
+        f"已跑 {fmt_dur(st['elapsed'])} · 预计剩余 {fmt_dur(eta_s)} "
+        f"(约 {eta_at.strftime('%m-%d %H:%M')}) · "
+        f"runner pid {pid or '-'}({note}) "
+        + (badge("存活", C_CLEAN) if alive else badge("已退出", C_FAIL))
+        + " · 网关 " + badge(gw_status(), C_CLEAN if gw_status().startswith("可达") else C_FAIL)
+        + f" · 最后写入 {fmt_age(st['mtime'])}</div>"
+    ]
+    if st["in_flight"]:
+        parts.append(
+            "<div class='prow'>正在处理："
+            + " ".join(f"<code>{esc(i)}</code>" for i in st["in_flight"])
+            + f" · 队列待跑 {len(st['queued'])} 篇"
+            + ("（下批 " + " ".join(
+                f"<code>{esc(i)}</code>" for i in st["queued"][:4]
+            ) + "…）" if st["queued"] else "")
+            + "</div>"
+        )
+    funnel = [
+        ("采样", total, C_SKIP),
+        ("已产出记录", done, C_INFO),
+        ("翻译执行", st["xlat_exec"], C_PURPLE),
+        ("pipe-xel 出 PDF", st["pdf_pipe"], C_PART),
+        ("联合 PDF(+fixloop)", st["pdf_union"], C_CLEAN),
+    ]
+    parts.append(
+        "<div class='cap'>阶段漏斗</div>"
+        + "".join(hbar(k, v, total, c) for k, v, c in funnel)
+    )
+    parts.append(
+        "<div class='cap'>逐篇状态（按完成序）</div>"
+        "<div class='strip'>"
+        + "".join(
+            f"<i style='background:{STATUS_COLOR.get(s, C_SKIP)}' "
+            f"title='{esc(i)} · {esc(STATUS_ZH.get(s, s))}'></i>"
+            for i, s in st["strip"]
+        )
+        + "</div>"
+    )
+    order = ["clean", "partial", "fail"]
+    parts.append(
+        "<div class='cap'>编译判分</div>"
+        + stacked(
+            [(STATUS_ZH.get(k, k), st["top"].get(k, 0), STATUS_COLOR[k])
+             for k in order]
+            + [(k, v, C_SKIP) for k, v in st["top"].most_common()
+               if k not in order],
+            done,
+        )
+    )
+    c = st["chunks"]
+    if c["chunks"]:
+        parts.append(
+            "<div class='cap'>翻译 chunk</div>"
+            + stacked(
+                [("通过", c["ok"], C_CLEAN), ("部分", c["partial"], C_PART),
+                 ("故障", c["fault"], C_FAIL), ("跳过", c["skipped"], C_SKIP)],
+                c["chunks"],
+            )
+            + f"<div class='prow'>残留占位符 leftover_ph = "
+            f"<b>{c['leftover_ph']}</b>（硬门=0）· "
+            f"翻译累计 {st['xlat_secs'] / 60:.0f} 分钟</div>"
+        )
+    if st["fix"]:
+        parts.append(
+            "<div class='cap'>fixloop 修复臂 vs base 直编对照"
+            f"（各 {sum(st['fix'].values())} 格）</div>"
+            "<div class='two'>"
+            + stacked(
+                [(STATUS_ZH.get(k, k), v, STATUS_COLOR.get(k, C_SKIP))
+                 for k, v in st["fix"].most_common()],
+                sum(st["fix"].values()),
+            )
+            + stacked(
+                [(STATUS_ZH.get(k, k), v, STATUS_COLOR.get(k, C_SKIP))
+                 for k, v in st["base"].most_common()],
+                sum(st["base"].values()),
+            )
+            + "</div>"
+        )
+    if st["reasons"]:
+        mx = st["reasons"].most_common(1)[0][1]
+        parts.append(
+            "<div class='cap'>非 clean 原因</div>"
+            + "".join(
+                hbar(k, v, mx, C_FAIL) for k, v in st["reasons"].most_common(8)
+            )
+        )
+    return "".join(parts)
+
+
+def sec_jobs() -> str:
+    out = run_cmd(["ps", "-eo", "pid,etime,%cpu,%mem,args", "--sort", "pid"], 5)
+    keep = re.compile(
+        r"bench/py/|e2e_real_bench|stagerun|texlate web|status_panel|compilebench"
+    )
+    drop = re.compile(r"vscode-server|jedi|pylint|lsp_server|ps -eo|grep")
+    rows = []
+    for line in out.splitlines()[1:]:
+        if not (keep.search(line) and not drop.search(line)):
+            continue
+        f = line.split(None, 4)
+        if len(f) < 5:
+            continue
+        cmd = f[4]
+        m = re.search(
+            r"(e2e_real_bench\.py --tag \w+|texlate web.*port \d+|"
+            r"status_panel\.py|stagerun[^ ]*|compilebench[^ ]*|"
+            r"bench/py/[\w.]+)",
+            cmd,
+        )
+        short = m.group(0) if m else cmd[-60:]
+        rows.append([
+            esc(f[0]), esc(f[1]), esc(f[2]), esc(f[3]),
+            f"<code>{esc(short)}</code>",
+        ])
+    if not rows:
+        return "<div class='prow'>没有在跑的 bench 进程</div>"
+    return table(["pid", "已运行", "%cpu", "%mem", "命令"], rows)
+
+
+def sec_sessions() -> str:
+    rows = []
+    for path in sorted(glob.glob(SESSIONS_GLOB)):
+        try:
+            s = json.loads(Path(path).read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        pid = s.get("pid", 0)
+        alive = isinstance(pid, int) and pid_alive(pid)
+        status = s.get("status", "?")
+        scls = {"busy": C_INFO, "idle": C_CLEAN, "shell": C_PART}.get(
+            status, C_SKIP
+        )
+        rows.append((
+            {"busy": 0, "idle": 1}.get(status, 2),
+            [
+                f"<b>{esc(s.get('name') or s.get('sessionId', '?')[:12])}</b>",
+                badge(status, scls),
+                esc(pid),
+                badge("存活", C_CLEAN) if alive else badge("僵死", C_FAIL),
+                esc(fmt_age(s.get("updatedAt", 0) / 1000)
+                    if s.get("updatedAt") else "-"),
+                f"<code>{esc(s.get('cwd', '?').replace('/home/fanghaotian/', '~/'))}</code>",
+            ],
+        ))
+    rows = [r for _, r in sorted(rows, key=lambda t: t[0])]
+    return (
+        table(["会话", "状态", "pid", "进程", "活跃", "目录"], rows)
+        if rows else "无会话文件"
+    )
+
+
+def sec_reports() -> str:
+    dirs = [
+        d for d in RESULTS_DIR.iterdir()
+        if d.is_dir() and d.name != "status-panel"
+    ]
+    dirs.sort(key=lambda d: d.stat().st_mtime, reverse=True)
+    rows = []
+    for d in dirs[:12]:
+        title = ""
+        for cand in ("report.md", "summary.md", "README.md", "REPORT.md"):
+            f = d / cand
+            if f.exists():
+                for ln in f.read_text(errors="replace").splitlines():
+                    ln = ln.strip().lstrip("#").strip()
+                    if ln:
+                        title = ln[:90]
+                        break
+                break
+        if not title:
+            files = sorted(p.name for p in d.iterdir() if p.is_file())[:3]
+            title = "产物: " + ", ".join(files) + ("…" if len(files) == 3 else "")
+        rows.append([
+            esc(fmt_age(d.stat().st_mtime)),
+            f"<code>{esc(d.name)}</code>",
+            esc(title),
+        ])
+    return table(["更新", "目录", "摘要"], rows)
+
+
+def sec_scorecard() -> str:
+    sc = scorecard_data()
+    parts = [
+        f"<div class='prow'>cells <b>{sc['cells']}</b> · "
+        f"pdf <b>{sc['pdf_n']}</b> ({sc['pdf_pct']:.2f}%) · "
+        f"clean <b>{sc['clean_n']}</b> ({sc['clean_pct']:.2f}%) · "
+        f"门 union-pdf ≥90%: "
+        + (badge("PASS", C_CLEAN) if sc["gate"] == "PASS"
+           else badge(sc["gate"], C_FAIL))
+        + (f" · 剔除 reject(n={sc['excl']['n']}): pdf {sc['excl']['pdf']}% "
+           f"clean {sc['excl']['clean']}%" if sc["excl"] else "")
+        + "</div>"
+    ]
+    parts.append(
+        "<div class='gatebar'><div class='gfill' "
+        f"style='width:{min(sc['pdf_pct'], 100):.2f}%'></div>"
+        "<div class='gmark' style='left:90%'></div>"
+        f"<span class='gtxt'>pdf {sc['pdf_pct']:.2f}% ｜ 竖线=90% 门</span></div>"
+    )
+    if sc["end_state"]:
+        mx = max(n for _, n in sc["end_state"])
+        parts.append(
+            "<div class='cap'>终态分布</div>"
+            + "".join(
+                hbar(k, n, mx, C_CLEAN if "clean" in k else
+                     C_PART if "partial" in k else
+                     C_FAIL if ("fail" in k or "reject" in k) else C_SKIP)
+                for k, n in sc["end_state"]
+            )
+        )
+    if sc["top_sigs"]:
+        mx = sc["top_sigs"][0][1]
+        parts.append(
+            "<div class='cap'>非 clean 签名 top</div>"
+            + "".join(hbar(k, n, mx, C_INFO) for k, n in sc["top_sigs"][:12])
+        )
+    return "".join(parts)
+
+
+def sec_resources() -> str:
+    df_tmp = run_cmd(["df", "-h", "/tmp"], 5).splitlines()
+    free = run_cmd(["free", "-g"], 5).splitlines()
+    load = Path("/proc/loadavg").read_text().split()
+    parts = []
+    if len(df_tmp) > 1:
+        f = df_tmp[1].split()
+        pct = int(re.search(r"(\d+)%", df_tmp[1]).group(1))
+        parts.append(
+            "<div class='cap'>/tmp（usrquota tmpfs，EDQUOT 风险点）</div>"
+            + hbar(f"/tmp {f[2]}/{f[1]}", pct, 100,
+                   C_FAIL if pct >= 80 else C_PART if pct >= 60 else C_CLEAN,
+                   f"% · 剩 {f[3]}")
+        )
+    if len(free) > 1:
+        f = free[1].split()
+        parts.append(
+            "<div class='cap'>内存 GiB</div>"
+            + hbar(f"已用 {f[2]}/{f[1]}", int(f[2]), int(f[1]), C_INFO,
+                   f"G · 可用 {f[6]}G")
+        )
+    df_repo = run_cmd(["df", "-h", str(REPO)], 5).splitlines()
+
+    def du() -> str:
+        try:
+            return run_cmd(["du", "-shx", str(REPO)], 30).split()[0]
+        except (subprocess.TimeoutExpired, IndexError):
+            return "?"
+
+    if len(df_repo) > 1:
+        f = df_repo[1].split()
+        pct = int(re.search(r"(\d+)%", df_repo[1]).group(1))
+        parts.append(
+            "<div class='cap'>仓库盘</div>"
+            + hbar(f"fs {f[2]}/{f[1]}", pct, 100,
+                   C_FAIL if pct >= 90 else C_PART if pct >= 75 else C_CLEAN,
+                   f"% · 仓体 {cached('du', 600, du)}")
+        )
+    parts.append(
+        f"<div class='prow'>loadavg {load[0]} / {load[1]} / {load[2]} "
+        f"（{load[3]} tasks）</div>"
+    )
+    return "".join(parts)
+
+
+def sec_ledger() -> str:
+    files = sorted(glob.glob(str(REPO / "docs/research/overseer-*.md")))
+    if not files:
+        return "无 overseer-*.md"
+    path = Path(files[-1])
+    tail = path.read_text(errors="replace").splitlines()[-18:]
+    return (
+        f"<div class='cap'>{esc(path.name)} 尾部</div>"
+        f"<pre>{esc(chr(10).join(tail))}</pre>"
+    )
+
+
+SECTIONS = [
+    ("里程碑", sec_milestones),
+    ("任务看板（agent 上报）", sec_tasks),
+    ("实时跑批 · realn200", sec_n200),
+    ("M2 门 · scorecard", sec_scorecard),
+    ("在跑进程", sec_jobs),
+    ("舰队花名册", sec_sessions),
+    ("最新产出 bench/results", sec_reports),
+    ("资源", sec_resources),
+    ("台账摘要", sec_ledger),
+]
+
+PAGE = """<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta http-equiv="refresh" content="{refresh}">
+<title>texlate 状态面板</title>
+<style>
+body {{ font: 14px/1.5 -apple-system,"Segoe UI","Noto Sans CJK SC",
+       "PingFang SC",sans-serif; margin: 1.2em auto; max-width: 1180px;
+       padding: 0 1em; color: #1f2328; background: #fff; }}
+h1 {{ font-size: 1.15em; margin: 0 0 .15em; }}
+h2 {{ font-size: 1em; margin: 1.2em 0 .35em; color: #0550ae;
+     border-bottom: 1px solid #e5e7ea; padding-bottom: .15em; }}
+code, pre {{ font-family: ui-monospace,"SF Mono",monospace;
+           font-size: .92em; }}
+pre {{ background: #f6f8fa; border: 1px solid #d8dce0; border-radius: 6px;
+      padding: .55em .75em; overflow-x: auto; margin: 0; }}
+a {{ color: #0969da; }}
+.meta {{ color: #656d76; font-size: .85em; }}
+.chips {{ display: flex; flex-wrap: wrap; gap: .6em; margin: .8em 0 .4em; }}
+.chip {{ border: 1px solid #d8dce0; border-radius: 8px; padding: .45em .8em;
+        background: #fff; min-width: 9em;
+        box-shadow: 0 1px 2px #00000008; }}
+.chip .k {{ font-size: .72em; color: #656d76; }}
+.chip .v {{ font-size: 1.3em; font-weight: 650; font-variant-numeric:
+           tabular-nums; }}
+.chip .s {{ font-size: .75em; color: #656d76; }}
+.chip.good .v {{ color: {c_clean}; }}
+.chip.bad .v {{ color: {c_fail}; }}
+.cap {{ font-size: .8em; color: #656d76; margin: .7em 0 .25em; }}
+.prow {{ margin: .35em 0; font-size: .93em; }}
+.stack {{ display: flex; height: 14px; border-radius: 7px; overflow: hidden;
+         background: #eef1f4; margin: .25em 0 .15em; }}
+.seg {{ height: 100%; }}
+.legend {{ font-size: .8em; color: #444; display: flex; gap: 1.1em;
+          flex-wrap: wrap; }}
+.lg i {{ display: inline-block; width: .75em; height: .75em;
+        border-radius: 2px; margin-right: .3em; vertical-align: -1px; }}
+.two {{ display: grid; grid-template-columns: 1fr 1fr; gap: 0 2em; }}
+.strip {{ display: flex; flex-wrap: wrap; gap: 2px; margin: .2em 0; }}
+.strip i {{ width: 14px; height: 14px; border-radius: 3px; }}
+.hrow {{ display: flex; align-items: center; gap: .6em; margin: .12em 0; }}
+.hl {{ width: 21em; font-size: .85em; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap; }}
+.hb {{ flex: 1; height: 11px; background: #eef1f4; border-radius: 5px;
+      overflow: hidden; }}
+.hf {{ height: 100%; }}
+.hn {{ width: 10em; font-size: .82em; color: #444;
+      font-variant-numeric: tabular-nums; }}
+.gatebar {{ position: relative; height: 20px; background: #eef1f4;
+           border-radius: 6px; margin: .4em 0 .2em; overflow: hidden; }}
+.gfill {{ height: 100%; background: linear-gradient(90deg,#2da44e99,#2da44e); }}
+.gmark {{ position: absolute; top: 0; bottom: 0; width: 2px;
+         background: {c_fail}; }}
+.gtxt {{ position: absolute; left: .6em; top: 1px; font-size: .78em;
+        color: #fff; text-shadow: 0 0 3px #0006; }}
+table {{ border-collapse: collapse; font-size: .86em; width: 100%; }}
+th {{ text-align: left; color: #656d76; font-weight: 600; font-size: .8em;
+     border-bottom: 1px solid #d8dce0; padding: .25em .7em .25em 0; }}
+td {{ padding: .22em .7em .22em 0; border-bottom: 1px solid #eef1f4;
+     vertical-align: middle; }}
+.bdg {{ display: inline-block; border: 1px solid; border-radius: 9px;
+       padding: 0 .55em; font-size: .78em; line-height: 1.5; }}
+.mb {{ display: inline-block; width: 8em; height: 8px; background: #eef1f4;
+      border-radius: 4px; overflow: hidden; vertical-align: middle; }}
+.mf {{ height: 100%; background: {c_info}; }}
+.mbn {{ font-size: .82em; color: #444; margin-left: .4em; }}
+.msrow {{ display: flex; align-items: stretch; gap: .4em; margin: .3em 0; }}
+.ms {{ border: 1px solid #d8dce0; border-radius: 8px; padding: .4em .9em;
+      min-width: 6.5em; }}
+.ms .msn {{ font-weight: 700; font-size: 1.05em; }}
+.ms .mss {{ font-size: .8em; color: #656d76; }}
+.ms .msx {{ font-size: .78em; margin-top: .2em; }}
+.ms-done {{ background: #f0fff4; border-color: #2da44e55; }}
+.ms-done .msn {{ color: {c_clean}; }}
+.ms-act {{ background: #fff8e6; border-color: #d4a72c88; }}
+.ms-act .msn {{ color: {c_part}; }}
+.ms-pend {{ color: #8b949e; }}
+.msarr {{ align-self: center; color: #8b949e; }}
+</style></head><body>
+<h1>texlate 状态面板</h1>
+<div class="meta">生成于 {now} · 每 {refresh}s 自刷 · 数据缓存 ≤60s ·
+只读 · <a href="http://127.0.0.1:8765/">产品阅读器 :8765</a></div>
+{chips}
+{body}
+</body></html>
+"""
+
+
+def render() -> str:
+    parts = []
+    for title, fn in SECTIONS:
+        try:
+            frag = fn()
+        except Exception as exc:  # section isolation: never 500 the page
+            frag = f"<pre style='color:{C_FAIL}'>采集异常: {esc(repr(exc))}</pre>"
+        parts.append(f"<h2>{esc(title)}</h2>{frag}")
+    now = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return PAGE.format(
+        refresh=REFRESH_SECONDS, now=now,
+        c_clean=C_CLEAN, c_fail=C_FAIL, c_part=C_PART, c_info=C_INFO,
+        chips=sec_chips(), body="\n".join(parts),
+    )
+
+
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self) -> None:
+        if self.path == "/healthz":
+            body, ctype = b"ok\n", "text/plain"
+        elif self.path in ("/", "/index.html"):
+            body, ctype = render().encode(), "text/html; charset=utf-8"
+        else:
+            self.send_error(404)
+            return
+        self.send_response(200)
+        self.send_header("content-type", ctype)
+        self.send_header("content-length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, fmt: str, *args) -> None:
+        print(
+            f"[{dt.datetime.now():%H:%M:%S}] {self.address_string()} {fmt % args}",
+            flush=True,
+        )
+
+
+def _stop(*_args) -> None:
+    PIDFILE.unlink(missing_ok=True)
+    raise SystemExit(0)
+
+
+def main() -> None:
+    PANEL_DIR.mkdir(parents=True, exist_ok=True)
+    PIDFILE.write_text(str(os.getpid()))
+    signal.signal(signal.SIGTERM, _stop)
+    signal.signal(signal.SIGINT, _stop)
+    server = ThreadingHTTPServer((HOST, PORT), Handler)
+    print(
+        f"[{dt.datetime.now():%F %T}] serving http://{HOST}:{PORT} pid={os.getpid()}",
+        flush=True,
+    )
+    server.serve_forever()
+
+
+if __name__ == "__main__":
+    main()
