@@ -21,9 +21,11 @@ import logging
 import re
 import shutil
 import sqlite3
+import subprocess
 import time
 from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit
@@ -124,6 +126,35 @@ _MEDIA = {
 #: 会产出 ``dual.json``（→ reader 可用）的任务 kind。docx/epub 走
 #: export 双语插译没有 dual.json——``_accepted`` 对它们不发 reader_url。
 _DUAL_JSON_KINDS = frozenset({"arxiv", "share", "upload_tex", "upload_pdf"})
+
+
+def _probe_git_commit() -> str:
+    """``git rev-parse --short HEAD``（包路径定位仓根）；非 git 安装/无 git → ``""``。
+
+    import 期一次性探测——build 戳语义是「加载的代码」而非「现在磁盘上的
+    代码」，模块常量恰好钉住进程起跑时的构建。
+    """
+    git = shutil.which("git")
+    if git is None:
+        return ""
+    try:
+        out = subprocess.run(  # noqa: S603 -- argv[0] 是 which 定位的绝对路径
+            [git, "rev-parse", "--short", "HEAD"],
+            cwd=Path(__file__).resolve().parent,
+            capture_output=True,
+            text=True,
+            timeout=3,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return out.stdout.strip() if out.returncode == 0 else ""
+
+
+#: ``/api/health`` 构建面：进程加载的代码 commit + 进程启动时刻
+#: （长驻 ``texlate web`` 服旧码的 stale-实例识别——M3 smoke B3）
+_BUILD_COMMIT = _probe_git_commit()
+_STARTED_AT = datetime.now(UTC).isoformat(timespec="seconds")
 
 #: 上传任务 ``src.tar``（原始上传字节回读）按任务 kind 钉死的 mime
 _SRC_TAR_KIND_MEDIA = {
@@ -1254,12 +1285,14 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
 
     @app.get("/api/health")
     async def health() -> dict[str, Any]:
-        """``{ok}`` 探活最小集；local 形态附加 ``version/compilers/data_dir``。"""
+        """``{ok}`` 探活最小集；local 形态附加 ``version/commit/started_at/compilers/data_dir``。"""
         if server_mode() == "server":
             return {"ok": True}
         return {
             "ok": True,
             "version": __version__,
+            "commit": _BUILD_COMMIT,
+            "started_at": _STARTED_AT,
             "compilers": {
                 "tectonic": resolve_tool("tectonic") is not None,
                 "xelatex": find_tool("xelatex") is not None,
