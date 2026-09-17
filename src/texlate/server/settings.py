@@ -62,6 +62,11 @@ TARGET_LANGS = frozenset({"zh-CN", "zh-TW", "en"})
 #: app 侧 ``_ENGINE_NAMES`` 是 options 入参闸的并行拷贝）
 ENGINES = frozenset({"auto", "xelatex", "tectonic"})
 
+#: 编译超时秒数：默认与上限同 worker ``_env_timeout`` 域
+#: （``_ENV_TIMEOUT_MAX_S``=86400 镜像——settings 不反向 import worker 防环）
+DEFAULT_COMPILE_TIMEOUT_S = 240.0
+COMPILE_TIMEOUT_MAX_S = 86400.0
+
 #: 模型名长度上限（防滥用长串）
 MODEL_MAX_LEN = 200
 
@@ -264,7 +269,16 @@ def _check_quota(value: object, name: str) -> int:
     return n
 
 
-def _normalize_updates(values: dict[str, Any]) -> None:
+def _check_compile_timeout(value: object) -> float:
+    """``compile_timeout`` 校验：可转 float 秒数，clamp 1–86400。"""
+    try:
+        return max(1.0, min(COMPILE_TIMEOUT_MAX_S, float(value)))  # type: ignore[arg-type]
+    except (TypeError, ValueError, OverflowError):
+        msg = "compile_timeout 须为可转数值的秒数（clamp 1–86400）"
+        raise ValueError(msg) from None
+
+
+def _normalize_updates(values: dict[str, Any]) -> None:  # noqa: C901 -- 逐字段分派链
     """``save`` 的逐字段归一化/校验（就地改写 ``values``）。"""
     if "base_url" in values:
         values["base_url"] = validate_base_url(str(values["base_url"]))
@@ -272,6 +286,8 @@ def _normalize_updates(values: dict[str, Any]) -> None:
         values["model"] = validate_model(str(values["model"]))
     if "concurrency" in values:
         values["concurrency"] = _check_concurrency(values["concurrency"])
+    if "compile_timeout" in values:
+        values["compile_timeout"] = _check_compile_timeout(values["compile_timeout"])
     if "engine" in values and values["engine"] not in ENGINES:
         msg = f"engine ∈ {sorted(ENGINES)}"
         raise ValueError(msg)
@@ -354,6 +370,15 @@ def _load_concurrency(value: object) -> int:
         return 3
 
 
+def _load_compile_timeout(value: object) -> float:
+    """``compile_timeout`` 容错读：非法/越界 → ``DEFAULT_COMPILE_TIMEOUT_S``。"""
+    try:
+        v = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError, OverflowError):
+        return DEFAULT_COMPILE_TIMEOUT_S
+    return v if 0.0 < v <= COMPILE_TIMEOUT_MAX_S else DEFAULT_COMPILE_TIMEOUT_S
+
+
 class SettingsStore:
     """``settings.json``（0600）+ ``connections.json`` 分槽 key 池。
 
@@ -370,6 +395,7 @@ class SettingsStore:
         "glossary",
         "glossary_dir",
         "concurrency",
+        "compile_timeout",
         "engine",
         "context_guidance",
         "cors_origins",
@@ -410,6 +436,7 @@ class SettingsStore:
             "glossary": _load_str(data.get("glossary"), ""),
             "glossary_dir": _load_str(data.get("glossary_dir"), ""),
             "concurrency": _load_concurrency(data.get("concurrency")),
+            "compile_timeout": _load_compile_timeout(data.get("compile_timeout")),
             "engine": _load_enum(data.get("engine"), ENGINES, "auto"),
             "context_guidance": bool(data.get("context_guidance", True)),
             "cors_origins": _load_origins(data.get("cors_origins")),

@@ -81,6 +81,7 @@ from texlate.server.worker import (
     Secrets,
     TaskCtx,
     TaskRunner,
+    _env_timeout,
     cache_key_for,
     share_pack_publish,
     sniff_upload,
@@ -513,6 +514,10 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         source_cache=source_cache,
         engine_factory=engine_factory,
         babeldoc=babeldoc,
+        # env ``TEXLATE_COMPILE_TIMEOUT`` > settings.json compile_timeout > 240
+        compile_timeout=_env_timeout(
+            "TEXLATE_COMPILE_TIMEOUT", settings_store.load()["compile_timeout"]
+        ),
     )
     runner = TaskRunner(store, bus, worker)
 
