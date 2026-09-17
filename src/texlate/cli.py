@@ -239,7 +239,13 @@ def parse(
     """半解析单个 .tex：分块/占位符/警告统计，``--out`` 落逐块明细。"""
     if out is not None:
         out = out.expanduser()
-        if out.resolve() == path.resolve():
+        try:
+            same_path = out.resolve() == path.resolve()
+        except (OSError, RuntimeError, ValueError):
+            # 解不开的 out（symlink loop/NUL）与源必不同径；真写不了由
+            # 下方 --out 不可写 OSError 兜底报错。
+            same_path = False
+        if same_path:
             typer.echo("--out 与输入同路径——拒绝覆写源文件", err=True)
             raise typer.Exit(2)
     try:
@@ -1061,6 +1067,7 @@ def _share_glossary_hash(
     )
 
     files: list[Path] = []
+    gfile: Path | None = None
     gpath = str(cfg.get("glossary") or options.get("glossary") or "")
     if gpath:
         gfile = Path(gpath).expanduser()
@@ -1068,17 +1075,27 @@ def _share_glossary_hash(
             msg = f"任务配置了 glossary 但文件不可读: {gpath}"
             raise ShareError(msg)
         files.append(gfile)
-    elif USER_GLOSSARY_PATH.is_file():
+    elif _is_file(USER_GLOSSARY_PATH):
         files.append(USER_GLOSSARY_PATH)
     local = task_dir / "base" / LOCAL_GLOSSARY_NAME
-    if local.is_file():
+    if _is_file(local):
         files.append(local)
     if not files:
         return ""
     h = hashlib.sha256()
+    hashed = 0
     for f in files:
-        h.update(hashlib.sha256(f.read_bytes()).digest())
-    return h.hexdigest()
+        try:
+            h.update(hashlib.sha256(f.read_bytes()).digest())
+        except OSError as e:
+            if f == gfile:
+                # 配置层已死与 gate 同口径拒——宁缺不串桶
+                msg = f"任务配置了 glossary 但文件不可读: {gpath}"
+                raise ShareError(msg) from e
+            typer.echo(f"glossary 层 {f} 读取失败（{e}）——按缺席计", err=True)
+        else:
+            hashed += 1
+    return h.hexdigest() if hashed else ""
 
 
 def _share_out_is_file(out: Path) -> bool:

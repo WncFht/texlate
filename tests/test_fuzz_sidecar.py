@@ -464,6 +464,20 @@ class TestStoreSemantics:
         )
         assert store.connections() == {"a": {"api_key": "k"}}
 
+    def test_connections_nonstr_fields_sanitized(self, tmp_path: Path) -> None:
+        """槽位字段非 str（手改 connections.json）→ ``_load_str`` 口径归一
+        为 str——不携 dict/int 进 httpx 头构造面。"""
+        store = settings.SettingsStore(tmp_path)
+        (tmp_path / "connections.json").write_text(
+            json.dumps(
+                {"http://x": {"api_key": {"nested": 1}, "model": 42, "extra": None}}
+            ),
+            encoding="utf-8",
+        )
+        conns = store.connections()
+        assert conns["http://x"]["model"] == "42"
+        assert all(isinstance(v, str) for v in conns["http://x"].values())
+
     def test_concurrent_saves_never_torn(self, tmp_path: Path) -> None:
         """并发 ``save``：文件永远是一份合法 JSON（tmp+rename 原子写）。"""
         store = settings.SettingsStore(tmp_path)

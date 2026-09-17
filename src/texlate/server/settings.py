@@ -466,7 +466,7 @@ class SettingsStore:
             except UnicodeEncodeError:
                 log.warning("connections.json 槽位含不可编码值已丢弃: %r", k)
                 continue
-            out[str(k)] = dict(v)
+            out[str(k)] = {fk: _load_str(fv, "") for fk, fv in v.items()}
         return out
 
     def public(self) -> dict[str, Any]:

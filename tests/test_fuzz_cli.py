@@ -40,6 +40,7 @@ from texlate import cli
 from texlate.cli import app
 from texlate.compile import toolchain
 from texlate.server.store import DDL
+from texlate.xlat.glossary import LOCAL_GLOSSARY_NAME
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -968,6 +969,18 @@ class TestParse:
         assert result.exit_code == 0
         assert (tmp_path / "o.jsonl").is_file()
 
+    def test_out_symlink_loop(self, tmp_path: Path) -> None:
+        """``-o`` 是 symlink loop：resolve RuntimeError → 按不同径放行，
+        ``--out 不可写`` OSError 归一 exit 1（回归钉：曾 traceback）。"""
+        tex = tmp_path / "m.tex"
+        tex.write_text(_MAIN_TEX, encoding="utf-8")
+        loop = tmp_path / "loop"
+        loop.symlink_to("loop")
+        result = _RUNNER.invoke(app, ["parse", str(tex), "-o", str(loop)])
+        _clean(result)
+        assert result.exit_code == 1
+        assert "--out 不可写" in result.stderr
+
     def test_binary_file(self, tmp_path: Path) -> None:
         """非 UTF-8 内容：recode 容错解析 → exit 0（warnings 允许）。"""
         blob = tmp_path / "bin.tex"
@@ -1229,6 +1242,38 @@ class TestShare:
         result = _RUNNER.invoke(app, ["share", "unpack", str(epub), "-o", str(blocker)])
         _clean(result)
         assert result.exit_code == 1
+
+    @pytest.mark.skipif(
+        os.geteuid() == 0, reason="root 绕过权限位——chmod 0 不产生 EACCES"
+    )
+    def test_glossary_hash_unreadable_configured(self, tmp_path: Path) -> None:
+        """配置 glossary chmod-0：read PermissionError → ShareError（曾 traceback）。"""
+        g = tmp_path / "g.yaml"
+        g.write_text("a: b\n", encoding="utf-8")
+        g.chmod(0)
+        try:
+            with pytest.raises(cli.ShareError, match="glossary"):
+                cli._share_glossary_hash(  # noqa: SLF001 -- 白盒钉 hash 组分
+                    tmp_path, {"glossary": str(g)}, {}
+                )
+        finally:
+            g.chmod(0o644)
+
+    @pytest.mark.skipif(
+        os.geteuid() == 0, reason="root 绕过权限位——chmod 0 不产生 EACCES"
+    )
+    def test_glossary_hash_unreadable_local_skipped(self, tmp_path: Path) -> None:
+        """local 层不可读 → 按缺席计（hash 落 ``""`` 无表层桶位）。"""
+        base = tmp_path / "base"
+        base.mkdir()
+        g = base / LOCAL_GLOSSARY_NAME
+        g.write_text("a: b\n", encoding="utf-8")
+        g.chmod(0)
+        try:
+            got = cli._share_glossary_hash(tmp_path, {}, {})  # noqa: SLF001 -- 同上
+            assert got == ""
+        finally:
+            g.chmod(0o644)
 
 
 # ---------------------------------------------------------------- web / tools

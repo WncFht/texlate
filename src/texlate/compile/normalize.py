@@ -12,6 +12,7 @@ docs/research/latex/texglot-patterns.md §1.1–1.6。
 
 from __future__ import annotations
 
+import glob
 import logging
 import os
 import re
@@ -709,7 +710,7 @@ def use_bundled_bibliography(text: str, path: Path, cwd: Path | None = None) -> 
             base / (v.strip() if v.strip().endswith(".bib") else v.strip() + ".bib")
             for v in match[1].split(",")
         ]
-        if any(not p.is_file() for p in databases):
+        if any(not _safe_is_file(p) for p in databases):
             return (
                 text[: match.start()] + r"\input{" + target + "}" + text[match.end() :]
             )
@@ -719,6 +720,28 @@ def use_bundled_bibliography(text: str, path: Path, cwd: Path | None = None) -> 
 def _hidden_path(path: Path, root: Path) -> bool:
     """任一路径段 ``.`` 前缀——隐藏件（``.git``/``.dotfile``）整体豁免手术与审计。"""
     return any(part.startswith(".") for part in path.relative_to(root).parts)
+
+
+def _safe_resolve(path: Path) -> Path | None:
+    """``resolve()`` 防御层：NUL/loop/ENAMETOOLONG → None（解不开按不存在计）。"""
+    try:
+        return path.resolve()
+    except (OSError, RuntimeError, ValueError):
+        return None
+
+
+def _safe_is_file(path: Path) -> bool:
+    """``is_file()`` 防御层：ENAMETOOLONG/EACCES 等非缺席型 OSError → False。"""
+    try:
+        return path.is_file()
+    except OSError:
+        return False
+
+
+def _is_within(root: Path, candidate: Path) -> bool:
+    """``candidate`` 解后是否落 ``root`` 内；解不开 → 按越界计（审计面宁报不漏）。"""
+    resolved = _safe_resolve(candidate)
+    return resolved is not None and resolved.is_relative_to(root)
 
 
 # ---------------------------------------------------------------- 12. 越界路径 rebase
@@ -775,8 +798,12 @@ def rebase_project_paths(root: Path, main: str) -> list[str]:
                 continue
             while name.startswith("../"):
                 name = name[3:]
-            candidate = (root / name).resolve()
-            if candidate.is_relative_to(root) and candidate.is_file():
+            candidate = _safe_resolve(root / name)
+            if (
+                candidate is not None
+                and candidate.is_relative_to(root)
+                and _safe_is_file(candidate)
+            ):
                 relative = Path(os.path.relpath(candidate, cwd)).as_posix()
                 changes.setdefault(path, []).append((*match.span(group), relative))
     locations = []
@@ -819,9 +846,7 @@ def source_path_violations(
         ):
             name = next(g for g in match.groups() if g is not None).strip()
             absolute = re.match(r"/|~|[A-Za-z]:", name)
-            outside = ".." in Path(name).parts and not (
-                cwd / name
-            ).resolve().is_relative_to(root)
+            outside = ".." in Path(name).parts and not _is_within(root, cwd / name)
             if absolute or outside or name.startswith("|"):
                 message = (
                     r"源码包含外部命令输入（\input{|cmd}），受限编译不支持"
@@ -1232,7 +1257,7 @@ def _shadow_source(
     if (
         name.startswith(("/", "~"))
         or ".." in Path(name).parts
-        or any(root.rglob(Path(req).name))
+        or any(root.rglob(glob.escape(Path(req).name)))
     ):
         return None
     resolved = resolve(req)
@@ -1240,7 +1265,7 @@ def _shadow_source(
         if resolved is None or resolved.resolve().is_relative_to(root):
             return None
         return resolved, resolved.read_bytes()
-    except OSError as e:
+    except (OSError, RuntimeError, ValueError) as e:
         log.debug("系统包遮蔽源不可读 %s: %s", resolved, e)
         return None
 
