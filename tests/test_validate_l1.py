@@ -6,7 +6,9 @@
 
 import json
 import shutil
+import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -176,3 +178,161 @@ def test_one_dead_proc_falls_back_to_batch(
     monkeypatch.setattr(v, "validate_batch", lambda _recs: [sentinel])
     assert v._one({"id": "x", "tex": "t"}) is sentinel  # noqa: SLF001 - 同上
     assert v._proc is None  # noqa: SLF001 - 断言已降级
+
+
+# ------------------------------------------------- 子进程边界错误路径补洞
+# （refactor-audit C1：fuzz 批已盖 validate_batch 三故障面，
+#   本节补齐 _require_available / open / close / _one 的残余分支）
+
+
+def _batch_stub(tmp_path: Path) -> TsValidator:
+    """node + worker.js 在场（deps 无所谓——不到 available() 那步）。"""
+    (tmp_path / "validator.js").write_text("// stub\n", encoding="utf-8")
+    return TsValidator(node="/bin/true", worker_dir=tmp_path)
+
+
+def test_require_available_no_node(monkeypatch: pytest.MonkeyPatch) -> None:
+    """node 三路全缺（参数/env/PATH）→ 批处理与常驻入口同抛 L1Error。"""
+    monkeypatch.delenv("TEXLATE_NODE", raising=False)
+    monkeypatch.delenv("TEXLATE_TS_WORKER", raising=False)
+    monkeypatch.delenv("TEXLATE_TS_NODE_PATH", raising=False)
+    monkeypatch.setattr(shutil, "which", lambda *_a, **_k: None)
+    v = TsValidator()
+    assert not v.available()
+    with pytest.raises(L1Error, match="node 不在 PATH"):
+        v.validate_batch([{"id": "a", "tex": "x"}])
+    with pytest.raises(L1Error, match="node 不在 PATH"):
+        v.open()
+
+
+def test_require_available_missing_worker(tmp_path: Path) -> None:
+    """node 在但 worker.js 缺席 → 两入口抛 'worker 缺失'。"""
+    v = TsValidator(node="/bin/true", worker_dir=tmp_path)
+    assert not v.available()
+    with pytest.raises(L1Error, match="worker 缺失"):
+        v.validate_batch([{"id": "a", "tex": "x"}])
+    with pytest.raises(L1Error, match="worker 缺失"):
+        v.open()
+
+
+def test_open_popen_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """常驻 worker Popen OSError → '启动失败' L1Error（不泄内建异常）。"""
+    v = _batch_stub(tmp_path)
+
+    def boom(*_a: object, **_k: object) -> None:
+        msg = "exec format error"
+        raise OSError(msg)
+
+    monkeypatch.setattr(subprocess, "Popen", boom)
+    with pytest.raises(L1Error, match="启动失败"):
+        v.open()
+    assert v._proc is None  # noqa: SLF001 - 启动失败不留半开通道
+
+
+class _DeadStdin:
+    """write 即 broken pipe 的 stdin——模拟 worker 已死管道断裂。"""
+
+    def write(self, _s: str) -> int:
+        msg = "broken pipe"
+        raise OSError(msg)
+
+    def flush(self) -> None:
+        pass
+
+    def close(self) -> None:
+        pass
+
+
+class _UnclosableStdin:
+    """close 即炸的 stdin——close() 清理路径故障源。"""
+
+    def write(self, s: str) -> int:
+        return len(s)
+
+    def flush(self) -> None:
+        pass
+
+    def close(self) -> None:
+        msg = "close fail"
+        raise OSError(msg)
+
+
+class _KillableProc:
+    """kill 可观察、wait 可配置超时的 proc 假桩。"""
+
+    def __init__(self, stdin: object, *, wait_raises: bool = False) -> None:
+        self.stdin = stdin
+        self.killed = False
+        self._wait_raises = wait_raises
+
+    def poll(self) -> int | None:
+        return None
+
+    def wait(self, timeout: float = 0) -> int:
+        if self._wait_raises:
+            raise subprocess.TimeoutExpired(cmd="node", timeout=timeout)
+        return 0
+
+    def kill(self) -> None:
+        self.killed = True
+
+
+def test_close_kills_proc_on_teardown_failure() -> None:
+    """close() 清理失败面：stdin.close OSError 与 wait 超时都走 kill 兜底。"""
+    v = TsValidator()
+    p_close_boom = _KillableProc(_UnclosableStdin())
+    v._proc = p_close_boom  # noqa: SLF001  # type: ignore[assignment]
+    v.close()
+    assert p_close_boom.killed
+    assert v._proc is None  # noqa: SLF001 - 关闭后通道复位
+
+    p_wait_boom = _KillableProc(_FakeStdin(v, []), wait_raises=True)
+    v._proc = p_wait_boom  # noqa: SLF001  # type: ignore[assignment]
+    v.close()
+    assert p_wait_boom.killed
+
+
+def test_one_stdin_broken_raises() -> None:
+    """常驻通道 stdin.write OSError → 'stdin 已断' L1Error。"""
+    v = TsValidator(timeout=5)
+    v._proc = _KillableProc(_DeadStdin())  # noqa: SLF001  # type: ignore[assignment]
+    with pytest.raises(L1Error, match="stdin 已断"):
+        v._one({"id": "x", "tex": "t"})  # noqa: SLF001
+
+
+def test_one_response_timeout() -> None:
+    """配对行迟迟不到 → queue.Empty 转 '响应超时' L1Error（不死等）。"""
+    v = TsValidator(timeout=0.05)
+    v._proc = _FakeProc(v, [])  # noqa: SLF001  # type: ignore[assignment]
+    with pytest.raises(L1Error, match="超时"):
+        v._one({"id": "x", "tex": "t"})  # noqa: SLF001
+
+
+def test_batch_nonzero_exit_empty_stderr(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """非零退出且 stderr 空白 → '(stderr 空)' 占位进错误消息。"""
+    v = _batch_stub(tmp_path)
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda *_a, **_k: SimpleNamespace(returncode=2, stdout="", stderr="  \n"),
+    )
+    with pytest.raises(L1Error, match="stderr 空"):
+        v.validate_batch([{"id": "a", "tex": "x"}])
+
+
+def test_batch_blank_lines_ignored(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """stdout 夹空行/纯空白行 → 过滤不计入响应数。"""
+    v = _batch_stub(tmp_path)
+    out = '\n{"id":"a","ok":true}\n  \n{"id":"b","ok":false}\n\n'
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda *_a, **_k: SimpleNamespace(returncode=0, stdout=out, stderr=""),
+    )
+    res = v.validate_batch([{"id": "a", "tex": "x"}, {"id": "b", "tex": "y"}])
+    assert [r.id for r in res] == ["a", "b"]
+    assert res[1].ok is False
