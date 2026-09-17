@@ -228,7 +228,10 @@ def test_font_fallback_cyrillic(tmp_path: Path) -> None:
     t = (tmp_path / "main.tex").read_text()
     assert "\\usepackage{newunicodechar}" in t
     assert "\\newfontfamily\\txlatefallback{Libertinus Serif}" in t
-    assert "\\newunicodechar{Ж}{{\\txlatefallback Ж}}" in t
+    assert (
+        "\\newunicodechar{Ж}{\\ifmmode\\mbox{\\txlatefallback Ж}"
+        "\\else{\\txlatefallback Ж}\\fi}" in t
+    )
     assert t.index("newunicodechar") > t.index("\\documentclass")
 
 
@@ -246,7 +249,10 @@ def test_font_fallback_combining_char(tmp_path: Path) -> None:
     ok, _note = font_fallback(_ctx(tmp_path), eng, None, {})
     assert ok is True
     t = (tmp_path / "main.tex").read_text()
-    assert "\\newunicodechar{̈}{{\\txlatefallback ̈}}" in t
+    assert (
+        "\\newunicodechar{̈}{\\ifmmode\\mbox{\\txlatefallback ̈}"
+        "\\else{\\txlatefallback ̈}\\fi}" in t
+    )
 
 
 def test_font_fallback_replace_entries_yield(tmp_path: Path) -> None:

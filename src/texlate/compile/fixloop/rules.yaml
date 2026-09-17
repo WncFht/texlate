@@ -144,7 +144,13 @@ warnings:
       id: invalid_utf8,
       pattern: "Invalid UTF-8 byte|Missing character.*U\\+FFFD",
     }
-  - { id: missing_char, pattern: "Missing character" } # CJK 渲染检查原料
+  # missing_char 排除 nullfont 行: 测量盒/\write 上下文按设计不可印
+  # (scout-misschar ×5 pids 纯噪音)。tempered 窗口允许 log wrap 续行,
+  # 且不越过下一条 Missing character 起点——真字体行紧邻 nullfont 行仍中。
+  - {
+      id: missing_char,
+      pattern: "Missing character(?!(?:(?!Missing character)[\\s\\S]){0,90}?in font nullfont)",
+    } # CJK 渲染检查原料
   - {
       id: missing_graphic,
       pattern: "File `[^']+\\.(eps|png|jpg|pdf)' not found|cannot (find|open) image",
@@ -3670,6 +3676,36 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "spec 2026-09-16-batch-hardening-design §9 F4; scout-misschar-coverage findings.yaml §outband_coverage+cls_pretokenized"
+
+  # ─── F4c (2026-09-17, scout-misschar-coverage 0327 群 ~62 pids) ───
+  # accent cs (\c \~ \^ \' \" \u \v 族) 在无预组字形基字符上产
+  # base+combining-mark 节点, ambient 字体无 U+0300-036F → 缺字;
+  # 附加符由 accent 机制生成, 非输入字符 → newunicodechar 拦不到。
+  # 源级站点改写: NFC 预组 → 字面量 + 自注回退行; 无预组 → 剥 accent。
+  - id: accent_mark_fix
+    description: "组合附加符缺字 → 文本域 accent cs 站点改写预组字/剥 accent (数学域不动)"
+    phase: loop
+    order: 25.5 # missing_char_fix(25)/font_fallback(26) 之间; int() 取整同值 25 时按表内位次排
+    when:
+      any:
+        - { category: warn_missing_char }
+        - { category: warn_utf8 } # 同 missing_char_fix —— 类别排他 quirk 补漏
+    action:
+      kind: builtin_transform
+      function: accent_mark_fix
+      params:
+        exts: [.tex, .bbl, .cls]
+    risk: low # 改写限文本域 accent 站点; 无预组剥 accent 总比缺字强
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1206.1954 / 2308.00063 (scout-misschar-coverage-2026-09-17)",
+          error: "Missing character U+0327 由 \\c{t} accent 机制生成, 非输入字符",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "scout-misschar-coverage-2026-09-17 findings.yaml §combining_mark_accent_generated"
 
   # ─── F4b (2026-09-16, fixer-cjkfont 交付 f7822a8): 缺字第二分级 ——
   # 西里尔/组合符/拉丁扩展带的码位既非 CJK(预热) 也非 char_table 替换
