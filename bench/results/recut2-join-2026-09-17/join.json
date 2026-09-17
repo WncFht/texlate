@@ -4623,21 +4623,23 @@
   "id": "2105.03753",
   "parse": "ok",
   "compile": "fail",
-  "fixloop": "fail",
+  "fixloop": "clean",
   "fixloop_csb_match": true,
   "batch": "regression_addon",
-  "fix_sig": "unfixable:pdftex_prim:pdfglyphtounicode",
-  "end_pdf": false
+  "fix_sig": "",
+  "end_pdf": true,
+  "note": " | batch8 post-fix"
  },
  {
   "id": "1706.07911",
   "parse": "ok",
   "compile": "fail",
-  "fixloop": "fail",
+  "fixloop": "clean",
   "fixloop_csb_match": true,
   "batch": "regression_addon",
-  "fix_sig": "unfixable:other:liningnums",
-  "end_pdf": false
+  "fix_sig": "",
+  "end_pdf": true,
+  "note": " | batch8 post-fix"
  },
  {
   "id": "2211.04482",
@@ -4646,7 +4648,8 @@
   "fixloop": "fail",
   "fixloop_csb_match": true,
   "batch": "regression_addon",
-  "fix_sig": "acceptable_pdf:splitbox",
-  "end_pdf": true
+  "fix_sig": "unfixable:syntax",
+  "end_pdf": true,
+  "note": " | batch8 post-fix"
  }
 ]

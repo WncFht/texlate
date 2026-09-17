@@ -55,3 +55,21 @@ fixloop nonclean 5 格全救（clean 4 + best_effort 1）→ **end-state pdf 24/
 join 终版 batch 分布：nonkeyarg_ran 438（431 pdf）+ keyarg_ran 24（24 pdf）
 + regression_addon 3（1 pdf）——合计 462+3 格，pdf 456/465=98.1%。
 recut2 manifest 全量收官。
+
+## 5. 回归 3 格尾单（batch-8 `36f926d` 落地后，同日）
+
+`fixloop --rerun --on all --xlat-arm mock --ids 1706.07911,2105.03753,2211.04482`
+（--on all 因 2211.04482 compile=partial，fail 口径会漏格）：
+
+| 格 | 末条 | 结果 |
+|---|---|---|
+| 1706.07911 | fixloop clean | 翻 pdf（原判 STALE，o164 路径） |
+| 2105.03753 | fixloop clean | 翻 pdf（glyphtounicode_shadow o46 救回，verdict=acceptable_pdf） |
+| 2211.04482 | fixloop fail unfixable:syntax | **未收**——2 rounds/0 actions/csb=partial |
+
+2211.04482 归因：compile 签名 `already_def:splitbox`（A5 undefine_for_redef 的
+目标面），但 post-compile first_error 落在 `splice/sne_table.tex:1
+Missing number, treated as zero`——缺失数字族 syntax 伤先于 already_def
+阻塞，A5 未救到这一层。归回 1d/peer1 二看（missing_number 族新签名）。
+
+scorecard（5117 格口径）：pdf 4985=97.42%、clean 4236=82.78%。

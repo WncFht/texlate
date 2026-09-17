@@ -460,6 +460,6 @@ physics--0104024	ok	clean	NO_FIXLOOP	nonkeyarg_ran	pdf
 physics--9901044	ok	clean	NO_FIXLOOP	nonkeyarg_ran	pdf
 quant-ph--0408022	ok	clean	NO_FIXLOOP	nonkeyarg_ran	pdf
 quant-ph--0605021	ok	clean	NO_FIXLOOP	nonkeyarg_ran	pdf
-2105.03753	ok	fail	fail	regression_addon	nopdf
-1706.07911	ok	fail	fail	regression_addon	nopdf
+2105.03753	ok	fail	clean	regression_addon	pdf
+1706.07911	ok	fail	clean	regression_addon	pdf
 2211.04482	ok	partial	fail	regression_addon	pdf
