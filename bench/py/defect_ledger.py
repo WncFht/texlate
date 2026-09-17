@@ -2,19 +2,28 @@
 r"""defect_ledger.py — 缺陷台账机读化：fuzz findings + 人工总账 → jsonl/md 调度底账。
 
 输入（只读）：
-  tmp/{glossary,client,judge,engine}-fuzz/findings.txt    四份 fuzz 台账
+  tmp/{glossary,client,judge,engine}-fuzz/findings.txt    老四波 fuzz 台账（文本格式）
+  tmp/{arxiv,validate}-fuzz/findings.jsonl                新波 jsonl 台账（B9/B8）
+  tmp/fuzz-{texlog,xlat-batch}/findings.jsonl             新波 jsonl 台账（B10/B11，
+    xlat-batch 同目录老波 findings.txt 由 jsonl 取代——同条目机读版，不重复收）
   docs/research/roadmap-2026-09-17/inputs/defect-ledger.md 人工总账（P0/P1/P2 + 核销表）
-  tests/test_fuzz_{glossary,xlat_client,judge,engine}.py  活钉扫描（status 运行态判定）
+  tests/test_fuzz_*.py  活钉扫描（status 运行态判定；texlog+align 一 lane 合扫两文件）
 
 status 口径：pinned=开口项（活钉或未修台账项）、fixed=已核销/钉已拆/已标
 [FIXED]、wontfix=观测行为钉（裁决非缺陷，勿修——修了绿钉转红）。
 
-status 判定优先级（findings 条目）：
+status 判定优先级（txt findings 条目）：
   1. 头部 marker：`[FIXED]`→fixed、`[..PENDING..]`→pinned、`[WONTFIX]`→wontfix
   2. xfail 装饰块内引用在 → pinned（红钉仍红）
   3. assert 区开钉信号（`PIN:`/`待修` 注释）→ pinned（绿钉仍在）
-  4. 任意区「已修/FIXED/修复」信号 → fixed（回归守卫/台账已翻）
+  4. 任意区「已修/FIXED/修复/回归」信号 → fixed（回归守卫/台账已翻）
   5. CONFIRMED 无任何引用 → fixed（钉已拆）；PLAUSIBLE 无引用 → pinned（裁决未落）
+
+jsonl 波 status 对账（条目自带 status/pin_kind/pin_refs 台账声明）：
+  钉扫描是运行态事实、台账 status 是声明——扫描出 xfail/open → pinned、
+  fixedsig → fixed 压台账自述；扫描静默时台账自述生效（status=partial 归一
+  pinned）；声明 vs 扫描冲突、pin_refs 行号漂移/无 token 锚，记 --check
+  「台账 vs 钉扫描」对账差，不报错不拦。
 
 pin_kind：xfail-strict=红钉、assert=绿钉（钉现行缺陷行为）、regression=
 修后回归守卫引用、doc=仅 docstring 台账、none=无引用。
@@ -46,31 +55,65 @@ LEDGER_MD = REPO / "docs/research/roadmap-2026-09-17/inputs/defect-ledger.md"
 DEFAULT_OUT = REPO / "tmp" / "defect-ledger" / "ledger.jsonl"
 DATE = "2026-09-17"
 
-# lane → 测试文件 / ID token / 归属 / 燃烧批 lane
+# lane → 测试文件组 / ID token / 归属 / 燃烧批 lane；fmt=jsonl 走逐行 json 台账
+# （texlog+align 一 lane 两测试文件合扫；xlat-residual 的 findings 目录下另有
+# 老波 findings.txt——jsonl 为同条目机读版，优先 jsonl 不重复收）
 LANE_META = {
     "glossary": {
-        "test": "tests/test_fuzz_glossary.py",
+        "tests": ["tests/test_fuzz_glossary.py"],
         "tok": r"D\d+",
         "owner": "xlat",
         "burn": "B2",
     },
     "client": {
-        "test": "tests/test_fuzz_xlat_client.py",
+        "tests": ["tests/test_fuzz_xlat_client.py"],
         "tok": r"[CP]\d+",
         "owner": "xlat",
         "burn": "B3",
     },
     "judge": {
-        "test": "tests/test_fuzz_judge.py",
+        "tests": ["tests/test_fuzz_judge.py"],
         "tok": r"J\d+[ab]?|O\d+",
         "owner": "compile",
         "burn": "B4",
     },
     "engine": {
-        "test": "tests/test_fuzz_engine.py",
+        "tests": ["tests/test_fuzz_engine.py"],
         "tok": r"D\d+",
         "owner": "compile",
         "burn": "B5",
+    },
+    "arxiv": {
+        "tests": ["tests/test_fuzz_arxiv.py"],
+        "tok": r"[DP]\d+",
+        "owner": "arxiv",
+        "burn": "B9",
+        "fmt": "jsonl",
+        "findings": "tmp/arxiv-fuzz/findings.jsonl",
+    },
+    "validate": {
+        "tests": ["tests/test_fuzz_validate.py"],
+        "tok": r"[DPQ]\d+",
+        "owner": "validate",
+        "burn": "B8",
+        "fmt": "jsonl",
+        "findings": "tmp/validate-fuzz/findings.jsonl",
+    },
+    "texlog+align": {
+        "tests": ["tests/test_fuzz_texlog.py", "tests/test_fuzz_align.py"],
+        "tok": r"[DPQ]\d+",
+        "owner": "texlate",
+        "burn": "B10",
+        "fmt": "jsonl",
+        "findings": "tmp/fuzz-texlog/findings.jsonl",
+    },
+    "xlat-residual": {
+        "tests": ["tests/test_fuzz_xlat_residual.py"],
+        "tok": r"[DPO]\d+",
+        "owner": "xlat",
+        "burn": "B11",
+        "fmt": "jsonl",
+        "findings": "tmp/fuzz-xlat-batch/findings.jsonl",
     },
 }
 LANE_ORDER = [
@@ -78,11 +121,20 @@ LANE_ORDER = [
     "client",
     "judge",
     "engine",
+    "arxiv",
+    "validate",
+    "texlog+align",
+    "xlat-residual",
     "ledger-code",
     "ledger-scout",
     "ledger-cleared",
 ]
-FINDINGS = {lane: REPO / "tmp" / f"{lane}-fuzz" / "findings.txt" for lane in LANE_META}
+
+
+def _findings_path(lane: str) -> Path:
+    meta = LANE_META[lane]
+    return REPO / meta.get("findings", f"tmp/{lane}-fuzz/findings.txt")
+
 
 # 手工对账期望（findings.txt 自述数，以文件实内容为准）
 EXPECT = {
@@ -114,9 +166,19 @@ SEV_OVERRIDE = {
 
 _SITE_RE = re.compile(r"([\w./-]+\.py):(\d+)")
 _OPEN_SIG_RE = re.compile(r"PIN:|待修|缺陷待修")
-_FIXED_SIG_RE = re.compile(r"已修|FIXED|修复")
+# 「D# 回归」/「D# 回归守卫」是新波钉转回归守卫的标记语——与「已修/修复」同效；
+# 老四波测试文件里「回归+token」行均同时含「修复」，加词不改变老 lane 判定。
+_FIXED_SIG_RE = re.compile(r"已修|FIXED|修复|回归")
+# xfail 装饰起点：老波直写 pytest.mark.xfail，新波经 _fuzzkit.xfail_confirmed 包
+_XFAIL_LINE_RE = re.compile(r"pytest\.mark\.xfail|@xfail_confirmed\b")
 _SEARCH_ROOTS = ["src", "tests", "bench/py", "web/src", "scripts"]
 _file_cache: dict[str, str | None] = {}
+
+# jsonl 台账声明归一：partial=部分修复（钉仍在）归 pinned；合法集外值记 warning
+_STATUS_NORM = {"partial": "pinned"}
+_VALID_STATUS = {"pinned", "fixed", "wontfix"}
+_VALID_PIN_KIND = {"xfail-strict", "assert", "regression", "doc", "none"}
+_PIN_REF_RE = re.compile(r"^([\w./-]+\.py):(\d+)$")
 
 
 def resolve_file(tok: str) -> str | None:
@@ -225,61 +287,72 @@ def _norm_tok(lane: str, tok: str) -> str:
     return re.sub(r"([A-Z]\d+)[ab]$", r"\1", tok) if lane == "judge" else tok
 
 
-def scan_refs(lane: str) -> dict[str, dict[str, list[int]]]:
-    """扫 lane 测试文件 → {id: {xfail/open/fixedsig/doc/mention: [行号]}}。
+def _add_ref(
+    refs: dict[str, dict[str, list[str]]],
+    lane: str,
+    rel: str,
+    tok: str,
+    kind: str,
+    lineno: int,
+) -> None:
+    slot = refs.setdefault(_norm_tok(lane, tok), {}).setdefault(kind, [])
+    ref = f"{rel}:{lineno}"
+    if ref not in slot:
+        slot.append(ref)
 
-    - xfail：@pytest.mark.xfail 装饰块内引用（红钉仍红）
+
+def scan_refs(lane: str) -> dict[str, dict[str, list[str]]]:
+    """扫 lane 测试文件组 → {id: {xfail/open/fixedsig/doc/mention: [file:line]}}。
+
+    - xfail：@pytest.mark.xfail / @xfail_confirmed 装饰块内引用（红钉仍红）
     - open：代码区 `PIN:`/`待修` 注释引用（绿钉钉现行缺陷）
-    - fixedsig：任意区「已修/FIXED/修复」引用（回归守卫/已翻台账）
+    - fixedsig：任意区「已修/FIXED/修复/回归」引用（回归守卫/已翻台账）
     - doc：模块 docstring 台账区引用（历史记录）
     - mention：其余代码区引用（中性，不计入钉判定）
+
+    多测试文件 lane（texlog+align）合扫两文件钉位；ref 自带文件前缀。
     """
     meta = LANE_META[lane]
-    path = REPO / meta["test"]
-    refs: dict[str, dict[str, list[int]]] = {}
-    if not path.is_file():
-        return refs
-    lines = path.read_text(encoding="utf-8").splitlines()
-    doc_end = -1
-    if lines and re.match(r'^(?:[rbuf]+)?"""', lines[0].strip()):
-        if lines[0].count('"""') >= 2:
-            doc_end = 0
-        else:
-            for n in range(1, len(lines)):
-                if '"""' in lines[n]:
-                    doc_end = n
-                    break
-
-    def add(tok: str, kind: str, lineno: int) -> None:
-        slot = refs.setdefault(_norm_tok(lane, tok), {}).setdefault(kind, [])
-        if lineno not in slot:
-            slot.append(lineno)
-
-    i = 0
-    while i < len(lines):
-        line = lines[i]
-        if "pytest.mark.xfail" in line:
-            j = i
-            while j < len(lines) and not re.search(r"\bdef\s", lines[j]):
-                j += 1
-            for tok in set(re.findall(meta["tok"], "\n".join(lines[i : j + 1]))):
-                add(tok, "xfail", i + 1)
-            i = j + 1
+    refs: dict[str, dict[str, list[str]]] = {}
+    for rel in meta["tests"]:
+        path = REPO / rel
+        if not path.is_file():
             continue
-        for tok in set(re.findall(meta["tok"], line)):
-            if _FIXED_SIG_RE.search(line):
-                add(tok, "fixedsig", i + 1)
-            elif i <= doc_end:
-                add(tok, "doc", i + 1)
-            elif _OPEN_SIG_RE.search(line):
-                add(tok, "open", i + 1)
+        lines = path.read_text(encoding="utf-8").splitlines()
+        doc_end = -1
+        if lines and re.match(r'^(?:[rbuf]+)?"""', lines[0].strip()):
+            if lines[0].count('"""') >= 2:
+                doc_end = 0
             else:
-                add(tok, "mention", i + 1)
-        i += 1
+                for n in range(1, len(lines)):
+                    if '"""' in lines[n]:
+                        doc_end = n
+                        break
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            if _XFAIL_LINE_RE.search(line):
+                j = i
+                while j < len(lines) and not re.search(r"\bdef\s", lines[j]):
+                    j += 1
+                for tok in set(re.findall(meta["tok"], "\n".join(lines[i : j + 1]))):
+                    _add_ref(refs, lane, rel, tok, "xfail", i + 1)
+                i = j + 1
+                continue
+            for tok in set(re.findall(meta["tok"], line)):
+                if _FIXED_SIG_RE.search(line):
+                    _add_ref(refs, lane, rel, tok, "fixedsig", i + 1)
+                elif i <= doc_end:
+                    _add_ref(refs, lane, rel, tok, "doc", i + 1)
+                elif _OPEN_SIG_RE.search(line):
+                    _add_ref(refs, lane, rel, tok, "open", i + 1)
+                else:
+                    _add_ref(refs, lane, rel, tok, "mention", i + 1)
+            i += 1
     return refs
 
 
-def _pin_kind(rinfo: dict[str, list[int]] | None) -> str:
+def _pin_kind(rinfo: dict[str, list[str]] | None) -> str:
     if not rinfo:
         return "none"
     if rinfo.get("xfail"):
@@ -293,13 +366,25 @@ def _pin_kind(rinfo: dict[str, list[int]] | None) -> str:
     return "none"
 
 
-def _pin_refs(test_rel: str, rinfo: dict[str, list[int]] | None) -> list[str]:
+def _pin_refs(rinfo: dict[str, list[str]] | None) -> list[str]:
+    """钉引用出参：xfail 全量 + open 截 4 + fixedsig 截 2（ref 已带文件前缀）。"""
     if not rinfo:
         return []
-    out = [f"{test_rel}:{n}" for n in rinfo.get("xfail", [])]
-    out += [f"{test_rel}:{n}" for n in rinfo.get("open", [])[:4]]
-    out += [f"{test_rel}:{n}" for n in rinfo.get("fixedsig", [])[:2]]
+    out = list(rinfo.get("xfail", []))
+    out += rinfo.get("open", [])[:4]
+    out += rinfo.get("fixedsig", [])[:2]
     return out
+
+
+def _scan_status(rinfo: dict[str, list[str]] | None) -> str | None:
+    """钉扫描运行态：活钉 → pinned、fixedsig → fixed、无钉证据 → None。"""
+    if not rinfo:
+        return None
+    if rinfo.get("xfail") or rinfo.get("open"):
+        return "pinned"
+    if rinfo.get("fixedsig"):
+        return "fixed"
+    return None
 
 
 def _mk(lane, eid, sev, grade, status, site, owner, summary, **kw) -> dict:
@@ -338,8 +423,8 @@ def _head_marker(body: str) -> str | None:
     return "fixed"
 
 
-def parse_findings(lane: str, refs: dict[str, dict[str, list[int]]]) -> list[dict]:
-    path = FINDINGS[lane]
+def parse_findings(lane: str, refs: dict[str, dict[str, list[str]]]) -> list[dict]:
+    path = _findings_path(lane)
     text = path.read_text(encoding="utf-8") if path.is_file() else ""
     meta = LANE_META[lane]
     src = path.relative_to(REPO).as_posix()
@@ -385,7 +470,7 @@ def parse_findings(lane: str, refs: dict[str, dict[str, list[int]]]) -> list[dic
             meta["owner"],
             title,
             pin_kind=kind,
-            pin_refs=_pin_refs(meta["test"], rinfo),
+            pin_refs=_pin_refs(rinfo),
             burn=meta["burn"],
             fix_note=fix_note,
             source=src,
@@ -430,6 +515,149 @@ def parse_findings(lane: str, refs: dict[str, dict[str, list[int]]]) -> list[dic
             split_bullets(slice_section(text, r"测试自体 bug", [r"覆盖摘要"])), 1
         ):
             out.append(entry(f"T{n}", b, "TESTBUG"))
+    return out
+
+
+def _grade_fallback(grade: str) -> str:
+    """无钉无声明时的兜底——同 txt 波口径（CONFIRMED 钉已拆、PLAUSIBLE 裁决未落）。"""
+    return {"OBSERVED": "wontfix", "TESTBUG": "fixed", "PLAUSIBLE": "pinned"}.get(
+        grade, "fixed" if grade == "CONFIRMED" else "pinned"
+    )
+
+
+_file_len_cache: dict[str, int] = {}
+
+
+def _test_file_len(rel: str) -> int:
+    if rel not in _file_len_cache:
+        path = REPO / rel
+        _file_len_cache[rel] = (
+            len(path.read_text(encoding="utf-8").splitlines()) if path.is_file() else 0
+        )
+    return _file_len_cache[rel]
+
+
+def parse_findings_jsonl(
+    lane: str, refs: dict[str, dict[str, list[str]]], recon: dict
+) -> list[dict]:
+    """jsonl 台账逐行解析——条目自带 status/pin_kind/pin_refs 声明。
+
+    运行态钉扫描压台账自述（xfail/open→pinned、fixedsig→fixed）；扫描静默
+    时声明生效。声明 vs 扫描冲突、pin_refs 漂移/越界/指 lane 外记
+    recon["disc"]；坏 json 行/缺字段记 recon["warn"] 继续，不炸全表。
+    """
+    meta = LANE_META[lane]
+    path = _findings_path(lane)
+    src = path.relative_to(REPO).as_posix()
+    out: list[dict] = []
+    if not path.is_file():
+        recon["warn"].append(f"{lane}: findings 缺席 {src}")
+        return out
+    lines = path.read_text(encoding="utf-8").splitlines()
+    recon["jsonl_lines"][lane] = sum(1 for ln in lines if ln.strip())
+    test_set = set(meta["tests"])
+    for lineno, raw in enumerate(lines, 1):
+        if not raw.strip():
+            continue
+        try:
+            d = json.loads(raw)
+        except json.JSONDecodeError as e:
+            recon["warn"].append(f"{src}:{lineno} 坏 json 行（{e.msg}）——跳过")
+            continue
+        if not isinstance(d, dict):
+            recon["warn"].append(f"{src}:{lineno} 非 object 行——跳过")
+            continue
+        eid = str(d.get("id") or "").strip()
+        if not eid:
+            recon["warn"].append(f"{src}:{lineno} 缺 id——跳过")
+            continue
+        grade = str(d.get("grade") or "LEDGER").strip() or "LEDGER"
+        raw_status = d.get("status")
+        raw_status = raw_status.strip() if isinstance(raw_status, str) else ""
+        declared = _STATUS_NORM.get(raw_status, raw_status) or None
+        if declared is not None and declared not in _VALID_STATUS:
+            recon["warn"].append(
+                f"{src}:{lineno} {eid} 未知 status={raw_status}——按无声明"
+            )
+            declared = None
+        rinfo = refs.get(eid)
+        status = _scan_status(rinfo) or declared or _grade_fallback(grade)
+
+        decl_kind = d.get("pin_kind")
+        decl_kind = decl_kind.strip() if isinstance(decl_kind, str) else ""
+        if decl_kind and decl_kind not in _VALID_PIN_KIND:
+            recon["warn"].append(
+                f"{src}:{lineno} {eid} 未知 pin_kind={decl_kind}——按无声明"
+            )
+            decl_kind = ""
+        decl_refs: list[str] = []
+        raw_refs = d.get("pin_refs")
+        if isinstance(raw_refs, list):
+            for r in raw_refs:
+                if isinstance(r, str) and _PIN_REF_RE.match(r):
+                    decl_refs.append(r)
+                else:
+                    recon["warn"].append(
+                        f"{src}:{lineno} {eid} pin_refs 项畸形 {r!r}——丢弃"
+                    )
+        elif raw_refs:
+            recon["warn"].append(f"{src}:{lineno} {eid} pin_refs 非 list——按空")
+
+        if rinfo:
+            kind, pr = _pin_kind(rinfo), _pin_refs(rinfo)
+        else:
+            kind, pr = decl_kind or "none", decl_refs
+
+        # 台账声明 vs 钉扫描对账差（扫描=运行态事实，声明=台账自述）
+        if raw_status and raw_status != status:
+            recon["disc"].append(
+                f"{lane}/{eid} status 台账={raw_status} → 运行态={status}"
+            )
+        if decl_kind and decl_kind != kind:
+            recon["disc"].append(
+                f"{lane}/{eid} pin_kind 台账={decl_kind} → 扫描={kind}"
+            )
+        if set(decl_refs) != set(pr):
+            stale = sorted(set(decl_refs) - set(pr)) or "∅"
+            fresh = sorted(set(pr) - set(decl_refs)) or "∅"
+            recon["disc"].append(
+                f"{lane}/{eid} pin_refs 漂移 台账独有={stale} 扫描独有={fresh}"
+            )
+        elif rinfo is None and decl_refs:
+            recon["disc"].append(
+                f"{lane}/{eid} pin_refs {decl_refs} token 零锚"
+                "——行号漂移或非 token 锚，未能证实"
+            )
+        for r in decl_refs:
+            m = _PIN_REF_RE.match(r)
+            if not m:
+                continue
+            f, ln = m.group(1), int(m.group(2))
+            if f not in test_set:
+                recon["disc"].append(
+                    f"{lane}/{eid} ref {r} 不在 lane 测试文件组 {sorted(test_set)}"
+                )
+            elif (n := _test_file_len(f)) and ln > n:
+                recon["disc"].append(f"{lane}/{eid} ref {r} 越界（{f} 现 {n} 行）")
+
+        out.append(
+            _mk(
+                lane,
+                eid,
+                str(d.get("severity") or ""),
+                grade,
+                status,
+                str(d.get("site") or ""),
+                str(d.get("owner") or meta["owner"]),
+                str(d.get("summary") or ""),
+                pin_kind=kind,
+                pin_refs=pr,
+                burn=str(d.get("burn") or meta["burn"]),
+                fix_ref=str(d.get("fix_ref") or ""),
+                fix_note=str(d.get("fix_note") or ""),
+                source=f"{src}#L{lineno}",
+            )
+        )
     return out
 
 
@@ -590,13 +818,18 @@ def parse_ledger() -> list[dict]:
     return out
 
 
-def collect() -> list[dict]:
+def collect() -> tuple[list[dict], dict]:
+    """→ (entries, recon)；recon = {warn, disc, jsonl_lines} 供 --check 对账。"""
+    recon: dict = {"warn": [], "disc": [], "jsonl_lines": {}}
     refs = {lane: scan_refs(lane) for lane in LANE_META}
     entries: list[dict] = []
-    for lane in LANE_META:
-        entries += parse_findings(lane, refs[lane])
+    for lane, meta in LANE_META.items():
+        if meta.get("fmt") == "jsonl":
+            entries += parse_findings_jsonl(lane, refs[lane], recon)
+        else:
+            entries += parse_findings(lane, refs[lane])
     entries += parse_ledger()
-    return entries
+    return entries, recon
 
 
 def _id_key(eid: str) -> tuple:
@@ -625,7 +858,7 @@ def render_md(entries: list[dict]) -> str:
     lines = [
         (
             f"> generated：`python3 bench/py/defect_ledger.py --md`（{DATE}；"
-            f"源=四份 fuzz findings.txt + 本文件 §1–§4 + tests/ 活钉扫描）"
+            f"源=老四波 findings.txt + 新四波 findings.jsonl + 本文件 §1–§4 + tests/ 活钉扫描）"
         ),
         (
             f"> 条目：pinned {n.get('pinned', 0)} · wontfix {n.get('wontfix', 0)} · "
@@ -651,7 +884,7 @@ def render_md(entries: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def render_check(entries: list[dict]) -> str:
+def render_check(entries: list[dict], recon: dict) -> str:
     lines = ["== defect-ledger 对账 ==", ""]
     by_lane: dict[str, list[dict]] = {}
     for e in entries:
@@ -665,7 +898,10 @@ def render_check(entries: list[dict]) -> str:
         for e in es:
             grades[e["grade"]] = grades.get(e["grade"], 0) + 1
             stat[e["status"]] = stat.get(e["status"], 0) + 1
-        lines.append(f"{lane:<15} parsed={len(es):<3} grade={grades} status={stat}")
+        row = f"{lane:<15} parsed={len(es):<3} grade={grades} status={stat}"
+        if (want := recon["jsonl_lines"].get(lane)) is not None:
+            row += f"  jsonl自述={want} {'OK' if len(es) == want else 'MISMATCH'}"
+        lines.append(row)
     lines.append("")
     mismatches = []
     for (lane, grade), want in sorted(EXPECT.items()):
@@ -674,6 +910,12 @@ def render_check(entries: list[dict]) -> str:
         if got != want:
             mismatches.append(f"{lane}/{grade}: {got} != {want}")
         lines.append(f"  {lane}/{grade}: parsed={got} 期望={want} {flag}")
+    for lane, want in sorted(recon["jsonl_lines"].items()):
+        got = len(by_lane.get(lane, []))
+        flag = "OK" if got == want else "MISMATCH"
+        if got != want:
+            mismatches.append(f"{lane}/jsonl: {got} != {want}")
+        lines.append(f"  {lane}/jsonl: parsed={got} 自述={want} {flag}")
     open_conf = [
         e for e in entries if e["grade"] == "CONFIRMED" and e["status"] == "pinned"
     ]
@@ -689,6 +931,26 @@ def render_check(entries: list[dict]) -> str:
         lines.append(
             f"  {e['lane']}/{e['id']} [{e['pin_kind']}] {e['site']} {e['summary'][:70]}"
         )
+    nopin = [
+        e
+        for e in entries
+        if e["grade"] == "CONFIRMED" and e["pin_kind"] in ("none", "doc")
+    ]
+    nfix = sum(1 for e in nopin if e["status"] == "fixed")
+    lines += [
+        "",
+        (
+            f"无钉 CONFIRMED（pin_kind=none/doc）：{len(nopin)}"
+            f"（fixed {nfix} · 非fixed {len(nopin) - nfix}"
+            "——fixed 为钉已拆正态不逐条列）"
+        ),
+    ]
+    for e in nopin:
+        if e["status"] != "fixed":
+            lines.append(
+                f"  可疑 {e['lane']}/{e['id']} [{e['status']}] {e['site']}"
+                f" {e['summary'][:60]}"
+            )
     conflicts = [
         e
         for e in entries
@@ -700,11 +962,18 @@ def render_check(entries: list[dict]) -> str:
         lines += ["", "状态冲突（fixed 判但仍有活钉引用，人工核）："]
         for e in conflicts:
             lines.append(f"  {e['lane']}/{e['id']} pin_refs={e['pin_refs']}")
+    lines += ["", "台账 status vs 钉扫描 对账差（扫描=运行态事实，不报错只列账）："]
+    if recon["disc"]:
+        lines += [f"  {d}" for d in recon["disc"]]
+    else:
+        lines.append("  无")
+    if recon["warn"]:
+        lines += ["", "warnings:"]
+        lines += [f"  {w}" for w in recon["warn"]]
     for meta in LANE_META.values():
-        tf = REPO / meta["test"]
-        lines.append(
-            f"  pin-scan {meta['test']}: {'ok' if tf.is_file() else 'MISSING'}"
-        )
+        for rel in meta["tests"]:
+            tf = REPO / rel
+            lines.append(f"  pin-scan {rel}: {'ok' if tf.is_file() else 'MISSING'}")
     if mismatches:
         lines += ["", "MISMATCH: " + "; ".join(mismatches)]
     return "\n".join(lines)
@@ -724,17 +993,20 @@ def main() -> int:
         ap.print_help()
         return 2
 
-    entries = collect()
+    entries, recon = collect()
     payload = "".join(
         json.dumps(e, ensure_ascii=False) + "\n" for e in sort_entries(entries)
     )
 
     rc = 0
     if args.check:
-        report = render_check(entries)
+        report = render_check(entries, recon)
         print(report)
         if "MISMATCH:" in report:
             rc = 1
+    else:
+        for w in recon["warn"]:
+            print(f"warn: {w}", file=sys.stderr)
     if args.md:
         print(render_md(entries))
     if args.json:
