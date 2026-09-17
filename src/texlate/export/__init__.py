@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import zipfile
+import zlib
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -58,12 +59,22 @@ def sniff_format(path: Path) -> str | None:
         with zipfile.ZipFile(path) as zf:
             names = set(zf.namelist())
             if "mimetype" in names:
-                head = zf.read("mimetype")[:64].strip()
+                # 有界读：嗅探只用头 64B——zf.read 会把整个成员解进内存，
+                # 上传 EPUB 是不可信面（inflate 炸弹）
+                with zf.open("mimetype") as fp:
+                    head = fp.read(64).strip()
                 if head == b"application/epub+zip":
                     return "epub"
             if "word/document.xml" in names:
                 return "docx"
-    except (OSError, ValueError, RuntimeError, NotImplementedError, zipfile.BadZipFile):
+    except (
+        OSError,
+        ValueError,
+        RuntimeError,
+        NotImplementedError,
+        zipfile.BadZipFile,
+        zlib.error,  # 成员 deflate 流中段坏——解压失败同属"无法识别"
+    ):
         # 加密/未知压缩方法的条目也会走到这里——嗅探失败即"无法识别"；
         # ValueError 面 = 内嵌 NUL 的病态路径（io.open 抛，非 OSError 子类）
         pass

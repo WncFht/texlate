@@ -11,6 +11,7 @@ stdlib ET 的实体攻击护栏，不是阅读器）。
 from __future__ import annotations
 
 import zipfile
+import zlib
 from typing import TYPE_CHECKING
 
 import defusedxml.ElementTree
@@ -47,6 +48,10 @@ FONT_OBFUSCATION = frozenset(
     }
 )
 
+#: ``encryption.xml`` 声明体读取上限——真书该文件 KB 级；仿 ``share.py``
+#: ``_MANIFEST_MAX`` 的 1MB 闸精神，超限声明按"读不懂"判 ``"drm"``。
+_DECLARATION_MAX = 1 << 20
+
 
 def _local_name(tag: object) -> str:
     """去命名空间的元素名。
@@ -58,7 +63,7 @@ def _local_name(tag: object) -> str:
     return tag.rsplit("}", 1)[-1] if isinstance(tag, str) else ""
 
 
-def check_epub(path: Path | str) -> str:  # noqa: PLR0911 -- 每条 return 即一条 DRM 判定规则，表格式控制流
+def check_epub(path: Path | str) -> str:  # noqa: C901, PLR0911 -- 每条 return 即一条 DRM 判定规则，表格式控制流
     """``path`` 声明保护措施返回 ``"drm"``，否则 ``"ok"``。
 
     不是 zip、或不存在的文件返回 ``"ok"``——这不是声称它是干净 EPUB，
@@ -75,8 +80,21 @@ def check_epub(path: Path | str) -> str:  # noqa: PLR0911 -- 每条 return 即�
             if ENCRYPTION_FILE not in names:
                 return "ok"
             try:
-                declaration = archive.read(ENCRYPTION_FILE)
-            except (OSError, ValueError, KeyError, RuntimeError):
+                with archive.open(ENCRYPTION_FILE) as fp:
+                    # 目录 file_size 可谎报——按上限 +1 截断读，防"声明小、
+                    # 实解大"解压放大（``share.py`` ``_MANIFEST_MAX`` 同款闸）
+                    declaration = fp.read(_DECLARATION_MAX + 1)
+            except (
+                OSError,
+                ValueError,
+                KeyError,
+                RuntimeError,
+                NotImplementedError,  # 未知压缩方法
+                zipfile.BadZipFile,  # 成员级坏 CRC——此前漏进外层归 ok，与本臂契约相悖
+                zlib.error,  # deflate 流中段坏
+            ):
+                return "drm"
+            if len(declaration) > _DECLARATION_MAX:
                 return "drm"
     except (OSError, ValueError, zipfile.BadZipFile):
         # ValueError 两臂分工：内层=声明读不出按有害判 drm；外层=文件开不了

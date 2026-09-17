@@ -356,7 +356,7 @@ def insert_after(p_el: _Element, zh_text: str, language: str) -> None:
 # ---------------------------------------------------------------- 驱动
 
 
-def translate_docx(  # noqa: C901, PLR0913 -- 驱动主链：公共 API 参数面 + apply/commit 闭包
+def translate_docx(  # noqa: C901, PLR0913, PLR0915 -- 驱动主链：公共 API 参数面 + apply/commit 闭包
     src: Path | str,
     dst: Path | str,
     translator: Translator,
@@ -383,7 +383,11 @@ def translate_docx(  # noqa: C901, PLR0913 -- 驱动主链：公共 API 参数�
         msg = f"不是可读 DOCX: {src.name} ({e})"
         raise UnsupportedFormatError(msg) from e
 
-    pairs = list(iter_units(doc))
+    try:
+        pairs = list(iter_units(doc))
+    except RecursionError as e:
+        msg = f"DOCX 文档嵌套过深，无法解析: {src.name}"
+        raise UnsupportedFormatError(msg) from e
     units = [u for u, _part, _root in pairs]
     # part → (part_obj, root) 去重表：同一 part 的多个段落共享一次提交
     parts_to_commit: dict[str, tuple[Part, _Element]] = {}
@@ -426,15 +430,21 @@ def translate_docx(  # noqa: C901, PLR0913 -- 驱动主链：公共 API 参数�
         doc.save(str(dst))
 
     chunks = [ChunkIn(u.job_id, u.text, "para") for u in units]
-    results, counts = drive_pipeline(
-        chunks,
-        translator=translator,
-        store=store,
-        glossary=glossary,
-        on_result=on_result,
-        apply_fn=_apply,
-        save_fn=_commit_and_save,
-    )
+    try:
+        results, counts = drive_pipeline(
+            chunks,
+            translator=translator,
+            store=store,
+            glossary=glossary,
+            on_result=on_result,
+            apply_fn=_apply,
+            save_fn=_commit_and_save,
+        )
+    except RecursionError as e:
+        # 超深 ``w:p`` 子树在 ``insert_after`` 的 deepcopy/序列化路径同样
+        # 撞 RecursionError——折进 ExportError 族，裸内置异常不许逃逸
+        msg = f"DOCX 文档嵌套过深，无法翻译: {src.name}"
+        raise UnsupportedFormatError(msg) from e
 
     if state_dir.exists():
         shutil.rmtree(state_dir, ignore_errors=True)
