@@ -2,6 +2,7 @@ from http import HTTPStatus
 
 import httpx
 import pytest
+from bs4 import BeautifulSoup
 
 from texlate.arxiv.fetch import Fetcher
 from texlate.arxiv.html import (
@@ -9,6 +10,7 @@ from texlate.arxiv.html import (
     HtmlNotAvailableError,
     doc_chunks,
     fetch_html,
+    marked_html,
     parse_arxiv_html,
     reinsert,
 )
@@ -315,3 +317,40 @@ def test_fetch_parse_integration() -> None:
     chunks = doc_chunks(doc)
     assert len(chunks) >= MIN_CHUNKS
     assert any(c.kind == "abstract" for c in chunks)
+
+
+# ---------------------------------------------------------------- marked_html
+
+
+def test_marked_html_anchors_1to1() -> None:
+    """``[data-chunk]`` 序与 ``doc.blocks`` key 序严格同源（emit 锚契约）。"""
+    doc = _doc()
+    soup = BeautifulSoup(marked_html(FIXTURE), "lxml")
+    els = soup.select("[data-chunk]")
+    assert [str(e["data-chunk"]) for e in els] == [b.key for b in doc.blocks]
+    # 锚注在块元素本体上（S1.p1 是 ltx_para div，footnote 锚在 note span）
+    el = soup.find(attrs={"data-chunk": "S1.p1"})
+    assert el is not None
+    assert "ltx_para" in (el.get("class") or [])
+    fn = soup.find(attrs={"data-chunk": "fn1"})
+    assert fn is not None
+    assert "ltx_note" in (fn.get("class") or [])
+    # support 块（bibitem/figure）同样带锚——DomPane 几何序含它们
+    assert soup.find(attrs={"data-chunk": "bib.b1"}) is not None
+    assert soup.find(attrs={"data-chunk": "S2.F1"}) is not None
+
+
+def test_marked_html_no_article() -> None:
+    with pytest.raises(HtmlNotAvailableError):
+        marked_html("<html><body><p>stub</p></body></html>")
+
+
+def test_parse_arxiv_html_unchanged_after_extract() -> None:
+    """_enumerate_blocks 抽取回归哨：parse 产物与重构前快照逐字段等价。"""
+    doc = _doc()
+    got = [(b.key, b.context, b.text, sorted(b.ph)) for b in doc.blocks]
+    # 关键序位与文本快照（FIXTURE 改动时同步更新——锁的是枚举语义不是样本）
+    assert got[0][:2] == ("b1", "title")
+    assert got[1][:2] == ("b2", "authors")
+    keys = [g[0] for g in got]
+    assert keys.index("fn1") == keys.index("S1.p2") + 1  # footnote 紧跟宿主

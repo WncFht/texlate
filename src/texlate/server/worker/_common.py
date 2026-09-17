@@ -31,6 +31,7 @@ from texlate.xlat.state import ChunkRecord
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from texlate.arxiv.html import HtmlDoc
     from texlate.latex.model import (
         ScanResult,
     )
@@ -87,6 +88,8 @@ KIND_URL = {
     "md_zip": "md",
     "zh_docx": "zh.docx",
     "zh_epub": "zh.epub",
+    "en_html": "en.html",
+    "zh_html": "zh.html",
 }
 
 #: URL kind → files.kind（反查）
@@ -211,6 +214,9 @@ class TaskCtx:
     #: 散文门分流出的 support 文件（.code.tex 机制件/无散文宏件转储）——
     #: 按原文保留不进翻译集，送译即腐蚀（同 e2e._scan_tree 三级分流）
     support_files: list[str] = field(default_factory=list)
+    #: arxiv_html 链的 DOM 块模型（fetch/parse 建、emit 用 ph_map 回插）——
+    #: tex 链恒 None；resume 路径由 ``_html_doc`` 从 src/index.html 重解析
+    html_doc: HtmlDoc | None = None
 
     @property
     def src_dir(self) -> Path:

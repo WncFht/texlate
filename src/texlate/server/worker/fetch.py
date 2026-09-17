@@ -11,7 +11,6 @@ from typing import Any
 
 import texlate.server.worker as _w
 from texlate.arxiv.cache import (
-    CacheEntry,
     SourceCache,
 )
 from texlate.arxiv.fetch import (
@@ -50,6 +49,8 @@ class _Fetch:
         self._stage(ctx, "fetching", "取源", PROGRESS["fetching"][0])
         if ctx.row["kind"] in ("arxiv", "share"):
             await asyncio.to_thread(self._fetch_arxiv, ctx)
+        elif ctx.row["kind"] == "arxiv_html":
+            await asyncio.to_thread(self._fetch_html, ctx)
         else:
             await asyncio.to_thread(self._fetch_upload, ctx)
         if ctx.reuse_hit is not None:
@@ -116,7 +117,9 @@ class _Fetch:
                     ctx.row["options_json"] = json.dumps(opts, ensure_ascii=False)
                     fields["options_json"] = ctx.row["options_json"]
             self._on_loop(self.store.update_fields, ctx.task_id, **fields)
-            if self._post_resolve_reuse(ctx, entry):
+            if self._post_resolve_reuse(
+                ctx, entry.arxiv_id, entry.resolved_version
+            ):
                 return  # 钉版键命中已完成任务——产物物化由 _stage_fetch 接管
             if ctx.src_dir.exists():
                 shutil.rmtree(ctx.src_dir)
@@ -132,7 +135,14 @@ class _Fetch:
             if own_fetcher:
                 fetcher.close()
 
-    def _post_resolve_reuse(self, ctx: TaskCtx, entry: CacheEntry) -> bool:
+    def _post_resolve_reuse(
+        self,
+        ctx: TaskCtx,
+        arxiv_id: str,
+        version: int | None,
+        *,
+        source: str = "eprint",
+    ) -> bool:
         """#74：latest-alias 任务 fetch 定版后按钉版键二次 dedup + re-key。
 
         入队时 ``id``（无版本）与 ``id@vN`` 产不同 cache_key 材料——enqueue
@@ -141,22 +151,25 @@ class _Fetch:
         未命中且无同键 ACTIVE 任务 → 本行 re-key 成钉版形，让后来的
         ``id@vN`` 请求 enqueue 即命中（双向补齐 dedup 面）。
 
-        跳过条件：非 arxiv 任务（share 必须走 ``_share_apply`` 对账链，
-        不得吃 reuse 捷径）；``prefer=fresh``；无 cache_key（fresh 撞键
-        降级行）；键形同（本就钉版）。re-key 撞 ACTIVE 唯一索引 → 放弃
-        re-key 保留 alias 键（无妨——对方任务覆盖钉版方向）。
+        跳过条件：非 arxiv 系任务（share 必须走 ``_share_apply`` 对账链，
+        不得吃 reuse 捷径；upload/doc 无钉版概念）；``prefer=fresh``；
+        无 cache_key（fresh 撞键降级行）；键形同（本就钉版）。re-key 撞
+        ACTIVE 唯一索引 → 放弃 re-key 保留 alias 键（无妨——对方任务覆盖
+        钉版方向）。``source`` 透传 ``cache_key_for``——html 链的钉版键
+        与 eprint 分桶（enqueue 侧同口径）。
         """
-        if ctx.row["kind"] != "arxiv":
+        if ctx.row["kind"] not in ("arxiv", "arxiv_html"):
             return False
         stored = str(ctx.row.get("cache_key") or "")
         if not stored or str(ctx.options().get("prefer") or "reuse") == "fresh":
             return False
         resolved_key = cache_key_for(
-            arxiv_id=entry.arxiv_id,
-            version=entry.resolved_version,
+            arxiv_id=arxiv_id,
+            version=version,
             model=str(ctx.row["model"]),
             target_lang=str(ctx.row["target_lang"]),
             api_key=ctx.secrets.api_key,
+            source=source,
         )
         if resolved_key == stored:
             return False

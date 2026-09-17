@@ -42,6 +42,13 @@ class _Parse:
             await self._ensure_scans(ctx)
             return
         self._stage(ctx, "parsing", "解析工程", PROGRESS["parsing"][0])
+        if ctx.row["kind"] == "arxiv_html":
+            # DOM 链：无 normalize/主文件——src/index.html 直接出 chunk 行
+            rows = await asyncio.to_thread(self._parse_html, ctx)
+            self.store.insert_chunks(ctx.task_id, rows)
+            self._stage(ctx, "parsing", "解析完成", PROGRESS["parsing"][1])
+            self._check_cancelled(ctx)
+            return
         if not (ctx.base_dir / ".base-done").is_file():
             await asyncio.to_thread(self._build_base, ctx)
         self._check_cancelled(ctx)

@@ -29,6 +29,11 @@ from texlate.arxiv.fetch import (  # noqa: F401 -- test monkeypatch 面
     Fetcher,
     acquire_source,
 )
+from texlate.arxiv.html import (  # noqa: F401 -- test monkeypatch 面
+    fetch_html,
+    marked_html,
+    parse_arxiv_html,
+)
 from texlate.arxiv.meta import fetch_metadata  # noqa: F401 -- test monkeypatch 面
 from texlate.compile.engine import (  # noqa: F401 -- test monkeypatch 面
     engine_for,
@@ -93,6 +98,7 @@ from .compile import (
 from .core import _Core
 from .events import _Events
 from .fetch import _Fetch
+from .html import _Html
 from .parse import _Parse
 from .pdf import _Pdf
 from .runner import TaskRunner
@@ -110,7 +116,7 @@ _HEARTBEAT_S = 5.0
 
 
 class PipelineWorker(
-    _Core, _Events, _Fetch, _Parse, _Translate, _Share, _Compile, _Pdf
+    _Core, _Events, _Fetch, _Html, _Parse, _Translate, _Share, _Compile, _Pdf
 ):
     """单任务管线驱动。注入面：translator_factory / fetcher / engine_factory。
 

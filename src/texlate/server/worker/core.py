@@ -95,6 +95,8 @@ class _Core:
                 await self._run_doc(ctx)
             elif ctx.row["kind"] == "share":
                 await self._run_share(ctx)
+            elif ctx.row["kind"] == "arxiv_html":
+                await self._run_html(ctx)
             else:
                 await self._run_tex(ctx)
         except asyncio.CancelledError:
