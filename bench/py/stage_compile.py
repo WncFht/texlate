@@ -12,9 +12,11 @@ import json
 import shutil
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import benchlib
+import quality_proxies as qp  # S5 质量代理件（landmark 锚点存活率）
 import stagerun_lib as sl
 
 from texlate.compile.engine import engine_for, route_project
@@ -27,7 +29,6 @@ from texlate.compile.inject import (
 
 if TYPE_CHECKING:
     import argparse
-    from pathlib import Path
 
 
 def _compile_judge(
@@ -177,6 +178,21 @@ def _compile_one(
 
     rec["metrics"].update(tail)
     v = tail["verdict"]
+    # S5 质量代理观测键（wiring §2）：clean/partial 时 pdf 才存在——named-dest
+    # 分桶 ÷ 编译树结构期望数。观测件不毁账：landmark 异常不落 error 格。
+    # fixloop post 重算（metrics.post.landmark）属二期——spec §2 标注可选。
+    if v["status"] in ("clean", "partial"):
+        build_dir = splice if args.arm == "zh" else build
+        # 产物落点 = work/{main_rel 目录}/{stem}.pdf（engine out=main_path.parent）
+        pdf = build_dir / Path(main_rel).with_suffix(".pdf")
+        if not pdf.is_file():
+            # main_rel 陈印/直编分叉的兜底——与 quality_proxies._compile_metrics
+            # 同款：顶层 glob 取最新 pdf
+            pdfs = [p for p in build_dir.glob("*.pdf") if p.is_file()]
+            pdf = max(pdfs, key=lambda p: p.stat().st_mtime) if pdfs else None
+        if pdf is not None:
+            with contextlib.suppress(Exception):
+                rec["metrics"]["landmark"] = qp.landmark_metrics(pdf, build_dir)
     rec["status"] = v["status"]
     if v["status"] not in ("clean", "partial"):
         rec["errors"] = [

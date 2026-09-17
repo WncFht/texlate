@@ -15,6 +15,7 @@ auth 断路器（与 e2e_real_bench 同型，★6 回补）：
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import shutil
 import time
@@ -22,6 +23,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import benchlib
+import quality_proxies as qp  # S5 质量代理件（leak/term 指标 + TERM_ARMS + 禁用户层哨兵）
 import stagerun_lib as sl
 import translators_bench as tb  # xlat 臂工厂 + sabotage 台账（e2e_mock 注入逻辑由此封装）
 
@@ -30,12 +32,14 @@ from texlate.latex.placeholder import PH_RX
 from texlate.latex.reconstruct import reconstruct
 from texlate.validate.l0 import validate_pair
 from texlate.xlat.client import ChatClient
+from texlate.xlat.glossary import LOCAL_GLOSSARY_NAME, Glossary
 from texlate.xlat.pipeline import (
     AuthTrippedError,
     GatewayTranslator,
     PipelineConfig,
     XlatPipeline,
 )
+from texlate.xlat.placeholders import collect_doc_placeholders
 from texlate.xlat.state import StateStore
 
 if TYPE_CHECKING:
@@ -69,6 +73,8 @@ async def _translate_tree(
     cfg: PipelineConfig,
     *,
     oversize_cap: int = 0,
+    glossary_categories: list[str] | None = None,
+    local_glossary: Path | None = None,
 ) -> tuple[dict, list]:
     """e2e_real.translate_tree 同构 + 返回逐块结果（chunk 明细/sabotage 归因用）。
 
@@ -114,13 +120,31 @@ async def _translate_tree(
     t0 = time.monotonic()
     state_dir.mkdir(parents=True, exist_ok=True)
     state = StateStore(state_dir, model=getattr(translator, "model", "") or "")
+    # 术语表注入只服务 TERM_ARMS（real）——mock 系臂不调 LLM，注入纯属
+    # doc_filter 空转。categories=None → glossary=None → pipe._doc_glossary={}。
+    # user 层禁用哨兵同 quality_proxies._NO_USER_GLOSSARY：机器相关的
+    # ~/.texlate/glossary.yaml 会让跨机跑批与后算重建口径双双漂移。
+    glossary = None
+    if glossary_categories is not None:
+        glossary = Glossary.load(
+            user_path=qp._NO_USER_GLOSSARY,
+            local_path=local_glossary,
+            categories=glossary_categories,
+            placeholders=collect_doc_placeholders(c.content for c in chunks),
+        )
     pipe = XlatPipeline(
         translator,
         config=cfg,
+        glossary=glossary,
         state=state,
         validator=lambda s, z: validate_pair(s, z).feedback(),
     )
     results = await pipe.run(chunks)
+    if glossary is not None:
+        # term_dict 落盘（xlat-state/{arm}/term_dict.json）——观测件不毁账：
+        # 写盘失败不应把已完成的翻译格记成 error。
+        with contextlib.suppress(Exception):
+            state.save_maps(term_dict=pipe._doc_glossary)
     translate_s = time.monotonic() - t0
 
     by_file: dict[int, dict[int, str]] = {}
@@ -230,6 +254,9 @@ async def _xlat_one_inner(
     state_dir = wid / "xlat-state" / args.arm  # 臂间 state 隔离——mock 结果不回灌 real
     cfg = PipelineConfig(concurrency=args.concurrency)
     cap = benchlib.MAX_TOTAL_CHARS if args.arm == "real" else 0  # 配额闸只对真网关
+    # stagerun 驱动入口把 manifest cat_group 透传成 args.cat_map；直调本
+    # stage 的调用方没此面 → 空 map，术语层退回 default.csv 兜底（§4）。
+    cat_map = getattr(args, "cat_map", None) or {}
     # 同 _parse_job staging-swap: 翻译写进暂存树, 完工换名 —— 期间 zh/
     # 保持上一版 (marker+内容一致), 并发 compile 不读半成品
     stage = wid / ".zh-xlat"
@@ -237,7 +264,15 @@ async def _xlat_one_inner(
         shutil.rmtree(stage)
     shutil.copytree(zh, stage, ignore=benchlib.copytree_ignore())
     stats, results = await _translate_tree(
-        stage, translator, state_dir, cfg, oversize_cap=cap
+        stage,
+        translator,
+        state_dir,
+        cfg,
+        oversize_cap=cap,
+        glossary_categories=(
+            [cat_map.get(pid) or ""] if args.arm in qp.TERM_ARMS else None
+        ),
+        local_glossary=wid / "src" / LOCAL_GLOSSARY_NAME,
     )
     if stats.get("oversize"):
         shutil.rmtree(stage, ignore_errors=True)
@@ -288,6 +323,44 @@ async def _xlat_one_inner(
     if old.exists():
         shutil.rmtree(old)
     rec["metrics"]["translate"] = stats
+    # S5 质量代理观测键（wiring §1）：leak 两臂同义——送译 source 命中展开
+    # 残留是上游 parse/gullet 质量面，与翻译臂无关；term 只 TERM_ARMS——
+    # mock 系译文是 echo/扰动占位，置 null 键保形状（聚合按臂过滤）。
+    stats.update(qp.scan_leak([(r.chunk_id, r.source or "") for r in results]))
+    if args.arm in qp.TERM_ARMS:
+        delivered = [
+            (r.chunk_id, r.source or "", r.translation or "")
+            for r in results
+            if r.status in ("ok", "partial") and r.translation
+        ]
+        try:
+            td = qp.rebuild_term_dict(
+                cat_map.get(pid),
+                [s for _c, s, _t in delivered],
+                wid / "src" / LOCAL_GLOSSARY_NAME,
+            )
+            stats.update(qp.score_terms(delivered, td))
+        except Exception as e:  # 观测件不毁账——重建失败记 note 不落 error 格
+            stats.update(
+                {
+                    "term_applicable": None,
+                    "term_hit": None,
+                    "term_hit_rate": None,
+                    "term_misses": [],
+                    "term_dict_size": None,
+                    "term_note": f"rebuild_failed:{type(e).__name__}",
+                }
+            )
+    else:
+        stats.update(
+            {
+                "term_applicable": None,
+                "term_hit": None,
+                "term_hit_rate": None,
+                "term_misses": [],
+                "term_dict_size": None,
+            }
+        )
     # sabotage/perturb 臂带 .finalize 台账面（translators_bench 契约）；
     # mock/real 无此面，getattr 探空跳过
     finalize = getattr(translator, "finalize", None)

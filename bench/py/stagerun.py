@@ -233,6 +233,13 @@ def main() -> None:
     entries = benchlib.load_manifest_rows(
         sl.CORPUS, sorted(set(args.layers.split(",")))
     )
+    # cat 透传（wiring §4）：xlat real 臂的术语表注入 + term 指标重建共用
+    # {canon_id: cat_group}——manifest 装载本就发生在驱动入口，stage 内不再现查。
+    args.cat_map = {
+        sl.canon_id(str(e["id"])): str(e.get("cat_group") or "")
+        for e in entries
+        if e.get("id")
+    }
     # select_ids 已 canon 归一；dedup_wids 是同 wid 单任务闸（撞名对并发 =
     # 同树互 rmtree——math--0408287 复判被罩实证），五 stage 共此入口。
     ids = sl.dedup_wids(sl.select_ids(entries, args, args.stage))
