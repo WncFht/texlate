@@ -498,6 +498,9 @@ class LoopCtx:
     engine_name: str
     main_rel: str | None = None
     applied: set[str] = field(default_factory=set)  # "{rule_id}:{payload}"
+    #: "看见但拒修" 记录面: when 命中后 cond-skip/applied=False 的 ``{id}: {why}``
+    #: ——events 有但 cases.jsonl 不落, 这里单收一份供 records 物化。
+    declined: list[str] = field(default_factory=list)
     actions: list[dict[str, Any]] = field(default_factory=list)
     installed: list[str] = field(default_factory=list)
     events: list[str] = field(default_factory=list)
@@ -1118,6 +1121,9 @@ def _match_apply(  # noqa: C901, PLR0912, PLR0913, PLR0917  # spike pick_and_app
         ok, why = _cond_ok(rule.condition, rule, ctx, eng, pay)
         if not ok:
             ctx.events.append(f"rule {rule.id}: cond skip ({why})")
+            d = f"{rule.id}: cond skip ({why})"
+            if d not in ctx.declined:
+                ctx.declined.append(d)
             continue
         try:
             applied, note = _apply(rule, ctx, eng, pay, rep)
@@ -1128,6 +1134,9 @@ def _match_apply(  # noqa: C901, PLR0912, PLR0913, PLR0917  # spike pick_and_app
             return rule, note
         if note:
             ctx.events.append(f"rule {rule.id}: skip ({note})")
+            d = f"{rule.id}: {note}"
+            if d not in ctx.declined:
+                ctx.declined.append(d)
         fb = spec.get("fallback")
         if fb == "advisory":
             ctx.advisories.append(f"{rule.id}: {note}")
@@ -1139,6 +1148,9 @@ def _match_apply(  # noqa: C901, PLR0912, PLR0913, PLR0917  # spike pick_and_app
             return rule, f"escalated: {note}"
         if note:
             ctx.events.append(f"rule {rule.id}: escalate skip ({note})")
+            d = f"{rule.id}: escalate skip ({note})"
+            if d not in ctx.declined:
+                ctx.declined.append(d)
     return None, ""
 
 
@@ -1533,6 +1545,10 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
     cell["final_errors"] = last.get("n_errors")
     cell["final_cat"] = last.get("category")
     cell["installed"] = ctx.installed
+    # 「看见/拒修」物化: rules_fired (actions 列) 的互补面 —— when 命中
+    # 但 cond/applied 败阵的规则 id 去重列 + 带因注记 (去重同条目)。
+    cell["rules_declined"] = list(dict.fromkeys(d.split(":", 1)[0] for d in ctx.declined))
+    cell["decline_notes"] = ctx.declined
     cell["advisories"] = ctx.advisories
     cell["engine_flags"] = ctx.engine_flags
     cell["engine_flags_dropped"] = ctx.flags_dropped

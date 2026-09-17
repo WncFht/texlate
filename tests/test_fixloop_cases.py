@@ -254,3 +254,29 @@ def test_fixloop_writes_case_via_sink(tmp_path: Path) -> None:
     assert cases[0]["cond"] == "zh"
     assert cases[0]["verdict"] == "unfixable:missing_file"
     assert cases[0]["log_excerpt"]
+
+
+def test_fixloop_case_records_rules_declined(tmp_path: Path) -> None:
+    """when 命中但拒修的规则物化 ``rules_declined``/``decline_notes``。
+
+    ``rules_fired`` (actions 列) 的互补面：install_file 装不上 +
+    vendored_fetch 查无件 → 两轮重复 decline 去重后各一条；
+    已应用规则 (legacy_pkg_shim) 经 applied 闸在前, 不进拒修面。
+    """
+    (tmp_path / "main.tex").write_text(MAIN_TEX)
+    path = tmp_path / "out" / "cases.jsonl"
+    fixloop(
+        tmp_path,
+        _Eng([("! LaTeX Error: File `x.sty' not found.\n", False)]),
+        ruleset=_rs(),
+        corpus_id="corp",
+        cond="zh",
+        case_sink=CaseSink(path),
+    )
+    (cell,) = load_cases(path)
+    assert cell["verdict"] == "unfixable:missing_file"
+    assert "install_file" in cell["rules_declined"]
+    assert "vendored_fetch" in cell["rules_declined"]
+    assert len(cell["decline_notes"]) == len(set(cell["decline_notes"]))  # 跨轮去重
+    fired = {a["rule"] for a in cell["actions"]}
+    assert not (fired & set(cell["rules_declined"]))
