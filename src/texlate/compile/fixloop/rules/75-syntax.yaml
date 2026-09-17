@@ -200,7 +200,7 @@ rules:
           - {
               pattern: "^[ \\t]*\\\\documentclass",
               flags: [M],
-              repl: "\\AddToHook{package/fontspec/before}{\\let\\TeXlateSldefault\\sldefault \\def\\sldefault{sl}}\n\\AddToHook{package/fontspec/after}{\\let\\sldefault\\TeXlateSldefault} % fixloop: fontspec shape-merge guard\n\\g<0>",
+              repl: '\\AddToHook{package/fontspec/before}{\\let\\TeXlateSldefault\\sldefault \\def\\sldefault{sl}}\n\\AddToHook{package/fontspec/after}{\\let\\sldefault\\TeXlateSldefault} % fixloop: fontspec shape-merge guard\n\g<0>',
             }
     risk: low # hook 对为纯守卫: \sldefault 未被 cls 动过时存-复位-还原同值, 等同 no-op
     known_gap: "cls 自体在 \\documentclass 内加载 fontspec 的极端序仍盖 (hook 先于类载入); 多 docclass \\if 分支各臂同注, hook 幂等"

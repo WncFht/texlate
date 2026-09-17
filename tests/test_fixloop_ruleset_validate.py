@@ -14,6 +14,7 @@ rules/ 目录装载经 ``_yamlish._merge_into`` list 段 extend 不去重——�
 (lineno.sty 真实存在, 误吃会真装)。
 """
 
+import re
 from pathlib import Path
 
 import pytest
@@ -128,3 +129,34 @@ def test_load_cache_shard_add_invalidates(tmp_path: Path) -> None:
     assert len(Ruleset.load(tmp_path).rules) == 1
     (tmp_path / "20-b.yaml").write_text(_shard(_RULE_B), encoding="utf-8")
     assert [r.id for r in Ruleset.load(tmp_path).rules] == ["a", "b"]
+
+
+def test_shipped_rewrites_repl_escapes_valid() -> None:
+    """出厂全部 ``regex_rewrite`` 的 ``repl`` 须过 ``re.sub`` 转义处理。
+
+    钉 fontspec_double_merge 崩规类缺陷：yaml 双引号串 ``\\\\X`` 解码成
+    ``\\X`` 直接喂 ``pat.sub``，``\\A`` 类非法转义在点火时炸
+    ``bad escape``——规则静默失效（stub-fill2 实证：4 IMS cell
+    already_def 清不掉）。全规则 repl 扫一遍编译+替换即可拦住。
+    """
+    rs = Ruleset.load()
+    checked = 0
+    for rule in rs.rules:
+        for rw in (rule.action.get("params") or {}).get("rewrites") or []:
+            if "repl" in rw:
+                re.compile(rw["pattern"], re.MULTILINE).sub(rw["repl"], "SAMPLE\n")
+                checked += 1
+    assert checked > 0
+
+
+def test_fontspec_double_merge_repl_output() -> None:
+    """fontspec_double_merge 注入对：literal ``\\AddToHook`` 双钩 + 原文回插。"""
+    rs = Ruleset.load()
+    rule = next(r for r in rs.rules if r.id == "fontspec_double_merge")
+    rw = rule.action["params"]["rewrites"][0]
+    out = re.compile(rw["pattern"], re.MULTILINE).sub(
+        rw["repl"], "\\documentclass{arximspdf}\n"
+    )
+    assert "\\AddToHook{package/fontspec/before}" in out
+    assert "\\AddToHook{package/fontspec/after}" in out
+    assert out.rstrip().endswith("\\documentclass{arximspdf}")
