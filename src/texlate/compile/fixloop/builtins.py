@@ -86,7 +86,7 @@ from texlate.compile.fixloop._builtins_vendored import (
     vendored_fetch,
     vendored_shadow_isolate,
 )
-from texlate.textutil import cs_events_spans, mask_tex, safe_is_file
+from texlate.textutil import mask_tex, safe_is_file
 
 if TYPE_CHECKING:
     from texlate.compile.fixloop.engine import Engine, LoopCtx
@@ -137,7 +137,6 @@ __all__ = [
     "bbl_stub_rewrite",
     "bundled_class_shadow",
     "citekey_sanitize",
-    "cs_events_spans",
     "cs_rebind",
     "cs_targeted_fix",
     "docstrip_generate",
