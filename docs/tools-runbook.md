@@ -30,7 +30,7 @@ BYOK 环境直配（免 settings.json）：`TEXLATE_BASE_URL` / `TEXLATE_API_KEY
 | `build-web.sh [--no-install]`           | web SPA 构建并拷入 `src/texlate/server/static/`（gitignored 产物）                                                                                                                            |
 | `crossnote-links.sh`                    | MPE 预览 .crossnote 链接层重建                                                                                                                                                                |
 | `fmt-shell.sh`                          | gfs stdin→stdout formatter（zsh 透传，其余 shfmt -i 2）                                                                                                                                       |
-| `gw-health.sh`                          | 网关三探单行报告：gwcap(3399)/direct(tailscale)/tunnel(ssh)；任一 FAIL exit 1；`GW_HEALTH_SKIP_TUNNEL=1` 旁路                                                                                 |
+| `gw-health.sh`                          | 网关三探单行报告：gwcap(3399)/direct(tailscale)/tunnel(ssh)；任一 FAIL exit 1；`GW_HEALTH_SKIP_GWCAP=1`/`GW_HEALTH_SKIP_TUNNEL=1` 旁路                                                       |
 | `gw-tunnel.sh {start,stop,status,logs}` | **devin2api 网关常驻 SSH 隧道**：setsid 脱离会话 + while 重连（抗 tailscaled 重启 exit 144）；远端必须 dial tailscale IP 100.105.212.52（127.0.0.1 撞 Mac VS Code Code H 占口——能连永不响应） |
 | `gwcap/`                                | 出向 3003 限流硬闸：nft REDIRECT→:3399 stdlib 代理，model 前缀 swe-2-medium 过全局 Semaphore(4)；`install.sh {install,uninstall,status}`；healthz `127.0.0.1:3399/__gwcap/healthz`            |
 | `find-gateway-hog.sh [port]`            | 「谁在打网关」归因链：ss→ps→/proc cwd→transcript mtime→指纹 grep→fleet 名                                                                                                                     |
@@ -38,8 +38,9 @@ BYOK 环境直配（免 settings.json）：`TEXLATE_BASE_URL` / `TEXLATE_API_KEY
 | `dev-smoke.sh [--keep]`                 | web e2e 一条龙：起 vite→日志解析实际端口（漂移安全）→mock 鉴别→`web/scripts/smoke.mjs`→只杀自己 PID                                                                                           |
 | `server-smoke.sh [port] [dir]`          | texlate web 全链 curl 冒烟：起服→health→SPA→openapi→upload→SSE→artifact sha256→收尾                                                                                                           |
 | `git-stash-export.sh [stash@{N}] [dir]` | stash 事故无损取证：tracked + `^3` untracked 两树导出 scratch（只读 stash，不动工作区/索引）                                                                                                  |
-| `tcp-relay.py <lport> <rhost> <rport>`  | 30 行 asyncio TCP 转发：tailnet 服务映射到 loopback（比 ssh -L 轻、纯 stdlib）                                                                                                                |
+| `tcp-relay.py <lport> <rhost> <rport>`  | 56 行 asyncio TCP 转发：tailnet 服务映射到 loopback（比 ssh -L 轻、纯 stdlib）                                                                                                                |
 | `loc.sh [--cloc]`                       | 代码量统计：ls-files 圈定 + 剔数据快照 + 分桶 + 未跟踪档（bench/results 有 170 万行生成 JSON，裸 cloc 会把数据当代码）                                                                        |
+| `pyspy-triage.sh <PID> [-n -i -o]`      | py-spy 钉栈 triage：N 次 dump 栈签名逐项比对 + utime/stime 增量——签名全同+CPU 前进=STUCK(疑似 ReDoS/死循环,exit 1)、全同+CPU 平=IDLE(exit 3)、变动=MOVING(exit 0)；`PYSPY_BIN` 覆盖            |
 
 ## 3. bench/py/ — 评测器与批跑（B1–B7 对应 docs/10）
 

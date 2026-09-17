@@ -16,7 +16,7 @@ HOST=${GW_TUNNEL_HOST:-fht-mba}
 LPORT=${GW_TUNNEL_LPORT:-3003}
 RHOST=${GW_TUNNEL_RHOST:-100.105.212.52}
 RPORT=${GW_TUNNEL_RPORT:-3003}
-LOG=${GW_TUNNEL_LOG:-/tmp/ssh${LPORT}.log}
+LOG=${GW_TUNNEL_LOG:-${TMPDIR:-/tmp}/ssh${LPORT}.log}
 PAT="ssh -N -L ${LPORT}:${RHOST}:${RPORT}"
 
 # -f：连接失败仍打 000（-w 恒输出），%{http_code} 非空会让 grep 误判 up——必须让 curl 本身非零

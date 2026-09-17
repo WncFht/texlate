@@ -11,7 +11,8 @@
 #   gw-health ok: gwcap[inflight=0 queued=0 limit=4] direct[200 0.14s] tunnel[200 0.04s]
 #   gw-health FAIL(1): gwcap[inflight=0 queued=0 limit=4] direct[000 rc=7] tunnel[skip]
 #
-# 覆盖：GW_HEALTH_TIMEOUT（秒，默认 5）/ GWCAP_URL / DIRECT_URL / TUNNEL_URL。
+# 覆盖：GW_HEALTH_TIMEOUT（秒，默认 5）/ GWCAP_URL / DIRECT_URL / TUNNEL_URL /
+#       GW_HEALTH_SKIP_GWCAP=1 / GW_HEALTH_SKIP_TUNNEL=1（skip 腿不探不计 FAIL）。
 set -u
 
 T=${GW_HEALTH_TIMEOUT:-5}
@@ -45,7 +46,9 @@ probe() {
 }
 
 # gwcap：要 body 里的闸面计数；可达但 json 解析失败降级 unparsed 不算 FAIL
-if body=$(curl -fsS -m "$T" "$GWCAP_URL" 2>/dev/null); then
+if [ "${GW_HEALTH_SKIP_GWCAP:-0}" = 1 ]; then
+  add "gwcap[skip]"
+elif body=$(curl -fsS -m "$T" "$GWCAP_URL" 2>/dev/null); then
   stats=$(
     python3 -c '
 import json

@@ -37,7 +37,7 @@ if [[ ${1:-} == --cloc ]]; then
   echo
   echo "== cloc 语言分布 =="
   # cloc --list-file 只认换行分隔，故这里保留行式输出；mktemp 防并行会话互写
-  flist=$(mktemp /tmp/texlate-loc-files.XXXXXX)
+  flist=$(mktemp "${TMPDIR:-/tmp}/texlate-loc-files.XXXXXX")
   git ls-files | { grep -vE "$data_re" || true; } >"$flist"
   cloc --list-file="$flist" --quiet
   rm -f "$flist"

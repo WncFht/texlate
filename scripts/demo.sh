@@ -16,7 +16,7 @@ for a in "$@"; do
   *) ID=$a ;;
   esac
 done
-WORK=$(mktemp -d "/tmp/texlate-demo-$ID.XXXXXX")
+WORK=$(mktemp -d "${TMPDIR:-/tmp}/texlate-demo-$ID.XXXXXX")
 
 echo "=== 1/4 fetch: $ID ==="
 uv run texlate fetch "$ID"

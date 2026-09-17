@@ -9,7 +9,7 @@ set -euo pipefail
 cd "$(dirname "$0")/../web"
 
 # 每跑一次独立 log——固定名会被并行会话互截，PORT 解析抓到别家端口
-LOG=$(mktemp /tmp/vite-dev-smoke.XXXXXX.log)
+LOG=$(mktemp "${TMPDIR:-/tmp}/vite-dev-smoke.XXXXXX.log")
 npm run dev >"$LOG" 2>&1 &
 NPM_PID=$!
 MY_VITE_PIDS=""
