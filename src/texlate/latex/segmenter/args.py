@@ -57,6 +57,16 @@ r"""``Segmenter`` 参数读取/保护调用/各 handler/argspec 发射。"""
 # （字母数字 ``_@*.-``），逗号前缀只收裸键位，``{散文}``/``{key 散文}`` 不中。
 _KEYVAL_GROUP_RX = re.compile(r"\s*(?:[\w@*.\-]+[ \t]*,[ \t]*)*[\w@*.\-]+[ \t]*=")
 
+# opaque 宏 ``{..}`` 参的调用点散文判据（gullet-at scout 口径）：检测文本先
+# 剔 ``%`` 注释与 cs（``\emph`` 类名不计词），再要 ≥4 个 ``[A-Za-z]{2,}``
+# 连词（容标点分隔）、非全大写缩写列——``\sortbibitem{KEY}``/``\bibinfo{f}``
+# 的 cite-key/字段名参天然不命中，逐参内容判定（参位白名单会断 key 链）。
+_OPAQUE_ARG_STRIP_RX = re.compile(r"%[^\n]*|\\[A-Za-z@]+|\\.")
+_OPAQUE_ARG_PROSE_RX = re.compile(
+    r"[A-Za-z]{2,}(?:[ \t]*[,;:'’\-–—()/&]*[ \t\n]+[A-Za-z]{2,}){3,}"
+)
+_OPAQUE_ARG_WORD_RX = re.compile(r"[A-Za-z]{2,}")
+
 
 class _Args:
     # ------------------------------------------------------------ 参数读取（token 版 _args）
@@ -1081,6 +1091,12 @@ class _Args:
 
         gullet ``Arg`` → ``ArgSpec`` 映射：``m``→m、``o``→o、``star``→s、
         ``e``→e（delim toks → 字符表），其余（delim/until_group 等）→ 零宽占位。
+
+        散文参挖掘（cat9 @-cs 面 + 全 opaque 散文面共享本点）：``{..}`` 组参
+        命中散文判据时抠出 ``[[MACRO]]`` 覆盖、子扫渲进 run surface——
+        「参留主流即同可见」，整调用不再把散文整块蒸发；宏名/非散文参/
+        散文参花括号所在的结构段仍 opaque 原文（编译语义不破）。``m``/``o``
+        交错与 ``\author{n}{prose}`` 类双参按逐参独立判定。
         """
         fid, _a, b = t.pos
         gspec = [
@@ -1095,7 +1111,7 @@ class _Args:
             else ArgSpec("b")
             for a in getattr(m, "spec", [])
         ]
-        _args, end = self._args_tok(src, fid, gspec, b, allow_single_token=True)
+        args, end = self._args_tok(src, fid, gspec, b, allow_single_token=True)
         # 体尾 key-arg cs（``\def\r{\ref}`` 走 opaque 档不展开时）：spec 参
         # 读尽后调用点 ``{key}`` 仍是待绑尾参——吸进 [[MACRO]] 覆盖，
         # 否则裸落 chunk 被译（key-arg 泄漏 S1-opaque 面）。
@@ -1110,12 +1126,53 @@ class _Args:
                 self.state.warnings.append(
                     ScanWarning("keyarg_unbound", len(self.vt), f"\\{ka} 尾参缺席")
                 )
+        prose_args = [a for a in args if self._opaque_arg_prose(fid, a)]
+        if prose_args and self.gen >= MAX_GEN:
+            # 子扫代数触底——散文参不挖，整调用维持 opaque（``_handle_chunk_arg``
+            # 同款回压：宁可不译也不超代数）。
+            self.state.warnings.append(
+                ScanWarning("gen_overflow", len(self.vt), f"opaque:{t.text}")
+            )
+            prose_args = []
         self._cover_gap(fid, t.pos[1])
+        for a in prose_args:
+            # ``{`` 随前段结构进 [[MACRO]]，参内容子扫渲进 run surface——
+            # 嵌套 cs/注释由 ``_subscan_render`` 照常保护。
+            vspan = self._cover_to(fid, a.cs)
+            self._rappend_ph(
+                self._ph(PhType.MACRO, self.vt.slice(vspan.start, vspan.end)),
+                vspan,
+            )
+            vmark = len(self.vt)
+            rendered = self._subscan_render(a)
+            self._rappend(rendered, rendered, Span(vmark, len(self.vt)))
         vspan = self._cover_to(fid, end)
         self._rappend_ph(
             self._ph(PhType.MACRO, self.vt.slice(vspan.start, vspan.end)),
             vspan,
         )
+
+    def _opaque_arg_prose(self, fid: int, a: _ArgTok) -> bool:
+        r"""Opaque 宏 ``{..}`` 组参的调用点散文门（gullet-at scout 口径）。
+
+        只认本 fid 实消费的 ``{``-open 组参：跨 fid 组字节切片判不了形
+        （``_keyval_tail_end`` 同款守门）、``[``-open/``e``/定界/单 token
+        参不是散文槽位。内容剔注释+cs 后 ≥4 连词即散文。
+        """
+        if a.fe <= a.fs or a.cs <= a.fs:
+            return False  # 未消费占位 / 单 token 参
+        if any(x.pos[0] != fid for x in a.all_toks):
+            return False  # 跨 fid 组——``file_texts[fid]`` 切片错位，保持 opaque
+        if self.file_texts[fid][a.fs] != "{":
+            return False  # ``[``-open 组——可选/非散文槽位不挖
+        text = _OPAQUE_ARG_STRIP_RX.sub(" ", self.file_texts[fid][a.cs : a.ce])
+        for mm in _OPAQUE_ARG_PROSE_RX.finditer(text):
+            words = _OPAQUE_ARG_WORD_RX.findall(mm.group(0))
+            if len(words) >= 4 and not all(  # noqa: PLR2004 - 4 = scout 散文判据连词下限
+                w == w.upper() for w in words
+            ):
+                return True
+        return False
 
     def _handle_unknown_cs(
         self, t: Tok, src: TokenSource, name: str = "", m: object | None = None
