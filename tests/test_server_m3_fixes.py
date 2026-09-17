@@ -127,9 +127,18 @@ class TestB1FaultRootCause:
         assert "boom" in msg
         assert "rc=3" in msg
 
-    def test_api_key_scrubbed_from_message(self, tmp_path: Path) -> None:
-        """stderr 回显 key → message 只见 ``***``；job.api_key 显式抹。"""
-        key = "sk-super-secret-b123"
+    @pytest.mark.parametrize(
+        "key",
+        [
+            # 不命中任何 _SECRET_PATTERNS 的短数字 key——只有 job.api_key
+            # 显式抹除通道能拦住，该通道断则本臂红（真实网关 key 形态）
+            pytest.param("240127", id="explicit-only"),
+            # sk- 形态命中通用正则——显式通道断掉也照过，保通用通道覆盖
+            pytest.param("sk-super-secret-b123", id="generic-pattern"),
+        ],
+    )
+    def test_api_key_scrubbed_from_message(self, tmp_path: Path, key: str) -> None:
+        """stderr 回显 key → message 只见 ``***``（key 原位被替换）。"""
         feed = _feed(f"Error: upstream rejected key {key} at line 1")
         _s, _c, msg, _r = bd._judge_run(  # noqa: SLF001
             _job(tmp_path, api_key=key),
@@ -141,7 +150,7 @@ class TestB1FaultRootCause:
             stats={},
         )
         assert key not in msg
-        assert "***" in msg
+        assert "rejected key ***" in msg
 
     def test_tail_excerpt_bounded(self) -> None:
         """尾摘要有界——长 traceback 不塞满 message（`` | `` 折行微扩容）。"""
@@ -342,11 +351,15 @@ class TestB3HealthBuildStamp:
     def test_health_stamp_keys(self, client: TestClient) -> None:
         body = client.get("/api/health").json()
         assert body["ok"] is True
-        assert isinstance(body["commit"], str)
+        # 仓内测试必得非空短哈希——非 git 部署面由
+        # test_probe_git_commit_tolerates_non_git 钉 ``""``
+        assert body["commit"]
+        assert body["commit"] == app_mod._BUILD_COMMIT  # noqa: SLF001
+        assert body["started_at"] == app_mod._STARTED_AT  # noqa: SLF001
         # ISO 可解析 + 时区已钉（astimezone 不炸即 aware）
         dt = datetime.fromisoformat(body["started_at"])
         assert dt.tzinfo is not None
-        assert body["version"]
+        assert body["version"] == app_mod.__version__
 
     def test_probe_git_commit_tolerates_non_git(
         self, monkeypatch: pytest.MonkeyPatch
