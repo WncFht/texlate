@@ -129,6 +129,30 @@ function settleLive(taskId: string) {
     setState("live", taskId, "stages", []);
 }
 
+/**
+ * 终态收敛统一入口：合成 done 兜底 + settleLive + unwant。
+ *
+ * 非 done 帧探到终态时真实 done 帧可能永不到达——SSE snapshot(seq=0)
+ * 恒先于重放段的 done 上电线，client 收终态即 close()，done 被丢在
+ * 线路上；轮询/探活路径本就没有 done 帧。live.done 缺席 → Reader 的
+ * `done && !info()` → loadReader 永不触发 → 终态任务永卡 loading。
+ * snapshot.artifacts 与 done.artifacts 同源（server `_artifacts`）；
+ * stats 缺键由 counters/usage 兜底（taskStats.mergeResultStats）。
+ */
+function convergeTerminal(taskId: string, s: TaskSnapshot) {
+    ensureLive(taskId);
+    if (!state.live[taskId]?.done)
+        setState("live", taskId, "done", {
+            status: s.status,
+            // 拷一份再入 store——s.artifacts 与 reconcile 后的行 artifacts
+            // 共用底层节点，直接写入会让后续 reconcile 改穿到 live.done
+            artifacts: { ...(s.artifacts ?? {}) },
+            stats: {},
+        });
+    settleLive(taskId);
+    unwant(taskId);
+}
+
 function closeChannel(taskId: string) {
     const ch = channels.get(taskId);
     channels.delete(taskId);
@@ -175,8 +199,7 @@ function startPoll(taskId: string) {
             if (!wanted.has(taskId)) return; // 已摘除——迟到响应不回写
             upsertTask(s);
             if (isTerminal(s.status)) {
-                settleLive(taskId);
-                unwant(taskId);
+                convergeTerminal(taskId, s);
                 rebalance();
             }
         } catch (e) {
@@ -205,8 +228,7 @@ async function probeAfterClose(taskId: string) {
         if (!wanted.has(taskId)) return;
         upsertTask(s);
         if (isTerminal(s.status)) {
-            settleLive(taskId);
-            unwant(taskId);
+            convergeTerminal(taskId, s);
         } else {
             startPoll(taskId);
         }
@@ -294,8 +316,7 @@ function ensureChannel(taskId: string): TaskChannel {
                     if (!wanted.has(taskId)) return;
                     upsertTask(s);
                     if (isTerminal(s.status)) {
-                        settleLive(taskId);
-                        unwant(taskId);
+                        convergeTerminal(taskId, s);
                         rebalance();
                     }
                 })
@@ -309,8 +330,7 @@ function ensureChannel(taskId: string): TaskChannel {
         snapshot: (s) => {
             upsertTask(s);
             if (isTerminal(s.status)) {
-                settleLive(taskId);
-                unwant(taskId);
+                convergeTerminal(taskId, s);
                 rebalance();
             }
         },
@@ -361,7 +381,9 @@ function ensureChannel(taskId: string): TaskChannel {
             if (i >= 0) {
                 setState("tasks", i, "status", status);
                 setState("tasks", i, "progress", 100);
-                setState("tasks", i, "artifacts", e.artifacts);
+                // 拷一份——e.artifacts 已随 live.done 入 store，同对象入
+                // 第二路径会共用节点，后续 reconcile 会改穿 live.done
+                setState("tasks", i, "artifacts", { ...e.artifacts });
             }
             settleLive(taskId);
             unwant(taskId);
@@ -391,8 +413,7 @@ export const taskStore = {
                         wanted.set(t.task_id, { pin: false });
                 } else if (wanted.has(t.task_id)) {
                     // 列表回终态（done 帧可能未到/已丢）——收敛并摘除
-                    settleLive(t.task_id);
-                    unwant(t.task_id);
+                    convergeTerminal(t.task_id, t);
                 }
             }
             // 列表里消失的非 pin 任务（别处已删）——停止观测；pin 的留着
