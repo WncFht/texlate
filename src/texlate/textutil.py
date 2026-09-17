@@ -20,15 +20,16 @@ xlat 轻量对账共用一个实现，防两份 DP 各自漂移。
 latin 对字节（``é``+ASCII 字母是合法 gb 二字节）解成 CJK——字节探测必须先
 判定编码族再解码，判定依据逐文件落 ``EncodingVerdict`` 供 normalize 归因。
 
-``env_flag``/``env_str``/``data_root``：``TEXLATE_*`` env 读取的单一事实源——
+``env_flag``/``env_str``/``env_float``/``data_root``：``TEXLATE_*`` env 读取的单一事实源——
 布尔旗标统一 ``1/true/yes/on`` 真值表（strip+lower 后判定）；字符串选择器
-统一 strip+lower 归一；数据根统一 ``TEXLATE_DATA_DIR`` > ``~/.texlate``
-（只定位不 mkdir，副作用归调用方）。
+统一 strip+lower 归一；浮点参数统一解析失败/nan/inf 回默认（范围裁剪归调用方）；
+数据根统一 ``TEXLATE_DATA_DIR`` > ``~/.texlate``（只定位不 mkdir，副作用归调用方）。
 """
 
 from __future__ import annotations
 
 import codecs
+import math
 import os
 import re
 from bisect import bisect_right
@@ -57,6 +58,7 @@ __all__ = [
     "decode_tex",
     "decode_tex_with",
     "env_flag",
+    "env_float",
     "env_str",
     "is_cjk_cp",
     "lev_capped",
@@ -1168,6 +1170,18 @@ def env_flag(name: str, *, default: bool) -> bool:
     if raw is None:
         return default
     return raw.strip().lower() in _TRUE_WORDS
+
+
+def env_float(name: str, default: float) -> float:
+    """读浮点 env：strip 后 ``float()`` 解析；未设置/解析失败/nan/inf 一律回 ``default``。"""
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        v = float(raw.strip())
+    except ValueError:
+        return default
+    return v if math.isfinite(v) else default
 
 
 def env_str(name: str) -> str:

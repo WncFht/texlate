@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -16,6 +15,7 @@ from texlate.server.settings import (
     cache_scope,
     scrub,
 )
+from texlate.textutil import env_float
 from texlate.xlat.client import (
     ChatClient,
     ChatError,
@@ -64,10 +64,7 @@ _ENV_TIMEOUT_MAX_S = 86400.0  # env 超时值 24h 封顶——更大属配置错
 
 def _env_timeout(name: str, default: float) -> float:
     """``TEXLATE_*`` 秒数 env 读入——nan/inf/非正/超限一律回默认。"""
-    try:
-        v = float(os.environ.get(name, ""))
-    except ValueError:
-        return default
+    v = env_float(name, default)
     return v if 0.0 < v <= _ENV_TIMEOUT_MAX_S else default
 
 
