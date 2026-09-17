@@ -9,9 +9,9 @@ from texlate import textutil
 from texlate.textutil import (
     END_DOC_RX,
     LOADER_CMDS,
-    _cs_events_spans,
     _declared_name,
     bare_cs_net,
+    cs_events_spans,
     decode_tex,
     decode_tex_with,
     lev_capped,
@@ -39,7 +39,7 @@ def test_lev_capped_over_cap_returns_cap_plus_one() -> None:
 
 # ---------------------------------------------------------------- 数学定界配对机
 def _spans(s: str) -> list[tuple[int, int]]:
-    return _cs_events_spans(mask_comments(s))[1]
+    return cs_events_spans(mask_comments(s))[1]
 
 
 def test_math_spans_basic_forms() -> None:

@@ -16,7 +16,7 @@ from texlate.compile.fixloop._builtins_common import (
     _map_tex_files,
 )
 from texlate.latex.tables import MATH_ENVS
-from texlate.textutil import _cs_events_spans, mask_tex
+from texlate.textutil import cs_events_spans, mask_tex
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -362,7 +362,7 @@ _MATH_GUARD_BEGIN_RE = re.compile(
 
 def _math_guard_spans(masked: str) -> list[tuple[int, int]]:
     r"""遮盖视图上的数学域区间表: ``$..$``/``$$``/``\(\)``/``\[\]`` + 数学 env 体。"""
-    _css, spans = _cs_events_spans(masked)
+    _css, spans = cs_events_spans(masked)
     for m in _MATH_GUARD_BEGIN_RE.finditer(masked):
         end = re.compile(r"\\end\s*\{" + re.escape(m[1]) + r"\}").search(
             masked, m.end()

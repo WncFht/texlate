@@ -144,7 +144,7 @@ from texlate.compile.fixloop._builtins_vendored import (
     vendored_fetch,
     vendored_shadow_isolate,
 )
-from texlate.textutil import _cs_events_spans, mask_tex, safe_is_file
+from texlate.textutil import cs_events_spans, mask_tex, safe_is_file
 
 if TYPE_CHECKING:
     from texlate.compile.fixloop.engine import Engine, LoopCtx
@@ -211,7 +211,6 @@ __all__ = [
     "_compile_log_text",
     "_convert_one",
     "_corrupted_by_xlat",
-    "_cs_events_spans",
     "_detach_in_tex_files",
     "_detach_physics_loads",
     "_drop_pkg_loads",
@@ -259,6 +258,7 @@ __all__ = [
     "bbl_stub_rewrite",
     "bundled_class_shadow",
     "citekey_sanitize",
+    "cs_events_spans",
     "cs_targeted_fix",
     "docstrip_generate",
     "eps_to_pdf",

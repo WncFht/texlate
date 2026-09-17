@@ -68,6 +68,7 @@ __all__ = [
     "EncodingVerdict",
     "bare_cs_net",
     "clean_decl_name",
+    "cs_events_spans",
     "data_root",
     "dead_end_anchored",
     "dead_env_end",
@@ -291,7 +292,7 @@ _BARE_CS_SCAN_RX: Final = re.compile(r"\\[a-zA-Z][a-zA-Z@]*|\\.|\$")
 _MIN_FUSED_PREFIX: Final = 3
 
 
-def _cs_events_spans(
+def cs_events_spans(
     masked: str,
 ) -> tuple[list[tuple[str, int]], list[tuple[int, int]]]:
     r"""``(cs 名+pos 事件, 配对数学 span 表)``——单遍扫描产物。"""
@@ -371,8 +372,8 @@ def bare_cs_net(src: str, zh: str) -> Counter[str]:
     拆分子类判 ``nme in MATH_CS``（两族不交——粘合类跳过表内名）。
     """
     snc, znc = mask_comments(src), mask_comments(zh)
-    s_ev, s_sp = _cs_events_spans(snc)
-    z_ev, z_sp = _cs_events_spans(znc)
+    s_ev, s_sp = cs_events_spans(snc)
+    z_ev, z_sp = cs_events_spans(znc)
     sn = Counter(n for n, _ in s_ev)
     zn = Counter(n for n, _ in z_ev)
     new = zn - sn
