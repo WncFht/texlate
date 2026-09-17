@@ -7838,7 +7838,11 @@
             "signature": "s m o m o m",
             "arg_roles": ["skip", "skip", "skip", "skip", "skip", "text"],
             "policy": "chunk-arg",
-            "source": ["manual", "guessed-signature", "illegal-unit-wave:fixup-opt"]
+            "source": [
+                "manual",
+                "guessed-signature",
+                "illegal-unit-wave:fixup-opt"
+            ]
         },
         "multispan": {
             "name": "multispan",
@@ -14693,6 +14697,26 @@
             "policy": "text",
             "source": ["ctan:beamer", "default-text"]
         },
+        "addmargin": {
+            "name": "addmargin",
+            "kind": "env",
+            "package": "manual",
+            "signature": "o m",
+            "arg_roles": ["skip", "skip"],
+            "body_role": "text",
+            "policy": "text",
+            "source": ["manual-env", "envarg-scout:1907.00141"]
+        },
+        "addmargin*": {
+            "name": "addmargin*",
+            "kind": "env",
+            "package": "manual",
+            "signature": "o m",
+            "arg_roles": ["skip", "skip"],
+            "body_role": "text",
+            "policy": "text",
+            "source": ["manual-env", "envarg-scout:1907.00141"]
+        },
         "adjustwidth": {
             "name": "adjustwidth",
             "kind": "env",
@@ -14953,6 +14977,16 @@
             "policy": "protect",
             "source": ["ctan:mathtools", "miniscanner math-env / inMathMode"]
         },
+        "boxedminipage": {
+            "name": "boxedminipage",
+            "kind": "env",
+            "package": "boxedminipage",
+            "signature": "m",
+            "arg_roles": ["skip"],
+            "body_role": "text",
+            "policy": "text",
+            "source": ["ctan:boxedminipage", "envarg-scout:1206.0136"]
+        },
         "bprooftree": {
             "name": "bprooftree",
             "kind": "env",
@@ -15023,6 +15057,26 @@
             "policy": "text",
             "source": ["manual-env", "no-signature"]
         },
+        "changemargin": {
+            "name": "changemargin",
+            "kind": "env",
+            "package": "manual",
+            "signature": "m m",
+            "arg_roles": ["skip", "skip"],
+            "body_role": "text",
+            "policy": "text",
+            "source": ["manual-env", "envarg-scout:1206.5536"]
+        },
+        "chapthebibliography": {
+            "name": "chapthebibliography",
+            "kind": "env",
+            "package": "manual",
+            "signature": "m",
+            "arg_roles": ["skip"],
+            "body_role": "protect",
+            "policy": "protect",
+            "source": ["manual-env", "envarg-scout:astro-ph-0408466"]
+        },
         "checkboxes": {
             "name": "checkboxes",
             "kind": "env",
@@ -15042,6 +15096,16 @@
             "body_role": "text",
             "policy": "text",
             "source": ["ctan:exam", "default-text"]
+        },
+        "chronology": {
+            "name": "chronology",
+            "kind": "env",
+            "package": "chronology",
+            "signature": "o m m m m",
+            "arg_roles": ["skip", "skip", "skip", "skip", "skip"],
+            "body_role": "text",
+            "policy": "text",
+            "source": ["ctan:chronology", "envarg-scout:1706.00177"]
         },
         "citedsource": {
             "name": "citedsource",
@@ -15217,7 +15281,10 @@
             "arg_roles": ["skip", "skip"],
             "body_role": "protect",
             "policy": "protect",
-            "source": ["manual-env", "loop1 slots: preamble 裸进 surface → Illegal pream-token"]
+            "source": [
+                "manual-env",
+                "loop1 slots: preamble 裸进 surface → Illegal pream-token"
+            ]
         },
         "deluxetable*": {
             "name": "deluxetable*",
@@ -15227,7 +15294,10 @@
             "arg_roles": ["skip", "skip"],
             "body_role": "protect",
             "policy": "protect",
-            "source": ["manual-env", "loop1 slots: preamble 裸进 surface → Illegal pream-token"]
+            "source": [
+                "manual-env",
+                "loop1 slots: preamble 裸进 surface → Illegal pream-token"
+            ]
         },
         "description": {
             "name": "description",
@@ -15238,6 +15308,16 @@
             "body_role": "text",
             "policy": "text",
             "source": ["ctan:latex2e", "default-text"]
+        },
+        "dingautolist": {
+            "name": "dingautolist",
+            "kind": "env",
+            "package": "pifont",
+            "signature": "m",
+            "arg_roles": ["skip"],
+            "body_role": "text",
+            "policy": "text",
+            "source": ["ctan:pifont", "envarg-scout:nucl-ex-0111004"]
         },
         "displaymath": {
             "name": "displaymath",
@@ -15509,6 +15589,26 @@
             "policy": "protect",
             "source": ["ctan:mathtools", "miniscanner math-env / inMathMode"]
         },
+        "floatingfigure": {
+            "name": "floatingfigure",
+            "kind": "env",
+            "package": "floatflt",
+            "signature": "o m",
+            "arg_roles": ["skip", "skip"],
+            "body_role": "text",
+            "policy": "text",
+            "source": ["ctan:floatflt", "envarg-scout:0707.3673"]
+        },
+        "floatingtable": {
+            "name": "floatingtable",
+            "kind": "env",
+            "package": "floatflt",
+            "signature": "o m",
+            "arg_roles": ["skip", "skip"],
+            "body_role": "text",
+            "policy": "text",
+            "source": ["ctan:floatflt", "envarg-scout:sibling"]
+        },
         "flushleft": {
             "name": "flushleft",
             "kind": "env",
@@ -15679,6 +15779,16 @@
             "policy": "text",
             "source": ["ctan:latex2e", "default-text"]
         },
+        "listing": {
+            "name": "listing",
+            "kind": "env",
+            "package": "moreverb",
+            "signature": "o m",
+            "arg_roles": ["skip", "skip"],
+            "body_role": "verbatim",
+            "policy": "protect",
+            "source": ["ctan:moreverb", "envarg-scout:cs-0111043"]
+        },
         "longtable": {
             "name": "longtable",
             "kind": "env",
@@ -15697,7 +15807,10 @@
             "arg_roles": ["skip", "skip"],
             "body_role": "protect",
             "policy": "protect",
-            "source": ["manual-env", "loop1 slots: preamble 裸进 surface → Illegal pream-token"]
+            "source": [
+                "manual-env",
+                "loop1 slots: preamble 裸进 surface → Illegal pream-token"
+            ]
         },
         "longtabu": {
             "name": "longtabu",
@@ -15707,7 +15820,20 @@
             "arg_roles": ["skip", "skip"],
             "body_role": "protect",
             "policy": "protect",
-            "source": ["manual-env", "loop1 slots: preamble 裸进 surface → Illegal pream-token"]
+            "source": [
+                "manual-env",
+                "loop1 slots: preamble 裸进 surface → Illegal pream-token"
+            ]
+        },
+        "lrbox": {
+            "name": "lrbox",
+            "kind": "env",
+            "package": "latex2e",
+            "signature": "m",
+            "arg_roles": ["skip"],
+            "body_role": "text",
+            "policy": "text",
+            "source": ["ctan:latex2e", "envarg-scout:1811.10096"]
         },
         "lstlisting": {
             "name": "lstlisting",
@@ -15743,7 +15869,20 @@
             "arg_roles": ["skip", "skip"],
             "body_role": "protect",
             "policy": "protect",
-            "source": ["manual-env", "loop1 slots: preamble 裸进 surface → Illegal pream-token"]
+            "source": [
+                "manual-env",
+                "loop1 slots: preamble 裸进 surface → Illegal pream-token"
+            ]
+        },
+        "lyxlist": {
+            "name": "lyxlist",
+            "kind": "env",
+            "package": "manual",
+            "signature": "m",
+            "arg_roles": ["skip"],
+            "body_role": "text",
+            "policy": "text",
+            "source": ["manual-env", "envarg-scout:1003.5474"]
         },
         "math": {
             "name": "math",
@@ -15846,7 +15985,10 @@
             "arg_roles": ["skip", "skip"],
             "body_role": "protect",
             "policy": "protect",
-            "source": ["manual-env", "loop1 slots: preamble 裸进 surface → Illegal pream-token"]
+            "source": [
+                "manual-env",
+                "loop1 slots: preamble 裸进 surface → Illegal pream-token"
+            ]
         },
         "mpsupertabular*": {
             "name": "mpsupertabular*",
@@ -15856,7 +15998,10 @@
             "arg_roles": ["skip", "skip", "skip"],
             "body_role": "protect",
             "policy": "protect",
-            "source": ["manual-env", "loop1 slots: preamble 裸进 surface → Illegal pream-token"]
+            "source": [
+                "manual-env",
+                "loop1 slots: preamble 裸进 surface → Illegal pream-token"
+            ]
         },
         "multicols": {
             "name": "multicols",
@@ -15907,6 +16052,16 @@
             "body_role": "math",
             "policy": "protect",
             "source": ["ctan:mathtools", "miniscanner math-env / inMathMode"]
+        },
+        "numcases": {
+            "name": "numcases",
+            "kind": "env",
+            "package": "cases",
+            "signature": "m",
+            "arg_roles": ["skip"],
+            "body_role": "text",
+            "policy": "text",
+            "source": ["ctan:cases", "envarg-scout:2105.03733"]
         },
         "oneparcheckboxes": {
             "name": "oneparcheckboxes",
@@ -16086,7 +16241,10 @@
             "arg_roles": ["skip"],
             "body_role": "protect",
             "policy": "protect",
-            "source": ["manual-env", "loop1 slots: preamble 裸进 surface → Illegal pream-token"]
+            "source": [
+                "manual-env",
+                "loop1 slots: preamble 裸进 surface → Illegal pream-token"
+            ]
         },
         "pmatrix": {
             "name": "pmatrix",
@@ -16338,6 +16496,16 @@
             "policy": "protect",
             "source": ["ctan:mathtools", "miniscanner math-env / inMathMode"]
         },
+        "rotate": {
+            "name": "rotate",
+            "kind": "env",
+            "package": "rotating",
+            "signature": "m",
+            "arg_roles": ["skip"],
+            "body_role": "text",
+            "policy": "text",
+            "source": ["ctan:rotating", "envarg-scout:0905.0052"]
+        },
         "scope": {
             "name": "scope",
             "kind": "env",
@@ -16478,6 +16646,16 @@
             "policy": "protect",
             "source": ["manual-env", "no-signature"]
         },
+        "subnumcases": {
+            "name": "subnumcases",
+            "kind": "env",
+            "package": "cases",
+            "signature": "m",
+            "arg_roles": ["skip"],
+            "body_role": "text",
+            "policy": "text",
+            "source": ["ctan:cases", "envarg-scout:sibling"]
+        },
         "subparts": {
             "name": "subparts",
             "kind": "env",
@@ -16516,7 +16694,10 @@
             "arg_roles": ["skip", "skip"],
             "body_role": "protect",
             "policy": "protect",
-            "source": ["manual-env", "loop1 slots: preamble 裸进 surface → Illegal pream-token"]
+            "source": [
+                "manual-env",
+                "loop1 slots: preamble 裸进 surface → Illegal pream-token"
+            ]
         },
         "supertabular*": {
             "name": "supertabular*",
@@ -16526,7 +16707,10 @@
             "arg_roles": ["skip", "skip"],
             "body_role": "protect",
             "policy": "protect",
-            "source": ["manual-env", "loop1 slots: preamble 裸进 surface → Illegal pream-token"]
+            "source": [
+                "manual-env",
+                "loop1 slots: preamble 裸进 surface → Illegal pream-token"
+            ]
         },
         "tabbing": {
             "name": "tabbing",
@@ -16566,7 +16750,10 @@
             "arg_roles": ["skip", "skip"],
             "body_role": "protect",
             "policy": "protect",
-            "source": ["manual-env", "loop1 slots: preamble 裸进 surface → Illegal pream-token"]
+            "source": [
+                "manual-env",
+                "loop1 slots: preamble 裸进 surface → Illegal pream-token"
+            ]
         },
         "tabular": {
             "name": "tabular",
@@ -16619,7 +16806,10 @@
             "arg_roles": ["skip"],
             "body_role": "protect",
             "policy": "protect",
-            "source": ["manual-env", "loop1 slots: preamble 裸进 surface → Illegal pream-token"]
+            "source": [
+                "manual-env",
+                "loop1 slots: preamble 裸进 surface → Illegal pream-token"
+            ]
         },
         "testcolors": {
             "name": "testcolors",
@@ -16630,6 +16820,26 @@
             "body_role": "text",
             "policy": "text",
             "source": ["ctan:xcolor", "default-text"]
+        },
+        "textblock": {
+            "name": "textblock",
+            "kind": "env",
+            "package": "textpos",
+            "signature": "m r()",
+            "arg_roles": ["skip", "skip"],
+            "body_role": "text",
+            "policy": "text",
+            "source": ["ctan:textpos", "envarg-scout:1404.0096"]
+        },
+        "textblock*": {
+            "name": "textblock*",
+            "kind": "env",
+            "package": "textpos",
+            "signature": "m r()",
+            "arg_roles": ["skip", "skip"],
+            "body_role": "text",
+            "policy": "text",
+            "source": ["ctan:textpos", "envarg-scout:1404.0096"]
         },
         "thebibliography": {
             "name": "thebibliography",
@@ -16711,6 +16921,16 @@
             "policy": "text",
             "source": ["ctan:latex2e", "default-text"]
         },
+        "turn": {
+            "name": "turn",
+            "kind": "env",
+            "package": "rotating",
+            "signature": "m",
+            "arg_roles": ["skip"],
+            "body_role": "text",
+            "policy": "text",
+            "source": ["ctan:rotating", "envarg-scout:1907.00079"]
+        },
         "vNiceArray": {
             "name": "vNiceArray",
             "kind": "env",
@@ -16730,6 +16950,16 @@
             "body_role": "text",
             "policy": "text",
             "source": ["ctan:nicematrix", "default-text"]
+        },
+        "varwidth": {
+            "name": "varwidth",
+            "kind": "env",
+            "package": "varwidth",
+            "signature": "o m",
+            "arg_roles": ["skip", "skip"],
+            "body_role": "text",
+            "policy": "text",
+            "source": ["ctan:varwidth", "envarg-scout:1706.00221"]
         },
         "verbatim": {
             "name": "verbatim",
@@ -16827,6 +17057,16 @@
             "policy": "text",
             "source": ["manual-env", "no-signature"]
         },
+        "widercases": {
+            "name": "widercases",
+            "kind": "env",
+            "package": "cases",
+            "signature": "m",
+            "arg_roles": ["skip"],
+            "body_role": "text",
+            "policy": "text",
+            "source": ["ctan:cases", "envarg-scout:sibling"]
+        },
         "wrapfigure": {
             "name": "wrapfigure",
             "kind": "env",
@@ -16855,7 +17095,10 @@
             "arg_roles": ["skip", "skip"],
             "body_role": "protect",
             "policy": "protect",
-            "source": ["manual-env", "loop1 slots: preamble 裸进 surface → Illegal pream-token"]
+            "source": [
+                "manual-env",
+                "loop1 slots: preamble 裸进 surface → Illegal pream-token"
+            ]
         },
         "xxalignat": {
             "name": "xxalignat",

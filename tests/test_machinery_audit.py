@@ -664,3 +664,267 @@ def test_percent_wall_tail_scan_no_redos() -> None:
     check_invariants(res, tex)
     body = chunk_text(res)
     assert "NOT_A_TAIL" in body
+
+
+# ------------------------------------------------- envarg 波（2026-09-17）
+# envarg-scout 19 候选 env 补 argspec：dimen/number 形 env 前参无签名即整
+# 串落 surface → 单位字母进 chunk（illegal_unit 同源缺口）。签名/包归属
+# 按 bench/results/envarg-scout-2026-09-17/summary.txt 实证；cls-transitive
+# 族记 ``manual``（adjustwidth 先例），``listing`` 是 moreverb verbatim
+# 体（body_role verbatim），``chapthebibliography`` 同 thebibliography
+# protect。
+
+
+def test_varwidth_env_opt_dimen_args() -> None:
+    r"""``\\begin{varwidth}[t]{2\linewidth}``——``o m``：opt + dimen 宽参
+    全收（1706.00221 ``{2\linewidth}``/``{5cm}`` 实证）。"""
+    tex = ART % (
+        "\\usepackage{varwidth}\n",
+        (
+            "\\begin{varwidth}[t]{2\\linewidth}\n"
+            "Narrow text words here to fill the paragraph out.\n"
+            "\\end{varwidth}\n"
+        ),
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert "linewidth" not in body
+    assert "Narrow text" in body
+
+
+def test_rotate_turn_env_angle_args() -> None:
+    r"""``\\begin{rotate}{90}``/``\\begin{turn}{-90}``——rotating ``m``
+    角度参（0905.0052/1907.00079 实证）。"""
+    tex = ART % (
+        "\\usepackage{rotating}\n",
+        (
+            "\\begin{rotate}{90}\nSideways words fill the paragraph.\n"
+            "\\end{rotate}\n"
+            "\\begin{turn}{-90}\nMore sideways words fill it.\n"
+            "\\end{turn}\n"
+        ),
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert "90" not in body
+    assert "Sideways words" in body
+
+
+def test_numcases_env_label_arg() -> None:
+    r"""``\\begin{numcases}{|x|=}``——cases ``m`` 标签参（2105.03733
+    ``{}`` 空参实证；体按 text 走）。"""
+    tex = ART % (
+        "\\usepackage{cases}\n",
+        (
+            "\\begin{numcases}{|x|=}\n"
+            "x & if positive \\\\ -x & otherwise\n"
+            "\\end{numcases}\n"
+        ),
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert "|x|=" not in body
+
+
+def test_lrbox_env_cs_arg() -> None:
+    r"""``\\begin{lrbox}{\\commentbox}``——latex2e ``m`` 存盒名参
+    （1811.10096 实证；名参是 cs token，无签名即裸名落 surface）。"""
+    tex = ART % (
+        "",
+        (
+            "\\newsavebox{\\commentbox}\n"
+            "\\begin{lrbox}{\\commentbox}\n"
+            "Boxed words here fill the paragraph.\n"
+            "\\end{lrbox}\n"
+        ),
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert "commentbox" not in body
+    assert "Boxed words" in body
+
+
+def test_boxedminipage_env_dimen_arg() -> None:
+    r"""``\\begin{boxedminipage}{\\linewidth}``——boxedminipage ``m``
+    宽参（1206.0136 ``{\\linewidth}``/``{13cm}`` 实证）。"""
+    tex = ART % (
+        "\\usepackage{boxedminipage}\n",
+        (
+            "\\begin{boxedminipage}{13cm}\n"
+            "Framed words here fill the paragraph out.\n"
+            "\\end{boxedminipage}\n"
+        ),
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert "13cm" not in body
+    assert "Framed words" in body
+
+
+def test_listing_env_verbatim_body() -> None:
+    r"""``\\begin{listing}[1]{9}``——moreverb ``o m``（[start]{step} 行号
+    参，cs--0111043 实证）+ verbatim 体整段保护。"""
+    tex = ART % (
+        "\\usepackage{moreverb}\n",
+        (
+            "\\begin{listing}[1]{9}\n"
+            "for line in source:\n"
+            "    render(line)\n"
+            "\\end{listing}\n"
+        ),
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert "render(line)" not in body
+
+
+def test_floatingfigure_env_opt_dimen_args() -> None:
+    r"""``\\begin{floatingfigure}[r]{43mm}``——floatflt ``o m``
+    （0707.3673 实证）。"""
+    tex = ART % (
+        "\\usepackage{floatflt}\n",
+        (
+            "\\begin{floatingfigure}[r]{43mm}\n"
+            "Floated words here fill the paragraph.\n"
+            "\\end{floatingfigure}\n"
+        ),
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert "43mm" not in body
+    assert "Floated words" in body
+
+
+def test_textblock_env_delimited_coord_arg() -> None:
+    r"""``\\begin{textblock}{5cm}(130mm,-10mm)``——textpos ``m r()``：
+    定界 ``(x,y)`` 坐标参随宽参同收（1404.0096 实证）；``r()`` 强制
+    定界形免散文圆括号误吞。"""
+    tex = ART % (
+        "\\usepackage{textpos}\n",
+        (
+            "\\begin{textblock}{5cm}(130mm,-10mm)\n"
+            "Overlay words here fill the paragraph.\n"
+            "\\end{textblock}\n"
+        ),
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert "5cm" not in body
+    assert "130mm" not in body
+    assert "Overlay words" in body
+
+
+def test_changemargin_env_dimen_args() -> None:
+    r"""``\\begin{changemargin}{.8cm}{.5cm}``——``m m`` 双 dimen
+    （1206.5536 实证；chngpage/changepage cls-transitive → manual）。"""
+    tex = ART % (
+        "",
+        (
+            "\\begin{changemargin}{.8cm}{.5cm}\n"
+            "Indented words here fill the paragraph out.\n"
+            "\\end{changemargin}\n"
+        ),
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert ".8cm" not in body
+    assert "Indented words" in body
+
+
+def test_chapthebibliography_env_protect() -> None:
+    r"""``\\begin{chapthebibliography}{9}``——manual ``m`` + protect：
+    widest-label 参收、书目体整段保护（astro-ph/0408466 同
+    thebibliography 形实证）。"""
+    tex = ART % (
+        "",
+        (
+            "\\begin{chapthebibliography}{9}\n"
+            "\\bibitem{a} Hidden entry words here.\n"
+            "\\end{chapthebibliography}\n"
+        ),
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert "Hidden entry" not in body
+
+
+def test_dingautolist_env_symbol_arg() -> None:
+    r"""``\\begin{dingautolist}{192}``——pifont ``m`` 符号编号参
+    （nucl-ex/0111004 实证）。"""
+    tex = ART % (
+        "\\usepackage{pifont}\n",
+        (
+            "\\begin{dingautolist}{192}\n"
+            "\\item Listed words here fill the paragraph.\n"
+            "\\end{dingautolist}\n"
+        ),
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert "192" not in body
+    assert "Listed words" in body
+
+
+def test_lyxlist_env_label_arg() -> None:
+    r"""``\\begin{lyxlist}{00.00.0000}``——LyX 纸面 ``\\newenvironment``
+    稳定形（1003.5474 实证）→ manual ``m`` widest-label 参。"""
+    tex = ART % (
+        "",
+        (
+            "\\begin{lyxlist}{00.00.0000}\n"
+            "\\item [label] Dated words fill the paragraph.\n"
+            "\\end{lyxlist}\n"
+        ),
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert "00.00.0000" not in body
+    assert "Dated words" in body
+
+
+def test_addmargin_env_opt_dimen_args() -> None:
+    r"""``\\begin{addmargin}[1em]{1.7em}``——KOMA scrextend ``o m``
+    （1907.00141 实证；KOMA cls 传递加载无 \\usepackage → manual）。"""
+    tex = ART % (
+        "",
+        (
+            "\\begin{addmargin}[1em]{1.7em}\n"
+            "Shifted words here fill the paragraph out.\n"
+            "\\end{addmargin}\n"
+        ),
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert "1.7em" not in body
+    assert "Shifted words" in body
+
+
+def test_chronology_env_multi_dimen_args() -> None:
+    r"""``\\begin{chronology}[20]{1}{42}{3ex}{\\textwidth}``——``o m m m m``
+    五参（1706.00177 实证）。"""
+    tex = ART % (
+        "\\usepackage{chronology}\n",
+        (
+            "\\begin{chronology}[20]{1}{42}{3ex}{\\textwidth}\n"
+            "\\event{5}{Marker words here}\n"
+            "\\end{chronology}\n"
+        ),
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert "3ex" not in body
+    assert "textwidth" not in body
