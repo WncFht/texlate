@@ -41,7 +41,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterator
     from pathlib import Path
 
 log = logging.getLogger(__name__)
@@ -82,8 +82,14 @@ _ANSI_RE = re.compile(
 _OVERALL_RE = re.compile(r"^translate\b.*?(\d+(?:\.\d+)?)\s*/\s*100")
 #: tqdm 兜底形（``use_rich_pbar=False`` 的调用方才产）：``NN%|``
 _TQDM_RE = re.compile(r"^(\d{1,3})\s*%\|")
-#: stage 行：``Stage Name (i/n) ━━━ cur/total`` 或 tqdm ``Stage (c/t): NN%|``
-_STAGE_ROW_RE = re.compile(r"^([^\s(][^()]*?)\s*\(\d+\s*/\s*\d+\)")
+#: stage 行：``Stage Name (i/n) ━━━ cur/total`` 或 tqdm ``Stage (c/t): NN%|``。
+#: ``(i/n)`` 后必须跟进度证据（条符/数字/``%``/``:``+数字）——裸 ``text (n/m)``
+#: 日志行（``Retrying batch (2/10)``/``Error in part (3/5): x``）不是表行，
+#: 吞了既不 ``on_log`` 也不进 ``errors``（静默丢行）
+_STAGE_ROW_RE = re.compile(
+    r"^([^\s(][^()]*?)\s*\(\d+\s*/\s*\d+\)"
+    r"(?=\s*[━─═│┃%]|[:：]?\s*\d)"
+)
 #: 尾部统计行（main.py:772-784 logger.info）
 _STAT_RES: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("total_tokens", re.compile(r"Total tokens:\s*(\d+)")),
@@ -174,8 +180,11 @@ def write_config(job: BabeldocJob) -> Path:
     # os.open 带 mode 建文件——write_text 先 0644 再 chmod 的窗口内 key 可被同机读
     fd = os.open(cfg, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "w", encoding="utf-8") as f:
+        # ensure_ascii=False：默认 ASCII 转义把非 BMP 字符写成 ``😀``
+        # 代理对——TOML ``\uXXXX`` 只收标量值，tomllib/configargparse 均拒解析
         f.write(
-            f"[babeldoc]\nopenai-api-key = {json.dumps(job.api_key or 'texlate')}\n"
+            "[babeldoc]\nopenai-api-key = "
+            f"{json.dumps(job.api_key or 'texlate', ensure_ascii=False)}\n"
         )
     cfg.chmod(0o600)  # 预存文件 mode 不随 O_CREAT 变更——兜底钉回
     return cfg
@@ -267,13 +276,24 @@ def tracking_paths(workdir: Path, stem: str) -> list[Path]:
     return out
 
 
+def _iter_dicts(value: object) -> Iterator[dict[str, Any]]:
+    """``list[dict]`` 容错迭代：非 list 或非 dict 成员一律产空流。
+
+    内层结构零闸的替代——schema 漂移/磁盘半截写出的合法 JSON 会让
+    任一层出现 str/int/None/dict 项，裸 ``.get`` 抛 ``AttributeError``
+    穿透 ``assess_tracking`` → ``run_babeldoc`` 任务 fault。
+    """
+    if isinstance(value, list):
+        yield from (x for x in value if isinstance(x, dict))
+
+
 def _count_trackers(data: dict[str, Any], samples: list[str]) -> tuple[int, int, int]:
     """单份 tracking JSON → ``(total, errors, fallbacks)``；错误样本就地追加。"""
     total = errors = fallbacks = 0
     for section in ("page", "cross_page", "cross_column"):
-        for page in data.get(section) or []:
-            for para in page.get("paragraph") or []:
-                for t in para.get("llm_translate_trackers") or []:
+        for page in _iter_dicts(data.get(section)):
+            for para in _iter_dicts(page.get("paragraph")):
+                for t in _iter_dicts(para.get("llm_translate_trackers")):
                     total += 1
                     if t.get("has_error"):
                         errors += 1

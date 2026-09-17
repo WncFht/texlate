@@ -62,32 +62,6 @@ staticfiles.py / ``__main__`` / cmap 资源：
   全角数字）收敛为合法端口；``main()`` 未知参数 ``SystemExit(2)``；
 - ``compile/cmaps/Adobe-GB1-UCS2``：注入层共享资源存在且 CMap 结构完整
   （ ``begincmap``/``endcmap`` + bf 段）。
-
-已确认缺陷（``xfail(strict=True)``——修复后 XPASS 提醒拆钉）：
-
-- D2 ``_normalize_updates`` 裸 ``int()``：``concurrency=null/[3]/1e999``、
-  ``quota=1e999`` → ``TypeError``/``OverflowError`` 逃出
-  ``except ValueError`` → PUT 500（``_clean_task_options`` 同输入类
-  已修、settings 路径漏网）；
-- D4 ``load()`` 枚举字段零校验：``engine``/``target_lang`` 非法值原样透传
-  （``concurrency``/``quota``/``cors_origins`` 均有容错、枚举是漏网面）
-  → ``public()`` 回吐脏值、任务创建全 400；
-- D5 ``_parse_origin``/``validate_base_url`` 不触 ``.port``：``http://h:abc``、
-  ``https://h:99999``、``http://h:80:90`` 等畸形端口全放行——origin
-  存死配（CORS 永不匹配）、base_url 落库后请求期才炸 ``InvalidURL``；
-- D6 ``_parse_origin`` 不归一化大小写：``HTTP://EXAMPLE.COM`` 原样存——
-  浏览器 Origin 恒小写化序列化 → 该条目永不匹配形同虚设；
-- D7 ``server_salt`` TOCTOU：并发首调用各写各盐——后写者覆盖文件，
-  先返回者手里盐与落盘盐分叉 → 其租户指纹重启后不可解析；
-- D9 ``_count_trackers`` 对内层结构零 ``isinstance`` 闸：``{"page":"x"}``、
-  tracker 非 dict 等可解析 JSON → ``AttributeError`` 穿透
-  ``assess_tracking`` → ``run_babeldoc`` 裸抛任务 fault；
-- D10 ``_Feed._STAGE_ROW_RE`` 过宽：``text (n/m)`` 形日志行被当 stage
-  表行吞掉——既不进 ``on_log`` 也不进 ``errors``（除非命中错误正则），
-  如 ``Error in part (3/5): boom``、``Retrying (2/10)`` 静默消失；
-- D11 ``write_config`` 非 BMP api_key → ``json.dumps`` 产 ``\\ud83d\\ude00``
-  代理对转义 → TOML 规范要求 ``\\u`` 为标量值 → tomllib/configargparse
-  均拒解析 → sidecar 配置面自造死文件。
 """
 
 from __future__ import annotations
@@ -229,19 +203,9 @@ class TestValidateBaseUrl:
             assert u.scheme in ("http", "https"), s
             assert u.hostname, s
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="settings.py:118-138 validate_base_url + :169-185 _parse_origin 只查 "
-        "scheme/hostname/userinfo/query/fragment——``urlsplit`` 的端口校验推迟到 "
-        "``.port`` 属性访问、两函数都不触 → ``http://h:abc``/``https://h:99999``/"
-        "``http://h:80:90`` 全放行；``http://@host`` 空 userinfo 同漏（查 "
-        "``u.username or u.password`` 真值性，``''`` 漏网）。origin 侧：畸形项入库后 "
-        "CORS 永不匹配（静默死配）；base_url 侧：脏值落库、请求期才炸 httpx "
-        "InvalidURL（报错面错位）。修法：``try: u.port`` 触发内置校验 + "
-        "``'@' in u.netloc`` 形状闸，异常即拒。",
-    )
-    def test_xfail_port_never_validated(self) -> None:
-        """端口/netloc 形状不合法 → 应拒（当前两边都吞）。"""
+    def test_port_never_validated(self) -> None:
+        """端口/netloc 形状不合法 → 应拒（``_parse_origin`` 回 None、
+        ``validate_base_url`` 抛 ``ValueError``）。"""
         for url in (
             "http://h:abc",
             "https://h:99999",
@@ -327,15 +291,8 @@ class TestCorsOrigins:
             assert out is not None, raw
             assert out == out.rstrip("/"), raw
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="settings.py:169-185 _parse_origin 返回原始串不归一化——"
-        "``HTTP://EXAMPLE.COM`` 大小写原样入库；浏览器 Origin 头恒按 "
-        "scheme://host 小写序列化 → 该条目字节不等永不匹配 = 静默死配。"
-        "修法：``urlsplit`` 后按 scheme/hostname 小写重组（或与端口校验同点拒收）。",
-    )
-    def test_xfail_origin_case_not_normalized(self) -> None:
-        """大写 scheme/host 应归一化或拒收——原样存就是永不命中的死条目。"""
+    def test_origin_case_normalized(self) -> None:
+        """大写 scheme/host 归一化为小写——原样存就是永不命中的死条目。"""
         for raw in ("HTTP://EXAMPLE.COM", "http://EXAMPLE.COM", "Https://H.COM:443"):
             out = settings._parse_origin(raw)  # noqa: SLF001
             assert out in (None, raw.lower()), raw
@@ -421,15 +378,7 @@ class TestLoadTolerance:
         merged = store.save({"concurrency": 4})
         assert merged["model"].isprintable()
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="settings.py:320-333 load() 枚举字段零校验——``engine``/"
-        "``target_lang`` 非法值 ``str()`` 原样透传（``concurrency``/``quota``/"
-        "``cors_origins`` 都有容错回落、唯独枚举漏网）。``public()`` 回吐脏值、"
-        "下游任务创建按白名单全 400——手改一行即锁死新建任务面且无可自愈路径。"
-        "修法：load 按 ``TARGET_LANGS``/engine 白名单校验回落默认。",
-    )
-    def test_xfail_enum_fields_unsanitized(self, tmp_path: Path) -> None:
+    def test_enum_fields_sanitized(self, tmp_path: Path) -> None:
         for i, (field, raw, fallback) in enumerate(
             (("engine", "nuclear", "auto"), ("target_lang", "klingon", "zh-CN"))
         ):
@@ -552,16 +501,7 @@ class TestStoreSemantics:
         for raw, expected in ((99, 16), (-3, 1), ("8", 8), (2.9, 2)):
             assert store.save({"concurrency": raw})["concurrency"] == expected, raw
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="settings.py:223 ``int(values['concurrency'])`` 裸转——"
-        "``TypeError``（``null``/``[3]``）与 ``OverflowError``（``1e999``）都不属 "
-        "``except ValueError`` → PUT /api/settings 500；``_check_quota`` 同款漏 "
-        "``OverflowError``。``_clean_task_options`` 同输入类早补了 "
-        "(TypeError, ValueError) 闸、settings 路径漏网（app.py:333-335 注释"
-        "自承旧坑）。修法：捕获面补 TypeError/OverflowError 并转 ValueError。",
-    )
-    def test_xfail_wrong_type_escapes(
+    def test_wrong_type_escapes(
         self,
         tmp_path: Path,
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002
@@ -574,13 +514,18 @@ class TestStoreSemantics:
         from starlette.testclient import TestClient  # noqa: PLC0415
 
         with TestClient(make_app(tmp_path / "app"), raise_server_exceptions=False) as c:
-            for body in (
-                {"concurrency": None},
-                {"concurrency": [3]},
-                {"quota_max_tasks": 1e999},
-            ):
+            for body in ({"concurrency": None}, {"concurrency": [3]}):
                 r = c.put("/api/settings", json=body)
                 assert r.status_code == HTTPStatus.BAD_REQUEST, body
+            # httpx ``json=`` 拒编码 inf（allow_nan=False）——``1e999`` 只能
+            # 以原始字节送达，服务端 ``json.loads`` 解析出 inf 才是
+            # ``_check_quota`` 的 OverflowError 触发面
+            r = c.put(
+                "/api/settings",
+                content=b'{"quota_max_tasks": 1e999}',
+                headers={"content-type": "application/json"},
+            )
+            assert r.status_code == HTTPStatus.BAD_REQUEST
 
 
 # ---------------------------------------------------------------- resolve_auth
@@ -726,14 +671,7 @@ class TestServerSalt:
         (tmp_path / "server_salt").write_text("  mysalt \n", encoding="utf-8")
         assert settings.server_salt(tmp_path) == "mysalt"  # 已有内容原样读
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="settings.py:414-431 server_salt 读-缺-写 TOCTOU：并发首调用"
-        "各自走过 exists()=False 分支各写各盐——后写者覆盖文件，先返回者"
-        "手里的盐与落盘盐分叉 → 该调用方算的 ``tenant_for`` 指纹重启后不可"
-        "解析（silent 租户漂移）。修法：O_CREAT|O_EXCL 原子创建或锁串行。",
-    )
-    def test_xfail_concurrent_first_call_race(
+    def test_concurrent_first_call_race(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """两线程同时首调用 → 返回值与落盘值必须一致（确定性交错重现）。"""
@@ -925,17 +863,8 @@ class TestFeed:
         assert errs.count("same") == 1
         assert all(len(e) <= 300 for e in errs)  # noqa: PLR2004
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="babeldoc.py:86 ``_STAGE_ROW_RE`` = ``^([^\\s(][^()]*?)\\(\\d+/\\d+\\)``"
-        "——任意 ``text (n/m)`` 形日志行都被当 stage 表行：`_record` 走 "
-        "``_progress`` 判帧后直接不进 ``on_log``，`_collect` 的错误正则 "
-        "``Error in part \\d+:`` 又不认括号形 → 双通道静默吞行。"
-        "修法：stage 判定要求 rich 表特征（进度条符 ━/百分比/已知 stage 名白名单），"
-        "或仅进度命中才吞帧。",
-    )
-    def test_xfail_stage_regex_swallows_logs(self) -> None:
-        """``text (n/m)`` 日志行应进 ``on_log``（当前被 stage 判定吃掉）。"""
+    def test_stage_regex_keeps_logs(self) -> None:
+        """``text (n/m)`` 日志行应进 ``on_log``（stage 判定须见进度证据）。"""
         for line in (
             "Error in part (3/5): kaboom",
             "Retrying batch (2/10) after rate limit",
@@ -1008,17 +937,8 @@ class TestTracking:
             assert res["total"] == 0, content
             assert res["tracking_found"] is True  # 文件在、读不进 = found-but-zero
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="babeldoc.py:270-285 _count_trackers 对 ``page``/``paragraph``/"
-        "``llm_translate_trackers`` 各层直接 ``.get``——内层非 dict 项 "
-        "（str/int/None/list）触发 ``AttributeError`` 穿透 ``assess_tracking`` "
-        "→ ``run_babeldoc`` 裸抛 → 任务 fault 而非干净 ``failed`` 判定。"
-        "顶层 dict 有 ``isinstance`` 闸、内层偏偏没有（schema 漂移/磁盘半截"
-        "写出的合法 JSON 即踩中）。修法：每层 ``isinstance(x, dict)`` 守卫。",
-    )
-    def test_xfail_inner_nondict_crashes(self, tmp_path: Path) -> None:
-        """内层错型 → 期望零计数容错（当前 ``AttributeError`` 裸抛）。"""
+    def test_inner_nondict_tolerated(self, tmp_path: Path) -> None:
+        """内层错型 → 零计数容错（逐层 ``isinstance`` 闸）。"""
         for i, payload in enumerate(
             (
                 {"page": "x"},
@@ -1155,15 +1075,7 @@ class TestHarvestAndConfig:
             got = tomllib.loads(p.read_text(encoding="utf-8"))
             assert got["babeldoc"]["openai-api-key"] == (key or "texlate"), key
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="babeldoc.py:177 ``json.dumps(api_key)`` 默认 ``ensure_ascii=True``"
-        "——非 BMP 字符转义成 ``\\ud83d\\ude00`` 代理对序列，JSON 合法但 "
-        "TOML 规范要求 ``\\uXXXX`` 为标量值 → tomllib/configargparse 均拒解析"
-        "（``Escaped character is not a Unicode scalar value``），sidecar 配置"
-        "自造死文件。修法：``ensure_ascii=False``（UTF-8 直写合法 TOML）。",
-    )
-    def test_xfail_nonbmp_key_dead_toml(self, tmp_path: Path) -> None:
+    def test_nonbmp_key_toml_round_trip(self, tmp_path: Path) -> None:
         job = _job(tmp_path, "a", api_key="k-\U0001f600-\U0001f4a5")
         p = bd.write_config(job)
         got = tomllib.loads(p.read_text(encoding="utf-8"))

@@ -19,6 +19,8 @@ import logging
 import os
 import re
 import secrets
+import threading
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -54,6 +56,10 @@ MAX_FILES = 4000
 
 #: 目标语言白名单（M0 只做中译向；UI 表单项）
 TARGET_LANGS = frozenset({"zh-CN", "zh-TW", "en"})
+
+#: 编译引擎白名单（``_normalize_updates`` 与 ``load`` 容错回落同口径；
+#: app 侧 ``_ENGINE_NAMES`` 是 options 入参闸的并行拷贝）
+ENGINES = frozenset({"auto", "xelatex", "tectonic"})
 
 #: 模型名长度上限（防滥用长串）
 MODEL_MAX_LEN = 200
@@ -123,11 +129,18 @@ def validate_base_url(value: str) -> str:
     """
     v = value.strip().rstrip("/")
     u = urlsplit(v)
+    try:
+        port = u.port
+    except ValueError as e:
+        # urlsplit 的端口校验是惰性的——``h:abc``/``h:99999``/``h:80:90``
+        # 只在 ``.port`` 属性访问时炸；不探则脏值落库、请求期才炸 InvalidURL
+        msg = "invalid base_url（端口非法）"
+        raise ValueError(msg) from e
     if (
         u.scheme not in ("https", "http")
         or not u.hostname
-        or u.username
-        or u.password
+        or "@" in u.netloc  # 任意 userinfo——``u.username`` 真值判漏空形 ``@host``
+        or (port is None and u.netloc.rpartition("@")[2].endswith(":"))  # ``h:``
         or u.query
         or u.fragment
     ):
@@ -168,7 +181,11 @@ def _check_glossary_dir(value: object) -> str:
 
 
 def _parse_origin(value: object) -> str | None:
-    """CORS origin 归一化：``scheme://host[:port]``；非法形态返 None。"""
+    """CORS origin 归一化：``scheme://host[:port]`` 小写形；非法形态返 None。
+
+    浏览器 Origin 头恒按小写序列化——``HTTP://EXAMPLE.COM`` 原样入库永不
+    匹配（静默死配），故按 ``u.hostname``（已小写）+ ``u.port`` 重组。
+    """
     o = str(value or "").strip().rstrip("/")
     if not o:
         return None
@@ -176,18 +193,26 @@ def _parse_origin(value: object) -> str | None:
         o.encode("utf-8")
     except UnicodeEncodeError:
         return None
-    u = urlsplit(o)
+    try:
+        u = urlsplit(o)
+        port = u.port  # 惰性端口校验——``h:abc``/``h:99999`` 访问才炸
+    except ValueError:
+        return None
     if (
         u.scheme not in ("http", "https")
         or not u.hostname
-        or u.username
-        or u.password
+        or "@" in u.netloc  # 含 ``@host`` 空 userinfo 形
+        or (port is None and u.netloc.rpartition("@")[2].endswith(":"))
         or u.query
         or u.fragment
         or u.path not in ("", "/")
     ):
         return None
-    return o
+    host = u.hostname
+    if ":" in host:  # IPv6 字面量补回方括号
+        host = f"[{host}]"
+    netloc = host if port is None else f"{host}:{port}"
+    return f"{u.scheme}://{netloc}"
 
 
 def _check_cors_origins(value: object) -> list[str]:
@@ -205,11 +230,22 @@ def _check_cors_origins(value: object) -> list[str]:
     return list(dict.fromkeys(out))
 
 
+def _check_concurrency(value: object) -> int:
+    """``concurrency`` 校验：可转 int 并 clamp 1–16。"""
+    try:
+        return max(1, min(16, int(value)))  # type: ignore[arg-type]
+    except (TypeError, ValueError, OverflowError):
+        # ``int()`` 对 ``None``/``[3]`` 抛 TypeError、对 ``1e999`` 抛
+        # OverflowError——都归一成 ValueError，否则 PUT 500
+        msg = "concurrency 须为可转 int 的值（clamp 1–16）"
+        raise ValueError(msg) from None
+
+
 def _check_quota(value: object, name: str) -> int:
     """配额字段校验：非负 int（0=不限）。"""
     try:
         n = int(value)  # type: ignore[arg-type]
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         msg = f"{name} 必须是非负整数"
         raise ValueError(msg) from None
     if n < 0:
@@ -225,13 +261,9 @@ def _normalize_updates(values: dict[str, Any]) -> None:
     if "model" in values:
         values["model"] = validate_model(str(values["model"]))
     if "concurrency" in values:
-        values["concurrency"] = max(1, min(16, int(values["concurrency"])))
-    if "engine" in values and values["engine"] not in (
-        "auto",
-        "xelatex",
-        "tectonic",
-    ):
-        msg = "engine ∈ auto|xelatex|tectonic"
+        values["concurrency"] = _check_concurrency(values["concurrency"])
+    if "engine" in values and values["engine"] not in ENGINES:
+        msg = f"engine ∈ {sorted(ENGINES)}"
         raise ValueError(msg)
     if "target_lang" in values and values["target_lang"] not in TARGET_LANGS:
         msg = f"target_lang ∈ {sorted(TARGET_LANGS)}"
@@ -274,6 +306,19 @@ def _load_str(value: object, default: str) -> str:
     try:
         s.encode("utf-8")
     except UnicodeEncodeError:
+        return default
+    return s
+
+
+def _load_enum(value: object, allowed: frozenset[str], default: str) -> str:
+    """枚举字段容错读：非白名单值（手改文件）→ 默认。
+
+    ``engine``/``target_lang`` 非法值若 ``str()`` 原样透传，``public()``
+    回吐脏值、下游任务创建按白名单全 400——手改一行即锁死新建任务面。
+    """
+    s = _load_str(value, default)
+    if s not in allowed:
+        log.warning("settings.json 非法枚举值已回落默认: %r → %r", s, default)
         return default
     return s
 
@@ -342,11 +387,13 @@ class SettingsStore:
             "base_url": _load_str(data.get("base_url"), DEFAULT_BASE_URL),
             "model": _load_str(data.get("model"), DEFAULT_MODEL),
             "api_key": _load_str(data.get("api_key"), ""),
-            "target_lang": _load_str(data.get("target_lang"), DEFAULT_TARGET_LANG),
+            "target_lang": _load_enum(
+                data.get("target_lang"), TARGET_LANGS, DEFAULT_TARGET_LANG
+            ),
             "glossary": _load_str(data.get("glossary"), ""),
             "glossary_dir": _load_str(data.get("glossary_dir"), ""),
             "concurrency": _load_concurrency(data.get("concurrency")),
-            "engine": _load_str(data.get("engine"), "auto"),
+            "engine": _load_enum(data.get("engine"), ENGINES, "auto"),
             "context_guidance": bool(data.get("context_guidance", True)),
             "cors_origins": _load_origins(data.get("cors_origins")),
             "quota_max_tasks": _load_quota(data.get("quota_max_tasks")),
@@ -451,24 +498,54 @@ def env_model() -> str:
     return os.environ.get("TEXLATE_MODEL", "").strip()
 
 
+#: ``server_salt`` 首调序列化（进程内）；跨进程由 ``O_EXCL`` 原子创建兜。
+_SALT_LOCK = threading.Lock()
+
+
 def server_salt(root: Path) -> str:
     """租户指纹盐：``server_salt`` 文件 0600，首跑生成。
 
     空/全空白文件视为未初始化——空盐下 ``tenant_for`` 退成裸
     ``sha256(key)``，已知 key 可预计算租户指纹，弱化隔离意义。
+    首调并发按「O_CREAT|O_EXCL 独占创建、负方重读落盘值」裁决——
+    读-缺-写竞态下各写各盐会让先返回者手里盐与落盘盐分叉，其租户
+    指纹重启后不可解析。
     """
     path = root / SALT_FILE
-    if path.exists():
+    try:
+        salt = path.read_text(encoding="utf-8").strip()
+    except OSError:
+        salt = ""
+    if salt:
+        return salt
+    new_salt = secrets.token_hex(16)
+    with _SALT_LOCK:
+        # 生成耗熵不持锁；锁内重读——等待期他线程可能已写妥
         try:
             salt = path.read_text(encoding="utf-8").strip()
         except OSError:
             salt = ""
         if salt:
             return salt
-    salt = secrets.token_hex(16)
-    path.write_text(salt, encoding="utf-8")
-    path.chmod(0o600)
-    return salt
+        try:
+            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        except FileExistsError:
+            # 他进程胜方 open→write 之间文件短暂为空：自旋等写入落地；
+            # 预存空白文件（无人写）自旋穷尽后由本进程覆盖重建
+            for _ in range(100):
+                time.sleep(0.005)
+                try:
+                    salt = path.read_text(encoding="utf-8").strip()
+                except OSError:
+                    salt = ""
+                if salt:
+                    return salt
+            path.write_text(new_salt, encoding="utf-8")
+        else:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(new_salt)
+        path.chmod(0o600)
+        return new_salt
 
 
 @dataclass(frozen=True, slots=True)
