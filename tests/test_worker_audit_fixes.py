@@ -396,6 +396,56 @@ class TestFixloopFix:
         assert ctx.fixloop["engine_flags_dropped"] == ["-shell-escape"]
         assert ctx.fixloop["cross_engine"]["engine"] == "xelatex"
 
+    def test_fixloop_cross_engine_halt_on_error_false(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """cross_engine_retry 臂 xelatex 构造 ``halt_on_error=False``（2026-09-17 裁决口径）。
+
+        retry 是 fixloop 结束后的交付路径终末重编——与主编译/salvage
+        同属 best-effort 族，nonstopmode 续跑才能把 incumbent=fail 的树
+        救成 partial；``-halt-on-error`` 首错即停会让唯一 rescue 窗失效
+        （tmp/b8-e2e/halt-on-error-ruling.md）。无 ``engine_factory``
+        时经 ``engine_for`` 真路径构造，钉住旋钮方向。
+        """
+        import texlate.server.worker as worker_mod  # noqa: PLC0415
+
+        ctx, worker, _store = _mk(
+            tmp_path,
+            options={
+                "engine_resolved": "tectonic",
+                "route_engines": ["tectonic", "xelatex"],
+            },
+        )
+        ctx.main_rel = "main.tex"
+        ctx.engine_name = "tectonic"
+        work = ctx.root / "build-zh"
+        work.mkdir(parents=True)
+        ctx.zh_dir.mkdir(parents=True)
+        (work / "main.tex").write_text(MINI_TEX, encoding="utf-8")
+        (ctx.zh_dir / "main.tex").write_text(MINI_TEX, encoding="utf-8")
+
+        built: list[dict[str, object]] = []
+
+        def fake_engine_for(name: str, **kw: object) -> RecordingEngine:
+            built.append({"name": name, **kw})
+            return RecordingEngine(name)
+
+        cell = {
+            "verdict": "fail",
+            "engine_flags": ["-shell-escape"],
+            "engine_flags_dropped": ["-shell-escape"],
+            "rounds": [],
+            "actions": [],
+        }
+        monkeypatch.setattr("texlate.repair.fixloop", lambda *_a, **_kw: cell)
+        monkeypatch.setattr(worker_mod, "engine_for", fake_engine_for)
+        first = CompRes(engine="tectonic", ok=True, pdf=None, log=LogInfo(n_errors=2))
+        res = worker._run_fixloop(  # noqa: SLF001
+            ctx, work, RecordingEngine("tectonic"), first
+        )
+        assert {"name": "xelatex", "halt_on_error": False} in built
+        assert res.engine == "xelatex"  # 救回 partial/clean > fail → adopted
+
 
 class TestBuildDualThread:
     """Fix6：``_build_dual`` 在 worker 线程跑（store 读经 ``_on_loop`` 回弹）。"""

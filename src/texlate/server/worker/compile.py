@@ -537,12 +537,14 @@ class _Compile:
                 flags=list(dict.fromkeys([*ctx.probe_flags, *flags])),
                 dropped=dropped,
                 expect_cjk=ctx.expect_cjk,
-                # halt_on_error=True：与 fixloop 轮内同口径（首错可分类），
-                # 不沿主编译的 best-effort nonstopmode
+                # halt_on_error=False：与主编译/salvage 同口径 best-effort——
+                # retry 是交付路径终末重编（非轮内分类编译），nonstopmode
+                # 续跑才能把 incumbent=fail 的树救成 partial（裁决见
+                # tmp/b8-e2e/halt-on-error-ruling.md）
                 make_engine=lambda: (
                     self._engine_factory("xelatex")
                     if self._engine_factory is not None
-                    else _w.engine_for("xelatex", halt_on_error=True)
+                    else _w.engine_for("xelatex", halt_on_error=False)
                 ),
             )
             if xr is not None:

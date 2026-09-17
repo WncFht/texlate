@@ -243,8 +243,9 @@ def cross_engine_retry(  # noqa: PLR0913 -- 开关面穿透两臂同一契约
     shell-escape 需求——tectonic 沙箱不收 → 换 xelatex 带全量请求 flag
     经 ``compile(flags=…)`` seam 重编，复判严格更优才 ``adopted``。
 
-    ``make_engine`` 由调用侧注入（引擎构造旋钮两臂不同：e2e 沿主编译
-    best-effort，worker 对齐 fixloop 轮内首错口径；测试面同缝）。
+    ``make_engine`` 由调用侧注入（构造旋钮曾两臂分歧，2026-09-17 裁决
+    统一为 best-effort ``halt_on_error=False``——retry 是交付路径终末
+    重编非轮内分类编译；测试面仍可经 ``engine_factory`` 注入）。
     """
     if not dropped or engine_name != "tectonic" or "xelatex" not in route_engines:
         return None

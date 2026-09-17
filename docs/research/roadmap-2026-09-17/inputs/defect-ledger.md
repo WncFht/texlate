@@ -47,6 +47,7 @@
 
 - `tests/test_fuzz_inject.py:59-66` 六件：`[...]` 深度幻影缝 / already 漏检（双注入无害）/ float_sizing docstring 0/1↔N 漂移 / mode 无校验非 ctex 一律 xeCJK / threeparttable 子串门过触发 / 无扩展名 `\input` 不跟随——P2。
 - `src/texlate/latex/mouth.py:150` + `gullet.py:1592`：write-through 前缀链透传未实现（`\write`/`\catcode` 族展开盲区）——P2 latent。
+- `src/texlate/server/worker/html.py:414` `_build_dual_html` zh 槽只查 `isinstance(str)` 无 `status=="ok"` 闸——fallback_orig/failed 行的 en 原文回写可进 dual.json zh 槽（fallback_orig 契约在 html 路无消费闸，对位 tex 路 compile.py:968-970 已有闸）。裁决=立规缓修（wontfix-later，2026-09-17）：html 链无 share（`REQUIRED_ARTIFACTS` 凑不齐）、HtmlPane `zh=""` 非 nullish 不触发 `??` 回落——低暴露，视觉差但无数据污染；html 路日后接 share 或前端改回落逻辑须先补闸。P2 latent。
 - `tests/test_fuzz_store.py:373` 静默归零钉——自注「非 defect」，不计。
 
 ### 1.3 陈旧 pin 文档（P2 文档债，单批可清）
@@ -65,7 +66,7 @@ skipif 余量全部为环境守卫（euid/platform/gitignored-data），无缺�
 - ~~**位置**：`worker/compile.py:946 _build_dual`（zh 字段 :980）。**现象**：fallback_orig 行 translation=en 原文写进 dual.json zh 位 → `_share_apply` matched=ok 英「译」+ reader zh 槽英文。**证据**：share-texlog-audit 外部#1（validate_pair(en,en)=ok 实证）。**修价**：S-M。**归属**：worker/share——pack 侧非 ok 行 zh="" 或剔；消费端 zh==en/zh=="" 判 miss。~~ **已核销**（`b6d0ede`：dual zh 槽与 md.zip 行均改 `status=="ok" and translation` 非空谓词）
 - ~~**位置**：`worker.py:181 COMPILE_TIMEOUT` + ctor:1139 vs `app.py:432-441`。**现象**：compile_timeout 旋钮断头路——settings/env/flag 全无，恒 240s。**证据**：capacity-scout-2026-09-17 表。**修价**：S。**归属**：server/settings。~~ **已核销**（`ea4d0c4`：settings 字段 + env `TEXLATE_COMPILE_TIMEOUT` + clamp 校验，ctor 冻结）
 - ~~**位置**：`sandbox.py:191-250 run_process`。**现象**：无 rlimits（内存/CPU/nofile）——仅 killpg 墙钟+8MB stdout cap，TeX 失控进程可吃光宿主。**证据**：capacity-scout-2026-09-17。**修价**：M。**归属**：compile/sandbox。~~ **已核销**（`c50cf3a`：preexec_fn 软帽 RLIMIT_AS 4GiB/NOFILE 1024/CPU max(2×timeout,600)，只降不升）
-- **位置**：`e2e.py:772` vs worker fixloop 引擎。**现象**：halt_on_error 两侧相反（e2e True/worker False）→ fixloop 每轮错误面不同，分类输入分叉。**证据**：e2e-resid-audit F4——需裁决哪侧权威。**修价**：S（裁决）+S。**归属**：e2e+worker。
+- ~~**位置**：`e2e.py:772` vs worker fixloop 引擎。**现象**：halt_on_error 两侧相反（e2e True/worker False）→ fixloop 每轮错误面不同，分类输入分叉。**证据**：e2e-resid-audit F4——需裁决哪侧权威。**修价**：S（裁决）+S。**归属**：e2e+worker。~~ **已核销**（2026-09-17 裁决落地：实际分歧点= cross_engine_retry 臂且方向记反——e2e=False/worker=True；worker retry 臂翻转 False 对齐 e2e 权威口径，`tmp/b8-e2e/halt-on-error-ruling.md`；轮内臂两侧本就同 True 无分叉）
 - **位置**：`bench/py/e2e_real_bench.py:899` + `_code_stamp:510`。**现象**：(a) --date 跨日重启劈目录全重跑；(b) 印章钉 live repo 不钉快照 → 无关 dirty 触发全量 stale。**证据**：scout-e2ereal-2026-09-17 风险清单 #1#2。**修价**：M。**归属**：bench/e2e_real（1e）。
 - **位置**：fixloop rules `graphic_repair` + `missing_char_fix` + `shim_map`。**现象**：三缺口——多 eps 缺图不触发 repair（1404.5720×5）；数学字体域 misschar（ø cmmi8/ĳ txmi）无规则；aa.cls stub natbib 失配/aipproc theacknowledgments 缺/aastex63 `_` catcode 未复刻。**证据**：scout-pf2fails/pf2final-2026-09-17。**修价**：M each。**归属**：peer1 fixloop。
 - **位置**：fixloop missing_character 动作路由。**现象**：CJK（U+4E00-9FFF）缺字走 install（kotex 错配实证×2）——应走 binding/font_fallback。**证据**：fbucket-scout F-font 型。**修价**：S。**归属**：peer1。
