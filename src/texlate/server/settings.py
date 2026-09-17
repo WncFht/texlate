@@ -29,7 +29,7 @@ from urllib.parse import urlsplit
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
 
-from texlate.textutil import data_root
+from texlate.textutil import data_root, env_flag
 from texlate.xlat.client import (
     _LOOPBACK_HOSTS,
     _TAILNET_V4,
@@ -829,12 +829,8 @@ def _cached_provider_models(base_url: str, api_key: str) -> list[str] | None:
 
 
 def _model_probe_enabled() -> bool:
-    """``TEXLATE_MODEL_PROBE``：``0/false/no`` 关闭 save 期探活（离线/CI 兜底闸）。"""
-    return os.environ.get("TEXLATE_MODEL_PROBE", "1").strip().lower() not in (
-        "0",
-        "false",
-        "no",
-    )
+    """``TEXLATE_MODEL_PROBE`` 标准旗标语义：非真值显式关闭 save 期探活（离线/CI 兜底闸）。"""
+    return env_flag("TEXLATE_MODEL_PROBE", default=True)
 
 
 def model_availability_warning(base_url: str, api_key: str, model: str) -> str | None:

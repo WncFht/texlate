@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import shutil
 import zipfile
 from typing import TYPE_CHECKING, Any
@@ -46,7 +45,7 @@ from texlate.server.upload import (
     _md_member,
     pdf_pages,
 )
-from texlate.textutil import env_flag
+from texlate.textutil import env_flag, env_str
 from texlate.validate.l0 import validate_pair
 from texlate.xlat.pipeline import (
     ChunkIn,
@@ -620,7 +619,7 @@ class _Compile:
             tr = self._translator_factory(ctx)
             clients = _translator_clients(tr)
             return make_llm_hook(translator=tr), self._meter_usage(clients), clients
-        force = os.environ.get("TEXLATE_TRANSLATOR", "").lower()
+        force = env_str("TEXLATE_TRANSLATOR")
         if not ctx.secrets.api_key or force == "mock":
             if opt:
                 self._log(ctx, "llm_hook: 无 BYOK api_key——跳过 escalate_llm")

@@ -49,7 +49,7 @@ from texlate.compile.sandbox import find_tool
 from texlate.e2e import mock_pipeline_run
 from texlate.latex.api import parse_file
 from texlate.share import KEY_PART_FIELDS, ShareError, pack_share, unpack_share
-from texlate.textutil import data_root, env_flag
+from texlate.textutil import data_root, env_flag, env_str
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -888,7 +888,7 @@ def _export_translator(model: str | None, *, mock: bool) -> Translator:
         MockTranslator,
     )
 
-    force = os.environ.get("TEXLATE_TRANSLATOR", "").strip().lower()
+    force = env_str("TEXLATE_TRANSLATOR")
     api_key = os.environ.get("TEXLATE_API_KEY", "")
     if mock or force == "mock":
         return MockTranslator()  # 显式干跑优先于 env 矛盾检查

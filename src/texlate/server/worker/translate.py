@@ -7,7 +7,6 @@ import contextlib
 import hashlib
 import json
 import logging
-import os
 import sys
 import time
 from pathlib import Path
@@ -22,7 +21,7 @@ from texlate.server.settings import (
     cache_scope,
     validate_model,
 )
-from texlate.textutil import env_flag
+from texlate.textutil import env_flag, env_str
 from texlate.validate.l0 import validate_pair
 from texlate.xlat.client import ChatClient
 from texlate.xlat.glossary import (
@@ -467,7 +466,7 @@ class _Translate:
         """
         if self._translator_factory is not None:
             return self._translator_factory(ctx)
-        force = os.environ.get("TEXLATE_TRANSLATOR", "").lower()
+        force = env_str("TEXLATE_TRANSLATOR")
         if force == "mock":
             return MockTranslator()
         if force == "gateway" or ctx.secrets.api_key:

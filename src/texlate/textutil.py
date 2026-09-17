@@ -20,9 +20,10 @@ xlat 轻量对账共用一个实现，防两份 DP 各自漂移。
 latin 对字节（``é``+ASCII 字母是合法 gb 二字节）解成 CJK——字节探测必须先
 判定编码族再解码，判定依据逐文件落 ``EncodingVerdict`` 供 normalize 归因。
 
-``env_flag``/``data_root``：``TEXLATE_*`` env 读取的单一事实源——布尔旗标
-统一 ``1/true/yes/on`` 真值表（strip+lower 后判定）；数据根统一
-``TEXLATE_DATA_DIR`` > ``~/.texlate``（只定位不 mkdir，副作用归调用方）。
+``env_flag``/``env_str``/``data_root``：``TEXLATE_*`` env 读取的单一事实源——
+布尔旗标统一 ``1/true/yes/on`` 真值表（strip+lower 后判定）；字符串选择器
+统一 strip+lower 归一；数据根统一 ``TEXLATE_DATA_DIR`` > ``~/.texlate``
+（只定位不 mkdir，副作用归调用方）。
 """
 
 from __future__ import annotations
@@ -56,6 +57,7 @@ __all__ = [
     "decode_tex",
     "decode_tex_with",
     "env_flag",
+    "env_str",
     "is_cjk_cp",
     "lev_capped",
     "mask_comments",
@@ -1166,6 +1168,11 @@ def env_flag(name: str, *, default: bool) -> bool:
     if raw is None:
         return default
     return raw.strip().lower() in _TRUE_WORDS
+
+
+def env_str(name: str) -> str:
+    """读字符串 env：strip+lower 归一返回；未设置返 ``""``（选择器类旗标同口径）。"""
+    return os.environ.get(name, "").strip().lower()
 
 
 def data_root() -> Path:
