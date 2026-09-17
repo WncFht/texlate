@@ -192,7 +192,7 @@ env judge 参数：**temperature=0、max_tokens=16、3 次重试、解析 `true/
 
 ### 3.4 target_probe 与 compiled_dependencies
 
-- **target_probe**：翻译前先以"译文桩"替换英文词编译一遍（免费），暴露字体/模板问题再花钱；探针失败直接进 fixloop。落地注记（2026-09-16）：`compile/probe.py` 已落（`54e1c4b`，声明依赖预扫 + `.fls` deps diff + `latex209_suspect` 标记）；worker 接线为 **best-effort 旁路**（`worker.py::_probe_target`——依赖计数/`tl_pkg` 可装清单/`prefer_engine` 分歧只进 log 播报，探针崩溃不阻塞编译，装包仍归 fixloop/tlmgr）。（勘误 2026-09-17：译文桩预编译原形态未建——按落地注记口径为静态探针旁路合规；「探针失败直接进 fixloop」语义不存在，prefer_engine 分歧只进 log。）
+- **target_probe**：翻译前先以"译文桩"替换英文词编译一遍（免费），暴露字体/模板问题再花钱；探针失败直接进 fixloop。落地注记（2026-09-16）：`compile/probe.py` 已落（`54e1c4b`，声明依赖预扫 + `.fls` deps diff + `latex209_suspect` 标记）；worker 接线为 **best-effort 旁路**（`worker/compile.py::_probe_target`——依赖计数/`tl_pkg` 可装清单/`prefer_engine` 分歧只进 log 播报，探针崩溃不阻塞编译，装包仍归 fixloop/tlmgr）。（勘误 2026-09-17：译文桩预编译原形态未建——按落地注记口径为静态探针旁路合规；「探针失败直接进 fixloop」语义不存在，prefer_engine 分歧只进 log。）
 - **compiled_dependencies 为翻译文件集权威**：`.fls` INPUT 行 / tectonic `--makefile-rules` 决定翻哪些 .tex；静态 `\input` 图只作编译失败时降级。落地注记：`dep_seen`/`deps_diff` 已随 probe 一并接入 worker（`54e1c4b`）。
 
 ## 4. 引擎层（`compile/engine.py`）
@@ -211,7 +211,7 @@ class Engine(Protocol):
 
 （勘误 2026-09-17：impl 实为 9 成员——`name: str`、`caps: frozenset[str]`、`detect()`、`compile()`、`probe_file(fname, *, cwd)`、`install_file(fname, *, font_related)`、`rebuild_fontmaps() -> bool`、`filemap()`、`parse_log(res) -> LogInfo`，`engine.py:822-894`；`shell_escape` cap 全代码无踪迹——`XelatexEngine.caps={kpsewhich,tlmgr,updmap,recorder}`。）
 
-- xelatex：`-no-shell-escape -interaction=nonstopmode -halt-on-error -file-line-error -recorder`，≤2 pass，timeout 240s（勘误 2026-09-17：消费方均传 `halt_on_error=False` 对齐 bench 产出——worker.py/e2e.py 刻意参数，fixloop 内部引擎才用默认 True）。
+- xelatex：`-no-shell-escape -interaction=nonstopmode -halt-on-error -file-line-error -recorder`，≤2 pass，timeout 240s（勘误 2026-09-17：消费方均传 `halt_on_error=False` 对齐 bench 产出——worker/compile.py/e2e.py 刻意参数，fixloop 内部引擎才用默认 True）。
 - tectonic：`-X compile --untrusted --keep-logs --keep-intermediates --makefile-rules <deps.mk> --hide secrets` + `-Z continue-on-errors`（post-spec 加注对齐 nonstopmode）；`TEXINPUTS` 不认——等价物 `-Z search-path`（勘误 2026-09-17：被 `_TECTONIC_Z_OK` 白名单安全面封锁，`engine.py:77`）；bundle pin `tlextras-2022.0r0`。
 
 ### 4.2 路由与兜底
@@ -236,7 +236,7 @@ class Engine(Protocol):
 
 > 勘误（2026-09-16，F3 改判 `87e6a40`）：**策略拒绝不再单列 `reject` 终态**——route/inject/fixloop 三处拒绝统一归 `partial` + `reject_at ∈ {route, inject, fixloop}` 审计字段（语义：拒绝是降级交付不是 fault；worker `_reject` 与 e2e `run()` 同形，`cli.py` 对 `reject_at` 保持 exit 2）。§5 verdict 词汇表同此口径。
 
-> 复核（2026-09-17，红线类集两层各一份、命名不同构）：`engine.py WARNING_RED_LINES` = `[invalid_utf8, fffd_glyph, missing_chars, missing_graphic, degraded_file]`（warning 扫描/judge 面；`degraded_file` 即 tectonic 缺包静默降级行 `^!.*(File|package).*not found`——continue-on-errors 跳包出残页 pdf 的暗雷）；`l2.py _REDLINE_CLASSES` = `{invalid_utf8, missing_glyph, missing_glyph_cjk, fffd_glyph, file_not_found}`（log 回灌面）——按层查名勿求字面全等。`Missing character` 码点形态随引擎代际分叉：老 TL 打 `("8FD9)`、新 TL 打 `(U+8FD9)`（`_MISSING_CHAR_RX` 双形态并收，corpus log 并存、U+ 形约 1/3）。系统 texmf/bundle 件与 dos-eps（魔数 `\xc5\xd0\xd3\xc6`，normalize `dos_eps_skipped` 原样保留的二进制件）的红线命中**降级进 `sys_hits`/`warnings_sys` 观察项**、命中串尾挂 `(dos-eps)` 标（l2 `_mark_redline` 与 engine `_scan_error_lines` 同口径）——老 CTAN 包自带坏字节非工程红线（invalid_utf8 系统件 loop1 归因占 96%）；文件栈 None 帧由 `_patch_graphic_top` 按 graphic 引用 token 补位归因。
+> 复核（2026-09-17，红线类集两层各一份、命名不同构）：`loginfo.py WARNING_RED_LINES`（engine.py 门面回引）= `[invalid_utf8, fffd_glyph, missing_chars, missing_graphic, degraded_file]`（warning 扫描/judge 面；`degraded_file` 即 tectonic 缺包静默降级行 `^!.*(File|package).*not found`——continue-on-errors 跳包出残页 pdf 的暗雷）；`l2.py _REDLINE_CLASSES` = `{invalid_utf8, missing_glyph, missing_glyph_cjk, fffd_glyph, file_not_found}`（log 回灌面）——按层查名勿求字面全等。`Missing character` 码点形态随引擎代际分叉：老 TL 打 `("8FD9)`、新 TL 打 `(U+8FD9)`（`_MISSING_CHAR_RX` 双形态并收，corpus log 并存、U+ 形约 1/3）。系统 texmf/bundle 件与 dos-eps（魔数 `\xc5\xd0\xd3\xc6`，normalize `dos_eps_skipped` 原样保留的二进制件）的红线命中**降级进 `sys_hits`/`warnings_sys` 观察项**、命中串尾挂 `(dos-eps)` 标（l2 `_mark_redline` 与 engine `_scan_error_lines` 同口径）——老 CTAN 包自带坏字节非工程红线（invalid_utf8 系统件 loop1 归因占 96%）；文件栈 None 帧由 `_patch_graphic_top` 按 graphic 引用 token 补位归因。
 
 ### 4.4 编译沙箱
 
@@ -248,7 +248,7 @@ class Engine(Protocol):
 
 ### 5.1 两层 YAML：`taxonomy`（log→类别）+ `rules`（类别→动作）
 
-> **勘误（2026-09-16）**：实现为 `compile/fixloop/` 包（engine/cases/ctan/logparse/\_yamlish/rules.yaml）；
+> **勘误（2026-09-16）**：实现为 `compile/fixloop/` 包（engine/cases/ctan/logparse/\_yamlish/`rules/` 分片目录）；
 > taxonomy 段现为 37 个 pattern 条目、rules 段 **36** 条（v3 整改 + 后续扩表：pstricks_dvips_preflight/eps_route/eps_to_pdf/legacy_pkg_shim/font_sub_shim/aux_scan_eof/split_glued_cs 等，HANDOFF-2026-09-16 §2.2/§6——勘误标注：此列名混层，`aux_scan_eof` 实为 category（消费规则 `aux_purge_regen`）、`split_glued_cs` 实为 builtins 内部 helper `_split_glued_cs`（builtins.py:1013），余者才是规则 id）。（勘误 2026-09-17：实 **42** taxonomy/**52** rules——计数持续滞后，以 rules.yaml 为准。勘误 2026-09-17 复核：**39** taxonomy 条目/**32** category/**59** rules——`ff1a811` 一波 +4：ntheorem_style_undefine/already_def_undefine/acro_v3_key_rename/restore_support_from_src，另 detector 扩 already_def 双签 + cs_table 扩期刊宏与字体熔合族。）（勘误 2026-09-17 三复核：**46** taxonomy 条目/**36** category/**62** rules（2 gate+2 precheck+58 loop）——`9d9ebe5` 新增 category `cannot_patch_macro`/`runaway_scan`（消费规则 biblatex_bbx_rename:161/detab_end_scanlines:164）；`env_mismatch`/`float_opt` 有 taxonomy 条目尚无消费规则（实消 34 cat）。另：文件实为**三层**——顶层 `warnings:` 段（4 warn_id：invalid_utf8/missing_char/missing_graphic/tectonic_degrade）载 warn-driven fix 的签名面， taxonomy/rules 之外独立；rules.yaml 头部自注释"36 条:2+2+32"自身已陈旧。）（勘误 2026-09-17 四复核：rules.yaml 已拆为 `compile/fixloop/rules/` 分片目录、builtins.py 拆为 `_builtins_*.py` 八叶——分层计数自此以生成源为准，本文不再追数。）
 
 phase：`gate`=每轮分类后最先评估 / `precheck`=编译前一次性 / `loop`=每轮错误驱动；同 phase 按 order 升序、**每轮只应用一条**（便于归因）。
@@ -272,7 +272,7 @@ phase：`gate`=每轮分类后最先评估 / `precheck`=编译前一次性 / `lo
 | 15  | `minted_frozencache` | loop/130    | `minted_froz`                                | `{minted}`→`{minted2}` 一行替换（v3 吃 v2 缓存报 50 错实测）     |
 | 16  | `undefined_cs_guess` | loop/900    | `undefined_cs`                               | escalate_llm（恒最后兜底）                                       |
 
-动作原语 7 种：`scan_install / install_file / run_tool / regex_rewrite / builtin_transform / reject_route / escalate_llm`。命名函数注册表仅 3 个（`px_to_bp`/`keep_latin_tokens`/`option_clash_merge`）——社区新规则多数只写 regex，新函数才需 PR 代码。（勘误 2026-09-17：impl `TRANSFORM_FNS` **21** + `REWRITE_FNS` **2**，`builtins.py:142/1844`。再勘误同日：**22**+2，`builtins.py:144/2147`——`827674d` 增 `accent_mark_fix`。）
+动作原语 7 种：`scan_install / install_file / run_tool / regex_rewrite / builtin_transform / reject_route / escalate_llm`。命名函数注册表仅 3 个（`px_to_bp`/`keep_latin_tokens`/`option_clash_merge`）——社区新规则多数只写 regex，新函数才需 PR 代码。（勘误 2026-09-17：impl `TRANSFORM_FNS` **21** + `REWRITE_FNS` **2**，`builtins.py:142/1844`。再勘误同日：**22**+2，`builtins.py:144/2147`——`827674d` 增 `accent_mark_fix`。）（锚点更新 2026-09-18：builtins.py 拆为 facade + `_builtins_*` 八叶后，注册表今在 `builtins.py:314`/`1022`，函数体散各叶。）
 
 **顺序不变量**：gate 先于一切（`missing_file`+`\documentstyle` 必须先拦，否则给 2.09 白装包）；install 先于 rewrite（缺包时不许动源码）；同 trigger 保守→激进（microtype_off 70 < times_to_newtx 80 + `(rule_id,payload)` dedup）；兜底恒最后（order 900）。防干扰：同 `(cat,pay)` 签名连续 3 轮 → `stuck`；rewrite 幂等逐条审过。
 
@@ -359,7 +359,7 @@ fixloop(proj, eng, ruleset):
 | 块态 | chunk/segment `status` | `ok` / `partial`（阶梯 recovered）/ `fault`（翻译或校验错；`fallback_orig` 回退原文亦落 fault+skipped 标记）/ `skipped`（门控跳过）（勘误 2026-09-17：原表漏 `partial` 第四值，impl `pipeline.py:107/614-630`） | `xlat/pipeline.py` |
 | 注入态 | inject `status` | `injected` / `already`（已有 CJK 支持）/ `no-docline`（无 documentclass 锚） | `compile/inject.py` |
 | fixloop 判决 | cases `verdict` / `fixloop_verdict` | `clean` / `acceptable_pdf`（有 pdf 即收，misschar 档）/ `best_effort_pdf`（有 pdf 残留错）/ `dirty_pdf` / `unfixable:{cat}` / `stuck`（轮内无进展）/ `no_errors_no_pdf`（干净日志零页面）/ `reject:<rid>`（gate 直通）/ `no_main_tex` / `max_rounds`（勘误 2026-09-17：原表缺后三值） | `fixloop/engine.py`、`fixloop/cases.py` |
-| 规则态 | rules.yaml `status` | `stub` / `proposed` / `active` / `retired` / `validated`（裁定 2026-09-17：**审计元数据非门控**——全部状态同序同权上场，排序/触发由 `order`+`when` 驱动；proposed→active 升迁走回放门 ③ 写 `stats`/复核，不拦 firing。bench 语义要"全手上场"，retired 例外=规则条目删除前位。勘误同日：impl 实际在用值为 stub×1/proposed×29/validated×5/**verified×4**（biblatex_bbx_rename/acro_v3_key_rename/ntheorem_style_undefine/already_def_undefine——表内枚举原缺 verified）；active/retired 零使用；另有规则仅 stats.fires 无 status 键） | `fixloop/rules.yaml` |
+| 规则态 | rules.yaml `status` | `stub` / `proposed` / `active` / `retired` / `validated`（裁定 2026-09-17：**审计元数据非门控**——全部状态同序同权上场，排序/触发由 `order`+`when` 驱动；proposed→active 升迁走回放门 ③ 写 `stats`/复核，不拦 firing。bench 语义要"全手上场"，retired 例外=规则条目删除前位。勘误同日：impl 实际在用值为 stub×1/proposed×29/validated×5/**verified×4**（biblatex_bbx_rename/acro_v3_key_rename/ntheorem_style_undefine/already_def_undefine——表内枚举原缺 verified）；active/retired 零使用；另有规则仅 stats.fires 无 status 键） | `fixloop/rules/`（分片目录，rules.yaml 已拆） |
 | 任务态 | job `status`（11 态机） | active：`queued`/`fetching`/`parsing`/`translating`/`compiling`；terminal：`done`/`partial`/`fault`/`cancelled`/`interrupted`/`needs_auth` | `server/store.py:150` |
 
 跨段退化口径：终态 `fixloop.status` 不得低于上游 `compile.status`（clean>partial>fail>reject）；loop1 实证 17 格中 13 格为基建杀伤假象（修复后引擎直编出 pdf），真退化判定须直编复验。

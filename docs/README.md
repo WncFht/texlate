@@ -20,7 +20,8 @@
 | `tools-runbook.md`          | 工具与运维手册：产品 CLI / `scripts/` / `bench/py/` 全表 + 运维手法沉淀 | 现役手册（随工具增补更新）                        |
 | `CONVENTIONS.md`            | 文档写作/维护约定：SUPERSEDED 横幅、research 索引登记、勘误引用粒度     | 现役约定                                          |
 | `HANDOFF-2026-09-15.md`     | archbox 迁移交接：当日落地清单 + 全部剩余工作 inventory                 | 运维交接（随里程碑更新）                          |
-| `HANDOFF-2026-09-16.md`     | v2 产品面切换日交接：17 commit 全录 + 剩余项                            | 运维交接（随里程碑更新）                          |
+| `HANDOFF-2026-09-16.md`     | v2 产品面切换日交接：17 commit 全录 + 剩余项                            | 运维交接（已老化：09-17 产出由 `research/report-2026-09-17-final.md` + `research/overseer-2026-09-16.md` 台账承载，现役见 HANDOFF-2026-09-18） |
+| `HANDOFF-2026-09-18.md`     | 重构波+重读审计日交接：09-16/09-17 链路 + reaudit-2026-09-18 修波状态   | 运维交接（现役）                                  |
 
 后置规范暂居 research/（M3 时再提正）：`research/product/web-layer.md`（API/前端/BYOK/部署）、`research/latex/{pdf-path,doc-formats}.md`（PDF sidecar / EPUB/DOCX）、`research/arxiv/licensing.md`（法务）。
 

@@ -58,7 +58,7 @@ TeXlate（hjfy.top 开源复刻）全部调研报告。**裁决与方案以 `doc
 | `corpus39-profile.md`           | bench/corpus 39 篇机器级统计画像                                                        |
 | `arxmliv-unarxive.md`           | arXMLiv/ar5iv/unarXive 学术发行物调研（结论：无源码不入料）                             |
 | `2026-09-15-parsebench-icc.md`  | parsebench 月间 ICC 信度分析（§7.2 统计口径行动项）                                     |
-| `2026-09-16-expand-layer.md`    | corpus_v3 expand 层 +3800（总 5072）：故障率加权配额、新旧池选样、QC 全过 +60 良性超收  |
+| `2026-09-16-expand-layer.md`    | corpus_v3 expand 层 +3800（当时总 5072；现四层合计 5135，hot 层 135）：故障率加权配额、新旧池选样、QC 全过 +60 良性超收  |
 
 ## gateway/ — LLM 网关与模型选型
 
@@ -72,6 +72,7 @@ TeXlate（hjfy.top 开源复刻）全部调研报告。**裁决与方案以 `doc
 | `gwbench-group-c.md`    | 网关横评 C 组实验                                               |
 | `cost-model.md`         | 翻译成本模型：chunk 统计 → token 估算（p50 91K/篇）             |
 | `2026-09-16-free-tokens.md` | 免费 token 额度全景：四源实测契约 + 保险库审计 + 官方免费档/公益站普查 |
+| `2026-09-17-devin2api-fg-bg-admission.md` | devin-2api fg/bg 分级准入需求规格（texlate bench 批跑流量提出方） |
 
 ## product/ — 产品/E2E/工程生态
 
@@ -107,6 +108,7 @@ TeXlate（hjfy.top 开源复刻）全部调研报告。**裁决与方案以 `doc
 | `overseer-2026-09-16.md`               | 车队作战台账：多会话协调的决策与落地逐条记录（2026-09-16 夜间冲刺起续记）       |
 | `2026-09-16-loop1-status-and-next.md`  | loop1 复盘 + 三方分派收敛（stagerun-loop1 n=5059 数字总账与在飞清单）           |
 | `report-2026-09-17-final.md`           | 2026-09-17 全天作战终报：一页结论/波次总账/关键数字/缺陷账/排期摘要/决策点      |
+| `reaudit-2026-09-18.md`                | 重构波后全仓重读审计：A 17 真 bug/安全 + B 13 单源债 + C 10 结构 + D 4 测试 + E 10 文档 + F 归属外表 |
 
 ## lit/ — 文献原件
 

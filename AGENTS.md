@@ -1,16 +1,16 @@
 # TeXlate
 
 > 开源版「幻觉翻译」(hjfy.top)：arXiv LaTeX 源码 → LLM 段落级翻译 → ctex 重编译中文 PDF，双语对照阅读。
-> 当前状态：**M0 已验收、M1 实质达成、M2/M3 推进中**（2026-09-16 全仓审计 `docs/research/audit-2026-09-16/`；当日交接 `docs/HANDOFF-2026-09-16.md`）。调研完成、方案冻结；决策史 `docs/01–05`，最终技术规格 `docs/06–10`（实现按此执行），过程证据归档 `docs/research/`。已落 `src/texlate/`：`arxiv/`（获取层）、`latex/`（半解析 + 展开机——**v2 Gullet+Segmenter 为默认产品路径**，`TEXLATE_NO_EXPAND=1` 回退 v1；corpus_v3 identity 100%/leak 0.040%（parsebench 实测，时点 3937 文件））、`xlat/`（编排 + 网关客户端）、`validate/`（L0/L1/L2）、`compile/`（引擎/注入/normalize/probe/sandbox）+ `compile/fixloop/`（yaml 修复引擎 + llm_hook；规则库 = `rules/` 分片目录，自 rules.yaml 拆出，条目数以生成源为准）、`server/`（FastAPI+SSE+SQLite+BYOK 实装 + babeldoc sidecar + SPA staticfiles + `cmaps/` GB1 ToUnicode）、`export/`（EPUB/DOCX 双语插译）、`share.py`、`cli.py`（typer：fetch/parse/run/web/export/share/doctor/version/tools）。
+> 当前状态：**M0 已验收、M1 实质达成、M2/M3 推进中**（2026-09-16 全仓审计 `docs/research/audit-2026-09-16/`；当日交接 `docs/HANDOFF-2026-09-16.md`）。调研完成、方案冻结；决策史 `docs/01–05`，最终技术规格 `docs/06–10`（实现按此执行），过程证据归档 `docs/research/`。已落 `src/texlate/`：`arxiv/`（获取层）、`latex/`（半解析 + 展开机——**v2 `gullet/`+`segmenter/` 包为默认产品路径**，`TEXLATE_NO_EXPAND=1` 回退 v1；corpus_v3 identity 100%/leak 0.040%（parsebench 实测，时点 3937 文件））、`xlat/`（编排 + 网关客户端 + `terms/` 术语表资产）、`validate/`（L0/L1/L2 + `ts/` tree-sitter node 校验件）、`compile/`（引擎/注入/normalize/probe/sandbox/loginfo/deps + `cmaps/` GB1 ToUnicode 资产，cjkmap 消费）+ `compile/fixloop/`（yaml 修复引擎 + llm_hook；规则库 = `rules/` 分片目录，自 rules.yaml 拆出，条目数以生成源为准；builtins facade + `_builtins_*` 八叶 + `vendor/` files/stubs 离线宏包资产）、`server/`（FastAPI+SSE+SQLite+BYOK 实装 + babeldoc sidecar + SPA staticfiles + upload 安全解包 + `worker/` 包管线）、`export/`（EPUB/DOCX 双语插译）、`repair.py`（e2e/worker 双臂共享修复低层件）、`redlines.py`（红线概念注册表）、`share.py`、`cli.py`（typer：fetch/parse/run/web/export/share/doctor/version/tools）。
 
 ## 仓库布局
 
-- `src/texlate/` — 产品代码（uv 管理，`uv sync` 起 .venv；Python 3.12+）：`arxiv/` 获取层、`latex/` 半解析管线（mouth/gullet/segmenter v2 默认 + v1 对照臂）、`xlat/` 翻译编排、`validate/` 校验三层、`compile/` 引擎 + 注入+normalize+`fixloop/` yaml 修复引擎、`server/`（FastAPI+SSE+SQLite+BYOK+worker 管线，web 后端实装；app/settings/store/worker/events/staticfiles/babeldoc/`__main__`）、`cli.py`（typer）、`align.py`（named-dest 锚点同步）、`e2e.py`（整链编排）、`texlog.py`（编译日志 file stack）、`textutil.py`（编码/文本工具）、`share.py`、`export/`（EPUB/DOCX）
+- `src/texlate/` — 产品代码（uv 管理，`uv sync` 起 .venv；Python 3.12+）：`arxiv/` 获取层、`latex/` 半解析管线（mouth + `gullet/`/`segmenter/` 包 v2 默认 + v1 对照臂）、`xlat/` 翻译编排（+`terms/` 术语表）、`validate/` 校验三层（+`ts/` node 校验件）、`compile/` 引擎 + 注入+normalize+loginfo/deps+`fixloop/` yaml 修复引擎（`rules/` 分片 + `_builtins_*` 八叶 + `vendor/` 资产）+ `cmaps/` GB1 cmap、`server/`（FastAPI+SSE+SQLite+BYOK+worker 包管线，web 后端实装；app/settings/store/upload/events/staticfiles/babeldoc/`worker/`/`__main__`）、`cli.py`（typer）、`align.py`（named-dest 锚点同步）、`e2e.py`（整链编排）、`repair.py`（双臂共享修复件）、`redlines.py`（红线注册表）、`texlog.py`（编译日志 file stack）、`textutil.py`（编码/文本工具 + `TEXLATE_*` env/正则词表单源）、`share.py`、`export/`（EPUB/DOCX）
 - `web/` — SolidJS+Vite+pdfslick 阅读器前端（独立 package.json/tsconfig/vitest；TypeScript 全量，CI web job 跑 tsc/eslint/vitest）
 - `tests/` — pytest（corpus/网关/node 依赖用例均有 skipif/env 守卫，干净 clone 全绿）
 - `docs/` — `README.md` 总索引；决策史 01–05 + 最终技术规格 06–10 + `docs/research/` 调研档案（arxiv/latex/corpus/gateway/product/audit-* 子目录，`lit/` 文献原件 gitignored）
 - `bench/` — 解析/编译库 benchmark 现场（`bench/PROTOCOL.md` 是评测协议：每库测解析鲁棒性/陷阱断言/round-trip/输出物 4 项）
-    - `bench/py/` — python 侧 bench（pylatexenc/TexSoup/plasTeX/miniscanner/fixloop/compile/parsebench），`scratch/` 是一次性探针
+    - `bench/py/` — python 侧 bench（pylatexenc/TexSoup/plasTeX/fixloop/compile/parsebench 等；miniscanner spike 已退役，断言矩阵移植 `tests/test_bench_regression.py`），`scratch/` 是一次性探针
     - `bench/py/.venv_babeldoc/` — babeldoc 对照实验专用 venv（gitignored）
     - `bench/ts/` — js 侧 bench（latex-utensils/unified-latex/tree-sitter-latex），独立 package.json，CommonJS
     - `bench/corpus/` — 39 篇手挑陷阱语料（子目录 gitignored，`MANIFEST.md` 入库）
@@ -40,7 +40,7 @@ CI（`.github/workflows/ci.yml`）与本地同源，本地不过 CI 必挂。
 
 ## Agent 入口约定
 
-`AGENTS.md` 与 `.agents/` 是入库的唯一事实源（skill 约定放 `.agents/skills/`，各带 `agents/openai.yaml` 元数据——当前仓内尚无 skill 实例）。`CLAUDE.md` 与 `.claude/skills/` 是指向它们的软链，属本机便利层、不入库；clone 后跑 `scripts/agent-links.sh` 重建。
+`AGENTS.md` 与 `.agents/` 是入库的唯一事实源（skill 约定放 `.agents/skills/`，各带 `agents/openai.yaml` 元数据——现有 `improve-codebase-architecture/` 一例）。`CLAUDE.md` 与 `.claude/skills/` 是指向它们的软链，属本机便利层、不入库；clone 后跑 `scripts/agent-links.sh` 重建。
 
 ## 项目运维约定
 

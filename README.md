@@ -24,7 +24,7 @@ texlate run 1706.03762               # 或 CLI 直跑整链 → 双语 PDF
 | 包                 | 内容                                                                                                                                               | 验证                                                                                      |
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | `arxiv/`           | e-print 获取/解包/主文件定位/限速                                                                                                                  | `tests/test_arxiv_*` 族 + corpus39/实网 gated 用例                                        |
-| `latex/`           | 半解析 + 展开机（**v2 Gullet+Segmenter 默认路径**，`TEXLATE_NO_EXPAND=1` 回退 v1）                                                                 | corpus_v3 核心层 identity 100%、leak 0.046%（parsebench 实测）+ fixtures 断言集全绿（`tests/test_bench_regression.py`） |
+| `latex/`           | 半解析 + 展开机（**v2 Gullet+Segmenter 默认路径**，`TEXLATE_NO_EXPAND=1` 回退 v1）                                                                 | corpus_v3 核心层 identity 100%、leak 0.040%（parsebench 实测）+ fixtures 断言集全绿（`tests/test_bench_regression.py`） |
 | `xlat/`            | 编排层 + 3003 网关客户端（动态免费模型发现/重试/状态续翻/术语表）                                                                                  | xlat 测试族 + MockTranslator E2E；e2e-real n100 chunk ok 99.97%                           |
 | `validate/`        | L0 规则校验（`_check_*` 检查族，见 `validate/l0.py`）/ L1 tree-sitter / L2 编译日志                                                                 | validbench corpus_v2 7867 用例：破坏 100% 检出 / 0 error-FP                               |
 | `compile/`         | Engine 协议 (xelatex+tectonic) / ctex 注入 / normalize / 沙箱                                                                                      | compilebench-v4+fixloop 联合 pdf 154/172=89.5%（`bench/results/compilebench-v4-*/` 归因） |
@@ -33,7 +33,7 @@ texlate run 1706.03762               # 或 CLI 直跑整链 → 双语 PDF
 | `export/`          | EPUB/DOCX 双语插译（`texlate export <file>`）：bbm 蓝图照抄——DRM 预检 + run 制 unit + `[[TAG_n]]` marker + StateStore 断点续跑                     | export 测试族 + 真书回归（`bench/results/export-realbook-2026-09-16/`：2 本 Gutenberg 全链绿） |
 | `e2e.py`/`cli.py`  | `texlate run <arxiv-id>` 整链驱动（fetch→parse→xlat→inject→compile→judge）                                                                         | 实测出双语 PDF（audit-2026-09-16/e2e-func.md）                                            |
 
-Benchmark 底材：corpus39（陷阱）+ corpus_v2（139 篇）+ corpus_v3（core + booster + hot + expand 四层，最新分层口径以 `bench/corpus_v3/MANIFEST.md` 为准；机制台账 `mechanisms.jsonl`，选择器 `select_booster.py`，管线 `bench/py/build_corpus_v3.py` 可重建）。评测器已扶正：parsebench（B1）/ fixtures 断言（B2，tests/test_bench_regression.py）/ compilebench（B3）/ xlatbench（B4）/ e2e_mock+e2e_real（B5）/ validbench（B6）/ alignbench（B7）。规格见 `docs/06–10`。
+Benchmark 底材：corpus39（陷阱）+ corpus_v2（139 篇）+ corpus_v3（core + booster + hot + expand 四层，最新分层口径以 `bench/corpus_v3/MANIFEST.md` 为准；机制台账 `mechanisms.jsonl`，选择器 `select_booster.py`，管线 `bench/py/build_corpus_v3.py` + `build_hot_layer.py` + `build_corpus_expand.py` 可重建）。评测器已扶正：parsebench（B1）/ fixtures 断言（B2，tests/test_bench_regression.py）/ compilebench（B3）/ xlatbench（B4）/ e2e_mock+e2e_real（B5）/ validbench（B6）/ alignbench（B7）。规格见 `docs/06–10`。
 
 ## 关键设计共识 (来自 hjfy 逆向 + ieeA 走读)
 

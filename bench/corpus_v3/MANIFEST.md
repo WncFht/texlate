@@ -1,10 +1,10 @@
 # Corpus v3 Manifest — arXiv 月度簇分层抽样源码语料
 
 渠道钉版批量语料：a–d 带 IA `arxiv-bulk` 月 chunk / e 带 HF `TIGER-Lab/arxiv-latex-5T`（成员四元组 `(channel,item,member,blob_sha256)` 钉版，`resolved_version=null`）。
-数据在本目录 `{id}/` 子目录（gitignored），入库的有此清单、`manifest.jsonl`（核心 1000）、`manifest_booster.jsonl`（补强 200）、`manifest_expand.jsonl`（扩展 3800）、`manifest_hot.jsonl`（热层 133，OpenAlex 高引近期 e-print 渠道）、`mechanisms.jsonl`、`booster_selection.jsonl`、`select_booster.py`、`selection_report.md`，管线脚本在 `bench/py/build_corpus_v3.py`（core/booster）+ `build_corpus_expand.py`（expand）+ `build_hot_layer.py`（hot）。
+数据在本目录 `{id}/` 子目录（gitignored），入库的有此清单、`manifest.jsonl`（核心 1000）、`manifest_booster.jsonl`（补强 200）、`manifest_expand.jsonl`（扩展 3800）、`manifest_hot.jsonl`（热层 135，OpenAlex 高引近期 e-print 渠道）、`mechanisms.jsonl`、`booster_selection.jsonl`、`select_booster.py`、`selection_report.md`、`nominations/`（提名审计轨迹，见补强层节），管线脚本在 `bench/py/build_corpus_v3.py`（core/booster）+ `build_corpus_expand.py`（expand）+ `build_hot_layer.py`（hot）。
 抽样管线见 `docs/09-benchmark-corpus.md` S0–S5；旧式 ID 按 `archive/name` 嵌套。
 
-> 追记（2026-09-17）：四层合计 **5133 篇**。expand 层（3800）与 hot 层（133）为增补层——expand 明细见 `manifest_expand.jsonl` + QC `bench/results/corpus-expand-qc-2026-09-16/`；hot 层口径见 `docs/09` §4.3 增补注记与 `docs/research/product/2026-09-16-e2e-pipefix-hotlayer.md`。
+> 追记（2026-09-17）：四层合计 **5135 篇**。expand 层（3800）与 hot 层（135）为增补层——expand 明细见 `manifest_expand.jsonl` + QC `bench/results/corpus-expand-qc-2026-09-16/`；hot 层口径见 `docs/09` §4.3 增补注记与 `docs/research/product/2026-09-16-e2e-pipefix-hotlayer.md`。（勘误 2026-09-18：hot 层实为 135 篇，本注记原写 133/合计 5133 系时点旧值。）
 
 - 入库 **1000** 篇（核心层）· 1955 个 .tex · 原始包共 1603M
 - 打包形式：{'tar': 831, 'gz': 169}
@@ -1018,9 +1018,9 @@
 
 与核心层同目录共存（`{id}/`，meta.json `layer="booster"` 区分，两层 id 不相交）。
 入库清单 `manifest_booster.jsonl`；选择器 `select_booster.py`（`booster_selection.jsonl` +
-`selection_report.md` 为产出）；机制台账 `mechanisms.jsonl`（143 条：B01–07 配额 +
-T01–T29 fixture + W01–W109 野例）；提名审计轨迹 `nominations/{agent}.jsonl`（544 条，
-5 curator 分带阅读 + 3 hunter 定向狩猎）。
+`selection_report.md` 为产出）；机制台账 `mechanisms.jsonl`（164 条：B01–07 配额 +
+T 系 fixture 27 条 + W 系野例 130 条，W 池至 W111 含复数例证）；提名审计轨迹 `nominations/{agent}.jsonl`（558 条 +
+`{agent}.mechs.jsonl` 113 条，5 curator 分带阅读 + 3 hunter 定向狩猎）。
 
 - **200** 篇 · 1388 个 .tex · 打包形式 {'tar': 154, 'gz': 33, 'stub': 13}
 - 带分布 {a: 43, b: 45, c: 21, d: 53, e: 38}
@@ -1060,3 +1060,8 @@ fetch 可重入续跑）。
 累计 97/36；当日 +209 个 .tex · +241MB；当日 yymm {15:1, 23:1, 24:22, 25:17,
 26:20}），24 发 `pdf_only`——含首日 13 篇重试再确认（`fetch_fail.jsonl`
 37 条 / 去重 24 篇）。累计 **133/160**，余 3 候选第三日续。
+
+当日傍晚收官续取：drain +2（hot-recent，2607.10569/2601.10668）→ 全层 **135 篇**
+（hot-cite 97 + hot-recent 38；Σ 816 .tex · 916MB；`fetch_fail.jsonl` 62 条含重试）。
+候选 regen 扩池（`--n-cite 160 --n-recent 60`）被 OpenAlex 429 打断，原 160 池
+耗尽量级收尾，扩池次日再试。

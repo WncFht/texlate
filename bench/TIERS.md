@@ -8,8 +8,8 @@
 | --- | --- | --- | --- | --- |
 | L0 单元/断言 | `uv run pytest tests/`（含 `test_bench_regression.py` 98 例 fixture 断言矩阵；契约产出走 `bench/py/fixture_assert.py`） | 合成输入 + `bench/fixtures/*.tex`（@Tnn/@Wnn/@Xn，逐字节即语义） | 秒级/单文件，分钟级/全套 | 每 commit、CI 硬门 |
 | L1 机制覆盖 | `uv run python bench/py/parsebench.py`（corpus39 + corpus_v2 139 + corpus_v3 分层） | `bench/corpus/` 39 手挑陷阱、`corpus_v2/` 渠道敏感层 | 分钟级 | 解析/扫描/归一化改动后，开批前 |
-| L2 子集回归 | `uv run python bench/py/stagerun.py {parse,xlat,compile,fixloop} --n N --seed S` 或 `--ids` 定点（records/{stage}.jsonl append + resume） | corpus_v3 `mechanisms.jsonl` 144 条机制台账 + 分层 manifest | 分钟–小时 | 管线 stage 改动、新机制落账后定向重放 |
-| L3 全量集成 | stagerun 全层全臂 + fixloop + sabotage 两臂 → `gate_scorecard.py` + `triage.py`（操作单 `bench/py/runbook_loop.md`） | corpus_v3 全层（core 1000 + booster 200 + hot 133 + expand 3800） | 过夜（1259 篇基线 ~7h+） | 里程碑门（M 验收）、发版前 |
+| L2 子集回归 | `uv run python bench/py/stagerun.py {parse,xlat,compile,fixloop} --n N --seed S` 或 `--ids` 定点（records/{stage}.jsonl append + resume） | corpus_v3 `mechanisms.jsonl` 164 条机制台账 + 分层 manifest | 分钟–小时 | 管线 stage 改动、新机制落账后定向重放 |
+| L3 全量集成 | stagerun 全层全臂 + fixloop + sabotage 两臂 → `gate_scorecard.py` + `triage.py`（操作单 `bench/py/runbook_loop.md`） | corpus_v3 全层（core 1000 + booster 200 + hot 135 + expand 3800） | 过夜（1259 篇基线 ~7h+） | 里程碑门（M 验收）、发版前 |
 
 ## 问题 → 层 对照
 
