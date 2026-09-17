@@ -11,19 +11,19 @@
 豁免位置用独立实现的 missing-char 判定（按 docstring 语义重写 regex——
 不复用 ``_MISS_CHAR_RX``，oracle 必须独立于被测实现）。
 
-缺陷台账（tmp/fuzz-texlog/ 实证，2026-09-17，xfail-strict 钉——修复后
-XPASS 即拆钉信号）：
+缺陷台账（tmp/fuzz-texlog/ 实证，2026-09-17）：
 
 - D1 ``is_project_file`` 裸名分支 ``(root/token).is_file()`` 漏
   OSError——单段 >255 字节 token ENAMETOOLONG 逃逸（绝对路径分支显式
   catch OSError/ValueError，裸名支不对称）；docstring「判不出归属保守
   归工程」契约破，l2.py:353/loginfo.py:102 逐帧调用一遇即整轮死。
-  → 修：``is_file`` 套 ``try OSError`` → True。
+  **已修**（裸名支 ``try (OSError, ValueError)`` → True），钉转回归断言。
 - D2 ``is_dos_eps`` NUL token 漏 ValueError（"embedded null byte" 非
   OSError 子类）——NUL 具名帧真实可达：``(a\x00b.tex`` 行推 ``.tex``
   白名单帧；消费端 loginfo.py:97/l2.py:348 的 ``is_dos_eps`` 先于
   ``is_project_file`` 的 NUL 豁免执行，invalid_utf8 命中即炸整轮归因。
-  → 修：``except OSError`` 加 ValueError（或先 ``is_file`` 正规文件闸）。
+  **已修**（先 ``is_file`` 正规文件闸 + ``except (OSError, ValueError)``
+  ——fifo 开口阻塞 P2 面同消），钉转回归断言。
 
 观察钉（pin 当前契约，非缺陷——裁决留负责人）：
 
@@ -35,12 +35,13 @@ XPASS 即拆钉信号）：
 
 from __future__ import annotations
 
+import os
 import random
 import re
 from pathlib import Path
 
 import pytest
-from _fuzzkit import fuzz_rng, short, soup_join, soup_pick, xfail_confirmed
+from _fuzzkit import fuzz_rng, short, soup_join, soup_pick
 
 import texlate.texlog as texlog_mod
 from texlate.texlog import (
@@ -464,26 +465,19 @@ def test_looks_like_no_dot_never_file() -> None:
 
 
 def test_fuzz_is_project_file_never_raises(tmp_path: Path) -> None:
-    """token 汤 + 两种 root——恒返回 bool（D1 裸名超长面另有 xfail 钉）。"""
+    """token 汤 + 两种 root——恒返回 bool（D1 修复后超长裸名回归汤内）。"""
     rng = fuzz_rng(2026091736)
     (tmp_path / "sub").mkdir()
     (tmp_path / "sub" / "x.sty").write_text("x", encoding="utf-8")
     (tmp_path / "main.tex").write_text("x", encoding="utf-8")
     for _ in range(2000):
         tok = soup_pick(rng, _TOK_SOUP)
-        # D1：裸名单段 >255 字节 → is_file ENAMETOOLONG——另钉，汤外
-        if "/" not in tok and len(tok.encode()) > 255:  # noqa: PLR2004 -- NAME_MAX
-            continue
         for root in (tmp_path, None):
             assert isinstance(is_project_file(tok, root), bool), short(tok)
 
 
-@xfail_confirmed(
-    "D1: is_project_file 裸名分支 (root/token).is_file() 漏 OSError——"
-    ">255B 单段 token ENAMETOOLONG 逃逸（应保守归工程 True）"
-)
 def test_is_project_file_long_bare_name(tmp_path: Path) -> None:
-    """D1 钉：单段 300 字符 token——期望保守 True，实际 OSError。"""
+    """D1 回归：单段 300 字符 token——ENAMETOOLONG 保守归工程 True。"""
     assert is_project_file("a" * 300 + ".tex", tmp_path) is True
 
 
@@ -521,13 +515,14 @@ class TestDosEps:
         assert is_dos_eps(None, tmp_path, {}) is False
         assert is_dos_eps("magic.eps", None, {}) is False  # root 缺席
 
-    @xfail_confirmed(
-        "D2: is_dos_eps NUL token → open() ValueError(embedded null byte) "
-        "逃逸 except OSError——应判读不到 False"
-    )
     def test_nul_token_valueerror(self, tmp_path: Path) -> None:
-        """D2 钉：NUL 具名帧可达（下钉）+ open 炸 ValueError（本钉）。"""
+        """D2 回归：NUL token → is_file 闸 ValueError 兜住判 False。"""
         assert is_dos_eps("a\x00b.tex", tmp_path, {}) is False
+
+    def test_fifo_not_blocking(self, tmp_path: Path) -> None:
+        """P2 回归：fifo 走 is_file 闸即拒——不 open 故无开口阻塞。"""
+        os.mkfifo(tmp_path / "f.eps")
+        assert is_dos_eps("f.eps", tmp_path, {}) is False
 
     def test_nul_token_reaches_stack(self) -> None:
         """D2 可达性钉：``(a\\x00b.tex`` 行推 NUL 具名帧（``.tex`` 白名单）。

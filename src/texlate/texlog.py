@@ -210,7 +210,11 @@ def is_project_file(token: str | None, root: Path | None = None) -> bool:
     if token is None or "\x00" in token:
         return True
     if "/" not in token:
-        return root is None or (root / token).is_file()
+        try:
+            probed = root is not None and (root / token).is_file()
+        except (OSError, ValueError):
+            probed = True  # ENAMETOOLONG 等——不可归因，保守归工程
+        return probed or root is None
     if not token.startswith("/"):
         return True
     if _SYS_TREE_RX.search(token):
@@ -243,9 +247,12 @@ def is_dos_eps(token: str | None, root: Path | None, cache: dict[str, bool]) -> 
     if not p.is_absolute():
         p = root / p
     try:
-        with p.open("rb") as fh:
-            ok = fh.read(4) == DOS_EPS_MAGIC
-    except OSError:
+        if p.is_file():  # 正规文件闸——fifo 开口阻塞与 NUL ValueError 同消
+            with p.open("rb") as fh:
+                ok = fh.read(4) == DOS_EPS_MAGIC
+        else:
+            ok = False
+    except (OSError, ValueError):
         ok = False
     cache[token] = ok
     return ok
