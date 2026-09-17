@@ -61,6 +61,10 @@ DEFAULT_UA: Final = (
 DL_CAP: Final = 150 * 1024 * 1024
 #: 重试间隔表（docs/06 §1.3：+10s → +30s → +90s，±20% jitter）
 RETRY_DELAYS: Final = (10.0, 30.0, 90.0)
+#: Retry-After 可兑现上限（5min）：高于退避表上限 90s×jitter、远低于断路器
+#: park 档（30min 起）。超出视同不可兑现与 inf 同归终态——不钳短硬等，
+#: 免得真去 sleep 数天级的有限巨值（1e6s ≈ 11.5 天）。
+MAX_RETRY_AFTER_S: Final = 300.0
 #: 命中瞬时类的状态码（429 限流 / 406 IP 配额窗 / 5xx）
 TRANSIENT_STATUS: Final = frozenset(
     {
@@ -230,9 +234,14 @@ def _retry_delay(url: str, attempt: int, resp: httpx.Response | None) -> float:
     ra = resp.headers.get("retry-after") if resp is not None else None
     if ra:
         with contextlib.suppress(ValueError):
+            secs = float(ra)
+            if secs > MAX_RETRY_AFTER_S:
+                # 有限但不可兑现（sleep 会真等）——与 inf 同归终态；
+                # nan 比较恒 False → 仍走 max(delay, nan)=delay 回落语义
+                return math.inf
             # 非有限值（1e999→inf）原样返回——sleep(inf) 会 OverflowError，
-            # 由 _request 的 isfinite 闸截停转终态；nan 经 max 比较恒 False 回落 delay
-            delay = max(delay, float(ra))
+            # 由 _request 的 isfinite 闸截停转终态
+            delay = max(delay, secs)
     return delay
 
 

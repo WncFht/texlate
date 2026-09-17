@@ -657,7 +657,8 @@ class XlatPipeline:
             )
             try:
                 data = json.loads(_strip_json_fence(raw))
-            except json.JSONDecodeError:
+            except (json.JSONDecodeError, RecursionError):
+                # RecursionError：模型输出超深嵌套同坏 JSON 计——弃本轮 slots
                 return {}
             if isinstance(data, dict) and isinstance(data.get("slots"), dict):
                 data = data["slots"]

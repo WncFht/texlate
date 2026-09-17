@@ -7,23 +7,37 @@
 - ``normalize.use_bundled_bibliography``：bbl 读失败只弃书目步（不连坐整文件
   手术）；幂等探针认 ``./`` 前缀与引号形；``../``/绝对 ``\\bibliography``
   按 openin_any 缺席计；
-- ``arxiv.ratelimit._load``：非有限/越界状态值逐字段钳回合法域。
+- ``arxiv.ratelimit._load``：非有限/越界状态值逐字段钳回合法域；
+- ``xlat`` 外部 JSON 面（网关响应体/SSE 行/模型 slots 输出）：超深嵌套
+  ``json.loads`` 的 ``RecursionError`` 收进既有坏 JSON 处理，不裸逃；
+- ``arxiv.fetch._retry_delay``：有限但不可兑现的 ``Retry-After``（1e6s
+  ≈11.5 天）视同 inf 归终态，不再真 ``sleep``。
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
+import math
 from http import HTTPStatus
 from pathlib import Path
 
+import httpx
 import pytest
 from bs4 import BeautifulSoup
+from conftest import mk_chunk, run_pipeline
 from lxml import etree
 
+from texlate.arxiv import fetch as fetch_mod
+from texlate.arxiv.fetch import Fetcher
 from texlate.arxiv.ratelimit import ParkedError, RateLimiter
 from texlate.compile.normalize import normalize_project, use_bundled_bibliography
 from texlate.export import epub as epub_mod
 from texlate.validate.l1 import L1Error, TsBaseline, TsResult
+from texlate.xlat import client as xlat_client
+from texlate.xlat import pipeline as pl
+from texlate.xlat.client import ChatClient, MalformedResponseError, RetryableHTTPError
+from texlate.xlat.retry import SLOTS_MAX_ROUNDS
 
 # ----------------------------------------------------------------- epub raw-text
 
@@ -254,3 +268,128 @@ def test_report_high_park_step_no_overflow() -> None:
     for _ in range(2):
         rl.report(url, HTTPStatus.TOO_MANY_REQUESTS)
     assert rl.parked_until(url) > 0  # 封顶 park_max*jitter——不炸即证
+
+
+# ------------------------------------------------ xlat 外部 JSON 超深嵌套防御
+
+#: ~100KB 即撞 json C 扫描器递归上限（实测阈值 ~20000 层，此处 50000 留足余量）。
+_DEEP_JSON = "[" * 50000 + "]" * 50000
+
+
+def test_body_retry_after_deep_json_returns_none() -> None:
+    """429 body 超深嵌套 → ``_body_retry_after`` 归 None，RecursionError 不逃逸。"""
+    assert xlat_client._body_retry_after(_DEEP_JSON) is None  # noqa: SLF001
+
+
+def test_classify_429_deep_json_body() -> None:
+    """``classify_status`` 端到端：深 body 仍归 retryable 429、retry_after=None。"""
+    err = xlat_client.classify_status(429, _DEEP_JSON, httpx.Headers())
+    assert isinstance(err, RetryableHTTPError)
+    assert err.retry_after is None
+
+
+def test_sse_events_deep_json_line_skipped() -> None:
+    """SSE ``data:`` 行超深嵌套 → 按坏行跳过（同坏 JSON 口径），不杀流。"""
+    events, done = ChatClient._sse_events(f"data: {_DEEP_JSON}")  # noqa: SLF001
+    assert events == []
+    assert done is False
+
+
+@pytest.mark.parametrize("call", ["chat", "list_models", "panel_models"])
+def test_client_deep_json_success_body_is_malformed(call: str) -> None:
+    """200 成功体超深嵌套 → ``MalformedResponseError``（原 RecursionError 裸逃）。
+
+    ``chat``/``list_models``/``panel_models`` 三处 ``resp.json()`` 同型修复。
+    """
+
+    def handler(_req: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=_DEEP_JSON.encode())
+
+    async def go() -> None:
+        c = ChatClient(
+            "http://gw.test",
+            "k",
+            http=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+        )
+        if call == "chat":
+            coro = c.chat("m", [{"role": "user", "content": "hi"}])
+        elif call == "list_models":
+            coro = c.list_models()
+        else:
+            coro = c.panel_models()
+        with pytest.raises(MalformedResponseError):
+            await coro
+        await c.aclose()
+
+    asyncio.run(go())
+
+
+def test_slots_fn_deep_model_output_counts_as_bad_json() -> None:
+    """slots 阶段模型吐超深 JSON → 同坏 JSON 计：``{}`` → 槽全败带反馈重问。
+
+    修复前 ``RecursionError`` 逃逸到阶梯兜底 catch——``failures`` 不记录、
+    次轮 ``slot_validation_failures`` 反馈字段缺失（钉：次轮 payload 带该字段）。
+    """
+
+    class DeepSlots(pl.MockTranslator):
+        def __init__(self) -> None:
+            super().__init__()
+            self.slot_payloads: list[str] = []
+
+        async def translate(
+            self,
+            *,
+            user: str,
+            response_format: dict[str, str] | None = None,
+            **_kw: object,
+        ) -> str:
+            if response_format and response_format.get("type") == "json_object":
+                self.slot_payloads.append(user)
+                return _DEEP_JSON
+            return "whatever"  # whole/lines 译文——validator 恒败照样进 slots
+
+    spy = DeepSlots()
+    out = run_pipeline(
+        [mk_chunk("Long prose " + "x" * 400, "deep")],
+        translator=spy,
+        validator=lambda _s, _z: "always fails",
+    )
+    assert out[0].status == "fault"
+    assert len(spy.slot_payloads) == SLOTS_MAX_ROUNDS  # 单批槽：每轮一次调用
+    assert "slot_validation_failures" in spy.slot_payloads[1]
+
+
+# ----------------------------------------------------- fetch Retry-After 上限
+
+
+def test_retry_delay_huge_finite_retry_after_terminal() -> None:
+    """``Retry-After: 1000000``（≈11.5 天）视同不可兑现 → 归 inf 终态不真睡。
+
+    ≤``MAX_RETRY_AFTER_S`` 仍从其值；nan 沿用 ``max(delay, nan)=delay`` 回落。
+    """
+    huge = httpx.Response(429, headers={"retry-after": "1000000"})
+    assert math.isinf(fetch_mod._retry_delay("https://arxiv.org/src/x", 1, huge))  # noqa: SLF001
+    ok = httpx.Response(429, headers={"retry-after": "60"})
+    d_ok = fetch_mod._retry_delay("https://arxiv.org/src/x", 1, ok)  # noqa: SLF001
+    assert d_ok == pytest.approx(60.0)
+    nan = httpx.Response(429, headers={"retry-after": "nan"})
+    d = fetch_mod._retry_delay("https://arxiv.org/src/x", 1, nan)  # noqa: SLF001
+    assert d == pytest.approx(10.0, rel=0.2)  # 回落 10s±20% jitter 区间
+
+
+def test_request_huge_retry_after_sleeps_nothing() -> None:
+    """端面实证：429+``Retry-After: 1e6`` → 不睡巨值、429 原样上交终态。"""
+    clk = _Clock()
+
+    def handler(_req: httpx.Request) -> httpx.Response:
+        return httpx.Response(429, headers={"retry-after": "1000000"})
+
+    f = Fetcher(
+        RateLimiter(clock=clk.now, sleep=clk.sleep),
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+        hosts=("arxiv.org",),
+        sleep=clk.sleep,
+    )
+    resp = f._request("GET", "https://arxiv.org/src/x", {})  # noqa: SLF001
+    assert resp.status_code == HTTPStatus.TOO_MANY_REQUESTS
+    assert clk.slept == []  # 首请求无 pacing 等待、inf 退避 break——零睡眠

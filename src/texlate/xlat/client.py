@@ -188,7 +188,8 @@ def _body_retry_after(body: str) -> float | None:
     """
     try:
         data = json.loads(body)
-    except (json.JSONDecodeError, TypeError):
+    except (json.JSONDecodeError, TypeError, RecursionError):
+        # RecursionError：网关可构造 KB 级超深嵌套（[~20000 层撞解释器上限）
         return None
     err = data.get("error") if isinstance(data, dict) else None
     raw = err.get("retry_after") if isinstance(err, dict) else None
@@ -672,7 +673,7 @@ class ChatClient:
             )
         try:
             payload = resp.json()
-        except json.JSONDecodeError as e:
+        except (json.JSONDecodeError, RecursionError) as e:
             msg = f"non-JSON response: {redact(resp.text[:200], self.api_key)}"
             raise MalformedResponseError(msg) from e
         if not isinstance(payload, dict):
@@ -708,7 +709,7 @@ class ChatClient:
             return [StreamEvent(kind="done")], True
         try:
             chunk = json.loads(data)
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, RecursionError):
             return events, False
         for ch in chunk.get("choices") or []:
             delta = ch.get("delta") or {}
@@ -779,7 +780,7 @@ class ChatClient:
             )
         try:
             data = resp.json()
-        except json.JSONDecodeError as e:
+        except (json.JSONDecodeError, RecursionError) as e:
             msg = f"non-JSON response: {redact(resp.text[:200], self.api_key)}"
             raise MalformedResponseError(msg) from e
         if not isinstance(data, dict):
@@ -809,7 +810,7 @@ class ChatClient:
             )
         try:
             data = resp.json()
-        except json.JSONDecodeError as e:
+        except (json.JSONDecodeError, RecursionError) as e:
             msg = f"non-JSON response: {redact(resp.text[:200], self.api_key)}"
             raise MalformedResponseError(msg) from e
         if isinstance(data, dict):

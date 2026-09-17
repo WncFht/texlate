@@ -53,6 +53,7 @@ from texlate.arxiv._texutil import strip_comments
 from texlate.arxiv.cache import CacheError, SourceCache
 from texlate.arxiv.fetch import (
     DL_CAP,
+    MAX_RETRY_AFTER_S,
     AcquireResult,
     AcquireStatus,
     Fetcher,
@@ -128,7 +129,6 @@ _P_HAVE_CD = 0.8
 _P_HAVE_CL = 0.7
 _P_HAVE_ETAG = 0.5
 _P_HAVE_LM = 0.3
-_HUGE_RA = 999999999.0
 
 
 class _Clock:
@@ -876,9 +876,11 @@ def test_retry_after_inf_crashes(tmp_path: Path) -> None:
 
 
 def test_retry_delay_bounded_ra() -> None:
-    """Retry-After 巨大有限值按现规格从其值（无封顶——观察项，不是缺陷钉）。"""
-    resp = httpx.Response(429, headers={"retry-after": "999999999"})
-    assert _retry_delay("https://x/", 1, resp) == _HUGE_RA
+    """Retry-After 超 ``MAX_RETRY_AFTER_S`` 归 inf 终态；界内从其值；坏值回落。"""
+    over = httpx.Response(429, headers={"retry-after": "999999999"})
+    assert math.isinf(_retry_delay("https://x/", 1, over))
+    at_cap = httpx.Response(429, headers={"retry-after": str(int(MAX_RETRY_AFTER_S))})
+    assert _retry_delay("https://x/", 1, at_cap) == MAX_RETRY_AFTER_S
     resp2 = httpx.Response(429, headers={"retry-after": "nan"})
     assert math.isfinite(_retry_delay("https://x/", 1, resp2))
     resp3 = httpx.Response(429, headers={"retry-after": "abc"})
