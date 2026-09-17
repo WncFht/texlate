@@ -25,9 +25,8 @@ import benchlib
 import stagerun_lib as sl
 import translators_bench as tb  # xlat 臂工厂 + sabotage 台账（e2e_mock 注入逻辑由此封装）
 
-from texlate.latex.api import parse_file
+from texlate.e2e import _scan_tree
 from texlate.latex.placeholder import PH_RX
-from texlate.latex.prose import file_has_prose
 from texlate.latex.reconstruct import reconstruct
 from texlate.validate.l0 import validate_pair
 from texlate.xlat.client import ChatClient
@@ -36,7 +35,6 @@ from texlate.xlat.pipeline import (
     GatewayTranslator,
     PipelineConfig,
     XlatPipeline,
-    chunk_to_in,
 )
 from texlate.xlat.state import StateStore
 
@@ -72,31 +70,14 @@ async def _translate_tree(
     *,
     oversize_cap: int = 0,
 ) -> tuple[dict, list]:
-    """e2e_real.translate_tree 同构 + 返回逐块结果（chunk 明细/sabotage 归因用）。"""
-    scans = []
-    chunks = []
-    parse_fail: list[str] = []
-    support_files: list[str] = []
-    for f in sorted(root.rglob("*.tex")):
-        if f.name.startswith(".") or f.name.endswith(".rtx.tex"):
-            continue  # 隐文件 + REVTeX 运行时转储不进翻译集 (regress4-1003.1717)
-        if f.name.lower().endswith(".code.tex"):
-            support_files.append(f.name)  # tikzlibrary 机制件硬抛 (e2e._scan_tree 同径)
-            continue
-        try:
-            res = parse_file(f, flatten=False)
-        except Exception as e:
-            parse_fail.append(f"{f.relative_to(root)}: {e!r:.120}")
-            continue
-        if not file_has_prose(res.chunks):
-            support_files.append(f.name)  # 无散文=support 件, 送译即腐蚀 (9bd8811 门)
-            continue
-        idx = len(scans)
-        scans.append((f, res))
-        chunks.extend(
-            chunk_to_in(c, chunk_id=f"{idx}:{c.id}", ph_map=res.ph_map)
-            for c in res.chunks
-        )
+    """e2e_real.translate_tree 同构 + 返回逐块结果（chunk 明细/sabotage 归因用）。
+
+    扫描段单源 ``e2e._scan_tree``——文件名四门（dotfile 跳、``.rtx.tex`` 跳、
+    ``.code.tex``/无散文记 support_files）与 ``is_file``/suffix 小写口径同
+    e2e/mock/real 臂不漂移（★3 收敛：旧内联件漏 ``.TEX``/``.RTX.TEX`` 大写形，
+    support 只记 basename 丢子目录路径）。
+    """
+    scans, chunks, fault_files, support_files = _scan_tree(root)
     total_chars = sum(len(c.content) for c in chunks)
     if oversize_cap and total_chars > oversize_cap:
         # 保守闸（同 e2e_real）：超上限不烧网关配额——调用侧记 oversize 终态
@@ -111,7 +92,8 @@ async def _translate_tree(
                 "attempts": 0,
                 "batched": 0,
                 "leftover_ph": 0,
-                "parse_fail": parse_fail,
+                "fault_files": fault_files,
+                "support_files": support_files,
                 "support_skipped": len(support_files),
                 "warn_kinds": {},
                 "seconds": 0.0,
@@ -180,7 +162,8 @@ async def _translate_tree(
         "chunks": len(chunks),
         **stats,
         "leftover_ph": n_leftover,
-        "parse_fail": parse_fail,
+        "fault_files": fault_files,
+        "support_files": support_files,
         "support_skipped": len(support_files),
         "warn_kinds": dict(sorted(warn_kinds.items())),
         "seconds": round(translate_s, 1),
@@ -322,7 +305,7 @@ async def _xlat_one_inner(
         rec["errors"] = [
             {"code": "all_chunks_bad", "cat": "xlat", "payload": str(stats["chunks"])}
         ]
-    elif n_bad or stats["parse_fail"]:
+    elif n_bad or stats["fault_files"]:
         rec["status"] = "partial"
         if n_bad:
             rec["errors"] = [
