@@ -895,6 +895,13 @@ rules:
               \providecommand{\corauth}[2][]{\ifdefined\cortext\cortext[#1]{#2}\fi}
               \providecommand{\startlocaldefs}{}
               \ifdefined\endlocaldefs\else\def\endlocaldefs{}\fi
+              % verifier-batch8 残面回添: \corauthref{label} 引注号回指 +
+              % frontmatter 依赖件 —— \NoHyper 是 hyperref 时代 env 名
+              % (elsart 稿当 begin/end 用), \t@glob@notes 是 elsarticle
+              % 内部注件容器 (@=letter 域内直定义)。
+              \providecommand{\corauthref}[1]{\ref{#1}}
+              \ifdefined\NoHyper\else\newenvironment{NoHyper}{}{}\fi
+              \providecommand{\t@glob@notes}{}
               \endinput
           # 批八: elsart 全系兄弟共享同体 (ProvidesClass 名差仅 warning,
           # siam_body 先例) —— loads 裸桥无公开宏面, elsart1p 实证 corauth 炸。
@@ -1200,6 +1207,9 @@ rules:
               \providecommand{\dash}{------}
               \providecommand{\nonum}{\par\item[]}
               \providecommand{\mat}[1]{\underline{\underline{#1}}}
+              % verifier-batch8 残面回添: fulltable 横通栏表环境 (真身
+              % rotating 横排) —— 降级为普通 table 容器保内容
+              \ifdefined\fulltable\else\newenvironment{fulltable}{\begin{table}\small}{\end{table}}\fi
               % 装饰框/线族 (真身同款; iopams.sty 装载后升 amssymb 版见彼身)
               \providecommand{\opencircle}{\mbox{\Large$\circ\,$}}
               \providecommand{\opensquare}{\mbox{$\rlap{$\sqcap$}\sqcup$}}
@@ -1651,6 +1661,15 @@ rules:
               \@ifundefined{correctchoice}{\def\correctchoice{\relax}}{}
               \@ifundefined{HTML}{\def\HTML#1{\relax}}{}
               \@ifundefined{TCIIcon}{\def\TCIIcon#1#2#3#4{\relax}}{}
+              % verifier-batch8 残面回添 (真身 L601/811/819/1106/1268 抄值,
+              % \msi@int 限位分发简化为 \mathop{\textstyle} 同 \tsum 式):
+              \def\TEXTsymbol#1{\mbox{$#1$}}
+              \def\tint{\mathop{\textstyle\int}}
+              \def\tiint{\mathop{\textstyle\iint}}
+              \def\tsum{\mathop{\textstyle\sum}}
+              \def\tprod{\mathop{\textstyle\prod}}
+              \def\tfrac#1#2{{\textstyle{#1\over#2}}}
+              \def\stackunder#1#2{\mathrel{\mathop{#2}\limits_{#1}}}
               \makeatother
               \endinput
           # epsf.tex (老 epsf plain-TeX 图件接口; TL epsf 包 tex/generic/epsf/
@@ -4031,6 +4050,11 @@ rules:
             {
               polyfill: "\n\\ifdefined\\ifnfssone\\else\\newif\\ifnfssone\\fi",
             }
+          # NFSS2 对偶开关 (verifier-batch8 残面) —— LaTeX2e 下真值 true
+          ifnfsstwo:
+            {
+              polyfill: "\n\\ifdefined\\ifnfsstwo\\else\\newif\\ifnfsstwo\\nfsstwotrue\\fi",
+            }
           # tcilatex.tex 用户面 (稿 \input 缺席或被剥时裸调直达) ——
           # 与 shim body 同式抄值; QQQ/EXPAND/NOEXPAND 非 providecommand
           # 可表达形 → ifdefined 守卫 raw def
@@ -4096,13 +4120,19 @@ rules:
           # IEEEtran 版式越权开关 —— 真身即版式宏, 保编译 noop
           overrideIEEEmargins:
             { polyfill: "\n\\providecommand{\\overrideIEEEmargins}{}" }
-          # siamltex \\diag (算子) + \\Bar (上划线, 物理均值记法)
+          # siamltex \\diag (算子) + \\Bar (上划线, 物理均值记法) —— \\Bar
+          # 须 AtBeginDocument 强制定义: docclass 缝的 providecommand 会被
+          # 后载 amsmath \\def\\Bar{\\bar} 覆写, 而 eulervm/TU 下 \\bar 死
+          # (1206.1993 fired-but-noop 实证); 仅当格曾因 \\Bar 裸调点火,
+          # 覆写无害且修复死别名。
           diag:
             {
               polyfill: "\n\\providecommand{\\diag}{\\mathop{\\mathrm{diag}}}",
             }
           Bar:
-            { polyfill: "\n\\providecommand{\\Bar}[1]{\\overline{#1}}" }
+            {
+              polyfill: "\n\\AtBeginDocument{\\def\\Bar#1{\\overline{#1}}}",
+            }
           # hyperref 配置宏裸调 (jheppub 系稿 preamble 散调) —— 装真包
           hypersetup: { usepackage: hyperref }
         # 表外 fallback (2026-09-16): glue 残骸前缀拆分 —— payload 未命中
