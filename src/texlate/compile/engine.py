@@ -1271,8 +1271,9 @@ class XelatexEngine:
             cache[key] = pkgs
             return pkgs
         pkgs = self._filemap_tlmgr(fname)
-        cache[key] = pkgs
-        save_search_cache(cache)
+        cache[key] = pkgs  # 进程内 memo 保留阴性（同文件重查不打爆 tlmgr）
+        if pkgs:
+            save_search_cache(cache)
         return pkgs
 
     def _filemap_tlmgr(self, fname: str) -> list[str]:
@@ -1817,15 +1818,25 @@ def tlmgr_search_cache_path() -> Path:
 
 
 def load_search_cache() -> dict[str, list[str]]:
-    """读 tlmgr 搜索缓存；缺席/损坏返回空表。"""
+    """读 tlmgr 搜索缓存；缺席/损坏返回空表。
+
+    空命中（阴性）载入即弃：镜像 round-robin 假 "no package provides"
+    （``filemap`` docstring 记档）落盘后曾永久遮蔽索引——载入时滤掉
+    空表，历史阴性一并自愈，索引/在线通路重获查询权。
+    """
     try:
-        return json.loads(tlmgr_search_cache_path().read_text())
+        raw = json.loads(tlmgr_search_cache_path().read_text())
     except (OSError, json.JSONDecodeError):
         return {}
+    if not isinstance(raw, dict):
+        return {}
+    return {k: v for k, v in raw.items() if v}
 
 
 def save_search_cache(cache: dict[str, list[str]]) -> None:
-    """写 tlmgr 搜索缓存（父目录自动建）。"""
+    """写 tlmgr 搜索缓存（父目录自动建）。空命中不落盘——阴性不跨进程固化。"""
     p = tlmgr_search_cache_path()
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(cache, indent=0, sort_keys=True))
+    p.write_text(
+        json.dumps({k: v for k, v in cache.items() if v}, indent=0, sort_keys=True)
+    )

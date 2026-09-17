@@ -556,6 +556,43 @@ def test_filemap_tlmgr_fallback_persists(
     assert json.loads(cache_file.read_text())["/x.sty"] == ["pkg-from-tlmgr"]
 
 
+def test_filemap_negative_not_persisted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """tlmgr 假阴性（镜像 rr 假 empty, filemap docstring 记档）不落盘——
+    跨进程可翻案；进程内 memo 保留（同文件重查不重打 tlmgr）。"""
+    cache_file = tmp_path / "c.json"
+    monkeypatch.setenv("TEXLATE_TLMGR_CACHE", str(cache_file))
+    eng = XelatexEngine()
+    monkeypatch.setattr(eng, "_filemap_index", lambda _f: None)
+    calls = {"n": 0}
+
+    def _tlmgr(f: str) -> list[str]:
+        calls["n"] += 1
+        return ["real-pkg"] if f == "y.sty" else []
+
+    monkeypatch.setattr(eng, "_filemap_tlmgr", _tlmgr)
+    assert eng.filemap("y.sty") == ["real-pkg"]  # 阳性落盘
+    assert eng.filemap("x.sty") == []  # 阴性: 进程内 memo
+    assert eng.filemap("x.sty") == []
+    assert calls["n"] == 2  # noqa: PLR2004 - 每文件一次 tlmgr
+    assert json.loads(cache_file.read_text()) == {"/y.sty": ["real-pkg"]}
+
+
+def test_filemap_negative_legacy_healed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """历史落盘的空命中载入即弃——索引通路重获查询权（假阴性自愈）。"""
+    cache_file = tmp_path / "c.json"
+    cache_file.write_text(json.dumps({"/x.sty": [], "/y.sty": ["real"]}))
+    monkeypatch.setenv("TEXLATE_TLMGR_CACHE", str(cache_file))
+    eng = XelatexEngine()
+    monkeypatch.setattr(eng, "_filemap_index", lambda f: [f"idx-{f}"])
+    monkeypatch.setattr(eng, "_filemap_tlmgr", lambda _f: ["WRONG"])
+    assert eng.filemap("x.sty") == ["idx-x.sty"]  # 阴性弃 → 索引翻盘
+    assert eng.filemap("y.sty") == ["real"]  # 阳性照旧短路
+
+
 def test_install_lock_creates_lockfile(tmp_path: Path) -> None:
     """同 usertree 的 tlmgr install 经 flock 串行化（锁文件在 texmfhome）。"""
     eng = XelatexEngine(texmfhome=tmp_path)
