@@ -79,6 +79,23 @@ class TestEncodeParse:
         out = batch.parse_batch_response(raw, 3)
         assert out == ["第一段", "第二段", "第三段"]
 
+    def test_atat_fallback_drops_bare_ordinal_stub(self) -> None:
+        """``@@`` 兜底把裸 ``[n]`` 序号桩当空槽——``[1]`` 回显不得漏成译文。"""
+        # n=1 整块批的退化回显：编号路径段空 → @@ 兜底不得收下裸桩
+        assert batch.parse_batch_response("[1]", 1) is None
+        # 全桩 / 半桩都按空槽计 → 段数不足 → 整批 None 退单翻
+        assert batch.parse_batch_response("[1]\n@@\n[2]", 2) is None
+        assert batch.parse_batch_response("译文甲\n@@\n[2]", 2) is None
+
+    def test_atat_fallback_stub_salvage(self) -> None:
+        """桩段是碎片不是槽位：丢弃后幸存段恰 ``n`` 个仍收下。"""
+        assert batch.parse_batch_response("[2]\n@@\n译文", 1) == ["译文"]
+
+    def test_atat_fallback_citation_brackets_kept(self) -> None:
+        """译文正文含 ``[12]`` 引用号不是桩——``fullmatch`` 只罩纯桩段。"""
+        raw = "参见 [12] 研究\n@@\n译文乙"
+        assert batch.parse_batch_response(raw, 2) == ["参见 [12] 研究", "译文乙"]
+
 
 class TestSplitLongChunk:
     def test_short_passthrough(self) -> None:

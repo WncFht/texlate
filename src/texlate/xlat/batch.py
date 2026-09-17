@@ -36,6 +36,9 @@ _NUM_LINE_RX = re.compile(r"^\s*\[(\d+)\]", re.MULTILINE)
 _NUM_RX = re.compile(r"\[(\d+)\]")
 #: `@@` 兜底分隔（独占一行的 @@；模型不按编号时 spec 允许此退路）
 _ATAT_LINE_RX = re.compile(r"^\s*@@\s*$", re.MULTILINE)
+#: `@@` 段的空槽判定：裸 `[n]` 序号桩 = 实质空译——同
+#: export.common.STUB_ONLY_RE 语义（xlat 不反向依赖 export，正则不贵）。
+_STUB_ONLY_RX = re.compile(r"\s*(?:\[\d+\]\s*)+")
 
 
 def pack_batches(
@@ -101,7 +104,8 @@ def parse_batch_response(text: str, n: int) -> list[str] | None:
         return out
 
     parts = [p.strip() for p in _ATAT_LINE_RX.split(text)]
-    parts = [p for p in parts if p]
+    # 裸 `[n]` 桩段按空槽丢弃——否则 n=1 时 `[1]` 回显会原样漏成译文
+    parts = [p for p in parts if p and not _STUB_ONLY_RX.fullmatch(p)]
     if len(parts) == n and all(parts):
         return parts
     return None
