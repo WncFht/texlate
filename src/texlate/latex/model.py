@@ -187,6 +187,10 @@ class ScanResult:
     # 叙事序虚拟文本（segmenter 版恒 == 单文件入参；多文件 = flatten 同构）。
     # pieces/chunk.span 的坐标系；v1 字节 scanner 下留空（坐标即原 tex）。
     vtex: str = ""
+    # 源文自带 ``[[X_n]]`` 形字面集（签发避让的另一半）：字面原样过 pieces
+    # 进 protected_tex——validate_result 据此豁免 dangling_ph/chunk_ref
+    # 误报（S2：只活在 ScanState 时消费方区分不了保留字面与真悬空）。
+    ph_reserved: set[str] = field(default_factory=set)
 
 
 class ScanMode(Enum):

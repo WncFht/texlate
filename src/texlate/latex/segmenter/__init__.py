@@ -90,6 +90,7 @@ def scan_v2(g: Gullet) -> ScanResult:
         inputs=state.inputs,
         warnings=[*state.warnings, *g.warnings],
         vtex=seg.vt.text(),
+        ph_reserved=state.ph_reserved,
     )
 
 

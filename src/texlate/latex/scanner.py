@@ -106,8 +106,8 @@ _PROTECT_TYP = {
 }
 
 _LETTER_TAIL_RX = re.compile(
-    r"\\[a-zA-Z@]+\Z"
-)  # \Z 严格串尾：体尾 \n 已阻断 token 合并
+    r"\\[a-zA-Z@]*[a-zA-Z]\Z"
+)  # \Z 严格串尾：体尾 \n 已阻断 token 合并；尾字符须真字母（\@ 是控制符号）
 # math-debt 豁免：体内容里的 ``$`` 是逐字/注释死字符（verbatim 定界、注释、
 # verbatim 参数括号），不是 TeX mathshift——压栈只会误吞后文真数学（W 类）。
 _DEBT_EXEMPT = frozenset({PhType.VERB, PhType.COMMENT, PhType.URL, PhType.HREF})
@@ -461,6 +461,7 @@ class Scanner:
             pieces=self.pieces,
             inputs=self.state.inputs,
             warnings=self.state.warnings,
+            ph_reserved=self.state.ph_reserved,
         )
 
     # ------------------------------------------------------------ 数学配对 + debt

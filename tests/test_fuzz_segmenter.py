@@ -17,23 +17,23 @@ r"""segmenter 面包 fuzz——「绝不抛异常」铁规 + identity + validate
 缺陷台账（``tmp/segmenter-fuzz/`` 实证，2026-09-17，xfail-strict 钉——
 修复后 XPASS 即拆钉信号）：
 
-- CONFIRMED S1：``\@`` + ASCII 字母 → reconstruct 注入伪空格 →
-  identity 破。根因：``_common.py:66``
-  ``_LETTER_TAIL_RX = re.compile(r"\\[a-zA-Z@]+\Z")`` 把孤 ``\@``
-  尾当「字母结尾 csname」匹配（``@`` 在字符类里）→ ``core.py:220``
+- [FIXED] S1：``\@`` + ASCII 字母 → reconstruct 注入伪空格 →
+  identity 破。根因：``_common.py`` ``_LETTER_TAIL_RX`` 把孤 ``\@``
+  尾当「字母结尾 csname」匹配（``@`` 在字符类里）→ ``core.py``
   ``_rappend`` 的 prev-ends-``\<letters>`` + next-starts-letter 判定
   触发，插入 ``" "``。``\@foo``→``\@ foo``、``\alpha\@beta``→
-  ``\alpha\@ beta``。精确边界：只 ``\@`` 中（其它控制符号 ``\-``/
-  ``\_``/``\;`` 等不中——``@`` 是唯一在字符类里的非字母），只跟
-  ASCII 字母中（数字/``_``/CJK/符号不中），``\makeatletter`` 内不中
-  （token 合并成 csname），``\def`` 体/数学区内不中（ph 本体不拆）。
-  建议修法：``\\[a-zA-Z@]*[a-zA-Z]\Z``（尾字符必须真字母）。
-- CONFIRMED S2（minor）：``ph_collision`` 声明字面量 →
-  ``validate_result`` 误报 ``dangling_ph``。``ph_reserved`` 只在
-  ``ScanState``（model.py:217），``ScanResult`` 不携带 →
-  ``reconstruct.py:350`` 无法区分「声明保留的字面 ``[[X_n]]``」与
-  「真悬空 token」。``dangling_ph`` ∈ ``_STRUCTURAL_WARN_KINDS``
-  → e2e 结构闸对合法含 ``[[MATH_1]]`` 字面的源误红。
+  ``\alpha\@ beta``。修法落地：``\\[a-zA-Z@]*[a-zA-Z]\Z``（尾字符
+  必须真字母，``@`` 只许中位）——``_common.py``/``scanner.py``
+  （v1 letters_cut 同源）/``reconstruct.py _CS_TAIL_RX``（译文接缝
+  同族）三处同改。``\@`` 是控制符号不吞后继空格；``\ds@list`` 族
+  中位 ``@`` 不受影响。
+- [FIXED] S2（minor）：``ph_collision`` 声明字面量 →
+  ``validate_result`` 误报 ``dangling_ph``。修法落地：``ScanResult``
+  增 ``ph_reserved`` 字段（``scan_v2``/v1 ``Scanner.scan`` 双源透传），
+  ``validate_result`` 对 ``res.ph_reserved`` 内 token 豁免
+  ``dangling_ph`` 与 ``dangling_chunk_ref``（oob ``[[CHUNK_n]]`` 字面
+  同族——可 resolve 的 ``[[CHUNK_0]]`` 仍按真 ref 走，钉保留）；
+  ``reconstruct`` 的 ``dangling`` 日志集同规豁免。
 
 观察钉（pin observed——当前行为即取舍，定性留裁决）：
 
@@ -48,7 +48,6 @@ r"""segmenter 面包 fuzz——「绝不抛异常」铁规 + identity + validate
 
 from __future__ import annotations
 
-import re
 from typing import TYPE_CHECKING
 
 import pytest
@@ -58,7 +57,6 @@ from _fuzzkit import (
     short,
     soup_join,
     soup_pick,
-    xfail_confirmed,
 )
 from conftest import DOC, check_invariants, scan_doc
 
@@ -78,16 +76,9 @@ _SEED_SOUP = 2026091706
 _SEED_MUTATE = 2026091707
 _SEED_GROUP = 2026091708
 
-#: S1 触发形：``\@`` 紧跟 ASCII 字母——identity sweep 对命中输入只查铁规
-#: （identity 由 S1 钉表覆盖；sweep 断言面收窄成「不抛」，新机制仍会红）。
-_S1_RX = re.compile(r"\\@[a-zA-Z]")
-
-#: ph_collision 字面形——S2 钉表覆盖；sweep 不入汤保 validate==[] 口径干净。
-_PH_LIT_RX = re.compile(r"\[\[[A-Z_]+\d*\]\]")
-
 #: 敌意 token 汤——控制序列/环境/组/数学/注释/展开族/CJK/边缘字符。
-#: 刻意不含 ``\@``+字母与 ``[[X_n]]`` 字面（两者各由 S1/S2 钉表单独覆盖，
-#: 入汤会让 sweep 的 identity/validate 断言撞上已知缺陷面）。
+#: ``\@``+字母与 ``[[X_n]]`` 字面曾由 S1/S2 钉表隔离、不入汤；修复后
+#: sweep 对全汤面断言 identity+validate（``\@gobble`` 等汤料自带触形）。
 _TEX_SOUP = [
     "a",
     "Z",
@@ -225,11 +216,13 @@ _S1_SAFE = [
 ]
 
 #: S2 ph_collision 字面量——声明保留却被 ``validate_result`` 报 dangling_ph。
+#: ``[[CHUNK_99]]`` 是 oob chunk 字面形：dangling_chunk_ref 同族豁免面。
 _S2_CASES = [
     "text [[MATH_1]] more words here to fill",
     "\\def\\m{[[X_1]]}\\m",
     "[[EQ_2]] at start of a sentence with words",
     "see [[ENV_3]] literal and [[MATH_2]] words",
+    "see [[CHUNK_99]] literal words words words here",
 ]
 
 
@@ -250,14 +243,9 @@ def _assert_never_raises(tex: str) -> ScanResult:
 
 
 class TestAtLetterSpace:
-    r"""S1：``\@``+ASCII 字母 → ``_rappend`` 伪空格 → identity 破。"""
+    r"""S1（已修）：``\@``+ASCII 字母 → ``_rappend`` 伪空格 → identity 破。"""
 
     @pytest.mark.parametrize("body", _S1_CASES)
-    @xfail_confirmed(
-        "S1 CONFIRMED——\\@+ASCII字母 → _rappend 注入伪空格 → identity 破；"
-        "根因 _common.py:66 _LETTER_TAIL_RX `\\\\[a-zA-Z@]+\\Z` 收孤 \\@ 尾"
-        "（@ 在字符类），修 `\\\\[a-zA-Z@]*[a-zA-Z]\\Z`"
-    )
     def test_at_letter_identity(self, body: str) -> None:
         tex = DOC % body
         res = parse_tex(tex)
@@ -271,13 +259,12 @@ class TestAtLetterSpace:
         check_invariants(res, tex)
 
     def test_at_letter_space_signature(self) -> None:
-        """破损签名钉：破的恰是 ``\\@ x`` 形——插入单空格而非其它破坏。"""
+        """修复签名钉：``\\@foo`` 逐字节还原，且不再出现 ``\\@ `` 伪空格。"""
         tex = DOC % "\\@foo"
         res = parse_tex(tex)
         out = reconstruct(res)
-        assert out != tex  # 当前实现确实破（钉住签名而非只钉 !=）
-        assert "\\@ foo" in out
-        assert out.replace("\\@ foo", "\\@foo") == tex
+        assert out == tex
+        assert "\\@ foo" not in out
 
     def test_control_symbols_other_than_at_safe(self) -> None:
         """对照组：``@`` 以外全部控制符号+字母跟随——identity 不破。"""
@@ -304,15 +291,9 @@ class TestAtLetterSpace:
 
 
 class TestPhReservedDangling:
-    """S2：``ph_reserved`` 声明字面量 → ``validate_result`` 误报 ``dangling_ph``。"""
+    """S2（已修）：``ph_reserved`` 声明字面量 → ``validate_result`` 不误报。"""
 
     @pytest.mark.parametrize("body", _S2_CASES)
-    @xfail_confirmed(
-        "S2 CONFIRMED——ph_collision 声明字面量 → validate_result 误报 "
-        "dangling_ph（ph_reserved 在 ScanState 不进 ScanResult，"
-        "reconstruct.py:350 无法区分保留字面与真悬空）；"
-        "dangling_ph∈_STRUCTURAL_WARN_KINDS → e2e 结构闸误红"
-    )
     def test_reserved_literal_no_dangling(self, body: str) -> None:
         res = scan_doc(body)
         assert validate_result(res) == []
@@ -354,24 +335,16 @@ def test_fuzz_soup_never_raises() -> None:
 
 
 def test_fuzz_soup_identity_and_validate() -> None:
-    """identity+validate sweep：排除已知 S1/ph-literal 面，其余全量断言。"""
+    r"""identity+validate sweep：S1/S2 修复后全汤面断言（``\@``+字母与
+    ``[[X_n]]`` 字面不再跳过——回归即红）。"""
     rng = fuzz_rng(_SEED_SOUP + 1)
-    s1_hits = ph_hits = 0
     for _ in range(_FUZZ_ITERS):
         body = soup_join(rng, _TEX_SOUP, 2, 30)
         tex = DOC % body
         res = parse_tex(tex)
-        if _S1_RX.search(tex):
-            s1_hits += 1
-            continue  # S1 族由钉表覆盖——此处只查铁规（上面 parse 已跑）
-        if _PH_LIT_RX.search(tex):
-            ph_hits += 1
-            continue  # 同上：字面 [[X_n]] 的 validate 面归 S2
         assert reconstruct(res) == tex, short(body)
         assert validate_result(res) == [], short(body)
         check_invariants(res, tex)
-    # 汤确实会产 S1 触形（``\makeatother``+``\@gobble``…组合可能出 \@x）——
-    # 命中数只作覆盖记录不作断言（汤非定向，可能为 0）。
 
 
 def test_fuzz_mutated_doc_never_raises() -> None:
@@ -403,8 +376,6 @@ def test_fuzz_mutated_doc_never_raises() -> None:
                 body = body + body[max(0, pos - 12) : pos]
         tex = DOC % body
         res = _assert_never_raises(tex)
-        if _S1_RX.search(tex) or _PH_LIT_RX.search(tex):
-            continue
         assert reconstruct(res) == tex, short(body)
         assert validate_result(res) == [], short(body)
 
@@ -430,8 +401,6 @@ def test_fuzz_nesting_never_raises() -> None:
         body = soup_join(rng, nest_soup, 1, 40)
         tex = DOC % body
         res = _assert_never_raises(tex)
-        if _S1_RX.search(tex):
-            continue
         assert reconstruct(res) == tex, short(body)
 
 
@@ -451,8 +420,6 @@ def test_fuzz_expansion_bombs_bounded() -> None:
         body = soup_pick(rng, bombs) + soup_join(rng, _TEX_SOUP, 0, 6)
         tex = DOC % body
         res = _assert_never_raises(tex)
-        if _S1_RX.search(tex):
-            continue
         assert reconstruct(res) == tex, short(body)
 
 

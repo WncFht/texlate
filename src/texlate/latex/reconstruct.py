@@ -51,7 +51,9 @@ def cjk_glue_fix(s: str) -> str:
 #: 段尾控制字（``\foo``/``\@foo``）：译文字母直接贴上即成更长 cs 名
 #: （``\item FSU`` → ``\itemFSU``，realarm bug-B LLM 回显侧融合）。
 #: ``\Z`` 绝对收尾——``\item\n`` 尾已自带分隔，不算接缝命中。
-_CS_TAIL_RX = re.compile(r"\\[a-zA-Z@]+\Z")
+#: 尾字符必须真字母：孤 ``\@`` 是控制符号，``\@x`` 源内本无分隔，
+#: 接缝补 ``" "`` 会多出真空格（segmenter ``_LETTER_TAIL_RX`` 同族同规）。
+_CS_TAIL_RX = re.compile(r"\\[a-zA-Z@]*[a-zA-Z]\Z")
 
 #: 译文体内的 ``\itemFSU`` 保险丝（realarm spec）：模型回显把 ``\item``
 #: 与大写首字母黏合。``\\item(?=[A-Z])`` 零误伤——``\item``+大写无合法
@@ -211,7 +213,8 @@ def reconstruct(res: ScanResult, translations: dict[int, str] | None = None) -> 
             if 0 <= idx < len(chunks):
                 body = chunks[idx].content
             else:
-                dangling.add(token)
+                if token not in res.ph_reserved:
+                    dangling.add(token)
                 body = token
         expanded = expand_body(body, fold_par=token in short_arg)
         memo[token] = expanded
@@ -338,7 +341,7 @@ def validate_result(res: ScanResult) -> list[ScanWarning]:  # noqa: C901, PLR091
             idx = int(m.group(1))
             if idx < len(res.chunks):
                 stack.extend(PH_RX.findall(res.chunks[idx].content))
-            else:
+            elif tok not in res.ph_reserved:
                 warns.append(ScanWarning("dangling_chunk_ref", 0, tok))
             # ``ph_map[CHUNK]`` fallback 体同走 ``expand`` 优先级——内含
             # ``[[EXPAND_n]]`` 引用属可达面，不计 dead_ph
@@ -346,8 +349,10 @@ def validate_result(res: ScanResult) -> list[ScanWarning]:  # noqa: C901, PLR091
                 stack.extend(PH_RX.findall(res.ph_map[tok]))
         elif tok in res.ph_map:
             stack.extend(PH_RX.findall(res.ph_map[tok]))
-        else:
+        elif tok not in res.ph_reserved:
             warns.append(ScanWarning("dangling_ph", 0, tok))
+        # 落到此 = ph_reserved 字面：源文自带 [[X_n]] 是声明保留的过路
+        # 文本而非悬空引用，不告警（S2——dangling_chunk_ref 同规豁免）
 
     for k, c in enumerate(res.chunks):
         if f"[[CHUNK_{c.id}]]" not in reachable:

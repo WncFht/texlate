@@ -63,7 +63,10 @@ _COMMENT_GAP_RX = re.compile(r"%[^\n]*")
 # 的 ``%`` 必为真注释（token 层已证非 \verb/url 体内）
 _ARG_COMMENT_RX = re.compile(r"\\.|%[^\n]*")
 # —— 与 scanner.py 同源的保护/豁免表（S2 scanner 退役时合入 tables.py）
-_LETTER_TAIL_RX = re.compile(r"\\[a-zA-Z@]+\Z")
+# 尾字符必须真字母：孤 ``\@`` 是控制符号而非控制词尾——``\@x`` 的 ``@``
+# 不吞后继空格，``_rappend``/``_seg_join`` 若按 ``\\[@]+`` 收它会补伪
+# ``" "`` 破 identity（S1）；``\ds@list`` 族中位 ``@`` 不受影响。
+_LETTER_TAIL_RX = re.compile(r"\\[a-zA-Z@]*[a-zA-Z]\Z")
 
 
 def _starts_letter(s: str) -> bool:
