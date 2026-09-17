@@ -125,7 +125,7 @@ _CITE_FAMILY_RE = re.compile(
     r"\\[a-zA-Z@]*cite[a-zA-Z@]*\*?\s*(?:\[[^\]\n]*\]\s*)*\{([^}]*)\}"
 )
 #: ``\bibitem[<opt>]{key}`` —— .bbl 键定义点。
-_BIBITEM_KEY_RE = re.compile(r"\\bibitem\s*(?:\[[^\]\n]*\]\s*)?\{([^}]*)\}")
+_BIBITEM_KEY_RE = re.compile(r"\\bibitem\s*(?:\[[^\]]*\]\s*)?\{([^}]*)\}")
 #: .aux 残留 ``\bibcite{key}{..}``/``\citation{keys}`` —— 陈旧键同源改写。
 _AUX_CITEKEY_RE = re.compile(r"\\(?:bibcite|citation)\s*\{([^}]*)\}")
 
