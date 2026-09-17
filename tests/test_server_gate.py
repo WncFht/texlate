@@ -293,6 +293,53 @@ class TestCrossSiteGate:
         assert r.status_code == HTTPStatus.OK
 
 
+class TestRootPathGate:
+    """``--root-path``/反代子路径部署：路由按剥掉 ``root_path`` 的路径匹配，
+    闸若看 ``request.url.path``（含 ``root_path``）则 ``/tex/api/…`` 骗过
+    ``startswith("/api")`` 而路由照样命中——匿名 401/跨站闸/no-store 全失守
+    （gate-redteam 发现）。闸与路由必须共用 ``get_route_path`` 视图。"""
+
+    def test_server_mode_anon_and_crosssite_under_root_path(
+        self,
+        tmp_path: Path,
+        clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("TEXLATE_MODE", "server")
+        with TestClient(make_app(tmp_path), root_path="/tex") as c:
+            r = c.post(f"/tex/api/arxiv/{ARXIV}/translate", json={})
+            assert r.status_code == HTTPStatus.UNAUTHORIZED
+            r = c.post(
+                f"/tex/api/arxiv/{ARXIV}/translate",
+                json={"model": "m"},
+                headers={**KEY, "Sec-Fetch-Site": "cross-site"},
+            )
+            assert r.status_code == HTTPStatus.FORBIDDEN
+            r = c.post(
+                f"/tex/api/arxiv/{ARXIV}/translate",
+                json={"model": "m"},
+                headers=KEY,
+            )
+            assert r.status_code == HTTPStatus.ACCEPTED
+            assert (
+                c.get("/tex/api/tasks", headers=KEY).headers["cache-control"]
+                == "no-store"
+            )
+
+    def test_local_mode_foreign_origin_under_root_path(
+        self,
+        tmp_path: Path,
+        clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
+    ) -> None:
+        with TestClient(make_app(tmp_path), root_path="/tex") as c:
+            r = c.post(
+                f"/tex/api/arxiv/{ARXIV}/translate",
+                json={},
+                headers={"Origin": "https://evil.example"},
+            )
+            assert r.status_code == HTTPStatus.FORBIDDEN
+
+
 class TestSettingsTestCrossSlot:
     """SEC-4：body.base_url 提供则 body.api_key 必须同给。"""
 
@@ -338,6 +385,18 @@ class TestUploadFilename:
         for fname in (".", "a/b/c.tex", "a\\b.tex", "x y.tex"):
             r = client.post("/api/upload", files={"file": (fname, MINI_TEX.encode())})
             assert r.status_code == HTTPStatus.ACCEPTED, fname
+
+    def test_overlong_name_400_not_500(self, client: TestClient) -> None:
+        """净化后名 >NAME_MAX(255B)：建行前 400——漏闸时 write_bytes 抛
+        ENAMETOOLONG 成 500（gate-redteam 发现）。255 恰界仍收。"""
+        r = client.post("/api/upload", files={"file": ("x" * 256, MINI_TEX.encode())})
+        assert r.status_code == HTTPStatus.BAD_REQUEST
+        r = client.post(
+            "/api/upload", files={"file": ("dir/" + "y" * 300, MINI_TEX.encode())}
+        )
+        assert r.status_code == HTTPStatus.BAD_REQUEST
+        r = client.post("/api/upload", files={"file": ("z" * 255, MINI_TEX.encode())})
+        assert r.status_code == HTTPStatus.ACCEPTED
 
 
 class TestLocalHostGate:

@@ -33,6 +33,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from sse_starlette.sse import EventSourceResponse
+from starlette._utils import get_route_path  # 路由匹配同一条路径视图（剥 root_path）
 from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from texlate import __version__
@@ -169,6 +170,7 @@ class UploadPart:
 
 
 _MULTIPART_OVERHEAD = 65536
+_FILENAME_MAX = 255  # POSIX NAME_MAX（字节）——净化名全 ASCII，len 即字节数
 
 
 def _cap_request_body(request: Request) -> None:
@@ -484,6 +486,10 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
           非浏览器客户端（curl/脚本）放行。
         - server 形态无 ``X-Texlate-Key`` 的 mutation 一律 401——settings/env
           的部署方 key 不外借（``resolve_auth`` 同侧不再回落）。
+
+        ``/api`` 前缀判定走 ``get_route_path``（剥 ``root_path``）而非
+        ``request.url.path``——后者含 ``root_path``，``--root-path``/反代
+        子路径部署下 ``/tex/api/…`` 会骗过前缀闸而路由照样命中。
         """
         if server_mode() != "server":
             host = request.headers.get("host", "")
@@ -494,7 +500,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
             "PUT",
             "DELETE",
             "PATCH",
-        ) and request.url.path.startswith("/api")
+        ) and get_route_path(request.scope).startswith("/api")
         if not mutating:
             return await call_next(request)
         origin = request.headers.get("origin")
@@ -517,7 +523,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
         resp = await call_next(request)
-        if request.url.path.startswith("/api"):
+        if get_route_path(request.scope).startswith("/api"):
             resp.headers["Cache-Control"] = "no-store"
         return resp
 
@@ -972,9 +978,10 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         )
         model, target_lang, options = _upload_fields(request, form)
         # re.sub 白名单放行 ``.``——``..`` 原样幸存会打成目录写（500+孤儿
-        # task 目录），建行前先拒。
+        # task 目录），建行前先拒。>255B 名（NAME_MAX）会让 write_bytes
+        # 抛 ENAMETOOLONG 成 500——同闸先拒。
         safe = re.sub(r"[^A-Za-z0-9_.+-]", "_", Path(filename).name)
-        if safe in (".", ".."):
+        if safe in (".", "..") or len(safe) > _FILENAME_MAX:
             raise _ApiError(400, {"detail": f"unsafe filename: {filename!r}"})
         # 先落 blob（建行前），再建行+入队——task_id 两侧共用
         task_id = new_task_id()
