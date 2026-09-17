@@ -46,4 +46,32 @@
 \providecommand{\SetWidth}[1]{}
 \providecommand{\SetOffset}[2]{}
 \providecommand{\AxoSeq}[1]{}
+% —— 色面（真件 \openin colordvi.sty 两臂取无 colordvi 臂语义）——
+% \SetColor 真件只记 \axocolor 供 PS specials，不染 TeX 文本色（区别于
+% axodraw2 的 \let\SetColor=\color）；绘图全 no-op 故记色无对象，取 no-op。
+% \Color{name}{text} 保文字丢色；\IfColor{y}{n} 恒取无色臂 n。
+\providecommand{\SetColor}[1]{}
+\providecommand{\Color}[2]{#2}
+\providecommand{\IfColor}[2]{#2}
+% —— 色名宏：真件 colordvi 臂 \input{colordvi.sty} 提供 dvips 68 色名
+% \Name{text} 染色面（\Black/\Blue 等直接出现于 axodraw 稿正文）；最小
+% 等价臂 = 保文字丢色。\providecommand 保稿内自载 colordvi/color 真件。
+\def\axo@c#1{\expandafter\providecommand\csname #1\endcsname[1]{##1}}
+\axo@c{GreenYellow}\axo@c{Yellow}\axo@c{Goldenrod}\axo@c{Dandelion}
+\axo@c{Apricot}\axo@c{Peach}\axo@c{Melon}\axo@c{YellowOrange}
+\axo@c{Orange}\axo@c{BurntOrange}\axo@c{Bittersweet}\axo@c{RedOrange}
+\axo@c{Mahogany}\axo@c{Maroon}\axo@c{BrickRed}\axo@c{Red}
+\axo@c{OrangeRed}\axo@c{RubineRed}\axo@c{WildStrawberry}\axo@c{Salmon}
+\axo@c{CarnationPink}\axo@c{Magenta}\axo@c{VioletRed}\axo@c{Rhodamine}
+\axo@c{Mulberry}\axo@c{RedViolet}\axo@c{Fuchsia}\axo@c{Lavender}
+\axo@c{Thistle}\axo@c{Orchid}\axo@c{DarkOrchid}\axo@c{Purple}
+\axo@c{Plum}\axo@c{Violet}\axo@c{RoyalPurple}\axo@c{BlueViolet}
+\axo@c{Periwinkle}\axo@c{CadetBlue}\axo@c{CornflowerBlue}\axo@c{MidnightBlue}
+\axo@c{NavyBlue}\axo@c{RoyalBlue}\axo@c{Blue}\axo@c{Cerulean}
+\axo@c{Cyan}\axo@c{ProcessBlue}\axo@c{SkyBlue}\axo@c{Turquoise}
+\axo@c{TealBlue}\axo@c{Aquamarine}\axo@c{BlueGreen}\axo@c{Emerald}
+\axo@c{JungleGreen}\axo@c{SeaGreen}\axo@c{Green}\axo@c{ForestGreen}
+\axo@c{PineGreen}\axo@c{LimeGreen}\axo@c{YellowGreen}\axo@c{SpringGreen}
+\axo@c{OliveGreen}\axo@c{RawSienna}\axo@c{Sepia}\axo@c{Brown}
+\axo@c{Tan}\axo@c{Gray}\axo@c{Black}\axo@c{White}
 \endinput
