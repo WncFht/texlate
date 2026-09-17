@@ -40,6 +40,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from texlate.textutil import env_float
 from texlate.xlat.client import redact
 
 if TYPE_CHECKING:
@@ -128,10 +129,7 @@ def lang_out_for(target_lang: str) -> str:
 
 def default_timeout() -> float:
     """``TEXLATE_BABELDOC_TIMEOUT`` 秒；非法/缺省 → ``DEFAULT_TIMEOUT_S``。"""
-    try:
-        v = float(os.environ.get("TEXLATE_BABELDOC_TIMEOUT", "") or 0)
-    except ValueError:
-        return DEFAULT_TIMEOUT_S
+    v = env_float("TEXLATE_BABELDOC_TIMEOUT", 0.0)
     return v if v > 0 else DEFAULT_TIMEOUT_S
 
 
