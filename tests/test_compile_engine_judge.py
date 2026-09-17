@@ -330,6 +330,36 @@ def test_judge_missing_file_first_error_dirty(tmp_path: Path) -> None:
     assert v.category == "missing_file"
 
 
+def test_judge_error_composition(tmp_path: Path) -> None:
+    """error_cats 收全量错误行构成；首错复用 ctx 权威对（payload 不丢）。
+
+    quant-ph/9703040 形态：首错与 bulk 不同族——构成数据让签名聚合
+    能纠「首错遮 bulk」。
+    """
+    log = "! Undefined control sequence.\nl.1 \\x\n" + "".join(
+        f"! Missing number, treated as zero.\nl.{i} \\bffam\n" for i in range(2, 8)
+    )
+    v = judge(_res(tmp_path, pdf=True, log_text=log))
+    assert v.error_cats == {"undefined_cs": 1, "syntax": 6}
+    assert v.error_pay == {"undefined_cs": "x"}
+    assert v.category == "undefined_cs"  # category 仍是首错语义
+
+
+def test_judge_error_composition_no_pdf(tmp_path: Path) -> None:
+    """no_pdf 早退支路同样收构成（构成覆盖全部错误行）。"""
+    log = "! Missing number, treated as zero.\nl.1 \\x\n! Undefined control sequence.\n"
+    v = judge(_res(tmp_path, pdf=False, log_text=log))
+    assert v.status == "fail"
+    assert sum(v.error_cats.values()) == v.n_errors
+
+
+def test_judge_error_composition_empty(tmp_path: Path) -> None:
+    """无错误行 → 空构成（sig 回退首错路径）。"""
+    v = judge(_res(tmp_path, pdf=True, log_text="all good\n"))
+    assert v.error_cats == {}
+    assert v.error_pay == {}
+
+
 def test_judge_utf8_warning_dirty(tmp_path: Path) -> None:
     log = "Invalid UTF-8 byte or sequence at line 9 replaced by U+FFFD.\n"
     v = judge(_res(tmp_path, pdf=True, log_text=log))

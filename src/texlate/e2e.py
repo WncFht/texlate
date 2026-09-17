@@ -102,6 +102,7 @@ _ENV_ENV_JUDGE = "TEXLATE_ENV_JUDGE"
 #: 静态环境表（已知语义的 env 不问 judge——体是否可译已由表决定）
 _KNOWN_ENVS = MATH_ENVS | VERBATIM_ENVS | PROTECTED_ENVS | ARG_TRANSPARENT_ENVS
 
+
 def _env_flag(name: str, *, default: bool) -> bool:
     """读布尔 env：``1/true/yes/on`` 为真；未设置取 default。"""
     raw = os.environ.get(name)
@@ -359,6 +360,8 @@ def _tail_dict(res: CompRes, v: Verdict) -> dict:
             "n_errors": v.n_errors,
             "category": v.category,
             "payload": v.payload,
+            "error_cats": v.error_cats,
+            "error_pay": v.error_pay,
             "cjk_chars": v.cjk_chars,
             "missing_chars": v.missing_chars,
             "warnings_hit": v.warnings_hit,

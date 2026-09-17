@@ -68,6 +68,12 @@ class Verdict:
     n_errors: int = 0
     category: str | None = None
     payload: str | None = None
+    #: 逐错误行 cat 构成（``res.log.errors`` 全量分类计数）——首错 cat
+    #: 遮 bulk 的纠偏原料（quant-ph/9703040：110 错中 108 missing_number
+    #: 而 category=illegal_unit）；签名聚合取众数用。
+    error_cats: dict[str, int] = field(default_factory=dict)
+    #: cat → 首见 payload（``error_cats`` 同键子集，仅非空 payload 收录）。
+    error_pay: dict[str, str] = field(default_factory=dict)
     cjk_chars: int = -1  # -1 = 未测
     missing_chars: int = 0
     warnings_hit: list[str] = field(default_factory=list)
@@ -148,6 +154,33 @@ def _cjk_render_check(v: Verdict, res: CompRes) -> None:
             v.notes.append("cjk_unverified(pdftotext absent)")
 
 
+def _error_composition(
+    v: Verdict, res: CompRes, first_cat: str | None, first_pay: str | None
+) -> None:
+    """逐错误行分类 → ``v.error_cats`` 构成 + ``v.error_pay`` 首见 payload。
+
+    首错复用 ``(first_cat, first_pay)`` 权威对（带 ctx/tail 分类更准）；
+    其余行裸行分类——只能靠 ctx 命中的类别会落 ``other``，构成仍忠实。
+    """
+    if not res.log.errors:
+        return
+    cats: dict[str, int] = {}
+    pays: dict[str, str] = {}
+    for i, ln in enumerate(res.log.errors):
+        cat, pay = (
+            (first_cat, first_pay)
+            if i == 0
+            else classify_error(ln, None, "", timed_out=False)
+        )
+        if not cat or cat == "clean":
+            cat = "other"
+        cats[cat] = cats.get(cat, 0) + 1
+        if pay and cat not in pays:
+            pays[cat] = str(pay)
+    v.error_cats = cats
+    v.error_pay = pays
+
+
 def judge(res: CompRes, *, expect_cjk: bool = False, log_text: str = "") -> Verdict:
     """CompRes → 终态判定。`expect_cjk` 打开中文渲染检查（zh 条件必开）。
 
@@ -176,6 +209,7 @@ def judge(res: CompRes, *, expect_cjk: bool = False, log_text: str = "") -> Verd
         # 无 log 可分类（引擎缺席/启动失败）时 classify 返回 "clean"——
         # 与 status=fail 矛盾，账本归 "other"。
         v.category, v.payload = ("other", None) if cat == "clean" else (cat, pay)
+        _error_composition(v, res, v.category, v.payload)
         return v
 
     # —— 有 pdf：进入 clean/partial 分界判定 ——
@@ -186,6 +220,7 @@ def judge(res: CompRes, *, expect_cjk: bool = False, log_text: str = "") -> Verd
         timed_out=res.timed_out,
     )
     v.category, v.payload = cat, pay
+    _error_composition(v, res, cat, pay)
 
     if res.log.n_errors > CLEAN_ERR_MAX:
         v.reasons.append(f"errors>{CLEAN_ERR_MAX} ({res.log.n_errors})")

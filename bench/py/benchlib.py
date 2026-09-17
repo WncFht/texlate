@@ -296,6 +296,8 @@ def judge_dict(res, *, expect_cjk: bool) -> dict:
             "n_errors": v.n_errors,
             "category": v.category,
             "payload": v.payload,
+            "error_cats": v.error_cats,
+            "error_pay": v.error_pay,
             "cjk_chars": v.cjk_chars,
             "missing_chars": v.missing_chars,
             "warnings_hit": v.warnings_hit,
@@ -315,6 +317,11 @@ def verdict_sig(verdict: dict, first_error: str | None = None) -> str:
     直接拼。cat 模糊（None/clean/other）时退 reasons 头抠 cat；派生 cat 不拼
     ``verdict.payload``（它配的是原 cat，拼上即错配），missing_file /
     missing_character 走正则从 first_error/reasons 回补 payload。
+
+    ``error_cats``（judge 逐错误行构成）在场且众数 cat 错误量**严格大于**
+    首错 cat 时 sig 改挂众数——首错遮 bulk 纠偏（quant-ph/9703040：110 错
+    108×missing_number，category 却是自恢复的 illegal_unit）；平票仍归
+    首错（TeX 级联中首错是因果上游）。众数 payload 取 ``error_pay`` 首见值。
     """
     vstatus = verdict.get("status")
     if vstatus in ("clean", None):
@@ -348,6 +355,21 @@ def verdict_sig(verdict: dict, first_error: str | None = None) -> str:
         elif cat == "missing_character":
             m = _RE_MISSING_CHAR.search(" ".join(reasons))
             pay = f"x{m.group(1)}" if m else ""
+    cats = verdict.get("error_cats")
+    if isinstance(cats, dict):
+        bulk = {
+            k: n
+            for k, n in cats.items()
+            if isinstance(k, str)
+            and isinstance(n, int)
+            and not isinstance(n, bool)
+            and n > 0
+        }
+        dom = max(bulk, key=bulk.get) if bulk else None
+        if dom is not None and dom != cat and bulk[dom] > bulk.get(cat, 0):
+            pays = verdict.get("error_pay")
+            dpay = pays.get(dom) if isinstance(pays, dict) else None
+            return f"{dom}:{dpay if isinstance(dpay, str) else ''}".rstrip(":")
     return f"{cat}:{pay or ''}".rstrip(":")
 
 

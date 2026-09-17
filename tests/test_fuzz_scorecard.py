@@ -6,7 +6,9 @@
   sig；显式 category（非 None/clean/other）+ 真值 payload 下 reasons
   乱序/复制/first_error 均不改变 sig；派生 cat 取 reasons 头（顺序即语
   义，钉住）；``missing_character`` 出现在任一 reason 即压倒派生头；
-  ``missing_character[×x]N`` → ``missing_character:xN``（x/× 同归一）。
+  ``missing_character[×x]N`` → ``missing_character:xN``（x/× 同归一）；
+  ``error_cats`` 构成在场时众数 cat 错误量严格大于首错 cat 则 sig 改挂
+  众数（payload 取 ``error_pay`` 首见值），平票仍归首错。
 - ``gate_scorecard.last_records``：同 str id 末行胜；非 str/空 id 丢弃；
   upstream 缺失/None/空串按 mock；arm_mismatch 错误行剔除。
 - ``pick_final`` 真值表封闭：fix 接管 iff c.status∈COMPILED ∧ csb==status
@@ -328,6 +330,71 @@ def test_verdict_sig_string_reasons() -> None:
     sig = benchlib.verdict_sig(v)
     # 两种合理修法都接受：按单条 reason 解析 / 拒绝非 list 退 verdict:fail
     assert sig in {"missing_character:x3", "verdict:fail"}
+
+
+def test_verdict_sig_bulk_dominant_override() -> None:
+    """首错遮 bulk 纠偏：众数 cat 错误量严格大于首错 → sig 挂众数。
+
+    quant-ph/9703040 实证锚点：110 错中 108 missing_number，category
+    却是自恢复的 illegal_unit——首错 sig 会误导分桶归因。
+    """
+    v = {
+        "status": "fail",
+        "category": "illegal_unit",
+        "payload": "24ptA",
+        "error_cats": {"illegal_unit": 1, "missing_number": 108},
+    }
+    assert benchlib.verdict_sig(v) == "missing_number"
+
+
+def test_verdict_sig_bulk_dominant_pay() -> None:
+    """众数 payload 取 error_pay 首见值（缺失/非 str → 裸 cat）。"""
+    v = {
+        "status": "fail",
+        "category": "illegal_unit",
+        "error_cats": {"illegal_unit": 1, "missing_file": 3},
+        "error_pay": {"missing_file": "aa.sty"},
+    }
+    assert benchlib.verdict_sig(v) == "missing_file:aa.sty"
+    v2 = {**v, "error_pay": {"missing_file": 5}}
+    assert benchlib.verdict_sig(v2) == "missing_file"
+    v3 = {k: x for k, x in v.items() if k != "error_pay"}
+    assert benchlib.verdict_sig(v3) == "missing_file"
+
+
+def test_verdict_sig_bulk_tie_keeps_first() -> None:
+    """平票仍归首错——TeX 级联中首错是因果上游，等量不翻案。"""
+    v = {
+        "status": "fail",
+        "category": "illegal_unit",
+        "payload": "24ptA",
+        "error_cats": {"illegal_unit": 1, "missing_number": 1},
+    }
+    assert benchlib.verdict_sig(v) == "illegal_unit:24ptA"
+
+
+def test_verdict_sig_bulk_same_cat_noop() -> None:
+    """众数==首错 cat → sig 不变（payload 仍取 verdict.payload 权威对）。"""
+    v = {
+        "status": "fail",
+        "category": "undefined_cs",
+        "payload": "\\x",
+        "error_cats": {"undefined_cs": 5, "other": 2},
+    }
+    assert benchlib.verdict_sig(v) == "undefined_cs:\\x"
+
+
+def test_verdict_sig_bulk_malformed_cats() -> None:
+    """error_cats 非 dict/脏键值 → 回退首错路径不崩。"""
+    v = {"status": "fail", "category": "illegal_unit"}
+    assert benchlib.verdict_sig({**v, "error_cats": "junk"}) == "illegal_unit"
+    v2 = {**v, "error_cats": {5: 3, "ok": "x", None: 1, "z": True}}
+    assert benchlib.verdict_sig(v2) == "illegal_unit"
+
+
+def test_verdict_sig_bulk_clean_blackout() -> None:
+    """clean/无 status 下 error_cats 也不出 sig。"""
+    assert benchlib.verdict_sig({"status": "clean", "error_cats": {"x": 5}}) == ""
 
 
 # ================================================================ gate_scorecard

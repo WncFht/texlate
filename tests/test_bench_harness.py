@@ -97,6 +97,20 @@ def test_judge_dict_has_warnings_hit() -> None:
     assert "warnings_hit" in tail["verdict"]
 
 
+def test_verdict_serializers_key_parity() -> None:
+    """judge_dict 与 e2e._tail_dict verdict 键集恒同——单边加字段即漂移。"""
+    from texlate import e2e  # noqa: PLC0415 -- 延迟到用点: 本仓产品模块重链
+    from texlate.compile.judge import judge  # noqa: PLC0415 -- 同上
+
+    res = CompRes(engine="xelatex")
+    res.log = parse_log("! Undefined control sequence.\nl.1 \\x\n")
+    v = judge(res, expect_cjk=False)
+    a = benchlib.judge_dict(res, expect_cjk=False)["verdict"]
+    b = e2e._tail_dict(res, v)["verdict"]  # noqa: SLF001 - 序列化器键集对拍
+    assert set(a) == set(b)
+    assert a["error_cats"] == {"undefined_cs": 1}
+
+
 # ---------------------------------------------------------------- e2e_mock 种子
 def test_e2e_mock_seed_fallback(tmp_path: Path) -> None:
     """账全坏行 → results.json 兜底；快照坏 → 空种子不崩。"""
