@@ -1464,40 +1464,10 @@ rules:
               \ProvidesPackage{citesort}[2026/09/16 fixloop legacy shim -> cite sort,compress]
               \RequirePackage[sort,compress]{cite}
               \endinput
-          # axodraw v1 → axodraw2 (TL 唯一存续支; v1 核心费曼图宏 \Line/
-          # \Gluon/\Photon/\ArrowLine 等同名续存, 色彩/缩放面有差 —— 残差
-          # 交 undefined_cs 轮)。
-          axodraw.sty:
-            needs: ["axodraw2.sty"]
-            body: |
-              \NeedsTeXFormat{LaTeX2e}
-              \ProvidesPackage{axodraw}[2026/09/17 fixloop legacy shim -> axodraw2 + fallback noops]
-              % needs 装不上时死端实证 (0905.4380/0806.1498/hep-ph/0501163):
-              % IfFileExists 双轨 —— 装到走真包, 装不上落常用绘图宏 noop
-              % (坐标定界参形), 保编译不保图, 残差归 undefined_cs 轮。
-              \IfFileExists{axodraw2.sty}{\RequirePackage{axodraw2}}{%
-                \def\Line(#1,#2)(#3,#4){}%
-                \def\DashLine(#1,#2)(#3,#4)#5{}%
-                \def\ArrowLine(#1,#2)(#3,#4){}%
-                \def\DashArrowLine(#1,#2)(#3,#4)#5{}%
-                \def\Gluon(#1,#2)(#3,#4)#5#6{}%
-                \def\Photon(#1,#2)(#3,#4)#5#6{}%
-                \def\ZigZag(#1,#2)(#3,#4)#5#6{}%
-                \def\ArrowArc(#1,#2)(#3,#4,#5){}%
-                \def\GlueArc(#1,#2)(#3,#4,#5)#6#7{}%
-                \def\PhotonArc(#1,#2)(#3,#4,#5)#6#7{}%
-                \def\ZigZagArc(#1,#2)(#3,#4,#5)#6#7{}%
-                \def\Vertex(#1,#2)#3{}%
-                \def\ECirc(#1,#2)#3{}%
-                \def\BCirc(#1,#2)#3{}%
-                \def\GCirc(#1,#2)#3#4{}%
-                \def\Text(#1,#2)#3[#4]#5{#5}%
-                \def\EText(#1,#2)#3{}%
-                \def\GOval(#1,#2)#3#4(#5,#6)[#7]{}%
-                \def\BBox(#1,#2)(#3,#4){}%
-                \def\BBoxc(#1,#2)(#3,#4){}%
-              }
-              \endinput
+          # (axodraw 槽已删: vendor/stubs/axodraw.sty 真 stub 在,
+          #  scan_install vendored 预检先于 missing_file 分类落件 —— 死配置。
+          #  旧 fallback 臂无 \SetColor/色名宏面, 复活即回归 hep-ph/0408075;
+          #  费曼图+色面见 vendor stub)
           # emulateapj5/emulateapj 只有 .cls 实体 (TL 无 .sty)——老稿以
           # \usepackage 形态借 deluxetable 面, noop 保底 (1d 转办)。
           emulateapj5.sty:
