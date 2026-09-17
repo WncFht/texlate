@@ -15,6 +15,7 @@ from texlate.compile.fixloop.builtins import (
     _mc_parse_log,
     font_fallback,
     missing_char_fix,
+    svjour_clo_stub,
 )
 from texlate.compile.fixloop.engine import LoopCtx
 
@@ -204,6 +205,51 @@ def test_inject_after_docclass_multi_seam(tmp_path: Path) -> None:
     assert _inject_after_docclass(_ctx(tmp_path), "% probe") is True
     t = (tmp_path / "main.tex").read_text()
     assert t.count("% probe") == 2  # noqa: PLR2004 - 每缝一份
+
+
+def test_inject_after_docclass_skips_commented(tmp_path: Path) -> None:
+    r"""``%\documentclass`` 死行不产生缝——snippet 只落真缝后（2211.04482 记档）。
+
+    attrib-2211 实证：注入物残留在被注释 docclass 行后（时序形态：
+    注入时行尚活、后被注释），锚定本身须证伪——遮盖视图本就排除，
+    此测试钉死该不变量防回归。
+    """
+    (tmp_path / "main.tex").write_text(
+        "%\\documentclass[twocolumn,linenumbers]{aastex62}\n"
+        "\\documentclass[twocolumn]{aastex62}\n"
+        "\\begin{document}\nx\n\\end{document}\n",
+        encoding="utf-8",
+    )
+    assert _inject_after_docclass(_ctx(tmp_path), "% probe") is True
+    lines = (tmp_path / "main.tex").read_text().splitlines()
+    assert lines[0].startswith("%\\documentclass")
+    assert lines[1] == "\\documentclass[twocolumn]{aastex62}"
+    assert lines[2] == "% probe"  # 唯一缝 = 真 docclass 行后
+
+
+def test_inject_after_docclass_only_commented_falls_back(tmp_path: Path) -> None:
+    r"""全文只剩 ``%\documentclass`` → 无活缝退文件头注。"""
+    (tmp_path / "main.tex").write_text(
+        "%\\documentclass{foo}\n\\begin{document}\nx\n\\end{document}\n",
+        encoding="utf-8",
+    )
+    assert _inject_after_docclass(_ctx(tmp_path), "% probe") is True
+    t = (tmp_path / "main.tex").read_text()
+    assert t.startswith("% probe\n%\\documentclass")
+
+
+def test_svjour_clo_stub_ignores_commented_opts(tmp_path: Path) -> None:
+    r"""``%\documentclass[opts]`` 的选项不进 ``sv<opt>.clo`` stub 表（同族锚钉）。"""
+    (tmp_path / "main.tex").write_text(
+        "%\\documentclass[smallextended]{svjour}\n"
+        "\\documentclass[referee]{svjour}\n"
+        "\\begin{document}\nx\n\\end{document}\n",
+        encoding="utf-8",
+    )
+    ok, _note = svjour_clo_stub(_ctx(tmp_path), None, None, {})
+    assert ok is True
+    assert (tmp_path / "svreferee.clo").exists()
+    assert not (tmp_path / "svsmallextended.clo").exists()
 
 
 def test_font_fallback_cyrillic(tmp_path: Path) -> None:

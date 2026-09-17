@@ -154,6 +154,21 @@ _USE_RE = re.compile(
 )
 
 
+def _live_matches(rx: re.Pattern[str], t: str) -> list[re.Match[str]]:
+    r"""遮盖视图命中且匹配体完整未遮——``%`` 注释/verbatim 内假装载点不算。
+
+    mask_tex 等长遮盖 → match 位置/group 对原文有效；跨遮盖区的命中
+    （注释内 ``\documentclass``、comment 环境）span 与原文不一致，跳过。
+    2211.04482 记档同族：锚正则把 ``%\documentclass`` 当活缝。
+    """
+    masked = mask_tex(t)
+    return [
+        m
+        for m in rx.finditer(masked)
+        if masked[m.start() : m.end()] == t[m.start() : m.end()]
+    ]
+
+
 def option_clash_merge(
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
@@ -169,7 +184,7 @@ def option_clash_merge(
             continue
         hits = [
             m
-            for m in _USE_RE.finditer(t)
+            for m in _live_matches(_USE_RE, t)
             if payload in [x.strip() for x in m.group(5).split(",")]
         ]
         if len(hits) < 2:  # noqa: PLR2004 - 2 = 重复加载的最小命中数
@@ -467,11 +482,12 @@ def svjour_clo_stub(
     t = ctx.read(main) if main is not None else None
     if t is None:
         return False, "no main tex"
-    if not _DOCCLASS_OPTS_RE.search(t):
+    vis = mask_tex(t)  # 注释掉的 %\documentclass 的选项不得入 stub 表
+    if not _DOCCLASS_OPTS_RE.search(vis):
         return False, "no \\documentclass in main"
     opts = [
         o.strip()
-        for m in _DOCCLASS_OPTS_RE.finditer(t)
+        for m in _DOCCLASS_OPTS_RE.finditer(vis)
         for o in (m.group(1) or "").split(",")
         if o.strip()
     ]
@@ -621,7 +637,15 @@ def _strip_ps_driver_opts(t: str) -> tuple[str, int]:
         opt = f"[{','.join(keep)}]" if keep else ""
         return f"\\{cmd}{opt}{brace}"
 
-    return _LOAD_OPT_RE.sub(_sub, t), n
+    # 遮盖视图定位、原文改写——注释内装载点是死文本，不动不数
+    out: list[str] = []
+    prev = 0
+    for m in _live_matches(_LOAD_OPT_RE, t):
+        out.append(t[prev : m.start()])
+        out.append(_sub(m))
+        prev = m.end()
+    out.append(t[prev:])
+    return "".join(out), n
 
 
 def _run_convert(tool: str, src: Path, dst: Path) -> tuple[int | None, str, bool]:
@@ -1193,7 +1217,7 @@ def _ensure_usepackage(ctx: LoopCtx, eng: Engine, pkg: str) -> list[str]:
     out = []
     if not re.search(
         rf"\\(?:usepackage|RequirePackage)\s*(?:\[[^\]]*\])?\s*\{{[^}}]*\b{re.escape(pkg)}\b",
-        ctx.source_blob(),
+        mask_tex(ctx.source_blob()),  # 注释掉的 %\usepackage 不算已装载
     ) and _inject_after_docclass(ctx, f"\\usepackage{{{pkg}}} % fixloop: cs-fix"):
         out.append(f"inject \\usepackage{{{pkg}}}")
     if eng.probe_file(f"{pkg}.sty") or eng.install_file(f"{pkg}.sty"):
@@ -1326,7 +1350,7 @@ def journal_cs_polyfill(
     block = "% fixloop: AAS journal-macro polyfills (类文件过老缺定义)\n" + "\n".join(
         rf"\providecommand{{\{name}}}{{{exp}}}" for name, exp in sorted(table.items())
     )
-    m = _DOCCLASS_LINE_RE.search(t)
+    m = _DOCCLASS_LINE_RE.search(mask_tex(t))  # 等长遮盖 → offset 对原文有效
     at = m.end() if m else 0
     ctx.write(main, t[:at] + block + "\n" + t[at:])
     return True, f"journal-macro polyfill injected (\\{cs} 命中, 全表 {len(table)} 宏)"
@@ -1376,7 +1400,7 @@ def shim_pkgs_in_use(ctx: LoopCtx, shim_map: dict[str, Any]) -> list[str]:
     匹 ``\\usepackage``/``\\RequirePackage``/``\\documentclass``/``\\documentstyle``
     花括号名单, 否则 ``\\bspotcolor\\.sty\\b`` 对裸名 ``{spotcolor}`` 永不中。
     """
-    blob = ctx.source_blob()
+    blob = mask_tex(ctx.source_blob())  # 注释掉的假装载点不算在用
     hits = []
     for pkg in shim_map:
         stem = re.sub(r"\.(?:sty|cls|clo|tex|def|cfg)$", "", str(pkg))
@@ -1660,7 +1684,7 @@ def _mc_apply_warmup(ctx: LoopCtx) -> tuple[bool, str]:
     r"""``\AtBeginDocument`` 预热盒注入 —— 仅当源里有 ctex/xeCJK 机制。"""
     box = "\\setbox0=\\hbox{" + "".join(f"{{{s}}}" for s in _MC_WARMUP_SIZES) + "}"
     snippet = f"\\AtBeginDocument{{{box}}} % fixloop: xeCJK bind warmup"
-    if not _CJK_MECH_RE.search(ctx.source_blob()):
+    if not _CJK_MECH_RE.search(mask_tex(ctx.source_blob())):
         return False, "cjk drops but no ctex/xeCJK in source — warmup skipped"
     if _inject_after_docclass(ctx, snippet):
         return True, "injected CJK font-binding warmup"
