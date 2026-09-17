@@ -946,20 +946,10 @@ rules:
               \cs_new:Npn \binary #1 { \fixloop_nbase:nnn {2} {1} {#1} }
               \ExplSyntaxOff
               \endinput
-          # espcrc2 (Elsevier CRC 会议样式, 不在 TL): 实证 hep-lat/0111009 +
-          # hep-ph/0111218 —— \author{Name\address[tag]{affil}} 约定。
-          espcrc2.sty:
-            body: |
-              \NeedsTeXFormat{LaTeX2e}
-              \ProvidesPackage{espcrc2}[2026/09/16 fixloop legacy shim -> article + polyfills]
-              % \address 在 \author 参数体内调用 → 落在 article \maketitle 的
-              % tabular cell 里: 组内 \\ 会炸, 用 \newline 并把参数内 \\ 同义化
-              \providecommand{\address}[2][]{\newline{\let\\\newline\footnotesize #2}}
-              \providecommand{\email}[1]{\texttt{#1}}
-              \providecommand{\keywords}[1]{\par\noindent\textbf{Keywords:} #1\par}
-              \providecommand{\PACS}[1]{\par\noindent\textbf{PACS:} #1\par}
-              \@ifundefined{keyword}{\newenvironment{keyword}{\par\noindent\textbf{Keywords:}\space}{\par}}{}
-              \endinput
+          # (espcrc2 槽已删: vendor/stubs/espcrc2.sty 真 stub 在,
+          #  scan_install vendored 预检先于 missing_file 分类落件 —— 死配置。
+          #  旧 body 无 \readRCS 五参解析, 复活即回归 hep-ph/0408075;
+          #  Elsevier CRC 面见 vendor stub)
           # KOMA 旧接口 scrpage/scrpage2 → scrlayer-scrpage (官方继任, 同名宏兼容)。
           scrpage.sty:
             needs: ["scrlayer-scrpage.sty"]
@@ -1380,59 +1370,10 @@ rules:
               \def\geomlabelx{\ifx\geomnext*\expandafter\geomlabelstar\else\expandafter\geomoriglabel\fi}
               \def\geomlabelstar*#1{\geomoriglabel{#1}}
               \endinput
-          # tcilatex.tex (TCI Scientific Word 私有初始化件, TL 无; 常见
-          # \input{tcilatex} 夹在导言区) —— 批八按真身面升级 (1011.5681
-          # 随稿本 1278 行取证): 用户面 func/limfunc/unit/dsum/QQQ/FRAME
-          # + SW pragma noop 族全覆盖; 真身自包 \makeatletter。残面
-          # (Greekmath 粗体希腊/\TCItag/\IFRAME 三态分派) 由下游
-          # undefined_cs 继续归因。
-          tcilatex.tex:
-            body: |
-              % fixloop legacy shim: tcilatex.tex — TCI SW 用户面抄值
-              \makeatletter
-              \def\func#1{\mathop{\rm #1}\nolimits}
-              \def\limfunc#1{\mathop{\rm #1}}
-              \def\unit#1{\mathord{\thinspace\rm #1}}
-              \def\dsum{\mathop{\displaystyle\sum}}
-              % QQQ{name}{replacement} — SW define-by-name 出口 (用户函数表)
-              \long\def\QQQ#1#2{\long\expandafter\def\csname#1\endcsname{#2}}
-              % FRAME{data}{w}{h}{vshift}{caption}{label}{name}{body} —— 真身
-              % 按 data 首字母 (i/d/f) 分 inline/display/float 三型; shim 保文
-              % 降版式: fbox+parbox 装 body, caption 小字附尾。
-              % 顶层 \par 在 array/equation* 数学格炸 Missing$ (1803.03154)——
-              % \mbox 包裹双模安全 (95-targeted cs_table FRAME 同式)。
-              \def\FRAME#1#2#3#4#5#6#7#8{\mbox{\fbox{\parbox{\linewidth}{#8\par{\footnotesize #5\par}}}}}
-              % SW pragma 族 —— 排版指令通道, 全 noop/passthru (真身抄值)
-              \@ifundefined{QTP}{\def\QTP#1{}}{}
-              \@ifundefined{QEXCLUDE}{\def\QEXCLUDE#1{}}{}
-              \@ifundefined{Qlb}{\def\Qlb#1{#1}}{}
-              \@ifundefined{Qlt}{\def\Qlt#1{#1}}{}
-              \def\QWE{}
-              \long\def\QQA#1#2{}
-              \def\QTR#1#2{{\csname#1\endcsname{#2}}}
-              \long\def\TeXButton#1#2{#2}
-              \long\def\QSubDoc#1#2{#2}
-              \def\EXPAND#1[#2]#3{}
-              \def\NOEXPAND#1[#2]#3{}
-              \def\PROTECTED{}
-              \def\LaTeXparent#1{}
-              \def\ChildStyles#1{}
-              \def\ChildDefaults#1{}
-              \def\QTagDef#1#2#3{}
-              \@ifundefined{correctchoice}{\def\correctchoice{\relax}}{}
-              \@ifundefined{HTML}{\def\HTML#1{\relax}}{}
-              \@ifundefined{TCIIcon}{\def\TCIIcon#1#2#3#4{\relax}}{}
-              % verifier-batch8 残面回添 (真身 L601/811/819/1106/1268 抄值,
-              % \msi@int 限位分发简化为 \mathop{\textstyle} 同 \tsum 式):
-              \def\TEXTsymbol#1{\mbox{$#1$}}
-              \def\tint{\mathop{\textstyle\int}}
-              \def\tiint{\mathop{\textstyle\iint}}
-              \def\tsum{\mathop{\textstyle\sum}}
-              \def\tprod{\mathop{\textstyle\prod}}
-              \def\tfrac#1#2{{\textstyle{#1\over#2}}}
-              \def\stackunder#1#2{\mathrel{\mathop{#2}\limits_{#1}}}
-              \makeatother
-              \endinput
+          # (tcilatex.tex 槽已删: vendor/stubs/tcilatex.tex 真 stub 在且更全
+          #  ——含 \proof/\endproof 对与 remark env; scan_install vendored
+          #  预检先于 missing_file 分类落件, shim_map 永不命中。死配置。TCI
+          #  SW 面取证记: 1011.5681 随稿本 1278 行, 批八升级史见 git 考古)
           # epsf.tex (老 epsf plain-TeX 图件接口; TL epsf 包 tex/generic/epsf/
           # 已有真身 —— overrides 直解后 xelatex 侧 tlmgr 装真包; tectonic
           # 侧 .tex 不可平铺 (同 binhex) → 本 stub 为 tectonic 通路兜底,
@@ -1655,20 +1596,10 @@ rules:
               \AtBeginDocument{\@ifundefined{pdfstringdefDisableCommands}{}{%
                 \pdfstringdefDisableCommands{\def\pdo{PsiDO}}}}
               \endinput
-          # JHEP 作者样式、Elsevier espcrc1 —— TL 全数缺席, noop 保底。
-          # (jinstpub/jheppub 槽已删: vendor/stubs/{jinstpub,jheppub}.sty
-          #  S1 真 stub 在, scan_install vendored 预检先于 missing_file
-          #  分类落件, shim_map 永远轮不到此名 —— 死配置)
-          # espcrc1 noop -> \address/\addressmark provides (astro-ph/0408286):
-          # 稿把 \address[IoA]{...}/\addressmark[IoA] 编进 \@author, article 的
-          # \maketitle 展开时炸 undefined_cs。内联输出, 任何版式面都安全。
-          espcrc1.sty:
-            body: |
-              \NeedsTeXFormat{LaTeX2e}
-              \ProvidesPackage{espcrc1}[2026/09/16 fixloop noop stub - Elsevier crc, not in TL]
-              \providecommand{\address}[2][]{\textsuperscript{#1}#2}
-              \providecommand{\addressmark}[1][]{\textsuperscript{#1}}
-              \endinput
+          # JHEP 作者样式、Elsevier espcrc1 —— TL 全数缺席, vendor stub 兜底。
+          # (jinstpub/jheppub/espcrc1 槽已删: vendor/stubs/*.sty 真 stub 在,
+          #  scan_install vendored 预检先于 missing_file 分类落件, shim_map
+          #  永远轮不到此名 —— 死配置; 旧 espcrc1 body 无 \readRCS 复活即回归)
           # ── 2026-09-16 wave-2 (loop2-delta 残盘 ~27 格, 1d scout-unfix 枚举) ──
           # 继任类桥: emulateapj-rtx4 (revtex4 时代变体, 1404.2351 实证),
           # amsart2000 (vintage amsart), nature2 (老 Nature 名) —— 同
