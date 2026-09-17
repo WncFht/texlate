@@ -242,13 +242,14 @@ def chunk_db_id(src_file: str, byte_start: int, byte_end: int) -> str:
     return h.hexdigest()[:24]
 
 
-def cache_key_for(
+def cache_key_for(  # noqa: PLR0913 -- 键材料五元组 + source 即 dedup 面
     *,
     arxiv_id: str,
     version: int | None,
     model: str,
     target_lang: str,
     api_key: str = "",
+    source: str = "eprint",
 ) -> str:
     """产物级 dedup 键：``sha256(arxiv_id@ver|model|pipeline_ver|lang)``。
 
@@ -256,9 +257,15 @@ def cache_key_for(
     hjfy 对等共享缓存是既定产品特性）；``cache_scope()=="per_key"``
     时把 ``sha256(api_key)[:16]`` 拼进材料按凭证分桶，消除跨租户
     缓存存在性 oracle（匿名桶 key="" 共享一桶，与 tenant_for 同语义）。
+
+    ``source`` = 获取渠道：eprint 默认（材料不变，存量缓存续命）；
+    ``html`` 等异源追加 ``|src:`` 成分——同 id@ver 的 eprint 与 html
+    任务产物链不同构，channel-blind 会串桶互喂错产物。
     """
     ver = f"v{version}" if version else ""
     material = f"{arxiv_id}@{ver}|{model}|{PIPELINE_VERSION}|{target_lang}"
+    if source != "eprint":
+        material += f"|src:{source}"
     if cache_scope() == "per_key":
         material += f"|k:{hashlib.sha256(api_key.encode()).hexdigest()[:16]}"
     return hashlib.sha256(material.encode()).hexdigest()

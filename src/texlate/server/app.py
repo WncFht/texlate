@@ -121,11 +121,16 @@ _MEDIA = {
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     ),
     "zh.epub": "application/epub+zip",
+    # arxiv_html 链的序列化 DOM 产物（file_get 对 text/html 补 CSP sandbox 闸）
+    "en.html": "text/html; charset=utf-8",
+    "zh.html": "text/html; charset=utf-8",
 }
 
 #: 会产出 ``dual.json``（→ reader 可用）的任务 kind。docx/epub 走
 #: export 双语插译没有 dual.json——``_accepted`` 对它们不发 reader_url。
-_DUAL_JSON_KINDS = frozenset({"arxiv", "share", "upload_tex", "upload_pdf"})
+_DUAL_JSON_KINDS = frozenset(
+    {"arxiv", "share", "upload_tex", "upload_pdf", "arxiv_html"}
+)
 
 
 def _probe_git_commit() -> str:
@@ -403,6 +408,18 @@ def _clean_task_options(options: dict[str, Any]) -> dict[str, Any]:
                 "code": "invalid_request",
             },
         )
+    # 取源闸：eprint（默认，e-print tar 链）| html（ar5iv DOM 链）——
+    # 与 arxiv 获取层「取源」同词；值规范化回写，worker 侧恒可读
+    source = str(options.get("source") or "eprint")
+    if source not in ("eprint", "html"):
+        raise _ApiError(
+            400,
+            {
+                "detail": "options.source ∈ eprint|html",
+                "code": "invalid_request",
+            },
+        )
+    options["source"] = source
     if "concurrency" in options:
         try:
             options["concurrency"] = max(1, min(16, int(options["concurrency"])))
@@ -860,16 +877,26 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         prefer = str(options.get("prefer") or "reuse")
         if prefer not in ("reuse", "fresh"):
             return _json_error(400, "options.prefer ∈ reuse|fresh")
+        # source 已经 _clean_task_options 白名单规范化（eprint|html）。
+        # eprint 是历史默认、键材料不动（存量缓存续命）——仅非默认源追加
+        # ``source=`` 成分（与 worker cache_key_for 的 no-op 默认同语义，
+        # 也让本调用点对未带 source 形参的旧签名兼容）
+        source = str(options.get("source") or "eprint")
+        kind = "arxiv_html" if source == "html" else "arxiv"
+        ck_extra: dict[str, str] = {}
+        if source != "eprint":
+            ck_extra["source"] = source
         cache_key = cache_key_for(
             arxiv_id=base,
             version=ver,
             model=model,
             target_lang=target_lang,
             api_key=_auth(request).api_key,
+            **ck_extra,
         )
         row, status, extra = _create_and_enqueue(
             request,
-            kind="arxiv",
+            kind=kind,
             arxiv_id=base,
             source_name=arxiv_id,
             title="",
@@ -965,6 +992,12 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
             if kind == "src.tar"
             else _MEDIA.get(kind, "application/octet-stream")
         )
+        if media.startswith("text/html"):
+            # html 产物同源伺服——直接导航时文档内幸存脚本可在同源上下文
+            # 打 mutating /api；CSP sandbox（无 allow-*）整文档脚本全灭。
+            # 纵深防御：worker _sanitize_dom 主防线 + 前端 DOMPurify 之外的
+            # 服务端兜底；不挡 img-src（sandbox 只禁脚本）
+            headers = {**(headers or {}), "Content-Security-Policy": "sandbox"}
         return FileResponse(path, media_type=media, headers=headers)
 
     # ------------------------------------------------------------ §2.4 upload
@@ -1182,16 +1215,18 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         ``worker.share_pack_manifest`` 从任务行现值派生，产物取
         ``tasks/{id}/`` 下 ``REQUIRED_ARTIFACTS``（zh.pdf 缺席落 partial
         包）。幂等：share_key 已入 ``index.jsonl`` 且包文件在场 → 直接
-        200 不重打。``kind=share``（导入产物不自包）与 reuse 命中任务
-        （产物物化自他任务、生效术语表不可知）→ 422；非 done/partial
-        → 409；缺必需产物 → 422。响应 ``{share_key, url, bytes}``——
-        ``url`` 与 index 行同口径（包文件名）。
+        200 不重打。``kind=share``（导入产物不自包）/``arxiv_html``
+        （html 链产不出 zh-src.zip，且 HTML chunk 与 share 包 TeX chunk
+        不对版不可比对）与 reuse 命中任务（产物物化自他任务、生效术语表
+        不可知）→ 422；非 done/partial → 409；缺必需产物 → 422。
+        响应 ``{share_key, url, bytes}``——``url`` 与 index 行同口径
+        （包文件名）。
         """
         row = _get_task(request, task_id)
-        if str(row["kind"]) == "share":
+        if str(row["kind"]) in ("share", "arxiv_html"):
             return _json_error(
                 422,
-                "kind=share 任务不打共享包（导入产物不自包）",
+                f"kind={row['kind']} 任务不打共享包（产物形态不参与共享寻址）",
                 "share_pack_rejected",
             )
         try:
@@ -1462,7 +1497,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
     @app.get("/api/task/{task_id}/reader")
     async def reader_get(request: Request, task_id: str) -> Response:
         """``{documents, alignment, reading, view}``（§2.5/§5.4）。"""
-        _get_task(request, task_id)
+        row = _get_task(request, task_id)
         dual_path = root / "tasks" / task_id / "dual.json"
         if store.file_record(task_id, "dual_json") is None or not dual_path.is_file():
             # 以登记行为准——磁盘孤儿件（登记前崩溃/失效清理残留）不服务
@@ -1476,7 +1511,14 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         docs = dual.get("documents") or {}
         if not isinstance(docs, dict):
             return _json_error(500, "dual.json 损坏", "internal")
-        for side, kind in (("original", "en.pdf"), ("translated", "zh.pdf")):
+        # arxiv_html 链的 documents 指向序列化 DOM 产物（dom 视图锚点页）；
+        # 其余链恒为 PDF 双栏
+        doc_kinds = (
+            (("original", "en.html"), ("translated", "zh.html"))
+            if str(row["kind"]) == "arxiv_html"
+            else (("original", "en.pdf"), ("translated", "zh.pdf"))
+        )
+        for side, kind in doc_kinds:
             if isinstance(docs.get(side), dict):
                 docs[side]["url"] = f"/api/files/{task_id}/{kind}"
         reading: dict[str, Any] = {}
@@ -1493,13 +1535,19 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
                 "documents": docs,
                 "alignment": dual.get("alignment") or {"kind": "pages"},
                 "reading": reading,
-                # md_zip = 无 PDF 路的降级登记物；zh_pdf 在则 pdf 视图优先
-                # （fault→retry 救回出 pdf 后残留的 md_zip 不把视图钉死在 html）
+                # zh_html = arxiv_html 链 DOM 产物 → dom 视图（pages 语义即
+                # 锚点数）；md_zip = 无 PDF 路的降级登记物；zh_pdf 在则 pdf
+                # 视图优先（fault→retry 救回出 pdf 后残留的 md_zip 不把视图
+                # 钉死在 html）
                 "view": (
-                    "html"
-                    if store.file_record(task_id, "md_zip")
-                    and not store.file_record(task_id, "zh_pdf")
-                    else "pdf"
+                    "dom"
+                    if store.file_record(task_id, "zh_html")
+                    else (
+                        "html"
+                        if store.file_record(task_id, "md_zip")
+                        and not store.file_record(task_id, "zh_pdf")
+                        else "pdf"
+                    )
                 ),
             }
         )
@@ -1511,7 +1559,10 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         body = await _read_body(request)
         want = str(body.get("document_version") or "")
         if want:
-            rec = store.file_record(task_id, "zh_pdf")
+            # arxiv_html 无 zh_pdf——回落 zh_html（dom 路也吃防旧版位置回灌）
+            rec = store.file_record(task_id, "zh_pdf") or store.file_record(
+                task_id, "zh_html"
+            )
             cur = str((rec or {}).get("sha256") or "")
             if cur and want != cur:
                 return _json_error(409, "document_version mismatch", "version_mismatch")

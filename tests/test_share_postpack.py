@@ -218,6 +218,15 @@ class TestGuards:
         assert r.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
         assert r.json()["code"] == "share_pack_rejected"
 
+    def test_422_arxiv_html_kind(self, client: TestClient) -> None:
+        """``kind=arxiv_html`` 按 kind 拒——产物齐也打不了：html 链产不出
+        zh-src.zip，且 HTML chunk 与包内 TeX chunk 不对版不可比对。"""
+        tid = _mk_task(client, kind="arxiv_html")
+        _seed_artifacts(client, tid)
+        r = client.post(f"/api/task/{tid}/share/pack")
+        assert r.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+        assert r.json()["code"] == "share_pack_rejected"
+
     def test_422_reuse_hit(self, client: TestClient) -> None:
         tid = _mk_task(client, options={"reuse_hit": "t_deadbeefdeadbeef"})
         _seed_artifacts(client, tid)

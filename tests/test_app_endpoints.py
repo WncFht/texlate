@@ -24,6 +24,7 @@ from starlette.testclient import TestClient
 
 import texlate.server.app as app_mod
 from texlate.server.settings import SettingsStore
+from texlate.server.store import new_task_id
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -108,6 +109,22 @@ def _insert_chunk(client: TestClient, tid: str) -> None:
             ],
         )
     )
+
+
+def _mk_kind_task(client: TestClient, kind: str, arxiv_id: str | None = ARXIV) -> str:
+    """store 直建行（不跑 translate 端点/worker）——任意 kind 的任务 fixture。"""
+    tid = new_task_id()
+    client.portal.call(
+        partial(
+            client.app.state.store.create_task,
+            task_id=tid,
+            kind=kind,
+            target_lang="zh-CN",
+            model="m",
+            arxiv_id=arxiv_id,
+        )
+    )
+    return tid
 
 
 # ------------------------------------------------------------ §2.1 translate
@@ -340,6 +357,26 @@ class TestFileGet:
         _reg_file(client, tid, "dual_json", "dual.json", b"{}")
         r = client.get(f"/api/files/{tid}/dual.json")
         assert r.headers["content-type"].startswith("application/json")
+
+    def test_html_media_csp_sandbox(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """text/html 产物 → ``Content-Security-Policy: sandbox``（直接导航时
+        文档内脚本全灭的同源兜底闸）；非 html 产物不带头。
+
+        ``URL_KIND`` 的 ``en.html``/``zh.html`` 反查项由 worker 侧
+        ``KIND_URL`` 注册（并行 lane）——setitem 同键值 shim，落地后等价。
+        """
+        monkeypatch.setitem(app_mod.URL_KIND, "zh.html", "zh_html")
+        tid = _mk_kind_task(client, "arxiv_html")
+        _reg_file(client, tid, "zh_html", "zh.html", b"<html/>")
+        r = client.get(f"/api/files/{tid}/zh.html")
+        assert r.status_code == HTTPStatus.OK
+        assert r.headers["content-type"].startswith("text/html")
+        assert r.headers["content-security-policy"] == "sandbox"
+        _reg_file(client, tid, "dual_json", "dual.json", b"{}")
+        r = client.get(f"/api/files/{tid}/dual.json")
+        assert "content-security-policy" not in r.headers
 
     def test_src_tar_media_arxiv_gzip(self, client: TestClient) -> None:
         """arxiv 任务的 src.tar 是 e-print tar.gz → application/gzip。"""
@@ -876,6 +913,44 @@ class TestReaderGet:
         _reg_file(client, tid, "zh_pdf", "zh.pdf")
         assert client.get(f"/api/task/{tid}/reader").json()["view"] == "pdf"
 
+    def test_view_dom_zh_html(self, client: TestClient) -> None:
+        """``zh_html`` 登记 → ``view=dom``（dom 视图 pages 即锚点数）——
+        优先级高于 md_zip/pdf 判定。"""
+        tid = _mk_kind_task(client, "arxiv_html")
+        _write_dual(client, tid, {"documents": {}, "chunks": []})
+        _reg_file(client, tid, "zh_html", "zh.html", b"<html/>")
+        assert client.get(f"/api/task/{tid}/reader").json()["view"] == "dom"
+
+    def test_dom_documents_urls(self, client: TestClient) -> None:
+        """``kind=arxiv_html`` 的 documents url → en.html/zh.html（非 PDF 对）。"""
+        tid = _mk_kind_task(client, "arxiv_html")
+        _write_dual(
+            client,
+            tid,
+            {
+                "documents": {
+                    "original": {"pages": 5},
+                    "translated": {"pages": 5},
+                },
+                "chunks": [],
+            },
+        )
+        _reg_file(client, tid, "zh_html", "zh.html", b"<html/>")
+        doc = client.get(f"/api/task/{tid}/reader").json()
+        assert doc["documents"]["original"]["url"] == f"/api/files/{tid}/en.html"
+        assert doc["documents"]["translated"]["url"] == f"/api/files/{tid}/zh.html"
+        assert doc["view"] == "dom"
+        # 对照：kind=arxiv 仍发 PDF 对
+        tid2 = _mk_kind_task(client, "arxiv")
+        _write_dual(
+            client,
+            tid2,
+            {"documents": {"original": {}, "translated": {}}, "chunks": []},
+        )
+        doc2 = client.get(f"/api/task/{tid2}/reader").json()
+        assert doc2["documents"]["original"]["url"] == f"/api/files/{tid2}/en.pdf"
+        assert doc2["view"] == "pdf"
+
     def test_reading_roundtrip(self, client: TestClient) -> None:
         """PUT position 写 reading.json → GET reader 原样读回。"""
         tid = mk_api_task(client, ARXIV)
@@ -894,6 +969,25 @@ class TestReaderPut:
     def test_document_version_mismatch_409(self, client: TestClient) -> None:
         tid = mk_api_task(client, ARXIV)
         rec = _reg_file(client, tid, "zh_pdf", "zh.pdf")
+        r = client.put(
+            f"/api/task/{tid}/reader/position",
+            json={"positions": {"original": 1}, "document_version": "stale"},
+        )
+        assert r.status_code == HTTPStatus.CONFLICT
+        assert r.json()["code"] == "version_mismatch"
+        r = client.put(
+            f"/api/task/{tid}/reader/position",
+            json={
+                "positions": {"original": 1},
+                "document_version": rec["sha256"],
+            },
+        )
+        assert r.status_code == HTTPStatus.OK
+
+    def test_document_version_zh_html_fallback(self, client: TestClient) -> None:
+        """无 zh_pdf 的 arxiv_html → 版本闸回落 ``zh_html`` sha256。"""
+        tid = _mk_kind_task(client, "arxiv_html")
+        rec = _reg_file(client, tid, "zh_html", "zh.html", b"<html/>")
         r = client.put(
             f"/api/task/{tid}/reader/position",
             json={"positions": {"original": 1}, "document_version": "stale"},
@@ -1231,6 +1325,36 @@ class TestOptionsGate:
         tid = mk_api_task(client, ARXIV, options={"engine": "xelatex"})
         row = client.portal.call(partial(client.app.state.store.get, tid))
         assert json.loads(row["options_json"])["engine"] == "xelatex"
+
+    def test_source_invalid_400(self, client: TestClient) -> None:
+        """``options.source ∈ eprint|html``——非法取源值入参即 400。"""
+        r = client.post(
+            f"/api/arxiv/{ARXIV}/translate",
+            json={"options": {"source": "ftp"}},
+        )
+        assert r.status_code == HTTPStatus.BAD_REQUEST
+        assert r.json()["code"] == "invalid_request"
+
+    def test_source_html_kind_arxiv_html(self, client: TestClient) -> None:
+        """``source=html`` → ``kind=arxiv_html`` + reader_url 签发（产 dual.json）。"""
+        r = client.post(
+            f"/api/arxiv/{ARXIV}/translate",
+            json={"options": {"source": "html"}},
+        )
+        assert r.status_code == HTTPStatus.ACCEPTED, r.text
+        assert "reader_url" in r.json()
+        row = client.portal.call(
+            partial(client.app.state.store.get, r.json()["task_id"])
+        )
+        assert row["kind"] == "arxiv_html"
+        assert json.loads(row["options_json"])["source"] == "html"
+
+    def test_source_default_eprint(self, client: TestClient) -> None:
+        """缺省 source → kind=arxiv 原链 + ``"eprint"`` 规范回写 options。"""
+        tid = mk_api_task(client, ARXIV)
+        row = client.portal.call(partial(client.app.state.store.get, tid))
+        assert row["kind"] == "arxiv"
+        assert json.loads(row["options_json"])["source"] == "eprint"
 
     def test_concurrency_garbage_400(self, raw_client: TestClient) -> None:
         """``int("abc")`` 裸炸曾是 500——入参闸收敛成 400 invalid_request。"""
