@@ -277,7 +277,12 @@ _INCOMPAT_PKGS: dict[str, frozenset[str]] = {
 #: 选项；2e 无此机制，ias.cls 也不存在——无树可调时按名硬拒）。
 _DS_AT_CLASSES = frozenset({"ias", "jaa", "julie"})
 
-_DS_AT_RE = re.compile(r"ds@")
+#: ``ds@`` 选项分发记号——词首边界锚：``\ds@<opt>`` 命令形态与
+#: ``\@namedef{ds@<opt>}``/``\csname ds@<opt>`` 调用形态全收（``\``/``{``/空白
+#: 均为非字字符、``d`` 处成界）；``\mids@foo``/``\ods@x`` 这类内嵌子串
+#: 前接字母不成界，不误伤。检索面过 ``visible_tex`` 等长遮盖——注释/逐字段里
+#: 的 ``ds@`` 字样（``% uses ds@ dispatch``）不计。
+_DS_AT_RE = re.compile(r"\bds@")
 
 #: 209 内建残留的 compat 块——随转换产物注入，全部幂等/守护式定义。
 COMPAT_SHIM = r"""% texlate: LaTeX 2.09 compatibility shim
@@ -325,7 +330,11 @@ def _ships_style(root: Path | None, name: str) -> bool:
 
 
 def _uses_ds_at(root: Path | None, cls: str) -> bool:
-    """随源 ``<cls>.sty``/``<cls>.cls`` 检出 ``ds@`` 选项分发定义。"""
+    """随源 ``<cls>.sty``/``<cls>.cls`` 检出 ``ds@`` 选项分发定义。
+
+    检索面为 ``visible_tex`` 遮盖视图——注释/逐字环境内的 ``ds@`` 字样
+    不参与判定（真分发形态见 ``_DS_AT_RE`` 注）。
+    """
     if root is None or ".." in cls or not _GLOB_SAFE_RE.fullmatch(cls):
         return False
     for cand in root.rglob(f"{cls}.*"):
@@ -335,7 +344,7 @@ def _uses_ds_at(root: Path | None, cls: str) -> bool:
             text = decode_tex(cand.read_bytes())
         except OSError:
             continue
-        if _DS_AT_RE.search(text):
+        if _DS_AT_RE.search(visible_tex(text)):
             return True
     return False
 

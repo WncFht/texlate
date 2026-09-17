@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
     from pypdf import PdfWriter
+    from pypdf._page import PageObject
     from pypdf.generic import DictionaryObject
 
 #: ``embed_cjk_mappings`` 注入的 GB1→UCS2 CMap（Adobe 官方资源，BSD 许可
@@ -45,34 +46,78 @@ def _font_needs_gb1_cmap(font: DictionaryObject) -> bool:
     return system.get("/Registry") == "Adobe" and system.get("/Ordering") == "GB1"
 
 
+def _page_resources(page: PageObject) -> list[object]:
+    """页有效 ``/Resources`` 链——页自身 + 各 ``/Pages`` 祖先节点全收。
+
+    ``/Resources`` 是 PDF 可继承属性，但空/稀疏页级表不遮蔽祖先的共享
+    字体表（产出器常把 GB1 字体挂 ``/Pages`` 做全文档共享）——逐层收集
+    而非取最近一层。畸形父链/环按截断处理：已收部分照常返回。
+    """
+    out: list[object] = []
+    node: object = page
+    ancestry: set[int] = set()
+    while isinstance(node, dict) and id(node) not in ancestry:
+        ancestry.add(id(node))
+        res = node.get("/Resources")
+        if res:
+            out.append(res)
+        node = node.get("/Parent")
+        if node is not None:
+            try:
+                node = node.get_object()
+            except (AttributeError, KeyError, IndexError, TypeError):
+                break
+    return out
+
+
+def _iter_group_members(group: object, seen: set[int]) -> Iterator[DictionaryObject]:
+    """资源子表（``/Font``/``/XObject`` 值）成员走查，id 去重记入 ``seen``。
+
+    子表值本身可以是 IndirectObject——``dict.get`` 不解引用，须显式
+    ``get_object`` 后才能 ``.values()``；畸形段/坏成员各自坍弃，不穿透。
+    """
+    try:
+        group = group.get_object() if group else {}
+    except (AttributeError, KeyError, IndexError, TypeError):
+        return
+    if not isinstance(group, dict):
+        return
+    for ref in group.values():
+        try:
+            obj = ref.get_object()
+        except (AttributeError, KeyError, IndexError, TypeError):
+            continue
+        if id(obj) not in seen:
+            seen.add(id(obj))
+            yield obj
+
+
 def _iter_pdf_fonts(writer: PdfWriter) -> Iterator[DictionaryObject]:
-    """按页树 ``/Resources``（含 XObject 递归）走查字体对象，id 去重。"""
+    """按页树 ``/Resources``（含 XObject 递归）走查字体对象，id 去重。
+
+    资源级容错与 per-font 同粒度：畸形 ``/Resources``/``/Font``/``/XObject``
+    段各自坍弃，不穿透生成器拖垮整篇注入。
+    """
     seen: set[int] = set()
-    pending = [page.get("/Resources") for page in writer.pages]
+    pending = [res for page in writer.pages for res in _page_resources(page)]
     while pending:
         res = pending.pop()
         if not res:
             continue
-        res = res.get_object()
-        # /Font 与 /XObject 的值本身可以是 IndirectObject——
-        # dict.get 不解引用，IndirectObject.values() 即 AttributeError，
-        # 上抛被调用方 best-effort 壳吞成一行 log → ToUnicode 静默全丢
-        fonts = res.get("/Font", {})
-        fonts = fonts.get_object() if fonts else {}
-        if isinstance(fonts, dict):
-            for ref in fonts.values():
-                font = ref.get_object()
-                if id(font) not in seen:
-                    seen.add(id(font))
-                    yield font
-        xobjs = res.get("/XObject", {})
-        xobjs = xobjs.get_object() if xobjs else {}
-        if isinstance(xobjs, dict):
-            for ref in xobjs.values():
-                obj = ref.get_object()
-                if id(obj) not in seen:
-                    seen.add(id(obj))
-                    pending.append(obj.get("/Resources"))
+        try:
+            res = res.get_object()
+        except (AttributeError, KeyError, IndexError, TypeError):
+            continue
+        if not isinstance(res, dict) or id(res) in seen:
+            continue
+        seen.add(id(res))
+        yield from _iter_group_members(res.get("/Font", {}), seen)
+        # XObject /Resources 常是 IndirectObject——原样入 pending，下轮
+        # get_object 解引用；非 dict XObject 无资源可挖。
+        pending.extend(
+            xo.get("/Resources") if isinstance(xo, dict) else None
+            for xo in _iter_group_members(res.get("/XObject", {}), seen)
+        )
 
 
 def embed_cjk_mappings(pdf: Path) -> int:

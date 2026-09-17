@@ -50,7 +50,9 @@ __all__ = [
 #: （logpipe pin#2）；至多跨一个折行续行（79 列 wrap），续行内同域再限
 #: {0,90}。冒号前缀即真消息形态——``Missing characters ...`` 行文不计缺字
 #: （logpipe pin#4，与 l2 census 口径同源）。
-#: engine ``missing_chars`` / rules ``missing_char`` / judge 门控三处共用。
+#: engine ``missing_chars`` / rules ``missing_char`` / judge 门控 / l2
+#: ``missing_glyph_nullfont`` 四处共用同一窗口语义（l2 逐行应用时跨行
+#: 分支不触发——折行豁免需消费层先拼续行，见 missing_char_nullfont 行注）。
 _MISSCHAR_WINDOW: Final = (
     r"(?:(?!Missing character|in font )[^\n]){0,90}?"
     r"(?:\n(?:(?!Missing character|in font )[^\n]){0,90}?)?"
@@ -127,8 +129,11 @@ REDLINES: Final[tuple[RedLine, ...]] = (
         id="missing_char_nullfont",
         # 良性试排吞字——**无一层判红**：judge 进 notes 观察项、l2 独立
         # 类留 by_class/samples 观察面；engine/rules 的排除已内嵌在
-        # missing_char 行 tempered pattern 的负向前瞻里。
-        l2=LayerSpec("missing_glyph_nullfont", r"Missing character:.*in font nullfont"),
+        # missing_char 行 tempered pattern 的负向前瞻里。l2 行级类与 judge
+        # 探针同 pattern（窗口语义单源）：同行 ``in font `` 已声明真字体后
+        # 尾缀 nullfont 不再误豁免；79 列折行豁免要求消费层把续行拼回
+        # （窗口跨一个 ``\n`` 分支在逐行应用下天然不触发）。
+        l2=LayerSpec("missing_glyph_nullfont", _MISSCHAR_NULLFONT_PROBE),
         judge=LayerSpec("missing_character_nullfont", _MISSCHAR_NULLFONT_PROBE),
     ),
     RedLine(

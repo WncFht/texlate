@@ -9,27 +9,31 @@ oracle 方法：判定树/窗口语义/选项路由按 docstring 承诺**独立�
 
 缺陷钉账（``xfail(strict=True)`` 钉**期望**契约——修复落地 XPASS 转红即拆钉）：
 
-- J1 ``latex209._uses_ds_at`` ``ds@`` 裸子串过触发（latex209.py:280
+- J1 ``latex209._uses_ds_at`` ``ds@`` 裸子串过触发（原 latex209.py:280
   ``_DS_AT_RE = re.compile(r"ds@")``）：随源 ``<cls>.sty`` 里
   ``\def\mids@foo{bar}``、注释行 ``% ... ds@`` 这类**非选项分发**的
-  ``ds@`` 字样即误判 ``reject/latex209_ds_at``——真分发形态是
-  ``\ds@<opt>``/``\@namedef{ds@<opt>}``。**CONFIRMED**。
-- J2 ``cjkmap._iter_pdf_fonts`` 不沿页树继承 ``/Resources``
-  （cjkmap.py:51 只看 ``page.get("/Resources")``）：PDF 允许把
+  ``ds@`` 字样即误判 ``reject/latex209_ds_at``。**已修**：``\bds@``
+  词首边界锚（``\ds@``/``{ds@``/`` ds@`` 三形全收，``\mids@foo`` 类
+  内嵌子串无界不中）+ 检索面走 ``visible_tex`` 遮盖（注释字样不计）。
+- J2 ``cjkmap._iter_pdf_fonts`` 不沿页树继承 ``/Resources``：PDF 允许把
   Resources 挂 ``/Pages`` 父节点做全文档共享——该形态下 GB1 字体
-  整棵漏走，embed 返回 0。**CONFIRMED**。
+  整棵漏走，embed 返回 0。**已修**：``_page_resources`` 沿 ``/Parent``
+  逐层全收（页级空表不遮蔽祖先共享表——pypdf ``get_inherited``
+  「键存在即返回」语义实证不适用），环/畸形链截断。
 - J3 ``cjkmap._iter_pdf_fonts`` 畸形 ``/Resources``（非 dict 对象）→
-  ``AttributeError`` 穿透 ``embed_cjk_mappings``：per-font 容错壳
-  （cjkmap.py:101-104）只包 ``_font_needs_gb1_cmap``，资源级异常把整篇
-  注入拖死——一页畸形即全篇 ToUnicode 丢失（worker/e2e best-effort 壳
-  吞成一行 log，静默不注入）。**CONFIRMED**。
+  ``AttributeError`` 穿透 ``embed_cjk_mappings``：per-font 容错壳只包
+  ``_font_needs_gb1_cmap``，资源级异常把整篇注入拖死（worker/e2e
+  best-effort 壳吞成一行 log，静默不注入）。**已修**：资源级
+  try/isinstance 闸与 per-ref 容错同粒度，畸形段各自坍弃。
 - J4 l2 ``missing_glyph_nullfont`` 行内 ``.*`` 与 gate 限界窗双向分歧
-  （redlines.py:131 ``Missing character:.*in font nullfont``）：
+  （redlines.py ``Missing character:.*in font nullfont``）：
   (a) 79 列折行把 ``in font nullfont`` 推进续行 → engine/judge 窗内
   豁免、l2 漏吃归 ``missing_glyph_cjk`` 判红——违「无一层判红」；
   (b) 已声明真字体后行尾挂 ``in font nullfont`` 字样 → engine 窗判红、
   l2 误豁免——违「已声明字体的消息不被后行误豁免」（logpipe pin#2）。
-  **CONFIRMED**（tmp/judge-fuzz/probe_l2wrap）。
+  **J4b 已修**：l2 pattern 换共享 ``_MISSCHAR_NULLFONT_PROBE``（窗口
+  语义单源）。**J4a 仍 xfail**：l2 严格逐行检索使续行物理不可见——
+  pattern 层无解，需 ``l2.py`` 拼续行（已报 leader 裁决）。
 
 观测语义钉（非缺陷——当前行为即取舍，改动前先读这段）：
 
@@ -542,8 +546,9 @@ class TestRedlines:
     @pytest.mark.xfail(
         reason=(
             "J4a CONFIRMED——折行 nullfont misschar：engine/judge 限界窗跨 "
-            "\\n 豁免，l2 行内 .* 漏吃 → 归 missing_glyph_cjk 判红，违"
-            "「无一层判红」（redlines.py:131）——缺陷待修"
+            "\\n 豁免，l2 逐行检索续行不可见 → 归 missing_glyph_cjk 判红，违"
+            "「无一层判红」。l2 pattern 已换共享 _MISSCHAR_NULLFONT_PROBE"
+            "（redlines.py），仍缺 l2.py 归类前拼续行——待 leader 裁决越界"
         ),
         strict=True,
     )
@@ -562,15 +567,6 @@ class TestRedlines:
         assert v.warnings.by_class.get("missing_glyph_nullfont") == 1
         assert v.warnings.redlines == []
 
-    @pytest.mark.xfail(
-        reason=(
-            "J4b CONFIRMED——真字体已声明后行尾挂 in font nullfont 字样："
-            "engine 窗判红（in font 停词先行终止）、l2 行内 .* 误豁免归 "
-            "missing_glyph_nullfont，违「已声明字体不被误豁免」"
-            "（logpipe pin#2 / redlines.py:131）——缺陷待修"
-        ),
-        strict=True,
-    )
     def test_l2_trailing_nullfont_after_real_font_should_redline(self) -> None:
         """J4b：``in font cmr10 in font nullfont`` → 真字体先行 → 应判红。"""
         text = "Missing character: There is no 中 (U+4E2D) in font cmr10 in font nullfont\n"
@@ -798,14 +794,6 @@ class TestCjkmap:
         _write_pdf(w, pdf)
         assert embed_cjk_mappings(pdf) == 0
 
-    @pytest.mark.xfail(
-        reason=(
-            "J2 CONFIRMED——/Resources 是 PDF 可继承属性，挂 /Pages 父节点"
-            "的合法形态不被走查（cjkmap.py:51 只看页自身）→ GB1 字体静默漏注"
-            "——缺陷待修"
-        ),
-        strict=True,
-    )
     def test_inherited_resources_on_pages_node(self, tmp_path: Path) -> None:
         """J2：``/Pages`` 父节点继承 ``/Resources`` 下的 GB1 字体应命中。"""
         w = PdfWriter()
@@ -821,14 +809,6 @@ class TestCjkmap:
         fonts = PdfReader(str(pdf)).pages[0]["/Parent"]["/Resources"]["/Font"]
         assert "/ToUnicode" in fonts["/F"].get_object()
 
-    @pytest.mark.xfail(
-        reason=(
-            "J3 CONFIRMED——畸形 /Resources（非 dict）在 _iter_pdf_fonts 内"
-            " res.get 抛 AttributeError 穿透 embed：资源级异常不在 per-font"
-            " 容错壳内，一页畸形拖死全篇注入（cjkmap.py:56-60）——缺陷待修"
-        ),
-        strict=True,
-    )
     def test_malformed_resources_should_not_kill_document(self, tmp_path: Path) -> None:
         """J3：畸形 ``/Resources`` 应按资源粒度跳过，好字体照常注入。"""
         w = PdfWriter()
@@ -1139,15 +1119,6 @@ class TestLatex209:
             assert info["reason"] == "latex209_ds_at"
             assert out == f"\\documentstyle[opta]{{{cls}}}\n"
 
-    @pytest.mark.xfail(
-        reason=(
-            "J1 CONFIRMED——_DS_AT_RE 是裸子串 ds@（latex209.py:280）："
-            "随源 sty 里 \\def\\mids@foo / 注释行 ds@ 字样即误判 "
-            "latex209_ds_at；真分发是 \\ds@<opt>/\\@namedef{ds@<opt>}"
-            "——缺陷待修"
-        ),
-        strict=True,
-    )
     @pytest.mark.parametrize(
         "sty_body",
         [
