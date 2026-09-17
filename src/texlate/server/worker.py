@@ -177,8 +177,23 @@ PIPELINE_VERSION = f"texlate-{__version__}|{PROMPT_VERSION}"
 _FLUSH_N = 8
 _FLUSH_MS = 0.5
 
-#: 编译超时（docs/08 §4.1 默认值）
-COMPILE_TIMEOUT = 240.0
+
+_ENV_TIMEOUT_MAX_S = 86400.0  # env 超时值 24h 封顶——更大属配置错误
+
+
+def _env_timeout(name: str, default: float) -> float:
+    """``TEXLATE_*`` 秒数 env 读入——nan/inf/非正/超限一律回默认。"""
+    try:
+        v = float(os.environ.get(name, ""))
+    except ValueError:
+        return default
+    return v if 0.0 < v <= _ENV_TIMEOUT_MAX_S else default
+
+
+#: 编译超时（docs/08 §4.1 默认值；server 路径无 --timeout flag，
+#: ``TEXLATE_COMPILE_TIMEOUT`` 秒数是唯一全局调节口——CLI/bench 走参数
+#: 化 ``timeout`` 链，唯独本常量钉死 create_app 不传 ctor 参的路径）
+COMPILE_TIMEOUT = _env_timeout("TEXLATE_COMPILE_TIMEOUT", 240.0)
 
 #: 心跳间隔（updated_at 供 SSE/列表页判活）
 _HEARTBEAT_S = 5.0
