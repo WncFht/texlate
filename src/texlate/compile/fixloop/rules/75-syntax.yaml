@@ -212,7 +212,7 @@ rules:
           corpus: "0806.3286/1003.5240/1206.0576 (arximspdf.cls:227) + 1012.1161 (arxstspdf.cls:181)",
           error: "fontspec-xetex.sty:4166 Control sequence \\c__fontspec_shape_{it_sc,sc_it,scit_it,scit_n}_tl already defined ×4",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 4, status: proven } # 6638b4c 修复后 4-cell 回放实证 (tmp/fontspec-reprobe)
     source_ref: "tmp/wontfix-scout/verdict.md 裁决1 + work/fixprobe.tex 实测 0 错"
 
   # 2026-09-16 wave-2: already_def 泛化 (1003.0344/cond-mat-0501638) ——
