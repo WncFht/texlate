@@ -418,6 +418,20 @@ def _load_compile_timeout(value: object) -> float:
     return v if 0.0 < v <= COMPILE_TIMEOUT_MAX_S else DEFAULT_COMPILE_TIMEOUT_S
 
 
+def _load_bool(value: object, *, default: bool) -> bool:
+    """布尔字段容错读：str 走 falsy 集（``opt_bool`` 同口径）。
+
+    手改 ``"false"``/``"0"`` 若裸 ``bool()`` 反读 True——save 侧
+    ``_normalize_updates`` 闸死非 bool，load 侧须解析字符串语义才对称。
+    缺键（None）落 default，其余类型维持 ``bool()`` 语义。
+    """
+    if value is None:
+        return default
+    if isinstance(value, str):
+        return value.strip().lower() not in ("0", "false", "no", "off", "")
+    return bool(value)
+
+
 class SettingsStore:
     """``settings.json``（0600）+ ``connections.json`` 分槽 key 池。
 
@@ -505,7 +519,7 @@ class SettingsStore:
             "concurrency": _load_concurrency(data.get("concurrency")),
             "compile_timeout": _load_compile_timeout(data.get("compile_timeout")),
             "engine": _load_enum(data.get("engine"), ENGINES, "auto"),
-            "context_guidance": bool(data.get("context_guidance", True)),
+            "context_guidance": _load_bool(data.get("context_guidance"), default=True),
             "cors_origins": _load_origins(data.get("cors_origins")),
             "quota_max_tasks": _load_quota(data.get("quota_max_tasks")),
             "quota_max_bytes": _load_quota(data.get("quota_max_bytes")),
@@ -630,8 +644,13 @@ def env_base_url() -> str:
 
 
 def env_model() -> str:
-    """``TEXLATE_MODEL`` env 兜底。"""
-    return os.environ.get("TEXLATE_MODEL", "").strip()
+    r"""``TEXLATE_MODEL`` env 兜底——非空值过 ``validate_model``。
+
+    与 ``header_model`` 臂同闸：控制字符（``\n`` 等）原样透传会进
+    任务行/事件载荷构成日志注入面，env 是操作员配置面，错配即早炸。
+    """
+    v = os.environ.get("TEXLATE_MODEL", "").strip()
+    return validate_model(v) if v else ""
 
 
 #: ``server_salt`` 首调序列化（进程内）；跨进程由 ``O_EXCL`` 原子创建兜。

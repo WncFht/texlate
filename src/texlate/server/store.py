@@ -435,7 +435,7 @@ class Store:
             " (SELECT COALESCE(MAX(e.seq), 0) FROM task_events e"
             " WHERE e.task_id = tasks.id) AS last_seq"
             f" FROM tasks {where}"
-            " ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            " ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?",
             (*params, limit, offset),
         ).fetchall()
         total = int(

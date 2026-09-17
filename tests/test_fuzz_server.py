@@ -14,6 +14,16 @@ HTTP 闸后解析面。本文件打**跨层接缝**：store↔API 契约错位�
 - D3 ``_parse_origin`` 剥 scheme 默认端口（``http://h:80``→``http://h``）——
   浏览器 Origin 恒省略默认端口，保留即 cors 精确匹配死配。
 
+已修 OBSERVED（断言钉随修复翻向新契约）：
+
+- D6 ``env_model()`` 出口过 ``validate_model``——env 臂与 header 臂同闸，
+  控制字符不再原样进任务行/日志。
+- D7 ``context_guidance`` load 走 ``_load_bool`` falsy 集——手写
+  ``"false"``/``"0"`` 正确读 False（save 侧闸死非 bool，两臂对称）。
+- D8 ``list_tasks_page`` ``ORDER BY created_at DESC, id DESC`` 显式
+  tiebreak——并列时间戳分页不再依赖索引隐式 rowid 序，与
+  ``queued_rows`` 同口径。
+
 OBSERVED（断言钉当前行为/爆炸半径，非缺陷判词）：
 
 - ``transition(force=True)`` 接受任意状态串——越枚举行不落任何状态集
@@ -21,13 +31,6 @@ OBSERVED（断言钉当前行为/爆炸半径，非缺陷判词）：
   缺位；钉爆炸半径防误读。
 - ``opt_bool`` 与 ``_share_pack_opt_in`` 对 ``""`` 的判定分叉
   （``True``/``False``）——同文件族两套布尔归一化无共享 spec。
-- ``resolve_auth`` 对 ``env_model()`` 不跑 ``validate_model``——
-  header 路径校验控制字符，env 路径原样透传进任务行/日志。
-- ``context_guidance`` load 容错 ``bool(v)``——手写 ``"false"`` 字符串
-  反读 True（save 路径闸死非 bool，load 路径不解析字符串语义）。
-- ``list_tasks_page`` ``ORDER BY created_at DESC`` 无显式 ``, id``
-  tiebreak（``queued_rows`` 有）——并列时间戳分页稳定性目前靠索引
-  隐式 rowid 序兜底，钉住「并列集翻页不重不漏」。
 - ``_clean_task_options`` engine 只校验不回写（``engine=0`` 按 auto
   过闸但原值落库），与 ``source`` 规范化回写不对称。
 
@@ -315,19 +318,17 @@ class TestBoolCoercionDivergence:
         assert opt_bool({"k": None}, "k", lambda: False) is False
 
 
-class TestEnvModelUnvalidated:
-    """``resolve_auth`` env model 不跑 ``validate_model``（OBSERVED）。"""
+class TestEnvModelValidated:
+    """``env_model()`` 出口过 ``validate_model``——env 臂与 header 臂同闸。"""
 
-    def test_env_model_passthrough(
+    def test_env_model_validated(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv("TEXLATE_MODEL", "evil\nmodel\tinject")
-        auth = srv_settings.resolve_auth(
-            srv_settings.SettingsStore(tmp_path / "cfg").load()
-        )
-        # header_model 路径过 validate_model（控制字符 ValueError），
-        # env 路径原样透传——钉住这个不对称
-        assert auth.model == "evil\nmodel\tinject"
+        with pytest.raises(ValueError, match="invalid model"):
+            srv_settings.resolve_auth(
+                srv_settings.SettingsStore(tmp_path / "cfg").load()
+            )
 
     def test_header_model_validated(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -341,19 +342,27 @@ class TestEnvModelUnvalidated:
 
 
 class TestContextGuidanceCoercion:
-    """``context_guidance`` load 容错是裸 ``bool()``——字符串语义不解析（OBSERVED）。"""
+    """``context_guidance`` load 走 ``_load_bool``——str 值按 falsy 集解析。"""
 
-    def test_string_false_reads_true(self, tmp_path: Path) -> None:
+    def test_string_false_reads_false(self, tmp_path: Path) -> None:
         d = tmp_path / "cfg"
         d.mkdir()
         p = srv_settings.SettingsStore(d)
         p.path.write_text(json.dumps({"context_guidance": "false"}), encoding="utf-8")
-        # 手写 "false" 反读 True——save 侧闸死非 bool，load 侧不解析
-        assert p.load()["context_guidance"] is True
+        # 手写 "false" 按 falsy 集读 False——与 save 侧非 bool 闸对称
+        assert p.load()["context_guidance"] is False
 
     def test_coercion_table(self, tmp_path: Path) -> None:
         for i, (raw, want) in enumerate(
-            ((False, False), (0, False), ("false", True), ("0", True), (1, True))
+            (
+                (False, False),
+                (0, False),
+                ("false", False),
+                ("0", False),
+                ("off", False),
+                (1, True),
+                ("yes", True),
+            )
         ):
             d = tmp_path / f"cfg{i}"
             d.mkdir()
@@ -363,7 +372,7 @@ class TestContextGuidanceCoercion:
 
 
 class TestListTasksPageTie:
-    """``list_tasks_page`` 无 ``, id`` tiebreak（OBSERVED——当前靠索引序兜底）。"""
+    """``list_tasks_page`` ``, id DESC`` 显式 tiebreak——并列时间戳分页稳定。"""
 
     def test_equal_created_at_pagination(self, tmp_path: Path) -> None:
         s = _store(tmp_path)
@@ -375,9 +384,18 @@ class TestListTasksPageTie:
             rows, total = s.list_tasks_page("local", limit=2, offset=off)
             assert total == len(ids)
             seen.extend(str(r["id"]) for r in rows)
-        # 钉住「并列 created_at 翻页不重不漏」——依赖隐式 rowid 序；
-        # 查询计划漂移（索引变更/统计更新）会先在这里炸响而非静默错位
+        # 钉住「并列 created_at 翻页不重不漏」——显式 tiebreak 保证，
+        # 不再依赖索引隐式 rowid 序
         assert sorted(seen) == sorted(ids)
+
+    def test_tiebreak_order_is_id_desc(self, tmp_path: Path) -> None:
+        """并列 created_at 时按 id DESC 收序——与 DESC 语义一致。"""
+        s = _store(tmp_path)
+        ids = [_mk(s) for _ in range(4)]
+        for tid in ids:
+            s.update_fields(tid, created_at=1000.0)
+        rows, _ = s.list_tasks_page("local", limit=10)
+        assert [r["id"] for r in rows] == sorted(ids, reverse=True)
 
 
 # ---------------------------------------------------------------- 正向不变量
