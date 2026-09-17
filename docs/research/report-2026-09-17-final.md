@@ -83,6 +83,7 @@
 **已裁决未做（下梯次，进排期）**：
 - peer1 序 3-5：font_cs_shim 新 builtin（fivmi 83-err，老 AMS 命名族普适）/ cs_rebind produced_by 子路径（§/ø TFM 产字）/ jinstpub stub（先盘点用量）；owrart.cls + `\bm`-CJK 守卫低值 backlog
 - retry.py 七钉缺陷（1e fuzz 产出，**字节丢失类**）：`_split_lines_scoped` 丢尾随 `\t`/`\xa0` 空白尾片 / `_make_slots` 丢 >SLOT_MAX_CHARS 纯空白片 / `_best_split` cs↔`{arg}` 原子断缺 / `_slots_round` 结算读可变 group 误记 no-answer / `max_tries=0` "unreachable" 可达 + 象形括号 ⟦⟧《》/零宽-only 槽值（PLAUSIBLE）
+- glossary 九钉缺陷（`59ddfb3`，xfail-strict）：**`_resolve_glossary_path` jail 逃逸族**——NUL→ValueError / ENAMETOOLONG→OSError / ELOOP 自环→RuntimeError 三类异常越狱（`options.glossary` 未校验用户输入经 app.py:876 可达，e-print tar 可植自环）；flatten_terms null 毒化（`en:~`→字面 "None" 进 prompt）；load_index terms_dir 逃逸（latent）；csv >128KiB 域炸；**sort_key 非全序→PYTHONHASHSEED 依赖注入序**（逐字节稳定=前缀缓存前提被破）
 - stagerun 调度层：safe_id 双拼写撞名去重（14 对 wid 撞名实证，math--0408287 复判被罩的元凶）——`--rerun` 下同 wid 串行或 id 归一
 - e2e.py:772 halt_on_error 两侧相反——权威侧裁决挂起
 - C-bucket 残面：127 partial（undefined_cs 48 → cs_targeted_fix 扩表 / syntax 37 / other 30）
