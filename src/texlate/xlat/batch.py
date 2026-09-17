@@ -3,8 +3,8 @@ r"""批量协议（docs/08 §1.3）：short 桶贪心装箱 + `[n]` 编号 + `@@
 - 分桶：`content < 300` 字符入批（short），否则逐条单翻（long）。
 - 装箱：short 桶顺序贪心 ≤2000 字符/批（含编号开销；按 token 控可放宽到 ~8000
   字符——成本实测 prompt 摊销占输入 68%，批阈值是最大杠杆，见 cost-model §4）。
-- 协议：请求 `[1] xxx\n[2] yyy`；响应优先按 `[n]` 解析，`@@` 分隔兜底；
-  数量不符/序号越界/解析失败 → `None`，调用方整批退化逐条单翻。
+- 协议：请求 `[1] xxx\n[2] yyy`；响应按行首锚定 `[n]` 解析，`@@` 独占行
+  分隔兜底；数量不符/序号越界/解析歧义 → `None`，调用方整批退化逐条单翻。
 - 跳过：纯占位符 chunk（`placeholders.is_placeholder_only`）不发请求。
 """
 
@@ -29,16 +29,24 @@ CHUNK_HARD_LIMIT = 6000
 
 T = TypeVar("T")
 
-#: 响应解析主协议：`[n]` 序号节——行首锚定版优先（译文里 `[12]` 引用号遍地
-#: 都是，非锚定会把正文 [n] 误当成员分隔符 → 多重集错位 → 整批退化单翻）。
+#: 响应解析主协议：`[n]` 序号节——只认行首锚定（译文里 `[12]` 引用号遍地
+#: 都是，行内 `[k]` 与协议序号在 token 层不可区分，非锚定切分是错配面）。
 _NUM_LINE_RX = re.compile(r"^\s*\[(\d+)\]", re.MULTILINE)
-#: 非锚定退路：模型把整批挤在一行输出时（`[1] a [2] b`）仍按编号切开。
-_NUM_RX = re.compile(r"\[(\d+)\]")
 #: `@@` 兜底分隔（独占一行的 @@；模型不按编号时 spec 允许此退路）
 _ATAT_LINE_RX = re.compile(r"^\s*@@\s*$", re.MULTILINE)
+#: 单行 `@@` 判定——编号段内协议残码剥除用
+_ATAT_ONLY_RX = re.compile(r"\s*@@\s*")
 #: `@@` 段的空槽判定：裸 `[n]` 序号桩 = 实质空译——同
 #: export.common.STUB_ONLY_RE 语义（xlat 不反向依赖 export，正则不贵）。
 _STUB_ONLY_RX = re.compile(r"\s*(?:\[\d+\]\s*)+")
+#: `@@` 段内的协议序号泄漏闸：非嵌套 `[k]`——`[[k]]` 双括号属占位符族字面、
+#: 不吃内层（`[k]` k∉{1..n} 不可能是序号分隔符，按引用号内容放行，见
+#: parse_batch_response 安全侧裁定）。
+_LEAKED_MARK_RX = re.compile(r"(?<!\[)\[(\d+)\](?!\])")
+#: 响应侧行界归一：`\r\n`/`\r`/VT/FF/NEL/U+2028/U+2029 统一按 `\n`——
+#: 行首锚定覆盖所有真实换行形态，模型裸发 Unicode 行界分隔序号时仍按
+#: 锚定路径解析（`\x1c`–`\x1e` 属 splitlines 超集但非行界语义，不收）。
+_EOL_RX = re.compile("\r\n|[\r\x0b\x0c\x85\u2028\u2029]")
 
 
 def pack_batches(
@@ -73,7 +81,12 @@ def encode_batch(contents: Sequence[str]) -> str:
 
 
 def _parse_numbered(text: str, n: int, rx: re.Pattern[str]) -> list[str] | None:
-    """按 ``rx`` 标号切：序号多重集须恰为 {1..n}（乱序归位），段段非空。"""
+    """按 ``rx`` 标号切：序号多重集须恰为 {1..n}（乱序归位），段段非空。
+
+    段内 ``@@`` 独占行按协议残码剥除——``@@`` 是 spec 兜底分隔符而非译文
+    内容，编号响应里混入的 ``@@`` 行保留原文即字面泄漏进 PDF；剥除后段空
+    视同空段，整批拒收。
+    """
     matches = list(rx.finditer(text))
     if not matches:
         return None
@@ -83,32 +96,44 @@ def _parse_numbered(text: str, n: int, rx: re.Pattern[str]) -> list[str] | None:
     out = [""] * n
     for i, m in enumerate(matches):
         end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
-        out[int(m.group(1)) - 1] = text[m.end() : end].strip()
+        seg = text[m.end() : end]
+        seg = "\n".join(ln for ln in seg.split("\n") if not _ATAT_ONLY_RX.fullmatch(ln))
+        out[int(m.group(1)) - 1] = seg.strip()
     return out if all(out) else None
 
 
 def parse_batch_response(text: str, n: int) -> list[str] | None:
     """解析批量响应为 n 段译文；失败返回 `None`（调用方整批退单翻）。
 
-    主协议 `[n]`：先试行首锚定匹配（免疫正文 `[12]` 引用号），不行再退
-    非锚定（单行全挤输出），最后 `@@` 独占行兜底。
+    主协议 `[n]`：只认行首锚定匹配（行内 `[12]` 引用号天然免疫）；编号
+    缺席时 `@@` 独占行兜底切分。
+
+    安全侧裁定——歧义一律 `None` 退单翻（烧调用），绝不静默错配/泄漏：
+
+    - 行内 `[k]` 不做编号解析：协议序号与正文引用号在 token 层不可区分
+      （`[1] 结果如文献 [2] 所示` 中 `[2]` 恰好凑齐多重集时，引用残段会
+      被静默配给成员 2 落进 PDF）。单行全挤/行内混编响应整体拒收。
+    - `@@` 段内出现非嵌套 `[k]`（1≤k≤n）按序号泄漏判歧义拒收——剥掉会
+      腐蚀真实引用号、保留则协议标记原文进译文，两头都不可接受；
+      `[0]`/`[k]`（k>n）/`[[k]]` 非序号形态，按内容字面放行。
     """
-    text = text.strip()
+    text = _EOL_RX.sub("\n", text).strip()
     if not text or n <= 0:
         return None
 
     out = _parse_numbered(text, n, _NUM_LINE_RX)
-    if out is None:
-        out = _parse_numbered(text, n, _NUM_RX)
     if out is not None:
         return out
 
     parts = [p.strip() for p in _ATAT_LINE_RX.split(text)]
     # 裸 `[n]` 桩段按空槽丢弃——否则 n=1 时 `[1]` 回显会原样漏成译文
     parts = [p for p in parts if p and not _STUB_ONLY_RX.fullmatch(p)]
-    if len(parts) == n and all(parts):
-        return parts
-    return None
+    if len(parts) != n:
+        return None
+    for part in parts:
+        if any(1 <= int(m.group(1)) <= n for m in _LEAKED_MARK_RX.finditer(part)):
+            return None
+    return parts
 
 
 def split_long_chunk(text: str, *, max_chars: int = CHUNK_HARD_LIMIT) -> list[str]:

@@ -2,24 +2,27 @@
 
 与 ``test_fuzz_xlat.py`` 的分工：那边是广撒网不变量（装箱划分 / 编解码往返 /
 垃圾输入只回 ``None`` / 编排对账 / 续跑）；本文件逐条钉「标记归属」语义——
-``[n]`` 行首锚定 vs 非锚定退路 vs ``@@`` 兜底的优先级与泄漏面、槽位过滤
+``[n]`` 行首锚定 vs ``@@`` 兜底的优先级与泄漏面、槽位过滤
 ``_valid_slot_text`` 逃逸形态、批内部分失败→单块回炉的请求形态与记账字段。
-每条断言注释都注明观测语义（observed semantics），缺陷级语义单独标注不修只登记。
+每条断言注释都注明观测语义（observed semantics）。
 
-登记的缺陷级语义（断言按现状钉，修复时翻转）：
+已修复的缺陷级语义（断言已翻转为修复后行为，留档备查）：
 
-- 单行非锚定退路错配（CONFIRMED wrong-attribution，``batch.py:36`` +
+- 单行非锚定退路错配（was CONFIRMED wrong-attribution，``batch.py:36`` +
   ``batch.py:102``）：模型把整批挤在一行且正文 ``[n]`` 引用号恰好凑齐
-  ``{1..n}`` 多重集时，``_NUM_RX`` 无法区分协议编号与引用号 → 静默错配，
-  且错配的散段散文不带占位符异常、顺过 ``diff`` 校验落进文档；
-- ``@@`` 兜底原样泄漏（``batch.py:106-110``）：编号解析失败后 ``@@`` 段
-  不剥 ``[n]`` 序号字面，标记原文进译文；``@@`` 行本身在编号路径里也按
-  字面保留在段内；
-- ``[[n]]`` 字面腐蚀（``batch.py:36``）：行首锚定不吃 ``[[``，非锚定却
-  匹配内层 ``[n]`` → 产出 ``]`` 残渣段；
-- ``_valid_slot_text`` 非规范槽形逃逸（``retry.py:44``/``retry.py:214``）：
-  ``⟪S1⟫``（<4 位）/``⟪s0000⟫``（小写）/``⟪S0000``（未闭合）全部放行，
-  畸形槽 token 原文可进装配译文。
+  ``{1..n}`` 多重集时，``_NUM_RX`` 无法区分协议编号与引用号 → 静默错配。
+  修复：非锚定编号解析整体撤除——单行/行内 ``[k]`` 与引用号在 token 层
+  不可区分，任何含 ``[k]`` 的非锚定响应都按歧义整批拒收退单翻；
+- ``@@`` 兜底原样泄漏（was ``batch.py:106-110``）：编号解析失败后 ``@@``
+  段不剥 ``[n]`` 序号字面，标记原文进译文；``@@`` 行本身在编号路径里也按
+  字面保留在段内。修复：``@@`` 段内非嵌套 ``[k]``（1≤k≤n）判协议残码
+  → 整批拒收；编号段内 ``@@`` 独占行按协议残码剥除；
+- ``[[n]]`` 字面腐蚀（was ``batch.py:36``）：行首锚定不吃 ``[[``，非锚定
+  却匹配内层 ``[n]`` → 产出 ``]`` 残渣段。修复：随非锚定路径一并消失，
+  ``[[k]]`` 属占位符族字面按内容放行；
+- ``_valid_slot_text`` 非规范槽形逃逸（was ``retry.py:44``/``retry.py:214``）：
+  ``⟪S1⟫``（<4 位）/``⟪s0000⟫``（小写）/``⟪S0000``（未闭合）全部放行。
+  修复：``⟪⟫[[ ]]`` 括号字符任一出现即拒，罩住全部非规范残码形。
 """
 
 from __future__ import annotations
@@ -230,10 +233,13 @@ class TestParseAnchored:
         out = xb.parse_batch_response("[1] line1\ncontinued\n[2] x", 2)
         assert out == ["line1\ncontinued", "x"]
 
-    def test_atat_line_inside_numbered_section_kept_literal(self) -> None:
-        # observed: 编号路径优先——``@@`` 独占行落在段内按字面保留
+    def test_atat_line_inside_numbered_section_stripped(self) -> None:
+        # observed: ``@@`` 独占行在编号段内按协议残码剥除——它是兜底分隔符
+        # 不是译文内容，保留即字面泄漏进 PDF
         out = xb.parse_batch_response("[1] a\n@@\n[2] b", 2)
-        assert out == ["a\n@@", "b"]
+        assert out == ["a", "b"]
+        # 剥除后段空 → 整批拒收（成员实质空译，歧义不可救）
+        assert xb.parse_batch_response("[1] @@\n[2] b", 2) is None
 
     def test_indented_and_tabbed_markers_consumed(self) -> None:
         # observed: ``^\s*`` 吃行首空白——缩进/Tab/空行前置的 [n] 仍是标记
@@ -245,9 +251,8 @@ class TestParseAnchored:
         # observed: \r\n 行尾落进前段被 strip 清掉，标记照常锚定
         assert xb.parse_batch_response("[1] a\r\n[2] b", 2) == ["a", "b"]
 
-    def test_u2028_falls_to_nonanchored(self) -> None:
-        # observed:   不是 ``^`` 的行界（MULTILINE 只认 \n）——该标记
-        # 退非锚定路径仍切开
+    def test_u2028_normalized_to_anchored(self) -> None:
+        # observed: \u2028/\u2029/\r 等行界先归一成 \n——标记走行首锚定路径
         out = xb.parse_batch_response("[1] a [2] b", 2)
         assert out == ["a", "b"]
 
@@ -322,45 +327,49 @@ class TestParseMultiset:
         assert xb.parse_batch_response("[1] a", -1) is None
 
 
-# ---------------------------------------------------------------- parse 非锚定退路（错配面）
+# ---------------------------------------------------------------- 行内 [n]（歧义拒收面）
 
 
 class TestParseNonAnchored:
-    def test_single_line_correct_split(self) -> None:
-        # observed: 单行 ``[1] a [2] b`` 非锚定退路按编号切对
-        out = xb.parse_batch_response("[1] first [2] second", 2)
-        assert out == ["first", "second"]
+    """非锚定编号解析已撤除——行内 ``[k]`` 与正文引用号 token 层不可区分。
+
+    任何含 ``[k]`` 的非锚定响应一律整批 ``None`` 退单翻：宁可烧调用也不
+    可静默错配/截断进 PDF。
+    """
+
+    def test_single_line_squeezed_rejected(self) -> None:
+        # observed: 单行 ``[1] a [2] b`` 不再按编号切——``[2]`` 可能是引用号
+        # 也可能是挤行分隔符，结构不可区分 → 歧义拒收
+        assert xb.parse_batch_response("[1] first [2] second", 2) is None
 
     def test_single_line_citation_misattribution(self) -> None:
-        """CONFIRMED wrong-attribution——按现状钉，修复时应翻转为整批 None。
+        """was CONFIRMED wrong-attribution——修复后整批 None。
 
         模型单行输出、成员 2 实际缺失、成员 1 译文自带 ``[2]`` 引用号凑齐
-        多重集 → 成员 2 静默分到引用残段。散文错配无占位符异常，e2e 直通校验。
+        多重集 → 旧码把引用残段配给成员 2。修复后行内 ``[n]`` 不解析，
+        响应经 ``@@`` 兜底仍含 ``[k]``(k∈{1..n}) 判协议泄漏 → 整批拒收。
         """
-        # observed: [1] 结果如文献 [2] 所示成立 → m1='结果如文献' m2='所示成立'
-        out = xb.parse_batch_response("[1] 结果如文献 [2] 所示成立", 2)
-        assert out == ["结果如文献", "所示成立"]
-        # n=3 同款：一条译文两个引用号凑齐 {1,2,3} → 三段皆错配
-        out3 = xb.parse_batch_response("[1] ref [2] and [3] here", 3)
-        assert out3 == ["ref", "and", "here"]
+        assert xb.parse_batch_response("[1] 结果如文献 [2] 所示成立", 2) is None
+        # n=3 同款：一条译文两个引用号凑齐 {1,2,3}
+        assert xb.parse_batch_response("[1] ref [2] and [3] here", 3) is None
 
-    def test_inline_marker_drops_prior_text(self) -> None:
-        # observed: n=1 行内 ``[1]`` → 标记前文本静默丢弃只收标记后段
-        assert xb.parse_batch_response("x [1] y", 1) == ["y"]
+    def test_inline_marker_with_head_rejected(self) -> None:
+        # observed: n=1 行内 ``[1]``——头文本是序言还是成员内容/``[1]`` 是
+        # 序号还是引用号不可区分 → 歧义拒收（退单翻重译即得正确译文）
+        assert xb.parse_batch_response("x [1] y", 1) is None
+        assert xb.parse_batch_response("参见文献 [1] 可知成立", 1) is None
 
-    def test_double_bracket_corruption(self) -> None:
-        # observed(PLAUSIBLE 缺陷): ``[[n]]`` 行首锚定不吃、非锚定吃内层
-        # ``[n]`` → 段首带 ``]`` 残渣且内容错位
-        out = xb.parse_batch_response("[[1]] a\n[[2]] b", 2)
-        assert out == ["] a\n[", "] b"]
-        out1 = xb.parse_batch_response("x [[1]] y", 1)
-        assert out1 == ["] y"]
+    def test_double_bracket_no_corruption(self) -> None:
+        # observed(was PLAUSIBLE 缺陷): ``[[n]]`` 行首锚定不吃，非锚定曾吃
+        # 内层 ``[n]`` 产 ``]`` 残渣——非锚定撤除后腐蚀面消失
+        assert xb.parse_batch_response("[[1]] a\n[[2]] b", 2) is None
+        # ``[[1]]`` 非序号形态（占位符族字面）：n=1 无协议歧义 → 原文收下
+        assert xb.parse_batch_response("x [[1]] y", 1) == ["x [[1]] y"]
 
-    def test_nonanchored_precedence_over_atat(self) -> None:
-        # observed: 解析顺序 = 锚定→非锚定→``@@``；非锚定成功即返、``@@``
-        # 独占行落进段内按字面保留
-        out = xb.parse_batch_response("x [1] p [2] q\n@@\nz", 2)
-        assert out == ["p", "q\n@@\nz"]
+    def test_atat_guard_rejects_leaked_markers(self) -> None:
+        # observed: ``@@`` 段内非嵌套 ``[k]``(k∈{1..n}) = 协议残码/引用号
+        # 歧义 → 整批拒收（was: 非锚定先行切走、``@@`` 行字面落段）
+        assert xb.parse_batch_response("x [1] p [2] q\n@@\nz", 2) is None
 
 
 # ---------------------------------------------------------------- parse @@ 兜底
@@ -372,18 +381,23 @@ class TestParseAtAt:
         assert xb.parse_batch_response("just some text", 1) == ["just some text"]
 
     def test_atat_verbatim_marker_leak(self) -> None:
-        """``@@`` 段不剥 ``[n]`` 字面——标记原文进译文（登记语义，不修）。"""
-        # observed: 编号多重集炸 → ``@@`` 段原样返回含 [1]/[2] 字面
-        out = xb.parse_batch_response("x [1] y [2] z", 1)
-        assert out == ["x [1] y [2] z"]
-        out2 = xb.parse_batch_response("x [1] y\n@@\nz", 2)
-        assert out2 == ["x [1] y", "z"]
+        """was ``@@`` 段不剥 ``[n]`` 字面标记原文进译文——修复后判泄漏拒收。"""
+        # observed: 段内非嵌套 ``[k]``(k∈{1..n}) → 歧义整批 None
+        assert xb.parse_batch_response("x [1] y [2] z", 1) is None
+        assert xb.parse_batch_response("x [1] y\n@@\nz", 2) is None
+        # k>n/[0]/[[k]] 非序号形态按内容放行——真引用号不受影响
+        assert xb.parse_batch_response("x [5] y", 1) == ["x [5] y"]
+        assert xb.parse_batch_response("见 [3] 文献\n@@\n乙", 2) == [
+            "见 [3] 文献",
+            "乙",
+        ]
+        assert xb.parse_batch_response("x [[1]] y", 1) == ["x [[1]] y"]
 
     def test_anchored_first_bracket_eats_rest(self) -> None:
-        # observed: ``[1][2][3]`` 行首锚定吃首个 ``[1]``——余下字面（含 ``@@``
-        # 行）全部并入该段
+        # observed: ``[1][2][3]`` 行首锚定吃首个 ``[1]``——余下字面并入该段
+        # （``@@`` 独占行按协议残码剥除）
         out = xb.parse_batch_response("[1][2][3]\n@@\nreal", 1)
-        assert out == ["[2][3]\n@@\nreal"]
+        assert out == ["[2][3]\nreal"]
 
     def test_atat_stub_drop_then_count(self) -> None:
         # observed: 裸 ``[n]`` 桩段先丢再数段——幸存段恰 n 仍收
@@ -439,15 +453,19 @@ class TestValidSlotText:
         assert not _vst("[[SL]]")
         assert not _vst("[[MATH]]")
 
-    def test_noncanonical_forms_escape(self) -> None:
-        """PLAUSIBLE 缺陷：非规范槽形逃过滤——畸形槽 token 可进装配译文。"""
-        # observed: <4 位数字/小写 s/未闭合/缺半边全放行（SLOT_NAME_RX 只罩规范形）
-        assert _vst("⟪S1⟫")
-        assert _vst("⟪S123⟫")
-        assert _vst("⟪s0000⟫")
-        assert _vst("⟪S0000")
-        assert _vst("S0000⟫")
-        assert _vst("[[math_1]]")  # 小写占位符形同理非 token
+    def test_noncanonical_forms_rejected(self) -> None:
+        """was PLAUSIBLE 缺陷：非规范槽形逃过滤——修复后括号字符出现即拒。"""
+        # observed: <4 位数字/小写 s/未闭合/缺半边/小写占位符全拒
+        # （``⟪⟫[[ ]]`` 任一出现 → 畸形 token 不放行进装配译文）
+        assert not _vst("⟪S1⟫")
+        assert not _vst("⟪S123⟫")
+        assert not _vst("⟪s0000⟫")
+        assert not _vst("⟪S0000")
+        assert not _vst("S0000⟫")
+        assert not _vst("[[math_1]]")
+        assert not _vst("[[1]]")
+        assert not _vst("x [[ y")
+        assert not _vst("x ]] y")
 
 
 class TestMakeSlots:
@@ -854,9 +872,10 @@ class TestPipelineBatch:
         assert res[0].translation == "a\nb"
 
     def test_single_line_misattribution_e2e(self) -> None:
-        """CONFIRMED wrong-attribution e2e——按现状钉，修复时应整批退单翻。"""
-        # observed: 单行 ``[1] .. [2] ..`` 响应 → 两成员各分半句、全 ok/batched
-        t = _T(lambda _u: "[1] 结果如文献 [2] 所示成立")
+        """was CONFIRMED wrong-attribution e2e——修复后整批退单翻。"""
+        # observed: 单行 ``[1] .. [2] ..`` 响应判歧义 → 全员各自走单翻
+        # （批 1 发 + 单 N 发），batched=False、batch_id 仍记批号
+        t = _T(lambda _u: "[1] 结果如文献 [2] 所示成立", lambda u: f"zh {u}")
         res = _run(
             [
                 xp.ChunkIn("m1", "First member text here", "para"),
@@ -864,10 +883,12 @@ class TestPipelineBatch:
             ],
             t,
         )
-        assert res[0].translation == "结果如文献"
-        assert res[1].translation == "所示成立"
-        assert all(r.status == "ok" and r.batched for r in res)
-        assert len(t.calls) == 1  # 零回炉——错配译文直落
+        assert [r.status for r in res] == ["ok", "ok"]
+        assert all(not r.batched for r in res)
+        assert {r.batch_id for r in res} == {"batch_0000"}
+        assert res[0].translation == "zh First member text here"
+        assert res[1].translation == "zh Second member text here"
+        assert len(t.calls) == 3  # noqa: PLR2004 -- 批 1 + 单翻 2
 
     def test_degraded_member_consults_cache(self) -> None:
         # observed: 批解析失败 → 回炉先查段级缓存，命中即免重发
@@ -917,8 +938,15 @@ class TestParseFuzz:
                 " ".join(rng.choice(words) for _ in range(rng.randint(1, 6)))
                 for _ in range(n)
             ]
-            # 良构前提：段内不出现行首 [digit] 形态
-            assert all(not re.search(r"(?m)^\s*\[\d", s) for s in secs)
+            # 良构前提：段内不出现行首 [digit] 形态、无 ``@@`` 独占段
+            # （``@@`` 独占行按协议残码剥除——剥后段空视同空段整批拒收，
+            # ``a @@ b`` 行内形按内容字面收不受影响）；生成器能产出
+            # ``@@`` 独字段，违例轮跳过而非 assert
+            if any(
+                re.search(r"(?m)^\s*\[\d", s) or re.fullmatch(r"\s*@@\s*", s)
+                for s in secs
+            ):
+                continue
             order = list(range(n))
             rng.shuffle(order)
             body = "\n".join(f"[{i + 1}] {secs[i]}" for i in order)

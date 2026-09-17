@@ -73,11 +73,11 @@ class TestEncodeParse:
         out = batch.parse_batch_response(raw, 2)
         assert out == ["参见 [12] 的研究", "结果表明 [3,4] 一致"]
 
-    def test_parse_single_line_fallback(self) -> None:
-        """模型把整批挤在一行（``[1] a [2] b``）时非锚定退路仍按编号切。"""
+    def test_parse_single_line_squeezed_rejected(self) -> None:
+        """单行全挤（``[1] a [2] b``）与引用陷阱 token 层不可分——整批拒收。"""
         raw = "[1] 第一段 [2] 第二段 [3] 第三段"
         out = batch.parse_batch_response(raw, 3)
-        assert out == ["第一段", "第二段", "第三段"]
+        assert out is None
 
     def test_atat_fallback_drops_bare_ordinal_stub(self) -> None:
         """``@@`` 兜底把裸 ``[n]`` 序号桩当空槽——``[1]`` 回显不得漏成译文。"""

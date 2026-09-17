@@ -248,7 +248,8 @@ def test_fuzz_batch_encode_parse_roundtrip() -> None:
             s
             for _ in range(rng.randint(1, 8))
             if (s := _gen_soup_text(rng, _CODEC_SOUP, 1, 8))
-            and ph.encode_newlines(s)[0].strip()
+            # 独段 ``@@`` 成员上线即成残码行（剥除→段空→整批拒收），生成面排除
+            and ph.encode_newlines(s)[0].strip() not in ("", "@@")
         ]
         if not contents:
             continue

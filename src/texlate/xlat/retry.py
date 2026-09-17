@@ -42,6 +42,9 @@ log = logging.getLogger(__name__)
 SLOT_PREFIX = "⟪S"
 SLOT_SUFFIX = "⟫"
 SLOT_NAME_RX = re.compile(r"⟪S\d{4,}⟫")
+#: 槽/占位符 token 的括号字符集——``_valid_slot_text`` 按字符出现拒收，
+#: 罩住规范形与非规范残码（texglot 同款过滤的超集）。
+_SLOT_PH_BRACKETS = ("⟪", "⟫", "[[", "]]")
 #: 每批槽位数（docs/08:113）
 SLOTS_PER_BATCH = 8
 #: slots 模式单槽最大字符（过长槽按 batch.split_long_chunk 句界二分）
@@ -212,12 +215,16 @@ def _make_slots(encoded: str) -> tuple[dict[str, str], list[tuple[str, str]]]:
 
 
 def _valid_slot_text(v: object) -> bool:
-    """槽译文合法性：非空字符串、不含槽位 token、不含占位符 token（texglot 同款）。"""
+    """槽译文合法性：非空字符串、无槽位/占位符 token 形态（含非规范变体）。
+
+    规范槽位是 ``⟪S0000⟫``、占位符是 ``[[X]]`` 系；模型回显的残码不限
+    规范形（``⟪S1⟫``/``⟪s0000⟫``/未闭合半边/``[[math_1]]`` 小写态），
+    括号字符 ``⟪⟫[[ ]]`` 任一出现即拒——畸形 token 放行会原文进装配译文。
+    """
     return (
         isinstance(v, str)
         and bool(v.strip())
-        and SLOT_NAME_RX.search(v) is None
-        and ANY_PH_RX.search(v) is None
+        and not any(m in v for m in _SLOT_PH_BRACKETS)
     )
 
 
