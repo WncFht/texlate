@@ -45,3 +45,13 @@ compile:partial→fixloop clean 16。
   /tmp/recut2-ids.txt 与 nonkeyarg 差集）。
 - 7 格 nonkeyarg 终态 nopdf：6 fixloop:fail + 1 compile:reject，签名已随
   join.txt 供攻坚池。
+
+## 4. keyarg 尾批（fixer-keyarg `d1c4655` 落地后补跑，同日）
+
+24 格同链四段：parse 24 ok / compile clean 19·partial 3·fail 2 /
+fixloop nonclean 5 格全救（clean 4 + best_effort 1）→ **end-state pdf 24/24**。
+全集 scorecard（5117 格口径，他线仍在写入）：pdf 97.38%、clean 82.74%。
+
+join 终版 batch 分布：nonkeyarg_ran 438（431 pdf）+ keyarg_ran 24（24 pdf）
++ regression_addon 3（1 pdf）——合计 462+3 格，pdf 456/465=98.1%。
+recut2 manifest 全量收官。

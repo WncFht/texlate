@@ -145,7 +145,7 @@
   "compile": "clean",
   "fixloop": "partial",
   "fixloop_csb_match": false,
-  "batch": "keyarg_held",
+  "batch": "keyarg_ran",
   "fix_sig": "best_effort_pdf:german",
   "end_pdf": true
  },
@@ -365,7 +365,7 @@
   "compile": "fail",
   "fixloop": "clean",
   "fixloop_csb_match": true,
-  "batch": "keyarg_held",
+  "batch": "keyarg_ran",
   "fix_sig": "",
   "end_pdf": true
  },
@@ -545,7 +545,7 @@
   "compile": "clean",
   "fixloop": "partial",
   "fixloop_csb_match": false,
-  "batch": "keyarg_held",
+  "batch": "keyarg_ran",
   "fix_sig": "acceptable_pdf",
   "end_pdf": true
  },
@@ -775,7 +775,7 @@
   "compile": "clean",
   "fixloop": "partial",
   "fixloop_csb_match": false,
-  "batch": "keyarg_held",
+  "batch": "keyarg_ran",
   "fix_sig": "acceptable_pdf",
   "end_pdf": true
  },
@@ -855,7 +855,7 @@
   "compile": "clean",
   "fixloop": "NO_FIXLOOP",
   "fixloop_csb_match": false,
-  "batch": "keyarg_held",
+  "batch": "keyarg_ran",
   "fix_sig": null,
   "end_pdf": true
  },
@@ -965,7 +965,7 @@
   "compile": "clean",
   "fixloop": "fail",
   "fixloop_csb_match": false,
-  "batch": "keyarg_held",
+  "batch": "keyarg_ran",
   "fix_sig": "unfixable:undefined_cs:variorefoptionifavailable",
   "end_pdf": true
  },
@@ -1035,7 +1035,7 @@
   "compile": "clean",
   "fixloop": "partial",
   "fixloop_csb_match": false,
-  "batch": "keyarg_held",
+  "batch": "keyarg_ran",
   "fix_sig": "acceptable_pdf",
   "end_pdf": true
  },
@@ -1165,7 +1165,7 @@
   "compile": "partial",
   "fixloop": "clean",
   "fixloop_csb_match": true,
-  "batch": "keyarg_held",
+  "batch": "keyarg_ran",
   "fix_sig": "",
   "end_pdf": true
  },
@@ -1725,7 +1725,7 @@
   "compile": "fail",
   "fixloop": "clean",
   "fixloop_csb_match": true,
-  "batch": "keyarg_held",
+  "batch": "keyarg_ran",
   "fix_sig": "",
   "end_pdf": true
  },
@@ -1845,7 +1845,7 @@
   "compile": "clean",
   "fixloop": "partial",
   "fixloop_csb_match": false,
-  "batch": "keyarg_held",
+  "batch": "keyarg_ran",
   "fix_sig": "best_effort_pdf:itmultimodal",
   "end_pdf": true
  },
@@ -2605,7 +2605,7 @@
   "compile": "clean",
   "fixloop": "NO_FIXLOOP",
   "fixloop_csb_match": false,
-  "batch": "keyarg_held",
+  "batch": "keyarg_ran",
   "fix_sig": null,
   "end_pdf": true
  },
@@ -3155,7 +3155,7 @@
   "compile": "clean",
   "fixloop": "NO_FIXLOOP",
   "fixloop_csb_match": false,
-  "batch": "keyarg_held",
+  "batch": "keyarg_ran",
   "fix_sig": null,
   "end_pdf": true
  },
@@ -3455,7 +3455,7 @@
   "compile": "clean",
   "fixloop": "NO_FIXLOOP",
   "fixloop_csb_match": false,
-  "batch": "keyarg_held",
+  "batch": "keyarg_ran",
   "fix_sig": null,
   "end_pdf": true
  },
@@ -3525,7 +3525,7 @@
   "compile": "clean",
   "fixloop": "NO_FIXLOOP",
   "fixloop_csb_match": false,
-  "batch": "keyarg_held",
+  "batch": "keyarg_ran",
   "fix_sig": null,
   "end_pdf": true
  },
@@ -3535,7 +3535,7 @@
   "compile": "clean",
   "fixloop": "NO_FIXLOOP",
   "fixloop_csb_match": false,
-  "batch": "keyarg_held",
+  "batch": "keyarg_ran",
   "fix_sig": null,
   "end_pdf": true
  },
@@ -3665,7 +3665,7 @@
   "compile": "clean",
   "fixloop": "clean",
   "fixloop_csb_match": false,
-  "batch": "keyarg_held",
+  "batch": "keyarg_ran",
   "fix_sig": "",
   "end_pdf": true
  },
@@ -3995,7 +3995,7 @@
   "compile": "partial",
   "fixloop": "partial",
   "fixloop_csb_match": true,
-  "batch": "keyarg_held",
+  "batch": "keyarg_ran",
   "fix_sig": "best_effort_pdf:reset@color",
   "end_pdf": true
  },
@@ -4231,13 +4231,13 @@
  },
  {
   "id": "hep-ex--0307068",
-  "parse": "NO_PARSE",
-  "compile": "NO_COMPILE",
+  "parse": "ok",
+  "compile": "clean",
   "fixloop": "NO_FIXLOOP",
   "fixloop_csb_match": false,
-  "batch": "keyarg_held",
+  "batch": "keyarg_ran",
   "fix_sig": null,
-  "end_pdf": false
+  "end_pdf": true
  },
  {
   "id": "hep-ex--9910040",
@@ -4341,13 +4341,13 @@
  },
  {
   "id": "hep-th--0104060",
-  "parse": "NO_PARSE",
-  "compile": "NO_COMPILE",
+  "parse": "ok",
+  "compile": "clean",
   "fixloop": "NO_FIXLOOP",
   "fixloop_csb_match": false,
-  "batch": "keyarg_held",
+  "batch": "keyarg_ran",
   "fix_sig": null,
-  "end_pdf": false
+  "end_pdf": true
  },
  {
   "id": "hep-th--0104130",
@@ -4361,13 +4361,13 @@
  },
  {
   "id": "hep-th--0104151",
-  "parse": "NO_PARSE",
-  "compile": "NO_COMPILE",
+  "parse": "ok",
+  "compile": "clean",
   "fixloop": "NO_FIXLOOP",
   "fixloop_csb_match": false,
-  "batch": "keyarg_held",
+  "batch": "keyarg_ran",
   "fix_sig": null,
-  "end_pdf": false
+  "end_pdf": true
  },
  {
   "id": "hep-th--0408064",
@@ -4381,23 +4381,23 @@
  },
  {
   "id": "hep-th--0501153",
-  "parse": "NO_PARSE",
-  "compile": "NO_COMPILE",
+  "parse": "ok",
+  "compile": "clean",
   "fixloop": "NO_FIXLOOP",
   "fixloop_csb_match": false,
-  "batch": "keyarg_held",
+  "batch": "keyarg_ran",
   "fix_sig": null,
-  "end_pdf": false
+  "end_pdf": true
  },
  {
   "id": "hep-th--0501177",
-  "parse": "NO_PARSE",
-  "compile": "NO_COMPILE",
+  "parse": "ok",
+  "compile": "clean",
   "fixloop": "NO_FIXLOOP",
   "fixloop_csb_match": false,
-  "batch": "keyarg_held",
+  "batch": "keyarg_ran",
   "fix_sig": null,
-  "end_pdf": false
+  "end_pdf": true
  },
  {
   "id": "hep-th--0605038",
@@ -4431,23 +4431,23 @@
  },
  {
   "id": "hep-th--9910190",
-  "parse": "NO_PARSE",
-  "compile": "NO_COMPILE",
+  "parse": "ok",
+  "compile": "clean",
   "fixloop": "NO_FIXLOOP",
   "fixloop_csb_match": false,
-  "batch": "keyarg_held",
+  "batch": "keyarg_ran",
   "fix_sig": null,
-  "end_pdf": false
+  "end_pdf": true
  },
  {
   "id": "math--0104225",
-  "parse": "NO_PARSE",
-  "compile": "NO_COMPILE",
-  "fixloop": "NO_FIXLOOP",
-  "fixloop_csb_match": false,
-  "batch": "keyarg_held",
-  "fix_sig": null,
-  "end_pdf": false
+  "parse": "ok",
+  "compile": "partial",
+  "fixloop": "clean",
+  "fixloop_csb_match": true,
+  "batch": "keyarg_ran",
+  "fix_sig": "",
+  "end_pdf": true
  },
  {
   "id": "math--0104250",
