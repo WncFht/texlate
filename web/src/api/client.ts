@@ -199,7 +199,8 @@ export type FileKind =
     | "zh.docx"
     | "zh.epub"
     | "en.html"
-    | "zh.html";
+    | "zh.html"
+    | "src.html";
 
 /** db kind → URL kind（files manifest / snapshot.artifacts / done.artifacts 的键均为 db kind） */
 export const DB_TO_URL_KIND: Record<string, FileKind> = {
@@ -215,6 +216,7 @@ export const DB_TO_URL_KIND: Record<string, FileKind> = {
     zh_epub: "zh.epub",
     en_html: "en.html",
     zh_html: "zh.html",
+    src_html: "src.html",
 };
 
 export interface FileEntry {

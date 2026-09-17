@@ -49,6 +49,32 @@ _DATA_URI_RX = re.compile(r"^\s*data\s*:", re.IGNORECASE)
 _URL_ATTRS = ("href", "src", "action", "poster", "data", "xlink:href")
 
 
+def _bad_url(el_name: str, url: str) -> bool:
+    """危险 scheme 判：js/vbs 全禁；data: 仅 ``<img>`` 的 ``data:image/`` 放行。"""
+    if _BAD_SCHEME_RX.match(url):
+        return True
+    return bool(
+        _DATA_URI_RX.match(url)
+        and not (el_name == "img" and url.lstrip().lower().startswith("data:image/"))
+    )
+
+
+def _abs_srcset(el_name: str, srcset: str, base_url: str) -> str:
+    """srcset 候选表逐条过 scheme 检查 + 相对化（``url [desc]`` 逗号分隔）。"""
+    out = []
+    for cand in srcset.split(","):
+        parts = cand.strip().split()
+        if not parts:
+            continue
+        url, *desc = parts
+        if _bad_url(el_name, url):
+            continue  # 危险 scheme 整条候选剔除
+        if not url.startswith(("http://", "https://", "#", "mailto:")):
+            url = urljoin(base_url, url)
+        out.append(" ".join([url, *desc]))
+    return ", ".join(out)
+
+
 def _resolved_version(html: str, base: str) -> int | None:
     """canonical/self-link 里的 ``/abs/{base}vN`` → 钉版号（best-effort）。"""
     m = re.search(rf"arxiv\.org/(?:abs|html)/{re.escape(base)}v(\d+)", html)
@@ -310,16 +336,13 @@ class _Html:
                 v = el.get(attr)
                 if not isinstance(v, str) or not v:
                     continue
-                if _BAD_SCHEME_RX.match(v) or (
-                    _DATA_URI_RX.match(v)
-                    and not (
-                        el.name == "img"
-                        and v.lstrip().lower().startswith("data:image/")
-                    )
-                ):
+                if _bad_url(el.name, v):
                     del el[attr]
                 elif not v.startswith(("http://", "https://", "#", "mailto:")):
                     el[attr] = urljoin(base_url, v)
+            srcset = el.get("srcset")
+            if isinstance(srcset, str) and srcset.strip():
+                el["srcset"] = _abs_srcset(el.name, srcset, base_url)
 
     def _build_dual_html(self, ctx: TaskCtx) -> None:
         """dual.json html 变体（对位 ``_build_dual``）。
