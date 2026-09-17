@@ -168,10 +168,10 @@ def test_find_docclass_ends_macro_body_only() -> None:
 
 
 def test_find_docclass_ends_single_line_conditional() -> None:
-    r"""单行 ``\ifpdf\documentclass{a}\else\documentclass{b}\fi`` → 去重后一缝（行尾）。"""
+    r"""单行 ``\ifpdf\documentclass{a}\else\documentclass{b}\fi`` → 两臂各一缝（``}`` 后即插）。"""
     tex = "\\ifpdf\\documentclass{a}\\else\\documentclass{b}\\fi\n\\begin{document}x\n"
     hits = find_docclass_ends(tex)
-    assert len(hits) == 1
+    assert len(hits) == 2  # noqa: PLR2004 -- 臂内 close 缝各一，哨兵兜双执行
 
 
 def test_inject_cjk_branch_block_idempotent() -> None:

@@ -43,8 +43,13 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 _DOCSTYLE_RE = re.compile(
-    r"\\documentstyle(?![a-zA-Z])(?:\s*\[([^\]]*)\])?\s*\{([^}]*)\}"
+    r"\\documentstyle(?![a-zA-Z@])(?:\s*\[([^\]]*)\])?\s*\{([^}]*)\}"
 )
+
+#: 残余 ``\documentstyle`` 记号清扫（仅命令名，实参不动）——转换只升级
+#: 首个深度 0 声明，宏体/分支里剩下的同名命令逐 token 改名 ``\documentclass``，
+#: 免得 compat 模式下二次声明照样炸（fuzz I5）。
+_DS_TOKEN_RE = re.compile(r"\\documentstyle(?![a-zA-Z@])")
 
 #: 选项名/类名的 glob 安全字符集——进 ``root.rglob`` 模式串前必须过闸。
 _GLOB_SAFE_RE = re.compile(r"[A-Za-z0-9_.+-]+")
@@ -393,16 +398,44 @@ def _route_opts(
     return cls_opts, pkg_opts, shipped, stripped
 
 
+def _primary_docstyle(vis: str) -> re.Match[str] | None:
+    r"""首个 brace 深度 0 的 ``\documentstyle``——真声明点。
+
+    深度>0 命中（``\newcommand{\ds}{\documentstyle{..}}`` 宏体、``\ifmain{..}``
+    实参）不是声明点——全文搜首个会把 COMPAT_SHIM 塞进 def 体（fuzz I5）。
+    与 inject.find_docclass_ends 同款深度走查（latex209 不能反依赖 inject）。
+    """
+    depth = 0
+    pos = 0
+    for m in _DOCSTYLE_RE.finditer(vis):
+        while pos < m.start():
+            c = vis[pos]
+            if c == "\\":
+                pos += 2
+                continue
+            if c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+            pos += 1
+        pos = m.end()
+        if depth == 0:
+            return m
+    return None
+
+
 def upgrade_209(tex: str, *, root: Path | None = None) -> tuple[str, dict]:
-    r"""首个非注释 ``\documentstyle`` 升级为 2e 形态；返回 ``(new_tex, info)``。
+    r"""首个深度 0 ``\documentstyle`` 升级为 2e 形态；返回 ``(new_tex, info)``。
 
     ``root`` 提供工程树（可选）：选项位检出随源 ``<opt>.sty`` 进 ``\usepackage``；
     未映射类名检出随源 ``<cls>.sty/.cls`` 且含 ``ds@`` 定义 → 拒转。
+    残余的活 ``\documentstyle`` 记号（宏体/次分支）逐 token 改名
+    ``\documentclass``——compat 下二次声明照样非法。
 
     ``info["status"]`` ∈ ``converted`` / ``reject`` / ``no-docstyle``；``reject``
     时 ``info["reason"]`` 供 inject 层记 ``inject_reject:<reason>``。
     """
-    m = _DOCSTYLE_RE.search(visible_tex(tex))
+    m = _primary_docstyle(visible_tex(tex))
     if m is None:
         return tex, {"status": "no-docstyle"}
     cls = m.group(2).strip()
@@ -443,6 +476,10 @@ def upgrade_209(tex: str, *, root: Path | None = None) -> tuple[str, dict]:
         # \footheight/\ifoldfss 等定义（2501.05407 nips.sty 实证）。
         lines.append("\\usepackage{" + ",".join(pkg_opts) + "}")
     new_tex = tex[: m.start()] + "\n".join(lines) + tex[m.end() :]
+    # 残余 \documentstyle 记号改名（遮盖视图定位、原文回填，倒序保 offset）。
+    vis2 = visible_tex(new_tex)
+    for dm in reversed([*_DS_TOKEN_RE.finditer(vis2)]):
+        new_tex = new_tex[: dm.start()] + "\\documentclass" + new_tex[dm.end() :]
     return new_tex, {
         "status": "converted",
         "orig": tex[m.start() : m.end()],

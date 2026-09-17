@@ -135,7 +135,9 @@ def _assert_seam_invariants(tex: str) -> list[tuple[int, int, str]]:
     for pos, lineno, _cmd in hits:
         assert pos > prev
         prev = pos
-        assert pos == len(tex) or tex[pos] == "\n"
+        # 行尾缝落 ``\n``/EOF；行内 ``}``-close 缝（同行活代码或逐字环境
+        # opener 挡路时）落 ``}`` 后——两种位形都合法。
+        assert pos == len(tex) or tex[pos] == "\n" or tex[pos - 1] == "}"
         assert lineno == tex[:pos].count("\n") + 1
     return hits
 
@@ -251,8 +253,9 @@ def test_seam_multi_decl_and_dedup() -> None:
     assert len(_assert_seam_invariants(two)) == 2  # noqa: PLR2004
     dead = "\\iffalse\n\\documentclass{dead}\n\\fi\n\\documentclass{live}\n" + _DOC
     assert len(_assert_seam_invariants(dead)) == 2  # noqa: PLR2004
+    # 同行双臂：两臂各有 ``}``-close 缝（块落各自臂内，哨兵兜双执行）。
     same_line = "\\ifpdf\\documentclass{a}\\else\\documentclass{b}\\fi\n" + _DOC
-    assert len(_assert_seam_invariants(same_line)) == 1
+    assert len(_assert_seam_invariants(same_line)) == 2  # noqa: PLR2004
     trailing = "\\documentclass{article}\n" + _DOC + "\\documentclass{late}\n"
     hits = _assert_seam_invariants(trailing)
     assert len(hits) == 2  # noqa: PLR2004
@@ -472,16 +475,7 @@ def test_inject_ds_shipped_sty_ds_at_rejects(tmp_path: Path) -> None:
 # --------------------------------------------------------------- 钉样缺陷
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "inject.py:620 `insert = len(tex) if eol < 0 else eol`——docclass "
-        "`}`-close 之后没有任何 `\\n`（单行文档 / 声明尾行后无换行）时块被"
-        "追加到文件末尾、落在 `\\end{document}` 之后成死代码 → 中文静默缺失"
-        "（A 桶同型：注入物进死代码）。修法：eol<0 时在 close（`}` 后）插入。"
-    ),
-)
-def test_xfail_single_line_doc_block_dead() -> None:
+def test_single_line_doc_block_dead() -> None:
     r"""单行文档：注入块必须落在 ``\end{document}`` 之前。"""
     tex = "\\documentclass{article}\\begin{document}x\\end{document}"
     out, info = inject_cjk(tex)
@@ -489,17 +483,7 @@ def test_xfail_single_line_doc_block_dead() -> None:
     assert out.index("fontset=fandol") < out.index("\\end{document}")
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "inject.py:552-580 `_docclass_close` 对 `\\documentclass` 后的实参做"
-        "无界前扫——首个非空白 token 非 `[`/`{` 时（`\\documentclass\\cls` "
-        "宏实参形态、裸声明）仍吞掉任意远处的 `{...}` 当类名：此处吞了 "
-        "`\\begin{document}` 的花括号 → 缝落在 enddoc 行尾 → 注入块全灭。"
-        "修法：扫描在首个非 `[{`/换行 token 处收口回退行尾缝。"
-    ),
-)
-def test_xfail_docclass_macro_arg_scan_overreach() -> None:
+def test_docclass_macro_arg_scan_overreach() -> None:
     r"""``\documentclass\cls``（类名走宏）的缝应在声明行，而非远处 ``{..}`` 后。"""
     tex = (
         "\\def\\cls{article}\n\\documentclass\\cls\n\\begin{document}x\\end{document}\n"
@@ -510,16 +494,7 @@ def test_xfail_docclass_macro_arg_scan_overreach() -> None:
     assert out.index("fontset=fandol") < out.index("\\end{document}")
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "inject.py:615 `close < len(vis)` 守卫把 `}`-at-EOF 误判为无花括号——"
-        '落入裸缝兜底 `find("\\n", m.end())`，命中声明内部的换行 → '
-        "`\\documentclass\\n<BLOCK>\\n{article}` 劈断声明，类名实参成孤儿。"
-        "修法：仅 `vis[close-1]=='}'` 判收，与 close==len 兼容。"
-    ),
-)
-def test_xfail_close_brace_at_eof_splits_decl() -> None:
+def test_close_brace_at_eof_splits_decl() -> None:
     r"""``\documentclass\n{article}``（``}`` 为文件末字节）不得劈断声明。"""
     tex = "\\documentclass\n{article}"
     hits = find_docclass_ends(tex)
@@ -532,15 +507,7 @@ def test_xfail_close_brace_at_eof_splits_decl() -> None:
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "inject.py:616-622 缝落 ``}`` 行尾——同行后开的 verbatim/lstlisting "
-        "环境吞掉后续行：注入块落进环境体成字面文本（死注）。修法：插点取 "
-        "close（`}` 后）而非行尾，或检测行尾开启的逐字/失活环境。"
-    ),
-)
-def test_xfail_verbatim_env_swallows_block() -> None:
+def test_verbatim_env_swallows_block() -> None:
     r"""docclass 行尾开 ``\begin{verbatim}``——块不得落进环境体。"""
     tex = (
         "\\documentclass{a}\\begin{verbatim}\nblah\n\\end{verbatim}\n"
@@ -550,18 +517,7 @@ def test_xfail_verbatim_env_swallows_block() -> None:
     assert out.index("fontset=fandol") < out.index("\\begin{verbatim}")
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "latex209.py:405 `_DOCSTYLE_RE.search(visible_tex(tex))` 无 brace "
-        "深度检查——首个 `\\documentstyle` 命中坐在 `\\newcommand` 宏体内"
-        "（find_docclass_ends 会跳过它），升级器却改写宏体：真 "
-        "`\\documentstyle{article}` 原样残留，且其缝仍吃到 `\\usepackage`"
-        "（209 compat 下非法）+ def 体被 COMPAT_SHIM 撑爆。修法：用"
-        " find_docclass_ends 的深度感知缝位传给升级器。"
-    ),
-)
-def test_xfail_upgrade209_macro_body_misconvert() -> None:
+def test_upgrade209_macro_body_misconvert() -> None:
     r"""宏体内的 ``\documentstyle`` 不得被升级——真声明才是转换目标。"""
     tex = "\\newcommand{\\ds}{\\documentstyle{junk}}\n\\documentstyle{article}\n" + _DOC
     out, _info = inject_cjk(tex)
@@ -569,17 +525,7 @@ def test_xfail_upgrade209_macro_body_misconvert() -> None:
     assert "\\documentclass{article}" in out
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "inject.py:711-712 FLOAT_SIZING 注入要求 ``documentclass`` 与 "
-        "``\\begin{document}`` 同文件——编排壳 main（find_main_tex 显式收录"
-        "的 cs/0408015/2105.00092 形态：dc 在 main.tex、bd 在 \\input 子文件）"
-        "工程含 figure 也拿不到溢高 float 钩子（实测返回 0）。修法：dc+bd "
-        "不全的文件回退文件顶/缝后位置。"
-    ),
-)
-def test_xfail_float_sizing_shell_main_gap(tmp_path: Path) -> None:
+def test_float_sizing_shell_main_gap(tmp_path: Path) -> None:
     r"""编排壳工程（dc 在 main、bd+figure 在 ``\input`` 子文件）也要 float 钩子。"""
     (tmp_path / "main.tex").write_text("\\documentclass{article}\n\\input{body}\n")
     (tmp_path / "body.tex").write_text(
@@ -588,17 +534,7 @@ def test_xfail_float_sizing_shell_main_gap(tmp_path: Path) -> None:
     assert inject_float_sizing(tmp_path) == 1
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        'inject.py:456 `p.suffix.lower() == ".tex"`（classify_no_main:531 '
-        "同闸）——``.ltx`` 主文件不可见：find_main_tex 拒收真 LaTeX 主档，"
-        "classify_no_main 把全 .ltx 工程归 ``garbage``（mask.py:19 "
-        "TEX_SOURCE_SUFFIXES 已把 .ltx 计为 TeX 源——双闸口径漂移）。"
-        "修法：后缀集对齐 TEX_SOURCE_SUFFIXES 或至少补 .ltx。"
-    ),
-)
-def test_xfail_ltx_main_invisible(tmp_path: Path) -> None:
+def test_ltx_main_invisible(tmp_path: Path) -> None:
     """``.ltx`` 真 LaTeX 主档应可定位。"""
     (tmp_path / "paper.ltx").write_text(
         "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n"
@@ -606,16 +542,7 @@ def test_xfail_ltx_main_invisible(tmp_path: Path) -> None:
     assert find_main_tex(tmp_path) is not None
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "inject.py:271 `_DOC_RE` lookahead `(?![a-zA-Z])` 放行 `@`——"
-        "`\\makeatletter` 语境下 `\\documentclass@hook` 是独立控制序列而非"
-        "声明，却计作缝 → 无 docclass 文件被报 ``injected``（locate.py 用更"
-        "严 `(?![a-zA-Z@])`——inject 侧后果实例）。修法：lookahead 补 `@`。"
-    ),
-)
-def test_xfail_at_hook_phantom_seam() -> None:
+def test_at_hook_phantom_seam() -> None:
     r"""``\documentclass@hook`` 宏定义不应计作声明缝。"""
     tex = (
         "\\makeatletter\n\\def\\documentclass@hook#1{#1}\n\\makeatother\n"
@@ -625,18 +552,7 @@ def test_xfail_at_hook_phantom_seam() -> None:
     assert info["status"] == "no-docline"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        'inject.py:461 候选闸 ``re.search(r"\\\\(?:documentclass|'
-        'documentstyle)\\b", text)`` 无 brace 深度检查 vs '
-        "find_docclass_ends 有——唯一 docclass 藏在 `\\newcommand` 体内的"
-        "文件被收为 main 却永远 ``no-docline``：``\\doc`` 展开即真声明、"
-        "文件可编译，但注入层无安全缝 → 可编译文档静默零注入。修法：闸与缝"
-        "用同一深度口径（或降级此类候选）。"
-    ),
-)
-def test_xfail_macro_body_dc_unseamable(tmp_path: Path) -> None:
+def test_macro_body_dc_unseamable(tmp_path: Path) -> None:
     r"""宏包声明形态（``\doc`` 展开为 ``\documentclass``）的 main 也应可注入。"""
     (tmp_path / "x.tex").write_text(
         "\\newcommand{\\doc}{\\documentclass{article}}\n\\doc\n"
@@ -772,12 +688,12 @@ def test_classify_buckets(tmp_path: Path) -> None:
     assert classify_no_main(tmp_path) == "garbage"
     f.write_text("\\end{center}\nsome text\n")
     assert classify_no_main(tmp_path) == "garbage"
-    # ``.ltx`` 树归 garbage——characterization（同 I7 闸口径漂移）。
+    # ``.ltx`` 主档计数为真 main——I7 修复后闸口径与 TEX_SOURCE_SUFFIXES 对齐。
     f.unlink()
     (tmp_path / "doc.ltx").write_text(
         "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n"
     )
-    assert classify_no_main(tmp_path) == "garbage"
+    assert classify_no_main(tmp_path) is None
 
 
 # ------------------------------------------- float_sizing / table_fitting
@@ -927,11 +843,12 @@ def test_prepare_encoding_and_arg_forms(tmp_path: Path) -> None:
 
 
 def test_prepare_shell_main_gaps(tmp_path: Path) -> None:
-    r"""编排壳工程 prepare 全链（characterization，I6 同族覆盖口）。
+    r"""编排壳工程 prepare 全链（I6 修复后覆盖口）。
 
     dc 在 main、bd+figure+threeparttable 在 ``\input`` 子文件：ctex 注入
-    落在 main（缝在）；FLOAT_SIZING 要求 dc+bd 同文件 → 0；threeparttable
-    门只读 main 文本 → TABLE_FITTING 不注。两个钩子口对壳形态静默缺席。
+    落在 main（缝在）；FLOAT_SIZING 改 dc-only 门（``\AtBeginDocument``
+    钩子不在乎 bd 落哪个文件）→ 1；threeparttable 门只读 main 文本 →
+    TABLE_FITTING 不注。
     """
     (tmp_path / "main.tex").write_text("\\documentclass{article}\n\\input{body}\n")
     (tmp_path / "body.tex").write_text(
@@ -940,9 +857,10 @@ def test_prepare_shell_main_gaps(tmp_path: Path) -> None:
     )
     info = prepare_chinese(tmp_path, "main.tex")
     assert info["status"] == "injected"
-    assert info["float_sizing"] == 0
+    assert info["float_sizing"] == 1
     text = (tmp_path / "main.tex").read_text()
     assert CTEX_LINE in text
+    assert "fit complete oversized float boxes" in text
     assert "TeXlateFitTable" not in text
 
 

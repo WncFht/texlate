@@ -22,10 +22,10 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from texlate.textutil import BEGIN_DOC_RX, decode_tex
+from texlate.textutil import BEGIN_DOC_RX, DEAD_ENVS, VERBATIM_ENVS, decode_tex
 
 from .latex209 import upgrade_209
-from .mask import visible_tex
+from .mask import group_end, visible_tex
 from .normalize import inject_preamble
 
 if TYPE_CHECKING:
@@ -268,7 +268,20 @@ TEXT_8BIT_FALLBACK = r"""
 \fi
 """
 
-_DOC_RE = re.compile(r"\\(documentclass|documentstyle)(?![a-zA-Z])")
+_DOC_RE = re.compile(r"\\(documentclass|documentstyle)(?![a-zA-Z@])")
+
+#: ``\begin{逐字/失活环境}`` opener——遮盖视图把 opener 本身也抹成空白，
+#: 判断 docclass 行尾是否藏吞行环境必须查原文 tail（fuzz I4）。
+_ENV_OPEN_RE = re.compile(
+    r"\\begin\s*\{(?:"
+    + "|".join(re.escape(e) for e in sorted(VERBATIM_ENVS | DEAD_ENVS))
+    + r")\}"
+)
+
+#: 可作主入口的 TeX 源后缀（mask.py TEX_SOURCE_SUFFIXES 的子集——
+#: .sty/.cls 等是被装载件不作 main 候选；.ltx 是合法主档形态）。
+#: tuple 保序：``_resolve_input`` 无扩展名补全按 kpathsea 序先 .tex 后 .ltx。
+_MAIN_TEX_SUFFIXES = (".tex", ".ltx")
 
 #: \documentclass 调用参数扫描上限（防御畸形输入死循环）。
 _DOCCLASS_SCAN_LIMIT = 4000
@@ -356,13 +369,14 @@ def _resolve_input(root: Path, decl_dir: Path, name: str) -> Path | None:
     无扩展名补 ``.tex``；解析到非 .tex（``.bbl``/``.sty`` 等）或越出
     工程根的目标不计入 body 量（probe.py ``_find_local`` 同口径）。
     """
-    fname = name if Path(name).suffix else name + ".tex"
-    if not fname.lower().endswith(".tex"):
-        return None
-    for base in (decl_dir, root):
-        cand = (base / fname).resolve()
-        if cand.is_file() and cand.is_relative_to(root):
-            return cand
+    names = [name] if Path(name).suffix else [name + ext for ext in _MAIN_TEX_SUFFIXES]
+    for fname in names:
+        if Path(fname).suffix.lower() not in _MAIN_TEX_SUFFIXES:
+            continue
+        for base in (decl_dir, root):
+            cand = (base / fname).resolve()
+            if cand.is_file() and cand.is_relative_to(root):
+                return cand
     return None
 
 
@@ -453,7 +467,9 @@ def find_main_tex(root: Path) -> Path | None:
     candidates = []
     bodies = {}
     tpl: dict[str, bool] = {}
-    for p in sorted(p for p in root.rglob("*") if p.suffix.lower() == ".tex"):
+    for p in sorted(
+        p for p in root.rglob("*") if p.suffix.lower() in _MAIN_TEX_SUFFIXES
+    ):
         try:
             text = visible_tex(decode_tex(p.read_bytes()))
         except OSError:
@@ -529,7 +545,7 @@ def classify_no_main(root: Path) -> str | None:
     """
     has_ds = has_bd = plain = False
     for p in root.rglob("*"):
-        if not p.is_file() or p.suffix.lower() != ".tex":
+        if not p.is_file() or p.suffix.lower() not in _MAIN_TEX_SUFFIXES:
             continue
         try:
             vis = visible_tex(decode_tex(p.read_bytes()))
@@ -553,13 +569,19 @@ def _docclass_close(vis: str, start: int) -> int:
     r"""从 `\documentclass` 命令名之后扫描 `[opt]{cls}` 配对，返回 `}` 后 offset。
 
     在 visible_tex 遮盖视图上扫——`%` 注释/verbatim 已等长抹成空格，
-    注释内括号不参与配对。
+    注释内括号不参与配对。命令名与首括号之间只允许空白（含被抹平的
+    注释残位）：`\documentclass\cls` 宏实参/裸声明形态下首个非空白
+    token 不是 `[`/`{`，扫到则收口返回 start（调用方退化行尾缝）——
+    无界前扫曾把远处 `\begin{document}` 的花括号吞成类名实参，缝落
+    enddoc 行死注（I2）。
     """
     j, n = start, len(vis)
     db = dc = 0
     seen_brace = False
     while j < n:
         c = vis[j]
+        if not seen_brace and db == 0 and c not in "[{ \t\n\r":
+            return start
         if c == "\\":
             j += 2
             continue
@@ -580,6 +602,30 @@ def _docclass_close(vis: str, start: int) -> int:
     return j
 
 
+def _iter_depth0(rx: re.Pattern[str], vis: str) -> Iterator[re.Match[str]]:
+    r"""``rx`` 在遮盖视图上、起始位置 brace 深度 0 的全部命中。
+
+    花括号配对走查随 finditer 游标推进；``\\`` 双字符跳过不吃配对。
+    ``\bgroup``/``[..]`` 非字符花括号不计深度——与 TeX 语义一致。
+    """
+    depth = 0
+    pos = 0
+    for m in rx.finditer(vis):
+        while pos < m.start():
+            c = vis[pos]
+            if c == "\\":
+                pos += 2
+                continue
+            if c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+            pos += 1
+        pos = m.end()
+        if depth == 0:
+            yield m
+
+
 def find_docclass_ends(tex: str) -> list[tuple[int, int, str]]:
     r"""全部可用的 `\documentclass`/`\documentstyle` 注入缝 `(pos, lineno, cmd)`。
 
@@ -594,35 +640,73 @@ def find_docclass_ends(tex: str) -> list[tuple[int, int, str]]:
     """
     vis = visible_tex(tex)
     hits: list[tuple[int, int, str]] = []
-    depth = 0
-    pos = 0
     seen_pos: set[int] = set()
-    for m in _DOC_RE.finditer(vis):
-        while pos < m.start():
-            c = vis[pos]
-            if c == "\\":
-                pos += 2
-                continue
-            if c == "{":
-                depth += 1
-            elif c == "}":
-                depth -= 1
-            pos += 1
-        pos = m.end()
-        if depth != 0:
-            continue
+    for m in _iter_depth0(_DOC_RE, vis):
         close = _docclass_close(vis, m.end())
-        if close < len(vis) and vis[close - 1] == "}":
+        if close > 0 and vis[close - 1] == "}":
             eol = tex.find("\n", close)
             lineno = tex.count("\n", 0, close) + 1
+            # ``}`` 后同行纯空白/注释 → 行尾缝（吞注释安全位）；同行有活
+            # 代码（单行文档的 bd/enddoc）或行尾开逐字/失活环境（opener 自身
+            # 在 vis 上被抹平，须查原文 tail）则 ``}`` 后即插——插到其前不
+            # 劈断、不落死文本/环境体（I1/I3/I4）。
+            tail = vis[close : eol if eol >= 0 else len(vis)]
+            raw_tail = tex[close : eol if eol >= 0 else len(tex)]
+            insert = (
+                eol
+                if eol >= 0 and not tail.strip() and not _ENV_OPEN_RE.search(raw_tail)
+                else close
+            )
         else:
             # 无 {..} 的裸 \documentclass：退化为行尾注入。
             eol = tex.find("\n", m.end())
             lineno = tex.count("\n", 0, m.start()) + 1
-        insert = len(tex) if eol < 0 else eol
+            insert = len(tex) if eol < 0 else eol
         if insert not in seen_pos:  # 单行 `\if..\else..\fi` 双命中同缝
             seen_pos.add(insert)
             hits.append((insert, lineno, m.group(1)))
+    if not hits:
+        hits = _macro_proxy_seams(tex, vis)
+    return hits
+
+
+def _macro_proxy_seams(tex: str, vis: str) -> list[tuple[int, int, str]]:
+    r"""宏包声明形态的回退缝。
+
+    ``\def\doc{...\documentclass{cls}...}`` + 顶层 ``\doc`` 调用 —— 真声明
+    藏在宏体内（depth>0 被 ``find_docclass_ends`` 主循环跳过），可编译
+    文档会静默零注入（I9）。
+
+    收集 ``\newcommand/\renewcommand/\def/\gdef`` 体内含声明命令的宏名，
+    顶层（depth 0）调用行行尾即缝——注入物在执行序上位于真声明之后。
+    """
+    proxy: dict[str, str] = {}
+    def_sites: set[int] = set()
+    for m in re.finditer(
+        r"\\(?:(?:new|renew|provide)command|DeclareRobustCommand|def|gdef|edef|xdef)"
+        r"\*?\s*\{?\\([a-zA-Z@]+)\}?",
+        vis,
+    ):
+        brace = vis.find("{", m.end())
+        if brace < 0:
+            continue
+        body_end = group_end(vis, brace)
+        dm = _DOC_RE.search(vis, brace, body_end)
+        if dm is not None:
+            proxy[m.group(1)] = dm.group(1)
+            def_sites.add(m.start(1) - 1)  # 定义位的 \name token 不算调用
+    if not proxy:
+        return []
+    names = "|".join(sorted(proxy))
+    invoke_re = re.compile(rf"\\(?:{names})(?![a-zA-Z@])")
+    hits: list[tuple[int, int, str]] = []
+    for m in _iter_depth0(invoke_re, vis):
+        if m.start() in def_sites:
+            continue
+        eol = tex.find("\n", m.end())
+        insert = len(tex) if eol < 0 else eol
+        lineno = tex.count("\n", 0, m.start()) + 1
+        hits.append((insert, lineno, proxy.get(m.group(0)[1:], "documentclass")))
     return hits
 
 
@@ -630,6 +714,16 @@ def find_docclass_end(tex: str) -> tuple[int, int, str] | None:
     r"""首个可用 `\documentclass` 缝（``find_docclass_ends`` 的首元素）。"""
     hits = find_docclass_ends(tex)
     return hits[0] if hits else None
+
+
+def _splice_after_seams(tex: str, hits: list[tuple[int, int, str]], block: str) -> str:
+    r"""逐缝 ``\n``+block 回填——pos 为原 tex 绝对 offset，顺序累加 delta。"""
+    out = tex
+    delta = 0
+    for pos, _ln, _c in hits:
+        out = out[: pos + delta] + "\n" + block + out[pos + delta :]
+        delta += len(block) + 1
+    return out
 
 
 def inject_cjk(
@@ -675,11 +769,7 @@ def inject_cjk(
             "\\ifdefined\\TeXlateCJKloaded\\else\n"
             "\\def\\TeXlateCJKloaded{1}%\n" + block + "\\fi\n"
         )
-    out = tex
-    delta = 0
-    for pos, _ln, _c in hits:
-        out = out[: pos + delta] + "\n" + block + out[pos + delta :]
-        delta += len(block) + 1
+    out = _splice_after_seams(tex, hits, block)
     info: dict = {"status": "injected", "mode": mode, "line": lineno}
     if conv is not None:
         info["upgrade209"] = conv
@@ -696,7 +786,7 @@ def inject_float_sizing(root: Path) -> int:
     """
     sources = {}
     for path in root.rglob("*"):
-        if path.is_file() and path.suffix.lower() == ".tex":
+        if path.is_file() and path.suffix.lower() in _MAIN_TEX_SUFFIXES:
             sources[path] = decode_tex(path.read_bytes())
     if not any(
         re.search(r"\\begin\s*\{(?:figure|table)\*?\}", visible_tex(text))
@@ -705,15 +795,39 @@ def inject_float_sizing(root: Path) -> int:
         return 0
     n = 0
     for path, text in sources.items():
-        vis = visible_tex(text)
-        if FLOAT_SIZING.strip() in text:
-            continue
-        if re.search(r"\\(?:documentclass|documentstyle)\b", vis) and re.search(
-            r"\\begin\s*\{document\}", vis
-        ):
-            path.write_text(inject_preamble(text, FLOAT_SIZING), encoding="utf-8")
+        new_text = _float_sized(text)
+        if new_text != text:
+            path.write_text(new_text, encoding="utf-8")
             n += 1
     return n
+
+
+def _float_sized(text: str) -> str:
+    r"""单文件 FLOAT_SIZING 注入：dc 在档即收，返回改写后文本（未变=不注）。
+
+    ``\AtBeginDocument`` 钩子只要求前导区位置——bd 在 ``\input`` 子文件的
+    编排壳 main（cs/0408015 形态）同权；有 bd 走 ``inject_preamble`` 锚，
+    无 bd 落 docclass 缝后（多臂声明逐缝注入 + 哨兵兜双执行——
+    ``\let\texlate@endfloatbox\@endfloatbox`` 二次捕获已补丁版本会自递归）。
+    """
+    vis = visible_tex(text)
+    if FLOAT_SIZING.strip() in text or not re.search(
+        r"\\(?:documentclass|documentstyle)\b", vis
+    ):
+        return text
+    if BEGIN_DOC_RX.search(vis):
+        return inject_preamble(text, FLOAT_SIZING)
+    hits = find_docclass_ends(text)
+    if not hits:
+        return text
+    block = FLOAT_SIZING
+    if len(hits) > 1:
+        block = (
+            "% texlate: float sizing (multi-seam idempotent)\n"
+            "\\ifdefined\\TeXlateFloatFit\\else\n"
+            "\\def\\TeXlateFloatFit{1}%\n" + FLOAT_SIZING + "\\fi\n"
+        )
+    return _splice_after_seams(text, hits, block)
 
 
 def inject_table_fitting(tex: str) -> str:
