@@ -818,16 +818,16 @@ class TestL2EofAttribution:
         assert fileline.eof_file == "./lib/blob.tex"
 
     def test_attr_eof_remap(self, tmp_path: Path) -> None:
-        """``_L2Attr.attr_error``：eof_file 改派肇事文件，行号丢弃。"""
+        """``L2Attr.attr_error``：eof_file 改派肇事文件，行号丢弃。"""
         from texlate.latex.api import parse_file  # noqa: PLC0415
-        from texlate.repair import _L2Attr, _TreeRun  # noqa: PLC0415
+        from texlate.repair import L2Attr, TreeRun  # noqa: PLC0415
         from texlate.validate.l2 import LogError  # noqa: PLC0415
 
         work = tmp_path / "work"
         (work / "lib").mkdir(parents=True)
         (work / "main.tex").write_text(_ATTR_MAIN_TEX, encoding="utf-8")
         (work / "lib" / "blob.tex").write_text(_ATTR_BLOB_TEX, encoding="utf-8")
-        run = _TreeRun(
+        run = TreeRun(
             scans=[
                 (work / "main.tex", parse_file(work / "main.tex", flatten=False)),
                 (
@@ -839,7 +839,7 @@ class TestL2EofAttribution:
             chunk_ins={},
             pipe=XlatPipeline(MockTranslator(), config=PipelineConfig()),
         )
-        st = _L2Attr(run, work)
+        st = L2Attr(run, work)
         blob_cids = [c.id for c in run.scans[1][1].chunks]
         assert blob_cids, "fixture 应产出 blob chunk"
 
@@ -858,7 +858,7 @@ class TestL2EofAttribution:
     def test_attr_forward_exclusion(self, tmp_path: Path) -> None:
         """起点越过错误行行尾的块被顺序读取不变量排除（repro-2501 形态）。"""
         from texlate.latex.api import parse_file  # noqa: PLC0415
-        from texlate.repair import _L2Attr, _TreeRun  # noqa: PLC0415
+        from texlate.repair import L2Attr, TreeRun  # noqa: PLC0415
         from texlate.validate.l2 import LogError  # noqa: PLC0415
 
         work = tmp_path / "work"
@@ -866,13 +866,13 @@ class TestL2EofAttribution:
         (work / "main.tex").write_text(_ATTR_MAIN_TEX, encoding="utf-8")
         res = parse_file(work / "main.tex", flatten=False)
         assert res.chunks, "fixture 应产出 chunk"
-        run = _TreeRun(
+        run = TreeRun(
             scans=[(work / "main.tex", res)],
             trans={},
             chunk_ins={},
             pipe=XlatPipeline(MockTranslator(), config=PipelineConfig()),
         )
-        st = _L2Attr(run, work)
+        st = L2Attr(run, work)
         # preamble 错（l.3 \\definecolor）——首个 chunk 在 \\begin{document} 之后
         got = st.attr_error(
             LogError(
@@ -899,7 +899,7 @@ class TestL2EofAttribution:
 
 
 class TestChunkSpansMirror:
-    """``_chunk_spans`` 镜像 ``reconstruct`` 落盘字节：译文侧变换逐项复刻。
+    """``chunk_spans`` 镜像 ``reconstruct`` 落盘字节：译文侧变换逐项复刻。
 
     ``_LATIN_ITEM_RX`` 保险丝与 ``_seg_join`` 接缝守卫缺一则 ``find`` 失配、
     块归 ``None``，L2 归因静默丢块（``4ce255e`` short_arg 同款漂移）。
@@ -908,7 +908,7 @@ class TestChunkSpansMirror:
     def test_translated_transforms_mirrored(self) -> None:
         from texlate.latex import parse_tex  # noqa: PLC0415
         from texlate.latex.reconstruct import reconstruct  # noqa: PLC0415
-        from texlate.repair import _chunk_spans  # noqa: PLC0415
+        from texlate.repair import chunk_spans  # noqa: PLC0415
 
         tex = (
             "\\documentclass{article}\n"
@@ -927,7 +927,7 @@ class TestChunkSpansMirror:
         disk = reconstruct(res, trans)
         assert "\\item FSU 内容" in disk  # _LATIN_ITEM_RX 保险丝生效
         assert "\\foo Vector \\item FSU 内容" in disk  # _seg_join 接缝插空格
-        spans = _chunk_spans(disk, res, trans)
+        spans = chunk_spans(disk, res, trans)
         assert spans[c0.id] is not None
         assert spans[c1.id] is not None
 

@@ -13,9 +13,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from texlate.repair import (
-    _ENV_ENV_JUDGE,
-    _env_judge_all,
-    _resolve_glossary_path,
+    ENV_ENV_JUDGE,
+    env_judge_all,
+    resolve_glossary_path,
     unknown_env_of,
 )
 from texlate.server.settings import (
@@ -386,7 +386,7 @@ class _Translate:
         return opt_bool(
             ctx.options(),
             "env_judge",
-            lambda: env_flag(_ENV_ENV_JUDGE, default=False),
+            lambda: env_flag(ENV_ENV_JUDGE, default=False),
         )
 
     def _env_judge_filter(  # noqa: C901 -- 守卫/回退阶梯平铺即 spec 的跳过面
@@ -424,7 +424,7 @@ class _Translate:
 
         async def _judged() -> dict[str, bool]:
             try:
-                return await _env_judge_all(pipe, targets)
+                return await env_judge_all(pipe, targets)
             finally:
                 # client 的用/关收进同一 ephemeral loop——拆两次 asyncio.run
                 # 会在已关 loop 上 aclose（RuntimeError 吞掉 → 连接 FD 泄漏）；
@@ -605,7 +605,7 @@ class _Translate:
         if rel.is_absolute() or ".." in rel.parts:
             self._warning(ctx, "glossary_rejected", f"glossary 路径越界被拒: {gpath!r}")
             return None
-        cand = _resolve_glossary_path(gpath, glossary_dir, ctx.base_dir)
+        cand = resolve_glossary_path(gpath, glossary_dir, ctx.base_dir)
         if cand is None:
             self._warning(
                 ctx, "glossary_rejected", f"glossary 不在允许根内或不存在: {gpath!r}"
@@ -690,7 +690,7 @@ class _Translate:
         # 路径字符串当指纹会同名换内容串桶/异名同内容分桶；拒/缺席与
         # ``_make_glossary`` 同态回落 ``USER_GLOSSARY_PATH`` 缺省层
         gfile = (
-            _resolve_glossary_path(
+            resolve_glossary_path(
                 glossary, str(cfg_row.get("glossary_dir") or ""), ctx.base_dir
             )
             if glossary

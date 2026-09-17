@@ -112,7 +112,8 @@ class ScriptedEngine:
         should_cancel: Callable[[], bool] | None = None,  # noqa: ARG002
     ) -> CompRes:
         """按剧本写 ``<stem>.log``（+可选 pdf）→ CompRes。"""
-        from texlate.compile.engine import CompRes, parse_log  # noqa: PLC0415
+        from texlate.compile.engine import CompRes  # noqa: PLC0415
+        from texlate.compile.loginfo import parse_log  # noqa: PLC0415
 
         i = min(len(self.calls), len(self.scripts) - 1)
         spec = self.scripts[i]
@@ -532,7 +533,7 @@ class _JudgeBadReturn(MockTranslator):
 
 def test_env_judge_bad_answer_fails_open() -> None:
     """judge 调用/解析任何异常都重试到上限后 fail-open True——旁路臂
-    不许把怪应答炸成管线崩溃（worker 复用同一 ``_env_judge_all``）。"""
+    不许把怪应答炸成管线崩溃（worker 复用同一 ``env_judge_all``）。"""
     pipe = XlatPipeline(_JudgeBadReturn())
     chunk = Chunk(id=0, content="body", context="para", span=Span(0, 4))
     assert asyncio.run(repair._env_judge_one(pipe, chunk, "mybox")) is True  # noqa: SLF001

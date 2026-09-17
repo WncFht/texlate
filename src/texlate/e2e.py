@@ -45,22 +45,22 @@ from texlate.latex.api import scan_tex_tree
 from texlate.latex.placeholder import PH_RX
 from texlate.latex.reconstruct import reconstruct
 from texlate.repair import (
-    _ENV_ENV_JUDGE,
-    _ENV_FIXLOOP_LLM,
-    _ENV_NO_FIXLOOP,
-    _ENV_NO_L2,
+    ENV_ENV_JUDGE,
+    ENV_FIXLOOP_LLM,
+    ENV_NO_FIXLOOP,
+    ENV_NO_L2,
     L2_MAX_CHUNKS,
-    _env_judge_all,
-    _retranslate_hits,
-    _ruleset_with_baseline,
-    _split_cid,
-    _TreeRun,
+    TreeRun,
     consume_engine_flags,
     embed_tounicode_quiet,
+    env_judge_all,
     fixloop_cell_parts,
     l2_repair_round,
     log_text_of,
+    retranslate_hits,
+    ruleset_with_baseline,
     run_fixloop,
+    split_cid,
     unknown_env_of,
 )
 from texlate.textutil import env_flag
@@ -111,15 +111,15 @@ def _env_judge_pass(
     for r in results:
         if not _delivered(r):
             continue
-        fidx, cid = _split_cid(r.chunk_id)
+        fidx, cid = split_cid(r.chunk_id)
         chunk = scans[fidx][1].chunks[cid]
         env_name = unknown_env_of(chunk)
         if env_name is not None:
             targets.append((r.chunk_id, chunk, env_name))
-    verdicts = asyncio.run(_env_judge_all(pipe, targets))
+    verdicts = asyncio.run(env_judge_all(pipe, targets))
     reverted = sorted(cid for cid, keep in verdicts.items() if not keep)
     for cid in reverted:
-        fidx, ccid = _split_cid(cid)
+        fidx, ccid = split_cid(cid)
         by_file.get(fidx, {}).pop(ccid, None)
     return {"enabled": True, "asked": len(targets), "reverted": reverted}
 
@@ -154,7 +154,7 @@ def _translate_tree(
     *,
     translator: Translator | None = None,
     env_judge: bool = False,
-) -> tuple[dict, _TreeRun]:
+) -> tuple[dict, TreeRun]:
     """目录树翻译 + splice 写回；返回 (stats, 运行态)。
 
     ``env_judge=True`` 时对静态表外的未知 env 块问 LLM 可译性——
@@ -175,7 +175,7 @@ def _translate_tree(
     n_fault = 0
     n_partial = 0
     for r in results:
-        fidx, cid = _split_cid(r.chunk_id)
+        fidx, cid = split_cid(r.chunk_id)
         if _delivered(r):
             by_file.setdefault(fidx, {})[cid] = r.translation
             if r.status == "partial":
@@ -210,7 +210,7 @@ def _translate_tree(
         "leftover_ph": n_leftover,
         "env_judge": env_stats,
     }
-    run = _TreeRun(
+    run = TreeRun(
         scans=scans,
         trans=by_file,
         chunk_ins={c.chunk_id: c for c in chunks},
@@ -232,7 +232,7 @@ def mock_translate_tree(
     ``translator`` 可注入真网关 Translator；``env_judge`` 缺省读
     ``TEXLATE_ENV_JUDGE``（默认关——静态表外 env 的可译性 LLM 判定）。
     """
-    ej = env_flag(_ENV_ENV_JUDGE, default=False) if env_judge is None else env_judge
+    ej = env_flag(ENV_ENV_JUDGE, default=False) if env_judge is None else env_judge
     stats, _run = _translate_tree(root, translator=translator, env_judge=ej)
     return stats
 
@@ -336,7 +336,7 @@ def _embed_tounicode(pdf: Path) -> int:
 
 
 def _l2_repair(
-    job: _Job, run: _TreeRun, res: CompRes, cap: int
+    job: _Job, run: TreeRun, res: CompRes, cap: int
 ) -> tuple[dict, CompRes, dict | None]:
     """L2 回灌一轮：归因 → 重译 → resplice → 重编一次 → 余孽回落。
 
@@ -350,7 +350,7 @@ def _l2_repair(
         job.main_rel,
         res,
         cap,
-        retranslate=lambda r, h, c: asyncio.run(_retranslate_hits(r, h, c)),
+        retranslate=lambda r, h, c: asyncio.run(retranslate_hits(r, h, c)),
         recompile=lambda: _compile_judge_verdict(job, expect_cjk=True),
     )
     tail = _tail_dict(last_res, v) if v is not None else None
@@ -420,11 +420,11 @@ def _run_fixloop(  # noqa: PLR0913 -- 开关面穿透同 pipe_condition
     ``timeout`` 覆盖 rules/ ``meta.loop.timeout_sec`` 的重编预算
     （None=用 yaml 值）。``llm_hook`` 未传时 ``TEXLATE_FIXLOOP_LLM=1``
     可经 env 启用 escalate_llm 钩（网关走 TEXLATE_* 三件套）。
-    ``baseline_dir`` 在场时注入 ruleset（``repair._ruleset_with_baseline``——
+    ``baseline_dir`` 在场时注入 ruleset（``repair.ruleset_with_baseline``——
     worker ``ctx.base_dir`` 同件注入），缺席走默认 ruleset（restore_support_from_src
     fail-safe 空转，bench 直调臂即此形态）。
     """
-    if llm_hook is None and env_flag(_ENV_FIXLOOP_LLM, default=False):
+    if llm_hook is None and env_flag(ENV_FIXLOOP_LLM, default=False):
         from texlate.compile.fixloop.llm_hook import make_llm_hook  # noqa: PLC0415
 
         llm_hook = make_llm_hook()
@@ -433,7 +433,7 @@ def _run_fixloop(  # noqa: PLR0913 -- 开关面穿透同 pipe_condition
             job.work,
             engine_for(job.eng_name),
             ruleset=(
-                _ruleset_with_baseline(baseline_dir)
+                ruleset_with_baseline(baseline_dir)
                 if baseline_dir is not None
                 else None
             ),
@@ -493,7 +493,7 @@ def _run_fixloop(  # noqa: PLR0913 -- 开关面穿透同 pipe_condition
 def _repair_chain(  # noqa: PLR0913 -- 修复链开关面穿透
     rec: dict,
     job: _Job,
-    run: _TreeRun,
+    run: TreeRun,
     res: CompRes,
     *,
     expect_cjk: bool,
@@ -508,7 +508,7 @@ def _repair_chain(  # noqa: PLR0913 -- 修复链开关面穿透
     L2 崩不丢整条 rec（worker._l2_attempt 同款包）；fixloop 只在仍非
     clean 时跑。返回最新 ``CompRes`` 供 ToUnicode 注入判产物。
     """
-    l2 = (not env_flag(_ENV_NO_L2, default=False)) if l2_on is None else l2_on
+    l2 = (not env_flag(ENV_NO_L2, default=False)) if l2_on is None else l2_on
     if l2:
         try:
             l2_rep, res, tail2 = _l2_repair(job, run, res, l2_max_chunks)
@@ -519,10 +519,10 @@ def _repair_chain(  # noqa: PLR0913 -- 修复链开关面穿透
             if tail2 is not None:
                 rec.update(tail2)
     else:
-        rec["l2"] = {"enabled": False, "reason": _ENV_NO_L2}
+        rec["l2"] = {"enabled": False, "reason": ENV_NO_L2}
 
     fl = (
-        (not env_flag(_ENV_NO_FIXLOOP, default=False))
+        (not env_flag(ENV_NO_FIXLOOP, default=False))
         if fixloop_on is None
         else fixloop_on
     )
@@ -539,7 +539,7 @@ def _repair_chain(  # noqa: PLR0913 -- 修复链开关面穿透
         if tail3 is not None:
             rec.update(tail3)
     elif rec["status"] != "clean":
-        rec["fixloop"] = {"enabled": False, "reason": _ENV_NO_FIXLOOP}
+        rec["fixloop"] = {"enabled": False, "reason": ENV_NO_FIXLOOP}
     return res
 
 
@@ -567,9 +567,9 @@ def pipe_condition(  # noqa: PLR0913 -- 修复链开关面（env 缺省，显式
     """
     rec: dict[str, object] = {"engine": eng_name}
     rec["normalize"] = normalize_project(work, eng_name, main_rel)
-    ej = env_flag(_ENV_ENV_JUDGE, default=False) if env_judge is None else env_judge
+    ej = env_flag(ENV_ENV_JUDGE, default=False) if env_judge is None else env_judge
     fl = (
-        (not env_flag(_ENV_NO_FIXLOOP, default=False))
+        (not env_flag(ENV_NO_FIXLOOP, default=False))
         if fixloop_on is None
         else fixloop_on
     )

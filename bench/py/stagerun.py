@@ -46,7 +46,7 @@ flat 存量账按规范形命中 resume。同 wid 任务去重（``dedup_wids``�
     §1 图把 zh/ 画在 xlat 下——物理上 zh/ 是跨阶段共享演化的产品树。
   - parse.json 记 chunk 元数据（kind/span/文件归属）而非正文——reconstruct
     要 ScanResult（pieces/ph_map/macros），序列化不划算；xlat 重扫 ~1-3s/篇。
-  - compile --post l2 留了旗标位但未接线：L2 回灌要 _TreeRun 内存态 +
+  - compile --post l2 留了旗标位但未接线：L2 回灌要 TreeRun 内存态 +
     编译尾段，跨 stage 文件协议暂不支持（TODO 同 T2 auth 熔断——见 §4 横切洞）。
   - channel=arxiv_eprint 缺 extracted 的条目 ingest 记 reject
     （eprint_fetch_unwired）——规格 §2 说逐篇 API 仅作旁路，未铺。
@@ -195,7 +195,7 @@ def main() -> None:
         "--post",
         default="none",
         choices=["none", "l2"],
-        help="l2 回灌（暂 stub——需 _TreeRun 内存态）",
+        help="l2 回灌（暂 stub——需 TreeRun 内存态）",
     )
 
     p_fx = sub.add_parser("fixloop", help="compile 非 clean 格 → fixloop+CaseSink")
@@ -274,7 +274,7 @@ def main() -> None:
         elif args.stage == "compile":
             if args.post == "l2":
                 print(
-                    "note: --post l2 未接线（需 _TreeRun 内存态；TODO 见 docstring）",
+                    "note: --post l2 未接线（需 TreeRun 内存态；TODO 见 docstring）",
                     flush=True,
                 )
             stage_compile(

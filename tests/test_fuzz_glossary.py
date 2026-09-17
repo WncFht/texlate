@@ -2,7 +2,7 @@
 
 不变量清单：
 
-- ``_resolve_glossary_path`` 牢笼：绝对路径与 ``..`` 组件预检即拒；
+- ``resolve_glossary_path`` 牢笼：绝对路径与 ``..`` 组件预检即拒；
   返回路径 resolve 后必须落在允许根（``base_dir`` 先、``glossary_dir``
   兜底）之内且是常规文件；symlink 逃逸（文件/目录链、悬挂、自环）同挡；
   根内 ``is_file`` 逐根判定——base 侧目录命中不遮蔽 glossary_dir 同名文件。
@@ -87,7 +87,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from texlate.repair import _resolve_glossary_path  # 私有函数即被测对象
+from texlate.repair import resolve_glossary_path  # 私有函数即被测对象
 from texlate.xlat.glossary import (
     Glossary,
     TermEntry,
@@ -309,8 +309,8 @@ def test_glossary_path_rejects_absolute_dotdot(
 ) -> None:
     """绝对形与含 ``..`` 组件预检即拒（resolve 前的字面判，不依赖盘上实况）。"""
     base, gdir, _ = jail_tree
-    assert _resolve_glossary_path(gpath, "", base) is None
-    assert _resolve_glossary_path(gpath, str(gdir), base) is None
+    assert resolve_glossary_path(gpath, "", base) is None
+    assert resolve_glossary_path(gpath, str(gdir), base) is None
 
 
 def test_glossary_path_symlink_escape(jail_tree: tuple[Path, Path, Path]) -> None:
@@ -320,12 +320,12 @@ def test_glossary_path_symlink_escape(jail_tree: tuple[Path, Path, Path]) -> Non
     """
     base, gdir, _ = jail_tree
     for bad in ("lk_f_out", "lk_d_out/sec.yaml", "lk_d_out", "lk_dangle"):
-        assert _resolve_glossary_path(bad, "", base) is None, bad
-    assert _resolve_glossary_path("lk_gd_out", str(gdir), base) is None
+        assert resolve_glossary_path(bad, "", base) is None, bad
+    assert resolve_glossary_path("lk_gd_out", str(gdir), base) is None
     # 根内 symlink 放行（confine 按解析后位置，不按名字洁癖）
-    assert _resolve_glossary_path("lk_in", "", base) == (base / "t.yaml").resolve()
+    assert resolve_glossary_path("lk_in", "", base) == (base / "t.yaml").resolve()
     assert (
-        _resolve_glossary_path("sub/deep.yaml", "", base)
+        resolve_glossary_path("sub/deep.yaml", "", base)
         == (base / "sub" / "deep.yaml").resolve()
     )
 
@@ -337,18 +337,18 @@ def test_glossary_path_root_order_and_fallthrough(
     base, gdir, _ = jail_tree
     (gdir / "t.yaml").write_text("g: 9\n", encoding=_MODE)
     assert (
-        _resolve_glossary_path("t.yaml", str(gdir), base) == (base / "t.yaml").resolve()
+        resolve_glossary_path("t.yaml", str(gdir), base) == (base / "t.yaml").resolve()
     )
     # base/sub 是目录 → is_file 门失败 → 不遮蔽 gdir/sub 同名文件
     (gdir / "sub").write_text("s: 1\n", encoding=_MODE)
-    assert _resolve_glossary_path("sub", str(gdir), base) == (gdir / "sub").resolve()
+    assert resolve_glossary_path("sub", str(gdir), base) == (gdir / "sub").resolve()
     # 仅 gdir 命中 → 兜底根生效
-    assert _resolve_glossary_path("g.yaml", "", base) is None
+    assert resolve_glossary_path("g.yaml", "", base) is None
     assert (
-        _resolve_glossary_path("g.yaml", str(gdir), base) == (gdir / "g.yaml").resolve()
+        resolve_glossary_path("g.yaml", str(gdir), base) == (gdir / "g.yaml").resolve()
     )
     # 双根皆无 → None
-    assert _resolve_glossary_path("nope.yaml", str(gdir), base) is None
+    assert resolve_glossary_path("nope.yaml", str(gdir), base) is None
 
 
 def test_glossary_path_weird_names_confined(
@@ -363,15 +363,15 @@ def test_glossary_path_weird_names_confined(
     base, _, _ = jail_tree
     for name in ("a\nb", " ", "~x", "..x", "x..", "a\\..\\b"):
         (base / name).write_text("k: v\n", encoding=_MODE)
-        assert _resolve_glossary_path(name, "", base) == (base / name).resolve()
+        assert resolve_glossary_path(name, "", base) == (base / name).resolve()
     raw = base / "raw\udcffb.yaml"
     fd = os.open(os.fsencode(raw), os.O_CREAT | os.O_WRONLY, 0o644)
     os.write(fd, b"k: v\n")
     os.close(fd)
-    assert _resolve_glossary_path("raw\udcffb.yaml", "", base) == raw.resolve()
+    assert resolve_glossary_path("raw\udcffb.yaml", "", base) == raw.resolve()
     # ``~`` 不展开为用户目录——受困字面名
-    assert _resolve_glossary_path("~/anything", "", base) is None
-    assert _resolve_glossary_path("~", "", base) is None
+    assert resolve_glossary_path("~/anything", "", base) is None
+    assert resolve_glossary_path("~", "", base) is None
 
 
 def test_glossary_path_normalization(
@@ -380,14 +380,14 @@ def test_glossary_path_normalization(
     """Path 归一化的副面：尾斜杠/``/./``/双分隔符剥落后照常解析；``a/../b``
     即使会 resolve 回根内也被预检拒（严格口径钉）。"""
     base, _, _ = jail_tree
-    assert _resolve_glossary_path("t.yaml/", "", base) == (base / "t.yaml").resolve()
-    assert _resolve_glossary_path("./t.yaml", "", base) == (base / "t.yaml").resolve()
+    assert resolve_glossary_path("t.yaml/", "", base) == (base / "t.yaml").resolve()
+    assert resolve_glossary_path("./t.yaml", "", base) == (base / "t.yaml").resolve()
     assert (
-        _resolve_glossary_path("sub//deep.yaml", "", base)
+        resolve_glossary_path("sub//deep.yaml", "", base)
         == (base / "sub" / "deep.yaml").resolve()
     )
     assert (
-        _resolve_glossary_path("sub/../t.yaml", "", base) is None
+        resolve_glossary_path("sub/../t.yaml", "", base) is None
     )  # 预检拒，不看 resolve 终点
 
 
@@ -398,15 +398,15 @@ def test_glossary_path_missing_and_relative_roots(tmp_path: Path) -> None:
     纯函数层面 CWD 相关性如实钉住）。
     """
     base = tmp_path / "nobase"
-    assert _resolve_glossary_path("x.yaml", "", base) is None
-    assert _resolve_glossary_path("x.yaml", str(tmp_path / "nogdir"), tmp_path) is None
+    assert resolve_glossary_path("x.yaml", "", base) is None
+    assert resolve_glossary_path("x.yaml", str(tmp_path / "nogdir"), tmp_path) is None
     # 相对 glossary_dir → CWD 下找
     cwd_rel = Path.cwd() / "relgdir-probe"
     cwd_rel.mkdir(exist_ok=True)
     try:
         (cwd_rel / "x.yaml").write_text("k: 1\n", encoding=_MODE)
         assert (
-            _resolve_glossary_path("x.yaml", "relgdir-probe", tmp_path)
+            resolve_glossary_path("x.yaml", "relgdir-probe", tmp_path)
             == (cwd_rel / "x.yaml").resolve()
         )
     finally:
@@ -423,27 +423,27 @@ def test_glossary_path_dot_returns_file_root(tmp_path: Path) -> None:
     """
     f = tmp_path / "only.yaml"
     f.write_text("k: 1\n", encoding=_MODE)
-    assert _resolve_glossary_path(".", "", f) == f.resolve()
-    assert _resolve_glossary_path("", "", f) == f.resolve()
+    assert resolve_glossary_path(".", "", f) == f.resolve()
+    assert resolve_glossary_path("", "", f) == f.resolve()
     d = tmp_path / "d"
     d.mkdir()
-    assert _resolve_glossary_path(".", "", d) is None
-    assert _resolve_glossary_path("", "", d) is None
+    assert resolve_glossary_path(".", "", d) is None
+    assert resolve_glossary_path("", "", d) is None
 
 
 def test_glossary_path_boundary_255_graceful(tmp_path: Path) -> None:
     """``NAME_MAX`` 界内（255B）长名不抛；>255B 由 D2 xfail 钉。"""
     for n in (_NAME_MAX - 1, _NAME_MAX):
-        assert _resolve_glossary_path("x" * n, "", tmp_path) is None
+        assert resolve_glossary_path("x" * n, "", tmp_path) is None
     # 多字节名按字节计——80 个「日」= 240B 界内
-    assert _resolve_glossary_path("日" * 80, "", tmp_path) is None
+    assert resolve_glossary_path("日" * 80, "", tmp_path) is None
 
 
 def test_glossary_path_deterministic(jail_tree: tuple[Path, Path, Path]) -> None:
     """同参双调逐字节同果（纯函数钉）。"""
     base, gdir, _ = jail_tree
     for gpath in ("t.yaml", "../x", "lk_in", "nope", "a\nb"):
-        assert _resolve_glossary_path(gpath, str(gdir), base) == _resolve_glossary_path(
+        assert resolve_glossary_path(gpath, str(gdir), base) == resolve_glossary_path(
             gpath, str(gdir), base
         )
 
@@ -467,7 +467,7 @@ def test_fuzz_glossary_path_jail(jail_tree: tuple[Path, Path, Path]) -> None:
             gpath = rng.choice(["lk_d_out/", "lk_dangle/", "sub/"]) + gpath
         gdir_arg = rng.choice(["", str(gdir), str(outside)])
         roots = _roots_of(gdir_arg, base)
-        _assert_jailed(_resolve_glossary_path(gpath, gdir_arg, base), roots)
+        _assert_jailed(resolve_glossary_path(gpath, gdir_arg, base), roots)
 
 
 def test_fuzz_glossary_path_jail_forest(tmp_path: Path) -> None:
@@ -505,7 +505,7 @@ def test_fuzz_glossary_path_jail_forest(tmp_path: Path) -> None:
             gpath = "/".join(
                 rng.choice([*_COMP_SOUP, "l0", "l1", "l2"]) for _ in range(n)
             )
-            _assert_jailed(_resolve_glossary_path(gpath, gdir_arg, base), roots)
+            _assert_jailed(resolve_glossary_path(gpath, gdir_arg, base), roots)
 
 
 # ---------------------------------------------------------------- 牢笼：崩溃族（缺陷钉）
@@ -520,15 +520,15 @@ def test_glossary_path_nul_returns_none(
     """NUL 名按「不在允许根内」静默拒——同 ``..`` 拒径同语态（D1 已修：
     ``safe_resolve`` 吞 ``ValueError``）。"""
     base, gdir, _ = jail_tree
-    assert _resolve_glossary_path(gpath, "", base) is None
-    assert _resolve_glossary_path(gpath, str(gdir), base) is None
+    assert resolve_glossary_path(gpath, "", base) is None
+    assert resolve_glossary_path(gpath, str(gdir), base) is None
 
 
 def test_glossary_path_nul_gdir_returns_none(tmp_path: Path) -> None:
     """D1 同族：``glossary_dir`` 含 NUL → 该根按缺席处理。"""
     base = tmp_path / "base"
     base.mkdir()
-    assert _resolve_glossary_path("x.yaml", "g\x00d", base) is None
+    assert resolve_glossary_path("x.yaml", "g\x00d", base) is None
 
 
 @pytest.mark.parametrize("n", [_NAME_MAX + 1, _NAME_MAX + 45])
@@ -537,8 +537,8 @@ def test_glossary_path_overlong_component(
 ) -> None:
     """D2 已修：>255B 组件经 ``safe_resolve`` 吞 ``ENAMETOOLONG`` → None。"""
     base, gdir, _ = jail_tree
-    assert _resolve_glossary_path("x" * n, "", base) is None
-    assert _resolve_glossary_path("sub/" + "x" * n, str(gdir), base) is None
+    assert resolve_glossary_path("x" * n, "", base) is None
+    assert resolve_glossary_path("sub/" + "x" * n, str(gdir), base) is None
 
 
 @pytest.mark.parametrize("gpath", ["lk_loop", "lk_loop/x"])
@@ -548,8 +548,8 @@ def test_glossary_path_symlink_loop_returns_none(
     """D9 已修：环链按「非常规文件」静默拒——同悬挂链同语态
     （``check_eloop`` 的 ``RuntimeError`` 非 OSError 系，``safe_resolve`` 同吞）。"""
     base, gdir, _ = jail_tree
-    assert _resolve_glossary_path(gpath, "", base) is None
-    assert _resolve_glossary_path(gpath, str(gdir), base) is None
+    assert resolve_glossary_path(gpath, "", base) is None
+    assert resolve_glossary_path(gpath, str(gdir), base) is None
 
 
 # ---------------------------------------------------------------- flatten_terms
@@ -919,7 +919,7 @@ def test_load_index_malformed_propagates(tmp_path: Path) -> None:
 
 def test_load_no_confine_by_design(tmp_path: Path) -> None:
     """观察钉：``load`` 对显式路径零 confine——任意位置皆读（边界在
-    worker ``_resolve_glossary_path``，非装载器职责）。"""
+    worker ``resolve_glossary_path``，非装载器职责）。"""
     anywhere = tmp_path / "deep" / "elsewhere.csv"
     anywhere.parent.mkdir(parents=True)
     _wcsv(anywhere, {"x": "1"})

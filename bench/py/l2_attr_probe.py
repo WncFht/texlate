@@ -11,8 +11,8 @@
 - `bench/corpus_v3/<id>/extracted/` —— 原始英文源（喂 `parse_file` 复现
   ScanResult 的 chunks/ph_map）。
 
-方法：对每条 log 错误复跑**真** `_l2_localize` 路径（`_L2Attr` +
-`_resolve_fidx` + `_chunk_spans`，原样 import src/texlate/repair.py 内部件，
+方法：对每条 log 错误复跑**真** `_l2_localize` 路径（`L2Attr` +
+`_resolve_fidx` + `chunk_spans`，原样 import src/texlate/repair.py 内部件，
 不重实现），逐错误记归因结果与距离/命中形态；再按规则粗分
 归对/归错/不可归因三档，window 命中落明细供人工复核。
 
@@ -55,8 +55,8 @@ ALIGN_MIN = 0.9
 _CJK_RX = re.compile(r"[一-鿿]")
 
 
-def _build_run(aid: str, work: Path) -> tuple[repair._TreeRun | None, dict]:
-    """建 _TreeRun：scans=(work路径, 源树parse结果)，trans=state ok 译文。"""
+def _build_run(aid: str, work: Path) -> tuple[repair.TreeRun | None, dict]:
+    """建 TreeRun：scans=(work路径, 源树parse结果)，trans=state ok 译文。"""
     st_path = STATE / aid / "state.json"
     if not st_path.exists():
         return None, {"drop": "no_state"}
@@ -117,11 +117,11 @@ def _build_run(aid: str, work: Path) -> tuple[repair._TreeRun | None, dict]:
         "skipped_files": skipped,
         "drift_examples": drift_examples[:5],
     }
-    run = repair._TreeRun(scans=scans, trans=trans, chunk_ins={}, pipe=None)
+    run = repair.TreeRun(scans=scans, trans=trans, chunk_ins={}, pipe=None)
     return run, info
 
 
-def _classify_error(st: repair._L2Attr, err: l2_mod.LogError, work: Path) -> dict:
+def _classify_error(st: repair.L2Attr, err: l2_mod.LogError, work: Path) -> dict:
     """单条错误的归因明细：outcome + 距离 + 行内容证据。"""
     row: dict = {
         "head": err.head[:200],
@@ -230,7 +230,7 @@ def main() -> int:
             res_c = CompRes(engine="xelatex", ok=False, log_path=log)
             verdict = repair._l2_parse(res_c)
             case["n_errors"] = verdict.n_errors
-            st = repair._L2Attr(run, work)
+            st = repair.L2Attr(run, work)
             n_hits = 0
             for err in verdict.errors[: repair._L2_MAX_ERRORS]:
                 row = _classify_error(st, err, work)

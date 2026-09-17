@@ -288,7 +288,7 @@ def _seg_of(r_source: str, seg: str) -> bool:
 
 def translate_tree(
     root: Path, translator: MockTranslator, *, env_judge: bool = False
-) -> tuple[dict, repair_mod._TreeRun, list]:
+) -> tuple[dict, repair_mod.TreeRun, list]:
     """``e2e._translate_tree`` 同构 + 带出逐块 results（Mode B/C 归因账本用）。
 
     扫描段直接调 ``e2e._scan_tree`` 原件——文件名四门（dotfile 跳、``.rtx.tex``
@@ -296,7 +296,7 @@ def translate_tree(
     单源不漂移；翻译段镜像 ``e2e._translate_tree``（``Glossary.load(
     placeholders=…)`` + ``cache={}`` + L0 validator + ``_env_judge_pass`` +
     ``reconstruct`` splice 写回），唯一分叉 = 多返回 ``list[ChunkResult]``
-    与 ``_TreeRun`` 供归因账本/L2 回灌复用（与 pipe 臂同一运行态形状）。
+    与 ``TreeRun`` 供归因账本/L2 回灌复用（与 pipe 臂同一运行态形状）。
     """
     scans, chunks, fault_files, support_files = e2e_mod._scan_tree(root)
 
@@ -313,7 +313,7 @@ def translate_tree(
     n_fault = 0
     n_partial = 0
     for r in results:
-        fidx, cid = repair_mod._split_cid(r.chunk_id)
+        fidx, cid = repair_mod.split_cid(r.chunk_id)
         if e2e_mod._delivered(r):
             by_file.setdefault(fidx, {})[cid] = r.translation
             if r.status == "partial":
@@ -348,7 +348,7 @@ def translate_tree(
         "leftover_ph": n_leftover,
         "env_judge": env_stats,
     }
-    run = repair_mod._TreeRun(
+    run = repair_mod.TreeRun(
         scans=scans,
         trans=by_file,
         chunk_ins={c.chunk_id: c for c in chunks},
@@ -391,7 +391,7 @@ def pipe_mode_condition(
     rec["normalize"] = normalize_project(work, eng_name, main_rel)
     tr = SabotageTranslator() if mode == "B" else PerturbTranslator()
     ej = (
-        e2e_mod.env_flag(repair_mod._ENV_ENV_JUDGE, default=False)
+        e2e_mod.env_flag(repair_mod.ENV_ENV_JUDGE, default=False)
         if env_judge is None
         else env_judge
     )
@@ -502,7 +502,7 @@ def pipe_mode_condition(
 
     if rec["status"] != "clean":
         l2 = (
-            (not e2e_mod.env_flag(repair_mod._ENV_NO_L2, default=False))
+            (not e2e_mod.env_flag(repair_mod.ENV_NO_L2, default=False))
             if l2_on is None
             else l2_on
         )
@@ -512,10 +512,10 @@ def pipe_mode_condition(
             if tail2 is not None:
                 rec.update(tail2)
         else:
-            rec["l2"] = {"enabled": False, "reason": repair_mod._ENV_NO_L2}
+            rec["l2"] = {"enabled": False, "reason": repair_mod.ENV_NO_L2}
 
         fl = (
-            (not e2e_mod.env_flag(e2e_mod._ENV_NO_FIXLOOP, default=False))
+            (not e2e_mod.env_flag(e2e_mod.ENV_NO_FIXLOOP, default=False))
             if fixloop_on is None
             else fixloop_on
         )
@@ -534,7 +534,7 @@ def pipe_mode_condition(
             if tail3 is not None:
                 rec.update(tail3)
         elif rec["status"] != "clean":
-            rec["fixloop"] = {"enabled": False, "reason": e2e_mod._ENV_NO_FIXLOOP}
+            rec["fixloop"] = {"enabled": False, "reason": e2e_mod.ENV_NO_FIXLOOP}
     # ToUnicode 注入在修复链收敛之后 (pipe_condition 同位, worker 同口径)
     if res.has_pdf and res.pdf is not None:
         rec["tounicode_fonts"] = e2e_mod._embed_tounicode(res.pdf)

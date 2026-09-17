@@ -13,17 +13,17 @@ refactor-audit-2026-09-17 ★1 收口：两臂各自保留编排（报告形状�
   ``rounds`` 与 ``actions`` 按 round 归并的共享机械
 - ``run_fixloop`` / ``cross_engine_retry`` / ``VERDICT_RANK``：
   fixloop 调用包装与 dropped ``engine_flags`` 的 tectonic→xelatex
-  跨引擎重试取优；``_ruleset_with_baseline`` 把运行时 baseline
+  跨引擎重试取优；``ruleset_with_baseline`` 把运行时 baseline
   树注入 restore_support_from_src（worker ``ctx.base_dir`` /
   e2e ``_baseline_snapshot`` 两源同一注入件）
 - E2 批（2026-09-17 自 ``e2e`` 下沉）：env judge 可译性判定
-  （``_env_judge_one``/``_env_judge_all`` + 目标谓词 ``unknown_env_of``）
-  + L2 回灌机械（``_l2_parse``/``_expand_tokens``/``_chunk_spans``/
-  ``_resolve_fidx``/``_L2Attr``/``_l2_localize``/``_retranslate_hits``/
-  ``_resplice``，配 ``_TreeRun``/``_split_cid`` 与开关/上限常量）+
-  glossary confine kernel ``_resolve_glossary_path``（相对路径 +
+  （``_env_judge_one``/``env_judge_all`` + 目标谓词 ``unknown_env_of``）
+  + L2 回灌机械（``_l2_parse``/``_expand_tokens``/``chunk_spans``/
+  ``_resolve_fidx``/``L2Attr``/``_l2_localize``/``retranslate_hits``/
+  ``_resplice``，配 ``TreeRun``/``split_cid`` 与开关/上限常量）+
+  glossary confine kernel ``resolve_glossary_path``（相对路径 +
   ``..`` 拒 + resolve-jail）——两臂同一实现
-- C6 批（2026-09-17 残余收编）：``_ENV_NO_FIXLOOP``/``_ENV_FIXLOOP_LLM``
+- C6 批（2026-09-17 残余收编）：``ENV_NO_FIXLOOP``/``ENV_FIXLOOP_LLM``
   env 名常量补齐（e2e 本地常量 + worker 裸字面量双源归一）、
   ``embed_tounicode_quiet``（ToUnicode 注入 best-effort 壳）、
   ``consume_engine_flags``（fixloop ``engine_flags`` 消费尾：
@@ -89,12 +89,12 @@ _EXPAND_MAX_DEPTH = 32
 #: env judge 输入截断（长 env 体只喂前 N 字符）
 _ENV_JUDGE_MAX_CHARS = 2000
 #: 环境开关
-_ENV_NO_L2 = "TEXLATE_NO_L2"
-_ENV_ENV_JUDGE = "TEXLATE_ENV_JUDGE"
-_ENV_NO_FIXLOOP = "TEXLATE_NO_FIXLOOP"
+ENV_NO_L2 = "TEXLATE_NO_L2"
+ENV_ENV_JUDGE = "TEXLATE_ENV_JUDGE"
+ENV_NO_FIXLOOP = "TEXLATE_NO_FIXLOOP"
 #: fixloop ``escalate_llm`` 钩开关——默认值两臂有意不同（e2e opt-in False /
 #: worker BYOK 默认 True，见 ``_llm_hook_pack``），本常量只单源名字
-_ENV_FIXLOOP_LLM = "TEXLATE_FIXLOOP_LLM"
+ENV_FIXLOOP_LLM = "TEXLATE_FIXLOOP_LLM"
 
 #: 静态环境表（已知语义的 env 不问 judge——体是否可译已由表决定）
 _KNOWN_ENVS = MATH_ENVS | VERBATIM_ENVS | PROTECTED_ENVS | ARG_TRANSPARENT_ENVS
@@ -249,7 +249,7 @@ def run_fixloop(  # noqa: PLR0913 -- 开关面穿透两臂同一契约
     return cell, proxy.last
 
 
-def _ruleset_with_baseline(baseline: Path) -> Ruleset:
+def ruleset_with_baseline(baseline: Path) -> Ruleset:
     """加载默认 ruleset 并把 ``baseline`` 注入 restore_support_from_src 的 params。
 
     ``baseline_dir`` 是运行时路径（任务级 pristine base 树——worker 传
@@ -378,7 +378,7 @@ def consume_engine_flags(  # noqa: PLR0913 -- 开关面穿透两臂同一契约
 
 
 @dataclass
-class _TreeRun:
+class TreeRun:
     """``_translate_tree`` 的内部运行态——splice 后供 L2 回灌复用。"""
 
     scans: list[tuple[Path, ScanResult]]
@@ -387,7 +387,7 @@ class _TreeRun:
     pipe: XlatPipeline
 
 
-def _split_cid(chunk_id: str) -> tuple[int, int]:
+def split_cid(chunk_id: str) -> tuple[int, int]:
     """``"fidx:cid"`` → (fidx, cid)。"""
     a, _, b = chunk_id.partition(":")
     return int(a), int(b)
@@ -396,7 +396,7 @@ def _split_cid(chunk_id: str) -> tuple[int, int]:
 def unknown_env_of(chunk: Chunk) -> str | None:
     """静态表外 env 名——体可译性未定的 env 返名，已知/无 env 返 None。
 
-    ``_env_judge_all`` 目标选择谓词（e2e ``_env_judge_pass`` 与 worker
+    ``env_judge_all`` 目标选择谓词（e2e ``_env_judge_pass`` 与 worker
     ``_env_judge_filter`` 同一闸）。
     """
     env_name = (chunk.env or "").strip()
@@ -425,7 +425,7 @@ async def _env_judge_one(pipe: XlatPipeline, chunk: Chunk, env_name: str) -> boo
     return True
 
 
-async def _env_judge_all(
+async def env_judge_all(
     pipe: XlatPipeline, targets: list[tuple[str, Chunk, str]]
 ) -> dict[str, bool]:
     """逐条判定未知 env 块（顺序跑——mock/单文件路径，量小）。"""
@@ -461,7 +461,7 @@ def _expand_tokens(
     ``tokmap`` = ``{"[[CHUNK_k]]": unicode_math_fix(zh)}``——译文本位；
     未译 chunk 回落 ``chunks[k].content``，typed ph 走 ``ph_map``。
     已译且 context 非 para/item 的 ``[[CHUNK_n]]`` 展开后同样压 ``\n\n``→``\n``
-    （reconstruct.expand 的 ``short_arg`` 同则）——缺这步 ``_chunk_spans`` 的
+    （reconstruct.expand 的 ``short_arg`` 同则）——缺这步 ``chunk_spans`` 的
     ``find`` 必对不上落盘字节，块在 L2 二次归因里整片消失。字面/ph 交错段
     接缝同走 ``_seg_join``（``\cs`` 尾 + 字母头补空格）——本函数只服务
     译文落盘文件，``reconstruct`` 侧 ``glue_latin`` 恒真。
@@ -501,7 +501,7 @@ def _expand_tokens(
     return _seg_join(segs)
 
 
-def _chunk_spans(
+def chunk_spans(
     text: str, res: ScanResult, trans: dict[int, str]
 ) -> dict[int, tuple[int, int] | None]:
     """各 chunk 在当前文件中的 ``[s, e)`` 区间（文档序贪心 find）。
@@ -531,7 +531,7 @@ def _chunk_spans(
     return spans
 
 
-def _resolve_fidx(token: str, run: _TreeRun, work: Path) -> int | None:
+def _resolve_fidx(token: str, run: TreeRun, work: Path) -> int | None:
     """Log 里的文件名 token → scans 下标（相对/``./``/绝对路径三形态）。"""
     t = token.strip()
     while t.startswith("./"):
@@ -551,10 +551,10 @@ def _resolve_fidx(token: str, run: _TreeRun, work: Path) -> int | None:
 
 
 @dataclass
-class _L2Attr:
+class L2Attr:
     """L2 归因底账：每文件 文本/行偏移/chunk 区间 三表（惰性建）。"""
 
-    run: _TreeRun
+    run: TreeRun
     work: Path
     texts: dict[int, str] = field(default_factory=dict)
     line_off: dict[int, list[int]] = field(default_factory=dict)
@@ -570,7 +570,7 @@ class _L2Attr:
         for ln in self.texts[fidx].splitlines(keepends=True):
             offs.append(offs[-1] + len(ln))
         self.line_off[fidx] = offs
-        self.spans[fidx] = _chunk_spans(
+        self.spans[fidx] = chunk_spans(
             self.texts[fidx], sres, self.run.trans.get(fidx) or {}
         )
 
@@ -628,7 +628,7 @@ class _L2Attr:
 
 
 def _l2_localize(
-    work: Path, run: _TreeRun, res: CompRes
+    work: Path, run: TreeRun, res: CompRes
 ) -> tuple[dict[str, dict[str, Any]], int]:
     """编译 log → ``{chunk_id: {file,line,head}}`` 归因表 + 错误总数。
 
@@ -643,7 +643,7 @@ def _l2_localize(
     verdict = _l2_parse(res)
     if verdict.log_missing or not verdict.errors:
         return {}, verdict.n_errors
-    st = _L2Attr(run, work)
+    st = L2Attr(run, work)
     hits: dict[str, dict[str, Any]] = {}
     for err in verdict.errors[:_L2_MAX_ERRORS]:
         got = st.attr_error(err)
@@ -658,8 +658,8 @@ def _l2_localize(
     return hits, verdict.n_errors
 
 
-async def _retranslate_hits(
-    run: _TreeRun, hits: dict[str, dict[str, Any]], cap: int
+async def retranslate_hits(
+    run: TreeRun, hits: dict[str, dict[str, Any]], cap: int
 ) -> dict[str, Any]:
     """逐块重译（单发）+ 结果入账；返回报告 dict（``_`` 前缀内部键）。"""
     rep: dict[str, Any] = {
@@ -679,7 +679,7 @@ async def _retranslate_hits(
         if ci is None:
             continue
         tried += 1
-        fidx, ccid = _split_cid(cid)
+        fidx, ccid = split_cid(cid)
         loc = f"{info['file']}:{info['line']}" if info["line"] else info["file"]
         r = await run.pipe.retranslate_chunk(ci, f"{info['head']}\n(at {loc})")
         if r is None:
@@ -697,7 +697,7 @@ async def _retranslate_hits(
     return rep
 
 
-def _resplice(run: _TreeRun, work: Path, main_rel: str, fidxs: set[int]) -> list[str]:
+def _resplice(run: TreeRun, work: Path, main_rel: str, fidxs: set[int]) -> list[str]:
     """受影响文件 reconstruct 重写；主文件重跑 ``prepare_chinese`` 补 ctex。"""
     main_path = work / main_rel
     rewritten: list[str] = []
@@ -715,14 +715,14 @@ def _resplice(run: _TreeRun, work: Path, main_rel: str, fidxs: set[int]) -> list
 
 
 def l2_repair_round(  # noqa: PLR0913 -- 阶梯钩子面穿透两臂同一契约
-    run: _TreeRun,
+    run: TreeRun,
     work: Path,
     main_rel: str,
     res: CompRes,
     cap: int,
     *,
     retranslate: Callable[
-        [_TreeRun, dict[str, dict[str, Any]], int], dict[str, Any]
+        [TreeRun, dict[str, dict[str, Any]], int], dict[str, Any]
     ],
     recompile: Callable[[], tuple[CompRes, Verdict]],
     checkpoint: Callable[[], None] | None = None,
@@ -730,7 +730,7 @@ def l2_repair_round(  # noqa: PLR0913 -- 阶梯钩子面穿透两臂同一契约
     """L2 回灌一轮骨架：归因 → 重译 → resplice → 重编 → 余孽回落原文。
 
     ``retranslate``/``recompile`` 两臂注入——e2e 包 ``asyncio.run(
-    _retranslate_hits)`` + ``_compile_judge``（tail dict 臂侧合成）；
+    retranslate_hits)`` + ``_compile_judge``（tail dict 臂侧合成）；
     worker 包 client aclose 同 loop 纪律 + ``eng.compile``+``judge``。
     ``checkpoint`` 是 cancel 轮询点（worker ``_abort_if_cancelled``
     同位三处：重译前/后、首编后），缺省无操作。
@@ -757,7 +757,7 @@ def l2_repair_round(  # noqa: PLR0913 -- 阶梯钩子面穿透两臂同一契约
         return rep, last_res, None
 
     rep["rewritten"] = _resplice(
-        run, work, main_rel, {_split_cid(c)[0] for c in changed}
+        run, work, main_rel, {split_cid(c)[0] for c in changed}
     )
     res2, v2 = recompile()
     if checkpoint is not None:
@@ -775,10 +775,10 @@ def l2_repair_round(  # noqa: PLR0913 -- 阶梯钩子面穿透两臂同一契约
     rep["unresolved"] = sorted(set(hits2) - adopted)
     if still_bad:
         for cid in still_bad:
-            fidx, ccid = _split_cid(cid)
+            fidx, ccid = split_cid(cid)
             run.trans.get(fidx, {}).pop(ccid, None)
         rep["fallback_rewritten"] = _resplice(
-            run, work, main_rel, {_split_cid(c)[0] for c in still_bad}
+            run, work, main_rel, {split_cid(c)[0] for c in still_bad}
         )
         # 回落态即交付树——补一次裸编：fixloop 关/崩/reject 时不再有
         # 代验兜底，zh-src.zip 不能装未验证树（audit fallback_unverified）
@@ -791,7 +791,7 @@ def l2_repair_round(  # noqa: PLR0913 -- 阶梯钩子面穿透两臂同一契约
 # ---------------------------------------------------------------- glossary confine
 
 
-def _resolve_glossary_path(
+def resolve_glossary_path(
     gpath: str, glossary_dir: str, base_dir: Path
 ) -> Path | None:
     """``_glossary_path`` 的静默版：同一 confine 解析，不告警。

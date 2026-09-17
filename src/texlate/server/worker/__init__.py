@@ -40,7 +40,7 @@ from texlate.compile.engine import (  # noqa: F401 -- test monkeypatch 面
     route_project,
 )
 from texlate.compile.probe import target_probe  # noqa: F401 -- test monkeypatch 面
-from texlate.repair import _resolve_glossary_path, _ruleset_with_baseline
+from texlate.repair import resolve_glossary_path, ruleset_with_baseline
 from texlate.server.upload import (
     _md_member,
     pdf_pages,
@@ -162,8 +162,6 @@ __all__ = [
     "_fixloop_summary",
     "_md_member",
     "_new_usage_meter",
-    "_resolve_glossary_path",
-    "_ruleset_with_baseline",
     "_scrub_deep",
     "_share_pool",
     "_share_row",
@@ -176,6 +174,8 @@ __all__ = [
     "chunk_db_id",
     "chunk_error_code",
     "pdf_pages",
+    "resolve_glossary_path",
+    "ruleset_with_baseline",
     "share_pack_publish",
     "sniff_upload",
     "unpack_zip",

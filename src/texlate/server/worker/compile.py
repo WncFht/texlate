@@ -23,20 +23,20 @@ from texlate.compile.probe import (
 from texlate.latex.placeholder import PH_RX
 from texlate.latex.reconstruct import reconstruct
 from texlate.repair import (
-    _ENV_FIXLOOP_LLM,
-    _ENV_NO_FIXLOOP,
-    _ENV_NO_L2,
+    ENV_FIXLOOP_LLM,
+    ENV_NO_FIXLOOP,
+    ENV_NO_L2,
     L2_MAX_CHUNKS,
-    _retranslate_hits,
-    _ruleset_with_baseline,
-    _split_cid,
-    _TreeRun,
+    TreeRun,
     consume_engine_flags,
     embed_tounicode_quiet,
     fixloop_cell_parts,
     l2_repair_round,
     log_text_of,
+    retranslate_hits,
+    ruleset_with_baseline,
     run_fixloop,
+    split_cid,
 )
 from texlate.server.settings import scrub
 from texlate.server.store import TERMINAL_STATUSES
@@ -483,7 +483,7 @@ class _Compile:
         return opt_bool(
             ctx.options(),
             "fixloop",
-            lambda: not env_flag(_ENV_NO_FIXLOOP, default=False),
+            lambda: not env_flag(ENV_NO_FIXLOOP, default=False),
         )
 
     def _fixloop_engine(self, ctx: TaskCtx, eng: Engine) -> Engine:
@@ -516,7 +516,7 @@ class _Compile:
             cell, fix_last = run_fixloop(
                 work,
                 self._fixloop_engine(ctx, eng),
-                ruleset=_ruleset_with_baseline(ctx.base_dir),
+                ruleset=ruleset_with_baseline(ctx.base_dir),
                 engine_name=ctx.engine_name,
                 corpus_id=ctx.task_id,
                 cond="zh",
@@ -601,7 +601,7 @@ class _Compile:
         if _share_sourced(ctx):
             return False
         return opt_bool(
-            ctx.options(), "l2", lambda: not env_flag(_ENV_NO_L2, default=False)
+            ctx.options(), "l2", lambda: not env_flag(ENV_NO_L2, default=False)
         )
 
     def _llm_hook_pack(
@@ -625,7 +625,7 @@ class _Compile:
             opt is False or str(opt).strip().lower() in ("0", "false", "no", "off")
         ):
             return None, None, []
-        if not env_flag(_ENV_FIXLOOP_LLM, default=True):
+        if not env_flag(ENV_FIXLOOP_LLM, default=True):
             return None, None, []
         if self._translator_factory is not None:
             # 注入路径：factory 产 translator 直接给 hook（测试桩语义调用方担）
@@ -663,8 +663,8 @@ class _Compile:
 
     def _l2_run_state(
         self, ctx: TaskCtx, work: Path
-    ) -> tuple[_TreeRun, dict[str, str]]:
-        """``repair._TreeRun`` 形态重建：scans 指向 work 内文件 + trans/chunk_ins。
+    ) -> tuple[TreeRun, dict[str, str]]:
+        """``repair.TreeRun`` 形态重建：scans 指向 work 内文件 + trans/chunk_ins。
 
         ``trans`` 取 chunks 表 status='ok' 译文（= work 内已 splice 内容）；
         ``db_of`` 是 ``"fidx:cid"`` → chunks.chunk_id 的 DB 回写映射。
@@ -707,7 +707,7 @@ class _Compile:
         # [compile_error] hint 语境的修复译文写同前缀缓存会污染主链段
         # 缓存命名空间（段缓存只认 source+masked 快照，不知 hint）
         pipe._materialize(list(chunk_ins.values()))  # noqa: SLF001 -- 旁路复用文档级物化
-        run = _TreeRun(
+        run = TreeRun(
             scans=[(work / rel, ctx.scans[rel]) for rel in rels],
             trans=trans,
             chunk_ins=chunk_ins,
@@ -732,10 +732,10 @@ class _Compile:
         usage = self._meter_usage(clients)
 
         async def _retr(
-            run: _TreeRun, hits: dict[str, dict[str, Any]], cap: int
+            run: TreeRun, hits: dict[str, dict[str, Any]], cap: int
         ) -> dict[str, Any]:
             try:
-                return await _retranslate_hits(run, hits, cap)
+                return await retranslate_hits(run, hits, cap)
             finally:
                 # client 用/关收进同一 ephemeral loop——拆两次 asyncio.run
                 # 会在已关 loop 上 aclose（RuntimeError 吞掉 → FD 泄漏）；
@@ -793,14 +793,14 @@ class _Compile:
     def _l2_writeback(
         self,
         ctx: TaskCtx,
-        run: _TreeRun,
+        run: TreeRun,
         db_of: dict[str, str],
         rep: dict[str, Any],
     ) -> None:
         """L2 结果落 chunks 表：retranslated→新译文；reverted/fallback→fallback_orig。"""
         upd: dict[str, dict[str, Any]] = {}
         for cid in rep.get("retranslated") or []:
-            fidx, ccid = _split_cid(cid)
+            fidx, ccid = split_cid(cid)
             zh = (run.trans.get(fidx) or {}).get(ccid)
             if zh is not None and cid in db_of:
                 upd[db_of[cid]] = {"translation": zh}
@@ -875,7 +875,7 @@ class _Compile:
                     if _share_sourced(ctx)
                     else "options.l2"
                     if "l2" in ctx.options()
-                    else _ENV_NO_L2
+                    else ENV_NO_L2
                 ),
             }
             return res, v
