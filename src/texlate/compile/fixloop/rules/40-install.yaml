@@ -97,7 +97,7 @@ rules:
       tectonic: { mode: same }
     provenance:
       - {
-          corpus: "cbucket-vendored-inventory (files 8 真件 + stubs 13)",
+          corpus: "cbucket-vendored-inventory (files 8 真件 + stubs 15)",
           error: "File `aastex.cls' not found (CTAN 下架/改名件)",
         }
     stats: { fires: 0, status: proposed }

@@ -1,0 +1,39 @@
+% texlate vendored stub — 原许可禁分发，最小兼容面
+% binhex.tex 替身：D. Kastrup 进制转换宏（binhex.dtx 非 free，TL 不发行；
+% 真件头款要求随源包同发，vendor/files 收不进，stub 是唯一通路）。
+% 消费面实证：TL 内 newtxtext/newtxmath/newpxmath/newtxsf/dsserif \input{binhex}
+% （moreenum 已改 fmtcount）；唯一活调用 = newtxtext unicode 支路
+% \textcircled{10..20} → \symbol{"\nhex{4}{<cnt>}}；math 侧 \nhex 调用全注释。
+% corpus_v3 三格 1907.10382/2105.00070/2308.04217（真件 jinstpub→newtx 死链）
+% 实证 unfixable:binhex.tex。净室再实现：\numexpr 纯展开式进制转换，语义对
+% 原件逐点核对（宽度为下限零填充/大写 A-F/负数出 - 号/0→0，probe 记录见
+% tmp/binhex-stub/）。公共面同原件 9 宏：
+%   \nbinbased{b}{w}{n}  b=bits/digit(1..4) w=最小宽度 n=数
+%   \nbinary \ntetra \noct \nhex {w}{n}；\binary \tetra \oct \hex {n}（最小宽）
+% 全纯展开式（\edef/\symbol{"...} 内安全）；内部宏无 @ 免 catcode 面；
+% 需 e-TeX \numexpr（一切 LaTeX 引擎恒在；原件可跑 Knuth TeX，stub 不承诺）。
+
+\message{texlate stub: binhex.tex — expandable base-conversion shim}
+
+% —— 单数字 → 0-9A-F 字形（值域 0..15，越界出空） ——
+\def\txbhD#1{\ifcase\numexpr#1\relax0\or1\or2\or3\or4\or5\or6\or7\or8\or9\or A\or B\or C\or D\or E\or F\fi}
+% —— \txbhZeros{k}：k>0 时出 k 个 0（\ifnum 第二操作数用空格收尾，\relax 会漏出） ——
+\def\txbhZeros#1{\ifnum\numexpr#1\relax>0 0\expandafter\txbhZeros\expandafter{\number\numexpr#1-1\relax}\fi}
+% —— \txbhPad{n}{B}{w}：n 的 B 进制串，左侧零填充至 ≥w 位。递归每降一位消一格
+%    宽度；n<B 收尾时 zeros(w-1)+digit 自然实现下限语义。整除取 floor 经
+%    (n-B/2)/B —— \numexpr 除法就近取整，n≥B 时恒=floor(n/B)。 ——
+\def\txbhPad#1#2#3{\ifnum\numexpr#1\relax<#2 \txbhZeros{\numexpr#3-1\relax}\txbhD{#1}\else\expandafter\txbhPadR\expandafter{\number\numexpr(#1-(#2)/2)/(#2)\relax}{#1}{#2}{#3}\fi}
+\def\txbhPadR#1#2#3#4{\txbhPad{#1}{#3}{\numexpr#4-1\relax}\txbhD{\numexpr(#2)-(#1)*(#3)\relax}}
+% —— \txbhNb{B}{w}{n}：负号先剥，绝对值经 0-(n) 走 \txbhPad ——
+\def\txbhNb#1#2#3{\ifnum\numexpr#3\relax<0 -\txbhPad{0-(#3)}{#1}{#2}\else\txbhPad{#3}{#1}{#2}\fi}
+% —— 公共面：\nbinbased{b}{w}{n} b∈1..4 → B=2,4,8,16 ——
+\def\nbinbased#1#2#3{\ifcase\numexpr#1\relax\txbhNb{2}{#2}{#3}\or\txbhNb{2}{#2}{#3}\or\txbhNb{4}{#2}{#3}\or\txbhNb{8}{#2}{#3}\or\txbhNb{16}{#2}{#3}\fi}
+\def\nbinary{\nbinbased1}
+\def\ntetra{\nbinbased2}
+\def\noct{\nbinbased3}
+\def\nhex{\nbinbased4}
+\def\binary{\nbinary1}
+\def\tetra{\ntetra1}
+\def\oct{\noct1}
+\def\hex{\nhex1}
+\endinput
