@@ -933,6 +933,164 @@ def test_undefine_site_prepend_idempotent(tmp_path: Path) -> None:
     assert "already cleared" in note
 
 
+# ─── W151: end* 恒拒名形 (\@ifdefinable \@qend 前缀拒, 与定义态无关) ───
+
+
+def test_undefine_endstar_provide_site_rc_bypass(tmp_path: Path) -> None:
+    r"""W151 主钉 (o2-stub-fill ``\providecommand{\endproof}`` r1→r2 死循环
+    实证): undefined 态 ``\endproof`` + provide 站点 → ``\@ifdefinable``
+    恒炸 already_def; ``\let\endproof\@undefined`` 清位徒劳。
+    end* 名 × ``\@ifdefinable`` 路由命令 → rc@ 单发旁路前置。"""
+    _write_main(
+        tmp_path,
+        "\\providecommand{\\endproof}{\\endtrivlist}\n"
+        "\\begin{document}\nx\n\\end{document}\n",
+    )
+    (tmp_path / "main.log").write_text(
+        "main.tex:1: LaTeX Error: Command \\endproof already defined.\n"
+    )
+    ok, note = TRANSFORM_FNS["undefine_for_redef"](_ctx(tmp_path), None, "endproof", {})
+    assert ok, note
+    t = (tmp_path / "main.tex").read_text()
+    assert (
+        "\\makeatletter\\let\\@ifdefinable\\@rc@ifdefinable\\makeatother\n"
+        "\\providecommand{\\endproof}"
+    ) in t
+    # 恒拒名不注无效的 \@undefined 清位 (docclass 块亦不收)
+    assert "\\let\\endproof\\@undefined" not in t
+
+
+def test_undefine_endstar_newcommand_batch_mixed(tmp_path: Path) -> None:
+    r"""end* + 非 end* 混合撞名批清: ``\newcommand{\endproof}`` 站走 rc@,
+    ``\newcommand{\aj}`` 站仍走 ``\let``; end* 名不进 docclass 块。"""
+    _write_main(
+        tmp_path,
+        "\\newcommand{\\endproof}{P}\n\\newcommand{\\aj}{A}\n"
+        "\\begin{document}\nx\n\\end{document}\n",
+    )
+    (tmp_path / "main.log").write_text(
+        "main.tex:1: LaTeX Error: Command \\endproof already defined.\n"
+        "main.tex:2: LaTeX Error: Command \\aj already defined.\n"
+    )
+    ok, note = TRANSFORM_FNS["undefine_for_redef"](
+        _ctx(tmp_path), None, "endproof", {"min_batch": 2}
+    )
+    assert ok, note
+    t = (tmp_path / "main.tex").read_text()
+    assert (
+        "\\makeatletter\\let\\@ifdefinable\\@rc@ifdefinable\\makeatother\n"
+        "\\newcommand{\\endproof}"
+    ) in t
+    assert "\\let\\aj\\@undefined" in t  # 非 end* 路径不变 (站点+docclass 双修)
+    assert "\\let\\endproof\\@undefined" not in t
+
+
+def test_undefine_endstar_min_batch_collapses(tmp_path: Path) -> None:
+    r"""孤站单 end* 撞名 (min_batch=2 门): renew(111) 对 undefined-end* 的
+    ``\@ifundefined`` 报错在 halt_on_error 下同卡死 → 该名形不能让位,
+    fire_set 含 end* 名即坍缩 min_batch=1 由批路径收。"""
+    _write_main(
+        tmp_path,
+        "\\newcommand{\\endnote}{N}\n\\begin{document}\nx\n\\end{document}\n",
+    )
+    (tmp_path / "main.log").write_text(
+        "main.tex:1: LaTeX Error: Command \\endnote already defined.\n"
+    )
+    ok, note = TRANSFORM_FNS["undefine_for_redef"](
+        _ctx(tmp_path), None, "endnote", {"min_batch": 2}
+    )
+    assert ok, note
+    assert "\\let\\@ifdefinable\\@rc@ifdefinable" in (tmp_path / "main.tex").read_text()
+
+
+def test_undefine_endstar_ltcmd_site_keeps_let(tmp_path: Path) -> None:
+    r"""``\NewDocumentCommand`` 站 (ltcmd ``\cs_if_exist``, 无 end 守卫):
+    end* 名仍走 ``\let\X\@undefined`` —— rc@ 前置不食 ``\@ifdefinable``
+    会泄给下个用户。"""
+    _write_main(
+        tmp_path,
+        "\\NewDocumentCommand{\\endnote}{}\n"
+        "\\newcommand{\\aj}{A}\n"
+        "\\begin{document}\nx\n\\end{document}\n",
+    )
+    (tmp_path / "main.log").write_text(
+        "main.tex:1: LaTeX cmd Error: Command '\\endnote' already defined.\n"
+        "main.tex:2: LaTeX Error: Command \\aj already defined.\n"
+    )
+    ok, note = TRANSFORM_FNS["undefine_for_redef"](_ctx(tmp_path), None, "endnote", {})
+    assert ok, note
+    t = (tmp_path / "main.tex").read_text()
+    assert (
+        "\\makeatletter\\let\\endnote\\@undefined\\makeatother\n"
+        "\\NewDocumentCommand{\\endnote}"
+    ) in t
+
+
+def test_undefine_endstar_siteless_declines(tmp_path: Path) -> None:
+    r"""end* 撞名无站点可指 (包内/csname 构名) → 不注徒劳 ``\let`` (毁既有
+    义且重定义侧仍恒拒) —— decline 交下位规则。"""
+    _write_main(tmp_path, "\\begin{document}\nx\n\\end{document}\n")
+    (tmp_path / "main.log").write_text(
+        "pkg.sty:9: LaTeX Error: Command \\endfoo already defined.\n"
+    )
+    ok, note = TRANSFORM_FNS["undefine_for_redef"](_ctx(tmp_path), None, "endfoo", {})
+    assert not ok
+    assert "endfoo" in note
+    assert "\\let\\endfoo" not in (tmp_path / "main.tex").read_text()
+
+
+def test_undefine_relax_reserved_abstains(tmp_path: Path) -> None:
+    r"""``\@qrelax`` 同恒拒 + ``\relax`` 是 primitive: ``\let\@undefined``
+    注毁其义, rc@ 旁路真重定义 —— 皆全局灾难, 弃修。"""
+    _write_main(
+        tmp_path,
+        "\\newcommand{\\relax}{X}\n\\begin{document}\nx\n\\end{document}\n",
+    )
+    (tmp_path / "main.log").write_text(
+        "main.tex:1: LaTeX Error: Command \\relax already defined.\n"
+    )
+    ok, _note = TRANSFORM_FNS["undefine_for_redef"](_ctx(tmp_path), None, "relax", {})
+    assert not ok
+    t = (tmp_path / "main.tex").read_text()
+    assert "\\let\\relax" not in t
+    assert "rc@ifdefinable" not in t
+
+
+def test_undefine_endstar_provide_nonendstar_untouched(tmp_path: Path) -> None:
+    r"""非 end* 名 ``\providecommand`` 站点不入列: 撞名静默族前置清位反夺
+    cls 定义 —— guilty 文件内 ``\providecommand{\foo}`` 不吃 prepend。"""
+    _write_main(
+        tmp_path,
+        "\\providecommand{\\foo}{F}\n\\newcommand{\\aj}{A}\n"
+        "\\begin{document}\nx\n\\end{document}\n",
+    )
+    (tmp_path / "main.log").write_text(
+        "main.tex:2: LaTeX Error: Command \\aj already defined.\n"
+    )
+    ok, note = TRANSFORM_FNS["undefine_for_redef"](_ctx(tmp_path), None, "aj", {})
+    assert ok, note
+    t = (tmp_path / "main.tex").read_text()
+    assert "\\let\\aj\\@undefined" in t
+    assert "\\let\\foo" not in t  # provide 站点非恒拒名 —— 不动
+
+
+def test_undefine_endstar_rc_prepend_idempotent(tmp_path: Path) -> None:
+    """二轮: rc@ 前置已见 (64 字窗幂等) → applied=False 不占轮次。"""
+    _write_main(
+        tmp_path,
+        "\\providecommand{\\endproof}{P}\n\\begin{document}\nx\n\\end{document}\n",
+    )
+    (tmp_path / "main.log").write_text(
+        "main.tex:1: LaTeX Error: Command \\endproof already defined.\n"
+    )
+    ctx = _ctx(tmp_path)
+    ok, _ = TRANSFORM_FNS["undefine_for_redef"](ctx, None, "endproof", {})
+    assert ok
+    ok, note = TRANSFORM_FNS["undefine_for_redef"](ctx, None, "endproof", {})
+    assert not ok
+    assert "endproof" in note  # end* 无新站点可做 → defer 注记
+
+
 # ─── font_cs_shim (AMS 上古字体 cs) ───
 
 

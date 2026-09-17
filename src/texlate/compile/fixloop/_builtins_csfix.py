@@ -254,6 +254,59 @@ _SITE_DEF_CMDS: tuple[str, ...] = (
     "NewMathAlphabet",
     "DeclareMathOperator",
 )
+#: ``\providecommand`` 族只收 end* 名站点: 非恒拒名撞名静默不产
+#: already_def (前置清位反夺 cls 先定义 —— 不入 _SITE_DEF_CMDS 之理);
+#: 但 undefined 态对 end* 名必走 ``\new@command`` → ``\@ifdefinable``
+#: 恒炸 already_def (W151 ``\providecommand{\endproof}`` r1→r2 死循环
+#: 实证), 此时 rc@ 前置恰保留 provide 语义 (defined→skip/undefined→define)。
+_PROVIDE_SITE_CMDS: tuple[str, ...] = ("providecommand",)
+#: ``\@ifdefinable`` 路由命令 —— end* 名站点前置换 ``\let\@ifdefinable
+#: \@rc@ifdefinable`` 单发旁路 (kernel 内建同款, latex.ltx:1294
+#: ``\renew@command`` / :1402 ``\declare@robustcommand@auxii``: rc@ 被
+#: 消费时先还原 ``\@@ifdefinable`` 再续定义体 —— 恰放行紧邻一次
+#: ``\@ifdefinable`` 调用后自愈, defined/undefined 两态皆过, 不泄检查面)。
+#: ltcmd ``\NewDocumentCommand``/``\DeclareDocumentCommand`` 走
+#: ``\cs_if_exist`` 无 end 守卫 (``\__cmd_check_end`` 只服务 env copy/show);
+#: ``\DeclareMathAlphabet`` 族走自有 ``\ifx\csname X\endcsname\relax``
+#: (``\csname`` 把 undefined 名冻结成 ``\relax`` → ``\let\X\@undefined``
+#: 对其本就有效, fixprobe 实证) —— 均不食 ``\@ifdefinable``, 前置 rc@
+#: 会泄给下个用户 → 不入列。
+_IFN_ROUTED_CMDS: frozenset[str] = frozenset(
+    {
+        "newcommand",
+        "providecommand",
+        "DeclareRobustCommand",
+        "DeclareMathOperator",
+    }
+)
+#: ``\@ifdefinable`` 双恒拒名形之二 (latex.ltx:1301 ``\@qrelax`` 全名形):
+#: ``\relax`` 是 primitive —— ``\let\relax\@undefined`` 注毁其义, rc@ 旁路
+#: 真把它重定义掉, 皆全局灾难 → 无安全清位路径, 与寄存器分配名同列弃修。
+_RESERVED_UNDEFINABLE: frozenset[str] = frozenset({"relax"})
+
+
+def _endstar_name(name: str) -> bool:
+    r"""Cs 名 ``\@ifdefinable`` 恒拒形判定 (end* 前缀)。
+
+    ``\@carcube`` 取名前 3 字符 = ``\@qend``("end") 即 ``\@notdefinable``
+    (latex.ltx:1296-1305), 与该名是否已定义无关 —— ``\let\X\@undefined``
+    清位后 ``\newcommand`` 族仍炸同一 already_def 签名。
+    """
+    return name.startswith("end")
+
+
+def _site_clear_line(cmd: str, name: str) -> str | None:
+    r"""站点前置串 (裸 ``\let`` 形, ``\makeatletter`` 包裹由调用方按文件类加)。
+
+    None = 该 (命令, 名形) 组合不收站点 (``\providecommand`` 族非恒拒名)。
+    ``\@ifdefinable`` 路由命令 × end* 名 → ``\@rc@ifdefinable`` 单发旁路;
+    其余 → ``\let\X\@undefined``。
+    """
+    if cmd in _PROVIDE_SITE_CMDS and not _endstar_name(name):
+        return None
+    if _endstar_name(name) and cmd in _IFN_ROUTED_CMDS:
+        return r"\let\@ifdefinable\@rc@ifdefinable"
+    return f"\\let\\{name}\\@undefined"
 
 
 def _redef_site_map(
@@ -261,19 +314,66 @@ def _redef_site_map(
     site_re: re.Pattern[str],
     allocated: frozenset[str],
 ) -> dict[Any, set[str]]:
-    """逐文件 live ``_SITE_DEF_CMDS`` 站点名集 (遮罩复核剔死区, 剔寄存器名)。"""
+    r"""逐文件 live 站点名集 (遮罩复核剔死区, 剔寄存器/``\@qrelax`` 保留名)。
+
+    ``site_re`` group(1)=命令名, group(2)=cs 名; ``\providecommand`` 族
+    只收 ``_endstar_name`` 恒拒名形 (非恒拒名撞名静默, 前置清位反夺
+    cls 先定义)。
+    """
     out: dict[Any, set[str]] = {}
     for f in ctx.tex_files((".tex", ".sty", ".cls")):
         t = ctx.read(f) or ""
         masked = mask_tex(t)
-        names = {
-            m.group(1)
-            for m in site_re.finditer(masked)
-            if masked[m.start() : m.end()] == t[m.start() : m.end()]
-        } - allocated
+        names = (
+            {
+                m.group(2)
+                for m in site_re.finditer(masked)
+                if masked[m.start() : m.end()] == t[m.start() : m.end()]
+                and _site_clear_line(m.group(1), m.group(2)) is not None
+            }
+            - allocated
+            - _RESERVED_UNDEFINABLE
+        )
         if names:
             out[f] = names
     return out
+
+
+def _prepend_sites_in_text(
+    t: str,
+    masked: str,
+    site_re: re.Pattern[str],
+    targets: set[str],
+    *,
+    wrap: bool,
+) -> tuple[str, int]:
+    r"""单文件内 ``targets`` 站点前置清位串 → (新文本, 前置数)。
+
+    前置形态由 ``_site_clear_line`` 按 (命令, 名形) 分流; 遮盖命中文本
+    逐字节复核剔死区 (``\iffalse``/verbatim), 上轮已 prepend 的站点按
+    64 字前缀窗幂等跳过。``wrap`` = ``.tex`` 面需 ``\makeatletter`` 对。
+    """
+    out: list[str] = []
+    prev, n = 0, 0
+    for m in site_re.finditer(masked):
+        name = m.group(2)
+        if name not in targets:
+            continue
+        ins = _site_clear_line(m.group(1), name)
+        if ins is None:
+            continue  # 非恒拒名 provide 站点 —— 同 _redef_site_map 过滤
+        if masked[m.start() : m.end()] != t[m.start() : m.end()]:
+            continue  # 跨遮盖区命中 —— 死代码内站点不数不动
+        if ins in t[max(0, m.start() - 64) : m.start()]:
+            continue  # 上轮已 prepend 过的站点
+        out.append(t[prev : m.start()])
+        out.append((f"\\makeatletter{ins}\\makeatother" if wrap else ins) + "\n")
+        prev = m.start()
+        n += 1
+    if not n:
+        return t, 0
+    out.append(t[prev:])
+    return "".join(out), n
 
 
 def _undefine_sites(
@@ -282,43 +382,32 @@ def _undefine_sites(
     site_re: re.Pattern[str],
     targets: set[str],
 ) -> int:
-    r"""Guilty 文件内 ``targets`` 站点前置 ``\let\X\@undefined`` → 改写文件数。
+    r"""Guilty 文件内 ``targets`` 站点前置清位 → 改写文件数。
 
-    遮盖命中文本逐字节复核剔死区 (``\iffalse``/verbatim), 上轮已
-    prepend 的站点按 64 字前缀窗幂等跳过。catcode 包裹按文件类分:
-    ``.cls``/``.sty`` 内 ``@`` 本是 letter —— 尾部 ``\makeatother``
-    会把 @ 翻回 catcode-12, 插入点后全部 @-cs 烂掉 (1706.00221
-    ``\define@key``→``\define``+``@key`` 级联实证) —— 裸 ``\let``
-    不包裹; ``.tex`` 面才需 ``\makeatletter`` 对。
+    前置形态按 (命令, 名形) 分流: ``\@ifdefinable`` 路由命令
+    (``_IFN_ROUTED_CMDS``) × end* 恒拒名 → ``\let\@ifdefinable
+    \@rc@ifdefinable`` 单发旁路 (``\let\X\@undefined`` 对恒拒名是徒劳:
+    重定义侧仍过 ``\@ifdefinable`` 炸同一 already_def 签名, W151);
+    其余站点 → ``\let\X\@undefined`` (ltcmd ``\cs_if_exist`` 与
+    mathalphabet ``\csname``-freeze 检查均认其为 undefined)。
+
+    catcode 包裹按文件类分: ``.cls``/``.sty`` 内 ``@`` 本是 letter ——
+    尾部 ``\makeatother`` 会把 @ 翻回 catcode-12, 插入点后全部 @-cs
+    烂掉 (1706.00221 ``\define@key``→``\define``+``@key`` 级联实证) ——
+    裸 ``\let`` 不包裹; ``.tex`` 面才需 ``\makeatletter`` 对。
     """
     n_files = 0
     for f in guilty:
         t = ctx.read(f)
         if t is None:
             continue
-        wrap = getattr(f, "suffix", "") == ".tex"
-        masked = mask_tex(t)
-        out: list[str] = []
-        prev, n = 0, 0
-        for m in site_re.finditer(masked):
-            name = m.group(1)
-            if name not in targets:
-                continue
-            if masked[m.start() : m.end()] != t[m.start() : m.end()]:
-                continue  # 跨遮盖区命中 —— 死代码内站点不数不动
-            if f"\\let\\{name}\\@undefined" in t[max(0, m.start() - 64) : m.start()]:
-                continue  # 上轮已 prepend 过的站点
-            out.append(t[prev : m.start()])
-            if wrap:
-                out.append(f"\\makeatletter\\let\\{name}\\@undefined\\makeatother\n")
-            else:
-                out.append(f"\\let\\{name}\\@undefined\n")
-            prev = m.start()
-            n += 1
-        if not n:
-            continue
-        out.append(t[prev:])
-        nt = "".join(out)
+        nt, _n = _prepend_sites_in_text(
+            t,
+            mask_tex(t),
+            site_re,
+            targets,
+            wrap=getattr(f, "suffix", "") == ".tex",
+        )
         if nt != t:
             ctx.write(f, nt)
             n_files += 1
@@ -344,13 +433,20 @@ def undefine_for_redef(
          前置是语义无操作 (undefine+define≡define)。盖 doc 内双定义与
          "包在 docclass 之后才定义"的窗口 (astro-ph/0408445
          ``\DeclareMathAlphabet{\mathbfit}`` 撞 bm 包定义)。
+         end* 恒拒名形 (``\@ifdefinable`` ``\@qend`` 前缀拒, 与定义态
+         无关) 在 ``\@ifdefinable`` 路由命令站点换 ``\@rc@ifdefinable``
+         单发旁路; ``\providecommand`` 族站点只收该名形。
       2. docclass 块 —— 只对证实撞名集 (payload∪log 扫描, 不扩站点
-         兄弟) 早清位, 兜无站点可指的撞名 (包内互撞等)。
+         兄弟) 早清位, 兜无站点可指的撞名 (包内互撞等)。end* 名不入
+         此块: 无站点可指时 ``\let\endX\@undefined`` 纯徒劳 (重定义侧
+         仍恒拒) 且毁既有义 —— 弃修交下位规则。
 
     ``params.min_batch`` (缺省 1) 门批量下限, 计数 = 撞名 ∪ guilty 文件
     站点名 (halt_on_error 下单撞名证据 + 同文件多站点即达批): order
     110.5 批规则传 2, 孤站单撞名格 (文件仅一处 ``\newcommand``) 让位
-    renew(111) 已验证路径; payload=None (``other`` 类反引号签,
+    renew(111) 已验证路径 —— 但撞名集含 end* 名时恒按 1 (renew 对
+    undefined-end* 的 ``\@ifundefined`` 报错在 halt_on_error 下同样
+    卡死, 该名形不能让位); payload=None (``other`` 类反引号签,
     taxonomy 不产 payload) 恒按 1 —— 该面无其他规则接手。
     """
     del eng
@@ -364,22 +460,29 @@ def undefine_for_redef(
     allocated = _allocated_cs_names(mask_tex(ctx.source_blob()))
     had_names = bool(offenders)
     offenders -= allocated
+    offenders -= _RESERVED_UNDEFINABLE
     if not offenders:
         return False, (
-            "all collided cs are allocated-register names — abstain"
+            "all collided cs are allocated/reserved names — abstain"
             if had_names
             else "no collided cs to clear"
         )
 
     site_cmds = tuple(str(c) for c in (params.get("site_cmds") or _SITE_DEF_CMDS))
     site_re = re.compile(
-        r"\\(?:" + "|".join(site_cmds) + r")\s*\*?\s*\{?\s*\\([A-Za-z@]+)\s*\}?"
+        r"\\("
+        + "|".join((*site_cmds, *_PROVIDE_SITE_CMDS))
+        + r")\s*\*?\s*\{?\s*\\([A-Za-z@]+)\s*\}?"
     )
     site_map = _redef_site_map(ctx, site_re, allocated)
     guilty = [f for f, names in site_map.items() if names & offenders]
     expanded = set().union(*(site_map[f] for f in guilty)) if guilty else set()
     fire_set = offenders | expanded
-    min_batch = 1 if payload is None else int(params.get("min_batch") or 1)
+    min_batch = (
+        1
+        if payload is None or any(map(_endstar_name, fire_set))
+        else int(params.get("min_batch") or 1)
+    )
     if len(fire_set) < min_batch:
         return False, f"<{min_batch} collided+site-sibling cs — single path owns it"
 
@@ -388,12 +491,16 @@ def undefine_for_redef(
         n_sites = _undefine_sites(ctx, guilty, site_re, expanded)
         if n_sites:
             done.append(
-                f"site-prepend \\let in {n_sites} file(s) for {len(expanded)} cs"
+                f"site-prepend guards in {n_sites} file(s) for {len(expanded)} cs"
             )
 
     main = ctx.main_path()
     main_t = (ctx.read(main) or "") if main is not None else ""
-    fresh = [n for n in sorted(offenders) if f"\\let\\{n}\\@undefined" not in main_t]
+    fresh = [
+        n
+        for n in sorted(offenders)
+        if not _endstar_name(n) and f"\\let\\{n}\\@undefined" not in main_t
+    ]
     if fresh:
         block = (
             "% fixloop: batch undefine for redefinition\n\\makeatletter\n"
@@ -403,5 +510,12 @@ def undefine_for_redef(
         if _inject_after_docclass(ctx, block):
             done.append(f"docclass block clears {len(fresh)} cs")
     if not done:
+        endstar = sorted(n for n in offenders if _endstar_name(n))
+        if endstar:
+            return False, (
+                f"end*-name offenders {', '.join(endstar)} have no "
+                "\\@ifdefinable-routed site — \\let\\X\\@undefined is futile "
+                "for always-rejected names, defer"
+            )
         return False, "all offenders already cleared"
     return True, "; ".join(done) + f" — {', '.join(sorted(fire_set))}"
