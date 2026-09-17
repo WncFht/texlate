@@ -39,6 +39,7 @@ from texlate.arxiv.fetch import (
     AcquireResult,
     AcquireStatus,
     Fetcher,
+    _valid_id,
     acquire_source,
     normalize_arxiv_id,
 )
@@ -402,7 +403,7 @@ _THIN_TERMINAL = frozenset(
 _THIN_POLL_S = 2.0
 
 
-def _thin_run(  # noqa: PLR0913 -- 与 run 的 --server 选项面一一对应
+def _thin_run(  # noqa: PLR0911, PLR0913 -- 与 run 的 --server 选项面一一对应
     source: str,
     *,
     server: str,
@@ -421,6 +422,10 @@ def _thin_run(  # noqa: PLR0913 -- 与 run 的 --server 选项面一一对应
         )
         return 2
     base, ver = normalize_arxiv_id(source)
+    if not _valid_id(base):
+        # 非法 id 经 httpx dot-segment 归一化会逃逸 /api/arxiv/ 命名空间
+        typer.echo(f"非法 arXiv id: {source}", err=True)
+        return 2
     pinned = f"{base}v{ver}" if ver is not None else base
 
     headers: dict[str, str] = {}
