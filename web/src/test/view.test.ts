@@ -33,6 +33,46 @@ describe("resolveReaderView（html 视图降级门）", () => {
     });
 });
 
+describe("resolveReaderView（dom 视图——arxiv_html 链 DOM 产物）", () => {
+    const doc = (url: string) => ({ version: "v", pages: 3, url });
+
+    it("view=dom + 任一侧 documents.url 在 → dom（不等 dual.json）", () => {
+        expect(
+            resolveReaderView(
+                { view: "dom", documents: { original: doc("/f/en.html") } },
+                undefined,
+            ),
+        ).toBe("dom");
+        expect(
+            resolveReaderView(
+                { view: "dom", documents: { translated: doc("/f/zh.html") } },
+                undefined,
+            ),
+        ).toBe("dom");
+    });
+
+    it("view=dom + 双侧 url 全缺 → empty（坏数据同 html 无 chunks 档）", () => {
+        expect(
+            resolveReaderView({ view: "dom", documents: {} }, undefined),
+        ).toBe("empty");
+        expect(
+            resolveReaderView(
+                { view: "dom", documents: { original: doc("") } },
+                { chunks: [chunk] },
+            ),
+        ).toBe("empty");
+    });
+
+    it("view=dom 不看 dual.chunks——有 chunks 也走 dom 臂", () => {
+        expect(
+            resolveReaderView(
+                { view: "dom", documents: { original: doc("/f/en.html") } },
+                { chunks: [chunk] },
+            ),
+        ).toBe("dom");
+    });
+});
+
 describe("done-doc 决议（docx/epub 任务 reader 404 → files 产物面板）", () => {
     it("info 缺失 + readerGone → files", () => {
         expect(resolveReaderView(null, undefined, true)).toBe("files");

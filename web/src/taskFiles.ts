@@ -26,6 +26,8 @@ const ORDER: FileKind[] = [
     "en.pdf",
     "dual.pdf",
     "dual.json",
+    "zh.html",
+    "en.html",
     "zh.docx",
     "zh.epub",
     "zh-src.zip",

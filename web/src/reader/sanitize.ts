@@ -14,6 +14,22 @@ export function sanitizeHtml(html: string): string {
     return DOMPurify.sanitize(html, PROFILE);
 }
 
+// 与 sanitizeHtml（md_zip 路 marked 产物）不同：arxiv DOM 是服务端
+// LaTeXML 产物（worker emit 已剥过一层），但要保的东西更多——
+// svg:true 因为 ar5iv/LaTeXML 的 tikz/矢量图走 inline SVG；
+// FORBID 里补 iframe/object/embed/form/base（DOMPurify 默认不禁
+// iframe 容器标签，同源嵌进 pane 是 UI redress 面）。
+const DOM_PROFILE = {
+    USE_PROFILES: { html: true, mathMl: true, svg: true, svgFilters: true },
+    FORBID_TAGS: ["iframe", "object", "embed", "form", "base", "link", "meta"],
+    // data-chunk 是 sync 几何锚——data-* DOMPurify 默认放行，显式声明防回归
+    ADD_ATTR: ["data-chunk", "target"],
+};
+
+export function sanitizeDomHtml(html: string): string {
+    return DOMPurify.sanitize(html, DOM_PROFILE);
+}
+
 /** marked 失败时把源 markdown 当纯文本兜底——只转义 HTML 特殊字符 */
 export function escapeHtml(s: string): string {
     return s

@@ -44,6 +44,8 @@ export default function Home(props: { nav(to: string): void }) {
     const [optConcurrency, setOptConcurrency] = createSignal("");
     const [optEngine, setOptEngine] = createSignal("");
     const [optPrefer, setOptPrefer] = createSignal("");
+    // 取源通道：eprint=LaTeX 主链 / html=arXiv HTML 降级链（仅 arxiv 翻译有意义）
+    const [optSource, setOptSource] = createSignal("eprint");
     const [optShare, setOptShare] = createSignal("");
     const [optMain, setOptMain] = createSignal("");
     // per-request BYOK：仅存组件 state，提交成功即清，不落 settings
@@ -94,6 +96,8 @@ export default function Home(props: { nav(to: string): void }) {
         if (optShare()) opts.share_pack = optShare() === "on";
         const pref = optPrefer();
         if (pref === "reuse" || pref === "fresh") opts.prefer = pref;
+        // 默认 eprint 不写字段——服务端按缺省 eprint，存量请求面零变化
+        if (optSource() === "html") opts.source = "html";
         if (Object.keys(opts).length) o.options = opts;
         return o.model || o.target_lang || o.glossary || o.options ? o : undefined;
     };
@@ -142,10 +146,12 @@ export default function Home(props: { nav(to: string): void }) {
             setUpPct(Math.min(100, Math.round((loaded / total) * 100)));
         try {
             // upload 的 options 走 multipart JSON 字段；prefer 仅对 arxiv 缓存有意义
-            // （server 上传路恒 prefer=fresh），glossary 在 options 内传递
+            // （server 上传路恒 prefer=fresh），source 是 arxiv 取源通道同理剔除，
+            // glossary 在 options 内传递
             const o = collectOptions();
             const upOpts: Record<string, unknown> = { ...o?.options };
             delete upOpts.prefer;
+            delete upOpts.source;
             if (o?.glossary) upOpts.glossary = o.glossary;
             // .share.zip 是社区缓存包——走 share/import（包内 manifest 自描述）
             if (file.name.toLowerCase().endsWith(".share.zip")) {
@@ -326,6 +332,16 @@ export default function Home(props: { nav(to: string): void }) {
                                 <option value="">{t.home.optDefault}</option>
                                 <option value="reuse">{t.home.preferReuse}</option>
                                 <option value="fresh">{t.home.preferFresh}</option>
+                            </select>
+                        </label>
+                        <label>
+                            <span>{t.home.optSource}</span>
+                            <select
+                                value={optSource()}
+                                onChange={(e) => setOptSource(e.currentTarget.value)}
+                            >
+                                <option value="eprint">{t.home.srcEprint}</option>
+                                <option value="html">{t.home.srcHtml}</option>
                             </select>
                         </label>
                         <label>

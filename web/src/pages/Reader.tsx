@@ -7,6 +7,7 @@ import {
     api,
     ApiError,
     isTerminal,
+    landingHash,
     type DualJson,
     type FileKind,
     type FileManifest,
@@ -22,6 +23,7 @@ import Toolbar, { type DownloadItem, type Mode } from "../components/Toolbar";
 import ProgressGrid from "../components/ProgressGrid";
 import PdfPane, { type PaneHandle } from "../reader/PdfPane";
 import HtmlPane, { type HtmlPaneHandle } from "../reader/HtmlPane";
+import DomPane, { type DomPaneHandle } from "../reader/DomPane";
 import { createPositionMapper, type DocId, type Pos } from "../reader/alignment";
 import { annotFileName } from "../reader/paneUtils";
 import { capturePos, jumpTo, scrollTopFor, SyncEngine } from "../reader/sync";
@@ -32,7 +34,7 @@ const STAGES: TaskStage[] = ["fetching", "parsing", "translating", "compiling"];
 const JUMPBACK_PX = 500;
 const SAVE_DEBOUNCE_MS = 1000;
 
-type AnyHandle = PaneHandle | HtmlPaneHandle;
+type AnyHandle = PaneHandle | HtmlPaneHandle | DomPaneHandle;
 
 export default function Reader(props: { taskId: string; nav(to: string): void }) {
     const [task, setTask] = createSignal<TaskSnapshot | null>(null);
@@ -170,6 +172,8 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
             const n = Math.max(d?.chunks?.length ?? 1, 1);
             return { original: n, translated: n };
         }
+        // dom 与 pdf 同路：dom 的 "pages" = 锚定 chunk 数（worker 写进
+        // documents.*.pages），不进 dual.chunks 分支
         return {
             original: i.documents.original?.pages ?? 1,
             translated: i.documents.translated?.pages ?? 1,
@@ -366,7 +370,15 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
         const i = info();
         const doc = i?.documents[side];
         if (!i || !doc) return "";
-        const kind: FileKind = side === "original" ? "en.pdf" : "zh.pdf";
+        // side→kind 映射按 view 分：dom 链产物是 {en|zh}.html
+        const kind: FileKind =
+            i.view === "dom"
+                ? side === "original"
+                    ? "en.html"
+                    : "zh.html"
+                : side === "original"
+                  ? "en.pdf"
+                  : "zh.pdf";
         // 优先服务端给的 url；否则按 files 约定拼（带版本校验防旧版，§2.3）
         return doc.url || api.fileUrl(props.taskId, kind, { version: doc.version });
     };
@@ -375,7 +387,8 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
     // html 视图需 dual.json chunks 到位才成立；登记 html 却无渲染材料 → empty 空态；
     // readerGone（doc 类任务）→ files 产物面板
     const view = () => resolveReaderView(info(), dual(), readerGone());
-    const isPdf = () => view() !== "html";
+    const isDom = () => view() === "dom";
+    const isPdf = () => view() !== "html" && view() !== "dom";
     const live = () => taskStore.live(props.taskId);
     const activeTask = () => {
         const s = task();
@@ -443,6 +456,45 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
         }
     };
 
+    // ---------- arXiv HTML 通道降级（F 桶取源失败 → 换链新任务） ----------
+
+    // 取源段失败才可换链：编译/翻译段故障 html 链救不了，误示好过滥示。
+    // 新任务而非 retry：kind 是建行定死的列字段，retry 端点不换 kind——
+    // 换链必须新任务（kind 不同 cache_key 不同，不与原任务撞 dedup）
+    const HTML_FALLBACK_CODES: ReadonlySet<string> = new Set([
+        "arxiv_fetch",
+        "no_latex_source",
+        "pdf_wrapper",
+    ]);
+    const [htmlBusy, setHtmlBusy] = createSignal(false);
+    const [htmlErr, setHtmlErr] = createSignal("");
+    const canTryHtml = () => {
+        const s = task();
+        return (
+            s?.kind === "arxiv" &&
+            !!s.arxiv_id &&
+            HTML_FALLBACK_CODES.has(s.error?.code ?? "")
+        );
+    };
+    const onTryHtml = async () => {
+        const s = task();
+        if (!s?.arxiv_id || htmlBusy()) return;
+        setHtmlBusy(true);
+        setHtmlErr("");
+        try {
+            const res = await api.translate(s.arxiv_id, {
+                model: s.model,
+                target_lang: s.target_lang,
+                options: { source: "html" },
+            });
+            props.nav(landingHash(res));
+        } catch (e) {
+            setHtmlErr(e instanceof ApiError ? e.detail : String(e));
+        } finally {
+            setHtmlBusy(false);
+        }
+    };
+
     // ---------- 事后共享打包（POST /task/{id}/share/pack，§6） ----------
 
     /** 可分享：done/partial 终态 + 非 share 导入产物（不自包）+ 有 arxiv 源（寻址必需） */
@@ -452,6 +504,7 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
             !!s &&
             (s.status === "done" || s.status === "partial") &&
             s.kind !== "share" &&
+            s.kind !== "arxiv_html" &&
             !!s.arxiv_id
         );
     };
@@ -675,6 +728,24 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
                 >
                     {retrying() ? t.reader.retrying : t.reader.retry}
                 </button>
+                <Show when={canTryHtml()}>
+                    <button
+                        type="button"
+                        class="tb-btn"
+                        disabled={htmlBusy()}
+                        title={t.reader.tryHtmlHint}
+                        onClick={() => void onTryHtml()}
+                    >
+                        {htmlBusy() ? t.reader.retrying : t.reader.tryHtml}
+                    </button>
+                </Show>
+                <Show when={htmlErr()}>
+                    {(m) => (
+                        <p class="form-error" role="alert">
+                            {m()}
+                        </p>
+                    )}
+                </Show>
                 <Show when={st === "needs_auth"}>
                     <span class="muted">{t.reader.retryHintAuth}</span>
                 </Show>
@@ -707,46 +778,75 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
         const version = () => info()?.documents[side]?.version || undefined;
         return (
             <div class="pane-slot">
-                {/* html 视图数据来自 chunks，不看 documents；pdf 侧按 doc.version
-                    keyed 重挂，document 缺侧（该侧无产物）→ 占位 veil */}
+                {/* 三层：dom → DomPane（序列化 DOM 产物）/ html → HtmlPane
+                    （chunks→marked）/ pdf → PdfPane。dom 与 pdf 同按
+                    doc.version keyed 重挂——重译后旧产物不留残影；
+                    document 缺侧（该侧无产物）→ 占位 veil */}
                 <Show
-                    when={isPdf()}
+                    when={!isDom()}
                     fallback={
-                        <HtmlPane
-                            side={side}
-                            chunks={dual()?.chunks ?? []}
-                            active={active() === side}
-                            onReady={(h) => paneReady(side, h)}
-                            onDispose={(h) => paneDisposed(side, h)}
-                            onActivate={() => setActive(side)}
-                            onScroll={onUserScroll}
-                        />
+                        <Show
+                            when={version()}
+                            keyed
+                            fallback={
+                                <div class="pane-veil pane-empty">
+                                    <p class="muted">{t.reader.docMissing}</p>
+                                </div>
+                            }
+                        >
+                            {(_v) => (
+                                <DomPane
+                                    side={side}
+                                    url={docUrl(side)}
+                                    active={active() === side}
+                                    onReady={(h) => paneReady(side, h)}
+                                    onDispose={(h) => paneDisposed(side, h)}
+                                    onActivate={() => setActive(side)}
+                                    onScroll={onUserScroll}
+                                />
+                            )}
+                        </Show>
                     }
                 >
                     <Show
-                        when={version()}
-                        keyed
+                        when={isPdf()}
                         fallback={
-                            <div class="pane-veil pane-empty">
-                                <p class="muted">{t.reader.docMissing}</p>
-                            </div>
-                        }
-                    >
-                        {(_v) => (
-                            <PdfPane
-                                url={docUrl(side)}
+                            <HtmlPane
                                 side={side}
-                                annotName={annotFileName(props.taskId, side)}
+                                chunks={dual()?.chunks ?? []}
                                 active={active() === side}
                                 onReady={(h) => paneReady(side, h)}
                                 onDispose={(h) => paneDisposed(side, h)}
-                                onPageChange={(p) =>
-                                    setPageNums((s) => ({ ...s, [side]: p }))
-                                }
                                 onActivate={() => setActive(side)}
                                 onScroll={onUserScroll}
                             />
-                        )}
+                        }
+                    >
+                        <Show
+                            when={version()}
+                            keyed
+                            fallback={
+                                <div class="pane-veil pane-empty">
+                                    <p class="muted">{t.reader.docMissing}</p>
+                                </div>
+                            }
+                        >
+                            {(_v) => (
+                                <PdfPane
+                                    url={docUrl(side)}
+                                    side={side}
+                                    annotName={annotFileName(props.taskId, side)}
+                                    active={active() === side}
+                                    onReady={(h) => paneReady(side, h)}
+                                    onDispose={(h) => paneDisposed(side, h)}
+                                    onPageChange={(p) =>
+                                        setPageNums((s) => ({ ...s, [side]: p }))
+                                    }
+                                    onActivate={() => setActive(side)}
+                                    onScroll={onUserScroll}
+                                />
+                            )}
+                        </Show>
                     </Show>
                 </Show>
                 <Show when={drift()[side]}>
@@ -894,7 +994,9 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
             {/* 终态：阅读器（左右互换走 CSS row-reverse，逻辑侧不变） */}
             <Show
                 when={
-                    !fatal() && !activeTask() && (view() === "pdf" || view() === "html")
+                    !fatal() &&
+                    !activeTask() &&
+                    (view() === "pdf" || view() === "html" || view() === "dom")
                 }
             >
                 <Toolbar
@@ -908,7 +1010,7 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
                     active={active()}
                     swapped={swapped()}
                     downloads={downloads()}
-                    canGotoPage={isPdf()}
+                    canGotoPage={isPdf() || isDom()}
                     onMode={planModeChange}
                     onSync={setSync}
                     onZoom={applyZoom}

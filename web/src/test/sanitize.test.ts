@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest";
 import { marked } from "marked";
 import renderMathInElement from "katex/contrib/auto-render";
-import { sanitizeHtml } from "../reader/sanitize";
+import { sanitizeDomHtml, sanitizeHtml } from "../reader/sanitize";
 
 const render = (md: string) =>
     sanitizeHtml(marked.parse(md, { async: false }) as string);
@@ -58,5 +58,43 @@ describe("sanitizeHtml（HtmlPane marked 输出消毒）", () => {
         expect(host.querySelector(".katex-html")).not.toBeNull();
         // KaTeX 产物自带 MathML 语义层（annotation/semantics）
         expect(host.querySelector("annotation")).not.toBeNull();
+    });
+});
+
+describe("sanitizeDomHtml（DomPane arxiv LaTeXML 产物消毒）", () => {
+    it("script/事件处理器/iframe/object/embed/form/base/link/meta 被剥", () => {
+        const out = sanitizeDomHtml(
+            '<p onclick="x()">t</p><script>alert(1)</script>' +
+                '<iframe src="//e"></iframe><object></object><embed>' +
+                '<form></form><base href="//e"><link rel="x" href="//e"><meta name="x">',
+        );
+        expect(out).not.toContain("<script");
+        expect(out).not.toContain("onclick");
+        expect(out).not.toContain("<iframe");
+        expect(out).not.toContain("<object");
+        expect(out).not.toContain("<embed");
+        expect(out).not.toContain("<form");
+        expect(out).not.toContain("<base");
+        expect(out).not.toContain("<link");
+        expect(out).not.toContain("<meta");
+        expect(out).toContain("<p>t</p>");
+    });
+
+    it("inline SVG 保留（ar5iv/LaTeXML 矢量图）——与 sanitizeHtml 的 svg:false 分野", () => {
+        const svg = '<svg viewBox="0 0 1 1"><circle r="1"/></svg>';
+        expect(sanitizeDomHtml(svg)).toContain("<svg");
+        expect(sanitizeHtml(svg)).not.toContain("<svg");
+    });
+
+    it("data-chunk 锚与 MathML 保留；semantics/annotation 仍剥（mXSS 向量）", () => {
+        const out = sanitizeDomHtml(
+            '<section data-chunk="3"><math><semantics><mi>x</mi>' +
+                '<annotation encoding="application/x-tex">x</annotation></semantics></math></section>',
+        );
+        expect(out).toContain('data-chunk="3"');
+        expect(out).toContain("<math");
+        expect(out).toContain("<mi>x</mi>");
+        expect(out).not.toContain("<semantics");
+        expect(out).not.toContain("<annotation");
     });
 });

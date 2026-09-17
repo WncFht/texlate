@@ -20,7 +20,15 @@ export type TaskStatus =
     | "needs_auth";
 
 export type TaskStage = "fetching" | "parsing" | "translating" | "compiling";
-export type TaskKind = "arxiv" | "upload_tex" | "upload_pdf" | "docx" | "epub" | string;
+export type TaskKind =
+    | "arxiv"
+    | "arxiv_html"
+    | "upload_tex"
+    | "upload_pdf"
+    | "docx"
+    | "epub"
+    | "share"
+    | string;
 
 export type ErrorCode =
     | "arxiv_fetch"
@@ -147,6 +155,8 @@ export interface TranslateOptions {
         concurrency?: number;
         engine?: string;
         prefer?: "reuse" | "fresh";
+        /** 取源通道：eprint=LaTeX 主链（默认）| html=arXiv HTML 降级链 */
+        source?: "eprint" | "html";
         /** 完成后打包 .share.zip 社区缓存包（shared-cache.md §6 opt-in） */
         share_pack?: boolean;
     };
@@ -187,7 +197,9 @@ export type FileKind =
     | "compile.log"
     | "md"
     | "zh.docx"
-    | "zh.epub";
+    | "zh.epub"
+    | "en.html"
+    | "zh.html";
 
 /** db kind → URL kind（files manifest / snapshot.artifacts / done.artifacts 的键均为 db kind） */
 export const DB_TO_URL_KIND: Record<string, FileKind> = {
@@ -201,6 +213,8 @@ export const DB_TO_URL_KIND: Record<string, FileKind> = {
     md_zip: "md",
     zh_docx: "zh.docx",
     zh_epub: "zh.epub",
+    en_html: "en.html",
+    zh_html: "zh.html",
 };
 
 export interface FileEntry {
@@ -221,7 +235,7 @@ export interface ReaderDoc {
     url: string;
 }
 
-export type ReaderView = "pdf" | "html";
+export type ReaderView = "pdf" | "html" | "dom";
 
 export interface ReadingState {
     positions?: Partial<Record<"original" | "translated", Pos>>;
