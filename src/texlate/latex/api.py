@@ -13,9 +13,12 @@ preamble；preamble 整段 LITERAL + 只登记宏。两枚正则都跑在
 from __future__ import annotations
 
 import errno
-import os
 import re
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import os
 
 from texlate.latex.flatten import flatten_inputs
 from texlate.latex.gullet import Gullet
@@ -24,7 +27,7 @@ from texlate.latex.model import ScanResult, ScanState, ScanWarning
 from texlate.latex.placeholder import PH_RX, PlaceholderIssuer
 from texlate.latex.scanner import Scanner
 from texlate.latex.segmenter import parse_tex_v2, scan_v2
-from texlate.textutil import decode_tex, mask_tex
+from texlate.textutil import decode_tex, env_flag, mask_tex
 
 _PREAMBLE_RX = re.compile(r"\\(documentclass|documentstyle)(?![a-zA-Z])")
 _DOC_BEGIN_RX = re.compile(r"\\begin\s*\{document\}")
@@ -97,7 +100,7 @@ def parse_file_v1(
 
 def parse_tex(tex: str) -> ScanResult:
     """主入口：单文件文本 → ``ScanResult``（v2 token 流为默认）。"""
-    if os.environ.get(_NO_EXPAND):
+    if env_flag(_NO_EXPAND, default=False):
         return parse_tex_v1(tex)
     return parse_tex_v2(tex)
 
@@ -116,7 +119,7 @@ def parse_file(
     同序）。``flatten=False``：无路径无 root 的内存源——``\\input`` 恒不解析
     → 漏网 literal + ``inputs[]`` 记原始名（standalone 单文件语义）。
     """
-    if os.environ.get(_NO_EXPAND):
+    if env_flag(_NO_EXPAND, default=False):
         return parse_file_v1(path, flatten=flatten, top_dir=top_dir)
     main = Path(path).resolve()
     if not main.is_file():  # fifo/设备/检查时点消失——read_bytes 会悬挂或裸 OSError
