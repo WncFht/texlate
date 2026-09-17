@@ -23,7 +23,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Final
 from urllib.parse import urlsplit
 
 if TYPE_CHECKING:
@@ -765,7 +765,9 @@ def install_log_scrub(
 
 
 #: ``base_url → (monotonic 时间戳, 清单或 None)`` 探活缓存；进程级共享——
-#: 清单是 endpoint 形态不是 store 形态
+#: 清单是 endpoint 形态不是 store 形态。base_url 是用户输入键，不封顶
+#: 会被 PUT 喷雾灌成进程期增长——FIFO 逐出最旧条。
+_MODELS_CACHE_CAP: Final = 64
 _MODELS_CACHE: dict[str, tuple[float, list[str] | None]] = {}
 _MODELS_CACHE_LOCK = threading.Lock()
 
@@ -820,6 +822,8 @@ def _cached_provider_models(base_url: str, api_key: str) -> list[str] | None:
             return hit[1]
     models = list_provider_models(base_url, api_key)
     with _MODELS_CACHE_LOCK:
+        if len(_MODELS_CACHE) >= _MODELS_CACHE_CAP:
+            _MODELS_CACHE.pop(next(iter(_MODELS_CACHE)))
         _MODELS_CACHE[base_url] = (time.monotonic(), models)
     return models
 
