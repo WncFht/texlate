@@ -813,12 +813,47 @@ rules:
           # \input psfig / \input{psfig.tex} 裸装载形 (批七 wave-final ×1):
           # 同桥 epsfig —— \input 语境必在导言区 (psfig 史前装载惯例),
           # \RequirePackage 合法; 若真有正文内 \input 会报 preamble-only 错
-          # 再议 (未观测)。
+          # 再议 (未观测)。裸 payload `psfig` 由 legacy_pkg_shim L722-726
+          # 归一到 psfig.tex 键, 同条覆盖 ×6 裸签格。
           psfig.tex:
             needs: ["epsfig.sty"]
             body: |
               % fixloop legacy shim: psfig.tex -> epsfig (官方 (e)psfig emulation)
               \RequirePackage{epsfig}
+              \endinput
+          # ── AAS v4 系 2.09 选项文件 (批七, 22 格全量面调查) ──
+          # \documentstyle[...,aasms4/aaspp4/aas2pp4]{article} 经 legacy
+          # 重写成 \usepackage{...} → TL 不载 → missing_file。22 格使用面
+          # 普查并集: \affil/\keywords/\received/\accepted/\journalid/
+          # \articleid/\slugcomment/\lefthead/\righthead —— 元数据 noop +
+          # 渲染保留宏。三体同面 (v4 family), anchor 复用。
+          aasms4.sty:
+            needs: []
+            body: &aas4_body |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{aas4x}[2026/09/17 fixloop legacy shim -> article + AAS meta]
+              \providecommand{\received}[1]{}
+              \providecommand{\accepted}[1]{}
+              \providecommand{\journalid}[2]{}
+              \providecommand{\articleid}[2]{}
+              \providecommand{\slugcomment}[1]{\par\noindent{\footnotesize #1\par}}
+              \providecommand{\keywords}[1]{\par\noindent\textbf{Keywords:} #1\par}
+              \providecommand{\affil}[1]{\par\noindent{\small #1\par}}
+              \providecommand{\lefthead}[1]{\markboth{#1}{}}
+              \providecommand{\righthead}[1]{\markboth{}{#1}}
+              \endinput
+          aaspp4.sty: { needs: [], body: *aas4_body }
+          aas2pp4.sty: { needs: [], body: *aas4_body }
+          # eqsecnum 2.09 选项文件 (wave-final 单格): 公式按节编号 ——
+          # .sty 语境 @ 即字母, 无需 makeatletter 包装 (cs_table eqnobysec
+          # 条目是 docclass 后注入, 语境不同才需要)。
+          eqsecnum.sty:
+            needs: []
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{eqsecnum}[2026/09/17 fixloop legacy shim]
+              \@addtoreset{equation}{section}
+              \renewcommand{\theequation}{\thesection.\arabic{equation}}
               \endinput
           # ── 2026-09-16 n100 F1 扩列 ──────────────────────────────────
           # elsart 家族 → elsarticle: Elsevier 官方继任类, 明确兼容 elsart 稿
