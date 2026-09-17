@@ -48,6 +48,7 @@ from texlate.latex.model import (
     env_opt_is_format,
     match_brace,
 )
+from texlate.latex.mouth import Tok
 from texlate.latex.placeholder import PH_RX, PlaceholderIssuer
 from texlate.latex.tables import (
     ACCENT_CHARS,
@@ -84,7 +85,6 @@ from texlate.textutil import mask_tex
 
 if TYPE_CHECKING:
     from texlate.latex.model import ArgspecEntry
-    from texlate.latex.mouth import Tok
 
 # 与 scanner.py 同源逐字：可译性口径随 v1（``+`` 折叠会把临界 run 压过
 # CHUNK_MIN 阈值 → chunk 召回降，验收门不许）
@@ -172,6 +172,29 @@ _GRP_BSBS_CONTENT_RX = re.compile(r"[ \t]*" + _DIMEN_ATOM + r"[ \t]*")
 # 组内尾参扫的 surface join 字符窗上限
 _GRP_TAIL_CAP = 96
 
+# ---- 跨边界待绑参（key-arg 泄漏修复）：展开组尾 cs 的调用点参数吸回组内 ----
+# ``\def\r{\ref}``+``\r{key}``：``\ref`` 是展开产物（pos=定义体、origin=
+# 调用区间），``{key}`` 是 gen=0 调用点 token（pos==origin 末——`_in_group`
+# 的 ``a < o[2]`` 开区间把它挡在组外）→ 无吸纳则 ``{key}`` 落 chunk 被译。
+# 槽形 = ``_grp_call_end``/``_grp_probe_end``/``_grp_spec_args_end`` 各步的
+# 通用化（组内列扫 ``_slots_walk_toks``、流侧拉取 ``_absorb_slots`` 共用）：
+#   s   = 紧邻 ``*``（不跳 ws——``\ref *{k}`` 的星不是星参，call_end 同规）
+#   o   = ws + ``[..]`` 平衡组（可选——失配过给下一槽）
+#   m   = ws + ``{..}`` 平衡组（失配即调用终止）
+#   e   = ws + ``{..}``|``[..]`` 任选一组（hyperref 首参形；失配终止）
+#   a   = accent 参（``{..}``|单 letter/other|单字符名 cs；失配终止）
+#   b   = ws + ``[dimen]``（``\\`` 尾参；内容须 fullmatch _GRP_BSBS_CONTENT_RX）
+#   dXY = ws + ``X..Y`` 定界对（argspec d/D/r/R；可选——失配过槽）
+#   tC  = ws + 单测试字符（argspec t；可选）
+_PEND_CALL1 = ("s", "o", "o", "o", "m")  # ``_grp_call_end`` mand=1 形
+_PEND_CALL2 = ("s", "o", "o", "o", "m", "m")  # inputminted 双 ``{m}``
+_PEND_PROBE = ("o", "m", "m", "m", "m", "m", "m")  # ``_grp_probe_end`` 形
+_SLOT_PAIR_LEN = 3  # ``dXY`` 槽宽（d + 开/闭定界符）
+_SLOT_TEST_LEN = 2  # ``tC`` 槽宽（t + 测试字符）
+# 字符串宏体尾 cs 提取（``_keyarg_tail`` 的 MacroEntry 臂）
+_KEYARG_TAIL_RX = re.compile(r"\\([a-zA-Z@]+)\s*$")
+_KEYARG_TAIL_DEPTH = 4  # ``\a``→``\b``→``\ref`` 别名链递归上限（防环）
+
 # 数学内正文参命令：``{..}`` 参重进文本态，体内 ``$`` 属组内配对、不关外
 # 层数学——``_on_math`` 体扫遇此族整参跳扫（``\text{...$x$...}`` 在内层
 # ``$`` 截断外层 = 0806.3472 ``missing_character`` 残留面）。``parbox`` 类
@@ -217,6 +240,32 @@ def _cite_ref_type(name: str) -> PhType | None:
         and name not in ("href", "hyperref")
     ):
         return PhType.REF
+    return None
+
+
+def _pend_call_slots(name: str) -> list[str]:
+    r"""Key-arg 名 → 待绑参槽列（``_grp_call_end`` 同形）。
+
+    ``url``/``path`` 只认 ``{..}`` 形（定界形参无法 token 配对回吸）。
+    """
+    if name in ("url", "path"):
+        return ["m"]
+    return list(_PEND_CALL2 if name == "inputminted" else _PEND_CALL1)
+
+
+def _pend_slot_of(s: ArgSpec) -> str | None:
+    r"""``ArgSpec`` → 待绑参槽字母；``e``/``b``/无 delim 形 → ``None``（槽形截尾）。"""
+    k = s.kind
+    if k in ("m", "v"):
+        return "m"
+    if k in ("o", "O"):
+        return "o"
+    if k == "s":
+        return "s"
+    if k == "t" and s.delim:
+        return "t" + s.delim[0]
+    if k in ("d", "D", "r", "R") and s.delim:
+        return "d" + s.delim[0] + s.delim[-1]
     return None
 
 
@@ -1442,6 +1491,437 @@ class Segmenter:
             hit = True
         return j if hit else None
 
+    # -------------------------------------------------------- 跨边界待绑参
+
+    def _slots_walk_toks(  # noqa: C901, PLR0911, PLR0912, PLR0915 — 槽字母各一分支，平铺即 _grp_call_end 通用化
+        self, toks: list[Tok], j: int, slots: list[str] | tuple[str, ...]
+    ) -> list[str] | None:
+        r"""槽形在组内 token 列上的推行 → 剩余槽列 / ``None``。
+
+        ``toks`` 耗尽而槽未尽 → 返回剩余槽列（调用点界外有待绑参——
+        ``_absorb_slots`` 从流里拉回）；中途失配/``eol_par``/组未闭 →
+        调用已完结，``None``。可选槽（s/o/b/d/t）失配过给下一槽；强制
+        槽（m/e/a）失配 = 终止。
+        """
+        n = len(toks)
+        si = 0
+        while si < len(slots):
+            s = slots[si]
+            k = j
+            if s != "s":  # ``*`` 槽不跳 ws（``\ref *{k}`` 的星非星参）
+                while k < n and toks[k].kind == "space":
+                    k += 1
+            if k >= n:
+                return list(slots[si:])
+            x = toks[k]
+            if x.kind == "eol_par":
+                return None  # 段界即终止——不定界参数不跨 \par
+            if s == "s":
+                if x.kind == "other" and x.text == "*":
+                    j = k + 1
+                si += 1
+                continue
+            if s == "o":
+                if x.kind == "other" and x.text == "[":
+                    e = self._grp_bal(toks, k, brace=False)
+                    if e is None:
+                        return None
+                    j = e
+                si += 1
+                continue
+            if s == "b":
+                if x.kind == "other" and x.text == "[":
+                    e = self._grp_bal(toks, k, brace=False)
+                    if e is None or not _GRP_BSBS_CONTENT_RX.fullmatch(
+                        self._grp_surfs(toks[k + 1 : e - 1])
+                    ):
+                        return None
+                    j = e
+                si += 1
+                continue
+            if s == "m":
+                if x.kind != "lbrace":
+                    return None
+                e = self._grp_bal(toks, k, brace=True)
+                if e is None:
+                    return None
+                j = e
+                si += 1
+                continue
+            if s == "e":
+                if x.kind != "lbrace" and not (
+                    x.kind == "other" and x.text == "["
+                ):
+                    return None
+                e = self._grp_bal(toks, k, brace=x.kind == "lbrace")
+                if e is None:
+                    return None
+                j = e
+                si += 1
+                continue
+            if s == "a":
+                if x.kind == "lbrace":
+                    e = self._grp_bal(toks, k, brace=True)
+                    if e is None:
+                        return None
+                    j = e
+                elif x.kind in ("letter", "other") or (
+                    x.kind == "cs" and len(x.text) == 1
+                ):
+                    j = k + 1
+                else:
+                    return None
+                si += 1
+                continue
+            if s.startswith("d") and len(s) == _SLOT_PAIR_LEN:
+                if x.text == s[1]:
+                    k2 = k + 1
+                    while (
+                        k2 < n
+                        and toks[k2].text != s[2]
+                        and toks[k2].kind != "eol_par"
+                    ):
+                        k2 += 1
+                    if k2 >= n:
+                        return list(slots[si:])  # 定界闭符在界外——同槽待绑
+                    if toks[k2].kind == "eol_par":
+                        return None
+                    j = k2 + 1
+                si += 1
+                continue
+            if s.startswith("t") and len(s) == _SLOT_TEST_LEN:
+                if x.kind != "cs" and x.text == s[1]:
+                    j = k + 1
+                si += 1
+                continue
+            si += 1  # 未识槽字母——保守跳过（不产生消费）
+        return None
+
+    def _absorb_slots(  # noqa: C901, PLR0912, PLR0915 — 槽字母各一分支，平铺即流侧 _slots_walk_toks 对价
+        self, src: TokenSource, fid: int, slots: list[str]
+    ) -> list[Tok]:
+        r"""槽形从 ``read()`` 流吸参 → 已消费 token 列（拉取序，可空）。
+
+        ``_slots_walk_toks`` 的源侧对价。失配 token 与其前的 ws 全量
+        ``unread`` 回放（``_protect_cs`` ``pulled`` 约定同款）；
+        ``eol_par``/异 fid/``gen>0`` token 是参扫边界（回放、不消费）。
+        """
+        pulled: list[Tok] = []
+        committed = 0
+
+        def unpull(x: Tok | None = None) -> None:
+            tail = pulled[committed:]
+            if x is not None:
+                tail = [*tail, x]
+            if tail:
+                src.unread(tail)
+            del pulled[committed:]
+
+        def peek() -> Tok | None:
+            while True:
+                x = src.read()
+                if x is None:
+                    return None
+                if x.kind == "space":
+                    pulled.append(x)
+                    continue
+                if x.kind == "eol_par" or x.gen > 0 or x.pos[0] != fid:
+                    src.unread([x])
+                    return None
+                return x
+
+        for s in slots:
+            if s == "s":
+                x = src.read()  # ``*`` 槽不跳 ws（call_end 同规）
+                if (
+                    x is not None
+                    and x.kind == "other"
+                    and x.text == "*"
+                    and x.gen == 0
+                    and x.pos[0] == fid
+                ):
+                    pulled.append(x)
+                    committed = len(pulled)
+                elif x is not None:
+                    src.unread([x])
+                continue
+            x = peek()
+            if x is None:
+                unpull()
+                break
+            if s == "o":
+                if x.kind == "other" and x.text == "[":
+                    hit = self._collect_group(src, x, brace=False)
+                    if hit is None:
+                        unpull()
+                        break
+                    inner, closer = hit
+                    pulled.extend((x, *inner, closer))
+                    committed = len(pulled)
+                else:
+                    unpull(x)
+                continue
+            if s == "b":
+                if x.kind == "other" and x.text == "[":
+                    hit = self._collect_group(src, x, brace=False)
+                    if hit is None:
+                        unpull()
+                        break
+                    inner, closer = hit
+                    if not _GRP_BSBS_CONTENT_RX.fullmatch(self._grp_surfs(inner)):
+                        src.unread([x, *inner, closer])
+                        unpull()
+                        break
+                    pulled.extend((x, *inner, closer))
+                    committed = len(pulled)
+                else:
+                    unpull(x)
+                continue
+            if s == "m":
+                if x.kind != "lbrace":
+                    unpull(x)
+                    break
+                hit = self._collect_group(src, x, brace=True)
+                if hit is None:
+                    unpull()
+                    break
+                inner, closer = hit
+                pulled.extend((x, *inner, closer))
+                committed = len(pulled)
+                continue
+            if s == "e":
+                if x.kind != "lbrace" and not (
+                    x.kind == "other" and x.text == "["
+                ):
+                    unpull(x)
+                    break
+                hit = self._collect_group(src, x, brace=x.kind == "lbrace")
+                if hit is None:
+                    unpull()
+                    break
+                inner, closer = hit
+                pulled.extend((x, *inner, closer))
+                committed = len(pulled)
+                continue
+            if s == "a":
+                if x.kind == "lbrace":
+                    hit = self._collect_group(src, x, brace=True)
+                    if hit is None:
+                        unpull()
+                        break
+                    inner, closer = hit
+                    pulled.extend((x, *inner, closer))
+                    committed = len(pulled)
+                elif x.kind in ("letter", "other") or (
+                    x.kind == "cs" and len(x.text) == 1
+                ):
+                    pulled.append(x)
+                    committed = len(pulled)
+                else:
+                    unpull(x)
+                    break
+                continue
+            if s.startswith("d") and len(s) == _SLOT_PAIR_LEN:
+                if x.text == s[1]:
+                    seq = [x]
+                    while True:
+                        y = src.read()
+                        if (
+                            y is None
+                            or y.kind == "eol_par"
+                            or y.gen > 0
+                            or y.pos[0] != fid
+                        ):
+                            src.unread([*seq, *([y] if y is not None else [])])
+                            seq = []
+                            break
+                        seq.append(y)
+                        if y.text == s[2]:
+                            break
+                    if not seq:
+                        unpull()
+                        break
+                    pulled.extend(seq)
+                    committed = len(pulled)
+                else:
+                    unpull(x)
+                continue
+            if s.startswith("t") and len(s) == _SLOT_TEST_LEN:
+                if x.kind != "cs" and x.text == s[1]:
+                    pulled.append(x)
+                    committed = len(pulled)
+                else:
+                    unpull(x)
+                continue
+        return pulled[:committed]
+
+    def _keyarg_tail(  # noqa: C901, PLR0912 — 体形态分派 + key-arg 判定，平铺即规则
+        self, m: object, src: TokenSource, depth: int = 0
+    ) -> str | None:
+        r"""宏体尾 cs 解析到 key-arg 名（``\def\x{..\label}`` 形）→ 名 / ``None``。
+
+        ``MacroDef.body`` = token 列（尾 cs = 最后非空白 token——``{..}``
+        结尾即体尾是组不是 cs，不算待绑）；``MacroEntry.body`` = 字符串
+        （``_KEYARG_TAIL_RX``）；``\\let`` 快照 ``Tok``/原语名 ``str`` 直取。
+        尾 cs 再登记成宏 → 递归一层（``\\a``→``\\b``→``\\ref`` 别名链，
+        深 ≤4 防环）。
+        """
+        if depth >= _KEYARG_TAIL_DEPTH or m is None:
+            return None
+        name: str | None = None
+        body = getattr(m, "body", None)
+        if isinstance(body, list):
+            for x in reversed(body):
+                if x.kind in ("space", "eol_par"):
+                    continue
+                if x.kind == "cs":
+                    name = x.text
+                break
+        elif isinstance(body, str):
+            mm = _KEYARG_TAIL_RX.search(body)
+            if mm is not None:
+                name = mm.group(1)
+        elif isinstance(m, Tok):
+            if m.kind == "cs":
+                name = m.text
+        elif isinstance(m, str):
+            name = m
+        if name is None:
+            return None
+        if _cite_ref_type(name) is not None or name in PROTECT_NAMES:
+            return name
+        m2 = self._resolve_macro(src, name)
+        if m2 is None or m2 is m:
+            return None
+        return self._keyarg_tail(m2, src, depth + 1)
+
+    def _pend_spec_of(  # noqa: C901, PLR0911, PLR0912 — _group_surface 分派行序镜像，平铺即语义
+        self, name: str, src: TokenSource
+    ) -> tuple[list[str] | None, str]:
+        r"""组内 cs → 待绑参槽形 + key-arg 名（``_group_surface`` 各行镜像）。
+
+        ``(None, "")`` = 该 cs 无跨界待绑形（verb 定界体/``\\if`` 族/
+        数学定界/env 端点宏/env 尾参另一机制）。key-arg 名非空 =
+        cite/ref/PROTECT/宏体尾 key-arg——吸纳后仍未绑到 ``{key}``
+        时 ``keyarg_unbound`` 告警。
+        """
+        if name in ("verb", "verb*", "lstinline"):
+            return None, ""  # 定界体无法 token 配对回吸
+        if name in ("begin", "end"):
+            return ["m"], ""
+        if name in ("[", "(", "]", ")"):
+            return None, ""
+        if _cite_ref_type(name) is not None:
+            return list(_PEND_CALL1), name
+        if name in PROTECT_NAMES:
+            return _pend_call_slots(name), name
+        if name == "href":
+            return ["m"], ""  # {url} 参；{text} 可译留主流
+        if name == "hyperref":
+            return ["s", "e"], ""
+        if COND_RX.match(name):
+            return None, ""
+        if name in INPUT_SCAN_CMDS:
+            return (
+                list(_PEND_CALL2) if name in ("import", "subimport") else list(_PEND_CALL1)
+            ), ""
+        m = self._resolve_macro(src, name)
+        if getattr(m, "kind", "") in ("env_begin", "env_end"):
+            return None, ""  # env 尾参走 ``_grp_env_args_end`` 另一机制
+        if name in BOUNDARY_NAMES:
+            spec = BOUNDARY_TAIL.get(name)
+            if spec is None:
+                return None, ""
+            mand = sum(1 for a in spec if a.kind == "m")
+            return ["s", "o", "o", "o", *(["m"] * mand)], ""
+        if name == "\\":
+            return ["s", "b"], ""
+        if name in TRANSPARENT_HEAD_SPEC:
+            return ["o", "m"], ""  # {red} 头参非文本；{text} 留主流
+        if len(name) == 1 and name in ACCENT_CHARS:
+            return ["a"], ""
+        e = argspec_lookup(name, self.state.pkgs)
+        if e is not None:
+            if e.policy in ("literal", "transparent"):
+                return None, ""
+            spec2 = _chunk_spec_cached(e.signature)
+            if e.policy == "chunk-arg":
+                slots: list[str] = []
+                for si, s2 in enumerate(spec2):
+                    role = e.arg_roles[si] if si < len(e.arg_roles) else "skip"
+                    if role in ("text", "opt-text"):
+                        break  # 可译参位起不吸——文本须留主流
+                    sl = _pend_slot_of(s2)
+                    if sl is None:
+                        break
+                    slots.append(sl)
+                return slots or None, ""
+            # protect/key/verbatim/boundary → 整调用 _grp_call_end 形
+            mand = sum(1 for s2 in spec2 if s2.kind in ("m", "v"))
+            return ["s", "o", "o", "o", *(["m"] * mand)], ""
+        ka = self._keyarg_tail(m, src)
+        if ka is not None:
+            return _pend_call_slots(ka), ka
+        return list(_PEND_PROBE), ""
+
+    def _grp_pending(self, src: TokenSource) -> tuple[list[str], str] | None:
+        r"""组尾待绑参检测 → ``(剩余槽列, keyarg 名)`` / ``None``。
+
+        右起扫 ``_open_toks`` 首个有槽形的 cs，其参扫须吃到 toks 末才
+        算 pending（中途被 token 终止 = 调用已完结）。命中即返——更早
+        的 cs 不可能 pending：其参扫必经本 cs token 而强制槽遇 cs 即止。
+        """
+        toks = self._open_toks
+        for i in range(len(toks) - 1, -1, -1):
+            x = toks[i]
+            if x.kind != "cs":
+                continue
+            slots, ka = self._pend_spec_of(x.text, src)
+            if slots is None:
+                continue
+            rem = self._slots_walk_toks(toks, i + 1, slots)
+            return (rem, ka) if rem else None
+        return None
+
+    def _absorb_pending(self, t: Tok, src: TokenSource) -> bool:
+        r"""组尾待绑参吸纳：``t``（界外首 token）回流作首候选，拉参入组。
+
+        成功 → token 并入 ``_open_toks``、``_open_vspan``/``_open_origin``
+        延到吸纳末位（``[[EXPAND]]`` 体覆盖 ``\\r{key}`` 全调用点）、
+        返 ``True``（t 已入组不再主流分派）；未吸到 → 流复原、``False``。
+        key-arg 族待绑而无 ``{``/``[`` 参落位 → ``keyarg_unbound`` 告警
+        （含空 got——收组后将产 cs-only 保护面，同属漏参信号）。
+        """
+        o = self._open_origin
+        hit = self._grp_pending(src)
+        if hit is None:
+            return False
+        slots, ka = hit
+        src.unread([t])  # t 回流作首候选——槽列完整后统一拉取
+        got = self._absorb_slots(src, o[0], slots)
+        if ka and not any(
+            x.kind == "lbrace" or (x.kind == "other" and x.text == "[")
+            for x in got
+        ):
+            # key-arg 参没绑到（``*``/``[opt]`` 不算 key 本体；空 got =
+            # 紧邻 token 全非参——收组走 cs-only 保护）——告警留痕
+            self.state.warnings.append(
+                ScanWarning("keyarg_unbound", len(self.vt), f"\\{ka} 尾参缺席")
+            )
+        if not got:
+            x = src.read()  # 回吐复原后队首即 t——取回交主流分派
+            if x is not None and x is not t:
+                src.unread([x])
+            return False
+        self._open_toks.extend(got)
+        end_pos = max(x.pos[2] for x in got)
+        if end_pos > self._cons(o[0]):
+            vext = self._cover_to(o[0], end_pos)
+            if self._open_vspan is not None:
+                self._open_vspan = Span(self._open_vspan.start, vext.end)
+            self._open_origin = (o[0], o[1], end_pos)
+        return True
+
     def _grp_delim_body_end(self, toks: list[Tok], i: int, j: int) -> int | None:
         r"""``toks[j]`` = 定界 token 的逐字闭界扫描 → j_end；未闭 → None。
 
@@ -1996,6 +2476,14 @@ class Segmenter:
                 self._close_group()
                 self._open_group(t)
                 self._open_toks.append(t)
+                continue
+            o = self._open_origin
+            if (
+                o is not None
+                and t.pos[0] == o[0]
+                and t.pos[1] >= o[2]
+                and self._absorb_pending(t, src)
+            ):
                 continue
             self._close_group()
             if (
@@ -4262,6 +4750,21 @@ class Segmenter:
             for a in getattr(m, "spec", [])
         ]
         _args, end = self._args_tok(src, fid, gspec, b, allow_single_token=True)
+        # 体尾 key-arg cs（``\def\r{\ref}`` 走 opaque 档不展开时）：spec 参
+        # 读尽后调用点 ``{key}`` 仍是待绑尾参——吸进 [[MACRO]] 覆盖，
+        # 否则裸落 chunk 被译（key-arg 泄漏 S1-opaque 面）。
+        ka = self._keyarg_tail(m, src)
+        if ka is not None:
+            got = self._absorb_slots(src, fid, _pend_call_slots(ka))
+            if got:
+                end = max(end, got[-1].pos[2])
+            if not any(
+                x.kind == "lbrace" or (x.kind == "other" and x.text == "[")
+                for x in got
+            ):
+                self.state.warnings.append(
+                    ScanWarning("keyarg_unbound", len(self.vt), f"\\{ka} 尾参缺席")
+                )
         self._cover_gap(fid, t.pos[1])
         vspan = self._cover_to(fid, end)
         self._rappend_ph(
@@ -4296,6 +4799,61 @@ class Segmenter:
             )
             self._skip_past(src, fid, tail_end)
             return
+        if m is not None:
+            # S3 字面别名闸：宏表命中但 cs 到分派仍未展开（xprotect/
+            # gen-cap/bail——``\r`` 不能按字面进 chunk）。体尾解析到
+            # key-arg 族名 → 按该族 protect 调用：参可绑整调用
+            # ``[[REF]]``/``[[LABEL]]`` 等；参缺席（EOF/par/异 fid/
+            # gen>0 紧邻）→ cs-only 保护 + ``keyarg_unbound`` 告警，
+            # 不让 ``\r`` 字面进 surface。
+            ka = self._keyarg_tail(m, src)
+            if ka is not None:
+                pulled: list[Tok] = []
+                x = self._peek_nonspace(src, pulled)
+                bound = (
+                    x is not None
+                    and x.gen == 0
+                    and x.pos[0] == fid
+                    and (
+                        x.kind == "lbrace"
+                        or (x.kind == "other" and x.text in "[*")
+                        or (
+                            ka in ("url", "path")
+                            and (
+                                x.kind == "cs"
+                                or (
+                                    len(x.text) == 1
+                                    and not x.text.isalnum()
+                                    and x.text not in " \t\n\r%{}[]"
+                                )
+                            )
+                        )
+                    )
+                )
+                src.unread([*pulled, *([x] if x is not None else [])])
+                typ = _cite_ref_type(ka) or _PROTECT_TYP.get(ka, PhType.CMD)
+                if bound:
+                    self._protect_cs(
+                        t,
+                        src,
+                        typ,
+                        mand=2 if ka == "inputminted" else 1,
+                        verbatim=ka in ("url", "path"),
+                    )
+                    return
+                self.state.warnings.append(
+                    ScanWarning(
+                        "keyarg_unbound",
+                        len(self.vt),
+                        f"\\{name or t.text}→\\{ka} 参缺席",
+                    )
+                )
+                self._cover_gap(fid, t.pos[1])
+                vspan = self._cover_to(fid, b)
+                self._rappend_ph(
+                    self._ph(typ, self.vt.slice(vspan.start, vspan.end)), vspan
+                )
+                return
         if m is None:
             e = argspec_lookup(name or t.text, self.state.pkgs)
             if e is not None:
