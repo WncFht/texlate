@@ -35,7 +35,9 @@ def last_records(
     if not path.exists():
         return {}
     kept = []
-    for r in benchlib.iter_jsonl(path):
+    for r in benchlib.iter_jsonl(path, errors="replace"):
+        if not isinstance(r, dict):
+            continue
         if arm is not None and r.get("arm") != arm:
             continue
         # 双臂波次防串：对臂记录不进本口径——upstream 字段缺失按 mock
@@ -43,8 +45,10 @@ def last_records(
         # verdict 信息，两侧视图全跳。
         if upstream is not None and (r.get("upstream") or "mock") != upstream:
             continue
-        errs = r.get("errors") or []
-        if any(e.get("code") == "arm_mismatch" for e in errs):
+        errs = r.get("errors")
+        if not isinstance(errs, list):
+            errs = []
+        if any(isinstance(e, dict) and e.get("code") == "arm_mismatch" for e in errs):
             continue
         rid = r.get("id")
         if not isinstance(rid, str) or not rid:
@@ -64,7 +68,8 @@ def pick_final(c: dict, f: dict | None) -> tuple[str, dict, str | None]:
         return "compile", c, None
     if c.get("status") not in COMPILED:
         return "compile", c, "over_noncompiled"
-    csb = (f.get("metrics") or {}).get("compile_status_before")
+    fmet = f.get("metrics")
+    csb = fmet.get("compile_status_before") if isinstance(fmet, dict) else None
     if csb is None:
         return "compile", c, "no_csb"
     if csb != c.get("status"):

@@ -28,31 +28,11 @@
 
 已钉缺陷（``xfail(strict=True)``——修复后 XPASS 提醒拆钉）：
 
-- ``last_records``（gate_scorecard.py:37-55）比 ``triage._read_jsonl``
-  娇气三处：kill 截尾 UTF-8 → UnicodeDecodeError；非 dict JSON 行 →
-  AttributeError；``errors`` 含非 dict 元素 → AttributeError。
 - ``iter_jsonl``/``load_records``（benchlib.py:58-101）同病：截尾 UTF-8
   UnicodeDecodeError；非 dict 行 ``key in r``/``r[key]`` TypeError。
 - ``verdict_sig``（benchlib.py:177/194）：``reasons`` 非可迭代 →
   TypeError；``first_error`` 真值非 str → re.search TypeError；
   ``reasons`` 为 str 时被逐字符迭代产垃圾 sig（如 'm'）。
-- ``pick_final``（gate_scorecard.py:70）：``f.metrics`` 真值非 dict →
-  AttributeError；同模式 triage.py:593 compute_metrics degraded 探测
-  也踩 metrics 类型混淆。
-- ``errors`` 字段为 dict → ``errs[0]`` KeyError——record_sig /
-  bucket_sig / _upstream_gated / classify 同模式全中招，build_tickets
-  连带崩。
-- ``_wall_s``（triage.py:508）：``dur_s`` 非数值 → ValueError/TypeError；
-  NaN/inf 不崩但 ``wall_s`` 非有限值写进 git 跟踪 metrics.jsonl 成非严格
-  JSON 行。
-- ``legacy_records``（triage.py:368-476）：results.json 截尾 →
-  JSONDecodeError；顶层非 dict → AttributeError；``verdict``/``rounds``
-  类型混淆 → AttributeError/KeyError/TypeError——与账侧"容忍坏行"设计
-  不一致。
-- ``fixloop_degraded``（triage.py:590-601）：遍历 fl 全体含未 attempted
-  的 skip 记录——STATUS_RANK 表外词按 -1 → skip+csb 假阳退化。
-- ``missing_character:xN`` 按 N 碎票：``fault=N`` 归一而 ``xN`` 不归一，
-  同一 F4 缺陷类实证碎成 ≥15 票（loop1: x1..x18+）。
 """
 
 from __future__ import annotations
@@ -604,30 +584,19 @@ def test_gate_boundary_need(
     assert want in out
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="gate_scorecard.py:37 `for line in path.open()` 默认 strict utf-8 —— "
-    "kill 截尾多字节 UTF-8 → UnicodeDecodeError（triage._read_jsonl "
-    "errors=replace 免疫同场景）；修：open(errors='replace')",
-)
-def test_pin_gate_last_records_truncated_utf8(tmp_path: Path) -> None:
+def test_gate_last_records_truncated_utf8(tmp_path: Path) -> None:
     p = tmp_path / "compile.jsonl"
     p.write_bytes(b'{"id":"a","arm":"zh","status":"fail"}\n{"id":"b","\xe4\xb8')
     last = gate_scorecard.last_records(p, arm="zh", upstream="mock")
     assert list(last) == ["a"]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="gate_scorecard.py:42-54 非 dict JSON 行 → r.get AttributeError；"
-    "修：isinstance(r, dict) 守卫（对齐 triage._read_jsonl 容错）",
-)
 @pytest.mark.parametrize(
     "line",
     ["5", '"id"', "[1,2]", "null", "3.14", "true"],
     ids=["int", "str", "list", "null", "float", "bool"],
 )
-def test_pin_gate_last_records_nondict_line(tmp_path: Path, line: str) -> None:
+def test_gate_last_records_nondict_line(tmp_path: Path, line: str) -> None:
     p = tmp_path / "compile.jsonl"
     p.write_text(
         f'{line}\n{{"id":"a","arm":"zh","status":"clean"}}\n', encoding="utf-8"
@@ -636,17 +605,12 @@ def test_pin_gate_last_records_nondict_line(tmp_path: Path, line: str) -> None:
     assert list(last) == ["a"]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="gate_scorecard.py:50 `any(e.get('code') ...)` — errors 元素非 dict "
-    "（或 errors 本身是 str）→ AttributeError；修：isinstance(e, dict)",
-)
 @pytest.mark.parametrize(
     "errs",
     [["x"], [5], [None], "arm_mismatch", [{"code": "ok"}, "x"]],
     ids=["str", "int", "none", "errors_str", "mixed_tail"],
 )
-def test_pin_gate_errors_nondict(tmp_path: Path, errs: object) -> None:
+def test_gate_errors_nondict(tmp_path: Path, errs: object) -> None:
     p = tmp_path / "compile.jsonl"
     rec = {"id": "a", "arm": "zh", "status": "clean", "errors": errs}
     p.write_text(json.dumps(rec) + "\n", encoding="utf-8")
@@ -654,15 +618,10 @@ def test_pin_gate_errors_nondict(tmp_path: Path, errs: object) -> None:
     assert list(last) == ["a"]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="gate_scorecard.py:70 `(f.get('metrics') or {}).get` — metrics 真值非 "
-    "dict → AttributeError；修：isinstance 守卫按 {} 处理",
-)
 @pytest.mark.parametrize(
     "bad_metrics", ["x", [1], 5, True], ids=["str", "list", "int", "bool"]
 )
-def test_pin_pick_final_nondict_metrics(bad_metrics: object) -> None:
+def test_pick_final_nondict_metrics(bad_metrics: object) -> None:
     c = _rec("p", "compile", "fail")
     f = {"id": "p", "status": "clean", "metrics": bad_metrics}
     stage, _r, drop = gate_scorecard.pick_final(c, f)
@@ -670,18 +629,10 @@ def test_pin_pick_final_nondict_metrics(bad_metrics: object) -> None:
     assert (stage, drop) == ("compile", "no_csb")
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="同根因第二现场 triage.py:593 `(r.get('metrics') or {}).get` —— "
-    "fixloop 记录 metrics 类型混淆 → compute_metrics degraded 探测崩 "
-    "AttributeError；修：isinstance 守卫按 {} 处理",
-)
 @pytest.mark.parametrize(
     "bad_metrics", ["x", [1], 5, True], ids=["str", "list", "int", "bool"]
 )
-def test_pin_compute_metrics_nondict_metrics(
-    tmp_path: Path, bad_metrics: object
-) -> None:
+def test_compute_metrics_nondict_metrics(tmp_path: Path, bad_metrics: object) -> None:
     recs = [_rec("p", "fixloop", "fail", arm="fix", metrics=bad_metrics)]
     line = triage.compute_metrics(tmp_path, recs, None)
     assert isinstance(line["wall_s"], float)
@@ -822,8 +773,12 @@ def _ticketed(recs: list[dict]) -> list[dict]:
             continue
         gated = False
         if st in triage.SKIP_STATUS:
-            errs = r.get("errors") or []
-            e0 = errs[0] if errs and isinstance(errs[0], dict) else {}
+            errs = r.get("errors")
+            e0 = (
+                errs[0]
+                if isinstance(errs, list) and errs and isinstance(errs[0], dict)
+                else {}
+            )
             gated = str(e0.get("cat") or "") == "upstream" or str(
                 r.get("sig") or ""
             ).startswith("upstream:")
@@ -973,13 +928,7 @@ def test_compute_metrics_rate_drop(tmp_path: Path) -> None:
     assert not [r for r in line2["regressions"] if r["kind"] == "rate_drop"]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="triage.py errs[0] 同模式四处（record_sig/bucket_sig/"
-    "_upstream_gated/classify）——errors 为 dict（非 list）→ KeyError:0，"
-    "build_tickets 连带；修：`errs if isinstance(errs, list) else []`",
-)
-def test_pin_triage_errors_dict(tmp_path: Path) -> None:
+def test_triage_errors_dict(tmp_path: Path) -> None:
     bad = _rec(
         "p",
         "xlat",
@@ -993,43 +942,25 @@ def test_pin_triage_errors_dict(tmp_path: Path) -> None:
     assert triage.classify("syntax", {"errors": {"a": 1}})[0] == "rule"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="triage.py:508 `float(r.get('dur_s') or 0)` — dur_s 非数值（'abc'/"
-    "dict/…）且 run_meta 无时间戳 → ValueError/TypeError；修：try/except "
-    "或 isinstance 按 0 兜底",
-)
 @pytest.mark.parametrize("bad_dur", ["abc", {"a": 1}, [1]], ids=["str", "dict", "list"])
-def test_pin_wall_s_nonstr_dur(tmp_path: Path, bad_dur: object) -> None:
+def test_wall_s_nonstr_dur(tmp_path: Path, bad_dur: object) -> None:
     recs = [_rec("p", "compile", "fail", dur_s=bad_dur)]
     line = triage.compute_metrics(tmp_path, recs, None)
     assert math.isfinite(line["wall_s"])
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="triage.py:508 dur_s=NaN/inf → wall_s 非有限值 → metrics.jsonl 写入 "
-    "NaN/Infinity（非严格 JSON，下游严格 parser 全行报废）；"
-    "修：math.isfinite 守卫",
-)
 @pytest.mark.parametrize(
     "bad_dur",
     [float("nan"), float("inf"), float("-inf")],
     ids=["nan", "inf", "-inf"],
 )
-def test_pin_wall_s_nonfinite(tmp_path: Path, bad_dur: float) -> None:
+def test_wall_s_nonfinite(tmp_path: Path, bad_dur: float) -> None:
     recs = [_rec("p", "compile", "fail", dur_s=bad_dur)]
     line = triage.compute_metrics(tmp_path, recs, None)
     assert math.isfinite(line["wall_s"])
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="triage.py:590-601 fixloop_degraded 遍历 fl 全体（含未 attempted 的 "
-    "skip 记录）——STATUS_RANK 表外词按 -1 → skip+csb 假阳退化；"
-    "修：遍历 attempted（rescue 同口径）",
-)
-def test_pin_fixloop_degraded_skip_false_positive(tmp_path: Path) -> None:
+def test_fixloop_degraded_skip_false_positive(tmp_path: Path) -> None:
     recs = [
         _rec(
             "p1",
@@ -1044,14 +975,7 @@ def test_pin_fixloop_degraded_skip_false_positive(tmp_path: Path) -> None:
     assert degs == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="bucket_sig 归一 fault=N 计数（_RE_KV_NUM）却放过 "
-    "missing_character:xN——xN 同为实例级计数；F4 单缺陷类实证碎成 ≥15 票 "
-    "（loop1 missing_character:x1..x18+ 另加裸 missing_character）；"
-    "修：missing_character 入 _SIG_DROP_PAY 或扩展归一 x\\d+",
-)
-def test_pin_missing_character_count_fragments(tmp_path: Path) -> None:
+def test_missing_character_count_fragments(tmp_path: Path) -> None:
     sigs = ["missing_character", "missing_character:x1", "missing_character:x17"]
     recs = [
         _rec(
@@ -1076,60 +1000,37 @@ def test_pin_missing_character_count_fragments(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------- legacy 降级
-@pytest.mark.xfail(
-    strict=True,
-    reason="triage.py:373 `json.loads(rp.read_text())` 裸读——results.json "
-    "kill 截尾 → JSONDecodeError（账侧处处容忍坏行此处崩）；"
-    "修：try/except → {}",
-)
-def test_pin_legacy_corrupt_results(tmp_path: Path) -> None:
+def test_legacy_corrupt_results(tmp_path: Path) -> None:
     (tmp_path / "results.json").write_text('{"a": {"id":"a", "pipe-xel": {"verd')
     assert triage.legacy_records(tmp_path) == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="triage.py:375 `data.items()` — results.json 顶层非 dict（list/str/"
-    "int/null）→ AttributeError；修：isinstance(data, dict) 守卫 → {}",
-)
 @pytest.mark.parametrize(
     "doc", ["[1,2]", '"x"', "5", "null"], ids=["list", "str", "int", "null"]
 )
-def test_pin_legacy_nondict_results(tmp_path: Path, doc: str) -> None:
+def test_legacy_nondict_results(tmp_path: Path, doc: str) -> None:
     (tmp_path / "results.json").write_text(doc)
     assert triage.legacy_records(tmp_path) == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="triage.py:384 `verdict.get('status')` — verdict 真值非 dict → "
-    "AttributeError（falsy 非 dict 如 0/'' 恰好被 or {} 救下，真值全崩）；"
-    "修：isinstance 守卫",
-)
 @pytest.mark.parametrize(
     "bad_verdict",
     ['"boom"', "5", "[1]", "true"],
     ids=["str", "int", "list", "bool"],
 )
-def test_pin_legacy_verdict_nondict(tmp_path: Path, bad_verdict: str) -> None:
+def test_legacy_verdict_nondict(tmp_path: Path, bad_verdict: str) -> None:
     doc = {"a": {"id": "a", "pipe-xel": {"verdict": json.loads(bad_verdict)}}}
     (tmp_path / "results.json").write_text(json.dumps(doc))
     recs = triage.legacy_records(tmp_path)
     assert isinstance(recs, list)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="triage.py:410-417 `rounds[-1]`/`rd.get`/`reversed(rounds)` — rounds "
-    "非 list-of-dict → AttributeError/KeyError/TypeError；修：isinstance "
-    "守卫逐元素过滤",
-)
 @pytest.mark.parametrize(
     "bad_rounds",
     ['"boom"', '{"a":1}', "5", "[1,2]"],
     ids=["str", "dict", "int", "list_int"],
 )
-def test_pin_legacy_rounds_nonlist(tmp_path: Path, bad_rounds: str) -> None:
+def test_legacy_rounds_nonlist(tmp_path: Path, bad_rounds: str) -> None:
     doc = {
         "a": {
             "id": "a",

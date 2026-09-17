@@ -23,6 +23,7 @@ triage.py — stagerun records → tickets.jsonl 聚类 + metrics.jsonl 趋势 +
 
 import argparse
 import json
+import math
 import re
 import sys
 import tempfile
@@ -114,8 +115,8 @@ _STAGE_CATS = {
     "upstream",
 }
 # payload 是实例细节、无缺陷类信息量的 cat（_missing_rec 系 member 名/
-# no_extracted 路径/sabotage 台账 id 列表）。对齐 ia_fetch_unwired 的
-# item 级粒度——这些一律比 item 还细，全丢。
+# no_extracted 路径/sabotage 台账 id 列表/missing_character xN 计数）。
+# 对齐 ia_fetch_unwired 的 item 级粒度——这些一律比 item 还细，全丢。
 _SIG_DROP_PAY = {
     "stub_format",
     "pdf_format",
@@ -124,8 +125,18 @@ _SIG_DROP_PAY = {
     "no_item",
     "no_extracted",
     "sabotage_escaped",
+    "missing_character",
 }
 _RE_KV_NUM = re.compile(r"(\w+=)\d+")
+
+
+def _err0(rec):
+    """errors 头元素 dict 化：errors 非 list/空表/头非 dict → None（类型混淆按无 errors 计）。"""
+    errs = rec.get("errors")
+    if not isinstance(errs, list) or not errs:
+        return None
+    e0 = errs[0]
+    return e0 if isinstance(e0, dict) else None
 
 
 def bucket_sig(sig, rec):
@@ -149,8 +160,7 @@ def bucket_sig(sig, rec):
         cat, pay = s.split(":", 1)
     else:
         cat, pay = s, ""
-    errs = rec.get("errors") or []
-    e0 = errs[0] if errs and isinstance(errs[0], dict) else {}
+    e0 = _err0(rec) or {}
     code = str(e0.get("code") or "").strip()
     if cat == "harness" and code.startswith("harness:"):
         return f"{prefix}{code}"
@@ -174,10 +184,10 @@ def record_sig(rec):
     兜底 nosig:status。"""
     sig = str(rec.get("sig") or "").strip()
     if not sig:
-        errs = rec.get("errors") or []
-        if errs and isinstance(errs[0], dict):
-            cat = errs[0].get("cat") or errs[0].get("code") or "error"
-            pay = errs[0].get("payload")
+        e0 = _err0(rec)
+        if e0 is not None:
+            cat = e0.get("cat") or e0.get("code") or "error"
+            pay = e0.get("payload")
             sig = f"{cat}:{pay}" if pay not in (None, "") else str(cat)
         else:
             sig = f"nosig:{rec.get('status') or 'unknown'}"
@@ -226,9 +236,9 @@ def classify(sig, rep):
     """
     cat, pay = parse_sig(sig)
     if not pay:
-        errs = rep.get("errors") or []
-        if errs and isinstance(errs[0], dict):
-            pay = str(errs[0].get("payload") or "")
+        e0 = _err0(rep)
+        if e0 is not None:
+            pay = str(e0.get("payload") or "")
     base = Path(pay).name if pay else ""
 
     if cat == "missing_file" and base and base in retired_names():
@@ -270,8 +280,7 @@ def _upstream_gated(rec):
     no_splice 全系 cat=upstream）。ingest stub_format 等真失败型
     reject cat≠upstream，不在此豁免。
     """
-    errs = rec.get("errors") or []
-    e0 = errs[0] if errs and isinstance(errs[0], dict) else {}
+    e0 = _err0(rec) or {}
     if str(e0.get("cat") or "") == "upstream":
         return True
     return str(rec.get("sig") or "").startswith("upstream:")
@@ -342,7 +351,12 @@ def legacy_records(results_dir):
     rp = results_dir / "results.json"
     if not rp.exists():
         return []
-    data = json.loads(rp.read_text())
+    try:
+        data = json.loads(rp.read_text(errors="replace"))
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(data, dict):
+        return []
     recs = []
     for key, rec in data.items():
         if not isinstance(rec, dict):
@@ -352,11 +366,14 @@ def legacy_records(results_dir):
             cell = rec.get(arm_key)
             if not isinstance(cell, dict):
                 continue
-            verdict = cell.get("verdict") or {}
+            verdict = cell.get("verdict")
+            if not isinstance(verdict, dict):
+                verdict = {}
+            comp = cell.get("compile")
+            if not isinstance(comp, dict):
+                comp = {}
             vstatus = verdict.get("status") or cell.get("status") or "?"
-            sig = benchlib.verdict_sig(
-                verdict, (cell.get("compile") or {}).get("first_error")
-            )
+            sig = benchlib.verdict_sig(verdict, comp.get("first_error"))
             cat, pay = parse_sig(sig) if sig else ("", "")
             recs.append(
                 {
@@ -364,7 +381,7 @@ def legacy_records(results_dir):
                     "stage": stage,
                     "arm": arm,
                     "status": {"clean": "ok", "reject": "reject"}.get(vstatus, vstatus),
-                    "dur_s": (cell.get("compile") or {}).get("seconds"),
+                    "dur_s": comp.get("seconds"),
                     "metrics": {
                         "translate": cell.get("translate") or {},
                         "verdict": verdict,
@@ -379,7 +396,10 @@ def legacy_records(results_dir):
         fix = rec.get("pipe-fix") or {}
         fl = fix.get("fixloop") if isinstance(fix, dict) else None
         if isinstance(fl, dict) and fl.get("verdict"):
-            rounds = fl.get("rounds") or []
+            rounds = fl.get("rounds")
+            if not isinstance(rounds, list):
+                rounds = []
+            rounds = [rd for rd in rounds if isinstance(rd, dict)]
             last = (rounds[-1] or {}) if rounds else {}
             fcat = fl.get("final_cat") or last.get("category") or last.get("cat")
             fpay = ""  # 取最末一个非空 pay (末轮常为 null)
@@ -456,11 +476,27 @@ def _iso(s):
     return benchlib.parse_iso(s)
 
 
+def _metrics(rec):
+    """rec['metrics'] dict 化——真值非 dict 按 {} 计（类型混淆不崩）。"""
+    m = rec.get("metrics")
+    return m if isinstance(m, dict) else {}
+
+
 def _wall_s(results_dir, recs, meta):
     t0, t1 = benchlib.meta_window(meta)
     if t0 and t1 and t1 > t0:
         return round((t1 - t0).total_seconds(), 1)
-    return round(sum(float(r.get("dur_s") or 0) for r in recs), 1)
+    # wall_s 落 git 跟踪 metrics.jsonl——非数值/非有限 dur_s 一律不计,
+    # 保住行严格 JSON（nan/inf 写出即废行）。
+    total = 0.0
+    for r in recs:
+        try:
+            d = float(r.get("dur_s") or 0)
+        except (ValueError, TypeError):
+            continue
+        if math.isfinite(d):
+            total += d
+    return round(total, 1) if math.isfinite(total) else 0.0
 
 
 def _is_unfixable(rec):
@@ -542,17 +578,16 @@ def compute_metrics(results_dir, recs, prev_line):
         regs.append({"kind": "pipeline_introduced_truncated", "total": len(pipe)})
     # 跨段退化: fixloop 终态低于入口态 (loop1 实证 17 格, 本探测器盲区补网)。
     # 注意基建杀伤会混入——真退化判定需直编复验 (见 wave2-findings loop1 节)。
+    # 只巡 attempted：skip 记录没真跑 fixloop，STATUS_RANK 表外 -1 会假阳退化。
     degraded = sorted(
         (
             str(r.get("id")),
-            str((r.get("metrics") or {}).get("compile_status_before") or ""),
+            str(_metrics(r).get("compile_status_before") or ""),
             str(r.get("status") or ""),
         )
-        for r in fl
+        for r in attempted
         if STATUS_RANK.get(str(r.get("status") or ""), -1)
-        < STATUS_RANK.get(
-            str((r.get("metrics") or {}).get("compile_status_before") or ""), -1
-        )
+        < STATUS_RANK.get(str(_metrics(r).get("compile_status_before") or ""), -1)
     )
     regs += [
         {"kind": "fixloop_degraded", "id": i, "before": b, "after": a}
