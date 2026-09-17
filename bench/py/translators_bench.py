@@ -52,6 +52,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))  # bench/py 同目录 i
 
 import e2e_mock_bench as _emb  # Mode B/C 注入实现唯一事实源
 
+from texlate.e2e import _delivered
 from texlate.latex.placeholder import PH_RX
 from texlate.xlat.pipeline import ChunkResult, MockTranslator, Translator
 
@@ -73,15 +74,18 @@ def _finalize(ledger: dict, results: list[ChunkResult], mode: str) -> dict:
             continue
         ledger["sabotaged"] += 1
         ledger["moved"] += sum(e.get("moved", 0) for e in evs)
+        # 交付谓词与 splice/e2e 台账同口径：ok | partial+译文——partial（阶梯
+        # recovered）译文照进文档，严卡 ok 会把脏 partial 记 caught 漏 escaped。
+        delivered = _delivered(r)
         if mode == "B":
-            if r.status != "ok":
+            if not delivered:
                 ledger["caught"] += 1  # fault/skipped → 原文回退
             elif src_ph(r.translation) != src_ph(r.source):
                 ledger["escaped"] += 1  # 校验放行且译文带破坏残留——真逃逸
                 ledger["escaped_ids"].append(r.chunk_id)
             else:
                 ledger["recovered"] += 1
-        elif r.status == "ok":
+        elif delivered:
             ledger["spliced"] += 1  # 挪位译文进了文档 → 编译判存活
         else:
             ledger["dropped"] += 1
