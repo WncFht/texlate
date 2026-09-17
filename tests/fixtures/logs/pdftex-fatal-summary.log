@@ -1,0 +1,37 @@
+This is pdfTeX, Version 3.14159265-2.6-1.40.18 (TeX Live 2017) (preloaded format=pdflatex 2017.5.23)  12 FEB 2020 21:11
+entering extended mode
+ restricted \write18 enabled.
+ file:line:error style messages enabled.
+ %&-line parsing enabled.
+**colt2020.cls
+(./colt2020.cls
+LaTeX2e <2017-04-15>
+Babel <3.10> and hyphenation patterns for 84 language(s) loaded.
+
+LaTeX Warning: You have requested package `',
+               but the package provides `colt2020'.
+
+Package: colt2020 2020/02/01 v1.0 COLT 2019 Proceedings
+./colt2020.cls:5: You can't use `\spacefactor' in vertical mode.
+\@->\spacefactor 
+                 \@m {}
+l.5 \@
+      ifundefined{ifanonsubmission}{
+? 
+./colt2020.cls:5: Emergency stop.
+\@->\spacefactor 
+                 \@m {}
+l.5 \@
+      ifundefined{ifanonsubmission}{
+End of file on the terminal!
+
+ 
+Here is how much of TeX's memory you used:
+ 9 strings out of 492995
+ 149 string characters out of 6132704
+ 54074 words of memory out of 5000000
+ 3661 multiletter control sequences out of 15000+600000
+ 3640 words of font info for 14 fonts, out of 8000000 for 9000
+ 1141 hyphenation exceptions out of 8191
+ 7i,0n,6p,84b,10s stack positions out of 5000i,500n,10000p,200000b,80000s
+./colt2020.cls:5:  ==> Fatal error occurred, no output PDF file produced!

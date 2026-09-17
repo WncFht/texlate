@@ -1,0 +1,51 @@
+This is XeTeX, Version 3.141592653-2.6-0.999998 (TeX Live 2026/Arch Linux) (preloaded format=xelatex 2026.5.31)  16 SEP 2026 02:53
+entering extended mode
+ file:line:error style messages enabled.
+ %&-line parsing enabled.
+**wprime_cdf.tex
+(./wprime_cdf.tex
+LaTeX2e <2025-11-01>
+L3 programming layer <2026-01-19>
+(./lineno.sty
+Package: lineno 2005/11/02 line numbers on paragraphs v4.41
+Invalid UTF-8 byte or sequence at line 296 replaced by U+FFFD.
+\linenopenalty=\count271
+\output=\toks17
+\linenoprevgraf=\count272
+\linenumbersep=\dimen148
+\linenumberwidth=\dimen149
+\c@linenumber=\count273
+\c@pagewiselinenumber=\count274
+\c@LN@truepage=\count275
+\c@internallinenumber=\count276
+\c@internallinenumbers=\count277
+\quotelinenumbersep=\dimen150
+\bframerule=\dimen151
+\bframesep=\dimen152
+\bframebox=\box53
+LaTeX Info: Redefining \\ on input line 3056.
+)
+
+! LaTeX Error: File `revtex4.cls' not found.
+
+Type X to quit or <RETURN> to proceed,
+or enter new name. (Default extension: cls)
+
+Enter file name: 
+./wprime_cdf.tex:4: Emergency stop.
+<read *> 
+         
+l.4 ^^M
+       
+*** (cannot \read from terminal in nonstop modes)
+
+ 
+Here is how much of TeX's memory you used:
+ 239 strings out of 470180
+ 4027 string characters out of 5479198
+ 426408 words of memory out of 5000000
+ 28925 multiletter control sequences out of 15000+600000
+ 627721 words of font info for 40 fonts, out of 8000000 for 9000
+ 14 hyphenation exceptions out of 8191
+ 27i,0n,37p,243b,17s stack positions out of 10000i,1000n,20000p,200000b,200000s
+No pages of output.

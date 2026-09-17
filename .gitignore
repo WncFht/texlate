@@ -33,6 +33,7 @@ bench/results/babeldoc/
 *.synctex.gz
 # tests/fixtures/ 的 .log 是入库测试输入,非编译产物
 !tests/fixtures/*.log
+!tests/fixtures/logs/*.log
 
 # 本机 agent 层 (软链,由 scripts/agent-links.sh / crossnote-links.sh 重建)
 /CLAUDE.md

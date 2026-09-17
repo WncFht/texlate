@@ -1,0 +1,55 @@
+This is XeTeX, Version 3.141592653-2.6-0.999998 (TeX Live 2026/Arch Linux) (preloaded format=xelatex 2026.5.31)  16 SEP 2026 20:27
+entering extended mode
+ file:line:error style messages enabled.
+ %&-line parsing enabled.
+**manuscript.tex
+(./manuscript.tex
+LaTeX2e <2025-11-01>
+L3 programming layer <2026-01-19>
+./manuscript.tex:1: Undefined control sequence.
+l.1 \pdfoutput
+              =1 % only if pdf/png/jpg images are used
+The control sequence at the end of the top line
+of your error message was never \def'ed. If you have
+misspelled it (e.g., `\hobx'), type `I' and the correct
+spelling (e.g., `I\hbox'). Otherwise just continue,
+and I'll forget about whatever was undefined.
+
+
+./manuscript.tex:1: LaTeX Error: Missing \begin{document}.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.1 \pdfoutput=
+               1 % only if pdf/png/jpg images are used
+You're in trouble here.  Try typing  <return>  to proceed.
+If that doesn't work, type  X <return>  to quit.
+
+Missing character: There is no = ("3D) in font nullfont!
+Missing character: There is no 1 ("31) in font nullfont!
+
+! LaTeX Error: File `JINST.cls' not found.
+
+Type X to quit or <RETURN> to proceed,
+or enter new name. (Default extension: cls)
+
+Enter file name: 
+./manuscript.tex:3: Emergency stop.
+<read *> 
+         
+l.3 ^^M
+       
+*** (cannot \read from terminal in nonstop modes)
+
+ 
+Here is how much of TeX's memory you used:
+ 19 strings out of 470180
+ 648 string characters out of 5479198
+ 426408 words of memory out of 5000000
+ 28709 multiletter control sequences out of 15000+600000
+ 627721 words of font info for 40 fonts, out of 8000000 for 9000
+ 14 hyphenation exceptions out of 8191
+ 19i,0n,29p,100b,17s stack positions out of 10000i,1000n,20000p,8000000b,200000s
+No pages of output.

@@ -1,0 +1,380 @@
+[
+  {
+    "file": "pdftex-emergency-fatal.log",
+    "source": "bench/results/stagerun-loop1-2026-09-16/work/1502.06003/src/texput.log",
+    "engine": "pdfTeX",
+    "n_errors": 2,
+    "ok": false,
+    "first_error": {
+      "head_contains": "! Emergency stop.",
+      "tex_file": null,
+      "tex_line": null,
+      "eof_file": null,
+      "stack_suffix": null
+    },
+    "warnings": {
+      "by_class_min": {},
+      "redline_contains": [],
+      "sys_hits_contains": [],
+      "cjk_missing_min": 0
+    },
+    "tail_last": "!  ==> Fatal error occurred, no output PDF file produced!",
+    "fixloop": {
+      "n_bang": 2,
+      "category": "emergency",
+      "payload": null
+    },
+    "project_root": null,
+    "notes": "old pdfTeX: ! Emergency stop + ! ==> Fatal error 双 bang 形态"
+  },
+  {
+    "file": "pdftex-fatal-summary.log",
+    "source": "bench/corpus_v2/2002.05660/extracted/colt2020.log",
+    "engine": "pdfTeX",
+    "n_errors": 2,
+    "ok": false,
+    "first_error": {
+      "head_contains": "./colt2020.cls:5: You can't use `\\spacefactor' in vertical mode.",
+      "tex_file": "./colt2020.cls",
+      "tex_line": 5,
+      "eof_file": null,
+      "stack_suffix": "./colt2020.cls"
+    },
+    "warnings": {
+      "by_class_min": {
+        "generic": 1
+      },
+      "redline_contains": [],
+      "sys_hits_contains": [],
+      "cjk_missing_min": 0
+    },
+    "tail_last": "./colt2020.cls:5:  ==> Fatal error occurred, no output PDF file produced!",
+    "fixloop": {
+      "n_bang": 2,
+      "category": "emergency",
+      "payload": null
+    },
+    "project_root": null,
+    "notes": "./colt2020.cls:5: ==> Fatal error fileline 复述剔除唯一真例"
+  },
+  {
+    "file": "pdftex-fileline-only-bib.log",
+    "source": "bench/results/stagerun-loop1-2026-09-16/work/2112.00020/src/main.log",
+    "engine": "pdfTeX",
+    "n_errors": 2,
+    "ok": false,
+    "first_error": {
+      "head_contains": "./main.bib:1: LaTeX Error: Missing \\begin{document}.",
+      "tex_file": "./main.bib",
+      "tex_line": 1,
+      "eof_file": null,
+      "stack_suffix": "./main.bib"
+    },
+    "warnings": {
+      "by_class_min": {},
+      "redline_contains": [],
+      "sys_hits_contains": [],
+      "cjk_missing_min": 0
+    },
+    "tail_last": "./main.bib:1:  ==> Fatal error occurred, no output PDF file produced!",
+    "fixloop": {
+      "n_bang": 2,
+      "category": "syntax",
+      "payload": null
+    },
+    "project_root": null,
+    "notes": "全文零 ^!、n=2 全 fileline 假干净杀手; 尾行 ==> fileline 复述不计错"
+  },
+  {
+    "file": "tectonic-bare-stack.log",
+    "source": "bench/work_compile_v4/hep-ph/9910443/baseline/_tect_out/hep99.log",
+    "engine": null,
+    "n_errors": 0,
+    "ok": true,
+    "first_error": null,
+    "warnings": {
+      "by_class_min": {
+        "missing_glyph": 1
+      },
+      "redline_contains": [
+        "missing_glyph"
+      ],
+      "sys_hits_contains": [],
+      "cjk_missing_min": 0
+    },
+    "tail_last": "Output written on hep99.xdv (3 pages, 107744 bytes).",
+    "fixloop": {
+      "n_bang": 0,
+      "category": "warn_missing_char",
+      "payload": null
+    },
+    "project_root": null,
+    "notes": "engine=None + 裸名栈 (hep99.tex + missing_glyph £ (\"A3) 引号形"
+  },
+  {
+    "file": "tectonic-citation-warn.log",
+    "source": "bench/work_compile_v4/1803.08846/baseline/_tect_out/gwbpre.log",
+    "engine": null,
+    "n_errors": 0,
+    "ok": true,
+    "first_error": null,
+    "warnings": {
+      "by_class_min": {
+        "citation": 5,
+        "generic": 1,
+        "reference": 1
+      },
+      "redline_contains": [],
+      "sys_hits_contains": [],
+      "cjk_missing_min": 0
+    },
+    "tail_last": "Output written on gwbpre.xdv (7 pages, 109104 bytes).",
+    "fixloop": {
+      "n_bang": 0,
+      "category": "clean",
+      "payload": null
+    },
+    "project_root": null,
+    "notes": "tectonic ok + citation/reference warnings"
+  },
+  {
+    "file": "xelatex-cjk-missing-glyph.log",
+    "source": "bench/work_e2emock/corpus_v3/pipe-xel/2003.10723/SS_October.log",
+    "engine": "XeTeX",
+    "n_errors": 0,
+    "ok": true,
+    "first_error": null,
+    "warnings": {
+      "by_class_min": {
+        "missing_glyph_cjk": 1
+      },
+      "redline_contains": [
+        "missing_glyph_cjk"
+      ],
+      "sys_hits_contains": [],
+      "cjk_missing_min": 1
+    },
+    "tail_last": "Output written on ./SS_October.pdf (21 pages).",
+    "fixloop": {
+      "n_bang": 0,
+      "category": "warn_missing_char",
+      "payload": null
+    },
+    "project_root": null,
+    "notes": "U+8FD9 新形 CJK 缺字真例（替代 gated 70KB）"
+  },
+  {
+    "file": "xelatex-clean-warnings.log",
+    "source": "bench/work_compile/1512.03385/baseline/residual_v1_arxiv_release.log",
+    "engine": "XeTeX",
+    "n_errors": 0,
+    "ok": true,
+    "first_error": null,
+    "warnings": {
+      "by_class_min": {
+        "font_subst": 6,
+        "generic": 19,
+        "overfull": 23
+      },
+      "redline_contains": [],
+      "sys_hits_contains": [],
+      "cjk_missing_min": 0
+    },
+    "tail_last": "Output written on residual_v1_arxiv_release.pdf (15 pages).",
+    "fixloop": {
+      "n_bang": 0,
+      "category": "clean",
+      "payload": null
+    },
+    "project_root": null,
+    "notes": "clean + overfull/font_subst 分类（替代 gated 26KB）"
+  },
+  {
+    "file": "xelatex-fileline-nontex-ext.log",
+    "source": "bench/results/stagerun-loop1-2026-09-16/work/1907.00257/splice/graph-transport.log",
+    "engine": "XeTeX",
+    "n_errors": 1,
+    "ok": false,
+    "first_error": {
+      "head_contains": "/usr/share/texmf-dist/tex/latex/biblatex/bbx/standard.bbx:10: Undefined control sequence.",
+      "tex_file": "/usr/share/texmf-dist/tex/latex/biblatex/bbx/standard.bbx",
+      "tex_line": 10,
+      "eof_file": null,
+      "stack_suffix": "/usr/share/texmf-dist/tex/latex/biblatex/bbx/standard.bbx"
+    },
+    "warnings": {
+      "by_class_min": {
+        "font_subst": 1,
+        "generic": 1,
+        "reference": 1
+      },
+      "redline_contains": [],
+      "sys_hits_contains": [],
+      "cjk_missing_min": 0
+    },
+    "tail_last": "Output written on ./graph-transport.pdf (32 pages).",
+    "fixloop": {
+      "n_bang": 1,
+      "category": "undefined_cs",
+      "payload": "DeclareBiblatexOption"
+    },
+    "project_root": null,
+    "notes": "standard.bbx:10 非白名单扩展名 fileline 真错（重裁：首错邻域+tail）"
+  },
+  {
+    "file": "xelatex-inputenc-fffd.log",
+    "source": "bench/work_compile_v4/1012.1124/baseline/main.log",
+    "engine": "XeTeX",
+    "n_errors": 1,
+    "ok": false,
+    "first_error": {
+      "head_contains": "/usr/share/texmf-dist/tex/latex/base/inputenc.sty:164: Package inputenc Error: inputenc is not designed for xetex or luatex.",
+      "tex_file": "/usr/share/texmf-dist/tex/latex/base/inputenc.sty",
+      "tex_line": 164,
+      "eof_file": null,
+      "stack_suffix": "/usr/share/texmf-dist/tex/latex/base/inputenc.sty"
+    },
+    "warnings": {
+      "by_class_min": {
+        "fffd_glyph": 6,
+        "generic": 1,
+        "invalid_utf8": 6,
+        "reference": 4
+      },
+      "redline_contains": [
+        "fffd_glyph",
+        "invalid_utf8"
+      ],
+      "sys_hits_contains": [],
+      "cjk_missing_min": 0
+    },
+    "tail_last": "Output written on ./main.pdf (14 pages).",
+    "fixloop": {
+      "n_bang": 1,
+      "category": "inputenc_unicode",
+      "payload": null
+    },
+    "project_root": null,
+    "notes": "inputenc.sty:164 fileline 真错 + invalid_utf8/fffd_glyph + texmf sys 归因上下文"
+  },
+  {
+    "file": "xelatex-missing-cls-min.log",
+    "source": "bench/work_compile_v2/2109.12648/baseline/main.log",
+    "engine": "XeTeX",
+    "n_errors": 2,
+    "ok": false,
+    "first_error": {
+      "head_contains": "! LaTeX Error: File `revtex4-1.cls' not found.",
+      "tex_file": null,
+      "tex_line": null,
+      "eof_file": null,
+      "stack_suffix": "./main.tex"
+    },
+    "warnings": {
+      "by_class_min": {},
+      "redline_contains": [],
+      "sys_hits_contains": [],
+      "cjk_missing_min": 0
+    },
+    "tail_last": "No pages of output.",
+    "fixloop": {
+      "n_bang": 2,
+      "category": "missing_file",
+      "payload": "revtex4-1.cls"
+    },
+    "project_root": null,
+    "notes": "missing cls ! + fileline estop; fixloop=missing_file"
+  },
+  {
+    "file": "xelatex-multierror-stack.log",
+    "source": "bench/work_e2emock/corpus_v3/base-xel/1306.0302/manuscript.log",
+    "engine": "XeTeX",
+    "n_errors": 4,
+    "ok": false,
+    "first_error": {
+      "head_contains": "./manuscript.tex:1: Undefined control sequence.",
+      "tex_file": "./manuscript.tex",
+      "tex_line": 1,
+      "eof_file": null,
+      "stack_suffix": "./manuscript.tex"
+    },
+    "warnings": {
+      "by_class_min": {
+        "missing_glyph": 2
+      },
+      "redline_contains": [
+        "missing_glyph"
+      ],
+      "sys_hits_contains": [],
+      "cjk_missing_min": 0
+    },
+    "tail_last": "No pages of output.",
+    "fixloop": {
+      "n_bang": 4,
+      "category": "missing_file",
+      "payload": "JINST.cls"
+    },
+    "project_root": null,
+    "notes": "n=4 fileline+abs 栈归一 ./manuscript.tex + nullfont 缺字"
+  },
+  {
+    "file": "xelatex-runaway-eof.log",
+    "source": "bench/work_e2ereal/pipe-xel/hep-ph--9910403/plb-rev.log",
+    "engine": "XeTeX",
+    "n_errors": 2,
+    "ok": false,
+    "first_error": {
+      "head_contains": "! File ended while scanning use of \\@iiiparbox.",
+      "tex_file": null,
+      "tex_line": null,
+      "eof_file": "./plb-rev.tex",
+      "stack_suffix": null
+    },
+    "warnings": {
+      "by_class_min": {},
+      "redline_contains": [],
+      "sys_hits_contains": [],
+      "cjk_missing_min": 0
+    },
+    "tail_last": "No pages of output.",
+    "fixloop": {
+      "n_bang": 2,
+      "category": "runaway_scan",
+      "payload": "\\@iiiparbox"
+    },
+    "project_root": null,
+    "notes": "runaway: ) pop dist 3 < _EOF_POP_WINDOW=16"
+  },
+  {
+    "file": "xelatex-utf8-redline-project.log",
+    "source": "bench/work_compile_v4/1012.5145/baseline/wprime_cdf.log",
+    "engine": "XeTeX",
+    "n_errors": 2,
+    "ok": false,
+    "first_error": {
+      "head_contains": "! LaTeX Error: File `revtex4.cls' not found.",
+      "tex_file": null,
+      "tex_line": null,
+      "eof_file": null,
+      "stack_suffix": "./wprime_cdf.tex"
+    },
+    "warnings": {
+      "by_class_min": {
+        "invalid_utf8": 1
+      },
+      "redline_contains": [
+        "invalid_utf8"
+      ],
+      "sys_hits_contains": [],
+      "cjk_missing_min": 0
+    },
+    "tail_last": "No pages of output.",
+    "fixloop": {
+      "n_bang": 2,
+      "category": "missing_file",
+      "payload": "revtex4.cls"
+    },
+    "project_root": null,
+    "notes": "工程件 lineno.sty invalid_utf8 真红线 + missing cls + estop fileline 三形态"
+  }
+]

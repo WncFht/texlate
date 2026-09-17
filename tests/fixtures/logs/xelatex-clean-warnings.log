@@ -1,0 +1,437 @@
+This is XeTeX, Version 3.141592653-2.6-0.999998 (TeX Live 2026) (preloaded format=xelatex 2026.7.16)  14 SEP 2026 15:33
+[... elided 3 lines ...]
+**residual_v1_arxiv_release.tex
+(./residual_v1_arxiv_release.tex
+[... elided 2 lines ...]
+(/anon/Library/texmf/tex/latex/base/article.cls
+[... elided 1 lines ...]
+(/anon/Library/texmf/tex/latex/base/size10.clo
+File: size10.clo 2025/01/22 v1.4n Standard LaTeX file (size option)
+)
+[... elided 11 lines ...]
+) (./cvpr.sty
+(./eso-pic.sty
+Package: eso-pic 2002/11/16 v1.1b eso-pic (RN)
+ (./cvpr_eso.sty
+[... elided 1 lines ...]
+LaTeX Warning: You have requested package `eso-pic',
+[... elided 2 lines ...]
+Package: everyshi 2001/05/15 v3.00 EveryShipout Package (MS)
+) (/anon/Library/texmf/tex/latex/graphics/keyval.sty
+Package: keyval 2022/05/29 v1.15 key=value parser (DPC)
+[... elided 1 lines ...]
+))
+(/anon/Library/texmf/tex/latex/tools/xspace.sty
+Package: xspace 2014/10/28 v1.13 Space after command names (DPC,MH)
+)
+[... elided 13 lines ...]
+) (/anon/Library/texmf/tex/latex/psnfss/times.sty
+Package: times 2020/03/25 PSNFSS-v9.3 (SPQR) 
+)
+(/anon/Library/texmf/tex/latex/graphics/epsfig.sty
+Package: epsfig 2024/01/14 v1.7b (e)psfig emulation (SPQR)
+[... elided 1 lines ...]
+(/anon/Library/texmf/tex/latex/graphics/graphicx.sty
+Package: graphicx 2024/12/31 v1.2e Enhanced LaTeX Graphics (DPC,SPQR)
+[... elided 1 lines ...]
+(/anon/Library/texmf/tex/latex/graphics/graphics.sty
+Package: graphics 2024/08/06 v1.4g Standard LaTeX Graphics (DPC,SPQR)
+[... elided 1 lines ...]
+(/anon/Library/texmf/tex/latex/graphics/trig.sty
+Package: trig 2023/12/02 v1.11 sin cos tan (DPC)
+)
+(/usr/local/texlive/2026basic/texmf-dist/tex/latex/graphics-cfg/graphics.cfg
+[... elided 1 lines ...]
+)
+[... elided 2 lines ...]
+(/usr/local/texlive/2026basic/texmf-dist/tex/latex/graphics-def/xetex.def
+[... elided 1 lines ...]
+))
+[... elided 2 lines ...]
+)
+[... elided 2 lines ...]
+)
+(/anon/Library/texmf/tex/latex/amsmath/amsmath.sty
+[... elided 4 lines ...]
+(/anon/Library/texmf/tex/latex/amsmath/amstext.sty
+[... elided 2 lines ...]
+(/anon/Library/texmf/tex/latex/amsmath/amsgen.sty
+[... elided 3 lines ...]
+))
+(/anon/Library/texmf/tex/latex/amsmath/amsbsy.sty
+[... elided 2 lines ...]
+)
+(/anon/Library/texmf/tex/latex/amsmath/amsopn.sty
+[... elided 1 lines ...]
+)
+[... elided 47 lines ...]
+)
+(/usr/local/texlive/2026basic/texmf-dist/tex/latex/amsfonts/amssymb.sty
+[... elided 2 lines ...]
+(/usr/local/texlive/2026basic/texmf-dist/tex/latex/amsfonts/amsfonts.sty
+[... elided 5 lines ...]
+(Font)                  U/euf/m/n --> U/euf/b/n on input line 106.
+))
+(/anon/Library/texmf/tex/latex/tabulary/tabulary.sty
+Package: tabulary 2024/06/04 v0.11 tabulary package (DPC)
+[... elided 1 lines ...]
+(/anon/Library/texmf/tex/latex/tools/array.sty
+Package: array 2025/09/25 v2.6n Tabular extension package (FMi)
+[... elided 7 lines ...]
+)
+[... elided 5 lines ...]
+)
+(/usr/local/texlive/2026basic/texmf-dist/tex/latex/multirow/multirow.sty
+[... elided 5 lines ...]
+)
+(/anon/Library/texmf/tex/generic/soul/soul.sty
+Package: soul 2026-03-06 v3.2 Permit use of UTF-8 characters in soul (HO)
+[... elided 1 lines ...]
+(/anon/Library/texmf/tex/generic/soul/soul-ori.sty
+Package: soul-ori 2026-03-06 v3.2 letterspacing/underlining (mf)
+[... elided 20 lines ...]
+)
+(/usr/local/texlive/2026basic/texmf-dist/tex/generic/infwarerr/infwarerr.sty
+Package: infwarerr 2019/12/03 v1.5 Providing info/warning/error messages (HO)
+)
+(/usr/local/texlive/2026basic/texmf-dist/tex/generic/etexcmds/etexcmds.sty
+Package: etexcmds 2019/12/15 v1.7 Avoid name clashes with e-TeX commands (HO)
+[... elided 1 lines ...]
+(/usr/local/texlive/2026basic/texmf-dist/tex/generic/iftex/iftex.sty
+[... elided 1 lines ...]
+)))
+(/usr/local/texlive/2026basic/texmf-dist/tex/latex/hyperref/hyperref.sty
+[... elided 2 lines ...]
+(/usr/local/texlive/2026basic/texmf-dist/tex/latex/kvsetkeys/kvsetkeys.sty
+Package: kvsetkeys 2022-10-05 v1.19 Key value parser (HO)
+)
+(/usr/local/texlive/2026basic/texmf-dist/tex/generic/kvdefinekeys/kvdefinekeys.
+[... elided 1 lines ...]
+Package: kvdefinekeys 2019-12-19 v1.6 Define keys (HO)
+)
+(/usr/local/texlive/2026basic/texmf-dist/tex/generic/pdfescape/pdfescape.sty
+Package: pdfescape 2019/12/09 v1.15 Implements pdfTeX's escape features (HO)
+[... elided 1 lines ...]
+(/usr/local/texlive/2026basic/texmf-dist/tex/generic/ltxcmds/ltxcmds.sty
+Package: ltxcmds 2023-12-04 v1.26 LaTeX kernel commands for general use (HO)
+)
+(/usr/local/texlive/2026basic/texmf-dist/tex/generic/pdftexcmds/pdftexcmds.sty
+Package: pdftexcmds 2020-06-27 v0.33 Utility functions of pdfTeX for LuaTeX (HO
+)
+[... elided 3 lines ...]
+)) (/usr/local/texlive/2026basic/texmf-dist/tex/latex/hycolor/hycolor.sty
+Package: hycolor 2020-01-27 v1.10 Color options for hyperref/bookmark (HO)
+)
+(/usr/local/texlive/2026basic/texmf-dist/tex/latex/hyperref/nameref.sty
+[... elided 2 lines ...]
+(/usr/local/texlive/2026basic/texmf-dist/tex/latex/refcount/refcount.sty
+Package: refcount 2019/12/15 v3.6 Data extraction from label references (HO)
+)
+(/usr/local/texlive/2026basic/texmf-dist/tex/generic/gettitlestring/gettitlestr
+[... elided 1 lines ...]
+Package: gettitlestring 2019/12/15 v1.6 Cleanup title references (HO)
+[... elided 1 lines ...]
+(/usr/local/texlive/2026basic/texmf-dist/tex/latex/kvoptions/kvoptions.sty
+Package: kvoptions 2022-06-15 v3.15 Key value format for package options (HO)
+))
+[... elided 1 lines ...]
+)
+(/anon/Library/texmf/tex/latex/etoolbox/etoolbox.sty
+Package: etoolbox 2025/10/02 v2.5m e-TeX tools for LaTeX (JAW)
+[... elided 1 lines ...]
+)
+(/usr/local/texlive/2026basic/texmf-dist/tex/generic/stringenc/stringenc.sty
+Package: stringenc 2019/11/29 v1.12 Convert strings between diff. encodings (HO
+)
+)
+[... elided 4 lines ...]
+(/usr/local/texlive/2026basic/texmf-dist/tex/latex/hyperref/pd1enc.def
+File: pd1enc.def 2026-06-17 v7.01r Hyperref: PDFDocEncoding definition (HO)
+)
+(/usr/local/texlive/2026basic/texmf-dist/tex/generic/intcalc/intcalc.sty
+Package: intcalc 2019/12/15 v1.3 Expandable calculations with integers (HO)
+)
+[... elided 2 lines ...]
+(/usr/local/texlive/2026basic/texmf-dist/tex/latex/hyperref/puenc.def
+File: puenc.def 2026-06-17 v7.01r Hyperref: PDF Unicode definition (HO)
+)
+[... elided 11 lines ...]
+(/anon/Library/texmf/tex/latex/url/url.sty
+[... elided 2 lines ...]
+)
+[... elided 3 lines ...]
+(/usr/local/texlive/2026basic/texmf-dist/tex/generic/bitset/bitset.sty
+Package: bitset 2019/12/09 v1.3 Handle bit-vector datatype (HO)
+[... elided 1 lines ...]
+(/usr/local/texlive/2026basic/texmf-dist/tex/generic/bigintcalc/bigintcalc.sty
+Package: bigintcalc 2019/12/15 v1.5 Expandable calculations on big integers (HO
+)
+))
+[... elided 13 lines ...]
+)
+Package hyperref Info: Driver (autodetected): hxetex.
+ (/usr/local/texlive/2026basic/texmf-dist/tex/latex/hyperref/hxetex.def
+[... elided 7 lines ...]
+(/usr/local/texlive/2026basic/texmf-dist/tex/latex/rerunfilecheck/rerunfilechec
+[... elided 1 lines ...]
+Package: rerunfilecheck 2025-06-21 v1.11 Rerun checks for auxiliary files (HO)
+[... elided 1 lines ...]
+(/usr/local/texlive/2026basic/texmf-dist/tex/generic/uniquecounter/uniquecounte
+[... elided 1 lines ...]
+Package: uniquecounter 2019/12/15 v1.4 Provide unlimited unique counter (HO)
+)
+[... elided 2 lines ...]
+)
+[... elided 1 lines ...]
+) (/anon/Library/texmf/tex/generic/babel/babel.sty
+[... elided 3 lines ...]
+LaTeX Encoding Info:    Redeclaring text command \ij (encoding OT1) on input li
+[... elided 1 lines ...]
+LaTeX Encoding Info:    Redeclaring text command \IJ (encoding OT1) on input li
+[... elided 1 lines ...]
+LaTeX Encoding Info:    Redeclaring text command \ij (encoding T1) on input lin
+[... elided 1 lines ...]
+LaTeX Encoding Info:    Redeclaring text command \IJ (encoding T1) on input lin
+[... elided 1 lines ...]
+LaTeX Encoding Info:    Ignoring declaration for text command \ij (encoding ?) 
+[... elided 1 lines ...]
+LaTeX Encoding Info:    Ignoring declaration for text command \IJ (encoding ?) 
+[... elided 1 lines ...]
+LaTeX Encoding Info:    Ignoring declaration for text command \SS (encoding ?) 
+[... elided 4 lines ...]
+(/anon/Library/texmf/tex/generic/babel/xebabel.def)
+[... elided 3 lines ...]
+(/anon/Library/texmf/tex/generic/babel/locale/en/babel-british.tex
+)
+(/anon/Library/texmf/tex/generic/babel/locale/en/babel-ukenglish.t
+ex)
+(/anon/Library/texmf/tex/generic/babel/locale/en/babel-usenglish.t
+ex)
+(/anon/Library/texmf/tex/generic/babel/locale/en/babel-english.tex
+)
+(/anon/Library/texmf/tex/generic/babel/locale/en/babel-american.te
+x)
+[... elided 1 lines ...]
+(babel)             from babel-en-GB.ini. Reported on input line 4330.
+[... elided 1 lines ...]
+(/usr/local/texlive/2026basic/texmf-dist/tex/generic/babel-english/british.ldf
+[... elided 2 lines ...]
+(/usr/local/texlive/2026basic/texmf-dist/tex/generic/babel-english/english.ldf
+[... elided 2 lines ...]
+(babel)             (\language0). Reported on input line 102.
+[... elided 1 lines ...]
+(babel)             (\language7). Reported on input line 105.
+[... elided 1 lines ...]
+(babel)             (\language7). Reported on input line 108.
+))
+[... elided 1 lines ...]
+(babel)             from babel-en-GB.ini. Reported on input line 4330.
+[... elided 1 lines ...]
+(/usr/local/texlive/2026basic/texmf-dist/tex/generic/babel-english/UKenglish.ld
+[... elided 3 lines ...]
+(/usr/local/texlive/2026basic/texmf-dist/tex/generic/babel-english/english.ldf
+[... elided 1 lines ...]
+))
+[... elided 1 lines ...]
+(babel)             from babel-en-US.ini. Reported on input line 4330.
+[... elided 1 lines ...]
+(/usr/local/texlive/2026basic/texmf-dist/tex/generic/babel-english/USenglish.ld
+[... elided 3 lines ...]
+(/usr/local/texlive/2026basic/texmf-dist/tex/generic/babel-english/english.ldf
+[... elided 1 lines ...]
+))
+[... elided 1 lines ...]
+(babel)             from babel-en.ini. Reported on input line 4330.
+[... elided 1 lines ...]
+(/usr/local/texlive/2026basic/texmf-dist/tex/generic/babel-english/english.ldf
+[... elided 1 lines ...]
+)
+[... elided 1 lines ...]
+(babel)             from babel-en-US.ini. Reported on input line 4330.
+[... elided 1 lines ...]
+(/usr/local/texlive/2026basic/texmf-dist/tex/generic/babel-english/american.ldf
+[... elided 1 lines ...]
+(/usr/local/texlive/2026basic/texmf-dist/tex/generic/babel-english/english.ldf
+[... elided 1 lines ...]
+)))
+[... elided 1 lines ...]
+Package Babel Warning: The package option `english' should not be used
+(Babel)                with a more specific one (like `american') on input line
+[... elided 6 lines ...]
+LaTeX Font Warning: Font shape `TU/ptm/m/n' undefined
+(Font)              using `TU/lmr/m/n' instead on input line 39.
+[... elided 1 lines ...]
+(/anon/Library/texmf/tex/latex/l3backend/l3backend-xetex.def
+[... elided 4 lines ...]
+)
+(./residual_v1_arxiv_release.aux)
+[... elided 23 lines ...]
+(/anon/Library/texmf/tex/latex/graphics/color.sty
+Package: color 2025/01/14 v1.3e Standard LaTeX Color (DPC)
+[... elided 1 lines ...]
+(/usr/local/texlive/2026basic/texmf-dist/tex/latex/graphics-cfg/color.cfg
+[... elided 1 lines ...]
+)
+[... elided 2 lines ...]
+(/anon/Library/texmf/tex/latex/graphics/mathcolor.ltx))
+[... elided 3 lines ...]
+LaTeX Font Warning: Font shape `TU/ptm/b/n' undefined
+(Font)              using `TU/ptm/m/n' instead on input line 54.
+[... elided 3 lines ...]
+(/usr/local/texlive/2026basic/texmf-dist/tex/latex/amsfonts/umsa.fd
+[... elided 1 lines ...]
+)
+[... elided 3 lines ...]
+(/usr/local/texlive/2026basic/texmf-dist/tex/latex/amsfonts/umsb.fd
+[... elided 1 lines ...]
+)
+[... elided 1 lines ...]
+LaTeX Font Warning: Font shape `TU/ptm/m/it' undefined
+(Font)              using `TU/ptm/m/n' instead on input line 56.
+[... elided 5 lines ...]
+LaTeX Font Warning: Font shape `TU/pcr/m/n' undefined
+(Font)              using `TU/lmr/m/n' instead on input line 63.
+[... elided 3 lines ...]
+LaTeX Font Warning: Font shape `OT1/cmr/m/n' in size <3.8> not available
+(Font)              size <5> substituted on input line 63.
+[... elided 2 lines ...]
+LaTeX Font Warning: Font shape `OML/cmm/m/it' in size <3.8> not available
+(Font)              size <5> substituted on input line 63.
+[... elided 2 lines ...]
+LaTeX Font Warning: Font shape `OMS/cmsy/m/n' in size <3.8> not available
+(Font)              size <5> substituted on input line 63.
+[... elided 2 lines ...]
+Underfull \hbox (badness 4595) in paragraph at lines 63--63
+[... elided 5 lines ...]
+File: eps/teaser.pdf Graphic file (type pdf)
+[... elided 5 lines ...]
+File: eps/block.pdf Graphic file (type pdf)
+[... elided 2 lines ...]
+Underfull \hbox (badness 2012) in paragraph at lines 126--130
+[... elided 4 lines ...]
+File: eps/arch.pdf Graphic file (type pdf)
+[... elided 1 lines ...]
+File: eps/imagenet.pdf Graphic file (type pdf)
+[... elided 2 lines ...]
+Overfull \hbox (1.11313pt too wide) in paragraph at lines 367--384
+[... elided 4 lines ...]
+LaTeX Font Warning: Font shape `TU/ptm/b/it' undefined
+(Font)              using `TU/ptm/b/n' instead on input line 415.
+[... elided 2 lines ...]
+File: eps/block_deeper.pdf Graphic file (type pdf)
+[... elided 1 lines ...]
+File: eps/cifar.pdf Graphic file (type pdf)
+[... elided 2 lines ...]
+Underfull \hbox (badness 1783) in paragraph at lines 468--470
+[... elided 4 lines ...]
+File: eps/std.pdf Graphic file (type pdf)
+[... elided 1 lines ...]
+ [7] (./residual_v1_arxiv_release.bbl
+Underfull \hbox (badness 4328) in paragraph at lines 75--80
+[... elided 4 lines ...]
+Underfull \hbox (badness 1394) in paragraph at lines 103--107
+[... elided 4 lines ...]
+Underfull \hbox (badness 1286) in paragraph at lines 237--241
+[... elided 3 lines ...]
+) [9]
+[... elided 1 lines ...]
+Package array Warning: Column x is already defined on input line 719.
+[... elided 2 lines ...]
+Overfull \hbox (3.074pt too wide) in paragraph at lines 739--739
+[... elided 4 lines ...]
+Overfull \hbox (0.812pt too wide) in paragraph at lines 739--739
+[... elided 4 lines ...]
+Overfull \hbox (2.924pt too wide) in paragraph at lines 739--739
+[... elided 4 lines ...]
+Overfull \hbox (5.06pt too wide) in paragraph at lines 739--739
+[... elided 4 lines ...]
+Overfull \hbox (0.584pt too wide) in paragraph at lines 739--739
+[... elided 4 lines ...]
+Overfull \hbox (1.592pt too wide) in paragraph at lines 739--739
+[... elided 4 lines ...]
+Overfull \hbox (1.696pt too wide) in paragraph at lines 739--739
+[... elided 4 lines ...]
+Overfull \hbox (3.074pt too wide) in paragraph at lines 759--759
+[... elided 4 lines ...]
+Overfull \hbox (0.812pt too wide) in paragraph at lines 759--759
+[... elided 4 lines ...]
+Overfull \hbox (2.924pt too wide) in paragraph at lines 759--759
+[... elided 4 lines ...]
+Overfull \hbox (5.06pt too wide) in paragraph at lines 759--759
+[... elided 4 lines ...]
+Overfull \hbox (0.584pt too wide) in paragraph at lines 759--759
+[... elided 4 lines ...]
+Overfull \hbox (1.592pt too wide) in paragraph at lines 759--759
+[... elided 4 lines ...]
+Overfull \hbox (8.304pt too wide) in paragraph at lines 759--759
+[... elided 5 lines ...]
+LaTeX Font Warning: Font shape `OT1/cmr/m/n' in size <6.5> not available
+(Font)              size <6> substituted on input line 795.
+[... elided 2 lines ...]
+LaTeX Font Warning: Font shape `OT1/cmr/m/n' in size <4.54997> not available
+(Font)              size <5> substituted on input line 795.
+[... elided 2 lines ...]
+LaTeX Font Warning: Font shape `OT1/cmr/m/n' in size <3.25> not available
+(Font)              size <5> substituted on input line 795.
+[... elided 2 lines ...]
+LaTeX Font Warning: Font shape `OML/cmm/m/it' in size <6.5> not available
+(Font)              size <6> substituted on input line 795.
+[... elided 2 lines ...]
+LaTeX Font Warning: Font shape `OML/cmm/m/it' in size <4.54997> not available
+(Font)              size <5> substituted on input line 795.
+[... elided 2 lines ...]
+LaTeX Font Warning: Font shape `OML/cmm/m/it' in size <3.25> not available
+(Font)              size <5> substituted on input line 795.
+[... elided 2 lines ...]
+LaTeX Font Warning: Font shape `OMS/cmsy/m/n' in size <6.5> not available
+(Font)              size <6> substituted on input line 795.
+[... elided 2 lines ...]
+LaTeX Font Warning: Font shape `OMS/cmsy/m/n' in size <4.54997> not available
+(Font)              size <5> substituted on input line 795.
+[... elided 2 lines ...]
+LaTeX Font Warning: Font shape `OMS/cmsy/m/n' in size <3.25> not available
+(Font)              size <5> substituted on input line 795.
+[... elided 2 lines ...]
+LaTeX Font Warning: Font shape `OT1/cmr/bx/n' in size <6.5> not available
+(Font)              size <6> substituted on input line 795.
+[... elided 2 lines ...]
+LaTeX Font Warning: Font shape `OT1/cmr/bx/n' in size <4.54997> not available
+(Font)              size <5> substituted on input line 795.
+[... elided 2 lines ...]
+LaTeX Font Warning: Font shape `OT1/cmr/bx/n' in size <3.25> not available
+(Font)              size <5> substituted on input line 795.
+[... elided 2 lines ...]
+Underfull \hbox (badness 1112) in paragraph at lines 824--826
+[... elided 4 lines ...]
+Overfull \hbox (7.85213pt too wide) in paragraph at lines 877--889
+[... elided 3 lines ...]
+[12] [13
+
+] [14
+
+] [15
+
+] (./residual_v1_arxiv_release.aux)
+ ***********
+LaTeX2e <2026-06-01>
+L3 programming layer <2026-06-18>
+ ***********
+
+
+LaTeX Font Warning: Size substitutions with differences
+(Font)              up to 1.75pt have occurred.
+
+
+LaTeX Font Warning: Some font shapes were not available, defaults substituted.
+
+ ) 
+Here is how much of TeX's memory you used:
+ 11670 strings out of 469355
+ 185796 string characters out of 5456668
+ 683095 words of memory out of 5000000
+ 40431 multiletter control sequences out of 15000+600000
+ 643285 words of font info for 110 fonts, out of 8000000 for 9000
+ 326 hyphenation exceptions out of 8191
+ 72i,24n,79p,945b,504s stack positions out of 10000i,1000n,20000p,200000b,200000s
+
+Output written on residual_v1_arxiv_release.pdf (15 pages).
