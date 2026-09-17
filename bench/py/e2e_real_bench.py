@@ -910,6 +910,7 @@ async def amain(args: argparse.Namespace) -> None:
                         .get("chunks")
                         != 0,
                     )
+                    prev["ts"] = time.time()
                     benchlib.append_jsonl(rec_path, prev)
                     _atomic_write(
                         out_path, json.dumps(results, ensure_ascii=False, indent=1)
@@ -961,6 +962,7 @@ async def amain(args: argparse.Namespace) -> None:
             # 而非浅合并：旧格不再产的臂键（pipe-fix/base-xel/error/
             # reject_at）残留进新行会成 matrix 幻影行。
             results[rel] = rec
+            rec["ts"] = time.time()
             benchlib.append_jsonl(rec_path, rec)
             _atomic_write(out_path, json.dumps(results, ensure_ascii=False, indent=1))
             write_reports(results, out_dir, meta)
