@@ -366,6 +366,12 @@ class Fetcher:
             lambda host: self._request("HEAD", f"https://{host}{path}", {})
         )
 
+    def get_path(self, path: str) -> httpx.Response:
+        """GET 同 path 按 ``hosts`` 序跨镜像尝试——/html/ 降级链取页用。"""
+        return self._across_hosts(
+            lambda host: self._request("GET", f"https://{host}{path}", {})
+        )
+
     def get_src(
         self,
         arxiv_id: str,

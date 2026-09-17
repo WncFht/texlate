@@ -1,0 +1,516 @@
+r"""arXiv 原生 HTML 降级链 phase 1（latexml-spike 裁决 arxiv-html-first）。
+
+``GET /html/{id}[vN]`` → ``article.ltx_document`` DOM 分块 → ``ChunkIn``：
+
+- 块模型：``div.ltx_para`` → para；``h1–h6.ltx_title*`` → title（``span.ltx_tag``
+  编号剥离）；``figcaption.ltx_caption`` → caption（figure/table 保护容器内
+  照挖，对齐 latex segmenter 语义）；``li.ltx_bibitem``、``figure.ltx_*``、
+  listing/authors/dates → support 块（不译——``\bibitem``/``\author`` 在
+  latex 侧即 ``[[BIB]]``/``[[AUTHOR]]`` 保护族，降级链保持同口径）。
+- 行内保护：``<math>`` 与 ``*.ltx_equation*`` → ``[[MATH_n]]``；
+  ``cite.ltx_cite`` → ``[[CITE_n]]``；``a[href^="#"]`` → ``[[REF_n]]``；
+  ``span.ltx_note`` → ``[[NOTE_n]]``（note 体另产 footnote 块，对齐
+  ``\footnote`` chunk-arg）；媒体/图形 → ``[[GRAPHICS_n]]``；
+  ``span.ltx_ERROR`` → ``[[CMD_n]]``；``*.ltx_tabular`` → ``[[TABLE_n]]``。
+  ph 值 = 元素 outer HTML（``alttext`` 内嵌其中——MathML 无需重渲染
+  即无损回插，``reinsert`` 单趟替换）。
+- chrome：只取 ``article.ltx_document`` 内部（页头/TOC/页脚天然在外）；
+  article 内 ``nav``/``ltx_pagination``/``script`` 等经跳过分派剥离。
+
+错误分类同 ``fetch.py`` 族：404 或 200 stub（无 ``ltx_document``——撤稿/
+「HTML not available」/abs 回落页同形）→ ``HtmlNotAvailableError``；
+其余非 200 → ``HtmlFetchError``；传输瞬时失败走 ``Fetcher._request``
+退避纪律（429/406/5xx + TransportError 重试），Parked/Budget 原样上抛。
+"""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass, field
+from http import HTTPStatus
+from typing import TYPE_CHECKING, Final
+
+from bs4 import BeautifulSoup, NavigableString, Tag
+from bs4.element import Comment, Declaration, Doctype, ProcessingInstruction
+
+from texlate.latex.placeholder import PH_RX
+from texlate.xlat.pipeline import ChunkIn
+from texlate.xlat.prompts import normalize_kind
+
+from .fetch import Fetcher, _valid_id, normalize_arxiv_id
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Mapping
+
+# ---------------------------------------------------------------- 错误分类
+
+
+class HtmlError(Exception):
+    """arXiv HTML 降级链错误基类。"""
+
+
+class HtmlNotAvailableError(HtmlError):
+    """该 id 无可用 HTML：404 或 200 stub（撤稿/未渲染/abs 回落页）。
+
+    ``status`` 保留线缆状态码（stub 命中时为 200），``detail`` 记判据。
+    """
+
+    def __init__(self, arxiv_id: str, *, status: int, detail: str = "") -> None:
+        """记录 id + 线缆状态 + 判据。"""
+        self.arxiv_id = arxiv_id
+        self.status = status
+        self.detail = detail
+        msg = f"html not available: {arxiv_id} (status={status} {detail})".rstrip()
+        super().__init__(msg)
+
+
+class HtmlFetchError(HtmlError):
+    """GET 非 200/404 终态（Fetcher 退避重试后仍失败）。"""
+
+    def __init__(self, arxiv_id: str, *, status: int, detail: str = "") -> None:
+        """记录 id + 状态码。"""
+        self.arxiv_id = arxiv_id
+        self.status = status
+        self.detail = detail
+        msg = f"html fetch failed: {arxiv_id} (status={status} {detail})".rstrip()
+        super().__init__(msg)
+
+
+# ---------------------------------------------------------------- 块模型
+
+
+@dataclass(slots=True)
+class HtmlBlock:
+    """DOM 块。``key`` = 元素稳定 id（缺失合成 ``b{n}``，撞号加 ``#k``）。
+
+    ``context`` 沿用 latex scanner 的 context 词表（para/section/title/
+    abstract/caption/keywords/footnote），support 块用自身类名
+    （bibitem/figure/listing/authors/dates/equation），``doc_chunks``
+    按 :data:`TRANSLATE_CTX` 白名单出 chunk——support 块只占位保序。
+    """
+
+    key: str
+    context: str
+    text: str = ""
+    ph: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class HtmlDoc:
+    """解析产物：文档序块表 + 全局 ``{token: 原 HTML 片段}`` + 题录。"""
+
+    blocks: list[HtmlBlock]
+    ph_map: dict[str, str]
+    title: str = ""
+    arxiv_id: str = ""
+
+
+class _Issuer:
+    """``[[TYPE_n]]`` 签发器（裸名版 :class:`PlaceholderIssuer`）。
+
+    ``reserved`` = 源文自带 ``[[X_n]]`` 字面集——签发撞上会让 reconstruct
+    把原文当占位符展开（placeholder.py 同源教训），遇撞顺延编号。
+    """
+
+    __slots__ = ("_n", "_reserved")
+
+    def __init__(self, reserved: Iterable[str] = ()) -> None:
+        """计数归零；``reserved`` 收保留字面集。"""
+        self._n = 0
+        self._reserved = set(reserved)
+
+    def new(self, typ: str, body: str, ph_map: dict[str, str]) -> str:
+        """签发 ``[[typ_n]]`` 并登记 ``ph_map``。"""
+        while True:
+            self._n += 1
+            ph = f"[[{typ}_{self._n}]]"
+            if ph not in ph_map and ph not in self._reserved:
+                break
+        ph_map[ph] = body
+        return ph
+
+
+@dataclass(slots=True)
+class _InlineCtx:
+    """行内抽取共享态：签发器 + 全局 ph_map + 迟发 footnote 队列。"""
+
+    issuer: _Issuer
+    ph_map: dict[str, str]
+    notes: list[Tag] = field(default_factory=list)
+
+    def tok(self, typ: str, el: Tag) -> str:
+        """元素 → 两侧带空格的 token 串（空格靠 squash 归一）。"""
+        return " " + self.issuer.new(typ, str(el), self.ph_map) + " "
+
+
+# ---------------------------------------------------------------- 行内抽取
+
+#: 不产生文本的 tag（chrome/脚本类——article 内防御，article 外本就不取）
+_SKIP_TAGS: Final = frozenset(
+    {
+        "script",
+        "style",
+        "noscript",
+        "template",
+        "button",
+        "dialog",
+        "form",
+        "select",
+        "nav",
+        "footer",
+        "header",
+    }
+)
+#: 不产生文本的 class 前缀——ltx_tag=自动编号、ltx_title=标题自成块、
+#: ltx_note_mark=脚注标号、TOC/pagination=页内 chrome
+_SKIP_CLASS_PREFIX: Final = (
+    "ltx_tag",
+    "ltx_title",
+    "ltx_pagination",
+    "ltx_role_newpage",
+    "ltx_note_mark",
+    "ltx_TOC",
+    "ltx_tocentry",
+    "ltx_toclist",
+)
+#: 块级元素——自成块不内联（防嵌套时文本重复入账）
+_SKIP_BLOCK_CLS: Final = frozenset(
+    {
+        "ltx_para",
+        "ltx_caption",
+        "ltx_bibitem",
+        "ltx_figure",
+        "ltx_table",
+        "ltx_float",
+        "ltx_listing",
+        "ltx_authors",
+        "ltx_dates",
+        "ltx_classification",
+        "ltx_abstract",
+    }
+)
+#: 行间数学容器 class 前缀（ltx_equation/ltx_equationgroup/ltx_eqn_*）
+_EQN_PREFIX: Final = ("ltx_equation", "ltx_eqn")
+_MEDIA_TAGS: Final = frozenset(
+    {"img", "object", "svg", "video", "audio", "iframe", "embed", "source", "picture"}
+)
+_NON_TEXT: Final = (Comment, Declaration, Doctype, ProcessingInstruction)
+
+
+def _classes(el: Tag) -> set[str]:
+    return set(el.get("class") or [])
+
+
+def _has_prefix(cls: set[str], prefixes: tuple[str, ...]) -> bool:
+    return any(c.startswith(prefixes) for c in cls)
+
+
+def _inline_text(el: Tag, ctx: _InlineCtx) -> str:
+    """元素内联文本：保护元素 token 化，其余递归取文本，空白 squash。"""
+    parts: list[str] = []
+    for node in el.children:
+        _inline_node(node, ctx, parts)
+    return " ".join("".join(parts).split())
+
+
+def _inline_node(  # noqa: C901, PLR0911, PLR0912 -- 行内元素→token/跳过/递归的分派表，分支即 DOM 契约条目
+    node: Tag | NavigableString, ctx: _InlineCtx, parts: list[str]
+) -> None:
+    if isinstance(node, NavigableString):
+        if not isinstance(node, _NON_TEXT):
+            parts.append(str(node))
+        return
+    if not isinstance(node, Tag):
+        return
+    name = node.name or ""
+    cls = _classes(node)
+    if (
+        name in _SKIP_TAGS
+        or _has_prefix(cls, _SKIP_CLASS_PREFIX)
+        or cls & _SKIP_BLOCK_CLS
+    ):
+        return
+    if name == "math" or _has_prefix(cls, _EQN_PREFIX):
+        parts.append(ctx.tok("MATH", node))
+        return
+    if "ltx_cite" in cls:
+        parts.append(ctx.tok("CITE", node))
+        return
+    if "ltx_note" in cls:
+        parts.append(ctx.tok("NOTE", node))
+        ctx.notes.append(node)
+        return
+    if "ltx_ERROR" in cls:
+        parts.append(ctx.tok("CMD", node))
+        return
+    if "ltx_tabular" in cls:
+        parts.append(ctx.tok("TABLE", node))
+        return
+    if name in _MEDIA_TAGS or "ltx_graphics" in cls or "ltx_transformed_outer" in cls:
+        parts.append(ctx.tok("GRAPHICS", node))
+        return
+    if name == "a":
+        href = node.get("href") or ""
+        if "ltx_url" in cls:
+            parts.append(ctx.tok("URL", node))
+            return
+        if href.startswith("#"):
+            parts.append(ctx.tok("REF", node))
+            return
+        # 外链：锚文本照译（latex ``\href{url}{text}`` 文本臂同口径）
+    if name in {"ul", "ol"}:
+        return  # item 体自带 ltx_para 块，列表节点不吞文本
+    if name == "br":
+        parts.append(" ")
+        return
+    for ch in node.children:
+        _inline_node(ch, ctx, parts)
+
+
+# ---------------------------------------------------------------- 块分派
+
+_H_TAGS: Final = frozenset({"h1", "h2", "h3", "h4", "h5", "h6"})
+_FIGURE_CLS: Final = frozenset({"ltx_figure", "ltx_table", "ltx_float"})
+#: support 祖先——内部只挖 caption/title（latex 保护容器语义：体内不产散文块）
+_SUPPORT_ANCESTOR: Final = frozenset(
+    {
+        "ltx_figure",
+        "ltx_table",
+        "ltx_float",
+        "ltx_listing",
+        "ltx_authors",
+        "ltx_dates",
+        "ltx_bibitem",
+        "ltx_pagination",
+        "ltx_TOC",
+    }
+)
+_TITLE_SUFFIX_RX: Final = re.compile(r"ltx_title_(\w+)")
+#: ``ltx_title_*`` 后缀 → latex 风 context（normalize_kind 直接消费）
+_TITLE_CTX: Final = {
+    "document": "title",
+    "abstract": "section",
+    "bibliography": "section",
+    "classification": "section",
+    "appendix": "section",
+    "section": "section",
+    "subsection": "subsection",
+    "subsubsection": "subsubsection",
+    "paragraph": "paragraph",
+    "subparagraph": "subparagraph",
+    "chapter": "chapter",
+    "part": "part",
+    "theorem": "paragraph",
+    "proof": "paragraph",
+}
+#: 产 chunk 的 context 白名单（support context 不在列）
+TRANSLATE_CTX: Final = frozenset(
+    {
+        "para",
+        "item",
+        "section",
+        "subsection",
+        "subsubsection",
+        "paragraph",
+        "subparagraph",
+        "chapter",
+        "part",
+        "title",
+        "abstract",
+        "caption",
+        "keywords",
+        "footnote",
+    }
+)
+
+
+def _block_kind(el: Tag) -> str:  # noqa: C901, PLR0911 -- 块类分派表，每条 return 一类 DOM 契约
+    """元素 → 块类名（"" = 非块，透明容器其子孙自会被枚举到）。"""
+    name = el.name or ""
+    cls = _classes(el)
+    if name == "div" and "ltx_para" in cls:
+        return "para"
+    if name == "p" and "ltx_p" in cls:
+        return "p"  # 裸 p（abstract/theorem 内非 ltx_para 包裹者）
+    if name in _H_TAGS and "ltx_title" in cls:
+        return "title"
+    if name == "figcaption" and "ltx_caption" in cls:
+        return "caption"
+    if name == "li" and "ltx_bibitem" in cls:
+        return "bibitem"
+    if name == "figure" and cls & _FIGURE_CLS:
+        return "figure"
+    if name == "div" and "ltx_listing" in cls:
+        return "listing"
+    if name == "div" and "ltx_authors" in cls:
+        return "authors"
+    if name == "div" and "ltx_dates" in cls:
+        return "dates"
+    if name == "div" and "ltx_classification" in cls:
+        return "keywords"
+    if name == "table" and _has_prefix(cls, _EQN_PREFIX):
+        return "equation"
+    return ""
+
+
+def _inside_support(el: Tag) -> bool:
+    """任一祖先命中 support 容器——latex 保护 env 语义（体不产块）。"""
+    return any(
+        isinstance(p, Tag) and _classes(p) & _SUPPORT_ANCESTOR for p in el.parents
+    )
+
+
+def _title_ctx(cls: set[str]) -> str:
+    for c in cls:
+        m = _TITLE_SUFFIX_RX.fullmatch(c)
+        if m:
+            return _TITLE_CTX.get(m.group(1), "section")
+    return "section"
+
+
+def _block_ph(text: str, ph_map: dict[str, str]) -> dict[str, str]:
+    """块文本内出现的 token → 片段（``chunk_to_in`` 同口径裁剪）。"""
+    return {t: ph_map[t] for t in PH_RX.findall(text) if t in ph_map}
+
+
+def parse_arxiv_html(  # noqa: C901, PLR0915 -- 枚举主循环：块分派 + support/嵌套闸 + footnote 排放，语句即枚举规则
+    html: str, *, arxiv_id: str = ""
+) -> HtmlDoc:
+    """HTML 全文 → 文档序块模型。
+
+    无 ``article.ltx_document`` → ``HtmlNotAvailableError``（stub/回落页
+    与 fetch 侧同型判据，parse 单用也安全）。
+    """
+    soup = BeautifulSoup(html, "lxml")
+    art = soup.find("article", class_="ltx_document")
+    if art is None:
+        raise HtmlNotAvailableError(
+            arxiv_id, status=HTTPStatus.OK, detail="no article.ltx_document"
+        )
+    ctx = _InlineCtx(_Issuer(PH_RX.findall(art.get_text())), {})
+    blocks: list[HtmlBlock] = []
+    seen: set[str] = set()
+    synth = 0
+
+    def key_of(el: Tag) -> str:
+        nonlocal synth
+        base = el.get("id") or ""
+        if not base:
+            synth += 1
+            base = f"b{synth}"
+        if base in seen:
+            k = 2
+            while f"{base}#{k}" in seen:
+                k += 1
+            base = f"{base}#{k}"
+        seen.add(base)
+        return base
+
+    def drain_notes() -> None:
+        # 抽取期排队的 footnote：紧跟宿主块，note 体自身可再产 token/note
+        while ctx.notes:
+            note = ctx.notes.pop(0)
+            content = note.find(class_="ltx_note_content") or note
+            text = _inline_text(content, ctx)
+            ph = _block_ph(text, ctx.ph_map)
+            blocks.append(HtmlBlock(key_of(note), "footnote", text, ph))
+
+    for el in (d for d in art.descendants if isinstance(d, Tag)):
+        kind = _block_kind(el)
+        if not kind:
+            continue
+        if _inside_support(el):
+            if kind not in {"caption", "title"}:
+                continue  # 保护容器内只挖 caption/title
+        elif kind in {"p", "equation"} and el.find_parent(class_="ltx_para"):
+            continue  # ltx_para 抽取已覆盖（p 直子 / 行间公式 token）
+        context = kind
+        text = ""
+        if kind == "para":
+            text = _inline_text(el, ctx)
+        elif kind == "p":
+            context = "abstract" if el.find_parent(class_="ltx_abstract") else "para"
+            text = _inline_text(el, ctx)
+        elif kind == "title":
+            context = _title_ctx(_classes(el))
+            text = _inline_text(el, ctx)
+        elif kind == "caption":
+            context = "caption"
+            text = _inline_text(el, ctx)
+        elif kind == "keywords":
+            context = "keywords"
+            text = _inline_text(el, ctx)
+        blocks.append(HtmlBlock(key_of(el), context, text, _block_ph(text, ctx.ph_map)))
+        drain_notes()
+    title_el = art.find("h1", class_="ltx_title_document")
+    title = title_el.get_text(" ", strip=True) if title_el else ""
+    return HtmlDoc(blocks, ctx.ph_map, title, arxiv_id)
+
+
+# ---------------------------------------------------------------- chunk 出口
+
+
+def doc_chunks(doc: HtmlDoc, *, id_prefix: str = "") -> list[ChunkIn]:
+    """``HtmlDoc`` → ``XlatPipeline`` 输入块。
+
+    白名单 context + 非空文本才产块；``kind`` 经 ``normalize_kind`` 归一
+    （与 latex scanner chunk 同族——para/caption/section_title/abstract），
+    ``ph_fragments`` 携块内 token→片段武装抄回修复臂。
+    """
+    out: list[ChunkIn] = []
+    for b in doc.blocks:
+        if b.context not in TRANSLATE_CTX or not b.text.strip():
+            continue
+        out.append(
+            ChunkIn(
+                chunk_id=f"{id_prefix}{b.key}",
+                content=b.text,
+                kind=normalize_kind(b.context),
+                ph_fragments=b.ph or None,
+            )
+        )
+    return out
+
+
+def reinsert(text: str, ph_map: Mapping[str, str]) -> str:
+    """译文中 ``[[TYPE_n]]`` 回插原 HTML 片段。
+
+    单趟 ``sub``——片段内部若含类 token 字面不级联展开。
+    """
+    return PH_RX.sub(lambda m: ph_map.get(m.group(0), m.group(0)), text)
+
+
+# ---------------------------------------------------------------- 获取
+
+
+def fetch_html(
+    arxiv_id: str, *, version: int | None = None, fetcher: Fetcher | None = None
+) -> str:
+    """GET ``https://arxiv.org/html/{id}[vN]`` 取 HTML 全文。
+
+    挂 ``Fetcher`` 而非裸 client：同域同限流域（pacing/断路器/日预算）、
+    ``_request`` 退避重试、``_across_hosts`` export 镜像故障转移——与
+    e-print 获取同一纪律。``fetcher=None`` 自建即用即关。
+    """
+    base, pin = normalize_arxiv_id(arxiv_id)
+    ver = version if version is not None else pin
+    if not _valid_id(base) or (ver is not None and ver < 1):
+        msg = f"bad arxiv id: {arxiv_id!r}"
+        raise ValueError(msg)
+    own = fetcher is None
+    f = fetcher or Fetcher()
+    try:
+        resp = f.get_path(f"/html/{base}{f'v{ver}' if ver else ''}")
+    finally:
+        if own:
+            f.close()
+    if resp.status_code == HTTPStatus.NOT_FOUND:
+        raise HtmlNotAvailableError(arxiv_id, status=HTTPStatus.NOT_FOUND)
+    if resp.status_code != HTTPStatus.OK:
+        raise HtmlFetchError(arxiv_id, status=resp.status_code)
+    text = resp.text
+    if "ltx_document" not in text:
+        raise HtmlNotAvailableError(
+            arxiv_id, status=HTTPStatus.OK, detail="stub:no_ltx_document"
+        )
+    return text
