@@ -1,0 +1,1343 @@
+"""verdict/scorecard 聚合面 fuzz——benchlib.verdict_sig / gate_scorecard / triage 归桶。
+
+不变量清单（确定性 + 计数守恒 + 桶唯一）：
+
+- ``verdict_sig``：同输入同 sig；``status ∈ {clean, None, 缺席}`` → 恒空
+  sig；显式 category（非 None/clean/other）+ 真值 payload 下 reasons
+  乱序/复制/first_error 均不改变 sig；派生 cat 取 reasons 头（顺序即语
+  义，钉住）；``missing_character`` 出现在任一 reason 即压倒派生头；
+  ``missing_character[×x]N`` → ``missing_character:xN``（x/× 同归一）。
+- ``gate_scorecard.last_records``：同 str id 末行胜；非 str/空 id 丢弃；
+  upstream 缺失/None/空串按 mock；arm_mismatch 错误行剔除。
+- ``pick_final`` 真值表封闭：fix 接管 iff c.status∈COMPILED ∧ csb==status
+  ∧ upstream 相容；drop_reason ∈ {None, over_noncompiled, no_csb, stale,
+  upstream_mismatch}。
+- ``gate_scorecard.main``：Σ end == cells；pdf ≤ cells；clean ≤ pdf；
+  need = max(0, ceil(0.9·total − pdf − ε))。
+- ``triage.load_records``：守恒——输出行数 == Σ 文件（唯一 (id,arm,
+  upstream) 键数 + 无 id dict 行数）；同键末条胜；非 dict/坏 json/截尾
+  UTF-8 行跳过；stage 缺省取文件名。
+- ``record_sig``/``build_tickets``：每记录恰归一 (stage,sig) 桶；
+  Σ count == 非豁免记录数（ok/skip 无 sig 无 errors 豁免 + upstream 门
+  skip 豁免）；票按 (-count,stage,signature) 排序；sig_id 唯一；
+  example_ids ≤ MAX_EXAMPLES 去重保序。
+- ``compute_metrics``：逐 cell Σ by_status == total；ok ≤ total；skip ≤
+  total；rescued ≤ attempted；rate ∈ [0,1]；pipeline_introduced ⊆
+  compile zh 非 ok/skip/error ∧ base ok 的 id。
+- 真实 records 变异回放：字段值级变异下聚合不崩且守恒。
+
+已钉缺陷（``xfail(strict=True)``——修复后 XPASS 提醒拆钉）：
+
+- ``last_records``（gate_scorecard.py:37-55）比 ``triage._read_jsonl``
+  娇气三处：kill 截尾 UTF-8 → UnicodeDecodeError；非 dict JSON 行 →
+  AttributeError；``errors`` 含非 dict 元素 → AttributeError。
+- ``iter_jsonl``/``load_records``（benchlib.py:58-101）同病：截尾 UTF-8
+  UnicodeDecodeError；非 dict 行 ``key in r``/``r[key]`` TypeError。
+- ``verdict_sig``（benchlib.py:177/194）：``reasons`` 非可迭代 →
+  TypeError；``first_error`` 真值非 str → re.search TypeError；
+  ``reasons`` 为 str 时被逐字符迭代产垃圾 sig（如 'm'）。
+- ``pick_final``（gate_scorecard.py:70）：``f.metrics`` 真值非 dict →
+  AttributeError；同模式 triage.py:593 compute_metrics degraded 探测
+  也踩 metrics 类型混淆。
+- ``errors`` 字段为 dict → ``errs[0]`` KeyError——record_sig /
+  bucket_sig / _upstream_gated / classify 同模式全中招，build_tickets
+  连带崩。
+- ``_wall_s``（triage.py:508）：``dur_s`` 非数值 → ValueError/TypeError；
+  NaN/inf 不崩但 ``wall_s`` 非有限值写进 git 跟踪 metrics.jsonl 成非严格
+  JSON 行。
+- ``legacy_records``（triage.py:368-476）：results.json 截尾 →
+  JSONDecodeError；顶层非 dict → AttributeError；``verdict``/``rounds``
+  类型混淆 → AttributeError/KeyError/TypeError——与账侧"容忍坏行"设计
+  不一致。
+- ``fixloop_degraded``（triage.py:590-601）：遍历 fl 全体含未 attempted
+  的 skip 记录——STATUS_RANK 表外词按 -1 → skip+csb 假阳退化。
+- ``missing_character:xN`` 按 N 碎票：``fault=N`` 归一而 ``xN`` 不归一，
+  同一 F4 缺陷类实证碎成 ≥15 票（loop1: x1..x18+）。
+"""
+
+from __future__ import annotations
+
+import json
+import math
+import random
+import sys
+from collections import Counter
+from pathlib import Path
+
+import benchlib
+import gate_scorecard
+import pytest
+import triage
+
+_SEED = 20260917
+_ITERS = 300
+_N_CELLS = 200
+_SAMPLE_PER_FILE = 80
+_SAMPLE_CAP = 400
+_GATE_SAMPLE = 150
+_RESULTS = Path(__file__).resolve().parents[1] / "bench" / "results"
+
+# ---------------------------------------------------------------- pools
+_VSTATUS = ["clean", "fail", "partial", "reject", "other"]
+_VCAT = [
+    None,
+    "clean",
+    "other",
+    "missing_file",
+    "missing_character",
+    "undefined_cs",
+    "syntax",
+    "babel_opt",
+    "illegal_unit",
+    "warn",
+    "capacity",
+]
+_REASON_TOK = [
+    "no_pdf",
+    "missing_character×3",
+    "missing_characterx12",
+    "first_error=syntax: brace mismatch",
+    "first_error=missing_file: gone",
+    "cjk_chars=0",
+    "errors>3",
+    "warn:invalid_utf8",
+    "nullfont_misschar",
+    "",
+    "   ",
+]
+_PAYLOAD = [None, "", "aastex.cls", "x.sty", "pst-node", "实", 0, 17]
+_FIRST_ERROR = [
+    None,
+    "",
+    "! LaTeX Error: File `aastex.cls' not found.",
+    "File `uft8.def' not found",
+    "! Undefined control sequence.",
+    "Missing character: There is no 实 in font",
+]
+_REC_STATUS = [
+    "ok",
+    "clean",
+    "done",
+    "fail",
+    "partial",
+    "skip",
+    "skipped",
+    "reject",
+    "rejected",
+    "upstream_fail",
+    "error",
+    "bench_error",
+    "skipped_oversize",
+    "stuck",
+    "max_rounds",
+    "acceptable_pdf",
+    "best_effort_pdf",
+    "dirty_pdf",
+    "unfixable:x",
+    "",
+    "?",
+]
+_SIG_POOL = [
+    "",
+    "missing_file:aastex.cls",
+    "missing_character:x4",
+    "missing_character",
+    "undefined_cs:\\foo",
+    "syntax",
+    "unfixable:missing_file:pst-node",
+    "upstream:parse=reject",
+    "inject:latex209",
+    "xlat:fault=3 skipped=0",
+    "harness:BrokenProcessPool",
+    "nosig:fail",
+    "verdict:fail",
+    "stub_format:a.gz",
+    "auth:401",
+    "warn:invalid_utf8",
+    "a:b:c",
+    ":",
+]
+_ERRORS_POOL = [
+    [],
+    [{"code": "upstream_gate", "cat": "upstream", "payload": "parse=reject"}],
+    [{"code": "missing_file", "cat": "missing_file", "payload": "a.cls"}],
+    [{"code": "leftover_ph", "cat": "xlat", "payload": "3"}],
+    [{"code": "chunks_bad", "cat": "xlat", "payload": "fault=2 skipped=1"}],
+    [{"code": "auth", "cat": "auth", "payload": "401"}],
+    [{"code": "harness:Broken", "cat": "harness", "payload": "Broken('x')"}],
+    [{"code": "unfixable:syntax", "cat": None, "payload": ""}],
+    ["non-dict-entry"],
+]
+_MUT_SCALAR = [None, "", 0, 5, -1, 1.5, "abc", "实", "x" * 300, [], {}, {"k": 1}]
+
+
+def _rand_verdict(rng: random.Random) -> dict:
+    return {
+        "status": rng.choice(_VSTATUS),
+        "category": rng.choice(_VCAT),
+        "payload": rng.choice(_PAYLOAD),
+        "reasons": [rng.choice(_REASON_TOK) for _ in range(rng.randrange(4))],
+    }
+
+
+def _rec(pid: str, stage: str, status: object, **over: object) -> dict:
+    r = {
+        "id": pid,
+        "stage": stage,
+        "arm": "-",
+        "upstream": "",
+        "status": status,
+        "dur_s": 1.0,
+        "metrics": {},
+        "errors": [],
+        "sig": "",
+    }
+    r.update(over)
+    return r
+
+
+def _write_jsonl(path: Path, rows: list) -> None:
+    with path.open("w", encoding="utf-8") as f:
+        for r in rows:
+            f.write(r if isinstance(r, str) else json.dumps(r, ensure_ascii=False))
+            f.write("\n")
+
+
+# ================================================================ verdict_sig
+def test_verdict_sig_deterministic() -> None:
+    """等值输入（json 深拷贝）→ 同 sig；返回恒为 str。"""
+    rng = random.Random(_SEED)  # noqa: S311 -- 确定性种子
+    for _ in range(_ITERS):
+        v = _rand_verdict(rng)
+        fe = rng.choice(_FIRST_ERROR)
+        s1 = benchlib.verdict_sig(v, fe)
+        s2 = benchlib.verdict_sig(json.loads(json.dumps(v)), fe)
+        assert isinstance(s1, str)
+        assert s1 == s2
+
+
+def test_verdict_sig_clean_blackout() -> None:
+    """status clean/None/缺席 → 恒空 sig，其余字段噪声免疫。"""
+    rng = random.Random(_SEED + 1)  # noqa: S311 -- 确定性种子
+    for _ in range(_ITERS):
+        v = _rand_verdict(rng)
+        pick = rng.randrange(3)
+        if pick == 0:
+            v["status"] = "clean"
+        elif pick == 1:
+            v["status"] = None
+        else:
+            v.pop("status", None)
+        assert benchlib.verdict_sig(v, rng.choice(_FIRST_ERROR)) == ""
+
+
+def test_verdict_sig_explicit_cat_reason_order_insensitive() -> None:
+    """显式 cat + 真值 str payload → sig == cat:payload，reasons/first_error 无关。"""
+    rng = random.Random(_SEED + 2)  # noqa: S311 -- 确定性种子
+    for _ in range(_ITERS):
+        cat = rng.choice(["missing_file", "undefined_cs", "syntax", "babel_opt"])
+        pay = rng.choice(["a.cls", "x.sty", "\\foo", "实"])
+        reasons = [rng.choice(_REASON_TOK) for _ in range(rng.randrange(1, 4))]
+        v = {
+            "status": "fail",
+            "category": cat,
+            "payload": pay,
+            "reasons": reasons,
+        }
+        want = f"{cat}:{pay}".rstrip(":")
+        assert benchlib.verdict_sig(v, rng.choice(_FIRST_ERROR)) == want
+        v2 = dict(v, reasons=[*reversed(reasons), *reasons])
+        assert benchlib.verdict_sig(v2, rng.choice(_FIRST_ERROR)) == want
+
+
+def test_verdict_sig_derived_head_order_sensitive() -> None:
+    """派生 cat 取 reasons 头——乱序改 sig（语义钉住：顺序即信息，非缺陷）。
+
+    missing_character 是例外：出现在任一 reason 即压倒派生头。
+    """
+    v = {
+        "status": "fail",
+        "category": None,
+        "reasons": ["first_error=syntax: x", "warn:y"],
+    }
+    v2 = {
+        "status": "fail",
+        "category": None,
+        "reasons": ["warn:y", "first_error=syntax: x"],
+    }
+    assert benchlib.verdict_sig(v) == "syntax"
+    # head 整 token 作 cat（含冒号原样保留）
+    assert benchlib.verdict_sig(v2) == "warn:y"
+    for tail in ([], ["warn:y"], ["first_error=syntax: x"]):
+        v3 = {
+            "status": "fail",
+            "category": None,
+            "reasons": [*tail, "missing_character×7"],
+        }
+        assert benchlib.verdict_sig(v3) == "missing_character:x7"
+
+
+def test_verdict_sig_mc_count_norm() -> None:
+    """``missing_character[×x]N`` → ``xN``；前导零不归一（x03 ≠ x3）；
+    显式 payload 压正则回补。"""
+    for tok, want in (
+        ("missing_character×3", "x3"),
+        ("missing_characterx3", "x3"),
+        ("missing_character×18", "x18"),
+        ("missing_character×03", "x03"),
+    ):
+        v = {"status": "fail", "category": None, "reasons": [tok]}
+        assert benchlib.verdict_sig(v) == f"missing_character:{want}"
+    v = {
+        "status": "fail",
+        "category": "missing_character",
+        "payload": "实",
+        "reasons": ["missing_character×3"],
+    }
+    assert benchlib.verdict_sig(v) == "missing_character:实"
+
+
+def test_verdict_sig_first_error_regex_fill() -> None:
+    """missing_file/missing_character payload 空 → 正则回补 payload。"""
+    v = {
+        "status": "fail",
+        "category": "missing_file",
+        "payload": None,
+        "reasons": ["no_pdf"],
+    }
+    fe = "! LaTeX Error: File `x.cls' not found."
+    assert benchlib.verdict_sig(v, fe) == "missing_file:x.cls"
+    assert benchlib.verdict_sig(v, "no match") == "missing_file"
+    assert benchlib.verdict_sig(v, "") == "missing_file"
+    assert benchlib.verdict_sig(v) == "missing_file"
+    # 显式 missing_character + 空 payload → joined reasons 正则（首个匹配胜
+    # ——多计数 reason 时顺序仍敏感，沿用派生头语义）
+    v2 = {
+        "status": "fail",
+        "category": "missing_character",
+        "payload": "",
+        "reasons": ["missing_character×2", "missing_character×9"],
+    }
+    assert benchlib.verdict_sig(v2) == "missing_character:x2"
+
+
+def test_verdict_sig_edge_shapes() -> None:
+    """边界形状不崩：空 verdict、空 reasons、tuple reasons、falsy cat。"""
+    assert benchlib.verdict_sig({}) == ""
+    assert benchlib.verdict_sig({"status": "fail", "reasons": []}) == "verdict:fail"
+    assert benchlib.verdict_sig({"status": "fail", "category": ""}) == "verdict:fail"
+    sig = benchlib.verdict_sig(
+        {"status": "fail", "category": None, "reasons": ("warn:y",)}
+    )
+    assert isinstance(sig, str)
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="benchlib.py:194 _RE_MISSING_FILE.search(first_error or '') — "
+    "first_error 真值非 str（dict/list/int/bool）→ TypeError；"
+    "records 里 compile.first_error 类型混淆即全崩；"
+    "修：isinstance(first_error, str) 守卫后取 ''",
+)
+@pytest.mark.parametrize(
+    "bad_fe", [{"f": 1}, ["x"], 5, True], ids=["dict", "list", "int", "bool"]
+)
+def test_pin_verdict_sig_nonstr_first_error(bad_fe: object) -> None:
+    v = {
+        "status": "fail",
+        "category": "missing_file",
+        "payload": None,
+        "reasons": ["no_pdf"],
+    }
+    assert benchlib.verdict_sig(v, bad_fe).startswith("missing_file")
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="benchlib.py:177 `for r in (verdict.get('reasons') or [])` — "
+    "reasons 非可迭代（int/float/bool）→ TypeError；"
+    "修：isinstance(reasons, list) 之类守卫后按 [] 处理",
+)
+@pytest.mark.parametrize("bad_reasons", [5, 3.14, True], ids=["int", "float", "bool"])
+def test_pin_verdict_sig_noniterable_reasons(bad_reasons: object) -> None:
+    v = {"status": "fail", "category": None, "reasons": bad_reasons}
+    assert isinstance(benchlib.verdict_sig(v), str)
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="benchlib.py:177 reasons 为 str 时被逐字符迭代——"
+    "'missing_character×3' → sig 'm'（首字符当 cat）；"
+    "修：str 包装为单元素列表或拒非 list",
+)
+def test_pin_verdict_sig_string_reasons() -> None:
+    v = {"status": "fail", "category": None, "reasons": "missing_character×3"}
+    sig = benchlib.verdict_sig(v)
+    # 两种合理修法都接受：按单条 reason 解析 / 拒绝非 list 退 verdict:fail
+    assert sig in {"missing_character:x3", "verdict:fail"}
+
+
+# ================================================================ gate_scorecard
+def test_gate_last_records_filters(tmp_path: Path) -> None:
+    """末行胜 + arm/upstream/arm_mismatch/id 过滤矩阵（输出行数可预言）。"""
+    rows = [
+        {"id": "a", "arm": "zh", "status": "fail"},
+        {"id": "a", "arm": "zh", "status": "clean"},  # 末条胜
+        {"id": "a", "arm": "base", "status": "fail"},  # arm 过滤
+        {"id": "b", "arm": "zh", "status": "fail", "upstream": "real"},
+        {
+            "id": "c",
+            "arm": "zh",
+            "status": "fail",
+            "errors": [{"code": "arm_mismatch"}],
+        },
+        {"id": 5, "arm": "zh", "status": "fail"},  # 非 str id 丢
+        {"id": "", "arm": "zh", "status": "fail"},  # 空 id 丢
+        {"id": None, "arm": "zh", "status": "fail"},  # None id 丢
+        "{broken json",  # 坏行跳过
+        "",
+        {},  # 空 dict 行：无 id → 丢
+        {"id": "d", "arm": "zh", "status": "fail", "upstream": None},
+        {"id": "e", "arm": "zh", "status": "fail", "upstream": ""},
+    ]
+    _write_jsonl(tmp_path / "compile.jsonl", rows)
+    last = gate_scorecard.last_records(
+        tmp_path / "compile.jsonl", arm="zh", upstream="mock"
+    )
+    assert sorted(last) == ["a", "d", "e"]
+    assert last["a"]["status"] == "clean"
+    # upstream=None 全收（除 arm_mismatch/坏 id/坏 json）
+    last_all = gate_scorecard.last_records(
+        tmp_path / "compile.jsonl", arm="zh", upstream=None
+    )
+    assert sorted(last_all) == ["a", "b", "d", "e"]
+    last_real = gate_scorecard.last_records(
+        tmp_path / "compile.jsonl", arm="zh", upstream="real"
+    )
+    assert sorted(last_real) == ["b"]
+
+
+def test_gate_last_records_fuzz_conservation(tmp_path: Path) -> None:
+    """随机行流 → 输出行数 == 去重后可预言数；每个存活 id 取末行。"""
+    rng = random.Random(_SEED + 10)  # noqa: S311 -- 确定性种子
+    rows: list = []
+    oracle: dict[str, dict] = {}
+    for i in range(_ITERS):
+        pid = rng.choice(["a", "b", "c", "d", "e", "5", "", None])
+        r = {
+            "id": pid,
+            "arm": rng.choice(["zh", "zh", "zh", "base"]),
+            "status": rng.choice(_REC_STATUS),
+            "upstream": rng.choice(["mock", "mock", "real", "", None]),
+            "errors": rng.choice([[], [{"code": "arm_mismatch"}]]),
+            "n": i,
+        }
+        rows.append(r)
+        # mock 口径 oracle 独立复算
+        if (
+            r["arm"] == "zh"
+            and (r["upstream"] or "mock") == "mock"
+            and not any(e.get("code") == "arm_mismatch" for e in r["errors"])
+            and isinstance(pid, str)
+            and pid
+        ):
+            oracle[pid] = r
+    _write_jsonl(tmp_path / "compile.jsonl", rows)
+    last = gate_scorecard.last_records(
+        tmp_path / "compile.jsonl", arm="zh", upstream="mock"
+    )
+    assert len(last) == len(oracle)
+    for pid, r in oracle.items():
+        assert last[pid]["n"] == r["n"]
+
+
+def test_pick_final_truth_table() -> None:
+    """五值 drop_reason 封闭 + 终态 record 归属（compile/fixloop）。"""
+    f_base = {
+        "id": "p",
+        "status": "clean",
+        "metrics": {"compile_status_before": "fail"},
+    }
+    cases = [
+        # (c_status, fix 记录, 期望 stage, 期望 drop)
+        ("fail", None, "compile", None),
+        ("reject", f_base, "compile", "over_noncompiled"),
+        ("skip", f_base, "compile", "over_noncompiled"),
+        ("error", f_base, "compile", "over_noncompiled"),
+        ("fail", {"id": "p", "status": "clean"}, "compile", "no_csb"),
+        ("fail", {"id": "p", "status": "clean", "metrics": {}}, "compile", "no_csb"),
+        (
+            "fail",
+            {
+                "id": "p",
+                "status": "clean",
+                "metrics": {"compile_status_before": "partial"},
+            },
+            "compile",
+            "stale",
+        ),
+        (
+            "fail",
+            {
+                "id": "p",
+                "status": "clean",
+                "metrics": {"compile_status_before": "fail"},
+                "upstream": "u2",
+            },
+            "compile",
+            "upstream_mismatch",
+        ),
+        ("fail", f_base, "fixloop", None),
+        ("fail", {**f_base, "upstream": ""}, "fixloop", None),  # 单侧空不判
+    ]
+    for c_status, f, want_stage, want_drop in cases:
+        c = _rec("p", "compile", c_status, upstream="u1")
+        stage, r, drop = gate_scorecard.pick_final(c, f)
+        assert stage == want_stage, (c_status, f)
+        assert drop == want_drop, (c_status, f)
+        assert r is (f if stage == "fixloop" else c)
+
+
+def _gate_run(
+    tmp_path: Path,
+    comp_rows: list,
+    fix_rows: list,
+    capsys: pytest.CaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[int | None, int | None, int | None, str]:
+    """写 records 跑 main() → (cells, pdf, clean, stdout)。"""
+    recdir = tmp_path / "records"
+    recdir.mkdir(exist_ok=True)
+    _write_jsonl(recdir / "compile.jsonl", comp_rows)
+    _write_jsonl(recdir / "fixloop.jsonl", fix_rows)
+    monkeypatch.setattr(sys, "argv", ["gate_scorecard", str(recdir)])
+    assert gate_scorecard.main() == 0
+    out = capsys.readouterr().out
+    head = next((x for x in out.splitlines() if x.startswith("cells=")), "")
+    cells = pdf = clean = None
+    if head:
+        vals = {
+            k: int(v) for p in head.split() if "=" in p for k, v in [p.split("=", 1)]
+        }
+        cells = vals["cells"]
+        pdf = vals.get("pdf")
+        clean = vals.get("clean")
+    return cells, pdf, clean, out
+
+
+def test_gate_main_conservation_fuzz(
+    tmp_path: Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """随机 compile/fixloop 格 → Σ end == cells ∧ pdf ≤ cells ∧ clean ≤ pdf。
+
+    终态按 pick_final 文档语义独立复算（csb 匹配 + upstream 相容才接管）。
+    """
+    rng = random.Random(_SEED + 11)  # noqa: S311 -- 确定性种子
+    comp_rows: list = []
+    fix_by_id: dict[str, dict] = {}
+    for i in range(_N_CELLS):
+        pid = f"p{i}"
+        cst = rng.choice(["clean", "partial", "fail", "reject", "skip"])
+        comp_rows.append({"id": pid, "arm": "zh", "upstream": "mock", "status": cst})
+        if rng.randrange(3):
+            continue  # 无 fixloop 记录
+        csb = rng.choice([cst, "fail", "partial", None])
+        f: dict = {
+            "id": pid,
+            "upstream": rng.choice(["mock", "real", ""]),
+            "status": rng.choice(_REC_STATUS),
+        }
+        if csb is not None or rng.randrange(2):
+            f["metrics"] = {} if csb is None else {"compile_status_before": csb}
+        fix_by_id[pid] = f
+    exp_end: Counter = Counter()
+    for c in comp_rows:
+        end_stage, end_status = "compile", c["status"] or "?"
+        f = fix_by_id.get(c["id"])
+        if f is not None and c["status"] in gate_scorecard.COMPILED:
+            csb = (f.get("metrics") or {}).get("compile_status_before")
+            cu, fu = c.get("upstream"), f.get("upstream")
+            if csb == c["status"] and not (cu and fu and cu != fu):
+                end_stage = "fixloop"
+                end_status = f["status"] or "?"
+        exp_end[f"{end_stage}:{end_status}"] += 1
+    cells, pdf, clean, _out = _gate_run(
+        tmp_path, comp_rows, list(fix_by_id.values()), capsys, monkeypatch
+    )
+    assert cells == _N_CELLS
+    assert pdf == sum(
+        v for k, v in exp_end.items() if k.split(":")[1] in ("clean", "partial")
+    )
+    assert clean == sum(v for k, v in exp_end.items() if k.split(":")[1] == "clean")
+    assert clean <= pdf <= cells
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        (10, 9, "PASS"),  # 恰门槛
+        (10, 8, "need +1"),
+        (3, 2, "need +1"),
+        (100, 90, "PASS"),
+        (7, 6, "need +1"),  # 6.3 → need 1（ceil 后 6+1=7 ≥ 6.3）
+    ],
+    ids=["exact90", "below", "small", "exact100", "ceil_edge"],
+)
+def test_gate_boundary_need(
+    case: tuple[int, int, str],
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """need = max(0, ceil(0.9·total − pdf − ε))——门槛边界不漂。"""
+    n_total, n_pdf, want = case
+    comp_rows = [
+        {
+            "id": f"p{i}",
+            "arm": "zh",
+            "upstream": "mock",
+            "status": "clean" if i < n_pdf else "fail",
+        }
+        for i in range(n_total)
+    ]
+    _cells, _pdf, _clean, out = _gate_run(tmp_path, comp_rows, [], capsys, monkeypatch)
+    assert want in out
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="gate_scorecard.py:37 `for line in path.open()` 默认 strict utf-8 —— "
+    "kill 截尾多字节 UTF-8 → UnicodeDecodeError（triage._read_jsonl "
+    "errors=replace 免疫同场景）；修：open(errors='replace')",
+)
+def test_pin_gate_last_records_truncated_utf8(tmp_path: Path) -> None:
+    p = tmp_path / "compile.jsonl"
+    p.write_bytes(b'{"id":"a","arm":"zh","status":"fail"}\n{"id":"b","\xe4\xb8')
+    last = gate_scorecard.last_records(p, arm="zh", upstream="mock")
+    assert list(last) == ["a"]
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="gate_scorecard.py:42-54 非 dict JSON 行 → r.get AttributeError；"
+    "修：isinstance(r, dict) 守卫（对齐 triage._read_jsonl 容错）",
+)
+@pytest.mark.parametrize(
+    "line",
+    ["5", '"id"', "[1,2]", "null", "3.14", "true"],
+    ids=["int", "str", "list", "null", "float", "bool"],
+)
+def test_pin_gate_last_records_nondict_line(tmp_path: Path, line: str) -> None:
+    p = tmp_path / "compile.jsonl"
+    p.write_text(
+        f'{line}\n{{"id":"a","arm":"zh","status":"clean"}}\n', encoding="utf-8"
+    )
+    last = gate_scorecard.last_records(p, arm="zh", upstream="mock")
+    assert list(last) == ["a"]
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="gate_scorecard.py:50 `any(e.get('code') ...)` — errors 元素非 dict "
+    "（或 errors 本身是 str）→ AttributeError；修：isinstance(e, dict)",
+)
+@pytest.mark.parametrize(
+    "errs",
+    [["x"], [5], [None], "arm_mismatch", [{"code": "ok"}, "x"]],
+    ids=["str", "int", "none", "errors_str", "mixed_tail"],
+)
+def test_pin_gate_errors_nondict(tmp_path: Path, errs: object) -> None:
+    p = tmp_path / "compile.jsonl"
+    rec = {"id": "a", "arm": "zh", "status": "clean", "errors": errs}
+    p.write_text(json.dumps(rec) + "\n", encoding="utf-8")
+    last = gate_scorecard.last_records(p, arm="zh", upstream="mock")
+    assert list(last) == ["a"]
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="gate_scorecard.py:70 `(f.get('metrics') or {}).get` — metrics 真值非 "
+    "dict → AttributeError；修：isinstance 守卫按 {} 处理",
+)
+@pytest.mark.parametrize(
+    "bad_metrics", ["x", [1], 5, True], ids=["str", "list", "int", "bool"]
+)
+def test_pin_pick_final_nondict_metrics(bad_metrics: object) -> None:
+    c = _rec("p", "compile", "fail")
+    f = {"id": "p", "status": "clean", "metrics": bad_metrics}
+    stage, _r, drop = gate_scorecard.pick_final(c, f)
+    # 合理终态：metrics 视为缺 → no_csb（compile 自留）
+    assert (stage, drop) == ("compile", "no_csb")
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="同根因第二现场 triage.py:593 `(r.get('metrics') or {}).get` —— "
+    "fixloop 记录 metrics 类型混淆 → compute_metrics degraded 探测崩 "
+    "AttributeError；修：isinstance 守卫按 {} 处理",
+)
+@pytest.mark.parametrize(
+    "bad_metrics", ["x", [1], 5, True], ids=["str", "list", "int", "bool"]
+)
+def test_pin_compute_metrics_nondict_metrics(
+    tmp_path: Path, bad_metrics: object
+) -> None:
+    recs = [_rec("p", "fixloop", "fail", arm="fix", metrics=bad_metrics)]
+    line = triage.compute_metrics(tmp_path, recs, None)
+    assert isinstance(line["wall_s"], float)
+
+
+# ================================================================ benchlib 账读
+@pytest.mark.xfail(
+    strict=True,
+    reason="benchlib.py:61 read_text(encoding='utf-8') strict —— kill 截尾 "
+    "UTF-8 → UnicodeDecodeError；docstring 自称容忍截尾但只盖 JSON 层；"
+    "修：errors='replace'",
+)
+def test_pin_benchlib_iter_jsonl_truncated_utf8(tmp_path: Path) -> None:
+    p = tmp_path / "r.jsonl"
+    p.write_bytes(b'{"id":"a"}\n{"id":"b","\xe4\xb8')
+    assert [r["id"] for r in benchlib.iter_jsonl(p)] == ["a"]
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="benchlib.py:99 `if key in r` — 非 dict 行：int/float/bool/None → "
+    "TypeError('not iterable')；含 key 的 str/list 行 → r[key] TypeError；"
+    "修：isinstance(r, dict) 守卫",
+)
+@pytest.mark.parametrize(
+    "line",
+    ["5", '"id"', '["id"]', "null", "true", "3.14"],
+    ids=["int", "str_hit", "list_hit", "null", "bool", "float"],
+)
+def test_pin_benchlib_load_records_nondict(tmp_path: Path, line: str) -> None:
+    p = tmp_path / "r.jsonl"
+    p.write_text(f'{line}\n{{"id":"a","v":1}}\n', encoding="utf-8")
+    assert list(benchlib.load_records(p)) == ["a"]
+
+
+def test_benchlib_load_records_benign_lines(tmp_path: Path) -> None:
+    """容错面钉住：坏 json/空行/无 key dict/不含 key 的 str 行都跳过不崩。"""
+    p = tmp_path / "r.jsonl"
+    p.write_text(
+        '{bad\n\n"nokey"\n{"k":1}\n{"id":"a","v":1}\n{"id":"a","v":2}\n',
+        encoding="utf-8",
+    )
+    out = benchlib.load_records(p)
+    assert out == {"a": {"id": "a", "v": 2}}  # 末行胜
+
+
+# ================================================================ triage 归桶
+def test_load_records_conservation_fuzz(tmp_path: Path) -> None:
+    """守恒：Σ 文件（唯一 (id,arm,upstream) 键 + 无 id dict 行）== 输出长度；
+    同键末条胜。"""
+    rng = random.Random(_SEED + 20)  # noqa: S311 -- 确定性种子
+    rdir = tmp_path / "records"
+    rdir.mkdir()
+    total_oracle = 0
+    last_val: dict[tuple, int] = {}
+    for stage in ("compile", "xlat", "fixloop"):
+        lines: list[str] = []
+        seen: dict[tuple, int] = {}
+        noid = 0
+        for i in range(_SAMPLE_PER_FILE):
+            kind = rng.choice(
+                ["broken", "nonstr", "noid", "rec", "rec", "rec", "rec", "rec"]
+            )
+            if kind == "broken":
+                lines.append("{broken")
+            elif kind == "nonstr":
+                lines.append("5")  # 非 dict json——triage 容忍
+            elif kind == "noid":
+                lines.append(json.dumps({"note": f"noid-{i}"}))
+                noid += 1
+            else:
+                rec = _rec(
+                    rng.choice(["a", "b", "c", "d"]),
+                    stage,
+                    rng.choice(_REC_STATUS),
+                    arm=rng.choice(["zh", "base", "-"]),
+                    upstream=rng.choice(["", "mock", "real"]),
+                    sig=rng.choice(_SIG_POOL),
+                    errors=rng.choice(_ERRORS_POOL),
+                )
+                rec["n"] = i
+                lines.append(json.dumps(rec, ensure_ascii=False))
+                key = (
+                    rec["id"],
+                    str(rec["arm"] or "-"),
+                    str(rec["upstream"] or ""),
+                )
+                seen[key] = i
+        _write_jsonl(rdir / f"{stage}.jsonl", lines)
+        total_oracle += len(seen) + noid
+        for k, i in seen.items():
+            last_val[(stage, *k)] = i
+    recs = triage.load_records(tmp_path)
+    assert len(recs) == total_oracle
+    for r in recs:
+        if "n" in r:
+            key = (
+                r["stage"],
+                str(r.get("id")),
+                str(r.get("arm") or "-"),
+                str(r.get("upstream") or ""),
+            )
+            assert r["n"] == last_val[key]
+        else:
+            assert "note" in r
+    assert all(r["stage"] in {"compile", "xlat", "fixloop"} for r in recs)
+
+
+def test_record_sig_deterministic_fuzz() -> None:
+    """record_sig 确定性 + 恒 str；空 sig → errors[0] 合成 → nosig:status 兜底。"""
+    rng = random.Random(_SEED + 21)  # noqa: S311 -- 确定性种子
+    for _ in range(_ITERS):
+        rec = _rec(
+            "p",
+            rng.choice(["compile", "xlat", "fixloop"]),
+            rng.choice(_REC_STATUS),
+            sig=rng.choice(_SIG_POOL),
+            errors=rng.choice(_ERRORS_POOL),
+        )
+        s1 = triage.record_sig(rec)
+        s2 = triage.record_sig(json.loads(json.dumps(rec)))
+        assert isinstance(s1, str)
+        assert s1 == s2
+    assert triage.record_sig(_rec("p", "s", "fail")) == "nosig:fail"
+    assert triage.record_sig(_rec("p", "s", "")) == "nosig:unknown"
+    r = _rec("p", "s", "fail", errors=[{"code": "c", "cat": "k", "payload": "v"}])
+    assert triage.record_sig(r) == "k:v"
+
+
+def _ticketed(recs: list[dict]) -> list[dict]:
+    """build_tickets 豁免谓词的独立 oracle（errors 恒 list 场景）。"""
+    out = []
+    for r in recs:
+        st = str(r.get("status") or "")
+        has_sig = bool(str(r.get("sig") or "").strip())
+        has_err = bool(r.get("errors"))
+        if st in triage.OK_STATUS | triage.SKIP_STATUS and not (has_sig or has_err):
+            continue
+        gated = False
+        if st in triage.SKIP_STATUS:
+            errs = r.get("errors") or []
+            e0 = errs[0] if errs and isinstance(errs[0], dict) else {}
+            gated = str(e0.get("cat") or "") == "upstream" or str(
+                r.get("sig") or ""
+            ).startswith("upstream:")
+        if not gated:
+            out.append(r)
+    return out
+
+
+def test_build_tickets_conservation_fuzz(tmp_path: Path) -> None:
+    """Σ count == 非豁免记录数；桶不相交（每记录恰一 (stage,sig)）；排序+sig_id 唯一。"""
+    rng = random.Random(_SEED + 22)  # noqa: S311 -- 确定性种子
+    recs = [
+        _rec(
+            f"p{i}",
+            rng.choice(["compile", "xlat", "fixloop"]),
+            rng.choice(_REC_STATUS),
+            sig=rng.choice(_SIG_POOL),
+            errors=rng.choice(_ERRORS_POOL),
+            arm=rng.choice(["zh", "base", "mock", "fix"]),
+        )
+        for i in range(_ITERS)
+    ]
+    tickets = triage.build_tickets(recs, tmp_path)
+    expected = _ticketed(recs)
+    assert sum(t["count"] for t in tickets) == len(expected)
+    cluster: Counter = Counter()
+    for r in expected:
+        cluster[(str(r.get("stage") or "?"), triage.record_sig(r))] += 1
+    assert (
+        Counter({(t["stage"], t["signature"]): t["count"] for t in tickets}) == cluster
+    )
+    keys = [(-t["count"], t["stage"], t["signature"]) for t in tickets]
+    assert keys == sorted(keys)
+    sig_ids = [t["sig_id"] for t in tickets]
+    assert len(sig_ids) == len(set(sig_ids))
+    for t in tickets:
+        assert len(t["example_ids"]) <= triage.MAX_EXAMPLES
+        assert len(set(t["example_ids"])) == len(t["example_ids"])
+        assert t["count"] >= len(t["example_ids"])  # ids 簇内去重
+
+
+def test_build_tickets_ok_with_sig_warning() -> None:
+    """ok 记录带显式 sig 仍出票（warning 级）——豁免条件是 (无 sig ∧ 无 errors)。"""
+    recs = [
+        _rec("p1", "compile", "ok", sig="warn:invalid_utf8"),
+        _rec("p2", "compile", "ok"),  # 无 sig 无 errors → 豁免
+        _rec(
+            "p3",
+            "compile",
+            "ok",
+            errors=[{"code": "w", "cat": "w", "payload": ""}],
+        ),
+    ]
+    tickets = triage.build_tickets(recs, Path("nonexistent-dir"))
+    assert [(t["signature"], t["count"]) for t in tickets] == [
+        ("w", 1),
+        ("warn:invalid_utf8", 1),
+    ]
+    assert all("warning" in t["notes"] for t in tickets)
+
+
+def test_compute_metrics_conservation_fuzz(tmp_path: Path) -> None:
+    """逐 cell Σby_status==total ∧ ok/skip ⊆ total ∧ rate∈[0,1]；
+    rescued ≤ attempted；pipeline_introduced 归因口径。"""
+    rng = random.Random(_SEED + 23)  # noqa: S311 -- 确定性种子
+    recs = [
+        _rec(
+            rng.choice(["a", "b", "c", "d", "e"]),
+            rng.choice(["compile", "fixloop", "xlat", "parse"]),
+            rng.choice(_REC_STATUS),
+            arm=rng.choice(["zh", "base", "mock", "fix", "default"]),
+            sig=rng.choice(_SIG_POOL),
+            errors=rng.choice(_ERRORS_POOL),
+            dur_s=rng.choice([0.0, 1.5, -2.0, 99.9, None]),
+        )
+        for _ in range(_ITERS)
+    ]
+    line = triage.compute_metrics(tmp_path, recs, None)
+    total_sum = 0
+    for stage, arms in line["stage_rates"].items():
+        for arm, c in arms.items():
+            oracle = [
+                r
+                for r in recs
+                if str(r.get("stage") or "?") == stage
+                and str(r.get("arm") or "default") == arm
+            ]
+            assert c["total"] == len(oracle)
+            assert sum(c["by_status"].values()) == c["total"]
+            assert c["ok"] <= c["total"]
+            assert c["n_skip"] <= c["total"]
+            assert c["rate"] is None or 0 <= c["rate"] <= 1
+            ok_set = triage.RESCUED_STATUS if stage == "fixloop" else triage.OK_STATUS
+            assert c["ok"] == sum(
+                1 for r in oracle if str(r.get("status") or "") in ok_set
+            )
+            assert c["n_skip"] == sum(
+                1 for r in oracle if str(r.get("status") or "") in triage.SKIP_STATUS
+            )
+            total_sum += c["total"]
+    assert total_sum == len(recs)
+    fl = line["fixloop"]
+    attempted = [
+        r
+        for r in recs
+        if r.get("stage") == "fixloop"
+        and str(r.get("status") or "") not in triage.SKIP_STATUS
+    ]
+    assert fl["attempted"] == len(attempted)
+    assert fl["rescued"] <= fl["attempted"]
+    assert fl["rescue_rate"] is None or 0 <= fl["rescue_rate"] <= 1
+    by_id: dict[str, dict] = {}
+    for r in recs:
+        if r.get("stage") == "compile":
+            by_id.setdefault(str(r.get("id")), {})[str(r.get("arm") or "default")] = (
+                str(r.get("status") or "")
+            )
+    ok_skip_err = triage.OK_STATUS | triage.SKIP_STATUS | {"error"}
+    eligible = {
+        i
+        for i, a in by_id.items()
+        if a.get("zh")
+        and a["zh"] not in ok_skip_err
+        and a.get("base") in triage.OK_STATUS
+    }
+    pipes = {r["id"] for r in line["regressions"] if r["kind"] == "pipeline_introduced"}
+    assert pipes <= eligible
+    for r in line["regressions"]:
+        if r["kind"] == "pipeline_introduced_truncated":
+            assert r["total"] == len(eligible)
+
+
+def test_compute_metrics_rate_drop(tmp_path: Path) -> None:
+    """rate_drop 回归：prev 同 stage/arm rate 高 → 报；相等/无 prev → 不报。"""
+    recs = [
+        _rec("a", "compile", "ok", arm="zh"),
+        _rec("b", "compile", "fail", arm="zh"),
+    ]
+    prev = {"run_id": "prev", "stage_rates": {"compile": {"zh": {"rate": 0.9}}}}
+    line = triage.compute_metrics(tmp_path, recs, prev)
+    drops = [r for r in line["regressions"] if r["kind"] == "rate_drop"]
+    assert len(drops) == 1
+    assert drops[0]["cur"] == line["stage_rates"]["compile"]["zh"]["rate"]
+    assert drops[0]["prev"] == prev["stage_rates"]["compile"]["zh"]["rate"]
+    prev_eq = {"run_id": "p", "stage_rates": {"compile": {"zh": {"rate": 0.5}}}}
+    line2 = triage.compute_metrics(tmp_path, recs, prev_eq)
+    assert not [r for r in line2["regressions"] if r["kind"] == "rate_drop"]
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="triage.py errs[0] 同模式四处（record_sig/bucket_sig/"
+    "_upstream_gated/classify）——errors 为 dict（非 list）→ KeyError:0，"
+    "build_tickets 连带；修：`errs if isinstance(errs, list) else []`",
+)
+def test_pin_triage_errors_dict(tmp_path: Path) -> None:
+    bad = _rec(
+        "p",
+        "xlat",
+        "skip",
+        sig="upstream:x",
+        errors={"cat": "upstream", "code": "upstream_gate"},
+    )
+    # 期望语义：errors dict 视为无 errors → sig upstream:* 仍门控 → 零票
+    assert triage.build_tickets([bad], tmp_path) == []
+    assert triage.record_sig(bad) == "upstream:x"
+    assert triage.classify("syntax", {"errors": {"a": 1}})[0] == "rule"
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="triage.py:508 `float(r.get('dur_s') or 0)` — dur_s 非数值（'abc'/"
+    "dict/…）且 run_meta 无时间戳 → ValueError/TypeError；修：try/except "
+    "或 isinstance 按 0 兜底",
+)
+@pytest.mark.parametrize("bad_dur", ["abc", {"a": 1}, [1]], ids=["str", "dict", "list"])
+def test_pin_wall_s_nonstr_dur(tmp_path: Path, bad_dur: object) -> None:
+    recs = [_rec("p", "compile", "fail", dur_s=bad_dur)]
+    line = triage.compute_metrics(tmp_path, recs, None)
+    assert math.isfinite(line["wall_s"])
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="triage.py:508 dur_s=NaN/inf → wall_s 非有限值 → metrics.jsonl 写入 "
+    "NaN/Infinity（非严格 JSON，下游严格 parser 全行报废）；"
+    "修：math.isfinite 守卫",
+)
+@pytest.mark.parametrize(
+    "bad_dur",
+    [float("nan"), float("inf"), float("-inf")],
+    ids=["nan", "inf", "-inf"],
+)
+def test_pin_wall_s_nonfinite(tmp_path: Path, bad_dur: float) -> None:
+    recs = [_rec("p", "compile", "fail", dur_s=bad_dur)]
+    line = triage.compute_metrics(tmp_path, recs, None)
+    assert math.isfinite(line["wall_s"])
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="triage.py:590-601 fixloop_degraded 遍历 fl 全体（含未 attempted 的 "
+    "skip 记录）——STATUS_RANK 表外词按 -1 → skip+csb 假阳退化；"
+    "修：遍历 attempted（rescue 同口径）",
+)
+def test_pin_fixloop_degraded_skip_false_positive(tmp_path: Path) -> None:
+    recs = [
+        _rec(
+            "p1",
+            "fixloop",
+            "skip",
+            arm="fix",
+            metrics={"compile_status_before": "fail"},
+        )
+    ]
+    line = triage.compute_metrics(tmp_path, recs, None)
+    degs = [r for r in line["regressions"] if r["kind"] == "fixloop_degraded"]
+    assert degs == []
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="bucket_sig 归一 fault=N 计数（_RE_KV_NUM）却放过 "
+    "missing_character:xN——xN 同为实例级计数；F4 单缺陷类实证碎成 ≥15 票 "
+    "（loop1 missing_character:x1..x18+ 另加裸 missing_character）；"
+    "修：missing_character 入 _SIG_DROP_PAY 或扩展归一 x\\d+",
+)
+def test_pin_missing_character_count_fragments(tmp_path: Path) -> None:
+    sigs = ["missing_character", "missing_character:x1", "missing_character:x17"]
+    recs = [
+        _rec(
+            f"p{i}",
+            "compile",
+            "partial",
+            sig=sig,
+            errors=[
+                {
+                    "code": "missing_character",
+                    "cat": "missing_character",
+                    "payload": "",
+                }
+            ],
+        )
+        for i, sig in enumerate(sigs)
+    ]
+    tickets = triage.build_tickets(recs, tmp_path)
+    assert len(tickets) == 1
+    assert tickets[0]["count"] == len(sigs)
+    assert tickets[0]["fix_class"] == "rule"
+
+
+# ---------------------------------------------------------------- legacy 降级
+@pytest.mark.xfail(
+    strict=True,
+    reason="triage.py:373 `json.loads(rp.read_text())` 裸读——results.json "
+    "kill 截尾 → JSONDecodeError（账侧处处容忍坏行此处崩）；"
+    "修：try/except → {}",
+)
+def test_pin_legacy_corrupt_results(tmp_path: Path) -> None:
+    (tmp_path / "results.json").write_text('{"a": {"id":"a", "pipe-xel": {"verd')
+    assert triage.legacy_records(tmp_path) == []
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="triage.py:375 `data.items()` — results.json 顶层非 dict（list/str/"
+    "int/null）→ AttributeError；修：isinstance(data, dict) 守卫 → {}",
+)
+@pytest.mark.parametrize(
+    "doc", ["[1,2]", '"x"', "5", "null"], ids=["list", "str", "int", "null"]
+)
+def test_pin_legacy_nondict_results(tmp_path: Path, doc: str) -> None:
+    (tmp_path / "results.json").write_text(doc)
+    assert triage.legacy_records(tmp_path) == []
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="triage.py:384 `verdict.get('status')` — verdict 真值非 dict → "
+    "AttributeError（falsy 非 dict 如 0/'' 恰好被 or {} 救下，真值全崩）；"
+    "修：isinstance 守卫",
+)
+@pytest.mark.parametrize(
+    "bad_verdict",
+    ['"boom"', "5", "[1]", "true"],
+    ids=["str", "int", "list", "bool"],
+)
+def test_pin_legacy_verdict_nondict(tmp_path: Path, bad_verdict: str) -> None:
+    doc = {"a": {"id": "a", "pipe-xel": {"verdict": json.loads(bad_verdict)}}}
+    (tmp_path / "results.json").write_text(json.dumps(doc))
+    recs = triage.legacy_records(tmp_path)
+    assert isinstance(recs, list)
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="triage.py:410-417 `rounds[-1]`/`rd.get`/`reversed(rounds)` — rounds "
+    "非 list-of-dict → AttributeError/KeyError/TypeError；修：isinstance "
+    "守卫逐元素过滤",
+)
+@pytest.mark.parametrize(
+    "bad_rounds",
+    ['"boom"', '{"a":1}', "5", "[1,2]"],
+    ids=["str", "dict", "int", "list_int"],
+)
+def test_pin_legacy_rounds_nonlist(tmp_path: Path, bad_rounds: str) -> None:
+    doc = {
+        "a": {
+            "id": "a",
+            "pipe-fix": {
+                "fixloop": {
+                    "verdict": "unfixable:syntax",
+                    "rounds": json.loads(bad_rounds),
+                }
+            },
+        }
+    }
+    (tmp_path / "results.json").write_text(json.dumps(doc))
+    recs = triage.legacy_records(tmp_path)
+    assert isinstance(recs, list)
+
+
+# ---------------------------------------------------------------- 真实账回放
+def _sample_records_files(limit_per_file: int, rng: random.Random) -> list[dict]:
+    """bench/results/*/records/*.jsonl 抽样真实行（gitignored——不在本机则空）。"""
+    out: list[dict] = []
+    for fp in sorted(_RESULTS.glob("*/records/*.jsonl")):
+        n = 0
+        for line in fp.open(errors="replace"):
+            try:
+                r = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(r, dict):
+                out.append(r)
+                n += 1
+            if n >= limit_per_file:
+                break
+        if len(out) >= limit_per_file * 6:
+            break
+    rng.shuffle(out)
+    return out
+
+
+#: 变异种类表——字段名即分支键（数字索引会踩 PLR2004 提名噪音）
+_MUT_KINDS = (
+    "status",
+    "sig",
+    "id",
+    "arm",
+    "upstream",
+    "dur_s",
+    "csb",
+    "errval",
+    "popjunk",
+)
+
+
+def _mutate(rec: dict, rng: random.Random) -> dict:  # noqa: C901 -- 变异点即分支表
+    """字段值级变异（保 dict 形状）：status/sig/id/arm/upstream/dur_s/
+    metrics.compile_status_before/errors[*] 字段值打乱 + 随机丢/加字段。"""
+    r = json.loads(json.dumps(rec))
+    for _ in range(rng.randrange(1, 4)):
+        which = rng.choice(_MUT_KINDS)
+        if which == "status":
+            r["status"] = rng.choice([*_REC_STATUS, *_MUT_SCALAR])
+        elif which == "sig":
+            r["sig"] = rng.choice([*_SIG_POOL, *_MUT_SCALAR])
+        elif which == "id":
+            r["id"] = rng.choice(["a", "b", "p9", "", None, 5])
+        elif which == "arm":
+            r["arm"] = rng.choice(["zh", "base", "fix", "mock", "-", "", None])
+        elif which == "upstream":
+            r["upstream"] = rng.choice(["mock", "real", "", None])
+        elif which == "dur_s":
+            r["dur_s"] = rng.choice([0.0, 1.5, -3.0, None])
+        elif which == "csb" and isinstance(r.get("metrics"), dict):
+            r["metrics"]["compile_status_before"] = rng.choice(
+                ["fail", "partial", "clean", None, 5]
+            )
+        elif which == "errval":
+            errs = r.get("errors")
+            if isinstance(errs, list) and errs and isinstance(errs[0], dict):
+                errs[0][rng.choice(["code", "cat", "payload"])] = rng.choice(
+                    _MUT_SCALAR
+                )
+        elif which == "popjunk":
+            r.pop(rng.choice(["sig", "errors", "metrics", "dur_s"]), None)
+            r[f"junk{rng.randrange(3)}"] = rng.choice(_MUT_SCALAR)
+    return r
+
+
+@pytest.mark.skipif(
+    not any(_RESULTS.glob("*/records/*.jsonl")),
+    reason="bench/results/*/records/ 不在本机（gitignored 重产物）",
+)
+def test_real_records_mutated_triage(tmp_path: Path) -> None:
+    """真实 stagerun 记录字段值变异 → build_tickets/compute_metrics 不崩且守恒。"""
+    rng = random.Random(_SEED + 30)  # noqa: S311 -- 确定性种子
+    sample = _sample_records_files(_SAMPLE_PER_FILE, rng)[:_SAMPLE_CAP]
+    assert sample, "sample 为空——glob 命中但无 dict 行"
+    mutated = [_mutate(r, rng) for r in sample]
+    tickets = triage.build_tickets(mutated, tmp_path)
+    expected = _ticketed(mutated)
+    assert sum(t["count"] for t in tickets) == len(expected)
+    line = triage.compute_metrics(tmp_path, mutated, None)
+    total_sum = sum(
+        c["total"] for arms in line["stage_rates"].values() for c in arms.values()
+    )
+    assert total_sum == len(mutated)
+
+
+@pytest.mark.skipif(
+    not (_RESULTS / "stagerun-loop1-2026-09-16" / "records").is_dir(),
+    reason="stagerun-loop1 records 不在本机（gitignored 重产物）",
+)
+def test_real_records_mutated_gate(
+    tmp_path: Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """真实 compile/fixloop 记录变异 → gate_scorecard.main 不崩且 cells 守恒。"""
+    rng = random.Random(_SEED + 31)  # noqa: S311 -- 确定性种子
+    src = _RESULTS / "stagerun-loop1-2026-09-16" / "records"
+    comp_rows: list = []
+    fix_rows: list = []
+    for fp, sink in (
+        (src / "compile.jsonl", comp_rows),
+        (src / "fixloop.jsonl", fix_rows),
+    ):
+        n = 0
+        for line in fp.open(errors="replace"):
+            try:
+                r = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(r, dict):
+                sink.append(_mutate(r, rng))
+                n += 1
+            if n >= _GATE_SAMPLE:
+                break
+    cells, pdf, clean, _out = _gate_run(
+        tmp_path, comp_rows, fix_rows, capsys, monkeypatch
+    )
+    # oracle：mock 口径 + arm=zh + 非 arm_mismatch + str id 去重后条数
+    valid = {
+        r["id"]
+        for r in comp_rows
+        if isinstance(r.get("id"), str)
+        and r.get("id")
+        and r.get("arm") == "zh"
+        and (r.get("upstream") or "mock") == "mock"
+        and isinstance(r.get("errors") or [], list)
+        and all(isinstance(e, dict) for e in (r.get("errors") or []))
+        and not any(e.get("code") == "arm_mismatch" for e in (r.get("errors") or []))
+    }
+    assert cells == len(valid)
+    assert clean <= pdf <= cells
+
+
+@pytest.mark.skipif(
+    not any(_RESULTS.glob("*/results.json")),
+    reason="bench/results/*/results.json 不在本机（gitignored 重产物）",
+)
+def test_real_results_json_legacy_roundtrip(tmp_path: Path) -> None:
+    """真实 results.json → legacy_records → build_tickets/compute_metrics 不崩。"""
+    src = next(iter(sorted(_RESULTS.glob("*/results.json"))))
+    (tmp_path / "results.json").write_bytes(src.read_bytes())
+    recs = triage.legacy_records(tmp_path)
+    assert isinstance(recs, list)
+    tickets = triage.build_tickets(recs, tmp_path)
+    expected = _ticketed(recs)
+    assert sum(t["count"] for t in tickets) == len(expected)
+    line = triage.compute_metrics(tmp_path, recs, None)
+    total = sum(
+        c["total"] for arms in line["stage_rates"].values() for c in arms.values()
+    )
+    assert total == len(recs)
+
+
+def test_selftest_synthetic_oracle(tmp_path: Path) -> None:
+    """--selftest 合成账作 oracle 种：逐格核对 tickets/metrics 守恒。"""
+    rdir = tmp_path / "run"
+    (rdir / "records").mkdir(parents=True)
+    (rdir / "work").mkdir()
+    rows = {
+        "compile": [
+            _rec("a", "compile", "ok", arm="zh"),
+            _rec("b", "compile", "fail", arm="zh", sig="missing_file:x.cls"),
+            _rec("b", "compile", "clean", arm="zh"),  # 同键末条胜 → b clean
+            _rec(
+                "c",
+                "compile",
+                "skip",
+                arm="zh",
+                sig="upstream:parse=reject",
+                errors=[{"code": "upstream_gate", "cat": "upstream", "payload": "p"}],
+            ),
+        ],
+        "fixloop": [
+            _rec(
+                "b",
+                "fixloop",
+                "fail",
+                arm="fix",
+                sig="unfixable:missing_file:x.cls",
+            )
+        ],
+    }
+    for stage, rs in rows.items():
+        _write_jsonl(rdir / "records" / f"{stage}.jsonl", rs)
+    recs = triage.load_records(rdir)
+    tickets = triage.build_tickets(recs, rdir)
+    # b 末条 clean 无 sig → 豁免；c upstream 门 skip → 豁免；只剩 fixloop b
+    assert [(t["signature"], t["count"]) for t in tickets] == [
+        ("unfixable:missing_file:x.cls", 1)
+    ]
+    line = triage.compute_metrics(rdir, recs, None)
+    assert line["stage_rates"]["compile"]["zh"]["total"] == len(rows["compile"]) - 1
