@@ -11,11 +11,17 @@
   众数（payload 取 ``error_pay`` 首见值），平票仍归首错。
 - ``gate_scorecard.last_records``：同 str id 末行胜；非 str/空 id 丢弃；
   upstream 缺失/None/空串按 mock；arm_mismatch 错误行剔除。
-- ``pick_final`` 真值表封闭：fix 接管 iff c.status∈COMPILED ∧ csb==status
-  ∧ upstream 相容；drop_reason ∈ {None, over_noncompiled, no_csb, stale,
-  upstream_mismatch}。
+- ``pick_final`` 真值表封闭：fix 接管 iff c.status∈COMPILED ∧ upstream
+  相容 ∧ 新鲜度过门——``metrics.compile_fp`` 为真值 str 时按指纹比对
+  （同态陈旧拦 ``fp_mismatch``），否则回退 ``compile_status_before``
+  状态等值（``no_csb``/``stale``）；drop_reason ∈ {None,
+  over_noncompiled, no_csb, stale, fp_mismatch, upstream_mismatch}。
+- ``compile_fp``：同记录同指纹；status/sig/first_error/code 变 → 变；
+  计时字段(seconds/dur_s)变 → 不变；脏 metrics 不崩。
 - ``gate_scorecard.main``：Σ end == cells；pdf ≤ cells；clean ≤ pdf；
-  need = max(0, ceil(0.9·total − pdf − ε))。
+  need = max(0, ceil(0.9·total − pdf − ε))。union 口径：Σ uni == cells；
+  union_pdf ≥ end_pdf ∧ union_clean ≥ end_clean（best-of ≥ 末段胜）。
+- ``--json``：stdout 可被 ``json.loads`` 消化；两口径 dist 各自守恒。
 - ``triage.load_records``：守恒——输出行数 == Σ 文件（唯一 (id,arm,
   upstream) 键数 + 无 id dict 行数）；同键末条胜；非 dict/坏 json/截尾
   UTF-8 行跳过；stage 缺省取文件名。
@@ -514,12 +520,14 @@ def test_gate_last_records_fuzz_conservation(tmp_path: Path) -> None:
 
 
 def test_pick_final_truth_table() -> None:
-    """五值 drop_reason 封闭 + 终态 record 归属（compile/fixloop）。"""
+    """drop_reason 封闭 + 终态 record 归属（compile/fixloop）。"""
     f_base = {
         "id": "p",
         "status": "clean",
         "metrics": {"compile_status_before": "fail"},
     }
+    # 与循环内 _rec("p","compile","fail",upstream="u1") 同形的指纹
+    fp_hit = gate_scorecard.compile_fp(_rec("p", "compile", "fail", upstream="u1"))
     cases = [
         # (c_status, fix 记录, 期望 stage, 期望 drop)
         ("fail", None, "compile", None),
@@ -551,6 +559,30 @@ def test_pick_final_truth_table() -> None:
         ),
         ("fail", f_base, "fixloop", None),
         ("fail", {**f_base, "upstream": ""}, "fixloop", None),  # 单侧空不判
+        # compile_fp 指纹路径：匹配接管 / 失配 fp_mismatch / 匹配仍查 upstream
+        (
+            "fail",
+            {"id": "p", "status": "clean", "metrics": {"compile_fp": fp_hit}},
+            "fixloop",
+            None,
+        ),
+        (
+            "fail",
+            {"id": "p", "status": "clean", "metrics": {"compile_fp": "f" * 16}},
+            "compile",
+            "fp_mismatch",
+        ),
+        (
+            "fail",
+            {
+                "id": "p",
+                "status": "clean",
+                "upstream": "u2",
+                "metrics": {"compile_fp": fp_hit},
+            },
+            "compile",
+            "upstream_mismatch",
+        ),
     ]
     for c_status, f, want_stage, want_drop in cases:
         c = _rec("p", "compile", c_status, upstream="u1")
@@ -709,6 +741,236 @@ def test_pick_final_nondict_metrics(bad_metrics: object) -> None:
     stage, _r, drop = gate_scorecard.pick_final(c, f)
     # 合理终态：metrics 视为缺 → no_csb（compile 自留）
     assert (stage, drop) == ("compile", "no_csb")
+
+
+# ---------------------------------------------------------------- 指纹校验
+def test_compile_fp_stability() -> None:
+    """指纹确定性 + 同态陈旧敏感 + 计时噪声免疫。"""
+    c = _rec(
+        "p",
+        "compile",
+        "fail",
+        sig="syntax:x",
+        code="abc123",
+        metrics={
+            "compile": {"first_error": "! brace", "seconds": 1.5},
+            "verdict": {"category": "syntax", "payload": "b"},
+        },
+    )
+    fp = gate_scorecard.compile_fp(c)
+    assert fp == gate_scorecard.compile_fp(json.loads(json.dumps(c)))
+    # 同 status 异 sig/first_error → 指纹变（status 等值放行的盲区即此）
+    c2 = json.loads(json.dumps(c))
+    c2["sig"] = "missing_file:a.cls"
+    assert gate_scorecard.compile_fp(c2) != fp
+    c3 = json.loads(json.dumps(c))
+    c3["metrics"]["compile"]["first_error"] = "! other"
+    assert gate_scorecard.compile_fp(c3) != fp
+    # 计时字段非 verdict 语义——seconds/dur_s 变而指纹不变
+    c4 = json.loads(json.dumps(c))
+    c4["metrics"]["compile"]["seconds"] = 99
+    c4["dur_s"] = 42.0
+    assert gate_scorecard.compile_fp(c4) == fp
+    c5 = json.loads(json.dumps(c))
+    c5["status"] = "partial"
+    assert gate_scorecard.compile_fp(c5) != fp
+    # 脏输入面：metrics 非 dict / 空记录 → 不崩仍出摘要
+    assert isinstance(
+        gate_scorecard.compile_fp(_rec("p", "compile", "fail", metrics="junk")),
+        str,
+    )
+    assert isinstance(gate_scorecard.compile_fp({}), str)
+
+
+def test_pick_final_fingerprint_path() -> None:
+    """``compile_fp`` 在场 → 指纹级校验：匹配接管 / 不匹配 ``fp_mismatch``。
+
+    同态陈旧锚点：compile 重跑 status 不变 sig 已换——csb 等值放行而
+    指纹拦下。fp 非 str/空值 → 视为缺席回退 legacy csb 路径。
+    """
+    c = _rec("p", "compile", "fail", sig="syntax:brace", code="abc")
+    good = {
+        "id": "p",
+        "status": "clean",
+        "metrics": {"compile_fp": gate_scorecard.compile_fp(c)},
+    }
+    stage, r, drop = gate_scorecard.pick_final(c, good)
+    assert (stage, drop) == ("fixloop", None)
+    assert r is good
+    bad = {
+        "id": "p",
+        "status": "clean",
+        "metrics": {"compile_fp": "f" * 16},
+    }
+    assert gate_scorecard.pick_final(c, bad)[:2] == ("compile", c)
+    assert gate_scorecard.pick_final(c, bad)[2] == "fp_mismatch"
+    # 同态陈旧：status 仍 fail 但 sig 已换 → 旧指纹不匹配即拦
+    c2 = dict(c, sig="missing_file:a.cls")
+    assert gate_scorecard.pick_final(c2, good)[2] == "fp_mismatch"
+    for junk in (5, None, "", [], {}, True):
+        f = {
+            "id": "p",
+            "status": "clean",
+            "metrics": {"compile_fp": junk, "compile_status_before": "fail"},
+        }
+        assert gate_scorecard.pick_final(c, f)[0] == "fixloop", junk
+
+
+def test_gate_union_best_of(
+    tmp_path: Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """union=best-of：fix 回退格(c partial→post fail) union 记 partial 而
+    end-state 记 fail——两口径读数差即 fixloop 回退面。"""
+    recdir = tmp_path / "records"
+    recdir.mkdir()
+    comp = [
+        {"id": "a", "arm": "zh", "upstream": "mock", "status": "partial"},
+        {"id": "b", "arm": "zh", "upstream": "mock", "status": "fail"},
+    ]
+    fix = [
+        {
+            "id": "a",
+            "status": "fail",
+            "upstream": "mock",
+            "metrics": {"compile_status_before": "partial", "floor_restored": True},
+        },
+        {
+            "id": "b",
+            "status": "clean",
+            "upstream": "mock",
+            "metrics": {"compile_status_before": "fail"},
+        },
+    ]
+    _write_jsonl(recdir / "compile.jsonl", comp)
+    _write_jsonl(recdir / "fixloop.jsonl", fix)
+    monkeypatch.setattr(sys, "argv", ["gate_scorecard", str(recdir), "--json"])
+    assert gate_scorecard.main() == 0
+    d = json.loads(capsys.readouterr().out)
+    assert d["schema"] == "gate_scorecard/v2"
+    assert d["cells"] == len(comp)
+    # a: end=fixloop:fail(回退)，union=compile partial → pdf；b: fix clean
+    want_end_pdf, want_uni_pdf = 1, 2
+    assert d["end_state"]["pdf"] == want_end_pdf
+    assert d["end_state"]["clean"] == want_end_pdf
+    assert d["union"]["pdf"] == want_uni_pdf
+    assert d["union"]["clean"] == want_end_pdf
+    assert d["lift"] == {
+        "cells": 1,
+        "pdf": 1,
+        "clean": 0,
+        "transitions": {"partial->fail": 1},
+    }
+    assert d["union"]["source"] == {"compile": 1, "fixloop": 1}
+    assert d["csb_check"] == {"legacy_status": len(comp)}
+    # a: fix 底板兜回(pdf 文件在盘)但 post 仍判 fail → 虚低面计数
+    assert d["floor_restored"] == 1
+    assert d["floor_restored_nopdf"] == 1
+    # 文本面也出两口径（regression：名实不符即旧版把末段胜印成 union）
+    monkeypatch.setattr(sys, "argv", ["gate_scorecard", str(recdir)])
+    assert gate_scorecard.main() == 0
+    out = capsys.readouterr().out
+    assert "union:" in out
+    assert "[end-state]" in out
+    assert "partial->fail" in out
+
+
+def _oracle_fresh(c: dict, f: dict) -> bool:
+    """pick_final 新鲜度判定的独立 oracle——fp/csb/upstream 三闸。"""
+    if c["status"] not in gate_scorecard.COMPILED:
+        return False
+    m = f.get("metrics")
+    if not isinstance(m, dict):
+        m = {}
+    fp = m.get("compile_fp")
+    if isinstance(fp, str) and fp:
+        if fp != gate_scorecard.compile_fp(c):
+            return False
+    else:
+        csb = m.get("compile_status_before")
+        if csb is None or csb != c["status"]:
+            return False
+    cu, fu = c.get("upstream"), f.get("upstream")
+    return not (cu and fu and cu != fu)
+
+
+def _rand_fix(rng: random.Random, c: dict) -> dict:
+    """随机 fixloop 记录：csb 三态 + compile_fp 三态（真值/错值/垃圾）。"""
+    f: dict = {
+        "id": c["id"],
+        "upstream": rng.choice(["mock", "real", ""]),
+        "status": rng.choice(_REC_STATUS),
+    }
+    m: dict = {}
+    csb = rng.choice([c["status"], "fail", "partial", None])
+    if csb is not None or rng.randrange(2):
+        m["compile_status_before"] = csb
+    fp_kind = rng.choice(["hit", "miss", "junk", "absent"])
+    if fp_kind == "hit":
+        m["compile_fp"] = gate_scorecard.compile_fp(c)
+    elif fp_kind == "miss":
+        m["compile_fp"] = "f" * 16
+    elif fp_kind == "junk":
+        m["compile_fp"] = rng.choice([5, None, "", []])
+    if m:
+        f["metrics"] = m
+    return f
+
+
+def test_gate_union_conservation_fuzz(
+    tmp_path: Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """union 口径 fuzz 守恒：Σuni==cells ∧ union_pdf ≥ end_pdf ∧
+    union_clean ≥ end_clean；逐格 union rank ≥ end rank。"""
+    rng = random.Random(_SEED + 41)  # noqa: S311 -- 确定性种子
+    comp_rows: list = []
+    fix_by_id: dict[str, dict] = {}
+    for i in range(_N_CELLS):
+        pid = f"p{i}"
+        cst = rng.choice(["clean", "partial", "fail", "reject", "skip"])
+        comp_rows.append(
+            {
+                "id": pid,
+                "arm": "zh",
+                "upstream": "mock",
+                "status": cst,
+                "sig": rng.choice(_SIG_POOL),
+            }
+        )
+        if not rng.randrange(3):
+            fix_by_id[pid] = _rand_fix(rng, comp_rows[-1])
+    exp_end: Counter = Counter()
+    exp_uni: Counter = Counter()
+    for c in comp_rows:
+        end_stage, end_status = "compile", c["status"] or "?"
+        f = fix_by_id.get(c["id"])
+        uni_status = c["status"] or "?"
+        if f is not None and _oracle_fresh(c, f):
+            end_stage, end_status = "fixloop", f["status"] or "?"
+            fs = f["status"] or "?"
+            if benchlib.STATUS_RANK.get(str(fs), -1) > benchlib.STATUS_RANK.get(
+                str(c["status"] or "?"), -1
+            ):
+                uni_status = fs
+        exp_end[(end_stage, end_status)] += 1
+        exp_uni[uni_status] += 1
+    recdir = tmp_path / "records"
+    recdir.mkdir()
+    _write_jsonl(recdir / "compile.jsonl", comp_rows)
+    _write_jsonl(recdir / "fixloop.jsonl", list(fix_by_id.values()))
+    monkeypatch.setattr(sys, "argv", ["gate_scorecard", str(recdir), "--json"])
+    assert gate_scorecard.main() == 0
+    d = json.loads(capsys.readouterr().out)
+    assert d["cells"] == _N_CELLS
+    assert sum(d["end_state"]["dist"].values()) == _N_CELLS
+    assert sum(d["union"]["dist"].values()) == _N_CELLS
+    assert d["end_state"]["pdf"] == sum(
+        v for (_st, s), v in exp_end.items() if s in ("clean", "partial")
+    )
+    assert d["union"]["pdf"] == sum(
+        v for k, v in exp_uni.items() if k in ("clean", "partial")
+    )
+    assert d["union"]["pdf"] >= d["end_state"]["pdf"]
+    assert d["union"]["clean"] >= d["end_state"]["clean"]
 
 
 @pytest.mark.parametrize(

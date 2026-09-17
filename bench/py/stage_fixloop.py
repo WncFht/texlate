@@ -192,6 +192,10 @@ def _fixloop_one(
         {
             "mode": args.on,
             "compile_status_before": comp_rec.get("status"),
+            # verdict 指纹级校验料——csb 状态等值挡不住同态陈旧
+            # （compile 重跑 status 同而 sig/first_error 已换），
+            # gate_scorecard.pick_final 在场即比对、缺席回退 csb。
+            "compile_fp": benchlib.compile_fp(comp_rec),
             "fixloop_verdict": fv,
             "final_cat": fcat,
             "rounds": len(rounds),

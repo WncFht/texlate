@@ -19,6 +19,7 @@ Task board convention: agents report progress via
 from __future__ import annotations
 
 import collections
+import contextlib
 import datetime as dt
 import glob
 import html
@@ -55,20 +56,32 @@ C_INFO = "#0969da"
 C_PURPLE = "#8250df"
 
 STATUS_COLOR = {
-    "clean": C_CLEAN, "fail": C_FAIL, "partial": C_PART,
-    "skipped": C_SKIP, "reject": C_FAIL,
+    "clean": C_CLEAN,
+    "fail": C_FAIL,
+    "partial": C_PART,
+    "skipped": C_SKIP,
+    "reject": C_FAIL,
 }
 STATUS_ZH = {
-    "clean": "干净", "fail": "失败", "partial": "部分",
-    "skipped": "跳过", "reject": "拒收",
+    "clean": "干净",
+    "fail": "失败",
+    "partial": "部分",
+    "skipped": "跳过",
+    "reject": "拒收",
 }
 TASK_STATUS_COLOR = {
-    "starting": C_SKIP, "running": C_INFO, "blocked": C_PART,
-    "done": C_CLEAN, "failed": C_FAIL,
+    "starting": C_SKIP,
+    "running": C_INFO,
+    "blocked": C_PART,
+    "done": C_CLEAN,
+    "failed": C_FAIL,
 }
 TASK_STATUS_ZH = {
-    "starting": "启动", "running": "运行", "blocked": "阻塞",
-    "done": "完成", "failed": "失败",
+    "starting": "启动",
+    "running": "运行",
+    "blocked": "阻塞",
+    "done": "完成",
+    "failed": "失败",
 }
 
 _cache: dict[str, tuple[float, object]] = {}
@@ -86,8 +99,12 @@ def cached(key: str, ttl: float, fn):
 
 def run_cmd(argv: list[str], timeout: float) -> str:
     proc = subprocess.run(
-        argv, cwd=REPO, capture_output=True, text=True,
-        timeout=timeout, check=False,
+        argv,
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        check=False,
     )
     out = (proc.stdout + proc.stderr).strip()
     return out or f"(exit {proc.returncode}, no output)"
@@ -176,8 +193,7 @@ def badge(text: str, color: str) -> str:
 def table(headers: list[str], rows: list[list[str]]) -> str:
     th = "".join(f"<th>{esc(h)}</th>" for h in headers)
     trs = "".join(
-        "<tr>" + "".join(f"<td>{c}</td>" for c in row) + "</tr>"
-        for row in rows
+        "<tr>" + "".join(f"<td>{c}</td>" for c in row) + "</tr>" for row in rows
     )
     return f"<table><thead><tr>{th}</tr></thead><tbody>{trs}</tbody></table>"
 
@@ -197,45 +213,55 @@ def scorecard_raw() -> str:
     def collect() -> str:
         if not VENV_PY.exists():
             return f".venv python missing: {VENV_PY}"
-        return run_cmd([str(VENV_PY), "bench/py/gate_scorecard.py"], 180)
+        return run_cmd([str(VENV_PY), "bench/py/gate_scorecard.py", "--json"], 180)
 
     return cached("scorecard", 60, collect)
 
 
 def scorecard_data() -> dict:
-    raw = scorecard_raw()
-    m = re.search(
-        r"cells=(\d+)\s+pdf=(\d+)\s+\(([\d.]+)%\)\s+clean=(\d+)\s+\(([\d.]+)%\)",
-        raw,
-    )
-    gate = re.search(r"gate union-pdf >=(90)%: (\w+)", raw)
-    excl = re.search(
-        r"excl-reject\(n=(\d+)\): pdf ([\d.]+)%\s+clean ([\d.]+)%", raw
-    )
-    blocks: dict[str, list[tuple[str, int]]] = {}
-    cur: str | None = None
-    for line in raw.splitlines():
-        hdr = re.match(r"^([a-z][\w -]*):\s*$", line)
-        if hdr:
-            cur = hdr.group(1)
-            blocks[cur] = []
-            continue
-        item = re.match(r"^\s+(\d+)\s+(.+?)\s*$", line)
-        if cur and item:
-            blocks[cur].append((item.group(2), int(item.group(1))))
+    """gate_scorecard --json → 面板消费形。
+
+    主口径 = union（best-of——chip/门线标签即「联合 PDF」）；end-state
+    （末段胜）作副口径随带。scorecard 崩/输出非 json → 全零兜底不炸面板。
+    """
+    try:
+        rep, _ = json.JSONDecoder().raw_decode(scorecard_raw().strip())
+    except json.JSONDecodeError:
+        rep = {}
+    if not isinstance(rep, dict):
+        rep = {}
+    uni = rep.get("union") or {}
+    end = rep.get("end_state") or {}
+
+    def _gate_txt(g) -> str:
+        if not isinstance(g, dict) or not g:
+            return "?"
+        return "PASS" if g.get("pass") else f"need +{g.get('need', '?')}"
+
+    def _excl(blk: dict) -> dict | None:
+        e = blk.get("excl_reject")
+        if not isinstance(e, dict):
+            return None
+        return {
+            "n": e.get("n") or 0,
+            "pdf": f"{e.get('pdf_pct') or 0:.2f}",
+            "clean": f"{e.get('clean_pct') or 0:.2f}",
+        }
+
+    dist = end.get("dist")
     return {
-        "cells": int(m.group(1)) if m else 0,
-        "pdf_n": int(m.group(2)) if m else 0,
-        "pdf_pct": float(m.group(3)) if m else 0.0,
-        "clean_n": int(m.group(4)) if m else 0,
-        "clean_pct": float(m.group(5)) if m else 0.0,
-        "gate": gate.group(2) if gate else "?",
-        "excl": (
-            {"n": int(excl.group(1)), "pdf": excl.group(2), "clean": excl.group(3)}
-            if excl else None
-        ),
-        "end_state": blocks.get("end-state", []),
-        "top_sigs": blocks.get("top non-clean sigs", []),
+        "cells": rep.get("cells") or 0,
+        "pdf_n": uni.get("pdf") or 0,
+        "pdf_pct": uni.get("pdf_pct") or 0.0,
+        "clean_n": uni.get("clean") or 0,
+        "clean_pct": uni.get("clean_pct") or 0.0,
+        "gate": _gate_txt(uni.get("gate")),
+        "excl": _excl(uni),
+        "end_pdf_n": end.get("pdf") or 0,
+        "end_pdf_pct": end.get("pdf_pct") or 0.0,
+        "end_gate": _gate_txt(end.get("gate")),
+        "end_state": list(dist.items()) if isinstance(dist, dict) else [],
+        "top_sigs": rep.get("top_sigs") or [],
     }
 
 
@@ -262,10 +288,8 @@ def _rate_sample(done: int) -> tuple[float | None, float]:
         samples = []
     samples.append([now, done])
     samples = [s for s in samples if now - s[0] <= RATE_KEEP_S]
-    try:
+    with contextlib.suppress(OSError):
         RATE_STATE.write_text(json.dumps(samples))
-    except OSError:
-        pass
     win = [s for s in samples if now - s[0] <= RATE_WINDOW_S]
     if len(win) >= 2 and (span := win[-1][0] - win[0][0]) >= RATE_MIN_SPAN_S:
         return (win[-1][1] - win[0][1]) / span, span
@@ -329,21 +353,33 @@ def n200_stats() -> dict:
                     continue
                 if re.match(r"\s*->\s*status=", line):
                     last_result = i
-            for line in lines[last_result + 1:]:
+            for line in lines[last_result + 1 :]:
                 m = re.match(r"===== \[\d+/\d+\] (\S+)", line)
                 if m:
                     in_flight.append(m.group(1))
         queued = [i for i in meta.get("sample_ids", []) if i not in seen_ids]
         rate_ps, rate_span = _rate_sample(len(recs))
         return {
-            "done": len(recs), "total": total, "elapsed": elapsed,
-            "rate_ps": rate_ps, "rate_span": rate_span,
-            "started": started, "top": top, "fix": fix_stat,
-            "base": base_stat, "chunks": chunks, "reasons": reasons,
-            "strip": strip, "meta": meta, "xlat_secs": xlat_secs,
-            "xlat_exec": xlat_exec, "pdf_pipe": pdf_pipe,
-            "pdf_union": pdf_union, "mtime": records.stat().st_mtime,
-            "in_flight": in_flight, "queued": queued,
+            "done": len(recs),
+            "total": total,
+            "elapsed": elapsed,
+            "rate_ps": rate_ps,
+            "rate_span": rate_span,
+            "started": started,
+            "top": top,
+            "fix": fix_stat,
+            "base": base_stat,
+            "chunks": chunks,
+            "reasons": reasons,
+            "strip": strip,
+            "meta": meta,
+            "xlat_secs": xlat_secs,
+            "xlat_exec": xlat_exec,
+            "pdf_pipe": pdf_pipe,
+            "pdf_union": pdf_union,
+            "mtime": records.stat().st_mtime,
+            "in_flight": in_flight,
+            "queued": queued,
         }
 
     return cached("n200", 30, collect)
@@ -356,7 +392,7 @@ def gw_status() -> str:
         if not base:
             return "未知"
         try:
-            with urllib.request.urlopen(base + "/", timeout=3) as resp:
+            with urllib.request.urlopen(base + "/", timeout=3) as resp:  # noqa: S310 —— base 是本机 run_meta 钉的内网网关
                 return f"可达 HTTP {resp.status}"
         except urllib.error.HTTPError as exc:
             return f"可达 HTTP {exc.code}"
@@ -369,9 +405,14 @@ def gw_status() -> str:
 def milestones() -> list[tuple[str, str]]:
     files = sorted(glob.glob(str(REPO / "docs/HANDOFF-*.md")))
     status_map = {
-        "已验收": "done", "实质达成": "done", "达成": "done",
-        "完成": "done", "推进中": "active", "在飞": "active",
-        "未启": "pending", "规划": "pending",
+        "已验收": "done",
+        "实质达成": "done",
+        "达成": "done",
+        "完成": "done",
+        "推进中": "active",
+        "在飞": "active",
+        "未启": "pending",
+        "规划": "pending",
     }
     found: dict[str, str] = {}
     if files:
@@ -386,8 +427,10 @@ def milestones() -> list[tuple[str, str]]:
                 found[f"M{m.group(2)}"] = (m.group(3), state)
     if not found:
         found = {
-            "M0": ("已验收", "done"), "M1": ("实质达成", "done"),
-            "M2": ("推进中", "active"), "M3": ("推进中", "active"),
+            "M0": ("已验收", "done"),
+            "M1": ("实质达成", "done"),
+            "M2": ("推进中", "active"),
+            "M3": ("推进中", "active"),
         }
     return [(k, *v) for k, v in sorted(found.items())]
 
@@ -415,45 +458,62 @@ def sec_chips() -> str:
     chips: list[str] = []
     sc = scorecard_data()
     gate_ok = sc["gate"] == "PASS"
-    chips.append(chip(
-        "M2 联合 PDF",
-        f"{sc['pdf_pct']:.2f}%",
-        f"{sc['pdf_n']}/{sc['cells']} · 门槛 ≥90% {sc['gate']}",
-        "good" if gate_ok else "bad",
-    ))
-    chips.append(chip(
-        "clean 率", f"{sc['clean_pct']:.2f}%",
-        f"{sc['clean_n']}/{sc['cells']}",
-    ))
+    chips.append(
+        chip(
+            "M2 联合 PDF",
+            f"{sc['pdf_pct']:.2f}%",
+            f"{sc['pdf_n']}/{sc['cells']} · 门槛 ≥90% {sc['gate']}",
+            "good" if gate_ok else "bad",
+        )
+    )
+    chips.append(
+        chip(
+            "clean 率",
+            f"{sc['clean_pct']:.2f}%",
+            f"{sc['clean_n']}/{sc['cells']}",
+        )
+    )
     st = n200_stats()
-    chips.append(chip(
-        "n200 进度", f"{st['done']}/{st['total']}",
-        f"{st['done'] / st['total'] * 100:.0f}% · 已跑 {fmt_dur(st['elapsed'])}",
-    ))
+    chips.append(
+        chip(
+            "n200 进度",
+            f"{st['done']}/{st['total']}",
+            f"{st['done'] / st['total'] * 100:.0f}% · 已跑 {fmt_dur(st['elapsed'])}",
+        )
+    )
     c = st["chunks"]
     if c["chunks"]:
         ok_ph = not c["leftover_ph"] and not c["fault"]
-        chips.append(chip(
-            "chunk 通过", f"{c['ok'] / c['chunks'] * 100:.2f}%",
-            f"残留占位符 {c['leftover_ph']}",
-            "good" if ok_ph else "bad",
-        ))
-    df_tmp = run_cmd(["df", "-h", "/tmp"], 5).splitlines()
+        chips.append(
+            chip(
+                "chunk 通过",
+                f"{c['ok'] / c['chunks'] * 100:.2f}%",
+                f"残留占位符 {c['leftover_ph']}",
+                "good" if ok_ph else "bad",
+            )
+        )
+    df_tmp = run_cmd(["df", "-h", "/tmp"], 5).splitlines()  # noqa: S108 —— 监控对象即 /tmp 挂载
     if len(df_tmp) > 1:
         pct = int(re.search(r"(\d+)%", df_tmp[1]).group(1))
-        chips.append(chip(
-            "tmpfs /tmp", f"{pct}%",
-            f"剩 {df_tmp[1].split()[3]}",
-            "bad" if pct >= 80 else "",
-        ))
+        chips.append(
+            chip(
+                "tmpfs /tmp",
+                f"{pct}%",
+                f"剩 {df_tmp[1].split()[3]}",
+                "bad" if pct >= 80 else "",
+            )
+        )
     load = Path("/proc/loadavg").read_text().split()
     chips.append(chip("负载", load[0], f"5m {load[1]} · 15m {load[2]}"))
     gw = gw_status()
-    chips.append(chip(
-        "翻译网关", "在线" if gw.startswith("可达") else "离线",
-        f"{gw} · swe-2-medium",
-        "good" if gw.startswith("可达") else "bad",
-    ))
+    chips.append(
+        chip(
+            "翻译网关",
+            "在线" if gw.startswith("可达") else "离线",
+            f"{gw} · swe-2-medium",
+            "good" if gw.startswith("可达") else "bad",
+        )
+    )
     return "<div class='chips'>" + "".join(chips) + "</div>"
 
 
@@ -466,9 +526,12 @@ def sec_milestones() -> str:
             sc = scorecard_data()
             extra = (
                 f"<div class='msx'>联合 pdf {sc['pdf_pct']:.2f}% "
-                f"(门≥90%) " +
-                (badge("PASS", C_CLEAN) if sc["gate"] == "PASS"
-                 else badge("FAIL", C_FAIL))
+                f"(门≥90%) "
+                + (
+                    badge("PASS", C_CLEAN)
+                    if sc["gate"] == "PASS"
+                    else badge("FAIL", C_FAIL)
+                )
                 + "</div>"
             )
         steps.append(
@@ -492,21 +555,28 @@ def sec_tasks() -> str:
     now = time.time()
     for t in ts:
         status = t.get("status", "?")
-        stale = status in ("starting", "running", "blocked") and now - t.get(
-            "ts", now
-        ) > STALE_TASK_SECONDS
+        stale = (
+            status in ("starting", "running", "blocked")
+            and now - t.get("ts", now) > STALE_TASK_SECONDS
+        )
         total, done = t.get("total") or 0, t.get("done") or 0
         prog = minibar(done, total) if total else esc(done)
-        sb = badge(TASK_STATUS_ZH.get(status, status),
-                   TASK_STATUS_COLOR.get(status, C_SKIP))
+        sb = badge(
+            TASK_STATUS_ZH.get(status, status), TASK_STATUS_COLOR.get(status, C_SKIP)
+        )
         if stale:
             sb += " " + badge("静默>15m", C_PART)
         note = str(t.get("note") or "")[:60]
-        rows.append([
-            f"<b>{esc(t.get('name', '?'))}</b>",
-            esc(t.get("owner", "?")),
-            prog, sb, esc(fmt_age(t.get("ts", now))), esc(note),
-        ])
+        rows.append(
+            [
+                f"<b>{esc(t.get('name', '?'))}</b>",
+                esc(t.get("owner", "?")),
+                prog,
+                sb,
+                esc(fmt_age(t.get("ts", now))),
+                esc(note),
+            ]
+        )
     return table(["任务", "属主", "进度", "状态", "上报", "备注"], rows) + hint
 
 
@@ -520,7 +590,7 @@ def sec_n200() -> str:
         rate = done / st["elapsed"] * 3600 if st["elapsed"] > 0 else 0
         basis = "全程均速"
     eta_s = (total - done) / (rate / 3600) if rate > 0 else 0
-    eta_at = dt.datetime.now() + dt.timedelta(seconds=eta_s)
+    eta_at = dt.datetime.now(tz=dt.UTC).astimezone() + dt.timedelta(seconds=eta_s)
     conc = st["meta"].get("concurrency")
     pid, note = N200_PID, "钉选"
     if not pid_alive(pid):
@@ -535,7 +605,8 @@ def sec_n200() -> str:
         f"(约 {eta_at.strftime('%m-%d %H:%M')}) · "
         f"runner pid {pid or '-'}({note}) "
         + (badge("存活", C_CLEAN) if alive else badge("已退出", C_FAIL))
-        + " · 网关 " + badge(gw_status(), C_CLEAN if gw_status().startswith("可达") else C_FAIL)
+        + " · 网关 "
+        + badge(gw_status(), C_CLEAN if gw_status().startswith("可达") else C_FAIL)
         + f" · 最后写入 {fmt_age(st['mtime'])}</div>"
     ]
     if st["in_flight"]:
@@ -543,9 +614,13 @@ def sec_n200() -> str:
             "<div class='prow'>正在处理："
             + " ".join(f"<code>{esc(i)}</code>" for i in st["in_flight"])
             + f" · 队列待跑 {len(st['queued'])} 篇"
-            + ("（下批 " + " ".join(
-                f"<code>{esc(i)}</code>" for i in st["queued"][:4]
-            ) + "…）" if st["queued"] else "")
+            + (
+                "（下批 "
+                + " ".join(f"<code>{esc(i)}</code>" for i in st["queued"][:4])
+                + "…）"
+                if st["queued"]
+                else ""
+            )
             + "</div>"
         )
     funnel = [
@@ -573,10 +648,8 @@ def sec_n200() -> str:
     parts.append(
         "<div class='cap'>编译判分</div>"
         + stacked(
-            [(STATUS_ZH.get(k, k), st["top"].get(k, 0), STATUS_COLOR[k])
-             for k in order]
-            + [(k, v, C_SKIP) for k, v in st["top"].most_common()
-               if k not in order],
+            [(STATUS_ZH.get(k, k), st["top"].get(k, 0), STATUS_COLOR[k]) for k in order]
+            + [(k, v, C_SKIP) for k, v in st["top"].most_common() if k not in order],
             done,
         )
     )
@@ -585,8 +658,12 @@ def sec_n200() -> str:
         parts.append(
             "<div class='cap'>翻译 chunk</div>"
             + stacked(
-                [("通过", c["ok"], C_CLEAN), ("部分", c["partial"], C_PART),
-                 ("故障", c["fault"], C_FAIL), ("跳过", c["skipped"], C_SKIP)],
+                [
+                    ("通过", c["ok"], C_CLEAN),
+                    ("部分", c["partial"], C_PART),
+                    ("故障", c["fault"], C_FAIL),
+                    ("跳过", c["skipped"], C_SKIP),
+                ],
                 c["chunks"],
             )
             + f"<div class='prow'>残留占位符 leftover_ph = "
@@ -599,13 +676,17 @@ def sec_n200() -> str:
             f"（各 {sum(st['fix'].values())} 格）</div>"
             "<div class='two'>"
             + stacked(
-                [(STATUS_ZH.get(k, k), v, STATUS_COLOR.get(k, C_SKIP))
-                 for k, v in st["fix"].most_common()],
+                [
+                    (STATUS_ZH.get(k, k), v, STATUS_COLOR.get(k, C_SKIP))
+                    for k, v in st["fix"].most_common()
+                ],
                 sum(st["fix"].values()),
             )
             + stacked(
-                [(STATUS_ZH.get(k, k), v, STATUS_COLOR.get(k, C_SKIP))
-                 for k, v in st["base"].most_common()],
+                [
+                    (STATUS_ZH.get(k, k), v, STATUS_COLOR.get(k, C_SKIP))
+                    for k, v in st["base"].most_common()
+                ],
                 sum(st["base"].values()),
             )
             + "</div>"
@@ -614,9 +695,7 @@ def sec_n200() -> str:
         mx = st["reasons"].most_common(1)[0][1]
         parts.append(
             "<div class='cap'>非 clean 原因</div>"
-            + "".join(
-                hbar(k, v, mx, C_FAIL) for k, v in st["reasons"].most_common(8)
-            )
+            + "".join(hbar(k, v, mx, C_FAIL) for k, v in st["reasons"].most_common(8))
         )
     return "".join(parts)
 
@@ -642,10 +721,15 @@ def sec_jobs() -> str:
             cmd,
         )
         short = m.group(0) if m else cmd[-60:]
-        rows.append([
-            esc(f[0]), esc(f[1]), esc(f[2]), esc(f[3]),
-            f"<code>{esc(short)}</code>",
-        ])
+        rows.append(
+            [
+                esc(f[0]),
+                esc(f[1]),
+                esc(f[2]),
+                esc(f[3]),
+                f"<code>{esc(short)}</code>",
+            ]
+        )
     if not rows:
         return "<div class='prow'>没有在跑的 bench 进程</div>"
     return table(["pid", "已运行", "%cpu", "%mem", "命令"], rows)
@@ -661,33 +745,34 @@ def sec_sessions() -> str:
         pid = s.get("pid", 0)
         alive = isinstance(pid, int) and pid_alive(pid)
         status = s.get("status", "?")
-        scls = {"busy": C_INFO, "idle": C_CLEAN, "shell": C_PART}.get(
-            status, C_SKIP
+        scls = {"busy": C_INFO, "idle": C_CLEAN, "shell": C_PART}.get(status, C_SKIP)
+        rows.append(
+            (
+                {"busy": 0, "idle": 1}.get(status, 2),
+                [
+                    f"<b>{esc(s.get('name') or s.get('sessionId', '?')[:12])}</b>",
+                    badge(status, scls),
+                    esc(pid),
+                    badge("存活", C_CLEAN) if alive else badge("僵死", C_FAIL),
+                    esc(
+                        fmt_age(s.get("updatedAt", 0) / 1000)
+                        if s.get("updatedAt")
+                        else "-"
+                    ),
+                    f"<code>{esc(s.get('cwd', '?').replace('/home/fanghaotian/', '~/'))}</code>",
+                ],
+            )
         )
-        rows.append((
-            {"busy": 0, "idle": 1}.get(status, 2),
-            [
-                f"<b>{esc(s.get('name') or s.get('sessionId', '?')[:12])}</b>",
-                badge(status, scls),
-                esc(pid),
-                badge("存活", C_CLEAN) if alive else badge("僵死", C_FAIL),
-                esc(fmt_age(s.get("updatedAt", 0) / 1000)
-                    if s.get("updatedAt") else "-"),
-                f"<code>{esc(s.get('cwd', '?').replace('/home/fanghaotian/', '~/'))}</code>",
-            ],
-        ))
     rows = [r for _, r in sorted(rows, key=lambda t: t[0])]
     return (
         table(["会话", "状态", "pid", "进程", "活跃", "目录"], rows)
-        if rows else "无会话文件"
+        if rows
+        else "无会话文件"
     )
 
 
 def sec_reports() -> str:
-    dirs = [
-        d for d in RESULTS_DIR.iterdir()
-        if d.is_dir() and d.name != "status-panel"
-    ]
+    dirs = [d for d in RESULTS_DIR.iterdir() if d.is_dir() and d.name != "status-panel"]
     dirs.sort(key=lambda d: d.stat().st_mtime, reverse=True)
     rows = []
     for d in dirs[:12]:
@@ -695,8 +780,8 @@ def sec_reports() -> str:
         for cand in ("report.md", "summary.md", "README.md", "REPORT.md"):
             f = d / cand
             if f.exists():
-                for ln in f.read_text(errors="replace").splitlines():
-                    ln = ln.strip().lstrip("#").strip()
+                for raw_ln in f.read_text(errors="replace").splitlines():
+                    ln = raw_ln.strip().lstrip("#").strip()
                     if ln:
                         title = ln[:90]
                         break
@@ -704,11 +789,13 @@ def sec_reports() -> str:
         if not title:
             files = sorted(p.name for p in d.iterdir() if p.is_file())[:3]
             title = "产物: " + ", ".join(files) + ("…" if len(files) == 3 else "")
-        rows.append([
-            esc(fmt_age(d.stat().st_mtime)),
-            f"<code>{esc(d.name)}</code>",
-            esc(title),
-        ])
+        rows.append(
+            [
+                esc(fmt_age(d.stat().st_mtime)),
+                f"<code>{esc(d.name)}</code>",
+                esc(title),
+            ]
+        )
     return table(["更新", "目录", "摘要"], rows)
 
 
@@ -716,13 +803,27 @@ def sec_scorecard() -> str:
     sc = scorecard_data()
     parts = [
         f"<div class='prow'>cells <b>{sc['cells']}</b> · "
-        f"pdf <b>{sc['pdf_n']}</b> ({sc['pdf_pct']:.2f}%) · "
+        f"union pdf <b>{sc['pdf_n']}</b> ({sc['pdf_pct']:.2f}%) · "
+        f"end-state pdf <b>{sc['end_pdf_n']}</b> ({sc['end_pdf_pct']:.2f}%) · "
         f"clean <b>{sc['clean_n']}</b> ({sc['clean_pct']:.2f}%) · "
-        f"门 union-pdf ≥90%: "
-        + (badge("PASS", C_CLEAN) if sc["gate"] == "PASS"
-           else badge(sc["gate"], C_FAIL))
-        + (f" · 剔除 reject(n={sc['excl']['n']}): pdf {sc['excl']['pdf']}% "
-           f"clean {sc['excl']['clean']}%" if sc["excl"] else "")
+        "门≥90%: union "
+        + (
+            badge("PASS", C_CLEAN)
+            if sc["gate"] == "PASS"
+            else badge(sc["gate"], C_FAIL)
+        )
+        + " end-state "
+        + (
+            badge("PASS", C_CLEAN)
+            if sc["end_gate"] == "PASS"
+            else badge(sc["end_gate"], C_FAIL)
+        )
+        + (
+            f" · 剔除 reject(n={sc['excl']['n']}): pdf {sc['excl']['pdf']}% "
+            f"clean {sc['excl']['clean']}%"
+            if sc["excl"]
+            else ""
+        )
         + "</div>"
     ]
     parts.append(
@@ -736,9 +837,18 @@ def sec_scorecard() -> str:
         parts.append(
             "<div class='cap'>终态分布</div>"
             + "".join(
-                hbar(k, n, mx, C_CLEAN if "clean" in k else
-                     C_PART if "partial" in k else
-                     C_FAIL if ("fail" in k or "reject" in k) else C_SKIP)
+                hbar(
+                    k,
+                    n,
+                    mx,
+                    C_CLEAN
+                    if "clean" in k
+                    else C_PART
+                    if "partial" in k
+                    else C_FAIL
+                    if ("fail" in k or "reject" in k)
+                    else C_SKIP,
+                )
                 for k, n in sc["end_state"]
             )
         )
@@ -752,7 +862,7 @@ def sec_scorecard() -> str:
 
 
 def sec_resources() -> str:
-    df_tmp = run_cmd(["df", "-h", "/tmp"], 5).splitlines()
+    df_tmp = run_cmd(["df", "-h", "/tmp"], 5).splitlines()  # noqa: S108
     free = run_cmd(["free", "-g"], 5).splitlines()
     load = Path("/proc/loadavg").read_text().split()
     parts = []
@@ -761,16 +871,21 @@ def sec_resources() -> str:
         pct = int(re.search(r"(\d+)%", df_tmp[1]).group(1))
         parts.append(
             "<div class='cap'>/tmp（usrquota tmpfs，EDQUOT 风险点）</div>"
-            + hbar(f"/tmp {f[2]}/{f[1]}", pct, 100,
-                   C_FAIL if pct >= 80 else C_PART if pct >= 60 else C_CLEAN,
-                   f"% · 剩 {f[3]}")
+            + hbar(
+                f"/tmp {f[2]}/{f[1]}",  # noqa: S108 —— 监控对象即 /tmp 挂载
+                pct,
+                100,
+                C_FAIL if pct >= 80 else C_PART if pct >= 60 else C_CLEAN,
+                f"% · 剩 {f[3]}",
+            )
         )
     if len(free) > 1:
         f = free[1].split()
         parts.append(
             "<div class='cap'>内存 GiB</div>"
-            + hbar(f"已用 {f[2]}/{f[1]}", int(f[2]), int(f[1]), C_INFO,
-                   f"G · 可用 {f[6]}G")
+            + hbar(
+                f"已用 {f[2]}/{f[1]}", int(f[2]), int(f[1]), C_INFO, f"G · 可用 {f[6]}G"
+            )
         )
     df_repo = run_cmd(["df", "-h", str(REPO)], 5).splitlines()
 
@@ -785,9 +900,13 @@ def sec_resources() -> str:
         pct = int(re.search(r"(\d+)%", df_repo[1]).group(1))
         parts.append(
             "<div class='cap'>仓库盘</div>"
-            + hbar(f"fs {f[2]}/{f[1]}", pct, 100,
-                   C_FAIL if pct >= 90 else C_PART if pct >= 75 else C_CLEAN,
-                   f"% · 仓体 {cached('du', 600, du)}")
+            + hbar(
+                f"fs {f[2]}/{f[1]}",
+                pct,
+                100,
+                C_FAIL if pct >= 90 else C_PART if pct >= 75 else C_CLEAN,
+                f"% · 仓体 {cached('du', 600, du)}",
+            )
         )
     parts.append(
         f"<div class='prow'>loadavg {load[0]} / {load[1]} / {load[2]} "
@@ -915,11 +1034,16 @@ def render() -> str:
         except Exception as exc:  # section isolation: never 500 the page
             frag = f"<pre style='color:{C_FAIL}'>采集异常: {esc(repr(exc))}</pre>"
         parts.append(f"<h2>{esc(title)}</h2>{frag}")
-    now = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now = dt.datetime.now(tz=dt.UTC).astimezone().strftime("%Y-%m-%d %H:%M:%S")
     return PAGE.format(
-        refresh=REFRESH_SECONDS, now=now,
-        c_clean=C_CLEAN, c_fail=C_FAIL, c_part=C_PART, c_info=C_INFO,
-        chips=sec_chips(), body="\n".join(parts),
+        refresh=REFRESH_SECONDS,
+        now=now,
+        c_clean=C_CLEAN,
+        c_fail=C_FAIL,
+        c_part=C_PART,
+        c_info=C_INFO,
+        chips=sec_chips(),
+        body="\n".join(parts),
     )
 
 
@@ -940,7 +1064,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def log_message(self, fmt: str, *args) -> None:
         print(
-            f"[{dt.datetime.now():%H:%M:%S}] {self.address_string()} {fmt % args}",
+            f"[{dt.datetime.now(tz=dt.UTC).astimezone():%H:%M:%S}] "
+            f"{self.address_string()} {fmt % args}",
             flush=True,
         )
 
@@ -957,7 +1082,8 @@ def main() -> None:
     signal.signal(signal.SIGINT, _stop)
     server = ThreadingHTTPServer((HOST, PORT), Handler)
     print(
-        f"[{dt.datetime.now():%F %T}] serving http://{HOST}:{PORT} pid={os.getpid()}",
+        f"[{dt.datetime.now(tz=dt.UTC).astimezone():%F %T}] "
+        f"serving http://{HOST}:{PORT} pid={os.getpid()}",
         flush=True,
     )
     server.serve_forever()

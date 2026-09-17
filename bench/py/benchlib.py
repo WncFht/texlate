@@ -202,6 +202,48 @@ def fixloop_sig(fv, fcat=None, fpay=None) -> str:
     return sig
 
 
+# ---------------------------------------------------------------- 记录指纹
+def _strkey(d):
+    """dict 键一律 str 化——混合类型键下 ``sort_keys`` 排序即 TypeError。"""
+    return {str(k): v for k, v in d.items()} if isinstance(d, dict) else d
+
+
+def compile_fp(c: dict) -> str:
+    """compile 记录身份指纹（sha256[:16]）——verdict 决定字段的稳定摘要。
+
+    fixloop 记录新鲜度校验的比对料单源：写侧 ``stage_fixloop`` 落
+    ``metrics.compile_fp``，读侧 ``gate_scorecard.pick_final`` 比对——
+    compile 重跑 status 不变但 sig/first_error 已换（同态陈旧）时，
+    ``compile_status_before`` 状态等值放行、指纹不等即拦。
+    计时字段（seconds/dur_s）不入——逐跑恒变而非 verdict 语义。
+    """
+    m = c.get("metrics")
+    if not isinstance(m, dict):
+        m = {}
+    comp = m.get("compile")
+    if not isinstance(comp, dict):
+        comp = {}
+    v = m.get("verdict")
+    if not isinstance(v, dict):
+        v = {}
+    blob = json.dumps(
+        [
+            c.get("status"),
+            c.get("sig"),
+            c.get("code"),
+            comp.get("first_error"),
+            v.get("category"),
+            v.get("payload"),
+            _strkey(v.get("error_cats")),
+            _strkey(m.get("taxonomy")),
+        ],
+        ensure_ascii=False,
+        sort_keys=True,
+        default=str,
+    )
+    return hashlib.sha256(blob.encode()).hexdigest()[:16]
+
+
 # ---------------------------------------------------------------- run_meta
 def parse_iso(s):
     """ISO 串 → datetime；不可解 → None（run_meta 字段容错共用）。"""
@@ -451,6 +493,8 @@ def code_stamp() -> str:
 
     e2e_real_bench._code_stamp 单源（★6 下沉）——进程内一次（lru_cache），
     repo 根按本文件位置算（``bench/py/benchlib.py`` → parents[2]）。
+    dirty 判据盖 ``src/texlate`` 与 ``bench/py`` 两树——harness 自身演化
+    （stage_* / benchlib / scorecard 未提交改动）同样产陈记录。
     """
     src_env = os.environ.get("TEXLATE_SRC")
     if src_env:
@@ -468,7 +512,14 @@ def code_stamp() -> str:
             check=True,
         ).stdout.strip()
         dirty = subprocess.run(
-            ["git", "status", "--porcelain", "--", "src/texlate"],  # noqa: S607
+            [  # noqa: S607
+                "git",
+                "status",
+                "--porcelain",
+                "--",
+                "src/texlate",
+                "bench/py",
+            ],
             cwd=repo,
             capture_output=True,
             text=True,
