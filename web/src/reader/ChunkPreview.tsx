@@ -8,7 +8,6 @@
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { api } from "../api/client";
 import { t } from "../i18n/zh";
-import { ti18n } from "./paneUtils";
 
 export interface PreviewChunk {
     seq: number;
@@ -76,10 +75,10 @@ export default function ChunkPreview(props: Props) {
         <Show when={chunks().length > 0}>
             <section
                 class="chunk-preview"
-                aria-label={ti18n(t.progress, "preview", "译文预览")}
+                aria-label={t.progress.preview}
             >
                 <p class="cp-head muted">
-                    {ti18n(t.progress, "preview", "译文预览")} · {chunks().length}/
+                    {t.progress.preview} · {chunks().length}/
                     {total()}
                 </p>
                 <div class="cp-list">

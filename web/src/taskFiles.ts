@@ -37,11 +37,6 @@ const ORDER: FileKind[] = [
     "src.tar",
 ];
 
-//: t.files 缺席 kind 的兜底标签（canonical 名归 i18n，此处防裸透 key）
-const FALLBACK_LABELS: Record<string, string> = {
-    "src.html": "源码 HTML",
-};
-
 /**
  * artifacts（db kind → 下载路径——snapshot.artifacts / done.artifacts /
  * files manifest 归一成同形状后）→ 有序下载项。未知 db kind 原样透出
@@ -57,7 +52,7 @@ export function downloadItems(
     return Object.entries(artifacts)
         .map(([dbKind, url]) => {
             const kind = DB_TO_URL_KIND[dbKind] ?? dbKind;
-            const label = t.files[kind] ?? FALLBACK_LABELS[kind] ?? kind;
+            const label = t.files[kind] ?? kind;
             return { kind, label, url: `${url}?download=1` };
         })
         .sort((a, b) => ord(a.kind) - ord(b.kind));

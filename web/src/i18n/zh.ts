@@ -131,7 +131,6 @@ export const t = {
         resultInterrupted: "任务已中断",
         resultNeedsAuth: "需要 API Key",
         retryHintAuth: "需要 API Key——配置后重试",
-        goSettings: "前往设置",
         pageUnitChunk: "段",
         splitDivider: "对照分栏拖动条",
         splitDividerTip: "拖动调整分栏比例；双击复位",

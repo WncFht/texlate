@@ -6,7 +6,6 @@
 import { createSignal, Show } from "solid-js";
 import { api, ApiError, type SharePackResponse } from "../api/client";
 import { t } from "../i18n/zh";
-import { ti18n } from "./paneUtils";
 
 export interface ShareError {
     code?: string;
@@ -90,12 +89,10 @@ export default function ShareBlock(props: Props) {
                             <button
                                 type="button"
                                 class="tb-btn share-copy"
-                                title={ti18n(t.reader, "shareCopy", "复制 share key")}
+                                title={t.reader.shareCopy}
                                 onClick={() => void copyKey()}
                             >
-                                {copied()
-                                    ? ti18n(t.reader, "copied", "已复制")
-                                    : ti18n(t.reader, "copy", "复制")}
+                                {copied() ? t.reader.copied : t.reader.copy}
                             </button>
                             <span class="muted">{t.reader.shareOkHint}</span>
                         </span>

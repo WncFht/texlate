@@ -95,11 +95,3 @@ export function externalLinksBlank(root: ParentNode): void {
         a.rel = "noopener noreferrer";
     }
 }
-
-/**
- * zh.ts 未就位键的宽读兜底：键落地（i18n 补齐）即返回真文案，
- * 未就位回退内联文案——调用处与「i18n 待加」清单一一对应。
- */
-export function ti18n(ns: object, key: string, fallback: string): string {
-    return (ns as Record<string, string | undefined>)[key] ?? fallback;
-}

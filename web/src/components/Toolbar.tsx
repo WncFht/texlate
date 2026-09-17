@@ -13,8 +13,6 @@ import Segmented from "./Segmented";
 import type { FileKind, TaskStatus } from "../api/client";
 import { isTerminal } from "../api/client";
 import { t } from "../i18n/zh";
-import type { DocId } from "../reader/alignment";
-import { ti18n } from "../reader/paneUtils";
 
 export type Mode = "original" | "translated" | "split";
 
@@ -32,8 +30,6 @@ interface Props {
     zoom: string;
     page: number;
     numPages: number;
-    active: DocId;
-    swapped: boolean;
     downloads: DownloadItem[];
     /** arXiv 任务 → 顶栏出 arxiv.org/abs 原文直达链 */
     arxivId?: string;
@@ -48,7 +44,6 @@ interface Props {
     onZoom(z: string): void;
     onGotoPage(n: number): void;
     onSwap(): void;
-    onActiveSide(s: DocId): void;
     onRetry(): void;
     onCancel(): void;
     onBack(): void;
@@ -127,7 +122,7 @@ export default function Toolbar(props: Props) {
         ];
         if (!items.length) return;
         const idx = items.indexOf(document.activeElement as HTMLElement);
-        let next = -1;
+        let next: number;
         if (e.key === "ArrowDown") next = idx < 0 ? 0 : (idx + 1) % items.length;
         else if (e.key === "ArrowUp")
             next = idx <= 0 ? items.length - 1 : idx - 1;
@@ -176,8 +171,8 @@ export default function Toolbar(props: Props) {
                         href={`https://arxiv.org/abs/${id()}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        title={ti18n(t.reader, "arxivLink", "arXiv 原文")}
-                        aria-label={ti18n(t.reader, "arxivLink", "arXiv 原文")}
+                        title={t.reader.arxivLink}
+                        aria-label={t.reader.arxivLink}
                     >
                         arXiv ↗
                     </a>

@@ -157,16 +157,6 @@ export class SyncEngine {
         this.ignoreTop.set(dst.el, dst.el.scrollTop);
     }
 
-    /** 当前 src 位置映射出的 dst 期望 scrollTop（>500px 漂移提示用） */
-    expectedTop(src: PaneLike): number | null {
-        const dst = src === this.A ? this.B : this.A;
-        return scrollTopFor(dst, this.map(capturePos(src), src.side));
-    }
-
-    counterpart(p: PaneLike): PaneLike {
-        return p === this.A ? this.B : this.A;
-    }
-
     private onScroll(src: PaneLike) {
         if (!this.syncing) return;
         const it = this.ignoreTop.get(src.el);

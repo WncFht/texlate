@@ -16,6 +16,7 @@ import {
     createEffect,
     createMemo,
     createSignal,
+    For,
     onCleanup,
     onMount,
     Show,
@@ -31,7 +32,7 @@ import {
 } from "../api/client";
 import Toolbar, { type DownloadItem, type Mode } from "../components/Toolbar";
 import { createPositionMapper, type DocId, type Pos } from "./alignment";
-import { annotFileName, ti18n, zoomToFontPx } from "./paneUtils";
+import { annotFileName, zoomToFontPx } from "./paneUtils";
 import { capturePos, jumpTo, scrollTopFor, SyncEngine } from "./sync";
 import type { PaneHandle } from "./PdfPane";
 import type { HtmlPaneHandle } from "./HtmlPane";
@@ -136,13 +137,13 @@ export default function ReaderView(props: Props) {
                 return;
             }
             if (e.ctrlKey || e.metaKey || e.altKey) return;
-            const t = e.target as HTMLElement | null;
-            const tag = t?.tagName;
+            const tgt = e.target as HTMLElement | null;
+            const tag = tgt?.tagName;
             if (
                 tag === "INPUT" ||
                 tag === "TEXTAREA" ||
                 tag === "SELECT" ||
-                t?.isContentEditable
+                tgt?.isContentEditable
             )
                 return;
             switch (e.key) {
@@ -503,11 +504,11 @@ export default function ReaderView(props: Props) {
     );
 
     const HELP_ITEMS: [string, string][] = [
-        ["1 / 2 / 3", ti18n(t.reader, "helpModes", "对照 / 译文 / 原文")],
-        ["S", ti18n(t.reader, "helpSync", "开关同步滚动")],
-        ["[ / ]", ti18n(t.reader, "helpPages", "上/下一页（段）")],
-        ["Ctrl+F", ti18n(t.reader, "helpFind", "窗格内查找")],
-        ["?", ti18n(t.reader, "helpHelp", "本帮助")],
+        ["1 / 2 / 3", t.reader.helpModes],
+        ["S", t.reader.helpSync],
+        ["[ / ]", t.reader.helpPages],
+        ["Ctrl+F", t.reader.helpFind],
+        ["?", t.reader.helpHelp],
     ];
 
     return (
@@ -521,12 +522,10 @@ export default function ReaderView(props: Props) {
                 zoom={zoom()}
                 page={pageNums()[active()]}
                 numPages={pageCounts()[active()]}
-                active={active()}
-                swapped={swapped()}
                 downloads={props.downloads}
                 arxivId={props.arxivId}
                 pageUnit={
-                    isPdf() ? undefined : ti18n(t.reader, "pageUnitChunk", "段")
+                    isPdf() ? undefined : t.reader.pageUnitChunk
                 }
                 canGotoPage={isPdf() || isDom()}
                 onMode={planModeChange}
@@ -534,7 +533,6 @@ export default function ReaderView(props: Props) {
                 onZoom={applyZoom}
                 onGotoPage={gotoPage}
                 onSwap={() => props.onSwap()}
-                onActiveSide={setActive}
                 onRetry={() => props.onRetry()}
                 onCancel={() => props.onCancel()}
                 onBack={() => props.onBack()}
@@ -552,12 +550,8 @@ export default function ReaderView(props: Props) {
                         class="pane-divider"
                         role="separator"
                         aria-orientation="vertical"
-                        aria-label={ti18n(t.reader, "splitDivider", "调整分栏比例")}
-                        title={ti18n(
-                            t.reader,
-                            "splitDividerTip",
-                            "拖拽调整分栏比例，双击恢复均分",
-                        )}
+                        aria-label={t.reader.splitDivider}
+                        title={t.reader.splitDividerTip}
                         style={{
                             cursor: "col-resize",
                             flex: "none",
@@ -575,7 +569,7 @@ export default function ReaderView(props: Props) {
                 <div
                     class="kbd-help"
                     role="dialog"
-                    aria-label={ti18n(t.reader, "helpTitle", "键盘快捷键")}
+                    aria-label={t.reader.helpTitle}
                     onClick={() => setHelpOpen(false)}
                 >
                     <div
@@ -583,17 +577,19 @@ export default function ReaderView(props: Props) {
                         onClick={(e) => e.stopPropagation()}
                     >
                         <h2 class="rp-status">
-                            {ti18n(t.reader, "helpTitle", "键盘快捷键")}
+                            {t.reader.helpTitle}
                         </h2>
                         <dl class="kbd-help-list">
-                            {HELP_ITEMS.map(([k, d]) => (
-                                <div class="kbd-help-row">
-                                    <dt>
-                                        <kbd>{k}</kbd>
-                                    </dt>
-                                    <dd>{d}</dd>
-                                </div>
-                            ))}
+                            <For each={HELP_ITEMS}>
+                                {([k, d]) => (
+                                    <div class="kbd-help-row">
+                                        <dt>
+                                            <kbd>{k}</kbd>
+                                        </dt>
+                                        <dd>{d}</dd>
+                                    </div>
+                                )}
+                            </For>
                         </dl>
                     </div>
                 </div>
