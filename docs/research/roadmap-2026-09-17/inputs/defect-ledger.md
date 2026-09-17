@@ -6,26 +6,26 @@
 
 ### 1.1 活跃缺陷钉
 
-- **位置**：`src/texlate/xlat/batch.py:36` `_NUM_RX` + `:102` 非锚定退路（钉于 `tests/test_fuzz_xlat_batch.py:335,:857`）
+- ~~**位置**：`src/texlate/xlat/batch.py:36` `_NUM_RX` + `:102` 非锚定退路（钉于 `tests/test_fuzz_xlat_batch.py:335,:857`）
   **现象**：模型整批挤一行 + 译文自带 `[n]` 引用号凑齐多重集 → 成员静默错配。
   **复现证据**：`parse_batch_response("[1] 结果如文献 [2] 所示成立", 2)` → 各分半句；e2e ok/batched 直通 diff 校验落 PDF（1500-iter oracle 证锚定路径免疫）。
   **严重度**：**P0**（CONFIRMED 静默错产出进成品）·**修价**：M（单文件——错配检测或批协议硬化）·**归属**：xlat
-  **备注**：65392d4 登记的 3 CONFIRMED 之首；修复时断言应翻转。
+  **备注**：65392d4 登记的 3 CONFIRMED 之首；修复时断言应翻转。~~ **已核销**（`164a9e0`：非锚定 `[n]` 解析整体撤除 + `@@` 泄漏闸 + EOL 归一 + slot 字符拒；断言已翻转）
 
-- **位置**：`src/texlate/xlat/batch.py:106-110` `@@` 兜底段
+- ~~**位置**：`src/texlate/xlat/batch.py:106-110` `@@` 兜底段
   **现象**：编号解析失败后 `@@` 段不剥 `[n]` 序号字面 → 标记原文进译文。
   **复现证据**：characterization 钉（`@@` 行本身在编号路径也按字面留段内）。
-  **严重度**：P1（译文腐蚀字面可见）·**修价**：S·**归属**：xlat
+  **严重度**：P1（译文腐蚀字面可见）·**修价**：S·**归属**：xlat~~ **已核销**（`164a9e0` 同批）
 
-- **位置**：`src/texlate/xlat/batch.py` n=1 行内标记
+- ~~**位置**：`src/texlate/xlat/batch.py` n=1 行内标记
   **现象**：`"x [1] y"` → `["y"]`——标记前文本静默丢弃。
   **复现证据**：`test_inline_marker_drops_prior_text` 现状钉。
-  **严重度**：P1（内容丢失）·**修价**：S·**归属**：xlat
+  **严重度**：P1（内容丢失）·**修价**：S·**归属**：xlat~~ **已核销**（`164a9e0`：钉已改名 `test_inline_marker_with_head_rejected`，现判拒收）
 
-- **位置**：`src/texlate/xlat/batch.py:36`（PLAUSIBLE）
+- ~~**位置**：`src/texlate/xlat/batch.py:36`（PLAUSIBLE）
   **现象**：`[[n]]` 字面——行首锚定不吃 `[[`、非锚定吃内层 `[n]` → 产 `]` 残渣段。
   **复现证据**：`test_fuzz_xlat_batch.py:352` observed。
-  **严重度**：P1·**修价**：S·**归属**：xlat
+  **严重度**：P1·**修价**：S·**归属**：xlat~~ **已核销**（`164a9e0`：`[[k]]` 现归占位符族字面，不再入序号解析）
 
 - **位置**：`src/texlate/xlat/retry.py:44` `SLOT_NAME_RX` vs `:214` `_valid_slot_text`（PLAUSIBLE）
   **现象**：`⟪S1⟫`（<4位）/`⟪s0000⟫`（小写）/`⟪S0000`（未闭合）畸形槽 token 全放行 → 原文可进装配译文。
@@ -37,11 +37,11 @@
   **复现证据**：现状钉 `zh-src.zip == STALE`（仅因成员序位幸存；先 rename 的成员无保护）。
   **严重度**：P1（环境级理论窗，share 导入完整性）·**修价**：M-L（回滚日志或单件发布化）·**归属**：server/share
 
-- **位置**：`src/texlate/compile/engine.py` `_ERR_FILELINE_RE`（钉于 `tests/test_fuzz_logpipe.py:464`，全仓唯一存活 strict-xfail）
+- ~~**位置**：`src/texlate/compile/engine.py` `_ERR_FILELINE_RE`（钉于 `tests/test_fuzz_logpipe.py:464`，全仓唯一存活 strict-xfail）
   **现象**：文件名面过宽——收无扩展名/含冒号/含括号文件名（`Makefile:5:` 系）。
   **复现证据**：`test_xfail_error_line_filename_width` 参数化 5 行；fixloop.logparse 借同一 regex，三层不一致。
   **严重度**：P1（错计错误行归属，下游归因面偏）·**修价**：S-M（收紧 regex + fixloop 侧同步）·**归属**：compile/fixloop
-  **备注**：e12aecb commit body 明记「defect #3, engine-side remain」——同族 #1/#2（redlines/misschar）已修。
+  **备注**：e12aecb commit body 明记「defect #3, engine-side remain」——同族 #1/#2（redlines/misschar）已修。~~ **已核销**（`7ac59c6`：`_ERR_FNAME` 单源化收严，engine/logparse/texlog 三层对齐；strict-xfail 全仓清零）
 
 ### 1.2 未钉观察（文档化 latent）
 
@@ -62,9 +62,9 @@ skipif 余量全部为环境守卫（euid/platform/gitignored-data），无缺�
 ### 2.1 P1 —— 降级路径/真实语料影响（16 条）
 
 - **位置**：`latex209.py:385-389` + `inject.py:465-466`。**现象**：spec 改名目标类不解析即放行 → zh 臂 missing_file fail（jpsj3 实证，期刊站分发非 CTAN 无救）。**证据**：scout-coreleak-2026-09-16。**修价**：M。**归属**：latex/1d——reject:latex209_no_target 两级校验（rglob+kpsewhich fail-open）。
-- **位置**：`worker/compile.py:946 _build_dual`（zh 字段 :980）。**现象**：fallback_orig 行 translation=en 原文写进 dual.json zh 位 → `_share_apply` matched=ok 英「译」+ reader zh 槽英文。**证据**：share-texlog-audit 外部#1（validate_pair(en,en)=ok 实证）。**修价**：S-M。**归属**：worker/share——pack 侧非 ok 行 zh="" 或剔；消费端 zh==en/zh=="" 判 miss。
-- **位置**：`worker.py:181 COMPILE_TIMEOUT` + ctor:1139 vs `app.py:432-441`。**现象**：compile_timeout 旋钮断头路——settings/env/flag 全无，恒 240s。**证据**：capacity-scout-2026-09-17 表。**修价**：S。**归属**：server/settings。
-- **位置**：`sandbox.py:191-250 run_process`。**现象**：无 rlimits（内存/CPU/nofile）——仅 killpg 墙钟+8MB stdout cap，TeX 失控进程可吃光宿主。**证据**：capacity-scout-2026-09-17。**修价**：M。**归属**：compile/sandbox。
+- ~~**位置**：`worker/compile.py:946 _build_dual`（zh 字段 :980）。**现象**：fallback_orig 行 translation=en 原文写进 dual.json zh 位 → `_share_apply` matched=ok 英「译」+ reader zh 槽英文。**证据**：share-texlog-audit 外部#1（validate_pair(en,en)=ok 实证）。**修价**：S-M。**归属**：worker/share——pack 侧非 ok 行 zh="" 或剔；消费端 zh==en/zh=="" 判 miss。~~ **已核销**（`b6d0ede`：dual zh 槽与 md.zip 行均改 `status=="ok" and translation` 非空谓词）
+- ~~**位置**：`worker.py:181 COMPILE_TIMEOUT` + ctor:1139 vs `app.py:432-441`。**现象**：compile_timeout 旋钮断头路——settings/env/flag 全无，恒 240s。**证据**：capacity-scout-2026-09-17 表。**修价**：S。**归属**：server/settings。~~ **已核销**（`ea4d0c4`：settings 字段 + env `TEXLATE_COMPILE_TIMEOUT` + clamp 校验，ctor 冻结）
+- ~~**位置**：`sandbox.py:191-250 run_process`。**现象**：无 rlimits（内存/CPU/nofile）——仅 killpg 墙钟+8MB stdout cap，TeX 失控进程可吃光宿主。**证据**：capacity-scout-2026-09-17。**修价**：M。**归属**：compile/sandbox。~~ **已核销**（`c50cf3a`：preexec_fn 软帽 RLIMIT_AS 4GiB/NOFILE 1024/CPU max(2×timeout,600)，只降不升）
 - **位置**：`e2e.py:772` vs worker fixloop 引擎。**现象**：halt_on_error 两侧相反（e2e True/worker False）→ fixloop 每轮错误面不同，分类输入分叉。**证据**：e2e-resid-audit F4——需裁决哪侧权威。**修价**：S（裁决）+S。**归属**：e2e+worker。
 - **位置**：`bench/py/e2e_real_bench.py:899` + `_code_stamp:510`。**现象**：(a) --date 跨日重启劈目录全重跑；(b) 印章钉 live repo 不钉快照 → 无关 dirty 触发全量 stale。**证据**：scout-e2ereal-2026-09-17 风险清单 #1#2。**修价**：M。**归属**：bench/e2e_real（1e）。
 - **位置**：fixloop rules `graphic_repair` + `missing_char_fix` + `shim_map`。**现象**：三缺口——多 eps 缺图不触发 repair（1404.5720×5）；数学字体域 misschar（ø cmmi8/ĳ txmi）无规则；aa.cls stub natbib 失配/aipproc theacknowledgments 缺/aastex63 `_` catcode 未复刻。**证据**：scout-pf2fails/pf2final-2026-09-17。**修价**：M each。**归属**：peer1 fixloop。
@@ -99,7 +99,7 @@ skipif 余量全部为环境守卫（euid/platform/gitignored-data），无缺�
 - docs/05 §5.x LaTeXML 规格改写成 arXiv HTML DOM | latexml-spike → docs
 - realpostfix2 残余：浅合并残键/cases.jsonl 无去重/results.json 撕写窗/空 records 种子/抽样漂移/auth 死亡不停车（6 低）| scout-e2ereal
 - DomPane `pages()` 用 `el.offsetTop`——相对 offsetParent 非 pane 根；当前 sanitize 剥光样式无 positioned 祖先故无恙，未来放行 CSS position 即锚错位（PLAUSIBLE latent）| wave8-review → web
-- worker `dur_s` 口径瑕疵：`stage_xlat.py:186` t0 打在 paper_sem 外→xlat dur 99.6% 是跨论文排队——度量件缺陷非产品缺陷 | perf.md §1（在修）
+- ~~worker `dur_s` 口径瑕疵：`stage_xlat.py:186` t0 打在 paper_sem 外→xlat dur 99.6% 是跨论文排队——度量件缺陷非产品缺陷 | perf.md §1（在修）~~ **已核销**（`174790e`）
 - worker 残余低危：`_run_doc` cancel 孤儿 export 线程（结构限）；`_materialize_reuse` 删除命中→done 零产物窄窗；enqueue 先于 start secrets 残留；share_pack index_append 失败孤儿 bundle | worker-resid-audit
 - server-persist 记档：append_event open tx 自愈窗；upload plain-retry 残留产物 | server-persist-audit
 - cli backlog：Fetcher 无 close() 门面；unpack_share 中途败留部分成员；parse_file OSError TOCTOU；settings raw()/has_key 面 | cli-audit
@@ -122,11 +122,11 @@ fuzz 报告目录（app-boundary-fuzz/cli-fuzz/arxiv-fuzz 等）未逐读——p
 
 | 级 | 条数 | 内容 |
 |---|---|---|
-| **P0** | **1** | xlat batch 非锚定退路成员静默错配进成品（`batch.py:36`+`:102`，已转 1e） |
-| **P1** | **22** | 代码面 6（xlat batch 族 4 + share 非事务窗 + _ERR_FILELINE_RE 文件名面）+ scout 面 16（见 §2.1：latex209 spec 校验 / dual zh 位英文 / compile_timeout 断头 / sandbox 无 rlimits / halt_on_error 分叉 / e2e_real 印章 / fixloop 三缺口 / CJK 缺字路由 / 救援物自炸 / illegal_unit 残余 / accent 缺字 / stagerun resume 键 / l2 warning 断言 / share_pack 500 / splice 失效产物照发 / splice macro 截断） |
-| **P2** | **~43** | latent 8 + 陈旧 pin 文档 5（代码面）+ scout 面 ~30（见 §2.2，含裁决 pending 项） |
+| **P0** | **0** | ~~xlat batch 非锚定退路成员静默错配进成品~~ **已核销 `164a9e0`**——P0 清零 |
+| **P1** | **~14** | 代码面 2（share 非事务窗 + retry SLOT_NAME_RX PLAUSIBLE；~~batch 族 4 + _ERR_FILELINE_RE~~ 已核销）+ scout 面 ~12（~~dual zh 位英文/compile_timeout/sandbox rlimits/share_pack~~ 已核销；余：latex209 spec 校验 / halt_on_error 分叉 / e2e_real 印章 / fixloop 三缺口 / CJK 缺字路由 / 救援物自炸 / illegal_unit 残余（在修）/ accent 缺字 / stagerun resume 键 / l2 warning 断言 / splice 失效产物照发 / splice macro 截断） |
+| **P2** | **~43** | latent 8 + 陈旧 pin 文档 5（代码面）+ scout 面 ~30（见 §2.2，含裁决 pending 项；~~dur_s t0 伪影~~ 已核销 `174790e`） |
 
-**形态结论**：xlat batch 协议是唯一成族缺陷窝（1 P0 + 4 P1 同文件）；fixloop 规则面是 scout 面 P1 最密归属（peer1 占 6/16）；已清零族运转良好（今日核销 27+ 项，pin 机制健康）。
+**形态结论**：~~xlat batch 协议是唯一成族缺陷窝（1 P0 + 4 P1 同文件）~~ batch 族已随 `164a9e0` 整窝核销；fixloop 规则面是 scout 面 P1 最密归属（peer1 占 6/16→现存约半）；已清零族运转良好（今日核销 30+ 项，pin 机制健康）。另：retry.py 新 fuzz 波（`35db9f8`，46 钉）挂出 5 CONFIRMED + 2 PLAUSIBLE **字节丢失类**缺陷待修，未计入上表——明细见 `../../report-2026-09-17-final.md` §4「已裁决未做」。
 
 ## 4. 已清零族（台账闭环证据）
 
