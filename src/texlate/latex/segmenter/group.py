@@ -34,6 +34,9 @@ from ._common import (
 )
 from .args import (
     _KEYVAL_GROUP_RX,
+    _OPAQUE_ARG_PROSE_RX,
+    _OPAQUE_ARG_WORD_RX,
+    _SWALLOW_ARG_NAMES,
 )
 
 if TYPE_CHECKING:
@@ -609,5 +612,57 @@ class _Group:
             j = e
             hit = True
         return j if hit else None
+
+    def _grp_arg_prose(self, inner: list[Tok]) -> bool:
+        r"""组内 ``{..}`` 参内容的散文判据——``_opaque_arg_prose`` 的 token 级对价。
+
+        组内 token 的 ``pos`` 指调用点/定义体（gen>0 无本段字节），不能
+        ``file_texts`` 切片——token 级重建文本：cs token 剔为空白（等价
+        字节版 ``\\`` 剥除分支；注释在 token 流本无），其余 ``_tok_surface``
+        拼接后过同款 ≥4 连词、非全大写判据。
+        """
+        text = "".join(" " if t.kind == "cs" else self._tok_surface(t) for t in inner)
+        for mm in _OPAQUE_ARG_PROSE_RX.finditer(text):
+            words = _OPAQUE_ARG_WORD_RX.findall(mm.group(0))
+            if len(words) >= 4 and not all(  # noqa: PLR2004 - scout 散文判据连词下限
+                w == w.upper() for w in words
+            ):
+                return True
+        return False
+
+    def _grp_probe_prose_args(
+        self, toks: list[Tok], i: int, j: int, name: str
+    ) -> list[tuple[int, int]]:
+        r"""探针调用 ``toks[i:j]`` 内的散文 ``{..}`` 参 → ``(``{`` 位, ``}`` 后位)`` 列。
+
+        ``_handle_unknown_cs`` 散文挖掘的组内对价：``_grp_probe_end``
+        同形复扫（ws + ``[o]``? + ``{m}``×6）——``[o]`` 组非散文槽位不挖、
+        ``_SWALLOW_ARG_NAMES`` 名闸同口径（``\\comment`` 吞块 W50 面）；
+        散文参内层由调用方 ``_grp_scan`` 子扫渲 surface。
+        """
+        if name in _SWALLOW_ARG_NAMES:
+            return []
+        spans: list[tuple[int, int]] = []
+        k = i + 1
+        k2 = k
+        while k2 < j and toks[k2].kind == "space":
+            k2 += 1
+        if k2 < j and toks[k2].kind == "other" and toks[k2].text == "[":
+            e = self._grp_bal(toks, k2, brace=False)
+            if e is not None:
+                k = e
+        for _ in range(6):
+            k2 = k
+            while k2 < j and toks[k2].kind == "space":
+                k2 += 1
+            if k2 >= j or toks[k2].kind != "lbrace":
+                break
+            e = self._grp_bal(toks, k2, brace=True)
+            if e is None or e > j:
+                break
+            if self._grp_arg_prose(toks[k2 + 1 : e - 1]):
+                spans.append((k2, e))
+            k = e
+        return spans
 
     # -------------------------------------------------------- 跨边界待绑参

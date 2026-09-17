@@ -23,6 +23,7 @@ from texlate.latex.tables import (
     FONT_SWITCHES,
     INLINE_LITERAL_CMDS,
     INPUT_SCAN_CMDS,
+    MAX_GEN,
     PROTECT_BLOCK_NAMES,
     PROTECT_NAMES,
     TRANSPARENT_HEAD_SPEC,
@@ -95,7 +96,7 @@ _GRP_SURFACE_FAMS: tuple[tuple[str, object], ...] = (
     ("accent", _accent_cs),
     ("inline-literal", _inline_lit_cs),  # 无参行内字面——argspec/探针前截
     ("argspec", None),
-    ("probe", None),  # _grp_probe_end → 逐字
+    ("probe", None),  # _grp_probe_end → CMD（散文参挖掘）/逐字
 )
 
 # ``_pend_spec_of`` 行序投影（同表第三镜像——跨界待绑参槽形分派）。
@@ -671,7 +672,7 @@ class _Pending:
             return self._grp_bal(toks, j, brace=True)
         return self._grp_delim_body_end(toks, i, j)
 
-    def _group_surface(self) -> list[str] | None:  # noqa: C901, PLR0912, PLR0915 — 组内保护段分派平铺（§3 再生保护段）
+    def _group_surface(self) -> list[str] | None:
         r"""组成员 token → surface 段：结构命令再生保护段产 ph。
 
         展开表面里的 ``\\begin/\\end{env}``（math/verb/protected 整段、
@@ -691,7 +692,17 @@ class _Pending:
         ``\\end`` 变 stray、译文面留未闭环境（R7/J3，``\\bea``=
         ``\\begin{eqnarray}\\relax`` 形）。
         """
-        toks = self._open_toks
+        return self._grp_scan(self._open_toks)
+
+    def _grp_scan(  # noqa: C901, PLR0912, PLR0915 — 组内保护段分派平铺（§3 再生保护段）
+        self, toks: list[Tok], depth: int = 0
+    ) -> list[str] | None:
+        r"""``_group_surface`` 的 toks 参数化引擎——探针散文参子扫复用。
+
+        ``depth`` = 散文参递归代数：``MAX_GEN`` 触底即停挖、参维持
+        ``[[CMD]]`` 并记 ``gen_overflow``（字节臂 ``self.gen`` 回压同义——
+        宁可不译也不超代数）。
+        """
         segs: list[str] = []
         out: list[str] = []
         i, n = 0, len(toks)
@@ -1097,11 +1108,32 @@ class _Pending:
                 )
                 i = j2
                 continue
-            # 未知探针（主流 row19 对价）：``[opt]``? + ``{m}``×6 → [[CMD]]
+            # 未知探针（主流 row19 对价）：``[opt]``? + ``{m}``×6 → [[CMD]]；
+            # 散文 ``{..}`` 参抠出 CMD 覆盖、``_grp_scan`` 递归子扫渲进
+            # surface（``_handle_unknown_cs`` 散文挖掘的组内同型——宏名/
+            # 非散文参/散文参两侧花括号所在结构段仍 CMD 原文，嵌套 cs 经
+            # 子扫分派照常保护）。
             j2 = self._grp_probe_end(toks, i)
             if j2 is not None:
+                spans = self._grp_probe_prose_args(toks, i, j2, name)
+                if spans and depth >= MAX_GEN:
+                    self.state.warnings.append(
+                        ScanWarning("gen_overflow", len(self.vt), f"grp-probe:{name}")
+                    )
+                    spans = []
+                cur = i
+                for a0, a1 in spans:
+                    sub = self._grp_scan(toks[a0 + 1 : a1 - 1], depth + 1)
+                    if sub is None:
+                        continue  # 参内保护族 env 无配对——该参维持 opaque
+                    self._cat_surf(
+                        out,
+                        self._grp_ph(PhType.CMD, self._grp_surfs(toks[cur : a0 + 1])),
+                    )
+                    self._cat_surf(out, "\n\n".join(sub))
+                    cur = a1 - 1  # ``}`` 随下段结构进 CMD（字节臂 a.ce 起盖同位）
                 self._cat_surf(
-                    out, self._grp_ph(PhType.CMD, self._grp_surfs(toks[i:j2]))
+                    out, self._grp_ph(PhType.CMD, self._grp_surfs(toks[cur:j2]))
                 )
                 i = j2
                 continue
