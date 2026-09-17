@@ -30,6 +30,7 @@ import posixpath
 import re
 import shutil
 import zipfile
+import zlib
 from copy import copy
 from dataclasses import dataclass
 from pathlib import Path
@@ -209,6 +210,14 @@ _PIPELINE_VERSION = "export-epub-1"
 #: 上传文档面一律走显式加固
 _SAFE_XML = etree.XMLParser(resolve_entities=False, no_network=True)
 
+#: 成员解压上限——上传 EPUB 是不可信面（``UPLOAD_CAP`` 只闸压缩态 80MB），
+#: ``zf.read`` 无界解整成员即 inflate 炸弹面；粒度仿 ``share.py`` ``_MEMBER_MAX``
+_EPUB_MEMBER_MAX = 256 << 20
+
+#: 全本解压合计闸——``members`` 把全本解进内存，成员闸管单点、本闸管总量
+#: （仿 ``share.py`` ``_INFLATED_MAX``）；80MB 压缩帽下真书放大远低于此
+_EPUB_INFLATED_MAX = 512 << 20
+
 #: unit kind 一律 ``para``——``_KIND_CLAUSES`` 的合法键是 LaTeX 语境（xlat/
 #: 不属本模块），EPUB 散文用 para 的最宽条款 + 占位符契约已够
 
@@ -264,19 +273,38 @@ def load_epub(src: Path | str) -> EpubBook:  # noqa: C901, PLR0912, PLR0915 -- �
         infos = zf.infolist()
         members: dict[str, bytes] = {}
         order: list[str] = []
+        inflated = 0
         for info in infos:
             if info.filename not in members:  # zip 重名条目只取首个
+                if info.file_size > _EPUB_MEMBER_MAX:
+                    msg = (
+                        f"zip 成员 {info.filename} 声明解压大小超限:"
+                        f" {info.file_size}B > {_EPUB_MEMBER_MAX}B"
+                    )
+                    raise MalformedEpubError(msg)
                 try:
-                    members[info.filename] = zf.read(info)
+                    with zf.open(info) as fp:
+                        # 目录 file_size 可谎报——上限 +1 截断读才是真闸
+                        # （rights.py ``_DECLARATION_MAX`` 同款）
+                        blob = fp.read(_EPUB_MEMBER_MAX + 1)
                 except (
                     OSError,
                     RuntimeError,
                     NotImplementedError,
                     zipfile.BadZipFile,
+                    zlib.error,  # deflate 流中段坏
                 ) as e:
                     # 成员级坏 CRC/加密/未知压缩——裸 BadZipFile 会绕过 ExportError 族
                     msg = f"zip 成员 {info.filename} 读取失败: {e}"
                     raise MalformedEpubError(msg) from e
+                if len(blob) > _EPUB_MEMBER_MAX:
+                    msg = f"zip 成员 {info.filename} 解压超限: >{_EPUB_MEMBER_MAX}B"
+                    raise MalformedEpubError(msg)
+                inflated += len(blob)
+                if inflated > _EPUB_INFLATED_MAX:
+                    msg = f"EPUB 解压合计超限: >{_EPUB_INFLATED_MAX}B"
+                    raise MalformedEpubError(msg)
+                members[info.filename] = blob
                 order.append(info.filename)
 
     if CONTAINER_PATH not in members:
