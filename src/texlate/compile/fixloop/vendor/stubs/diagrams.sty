@@ -60,7 +60,10 @@
 \providecommand{\pile}[1]{\begin{array}{c}#1\end{array}}
 \providecommand{\eps}{\varepsilon}
 \providecommand{\eqalign}[1]{#1}
-\providecommand{\spreadlines}[1]{}
+% \spreadlines 延到 \begin{document} 才补——mathtools 的 spreadlines
+% 是 \newenvironment，stub 先定义会让包加载炸 "already defined"
+% (2105.03808 实证)；defer 后包侧定义恒赢，无包时落 noop。
+\AtBeginDocument{\providecommand{\spreadlines}[1]{}}
 \providecommand{\diagrams@activate}{}
 \providecommand{\diagramstyle}[1]{}
 

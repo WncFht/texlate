@@ -3,6 +3,11 @@
 % vendored。SWP 转储稿宏面按 pass-through 处理——内容照排、装饰丢：
 % \QTR{run}{text} 出 text；\QZW/\QQQ 特殊字符族丢弃或出末参；
 % 数式对象族 \QOVER/\QSUB/\QSUP/\QBINOM 退化为可读式。
+% C-bucket 补面（语义逐点对真件：corpus_v2/1011.5681 随稿 1278 行本）：
+% {d,t}{int,sum,prod} 尺寸算子族 = \mathop{\displaystyle|\textstyle …}
+% （真件 \dint/\tint 走 \msi@int 多积分机，stub 简化 \mathop 形——
+% \limits 上下限调用面不变）；\stackunder{a}{b}=\mathrel{\mathop{b}\limits_a}；
+% \TEXTsymbol=\mbox{$…$}；\func/\limfunc/\unit 随稿实证宏面。
 
 \providecommand{\TEX}{\TeX}
 \providecommand{\LaTeXtoday}{}
@@ -44,4 +49,25 @@
 \def\QHEAD#1{#1}
 \def\QDATE#1{#1}
 \providecommand{\QENDDISPLAY}{}
+% —— {d,t} 尺寸算子族（真件语义抄值；SW 面板符） ——
+\def\dint{\mathop{\displaystyle\int}}
+\def\dsum{\mathop{\displaystyle\sum}}
+\def\dprod{\mathop{\displaystyle\prod}}
+\def\tint{\mathop{\textstyle\int}}
+\def\tsum{\mathop{\textstyle\sum}}
+\def\tprod{\mathop{\textstyle\prod}}
+% —— \stackunder{a}{b}：a 压 b 底（真件 \mathrel{\mathop{b}\limits_a}） ——
+\def\stackunder#1#2{\mathrel{\mathop{#2}\limits_{#1}}}
+% —— \TEXTsymbol{s}：任意 math-only 符号进文本位（真件 \mbox{$#1$}） ——
+\def\TEXTsymbol#1{\mbox{$#1$}}
+% —— SW 用户面（真件 misc 节实证宏） ——
+\def\func#1{\mathop{\rm #1}\nolimits}
+\def\limfunc#1{\mathop{\rm #1}}
+\def\unit#1{\mathord{\thinspace\rm #1}}
+% —— \text：SW 稿假定 amsmath 恒在（2105.11405 实证缺载）；amsmath/amstext
+%    后到则以 \DeclareRobustCommand 静默接管，无 already_def 风险 ——
+\providecommand{\text}[1]{\mbox{#1}}
+% —— remark env（math/0104275 实证 env_undefined；doc 自定义优先） ——
+\expandafter\ifx\csname remark\endcsname\relax
+  \newenvironment{remark}{\par\noindent\textbf{Remark.}\enspace\ignorespaces}{\par}\fi
 \endinput

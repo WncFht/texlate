@@ -18,4 +18,10 @@
 \providecommand{\confhead}[1]{}
 \providecommand{\hypothesis}[1]{\begin{quote}\itshape #1\end{quote}}
 \providecommand{\acknowledgments}[1]{\par\noindent\textbf{Acknowledgments:} #1\par}
+% —— \addressmark[key]+\address[key]{…} 作者脚注族（nucl-th/0104004 实证：
+%    稿把 \addressmark[label]\address{…} 编进 \author 参 → article
+%    \maketitle 的 tabular cell 内展开；\\ 须降为 \newline 防顶破
+%    halign。内联输出形任何版式面安全） ——
+\providecommand{\addressmark}[1][]{\textsuperscript{#1}}
+\providecommand{\address}[2][]{{\let\\\newline\textsuperscript{#1}{\footnotesize #2}}}
 \endinput

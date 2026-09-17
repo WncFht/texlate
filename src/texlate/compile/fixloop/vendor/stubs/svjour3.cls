@@ -28,8 +28,14 @@
 \providecommand{\communicated}[1]{}
 \providecommand{\datein}{}
 \providecommand{\offprints}[1]{}
-\providecommand{\PACS}[1]{\gdef\@pacs{#1}}
-\providecommand{\keywords}[1]{\gdef\@keywords{#1}}
+% --- 分类行打印面（真件 1306.0443 随稿 svjour3.cls:300-317 语义抄值：
+%    \keywords/\subclass/\PACS 均为即时打印块，体内 \and 局部重绑为
+%    "·" 分隔——稿面 \subclass{90C31\and 90C25} 靠此成立） ---
+\providecommand{\svj@andsep}{\ifhmode\unskip\nobreak\fi\ $\cdot$\ }
+\providecommand{\PACS}[1]{\par\medskip\noindent\textbf{PACS}\enspace{\let\and\svj@andsep\ignorespaces #1\par}}
+\providecommand{\subclassname}{{\bfseries Mathematics Subject Classification}\enspace}
+\providecommand{\subclass}[1]{\par\medskip\noindent\subclassname{\let\and\svj@andsep\ignorespaces #1\par}}
+\providecommand{\keywords}[1]{\par\medskip\noindent\textbf{Keywords}\enspace{\let\and\svj@andsep\ignorespaces #1\par}}
 \providecommand{\keyword}[1]{\keywords{#1}}
 \providecommand{\acknowledgement}[1]{\gdef\@acknowledgement{#1}}
 \providecommand{\ackname}{Acknowledgements}
@@ -47,3 +53,37 @@
 \providecommand{\at}{}
 \providecommand{\andname}{\quad}
 \providecommand{\runend}{}
+
+% --- bbl 排序件 noop（svjour 系 .bbl 散调 \sortlist…\endsortlist） ---
+\providecommand{\sortlist}[2][]{}
+% \end* 名受 \@ifdefinable 保护（"name \end... illegal"）——只能 csname 直 def
+\expandafter\def\csname endsortlist\endcsname{}
+
+% --- theorem 面：真件 \spnewtheorem 机（svjour3.cls:786-922）的
+%    三式签名映射进 kernel \newtheorem——
+%    \spnewtheorem{name}{cap}[within]{capf}{bodyf}（within 式）
+%    \spnewtheorem{name}[like]{cap}{capf}{bodyf}（同计数器式）
+%    \spnewtheorem*{name}{cap}{capf}{bodyf}（不编号式）
+%    字体两参丢弃（版式降级），cap/body 保留 ---
+\providecommand{\spnewtheorem}{\@ifstar\texlate@svj@uthm\texlate@svj@thm}
+\def\texlate@svj@thm#1{\@ifnextchar[{\texlate@svj@thmA{#1}}{\texlate@svj@thmB{#1}}}
+\def\texlate@svj@thmA#1[#2]#3#4#5{\newtheorem{#1}[#2]{#3}}
+\def\texlate@svj@thmB#1#2{\@ifnextchar[{\texlate@svj@thmC{#1}{#2}}{\texlate@svj@thmD{#1}{#2}}}
+\def\texlate@svj@thmC#1#2[#3]#4#5{\newtheorem{#1}{#2}[#3]}
+\def\texlate@svj@thmD#1#2#3#4{\newtheorem{#1}{#2}}
+\def\texlate@svj@uthm#1#2#3#4{\@ifundefined{#1}%
+  {\newenvironment{#1}{\par\noindent{\bfseries#2}\enspace\ignorespaces}{\par}}{}}
+% --- 预定义 env 集（真件 svjour3 自带；不预定义则稿 \begin{theorem}
+%    炸 "No counter 'theorem'" / "Environment … undefined"。全走
+%    \@ifundefined 守卫。proof 不预定义：amsthm 后到 \newenvironment{proof}
+%    会撞已定义） ---
+\@ifundefined{theorem}{\newtheorem{theorem}{Theorem}[section]}{}
+\@ifundefined{lemma}{\newtheorem{lemma}[theorem]{Lemma}}{}
+\@ifundefined{corollary}{\newtheorem{corollary}[theorem]{Corollary}}{}
+\@ifundefined{proposition}{\newtheorem{proposition}[theorem]{Proposition}}{}
+\@ifundefined{definition}{\newtheorem{definition}[theorem]{Definition}}{}
+\@ifundefined{example}{\newtheorem{example}[theorem]{Example}}{}
+\@ifundefined{remark}{\newtheorem{remark}[theorem]{Remark}}{}
+\@ifundefined{conjecture}{\newtheorem{conjecture}[theorem]{Conjecture}}{}
+\@ifundefined{claim}{\newtheorem{claim}[theorem]{Claim}}{}
+\endinput
