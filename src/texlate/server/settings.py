@@ -261,7 +261,7 @@ def _load_quota(value: object) -> int:
     """配额字段容错读：非法/负值 → 0（不限）。"""
     try:
         return max(0, int(value))  # type: ignore[arg-type]
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return 0
 
 
@@ -274,7 +274,7 @@ def _load_concurrency(value: object) -> int:
     """
     try:
         return max(1, int(value or 3))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return 3
 
 

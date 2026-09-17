@@ -65,9 +65,6 @@ staticfiles.py / ``__main__`` / cmap 资源：
 
 已确认缺陷（``xfail(strict=True)``——修复后 XPASS 提醒拆钉）：
 
-- D1 ``settings._load_quota``/``_load_concurrency`` 漏捕 ``OverflowError``：
-  手改 ``settings.json`` 写 ``1e999``/``Infinity`` → ``load()`` 整个抛
-  → ``GET/PUT /api/settings`` 与 ``_auth`` 全链 500 砖化；
 - D2 ``_normalize_updates`` 裸 ``int()``：``concurrency=null/[3]/1e999``、
   ``quota=1e999`` → ``TypeError``/``OverflowError`` 逃出
   ``except ValueError`` → PUT 500（``_clean_task_options`` 同输入类
@@ -407,15 +404,7 @@ class TestLoadTolerance:
         json.dumps(data)
         assert "api_key" not in data
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="settings.py:260-278 _load_quota/_load_concurrency 只捕 "
-        "(TypeError, ValueError)——``int(inf)`` 抛 ``OverflowError`` 漏网。"
-        "Python json.loads 原生接受 ``Infinity``/``1e999`` → 手改文件一行即让 "
-        "``load()`` 抛穿 → GET/PUT /api/settings 与 ``_auth`` 全链 500 砖化，"
-        "须手工删文件才能恢复。修法：except 元组补 ``OverflowError``。",
-    )
-    def test_xfail_inf_bricks_load(self, tmp_path: Path) -> None:
+    def test_inf_bricks_load(self, tmp_path: Path) -> None:
         """inf 量值 → 期望容错回落而非 ``OverflowError`` 穿透。"""
         for i, content in enumerate(
             (
