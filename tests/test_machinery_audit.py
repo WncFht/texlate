@@ -928,3 +928,176 @@ def test_chronology_env_multi_dimen_args() -> None:
     body = chunk_text(res)
     assert "3ex" not in body
     assert "textwidth" not in body
+
+
+# ------------------------------------------------- M1-B 残漏波（2026-09-17）
+# 尾参扫操作数语法升级：``_TAIL_OPERAND`` = ``[+-]? FACTOR* BASE`` 因子×
+# 基复合——``\fontdimen2\font``/``4\fontdimen3\font``/``\macro\fontdimen``
+# （natbib ``\BIBentryALTinterwordspacing`` 展开体，0806.2890/1404.5889/
+# 1706.02769 三格同机制）；``arith`` 新种 ``<op><lval>[by|=]<rval>`` 收
+# ``\multiply\ione by 10``（math/9901091 5843 errs）与 ``\skewchar\F='77``；
+# ``\newskip`` 族 ``n`` 参收声明名（``\newskip\footskip\footskip14pt`` 的
+# 首 ``\footskip`` 曾把次枚吃成操作数 → ``14pt`` 孤悬）；``boxspec`` 新种
+# 收 ``\hbox to\hsize`` 的 ``to`` 关键字（同格 :933）；math 扫在
+# ``\beginpicture`` 未闭合区内容忍 eol_par——pictex 体空行惯用，断段把
+# ``at``/``from``/``to``/``units`` 关键字卸进正文（1404.0443）。
+
+
+def test_fontdimen_composite_operand() -> None:
+    r"""``\\spaceskip=\\fontdimen2\\font plus 4\\fontdimen3\\font minus
+    \\fontdimen4\\font\\relax``——fontdimen 复合 + 因子×基操作数
+    （0806.2890/1404.5889/1706.02769 同机制实证）。"""
+    tex = ART % (
+        "",
+        (
+            "\\spaceskip=\\fontdimen2\\font plus 4\\fontdimen3\\font minus\n"
+            "  \\fontdimen4\\font\\relax\n"
+            "Entry text words here fill the paragraph out.\n"
+        ),
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert "fontdimen" not in body
+    assert "spaceskip" not in body
+    assert "Entry text" in body
+
+
+def test_macro_factor_operand() -> None:
+    r"""``\\spaceskip=\\fontdimen2\\font plus \\stretch\\fontdimen3\\font``——
+    宏因子×fontdimen（``\\BIBentryALTinterwordstretchfactor``→``4``
+    展开形实证）。"""
+    tex = ART % (
+        "",
+        (
+            "\\def\\stretch{4}\n"
+            "\\spaceskip=\\fontdimen2\\font plus \\stretch\\fontdimen3\\font\n"
+            "  \\fontdimen4\\font\\relax\n"
+            "Bib text words here fill the paragraph out.\n"
+        ),
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert "fontdimen" not in body
+    assert "Bib text" in body
+
+
+def test_multiply_advance_by_keyword() -> None:
+    r"""``\\multiply\\ione by 10``/``\\advance\\tione by \\ione``——arith
+    种 ``by`` 间隔关键字（math/9901091 ``by`` 被译 5843 errs 实证）。"""
+    tex = ART % (
+        "",
+        (
+            "\\ione=5 \\multiply\\ione by 10 \\tione=0 \\advance\\tione by \\ione\n"
+            "Figure text words here fill the paragraph out.\n"
+        ),
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert "by" not in body
+    assert "multiply" not in body
+    assert "Figure text" in body
+
+
+def test_skewchar_octal_assign() -> None:
+    r"""``\\skewchar\\fivmi='177``——arith 种 cs 左值 + ``=`` + 八进制数
+    （hep-th/9703214:201 形实证）。"""
+    tex = ART % (
+        "",
+        (
+            "\\skewchar\\fivmi='177 \\hyphenchar\\fivmi=45\n"
+            "Font text words here fill the paragraph out.\n"
+        ),
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert "177" not in body
+    assert "Font text" in body
+
+
+def test_setbox_hbox_to_tail() -> None:
+    r"""``\\setbox0=\\hbox to3cm{x}``——arith rvalue 盒原语再叠
+    ``to <dim>`` 规格尾（hep-th/9703214 ``to`` 被译实证）。"""
+    tex = ART % (
+        "",
+        ("\\setbox0=\\hbox to3cm{Boxed inner words} tail text fills here.\n"),
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert "to3cm" not in body
+    assert "to" not in body.split("Boxed")[0]
+    assert "Boxed inner words" in body
+
+
+def test_newskip_declares_cs_arg() -> None:
+    r"""``\\newskip\\footskip\\footskip14pt plus 1pt minus 1pt``——声明
+    名走 ``n`` 参收，次枚 ``\\footskip`` 正常 dimen 尾扫
+    （hep-th/9703214:768 ``pt`` 被译实证）。"""
+    tex = ART % (
+        "",
+        (
+            "\\newskip\\footskip\\footskip14pt plus 1pt minus 1pt\n"
+            "Body text words here fill the paragraph out.\n"
+        ),
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert "footskip" not in body
+    assert "14pt" not in body
+    assert "Body text" in body
+
+
+def test_hbox_to_spec_tail() -> None:
+    r"""``\\hbox to\\hsize{..}``——boxspec 收 ``to``+dimen，体文续扫
+    （hep-th/9703214:933 实证；``\\hbox`` 透明体语义不变）。"""
+    tex = ART % (
+        "",
+        "\\hbox to\\hsize{Boxed words here fill the line} tail text.\n",
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert "hsize" not in body
+    assert "Boxed words" in body
+
+
+def test_hbox_plain_still_transparent() -> None:
+    r"""``\\hbox{..}`` 无 to/spread 时维持透明（体文照常进 chunk）。"""
+    tex = ART % (
+        "",
+        "\\hbox{Plain boxed words fill the line} tail text here.\n",
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert "Plain boxed words" in body
+
+
+def test_pictex_math_body_tolerates_blank_line() -> None:
+    r"""``${\\beginpicture ..\\n\\n.. \\endpicture}$``——pictex 区内
+    eol_par 不断段（1404.0443 ``at``/``from``/``units`` 关键字被译
+    实证）；闭区外 ``$`` 配对照旧。"""
+    tex = ART % (
+        "",
+        (
+            "Lead text words here fill the paragraph out nicely.\n\n"
+            "${\\beginpicture \\setcoordinatesystem units <1cm,1cm>\n"
+            "\\setplotarea x from 0 to 4, y from 0 to 3\n"
+            "\n"
+            "\\put{$\\bullet$} at 1 3 \\put{$\\bullet$} at 2 0\n"
+            "\\plot 1 3 2 0 / \\endpicture}$\n\n"
+            "Trail text words here fill the paragraph out too.\n"
+        ),
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert "units" not in body
+    assert "setplotarea" not in body
+    assert "Lead text" in body
+    assert "Trail text" in body

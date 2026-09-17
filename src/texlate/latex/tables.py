@@ -317,6 +317,22 @@ BOUNDARY_NAMES = {
     "newcounter",
     "setcounter",
     "addtocounter",
+    # 寄存器声明原语：``\newskip\footskip`` 裸 cs 名参不收则下一个
+    # ``\footskip14pt`` 的首枚 ``\footskip`` 被当操作数吃掉、``14pt``
+    # 孤悬漏单位字母（hep-th/9703214:768 实证）。``\newif`` 由 gullet
+    # 登记（IfSetter）不在此列。
+    "newskip",
+    "newdimen",
+    "newcount",
+    "newbox",
+    "newtoks",
+    "newmuskip",
+    "newinsert",
+    "newlanguage",
+    "newfam",
+    "newhelp",
+    "newread",
+    "newwrite",
     "setlength",
     "addtolength",
     "settowidth",
@@ -514,6 +530,19 @@ BOUNDARY_TAIL: dict[str, list[ArgSpec]] = {
     # 不跨 ``\``）；``setcounter``/``addtocounter`` 首参是计数器名留 ``m``
     "setlength": [ArgSpec("n"), ArgSpec("m")],
     "addtolength": [ArgSpec("n"), ArgSpec("m")],
+    # ``\newX\cs`` 声明族：裸 cs 名参同 ``setlength`` 首参走 ``n`` 槽
+    "newskip": [ArgSpec("n")],
+    "newdimen": [ArgSpec("n")],
+    "newcount": [ArgSpec("n")],
+    "newbox": [ArgSpec("n")],
+    "newtoks": [ArgSpec("n")],
+    "newmuskip": [ArgSpec("n")],
+    "newinsert": [ArgSpec("n")],
+    "newlanguage": [ArgSpec("n")],
+    "newfam": [ArgSpec("n")],
+    "newhelp": [ArgSpec("n")],
+    "newread": [ArgSpec("n")],
+    "newwrite": [ArgSpec("n")],
     "settowidth": [ArgSpec("n"), ArgSpec("m")],
     "settoheight": [ArgSpec("n"), ArgSpec("m")],
     "settodepth": [ArgSpec("n"), ArgSpec("m")],
@@ -675,11 +704,40 @@ DIMEN_TAIL_KIND: dict[str, str] = {
     "delimiterfactor": "count",
     "defaulthyphenchar": "count",
     "defaultskewchar": "count",
+    # 算术/寄存器赋值双操作数：``<op><lval>[by|=]<rval>``——``by``/``=``
+    # 间隔关键字裸落 surface 即被译（math/9901091 ``\multiply\ione by 10``
+    # 5843 errs 实证；``\skewchar\fivmi='77``/``\setbox0=\hbox to3cm``
+    # 同构——rvalue 盒原语再叠 ``to|spread`` 尾由 arith 形自带）。
+    "advance": "arith",
+    "multiply": "arith",
+    "divide": "arith",
+    "setbox": "arith",
+    "count": "arith",
+    "dimen": "arith",
+    "skip": "arith",
+    "muskip": "arith",
+    "toks": "arith",
+    "chardef": "arith",
+    "mathchardef": "arith",
+    "countdef": "arith",
+    "dimendef": "arith",
+    "skipdef": "arith",
+    "muskipdef": "arith",
+    "toksdef": "arith",
+    "skewchar": "arith",
+    "hyphenchar": "arith",
+    "fontdimen": "arith",
     # 规则与字体声明
     "hrule": "rule",
     "vrule": "rule",
     "font": "font",
 }
+
+# 盒规格尾参（``to|spread <dim>``）命令——``\hbox`` 是透明名（体文续扫），
+# ``\vbox``/``\vtop``/``\vcenter`` 走未知命令路；四者同享 boxspec 尾扫，
+# ``to``/``spread`` 关键字+dimen 不落 surface（hep-th/9703214 ``\hbox
+# to\hsize{`` 的 ``to`` 被译实证）。主分派在透明/未知两路前截获。
+BOX_TAIL_NAMES = {"hbox", "vbox", "vtop", "vcenter"}
 
 # 头参非文本、尾参可译的透明命令（loop1 slots③）：``\textcolor{red}{text}``
 # 的 ``{red}``/``[model]`` 进 [[CMD]]、``{text}`` 留主流——argspec 同名条目

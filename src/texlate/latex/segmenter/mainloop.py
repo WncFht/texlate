@@ -19,6 +19,7 @@ from texlate.latex.placeholder import (
 from texlate.latex.tables import (
     ACCENT_CHARS,
     BOUNDARY_NAMES,
+    BOX_TAIL_NAMES,
     CHUNK_ARG_NAMES,
     COND_RX,
     FONT_SWITCHES,
@@ -403,6 +404,12 @@ class _MainLoop:
             if name in TRANSPARENT_HEAD_SPEC:
                 self._handle_transparent_head(t, src, name)
                 return
+            # 12c. 盒规格尾参：``\hbox to\hsize{``/``\vbox spread2pt``——
+            #      ``to|spread``+dimen 随 cs 进 [[CMD]]，``{body}`` 续扫；
+            #      ``to`` 裸落 surface 被译是 hep-th/9703214 实证。
+            if name in BOX_TAIL_NAMES:
+                self._handle_box_tail(t, src, name)
+                return
             # 13. 透明命令：命令名进 run，参数随主流
             if name in TRANSPARENT_NAMES:
                 self._rappend_tok(t)
@@ -542,13 +549,30 @@ class _MainLoop:
             src.unread([nxt])
         body: list[Tok] = []
         end_tok: Tok | None = None
+        # PiCTeX ``\beginpicture...\endpicture`` 体内允许空行——eol_par
+        # 正常是数学断段闸（真孤 ``$`` 兜底），但未闭合 beginpicture 区
+        # 内空行是 DSL 惯用排版，断段会把 ``at``/``from``/``to``/``units``
+        # 关键字群卸进正文被译（1404.0443 pictex 图全灭实证）；闭区外
+        # eol_par 语义不变。内层 ``$..$``（``\put{$\bullet$}``）在
+        # pictex 区同样不吃边界权——随体收。
+        pictex_open = False
         while True:
             x = src.read()
             if x is None:
                 break
+            if x.kind == "cs" and x.text == "beginpicture":
+                pictex_open = True
+            elif x.kind == "cs" and x.text == "endpicture":
+                pictex_open = False
             if x.kind == "eol_par":
+                if pictex_open:
+                    body.append(x)
+                    continue
                 src.unread([x])  # 段落边界不吞——回吐由主流断段
                 break
+            if x.kind == "mathshift" and pictex_open:
+                body.append(x)
+                continue
             if x.kind == "mathshift":
                 if not disp:
                     end_tok = x

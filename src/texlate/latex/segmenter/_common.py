@@ -112,88 +112,116 @@ _DIMEN_UNIT = (
 _WS_NOPAR = r"(?>[^\S\n]|%[^\n]*|\n(?![ \t\n]*\n))"
 # cs 名带 ``(?![a-zA-Z@])`` 边界：切片窗可能切在名中（``_TAIL_CAP``），
 # 无边界则 ``\\foo``|``bar`` 斩名半吞。
-_DIMEN_ATOM = (
-    r"[+-]?[ \t]*(?:\\[a-zA-Z@]+(?![a-zA-Z@])|"
-    + _DIMEN_NUM
+# 尾参操作数 = ``[+-]? FACTOR* BASE``（TeX ``<number>/<dimen>/<glue>``
+# 扫描的因子×基复合）：FACTOR = cs 内部量或裸数（``4\fontdimen``、
+# ``\BIBentryALTinterwordstretchfactor\fontdimen``、``0.5\baselineskip``
+# 的前件）；BASE = ``NUM[ \t]*UNIT``（物理单位）/``'oct``/``"hex``/cs/
+# 裸数。``\fontdimen2\font``/``4\fontdimen3\font``/``\count0`` 皆此形
+# （M1-B 残漏实证：natbib ``\BIBentryALTinterwordspacing`` 展开体、
+# ``\multiply\ione by 10`` 族）。两硬界：项间零间隙（邻接才成链——
+# ``\vskip1em \section`` 的空格断链防误吃下行命令）；NUMUNIT 必为链尾
+# （物理单位后 TeX 只续 plus/minus——``2pt\foo`` 的 ``\foo`` 不收）。
+_OPERAND_FACTOR = r"(?:\\[a-zA-Z@]+(?![a-zA-Z@])|" + _DIMEN_NUM + r")"
+_OPERAND_BASE = (
+    _DIMEN_NUM
     + r"[ \t]*"
     + _DIMEN_UNIT
-    + r")"
+    + r"|'[0-7]+|\"[0-9A-Fa-f]+|\\[a-zA-Z@]+(?![a-zA-Z@])|"
+    + _DIMEN_NUM
 )
-# 计数器操作数：裸整数/``'oct``/``"hex``/``\`char``/cs 寄存器——``=N`` 无
-# 单位形是 count 赋值（``\hangafter=1``/``\tolerance=800``），ATOM 的单位
-# 硬要求罩不住（illegal_unit 波 A 簇 74 行粘连残证实证）。
-_COUNT_OPERAND = (
-    r"[+-]?(?:"
+_TAIL_OPERAND = (
+    r"(?:"
     + _WS_NOPAR
-    + r")*(?:\d+|'[0-7]+|\"[0-9A-Fa-f]+|\\[a-zA-Z@]+(?![a-zA-Z@]))"
+    + r")*[+-]?(?:"
+    + _WS_NOPAR
+    + r")*(?:"
+    + _OPERAND_FACTOR
+    + r")*(?:"
+    + _OPERAND_BASE
+    + r")"
 )
 # 扫描终止符：TeX 数/胶扫描遇 ``\relax`` 即停——``1em plus..\relax``/``=1\relax``
 # 是惯用收束形，尾随 ``\relax`` 随操作数同收（裸 ``\relax`` 留在表面会被
 # INLINE_LITERAL 原样进 chunk）。``(?![a-zA-Z@])`` 防 ``\relaxX`` 长名腰斩。
 _TAIL_RELAX = r"(?:(?:" + _WS_NOPAR + r")*\\relax(?![a-zA-Z@]))?"
 _TAIL_RX = {
-    # skip/dimen：``[=]? ATOM (plus|minus ATOM)* [\relax]``
+    # skip/dimen：``[=]?<operand> [plus|minus <operand>]* [\relax]``
     "dimen": re.compile(
         r"(?:"
         + _WS_NOPAR
-        + r")*=?(?:"
-        + _WS_NOPAR
-        + r")*"
-        + _DIMEN_ATOM
+        + r")*=?"
+        + _TAIL_OPERAND
         + r"(?:(?:"
         + _WS_NOPAR
-        + r")*(?:plus|minus)(?![a-zA-Z])(?:"
-        + _WS_NOPAR
-        + r")*"
-        + _DIMEN_ATOM
+        + r")*(?:plus|minus)(?![a-zA-Z])"
+        + _TAIL_OPERAND
         + r")*"
         + _TAIL_RELAX
     ),
-    # 计数器赋值/操作数：``[=]? <count> [\relax]``（``\hangafter 1`` 无等号形同收）
-    "count": re.compile(
-        r"(?:"
-        + _WS_NOPAR
-        + r")*=?(?:"
-        + _WS_NOPAR
-        + r")*"
-        + _COUNT_OPERAND
-        + _TAIL_RELAX
-    ),
-    # ``\hrule``/``\vrule``：``(width|height|depth [=]? ATOM)+``
+    # 计数器赋值/操作数：``[=]?<operand> [\relax]``（``\hangafter 1`` 无等
+    # 号形同收——operand 的裸数项即原 count 形）
+    "count": re.compile(r"(?:" + _WS_NOPAR + r")*=?" + _TAIL_OPERAND + _TAIL_RELAX),
+    # ``\hrule``/``\vrule``：``(width|height|depth [=]?<operand>)+``
     "rule": re.compile(
         r"(?:(?:"
         + _WS_NOPAR
         + r")*(?:width|height|depth)(?![a-zA-Z])(?:"
         + _WS_NOPAR
-        + r")*=?(?:"
-        + _WS_NOPAR
-        + r")*"
-        + _DIMEN_ATOM
+        + r")*=?"
+        + _TAIL_OPERAND
         + r")+"
         + _TAIL_RELAX
     ),
-    # ``\font\cs=name [at ATOM|scaled NUM]``
+    # ``\font\cs=name [at <operand>|scaled NUM]``
     "font": re.compile(
         r"(?:" + _WS_NOPAR + r")*\\[a-zA-Z@]+[ \t]*=?[ \t]*[A-Za-z0-9._/-]+"
         r"(?:[ \t]+at(?![a-zA-Z])[ \t]*"
-        + _DIMEN_ATOM
+        + _TAIL_OPERAND
         + r"|[ \t]+scaled(?![a-zA-Z])[ \t]*[+-]?"
         + _DIMEN_NUM
         + r")?"
         + _TAIL_RELAX
     ),
-    # 通用赋值：``= ATOM|<count>``（``\foo=2pt``/``\foo=2`` 的 ``=N`` 永不
+    # 通用赋值：``=<operand>``（``\foo=2pt``/``\foo=2`` 的 ``=N`` 永不
     # 可能是散文——count 形兜底一切表外名，``\hangafter=1`` 同收）
-    "assign": re.compile(
+    "assign": re.compile(r"(?:" + _WS_NOPAR + r")*=" + _TAIL_OPERAND + _TAIL_RELAX),
+    # 算术/寄存器赋值双操作数：``\multiply\I by 10``/``\advance\D by \G``/
+    # ``\divide\I by 2``、``\skewchar\F='77``/``\hyphenchar\F=45``/
+    # ``\fontdimen2\font=5pt``/``\countdef\I=5``/``\count0=5``/
+    # ``\setbox0=\hbox to3cm``——``by``/``=`` 间隔可省（``\advance\X\Y``），
+    # rvalue 后允许 glue 尾（``\advance\S by -2pt plus1pt``）与盒规格尾
+    # （``\setbox`` 的 ``\hbox to<dim>``——``to`` 裸落被译的实证在
+    # hep-th/9703214、``by`` 在 math/9901091）。
+    "arith": re.compile(
         r"(?:"
         + _WS_NOPAR
-        + r")*=(?:"
+        + r")*"
+        + _TAIL_OPERAND
+        + r"(?:(?:"
         + _WS_NOPAR
-        + r")*(?:"
-        + _DIMEN_ATOM
-        + r"|"
-        + _COUNT_OPERAND
-        + r")"
+        + r")*(?:by(?![a-zA-Z])|=)"
+        + _TAIL_OPERAND
+        + r"(?:(?:"
+        + _WS_NOPAR
+        + r")*(?:plus|minus)(?![a-zA-Z])"
+        + _TAIL_OPERAND
+        + r")*"
+        + r")?"
+        + r"(?:(?:"
+        + _WS_NOPAR
+        + r")*(?:to|spread)(?![a-zA-Z])"
+        + _TAIL_OPERAND
+        + r")?"
+        + _TAIL_RELAX
+    ),
+    # 盒规格：``\vbox to3cm{..}``/``\vtop spread-2pt``——``to|spread`` 必在
+    # （纯 ``\vbox{..}`` 无尾参，留给常规探针）；``\hbox`` 同形但走
+    # 主流透明档前的截获（体文要续扫进 chunk）。
+    "boxspec": re.compile(
+        r"(?:"
+        + _WS_NOPAR
+        + r")*(?:to|spread)(?![a-zA-Z])"
+        + _TAIL_OPERAND
         + _TAIL_RELAX
     ),
 }
@@ -201,19 +229,15 @@ _TAIL_RX = {
 # ``[5pt]`` 裸落 surface → illegal_unit——slots① 第二形态）；``\\`` 与
 # ``[`` 间允许单换行/注释（``\\\n[8pt]``/``\\[0pt%\n]`` 同收）。
 _BSBS_OPT_RX = re.compile(
-    r"\*?(?:"
-    + _WS_NOPAR
-    + r")*\[(?:"
-    + _WS_NOPAR
-    + r")*"
-    + _DIMEN_ATOM
-    + r"(?:"
-    + _WS_NOPAR
-    + r")*\]"
+    r"\*?(?:" + _WS_NOPAR + r")*\[" + _TAIL_OPERAND + r"(?:" + _WS_NOPAR + r")*\]"
 )
 # 组内 ``\\`` opt 参的内容判据（``_grp_bsbs`` 的 fullmatch 版）
 _GRP_BSBS_CONTENT_RX = re.compile(
-    r"(?:" + _WS_NOPAR + r")*" + _DIMEN_ATOM + r"(?:" + _WS_NOPAR + r")*"
+    r"[ \t]*[+-]?[ \t]*(?:"
+    + _OPERAND_FACTOR
+    + r")*(?:"
+    + _OPERAND_BASE
+    + r")(?:[ \t\n]*|%[^\n]*)*"
 )
 # 组内尾参扫的 surface join 字符窗上限
 _GRP_TAIL_CAP = 96

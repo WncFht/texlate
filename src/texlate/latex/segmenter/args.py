@@ -855,6 +855,31 @@ class _Args:
         )
         self._skip_past(src, fid, end)
 
+    def _handle_box_tail(self, t: Tok, src: TokenSource, name: str) -> None:
+        r"""``\hbox to\hsize{..}``/``\vbox spread2pt`` 盒规格尾参。
+
+        ``to|spread``+dimen 命中 → ``\cs<spec>`` 整段 ``[[CMD]]``，
+        其后 ``{body}`` 组照主流续扫（``\hbox`` 透明体语义不变——体文
+        进 chunk）；``to`` 关键字裸落 surface 被译是 hep-th/9703214:933
+        实证。未命中回各名原路：``\hbox`` 透明字面、``\vbox`` 族回未知
+        命令探针（``{body}`` 照常整调保护）。
+        """
+        fid, _a, b = t.pos
+        end = self._tail_scan_end(fid, b, "boxspec")
+        if end is None:
+            if name == "hbox":
+                self._rappend_tok(t)
+            else:
+                self._handle_unknown_cs(t, src, name)
+            return
+        self._cover_gap(fid, t.pos[1])
+        vspan = self._cover_to(fid, end)
+        self._rappend_ph(
+            self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
+            vspan,
+        )
+        self._skip_past(src, fid, end)
+
     def _handle_accent(self, t: Tok, src: TokenSource) -> None:  # noqa: C901, PLR0912 — 参形两态（组深扫/单token）+ bail 三路平铺
         r"""``\'e``/``\c{c}`` accent 单参保护：整调用 → ``[[CMD]]`` 进 run。
 
