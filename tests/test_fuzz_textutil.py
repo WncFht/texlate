@@ -460,7 +460,8 @@ def test_verbatim_envs_registry_consistent() -> None:
 def test_dead_envs_masked_by_default() -> None:
     """``comment`` 族默认遮盖、``mask_dead=False`` 放行。"""
     for env in DEAD_ENVS:
-        src = f"\\begin{{{env}}}DEAD\\end{{{env}}}LIVE"
+        # comment.sty 终结是行锚定整行比对——``\end{env}`` 须独占一行才生效。
+        src = f"\\begin{{{env}}}\nDEAD\n\\end{{{env}}}\nLIVE"
         masked = mask_tex(src)
         assert masked.endswith("LIVE")
         assert "DEAD" not in masked

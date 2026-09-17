@@ -19,6 +19,7 @@ from texlate.textutil import mask_comments, mask_tex
 TEX_SOURCE_SUFFIXES = {".tex", ".sty", ".cls", ".cfg", ".def", ".clo", ".fd", ".ltx"}
 
 _COMMAND_RE = re.compile(r"\\(?:[a-zA-Z@]+\*?|.)", re.DOTALL)
+_NL_RE = re.compile(r"[\r\n]")
 
 
 def without_comments(text: str) -> str:
@@ -54,8 +55,8 @@ def group_end(s: str, pos: int) -> int:
             m = _COMMAND_RE.match(s, i)
             i = m.end() if m else i + 2
         elif s[i] == "%":
-            j = s.find("\n", i)
-            i = len(s) if j < 0 else j + 1
+            m = _NL_RE.search(s, i)
+            i = len(s) if m is None else m.start() + 1
         elif s[i] == "{":
             i = group_end(s, i)
         elif s[i] == close:

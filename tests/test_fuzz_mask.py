@@ -8,8 +8,11 @@ r"""mask.py 遮蔽层对抗 fuzz——span 级 oracle + group_end/apply_edits �
 核心不变量：
 
 - ``mask_tex``：遮盖区间与事件流 oracle 全等（4 种 flag 组合）；等长；
-  逐位「原样或空格」；``\r\n`` 位不动；双调确定（幂等**不恒成立**——
-  ``\lstinline`` 前导 ``\s*`` 把遮盖空白当真实空白吃，钉见末段）；
+  逐位「原样或空格」；``\r\n`` 位不动；双调确定且幂等（verb 遮盖只作用
+  在定界符间内容——``\verb`` 本体与定界符原位保留，二遍扫描在同一
+  ``\verb`` 上得到同一 parse、content 已是空格故再遮为 no-op；配套
+  guard：定界符扫描跳过水平空白后落 ``\r\n`` 不定界，否则被遮区段留下
+  的空格会桥到行间换行上产出假 span）；
 - 消费契约：遮盖视图上的正则命中段回切原文逐字节同（offset 对齐是
   normalize/probe/inject splice 的地基）；
 - ``visible_tex`` 与 ``mask_tex`` 的参数映射（``mask_comment_environments``
@@ -22,39 +25,37 @@ r"""mask.py 遮蔽层对抗 fuzz——span 级 oracle + group_end/apply_edits �
 - 全家族对 NUL/裸 ``\r``/lone ``\``/未闭合 env/``\verb`` 残骸/深括号
   （限深避开已钉递归缺陷）不抛。
 
-钉住的缺陷（``xfail(strict=True)``——修复后 XPASS 提醒拆钉；verbatim 族
-语义均已用 latex 实编译验证，见 tmp/mask-fuzz/texprobe/）：
+已修复的缺陷（原 ``xfail(strict=True)`` 钉，修复后拆钉为普通断言；
+verbatim 族语义均已用 latex 实编译验证，见 tmp/mask-fuzz/texprobe/ 与
+tmp/mask-fix/probe/）：
 
-- ``_env_stop`` 的 ``\\end\s*\{env\}``（textutil.py:310）``\s*`` 过配——
-  verbatim/fancyvrb/lstlisting 的终结扫描是**逐字 token 序列**匹配：
-  ``\end {verbatim}``（空格/tab/换行断 token 序）真实 TeX **不**终结
-  （latex 实证：体按 cmtt 排版），mask 却提前收尾 → 欠遮盖，真 ``\end``
-  之后到真终结之间的 verbatim 字面体暴露给下游正则手术；
-- 失活 ``comment`` 环境终结是**行锚定**的（comment.sty 逐行比对）：
-  行内 ``x\end{comment}`` 与 ``\end {comment}`` 均**不**终结（latex
-  实证：整段仍 dead），mask 无锚子串搜即终 → 欠遮盖同上；
-- ``_inline_verb_end``（textutil.py:327）``text[start].isspace() → None``
-  ——真实 LaTeX ``\verb``/``\verb*`` 定界符扫描会**跳过空白 token**：
-  ``\verb |x|`` ≡ ``\verb|x|``（latex 实证：x 按 cmtt 排版、竖线即定界
-  符）；``\verb\n`` 更以换行本身为定界符 → 下一整行是逐字内容（latex
-  实证）。mask 均按普通命令放过 → 欠遮盖：verb 字面体内的 ``\cmd``/
-  ``\begin{verbatim}`` 暴露，后者还会**假开环境**吞掉其后全文
-  （``\begin{document}`` 被遮 → no_main_tex 级故障）；
-- ``group_end``（mask.py:57）``%`` 注释只找 ``\n``——``\r``-only 输入
-  （老 Mac / 未过 decode_tex 的直调 str）注释吞到 EOF → 返回 ``len(s)``
-  而非真闭位 → 调用方 splice ``[pos, len)`` 删到文末。``mask_tex``/
-  ``mask_comments`` 都按 ``[\r\n]`` 设防，``group_end`` 是防御口径的洞；
-- ``_LSTINLINE_OPT_RX``（textutil.py:303/325）的 ``\s*`` 把遮盖产生的空白
-  当真实空白吃——``\lstinline`` 定界符扫描在二遍 mask 时跨过被遮的
-  ``%``/verb/换行区，落到不同的 ``\`` 上 → ``f(f(x)) != f(x)``，
-  test_fuzz_textutil 断言的幂等不变量在 lstinline 前导空白跳跃下不成立。
+- ``_env_stop`` 的 ``\\end\s*\{env\}`` ``\s*`` 过配 → verbatim 族改逐字
+  token 序列 ``\\end\{env\}``（kernel ``\@xverbatim`` 定界字串 / listings
+  逐 ``\`` 探测），``\end {verbatim}`` 空白断序列不终结；
+- 失活 ``comment`` 终结改**行锚定整行比对**（comment.sty ``\ifx`` 比行
+  内容 == ``\end{env}``：行首空格是 catcode-12 字面符不匹配、行尾空格
+  被输入层剥除故容许）——行内 ``x\end{comment}`` 与 ``\end {comment}``
+  均不终结；
+- ``_inline_verb_end`` 的 ``isspace() → None`` → ``\verb``/``\verb*`` 定界
+  符扫描跳过水平空白（``\verb |x|`` ≡ ``\verb|x|``），取换行本身为定界
+  符时下一整行是逐字内容（latex 实证）。配套两处幂等性结构修正：
+  遮盖只作用在定界符间内容（``\verb`` 本体与定界符原位保留——二遍
+  parse 同一定界符、content 已遮故 no-op），以及空白跳过后落 ``\r\n``
+  不定界（防被遮区段空格桥到行尾换行上吞掉真实行内容）；
+- ``group_end`` 的 ``%`` 注释 ``find('\n')`` → ``[\r\n]`` 搜索，与
+  ``mask_tex``/``mask_comments`` 防御口径对齐；
+- ``_LSTINLINE_OPT_RX`` 的 ``\s*`` → ``[ \t]*``：opt-skip 不跨换行，二遍
+  遮盖不再把被遮的 ``%``-注释区（含行尾 ``\n`` 前的空白段）桥接成假 verb
+  span。
 
 观察项（非钉）：``group_end`` 对 ``\verb`` 盲（``{\verb|}|x}`` 提前收尾）
 ——``\verb`` 在命令实参里本属非法，只影响病态输入；``group_end(pos>len)``
 返回 ``pos``（超界 offset 原样回传）契约有毛边；``\begin\n\n{env}``
 （空行=``\par`` token，TeX 实不开环境）被 ``\s*`` 开侧匹配 → 过遮盖
 （安全方向）；``apply_edits`` 对重叠/重复同 span 编辑语义未定义（调用方
-契约保证非重叠）。
+契约保证非重叠）；fancyvrb 族（``Verbatim``/``minted`` 等）真实终结是
+「行内首个 ``\end{name}`` 即终」，与逐字子串搜仅在「同行先出现异名
+``\end{other}``」病态行上有别，按 verbatim 族同口径处理。
 """
 
 from __future__ import annotations
@@ -80,25 +81,37 @@ _ORACLE_BEGIN_RX = re.compile(
     r"\\begin\s*\{(" + "|".join(re.escape(e) for e in _ALL_ENVS) + r")\}"
 )
 _ORACLE_VERB_RX = re.compile(r"\\(verb\*?|lstinline\*?)(?![A-Za-z@])")
-_ORACLE_LSTOPT_RX = re.compile(r"\s*(?:\[[^\]\n]*\]\s*)?")
+_ORACLE_LSTOPT_RX = re.compile(r"[ \t]*(?:\[[^\]\n]*\][ \t]*)?")
 _ORACLE_NL_RX = re.compile(r"[\r\n]")
 
 
-def _oracle_verb_end(text: str, m: re.Match[str]) -> int | None:
-    """``\\verb``/``\\lstinline`` 行内区段终点——与 impl 同口径的独立写法。"""
+def _oracle_verb_span(text: str, m: re.Match[str]) -> tuple[int, int, int] | None:
+    """``\\verb``/``\\lstinline`` 的 ``(content_a, content_b, end)``——与 impl
+    同口径的独立写法：只遮定界符间内容，``\\verb`` 本体与定界符保留。"""
     start = m.end()
+    skipped = False
     if m[1].startswith("lstinline"):
         opt = _ORACLE_LSTOPT_RX.match(text, start)
         if opt is not None:
             start = opt.end()
-    if start >= len(text) or text[start].isspace():
-        return None
+        if start >= len(text) or text[start].isspace():
+            return None
+    else:
+        while start < len(text) and text[start] in " \t":
+            start += 1
+            skipped = True
+        if start >= len(text):
+            return None
     delim = text[start]
+    if delim in "\r\n":
+        off = 2 if text[start : start + 2] == "\r\n" else 1
+        nl = None if skipped else _ORACLE_NL_RX.search(text, start + off)
+        return None if nl is None else (start + off, nl.start(), nl.start() + 1)
     end = text.find("}" if delim == "{" else delim, start + 1)
     nl = _ORACLE_NL_RX.search(text, start)
     if end < 0 or (nl is not None and nl.start() < end):
         return None
-    return end + 1
+    return (start + 1, end, end + 1)
 
 
 def _oracle_events(
@@ -127,19 +140,32 @@ def _oracle_span(
     *,
     keep_verbatim: bool,
 ) -> tuple[str, int, int] | None:
-    """单个存活事件认领的 ``(类别, a, b)``；不合法形态（verb 跨行等）为 None。"""
+    """单个存活事件认领的 ``(tag, claim_a, claim_b, mask_a, mask_b)``——claim
+
+    区间压存活判定与事件抑制，mask 区间才是实际遮盖（verb 只遮定界符间
+    内容，claim 仍含 ``\\verb`` 本体与定界符）；不合法形态为 None。
+    """
     if kind == "comment":
         nl = _ORACLE_NL_RX.search(text, pos)
-        return ("mask", pos, len(text) if nl is None else nl.start())
+        end = len(text) if nl is None else nl.start()
+        return ("mask", pos, end, pos, end)
     if kind == "verb":
         assert m is not None
-        end = _oracle_verb_end(text, m)
-        return None if end is None else ("mask", pos, end)
+        span = _oracle_verb_span(text, m)
+        if span is None:
+            return None
+        a, b, end = span
+        return ("mask", pos, end, a, b)
     assert m is not None
-    em = re.compile(r"\\end\s*\{" + re.escape(m[1]) + r"\}").search(text, m.end())
+    if m[1] in DEAD_ENVS:
+        em = re.compile(
+            r"(?<=[\r\n])\\end\{" + re.escape(m[1]) + r"\} *(?=[\r\n]|\Z)"
+        ).search(text, m.end())
+    else:
+        em = re.compile(r"\\end\{" + re.escape(m[1]) + r"\}").search(text, m.end())
     end = len(text) if em is None else em.end()
     tag = "block" if keep_verbatim and m[1] in VERBATIM_ENVS else "mask"
-    return (tag, pos, end)
+    return (tag, pos, end, pos, end)
 
 
 def _oracle_mask_tex(
@@ -147,8 +173,9 @@ def _oracle_mask_tex(
 ) -> str:
     """事件流状态机 oracle：先占先得的区间认领，与 mask_tex 结构不同构。"""
     events = _oracle_events(text, mask_dead=mask_dead)
-    spans: list[tuple[int, int]] = []
+    spans: list[tuple[int, int]] = []  # 认领区间（事件抑制 + live 判定）
     blocked: list[tuple[int, int]] = []  # keep_verbatim 的逐字 env：认领但不遮
+    masks: list[tuple[int, int]] = []  # 实际遮盖区间（verb 只遮内容段）
 
     def claimed(p: int) -> bool:
         return any(a <= p < b for a, b in spans) or any(a <= p < b for a, b in blocked)
@@ -173,10 +200,12 @@ def _oracle_mask_tex(
         hit = _oracle_span(text, pos, kind, m, keep_verbatim=keep_verbatim)
         if hit is None:
             continue
-        tag, a, b = hit
-        (blocked if tag == "block" else spans).append((a, b))
+        tag, ca, cb, ma, mb = hit
+        (blocked if tag == "block" else spans).append((ca, cb))
+        if tag == "mask":
+            masks.append((ma, mb))
     out = list(text)
-    for a, b in spans:
+    for a, b in masks:
         out[a:b] = [c if c in "\r\n" else " " for c in out[a:b]]
     return "".join(out)
 
@@ -366,8 +395,8 @@ def _oracle_group_end(s: str, pos: int) -> int:
             i = m.end() if m else i + 2
             continue
         if c == "%":
-            j = s.find("\n", i)
-            i = len(s) if j < 0 else j + 1
+            m = _ORACLE_NL_RX.search(s, i)
+            i = len(s) if m is None else m.start() + 1
             continue
         if c == "{":
             stack.append("}")
@@ -566,17 +595,10 @@ def test_tex_source_suffixes_shape() -> None:
         assert s == s.lower()
 
 
-# ---------------------------------------------------------------- 钉住缺陷
-@pytest.mark.xfail(
-    strict=True,
-    reason="_env_stop 用 `\\\\end\\s*\\{env\\}`（textutil.py:310）——verbatim/"
-    "fancyvrb/lstlisting 终结扫描是逐字 token 序列：`\\end {verbatim}`/"
-    "`\\end\\n{verbatim}` 里空白断 token 序，真实 TeX 不终结（latex 实证"
-    "cmtt 排版），mask 提前收尾 → 欠遮盖，字面体暴露给下游正则手术",
-)
+# ---------------------------------------------------------------- 修复后钉
 @pytest.mark.parametrize("gap", [" ", "\t", "\n"])
 @pytest.mark.parametrize("env", ["verbatim", "Verbatim", "lstlisting", "minted"])
-def test_pin_env_spaced_end_undermasks(env: str, gap: str) -> None:
+def test_env_spaced_end_undermasks(env: str, gap: str) -> None:
     """``\\end <gap>{env}`` 不应终结遮盖——其后 verbatim 字面体应仍不可见。"""
     if env == "minted":
         begin, end = "\\begin{minted}{py}", "\\end{minted}"
@@ -590,13 +612,7 @@ def test_pin_env_spaced_end_undermasks(env: str, gap: str) -> None:
     assert "LIVE" in masked
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="comment.sty 终结需行锚定 `\\end{comment}`（latex 实证：行内 "
-    "`x\\end{comment}` 不终结，整段仍 dead）——_env_stop 无锚子串搜在 "
-    "行内命中即终 → 欠遮盖，dead 体暴露",
-)
-def test_pin_dead_env_midline_end() -> None:
+def test_dead_env_midline_end() -> None:
     """``x\\end{comment}`` 行内出现不应终结 comment 遮盖。"""
     tex = (
         "\\begin{comment}\nx\\end{comment} dead\nLEAK \\pdfoutput=1\n"
@@ -607,13 +623,7 @@ def test_pin_dead_env_midline_end() -> None:
     assert "LIVE" in masked
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="comment.sty 终结需行内连续 `\\end{comment}`——`\\end {comment}`"
-    "（行首带空格断 token 序）真实 TeX 不终结（latex 实证），mask 提前收"
-    "尾 → 欠遮盖；同 _env_stop `\\s*` 过配族",
-)
-def test_pin_dead_env_spaced_end() -> None:
+def test_dead_env_spaced_end() -> None:
     """``\\end {comment}`` 行首出现不应终结 comment 遮盖。"""
     tex = (
         "\\begin{comment}\ndead\n\\end {comment}\nLEAK \\pdfoutput=1\n"
@@ -624,16 +634,10 @@ def test_pin_dead_env_spaced_end() -> None:
     assert "LIVE" in masked
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="_inline_verb_end `text[start].isspace()→None`（textutil.py:327）"
-    "——真实 LaTeX `\\verb`/`\\verb*` 定界符扫描跳过空白 token：`\\verb |x|`"
-    "≡ `\\verb|x|`（latex 实证 cmtt）；mask 按普通命令放过 → 欠遮盖",
-)
 @pytest.mark.parametrize(
     "form", ["\\verb |%s|", "\\verb\t|%s|", "\\verb* |%s|", "\\verb  !%s!"]
 )
-def test_pin_verb_space_delimiter(form: str) -> None:
+def test_verb_space_delimiter(form: str) -> None:
     """``\\verb``+空白+定界符是合法 verb——字面体应被遮盖。"""
     tex = "pre " + form % "\\pdfcompresslevel=9" + " post\nNEXT\n"
     masked = visible_tex(tex)
@@ -641,13 +645,7 @@ def test_pin_verb_space_delimiter(form: str) -> None:
     assert "NEXT" in masked
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="`\\verb`+换行：真实 LaTeX 以换行本身为定界符 → 下一整行是逐字"
-    "内容（latex 实证 `\\verb\\n|x| after` 全行 cmtt）——mask 按普通命令"
-    "放过 → 欠遮盖",
-)
-def test_pin_verb_newline_delimiter() -> None:
+def test_verb_newline_delimiter() -> None:
     """``\\verb\\n`` 以换行为定界符——下一行字面体应被遮盖。"""
     tex = "pre \\verb\n|pdfcs| more\nNEXT\n"
     masked = visible_tex(tex)
@@ -655,44 +653,21 @@ def test_pin_verb_newline_delimiter() -> None:
     assert "NEXT" in masked
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="`\\verb |\\begin{verbatim}|`——verb 内 begin 字面量被当成真环境"
-    "开（因 verb 空白跳过未识别），假 env 遮盖吞到 EOF/下个 \\end → "
-    "`\\begin{document}` 被遮 → no_main_tex 级故障；verb 空格缺陷的恶化面",
-)
-def test_pin_verb_space_env_blowup() -> None:
+def test_verb_space_env_blowup() -> None:
     """verb 字面体内的 ``\\begin{verbatim}`` 不得开环境遮盖。"""
     tex = "a \\verb |\\begin{verbatim}| b\n\\begin{document}\nx\n\\end{document}\n"
     masked = visible_tex(tex)
     assert "\\begin{document}" in masked
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="group_end 的 `%` 注释只 find('\\n')（mask.py:57）——`\\r`-only "
-    "输入注释吞到 EOF → 返回 len(s) 而非真闭位 → 调用方 splice [pos,len) "
-    "删到文末；mask_tex/mask_comments 均按 [\\r\\n] 设防，此处是防御口径洞",
-)
 @pytest.mark.parametrize(
     ("s", "want"), [("{x %\r}tail", 6), ("[x %\r]tail", 6), ("{%\r}x", 4)]
 )
-def test_pin_group_end_cr_comment(s: str, want: int) -> None:
+def test_group_end_cr_comment(s: str, want: int) -> None:
     """``\\r``-only 行尾的 ``%`` 注释应就地终结，不吞后续配对括号。"""
     assert group_end(s, 0) == want
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="_LSTINLINE_OPT_RX 的 `\\s*`（textutil.py:303，textutil.py:325 经 "
-    "_inline_verb_end 调用）把遮盖产生的空白当真实空白吃——`\\lstinline` "
-    "定界符扫描在二遍 mask 时跨过被遮的 `%`/verb/换行区，落到不同的 `\\` "
-    "上 → f(f(x)) != f(x)：第一遍 `\\lstinline %\\n\\a\\b` 里 `%` 吃掉一"
-    "行，第二遍 opt-skip 吃 ` \\n` 落在 `\\a` 的 `\\` 上作定界符、以 `\\b` "
-    "收尾成假 verb 遮盖。等长遮盖视图的幂等不变量（test_fuzz_textutil 断言"
-    "面）在 lstinline 前导空白跳跃下不成立；fix 方向：opt-skip 不跨换行，"
-    "或对已遮区段在遮盖层留不可见标记",
-)
 @pytest.mark.parametrize(
     ("tex", "kw"),
     [
@@ -703,6 +678,6 @@ def test_pin_group_end_cr_comment(s: str, want: int) -> None:
         ),
     ],
 )
-def test_pin_lstinline_opt_skip_breaks_idempotence(tex: str, kw: dict) -> None:
+def test_lstinline_opt_skip_idempotence(tex: str, kw: dict) -> None:
     """``mask_tex`` 幂等：``f(f(x)) == f(x)``。"""
     assert mask_tex(mask_tex(tex, **kw), **kw) == mask_tex(tex, **kw)

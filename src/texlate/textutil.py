@@ -300,39 +300,84 @@ _DEAD_BEGIN_RX: Final = re.compile(
 #: TeX 控制序列：`\word*` 或单个非字母字符（DOTALL 让 `\.` 能吃 `\`+换行）。
 _COMMAND_RX: Final = re.compile(r"\\(?:[a-zA-Z@]+\*?|.)", re.DOTALL)
 _INLINE_VERB_RX: Final = re.compile(r"\\(verb\*?|lstinline\*?)(?![A-Za-z@])")
-_LSTINLINE_OPT_RX: Final = re.compile(r"\s*(?:\[[^\]\n]*\]\s*)?")
+#: ``\lstinline`` 的 ``[opt]`` 前缀段——前导空白只跳水平空白，不跨换行：
+#: 跨行 ``\s*`` 会把二遍遮盖产生的空白当真实空白吃，桥到别的 ``\`` 上
+#: 产出假 verb span，破坏 ``mask_tex`` 幂等。
+_LSTINLINE_OPT_RX: Final = re.compile(r"[ \t]*(?:\[[^\]\n]*\][ \t]*)?")
 _NL_RX: Final = re.compile(r"[\r\n]")
 
 
-def _env_stop(text: str, env: str, pos: int) -> int:
-    r"""从 pos 找 ``\end{env}``，返回其结束后 offset；找不到返回 len(text)。"""
+def _env_stop(text: str, env: str, pos: int, *, dead: bool) -> int:
+    r"""从 pos 找 ``\end{env}``，返回其结束后 offset；找不到返回 len(text)。
+
+    verbatim 族终结是**逐字 token 序列** ``\end{env}``（kernel ``\@xverbatim``
+    定界字串 / listings 逐 ``\`` 探测 / filecontents 行内含即终）——行内
+    出现即终，但 ``\end {env}`` 空白断序列真实 TeX 不终结。
+    comment 族终结是**行锚定整行比对**（comment.sty ``\ifx`` 比行内容 ==
+    ``\end{env}``）——行首空格是 catcode-12 字面符不匹配、行尾空格被输入
+    层剥除故容许；行内 ``x\end{comment}`` 与 ``\end {comment}`` 均不终结。
+    """
     # 锚定 pos 搜索零切片——env 集有界，re 内部编译缓存兜住逐次 compile。
-    ending = re.compile(r"\\end\s*\{" + re.escape(env) + r"\}").search(text, pos)
+    if dead:
+        ending = re.compile(
+            r"(?<=[\r\n])\\end\{" + re.escape(env) + r"\} *(?=[\r\n]|\Z)"
+        ).search(text, pos)
+    else:
+        ending = re.compile(r"\\end\{" + re.escape(env) + r"\}").search(text, pos)
     return ending.end() if ending else len(text)
 
 
-def _inline_verb_end(text: str, i: int, n: int) -> int | None:
-    r"""``\verb``/``\lstinline`` 行内区段的结束 offset；不合法形态返回 None。
+def _inline_verb_span(text: str, i: int, n: int) -> tuple[int, int, int] | None:
+    r"""``\verb``/``\lstinline`` 行内区段 ``(content_a, content_b, end)``。
 
-    ``\lstinline`` 允许 ``[opt]`` 前缀；定界符取首个非空白字符，
-    ``{`` 定界时配 ``}``；未闭合或跨行不算（交回主循环逐字符扫）。
+    不合法形态返回 None（交回主循环逐字符扫）。返回值三分量：只遮
+    ``[content_a, content_b)`` 定界符间内容——``\verb`` 本体与定界符原样
+    保留（残形 ``\verb`` 也要求可见，test_edge_boundary_semantics 钉），
+    ``end`` 是整个 verb 结构消费完的 resume offset。
+
+    ``\lstinline`` 允许 ``[opt]`` 前缀，定界符取首个非空白字符。
+    ``\verb``/``\verb*`` 定界符扫描跳过水平空白 token（``\verb |x|`` ≡
+    ``\verb|x|``，latex 实证）；紧跟换行时换行本身为定界符、下一整行是
+    逐字内容（latex 实证 ``\verb\n|x| after`` 全行 cmtt）。但跳过空白后
+    落行尾则**不**定界——等长遮盖下被遮区段留下的空格会桥到行间 ``\r\n``
+    上产出假 span、吞掉同一行真实内容，破坏 ``mask_tex`` 幂等。
+    ``{`` 定界时配 ``}``；未闭合或跨行不算。
+
+    只遮内容不遮 ``\verb``/定界符是幂等性的结构来源：二遍扫描在同一
+    ``\verb`` 上拿到同一定界符与收尾位置，content 已是空格 → 再遮为
+    no-op；若连定界符也遮，``\verb``+空格串可桥到任意真定界符对上。
     """
     inline = _INLINE_VERB_RX.match(text, i)
     if not inline:
         return None
     start = inline.end()
+    skipped = False
     if inline[1].startswith("lstinline"):
         options = _LSTINLINE_OPT_RX.match(text, start)
         start = options.end()
-    if start >= n or text[start].isspace():
-        return None
+        if start >= n or text[start].isspace():
+            return None
+    else:
+        while start < n and text[start] in " \t":
+            start += 1
+            skipped = True
+        if start >= n:
+            return None
     delimiter = text[start]
+    if delimiter in "\r\n":
+        # ``\r\n`` 对是一个行尾——``\r`` 定界 + 紧邻 ``\n`` 时跨过整个 eol，
+        # 逐字内容从下个字开始、到下一行尾终结（latex 实证）。但空白跳过
+        # 后落行尾则不定界：被遮区段留下的空格会桥到行间 ``\r\n`` 上产出
+        # 假 span 吞掉同行真实内容，破坏 ``mask_tex`` 幂等。
+        off = 2 if text[start : start + 2] == "\r\n" else 1
+        nl = None if skipped else _NL_RX.search(text, start + off)
+        return None if nl is None else (start + off, nl.start(), nl.start() + 1)
     end = text.find("}" if delimiter == "{" else delimiter, start + 1)
     nl = _NL_RX.search(text, start)
     newline = -1 if nl is None else nl.start()
     if end < 0 or (newline >= 0 and newline < end):
         return None
-    return end + 1
+    return (start + 1, end, end + 1)
 
 
 def mask_tex(text: str, *, mask_dead: bool = True, keep_verbatim: bool = False) -> str:
@@ -368,14 +413,15 @@ def mask_tex(text: str, *, mask_dead: bool = True, keep_verbatim: bool = False) 
         if env is None and mask_dead:
             env = _DEAD_BEGIN_RX.match(text, i)
         if env:
-            stop = _env_stop(text, env[1], env.end())
+            stop = _env_stop(text, env[1], env.end(), dead=not is_verbatim)
             if not (keep_verbatim and is_verbatim):
                 mask(i, stop)
             i = stop
             continue
-        verb_end = _inline_verb_end(text, i, n)
-        if verb_end is not None:
-            mask(i, verb_end)
+        verb = _inline_verb_span(text, i, n)
+        if verb is not None:
+            content_a, content_b, verb_end = verb
+            mask(content_a, content_b)
             i = verb_end
             continue
         command = _COMMAND_RX.match(text, i)
