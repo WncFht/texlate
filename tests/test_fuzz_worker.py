@@ -12,30 +12,12 @@ cancel/teardown 中途失败级联；verdict/审计载荷持久化；SSE 扇出�
   ``RuntimeError`` 逃逸出 ``sniff_upload``，上传边界落 500 而非干净
   拒绝。修法：同 ``_zip_member_payload`` 口径把成员读异常归一类
   （补捕 ``RuntimeError`` 或直接退 ``upload_tex`` 交解包处报错）。
-- W4 ``_stats``（worker.py:1343）：``float(ctx.row["created_at"])`` 无
-  兜底——腐化 created_at（``update_fields`` 无字段白名单可直写 TEXT）
-  时 ``_fail``/``_reject``/cancel 臂在 transition 落终态**之后**、
-  ``done`` 事件 publish **之前**炸 ValueError/TypeError——行已终态但
-  done 永缺，``stream()`` 的活订阅者在 ``q.get()`` 上挂死。修法：
-  created_at 容错 float（失败按 0 秒）。
-- W5 ``DBStateBridge.load``（worker.py:716-717）：
-  ``json.loads(r["warnings"])`` 与 ``int(r["attempts"])`` 无兜底——
-  chunks 表经直写腐化（warnings 坏 JSON/BLOB、attempts TEXT）时 resume
-  整链炸 JSONDecodeError/ValueError；``run()`` 的 ``except ValueError``
-  臂把它归 ``parse`` 且 retryable=False——同一腐化格让任务永远
-  fault，DB 里已有的译文行变得不可恢复。修法：坏格按 []/0 容错或整
-  行降级 pending。
-- W6 ``_build_dual``（worker.py:3267/3272）：chunks.translation 落
-  BLOB（TEXT 列动态类型可直写）→ ``"zh": <bytes>`` → ``atomic_json``
-  ``json.dumps`` TypeError——compile 收尾路炸，dual.json 不落。修法：
-  读侧 coerce（非 str 按 ""）或 dumps 前 sanitize。
-- W7 ``unpack_zip``（worker.py:990-998）：成员名校验只挡
-  ``_BAD_ZIP_NAME``（绝对/盘符/反斜杠）与 ``..`` 段——单段超 NAME_MAX
-  （255B）的合法 zip 名在 ``target.is_dir()`` 处炸 ENAMETOOLONG，
-  ``OSError`` 逃逸出解包循环（前面成员已部分落盘）→ run() 归
-  ``parse`` 整单 fault。同族 ``mkdir``/``write_bytes`` 的
-  ENAMETOOLONG/EDQUOT 同面。修法：成员写体包 ``try OSError`` →
-  ``reject:`` 告警跳过，与其他成员级拒一致。
+
+已修转正（W4-W7，worker-fuzz 残余钉）：``_stats`` created_at 坏格按 0
+秒容错（done 不再缺）、``DBStateBridge.load`` attempts/warnings 坏格
+按 0/[] 容错（腐化行 resume 不永 fault）、``_build_dual`` 非 str 译文
+coerce ""（BLOB 不挡 dual.json）、``unpack_zip`` 成员写体 OSError →
+``reject_io:`` 告警跳过（NAME_MAX/EDQUOT 不拖死整单）。
 
 绿面（正确行为钉样）：成员名 confinement/拒绝告警、share 对账 outcome
 枚举与不落库拒绝、伪造 mark 摘除、SSE 溢出 _RESYNC、verdict 载荷
@@ -241,14 +223,6 @@ class TestUnpackZipAdversarial:
             for f in dest.rglob("*"):
                 assert f.resolve().is_relative_to(root), f"逃逸: {names} → {f}"
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "W7: worker.py:990-998 成员写体无 OSError 兜底——单段超 NAME_MAX "
-            "的合法成员名在 target.is_dir() 炸 ENAMETOOLONG 逃逸（前序成员已"
-            "部分落盘），整单 fault 而非 reject: 告警跳过该成员"
-        ),
-    )
     def test_member_name_too_long_member_warns_not_raises(self, tmp_path: Path) -> None:
         dest = tmp_path / "out"
         warnings = unpack_zip(
@@ -606,14 +580,6 @@ class TestDBStateBridgeLoad:
         assert completed == {"c1"}
         assert "c1" in recs
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "W5: worker.py:717 `json.loads(r['warnings'])` 无兜底——腐化格 "
-            "JSONDecodeError 逃逸 → resume 永 fault（run() ValueError 臂归 "
-            "'parse' retryable=False，同一行反复撞墙，库内译文不可恢复）"
-        ),
-    )
     @pytest.mark.parametrize("corrupt", ["{bad json", "X'00FF'"])
     def test_corrupt_warnings_tolerated(self, tmp_path: Path, corrupt: str) -> None:
         ctx, _w, store = _mk(tmp_path)
@@ -634,13 +600,6 @@ class TestDBStateBridgeLoad:
         completed, _recs = self._load(store, ctx.task_id)
         assert completed == {"c1"}
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "W5: worker.py:716 `int(r['attempts'])` 无兜底——attempts TEXT "
-            "'abc' → ValueError 逃逸，同 warnings 腐化一族"
-        ),
-    )
     def test_corrupt_attempts_tolerated(self, tmp_path: Path) -> None:
         ctx, _w, store = _mk(tmp_path)
         _insert_chunk(store, ctx.task_id, status="ok")
@@ -652,14 +611,6 @@ class TestDBStateBridgeLoad:
 class TestBuildDualCorrupt:
     """``_build_dual`` 对腐化 chunks/files 行的容错面。"""
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "W6: worker.py:3267 `zh: r['translation']` 直塞 BLOB → atomic_json "
-            "json.dumps TypeError → compile 收尾炸、dual.json 不落；应 coerce "
-            "非 str 译文"
-        ),
-    )
     def test_blob_translation_coerced(self, tmp_path: Path) -> None:
         ctx, worker, store = _mk(tmp_path)
         ctx.root.mkdir(parents=True, exist_ok=True)
@@ -880,14 +831,6 @@ class TestTerminalDoneEvent:
         assert store.get(ctx.task_id)["status"] == "fault"
         assert "done" in self._event_types(store, ctx.task_id)
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "W4: worker.py:1343 `float(ctx.row['created_at'])` 无兜底——腐化 "
-            "created_at 时 _fail 在 transition 落 fault 之后、publish done 之前炸 "
-            "ValueError：行已终态但 done 永缺，stream() 活订阅者挂死"
-        ),
-    )
     def test_corrupt_created_at_still_publishes_done(self, tmp_path: Path) -> None:
         ctx, worker, store = _mk(tmp_path)
         ctx.row["created_at"] = "abc"  # update_fields 无字段白名单可直写
@@ -895,10 +838,6 @@ class TestTerminalDoneEvent:
         assert store.get(ctx.task_id)["status"] == "fault"
         assert "done" in self._event_types(store, ctx.task_id)
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="W4: 同 _fail——_reject 的 done 事件同样依赖 _stats",
-    )
     def test_corrupt_created_at_reject_still_done(self, tmp_path: Path) -> None:
         ctx, worker, store = _mk(tmp_path)
         ctx.row["created_at"] = {"x": 1}  # float(dict) → TypeError

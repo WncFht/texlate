@@ -665,6 +665,16 @@ class DBStateBridge:
             status = r["status"]
             if status not in _DB_TO_PIPE:
                 continue
+            # chunks 表可经直写腐化（attempts 非数值、warnings 坏 JSON/BLOB）
+            # ——坏格按 0/[] 容错，不让单格把 resume 拖进永 fault
+            try:
+                attempts = int(r["attempts"])
+            except (TypeError, ValueError):
+                attempts = 0
+            try:
+                warnings = json.loads(r["warnings"]) if r.get("warnings") else []
+            except (TypeError, ValueError):
+                warnings = []
             rec = ChunkRecord(
                 chunk_id=r["chunk_id"],
                 source=r["src_text"],
@@ -672,8 +682,8 @@ class DBStateBridge:
                 status=_DB_TO_PIPE[status],
                 kind=r["kind"],
                 skipped=(status == "fallback_orig"),
-                attempts=int(r["attempts"]),
-                warnings=(json.loads(r["warnings"]) if r.get("warnings") else []),
+                attempts=attempts,
+                warnings=warnings,
             )
             recs[rec.chunk_id] = rec
             if status == "ok":
@@ -897,6 +907,34 @@ def _zip_member_payload(zf: zipfile.ZipFile, info: zipfile.ZipInfo) -> bytes:
         raise UnpackError(msg) from e
 
 
+def _zip_member_write(
+    zf: zipfile.ZipFile, info: zipfile.ZipInfo, dest: Path, rel_s: str
+) -> str | None:
+    """单成员落盘 + 目录冲突检 → 拒绝告警串或 None。
+
+    冲突检测须遍历全部祖先前缀而非只查直接 parent：成员 ``a``（文件）+
+    ``a/b/c.txt`` 同包时 parent ``a/b`` 尚不存在会漏检，mkdir 撞
+    ``NotADirectoryError`` 毁整单。写体全段包 ``OSError``：单段超
+    NAME_MAX 的合法成员名在 ``is_dir``/``mkdir``/``write_bytes`` 任一
+    处都可能 ENAMETOOLONG/EDQUOT——归成员级拒（``reject_io``）跳过，
+    不拖死整单。``UnpackError``（坏成员体）不在此吞，照旧上抛。
+    """
+    t_parts = PurePosixPath(rel_s).parts
+    target = dest.joinpath(*t_parts)
+    try:
+        clash = target.is_dir() or any(
+            (p := dest.joinpath(*t_parts[:i])).is_file() or p.is_symlink()
+            for i in range(1, len(t_parts))
+        )
+        if clash:
+            return f"reject_dir_clash:{rel_s}"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(_zip_member_payload(zf, info))
+    except OSError:
+        return f"reject_io:{rel_s}"
+    return None
+
+
 def unpack_zip(data: bytes, dest: Path) -> list[str]:
     """Zip 安全解包（upload_tex 路线；tar/gz 走 ``unpack_sniffed``）。
 
@@ -941,20 +979,8 @@ def unpack_zip(data: bytes, dest: Path) -> list[str]:
             elif low in seen:
                 warnings.append(f"dup_member_overwrite:{rel_s}")
             seen[low] = rel_s
-            t_parts = PurePosixPath(rel_s).parts
-            target = dest.joinpath(*t_parts)
-            # 冲突检测须遍历全部祖先前缀而非只查直接 parent：成员
-            # ``a``（文件）+ ``a/b/c.txt`` 同包时 parent ``a/b`` 尚不
-            # 存在会漏检，mkdir 撞 ``NotADirectoryError`` 毁整单
-            clash = target.is_dir() or any(
-                (p := dest.joinpath(*t_parts[:i])).is_file() or p.is_symlink()
-                for i in range(1, len(t_parts))
-            )
-            if clash:
-                warnings.append(f"reject_dir_clash:{rel_s}")
-                continue
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(_zip_member_payload(zf, info))
+            if w := _zip_member_write(zf, info, dest, rel_s):
+                warnings.append(w)
     return warnings
 
 
@@ -1297,9 +1323,15 @@ class PipelineWorker:
 
     def _stats(self, ctx: TaskCtx) -> dict[str, Any]:
         counts = self.store.chunk_counts(ctx.task_id)
+        # created_at 可经直写腐化（update_fields 无字段白名单）——坏格按 0
+        # 秒容错，不能让 _fail/_reject 在落终态后、publish done 前炸
+        try:
+            seconds = round(time.time() - float(ctx.row["created_at"]), 1)
+        except (TypeError, ValueError):
+            seconds = 0.0
         out: dict[str, Any] = {
             "tokens": ctx.tokens_est,
-            "seconds": round(time.time() - float(ctx.row["created_at"]), 1),
+            "seconds": seconds,
             "chunks_failed": counts["failed"],
         }
         if ctx.fixloop:
@@ -3224,7 +3256,9 @@ class PipelineWorker:
                 "seq": r["seq"],
                 "src_file": r["src_file"],
                 "en": r["src_text"],
-                "zh": r["translation"] or "",
+                # TEXT 列动态类型可落 BLOB——非 str 译文按空 coerce，
+                # 不让单格 atomic_json TypeError 挡掉 dual.json 落盘
+                "zh": r["translation"] if isinstance(r["translation"], str) else "",
                 "kind": r["kind"],
             }
             for r in self._on_loop(self.store.all_chunks, ctx.task_id)
