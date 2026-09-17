@@ -154,7 +154,7 @@ env judge 参数：**temperature=0、max_tokens=16、3 次重试、解析 `true/
 - 错误计数**双格式**：`^!` + `file:line:`（只数 `!` 漏全部引擎级错误）。（勘误 2026-09-17：`_FILE_LINE_RX` 扩展名字符集放宽到任意 `[A-Za-z0-9_-]{1,10}`——file:line: 报任何被当输入读的文件（`.eps`/`.pdf_t`/`.lbx`/`.tikz`/`.end` 实测全真错，loop1 7814 log 全扫、扩展名白名单漏 586 行真错含 3 例整体 ok=True 假干净）；行首 `(`/`!` 与 `:`/空白内嵌仍排除。`_NONERR_FILELINE_RX` 反向剔除非错误形——`{LaTeX,Package,Class} … Warning` 行（部分引擎/包给 warning 也打 file:line: 前缀，不排则 `n_errors==0` 干净门永不通）与 `==> Fatal error` 汇总尾行（同一失败复述多计，corpus_v2 2002.05660 实测）。）
 - `parse_log`：首个 `^!` 行 + 其后 8 行 ctx + `!` 总数 + tail 30 行；ctx 内 `l.(\d+)` 行号 + `(` 开括号文件栈追踪（file_stack 定位出错 .tex/.sty，供 rewrite 规则缩小作用域）。（勘误 2026-09-17：runaway 扫描错 `File ended while scanning` 单列 `eof_file` 字段——`)` 弹出已把肇事文件退栈、错误行报的是父文件 `\input` 续行位，取错误行前 `_EOF_POP_WINDOW=16` 行内最后弹出文件；存储面 `errors ≤200` 条（`n_errors` 仍精确计数）、每类 warning 样例 ≤5 条。）
 - 注意：tectonic 有时**不写 .log**——监控不能假设 log 存在。
-- 不过 → 重译该块（错误描述进反馈字段）→ 再不过 → fallback 原文。（勘误 2026-09-17：L2 回落原文并重 splice 后**未再编**——`e2e.py:746`/`worker.py:3046` 置 `fallback_unverified=True`，终判 verdict 对应回落前源树（PDF 产物为 stale），由后续 fixloop 代验；裁断维持现状——verdict 名如实标记即诚实面，对已败格再烧一轮编译不值。）
+- 不过 → 重译该块（错误描述进反馈字段）→ 再不过 → fallback 原文。（勘误 2026-09-17，`3db4a08` 改判：L2 回落原文并重 splice 后**补一次裸编**——e2e/worker 双臂对回落交付树再 `_compile_judge`/`eng.compile+judge`，`rep["fallback_verdict"]` 记三态 verdict（clean/partial/fail），返回 verdict 同步指向回落后树；`fallback_unverified` 旗标退役——回落态即交付树，zh-src.zip 不装未验证树，fixloop 关/崩/reject 时不再有代验兜底。）
 
 ## 3. 归一化层（`compile/normalize.py`）
 
@@ -241,7 +241,7 @@ class Engine(Protocol):
 
 `--untrusted`（tectonic）/ `-no-shell-escape`（xelatex）+ **env 白名单**（非黑名单；加 `TECTONIC_UNTRUSTED_MODE=1 openin_any=p openout_any=p shell_escape=f`）+ macOS sandbox-exec profile（deny `$HOME` 读 + 全写，白名单放行工程/输出/缓存/字体目录——settings.json/浏览器 profile/SSH key 编译期不可读）+ `killpg` 进程树超时杀。（勘误 2026-09-17：impl `sandbox_wrap(allow_net=…)` 分档——`allow_net=False` 追加 `(deny network*)`（sandbox-exec profile 尾）/`--unshare-net`（bwrap），xelatex 工具链全本地走 False、tectonic True（bundle 拉取要网）；`start_new_session` 独立进程组 + `killpg` 杀整树，触发面不只超时——`run_process` 在 TimeoutExpired **与一切 BaseException**（KeyboardInterrupt/GeneratorExit）路径都 `_kill_tree` 防孤儿，killpg 失败退 `proc.kill` 单杀；setsid/双 fork 逃逸的孙进程仍握 stdout 写端，二段 wait 超时由调用点兜。）
 
-> 落地注记（2026-09-16）：Linux 侧 bwrap 包装已落 `compile/sandbox.py`（`b260378`；darwin 走 sandbox-exec，`TEXLATE_NO_BWRAP=1` 逃逸开关）+ `tests/test_compile_sandbox.py`。（勘误 2026-09-17：bwrap 三件套实在 `compile/engine.py`——`_bwrap_capable/_bwrap_mounts/_bwrap_wrap`；sandbox.py 只有 env 白名单+sandbox-exec+killpg。）
+> 落地注记（2026-09-16）：Linux 侧 bwrap 包装已落 `compile/sandbox.py`（`b260378`；darwin 走 sandbox-exec，`TEXLATE_NO_BWRAP=1` 逃逸开关）+ `tests/test_compile_sandbox.py`。（勘误 2026-09-17：bwrap 三件套实在 `compile/engine.py`——`_bwrap_capable/_bwrap_mounts/_bwrap_wrap`；sandbox.py 只有 env 白名单+sandbox-exec+killpg。）（勘误 2026-09-17，`e9c10fd` env 单源化：`TEXLATE_*` 布尔旗标统一走 `textutil.env_flag`——真值集 `{1,true,yes,on}`（strip+lower），`TEXLATE_NO_BWRAP`/`NO_DOWNLOAD`/`NO_L2`/`NO_FIXLOOP`/`ENV_JUDGE`/`FIXLOOP_LLM`/`OFFLINE` 同此口径；`TEXLATE_DATA_DIR` 定位单源 `textutil.data_root`（只定位不 mkdir，副作用归调用方）。例外登记：`TEXLATE_NO_EXPAND` 仍非空即真（docs/07 勘误），`TEXLATE_FIXLOOP_LLM` 双臂默认有意不同——e2e 默认关、worker 默认开，裁决登记不修。）
 
 ## 5. fixloop（`compile/fixloop/` 包）
 

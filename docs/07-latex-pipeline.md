@@ -33,7 +33,7 @@ src/texlate/latex/
   api.py             # parse_tex / parse_file（preamble 判定、入口装配）
 ```
 
-（勘误 2026-09-17：v2 落地后布局实为 13 件——另 `mouth.py`（字符→token 三态折叠）、`gullet.py`（回压式展开 + \input 展平原语）、`segmenter.py`（token 流→pieces/chunks/占位符）、`prose.py`（`file_has_prose` 散文闸——support 件判据，e2e/worker/builtins 三处消费）；v2 为默认产品路径，`TEXLATE_NO_EXPAND=1` 回退 v1。）
+（勘误 2026-09-17：v2 落地后布局实为 13 件——另 `mouth.py`（字符→token 三态折叠）、`gullet.py`（回压式展开 + \input 展平原语）、`segmenter.py`（token 流→pieces/chunks/占位符）、`prose.py`（`file_has_prose` 散文闸——support 件判据，e2e/worker/builtins 三处消费）；v2 为默认产品路径，`TEXLATE_NO_EXPAND=1` 回退 v1。勘误同日：`TEXLATE_NO_EXPAND` impl 实为**非空即真**（`os.environ.get` 直读，`api.py:100/119`）——`=0`/`=false` 同样触发回退，与 `textutil.env_flag` 真值集口径分歧已列裁决整改，收敛前以非空语义为准。）
 
 依赖方向：`model/placeholder` 为纯数据层不反向依赖；`scanner` 只依赖 model/placeholder/macro_table/tables；`reconstruct` 只依赖 model/placeholder；`api`/`flatten` 是唯一可碰文件系统处。
 

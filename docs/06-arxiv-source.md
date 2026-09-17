@@ -4,6 +4,7 @@
 > 证据基础：`docs/research/arxiv/layer.md`（在线层实测）、`docs/research/corpus/ia-pilot.md`（IA 管道 pilot）、`docs/research/corpus/post2020-sourcing.md`（post-2020 渠道裁决）、`docs/research/corpus/frame-and-allocation.md`（frame）。
 > 本文是规范（normative）：实现按此执行；研究文档只作证据出处，不再回查。
 > 落地注记（2026-09-16）：§3 元数据层已全落（`arxiv/meta.py`：Atom 主源 + OAI-PMH 兜底 + `PaperMeta` schema + `resolve_version`/`degrade`，`d7b3c0a` + `test_arxiv_meta.py`）；§5 降级链 `degrade()` 裁决层已落（L2 html/L3 pdf sidecar 判空），babeldoc sidecar 进 worker 产品链（`server/babeldoc.py`，`8d50c38`）。
+> 落地注记（2026-09-17，G1 arxiv-html-first）：§5 L2 HTML 臂全链已落——`arxiv/html.py`（`fetch_html`/`parse_arxiv_html`/`marked_html`/`doc_chunks`/`reinsert` + `Fetcher.get_path` 跨镜像，`9fab8bf`/`407f1db`）；产品链 `options.source=html` → `kind=arxiv_html` worker emit（`6767726`/`ebf462a`/`792fd0d`，详见 `research/product/web-layer.md`）。
 
 ## 0. 定位与两个消费方
 
@@ -22,7 +23,7 @@
 | 用途        | URL                                              | 备注                                                        |
 | ----------- | ------------------------------------------------ | ----------------------------------------------------------- |
 | 源码包      | `arxiv.org/src/{id}[vN]`（`/e-print/` 301 到此） | tar.gz / 单文件 .gz / PDF 直投三态                          |
-| HTML 版     | `arxiv.org/html/{id}[vN]`                        | 探 `{id}`（最新版）——实测存在 v1 404 而 v2 200 的边缘案     |
+| HTML 版     | `arxiv.org/html/{id}[vN]`                        | 探 `{id}`（最新版）——实测存在 v1 404 而 v2 200 的边缘案；G1 起兼作取页臂（GET 经 `Fetcher.get_path` 跨镜像，与 e-print 同限流域/退避）     |
 | abs 页      | `arxiv.org/abs/{id}[vN]`                         | license 链接、替代版本（备用元数据源）                      |
 | PDF         | `arxiv.org/pdf/{id}[vN]`                         | PDF sidecar 输入                                            |
 | Atom 元数据 | `export.arxiv.org/api/query?id_list={id},…`      | 批量 id_list 一次拉多篇                                     |
@@ -179,6 +180,8 @@ L1  e-print 源码 ──解析/编译失败──→ L2  arXiv HTML 最新版�
 - L2 探测顺序：`HEAD /html/{id}`（最新版）→ 逐版本回退；stub 检测同 §2.1。
 - L2 是**异构降级**：DOM 节点级分块（`p.ltx_p` 可译叶、`<math>` 整子树占位、`data-chunk` 锚），不复用 LaTeX scanner。
 - 三层叠加覆盖 ≈100%；L1 单层 86.7%（CI 76–92%，~250 合并样本；旧式 id 源码率 98.1%、新式 94.8%）。
+
+> 落地勘误（2026-09-17，G1 arxiv-html-first）：L2 臂已实装 `arxiv/html.py`。**获取**：`fetch_html(id, version, fetcher)` 走 `Fetcher.get_path`——同 hosts 序跨镜像故障转移、`_request` 退避重试（429/406/5xx + TransportError）、pacing/断路器/日预算与 e-print 共域；Parked/Budget 原样上抛。错误分类：`HtmlNotAvailableError`（404 或 200 stub——响应无 `ltx_document`，撤稿/「HTML not available」/abs 回落页同形，`status` 保留线缆码 + `detail` 记判据）vs `HtmlFetchError`（退避后仍非 200/404）；取页直 GET `{id}[vN]`（钉版透传用户 v 钉），不做逐版本回退（回退探测属 `degrade()` HEAD 臂）。**块模型**（`parse_arxiv_html` → `HtmlDoc`）：`div.ltx_para`/`p.ltx_p`→para、`h1–h6.ltx_title*`→title（`ltx_tag` 编号剥离、`ltx_title_*` 后缀映射 latex 风 context）、`figcaption.ltx_caption`→caption、`ltx_note`→footnote（迟发紧跟宿主块）、`ltx_bibitem`/`ltx_figure`/`ltx_table`/`ltx_float`/`ltx_listing`/`ltx_authors`/`ltx_dates`/equation→support 块（只占位保序不译——对齐 `\bibitem`/`\author` 保护族；support 祖先内只挖 caption/title）。**行内 token 族 `[[TYPE_n]]`**：MATH（`<math>`+`ltx_equation*`）、CITE（`ltx_cite`）、REF（`a[href^="#"]`）、NOTE（`ltx_note`）、GRAPHICS（媒体/`ltx_graphics`/`ltx_transformed_outer`）、CMD（`ltx_ERROR`）、TABLE（`ltx_tabular`）、URL（`ltx_url`——外链锚文本照译，同 `\href` 文本臂口径）；ph 值 = 元素 outer HTML（MathML/`alttext` 内嵌——无需重渲染即无损回插，`reinsert` 单趟 `sub` 不级联）。**出口**：`doc_chunks` 按 `TRANSLATE_CTX` 白名单（para/item/section 系/title/abstract/caption/keywords/footnote）+ `normalize_kind` 产 `ChunkIn`（`ph_fragments` 携块内 token→片段，武装 `recover_copied_tokens` 修复臂）；`marked_html` 同源枚举给每个块元素注 `data-chunk=block.key`（元素 `id` 优先、缺失合成 `b{n}`、撞号加 `#k`）——与 chunks 行 `chunk_id`、前端 DomPane 几何锚严格 1:1。无 `article.ltx_document` → `HtmlNotAvailableError`（parse 单用与 fetch 同型判据）。
 
 ## 6. 批量渠道（benchmark 取数正源）
 

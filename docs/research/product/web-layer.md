@@ -74,12 +74,14 @@ texglot（Mengqi-Lei/texglot, Apache-2.0）是形态最接近的活体先例：F
         "context_guidance": true,
         "concurrency": 3,
         "engine": "auto",
-        "prefer": "reuse"
+        "prefer": "reuse",
+        "source": "eprint"
     }
 }
 ```
 
 - `options.prefer`: `reuse`(默认) — `cache_key` 命中已完成任务 → `200 {task_id, status:"done", reused:true}`；`fresh` — 强制新任务。
+- `options.source`（勘误 2026-09-17，G1）：`eprint`（默认，e-print tar 链）| `html`（arXiv HTML/LaTeXML DOM 链 → `kind=arxiv_html`，无编译段，产物形态见 §5.4）；`_clean_task_options` 白名单校验，非枚举值 400 `invalid_request`。
 - 响应 `202`：
 
 ```json
@@ -130,6 +132,7 @@ JSON Schema（可直接实现；`progress` 为 0-100 粗粒度）：
         "kind": {
             "enum": [
                 "arxiv",
+                "arxiv_html",
                 "upload_tex",
                 "upload_pdf",
                 "docx",
@@ -210,7 +213,7 @@ JSON Schema（可直接实现；`progress` 为 0-100 粗粒度）：
 //               "stats":{"tokens":81233,"seconds":264,"chunks_failed":3}}
 ```
 
-错误码枚举：`arxiv_fetch | no_latex_source | pdf_wrapper | parse | provider_auth | provider_rate | provider_timeout | provider_error | validate | placeholder_mismatch | compile | fixloop_exhausted | unsupported_format | internal | auth_required`。
+错误码枚举：`arxiv_fetch | no_latex_source | no_html_source | pdf_wrapper | parse | provider_auth | provider_rate | provider_timeout | provider_error | validate | placeholder_mismatch | compile | fixloop_exhausted | unsupported_format | internal | auth_required`。（勘误 2026-09-17，G1：`no_html_source`——arxiv_html 链 `/html/{id}` 404 或 200 stub（无 `ltx_document`）终态，`retryable=false`；取页非 200/404 的传输面仍归 `arxiv_fetch` 可重试。）
 
 进度百分比映射（沿用 texglot 刻度，前端也可只用 stage+counters 自绘）：fetching 3→9 / parsing 9→25 / translating 25→85（按 done/total 线性）/ compiling 90→99 / 终态 100。
 
@@ -231,6 +234,9 @@ JSON Schema（可直接实现；`progress` 为 0-100 粗粒度）：
 | `md`          | 降级产物（PDF 路线 MinerU markdown 包）                         | application/zip                                                           |
 | `zh.docx`     | DOCX 双语插译产物（`*_bilingual.docx`，artifact key `zh_docx`） | `application/vnd.openxmlformats-officedocument.wordprocessingml.document` |
 | `zh.epub`     | EPUB 双语插译产物（`*_bilingual.epub`，artifact key `zh_epub`） | `application/epub+zip`                                                    |
+| `src.html`    | arxiv_html 链 `/html/{id}` 原始快照（artifact key `src_html`）  | `application/octet-stream`（不在 `_MEDIA` 白名单）                        |
+| `en.html`     | arxiv_html 链 sanitize 后原文序列化 DOM                         | `text/html; charset=utf-8` + `Content-Security-Policy: sandbox` 头        |
+| `zh.html`     | arxiv_html 链译文回填序列化 DOM                                 | `text/html; charset=utf-8` + `Content-Security-Policy: sandbox` 头        |
 
 - `download=1` → `Content-Disposition: attachment; filename="texlate-{arxiv_id}-zh.pdf"`。`?version=` 校验文档 sha256 防阅读器拿旧版（texglot 的 409 模式）。
 - 路径安全：kind 白名单枚举，绝不接任意 path。
@@ -254,12 +260,12 @@ JSON Schema（可直接实现；`progress` 为 0-100 粗粒度）：
 - `GET /api/tasks` — 按 `tenant`（§4）过滤的任务列表（`?status=` 过滤）
 - `POST /api/task/{id}/cancel` / `POST /api/task/{id}/retry`（body 可带 `{main, options}`）（勘误 2026-09-17，retry 守卫与清理面：**状态守卫先于一切 mutation**——`status ∉ RETRYABLE_FROM` 纯 409 `invalid_transition`，不得先清产物；`needs_auth` 无 `X-Texlate-Key` → 401 `auth_required`；body 白名单外键一律 400 `invalid_request`——`model`/`target_lang` 是 cache_key 口径成员，换值须新建任务，静默丢弃比报错糟；`main` 变更（body.main 与 options.main 同口径）→ 解析产物作废：`DELETE chunks` + rmtree `base/zh/build-en/build-zh` + `store.delete_file` 逐行删 `files`（`src_tar` 除外——取源产物仍有效）+ 限 task_root 内 unlink 磁盘件（resolve + `is_relative_to` 防越界；en.pdf 随 base/ 同死——换 main 后它编译自另一棵树）。）
 - `DELETE /api/task/{id}` — 终态任务删除（DB 行级联子表 + `tasks/{id}/` 目录）；ACTIVE 态 409 先 cancel，删前补 `done{status:"deleted"}` 事件让在听 SSE 收尾
-- `GET /api/task/{id}/reader` — `{documents:{original:{version,pages,url},translated:{…}}, alignment, reading}`（勘误 2026-09-17：404 为**双条件**——`files` 表 `dual_json` 行与磁盘 `dual.json` 须同时在场，以登记行为准（登记前崩溃/失效清理残留的磁盘孤儿件不服务）；响应另带 `view` 字段——`md_zip` 登记且 `zh_pdf` 缺席 → `"html"`，否则 `"pdf"`（fault→retry 救回出 pdf 后残留的 md_zip 不把视图钉死在 html）；documents 两侧 `url` 挂 `/api/files/{id}/{en.pdf|zh.pdf}`，`alignment` 缺省 `{kind:"pages"}`。）
-- `PUT /api/task/{id}/reader/position` — 存 `{positions, active, mode, zoom, sync}`；document_version 不符 → 409
+- `GET /api/task/{id}/reader` — `{documents:{original:{version,pages,url},translated:{…}}, alignment, reading}`（勘误 2026-09-17：404 为**双条件**——`files` 表 `dual_json` 行与磁盘 `dual.json` 须同时在场，以登记行为准（登记前崩溃/失效清理残留的磁盘孤儿件不服务）；响应另带 `view` 字段——`zh_html` 登记 → `"dom"`（arxiv_html 链，`documents` 两侧 `url` 改挂 `/api/files/{id}/{en.html|zh.html}`、`pages` 语义为标记块数），否则 `md_zip` 登记且 `zh_pdf` 缺席 → `"html"`，否则 `"pdf"`（fault→retry 救回出 pdf 后残留的 md_zip 不把视图钉死在 html）；PDF 路 `url` 挂 `en.pdf|zh.pdf`，`alignment` 缺省 `{kind:"pages"}`。）
+- `PUT /api/task/{id}/reader/position` — 存 `{positions, active, mode, zoom, sync}`；document_version 不符 → 409（勘误 2026-09-17，G1：比对锚为 `zh_pdf` 登记行 sha256，缺席回落 `zh_html`——arxiv_html 无 zh_pdf，dom 路同吃防旧版位置回灌）
 - `GET/PUT /api/settings` + `POST /api/settings/test` — BYOK 管理（§4）；GET 永不回 key 本体，只回 `has_api_key`；PUT 键白名单外 400，伪字段 `clear_api_key:true` 清除已存 key
 - `GET /api/providers` — provider 预设清单
 - `POST /api/share/import` — `.share.zip` multipart 导入：`unpack_share` 机械校验 + key_parts 白名单 → `kind="share"` 任务入队；model/lang/arxiv_id/version 一律取 manifest key_parts（包自描述，上传者配置不进寻址）；§5 信任模型由 worker `_run_share` 全链重跑承担（shared-cache.md §5）
-- `POST /api/task/{id}/share/pack` — 终态任务事后打 `.share.zip` 入共享目录 → `{share_key, url, bytes}`；幂等（`index.jsonl` 已登记且包在场直返不重打）；守卫阶梯：`kind=share`/reuse 命中 → 422 `share_pack_rejected`，非 done/partial → 409 `invalid_state`，缺必需产物（`zh-src.zip`/`dual.json`，zh.pdf 缺席落 partial 包）→ 422 `share_pack_artifacts`，打包失败 → 422 `share_pack_failed`
+- `POST /api/task/{id}/share/pack` — 终态任务事后打 `.share.zip` 入共享目录 → `{share_key, url, bytes}`；幂等（`index.jsonl` 已登记且包在场直返不重打）；守卫阶梯：`kind=share`（导入产物不自包）/`kind=arxiv_html`（勘误 2026-09-17，G1：html 链产不出 `zh-src.zip`，且 HTML chunk 与 share 包 TeX chunk 不对版不可比对）/reuse 命中 → 422 `share_pack_rejected`，非 done/partial → 409 `invalid_state`，缺必需产物（`zh-src.zip`/`dual.json`，zh.pdf 缺席落 partial 包）→ 422 `share_pack_artifacts`，打包失败 → 422 `share_pack_failed`
 
 ---
 
@@ -279,7 +285,7 @@ PRAGMA foreign_keys = ON;
 
 CREATE TABLE tasks (
   id            TEXT PRIMARY KEY,                -- 't_' + hex16
-  kind          TEXT NOT NULL,                   -- arxiv | upload_tex | upload_pdf | docx | epub
+  kind          TEXT NOT NULL,                   -- arxiv | arxiv_html | upload_tex | upload_pdf | docx | epub | share
   status        TEXT NOT NULL DEFAULT 'queued',  -- 见状态机
   stage         TEXT,                            -- 当前 ACTIVE stage
   progress      INTEGER NOT NULL DEFAULT 0,
@@ -329,7 +335,7 @@ CREATE INDEX idx_chunks_pending ON chunks(task_id, status) WHERE status='pending
 
 CREATE TABLE files (
   task_id  TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-  kind     TEXT NOT NULL,                        -- src_tar|en_pdf|zh_pdf|dual_pdf|dual_json|zh_src_zip|compile_log|md_zip|zh_docx|zh_epub
+  kind     TEXT NOT NULL,                        -- src_tar|src_html|en_pdf|zh_pdf|en_html|zh_html|dual_pdf|dual_json|zh_src_zip|compile_log|md_zip|zh_docx|zh_epub
   path     TEXT NOT NULL,                        -- 相对 tasks/{id}/ 的路径
   bytes    INTEGER, sha256 TEXT,
   created_at REAL NOT NULL,
@@ -404,7 +410,7 @@ CREATE TABLE task_events (                       -- SSE 重放 + 审计；每任
 
 - `tasks.tenant`：`local`（单机）或 `'k_'+sha256(api_key+server_salt)[:12]`（服务端模式从 key 派生指纹，**指纹入库、key 不入库**）。`GET /api/tasks`、文件下载、SSE 全部按 tenant 过滤——这是"我的任务列表"隔离。
 - `translation_cache` 默认**跨租户共享**：内容寻址（key 由 src_text+model+prompt_ver+lang 决定），不含任何用户数据，命中是双赢；paranoid 部署开 `TEXLATE_CACHE_SCOPE=per_key`（旧名 `tenant` 同义保留）把 tenant 拼进缓存键即可，零 schema 变更（key 仍是单列主键）。
-- `tasks.cache_key`（产物级 dedup）= `sha256(arxiv_id@ver|model|pipeline_ver|target_lang)` —— **故意不含 tenant**：同一 arXiv+ 同配置，A 译过 B 可直接 reuse（产物是公开论文的确定性函数）；要求租户间物理隔离的部署同样用 `CACHE_SCOPE=per_key` 一键切。
+- `tasks.cache_key`（产物级 dedup）= `sha256(arxiv_id@ver|model|pipeline_ver|target_lang)` —— **故意不含 tenant**：同一 arXiv+ 同配置，A 译过 B 可直接 reuse（产物是公开论文的确定性函数）；要求租户间物理隔离的部署同样用 `CACHE_SCOPE=per_key` 一键切。（勘误 2026-09-17，G1：键材料追加两成分——`options.source≠eprint` 时拼 `|src:{source}`（同 id@ver 的 eprint 与 html 任务产物链不同构，channel-blind 会串桶互喂错产物）；`cache_scope()==per_key` 时拼 `|k:{sha256(api_key)[:16]}` 按凭证分桶，消除跨租户缓存存在性 oracle——匿名桶 `key=""` 共享一桶，与 `tenant_for` 同语义。）
 
 ---
 
@@ -450,6 +456,7 @@ web/
     pages/Settings.tsx     # BYOK 表单（key 只写不回显）、engine、glossary、test 按钮
     reader/PdfPane.tsx     # usePDFSlick 封装 + 暴露 capture/jump/ready
     reader/HtmlPane.tsx    # 降级视图（marked+KaTeX，data-chunk 锚）
+    reader/DomPane.tsx     # arxiv_html 视图：序列化 DOM + sanitizeDomHtml + [data-chunk] 几何锚
     reader/sync.ts         # SyncEngine（§5.3，框架无关纯 TS）
     reader/alignment.ts    # Alignment 类型 + createPositionMapper（texglot 逻辑重写）
     components/{Toolbar,TaskList,ProgressGrid,Segmented}.tsx
@@ -566,6 +573,8 @@ class SyncEngine {
 
 **降级路径**：`upload_pdf` 路线（MinerU→markdown）或编译彻底失败但译文在库时，`reader` 响应给 `view:"html"`：`HtmlPane` 用 `marked.parse` 渲染双侧，`katex` auto-render 处理 `$…$`/`$$…$$`/`\[\]`，原文侧同样渲染 markdown/en 文本。同步复用 SyncEngine——只是 `pages()` 换成 `querySelectorAll('[data-chunk]')` 的 `offsetTop/offsetHeight`，且 chunk 对是严格 1:1（seq 直映）比 PDF 锚更准。KaTeX 单公式失败 fallback：原样显示源码 + `.katex-error` 样式，不炸整页。
 
+**arxiv_html 路径**（勘误 2026-09-17，G1）：`options.source=html` 任务走 `_run_html`（fetch→parse→translate→emit，无编译/fixloop/share 臂——HTML chunk 与 share 包 TeX chunk 不对版不可比对）；emit 段 `marked_html` 给每个块元素注 `data-chunk=block.key`（元素 `id` 优先、缺失合成 `b{n}`、撞号 `#k`——与 chunks 行 `chunk_id` 严格 1:1）→ 双侧 `_sanitize_dom`（剥 `script/noscript/template/iframe/form/button/dialog/select`、`on*` 属性、`javascript:`/`vbscript:`/非 image `data:` scheme）+ 相对 URL `urljoin` 绝对化到 `arxiv.org/html/{id}/` → zh 侧每 `[data-chunk]` 元素内文换 `reinsert(translation)`（`ltx_note` 只换 `ltx_note_content` 子树保 mark 触发包装；fallback/failed 块落 `src_text`，降级语义同 TeX 路 splice）；`dual.json` 变体 `documents.{original,translated}={version:文件sha256,pages:标记块数}` + `alignment` 恒 `{"kind":"pages"}`（锚序双侧 1:1，pages 退化臂即同序映射），`chunks` 段同构。前端 `view:"dom"` → `DomPane`：`fetch` 产物 → `DOMParser` → `.ltx_page_main ?? body` → `sanitizeDomHtml`（DOMPurify `DOM_PROFILE`：html+mathMl+svg+svgFilters，`FORBID_TAGS` iframe/object/embed/form/base/link/meta，`ADD_ATTR` data-chunk/target——服务端 `_sanitize_dom` 之外的第二道防线）→ `innerHTML`，`fixupRelativeUrls` 把漏网 `/`-起相对路径补到 `https://arxiv.org` origin；无 marked/KaTeX（MathML 浏览器原生渲染），`pages()`=`[data-chunk]` 元素几何，SyncEngine/position 持久化原样复用。入口：Home「取源」select（eprint 默认不写字段、仅 html 显式传 `options.source="html"`；upload 路剔除 `source`——上传无取源通道概念）。
+
 ### 5.5 Vite 工程
 
 `vite.config.ts`：`@solidjs/vite-plugin`（或 react plugin）；`server.proxy['/api']='http://127.0.0.1:8765'`；`build` 用 texglot 的 `closeBundle` 插件把 `pdfjs-dist/{cmaps,standard_fonts,wasm}` 拷进 `dist/pdfjs/`（pdfslick `getDocumentParams` 里配 `cMapUrl:'/pdfjs/cmaps/'` 等）+ 生成 `THIRD_PARTY_LICENSES.txt`。测试 vitest（同步引擎/alignment 纯函数可 node --test 式单测，texglot 的 `tsconfig.reader-tests.json` 模式）。
@@ -579,7 +588,7 @@ class SyncEngine {
 - `texlate web|serve [--port 8765]`：前台跑 `uvicorn`，绑定 127.0.0.1，先 `service.lock` flock（抢不到 → 直接 `open http://127.0.0.1:8765` 复用已有实例）。（勘误 2026-09-17：`--port` 有值域闸——`texlate web` 走 typer `min=1/max=65535`，`python -m texlate.server` 走 argparse `_port` type（1–65535、越界/非数字 exit 2），双入口同口径。）
 - `texlate <arxiv-url|file>`：瘦 HTTP 客户端——健康探测失败就 `spawn python -m texlate.server`（+`--parent-pipe` 可选），等 `/api/health` 起来后走 §2 API，进度 SSE 渲染到终端。
 - `texlate --configure/--list/--status/--resume`：设置与任务管理。
-- 数据目录 `~/.texlate/`（`TEXLATE_DATA_DIR` 覆盖）：`settings.json`(0600) `texlate.db` `tasks/{id}/` `service.lock` `connections.json`。
+- 数据目录 `~/.texlate/`（`TEXLATE_DATA_DIR` 覆盖——勘误 2026-09-17：`textutil.data_root` 是唯一 locate 点，只判在不在、不 mkdir——落盘前目录不存在由消费方自创建）：`settings.json`(0600) `texlate.db` `tasks/{id}/` `service.lock` `connections.json`。
 
 **打包**：`hatchling` wheel `force-include`: `"web/dist" = "texlate/server/static"`；FastAPI mount `static/assets`+`static/pdfjs`+SPA fallback（texglot `main.py` 尾部同款）（勘误 2026-09-17：impl `staticfiles.mount_spa` 是 `_SpaFiles(StaticFiles, html=True)` **整目录挂 `/`**——前端走 hash 路由（`#/…`），`html=True` 即够、无独立 fallback 路由；缓存策略按实 serve 文件分档：`index.html` → `Cache-Control: no-cache`，`assets/` 哈希产物 → `public, max-age=31536000, immutable`，`pdfjs/` 等稳定名资源走默认条件请求；`TEXLATE_SPA_DIR` 可指 `web/dist` 直挂开发产物，目录无 `index.html` 视为未构建不挂载、`/` 保持 404）；release 流水线 `npm ci --prefix web && vite build` 先于 `uv build`，dist 不入库。
 
