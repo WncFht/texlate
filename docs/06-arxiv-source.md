@@ -105,7 +105,7 @@ candidates = { f ∈ *.{tex,latex,ltx,TEX,…}（扩展名大小写不敏感） 
 
 - 识别：`\input` `\include` `\InputIfFileExists` `\subfile` `\import{dir}{file}` `\subimport` `\includestandalone` `\CatchFileBetweenTags` + **裸文件名形 `\input file`**（1502.01589 实测 20+ 处）。
 - 路径解析：**CWD（编译主目录）→ 项目根 → including 文件目录**（勘误 2026-09-15：原文写「including 目录→项目根」，corpus39 实测序以此为准；including-dir 回退覆盖 import 族语义）；扩展名补全 `.tex` → `.sty` → 裸名。（勘误 2026-09-17：此序是 **locate 建图层**实装（`_bases`），**gullet 展开层**用另一套——including 目录 → 项目根 → top_dir → basename 补 `.tex` → 裸名，五级，语义权威以 gullet 为准；两阶段同一 `\input` 可解析到不同文件，详见 docs/07 §7。）
-- `\bibliography{x}` → **`\jobname.bbl`**（主文件词干；勘误 2026-09-15：原文写 `x.bbl`，1502.01589 实证 24 个 .bib 全缺而 bbl 在——TeX 语义按 jobname）。48.1% 语料自带 .bbl 直消费；仅 5.8% 需现场 bibtex。
+- `\bibliography{x}` → **`\jobname.bbl`**（主文件词干；勘误 2026-09-15：原文写 `x.bbl`，1502.01589 实证 24 个 .bib 全缺而 bbl 在——TeX 语义按 jobname；勘误 2026-09-17：impl `_resolve_bib` 另按 arg-stem 双探 `x.bbl`→`x.bib`——超集宽松面，真 TeX 不读 arg-stem）。48.1% 语料自带 .bbl 直消费；仅 5.8% 需现场 bibtex。
 - 环检测：绝对路径 `_seen` 集断环记 warning（防环优先于重复展开语义——留档偏差）。
 
 ## 3. 元数据层

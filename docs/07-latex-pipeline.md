@@ -95,9 +95,11 @@ class EnvEntry:           # \newenvironment 登记
 class ScanWarning:
     kind: str             # unclosed_env|unpaired_dollar|stray_end|
                           #   debt_repair|def_parse_fail
-                          # （勘误 2026-09-17：impl 共 13 种——再加 letters_cut|
+                          # （勘误 2026-09-17：impl 共 20 种——再加 letters_cut|
                           #   expansion_overflow|if_unterminated|missing_input|
-                          #   gen_overflow|ph_collision|env_mismatch|argspec_shadowed）
+                          #   gen_overflow|ph_collision|env_mismatch|argspec_shadowed|
+                          #   dangling_chunk_ref|dangling_ph|dead_ph|keyarg_unbound|
+                          #   orphan_chunk|pieces_gap|verb_resync_failed）
     pos: int; detail: str
 
 class ScanResult:
@@ -141,7 +143,7 @@ while i < n:
 flush_run()
 ```
 
-### 3.2 `dispatch_cmd` 分派表（19 行，顺序原样；勘误 2026-09-17：impl 名 `_dispatch_cmd`，`scanner.py:745`）
+### 3.2 `dispatch_cmd` 分派表（19 行，顺序原样；勘误 2026-09-17：impl 名 `_dispatch_cmd`，`scanner.py:788`）
 
 | #   | 命中                                                                                                 | 顶层处理                                                            | in_arg 变体                      |
 | --- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | -------------------------------- |
@@ -356,7 +358,7 @@ class Gullet:
     macros: ScopeMacroTable # scope 链（§8.5）
     ifflags: dict[str,bool] # \newif 旗标
     math_depth: int         # $/\(/\[/math env 计数 → \ifmmode 求值（勘误 2026-09-17：
-                            # impl 无此字段——`\ifmmode` 恒 False，gullet.py:2387-2390；
+                            # impl 无此字段——`\ifmmode` 恒 False，gullet.py:2447-2449；
                             # 数学区由分段器 raw 拉取成 [[MATH]]，其内 \ifmmode 不经求值）
     steps: int = 0
     BUDGET = 100_000        # 每文档展开步数上限
@@ -420,7 +422,7 @@ ScopeMacroTable.scopes: list[dict]
 
 | 档位         | 条件族                                                                                                                                                                                                                                     | 处理                                                                                                          |
 | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
-| **可求值**   | `\iftrue/\iffalse`；`\newif` 旗标；`\ifmmode`（math_depth——勘误 2026-09-17：impl 恒 False，gullet.py:2387-2390，v2 不追踪数学深度实测未踩坑）；`\ifnum/\ifodd/\ifdim` 全字面量；`\ifdefined`；`\if/\ifcat`；`\ifx` 同 literal；`\ifcsname`；`\ifeof/\ifvoid/\ifhbox/\ifvbox/\ifinner`→恒 False；`\ifhmode/\ifvmode`→模式常量 | 读条件→`process_if(bool)`：case 收集只推回选中支（未选支 token 丢弃，其内 `\def` 不执行——TeX 语义一致）       |
+| **可求值**   | `\iftrue/\iffalse`；`\newif` 旗标；`\ifmmode`（math_depth——勘误 2026-09-17：impl 恒 False，gullet.py:2447-2449，v2 不追踪数学深度实测未踩坑）；`\ifnum/\ifodd/\ifdim` 全字面量；`\ifdefined`；`\if/\ifcat`；`\ifx` 同 literal；`\ifcsname`；`\ifeof/\ifvoid/\ifhbox/\ifvbox/\ifinner`→恒 False；`\ifhmode/\ifvmode`→模式常量 | 读条件→`process_if(bool)`：case 收集只推回选中支（未选支 token 丢弃，其内 `\def` 不执行——TeX 语义一致）       |
 | **不可求值** | 带寄存器/内部量、`\ifx` 对宏、其余一切                                                                                                                                                                                                     | 条件部分按语法读掉；`\if/\else/\fi` 发结构界标 literal piece，**两分支都进分段器**——召回优先，编译端 TeX 自决 |
 
 `process_if`：`read_stream` 收集未展开 token 到 `\fi`，`\else/\or` 分案例，`\newif` 对整对保留（`\ifx\newif\ify` 序列特例），任何 `if*` 计嵌套，收尾 `\fi` 不推回，`unread(选中支)`。`\ifcase N`→`which=N`。

@@ -1,7 +1,7 @@
 # TeXlate
 
 > 开源版「幻觉翻译」(hjfy.top)：arXiv LaTeX 源码 → LLM 段落级翻译 → ctex 重编译中文 PDF，双语对照阅读。
-> 当前状态：**M0 已验收、M1 实质达成、M2/M3 推进中**（2026-09-16 全仓审计 `docs/research/audit-2026-09-16/`；当日交接 `docs/HANDOFF-2026-09-16.md`）。调研完成、方案冻结；决策史 `docs/01–05`，最终技术规格 `docs/06–10`（实现按此执行），过程证据归档 `docs/research/`。已落 `src/texlate/`：`arxiv/`（获取层）、`latex/`（半解析 + 展开机——**v2 Gullet+Segmenter 为默认产品路径**，`TEXLATE_NO_EXPAND=1` 回退 v1；corpus_v3 3937 文件 identity 100%/leak 0.040%）、`xlat/`（编排 + 网关客户端）、`validate/`（L0/L1/L2）、`compile/`（引擎/注入/normalize/probe/sandbox）+ `compile/fixloop/`（yaml 修复引擎 36 规则 + llm_hook）、`server/`（FastAPI+SSE+SQLite+BYOK 实装 + babeldoc sidecar + SPA staticfiles + `cmaps/` GB1 ToUnicode）、`export/`（EPUB/DOCX 双语插译）、`share.py`、`cli.py`（typer：fetch/parse/run/web/export/version/tools）。
+> 当前状态：**M0 已验收、M1 实质达成、M2/M3 推进中**（2026-09-16 全仓审计 `docs/research/audit-2026-09-16/`；当日交接 `docs/HANDOFF-2026-09-16.md`）。调研完成、方案冻结；决策史 `docs/01–05`，最终技术规格 `docs/06–10`（实现按此执行），过程证据归档 `docs/research/`。已落 `src/texlate/`：`arxiv/`（获取层）、`latex/`（半解析 + 展开机——**v2 Gullet+Segmenter 为默认产品路径**，`TEXLATE_NO_EXPAND=1` 回退 v1；corpus_v3 3937 文件 identity 100%/leak 0.040%）、`xlat/`（编排 + 网关客户端）、`validate/`（L0/L1/L2）、`compile/`（引擎/注入/normalize/probe/sandbox）+ `compile/fixloop/`（yaml 修复引擎 67 规则 + llm_hook）、`server/`（FastAPI+SSE+SQLite+BYOK 实装 + babeldoc sidecar + SPA staticfiles + `cmaps/` GB1 ToUnicode）、`export/`（EPUB/DOCX 双语插译）、`share.py`、`cli.py`（typer：fetch/parse/run/web/export/version/tools）。
 
 ## 仓库布局
 
