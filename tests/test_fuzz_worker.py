@@ -12,17 +12,6 @@ cancel/teardown 中途失败级联；verdict/审计载荷持久化；SSE 扇出�
   ``RuntimeError`` 逃逸出 ``sniff_upload``，上传边界落 500 而非干净
   拒绝。修法：同 ``_zip_member_payload`` 口径把成员读异常归一类
   （补捕 ``RuntimeError`` 或直接退 ``upload_tex`` 交解包处报错）。
-- W3 ``_flush_translate``/``_teardown_translate``（worker.py:2080,
-  2039-2041）：``state.buffer`` 在 ``flush_chunk_batch`` **之前**清空
-  ——瞬逝 DB 错（locked/disk I/O）让已译完的 ChunkRecord 永久丢失
-  （chunks 行滞留 pending → 静默不译内容进 PDF/重译白烧 token）；
-  teardown 里 flush 一炸，``_invalidate_splice``（行已变但哨兵滞留 →
-  下轮编译直接出陈旧 zh 产物）与 ``_aclose_clients``（httpx 池泄漏）
-  双双跳过，且 flush 异常盖掉触发 teardown 的原始异常（AuthTripped
-  类会被错标 internal）。同款形状还长在 2589/3071/3651 三处
-  ``finally: _persist_usage → aclose``（usage 记账一炸同样跳过
-  aclose+盖原异常）。修法：buffer 留到 flush 成功后清；teardown 把
-  flush 包 try/log 后继续 invalidate+aclose。
 - W4 ``_stats``（worker.py:1343）：``float(ctx.row["created_at"])`` 无
   兜底——腐化 created_at（``update_fields`` 无字段白名单可直写 TEXT）
   时 ``_fail``/``_reject``/cancel 臂在 transition 落终态**之后**、
@@ -749,14 +738,6 @@ class TestFlushTranslate:
         worker._flush_translate(ctx, state, _segcache(store), {}, [])  # noqa: SLF001
         assert store.events_since(ctx.task_id, 0) == []
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "W3: worker.py:2080 `state.buffer = []` 在 flush_chunk_batch 之前——"
-            "瞬逝 DB 错让已译完记录永久丢失（行滞留 pending → 静默不译/重译白烧）；"
-            "应成功后清空（或 updates 与 buffer 解耦）"
-        ),
-    )
     def test_flush_failure_retains_buffer(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -824,14 +805,6 @@ class TestTeardownTranslateCascade:
             worker, ctx, DBStateBridge(store, ctx.task_id), _segcache(store), [], {}
         )
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "W3: worker.py:2039-2041 teardown 里 flush 一炸，_invalidate_splice "
-            "与 _aclose_clients 双双跳过——行已变但哨兵滞留 → 下轮编译出陈旧 zh "
-            "产物；httpx 池泄漏"
-        ),
-    )
     def test_flush_failure_still_invalidates_and_closes(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -857,13 +830,6 @@ class TestTeardownTranslateCascade:
         assert client.closed, "flush 失败不得跳过 client aclose"
         assert not sent.is_file(), "flush 失败不得跳过 splice 哨兵失效判定"
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "W3: teardown 收尾异常盖掉触发 teardown 的原始异常——AuthTripped 类"
-            "会被错标 internal；收尾失败应 log-and-continue"
-        ),
-    )
     def test_flush_failure_does_not_mask_original(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

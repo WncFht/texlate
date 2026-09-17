@@ -26,6 +26,7 @@ import re
 import secrets as secrets_mod
 import shutil
 import sqlite3
+import sys
 import tempfile
 import threading
 import time
@@ -2023,24 +2024,38 @@ class PipelineWorker:
             run_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await run_task
-        if usage["calls"]:
-            # 有真账用真账——tokens_est 由字符估算换成 prompt+completion
-            ctx.tokens_est = usage["prompt_tokens"] + usage["completion_tokens"]
-            # buffer 空时下面的 _flush_translate 早退，tasks.tokens 滞留估算值
-            self.store.update_fields(ctx.task_id, tokens=ctx.tokens_est)
-            self.store.record_usage(
-                ctx.task_id,
-                model=str(usage["model"]),
-                calls=int(usage["calls"]),
-                prompt_tokens=int(usage["prompt_tokens"]),
-                completion_tokens=int(usage["completion_tokens"]),
-                latency_s=float(usage["latency_s"]),
-            )
+        in_flight = sys.exc_info()[0] is not None
+        tail_exc: Exception | None = None
+        try:
+            if usage["calls"]:
+                # 有真账用真账——tokens_est 由字符估算换成 prompt+completion
+                ctx.tokens_est = usage["prompt_tokens"] + usage["completion_tokens"]
+                # buffer 空时下面的 _flush_translate 早退，tasks.tokens 滞留估算值
+                self.store.update_fields(ctx.task_id, tokens=ctx.tokens_est)
+                self.store.record_usage(
+                    ctx.task_id,
+                    model=str(usage["model"]),
+                    calls=int(usage["calls"]),
+                    prompt_tokens=int(usage["prompt_tokens"]),
+                    completion_tokens=int(usage["completion_tokens"]),
+                    latency_s=float(usage["latency_s"]),
+                )
+        except Exception as e:  # noqa: BLE001 -- 记账失败不挡数据落盘与资源释放
+            tail_exc = e
+            log.warning("teardown usage persist failed: %s: %s", type(e).__name__, e)
         # fault/cancel 也要把缓冲里的已完块落盘（原先异常路径丢 buffer）——
         # flush 是同步体无悬置点：pending-cancel 不会投递进来截断写盘
-        self._flush_translate(ctx, state, cache, status_map, sse_items)
+        try:
+            self._flush_translate(ctx, state, cache, status_map, sse_items)
+        except Exception as e:  # noqa: BLE001 -- flush 失败仍须 invalidate+aclose
+            if tail_exc is None:
+                tail_exc = e
+            log.warning("teardown flush failed: %s: %s", type(e).__name__, e)
         self._invalidate_splice(ctx, pre_rows)
         await _aclose_clients(clients)
+        # 无在飞异常才把收尾失败上浮——有则保原异常（AuthTripped 不得错标 internal）
+        if tail_exc is not None and not in_flight:
+            raise tail_exc
 
     def _flush_translate(
         self,
@@ -2079,7 +2094,6 @@ class PipelineWorker:
                     },
                 )
             )
-        state.buffer = []
         n_done = sum(
             v in ("ok", "fallback_orig", "failed") for v in status_map.values()
         )
@@ -2093,6 +2107,8 @@ class PipelineWorker:
             "progress": _translate_progress(n_done, len(status_map)),
         }
         self.store.flush_chunk_batch(ctx.task_id, updates, cache.drain(), counts)
+        # 落盘成功才丢缓冲——瞬逝 DB 错时记录留 buffer 等下一轮 flush 重投
+        state.buffer = []
         items_now = list(sse_items)
         sse_items.clear()
         self.bus.publish(
@@ -2588,7 +2604,10 @@ class PipelineWorker:
             verdicts = asyncio.run(_env_judge_all(pipe, targets))
         finally:
             # judge 调用也烧 token——不入账就从 task_usage 里蒸发
-            self._persist_usage(ctx, usage)
+            try:
+                self._persist_usage(ctx, usage)
+            except Exception:
+                log.debug("env_judge usage persist failed", exc_info=True)
             if clients:
                 try:
                     asyncio.run(_aclose_clients(clients))
@@ -2949,7 +2968,10 @@ class PipelineWorker:
         """escalate_llm 旁路收尾：已发调用落账 + factory 路径 client 关闭。"""
         # escalate_llm 烧的是 BYOK token——崩溃/早退也把已发调用落账
         if usage is not None:
-            self._persist_usage(ctx, usage)
+            try:
+                self._persist_usage(ctx, usage)
+            except Exception:
+                log.debug("llm_hook usage persist failed", exc_info=True)
         if clients:
             try:
                 asyncio.run(_aclose_clients(clients))
@@ -3070,7 +3092,10 @@ class PipelineWorker:
             return rep, res2, v2
         finally:
             # L2 重译也烧 token——不入账就从 task_usage 里蒸发
-            self._persist_usage(ctx, usage)
+            try:
+                self._persist_usage(ctx, usage)
+            except Exception:
+                log.debug("l2 usage persist failed", exc_info=True)
             if clients:
                 try:
                     asyncio.run(_aclose_clients(clients))
@@ -3650,7 +3675,10 @@ class PipelineWorker:
             )
             return
         finally:
-            self._persist_usage(ctx, usage, replace_est=True)
+            try:
+                self._persist_usage(ctx, usage, replace_est=True)
+            except Exception:
+                log.debug("doc usage persist failed", exc_info=True)
             # clients 在 to_thread 的 ephemeral loop 里跑过——aclose 尽力而为
             try:
                 await _aclose_clients(clients)
