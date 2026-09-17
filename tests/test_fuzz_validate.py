@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import ast
 import json
+import os
 import queue
 import random
 import re
@@ -53,7 +54,6 @@ from _fuzzkit import (
     short,
     soup_join,
     soup_pick,
-    xfail_confirmed,
 )
 
 from texlate.redlines import L2_REDLINE_CLASSES
@@ -1995,9 +1995,27 @@ def _o_errs(lines: list[str]) -> list[tuple[int, str | None, int | None]]:
     return out
 
 
+def _o_is_err(ln: str) -> bool:
+    """独立错误行谓词：``!`` 行或非豁免 ``file:line:`` 行。"""
+    if ln.startswith("!"):
+        return True
+    fl = _o_fileline(ln)
+    return fl is not None and not _o_nonerr(fl[2])
+
+
+def _o_err_ctx(lines: list[str], i: int) -> list[str]:
+    """错误行 ctx 期望切片——截断于下一错误行（D5 修复口径）。"""
+    out: list[str] = []
+    for cln in lines[i + 1 : i + 9]:
+        if _o_is_err(cln):
+            break
+        out.append(cln)
+    return out
+
+
 def _o_lnum_ctx(lines: list[str], i: int) -> int | None:
-    """ctx 窗口内首个 ``l.NNN``（实现口径：不截断于下一错误行——D5 观察面）。"""
-    for ln in lines[i + 1 : i + 9]:
+    """ctx 窗口内首个 ``l.NNN``（窗口即 ``_o_err_ctx`` 截断面）。"""
+    for ln in _o_err_ctx(lines, i):
         m = re.match(r"l\.(\d+)", ln.strip())
         if m:
             return int(m.group(1))
@@ -2164,6 +2182,7 @@ def _o_warn_counts(
             and "in font " not in ln
             and i + 1 < len(lines)
             and "in font" in lines[i + 1]
+            and not _o_warnish(lines[i + 1])  # 独立 warning 行不拼（D4 修复口径）
             else ""
         )
         probe = (ln + "\n" + nxt).lower() if nxt else ln.lower()
@@ -2208,7 +2227,7 @@ def _check_l2(text: str) -> L2Verdict:
             short(text)
         )
         assert len(e.ctx) <= 8  # noqa: PLR2004 -- _CTX_LINES 窗口上限
-        assert e.ctx == tuple(lines[i + 1 : i + 9])
+        assert e.ctx == tuple(_o_err_ctx(lines, i))
         assert all(isinstance(s, str) and s for s in e.file_stack)
         if e.eof_file is not None:
             assert "File ended while scanning" in e.head
@@ -2355,8 +2374,17 @@ def test_l2_parse_log_path(tmp_path: Path) -> None:
     decoded = p.read_bytes().decode("utf-8", "replace")
     assert parse_log(p).to_dict() == parse_log_text(decoded).to_dict()
     assert parse_log(tmp_path / "absent.log").log_missing is True
-    assert parse_log(tmp_path).log_missing is True  # 目录 → read_text OSError
+    assert parse_log(tmp_path).log_missing is True  # 目录 → is_file 闸
     assert parse_log("\x00nul").log_missing is True  # NUL 路径不抛
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="os.mkfifo 缺席平台")
+def test_p3_parse_log_fifo_is_missing(tmp_path: Path) -> None:
+    """P3 回归：fifo/特殊文件先吃 ``is_file`` 闸——``exists()`` 对 fifo 为真，
+    无闸时 ``read_text`` 阻塞至有 writer。"""
+    fifo = tmp_path / "x.log"
+    os.mkfifo(fifo)
+    assert parse_log(fifo).log_missing is True
 
 
 def test_l2_eof_attribution() -> None:
@@ -2403,19 +2431,13 @@ def test_l2_warn_oracle_directed() -> None:
 # ---------------------------------------------------------------- l1 schema 残余
 
 
-@xfail_confirmed(
-    "D1 l1.py:137 ok_relative 非 bool 穿透 → verdict_ok 真话术串 fail-open；"
-    "契约「schema 违例 → L1Error」"
-)
 def test_d1_ok_relative_must_be_bool() -> None:
+    """D1 回归：``ok_relative`` 非 bool/None → ``L1Error``（真值串 ``"no"``
+    曾穿透进 ``verdict_ok`` 使聚合 fail-open）。"""
     with pytest.raises(L1Error):
         TsResult.from_dict({"ok": False, "ok_relative": "no"})
 
 
-@xfail_confirmed(
-    "D2 l1.py:138-141 明细列表项类型零校验 → report.feedback/hard_failures "
-    "AttributeError 泄出通道契约（应 L1Error）"
-)
 @pytest.mark.parametrize(
     "payload",
     [
@@ -2425,14 +2447,12 @@ def test_d1_ok_relative_must_be_bool() -> None:
     ],
 )
 def test_d2_detail_items_must_be_dicts(payload: dict[str, Any]) -> None:
+    """D2 回归：明细列表项非 dict → ``L1Error``（曾在 ``report.feedback``
+    消费侧泄 ``AttributeError``）。"""
     with pytest.raises(L1Error):
         TsResult.from_dict(payload)
 
 
-@xfail_confirmed(
-    "D3 l1.py:142 placeholders 浅 dict() → missing=None 在 hard_failures "
-    "len(None) TypeError、missing=str 逐字符垃圾反馈（应 L1Error）"
-)
 @pytest.mark.parametrize(
     "ph",
     [
@@ -2443,29 +2463,39 @@ def test_d2_detail_items_must_be_dicts(payload: dict[str, Any]) -> None:
     ],
 )
 def test_d3_placeholder_values_must_be_lists(ph: dict[str, Any]) -> None:
+    """D3 回归：``placeholders`` 三键值非 list → ``L1Error``（``missing=None``
+    曾炸 ``len(None)``、``missing=str`` 曾产逐字符垃圾反馈）。"""
     with pytest.raises(L1Error):
         TsResult.from_dict({"ok": False, "placeholders": ph})
 
 
-@xfail_confirmed(
-    "D4 l2.py:515-522 misschar 续行拼接被下一物理行的类抢走——"
-    "缺字形错归 missing_glyph_nullfont 丢红线丢 cjk_missing"
-)
 def test_d4_misschar_join_steals_class() -> None:
+    """D4 回归：misschar 续行拼接在次行是独立 warning 行时不拼——
+    ``in font nullfont`` 属次行自身锚点，不得窃走本行 CJK 归类。"""
     v = parse_log_text(
         "Missing character: There is no 中 (U+4E2D)\n"
         "Missing character: There is no y in font nullfont\n"
     )
     assert v.warnings.by_class.get("missing_glyph_cjk") == 1
+    assert v.warnings.by_class.get("missing_glyph_nullfont") == 1
     assert v.warnings.cjk_missing == 1
+    assert any("missing_glyph_cjk" in r for r in v.warnings.redlines)
 
 
-@xfail_confirmed(
-    "D5 l2.py:484+422 bang 错 ctx 不截断于下一错误行——errA 借用 errB 的 l.NNN"
-)
+def test_d4_misschar_join_wrap_still_works() -> None:
+    """D4 回归补：真折行续行（裸 ``in font nullfont`` 碎片非 warning 形态）
+    仍拼接——nullfont 豁免面不回退。"""
+    v = parse_log_text("Missing character: There is no 中\nin font nullfont\n")
+    assert v.warnings.by_class.get("missing_glyph_nullfont") == 1
+    assert v.warnings.cjk_missing == 0
+
+
 def test_d5_bang_ctx_borrows_next_error_lnum() -> None:
+    """D5 回归：``!`` 错 ctx 截断于下一错误行——``l.NNN`` 属邻错定位，
+    errA 不得借用 errB 行号。"""
     v = parse_log_text("! errA\n! errB\nl.9 \\y\n")
-    assert v.errors[0].tex_line is None  # errA 无自带 l.NNN——实际借得 9
+    assert v.errors[0].tex_line is None
+    assert v.errors[0].ctx == ()
     assert v.errors[1].tex_line == 9  # noqa: PLR2004 -- 字面行号即输入语料
 
 

@@ -126,12 +126,21 @@ class TsResult:
     def from_dict(cls, d: dict[str, Any]) -> TsResult:
         """从 worker JSON 行反序列化；schema 违例 → ``L1Error``。
 
-        字段类型零防御是刻意的——worker 输出违协议即协议错误，统一归
-        ``L1Error``（``_one``/``validate_batch`` 只另兜 ``JSONDecodeError``），
-        不让 ``TypeError``/``ValueError``/``AttributeError`` 泄出通道契约。
+        worker 输出违协议即协议错误，统一归 ``L1Error``
+        （``_one``/``validate_batch`` 只另兜 ``JSONDecodeError``），不让
+        ``TypeError``/``ValueError``/``AttributeError`` 泄出通道契约。
+        三段值域显式校验（静默收编会把违例推迟到消费侧炸成下游异常）：
+
+        - ``ok_relative`` 只允许 ``bool | None``——真值串（``"no"``）经
+          ``verdict_ok`` 透进聚合判定会 fail-open，不可 ``bool()`` 强转；
+        - ``parse_errors``/``env_mismatches`` 逐项须为 dict——
+          ``report.feedback()`` 按 ``e.get(...)`` 消费；
+        - ``placeholders`` 的 ``missing``/``unexpected``/``typos`` 三键
+          须为 list 且 ``typos`` 项为 dict（``expected``/``found`` 计数
+          int 键不涉——worker 协议原样放行）。
         """
         try:
-            return cls(
+            res = cls(
                 id=d.get("id"),
                 ok=bool(d.get("ok")),
                 ok_relative=d.get("ok_relative"),
@@ -146,6 +155,27 @@ class TsResult:
         except (TypeError, ValueError, AttributeError, OverflowError) as e:
             msg = f"L1 worker 响应 schema 违例: {e}"
             raise L1Error(msg) from e
+        if res.ok_relative is not None and not isinstance(res.ok_relative, bool):
+            msg = (
+                f"L1 worker 响应 schema 违例: ok_relative 非 bool: {res.ok_relative!r}"
+            )
+            raise L1Error(msg)
+        for fname, items in (
+            ("parse_errors", res.parse_errors),
+            ("env_mismatches", res.env_mismatches),
+        ):
+            if not all(isinstance(x, dict) for x in items):
+                msg = f"L1 worker 响应 schema 违例: {fname} 项非 dict"
+                raise L1Error(msg)
+        ph = res.placeholders
+        for key in ("missing", "unexpected", "typos"):
+            if key in ph and not isinstance(ph[key], list):
+                msg = f"L1 worker 响应 schema 违例: placeholders.{key} 非 list"
+                raise L1Error(msg)
+        if not all(isinstance(t, dict) for t in ph.get("typos", [])):
+            msg = "L1 worker 响应 schema 违例: placeholders.typos 项非 dict"
+            raise L1Error(msg)
+        return res
 
     def baseline_signature(self) -> TsBaseline:
         """把本结果当签名用（对 src 跑 validate 后取签名即 baseline）。"""

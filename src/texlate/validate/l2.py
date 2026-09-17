@@ -130,7 +130,7 @@ _MARKERLESS_WARN_RX: Final = re.compile(
     re.IGNORECASE,
 )
 
-_CTX_LINES: Final = 8  # 首个错误后抓取的上下文行数（docs/08 §2.3）
+_CTX_LINES: Final = 8  # 错误行后抓取的上下文行数（docs/08 §2.3）
 _TAIL_LINES: Final = 30  # log 尾部留存行数
 _MAX_STORED_ERRORS: Final = 200  # 存储上限（n_errors 仍精确计数）
 _MAX_WARN_SAMPLES: Final = 5  # 每类 warning 样例/hits 留存上限
@@ -360,6 +360,11 @@ def _mark_redline(  # noqa: PLR0913 - 归因三件套（栈/root/缓存）拆散
         ws.redlines.append(red)
 
 
+def _is_warning_form(ln: str) -> bool:
+    """Warning 形态预筛：``* Warning:`` 标记行，或无标记硬 warning。"""
+    return bool(_ANY_WARNING_RX.search(ln) or _MARKERLESS_WARN_RX.search(ln))
+
+
 def _record_hit(
     ws: WarningSummary,
     cls: str,
@@ -391,9 +396,11 @@ def _classify_warning(  # noqa: PLR0913 - 归因参数组与 _mark_redline 同�
 
     ``next_ln``：misschar 行的下一物理行——79 列 wrap 会把 ``in font ...``
     声明推进续行，规则检索面拼上它使限界窗可跨一个 ``\n``（与
-    engine/judge 同口径）；记录/打标仍用物理 ``line``。
+    engine/judge 同口径）；记录/打标仍用物理 ``line``。调用侧只在续行
+    是裸折行碎片时拼接——续行自身命中 warning 形态（独立消息行而非
+    折行残段）时不拼，防 probe 内第二锚点窃走本行归类（D4）。
     """
-    if not (_ANY_WARNING_RX.search(line) or _MARKERLESS_WARN_RX.search(line)):
+    if not _is_warning_form(line):
         return  # 非 warning 形态行（含 error ctx 内的帮助文本）
     cls = "generic"
     probe = line + "\n" + next_ln if next_ln else line
@@ -446,6 +453,41 @@ def _eof_culprit(head: str, last_pop: tuple[int, str] | None, i: int) -> str | N
     return last_pop[1]
 
 
+def _error_ctx(lines: list[str], i: int) -> list[str]:
+    """错误行后 ≤``_CTX_LINES`` 行上下文——截断于下一错误行。
+
+    窗内 ``l.NNN`` 是**该**错的源码定位；不截断会让无自带行号的错
+    （``! Emergency stop`` 类）借用邻错行号误归因。
+    """
+    ctx = lines[i + 1 : i + 1 + _CTX_LINES]
+    for k, cln in enumerate(ctx):
+        if _match_error_line(cln) is not None:
+            return ctx[:k]
+    return ctx
+
+
+def _misschar_next_ln(lines: list[str], i: int) -> str:
+    """``Missing character:`` 行的拼接续行。
+
+    本行无 ``in font `` 声明（79 列 wrap 推走）且续行含 ``in font``
+    时返回 ``lines[i+1]``，否则 ``""``。续行自身命中 warning 形态
+    （独立的 ``Missing character``/``Invalid UTF-8`` 等消息行）时不拼
+    ——probe 内第二锚点会窃走本行归类（CJK 缺字形被次行
+    ``in font nullfont`` 归 ``missing_glyph_nullfont``，丢红线丢
+    ``cjk_missing``）。
+    """
+    ln = lines[i]
+    if (
+        "Missing character:" in ln
+        and "in font " not in ln
+        and i + 1 < len(lines)
+        and "in font" in lines[i + 1]
+        and not _is_warning_form(lines[i + 1])
+    ):
+        return lines[i + 1]
+    return ""
+
+
 # ---------------------------------------------------------------- 主入口
 
 
@@ -481,7 +523,7 @@ def parse_log_text(text: str, *, project_root: Path | None = None) -> L2Verdict:
         if hit is not None:
             head, tex_file = hit
             v.n_errors += 1
-            ctx = lines[i + 1 : i + 1 + _CTX_LINES]
+            ctx = _error_ctx(lines, i)
             mf = _FILE_LINE_RX.match(ln)
             tex_line = int(mf.group(2)) if mf else None
             if tex_line is None:
@@ -509,17 +551,7 @@ def parse_log_text(text: str, *, project_root: Path | None = None) -> L2Verdict:
             project_root,
             dos_eps_cache,
             log_line=i + 1,
-            # misschar 行无 "in font " 声明（疑似 79 列 wrap 推走）且续行
-            # 含 "in font" 时才拼行——这是 join 唯一能改变判定的情形；
-            # 续行为独立 warning 行（如 Invalid UTF-8）时不拼，防抢归类。
-            next_ln=(
-                lines[i + 1]
-                if "Missing character:" in ln
-                and "in font " not in ln
-                and i + 1 < len(lines)
-                and "in font" in lines[i + 1]
-                else ""
-            ),
+            next_ln=_misschar_next_ln(lines, i),
         )
 
     v.tail = tuple(lines[-_TAIL_LINES:])
@@ -527,13 +559,18 @@ def parse_log_text(text: str, *, project_root: Path | None = None) -> L2Verdict:
 
 
 def parse_log(path: str | Path, *, project_root: Path | None = None) -> L2Verdict:
-    """从路径读 ``.log`` 解析；文件不存在返回 ``log_missing=True``（不抛异常）。
+    """从路径读 ``.log`` 解析；非正规文件同归 ``log_missing=True``（不抛异常）。
+
+    缺席/目录/fifo/NUL 路径全归 ``log_missing``——``is_file`` 闸先于
+    ``read_text``（fifo 无闸会阻塞至有 writer）。
 
     ``project_root`` 透传 ``parse_log_text``——注意勿以 ``path.parent``
     猜测：tectonic 日志落在 ``_tect_out/`` 子目录，父目录不是工程根。
     """
     p = Path(path)
-    if not p.exists():
+    # is_file 闸：fifo/目录/缺席/坏路径（含 NUL）同归 log_missing——
+    # exists() 对 fifo 为真，read_text 会阻塞至有 writer。
+    if not p.is_file():
         return L2Verdict(log_missing=True)
     try:
         text = p.read_text(encoding="utf-8", errors="replace")
