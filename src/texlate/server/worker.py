@@ -995,8 +995,8 @@ def _zip_kind(data: bytes) -> str:
             if "mimetype" in names:
                 try:
                     head = zf.read("mimetype")[:64].strip()
-                except KeyError:
-                    head = b""
+                except (KeyError, RuntimeError, NotImplementedError, OSError):
+                    head = b""  # 加密/坏成员与 _zip_member_payload 同族——退 upload_tex 交解包处报错
             if head == b"application/epub+zip" or any(
                 n.endswith("content.opf") for n in names
             ):

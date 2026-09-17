@@ -5,19 +5,13 @@ _build_dual / _share_apply / _share_lookup）；share 对账 zh 位矩阵；
 cancel/teardown 中途失败级联；verdict/审计载荷持久化；SSE 扇出背压；
 上传 zip 成员名对抗。
 
-钉样的确认缺陷（``xfail(strict=True)``——修好后自动 XPASS 报警转正）：
-
-- W1 ``_zip_kind``（worker.py:1011-1014）：``zf.read("mimetype")`` 只捕
-  ``KeyError``——加密成员的 zip（central/local flag bit0 置位）抛
-  ``RuntimeError`` 逃逸出 ``sniff_upload``，上传边界落 500 而非干净
-  拒绝。修法：同 ``_zip_member_payload`` 口径把成员读异常归一类
-  （补捕 ``RuntimeError`` 或直接退 ``upload_tex`` 交解包处报错）。
-
-已修转正（W4-W7，worker-fuzz 残余钉）：``_stats`` created_at 坏格按 0
-秒容错（done 不再缺）、``DBStateBridge.load`` attempts/warnings 坏格
-按 0/[] 容错（腐化行 resume 不永 fault）、``_build_dual`` 非 str 译文
-coerce ""（BLOB 不挡 dual.json）、``unpack_zip`` 成员写体 OSError →
-``reject_io:`` 告警跳过（NAME_MAX/EDQUOT 不拖死整单）。
+钉样的确认缺陷已清零（W1-W7 全转正）：``_zip_kind`` 成员读异常同
+``_zip_member_payload`` 归一（加密成员退 upload_tex）、``_stats``
+created_at 坏格按 0 秒容错（done 不再缺）、``DBStateBridge.load``
+attempts/warnings 坏格按 0/[] 容错（腐化行 resume 不永 fault）、
+``_build_dual`` 非 str 译文 coerce ""（BLOB 不挡 dual.json）、
+``unpack_zip`` 成员写体 OSError → ``reject_io:`` 告警跳过
+（NAME_MAX/EDQUOT 不拖死整单）。
 
 绿面（正确行为钉样）：成员名 confinement/拒绝告警、share 对账 outcome
 枚举与不落库拒绝、伪造 mark 摘除、SSE 溢出 _RESYNC、verdict 载荷
@@ -251,14 +245,6 @@ class TestSniffUpload:
         assert sniff_upload(b"\x00\xff\xfe random", "x.bin") == "unknown"
         assert sniff_upload(b"\\documentclass{article}", "x.tex") == "upload_tex"
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "W1: worker.py:1012 `zf.read('mimetype')` 只捕 KeyError——加密成员 "
-            "RuntimeError 逃逸 sniff_upload → 上传 500；应同 _zip_member_payload "
-            "口径把成员读异常归一（捕 RuntimeError 或退 upload_tex）"
-        ),
-    )
     def test_encrypted_member_no_escape(self) -> None:
         """加密成员 zip 应退 ``upload_tex``（成员级错由解包处报），不得逃逸。"""
         assert sniff_upload(_zip_flagged_encrypted(), "x.epub") == "upload_tex"
