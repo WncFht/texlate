@@ -403,7 +403,13 @@ class TestTaskDelete:
 
 class TestCrossTenantReuse:
     """shared scope 下跨租户 reuse 是产品特性（hjfy 对等共享缓存）——
-    存在性 oracle 的消除通道是 ``TEXLATE_CACHE_SCOPE=per_key``，钉两态。"""
+    存在性 oracle 的消除通道是 ``TEXLATE_CACHE_SCOPE=per_key``，钉两态。
+
+    server 形态跨租户命中不再直回对方 task_id（``_get_task`` 租户检使它
+    恒 404 死链）——改建行存 alias 键，worker post-resolve 经
+    ``_materialize_reuse`` 把产物拷进本租户自有任务。响应对调用方与
+    cache-miss 同形（202 + ``cache:"miss"``），存在性 oracle 同步收敛。
+    """
 
     _ARXIV = "2401.00011"
 
@@ -425,9 +431,19 @@ class TestCrossTenantReuse:
             json={"model": "m"},
             headers=hdr_b,
         )
-        assert r.status_code == HTTPStatus.OK
-        assert r.json()["reused"] is True
-        assert r.json()["task_id"] == tid  # A 的任务 id 回到 B——oracle 即特性
+        # 跨租户命中 → 202 建 B 自持行（worker 物化产物），非 A 的死链 id
+        assert r.status_code == HTTPStatus.ACCEPTED
+        tid_b = r.json()["task_id"]
+        assert tid_b != tid
+        assert (
+            client.get(f"/api/task/{tid_b}", headers=hdr_b).status_code
+            == HTTPStatus.OK
+        )
+        row_a = client.portal.call(partial(store.get, tid))
+        row_b = client.portal.call(partial(store.get, tid_b))
+        assert row_b["tenant"] != row_a["tenant"]
+        # alias（无版本）键——stored≠resolved 触发 _post_resolve_reuse 物化臂
+        assert "@" not in row_b["cache_key"]
 
     def test_per_key_scope_no_cross_reuse(
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch

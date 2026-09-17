@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import secrets
@@ -170,8 +171,10 @@ ERROR_CODES = frozenset(
     {
         "arxiv_fetch",
         "no_latex_source",
+        "no_html_source",
         "pdf_wrapper",
         "parse",
+        "translate",
         "provider_auth",
         "provider_rate",
         "provider_timeout",
@@ -248,6 +251,10 @@ class Store:
         """Path = texlate.db 路径（父目录由调用方建）。"""
         self.path = path
         self._conn: sqlite3.Connection | None = None
+        #: 段缓存命中记账缓冲 ``{key: 待加次数}``——``cache_get`` 不逐命中
+        #: commit（翻译热环每命中一 fsync 划不来），聚合后由
+        #: ``flush_chunk_batch`` 事务顺带落 / 兜底阈值 / ``close`` 冲刷。
+        self._cache_hits: dict[str, int] = {}
 
     # ------------------------------------------------------------ 连接
 
@@ -279,10 +286,12 @@ class Store:
         conn.commit()
 
     def close(self) -> None:
-        """关连接。"""
+        """关连接——挂起的缓存命中记账先尽力落盘（丢得起，不炸关停）。"""
+        if self._conn is None:
+            return
+        self._drain_cache_hits()
         conn, self._conn = self._conn, None
-        if conn is not None:
-            conn.close()
+        conn.close()
 
     @property
     def conn(self) -> sqlite3.Connection:
@@ -364,6 +373,36 @@ class Store:
             ).fetchall()
         return [dict(r) for r in rows]
 
+    def list_tasks_page(
+        self,
+        tenant: str,
+        *,
+        status: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> tuple[list[sqlite3.Row], int]:
+        """分页任务列表（只选列表 API 消费列）+ total。"""
+        where = "WHERE tenant = ?"
+        params: list[Any] = [tenant]
+        if status:
+            where += " AND status = ?"
+            params.append(status)
+        rows = self.conn.execute(
+            "SELECT id, kind, status, stage, progress, message, title, arxiv_id,"
+            " source_name, target_lang, model, created_at, updated_at,"
+            " total_chunks, done_chunks, cached_chunks, failed_chunks, tokens,"
+            " error_json"
+            f" FROM tasks {where}"
+            " ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            (*params, limit, offset),
+        ).fetchall()
+        total = int(
+            self.conn.execute(
+                f"SELECT COUNT(*) AS c FROM tasks {where}", params
+            ).fetchone()["c"]
+        )
+        return rows, total
+
     def find_active_by_cache_key(self, cache_key: str) -> dict[str, Any] | None:
         """同 cache_key 的 ACTIVE/interrupted 任务（部分唯一索引覆盖集）。"""
         row = self.conn.execute(
@@ -399,6 +438,19 @@ class Store:
         幂等回执）。任务工作目录 ``tasks/{id}/`` 清理由调用方负责。
         """
         cur = self.conn.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+        self.conn.commit()
+        return cur.rowcount > 0
+
+    def delete_task_guard(self, task_id: str, *, blocked: frozenset[str]) -> bool:
+        """条件删除：status ∈ blocked 或行不存在 → False 不删；否则删行返 True。"""
+        if blocked:
+            qmarks = ",".join("?" * len(blocked))
+            cur = self.conn.execute(
+                f"DELETE FROM tasks WHERE id = ? AND status NOT IN ({qmarks})",  # noqa: S608 -- '?' 占位符拼接，值全走绑定参数
+                (task_id, *blocked),
+            )
+        else:
+            cur = self.conn.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
         self.conn.commit()
         return cur.rowcount > 0
 
@@ -510,10 +562,11 @@ class Store:
         n_interrupted = n_needs_auth = 0
         for r in rows:
             target = "needs_auth" if r["auth_source"] == "header" else "interrupted"
+            now = time.time()
             self.conn.execute(
-                "UPDATE tasks SET status = ?, worker_id = NULL, updated_at = ?"
-                " WHERE id = ?",
-                (target, time.time(), r["id"]),
+                "UPDATE tasks SET status = ?, stage = NULL, worker_id = NULL,"
+                " updated_at = ?, finished_at = ? WHERE id = ?",
+                (target, now, now, r["id"]),
             )
             if target == "needs_auth":
                 n_needs_auth += 1
@@ -523,10 +576,10 @@ class Store:
         # 永远等不到——分流 needs_auth（用户带 key retry 可续）；其余
         # queued 由 TaskRunner.start 重放回内存队列续跑
         n_needs_auth += self.conn.execute(
-            "UPDATE tasks SET status = 'needs_auth', worker_id = NULL,"
-            " updated_at = ? WHERE status = 'queued'"
-            " AND auth_source = 'header'",
-            (time.time(),),
+            "UPDATE tasks SET status = 'needs_auth', stage = NULL,"
+            " worker_id = NULL, updated_at = ?, finished_at = ?"
+            " WHERE status = 'queued' AND auth_source = 'header'",
+            (time.time(), time.time()),
         ).rowcount
         # queued 行残留 worker_id 也清掉
         self.conn.execute(
@@ -652,6 +705,7 @@ class Store:
                         now,
                     ),
                 )
+            self._flush_cache_hits()
             self._set_fields(
                 task_id,
                 {
@@ -799,21 +853,42 @@ class Store:
 
     # ------------------------------------------------------------ translation_cache
 
+    #: 命中记账兜底阈值——正常靠 ``flush_chunk_batch``/``close`` 顺带落；
+    #: 长串纯命中不触发批写时按此 distinct-key 量自立事务落一次。
+    _CACHE_HIT_FLUSH = 64
+
     def cache_get(self, key: str) -> str | None:
-        """段级缓存读；命中记 hit_count/last_hit_at。"""
-        conn = self.conn
-        row = conn.execute(
+        """段级缓存读；命中记 hit_count/last_hit_at（聚合批量落）。"""
+        row = self.conn.execute(
             "SELECT translation FROM translation_cache WHERE key = ?", (key,)
         ).fetchone()
         if row is None:
             return None
-        conn.execute(
-            "UPDATE translation_cache SET hit_count = hit_count + 1,"
-            " last_hit_at = ? WHERE key = ?",
-            (time.time(), key),
-        )
-        conn.commit()
+        self._cache_hits[key] = self._cache_hits.get(key, 0) + 1
+        if len(self._cache_hits) >= self._CACHE_HIT_FLUSH:
+            self._drain_cache_hits()
         return str(row["translation"])
+
+    def _flush_cache_hits(self) -> None:
+        """挂起命中记账 executemany——不 commit，骑调用方事务。"""
+        if not self._cache_hits:
+            return
+        now = time.time()
+        self.conn.executemany(
+            "UPDATE translation_cache SET hit_count = hit_count + ?,"
+            " last_hit_at = ? WHERE key = ?",
+            [(n, now, k) for k, n in self._cache_hits.items()],
+        )
+        self._cache_hits.clear()
+
+    def _drain_cache_hits(self) -> None:
+        """自立事务落记账 + commit；失败回滚——命中计数丢得起不炸热环。"""
+        try:
+            self._flush_cache_hits()
+            self.conn.commit()
+        except sqlite3.Error:
+            with contextlib.suppress(sqlite3.Error):
+                self.conn.rollback()
 
     # ------------------------------------------------------------ task_events
 

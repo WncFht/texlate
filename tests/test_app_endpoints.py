@@ -140,10 +140,11 @@ class TestTranslateEdges:
         assert r.status_code == HTTPStatus.BAD_REQUEST
         assert "bad json" in r.json()["detail"]
 
-    def test_non_dict_body_empty(self, client: TestClient) -> None:
-        """JSON 数组 body 按空 body 处理（_read_body 只收 dict）。"""
+    def test_non_dict_body_400(self, client: TestClient) -> None:
+        """非 dict JSON body → 400（静默归 {} 会让 PUT settings 200 无操作）。"""
         r = client.post(f"/api/arxiv/{ARXIV}/translate", json=[1, 2])
-        assert r.status_code == HTTPStatus.ACCEPTED
+        assert r.status_code == HTTPStatus.BAD_REQUEST
+        assert r.json()["code"] == "invalid_request"
 
     def test_options_str_400(self, raw_client: TestClient) -> None:
         r = raw_client.post(f"/api/arxiv/{ARXIV}/translate", json={"options": "xx"})
@@ -247,6 +248,7 @@ class TestTaskGetEdges:
         """Last-Event-ID 非整数 → last_id=0 → 全量重放（不 4xx）。"""
         tid = mk_api_task(client, ARXIV)
         bus = client.app.state.bus
+        _force(client, tid, "done")  # done 帧只对真终态任务终结重放
         client.portal.call(partial(bus.publish, tid, "stage", {"stage": "parsing"}))
         client.portal.call(partial(bus.publish, tid, "done", {"status": "done"}))
         with client.stream(

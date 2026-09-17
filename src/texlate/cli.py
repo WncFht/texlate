@@ -780,8 +780,9 @@ def web(
     try:
         import uvicorn  # noqa: PLC0415 -- server extra 延迟导入
 
-        from texlate.server.app import create_app  # noqa: PLC0415
+        from texlate.server.app import _loopback_bind, create_app  # noqa: PLC0415
         from texlate.server.settings import data_dir as _data_dir  # noqa: PLC0415
+        from texlate.server.settings import server_mode  # noqa: PLC0415
     except ImportError:
         typer.echo(
             "web 需要 server extra：uv sync --extra server"
@@ -803,6 +804,15 @@ def web(
         webbrowser.open(existing)
         return
     typer.echo(f"texlate web → http://{host}:{port}", err=True)
+    if server_mode() != "server" and not _loopback_bind(host):
+        # local 形态 API 无鉴权（Host 闸只防 DNS rebinding）——非回环绑定
+        # 把建任务/PUT settings/读产物暴露给整个可达网段
+        typer.echo(
+            f"警告：--host {host} 非回环绑定，local 形态 API 无鉴权——"
+            "可达网段内任何人可建任务/改 settings；多租户部署请用"
+            " TEXLATE_MODE=server（X-Texlate-Key 鉴权）",
+            err=True,
+        )
     try:
         uvicorn.run(create_app(), host=host, port=port)
     except OSError as e:

@@ -83,16 +83,24 @@ class EventBus:
         """重放 + 实时混合流：先补 seq>last_event_id 的落盘事件，再转发订阅流。
 
         订阅先于重放注册，消灭间隙；实时侧按 seq 去重。任务终态（done
-        事件落地）且队列排空后流自然结束。
+        事件落地）且队列排空后流自然结束。retry 复活过的任务重放段含
+        上一轮 ``done`` 帧——只有落在重放段末尾且当前 status 仍终态的
+        ``done`` 才终流；其余（旧轮残留 / 任务已复活）跳过防假死。
         """
         q = self.subscribe(task_id)
         delivered = last_event_id
         try:
-            for ev in self._store.events_since(task_id, delivered):
+            replay = self._store.events_since(task_id, delivered)
+            for i, ev in enumerate(replay):
                 delivered = int(ev["seq"])
-                yield ev
                 if ev["type"] == "done":
-                    return  # 终态已落盘：重放即终，不进实时等待
+                    row = self._store.get(task_id)
+                    terminal = row is None or row["status"] in TERMINAL_STATUSES
+                    if terminal and i == len(replay) - 1:
+                        yield ev
+                        return  # 终态已落盘：重放即终，不进实时等待
+                    continue  # 旧轮 done 帧（retry 复活/后又有新终态）——跳过
+                yield ev
             row = self._store.get(task_id)
             if row is None or row["status"] in TERMINAL_STATUSES:
                 # 终态但 done 事件缺席（recover_startup 直改库等）或行已删

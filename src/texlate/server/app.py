@@ -16,27 +16,30 @@ key 纪律：``X-Texlate-*`` 头只进内存 ``Secrets`` 随任务活，绝不�
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import json
 import logging
 import re
 import shutil
 import sqlite3
+import stat as stat_mod
 import subprocess
 import time
 from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Annotated, Any, cast
 from urllib.parse import urlsplit
 
-from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from sse_starlette.sse import EventSourceResponse
 from starlette._utils import get_route_path  # 路由匹配同一条路径视图（剥 root_path）
 from starlette.datastructures import UploadFile as StarletteUploadFile
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 try:
     import python_multipart as _pymp
@@ -104,6 +107,7 @@ if TYPE_CHECKING:
     from texlate.arxiv.cache import SourceCache
     from texlate.arxiv.fetch import Fetcher
     from texlate.compile.engine import Engine
+    from texlate.share import ShareManifest
     from texlate.xlat.pipeline import Translator
 
 log = logging.getLogger(__name__)
@@ -369,6 +373,32 @@ _ENGINE_NAMES = frozenset({"auto", "xelatex", "tectonic"})
 #: ``quota_*`` 保留——多租户下配额上限是租户自身策略面，非拓扑。
 _SERVER_SETTINGS_HIDDEN = frozenset({"cors_origins", "glossary_dir"})
 
+#: ``options`` 落库序列化上限——body 闸放到 UPLOAD_CAP 级，options_json
+#: 是无 schema 自由 KV，巨型 blob 会原样进 ``tasks.options_json``
+#: （每行拖 KB→MB 级垃圾且 ``options()`` 每读全解析）。64KB 远超合法
+#: 键集（glossary/main/source/engine/concurrency/idempotency_key…）。
+_OPTIONS_JSON_CAP = 65536
+
+
+def _options_json_checked(options: dict[str, Any]) -> str:
+    """``options`` → JSON 串：不可序列化或超 ``_OPTIONS_JSON_CAP`` → 400。"""
+    try:
+        raw = json.dumps(options, ensure_ascii=False)
+    except (TypeError, ValueError) as e:
+        raise _ApiError(
+            400,
+            {"detail": f"options 须可 JSON 序列化: {e}", "code": "invalid_request"},
+        ) from e
+    if len(raw.encode()) > _OPTIONS_JSON_CAP:
+        raise _ApiError(
+            400,
+            {
+                "detail": f"options 序列化超 {_OPTIONS_JSON_CAP}B",
+                "code": "invalid_request",
+            },
+        )
+    return raw
+
 
 def _settings_write_gate() -> None:
     """Server 模式 settings 写路径关闭（§4.1：PUT settings 是本地单机默认形态）。
@@ -432,6 +462,7 @@ def _clean_task_options(options: dict[str, Any]) -> dict[str, Any]:
                     "code": "invalid_request",
                 },
             ) from None
+    _options_json_checked(options)
     return options
 
 
@@ -451,6 +482,39 @@ def _host_only(host: str) -> str:
     if h.count(":") > 1:
         return h  # 裸 IPv6（无括号写法）
     return h.split(":", 1)[0]
+
+
+def _loopback_peer(request: Request) -> bool:
+    """TCP 对端回环判定——网络层事实，伪造 ``Host`` 绕不过。
+
+    非 IP 字面量/缺席（UDS、in-process testclient）视为本机：真 TCP
+    ``getpeername`` 恒返回 IP，非 IP 值只能来自非网络传输。IPv4-mapped
+    IPv6（``::ffff:127.0.0.1``，``::`` 双栈监听下的 IPv4 对端）归一再判。
+    """
+    peer = request.client.host if request.client is not None else ""
+    if not peer:
+        return True
+    try:
+        addr = ipaddress.ip_address(peer)
+    except ValueError:
+        return True
+    mapped = getattr(addr, "ipv4_mapped", None)
+    if mapped is not None:
+        addr = mapped
+    return addr.is_loopback
+
+
+def _loopback_bind(host: str) -> bool:
+    """``--host`` 绑定地址回环判定（cli/``__main__`` 启动警告用）。
+
+    可解析 IP 看 ``is_loopback``；主机名形态查白名单——``0.0.0.0``/``::``
+    与无法定性的主机名一律按非回环论。
+    """
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        h = _host_only(host)
+        return h in _LOOPBACK_HOSTS or h.endswith(".localhost")
 
 
 def _same_origin(request: Request, origin: str) -> bool:
@@ -527,6 +591,31 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         keys.extend(s.api_key for s in runner.secrets.values())
         return [k for k in keys if k]
 
+    def _sweep_orphan_task_dirs() -> int:
+        """启动清扫：``tasks/{id}`` 无对应 DB 行的孤儿目录 → 清扫数。
+
+        upload/share_import 在建行前落盘 blob——进程在写盘与 INSERT 之间
+        被杀会留孤儿目录。只在启动窗口跑（尚无并发建行）；名字非法或不
+        是 task-id 形态的条目不碰。
+        """
+        tasks_root = root / "tasks"
+        if not tasks_root.is_dir():
+            return 0
+        known = {
+            str(r[0]) for r in store.conn.execute("SELECT id FROM tasks").fetchall()
+        }
+        n = 0
+        for d in tasks_root.iterdir():
+            if not (valid_task_id(d.name) and d.name not in known):
+                continue
+            if d.is_dir() and not d.is_symlink():
+                shutil.rmtree(d, ignore_errors=True)
+            else:
+                with suppress(OSError):
+                    d.unlink()
+            n += 1
+        return n
+
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         # §4.2 第二道防线：uvicorn log config 此时已就绪，filter 落到
@@ -534,8 +623,11 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         install_log_scrub(_key_provider)
         store.open()
         recovered = store.recover_startup()
+        orphans = _sweep_orphan_task_dirs()
         if recovered["interrupted"] or recovered["needs_auth"]:
             log.info("startup recovery: %s", recovered)
+        if orphans:
+            log.info("swept %d orphan task dir(s)", orphans)
         if start_worker:
             runner.start()
         yield
@@ -554,12 +646,15 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
     # ------------------------------------------------------------ 横切
 
     @app.middleware("http")
-    async def request_gate_mw(
+    async def request_gate_mw(  # noqa: PLR0911 -- 闸序列每层一个早退 return
         request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
-        """入站闸：local Host 白名单 + mutating /api 跨站检查 + server 匿名写 401。
+        """入站闸：local 回环对端+Host 白名单 + mutating /api 跨站检查 + server 匿名写 401。
 
-        - local 形态 ``Host`` 剥端口须 loopback——DNS rebinding 读面收口。
+        - local 形态双闸：TCP 对端须回环（伪造 ``Host: localhost`` 的外网
+          直连在这层死）；``Host`` 剥端口须 loopback 且不可缺席——
+          Host 缺席无法证明浏览器来源合法性（HTTP/1.1 恒有 Host，
+          HTTP/1.0 裸连场景事实上不存在），fail closed。
         - mutating /api：``Sec-Fetch-Site: cross-site`` 一律拒；``Origin``
           在时须与请求 scheme+Host（含端口）同源，或命中 server 形态
           ``cors_origins`` allowlist（部署方显式跨域面）；两头皆无的
@@ -572,9 +667,12 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         子路径部署下 ``/tex/api/…`` 会骗过前缀闸而路由照样命中。
         """
         if server_mode() != "server":
+            peer = request.client.host if request.client is not None else ""
+            if not _loopback_peer(request):
+                return _json_error(403, f"peer {peer} not allowed")
             host = request.headers.get("host", "")
-            if host and _host_only(host) not in _LOOPBACK_HOSTS:
-                return _json_error(403, f"host {host} not allowed")
+            if not host or _host_only(host) not in _LOOPBACK_HOSTS:
+                return _json_error(403, f"host {host or '<absent>'} not allowed")
         mutating = request.method in (
             "POST",
             "PUT",
@@ -642,11 +740,25 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
     async def _store_500(_req: Request, exc: StoreError) -> JSONResponse:
         return _json_error(500, str(exc), "internal")
 
+    @app.exception_handler(StarletteHTTPException)
+    async def _http_exc(_req: Request, exc: StarletteHTTPException) -> JSONResponse:
+        """裸 ``HTTPException`` 归一到统一错误面（404/405 带 code）。"""
+        code = {404: "not_found", 405: "method_not_allowed"}.get(exc.status_code)
+        resp = _json_error(exc.status_code, str(exc.detail), code)
+        for k, v in (exc.headers or {}).items():
+            resp.headers[k] = v
+        return resp
+
     @app.exception_handler(RequestValidationError)
     async def _validation_400(
         _req: Request, exc: RequestValidationError
     ) -> JSONResponse:
-        return _json_error(400, str(exc.errors()[:3]), "invalid_request")
+        """Pydantic 错误列表转可读 detail（``loc: msg``；截前 3 条）。"""
+        msgs = "; ".join(
+            f"{'.'.join(str(p) for p in e.get('loc', ()))}: {e.get('msg', '')}"
+            for e in exc.errors()[:3]
+        )
+        return _json_error(400, msgs or "请求参数校验失败", "invalid_request")
 
     # ------------------------------------------------------------ 辅助
 
@@ -719,7 +831,14 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
             # ValueError 含 JSONDecodeError 与巨 int 字面量（int↔str 上限）；
             # RecursionError 是超深嵌套——不入网即 500
             raise _ApiError(400, {"detail": f"bad json: {e}"}) from e
-        return data if isinstance(data, dict) else {}
+        if not isinstance(data, dict):
+            # 非 object JSON（[1]/"x"/null）——静默当 {} 会让 PUT settings 等
+            # 端点 200 无操作，调用方无从察觉体被整个丢弃
+            raise _ApiError(
+                400,
+                {"detail": "json body 须为 object", "code": "invalid_request"},
+            )
+        return data
 
     def _check_quota(auth: AuthContext, incoming_bytes: int) -> None:
         """Tenant 配额闸（settings.quota_max_*，0=不限）——超限 429。
@@ -751,7 +870,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
                 },
             )
 
-    def _create_and_enqueue(  # noqa: PLR0913 -- 建行参数面
+    def _create_and_enqueue(  # noqa: C901, PLR0913 -- dedup/reuse/建行阶梯 + 参数面平铺
         request: Request,
         *,
         kind: str,
@@ -795,7 +914,25 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
                 )
             done = store.find_reusable(cache_key)
             if done is not None:
-                return done, 200, {"reused": True}
+                if server_mode() == "server" and str(done["tenant"]) != auth.tenant:
+                    # 跨租户命中——直接回 hit 行的 task_id 对本租户是死链
+                    # （_get_task tenant 检恒 404）。改走建行+worker
+                    # post-resolve dedup：_materialize_reuse 把产物真拷进
+                    # 本任务目录，租户拿到自己的可读任务句柄。
+                    # 存 alias（无版本）键使 stored≠resolved——钉版请求
+                    # 也能命中物化臂；share/upload 等不走 post_resolve 的
+                    # kind 保留原键（真跑语义不变，dedup 槽位照占）。
+                    if kind in ("arxiv", "arxiv_html") and arxiv_id:
+                        cache_key = cache_key_for(
+                            arxiv_id=arxiv_id,
+                            version=None,
+                            model=model,
+                            target_lang=target_lang,
+                            api_key=auth.api_key,
+                            source=str(options.get("source") or "eprint"),
+                        )
+                else:
+                    return done, 200, {"reused": True}
         _check_quota(auth, incoming_bytes)
         tid = task_id or new_task_id()
         config = {
@@ -827,7 +964,17 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
             )
         except sqlite3.IntegrityError:
             if prefer != "fresh":
-                raise
+                # 检查-建行之间并发插入撞 ACTIVE 唯一索引——归 duplicate_active
+                # （原来裸 re-raise 出 FastAPI 成无码 500）
+                active = store.find_active_by_cache_key(cache_key)
+                body: dict[str, Any] = {
+                    "detail": "active task exists",
+                    "code": "duplicate_active",
+                }
+                if active is not None:
+                    body["detail"] = f"active task {active['id']} exists"
+                    body["task_id"] = active["id"]
+                raise _ApiError(409, body) from None
             # fresh：cache_key 撞活跃行——放弃 dedup 键强行新建（§2.1）
             row = store.create_task(
                 task_id=tid,
@@ -960,7 +1107,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         return JSONResponse({"artifacts": out})
 
     @app.get("/api/files/{task_id}/{kind}")
-    async def file_get(
+    async def file_get(  # noqa: PLR0911 -- 校验阶梯每层一个早退 return
         request: Request,
         task_id: str,
         kind: str,
@@ -983,7 +1130,13 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
             )
         task_root = (root / "tasks" / task_id).resolve()
         path = (task_root / rec["path"]).resolve()
-        if not path.is_file() or not path.is_relative_to(task_root):
+        if not path.is_relative_to(task_root):
+            return _json_error(404, "artifact file missing")
+        try:
+            stat_res = path.stat()
+        except OSError:
+            return _json_error(404, "artifact file missing")
+        if not stat_mod.S_ISREG(stat_res.st_mode):
             return _json_error(404, "artifact file missing")
         headers = None
         if download:
@@ -992,18 +1145,26 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
             headers = {
                 "Content-Disposition": (f'attachment; filename="texlate-{stem}-{kind}"')
             }
-        media = (
-            _src_tar_media(str(row["kind"]), path)
-            if kind == "src.tar"
-            else _MEDIA.get(kind, "application/octet-stream")
-        )
+        try:
+            media = (
+                _src_tar_media(str(row["kind"]), path)
+                if kind == "src.tar"
+                else _MEDIA.get(kind, "application/octet-stream")
+            )
+        except OSError:
+            # src.tar 魔数嗅探 open() 竞删——与 stat 同归 404
+            return _json_error(404, "artifact file missing")
         if media.startswith("text/html"):
             # html 产物同源伺服——直接导航时文档内幸存脚本可在同源上下文
             # 打 mutating /api；CSP sandbox（无 allow-*）整文档脚本全灭。
             # 纵深防御：worker _sanitize_dom 主防线 + 前端 DOMPurify 之外的
             # 服务端兜底；不挡 img-src（sandbox 只禁脚本）
             headers = {**(headers or {}), "Content-Security-Policy": "sandbox"}
-        return FileResponse(path, media_type=media, headers=headers)
+        # stat_result 直传：__call__ 跳过惰性 stat——不给 is_file→serve 留
+        # TOCTOU 窗（starlette 惰性 stat 缺文件抛 RuntimeError 裸 500）
+        return FileResponse(
+            path, media_type=media, headers=headers, stat_result=stat_res
+        )
 
     # ------------------------------------------------------------ §2.4 upload
 
@@ -1118,7 +1279,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
     # ------------------------------------------------------------ share 导入
 
     @app.post("/api/share/import")
-    async def share_import(request: Request) -> Response:
+    async def share_import(request: Request) -> Response:  # noqa: C901 -- 校验/落盘/建阶梯平铺
         """``.share.zip`` → 校验解包 → ``kind="share"`` 任务入队。
 
         端点只做机械校验（``unpack_share``：format/share_key 自洽/逐产物
@@ -1144,12 +1305,17 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
             )
         tid = new_task_id()
         tdir = root / "tasks" / tid
-        try:
+
+        def _stage() -> ShareManifest:
             bundle_dir = tdir / "upload"
             bundle_dir.mkdir(parents=True, exist_ok=True)
             bundle = bundle_dir / "bundle.share.zip"
             bundle.write_bytes(data)
-            mf = unpack_share(bundle, tdir / "share")
+            return unpack_share(bundle, tdir / "share")
+
+        try:
+            # 逐成员 sha256+解压跑满 CPU 秒级——卸出事件循环（share_pack 同口径）
+            mf = await asyncio.to_thread(_stage)
             parts = mf.key_parts
             base, ver_s, model, lang, ver = _share_parts_checked(parts)
             options_raw = _form_text(form, "options")
@@ -1342,9 +1508,22 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         }
 
     @app.get("/api/tasks")
-    async def tasks_list(request: Request, status: str = "") -> Response:
-        """Tenant 过滤任务列表（``?status=`` 再过滤）。"""
-        rows = store.list_tasks(_auth(request).tenant, status or None)
+    async def tasks_list(
+        request: Request,
+        status: str = "",
+        limit: Annotated[int, Query(ge=1, le=1000)] = 100,
+        offset: Annotated[int, Query(ge=0)] = 0,
+    ) -> Response:
+        """Tenant 过滤任务列表（``?status=`` 再过滤；``limit``/``offset`` 分页）。
+
+        ``total`` = 过滤后全集大小（非本页行数），前端分页条用。
+        """
+        rows, total = store.list_tasks_page(
+            _auth(request).tenant,
+            status=status or None,
+            limit=limit,
+            offset=offset,
+        )
         return JSONResponse(
             {
                 "tasks": [
@@ -1374,7 +1553,8 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
                         ),
                     }
                     for r in rows
-                ]
+                ],
+                "total": total,
             }
         )
 
@@ -1445,30 +1625,39 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         if body.get("main"):
             opts["main"] = str(body["main"])
         main_req = str(opts.get("main") or "")
-        if main_req and main_req != str(row.get("main_tex") or ""):
-            # 换主文件（body.main 与 options.main 同口径）→ 解析产物作废
-            # （chunks/base/zh 重建，src/ 保留）；派生产物行与磁盘件并删——
-            # 残行会让 files/reader 照发上一轮产物（en.pdf 也随 base/ 同死：
-            # 换 main 后它编译自另一棵树）
-            store.conn.execute("DELETE FROM chunks WHERE task_id = ?", (task_id,))
-            store.conn.commit()
-            task_root = root / "tasks" / task_id
-            for d in ("base", "zh", "build-en", "build-zh"):
-                shutil.rmtree(task_root / d, ignore_errors=True)
-            resolved_root = task_root.resolve()
-            for kind, rec in store.files(task_id).items():
-                if kind == "src_tar":
-                    continue  # 取源产物不受影响——e-print/上传件仍有效
-                store.delete_file(task_id, kind)
-                stale = (task_root / str(rec["path"])).resolve()
-                if stale.is_relative_to(resolved_root):
-                    with suppress(OSError):
-                        stale.unlink(missing_ok=True)
-        store.update_fields(task_id, options_json=json.dumps(opts))
+        # 原子守卫先行——抢到 queued 前不做任何破坏清理。双发 retry 时后者
+        # 在此 409 出局，不再抹掉 worker 已重插的 chunks / 覆盖 options（B3）
         try:
             store.transition(task_id, "queued", message="重试入队")
         except TransitionError as e:
             return _json_error(409, str(e), "invalid_transition")
+        try:
+            if main_req and main_req != str(row.get("main_tex") or ""):
+                # 换主文件（body.main 与 options.main 同口径）→ 解析产物作废
+                # （chunks/base/zh 重建，src/ 保留）；派生产物行与磁盘件并删——
+                # 残行会让 files/reader 照发上一轮产物（en.pdf 也随 base/
+                # 同死：换 main 后它编译自另一棵树）
+                store.conn.execute("DELETE FROM chunks WHERE task_id = ?", (task_id,))
+                store.conn.commit()
+                task_root = root / "tasks" / task_id
+                for d in ("base", "zh", "build-en", "build-zh"):
+                    shutil.rmtree(task_root / d, ignore_errors=True)
+                resolved_root = task_root.resolve()
+                for kind, rec in store.files(task_id).items():
+                    if kind == "src_tar":
+                        continue  # 取源产物不受影响——e-print/上传件仍有效
+                    store.delete_file(task_id, kind)
+                    stale = (task_root / str(rec["path"])).resolve()
+                    if stale.is_relative_to(resolved_root):
+                        with suppress(OSError):
+                            stale.unlink(missing_ok=True)
+            store.update_fields(task_id, options_json=json.dumps(opts))
+        except Exception:
+            # 已抢 queued 但清理/写 options 折了——不留 queued 半成品给
+            # dispatcher 捡，转 fault 把责任落回行状态
+            with suppress(StoreError):
+                store.transition(task_id, "fault", force=True, message="retry 清理失败")
+            raise
         runner.enqueue(task_id, _secrets_for(request, row))
         return _accepted(store.get(task_id) or row, 202, {"cache": "retry"})
 
@@ -1487,12 +1676,20 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
                 f"task {task_id} is {row['status']}: cancel first",
                 "invalid_transition",
             )
+        # 先发终帧再删行——task_events FK 挂 tasks(id)，删后 publish 即
+        # 约束违例；publish→delete 间无 await，对并发 retry/cancel 原子
         bus.publish(
             task_id,
             "done",
             {"status": "deleted", "artifacts": {}, "stats": {}},
         )
-        store.delete_task(task_id)
+        if not store.delete_task_guard(task_id, blocked=ACTIVE_STATUSES):
+            # 读时终态、删前被并发 retry 激活（跨进程/极端时序）——条件写兜底
+            return _json_error(
+                409,
+                f"task {task_id} is active: cancel first",
+                "invalid_transition",
+            )
         runner.secrets.pop(task_id, None)
         shutil.rmtree(root / "tasks" / task_id, ignore_errors=True)
         return JSONResponse({"task_id": task_id, "status": "deleted"})
@@ -1500,18 +1697,30 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
     # ------------------------------------------------------------ reader
 
     @app.get("/api/task/{task_id}/reader")
-    async def reader_get(request: Request, task_id: str) -> Response:
+    async def reader_get(  # noqa: C901 -- 序列化装配阶梯平铺
+        request: Request, task_id: str
+    ) -> Response:
         """``{documents, alignment, reading, view}``（§2.5/§5.4）。"""
         row = _get_task(request, task_id)
         dual_path = root / "tasks" / task_id / "dual.json"
-        if store.file_record(task_id, "dual_json") is None or not dual_path.is_file():
+        if store.file_record(task_id, "dual_json") is None:
             # 以登记行为准——磁盘孤儿件（登记前崩溃/失效清理残留）不服务
             return _json_error(404, "dual.json 未产出")
+
+        def _load() -> dict[str, Any]:
+            if not dual_path.is_file():
+                raise FileNotFoundError(dual_path)
+            data: Any = json.loads(dual_path.read_text(encoding="utf-8"))
+            if not isinstance(data, dict):
+                raise TypeError  # 非 object 与 corrupt 同归 500——调用方只分 404/500/ok
+            return cast("dict[str, Any]", data)
+
         try:
-            dual = json.loads(dual_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            return _json_error(500, "dual.json 损坏", "internal")
-        if not isinstance(dual, dict):
+            # 数 MB 级读+解析——卸出事件循环
+            dual = await asyncio.to_thread(_load)
+        except FileNotFoundError:
+            return _json_error(404, "dual.json 未产出")
+        except (json.JSONDecodeError, TypeError):
             return _json_error(500, "dual.json 损坏", "internal")
         docs = dual.get("documents") or {}
         if not isinstance(docs, dict):
@@ -1573,12 +1782,16 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
                 return _json_error(409, "document_version mismatch", "version_mismatch")
         keep = {
             k: body[k]
-            for k in ("positions", "active", "mode", "zoom", "sync")
+            for k in ("positions", "active", "mode", "zoom", "sync", "swapped")
             if k in body
         }
-        tdir = root / "tasks" / task_id
-        tdir.mkdir(parents=True, exist_ok=True)
-        atomic_json(tdir / "reading.json", keep)
+
+        def _persist() -> None:
+            tdir = root / "tasks" / task_id
+            tdir.mkdir(parents=True, exist_ok=True)
+            atomic_json(tdir / "reading.json", keep)
+
+        await asyncio.to_thread(_persist)
         return JSONResponse({"ok": True})
 
     # ------------------------------------------------------------ §4 settings

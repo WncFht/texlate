@@ -96,6 +96,7 @@ class TestBusStream:
     def test_replayed_done_terminates(self, bus: tuple[Store, EventBus]) -> None:
         store, b = bus
         tid = mk_task_row(store)["id"]
+        store.transition(tid, "done", force=True)
         b.publish(tid, "done", {"status": "done"})
 
         async def run() -> list[dict]:
@@ -138,6 +139,7 @@ class TestBusStream:
         seen = asyncio.run(run())
         assert seen == []  # 积压被 _cut 清掉——内存队列丢了但落盘未丢
         assert not _has_sub(b, tid)
+        store.transition(tid, "done", force=True)
         b.publish(tid, "done", {"status": "done"})
 
         async def replay() -> list[dict]:
@@ -183,6 +185,9 @@ class TestHttpSse:
         """首帧 = 合成 snapshot(id:0)；落盘事件随重放流出，done 终流。"""
         tid = mk_api_task(client, ARXIV)
         bus = client.app.state.bus
+        client.portal.call(
+            partial(client.app.state.store.transition, tid, "done", force=True)
+        )
         client.portal.call(partial(bus.publish, tid, "stage", {"stage": "parsing"}))
         client.portal.call(partial(bus.publish, tid, "done", {"status": "done"}))
         with client.stream(
@@ -231,6 +236,9 @@ class TestHttpSse:
     def test_last_event_id_replay(self, client: TestClient) -> None:
         tid = mk_api_task(client, ARXIV)
         bus = client.app.state.bus
+        client.portal.call(
+            partial(client.app.state.store.transition, tid, "done", force=True)
+        )
         client.portal.call(partial(bus.publish, tid, "stage", {"stage": "a"}))
         client.portal.call(partial(bus.publish, tid, "done", {"status": "done"}))
         # Last-Event-ID=1 → 只重放 done；done 即终流

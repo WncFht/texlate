@@ -244,15 +244,17 @@ class TestReadBodyJsonFuzz:
         )
         assert r.status_code == HTTPStatus.UNSUPPORTED_MEDIA_TYPE
 
-    def test_json_scalar_bodies_lenient(self, client: TestClient) -> None:
-        """``5``/``"s"``/``null`` 等非 dict 体 → ``_read_body`` 归一成 {}。"""
+    def test_json_scalar_bodies_400(self, client: TestClient) -> None:
+        """``5``/``"s"``/``null`` 等非 dict 体 → 400（静默归 {} 会让
+        PUT settings 200 无操作——调用方无从察觉体被整个丢弃）。"""
         for i, raw in enumerate((b"5", b'"s"', b"null", b"true")):
             r = client.post(
                 f"/api/arxiv/2401.0011{i}/translate",
                 content=raw,
                 headers={"Content-Type": "application/json"},
             )
-            assert r.status_code == HTTPStatus.ACCEPTED, raw
+            assert r.status_code == HTTPStatus.BAD_REQUEST, raw
+            assert r.json()["code"] == "invalid_request"
 
     def test_json_bom_and_whitespace(self, raw_client: TestClient) -> None:
         """UTF-8 BOM 体可解析；纯空白体 → 400 bad json。"""

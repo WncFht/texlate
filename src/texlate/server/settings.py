@@ -415,17 +415,42 @@ class SettingsStore:
         #: 最近一次 ``save`` 探活的模型可用性警告（进程瞬态不落盘；
         #: ``None`` = 无警告或未知），``public()`` 随出参透给前端
         self._model_warning: str | None = None
+        #: ``load`` 磁盘缓存：``(mtime_ns, size) | None 签名 → 归一化 dict``。
+        #: app 每请求 + RedactFilter 每条 record 都调 load——签名不变
+        #: 直接命中，省读盘+parse。``_save`` 写盘后显式失效兜底粗粒度
+        #: mtime 文件系统（同秒同大小写盘签名不变）的漏判。
+        self._load_cache: tuple[tuple[int, int] | None, dict[str, Any]] | None = None
+        self._load_lock = threading.Lock()
 
     def load(self) -> dict[str, Any]:
-        """读 settings.json；缺席/损坏回落默认。"""
-        data: dict[str, Any] = {}
-        if self.path.exists():
-            try:
-                raw = json.loads(self.path.read_text(encoding="utf-8"))
-                if isinstance(raw, dict):
-                    data = {k: raw[k] for k in self.FIELDS if k in raw}
-            except (OSError, json.JSONDecodeError) as e:
-                log.warning("settings.json 损坏（%s）→ 用默认值", e)
+        """读 settings.json；缺席/损坏回落默认。
+
+        返回缓存本体的浅拷贝——``public()`` 会 ``pop("api_key")``，
+        调用方就地改不污染缓存。
+        """
+        try:
+            st = self.path.stat()
+            sig: tuple[int, int] | None = (st.st_mtime_ns, st.st_size)
+        except OSError:
+            sig = None  # 文件缺席也按签名缓存——缺席是常态不是异常
+        with self._load_lock:
+            if self._load_cache is not None and self._load_cache[0] == sig:
+                return dict(self._load_cache[1])
+            data: dict[str, Any] = {}
+            if sig is not None:
+                try:
+                    raw = json.loads(self.path.read_text(encoding="utf-8"))
+                    if isinstance(raw, dict):
+                        data = {k: raw[k] for k in self.FIELDS if k in raw}
+                except (OSError, json.JSONDecodeError) as e:
+                    log.warning("settings.json 损坏（%s）→ 用默认值", e)
+            out = self._normalize(data)
+            self._load_cache = (sig, out)
+            return dict(out)
+
+    @staticmethod
+    def _normalize(data: dict[str, Any]) -> dict[str, Any]:
+        """原始 dict → 归一化 settings（容错读集中于此供 ``load`` 缓存）。"""
         return {
             "base_url": _load_str(data.get("base_url"), DEFAULT_BASE_URL),
             "model": _load_str(data.get("model"), DEFAULT_MODEL),
@@ -494,6 +519,8 @@ class SettingsStore:
         self.connections_path.chmod(0o600)
         atomic_json(self.path, merged)
         self.path.chmod(0o600)
+        with self._load_lock:
+            self._load_cache = None  # 粗粒度 mtime 签名同值兜底——写后必失效
         if _MODEL_PROBE_FIELDS & set(updates):
             # 凭证/端点/模型变更后 best-effort 探活——provider 清单不含
             # 当前 model 时存警告（保存照存：不可用模型仍允许入设置，
@@ -652,12 +679,17 @@ def resolve_auth(  # noqa: PLR0913 -- header/base_url/model/mode/salt 即决议�
     server 形态例外：无 header key 时 key 不回落 settings/env——匿名
     桶永不携带部署方凭据（匿名 mutation 由 app 中间件 401 挡死，读面
     也绝不外借 key）。
+    跨槽闸：``header_base_url`` 显式指定了端点却没带 key 时，存下的
+    凭证只回灌给自己的槽位（settings key ↔ settings.base_url、env key
+    ↔ env 端点）；异槽一律匿名——防本地任意进程把部署方 key 引到
+    自选端点（exfil oracle）。
     """
-    base_url = settings["base_url"] or DEFAULT_BASE_URL
+    base_url = str(settings["base_url"] or DEFAULT_BASE_URL)
+    env_url = env_base_url()
+    if not header_base_url and env_url:
+        base_url = validate_base_url(env_url)
     if header_base_url:
         base_url = validate_base_url(header_base_url)
-    elif env_base_url():
-        base_url = validate_base_url(env_base_url())
 
     model = settings["model"] or DEFAULT_MODEL
     if header_model:
@@ -669,11 +701,24 @@ def resolve_auth(  # noqa: PLR0913 -- header/base_url/model/mode/salt 即决议�
         api_key, source = header_key, "header"
     elif mode == "server":
         api_key, source = "", "none"
-    elif settings.get("api_key"):
-        api_key, source = str(settings["api_key"]), "settings"
     else:
-        api_key = env_key_for(base_url)
-        source = "env" if api_key else "none"
+        # 跨槽闸：header 显式指了别的端点却没带 key 时，存下的凭证只能
+        # 回灌给它自己的槽位——settings key 只在 header 复指
+        # settings.base_url 时放行，env key 只在复指 env 端点时放行；
+        # 异槽 → 匿名。否则本地任意可发请求的进程都能把部署方 key
+        # 引到攻击者端点（settings_test「覆盖 base_url 须同给 key」同口径）。
+        settings_ok = not header_base_url or base_url == normalize_base_url(
+            str(settings["base_url"] or DEFAULT_BASE_URL)
+        )
+        env_ok = not header_base_url or (
+            bool(env_url) and base_url == validate_base_url(env_url)
+        )
+        api_key, source = "", "none"
+        if settings_ok and settings.get("api_key"):
+            api_key, source = str(settings["api_key"]), "settings"
+        elif env_ok:
+            api_key = env_key_for(base_url)
+            source = "env" if api_key else "none"
 
     return AuthContext(
         api_key=api_key,

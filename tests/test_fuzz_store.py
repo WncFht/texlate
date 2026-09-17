@@ -351,14 +351,18 @@ def test_flush_chunk_batch_atomic(tmp_path: Path) -> None:
 
 
 def test_cache_hit_count_preserved(tmp_path: Path) -> None:
-    """REPLACE 不清 hit_count（COALESCE 读旧行）；translation 取新值。"""
+    """REPLACE 不清 hit_count（COALESCE 读旧行）；translation 取新值。
+
+    命中记账是聚合落盘——随 ``flush_chunk_batch`` 事务顺带写。
+    """
     s = _store(tmp_path)
     tid = _mk_task(s)
     s.insert_chunks(tid, [_chunk_row(0)])
     s.flush_chunk_batch(tid, [("c0", {"status": "ok"})], [("k", "v1", "m", "zh")], {})
-    assert s.cache_get("k") == "v1"  # hit → 1
+    assert s.cache_get("k") == "v1"  # hit → 1（随下方批事务落）
     s.flush_chunk_batch(tid, [], [("k", "v2", "m", "zh")], {})
     assert s.cache_get("k") == "v2"  # hit → 2，新值在位
+    s.flush_chunk_batch(tid, [], [], {})  # 空批也顺带落挂起记账
     hit = s.conn.execute(
         "SELECT hit_count FROM translation_cache WHERE key = ?", ("k",)
     ).fetchone()["hit_count"]
@@ -695,6 +699,7 @@ def test_stream_unsubscribes_on_done(tmp_path: Path) -> None:
             orig(task_id, q)
 
         bus.unsubscribe = _spy
+        _install(s, tid, "done")  # done 帧只对真终态任务终结重放
         bus.publish(tid, "done", {})
         got = [ev async for ev in bus.stream(tid)]
         assert [e["type"] for e in got] == ["done"]  # 重放见 done 即终
