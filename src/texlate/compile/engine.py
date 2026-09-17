@@ -183,7 +183,14 @@ _UTF8_WARN_RE = re.compile(r"Invalid UTF-8 byte")
 WARNING_RED_LINES: list[tuple[str, str]] = [
     ("invalid_utf8", _UTF8_WARN_RE.pattern),
     ("fffd_glyph", r'Missing character:[^\n]*\((?:"|U\+)FFFD\)'),
-    ("missing_chars", r"Missing character: There is no"),
+    # tempered lookahead 排除 `in font nullfont`（试排/测量盒吞字良性，
+    # nullfont-scout-2026-09-17 ~30/37 格纯噪音）——与 judge.py
+    # _MISSCHAR_GATE_RX / rules.yaml missing_char 同口径：限界窗允许
+    # 79 列折行续行、不越过下一条 Missing character 起点。
+    (
+        "missing_chars",
+        r"Missing character(?!(?:(?!Missing character)[\s\S]){0,90}?in font nullfont)",
+    ),
     (
         "missing_graphic",
         (

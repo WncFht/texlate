@@ -15,7 +15,7 @@ def test_shipped_rules_yaml_loads() -> None:
     data = load_yaml(RULES_YAML)
     assert data["version"] == 1
     assert data["meta"]["loop"]["max_rounds"] == 8  # noqa: PLR2004 - schema 断言值
-    assert len(data["rules"]) == 65  # noqa: PLR2004 - 63 + 批七 (abstract_hoist/cjk_font_fallback)
+    assert len(data["rules"]) == 67  # noqa: PLR2004 - 65 + bblwall (glyphtounicode_shadow/physics_stub_detach)
     ids = [r["id"] for r in data["rules"]]
     assert ids[0] == "latex209_reject"
     assert "install_file" in ids

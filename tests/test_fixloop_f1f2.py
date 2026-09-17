@@ -123,10 +123,6 @@ def test_shim_map_loads_entries_are_cls_and_delegate(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     "payload",
     [
-        "elsart1p.cls",
-        "elsart3p.cls",
-        "elsart5p.cls",
-        "elsevier.cls",
         "sig-alternate.cls",
         "sig-alternate-05-2015.cls",
         "naturemag.cls",
@@ -139,6 +135,22 @@ def test_shim_map_evolved_class_targets(tmp_path: Path, payload: str) -> None:
     ctx, eng = _ctx(tmp_path), _Eng()
     ok, note = TRANSFORM_FNS["legacy_pkg_shim"](ctx, eng, payload, _shim_params())
     assert ok, note
+
+
+@pytest.mark.parametrize(
+    "payload",
+    ["elsart1p.cls", "elsart3p.cls", "elsart5p.cls", "elsevier.cls"],
+)
+def test_shim_map_elsart_siblings_body_form(tmp_path: Path, payload: str) -> None:
+    """elsart 兄弟系共享 *elsart_body (loads 裸桥无公开宏面, corauth 实证)。"""
+    spec = _shim_map()[payload]
+    assert "loads" not in spec
+    assert "\\LoadClassWithOptions{elsarticle}" in spec["body"]
+    ctx, eng = _ctx(tmp_path), _Eng()
+    ok, note = TRANSFORM_FNS["legacy_pkg_shim"](ctx, eng, payload, _shim_params())
+    assert ok, note
+    stub = (tmp_path / payload).read_text()
+    assert "\\LoadClassWithOptions{elsarticle}" in stub
 
 
 def test_shim_map_elsart_body_form(tmp_path: Path) -> None:

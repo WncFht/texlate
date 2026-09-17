@@ -842,7 +842,9 @@ rules:
               \providecommand{\lefthead}[1]{\markboth{#1}{}}
               \providecommand{\righthead}[1]{\markboth{}{#1}}
               \endinput
-          aaspp4.sty: { needs: [], body: *aas4_body }
+          # aaspp4.sty 不在此 —— 下方 fuller body (deluxetable 面,
+          # 9703134 实证) 才是真身条目; 旧 anchor 键曾在此造成 yaml
+          # dup-key 后写赢死影, 批八清除。
           aas2pp4.sty: { needs: [], body: *aas4_body }
           # eqsecnum 2.09 选项文件 (wave-final 单格): 公式按节编号 ——
           # .sty 语境 @ 即字母, 无需 makeatletter 包装 (cs_table eqnobysec
@@ -866,7 +868,7 @@ rules:
           # elsart 稿无副作用。
           elsart.cls:
             needs: ["elsarticle.cls"]
-            body: |
+            body: &elsart_body |
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesClass{elsart}[2026/09/17 fixloop legacy shim -> elsarticle]
               \LoadClassWithOptions{elsarticle}
@@ -886,21 +888,30 @@ rules:
               \def\head@format#1#2{#1\space#2}
               \def\@secnumfont{\bfseries}
               \def\head@style{}
+              % 批八: elsart 公开面补 (corauth 30格实证) —— \corauth[label]{注}
+              % 桥 elsarticle \cortext; \startlocaldefs/\endlocaldefs 是
+              % elsart 导言区局部定义定界 (imsart 同构), noop 对吞界定符
+              % 保留内部定义生效; \end 前缀名 \@ifdefinable 拒收用 ifdefined 守。
+              \providecommand{\corauth}[2][]{\ifdefined\cortext\cortext[#1]{#2}\fi}
+              \providecommand{\startlocaldefs}{}
+              \ifdefined\endlocaldefs\else\def\endlocaldefs{}\fi
               \endinput
-          elsart1p.cls: { loads: "elsarticle", needs: ["elsarticle.cls"] }
-          elsart3p.cls: { loads: "elsarticle", needs: ["elsarticle.cls"] }
-          elsart5p.cls: { loads: "elsarticle", needs: ["elsarticle.cls"] }
-          elsevier.cls: { loads: "elsarticle", needs: ["elsarticle.cls"] }
+          # 批八: elsart 全系兄弟共享同体 (ProvidesClass 名差仅 warning,
+          # siam_body 先例) —— loads 裸桥无公开宏面, elsart1p 实证 corauth 炸。
+          elsart1p.cls: { needs: ["elsarticle.cls"], body: *elsart_body }
+          elsart3p.cls: { needs: ["elsarticle.cls"], body: *elsart_body }
+          elsart5p.cls: { needs: ["elsarticle.cls"], body: *elsart_body }
+          elsevier.cls: { needs: ["elsarticle.cls"], body: *elsart_body }
           # elsart 旁系 (gtrap-scout-2026-09-16 §a): elsart3/3-1/elsart1、
           # autart (Automatica, \proc@elem 逐字节同 elsart)、personal
           # (elsart 克隆) —— 非 ship 声明的 class-not-found 模态同图
           # elsarticle; ship 真载体的 misschar 毒化由 CJK_FIRST_USE_WARMUP
           # 覆盖 (cmrepro 10/10 实证), 不属本表。
-          elsart3.cls: { loads: "elsarticle", needs: ["elsarticle.cls"] }
-          elsart3-1.cls: { loads: "elsarticle", needs: ["elsarticle.cls"] }
-          elsart1.cls: { loads: "elsarticle", needs: ["elsarticle.cls"] }
-          autart.cls: { loads: "elsarticle", needs: ["elsarticle.cls"] }
-          personal.cls: { loads: "elsarticle", needs: ["elsarticle.cls"] }
+          elsart3.cls: { needs: ["elsarticle.cls"], body: *elsart_body }
+          elsart3-1.cls: { needs: ["elsarticle.cls"], body: *elsart_body }
+          elsart1.cls: { needs: ["elsarticle.cls"], body: *elsart_body }
+          autart.cls: { needs: ["elsarticle.cls"], body: *elsart_body }
+          personal.cls: { needs: ["elsarticle.cls"], body: *elsart_body }
           # sig-alternate (ACM ≤2015 版式) → acmart 官方继任; naturemag → nature。
           sig-alternate.cls: { loads: "acmart", needs: ["acmart.cls"] }
           sig-alternate-05-2015.cls: { loads: "acmart", needs: ["acmart.cls"] }
@@ -1053,6 +1064,9 @@ rules:
               % 1306.2177 实证: 无头容器即可, 语义=不带号小节
               \newenvironment{theacknowledgments}
                 {\par\noindent\textbf{Acknowledgments.}\space}{\par}
+              % 批八 (astro-ph/0104134 实证): elsart 式 \address{...} 单参
+              % 散调 —— aipproc 双参 keyval \author 不盖, 脚注块保文
+              \providecommand{\address}[1]{\par{\footnotesize #1\par}}
               \endinput
           aipcheck.tex:
             body: |
@@ -1097,6 +1111,12 @@ rules:
               \providecommand{\arcsec}{\ensuremath{''}}
               \providecommand{\la}{\ensuremath{\leq}}
               \providecommand{\ga}{\ensuremath{\geq}}
+              % 批八 (loop1 残盘实证): aa-shim 格 \email(2格)/\acknowledgements
+              % (4格, env+cs 两形均见)/\thesaurus 仍 undefined_cs —— 真身 aa.cls
+              % 作者面补位 (acknowledgements 作无号小节头, thesaurus 吞码表)
+              \providecommand{\email}[1]{\texttt{#1}}
+              \providecommand{\acknowledgements}{\par\medskip\noindent\textbf{Acknowledgements.}\space}
+              \providecommand{\thesaurus}[1]{}
               \endinput
           # IOP 系 (iopart.cls 作者工具包, 1996 版起不在 TL): 实证 wdir 常自带
           # iopart.cls 只缺 \@ptsize 尺寸 .clo (1306.5813) —— article 同构,
@@ -1106,19 +1126,169 @@ rules:
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesClass{iopart}[2026/09/16 fixloop legacy shim -> article + IOP polyfills]
               \LoadClassWithOptions{article}
+              % ── 批八扩列: 真身 iopart.cls (1996 作者工具包, 语料 1907.00138
+              % 随包本) 公共面抄值 —— shim 落 wdir 后 \fl(15格)/\eqnobysec(13)/
+              % \ams(8)/\PRL(4)/\iopamstrue(4) 等仍 undefined_cs。寄存器/开关
+              % 先立, 宏面按 providecommand 幂等补。
+              \newdimen\mathindent
+              \mathindent=6pc
+              \newif\ifiopams
+              \newif\ifnumbysec
+              \newif\ifletter
               \providecommand{\pacs}[1]{\par\noindent\textbf{PACS:} #1\par}
               \providecommand{\pacscodes}[1]{}
+              \providecommand{\pacno}[1]{\vspace{10pt}\noindent{\bf PACS number:} #1\par}
               \providecommand{\submitted}[1]{}
+              \providecommand{\submitto}[1]{\vspace{10pt}\noindent{\it Submitted to: #1}\par}
+              \providecommand{\ams}[1]{\vspace{10pt}\noindent{\bf AMS classification:} #1\par}
               \providecommand{\comment}[1]{}
               \providecommand{\keywords}[1]{\par\noindent\textbf{Keywords:} #1\par}
               % iopart 稿在 document 体内用 \address{...}/\ead{...} 印通讯块
               \providecommand{\address}[1]{\par{\footnotesize #1\par}}
               \providecommand{\ead}[1]{\par{\footnotesize\texttt{#1}\par}}
+              \providecommand{\eads}[1]{\par{\footnotesize E-mail: \texttt{#1}\par}}
+              \providecommand{\mailto}[1]{\texttt{#1}}
               \@ifundefined{ack}{\newenvironment{ack}{\par\small\noindent\textbf{Acknowledgments.}\space}{\par}}{}
+              \providecommand{\ackn}[1]{\par\medskip\noindent #1\par}
+              % \eqnobysec = \numbysectrue + 按节重置 (真身 iopart.cls:812)
+              \providecommand{\eqnobysec}{\numbysectrue\@addtoreset{equation}{section}\renewcommand{\theequation}{\thesection.\arabic{equation}}}
+              \providecommand{\noappendix}{\setcounter{figure}{0}\setcounter{table}{0}\def\thetable{\arabic{table}}\def\thefigure{\arabic{figure}}}
+              % 交叉引用小写/大写族 (真身同款)
               \providecommand{\eref}[1]{(\ref{#1})}
               \providecommand{\tref}[1]{table~\ref{#1}}
               \providecommand{\fref}[1]{figure~\ref{#1}}
               \providecommand{\sref}[1]{section~\ref{#1}}
+              \providecommand{\Eref}[1]{Equation~(\ref{#1})}
+              \providecommand{\Sref}[1]{Section~\ref{#1}}
+              \providecommand{\Fref}[1]{Figure~\ref{#1}}
+              \providecommand{\Tref}[1]{Table~\ref{#1}}
+              % eqnarray 行首回拉 + 数学助记 (\fl 真身 \hspace*{-\mathindent})
+              \providecommand{\fl}{\hspace*{-\mathindent}}
+              \providecommand{\e}{\mathrm{e}}
+              \providecommand{\rme}{\mathrm{e}}
+              \providecommand{\rmi}{\mathrm{i}}
+              \providecommand{\rmd}{\mathrm{d}}
+              \providecommand{\Tr}{\mathop{\mathrm{Tr}}\nolimits}
+              \providecommand{\tr}{\mathop{\mathrm{tr}}\nolimits}
+              \providecommand{\Or}{\mathord{\mathrm{O}}}
+              \providecommand{\lshad}{[\![}
+              \providecommand{\rshad}{]\!]}
+              \providecommand{\case}[2]{{\textstyle\frac{#1}{#2}}}
+              \providecommand{\dsty}{\displaystyle}
+              \providecommand{\tsty}{\textstyle}
+              \providecommand{\ssty}{\scriptstyle}
+              \providecommand{\sssty}{\scriptscriptstyle}
+              \providecommand{\tdot}[1]{\stackrel{\dots}{#1}}
+              \providecommand{\tqs}{\hspace*{25pt}}
+              \providecommand{\lo}[1]{\llap{${}#1{}$}}
+              \providecommand{\eql}{\llap{${}={}$}}
+              \providecommand{\lsim}{\llap{${}\sim{}$}}
+              \providecommand{\lsimeq}{\llap{${}\simeq{}$}}
+              \providecommand{\lequiv}{\llap{${}\equiv{}$}}
+              \def\pt(#1){({\it #1\/})}
+              % 表格 \noalign 间距件 + 对齐助记 (真身 \ms/\bs/\ns/\es 原值)
+              \providecommand{\ms}{\noalign{\vspace{3\p@ plus2\p@ minus1\p@}}}
+              \providecommand{\bs}{\noalign{\vspace{6\p@ plus2\p@ minus2\p@}}}
+              \providecommand{\ns}{\noalign{\vspace{-3\p@ plus-1\p@ minus-1\p@}}}
+              \providecommand{\es}{\noalign{\vspace{6\p@ plus2\p@ minus2\p@}}\displaystyle}
+              \providecommand{\br}{\ms\hline\ms}
+              \providecommand{\mr}{\ms\hline\ms}
+              \providecommand{\centre}[2]{\multispan{#1}{\hfill #2\hfill}}
+              \providecommand{\crule}[1]{\multispan{#1}{\hspace*{\tabcolsep}\hrulefill\hspace*{\tabcolsep}}}
+              \providecommand{\lineup}{\def\0{\hbox{\phantom{\footnotesize\rm 0}}}\def\m{\hbox{$\phantom{-}$}}\def\-{\llap{$-$}}}
+              \providecommand{\etal}{{\it et al\/}\ }
+              \providecommand{\dash}{------}
+              \providecommand{\nonum}{\par\item[]}
+              \providecommand{\mat}[1]{\underline{\underline{#1}}}
+              % 装饰框/线族 (真身同款; iopams.sty 装载后升 amssymb 版见彼身)
+              \providecommand{\opencircle}{\mbox{\Large$\circ\,$}}
+              \providecommand{\opensquare}{\mbox{$\rlap{$\sqcap$}\sqcup$}}
+              \providecommand{\opentriangle}{\mbox{$\triangle$}}
+              \providecommand{\opentriangledown}{\mbox{$\bigtriangledown$}}
+              \providecommand{\opendiamond}{\mbox{$\diamondsuit$}}
+              \providecommand{\fullcircle}{\mbox{{\Large$\bullet\,$}}}
+              \providecommand{\fullsquare}{\,\vrule height5pt depth0pt width5pt}
+              \providecommand{\dotted}{\protect\mbox{${\mathinner{\cdotp\cdotp\cdotp\cdotp\cdotp\cdotp}}$}}
+              \providecommand{\dashed}{\protect\mbox{-\; -\; -\; -}}
+              \providecommand{\broken}{\protect\mbox{-- -- --}}
+              \providecommand{\longbroken}{\protect\mbox{--- --- ---}}
+              \providecommand{\chain}{\protect\mbox{--- $\cdot$ ---}}
+              \providecommand{\dashddot}{\protect\mbox{--- $\cdot$ $\cdot$ ---}}
+              \providecommand{\full}{\protect\mbox{------}}
+              % 期刊缩写全表 (真身两族: IOP 自家 + 物理通用, bbl/正文散调)
+              \providecommand{\CQG}{{\it Class. Quantum Grav.} }
+              \providecommand{\CTM}{{\it Combust. Theory Modelling\/} }
+              \providecommand{\DSE}{{\it Distrib. Syst. Engng.\/} }
+              \providecommand{\EJP}{{\it Eur. J. Phys.} }
+              \providecommand{\JNE}{{\it J. Neural Eng.} }
+              \providecommand{\PB}{{\it Phys. Biol.} }
+              \providecommand{\SMS}{{\it Smart Mater. Struct.} }
+              \providecommand{\HPP}{{\it High Perform. Polym.} }
+              \providecommand{\IP}{{\it Inverse Problems\/} }
+              \providecommand{\JHM}{{\it J. Hard Mater.} }
+              \providecommand{\JO}{{\it J. Opt.} }
+              \providecommand{\JOA}{{\it J. Opt. A: Pure Appl. Opt.} }
+              \providecommand{\JOB}{{\it J. Opt. B: Quantum Semiclass. Opt.} }
+              \providecommand{\JPA}{{\it J. Phys. A: Math. Gen.} }
+              \providecommand{\JPB}{{\it J. Phys. B: At. Mol. Phys.} }
+              \providecommand{\jpb}{{\it J. Phys. B: At. Mol. Opt. Phys.} }
+              \providecommand{\JPC}{{\it J. Phys. C: Solid State Phys.} }
+              \providecommand{\JPCM}{{\it J. Phys.: Condens. Matter\/} }
+              \providecommand{\JPD}{{\it J. Phys. D: Appl. Phys.} }
+              \providecommand{\JPE}{{\it J. Phys. E: Sci. Instrum.} }
+              \providecommand{\JPF}{{\it J. Phys. F: Met. Phys.} }
+              \providecommand{\JPG}{{\it J. Phys. G: Nucl. Phys.} }
+              \providecommand{\jpg}{{\it J. Phys. G: Nucl. Part. Phys.} }
+              \providecommand{\JMM}{{\it J. Micromech. Microeng.\/} }
+              \providecommand{\MSMSE}{{\it Modelling Simulation Mater. Sci. Eng.} }
+              \providecommand{\MST}{{\it Meas. Sci. Technol.} }
+              \providecommand{\NET}{{\it Network: Comput. Neural Syst.} }
+              \providecommand{\NJP}{{\it New J. Phys.} }
+              \providecommand{\NL}{{\it Nonlinearity\/} }
+              \providecommand{\NT}{{\it Nanotechnology} }
+              \providecommand{\PAO}{{\it Pure Appl. Optics\/} }
+              \providecommand{\PM}{{\it Physiol. Meas.} }
+              \providecommand{\PMB}{{\it Phys. Med. Biol.} }
+              \providecommand{\PPCF}{{\it Plasma Phys. Control. Fusion\/} }
+              \providecommand{\PSST}{{\it Plasma Sources Sci. Technol.} }
+              \providecommand{\PUS}{{\it Public Understand. Sci.} }
+              \providecommand{\QO}{{\it Quantum Opt.} }
+              \providecommand{\QSO}{{\em Quantum Semiclass. Opt.} }
+              \providecommand{\RPP}{{\it Rep. Prog. Phys.} }
+              \providecommand{\SLC}{{\it Sov. Lightwave Commun.} }
+              \providecommand{\SST}{{\it Semicond. Sci. Technol.} }
+              \providecommand{\SUST}{{\it Supercond. Sci. Technol.} }
+              \providecommand{\WRM}{{\it Waves Random Media\/} }
+              \providecommand{\AC}{{\it Acta Crystallogr.} }
+              \providecommand{\AM}{{\it Acta Metall.} }
+              \providecommand{\AP}{{\it Ann. Phys., Lpz.} }
+              \providecommand{\APNY}{{\it Ann. Phys., NY\/} }
+              \providecommand{\APP}{{\it Ann. Phys., Paris\/} }
+              \providecommand{\CJP}{{\it Can. J. Phys.} }
+              \providecommand{\JAP}{{\it J. Appl. Phys.} }
+              \providecommand{\JCP}{{\it J. Chem. Phys.} }
+              \providecommand{\JJAP}{{\it Japan. J. Appl. Phys.} }
+              \providecommand{\JP}{{\it J. Physique\/} }
+              \providecommand{\JPhCh}{{\it J. Phys. Chem.} }
+              \providecommand{\JMMM}{{\it J. Magn. Magn. Mater.} }
+              \providecommand{\JMP}{{\it J. Math. Phys.} }
+              \providecommand{\JOSA}{{\it J. Opt. Soc. Am.} }
+              \providecommand{\JPSJ}{{\it J. Phys. Soc. Japan\/} }
+              \providecommand{\JQSRT}{{\it J. Quant. Spectrosc. Radiat. Transfer\/} }
+              \providecommand{\NC}{{\it Nuovo Cimento\/} }
+              \providecommand{\NIM}{{\it Nucl. Instrum. Methods\/} }
+              \providecommand{\NP}{{\it Nucl. Phys.} }
+              \providecommand{\PL}{{\it Phys. Lett.} }
+              \providecommand{\PR}{{\it Phys. Rev.} }
+              \providecommand{\PRL}{{\it Phys. Rev. Lett.} }
+              \providecommand{\PRS}{{\it Proc. R. Soc.} }
+              \providecommand{\PS}{{\it Phys. Scr.} }
+              \providecommand{\PSS}{{\it Phys. Status Solidi\/} }
+              \providecommand{\PTRS}{{\it Phil. Trans. R. Soc.} }
+              \providecommand{\RMP}{{\it Rev. Mod. Phys.} }
+              \providecommand{\RSI}{{\it Rev. Sci. Instrum.} }
+              \providecommand{\SSC}{{\it Solid State Commun.} }
+              \providecommand{\ZP}{{\it Z. Phys.} }
               \endinput
           iopart10.clo:
             needs: ["size10.clo"]
@@ -1140,6 +1310,8 @@ rules:
               \ProvidesPackage{iopams}[2026/09/16 fixloop legacy shim -> amsbsy bold greek]
               \RequirePackage{amsbsy}
               \RequirePackage{amssymb}
+              % 真身首行 \iopamstrue (置 iopart.cls 的 \ifiopams 开关)
+              \ifdefined\iopamstrue\iopamstrue\fi
               \providecommand{\balpha}{\boldsymbol{\alpha}}
               \providecommand{\bbeta}{\boldsymbol{\beta}}
               \providecommand{\bgamma}{\boldsymbol{\gamma}}
@@ -1176,6 +1348,30 @@ rules:
               \providecommand{\bOmega}{\boldsymbol{\Omega}}
               \providecommand{\bnabla}{\boldsymbol{\nabla}}
               \providecommand{\bpartial}{\boldsymbol{\partial}}
+              % 批八补齐真身残面 (iopams.sty v1996 抄值): var 变形 + 杂项 +
+              % amssymb 升级版装饰符号 (\renew 语义=要赢过 iopart cls 简形,
+              % \def 直覆避免 \@ifdefinable 检查)
+              \providecommand{\bvarepsilon}{\boldsymbol{\varepsilon}}
+              \providecommand{\bvartheta}{\boldsymbol{\vartheta}}
+              \providecommand{\bvaromega}{\boldsymbol{\varomega}}
+              \providecommand{\bvarrho}{\boldsymbol{\varrho}}
+              \providecommand{\bvarzeta}{\boldsymbol{\varsigma}}
+              \providecommand{\bvarsigma}{\boldsymbol{\varsigma}}
+              \providecommand{\bvarphi}{\boldsymbol{\varphi}}
+              \providecommand{\bell}{\boldsymbol{\ell}}
+              \providecommand{\bimath}{\boldsymbol{\imath}}
+              \providecommand{\bjmath}{\boldsymbol{\jmath}}
+              \providecommand{\binfty}{\boldsymbol{\infty}}
+              \providecommand{\bdot}{\boldsymbol{\cdot}}
+              \def\opensquare{\mbox{$\square$}}
+              \def\opentriangle{\mbox{$\vartriangle$}}
+              \def\opentriangledown{\mbox{$\triangledown$}}
+              \def\opendiamond{\mbox{$\lozenge$}}
+              \def\fullsquare{\mbox{$\blacksquare$}}
+              \providecommand{\fulldiamond}{\mbox{$\blacklozenge$}}
+              \providecommand{\fullstar}{\mbox{$\bigstar$}}
+              \providecommand{\fulltriangle}{\mbox{$\blacktriangle$}}
+              \providecommand{\fulltriangledown}{\mbox{$\blacktriangledown$}}
               \endinput
           # kastrup 的 binhex 真身在 TL: overrides 钉 binhex.tex→kastrup 对
           # 全引擎生效, xelatex 侧 tlmgr 装真包即可; tectonic 侧 ctan_fetch
@@ -1416,11 +1612,46 @@ rules:
               \def\geomlabelstar*#1{\geomoriglabel{#1}}
               \endinput
           # tcilatex.tex (TCI Scientific Word 私有初始化件, TL 无; 常见
-          # \input{tcilatex} 夹在导言区) —— 裸 stub 回放策略, 缺宏由下游
-          # undefined_cs 归因 (physics/0307021 实证)。
+          # \input{tcilatex} 夹在导言区) —— 批八按真身面升级 (1011.5681
+          # 随稿本 1278 行取证): 用户面 func/limfunc/unit/dsum/QQQ/FRAME
+          # + SW pragma noop 族全覆盖; 真身自包 \makeatletter。残面
+          # (Greekmath 粗体希腊/\TCItag/\IFRAME 三态分派) 由下游
+          # undefined_cs 继续归因。
           tcilatex.tex:
             body: |
-              % fixloop legacy shim: tcilatex.tex 无公共对应物 —— 空件
+              % fixloop legacy shim: tcilatex.tex — TCI SW 用户面抄值
+              \makeatletter
+              \def\func#1{\mathop{\rm #1}\nolimits}
+              \def\limfunc#1{\mathop{\rm #1}}
+              \def\unit#1{\mathord{\thinspace\rm #1}}
+              \def\dsum{\mathop{\displaystyle\sum}}
+              % QQQ{name}{replacement} — SW define-by-name 出口 (用户函数表)
+              \long\def\QQQ#1#2{\long\expandafter\def\csname#1\endcsname{#2}}
+              % FRAME{data}{w}{h}{vshift}{caption}{label}{name}{body} —— 真身
+              % 按 data 首字母 (i/d/f) 分 inline/display/float 三型; shim 保文
+              % 降版式: fbox+parbox 装 body, caption 小字附尾。
+              \def\FRAME#1#2#3#4#5#6#7#8{\par\fbox{\parbox{\linewidth}{#8\par{\footnotesize #5\par}}}\par}
+              % SW pragma 族 —— 排版指令通道, 全 noop/passthru (真身抄值)
+              \@ifundefined{QTP}{\def\QTP#1{}}{}
+              \@ifundefined{QEXCLUDE}{\def\QEXCLUDE#1{}}{}
+              \@ifundefined{Qlb}{\def\Qlb#1{#1}}{}
+              \@ifundefined{Qlt}{\def\Qlt#1{#1}}{}
+              \def\QWE{}
+              \long\def\QQA#1#2{}
+              \def\QTR#1#2{{\csname#1\endcsname{#2}}}
+              \long\def\TeXButton#1#2{#2}
+              \long\def\QSubDoc#1#2{#2}
+              \def\EXPAND#1[#2]#3{}
+              \def\NOEXPAND#1[#2]#3{}
+              \def\PROTECTED{}
+              \def\LaTeXparent#1{}
+              \def\ChildStyles#1{}
+              \def\ChildDefaults#1{}
+              \def\QTagDef#1#2#3{}
+              \@ifundefined{correctchoice}{\def\correctchoice{\relax}}{}
+              \@ifundefined{HTML}{\def\HTML#1{\relax}}{}
+              \@ifundefined{TCIIcon}{\def\TCIIcon#1#2#3#4{\relax}}{}
+              \makeatother
               \endinput
           # epsf.tex (老 epsf plain-TeX 图件接口; TL epsf 包 tex/generic/epsf/
           # 已有真身 —— overrides 直解后 xelatex 侧 tlmgr 装真包; tectonic
@@ -1588,7 +1819,7 @@ rules:
           # 实证/设计: bench/results/fixer-legacy-acm-2026-09-17/。
           acm_proc_article-sp.cls:
             needs: ["acmart.cls"]
-            body: "\n\\NeedsTeXFormat{LaTeX2e}\n\\ProvidesClass{acm_proc_article-sp}[2026/09/17 fixloop legacy shim -> acmart + author-block kit]\n\\LoadClassWithOptions{acmart}\n% --- acm_proc_article-sp author-block family under acmart (1306.0281) ---\n% \\alignauthor is a column-starter (no arg, name runs to \\\\) — \\par mirrors\n% the old \"new author column\" break inside the single acmart \\author{} arg.\n\\ifdefined\\alignauthor\\else\\protected\\def\\alignauthor{\\par}\\fi\n% \\affaddr/\\affinst{inst} sit loose inside \\author{} — acmart \\affiliation\n% would corrupt \\addresses there; inline emph keeps the text.\n\\ifdefined\\affaddr\\else\\protected\\def\\affaddr#1{\\emph{#1}}\\fi\n\\ifdefined\\affinst\\else\\protected\\def\\affinst#1{\\emph{#1}}\\fi\n% \\titlenote inside \\author{} executes inside \\MakeUppercase: acmart's\n% native def appends \\footnotemark to \\@title -> \\@xfootnotemark mismatch\n% + Missing \\endcsname storm (100 errs). Override is mandatory — \\protected\n% bridge to \\thanks survives text_expand and lands in the \\thankses strip.\n\\protected\\def\\titlenote#1{\\thanks{#1}}\n% \\additionalauthors{names} top-level -> register as another acmart author.\n\\ifdefined\\additionalauthors\\else\\protected\\long\\def\\additionalauthors#1{\\author{#1}}\\fi\n% \\numberofauthors{N} — acmart auto-counts (cs_table polyfill also covers).\n\\ifdefined\\numberofauthors\\else\\protected\\def\\numberofauthors#1{}\\fi\n% acmart has native \\subtitle — guard only for exotic load paths.\n\\ifdefined\\subtitle\\else\\protected\\def\\subtitle#1{}\\fi\n% Old acm_proc order puts abstract AFTER \\maketitle; acmart \\@saveabstract\n% ClassErrors once \\@ACM@maketitle@typeset. Conditional bridge: pre-maketitle\n% keeps the native Collect@Body stash; post-maketitle typesets the body as a\n% plain labelled block — NO Collect@Body on the late path (its body-scan\n% hijacks \\abstract and cannot tolerate a typesetting callback).\n\\renewenvironment{abstract}{\\if@ACM@maketitle@typeset\\par\\medskip\\noindent{\\bfseries\\abstractname.}\\space\\ignorespaces\\else\\Collect@Body\\@saveabstract\\fi}{\\if@ACM@maketitle@typeset\\par\\medskip\\fi}\n% 2.09 font switches: acmart inherits \\rm\\sf\\tt\\bf\\it\\sl\\sc from\n% amsart (its \\DeclareOldFontCommand block); only \\cal/\\mit are missing\n% (amsart deliberately omits them) — doc \\cA->{\\cal A} family needs them.\n\\ifdefined\\cal\\else\\DeclareOldFontCommand{\\cal}{\\normalfont\\itshape}{\\mathcal}\\fi\n\\ifdefined\\mit\\else\\DeclareOldFontCommand{\\mit}{\\normalfont\\itshape}{\\mathnormal}\\fi\n\\endinput\n"
+            body: "\n\\NeedsTeXFormat{LaTeX2e}\n\\ProvidesClass{acm_proc_article-sp}[2026/09/17 fixloop legacy shim -> acmart + author-block kit]\n\\LoadClassWithOptions{acmart}\n% --- acm_proc_article-sp author-block family under acmart (1306.0281) ---\n% \\alignauthor is a column-starter (no arg, name runs to \\\\) — \\par mirrors\n% the old \"new author column\" break inside the single acmart \\author{} arg.\n\\ifdefined\\alignauthor\\else\\protected\\def\\alignauthor{\\par}\\fi\n% \\affaddr/\\affinst{inst} sit loose inside \\author{} — acmart \\affiliation\n% would corrupt \\addresses there; inline emph keeps the text.\n\\ifdefined\\affaddr\\else\\protected\\def\\affaddr#1{\\emph{#1}}\\fi\n\\ifdefined\\affinst\\else\\protected\\def\\affinst#1{\\emph{#1}}\\fi\n% \\titlenote inside \\author{} executes inside \\MakeUppercase: acmart's\n% native def appends \\footnotemark to \\@title -> \\@xfootnotemark mismatch\n% + Missing \\endcsname storm (100 errs). Override is mandatory — \\protected\n% bridge to \\thanks survives text_expand and lands in the \\thankses strip.\n\\protected\\def\\titlenote#1{\\thanks{#1}}\n% \\additionalauthors{names} top-level -> register as another acmart author.\n\\ifdefined\\additionalauthors\\else\\protected\\long\\def\\additionalauthors#1{\\author{#1}}\\fi\n% \\numberofauthors{N} — acmart auto-counts (cs_table polyfill also covers).\n\\ifdefined\\numberofauthors\\else\\protected\\def\\numberofauthors#1{}\\fi\n% acmart has native \\subtitle — guard only for exotic load paths.\n\\ifdefined\\subtitle\\else\\protected\\def\\subtitle#1{}\\fi\n% Old acm_proc order puts abstract AFTER \\maketitle; acmart \\@saveabstract\n% ClassErrors once \\@ACM@maketitle@typeset. Conditional bridge: pre-maketitle\n% keeps the native Collect@Body stash; post-maketitle typesets the body as a\n% plain labelled block — NO Collect@Body on the late path (its body-scan\n% hijacks \\abstract and cannot tolerate a typesetting callback).\n\\renewenvironment{abstract}{\\if@ACM@maketitle@typeset\\par\\medskip\\noindent{\\bfseries\\abstractname.}\\space\\ignorespaces\\else\\Collect@Body\\@saveabstract\\fi}{\\if@ACM@maketitle@typeset\\par\\medskip\\fi}\n% 2.09 font switches: acmart inherits \\rm\\sf\\tt\\bf\\it\\sl\\sc from\n% amsart (its \\DeclareOldFontCommand block); only \\cal/\\mit are missing\n% (amsart deliberately omits them) — doc \\cA->{\\cal A} family needs them.\n\\ifdefined\\cal\\else\\DeclareOldFontCommand{\\cal}{\\normalfont\\itshape}{\\mathcal}\\fi\n\\ifdefined\\mit\\else\\DeclareOldFontCommand{\\mit}{\\normalfont\\itshape}{\\mathnormal}\\fi\n% ntheorem compat (scout-thmtwin, 1306.0281): the amsthm bridge above\n% leaves \\@begintheorem in three-arg form, but ntheorem loaded WITHOUT\n% the [amsthm] option calls it kernel two-arg — `[` becomes the #2\n% delimiter and the scan swallows to \\par (Paragraph ended x6 + missing\n% \\item x6). Restore item-only defs, double-gated: only when ntheorem\n% loaded, amsthm-option form untouched. \\PassOptionsToPackage{amsthm}\n% {ntheorem} rejected — collides on style/proof/openbox + \\NAT@@citetp.\n\\AtBeginDocument{\\@ifpackageloaded{ntheorem}{%\n  \\def\\@begintheorem#1#2{\\item[\\hskip\\labelsep \\theorem@headerfont #1\\ #2.]}%\n  \\def\\@opargbegintheorem#1#2#3{\\item[\\hskip\\labelsep \\theorem@headerfont #1\\ #2\\ (#3).]}%\n}{}}\n\\endinput\n"
           # TL 全缺席出版商类 → article 桥 (版式降级保内容): svmult
           # (Springer 专著), cimento (Nuovo Cimento), eptcs, JINST, PoS
           # (SISSA), appolb, pasj00, aa501 (A&A), kapproc —— 逐格实证名见
@@ -2392,6 +2623,44 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "docs/08-translate-compile.md L275; ctanfetch-probe.md §3.5"
 
+  # 2026-09-17 fixer-bblwall A3 (2105.03753): lipics-v2021.cls:510
+  # `\IfFileExists{glyphtounicode.tex}{\input glyphtounicode}` —— texmf-dist
+  # 里真文件在故守卫开火, 体首 \pdfglyphtounicode/\pdfgentounicode 是
+  # pdfTeX 原语 → xelatex 下 undefined_cs→pdftex_prim 细分。order 必须
+  # 先于 guard(50)/polyfill(51) 截走 payload——守卫/polyfill 治不了
+  # "文件存在但原语缺" 的形态, 空 stub 让 \input 路径整个短路。
+  - id: glyphtounicode_shadow
+    description: "cls \\IfFileExists 守卫触发真 glyphtounicode.tex (pdfTeX 原语件) → wdir 注空 stub 遮蔽"
+    phase: loop
+    order: 46 # pdftex_prim_guard(50)/polyfill(51) 之前 —— payload 同格先截
+    when:
+      any:
+        - { category: pdftex_prim, payload_required: true }
+        - { category: undefined_cs, payload_required: true }
+    condition:
+      source_contains: "glyphtounicode" # 源/cls 确有 \input 引用链才落 stub
+    action:
+      kind: builtin_transform
+      function: bundled_class_shadow
+      params:
+        target: glyphtounicode.tex
+        cs_set: [pdfglyphtounicode, pdfgentounicode]
+        body: |
+          % fixloop shadow: cls-guarded \input of pdftex-only glyphtounicode
+          \ifdefined\pdfglyphtounicode\else\def\pdfglyphtounicode#1#2{}\fi
+          \ifdefined\pdfgentounicode\else\newcount\pdfgentounicode\fi
+          \endinput
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # XeTeX 内核同缺 pdf 原语
+    provenance:
+      - {
+          corpus: "2105.03753 (41 recut; fixer-bblwall-2026-09-17 A3)",
+          error: "Undefined control sequence \\pdfglyphtounicode (lipics-v2021.cls:510 \\IfFileExists 守卫开火 input 真文件)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "fixer-bblwall-2026-09-17 spec A3; \\pdfgentounicode 是 count 赋值形故 \\newcount"
+
   # ─── loop: 源码改写系 —— 按"保守→激进"排序 ───
   - id: pdftex_prim_guard
     description: "pdfTeX 原语裸用 (@pdftex_prims 族 token, load 期展开成 PDFTEX_PRIMS 交替) → \\ifdefined 守卫, xelatex 下静默跳过"
@@ -2768,22 +3037,16 @@ rules:
     source_ref: "partial-taxonomy-2026-09-17 散件; ntheorem.sty L515-522 自检; fixer-alreadydef 复跑订正 \\g<0>"
 
   - id: already_def_undefine
-    description: "包内 \\NewDocumentCommand 撞先定义 → docclass 后 \\let\\<cs>\\@undefined 清位 (后加载者赢)"
+    description: "包内 \\NewDocumentCommand 撞先定义 → docclass 后 \\let\\<cs>\\@undefined 清位 (寄存器/盒型分配名护栏, 后加载者赢)"
     phase: loop
     order: 113 # ntheorem_style_undefine(112) 之后 —— 只接 Command 形签名
     when: { category: already_def, payload_required: true }
     condition: { ctx_suggests: "Command" }
     action:
-      kind: regex_rewrite
-      params:
-        exts: [.tex]
-        rewrites:
-          - {
-              pattern: "\\\\documentclass(\\s*\\[[^\\]]*\\])?\\s*\\{[^}]+\\}",
-              repl: '\g<0>\n\\makeatletter\\let\\{payload}\\@undefined\\makeatother',
-            }
+      kind: builtin_transform # regex→builtin 升级: 规则层做不了寄存器护栏
+      function: undefine_for_redef # \newbox/\newcount/\newif 族分配名 abstain
     risk: medium # 清掉包/类侧先定义让后载包重定义 —— doc 侧 \newcommand 撞名已由 renew 先行
-    known_gap: "多行 \\documentclass (revtex 注释缝) 不锚 → applied=False; usepackage 链内后定义者 (A 先 B 后, 非 docclass 位) 清位时机过早无效"
+    known_gap: "寄存器/盒型分配名 (\\newbox\\splitbox 族 + \\newif 伴生 \\Xtrue) 弃权交 LLM; usepackage 链内后定义者 (A 先 B 后, 非 docclass 位) 清位时机过早无效"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -2796,8 +3059,12 @@ rules:
           corpus: "1706.07911 复跑 (fixer-alreadydef-2026-09-17)",
           error: "修复前 repl 吞 documentclass 行 → 508 错 best_effort_pdf; 修复后 liningnums 清除, 残 missing_file:binhex.tex",
         }
+      - {
+          corpus: "2211.04482 (fixer-bblwall-2026-09-17 A5)",
+          error: "aastex62.cls \\newbox\\splitbox 被 undefine → adjustbox 占名 → 类内 \\setbox\\splitbox Missing number",
+        }
     stats: { fires: 1, status: verified }
-    source_ref: "partial-taxonomy-2026-09-17 散件; \\let\\X\\@undefined 两代检查通吃; fixer-alreadydef 复跑订正 \\g<0>"
+    source_ref: "partial-taxonomy-2026-09-17 散件; \\let\\X\\@undefined 两代检查通吃; fixer-bblwall A5 升级 builtin (eol+1 缝 + 寄存器护栏)"
 
   - id: option_clash_merge
     description: "Option clash: 同包两次 \\usepackage → 合并选项到首处, 注释后处"
@@ -3337,6 +3604,39 @@ rules:
     stats: { fires: 1, status: verified } # 全量 _fixloop_one r1 实证
     source_ref: "fixer-apjbbx-2026-09-17; apj.bbx L192-197 双点归因 + r1 rewrite in 1 files"
 
+  # 2026-09-17 fixer-bblwall W3 (1706.00240 wall-3, fixer-apjbbx spec):
+  # e-print 捆绑 2012 手写 physics.sty stub (\dbar\ord\bra\ket 族) 撞
+  # siunitx v3 \AtBeginDocument 的 \@ifpackageloaded{physics} 硬报错 →
+  # \begin{document} 处 undefined_cs:begin。三步: usepackage 名单剥
+  # physics 原位 \input{physics.sty} 续载 (\input 不进 ver@ 注册) +
+  # stub \ProvidesPackage{physics} 中和 physics-stub + 双载守卫;
+  # 真 CTAN physics (xparse \DeclareDocumentCommand 形) 弃权归 LLM。
+  - id: physics_stub_detach
+    description: "bundled physics.sty stub 撞 siunitx \\@ifpackageloaded{physics} → 脱注册 \\input 续载 + ProvidesPackage 中和"
+    phase: loop
+    order: 163 # biblatex_bbx_rename(161) 与 detab_end_scanlines(164) 之间
+    when:
+      any:
+        - { category: undefined_cs }
+        - { category: other }
+    condition:
+      cache_dir_glob: physics.sty # wdir 根有 stub 候选 (子目录件不遮蔽装载)
+      source_contains: "\\\\(?:usepackage|RequirePackage)\\s*(\\[[^\\]]*\\])?\\s*\\{[^}]*\\bphysics\\b"
+    action:
+      kind: builtin_transform
+      function: physics_stub_detach
+    risk: medium # 改写 usepackage 名单 + stub 件
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1706.00240 (stagerun-loop1 wall-3; fixer-apjbbx-2026-09-17)",
+          error: "Undefined control sequence \\begin{document} → siunitx v3 \\@ifpackageloaded{physics} 硬报错 (bundled 2012 physics.sty stub)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "fixer-bblwall-2026-09-17 spec W3; fixer-apjbbx verification.txt L70-86"
+
   # 2026-09-17 fixer-filemap (1706.07911): comment.sty 排除扫描器逐行找
   # 顶格 `\end{<env>}`; 源生 tab/空格缩进的 \end 行不匹配 → 扫到 EOF
   # runaway。detab 全部 \end{ 行首: verbatim/minted 体内字面 \end 行
@@ -3443,8 +3743,12 @@ rules:
           # 全表 polyfill 带 \n 前缀 —— _inject_after_docclass 在 docclass
           # 行尾缝注入, 行尾 % 注释会整吞无前缀 snippet (1404.0346 %!PN
           # 实证, applied=True 死注入); \n 逃出注释落下一行。
-          # elsarticle \corauth[label]{注} → noop
-          corauth: { polyfill: "\n\\providecommand{\\corauth}[2][]{}" }
+          # elsarticle \corauth[label]{注} → 批八升级: 桥 elsarticle
+          # \cortext (与 elsart.cls shim body 同式); 无 cortext 时静默
+          corauth:
+            {
+              polyfill: "\n\\providecommand{\\corauth}[2][]{\\ifdefined\\cortext\\cortext[#1]{#2}\\fi}",
+            }
           # svjour/amsthm \smartqed 重定义 \qed → noop (qed 保持包默认)
           smartqed: { polyfill: "\n\\providecommand{\\smartqed}{}" }
           # 期刊投稿注 \submitto{journal} → noop
@@ -3579,6 +3883,103 @@ rules:
             {
               polyfill: "\n\\providecommand{\\Tref}[1]{Table~\\ref{#1}}\n\\providecommand{\\Fref}[1]{Figure~\\ref{#1}}\n\\providecommand{\\Eref}[1]{Eq.~(\\ref{#1})}\n\\providecommand{\\Sref}[1]{Section~\\ref{#1}}\n\\providecommand{\\br}{\\hline}\n\\providecommand{\\mr}{\\hline}\n\\providecommand{\\ns}{\\\\}\n\\providecommand{\\bb}{}\n\\providecommand{\\bc}{}",
             }
+          # ── 批八 shim-surface 补面 (loop1 残盘 undefined_cs 普查实证) ──
+          # iopart 表系裸调 (稿未走 iopart.cls 路径时): \fl 行首回退需
+          # \mathindent (真身 6pc); \ams 是分类号脚注行; \PRL 刊名缩写;
+          # \iopamstrue 是 \newif 开关直调 (iopams.sty body 同式守卫)
+          fl:
+            {
+              polyfill: "\n\\ifdefined\\mathindent\\else\\newdimen\\mathindent\\mathindent=6pc\\fi\n\\providecommand{\\fl}{\\hspace*{-\\mathindent}}",
+            }
+          ams:
+            {
+              polyfill: "\n\\providecommand{\\ams}[1]{{\\it AMS subject classification:}\\ #1}",
+            }
+          PRL: { polyfill: "\n\\providecommand{\\PRL}{Phys.~Rev.~Lett.}" }
+          iopamstrue:
+            {
+              polyfill: "\n\\ifdefined\\iopamstrue\\else\\newif\\ifiopams\\iopamstrue\\fi",
+            }
+          # NFSS1 时代字选开关 (psfonts/oldt1enc 族 preamble 散调) ——
+          # 现代 NFSS2 路径恒 false 即真值
+          ifnfssone:
+            {
+              polyfill: "\n\\ifdefined\\ifnfssone\\else\\newif\\ifnfssone\\fi",
+            }
+          # tcilatex.tex 用户面 (稿 \input 缺席或被剥时裸调直达) ——
+          # 与 shim body 同式抄值; QQQ/EXPAND/NOEXPAND 非 providecommand
+          # 可表达形 → ifdefined 守卫 raw def
+          func:
+            {
+              polyfill: "\n\\providecommand{\\func}[1]{\\mathop{\\rm #1}\\nolimits}",
+            }
+          limfunc:
+            { polyfill: "\n\\providecommand{\\limfunc}[1]{\\mathop{\\rm #1}}" }
+          unit:
+            {
+              polyfill: "\n\\providecommand{\\unit}[1]{\\mathord{\\thinspace\\rm #1}}",
+            }
+          dsum:
+            {
+              polyfill: "\n\\providecommand{\\dsum}{\\mathop{\\displaystyle\\sum}}",
+            }
+          QQQ:
+            {
+              polyfill: "\n\\ifdefined\\QQQ\\else\\long\\def\\QQQ#1#2{\\long\\expandafter\\def\\csname#1\\endcsname{#2}}\\fi",
+            }
+          FRAME:
+            {
+              polyfill: "\n\\providecommand{\\FRAME}[8]{\\par\\fbox{\\parbox{\\linewidth}{#8\\par{\\footnotesize #5\\par}}}\\par}",
+            }
+          QTP: { polyfill: "\n\\providecommand{\\QTP}[1]{}" }
+          QEXCLUDE: { polyfill: "\n\\providecommand{\\QEXCLUDE}[1]{}" }
+          Qlb: { polyfill: "\n\\providecommand{\\Qlb}[1]{#1}" }
+          Qlt: { polyfill: "\n\\providecommand{\\Qlt}[1]{#1}" }
+          QQA: { polyfill: "\n\\providecommand{\\QQA}[2]{}" }
+          QTR:
+            {
+              polyfill: "\n\\providecommand{\\QTR}[2]{{\\csname#1\\endcsname{#2}}}",
+            }
+          TeXButton: { polyfill: "\n\\providecommand{\\TeXButton}[2]{#2}" }
+          QSubDoc: { polyfill: "\n\\providecommand{\\QSubDoc}[2]{#2}" }
+          HTML: { polyfill: "\n\\providecommand{\\HTML}[1]{}" }
+          TCIIcon: { polyfill: "\n\\providecommand{\\TCIIcon}[4]{}" }
+          correctchoice:
+            { polyfill: "\n\\providecommand{\\correctchoice}{\\relax}" }
+          EXPAND:
+            {
+              polyfill: "\n\\ifdefined\\EXPAND\\else\\def\\EXPAND#1[#2]#3{}\\fi",
+            }
+          NOEXPAND:
+            {
+              polyfill: "\n\\ifdefined\\NOEXPAND\\else\\def\\NOEXPAND#1[#2]#3{}\\fi",
+            }
+          # Science 类 section 快捷 (scii=\\subsection, sciii=\\subsubsection)
+          scii: { polyfill: "\n\\providecommand{\\scii}{\\subsection}" }
+          sciii: { polyfill: "\n\\providecommand{\\sciii}{\\subsubsection}" }
+          # aa.cls 面 (thesaurus 吞码表; acknowledgements 无号小节头)
+          acknowledgements:
+            {
+              polyfill: "\n\\providecommand{\\acknowledgements}{\\par\\medskip\\noindent\\textbf{Acknowledgements.}\\space}",
+            }
+          thesaurus: { polyfill: "\n\\providecommand{\\thesaurus}[1]{}" }
+          # elsart/aipproc 散调 \address —— 脚注块保文
+          address:
+            {
+              polyfill: "\n\\providecommand{\\address}[1]{\\par{\\footnotesize #1\\par}}",
+            }
+          # IEEEtran 版式越权开关 —— 真身即版式宏, 保编译 noop
+          overrideIEEEmargins:
+            { polyfill: "\n\\providecommand{\\overrideIEEEmargins}{}" }
+          # siamltex \\diag (算子) + \\Bar (上划线, 物理均值记法)
+          diag:
+            {
+              polyfill: "\n\\providecommand{\\diag}{\\mathop{\\mathrm{diag}}}",
+            }
+          Bar:
+            { polyfill: "\n\\providecommand{\\Bar}[1]{\\overline{#1}}" }
+          # hyperref 配置宏裸调 (jheppub 系稿 preamble 散调) —— 装真包
+          hypersetup: { usepackage: hyperref }
         # 表外 fallback (2026-09-16): glue 残骸前缀拆分 —— payload 未命中
         # cs_table 时, 若 cs = 已知粘连头 + 残余 (大写起首或 ≤4 字符) 则合成
         # cs_map 拆回 "head rest" (replay 实证 rmPT 型新残骸仍零星冒头,
