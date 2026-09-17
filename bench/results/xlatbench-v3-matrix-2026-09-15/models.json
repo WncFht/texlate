@@ -44,50 +44,6 @@
       },
       "hard_rate": 1.0
     },
-    "swe-2-medium": {
-      "n": 74,
-      "hard_ok": 72,
-      "http_err": 0,
-      "empty": 0,
-      "ph_miss": 0,
-      "ph_inv": 0,
-      "ord_bad": 17,
-      "cs_drop": 2,
-      "v_err": 2,
-      "v_warn": 19,
-      "retried": 0,
-      "lat": {
-        "p50": 6.135,
-        "p95": 12.34,
-        "min": 2.72,
-        "max": 17.34
-      },
-      "rsn": {
-        "p50": 98.0,
-        "p95": 130,
-        "min": 45,
-        "max": 272
-      },
-      "tin": {
-        "p50": 269.0,
-        "p95": 402,
-        "min": 193,
-        "max": 457
-      },
-      "tout": {
-        "p50": 127.5,
-        "p95": 263,
-        "min": 70,
-        "max": 343
-      },
-      "tck": {
-        "p50": 0.0,
-        "p95": 331,
-        "min": 0,
-        "max": 456
-      },
-      "hard_rate": 0.972972972972973
-    },
     "glm-5-2": {
       "n": 74,
       "hard_ok": 71,
@@ -175,6 +131,50 @@
         "max": 704
       },
       "hard_rate": 0.9594594594594594
+    },
+    "swe-2-medium": {
+      "n": 139,
+      "hard_ok": 119,
+      "http_err": 17,
+      "empty": 0,
+      "ph_miss": 0,
+      "ph_inv": 0,
+      "ord_bad": 31,
+      "cs_drop": 3,
+      "v_err": 3,
+      "v_warn": 34,
+      "retried": 0,
+      "lat": {
+        "p50": 6.6850000000000005,
+        "p95": 14.89,
+        "min": 2.72,
+        "max": 20.77
+      },
+      "rsn": {
+        "p50": 98.0,
+        "p95": 130,
+        "min": 45,
+        "max": 272
+      },
+      "tin": {
+        "p50": 269.0,
+        "p95": 402,
+        "min": 193,
+        "max": 500
+      },
+      "tout": {
+        "p50": 128.5,
+        "p95": 264,
+        "min": 70,
+        "max": 347
+      },
+      "tck": {
+        "p50": 0.0,
+        "p95": 305,
+        "min": 0,
+        "max": 456
+      },
+      "hard_rate": 0.8561151079136691
     }
   },
   "fails": [
@@ -241,6 +241,116 @@
       "why": "cs 1→0; macro: src 1 处 → zh 0 处 (cs_dropped，\\ +中文熔合/间距丢失高发)",
       "src": "[[BIB_1]] Vaswani et al.\\ \\href[[HREF_2]]{introduced the Transformer}, demonstrating that attention alone suffices when the hidden dimension satisfies [[MATH_3]]; earlier work by Bahdanau, Cho, and Bengio [[CITE_4]] and the survey of Luong and Manning [[CITE_5]] had already hinted at this.",
       "zh": "[[BIB_1]] Vaswani 等人 \\href[[HREF_2]]{引入了 Transformer}，证明当隐藏维度满足 [[MATH_3]] 时，仅注意力机制便已足够；Bahdanau、Cho 和 Bengio [[CITE_4]] 的前期工作以及 Luong 和 Manning [[CITE_5]] 的综述此前已对此有所暗示。"
+    },
+    {
+      "model": "swe-2-medium",
+      "sample": "1003.1122#37",
+      "run": 0,
+      "why": "http -1 <urlopen error [Errno 61] Connection refused>"
+    },
+    {
+      "model": "swe-2-medium",
+      "sample": "1012.1738#31",
+      "run": 0,
+      "why": "http -1 <urlopen error [Errno 61] Connection refused>"
+    },
+    {
+      "model": "swe-2-medium",
+      "sample": "1109.1707#23",
+      "run": 0,
+      "why": "http -1 <urlopen error [Errno 61] Connection refused>"
+    },
+    {
+      "model": "swe-2-medium",
+      "sample": "1206.5832#17",
+      "run": 0,
+      "why": "http -1 <urlopen error [Errno 61] Connection refused>"
+    },
+    {
+      "model": "swe-2-medium",
+      "sample": "1502.06541#4",
+      "run": 0,
+      "why": "http -1 <urlopen error [Errno 61] Connection refused>"
+    },
+    {
+      "model": "swe-2-medium",
+      "sample": "1502.06541#45",
+      "run": 0,
+      "why": "http -1 <urlopen error [Errno 61] Connection refused>"
+    },
+    {
+      "model": "swe-2-medium",
+      "sample": "1511.06943#23",
+      "run": 0,
+      "why": "http -1 <urlopen error [Errno 61] Connection refused>"
+    },
+    {
+      "model": "swe-2-medium",
+      "sample": "1803.03235#16",
+      "run": 0,
+      "why": "http -1 <urlopen error [Errno 61] Connection refused>"
+    },
+    {
+      "model": "swe-2-medium",
+      "sample": "1811.03459#9",
+      "run": 0,
+      "why": "http -1 <urlopen error [Errno 61] Connection refused>"
+    },
+    {
+      "model": "swe-2-medium",
+      "sample": "2003.03545#2",
+      "run": 0,
+      "why": "http -1 <urlopen error [Errno 61] Connection refused>"
+    },
+    {
+      "model": "swe-2-medium",
+      "sample": "2105.11481#16",
+      "run": 0,
+      "why": "http -1 <urlopen error [Errno 61] Connection refused>"
+    },
+    {
+      "model": "swe-2-medium",
+      "sample": "2308.12707#5",
+      "run": 0,
+      "why": "http -1 <urlopen error [Errno 61] Connection refused>"
+    },
+    {
+      "model": "swe-2-medium",
+      "sample": "2403.15129#44",
+      "run": 0,
+      "why": "http -1 <urlopen error [Errno 61] Connection refused>"
+    },
+    {
+      "model": "swe-2-medium",
+      "sample": "S1-bibitem-lead",
+      "run": 0,
+      "why": "http -1 <urlopen error [Errno 61] Connection refused>"
+    },
+    {
+      "model": "swe-2-medium",
+      "sample": "S2-multikey-cite",
+      "run": 0,
+      "why": "http -1 <urlopen error [Errno 61] Connection refused>"
+    },
+    {
+      "model": "swe-2-medium",
+      "sample": "S3-verbatim-pct",
+      "run": 0,
+      "why": "http -1 <urlopen error [Errno 61] Connection refused>"
+    },
+    {
+      "model": "swe-2-medium",
+      "sample": "S4-dense-math",
+      "run": 0,
+      "why": "http -1 <urlopen error [Errno 61] Connection refused>"
+    },
+    {
+      "model": "swe-2-medium",
+      "sample": "2403.15129#44",
+      "run": 0,
+      "why": "cs 1→0; macro: src 1 处 → zh 0 处 (cs_dropped，\\ +中文熔合/间距丢失高发)",
+      "src": "Figure [[REF_551]] shows the results of the combined ill cases. As expected, hydrostatic pressure and slow waves are affected similarly, as well as the displacement field [[MATH_552]], which is practically two times lower than the case in Fig.~[[REF_553]]. However, regarding the HRM and topography maps, no contraction is associated with a reduced displacement to [[MATH_554]] cm complemented with a larger gap in the [[MATH_555]] map comprising a wider region around the patch. Such a comprehensive analysis confirms the role and sensitivity of colon motility to bio-printed material properties in various features.",
+      "zh": "图 [[REF_551]] 显示了综合病变情况的结果。正如预期的那样，静水压力和慢波受到相似的影响，位移场 [[MATH_552]] 也是如此，其值实际上比图 [[REF_553]] 中的情况低约两倍。然而，就 HRM 图和地形图而言，没有任何收缩与位移减小至 [[MATH_554]] cm 相关联，同时 [[MATH_555]] 图中出现了更大的间隙，涵盖了斑块周围更宽的区域。这种综合分析证实了结肠蠕动对生物打印材料特性在各种特征上的作用和敏感性。"
     }
   ]
 }
