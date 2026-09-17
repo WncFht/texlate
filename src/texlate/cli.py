@@ -32,6 +32,7 @@ from urllib.parse import quote
 
 import httpx
 import typer
+from typer.models import TyperPath
 
 from texlate import __version__
 from texlate.arxiv.cache import SourceCache
@@ -53,6 +54,8 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
     from typing import Any
 
+    import click
+
     from texlate.server.settings import SettingsStore
     from texlate.xlat.pipeline import Translator
 
@@ -62,6 +65,54 @@ app = typer.Typer(
 )
 
 _DEFAULT_CACHE = Path.home() / ".cache" / "texlate" / "src"
+
+#: 路径串控制字符（C0/C1——NUL 为代表）。
+_CTRL_CHARS_RE = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+
+
+class _CliPath(TyperPath):
+    """Path 参数型：``os.stat`` 探针前置拒控制字符（NUL 一族）。
+
+    ``TyperPath.convert`` 的 ``os.stat`` 只吞 ``OSError``——NUL 字节抛
+    ``ValueError: stat: embedded null character`` 逃逸成 traceback
+    （typer 上游缺陷）。控制字符在 POSIX 文件名里合法但 CLI 输入必是
+    脏数据——统一按 usage 错拒收（exit 2），其余语义照走父类。
+    """
+
+    def convert(
+        self,
+        value: str | os.PathLike[str],
+        param: click.Parameter | None,
+        ctx: click.Context | None,
+    ) -> str | bytes | os.PathLike[str]:
+        """先查控制字符再走父类 ``os.stat`` 探针。"""
+        if isinstance(value, (str, bytes, os.PathLike)):
+            raw = os.fsdecode(value)
+            if _CTRL_CHARS_RE.search(raw):
+                self.fail(f"路径含控制字符: {raw!r}", param, ctx)
+        return super().convert(value, param, ctx)
+
+
+#: ``ParamType`` 无参数态——两类形态各一个单例全 CLI 复用；``click_type``
+#: 注入后 typer 的 exists/dir_okay/readable 声明失效，语义由构造参数承载。
+_CLI_PATH = _CliPath()
+_CLI_FILE = _CliPath(exists=True, dir_okay=False, readable=True)
+
+
+def _is_dir(p: Path) -> bool:
+    """``is_dir`` 宽判：ENAMETOOLONG/EACCES 等非缺席型 OSError 归一 False。"""
+    try:
+        return p.is_dir()
+    except OSError:
+        return False
+
+
+def _is_file(p: Path) -> bool:
+    """``is_file`` 宽判：同 ``_is_dir``。"""
+    try:
+        return p.is_file()
+    except OSError:
+        return False
 
 
 @app.callback()
@@ -87,7 +138,8 @@ def fetch(
         typer.Option("--version", "-v", help="钉版本号", min=1),
     ] = None,
     cache: Annotated[
-        Path, typer.Option("--cache", help="source-tier 缓存根")
+        Path,
+        typer.Option("--cache", help="source-tier 缓存根", click_type=_CLI_PATH),
     ] = _DEFAULT_CACHE,
     offline: Annotated[
         bool,
@@ -117,15 +169,33 @@ def fetch(
 def _acquire(
     arxiv_id: str, cache: Path, *, version: int | None = None, offline: bool = False
 ) -> AcquireResult:
-    """``acquire_source`` 收口：``Fetcher`` context manager 管 httpx.Client 池。"""
-    with Fetcher() as fetcher:
-        return acquire_source(
-            arxiv_id,
-            fetcher=fetcher,
-            cache=SourceCache(cache.expanduser()),
-            version=version,
-            offline=offline,
+    """``acquire_source`` 收口：``Fetcher`` context manager 管 httpx.Client 池。
+
+    缓存根/条目探测的 ``OSError``（ENAMETOOLONG/EACCES 等）归一 ``error``
+    JSON + exit 1——不穿透成 traceback。
+    """
+    try:
+        with Fetcher() as fetcher:
+            return acquire_source(
+                arxiv_id,
+                fetcher=fetcher,
+                cache=SourceCache(cache.expanduser()),
+                version=version,
+                offline=offline,
+            )
+    except OSError as e:
+        typer.echo(
+            json.dumps(
+                {
+                    "status": AcquireStatus.ERROR.value,
+                    "arxiv_id": arxiv_id,
+                    "resolved_version": None,
+                    "detail": f"os_error:{e}",
+                },
+                ensure_ascii=False,
+            )
         )
+        raise typer.Exit(1) from None
 
 
 def _echo_acquire(res: AcquireResult) -> None:
@@ -155,16 +225,15 @@ def _echo_acquire(res: AcquireResult) -> None:
 def parse(
     path: Annotated[
         Path,
-        typer.Argument(
-            help=".tex 文件路径", exists=True, dir_okay=False, readable=True
-        ),
+        typer.Argument(help=".tex 文件路径", click_type=_CLI_FILE),
     ],
     *,
     flatten: Annotated[
         bool, typer.Option("--flatten/--no-flatten", help="展开 \\input 图")
     ] = True,
     out: Annotated[
-        Path | None, typer.Option("--out", "-o", help="chunks.jsonl 输出路径")
+        Path | None,
+        typer.Option("--out", "-o", help="chunks.jsonl 输出路径", click_type=_CLI_PATH),
     ] = None,
 ) -> None:
     """半解析单个 .tex：分块/占位符/警告统计，``--out`` 落逐块明细。"""
@@ -225,13 +294,19 @@ def run(  # noqa: PLR0913 -- CLI 选项面即参数面 + 本地/瘦客户端双�
     ] = "auto",
     work_dir: Annotated[
         Path | None,
-        typer.Option("--work-dir", "-w", help="工作目录（缺省 mkdtemp）"),
+        typer.Option(
+            "--work-dir",
+            "-w",
+            help="工作目录（缺省 mkdtemp）",
+            click_type=_CLI_PATH,
+        ),
     ] = None,
     timeout: Annotated[
         float, typer.Option("--timeout", help="单引擎编译超时秒", min=0.0)
     ] = 240.0,
     cache: Annotated[
-        Path, typer.Option("--cache", help="source-tier 缓存根")
+        Path,
+        typer.Option("--cache", help="source-tier 缓存根", click_type=_CLI_PATH),
     ] = _DEFAULT_CACHE,
     offline: Annotated[
         bool,
@@ -267,7 +342,7 @@ def run(  # noqa: PLR0913 -- CLI 选项面即参数面 + 本地/瘦客户端双�
     ] = None,
     out: Annotated[
         Path | None,
-        typer.Option("--out", "-o", help="--server 产物下载目录"),
+        typer.Option("--out", "-o", help="--server 产物下载目录", click_type=_CLI_PATH),
     ] = None,
     wait: Annotated[
         float | None,
@@ -383,7 +458,7 @@ def _populate_work_dir(src_dir: Path, work: Path) -> None:
 def _resolve_source(source: str, cache: Path, *, offline: bool = False) -> Path | None:
     """参数分流：存在的目录直接用，否则按 arXiv id 取源。"""
     p = Path(source).expanduser()
-    if p.is_dir():
+    if _is_dir(p):
         return p
     res = _acquire(source, cache, offline=offline)
     _echo_acquire(res)
@@ -415,7 +490,7 @@ def _thin_run(  # noqa: PLR0911, PLR0913 -- 与 run 的 --server 选项面一一
     wait: float,
 ) -> int:
     """瘦客户端主流程：提交任务 → 轮询到终态 → 下载产物。返回退出码。"""
-    if Path(source).expanduser().is_dir():
+    if _is_dir(Path(source).expanduser()):
         typer.echo(
             "--server 模式只接 arXiv id/URL（本地目录请走 server /api/upload）",
             err=True,
@@ -680,7 +755,9 @@ def web(
     data_dir: Annotated[
         Path | None,
         typer.Option(
-            "--data-dir", help="数据目录（缺省 TEXLATE_DATA_DIR 或 ~/.texlate）"
+            "--data-dir",
+            help="数据目录（缺省 TEXLATE_DATA_DIR 或 ~/.texlate）",
+            click_type=_CLI_PATH,
         ),
     ] = None,
 ) -> None:
@@ -732,12 +809,20 @@ def web(
 @app.command()
 def export(
     path: Annotated[
-        Path, typer.Argument(help="EPUB/DOCX 文档（zip 内容嗅探，不看后缀）")
+        Path,
+        typer.Argument(
+            help="EPUB/DOCX 文档（zip 内容嗅探，不看后缀）", click_type=_CLI_PATH
+        ),
     ],
     *,
     out: Annotated[
         Path | None,
-        typer.Option("--out", "-o", help="输出路径（缺省 {stem}_bilingual{ext}）"),
+        typer.Option(
+            "--out",
+            "-o",
+            help="输出路径（缺省 {stem}_bilingual{ext}）",
+            click_type=_CLI_PATH,
+        ),
     ] = None,
     model: Annotated[
         str | None, typer.Option("--model", help="模型名（缺省 TEXLATE_MODEL）")
@@ -747,6 +832,7 @@ def export(
         typer.Option(
             "--glossary",
             help="术语表 .yaml/.csv（user 层，叠内建默认表）",
+            click_type=_CLI_PATH,
         ),
     ] = None,
     mock: Annotated[
@@ -766,7 +852,7 @@ def export(
         out = out.expanduser()
     try:
         report = export_document(path, out, translator, glossary=glossary)
-    except ExportError as e:
+    except (ExportError, OSError) as e:
         typer.echo(f"export: {e}", err=True)
         raise typer.Exit(1) from None
     finally:
@@ -785,19 +871,26 @@ def export(
 def _export_translator(model: str | None, *, mock: bool) -> Translator:
     """worker._make_translator 的无 ctx 版：env/key → 网关，否则 Mock。
 
-    ``TEXLATE_TRANSLATOR=gateway`` 无 ``TEXLATE_API_KEY`` → exit 2 显式拒
-    （缺 key 的网关调用必败，不静默回落 Mock 产占位译文）；无 key 隐式
-    回落 Mock 时打 stderr 提示——占位译文当真译文是真实踩坑面。
+    ``TEXLATE_TRANSLATOR`` 白名单 ``mock|gateway``——其他非空值（typo 形）
+    exit 2 显式拒，不静默按 auto 回落；``gateway`` 无 ``TEXLATE_API_KEY``
+    同样 exit 2（缺 key 的网关调用必败，不静默回落 Mock 产占位译文）；
+    无 key 隐式回落 Mock 时打 stderr 提示——占位译文当真译文是真实踩坑面。
     """
     from texlate.xlat.pipeline import (  # noqa: PLC0415
         GatewayTranslator,
         MockTranslator,
     )
 
-    force = os.environ.get("TEXLATE_TRANSLATOR", "").lower()
+    force = os.environ.get("TEXLATE_TRANSLATOR", "").strip().lower()
     api_key = os.environ.get("TEXLATE_API_KEY", "")
     if mock or force == "mock":
         return MockTranslator()  # 显式干跑优先于 env 矛盾检查
+    if force not in ("", "gateway"):
+        typer.echo(
+            f"未知 TEXLATE_TRANSLATOR={force!r}——接受 mock|gateway（缺省自动）",
+            err=True,
+        )
+        raise typer.Exit(2)
     if force == "gateway" and not api_key:
         typer.echo(
             "TEXLATE_TRANSLATOR=gateway 需要 TEXLATE_API_KEY（缺 key 的网关翻译必败）",
@@ -846,14 +939,14 @@ def _share_data_root(data_dir: Path | None) -> Path:
 def _share_task_dir(arg: str, data_dir: Path | None) -> Path:
     """Pack 参数分流：已存在目录直接用；``t_*`` 形按任务 id 到数据根 ``tasks/`` 下找。"""
     p = Path(arg).expanduser()
-    if p.is_dir():
+    if _is_dir(p):
         return p
     if arg.startswith("t_"):
         tasks_root = _share_data_root(data_dir) / "tasks"
         cand = tasks_root / arg
         # arg 是任务 id 定位键不是路径段——resolve 后必须落 tasks/ 直子级，
         # 否则 t_x/../../x 形态借 is_dir 解析穿出仓
-        if cand.is_dir() and cand.resolve().parent == tasks_root.resolve():
+        if _is_dir(cand) and cand.resolve().parent == tasks_root.resolve():
             return cand
         typer.echo(f"任务目录不存在: {cand}", err=True)
         raise typer.Exit(1)
@@ -871,7 +964,7 @@ def _share_db(task_dir: Path, data_dir: Path | None) -> Path | None:
         cands.insert(0, data_dir.expanduser() / "texlate.db")
     cands.append(_share_data_root(data_dir) / "texlate.db")
     for cand in cands:
-        if cand.is_file():
+        if _is_file(cand):
             return cand
     return None
 
@@ -971,7 +1064,7 @@ def _share_glossary_hash(
     gpath = str(cfg.get("glossary") or options.get("glossary") or "")
     if gpath:
         gfile = Path(gpath).expanduser()
-        if not gfile.is_file():
+        if not _is_file(gfile):
             msg = f"任务配置了 glossary 但文件不可读: {gpath}"
             raise ShareError(msg)
         files.append(gfile)
@@ -990,7 +1083,7 @@ def _share_glossary_hash(
 
 def _share_out_is_file(out: Path) -> bool:
     """``-o`` 形态判定：已存在目录 → 目录；带后缀路径 → 文件；无后缀 → 目录。"""
-    return not out.is_dir() and bool(out.suffix)
+    return not _is_dir(out) and bool(out.suffix)
 
 
 def _share_final_move(bundle: Path, out: Path) -> Path:
@@ -1005,7 +1098,7 @@ def _share_final_move(bundle: Path, out: Path) -> Path:
 
 def _share_warn_no_pdf(task_dir: Path) -> None:
     """zh.pdf 缺席 → 提示按 partial 包打包（合法，manifest 不登记该成员）。"""
-    if (task_dir / "zh.pdf").is_file():
+    if _is_file(task_dir / "zh.pdf"):
         return
     typer.echo(
         "zh.pdf 不在场——按 partial 包打包（manifest 不登记该成员，"
@@ -1028,12 +1121,15 @@ def share_pack(
             "-o",
             help="输出路径——目录/无后缀路径则其下落 {share_key}.share.zip；"
             "带后缀路径按给定名落盘；缺省 cwd",
+            click_type=_CLI_PATH,
         ),
     ] = None,
     data_dir: Annotated[
         Path | None,
         typer.Option(
-            "--data-dir", help="任务库目录（缺省 TEXLATE_DATA_DIR 或 ~/.texlate）"
+            "--data-dir",
+            help="任务库目录（缺省 TEXLATE_DATA_DIR 或 ~/.texlate）",
+            click_type=_CLI_PATH,
         ),
     ] = None,
     contributor: Annotated[
@@ -1121,14 +1217,17 @@ def share_pack(
 def share_unpack(
     bundle: Annotated[
         Path,
-        typer.Argument(
-            help=".share.zip 包路径", exists=True, dir_okay=False, readable=True
-        ),
+        typer.Argument(help=".share.zip 包路径", click_type=_CLI_FILE),
     ],
     *,
     out: Annotated[
         Path | None,
-        typer.Option("--out", "-o", help="解包目录（缺省 cwd/{包名去后缀}）"),
+        typer.Option(
+            "--out",
+            "-o",
+            help="解包目录（缺省 cwd/{包名去后缀}）",
+            click_type=_CLI_PATH,
+        ),
     ] = None,
 ) -> None:
     """``.share.zip`` → 校验解包 + 打印 manifest 摘要。
@@ -1386,7 +1485,7 @@ def _doc_settings_raw(store: SettingsStore) -> dict[str, Any]:
     ``DEFAULT_BASE_URL``，判"配没配网关"必须看用户显式写下的键
     （否则空 settings.json 也探测默认网关 = 非 tailnet 用户误诊 fail）。
     """
-    if not store.path.is_file():
+    if not _is_file(store.path):
         return {}
     try:
         parsed = json.loads(store.path.read_text(encoding="utf-8"))
@@ -1433,7 +1532,7 @@ def _doc_gateway() -> _Check:
             timeout=_DOC_GATEWAY_TIMEOUT_S,
             follow_redirects=True,
         )
-    except httpx.HTTPError as e:
+    except (httpx.HTTPError, httpx.InvalidURL) as e:
         return _Check("gateway", "fail", f"连不上 {url}：{e}")
     if r.is_success:
         n = ""

@@ -14,7 +14,9 @@ head/get 调用即 fail——证明 id 前置校验拦住、网络零接触）�
 攻击面：畸形 arXiv id（新旧式/unicode/``..``/超长/空/NUL/随机汤）、Path
 参数（NUL/ENAMETOOLONG/``..``/文件当目录/不存在）、``TEXLATE_*`` env 对抗值、
 选项冲突/缺参/坏枚举、全子命令 ``--help``、瘦客户端未校验 id 提交、share
-pack ``tasks/`` 越狱。已确认缺陷 ``xfail(strict=True)`` 钉住——修复落地自动翻红。
+pack ``tasks/`` 越狱。曾钉缺陷（NUL Path 转换/ENAMETOOLONG 穿透探针/
+export 父链 OSError/TRANSLATOR typo 静默忽略/doctor InvalidURL）已修复，
+全数转回归断言。
 """
 
 from __future__ import annotations
@@ -392,11 +394,11 @@ class TestArxivIdFuzz:
 
 
 class TestNulPathParam:
-    """NUL 字节进任何 Path 型参数 → 期望干净 usage 拒收。
+    """NUL 字节进任何 Path 型参数 → 干净 usage 拒收（exit 2）。
 
-    实际：typer ``PathInfo.convert`` 的 ``os.stat`` 只捕 ``OSError``——
-    ``stat: embedded null character`` 是 ``ValueError``，全谱 traceback。
-    （上游 typer/models.py:711；产品面无法逐个参数绕，裁决归 leader。）
+    回归钉：typer ``TyperPath.convert`` 的 ``os.stat`` 只捕 ``OSError``——
+    ``stat: embedded null character`` 是 ``ValueError``，曾全谱 traceback；
+    现由 cli ``_CliPath`` 参数型在 ``os.stat`` 前置拒控制字符。
     """
 
     _ARGV: ClassVar[list[list[str]]] = [
@@ -416,10 +418,6 @@ class TestNulPathParam:
         ["web", "--data-dir", "a\x00b"],
     ]
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="NUL Path 参数 → typer convert os.stat ValueError traceback",
-    )
     @pytest.mark.parametrize("argv", _ARGV)
     def test_nul_path_param(
         self,
@@ -456,10 +454,11 @@ class TestNulPathParam:
 
 
 class TestEnametoolong:
-    """超 NAME_MAX 段/权限拒绝 → ``OSError`` 穿透 ``is_dir``/glob 前置检查。
+    """超 NAME_MAX 段/权限拒绝 → ``OSError`` 不穿透 ``is_dir``/glob 探针。
 
-    ``Path.is_dir()`` 只吞 ENOENT/ENOTDIR 一族——ENAMETOOLONG、EACCES 再抛，
-    各调用点无 ``except OSError`` → traceback。期望：干净 exit 1/2。
+    回归钉：``Path.is_dir()`` 只吞 ENOENT/ENOTDIR 一族——ENAMETOOLONG、
+    EACCES 再抛曾逃逸成 traceback；现由 cli ``_is_dir``/``_is_file`` 宽判
+    + ``_acquire`` OSError 收口归一干净 exit 1/2。
     """
 
     _ARGV: ClassVar[list[list[str]]] = [
@@ -476,10 +475,6 @@ class TestEnametoolong:
         ["run", "2001.00001", "--offline", "--cache", _LONG_COMP],  # 同上
     ]
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="ENAMETOOLONG OSError 穿透 is_dir/glob 前置检查 → traceback",
-    )
     @pytest.mark.parametrize("argv", _ARGV)
     def test_enametoolong_path(
         self,
@@ -490,12 +485,8 @@ class TestEnametoolong:
         _clean(result)
         assert result.exit_code in (1, 2)
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="EACCES OSError 穿透 _resolve_source is_dir → traceback（cli.py:385）",
-    )
     def test_locked_parent_dir(self, tmp_path: Path) -> None:
-        """``EACCES`` 同族：父目录 000 时 ``stat`` 再抛 → 期望干净拒收。"""
+        """``EACCES`` 同族：父目录 000 时 ``stat`` 再抛 → 干净拒收。"""
         if os.geteuid() == 0:
             pytest.skip("root 下 chmod 0 不产生 EACCES")
         locked = tmp_path / "locked"
@@ -1045,17 +1036,12 @@ class TestExport:
         _clean(result)
         assert result.exit_code == 1
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="export -o 父链 OSError 未归一 ExportError → traceback"
-        "（cli.py:762 只捕 ExportError）",
-    )
-    def test_out_under_file_traceback(
+    def test_out_under_file(
         self,
         tmp_path: Path,
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用（env 清洗）
     ) -> None:
-        """``-o`` 落在已存在文件之下 → NotADirectoryError 逃逸 ``except ExportError``。"""
+        """``-o`` 落在已存在文件之下 → NotADirectoryError 归一 ``export:`` exit 1。"""
         epub = tmp_path / "b.epub"
         epub.write_bytes(_epub_blob())
         blocker = tmp_path / "f"
@@ -1080,21 +1066,16 @@ class TestExport:
         _clean(result)
         assert result.exit_code == 0
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="TEXLATE_TRANSLATOR 只认 mock/gateway——其他值静默忽略"
-        "（cli.py:792-807 typo-masking）",
-    )
-    def test_translator_env_bogus_silently_ignored(
+    def test_translator_env_bogus_rejected(
         self,
         tmp_path: Path,
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用（env 清洗）
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """``TEXLATE_TRANSLATOR=<未知值>`` 静默忽略 → auto/Mock 回落。
+        """``TEXLATE_TRANSLATOR=<未知值>`` → 显式拒收（exit 2）。
 
-        期望与 ``gateway`` 缺 key 同款的显式拒收（exit 2）——拼错的强制
-        指令被静默吞掉，用户以为在走网关实际拿了占位译文。
+        回归钉：曾被静默忽略按 auto/Mock 回落——拼错的强制指令被吞掉，
+        用户以为在走网关实际拿了占位译文。
         """
         monkeypatch.setenv("TEXLATE_TRANSLATOR", "gatewy")  # 拼错形
         epub = tmp_path / "b.epub"
@@ -1356,13 +1337,8 @@ class TestDoctorEnv:
         _clean(result)
         assert result.exit_code == 1
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="doctor _doc_gateway httpx.get InvalidURL 逃逸 except httpx.HTTPError"
-        "（cli.py:1431；InvalidURL 继承 Exception 非 HTTPError）",
-    )
     @pytest.mark.parametrize("with_key", [True, False])
-    def test_malformed_base_url_traceback(
+    def test_malformed_base_url(
         self,
         tmp_path: Path,
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用（env 清洗）
@@ -1370,10 +1346,11 @@ class TestDoctorEnv:
         *,
         with_key: bool,
     ) -> None:
-        """``TEXLATE_BASE_URL='::::'`` → ``httpx.get('::::/v1/models')`` InvalidURL。
+        """``TEXLATE_BASE_URL='::::'`` → ``httpx.get`` InvalidURL 归一 fail 项。
 
-        有/无 key 都触发：``env_base_url`` 非空即进请求路径——doctor 应把
-        网关项降级为 fail 而不是整体 traceback。
+        有/无 key 都触发：``env_base_url`` 非空即进请求路径——回归钉：
+        InvalidURL 继承 ``Exception`` 非 ``HTTPError``，曾逃逸 except 成
+        整体 traceback；现网关项降级 fail，doctor 不炸。
         """
         monkeypatch.setenv("TEXLATE_DATA_DIR", str(tmp_path / "data"))
         monkeypatch.setenv("TEXLATE_BASE_URL", "::::")
