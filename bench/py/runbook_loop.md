@@ -79,6 +79,7 @@ echo "detached pid=$!"   # 记 pid，监控用
 - 日志**直写文件**，不要 `| tail`（管道缓冲到进程退出才吐，中途零观测面）。
 - 无 task-notification——用 cron/周期查 `kill -0 <pid>` + records 行数增长；records append 真账天然断点续跑（死后重跑同命令，勿带 --rerun）。
 - **setsid 会 fork**：`$!` 拿到的常是已退 wrapper，真 pid 用 `pgrep -f '<argv 特征>'` 补；杀批按 pgroup `kill -- -<pgid>`（pgid 未必等于主 pid，`ps -o pgid=` 先查），误杀漏杀都会造成同目双写。
+- **task_ping 挂进监控 cron**：脱管批的看板署名用 `bench/py/task_ping.py <slug> --status running --done N --total T --pid <真pid>`，放进监控周期任务里每 tick 顺带刷新——看板零维护，收官时 `--finish`（overseer 认可推广模式，2026-09-17）。
 - /tmp 是 usrquota tmpfs 烧 RAM：src 冻结快照、大体 scratch 一律放 repo `tmp/`（disk-backed、gitignored）。
 
 ## 3. 产物速查
