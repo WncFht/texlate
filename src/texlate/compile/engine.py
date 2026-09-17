@@ -33,7 +33,12 @@ from typing import TYPE_CHECKING, Final, Protocol, runtime_checkable
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Iterator
 
-from texlate.textutil import decode_tex, safe_is_file, safe_resolve
+from texlate.textutil import (
+    DOCSTYLE_RX,
+    decode_tex,
+    safe_is_file,
+    safe_resolve,
+)
 
 from .deps import compiled_dependencies
 from .loginfo import (  # noqa: F401 -- WARNING_RED_LINES/classify_error 门面回引（judge/test_redlines 经本模块取）
@@ -1133,7 +1138,7 @@ def route_project(root: Path, *, prefer: str = "tectonic") -> RouteDecision:
     latex209_suspect = [
         str(p.relative_to(root))
         for p, v in vis.items()
-        if re.search(r"\\documentstyle\b", v)
+        if DOCSTYLE_RX.search(v)
     ]
 
     reasons: list[str] = []
