@@ -1,0 +1,56 @@
+% bring in the individual header files
+
+\input{bbhead}
+\input{lrhead}
+\input{vecmathead}
+\input{thmhead}
+\input{comphead}
+\input{latthead}
+\input{anthead}
+\input{crypthead}
+\input{marginnotes}
+
+\newcommand{\etal}{{et~al.}}
+
+% new epsilons
+\newcommand{\eps}{\varepsilon}
+\newcommand{\bfeps}{\boldsymbol{\varepsilon}}
+\renewcommand{\epsilon}{\varepsilon}
+
+% paragraph macro (useful because many classes redefine it}
+\newcommand{\myparagraph}[1]{\paragraph{{#1}.}}
+
+% Expectations
+\DeclareMathOperator{\Exp}{{\mathbb{E}}}
+
+% Macros from Adeline and Damien 
+\newcommand{\mult}{\cdot}
+\newcommand{\wn}{\omega( \sqrt{\log n})}
+
+% macros for extLWE proof
+\newcommand{\roundd}{{\mathrm{round}}}
+\newcommand{\fract}{{\mathrm{frac}}}
+
+
+% Macros for decision problems and such
+\def\binset{\{0,1\}}
+\def\bbZ{{\mathbb Z}}
+\def\bbN{{\mathbb N}}
+\def\bbT{{\mathbb T}}
+\def\cA{{\cal A}}
+\def\cB{{\cal B}}
+\def\cZ{{\cal Z}}
+
+%\def\getsr{\stackrel{\scriptscriptstyle{\$}}{\gets}}
+\def\getsr{\gets}
+\def\getsd{{:=}}
+
+\newcommand{\mx}[1]{\mathbf{{#1}}}
+\newcommand{\vc}[1]{\mathbf{{#1}}}
+%\newcommand{\gvc}[1]{\bm{{#1}}}
+\newcommand{\gvc}[1]{\vc{{#1}}}
+
+\newcommand{\adv}{\mathrm{Adv}}
+
+\newcommand{\zolwe}{\mathsf{binLWE}}
+\def\mAh{\hat{\mx{A}}}

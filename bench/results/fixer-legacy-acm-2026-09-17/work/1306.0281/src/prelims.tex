@@ -1,0 +1,374 @@
+\section{Preliminaries}
+\label{sec:preliminaries}
+
+Let $\T =
+\R/\Z$ denote the cycle, i.e., the additive group of reals modulo
+$1$. We also denote by $\T_q$ its cyclic subgroup of order $q$, i.e.,
+the subgroup given by $\{0,1/q,\ldots,(q-1)/q\}$.
+
+For two probability distributions $P,Q$ over some discrete domain, we
+define their statistical distance as $\sum |P(i)-Q(i)|/2$ where~$i$
+ranges over the distribution domain, and extend this to continuous
+distributions in the obvious way. We recall the following easy fact
+(see, e.g.,~\cite[Eq.~(2.3)]{AldousDiaconis87} for a proof).
+\begin{claim}\label{clm:separationdist}
+  If $P$ and $Q$ are two probability distributions such that~$P(i) \ge
+  (1-\eps)Q(i)$ holds for all~$i$, then the statistical distance
+  between $P$ and $Q$ is at most~$\eps$.
+\end{claim}
+
+
+
+We will use the following immediate corollary of the leftover hash
+lemma~\cite{DBLP:journals/siamcomp/HastadILL99}.
+
+\begin{lemma}
+  \label{lem:lhl}
+  Let $k, n, q \ge 1$ be integers, and $\epsilon > 0$ be such that $n
+  \ge k \log_2 q + 2 \log_2 (1/\epsilon)$. For $\mx{H} \gets \T_q^{k \times
+    n}$, $\vc{z} \gets \binset^n$, $\vc{u} \gets \bbT_q^k$, the
+  distributions of $(\mx{H}, \mx{H}\vc{z})$ and $(\mx{H}, \vc{u})$ are
+  within statistical distance at most $\epsilon$.
+\end{lemma}
+
+
+A \emph{distinguishing problem} $P$ is defined by two distributions $P_0$ and $P_1$, and a solution to the problem is the ability to distinguish between these distributions. The \emph{advantage} of an algorithm $\cA$ with binary output on $P$ is defined as
+\[
+\adv[\cA] = \abs{\Pr[\cA(P_0)] - \Pr[\cA(P_1)]}~.
+\]
+A reduction from a problem~$P$ to a problem~$Q$ is an efficient (i.e.,
+polynomial-time) algorithm~$\cA^{\cB}$ that solves~$P$ given
+access to an oracle~$\cB$ that solves~$Q$. Most of our reductions
+(in fact all except the one in Lemma~\ref{lem:lelwe}) are what we 
+call ``transformation reductions:'' these reductions perform some transformation
+to the input and then apply the oracle to the result. 
+
+
+\subsection{Lattices}
+\label{sec:lattices}
+
+An $n$-dimensional (full-rank) lattice $\Lambda \subseteq \R^n$ is the
+set of all integer linear combinations of some set of $n$ linearly
+independent \emph{basis} vectors $\matB = \set{\vecb_{1}, \ldots,
+  \vecb_{n}} \subseteq \R^n$,
+\[ \Lambda = \lat(\matB) = \set[\Big]{
+  \sum_{i \in [n]} z_i \vecb_i\; :\; \vecz \in \mathbb{Z}^n }. \]
+The \emph{dual lattice} of $\Lambda \subset \R^n$ is defined as
+$\Lambda^* = \set{ \vecx \in \R^n : \inner{\Lambda,\vecx} \subseteq \Z}$.
+
+The \emph{minimum distance} (or \emph{first successive minimum}) $\lambda_1(\Lambda)$ of a lattice
+$\Lambda$ is the length of a shortest nonzero lattice vector, i.e., $\lambda_1(\Lambda) = \min_{\veczero \neq
+  \vecx \in \Lambda} \length{\vecx}$.  For an approximation ratio $\gamma = \gamma(n) \ge 1$, the $\gapsvp_\gamma$ is the problem of deciding,
+	given a basis $\matB$ of an $n$-dimensional lattice $\Lambda = \lat(\matB)$ and a number $d$, between the case where $\lambda_1(\lat(\matB)) \le d$ 
+	and the case where $\lambda_1(\lat(\matB)) > \gamma d$.
+We refer to~\cite{KhotLLL25,RegevLLL25} for a recent account 
+on the computational complexity of $\gapsvp_\gamma$. \dnote{I added that sentence}
+
+
+\subsection{Gaussian measures}
+\label{sec:gaussian_measures}
+
+
+For $r > 0$, the $n$-dimensional Gaussian function $\rho_r : \R^{n} \to (0,1]$ is
+defined as
+\[ \rho_r(\vecx) := \exp(-\pi
+\length{\vecx}^{2}/r^2).
+\]
+We extend this definition to sets, i.e., $\rho_r(A) = \sum_{\vecx \in A} \rho_r(\vecx) 
+\in [0,+\infty]$ for any~$A \subseteq \R^{n}$.
+The (spherical) continuous Gaussian distribution~$D_r$ is the distribution with density
+function proportional to $\rho_r$. More generally, for a matrix $\matB$,
+we denote by $D_\matB$ the distribution of $\matB \vecx$ where $\vecx$ is sampled
+from $D_1$. When $\matB$ is nonsingular, its probability density function is
+proportional to
+\[
+\exp(-\pi \vecx^T (\matB \matB^T)^{-1} \vecx).
+\]
+A basic fact is that for any matrices $\matB_1,\matB_2$, the sum of a sample from $D_{\matB_1}$ and an independent sample
+from~$D_{\matB_2}$ is distributed like $D_{\matC}$ for $\matC = (\matB_1^{} \matB_1^T + \matB_2^{} \matB_2^T)^{1/2}$.
+
+For an $n$-dimensional lattice $\Lambda$ and a vector $\vecu \in \R^n$, we define the \emph{discrete Gaussian distribution}~$D_{\Lambda+\vecu,r}$
+as the discrete distribution with support on the coset $\Lambda+\vecu$ whose probability mass function is proportional to
+$\rho_r$. There exists an efficient procedure that samples within negligible statistical distance of any (not too narrow) discrete Gaussian distribution 
+(\cite[Theorem~4.1]{DBLP:conf/stoc/GentryPV08}; see also~\cite{DBLP:conf/crypto/Peikert10}). In the next lemma, proved in Section~\ref{sec:exactgpv},
+we modify this sampler so that the output is distributed exactly as a discrete Gaussian. This also allows us to sample from
+slightly narrower Gaussians. Strictly speaking, the lemma is not needed for our results,
+and we could use instead the original sampler from \cite{DBLP:conf/stoc/GentryPV08}. Using our exact sampler leads to slightly
+cleaner proofs as well as a (miniscule) improvement in the parameters of our reductions, and we include it here mainly in the hope that it finds
+further applications in the future.
+
+\begin{lemma}\label{lem:gpv}
+There is a probabilistic polynomial-time algorithm that, given a basis $\matB$ of an $n$-dimensional
+lattice $\Lambda = \lat(\matB)$, $\vecc \in \R^n$, and a parameter $r \ge \|\widetilde \matB\| \cdot \sqrt{\ln(2n+4)/\pi}$,
+outputs a sample distributed according to $D_{\Lambda+\vecc,r}$. 
+\end{lemma}
+
+Here, $\widetilde \matB$ denotes the Gram-Schmidt orthogonalization of $\matB$,
+and $\|\widetilde \matB\|$ is the length of the longest vector in it.
+We recall the definition of the \emph{smoothing parameter} from~\cite{DBLP:journals/siamcomp/MicciancioR07}.
+
+\begin{definition}
+  \label{def:smoothing}
+  For a lattice $\Lambda$ and positive real $\epsilon > 0$, the
+  smoothing parameter $\smootheps(\Lambda)$ is the smallest real $s >
+  0$ such that $\rho_{1/s}(\Lambda^* \setminus \set{\veczero}) \leq
+  \epsilon$.
+\end{definition}
+
+\begin{lemma}[{{\cite[Lemma~3.1]{DBLP:conf/stoc/GentryPV08}}}]\label{lem:boundonsmoothing}
+For any $\eps>0$ and $n$-dimensional lattice $\Lambda$ with basis $\matB$,
+\[
+\smootheps(\Lambda) \le \|\widetilde \matB \| \sqrt{\ln(2n(1+1/\eps))/\pi}.
+\]
+\end{lemma}
+
+
+We now collect some known facts on Gaussian distributions and lattices.
+
+\begin{lemma}[{{\cite[Lemma 4.1]{DBLP:journals/siamcomp/MicciancioR07}}}]
+  \label{lem:smoothingcontinuous}
+  For any $n$-dimensional lattice $\Lambda$, $\epsilon>0$, $r \geq
+  \eta_{\epsilon}(\Lambda)$, the distribution of $\vecx \bmod \Lambda$ where $\vecx \leftarrow D_{r}$ is
+	within statistical distance $\eps/2$ of the uniform distribution on cosets of $\Lambda$.
+\end{lemma}
+
+\begin{lemma}[{{\cite[Claim 3.8]{DBLP:journals/jacm/Regev09}}}]
+  \label{lem:smoothing}
+  For any $n$-dimensional lattice $\Lambda$, $\epsilon>0$, $r \geq
+  \eta_{\epsilon}(\Lambda)$, and $\vecc \in \R^n$, we have $\rho_{r}(\Lambda + \vecc) \in [
+  \tfrac{1-\epsilon}{1+\epsilon}, 1 ] \cdot \rho_{r}(\Lambda)$.
+\end{lemma}
+
+\begin{lemma}[{{\cite[Claim~3.9]{DBLP:journals/jacm/Regev09}}}]
+\label{le:discrete_plus_cont_Gauss}
+Let~$\Lambda$ be an $n$-dimensional lattice, let~$\vec{u}\in \R^n$ be
+arbitrary, let $r, s > 0$ and let $t=\sqrt{r^2+ s^2}$. Assume that
+$rs/t=1/\sqrt{1/r^2+1/s^2} \geq \eta_{\eps} (\Lambda)$ for some~$\eps <
+1/2$. Consider the continuous distribution~$Y$ on~$\R^n$ obtained by
+sampling from~$D_{\Lambda+\vec{u},r}$ and then adding a noise vector taken
+from~$D_s$. Then, the statistical distance between~$Y$ and~$D_t$ is at
+most~$4\eps$.
+\end{lemma}
+
+\begin{lemma}[{{\cite[Corollary~3.10]{DBLP:journals/jacm/Regev09}}}]
+\label{lem:smoothip}
+Let~$\Lambda$ be an $n$-dimensional lattice, let~$\vc{u}, \vc{z}\in \R^n$ be arbitrary, and let $r, \alpha > 0$. Assume that
+$\parens{1/r^2+\left(\|{\vc{z}}\|/\alpha\right)^2}^{-1/2} \geq \eta_{\eps} (\Lambda)$ for some~$\eps <
+1/2$. Then the distribution of $\langle\vc{z},\vc{v}\rangle+e$ where $\vc{v} \getsr D_{\Lambda+\vc{u}, r}$ and $e \getsr D_{\alpha}$, is within statistical distance $4\eps$ of $D_{\beta}$ for $\beta = \sqrt{(r \|\vc{z}\|)^2+\alpha^2}$.
+\end{lemma}
+
+\begin{lemma}[{{Special case of~\cite[Theorem 3.1]{DBLP:conf/crypto/Peikert10}}}]
+\label{lem:peikertdiscretegauss}
+Let $\Lambda$ be a lattice and $r,s>0$ be such that $s \ge \eta_\eps(\Lambda)$ for some $\eps \le 1/2$.
+Then if we choose $\vecx$ from the continuous Gaussian $D_{r}$ and then choose $\vecy$ from the
+discrete Gaussian $D_{\Lambda-\vecx,s}$ then $\vecx+\vecy$ is within statistical distance $8 \eps$ of
+the discrete Gaussian $D_{\Lambda,(r^2+s^2)^{1/2}}$.
+\end{lemma}
+
+
+\subsection{Learning with Errors}
+\label{sec:computational_problems}
+
+For integers $n,q \ge 1$, an integer vector $\vec{s}
+\in \Z^n$, and a probability distribution $\phi$ on~$\R$, let
+$A_{q,\vecs, \phi}$ be the distribution over $\T_q^n \times \T$
+obtained by choosing $\veca \in \T_q^n$ uniformly at random and an
+error term $e$ from $\phi$, and outputting the pair $(\veca, b =
+\inner{\veca, \vecs}+e) \in \T_q^n \times \T$.
+
+\begin{definition}
+  \label{def:lwe}
+  For integers $n,q \ge 1$, an error distribution $\phi$
+  over $\R$, and a distribution $\calD$ over $\Z^n$, the (average-case) decision variant of the $\lwe$
+  problem, denoted $\lwe_{n,q,\phi}(\calD)$, is to distinguish 
+	given arbitrarily many independent samples,
+  the uniform distribution over $\T_q^n \times \T$ from
+  $A_{q,\vec{s},\phi}$ for a fixed $\vec{s}$ sampled from $\calD$. The variant where the algorithm only gets a bounded number of samples $m\in\bbN$ is denoted $\lwe_{n,m,q,\phi}(\calD)$.
+\end{definition}
+
+Notice that the distribution $A_{q,\vec{s},\phi}$ only depends on $\vec{s} \bmod q$, and so one can assume
+without loss of generality that $\vec{s} \in \{0,\ldots,q-1\}^n$. Moreover, using a standard
+random self-reduction, for any distribution over secrets $\calD$, one can reduce $\lwe_{n,q,\phi}(\calD)$ to
+$\lwe_{n,q,\phi}(U(\{0,\ldots,q-1\}^n))$, and we will occasionally use $\lwe_{n,q,\phi}$ to denote the latter
+(as is common in previous work). 
+When the noise is a Gaussian with parameter $\alpha>0$, i.e., $\phi=D_\alpha$,
+we use the shorthand $\lwe_{n,q,\alpha}(\calD)$.
+Since the case when $\calD$ is uniform over $\{0,1\}^n$ plays an important
+role in this paper, we will denote it by $\zolwe_{n,q,\phi}$ (and by~$\zolwe_{n,m,q,\phi}$ when the algorithm only gets~$m$ samples). Finally, as we show in the following lemma, 
+one can efficiently reduce $\lwe$ to the case in which the secret
+is distributed according to the (discretized) error distribution and is hence somewhat short. This latter
+form of \lwe, known as the ``normal form,'' was first shown hard in~\cite{DBLP:conf/crypto/ApplebaumCPS09}
+for the case of prime $q$.
+Here we observe that the proof extends to non-prime $q$, the new technical ingredient being Claim~\ref{clm:invertiblemodq} below.
+
+\begin{lemma}\label{lem:normalform}
+  For any $q \ge 25$, $n,m \geq 1$, $\alpha>0$, $\eps < 1/2$ and~$s \geq
+  \sqrt{\ln(2n(1+1/\epsilon)/\pi)}/q$, there is an efficient
+  (transformation) reduction from~$\lwe_{n,m,q,\alpha}$ to
+  $\lwe_{n,m',q,\alpha}(\calD)$
+  where~$m' = m - (16n + 4\ln \ln q)$ and $\calD=D_{\Z^n,q(\alpha^2+s^2)^{1/2}}$, that 
+	turns advantage $\zeta$ into an advantage of at least $(\zeta-8\eps)/4$.
+	In particular, assuming $\alpha \geq \sqrt{\ln(2n(1+1/\epsilon)/\pi)}/q$, we can take $s=\alpha$,
+	in which case $\calD=D_{\Z^n,\sqrt{2}q\alpha}$.
+\end{lemma}
+
+\begin{proof}
+  Consider the first $16n + 4\ln\ln q$ samples $(\vec{a},b)$.
+	Using Claim~\ref{clm:invertiblemodq}, with probability at least
+	$1-2e^{-1} \ge 1/4$, we can efficiently find a subsequence of the samples
+	such that the matrix $A_0 \in \Z_q^{n \times n}$ whose columns
+	are formed by the $\vec{a}$ in the subset (scaled up by $q$)
+	has an inverse $A_0^{-1} \in \Z_q^{n \times n}$ modulo $q$. If we cannot find such a subsequence, we abort. 
+	Let $\vec{b}_0 \in \T^n$ be the vector formed by the corresponding $b$ in the subsequence.
+	Let also $\vec{b}'_0 \in \T_q^n$ be $\vec{b}_0 + \vec{x}$ where $\vec{x}$ is
+	chosen from $D_{q^{-1}\Z^n - \vec{b}_0,s}$. 
+	(Notice that the coset $q^{-1}\Z^n - \vecb_0$ is well defined
+because $\vecb_0$ is a coset of $\Z^{n} \subseteq q^{-1}\Z^n$.)
+  From each of the remaining $m'$ samples $(\vec{a},b) \in \T_q^n \times \T$ we produce a pair
+	\[
+	  \big(\vec{a}' = A_0^{-1} \vec{a}, b' = b - \inner{A_0^{-1} \cdot q \vec{a}, \vec{b}'_0}\big) \in \T_q^n \times \T.
+	\]
+	We then apply the given $\lwe$ oracle to the resulting $m'$ pairs and output its result. 
+		
+	We now analyze the reduction. First notice that the construction of $A_0$ depends
+	only on the $\vec{a}$ component of the input samples, and hence the probability of 
+	finding it is the same in case the input is uniform and in case it consists of $\lwe$ samples.
+	It therefore suffices in the following to show that there is a distinguishing gap conditioned
+	on successfully finding an $A_0$. 
+	To that end, first observe that if the input samples $(\veca,b)$ are uniform in $\T_q^n \times \T$
+	then so are the output samples $(\veca',b')$.
+	Next consider the case that the input samples are distributed according to $A_{q,\vec{s},D_{\alpha}}$
+	for some $\vec{s} \in \Z^n$. Then since~$s \geq \eta_{\epsilon}(q^{-1}\Z)$ by Lemma~\ref{lem:boundonsmoothing},
+	using Lemma~\ref{lem:peikertdiscretegauss} we get that $\vec{b}_0' = q^{-1} A_0^T \vec{s} + \vece_0$
+	where $\vece_0$ is distributed within statistical distance $8\eps$ from $D_{q^{-1}\Z^n, (\alpha^2+s^2)^{1/2}}$.
+	Therefore, for each output sample $(\veca',b')$ we have
+	\[
+	   b' = b - \inner{A_0^{-1} \cdot q \vec{a}, \vec{b}'_0} 
+		    = \inner{\veca,\vecs}+ e - \inner{\veca, \vecs} - \inner{A_0^{-1} q \veca, \vece_0}
+				= \inner{-q \vec{e}_0, \veca'}+e,
+	\]
+	where $e$ is an independent error from $D_\alpha$. Therefore, the output samples
+	are distributed according to $A_{q,-q\vec{e}_0,D_{\alpha}}$, completing the proof.
+\end{proof}
+
+
+\begin{claim}\label{clm:invertiblemodq}
+For any $q \ge 25$, $n \ge 1$, and $t_1 \ge 4, t_2 \ge 1$, given a sequence of $t_1 n+t_2 \ln\ln q$
+vectors $\vec{a}_1,\vec{a}_2,\ldots$ chosen uniformly and independently from $\Z_q^n$,
+except with probability $e^{-t_1 n /16} + e^{-t_2/4}$, there exists a subsequence 
+of $n$ vectors such that the $n \times n$ matrix they form is invertible modulo $q$. 
+Moreover, such a subsequence can be found efficiently. 
+\end{claim}
+\begin{proof}
+We consider the following procedure. 
+Let $k$ be a counter, initialized to $0$, indicating the number of vectors currently 
+in the subsequence, and let $A \in \Z_q^{n \times k}$ be the matrix whose columns are formed by the current
+subsequence. We also maintain a unimodular matrix~$U \in \Z^{n \times n}$, 
+initially set to the identity, satisfying the invariant that~$U \cdot A \in \Z_q^{n \times k}$ 
+has the following form:
+  its top $k \times k$ submatrix is upper triangular with each
+  diagonal coefficient coprime with~$q$; its bottom $(n-k) \times
+  k$ submatrix is zero.
+The procedure considers the vectors $\vec{a}_i$ one by one.
+For each vector $\vec{a}$, if it is such that the gcd of the last~$n-k$ entries of~$U
+  \vec{a}$, call it $g$, is coprime with~$q$, then it does the following:
+	it adds $\vec{a}$ to the subsequence, 
+	computes (using, say, the extended GCD algorithm) a unimodular matrix $V$ that acts as identity on the first $k$ coordinates 
+	and for which the last $n-k$ coordinates of $VU\vec{a}$ are $(g,0,\ldots,0)$,
+	replaces $U$ with $VU$, and increments $k$. 
+
+It is easy to see that the procedure's output is correct if it reaches $k=n$.
+It therefore suffices to analyze the probability that this event happens. 
+For this we use the following two facts to handle the cases~$k<n-1$ and~$k = n-1$, respectively. First, the probability that
+the gcd of two uniformly random numbers modulo $q$ is coprime with $q$ is 
+\[
+\prod_{p|q,~p~\text{prime}} (1-p^{-2}) \ge \prod_{p~\text{prime}} (1-p^{-2}) = \zeta(2)^{-1} \approx 0.61,
+\]
+where $\zeta$ is the Riemann zeta function. 
+Second, the probability that one uniformly random number modulo $q$ is coprime with $q$
+is $\varphi(q)/q$, where $\varphi$ is Euler's totient function. By~\cite[Theorem 8.8.7]{BachShallit}, 
+this probability is at least $(e^\gamma \ln \ln q + 3/(\ln\ln q))^{-1}$ where $\gamma$ is Euler's constant, which for $q \ge 25$
+is at least $(4 \ln \ln q)^{-1}$. 
+
+Using the (multiplicative) Chernoff bound, the first fact, and the fact that $U\vec{a}$ is uniform in $\Z_q^n$ since $U$ is unimodular, we see that the probability that $k < n-1$ after considering $t_1 n$ vector is at most $e^{-t_1 n /16}$. Moreover, once $k=n-1$, using the second fact we get that the probability that after considering $t_2 \ln \ln q$ additional vectors we still have $k=n-1$ is at most $e^{-t_2/4}$.
+\end{proof}
+
+
+
+\myparagraph{Unknown (Bounded) Noise Rate}
+We also consider a variant of $\lwe$ in which the amount of noise is some unknown $\beta \le \alpha$ (as opposed
+to exactly $\alpha$), with $\beta$ possibly depending on the secret $\vecs$. As the following lemma shows, this 
+does not make the problem significantly harder.
+
+\begin{definition}\label{def:lelwe}
+For integers $n,q \ge 1$ and $\alpha \in (0,1)$, $\lwe_{n,q,\le\alpha}$ is the problem of solving $\lwe_{n,q,\beta}$ for any $\beta = \beta(\vc{s}) \le \alpha$.
+\end{definition}
+
+\begin{lemma}\label{lem:lelwe}
+Let $\cA$ be an algorithm for $\lwe_{n, m, q, \alpha}$ with advantage at least $\epsilon>0$. Then there exists an algorithm $\cB$ for $\lwe_{n,m',q,\le\alpha}$ using oracle access to~$\cA$ and with advantage at least $1/3$, where both $m'$ and its running time are $\poly(m,1/\epsilon, n, \log q)$.
+\end{lemma}
+
+The proof is standard (see, e.g., \cite[Lemma 3.7]{DBLP:journals/jacm/Regev09} for
+the analogous statement for the search version of $\lwe$). The idea is to use Chernoff bound to estimate $\cA$'s success probability on the uniform distribution, and then add noise in small increments to our given distribution and estimate $\cA$'s behavior on the resulting distributions. If there is a gap between any of these and the uniform behavior, the input distribution is deemed non-uniform. The full proof is omitted.
+
+\znote{Commented out proof is down here. Fix or remove.
+%
+%\begin{proof}
+%\znote{Only sketch for now. Also I am not sure all the specific constants are correct, need to double check.}
+%Let $\cA$ be as in the lemma statement. Note that $\adv[\cA] \ge \epsilon$ means that
+%\begin{equation}
+%\Pr_{\vc{s}}\left[\abs{\Pr[\cA(\mx{A}, (\mx{A}\cdot\vc{s})/q+\vc{e})] -  \Pr[\cA(\mx{A}, \vc{u})] \ge \epsilon/2 }\right] \ge \epsilon/2~.
+%\end{equation}
+%Namely, for $\epsilon/2$ fraction of the secret vectors we get a good distinguishing gap.
+%
+%We define the algorithm $\cB$ as follows: $\cB$ will draw many samples $(\mx{A}, \vc{d})$ from its input distribution (recall that either all are of the form $A_{\vc{s}, \beta}$ or all are uniform). It will add to each of these samples an additional noise from $D_{\gamma}$, for all $\gamma$ over a fine grid of polynomially many values between $0$ and $\alpha$.
+%
+%Then $\cB$ will estimate $\cA$'s acceptance probability on the uniform distribution and on each of the $\gamma$ distributions. The estimate is such that with probability $1-\epsilon/6$, no estimate deviates by more than $\epsilon/20$ from the correct value. This can be done in $\poly(1/\epsilon, n, T)$ time.
+%
+%Then, if either of the $\gamma$'s yielded a value that is different from the value of the uniform distribution by more than $\epsilon/8$, then output $1$. Otherwise output $0$.
+%
+%The analysis proceeds as follows: First, we note that when $\cB$ is given the uniform distribution, it will output $0$ with all but $\epsilon/6$ probability. Next, we analyze $\cB$'s behavior on $A_{\vc{s}, \beta}$.
+%
+%% consider the distributions $(\mx{A}, \mx{A}^T\vc{s}/q+\vc{e})$ for $\vc{e} \getsr D_{\sqrt{\beta^2+\gamma^2}}$ for a fine grid of $\gamma$ between $0$ and $\alpha$. Note that these distributions are easy to generate without knowing $\beta$.
+%
+%If we choose the grid of $\gamma$'s fine enough, then there exists $\gamma$ such that $D^m_{(\beta^2+\gamma^2)^{1/2}}$ and $D^m_{\alpha}$ are within $\epsilon/4$ statistical distance. This means that for this specific $\gamma$, the algorithm $\cA$ will have a distinguishing gap $\epsilon/4$ for at least an $\epsilon/2$ fraction of the $\vc{s}$. \znote{Is the statistical distance between two Gaussians bounded by the difference of their standard deviations or the difference of variances?}\onote{use Claim 2.2 of~\cite{DBLP:journals/jacm/Regev09} which bounds the statistical distance between two normal variables by $9(\beta/\alpha - 1)$ assuming $\alpha < \beta \le 2 \alpha$} This means that $\cB$ will output $1$ with probability at least $\epsilon/2 - \epsilon/6 \ge \epsilon/3$.
+%
+%This implies a distinguishing gap of at least $\epsilon/6$, which can be improved to $\epsilon/3$ if we notice that we double counted the event of erroneous estimates of $\cA$'s acceptance probability.
+%\end{proof}
+}
+
+
+
+
+
+
+\myparagraph{Relation to Lattice Problems}
+Regev~\cite{DBLP:journals/jacm/Regev09} and Peikert~\cite{DBLP:conf/stoc/Peikert09} showed quantum and classical reductions (respectively) from the worst-case hardness of the $\gapsvp$ problem to the \onote{added:}search version of $\lwe$. 
+(We note that the quantum reduction in~\cite{DBLP:journals/jacm/Regev09} also shows a reduction from $\sivp$.)
+As mentioned in the introduction, the classical reduction only works when the modulus $q$ is exponential
+in the dimension~$n$.
+This is summarized in the following theorem, which is derived from
+{{\cite[Theorem~3.1]{DBLP:journals/jacm/Regev09}}} and
+{{\cite[Theorem~3.1]{DBLP:conf/stoc/Peikert09}}}.
+
+\begin{theorem}\label{thm:worstcaseaveragecase}
+Let $n, q \ge 1$ be integers and let $\alpha \in (0,1)$ be such that $\alpha q \ge 2 \sqrt{n}$. Then there exists a quantum reduction from worst-case $n$-dimensional $\gapsvp_{\widetilde{O}(n/\alpha)}$ to $\lwe_{n,q,\alpha}$. If in addition $q \ge 2^{n/2}$ then there is also a classical reduction between those problems. 
+\end{theorem}
+
+In order to obtain hardness of the \emph{decision} version of \lwe, which is the one we consider throughout the paper, one employs a search-to-decision reduction. Several such reductions appear in the literature (e.g.,~\cite{DBLP:journals/jacm/Regev09,DBLP:conf/stoc/Peikert09,DBLP:conf/eurocrypt/MicciancioP12}). The most recent reduction by Micciancio and Peikert~\cite{DBLP:conf/eurocrypt/MicciancioP12}, which essentially subsumes all previous reductions, 
+requires the modulus~$q$ to be smooth. Below we give the special case when the modulus is a power of~$2$, which suffices for our purposes. It follows from our results that (decision) $\lwe$ is hard not just for a smooth modulus~$q$, as follows from~\cite{DBLP:conf/eurocrypt/MicciancioP12}, but actually for all moduli~$q$, including prime moduli, with only a small deterioration in the noise
+(see Corollary~\ref{cor:mod-reduction-2}).
+
+\begin{theorem}[{{Special case of~\cite[Theorem 3.1]{DBLP:conf/eurocrypt/MicciancioP12}}}]\label{thm:searchtodecisionmicpei}
+Let $q$ be a power of $2$, and $\alpha$ satisfy $1/q < \alpha < 1/\omega(\sqrt{\log n})$. Then there exists an efficient reduction from search $\lwe_{n,q,\alpha}$
+to (decision) $\lwe_{n,q,\alpha'}$ for $\alpha'=\alpha \cdot \omega(\log n)$.
+\end{theorem}
+
+
+
+
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: "lwehard"
+%%% End:

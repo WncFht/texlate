@@ -1,0 +1,304 @@
+\section{这是译文}
+\label{sec:modexpansion}
+
+
+
+这是译文~\ref{cor:mod-reduction} 这是译文~\ref{cor:mod-dim-tradeoff} 这是译文~$\calD$ 这是译文~$\Z^{n}$ 这是译文 $(B,\delta)$-这是译文~$B,\delta\geq 0$ 这是译文~$\vec{x} \gets
+\calD$ 这是译文 $B$ 这是译文 $\delta$. 
+
+\begin{theorem}
+  \label{thm:mod-dim-switch}  这是译文 $m,n, n',q,q' \geq 1$ 这是译文  $\matG \in \Z^{n' \times n}$ 这是译文 $\Lambda =
+  \frac{1}{q'} \matG^{T} \Z^{n'} + \Z^{n}$ 这是译文 $\matB$,  这是译文 $\calD$ 这是译文 $(B,\delta)$-这是译文  $\Z^{n}$.  这是译文 $\alpha, \beta > 0$ 这是译文~$\eps \in (0,1/2)$ 这是译文  \[\beta^{2} \geq
+  \alpha^{2} + (4/\pi) \ln(2n(1+1/\eps)) \cdot (\max\set{q^{-1}, \length{\gs{\matB}}} \cdot B)^{2}.\]  这是译文 (这是译文) 这是译文~$\lwe_{n,m,q,\le \alpha}(\calD)$ 这是译文 $\lwe_{n',m,q',\leq \beta}(\matG
+  \cdot \calD)$ 这是译文 $\delta + 14 \eps m$.
+\end{theorem}
+
+这是译文 $\|\widetilde \matB\|$ 这是译文~\ref{lem:gpv}. 这是译文 $\Z_{q'}^{n'}$, 这是译文~\ref{def:lwe}. 这是译文 $\lwe_{n',q',\leq \beta}$  这是译文~$\lwe_{n',q',\beta}$ (这是译文~\ref{lem:lelwe}).
+
+这是译文 (这是译文 \lwe 这是译文), 这是译文 $n'=n$, $\matG=\matI$ 这是译文 $n$-这是译文 $\matB = \matI/q'$.  这是译文 $q \ge q' \ge \sqrt{2\ln(2n(1+1/\eps))} \cdot
+(B/\alpha)$ 这是译文 $\beta=\sqrt{2} \alpha$, 这是译文~$B/\alpha$, 这是译文~$\alpha$ 这是译文.
+
+\begin{corollary}
+  \label{cor:mod-reduction}  这是译文 $m,n \geq 1$, $q \geq q' \geq 1$, $(B,\delta)$-这是译文~$\calD$ 这是译文~$\Z^{n}$, $\alpha,\beta>0$ 这是译文~$\eps \in (0,1/2)$ 这是译文  \[
+	\beta^{2} \geq \alpha^{2} + (4/\pi) \ln(2n(1+1/\eps))
+  \cdot (B/q')^2,
+	\]  这是译文  $\lwe_{n,m,q,\le \alpha}(\calD)$ 这是译文  $\lwe_{n,m,q',\le \beta}(\calD)$ 这是译文 $\delta + 14 \eps m$.
+\end{corollary}
+
+这是译文 \lwe (这是译文~\ref{lem:normalform}), 这是译文 $\calD = D_{\Z^{n}, \sqrt{2} \alpha q}$, 这是译文 (这是译文~\ref{thm:searchtodecisionmicpei}), 这是译文 (这是译文) $\lwe$ 这是译文 \emph{这是译文} 这是译文 $q$. 这是译文 $\calD = D_{\Z^{n}, r}$ 这是译文 $(C r \sqrt{n \log(n/\delta)}, \delta)$-这是译文 $C>0$, 这是译文 $n$ 这是译文. (这是译文~$(r\sqrt{n},2^{-n})$-这是译文~\cite[Lemma~1.5]{banaszczyk93:_new}, 这是译文 $n$.)
+
+\begin{corollary}
+  \label{cor:mod-reduction-2}  这是译文 $\delta \in (0,1/2)$, $m \ge n \geq 1$, $q' \ge 25$. 这是译文 $q \in [q',2q')$ 这是译文 $2$ 这是译文 $q'$  这是译文 $\alpha \ge \sqrt{\ln(2n(1+16/\delta)/\pi)}/q$.  这是译文 (这是译文) 这是译文 $\lwe_{n,m,q, \alpha}$ 这是译文 $\lwe_{n,m',q', \le \beta}$  这是译文 $m'=m-(16 n + 4 \ln\ln q)$ 这是译文  \[
+	\beta = C \alpha \sqrt{n} \sqrt{\log(n/\delta)\log(m/\delta)}
+	\]  这是译文 $C>0$, 这是译文 $\zeta$ 这是译文 $(\zeta-\delta)/4$.
+\end{corollary}
+
+
+  这是译文  $n=kn'$ 这是译文 $k \ge 1$, 这是译文~$q' = q^{k}$.  这是译文~$\vec{G} =
+  \vec{I}_{n'} \otimes \vec{g}$, 这是译文~$\vec{g} = (1,q,q^2, \ldots,
+  q^{k-1})^T \in \Z^k$.  这是译文 $\Lambda = q^{-k} \vec{G}^T
+  \Z^{n'} + \Z^n$.  这是译文~$\Lambda$ 这是译文 \[
+\vec{B}= \vec{I}_{n'} \otimes 
+\begin{bmatrix}
+q^{-1} & q^{-2} & \cdots & q^{-k} \\
+       & q^{-1} & \cdots & q^{1-k} \\
+       &        & \ddots & \vdots \\
+       &		&		 & q^{-1}
+     \end{bmatrix} \in \R^{n \times n};
+\] 这是译文~$\vec{B}$ 这是译文~$\Lambda$ 这是译文 $\gs{\matB} = q^{-1} \matI$ 这是译文 $\length{\gs{\matB}}=q^{-1}$.  这是译文~$n \log q = n' \log q'$ 这是译文~$\calD = D_{\Z^{n}, \alpha q}$ (这是译文~\ref{lem:normalform}), 这是译文 $(\alpha q
+\sqrt{n}, 2^{-n})$-这是译文~$\sqrt{n}$ 这是译文. 
+
+\begin{corollary}
+  \label{cor:mod-dim-tradeoff}  这是译文 $n, m,q \ge 1$, $k \ge 1$ 这是译文~$n$,  $(B,\delta)$-这是译文~$\calD$ 这是译文~$\Z^{n}$,  $\alpha,\beta>0$, 这是译文~$\eps \in (0,1/2)$ 这是译文 \[
+\beta^{2} \geq \alpha^{2} + (4/\pi)
+  \ln(2n(1+1/\eps)) \cdot (B/q)^{2},
+\]  这是译文~$\lwe_{n,m,q,\le \alpha}(\calD)$  这是译文~$\lwe_{n/k,m,q^k,\le \beta}(\vec{G} \cdot \calD)$ 这是译文 $\delta+14 \eps m$,  这是译文~$\vec{G} = \vec{I}_{n/k} \otimes  (1,q,q^2, \ldots, q^{k-1})^T$.
+\end{corollary}
+
+\noindent 这是译文~\ref{thm:mod-dim-switch} 这是译文.
+
+
+\begin{lemma}
+  \label{lem:reverse-main}  这是译文~\ref{thm:mod-dim-switch}, 这是译文  \[
+	r
+  \geq \max\set{q^{-1}, \length{\gs{\matB}}} \cdot
+  \sqrt{2\ln(2n(1+1/\epsilon))/\pi}. 
+	\] 这是译文 $\T_{q}^{n} \times \T$ 这是译文 $\T_{q'}^{n'} \times \T$, 这是译文:
+  \begin{itemize}[itemsep=0pt]
+  \item 这是译文 $4 \epsilon$ 这是译文.
+  \item 这是译文  $A_{q,\vecs,D_{\alpha}}$ 这是译文 $\vecs \in \Z^{n}$ 这是译文  $\length{\vecs} \leq B$, 这是译文 $10 \epsilon$ 这是译文 $A_{q',\matG\vecs,D_{\alpha'}}$, 这是译文  $(\alpha')^{2} = \alpha^{2} + r^{2}(\length{\vecs}^{2}+B^{2}) \leq
+    \alpha^{2} + 2(rB)^{2}$. 
+%\dnote{I think we use the condition $\length{\vecs} \leq B$ only for that last inequality. 
+%If this is indeed the case, I would be in favour of removing the condition, and commenting at the end of this item that 
+%if~$\length{\vecs} \leq B$, then $\alpha^{2} + r^{2}(\length{\vecs}^{2}+B^{2}) \leq
+%    \alpha^{2} + 2(rB)^{2}$}\onote{don't we also need it when we apply Lemma~\ref{lem:smoothip} towards the end of the proof? (I didn't check too carefully)}
+%\dnote{Why? we don't need $\vec{s}$ small too apply it, do we?}\onote{yes, I think we do; look carefully at the lemma...}
+  \end{itemize}
+\end{lemma}
+
+\begin{proof}
+  这是译文 $\T_{q}^{n}$ 这是译文  $\T_{q'}^{n'}$, 这是译文-$1$ 这是译文 $\T_{q}^{n}$ 这是译文 $\vecs \in \Z^{n}$, 这是译文 $\T_{q'}^{n'}$ 这是译文 $\matG \vecs \in \Z^{n'}$, 这是译文 $\veca \in \T_{q}^{n}$ (这是译文) 这是译文 $\veca' \in
+  \T_{q'}^{n'}$, 这是译文  \[ \inner{\veca', \matG \vecs} = \inner{\matG^{T} \veca', \vecs}
+  \approx \inner{\veca,\vecs} \bmod 1 \] 这是译文 (这是译文) $\vecs \in
+  \Z^{n}$.  这是译文 $\veca'$ 这是译文  $\matG^{T} \veca' \approx \veca \bmod \Z^{n}$, 这是译文 $r$.
+  
+
+  % In order to formally describe how the reduction samples $\veca'$, we
+  % first define an $n$-dimensional lattice \[ \Lambda = q'^{-1} \cdot
+  % \lat(\matG^{T}) + \Z^{n} = q'^{-1} \cdot \lat(\matI_{n'} \otimes
+  % \vecg) + \Z^{n}, \] and claim that it has as a basis the
+  % upper-triangular matrix \[ \matB =
+  % \matI_{n'} \otimes
+  % \begin{bmatrix}
+  %   (q'_{1})^{-1} & \star & \cdots & \star \\
+  %   & (q'_{2})^{-1} & \cdots & \star \\
+  %   & & \ddots & \vdots \\
+  %   & & & (q'_{k})^{-1}
+  % \end{bmatrix} \in \R^{n \times n}, \] where the rightmost column of
+  % the above displayed $k$-by-$k$ matrix is $q'^{-1} \vecg$, and the
+  % $j$th column is obtained by multiplying the $(j+1)$st column by
+  % $q'_{j+1}$ and reducing modulo $1$, for $j=k-1,\ldots, 1$.  Indeed,
+  % $\matB$ is a basis of $\Lambda$ because all of its columns are in
+  % $\Lambda$ by construction, and because
+  % $\det(\matB)=q'^{-n'}=\abs{\Lambda/\Z^{n}}^{-n'}=\det(\Lambda)$.  Also
+  % notice that because $\matB$ is upper triangular, its Gram-Schmidt
+  % orthogonalization (from left to right) is just the diagonal matrix
+  % with $(q'_{i})^{-1}$ in the $i$th diagonal, so $\max_{i}
+  % \length{\gs{\vecb_{i}}} \leq q_{\min}^{-1}$ and $r \geq
+  % \sqrt{2}\smootheps(\Lambda)$ by~\cite[Theorem
+  % 3.1]{DBLP:conf/stoc/GentryPV08}\cnote{Put this in prelims...}.
+  
+  这是译文 $(\veca, b) \in \T_{q}^{n} \times \T$, 这是译文:
+  \begin{itemize}
+  \item 这是译文 $\vecf \gets D_{\Lambda-\veca,r}$ 这是译文~\ref{lem:gpv} 这是译文  $\matB$, 这是译文 $\vecv = \veca + \vecf \in
+    \Lambda/\Z^{n}$. (这是译文 $\Lambda-\veca$ 这是译文 $\veca =
+      \bar{\veca}+\Z^{n}$ 这是译文 $\Z^{n} \subseteq \Lambda$.) 这是译文 $\veca' \in \T_{q'}^{n'}$ 这是译文  $\matG^{T} \veca' = \vecv \bmod \Z^{n}$. 这是译文 $\matG^{T}
+      \veca' = \veczero \bmod \Z^{n}$, 这是译文  $\matG^{T} \veca' = \vecv \bmod \Z^{n}$.
+  \item 这是译文 $e' \gets D_{rB}$ 这是译文 $b' = b + e' \in \T$.  
+  \item 这是译文 $(\veca',b')$.
+  \end{itemize}
+
+  这是译文 $\veca'$ 这是译文  (这是译文) 这是译文 $b$ 这是译文~$e'$ 这是译文~$\veca'$, 这是译文 $b \in
+  \T$ 这是译文 $\vecv \in \Lambda/\Z^{n}$ 这是译文 (这是译文) 这是译文 $\vecv$ 这是译文  $\veca'$ 这是译文 $\matG^{T} \veca' = \vecv \bmod \Z^{n}$.  这是译文 $\bar{\veca} \in \T_q^n$ 这是译文 $\bar{\vecf} \in \Lambda - \bar{\veca}$, 这是译文~\ref{lem:smoothing}  (这是译文 $r \ge \smootheps(\Lambda)$ 这是译文~\ref{lem:boundonsmoothing}) 这是译文  \begin{align}\label{eq:roundingonelatticeanother}
+	  \Pr[\veca = \bar{\veca} \wedge \vecf = \bar{\vecf}] &= q^{-n} \cdot \rho_r(\bar{\vecf}) / \rho_r(\Lambda-\bar{\veca}) \nonumber \\
+		& \in C \bracks[\big]{1,\tfrac{1+\epsilon}{1-\epsilon}}\cdot \rho_r(\bar \vecf).
+	\end{align}  这是译文 $C=q^{-n}/\rho_{r}(\Lambda)$ 这是译文 $\bar{\veca}$ 这是译文 $\bar{\vecf}$.  这是译文 $\bar \veca, \bar \vecf$ 这是译文 $\bar \veca + \bar \vecf = \bar \vecv$, 这是译文 $\bar{\vecv} \in \Lambda/\Z^{n}$,  \begin{align*}
+    \Pr[\vecv = \bar{\vecv}] 
+    &\in C \bracks[\big]{1,\tfrac{1+\epsilon}{1-\epsilon}} \cdot
+    \rho_{r}(q^{-1} \Z^{n} + \bar{\vecv}).
+  \end{align*}  这是译文 $r
+  \geq \smootheps(q^{-1} \Z^{n})$ (这是译文~\ref{lem:boundonsmoothing}), 这是译文~\ref{lem:smoothing}  这是译文~$\Pr[\vecv = \bar{\vecv}] \in \bracks[\big]{\tfrac{1-\epsilon}{1+\epsilon},\tfrac{1+\epsilon}{1-\epsilon}} C'$ 这是译文~$C'$ 这是译文~$\bar{\vec{v}}$. 这是译文~\ref{clm:separationdist}, 这是译文~$\veca'$ 这是译文~$1-((1-\eps)/(1+\eps))^2 \le 4\epsilon$ 这是译文.
+
+  这是译文 $A_{q,\vecs,D_{\alpha}}$  这是译文 $A_{q', \matG \vecs, D_{\beta}}$.  这是译文 $(\veca,b=\inner{\veca,\vecs}+e)$, 这是译文 $e
+  \gets D_{\alpha}$.  这是译文 $\veca'$ 这是译文 (这是译文)  这是译文~$\T_{q'}^{n'}$.  这是译文 $\overline{\veca'} \in \T_{q'}^{n'}$ 这是译文 $\veca'$,  这是译文 $\bar \vecv = \matG^{T} \overline{\veca'} \bmod \Z^{n}$.  这是译文  \[ b' = \inner{\veca,\vecs} + e + e' = \inner{\overline{\veca'}, \matG \vecs} +
+  e + \inner{-\vecf, \vecs} + e' \bmod 1. \]  这是译文~\ref{clm:separationdist} 这是译文~\eqref{eq:roundingonelatticeanother} (这是译文 $\vecf=\bar \vecf$ 这是译文 $\veca = \bar \vecv - \bar \vecf \bmod \Z^n$),  这是译文 $-\vecf$ 这是译文~$1-(1-\eps)/(1+\eps) \le 2 \eps$ 这是译文  $D_{q^{-1}\Z^{n}-\bar \vecv, r}$.  这是译文~\ref{lem:smoothip} (这是译文 $r
+  \geq \sqrt{2} \smootheps(q^{-1} \Z^{n})$ 这是译文~$\length{\vecs} \le B$), 这是译文 $\inner{-\vecf,\vecs} + e'$ 这是译文~$6 \eps$  这是译文~$D_{t}$, 这是译文 $t^{2} = r^{2}(\length{\vecs}^{2}+B^{2})$.  这是译文 $e+\inner{-\vecf,\vecs} + e'$ 这是译文~$6 \eps$  这是译文 $D_{(t^2+\alpha^2)^{1/2}}$, 这是译文.
+\end{proof}
+
+\begin{comment}
+
+\subsection{Application to Ring-LWE}
+
+\cnote{I think the theorem in this section is a special case of the
+  ``ring-LWE embedding'' theorem from GHPS (SCN'12), which says that
+  we can embed LWE over a cyclotomic ring with index $m$ into LWE over
+  a cyclotomic of index evenly divisible by $m$.  This theorem is the
+  special case where $m=1$ (so the cyclotomic ring is just $\Z$).}
+
+\begin{definition}
+\label{def:rlwe}
+Let~$R_{n,q}$ denote the ring~$\Z_q[x]/(x^n+1)$, with~$n$ a power
+of~$2$ and~$q$ an integer. Let~$\chi$ be a distribution
+over~$\mathbb{T}_n = \mathbb{T}[x]/(x^n+1)$, and~$\mathcal{D}$ be a
+distribution from~$R_{n,q}$. For~$s \in R_{n,q}$, we define the
+distribution~$A_{n,q,\chi,s}^R$ as follows: sample~$a \hookleftarrow
+U(R_{n,q})$ and~$e \hookleftarrow \chi$; then return~$(a,
+\frac{1}{q}(a\cdot s)+e) \in R_{n,q} \times \mathbb{T}_n$.
+
+
+The decision \emph{Ring Learning with Errors} problem
+$\rlwe_{n,q,\chi}(\mathcal{D})$ is as follows: Let~$\vec{s}$ be
+sampled from~$\mathcal{D}$; the goal is to distinguish between
+arbitrarily many independent samples from~$A_{n,q,\vec{s},\chi}^R$ and
+the same number of independent samples from the uniform distribution
+over the support of~$A^R_{n,q,\vec{s},\chi}$.
+\end{definition}
+
+The above RLWE problem is a special case of the ring learning with
+errors problem that was introduced
+in~\cite{DBLP:conf/eurocrypt/LyubashevskyPR10}. Since then, it has
+proved useful for designing cryptographic schemes with excellent
+asymptotic performance. However, all known hardness proofs for \rlwe
+rely on the assumed hardness of standard worst-case lattice problems
+restricted to the family of so-called ideal lattices. In our present
+setup, an ideal lattice is an ideal of~$\Z[x]/(x^n+1)$.
+Theorem~\ref{th:reverse} leads to a reduction from \lwe to \rlwe, and
+thus provides a hardness proof for \rlwe under standard worst-case
+lattice problems over all lattices.
+
+\begin{theorem}
+\label{th:rlwe}
+For any~$q, \chi, \mathcal{D}$, there exists a polynomial-time
+reduction from~$\lwe_{1,q,\chi}(\mathcal{D})$
+to $\rlwe_{n,q,\chi'_n}(\mathcal{D}_n)$ where~$\chi'_n = \chi'+\chi' x
++ \cdots + \chi' x^{n-1}$, $\chi'$ is the sum of $n$ independent
+copies of~$\chi$ and~$\mathcal{D}_n = \mathcal{D} + \mathcal{D} x +
+\cdots + \mathcal{D} x^{n-1}$.
+\end{theorem}
+
+\begin{proof}
+  For~$s_0,\ldots,s_{n-1} \in \Z_p$, we define the
+  distribution~$A_{n,q,\chi,(s_i)_i}$: Sample~$a \hookleftarrow
+  U(\Z_q)$ and~$e_0,\ldots,e_{n-1} \hookleftarrow \chi$, and
+  return~$(a, \frac{1}{p}(a\cdot
+  s_0)+e_0,\ldots,\frac{1}{p}(as_{n-1})+e_{n-1}) \in \Z_p \times
+  \mathbb{T}^n$.  Using a standard hybrid argument, we see
+  that~$\lwe_{1,q,\chi}(\mathcal{D})$ reduces to distinguishing between
+  arbitrarily many independent samples from~$A_{n,q,\chi,(s_i)_i}$ and
+  the same number of independent samples from the uniform distribution
+  over the support of~$A_{n,q,\chi,(s_i)_i}$. We describe an efficient
+  mapping of~$n$ elements~$(a_i, (b_{ij})_{0\leq j<n})_{0 \leq i<n}$
+  from~$\Z_p \times \mathbb{T}^n$ to a single element in~$R_q \times
+  \mathbb{T}_n$ such that the $A_{n,q,\chi,(s_i)_i}$ distribution
+  (resp.\ uniform distribution over the support
+  of~$A_{n,q,\chi,(s_i)_i}$) is mapped to the~$A_{n,q,\chi_n,s}^R$
+  distribution (resp.\ uniform distribution over the support
+  of~$A_{n,q,\chi_n,s}^R$), where~$s = s_0+s_1x + \cdots
+  +s_{n-1}x^{n-1}$. The mapping is as follows:
+\begin{itemize}
+\item Define~$a = a_0 + a_1x + \cdots + a_{n-1}x^{n-1} \in R_{n,q}$.
+\item Define~$b = \sum_{0\leq k<2n-1} (\sum_{i+j = k} b_{ij}) x^k \bmod (x^n+1)$.
+\item Return~$(a,b)$.  
+\end{itemize}
+Clearly, the reduction runs in polynomial-time, and the uniform
+distribution is mapped to the uniform distribution. Finally, in case
+the input~$b_{ij}$'s are of the form~$\frac{1}{p} (a_i\cdot s_j) +e_j$
+for all~$i,j$, then all the coefficients of~$b - \frac{1}{p}(a\cdot s)
+\in \mathbb{T}_n$ are sums of~$n$ independent samples from~$\chi$.
+\end{proof}
+
+As a corollary of Theorems~\ref{th:reverse} and~\ref{th:rlwe}, there
+exists a (classical) polynomial-time reduction from standard
+worst-case problems over lattices with polynomial approximation
+factors to~$\rlwe_{n,p^n,D_{\sqrt{n}\alpha}}(U(R_{n,p^n}))$.
+
+\end{comment}
+
+\begin{comment}
+\begin{verbatim}
+Also, we were wondering about a possible relationship with
+   http://www.di.ens.fr/~lyubash/papers/subsetsumcrypto.pdf
+(digit-wise expansion of a large integer, along columns rather than rows).
+
+Notation: \vec* denotes an n-dimensional vector mod p (i.e., in Zp^n),
+while capital letters (A,S) denote scalar values mod p^n (i.e., in
+Z_{p^n}).
+
+The basic approach is to map LWE samples (\vecr,b) in Zp^n \times Zp
+to (A, b*p^{n-1} + noise) in Z_{p^n} \times Z_{p^n}, where A is chosen
+from r using some *randomized* encoding (not deterministically).  Then
+the amount by which b*p^{n-1} differs from the value A*S will be a
+centered Gaussian, and we only need to add a small amount of extra
+noise (or maybe none at all?) to smooth it out.
+
+Details:
+
+For A,S in Z_p^n we can write A = sum_i p^i * Ai for *integers* ai
+(not necessarily in {0,...,p-1}), and similarly for S.
+
+Then the product A*S mod p^n can be written as \veca^t \matP \vecs mod
+p^n, where
+
+\veca = (a_{n-1}, ..., a_0),   \vecs = (s0, s1, ..., s_{n-1}),  and
+\matP is the fixed lower-triangular Toeplitz matrix with
+\vecp=(p^{n-1}, p^{n-2}, ..., p^0) down its leftmost column.
+
+Ideally, we would then like to choose \veca (defining A) to satisfy
+
+  \veca^t \matP = p^{n-1} * \vecr^t    (mod p^n)
+
+where \vecr is the "left-hand side" of the LWE challenge.
+
+If we could do this, then the product A*S would be exactly p^{n-1} *
+<r,s>.  We are given the noisy value b=<r,s>+error, so we could just
+plug in p^{n-1}*b (mod p^n) to complete the reduction.  Notice that
+this would keep the error rate exactly the same, and moreover the
+error term would be divisible by p^{n-1}, which seems like too much to
+ask.... and it is.
+
+The problem, of course, is that it is usually not possible to solve
+the above system, because \matP is highly non-invertible mod p^n.  (It
+doesn't even help that the RHS is a multiple of p^{n-1}.)
+
+Luckily, it's enough to approximately solve the system, as long as the
+"error" \veca^t \matP - p^{n-1} * \vecr^t is a centered Gaussian and
+\vecs is short.  And the structure of \matP makes this easy to do --
+Oded's formulas are the answer.
+
+[Chris note: the formulas come from an earlier email, with slightly
+different notation.  But they are easy to work out: the entries of
+\veca are chosen iteratively from discrete Gaussians over the
+integers, with appropriate centers determined by the previously chosen
+entries of \veca.]
+
+Another way of going about it is to multiply both sides by \matP^-1
+**over the integers**, which has a very simple form (exercise for
+reader).  Then we end up with a fractional RHS which we can just
+randomized-round to get an integral \veca.  Doing it this way causes
+the "error" \veca^t \matP - p^{n-1} * \vecr^t to be a non-spherical
+but "nearly spherical" Gaussian (because \matP is almost orthogonal),
+which would suffice for our purposes.  It's not clear that this
+non-adaptive solution has any important advantage here, though.
+
+(Note: these two approaches correspond to randomized versions of
+Babai's nearest-plane and "simple rounding" algorithms, respectively.)
+
+\end{verbatim}
+\end{comment}
+
+
+
+%%% Local Variables: 
+%%% mode: latex
+%%% TeX-master: "lwehard"
+%%% End: 

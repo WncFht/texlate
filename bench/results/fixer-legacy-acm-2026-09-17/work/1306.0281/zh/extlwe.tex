@@ -1,0 +1,111 @@
+
+\subsection{这是译文}
+\label{sec:firstiserrorless}
+
+这是译文~\ref{lem:firsterrorlesshard} 这是译文. 
+
+\begin{definition}\label{def:firsterrorless} 这是译文 $n,q \ge 1$ 这是译文 $\phi$ 这是译文 $\R$, 这是译文 $\lwe$ 这是译文 $\T_q^n \times \T_q^{}$ 这是译文 $\T_q^n \times \T$. 这是译文 $\vecs \in \{0,\ldots,q-1\}^n$, 这是译文 $A_{q,\vec{s},\{0\}}$ (这是译文 $\{0\}$ 这是译文) 这是译文 $A_{q,\vec{s},\phi}$.
+\end{definition}
+
+
+\begin{lemma}\label{lem:firsterrorlesshard} 这是译文 $n \ge 2$, $m, q \ge 1$, 这是译文 $\phi$, 这是译文 (这是译文) 这是译文 $\lwe_{n-1,m,q,\phi}$ 这是译文 $\lwe_{n,m,q,\phi}$ 这是译文 $\sum_p p^{-n}$, 这是译文 $q$.
+\end{lemma}
+这是译文 $q$ 这是译文 $q^{-n}$. 这是译文 $q$ 这是译文 \[
+\sum_{k \ge 2} k^{-n} \le 2^{-n} + \int_{2}^\infty t^{-n} \mathrm{d} t \le 2^{-n+2},
+\] 这是译文 $n$ 这是译文.
+\begin{proof}
+这是译文 $\veca'$ 这是译文  $\{0,\ldots,q-1\}^n$. 这是译文 $r$ 这是译文 $\veca'$.  这是译文 $q$, 这是译文  \[
+ \sum_{p~\text{prime}, \ p|q} p^{-n}.
+\] 这是译文 $\matU \in \Z^{n \times n}$ 这是译文 $q$ 这是译文 $\veca'$. 这是译文 $n\times n$ 这是译文 $\matR$ 这是译文 $\matR \veca' = (r,0,\ldots,0)^T$. 这是译文 $\matR^{-1} \cdot \mathrm{diag}(r,1,\ldots,1)$ 这是译文 $s_0 \in \{0,\ldots,q-1\}$. 这是译文 $(\veca'/q, s_0/q)$. 这是译文 $(\veca,b)$ 这是译文 $d \in \T_q$, 这是译文 $(\matU(d|\veca),b+(s_0 \cdot d))$ 这是译文 (这是译文 $b$ 这是译文 $\T_q$), 这是译文 $2^{-n+1}$; 这是译文 $A_{q,\vec{s},\phi}$, 这是译文 $A_{q,\vecs',\{0\}}$ 这是译文 $A_{q,\vecs',\phi}$, 这是译文 $2^{-n+1}$, 这是译文 $\vecs' = (\matU^{-1})^T (s_0|\vecs) \bmod q$. 这是译文 $\matU$, 这是译文 $q$, 这是译文 $\Z_q^n$, 这是译文 $\vecs'$ 这是译文 $\{0,\ldots,q-1\}^n$.
+\end{proof}
+
+\subsection{这是译文}
+\label{sec:extlwe}
+
+这是译文 $\extlwe$. (这是译文~\cite{DBLP:conf/pkc/Alperin-SheriffP12}, 这是译文.)
+
+\begin{definition}\label{def:extlwe} 这是译文 $n,m,q,t \ge 1$, $\calZ \subseteq \Z^m$, 这是译文 $\chi$ 这是译文 $\frac{1}{q}\Z^m$, 这是译文 $\extlwe^t_{n,m,q,\chi,\calZ}$ 这是译文 $\vecz \in \calZ$ 这是译文 \[
+(\matA,(\vecb_i)_{i \in [t]},(\inner{\vece_i,\vecz})_{i \in [t]}) \in \T_q^{n \times m} \times (\T_q^m)^t \times ({\textstyle \frac 1 q} \Z)^t.
+\] 这是译文, $\matA \in \T_q^{n \times m}$ 这是译文, $\vece_i \in {\textstyle \frac 1 q}\Z^m$ 这是译文 $\chi$, 这是译文 $\vecb_i = \matA^T \vecs_i + \vece_i \bmod 1$ 这是译文 $\vecs_i \in \{0,\ldots,q-1\}^n$ 这是译文 $\vecb_i$ 这是译文 $\T_q^m$ 这是译文. 
+\end{definition}
+
+
+这是译文 $t=1$, 这是译文 $t$. 这是译文 $\chi$ 这是译文 $D_{q^{-1}\Z^{m},\alpha}$ 这是译文 $\alpha>0$, 这是译文 $\chi$ 这是译文 $\alpha$.  这是译文 $\lwe$ 这是译文 $\extlwe$ 这是译文 $\cZ = \{ 0^m \}$.  这是译文 $\calZ$.
+
+
+
+\begin{definition}\label{def:qualityofhintset} 这是译文 $\xi>0$ 这是译文 $\calZ \subseteq \Z^m$ 这是译文 $\calZ$ 这是译文 \emph{这是译文} $\xi$ 这是译文 $\vecz \in \calZ$, 这是译文 $\matU \in \Z^{m \times m}$ 这是译文 $\matU'\in \Z^{m \times (m-1)}$ 这是译文 $\matU$ 这是译文 $\matU'$ 这是译文 $\vecz$ 这是译文~$\xi$.
+\end{definition}
+
+这是译文 $\matU'$  这是译文 $\vecz$, 这是译文 $\{\vecb \in \Z^m:
+  \inner{\vecb,\vecz} = 0\}$. 这是译文.
+
+\begin{claim}\label{clm:qualityofzeroone} 这是译文 $\calZ=\{0,1\}^m$ 这是译文 $2$.
+\end{claim}
+\begin{proof}
+这是译文 $\vecz \in \calZ$ 这是译文 $k \ge 1$ 这是译文 $1$ 这是译文 $m-k$ 这是译文 $0$. 这是译文 $\matU$ 这是译文 $1$这是译文 $(-1,\ldots,-1,0,\ldots,0)$ 这是译文 $-1$ 这是译文 $k-1$ 这是译文 $\vecz$. 这是译文 $\matU$ 这是译文 $1$ 这是译文 $1$.
+\end{proof}
+
+\onote{todo: add more quality bounds such as vectors of bounded norm}
+
+\begin{lemma}\label{lem:redtoextlwe} 这是译文 $\calZ \subseteq \Z^m$ 这是译文 $\xi>0$. 这是译文 $n,q \ge 1$, $\eps \in (0,1/2)$, 这是译文 $\alpha,r  \ge (\ln(2m(1+1/\eps))/\pi)^{1/2}/q$, 这是译文 (这是译文) 这是译文 $\lwe_{n,m,q,\alpha}$ 这是译文 $\extlwe_{n,m,q,(\alpha^2 \xi^2 + r^2)^{1/2},\calZ}$ 这是译文 $33 \eps/2$. 
+\end{lemma}
+\begin{proof}
+这是译文 $\vecz \in \calZ$. 这是译文 $\matU \in \Z^{m \times m}$ 这是译文 $\vecz$ 这是译文~\ref{def:qualityofhintset}, 这是译文 $\matU' \in \Z^{m \times (m-1)}$ 这是译文 $\matU$. 这是译文 $m$ 这是译文 $(\matA, \vecb) \in \T_q^{n \times m} \times (\T_q^{} \times \T^{m-1})$. 这是译文 $\vecf$ 这是译文 $m$-这是译文 $D_{\alpha(\xi^2 \matI - \matU' \matU'^T)^{1/2}}$,  这是译文 $\xi^2 \matI - \matU' \matU'^T$ 这是译文 $\matU$. 这是译文 \begin{equation}\label{eq:outputofextlwereduction}
+(\matA'= \matA \matU^T,
+  \vecb' + \vecc,
+	\inner{\vecz , \vecf + \vecc})
+	\in \T_q^{n \times m} \times \T_q^m \times {\textstyle{\frac{1}{q}}}\Z,
+\end{equation} 这是译文 $\vecb'=\matU \vecb + \vecf$, 这是译文 $\vecc$ 这是译文 $D_{q^{-1}\Z^m - \vecb',r}$ (这是译文~\ref{lem:gpv}). 
+
+这是译文., $\matA$ 这是译文~$\T_q^{n \times m}$ 这是译文 $\vecb = \matA^T \vecs + \vece \in \T^m$ 这是译文 $\vecs \in \{0,\ldots,q-1\}^n$ 这是译文 $\vece \in \R^m$ 这是译文~$0$,  这是译文 $m-1$ 这是译文~$D_\alpha$. 这是译文 $\matU$ 这是译文, $\matA' = \matA \matU^T$ 这是译文 $\T_q^{n \times m}$ 这是译文 $\matA'$ 这是译文~\eqref{eq:outputofextlwereduction}. 这是译文, \[
+\vecb' =
+\matU \vecb + \vecf =
+\matA'^T \vecs + \matU \vece + \vecf.
+\] 这是译文 $\matU \vece$ 这是译文 $D_{\alpha \matU'}$, 这是译文~$\matU \vece + \vecf$ 这是译文 \emph{这是译文} 这是译文~$D_{\alpha \xi}$. 这是译文 $\matA'^T \vecs \in \T_q^m$, 这是译文 $q^{-1}\Z^m - \vecb'$ 这是译文 $q^{-1}\Z^m - (\matU \vece + \vecf)$, 这是译文 $\vecc$ 这是译文 $D_{q^{-1}\Z^m - (\matU \vece + \vecf),r}$. 这是译文~\ref{lem:peikertdiscretegauss} 这是译文 $r \ge \eta_\eps(q^{-1}\Z^m)$  这是译文~\ref{lem:boundonsmoothing}, 这是译文 $\matU \vece + \vecf + \vecc$ 这是译文 $8 \eps$  这是译文 $D_{q^{-1}\Z^m,(\alpha^2 \xi^2 + r^2)^{1/2}}$. 这是译文~\eqref{eq:outputofextlwereduction} 这是译文 $\matU$ 这是译文 $\vece$ 这是译文, \[
+\inner{\vecz, \vecf + \vecc} = \inner{\vecz, \matU\vece + \vecf + \vecc},
+\] 这是译文 $\vecz$, 这是译文.
+
+这是译文 $\matA$ 这是译文~$\T_q^{n\times m}$ 这是译文 $\vecb$ 这是译文 $\T_q \times \T^{m-1}$. 这是译文~\ref{lem:smoothingcontinuous}, 这是译文 $\alpha \ge \eta_{\eps/m}(q^{-1}\Z)$ (这是译文~\ref{lem:boundonsmoothing}), 这是译文~$(\matA,\vecb)$ 这是译文 $\eps/2$ 这是译文 $(\matA, \vece' + \vece)$ 这是译文 $\vece'$ 这是译文~$\T_q^m$, 这是译文 $\vece$ 这是译文 $m-1$ 这是译文~$D_\alpha$. 这是译文 $(\matA,\vece'+\vece)$. 这是译文~\eqref{eq:outputofextlwereduction} 这是译文 $\T_q^{n \times m}$ 这是译文 $\vecb' = \matU \vece' + \matU \vece + \vecf$ 这是译文 $\matU \vece' \in \T_q^m$, 这是译文 $q^{-1}\Z^m - \vecb'$ 这是译文 $q^{-1}\Z^m - (\matU \vece + \vecf)$, 这是译文 $\vecc$ 这是译文 $\vece'$. 这是译文~\eqref{eq:outputofextlwereduction} 这是译文 $\vece'$ 这是译文 $\matU \vece'$ 这是译文 $\T_q^m$ (这是译文 $\matU$ 这是译文), 这是译文.
+\end{proof}
+
+这是译文 ($t \ge 1$) 这是译文. 
+
+%The proof is by a straightforward hybrid argument and is omitted.
+
+\onote{removed $\calD$ from the following lemma since we never  use any distribution on secrets but the uniform one}
+
+\begin{lemma}\label{lem:multiinstanceextlwe} 这是译文 $n, m, q, \chi, \cZ$ 这是译文~\ref{def:extlwe} 这是译文 $\chi$ 这是译文 $t \ge 1$ 这是译文 (这是译文) 这是译文 $\extlwe_{n,m,q,\chi,\cZ}$ 这是译文 $\extlwe^t_{n,m,q,\chi,\cZ}$ 这是译文~$t$.
+%\dnote{I changed~$\phi$ to $\chi$, for consistency with 
+%definition~\ref{def:extlwe}.} 
+\end{lemma}
+
+这是译文 $\vc{s}$ 这是译文 (这是译文) 这是译文 $\vc{s}$.
+
+\begin{proof}
+这是译文 $\cA$ 这是译文 $\extlwe^t_{n,m,q,\chi,\cZ}$, 这是译文 $\vc{z}$ 这是译文 $\cA$ 这是译文 (这是译文) 这是译文 $H_i$ 这是译文 \[
+\left(\mx{A}, \{\vc{b}_1, \ldots, \vc{b}_i, \vc{u}_{i+1}, \dots, \vc{u}_t\}, \vc{z}, \{\langle\vc{z}, \vc{e}_i\rangle\}_{i\in[t]} \right)~,\]  这是译文~$\vc{u}_{i+1}, \dots, \vc{u}_t$ 这是译文~$\T_q^m$. 这是译文 $\adv[\cA] = \abs{\Pr[\cA(H_0)]- \Pr[\cA(H_t)]}$.
+
+这是译文 $\cB$ 这是译文 $\extlwe_{n,m,q,\chi,\cZ}$: 这是译文, $\cB$ 这是译文 $\cA$ 这是译文 $\vc{z}$ 这是译文 $\vc{z}$. 这是译文 $(\mx{A}, \vc{d}, \vc{z}, y)$ 这是译文 $\extlwe_{n,m,q,\chi,\cZ}$, 这是译文 $\cB$ 这是译文 $i^* \getsr [t]$, 这是译文 $\vc{s}_1, \ldots, \vc{s}_{i^*-1}\getsr \bbZ^n_q$, $\vc{e}_1, \ldots, \vc{e}_{i^*-1}, \vc{e}_{i^*+1}, \ldots, \vc{e}_t \getsr \chi^m$\onote{replaced $\phi$ with $\chi$}, $\vc{u}_{i^*+1}, \ldots, \vc{u}_t \getsr \bbT_q^m$. 这是译文 $\vc{b}_i = \mx{A}^T\cdot\vc{s}_i+\vc{e}_i\pmod{1}$, 这是译文 $\cA$: \[
+\left(\mx{A}, \{ \vc{b}_1, \ldots, \vc{b}_{i^*-1}, \vc{d}, \vc{u}_{i^*+1}, \ldots, \vc{u}_t\}, \vc{z}, \{\langle\vc{z},\vc{e}_1\rangle, \ldots,\langle\vc{z}, \vc{e}_{i^*-1}\rangle, y, \langle\vc{z}, \vc{e}_{i^*+1}\rangle, \ldots, \langle\vc{z}, \vc{e}_t\rangle  \} \right)~.
+\] 这是译文, $\cB$ 这是译文 $\cA$ 这是译文.
+
+这是译文 $\cB$ 这是译文 $P_0=(\mx{A}, \vc{b}, \vc{z}, \vc{z}^T \cdot \vc{e})$ 这是译文~$\vc{b} = \mx{A}^T\cdot\vc{s}+\vc{e}\pmod{1}$, 这是译文 $\cB$ 这是译文 $\cA$ 这是译文 $H_{i^*}$. 这是译文 $\cB$ 这是译文 $P_1 = (\mx{A}, \vc{u}, \vc{z}, \vc{z}^T \cdot \vc{e})$ 这是译文~$\vc{u} \getsr \bbT_q^m$, 这是译文 $\cB$ 这是译文 $\cA$ 这是译文~$H_{i^*-1}$.
+
+这是译文 $i^*$ 这是译文 $[t]$, 这是译文 \begin{eqnarray*}
+t \, \adv[\cB] & = & t \, \abs{\Pr[\cB(P_0)] - \Pr[\cB(P_1)]}\\
+  & = &
+	\abs[\bigg]{{\sum_{i^*\in[t]} \Pr[\cA(H_{i^*})] - \sum_{i^*\in[t]} \Pr[\cA(H_{i^*-1})]}} \\
+	& = &
+	\abs{\Pr[\cA(H_{t})]- \Pr[\cA(H_{0})] } \\
+	& = & \adv[\cA]~,
+\end{eqnarray*} 这是译文.
+\end{proof}
+
+
+
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: "lwehard"
+%%% End:

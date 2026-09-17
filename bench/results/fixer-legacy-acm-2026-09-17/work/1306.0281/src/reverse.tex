@@ -1,0 +1,420 @@
+\section{Modulus-Dimension Switching}
+\label{sec:modexpansion}
+
+
+
+The main results of this section are Corollaries~\ref{cor:mod-reduction} and~\ref{cor:mod-dim-tradeoff} below.
+Both are special cases of the following technical theorem.  
+%\dnote{I added this and moved from~$B$-bounded to~$(B,\delta)$-bounded} 
+We
+say that a distribution~$\calD$ over~$\Z^{n}$ is $(B,\delta)$-bounded
+for some reals~$B,\delta\geq 0$ if the probability that~$\vec{x} \gets
+\calD$ has norm greater than $B$ is at most $\delta$. 
+
+\begin{theorem}
+  \label{thm:mod-dim-switch}
+  Let $m,n, n',q,q' \geq 1$ be integers, let
+  $\matG \in \Z^{n' \times n}$ be such that the lattice $\Lambda =
+  \frac{1}{q'} \matG^{T} \Z^{n'} + \Z^{n}$ has a known basis $\matB$,
+  and let $\calD$ be an arbitrary $(B,\delta)$-bounded distribution over
+  $\Z^{n}$.  Let $\alpha, \beta > 0$ and~$\eps \in (0,1/2)$ satisfy 
+	\[\beta^{2} \geq
+  \alpha^{2} + (4/\pi) \ln(2n(1+1/\eps)) \cdot (\max\set{q^{-1}, \length{\gs{\matB}}} \cdot B)^{2}.\]  
+	Then there is an efficient (transformation) reduction
+  from~$\lwe_{n,m,q,\le \alpha}(\calD)$ to $\lwe_{n',m,q',\leq \beta}(\matG
+  \cdot \calD)$ that reduces the advantage by at most $\delta + 14 \eps m$.
+\end{theorem}
+
+Here we use the notation
+$\|\widetilde \matB\|$ from Lemma~\ref{lem:gpv}. We also note that if needed, the distribution on secrets produced
+by the reduction can always be turned into the uniform distribution on $\Z_{q'}^{n'}$, as mentioned after Definition~\ref{def:lwe}.
+Also, we recall that there exists an elementary reduction from $\lwe_{n',q',\leq \beta}$ 
+to~$\lwe_{n',q',\beta}$ (see Lemma~\ref{lem:lelwe}).
+
+Here we state two important corollaries of the theorem.  The first
+corresponds to just modulus reduction (the \lwe dimension is
+preserved), and is obtained by letting $n'=n$, $\matG=\matI$ be the
+$n$-dimensional identity matrix, and $\matB = \matI/q'$.  
+For example, we can take $q \ge q' \ge \sqrt{2\ln(2n(1+1/\eps))} \cdot
+(B/\alpha)$ and $\beta=\sqrt{2} \alpha$, which corresponds to reducing
+an arbitrary modulus to almost~$B/\alpha$, while increasing the
+initial error rate~$\alpha$ by just a small constant factor.
+
+\begin{corollary}
+  \label{cor:mod-reduction}
+  For any $m,n \geq 1$, $q \geq q' \geq 1$, $(B,\delta)$-bounded distribution~$\calD$ over~$\Z^{n}$, $\alpha,\beta>0$ and~$\eps \in (0,1/2)$ such that
+  \[
+	\beta^{2} \geq \alpha^{2} + (4/\pi) \ln(2n(1+1/\eps))
+  \cdot (B/q')^2,
+	\]
+	there is an efficient reduction from
+  $\lwe_{n,m,q,\le \alpha}(\calD)$ to 
+	$\lwe_{n,m,q',\le \beta}(\calD)$ that reduces the advantage by at most $\delta + 14 \eps m$.
+\end{corollary}
+
+In particular, by using the normal form of \lwe (Lemma~\ref{lem:normalform}), in which the secret has distribution $\calD = D_{\Z^{n}, \sqrt{2} \alpha q}$, we can switch to a power-of-2 modulus with only a small loss in the noise rate, as described in the following
+corollary. Together with the known search-to-decision reduction (Theorem~\ref{thm:searchtodecisionmicpei}), this extends the known hardness
+of (decision) $\lwe$ to \emph{any} modulus $q$.
+Here we use that $\calD = D_{\Z^{n}, r}$
+is $(C r \sqrt{n \log(n/\delta)}, \delta)$-bounded for some universal constant $C>0$, which
+follows by taking union bound over the $n$ coordinates.
+(Alternatively, one could use that it is~$(r\sqrt{n},2^{-n})$-bounded, as follows
+from~\cite[Lemma~1.5]{banaszczyk93:_new}, leading to a slightly tighter statement for large $n$.)
+
+\begin{corollary}
+  \label{cor:mod-reduction-2}
+  Let $\delta \in (0,1/2)$, $m \ge n \geq 1$, $q' \ge 25$. Let also $q \in [q',2q')$ be the smallest power of $2$ not smaller than $q'$
+	and $\alpha \ge \sqrt{\ln(2n(1+16/\delta)/\pi)}/q$.
+	There exists an efficient (transformation) reduction from $\lwe_{n,m,q, \alpha}$ to $\lwe_{n,m',q', \le \beta}$
+	where $m'=m-(16 n + 4 \ln\ln q)$ and 
+	\[
+	\beta = C \alpha \sqrt{n} \sqrt{\log(n/\delta)\log(m/\delta)}
+	\]
+	for some universal constant $C>0$, that turns advantage of $\zeta$ into an advantage of at least $(\zeta-\delta)/4$.
+\end{corollary}
+
+
+  Another corollary illustrates a modulus-dimension tradeoff.  Assume
+  $n=kn'$ for some $k \ge 1$, and let~$q' = q^{k}$.  Let~$\vec{G} =
+  \vec{I}_{n'} \otimes \vec{g}$, where~$\vec{g} = (1,q,q^2, \ldots,
+  q^{k-1})^T \in \Z^k$.  We then have $\Lambda = q^{-k} \vec{G}^T
+  \Z^{n'} + \Z^n$.  A basis of~$\Lambda$ is given by
+\[
+\vec{B}= \vec{I}_{n'} \otimes 
+\begin{bmatrix}
+q^{-1} & q^{-2} & \cdots & q^{-k} \\
+       & q^{-1} & \cdots & q^{1-k} \\
+       &        & \ddots & \vdots \\
+       &		&		 & q^{-1}
+     \end{bmatrix} \in \R^{n \times n};
+\]
+this is since the column vectors of~$\vec{B}$ belong to~$\Lambda$ and
+the determinants match.  Orthogonalizing from left to right, we have
+$\gs{\matB} = q^{-1} \matI$ and so $\length{\gs{\matB}}=q^{-1}$.  We
+therefore obtain the following corollary, showing that we can trade
+off the dimension against the modulus, holding~$n \log q = n' \log q'$
+fixed.  For example, letting~$\calD = D_{\Z^{n}, \alpha q}$
+(corresponding to a secret in normal form, see Lemma~\ref{lem:normalform}), which is $(\alpha q
+\sqrt{n}, 2^{-n})$-bounded, 
+the reduction increases the error rate by about
+a~$\sqrt{n}$ factor. 
+
+\begin{corollary}
+  \label{cor:mod-dim-tradeoff}
+  For any $n, m,q \ge 1$, $k \ge 1$ that divides~$n$,  $(B,\delta)$-bounded distribution~$\calD$ over~$\Z^{n}$, 
+	$\alpha,\beta>0$, and~$\eps \in (0,1/2)$ such 
+that
+\[
+\beta^{2} \geq \alpha^{2} + (4/\pi)
+  \ln(2n(1+1/\eps)) \cdot (B/q)^{2},
+\]
+  there is an efficient reduction from~$\lwe_{n,m,q,\le \alpha}(\calD)$
+  to~$\lwe_{n/k,m,q^k,\le \beta}(\vec{G} \cdot \calD)$ that reduces the advantage by at most $\delta+14 \eps m$, 
+where~$\vec{G} = \vec{I}_{n/k} \otimes  (1,q,q^2, \ldots, q^{k-1})^T$.
+\end{corollary}
+
+\noindent Theorem~\ref{thm:mod-dim-switch} follows immediately from
+the following lemma.
+
+
+\begin{lemma}
+  \label{lem:reverse-main}
+  Adopt the notation of Theorem~\ref{thm:mod-dim-switch}, and let 
+\[
+	r
+  \geq \max\set{q^{-1}, \length{\gs{\matB}}} \cdot
+  \sqrt{2\ln(2n(1+1/\epsilon))/\pi}. 
+	\]
+There is an efficient 
+  mapping from $\T_{q}^{n} \times \T$ to $\T_{q'}^{n'} \times \T$, which
+  has the following properties:
+  \begin{itemize}[itemsep=0pt]
+  \item If the input is uniformly random, then the output is within
+statistical distance $4 \epsilon$ from the uniform distribution.
+  \item If the input is distributed according to
+    $A_{q,\vecs,D_{\alpha}}$ for some $\vecs \in \Z^{n}$ with
+    $\length{\vecs} \leq B$, then the output distribution is within
+    statistical distance $10 \epsilon$ from $A_{q',\matG\vecs,D_{\alpha'}}$, where
+    $(\alpha')^{2} = \alpha^{2} + r^{2}(\length{\vecs}^{2}+B^{2}) \leq
+    \alpha^{2} + 2(rB)^{2}$. 
+%\dnote{I think we use the condition $\length{\vecs} \leq B$ only for that last inequality. 
+%If this is indeed the case, I would be in favour of removing the condition, and commenting at the end of this item that 
+%if~$\length{\vecs} \leq B$, then $\alpha^{2} + r^{2}(\length{\vecs}^{2}+B^{2}) \leq
+%    \alpha^{2} + 2(rB)^{2}$}\onote{don't we also need it when we apply Lemma~\ref{lem:smoothip} towards the end of the proof? (I didn't check too carefully)}
+%\dnote{Why? we don't need $\vec{s}$ small too apply it, do we?}\onote{yes, I think we do; look carefully at the lemma...}
+  \end{itemize}
+\end{lemma}
+
+\begin{proof}
+  The main idea behind the reduction is to encode $\T_{q}^{n}$ into
+  $\T_{q'}^{n'}$, so that the mod-$1$ inner products between vectors
+  in $\T_{q}^{n}$ and a short vector $\vecs \in \Z^{n}$, and between
+  vectors in $\T_{q'}^{n'}$ and $\matG \vecs \in \Z^{n'}$, are nearly
+  equivalent. In a bit more detail, the
+  reduction will map its input vector $\veca \in \T_{q}^{n}$ (from the
+  given LWE-or-uniform distribution) to a vector $\veca' \in
+  \T_{q'}^{n'}$, so that
+  \[ \inner{\veca', \matG \vecs} = \inner{\matG^{T} \veca', \vecs}
+  \approx \inner{\veca,\vecs} \bmod 1 \] for any (unknown) $\vecs \in
+  \Z^{n}$.  To do this, it randomly samples $\veca'$ so that
+  $\matG^{T} \veca' \approx \veca \bmod \Z^{n}$, where the
+  approximation error will be a discrete Gaussian of parameter $r$.
+  
+
+  % In order to formally describe how the reduction samples $\veca'$, we
+  % first define an $n$-dimensional lattice \[ \Lambda = q'^{-1} \cdot
+  % \lat(\matG^{T}) + \Z^{n} = q'^{-1} \cdot \lat(\matI_{n'} \otimes
+  % \vecg) + \Z^{n}, \] and claim that it has as a basis the
+  % upper-triangular matrix \[ \matB =
+  % \matI_{n'} \otimes
+  % \begin{bmatrix}
+  %   (q'_{1})^{-1} & \star & \cdots & \star \\
+  %   & (q'_{2})^{-1} & \cdots & \star \\
+  %   & & \ddots & \vdots \\
+  %   & & & (q'_{k})^{-1}
+  % \end{bmatrix} \in \R^{n \times n}, \] where the rightmost column of
+  % the above displayed $k$-by-$k$ matrix is $q'^{-1} \vecg$, and the
+  % $j$th column is obtained by multiplying the $(j+1)$st column by
+  % $q'_{j+1}$ and reducing modulo $1$, for $j=k-1,\ldots, 1$.  Indeed,
+  % $\matB$ is a basis of $\Lambda$ because all of its columns are in
+  % $\Lambda$ by construction, and because
+  % $\det(\matB)=q'^{-n'}=\abs{\Lambda/\Z^{n}}^{-n'}=\det(\Lambda)$.  Also
+  % notice that because $\matB$ is upper triangular, its Gram-Schmidt
+  % orthogonalization (from left to right) is just the diagonal matrix
+  % with $(q'_{i})^{-1}$ in the $i$th diagonal, so $\max_{i}
+  % \length{\gs{\vecb_{i}}} \leq q_{\min}^{-1}$ and $r \geq
+  % \sqrt{2}\smootheps(\Lambda)$ by~\cite[Theorem
+  % 3.1]{DBLP:conf/stoc/GentryPV08}\cnote{Put this in prelims...}.
+  
+  We can now formally define the reduction, which works as follows.
+  On an input pair $(\veca, b) \in \T_{q}^{n} \times \T$, it does the
+  following:
+  \begin{itemize}
+  \item Choose $\vecf \gets D_{\Lambda-\veca,r}$ using Lemma~\ref{lem:gpv} with basis
+    $\matB$, and let $\vecv = \veca + \vecf \in
+    \Lambda/\Z^{n}$. (The coset $\Lambda-\veca$ is well defined since $\veca =
+      \bar{\veca}+\Z^{n}$ is some coset of $\Z^{n} \subseteq \Lambda$.) Choose a uniformly
+    random solution $\veca' \in \T_{q'}^{n'}$ to the equation
+    $\matG^{T} \veca' = \vecv \bmod \Z^{n}$. This can be done by computing a basis of the solution set $\matG^{T}
+      \veca' = \veczero \bmod \Z^{n}$, and adding a uniform element from that set to an arbitrary solution to the equation
+    $\matG^{T} \veca' = \vecv \bmod \Z^{n}$.
+  \item Choose $e' \gets D_{rB}$ and let $b' = b + e' \in \T$.  
+  \item Output $(\veca',b')$.
+  \end{itemize}
+
+  We now analyze the reduction.  First, if the distribution of the
+  input is uniform, then it suffices to show that $\veca'$ is
+  (nearly) uniformly random,
+  because both $b$ and~$e'$ are independent of~$\veca'$, and $b \in
+  \T$ is uniform.  To prove this claim, notice that it suffices to
+  show that the coset $\vecv \in \Lambda/\Z^{n}$ is (nearly) uniformly
+  random, because each $\vecv$ has the same number of solutions
+  $\veca'$ to $\matG^{T} \veca' = \vecv \bmod \Z^{n}$.  Next, observe that for any $\bar{\veca} \in \T_q^n$ and $\bar{\vecf} \in \Lambda - \bar{\veca}$, we have by Lemma~\ref{lem:smoothing} 
+	(using that $r \ge \smootheps(\Lambda)$ by Lemma~\ref{lem:boundonsmoothing}) that
+	\begin{align}\label{eq:roundingonelatticeanother}
+	  \Pr[\veca = \bar{\veca} \wedge \vecf = \bar{\vecf}] &= q^{-n} \cdot \rho_r(\bar{\vecf}) / \rho_r(\Lambda-\bar{\veca}) \nonumber \\
+		& \in C \bracks[\big]{1,\tfrac{1+\epsilon}{1-\epsilon}}\cdot \rho_r(\bar \vecf).
+	\end{align}
+	where $C=q^{-n}/\rho_{r}(\Lambda)$ is a normalizing
+  value that does not depend on $\bar{\veca}$ or $\bar{\vecf}$.
+	Therefore, by summing over all $\bar \veca, \bar \vecf$ satisfying $\bar \veca + \bar \vecf = \bar \vecv$, we obtain that 
+	for any $\bar{\vecv} \in \Lambda/\Z^{n}$,
+  \begin{align*}
+    \Pr[\vecv = \bar{\vecv}] 
+    &\in C \bracks[\big]{1,\tfrac{1+\epsilon}{1-\epsilon}} \cdot
+    \rho_{r}(q^{-1} \Z^{n} + \bar{\vecv}).
+  \end{align*}
+  Since $r
+  \geq \smootheps(q^{-1} \Z^{n})$ (by
+  Lemma~\ref{lem:boundonsmoothing}), Lemma~\ref{lem:smoothing} 
+implies that~$\Pr[\vecv = \bar{\vecv}] \in \bracks[\big]{\tfrac{1-\epsilon}{1+\epsilon},\tfrac{1+\epsilon}{1-\epsilon}} C'$
+for a constant~$C'$ that is independent of~$\bar{\vec{v}}$. By Claim~\ref{clm:separationdist}, this shows that~$\veca'$
+is within statistical distance~$1-((1-\eps)/(1+\eps))^2 \le 4\epsilon$ of the uniform distribution.
+
+  It remains to show that the reduction maps $A_{q,\vecs,D_{\alpha}}$
+  to $A_{q', \matG \vecs, D_{\beta}}$.  Let the input sample from the
+  former distribution be $(\veca,b=\inner{\veca,\vecs}+e)$, where $e
+  \gets D_{\alpha}$.  As argued above, the output $\veca'$ is (nearly)
+  uniform over~$\T_{q'}^{n'}$.  So condition now on any fixed value $\overline{\veca'} \in \T_{q'}^{n'}$ of $\veca'$,
+	and let $\bar \vecv = \matG^{T} \overline{\veca'} \bmod \Z^{n}$. 	
+	We have
+  \[ b' = \inner{\veca,\vecs} + e + e' = \inner{\overline{\veca'}, \matG \vecs} +
+  e + \inner{-\vecf, \vecs} + e' \bmod 1. \] 
+	By Claim~\ref{clm:separationdist} and~\eqref{eq:roundingonelatticeanother} (and noting that if $\vecf=\bar \vecf$ then $\veca = \bar \vecv - \bar \vecf \bmod \Z^n$),
+	the distribution of $-\vecf$ is within statistical distance~$1-(1-\eps)/(1+\eps) \le 2 \eps$ of
+	$D_{q^{-1}\Z^{n}-\bar \vecv, r}$.  By Lemma~\ref{lem:smoothip} (using $r
+  \geq \sqrt{2} \smootheps(q^{-1} \Z^{n})$ and~$\length{\vecs} \le B$), the
+  distribution of $\inner{-\vecf,\vecs} + e'$ is within statistical 
+distance~$6 \eps$ 
+  from~$D_{t}$, where $t^{2} = r^{2}(\length{\vecs}^{2}+B^{2})$.  It
+  therefore follows that $e+\inner{-\vecf,\vecs} + e'$ is within statistical distance~$6 \eps$ 
+from $D_{(t^2+\alpha^2)^{1/2}}$, as required.
+\end{proof}
+
+\begin{comment}
+
+\subsection{Application to Ring-LWE}
+
+\cnote{I think the theorem in this section is a special case of the
+  ``ring-LWE embedding'' theorem from GHPS (SCN'12), which says that
+  we can embed LWE over a cyclotomic ring with index $m$ into LWE over
+  a cyclotomic of index evenly divisible by $m$.  This theorem is the
+  special case where $m=1$ (so the cyclotomic ring is just $\Z$).}
+
+\begin{definition}
+\label{def:rlwe}
+Let~$R_{n,q}$ denote the ring~$\Z_q[x]/(x^n+1)$, with~$n$ a power
+of~$2$ and~$q$ an integer. Let~$\chi$ be a distribution
+over~$\mathbb{T}_n = \mathbb{T}[x]/(x^n+1)$, and~$\mathcal{D}$ be a
+distribution from~$R_{n,q}$. For~$s \in R_{n,q}$, we define the
+distribution~$A_{n,q,\chi,s}^R$ as follows: sample~$a \hookleftarrow
+U(R_{n,q})$ and~$e \hookleftarrow \chi$; then return~$(a,
+\frac{1}{q}(a\cdot s)+e) \in R_{n,q} \times \mathbb{T}_n$.
+
+
+The decision \emph{Ring Learning with Errors} problem
+$\rlwe_{n,q,\chi}(\mathcal{D})$ is as follows: Let~$\vec{s}$ be
+sampled from~$\mathcal{D}$; the goal is to distinguish between
+arbitrarily many independent samples from~$A_{n,q,\vec{s},\chi}^R$ and
+the same number of independent samples from the uniform distribution
+over the support of~$A^R_{n,q,\vec{s},\chi}$.
+\end{definition}
+
+The above RLWE problem is a special case of the ring learning with
+errors problem that was introduced
+in~\cite{DBLP:conf/eurocrypt/LyubashevskyPR10}. Since then, it has
+proved useful for designing cryptographic schemes with excellent
+asymptotic performance. However, all known hardness proofs for \rlwe
+rely on the assumed hardness of standard worst-case lattice problems
+restricted to the family of so-called ideal lattices. In our present
+setup, an ideal lattice is an ideal of~$\Z[x]/(x^n+1)$.
+Theorem~\ref{th:reverse} leads to a reduction from \lwe to \rlwe, and
+thus provides a hardness proof for \rlwe under standard worst-case
+lattice problems over all lattices.
+
+\begin{theorem}
+\label{th:rlwe}
+For any~$q, \chi, \mathcal{D}$, there exists a polynomial-time
+reduction from~$\lwe_{1,q,\chi}(\mathcal{D})$
+to $\rlwe_{n,q,\chi'_n}(\mathcal{D}_n)$ where~$\chi'_n = \chi'+\chi' x
++ \cdots + \chi' x^{n-1}$, $\chi'$ is the sum of $n$ independent
+copies of~$\chi$ and~$\mathcal{D}_n = \mathcal{D} + \mathcal{D} x +
+\cdots + \mathcal{D} x^{n-1}$.
+\end{theorem}
+
+\begin{proof}
+  For~$s_0,\ldots,s_{n-1} \in \Z_p$, we define the
+  distribution~$A_{n,q,\chi,(s_i)_i}$: Sample~$a \hookleftarrow
+  U(\Z_q)$ and~$e_0,\ldots,e_{n-1} \hookleftarrow \chi$, and
+  return~$(a, \frac{1}{p}(a\cdot
+  s_0)+e_0,\ldots,\frac{1}{p}(as_{n-1})+e_{n-1}) \in \Z_p \times
+  \mathbb{T}^n$.  Using a standard hybrid argument, we see
+  that~$\lwe_{1,q,\chi}(\mathcal{D})$ reduces to distinguishing between
+  arbitrarily many independent samples from~$A_{n,q,\chi,(s_i)_i}$ and
+  the same number of independent samples from the uniform distribution
+  over the support of~$A_{n,q,\chi,(s_i)_i}$. We describe an efficient
+  mapping of~$n$ elements~$(a_i, (b_{ij})_{0\leq j<n})_{0 \leq i<n}$
+  from~$\Z_p \times \mathbb{T}^n$ to a single element in~$R_q \times
+  \mathbb{T}_n$ such that the $A_{n,q,\chi,(s_i)_i}$ distribution
+  (resp.\ uniform distribution over the support
+  of~$A_{n,q,\chi,(s_i)_i}$) is mapped to the~$A_{n,q,\chi_n,s}^R$
+  distribution (resp.\ uniform distribution over the support
+  of~$A_{n,q,\chi_n,s}^R$), where~$s = s_0+s_1x + \cdots
+  +s_{n-1}x^{n-1}$. The mapping is as follows:
+\begin{itemize}
+\item Define~$a = a_0 + a_1x + \cdots + a_{n-1}x^{n-1} \in R_{n,q}$.
+\item Define~$b = \sum_{0\leq k<2n-1} (\sum_{i+j = k} b_{ij}) x^k \bmod (x^n+1)$.
+\item Return~$(a,b)$.  
+\end{itemize}
+Clearly, the reduction runs in polynomial-time, and the uniform
+distribution is mapped to the uniform distribution. Finally, in case
+the input~$b_{ij}$'s are of the form~$\frac{1}{p} (a_i\cdot s_j) +e_j$
+for all~$i,j$, then all the coefficients of~$b - \frac{1}{p}(a\cdot s)
+\in \mathbb{T}_n$ are sums of~$n$ independent samples from~$\chi$.
+\end{proof}
+
+As a corollary of Theorems~\ref{th:reverse} and~\ref{th:rlwe}, there
+exists a (classical) polynomial-time reduction from standard
+worst-case problems over lattices with polynomial approximation
+factors to~$\rlwe_{n,p^n,D_{\sqrt{n}\alpha}}(U(R_{n,p^n}))$.
+
+\end{comment}
+
+\begin{comment}
+\begin{verbatim}
+Also, we were wondering about a possible relationship with
+   http://www.di.ens.fr/~lyubash/papers/subsetsumcrypto.pdf
+(digit-wise expansion of a large integer, along columns rather than rows).
+
+Notation: \vec* denotes an n-dimensional vector mod p (i.e., in Zp^n),
+while capital letters (A,S) denote scalar values mod p^n (i.e., in
+Z_{p^n}).
+
+The basic approach is to map LWE samples (\vecr,b) in Zp^n \times Zp
+to (A, b*p^{n-1} + noise) in Z_{p^n} \times Z_{p^n}, where A is chosen
+from r using some *randomized* encoding (not deterministically).  Then
+the amount by which b*p^{n-1} differs from the value A*S will be a
+centered Gaussian, and we only need to add a small amount of extra
+noise (or maybe none at all?) to smooth it out.
+
+Details:
+
+For A,S in Z_p^n we can write A = sum_i p^i * Ai for *integers* ai
+(not necessarily in {0,...,p-1}), and similarly for S.
+
+Then the product A*S mod p^n can be written as \veca^t \matP \vecs mod
+p^n, where
+
+\veca = (a_{n-1}, ..., a_0),   \vecs = (s0, s1, ..., s_{n-1}),  and
+\matP is the fixed lower-triangular Toeplitz matrix with
+\vecp=(p^{n-1}, p^{n-2}, ..., p^0) down its leftmost column.
+
+Ideally, we would then like to choose \veca (defining A) to satisfy
+
+  \veca^t \matP = p^{n-1} * \vecr^t    (mod p^n)
+
+where \vecr is the "left-hand side" of the LWE challenge.
+
+If we could do this, then the product A*S would be exactly p^{n-1} *
+<r,s>.  We are given the noisy value b=<r,s>+error, so we could just
+plug in p^{n-1}*b (mod p^n) to complete the reduction.  Notice that
+this would keep the error rate exactly the same, and moreover the
+error term would be divisible by p^{n-1}, which seems like too much to
+ask.... and it is.
+
+The problem, of course, is that it is usually not possible to solve
+the above system, because \matP is highly non-invertible mod p^n.  (It
+doesn't even help that the RHS is a multiple of p^{n-1}.)
+
+Luckily, it's enough to approximately solve the system, as long as the
+"error" \veca^t \matP - p^{n-1} * \vecr^t is a centered Gaussian and
+\vecs is short.  And the structure of \matP makes this easy to do --
+Oded's formulas are the answer.
+
+[Chris note: the formulas come from an earlier email, with slightly
+different notation.  But they are easy to work out: the entries of
+\veca are chosen iteratively from discrete Gaussians over the
+integers, with appropriate centers determined by the previously chosen
+entries of \veca.]
+
+Another way of going about it is to multiply both sides by \matP^-1
+**over the integers**, which has a very simple form (exercise for
+reader).  Then we end up with a fractional RHS which we can just
+randomized-round to get an integral \veca.  Doing it this way causes
+the "error" \veca^t \matP - p^{n-1} * \vecr^t to be a non-spherical
+but "nearly spherical" Gaussian (because \matP is almost orthogonal),
+which would suffice for our purposes.  It's not clear that this
+non-adaptive solution has any important advantage here, though.
+
+(Note: these two approaches correspond to randomized versions of
+Babai's nearest-plane and "simple rounding" algorithms, respectively.)
+
+\end{verbatim}
+\end{comment}
+
+
+
+%%% Local Variables: 
+%%% mode: latex
+%%% TeX-master: "lwehard"
+%%% End: 

@@ -1,0 +1,28 @@
+% MARGIN NOTES
+
+%\newif\ifnotes\notestrue
+\newif\ifnotes\notesfalse
+
+
+\ifnotes
+\usepackage{color}
+\definecolor{mygrey}{gray}{0.50}
+\newcommand{\notename}[2]{{\textcolor{mygrey}{\footnotesize{\bf (#1:} {#2}{\bf ) }}}}
+\newcommand{\noteswarning}{{\begin{center} {\Large WARNING: NOTES ON}\end{center}}}
+
+\else
+
+\newcommand{\notename}[2]{{}}
+\newcommand{\noteswarning}{{}}
+
+\fi
+
+\newcommand{\cnote}[1]{{\notename{Chris}{#1}}}
+\newcommand{\znote}[1]{{\notename{Zvika}{#1}}}
+\newcommand{\onote}[1]{{\notename{Oded}{#1}}}
+\newcommand{\anote}[1]{{\notename{Adeline}{#1}}}
+\newcommand{\dnote}[1]{{\notename{Damien}{#1}}}
+
+
+
+

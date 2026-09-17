@@ -813,47 +813,12 @@ rules:
           # \input psfig / \input{psfig.tex} 裸装载形 (批七 wave-final ×1):
           # 同桥 epsfig —— \input 语境必在导言区 (psfig 史前装载惯例),
           # \RequirePackage 合法; 若真有正文内 \input 会报 preamble-only 错
-          # 再议 (未观测)。裸 payload `psfig` 由 legacy_pkg_shim L722-726
-          # 归一到 psfig.tex 键, 同条覆盖 ×6 裸签格。
+          # 再议 (未观测)。
           psfig.tex:
             needs: ["epsfig.sty"]
             body: |
               % fixloop legacy shim: psfig.tex -> epsfig (官方 (e)psfig emulation)
               \RequirePackage{epsfig}
-              \endinput
-          # ── AAS v4 系 2.09 选项文件 (批七, 22 格全量面调查) ──
-          # \documentstyle[...,aasms4/aaspp4/aas2pp4]{article} 经 legacy
-          # 重写成 \usepackage{...} → TL 不载 → missing_file。22 格使用面
-          # 普查并集: \affil/\keywords/\received/\accepted/\journalid/
-          # \articleid/\slugcomment/\lefthead/\righthead —— 元数据 noop +
-          # 渲染保留宏。三体同面 (v4 family), anchor 复用。
-          aasms4.sty:
-            needs: []
-            body: &aas4_body |
-              \NeedsTeXFormat{LaTeX2e}
-              \ProvidesPackage{aas4x}[2026/09/17 fixloop legacy shim -> article + AAS meta]
-              \providecommand{\received}[1]{}
-              \providecommand{\accepted}[1]{}
-              \providecommand{\journalid}[2]{}
-              \providecommand{\articleid}[2]{}
-              \providecommand{\slugcomment}[1]{\par\noindent{\footnotesize #1\par}}
-              \providecommand{\keywords}[1]{\par\noindent\textbf{Keywords:} #1\par}
-              \providecommand{\affil}[1]{\par\noindent{\small #1\par}}
-              \providecommand{\lefthead}[1]{\markboth{#1}{}}
-              \providecommand{\righthead}[1]{\markboth{}{#1}}
-              \endinput
-          aaspp4.sty: { needs: [], body: *aas4_body }
-          aas2pp4.sty: { needs: [], body: *aas4_body }
-          # eqsecnum 2.09 选项文件 (wave-final 单格): 公式按节编号 ——
-          # .sty 语境 @ 即字母, 无需 makeatletter 包装 (cs_table eqnobysec
-          # 条目是 docclass 后注入, 语境不同才需要)。
-          eqsecnum.sty:
-            needs: []
-            body: |
-              \NeedsTeXFormat{LaTeX2e}
-              \ProvidesPackage{eqsecnum}[2026/09/17 fixloop legacy shim]
-              \@addtoreset{equation}{section}
-              \renewcommand{\theequation}{\thesection.\arabic{equation}}
               \endinput
           # ── 2026-09-16 n100 F1 扩列 ──────────────────────────────────
           # elsart 家族 → elsarticle: Elsevier 官方继任类, 明确兼容 elsart 稿
@@ -1568,24 +1533,11 @@ rules:
               \endinput
           # ── 2026-09-16 wave-2 (loop2-delta 残盘 ~27 格, 1d scout-unfix 枚举) ──
           # 继任类桥: emulateapj-rtx4 (revtex4 时代变体, 1404.2351 实证),
-          # amsart2000 (vintage amsart), nature2 (老 Nature 名) —— 同
-          # sig-alternate 先例。
+          # amsart2000 (vintage amsart), nature2 (老 Nature 名),
+          # acm_proc_article-sp (2009 时代 ACM 版式) —— 同 sig-alternate 先例。
           emulateapj-rtx4.cls: { loads: "emulateapj", needs: ["emulateapj.cls"] }
           amsart2000.cls: { loads: "amsart", needs: ["amsart.cls"] }
           nature2.cls: { loads: "nature", needs: ["nature.cls"] }
-          # acm_proc_article-sp (2009 时代 ACM 版式, 1306.0281 实证) —— 纯
-          # loads 桥只换类壳, 老作者块族 (\titlenote/\alignauthor/\affaddr/
-          # \affinst/\additionalauthors) 在 acmart 下语义错配: 原生
-          # \titlenote 向 \@title 追加 \footnotemark, 在 \author{} 参内
-          # \MakeUppercase→\__text_expand 展开即 \@xfootnotemark 定界参失配
-          # + Missing \endcsname 百连 (unfixable:early_eof)。body 套件:
-          # \titlenote 无条件 \protected 桥 \thanks (原生定义即炸点),
-          # \alignauthor→\par (列起始命令), \affaddr/\affinst→\emph (保文
-          # 不污 \addresses), \additionalauthors→\author, abstract 序桥按
-          # \@ACM@maketitle@typeset 分路 (late path 不走 Collect@Body),
-          # \cal/\mit 复活 (amsart 有意略去, head.tex \cA 族 ~100 调用)。
-          # 降级面: 五作者并单条 (列流无法无损重建), 机构 emph 行内保文。
-          # 实证/设计: bench/results/fixer-legacy-acm-2026-09-17/。
           acm_proc_article-sp.cls:
             needs: ["acmart.cls"]
             body: "\n\\NeedsTeXFormat{LaTeX2e}\n\\ProvidesClass{acm_proc_article-sp}[2026/09/17 fixloop legacy shim -> acmart + author-block kit]\n\\LoadClassWithOptions{acmart}\n% --- acm_proc_article-sp author-block family under acmart (1306.0281) ---\n% \\alignauthor is a column-starter (no arg, name runs to \\\\) — \\par mirrors\n% the old \"new author column\" break inside the single acmart \\author{} arg.\n\\ifdefined\\alignauthor\\else\\protected\\def\\alignauthor{\\par}\\fi\n% \\affaddr/\\affinst{inst} sit loose inside \\author{} — acmart \\affiliation\n% would corrupt \\addresses there; inline emph keeps the text.\n\\ifdefined\\affaddr\\else\\protected\\def\\affaddr#1{\\emph{#1}}\\fi\n\\ifdefined\\affinst\\else\\protected\\def\\affinst#1{\\emph{#1}}\\fi\n% \\titlenote inside \\author{} executes inside \\MakeUppercase: acmart's\n% native def appends \\footnotemark to \\@title -> \\@xfootnotemark mismatch\n% + Missing \\endcsname storm (100 errs). Override is mandatory — \\protected\n% bridge to \\thanks survives text_expand and lands in the \\thankses strip.\n\\protected\\def\\titlenote#1{\\thanks{#1}}\n% \\additionalauthors{names} top-level -> register as another acmart author.\n\\ifdefined\\additionalauthors\\else\\protected\\long\\def\\additionalauthors#1{\\author{#1}}\\fi\n% \\numberofauthors{N} — acmart auto-counts (cs_table polyfill also covers).\n\\ifdefined\\numberofauthors\\else\\protected\\def\\numberofauthors#1{}\\fi\n% acmart has native \\subtitle — guard only for exotic load paths.\n\\ifdefined\\subtitle\\else\\protected\\def\\subtitle#1{}\\fi\n% Old acm_proc order puts abstract AFTER \\maketitle; acmart \\@saveabstract\n% ClassErrors once \\@ACM@maketitle@typeset. Conditional bridge: pre-maketitle\n% keeps the native Collect@Body stash; post-maketitle typesets the body as a\n% plain labelled block — NO Collect@Body on the late path (its body-scan\n% hijacks \\abstract and cannot tolerate a typesetting callback).\n\\renewenvironment{abstract}{\\if@ACM@maketitle@typeset\\par\\medskip\\noindent{\\bfseries\\abstractname.}\\space\\ignorespaces\\else\\Collect@Body\\@saveabstract\\fi}{\\if@ACM@maketitle@typeset\\par\\medskip\\fi}\n% 2.09 font switches: acmart inherits \\rm\\sf\\tt\\bf\\it\\sl\\sc from\n% amsart (its \\DeclareOldFontCommand block); only \\cal/\\mit are missing\n% (amsart deliberately omits them) — doc \\cA->{\\cal A} family needs them.\n\\ifdefined\\cal\\else\\DeclareOldFontCommand{\\cal}{\\normalfont\\itshape}{\\mathcal}\\fi\n\\ifdefined\\mit\\else\\DeclareOldFontCommand{\\mit}{\\normalfont\\itshape}{\\mathnormal}\\fi\n\\endinput\n"

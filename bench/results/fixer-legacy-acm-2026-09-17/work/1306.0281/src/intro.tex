@@ -1,0 +1,341 @@
+
+\section{Introduction}
+\label{sec:introduction}
+
+
+
+
+Over the last decade, lattices have emerged as a very attractive
+foundation for cryptography.  The appeal of lattice-based primitives
+stems from the fact that their security can be based on
+\emph{worst-case} hardness assumptions, that they appear to remain
+secure even against \emph{quantum} computers, that they can be
+quite efficient, and that, somewhat surprisingly, for certain advanced
+tasks such as fully homomorphic encryption no other cryptographic
+assumption is known to suffice.
+
+Virtually all recent lattice-based cryptographic schemes are based
+directly upon one of two natural average-case problems that have
+been shown to enjoy worst-case hardness guarantees: the
+\emph{short integer solution} ($\sis$) problem and the
+\emph{learning with errors} ($\lwe$) problem.
+The former dates back to Ajtai's groundbreaking
+work~\cite{Ajtai96}, who showed that it is at least as
+hard as approximating several worst-case lattice problems, such as the
+(decision version of the) shortest vector problem, known as $\gapsvp$, to within a
+polynomial factor in the lattice dimension. This hardness result
+was tightened in followup work (e.g.,~\cite{DBLP:journals/siamcomp/MicciancioR07}),
+leading to a somewhat satisfactory understanding of the hardness of the $\sis$ problem.
+The $\sis$ problem
+has been the foundation for
+one-way~\cite{Ajtai96} and
+collision-resistant hash
+functions~\cite{DBLP:journals/eccc/ECCC-TR96-042}, identification
+schemes~\cite{DBLP:conf/crypto/MicciancioV03,DBLP:conf/pkc/Lyubashevsky08,DBLP:conf/asiacrypt/KawachiTX08},
+and digital
+signatures~\cite{DBLP:conf/stoc/GentryPV08,DBLP:conf/eurocrypt/CashHKP10,DBLP:conf/pkc/Boyen10,DBLP:conf/eurocrypt/MicciancioP12,DBLP:conf/eurocrypt/Lyubashevsky12}. 
+
+Our focus in this paper is on the latter problem, learning with errors.
+In this problem our goal is to distinguish with some non-negligible advantage between the following
+two distributions:
+\[
+\parens{\parens{ \veca_i, \inner{\vc{a}_i, \vc{s}}+e_i \bmod q}}_{i}
+\quad \text{and} \quad
+\parens{\parens{ \veca_i, u_i }}_{i}~,
+\]
+where $\vecs$ is chosen uniformly from $\Z_q^n$
+and so are the $\veca_i \in \Z_q^n$,  $u_i$ are chosen uniformly from $\Z_q$,
+and the ``noise'' $e_i \in \Z$ is sampled from some distribution supported on small numbers, typically a (discrete) Gaussian
+distribution with standard deviation $\alpha q$ for $\alpha = o(1)$.
+%\dnote{I replaced $\ll$ by $o(\cdot)$}
+
+
+The $\lwe$ problem has proved to be amazingly versatile, serving as
+the basis for a multitude of cryptographic constructions:
+secure public-key encryption under both
+chosen-plaintext~\cite{DBLP:journals/jacm/Regev09,DBLP:conf/crypto/PeikertVW08,DBLP:conf/ctrsa/LindnerP11}
+and
+chosen-ciphertext~\cite{DBLP:conf/stoc/PeikertW08,DBLP:conf/stoc/Peikert09,DBLP:conf/eurocrypt/MicciancioP12}
+attacks, oblivious transfer~\cite{DBLP:conf/crypto/PeikertVW08},
+identity-based
+encryption~\cite{DBLP:conf/stoc/GentryPV08,DBLP:conf/eurocrypt/CashHKP10,DBLP:conf/eurocrypt/AgrawalBB10,DBLP:conf/crypto/AgrawalBB10},
+various forms of leakage-resilient cryptography (e.g.,
+\cite{DBLP:conf/tcc/AkaviaGV09,DBLP:conf/crypto/ApplebaumCPS09,DBLP:conf/innovations/GoldwasserKPV10}),
+fully homomorphic
+encryption~\cite{DBLP:conf/focs/BrakerskiV11,DBLP:conf/innovations/BrakerskiGV12,DBLP:conf/crypto/Brakerski12}
+(following the seminal work of Gentry~\cite{DBLP:conf/stoc/Gentry09}),
+and much more. It was also used to show hardness of learning problems~\cite{DBLP:conf/focs/KlivansS06}.
+
+Contrary to the $\sis$ problem, however, the hardness of $\lwe$ is not
+sufficiently well understood. The main hardness reduction for
+$\lwe$~\cite{DBLP:journals/jacm/Regev09} is similar to the one for $\sis$
+mentioned above, except that it is \emph{quantum}. This means that
+the existence of an efficient algorithm for $\lwe$, even
+a classical (i.e., non-quantum) one, only implies the existence
+of an efficient \emph{quantum} algorithm for lattice problems.
+This state of affairs is quite unsatisfactory: even though
+one might conjecture that efficient quantum algorithms for lattice
+problems do not exist, our understanding of quantum algorithms
+is still at its infancy. It is therefore highly desirable to
+come up with a \emph{classical} hardness reduction for $\lwe$.
+
+Progress in this direction was made
+by~\cite{DBLP:conf/stoc/Peikert09} (with some simplifications in the
+followup by Lyubashevsky and
+Micciancio~\cite{DBLP:conf/crypto/LyubashevskyM09}).  The main result
+there is that $\lwe$ with \emph{exponential} modulus is as hard as
+some standard lattice problems using a
+classical reduction.  
+%\dnote{I explained which problems in the previous sentence} 
+As that hardness result crucially relies on the
+exponential modulus, the open question remained as to whether $\lwe$
+is hard for smaller moduli, in particular polynomial moduli. In
+addition to being an interesting question in its own right, this question is of special importance since many cryptographic applications, as well as the learning theory
+result of Klivans and Sherstov~\cite{DBLP:conf/focs/KlivansS06}, are instantiated in this setting.
+%In
+%addition to being an interesting question in its own right, we note
+%that most applications use a polynomial modulus; although many
+%applications can be extended to deal with an exponential modulus, a
+%polynomial modulus is sometimes necessary, say in the learning theory
+%result of Klivans and Sherstov~\cite{DBLP:conf/focs/KlivansS06}.
+%\onote{add the ut ot?}
+Some additional evidence that reducing the
+modulus is a fundamental question comes from the Learning Parity with
+Noise (LPN) problem, which can be seen as $\lwe$ with modulus $2$
+(albeit with a different error distribution), and whose hardness is a
+long-standing open question.  We remark
+that~\cite{DBLP:conf/stoc/Peikert09} does include a classical hardness
+of $\lwe$ with polynomial modulus, albeit one based on a
+non-standard lattice problem, whose hardness is arguably as debatable
+as that of the $\lwe$ problem itself.
+
+
+To summarize, prior to our work, the existence of
+an efficient algorithm for $\lwe$ with polynomial modulus was only known to imply an efficient \emph{quantum}
+algorithm for lattice problems, or an efficient classical algorithm for a
+non-standard lattice problem. While both consequences are unlikely,
+they are arguably not as earth-shattering as an efficient classical
+algorithm for lattice problems. Hence, some concern about the hardness of
+$\lwe$ persisted, tainting the plethora of cryptographic applications
+based on it.
+
+\myparagraph{Main result}
+We provide the first classical hardness reduction of $\lwe$ with polynomial modulus. Our reduction is
+the first to show that the existence of an efficient classical algorithm for $\lwe$
+with any subexponential modulus would indeed have earth-shattering consequences: it would imply an efficient algorithm
+for worst-case instances of standard lattice problems.
+
+\onote{should we add somewhere a formal statement of our main result? at least a combination of sections 3 and 4?}
+\begin{theorem}[Informal]\label{thm:informal}
+Solving $n$-dimensional $\lwe$ with $\poly(n)$ modulus
+implies an equally efficient solution to a worst-case lattice problem in dimension $\sqrt{n}$.
+\end{theorem}
+%
+As a result, we establish the hardness of all known applications of polynomial-modulus $\lwe$ based on
+classical worst-case lattice problems, previously only known under a quantum assumption.
+
+\myparagraph{Techniques}
+Even though our main theorem has the flavor of a statement in computational complexity,
+its proof crucially relies on a host of ideas coming from recent progress in cryptography,
+most notably recent breakthroughs in the construction of fully homomorphic encryption schemes.
+
+At a high level, our main theorem is a ``modulus reduction'' result:
+we show a reduction from $\lwe$ with large modulus $q$ and dimension $n$ to
+$\lwe$ with (small) modulus $p=\poly(n)$ and dimension $n \log_2 q$. Theorem~\ref{thm:informal}
+now follows from the main result in~\cite{DBLP:conf/stoc/Peikert09}, which shows that
+the former problem with $q=2^n$ is as hard as $n$-dimensional $\gapsvp$.
+We note that the increase in dimension from $n$ to $n \log_2 q$ is to be expected,
+as it essentially preserves the number of possible secrets (and hence the running time
+of the naive brute-force algorithm).%invariant
+
+Very roughly speaking,
+the main idea in modulus reduction is to map $\Z_q$ into $\Z_p$ through the naive mapping
+that sends any $a \in \{0,\ldots,q-1\}$ to $\floor{pa/q} \in \{0,\ldots,p-1\}$.
+This basic idea is confounded by two issues. The first is that if carried out naively, this
+transformation introduces rounding artifacts into $\lwe$, ruining the distribution
+of the output. We resolve this issue by using a more careful Gaussian randomized rounding procedure (Section~\ref{sec:modexpansion}).
+A second serious issue is that in order for the rounding errors not to be
+amplified when multiplied by the $\lwe$ secret $\vecs$, it is essential to assume that $\vecs$
+has small coordinates. A major part of our reduction (Section~\ref{sec:shortsecret}) is therefore dedicated to showing
+a reduction from $\lwe$ (in dimension $n$) with arbitrary secret in $\Z_q^n$ to $\lwe$ (in dimension $n \log_2 q$)
+with a secret chosen uniformly over $\{0,1\}$. This follows from a careful hybrid argument (Section~\ref{sec:theshortsecretreduction}) combined with a
+hardness reduction to the so-called ``extended-$\lwe$'' problem, which is a variant of $\lwe$ in which we have some control
+over the error vector (Section~\ref{sec:extlwe}).
+
+
+We stress that even though our proof is inspired by and has analogues
+in the cryptographic literature, the details of the reductions are very different.
+In particular, the idea of modulus reduction plays a key role in recent work on fully homomorphic
+encryption schemes, giving a way to control the noise growth during homomorphic
+operations~\cite{DBLP:conf/focs/BrakerskiV11,DBLP:conf/innovations/BrakerskiGV12,DBLP:conf/crypto/Brakerski12}.
+However, since the goal there is merely to preserve the functionality of the scheme,
+their modulus reduction can be performed in a rather naive way similar to the one outlined above,
+and so the output of their procedure does not constitute a valid $\lwe$ instance.
+In our reduction we need to perform a much more delicate modulus reduction,
+which we do using Gaussian randomized rounding, as mentioned above.
+
+
+%
+The idea of reducing $\lwe$ to have a $\{0,1\}$ secret also exists already in the cryptographic literature:
+precisely such a reduction was shown by 
+Goldwasser et al.~\cite{DBLP:conf/innovations/GoldwasserKPV10}
+who were motivated by questions in leakage-resilient cryptography.
+Their reduction, however, incurred a severe blow-up in the noise rate, making it useless for our purposes. 
+In more detail, not being able to
+faithfully reproduce the $\lwe$ distribution in the output, they resort to 
+hiding the faults in the output distribution under a huge independent 
+fresh noise, in order to make it close to the correct one. The trouble 
+with this ``noise flooding'' approach
+%\dnote{I reformulated these sentences to make ``noise flooding'' less 
+% mysterious}
+%what has been called ``noise flooding'' in order to hide the faults
+%in the output distribution, and to make it close to the correct one. \znote{Maybe say what noise flooding is? It seems somewhat mysterious like this.}
+%The trouble with this approach 
+is that the amount of noise
+one has to add depends on the running time of the algorithm solving
+the target $\{0,1\}$-$\lwe$ problem, which in turn forces the modulus
+to be equally big.
+So while in principle we could use the reduction
+from~\cite{DBLP:conf/innovations/GoldwasserKPV10} (and shorten our proof
+by about a half), this would lead to a qualitatively much weaker result:
+the modulus and the approximation ratio for the worst-case lattice problem
+would both grow with the running time of the $\{0,1\}$-$\lwe$ algorithm.
+In particular, we would not be able to show that for some fixed
+polynomial modulus, $\lwe$ is a hard problem; instead, in order to capture all polynomial time algorithms,
+we would have to take a super-polynomial
+modulus, and rely on the hardness of worst-case lattice problem to within super-polynomial
+approximation factors.
+In contrast, with our reduction,
+the modulus and the approximation ratio both remain fixed independently of the target $\{0,1\}$-$\lwe$ algorithm.
+
+
+As mentioned above, our alternative to the reduction
+in~\cite{DBLP:conf/innovations/GoldwasserKPV10} is based
+on a hybrid argument combined with a new hardness reduction
+for the ``extended LWE'' problem, which is a variant of $\lwe$ in which in addition to the LWE samples, we also get to see the inner product
+of the vector of error terms with a vector $\vecz$ of our 
+%\dnote{Shall we add (``adversorial'')?}\onote{i prefer to keep as is} 
+choosing. This problem has
+its origins in the cryptographic literature, namely
+in the work of O'Neill, Peikert, and Waters~\cite{DBLP:conf/crypto/ONeillPW11} on (bi)deniable encryption
+and the later work of Alperin-Sheriff and Peikert~\cite{DBLP:conf/pkc/Alperin-SheriffP12}
+on key-dependent message security. The hardness reductions included in those
+papers are not sufficient for our purposes, as they cannot handle
+large moduli or error terms, which is crucial in our setting. We therefore
+provide an alternative reduction which is conceptually much simpler, and
+essentially subsumes both previous reductions.
+Our reduction works equally well with
+exponential moduli and correspondingly long error vectors, a case earlier reductions could not handle.
+
+
+
+\myparagraph{Broader perspective}
+As a byproduct of the proof of Theorem~\ref{thm:informal}, we obtain several results that
+shed new light on the hardness of $\lwe$. Most notably, our modulus reduction result
+in Section~\ref{sec:modexpansion} is actually far more general, and can be used to show
+a ``modulus expansion/dimension reduction'' tradeoff. Namely, it shows a reduction
+from $\lwe$ in dimension $n$ and modulus $p$ to $\lwe$ in dimension $n/k$ and modulus $p^k$ (see Corollary~\ref{cor:mod-dim-tradeoff}).
+Combined with our modulus reduction, this has the following interesting consequence:
+the hardness of $n$-dimensional $\lwe$ with modulus $q$ is a function of the quantity $n \log_2 q$.
+In other words, varying $n$ and $q$ individually while keeping $n \log_2 q$ fixed
+essentially preserves the hardness of $\lwe$.
+
+Although we find this statement quite
+natural (since $n \log_2 q$ represents the number of bits in the secret), it has
+some surprising consequences. One is that $n$-dimensional $\lwe$ with modulus $2^n$
+is essentially as hard as $n^2$-dimensional $\lwe$ with polynomial modulus.
+As a result, $n$-dimensional $\lwe$ with modulus $2^n$, which was shown
+in~\cite{DBLP:conf/stoc/Peikert09} to be as hard as $n$-dimensional lattice
+problems using a classical reduction, is actually as hard as $n^2$-dimensional
+lattice problems using a quantum reduction. The latter is presumably a much
+harder problem, requiring $\exp(\widetilde\Omega(n^2))$ time to solve.
+This corollary highlights an inherent quadratic loss in the classical reduction
+of~\cite{DBLP:conf/stoc/Peikert09} (and as a result also our Theorem~\ref{thm:informal})
+compared to the quantum one in~\cite{DBLP:journals/jacm/Regev09}.
+
+\onote{for the final version, consider adding precise statements for this and the next point}
+A second interesting consequence is that $1$-dimensional $\lwe$ with
+modulus $2^n$ is essentially as hard as $n$-dimensional $\lwe$ with
+polynomial modulus. The $1$-dimensional version of $\lwe$ is closely
+related to the Hidden Number Problem of Boneh and
+Venkatesan~\cite{DBLP:conf/crypto/BonehV96}. It is also essentially equivalent to the
+Ajtai-Dwork-type~\cite{DBLP:conf/stoc/AjtaiD97} cryptosystem in~\cite{DBLP:journals/jacm/Regev04}, as follows from simple reductions
+similar to the one in the appendix of~\cite{RegevSurvey}.
+Moreover, the $1$-dimensional version can be seen as a special case of
+the Ring-$\lwe$ problem introduced
+in~\cite{DBLP:conf/eurocrypt/LyubashevskyPR10} (for ring dimension~1,
+i.e., ring equal to~$\Z$). This allows us, via the ring switching
+technique from~\cite{DBLP:conf/scn/GentryHPS12}, to obtain the first
+hardness proof of Ring-$\lwe$, with arbitrary ring dimension and
+exponential modulus, under the hardness of problems on general lattices (as
+opposed to just ideal lattice problems). In addition, this leads to the
+first hardness proof for the Ring-$\sis$
+problem~\cite{DBLP:conf/icalp/LyubashevskyM06,DBLP:conf/tcc/PeikertR06}
+with exponential modulus under the hardness of general lattice problems, via the standard
+$\lwe$-to-$\sis$ reduction. (We note that since both results are obtained by
+scaling up from a ring of dimension $1$, the hardness does not improve
+as the ring dimension increases.)
+
+A final interesting consequence of our reductions is that (the
+decision form of) \lwe is hard with an arbitrary huge modulus, e.g., a
+prime; see Corollary~\ref{cor:mod-reduction-2}.  Previous results
+(e.g.,~\cite{DBLP:journals/jacm/Regev09,DBLP:conf/stoc/Peikert09,DBLP:conf/crypto/MicciancioM11,DBLP:conf/eurocrypt/MicciancioP12})
+required the modulus to be \emph{smooth}, i.e., all its prime divisors
+had to be polynomially bounded.
+
+\onote{for final version: decide what to do with real-LWE}
+
+\onote{for final version, consider applying these ideas to SIS, especially the 1-dim case which is like subset sum, and more generally, modulus/dimension tradeoff for SIS. Chris said:
+The idea is to do a similar transformation as in Lemma 4.4, but on SIS samples, going from a in $\Z_q^n$ to $a' \in \Z_{q'}^{n'}$.  Then given a good SIS solution $x$ to $A'x = 0$, we also have $G^T A' x = 0$ and therefore $A x \approx 0$.  Thus $x$ is a solution to the original SIS instance, because it suffices to find a preimage of "nearly" 0.  This is because if $Ax = e \approx 0$, then we get the homogeneous solution $[I | A] (e; x) = 0$, and the instance $[I | A]$ is just SIS in (hermite) normal form.}
+
+\dnote{Something that I find interesting is that the complexity of the
+  best known attack is~$2^{O(n \log q/ \log^2 \alpha)}$, which is
+  constant wrt $n \log q$. This was not reflected by our previous
+  understanding of the complexity of \lwe, and we manage to close the
+  gap between the hardness results and the algorithms. By the way,
+  this~$2^{O(n \log q/ \log^2 \alpha)}$ bound suggests it may be
+  possible to transfer some of~$n$ and~$\log q$ into~$\log \alpha$. Do
+  we know \lwe self-reductions from, say, $q,\alpha$ to~$p,\beta$ such
+  that~$\log q/ |\log \alpha| = \log p/|\log \beta|$? or from
+  $n,\alpha$ to~$n',\beta$ such that~$n/ |\log \alpha| = n'/|\log
+  \beta|$}
+
+\onote{maybe mention Ajtai's 2005 paper using Dirichlet's problem?}
+
+\myparagraph{Open questions}
+As mentioned above, our Theorem~\ref{thm:informal} inherits from~\cite{DBLP:conf/stoc/Peikert09}
+a quadratic loss in the dimension, which does not exist in the quantum reduction~\cite{DBLP:journals/jacm/Regev09}
+nor in the known hardness reductions for $\sis$. 
+At a technical level, this quadratic loss stems from the fact that the reduction in~\cite{DBLP:conf/stoc/Peikert09} is not iterative. In contrast,
+the quantum reduction in~\cite{DBLP:journals/jacm/Regev09} as well as the reductions for $\sis$ are iterative, and as a result do not incur
+the quadratic loss. We note that an additional side effect of the non-iterative reduction is that the hardness in Theorem~\ref{thm:informal} 
+and~\cite{DBLP:conf/stoc/Peikert09} is based only on the worst-case lattice problem \gapsvp (and the essentially equivalent \bdd and \usvp~\cite{DBLP:conf/crypto/LyubashevskyM09}), and not on problems like \sivp, which the quantum reduction of~\cite{DBLP:journals/jacm/Regev09} and the hardness
+reductions for \sis can handle. One case where this is very significant is when dealing with ideal lattices, as in the hardness 
+reduction for Ring-\lwe, since \gapsvp turns out to be an easy problem there. 
+
+We therefore believe that it is important to understand whether there exists a classical
+reduction that does not incur the quadratic loss inherent in~\cite{DBLP:conf/stoc/Peikert09}
+and in Theorem~\ref{thm:informal}.
+In other words, is $n$-dimensional $\lwe$ with polynomial modulus classically as hard as $n$-dimensional
+lattice problems (as opposed to $\sqrt{n}$-dimensional)? This would constitute
+the first full dequantization of the quantum reduction in~\cite{DBLP:journals/jacm/Regev09}.
+
+While it is natural to conjecture that the answer to this question is positive,
+a negative answer would be quite tantalizing. In particular, it is
+conceivable that there exists a (classical) algorithm for $\lwe$ with polynomial modulus running in time
+$2^{O(\sqrt{n})}$. Due to the quadratic expansion in Theorem~\ref{thm:informal}, this
+would not lead to a faster classical algorithm for lattice problems; it would,
+however, lead to a $2^{O(\sqrt{n})}$-time \emph{quantum} algorithm for
+lattice problems using the reduction in~\cite{DBLP:journals/jacm/Regev09}.
+The latter would be a major progress in quantum algorithms, yet is not
+entirely unreasonable; in fact, a $2^{O(\sqrt{n})}$-time quantum algorithm
+for a somewhat related quantum task was discovered by
+Kuperberg~\cite{DBLP:journals/siamcomp/Kuperberg05} (see also~\cite{DBLP:journals/siamcomp/Regev04}).
+
+
+
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: "lwehard"
+%%% End:
