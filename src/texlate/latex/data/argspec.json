@@ -16296,6 +16296,26 @@
             "policy": "text",
             "source": ["manual-env", "no-signature"]
         },
+        "restatable": {
+            "name": "restatable",
+            "kind": "env",
+            "package": "thmtools",
+            "signature": "m m m",
+            "arg_roles": ["skip", "skip", "skip"],
+            "body_role": "text",
+            "policy": "text",
+            "source": ["ctan:thmtools", "manual-env"]
+        },
+        "restatable*": {
+            "name": "restatable*",
+            "kind": "env",
+            "package": "thmtools",
+            "signature": "m m m",
+            "arg_roles": ["skip", "skip", "skip"],
+            "body_role": "text",
+            "policy": "text",
+            "source": ["ctan:thmtools", "manual-env"]
+        },
         "rgathered": {
             "name": "rgathered",
             "kind": "env",

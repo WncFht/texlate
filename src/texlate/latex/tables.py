@@ -83,6 +83,8 @@ PROTECTED_ENVS = {
     "pgfpicture",
     "picture",
     "pspicture",
+    "epic",
+    "eepic",
 }
 
 # in_arg 下的透明容器环境白名单（纯容器 → begin/end 行 [[ENVTAG]]，

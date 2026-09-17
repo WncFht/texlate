@@ -449,3 +449,139 @@ def test_textcolor_unchanged() -> None:
     body = chunk_text(res)
     assert "colored words here" in body
     assert "{red}" not in body
+
+
+# ------------------------------------------------------------- thmtools restatable
+
+
+def test_restatable_args_protected() -> None:
+    r"""``\begin{restatable}{theorem}{main}``：``{env}``/``{cs}`` 结构参不进 chunk。"""
+    tex = ART % (
+        "\\usepackage{thmtools}\n",
+        (
+            "Intro words here to fill the paragraph out nicely and more.\n"
+            "\\begin{restatable}{theorem}{main}\n"
+            "\\label{thm:main} Body words of the theorem go here nicely.\n"
+            "\\end{restatable}\n"
+        ),
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert "{theorem}" not in body
+    assert "{main}" not in body
+    assert "restatable" not in body
+    assert "Body words of the theorem" in body
+    assert "Intro words" in body
+
+
+def test_restatable_note_form_args_protected() -> None:
+    r"""``\begin{restatable}[Main Theorem]{thm}{composing}``：note+两参全收进字面段。"""
+    tex = ART % (
+        "\\usepackage{thmtools}\n",
+        (
+            "\\begin{restatable}[Main Theorem]{thm}{composing}\n"
+            "\\label{thm:composing} Body words of the theorem go here.\n"
+            "\\end{restatable}\n"
+        ),
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert "Main Theorem" not in body
+    assert "{thm}" not in body
+    assert "{composing}" not in body
+    assert "Body words of the theorem" in body
+
+
+def test_restatable_star_args_protected() -> None:
+    r"""``\begin{restatable*}{lemma}{\mylem}``：star 形独立登记同收。"""
+    tex = ART % (
+        "\\usepackage{thmtools}\n",
+        (
+            "\\begin{restatable*}{lemma}{\\mylem}\n"
+            "\\label{lem:x} Star body words of the lemma go here.\n"
+            "\\end{restatable*}\n"
+        ),
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert "{lemma}" not in body
+    assert "{\\mylem}" not in body
+    assert "Star body words" in body
+
+
+def test_restatable_bare_text_body_bounded_lose() -> None:
+    r"""体裸文起头：第三 ``m`` 单 token 过吃有界——``{cs}`` 参仍收、恒等不破。"""
+    tex = ART % (
+        "\\usepackage{thmtools}\n",
+        (
+            "\\begin{restatable}{theorem}{main}\n"
+            "First word drops, rest of the body words stay chunked here.\n"
+            "\\end{restatable}\n"
+        ),
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert "{main}" not in body
+    assert "rest of the body words" in body
+
+
+def test_restatable_no_thmtools_dormant() -> None:
+    r"""无 ``\usepackage{thmtools}`` 条目不激活——``{main}`` 仍裸进 chunk（门控语义）。"""
+    tex = ART % (
+        "",
+        (
+            "\\begin{restatable}{theorem}{main}\n"
+            "\\label{thm:main} Body words of the theorem go here.\n"
+            "\\end{restatable}\n"
+        ),
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    assert "{main}" in chunk_text(res)
+
+
+# ------------------------------------------------------------- epic/eepic 保护环境
+
+
+def test_eepic_coords_protected() -> None:
+    r"""``\begin{eepic}`` 体 ``(0.75);(1.5)`` 坐标串不进 chunk（PROTECTED_ENVS）。"""
+    tex = ART % (
+        "\\usepackage{epic,eepic}\n",
+        (
+            "Before words to fill the paragraph out nicely and more text.\n"
+            "\\begin{eepic}(8,6)\n"
+            "\\drawline(0.75,0.5)(1.5,1.5);(3,0.5)\n"
+            "\\put(4,2){dot}\n"
+            "\\end{eepic}\n"
+            "After words to fill the paragraph out nicely and more text.\n"
+        ),
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert "0.75" not in body
+    assert "1.5" not in body
+    assert "drawline" not in body
+    assert "Before words" in body
+    assert "After words" in body
+
+
+def test_epic_coords_protected() -> None:
+    r"""``\\begin{epic}`` 同族同收——坐标与 ``\\path`` 命令名不进 chunk。"""
+    tex = ART % (
+        "\\usepackage{epic}\n",
+        (
+            "\\begin{epic}(6,4)\n"
+            "\\path(0.75,0.5)(1.5,1.5)\n"
+            "\\end{epic}\n"
+        ),
+    )
+    res = parse_tex(tex)
+    check_invariants(res, tex)
+    body = chunk_text(res)
+    assert "0.75" not in body
+    assert "path" not in body
