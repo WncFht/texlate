@@ -43,7 +43,9 @@ log = logging.getLogger(__name__)
 REASONING_MIN_MAX_TOKENS = 8192
 #: 探活请求预算（只要求非空 content，给思考留 1k 余量足够）
 PROBE_MAX_TOKENS = 1024
-DEFAULT_TIMEOUT = httpx.Timeout(180.0, connect=10.0)
+#: read=300 给 bg 类请求的闸内排队留余量——网关 fg/bg 分级下 bg 可排队
+#: ~120s 才开始出首字节，read 覆盖 TTFB（每次 read 间隔计时，非全程预算）
+DEFAULT_TIMEOUT = httpx.Timeout(180.0, connect=10.0, read=300.0)
 PROBE_TIMEOUT = httpx.Timeout(60.0, connect=10.0)
 
 #: 网关默认端点/模型——server.settings 与 fixloop.llm_hook 的兜底共同

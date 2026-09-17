@@ -1,16 +1,26 @@
-# gwpilot — 见缝插针网关调度器
+# gwpilot — 见缝插针批跑驱动
 
-`bench/py/gwpilot.py`：纯 stdlib 单文件，两个半件——自适应并发闸代理（`serve`）、断点续跑队列驱动（`run`）、单行状态（`status`）。动机：晚上 API 富裕时把 swe-2-medium 并发打满（默认 `max_cap=40`），白天其他会话/产品链要用网关时自动让路，全程不需要人盯。
+`bench/py/gwpilot.py`：纯 stdlib 单文件。主件是断点续跑队列驱动（`run`），另留一个自适应并发闸代理（`serve`）作兜底。
+
+**2026-09-18 起网关侧 fg/bg 分级准入已上线**（需求规格 `docs/research/gateway/2026-09-17-devin2api-fg-bg-admission.md`）：批跑拿 `class=bg` 令牌直连 `http://100.105.212.52:3003`，fg 动态预留、bg 闸内排队（~120s 预算）、快败 `429+Retry-After+X-Gate-Reason` 全由网关做——客户端**不需要**任何本地调速，`serve` 仅留给无分级网关的场景。
+
+bg 令牌存放：`bench/work_gwpilot/bg.token`（gitignored）或 env `GWPILOT_BG_KEY`。队列里 `{BGKEY}` 占位符自动展开；`run` 注入 `TEXLATE_API_KEY`/`TEXLATE_GATEWAY_KEY`/`TEXLATE_BASE_URL` 默认值覆盖 env 驱动的入口（llm_hook 等）。
+
+## 网关侧语义（直连模式要懂的）
+
+- bg 请求可在闸内排队最长 ~120s 才出首字节——`xlat/client.py` 的 `read` 超时已抬到 300s 覆盖此；429 只代表预算真耗尽，按 `Retry-After` 睡满再试（xlat `call_with_backoff` 已直接信 `retry_after`，不叠加退避）。
+- `X-Gate-Reason`：`quota`=桶满/被 fg 预留挡住（睡到下一窗口）；`latch`=上游冷却闩（睡闩剩余，可能几分钟）；`hold`=闸内排队超预算（睡到下一窗口）。
+- 每响应带 `X-Gate-Class/Lane/Window-Used/Window-Quota/Window-Reset/Wait-Ms`——排障与节奏校准用，正常跑批不依赖。
+- 观测可选：`/admin/runtime-metrics` 的 `window_used_fg/bg`、`waiters_fg/bg`、`reject_bg_reserve_count`；`/admin/active-requests` 每行带 class。
 
 ## 上游限流语义（archbox devin-2api `internal/adapter/devin/rategate.go` 实读）
 
-- 上游按自然分钟桶限约 80rpm（`max_rpm: 80`，**被拒的尝试也计数**——硬闯会把 1 分钟小限流续成十几分钟自封）。网关把发送对齐到同一套分钟桶（桶界约 :59–:00，两端各 2s 死区）。
-- 桶内配额耗尽 → 本地排队，预估等超 `gate_max_hold=15s` 直接快败 `429 + Retry-After`。
-- 上游 `resource_exhausted` → 上冷却闩至声明 reset（无声明兜底 60s）；闩内只放 8s 间隔滴灌探针，其余立即 429+`Retry-After=闩剩余`；任一成功帧提前解闩。
-- 观测面：`GET /healthz` → `active_requests`（全局在途，跨所有客户端）；`GET /admin/stats`（Bearer）→ `rpm_stats.recent_rpm`（全局近一分钟速率）、`recent.s60`（ttfb/dur/cache_pct）。
-- 别名 `claude-opus-4-6 → swe-2-max` 意味着本机 Claude 会话与 bench 共喝同一 lane——这正是「让路」的对象。
+- 上游按自然分钟桶限约 80rpm/lane（**被拒的尝试也计数**——硬闯会把 1 分钟小限流续成十几分钟自封）。网关把发送对齐到同一套分钟桶（桶界约 :59–:00，两端各 2s 死区）。
+- fg/bg 分级：`fg_rate` EMA × 桶剩余秒 + `waiters_fg` + margin(4) = fg 预留量；bg 只用预留外槽位，fg waiter 永远先于 bg waiter 出队。fg 排队上限 15s 快败，bg 120s。
+- 上游 `resource_exhausted` → 上冷却闩至声明 reset（无声明兜底 60s）；闩内只放 8s 间隔滴灌探针，任一成功帧提前解闩。
+- 别名 `claude-opus-4-6 → swe-2-max` 意味着本机 Claude 会话是 fg 流量——bg 预留机制正是为它让路。
 
-## 调速算法（Governor）
+## 调速算法（`serve` 模式内部件——本网关已不需要）
 
 每个打向 `/v1/chat/completions|/v1/messages` 的 POST 先过闸，其余路径直通。v2 起有两层：**精确桶算术**（主）+ **AIMD 兜底**（accounts 数据过期或上游行为漂移时接管）。
 
@@ -48,27 +58,25 @@ accounts 数据 >12s 未刷新 → 精确桶门失效回退到纯天花板路径
 ## 用法
 
 ```bash
-# 常驻代理（任何 bench 指 --base-url 即过闸）
-python3 bench/py/gwpilot.py serve [--max-cap 40] [--rpm-budget 72]
-
-# 队列驱动——内嵌代理；3398 已活则自动 attach
+# 队列驱动——默认直连网关（fg/bg 分级在网关侧）
 python3 bench/py/gwpilot.py run bench/queue/night.jsonl --follow
 
 # 脱管（>30min 纪律：setsid + run.log）
 setsid nohup python3 bench/py/gwpilot.py run bench/queue/night.jsonl --follow \
     >> bench/results/gwpilot/run.log 2>&1 </dev/null &
 
-# 观测 / 热调
-python3 bench/py/gwpilot.py status
+# 调速代理（无 fg/bg 分级的网关兜底；本网关不需要）
+python3 bench/py/gwpilot.py serve [--max-cap 40] [--rpm-budget 72]
+python3 bench/py/gwpilot.py status                    # 代理模式观测
 curl -XPOST localhost:3398/__gwpilot/control -d '{"max_cap":8,"pause":true}'
 touch bench/work_gwpilot/PAUSE   # 或 --pause-file 指定哨兵：存在即全员让路
 ```
 
-各 bench 的接入点：`stagerun xlat --base-url {GW}`、`e2e_real_bench --base-url {GW}`、`qualbench --base-url {GW}`、`fixloop llm_hook`/texlate server 读 `TEXLATE_BASE_URL` env（run 驱动已默认注入）。客户端的 `--sem/--concurrency` 变成「意愿值」，真实在途由代理裁。
+各 bench 的接入点：`stagerun xlat --base-url {GW} --api-key {BGKEY}`、`e2e_real_bench --base-url {GW} --api-key {BGKEY}`、`qualbench` 同款、`fixloop llm_hook`/texlate server 读 `TEXLATE_BASE_URL`/`TEXLATE_API_KEY` env（run 驱动已注入 bg 令牌）。客户端的 `--sem/--concurrency` 是「意愿值」，真实节奏由网关闸裁——可以往大填，bg 排队由网关消化。
 
 ## 队列文件（`bench/queue/*.jsonl`，可入库）
 
-每行 `{"id": "唯一", "sh": "shell 串"}` 或 `{"argv": [...]}`，可选 `"env": {}`、`"cwd"`。`{GW}` 占位符展开成代理 URL。`#` 注释/空行允许。语义：
+每行 `{"id": "唯一", "sh": "shell 串"}` 或 `{"argv": [...]}`，可选 `"env": {}`、`"cwd"`。`{GW}` 展开为网关 URL（`--serve` 时为本地代理），`{BGKEY}` 展开为 bg 令牌。`#` 注释/空行允许。语义：
 
 - 串行执行（任务内部已并发，闸在代理层）；`done` 跳过、`failed` 重试 ≤3 次（`--retry-failed` 重置计数）、中断回 `pending`。
 - 状态 `bench/work_gwpilot/state/<queue>.state.json`；日志 `bench/work_gwpilot/logs/<queue>/<id>.log`。

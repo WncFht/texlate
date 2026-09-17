@@ -1,27 +1,21 @@
 #!/usr/bin/env python3
-r"""gwpilot — 见缝插针网关调度器：自适应并发闸代理 + 断点续跑队列驱动。
+r"""gwpilot — 见缝插针批跑驱动：断点续跑队列（主）+ 自适应并发闸代理（兜底）。
 
-为什么需要它（devin-2api rategate 实测语义，archbox internal/adapter/devin）：
-
-  * 上游按**自然分钟桶**计 ~80rpm（config max_rpm:80，被拒尝试也计数），
-    网关侧对齐窗口发送，排队预估超 gate_max_hold(15s) 即本地快败
-    429+Retry-After；上游 resource_exhausted 则上冷却闩（声明 reset 或兜底
-    60s），闩内仅 8s 滴灌探针、其余全部立即 429+Retry-After=闩剩余。
-  * 本机 Claude 会话（claude-opus-4-6→swe-2-max 别名）与 texlate 产品链
-    共用同一 lane——白天互动流量要优先，夜里空档要能吃满。
-  * 退役 gwcap 是固定 sem=4 硬闸；本工具换成**自适应闸**：直读网关
-    /admin/accounts 的每-lane 闸门态（window_used/quota/latched/sendable/
-    waiters/inflight）做精确桶算术——配额剩多少、外部来多快、何时开新桶
-    全是实时值不是估计；429 时按 Retry-After 全局冷却再半开爬坡兜底。
+2026-09-18 起 devin-2api 网关已上线 fg/bg 分级准入：批跑用 bg 令牌直连即被
+闸内调度（fg 动态预留、bg 闸内排队 ~120s、快败 429 带 Retry-After +
+X-Gate-Reason: quota|latch|hold，每响应附 X-Gate-* 窗口遥测）——run 默认
+直连，调速职能上交网关。serve 代理留作无分级网关的兜底；需求规格与语义
+见 docs/research/gateway/2026-09-17-devin2api-fg-bg-admission.md 与
+gwpilot.md。
 
 用法：
 
-  # 常驻代理（给手工 bench / texlate server 指 --base-url 用）
-  python3 bench/py/gwpilot.py serve [--port 3398] [--max-cap 40]
-
-  # 队列驱动（内嵌代理；端口已活则自动 attach 复用）
+  # 队列驱动（默认直连网关）
   python3 bench/py/gwpilot.py run bench/queue/night.jsonl [--follow]
-      [--max-load 8] [--retry-failed]
+      [--max-load 8] [--retry-failed] [--serve]
+
+  # 常驻调速代理（无 fg/bg 分级的网关才需要）
+  python3 bench/py/gwpilot.py serve [--port 3398] [--max-cap 40]
 
   # 观测
   python3 bench/py/gwpilot.py status [--port 3398]     # 单行
@@ -29,9 +23,11 @@ r"""gwpilot — 见缝插针网关调度器：自适应并发闸代理 + 断点�
   curl -XPOST localhost:3398/__gwpilot/control -d '{"max_cap":8,"pause":true}'
 
 队列文件（JSONL，# 注释/空行可）：{"id": "x", "sh": "... {GW} ...", "env": {...}}
-  {GW} 展开为代理 base-url；env 注入 TEXLATE_BASE_URL/TEXLATE_API_KEY/
-  TEXLATE_GATEWAY_KEY 默认值。状态落 <queue>.state.json（done 跳过、
-  failed 重试≤3 次），日志 bench/work_gwpilot/logs/<queue>/<id>.log。
+  {GW} 展开为网关 base-url（直连=上游，--serve=本代理）；{BGKEY} 展开为
+  bg 令牌（env GWPILOT_BG_KEY 或 bench/work_gwpilot/bg.token 读入）；env 注入
+  TEXLATE_BASE_URL/TEXLATE_API_KEY/TEXLATE_GATEWAY_KEY 默认值。状态落
+  <queue>.state.json（done 跳过、failed 重试≤3 次），日志
+  bench/work_gwpilot/logs/<queue>/<id>.log。
 
 脱管（>30min 一律 setsid，runbook 纪律）：
   setsid nohup python3 bench/py/gwpilot.py run bench/queue/night.jsonl --follow \
@@ -70,7 +66,8 @@ TASK_PING = PY_DIR / "task_ping.py"
 
 DEFAULT_UPSTREAM = "http://100.105.212.52:3003"
 DEFAULT_PORT = 3398
-DEFAULT_KEY = "240127"  # 与 qualbench/e2e_real_bench 的默认 --api-key 同源
+DEFAULT_KEY = "240127"  # 与 qualbench/e2e_real_bench 的默认 --api-key 同源（fg）
+BG_TOKEN_FILE = WORK_DIR / "bg.token"  # bg 令牌存放点（bench/work_* gitignored）
 
 _HOP_BY_HOP = frozenset(
     {
@@ -751,6 +748,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
         f"(healthz /__gwpilot/healthz)",
         flush=True,
     )
+
     # shutdown() 必须跨线程调——信号 handler 跑在主线程会跟 serve_forever 死锁
     def _sig(*_a: object) -> None:
         threading.Thread(target=srv.shutdown, daemon=True).start()
@@ -845,6 +843,26 @@ def _gov_healthz(cfg: GovConfig) -> dict | None:
         return None
 
 
+def _bg_key() -> str:
+    """bg 令牌：env GWPILOT_BG_KEY > bg.token 文件。缺省 ""（调用方提示按 fg 计费）。"""
+    env = os.environ.get("GWPILOT_BG_KEY", "").strip()
+    if env:
+        return env
+    if BG_TOKEN_FILE.exists():
+        return BG_TOKEN_FILE.read_text(encoding="utf-8").strip()
+    return ""
+
+
+def _upstream_ok(cfg: GovConfig) -> bool:
+    """直连模式的发射前活性检查：上游 /healthz 报 ok 且不在 draining。"""
+    try:
+        with urllib.request.urlopen(f"{cfg.upstream}/healthz", timeout=5) as r:  # noqa: S310 — 内网网关
+            d = json.loads(r.read())
+    except Exception:
+        return False
+    return d.get("status") == "ok" and not d.get("draining")
+
+
 def cmd_run(args: argparse.Namespace) -> int:
     queue = Path(args.queue).resolve()
     state_dir = WORK_DIR / "state"
@@ -854,10 +872,10 @@ def cmd_run(args: argparse.Namespace) -> int:
     log_dir.mkdir(parents=True, exist_ok=True)
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
-    # 代理：端口已活则 attach，否则内嵌一个
+    # 默认直连网关（fg/bg 分级准入在网关侧）；--serve 才内嵌/attach 调速代理
     cfg = _cfg_from(args)
     srv: GovServer | None = None
-    if not args.no_serve:
+    if args.serve:
         if _gov_healthz(cfg) is not None:
             _LOG.info("attach existing gwpilot :%d", cfg.port)
         else:
@@ -865,7 +883,14 @@ def cmd_run(args: argparse.Namespace) -> int:
             srv.gov.start_pollers()
             threading.Thread(target=srv.serve_forever, daemon=True).start()
             _LOG.info("embedded gwpilot :%d -> %s", cfg.port, cfg.upstream)
-    gw = f"http://{cfg.listen}:{cfg.port}"
+        gw = f"http://{cfg.listen}:{cfg.port}"
+    else:
+        gw = cfg.upstream
+    bgkey = _bg_key()
+    if not bgkey:
+        _LOG.warning(
+            "bg 令牌缺失（GWPILOT_BG_KEY / %s）——批跑将按 fg 计费", BG_TOKEN_FILE
+        )
 
     stop = threading.Event()
 
@@ -913,8 +938,12 @@ def cmd_run(args: argparse.Namespace) -> int:
 
         # 上游不可达/本地高载时不发新任务（在跑的不杀）
         while not stop.is_set():
-            snap = _gov_healthz(cfg) if not args.no_serve else None
-            if snap is not None and not snap.get("up_ok", True):
+            if args.serve:
+                snap = _gov_healthz(cfg)
+                up_ok = snap.get("up_ok", False) if snap is not None else False
+            else:
+                up_ok = _upstream_ok(cfg)
+            if not up_ok:
                 _LOG.info("上游不可达——等 30s")
                 stop.wait(30)
                 continue
@@ -932,20 +961,23 @@ def cmd_run(args: argparse.Namespace) -> int:
         if stop.is_set():
             break
 
+        def _xp(s: str) -> str:
+            return s.replace("{GW}", gw).replace("{BGKEY}", bgkey)
+
         sh = t.get("sh")
         argv = t.get("argv")
         if sh:
-            run_argv: list[str] | str = sh.replace("{GW}", gw)
+            run_argv: list[str] | str = _xp(sh)
             shell = True
         else:
-            run_argv = [a.replace("{GW}", gw) for a in argv]
+            run_argv = [_xp(a) for a in argv]
             shell = False
         env = dict(os.environ)
         env.setdefault("TEXLATE_BASE_URL", gw)
-        env.setdefault("TEXLATE_API_KEY", cfg.key)
-        env.setdefault("TEXLATE_GATEWAY_KEY", cfg.key)
+        env.setdefault("TEXLATE_API_KEY", bgkey or cfg.key)
+        env.setdefault("TEXLATE_GATEWAY_KEY", bgkey or cfg.key)
         for k, v in (t.get("env") or {}).items():
-            env[k] = str(v).replace("{GW}", gw)
+            env[k] = _xp(str(v))
 
         logf = log_dir / f"{tid}.log"
         _LOG.info("task %s start -> %s", tid, logf)
@@ -1042,7 +1074,7 @@ def main() -> None:
     p_serve = sub.add_parser("serve", help="常驻自适应并发闸代理")
     _add_gov_flags(p_serve)
 
-    p_run = sub.add_parser("run", help="断点续跑队列驱动（内嵌/attach 代理）")
+    p_run = sub.add_parser("run", help="断点续跑队列驱动（默认直连网关）")
     p_run.add_argument("queue", help="JSONL 队列文件")
     p_run.add_argument("--follow", action="store_true", help="排空后驻留等新任务")
     p_run.add_argument(
@@ -1052,7 +1084,9 @@ def main() -> None:
         "--retry-failed", action="store_true", help="重置 failed 任务的重试计数"
     )
     p_run.add_argument(
-        "--no-serve", action="store_true", help="不内嵌代理（直连或已另有代理）"
+        "--serve",
+        action="store_true",
+        help="内嵌/attach 调速代理（无 fg/bg 分级的网关才需要）",
     )
     _add_gov_flags(p_run)
 

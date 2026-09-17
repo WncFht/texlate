@@ -1,22 +1,25 @@
 # night.jsonl — gwpilot 夜间批队列（见 bench/py/gwpilot.py 头注）。
-# 每行一个任务：{"id": 唯一, "sh": 命令串}；{GW} 展开为代理入口 http://127.0.0.1:3398。
+# 每行一个任务：{"id": 唯一, "sh": 命令串}。
+# {GW} 展开为网关 base-url（默认直连 http://100.105.212.52:3003）；
+# {BGKEY} 展开为 bg 令牌（env GWPILOT_BG_KEY 或 bench/work_gwpilot/bg.token）——
+# 网关 fg/bg 分级准入：bg 请求闸内排队让 fg，不占交互配额。
 # 状态：bench/work_gwpilot/state/night.state.json（done 跳过、failed≤3 重试）；
 # 日志：bench/work_gwpilot/logs/night/<id>.log。
 #
 # 主批：corpus_v3 全层（core1000+booster200+hot135）真实翻译，rt1 独立结果目。
 # --dir 钉死目录防跨零点拆批；xlat real 臂是网关大户（~1335 篇），
-# sem=64 是意愿值，真实在途由代理按外部占用自适应（max_cap 40）。
+# --sem/--concurrency 是客户端意愿值，真实节奏由网关闸裁（bg 可排队 ~120s）。
 # 其余 CPU 阶段不占网关，随手填队列一起跑。
 
 {"id": "rt1-ingest",   "sh": "uv run python bench/py/stagerun.py ingest --layers core,booster,hot --dir bench/results/stagerun-rt1"}
 {"id": "rt1-parse",    "sh": "uv run python bench/py/stagerun.py parse --layers core,booster,hot --dir bench/results/stagerun-rt1 --jobs 6"}
-{"id": "rt1-xlat-smoke", "sh": "uv run python bench/py/stagerun.py xlat --arm real --n 8 --seed 7 --layers core,booster,hot --dir bench/results/stagerun-rt1 --jobs 4 --sem 64 --concurrency 16 --base-url {GW}"}
-{"id": "rt1-xlat-real",  "sh": "uv run python bench/py/stagerun.py xlat --arm real --layers core,booster,hot --dir bench/results/stagerun-rt1 --jobs 6 --sem 64 --concurrency 16 --base-url {GW}"}
+{"id": "rt1-xlat-smoke", "sh": "uv run python bench/py/stagerun.py xlat --arm real --n 8 --seed 7 --layers core,booster,hot --dir bench/results/stagerun-rt1 --jobs 4 --sem 64 --concurrency 16 --base-url {GW} --api-key {BGKEY}"}
+{"id": "rt1-xlat-real",  "sh": "uv run python bench/py/stagerun.py xlat --arm real --layers core,booster,hot --dir bench/results/stagerun-rt1 --jobs 6 --sem 64 --concurrency 16 --base-url {GW} --api-key {BGKEY}"}
 {"id": "rt1-compile",  "sh": "uv run python bench/py/stagerun.py compile --arm zh --xlat-arm real --layers core,booster,hot --dir bench/results/stagerun-rt1 --jobs 6"}
 {"id": "rt1-fixloop",  "sh": "uv run python bench/py/stagerun.py fixloop --on fail --layers core,booster,hot --dir bench/results/stagerun-rt1 --jobs 6"}
 
-# 质量评测臂（LLM judge 也走 {GW}——同闸计费）；按需解注。
-# {"id": "rt1-qual", "sh": "uv run python bench/py/qualbench.py run --source state --papers 40 --n 400 --judge-model swe-2-medium --base-url {GW} --tag rt1qual"}
+# 质量评测臂（LLM judge 也走 {BGKEY}——同闸按 bg 计）；按需解注。
+# {"id": "rt1-qual", "sh": "uv run python bench/py/qualbench.py run --source state --papers 40 --n 400 --judge-model swe-2-medium --base-url {GW} --api-key {BGKEY} --tag rt1qual"}
 
 # e2e 真译全链补样（records 续跑；--concurrency 是意愿值）：
-# {"id": "e2e-n300", "sh": "uv run python bench/py/e2e_real_bench.py --n 300 --seed 43 --layers core,booster --concurrency 48 --base-url {GW} --tag n300b"}
+# {"id": "e2e-n300", "sh": "uv run python bench/py/e2e_real_bench.py --n 300 --seed 43 --layers core,booster --concurrency 48 --base-url {GW} --api-key {BGKEY} --tag n300b"}
