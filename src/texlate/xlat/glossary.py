@@ -20,16 +20,19 @@ from __future__ import annotations
 import csv
 import logging
 import re
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import yaml
 
+from texlate.textutil import safe_is_file, safe_resolve
+
 from .placeholders import sort_key
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Mapping
+    from collections.abc import Iterable, Iterator, Mapping
 
 log = logging.getLogger(__name__)
 
@@ -80,25 +83,34 @@ class Glossary:
         g = cls()
         # ① 用户表（缺省读 ~/.texlate/glossary.yaml；显式 path 优先）
         u = user_path if user_path is not None else USER_GLOSSARY_PATH
-        if u.exists():
+        if safe_is_file(u):
             g._merge(load_table(u), "user")
         # ② 论文级覆盖
-        if local_path is not None and local_path.exists():
+        if local_path is not None and safe_is_file(local_path):
             g._merge(load_table(local_path), "local")
-        # ③ category 表（声明序先命中先写）
+        # ③ category 表（声明序先命中先写）；index 条目 resolve 后须落
+        # terms_dir 内——``..``/绝对路径/symlink 外指一律按无文件跳过（D4）
         index = load_index(terms_dir / "index.yaml")
+        tdir = safe_resolve(terms_dir)
         for cat in categories:
             for fname in index.get(cat, []):
-                path = terms_dir / fname
-                if path.exists():
-                    g._merge(load_table(path), f"category:{cat}")
+                cand = safe_resolve(terms_dir / fname)
+                if (
+                    tdir is None
+                    or cand is None
+                    or not cand.is_relative_to(tdir)
+                    or not safe_is_file(cand)
+                ):
+                    continue
+                g._merge(load_table(cand), f"category:{cat}")
         # ④ 内建默认表
         if include_default:
             default = terms_dir / "default.csv"
-            if default.exists():
+            if safe_is_file(default):
                 g._merge(load_table(default), "default")
-        # ⑤ 占位符恒等注入（最低优先级）
-        for ph in sorted(set(placeholders), key=sort_key):
+        # ⑤ 占位符恒等注入（最低优先级）；sort_key 非全序，同键按 ph 消歧
+        # ——逐字节稳定是前缀缓存命中前提（D7）
+        for ph in sorted(set(placeholders), key=lambda p: (sort_key(p), p)):
             g.terms.setdefault(ph, TermEntry(ph, ph, "placeholder"))
         return g
 
@@ -127,7 +139,7 @@ class Glossary:
             ):
                 real.append(entry)
         real.sort(key=lambda e: e.en.lower())
-        phs.sort(key=lambda e: sort_key(e.en))
+        phs.sort(key=lambda e: (sort_key(e.en), e.en))
         return {e.en: e.zh for e in [*real, *phs]}
 
     def as_dict(self) -> dict[str, str]:
@@ -148,18 +160,53 @@ def load_table(path: Path) -> dict[str, str]:
     raise ValueError(msg)
 
 
+def _csv_data_lines(f: Iterable[str]) -> Iterator[str]:
+    """``#`` 起头注释行剥除——判定在**原始行**上做（RFC 引号形 ``"#tag"`` 是数据）。
+
+    ``in_quotes`` 跨行近似跟踪：引号字段内嵌换行的 ``#`` 行是字段内容非注释；
+    裸 ``"`` 中场出现属畸形输入，跟踪漂移最坏只多收一条注释形术语，不崩。
+    """
+    in_quotes = False
+    for line in f:
+        if not in_quotes and line.lstrip().startswith("#"):
+            continue
+        yield line
+        i = 0
+        while i < len(line):
+            if line[i] == '"':
+                if in_quotes and line.startswith('"', i + 1):
+                    i += 1  # "" 转义对，不改变引号态
+                else:
+                    in_quotes = not in_quotes
+            i += 1
+
+
 def load_csv(path: Path) -> dict[str, str]:
     """两列无表头 `en,zh`（LaTeXTrans 语料兼容）。空行/# 注释行跳过。"""
     out: dict[str, str] = {}
-    # utf-8-sig：Excel 导出的 BOM 会让首行 en 黏上 U+FEFF 永远查无此词
-    with path.open(encoding="utf-8-sig", newline="") as f:
-        for row in csv.reader(f):
-            if not row or (row[0].strip().startswith("#")):
-                continue
-            en = row[0].strip()
-            zh = row[1].strip() if len(row) > 1 else ""
-            if en:
-                out[en] = zh or en  # 单列行视为"保原语"条目
+    # _csv.field_size_limit 默认 128KiB——单字段超限抛 csv.Error 整表拒载。
+    # 抬到平台上限后解析、读完还原（limit 是 _csv 模块全局态）。
+    old_limit = csv.field_size_limit()
+    new_limit = sys.maxsize
+    while True:
+        try:
+            csv.field_size_limit(new_limit)
+        except OverflowError:  # win32 C long 上限
+            new_limit //= 10
+        else:
+            break
+    try:
+        # utf-8-sig：Excel 导出的 BOM 会让首行 en 黏上 U+FEFF 永远查无此词
+        with path.open(encoding="utf-8-sig", newline="") as f:
+            for row in csv.reader(_csv_data_lines(f)):
+                if not row:
+                    continue
+                en = row[0].strip()
+                zh = row[1].strip() if len(row) > 1 else ""
+                if en:
+                    out[en] = zh or en  # 单列行视为"保原语"条目
+    finally:
+        csv.field_size_limit(old_limit)
     return out
 
 
@@ -202,6 +249,8 @@ def flatten_terms(data: object, *, name: str) -> dict[str, str]:
     """把 yaml/csv 读出的结构归一为 `{en: zh}`。
 
     接受 `{en: zh}`、`{en: {target: zh, ...}}`、`{"terms": {...}}` 三种形态。
+    yaml 空值（``en:``/``~``/``{target: null}``）按保原语处理——``str(None)``
+    会把字面 ``"None"`` 注进 prompt。
     """
     if data is None:
         return {}
@@ -216,10 +265,13 @@ def flatten_terms(data: object, *, name: str) -> dict[str, str]:
         if not en:
             continue
         if isinstance(v, dict):
-            zh = str(v.get("target", en)).strip() or en
+            t = v.get("target")
+            zh = en if t is None else (str(t).strip() or en)
         elif isinstance(v, list):
             msg = f"{name}: term {en!r} has list value, expected string or mapping"
             raise TypeError(msg)
+        elif v is None:
+            zh = en
         else:
             zh = str(v).strip() or en
         out[en] = zh

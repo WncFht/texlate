@@ -359,8 +359,12 @@ def recover_copied_tokens(zh: str, ph_map: Mapping[str, str]) -> tuple[str, list
 
 
 def collect_doc_placeholders(contents: Iterable[str]) -> list[str]:
-    """收集文档全部 chunk 的占位符集合，按 `sort_key` 稳定排序（术语表注入用）。"""
+    """收集文档全部 chunk 的占位符集合，按 `sort_key` 稳定排序（术语表注入用）。
+
+    ``sort_key`` 非全序（``[[A_1]]``/``[[A_01]]`` 同键）——同键按 token 字面
+    消歧，否则 tie 落 set 迭代序 = 哈希序，注入序随 PYTHONHASHSEED 漂移。
+    """
     seen: set[str] = set()
     for text in contents:
         seen.update(ANY_PH_RX.findall(text))
-    return sorted(seen, key=sort_key)
+    return sorted(seen, key=lambda p: (sort_key(p), p))

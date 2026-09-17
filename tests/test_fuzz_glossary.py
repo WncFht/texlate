@@ -511,63 +511,42 @@ def test_fuzz_glossary_path_jail_forest(tmp_path: Path) -> None:
 # ---------------------------------------------------------------- 牢笼：崩溃族（缺陷钉）
 
 
-@pytest.mark.xfail(
-    reason=(
-        "CONFIRMED D1：NUL 经 resolve() lstat 抛 ValueError 逃逸——"
-        "_make_cache/_share_glossary_hash 无兜网，请求面可 fault 任务"
-    ),
-    strict=True,
-)
 @pytest.mark.parametrize(
     "gpath", ["\x00", "a\x00b", "x\x00.yaml", "sub/\x00", "\x00/x"]
 )
 def test_glossary_path_nul_returns_none(
     gpath: str, jail_tree: tuple[Path, Path, Path]
 ) -> None:
-    """期望：NUL 名按「不在允许根内」静默拒——同 ``..`` 拒径同语态。"""
+    """NUL 名按「不在允许根内」静默拒——同 ``..`` 拒径同语态（D1 已修：
+    ``safe_resolve`` 吞 ``ValueError``）。"""
     base, gdir, _ = jail_tree
     assert _resolve_glossary_path(gpath, "", base) is None
     assert _resolve_glossary_path(gpath, str(gdir), base) is None
 
 
-@pytest.mark.xfail(
-    reason="CONFIRMED D1 同族：glossary_dir 含 NUL 同样 ValueError 逃逸",
-    strict=True,
-)
 def test_glossary_path_nul_gdir_returns_none(tmp_path: Path) -> None:
+    """D1 同族：``glossary_dir`` 含 NUL → 该根按缺席处理。"""
     base = tmp_path / "base"
     base.mkdir()
     assert _resolve_glossary_path("x.yaml", "g\x00d", base) is None
 
 
-@pytest.mark.xfail(
-    reason=(
-        "CONFIRMED D2：>255B 组件经 resolve() 抛 ENAMETOOLONG——"
-        "与 NUL 同面的请求可控崩溃"
-    ),
-    strict=True,
-)
 @pytest.mark.parametrize("n", [_NAME_MAX + 1, _NAME_MAX + 45])
 def test_glossary_path_overlong_component(
     n: int, jail_tree: tuple[Path, Path, Path]
 ) -> None:
+    """D2 已修：>255B 组件经 ``safe_resolve`` 吞 ``ENAMETOOLONG`` → None。"""
     base, gdir, _ = jail_tree
     assert _resolve_glossary_path("x" * n, "", base) is None
     assert _resolve_glossary_path("sub/" + "x" * n, str(gdir), base) is None
 
 
-@pytest.mark.xfail(
-    reason=(
-        "CONFIRMED D9：symlink 环经 resolve() 抛 RuntimeError(ELOOP)——"
-        "非 OSError 系逃逸；arXiv tar 可带 a→a 自环项落 base/ 即请求面可点爆"
-    ),
-    strict=True,
-)
 @pytest.mark.parametrize("gpath", ["lk_loop", "lk_loop/x"])
 def test_glossary_path_symlink_loop_returns_none(
     gpath: str, jail_tree: tuple[Path, Path, Path]
 ) -> None:
-    """期望：环链按「非常规文件」静默拒——同悬挂链同语态。"""
+    """D9 已修：环链按「非常规文件」静默拒——同悬挂链同语态
+    （``check_eloop`` 的 ``RuntimeError`` 非 OSError 系，``safe_resolve`` 同吞）。"""
     base, gdir, _ = jail_tree
     assert _resolve_glossary_path(gpath, "", base) is None
     assert _resolve_glossary_path(gpath, str(gdir), base) is None
@@ -626,19 +605,12 @@ def test_flatten_terms_list_value_typeerror(data: object) -> None:
         flatten_terms(data, name="t")
 
 
-@pytest.mark.xfail(
-    reason=(
-        "CONFIRMED D3：yaml 空值（en:/~/null/{target:null}）经 str(None) "
-        "变 'None' 字面译文注进 prompt——应落恒等"
-    ),
-    strict=True,
-)
 @pytest.mark.parametrize(
     "data",
     [{"a": None}, {"a": {"target": None}}],
 )
 def test_flatten_terms_null_is_identity(data: object) -> None:
-    """期望：空值术语 = 保原语（``zh == en``），与 ``en: ""`` 同语态。"""
+    """D3 已修：空值术语 = 保原语（``zh == en``），与 ``en: ""`` 同语态。"""
     assert flatten_terms(data, name="t") == {"a": "a"}
 
 
@@ -672,7 +644,8 @@ def test_fuzz_flatten_terms_contract() -> None:
 def test_load_csv_pins(tmp_path: Path) -> None:
     """注释/空行/引号/单例恒等/后写胜/NUL 穿透逐条钉。
 
-    D6 观察：``#`` 起头术语连引号也保不住（解引号后再判注释）。
+    D6 已修：注释判定在原始行上做——裸 ``#x,3`` 是注释丢，
+    RFC 引号形 ``"#q"`` 是数据留。
     """
     p = tmp_path / "t.csv"
     p.write_text(
@@ -693,6 +666,7 @@ def test_load_csv_pins(tmp_path: Path) -> None:
     assert load_csv(p) == {
         "a": "1",
         "b,c": "2",
+        "#q": "4",  # 引号形 ``#`` 字段是数据
         "single": "single",
         "k": "k",
         "last": "two",  # 同文件重复：后写胜（对照跨层先写胜）
@@ -737,18 +711,12 @@ def test_fuzz_load_csv_contract(tmp_path: Path) -> None:
         assert out == load_csv(p)
 
 
-@pytest.mark.xfail(
-    reason=(
-        "CONFIRMED D5：字段 >csv.field_size_limit(131072) 抛 csv.Error——"
-        "一行坏数据整表崩，docstring 未记此错型"
-    ),
-    strict=True,
-)
 def test_load_csv_huge_field_graceful(tmp_path: Path) -> None:
-    """期望：超限字段不使整表拒载（抬限/跳行皆可，语义待裁决）。"""
+    """D5 已修：超限字段不使整表拒载——``load_csv`` 解析期间把
+    ``csv.field_size_limit`` 抬到平台上限、读完还原。"""
     p = tmp_path / "big.csv"
     p.write_text("k," + "v" * (_CSV_FIELD_MAX + 1) + "\n", encoding=_MODE)
-    assert isinstance(load_csv(p), dict)
+    assert load_csv(p) == {"k": "v" * (_CSV_FIELD_MAX + 1)}
 
 
 def test_load_yaml_pins(tmp_path: Path) -> None:
@@ -828,12 +796,11 @@ def test_load_index_forms(tmp_path: Path) -> None:
 
 
 def test_load_index_escape_mechanism(tmp_path: Path) -> None:
-    """CONFIRMED D4（潜伏面）：index 条目经 ``terms_dir / fname`` 裸拼接——
+    """D4 已修：index 条目 confine 到 ``terms_dir``——``..`` 相对形、绝对路径
+    （``Path`` 右操作数取胜）、symlink 外指三臂 resolve 后落界外一律跳过。
 
-    ``..`` 相对逃逸与绝对路径（``Path`` 右操作数取胜）皆可读 ``terms_dir``
-    外文件。当前 index.yaml 是包内受信数据；钉住机制本身——``terms_dir``
-    是 ``Glossary.load`` 公开 kwarg，根/索引一旦用户可写即任意文件读，
-    术语进 prompt 是外泄通道（审计 M2 口径）。
+    ``terms_dir`` 是 ``Glossary.load`` 公开 kwarg——根/索引一旦用户可写，
+    裸拼接即任意文件读（术语进 prompt 是外泄通道，审计 M2 口径）。
     """
     tdir = tmp_path / "terms"
     tdir.mkdir()
@@ -841,16 +808,17 @@ def test_load_index_escape_mechanism(tmp_path: Path) -> None:
     outside.mkdir()
     (outside / "sec.yaml").write_text("leak: 外\n", encoding=_MODE)
     (outside / "abs.yaml").write_text("absleak: 外\n", encoding=_MODE)
+    (tdir / "lk.yaml").symlink_to(outside / "sec.yaml")
     (tdir / "index.yaml").write_text(
-        f'c1: ../outside/sec.yaml\nc2: ["{outside}/abs.yaml"]\nc3: ok.csv\n',
+        f'c1: ../outside/sec.yaml\nc2: ["{outside}/abs.yaml"]\nc3: ok.csv\nc4: lk.yaml\n',
         encoding=_MODE,
     )
     (tdir / "ok.csv").write_text("ok,1\n", encoding=_MODE)
     g = Glossary.load(
-        categories=["c1", "c2", "c3"], terms_dir=tdir, include_default=False
+        categories=["c1", "c2", "c3", "c4"], terms_dir=tdir, include_default=False
     )
-    assert g.terms["leak"].zh == "外"  # .. 逃逸命中
-    assert g.terms["absleak"].zh == "外"  # 绝对路径逃逸命中
+    assert "leak" not in g.terms  # .. 逃逸被拒
+    assert "absleak" not in g.terms  # 绝对路径逃逸被拒
     assert g.terms["ok"].zh == "1"
 
 
@@ -921,26 +889,17 @@ def test_load_missing_and_broken(tmp_path: Path) -> None:
     )
 
 
-@pytest.mark.xfail(
-    reason=(
-        "CONFIRMED D8：目录型层文件 exists() 放行后按后缀抛 "
-        "ValueError/IsADirectoryError 出 load——应按无文件跳过"
-    ),
-    strict=True,
-)
 @pytest.mark.parametrize("name", ["glos", "glos.yaml"])
 def test_load_dir_layer_skipped(tmp_path: Path, name: str) -> None:
+    """D8 已修：层门 ``exists()`` → ``safe_is_file``——目录型路径按无文件跳过。"""
     d = tmp_path / name
     d.mkdir()
     g = Glossary.load(user_path=d, include_default=False)
     assert g.terms == {}
 
 
-@pytest.mark.xfail(
-    reason="CONFIRMED D8 同族：category 条目指向目录 → IsADirectoryError 出 load",
-    strict=True,
-)
 def test_load_category_dir_entry_skipped(tmp_path: Path) -> None:
+    """D8 同族已修：category 条目指向目录 → confine 门后 ``safe_is_file`` 拒。"""
     tdir = tmp_path / "terms"
     tdir.mkdir()
     (tdir / "d.csv").mkdir()
@@ -1049,9 +1008,9 @@ def test_fuzz_load_precedence_oracle(  # noqa: C901 -- 分层构造天然多支�
             _wcsv(tdir / "default.csv", dt)
             if include_default:
                 put(dt, "default")
-        # ⑤ placeholder 层
+        # ⑤ placeholder 层——oracle 镜像 ``(sort_key, ph)`` 全序
         phs = [rng.choice(phs_pool) for _ in range(rng.randint(0, 4))]
-        for ph in sorted(set(phs), key=sort_key):
+        for ph in sorted(set(phs), key=lambda p: (sort_key(p), p)):
             exp.setdefault(ph, (ph, "placeholder"))
 
         g = Glossary.load(
@@ -1121,16 +1080,9 @@ def _ph_order_in_subprocess(seed: int) -> str:
     return r.stdout.strip()
 
 
-@pytest.mark.xfail(
-    reason=(
-        "CONFIRMED D7：sort_key 碰撞对 tie 落哈希序——跨进程注入序漂移，"
-        "违背 docstring「逐字节稳定是前缀缓存命中前提」；"
-        "collect_doc_placeholders 同病灶"
-    ),
-    strict=True,
-)
 def test_placeholder_order_seed_independent() -> None:
-    """期望：注入序与 ``PYTHONHASHSEED`` 无关（需 key 内消歧如 ``(key, ph)``）。"""
+    """D7 已修：注入序与 ``PYTHONHASHSEED`` 无关——排序键 ``(sort_key, ph)``
+    全序消歧；``collect_doc_placeholders`` 同口径。"""
     orders = {_ph_order_in_subprocess(seed) for seed in (0, 1, 2, 42, 1337)}
     assert len(orders) == 1
 
@@ -1186,7 +1138,7 @@ def _oracle_doc_filter(
     ]
     real.sort(key=lambda t: t[0].lower())  # stable — tie 保 terms 序
     phs = [(en, zh) for en, zh, src in terms if src == "placeholder"]
-    phs.sort(key=lambda t: sort_key(t[0]))
+    phs.sort(key=lambda t: (sort_key(t[0]), t[0]))
     return dict([*real, *phs])
 
 

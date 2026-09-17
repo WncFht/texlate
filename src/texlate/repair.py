@@ -50,6 +50,7 @@ from texlate.latex.tables import (
     PROTECTED_ENVS,
     VERBATIM_ENVS,
 )
+from texlate.textutil import safe_is_file, safe_resolve
 from texlate.validate import l2 as l2_mod
 from texlate.xlat import prompts as xlat_prompts
 
@@ -606,15 +607,22 @@ def _resolve_glossary_path(
 
     供 ``_make_cache`` 这类「只想知道生效文件」的调用方用——告警仍由
     ``_glossary_path``（``_make_glossary`` 路）发，不双发。
+
+    ``options.glossary`` 是未校验请求面输入，e-print tar 还可在 base/ 植
+    symlink 环——resolve/lstat 的 ``OSError``/``RuntimeError``/``ValueError``
+    三族一律收敛为 None（``safe_resolve``/``safe_is_file`` 口径）。
     """
     rel = Path(gpath)
     if rel.is_absolute() or ".." in rel.parts:
         return None
-    roots = [base_dir.resolve()]
+    roots = [safe_resolve(base_dir)]
     if glossary_dir:
-        roots.append(Path(glossary_dir).expanduser().resolve())
+        with suppress(OSError, RuntimeError, ValueError):
+            roots.append(safe_resolve(Path(glossary_dir).expanduser()))
     for base in roots:
-        cand = (base / rel).resolve()
-        if cand.is_relative_to(base) and cand.is_file():
+        if base is None:
+            continue
+        cand = safe_resolve(base / rel)
+        if cand is not None and cand.is_relative_to(base) and safe_is_file(cand):
             return cand
     return None
