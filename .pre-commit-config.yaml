@@ -76,6 +76,17 @@ repos:
         entry: actionlint
         language: system
         files: '\.github/workflows/.*\.(yml|yaml)$'
+      - id: rules-yaml-load
+        name: fixloop rules.yaml load validation
+        # 引用未实装 builtin / 非法转义会在整表 load 时 RulesetError——
+        # 挂表入仓则 wave 逐格 error（809 格事故）。staged-only 校验：
+        # pre-commit stash 后工作区即 staged 态，load 的就是待提交内容。
+        # 在飞窗口 --no-verify 绕过是约定逃生口；stagerun 波前
+        # Ruleset.load() preflight 兜底拦截。
+        entry: uv run python -c "from texlate.compile.fixloop import Ruleset; Ruleset.load()"
+        language: system
+        files: '^src/texlate/compile/fixloop/rules\.yaml$'
+        pass_filenames: false
   # secret 门控：默认规则 + .gitleaks.toml 自定义（本仓自有凭据格式、
   # 历史已提交值的精确放行）。GitHub push protection 只认标准 pattern，
   # 自有格式靠这里的自定义规则拦。
