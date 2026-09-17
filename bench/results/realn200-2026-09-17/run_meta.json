@@ -1,0 +1,22 @@
+{
+ "purpose": "real-arm n200 stratified sample prep (scout-realn200)",
+ "status": "prepared-awaiting-token",
+ "seed": 42,
+ "n_requested": 200,
+ "n_picked": 200,
+ "universe": 4960,
+ "exclusions": {
+  "alumni": 24,
+  "not_extracted": 13,
+  "heavy": 75
+ },
+ "exclusion_policy": "realpostfix2 alumni (24) + non-extracted (13) + src blob >20MB heavy tail (75)",
+ "stratification": "proportional by layer: core 39, booster 7, hot 2, expand 152",
+ "layer_pools": {
+  "core": 961,
+  "booster": 173,
+  "hot": 58,
+  "expand": 3768
+ },
+ "prepared_at": "2026-09-16T23:58:00.431948+00:00"
+}

@@ -1,0 +1,3698 @@
+[
+ {
+  "id": "0707.0005",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "0707.1320",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "best_effort_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "0707.1778",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "partial",
+  "fix_sig": "best_effort_pdf:paperid",
+  "regression_watch": false
+ },
+ {
+  "id": "0707.1934",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "0707.2016",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf:aa.cls",
+  "regression_watch": false
+ },
+ {
+  "id": "0707.3283",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "0707.4134",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "0806.0302",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "0806.0463",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "0806.1231",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "0806.1532",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "0806.1546",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "0806.1602",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": false
+ },
+ {
+  "id": "0806.1935",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "0806.1968",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "best_effort_pdf:german",
+  "regression_watch": true
+ },
+ {
+  "id": "0806.2022",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf:end",
+  "regression_watch": false
+ },
+ {
+  "id": "0806.2077",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "0806.2219",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": false
+ },
+ {
+  "id": "0806.2265",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": false
+ },
+ {
+  "id": "0806.2331",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "0806.2409",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "0806.2714",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "0806.2882",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "0806.2997",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "0806.3051",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "0806.3249",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "0806.3377",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "0806.3658",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "0806.3733",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "0806.4301",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "0806.4685",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "0806.4721",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "0806.4916",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "0905.0048",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf:bfseriesRemark",
+  "regression_watch": true
+ },
+ {
+  "id": "0905.0065",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "0905.0135",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": true
+ },
+ {
+  "id": "0905.0193",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": false
+ },
+ {
+  "id": "0905.0344",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf:lnGr",
+  "regression_watch": true
+ },
+ {
+  "id": "0905.0514",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf:itProof",
+  "regression_watch": true
+ },
+ {
+  "id": "0905.0561",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "0905.0565",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "0905.0567",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "0905.0664",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": false
+ },
+ {
+  "id": "0905.0665",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "best_effort_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "0905.0721",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": false
+ },
+ {
+  "id": "0905.0732",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "0905.0802",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "0905.0936",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "best_effort_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "0905.0962",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "0905.1142",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "0905.1197",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "0905.1210",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "0905.1269",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "0905.1619",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "0905.1718",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "0905.2521",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "0905.2530",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "0905.4796",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "0905.4874",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": false
+ },
+ {
+  "id": "1003.0067",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf:conm-p-l.cls",
+  "regression_watch": false
+ },
+ {
+  "id": "1003.0090",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": false
+ },
+ {
+  "id": "1003.0095",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "partial",
+  "fix_sig": "best_effort_pdf",
+  "regression_watch": false
+ },
+ {
+  "id": "1003.0330",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf:rmi",
+  "regression_watch": false
+ },
+ {
+  "id": "1003.0401",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1003.0499",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1003.0529",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": false
+ },
+ {
+  "id": "1003.0639",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf:aastex.cls",
+  "regression_watch": false
+ },
+ {
+  "id": "1003.0854",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1003.0971",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1003.1122",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1003.1583",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1003.4454",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "1003.4562",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": true
+ },
+ {
+  "id": "1003.4853",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1012.1714",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1012.1723",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1012.2012",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "partial",
+  "fix_sig": "best_effort_pdf:startlocaldefs",
+  "regression_watch": false
+ },
+ {
+  "id": "1012.5411",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "1012.5443",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1012.5679",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "1012.5832",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "1109.2426",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1109.2465",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1109.5305",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1109.5575",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "partial",
+  "fix_sig": "best_effort_pdf:francais",
+  "regression_watch": false
+ },
+ {
+  "id": "1109.5732",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1206.0174",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1206.0197",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1206.0240",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "partial",
+  "fix_sig": "best_effort_pdf:begin",
+  "regression_watch": false
+ },
+ {
+  "id": "1206.0277",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1206.0301",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1206.0333",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1206.0402",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "1206.0418",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1206.0445",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "partial",
+  "fix_sig": "best_effort_pdf",
+  "regression_watch": false
+ },
+ {
+  "id": "1206.0473",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1206.0565",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "fail",
+  "fix_sig": "unfixable:undefined_cs:variorefoptionifavailable",
+  "regression_watch": true
+ },
+ {
+  "id": "1206.0593",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf:siamltex.cls",
+  "regression_watch": false
+ },
+ {
+  "id": "1206.0598",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1206.0607",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": false
+ },
+ {
+  "id": "1206.0640",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1206.0710",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1206.1807",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1206.1854",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "1206.1960",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "partial",
+  "fix_sig": "best_effort_pdf:startlocaldefs",
+  "regression_watch": false
+ },
+ {
+  "id": "1206.2092",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": false
+ },
+ {
+  "id": "1206.2121",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1206.2258",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1206.5623",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "best_effort_pdf:pdfmark",
+  "regression_watch": true
+ },
+ {
+  "id": "1206.5628",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "best_effort_pdf:french",
+  "regression_watch": true
+ },
+ {
+  "id": "1306.0019",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "1306.0068",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": false
+ },
+ {
+  "id": "1306.0085",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1306.0160",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "1306.0198",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1306.0229",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1306.0256",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": false
+ },
+ {
+  "id": "1306.0319",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1306.0325",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1306.0333",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1306.0450",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1306.0504",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "fail",
+  "fix_sig": "unfixable:syntax:greek",
+  "regression_watch": false
+ },
+ {
+  "id": "1306.0514",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": true
+ },
+ {
+  "id": "1306.0539",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1306.0565",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1306.2028",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": false
+ },
+ {
+  "id": "1306.2127",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1306.2317",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": false
+ },
+ {
+  "id": "1306.2365",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1306.5848",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1306.5977",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1306.6161",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1306.6198",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1404.0002",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1404.0037",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "fail",
+  "fix_sig": "unfixable:capacity",
+  "regression_watch": false
+ },
+ {
+  "id": "1404.0089",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1404.0142",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1404.0176",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "partial",
+  "fix_sig": "best_effort_pdf:hypersetup",
+  "regression_watch": false
+ },
+ {
+  "id": "1404.0216",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1404.0253",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1404.0273",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1404.0346",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "partial",
+  "fix_sig": "best_effort_pdf:maketitle",
+  "regression_watch": false
+ },
+ {
+  "id": "1404.0354",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "partial",
+  "fix_sig": "best_effort_pdf:overrideIEEEmargins",
+  "regression_watch": false
+ },
+ {
+  "id": "1404.0451",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1404.0520",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1404.2137",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf:Ref",
+  "regression_watch": false
+ },
+ {
+  "id": "1404.2268",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1404.2334",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "partial",
+  "fix_sig": "best_effort_pdf",
+  "regression_watch": false
+ },
+ {
+  "id": "1404.2432",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": false
+ },
+ {
+  "id": "1404.2471",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": false
+ },
+ {
+  "id": "1404.2475",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1404.5666",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1404.5828",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "partial",
+  "fix_sig": "best_effort_pdf",
+  "regression_watch": false
+ },
+ {
+  "id": "1404.5830",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1404.5900",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "1404.5963",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1502.01811",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1502.01857",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1502.01863",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1502.02083",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1502.02236",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1502.02247",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1502.02251",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1502.02338",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1502.06189",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": false
+ },
+ {
+  "id": "1502.06342",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1502.06383",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1502.06541",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": false
+ },
+ {
+  "id": "1511.02547",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1511.02604",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1511.02825",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1511.06706",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf:FIGS/bz_aa.eps",
+  "regression_watch": false
+ },
+ {
+  "id": "1511.06765",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": false
+ },
+ {
+  "id": "1608.02270",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": false
+ },
+ {
+  "id": "1608.02315",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1608.02444",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": false
+ },
+ {
+  "id": "1608.06693",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": false
+ },
+ {
+  "id": "1608.06769",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1608.06819",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1608.06914",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1706.00050",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1706.00076",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "fail",
+  "fix_sig": "unfixable:capacity",
+  "regression_watch": false
+ },
+ {
+  "id": "1706.00078",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1706.00136",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1706.00178",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "best_effort_pdf:itmultimodal",
+  "regression_watch": true
+ },
+ {
+  "id": "1706.00220",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "partial",
+  "fix_sig": "best_effort_pdf:sortlist",
+  "regression_watch": false
+ },
+ {
+  "id": "1706.00240",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "fail",
+  "fix_sig": "unfixable:early_eof:acro/short-format",
+  "regression_watch": false
+ },
+ {
+  "id": "1706.00243",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1706.00248",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": false
+ },
+ {
+  "id": "1706.00255",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1706.00263",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": false
+ },
+ {
+  "id": "1706.00299",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1706.00324",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "partial",
+  "fix_sig": "best_effort_pdf:sortlist",
+  "regression_watch": false
+ },
+ {
+  "id": "1706.00331",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "1706.00335",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "fail",
+  "fix_sig": "unfixable:capacity",
+  "regression_watch": false
+ },
+ {
+  "id": "1706.00346",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "best_effort_pdf:ngerman",
+  "regression_watch": true
+ },
+ {
+  "id": "1706.00348",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1706.00352",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf:hypertex",
+  "regression_watch": true
+ },
+ {
+  "id": "1706.00357",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "1706.00362",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "1706.00364",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1706.02360",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "1706.02364",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1706.02368",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1706.02429",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "1706.02464",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": true
+ },
+ {
+  "id": "1706.02513",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1706.02515",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1706.02532",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": false
+ },
+ {
+  "id": "1706.02609",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1706.02671",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "1706.02694",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "partial",
+  "fix_sig": "best_effort_pdf:lgrenc.def",
+  "regression_watch": false
+ },
+ {
+  "id": "1706.02695",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1706.02723",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "1706.02733",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1706.07493",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1706.07510",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1706.07658",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": false
+ },
+ {
+  "id": "1706.07675",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "1706.07676",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "1706.07880",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1803.00014",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": false
+ },
+ {
+  "id": "1803.00071",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1803.00112",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1803.00114",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1803.00165",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": false
+ },
+ {
+  "id": "1803.00180",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "1803.00186",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1803.00224",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1803.00258",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1803.00260",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1803.00276",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1803.02900",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1803.02902",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "partial",
+  "fix_sig": "best_effort_pdf:catalan",
+  "regression_watch": false
+ },
+ {
+  "id": "1803.02918",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1803.02994",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1803.03001",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1803.03110",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1803.03158",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1803.03166",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": false
+ },
+ {
+  "id": "1803.03185",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "partial",
+  "fix_sig": "best_effort_pdf",
+  "regression_watch": false
+ },
+ {
+  "id": "1803.08846",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1811.03512",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1811.03579",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "1811.03607",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": false
+ },
+ {
+  "id": "1811.03615",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1811.10089",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1811.10189",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1907.00015",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "1907.00017",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1907.00020",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1907.00039",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1907.00067",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": false
+ },
+ {
+  "id": "1907.00098",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1907.00102",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1907.00106",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1907.00113",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "1907.00167",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "best_effort_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "1907.00173",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1907.00190",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": false
+ },
+ {
+  "id": "1907.00199",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1907.00216",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1907.00220",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": false
+ },
+ {
+  "id": "1907.00227",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": false
+ },
+ {
+  "id": "1907.00248",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1907.00252",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1907.00275",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1907.03602",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1907.03611",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1907.03635",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "1907.03650",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "1907.03815",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "1907.10381",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": false
+ },
+ {
+  "id": "1907.10468",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2003.03437",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": false
+ },
+ {
+  "id": "2003.03498",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": true
+ },
+ {
+  "id": "2003.03510",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2003.03512",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2003.10925",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2003.10969",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2003.10973",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2009.03719",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": false
+ },
+ {
+  "id": "2009.03783",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2009.03796",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "2009.10990",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2009.11013",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2009.11016",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2009.11096",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2104.00034",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2104.00119",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "best_effort_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "2105.00070",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "partial",
+  "fix_sig": "best_effort_pdf",
+  "regression_watch": false
+ },
+ {
+  "id": "2105.00083",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2105.00099",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "2105.00111",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "fail",
+  "fix_sig": "unfixable:capacity",
+  "regression_watch": false
+ },
+ {
+  "id": "2105.00112",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2105.00121",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2105.00127",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2105.00144",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2105.00155",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2105.00158",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2105.03808",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf:rTo",
+  "regression_watch": false
+ },
+ {
+  "id": "2105.03810",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2105.03838",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2105.03861",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2105.03893",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": false
+ },
+ {
+  "id": "2105.03923",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2105.03942",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2105.11408",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2105.11417",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2105.11464",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": false
+ },
+ {
+  "id": "2105.11508",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2105.11512",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2111.00010",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2111.00042",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2111.00051",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf:pst-pdf.sty",
+  "regression_watch": false
+ },
+ {
+  "id": "2111.00093",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2111.00100",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2111.00109",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2111.00158",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2112.00007",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": false
+ },
+ {
+  "id": "2112.00020",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": false
+ },
+ {
+  "id": "2112.00038",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2112.00056",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2112.00063",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "2112.00080",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": true
+ },
+ {
+  "id": "2112.00098",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2112.00099",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2112.00119",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2112.00123",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2112.00127",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2112.00138",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "2203.00043",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2203.00084",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2203.00091",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": false
+ },
+ {
+  "id": "2203.04329",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2203.04356",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2203.04370",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2203.04392",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2203.13012",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2203.13025",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "2203.13055",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2203.13060",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": false
+ },
+ {
+  "id": "2203.13065",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "2203.13075",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "best_effort_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "2203.13087",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2203.13111",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2211.00100",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": false
+ },
+ {
+  "id": "2211.00111",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2211.00112",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2211.00113",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": false
+ },
+ {
+  "id": "2211.00128",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "2211.04449",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2211.04503",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2211.04553",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2211.04558",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2211.12961",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "best_effort_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "2211.12990",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2211.13002",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2211.13012",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "2211.13021",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2211.13028",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "fail",
+  "fix_sig": "unfixable:timeout:hxetex.def",
+  "regression_watch": false
+ },
+ {
+  "id": "2211.13034",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2211.13048",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": false
+ },
+ {
+  "id": "2211.13062",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2304.05202",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": false
+ },
+ {
+  "id": "2308.00030",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2308.00059",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": true
+ },
+ {
+  "id": "2308.00125",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "partial",
+  "fix_sig": "clean",
+  "regression_watch": false
+ },
+ {
+  "id": "2308.00142",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": false
+ },
+ {
+  "id": "2308.00143",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2308.00148",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": false
+ },
+ {
+  "id": "2308.04216",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "2308.04278",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "partial",
+  "fix_sig": "best_effort_pdf:system-model.eps",
+  "regression_watch": false
+ },
+ {
+  "id": "2308.12619",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2403.00007",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2403.00017",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2403.00034",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2403.00057",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2403.00130",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2403.00134",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "best_effort_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "2403.00139",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": true
+ },
+ {
+  "id": "2403.00141",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2403.05475",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2403.05477",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2403.05523",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf:newl@bel",
+  "regression_watch": false
+ },
+ {
+  "id": "2403.05530",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "2403.15079",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2403.15096",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": false
+ },
+ {
+  "id": "2403.15102",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2410.00009",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": false
+ },
+ {
+  "id": "2410.00059",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": true
+ },
+ {
+  "id": "2410.00089",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2410.00111",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "partial",
+  "fix_sig": "acceptable_pdf",
+  "regression_watch": false
+ },
+ {
+  "id": "2410.00118",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": false
+ },
+ {
+  "id": "2410.00335",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2410.05957",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2410.05969",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2410.06012",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2410.06040",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2410.17904",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "partial",
+  "fix_sig": "best_effort_pdf:reset@color",
+  "regression_watch": false
+ },
+ {
+  "id": "2410.17958",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2410.17983",
+  "parse": "NO_PARSE",
+  "compile": "clean",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": true
+ },
+ {
+  "id": "2410.17994",
+  "parse": "NO_PARSE",
+  "compile": "fail",
+  "fixloop": "clean",
+  "fix_sig": "",
+  "regression_watch": false
+ },
+ {
+  "id": "2410.18024",
+  "parse": "NO_PARSE",
+  "compile": "partial",
+  "fixloop": "partial",
+  "fix_sig": "best_effort_pdf:pdfoutput",
+  "regression_watch": false
+ },
+ {
+  "id": "astro-ph--0104134",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "astro-ph--0104161",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "astro-ph--0104373",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "astro-ph--0111575",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "astro-ph--0408107",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "astro-ph--0408445",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "astro-ph--0501560",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "astro-ph--0501642",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "astro-ph--9901371",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "astro-ph--9910257",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "astro-ph--9910525",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "cond-mat--0408145",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "cond-mat--0408534",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "cond-mat--0605673",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "cond-mat--9703065",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "cond-mat--9901018",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "cond-mat--9910079",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "gr-qc--9901019",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "gr-qc--9901038",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "hep-ex--0307068",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "hep-ex--9910040",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "hep-ph--0104302",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "hep-ph--0111050",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "hep-ph--0111062",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "hep-ph--0111251",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "hep-ph--0111383",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "hep-ph--0408036",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "hep-ph--0408109",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "hep-ph--0408227",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "hep-ph--0605174",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "hep-th--0104060",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "hep-th--0104130",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "hep-th--0104151",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "hep-th--0408064",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "hep-th--0501153",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "hep-th--0501177",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "hep-th--0605038",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "hep-th--9703214",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "hep-th--9910145",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "hep-th--9910190",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "math--0104225",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "math--0104250",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "math--0111203",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "math--0111275",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "math--0408135",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "math--0408145",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "math--0408287",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "math--0408290",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "math--0605213",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "math--9901091",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "math-ph--0408014",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "nlin--0408025",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "nucl-th--0111058",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "nucl-th--9910065",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "physics--0104024",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "physics--9901044",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "quant-ph--0408022",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ },
+ {
+  "id": "quant-ph--0605021",
+  "parse": "NO_PARSE",
+  "compile": "NO_COMPILE",
+  "fixloop": "NO_FIXLOOP",
+  "fix_sig": null,
+  "regression_watch": false
+ }
+]
