@@ -40,6 +40,11 @@ if TYPE_CHECKING:
 
 import texlate.server.worker as _w
 
+#: 包内 dual.json 落盘后的载入闸——成员上限 _MEMBER_MAX=256MB 只管解压
+#: 对账，loads 前必须再收口：JSON 内存放大 ~10x，32MB 对真包（百级 chunk
+#: × KB 级段文本 ≈ 个位数 MB）仍有数倍余量，超此即按坏包拒。
+_DUAL_JSON_MAX = 32 << 20
+
 
 def _share_pool(raw: list[object]) -> dict[tuple[str, str], deque[str]]:
     """包内 dual chunks → ``(src_file, en)`` → zh 队列（重复段按序消费）。
@@ -174,6 +179,9 @@ class _Share:
         """
         dual_path = ctx.root / "share" / "dual.json"
         try:
+            if dual_path.stat().st_size > _DUAL_JSON_MAX:
+                msg = f"dual.json too large: >{_DUAL_JSON_MAX}B"
+                raise _ShareRejectError(msg)
             doc = json.loads(dual_path.read_text(encoding="utf-8"))
         except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
             # UnicodeDecodeError 是 ValueError 非 JSONDecodeError——漏它会

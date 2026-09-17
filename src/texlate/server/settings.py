@@ -525,6 +525,9 @@ class SettingsStore:
         values = dict(updates)
         values.pop("has_api_key", None)
         clear_key = bool(values.pop("clear_api_key", False))
+        # 白名单收口：API 层已滤+回显 ignored，此处再闸直调面——未知键
+        # 永不进 settings.json。
+        values = {k: v for k, v in values.items() if k in self.FIELDS}
         _normalize_updates(values)
         if not values.get("api_key"):
             values.pop("api_key", None)

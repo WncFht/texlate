@@ -192,7 +192,7 @@ def _scrub_deep(value: Any, api_key: str) -> Any:  # noqa: ANN401 -- JSON 形状
 class Secrets:
     """BYOK 运行时凭证（只在内存里活过任务生命周期，绝不入库）。"""
 
-    api_key: str = ""
+    api_key: str = field(default="", repr=False)
     base_url: str = ""
     model: str = ""
     source: str = "none"
