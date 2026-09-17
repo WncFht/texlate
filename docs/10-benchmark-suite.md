@@ -107,7 +107,7 @@
 
 **底材**：corpus_v3 子集（先 ~50 篇，后全量）。
 
-**构建方法**（harness 已扶正为 `src/texlate/e2e.py`——`mock_translate_tree`/`pipe_condition`/`base_condition`/`mock_pipeline_run`，CLI `texlate run` 与 `bench/py/e2e_mock_bench.py` 共用；勘误 2026-09-15：原写 `tmp/exp/e2e/pipeline.py` 扶正，实际落地为产品模块而非 bench 脚本，翻译走 XlatPipeline(MockTranslator)+L0 校验器全产品 API。勘误 2026-09-17：`e2e_mock_bench` 的 translate_tree 已改为单源调 `e2e._scan_tree`、fixloop 参数对齐产品签名（`d240b43`）——harness 不再自持第二份扫描实现）：
+**构建方法**（harness 已扶正为 `src/texlate/e2e.py`——`mock_translate_tree`/`pipe_condition`/`base_condition`/`mock_pipeline_run`，CLI `texlate run` 与 `bench/py/e2e_mock_bench.py` 共用；勘误 2026-09-15：原写 `tmp/exp/e2e/pipeline.py` 扶正，实际落地为产品模块而非 bench 脚本，翻译走 XlatPipeline(MockTranslator)+L0 校验器全产品 API。勘误 2026-09-17：`e2e_mock_bench` 的 translate_tree 已改为单源调 `e2e._scan_tree`、fixloop 参数对齐产品签名（`d240b43`）——harness 不再自持第二份扫描实现。勘误 2026-09-17：`e2e_real_bench.translate_tree` 同收敛至 `e2e._scan_tree`（`a08dda3`）——此前 real 臂零文件闸送译 support 件，**n200 run（含）之前的 chunks/src_chars/ok 率等体积类指标与修复后新 run 口径断点不可直接比**（终态类指标不受影响；详见 `bench/results/realn200-2026-09-17/report.md` §4）：
 
 1. Mode A 位置忠实 mock：注入 ctex + 占位译文 + splice + 编译 → 验机械链路（已实证 16/16 PDF、0 FAIL、identity 111/111、leftover=0。勘误 2026-09-17：**mock 保真盲区登记不修**——`MockTranslator._PROSE_RUN_RX` 只认 ASCII 字母 run，西里尔/希腊文等非 ASCII 散文原样回显不进译文，mock 臂对含此类散文的语料过估「忠实」（scout-triage-2026-09-17 F-echo 1 格，low；`bench/py/qualbench.py:294` 同源副本同盲区）。真译臂不受影响。）
 2. Mode B 幻觉 mock：注入占位符丢失/幻觉 → 验校验链兜底（132 处破坏编译前 132/132 捕获——"出 PDF≠成功"的实证来源）。

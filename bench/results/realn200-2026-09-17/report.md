@@ -53,7 +53,12 @@ hep-th/9703073 plain_tex——mock 臂同位置同样无记录，wontfix 类非�
 - **overseer caveat**：e2e_real `translate_tree` 零文件闸（.rtx.tex/.code.tex/
   file_has_prose 全漏）——real 臂把 REVTeX dump/support 件也送译，chunk 送译量
   与 ok 率相对 mock（`e2e._scan_tree` 有闸）口径不对等，体积类指标虚高。
-  postfix2 同码故横向可比；修复已排本波收官后第一批。
+  postfix2 同码故横向可比。
+- **口径断点（2026-09-17，`a08dda3`）**：`translate_tree` 已收敛至
+  `e2e._scan_tree` 四门——本 run 及更早 real 臂的 chunks/src_chars/ok 率等
+  **体积类指标不可与修复后新 run 直接比**（送译集合含 support 件，虚高）；
+  pdf/clean/fixloop 救场等终态指标不受影响。记录键同步改
+  `fault_files`/`support_files`/`support_skipped`（原 `parse_fail` 废）。
 - tr<full 格（fallback_orig 残 chunk）存在：如 1907.00273 tr 223/234。
   chunk 级非 ok 74 块 = partial 25 + skipped 49，无 fault。
 

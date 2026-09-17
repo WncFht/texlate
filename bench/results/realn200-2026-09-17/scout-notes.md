@@ -37,4 +37,8 @@ audit 实证 e2e_real `translate_tree` **零文件闸**：.rtx.tex/.code.tex/fil
 全漏——real 臂把 REVTeX dump/support 件也送译，chunk 体积类指标比产品口径虚高。
 mock 臂走 `e2e._scan_tree` 有闸 → **两臂口径不对等**。定性：run 不中断（基线
 realpostfix2 同码，横向可比）；报告里 chunk ok-rate/送译量类对比须标注此 skew，
-pdf/clean/fixloop 救场类终态指标不受影响。修复已排 n200 收官后第一批。
+pdf/clean/fixloop 救场类终态指标不受影响。
+
+**已修复（2026-09-17，`a08dda3`）**：`translate_tree` 改调 `e2e._scan_tree`，
+四门生效；记录键 `parse_fail` → `fault_files`/`support_files`/`support_skipped`。
+**口径断点**：本 run（含）之前 real 臂体积类指标不可与修复后新 run 直接比。
