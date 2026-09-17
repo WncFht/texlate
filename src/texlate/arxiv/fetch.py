@@ -239,8 +239,6 @@ def _retry_delay(url: str, attempt: int, resp: httpx.Response | None) -> float:
                 # 有限但不可兑现（sleep 会真等）——与 inf 同归终态；
                 # nan 比较恒 False → 仍走 max(delay, nan)=delay 回落语义
                 return math.inf
-            # 非有限值（1e999→inf）原样返回——sleep(inf) 会 OverflowError，
-            # 由 _request 的 isfinite 闸截停转终态
             delay = max(delay, secs)
     return delay
 
