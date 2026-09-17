@@ -710,7 +710,14 @@ rules:
     description: "\\typein 交互读 → \\typeout 打印 (两参形补 \\def\\cs{} 默认空)"
     phase: loop
     order: 180
-    when: { category: early_eof, payload_required: false }
+    when:
+      any:
+        - { category: early_eof, payload_required: false }
+        # W126 根修后 file-line 签名错归 other——\\typein 挂读恰是此形
+        # (hep-ph/0111248), other 臂保活; source_contains 收紧防爆半径
+        - { category: other, payload_required: false }
+    condition:
+      source_contains: "\\\\typein"
     action:
       kind: regex_rewrite
       params:

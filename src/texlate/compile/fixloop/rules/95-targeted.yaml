@@ -507,7 +507,7 @@ rules:
     description: "mathtext TU 编码漏补丁 → \\DeclareSymbolFont{TUletters} 预声明"
     phase: loop
     order: 185
-    when: { any: [{ category: other }, { category: early_eof }] }
+    when: { category: other } # W126 根修: file-line 签名错归 other (10-taxonomy `^.` 兜底), early_eof 臂撤
     condition:
       ctx_suggests: "Symbol font `TUletters' is not defined"
     action:
@@ -542,7 +542,7 @@ rules:
     description: "author-year 类 + 数字 bbl → \\NAT@numberstrue 预翻, \\NAT@force@numbers 空转"
     phase: loop
     order: 186
-    when: { any: [{ category: other }, { category: early_eof }] }
+    when: { category: other } # W126 根修: file-line 签名错归 other, early_eof 臂撤
     condition:
       ctx_suggests: "Bibliography not compatible with author-year"
     action:

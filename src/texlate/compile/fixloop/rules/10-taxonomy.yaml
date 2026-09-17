@@ -4,8 +4,9 @@ version: 1
 
 # ════════════════════════════════════════════════════════════════
 # 第一层: 分类学 —— log → (category, payload)
-# 评估序: 存在 '!' 行时按序首命中 (scope:head, 输入='!'行+其后8行);
-#         全文无 '!' 行时评估 scope:tail 段 (输入=log 末 30 行);
+# 评估序: 存在错误行 ('!' 或 file-line `f.tex:N:` 形) 时按序首命中
+#         (scope:head, 输入=首错行+其后8行); 全文无错误行时评估
+#         scope:tail 段 (输入=log 末 30 行);
 #         仍无命中但有 warning 命中 → scope:warnings 驱动 warn_* 类。
 # 对应 fixloop.py classify() L67-125。
 # ════════════════════════════════════════════════════════════════
@@ -275,7 +276,12 @@ taxonomy:
   - id: syntax
     scope: head
     pattern: "Missing|Runaway|Paragraph ended|Misplaced|Double subscript|Illegal|There's no line|Lonely|Bad math|Something's wrong|not in outer par|allowed only in math|improper|Extra \\}|Forgotten \\\\endgroup|Extra \\\\(?:endgroup|right|middle|else|fi|or)\\b"
-  - { id: other, scope: head, pattern: "^!" } # 兜底: 有 '!' 行必命中
+  # 兜底: 首错行在场必命中 —— rep.first 恒为 _is_err_line 认证的错误行
+  # ('!' 或 file-line `f.tex:N:` 形), 故 `^.` 即「有签名错」全量覆盖。
+  # 旧写 `^!` 漏 file-line 形: 无 head 签的 file-line 首错落 tail 段被
+  # early_eof 吞 (W126: 0806.2594 TUletters / astro-ph/0408240 natbib-aux
+  # 实证, \begin{document} 期 aux 读/字体声明错皆此形)。
+  - { id: other, scope: head, pattern: "^." } # 兜底: 有错误行必命中
   # —— tail 段: 仅当全文 0 个 '!' 行时评估 (交互式缺文件/Emergency) ——
   # preempts: 致命尾错夺弱 head 类的路由 (regress4-2410.00012: chemgreek
   # 缺档是真杀手, 此前永远被上游包内 undefined_cs 抢路由)。early_eof
@@ -296,10 +302,14 @@ taxonomy:
       preempts: [undefined_cs, pdftex_prim, other, emergency],
     }
   # tail 行同款收紧 (aastex 横幅会落 tail 30 行内抢签) —— 与 head 行同表。
+  # preempts [other]: `^.` 兜底后 file-line 形签名错恒归 other, 旧经裸
+  # tail 评估可达的「file-line 错 + 尾段 2.09 横幅 → latex209」路由由此
+  # 保留 (other 是唯一可夺类, 真签名类不被抢)。
   - {
       id: latex209,
       scope: tail,
       pattern: "(?m)\\\\documentstyle\\b|LaTeX 2\\.09 COMPATIBILITY MODE|LaTeX2e command[^\\n]*\\bin LaTeX 2\\.09|LaTeX Version 2\\.09|^[ \\t]*Compatibility mode",
+      preempts: [other],
     }
   # —— cls/sty 「求档文」尾段: 类文件内部 \IfFileExists 失败→\stop 死路
   #   (aastex61 "Please update your system to include revtex4-1.cls" 实证:
