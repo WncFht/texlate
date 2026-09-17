@@ -300,6 +300,27 @@ def test_bundled_bibliography_bib_searched_at_compile_cwd(tmp_path: Path) -> Non
     assert out2 == one.read_text()
 
 
+def test_bundled_bibliography_space_target_bare_input_not_filled(
+    tmp_path: Path,
+) -> None:
+    """target 含空白 + 裸 ``\\input`` 不算已填充——TeX 扫名止于空白读不到全名。
+
+    braced 形同 target 仍算已填充（读到 ``}`` 收，空白是合法名字成分）。
+    """
+    main = tmp_path / "my main.tex"
+    (tmp_path / "my main.bbl").write_text(
+        "\\begin{thebibliography}{9}\\end{thebibliography}"
+    )
+    # 裸名形：TeX 只读 ``my``——probe 不得报已填充，bibliography 照常替换
+    main.write_text("\\input my main.bbl\n\\bibliography{refs}\n")
+    out = use_bundled_bibliography(main.read_text(), main)
+    assert "\\bibliography{refs}" not in out
+    # braced 形：完整名可达——幂等不改
+    main.write_text("\\input{my main.bbl}\n\\bibliography{refs}\n")
+    out2 = use_bundled_bibliography(main.read_text(), main)
+    assert out2 == main.read_text()
+
+
 # 12. rebase 越界路径
 def test_rebase_project_paths(tmp_path: Path) -> None:
     """根层主文件 `\\input{../shared/x}`（越界）→ 包内 `shared/x` 存在则改写。"""

@@ -724,10 +724,17 @@ def use_bundled_bibliography(text: str, path: Path, cwd: Path | None = None) -> 
     # target 后接终结符，挡 main.bblx 前缀撞名。(?![a-zA-Z@]) 防把
     # \inputmain 类控制词误当 \input。
     t = re.escape(target)
+    alts = [
+        r"\{\s*(?:\./)?" + t + r"\s*\}",
+        r'"(?:\./)?' + t + r'"',
+    ]
+    # 裸名形仅当 target 自身不含终结符才可达——target 带空白/~/&/% 时
+    # TeX 扫名提前收束读不到全名（``\input sub dir/x.bbl`` 只读 ``sub``），
+    # braced/quoted 形不受此限（wave6-review：空白 target 裸名曾误报已填充）
+    if not re.search(r"[\s\\~&%]", target):
+        alts.append(r"(?:\./)?" + t + r"(?![^\s\\~&%])")
     if re.search(
-        r"\\input(?![a-zA-Z@])\s*(?:\{\s*(?:\./)?" + t + r"\s*\}"
-        r"|\"(?:\./)?" + t + r"\""
-        r"|(?:\./)?" + t + r"(?![^\s\\~&%]))",
+        r"\\input(?![a-zA-Z@])\s*(?:" + "|".join(alts) + r")",
         visible,
     ):
         return text  # 书目位已由本 .bbl 填充——再换只会重复排版
