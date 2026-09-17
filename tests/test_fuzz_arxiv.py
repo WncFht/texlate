@@ -21,6 +21,12 @@
 - ``locate``：任意文件树不抛；main ∈ candidates、order 无重复且以 main
   开头、dead_files == nodes ∖ order、edges ⊆ fileset、warning 前缀已登记；
   同树两次调用结果全等（进程内确定性）。
+- ``html``（o2-b9 补面）：``fetch_html`` 异常集封闭（HtmlError/Parked/
+  Budget/RequestError/ValueError）；``parse_arxiv_html``/``marked_html``
+  任意 DOM 不抛非 HtmlError、块 key 唯一且两侧 data-chunk 1:1；
+  ``doc_chunks`` 只产 TRANSLATE_CTX 非空块；``reinsert`` 单趟不级联。
+- e-print e2e 敌意包（o2-b9）：``acquire_source`` 对嵌套 tar 不递归、
+  ``../``/非 UTF-8 原名/超限成员告警透传进 meta.json 且零逃逸。
 
 全离线：一律 ``httpx.MockTransport`` + 注入 clock/sleep，零真网络零真等待。
 """
@@ -47,6 +53,7 @@ import pytest
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+from _fuzzkit import xfail_confirmed
 from conftest import make_targz
 
 from texlate.arxiv._texutil import strip_comments
@@ -63,6 +70,18 @@ from texlate.arxiv.fetch import (
     _valid_id,
     acquire_source,
     normalize_arxiv_id,
+)
+from texlate.arxiv.html import (
+    TRANSLATE_CTX,
+    HtmlDoc,
+    HtmlError,
+    HtmlFetchError,
+    HtmlNotAvailableError,
+    doc_chunks,
+    fetch_html,
+    marked_html,
+    parse_arxiv_html,
+    reinsert,
 )
 from texlate.arxiv.locate import DocKind, LocateResult, _norm_arg, locate
 from texlate.arxiv.meta import (
@@ -89,6 +108,8 @@ from texlate.arxiv.sniff import (
     check_pdf_wrapper,
     sniff,
 )
+from texlate.latex.placeholder import PH_RX
+from texlate.xlat.prompts import normalize_kind
 
 _SEED = 0xA217
 _NORM_ITERS = 2000
@@ -1417,3 +1438,900 @@ def test_locate_missing_and_file_root(tmp_path: Path) -> None:
     f.write_text("x")
     res2 = locate(f)
     assert res2.kind is DocKind.NONE
+
+
+# ==================================================================== wave o2-b9
+# e-print e2e 敌意包 / Fetcher 传输纪律 / ratelimit 细分 / locate 补面 /
+# degrade 回退 / html.py 降级链（此前零 fuzz 覆盖）
+
+_TINY_TEX_FULL = b"\\documentclass{article}\n\\begin{document}\nhi\n\\end{document}\n"
+_CD_V1 = 'attachment; filename="arXiv-2001.00001v1.tar.gz"'
+_VER_FLIPPED = 3  # GET cd 翻转到的新版号
+_NTP_WAIT_MIN = 9000.0  # 回拨后 pacing wait 的保守下界（回拨 10000s - gap）
+_CHAIN_SEGS = 79  # 深链段数（> _MAX_DEPTH 触发截断）
+_ORDER_CAP = 65  # depth 0..64 → order 长度上界
+_OAI_PAD_LATEST = 8  # 零填充版本号折叠后的真 latest
+_REDIRECT_CALLS_BOUND = 30  # httpx 单次 send 内部重定向环上界（不重试语义）
+
+
+def _ok_200(_req: httpx.Request) -> httpx.Response:
+    """MockTransport 全 200 应答。"""
+    return httpx.Response(HTTPStatus.OK)
+
+
+def _acq_fetcher(
+    handler: Callable[[httpx.Request], httpx.Response],
+) -> tuple[Fetcher, _Clock]:
+    """单 host acquire 用 fetcher（复用 _Clock/_fetcher 同族约定）。"""
+    clk = _Clock()
+    return (
+        Fetcher(
+            RateLimiter(clock=clk.now, sleep=clk.sleep),
+            client=httpx.Client(transport=httpx.MockTransport(handler)),
+            hosts=("arxiv.org",),
+            sleep=clk.sleep,
+        ),
+        clk,
+    )
+
+
+def _src_handler(
+    body: bytes,
+    *,
+    head_cd: str = _CD_V1,
+    get_cd: str = "",
+    get_status: int = HTTPStatus.OK,
+) -> Callable[[httpx.Request], httpx.Response]:
+    """HEAD/GET 双段应答——GET 的 cd 可与 HEAD 不同（版本翻转/畸形）。"""
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        if req.method == "HEAD":
+            headers = {"content-disposition": head_cd} if head_cd else {}
+            return httpx.Response(HTTPStatus.OK, headers=headers)
+        headers = {"content-disposition": get_cd} if get_cd else {}
+        return httpx.Response(get_status, content=body, headers=headers)
+
+    return handler
+
+
+def _extracted_files(res: AcquireResult) -> list[str]:
+    """committed entry 的 extracted/ 文件名表（无条目/无目录 → 空）。"""
+    if res.entry is None:
+        return []
+    ext = res.entry.dir / "extracted"
+    if not ext.is_dir():
+        return []
+    return sorted(p.relative_to(ext).as_posix() for p in ext.rglob("*") if p.is_file())
+
+
+# ---------------------------------------------------------------- D1 空 tar.gz
+
+
+@xfail_confirmed(
+    "D1: sniff.py:111 — 全零 tar（合法空包）无 ustar@257 落 SINGLE 臂，"
+    "unpack_single 把 10KB NUL 落成幻影 {stem}.tex 并 OK 落库"
+)
+def test_empty_targz_phantom_tex(tmp_path: Path) -> None:
+    """空 tar.gz e-print：判 TAR→空树 或 判 UNKNOWN 都合规，不该产幻影文件。"""
+    f, _clk = _acq_fetcher(_src_handler(make_targz({})))
+    res = acquire_source("2001.00001", fetcher=f, cache=SourceCache(tmp_path))
+    if res.status is AcquireStatus.OK:
+        assert _extracted_files(res) == []
+
+
+def test_empty_targz_current_behavior_pin(tmp_path: Path) -> None:
+    """观察钉：现行行为快照——幻影 NUL 文件 + OK 状态（修复后此钉需同步翻）。"""
+    f, _clk = _acq_fetcher(_src_handler(make_targz({})))
+    res = acquire_source("2001.00001", fetcher=f, cache=SourceCache(tmp_path))
+    assert res.status is AcquireStatus.OK
+    files = _extracted_files(res)
+    assert len(files) == 1
+    assert (res.entry.dir / "extracted" / files[0]).read_bytes().strip(b"\x00") == b""
+
+
+# ---------------------------------------------------------------- D2 ustar 误判
+
+
+@xfail_confirmed(
+    "D2: sniff.py:91 — 单文件 .tex.gz 解压后 offset257 恰 'ustar' 即误判 TAR，"
+    "合法单文件 e-print 被 UNPACK_ERROR 拒收"
+)
+def test_ustar_in_tex_payload_misclassified(tmp_path: Path) -> None:
+    """payload[257:262]=='ustar' 的 .tex 应回退 SINGLE，不是 tar 硬拒。"""
+    tex = b"\\documentclass{article}\n" + b"a" * 300
+    tex = tex[:257].ljust(257, b"a") + b"ustar" + tex[262:]
+    tex += b"\n\\begin{document}hi\\end{document}\n"
+    f, _clk = _acq_fetcher(_src_handler(gzip.compress(tex)))
+    res = acquire_source("2001.00001", fetcher=f, cache=SourceCache(tmp_path))
+    assert res.status is AcquireStatus.OK
+
+
+def test_ustar_in_tex_current_pin(tmp_path: Path) -> None:
+    """观察钉：现行走 TAR→corrupt stream→UNPACK_ERROR（修复后翻此钉）。"""
+    tex = b"\\documentclass{article}\n" + b"a" * 300
+    tex = tex[:257].ljust(257, b"a") + b"ustar" + tex[262:]
+    tex += b"\n\\begin{document}hi\\end{document}\n"
+    f, _clk = _acq_fetcher(_src_handler(gzip.compress(tex)))
+    res = acquire_source("2001.00001", fetcher=f, cache=SourceCache(tmp_path))
+    assert res.status is AcquireStatus.UNPACK_ERROR
+
+
+# ---------------------------------------------------------------- e2e 敌意包
+
+
+def test_e2e_nested_tar_and_traversal(tmp_path: Path) -> None:
+    """嵌套 tar.gz 不递归（落盘为普通文件）；``../`` 成员拒径且零逃逸。"""
+    inner = make_targz({"inner.tex": "\\documentclass{article}"})
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tf:
+        for name, data in {
+            "../evil.tex": b"ESCAPED",
+            "inner.tar.gz": inner,
+            "main.tex": _TINY_TEX_FULL,
+        }.items():
+            info = tarfile.TarInfo(name)
+            info.size = len(data)
+            tf.addfile(info, io.BytesIO(data))
+    f, _clk = _acq_fetcher(_src_handler(buf.getvalue()))
+    res = acquire_source("2001.00001", fetcher=f, cache=SourceCache(tmp_path))
+    assert res.status is AcquireStatus.OK
+    assert "reject_path:../evil.tex" in res.warnings
+    assert not (tmp_path / "evil.tex").exists()
+    ext_files = _extracted_files(res)
+    assert sorted(ext_files) == ["inner.tar.gz", "main.tex"]
+    meta = json.loads((res.entry.dir / "meta.json").read_text("utf-8"))
+    assert "reject_path:../evil.tex" in meta["warnings"]
+    # 嵌套包按字节留存不展开
+    assert (res.entry.dir / "extracted" / "inner.tar.gz").read_bytes() == inner
+
+
+def test_e2e_latin1_member_name_rejected(tmp_path: Path) -> None:
+    """非 UTF-8 原名（裸 latin-1 字节）→ reject_path 告警进 meta.json。"""
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w") as tf:
+        for name, data in (("cafX.tex", b"z" * 200), ("main.tex", _TINY_TEX_FULL)):
+            info = tarfile.TarInfo(name)
+            info.size = len(data)
+            tf.addfile(info, io.BytesIO(data))
+    raw = bytearray(buf.getvalue())
+    raw[0:8] = b"caf\xe9.tex"  # USTAR name 字段塞裸 latin-1 字节
+    raw[148:156] = b"        "  # 重算 checksum 让改名生效
+    raw[148:156] = f"{sum(raw[0:512]):06o}\x00 ".encode()
+    f, _clk = _acq_fetcher(_src_handler(gzip.compress(bytes(raw))))
+    res = acquire_source("2001.00001", fetcher=f, cache=SourceCache(tmp_path))
+    assert res.status is AcquireStatus.OK
+    assert _extracted_files(res) == ["main.tex"]
+    meta = json.loads((res.entry.dir / "meta.json").read_text("utf-8"))
+    assert any(w.startswith("reject_path:caf") for w in meta["warnings"])
+
+
+def test_e2e_member_caps(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """成员/总量上限 e2e：超限成员告警透传，整包仍 OK。"""
+    monkeypatch.setattr("texlate.arxiv.unpack.MAX_FILE_BYTES", 100)
+    body = make_targz({"main.tex": _TINY_TEX_FULL, "big.tex": b"b" * 500})
+    f, _clk = _acq_fetcher(_src_handler(body))
+    res = acquire_source("2001.00001", fetcher=f, cache=SourceCache(tmp_path))
+    assert res.status is AcquireStatus.OK
+    assert "reject_filesize:big.tex:500" in res.warnings
+    assert _extracted_files(res) == ["main.tex"]
+
+
+def test_e2e_too_many_members(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """成员数硬上限 → 整包 UnpackError → UNPACK_ERROR 终态。"""
+    monkeypatch.setattr("texlate.arxiv.unpack.MAX_MEMBERS", 3)
+    body = make_targz({f"f{i}.tex": _TINY_TEX_FULL for i in range(4)})
+    f, _clk = _acq_fetcher(_src_handler(body))
+    res = acquire_source("2001.00001", fetcher=f, cache=SourceCache(tmp_path))
+    assert res.status is AcquireStatus.UNPACK_ERROR
+    assert "too_many_members" in res.detail
+
+
+# ---------------------------------------------------------------- e2e cd/版本面
+
+
+def test_e2e_get_cd_version_flip(tmp_path: Path) -> None:
+    """HEAD v1 → GET cd v3（两请求间发新版）：以 GET 为准落 v3 目录。"""
+    body = make_targz({"main.tex": _TINY_TEX_FULL})
+    f, _clk = _acq_fetcher(
+        _src_handler(
+            body,
+            get_cd='attachment; filename="arXiv-2001.00001v3.tar.gz"',
+        )
+    )
+    res = acquire_source("2001.00001", fetcher=f, cache=SourceCache(tmp_path))
+    assert res.status is AcquireStatus.OK
+    assert res.resolved_version == _VER_FLIPPED
+    assert res.entry.dir.name == "2001.00001v3"
+
+
+def test_e2e_get_cd_version_lost(tmp_path: Path) -> None:
+    """GET cd 无版本标记 → 沿用 HEAD 钉版（不盲丢版本号）。"""
+    body = make_targz({"main.tex": _TINY_TEX_FULL})
+    f, _clk = _acq_fetcher(_src_handler(body, get_cd="attachment"))
+    res = acquire_source("2001.00001", fetcher=f, cache=SourceCache(tmp_path))
+    assert res.status is AcquireStatus.OK
+    assert res.resolved_version == 1
+
+
+@xfail_confirmed(
+    "D5: cache.py:101 — cd 钉版位数无界，entry dir 名超 NAME_MAX 时 "
+    "cache.get stat meta.json → OSError(ENAMETOOLONG) 逃逸 acquire_source"
+    "（服务器可控字段 → 崩溃路径；应归干净 ERROR）"
+)
+def test_e2e_huge_cd_version_clean_error(tmp_path: Path) -> None:
+    """300 位版本号 cd：int 可解析但目录名超 NAME_MAX → 归 ERROR 不崩。"""
+    cd = 'attachment; filename="arXiv-2001.00001v' + "9" * 300 + '.tar.gz"'
+    f, _clk = _acq_fetcher(
+        _src_handler(make_targz({"m.tex": _TINY_TEX_FULL}), head_cd=cd)
+    )
+    res = acquire_source("2001.00001", fetcher=f, cache=SourceCache(tmp_path))
+    assert res.status is AcquireStatus.ERROR
+
+
+def test_e2e_hostile_stem_sanitized(tmp_path: Path) -> None:
+    """single_gz cd 名带 ``../``：stem 取末段，落盘不出 extracted。"""
+    body = gzip.compress(_TINY_TEX_FULL + b"z" * 200)
+    f, _clk = _acq_fetcher(
+        _src_handler(body, head_cd='attachment; filename="../evilv2.gz"')
+    )
+    res = acquire_source("2001.00001v2", fetcher=f, cache=SourceCache(tmp_path))
+    assert res.status is AcquireStatus.OK
+    assert _extracted_files(res) == ["evilv2.tex"]
+    assert not (tmp_path / "evilv2.tex").exists()
+
+
+def test_e2e_single_gz_no_cd_stem_fallback(tmp_path: Path) -> None:
+    """无 cd 时 stem 退化为 base 去斜杠：hep-th/9901001 → hep-th9901001.tex。"""
+    body = gzip.compress(_TINY_TEX_FULL + b"z" * 200)
+    f, _clk = _acq_fetcher(_src_handler(body, head_cd=""))
+    res = acquire_source("hep-th/9901001v2", fetcher=f, cache=SourceCache(tmp_path))
+    assert res.status is AcquireStatus.OK
+    assert _extracted_files(res) == ["hep-th9901001.tex"]
+
+
+def test_e2e_bare_304_no_cache_is_error(tmp_path: Path) -> None:
+    """无条件 GET 收到 304（服务器异常）：无缓存可命中 → 归 ERROR 不落盘。"""
+    f, _clk = _acq_fetcher(_src_handler(b"", get_status=HTTPStatus.NOT_MODIFIED))
+    res = acquire_source("2001.00001", fetcher=f, cache=SourceCache(tmp_path))
+    assert res.status is AcquireStatus.ERROR
+    assert res.entry is None
+
+
+def test_e2e_head_no_cd_bare_id(tmp_path: Path) -> None:
+    """HEAD 200 但无 content-disposition 且未钉版 → unresolved_version ERROR。"""
+    f, _clk = _acq_fetcher(_src_handler(b"", head_cd=""))
+    res = acquire_source("2001.00001", fetcher=f, cache=SourceCache(tmp_path))
+    assert res.status is AcquireStatus.ERROR
+    assert res.detail == "unresolved_version"
+
+
+def test_e2e_too_large_skips_get(tmp_path: Path) -> None:
+    """HEAD content-length 超 DL_CAP → TOO_LARGE 且不发 GET。"""
+    calls: list[str] = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        calls.append(req.method)
+        assert req.method == "HEAD"
+        return httpx.Response(
+            HTTPStatus.OK,
+            headers={
+                "content-disposition": _CD_V1,
+                "content-length": str(200 * 1024 * 1024),
+            },
+        )
+
+    f, _clk = _acq_fetcher(handler)
+    res = acquire_source("2001.00001", fetcher=f, cache=SourceCache(tmp_path))
+    assert res.status is AcquireStatus.TOO_LARGE
+    assert calls == ["HEAD"]
+
+
+def test_acquire_version_param_overrides_pin(tmp_path: Path) -> None:
+    """``version`` 形参与 id 内钉版冲突时形参赢——``2001.00001v2`` + version=3 → v3。"""
+    seen: list[str] = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen.append(req.url.path)
+        if req.method == "HEAD":
+            return httpx.Response(
+                HTTPStatus.OK,
+                headers={
+                    "content-disposition": 'attachment; filename="arXiv-2001.00001v3.tar.gz"'
+                },
+            )
+        return httpx.Response(
+            HTTPStatus.OK, content=make_targz({"m.tex": _TINY_TEX_FULL})
+        )
+
+    f, _clk = _acq_fetcher(handler)
+    res = acquire_source(
+        "2001.00001v2", version=3, fetcher=f, cache=SourceCache(tmp_path)
+    )
+    assert res.status is AcquireStatus.OK
+    assert res.resolved_version == _VER_FLIPPED
+    assert seen == ["/src/2001.00001v3", "/src/2001.00001v3"]
+
+
+def test_e2e_gzipped_pdf_becomes_tex_quirk(tmp_path: Path) -> None:
+    """观察钉：gzip 包 %PDF 体（老式 single-file 形态）落为 .tex 内容垃圾——
+    SINGLE 臂不验 TeX 性，PDF_ONLY 只对裸 %PDF 魔数生效。"""
+    body = gzip.compress(b"%PDF-1.4 fake\n" + b"p" * 300)
+    f, _clk = _acq_fetcher(_src_handler(body))
+    res = acquire_source("2001.00001", fetcher=f, cache=SourceCache(tmp_path))
+    assert res.status is AcquireStatus.OK
+    files = _extracted_files(res)
+    assert len(files) == 1
+    assert (res.entry.dir / "extracted" / files[0]).read_bytes().startswith(b"%PDF")
+
+
+def test_e2e_multi_main_resolution(tmp_path: Path) -> None:
+    """多主文件裁决 e2e：multi_doc 置位 + main 取自 candidates + 确定性。"""
+    body = make_targz(
+        {
+            "main.tex": "\\documentclass{article}\n\\begin{document}\n\\section{S}\nbody\n\\end{document}\n",
+            "paper.tex": "\\documentclass{article}\n\\begin{document}\n\\section{S}\nbody\n\\end{document}\n",
+        }
+    )
+    f, _clk = _acq_fetcher(_src_handler(body))
+    res = acquire_source("2001.00001", fetcher=f, cache=SourceCache(tmp_path))
+    assert res.status is AcquireStatus.OK
+    meta = json.loads((res.entry.dir / "meta.json").read_text("utf-8"))
+    loc = meta["locate"]
+    assert loc["multi_doc"] is True
+    assert loc["main"] == "main.tex"  # prior+深度平 → 路径序最小
+    assert set(loc["candidates"]) == {"main.tex", "paper.tex"}
+
+
+def test_e2e_casefold_dup_mains(tmp_path: Path) -> None:
+    """main.tex/Main.tex 大小写撞名：解包改名 ``~c2`` 后双候选均可见。"""
+    body = make_targz(
+        {
+            "main.tex": _TINY_TEX_FULL + b"\\section{S}\nbody\n",
+            "Main.tex": _TINY_TEX_FULL + b"\\section{S}\nbody\n",
+        }
+    )
+    f, _clk = _acq_fetcher(_src_handler(body))
+    res = acquire_source("2001.00001", fetcher=f, cache=SourceCache(tmp_path))
+    assert res.status is AcquireStatus.OK
+    assert any(w.startswith("casefold_rename:Main.tex") for w in res.warnings)
+
+
+# ---------------------------------------------------------------- Fetcher 传输纪律
+
+
+def test_transport_error_retries_then_raises() -> None:
+    """ConnectError 走满 RETRY_DELAYS 重试表（4 发）后以 TransportError 上抛。"""
+    calls: list[str] = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        calls.append(req.url.path)
+        msg = "boom"
+        raise httpx.ConnectError(msg, request=req)
+
+    clk = _Clock()
+    f = Fetcher(
+        RateLimiter(clock=clk.now, sleep=clk.sleep),
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+        hosts=("arxiv.org",),
+        sleep=clk.sleep,
+    )
+    with pytest.raises(httpx.TransportError):
+        f.head_src("2001.00001")
+    assert len(calls) == _MAX_ATTEMPTS
+
+
+def test_deterministic_request_error_not_retried() -> None:
+    """TooManyRedirects 属确定性 RequestError——立即上抛，不重试烧预算。"""
+    calls: list[str] = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        return httpx.Response(
+            HTTPStatus.MOVED_PERMANENTLY,
+            headers={"location": str(req.url)},
+        )
+
+    clk = _Clock()
+    f = Fetcher(
+        RateLimiter(clock=clk.now, sleep=clk.sleep),
+        client=httpx.Client(
+            transport=httpx.MockTransport(handler), follow_redirects=True
+        ),
+        hosts=("arxiv.org",),
+        sleep=clk.sleep,
+    )
+    with pytest.raises(httpx.TooManyRedirects):
+        f.head_src("2001.00001")
+    # httpx 内部重定向环（max_redirects）单次 send 内烧穿——不走退避表
+    assert len(calls) <= _REDIRECT_CALLS_BOUND
+
+
+def test_across_hosts_park_failover() -> None:
+    """主 host 被 park → 同路径自动走 export 镜像桶拿 200。"""
+    clk = _Clock()
+    rl = RateLimiter(clock=clk.now, sleep=clk.sleep)
+    for _ in range(2):
+        rl.acquire("https://arxiv.org/src/x")
+        rl.report("https://arxiv.org/src/x", HTTPStatus.TOO_MANY_REQUESTS)
+    assert rl.parked_until("https://arxiv.org/src/x") > clk.t
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        assert req.url.host == "export.arxiv.org"
+        return httpx.Response(
+            HTTPStatus.OK,
+            headers={"content-disposition": _CD_V1},
+        )
+
+    f = Fetcher(
+        rl,
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+        hosts=("arxiv.org", "export.arxiv.org"),
+        sleep=clk.sleep,
+    )
+    head = f.head_src("2001.00001")
+    assert head.http_status == HTTPStatus.OK
+    assert head.resolved_version == 1
+
+
+def test_across_hosts_park_beats_transport_error() -> None:
+    """观察钉：host1 parked + host2 transport-error → ParkedError 优先上抛。"""
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        msg = "down"
+        raise httpx.ConnectError(msg, request=req)
+
+    clk = _Clock()
+    rl = RateLimiter(clock=clk.now, sleep=clk.sleep)
+    for _ in range(2):
+        rl.acquire("https://arxiv.org/src/x")
+        rl.report("https://arxiv.org/src/x", HTTPStatus.TOO_MANY_REQUESTS)
+    f = Fetcher(
+        rl,
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+        hosts=("arxiv.org", "export.arxiv.org"),
+        sleep=clk.sleep,
+    )
+    with pytest.raises(ParkedError):
+        f.head_src("2001.00001")
+
+
+def test_across_hosts_all_parked_raises_first() -> None:
+    """全 host park → 首个 ParkedError（failover 穷尽语义）。"""
+    clk = _Clock()
+    rl = RateLimiter(clock=clk.now, sleep=clk.sleep)
+    for host in ("arxiv.org", "export.arxiv.org"):
+        for _ in range(2):
+            rl.acquire(f"https://{host}/src/x")
+            rl.report(f"https://{host}/src/x", HTTPStatus.TOO_MANY_REQUESTS)
+    f = Fetcher(
+        rl,
+        client=httpx.Client(transport=httpx.MockTransport(_ok_200)),
+        hosts=("arxiv.org", "export.arxiv.org"),
+        sleep=clk.sleep,
+    )
+    with pytest.raises(ParkedError, match=r"arxiv\.org"):
+        f.head_src("2001.00001")
+
+
+# ---------------------------------------------------------------- ratelimit 细分钉
+
+
+def test_path_class_isolation_pin() -> None:
+    """park 键带 path-class：/api 被 park 不挡 /src（实测口径 docs/06 勘误）。"""
+    clk = _Clock()
+    rl = RateLimiter(clock=clk.now, sleep=clk.sleep)
+    for _ in range(2):
+        rl.acquire("https://export.arxiv.org/api/query?id_list=x")
+        rl.report(
+            "https://export.arxiv.org/api/query?id_list=x",
+            HTTPStatus.TOO_MANY_REQUESTS,
+        )
+    assert rl.parked_until("https://export.arxiv.org/api/query?id_list=x") > clk.t
+    rl.acquire("https://export.arxiv.org/src/2001.00001")  # content 桶放行
+    with pytest.raises(ParkedError):
+        rl.acquire("https://export.arxiv.org/api/query?id_list=y")
+
+
+def test_park_escalation_doubles() -> None:
+    """断路器逐次翻倍 + consec_429 不随 park 过期清零——过期后单发 429 即再触，
+    时长 2^1×base×jitter（≥1.6×base）。"""
+    clk = _Clock()
+    rl = RateLimiter(clock=clk.now, sleep=clk.sleep)
+    url = "https://arxiv.org/src/x"
+    for _ in range(2):
+        rl.acquire(url)
+        rl.report(url, HTTPStatus.TOO_MANY_REQUESTS)
+    first = rl.parked_until(url) - clk.t
+    assert 0 < first <= 1800 * 1.25
+    clk.t += first + 1  # park 过期（consec_429=2 仍在桶上）
+    rl.acquire(url)  # 放行
+    rl.report(url, HTTPStatus.TOO_MANY_REQUESTS)  # consec=3 ≥2 → 即刻再触
+    second = rl.parked_until(url) - clk.t
+    assert second >= 1800 * 1.6  # step=1 → 2×base×jitter(≥0.8)
+    assert second <= 7200 * 1.25  # jitter 在 cap 外乘——有效上界 park_max×1.2
+    with pytest.raises(ParkedError):  # 新 park 立即生效
+        rl.acquire(url)
+
+
+def test_budget_boundary_exact() -> None:
+    """日预算边界：恰 DAILY_BUDGET 发通过，第 N+1 发 BudgetExhausted。"""
+    clk = _Clock()
+    rl = RateLimiter(clock=clk.now, sleep=clk.sleep)
+    for i in range(DAILY_BUDGET):
+        rl.acquire(f"https://arxiv.org/src/p{i}")
+    with pytest.raises(BudgetExhaustedError):
+        rl.acquire("https://arxiv.org/src/over")
+
+
+def test_backward_clock_inflates_pacing() -> None:
+    """观察钉：墙钟回拨 → pacing wait 吃满回拨量（docstring 已记代价）。"""
+    clk = _Clock()
+    rl = RateLimiter(clock=clk.now, sleep=clk.sleep)
+    rl.acquire("https://arxiv.org/src/a")
+    clk.t -= 10000.0  # NTP 回拨 ~2.8h
+    rl.acquire("https://arxiv.org/src/b")
+    assert clk.sleeps[-1] > _NTP_WAIT_MIN
+
+
+# ---------------------------------------------------------------- locate 补面
+
+
+def test_locate_deep_chain_and_cycle(tmp_path: Path) -> None:
+    """深链截断 + 环告警（重构在飞件——只钉稳定不变量）。"""
+    deep = tmp_path / "deep"
+    deep.mkdir()
+    (deep / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\n\\input{c1}\n\\end{document}\n"
+    )
+    for i in range(1, _CHAIN_SEGS):
+        nxt = f"\\input{{c{i + 1}}}" if i < _CHAIN_SEGS - 1 else ""
+        (deep / f"c{i}.tex").write_text(f"% seg{i}\n{nxt}\n")
+    res = locate(deep)
+    assert res.main == "main.tex"
+    assert len(res.order) == _ORDER_CAP  # depth 0..64
+    assert any(w.startswith("max_depth:c65.tex") for w in res.warnings)
+
+    cyc = tmp_path / "cyc"
+    cyc.mkdir()
+    (cyc / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\n\\input{b}\n\\end{document}\n"
+    )
+    (cyc / "b.tex").write_text("\\input{a}\n")
+    (cyc / "a.tex").write_text("\\input{b}\n")
+    res2 = locate(cyc)
+    assert res2.order == ["main.tex", "b.tex", "a.tex"]
+    assert "cycle:a.tex->b.tex" in res2.warnings
+
+
+def test_locate_dangling_symlink_unreadable(tmp_path: Path) -> None:
+    """dangling .tex symlink → ``unreadable:`` 告警而非崩。"""
+    root = tmp_path / "d"
+    root.mkdir()
+    (root / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}hi\\end{document}\n"
+    )
+    (root / "ghost.tex").symlink_to("nonexistent.tex")
+    res = locate(root)
+    assert res.main == "main.tex"
+    assert any(w.startswith("unreadable:ghost.tex") for w in res.warnings)
+
+
+def test_locate_out_of_tree_symlink_followed(tmp_path: Path) -> None:
+    """PLAUSIBLE 钉：.tex symlink 指树外 → 内容被跟读、成候选。
+
+    arXiv tar 路径不可达（unpack 拒绝对/逃逸链接）；但 upload/直接落盘
+    树无此闸——``_scan_nodes`` 的 ``read_bytes`` 随 symlink 出根，树外
+    ``\\documentclass`` 文件被采纳为候选。内容不进 LocateResult，但
+    「main 落盘选择」被树外内容劫持。
+    """
+    outside = tmp_path / "outside.tex"
+    outside.write_text(
+        "\\documentclass{article}\n\\begin{document}OUT\\end{document}\n"
+    )
+    root = tmp_path / "tree"
+    root.mkdir()
+    (root / "link.tex").symlink_to(outside)
+    (root / "plain.tex").write_text("no docclass\n")
+    res = locate(root)
+    assert res.main == "link.tex"  # 现行行为钉——修复应拒跟树外 link
+
+
+def test_locate_arxiv_id_filename_prior(tmp_path: Path) -> None:
+    """文件名先验：``{id 去标点}.tex`` 与 main 平级时 id 名胜出依赖排序。"""
+    root = tmp_path / "idprior"
+    root.mkdir()
+    for name in ("zzz.tex", "200100001.tex"):
+        (root / name).write_text(
+            "\\documentclass{article}\n\\begin{document}\n\\section{S}\nx\n\\end{document}\n"
+        )
+    res = locate(root, arxiv_id="2001.00001")
+    assert res.main == "200100001.tex"
+    assert res.multi_doc
+
+
+# ---------------------------------------------------------------- meta/degrade 补面
+
+_BURN_BOUND = 30  # 版本回退探测的合理上界（真版本史 rarely >30）
+
+
+@xfail_confirmed(
+    "D3: meta.py:381 — /html 逐版本回退信任 feed 宣告的 latest 无上界，"
+    "phantom v300 烧满 180 日预算才停"
+)
+def test_degrade_version_fallback_unbounded() -> None:
+    """feed 宣告 latest=300 + /html 全 404 → 回退探测应有界，不是烧满预算。"""
+    atom = (
+        b'<?xml version="1.0"?>'
+        b'<feed xmlns="http://www.w3.org/2005/Atom">'
+        b"<entry><id>http://arxiv.org/abs/2001.00001v300</id><title>T</title>"
+        b"</entry></feed>"
+    )
+    calls: list[str] = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        calls.append(req.url.path)
+        if "/api/query" in req.url.path:
+            return httpx.Response(HTTPStatus.OK, content=atom)
+        return httpx.Response(HTTPStatus.NOT_FOUND)
+
+    clk = _Clock()
+    f = _fetcher(handler, clk, hosts=("arxiv.org",))
+    res = degrade("2001.00001", fetcher=f, reason=DegradeReason.PARSE_FAILED, version=2)
+    assert res.tier is DegradeTier.NONE
+    assert len(calls) <= _BURN_BOUND
+
+
+def test_degrade_fallback_park_aborts() -> None:
+    """版本回退中途 park → abort 归 NONE/兜底层，不继续空烧。"""
+    clk = _Clock()
+    rl = RateLimiter(clock=clk.now, sleep=clk.sleep)
+    # 预 park content 桶（/html 与 /pdf 同属 content path-class）
+    for _ in range(2):
+        rl.acquire("https://arxiv.org/src/x")
+        rl.report("https://arxiv.org/src/x", HTTPStatus.TOO_MANY_REQUESTS)
+    assert rl.parked_until("https://arxiv.org/html/x") > clk.t
+
+    def handler(_req: httpx.Request) -> httpx.Response:
+        return httpx.Response(HTTPStatus.OK, content=b"<feed/>")
+
+    f = Fetcher(
+        rl,
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+        hosts=("arxiv.org",),
+        sleep=clk.sleep,
+    )
+    res = degrade("2001.00001", fetcher=f, reason=DegradeReason.PARSE_FAILED, version=2)
+    assert res.tier is DegradeTier.NONE
+    assert any("abort" in p for p in res.probed)
+
+
+def test_oai_version_zero_padded_collapses() -> None:
+    """OAI ``version="v007"`` → int 折叠为 7——与 v7 重复记录并存不炸。"""
+    oai = b"""<?xml version="1.0"?>
+<OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/">
+ <GetRecord><record><metadata>
+  <arXivRaw xmlns="http://arxiv.org/OAI/arXivRaw/">
+   <id>2001.00001</id><title>T</title><authors>A</authors>
+   <version version="v7"/><version version="v007"/><version version="v08"/>
+  </arXivRaw>
+ </metadata></record></GetRecord>
+</OAI-PMH>"""
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        if req.url.path == "/oai":
+            return httpx.Response(HTTPStatus.OK, content=oai)
+        return httpx.Response(HTTPStatus.NOT_FOUND)
+
+    clk = _Clock()
+    f = _fetcher(handler, clk, hosts=("arxiv.org",))
+    m = fetch_metadata("2001.00001", fetcher=f)
+    assert m is not None
+    assert [v.version for v in m.versions] == [7, 7, _OAI_PAD_LATEST]
+    assert m.latest_version == _OAI_PAD_LATEST
+    assert m.has_version(7)
+
+
+# ---------------------------------------------------------------- html.py 降级链
+
+_HTML_FRAGS = (
+    '<div class="ltx_para">',
+    "</div>",
+    "<math><mi>x</mi></math>",
+    '<span class="ltx_ERROR">',
+    "</span>",
+    "text ",
+    "<p>",
+    "</p>",
+    "<h1 class='ltx_title ltx_title_document'>T</h1>",
+    "<h6 class='ltx_title ltx_title_subparagraph'>s</h6>",
+    "[[MATH_1]]",
+    "[[CITE_9]]",
+    "<figcaption class='ltx_caption'>c</figcaption>",
+    "<div class='ltx_figure'>",
+    "<li class='ltx_bibitem'>b</li>",
+    "<a href='#x'>r</a>",
+    "<a class='ltx_url' href='http://e'>u</a>",
+    "<span class='ltx_note'>",
+    "<span class='ltx_note_content'>n</span>",
+    "<ul><li>",
+    "</li></ul>",
+    "<br>",
+    "<table class='ltx_tabular'>",
+    "</table>",
+    "<div class='ltx_listing'>",
+    "<div class='ltx_authors'>",
+    "<div class='ltx_dates'>",
+    "<div class='ltx_abstract'>",
+    "<div class='ltx_classification'>",
+    "<table class='ltx_equation'>",
+    "<img src='f.png'>",
+    "<svg></svg>",
+    "<span class='ltx_note_mark'>m</span>",
+    "<div class='ltx_titlepage'>",
+    "<span style='font-size: 144%'>FT</span>",
+    "<em>it</em>",
+    "<span id='dup'>a</span><span id='dup'>b</span>",
+    "\x00",
+    "☃é",
+)
+
+_HTML_ITERS = 300
+
+
+def test_fuzz_parse_html_random_soup() -> None:
+    """随机 DOM 汤：不抛非 HtmlError；块 key 唯一；marked data-chunk 1:1。"""
+    rng = random.Random(_SEED + 30)  # noqa: S311 -- 确定性种子
+    for i in range(_HTML_ITERS):
+        body = "".join(rng.choice(_HTML_FRAGS) for _ in range(rng.randint(0, 40)))
+        doc = f'<article class="ltx_document">{body}</article>'
+        try:
+            res = parse_arxiv_html(doc, arxiv_id="x")
+        except HtmlNotAvailableError:
+            continue
+        keys = [b.key for b in res.blocks]
+        assert len(keys) == len(set(keys)), f"dup keys: {keys}"
+        for b in res.blocks:
+            assert isinstance(b.context, str)
+            for t, frag in b.ph.items():
+                assert PH_RX.fullmatch(t)
+                assert res.ph_map[t] == frag
+        marked = marked_html(doc)
+        anchors = set(re.findall(r'data-chunk="([^"]+)"', marked))
+        assert anchors == set(keys), f"iter{i}: anchor/block 错位"
+        ctx_of_key = {b.key: b.context for b in res.blocks}
+        chunks = doc_chunks(res, id_prefix="h:")
+        for c in chunks:
+            src_ctx = ctx_of_key[c.chunk_id.removeprefix("h:")]
+            assert src_ctx in TRANSLATE_CTX  # 白名单外 context 不产 chunk
+            assert c.kind == normalize_kind(src_ctx)
+            assert c.content.strip()
+            if c.ph_fragments:
+                assert set(c.ph_fragments) <= set(res.ph_map)
+
+
+@xfail_confirmed(
+    "D4: html.py:224 — _inline_node 递归实现，块内 ~900+ 层非块元素嵌套"
+    "（span/em/…）越递归上限 → RecursionError 逃逸 parse/marked"
+)
+def test_parse_html_deep_inline_nesting() -> None:
+    """深嵌套行内元素应降级处理（HtmlError 或截断），不是 RecursionError。"""
+    doc = (
+        '<article class="ltx_document"><div class="ltx_para">'
+        + "<span>" * 2000
+        + "x"
+        + "</span>" * 2000
+        + "</div></article>"
+    )
+    try:
+        res = parse_arxiv_html(doc)
+    except HtmlError:
+        return
+    assert isinstance(res, HtmlDoc)
+    with contextlib.suppress(HtmlError):
+        marked_html(doc)
+
+
+def test_fetch_html_stub_check_split_brain() -> None:
+    """观察钉：fetch 侧 stub 判据是字面 ``ltx_document`` 子串——script/注释
+    里出现同名字面即过闸，DOM 层 parse 仍会拒（廉价预检 vs 权威判据）。"""
+
+    def handler(_req: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            HTTPStatus.OK,
+            text='<html><body><script>var x="ltx_document";</script></body></html>',
+        )
+
+    clk = _Clock()
+    f = _fetcher(handler, clk, hosts=("arxiv.org",))
+    text = fetch_html("1501.00001", fetcher=f)  # 过闸
+    with pytest.raises(HtmlNotAvailableError):
+        parse_arxiv_html(text)  # DOM 判据拦
+
+
+def test_fuzz_fetch_html_statuses() -> None:
+    """任意 status/body：异常集封闭 + 200 返回体必含 ltx_document 字面。"""
+    rng = random.Random(_SEED + 31)  # noqa: S311 -- 确定性种子
+    bodies = (
+        "<article class='ltx_document'></article>",
+        "ltx_document",
+        "<html/>",
+        "",
+        "ltx_document stub",
+    )
+    statuses = (200, 200, 200, 301, 404, 406, 429, 500, 502)
+    allowed_exc = (
+        HtmlFetchError,  # 非 200/非 404 状态
+        HtmlError,  # stub/404 → HtmlNotAvailableError
+        ParkedError,
+        BudgetExhaustedError,
+        httpx.RequestError,
+        OSError,
+    )
+    for _ in range(200):
+        status = rng.choice(statuses)
+        body = rng.choice(bodies)
+
+        def handler(
+            _req: httpx.Request, _s: int = status, _b: str = body
+        ) -> httpx.Response:
+            return httpx.Response(_s, text=_b)
+
+        clk = _Clock()
+        f = _fetcher(handler, clk, hosts=("arxiv.org",))
+        try:
+            out = fetch_html("1501.00001", fetcher=f)
+        except allowed_exc:
+            continue
+        assert "ltx_document" in out
+
+
+def test_fetch_html_parked_propagates() -> None:
+    """fetch_html 的 park/预算异常原样上抛（不重包装成 HtmlError）。"""
+    clk = _Clock()
+    rl = RateLimiter(clock=clk.now, sleep=clk.sleep)
+    for _ in range(2):
+        rl.acquire("https://arxiv.org/src/x")
+        rl.report("https://arxiv.org/src/x", HTTPStatus.TOO_MANY_REQUESTS)
+    f = Fetcher(
+        rl,
+        client=httpx.Client(transport=httpx.MockTransport(_ok_200)),
+        hosts=("arxiv.org",),
+        sleep=clk.sleep,
+    )
+    with pytest.raises(ParkedError):
+        fetch_html("1501.00001", fetcher=f)
+
+
+def test_fetch_html_bad_id_valueerror() -> None:
+    """坏 id（含版本 <1）→ ValueError（调用方错误语义，与 head_src 同型）。"""
+    clk = _Clock()
+    f = _fetcher(_ok_200, clk, hosts=("arxiv.org",))
+    with pytest.raises(ValueError, match="bad arxiv id"):
+        fetch_html("../etc/passwd", fetcher=f)
+    with pytest.raises(ValueError, match="bad arxiv id"):
+        fetch_html("1501.00001v0", fetcher=f)
+
+
+def test_issuer_reserved_token_skips() -> None:
+    """源文自带 ``[[MATH_1]]`` 字面 → 签发顺延，原文不被误当占位符。"""
+    doc = parse_arxiv_html(
+        '<article class="ltx_document"><div class="ltx_para">'
+        "literal [[MATH_1]] text <math><mi>y</mi></math></div></article>"
+    )
+    assert "[[MATH_1]]" not in doc.ph_map
+    assert "[[MATH_2]]" in doc.ph_map
+
+
+def test_reinsert_single_pass_no_cascade() -> None:
+    """ph 值内含类 token 字面不级联展开——单趟 sub 语义。"""
+    out = reinsert("a [[X_1]] b", {"[[X_1]]": "[[Y_2]]", "[[Y_2]]": "Z"})
+    assert out == "a [[Y_2]] b"
+
+
+def test_marked_parse_key_parity_on_stubs() -> None:
+    """stub 页 parse 与 marked 同抛 HtmlNotAvailableError——判据同型。"""
+    stub = "<html><body>HTML not available</body></html>"
+    with pytest.raises(HtmlNotAvailableError):
+        parse_arxiv_html(stub)
+    with pytest.raises(HtmlNotAvailableError):
+        marked_html(stub)
