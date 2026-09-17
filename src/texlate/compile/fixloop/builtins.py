@@ -374,6 +374,20 @@ def bbl_stub_rewrite(
     ), f"\\bibliography -> \\input{{{target.name}}} in {changed} files"
 
 
+#: ``.bbl`` 头标 ``bbl format version X.Y`` (biber 产物首行) —— 版本元组提取。
+_BBL_VER_RE = re.compile(rb"bbl format version (\d+)\.(\d+)")
+
+
+def _bbl_format_version(bbl: Path) -> tuple[int, int] | None:
+    """``.bbl`` 头标 ``bbl format version X.Y`` → ``(X, Y)``; 无标/读失败 → ``None``。"""
+    try:
+        head = bbl.read_bytes()[:2048]
+    except OSError:
+        return None
+    m = _BBL_VER_RE.search(head)
+    return (int(m.group(1)), int(m.group(2))) if m else None
+
+
 def bbl_regen(
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
@@ -383,27 +397,53 @@ def bbl_regen(
     拒载 —— ``\\sortlist`` undefined / ``File 'ms.bbl' is wrong format version``;
     .bcf+.bib 在场即 ``biber <stem>`` 重生成正确版本 .bbl (输出落 .bcf 同目录,
     嵌套亦直传 wdir 相对 stem)。biber 缺席 → run_tool rc≠0 fail-safe。
+
+    wall-2 (1706.00240, fixer-apjbbx verification.txt): biber rc=2 对陈旧
+    .bcf/.bbl 会**自删** stem.bbl ("malformed ... Deleted")——清场即 progress,
+    旧实现 ``if not done: return False`` 白做; 残留 bbl 头标
+    ``bbl format version <3.0`` 同理是 poison (biblatex 硬拒), 删除后变
+    "no bbl" 软缺——无文献但出 PDF, 比硬错强。
     """
     del eng, payload, params
     bcfs = sorted(ctx.wdir.rglob("*.bcf"))
     if not bcfs:
         return False, "no .bcf in project"
     done: list[str] = []
+    dropped: list[str] = []
     failed: list[str] = []
     for bcf in bcfs:
         stem = str(bcf.relative_to(ctx.wdir).with_suffix(""))
+        bbl = bcf.with_suffix(".bbl")
+        had_bbl = bbl.exists()
         rc, _out, to = ctx.run_tool(["biber", stem], 60)
         if rc == 0 and not to:
             done.append(bcf.name)
-            ctx.invalidate(bcf.with_suffix(".bbl"))
+            ctx.invalidate(bbl)
+            continue
+        if had_bbl and not bbl.exists():
+            # biber 自删 poison (陈旧格式拒载清场) —— 真实盘变, 计 progress
+            ctx.invalidate(bbl)
+            dropped.append(f"{bbl.name}(biber-rm)")
+        elif (
+            bbl.is_file()
+            and (ver := _bbl_format_version(bbl)) is not None
+            and ver < (3, 0)  # bbl 格式主版本门 (biblatex 3.x 硬拒 <3.0)
+        ):
+            bbl.unlink()
+            ctx.invalidate(bbl)
+            dropped.append(f"{bbl.name}(fmt {ver[0]}.{ver[1]})")
         else:
             failed.append(f"{bcf.name} rc={rc}{'/timeout' if to else ''}")
-    if not done:
+    if not done and not dropped:
         return False, f"biber regen failed: {'; '.join(failed)}"
-    note = f"biber regen: {', '.join(done)}"
+    parts: list[str] = []
+    if done:
+        parts.append(f"regen: {', '.join(done)}")
+    if dropped:
+        parts.append(f"stale-dropped: {', '.join(dropped)}")
     if failed:
-        note += f"; failed: {'; '.join(failed)}"
-    return True, note
+        parts.append(f"failed: {'; '.join(failed)}")
+    return True, "; ".join(parts)
 
 
 #: ``\documentclass`` 选项表提取 —— 选项可缺省, 方括号内允跨行空白。
@@ -875,6 +915,195 @@ def strip_inputenc(
             ctx.write(f, nt)
             changed.append(f"{f.name}(-{n_load}load,-{n_enc}enc)")
     return (bool(changed)), f"strip inputenc in {', '.join(changed)}"
+
+
+#: ``\\usepackage``/``\\RequirePackage`` 名单内的 ``physics`` 装载点
+#: (``\\b`` 界只保证不以字母续名——``{physics-tools}`` 这类命中由成员判定滤掉)。
+_PHYS_LOAD_RE = re.compile(
+    r"\\(usepackage|RequirePackage)(\s*\[[^\]\n]*\])?\s*\{([^}]*)\bphysics\b([^}]*)\}"
+)
+#: 源侧既有 ``\\input{physics}`` 裸载点 —— 裸 ``\\input`` 本就不进注册表, 不重复补。
+_PHYS_INPUT_RE = re.compile(r"\\input\s*\{?\s*physics(?:\.sty|\.tex)?(?![\w.-])")
+#: stub 内 ``\\ProvidesPackage{physics}`` —— ``\\input`` 路径下它仍置
+#: ``ver@physics.sty`` → siunitx 的 ``\\@ifpackageloaded{physics}`` 照中。
+_PHYS_PROVIDES_RE = re.compile(r"(\\Provides(?:Expl)?Package\s*\{)physics(\s*\})")
+_PHYS_GUARD_MARK = "txlatephysstub"
+_PHYS_STUB_GUARD = (
+    "% fixloop: physics stub detached (siunitx \\@ifpackageloaded evasion)\n"
+    "\\ifdefined\\txlatephysstub\\expandafter\\endinput\\fi\n"
+    "\\let\\txlatephysstub\\relax\n"
+)
+
+
+def _detach_physics_loads(t: str, *, add_input: bool) -> tuple[str, int]:
+    r"""剥 ``physics`` 装载点并原位换 ``\\input{physics.sty}`` 续载 → (新文本, 摘除数)。
+
+    独载 → 整命令换成 ``\\input`` 行; 列表成员 → 摘除元素 + 行后挂 ``\\input``。
+    ``\\input`` 不进 ``ver@`` 注册表, stub 的 ``\\abs``/``\\norm`` 等定义照常
+    生效。命中位取自 ``mask_tex`` 遮盖视图——``%`` 注释内的假装载点不动
+    (注释里拼 ``\\input`` 会把续行冲出注释)。
+    """
+    masked = mask_tex(t)
+    hits = []
+    for m in _PHYS_LOAD_RE.finditer(masked):
+        # g3+g4 是不含 physics 本体的花括号残件——回填本体再做元素级判定
+        # (``{physics-tools}`` 的 ``\b`` 误命中由此滤掉)。
+        pkgs = [
+            p.strip() for p in (m.group(3) + "physics" + m.group(4)).split(",")
+        ]
+        if "physics" in pkgs:
+            hits.append((m, [p for p in pkgs if p and p != "physics"]))
+    if not hits:
+        return t, 0
+    out = t
+    need = add_input
+    for m, keep in reversed(hits):
+        if need:
+            need = False
+            ins = "% fixloop: physics stub detached\n\\input{physics.sty}"
+            repl = (
+                f"\\{m.group(1)}{m.group(2) or ''}{{{','.join(keep)}}}\n{ins}"
+                if keep
+                else ins
+            )
+        elif keep:
+            repl = f"\\{m.group(1)}{m.group(2) or ''}{{{','.join(keep)}}}"
+        else:
+            ls = t.rfind("\n", 0, m.start()) + 1
+            repl = (
+                ""
+                if t[ls : m.start()].strip()
+                else "% fixloop: stripped " + m.group(0).strip()
+            )
+        out = out[: m.start()] + repl + out[m.end() :]
+    return out, len(hits)
+
+
+def _detach_in_tex_files(
+    ctx: LoopCtx, stub: Path, exts: tuple[str, ...], *, need_input: bool
+) -> list[str]:
+    r"""逐 tex 文件剥 physics 装载点 (首个文件补 ``\\input`` 续载) → 改动文件名。"""
+    changed: list[str] = []
+    for f in ctx.tex_files(exts):
+        if f == stub:
+            continue
+        t = ctx.read(f)
+        if t is None or "physics" not in t:
+            continue
+        nt, n = _detach_physics_loads(t, add_input=need_input)
+        if not n or nt == t:
+            continue
+        ctx.write(f, nt)
+        changed.append(f.name)
+        need_input = False
+    return changed
+
+
+def physics_stub_detach(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""Bundled ``physics.sty`` stub 撞 siunitx ``\\@ifpackageloaded{physics}`` → 脱注册续载。
+
+    实证 (1706.00240 wall-3, fixer-apjbbx verification.txt): e-print 捆绑
+    2012 手写 mini-physics (``\\dbar\\ord\\bra\\ket`` 族), siunitx v3
+    ``\\AtBeginDocument`` 对 ``\\@ifpackageloaded{physics}`` 硬报错 →
+    ``\\begin{document}`` 处 undefined_cs。三步: ``\\usepackage`` 名单剥
+    physics 原位改 ``\\input{physics.sty}`` (``\\input`` 不进 ``ver@`` 注册)
+    + stub ``\\ProvidesPackage{physics}`` 更名 ``physics-stub`` + 双载守卫。
+    真 CTAN physics (xparse ``\\DeclareDocumentCommand`` 形) 弃权——那与
+    siunitx 是 ``\\qty`` 语义真冲突, 归 LLM。
+    """
+    del eng, payload
+    stub = ctx.wdir / "physics.sty"
+    st = ctx.read(stub) if stub.is_file() else None
+    if st is None:
+        return False, "no bundled physics.sty at wdir root"
+    real_marker = str(params.get("real_marker") or r"\\DeclareDocumentCommand")
+    if re.search(real_marker, st):
+        return False, "physics.sty is xparse-form (real CTAN), not stub"
+    exts = tuple(params.get("exts") or (".tex", ".sty", ".cls"))
+    need_input = _PHYS_INPUT_RE.search(mask_tex(ctx.source_blob())) is None
+    changed = _detach_in_tex_files(ctx, stub, exts, need_input=need_input)
+    renamed = _PHYS_PROVIDES_RE.sub(r"\g<1>physics-stub\g<2>", st)
+    neut = renamed
+    if (changed or neut != st) and _PHYS_GUARD_MARK not in neut:
+        neut = _PHYS_STUB_GUARD + neut
+    if neut != st:
+        ctx.write(stub, neut)
+    if not changed and renamed == st:
+        return False, "no physics load sites to detach"
+    parts = []
+    if changed:
+        parts.append(f"\\input detach in {', '.join(changed)}")
+    if renamed != st:
+        parts.append("ProvidesPackage neutered")
+    if neut != renamed:
+        parts.append("reload guard")
+    return True, "physics stub detached: " + "; ".join(parts)
+
+
+#: 寄存器/盒型分配的裸 cs 形 (plain/cls 内码常见): ``\newbox\splitbox``。
+#: ``\newif\ifX`` 伴生 ``\Xtrue``/``\Xfalse``; ``*def`` 系 primitive 同把名
+#: 绑进寄存器槽位——``\let\X\@undefined`` 后名被后载包抢占, 原 ``\setbox``/
+#: ``\advance`` 点变 Missing number (2211.04482 aastex62 ``\splitbox`` 实证)。
+_ALLOC_CS_RE = re.compile(
+    r"\\(?:newbox|newcount|newdimen|newskip|newmuskip|newtoks|newread"
+    r"|newwrite|newif|newinsert|newmarks|newfont|newlanguage"
+    r"|chardef|mathchardef|countdef|dimendef|skipdef|muskipdef"
+    r"|toksdef|font)\s*\\([A-Za-z@]+)"
+)
+#: LaTeX 花括号形: ``\newlength{\x}``/``\newsavebox{\x}`` 直给寄存器名;
+#: ``\newcounter{c}`` 分配 ``\c@c``; ``\newboolean{b}`` 内部走 ``\newif\ifb``。
+_ALLOC_BRACE_RE = re.compile(
+    r"\\(newlength|newsavebox|newcounter|newboolean|provideboolean)"
+    r"\s*\{\s*\\?([A-Za-z@]+)\s*\}"
+)
+
+
+def _allocated_cs_names(masked_blob: str) -> frozenset[str]:
+    r"""遮盖视图上扫寄存器/盒型分配名集 (含 ``\newif``/``\newboolean`` 伴生)。"""
+    names: set[str] = set()
+    for m in _ALLOC_CS_RE.finditer(masked_blob):
+        n = m.group(1)
+        names.add(n)
+        if n.startswith("if") and n[2:]:
+            names.add(n[2:] + "true")
+            names.add(n[2:] + "false")
+    for m in _ALLOC_BRACE_RE.finditer(masked_blob):
+        kind, n = m.group(1), m.group(2)
+        if kind in ("newlength", "newsavebox"):
+            names.add(n)
+        elif kind == "newcounter":
+            names.add("c@" + n)
+        else:  # newboolean/provideboolean → \newif\ifn 同构
+            names.add("if" + n)
+            names.add(n + "true")
+            names.add(n + "false")
+    return frozenset(names)
+
+
+def undefine_for_redef(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""``already_def`` → ``\let\X\@undefined`` 让位注入 (寄存器护栏版)。
+
+    原 regex_rewrite (order 113) 无脑 undefine——``\newbox\splitbox`` 被
+    undefine 后 adjustbox 抢占名位, 类内后续 ``\setbox\splitbox`` 变
+    Missing number (2211.04482 aastex62 实证)。payload cs 命中
+    ``_ALLOC_CS_RE``/``_ALLOC_BRACE_RE`` 分配集 → abstain 交给后续规则
+    /LLM; ``\newcommand``/``\def`` 形维持 ``\let\X\@undefined`` 原路径。
+    """
+    del eng, params
+    cs = (payload or "").lstrip("\\")
+    if not cs or not re.fullmatch(r"[A-Za-z@]+", cs):
+        return False, "no usable cs payload"
+    if cs in _allocated_cs_names(mask_tex(ctx.source_blob())):
+        return False, f"\\{cs} is register/box-allocated, undefine unsafe"
+    if _inject_after_docclass(
+        ctx, f"\\makeatletter\\let\\{cs}\\@undefined\\makeatother"
+    ):
+        return True, f"undefine \\{cs} after documentclass"
+    return False, "inject failed or already present"
 
 
 #: undefined_cs → 定向修复表 (cs_targeted_fix 的默认表, rules.yaml
@@ -2159,6 +2388,8 @@ TRANSFORM_FNS = {
     "journal_cs_polyfill": journal_cs_polyfill,
     "bundled_class_shadow": bundled_class_shadow,
     "strip_inputenc": strip_inputenc,
+    "physics_stub_detach": physics_stub_detach,
+    "undefine_for_redef": undefine_for_redef,
     "cs_targeted_fix": cs_targeted_fix,
     "purge_corrupt_intermediates": purge_corrupt_intermediates,
     "missing_char_fix": missing_char_fix,

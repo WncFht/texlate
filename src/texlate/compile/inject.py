@@ -188,6 +188,86 @@ TIE_ACCENT_FIX = r"""
 \fi
 """
 
+#: lmroman 8-bit 覆盖缺口 (A6, ~49 格): 西里尔/希腊/拉丁扩展字符落进
+#: ec-lmr/aer10/futr8t 族 8-bit TFM 文本字体 → 整族丢字, font_fallback
+#: 逐字 ``\newunicodechar`` 只盖 in-band。本块给这些码位单开
+#: ``\XeTeXintercharclass`` → CMU Serif (cm-unicode otf, 全谱覆盖),
+#: ``\XeTeXinterchartoks`` 进出边沿换族。全带并入同一 class——带内相邻
+#: 字符不触发过渡, 字体稳持; 不碰 CJK 码位 (xeCJK 的 class 分配不受影响,
+#: 且本块不接 ucharclasses——它给 CJKUnified 也派 class, 会盖掉 xeCJK)。
+#: 0..31 类对全接线: xeCJK 类 → CMU 类相邻 (人名汉字混排) 也要换族。
+TEXT_8BIT_FALLBACK = r"""
+% texlate: CMU Serif fallback for 8-bit TFM coverage gaps (xetex only)
+\ifdefined\XeTeXversion
+\IfFileExists{cmunrm.otf}{%
+\makeatletter
+\DeclareFontFamily{TU}{texlatecmu}{\hyphenchar\font\m@ne}
+\DeclareFontShape{TU}{texlatecmu}{m}{n}{<->"[cmunrm.otf]"}{}
+\DeclareFontShape{TU}{texlatecmu}{b}{n}{<->"[cmunbx.otf]"}{}
+\DeclareFontShape{TU}{texlatecmu}{bx}{n}{<->ssub*texlatecmu/b/n}{}
+\DeclareFontShape{TU}{texlatecmu}{m}{it}{<->"[cmunti.otf]"}{}
+\DeclareFontShape{TU}{texlatecmu}{m}{sl}{<->ssub*texlatecmu/m/it}{}
+\DeclareFontShape{TU}{texlatecmu}{b}{it}{<->"[cmunbi.otf]"}{}
+\DeclareFontShape{TU}{texlatecmu}{bx}{it}{<->ssub*texlatecmu/b/it}{}
+\DeclareFontShape{TU}{texlatecmu}{b}{sl}{<->ssub*texlatecmu/b/it}{}
+\DeclareFontShape{TU}{texlatecmu}{bx}{sl}{<->ssub*texlatecmu/bx/it}{}
+\edef\TeXlate@cmuprev{\familydefault}
+\def\TeXlate@cmuOn{\edef\TeXlate@cmuprev{\f@family}%
+  \fontfamily{texlatecmu}\selectfont}
+\def\TeXlate@cmuOff{\fontfamily{\TeXlate@cmuprev}\selectfont}
+\ifdefined\newXeTeXintercharclass
+  \newXeTeXintercharclass\TeXlateCMUclass
+\else
+  \chardef\TeXlateCMUclass=200
+\fi
+\def\TeXlate@clsmap#1-#2;{\count@="#1\relax
+  \@whilenum\count@<"#2 \do{\XeTeXcharclass\count@=\TeXlateCMUclass
+  \advance\count@\@ne}}
+% Cyrillic + supplements
+\TeXlate@clsmap 0400-0530;
+\TeXlate@clsmap 1C80-1C90;
+\TeXlate@clsmap 2DE0-2E00;
+\TeXlate@clsmap A640-A6A0;
+\TeXlate@clsmap 1E030-1E090;
+% Greek and Coptic + Greek Extended + Coptic
+\TeXlate@clsmap 0370-0400;
+\TeXlate@clsmap 1F00-2000;
+\TeXlate@clsmap 2C80-2D00;
+% Latin Extended-A/B + Additional + C-G + IPA/phonetics
+\TeXlate@clsmap 0100-0250;
+\TeXlate@clsmap 1E00-1F00;
+\TeXlate@clsmap 2C60-2C80;
+\TeXlate@clsmap A720-A800;
+\TeXlate@clsmap AB30-AB70;
+\TeXlate@clsmap 1DF00-1E000;
+\TeXlate@clsmap 10780-107C0;
+\TeXlate@clsmap 0250-0300;
+\TeXlate@clsmap 1D00-1DC0;
+% Combining diacritical marks (all four blocks)
+\TeXlate@clsmap 0300-0370;
+\TeXlate@clsmap 1AB0-1B00;
+\TeXlate@clsmap 1DC0-1E00;
+\TeXlate@clsmap 20D0-2100;
+% Latin ligatures (ff/fi/fl …) in 8-bit slots
+\TeXlate@clsmap FB00-FB50;
+% 进出双向接线: 类 0..31 (xeCJK 占用带在内) + 边界 255 (+4095 新界)
+\count@=\z@
+\@whilenum\count@<32 \do{%
+  \XeTeXinterchartoks\count@\TeXlateCMUclass={\TeXlate@cmuOn}%
+  \XeTeXinterchartoks\TeXlateCMUclass\count@={\TeXlate@cmuOff}%
+  \advance\count@\@ne}
+\XeTeXinterchartoks 255 \TeXlateCMUclass={\TeXlate@cmuOn}
+\XeTeXinterchartoks\TeXlateCMUclass 255 ={\TeXlate@cmuOff}
+\ifdefined\XeTeXinterwordspaceshaping
+\XeTeXinterchartoks 4095 \TeXlateCMUclass={\TeXlate@cmuOn}
+\XeTeXinterchartoks\TeXlateCMUclass 4095 ={\TeXlate@cmuOff}
+\fi
+\XeTeXinterchartokenstate=\@ne
+\makeatother
+}{}
+\fi
+"""
+
 _DOC_RE = re.compile(r"\\(documentclass|documentstyle)(?![a-zA-Z])")
 
 #: \documentclass 调用参数扫描上限（防御畸形输入死循环）。
@@ -585,6 +665,7 @@ def inject_cjk(
     block += CJK_MATH_FALLBACK
     block += CJK_FIRST_USE_WARMUP
     block += TIE_ACCENT_FIX
+    block += TEXT_8BIT_FALLBACK
     if len(hits) > 1:
         # 幂等哨兵：分支选择形态（\ifpdf A \else B \fi）逐缝注入，活臂的块
         # 执行后立哨；万一第二缝也执行（顺序双 \documentclass 坏档）整块
