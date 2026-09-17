@@ -14,7 +14,7 @@ bench harness（e2e_mock_bench）与 CLI ``texlate run`` 共用同一实现—�
    fixloop 再 resplice 会把它的修复冲掉。
 2. **fixloop**（后跑）——yaml 规则引擎修源/基建类问题（缺包、preamble、
    字体……）。``TEXLATE_NO_FIXLOOP=1`` 关闭（测试/对照臂）；轮数上限沿用
-   rules.yaml ``meta.loop.max_rounds``。产出 ``engine_flags`` 在此消费：
+   rules/ ``meta.loop.max_rounds``。产出 ``engine_flags`` 在此消费：
    当前引擎没法直接吃 CLI 旗标（引擎 seam 未开），先落 advisory + 触发
    跨引擎换编（tectonic 上收到 flag → 换 xelatex 再编，取更优 verdict）。
 """
@@ -417,7 +417,7 @@ def _run_fixloop(  # noqa: PLR0913 -- 开关面穿透同 pipe_condition
     xelatex 追加 argv；tectonic 只放支持子集，dropped 项（多为
     shell-escape 需求）→ 记 advisory + 换 xelatex 重编取优。
 
-    ``timeout`` 覆盖 rules.yaml ``meta.loop.timeout_sec`` 的重编预算
+    ``timeout`` 覆盖 rules/ ``meta.loop.timeout_sec`` 的重编预算
     （None=用 yaml 值）。``llm_hook`` 未传时 ``TEXLATE_FIXLOOP_LLM=1``
     可经 env 启用 escalate_llm 钩（网关走 TEXLATE_* 三件套）。
     ``baseline_dir`` 在场时注入 ruleset（``repair._ruleset_with_baseline``——
