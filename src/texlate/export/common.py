@@ -131,8 +131,8 @@ class ApplyCounts:
 
 
 #: 批量 ``[n]`` 协议的退化残留：回复只剩序号桩 = 实质空译。
-#: ``parse_batch_response`` 的 ``@@`` 兜底会把裸 ``[1]``（单块批的"空槽"
-#: 回复）原样当译文留下——插出去是根号渣，按空译判 unchanged。
+#: ``parse_batch_response`` 序号路径会把裸 ``[1]``（单块批的"空槽"回复）
+#: 原样当译文留下——插出去是根号渣，按空译判 unchanged。
 STUB_ONLY_RE = re.compile(r"\s*(?:\[\d+\]\s*)+")
 
 
