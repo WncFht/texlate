@@ -72,6 +72,7 @@ from texlate.server.settings import data_dir as default_data_dir
 from texlate.server.staticfiles import mount_spa
 from texlate.server.store import (
     ACTIVE_STATUSES,
+    CHUNKS_PAGE_MAX,
     RETRYABLE_FROM,
     TERMINAL_STATUSES,
     Store,
@@ -1262,7 +1263,9 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         request: Request,
         task_id: str,
         offset: Annotated[int, Query(ge=0)] = 0,
-        limit: Annotated[int, Query(ge=1, le=1000)] = 200,
+        # 声明上限必须与 store 钳位同值——高于 CHUNKS_PAGE_MAX 的 limit
+        # 会拿 200 却静默丢尾页（clamp 不回告）
+        limit: Annotated[int, Query(ge=1, le=CHUNKS_PAGE_MAX)] = 200,
     ) -> Response:
         """Chunk 窄列分页（翻译中流式预览面，fe-U1 配套）。
 
@@ -1905,6 +1908,10 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
             opts.update(_clean_task_options(body["options"], inject_defaults=False))
         if body.get("main"):
             opts["main"] = str(body["main"])
+        # 合并结果重跑帽闸——_clean_task_options 只闸 body 增量，存量+增量
+        # 可越 _OPTIONS_JSON_CAP（与 share 导入臂 post-merge 重闸同口径）。
+        # 必须先于 transition——超帽 400 拒在抢 queued 前，任务行不动
+        options_json = _options_json_checked(opts)
         main_req = str(opts.get("main") or "")
         # 原子守卫先行——抢到 queued 前不做任何破坏清理。双发 retry 时后者
         # 在此 409 出局，不再抹掉 worker 已重插的 chunks / 覆盖 options（B3）
@@ -1940,7 +1947,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
                 await asyncio.to_thread(_wipe)
                 for kind, _rec in recs:
                     store.delete_file(task_id, kind)
-            store.update_fields(task_id, options_json=json.dumps(opts))
+            store.update_fields(task_id, options_json=options_json)
         except Exception:
             # 已抢 queued 但清理/写 options 折了——不留 queued 半成品给
             # dispatcher 捡，转 fault 把责任落回行状态

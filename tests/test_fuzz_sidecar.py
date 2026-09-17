@@ -293,9 +293,11 @@ class TestCorsOrigins:
 
     def test_origin_case_normalized(self) -> None:
         """大写 scheme/host 归一化为小写——原样存就是永不命中的死条目。"""
-        for raw in ("HTTP://EXAMPLE.COM", "http://EXAMPLE.COM", "Https://H.COM:443"):
+        for raw in ("HTTP://EXAMPLE.COM", "http://EXAMPLE.COM"):
             out = settings._parse_origin(raw)  # noqa: SLF001
             assert out in (None, raw.lower()), raw
+        # 大小写折叠与默认端口剥除复合（端口契约归 test_fuzz_server 钉）
+        assert settings._parse_origin("Https://H.COM:443") == "https://h.com"  # noqa: SLF001
 
 
 # ---------------------------------------------------------------- store 容错读

@@ -227,6 +227,10 @@ def _parse_origin(value: object) -> str | None:
     host = u.hostname
     if ":" in host:  # IPv6 字面量补回方括号
         host = f"[{host}]"
+    # 浏览器 Origin 头恒省略 scheme 默认端口——显式写的 :80/:443 剥掉，
+    # 否则归一化结果与真实 Origin 永不相等，配置成静默死配
+    if port == (80 if u.scheme == "http" else 443):
+        port = None
     netloc = host if port is None else f"{host}:{port}"
     return f"{u.scheme}://{netloc}"
 

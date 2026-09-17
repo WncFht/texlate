@@ -5,18 +5,14 @@
 HTTP 闸后解析面。本文件打**跨层接缝**：store↔API 契约错位、worker↔settings
 布尔语义分叉、force 通道的越枚举面。
 
-CONFIRMED（xfail-strict 钉期望契约，修复 XPASS 转红拆钉）：
+已修 CONFIRMED（原 xfail-strict 钉，修复后转断言钉留档）：
 
-- D1 ``task_retry`` 合并臂把 body options ``update`` 进存量后直写
-  ``json.dumps(opts)``——``_clean_task_options`` 的 64KB 闸只盖增量不盖
-  合并结果（share 导入臂注入后重跑同款闸，口径不对称）；K 次 retry 线性
-  放大 options_json 无界。
-- D2 ``GET /api/task/{id}/chunks`` 声明 ``limit≤1000`` 而 store
-  ``chunks_page`` 静默钳 ``_CHUNKS_PAGE_MAX=500``——合规分页方
-  ``range(0, total, limit)`` 大 limit 单页拉取静默丢尾部块。
-- D3 ``_parse_origin`` 保留显式默认端口（``http://h:80``/``https://h:443``
-  原样归一化）——浏览器 Origin 头恒省略默认端口，``cors_origins`` 精确
-  匹配面（app.py ``origin in cors_origins``）下这类配置成静默死配。
+- D1 ``task_retry`` 合并臂绕 ``_OPTIONS_JSON_CAP``——存量+增量合并后
+  重跑帽闸（与 share 导入臂 post-merge 校验同口径），超帽 400。
+- D2 ``/api/task/{id}/chunks`` ``limit`` 上限对齐 ``CHUNKS_PAGE_MAX``——
+  超帽值 Query 校验拒（此前声明 1000 vs 钳 500 静默丢尾页）。
+- D3 ``_parse_origin`` 剥 scheme 默认端口（``http://h:80``→``http://h``）——
+  浏览器 Origin 恒省略默认端口，保留即 cors 精确匹配死配。
 
 OBSERVED（断言钉当前行为/爆炸半径，非缺陷判词）：
 
@@ -53,7 +49,7 @@ import pytest
 pytest.importorskip("fastapi", reason="server extra 未装")
 pytest.importorskip("starlette.testclient", reason="server extra 未装")
 
-from _fuzzkit import fuzz_rng, short, xfail_confirmed
+from _fuzzkit import fuzz_rng, short
 from conftest import mk_api_task
 
 from texlate.server import settings as srv_settings
@@ -166,9 +162,6 @@ def _insert_chunks(store: Store, tid: str, n: int) -> None:
 class TestRetryMergedOptionsCap:
     """D1：retry 合并臂绕 ``_OPTIONS_JSON_CAP``——合并结果无闸。"""
 
-    @xfail_confirmed(
-        "D1 task_retry 合并写 options_json 不重跑 64KB 闸（app.py:1905/1943）"
-    )
     def test_merge_over_cap_rejected(self, client: TestClient) -> None:
         tid = mk_api_task(client, ARXIV, options={"note_a": "x" * _FAT})
         _force(client, tid, "fault")
@@ -201,9 +194,6 @@ class TestRetryMergedOptionsCap:
 class TestChunksLimitContract:
     """D2：API ``le=1000`` vs store 钳 500——大 limit 静默丢块。"""
 
-    @xfail_confirmed(
-        "D2 chunks 端点 limit=1000 被 store 静默钳 500（app.py:1265 vs store.py:777）"
-    )
     def test_limit_over_clamp_returns_all(self, client: TestClient) -> None:
         tid = mk_api_task(client, ARXIV)
         client.portal.call(
@@ -248,10 +238,6 @@ class TestChunksLimitContract:
 class TestParseOrigin:
     """D3：默认端口保留 → cors_origins 死配。"""
 
-    @xfail_confirmed(
-        "D3 _parse_origin 不剥默认端口（settings.py:230）——"
-        "浏览器 Origin 恒省略 :80/:443，配置即静默失效"
-    )
     def test_default_port_elided(self) -> None:
         assert _parse_origin("http://a.com:80") == "http://a.com"
         assert _parse_origin("https://a.com:443") == "https://a.com"

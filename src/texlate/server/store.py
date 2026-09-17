@@ -167,8 +167,10 @@ RETRYABLE_FROM = frozenset(
 #: task_events 每任务滚动上限（§3.2 表注）
 EVENT_CAP = 2000
 
-#: ``chunks_page`` 单页上限——``src_text``/``translation`` 全文列，页大即 MB 级载荷
-_CHUNKS_PAGE_MAX = 500
+#: ``chunks_page`` 单页上限——``src_text``/``translation`` 全文列，页大即 MB 级
+#: 载荷。``/api/task/{id}/chunks`` 的 ``limit`` Query 上限须与此同值（单源），
+#: 声明界高于钳位即静默丢尾页
+CHUNKS_PAGE_MAX = 500
 
 #: ``snapshot.warnings`` 回放上限——只留最近 N 条 warning 事件
 _WARNINGS_CAP = 200
@@ -771,10 +773,10 @@ class Store:
 
         只选预览消费列（``seq/chunk_id/kind/status/src_text/translation``）；
         ``src_text``/``translation`` 是全文列，``limit`` 钳
-        ``[0, _CHUNKS_PAGE_MAX]``、``offset`` 钳 ``≥0``——负值/超限按边界
+        ``[0, CHUNKS_PAGE_MAX]``、``offset`` 钳 ``≥0``——负值/超限按边界
         收，不炸调用方。
         """
-        lim = max(0, min(int(limit), _CHUNKS_PAGE_MAX))
+        lim = max(0, min(int(limit), CHUNKS_PAGE_MAX))
         off = max(0, int(offset))
         rows = self.conn.execute(
             "SELECT seq, chunk_id, kind, status, src_text, translation"
