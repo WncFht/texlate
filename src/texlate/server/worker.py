@@ -59,7 +59,7 @@ from texlate.arxiv.unpack import (
 )
 from texlate.compile.cjkmap import embed_cjk_mappings
 from texlate.compile.engine import CompRes, Engine, engine_for, route_project
-from texlate.compile.fixloop import CaseSink, Ruleset, fixloop
+from texlate.compile.fixloop import CaseSink, Ruleset
 from texlate.compile.fixloop.llm_hook import make_llm_hook
 from texlate.compile.inject import (
     InjectRejectError,
@@ -75,7 +75,6 @@ from texlate.e2e import (
     _ENV_ENV_JUDGE,
     _ENV_NO_L2,
     _KNOWN_ENVS,
-    _VERDICT_RANK,
     L2_MAX_CHUNKS,
     _env_flag,
     _env_judge_all,
@@ -88,6 +87,12 @@ from texlate.e2e import (
 from texlate.latex.api import parse_file
 from texlate.latex.prose import file_has_prose
 from texlate.latex.reconstruct import reconstruct
+from texlate.repair import (
+    cross_engine_retry,
+    fixloop_cell_parts,
+    log_text_of,
+    run_fixloop,
+)
 from texlate.server.babeldoc import (
     BabeldocJob,
     BabeldocRun,
@@ -314,41 +319,19 @@ def _ruleset_with_baseline(ctx: TaskCtx) -> Ruleset:
 
 
 def _fixloop_summary(cell: dict[str, Any]) -> dict[str, Any]:
-    """Fixloop cell → 压缩摘要：每轮 ``{cat,pay,rule,result}`` + 前置动作。
+    """Fixloop cell → 压缩摘要（trace/setup 归并机械在 ``repair.fixloop_cell_parts``）。
 
-    ``rounds``（cat/pay/pdf/n_errors）与 ``actions``（rule/detail）按 round
-    归并；``round=0/-1`` 是 precheck/gate 动作，单列 ``setup``——salvage
-    轮（round 键为 int、action 键为 ``"salvage"``）单独对齐。
+    ``rounds``×``actions`` 按 round 归并；``round=0/-1`` 是 precheck/gate
+    动作单列 ``setup``——salvage 轮 action 键为 ``"salvage"`` 单独对齐。
     """
-    by_round: dict[str, list[dict[str, Any]]] = {}
-    for a in cell.get("actions") or []:
-        by_round.setdefault(str(a.get("round")), []).append(a)
-    trace = []
-    for r in cell.get("rounds") or []:
-        acts = by_round.get("salvage" if r.get("salvage") else str(r.get("round")), [])
-        head = acts[0] if acts else {}
-        trace.append(
-            {
-                "round": r.get("round"),
-                "cat": r.get("category"),
-                "pay": r.get("payload"),
-                "pdf": bool(r.get("pdf")),
-                "n_errors": r.get("n_errors"),
-                "rule": head.get("rule"),
-                "result": head.get("detail"),
-            }
-        )
+    trace, setup = fixloop_cell_parts(cell)
     return {
         "verdict": cell.get("verdict"),
         "main": cell.get("main"),
         "engine": cell.get("engine"),
         "log_excerpt": cell.get("log_excerpt"),
         "trace": trace,
-        "setup": [
-            {"rule": a.get("rule"), "result": a.get("detail")}
-            for a in cell.get("actions") or []
-            if a.get("round") in (0, -1)
-        ],
+        "setup": setup,
         "installed": cell.get("installed") or [],
         "advisories": cell.get("advisories") or [],
     }
@@ -390,33 +373,6 @@ def _sync_fixed_sources(work: Path, zh: Path) -> int:
             f.unlink()
             n += 1
     return n
-
-
-class _RecEngine:
-    """``Engine`` 透传代理：记录末次 ``CompRes``（fixloop 内部重编终态取回）。
-
-    ``__getattr__``/``__setattr__`` 全落真引擎——``_wire_engine`` 给
-    tectonic 注入 ``ctan_fetch`` callable 必须写在真引擎实例上。
-    """
-
-    _inner: Engine
-    last: CompRes | None
-
-    def __init__(self, inner: Engine) -> None:
-        object.__setattr__(self, "_inner", inner)
-        object.__setattr__(self, "last", None)
-
-    def __getattr__(self, name: str) -> Any:  # noqa: ANN401 -- 代理转发面天然 Any
-        return getattr(object.__getattribute__(self, "_inner"), name)
-
-    def __setattr__(self, name: str, value: Any) -> None:  # noqa: ANN401 -- 同上
-        setattr(object.__getattribute__(self, "_inner"), name, value)
-
-    def compile(self, wdir: Path, main: str, **kw: Any) -> CompRes:  # noqa: ANN401
-        """透传 compile 并记录 CompRes（fixloop 每轮重编都过这里）。"""
-        res = self._inner.compile(wdir, main, **kw)
-        object.__setattr__(self, "last", res)
-        return res
 
 
 @dataclass(slots=True)
@@ -2759,17 +2715,8 @@ class PipelineWorker:
             )
 
     def _log_text_of(self, res: CompRes) -> str:
-        """CompRes → log 全文（.log 非空优先、stdout_tail 兜底——tectonic 常无 .log）。
-
-        与 ``engine.parse_log`` 同口径：.log 缺席/空文件/读失败一律退
-        ``stdout_tail``——空 .log 直返空串会把 missing-char 等只存在于
-        stdout 的升级信号静默丢掉（judge 拿不到 log_text 就是 missing_chars=0）。
-        """
-        text = ""
-        if res.log_path is not None:
-            with contextlib.suppress(OSError):
-                text = res.log_path.read_text(encoding="utf-8", errors="replace")
-        return text or res.stdout_tail or ""
+        """``repair.log_text_of`` 单源委托（.log 非空优先、stdout_tail 兜底）。"""
+        return log_text_of(res)
 
     def _expect_cjk(self, ctx: TaskCtx) -> bool:
         """0-chunk 主文档（includepdf 壳等）不期待 CJK——cjk_chars=0 是其正确终态。
@@ -2816,12 +2763,11 @@ class PipelineWorker:
         输入层文件回灌 ``zh/`` 并重打 zh-src.zip——让用户拿到的源码树真能
         编译。返回末次 ``CompRes``（fixloop 崩溃/未编译则原样回传）。
         """
-        rec = _RecEngine(self._fixloop_engine(ctx, eng))
         hook, hook_usage, hook_clients = self._llm_hook_pack(ctx)
         try:
-            cell = fixloop(
+            cell, fix_last = run_fixloop(
                 work,
-                rec,
+                self._fixloop_engine(ctx, eng),
                 ruleset=_ruleset_with_baseline(ctx),
                 engine_name=ctx.engine_name,
                 corpus_id=ctx.task_id,
@@ -2836,7 +2782,7 @@ class PipelineWorker:
         finally:
             self._teardown_llm_hook(ctx, hook_usage, hook_clients)
         summary = _fixloop_summary(cell)
-        res = rec.last or first
+        res = fix_last or first
         flags = [str(f) for f in cell.get("engine_flags") or []]
         dropped = [str(f) for f in cell.get("engine_flags_dropped") or []]
         summary["engine_flags"] = flags
@@ -2844,48 +2790,35 @@ class PipelineWorker:
         adopted_cross = False
         if dropped:
             summary["flags_unapplied"] = True
-            # 跨引擎消费（e2e _run_fixloop :723 同臂）：dropped 多为
-            # shell-escape 需求——tectonic 沙箱不收 → route 候选里的
-            # xelatex 带全量 flag 重编取优。``route_engines`` 是
+            # 跨引擎消费（e2e _run_fixloop 同臂，机械在 repair.cross_engine_retry）：
+            # dropped 多为 shell-escape 需求——tectonic 沙箱不收 → route 候选
+            # 里的 xelatex 带全量 flag 重编取优。``route_engines`` 是
             # _build_base 持久化的生效候选列表——显式 engine= 覆盖时
             # 只剩用户指定那台，臂自熄（尊重显式选型）
             route_engines = [str(e) for e in ctx.options().get("route_engines") or []]
-            v_last = judge(
-                res, expect_cjk=ctx.expect_cjk, log_text=self._log_text_of(res)
-            )
-            if (
-                ctx.engine_name == "tectonic"
-                and "xelatex" in route_engines
-                and _VERDICT_RANK.get(v_last.status, 0) < _VERDICT_RANK["clean"]
-            ):
+            v_last = judge(res, expect_cjk=ctx.expect_cjk, log_text=log_text_of(res))
+            xr = cross_engine_retry(
+                engine_name=ctx.engine_name,
+                route_engines=route_engines,
+                current_status=v_last.status,
+                work=work,
+                main_rel=ctx.main_rel,
+                timeout=self._compile_timeout,
+                flags=flags,
+                dropped=dropped,
+                expect_cjk=ctx.expect_cjk,
                 # halt_on_error=True：与 fixloop 轮内同口径（首错可分类），
                 # 不沿主编译的 best-effort nonstopmode
-                xeng = (
+                make_engine=lambda: (
                     self._engine_factory("xelatex")
                     if self._engine_factory is not None
                     else engine_for("xelatex", halt_on_error=True)
-                )
-                xres = xeng.compile(
-                    work,
-                    ctx.main_rel,
-                    timeout=self._compile_timeout,
-                    sandbox=True,
-                    flags=flags,
-                )
-                xv = judge(
-                    xres,
-                    expect_cjk=ctx.expect_cjk,
-                    log_text=self._log_text_of(xres),
-                )
-                summary["cross_engine"] = {
-                    "engine": "xelatex",
-                    "status": xv.status,
-                    "reason": f"engine_flags {dropped} tectonic 不支持 → 换 xelatex",
-                }
-                if _VERDICT_RANK.get(xv.status, 0) > _VERDICT_RANK.get(
-                    v_last.status, 0
-                ):
-                    res = xres
+                ),
+            )
+            if xr is not None:
+                summary["cross_engine"] = xr.info
+                if xr.adopted:
+                    res = xr.res
                     adopted_cross = True
             self._log(
                 ctx,

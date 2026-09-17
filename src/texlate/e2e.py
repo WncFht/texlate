@@ -31,7 +31,6 @@ from typing import TYPE_CHECKING, Any
 
 from texlate.compile.cjkmap import embed_cjk_mappings
 from texlate.compile.engine import engine_for, route_project
-from texlate.compile.fixloop.engine import LlmHook, fixloop
 from texlate.compile.inject import (
     InjectRejectError,
     classify_no_main,
@@ -57,6 +56,12 @@ from texlate.latex.tables import (
     PROTECTED_ENVS,
     VERBATIM_ENVS,
 )
+from texlate.repair import (
+    cross_engine_retry,
+    fixloop_cell_parts,
+    log_text_of,
+    run_fixloop,
+)
 from texlate.validate import l2 as l2_mod
 from texlate.validate.l0 import validate_pair
 from texlate.xlat import prompts as xlat_prompts
@@ -72,7 +77,8 @@ from texlate.xlat.placeholders import collect_doc_placeholders
 if TYPE_CHECKING:
     import re
 
-    from texlate.compile.engine import CompRes, Engine
+    from texlate.compile.engine import CompRes
+    from texlate.compile.fixloop.engine import LlmHook
     from texlate.latex.model import Chunk, ScanResult
     from texlate.xlat.pipeline import ChunkResult, Translator
 
@@ -95,10 +101,6 @@ _ENV_ENV_JUDGE = "TEXLATE_ENV_JUDGE"
 
 #: 静态环境表（已知语义的 env 不问 judge——体是否可译已由表决定）
 _KNOWN_ENVS = MATH_ENVS | VERBATIM_ENVS | PROTECTED_ENVS | ARG_TRANSPARENT_ENVS
-
-#: verdict 排序（跨引擎取优用）
-_VERDICT_RANK = {"clean": 3, "partial": 2, "fail": 1, "reject": 0}
-
 
 def _env_flag(name: str, *, default: bool) -> bool:
     """读布尔 env：``1/true/yes/on`` 为真；未设置取 default。"""
@@ -376,16 +378,6 @@ def _probe_flags_of(work: Path, main_rel: str) -> tuple[str, ...]:
         return ()
 
 
-def _log_text_of(res: CompRes) -> str:
-    """CompRes → log 全文（.log 优先、stdout_tail 兜底——tectonic 常无 .log，与 worker 同款）。"""
-    if res.log_path and res.log_path.exists():
-        try:
-            return res.log_path.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            pass
-    return res.stdout_tail or ""
-
-
 def _compile_judge(
     job: _Job, *, expect_cjk: bool, flags: list[str] | None = None
 ) -> tuple[dict, CompRes]:
@@ -405,7 +397,7 @@ def _compile_judge(
         sandbox=True,
         flags=list(dict.fromkeys([*job.probe_flags, *(flags or [])])) or None,
     )
-    v = judge(res, expect_cjk=expect_cjk, log_text=_log_text_of(res))
+    v = judge(res, expect_cjk=expect_cjk, log_text=log_text_of(res))
     return _tail_dict(res, v), res
 
 
@@ -750,70 +742,15 @@ def _l2_repair(
 # ---------------------------------------------------------------- fixloop
 
 
-class _LastResEngine:
-    """Engine 代理：转发 Protocol 面 + 记末次 CompRes（fixloop 终判原料）。
-
-    ``__setattr__`` 透传到内层——fixloop ``_wire_engine`` 会给 tectonic
-    注入 ``ctan_fetch``，必须落到真引擎上。
-    """
-
-    def __init__(self, inner: Engine) -> None:
-        """包一层引擎。"""
-        object.__setattr__(self, "_inner", inner)
-        object.__setattr__(self, "last", None)
-
-    def __getattr__(self, name: str) -> Any:  # noqa: ANN401 -- 代理面
-        return getattr(self._inner, name)
-
-    def __setattr__(self, name: str, value: Any) -> None:  # noqa: ANN401
-        if name in {"_inner", "last"}:
-            object.__setattr__(self, name, value)
-        else:
-            setattr(self._inner, name, value)
-
-    def compile(self, *args: Any, **kwargs: Any) -> CompRes:  # noqa: ANN401
-        """转发 compile 并记录结果。"""
-        res: CompRes = self._inner.compile(*args, **kwargs)
-        object.__setattr__(self, "last", res)
-        return res
-
-
 def _slim_cell(cell: dict[str, Any]) -> dict[str, Any]:
-    """Fixloop cell → 报告视图：rounds × actions 合并成 ``{cat,pay,rule,result}``。
-
-    ``actions`` 按 str(round) 归并（一轮可多条）；``round=0/-1`` 是
-    precheck/gate 动作单列 ``setup``；salvage 轮的 action 键为
-    ``"salvage"`` 须按 ``r["salvage"]`` 对齐——与 worker
-    ``_fixloop_summary`` 同构。
-    """
-    by_round: dict[str, list[dict[str, Any]]] = {}
-    for a in cell.get("actions") or []:
-        by_round.setdefault(str(a.get("round")), []).append(a)
-    rounds = []
-    for r in cell.get("rounds") or []:
-        acts = by_round.get("salvage" if r.get("salvage") else str(r.get("round")), [])
-        head = acts[0] if acts else {}
-        rounds.append(
-            {
-                "round": r.get("round"),
-                "cat": r.get("category"),
-                "pay": r.get("payload"),
-                "pdf": r.get("pdf"),
-                "n_errors": r.get("n_errors"),
-                "rule": head.get("rule"),
-                "result": head.get("detail"),
-            }
-        )
+    """Fixloop cell → e2e 报告视图（归并机械在 ``repair.fixloop_cell_parts``）。"""
+    rounds, setup = fixloop_cell_parts(cell)
     return {
         "enabled": True,
         "verdict": cell.get("verdict"),
         "main": cell.get("main"),
         "rounds": rounds,
-        "setup": [
-            {"rule": a.get("rule"), "result": a.get("detail")}
-            for a in cell.get("actions") or []
-            if a.get("round") in (0, -1)
-        ],
+        "setup": setup,
         "advisories": cell.get("advisories") or [],
         "installed": cell.get("installed") or [],
         "engine_flags": cell.get("engine_flags") or [],
@@ -846,11 +783,10 @@ def _run_fixloop(  # noqa: PLR0913 -- 开关面穿透同 pipe_condition
         from texlate.compile.fixloop.llm_hook import make_llm_hook  # noqa: PLC0415
 
         llm_hook = make_llm_hook()
-    proxy = _LastResEngine(engine_for(job.eng_name))
     try:
-        cell = fixloop(
+        cell, fix_last = run_fixloop(
             job.work,
-            proxy,
+            engine_for(job.eng_name),
             engine_name=job.eng_name,
             llm_hook=llm_hook,
             compile_timeout=timeout,
@@ -858,7 +794,7 @@ def _run_fixloop(  # noqa: PLR0913 -- 开关面穿透同 pipe_condition
     except Exception as e:  # noqa: BLE001 -- 修复臂崩不毁主报告
         return ({"enabled": True, "error": f"{type(e).__name__}: {e}"}, None, prev_res)
     rep = _slim_cell(cell)
-    last_res = proxy.last or prev_res
+    last_res = fix_last or prev_res
     cell_verdict = str(cell.get("verdict") or "")
     if cell_verdict.startswith("reject:"):
         # reject:<rid> = 策略拒绝 (走降级链) → 终态合成 partial, 理由串
@@ -868,7 +804,7 @@ def _run_fixloop(  # noqa: PLR0913 -- 开关面穿透同 pipe_condition
     else:
         tail = _tail_dict(
             last_res,
-            judge(last_res, expect_cjk=expect_cjk, log_text=_log_text_of(last_res)),
+            judge(last_res, expect_cjk=expect_cjk, log_text=log_text_of(last_res)),
         )
 
     flags: list[str] = rep["engine_flags"]
@@ -876,32 +812,25 @@ def _run_fixloop(  # noqa: PLR0913 -- 开关面穿透同 pipe_condition
     if dropped:
         rep["flags_unapplied"] = True
         # 跨引擎消费：dropped 多为 shell-escape 需求——tectonic --untrusted
-        # 下不收 → 换 xelatex 重编并把全部请求 flag 经 seam 带给它
-        if (
-            job.eng_name == "tectonic"
-            and "xelatex" in route_engines
-            and _VERDICT_RANK.get(tail["status"], 0) < _VERDICT_RANK["clean"]
-        ):
-            xtail, xres = _compile_judge(
-                _Job(
-                    job.work,
-                    job.main_rel,
-                    "xelatex",
-                    job.timeout,
-                    probe_flags=job.probe_flags,
-                ),
-                expect_cjk=expect_cjk,
-                flags=flags,
-            )
-            rep["cross_engine"] = {
-                "engine": "xelatex",
-                "status": xtail["status"],
-                "reason": f"engine_flags {dropped} tectonic 不支持 → 换 xelatex",
-            }
-            if _VERDICT_RANK.get(xtail["status"], 0) > _VERDICT_RANK.get(
-                tail["status"], 0
-            ):
-                tail, last_res = xtail, xres
+        # 下不收 → 换 xelatex 重编并把全部请求 flag 经 seam 带给它（retry
+        # 机械在 repair.cross_engine_retry——本臂沿 _compile_judge 的
+        # best-effort 旋钮与 probe_flags 合并）
+        xr = cross_engine_retry(
+            engine_name=job.eng_name,
+            route_engines=route_engines,
+            current_status=tail["status"],
+            work=job.work,
+            main_rel=job.main_rel,
+            timeout=job.timeout,
+            flags=list(dict.fromkeys([*job.probe_flags, *flags])) or None,
+            dropped=dropped,
+            expect_cjk=expect_cjk,
+            make_engine=lambda: engine_for("xelatex", halt_on_error=False),
+        )
+        if xr is not None:
+            rep["cross_engine"] = xr.info
+            if xr.adopted:
+                tail, last_res = _tail_dict(xr.res, xr.verdict), xr.res
         # 注在换编之后——贴到最终采用的 tail 上，换臂不丢审计痕迹
         tail["verdict"]["notes"].append(
             f"engine_flags unsupported on {job.eng_name}: {dropped}"

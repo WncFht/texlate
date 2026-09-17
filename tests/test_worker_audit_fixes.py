@@ -386,7 +386,7 @@ class TestFixloopFix:
             "rounds": [],
             "actions": [],
         }
-        monkeypatch.setattr("texlate.server.worker.fixloop", lambda *_a, **_kw: cell)
+        monkeypatch.setattr("texlate.repair.fixloop", lambda *_a, **_kw: cell)
         first = CompRes(engine="tectonic", ok=True, pdf=None, log=LogInfo(n_errors=2))
         res = worker._run_fixloop(ctx, work, teng, first)  # noqa: SLF001
         assert xeng.calls, "xelatex 跨引擎臂应被触发"
@@ -1704,8 +1704,6 @@ class TestRunFixloopWiring:
     def test_compile_timeout_passthrough(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        import texlate.server.worker as worker_mod  # noqa: PLC0415
-
         timeout = 7.5
         ctx, worker, _store = _mk(tmp_path, worker_kw={"compile_timeout": timeout})
         captured: dict[str, object] = {}
@@ -1714,7 +1712,7 @@ class TestRunFixloopWiring:
             captured.update(kw)
             return {"verdict": "clean", "rounds": [], "actions": []}
 
-        monkeypatch.setattr(worker_mod, "fixloop", fake_fixloop)
+        monkeypatch.setattr("texlate.repair.fixloop", fake_fixloop)
         work = tmp_path / "build-zh"
         work.mkdir()
         first = object()
@@ -1757,6 +1755,7 @@ class TestRunFixloopWiring:
         主编译引擎是 best-effort nonstopmode（False）——续跑日志会让
         post-fix 复判混入下游错误、分类签名漂移，故不复用传入引擎。
         """
+        import texlate.repair as repair_mod  # noqa: PLC0415
         import texlate.server.worker as worker_mod  # noqa: PLC0415
 
         ctx, worker, _store = _mk(tmp_path)
@@ -1774,14 +1773,14 @@ class TestRunFixloopWiring:
             return {"verdict": "clean", "rounds": [], "actions": []}
 
         monkeypatch.setattr(worker_mod, "engine_for", fake_engine_for)
-        monkeypatch.setattr(worker_mod, "fixloop", fake_fixloop)
+        monkeypatch.setattr("texlate.repair.fixloop", fake_fixloop)
         work = tmp_path / "build-zh"
         work.mkdir()
         main_eng = RecordingEngine("xelatex")
         worker._run_fixloop(ctx, work, main_eng, object())  # noqa: SLF001
         assert built == [{"name": "xelatex", "halt_on_error": True}]
         rec = captured["eng"]
-        assert isinstance(rec, worker_mod._RecEngine)  # noqa: SLF001
+        assert isinstance(rec, repair_mod.ResProxy)
         assert rec._inner is not main_eng  # noqa: SLF001
 
     def test_tectonic_fixloop_reuses_passed_engine(
@@ -1800,7 +1799,7 @@ class TestRunFixloopWiring:
         def forbidden(*_a: object, **_kw: object) -> None:
             raise AssertionError
 
-        monkeypatch.setattr(worker_mod, "fixloop", fake_fixloop)
+        monkeypatch.setattr("texlate.repair.fixloop", fake_fixloop)
         monkeypatch.setattr(worker_mod, "engine_for", forbidden)
         work = tmp_path / "build-zh"
         work.mkdir()
@@ -1813,6 +1812,7 @@ class TestRunFixloopWiring:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """``engine_factory`` 在场时 fixloop xelatex 引擎也走注入面（不经 engine_for）。"""
+        import texlate.repair as repair_mod  # noqa: PLC0415
         import texlate.server.worker as worker_mod  # noqa: PLC0415
 
         made: list[str] = []
@@ -1834,14 +1834,14 @@ class TestRunFixloopWiring:
         def forbidden(*_a: object, **_kw: object) -> None:
             raise AssertionError
 
-        monkeypatch.setattr(worker_mod, "fixloop", fake_fixloop)
+        monkeypatch.setattr("texlate.repair.fixloop", fake_fixloop)
         monkeypatch.setattr(worker_mod, "engine_for", forbidden)
         work = tmp_path / "build-zh"
         work.mkdir()
         worker._run_fixloop(ctx, work, RecordingEngine("xelatex"), object())  # noqa: SLF001
         assert made == ["xelatex"]
         rec = captured["eng"]
-        assert isinstance(rec, worker_mod._RecEngine)  # noqa: SLF001
+        assert isinstance(rec, repair_mod.ResProxy)
 
 
 class TestFetcherOwnership:

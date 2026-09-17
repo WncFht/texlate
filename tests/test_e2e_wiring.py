@@ -223,7 +223,7 @@ def test_fixloop_crash_does_not_atexit(
         msg = "simulated fixloop crash"
         raise RuntimeError(msg)
 
-    monkeypatch.setattr(e2e, "fixloop", boom)
+    monkeypatch.setattr("texlate.repair.fixloop", boom)
     report = e2e.mock_pipeline_run(work, "xelatex", timeout=30.0)
 
     assert report["status"] == "fail"
@@ -346,7 +346,7 @@ def test_engine_flags_cross_engine_consumed(
             "log_excerpt": "! stub",
         }
 
-    monkeypatch.setattr(e2e, "fixloop", fake_fixloop)
+    monkeypatch.setattr("texlate.repair.fixloop", fake_fixloop)
     report = e2e.mock_pipeline_run(work, "auto", timeout=30.0)
 
     fl = report["fixloop"]
