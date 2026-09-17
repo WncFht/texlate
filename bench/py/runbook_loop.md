@@ -67,6 +67,19 @@ export TEXLATE_SRC=$PWD/tmp/src-snap-loop1   # 之后所有 stagerun/preflight �
 - 跨天续跑：`--tag` 会换日期目录——续跑用 `--dir bench/results/stagerun-loop1-<原date>` 钉住原目录。
 - 补跑单篇/小集：`--ids id1,id2` 或 `--only <子串>`。
 
+### 长跑批一律脱管（>30min 强制）
+
+harness（Claude Code）内存看门狗在系统内存尖峰时**优先杀后台任务**——kernel OOM 尚有 17G avail 时后台批已被清（2026-09-17 n200 三连杀实证，每次烧掉在飞格已翻的 LLM chunks）。任何估时 >30min 的批（stagerun 全段、e2e_real_bench）一律脱离任务系统：
+
+```bash
+setsid nohup <cmd> >> bench/results/<dir>/run.log 2>&1 < /dev/null &
+echo "detached pid=$!"   # 记 pid，监控用
+```
+
+- 日志**直写文件**，不要 `| tail`（管道缓冲到进程退出才吐，中途零观测面）。
+- 无 task-notification——用 cron/周期查 `kill -0 <pid>` + records 行数增长；records append 真账天然断点续跑（死后重跑同命令，勿带 --rerun）。
+- /tmp 是 usrquota tmpfs 烧 RAM：src 冻结快照、大体 scratch 一律放 repo `tmp/`（disk-backed、gitignored）。
+
 ## 3. 产物速查
 
 ```
