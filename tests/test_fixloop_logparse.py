@@ -11,7 +11,12 @@ from typing import Any
 import pytest
 
 from texlate.compile.fixloop import Ruleset, load_ruleset
-from texlate.compile.fixloop.logparse import Taxonomy, parse_log, parse_text
+from texlate.compile.fixloop.logparse import (
+    Taxonomy,
+    _ctx_tail_css,
+    parse_log,
+    parse_text,
+)
 
 
 @lru_cache(maxsize=1)
@@ -347,3 +352,86 @@ def test_undefined_cs_stack_tail_not_pdf_stays() -> None:
     """
     log = "! Undefined control sequence.\n\\mymacro ->\\somecs \nl.9 \\myouter{x}\n"
     assert classify(log) == ("undefined_cs", "somecs")
+
+
+# ---------------------------------------------------------------- ctx head 位
+def test_ctx_tail_css_argument_head() -> None:
+    """1801.06287 实证: ``<argument>`` 头行末位 cs 是冒犯候选。
+
+    头行续行 (该层剩余输入 ``>0 \\edef \\Gin@extensions``) 携带的 cs 曾把
+    区域末位带偏到 post-offending 噪声——头位显式抽取取回
+    ``\\pdfshellescape`` (join 候选集, 区域/l.N 两位语义不动)。
+    """
+    ctx = (
+        "! Undefined control sequence.\n"
+        "<argument> \\ifnum \\pdfshellescape \n"
+        "                                  >0 \\edef \\Gin@extensions {\\Gin@extensions ...\n"
+        "l.12 \\begin{document}\n"
+    )
+    css = _ctx_tail_css(ctx)
+    assert "pdfshellescape" in css  # head 位 (真冒犯)
+    assert "Gin@extensions" in css  # 区域末位照旧
+    assert "begin" in css  # l.N 行末照旧
+
+
+def test_ctx_tail_css_recently_read_head() -> None:
+    """1412.6980 实证: ``<recently read>`` 头行 cs 入候选集。"""
+    ctx = (
+        "! Undefined control sequence.\n"
+        "<recently read> \\pdfoutput \n"
+        "                            =1\n"
+        "l.2 \\pdfoutput\n"
+    )
+    assert "pdfoutput" in _ctx_tail_css(ctx)
+
+
+def test_ctx_tail_css_head_after_lineno_ignored() -> None:
+    """``l.N`` 后的 ``<argument>`` 属下一错误 ctx (8 行窗溢出), 不抽取。"""
+    ctx = (
+        "! Undefined control sequence.\n"
+        "l.5 \\foo\n"
+        "! Missing number, treated as zero.\n"
+        "<argument> \\othercs \n"
+    )
+    assert _ctx_tail_css(ctx) == {"foo"}
+
+
+def test_ctx_tail_css_argument_elided_or() -> None:
+    """1811.03624 实证: ``...`` 省略前缀下末位 cs 才是冒犯 token (``\\or``),
+
+    非紧跟字面量的 ``\\ifcase``。"""
+    ctx = (
+        "! Extra \\or.\n"
+        "<argument> ...pach \\ifcase \\@chclass \\@classz \\or \n"
+        "                                                   \\@classi \\or \\@classii \\or...\n"
+        "l.283 ...2.2cm}|C{2.2cm}C{2.2cm}|C{2.2cm}C{2.2cm}}\n"
+    )
+    css = _ctx_tail_css(ctx)
+    assert "or" in css
+    assert "ifcase" not in css
+
+
+def test_ctx_tail_css_head_cs_trailing_nonletter() -> None:
+    """astro-ph/0501080 实证: 头行末位字母 cs 后跟非字母 cs (``\\ ``/``\\^^M``)
+
+    → 主 pattern 行1 抓取锚失败 (pay=None), 头位仍取回 ``\\copyright``。"""
+    ctx = (
+        "! Use of \\affilmark doesn't match its definition.\n"
+        "<argument> ...ce {-1.3cm}\\copyright \\, 2005 \\ \\^^M\n"
+        "                                                   S.S.Tsygankov\\affilmark {1...\n"
+        "l.193 ...k{1}$^{\\,*}$, A.A.Lutovinov\\affilmark{1}}\n"
+    )
+    css = _ctx_tail_css(ctx)
+    assert "copyright" in css
+    assert "affilmark" in css
+
+
+def test_undefined_cs_argument_head_still_pdftex() -> None:
+    """classify 级钉: ``<argument>`` 头行形态路由保持 pdftex_prim。"""
+    log = (
+        "! Undefined control sequence.\n"
+        "<argument> \\ifnum \\pdfshellescape \n"
+        "                                  >0 \\edef \\Gin@extensions {\\Gin@extensions ...\n"
+        "l.12 \\begin{document}\n"
+    )
+    assert classify(log) == ("pdftex_prim", "pdfshellescape")

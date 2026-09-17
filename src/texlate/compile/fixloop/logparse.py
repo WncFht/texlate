@@ -30,6 +30,14 @@ _LINE_NO_RE = re.compile(r"(?m)^[ \t]*l\.(\d+)")
 #: subclassify 收窄的冒犯 cs 判定域: ctx 首个 ``l.N`` 行 + cs 名抽取。
 _LN_ROW_RE = re.compile(r"(?m)^l\.\d+[^\n]*")
 _CS_NAME_RE = re.compile(r"\\([a-zA-Z@]+)")
+#: ctx 头行 ``<name>`` —— TeX 错误上下文对伪输入层 (``<recently read>``
+#: 最近 \input/\read、``<argument>`` 宏参展开、``<write>`` 等) 的标记。
+#: 顶行止于该层冒犯 token, 故行内末位 cs 是冒犯候选; ``...`` 省略前缀
+#: 使"紧跟字面量"不可靠 (1811.03624 ``<argument> ...\@classz \or``)。
+#: 语料面 (15k logs, 2026-09-18): 带 cs 的同错头行 = recently read 209 /
+#: argument 87 / write 3 文件, 恒居 ctx 行1 (最深层); ``<inserted text>``
+#: /``<to be read again>`` 的 token 在续行, 头行本身不携 cs。
+_CTX_HEAD_RE = re.compile(r"^[ \t]*<[a-zA-Z ]+>")
 # `-file-line-error` 模式下错误行是 `path:line: msg` (无 '!' 前缀) ——
 # impl-compile 的 xelatex 命令行带此旗标, 只数 '!' 会漏全部错误。
 # Warning 行 (`./f.tex:5: LaTeX Warning: ...`) 同格式但非错误, 须排除,
@@ -138,18 +146,25 @@ def _payload(entry: dict[str, Any], m: re.Match[str]) -> str | None:
 
 
 def _ctx_tail_css(ctx: str | None) -> set[str]:
-    r"""上下文中冒犯 cs 的两个候选位: 展开栈末位 cs 与 ``l.N`` 行末 cs。
+    r"""上下文中冒犯 cs 的三个候选位: ``<head>`` 行末位、展开栈区域末位、``l.N`` 行末。
 
     ctx 以错误行起 (parse_text L101)——顶层错误时冒犯 cs 落在 ``l.N``
     行内, 宏展开错误时 ``l.N`` 行末只剩表面宏, 真冒犯 cs 是错误行与
     ``l.N`` 行之间展开栈区域的末位 (loop1-2410.00012: ``\\pdfobj`` 藏
     ``\\AddSpotColor`` 体内, l.N 行末 ``\\SpotSpace`` 只是调用点)。
+    ``<recently read>``/``<argument>`` 头行顶行止于该层冒犯 token——
+    其续行 (该层剩余输入) 携带的 cs 会把区域末位带偏到 post-offending
+    噪声 (1801.06287: 头行 ``<argument> \ifnum \pdfshellescape`` 续行
+    ``>0 \edef \Gin@extensions`` → 区域末位 ``Gin@extensions`` 非冒犯)。
     """
     out: set[str] = set()
     if not ctx:
         return out
     lines = ctx.splitlines()
     ln_i = next((i for i, ln in enumerate(lines) if _LN_ROW_RE.match(ln)), len(lines))
+    for ln in lines[1:ln_i]:
+        if _CTX_HEAD_RE.match(ln) and (hits := _CS_NAME_RE.findall(ln)):
+            out.add(hits[-1])
     if hits := _CS_NAME_RE.findall("\n".join(lines[1:ln_i])):
         out.add(hits[-1])
     if ln_i < len(lines) and (hits := _CS_NAME_RE.findall(lines[ln_i])):
