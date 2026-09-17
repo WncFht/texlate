@@ -69,9 +69,6 @@ staticfiles.py / ``__main__`` / cmap 资源：
   ``quota=1e999`` → ``TypeError``/``OverflowError`` 逃出
   ``except ValueError`` → PUT 500（``_clean_task_options`` 同输入类
   已修、settings 路径漏网）；
-- D3 ``load()`` 字符串字段不做编码闸：孤 surrogate 值进 ``save`` →
-  ``atomic_json`` ``ensure_ascii=False`` 写盘 ``UnicodeEncodeError``
-  且 connections.json 已先写 → 文件对半更新、settings 永久不可写；
 - D4 ``load()`` 枚举字段零校验：``engine``/``target_lang`` 非法值原样透传
   （``concurrency``/``quota``/``cors_origins`` 均有容错、枚举是漏网面）
   → ``public()`` 回吐脏值、任务创建全 400；
@@ -421,17 +418,7 @@ class TestLoadTolerance:
             data = settings.SettingsStore(root).load()
             assert isinstance(data["concurrency"], int), content
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="settings.py:310-333 load() 对字符串字段零校验——孤 surrogate "
-        "值原样进 merged → ``atomic_json`` ``ensure_ascii=False`` 写盘 "
-        "``UnicodeEncodeError``；且 save() 先写 connections.json 后写 "
-        "settings.json → 崩溃点恰在两文件之间 = 半更新状态。"
-        "每次 PUT /api/settings 都 500 直至手工删文件。"
-        "修法：load 侧逐字段 ``str.isprintable``/编码闸回退默认，"
-        "或 atomic_json 对不可编码值兜底。",
-    )
-    def test_xfail_surrogate_bricks_save(self, tmp_path: Path) -> None:
+    def test_surrogate_bricks_save(self, tmp_path: Path) -> None:
         """文件里一个孤 surrogate → 期望 load 消毒或 save 不炸。"""
         store = _store_with(tmp_path, {"model": "x\ud800y"})
         merged = store.save({"concurrency": 4})

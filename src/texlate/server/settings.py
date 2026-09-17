@@ -171,6 +171,10 @@ def _parse_origin(value: object) -> str | None:
     o = str(value or "").strip().rstrip("/")
     if not o:
         return None
+    try:
+        o.encode("utf-8")
+    except UnicodeEncodeError:
+        return None
     u = urlsplit(o)
     if (
         u.scheme not in ("http", "https")
@@ -257,6 +261,22 @@ def _load_origins(value: object) -> list[str]:
     return list(dict.fromkeys(out))
 
 
+def _load_str(value: object, default: str) -> str:
+    """字符串字段容错读：不可 UTF-8 编码（孤 surrogate）→ 默认。
+
+    损坏文件里的孤 surrogate 若原样透传进 ``merged``，``save()`` 的
+    ``atomic_json``（``ensure_ascii=False``）写盘即 ``UnicodeEncodeError``
+    ——此后每次 ``save`` 都炸，settings 面永久不可写。回落默认让
+    ``load()`` 自愈。
+    """
+    s = str(value or default)
+    try:
+        s.encode("utf-8")
+    except UnicodeEncodeError:
+        return default
+    return s
+
+
 def _load_quota(value: object) -> int:
     """配额字段容错读：非法/负值 → 0（不限）。"""
     try:
@@ -318,14 +338,14 @@ class SettingsStore:
             except (OSError, json.JSONDecodeError) as e:
                 log.warning("settings.json 损坏（%s）→ 用默认值", e)
         return {
-            "base_url": str(data.get("base_url") or DEFAULT_BASE_URL),
-            "model": str(data.get("model") or DEFAULT_MODEL),
-            "api_key": str(data.get("api_key") or ""),
-            "target_lang": str(data.get("target_lang") or DEFAULT_TARGET_LANG),
-            "glossary": str(data.get("glossary") or ""),
-            "glossary_dir": str(data.get("glossary_dir") or ""),
+            "base_url": _load_str(data.get("base_url"), DEFAULT_BASE_URL),
+            "model": _load_str(data.get("model"), DEFAULT_MODEL),
+            "api_key": _load_str(data.get("api_key"), ""),
+            "target_lang": _load_str(data.get("target_lang"), DEFAULT_TARGET_LANG),
+            "glossary": _load_str(data.get("glossary"), ""),
+            "glossary_dir": _load_str(data.get("glossary_dir"), ""),
             "concurrency": _load_concurrency(data.get("concurrency")),
-            "engine": str(data.get("engine") or "auto"),
+            "engine": _load_str(data.get("engine"), "auto"),
             "context_guidance": bool(data.get("context_guidance", True)),
             "cors_origins": _load_origins(data.get("cors_origins")),
             "quota_max_tasks": _load_quota(data.get("quota_max_tasks")),
@@ -364,6 +384,15 @@ class SettingsStore:
                 "api_key": cfg["api_key"],
                 "model": cfg["model"],
             }
+        # 预检：任一值不可 UTF-8 编码（孤 surrogate）时 atomic_json 会在
+        # connections 已写、settings 未写之间炸 → 文件对半更新。先序列化
+        # 探雷，炸了按非法更新处理，磁盘零写。
+        try:
+            json.dumps(conns, ensure_ascii=False).encode("utf-8")
+            json.dumps(merged, ensure_ascii=False).encode("utf-8")
+        except UnicodeEncodeError as e:
+            msg = "settings 含不可编码字符"
+            raise ValueError(msg) from e
         atomic_json(self.connections_path, conns)
         self.connections_path.chmod(0o600)
         atomic_json(self.path, merged)
@@ -380,7 +409,17 @@ class SettingsStore:
             return {}
         if not isinstance(data, dict):
             return {}
-        return {str(k): dict(v) for k, v in data.items() if isinstance(v, dict)}
+        out: dict[str, dict[str, str]] = {}
+        for k, v in data.items():
+            if not isinstance(v, dict):
+                continue
+            try:
+                json.dumps(v, ensure_ascii=False).encode("utf-8")
+            except UnicodeEncodeError:
+                log.warning("connections.json 槽位含不可编码值已丢弃: %r", k)
+                continue
+            out[str(k)] = dict(v)
+        return out
 
     def public(self) -> dict[str, Any]:
         """出参形态：剥 key 本体 + ``has_api_key``（§4.2 第三道防线）。"""
