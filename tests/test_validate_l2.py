@@ -1,5 +1,6 @@
 """L2 编译 log 解析测试 —— tests/fixtures/ 入库真 log 常跑 + bench/work_compile 大样例独例 + 合成 file:line: 格式。"""
 
+import json
 from pathlib import Path
 
 import pytest
@@ -270,3 +271,76 @@ def test_file_line_error_non_tex_ext() -> None:
     assert fe is not None
     assert fe.tex_file == "./fig/diag.pdf_t"
     assert fe.tex_line == 7  # noqa: PLR2004 - file:line: 提取的样本行号
+
+
+# ---------------------------------------------------------------- l2_attr 归因载荷
+
+ATTR_ERR_CAP = 50  # _MAX_ATTR_ERRORS：错误命中条上限（n_errors 仍精确）
+WARN_HIT_CAP = 5  # _MAX_WARN_SAMPLES：每类 warning hits 上限（by_class 仍精确）
+
+
+def test_attribution_shape_and_order() -> None:
+    """``l2_attr`` 载荷钉形：错误+warning 统一 hits 表（log_line 升序），
+    warning file = 命中时 ``(`` 栈最内层——records 离线聚类原料。"""
+    text = (
+        "(./main.tex\n"
+        "(./sub.tex\n"
+        "LaTeX Warning: Reference `r' undefined on input line 9.\n"
+        "./sub.tex:12: Missing $ inserted.\n"
+        "l.12 x=\n"
+        "))\n"
+    )
+    d = parse_log_text(text).attribution_dict()
+    assert d["n_errors"] == 1
+    assert d["warn_by_class"] == {"reference": 1}
+    hits = d["hits"]
+    assert [h["log_line"] for h in hits] == sorted(h["log_line"] for h in hits)
+    assert hits[0] == {
+        "kind": "reference",
+        "file": "./sub.tex",
+        "line": None,
+        "head": "LaTeX Warning: Reference `r' undefined on input line 9.",
+        "log_line": 3,
+    }
+    assert hits[1] == {
+        "kind": "error",
+        "file": "./sub.tex",
+        "line": 12,
+        "head": "./sub.tex:12: Missing $ inserted.",
+        "log_line": 4,
+        "stack_file": "./sub.tex",
+        "eof_file": None,
+    }
+
+
+def test_attribution_caps_counts_exact() -> None:
+    """hits 截断不污染计数：error 命中 ≤``_MAX_ATTR_ERRORS``、warning
+    每类 ≤``_MAX_WARN_SAMPLES``，``n_errors``/``warn_by_class`` 恒精确。"""
+    n_err, n_warn = 60, 8
+    text = "".join(f"! err{i}\nl.{i} x\n" for i in range(n_err))
+    text += "Overfull \\hbox (1pt too wide) in paragraph at lines 1--2\n" * n_warn
+    d = parse_log_text(text).attribution_dict()
+    assert d["n_errors"] == n_err
+    assert d["warn_by_class"] == {"overfull": n_warn}
+    kinds = [h["kind"] for h in d["hits"]]
+    assert kinds.count("error") == ATTR_ERR_CAP
+    assert kinds.count("overfull") == WARN_HIT_CAP
+
+
+def test_attribution_empty_and_missing() -> None:
+    """空 log / log_missing 载荷同形零命中、可 json 落账不炸。"""
+    d = parse_log_text("").attribution_dict()
+    assert d == {
+        "n_errors": 0,
+        "log_missing": False,
+        "engine": None,
+        "hits": [],
+        "warn_by_class": {},
+        "redlines": [],
+        "sys_hits": [],
+        "cjk_missing": 0,
+    }
+    dm = parse_log("/nonexistent/x.log").attribution_dict()
+    assert dm["log_missing"] is True
+    assert dm["hits"] == []
+    json.dumps(dm)  # records jsonl 落账可序列化（缺 log 亦同形）

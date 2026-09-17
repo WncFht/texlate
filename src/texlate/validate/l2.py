@@ -133,7 +133,10 @@ _MARKERLESS_WARN_RX: Final = re.compile(
 _CTX_LINES: Final = 8  # 首个错误后抓取的上下文行数（docs/08 §2.3）
 _TAIL_LINES: Final = 30  # log 尾部留存行数
 _MAX_STORED_ERRORS: Final = 200  # 存储上限（n_errors 仍精确计数）
-_MAX_WARN_SAMPLES: Final = 5  # 每类 warning 样例留存上限
+_MAX_WARN_SAMPLES: Final = 5  # 每类 warning 样例/hits 留存上限
+#: ``attribution_dict`` 错误命中条数上限——级联错长尾同形，前 50 条
+#: 足够聚类（``n_errors`` 仍精确计数；e2e ``_L2_MAX_ERRORS`` 同量级口径）。
+_MAX_ATTR_ERRORS: Final = 50
 
 #: runaway 扫描错（``File ended while scanning use of \xxx``）——文件栈
 #: 在 ``)`` 处已弹出肇事文件，错误行报的是**父文件** ``\input`` 续行位。
@@ -191,16 +194,23 @@ class LogError:
 
 @dataclass(slots=True)
 class WarningSummary:
-    """warning 分类汇总。``redlines`` 命中 docs/08 §4.3 红线信号即 dirty 依据。
+    r"""warning 分类汇总。``redlines`` 命中 docs/08 §4.3 红线信号即 dirty 依据。
 
     ``sys_hits`` = 系统 texmf/bundle 件产生的红线类命中
     （``invalid_utf8@<file>``）——观察项不判 dirty（engine 侧
     ``LogInfo.warnings_sys`` 同口径）。
+
+    ``hits`` = 每类结构化命中条（``{file, line, head, log_line}``，
+    ≤``_MAX_WARN_SAMPLES`` 条与 ``samples`` 同口径）——``file`` 是命中时
+    ``(`` 栈最内层文件（启发式归因：warning 多在读到肇事文件期间打印，
+    ``\output`` 时机打印的行栈可能已弹出归 None）；``line`` 恒 None
+    （warning 源码行号格式不统一暂不解析，占位保 hits 表键形一致）。
     """
 
     total: int = 0
     by_class: dict[str, int] = field(default_factory=dict)
     samples: dict[str, list[str]] = field(default_factory=dict)
+    hits: dict[str, list[dict[str, object]]] = field(default_factory=dict)
     redlines: list[str] = field(default_factory=list)
     cjk_missing: int = 0
     sys_hits: list[str] = field(default_factory=list)
@@ -211,6 +221,7 @@ class WarningSummary:
             "total": self.total,
             "by_class": dict(self.by_class),
             "samples": {k: list(v) for k, v in self.samples.items()},
+            "hits": {k: [dict(h) for h in v] for k, v in self.hits.items()},
             "redlines": list(self.redlines),
             "cjk_missing": self.cjk_missing,
             "sys_hits": list(self.sys_hits),
@@ -249,6 +260,49 @@ class L2Verdict:
             "tail": list(self.tail),
             "engine": self.engine,
             "log_missing": self.log_missing,
+        }
+
+    def attribution_dict(self) -> dict[str, object]:
+        """序列化为 records 落账的紧凑归因载荷（canonical 键 ``l2_attr``）。
+
+        ``hits`` = 错误+warning 统一命中表（``log_line`` 升序，逐条
+        ``{kind, file, line, head, log_line}``）——错误 kind=``"error"``
+        另带 ``stack_file``/``eof_file``（``!`` 格式无 tex_file 时的
+        归因兜底链，与 e2e ``attr_error`` 的 src_tok 优先级同序：
+        eof_file > tex_file > 栈最内层），条数 ≤``_MAX_ATTR_ERRORS``；
+        warning kind=by_class 类名，``file`` 为命中时栈最内层（每类
+        ≤``_MAX_WARN_SAMPLES`` 条，与 ``samples`` 同口径）。命中表截断
+        不影响计数：``n_errors``/``warn_by_class`` 恒为精确全量。
+
+        单源供 ``benchlib.judge_dict`` 嵌进 records/{stage}.jsonl——
+        离线按 kind/file 聚类 warning/error 用，勿在此键内塞
+        ctx/tail/file_stack 全量（那些走 ``to_dict`` 的单跑报告）。
+        """
+        ws = self.warnings
+        hits: list[dict[str, object]] = [
+            {
+                "kind": "error",
+                "file": e.tex_file,
+                "line": e.tex_line,
+                "head": e.head,
+                "log_line": e.line_no,
+                "stack_file": e.file_stack[-1] if e.file_stack else None,
+                "eof_file": e.eof_file,
+            }
+            for e in self.errors[:_MAX_ATTR_ERRORS]
+        ]
+        for cls, bucket in ws.hits.items():
+            hits.extend({"kind": cls, **h} for h in bucket)
+        hits.sort(key=lambda h: int(h["log_line"]))
+        return {
+            "n_errors": self.n_errors,
+            "log_missing": self.log_missing,
+            "engine": self.engine,
+            "hits": hits,
+            "warn_by_class": dict(ws.by_class),
+            "redlines": list(ws.redlines),
+            "sys_hits": list(ws.sys_hits),
+            "cjk_missing": ws.cjk_missing,
         }
 
     def __str__(self) -> str:
@@ -306,14 +360,33 @@ def _mark_redline(  # noqa: PLR0913 - 归因三件套（栈/root/缓存）拆散
         ws.redlines.append(red)
 
 
-def _classify_warning(
+def _record_hit(
+    ws: WarningSummary,
+    cls: str,
+    stack: list[str | None],
+    head: str,
+    log_line: int,
+) -> None:
+    """留存 samples 原文样例 + hits 结构化命中条（各 ≤``_MAX_WARN_SAMPLES``）。"""
+    bucket = ws.samples.setdefault(cls, [])
+    if len(bucket) < _MAX_WARN_SAMPLES:
+        bucket.append(head)
+    hb = ws.hits.setdefault(cls, [])
+    if len(hb) < _MAX_WARN_SAMPLES:
+        inner = next((s for s in reversed(stack) if s), None)
+        hb.append({"file": inner, "line": None, "head": head, "log_line": log_line})
+
+
+def _classify_warning(  # noqa: PLR0913 - 归因参数组与 _mark_redline 同形，拆散伤读
     line: str,
     ws: WarningSummary,
     stack: list[str | None],
     project_root: Path | None,
     dos_eps_cache: dict[str, bool],
+    *,
+    log_line: int,
 ) -> None:
-    """单行 warning 归类 + 红线打标。"""
+    """单行 warning 归类 + 红线打标 + 命中条留存（``hits`` 归因载荷原料）。"""
     if not (_ANY_WARNING_RX.search(line) or _MARKERLESS_WARN_RX.search(line)):
         return  # 非 warning 形态行（含 error ctx 内的帮助文本）
     cls = "generic"
@@ -332,9 +405,7 @@ def _classify_warning(
                 cls = "missing_glyph_cjk"
     ws.total += 1
     ws.by_class[cls] = ws.by_class.get(cls, 0) + 1
-    bucket = ws.samples.setdefault(cls, [])
-    if len(bucket) < _MAX_WARN_SAMPLES:
-        bucket.append(line.strip())
+    _record_hit(ws, cls, stack, line.strip(), log_line)
     if cls in _REDLINE_CLASSES:
         _mark_redline(
             cls, line, ws, stack, project_root=project_root, dos_eps_cache=dos_eps_cache
@@ -424,7 +495,9 @@ def parse_log_text(text: str, *, project_root: Path | None = None) -> L2Verdict:
                 v.errors.append(err)
             continue
 
-        _classify_warning(ln, v.warnings, stack, project_root, dos_eps_cache)
+        _classify_warning(
+            ln, v.warnings, stack, project_root, dos_eps_cache, log_line=i + 1
+        )
 
     v.tail = tuple(lines[-_TAIL_LINES:])
     return v

@@ -273,9 +273,17 @@ def load_manifest_rows(corpus: Path, layers) -> list[dict]:
 
 # ---------------------------------------------------------------- compile
 def judge_dict(res, *, expect_cjk: bool) -> dict:
-    """CompileResult → {compile, verdict, status}——``texlate.e2e._compile_judge``
-    同形状（bench 侧复刻点收敛：e2e_real/e2e_mock/stagerun 共用）。"""
+    """CompileResult → {compile, verdict, status, l2_attr}——``texlate.e2e._compile_judge``
+    同形状（bench 侧复刻点收敛：e2e_real/e2e_mock/stagerun 共用）。
+
+    ``l2_attr`` = L2 log 归因载荷（canonical 键——``L2Verdict.attribution_dict``
+    单源：逐条 ``{kind,file,line,head,log_line}`` hits + ``warn_by_class``），
+    stagerun 落 ``metrics.l2_attr`` / fixloop post 落 ``metrics.post.l2_attr``，
+    供 records 离线按类聚类 warning/error。产品侧 ``_tail_dict`` 有意不带
+    （单跑报告走 ``rec["l2"]`` 修复链报告，键名不同不撞）。
+    """
     from texlate.compile.judge import judge
+    from texlate.e2e import _l2_parse
 
     v = judge(res, expect_cjk=expect_cjk)
     return {
@@ -303,6 +311,7 @@ def judge_dict(res, *, expect_cjk: bool) -> dict:
             "warnings_hit": v.warnings_hit,
         },
         "status": v.status,
+        "l2_attr": _l2_parse(res).attribution_dict(),
     }
 
 

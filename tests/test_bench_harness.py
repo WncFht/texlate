@@ -111,6 +111,29 @@ def test_verdict_serializers_key_parity() -> None:
     assert a["error_cats"] == {"undefined_cs": 1}
 
 
+def test_judge_dict_has_l2_attr(tmp_path: Path) -> None:
+    """judge_dict tail 带 canonical ``l2_attr`` 归因载荷——stagerun 落
+    ``metrics.l2_attr`` 的 records 聚类原料；无 log 时同形零命中不炸。"""
+    log = tmp_path / "main.log"
+    log.write_text(
+        "(./main.tex\n"
+        "LaTeX Warning: Reference `r' undefined on input line 3.\n"
+        "./main.tex:9: Undefined control sequence.\nl.9 \\x\n)\n",
+        encoding="utf-8",
+    )
+    res = CompRes(engine="xelatex")
+    res.log_path = log
+    res.workdir = tmp_path
+    attr = benchlib.judge_dict(res, expect_cjk=False)["l2_attr"]
+    assert attr["n_errors"] == 1
+    assert attr["warn_by_class"] == {"reference": 1}
+    assert [h["kind"] for h in attr["hits"]] == ["reference", "error"]
+    json.dumps(attr)  # records jsonl 落账可序列化
+    bare = benchlib.judge_dict(CompRes(engine="xelatex"), expect_cjk=False)
+    assert bare["l2_attr"]["log_missing"] is True
+    assert bare["l2_attr"]["hits"] == []
+
+
 # ---------------------------------------------------------------- e2e_mock 种子
 def test_e2e_mock_seed_fallback(tmp_path: Path) -> None:
     """账全坏行 → results.json 兜底；快照坏 → 空种子不崩。"""
