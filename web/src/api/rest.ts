@@ -102,6 +102,15 @@ function xhrRequest<T>(
         };
         xhr.onerror = () => reject(new TypeError("failed to fetch"));
         xhr.onabort = () => reject(new TypeError("upload aborted"));
+        // init.signal 接 abort——上传路此前丢 signal，取消语义传不进 XHR
+        const sig = init.signal;
+        if (sig) {
+            if (sig.aborted) {
+                reject(new TypeError("upload aborted"));
+                return;
+            }
+            sig.addEventListener("abort", () => xhr.abort(), { once: true });
+        }
         xhr.send((init.body as XMLHttpRequestBodyInit | null) ?? null);
     });
 }
@@ -147,10 +156,30 @@ export const api = {
     health: () => request<Health>("/health"),
     providers: () =>
         request<Provider[] | { providers: Provider[] }>("/providers"),
-    tasks: (status?: string) =>
-        request<TaskSnapshot[] | { tasks: TaskSnapshot[] }>(
-            `/tasks${status ? `?status=${encodeURIComponent(status)}` : ""}`,
-        ),
+    /**
+     * 任务列表全量拉取——服务端 ``limit`` 默认 100（上限 1000），裸调
+     * 会静默截断长列表；按 ``{tasks,total}`` 信封 offset 翻页收全。
+     */
+    tasks: async (status?: string): Promise<TaskSnapshot[]> => {
+        const PAGE = 1000;
+        const out: TaskSnapshot[] = [];
+        for (let offset = 0; ; offset += PAGE) {
+            const q = new URLSearchParams({
+                limit: String(PAGE),
+                offset: String(offset),
+            });
+            if (status) q.set("status", status);
+            const res = await request<
+                TaskSnapshot[] | { tasks: TaskSnapshot[]; total?: number }
+            >(`/tasks?${q}`);
+            const page = Array.isArray(res) ? res : (res.tasks ?? []);
+            out.push(...page);
+            const total = Array.isArray(res) ? undefined : res.total;
+            if (page.length < PAGE || (total != null && out.length >= total))
+                break;
+        }
+        return out;
+    },
 
     translate(arxivId: string, body?: TranslateOptions, byok?: ByokHeaders) {
         return createRequest<TranslateResponse>(
