@@ -1,20 +1,24 @@
-"""_builtins_misc — 编码转码 / 中间件清场 / support 文件腐蚀复原 (C3 拆分)。
+"""_builtins_misc — 编码转码 / 中间件清场 / support 文件腐蚀复原 / 格式门 (C3 拆分)。
 
 ``non_utf8_recode`` 非 UTF-8 源就地转码; ``purge_corrupt_intermediates``
 删引擎自产的截断 aux 族; ``restore_support_from_src`` 把被翻译写脏的
-support 件从 pristine baseline 逐字节复原。
+support 件从 pristine baseline 逐字节复原; ``plain_format_detect``
+纯 plain/amsTeX 稿门判; ``harvest_build_directives`` 收割 arara/``!TEX``
+注释指令; ``docstrip_generate`` 跑包内 .ins 抽取缺件。
 """
 
 from __future__ import annotations
 
 import contextlib
-from pathlib import Path
+import re
+import shutil
+from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
 from texlate.compile.normalize import INTERMEDIATE_SUFFIXES
 from texlate.latex.api import NAME_GATED_TEX_SUFFIXES, parse_file
 from texlate.latex.prose import file_has_prose
-from texlate.textutil import CJK_RX
+from texlate.textutil import CJK_RX, DOCCLASS_RX, mask_tex, safe_is_file
 
 if TYPE_CHECKING:
     from texlate.compile.fixloop.engine import Engine, LoopCtx
@@ -162,3 +166,163 @@ def restore_support_from_src(
     if not restored:
         return False, "no corrupted support files"
     return True, f"restored: {', '.join(restored)}"
+
+
+# ════════════════════════════════════════════════════════════════
+# 格式/构建指令信号面 (W37/W68/W58/W102 孤儿裁决 mechmap-2026-09-17)
+# ════════════════════════════════════════════════════════════════
+
+#: plain/amsTeX 签名池 —— 遮盖视图上评估, 活 ``\documentclass``/
+#: ``\documentstyle`` 在场即整体短路 (LaTeX2.09 归 latex209_reject 收)。
+#: 签名沿 inject._PLAIN_TEX_RE 口径: 装载原语 ``^\magnification`` /
+#: ``\font\cs=cm*`` 族字模 / 终止符 ``^\bye$`` / 裸行 ``^\end$`` /
+#: ``\input amstex`` 系宏包。
+_PLAIN_SIGS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("magnification", re.compile(r"(?m)^[ \t]*\\magnification\b")),
+    ("font-cm", re.compile(r"\\font\\[a-zA-Z@]+\s*=\s*cm[a-z0-9]*\b")),
+    ("bye", re.compile(r"(?m)^[ \t]*\\bye[ \t]*$")),
+    ("end", re.compile(r"(?m)^[ \t]*\\end[ \t]*$")),
+    (
+        "input-amstex",
+        re.compile(r"\\input\s*\{?\s*(?:amstex|amsppt|harvmac|phyzzx|jytex|texinfo)\b"),
+    ),
+)
+
+
+def plain_format_detect(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""纯 plain/amsTeX 稿判定 → ``REJECT: route=tex-plain`` (W37/W68 孤儿裁决)。
+
+    遮盖视图双条件全中才拒: 无活 ``\documentclass``/``\documentstyle`` ∧
+    ≥1 plain 行锚签名。可达场景 = 主检出宽松档 ``find_main_tex`` 扫 raw
+    头 60KB, 被注释伪装行 (``%\documentstyle``) 骗入主 —— 纯 plain 零主
+    档案已由 ``classify_no_main`` 归 ``no_main_tex:plain_tex`` 不经过此。
+    判定不中 → False 让位 loop, 不消耗轮次。
+    """
+    del eng, payload
+    blob = mask_tex(ctx.source_blob())
+    if DOCCLASS_RX.search(blob):
+        return False, "live \\documentclass/\\documentstyle present — not plain"
+    hits = [name for name, rx in _PLAIN_SIGS if rx.search(blob)]
+    if not hits:
+        return False, "no plain-format signatures"
+    route = str(params.get("route") or "tex-plain")
+    return True, f"REJECT: route={route} plain-format doc (sigs: {', '.join(hits)})"
+
+
+#: 注释内构建指令锚 —— 与全局注释遮盖惯例相反: 本族注释本体即信号。
+_ARARA_LINE_RE = re.compile(r"(?im)^[ \t]*%+\s*arara:\s*([^\n]+)")
+_TEX_PROGRAM_RE = re.compile(
+    r"(?im)^[ \t]*%+\s*!\s*TEX\s+(?:TS-)?program\s*=\s*([^\s%]+)"
+)
+_TEX_OPTIONS_RE = re.compile(
+    r"(?im)^[ \t]*%+\s*!\s*TEX\s+(?:TS-)?options?\s*=\s*([^\n]+)"
+)
+#: shell 逃逸诉求: arara ``{shell: on|yes|true}`` 或直书 ``--shell-escape``
+#: /``-enable-write18`` (miktex 名同收)。
+_SHELL_HINT_RE = re.compile(
+    r"(?i)(?:shell\s*:\s*(?:on|yes|true)|--?shell-escape|--?enable-write18)"
+)
+
+
+def _scan_build_directives(blob: str) -> tuple[list[str], list[str], bool]:
+    r"""未遮盖 blob 扫三类指令 → (arara 规则行, ``!TEX program`` 列表, shell 诉求)。
+
+    注释本体即信号 —— 调用方传 raw blob (与全局 mask 惯例相反)。
+    """
+    arara_rules: list[str] = []
+    want_shell = False
+    for m in _ARARA_LINE_RE.finditer(blob):
+        rule_line = m.group(1).strip()
+        arara_rules.append(rule_line)
+        want_shell |= bool(_SHELL_HINT_RE.search(rule_line))
+    programs = [m.group(1).strip() for m in _TEX_PROGRAM_RE.finditer(blob)]
+    for m in _TEX_OPTIONS_RE.finditer(blob):
+        want_shell |= bool(_SHELL_HINT_RE.search(m.group(1)))
+    return arara_rules, programs, want_shell
+
+
+def harvest_build_directives(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""arara/``!TEX`` 注释指令收割 → advisory/``engine_flags`` 建议 (W58 孤儿裁决)。
+
+    信号收割型不改源: ``% arara: <rule>: {shell: on}`` / ``!TEX program=X``
+    是作者明示构建需求但编译循环无人收割。shell 诉求 → 往
+    ``ctx.engine_flags`` 请 ``-shell-escape`` (引擎 seam 自管拒放:
+    tectonic/无沙箱 xelatex 落 ``flags_dropped``); ``!TEX program`` 与
+    arara 规则名 → 记 ``ctx.advisories`` 账本 (重路由权在 reject_route,
+    收割只记不动)。无 actionable 信号 → False。
+    """
+    del eng, payload, params
+    arara_rules, programs, want_shell = _scan_build_directives(ctx.source_blob())
+    actions: list[str] = []
+    if want_shell and "-shell-escape" not in ctx.engine_flags:
+        ctx.engine_flags.append("-shell-escape")
+        actions.append("engine_flags +(-shell-escape)")
+    for line in arara_rules:
+        adv = f"build-directive arara: {line}"
+        if adv not in ctx.advisories:
+            ctx.advisories.append(adv)
+    for prog in programs:
+        adv = f"build-directive !TEX program={prog} (engine={ctx.engine_name})"
+        if adv not in ctx.advisories:
+            ctx.advisories.append(adv)
+    if programs:
+        actions.append("!TEX program=" + ",".join(dict.fromkeys(programs)))
+    if arara_rules:
+        actions.append(f"arara x{len(arara_rules)}")
+    if not actions:
+        return False, "directive anchor hit but no actionable signal"
+    return True, "harvested " + "; ".join(actions)
+
+
+#: docstrip 驱动器序 —— ``latex`` 为规范名, 缺则退 pdftex 系/裸 tex。
+_DOCSTRIP_DRIVERS = ("latex", "pdflatex", "xelatex", "tex")
+
+
+def docstrip_generate(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""包内自带 ``.ins`` → docstrip 抽取缺件 (W102; bundled dtx 是作者钦定版本)。
+
+    定位序: ``.ins`` basename stem == payload stem (``aipproc.ins``→
+    ``aipproc.cls``), 或包内唯一 ``.ins`` 兜底。``latex -interaction=
+    nonstopmode <ins>`` 跑抽取 (bbl_regen ``run_tool`` 先例; web2c 会把主
+    输入件所在目录并入搜索路径, ins/dtx 同目录自然可解), 复核 payload
+    落盘后 applied; 生成失败 → False 同轮续扫落 install_file(10) 装 TL 版。
+    """
+    del eng
+    want = (payload or "").strip()
+    rel = PurePosixPath(want)
+    if not want or rel.is_absolute() or ".." in rel.parts or "\x00" in want:
+        return False, f"unsafe payload {want!r}"
+    ins_all = sorted(p for p in ctx.wdir.rglob("*.ins") if p.is_file())
+    stem = rel.stem.lower()
+    cands = [p for p in ins_all if p.stem.lower() == stem]
+    if not cands and len(ins_all) == 1:
+        cands = ins_all  # 唯一 ins 兜底 (stem 不对应也试一次)
+    if not cands:
+        return False, f"no .ins matching {want}"
+    driver = next(
+        (d for d in params.get("drivers") or _DOCSTRIP_DRIVERS if shutil.which(d)),
+        None,
+    )
+    if driver is None:
+        return False, "no latex-family driver for docstrip"
+    timeout = int(params.get("timeout", 60))
+    for ins in cands:
+        rel_ins = ins.relative_to(ctx.wdir).as_posix()
+        rc, _out, to = ctx.run_tool(
+            [driver, "-interaction=nonstopmode", rel_ins], timeout
+        )
+        ctx.events.append(f"docstrip {rel_ins} -> rc={rc}{' TIMEOUT' if to else ''}")
+        hit = ctx.wdir / Path(*rel.parts)
+        if not safe_is_file(hit):
+            alt = next((p for p in ctx.wdir.rglob(rel.name) if p.is_file()), None)
+            hit = alt if alt is not None else hit
+        if safe_is_file(hit):
+            ctx.invalidate(hit)
+            return True, f"docstrip {rel_ins} generated {hit.relative_to(ctx.wdir)}"
+    return False, f"docstrip ran but {want} not produced"

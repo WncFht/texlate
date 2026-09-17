@@ -9,6 +9,41 @@
 version: 1
 
 rules:
+  # W31 孤儿裁决 (mechmap-2026-09-17): svg 包 = inkscape + shell-escape
+  # 外部链; tectonic 侧由 svg_route (30-route precheck) 先拒走 xelatex。
+  # 本规则两臂自适应: inkscape 在 ∧ flag 未被引擎 seam 拒放 →
+  # engine_flags 请 -shell-escape (svg 包自带 shell-out 链接管余下);
+  # inkscape 缺席或 flag 落 flags_dropped → 全量 *.svg→*.pdf 预转换 +
+  # 活 \includesvg → \includegraphics 改写 (opts 过 graphicx 白名单)。
+  - id: svg_prepare
+    mechanisms: [W31, B05]
+    description: "svg 包文档缺件/包级报错 → inkscape 在请 -shell-escape; 缺席预转换 svg→pdf 并改写 \\includesvg"
+    phase: loop
+    order: 9 # install_file(10) 前: *_svg-tex.pdf 是包自产中间件, filemap 必 miss
+    when:
+      any:
+        - { category: missing_file, payload_required: true }
+        - { category: other } # svg 包 PackageError 归 other (taxonomy 无专属类目)
+    condition: {
+        # raw 粗筛 (注释行命中无害 —— builtin 内遮盖视图复核是权威)
+        source_contains: "(\\\\usepackage|RequirePackage)\\s*(\\[[^\\]]*\\])?\\s*\\{[^}]*?\\bsvg\\b|\\\\includesvg\\b",
+      }
+    action:
+      kind: builtin_transform
+      function: svg_prepare
+      params: {}
+    risk: low # flag 经引擎 seam 拒放自管; 转换产物进 wdir, 改写限存活引用点
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # 正常已被 svg_route 拒走; 走到此处同法可救
+    provenance:
+      - {
+          corpus: "mechmap W31 (svg 包 inkscape/shell-escape 链)",
+          error: "Package svg Error / File `*_svg-tex.pdf' not found",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "bench/corpus_v3/mechanisms.jsonl W31 verdict suggested_rules"
+
   # 1404.5720 实证: \includegraphics{feedforward.eps} 缺件但同 stem .pdf 在盘
   # (arXiv 源常图文不配套)。签名归 missing_file 非 missing_graphic —— 图链
   # (17/18) 够不着; install(10)/shim(12) 对工程数据件必拒。本规则剥引用扩展名
@@ -106,8 +141,8 @@ rules:
   # 重蒸馏就地覆盖 (留 .fixloop-rd 备份兼已蒸馏标记); 非 pdf/无 gs/蒸馏
   # 败/marker 在 → \includegraphics 改写 \fbox 占位框保编译。
   - id: graphic_case_link
-    mechanisms: [W53]
-    description: "missing_graphic 盘上存大小写变体 → \\includegraphics 参数改写真名"
+    mechanisms: [W53, W66] # W66 扩面: ci-glob 命中面经 _rewrite_case_refs 同收 \includepdf
+    description: "missing_graphic 盘上存大小写变体 → \\includegraphics/\\includepdf 参数改写真名"
     phase: loop
     order: 17
     when: { category: missing_graphic, payload_required: true }
@@ -126,6 +161,40 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "docs/research/product/2026-09-16-signature-mining.md §2.2"
+
+  # W66 孤儿裁决 (mechmap-2026-09-17): pdfpages \includepdf 引用的外部
+  # pdf 缺件 —— 翻译管线对 includepdf 区整体跳过, 编译侧同语义 stub:
+  # 整调用改写 \clearpage\null 空页保分页位 (页面数失真可接受)。
+  # 序在 case_link(17) 后 —— 缺件但盘上存大小写变体的先救变体;
+  # repair(18) 的 \fbox 语义不适用整页 pdf。
+  - id: includepdf_missing_stub
+    mechanisms: [W66]
+    description: "\\includepdf{payload} 缺件 → 整调用改写 \\clearpage\\null 占位"
+    phase: loop
+    order: 17.5
+    when:
+      any:
+        - { category: missing_graphic, payload_required: true }
+        - { category: missing_file, payload_required: true }
+    condition: {
+        # raw 粗筛 (builtin 内 _live_matches 遮盖复核, 注释内调用点不动)
+        source_contains: "\\\\includepdf(?![a-zA-Z])",
+      }
+    action:
+      kind: builtin_transform
+      function: includepdf_missing_stub
+      params: {}
+    risk: low # 缺件调用点才动; 本可解析引用有守卫; % fixloop 前缀注释留痕
+    engines:
+      xelatex: { mode: same }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "mechmap W66 (pdfpages 外嵌整页 pdf 缺件)",
+          error: "File `supp.pdf' not found / Unable to load picture (includepdf 链)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "bench/corpus_v3/mechanisms.jsonl W66 verdict suggested_rules"
 
   - id: graphic_repair
     description: "missing_graphic 在盘但拒载 → gs 重蒸馏就地覆盖, 败则 \\fbox 占位"

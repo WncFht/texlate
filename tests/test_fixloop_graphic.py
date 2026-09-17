@@ -125,7 +125,7 @@ def test_case_link_idempotent_second_fire(tmp_path: Path) -> None:
     ok2, note2 = graphic_case_link(ctx, None, "img/sf_08_VX.pdf", {})
     assert ok1
     assert not ok2
-    assert "no \\includegraphics ref" in note2
+    assert "no ref rewrote" in note2
     assert (tmp_path / "main.tex").read_text() == t1
 
 

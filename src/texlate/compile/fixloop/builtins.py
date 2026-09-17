@@ -60,10 +60,14 @@ from texlate.compile.fixloop._builtins_csfix import (
 )
 from texlate.compile.fixloop._builtins_misc import (
     _OWN_MARKERS,
+    _PLAIN_SIGS,
     _SUPPORT_SUFFIXES,
     _corrupted_by_xlat,
     _is_support_baseline,
+    docstrip_generate,
+    harvest_build_directives,
     non_utf8_recode,
+    plain_format_detect,
     purge_corrupt_intermediates,
     restore_support_from_src,
 )
@@ -118,7 +122,10 @@ from texlate.compile.fixloop._builtins_shim import (
     _DOCCLASS_LINE_RE,
     _DOCCLASS_OPTS_RE,
     _JOURNAL_MACROS,
+    _OPENOUT_TARGET_RE,
+    _OVERLAY_EXTS,
     bundled_class_shadow,
+    generated_stub,
     journal_cs_polyfill,
     legacy_pkg_shim,
     pdftex_prim_polyfill,
@@ -137,7 +144,7 @@ from texlate.compile.fixloop._builtins_vendored import (
     vendored_fetch,
     vendored_shadow_isolate,
 )
-from texlate.textutil import _cs_events_spans, safe_is_file
+from texlate.textutil import _cs_events_spans, mask_tex, safe_is_file
 
 if TYPE_CHECKING:
     from texlate.compile.fixloop.engine import Engine, LoopCtx
@@ -167,7 +174,9 @@ __all__ = [
     "_GRAPHICS_PKGS_RE",
     "_GRAPHIC_EXTS",
     "_GS_FLAGS",
+    "_INCLUDESVG_RE",
     "_INCLUDE_GFX_RE",
+    "_INCLUDE_PDF_RE",
     "_INPUTENCODING_RE",
     "_JOURNAL_MACROS",
     "_LOAD_OPT_RE",
@@ -177,17 +186,22 @@ __all__ = [
     "_MC_WARMUP_SIZES",
     "_MISSING_CHAR_RE",
     "_NUMERIC_EXT_RE",
+    "_OPENOUT_TARGET_RE",
+    "_OVERLAY_EXTS",
     "_OWN_MARKERS",
     "_PHYS_GUARD_MARK",
     "_PHYS_INPUT_RE",
     "_PHYS_LOAD_RE",
     "_PHYS_PROVIDES_RE",
     "_PHYS_STUB_GUARD",
+    "_PLAIN_SIGS",
     "_PS_DRIVERS",
     "_SPLIT_GUARD",
     "_SPLIT_HEADS",
     "_SPLIT_REST_MAX",
     "_SUPPORT_SUFFIXES",
+    "_SVG_CONVERTERS",
+    "_SVG_OPT_KEEP",
     "_USE_RE",
     "_VENDOR_SUBDIRS",
     "_accent_fix_text",
@@ -228,12 +242,15 @@ __all__ = [
     "_rewrite_case_refs",
     "_rewrite_cs_map",
     "_rewrite_eps_refs",
+    "_rewrite_includesvg",
     "_rewrite_keylists",
     "_run_convert",
     "_split_glued_cs",
     "_strip_ps_driver_opts",
     "_stub_graphic_refs",
     "_sub_literal_chars",
+    "_svg_convert_arm",
+    "_svg_convert_one",
     "_try_gs_redistill",
     "_vendor_root",
     "_vendored_source",
@@ -243,12 +260,16 @@ __all__ = [
     "bundled_class_shadow",
     "citekey_sanitize",
     "cs_targeted_fix",
+    "docstrip_generate",
     "eps_to_pdf",
     "find_vendored_shadows",
     "font_fallback",
     "font_sub_shim",
+    "generated_stub",
     "graphic_case_link",
     "graphic_repair",
+    "harvest_build_directives",
+    "includepdf_missing_stub",
     "journal_cs_polyfill",
     "keep_latin_tokens",
     "legacy_pkg_shim",
@@ -257,12 +278,14 @@ __all__ = [
     "option_clash_merge",
     "pdftex_prim_polyfill",
     "physics_stub_detach",
+    "plain_format_detect",
     "pstricks_dvips_preflight",
     "purge_corrupt_intermediates",
     "px_to_bp",
     "restore_support_from_src",
     "shim_pkgs_in_use",
     "strip_inputenc",
+    "svg_prepare",
     "svjour_clo_stub",
     "undefine_for_redef",
     "vendored_fetch",
@@ -541,6 +564,13 @@ _INCLUDE_GFX_RE = re.compile(
     r"\\includegraphics\*?\s*(?:\[([^\]\n]*)\])?\s*\{([^}]*)\}"
 )
 
+#: ``\includepdf[opts]{file}`` (pdfpages) 引用点 —— W66 孤儿裁决面:
+#: 与 ``_INCLUDE_GFX_RE`` 分正则而非并表 —— graphic_repair 的 ``\fbox``
+#: stub 语义只适用图像件, includepdf 缺件占位是 ``\clearpage\null``。
+_INCLUDE_PDF_RE = re.compile(
+    r"\\includepdf(?![a-zA-Z])\s*(?:\[([^\]\n]*)\])?\s*\{([^}]*)\}"
+)
+
 
 def _norm_graphic_name(name: str) -> str:
     r"""Log payload / ``\includegraphics`` 参数 → 规整 posix 相对路径。"""
@@ -606,15 +636,16 @@ def _graphic_ref_hit(arg: str, want: str) -> bool:
 
 
 def _rewrite_case_refs(ctx: LoopCtx, exts: tuple[str, ...], want: str, rel: str) -> int:
-    r"""逐 tex 文件: 指 want 且本不可解析的 ``\includegraphics`` 参数改写 rel。
+    r"""逐 tex 文件: 指 want 且本不可解析的 ``\includegraphics``/``\includepdf`` 参数改写 rel。
 
     ``(wdir|filedir)/arg`` 已命中文件的引用是别人的好引用 —— 不动;
     该守卫同时保证二次触火幂等 (改写后 arg 恰可解析 → 不再命中改写条件)。
+    W66 扩面: ``\includepdf`` 与 ``\includegraphics`` 共享 ci-glob 命中面。
     """
     changed = 0
     for f in ctx.tex_files(exts):
         t = ctx.read(f)
-        if t is None or "\\includegraphics" not in t:
+        if t is None or ("\\includegraphics" not in t and "\\includepdf" not in t):
             continue
 
         def _sub(m: re.Match[str], _f: Path = f) -> str:
@@ -631,6 +662,7 @@ def _rewrite_case_refs(ctx: LoopCtx, exts: tuple[str, ...], want: str, rel: str)
             )
 
         nt = _INCLUDE_GFX_RE.sub(_sub, t)
+        nt = _INCLUDE_PDF_RE.sub(_sub, nt)
         if nt != t:
             ctx.write(f, nt)
             changed += 1
@@ -659,7 +691,7 @@ def graphic_case_link(
     exts = tuple(params.get("exts") or (".tex", ".sty"))
     changed = _rewrite_case_refs(ctx, exts, want, rel)
     if not changed:
-        return False, f"{want} -> {rel} resolved but no \\includegraphics ref rewrote"
+        return False, f"{want} -> {rel} resolved but no ref rewrote"
     return True, f"case-link {want} -> {rel}: rewrote refs in {changed} file(s)"
 
 
@@ -778,6 +810,215 @@ def graphic_repair(
     return True, f"stub \\fbox for {f.name} ({why}) in {n} file(s)"
 
 
+# ════════════════════════════════════════════════════════════════
+# \includepdf 缺件占位 (W66 孤儿裁决 mechmap-2026-09-17) +
+# svg 包编译准备 (W31 孤儿裁决)
+# ════════════════════════════════════════════════════════════════
+
+
+def includepdf_missing_stub(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""``\includepdf`` 缺件 → 整调用改写 ``\clearpage\null`` 占位 (W66)。
+
+    翻译管线对 includepdf 区整体跳过 (机制裁决定调), 编译侧同语义 stub:
+    空页保分页位, 页面数失真可接受。命中判定复用 ``_graphic_ref_hit``
+    (全路径/basename/stem 三口径 ci); ``(wdir|filedir)/arg`` 本可解析的
+    引用不动 (``_rewrite_case_refs`` 同款守卫 + 二次触火幂等)。
+    """
+    del eng
+    want = _norm_graphic_name(payload or "")
+    if not want:
+        return False, "no includepdf payload"
+    changed = 0
+    exts = tuple(params.get("exts") or (".tex", ".sty"))
+    for f in ctx.tex_files(exts):
+        t = ctx.read(f)
+        if t is None or "\\includepdf" not in t:
+            continue
+        out: list[str] = []
+        prev = 0
+        n = 0
+        for m in _live_matches(_INCLUDE_PDF_RE, t):
+            arg = m.group(2)
+            if not _graphic_ref_hit(arg, want):
+                continue
+            a = _norm_graphic_name(arg)
+            if safe_is_file(ctx.wdir / a) or safe_is_file(f.parent / a):
+                continue  # 引用本可解析 → 非本 payload 病灶
+            out.append(t[prev : m.start()])
+            # 前缀注释形: match 落行中时 % 只吞自身到新行, 不啃原文尾部
+            out.append(f"% fixloop: \\includepdf stub for {a}\n\\clearpage\\null")
+            prev = m.end()
+            n += 1
+        if not n:
+            continue
+        out.append(t[prev:])
+        ctx.write(f, "".join(out))
+        changed += 1
+    if not changed:
+        return False, f"no live \\includepdf ref to {want}"
+    return True, f"\\includepdf{{{want}}} -> \\clearpage\\null in {changed} file(s)"
+
+
+# ═══ svg 域 (W31): \includesvg 的 inkscape/shell-escape 链 ═══
+
+#: svg 包装载点/``\includesvg`` 使用点 (遮盖视图评估)。
+_SVG_PKG_RE = re.compile(
+    r"\\(?:usepackage|RequirePackage)\s*(?:\[[^\]]*\])?\s*\{[^}]*?\bsvg\b"
+)
+_INCLUDESVG_RE = re.compile(
+    r"\\includesvg\*?(?![a-zA-Z])\s*(?:\[([^\]\n]*)\])?\s*\{([^}]*)\}"
+)
+
+#: svg→pdf 缺省转换器序 —— inkscape 在时包自身 shell-escape 链用 (flag 臂),
+#: 缺席臂依次 rsvg-convert / magick / convert / cairosvg。
+_SVG_CONVERTERS = ("rsvg-convert", "magick", "convert", "cairosvg")
+
+#: ``\includesvg`` opts → graphicx 合法键白名单; inkscape*/pretex/...
+#: svg 私有键丢弃 (改写后交给 ``\includegraphics`` 必须只吃 graphicx 键)。
+_SVG_OPT_KEEP = frozenset(
+    {"width", "height", "scale", "angle", "page", "clip", "trim", "keepaspectratio"}
+)
+
+
+def _svg_convert_one(ctx: LoopCtx, src: Path, dst: Path) -> str | None:
+    """单 svg→pdf 逐工具试 → 成功 None / 失败原因串 (``ctx.run_tool`` 注入面)。"""
+    tried = 0
+    for name in _SVG_CONVERTERS:
+        tool = shutil.which(name)
+        if not tool:
+            continue
+        tried += 1
+        argv = (
+            [tool, "-f", "pdf", "-o", str(dst), str(src)]
+            if name == "rsvg-convert"
+            else [tool, str(src), "-o", str(dst)]
+            if name == "cairosvg"
+            else [tool, str(src), str(dst)]  # magick / convert
+        )
+        rc, _out, to = ctx.run_tool(argv, timeout=90)
+        if rc == 0 and not to and dst.is_file() and dst.stat().st_size:
+            return None
+        dst.unlink(missing_ok=True)  # 失败残留清掉, 防半文件被当成产物
+    return "no converter on PATH" if not tried else "all converters failed"
+
+
+def _includesvg_opts(opts: str | None) -> str:
+    r"""``\includesvg`` opts → graphicx 合法子集 ``[k=v,...]`` (``_SVG_OPT_KEEP``)。"""
+    if not opts:
+        return ""
+    keep = [
+        o.strip()
+        for o in opts.split(",")
+        if o.strip() and o.strip().split("=")[0].strip() in _SVG_OPT_KEEP
+    ]
+    return f"[{','.join(keep)}]" if keep else ""
+
+
+def _rewrite_includesvg(ctx: LoopCtx, converted: dict[str, str]) -> int:
+    r"""逐 tex 文件: 遮盖视图扫 ``\includesvg`` → ``\includegraphics`` 改写。
+
+    converted 键是 svg basename; arg 规范名剥 ``.svg`` 尾 (或裸 stem) 后命中
+    即改写, 目录前缀原样保留 —— dst 就落在 src 同目录。返回改写文件数。
+    """
+    changed = 0
+    for f in ctx.tex_files((".tex", ".sty")):
+        t = ctx.read(f)
+        if t is None or "\\includesvg" not in t:
+            continue
+        out: list[str] = []
+        prev = 0
+        n = 0
+        for m in _live_matches(_INCLUDESVG_RE, t):
+            a = _norm_graphic_name(m.group(2))
+            stem = PurePosixPath(a)
+            base = stem.name
+            if base.lower().endswith(".svg") and base in converted:
+                new_arg = a[: len(a) - 4] + ".pdf"
+            elif base in {PurePosixPath(k).stem for k in converted}:
+                new_arg = f"{a}.pdf"
+            else:
+                continue
+            out.append(t[prev : m.start()])
+            out.append(
+                f"\\includegraphics{_includesvg_opts(m.group(1))}{{{new_arg}}}"
+                "% fixloop: includesvg->includegraphics"
+            )
+            prev = m.end()
+            n += 1
+        if not n:
+            continue
+        out.append(t[prev:])
+        ctx.write(f, "".join(out))
+        changed += 1
+    return changed
+
+
+def _svg_convert_arm(ctx: LoopCtx) -> tuple[bool, str]:
+    r"""Inkscape 缺席/flag 被拒臂: wdir ``*.svg``→``.pdf`` + ``\includesvg`` 改写。
+
+    dst 已在盘复用不重转; 全复用且无活 ``\includesvg`` → False
+    (不白占轮次); 部分失败的 basename 记 note。
+    """
+    svgs = sorted(p for p in ctx.wdir.rglob("*.svg") if p.is_file())
+    if not svgs:
+        return False, "inkscape absent/flag-dropped and no .svg on disk"
+    converted: dict[str, str] = {}
+    failed: list[str] = []
+    n_new = 0
+    for src in svgs:
+        dst = src.with_suffix(".pdf")
+        if dst.is_file() and dst.stat().st_size:
+            converted[src.name] = dst.name  # 上轮已转: 复用
+            continue
+        why = _svg_convert_one(ctx, src, dst)
+        if why is None:
+            converted[src.name] = dst.name
+            n_new += 1
+        else:
+            failed.append(f"{src.name}({why})")
+    n_rw = _rewrite_includesvg(ctx, converted)
+    if not n_new and not n_rw:
+        if failed:
+            return False, "svg->pdf all failed: " + "; ".join(failed)
+        return False, "all svg already converted, no live \\includesvg"
+    note = (
+        f"svg->pdf {n_new} new/{len(svgs)} total via wdir, "
+        f"\\includesvg rewritten in {n_rw} file(s)"
+    )
+    if failed:
+        note += f"; failed: {'; '.join(failed)}"
+    return True, note
+
+
+def svg_prepare(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""W31 svg 包编译准备: inkscape 在 → ``-shell-escape``; 缺席 → svg→pdf 预转换。
+
+    两臂择一自适应: flag 臂 —— ``shutil.which("inkscape")`` 中 ∧ flag 未在
+    ``ctx.flags_dropped`` (引擎 seam 拒放记录, tectonic/无沙箱 xelatex) →
+    ``ctx.engine_flags`` 请 ``-shell-escape``, svg 包自带 ``\includesvg``
+    shell-out 链接管余下。转换臂 —— inkscape 缺席或 flag 被拒 →
+    ``_svg_convert_arm``: 全量 wdir ``*.svg`` → 同目录 ``.pdf``
+    (``_SVG_CONVERTERS`` 序) + 活 ``\includesvg`` 改写 ``\includegraphics``
+    (opts 过 ``_SVG_OPT_KEEP`` 白名单)。
+    幂等: flag 已请且未拒 / svg 全转毕 → False 让位。
+    """
+    del eng, payload
+    blob = mask_tex(ctx.source_blob())
+    if not (_SVG_PKG_RE.search(blob) or _INCLUDESVG_RE.search(blob)):
+        return False, "no live svg usage"
+    flag = str(params.get("flag") or "-shell-escape")
+    if shutil.which("inkscape") and flag not in ctx.flags_dropped:
+        if flag in ctx.engine_flags:
+            return False, f"{flag} already requested"
+        ctx.engine_flags.append(flag)
+        return True, f"inkscape on PATH -> engine_flags +{flag}"
+    return _svg_convert_arm(ctx)
+
+
 TRANSFORM_FNS = {
     "option_clash_merge": option_clash_merge,
     "pdftex_prim_polyfill": pdftex_prim_polyfill,
@@ -805,4 +1046,10 @@ TRANSFORM_FNS = {
     "restore_support_from_src": restore_support_from_src,
     "citekey_sanitize": citekey_sanitize,
     "vendored_fetch": vendored_fetch,
+    "generated_stub": generated_stub,
+    "docstrip_generate": docstrip_generate,
+    "plain_format_detect": plain_format_detect,
+    "harvest_build_directives": harvest_build_directives,
+    "svg_prepare": svg_prepare,
+    "includepdf_missing_stub": includepdf_missing_stub,
 }

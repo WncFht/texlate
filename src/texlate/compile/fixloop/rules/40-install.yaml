@@ -10,6 +10,82 @@ version: 1
 
 rules:
   # ─── loop: install 系 —— 环境缺失优先于源码改写 ───
+  # W79/W18/W102 孤儿裁决 (mechmap-2026-09-17): filemap 索引外的自产件。
+  # 三条 order:9 窄谓词先于 install_file(10) 截流 —— 运行期生成件/包内
+  # docstrip 件 install 必 miss 白烧轮次; 谓词不中 return False 不耗轮。
+  - id: rungen_stub
+    mechanisms: [W79]
+    description: "\\openout\\w=<name> 运行期生成件缺档 → wdir 空 stub 让本遍 \\input 过"
+    phase: loop
+    order: 9 # install_file(10) 前: \openout 自产件 filemap 必 miss
+    when: { category: missing_file, payload_required: true }
+    action:
+      kind: builtin_transform
+      function: generated_stub
+      params: { faces: [openout] }
+    risk: low # 空 stub 只让本遍 \input 静默; 下遍 \write 填实 (compile_passes:2)
+    engines:
+      xelatex: { mode: same }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "hep-th/9703214 (mechmap W79)",
+          error: "File `foots.tmp' not found — \\openout 推迟到 shipout, 同遍 \\input 必 miss",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "bench/corpus_v3/mechanisms.jsonl W79 verdict suggested_rules"
+
+  # W18: xfig/inkscape 文字覆盖层 (.pstex_t/.pdf_t/.pdftex_t) 常经宏体间接
+  # \input (#2.pstex_t 形) —— IfFileExists 改写要动作者宏; 空 stub 惠及
+  # 全部调用点更干净 (0707.1954 实证)。与 rungen_stub 同 builtin 分面。
+  - id: nonctan_input_stub
+    mechanisms: [W18]
+    description: "xfig/inkscape 覆盖层 (.pstex_t/.pdf_t/.pdftex_t) 缺档 → wdir 空 stub"
+    phase: loop
+    order: 9
+    when: { category: missing_file, payload_required: true }
+    action:
+      kind: builtin_transform
+      function: generated_stub
+      params: { faces: [overlay] }
+    risk: low # 空覆盖层 = 图内文字标签缺席, 版面保留; 生成物不回写源
+    engines:
+      xelatex: { mode: same }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "0707.1954 (mechmap W18)",
+          error: "File `fig.pstex_t' not found — xfig 导出的文字覆盖层, 非 CTAN 件",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "bench/corpus_v3/mechanisms.jsonl W18 verdict suggested_rules"
+
+  # W102: 包内自带 .ins/.dtx 是作者钦定版本 —— bundled 件抽取优先于
+  # install_file 装 TL 同名 (版本可能不同); stem 匹配或唯一 ins 定位,
+  # 跑完复核 payload 落盘; 失败 return False 同轮落 install_file 兜底。
+  - id: docstrip_generate
+    mechanisms: [W102, B05]
+    description: "包内自带 .ins → docstrip 抽取缺件 (bundled 版本优先于 TL 同名)"
+    phase: loop
+    order: 9
+    when: { category: missing_file, payload_required: true }
+    condition: { fileset: { has_ext: [.ins] } } # 无 ins 包直接让位
+    action:
+      kind: builtin_transform
+      function: docstrip_generate
+      params: { timeout: 60 }
+    risk: low # 生成件进 wdir 不改源; latex 系 driver 缺席/生成失败不吞错
+    engines:
+      xelatex: { mode: same }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "mechmap W102 (aipproc 族 .ins/.dtx 包内自产)",
+          error: "File `aipproc.cls' not found — e-print 只带 .ins/.dtx",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "bench/corpus_v3/mechanisms.jsonl W102 verdict suggested_rules"
+
   - id: install_file
     mechanisms: [W19, W47, W52, W98, W51, W21]
     description: "缺文件 (.sty/.cls/.fd/.def/…) → filemap 查包 → 安装 → 探测复核"

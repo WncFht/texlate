@@ -9,7 +9,7 @@ svjour .clo noop stub / pdfTeX 读取原语 polyfill / 期刊宏 ``\\providecomm
 from __future__ import annotations
 
 import re
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
 from texlate.compile.fixloop._builtins_common import PDFTEX_PRIMS
@@ -277,6 +277,74 @@ def bundled_class_shadow(
     if missing:
         note += f"; deps still missing: {', '.join(missing)}"
     return True, note
+
+
+# ════════════════════════════════════════════════════════════════
+# 运行期生成件 stub (W79/W18 孤儿裁决 mechmap-2026-09-17): filemap
+# 索引外的自产件缺档, install_file 必 miss → order:9 自门谓词先截
+# ════════════════════════════════════════════════════════════════
+
+#: ``\openout<stream>=<name>`` 目标抽取 —— stream 可为 ``\cs`` 或裸数字
+#: (plain ``\openout0=foo``), ``=`` 可省, 花括号/裸名两形; ``\immediate``
+#: 前缀无关 (match 落在 ``\openout`` 本体)。
+_OPENOUT_TARGET_RE = re.compile(
+    r"\\openout\s*(?:\\[a-zA-Z@]+|\d+)\s*=?\s*(?:\{([^}]+)\}|([^\s{}\\=]+))"
+)
+
+#: xfig/inkscape 文字覆盖层扩展名缺省面 —— 运行期生成、不在任何 CTAN 索引。
+_OVERLAY_EXTS = (".pstex_t", ".pdf_t", ".pdftex_t")
+
+
+def _openout_targets(ctx: LoopCtx) -> set[str]:
+    r"""遮盖视图扫 ``\openout\w=<name>`` → 目标 basename 集。
+
+    ``\jobname``/宏展开构造名静态不可解 → 含 ``\`` 者跳过; 花括号形与
+    裸名形同收 (hep-th/9703214 ``\openout\ftfile=foots.tmp`` 实证)。
+    """
+    names: set[str] = set()
+    for m in _OPENOUT_TARGET_RE.finditer(mask_tex(ctx.source_blob())):
+        name = (m.group(1) or m.group(2) or "").strip().strip("\"'")
+        if not name or "\\" in name:
+            continue
+        names.add(PurePosixPath(name).name)
+    return names
+
+
+def generated_stub(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""运行期生成件缺档 → wdir 落空 stub 占位 (W79 rungen / W18 覆盖层)。
+
+    ``params.faces`` 子集择检测面 (缺省全开):
+      ``openout`` — payload basename ∈ 源内 ``\openout`` 目标集。非
+        ``\immediate`` 的 ``\openout`` 推迟到 shipout, 同遍 ``\input`` 必
+        miss; 空 stub 让本遍静默通过, compile_passes:2 下遍 ``\write`` 填实。
+      ``overlay`` — payload 扩展名 ∈ ``params.exts`` (缺省
+        ``_OVERLAY_EXTS``)。覆盖层常经宏体间接 ``\input #2.pstex_t``, 空
+        文件惠及全部调用点且不动作者宏 (0707.1954 实证, 优于 IfFileExists 改写)。
+    谓词不中/盘上有件/名不安全 → False 落 install_file(10)/vendored_fetch(11.5)。
+    """
+    del eng
+    fname = (payload or "").strip()
+    rel = PurePosixPath(fname)
+    if not fname or rel.is_absolute() or ".." in rel.parts or "\x00" in fname:
+        return False, f"unsafe stub name {fname!r}"
+    faces = {str(f) for f in (params.get("faces") or ("openout", "overlay"))}
+    hit: str | None = None
+    if "openout" in faces and rel.name in _openout_targets(ctx):
+        hit = "openout"
+    if hit is None and "overlay" in faces:
+        exts = {str(e).lower() for e in (params.get("exts") or _OVERLAY_EXTS)}
+        if rel.suffix.lower() in exts:
+            hit = "overlay"
+    if hit is None:
+        return False, f"{fname} not a generated/overlay target"
+    target = ctx.wdir / Path(*rel.parts)
+    if target.exists():
+        return False, f"{fname} already on disk"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    ctx.write(target, f"% fixloop: stub for runtime-generated {rel.name}\n")
+    return True, f"{hit}-stub {fname}"
 
 
 def shim_pkgs_in_use(ctx: LoopCtx, shim_map: dict[str, Any]) -> list[str]:

@@ -81,6 +81,43 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "docs/08-translate-compile.md L273"
 
+  # W37/W68 孤儿裁决 (mechmap-2026-09-17): 纯 plain/amsTeX 稿无路由可救
+  # (缺 plain.fmt 通道) → gate 显式拒 tex-plain, 诚实上报优于烧满轮次。
+  # 可达场景: find_main_tex 宽松档扫 raw 头 60KB 被注释伪装行
+  # (%\documentstyle) 骗入主 —— 纯 plain 零主档案已由 classify_no_main
+  # 归 no_main_tex:plain_tex 不经此处。builtin 内遮盖视图复核是权威:
+  # 活 \documentclass/\documentstyle 在场或零签名即 False 让位 loop。
+  - id: plain_format_route
+    mechanisms: [W37, W68]
+    description: "纯 plain/amsTeX 稿 (无活 documentclass ∧ 行锚签名) → 拒 tex-plain 诚实上报"
+    phase: gate
+    order: 2 # latex209_reject(1) 后: 209 先归 dvips 通道, 此处只收真 plain
+    when:
+      any:
+        - { category: undefined_cs }
+        - { category: syntax }
+        - { category: missing_file }
+    condition: {
+        # raw 粗筛省电 (builtin 内 mask_tex 遮盖视图复核是权威); 签名池
+        # 与 builtin _PLAIN_SIGS 同源口径: ^\magnification / \font\cs=
+        # / ^\bye$ / ^\end$ 裸行 / \input amstex 系。
+        source_contains: "(?m)(^[ \\t]*\\\\magnification|\\\\font\\\\[a-zA-Z@]+\\s*=|^[ \\t]*\\\\bye[ \\t]*$|^[ \\t]*\\\\end[ \\t]*$|\\\\input\\s*\\{?\\s*(amstex|amsppt|harvmac|phyzzx|jytex|texinfo)\\b)",
+      }
+    action:
+      kind: builtin_transform
+      function: plain_format_detect # REJECT: route=tex-plain; 不中 False
+      params: { route: tex-plain }
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # 源级判定与引擎无关
+    provenance:
+      - {
+          corpus: "mechmap W37/W68 (plain.tex/amsTeX 稿)",
+          error: "undefined_cs 连环 (\\magnification/\\font\\cs=cm* / ^\\bye$)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "bench/corpus_v3/mechanisms.jsonl W37+W68 verdict suggested_rules"
+
   # ─── precheck: 静态路由 + 第 0 招装包, 不进循环 ───
   # v2 整改 (fixloop-corpusv2 实测): 原 eps_route 按 fileset 静态拒 .eps 工程,
   # 实证误杀 —— tectonic 对部分 eps 工程能出 pdf~ (0812.4521/nucl-th/0104042
@@ -121,6 +158,36 @@ rules:
         note: "v1 为 eps_route fileset 版; v2 拆出 .eps 改走 ps_image 循环规则",
       }
     source_ref: "docs/08-translate-compile.md L218, L271; fixloop-v2 整改"
+
+  # W31 孤儿裁决 (mechmap-2026-09-17): svg 包 = inkscape + shell-escape
+  # 外部链, tectonic 无可行路径 → precheck 直拒路由 xelatex; xelatex 臂
+  # 由 loop 侧 svg_prepare 接管 (flag/预转换两臂)。行锚口径同 pstricks_route。
+  - id: svg_route
+    mechanisms: [W31, B05]
+    description: "\\usepackage{svg}/\\includesvg 依赖 → tectonic 无 inkscape 链, 预检路由 xelatex"
+    phase: precheck
+    order: -9 # pstricks_route(-10) 后, static_precheck(0) 前
+    when: { always: true }
+    condition:
+      engine_in: [tectonic]
+      source_contains: "(?m)^[ \\t]*\\\\(?:usepackage|RequirePackage)\\s*(\\[[^\\]]*\\])?\\s*\\{[^}]*?\\bsvg\\b|^[ \\t]*\\\\includesvg\\b"
+    action:
+      kind: reject_route
+      params:
+        {
+          route: "xelatex",
+          reason: "svg package needs inkscape + shell-escape",
+        }
+    engines:
+      tectonic: { mode: native }
+      xelatex: { mode: skip } # xelatex 臂走 svg_prepare (inkscape 在请 flag, 缺席预转换)
+    provenance:
+      - {
+          corpus: "mechmap W31 (svg 包 inkscape/shell-escape 链)",
+          error: "File `*_svg-tex.pdf' not found / shell-escape disabled",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "bench/corpus_v3/mechanisms.jsonl W31 verdict suggested_rules"
 
   - id: static_precheck
     mechanisms: [W11, W47, W61, B05, W80]
@@ -165,3 +232,31 @@ rules:
       - { corpus: "*", error: "冷 TEXMFHOME 下高频 missing_file" }
     stats: { fires: 22, note: "22/22 格执行; 每格装 0-9 包" }
     source_ref: "fixloop.py L594-618"
+
+  # W58 孤儿裁决 (mechmap-2026-09-17, 低优先级信号收割): % arara:/!TEX
+  # 注释是作者明示构建需求但编译循环无人收割。此处注释本体即信号 —
+  # source_contains 跑 raw 源反而对路 (与全局注释-FP 收紧惯例相反)。
+  # builtin 不改源: shell 诉求 → engine_flags 请 -shell-escape (引擎
+  # seam 自管拒放); !TEX program/arara 规则名 → advisories 账本留痕
+  # (重路由权在 reject_route, 收割只记不动)。
+  - id: build_directive_harvest
+    mechanisms: [W58]
+    description: "% arara:/!TEX 构建指令收割 → engine_flags/advisories 建议 (不改源)"
+    phase: precheck
+    order: 5 # static_precheck(0) 后殿后: 收割面只进账本, 不抢装包序
+    when: { always: true }
+    condition: { source_contains: "(?im)^[ \\t]*%+\\s*(arara:|!\\s*TEX)" }
+    action:
+      kind: builtin_transform
+      function: harvest_build_directives
+      params: {}
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # flag 请求被 seam 拒放即落 flags_dropped, 安全
+    provenance:
+      - {
+          corpus: "mechmap W58 (arara/TeXShop 指令头稿)",
+          error: "构建需求写在注释里无人执行 (shell-escape/引擎指定)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "bench/corpus_v3/mechanisms.jsonl W58 verdict suggested_rules"

@@ -50,14 +50,29 @@ def test_phase_ordering() -> None:
     assert [r.id for r in _rs().phase("gate")] == [
         "pstricks_dvips_preflight",
         "latex209_reject",
+        # C5 (W37/W68): plain/amsTeX 稿 gate 拒 tex-plain —— 209 归 dvips 后殿后
+        "plain_format_route",
     ]
     # v2: eps_route 挪 loop 层 (log 确证后兜底拒); pstricks 独立成 precheck 项
     assert [r.id for r in _rs().phase("precheck")] == [
         "pstricks_route",
+        # C5 (W31): svg 包 tectonic 硬墙 → 路由 xelatex
+        "svg_route",
         "static_precheck",
+        # C5 (W58): arara/!TEX 注释指令收割殿后
+        "build_directive_harvest",
     ]
     loop = [r.id for r in _rs().phase("loop")]
-    assert loop[0] == "install_file"
+    # C5: order:9 自产件窄谓词四件先于 install_file(10) —— rungen(W79)/
+    # overlay(W18)/docstrip(W102) 在 40-install, svg_prepare(W31) 在 45-graphics,
+    # 同 order 稳定序按分片文件名序拼接
+    assert loop[:5] == [
+        "rungen_stub",
+        "nonctan_input_stub",
+        "docstrip_generate",
+        "svg_prepare",
+        "install_file",
+    ]
     assert loop[-1] == "undefined_cs_guess"
     orders = [r.order for r in _rs().phase("loop")]
     assert orders == sorted(orders)
