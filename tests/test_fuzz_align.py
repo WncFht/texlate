@@ -670,12 +670,14 @@ class _DestsBoomReader:
         return 0
 
 
-def test_reader_landmarks_dests_boom_loses_heights() -> None:
-    """观察钉：``named_destinations`` 抛 → ``_reader_landmarks`` 整调用炸——
-    heights 已算出也被丢弃（build_alignment 只能按整侧死回退）。P3 台账。"""
+def test_reader_landmarks_dests_boom_keeps_heights() -> None:
+    """P3 回归：``named_destinations`` 抛 → 锚段置空但 heights 存活——
+    build_alignment 保页序信息而非整侧死回退。"""
     r = _DestsBoomReader([_StubPage(), _StubPage()])
-    with pytest.raises(RuntimeError, match="names tree corrupt"):
-        align._reader_landmarks(r)  # noqa: SLF001 -- 白盒钉私有提取
+    lm = align._reader_landmarks(r)  # noqa: SLF001 -- 白盒钉私有提取
+    assert lm["dests"] == {}
+    assert len(lm["heights"]) == len(r.pages)
+    assert lm["npages"] == len(r.pages)
 
 
 class _BoomPage:

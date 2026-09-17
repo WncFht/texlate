@@ -119,7 +119,12 @@ def _reader_landmarks(r: PdfReader) -> dict[str, Any]:
     h0 = raw_heights[0] if raw_heights else 1.0
     heights = [h / h0 for h in raw_heights]
     dests: dict[str, dict[str, Any]] = {}
-    for name, dest in r.named_destinations.items():
+    try:
+        named = r.named_destinations
+    except Exception as e:  # noqa: BLE001 -- /Names 树损坏只丢锚段，heights 存活（整侧死回退已修）
+        log.debug("named_destinations 读取失败，锚段置空: %s", e)
+        named = {}
+    for name, dest in named.items():
         if _PAGE_ANCHOR_RX.match(name):
             continue
         page = _dest_page(r, dest)
