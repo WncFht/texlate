@@ -1,0 +1,65 @@
+# rules-fragment.yaml — fixer-apjbbx 交付 (1706.00240: bundled apj.bbx ↔ biblatex 3.21)
+#
+# 合入点:
+#   1. taxonomy.head — 插到 key_unknown (idx31) 之后、invalid_char 之前
+#      (同族 Package <pkg> Error 区, idx26-33)。
+#   2. rules — order=161 (journal_cs_polyfill 160 与 cs_targeted_fix 165 之间空档)。
+#
+# 归因 (read-only 实证, 详见报告):
+#   - e-print 捆绑 apj.bbx (2017, biblatex≤3.7 期) 自带 \bbx@patchmacro =
+#     \patchcmd on \abx@macro@<name>, 失败走 \PackageError → file-line-error
+#     形态 "path:N: Package biblatex Error: Cannot patch bibliography macro X."
+#     (非 '!' 行, rep.first 可捕)。
+#   - biblatex 3.8 (2017-11) 改名 date+extrayear→date+extradate /
+#     labelyear+extrayear→labelyear+extradate; TL 装 3.21, 旧名只剩
+#     authoryear.bbx 的 provide-shim (体无 [parens], patch 必败)。
+#   - apj.bbx 两处致命点: L192-194 patch{author} find-text
+#     \usebibmacro{date+extrayear} (现代 author 宏内为 +extradate → 失配);
+#     L197 patch{date+extrayear}{[parens]}{} (目标宏仅剩 shim 体 → 失配)。
+#   - 更名修复两侧皆通: author 宏 L222 实含 \usebibmacro{date+extradate};
+#     date+extradate 全部 mergedate 变体体含 \printtext[parens]。
+#   - 已验证: 全量 fixloop (_fixloop_one 同构) r1 cannot_patch_macro/author →
+#     本规则 rewrite in 1 files; r2 推进至 undefined_cs/sortlist (bbl 2.8 旧格式,
+#     属 bbl_regen 墙外事项, 见报告 §wall-2)。
+
+# ─── taxonomy.head 条目 (insert after key_unknown) ───
+taxonomy_insert_after: key_unknown
+taxonomy:
+  - {
+      id: cannot_patch_macro,
+      scope: head,
+      payload_group: 1,
+      pattern: "Cannot patch (?:bibliography|citation) macro ([\\w@:+-]+)",
+    }
+
+# ─── rules 条目 (order 161) ───
+rules:
+  # 1706.00240: bundled apj.bbx (apjbib mode=biblatex) 以 \bbx@patchmacro 补丁
+  # biblatex≤3.7 宏名; 3.8+ 改名后 find-text/目标宏双失配 → cannot_patch_macro。
+  # 源级更名即双侧对齐; 不引 shim (biblatex 自带旧名 shim 但体不含 find-text)。
+  # 已知尾险 (报告 §risk): 对被补文件内的 *反向* shim
+  #   \providebibmacro*{date+extradate}{\usebibmacro{date+extrayear}}
+  # (acmauthoryear.bbx 一族, 今不触发本类) 若同名改写会成自指 —— 仅当该文件
+  # 自己的新名 patch 先失败才会入此类, 属"换墙"非静默腐蚀, stuck/capacity 兜住。
+  - id: biblatex_bbx_rename
+    description: "bundled .bbx/.cbx/.sty 补丁 biblatex>=3.8 已改名宏 → 源级更名 date/labelyear+extrayear→+extradate"
+    phase: loop
+    order: 161 # journal_cs_polyfill(160) 与 cs_targeted_fix(165) 之间
+    when: { category: cannot_patch_macro }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.bbx, .cbx, .sty, .tex]
+        rewrites:
+          - { pattern: "date\\+extrayear", repl: "date+extradate" }
+          - { pattern: "labelyear\\+extrayear", repl: "labelyear+extradate" }
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1706.00240 (stagerun-loop1)",
+          error: "Package biblatex Error: Cannot patch bibliography macro author / date+extrayear (bundled apj.bbx 2017 vs biblatex 3.21)",
+        }
+    stats: { fires: 1, status: verified }
+    source_ref: "fixer-apjbbx-2026-09-17; apj.bbx L192-197 双点 + 全量 fixloop r1 实证"

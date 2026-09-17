@@ -1,0 +1,18 @@
+{
+ "pid": "1706.07911",
+ "verify_target": "binhex.tex missing_file resolution",
+ "target_status": "RESOLVED",
+ "evidence": ".fls INPUT x5 -> /home/fanghaotian/texmf/tex/generic/kastrup/binhex.tex; not flagged missing by static_precheck; compile proceeds past it",
+ "cell_verdict": "unfixable:other",
+ "next_residual": {
+  "category": "other",
+  "error": "! File ended while scanning use of \\next. -> Emergency stop (job aborted)",
+  "root_cause": "tab-indented \\end{CCSXML} (source-original, src L111) is not recognized by comment.sty exclusion gobbler -> scan runs to EOF",
+  "repro": "minimal acmart doc + tab-led \\end{CCSXML} reproduces runaway; flush-left \\end compiles clean; CJK content irrelevant (ascii+tab also fails)",
+  "fix_candidate": "new taxonomy sig 'File ended while scanning use of' -> runaway_scan; fix = detab \\end{<excluded-env>} lines (or un-indent to col0)"
+ },
+ "side_observations": [
+  "static_precheck false-positive: acmart.cls's own \\InputIfFileExists{acmart-preload-hook.tex} counted as missing (benign, installed [])",
+  "CCSXML XML payload mock-translated to 这是译文 (xlat-arm artifact, not a compile blocker)"
+ ]
+}

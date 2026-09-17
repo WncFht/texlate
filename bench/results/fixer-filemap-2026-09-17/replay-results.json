@@ -1,0 +1,141 @@
+[
+ {
+  "pid": "1706.07911",
+  "verdict": "unfixable:other",
+  "rounds": [
+   {
+    "round": 1,
+    "pdf": false,
+    "pdf_bytes": 0,
+    "n_errors": 1,
+    "category": "other",
+    "payload": null,
+    "warnings": [],
+    "line_no": null,
+    "file_stack": [],
+    "sec": 1.3
+   },
+   {
+    "round": 2,
+    "salvage": true,
+    "pdf": false,
+    "pdf_bytes": 0,
+    "n_errors": 2,
+    "category": null,
+    "payload": null,
+    "warnings": [],
+    "line_no": null,
+    "file_stack": [],
+    "sec": 1.1
+   }
+  ],
+  "actions": [
+   {
+    "round": 0,
+    "rule": "static_precheck",
+    "detail": "missing files=['acmart-preload-hook.tex'] -> installed []",
+    "applied": true
+   },
+   {
+    "round": "salvage",
+    "rule": "_best_effort_pass",
+    "detail": "nonstopmode 兜底: pdf=False err=2"
+   }
+  ],
+  "post": {
+   "status": "fail",
+   "reasons": [
+    "no_pdf"
+   ],
+   "notes": [],
+   "n_errors": 2,
+   "category": "other",
+   "payload": null,
+   "cjk_chars": -1,
+   "missing_chars": 0,
+   "warnings_hit": []
+  },
+  "wall_s": 6.4
+ },
+ {
+  "pid": "1306.0281",
+  "verdict": "unfixable:early_eof",
+  "rounds": [
+   {
+    "round": 1,
+    "pdf": false,
+    "pdf_bytes": 0,
+    "n_errors": 1,
+    "category": "undefined_cs",
+    "payload": "numberofauthors",
+    "warnings": [],
+    "line_no": 186,
+    "file_stack": [
+     "/home/fanghaotian/src/texlate/bench/results/fixer-filemap-2026-09-17/work/1306.0281/splice/main.tex"
+    ],
+    "sec": 3.9
+   },
+   {
+    "round": 2,
+    "pdf": false,
+    "pdf_bytes": 0,
+    "n_errors": 1,
+    "category": "early_eof",
+    "payload": null,
+    "warnings": [],
+    "line_no": 235,
+    "file_stack": [
+     "/home/fanghaotian/src/texlate/bench/results/fixer-filemap-2026-09-17/work/1306.0281/splice/main.tex"
+    ],
+    "sec": 3.5
+   },
+   {
+    "round": 3,
+    "salvage": true,
+    "pdf": false,
+    "pdf_bytes": 0,
+    "n_errors": 100,
+    "category": null,
+    "payload": null,
+    "warnings": [],
+    "line_no": 235,
+    "file_stack": [
+     "/home/fanghaotian/src/texlate/bench/results/fixer-filemap-2026-09-17/work/1306.0281/splice/main.tex"
+    ],
+    "sec": 3.4
+   }
+  ],
+  "actions": [
+   {
+    "round": 0,
+    "rule": "static_precheck",
+    "detail": "missing files=[] -> installed []",
+    "applied": true
+   },
+   {
+    "round": 1,
+    "rule": "cs_targeted_fix",
+    "detail": "polyfill injected"
+   },
+   {
+    "round": "salvage",
+    "rule": "_best_effort_pass",
+    "detail": "nonstopmode 兜底: pdf=False err=100"
+   }
+  ],
+  "post": {
+   "status": "fail",
+   "reasons": [
+    "no_pdf"
+   ],
+   "notes": [],
+   "n_errors": 100,
+   "category": "early_eof",
+   "payload": null,
+   "cjk_chars": -1,
+   "missing_chars": 0,
+   "warnings_hit": []
+  },
+  "wall_s": 17.3
+ }
+]

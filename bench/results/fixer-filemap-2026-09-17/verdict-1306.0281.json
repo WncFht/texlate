@@ -1,0 +1,13 @@
+{
+ "pid": "1306.0281",
+ "verify_target": "undefined_cs:numberofauthors via cs_targeted_fix polyfill",
+ "target_status": "HEALED",
+ "evidence": "round1 cat=undefined_cs pay=numberofauthors l.186 -> cs_targeted_fix 'polyfill injected'; \\providecommand{\\numberofauthors}[1]{} landed at main.tex:31 (real-newline prefix dodged docclass-eol seam)",
+ "cell_verdict": "unfixable:early_eof",
+ "next_residual": {
+  "category": "early_eof",
+  "error": "main.tex:235 \\maketitle: 'Use of \\@xfootnotemark doesn't match its definition' + \\__text_expand storm -> 100 errs -> Emergency",
+  "root_cause": "acm_proc_article-sp legacy shim -> acmart; old-class author commands (\\alignauthor/\\affaddr/\\titlenote cluster inside \\author{}) detonate in acmart's \\__text_expand author expansion — shim completeness gap beyond single-cs polyfill",
+  "fix_candidate": "author-block rewrite family for legacy acm classes (\\alignauthor -> \\author, \\affaddr/\\affinst -> \\affiliation, or \\ifdefined-guarded stubs) — leader routing"
+ }
+}

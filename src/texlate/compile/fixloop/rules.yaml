@@ -315,6 +315,16 @@ taxonomy:
       payload_group: 1,
       pattern: "File ended while scanning use of \\\\?@?(newl@?bel|writefile|contentsline)",
     }
+  # 2026-09-17 fixer-filemap (1706.07911): comment.sty 排除扫描器逐行找
+  # 顶格 \end{<env>}, 源生 tab 缩进的终结行不认 → 扫到 EOF runaway。
+  # 通用形排在 aux_scan_eof 窄签之后 (aux 族保持专属路由), emergency
+  # 之前 ("File ended" 行的 ctx8 常混进 Emergency stop 抢签)。
+  - {
+      id: runaway_scan,
+      scope: head,
+      payload_group: 1,
+      pattern: "File ended while scanning use of (\\\\[A-Za-z@]+)",
+    }
   - {
       id: emergency,
       scope: head,
@@ -375,6 +385,14 @@ taxonomy:
       scope: head,
       payload_group: 1,
       pattern: "The key '([\\w@./-]+)' is unknown and is being ignored",
+    }
+  # 2026-09-17 fixer-apjbbx: biblatex \patchcmd 失败走 PackageError
+  # (file-line-error 形, 可无 '!' 前缀) —— bundled .bbx 撞 3.8+ 改名宏。
+  - {
+      id: cannot_patch_macro,
+      scope: head,
+      payload_group: 1,
+      pattern: "Cannot patch (?:bibliography|citation) macro ([\\w@:+-]+)",
     }
   - {
       id: invalid_char,
@@ -3201,6 +3219,64 @@ rules:
         }
     stats: { fires: 0, status: proposed } # 本语料唯一命中格被 order155 shadow 先接住
     source_ref: "fixloop-v2 整改; emulateapj.cls L1201-1256 期刊表"
+
+  # 2026-09-17 fixer-apjbbx (1706.00240): bundled apj.bbx (2017,
+  # biblatex≤3.7 期) 以 \bbx@patchmacro 补丁旧宏名; 3.8 改名
+  # date+extrayear→+extradate / labelyear+extrayear→+extradate 后
+  # find-text 与目标宏双失配 (旧名仅剩 authoryear.bbx provide-shim,
+  # 体不含 patch find-text)。源级更名双侧对齐——不引 shim。
+  # 尾险 (fragment §risk): 文件自带 *正向* shim
+  #   \providebibmacro*{date+extradate}{\usebibmacro{date+extrayear}}
+  # 且自身新名 patch 先失败时, 改写会成自指 → capacity 兜住,
+  # 属换墙非静默腐蚀; 今零 acmauthoryear 格发 Cannot-patch。
+  - id: biblatex_bbx_rename
+    description: "bundled .bbx/.cbx/.sty 补丁 biblatex>=3.8 已改名宏 → 源级更名 date/labelyear+extrayear→+extradate"
+    phase: loop
+    order: 161 # journal_cs_polyfill(160) 与 cs_targeted_fix(165) 之间
+    when: { category: cannot_patch_macro }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.bbx, .cbx, .sty, .tex]
+        rewrites:
+          - { pattern: "date\\+extrayear", repl: "date+extradate" }
+          - { pattern: "labelyear\\+extrayear", repl: "labelyear+extradate" }
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1706.00240 (stagerun-loop1; fixer-apjbbx-2026-09-17)",
+          error: "Package biblatex Error: Cannot patch bibliography macro author / date+extrayear (bundled apj.bbx 2017 vs biblatex 3.21)",
+        }
+    stats: { fires: 1, status: verified } # 全量 _fixloop_one r1 实证
+    source_ref: "fixer-apjbbx-2026-09-17; apj.bbx L192-197 双点归因 + r1 rewrite in 1 files"
+
+  # 2026-09-17 fixer-filemap (1706.07911): comment.sty 排除扫描器逐行找
+  # 顶格 `\end{<env>}`; 源生 tab/空格缩进的 \end 行不匹配 → 扫到 EOF
+  # runaway。detab 全部 \end{ 行首: verbatim/minted 体内字面 \end 行
+  # 会被去缩进 (显示位移, 可接受) —— 不修则整篇无 PDF。
+  - id: detab_end_scanlines
+    description: "缩进 \\end{env} 行去前导空白 —— comment.sty 排除扫描器要求顶格终结行"
+    phase: loop
+    order: 164 # biblatex_bbx_rename(161) 与 cs_targeted_fix(165) 之间
+    when: { category: runaway_scan }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - { pattern: "(?m)^[ \\t]+(\\\\end\\{)", repl: "\\g<1>" }
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1706.07911 (stagerun-loop1; fixer-filemap-2026-09-17)",
+          error: "File ended while scanning use of \\next (comment.sty CCSXML 排除 env, 源生 tab 缩进 \\end{CCSXML})",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "fixer-filemap-2026-09-17 minimal-repro (顶格过/tab 挂)"
 
   # 新增 (2026-09-16): undefined_cs 无包映射项的 cs→修复表 —— spec 支持
   # strip_pkg/usepackage+装文件/cs_map/polyfill 组合 (builtins.cs_targeted_fix)。
