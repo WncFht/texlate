@@ -1,0 +1,1 @@
+{"name": "path-defense", "status": "done", "note": "efa495b: safe_resolve/safe_is_file canonical + 10 call-site guards + patch_graphic_top converge; 3 pin tests", "owner": "fanghaotian", "ts": 1789627862.2390935}

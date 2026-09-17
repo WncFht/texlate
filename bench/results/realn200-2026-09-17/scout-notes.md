@@ -30,3 +30,11 @@
    防止波中共仓脏树漂入 real 臂计时）。
 3. 产出 cases.jsonl/records.jsonl/results.json/matrix.md/summary.md + report.md，
    与 postfix2 目录同构。
+
+## 报告 caveat（overseer 2026-09-17 补录）
+
+audit 实证 e2e_real `translate_tree` **零文件闸**：.rtx.tex/.code.tex/file_has_prose
+全漏——real 臂把 REVTeX dump/support 件也送译，chunk 体积类指标比产品口径虚高。
+mock 臂走 `e2e._scan_tree` 有闸 → **两臂口径不对等**。定性：run 不中断（基线
+realpostfix2 同码，横向可比）；报告里 chunk ok-rate/送译量类对比须标注此 skew，
+pdf/clean/fixloop 救场类终态指标不受影响。修复已排 n200 收官后第一批。
