@@ -20,13 +20,13 @@
 
 ### 1.1 波次总账（全部收线）
 
-| 波 | 规模 | 结果 |
-|---|---|---|
-| C-bucket vendored-shim | 492 格（全 fail 起点） | **clean 360（73.2%）/ partial 127 / fail 5**；scorecard pdf +24 / clean +101 |
-| illegal_unit 深链 | 108 id | **108/108 闭环**：96c/6p/0f + held6 直出 6 clean，零回归，unfixable 清零 |
-| M1-B 判别波 | 72 格（T1 58 arg-eaten + T2 14 math-eaten） | **72/72 全出 PDF**，fixloop 终态 c53/p19/f0；残余 19 格分簇路由 |
-| n200 real 臂 | 200 id | union pdf 98.5%，real≈mock 打平，fixloop 救回 23/24 |
-| S6 base 臂 | 5,122 格 | **收线**（records `97d30b0`）：base clean 3,064/partial 1,045/fail 885/reject 65/skip 63——build-base 覆盖 0→全 + 源健康基线 |
+| 波                     | 规模                                        | 结果                                                                                                                        |
+| ---------------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| C-bucket vendored-shim | 492 格（全 fail 起点）                      | **clean 360（73.2%）/ partial 127 / fail 5**；scorecard pdf +24 / clean +101                                                |
+| illegal_unit 深链      | 108 id                                      | **108/108 闭环**：96c/6p/0f + held6 直出 6 clean，零回归，unfixable 清零                                                    |
+| M1-B 判别波            | 72 格（T1 58 arg-eaten + T2 14 math-eaten） | **72/72 全出 PDF**，fixloop 终态 c53/p19/f0；残余 19 格分簇路由                                                             |
+| n200 real 臂           | 200 id                                      | union pdf 98.5%，real≈mock 打平，fixloop 救回 23/24                                                                         |
+| S6 base 臂             | 5,122 格                                    | **收线**（records `97d30b0`）：base clean 3,064/partial 1,045/fail 885/reject 65/skip 63——build-base 覆盖 0→全 + 源健康基线 |
 
 ### 1.2 重大修复（按影响排序）
 
@@ -57,23 +57,24 @@
 
 ## 3. 车队台账摘要（谁做了什么）
 
-| lane | 今日主线 | 状态 |
-|---|---|---|
-| 1d（latex/segmenter） | illegal_unit 修法 `d2c377b` + ReDoS `746237f` + NO_EXPAND env 化 + S9 env-arg 20 条 `1bbc4fb` | M1-B 残余两簇在飞（illegal_unit 残漏 4 + syntax 重伤 3） |
-| peer1（fixloop/rules） | mechanisms 字段 `a9bcd5b`+`385493a`、TEXLATE_CACHE `b84f6fc`、scan_install vendored 兜底 `1a74204` | M1-B stub 缺件 5 + 判据边界 3 在飞 → undefined_cs 48 格分解 + orphan 机制 11 件排队 |
-| 1e（server/bench/xlat） | P0 batch 五钉 `164a9e0`、html-title `083cded`、docs/08 同步、env 规范化三件套、e2e drift D2/D3/D7 `abc2efd` | E2 下沉批（~500 行 → repair/）+ 5 fuzz agent 在飞 |
-| e8（worker/e2e/repair） | C-bucket postmortem `6b75761`、dur_s t0 `174790e`、陈旧 pin×5 `99a4189`、D1/D5/D8 `f0a4041` | math--0408287 异常 + _build_dual zh 英文 P1 + COMPILE_TIMEOUT 接线在飞 |
-| 2f（data/bench） | C-bucket/illegal_unit/held6/M1-B 四波收官 + scorecard 链 | S6 base 臂 5,122 格在飞（~1.5–2.5h） |
-| overseer fork×6 | i5a `b2876d8`、i5b `c4ff8fb`、i7 `7ac59c6`、export-pin `ea3402c`、sharepack `9acced6`、sandbox `c50cf3a` | **全部交付核销** |
-| 4f（dense-feedback） | dossier.py/mech_ids.py/mechanisms 字段/taxonomy 物化/verdict-proxy spec | 已退出（自治 lane 结束） |
+| lane                    | 今日主线                                                                                                    | 状态                                                                                |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| 1d（latex/segmenter）   | illegal_unit 修法 `d2c377b` + ReDoS `746237f` + NO_EXPAND env 化 + S9 env-arg 20 条 `1bbc4fb`               | M1-B 残余两簇在飞（illegal_unit 残漏 4 + syntax 重伤 3）                            |
+| peer1（fixloop/rules）  | mechanisms 字段 `a9bcd5b`+`385493a`、TEXLATE_CACHE `b84f6fc`、scan_install vendored 兜底 `1a74204`          | M1-B stub 缺件 5 + 判据边界 3 在飞 → undefined_cs 48 格分解 + orphan 机制 11 件排队 |
+| 1e（server/bench/xlat） | P0 batch 五钉 `164a9e0`、html-title `083cded`、docs/08 同步、env 规范化三件套、e2e drift D2/D3/D7 `abc2efd` | E2 下沉批（~500 行 → repair/）+ 5 fuzz agent 在飞                                   |
+| e8（worker/e2e/repair） | C-bucket postmortem `6b75761`、dur_s t0 `174790e`、陈旧 pin×5 `99a4189`、D1/D5/D8 `f0a4041`                 | math--0408287 异常 + _build_dual zh 英文 P1 + COMPILE_TIMEOUT 接线在飞              |
+| 2f（data/bench）        | C-bucket/illegal_unit/held6/M1-B 四波收官 + scorecard 链                                                    | S6 base 臂 5,122 格在飞（~1.5–2.5h）                                                |
+| overseer fork×6         | i5a `b2876d8`、i5b `c4ff8fb`、i7 `7ac59c6`、export-pin `ea3402c`、sharepack `9acced6`、sandbox `c50cf3a`    | **全部交付核销**                                                                    |
+| 4f（dense-feedback）    | dossier.py/mech_ids.py/mechanisms 字段/taxonomy 物化/verdict-proxy spec                                     | 已退出（自治 lane 结束）                                                            |
 
-**纪律面**：车队铁律（teammate 零 git、overseer 统一 pathspec commit + --no-verify、交付=文件清单+建议 msg+测试证据、diff 逐 hunk 归因）运转中；两次自 commit 越矩（e8 `4ed297f`、1e 三件）均核净后收编并重申。
+**纪律面**：车队铁律（teammate 零 git、overseer 统一 pathspec commit + --no-verify、交付=文件清单 + 建议 msg+ 测试证据、diff 逐 hunk 归因）运转中；两次自 commit 越矩（e8 `4ed297f`、1e 三件）均核净后收编并重申。
 
 ## 4. 在飞与残余清单（收线时点 ~21:30）
 
 收线广播已发：各 lane 当前件到交付边界即停、不接新件；本节「已裁决未做」项全部转入 §5 排期。
 
 **收线中**（最后一批交付）：
+
 - 1d：**已落 `feb5046`**——M1-B 残余 7/7 格闭环（`_TAIL_OPERAND` 因子链文法 + arith/boxspec 两 kind + `\newX` 声明名 +12 + PiCTeX 域容忍；hep-ph-0104029 推回 stub/shim 道）
 - peer1：**已落四件**（`8910a96` rules_declined 物化 / `69649ca` ell 条目 / `526932c` diagrams stub 富化实证 172→0 err / `be03326` routes 档）
 - 1e：E2 迁移批**已落 `9539bcc`**（repair +430/e2e −397，19 符号下沉+D6 jail+`_ruleset_with_baseline` 单源化）+ glossary fuzz `59ddfb3`（17 xfail-strict 钉 9 CONFIRMED）；残余=client/engine/judge 三份 findings + client fuzz 文件
@@ -81,6 +82,7 @@
 - e8：**已全清**（`4ebfb12`/`ea4d0c4`/`b6d0ede`）
 
 **已裁决未做（下梯次，进排期）**：
+
 - peer1 序 3-5：font_cs_shim 新 builtin（fivmi 83-err，老 AMS 命名族普适）/ cs_rebind produced_by 子路径（§/ø TFM 产字）/ jinstpub stub（先盘点用量）；owrart.cls + `\bm`-CJK 守卫低值 backlog
 - retry.py 七钉缺陷（1e fuzz 产出，**字节丢失类**）：`_split_lines_scoped` 丢尾随 `\t`/`\xa0` 空白尾片 / `_make_slots` 丢 >SLOT_MAX_CHARS 纯空白片 / `_best_split` cs↔`{arg}` 原子断缺 / `_slots_round` 结算读可变 group 误记 no-answer / `max_tries=0` "unreachable" 可达 + 象形括号 ⟦⟧《》/零宽-only 槽值（PLAUSIBLE）
 - glossary 九钉缺陷（`59ddfb3`，xfail-strict）：**`_resolve_glossary_path` jail 逃逸族**——NUL→ValueError / ENAMETOOLONG→OSError / ELOOP 自环→RuntimeError 三类异常越狱（`options.glossary` 未校验用户输入经 app.py:876 可达，e-print tar 可植自环）；flatten_terms null 毒化（`en:~`→字面 "None" 进 prompt）；load_index terms_dir 逃逸（latent）；csv >128KiB 域炸；**sort_key 非全序→PYTHONHASHSEED 依赖注入序**（逐字节稳定=前缀缓存前提被破）
@@ -114,8 +116,8 @@ I1–I7 项除 E2 下沉（I3，在飞）外基本核销；I5 测量四件全落
 
 - **M1 共享缓存分发层**（3–5d）——index.jsonl 远端拉取 + HTTP fetch + 可选公共 registry；「1 万篇预译秒回」的 hjfy 对等武器
 - **M2 批量承载底板**（2–4d）——tasks 分页/SSE 收敛（>6 在途撞浏览器上限）/retention+GC
-- **M3 首启可用+公网分发**（1–3d）——默认 base_url 中性化 + systemd/compose 样例
-- M4 compile/engine.py 拆分 + fixloop↔engine 环掐断；M5 e2e 共享件扶正余量；M6 mech_tags 全层回填；M7 术语表扩面；M8 反馈+换模型重翻闭环；M9 f 带进样+hot 补齐；M10 50k 前置磁盘纪律
+- **M3 首启可用 + 公网分发**（1–3d）——默认 base_url 中性化 + systemd/compose 样例
+- M4 compile/engine.py 拆分 + fixloop↔engine 环掐断；M5 e2e 共享件扶正余量；M6 mech_tags 全层回填；M7 术语表扩面；M8 反馈 + 换模型重翻闭环；M9 f 带进样+hot 补齐；M10 50k 前置磁盘纪律
 
 ### 远期/战略
 
@@ -132,25 +134,27 @@ I1–I7 项除 E2 下沉（I3，在飞）外基本核销；I5 测量四件全落
 
 ## 7. 硬约束与风险
 
-| 约束 | 数值/死线 | 应对 |
-|---|---|---|
-| swe-2-medium promo 到期 | **2026-10-16（剩 ~29 天）** | S1 优先；备用 127.0.0.1:3033 + 注册源预案 |
-| Devin 账号级 429 | 限流非本地可控 | retry 阶梯空转即正确姿势 |
-| 磁盘 | 卷余 363G；50k 需 ~185G+ | M10 剪枝纪律先行 |
-| arxiv e-print | 180/日硬限 + 429 park 翻倍 | hot/版本敏感增补的唯一受限通道 |
-| 单点网关 | 私网 tailnet 单地址 | M3 中性默认 + failover 链 |
-| real↔mock 口径断点 | a08dda3 前后体积类指标不可比 | 跨波对比按 commit 切段 |
-| 并发波 csb 互踩 | 实测 +82→+14 净对冲 | 波次调度加「csb 指纹冻结窗口」或串行化记分面 |
+| 约束                    | 数值/死线                    | 应对                                         |
+| ----------------------- | ---------------------------- | -------------------------------------------- |
+| swe-2-medium promo 到期 | **2026-10-16（剩 ~29 天）**  | S1 优先；备用 127.0.0.1:3033 + 注册源预案    |
+| Devin 账号级 429        | 限流非本地可控               | retry 阶梯空转即正确姿势                     |
+| 磁盘                    | 卷余 363G；50k 需 ~185G+     | M10 剪枝纪律先行                             |
+| arxiv e-print           | 180/日硬限 + 429 park 翻倍   | hot/版本敏感增补的唯一受限通道               |
+| 单点网关                | 私网 tailnet 单地址          | M3 中性默认 + failover 链                    |
+| real↔mock 口径断点      | a08dda3 前后体积类指标不可比 | 跨波对比按 commit 切段                       |
+| 并发波 csb 互踩         | 实测 +82→+14 净对冲          | 波次调度加「csb 指纹冻结窗口」或串行化记分面 |
 
 ## 8. 流程复盘：今天做对了什么、可改进什么
 
 **做对的**：
+
 - py-spy 钉栈调试法对 ReDoS 类卡死一次命中（三采样零位移即定性）；翻案 pytest「OOM」旧案证明「别信表象信栈」。
 - 「机制归因→资产化→重跑」闭环两波实证，是成功率推进的最强杠杆。
 - overseer 统一 commit + 逐 hunk 归因在多 lane 并发下零夹带事故（两次越矩均核净收编）。
 - fork 代理（一次性任务）比常驻 peer 更适合 S 级独立修复——6 个 fork 全部干净交付。
 
 **可改进的**：
+
 - 并发波次的 csb 校验互踩导致 scorecard 读数被对冲（+82→+14）——记分面需要波次隔离或冻结窗。
 - ReDoS 这类正则病灶应进静态审查清单：变长可选片在外层 `*` 下 + 首字符互斥性差 = 高危形，`(?>` 原子组是一行解。
 - records schema 无版本标记 + code stamp 不盯 bench/py——波次间口径漂移零防护（S 级改进已列）。
