@@ -342,7 +342,7 @@ def _l2_repair(
 ) -> tuple[dict, CompRes, dict | None]:
     """L2 回灌一轮：归因 → 重译 → resplice → 重编一次 → 余孽回落。
 
-    阶梯骨架单源 ``repair.l2_repair_round``——本层注入 e2e 编译件
+    阶梯骨架单源 ``repair_l2.l2_repair_round``——本层注入 e2e 编译件
     （``_compile_judge_verdict``）并把末态 Verdict 换回 tail dict 报告形。
     返回 (l2 报告, 最新 CompRes, 新尾段或 None)。
     """

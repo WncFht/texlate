@@ -718,7 +718,7 @@ class _Compile:
     def _l2_repair_zh(
         self, ctx: TaskCtx, work: Path, eng: Engine, res: CompRes
     ) -> tuple[dict[str, Any], CompRes, Verdict | None]:
-        """L2 回灌一轮：阶梯骨架在 ``repair.l2_repair_round``（e2e ``_l2_repair`` 同件）。
+        """L2 回灌一轮：阶梯骨架在 ``repair_l2.l2_repair_round``（e2e ``_l2_repair`` 同件）。
 
         resplice 只重写 ``build-zh``——DB 回写 + ``_sync_fixed_sources``
         灌回 ``zh/`` + 重打 zh-src.zip 由本层补齐（worker 的成品树是
