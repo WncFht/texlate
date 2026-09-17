@@ -131,3 +131,149 @@ fuzz 报告目录（app-boundary-fuzz/cli-fuzz/arxiv-fuzz 等）未逐读——p
 ## 4. 已清零族（台账闭环证据）
 
 inject I1-I9（0d93d66）、worker W1-W7（4de2360）、mask 5 族+lstinline（bfd1d17）、logpipe 姊妹钉（e12aecb）、xlat 非 UTF-8 漏 catch（df86f05）、app 400/500 分裂、fallback_unverified 三态分歧（3db4a08）、G1 arxiv_html emit 链（ebf462a+6914391）、vendored_fetch 件库（a90978a）、l2 chunk 归因落账（09fcafa）——pin 清零机制运转良好。
+
+## 机读台账（generated）
+
+> generated：`python3 bench/py/defect_ledger.py --md`（2026-09-17；源=四份 fuzz findings.txt + 本文件 §1–§4 + tests/ 活钉扫描）
+> 条目：pinned 52 · wontfix 30 · fixed 56 · 合计 138；jsonl 全文 `tmp/defect-ledger/ledger.jsonl`（`--write` 生成）
+
+| lane | id | sev | status | pin | site | owner | summary |
+|---|---|---|---|---|---|---|---|
+| glossary | Q8 | P2 | pinned | none | - | xlat | User term shaped "[[MATH_1]]" blocks that placeholder's identity injection (PLAUSIBLE desi |
+| glossary | Q1 | P2 | wontfix | none | - | xlat | gpath="." or "" on a file-typed root returns the root file itself. |
+| glossary | Q2 | P2 | wontfix | none | - | xlat | Dir-hit under one root does NOT shadow the next root (per-root is_file). |
+| glossary | Q3 | P2 | wontfix | none | - | xlat | Trailing "/", ".", "//" normalized; "~" NOT expanded in gpath (expanded in glossary_dir vi |
+| glossary | Q4 | P2 | wontfix | none | - | xlat | Relative glossary_dir resolves CWD-relative (production-unreachable; pinned with cwd probe |
+| glossary | Q5 | P2 | wontfix | none | - | xlat | Surrogateescape filename bytes resolve to raw-byte files via os.fsencode. |
+| glossary | Q6 | P2 | wontfix | none | - | xlat | Seam-phantom: multiline en terms match across the "\n".join(texts) seams. |
+| glossary | Q7 | P2 | wontfix | none | - | xlat | Empty en="" CAN match at non-word-boundary positions (zero-width regex assertion); oracle  |
+| glossary | Q9 | P2 | wontfix | none | - | xlat | Glossary.load explicit paths (user_path/local_path) unconfined — by design. |
+| glossary | Q10 | P2 | wontfix | none | - | xlat | load_table suffix dispatch case-sensitive: ".CSV" rejected. |
+| glossary | Q11 | P2 | wontfix | none | - | xlat | csv in-file dup keys last-wins vs cross-layer first-wins (setdefault). |
+| glossary | Q12 | P2 | wontfix | none | - | xlat | {"terms": {...}} unwrap drops sibling keys; nested terms unwraps once. |
+| glossary | Q13 | P2 | wontfix | none | - | xlat | True==1 dict-key collision: {1:"a"} \| {True:"b"} keeps one entry (pinned via dict-merge l |
+| glossary | Q14 | P2 | wontfix | none | - | xlat | flatten_terms top-level non-scalar TypeError; nested list silently str()'d. |
+| glossary | D1 | P1 | fixed | regression | `src/texlate/repair.py:603` | xlat | NUL byte -> ValueError escapes jail |
+| glossary | D2 | P1 | fixed | regression | `src/texlate/repair.py:603` | xlat | Overlong path component -> OSError(ENAMETOOLONG) escapes jail |
+| glossary | D3 | P1 | fixed | regression | `src/texlate/xlat/glossary.py:248` | xlat | flatten_terms null/scalar poisoning -> literal "None"/"False"/"0" into prompt |
+| glossary | D5 | P1 | fixed | regression | `src/texlate/xlat/glossary.py:184` | xlat | load_csv field >131072 bytes -> csv.Error propagates, kills whole table |
+| glossary | D7 | P1 | fixed | regression | `src/texlate/xlat/placeholders.py:186` | xlat | sort_key collisions -> PYTHONHASHSEED-dependent injection order |
+| glossary | D8 | P1 | fixed | regression | `src/texlate/xlat/glossary.py:68` | xlat | Dir-typed layer files / category entries -> ValueError/IsADirectoryError |
+| glossary | D9 | P1 | fixed | regression | `src/texlate/repair.py:603` | xlat | Symlink self-loop under root -> RuntimeError escapes jail (NEW, fuzz-found) |
+| glossary | D4 | P2 | fixed | regression | `src/texlate/xlat/glossary.py:219` | xlat | (latent) load_index entries escape terms_dir |
+| glossary | D6 | P2 | fixed | regression | `src/texlate/xlat/glossary.py:184` | xlat | RFC-quoted "#tag" field dropped as comment |
+| client | P2 | P2 | wontfix | doc | - | xlat | httpx.LocalProtocolError classified as RetryableHTTPError (transport |
+| client | P3 | P2 | wontfix | doc | - | xlat | usage_sink records payload's self-reported `model` — not the |
+| client | P4 | P2 | wontfix | doc | - | xlat | str() id coercion: None -> "None", 5 -> "5", true -> "True", |
+| client | P5 | P2 | wontfix | doc | - | xlat | ChatOptions.extra overrides model/messages/stream — `body.update |
+| client | P6 | P2 | wontfix | doc | - | xlat | _anthropic_body KeyError/TypeError on messages missing role/content |
+| client | P7 | P2 | wontfix | doc | - | xlat | is_free_gateway_url observes host only: ftp://127.0.0.1 -> True |
+| client | P8 | P2 | wontfix | doc | - | xlat | normalize_base_url single-pass suffix strip — /v1/v1 -> /v1 (not |
+| client | P9 | P2 | wontfix | doc | - | xlat | Type pollution: non-str finish_reason/model/reasoning_content/delta/ |
+| client | P10 | P2 | wontfix | doc | - | xlat | redact pattern gaps (observed): "token = x" (space before = breaks |
+| client | P11 | P2 | wontfix | doc | - | xlat | pick_model returns "" for a FreeModel(uid="", probe_ok=True) |
+| client | P12 | P2 | wontfix | doc | - | xlat | Scalar toplevel asymmetry: panel_models("nope") -> [] vs |
+| client | C1 | P1 | fixed | regression | `src/texlate/xlat/client.py:176` | xlat | _retry_after unicode-digit hole (client.py:176-178) |
+| client | C2 | P1 | fixed | regression | `src/texlate/xlat/client.py:702` | xlat | _sse_events shape hole (client.py:702-722) |
+| client | C3 | P1 | fixed | regression | `src/texlate/xlat/client.py:494` | xlat | _parse_openai shape hole (client.py:494-532) |
+| client | C4 | P1 | fixed | regression | `src/texlate/xlat/client.py:566` | xlat | _parse_anthropic same family (client.py:566-603) |
+| client | C5 | P1 | fixed | regression | `src/texlate/xlat/client.py:882` | xlat | discover_free_models member-field hole (client.py:882-895) |
+| client | C6 | P1 | fixed | regression | `src/texlate/xlat/client.py:817` | xlat | panel_models non-iterable `models` field (client.py:817) |
+| client | C7 | P1 | fixed | regression | - | xlat | non-ASCII api_key (request-build path) |
+| client | P1 | P2 | fixed | regression | `src/texlate/xlat/client.py:136` | xlat | LengthTruncatedError.status == -1 (client.py:136-138) |
+| judge | J4 | P1 | pinned | xfail-strict | `src/texlate/redlines.py:131` | compile | l2 missing_glyph_nullfont 同行 .* 与 gate 限界窗双向分歧 |
+| judge | O1 | P2 | wontfix | none | - | compile | latex209._primary_docstyle 深度计数可负: 声明点前游离 "}" 使深度跌负 → |
+| judge | O2 | P2 | wontfix | none | - | compile | \documentstyle{cls}[opts] 选项后置非 209 形态: "[opts]" 留原位成正文 |
+| judge | O3 | P2 | wontfix | none | - | compile | cjkmap /ToUnicode 为 NullObject 按「已存在」处理跳过注入（falsy 但不 |
+| judge | O4 | P2 | wontfix | none | - | compile | judge: res.ok 字段从不读取; 正 rc 完全忽略（判据非修复项——钉死）。 |
+| judge | O5 | P2 | wontfix | none | - | compile | upgrade_209 幂等: converted 输出二跑 status=no-docstyle 且字节不变 |
+| judge | J1 | P1 | fixed | doc | `src/texlate/compile/latex209.py:280` | compile | latex209._uses_ds_at 裸子串过触发 |
+| judge | J2 | P1 | fixed | doc | `src/texlate/compile/cjkmap.py:51` | compile | cjkmap._iter_pdf_fonts 不走页树 /Resources 继承 |
+| judge | J3 | P1 | fixed | doc | `src/texlate/compile/cjkmap.py:56` | compile | cjkmap._iter_pdf_fonts 资源级 AttributeError 穿透 embed |
+| engine | D1 | P1 | fixed | regression | `src/texlate/compile/engine.py:1086` | compile | engine.py:1086 `_split_flags` 前缀表只挡单横线拼写——`--output-directory=/x` |
+| engine | D2 | P1 | fixed | regression | `src/texlate/compile/engine.py:1869` | compile | engine.py:1869 `load_search_cache` 滤 falsy 不查值型——truthy 非标量 |
+| engine | D3 | P1 | fixed | regression | `src/texlate/compile/engine.py:1158` | compile | engine.py:1158 `compile` stale unlink 先于路径合法性—— |
+| engine | D4 | P1 | fixed | regression | `src/texlate/compile/engine.py:559` | compile | engine.py:559 `_texmfdist` 不查 kpsewhich 退出码——rc=1 + stdout 垃圾 |
+| engine | D5 | P1 | fixed | regression | `src/texlate/compile/engine.py:1684` | compile | engine.py:1684 `TectonicEngine.probe_file` 无 cwd 内约束—— |
+| engine | D6 | P1 | fixed | regression | `src/texlate/compile/engine.py:1800` | compile | engine.py:1800 `route_project` eps 信号不查 is_file——名为 x.eps 的 |
+| engine | D7 | P1 | fixed | regression | `src/texlate/compile/sandbox.py:87` | compile | sandbox.py:87 `child_env(extra)` 把 extra 最后套用—— |
+| engine | D8 | P1 | fixed | regression | `src/texlate/compile/engine.py:1756` | compile | engine.py:1756 `_MINTED_FROZEN_RE` 裸子串 frozencache——docstring 宣称 |
+| engine | D9 | P1 | fixed | regression | `src/texlate/compile/engine.py:1152` | compile | engine.py:1152 `compile` 的 main 不规范化——`main="../main.tex"` 把 |
+| engine | T1 | P2 | fixed | none | - | compile | _gen_project 写 sub/g.eps 前未建 sub/ → FileNotFoundError（mkdir parents） |
+| engine | T2 | P2 | fixed | none | - | compile | _isolate fixture teardown 在 monkeypatch 还原前跑，cache_clear 撞上被 patch 成裸 lambda 的同名 attr → At |
+| engine | T3 | P2 | fixed | none | - | compile | test_bwrap_mounts_anchor 把 fake 引擎放在 root=tmp_path 之下——二进制本就 被 root 挂载覆盖，锚分支无从触发（root/out  |
+| engine | T4 | P2 | fixed | none | - | compile | test_mirror_source_dirs_fuzz oracle 漏记 mkdir(parents=True) 连带建出的 非 dot 中间目录（按前缀逐个登记） |
+| engine | T5 | P2 | fixed | none | - | compile | test_extract_binary_member_rules tar_reg size=4 但数据 3 字节 → OSError |
+| engine | T6 | P2 | fixed | none | - | compile | test_compiled_dependencies_main_required oracle 错位：fls INPUT 相对编译 cwd（=main 所在目录）解析而非 root |
+| engine | T7 | P2 | fixed | none | - | compile | test_makefile_inputs_roundtrip：prereq 名尾部 `\` 不可 round-trip——转义 出的 `\\` 紧邻行尾 \n 被 Make 续行规 |
+| ledger-code | code-5 | P1 | pinned | doc | `src/texlate/xlat/retry.py:44` | xlat | `⟪S1⟫`（<4位）/`⟪s0000⟫`（小写）/`⟪S0000`（未闭合）畸形槽 token 全放行 → 原文可进装配译文 |
+| ledger-code | code-6 | P1 | pinned | assert | `src/texlate/share.py:453` | server/share | 多文件 rename 非事务——预检收敛确定性冲突后，环境级中段故障仍部分发布（docstring 自承「无回滚承诺」） |
+| ledger-code | retry-wave | P1 | pinned | assert | `src/texlate/xlat/retry.py` | xlat | retry.py fuzz 波（35db9f8，46 钉）：5 CONFIRMED + 2 PLAUSIBLE 字节丢失类缺陷待修 待修——明细 report-2026-09-17 |
+| ledger-code | doc-1 | P2 | pinned | none | `tests/test_fuzz_inject.py` | tests/docs | 陈旧 pin 文档债：test_fuzz_inject I1-I9 / test_fuzz_xlat / test_app_endpoints / test_fuzz_mask / |
+| ledger-code | lat-1 | P2 | pinned | doc | `tests/test_fuzz_inject.py:59` | tests | `tests/test_fuzz_inject.py:59-66` 六件：`[...]` 深度幻影缝 / already 漏检（双注入无害）/ float_sizing docst |
+| ledger-code | lat-2 | P2 | pinned | doc | `src/texlate/latex/mouth.py:150` | latex | `src/texlate/latex/mouth.py:150` + `gullet.py:1592`：write-through 前缀链透传未实现（`\write`/`\catc |
+| ledger-code | lat-3 | P2 | wontfix | doc | `tests/test_fuzz_store.py:373` | tests | `tests/test_fuzz_store.py:373` 静默归零钉——自注「非 defect」，不计。 |
+| ledger-code | code-1 | P0 | fixed | assert | `src/texlate/xlat/batch.py:36` | xlat | 模型整批挤一行 + 译文自带 `[n]` 引用号凑齐多重集 → 成员静默错配 |
+| ledger-code | code-2 | P1 | fixed | doc | `src/texlate/xlat/batch.py:106` | xlat | 编号解析失败后 `@@` 段不剥 `[n]` 序号字面 → 标记原文进译文 |
+| ledger-code | code-3 | P1 | fixed | assert | `src/texlate/xlat/batch.py` | xlat | `"x [1] y"` → `["y"]`——标记前文本静默丢弃 |
+| ledger-code | code-4 | P1 | fixed | doc | `src/texlate/xlat/batch.py:36` | xlat | `[[n]]` 字面——行首锚定不吃 `[[`、非锚定吃内层 `[n]` → 产 `]` 残渣段 |
+| ledger-code | code-7 | P1 | fixed | assert | `tests/test_fuzz_logpipe.py:464` | compile/fixloop | 文件名面过宽——收无扩展名/含冒号/含括号文件名（`Makefile:5:` 系） |
+| ledger-scout | scout-p1-1 | P1 | pinned | doc | `src/texlate/compile/latex209.py:385` | latex/1d——reject:latex209_no_target 两级校验（rglob+kpsewhich fail-open） | spec 改名目标类不解析即放行 → zh 臂 missing_file fail（jpsj3 实证，期刊站分发非 CTAN 无救） |
+| ledger-scout | scout-p1-10 | P1 | pinned | doc | `src/texlate/latex/tables.py` | 1d（在飞线延续） | illegal_unit 4 簇残余 ~25 格（逗号小数/组参·可选参/`\\[dimen]`/散文区寄存器尾参） |
+| ledger-scout | scout-p1-11 | P1 | pinned | doc | - | peer1 | accent 展开缺字 U+0332/00C5/0131——数学域 accent 展开产物缺字无签名级规则（`\newunicodechar` 结构性盲区）——3 格同型 |
+| ledger-scout | scout-p1-12 | P1 | pinned | doc | `bench/py/fixloop_bench.py:406` | peer1/bench | resume 键不核树内容（rerun 换树旧 zh 仍判 done 归因错）+ `_ON_PRED[all]` 含 error 格 + `shutdown(wait=False) |
+| ledger-scout | scout-p1-13 | P1 | pinned | doc | - | 1e/validate（已派工） | `tests/` l2 合成边界 11 件（scout-l2edges）——file:line Warning 豁免每编译必走却零断言——生产 `-file-line-error` |
+| ledger-scout | scout-p1-15 | P1 | pinned | doc | `src/texlate/server/store.py:772` | worker/store | 失效重编失败 → 旧 zh_pdf/zh_src_zip/dual_json 行与磁盘件照发 partial；换 main 后 en.pdf/md.zip 陈旧照发（`delete |
+| ledger-scout | scout-p1-16 | P1 | pinned | doc | - | 1d | hep-ph/9910403 splice macro-body 回放截断——pf2final fail 格——macro body 回放进 zh 截断 |
+| ledger-scout | scout-p1-5 | P1 | pinned | doc | `src/texlate/e2e.py:772` | e2e+worker | halt_on_error 两侧相反（e2e True/worker False）→ fixloop 每轮错误面不同，分类输入分叉 |
+| ledger-scout | scout-p1-6 | P1 | pinned | doc | `bench/py/e2e_real_bench.py:899` | bench/e2e_real（1e） | (a) --date 跨日重启劈目录全重跑；(b) 印章钉 live repo 不钉快照 → 无关 dirty 触发全量 stale |
+| ledger-scout | scout-p1-7 | P1 | pinned | doc | - | peer1 fixloop | fixloop rules `graphic_repair` + `missing_char_fix` + `shim_map`——三缺口——多 eps 缺图不触发 repair（ |
+| ledger-scout | scout-p1-8 | P1 | pinned | doc | - | peer1 | fixloop missing_character 动作路由——CJK（U+4E00-9FFF）缺字走 install（kotex 错配实证×2）——应走 binding/font |
+| ledger-scout | scout-p1-9 | P1 | pinned | doc | `fixloop 救援物自身 `aa.cls` legacy shim + `graphicx.tex`（miniltx）` | peer1 | shim 三格同炸 `\section`→Missing \endcsname×100；graphicx.tex `\zap@space` xelatex 无限递归爆栈 |
+| ledger-scout | scout-p2-1 | P2 | pinned | doc | - | - | G3 retry{model} API 分叉（spec 写 retry{model}，实装=换 model 建新任务）——裁决 A 改规格 <0.5d |
+| ledger-scout | scout-p2-10 | P2 | pinned | doc | `src/texlate/compile/engine.py:1224` | compile | `probe_file` cwd 隐式前提（`engine.py:1224` 裸 kpsewhich 依赖 cwd∉workdir） |
+| ledger-scout | scout-p2-11 | P2 | pinned | doc | - | peer1 | thmtwin 通用规则未立（bespoke stub 已修个案） |
+| ledger-scout | scout-p2-12 | P2 | pinned | doc | - | peer1 | modec-resid 4 格：209 `\abstract` 命令对/math `\AA`/math `\i` accent/JINST shim_map |
+| ledger-scout | scout-p2-13 | P2 | pinned | doc | - | - | fixloop clean 不查 CJK（1706.00217 russian clean vs post partial 口径缝） |
+| ledger-scout | scout-p2-14 | P2 | pinned | doc | - | - | `verdict.category` 首错遮 bulk（quant-ph/9703040 110 错 108 missing_number） |
+| ledger-scout | scout-p2-15 | P2 | pinned | doc | - | - | B2 settings 存不可用 model 持续毒化后续任务——UX 注记 |
+| ledger-scout | scout-p2-16 | P2 | pinned | doc | - | 1e | F-echo MockTranslator 西里尔/希腊源恒等（bench 盲区登记或 `_PROSE_RUN_RX` 扩 Unicode） |
+| ledger-scout | scout-p2-17 | P2 | pinned | doc | - | docs | docs/05 §5.x LaTeXML 规格改写成 arXiv HTML DOM |
+| ledger-scout | scout-p2-18 | P2 | pinned | doc | - | - | realpostfix2 残余：浅合并残键/cases.jsonl 无去重/results.json 撕写窗/空 records 种子/抽样漂移/auth 死亡不停车（6 低） |
+| ledger-scout | scout-p2-19 | P2 | pinned | doc | - | web | DomPane `pages()` 用 `el.offsetTop`——相对 offsetParent 非 pane 根；当前 sanitize 剥光样式无 positioned  |
+| ledger-scout | scout-p2-2 | P2 | pinned | doc | - | - | G2 Redis 形态裁决 pending |
+| ledger-scout | scout-p2-21 | P2 | pinned | doc | - | - | worker 残余低危：`_run_doc` cancel 孤儿 export 线程（结构限）；`_materialize_reuse` 删除命中→done 零产物窄窗；enque |
+| ledger-scout | scout-p2-22 | P2 | pinned | doc | - | - | server-persist 记档：append_event open tx 自愈窗；upload plain-retry 残留产物 |
+| ledger-scout | scout-p2-23 | P2 | pinned | doc | - | - | cli backlog：Fetcher 无 close() 门面；unpack_share 中途败留部分成员；parse_file OSError TOCTOU；settings  |
+| ledger-scout | scout-p2-24 | P2 | pinned | doc | - | - | arxiv 记档：RateLimiter/Fetcher 无锁（单写者）；_resolve_bib x.bbl 探测歧义；Retry-After 保守偏离 |
+| ledger-scout | scout-p2-25 | P2 | pinned | doc | - | - | sidecar 残余：_STAGE_ROW_RE 误吃 stage 行（SSE 展示面）；harvest_outputs dual-only 边例；spa_dir() 无 reso |
+| ledger-scout | scout-p2-26 | P2 | pinned | doc | - | - | textutil 记档：cyrillic-veto 语料标注；decode_tex_with 双幂等 nit；_CJK_DECLARED cp54936 死项 |
+| ledger-scout | scout-p2-27 | P2 | pinned | doc | - | - | bench 小项：qualbench first-seen model 错标；cells.json 非原子；verify_chunk 2×GB RAM；build_corpus_e |
+| ledger-scout | scout-p2-28 | P2 | pinned | doc | - | - | ci/dep 观察：defusedxml 上游停滞；eslint 三套 pins 手工同步；gitleaks 钉 v8.30.1 vs brew 浮装；xelatex apt 未钉 |
+| ledger-scout | scout-p2-29 | P2 | pinned | doc | - | - | xelatex 每 pass `max(10,timeout/passes)` 稀释语义——产品裁决 backlog |
+| ledger-scout | scout-p2-3 | P2 | pinned | doc | - | - | `cache_key_for` 排除 glossary/options（§4.3 故意但产物错命中 reuse）——spec 决策 |
+| ledger-scout | scout-p2-30 | P2 | pinned | doc | - | - | `route_project` reject 分支 dead-ish（engine 恒非空） |
+| ledger-scout | scout-p2-31 | P2 | pinned | doc | - | - | dist/ 陈旧 wheel（2026-09-16 09:32，缺 compile/cmaps）——发版前 `uv build` |
+| ledger-scout | scout-p2-32 | P2 | pinned | assert | `tests/test_group_surface_depth.py` | tests | `texput.log` + `tests/test_group_surface_depth.py` 未跟踪散件 |
+| ledger-scout | scout-p2-33 | P2 | pinned | doc | - | - | 0916 余账：corpus_v2 manifest 数字；INLINE_MAX 已除；B3/B7/Mode-B/C 臂（波次后大概率已跑，未逐项核） |
+| ledger-scout | scout-p2-4 | P2 | pinned | doc | - | peer1 | 三份并行 parse_log 口径漂移（engine/logparse/l2）——对照表已产，五件三点重复维持 |
+| ledger-scout | scout-p2-5 | P2 | pinned | doc | - | - | ScanWarning kind 19 字面散落无注册表，docs/07 写 13（audit C3） |
+| ledger-scout | scout-p2-6 | P2 | pinned | doc | - | peer1 | 1404.5720 rc=141 SIGPIPE killed_signal 未解码（`judge._signal_attribution` 不认正 rc≥128） |
+| ledger-scout | scout-p2-7 | P2 | pinned | doc | `src/texlate/e2e.py:398` | texlate | `e2e.py:398 _l2_parse` 空 log 直返不退 stdout_tail |
+| ledger-scout | scout-p2-8 | P2 | pinned | doc | - | 1d | e2e `_tail_dict` verdict 缺 payload 键 vs benchlib.judge_dict |
+| ledger-scout | scout-p2-9 | P2 | pinned | doc | `bench/py/stagerun.py:644` | bench | e2e_mock translate_tree 漂移副本（大小写/4门/Glossary/cache 缺）+ `stagerun.py:644` .RTX.TEX 未 lower |
+| ledger-scout | scout-p1-14 | P1 | fixed | doc | `src/texlate/server/app.py` | app/share | index_lookup 实抛 OSError/UnicodeDecodeError 但只捕 ShareError → 非 UTF-8 索引/路径 500；flat 检查漏 NUL |
+| ledger-scout | scout-p1-2 | P1 | fixed | doc | `src/texlate/server/worker/compile.py:946` | worker/share——pack 侧非 ok 行 zh="" 或剔；消费端 zh==en/zh=="" 判 miss | fallback_orig 行 translation=en 原文写进 dual.json zh 位 → `_share_apply` matched=ok 英「译」+ reade |
+| ledger-scout | scout-p1-3 | P1 | fixed | doc | `src/texlate/server/app.py:432` | server/settings | compile_timeout 旋钮断头路——settings/env/flag 全无，恒 240s |
+| ledger-scout | scout-p1-4 | P1 | fixed | doc | `src/texlate/compile/sandbox.py:191` | compile/sandbox | 无 rlimits（内存/CPU/nofile）——仅 killpg 墙钟+8MB stdout cap，TeX 失控进程可吃光宿主 |
+| ledger-scout | scout-p2-20 | P2 | fixed | doc | `bench/py/stage_xlat.py:186` | bench | worker `dur_s` 口径瑕疵：`stage_xlat.py:186` t0 打在 paper_sem 外→xlat dur 99.6% 是跨论文排队——度量件缺陷非产品缺 |
+| ledger-cleared | cleared-1 | - | fixed | none | - | - | inject I1-I9（0d93d66） |
+| ledger-cleared | cleared-2 | - | fixed | none | - | - | worker W1-W7（4de2360） |
+| ledger-cleared | cleared-3 | - | fixed | none | - | - | mask 5 族+lstinline（bfd1d17） |
+| ledger-cleared | cleared-4 | - | fixed | none | - | - | logpipe 姊妹钉（e12aecb） |
+| ledger-cleared | cleared-5 | - | fixed | none | - | - | xlat 非 UTF-8 漏 catch（df86f05） |
+| ledger-cleared | cleared-6 | - | fixed | none | - | - | app 400/500 分裂 |
+| ledger-cleared | cleared-7 | - | fixed | none | - | - | fallback_unverified 三态分歧（3db4a08） |
+| ledger-cleared | cleared-8 | - | fixed | none | - | - | G1 arxiv_html emit 链（ebf462a+6914391） |
+| ledger-cleared | cleared-9 | - | fixed | none | - | - | vendored_fetch 件库（a90978a） |
+| ledger-cleared | cleared-10 | - | fixed | none | - | - | l2 chunk 归因落账（09fcafa） |
