@@ -68,21 +68,24 @@
 
 **纪律面**：车队铁律（teammate 零 git、overseer 统一 pathspec commit + --no-verify、交付=文件清单+建议 msg+测试证据、diff 逐 hunk 归因）运转中；两次自 commit 越矩（e8 `4ed297f`、1e 三件）均核净后收编并重申。
 
-## 4. 在飞与残余清单（落笔时点）
+## 4. 在飞与残余清单（收线时点 ~21:30）
 
-**在飞**（预计 0.5–3h 内陆续收线）：
-- 1d：M1-B 残余 illegal_unit 4 格（0806.2890/1404.5889/1706.02769/hep-th-9703214）+ syntax 3 格（math-9901091 5843 errs 最重）
-- peer1：stub 包缺件 5 格（diagrams PS opt/citesort/jinstpub/hxetex.def/fivmi）+ errs=0 仍 partial 判据边界 3 格
-- 1e：E2 repair/ 下沉（~500 行，含 `_ruleset_with_baseline` 双实现并一 + D6 glossary 抽共享）
-- e8：math--0408287 verdict/status 不一致异常 + `_build_dual` fallback_orig zh 位英文（P1）+ COMPILE_TIMEOUT 接线（P1）
-- 2f：S6 base 臂全量（build-base 覆盖 0→全，解锁 alignment_pairs + 源烂 vs 管线引入基线）
+收线广播已发：各 lane 当前件到交付边界即停、不接新件；本节「已裁决未做」项全部转入 §5 排期。
 
-**已知残余**（已路由或已登记）：
-- C-bucket 残面：127 partial（post_cat undefined_cs 48 / syntax 37 / other 30）→ cs_targeted_fix 扩表 + stub 富化下梯次
-- M1-B 19 partial：上两簇
-- verdict 边界族：errs=0 仍 partial 3 格待判据复核
-- orphan 机制 11 件（W31/W37/W49/W79/W102 等）待立规
-- e2e.py:772 halt_on_error 两侧相反——需裁决权威侧
+**收线中**（最后一批交付）：
+- 1d：illegal_unit 残漏修复在飞（`_OPERAND_TERM` 项列复合形统一——`\fontdimen2\font`/`0.5\baselineskip`/宏因子项链，M1-B 残漏实证驱动）
+- peer1：ell 表条目 + `rules_declined`/`decline_notes` 物化（cases.jsonl 补「看见/拒修」面）打包交付中
+- 1e：E2 迁移验证段（repair +405/e2e −372 已自洽）+ 4 份 fuzz findings 落盘
+- 2f：S6 base 臂 ~62%（3160/5122，~30min 收尾）
+- e8：**已全清**（`4ebfb12`/`ea4d0c4`/`b6d0ede`）
+
+**已裁决未做（下梯次，进排期）**：
+- peer1 序 3-5：font_cs_shim 新 builtin（fivmi 83-err，老 AMS 命名族普适）/ cs_rebind produced_by 子路径（§/ø TFM 产字）/ jinstpub stub（先盘点用量）；owrart.cls + `\bm`-CJK 守卫低值 backlog
+- retry.py 七钉缺陷（1e fuzz 产出，**字节丢失类**）：`_split_lines_scoped` 丢尾随 `\t`/`\xa0` 空白尾片 / `_make_slots` 丢 >SLOT_MAX_CHARS 纯空白片 / `_best_split` cs↔`{arg}` 原子断缺 / `_slots_round` 结算读可变 group 误记 no-answer / `max_tries=0` "unreachable" 可达 + 象形括号 ⟦⟧《》/零宽-only 槽值（PLAUSIBLE）
+- stagerun 调度层：safe_id 双拼写撞名去重（14 对 wid 撞名实证，math--0408287 复判被罩的元凶）——`--rerun` 下同 wid 串行或 id 归一
+- e2e.py:772 halt_on_error 两侧相反——权威侧裁决挂起
+- C-bucket 残面：127 partial（undefined_cs 48 → cs_targeted_fix 扩表 / syntax 37 / other 30）
+- orphan 机制 11 件（W31/W37/W49/W79/W102 等）待立规；worker `_build_md_zip`/dual 修后 fallback_orig 对账口径补记 drift-map
 
 ## 5. 后续排期（ROADMAP.md 摘要）
 
