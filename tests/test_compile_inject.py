@@ -9,6 +9,7 @@ from texlate.compile.inject import (
     FLOAT_SIZING,
     TABLE_FITTING,
     InjectRejectError,
+    _resolve_input,
     classify_no_main,
     find_docclass_end,
     find_docclass_ends,
@@ -585,3 +586,14 @@ def test_prepare_chinese_already_cjk_gets_table_fitting(tmp_path: Path) -> None:
     before = main.read_text(encoding="utf-8")
     prepare_chinese(tmp_path, "main.tex", float_sizing=False)  # 幂等：不重复注入
     assert main.read_text(encoding="utf-8") == before
+
+
+def test_resolve_input_giant_name_returns_none(tmp_path: Path) -> None:
+    r"""``\input{<300字符>}`` → ENAMETOOLONG 按不可解析计（文档可控面防御）。"""
+    assert _resolve_input(tmp_path, tmp_path, "a" * 300) is None
+
+
+def test_resolve_input_symlink_loop_returns_none(tmp_path: Path) -> None:
+    r"""symlink loop → ``resolve()`` RuntimeError → None（不炸 inject_cjk）。"""
+    (tmp_path / "loop.tex").symlink_to("loop.tex")
+    assert _resolve_input(tmp_path, tmp_path, "loop") is None

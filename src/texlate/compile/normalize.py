@@ -24,7 +24,13 @@ from typing import TYPE_CHECKING, Final
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
 
-from texlate.textutil import EncodingVerdict, decode_tex, decode_tex_with
+from texlate.textutil import (
+    EncodingVerdict,
+    decode_tex,
+    decode_tex_with,
+    safe_is_file,
+    safe_resolve,
+)
 
 from .mask import (
     TEX_SOURCE_SUFFIXES,
@@ -710,7 +716,7 @@ def use_bundled_bibliography(text: str, path: Path, cwd: Path | None = None) -> 
             base / (v.strip() if v.strip().endswith(".bib") else v.strip() + ".bib")
             for v in match[1].split(",")
         ]
-        if any(not _safe_is_file(p) for p in databases):
+        if any(not safe_is_file(p) for p in databases):
             return (
                 text[: match.start()] + r"\input{" + target + "}" + text[match.end() :]
             )
@@ -722,25 +728,9 @@ def _hidden_path(path: Path, root: Path) -> bool:
     return any(part.startswith(".") for part in path.relative_to(root).parts)
 
 
-def _safe_resolve(path: Path) -> Path | None:
-    """``resolve()`` 防御层：NUL/loop/ENAMETOOLONG → None（解不开按不存在计）。"""
-    try:
-        return path.resolve()
-    except (OSError, RuntimeError, ValueError):
-        return None
-
-
-def _safe_is_file(path: Path) -> bool:
-    """``is_file()`` 防御层：ENAMETOOLONG/EACCES 等非缺席型 OSError → False。"""
-    try:
-        return path.is_file()
-    except OSError:
-        return False
-
-
 def _is_within(root: Path, candidate: Path) -> bool:
     """``candidate`` 解后是否落 ``root`` 内；解不开 → 按越界计（审计面宁报不漏）。"""
-    resolved = _safe_resolve(candidate)
+    resolved = safe_resolve(candidate)
     return resolved is not None and resolved.is_relative_to(root)
 
 
@@ -798,11 +788,11 @@ def rebase_project_paths(root: Path, main: str) -> list[str]:
                 continue
             while name.startswith("../"):
                 name = name[3:]
-            candidate = _safe_resolve(root / name)
+            candidate = safe_resolve(root / name)
             if (
                 candidate is not None
                 and candidate.is_relative_to(root)
-                and _safe_is_file(candidate)
+                and safe_is_file(candidate)
             ):
                 relative = Path(os.path.relpath(candidate, cwd)).as_posix()
                 changes.setdefault(path, []).append((*match.span(group), relative))

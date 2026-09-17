@@ -32,6 +32,7 @@ from typing import TYPE_CHECKING, Final
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
+    from pathlib import Path
 
 __all__ = [
     "BEGIN_DOC_RX",
@@ -52,6 +53,8 @@ __all__ = [
     "mask_comments",
     "mask_tex",
     "ph_in_cs_net",
+    "safe_is_file",
+    "safe_resolve",
     "sniff_tex_encoding",
 ]
 
@@ -1104,3 +1107,29 @@ def lev_capped(a: str, b: str, cap: int) -> int:
             return cap + 1
         prev = cur
     return min(prev[-1], cap + 1)
+
+
+# ---------------------------------------------------------------- 路径防御
+def safe_resolve(path: Path) -> Path | None:
+    r"""``Path.resolve()`` 防御层：symlink loop/NUL/ENAMETOOLONG → ``None``。
+
+    不可解析按不存在处理——上游恶意/病态名（``\\input`` 巨参、LLM patch
+    ``p.file``、log 解析出的文件名）触发的 ``OSError``/``RuntimeError``/
+    ``ValueError`` 一律收敛为缺席语义。
+    """
+    try:
+        return path.resolve()
+    except (OSError, RuntimeError, ValueError):
+        return None
+
+
+def safe_is_file(path: Path) -> bool:
+    r"""``Path.is_file()`` 防御层：NUL ``ValueError`` + 非豁免 ``OSError`` → False。
+
+    pathlib 自吞 ``OSError``，但内嵌 NUL 字节的路径抛 ``ValueError`` 不豁免——
+    攻击者可控名（``\\includegraphics`` 参数、fixloop 供给的 fname）直达即崩。
+    """
+    try:
+        return path.is_file()
+    except (OSError, ValueError):
+        return False

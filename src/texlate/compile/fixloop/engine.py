@@ -621,7 +621,7 @@ def _package_version(eng: Engine, fname: str) -> int | None:
         return None
     try:
         text = Path(found).read_text(encoding="utf-8", errors="replace")
-    except OSError:
+    except (OSError, ValueError):
         return None
     m = re.search(
         r"\\Provides(?:Expl)?(?:Package|Class)\s*\{[^}]*\}[^v\n]*v?(\d+)", text

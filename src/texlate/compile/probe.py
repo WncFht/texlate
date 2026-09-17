@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
 
-from texlate.textutil import decode_tex
+from texlate.textutil import decode_tex, safe_is_file, safe_resolve
 
 from .engine import (
     _MINTED_FROZEN_RE,
@@ -133,22 +133,6 @@ def _clean_name(raw: str) -> str | None:
     return name
 
 
-def _safe_resolve(path: Path) -> Path | None:
-    """``resolve()`` 防御层：loop/NUL/ENAMETOOLONG → None（不可解析按不存在处理）。"""
-    try:
-        return path.resolve()
-    except (OSError, RuntimeError, ValueError):
-        return None
-
-
-def _safe_is_file(path: Path) -> bool:
-    """``is_file()`` 防御层：ENAMETOOLONG 等非豁免 errno → False（恒不抛）。"""
-    try:
-        return path.is_file()
-    except OSError:
-        return False
-
-
 def _find_local(root: Path, cwd: Path, fname: str) -> Path | None:
     r"""编译 cwd（main 所在目录）单跳本地解析。
 
@@ -157,8 +141,8 @@ def _find_local(root: Path, cwd: Path, fname: str) -> Path | None:
     `chaps/one.tex` 里 `\\input{shared}` 解析 `cwd/shared.tex` 而非
     `chaps/shared.tex`（xelatex TL2026 + tectonic 0.15 实证 not found）。
     """
-    cand = _safe_resolve(cwd / fname)
-    if cand is not None and _safe_is_file(cand) and cand.is_relative_to(root):
+    cand = safe_resolve(cwd / fname)
+    if cand is not None and safe_is_file(cand) and cand.is_relative_to(root):
         return cand
     return None
 
@@ -232,7 +216,7 @@ def _scan_inputs(ctx: _ScanCtx, live: str, rel: str, queue: list[Path]) -> None:
         optional = match.group(1) == "InputIfFileExists"
         probe = _record_dep(ctx, rel, name, "input", optional=optional)
         if probe.resolved == "local" and probe.fname.lower().endswith(".tex"):
-            queued = _safe_resolve(ctx.root / probe.detail)
+            queued = safe_resolve(ctx.root / probe.detail)
             if queued is not None:
                 queue.append(queued)
     for match in _INPUT_BARE_RE.finditer(live):
@@ -241,7 +225,7 @@ def _scan_inputs(ctx: _ScanCtx, live: str, rel: str, queue: list[Path]) -> None:
             continue
         probe = _record_dep(ctx, rel, name, "input")
         if probe.resolved == "local" and probe.fname.lower().endswith(".tex"):
-            queued = _safe_resolve(ctx.root / probe.detail)
+            queued = safe_resolve(ctx.root / probe.detail)
             if queued is not None:
                 queue.append(queued)
 
@@ -334,12 +318,12 @@ def target_probe(
     """
     index = deps_index if deps_index is not None else _load_index()
     rep = ProbeReport(index_available=index is not None)
-    root = _safe_resolve(Path(work_dir))
-    main = _safe_resolve(root / main_rel) if root is not None else None
+    root = safe_resolve(Path(work_dir))
+    main = safe_resolve(root / main_rel) if root is not None else None
     if (
         root is None
         or main is None
-        or not _safe_is_file(main)
+        or not safe_is_file(main)
         or not main.is_relative_to(root)
     ):
         rep.notes.append(f"main {main_rel} 不存在或越出 work_dir——空探针")
@@ -349,7 +333,7 @@ def target_probe(
     visited: set[Path] = set()
     while queue:
         tex = queue.pop(0)
-        if tex in visited or not _safe_is_file(tex) or not tex.is_relative_to(root):
+        if tex in visited or not safe_is_file(tex) or not tex.is_relative_to(root):
             continue
         visited.add(tex)
         rel = tex.relative_to(root).as_posix()

@@ -332,3 +332,12 @@ def test_resolve_err_file_all_miss_falls_back_main(tmp_path: Path) -> None:
     hit = llm_hook_mod._resolve_err_file(ctx, rep)  # noqa: SLF001
     assert hit is not None
     assert hit.name == "main.tex"
+
+
+def test_hook_nul_filename_rejected(tmp_path: Path) -> None:
+    """LLM ``p.file`` 带 NUL → resolve() ValueError 经 safe_resolve → 拒收不炸。"""
+    evil = {"file": "evil\x00.tex", "old": "x", "new": "y"}
+    tr = FakeTranslator([json.dumps({"patches": [evil]})])
+    applied, note = make_llm_hook(translator=tr)(_ctx(tmp_path), _rep())
+    assert applied is False
+    assert "path escapes workdir" in note

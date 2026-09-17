@@ -34,7 +34,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from texlate.textutil import JSON_FENCE_RX
+from texlate.textutil import JSON_FENCE_RX, safe_resolve
 from texlate.xlat.client import DEFAULT_BASE_URL, DEFAULT_MODEL
 
 if TYPE_CHECKING:
@@ -301,7 +301,8 @@ def _apply_patches(ctx: LoopCtx, patches: list[Patch]) -> tuple[list[str], list[
         if target.suffix.lower() not in _PATCHABLE_EXTS:
             rejects.append(f"{p.file}: not a .tex/.sty/.cls")
             continue
-        if not target.resolve().is_relative_to(wdir_r):
+        resolved = safe_resolve(target)
+        if resolved is None or not resolved.is_relative_to(wdir_r):
             rejects.append(f"{p.file}: path escapes workdir")
             continue
         if (why := _banned(p.new)) is not None:

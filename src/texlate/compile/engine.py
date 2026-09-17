@@ -39,8 +39,13 @@ if TYPE_CHECKING:
     from texlate.compile.fixloop.logparse import ErrReport, Taxonomy
 
 from texlate.redlines import ENGINE_RED_LINES, REDLINES_BY_ID, name_pattern
-from texlate.texlog import is_dos_eps, is_project_file, update_file_stack
-from texlate.textutil import decode_tex
+from texlate.texlog import (
+    is_dos_eps,
+    is_project_file,
+    patch_graphic_top,
+    update_file_stack,
+)
+from texlate.textutil import decode_tex, safe_is_file
 
 from .mask import visible_tex
 from .sandbox import child_env, find_tool, run_process, sandbox_wrap
@@ -185,22 +190,6 @@ _L_NUM_RE = re.compile(r"^l\.(\d+)")
 _UTF8_WARN_RE = re.compile(name_pattern(REDLINES_BY_ID["invalid_utf8"].engine)[1])
 WARNING_RED_LINES: list[tuple[str, str]] = list(ENGINE_RED_LINES)
 
-#: ``(x.eps`` 类 graphic 打开帧——``TEX_FILE_EXTS`` 不含 graphic 扩展名，
-#: texlog 对此入 ``None`` 配对帧；utf8 归因需要真名，故本函数把行尾最后
-#: 一个未配对 ``(`` 的 graphic token 补回栈顶（texlog 栈属本函数局部）。
-_GRAPHIC_EXTS: Final = frozenset({".eps", ".epsf", ".epsi", ".ps", ".mps"})
-
-
-def _last_open_graphic_token(ln: str) -> str | None:
-    """行尾最后一个 ``(`` 未被 ``)`` 闭时，取其 graphic 文件名 token。"""
-    lp = ln.rfind("(")
-    if lp < 0 or lp < ln.rfind(")"):
-        return None
-    m = re.match(r"[^\s(){}]+", ln[lp + 1 :])
-    if m and Path(m.group(0)).suffix.lower() in _GRAPHIC_EXTS:
-        return m.group(0)
-    return None
-
 
 def _scan_error_lines(
     lines: list[str], info: LogInfo, project_root: Path | None = None
@@ -223,10 +212,7 @@ def _scan_error_lines(
     dos_eps_cache: dict[str, bool] = {}
     for i, ln in enumerate(lines):
         update_file_stack(ln, stack, popped)
-        if stack and stack[-1] is None:
-            g = _last_open_graphic_token(ln)
-            if g:
-                stack[-1] = g
+        patch_graphic_top(ln, stack)
         if _UTF8_WARN_RE.search(ln):
             inner = next((s for s in reversed(stack) if s), None)
             if is_dos_eps(inner, project_root, dos_eps_cache):
@@ -1223,6 +1209,8 @@ class XelatexEngine:
 
     def probe_file(self, fname: str, *, cwd: Path | None = None) -> str | None:
         """用 kpsewhich 探测文件可解析路径。"""
+        if "\x00" in fname:
+            return None  # NUL 进 argv 炸 Popen ValueError（log 可控面）
         tool = find_tool("kpsewhich")
         if tool is None:
             return None
@@ -1262,6 +1250,8 @@ class XelatexEngine:
 
     def filemap(self, fname: str) -> list[str]:
         """file→TL 包名索引：tlpdb 离线索引优先，`tlmgr search --file` 兜底。"""
+        if "\x00" in fname:
+            return []  # NUL 进 tlmgr argv 炸 Popen ValueError（log 可控面）
         cache = self._search_cache_map()
         key = "/" + fname
         if key in cache:
@@ -1645,8 +1635,9 @@ class TectonicEngine:
     def probe_file(self, fname: str, *, cwd: Path | None = None) -> str | None:
         """工程内探测（vendored 文件遮蔽检查）；bundle 探测留 ctan_fetch 层。"""
         if cwd is not None:
+            # fixloop 供给的 fname 是 log 可控面——巨名/NUL 按未命中计。
             cand = cwd / fname
-            if cand.is_file():
+            if safe_is_file(cand):
                 return str(cand)
         return None
 

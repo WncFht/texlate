@@ -25,7 +25,7 @@ from texlate.compile.normalize import INTERMEDIATE_SUFFIXES
 from texlate.latex.api import parse_file
 from texlate.latex.prose import file_has_prose
 from texlate.latex.tables import MATH_ENVS
-from texlate.textutil import CJK_RX, _cs_events_spans, mask_tex
+from texlate.textutil import CJK_RX, _cs_events_spans, mask_tex, safe_is_file
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
@@ -291,12 +291,12 @@ def find_vendored_shadows(
         try:
             if rp.resolve() == f.resolve():
                 continue  # probe 命中工程自身, 非遮蔽
-        except OSError:
-            continue
+        except (OSError, RuntimeError, ValueError):
+            continue  # symlink loop/NUL/巨名 → 按非遮蔽计
         local_txt = ctx.read(f)
         try:
             sys_txt = Path(rp).read_text(encoding="utf-8", errors="replace")
-        except OSError:
+        except (OSError, ValueError):
             continue
         if local_txt is None:
             continue
@@ -2162,7 +2162,7 @@ def _rewrite_case_refs(ctx: LoopCtx, exts: tuple[str, ...], want: str, rel: str)
             if not _graphic_ref_hit(arg, want):
                 return m.group(0)
             a = _norm_graphic_name(arg)
-            if (ctx.wdir / a).is_file() or (_f.parent / a).is_file():
+            if safe_is_file(ctx.wdir / a) or safe_is_file(_f.parent / a):
                 return m.group(0)
             return (
                 m.group(0)[: m.start(2) - m.start()]
@@ -2190,7 +2190,7 @@ def graphic_case_link(
     want = _norm_graphic_name(payload or "")
     if not want:
         return False, "no graphic payload"
-    if (ctx.wdir / want).is_file():
+    if safe_is_file(ctx.wdir / want):
         return False, f"{want} resolves verbatim — not a case mismatch"
     real = _find_graphic_ci(ctx, want)
     if real is None:
@@ -2293,9 +2293,9 @@ def graphic_repair(
     if not want:
         return False, "no graphic payload"
     f = ctx.wdir / want
-    if not f.is_file():
+    if not safe_is_file(f):
         f = _find_graphic_ci(ctx, want) or f
-    if not f.is_file():
+    if not safe_is_file(f):
         return False, f"{want} not found in project"
     marker = f.with_name(f.name + ".fixloop-rd")
     why = (

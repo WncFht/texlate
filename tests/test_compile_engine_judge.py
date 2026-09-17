@@ -1095,3 +1095,16 @@ def test_rc_to_signal_wrapper_128n() -> None:
     assert f(128, "bwrap") is None
     assert f(0, "bwrap") is None
     assert f(None, "bwrap") is None
+
+
+def test_probe_file_nul_fname_guarded(tmp_path: Path) -> None:
+    """log/fixloop 供给的 NUL fname → None/[]（NUL 进 argv 炸 Popen ValueError）。"""
+    xe = XelatexEngine()
+    assert xe.probe_file("evil\x00.cls", cwd=tmp_path) is None
+    assert xe.filemap("evil\x00.sty") == []
+
+
+def test_tectonic_probe_file_nul_guarded(tmp_path: Path) -> None:
+    """tectonic 侧同款：NUL → ``safe_is_file`` ValueError → 未命中。"""
+    te = TectonicEngine()
+    assert te.probe_file("evil\x00.cls", cwd=tmp_path) is None

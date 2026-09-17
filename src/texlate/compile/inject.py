@@ -22,7 +22,14 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from texlate.textutil import BEGIN_DOC_RX, DEAD_ENVS, VERBATIM_ENVS, decode_tex
+from texlate.textutil import (
+    BEGIN_DOC_RX,
+    DEAD_ENVS,
+    VERBATIM_ENVS,
+    decode_tex,
+    safe_is_file,
+    safe_resolve,
+)
 
 from .latex209 import upgrade_209
 from .mask import group_end, visible_tex
@@ -374,8 +381,10 @@ def _resolve_input(root: Path, decl_dir: Path, name: str) -> Path | None:
         if Path(fname).suffix.lower() not in _MAIN_TEX_SUFFIXES:
             continue
         for base in (decl_dir, root):
-            cand = (base / fname).resolve()
-            if cand.is_file() and cand.is_relative_to(root):
+            # ``\input`` 参数是文档可控面——巨名 ENAMETOOLONG、symlink loop
+            # RuntimeError、NUL ValueError 按不可解析处理（consistency-audit）。
+            cand = safe_resolve(base / fname)
+            if cand is not None and safe_is_file(cand) and cand.is_relative_to(root):
                 return cand
     return None
 
@@ -787,7 +796,10 @@ def inject_float_sizing(root: Path) -> int:
     sources = {}
     for path in root.rglob("*"):
         if path.is_file() and path.suffix.lower() in _MAIN_TEX_SUFFIXES:
-            sources[path] = decode_tex(path.read_bytes())
+            try:
+                sources[path] = decode_tex(path.read_bytes())
+            except OSError:
+                continue  # chmod-0 等不可读档跳过（consistency-audit）
     if not any(
         re.search(r"\\begin\s*\{(?:figure|table)\*?\}", visible_tex(text))
         for text in sources.values()
@@ -797,7 +809,10 @@ def inject_float_sizing(root: Path) -> int:
     for path, text in sources.items():
         new_text = _float_sized(text)
         if new_text != text:
-            path.write_text(new_text, encoding="utf-8")
+            try:
+                path.write_text(new_text, encoding="utf-8")
+            except OSError:
+                continue  # 不可写档不计入
             n += 1
     return n
 
