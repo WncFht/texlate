@@ -106,6 +106,10 @@ filemap:
     # overrides 是 basename→pkg 直表, 不经 runfiles 过滤)。
     "epsf.tex": "epsf" # 1706.02568; 真身 tex/generic/epsf/epsf.tex ∈ epsf 包
     "tcilatex.tex": null # physics/0307021; TL 无 (TCI 私有) → 已知噪声, 走 shim_map stub
+    # graphicx.tex: TL 有真身但命中的是 tex/plain/graphics/ miniltx 包装 —
+    # xelatex LaTeX 语境 \zap@space 无限递归爆 input stack
+    # (nucl-ex/0408018 实证 61 错 1 页 stub)。已知毒件 → 走 shim_map 桥。
+    "graphicx.tex": null
     # ── 2026-09-16 babel ldf 钉组: `.ldf` 不在 INDEX_EXTS → 索引恒 miss,
     # overrides-first 直通真包 (babel_lang_ldf_install 规则的查询落点)。
     # 钉名 = 规则 try_exts 实际查询名 ({lang}.ldf / {lang}b.ldf)。
@@ -1097,10 +1101,21 @@ rules:
               \providecommand{\titlerunning}[1]{}
               \providecommand{\subtitle}[1]{}
               \providecommand{\keywords}[1]{\par\noindent\textbf{Key words.} #1\par}
-              % \abstract 五段式 (context/aims/methods/results/conclusions) 命令形态
-              % —— A&A 稿在 document 体内调用, 占掉 article 的 abstract 环境名
+              % \abstract 新旧两式通吃: 旧 aa.dem 单参形 (内含 \keywords
+              % 段 —— astro-ph/0307062·0501187·0501259 三格实证) / 新 aanda
+              % {context}{aims}{methods}{results}{conclusions} 五段形。
+              % 原 [5] 在旧稿上把紧随的 \par/\maketitle/\section 吞成参数:
+              % \@sect 组内 \@@par 落进 expl3 hook 名 csname →
+              % Missing \endcsname ×100 风暴。改单参 + peek 续组并入 —
+              % 非组 token (\maketitle/\section) 原样回主流。
               \providecommand{\abstract}{}
-              \renewcommand{\abstract}[5]{\begin{quotation}\noindent\textbf{Abstract.} #1 #2 #3 #4 #5\end{quotation}}
+              \renewcommand{\abstract}[1]{\begin{quotation}\noindent\textbf{Abstract.} #1\aa@absorb}
+              \ExplSyntaxOn
+              \cs_new_protected:Npn \aa@absorb {
+                \peek_catcode_ignore_spaces:NTF \c_group_begin_token
+                  { \aa@absorbgo } { \end{quotation} } }
+              \cs_new_protected:Npn \aa@absorbgo #1 { \par #1 \aa@absorb }
+              \ExplSyntaxOff
               % \institute 收地址块 (内含 \and) —— \maketitle 后兜底输出防丢内容
               \def\aa@institute{}
               \providecommand{\institute}[1]{\gdef\aa@institute{#1}}
@@ -1694,6 +1709,17 @@ rules:
                 \includegraphics[height=\epsfysize]{#1}%
                 \else\includegraphics{#1}\fi\fi}
               \let\epsffile\epsfbox
+              \endinput
+          # graphicx.tex (TL tex/plain/graphics/ miniltx 包装 —— LaTeX 稿
+          # \input{graphicx} 的本意是 graphicx 包接口; filemap.overrides
+          # 已钉 null 挡住 install 通路, 此 stub 桥到真包。
+          # nucl-ex/0408018 实证: 真身装上后 \zap@space 递归爆栈 61 错。
+          # \input 装载 → 禁 @-cs。
+          graphicx.tex:
+            needs: ["graphicx.sty"]
+            body: |
+              \typeout{fixloop legacy shim: graphicx.tex -> graphicx.sty bridge}
+              \RequirePackage{graphicx}
               \endinput
           # svglov3.clo (svjour3 无期刊选项时硬 \input 的版式件, 不在 TL;
           # 其余 sv*.clo 走 \InputIfFileExists 已可graceful) —— 裸 stub,

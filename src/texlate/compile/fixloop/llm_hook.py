@@ -231,14 +231,16 @@ def _extract_json(raw: str) -> dict[str, Any] | None:
     """严格 JSON 抽取: 剥皮 → loads → 首个 ``{`` 到末个 ``}`` 兜底。"""
     text = _strip_fence(raw.strip())
     try:
+        # RecursionError: 模型输出可构造超深嵌套 ([~50000 撞解释器上限)
+        # —— 与坏 JSON 同处理 (xlat/client.py 同范式)。
         data = json.loads(text)
-    except json.JSONDecodeError:
+    except (json.JSONDecodeError, RecursionError):
         i, j = text.find("{"), text.rfind("}")
         if i < 0 or j <= i:
             return None
         try:
             data = json.loads(text[i : j + 1])
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, RecursionError):
             return None
     return data if isinstance(data, dict) else None
 
