@@ -150,7 +150,8 @@ def test_warn_patterns_scanned() -> None:
             "latex209",
             None,
         ),
-        # v2: undefined_cs payload 改抓 l.N 行末 cs 名 (供 polyfill/shadow 定位)
+        # undefined_cs payload 抓上下文顶行末位 cs 名 (供 polyfill/shadow 定位);
+        # 无宏展开时顶行即 l.N 行 (payload-scout-2026-09-17)
         ("! Undefined control sequence.\nl.5 \\foo", "undefined_cs", "foo"),
         # 2026-09-16: inputenc 拒载 Unicode 引擎 (inputenc.sty:164)
         (
@@ -339,6 +340,10 @@ def test_undefined_cs_expansion_stack_root() -> None:
 
 
 def test_undefined_cs_stack_tail_not_pdf_stays() -> None:
-    """展开栈末位非 pdf 原语 → 不细分 (allowed 不凭空放行)。"""
+    """顶行末位非 pdf 原语 → 不细分 (allowed 不凭空放行)。
+
+    payload-scout-2026-09-17: payload 取上下文顶行末位 cs（真肇事者
+    ``\\somecs``），``l.9`` 行末 ``\\myouter`` 只是调用点。
+    """
     log = "! Undefined control sequence.\n\\mymacro ->\\somecs \nl.9 \\myouter{x}\n"
-    assert classify(log) == ("undefined_cs", "myouter")
+    assert classify(log) == ("undefined_cs", "somecs")

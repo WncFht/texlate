@@ -290,25 +290,19 @@ taxonomy:
       scope: head,
       pattern: "(?m)\\\\documentstyle\\b|LaTeX 2\\.09 COMPATIBILITY MODE|LaTeX2e command[^\\n]*\\bin LaTeX 2\\.09|LaTeX Version 2\\.09|^[ \\t]*Compatibility mode",
     }
-  # 2026-09-16 新增变体行 (1909.05039 实证): 冒犯 cs 在宏/钩展开上下文
-  # 尾行而 l.N 行空白时 (\__hook shipout ...geHook \headerps@out 型),
-  # 抓 l.N 空白行之前的最后一个 \cs —— tempered 段保证取"最后一个"。
-  # 本行先于通用行评估; 不命中时由下行兜底 (payload=None 语义不变)。
+  # 冒犯 cs 取上下文"顶行"末位 (TeX 约定: 顶行末 token 即肇事者;
+  # 宏展开时 l.N 行只是调用点——payload-scout-2026-09-17: 284/1146 存证
+  # excerpt 抓到 \end/\maketitle 等调用点 cs, pdftex_prim 欠路由 ~23 格)。
+  # head 内错误行重复两次 (first + ctx[0]), 必有后行; 顶行无 \cs 时本行
+  # 不命中, 由下行裸短语兜底 payload=None。尾部非可选——可选组会在行0
+  # 命中空串、永不锚到行1。旧"空 l.N 行"变体被顶行抓取完全吞并。
   - id: undefined_cs
     scope: head
-    pattern: "Undefined control sequence[\\s\\S]*?\\\\([a-zA-Z@]+)(?:(?!\\\\[a-zA-Z@]+)[\\s\\S])*?l\\.\\d+[ \\t]*(?:\\r?\\n|$)"
+    pattern: "Undefined control sequence[^\\n]*\\n[^\\n]*\\\\([a-zA-Z@]+)[^\\\\\\n]*(?:\\n|$)"
     payload_group: 1
     subclassify:
       { pattern: "\\\\(pdf[a-zA-Z@]+)", into: pdftex_prim, payload_group: 1 }
-  # undefined_cs 命中后再细分 pdfTeX 原语 (L110-114)
-  # payload = 出错行 l.N 上最后一个 \cs (TeX 错误展示约定: 冒犯 cs 在该行末),
-  # 供 journal_cs_polyfill 等按名命中; 无 l. 行时 payload=None 正常降级。
-  - id: undefined_cs
-    scope: head
-    pattern: "Undefined control sequence(?:[\\s\\S]*?l\\.\\d+[^\\n]*\\\\([a-zA-Z@]+))?"
-    payload_group: 1
-    subclassify:
-      { pattern: "\\\\(pdf[a-zA-Z@]+)", into: pdftex_prim, payload_group: 1 }
+  - { id: undefined_cs, scope: head, pattern: "Undefined control sequence" }
   - { id: capacity, scope: head, pattern: "TeX capacity exceeded" }
   # 2026-09-16 compile-hard 新增 (2211.13013, aux-cjk-truncation 留档):
   # 引擎自产 aux 族中间件被 8192B 写缓冲劈断多字节字符 → 下遍回读
