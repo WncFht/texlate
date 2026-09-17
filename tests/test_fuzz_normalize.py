@@ -25,31 +25,9 @@ bbl 替换、路径 rebase、violation 审计、kpse 遮蔽）。kpsewhich 遮�
 
 钉住的缺陷（``xfail(strict=True)``——修复后 XPASS 提醒拆钉）：
 
-- ``use_bundled_bibliography``（normalize.py:686-697）「只替换首个缺库
-  ``\bibliography``」是逐调用语义而非逐工程幂等——同文件两只缺库
-  ``\bibliography`` + bundled ``.bbl`` 时每次 ``normalize_project``
-  再换一只，终态 N 份 ``\input{x.bbl}`` = docstring 明令避免的重复排版；
 - ``group_end``（mask.py:60）递归配对——``\pdfinfo{``/``\DisableLigatures{``/
   ``\documentclass{`` 后跟 >~1000 层嵌套 ``{`` → ``RecursionError``，
-  normalize_project 整单崩；
-- ``_kpse_resolve``（normalize.py:1108）catch 集 ``(OSError,
-  SubprocessError)`` 漏 ``ValueError``——``\usepackage{a\x00b}`` 的
-  NUL 名进 subprocess argv → ``embedded null byte`` 逃逸（真实编译
-  机有 kpsewhich 即可达）；
-- 写侧臂零 OSError 容差——read-only ``.sty`` 转码 ``write_text``
-  （normalize.py:1272）/ read-only 目录里 ``.aux`` purge ``unlink``
-  （normalize.py:1007）均 ``PermissionError`` 中途崩、留半归一化树；
-  对照 ``_neutralize_junk_files``（normalize.py:806）同型写已有
-  ``except OSError`` 守卫；
-- 隐藏路径不对称——``_transcode_support_files``（normalize.py:1056）
-  明确豁免 ``.`` 前缀路径，但主手术环 / ``source_path_violations`` /
-  ``rebase_project_paths`` / ``_neutralize_junk_files`` /
-  ``prepare_legacy_latin_fonts`` 全都不查——``.git/x.tex`` 照样被
-  转码改写，其内 ``\input{/x}`` 对死文件报 violation 误拦编译；
-- 手工 splice 丢内嵌换行（模块不变量「删除补回换行保行号」破洞）：
-  ``normalize_pixel_dimensions``（normalize.py:381-383）``5\npx`` →
-  ``5\pdfpxdimen`` 丢 ``\n``；``normalize_legacy_cjk``（normalize.py:664）
-  ``\begin{CJK}{UT\nF8}{gbsn}`` → ``{`` 同丢。
+  normalize_project 整单崩。
 """
 
 from __future__ import annotations
@@ -966,7 +944,10 @@ def test_fuzz_junk_stub_matrix(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(blob)
         stats = normalize_project(root, "xelatex", "main.tex")
-        if name == "aipcheck.tex" or name.endswith("/aipcheck.tex"):
+        if _hidden(name):
+            # 隐藏路径整体豁免——stub 也不写，逐字节不动
+            assert target.read_bytes() == blob
+        elif name == "aipcheck.tex" or name.endswith("/aipcheck.tex"):
             stub = JUNK_FILE_STUBS["aipcheck.tex"].encode("utf-8")
             assert target.read_bytes() == stub
             assert name in stats.get("junk_stubbed", []) or blob == stub
@@ -1039,13 +1020,7 @@ def test_huge_file_roundtrip(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
 
 
 # ---------------------------------------------------------------- 钉住缺陷
-@pytest.mark.xfail(
-    strict=True,
-    reason="use_bundled_bibliography「只换首个缺库」是逐调用语义："
-    "两只缺库 \\bibliography + bundled .bbl 时每跑 normalize_project 再换一只，"
-    "终态双份 \\input{x.bbl} 重复排版 thebibliography（normalize.py:686-697）",
-)
-def test_pin_bbl_accretion_across_runs(tmp_path: Path) -> None:
+def test_bbl_accretion_across_runs(tmp_path: Path) -> None:
     """两只缺库 ``\\bibliography``：二跑后至多一份 ``\\input{x.bbl}``。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\begin{document}\nx\n"
@@ -1093,13 +1068,7 @@ def test_pin_group_end_recursion(tmp_path: Path, anchor: str) -> None:
         normalize_project(tmp_path, "xelatex", "main.tex")
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="_kpse_resolve catch (OSError, SubprocessError) 漏 ValueError——"
-    "\\usepackage 名带 NUL → subprocess argv embedded null byte 逃逸"
-    "（normalize.py:1108）",
-)
-def test_pin_nul_package_name_crashes(
+def test_nul_package_name_no_crash(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """``\\usepackage{a<NUL>b}`` 在有 kpsewhich 的主机上让 normalize_project 崩。"""
@@ -1112,12 +1081,7 @@ def test_pin_nul_package_name_crashes(
 
 
 @pytest.mark.skipif(os.geteuid() == 0, reason="root 绕过权限位——缺陷在普通用户下才可达")
-@pytest.mark.xfail(
-    strict=True,
-    reason="写侧臂零 OSError 容差：read-only .sty 转码 write_text → PermissionError "
-    "中途崩、留半归一化树（normalize.py:1272；对照 junk-stub 臂 :806 有守卫）",
-)
-def test_pin_readonly_source_write_crashes(tmp_path: Path) -> None:
+def test_readonly_source_write_tolerated(tmp_path: Path) -> None:
     """0444 的非 UTF-8 ``.sty``：应跳过或落台账，不应 PermissionError。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n"
@@ -1132,12 +1096,7 @@ def test_pin_readonly_source_write_crashes(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(os.geteuid() == 0, reason="root 绕过权限位——缺陷在普通用户下才可达")
-@pytest.mark.xfail(
-    strict=True,
-    reason="read-only 目录里 purge 中间产物的 unlink 撞 PermissionError"
-    "（normalize.py:1007）——同 read-only 写入一族的 OSError 容差缺口",
-)
-def test_pin_readonly_dir_purge_crashes(tmp_path: Path) -> None:
+def test_readonly_dir_purge_tolerated(tmp_path: Path) -> None:
     """0555 目录内待 purge 的 ``.aux``：不应 PermissionError 整单崩。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n"
@@ -1152,13 +1111,7 @@ def test_pin_readonly_dir_purge_crashes(tmp_path: Path) -> None:
         sub.chmod(0o755)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="隐藏路径不对称：_transcode_support_files 豁免 . 前缀路径"
-    "（normalize.py:1056），但 violations/主手术环不查——.git/x.tex 的"
-    "\\input{/x} 对死文件报 violation 误拦编译，且隐藏 .tex 被改写",
-)
-def test_pin_hidden_paths_audited(tmp_path: Path) -> None:
+def test_hidden_paths_exempt(tmp_path: Path) -> None:
     """``.git`` 内 .tex：既不产 violation 也不被归一化改写。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n"
@@ -1176,18 +1129,11 @@ def test_pin_hidden_paths_audited(tmp_path: Path) -> None:
     assert dirty.read_bytes() == b"caf\xe9\n"  # 不改写
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="手工 splice 丢内嵌换行（行号稳定不变量破洞）："
-    "normalize_pixel_dimensions `5\\npx`→`5\\pdfpxdimen`（normalize.py:381）与"
-    " normalize_legacy_cjk `\\begin{CJK}{UT\\nF8}`→`{`（normalize.py:664）"
-    "均不经 apply_edits 换行补偿",
-)
 @pytest.mark.parametrize(
     "case",
     ["\\setlength{\\x}{5\npx}\n", "\\begin{CJK}{UT\nF8}{gbsn}x\\end{CJK}\n"],
 )
-def test_pin_manual_splice_drops_newline(case: str) -> None:
+def test_manual_splice_preserves_newline(case: str) -> None:
     """手术输出 ``\\n`` 计数不应低于输入（删除类编辑保行号的模块不变量）。"""
     out = normalize_engine(case, "xelatex", doc_source=True)
     assert out.count("\n") >= case.count("\n")

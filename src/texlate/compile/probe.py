@@ -101,13 +101,14 @@ class ProbeReport:
 
 @dataclass(slots=True)
 class _ScanCtx:
-    """`target_probe` 扫描状态：声明去重 + blob 收集 + latex209 标记。"""
+    """`target_probe` 扫描状态：声明去重 + missing 登记集 + blob 收集 + latex209。"""
 
     root: Path
     cwd: Path  # 编译工作目录（main 所在目录）——kpathsea `.` 的唯一基准
     index: TlpdbIndex | None
     rep: ProbeReport
     declared: set[tuple[str, str]] = field(default_factory=set)
+    missing_recorded: set[tuple[str, str]] = field(default_factory=set)
     blob_parts: list[str] = field(default_factory=list)
     latex209: bool = False
 
@@ -132,6 +133,22 @@ def _clean_name(raw: str) -> str | None:
     return name
 
 
+def _safe_resolve(path: Path) -> Path | None:
+    """``resolve()`` 防御层：loop/NUL/ENAMETOOLONG → None（不可解析按不存在处理）。"""
+    try:
+        return path.resolve()
+    except (OSError, RuntimeError, ValueError):
+        return None
+
+
+def _safe_is_file(path: Path) -> bool:
+    """``is_file()`` 防御层：ENAMETOOLONG 等非豁免 errno → False（恒不抛）。"""
+    try:
+        return path.is_file()
+    except OSError:
+        return False
+
+
 def _find_local(root: Path, cwd: Path, fname: str) -> Path | None:
     r"""编译 cwd（main 所在目录）单跳本地解析。
 
@@ -140,8 +157,8 @@ def _find_local(root: Path, cwd: Path, fname: str) -> Path | None:
     `chaps/one.tex` 里 `\\input{shared}` 解析 `cwd/shared.tex` 而非
     `chaps/shared.tex`（xelatex TL2026 + tectonic 0.15 实证 not found）。
     """
-    cand = (cwd / fname).resolve()
-    if cand.is_file() and cand.is_relative_to(root):
+    cand = _safe_resolve(cwd / fname)
+    if cand is not None and _safe_is_file(cand) and cand.is_relative_to(root):
         return cand
     return None
 
@@ -151,7 +168,13 @@ def _resolve_dep(
 ) -> tuple[str, str, str]:
     """单依赖三分支解析 → (fname, resolved, detail)。"""
     ext = {"package": ".sty", "class": ".cls", "input": ".tex"}[kind]
-    fname = name if Path(name).suffix else name + ext
+    if kind == "input":
+        # \input 原名带扩展名按原名找，无扩展名才补 .tex
+        fname = name if Path(name).suffix else name + ext
+    else:
+        # \usepackage/\documentclass 恒补扩展名（除非名已以其结尾）——
+        # \usepackage{weird.dotted} 引擎实找 weird.dotted.sty
+        fname = name if name.lower().endswith(ext) else name + ext
     local = _find_local(root, cwd, fname)
     if local is not None:
         return fname, "local", local.relative_to(root).as_posix()
@@ -176,11 +199,22 @@ def _record_dep(
         declared_in=rel,
     )
     if (kind, fname) in ctx.declared:
+        # 首个声明是 optional（\InputIfFileExists）缺席不计 missing；后续同名
+        # 硬引用命中去重——引擎仍会落 missing_file，这里补登记一次。
+        if (
+            resolved == "missing"
+            and not optional
+            and (kind, fname) not in ctx.missing_recorded
+        ):
+            ctx.missing_recorded.add((kind, fname))
+            ctx.rep.missing.append(fname)
+            ctx.rep.missing.sort()
         return probe
     ctx.declared.add((kind, fname))
     ctx.rep.deps.append(probe)
     if resolved == "missing" and not optional:
         # \InputIfFileExists 缺席走 else 分支——不是 missing_file，不进预热清单
+        ctx.missing_recorded.add((kind, fname))
         ctx.rep.missing.append(fname)
         ctx.rep.missing.sort()
     elif resolved == "tl_pkg" and detail not in ctx.rep.tl_packages:
@@ -198,19 +232,29 @@ def _scan_inputs(ctx: _ScanCtx, live: str, rel: str, queue: list[Path]) -> None:
         optional = match.group(1) == "InputIfFileExists"
         probe = _record_dep(ctx, rel, name, "input", optional=optional)
         if probe.resolved == "local" and probe.fname.lower().endswith(".tex"):
-            queue.append((ctx.root / probe.detail).resolve())
+            queued = _safe_resolve(ctx.root / probe.detail)
+            if queued is not None:
+                queue.append(queued)
     for match in _INPUT_BARE_RE.finditer(live):
         name = _clean_name(match.group(1))
         if name is None:
             continue
         probe = _record_dep(ctx, rel, name, "input")
         if probe.resolved == "local" and probe.fname.lower().endswith(".tex"):
-            queue.append((ctx.root / probe.detail).resolve())
+            queued = _safe_resolve(ctx.root / probe.detail)
+            if queued is not None:
+                queue.append(queued)
 
 
 def _scan_file(ctx: _ScanCtx, tex: Path, rel: str, queue: list[Path]) -> None:
     r"""扫单文件：preamble 取 package/class 声明，活区取 `\input` 并入队。"""
-    vis = visible_tex(decode_tex(tex.read_bytes()))
+    try:
+        blob = tex.read_bytes()
+    except OSError:
+        # 单件不可读不拖垮整针——跳过该文件扫描，其余情报保留
+        ctx.rep.notes.append(f"{rel} 读取失败——跳过声明扫描")
+        return
+    vis = visible_tex(decode_tex(blob))
     ctx.blob_parts.append(vis)
     m = _DOC_BEGIN_RE.search(vis)
     preamble = vis[: m.start()] if m is not None else vis
@@ -288,11 +332,16 @@ def target_probe(
     ~2.8MB tlpdb.xz——fixloop 反正要用）；显式传入索引实例可跳过网络。
     索引不可得时非本地依赖记 ``missing`` + ``index_available=False``。
     """
-    root = Path(work_dir).resolve()
     index = deps_index if deps_index is not None else _load_index()
     rep = ProbeReport(index_available=index is not None)
-    main = (root / main_rel).resolve()
-    if not main.is_file() or not main.is_relative_to(root):
+    root = _safe_resolve(Path(work_dir))
+    main = _safe_resolve(root / main_rel) if root is not None else None
+    if (
+        root is None
+        or main is None
+        or not _safe_is_file(main)
+        or not main.is_relative_to(root)
+    ):
         rep.notes.append(f"main {main_rel} 不存在或越出 work_dir——空探针")
         return rep
     ctx = _ScanCtx(root=root, cwd=main.parent, index=index, rep=rep)
@@ -300,7 +349,7 @@ def target_probe(
     visited: set[Path] = set()
     while queue:
         tex = queue.pop(0)
-        if tex in visited or not tex.is_file() or not tex.is_relative_to(root):
+        if tex in visited or not _safe_is_file(tex) or not tex.is_relative_to(root):
             continue
         visited.add(tex)
         rel = tex.relative_to(root).as_posix()

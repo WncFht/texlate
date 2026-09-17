@@ -378,9 +378,7 @@ def normalize_pixel_dimensions(text: str) -> str:
             edits[(start + match.start(), start + match.end())] = (
                 match[1] + r"\pdfpxdimen"
             )
-    for (start, end), value in sorted(edits.items(), reverse=True):
-        text = text[:start] + value + text[end:]
-    return text
+    return apply_edits(text, [(s, e, v) for (s, e), v in edits.items()])
 
 
 # ---------------------------------------------------------------- 7. inputenc/fontenc
@@ -552,6 +550,24 @@ def _latin_font_edits(
     return edits
 
 
+def _tex_sources(root: Path) -> dict[Path, str]:
+    """工程内非隐藏 tex 源 → 解码文本；软链/不可读件跳过。"""
+    sources: dict[Path, str] = {}
+    for path in root.rglob("*"):
+        if (
+            not path.is_file()
+            or path.is_symlink()
+            or path.suffix.lower() not in TEX_SOURCE_SUFFIXES
+            or _hidden_path(path, root)
+        ):
+            continue
+        try:
+            sources[path] = decode_tex(path.read_bytes())
+        except OSError:
+            continue
+    return sources
+
+
 def prepare_legacy_latin_fonts(root: Path) -> int:
     r"""显式 Type1 拉丁字体选择 → Unicode 等价物（TeX Gyre）。
 
@@ -560,13 +576,7 @@ def prepare_legacy_latin_fonts(root: Path) -> int:
     **不改作者默认字体**——只给显式 Type1 选择提供 Unicode 等价物，
     定义块插 `\documentclass{}` 之后。返回改写的文件数。
     """
-    sources = {
-        path: decode_tex(path.read_bytes())
-        for path in root.rglob("*")
-        if path.is_file()
-        and not path.is_symlink()
-        and path.suffix.lower() in TEX_SOURCE_SUFFIXES
-    }
+    sources = _tex_sources(root)
     visible = {path: visible_tex(text) for path, text in sources.items()}
     # 判定正则与下方注入定位同形：``\documentclass`` 无 ``{...}`` 实参的文件
     # 进不了注入循环，若仍计入 documents 会让已改写的 texlate-* 族名悬空。
@@ -604,9 +614,14 @@ def prepare_legacy_latin_fonts(root: Path) -> int:
             end = group_end(text, match.end() - 1)
             sources[path] = text[:end] + block + text[end:]
             changed_files.add(path)
+    written = 0
     for path in changed_files:
-        path.write_text(sources[path], encoding="utf-8")
-    return len(changed_files)
+        try:
+            path.write_text(sources[path], encoding="utf-8")
+        except OSError:
+            continue  # 单件写不进不拖垮整批
+        written += 1
+    return written
 
 
 # ---------------------------------------------------------------- 10. legacy CJK
@@ -661,9 +676,7 @@ def normalize_legacy_cjk(text: str, engine: str) -> str:
             visible,
         )
     )
-    for start, end, value in sorted(changes, reverse=True):
-        text = text[:start] + value + text[end:]
-    return text
+    return apply_edits(text, changes)
 
 
 # ---------------------------------------------------------------- 11. bundled .bbl
@@ -676,6 +689,8 @@ def use_bundled_bibliography(text: str, path: Path, cwd: Path | None = None) -> 
     `\input` 目标名都以它为基准（kpathsea `.` 口径）；缺省退回声明文件目录。
     多只 `\bibliography`（multibib/chapterbib）只替换首个缺库者——单份
     .bbl 只能填一个书目位，二次替换会重复排版整个 thebibliography。
+    已注入过 ``\input{<该 .bbl>}`` 时整体不再改——工程级幂等，防逐跑
+    把后续缺库 ``\bibliography`` 再换一遍累加重复书目。
     """
     base = cwd or path.parent
     bbl = path.with_suffix(".bbl")
@@ -683,22 +698,51 @@ def use_bundled_bibliography(text: str, path: Path, cwd: Path | None = None) -> 
         bbl.read_bytes()
     ):
         return text
-    for match in re.finditer(r"\\bibliography\s*\{([^}]+)\}", visible_tex(text)):
+    target = Path(os.path.relpath(bbl, base)).as_posix()
+    if target.startswith(".."):
+        return text  # openin_any=p 拒 ../ 引用——不可达的 .bbl 不改写
+    visible = visible_tex(text)
+    if re.search(r"\\input\s*\{" + re.escape(target) + r"\}", visible):
+        return text  # 书目位已由本 .bbl 填充——再换只会重复排版
+    for match in re.finditer(r"\\bibliography\s*\{([^}]+)\}", visible):
         databases = [
             base / (v.strip() if v.strip().endswith(".bib") else v.strip() + ".bib")
             for v in match[1].split(",")
         ]
         if any(not p.is_file() for p in databases):
-            target = Path(os.path.relpath(bbl, base)).as_posix()
-            if target.startswith(".."):
-                continue  # openin_any=p 拒 ../ 引用——不可达的 .bbl 不改写
             return (
                 text[: match.start()] + r"\input{" + target + "}" + text[match.end() :]
             )
     return text
 
 
+def _hidden_path(path: Path, root: Path) -> bool:
+    """任一路径段 ``.`` 前缀——隐藏件（``.git``/``.dotfile``）整体豁免手术与审计。"""
+    return any(part.startswith(".") for part in path.relative_to(root).parts)
+
+
 # ---------------------------------------------------------------- 12. 越界路径 rebase
+def _apply_rebase_edits(
+    root: Path, path: Path, edits: list[tuple[int, int, str]]
+) -> list[str]:
+    """单文件逆序回放 rebase 编辑 → 改动位次表；读/写失败 → 原样不动、无位次。"""
+    try:
+        text = decode_tex(path.read_bytes())
+    except OSError:
+        return []
+    locations = []
+    for start, end, relative in sorted(edits, reverse=True):
+        locations.append(
+            f"{path.relative_to(root)}:{text.count(chr(10), 0, start) + 1}"
+        )
+        text = text[:start] + relative + text[end:]
+    try:
+        path.write_text(text, encoding="utf-8")
+    except OSError:
+        return []  # 写不进不记位次，保持原样
+    return locations
+
+
 def rebase_project_paths(root: Path, main: str) -> list[str]:
     r"""`\input/../foo.tex` 越界引用重写为包内正确相对路径。
 
@@ -713,9 +757,13 @@ def rebase_project_paths(root: Path, main: str) -> list[str]:
             not path.is_file()
             or path.is_symlink()
             or path.suffix.lower() not in (TEX_SOURCE_SUFFIXES | AUX_BIB_SUFFIXES)
+            or _hidden_path(path, root)
         ):
             continue
-        text = visible_tex(decode_tex(path.read_bytes()))
+        try:
+            text = visible_tex(decode_tex(path.read_bytes()))
+        except OSError:
+            continue
         for match in re.finditer(
             r"\\(?:input|include)(?![A-Za-z@])\s*"
             r"(?:\{([^{}]*)\}|([^\s{}%]+))",
@@ -733,13 +781,7 @@ def rebase_project_paths(root: Path, main: str) -> list[str]:
                 changes.setdefault(path, []).append((*match.span(group), relative))
     locations = []
     for path, edits in changes.items():
-        text = decode_tex(path.read_bytes())
-        for start, end, relative in sorted(edits, reverse=True):
-            locations.append(
-                f"{path.relative_to(root)}:{text.count(chr(10), 0, start) + 1}"
-            )
-            text = text[:start] + relative + text[end:]
-        path.write_text(text, encoding="utf-8")
+        locations.extend(_apply_rebase_edits(root, path, edits))
     return sorted(locations)
 
 
@@ -759,9 +801,13 @@ def source_path_violations(
             p.is_symlink()
             or not p.is_file()
             or p.suffix.lower() not in TEX_SOURCE_SUFFIXES | AUX_BIB_SUFFIXES
+            or _hidden_path(p, root)
         ):
             continue
-        text = visible_tex(decode_tex(p.read_bytes()))
+        try:
+            text = visible_tex(decode_tex(p.read_bytes()))
+        except OSError:
+            continue
         for match in re.finditer(
             r"\\(?:input|include|includegraphics)(?![A-Za-z@])\s*"
             r"(?:\[[^]]*\])?\s*(?:\{([^{}]*)\}|([^\s{}%]+))"
@@ -796,6 +842,8 @@ def _neutralize_junk_files(root: Path, stats: dict[str, object]) -> None:
     for path in sorted(root.rglob("*")):
         if path.is_symlink() or not path.is_file():
             continue  # 软链豁免：写穿会改到 root 外目标
+        if _hidden_path(path, root):
+            continue  # 隐藏路径整体豁免（同 _transcode 口径）
         stub = JUNK_FILE_STUBS.get(path.name)
         if stub is None:
             continue
@@ -985,6 +1033,30 @@ def _resolve_atend_bbox(blob: bytes) -> bytes:
     return b"\n".join(out)
 
 
+def _transcode_intermediate(
+    path: Path, text: str, rel: str, ledgers: dict[str, list[str]]
+) -> bool:
+    """INTERMEDIATE 件截尾整形；返回 True=已处置（purge/截尾写回）不再转码。"""
+    kept = _trim_intermediate_tail(text)
+    if kept is None:
+        try:
+            path.unlink()
+        except OSError:
+            pass  # 只读目录 purge 不动——文件原样，不留台账
+        else:
+            ledgers["purged_intermediates"].append(rel)
+        return True
+    if kept == text:
+        return False  # 无尾可截——回落通用转码臂
+    try:
+        path.write_text(kept, encoding="utf-8")
+    except OSError:
+        pass
+    else:
+        ledgers["trimmed_intermediates"].append(rel)
+    return True
+
+
 def _transcode_one(
     path: Path,
     suffix: str,
@@ -992,8 +1064,15 @@ def _transcode_one(
     ledgers: dict[str, list[str]],
     root: Path,
 ) -> None:
-    """单件解码判定+写回；INTERMEDIATE 截尾整形，其余全件转码落台账。"""
-    original = path.read_bytes()
+    """单件解码判定+写回；INTERMEDIATE 截尾整形，其余全件转码落台账。
+
+    读写任一步 OSError（只读件/只读目录）按「未触动」处理——不落台账、
+    不中断整树扫描（同 ``_neutralize_junk_files`` 的守卫口径）。
+    """
+    try:
+        original = path.read_bytes()
+    except OSError:
+        return
     text, verdict = decode_tex_with(original)
     # 漏网二进制闸：NUL 字节且非 UTF-16 形态（utf-16 判定自带 NUL 占比
     # 门槛）→ 拿不准的一律不动，也不进 encodings 归因（非文本件无可归因）。
@@ -1001,20 +1080,45 @@ def _transcode_one(
         return
     _record_verdict(encodings, root, path, verdict)
     rel = path.relative_to(root).as_posix()
-    if suffix in INTERMEDIATE_SUFFIXES:
-        kept = _trim_intermediate_tail(text)
-        if kept is None:
-            path.unlink()
-            ledgers["purged_intermediates"].append(rel)
-            return
-        if kept != text:
-            path.write_text(kept, encoding="utf-8")
-            ledgers["trimmed_intermediates"].append(rel)
-            return
+    if suffix in INTERMEDIATE_SUFFIXES and _transcode_intermediate(
+        path, text, rel, ledgers
+    ):
+        return
     if text.encode("utf-8") != original:
-        path.write_text(text, encoding="utf-8")
-        aux_family = suffix in AUX_BIB_SUFFIXES or suffix in INTERMEDIATE_SUFFIXES
-        ledgers["transcoded_aux" if aux_family else "transcoded_data"].append(rel)
+        try:
+            path.write_text(text, encoding="utf-8")
+        except OSError:
+            pass
+        else:
+            aux_family = suffix in AUX_BIB_SUFFIXES or suffix in INTERMEDIATE_SUFFIXES
+            ledgers["transcoded_aux" if aux_family else "transcoded_data"].append(rel)
+
+
+def _process_ps_file(path: Path, rel: str, ledgers: dict[str, list[str]]) -> None:
+    """PS 件：DOS 魔数整件豁免落台账；atend 改写 + 注释净化，写成功才记。
+
+    DOS-EPS 二进制头含绝对偏移，任何字节增删即腐——整件留原样落台账
+    （残余 invalid_utf8 由引擎归因降到 sys_warn，不阻断 clean）。
+    """
+    try:
+        original = path.read_bytes()
+    except OSError:
+        return
+    if original.startswith(_DOS_EPS_MAGIC):
+        ledgers["dos_eps_skipped"].append(rel)
+        return
+    resolved = _resolve_atend_bbox(original)
+    sanitized = _sanitize_ps_comments(resolved)
+    if sanitized == original:
+        return
+    try:
+        path.write_bytes(sanitized)
+    except OSError:
+        return  # 写不进不记台账，保持原样
+    if resolved != original:
+        ledgers["resolved_atend_bbox"].append(rel)
+    if sanitized != resolved:
+        ledgers["sanitized_ps_comments"].append(rel)
 
 
 def _transcode_support_files(
@@ -1052,28 +1156,14 @@ def _transcode_support_files(
     for path in root.rglob("*"):
         if path.is_symlink() or not path.is_file():
             continue
-        parts = path.relative_to(root).parts
-        if any(part.startswith(".") for part in parts):
+        if _hidden_path(path, root):
             continue
         rel = path.relative_to(root).as_posix()
         suffix = path.suffix.lower()
         if suffix in TEX_SOURCE_SUFFIXES or suffix in BINARY_SUFFIXES:
             continue  # 手术面由主循环转码；二进制件不读文本层
         if suffix in PS_GRAPHIC_SUFFIXES:
-            original = path.read_bytes()
-            if original.startswith(_DOS_EPS_MAGIC):
-                # 二进制头含绝对偏移，任何字节增删即腐——整件留原样落台账
-                # （残余 invalid_utf8 由引擎归因降到 sys_warn，不阻断 clean）
-                ledgers["dos_eps_skipped"].append(rel)
-                continue
-            resolved = _resolve_atend_bbox(original)
-            sanitized = _sanitize_ps_comments(resolved)
-            if resolved != original:
-                ledgers["resolved_atend_bbox"].append(rel)
-            if sanitized != resolved:
-                ledgers["sanitized_ps_comments"].append(rel)
-            if sanitized != original:
-                path.write_bytes(sanitized)
+            _process_ps_file(path, rel, ledgers)
             continue
         _transcode_one(path, suffix, encodings, ledgers, root)
     return {k: sorted(v) for k, v in ledgers.items() if v}
@@ -1105,7 +1195,8 @@ def _kpse_resolve(filename: str, progname: str, cwd: Path, kpse: str) -> Path | 
             timeout=15,
             check=False,
         )
-    except (OSError, subprocess.SubprocessError) as e:
+    except (OSError, subprocess.SubprocessError, ValueError) as e:
+        # ValueError：包名含 NUL → argv embedded null byte
         log.debug("kpsewhich 探测失败 %s: %s", filename, e)
         return None
     if proc.returncode != 0 or not proc.stdout.strip():
@@ -1127,14 +1218,13 @@ def _collect_package_refs(text: str) -> tuple[set[str], set[str]]:
     return packages, classes
 
 
-def _try_shadow(
+def _shadow_source(
     name: str,
     suffix: str,
     root: Path,
-    main_dir: Path,
     resolve: Callable[[str], Path | None],
-) -> tuple[dict[str, str] | None, set[str]]:
-    """单包探测+遮蔽；返回 ``(台账条目, 遮蔽件内新引用包名)``，不遮蔽时 ``(None, set())``。"""
+) -> tuple[Path, bytes] | None:
+    """遮蔽源定位+读取；逃逸名/工程内同名/root 内命中/不可读 → None。"""
     req = name + suffix
     # 名字逃逸 + vendored 优先一并早退：工程树内任何位置已有同名件 →
     # 不遮蔽（kpathsea ``.`` 首位会让 main_dir 副本盖掉用户文件；同名件
@@ -1144,15 +1234,30 @@ def _try_shadow(
         or ".." in Path(name).parts
         or any(root.rglob(Path(req).name))
     ):
-        return None, set()
+        return None
     resolved = resolve(req)
     try:
         if resolved is None or resolved.resolve().is_relative_to(root):
-            return None, set()
-        blob = resolved.read_bytes()
+            return None
+        return resolved, resolved.read_bytes()
     except OSError as e:
         log.debug("系统包遮蔽源不可读 %s: %s", resolved, e)
+        return None
+
+
+def _try_shadow(
+    name: str,
+    suffix: str,
+    root: Path,
+    main_dir: Path,
+    resolve: Callable[[str], Path | None],
+) -> tuple[dict[str, str] | None, set[str]]:
+    """单包探测+遮蔽；返回 ``(台账条目, 遮蔽件内新引用包名)``，不遮蔽时 ``(None, set())``。"""
+    req = name + suffix
+    src = _shadow_source(name, suffix, root, resolve)
+    if src is None:
         return None, set()
+    resolved, blob = src
     try:
         blob.decode("utf-8")
     except UnicodeDecodeError:
@@ -1164,8 +1269,12 @@ def _try_shadow(
         # 悬挂软链 exists()=False 但 write_text 会写穿到 root 外目标
         return None, set()
     text, verdict = decode_tex_with(blob)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(text, encoding="utf-8")
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8")
+    except OSError as e:
+        log.debug("遮蔽件写入失败 %s: %s", target, e)
+        return None, set()
     # 传递闭包：遮蔽件自引的包名下轮补探（algorithm.sty 内部
     # \RequirePackage 再拉一个坏件的场景）
     more, _ = _collect_package_refs(text)
@@ -1176,6 +1285,26 @@ def _try_shadow(
         "basis": verdict.basis,
     }
     return entry, {(n, ".sty") for n in more}
+
+
+def _collect_pending_refs(root: Path) -> set[tuple[str, str]]:
+    r"""工程 tex 源的 ``\usepackage``/``\documentclass`` 名集 → (名, 后缀) 待探集。"""
+    pending: set[tuple[str, str]] = set()
+    for path in root.rglob("*"):
+        if (
+            path.is_symlink()
+            or not path.is_file()
+            or path.suffix.lower() not in TEX_SOURCE_SUFFIXES
+            or _hidden_path(path, root)
+        ):
+            continue
+        try:
+            packages, classes = _collect_package_refs(decode_tex(path.read_bytes()))
+        except OSError:
+            continue
+        pending.update((n, ".sty") for n in packages)
+        pending.update((n, ".cls") for n in classes)
+    return pending
 
 
 def _shadow_broken_system_packages(
@@ -1206,17 +1335,7 @@ def _shadow_broken_system_packages(
         return []
     root = root.resolve()
     main_dir = (root / main).parent if main else root
-    pending: set[tuple[str, str]] = set()
-    for path in root.rglob("*"):
-        if (
-            path.is_symlink()
-            or not path.is_file()
-            or path.suffix.lower() not in TEX_SOURCE_SUFFIXES
-        ):
-            continue
-        packages, classes = _collect_package_refs(decode_tex(path.read_bytes()))
-        pending.update((n, ".sty") for n in packages)
-        pending.update((n, ".cls") for n in classes)
+    pending = _collect_pending_refs(root)
     shadows: list[dict[str, str]] = []
     probed: set[str] = set()
 
@@ -1237,6 +1356,45 @@ def _shadow_broken_system_packages(
     return shadows
 
 
+def _normalize_tex_files(
+    root: Path,
+    engine: str,
+    main: str | None,
+    stats: dict[str, object],
+    encodings: dict[str, dict[str, str | None]],
+) -> None:
+    """逐 tex 件主手术：转码 + `normalize_engine` + bbl 替换；累计 files/rewritten。"""
+    for path in root.rglob("*"):
+        if (
+            path.is_symlink()
+            or not path.is_file()
+            or path.suffix.lower() not in TEX_SOURCE_SUFFIXES
+        ):
+            continue  # 软链豁免：读写都会穿到 root 外目标（同 _transcode 臂）
+        stats["files"] = int(stats["files"]) + 1
+        if _hidden_path(path, root):
+            continue  # 隐藏路径整体豁免手术（同 _transcode 口径）
+        try:
+            original = path.read_bytes()
+            text, verdict = decode_tex_with(original)
+            _record_verdict(encodings, root, path, verdict)
+            text = normalize_engine(
+                text,
+                engine,
+                doc_source=path.suffix.lower() in _DOC_SOURCE_SUFFIXES,
+            )
+            if path.suffix.lower() == ".tex":
+                text = use_bundled_bibliography(
+                    text, path, cwd=(root / main).parent if main else None
+                )
+            if text.encode("utf-8") != original:
+                path.write_text(text, encoding="utf-8")
+                stats["rewritten"] = int(stats["rewritten"]) + 1
+        except OSError as e:
+            # 单件读/写失败（只读件、权限边界）不拖垮整树——跳过硬保留原样
+            log.debug("归一化跳过不可读写件 %s: %s", path, e)
+
+
 def normalize_project(root: Path, engine: str, main: str | None = None) -> dict:
     """工程级归一化：逐文件 `normalize_engine` + 文件级手术（9/11/12）。
 
@@ -1248,29 +1406,7 @@ def normalize_project(root: Path, engine: str, main: str | None = None) -> dict:
     stats: dict[str, object] = {"files": 0, "rewritten": 0}
     encodings: dict[str, dict[str, str | None]] = {}
     _neutralize_junk_files(root, stats)
-    for path in root.rglob("*"):
-        if (
-            path.is_symlink()
-            or not path.is_file()
-            or path.suffix.lower() not in TEX_SOURCE_SUFFIXES
-        ):
-            continue  # 软链豁免：读写都会穿到 root 外目标（同 _transcode 臂）
-        stats["files"] = int(stats["files"]) + 1
-        original = path.read_bytes()
-        text, verdict = decode_tex_with(original)
-        _record_verdict(encodings, root, path, verdict)
-        text = normalize_engine(
-            text,
-            engine,
-            doc_source=path.suffix.lower() in _DOC_SOURCE_SUFFIXES,
-        )
-        if path.suffix.lower() == ".tex":
-            text = use_bundled_bibliography(
-                text, path, cwd=(root / main).parent if main else None
-            )
-        if text.encode("utf-8") != original:
-            path.write_text(text, encoding="utf-8")
-            stats["rewritten"] = int(stats["rewritten"]) + 1
+    _normalize_tex_files(root, engine, main, stats, encodings)
     stats.update(_transcode_support_files(root, encodings))
     if encodings:
         stats["encodings"] = encodings

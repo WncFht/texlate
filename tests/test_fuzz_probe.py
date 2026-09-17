@@ -20,23 +20,6 @@ region 边界（preamble/死尾）与文件名清洗按 docs/08 §3.4 语义独�
 - ``deps_diff``/``dep_seen``：seen/unseen/extra == 规范化集合差分；
   ``saw`` = 规范化全路径命中 ∨ basename 兜底，且 ⊇ seen；recorded=None →
   三值 None；``dep_seen(rec,f) == deps_diff([],rec).saw(f)``。
-
-已确认缺陷（``xfail(strict=True)`` 钉住——修复落地自动翻红）：
-
-- ``_record_dep`` dedup 早退（probe.py:178）吞 missing：``\InputIfFileExists{g}``
-  先声明后，同名硬 ``\input{g}`` 命中 (kind,fname) 去重直接 return——
-  ``rep.missing`` 漏报编译期必落的 missing_file（实证 tmp/probe-fuzz/）。
-- ``_scan_file`` 裸 ``tex.read_bytes()``（probe.py:213）：不可读 .tex →
-  ``PermissionError`` 穿透；同款 OSError 在 ``route_project`` 有守卫
-  （engine.py:1755）而 probe 无——整份探针情报降级为 "probe crashed"。
-- ``resolve()`` 对 symlink loop 抛 ``RuntimeError``（probe.py:143/294，
-  input 侧与 main 侧皆中）；NUL 字节 main_rel 更早炸在 ``resolve()`` 内
-  ``lstat`` 的 ``ValueError``——恒不抛契约破。
-- ``is_file()`` 只豁免 ENOENT/ENOTDIR/EBADF/ELOOP——300 字符文件名让
-  ``stat`` 抛 ``ENAMETOOLONG`` 穿透（main_rel 与 ``\input`` 名两侧皆中）。
-- ``_resolve_dep``（probe.py:154）``Path(name).suffix`` 任意后缀抑制默认
-  扩展名补齐：``\usepackage{weird.dotted}`` 引擎实找 ``weird.dotted.sty``，
-  探针查 ``weird.dotted``——local 误判 / missing 误报双向错。
 """
 
 from __future__ import annotations
@@ -219,8 +202,17 @@ def _o_clean(raw: str) -> str | None:
 def _o_resolve(
     root: Path, cwd: Path, name: str, kind: str, index: TlpdbIndex
 ) -> tuple[str, str, str]:
-    """独立版三分支解析：cwd 单跳 local → index basename → missing。"""
-    fname = name if PurePosixPath(name).suffix else name + _EXT_OF[kind]
+    """独立版三分支解析：cwd 单跳 local → index basename → missing。
+
+    fname 补齐规则与 impl 逐条对应：``\\input`` 原名带扩展名按原名找、无扩展名
+    补 .tex；package/class 恒补扩展名（除非名已以其结尾）——
+    ``\\usepackage{weird.dotted}`` 引擎实找 ``weird.dotted.sty``。
+    """
+    ext = _EXT_OF[kind]
+    if kind == "input":
+        fname = name if PurePosixPath(name).suffix else name + ext
+    else:
+        fname = name if name.lower().endswith(ext) else name + ext
     cand = (cwd / fname).resolve()
     if cand.is_file() and cand.is_relative_to(root):
         return fname, "local", cand.relative_to(root).as_posix()
@@ -247,6 +239,7 @@ class _OExpect:
         self.tl: set[str] = set()
         self.blobs: list[str] = []
         self.declared: set[tuple[str, str]] = set()
+        self.missing_recorded: set[tuple[str, str]] = set()
         self.latex209 = False
 
 
@@ -260,6 +253,17 @@ class _OCtx:
     by_file: dict[str, list[_Decl]]
     queue: list[Path]
     exp: _OExpect = field(default_factory=_OExpect)
+
+    def note_missing(self, d: _Decl, fname: str, resolved: str) -> None:
+        """missing 登记（impl ``missing_recorded`` 镜像）：optional 缺席不计；
+        dedup 命中的后续硬引用仍落 missing_file——同 (kind,fname) 只补一次。"""
+        if (
+            resolved == "missing"
+            and not d.optional
+            and (d.kind, fname) not in self.exp.missing_recorded
+        ):
+            self.exp.missing_recorded.add((d.kind, fname))
+            self.exp.missing.append(fname)
 
     def scan_file(self, tex: Path, rel: str) -> None:
         """单文件 oracle 扫：region 边界过滤 + 解析登记 + local .tex 入队。"""
@@ -288,11 +292,11 @@ class _OCtx:
             ):
                 self.queue.append((self.root / detail).resolve())
             if (d.kind, fname) in self.exp.declared:
+                self.note_missing(d, fname, resolved)
                 continue
             self.exp.declared.add((d.kind, fname))
             self.exp.deps.append((d.name, d.kind, fname, resolved, detail, rel))
-            if resolved == "missing" and not d.optional:
-                self.exp.missing.append(fname)
+            self.note_missing(d, fname, resolved)
             if resolved == "tl_pkg":
                 self.exp.tl.add(detail)
 
@@ -888,17 +892,9 @@ def test_deps_diff_generator_inputs() -> None:
     assert dep_seen(None, "a.tex") is None
 
 
-# ---------------------------------------------------------------- 已确认缺陷钉（xfail strict）
+# ---------------------------------------------------------------- 边界钉
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "probe.py:178 _record_dep dedup 早退吞 missing——"
-        "\\InputIfFileExists 先登记 (input,g.tex)，后续 \\input{g} 命中去重 "
-        "直接 return，non-optional missing 永不进 rep.missing"
-    ),
-)
 def test_missing_survives_optional_then_mandatory_dedup(tmp_path: Path) -> None:
     r"""``\InputIfFileExists{g}`` + ``\input{g}`` 同 fname：后者是硬引用，
     编译必落 missing_file——``rep.missing`` 应含 g.tex（现漏报）。"""
@@ -915,13 +911,6 @@ def test_missing_survives_optional_then_mandatory_dedup(tmp_path: Path) -> None:
 
 @pytest.mark.skipif(
     os.geteuid() == 0, reason="root 下 chmod 0 仍可读，无法复现权限拒绝"
-)
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "probe.py:213 _scan_file 裸 tex.read_bytes()——不可读 .tex 让 "
-        "PermissionError 穿透 target_probe；route_project 同款 OSError 有守卫"
-    ),
 )
 def test_unreadable_input_never_raises(tmp_path: Path) -> None:
     r"""权限 000 的 ``\input`` 目标：is_file 通过但 read_bytes 抛——应跳过
@@ -941,13 +930,6 @@ def test_unreadable_input_never_raises(tmp_path: Path) -> None:
     assert rep.inputs  # 期望：跳过坏文件、其余情报保留
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "probe.py:143 _find_local (cwd/fname).resolve() 对 symlink loop 抛 "
-        "RuntimeError——ELOOP 应落 missing 而非穿透"
-    ),
-)
 def test_symlink_loop_input_never_raises(tmp_path: Path) -> None:
     r"""``\input{loop}`` 指向自环 symlink：resolve() RuntimeError 穿透。"""
     (tmp_path / "main.tex").write_text(
@@ -959,13 +941,6 @@ def test_symlink_loop_input_never_raises(tmp_path: Path) -> None:
     assert "loop.tex" in rep.missing
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "probe.py:294 main=(root/main_rel).resolve() 在 is_file 守卫前——"
-        "main 是 symlink loop 时 RuntimeError 直接逃逸"
-    ),
-)
 def test_symlink_loop_main_never_raises(tmp_path: Path) -> None:
     """main_rel 本身是 symlink loop：应走「不存在/越界」空报告路径。"""
     (tmp_path / "loop.tex").symlink_to("loop.tex")
@@ -974,14 +949,6 @@ def test_symlink_loop_main_never_raises(tmp_path: Path) -> None:
     assert any("loop.tex" in n for n in rep.notes)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Path.is_file 只豁免 ENOENT/ENOTDIR/EBADF/ELOOP——overlong 名让 stat "
-        "抛 ENAMETOOLONG 穿透 target_probe（probe.py:143/294 两侧皆中；"
-        "应落 missing/空报告而非逃逸）"
-    ),
-)
 def test_overlong_name_never_raises(tmp_path: Path) -> None:
     """300 字符 main_rel 与 ``\\input`` 名：ENAMETOOLONG 不应穿透。"""
     long_rel = "a" * 300
@@ -996,28 +963,12 @@ def test_overlong_name_never_raises(tmp_path: Path) -> None:
     assert rep.inputs == ["main.tex"]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "probe.py:294 (root/main_rel).resolve() → realpath → os.lstat 对嵌入 "
-        "NUL 抛 ValueError——应走「不存在」空报告（input 侧 NUL 已被 "
-        "_clean_name 滤掉，仅 main_rel 可达）"
-    ),
-)
 def test_nul_main_rel_never_raises(tmp_path: Path) -> None:
     """``\\x00`` 嵌入 main_rel：resolve 期 ValueError 不应穿透。"""
     rep = target_probe(tmp_path, "\x00nul.tex", _INDEX)
     assert rep.inputs == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "probe.py:154 fname=name if Path(name).suffix——"
-        "\\usepackage{weird.dotted} 引擎实找 weird.dotted.sty（LaTeX 恒补 .sty "
-        "除非名已 .sty 结尾），探针却查 weird.dotted → 本地 .sty 在场仍误报 missing"
-    ),
-)
 def test_dotted_package_resolves_sty(tmp_path: Path) -> None:
     r"""``\usepackage{weird.dotted}`` + 本地 ``weird.dotted.sty`` 在场：
     引擎可解——探针应 local 命中 .sty 而非报 missing。"""
@@ -1034,13 +985,6 @@ def test_dotted_package_resolves_sty(tmp_path: Path) -> None:
     assert rep.missing == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "probe.py:154 同根因反向：只有裸 weird.dotted 文件时引擎找 "
-        "weird.dotted.sty 必 missing_file——探针却 local 命中裸文件（假阴性）"
-    ),
-)
 def test_dotted_package_bare_file_not_local(tmp_path: Path) -> None:
     r"""``\usepackage{weird.dotted}`` 仅裸 ``weird.dotted`` 在盘：该文件
     引擎不会读——应判 missing 而非 local。"""
