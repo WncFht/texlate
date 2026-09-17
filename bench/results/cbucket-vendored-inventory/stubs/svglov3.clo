@@ -1,0 +1,11 @@
+% texlate vendored stub — 原许可禁分发，最小兼容面
+% svglov3.clo no-op 伴生件：svjour3.cls 真件按 journalopt \input 的
+% global option 文件。stub class 自身不再 \input 它；此件仅防
+% 论文源直 \input{svglov3.clo} 或旧 svjour 件路径命中。
+\ProvidesFile{svglov3.clo}[texlate stub — no-op global option]
+\makeatletter
+\@ifundefined{texlatestub}{%
+  \GenericWarning{texlate-stub}{svglov3.clo is a no-op shim}%
+}{}
+\makeatother
+\endinput

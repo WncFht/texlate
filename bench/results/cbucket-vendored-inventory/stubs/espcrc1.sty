@@ -1,0 +1,21 @@
+% texlate vendored stub — 原许可禁分发，最小兼容面
+% espcrc1.sty S1 替身：Elsevier "NOT ALLOWED to distribute this file
+% alone" → 不可 vendored。Elsevier 一栏 CRC 版式件：边距设定全跳，
+% 只补 \usepackage{espcrc1} 加载门槛 + 偶见的 ESP frontmatter cs。
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{espcrc1}[texlate stub — original not redistributable]
+\PackageWarningNoLine{texlate-stub}{espcrc1.sty is a compatibility shim}
+
+\DeclareOption*{ }
+\ProcessOptions\relax
+
+% ESP CRC frontmatter/版式 cs no-op 面
+\providecommand{\titlepage}{}
+\providecommand{\thankyou}[1]{}
+\providecommand{\frontmatter}{}
+\providecommand{\mainmatter}{}
+\providecommand{\bookhead}[1]{}
+\providecommand{\confhead}[1]{}
+\providecommand{\hypothesis}[1]{\begin{quote}\itshape #1\end{quote}}
+\providecommand{\acknowledgments}[1]{\par\noindent\textbf{Acknowledgments:} #1\par}
+\endinput

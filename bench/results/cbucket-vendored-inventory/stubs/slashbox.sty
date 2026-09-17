@@ -1,0 +1,10 @@
+% texlate vendored stub — 原许可禁分发，最小兼容面
+% slashbox.sty S1 替身：无许可声明（TL 除名件）→ 不可 vendored。
+% \slashbox/\backslashbox 退化为单元格内 "左/右" 文本（tabular 安全）。
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{slashbox}[texlate stub — original not redistributable]
+\PackageWarningNoLine{texlate-stub}{slashbox.sty is a compatibility shim}
+
+\providecommand{\slashbox}[3][60mm]{\makebox{#2\,#3}}
+\providecommand{\backslashbox}[3][60mm]{\makebox{#2\,#3}}
+\endinput

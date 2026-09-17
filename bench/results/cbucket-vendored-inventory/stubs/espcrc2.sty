@@ -1,0 +1,20 @@
+% texlate vendored stub — 原许可禁分发，最小兼容面
+% espcrc2.sty S1 替身：同 espcrc1 Elsevier 许可禁独立分发；fetch
+% 亦无档 → stub。两栏版式诉求由 twocolumn class 原生能力担，
+% 本件只过 \usepackage{espcrc2} 加载门槛 + frontmatter no-op 面。
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{espcrc2}[texlate stub — original not redistributable]
+\PackageWarningNoLine{texlate-stub}{espcrc2.sty is a compatibility shim}
+
+\DeclareOption*{ }
+\ProcessOptions\relax
+
+\providecommand{\titlepage}{}
+\providecommand{\thankyou}[1]{}
+\providecommand{\frontmatter}{}
+\providecommand{\mainmatter}{}
+\providecommand{\bookhead}[1]{}
+\providecommand{\confhead}[1]{}
+\providecommand{\hypothesis}[1]{\begin{quote}\itshape #1\end{quote}}
+\providecommand{\acknowledgments}[1]{\par\noindent\textbf{Acknowledgments:} #1\par}
+\endinput

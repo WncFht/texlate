@@ -1,0 +1,47 @@
+% texlate vendored stub — 原许可禁分发，最小兼容面
+% tcilatex.tex S1 替身：MacKichan SWP/SW 运行时宏，专有件 → 不可
+% vendored。SWP 转储稿宏面按 pass-through 处理——内容照排、装饰丢：
+% \QTR{run}{text} 出 text；\QZW/\QQQ 特殊字符族丢弃或出末参；
+% 数式对象族 \QOVER/\QSUB/\QSUP/\QBINOM 退化为可读式。
+
+\providecommand{\TEX}{\TeX}
+\providecommand{\LaTeXtoday}{}
+\def\TeXButton#1#2{#2}
+\def\TeXButtonM#1{#1}
+% —— 文本 run：\QTR{rm|bf|it|tt|em|cal|scr|frak|tiny|...}{text} ——
+\def\QTR#1#2{#2}
+\def\QTD#1#2{#2}
+\def\QTS#1#2{#2}
+\def\QXP#1{#1}
+% —— SWP 特殊字符：\QZW{set}{size}{char} 出 char；\QQQ{hex} 丢 ——
+\def\QZW#1#2#3{#3}
+\def\QQQ#1{}
+\def\QQ#1{}
+\def\QVI#1{}
+\def\QSP#1{}
+\def\QPAGE#1{}
+% —— 数式对象 ——
+\def\QSUB#1#2{#2}
+\def\QSUP#1#2{#2}
+\def\QOVER#1#2{#1/#2}
+\def\QATOP#1#2{#1/#2}
+\def\QFRAC#1#2{#1/#2}
+\def\QBINOM#1#2{\binom{#1}{#2}}
+\def\QINT#1{\int #1}
+\def\QSUM#1#2{\sum_{#1}^{#2}}
+\def\QPROD#1#2{\prod_{#1}^{#2}}
+\def\QPRIME{'}
+\def\QNAME#1{\mathop{\mathrm{#1}}}
+\def\QRT#1{#1}
+\def\QSL#1{#1}
+% —— 杂项 ——
+\def\QCAPTION#1{#1}
+\def\QSTARTAPPENDIX#1{#1}
+\def\QAPPENDIX#1{#1}
+\def\QREF#1{#1}
+\def\QCITE#1{#1}
+\def\QSECT#1{#1}
+\def\QHEAD#1{#1}
+\def\QDATE#1{#1}
+\providecommand{\QENDDISPLAY}{}
+\endinput
