@@ -350,8 +350,8 @@ def test_fuzz_mask_tex_span_oracle() -> None:
             got = mask_tex(t, **kw)
             assert got == want, f"kw={kw} span 分歧: {t!r}\n{got!r}\n{want!r}"
             _check_view(t, got)
-            # 幂等不恒成立（lstinline ``\s*`` 桥接遮盖空白）——不逐点断言，
-            # 缺陷以 xfail 钉在末段。
+            # 幂等逐点断言（lstinline ``\s*`` 桥接缺陷 bfd1d17 已修，
+            # 原 xfail 拆钉——此处即拆钉后常驻回归断言）。
             assert mask_tex(t, **kw) == got, "非确定"
 
 

@@ -25,7 +25,8 @@ r"""compile/inject.py 对抗性性质 fuzz —— 中文注入缝扫描 / CJK �
   项目级 figure 门、dc+bd 文件谓词、threeparttable 门、非 UTF-8 重写、
   幂等二跑。
 
-钉住的确认缺陷（``xfail(strict=True)``——修复后 XPASS 提醒拆钉）：
+历史钉账（I1–I9 全部修复于 0d93d66、xfail 已拆——留档为覆盖语义注脚，
+下列缺陷形态即本文件断言防回归的对象）：
 
 - I1 ``inject.py:620`` EOF 兜底死注——docclass ``}``-close 后无 ``\n`` 时
   ``insert = len(tex)``，注入块落到 ``\end{document}`` 之后成死代码

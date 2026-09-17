@@ -988,7 +988,8 @@ def test_fuzz_state_load_never_raises(tmp_path: Path) -> None:
         p = d / "state.json"
         r = rng.random()
         if r < _P_ST_GARBAGE:
-            # ASCII 垃圾必可解码——非 UTF-8 分支由独立 xfail 钉（load 漏 catch）
+            # ASCII 垃圾必可解码——非 UTF-8 分支由 test_state_load_non_utf8_quarantines
+            # 回归钉（load 漏 catch 已修，原 xfail 拆为普通断言）
             p.write_bytes(bytes(rng.randrange(128) for _ in range(rng.randint(0, 200))))
         elif r < _P_ST_SCALAR:
             p.write_text(json.dumps(rng.choice([[], "x", 42, None])))

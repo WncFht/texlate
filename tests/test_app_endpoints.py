@@ -2,7 +2,7 @@
 
 对照 ``bench/results/api-cover-2026-09-16/report.md`` 的端点×覆盖矩阵——
 本文件只补既有 test_server_* 未覆盖的面（不重测 happy path）。
-已确认的产品 bug 用 ``xfail(strict=True)`` 钉期望行为：修好即 XPASS 报警。
+历史 xfail 钉（400/500 分裂等）已全部修复拆钉，现存断言即防回归常态。
 """
 
 from __future__ import annotations
@@ -179,7 +179,7 @@ class TestTranslateEdges:
     ) -> None:
         """body 不带 model 时 _auth 在 try 内 → ValueError 收敛成 400。
 
-        与下条 xfail 对照：同一路径因 body.model 有无而 400/500 分裂。
+        （原「400/500 分裂」xfail 对照组——分裂已修，本断言为留存回归。）
         """
         r = raw_client.post(
             f"/api/arxiv/{ARXIV}/translate",

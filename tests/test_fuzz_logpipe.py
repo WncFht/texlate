@@ -408,7 +408,9 @@ def test_judge_warn_hit_propagation() -> None:
     assert not any("old.sty" in r for r in v.reasons)
 
 
-# ================================================================ 钉住的缺陷
+# ================================================================ 钉账区
+# 本节含已核销回归钉（docstring 留「原 strict-xfail」注脚）与当前唯一活钉
+# test_xfail_error_line_filename_width——拆一枚清一枚。
 
 
 def test_fffd_nullfont_benign() -> None:
