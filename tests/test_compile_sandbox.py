@@ -72,8 +72,8 @@ def _clear_probe_caches() -> Iterator[None]:
     污染后续真编译用例的挂载面（如 TEXMFSYSVAR 丢失 → fmt 找不到）。
     """
     yield
-    eng_mod._bwrap_capable.cache_clear()  # noqa: SLF001
-    eng_mod._kpathsea_dirs.cache_clear()  # noqa: SLF001
+    sb._bwrap_capable.cache_clear()  # noqa: SLF001
+    sb._kpathsea_dirs.cache_clear()  # noqa: SLF001
 
 
 # ---------------------------------------------------------------- env 白名单
@@ -100,6 +100,8 @@ def test_compile_subprocess_env_has_no_secrets(
         monkeypatch.setenv(name, "leak")
     calls: list[dict[str, Any]] = []
     monkeypatch.setattr(eng_mod, "run_process", _fake_run(calls))
+    # 沙箱内探针（bwrap capable/kpse）走 sb 绑定——与引擎侧调用分开 intercept
+    monkeypatch.setattr(sb, "run_process", _fake_run(calls))
     (tmp_path / "main.tex").write_text("x\n")
     XelatexEngine(binary="/bin/true").compile(
         tmp_path, "main.tex", passes=1, sandbox=True
@@ -117,10 +119,11 @@ def test_bwrap_wraps_xelatex_argv(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """xelatex sandbox=True：bwrap 包裹 + 断网 + $HOME 本体不挂。"""
-    monkeypatch.setattr(eng_mod, "_bwrap_capable", lambda: True)
-    monkeypatch.setattr(eng_mod, "find_tool", lambda n: f"/fake/{n}")
+    monkeypatch.setattr(sb, "_bwrap_capable", lambda: True)
+    monkeypatch.setattr(sb, "find_tool", lambda n: f"/fake/{n}")
     calls: list[dict[str, Any]] = []
     monkeypatch.setattr(eng_mod, "run_process", _fake_run(calls))
+    monkeypatch.setattr(sb, "run_process", _fake_run(calls))
     (tmp_path / "main.tex").write_text("x\n")
     res = XelatexEngine(binary="/fake/xelatex").compile(
         tmp_path, "main.tex", passes=1, sandbox=True
@@ -153,10 +156,11 @@ def test_bwrap_wraps_tectonic_keeps_net(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """tectonic 冷拉 bundle 走进程内 HTTPS——包裹保留网络、仍有 --untrusted。"""
-    monkeypatch.setattr(eng_mod, "_bwrap_capable", lambda: True)
-    monkeypatch.setattr(eng_mod, "find_tool", lambda n: f"/fake/{n}")
+    monkeypatch.setattr(sb, "_bwrap_capable", lambda: True)
+    monkeypatch.setattr(sb, "find_tool", lambda n: f"/fake/{n}")
     calls: list[dict[str, Any]] = []
     monkeypatch.setattr(eng_mod, "run_process", _fake_run(calls))
+    monkeypatch.setattr(sb, "run_process", _fake_run(calls))
     (tmp_path / "main.tex").write_text("x\n")
     res = TectonicEngine(binary="/fake/tectonic", bundle="").compile(
         tmp_path, "main.tex", sandbox=True
@@ -176,10 +180,11 @@ def test_bwrap_home_secret_dirs_unbound(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """$HOME 下只挂白名单子路径——~/.ssh、~/.aws、~/.gnupg 不得出现在挂面。"""
-    monkeypatch.setattr(eng_mod, "_bwrap_capable", lambda: True)
-    monkeypatch.setattr(eng_mod, "find_tool", lambda n: f"/fake/{n}")
+    monkeypatch.setattr(sb, "_bwrap_capable", lambda: True)
+    monkeypatch.setattr(sb, "find_tool", lambda n: f"/fake/{n}")
     calls: list[dict[str, Any]] = []
     monkeypatch.setattr(eng_mod, "run_process", _fake_run(calls))
+    monkeypatch.setattr(sb, "run_process", _fake_run(calls))
     (tmp_path / "main.tex").write_text("x\n")
     XelatexEngine(binary="/fake/xelatex").compile(
         tmp_path, "main.tex", passes=1, sandbox=True
@@ -216,7 +221,7 @@ def test_bwrap_incapable_falls_back_to_env(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """bwrap 缺席/内核禁用 → sandbox=True 退回 env-only，不挂编译。"""
-    monkeypatch.setattr(eng_mod, "_bwrap_capable", lambda: False)
+    monkeypatch.setattr(sb, "_bwrap_capable", lambda: False)
     calls: list[dict[str, Any]] = []
     monkeypatch.setattr(eng_mod, "run_process", _fake_run(calls))
     (tmp_path / "main.tex").write_text("x\n")
@@ -274,7 +279,7 @@ def test_write18_ran_but_contained_by_bwrap(tmp_path: Path) -> None:
     发生：工作目录内写入落盘（允许的写域），但宿主 ``/tmp``（沙箱内是私有
     tmpfs）与 ``$HOME``（影子化）都写不出去。
     """
-    if not eng_mod._bwrap_capable():  # noqa: SLF001
+    if not sb._bwrap_capable():  # noqa: SLF001
         pytest.skip("bwrap 不可用")
     work = tmp_path / "work"
     work.mkdir()
@@ -320,7 +325,7 @@ def test_tectonic_real_compile_sandboxed(tmp_path: Path) -> None:
     res = eng.compile(work, "main.tex", timeout=240, sandbox=True)
     assert res.rc is not None
     assert not res.timed_out
-    if sys.platform == "linux" and eng_mod._bwrap_capable():  # noqa: SLF001
+    if sys.platform == "linux" and sb._bwrap_capable():  # noqa: SLF001
         assert res.sandbox_mode == "bwrap"
 
 

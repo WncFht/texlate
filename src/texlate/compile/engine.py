@@ -10,13 +10,12 @@ r"""引擎层：Engine 协议 + xelatex/tectonic 实现 + 静态路由表（docs
   默认 halt-on-error，engine-matrix §0 已实证）。
 - 静态路由（§4.2）：`route_project` 编译前决策；失败集互补实测联合 clean
   9/12（engine-matrix §0）。
-- OS 沙箱（§4.4）：darwin 走 ``sandbox-exec``（sandbox.py）；linux 无 FS
-  沙箱原语 → bwrap 可用时以 userns + 挂载白名单复刻同语义（``$HOME``
-  影子化只挂白名单子路径、pid/ipc/uts unshare、xelatex 断网、tectonic
-  冷拉 bundle 留网），缺席退回 env 白名单 + TeX 阀层；实落形态记
-  ``CompRes.sandbox_mode``，``TEXLATE_NO_BWRAP=1`` 显式关停。
-- log 解析（§2.3）：`parse_log` 双格式错误计数（`^!` + `file:line:`）、
-  `l.NNN` 行号、`(` 文件栈、tail；tectonic 有时不写 .log → stderr 兜底。
+- OS 沙箱（§4.4）在 ``sandbox.py``（darwin ``sandbox-exec`` / linux ``bwrap``
+  / 缺席退 env 白名单，``_apply_sandbox`` 分发，实落形态记
+  ``CompRes.sandbox_mode``，``TEXLATE_NO_BWRAP=1`` 关停）；log 解析（§2.3）
+  与错误分类学适配在 ``loginfo.py``；依赖记录（.fls/.mk→权威输入集）在
+  ``deps.py``——本模块持引擎实现与路由，公共面经 import 回引保持
+  ``from texlate.compile.engine import X`` 不破。
 """
 
 from __future__ import annotations
@@ -27,29 +26,31 @@ import logging
 import os
 import re
 import shutil
-import subprocess
-import sys
 from dataclasses import dataclass, field
-from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Final, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Iterator
 
-    from texlate.compile.fixloop.logparse import ErrReport, Taxonomy
+from texlate.textutil import decode_tex, safe_is_file, safe_resolve
 
-from texlate.redlines import ENGINE_RED_LINES, REDLINES_BY_ID, name_pattern
-from texlate.texlog import (
-    is_dos_eps,
-    is_project_file,
-    patch_graphic_top,
-    update_file_stack,
+from .deps import compiled_dependencies
+from .loginfo import (  # noqa: F401 -- WARNING_RED_LINES/classify_error 门面回引（judge/test_redlines 经本模块取）
+    WARNING_RED_LINES,
+    LogInfo,
+    classify_error,
+    parse_log,
 )
-from texlate.textutil import decode_tex, env_flag, safe_is_file, safe_resolve
-
 from .mask import visible_tex
-from .sandbox import child_env, find_tool, run_process, sandbox_wrap
+from .sandbox import (
+    _apply_sandbox,
+    _rc_to_signal,
+    _texmfdist,
+    child_env,
+    find_tool,
+    run_process,
+)
 from .toolchain import ensure_tectonic, tectonic_version
 
 log = logging.getLogger(__name__)
@@ -111,28 +112,6 @@ _TECTONIC_BUNDLE_URL_MIN: Final = (0, 17, 0)
 
 # ================================================================ 数据类型
 @dataclass
-class LogInfo:
-    """`parse_log` 产物：错误计数、首错+上下文、tail、文件栈。"""
-
-    n_errors: int = 0
-    first_error: str | None = None
-    error_ctx: str | None = None
-    error_line: int | None = None  # l.NNN
-    file_stack: list[str] = field(default_factory=list)
-    #: 首错行位之前已弹出的文件名（pop 序；``None`` 非文件配对帧已滤）——
-    #: ``File ended while scanning`` 类 runaway 错报位在父文件续行
-    #: （``)`` 先于错误打印），``popped_files[-1]`` = 最近关闭的文件 =
-    #: 肇事候选（#78）。与 ``file_stack`` 同位快照（首错时刻），无错 → 空。
-    popped_files: list[str] = field(default_factory=list)
-    tail: str = ""
-    errors: list[str] = field(default_factory=list)  # 全部 '^!'/'file:line:' 行
-    warnings_hit: list[str] = field(default_factory=list)  # judge 红线命中
-    #: 系统 texmf/bundle 树来源的红线命中（``invalid_utf8@<file>``）——
-    #: 工程文件不产生者的警告降为观察项，judge 记 notes 不阻断 clean。
-    warnings_sys: list[str] = field(default_factory=list)
-
-
-@dataclass
 class CompRes:
     """一次编译调用的完整结果（clean 判定原料 + fixloop 输入）。"""
 
@@ -168,702 +147,6 @@ class CompRes:
     def has_pdf(self) -> bool:
         """是否产出非空 PDF。"""
         return self.pdf is not None and self.pdf_bytes > 0
-
-
-# ================================================================ log 解析
-_ERR_BANG_RE = re.compile(r"^!")
-#: ``file:line:`` 文件名面（l2 ``_FILE_LINE_RX``/fixloop logparse 三层
-#: 同口径单源）：``name.ext`` 必带扩展名、禁 ``()``/空白/``:`` 内嵌——
-#: ``Makefile:5:``/``C:\foo.tex:5:``/``(x.tex:5:`` 畸形形齐拒；扩展名不
-#: 限 tex 系（``.eps``/``.pdf_t``/``.end`` 等皆真错，l2 侧 7814 log 实证）。
-_ERR_FNAME = r"[^()\s:]+\.[A-Za-z0-9_-]{1,10}"
-_ERR_FILELINE_RE = re.compile(
-    r"^" + _ERR_FNAME + r":\d+: \S"
-)  # -file-line-error 引擎级错误
-#: ``file:line:`` 形态的非错误行（与 fixloop/logparse 同口径）：
-#: Warning 行（警告也带 file:line: 前缀时不能计入错误）与
-#: ``==> Fatal error occurred`` 汇总尾行（同一失败的复述，多计一次）。
-_NONERR_FILELINE_RE = re.compile(
-    r"^" + _ERR_FNAME + r":\d+:\s*(?:(?:LaTeX|Package|Class)\b[^\n]*?\bWarning\b|==>)"
-)
-_L_NUM_RE = re.compile(r"^l\.(\d+)")
-
-#: clean 判据的 log warning 红线（docs/08 §4.3）：任一命中即 dirty。
-#: ``invalid_utf8`` 按产生文件归因——仅工程文件源计入 ``warnings_hit``；
-#: 系统 texmf/bundle 件（老 CTAN 包自带坏字节，loop1 归因占 96%）与
-#: ``dos_eps_skipped`` 二进制件（normalize 原样保留、警告是必然残余）降
-#: ``warnings_sys`` 观察项（fixer-utf8 `673d8ce` normalize 四臂后复审）。
-#: 红线表单源 = ``texlate.redlines``（★2 收敛——本层发射名/pattern 即
-#: registry ``engine`` 切片；rules.yaml ``warnings:``/judge/l2 同表别层）。
-_UTF8_WARN_RE = re.compile(
-    name_pattern(REDLINES_BY_ID["invalid_utf8"].engine)[1], re.IGNORECASE
-)
-WARNING_RED_LINES: list[tuple[str, str]] = list(ENGINE_RED_LINES)
-
-
-def _scan_error_lines(
-    lines: list[str], info: LogInfo, project_root: Path | None = None
-) -> tuple[int, bool]:
-    """数 `^!`+`file:line:` 错误、记首错位置、追踪 `(` 文件栈。
-
-    返回 ``(首错行号, 工程源 invalid_utf8 命中)``：逐行把栈顶最内文件
-    作产生者交 ``is_project_file`` 判定——系统件源名收进
-    ``info.warnings_sys``（``invalid_utf8@<file>``），工程源命中由
-    ``parse_log`` 收口进 ``warnings_hit``；DOS 魔数 EPS（normalize
-    ``dos_eps_skipped`` 原样保留件）视同系统件降级，标 ``(dos-eps)``。
-    """
-    ctx_start = -1
-    stack: list[str | None] = []
-    #: 弹栈史全程累计——``)`` 先于错误行打印（runaway 报位在父文件续行），
-    #: 仅收集出错行会丢掉真肇事件；首错捕获点与 file_stack 同位快照。
-    popped: list[str | None] = []
-    utf8_proj = False
-    utf8_sys: set[str] = set()
-    dos_eps_cache: dict[str, bool] = {}
-    for i, ln in enumerate(lines):
-        update_file_stack(ln, stack, popped)
-        patch_graphic_top(ln, stack)
-        if _UTF8_WARN_RE.search(ln):
-            inner = next((s for s in reversed(stack) if s), None)
-            if is_dos_eps(inner, project_root, dos_eps_cache):
-                # dos_eps_skipped 件：normalize 字节原样保留的二进制 EPS，
-                # 残余警告降 warnings_sys 并打 (dos-eps) 标便于台账对账。
-                name = Path(inner).name if inner else "?"
-                utf8_sys.add(f"{name}(dos-eps)")
-            elif is_project_file(inner, project_root):
-                utf8_proj = True
-            else:
-                utf8_sys.add(Path(inner).name if inner else "?")
-        if _ERR_BANG_RE.match(ln) or (
-            _ERR_FILELINE_RE.match(ln) and not _NONERR_FILELINE_RE.match(ln)
-        ):
-            info.n_errors += 1
-            info.errors.append(ln.strip()[:300])
-            if info.first_error is None:
-                info.first_error = ln.strip()
-                ctx_start = i
-                info.file_stack = [s for s in stack if s]
-                info.popped_files = [t for t in popped if t is not None]
-    info.warnings_sys = [f"invalid_utf8@{n}" for n in sorted(utf8_sys)]
-    return ctx_start, utf8_proj
-
-
-def parse_log(log_text: str, *, project_root: Path | None = None) -> LogInfo:
-    """解析 TeX log 文本 → LogInfo（引擎无关；调用方负责拿文本）。
-
-    错误计数**双格式**：`^!` 行 + `file:line:` 行（只数 `!` 会漏掉
-    `-file-line-error` 模式下引擎级错误，docs/08 §2.3）。
-
-    ``project_root`` = 编译工作根（``wdir``）：invalid_utf8 红线按警告
-    产生文件归因，系统 texmf/bundle 源与 DOS 魔数 EPS（normalize
-    ``dos_eps_skipped`` 原样保留件）降 ``warnings_sys`` 观察项。
-    缺席时绝对路径按 texmf 标记启发式、裸名保守归工程（不掉红线）。
-    """
-    info = LogInfo()
-    if not log_text:
-        return info
-    lines = log_text.splitlines()
-    ctx_start, utf8_proj = _scan_error_lines(lines, info, project_root)
-    if ctx_start >= 0:
-        ctx_lines = []
-        for j in range(ctx_start, min(ctx_start + 9, len(lines))):
-            ctx_lines.append(lines[j])
-            if info.error_line is None:
-                m = _L_NUM_RE.match(lines[j].strip())
-                if m:
-                    info.error_line = int(m.group(1))
-        info.error_ctx = "\n".join(ctx_lines)
-    info.tail = "\n".join(lines[-30:])
-    for name, pat in WARNING_RED_LINES:
-        if name == "invalid_utf8":
-            if utf8_proj:
-                info.warnings_hit.append(name)
-        elif re.search(pat, log_text, re.MULTILINE):
-            info.warnings_hit.append(name)
-    return info
-
-
-# ================================================================ 错误分类学
-#: 分类表**单源** = ``fixloop/rules.yaml`` ``taxonomy:`` 段——引擎侧不再持有
-#: 第二份规则表（audit-2026-09-16 wave2：两份并行已漂出 8 个 id + 3 组变体）。
-#: 本节只做 ``(err, ctx, tail)`` → ``ErrReport`` 的薄适配；匹配语义（head/
-#: tail 有序评估、payload_group、``subclassify`` 冒犯域收窄、tail ``guard``
-#: 复核）全部归 ``fixloop.logparse.Taxonomy``。``scope:warnings`` 条目
-#: （``warn_*``）以 ``rep.warnings`` 为驱动原料——本接口只收 err/ctx/tail
-#: 三段不喂 warnings，故该段在引擎侧天然不触发（fixloop 主循环以全文 log
-#: 扫描另行驱动，两处调用面本就不同）。
-
-
-@lru_cache(maxsize=1)
-def _taxonomy() -> Taxonomy | None:
-    """rules.yaml ``taxonomy:`` → 编译态 ``Taxonomy``（进程内一次）。
-
-    惰性载入：``fixloop/__init__`` 链（cases→fcntl、engine→compile.inject）
-    在本模块装载期会成环；且引擎层在 rules.yaml 缺席的上下文（裁剪部署、
-    bench 快照）仍须可 import、可分类。
-
-    装载失败**不**重建冻结副本——副本即下一份漂移源；降级 ``None`` 使
-    classify 退化为 ``other``/``clean``，warning 记一次（同根因由 fixloop
-    侧 ``load_ruleset`` 的校验错误更完整报出）。只读 ``taxonomy:`` 段而不走
-    ``Ruleset.load``：rules 段校验失败（规则 schema 面）不应击穿分类。
-    """
-    try:
-        from texlate.compile.fixloop._yamlish import (  # noqa: PLC0415  # 延迟: 防循环
-            load_yaml,
-        )
-        from texlate.compile.fixloop.engine import (  # noqa: PLC0415  # 同上
-            RULES_PATH,
-        )
-        from texlate.compile.fixloop.logparse import (  # noqa: PLC0415  # 同上
-            Taxonomy,
-        )
-
-        data = load_yaml(RULES_PATH)
-        entries = data.get("taxonomy") if isinstance(data, dict) else None
-        if not entries or data.get("version") != 1:
-            log.warning("rules.yaml taxonomy 段缺失/空或 version!=1: %s", RULES_PATH)
-            return None
-        return Taxonomy(entries)
-    except Exception:  # 装载失败 = 分类降级, 不阻断引擎层
-        log.warning(
-            "rules.yaml taxonomy 装载失败, 错误分类降级为 other/clean",
-            exc_info=True,
-        )
-        return None
-
-
-def _err_report(first: str | None, ctx: str | None, tail: str) -> ErrReport:
-    """薄构造：engine 侧 ``(err, ctx, tail)`` → ``logparse.ErrReport``。"""
-    from texlate.compile.fixloop.logparse import (  # noqa: PLC0415  # 延迟: 防循环
-        ErrReport,
-    )
-
-    return ErrReport(first=first, ctx=ctx, tail=tail)
-
-
-def classify_error(
-    err: str | None, ctx: str | None, tail: str, *, timed_out: bool
-) -> tuple[str | None, str | None]:
-    """首错 → `(category, payload)`；payload 给规则定位用（文件名/字体名/cs 名）。
-
-    分类学单源 = ``fixloop/rules.yaml`` ``taxonomy:`` 段（见 ``_taxonomy``）；
-    rules.yaml 不可载时降级为 ``other``/``clean``（不留冻结副本——副本即
-    漂移源）。
-    """
-    if timed_out:
-        return "timeout", None
-    tax = _taxonomy()
-    if tax is None:
-        return ("other" if err else "clean"), None
-    return tax.classify(_err_report(err, ctx, tail or ""))
-
-
-# ================================================================ 依赖记录解析
-def _makefile_inputs(text: str) -> list[str] | None:  # noqa: C901, PLR0912
-    r"""解析 tectonic `--makefile-rules` 产物首条依赖行（含 Make 转义文件名）。
-
-    移植自 texglot makefile_inputs——Make 转义规则刁钻，保持上游实现原样。
-    """
-    text = re.sub(r"\\\r?\n", " ", text)
-    for line in text.splitlines():
-        if not line.strip() or line.lstrip().startswith("#"):
-            continue
-        separator = None
-        i = 0
-        while i < len(line):
-            if line[i] == "\\" and i + 1 < len(line) and line[i + 1] in " \\#:\t":
-                i += 2
-                continue
-            if line[i] == ":" and (i + 1 == len(line) or line[i + 1].isspace()):
-                separator = i
-                break
-            i += 1
-        if separator is None:
-            return None
-        values, current = [], []
-        i = separator + 1
-        while i < len(line):
-            char = line[i]
-            if char == "\\" and i + 1 < len(line) and line[i + 1] in " \\#:\t":
-                current.append(line[i + 1])
-                i += 2
-                continue
-            if char == "#":
-                break
-            if char.isspace():
-                if current:
-                    values.append("".join(current).replace("$$", "$"))
-                    current = []
-            else:
-                current.append(char)
-            i += 1
-        if current:
-            values.append("".join(current).replace("$$", "$"))
-        return values
-    return None
-
-
-def _tectonic_unescaped_inputs(text: str) -> list[str]:
-    """补解析 tectonic 未转义 prerequisite 名（每物理行一个）。保持上游实现。"""
-    values = []
-    started = False
-    for raw in text.splitlines():
-        line = raw
-        if not started:
-            if not line.strip() or line.lstrip().startswith("#"):
-                continue
-            separator = re.search(r"(?<!\\):(?=\s|$)", line)
-            if separator is None:
-                return []
-            line = line[separator.end() :]
-            started = True
-        continued = line.endswith("\\")
-        value = (line[:-1] if continued else line).strip()
-        if value:
-            values.append(value)
-        if not continued:
-            break
-    return values
-
-
-def _deps_from_record(main: str, out: Path, engine: str) -> list[str] | None:
-    """读依赖记录文件（.fls INPUT / dependencies.mk）→ 原始名字列表。"""
-    if engine == "tectonic":
-        record = out / "dependencies.mk"
-        if not record.is_file():
-            return None
-        content = record.read_text(encoding="utf-8", errors="replace")
-        names = _makefile_inputs(content)
-        if names is None:
-            return None
-        return names + _tectonic_unescaped_inputs(content)
-    record = out / (Path(main).stem + ".fls")
-    if not record.is_file():
-        return None
-    lines = record.read_text(encoding="utf-8", errors="replace").splitlines()
-    names = [ln[6:] for ln in lines if ln.startswith("INPUT ")]
-    return names or None
-
-
-def compiled_dependencies(
-    root: Path, main: str, out: Path, engine: str
-) -> list[str] | None:
-    r"""编译器自述的真实输入集——**翻译文件集权威**（docs/08 §3.4）。
-
-    xelatex 读 `-recorder` 产的 `.fls` INPUT 行；tectonic 读
-    `--makefile-rules` 产物。静态 `\input` 图只作编译失败时的降级。
-    图件（.eps 等）不算 TeX 输入层——不做开关，恒不收。
-    """
-    root = root.resolve()
-    cwd = (root / main).parent
-    out = out.resolve()
-    names = _deps_from_record(main, out, engine)
-    if names is None:
-        return None
-    files = set()
-    extensions = {".tex", ".sty", ".cls", ".cfg", ".def", ".clo", ".fd", ".ltx"}
-    for name in names:
-        path = Path(name)
-        candidates = [path] if path.is_absolute() else [cwd / path]
-        # tectonic 的 Make 规则把 input 写成相对 outdir 的名字，
-        # 尽管实际读取是相对主文件目录——两种解都试。
-        if engine == "tectonic":
-            candidates.extend(
-                cwd / value.relative_to(out)
-                for value in (path, path.resolve())
-                if value.is_relative_to(out)
-            )
-        for cand in candidates:
-            resolved = cand.resolve()
-            if (
-                resolved.is_relative_to(root)
-                and resolved.is_file()
-                and resolved.suffix.lower() in extensions
-            ):
-                files.add(resolved.relative_to(root).as_posix())
-                break
-    if Path(main).as_posix() not in files:
-        return None
-    return sorted(files)
-
-
-# ================================================================ Linux bwrap 兜底
-#: bwrap 挂载面默认覆盖的系统前缀（ro-bind-try：缺席跳过）。texmf 树不在此列
-#: ——发行版布局分散（arch 把 TEXMFSYSVAR 放 ``/var/lib/texmf``，上游安装进
-#: ``~/texlive/YYYY`` 或 ``/usr/local/texlive``），由 ``_kpathsea_dirs`` 按
-#: texmf.cnf 权威值动态补挂。
-_BWRAP_SYS_RO: Final = (
-    "/usr",
-    "/bin",
-    "/sbin",
-    "/lib",
-    "/lib64",
-    "/opt",
-    "/etc",
-    "/var/cache/fontconfig",
-)
-
-#: 需 RW 进沙箱的 env 键：texmf 可写树 + 自定义 tmp 目录。
-_BWRAP_ENV_RW: Final = {
-    "TEXMFHOME",
-    "TEXMFVAR",
-    "TEXMFCONFIG",
-    "TEXMFSYSVAR",
-    "TEXMFSYSCONFIG",
-    "TMPDIR",
-    "TEMP",
-    "TMP",
-}
-#: env 键里 TMPDIR 系的子集——一律不挂宿主路径，``_bwrap_wrap`` 把它们
-#: --setenv 重定向进沙箱私有 tmpfs。
-_BWRAP_TMP_KEYS: Final = {"TMPDIR", "TEMP", "TMP"}
-#: 需 RO 进沙箱的 env 键：kpathsea 搜索路径列表 + 本地 bundle 文件。
-_BWRAP_ENV_RO: Final = {
-    "TEXINPUTS",
-    "BIBINPUTS",
-    "BSTINPUTS",
-    "TFMFONTS",
-    "VFFONTS",
-    "T1FONTS",
-    "TTFONTS",
-    "OPENTYPEFONTS",
-    "TEXFONTMAPS",
-    "ENCFONTS",
-    "XDVIFONTS",
-    "TEXLATE_TEX_BUNDLE",
-}
-#: kpathsea 树变量：rw 侧是用户树；ro 侧是系统树（用户可写的经
-#: ``os.access(W_OK)`` 升 rw——存在用户可写 SYSVAR 的发行版布局）。
-_BWRAP_KPSE_RW: Final = ("TEXMFHOME", "TEXMFVAR", "TEXMFCONFIG")
-_BWRAP_KPSE_RO: Final = (
-    "TEXMFSYSVAR",
-    "TEXMFSYSCONFIG",
-    "TEXMFLOCAL",
-    "TEXMFDIST",
-    "TEXMFMAIN",
-    "TEXMFINIT",
-)
-_KPATHSEA_ELEM_RX: Final = re.compile(r"[\s,:{}]+")
-#: 沙箱内私有 tmpfs 挂点字面量——``/tmp`` 下的宿主路径判定专用。
-_SANDBOX_TMP: Final = "/tmp"  # noqa: S108 -- 挂点语义即字面 /tmp
-
-
-@lru_cache(maxsize=1)
-def _texmfdist() -> str | None:
-    """解 ``TEXMFDIST``（fontconfig conf 的 opentype 树锚点；无 → None）。"""
-    try:
-        proc = subprocess.run(
-            ["kpsewhich", "-var-value", "TEXMFDIST"],  # noqa: S607
-            capture_output=True,
-            text=True,
-            timeout=10,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return None
-    if proc.returncode != 0:
-        return None
-    out = proc.stdout.strip()
-    return out or None
-
-
-def _kpathsea_list(value: str) -> list[str]:
-    """拆 kpathsea 路径列表（``:``/``,``/``{}`` 分隔，剥 ``!`` 与 ``//`` 尾）。"""
-    out = []
-    for elem in _KPATHSEA_ELEM_RX.split(value):
-        p = elem.lstrip("!").removesuffix("//")
-        if p and Path(p).is_absolute():
-            out.append(p)
-    return out
-
-
-def _kpse_var(tool: str, var: str) -> str:
-    """``kpsewhich -var-value <var>`` 单变量查询；任何失败返空串。"""
-    try:
-        rc, out, _, to = run_process(
-            [tool, "-var-value", var], cwd=Path.cwd(), env=child_env(), timeout=15
-        )
-    except OSError:
-        return ""
-    return out if rc == 0 and not to else ""
-
-
-@lru_cache(maxsize=1)
-def _kpathsea_dirs() -> tuple[list[str], list[str]]:
-    """问 kpathsea 各 texmf 树落点 → ``(rw, ro)``（进程内一次性探测）。
-
-    发行版布局分散（arch 的 TEXMFSYSVAR 在 ``/var/lib/texmf``、上游装在
-    ``~/texlive/YYYY`` 或 ``/usr/local/texlive``）——按 texmf.cnf 权威值挂，
-    比写死路径或只按 binary 锚点可靠；kpsewhich 缺席返空表。
-    """
-    tool = find_tool("kpsewhich")
-    if tool is None:
-        return [], []
-    rw: list[str] = []
-    ro: list[str] = []
-    for var in _BWRAP_KPSE_RW:
-        rw += _kpathsea_list(_kpse_var(tool, var))
-    for var in _BWRAP_KPSE_RO:
-        for p in _kpathsea_list(_kpse_var(tool, var)):
-            (rw if os.access(p, os.W_OK) else ro).append(p)
-    return rw, ro
-
-
-def _bwrap_env_paths(env: dict[str, str]) -> tuple[list[str], list[str]]:
-    """编译子进程 env 里的路径值 → ``(rw, ro)`` 挂载名单。"""
-    rw: list[str] = []
-    ro: list[str] = []
-    for key, val in env.items():
-        if not val:
-            continue
-        if key in _BWRAP_ENV_RW:
-            # TMPDIR 系不挂——`_bwrap_wrap` 会 --setenv 进私有 tmpfs，宿主
-            # 路径挂进来既扩写面也可能在沙箱内根本不该存在。texmf 树变量
-            # 可以是冒号链（_env 把 ambient 树链进 TEXMFHOME），逐元素拆。
-            if key not in _BWRAP_TMP_KEYS:
-                rw += _kpathsea_list(val)
-        elif key in _BWRAP_ENV_RO:
-            ro += _kpathsea_list(val)
-    return rw, ro
-
-
-def _bwrap_mounts(
-    binary: str,
-    *,
-    root: Path,
-    out: Path,
-    env: dict[str, str],
-    extra_rw: Iterable[Path | str] = (),
-) -> tuple[list[str], list[str]]:
-    """汇总 ``(rw, ro)`` 挂载面——root/out 由调用方单独硬挂，不在返回值里。
-
-    ``$HOME`` 本体不挂：bwrap 为嵌套 bind 自建的父目录是沙箱内 tmpfs，
-    宿主机 ``~/.ssh``/``~/.aws`` 保持不可见——对齐 macOS deny-$HOME 语义。
-    """
-    home = Path.home()
-    rw: list[str] = [
-        *(str(p) for p in sorted(home.glob(".texlive*"))),
-        str(home / "texmf"),
-        str(home / ".cache" / "fontconfig"),
-        str(home / ".cache" / "texlate"),
-        str(home / ".cache" / "Tectonic"),
-        str(home / ".cache" / "TectonicProject.Tectonic"),
-        *(str(p) for p in extra_rw),
-    ]
-    ro: list[str] = [
-        str(home / ".fonts"),
-        str(home / ".local" / "share" / "fonts"),
-    ]
-    env_rw, env_ro = _bwrap_env_paths(env)
-    kpse_rw, kpse_ro = _kpathsea_dirs()
-    rw += env_rw + kpse_rw
-    ro += env_ro + kpse_ro
-    # 引擎本体在系统前缀/工程/输出之外时锚发行根（``<dist>/bin/<arch>/<tool>``
-    # 上三级即发行根，连带同级 texmf 树与 bin 伙伴）；锚点过宽（``/``、
-    # ``$HOME``、``/home``）时退化为只挂二进制文件本身——托管/自装引擎
-    # （~/.texlate/tools、~/.local/bin）都是自足单文件，足够。
-    covered = [*_BWRAP_SYS_RO, str(root), str(out)]
-    real = Path(binary).resolve()
-    if not any(real.is_relative_to(p) for p in covered):
-        anchor = real.parent.parent.parent
-        if anchor in (Path("/"), home, home.parent):
-            anchor = real
-        if anchor not in (Path("/"), home, home.parent):
-            ro.append(str(anchor))
-    rw_set = set(rw)
-    return sorted(set(rw)), sorted({p for p in ro if p not in rw_set})
-
-
-@lru_cache(maxsize=1)
-def _bwrap_capable() -> bool:
-    """探测 bwrap 可用性：二进制在 + userns/pid/ipc/uts/net/cap-drop 全旗标可建。
-
-    一次性全量探测——任一 namespace 被内核禁用（如
-    ``kernel.unprivileged_userns_clone=0``）即返 False，编译退回 env-only
-    而不是批量挂掉。``TEXLATE_NO_BWRAP`` 真值 = 显式关停（坏件逃生门）。
-    """
-    if env_flag("TEXLATE_NO_BWRAP", default=False):
-        return False
-    tool = find_tool("bwrap")
-    if tool is None:
-        return False
-    try:
-        rc, _, _, to = run_process(
-            [
-                tool,
-                "--die-with-parent",
-                "--unshare-pid",
-                "--unshare-ipc",
-                "--unshare-uts",
-                "--unshare-net",
-                "--cap-drop",
-                "ALL",
-                "--ro-bind-try",
-                "/",
-                "/",
-                "--",
-                "/bin/true",
-            ],
-            cwd=Path.cwd(),
-            env={},
-            timeout=10,
-        )
-    except OSError:
-        return False
-    return rc == 0 and not to
-
-
-def _bwrap_wrap(  # noqa: PLR0913 -- 挂载面组装参数即签名
-    cmd: list[str],
-    *,
-    root: Path,
-    out: Path,
-    env: dict[str, str],
-    allow_net: bool,
-    extra_rw: Iterable[Path | str] = (),
-) -> list[str] | None:
-    """Linux 用 bwrap 复刻 sandbox-exec 语义；不可用返 ``None``（调用方直通）。
-
-    - ``--die-with-parent`` + unshare pid/ipc/uts：pid-ns init 死亡时内核清
-      场整棵进程树，与 run_process 的 killpg 互为兜底（**不**加
-      ``--new-session``——那会另起进程组让 killpg 打不中孙进程）。
-    - ``allow_net=False`` 追加 ``--unshare-net``：xelatex 工具链全本地可断
-      网；tectonic 冷拉 bundle 必须留网，恒 True。
-    - 挂载白名单见 ``_bwrap_mounts``；``--dir $HOME`` 保底存在（自建的
-      tmpfs 影子目录，mktex 系 mkdir 有落点）。
-    """
-    if not _bwrap_capable():
-        return None
-    # bwrap 的 --bind 源按其自身 cwd（= run_process 的 cwd = build 目录）
-    # 解析——调用方漏传绝对路径时 bind 在沙箱内落空 ENOENT、双引擎全灭
-    # （live-smoke2 实证）→ 入口统一 resolve。
-    root = Path(root).resolve()
-    out = Path(out).resolve()
-    extra_rw = [Path(p).resolve() for p in extra_rw]
-    tool = find_tool("bwrap") or "bwrap"
-    rw, ro = _bwrap_mounts(cmd[0], root=root, out=out, env=env, extra_rw=extra_rw)
-    argv = [
-        tool,
-        "--die-with-parent",
-        "--unshare-pid",
-        "--unshare-ipc",
-        "--unshare-uts",
-        "--cap-drop",
-        "ALL",
-    ]
-    if not allow_net:
-        argv.append("--unshare-net")
-    argv += [
-        "--dev",
-        "/dev",
-        "--proc",
-        "/proc",
-        "--tmpfs",
-        _SANDBOX_TMP,
-        "--dir",
-        str(Path.home()),
-    ]
-    for prefix in _BWRAP_SYS_RO:
-        argv += ["--ro-bind-try", prefix, prefix]
-    # ro 先挂、rw 后挂：重叠路径上后挂的 rw 生效（如 TEXMFVAR 恰好落在
-    # ro 系统树之下仍保持可写）。
-    for p in ro:
-        argv += ["--ro-bind-try", p, p]
-    argv += ["--bind", str(root), str(root), "--bind", str(out), str(out)]
-    # XDG_CACHE_HOME 不在 env 白名单内、子进程本不可见；宿主设了它则补挂并
-    # --setenv 还原，让 tectonic 继续命中父侧热缓存而不是沙箱内重拉 bundle。
-    xdg = os.environ.get("XDG_CACHE_HOME")
-    if xdg and Path(xdg).is_absolute() and not Path(xdg).is_relative_to(_SANDBOX_TMP):
-        argv += ["--setenv", "XDG_CACHE_HOME", xdg]
-        cache = str(Path(xdg) / "Tectonic")
-        argv += ["--bind-try", cache, cache]
-    # TMPDIR 系指向宿主路径时挂进来只是扩写面（甚至可能不存在）——一律
-    # 重定向进私有 tmpfs；`_bwrap_env_paths` 同步不再为这三键加挂载。
-    for key in _BWRAP_TMP_KEYS:
-        if env.get(key):
-            argv += ["--setenv", key, _SANDBOX_TMP]
-    for p in rw:
-        argv += ["--bind-try", p, p]
-    argv += ["--", *cmd]
-    return argv
-
-
-def _mirror_source_dirs(cwd: Path, out: Path) -> None:
-    r"""按源树目录集在 ``out`` 下镜像预建子目录（dot 目录不镜像）。
-
-    tectonic ``--outdir`` 不预建子目录：``\\include``/``\\input`` 目标在
-    子目录时 aux 写 ``<out>/<sub>/*.aux`` 直接 os error 2（modec-tec
-    实证 2308.00125）。
-    """
-    for d in sorted(cwd.rglob("*")):
-        if d.is_dir() and not d.is_relative_to(out):
-            rel = d.relative_to(cwd)
-            if not any(part.startswith(".") for part in rel.parts):
-                (out / rel).mkdir(parents=True, exist_ok=True)
-
-
-def _apply_sandbox(  # noqa: PLR0913 -- 沙箱决策参数面
-    cmd: list[str],
-    *,
-    root: Path,
-    out: Path,
-    env: dict[str, str],
-    enabled: bool,
-    allow_net: bool,
-    extra_rw: Iterable[Path | str] = (),
-) -> tuple[list[str], str]:
-    """OS 沙箱分发 → ``(argv, mode)``，mode 落 ``CompRes.sandbox_mode``。
-
-    ``sandbox=True`` 的既有契约本就含 env 白名单 + TeX 阀（恒在）；本层补
-    OS 包裹：darwin ``sandbox-exec``、linux ``bwrap``、其余/能力缺席退回
-    ``env``（与改动前 linux 行为一致）。
-    """
-    if not enabled:
-        return cmd, "off"
-    wrapped = sandbox_wrap(
-        cmd, root=root, out=out, extra_rw=extra_rw, allow_net=allow_net
-    )
-    if wrapped is not cmd:
-        return wrapped, "sandbox-exec"
-    if sys.platform != "linux":
-        return cmd, "env"
-    bw = _bwrap_wrap(
-        cmd, root=root, out=out, env=env, allow_net=allow_net, extra_rw=extra_rw
-    )
-    if bw is None:
-        return cmd, "env"
-    return bw, "bwrap"
-
-
-#: 包裹层信号死上报基数：128+signo（bwrap/shell 惯例）
-_WRAP_SIG_BASE: Final = 128
-#: 上限 = 128+NSIG(64)；超过按字面退出码判
-_WRAP_SIG_MAX: Final = 128 + 64
-
-
-def _rc_to_signal(rc: int | None, sandbox_mode: str) -> int | None:
-    """``run_process`` rc → 信号号（无则 None）。
-
-    Popen 直通约定：信号死 = 负 rc。bwrap/sandbox-exec 包裹层把子进程
-    信号死亡上报为 ``128+N``（xelatex 被 xdvipdfmx 拉死走 SIGPIPE=141
-    实证）——不解码则 ``killed_signal`` 漏记，judge 把死进程产物当
-    活结果判。
-
-    已知取舍 (1e wave-review F2-low)：包裹层下 ``exit(128+N)`` 与真信号
-    死不可区分——``exit(141)`` 会误记 SIGPIPE。代价止于归因噪声：
-    ``_salvage_driver_fatal`` 只在 killed_signal 置位时补 stdout_tail
-    fatal: 行，不翻转判定。按不实信号记录处理。
-    """
-    if rc is None:
-        return None
-    if rc < 0:
-        return -rc
-    if _WRAP_SIG_BASE < rc <= _WRAP_SIG_MAX and sandbox_mode in {
-        "bwrap",
-        "sandbox-exec",
-    }:
-        return rc - _WRAP_SIG_BASE
-    return None
 
 
 # ================================================================ Engine 协议
@@ -1274,7 +557,7 @@ class XelatexEngine:
         假 "no package provides"（fixloop-bench 口径）——同一份仓库知识走
         本地索引既稳又快（~/.texlate/cache/filemap.json 常驻）。
         """
-        from texlate.compile.fixloop.ctan import (  # noqa: PLC0415  # 延迟: 防循环
+        from texlate.compile.fixloop.ctan import (  # noqa: PLC0415  # 延迟: fixloop/__init__ 链重(cases→fcntl 平台门)
             MIRROR,
             TlpdbIndex,
         )
@@ -1446,7 +729,7 @@ class XelatexEngine:
 
     def _fetch_into_usertree(self, fname: str, pkgs: list[str], dest: Path) -> bool:
         """CTAN ``archive/<pkg>.tar.xz`` → overlay=tree 落 usertree home → 复核。"""
-        from texlate.compile.fixloop.ctan import (  # noqa: PLC0415  # 延迟: 防循环
+        from texlate.compile.fixloop.ctan import (  # noqa: PLC0415  # 延迟: fixloop/__init__ 链重(cases→fcntl 平台门)
             MIRROR,
             fetch_package,
         )
@@ -1487,6 +770,20 @@ class XelatexEngine:
         info = parse_log(text or res.stdout_tail, project_root=res.workdir)
         _salvage_driver_fatal(info, res)
         return info
+
+
+def _mirror_source_dirs(cwd: Path, out: Path) -> None:
+    r"""按源树目录集在 ``out`` 下镜像预建子目录（dot 目录不镜像）。
+
+    tectonic ``--outdir`` 不预建子目录：``\\include``/``\\input`` 目标在
+    子目录时 aux 写 ``<out>/<sub>/*.aux`` 直接 os error 2（modec-tec
+    实证 2308.00125）。
+    """
+    for d in sorted(cwd.rglob("*")):
+        if d.is_dir() and not d.is_relative_to(out):
+            rel = d.relative_to(cwd)
+            if not any(part.startswith(".") for part in rel.parts):
+                (out / rel).mkdir(parents=True, exist_ok=True)
 
 
 # ================================================================ tectonic

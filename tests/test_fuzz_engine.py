@@ -57,7 +57,9 @@ from typing import TYPE_CHECKING
 import pytest
 from conftest import make_tar, tar_reg
 
+import texlate.compile.deps as deps_mod
 import texlate.compile.engine as eng_mod
+import texlate.compile.sandbox as sb_mod
 import texlate.compile.toolchain as tc
 from texlate.compile.engine import (
     CompRes,
@@ -133,9 +135,9 @@ def _isolate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     # teardown 在 monkeypatch 还原之前跑——必须先存原函数引用，测试把同名
     # attr patch 成裸 lambda 时 getattr 到的对象没有 cache_clear。
     cached = (
-        eng_mod._bwrap_capable,  # noqa: SLF001
-        eng_mod._kpathsea_dirs,  # noqa: SLF001
-        eng_mod._texmfdist,  # noqa: SLF001
+        sb_mod._bwrap_capable,  # noqa: SLF001
+        sb_mod._kpathsea_dirs,  # noqa: SLF001
+        sb_mod._texmfdist,  # noqa: SLF001
         tc.tectonic_version,
     )
     yield
@@ -783,7 +785,7 @@ def test_xelatex_env_mode_strips_shell_escape(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """env 降级（OS 包裹缺席）：shell-escape 系从 argv+applied 双摘入 dropped。"""
-    monkeypatch.setattr(eng_mod, "_bwrap_capable", lambda: False)
+    monkeypatch.setattr(sb_mod, "_bwrap_capable", lambda: False)
     calls: list[dict[str, object]] = []
     monkeypatch.setattr(eng_mod, "run_process", _fake_run(calls))
     (tmp_path / "main.tex").write_text("x")
@@ -1065,35 +1067,35 @@ def test_apply_sandbox_truth_table(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """分派真值表：off / sandbox-exec(包裹换 argv) / bwrap / env / 非 linux env。"""
-    cmd, mode = eng_mod._apply_sandbox(  # noqa: SLF001
+    cmd, mode = sb_mod._apply_sandbox(  # noqa: SLF001
         ["x"], root=tmp_path, out=tmp_path, env={}, enabled=False, allow_net=True
     )
     assert mode == "off" and cmd == ["x"]  # noqa: PT018
     # sandbox_wrap 返回**新** argv（is-not 判定）→ sandbox-exec
     monkeypatch.setattr(
-        eng_mod,
+        sb_mod,
         "sandbox_wrap",
         lambda c, **k: ["se", *c],  # noqa: ARG005
     )
-    cmd, mode = eng_mod._apply_sandbox(  # noqa: SLF001
+    cmd, mode = sb_mod._apply_sandbox(  # noqa: SLF001
         ["x"], root=tmp_path, out=tmp_path, env={}, enabled=True, allow_net=True
     )
     assert mode == "sandbox-exec" and cmd[0] == "se"  # noqa: PT018
     # 原样返回（is 判定）→ 平台分派
-    monkeypatch.setattr(eng_mod, "sandbox_wrap", lambda c, **k: c)  # noqa: ARG005
-    monkeypatch.setattr(eng_mod, "_bwrap_wrap", lambda c, **k: ["bw", *c])  # noqa: ARG005
+    monkeypatch.setattr(sb_mod, "sandbox_wrap", lambda c, **k: c)  # noqa: ARG005
+    monkeypatch.setattr(sb_mod, "_bwrap_wrap", lambda c, **k: ["bw", *c])  # noqa: ARG005
     monkeypatch.setattr(sys, "platform", "linux")
-    cmd, mode = eng_mod._apply_sandbox(  # noqa: SLF001
+    cmd, mode = sb_mod._apply_sandbox(  # noqa: SLF001
         ["x"], root=tmp_path, out=tmp_path, env={}, enabled=True, allow_net=True
     )
     assert mode == "bwrap" and cmd[0] == "bw"  # noqa: PT018
-    monkeypatch.setattr(eng_mod, "_bwrap_wrap", lambda c, **k: None)  # noqa: ARG005
-    cmd, mode = eng_mod._apply_sandbox(  # noqa: SLF001
+    monkeypatch.setattr(sb_mod, "_bwrap_wrap", lambda c, **k: None)  # noqa: ARG005
+    cmd, mode = sb_mod._apply_sandbox(  # noqa: SLF001
         ["x"], root=tmp_path, out=tmp_path, env={}, enabled=True, allow_net=True
     )
     assert mode == "env" and cmd == ["x"]  # noqa: PT018
     monkeypatch.setattr(sys, "platform", "win32")
-    _cmd2, mode = eng_mod._apply_sandbox(  # noqa: SLF001
+    _cmd2, mode = sb_mod._apply_sandbox(  # noqa: SLF001
         ["x"], root=tmp_path, out=tmp_path, env={}, enabled=True, allow_net=True
     )
     assert mode == "env"  # 非 linux 不问 bwrap
@@ -1101,7 +1103,7 @@ def test_apply_sandbox_truth_table(
 
 def test_rc_to_signal_wrap_decode() -> None:
     """128+N 仅在 bwrap/sandbox-exec 包裹下解码——off/env 下是字面退出码。"""
-    sig = eng_mod._rc_to_signal  # noqa: SLF001
+    sig = sb_mod._rc_to_signal  # noqa: SLF001
     assert sig(-11, "off") == 11  # noqa: PLR2004
     assert sig(None, "bwrap") is None
     assert sig(0, "bwrap") is None
@@ -1388,13 +1390,13 @@ def test_makefile_inputs_roundtrip() -> None:
             for _ in range(rng.randrange(1, 5))
         ]
         text = "out: " + " ".join(_mk_escape(n) for n in names) + "\n"
-        assert eng_mod._makefile_inputs(text) == names, text  # noqa: SLF001
+        assert deps_mod._makefile_inputs(text) == names, text  # noqa: SLF001
         assert _o_makefile_names(text) == names
 
 
 def test_makefile_inputs_edge_table() -> None:
     """首行无分隔→None；注释/空行跳过；``#`` 起注释截断；续行合并。"""
-    mk = eng_mod._makefile_inputs  # noqa: SLF001
+    mk = deps_mod._makefile_inputs  # noqa: SLF001
     assert mk("no colon here\nout: x.tex\n") is None
     assert mk("# comment\nout: x.tex\n") == ["x.tex"]
     assert mk("out:\n") == []
@@ -1408,7 +1410,7 @@ def test_makefile_inputs_edge_table() -> None:
 
 def test_tectonic_unescaped_inputs_semantics() -> None:
     """未转义面：首内容行无 ``:`` → []；此后每物理行一个整名（不拆空白）。"""
-    un = eng_mod._tectonic_unescaped_inputs  # noqa: SLF001
+    un = deps_mod._tectonic_unescaped_inputs  # noqa: SLF001
     assert un("out: a.tex b.sty\n") == ["a.tex b.sty"]  # 整行一个名
     assert un("no sep\nout: x\n") == []
     assert un("out: a.tex \\\n b.sty\n") == ["a.tex", "b.sty"]
@@ -1516,8 +1518,8 @@ def test_kpathsea_list_fuzz() -> None:
             p = elem.lstrip("!").removesuffix("//")
             if p and Path(p).is_absolute():
                 want.append(p)
-        assert eng_mod._kpathsea_list(s) == want, s  # noqa: SLF001
-    assert eng_mod._kpathsea_list("/a;/b") == ["/a;/b"]  # noqa: SLF001  # ; 不拆
+        assert sb_mod._kpathsea_list(s) == want, s  # noqa: SLF001
+    assert sb_mod._kpathsea_list("/a;/b") == ["/a;/b"]  # noqa: SLF001  # ; 不拆
 
 
 def test_bwrap_env_paths_oracle() -> None:
@@ -1532,16 +1534,16 @@ def test_bwrap_env_paths_oracle() -> None:
         "TEXMFVAR": "",
         "BIBINPUTS": "relative:also",
     }
-    rw, ro = eng_mod._bwrap_env_paths(env)  # noqa: SLF001
+    rw, ro = sb_mod._bwrap_env_paths(env)  # noqa: SLF001
     assert rw == ["/a", "/b"]  # "/b c" 空格拆开，"c" 非绝对弃
     assert ro == ["/inp", "/inp2", "/bundle/b.tar"]
 
 
 def test_bwrap_mounts_anchor(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """挂载面：HOME 本体不挂；kpathsea/env 路径并入；引擎锚发行根三级。"""
-    monkeypatch.setattr(eng_mod, "_kpathsea_dirs", lambda: (["/krw"], ["/kro"]))
+    monkeypatch.setattr(sb_mod, "_kpathsea_dirs", lambda: (["/krw"], ["/kro"]))
     home = Path.home()
-    rw, ro = eng_mod._bwrap_mounts(  # noqa: SLF001
+    rw, ro = sb_mod._bwrap_mounts(  # noqa: SLF001
         "/usr/bin/xelatex", root=tmp_path, out=tmp_path, env={}
     )
     assert str(home) not in rw and str(home) not in ro  # noqa: PT018
@@ -1558,7 +1560,7 @@ def test_bwrap_mounts_anchor(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
     fake_dist = tmp_path / "dist" / "bin" / "arch"
     fake_dist.mkdir(parents=True)
     (fake_dist / "xelatex").write_text("x")
-    _rw2, ro2 = eng_mod._bwrap_mounts(  # noqa: SLF001
+    _rw2, ro2 = sb_mod._bwrap_mounts(  # noqa: SLF001
         str(fake_dist / "xelatex"), root=root2, out=out2, env={}
     )
     assert str(tmp_path / "dist") in ro2
@@ -1566,7 +1568,7 @@ def test_bwrap_mounts_anchor(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
     hb = home / ".texlate" / "tools"
     hb.mkdir(parents=True)
     (hb / "tectonic").write_text("x")
-    _rw3, ro3 = eng_mod._bwrap_mounts(  # noqa: SLF001
+    _rw3, ro3 = sb_mod._bwrap_mounts(  # noqa: SLF001
         str(hb / "tectonic"), root=root2, out=out2, env={}
     )
     assert str(hb / "tectonic") in ro3
@@ -1745,16 +1747,16 @@ def test_texmfdist_rc_ignored(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
         returncode = 1
 
     monkeypatch.setattr(subprocess, "run", lambda *a, **k: _P())  # noqa: ARG005
-    eng_mod._texmfdist.cache_clear()  # noqa: SLF001
-    assert eng_mod._texmfdist() is None  # noqa: SLF001
+    sb_mod._texmfdist.cache_clear()  # noqa: SLF001
+    assert sb_mod._texmfdist() is None  # noqa: SLF001
 
     class _Q:  # rc=0 正常取 stdout
         stdout = "/usr/share/texmf-dist\n"
         returncode = 0
 
     monkeypatch.setattr(subprocess, "run", lambda *a, **k: _Q())  # noqa: ARG005
-    eng_mod._texmfdist.cache_clear()  # noqa: SLF001
-    assert eng_mod._texmfdist() == "/usr/share/texmf-dist"  # noqa: SLF001
+    sb_mod._texmfdist.cache_clear()  # noqa: SLF001
+    assert sb_mod._texmfdist() == "/usr/share/texmf-dist"  # noqa: SLF001
 
 
 # ================================================================ 真 shim 子进程

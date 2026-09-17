@@ -434,7 +434,7 @@ def test_misschar_window_no_swallow_real() -> None:
 
 
 #: 三层错误行口径一致集——l2._FILE_LINE_RX 消息面与 Warning 排除锚定已
-#: 对齐 engine._ERR_FILELINE_RE/_NONERR_FILELINE_RE（严侧）；
+#: 对齐 texlog._ERR_FILELINE_RE/_NONERR_FILELINE_RE（严侧）；
 #: 真实语料 1504 log 零分歧——分叉全是畸形形。
 _ERRLINES_AGREED = [
     "./main.tex:5:",  # 空消息——三层均不收
@@ -485,7 +485,7 @@ def test_misschar_requires_colon() -> None:
     ],
 )
 def test_utf8_variant_cross_layer(line: str) -> None:
-    """invalid_utf8 变体跨层同命中——engine._UTF8_WARN_RE 已对齐 l2
+    """invalid_utf8 变体跨层同命中——loginfo._UTF8_WARN_RE 已对齐 l2
     （IGNORECASE + ``replaced by U+FFFD``，原 strict-xfail）。"""
     text = "(./main.tex\n" + line + "\n)\n"
     v = parse_log_text(text)

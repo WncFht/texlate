@@ -1,5 +1,9 @@
 r"""TeX ``.log`` 词法原语 —— engine/l2/fixloop 三处文件栈收敛的单源实现。
 
+错误行 regex（``_ERR_FNAME``/``_ERR_FILELINE_RE``/``_NONERR_FILELINE_RE``
+等）亦居此层——``compile/loginfo`` 与 ``fixloop/logparse`` 的共同单源，
+叶子层定位使 fixloop→compile 模块级环边不再存在。
+
 ``(``/``)`` 开闭配对追踪：TeX log 用圆括号标记打开/关闭文件，行内可能混
 非文件括号（``.log`` 折行、参数转储），非文件 ``(`` 入栈 ``None`` 占位以
 保持配对正确——这是文件栈算法的核心不变量（早期"只压不弹"实现把栈
@@ -245,3 +249,23 @@ def is_dos_eps(token: str | None, root: Path | None, cache: dict[str, bool]) -> 
         ok = False
     cache[token] = ok
     return ok
+
+
+# ================================================================ 错误行原语
+#: ``file:line:`` 文件名面（``compile/loginfo`` 与 ``fixloop/logparse`` 的
+#: 单源；l2 ``_FILE_LINE_RX`` 同口径副本）：``name.ext`` 必带扩展名、禁
+#: ``()``/空白/``:`` 内嵌——``Makefile:5:``/``C:\foo.tex:5:``/``(x.tex:5:``
+#: 畸形形齐拒；扩展名不限 tex 系（``.eps``/``.pdf_t``/``.end`` 等皆真错，
+#: l2 侧 7814 log 实证）。
+_ERR_FNAME = r"[^()\s:]+\.[A-Za-z0-9_-]{1,10}"
+_ERR_FILELINE_RE = re.compile(
+    r"^" + _ERR_FNAME + r":\d+: \S"
+)  # -file-line-error 引擎级错误
+#: ``file:line:`` 形态的非错误行（loginfo/logparse 同口径）：Warning 行
+#: （警告也带 file:line: 前缀时不能计入错误）与 ``==> Fatal error occurred``
+#: 汇总尾行（同一失败的复述，多计一次）。
+_NONERR_FILELINE_RE = re.compile(
+    r"^" + _ERR_FNAME + r":\d+:\s*(?:(?:LaTeX|Package|Class)\b[^\n]*?\bWarning\b|==>)"
+)
+_ERR_BANG_RE = re.compile(r"^!")
+_L_NUM_RE = re.compile(r"^l\.(\d+)")

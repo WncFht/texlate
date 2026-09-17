@@ -14,6 +14,8 @@ from types import ModuleType
 
 import pytest
 
+import texlate.compile.loginfo as loginfo_mod
+import texlate.compile.sandbox as sb_mod
 from texlate.compile import engine as eng_mod
 from texlate.compile.engine import (
     CompRes,
@@ -190,7 +192,7 @@ def test_classify_error_degrades_without_ruleset(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """rules.yaml 不可载 → 不重建冻结副本，降级 other/clean（timeout 仍短路）。"""
-    monkeypatch.setattr("texlate.compile.engine._taxonomy", lambda: None)
+    monkeypatch.setattr("texlate.compile.loginfo._taxonomy", lambda: None)
     assert classify_error(
         "! LaTeX Error: File `x.sty' not found.", None, "", timed_out=False
     ) == ("other", None)
@@ -200,7 +202,7 @@ def test_classify_error_degrades_without_ruleset(
 
 def test_engine_taxonomy_ids_match_yaml() -> None:
     """漂移护栏：engine 可达的 head/tail/warn id 集 == rules.yaml taxonomy 段。"""
-    tax = eng_mod._taxonomy()  # noqa: SLF001
+    tax = loginfo_mod._taxonomy()  # noqa: SLF001
     assert tax is not None
     yaml_ids = {e["id"] for e in load_yaml(RULES_PATH).get("taxonomy") or []}
     engine_ids = (
@@ -1114,7 +1116,7 @@ def test_tectonic_compile_dropped_z_not_in_flags_applied(
 def test_rc_to_signal_wrapper_128n() -> None:
     """bwrap 把子死信号上报为 128+N：128+SIGPIPE 在 env/off 下按字面
     退出码、bwrap/sandbox-exec 下解码回信号号；>192 按字面退出码。"""
-    f = eng_mod._rc_to_signal  # noqa: SLF001
+    f = sb_mod._rc_to_signal  # noqa: SLF001
     assert f(-signal.SIGPIPE, "bwrap") == signal.SIGPIPE
     assert f(-signal.SIGKILL, "off") == signal.SIGKILL
     assert f(128 + signal.SIGPIPE, "bwrap") == signal.SIGPIPE

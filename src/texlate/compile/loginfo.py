@@ -1,0 +1,222 @@
+r"""log 语义层：TeX ``.log`` → ``LogInfo`` + 错误分类学适配（docs/08 §2.3/§4.3）。
+
+行级词法原语（``(``/``)`` 文件栈、``file:line:``/``^!``/``l.NNN`` regex）
+在叶子层 ``texlog.py``；本模块持语义产物（错误计数/首错上下文/红线命中
+``warnings_hit`` 与 ``warnings_sys`` 归因）与 ``classify_error`` 薄适配——
+匹配语义（head/tail 有序评估、payload_group、``subclassify`` 收窄、tail
+``guard`` 复核）全部归 ``fixloop.logparse.Taxonomy``，分类表**单源** =
+``fixloop/rules/`` ``taxonomy:`` 段。
+"""
+
+from __future__ import annotations
+
+import logging
+import re
+from dataclasses import dataclass, field
+from functools import lru_cache
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+from texlate.redlines import ENGINE_RED_LINES, REDLINES_BY_ID, name_pattern
+from texlate.texlog import (
+    _ERR_BANG_RE,
+    _ERR_FILELINE_RE,
+    _L_NUM_RE,
+    _NONERR_FILELINE_RE,
+    is_dos_eps,
+    is_project_file,
+    patch_graphic_top,
+    update_file_stack,
+)
+
+if TYPE_CHECKING:
+    from texlate.compile.fixloop.logparse import ErrReport, Taxonomy
+
+log = logging.getLogger(__name__)
+
+
+@dataclass
+class LogInfo:
+    """`parse_log` 产物：错误计数、首错+上下文、tail、文件栈。"""
+
+    n_errors: int = 0
+    first_error: str | None = None
+    error_ctx: str | None = None
+    error_line: int | None = None  # l.NNN
+    file_stack: list[str] = field(default_factory=list)
+    #: 首错行位之前已弹出的文件名（pop 序；``None`` 非文件配对帧已滤）——
+    #: ``File ended while scanning`` 类 runaway 错报位在父文件续行
+    #: （``)`` 先于错误打印），``popped_files[-1]`` = 最近关闭的文件 =
+    #: 肇事候选（#78）。与 ``file_stack`` 同位快照（首错时刻），无错 → 空。
+    popped_files: list[str] = field(default_factory=list)
+    tail: str = ""
+    errors: list[str] = field(default_factory=list)  # 全部 '^!'/'file:line:' 行
+    warnings_hit: list[str] = field(default_factory=list)  # judge 红线命中
+    #: 系统 texmf/bundle 树来源的红线命中（``invalid_utf8@<file>``）——
+    #: 工程文件不产生者的警告降为观察项，judge 记 notes 不阻断 clean。
+    warnings_sys: list[str] = field(default_factory=list)
+
+
+#: clean 判据的 log warning 红线（docs/08 §4.3）：任一命中即 dirty。
+#: ``invalid_utf8`` 按产生文件归因——仅工程文件源计入 ``warnings_hit``；
+#: 系统 texmf/bundle 件（老 CTAN 包自带坏字节，loop1 归因占 96%）与
+#: ``dos_eps_skipped`` 二进制件（normalize 原样保留、警告是必然残余）降
+#: ``warnings_sys`` 观察项（fixer-utf8 `673d8ce` normalize 四臂后复审）。
+#: 红线表单源 = ``texlate.redlines``（★2 收敛——本层发射名/pattern 即
+#: registry ``engine`` 切片；``rules/`` ``warnings:``/judge/l2 同表别层）。
+_UTF8_WARN_RE = re.compile(
+    name_pattern(REDLINES_BY_ID["invalid_utf8"].engine)[1], re.IGNORECASE
+)
+WARNING_RED_LINES: list[tuple[str, str]] = list(ENGINE_RED_LINES)
+
+
+def _scan_error_lines(
+    lines: list[str], info: LogInfo, project_root: Path | None = None
+) -> tuple[int, bool]:
+    """数 `^!`+`file:line:` 错误、记首错位置、追踪 `(` 文件栈。
+
+    返回 ``(首错行号, 工程源 invalid_utf8 命中)``：逐行把栈顶最内文件
+    作产生者交 ``is_project_file`` 判定——系统件源名收进
+    ``info.warnings_sys``（``invalid_utf8@<file>``），工程源命中由
+    ``parse_log`` 收口进 ``warnings_hit``；DOS 魔数 EPS（normalize
+    ``dos_eps_skipped`` 原样保留件）视同系统件降级，标 ``(dos-eps)``。
+    """
+    ctx_start = -1
+    stack: list[str | None] = []
+    #: 弹栈史全程累计——``)`` 先于错误行打印（runaway 报位在父文件续行），
+    #: 仅收集出错行会丢掉真肇事件；首错捕获点与 file_stack 同位快照。
+    popped: list[str | None] = []
+    utf8_proj = False
+    utf8_sys: set[str] = set()
+    dos_eps_cache: dict[str, bool] = {}
+    for i, ln in enumerate(lines):
+        update_file_stack(ln, stack, popped)
+        patch_graphic_top(ln, stack)
+        if _UTF8_WARN_RE.search(ln):
+            inner = next((s for s in reversed(stack) if s), None)
+            if is_dos_eps(inner, project_root, dos_eps_cache):
+                # dos_eps_skipped 件：normalize 字节原样保留的二进制 EPS，
+                # 残余警告降 warnings_sys 并打 (dos-eps) 标便于台账对账。
+                name = Path(inner).name if inner else "?"
+                utf8_sys.add(f"{name}(dos-eps)")
+            elif is_project_file(inner, project_root):
+                utf8_proj = True
+            else:
+                utf8_sys.add(Path(inner).name if inner else "?")
+        if _ERR_BANG_RE.match(ln) or (
+            _ERR_FILELINE_RE.match(ln) and not _NONERR_FILELINE_RE.match(ln)
+        ):
+            info.n_errors += 1
+            info.errors.append(ln.strip()[:300])
+            if info.first_error is None:
+                info.first_error = ln.strip()
+                ctx_start = i
+                info.file_stack = [s for s in stack if s]
+                info.popped_files = [t for t in popped if t is not None]
+    info.warnings_sys = [f"invalid_utf8@{n}" for n in sorted(utf8_sys)]
+    return ctx_start, utf8_proj
+
+
+def parse_log(log_text: str, *, project_root: Path | None = None) -> LogInfo:
+    """解析 TeX log 文本 → LogInfo（引擎无关；调用方负责拿文本）。
+
+    错误计数**双格式**：`^!` 行 + `file:line:` 行（只数 `!` 会漏掉
+    `-file-line-error` 模式下引擎级错误，docs/08 §2.3）。
+
+    ``project_root`` = 编译工作根（``wdir``）：invalid_utf8 红线按警告
+    产生文件归因，系统 texmf/bundle 源与 DOS 魔数 EPS（normalize
+    ``dos_eps_skipped`` 原样保留件）降 ``warnings_sys`` 观察项。
+    缺席时绝对路径按 texmf 标记启发式、裸名保守归工程（不掉红线）。
+    """
+    info = LogInfo()
+    if not log_text:
+        return info
+    lines = log_text.splitlines()
+    ctx_start, utf8_proj = _scan_error_lines(lines, info, project_root)
+    if ctx_start >= 0:
+        ctx_lines = []
+        for j in range(ctx_start, min(ctx_start + 9, len(lines))):
+            ctx_lines.append(lines[j])
+            if info.error_line is None:
+                m = _L_NUM_RE.match(lines[j].strip())
+                if m:
+                    info.error_line = int(m.group(1))
+        info.error_ctx = "\n".join(ctx_lines)
+    info.tail = "\n".join(lines[-30:])
+    for name, pat in WARNING_RED_LINES:
+        if name == "invalid_utf8":
+            if utf8_proj:
+                info.warnings_hit.append(name)
+        elif re.search(pat, log_text, re.MULTILINE):
+            info.warnings_hit.append(name)
+    return info
+
+
+# ================================================================ 错误分类学
+#: ``scope:warnings`` 条目（``warn_*``）以 ``rep.warnings`` 为驱动原料——
+#: 本接口只收 err/ctx/tail 三段不喂 warnings，故该段在本侧天然不触发
+#: （fixloop 主循环以全文 log 扫描另行驱动，两处调用面本就不同）。
+
+
+@lru_cache(maxsize=1)
+def _taxonomy() -> Taxonomy | None:
+    """``rules/`` ``taxonomy:`` → 编译态 ``Taxonomy``（进程内一次）。
+
+    惰性载入：``fixloop/__init__`` 链（cases→fcntl 平台门、engine→
+    compile.inject）重且非全平台可 import；且引擎层在 ``rules/`` 缺席的
+    上下文（裁剪部署、bench 快照）仍须可 import、可分类。
+
+    装载失败**不**重建冻结副本——副本即下一份漂移源；降级 ``None`` 使
+    classify 退化为 ``other``/``clean``，warning 记一次（同根因由 fixloop
+    侧 ``load_ruleset`` 的校验错误更完整报出）。只读 ``taxonomy:`` 段而不走
+    ``Ruleset.load``：rules 段校验失败（规则 schema 面）不应击穿分类。
+    """
+    try:
+        from texlate.compile.fixloop._yamlish import (  # noqa: PLC0415  # 延迟: fixloop/__init__ 链重+平台门
+            load_yaml,
+        )
+        from texlate.compile.fixloop.engine import (  # noqa: PLC0415  # 同上
+            RULES_PATH,
+        )
+        from texlate.compile.fixloop.logparse import (  # noqa: PLC0415  # 同上
+            Taxonomy,
+        )
+
+        data = load_yaml(RULES_PATH)
+        entries = data.get("taxonomy") if isinstance(data, dict) else None
+        if not entries or data.get("version") != 1:
+            log.warning("rules/ taxonomy 段缺失/空或 version!=1: %s", RULES_PATH)
+            return None
+        return Taxonomy(entries)
+    except Exception:  # 装载失败 = 分类降级, 不阻断引擎层
+        log.warning(
+            "rules/ taxonomy 装载失败, 错误分类降级为 other/clean",
+            exc_info=True,
+        )
+        return None
+
+
+def _err_report(first: str | None, ctx: str | None, tail: str) -> ErrReport:
+    """薄构造：``(err, ctx, tail)`` → ``logparse.ErrReport``。"""
+    from texlate.compile.fixloop.logparse import (  # noqa: PLC0415  # 延迟: 同上
+        ErrReport,
+    )
+
+    return ErrReport(first=first, ctx=ctx, tail=tail)
+
+
+def classify_error(
+    err: str | None, ctx: str | None, tail: str, *, timed_out: bool
+) -> tuple[str | None, str | None]:
+    """首错 → `(category, payload)`；payload 给规则定位用（文件名/字体名/cs 名）。
+
+    分类学单源 = ``fixloop/rules/`` ``taxonomy:`` 段（见 ``_taxonomy``）；
+    ``rules/`` 不可载时降级为 ``other``/``clean``（不留冻结副本——副本即
+    漂移源）。
+    """
+    if timed_out:
+        return "timeout", None
+    tax = _taxonomy()
+    if tax is None:
+        return ("other" if err else "clean"), None
+    return tax.classify(_err_report(err, ctx, tail or ""))
