@@ -273,14 +273,19 @@ def load_manifest_rows(corpus: Path, layers) -> list[dict]:
 
 # ---------------------------------------------------------------- compile
 def judge_dict(res, *, expect_cjk: bool) -> dict:
-    """CompileResult → {compile, verdict, status, l2_attr}——``texlate.e2e._compile_judge``
-    同形状（bench 侧复刻点收敛：e2e_real/e2e_mock/stagerun 共用）。
+    """CompileResult → {compile, verdict, status, l2_attr, taxonomy}——
+    ``texlate.e2e._compile_judge`` 同形状（bench 侧复刻点收敛：
+    e2e_real/e2e_mock/stagerun 共用）。
 
     ``l2_attr`` = L2 log 归因载荷（canonical 键——``L2Verdict.attribution_dict``
     单源：逐条 ``{kind,file,line,head,log_line}`` hits + ``warn_by_class``），
     stagerun 落 ``metrics.l2_attr`` / fixloop post 落 ``metrics.post.l2_attr``，
     供 records 离线按类聚类 warning/error。产品侧 ``_tail_dict`` 有意不带
     （单跑报告走 ``rec["l2"]`` 修复链报告，键名不同不撞）。
+
+    ``taxonomy`` = fixloop 内部分类器对本次编译 log 的二级分类
+    ``{cat, pay}``（M1 物化, still-manual-audit-2026-09-17）——records 侧
+    聚合桶 (other/errors>3/syntax) 由 dossier/triage 直读细分。
     """
     from texlate.compile.judge import judge
     from texlate.e2e import _l2_parse
@@ -312,7 +317,31 @@ def judge_dict(res, *, expect_cjk: bool) -> dict:
         },
         "status": v.status,
         "l2_attr": _l2_parse(res).attribution_dict(),
+        "taxonomy": _taxonomy_of(res),
     }
+
+
+@functools.lru_cache(maxsize=1)
+def _fixloop_rs():
+    """fixloop Ruleset 懒载单例——taxonomy 物化逐格调, yaml 只解一次。"""
+    from texlate.compile.fixloop import Ruleset
+
+    return Ruleset.load()
+
+
+def _taxonomy_of(res) -> dict:
+    """CompileResult → fixloop taxonomy ``{cat, pay}`` (first_error 二级类)。"""
+    try:
+        from texlate.compile.fixloop.engine import _report_of
+
+        rs = _fixloop_rs()
+        rep = _report_of(res, rs.warn_patterns)
+        cat, pay = rs.taxonomy.classify(
+            rep, timed_out=bool(getattr(res, "timed_out", False))
+        )
+    except Exception:
+        return {"cat": None, "pay": None}  # advisory 字段——分类故障不毁卷宗
+    return {"cat": cat, "pay": pay}
 
 
 _RE_MISSING_FILE = re.compile(r"File `([^']+)' not found")

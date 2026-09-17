@@ -134,6 +134,26 @@ def test_judge_dict_has_l2_attr(tmp_path: Path) -> None:
     assert bare["l2_attr"]["hits"] == []
 
 
+def test_judge_dict_has_taxonomy(tmp_path: Path) -> None:
+    """judge_dict tail 带 fixloop taxonomy 二级分类——M1 物化位
+    (still-manual-audit): stagerun 落 ``metrics.taxonomy`` /
+    fixloop post 落 ``metrics.post.taxonomy``, dossier 细分聚合桶直读。"""
+    log = tmp_path / "main.log"
+    log.write_text(
+        "./main.tex:9: Undefined control sequence.\nl.9 \\foo\n",
+        encoding="utf-8",
+    )
+    res = CompRes(engine="xelatex")
+    res.log_path = log
+    res.workdir = tmp_path
+    tax = benchlib.judge_dict(res, expect_cjk=False)["taxonomy"]
+    assert tax["cat"] == "undefined_cs"
+    assert tax["pay"] == "foo"  # payload 是 cs 名 (无前导反斜杠)
+    json.dumps(tax)  # records jsonl 落账可序列化
+    bare = benchlib.judge_dict(CompRes(engine="xelatex"), expect_cjk=False)
+    assert bare["taxonomy"]["cat"] in ("clean", "other", None)
+
+
 # ---------------------------------------------------------------- e2e_mock 种子
 def test_e2e_mock_seed_fallback(tmp_path: Path) -> None:
     """账全坏行 → results.json 兜底；快照坏 → 空种子不崩。"""
