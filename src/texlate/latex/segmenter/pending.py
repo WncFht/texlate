@@ -15,10 +15,15 @@ from texlate.latex.tables import (
     ACCENT_CHARS,
     BOUNDARY_NAMES,
     BOUNDARY_TAIL,
+    CHUNK_ARG_NAMES,
+    CHUNK_ARG_SPEC,
     COND_RX,
     DIMEN_TAIL_KIND,
     FILENAME_CHARS,
+    FONT_SWITCHES,
+    INLINE_LITERAL_CMDS,
     INPUT_SCAN_CMDS,
+    PROTECT_BLOCK_NAMES,
     PROTECT_NAMES,
     TRANSPARENT_HEAD_SPEC,
 )
@@ -57,6 +62,15 @@ def _accent_cs(name: str) -> bool:
     return len(name) == 1 and name in ACCENT_CHARS
 
 
+def _inline_lit_cs(name: str) -> bool:
+    r"""行内字面行谓词（``mainloop._inline_lit_cs`` 同判据——符号/品牌/字体开关/单字符非字母）。"""
+    return (
+        name in INLINE_LITERAL_CMDS
+        or name in FONT_SWITCHES
+        or (len(name) == 1 and not name.isalpha())
+    )
+
+
 # ``_group_surface`` 行序的名级投影——``mainloop._DISPATCH_FAMS`` 的镜像钉
 # （``tests/test_dispatch_mirror.py`` 逐名裁决两表族序）。行 =
 # ``(族 tag, 名集 | 谓词 | None)``；``None`` = env 宏/argspec/探针动态行。
@@ -72,11 +86,14 @@ _GRP_SURFACE_FAMS: tuple[tuple[str, object], ...] = (
     ("cond", COND_RX.match),
     ("input-scan", INPUT_SCAN_CMDS),
     ("env-macro", None),  # _grp_env_macro：env_begin/env_end 宏端点
+    ("chunk-arg", CHUNK_ARG_NAMES),  # 头参进 CMD、可译 {arg} 留 surface
+    ("protect-block", PROTECT_BLOCK_NAMES),  # \author 族整块 → AUTHOR
     ("boundary", BOUNDARY_NAMES),  # BOUNDARY_TAIL/DIMEN_TAIL 尾参内嵌本行
     ("bsbs", "\\"),
     ("transparent-head", TRANSPARENT_HEAD_SPEC),
     ("tail", DIMEN_TAIL_KIND),  # 非 BOUNDARY 的 dimen/assign 尾参兜收
     ("accent", _accent_cs),
+    ("inline-literal", _inline_lit_cs),  # 无参行内字面——argspec/探针前截
     ("argspec", None),
     ("probe", None),  # _grp_probe_end → 逐字
 )
@@ -93,10 +110,13 @@ _PEND_SPEC_FAMS: tuple[tuple[str, object], ...] = (
     ("cond", COND_RX.match),
     ("input-scan", INPUT_SCAN_CMDS),
     ("env-macro", None),
+    ("chunk-arg", CHUNK_ARG_NAMES),  # 头参槽（*?+[opt] 等非文本位）
+    ("protect-block", PROTECT_BLOCK_NAMES),  # [opt]{m} 槽
     ("boundary", BOUNDARY_NAMES),  # BOUNDARY_TAIL 位序槽内嵌本行
     ("bsbs", "\\"),
     ("transparent-head", TRANSPARENT_HEAD_SPEC),
     ("accent", _accent_cs),
+    ("inline-literal", _inline_lit_cs),  # 无参——不吸界外 token
     ("argspec", None),
     ("keyarg", None),  # _keyarg_tail 宏体尾 key-arg
     ("probe", None),  # _PEND_PROBE 槽
@@ -481,6 +501,19 @@ class _Pending:
         m = self._resolve_macro(src, name)
         if getattr(m, "kind", "") in ("env_begin", "env_end"):
             return None, ""  # env 尾参走 ``_grp_env_args_end`` 另一机制
+        if name in CHUNK_ARG_NAMES:
+            # 头参槽（``*``? + 可译位前的非文本位——``[opt]``/类型名）；
+            # 可译 ``{arg}`` 本身不吸——须留主流（主流字面前缀同位）
+            spec_s, tidx = CHUNK_ARG_SPEC.get(name, ("om", 1))
+            slots = ["s"]
+            for s2 in _chunk_spec_cached(spec_s)[:tidx]:
+                sl = _pend_slot_of(s2)
+                if sl is None:
+                    break
+                slots.append(sl)
+            return slots, ""
+        if name in PROTECT_BLOCK_NAMES:
+            return ["o", "m"], ""  # ``[opt]``?``{arg}``——keyval 续组仅组内消费
         if name in BOUNDARY_NAMES:
             spec = BOUNDARY_TAIL.get(name)
             if spec is None:
@@ -496,6 +529,10 @@ class _Pending:
             return ["o", "m"], ""  # {red} 头参非文本；{text} 留主流
         if _accent_cs(name):
             return ["a"], ""
+        if _inline_lit_cs(name):
+            # 行内字面无参——零槽形防误吸（``\5``/``\_``/字体开关名下
+            # argspec 假条目不得领槽把界外散文拉进组）
+            return None, ""
         e = _seg.argspec_lookup(name, self.state.pkgs)
         if e is not None:
             if e.policy in ("literal", "transparent"):
@@ -873,6 +910,51 @@ class _Pending:
                 )
                 i = j2
                 continue
+            if name in CHUNK_ARG_NAMES:
+                # ``\section[opt]{arg}`` 组内对价（``_handle_chunk_arg`` 镜像）：
+                # ``*``?+可译位前头参随名进 ``[[CMD]]``，``{arg}`` 组整体留
+                # surface 续扫（B 臂无独立 chunk piece——参留主流即可见同义，
+                # 名不再裸落译文面）。可译槽缺席/非 ``{..}`` 组 → 名逐字回落
+                # （主流 bail→``_rappend_tok`` 同规）；空参 → 整调用逐字。
+                spec_s, tidx = CHUNK_ARG_SPEC.get(name, ("om", 1))
+                k = i + 1
+                while k < n and toks[k].kind == "space":
+                    k += 1
+                if k < n and toks[k].kind == "other" and toks[k].text == "*":
+                    k += 1
+                j2 = self._grp_spec_args_end(
+                    toks, k, _chunk_spec_cached(spec_s)[:tidx], (), None
+                )
+                k = j2
+                while k < n and toks[k].kind == "space":
+                    k += 1
+                e2 = (
+                    self._grp_bal(toks, k, brace=True)
+                    if k < n and toks[k].kind == "lbrace"
+                    else None
+                )
+                if e2 is None:
+                    self._cat_surf(out, self._tok_surface(t))
+                    i += 1
+                    continue
+                if not self._grp_surfs(toks[k + 1 : e2 - 1]).strip():
+                    self._cat_surf(out, self._grp_surfs(toks[i:e2]))
+                    i = e2
+                    continue
+                self._cat_surf(
+                    out, self._grp_ph(PhType.CMD, self._grp_surfs(toks[i:k]))
+                )
+                i = k
+                continue
+            if name in PROTECT_BLOCK_NAMES:
+                # ``\author[opt]{..}`` 整块 → ``[[AUTHOR]]``——abort（``{`` 未
+                # 随只护 cs 本体）与 keyval 续组语义在 ``_grp_protect_block_end``
+                e = self._grp_protect_block_end(toks, i)
+                self._cat_surf(
+                    out, self._grp_ph(PhType.AUTHOR, self._grp_surfs(toks[i:e]))
+                )
+                i = e
+                continue
             if name in BOUNDARY_NAMES:
                 # 组内 BOUNDARY_TAIL/dimen 尾参（顶层 _handle_boundary 对价，
                 # in_arg=COMMAND 整调用保护）：结构尾参 ``{2mm}``/``[o]``、裸
@@ -915,7 +997,12 @@ class _Pending:
             if name in TRANSPARENT_HEAD_SPEC:
                 # \textcolor{red}{text}：头参进 [[CMD]]，{text} 留 surface
                 j2 = self._grp_spec_args_end(
-                    toks, i + 1, TRANSPARENT_HEAD_SPEC[name], (), None
+                    toks,
+                    i + 1,
+                    TRANSPARENT_HEAD_SPEC[name],
+                    (),
+                    None,
+                    allow_single_token=False,
                 )
                 if j2 > i + 1:
                     self._cat_surf(
@@ -961,6 +1048,13 @@ class _Pending:
                     )
                     i = j
                     continue
+                self._cat_surf(out, self._tok_surface(t))
+                i += 1
+                continue
+            if _inline_lit_cs(name):
+                # 行内字面（主流 row19 对价）：符号/品牌/字体开关/单字符
+                # 非字母命令零参逐字——``\5``/``\_`` 不得被下游 argspec
+                # 假条目/探针吃参（参留 surface = 主流可见同义）
                 self._cat_surf(out, self._tok_surface(t))
                 i += 1
                 continue

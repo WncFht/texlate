@@ -32,6 +32,9 @@ from ._common import (
     _GRP_TAIL_CAP,
     _chunk_spec_cached,
 )
+from .args import (
+    _KEYVAL_GROUP_RX,
+)
 
 if TYPE_CHECKING:
     import re
@@ -259,6 +262,53 @@ class _Group:
             break
         return j
 
+    def _grp_keyval_tail_end(self, toks: list[Tok], j: int) -> int:
+        r"""``_keyval_tail_end`` 的组内对价——keyval 形 ``{..}`` 组续吃。
+
+        形状门同 ``_KEYVAL_GROUP_RX``：组内 surface join 判 ``key=`` 起头，
+        不中即停（组 token 留 surface 主流，同主流回放语义）。``eol_par``
+        不跨——space 前跳遇之即非 lbrace 停。
+        """
+        n = len(toks)
+        while True:
+            k = j
+            while k < n and toks[k].kind == "space":
+                k += 1
+            if k >= n or toks[k].kind != "lbrace":
+                return j
+            e = self._grp_bal(toks, k, brace=True)
+            if (
+                e is None
+                or _KEYVAL_GROUP_RX.match(self._grp_surfs(toks[k + 1 : e - 1])) is None
+            ):
+                return j
+            j = e
+
+    def _grp_protect_block_end(self, toks: list[Tok], i: int) -> int:
+        r"""``\author[opt]{..}`` 整块保护的组内对价（``_handle_protect_block``）。
+
+        ``{arg}`` 未跟随时 abort——``[opt]`` 段不进覆盖（主流只护 cs 本体
+        同规）；命中首 ``{m}`` 后续吃 keyval 形组（aipproc 第二参同护）。
+        """
+        n = len(toks)
+        end = i + 1
+        k = i + 1
+        while k < n and toks[k].kind == "space":
+            k += 1
+        if k < n and toks[k].kind == "other" and toks[k].text == "[":
+            e = self._grp_bal(toks, k, brace=False)
+            if e is not None:
+                k = e
+                while k < n and toks[k].kind == "space":
+                    k += 1
+        if k < n and toks[k].kind == "lbrace":
+            e = self._grp_bal(toks, k, brace=True)
+            if e is not None:
+                end = e
+        if end > i + 1:
+            end = self._grp_keyval_tail_end(toks, end)
+        return end
+
     @staticmethod
     def _grp_skip_ws(toks: list[Tok], j: int) -> int:
         r"""space/eol_par 前跳（``_read_skipws`` 的组内对价）。"""
@@ -347,13 +397,15 @@ class _Group:
                 return e
         return None
 
-    def _grp_spec_args_end(  # noqa: C901, PLR0912, PLR0915 — argspec 字母各一支，平铺即 _eat_env_args_spec 组内镜像
+    def _grp_spec_args_end(  # noqa: C901, PLR0912, PLR0913, PLR0915 — argspec 字母各一支，平铺即 _eat_env_args_spec 组内镜像
         self,
         toks: list[Tok],
         j: int,
         spec: list[ArgSpec],
         roles: tuple[str, ...],
         env: str | None,
+        *,
+        allow_single_token: bool = True,
     ) -> int:
         r"""Argspec 位序走参的组内 token 版（``_eat_env_args_spec`` 镜像）。
 
@@ -361,6 +413,12 @@ class _Group:
         处停（其后 token 留 surface 主流，同 ``_unread_args`` 语义）。
         ``env`` 非空时可选位过 ``env_opt_is_format`` 闸（定理标题不收——
         F6 同规）；None 则可选位照常消费（命令可选参无标题歧义）。
+        ``allow_single_token=False``（探针/thead 路同主流
+        ``_args_tok`` 同参）：``m``/``v`` 位不吃裸单 token——
+        ``\textcolor red`` 的 ``red`` 是散文不是参。text 位单 token
+        恒停（主流 ``_emit_argspec_chunks`` 截停回吐的对价）——
+        ``\emph p`` 吃掉 ``p`` 会让 ``ost`` 落 surface 而 ``p`` 隐入
+        [[CMD]]（签名面看不见的散字母偷吃）。
         """
         n = len(toks)
         end = j
@@ -386,7 +444,9 @@ class _Group:
                     continue
                 if x.kind == "cs":
                     break  # 单 token 参不跨 '\'（BUG1 同规）
-                k += 1  # 单 token 参（env 路 allow_single_token=True 同规）
+                if not allow_single_token or role in ("text", "opt-text"):
+                    break
+                k += 1  # 非文本位单 token 参（env 路同规）
                 end = k
                 continue
             if s.kind == "n":

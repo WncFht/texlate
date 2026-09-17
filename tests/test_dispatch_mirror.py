@@ -143,12 +143,15 @@ _B_EQUIV = {
     "protect",
     "href",
     "input-scan",
+    "chunk-arg",
+    "protect-block",
     "boundary",
     "cond",
     "math-open",
     "bsbs",
     "transparent-head",
     "accent",
+    "inline-literal",
 }
 
 
@@ -158,17 +161,20 @@ def _expected_b(a_tag: str, name: str) -> str:
     - ``hyperref``：B 有显式行（argspec ``m m`` key,text 的组内对价——
       pkg 未加载时主流探针整吞 ``[l]{t}`` 含可译 text；组内行无条件
       保 text 参留 surface），A 走 unknown 探针 → ``hyperref``；
+    - ``math-close``：B 无收界专用行——``]``/``)`` 单字符非字母落
+      inline-literal 行 → ``inline-literal``；
     - ``unknown`` ∧ ``DIMEN_TAIL_KIND``：A 折在 row19 unknown 内部
       尾参扫，B 是 accent/argspec 前的显式行 → ``tail``；
     - ``unknown`` 其余 → ``probe``（终态同名不同面）；
-    - ``chunk-arg``/``protect-block``/``transparent``/``box-tail``/
-      ``inline-literal``/``math-close``/``endinput``：B 无对应行，
+    - ``transparent``/``box-tail``/``endinput``：B 无对应行，
       经 argspec/探针/逐字兜收 → ``probe``。
     """
     if name == "hyperref":
         return "hyperref"
     if a_tag in _B_EQUIV:
         return a_tag
+    if a_tag == "math-close":
+        return "inline-literal"
     if a_tag == "unknown" and name in DIMEN_TAIL_KIND:
         return "tail"
     return "probe"
@@ -325,8 +331,8 @@ def _sig(res: object, name: str) -> tuple[frozenset[str], str]:
 #: value=(A covers, A arg, B covers, B arg)。等价类（落点不同但
 #: 参数可见性一致、两侧都不暴露译文面）与真分歧分列注释。
 _SIG_DIFFS: dict[tuple[str, str], tuple[frozenset[str], str, frozenset[str], str]] = {
-    # ---- 等价：boundary/结构命令在主流断 run 出字面段，组内无法断
-    #      piece 只能嵌 [[CMD]] 占位——同隐同参可见性，仅承载不同 ----
+    # ---- 等价：boundary/结构命令主流断 run 出字面段，组内无法断 piece
+    # 只能嵌 [[CMD]] 占位——同隐同参可见性，仅承载不同 ----
     ("InputIfFileExists", ""): (frozenset({"piece"}), "-", frozenset({"CMD"}), "-"),
     ("RequirePackage", ""): (frozenset({"piece"}), "-", frozenset({"CMD"}), "-"),
     ("addtocounter", ""): (frozenset({"piece"}), "-", frozenset({"CMD"}), "-"),
@@ -404,7 +410,34 @@ _SIG_DIFFS: dict[tuple[str, str], tuple[frozenset[str], str, frozenset[str], str
     ("vskip", "3pt"): (frozenset({"piece"}), "-", frozenset({"CMD"}), "-"),
     ("vskip", "=3pt"): (frozenset({"piece"}), "-", frozenset({"CMD"}), "-"),
     ("vspace", ""): (frozenset({"piece"}), "-", frozenset({"CMD"}), "-"),
-    # ---- 等价：同上，``{zzq}`` 未被消费 → 两侧参都裸进可译文本 ----
+    # ---- 等价：chunk-arg 族 ``{zzq}``——主流 ``\section[opt]{`` 前缀出字面
+    # piece + 参进独立 chunk；组内名+头参进 ``[[CMD]]``、``{arg}`` 组
+    # token 留 surface 续扫（B 臂无独立 chunk piece——参留主流即同可见） ----
+    ("abst", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "vis"),
+    ("caption", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "vis"),
+    ("chapter", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "vis"),
+    ("footnote", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "vis"),
+    ("footnotetext", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "vis"),
+    ("keywords", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "vis"),
+    ("paragraph", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "vis"),
+    ("part", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "vis"),
+    ("sect", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "vis"),
+    ("section", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "vis"),
+    ("subcaption", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "vis"),
+    ("subparagraph", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "vis"),
+    ("subsect", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "vis"),
+    ("subsection", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "vis"),
+    ("subsubsection", "{zzq}"): (
+        frozenset({"piece"}),
+        "vis",
+        frozenset({"CMD"}),
+        "vis",
+    ),
+    ("subtitle", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "vis"),
+    ("tablecaption", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "vis"),
+    ("thanks", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "vis"),
+    ("title", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "vis"),
+    # ---- 等价：同上 carrier 差——``{zzq}`` 未被消费 → 两侧参都裸进可译文本 ----
     ("appendix", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "vis"),
     ("backmatter", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "vis"),
     ("balance", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "vis"),
@@ -457,7 +490,7 @@ _SIG_DIFFS: dict[tuple[str, str], tuple[frozenset[str], str, frozenset[str], str
     ("twocolumn", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "vis"),
     ("vfill", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "vis"),
     ("vskip", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "vis"),
-    # ---- 等价：参被吃（input 族/尾参/setter 族）——piece↔CMD 同 hid ----
+    # ---- 等价：同上，参被吃（input 族/尾参/setter 族）——piece↔CMD 同 hid ----
     ("InputIfFileExists", "{zzq}"): (
         frozenset({"piece"}),
         "hid",
@@ -535,23 +568,21 @@ _SIG_DIFFS: dict[tuple[str, str], tuple[frozenset[str], str, frozenset[str], str
     ("vspace", "{zzq}"): (frozenset({"piece"}), "hid", frozenset({"CMD"}), "hid"),
     # ---- 等价：cond 族主流走 _handle_cond 字面档，组内嵌 [[COND]] ----
     ("else", ""): (frozenset({"piece"}), "-", frozenset({"COND"}), "-"),
+    ("else", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"COND"}), "vis"),
     ("fi", ""): (frozenset({"piece"}), "-", frozenset({"COND"}), "-"),
+    ("fi", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"COND"}), "vis"),
     ("iffoo", ""): (frozenset({"piece"}), "-", frozenset({"COND"}), "-"),
+    ("iffoo", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"COND"}), "vis"),
     ("ifnum", ""): (frozenset({"piece"}), "-", frozenset({"COND"}), "-"),
     ("or", ""): (frozenset({"piece"}), "-", frozenset({"COND"}), "-"),
-    ("else", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"COND"}), "vis"),
-    ("fi", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"COND"}), "vis"),
-    ("iffoo", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"COND"}), "vis"),
     ("or", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"COND"}), "vis"),
-    # ---- 等价：组内消费/段界——名不落任何面，两侧皆不可见 ----
-    ("endinput", ""): (frozenset({"piece"}), "-", frozenset(), "-"),
-    ("ifhmode", ""): (frozenset({"piece"}), "-", frozenset(), "-"),
-    ("ifx", ""): (frozenset({"piece"}), "-", frozenset(), "-"),
-    ("par", ""): (frozenset({"piece"}), "-", frozenset(), "-"),
-    ("endinput", "{zzq}"): (frozenset({"piece"}), "hid", frozenset(), "-"),
-    ("ifx", "{zzq}"): (frozenset({"piece"}), "hid", frozenset(), "-"),
-    ("ifhmode", "{zzq}"): (frozenset({"piece"}), "vis", frozenset(), "vis"),
-    ("par", "{zzq}"): (frozenset({"piece"}), "vis", frozenset(), "vis"),
+    # ---- 等价：组内消费/段界——名不落任何面，两侧皆不可见或同参可见 ----
+    ("endinput", ""): (frozenset({"piece"}), "-", frozenset({}), "-"),
+    ("ifhmode", ""): (frozenset({"piece"}), "-", frozenset({}), "-"),
+    ("ifhmode", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({}), "vis"),
+    ("ifx", ""): (frozenset({"piece"}), "-", frozenset({}), "-"),
+    ("par", ""): (frozenset({"piece"}), "-", frozenset({}), "-"),
+    ("par", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({}), "vis"),
     # ---- 等价：documentclass——pkg 登记主流整段字面，组内 CMD+piece ----
     ("documentclass", ""): (
         frozenset({"piece"}),
@@ -565,151 +596,11 @@ _SIG_DIFFS: dict[tuple[str, str], tuple[frozenset[str], str, frozenset[str], str
         frozenset({"CMD", "piece"}),
         "hid",
     ),
-    # ---- 分歧（待裁决）：cs 名/参数在单侧暴露译文面或类型档不一致 ----
-    # AUTHOR↔CMD：组内无 protect-block 行，argspec/探针兜成 CMD——
-    # 同 hid 参但 PhType 档不同
-    ("address", "{zzq}"): (frozenset({"AUTHOR"}), "hid", frozenset({"CMD"}), "hid"),
-    ("affiliation", "{zzq}"): (frozenset({"AUTHOR"}), "hid", frozenset({"CMD"}), "hid"),
-    ("author", "{zzq}"): (frozenset({"AUTHOR"}), "hid", frozenset({"CMD"}), "hid"),
-    ("email", "{zzq}"): (frozenset({"AUTHOR"}), "hid", frozenset({"CMD"}), "hid"),
-    ("inst", "{zzq}"): (frozenset({"AUTHOR"}), "hid", frozenset({"CMD"}), "hid"),
-    ("institute", "{zzq}"): (frozenset({"AUTHOR"}), "hid", frozenset({"CMD"}), "hid"),
-    ("markboth", "{zzq}"): (frozenset({"AUTHOR"}), "hid", frozenset({"CMD"}), "hid"),
-    ("markright", "{zzq}"): (frozenset({"AUTHOR"}), "hid", frozenset({"CMD"}), "hid"),
-    ("orcid", "{zzq}"): (frozenset({"AUTHOR"}), "hid", frozenset({"CMD"}), "hid"),
-    ("preprintnumber", "{zzq}"): (
-        frozenset({"AUTHOR"}),
-        "hid",
-        frozenset({"CMD"}),
-        "hid",
-    ),
-    ("publishedin", "{zzq}"): (frozenset({"AUTHOR"}), "hid", frozenset({"CMD"}), "hid"),
-    ("recdate", "{zzq}"): (frozenset({"AUTHOR"}), "hid", frozenset({"CMD"}), "hid"),
-    ("affiliation", ""): (frozenset({"AUTHOR"}), "-", frozenset({"CMD"}), "-"),
-    ("date", ""): (frozenset({"AUTHOR"}), "-", frozenset({"CMD"}), "-"),
-    ("inst", ""): (frozenset({"AUTHOR"}), "-", frozenset({"CMD"}), "-"),
-    ("institute", ""): (frozenset({"AUTHOR"}), "-", frozenset({"CMD"}), "-"),
-    ("markboth", ""): (frozenset({"AUTHOR"}), "-", frozenset({"CMD"}), "-"),
-    ("markright", ""): (frozenset({"AUTHOR"}), "-", frozenset({"CMD"}), "-"),
-    ("orcid", ""): (frozenset({"AUTHOR"}), "-", frozenset({"CMD"}), "-"),
-    ("preprintnumber", ""): (frozenset({"AUTHOR"}), "-", frozenset({"CMD"}), "-"),
-    ("publishedin", ""): (frozenset({"AUTHOR"}), "-", frozenset({"CMD"}), "-"),
-    ("recdate", ""): (frozenset({"AUTHOR"}), "-", frozenset({"CMD"}), "-"),
-    # author/address/email 裸名：组内落逐字进 chunk——cs 名暴露译文面
-    ("address", ""): (frozenset({"AUTHOR"}), "-", frozenset({"chunk"}), "-"),
-    ("author", ""): (frozenset({"AUTHOR"}), "-", frozenset({"chunk"}), "-"),
-    ("email", ""): (frozenset({"AUTHOR"}), "-", frozenset({"chunk"}), "-"),
-    # date{zzq}：A AUTHOR 全隐；B argspec latex2e|chunk-arg 生效——
-    # \date 名进 chunk 且参可见（B 臂召回反而更好，但 cs 名裸落）
-    ("date", "{zzq}"): (frozenset({"AUTHOR"}), "hid", frozenset({"chunk"}), "vis"),
-    # 裸名族（transparent/chunk-arg/thead/inline 名无参调用）：A 名进
-    # chunk（_rappend_tok/头参失配回落），B argspec protect 兜成 CMD
-    ("_", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("abst", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("caption", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("captionof", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("chapter", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("colorbox", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("emph", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("fbox", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("footnote", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("footnotemark", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("footnotetext", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("mbox", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("paragraph", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("parbox", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("part", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("raisebox", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("resizebox", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("rotatebox", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("savebox", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("sbox", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("scalebox", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("sect", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("section", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("subcaption", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("subparagraph", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("subsect", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("subsection", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("subsubsection", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("subtitle", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("textbf", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("textcolor", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("textit", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("textmd", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("textnormal", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("textrm", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("textsc", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("textsf", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("textsl", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("texttt", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("textup", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("thanks", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("titleclass", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("titlecontents", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("titleformat", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("titlelabel", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("titlespacing", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("underline", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    ("usebox", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
-    # section 族 {zzq}：A 名落字面段参进 chunk；B 名逐字进 chunk
-    # （cs 名暴露译文面——LLM 可见 ``\section`` 字面）
-    ("abst", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"chunk"}), "vis"),
-    ("caption", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"chunk"}), "vis"),
-    ("chapter", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"chunk"}), "vis"),
-    ("footnote", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"chunk"}), "vis"),
-    ("footnotetext", "{zzq}"): (
-        frozenset({"piece"}),
-        "vis",
-        frozenset({"chunk"}),
-        "vis",
-    ),
-    ("paragraph", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"chunk"}), "vis"),
-    ("part", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"chunk"}), "vis"),
-    ("sect", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"chunk"}), "vis"),
-    ("section", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"chunk"}), "vis"),
-    ("subcaption", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"chunk"}), "vis"),
-    ("subparagraph", "{zzq}"): (
-        frozenset({"piece"}),
-        "vis",
-        frozenset({"chunk"}),
-        "vis",
-    ),
-    ("subsect", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"chunk"}), "vis"),
-    ("subsection", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"chunk"}), "vis"),
-    ("subsubsection", "{zzq}"): (
-        frozenset({"piece"}),
-        "vis",
-        frozenset({"chunk"}),
-        "vis",
-    ),
-    ("subtitle", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"chunk"}), "vis"),
-    ("thanks", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"chunk"}), "vis"),
-    # 数字/``_`` {zzq}：主流单字符行内字面后 ``{zzq}`` 留文本；
-    # 组内 argspec（latex2e|protect|m 等）先吃参进 CMD——参可见性分歧
-    ("0", "{zzq}"): (frozenset({"chunk"}), "vis", frozenset({"CMD"}), "hid"),
-    ("1", "{zzq}"): (frozenset({"chunk"}), "vis", frozenset({"CMD"}), "hid"),
-    ("2", "{zzq}"): (frozenset({"chunk"}), "vis", frozenset({"CMD"}), "hid"),
-    ("3", "{zzq}"): (frozenset({"chunk"}), "vis", frozenset({"CMD"}), "hid"),
-    ("4", "{zzq}"): (frozenset({"chunk"}), "vis", frozenset({"CMD"}), "hid"),
-    ("5", "{zzq}"): (frozenset({"chunk"}), "vis", frozenset({"CMD"}), "hid"),
-    ("6", "{zzq}"): (frozenset({"chunk"}), "vis", frozenset({"CMD"}), "hid"),
-    ("7", "{zzq}"): (frozenset({"chunk"}), "vis", frozenset({"CMD"}), "hid"),
-    ("8", "{zzq}"): (frozenset({"chunk"}), "vis", frozenset({"CMD"}), "hid"),
-    ("9", "{zzq}"): (frozenset({"chunk"}), "vis", frozenset({"CMD"}), "hid"),
-    ("_", "{zzq}"): (frozenset({"chunk"}), "vis", frozenset({"CMD"}), "hid"),
-    # keywords/tablecaption/title{zzq}：boundary 主流参裸进 chunk；
-    # 组内探针把 {zzq} 吃进 CMD——组内丢可译参（召回面差）
-    ("keywords", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "hid"),
-    ("tablecaption", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "hid"),
-    ("title", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "hid"),
-    # @/\@input：主流逐字进 chunk；组内 input:/副作用消费名不落面
-    ("@", ""): (frozenset({"chunk"}), "-", frozenset(), "-"),
-    ("@input", ""): (frozenset({"chunk"}), "-", frozenset(), "-"),
-    ("@", "{zzq}"): (frozenset({"chunk"}), "vis", frozenset(), "-"),
-    ("@input", "{zzq}"): (frozenset({"chunk"}), "vis", frozenset(), "-"),
-    # begin/end{未知 env}：A 整段字面（env 名+体全隐）；B ENVTAG
-    # 界标 + 体留 surface——``zzb`` 体文在 B 可见（召回差方向相反）
+    # ---- 分歧留档（semantic-diff 非缺陷——审计裁决不动） ----
+    ("@", ""): (frozenset({"chunk"}), "-", frozenset({}), "-"),
+    ("@", "{zzq}"): (frozenset({"chunk"}), "vis", frozenset({}), "-"),
+    ("@input", ""): (frozenset({"chunk"}), "-", frozenset({}), "-"),
+    ("@input", "{zzq}"): (frozenset({"chunk"}), "vis", frozenset({}), "-"),
     ("begin", "{zzq} zzb \\end{zzq}"): (
         frozenset({"piece"}),
         "hid",
@@ -722,24 +613,12 @@ _SIG_DIFFS: dict[tuple[str, str], tuple[frozenset[str], str, frozenset[str], str
         frozenset({"ENVTAG", "piece"}),
         "vis",
     ),
-    # footnotemark{zzq}：A 名进 chunk（o 参缺省 {zzq} 留文本）；
-    # B argspec protect|o 兜成 CMD——名暴露差，参同 vis
-    ("footnotemark", "{zzq}"): (
-        frozenset({"chunk"}),
-        "vis",
-        frozenset({"CMD"}),
-        "vis",
-    ),
-    # hyperref[zzu]{zzq}：A 探针整吞含 text 参；B 显式行只保首参、
-    # {text} 留 surface——主流丢可译参（无 pkg 门控时）
-    ("hyperref", "[zzu]{zzq}"): (
-        frozenset({"CMD"}),
-        "hid",
-        frozenset({"CMD"}),
-        "vis",
-    ),
-    # ifnum{zzq}：A 界标+参隐；B COND 后 {zzq} 不进面（消费路径）
+    ("endinput", "{zzq}"): (frozenset({"piece"}), "hid", frozenset({}), "-"),
+    ("footnotemark", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
+    ("footnotemark", "{zzq}"): (frozenset({"chunk"}), "vis", frozenset({"CMD"}), "vis"),
+    ("hyperref", "[zzu]{zzq}"): (frozenset({"CMD"}), "hid", frozenset({"CMD"}), "vis"),
     ("ifnum", "{zzq}"): (frozenset({"piece"}), "hid", frozenset({"COND"}), "-"),
+    ("ifx", "{zzq}"): (frozenset({"piece"}), "hid", frozenset({}), "-"),
 }
 
 
