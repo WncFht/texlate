@@ -398,6 +398,47 @@ def test_verdict_sig_bulk_clean_blackout() -> None:
     assert benchlib.verdict_sig({"status": "clean", "error_cats": {"x": 5}}) == ""
 
 
+def test_verdict_sig_bulk_meta_cat_no_override() -> None:
+    """derived meta 词不在错误行构成中 → 众数无权顶包（wave4 MED 回归钉）。
+
+    category 缺席/other 时 cat 由 reasons 派生——killed_by_signal/no_pdf/
+    missing_character 是 verdict 级归因而非错误行 cat，``bulk.get(cat,0)``
+    恒 0 会让任意众数把根因桶洗成级联错桶（信号杀死被 syntax 顶包正是
+    本 feature 意图的反面）。
+    """
+    killed = {
+        "status": "fail",
+        "category": "other",
+        "reasons": ["killed_by_signal:9", "no_pdf"],
+        "error_cats": {"syntax": 40},
+    }
+    assert benchlib.verdict_sig(killed) == "killed_by_signal:9"
+    nopdf = {
+        "status": "fail",
+        "reasons": ["no_pdf"],
+        "error_cats": {"undefined_cs": 7},
+    }
+    assert benchlib.verdict_sig(nopdf) == "no_pdf"
+    mc = {
+        "status": "partial",
+        "reasons": ["missing_character×3"],
+        "error_cats": {"undefined_cs": 5},
+    }
+    assert benchlib.verdict_sig(mc) == "missing_character:x3"
+
+
+def test_verdict_sig_bulk_derived_first_error_still_competes() -> None:
+    """derived ``first_error=X`` 的 X 是真错误行 cat——在构成中照常纠偏。"""
+    v = {
+        "status": "fail",
+        "category": "other",
+        "reasons": ["first_error=syntax:\\foo"],
+        "error_cats": {"syntax": 1, "undefined_cs": 9},
+        "error_pay": {"undefined_cs": "\\bad"},
+    }
+    assert benchlib.verdict_sig(v) == "undefined_cs:\\bad"
+
+
 # ================================================================ gate_scorecard
 def test_gate_last_records_filters(tmp_path: Path) -> None:
     """末行胜 + arm/upstream/arm_mismatch/id 过滤矩阵（输出行数可预言）。"""

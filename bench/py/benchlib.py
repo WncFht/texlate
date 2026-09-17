@@ -322,6 +322,8 @@ def verdict_sig(verdict: dict, first_error: str | None = None) -> str:
     首错 cat 时 sig 改挂众数——首错遮 bulk 纠偏（quant-ph/9703040：110 错
     108×syntax，category 却是自恢复的 illegal_unit）；平票仍归
     首错（TeX 级联中首错是因果上游）。众数 payload 取 ``error_pay`` 首见值。
+    cat 不在构成中（derived meta 词 killed_by_signal/no_pdf 等 verdict 级
+    归因）不比众数——构成外恒 0 票会被任意众数顶包洗掉根因。
 
     裁决 2026-09-17（overseer）：sig 只担 dominant-error 分桶——missing_char
     等 warning 派生信号不并入（混进 error sig 是 phantom-payload 类 bug 温床）；
@@ -370,7 +372,10 @@ def verdict_sig(verdict: dict, first_error: str | None = None) -> str:
             and n > 0
         }
         dom = max(bulk, key=bulk.get) if bulk else None
-        if dom is not None and dom != cat and bulk[dom] > bulk.get(cat, 0):
+        # 构成外 cat（derived meta 词：killed_by_signal/no_pdf/missing_character
+        # 等 verdict 级归因）bulk.get 恒 0，不拦则任意众数顶包洗掉根因——只有
+        # cat 真在错误行构成中才比（derived first_error=X 的 X 照常参与）。
+        if dom is not None and cat in bulk and dom != cat and bulk[dom] > bulk[cat]:
             pays = verdict.get("error_pay")
             dpay = pays.get(dom) if isinstance(pays, dict) else None
             return f"{dom}:{dpay if isinstance(dpay, str) else ''}".rstrip(":")
