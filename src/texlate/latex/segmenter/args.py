@@ -2,6 +2,7 @@ r"""``latex/segmenter`` 子模块——god-class 机械拆分（行为零变）�
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING
 
 import texlate.latex.segmenter as _seg
@@ -51,6 +52,10 @@ if TYPE_CHECKING:
     )
 
 r"""``Segmenter`` 参数读取/保护调用/各 handler/argspec 发射。"""
+
+# ``{key=val,..}``/``{flag,key=..}`` 起头的 keyval 组形状——键名字符面取宽
+# （字母数字 ``_@*.-``），逗号前缀只收裸键位，``{散文}``/``{key 散文}`` 不中。
+_KEYVAL_GROUP_RX = re.compile(r"\s*(?:[\w@*.\-]+[ \t]*,[ \t]*)*[\w@*.\-]+[ \t]*=")
 
 
 class _Args:
@@ -741,6 +746,8 @@ class _Args:
             pulled.clear()
             x = None
         src.unread([*opt_toks, *pulled, *([x] if x is not None else [])])
+        if end > b:
+            end = self._keyval_tail_end(src, end)
         self._cover_gap(fid, t.pos[1])
         vspan = self._cover_to(fid, end)
         body = self.vt.slice(vspan.start, vspan.end)
@@ -749,6 +756,40 @@ class _Args:
             return
         self._flush_run(vspan.start)
         self._emit_ph(PhType.AUTHOR, vspan.start, vspan.end, body)
+
+    def _keyval_tail_end(self, src: TokenSource, end: int) -> int:
+        r"""PROTECT_BLOCK 首个 ``{arg}`` 之后续吃 keyval 形 ``{..}`` 组 → 新 end。
+
+        aipproc ``\author{name}{address=..,email=..}`` 第二参是 keyval 签名
+        ——只护首组会让 keyval 组裸进 chunk，``key=`` 键位被译成
+        ``这是译文=``，splice 后 ``\setkeys`` 炸 ``Package keyval Error``
+        （0905.0330/0905.2183/1012.1143/astro-ph/0408494/0605512 五格）。
+        形状门（``key=``/``flag,key=`` 起头才收）把 ``{散文}`` 误吞面压掉
+        ——非 keyval 组全量回放由主流重扫，与今日行为同。``eol_par`` 段界
+        不跨（``_peek_nonspace`` 内建）；跨 fid 组不收——字节异源没法切
+        片判形，回放是保守等价物。
+        """
+        while True:
+            pulled: list[Tok] = []
+            x = self._peek_nonspace(src, pulled)
+            if x is None or x.kind != "lbrace":
+                src.unread([*pulled, *([x] if x is not None else [])])
+                return end
+            hit = self._collect_group(src, x, brace=True)
+            if hit is None:
+                src.unread(pulled)  # 组 token 已回吐；ws 回放
+                return end
+            inner, closer = hit
+            if (
+                closer.pos[0] != x.pos[0]
+                or _KEYVAL_GROUP_RX.match(
+                    self.file_texts[x.pos[0]], x.pos[2], closer.pos[1]
+                )
+                is None
+            ):
+                src.unread([*pulled, x, *inner, closer])
+                return end
+            end = closer.pos[2]
 
     def _handle_boundary(  # noqa: C901, PLR0912 — tail/spec/in_arg 三路分派平铺即边界语义
         self, t: Tok, src: TokenSource, name: str

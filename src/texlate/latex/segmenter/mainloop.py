@@ -557,6 +557,10 @@ class _MainLoop:
         # eol_par 语义不变。内层 ``$..$``（``\put{$\bullet$}``）在
         # pictex 区同样不吃边界权——随体收。
         pictex_open = False
+        # ``\(/\[`` 内层开符深度：``\def\({\left(}\def\){\right)}`` 重定义
+        # 面（1306.6030）里 ``\)/\]`` 是普通定界符不是 ``$`` 闭符——配深
+        # 吃掉，否则混排闭符启发式提前关 MATH、``$`` 奇偶翻转串行吞噬。
+        inner = 0
         while True:
             x = src.read()
             if x is None:
@@ -591,7 +595,15 @@ class _MainLoop:
                     src.unread([n2])
                 body.append(x)
                 continue
+            if x.kind == "cs" and x.text in ("(", "["):
+                inner += 1
+                body.append(x)
+                continue
             if x.kind == "cs" and x.text in (")", "]"):
+                if inner:
+                    inner -= 1
+                    body.append(x)
+                    continue
                 # 混排闭符：``\)/\]`` 在 LaTeX 数学态语义即 ``$/$$``——
                 # ``$...\)``/``$$...\]`` 收作闭符，否则越过真闭符续吞散文、
                 # 奇偶翻转（0806.1984 ``$\alpha(x)\), for all $p \in S$``
