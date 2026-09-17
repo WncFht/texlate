@@ -864,9 +864,11 @@ class TestPipelineBatch:
 
     def test_batch_marker_decode_applied(self) -> None:
         # observed: 段内 [[SL]] token 经 decode_newlines → 译文含真换行
+        # （源带真换行使应答的 [[SL]] 成合法 echo——bare_token_audit 要求
+        #   八族 token 多重集相等，无源 token 的 [[SL]] 属锻造必拒）
         t = _T(lambda _u: "[1] a[[SL]]b\n[2] c")
         res = _run(
-            [xp.ChunkIn("a", "ma", "para"), xp.ChunkIn("b", "mb", "para")],
+            [xp.ChunkIn("a", "m\na", "para"), xp.ChunkIn("b", "mb", "para")],
             t,
         )
         assert res[0].translation == "a\nb"

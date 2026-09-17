@@ -6,31 +6,45 @@
 ``_process`` split 臂聚合、``decode_newlines`` 先于校验/拦截的锻造面、
 批路径段级缓存旁路、``retranslate_chunk`` 结果形、``run()`` 入口 dup-id。
 
-CONFIRMED（xfail-strict，D# 与 ``tmp/fuzz-xlat-batch/findings.*`` 台账同号）：
+CONFIRMED（D# 与 ``tmp/fuzz-xlat-batch/findings.*`` 台账同号）——D1–D4 已修复，
+本文件的钉全部翻成断言修复后行为的回归守卫：
 
 - D1 ``_process`` split 臂不聚合 ``attempts``——父块恒 ``attempts=0``，
   ``AuthGate.record`` 按 ``attempts==0 and not error_kind`` 判「没发请求不置证」
   → 真发过 N 次请求的全成功 split 父块不清零 ``consecutive``、不计
   ``non_auth``、``all_failed`` 假阳。跨论文熔断调用方据此误累计。
+  **修**：split 臂聚合 ``attempts=sum(piece.attempts)``（pipeline.py ``_process``）。
 - D2 split 任一 piece fault/skipped → 父块 ``skipped=True`` 但
   ``translation=" ".join(pieces)`` 混入原文片段 ≠ ``source``——违反
   ``_skip``/fallback_orig 一路钉住的 ``skipped ⇒ translation == source``
   簿记不变量（``test_fuzz_xlat`` oracle 明列）。splice 按 status 闸不吃它，
   但 state.json/DB chunks 行以 fallback 语义持久化了半译半成品。
+  **修**：fault 父块 ``translation`` 回填 ``parent.content``，merged 半成品
+  折进 ``warnings``（``best-effort zh (unspliced)`` 对齐 fallback_orig 口径）。
 - D3 裸 token 锻造洞——``decode_newlines`` 先于 ``diff``/三张拦截网：
   模型应答里凭空铸 ``[[SL]]``/``[[PL]]``/``[[SP]]``/``[[NBSP]]``/
   ``[[THINSP]]``/``[[MEDSP]]``/``[[THICKSP]]``/``[[NEGSP]]`` 全部静默解码成
   ``\\n``/``\\n\\n``/``\\ ``/``~``/``\\,``/``\\:``/``\\;``/``\\!``——
   对账看不见（src 侧本就是真字符非 token，``diff`` 只数 ``[[..]]`` 多重集），
   ``bare_cs_net`` 不收控制符号，``\\:``/``\\;``/``\\!`` 是数学模式专属命令，
-  落进文本域即编译炸弹，一路 ``status=ok`` 交付 splice。对照组：铸
-  ``[[MATH_9]]`` 被 ``_intercept_leftover_ph`` 拦降 fault。同洞反向：
-  模型丢 ``[[SL]]`` 同样无信号（``source_sl``/``source_pl`` 计数产出后
-  无任何消费方）。
+  落进文本域即编译炸弹，一路 ``status=ok`` 交付 splice。同洞反向：
+  模型丢 ``[[SL]]`` 同样无信号。**修**：``retry.bare_token_audit`` decode 前
+  按「模型所见输入 vs 生应答」八族 token 多重集逐族对账，不等走现成校验
+  失败通道；覆盖 ``_stage_whole``（双基线：整段=encoded、corrector=原文）、
+  ``_stage_lines``（锻造行回退原文进装配）、``_batch_call`` 成员段、
+  ``retranslate_chunk``（基线=未编码原文）。slots 臂由 ``_valid_slot_text``
+  的括号字符拒收罩住，无需对账。
 - D4 批成员不查段级缓存——``_one_batch`` 直发 ``encode_batch`` 全员，
   缓存命中的 short 块仍烧进批载荷且新应答静默覆盖原缓存条目
   （``_cache_store``）；single/split 路径经 ``_one_chunk`` 正常查命中。
   旁证：批不可重试错误时 ``_skip`` 连坐也跳过逐成员缓存命中。
+  **修**：``_one_batch`` 前置逐成员 ``_cache_hit`` 短路——命中成员直接
+  ``ok`` 出列不进批载荷，批序号按实发子集编排（``_batch_call``）。
+- A1（texlate-2d reaudit 并入）``_collect`` 内拦截网×3/auth_gate/_emit
+  无保护——``BaseException``（KI 族）落此逃逸杀 worker → ``queue.join()``
+  死锁（E3 同族第二注入点）。**修**：``_collect`` 收 ``fatal`` 账本参数，
+  ``BaseException`` 收账由 ``_drain`` 收敛后重抛；普通 ``Exception`` 按
+  「绝不外泄」docstring 口径 log 留痕不杀 worker。
 
 PLAUSIBLE（只进 findings，不钉 xfail）：
 
@@ -68,7 +82,6 @@ from _fuzzkit import (
     soup_join,
     soup_pick,
     write_findings,
-    xfail_confirmed,
 )
 
 from texlate.xlat import pipeline as xp
@@ -211,12 +224,8 @@ def _split_doc(n_rep: int = 40) -> str:
 
 
 class TestSplitAttemptsAccounting:
-    """D1：split 父块恒 ``attempts=0``——真发过请求的块在 auth 闸里「没发请求」。"""
+    """D1 回归守卫：split 父块 ``attempts`` 聚合各 piece——auth 闸可见。"""
 
-    @xfail_confirmed(
-        "D1: split 父块 attempts 不聚合——恒 0（pipeline.py `_process` split 臂"
-        " 建 ChunkResult 不带 attempts）；真实多请求成功块对 auth 闸不可见"
-    )
     def test_split_parent_attempts_aggregated(self) -> None:
         """契约：split 父块 ``attempts`` = 各 piece 阶梯尝试之和。"""
         t = _T()
@@ -230,10 +239,6 @@ class TestSplitAttemptsAccounting:
         assert n_req >= 2  # noqa: PLR2004 -- >120B 硬限下 ≥2 piece 各至少一请求
         assert res[0].attempts == n_req
 
-    @xfail_confirmed(
-        "D1: 全成功 split 不提供 non_auth 证据——all_failed 假阳"
-        "（auth_failures>0 且 non_auth==0，尽管 split 真发过请求且成功）"
-    )
     def test_split_success_counts_as_non_auth_evidence(self) -> None:
         """契约：发过请求且成功的 split 父块应计 ``non_auth``（清 consecutive）。"""
         p = xp.XlatPipeline(
@@ -269,13 +274,9 @@ class TestSplitAttemptsAccounting:
 
 
 class TestSplitFaultShape:
-    """D2：split piece 失败 → 父块 ``skipped=True`` + 混合译文 ≠ 原文。"""
+    """D2 回归守卫：split piece 失败 → 父块 ``skipped=True`` + 原文回填。"""
 
-    @xfail_confirmed(
-        "D2: skipped ⇒ translation==source 不变量在 split 臂破——"
-        "piece 失败时父块 skipped=True 但 translation=merged（半译半成品）"
-    )
-    def test_split_fault_skipped_translation_not_source(self) -> None:
+    def test_split_fault_skipped_translation_is_source(self) -> None:
         """契约：``skipped=True`` 的块 ``translation`` 必须是原文回填。"""
         content = _SENT_BLOCK * 6 + f"bad {_M_AUTH} part " + _SENT_BLOCK * 6
         # 构造守卫：marker 须完整落在某 piece 内（切点漂移时此断言先于语义断言失败）
@@ -285,10 +286,11 @@ class TestSplitFaultShape:
         res = _run([xp.ChunkIn("big", content, "para")], _T())
         r = res[0]
         assert r.status == "fault"
-        assert not (r.skipped and r.translation != r.source)
+        assert r.skipped
+        assert r.translation == r.source
 
     def test_split_fault_merged_shape_observed(self) -> None:
-        """observed：merged = 成功 piece 译文 + 失败 piece 原文，``" "`` 拼接。"""
+        """merged 半成品折进 warnings 留诊断（best_zh 口径），不进 translation。"""
         content = _SENT_BLOCK * 6 + f"bad {_M_AUTH} part " + _SENT_BLOCK * 6
         assert any(
             _M_AUTH in piece for piece in split_long_chunk(content, max_chars=_HARD)
@@ -298,18 +300,19 @@ class TestSplitFaultShape:
         assert r.status == "fault"
         assert r.skipped
         assert r.skip_reason == "split piece(s) failed"
-        assert _M_AUTH in r.translation  # 失败 piece 原文混入 merged
-        assert "zh:" in r.translation  # 成功 piece 译文同锅
+        assert r.translation == r.source
         assert r.error_kind == "auth"
         assert r.batch_id == ""
+        merged_diag = [w for w in r.warnings if w.startswith("best-effort zh")]
+        assert len(merged_diag) == 1
+        assert "zh:" in merged_diag[0]  # 成功 piece 译文留在诊断里
 
     def test_fuzz_split_worst_status_oracle(self) -> None:
         """随机 piece 成败混合——``split_long_chunk`` 复算 piece 集做自证 oracle。
 
-        marker 完整落进某 piece ⇒ 该 piece 失败（translation=piece 原文）、
-        父块 worst=fault/skipped、error_kind 按 marker 族；marker 被切散 ⇒
-        全 ok。merged 逐 piece 可预测：``ok piece → "zh:"+piece``、
-        ``fail piece → piece 原文``。
+        marker 完整落进某 piece ⇒ 该 piece 失败、父块 worst=fault/skipped +
+        ``translation==source``（merged 半成品只进 warnings）、error_kind 按
+        marker 族；marker 被切散 ⇒ 全 ok、merged = ``"zh:"+piece`` 逐段拼接。
         """
         rng = fuzz_rng(20261211)
         want_kind = {_M_BAD: "validate", _M_AUTH: "auth", _M_E5XX: "provider"}
@@ -326,15 +329,17 @@ class TestSplitFaultShape:
             )
             res = _run([xp.ChunkIn(f"b{i}", content, "para")], _T())
             r = res[0]
-            assert r.translation == expected_merged, (i, inject)
             if not hit:
+                assert r.translation == expected_merged, (i, inject)
                 assert r.status == "ok", (i, r.status, r.skip_reason)
                 assert not r.skipped
                 assert r.error_kind == ""
             else:
                 assert r.status == "fault", (i, r.status)
                 assert r.skipped
+                assert r.translation == r.source  # 不变量优先于 merged
                 assert r.error_kind == want_kind[inject]
+                assert any(w.startswith("best-effort zh") for w in r.warnings)
 
     def test_split_error_kind_priority(self) -> None:
         """observed：``auth`` 优先于首个非空 kind（piece 序）。"""
@@ -359,28 +364,24 @@ class TestSplitFaultShape:
 
 
 class TestDecodeForgeHole:
-    """D3：src 外裸 token 在应答里凭空铸出 → decode 成字面 → 全链路无信号交付。"""
+    """D3 回归守卫：src 外裸 token 锻造 → decode 前对账拦截，不进交付译文。"""
 
-    @xfail_confirmed(
-        "D3: 锻造裸 token 静默解码交付——src 集合外的 [[NEGSP]] 等八族 token"
-        " 经 decode_newlines 变 \\!/\\n\\n/~ 进 ok 译文；diff/拦截网全部看不见"
-        "（对照：[[MATH_9]] 型带号 token 被 leftover 网拦降 fault）"
-    )
     @pytest.mark.parametrize(("tok", "lit"), _FORGE_TOKENS)
-    def test_forged_bare_token_silently_delivered(self, tok: str, lit: str) -> None:
-        """契约：src 外的裸 token 应答不得静默解码成字面进交付译文。"""
+    def test_forged_bare_token_not_delivered(self, tok: str, lit: str) -> None:
+        """契约：src 外的裸 token 应答不得静默解码成字面进交付译文。
+
+        对账在 decode 前（``bare_token_audit``：模型所见输入 vs 生应答的八族
+        token 多重集逐族相等）——锻造应答走阶梯校验失败通道消化，字面永不进
+        交付译文（阶梯内 whole/corrector 连败 → lines/slots 兜底或 fallback）。
+        """
         t = _T(single_fn=lambda _u, _t=tok: f"译文 {_t} 尾部")
         # 100B ∈ [short_limit, hard_limit)——单发路径（>120 会走 split 臂）
         res = _run([xp.ChunkIn("c", "x" * 100, "para")], t)
         r = res[0]
-        # 修复形态不拘——拒收/降 fault/剥除皆可；唯独不许字面进 ok 译文
-        assert lit not in r.translation or r.status != "ok"
+        assert lit not in r.translation
 
-    @xfail_confirmed(
-        "D3: 批路径同洞——成员段内锻造的 [[NEGSP]] → \\! 进 batched ok 译文"
-    )
     def test_forged_token_in_batch_member(self) -> None:
-        """契约同上单发面——批解析后 ``decode_newlines(part)`` 同样无闸。"""
+        """契约同上单发面——批成员段按 ``encode_batch`` 同款编码形态对账。"""
         t = _T(batch_fn=lambda _u: "[1] 译文 [[NEGSP]] 尾\n[2] 二号译文")
         res = _run(
             [
@@ -389,7 +390,7 @@ class TestDecodeForgeHole:
             ],
             t,
         )
-        assert "\\!" not in res[0].translation or res[0].status != "ok"
+        assert "\\!" not in res[0].translation
         assert res[1].status == "ok"  # 干净成员不受连坐
 
     def test_typed_token_forged_caught_control(self) -> None:
@@ -409,18 +410,34 @@ class TestDecodeForgeHole:
         assert r.error_kind == "validate"
         assert any("leftover_ph" in w for w in r.warnings)
 
-    def test_dropped_sl_token_also_invisible(self) -> None:
-        r"""observed 同洞反向：src 真 ``\n`` 编码成 ``[[SL]]`` 被模型丢弃 →
-        zh 丢换行无任何信号（``source_sl``/``source_pl`` 计数产出后无消费方）。"""
+    def test_bare_token_audit_unit(self) -> None:
+        """对账本体语义：八族逐族多重集等式——铸/丢/跨族替换同拦。"""
+        audit = xp.bare_token_audit
+        assert audit("a[[SL]]b", "译[[SL]]文") == ""  # 等式成立
+        assert "[[SL]]" in audit("a[[SL]]b", "译文")  # 丢 token
+        assert "[[NEGSP]]" in audit("a", "译[[NEGSP]]文")  # 铸 token
+        assert audit("a[[SL]]b", "译[[PL]]文") != ""  # 跨族替换不等价
+        # 哨兵族对 ANY_PH_RX 对称不可见——对账不计（findings 明载的豁免）
+        assert audit("a", "译[[__TEXLATE_SL_LIT__]]文") == ""
+
+    def test_dropped_sl_token_audit_fires(self) -> None:
+        r"""回归守卫（D3 同洞反向）：encoded 输入路径里 ``[[SL]]`` 被模型丢 →
+        whole 首试被 decode 前对账拦下（``attempts`` 可证——不拦则 1 请求交付）。
+
+        边界如实留档：corrector 收未编码原文、对账基线同为原文——其无 token
+        应答在 raw 世界合法（换行在那里是字符不是 token，多重集管不到），
+        本例最终仍 ok 交付丢换行译文。字符级网是另一件兵器，不在 D3 范围。
+        """
         t = _T(single_fn=lambda _u: "译文无换行标记")
         res = _run([xp.ChunkIn("c", "line1\nline2 " + "x" * 200, "para")], t)
         r = res[0]
-        assert r.status == "ok"  # 丢失静默交付（现行行为钉）
-        assert "\n" not in r.translation
+        # piece0（含真 ``\n``）whole 被拦 → corrector=2 请求；piece1 单发=1
+        assert r.attempts == 3  # noqa: PLR2004 -- D1 聚合后=各 piece 请求之和
+        assert r.status == "ok"
 
     def test_fuzz_forge_soup_all_tokens(self) -> None:
-        """随机锻造汤：八族 token × 随机重复注进应答——现行行为下全部静默
-        解码交付（本用例钉现行面；D3 修复落地后此钉翻转方向即回归守卫）。"""
+        """随机锻造汤回归守卫：八族 token × 随机重复注进应答——decode 前
+        对账全拦，锻造字面永不进交付译文（不管终态 ok/partial/fault）。"""
         rng = fuzz_rng(20261212)
         for _ in range(_FUZZ_ITERS):
             tok, lit = soup_pick(rng, _FORGE_TOKENS)
@@ -431,23 +448,19 @@ class TestDecodeForgeHole:
                 t,
             )
             r = res[0]
-            assert lit in r.translation  # 现行：锻造字面静默交付
-            assert r.status == "ok"
+            assert lit not in r.translation
 
 
 # ---------------------------------------------------------------- D4: 批成员不查段级缓存
 
 
 class TestBatchCacheBypass:
-    """D4：``_one_batch`` 直发全员——缓存命中的 short 块仍烧进批载荷。"""
+    """D4 回归守卫：批成员先过段级缓存——命中者不进批载荷、零请求直回。"""
 
-    @xfail_confirmed(
-        "D4: 批成员不查段级缓存——缓存命中的 short 块仍入批烧 token，"
-        "且新应答经 _cache_store 静默覆盖原缓存条目（single/long 路径正常命中）"
-    )
-    def test_cached_short_member_still_sent_in_batch(self) -> None:
+    def test_cached_short_member_not_sent_in_batch(self) -> None:
         """契约：段级缓存命中的成员不进批载荷、直接回缓存译文零请求。"""
-        p = xp.XlatPipeline(_T(), config=_cfg(), validator=_bad_validator, cache={})
+        t = _T()
+        p = xp.XlatPipeline(t, config=_cfg(), validator=_bad_validator, cache={})
         c_cached = xp.ChunkIn("cached", "already translated text", "para")
         assert p.cache is not None
         p.cache[p._seg_key(c_cached)] = "缓存译文"  # noqa: SLF001
@@ -456,6 +469,11 @@ class TestBatchCacheBypass:
         )
         assert res[0].translation == "缓存译文"
         assert res[0].attempts == 0  # 零请求
+        assert res[1].status == "ok"
+        # 命中成员不烧进批载荷——唯一请求按实发子集编号、只含 fresh 成员
+        assert len(t.calls) == 1
+        assert "already translated text" not in t.calls[0]["user"]
+        assert "[1] brand new text" in t.calls[0]["user"]
 
     def test_single_path_cache_hit_control(self) -> None:
         """对照组：long/single 路径缓存命中零请求直回（≤120B 防走 split——
@@ -468,9 +486,9 @@ class TestBatchCacheBypass:
         assert res[0].translation == "缓存译文"
         assert res[0].attempts == 0
 
-    def test_nonretryable_batch_error_skips_cached_member(self) -> None:
-        """observed（D4 旁证）：批 401 连坐 skip 也跳过逐成员缓存命中——
-        有缓存条目照 skipped，等下轮续跑自愈。"""
+    def test_nonretryable_batch_error_spares_cached_member(self) -> None:
+        """回归守卫（D4 旁证）：批 401 连坐 skip 只盖实发成员——缓存命中
+        成员前置短路出列，不再被整批连坐。"""
 
         async def die(**_kw: object) -> str:
             msg = "denied"
@@ -488,8 +506,9 @@ class TestBatchCacheBypass:
         res = asyncio.run(
             p.run([c_cached, xp.ChunkIn("fresh", "brand new text", "para")])
         )
-        # 现行：两块同罪 skipped（缓存命中成员也被连坐）
-        assert [r.status for r in res] == ["skipped", "skipped"]
+        assert [r.status for r in res] == ["ok", "skipped"]
+        assert res[0].translation == "缓存译文"
+        assert res[1].error_kind == "auth"
 
 
 # ---------------------------------------------------------------- P1: dup chunk_id 塌缩（observed 钉 + findings）
@@ -631,7 +650,8 @@ class TestRetranslateShape:
         assert r.error_kind == "validate"
 
     def test_decode_hole_shared(self) -> None:
-        """observed（D3 同洞）：回灌路径 ``decode_newlines`` 同样先于校验。"""
+        """回归守卫（D3 同洞）：回灌路径生应答同受 decode 前对账——锻
+        ``[[NEGSP]]`` → fault + 回退原文（``skipped=False`` 异形沿用 O1 留档）。"""
         p = xp.XlatPipeline(
             _T(single_fn=lambda _u: "译文 [[NEGSP]] 尾"),
             config=_cfg(),
@@ -641,8 +661,10 @@ class TestRetranslateShape:
             p.retranslate_chunk(xp.ChunkIn("c", "plain src text", "para"), "err")
         )
         assert r is not None
-        assert r.status == "ok"
-        assert "\\!" in r.translation  # 现行：锻造字面静默交付
+        assert r.status == "fault"
+        assert r.translation == r.source
+        assert r.error_kind == "validate"
+        assert any("structural token" in w for w in r.warnings)
 
 
 # ---------------------------------------------------------------- 编排残余观察钉
@@ -751,6 +773,77 @@ class TestOrchestraResidual:
         assert [r.chunk_id for r in res] == [c.chunk_id for c in chunks]
         for c, r in zip(chunks, res, strict=True):
             assert r.source == c.content
+
+
+# ---------------------------------------------------------------- A1: _collect 收账面
+
+
+def _collect_doc() -> list[xp.ChunkIn]:
+    """两长块（80<len≤120）各成 ``("single", c)`` item——``c0`` 走 warmup、
+    ``c1`` 走 worker，``_collect`` 的两个调用点都罩到。"""
+    return [
+        xp.ChunkIn("c0", "warmup-side collect body. " * 4, "para"),
+        xp.ChunkIn("c1", "worker-side collect body. " * 4, "para"),
+    ]
+
+
+async def _timed(p: xp.XlatPipeline) -> None:
+    """挂钟收敛——回归时宁要 TimeoutError 红灯，不要 ``join()`` 静默挂死。"""
+    async with asyncio.timeout(15):
+        await p.run(_collect_doc())
+
+
+class TestCollectFatalLedger:
+    """A1 回归守卫：``_collect`` 内拦截网/auth_gate/_emit 的 ``BaseException``
+    （KI 族）收进 ``fatal`` 账本、``_drain`` 收敛后重抛——任其逃逸则
+    worker 死、``queue.join()`` 死锁（E3 同族第二注入点，texlate-2d 交接）。"""
+
+    @pytest.mark.parametrize("target", ["c0", "c1"])
+    def test_interceptor_ki_ledgered(
+        self, monkeypatch: pytest.MonkeyPatch, target: str
+    ) -> None:
+        orig = xp._intercept_bare_cs  # noqa: SLF001 -- 私有拦截网正是注入面
+
+        def boom(r: xp.ChunkResult) -> None:
+            if r.chunk_id == target:
+                msg = "simulated collect KI"
+                raise KeyboardInterrupt(msg)
+            orig(r)
+
+        monkeypatch.setattr(xp, "_intercept_bare_cs", boom)
+        p = xp.XlatPipeline(_T(), config=_cfg(), validator=_bad_validator)
+        with pytest.raises(KeyboardInterrupt):
+            asyncio.run(_timed(p))
+
+    @pytest.mark.parametrize("target", ["c0", "c1"])
+    def test_auth_gate_ki_ledgered(
+        self, monkeypatch: pytest.MonkeyPatch, target: str
+    ) -> None:
+        orig = xp.AuthGate.record  # run() 入口重建 auth_gate——须补丁打类
+
+        def boom(self: xp.AuthGate, r: xp.ChunkResult) -> None:
+            if r.chunk_id == target:
+                msg = "simulated collect KI"
+                raise KeyboardInterrupt(msg)
+            orig(self, r)
+
+        monkeypatch.setattr(xp.AuthGate, "record", boom)
+        p = xp.XlatPipeline(_T(), config=_cfg(), validator=_bad_validator)
+        with pytest.raises(KeyboardInterrupt):
+            asyncio.run(_timed(p))
+
+    @pytest.mark.parametrize("target", ["c0", "c1"])
+    def test_on_result_ki_ledgered(self, target: str) -> None:
+        def boom(r: xp.ChunkResult) -> None:
+            if r.chunk_id == target:
+                msg = "simulated collect KI"
+                raise KeyboardInterrupt(msg)
+
+        p = xp.XlatPipeline(
+            _T(), config=_cfg(), validator=_bad_validator, on_result=boom
+        )
+        with pytest.raises(KeyboardInterrupt):
+            asyncio.run(_timed(p))
 
 
 # ---------------------------------------------------------------- findings 台账落盘

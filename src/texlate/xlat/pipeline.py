@@ -44,7 +44,12 @@ from .client import (
     ChatOptions,
     LengthTruncatedError,
 )
-from .retry import RetryPolicy, call_with_backoff, translate_with_ladder
+from .retry import (
+    RetryPolicy,
+    bare_token_audit,
+    call_with_backoff,
+    translate_with_ladder,
+)
 from .state import ChunkRecord, StateStore, segment_key
 
 if TYPE_CHECKING:
@@ -729,7 +734,8 @@ class XlatPipeline:
                 warnings.append(
                     f"recovered copied placeholders: {', '.join(recovered)}"
                 )
-        err = self.validator(c.content, zh)
+        # 回灌 user 是未编码原文——token 多重集期望基线同为原文形态
+        err = bare_token_audit(c.content, raw) or self.validator(c.content, zh)
         if err:
             return ChunkResult(
                 chunk_id=c.chunk_id,
@@ -761,7 +767,32 @@ class XlatPipeline:
     async def _one_batch(
         self, members: list[ChunkIn], batch_id: str
     ) -> list[ChunkResult]:
-        """一批：编号批量请求 → 解析失败整批退单翻（成员走完整阶梯）。"""
+        """一批：成员先过段级缓存短路，实发子集走编号批量协议。
+
+        逐成员 ``_cache_hit`` 前置（D4）：命中块不进批载荷——省 token、防新应答
+        经 ``_cache_store`` 覆盖原条目、批级失败（非可重试 skip/退单翻）也不再
+        连坐有缓存的成员。批序号按实发子集编排，``send`` 记原序位回填，返回
+        列表与 ``members`` 同序。
+        """
+        out: dict[int, ChunkResult] = {}
+        send: list[tuple[int, ChunkIn]] = []
+        for i, c in enumerate(members):
+            if hit := self._cache_hit(c, batch_id):
+                out[i] = hit
+            else:
+                send.append((i, c))
+        if send:
+            out.update(await self._batch_call(send, batch_id))
+        return [out[i] for i in range(len(members))]
+
+    async def _batch_call(
+        self, send: list[tuple[int, ChunkIn]], batch_id: str
+    ) -> dict[int, ChunkResult]:
+        """实发子集的批量往返：编号请求 → 解析失败整批退单翻（成员走完整阶梯）。
+
+        ``send`` = ``(members 内原序位, ChunkIn)`` 对；返回 ``{原序位: 结果}``。
+        """
+        members = [c for _i, c in send]
         system = self._system_prompt(members[0].kind, batch=True)
         user = encode_batch([c.content for c in members])
 
@@ -776,19 +807,22 @@ class XlatPipeline:
         except ChatError as e:
             if not e.retryable:
                 # 认证/余额/地址类错误重试无意义——直接整块 skip
-                return [
-                    self._skip(c, str(e), batch_id, kind=_kind_of(e)) for c in members
-                ]
+                return {
+                    i: self._skip(c, str(e), batch_id, kind=_kind_of(e))
+                    for i, c in send
+                }
             log.debug("batch %s call failed (%s) → degrade to singles", batch_id, e)
         except Exception as e:  # noqa: BLE001 -- 批量调用崩→退单翻，绝不丢成员
             log.debug("batch %s crashed (%s) → degrade to singles", batch_id, e)
 
         parts = parse_batch_response(raw, len(members)) if raw is not None else None
+        out: dict[int, ChunkResult] = {}
         if parts is None:
-            return [await self._degrade_one(c, batch_id) for c in members]
+            for i, c in send:
+                out[i] = await self._degrade_one(c, batch_id)
+            return out
 
-        out: list[ChunkResult] = []
-        for c, part in zip(members, parts, strict=True):
+        for (i, c), part in zip(send, parts, strict=True):
             zh = placeholders.decode_newlines(part)
             warnings: list[str] = []
             repair = self._repair_fn(c)
@@ -798,24 +832,25 @@ class XlatPipeline:
                     warnings.append(
                         f"recovered copied placeholders: {', '.join(recovered)}"
                     )
-            err = self.validator(c.content, zh)
+            # 批成员按 ``encode_batch`` 同款编码形态对账锻造 token（D3）
+            err = bare_token_audit(
+                placeholders.encode_newlines(c.content)[0], part
+            ) or self.validator(c.content, zh)
             if err:
                 # 批成功但该块校验败 → 单块回炉走完整阶梯
-                out.append(await self._degrade_one(c, batch_id))
+                out[i] = await self._degrade_one(c, batch_id)
                 continue
             self._cache_store(c, zh)
-            out.append(
-                ChunkResult(
-                    chunk_id=c.chunk_id,
-                    source=c.content,
-                    translation=zh,
-                    kind=c.kind,
-                    status="ok",
-                    batched=True,
-                    batch_id=batch_id,
-                    attempts=1,
-                    warnings=warnings,
-                )
+            out[i] = ChunkResult(
+                chunk_id=c.chunk_id,
+                source=c.content,
+                translation=zh,
+                kind=c.kind,
+                status="ok",
+                batched=True,
+                batch_id=batch_id,
+                attempts=1,
+                warnings=warnings,
             )
         return out
 
@@ -891,6 +926,7 @@ class XlatPipeline:
             translations: list[str] = []
             warnings: list[str] = []
             kinds: list[str] = []
+            attempts = 0
             worst = "ok"
             for piece in pieces:
                 try:
@@ -900,21 +936,27 @@ class XlatPipeline:
                 translations.append(r.translation)
                 warnings += r.warnings
                 kinds.append(r.error_kind)
+                attempts += r.attempts
                 if r.status in ("fault", "skipped"):
                     worst = "fault"
                 elif r.status == "partial" and worst == "ok":
                     worst = "partial"
             merged = " ".join(translations)
             status = worst if worst != "ok" else "ok"
+            if status == "fault":
+                # 保 skipped⇒translation==source 簿记不变量（D2）——merged 半成品
+                # 折进 warnings 留诊断（对齐 fallback_orig 的 best_zh 口径）
+                warnings.append(f"best-effort zh (unspliced): {merged[:200]}")
             return [
                 ChunkResult(
                     chunk_id=parent.chunk_id,
                     source=parent.content,
-                    translation=merged,
+                    translation=parent.content if status == "fault" else merged,
                     kind=parent.kind,
                     status=status,
                     skipped=(status == "fault"),
                     skip_reason="split piece(s) failed" if status == "fault" else "",
+                    attempts=attempts,
                     warnings=warnings,
                     error_kind=(
                         "auth" if "auth" in kinds else next((k for k in kinds if k), "")
@@ -1097,30 +1139,51 @@ class XlatPipeline:
                             self._skip(c, f"worker crash: {e}", kind=_kind_of(e))
                             for c in _item_chunks(item)
                         ]
-                self._collect(results, done_map)
+                self._collect(results, done_map, fatal)
             finally:
                 queue.task_done()
+
+    @staticmethod
+    def _ledger_call(
+        fatal: list[BaseException],
+        r: ChunkResult,
+        name: str,
+        fn: Callable[[ChunkResult], None],
+    ) -> None:
+        """账本调用统一双档网。
+
+        普通 ``Exception`` 记 log 续走（绝不外泄）；``BaseException``
+        （KI/SE/GE）收 ``fatal`` 账本——逃逸即杀 worker → ``queue.join()``
+        死锁（E3），由 ``_drain`` 收敛后重抛。
+        """
+        try:
+            fn(r)
+        except Exception:
+            log.exception("%s failed for %s", name, r.chunk_id)
+        except BaseException as e:
+            log.exception("%s crashed fatally for %s", name, r.chunk_id)
+            fatal.append(e)
 
     def _collect(
         self,
         results: list[ChunkResult],
         done_map: dict[str, ChunkResult],
+        fatal: list[BaseException],
     ) -> None:
         """结果入账 + 落盘（worker 与 warmup 共用）。
 
         state.record/on_result 抛错绝不外泄——worker 一死，队列里剩余 item
         永远等不到 task_done，``queue.join()`` 挂死；warmup 侧则直接炸掉整 run。
+        ``BaseException`` 族（KI/SE）同此理：逃逸即杀 worker → join 死锁，
+        逐调用收进 ``fatal`` 由 ``_drain`` 收敛后重抛（E3 同族第二注入点）。
         """
         for r in results:
             done_map[r.chunk_id] = r
-            _intercept_leftover_ph(r)
-            _intercept_ph_in_cs(r)
-            _intercept_bare_cs(r)
-            self.auth_gate.record(r)
-            try:
-                self._emit(r)
-            except Exception:
-                log.exception("emit failed for %s", r.chunk_id)
+            self._ledger_call(fatal, r, "leftover_ph intercept", _intercept_leftover_ph)
+            self._ledger_call(fatal, r, "ph_in_cs intercept", _intercept_ph_in_cs)
+            self._ledger_call(fatal, r, "bare_cs intercept", _intercept_bare_cs)
+            self._ledger_call(fatal, r, "auth_gate record", self.auth_gate.record)
+            self._ledger_call(fatal, r, "emit", self._emit)
 
     async def _drain(
         self,
@@ -1135,6 +1198,7 @@ class XlatPipeline:
             queue.put_nowait(item)
 
         # 首发单飞暖前缀缓存，再并发其余（docs/08 §1.6 warmup 模式）
+        fatal: list[BaseException] = []
         first = await queue.get()
         if first is not None:
             try:
@@ -1145,12 +1209,11 @@ class XlatPipeline:
                     self._skip(c, f"warmup crash: {e}", kind=_kind_of(e))
                     for c in _item_chunks(first)
                 ]
-            self._collect(results, done_map)
+            self._collect(results, done_map, fatal)
         queue.task_done()
 
         for _ in range(self.cfg.concurrency):
             queue.put_nowait(None)
-        fatal: list[BaseException] = []
         workers = [
             asyncio.create_task(self._worker(queue, done_map, fatal))
             for _ in range(self.cfg.concurrency)

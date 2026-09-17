@@ -525,13 +525,14 @@ def _simulate(  # noqa: C901, PLR0912 -- oracle 复刻编排路由，分支即�
             continue
         pieces = xb.split_long_chunk(c.content, max_chars=cfg.hard_limit)
         if len(pieces) > 1:
-            # split 父块：逐片段单翻 + " " 合并；attempts 字段实现不聚合（=0）
+            # split 父块：逐片段单翻 + " " 合并；attempts 聚合各片段
+            # （干净片段 echo 单翻恒 1 试 → len(pieces)）
             exp[c.chunk_id] = _Exp(
                 "ok",
                 translation=" ".join(
                     ph.decode_newlines(ph.encode_newlines(p)[0]) for p in pieces
                 ),
-                attempts=0,
+                attempts=len(pieces),
             )
             continue
         pending.append(c)

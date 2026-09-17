@@ -31,7 +31,20 @@ from typing import TYPE_CHECKING
 
 from .batch import split_long_chunk
 from .client import HTTP_TOO_MANY_REQUESTS, ChatError
-from .placeholders import ANY_PH_RX, decode_newlines, diff, encode_newlines
+from .placeholders import (
+    ANY_PH_RX,
+    MEDSP,
+    NBSP,
+    NEGSP,
+    PARA_NEWLINE,
+    SOFT_NEWLINE,
+    SOFT_SPACE,
+    THICKSP,
+    THINSP,
+    decode_newlines,
+    diff,
+    encode_newlines,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -167,6 +180,43 @@ def _validate(src: str, zh: str) -> str:
     return diff(src, zh).describe()
 
 
+#: 换行/脆弱空白八族 token——``decode_newlines`` 把它们还原成非 token 字符
+#: （``\n``/``\n\n``/``\ ``/``~``/``\,``/``\:``/``\;``/``\!``），post-decode
+#: 的 ``diff``/拦截网对它们全盲：模型凭空铸 token（``[[NEGSP]]``→``\!`` 落进
+#: 文本域是数学模式专属命令、编译炸弹）或丢 token（``[[SL]]`` 丢→吞换行）都
+#: 是静默注入/丢失，只能前置到 decode 前按「模型所见输入 vs 原始应答」逐族
+#: 对账。哨兵族 ``[[__TEXLATE_*_LIT*__]]`` 对 ANY_PH_RX 对称不可见故不计；
+#: ``*_RAW`` 族 decode 后仍是 token 形，归 leftover/diff 网管辖。
+_DECODE_FAM_TOKENS: tuple[str, ...] = (
+    SOFT_NEWLINE,
+    PARA_NEWLINE,
+    SOFT_SPACE,
+    NBSP,
+    THINSP,
+    MEDSP,
+    THICKSP,
+    NEGSP,
+)
+
+
+def bare_token_audit(shown_src: str, zh_raw: str) -> str:
+    """Decode 前对账：``shown_src`` 与生应答 ``zh_raw`` 的八族 token 多重集须逐族相等。
+
+    ``shown_src`` 取各调用点实际发给模型的文本形态——ladder 整段/行级是
+    ``encode_newlines`` 产物，corrector/retranslate 是未编码原文（模型所见
+    不同，期望多重集随之不同）。返回违规描述（``""``=通过），走各路径现成
+    的校验失败通道消化（阶梯重试/批退单翻/fault 回退）。
+    """
+    bad = [
+        f"{tok}(in={shown_src.count(tok)},out={zh_raw.count(tok)})"
+        for tok in _DECODE_FAM_TOKENS
+        if shown_src.count(tok) != zh_raw.count(tok)
+    ]
+    if not bad:
+        return ""
+    return "structural token multiset mismatch: " + ", ".join(bad)
+
+
 def _split_lines_scoped(text: str) -> list[str]:
     """闭合 scope 边界按句号切（`{}` 深度 0 的 `.!?`+空白 处断）——行级修复切分。"""
     parts: list[str] = []
@@ -293,16 +343,19 @@ async def _stage_whole(ctx: _LadderCtx) -> str | None:
     """Stage 1：整段×2（第二试 corrector 三段式或字段化反馈）。通过返回译文。"""
     raw = await ctx.call(ctx.encoded)
     zh = ctx.repair(ctx.source, decode_newlines(raw))
-    err = ctx.validate_fn(ctx.source, zh)
+    err = bare_token_audit(ctx.encoded, raw) or ctx.validate_fn(ctx.source, zh)
     if not err:
         return zh
     if ctx.corrector_fn is not None:
         ctx.attempts += 1
         raw2 = await ctx.corrector_fn(ctx.source, zh, err)
+        # corrector 收未编码原文（三段式 [Original] 段）——期望基线随之是原文
+        shown2 = ctx.source
     else:
         raw2 = await ctx.call(ctx.encoded, err)
+        shown2 = ctx.encoded
     zh2 = ctx.repair(ctx.source, decode_newlines(raw2))
-    err2 = ctx.validate_fn(ctx.source, zh2)
+    err2 = bare_token_audit(shown2, raw2) or ctx.validate_fn(ctx.source, zh2)
     if not err2:
         return zh2
     ctx.warnings.append(f"whole×2 failed: {err2}")
@@ -320,6 +373,12 @@ async def _stage_lines(ctx: _LadderCtx) -> str | None:
     for line in lines:
         raw_l = await ctx.call(line)
         src_l = decode_newlines(line)
+        if bare_token_audit(line, raw_l):
+            # 锻造/丢 token 的行应答其 decode 产物不可信——该行回退原文进装配，
+            # 不让 ``\!``/``\:`` 等字面混进 candidate（行级修复本就 best-effort）
+            bad_lines += 1
+            fixed.append(src_l)
+            continue
         zh_l = ctx.repair(src_l, decode_newlines(raw_l))
         if ctx.validate_fn(src_l, zh_l):
             bad_lines += 1
