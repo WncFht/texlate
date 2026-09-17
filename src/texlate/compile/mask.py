@@ -48,19 +48,26 @@ def group_end(s: str, pos: int) -> int:
     """
     if pos >= len(s) or s[pos] not in "[{":
         return pos
-    close = {"[": "]", "{": "}"}[s[pos]]
+    # 显式栈迭代配对（原递归实现深嵌套 { 撞 RecursionError）：`{` 恒压 `}`、
+    # `[` 仅最外层可作 opener，闭括号只看栈顶期望。
+    closers = ["]" if s[pos] == "[" else "}"]
     i = pos + 1
     while i < len(s):
-        if s[i] == "\\":
+        c = s[i]
+        if c == "\\":
             m = _COMMAND_RE.match(s, i)
             i = m.end() if m else i + 2
-        elif s[i] == "%":
+        elif c == "%":
             m = _NL_RE.search(s, i)
             i = len(s) if m is None else m.start() + 1
-        elif s[i] == "{":
-            i = group_end(s, i)
-        elif s[i] == close:
-            return i + 1
+        elif c == "{":
+            closers.append("}")
+            i += 1
+        elif c == closers[-1]:
+            closers.pop()
+            if not closers:
+                return i + 1
+            i += 1
         else:
             i += 1
     return len(s)

@@ -22,12 +22,6 @@ bbl 替换、路径 rebase、violation 审计、kpse 遮蔽）。kpsewhich 遮�
 - **幂等**：二跑 ``rewritten == 0``、零改写型台账、全树字节同
   （``dos_eps_skipped``/``encodings`` 是扫描报告，允许复现——后者
   二跑时 basis 只能 strict-utf8）。
-
-钉住的缺陷（``xfail(strict=True)``——修复后 XPASS 提醒拆钉）：
-
-- ``group_end``（mask.py:60）递归配对——``\pdfinfo{``/``\DisableLigatures{``/
-  ``\documentclass{`` 后跟 >~1000 层嵌套 ``{`` → ``RecursionError``，
-  normalize_project 整单崩。
 """
 
 from __future__ import annotations
@@ -91,7 +85,7 @@ _AUX_ITERS = 250
 _BBL_ITERS = 260
 _PATH_ITERS = 300
 _MAX_FILES = 14
-_NEST_CAP = 200  # 生成器嵌套上界——深嵌套 RecursionError 由独立钉覆盖
+_NEST_CAP = 200  # 生成器嵌套上界——更深嵌套由 test_group_end_deep_nesting_no_crash 覆盖
 
 _DOS_EPS_MAGIC = b"\xc5\xd0\xd3\xc6"  # oracle 独立常量（spec 魔数）
 
@@ -1036,16 +1030,11 @@ def test_bbl_accretion_across_runs(tmp_path: Path) -> None:
     assert "\\bibliography{" in out  # 至少一只应保留
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="group_end 递归配对（mask.py:60）：\\pdfinfo{/\\DisableLigatures{/"
-    "\\documentclass{ 后跟超递归上限的嵌套 { → RecursionError 逃逸 normalize",
-)
 @pytest.mark.parametrize(
     "anchor",
     ["\\pdfinfo{", "\\DisableLigatures{", "\\documentclass{"],
 )
-def test_pin_group_end_recursion(tmp_path: Path, anchor: str) -> None:
+def test_group_end_deep_nesting_no_crash(tmp_path: Path, anchor: str) -> None:
     """深嵌套 ``{``（>~1000）不应让归一化整单崩——应截到 EOF 或跳过。"""
     depth = 3000
     if anchor == "\\documentclass{":
@@ -1137,3 +1126,51 @@ def test_manual_splice_preserves_newline(case: str) -> None:
     """手术输出 ``\\n`` 计数不应低于输入（删除类编辑保行号的模块不变量）。"""
     out = normalize_engine(case, "xelatex", doc_source=True)
     assert out.count("\n") >= case.count("\n")
+
+
+def test_rebase_and_violations_malformed_names(tmp_path: Path) -> None:
+    r"""``\input{../<NUL>}``/``../<超 NAME_MAX 段>``：resolve/is_file 炸点不应整单崩。"""
+    (tmp_path / "main.tex").write_bytes(
+        b"\\input{../a\x00b}\n\\input{../" + b"e" * 300 + b"}\n"
+    )
+    assert rebase_project_paths(tmp_path, "main.tex") == []
+    viols = list(source_path_violations(tmp_path, "main.tex"))
+    # 解不开按越界报——审计面宁报不漏
+    assert len(viols) == 2  # noqa: PLR2004 -- 两条病态 \input 各报一条
+    assert all("超出工程目录" in m for _, _, m in viols)
+
+
+def test_bbl_long_bib_name_tolerated(tmp_path: Path) -> None:
+    """``\\bibliography{<300>}``：is_file ENAMETOOLONG → 按缺席计替换 .bbl。"""
+    (tmp_path / "main.bbl").write_text(
+        "\\begin{thebibliography}{9}\\end{thebibliography}\n"
+    )
+    tex = "\\bibliography{" + "d" * 300 + "}\n"
+    out = use_bundled_bibliography(tex, tmp_path / "main.tex", tmp_path)
+    assert out == "\\input{main.bbl}\n"
+
+
+def test_shadow_name_glob_metachars_escaped(tmp_path: Path) -> None:
+    """``weird[n]`` 不应借 rglob 模式注入误命中 ``weirdn.sty`` vendored。"""
+    (tmp_path / "weirdn.sty").write_text("x")
+    calls: list[str] = []
+
+    def resolver(req: str) -> Path | None:
+        calls.append(req)
+        return None
+
+    out = normalize._shadow_source(  # noqa: SLF001 -- 白盒钉遮蔽定位
+        "weird[n]", ".sty", tmp_path, resolver
+    )
+    assert out is None  # resolver 返回 None → 无系统件 → 不遮蔽
+    assert calls == ["weird[n].sty"]  # 未误判 vendored——走到了系统件解析
+
+
+def test_shadow_resolve_symlink_loop_tolerated(tmp_path: Path) -> None:
+    """kpse 命中件是 symlink loop：resolve RuntimeError → 不遮蔽、不崩。"""
+    loop = tmp_path / "loop.sty"
+    loop.symlink_to("loop.sty")
+    out = normalize._shadow_source(  # noqa: SLF001 -- 同上
+        "pkg", ".sty", tmp_path, lambda _r: loop
+    )
+    assert out is None
