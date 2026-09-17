@@ -758,8 +758,21 @@ class _Compile:
                         ctx.main_rel,
                         {_split_cid(c)[0] for c in still_bad},
                     )
-                    # 回落后未再编——下一级 fixloop 代验
-                    rep["fallback_unverified"] = True
+                    # 回落态即交付树——补一次裸编：fixloop 关/崩/reject
+                    # 时不再有代验兜底，zh-src.zip 不能装未验证树
+                    res3 = eng.compile(
+                        work,
+                        ctx.main_rel,
+                        timeout=self._compile_timeout,
+                        sandbox=True,
+                    )
+                    v3 = judge(
+                        res3,
+                        expect_cjk=ctx.expect_cjk,
+                        log_text=self._log_text_of(res3),
+                    )
+                    rep["fallback_verdict"] = v3.status
+                    res2, v2 = res3, v3
             self._l2_writeback(ctx, run, db_of, rep)
             n = _sync_fixed_sources(work, ctx.zh_dir)
             if n:

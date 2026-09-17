@@ -292,6 +292,33 @@ def test_l2_fallback_to_source(
     assert "paragraph" in out  # 回落后原文段回来
 
 
+def test_l2_fallback_verified_fixloop_off(
+    tmp_path: Path, engines: dict[str, ScriptedEngine], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """fixloop 关闭条件路径：回落态仍补裸编验证——zh-src.zip 不装未验证树。
+
+    洞案（fallback_unverified 侦察）：旧码回落后置 flag 靠 fixloop 代验，
+    ``TEXLATE_NO_FIXLOOP`` 时交付树零验证。新码回落后恒裸编并把第三态
+    verdict 当终态。
+    """
+    work = _project(tmp_path / "p")
+    engines["xelatex"] = ScriptedEngine(
+        "xelatex", [_fail_at_last_zh, _fail_at_last_zh, _clean]
+    )
+    monkeypatch.setenv("TEXLATE_NO_FIXLOOP", "1")
+
+    report = e2e.mock_pipeline_run(work, "xelatex", timeout=30.0)
+
+    l2 = report["l2"]
+    assert l2["fallback_src"], "重译态仍被点名的块应回落原文"
+    assert l2["fallback_verdict"] == "clean", "回落态裸编应判 clean"
+    assert "fallback_unverified" not in l2
+    # 回落态即交付树——其 verdict 就是终态
+    assert report["status"] == "clean"
+    # 首编 + 重译态重编 + 回落态裸编 = 3 次
+    assert len(engines["xelatex"].calls) == 3
+
+
 def test_l2_cap_limits_retranslate(
     tmp_path: Path, engines: dict[str, ScriptedEngine]
 ) -> None:

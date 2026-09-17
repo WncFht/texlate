@@ -738,7 +738,11 @@ def _l2_repair(
         rep["fallback_rewritten"] = _resplice(
             run, job.work, job.main_rel, {_split_cid(c)[0] for c in still_bad}
         )
-        rep["fallback_unverified"] = True  # 回落后未再编——下一级 fixloop 代验
+        # 回落态即交付树——补一次裸编：fixloop 关/崩/reject 时不再有
+        # 代验兜底，zh-src.zip 不能装未验证树（audit fallback_unverified）
+        tail3, res3 = _compile_judge(job, expect_cjk=True)
+        rep["fallback_verdict"] = tail3["verdict"]["status"]
+        last_res, tail2 = res3, tail3
     return rep, last_res, tail2
 
 

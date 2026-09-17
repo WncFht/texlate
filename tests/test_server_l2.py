@@ -78,7 +78,8 @@ class L2FlakyEngine:
     """按 wdir 计数的假引擎：前 ``n_fail`` 次 compile 出可归因 L2 错误 log。
 
     ``n_fail=1`` → L2 重编即绿（验证 L2 修好就跳过 fixloop）；
-    ``n_fail=2`` → L2 重编仍败（验证 fixloop 在 L2 之后兜底）。
+    ``n_fail=2`` → L2 重编仍败 → 回落后**裸编验证**即绿；
+    ``n_fail=3`` → 回落态验证仍败（验证 fixloop 在 L2 之后兜底）。
     探测面对齐 fixloop 会触到的 Engine 鸭子型。
     """
 
@@ -281,8 +282,8 @@ class TestL2Repair:
         tmp_path: Path,
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002
     ) -> None:
-        """L2 重编仍败 → 回落原文 → fixloop 兜底：事件序 l2 < fixloop。"""
-        eng = L2FlakyEngine(n_fail=2)
+        """L2 重编仍败 → 回落原文 → 回落态裸编仍败 → fixloop 兜底：事件序 l2 < fixloop。"""
+        eng = L2FlakyEngine(n_fail=3)
         with TestClient(_live_app(tmp_path, engine=eng)) as c:
             tid = _upload(c)["task_id"]
             snap = wait_terminal(c, tid)
@@ -297,6 +298,39 @@ class TestL2Repair:
             l2_data = next(e["data"] for e in evs if e["type"] == "l2")
             assert l2_data["retranslated"]
             # 重译后仍被点名 → 回落原文落库
+            rows = _chunks(c, tid)
+            assert any(
+                r["status"] == "fallback_orig" and r["error_code"] == "l2_reverted"
+                for r in rows
+            )
+
+    def test_l2_fallback_verified_fixloop_off(
+        self,
+        tmp_path: Path,
+        clean_env: pytest.MonkeyPatch,  # noqa: ARG002
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """fixloop 关闭条件路径：回落态仍补一次裸编验证（zh-src.zip 不装未验证树）。
+
+        洞案（fallback_unverified 侦察）：``fixloop=false`` 时旧码回落后无任何
+        验证即交付——pdf=重译态、zip=回落态三方分歧。新码回落后恒裸编。
+        """
+        monkeypatch.setenv("TEXLATE_NO_FIXLOOP", "1")
+        eng = L2FlakyEngine(n_fail=2)
+        with TestClient(_live_app(tmp_path, engine=eng)) as c:
+            tid = _upload(c)["task_id"]
+            snap = wait_terminal(c, tid)
+            # fallback_orig 块存在 → 终态 partial（降级交付语义，非 done）
+            assert snap["status"] == "partial", snap
+            evs = _events(c, tid)
+            l2_data = next(e["data"] for e in evs if e["type"] == "l2")
+            # 回落确实发生 + 回落态裸编判定入账
+            assert l2_data["fallback_src"]
+            assert l2_data["fallback_verdict"] == "clean"
+            assert "fallback_unverified" not in l2_data
+            # 首编 + 重译态重编 + 回落态裸编 = build-zh 同 wdir 共 3 次
+            n_work = sum(1 for call in eng.calls if "build-zh" in call["wdir"])
+            assert n_work == 3
             rows = _chunks(c, tid)
             assert any(
                 r["status"] == "fallback_orig" and r["error_code"] == "l2_reverted"
