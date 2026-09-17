@@ -24,7 +24,7 @@
 | 产物三件套 `{id}.pdf/{id}_zh_CN.pdf/{id}_zh_CN.tgz`                       | `en.pdf/zh.pdf/zh-src.zip` + dual.json + compile.log                                | 复刻（多给对齐数据与日志）                      | M3     |
 | GET status 即触发任务（无独立 create）                                    | `POST /api/arxiv/{id}/translate` 202 + cache_key reuse 命中即返回                   | 语义等价，REST 化                               | M3     |
 | 薄 API（第三方 Zotero 插件生态在用）                                      | 同构 API 面（status/files/reader），保持兼容可能性                                  | 复刻                                            | M3     |
-| isDeepSeek 双轨（便宜模型默认 + 反馈换 DeepSeek 重翻）                    | BYOK 任意 OpenAI 兼容 + `options.model` per-task + `POST /retry{model}` 升级重翻    | **升级**：用户自带 key，不止两档                | M3     |
+| isDeepSeek 双轨（便宜模型默认 + 反馈换 DeepSeek 重翻）                    | BYOK 任意 OpenAI 兼容 + `options.model` per-task + `POST /retry{model}` 升级重翻（勘误 2026-09-17：实装走「换 model 建任务」——model/target_lang 是 cache_key 成员，升级重翻=新任务+cache_key dedup，功能等价、接口形不同；m3gap 裁决 A 认实装语义）    | **升级**：用户自带 key，不止两档                | M3     |
 | 每日限额（100 篇/人，PDF 10 篇 ≤10MB）                                    | 本地形态不限；服务端形态 tenant 配额可配                                            | 配置化                                          | M3     |
 | PDF 上传翻译（marker→md，作者自评"效果很差"）                             | BabelDOC sidecar → 同页双语 PDF                                                     | **升级**：一步到位跳过 md 路线                  | M3     |
 | 1 万篇高引预译（S3 bulk $174/2TB + 语料内引用计数排序）                   | 批量层：manifest 切块 + edges.jsonl → rank.txt                                      | 复刻（同 region EC2 免 egress 优化）            | M4     |
@@ -183,7 +183,7 @@ sidecar BabelDOC(AGPL 边界) | 降级链 HTML/PDF | 远期: EPUB/DOCX/批量层
 
 ### 5.8 sidecars 与降级（规格：pdf-path.md + doc-formats.md + arxiv-layer.md §7）
 
-- BabelDOC：FastAPI sidecar（`POST /translate` multipart），in-process `async_translate`（不 spawn CLI）；`translate_tracking.json` 判静默 fallback；`--no-send-temperature` 网关兼容；2GB 镜像、资产预热、healthcheck；AGPL=独立容器，主进程只走 HTTP。
+- BabelDOC：FastAPI sidecar（`POST /translate` multipart），in-process `async_translate`（不 spawn CLI）；`translate_tracking.json` 判静默 fallback；`--no-send-temperature` 网关兼容；2GB 镜像、资产预热、healthcheck；AGPL=独立容器，主进程只走 HTTP。（勘误 2026-09-17：实装不走 in-process sidecar——`server/babeldoc.py` 直接 spawn CLI：AGPL 进程边界同效更硬，`--working-dir`+`assess_tracking` 判静默 fallback、`--no-send-temperature` 默认、BYOK 走 `-c` TOML、`on_progress`→SSE 进度回弹；m3gap 裁决维持现状）
 - HTML 降级：`/html/{id}`（先探无版本形式）→ LaTeXML DOM 分块翻译 → HtmlPane 呈现；接口位预留，M3 后半实现。
 - EPUB：stdlib zipfile+bs4 ~300 行（mimetype 首位 STORED、单例容器内联追加、⟦⟧ marker 协议三件套、JSONL 断点、fixed-layout 拒翻）；DOCX：python-docx deepcopy `w:p`+`addnext`+pPr 继承，六遍历面。
 - 三者共用 `translate/translate_list` 编排契约，零改动复用。
