@@ -8,124 +8,266 @@
     新增 6 条按 docs/08 §5.2 实现)
 
 社区贡献规则多数只需写 regex; 新算法型修复才需要往这里 PR 代码。
+
+C3 拆分: 实现体按域拆进 ``_builtins_*`` 叶子模块, 本文件收敛为门面
+re-export 保 ``builtins.X`` 公共面 (engine.py 属性消费 +
+``from ... import X`` 测试面 + ``_vendor_root`` 等私名跨模块访问)。
+图形/PS 域 (eps_to_pdf/graphic_* 族 + ``_run_convert`` 调用链) 留置本
+文件——``monkeypatch.setattr(builtins, "_run_convert")`` 写门面
+``__dict__``, 只有调用链与被 patch 名同模块时 patch 才生效。
 """
 
 from __future__ import annotations
 
-import contextlib
 import re
 import shutil
 import subprocess
-import unicodedata
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
-from texlate.compile.inject import find_docclass_ends
-from texlate.compile.normalize import INTERMEDIATE_SUFFIXES
-from texlate.latex.api import parse_file
-from texlate.latex.prose import file_has_prose
-from texlate.latex.tables import MATH_ENVS
-from texlate.textutil import CJK_RX, _cs_events_spans, mask_tex, safe_is_file
+from texlate.compile.fixloop._builtins_bib import (
+    _AUX_CITEKEY_RE,
+    _BBL_VER_RE,
+    _BIBITEM_KEY_RE,
+    _CITE_FAMILY_RE,
+    _bbl_format_version,
+    _rewrite_keylists,
+    bbl_regen,
+    bbl_stub_rewrite,
+    citekey_sanitize,
+)
+from texlate.compile.fixloop._builtins_common import (
+    _USE_RE,
+    PDFTEX_PRIMS,
+    _drop_pkg_loads,
+    _inject_after_docclass,
+    _live_matches,
+    _map_tex_files,
+)
+from texlate.compile.fixloop._builtins_csfix import (
+    _ALLOC_BRACE_RE,
+    _ALLOC_CS_RE,
+    _CS_FIX_TABLE,
+    _SPLIT_GUARD,
+    _SPLIT_HEADS,
+    _SPLIT_REST_MAX,
+    _allocated_cs_names,
+    _ensure_usepackage,
+    _rewrite_cs_map,
+    _split_glued_cs,
+    cs_targeted_fix,
+    undefine_for_redef,
+)
+from texlate.compile.fixloop._builtins_misc import (
+    _OWN_MARKERS,
+    _SUPPORT_SUFFIXES,
+    _corrupted_by_xlat,
+    _is_support_baseline,
+    non_utf8_recode,
+    purge_corrupt_intermediates,
+    restore_support_from_src,
+)
+from texlate.compile.fixloop._builtins_misschar import (
+    _ACCENT_CS,
+    _CARET_HEX_RE,
+    _CJK_FONT_RE,
+    _CJK_MECH_RE,
+    _FB_FONT,
+    _FB_RANGES,
+    _MATH_GUARD_BEGIN_RE,
+    _MATH_SHIM_CS,
+    _MC_TABLE,
+    _MC_WARMUP_SIZES,
+    _MISSING_CHAR_RE,
+    _accent_fix_text,
+    _accent_site_re,
+    _compile_log_text,
+    _fb_snippet_lines,
+    _in_spans,
+    _inject_fallback_lines,
+    _inject_math_cs_shims,
+    _math_cs_shim_names,
+    _math_guard_spans,
+    _mc_apply_warmup,
+    _mc_chr,
+    _mc_codepoint,
+    _mc_hit,
+    _mc_parse_log,
+    _mc_plan,
+    _mc_table,
+    _sub_literal_chars,
+    accent_mark_fix,
+    font_fallback,
+    missing_char_fix,
+)
+from texlate.compile.fixloop._builtins_pkgload import (
+    _INPUTENCODING_RE,
+    _PHYS_GUARD_MARK,
+    _PHYS_INPUT_RE,
+    _PHYS_LOAD_RE,
+    _PHYS_PROVIDES_RE,
+    _PHYS_STUB_GUARD,
+    _detach_in_tex_files,
+    _detach_physics_loads,
+    font_sub_shim,
+    option_clash_merge,
+    physics_stub_detach,
+    strip_inputenc,
+)
+from texlate.compile.fixloop._builtins_shim import (
+    _DOCCLASS_LINE_RE,
+    _DOCCLASS_OPTS_RE,
+    _JOURNAL_MACROS,
+    bundled_class_shadow,
+    journal_cs_polyfill,
+    legacy_pkg_shim,
+    pdftex_prim_polyfill,
+    shim_pkgs_in_use,
+    svjour_clo_stub,
+)
+from texlate.compile.fixloop._builtins_vendored import (
+    _DATE_INDIRECT_RE,
+    _DATE_RE,
+    _VENDOR_SUBDIRS,
+    _index_providers,
+    _provides_date,
+    _vendor_root,
+    _vendored_source,
+    find_vendored_shadows,
+    vendored_fetch,
+    vendored_shadow_isolate,
+)
+from texlate.textutil import _cs_events_spans, safe_is_file
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable
-
     from texlate.compile.fixloop.engine import Engine, LoopCtx
 
-__all__ = ["REWRITE_FNS", "TRANSFORM_FNS"]
-
-# pdfTeX 原语清单 (spike L284-298 + 2410.00012 实证扩: 文档面对象/注释/资源族)
-PDFTEX_PRIMS = (
-    "pdfoutput",
-    "pdfminorversion",
-    "pdfcompresslevel",
-    "pdfinfo",
-    "pdfpagewidth",
-    "pdfpageheight",
-    "pdfhorigin",
-    "pdfvorigin",
-    "pdfsuppressptexinfo",
-    "pdftrailer",
-    "pdfpxdimen",
-    "pdflastxpos",
-    "pdflastypos",
-    # 对象/表单/图像
-    "pdfobj",
-    "pdflastobj",
-    "pdfrefobj",
-    "pdfxform",
-    "pdflastxform",
-    "pdfrefxform",
-    "pdfximage",
-    "pdflastximage",
-    "pdfrefximage",
-    # 注释/链接/书签
-    "pdfannot",
-    "pdflastannot",
-    "pdfdest",
-    "pdflink",
-    "pdfstartlink",
-    "pdfendlink",
-    "pdfoutline",
-    "pdfcatalog",
-    "pdfnames",
-    # 文字流/页面资源
-    "pdfliteral",
-    "pdfcolorstack",
-    "pdfcolorstackinit",
-    "pdfsavepos",
-    "pdfpageref",
-    "pdfpageattr",
-    "pdfpagesattr",
-    "pdfpageresources",
-    "pdfdraftmode",
-    # 读取/工具原语
-    "pdfescapestring",
-    "pdfescapename",
-    "pdfescapehex",
-    "pdfunescapehex",
-    "pdffilesize",
-    "pdffilemoddate",
-    "pdffiledump",
-    "pdfmdfivesum",
-    "pdfelapsedtime",
-    "pdfresettimer",
-    "pdfuniformdeviate",
-    "pdfnormaldeviate",
-    "pdfrandomseed",
-    "pdfmatch",
-    "pdflastmatch",
-    "pdfstrcmp",
-    "pdfprimitive",
-    "pdfifprimitive",
-    "pdfcreationdate",
-    # 字体/微排/映射
-    "pdffontname",
-    "pdffontobjnum",
-    "pdffontsize",
-    "pdfincludechars",
-    "pdfmapfile",
-    "pdfmapline",
-    "pdfglyphtounicode",
-    "pdfgentounicode",
-    "pdfadjustspacing",
-    "pdfprotrudechars",
-    "pdftracingfonts",
-    "pdfdecimaldigits",
-    "pdftexversion",
-    "pdftexrevision",
-    "pdfinclusionerrorlevel",
-    "pdfsuppresswarningpagegroup",
-)
-
-_DATE_RE = re.compile(
-    r"\\Provides(?:Package|Class|ExplPackage|ExplClass)\s*\{[^}]*\}\s*\[(\d{4})[/.-](\d{2})[/.-](\d{2})"
-)
-#: 日期面宏间址——``\ProvidesPackage{x}[\abx@date\space v...]`` 形（biblatex
-#: v3.12 实证：字面日期不在 bracket 而在同文件 ``\def\abx@date{2018/11/02}``）。
-_DATE_INDIRECT_RE = re.compile(
-    r"\\Provides(?:Package|Class|ExplPackage|ExplClass)\s*\{[^}]*\}\s*\[\s*\\([a-zA-Z@]+)"
-)
+__all__ = [
+    "PDFTEX_PRIMS",
+    "REWRITE_FNS",
+    "TRANSFORM_FNS",
+    "_ACCENT_CS",
+    "_ALLOC_BRACE_RE",
+    "_ALLOC_CS_RE",
+    "_AUX_CITEKEY_RE",
+    "_BBL_VER_RE",
+    "_BIBITEM_KEY_RE",
+    "_CARET_HEX_RE",
+    "_CITE_FAMILY_RE",
+    "_CJK_FONT_RE",
+    "_CJK_MECH_RE",
+    "_CS_FIX_TABLE",
+    "_DATE_INDIRECT_RE",
+    "_DATE_RE",
+    "_DOCCLASS_LINE_RE",
+    "_DOCCLASS_OPTS_RE",
+    "_EPS_EXTS",
+    "_FB_FONT",
+    "_FB_RANGES",
+    "_GRAPHICS_PKGS_RE",
+    "_GRAPHIC_EXTS",
+    "_GS_FLAGS",
+    "_INCLUDE_GFX_RE",
+    "_INPUTENCODING_RE",
+    "_JOURNAL_MACROS",
+    "_LOAD_OPT_RE",
+    "_MATH_GUARD_BEGIN_RE",
+    "_MATH_SHIM_CS",
+    "_MC_TABLE",
+    "_MC_WARMUP_SIZES",
+    "_MISSING_CHAR_RE",
+    "_NUMERIC_EXT_RE",
+    "_OWN_MARKERS",
+    "_PHYS_GUARD_MARK",
+    "_PHYS_INPUT_RE",
+    "_PHYS_LOAD_RE",
+    "_PHYS_PROVIDES_RE",
+    "_PHYS_STUB_GUARD",
+    "_PS_DRIVERS",
+    "_SPLIT_GUARD",
+    "_SPLIT_HEADS",
+    "_SPLIT_REST_MAX",
+    "_SUPPORT_SUFFIXES",
+    "_USE_RE",
+    "_VENDOR_SUBDIRS",
+    "_accent_fix_text",
+    "_accent_site_re",
+    "_allocated_cs_names",
+    "_bbl_format_version",
+    "_compile_log_text",
+    "_convert_one",
+    "_corrupted_by_xlat",
+    "_cs_events_spans",
+    "_detach_in_tex_files",
+    "_detach_physics_loads",
+    "_drop_pkg_loads",
+    "_ensure_usepackage",
+    "_fb_snippet_lines",
+    "_find_graphic_ci",
+    "_graphic_ref_hit",
+    "_in_spans",
+    "_index_providers",
+    "_inject_after_docclass",
+    "_inject_fallback_lines",
+    "_inject_math_cs_shims",
+    "_is_support_baseline",
+    "_live_matches",
+    "_map_tex_files",
+    "_math_cs_shim_names",
+    "_math_guard_spans",
+    "_mc_apply_warmup",
+    "_mc_chr",
+    "_mc_codepoint",
+    "_mc_hit",
+    "_mc_parse_log",
+    "_mc_plan",
+    "_mc_table",
+    "_norm_graphic_name",
+    "_opt_dim",
+    "_provides_date",
+    "_rewrite_case_refs",
+    "_rewrite_cs_map",
+    "_rewrite_eps_refs",
+    "_rewrite_keylists",
+    "_run_convert",
+    "_split_glued_cs",
+    "_strip_ps_driver_opts",
+    "_stub_graphic_refs",
+    "_sub_literal_chars",
+    "_try_gs_redistill",
+    "_vendor_root",
+    "_vendored_source",
+    "accent_mark_fix",
+    "bbl_regen",
+    "bbl_stub_rewrite",
+    "bundled_class_shadow",
+    "citekey_sanitize",
+    "cs_targeted_fix",
+    "eps_to_pdf",
+    "find_vendored_shadows",
+    "font_fallback",
+    "font_sub_shim",
+    "graphic_case_link",
+    "graphic_repair",
+    "journal_cs_polyfill",
+    "keep_latin_tokens",
+    "legacy_pkg_shim",
+    "missing_char_fix",
+    "non_utf8_recode",
+    "option_clash_merge",
+    "pdftex_prim_polyfill",
+    "physics_stub_detach",
+    "pstricks_dvips_preflight",
+    "purge_corrupt_intermediates",
+    "px_to_bp",
+    "restore_support_from_src",
+    "shim_pkgs_in_use",
+    "strip_inputenc",
+    "svjour_clo_stub",
+    "undefine_for_redef",
+    "vendored_fetch",
+    "vendored_shadow_isolate",
+]
 
 
 # ════════════════════════════════════════════════════════════════
@@ -151,567 +293,9 @@ REWRITE_FNS = {"px_to_bp": px_to_bp, "keep_latin_tokens": keep_latin_tokens}
 
 # ════════════════════════════════════════════════════════════════
 # builtin_transform 文件级变换 —— (ctx, eng, payload, params) -> (applied, note)
+# 留置域: pstricks 路由预检 / EPS→PDF 转换 / missing_graphic 修复
+# (monkeypatch 锚点 ``_run_convert`` 要求调用链同模块, 见 docstring)
 # ════════════════════════════════════════════════════════════════
-
-_USE_RE = re.compile(
-    r"^(\s*)\\(usepackage|RequirePackage)\s*(\[([^\]]*)\])?\s*\{([^}]*)\}",
-    re.MULTILINE,
-)
-
-
-def _live_matches(rx: re.Pattern[str], t: str) -> list[re.Match[str]]:
-    r"""遮盖视图命中且匹配体完整未遮——``%`` 注释/verbatim 内假装载点不算。
-
-    mask_tex 等长遮盖 → match 位置/group 对原文有效；跨遮盖区的命中
-    （注释内 ``\documentclass``、comment 环境）span 与原文不一致，跳过。
-    2211.04482 记档同族：锚正则把 ``%\documentclass`` 当活缝。
-    """
-    masked = mask_tex(t)
-    return [
-        m
-        for m in rx.finditer(masked)
-        if masked[m.start() : m.end()] == t[m.start() : m.end()]
-    ]
-
-
-def option_clash_merge(
-    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
-) -> tuple[bool, str]:
-    r"""Option clash: 同包两次 ``\\usepackage`` → 合并选项到首处, 注释后处 (spike L459-494)。"""
-    del eng  # 签名面统一; 本变换不触引擎
-    if not payload:
-        return False, "no pkg payload"
-    exts = tuple(params.get("exts") or (".tex", ".sty", ".cls"))
-    changed = 0
-    for f in ctx.tex_files(exts):
-        t = ctx.read(f)
-        if t is None:
-            continue
-        hits = [
-            m
-            for m in _live_matches(_USE_RE, t)
-            if payload in [x.strip() for x in m.group(5).split(",")]
-        ]
-        if len(hits) < 2:  # noqa: PLR2004 - 2 = 重复加载的最小命中数
-            continue
-        first, later = hits[0], hits[-1]
-        opts1 = first.group(4) or ""
-        opts2 = later.group(4) or ""
-        merged = ",".join(
-            dict.fromkeys(o for o in (opts1 + "," + opts2).split(",") if o)
-        )
-        m0 = first.group(0)
-        if first.group(3):
-            first_new = m0.replace(first.group(3), f"[{merged}]", 1)
-        else:  # 首个加载无 [opts] → 在花括号前插 [merged]; spike L486
-            # `str.replace("", ...)` 会逐位插入, 此处修掉该潜伏 bug
-            brace = m0.rfind("{")
-            first_new = m0[:brace] + f"[{merged}]" + m0[brace:]
-        t = (
-            t[: first.start()]
-            + first_new
-            + t[first.end() : later.start()]
-            + "% fixloop: merged into earlier \\usepackage\n% "
-            + later.group(0).replace("\n", "\n% ")
-            + t[later.end() :]
-        )
-        ctx.write(f, t)
-        changed += 1
-    return (changed > 0), f"merge \\usepackage{{{payload}}} opts in {changed} files"
-
-
-def pdftex_prim_polyfill(
-    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
-) -> tuple[bool, str]:
-    r"""读取型 pdfTeX 原语补定义: ``\\ifdefined\\<prim>\\else\\chardef\\<prim>=1\\fi``。
-
-    guard 规则只管 ``\\pdfX=val``/``\\pdfX{..}`` 赋值型; ``\\ifnum\\pdfoutput``
-    这类读取型需要原语已定义 (docs/08:268)。注入点恒在主文件头——
-    cls/sty 内部读取发生在 ``\\documentclass`` 加载期间, 类行后注入太晚
-    (2410.00012: ieeeaccess.cls:128 内 ``\\pdfobj``); ``ifdefined``
-    前缀天然幂等。
-    """
-    del eng  # 签名面统一; 注入发生在主文件源文本
-    prim = str(params.get("prim") or payload or "")
-    if prim not in PDFTEX_PRIMS:
-        return False, f"{prim} not in pdfTeX prim list"
-    guard = f"\\ifdefined\\{prim}\\else\\chardef\\{prim}=1\\fi"
-    main = ctx.main_path()
-    if main is None:
-        return False, "no main tex"
-    t = ctx.read(main) or ""
-    if f"\\ifdefined\\{prim}" in t:
-        return False, f"{prim} already guarded"
-    ctx.write(main, guard + " % fixloop polyfill\n" + t)
-    return True, f"polyfill \\{prim} at file head"
-
-
-def _provides_date(text: str) -> tuple[int, int, int] | None:
-    r"""``\ProvidesX{..}[YYYY/MM/DD]`` 字面日期 → ``(y, m, d)``。
-
-    字面缺时 bracket 首 cs 走同文件 ``\def\<cs>{YYYY/MM/DD}`` 宏间址兜底
-    （biblatex v3.12 ``[\abx@date ...]`` 实证；vendored/系统两侧同法，
-    比较仍成立）。
-    """
-    m = _DATE_RE.search(text)
-    if m is None:
-        ind = _DATE_INDIRECT_RE.search(text)
-        if ind is None:
-            return None
-        m = re.search(
-            r"\\def\\"
-            + re.escape(ind.group(1))
-            + r"\s*\{(\d{4})[/.-](\d{2})[/.-](\d{2})\}",
-            text,
-        )
-    return (int(m.group(1)), int(m.group(2)), int(m.group(3))) if m else None
-
-
-def _index_providers(eng: Engine, fname: str) -> list[str]:
-    """``filemap`` + ``ctan_fetch.peek_index`` 查 ``fname`` 的 bundle/TL 提供包。
-
-    只收 ``query`` 精确命中 —— ``suggest`` 前缀猜测面太宽, 不足以佐证
-    撞名遮蔽。
-    """
-    pkgs = list(eng.filemap(fname))
-    if not pkgs:
-        fetcher = getattr(eng, "ctan_fetch", None)
-        peek = getattr(fetcher, "peek_index", None)
-        idx = peek() if callable(peek) else None
-        if idx is not None:
-            pkgs = idx.query(fname)
-    return pkgs
-
-
-def find_vendored_shadows(
-    ctx: LoopCtx, eng: Engine, exts: tuple[str, ...]
-) -> list[tuple[Path, tuple[int, int, int] | None, tuple[int, int, int] | None, str]]:
-    r"""工程内 .sty/.cls 遮蔽候选 → ``(file, 本地日期, 系统日期, 提供方)``。
-
-    xelatex: ``probe_file`` 命中系统副本且 ``\\ProvidesPackage``/``\\ProvidesClass``
-    日期 ``ld < sd`` 确证才列 (盲删必死 —— 同目录 cls 可能是唯一来源)。
-    tectonic: ``probe_file`` 无 cwd 恒 None —— 改查 filemap/tlpdb 索引,
-    撞名被收录 (bundle/TL 有现行副本) 即列 ``sd=None`` advisory 级候选;
-    bundle 内文件无日期面, 提供方记 ``bundle provides <pkg>``, 不走
-    ``ld < sd`` 判据。
-    """
-    cands = []
-    tectonic = ctx.engine_name == "tectonic"
-    wdir_r = ctx.wdir.resolve()
-    for f in ctx.tex_files(exts):
-        resolved = eng.probe_file(f.name)
-        if not resolved:
-            if tectonic:
-                pkgs = _index_providers(eng, f.name)
-                if pkgs:
-                    local_txt = ctx.read(f)
-                    ld = _provides_date(local_txt) if local_txt else None
-                    prov = f"bundle provides {', '.join(pkgs)}"
-                    cands.append((f, ld, None, prov))
-            continue
-        rp = Path(resolved) if isinstance(resolved, str) else resolved
-        try:
-            rpv = rp.resolve()
-            if rpv == f.resolve() or rpv.is_relative_to(wdir_r):
-                continue  # 命中工程自身/工程内同名副本（kpsewhich 搜 cwd——
-                # 进程 cwd 落在 workdir 内时探到的是 vendored 自件）→ 非遮蔽
-        except (OSError, RuntimeError, ValueError):
-            continue  # symlink loop/NUL/巨名 → 按非遮蔽计
-        local_txt = ctx.read(f)
-        try:
-            sys_txt = Path(rp).read_text(encoding="utf-8", errors="replace")
-        except (OSError, ValueError):
-            continue
-        if local_txt is None:
-            continue
-        ld, sd = _provides_date(local_txt), _provides_date(sys_txt)
-        if ld is not None and sd is not None and ld < sd:
-            cands.append((f, ld, sd, str(rp)))
-    return cands
-
-
-def vendored_shadow_isolate(
-    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
-) -> tuple[bool, str]:
-    """确证更旧的工程内 .sty/.cls → rename ``<f>.fixloop-iso`` 隔离 (docs/08:269)。
-
-    ``sd=None`` 的 tectonic 索引候选是 advisory 级 —— 无日期面确证新旧,
-    不 rename, 记 ``bundle provides <pkg>`` advisory (幂等去重)。
-
-    ``params.cohort_map``：``sty 名 → 同包伴船 glob 表``——确证更旧的包其
-    vendored 伴船件（.def/.bbx/.cbx/.lbx 等）一并隔离，否则留下旧伴船与
-    系统新主件混栈（1907.00257 半栈 biblatex/2003.10727 全栈实证——只隔
-    biblatex.sty 会留 vendored *.def 继续遮蔽系统件）。
-    """
-    del payload
-    exts = tuple(params.get("exts") or (".sty", ".cls"))
-    suffix = str(params.get("suffix") or ".fixloop-iso")
-    cohort_map: dict[str, Any] = params.get("cohort_map") or {}
-    moved = []
-    for f, ld, sd, prov in find_vendored_shadows(ctx, eng, exts):
-        if sd is None:
-            adv = f"{f.name}: {prov}——vendored 撞名未确证新旧, 保留"
-            if adv not in ctx.advisories:
-                ctx.advisories.append(adv)
-            continue
-        f.rename(f.with_name(f.name + suffix))
-        moved.append(f"{f.name} ({ld} < {sd})")
-        for pat in cohort_map.get(f.name, ()):
-            for sib in ctx.wdir.rglob(str(pat)):
-                if not sib.is_file() or sib.name.endswith(suffix) or sib == f:
-                    continue
-                sib.rename(sib.with_name(sib.name + suffix))
-                moved.append(f"{sib.relative_to(ctx.wdir)} (cohort)")
-    if not moved:
-        return False, "无确证更旧的可隔离遮蔽"
-    return True, f"isolate vendored: {', '.join(moved)}"
-
-
-def non_utf8_recode(
-    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
-) -> tuple[bool, str]:
-    r"""非 UTF-8 源文件就地转码 UTF-8 (docs/08:272; iconv 等价物, stdlib 版)。
-
-    只对 utf-8 解码真失败的文件动刀; cp1252 是 latin-1 超集, 兼容
-    西文 smart quote。能 utf-8 解码的文件绝不重写。
-    """
-    del eng, payload
-    exts = tuple(params.get("exts") or (".tex", ".sty", ".cls", ".bib"))
-    recoded = []
-    for f in ctx.tex_files(exts):
-        raw = f.read_bytes()
-        try:
-            raw.decode("utf-8")
-            continue
-        except UnicodeDecodeError:
-            pass
-        for enc in ("cp1252", "latin-1"):
-            with contextlib.suppress(UnicodeDecodeError):
-                f.write_text(raw.decode(enc), encoding="utf-8")
-                recoded.append(f"{f.name}({enc})")
-                ctx.invalidate(f)
-                break
-    return (bool(recoded)), f"recode to utf-8: {', '.join(recoded)}"
-
-
-def bbl_stub_rewrite(
-    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
-) -> tuple[bool, str]:
-    r"""Tectonic stub bbl 断链: 有 .bbl 无 .bib → ``\\bibliography{x}`` → ``\\input{main.bbl}``。
-
-    实证根因 (ctanfetch-probe §3.3): tectonic 自动 bibtex 在无 .bib 时
-    生成 24 行 stub bbl, 在内存文件层遮蔽磁盘真 bbl → 空 thebibliography。
-    """
-    del eng, payload
-    exts = tuple(params.get("exts") or (".tex",))
-    bbls = {p.stem: p for p in ctx.wdir.rglob("*.bbl")}
-    if not bbls:
-        return False, "no .bbl in project"
-    main = ctx.main_path()
-    stem = main.stem if main is not None else None
-    target = bbls.get(stem) or next(iter(bbls.values()))
-    pat = re.compile(r"\\bibliography(\[[^\]]*\])?\{[^}]*\}")
-    changed = 0
-    for f in ctx.tex_files(exts):
-        t = ctx.read(f)
-        if t is None or "\\bibliography" not in t:
-            continue
-        nt = pat.sub(rf"\\input{{{target.name}}}", t, count=1)
-        if nt != t:
-            ctx.write(f, nt)
-            changed += 1
-    return (
-        changed > 0
-    ), f"\\bibliography -> \\input{{{target.name}}} in {changed} files"
-
-
-#: ``.bbl`` 头标 ``bbl format version X.Y`` (biber 产物首行) —— 版本元组提取。
-_BBL_VER_RE = re.compile(rb"bbl format version (\d+)\.(\d+)")
-
-
-def _bbl_format_version(bbl: Path) -> tuple[int, int] | None:
-    """``.bbl`` 头标 ``bbl format version X.Y`` → ``(X, Y)``; 无标/读失败 → ``None``。"""
-    try:
-        head = bbl.read_bytes()[:2048]
-    except OSError:
-        return None
-    m = _BBL_VER_RE.search(head)
-    return (int(m.group(1)), int(m.group(2))) if m else None
-
-
-def bbl_regen(
-    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
-) -> tuple[bool, str]:
-    r"""Bundled 旧版 .bbl 撞新 biblatex → ``biber <stem>`` 就地重生成 (.bcf 在场)。
-
-    实证根因 (2009.11064): e-print 捆绑 biber <3.3 格式 .bbl, TL biblatex 3.21
-    拒载 —— ``\\sortlist`` undefined / ``File 'ms.bbl' is wrong format version``;
-    .bcf+.bib 在场即 ``biber <stem>`` 重生成正确版本 .bbl (输出落 .bcf 同目录,
-    嵌套亦直传 wdir 相对 stem)。biber 缺席 → run_tool rc≠0 fail-safe。
-
-    wall-2 (1706.00240, fixer-apjbbx verification.txt): biber rc=2 对陈旧
-    .bcf/.bbl 会**自删** stem.bbl ("malformed ... Deleted")——清场即 progress,
-    旧实现 ``if not done: return False`` 白做; 残留 bbl 头标
-    ``bbl format version <3.0`` 同理是 poison (biblatex 硬拒), 删除后变
-    "no bbl" 软缺——无文献但出 PDF, 比硬错强。
-    """
-    del eng, payload, params
-    bcfs = sorted(ctx.wdir.rglob("*.bcf"))
-    if not bcfs:
-        return False, "no .bcf in project"
-    done: list[str] = []
-    dropped: list[str] = []
-    failed: list[str] = []
-    for bcf in bcfs:
-        stem = str(bcf.relative_to(ctx.wdir).with_suffix(""))
-        bbl = bcf.with_suffix(".bbl")
-        had_bbl = bbl.exists()
-        rc, _out, to = ctx.run_tool(["biber", stem], 60)
-        if rc == 0 and not to:
-            done.append(bcf.name)
-            ctx.invalidate(bbl)
-            continue
-        if had_bbl and not bbl.exists():
-            # biber 自删 poison (陈旧格式拒载清场) —— 真实盘变, 计 progress
-            ctx.invalidate(bbl)
-            dropped.append(f"{bbl.name}(biber-rm)")
-        elif (
-            bbl.is_file()
-            and (ver := _bbl_format_version(bbl)) is not None
-            and ver < (3, 0)  # bbl 格式主版本门 (biblatex 3.x 硬拒 <3.0)
-        ):
-            bbl.unlink()
-            ctx.invalidate(bbl)
-            dropped.append(f"{bbl.name}(fmt {ver[0]}.{ver[1]})")
-        else:
-            failed.append(f"{bcf.name} rc={rc}{'/timeout' if to else ''}")
-    if not done and not dropped:
-        return False, f"biber regen failed: {'; '.join(failed)}"
-    parts: list[str] = []
-    if done:
-        parts.append(f"regen: {', '.join(done)}")
-    if dropped:
-        parts.append(f"stale-dropped: {', '.join(dropped)}")
-    if failed:
-        parts.append(f"failed: {'; '.join(failed)}")
-    return True, "; ".join(parts)
-
-
-#: ``\cite`` 族命令（\cite/\citet/\citep/\nocite/\citeauthor…）可选参后键表组。
-_CITE_FAMILY_RE = re.compile(
-    r"\\[a-zA-Z@]*cite[a-zA-Z@]*\*?\s*(?:\[[^\]\n]*\]\s*)*\{([^}]*)\}"
-)
-#: ``\bibitem[<opt>]{key}`` —— .bbl 键定义点。
-_BIBITEM_KEY_RE = re.compile(r"\\bibitem\s*(?:\[[^\]\n]*\]\s*)?\{([^}]*)\}")
-#: .aux 残留 ``\bibcite{key}{..}``/``\citation{keys}`` —— 陈旧键同源改写。
-_AUX_CITEKEY_RE = re.compile(r"\\(?:bibcite|citation)\s*\{([^}]*)\}")
-
-
-def _rewrite_keylists(
-    text: str, rx: re.Pattern[str], *, masked: bool
-) -> tuple[str, int]:
-    r"""``rx`` 组1 键表逐键 ``&``→``A``、``_``→``-``；返回 (新文本, 改写数)。
-
-    ``masked=True`` 在 ``mask_tex`` 视图上定位、原文上拼接——注释/verbatim
-    内同形 token 不改写（键串是查找语义，展示性出现不必动）。
-    """
-    view = mask_tex(text) if masked else text
-    edits: list[tuple[int, int, str]] = []
-    for m in rx.finditer(view):
-        keys = m.group(1)
-        if "&" not in keys and "_" not in keys:
-            continue
-        new = ",".join(k.replace("&", "A").replace("_", "-") for k in keys.split(","))
-        edits.append((m.start(1), m.end(1), new))
-    for s, e, new in reversed(edits):
-        text = text[:s] + new + text[e:]
-    return text, len(edits)
-
-
-def citekey_sanitize(
-    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
-) -> tuple[bool, str]:
-    r"""ADS/apj.bst 时代 .bbl cite-key 裸 ``&``/``_`` → 双侧一致重写。
-
-    实证根因 (apj-bib-scout §S4, 11 格)：老导出 key 的 ``&``（A&A bibcode）/
-    ``_``（Allen_90/GW170104_main 形）在现代内核 ``\bibitem``/标签机制下炸
-    ``Missing $ inserted``/``Misplaced alignment tab``——.bbl ``\bibitem{key}``
-    定义点与全部 .tex ``\cite`` 族引用点必须同图改写，单侧改 = 引用断链。
-    .aux 残留 ``\bibcite``/``\citation`` 陈旧键同源改写（防 undefined-citation
-    残响）。
-    """
-    del eng, payload
-    tex_exts = tuple(params.get("tex_exts") or (".tex",))
-    gen_map = (
-        (".bbl", _BIBITEM_KEY_RE),
-        (".bbl", _CITE_FAMILY_RE),
-        (".aux", _AUX_CITEKEY_RE),
-    )
-    changed: list[str] = []
-    for f in ctx.tex_files(tex_exts):
-        t = ctx.read(f)
-        if t is None:
-            continue
-        nt, n = _rewrite_keylists(t, _CITE_FAMILY_RE, masked=True)
-        if n:
-            ctx.write(f, nt)
-            changed.append(f"{f.name}({n})")
-    for ext, rx in gen_map:
-        for f in ctx.tex_files((ext,)):
-            t = ctx.read(f)
-            if t is None:
-                continue
-            nt, n = _rewrite_keylists(t, rx, masked=False)
-            if n:
-                ctx.write(f, nt)
-                changed.append(f"{f.name}({n})")
-    if not changed:
-        return False, "no unsafe cite keys"
-    return True, f"sanitize cite keys &->A/_->-: {', '.join(changed)}"
-
-
-#: repo 随发 vendored 件子层 —— ``files/`` 真件 (许可逐件核过) 先于
-#: ``stubs/`` 最小宏面 stub; disposition 路由在 inventory 侧已结清。
-_VENDOR_SUBDIRS = ("files", "stubs")
-
-
-def _vendor_root(params: dict[str, Any]) -> Path:
-    """Repo vendored 件根: ``params.dir`` 覆盖, 默认包内 ``vendor/``。"""
-    d = params.get("dir")
-    return Path(d) if d else Path(__file__).resolve().parent / "vendor"
-
-
-def _vendored_source(root: Path, fname: str) -> Path | None:
-    """Basename 查件: files/ → stubs/ 序; 命中返回源路径否则 None。"""
-    base = PurePosixPath(fname).name
-    if not base:
-        return None
-    for sub in _VENDOR_SUBDIRS:
-        cand = root / sub / base
-        if safe_is_file(cand):
-            return cand
-    return None
-
-
-def vendored_fetch(
-    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
-) -> tuple[bool, str]:
-    r"""missing_file 命中 repo vendored 件 → 平铺进 wdir (两臂同式)。
-
-    off-CTAN 绝版宏 (aastex/psfig/iopart/elsart/svjour…) 无包可装,
-    ``ctan_fetch`` 的 cwd 平铺遮蔽已是实证通路 —— 本动作同源, 只是把
-    取件点从 tlnet 换成随包 ``vendor/`` (零网络零安装)。落盘保 payload
-    相对径 (``\input{sub/x}`` 期径); basename 查件。
-    """
-    del eng
-    fname = (payload or "").strip()
-    rel = PurePosixPath(fname)
-    if not fname or rel.is_absolute() or ".." in rel.parts or "\x00" in fname:
-        return False, f"unsafe vendored name {fname!r}"
-    src = _vendored_source(_vendor_root(params), fname)
-    if src is None:
-        return False, f"{fname} not vendored"
-    dst = ctx.wdir / Path(*rel.parts)
-    try:
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(src, dst)
-    except OSError as e:
-        return False, f"vendored copy {src.name} failed: {e}"
-    tier = "files" if src.parent.name == "files" else "stubs"
-    return True, f"vendored[{tier}] {src.name} -> {dst.relative_to(ctx.wdir)}"
-
-
-#: ``\documentclass`` 选项表提取 —— 选项可缺省, 方括号内允跨行空白。
-_DOCCLASS_OPTS_RE = re.compile(r"\\documentclass\s*(?:\[([^\]]*)\])?\s*\{")
-
-
-def svjour_clo_stub(
-    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
-) -> tuple[bool, str]:
-    r"""svjour.cls 零 .clo 伴船 → 按 ``\documentclass`` 选项写 ``sv<opt>.clo`` noop stub。
-
-    实证根因 (0905.0193): e-print 捆绑 svjour.cls (2003, Springer) 但不带
-    任何 .clo, TeX Live 亦不收录 svjour → ``\DeclareOption*`` 里
-    ``\InputIfFileExists{sv\CurrentOption.clo}`` 逐选项落空,
-    ``\journalopt`` 停在 ``\@empty`` → ``\ClassError{No valid journal
-    specified}`` + ``\stop``。noop ``\endinput`` stub 让 InputIfFileExists
-    走真臂置 ``\journalopt`` 为选项名即过; 盘上已有真 .clo 不覆盖。
-    """
-    del eng, payload, params
-    main = ctx.main_path()
-    t = ctx.read(main) if main is not None else None
-    if t is None:
-        return False, "no main tex"
-    vis = mask_tex(t)  # 注释掉的 %\documentclass 的选项不得入 stub 表
-    if not _DOCCLASS_OPTS_RE.search(vis):
-        return False, "no \\documentclass in main"
-    opts = [
-        o.strip()
-        for m in _DOCCLASS_OPTS_RE.finditer(vis)
-        for o in (m.group(1) or "").split(",")
-        if o.strip()
-    ]
-    if not opts:
-        return False, "no documentclass options"
-    written = []
-    for opt in dict.fromkeys(opts):
-        if "/" in opt or "\\" in opt:
-            continue  # 防选项里的路径分隔符穿出 wdir / write_text 炸 OSError
-        target = ctx.wdir / f"sv{opt}.clo"
-        if target.exists():
-            continue  # 盘上真 .clo 优先, 不覆盖
-        ctx.write(target, "% fixloop: svjour option stub (noop)\n\\endinput\n")
-        written.append(target.name)
-    if not written:
-        return False, "all sv*.clo already present, nothing written"
-    return True, f"svjour .clo stubs written: {', '.join(written)}"
-
-
-def font_sub_shim(
-    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
-) -> tuple[bool, str]:
-    r"""MF-only 字体包 → Type1 近亲 shim (docs/08:275, ctanfetch-probe §3.5)。
-
-    ``\\usepackage{bbm}`` → ``\\usepackage{dsfont}`` + cs 族改写
-    (``\\mathbbm``→``\\mathds`` 等)。物理字体投放对 tectonic xdvipdfmx
-    是死路, 只能靠改写换 bundle 内字体族。
-    """
-    del eng, payload
-    exts = tuple(params.get("exts") or (".tex", ".sty"))
-    shim_map: dict[str, dict[str, Any]] = params.get("shim_map") or {}
-    changed = []
-    load_pat = re.compile(
-        r"(\\(?:usepackage|RequirePackage)\s*(?:\[[^\]]*\])?\s*)\{([^}]*)\}"
-    )
-    for f in ctx.tex_files(exts):
-        t = ctx.read(f)
-        if t is None:
-            continue
-        nt = t
-        for old_pkg, spec in shim_map.items():
-            new_pkg = spec.get("usepackage")
-            if not new_pkg:
-                continue
-
-            # 装载点: {bbm} 精确 / {a,bbm,c} 列表元素 (其余不动)
-            def _sw(m: re.Match[str], _o: str = old_pkg, _n: str = new_pkg) -> str:
-                parts = [x.strip() for x in m.group(2).split(",")]
-                if _o not in parts:
-                    return m.group(0)
-                return (
-                    m.group(1)
-                    + "{"
-                    + ",".join(_n if p == _o else p for p in parts)
-                    + "}"
-                )
-
-            nt = load_pat.sub(_sw, nt)
-            for old_cs, new_cs in (spec.get("cs_map") or {}).items():
-                nt = re.sub(rf"\\{old_cs}\b", rf"\\{new_cs}", nt)
-        if nt != t:
-            ctx.write(f, nt)
-            changed.append(f.name)
-    return (bool(changed)), f"font shim applied in {', '.join(changed)}"
 
 
 def pstricks_dvips_preflight(
@@ -731,7 +315,13 @@ def pstricks_dvips_preflight(
     return True, f"REJECT: route={route} dvips-resources-ok"
 
 
-_EPS_EXTS = (".eps", ".epsf", ".epsi", ".mps", ".ps")  # 与 normalize.PS_GRAPHIC_SUFFIXES 同步
+_EPS_EXTS = (
+    ".eps",
+    ".epsf",
+    ".epsi",
+    ".mps",
+    ".ps",
+)  # 与 normalize.PS_GRAPHIC_SUFFIXES 同步
 #: metapost 数字扩展名 ``.\d+`` —— ``diag1.1`` 实为 EPS (0806.4589 实证:
 #: ps_image 只认 .eps/.ps 把它漏归 other), 与 _EPS_EXTS 并列进扫源面。
 _NUMERIC_EXT_RE = re.compile(r"^\.\d+$")
@@ -924,1296 +514,6 @@ def eps_to_pdf(
     if n_drivers:
         note += f", {n_drivers} ps-driver opts stripped"
     return True, note
-
-
-def legacy_pkg_shim(
-    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
-) -> tuple[bool, str]:
-    r"""退役/改名包的 shim: ``shim_map[payload]`` → 往 wdir 注入同名 stub + 装依赖。
-
-    spec 键:
-      ``loads: <pkg-base>`` — cls 类 stub 模板 ``\\LoadClassWithOptions{<pkg>}``;
-      ``body: <tex>``       — 自定义 stub 全文 (sty 桥接, 如 psfig→epsfig);
-      ``needs: [files]``    — stub 依赖文件, 先 install_file 补齐 (缺则照记, 下轮
-                              missing_file 自然归因)。
-    实证锚点 (fixloop-v2): aastex→emulateapj 救回 1806.06690 (aastex701 删了
-    ``\\altaffilmark`` 族, 非 drop-in; emulateapj 为 arXiv 投稿仿 aastex 接口);
-    psfig→epsfig 桥可用因 epsfig 的 Gin key 同收 ``figure=``/``file=``。
-    """
-    shim_map = params.get("shim_map") or {}
-    fname = payload or ""
-    spec = shim_map.get(fname)
-    if spec is None and not Path(fname).suffix:
-        # `I can't find file `X'` 裸 payload (\input 系): 实体是 X.tex ——
-        # shim 键与 stub 落点都用归一名 (epsf→epsf.tex 实证)。
-        fname = f"{fname}.tex"
-        spec = shim_map.get(fname)
-    if not spec:
-        return False, f"no legacy shim for {payload}"
-    stub = spec.get("body")
-    loads = spec.get("loads")
-    if not stub and loads:
-        stem = fname.rsplit(".", 1)[0]
-        stub = (
-            "\\NeedsTeXFormat{LaTeX2e}\n"
-            # 版本串必须以 YYYY/MM/DD 日期开头: \\documentclass 装载时
-            # \\@ifl@t@r 会解析 ver@*.cls, 裸文字 "fixloop ..." 让
-            # \\@parse@version@ 读出 `f' → "Missing = inserted for \\ifnum"
-            # (1806.06690 实证; 无 halt-on-error 时可恢复故有 pdf 假象)。
-            f"\\ProvidesClass{{{stem}}}[2026/09/15 fixloop legacy shim -> {loads}]\n"
-            f"\\LoadClassWithOptions{{{loads}}}\n"
-            "\\endinput\n"
-        )
-    if not stub:
-        return False, f"shim spec for {payload} has neither body nor loads"
-    missing = []
-    for dep in spec.get("needs") or []:
-        if ctx.wdir.joinpath(dep).is_file():
-            continue
-        if eng.probe_file(dep) or eng.install_file(dep):
-            continue
-        missing.append(dep)
-    target = ctx.wdir / fname
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(stub, encoding="utf-8")
-    note = f"stub {fname} injected"
-    if loads:
-        note += f" (\\LoadClassWithOptions{{{loads}}})"
-    if missing:
-        note += f"; deps still missing: {', '.join(missing)}"
-    return True, note
-
-
-#: AAS 期刊缩写宏表 —— emulateapj.cls L1201-1256 ``\ref@jnl`` 全表抄录
-#: (去壳成纯文本展开)。实证锚点: tectonic bundle 内置 aastex 5.0rc3.1 (1999)
-#: 没有这批宏, 老 aastex 文档 \bibitem 里的 ``\actaa`` 族全成 undefined_cs
-#: (1806.06690 tectonic 臂)。\providecommand 语义: 类里已有定义时不覆盖。
-_JOURNAL_MACROS: dict[str, str] = {
-    "aj": "AJ",
-    "araa": "ARA\\&A",
-    "apj": "ApJ",
-    "apjl": "ApJ~Lett.",
-    "apjs": "ApJS",
-    "ao": "Appl.~Opt.",
-    "apss": "Ap\\&SS",
-    "aap": "A\\&A",
-    "aapr": "A\\&A~Rev.",
-    "aaps": "A\\&AS",
-    "azh": "AZh",
-    "baas": "BAAS",
-    "icarus": "Icarus",
-    "jrasc": "JRASC",
-    "memras": "MmRAS",
-    "mnras": "MNRAS",
-    "pra": "Phys.~Rev.~A",
-    "prb": "Phys.~Rev.~B",
-    "prc": "Phys.~Rev.~C",
-    "prd": "Phys.~Rev.~D",
-    "pre": "Phys.~Rev.~E",
-    "prl": "Phys.~Rev.~Lett.",
-    "pasp": "PASP",
-    "pasj": "PASJ",
-    "qjras": "QJRAS",
-    "skytel": "S\\&T",
-    "solphys": "Sol.~Phys.",
-    "sovast": "Soviet~Ast.",
-    "ssr": "Space~Sci.~Rev.",
-    "zap": "ZAp",
-    "nat": "Nature",
-    "iaucirc": "IAU~Circ.",
-    "aplett": "Astrophys.~Lett.",
-    "apspr": "Astrophys.~Space~Phys.~Res.",
-    "bain": "Bull.~Astron.~Inst.~Netherlands",
-    "fcp": "Fund.~Cosmic~Phys.",
-    "gca": "Geochim.~Cosmochim.~Acta",
-    "grl": "Geophys.~Res.~Lett.",
-    "jcp": "J.~Chem.~Phys.",
-    "jgr": "J.~Geophys.~Res.",
-    "jqsrt": "J.~Quant.~Spec.~Radiat.~Transf.",
-    "memsai": "Mem.~Soc.~Astron.~Italiana",
-    "nphysa": "Nucl.~Phys.~A",
-    "physrep": "Phys.~Rep.",
-    "physscr": "Phys.~Scr.",
-    "planss": "Planet.~Space~Sci.",
-    "procspie": "Proc.~SPIE",
-    "actaa": "Acta Astron.",
-    "caa": "Chinese Astron. Astrophys.",
-    "cjaa": "Chinese J. Astron. Astrophys.",
-    "jcap": "J.~Cosmology Astropart.~Phys.",
-    "na": "New~A",
-    "nar": "New~A~Rev.",
-    "pasa": "PASA",
-    "rmxaa": "Rev.~Mexicana Astron.~Astrofis.",
-}
-_DOCCLASS_LINE_RE = re.compile(r"(?m)^[ \t]*\\document(?:class|style)[^\n]*\n?")
-
-
-def _drop_pkg_loads(t: str, pkg: str) -> tuple[str, int]:
-    r"""剥 ``\usepackage``/``\RequirePackage`` 对 pkg 的装载 → (新文本, 摘除数)。
-
-    独载: 行首锚 (前缀全空白) → 整行注释; 行内嵌入 → 置空
-    (注释替换会误吃同行尾 token)。列表成员: 外科摘除元素保留其余。
-    """
-    pat = re.compile(
-        rf"\\(usepackage|RequirePackage)(\s*\[[^\]\n]*\])?\s*\{{([^}}]*)\b{re.escape(pkg)}\b([^}}]*)\}}"
-    )
-    n = 0
-
-    def _sub(m: re.Match[str]) -> str:
-        nonlocal n
-        pkgs = [p.strip() for p in (m.group(3) + "," + m.group(4)).split(",")]
-        keep = [p for p in pkgs if p and p != pkg]
-        n += 1
-        if keep:
-            return f"\\{m.group(1)}{m.group(2) or ''}{{{','.join(keep)}}}"
-        ls = m.string.rfind("\n", 0, m.start()) + 1
-        if m.string[ls : m.start()].strip():
-            return ""
-        return "% fixloop: stripped " + m.group(0).strip()
-
-    return pat.sub(_sub, t), n
-
-
-_INPUTENCODING_RE = re.compile(r"\\inputencoding\s*\{[^}]*\}")
-
-
-def strip_inputenc(
-    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
-) -> tuple[bool, str]:
-    r"""Unicode 引擎剥 inputenc: 装载点 + ``\inputencoding{}`` 调用 (compilebench-v3 缺口)。
-
-    inputenc.sty 对 xetex/luatex 整包拒载 ("not designed for xetex or
-    luatex"); 源真为非 UTF-8 时由 warn_utf8 → non_utf8_source 在后续轮
-    接续转码, 两轮分工不混。
-    """
-    del eng, payload
-    exts = tuple(params.get("exts") or (".tex", ".sty", ".cls"))
-    changed = []
-    for f in ctx.tex_files(exts):
-        t = ctx.read(f)
-        if t is None or "inputenc" not in t:
-            continue
-        nt, n_load = _drop_pkg_loads(t, "inputenc")
-        nt, n_enc = _INPUTENCODING_RE.subn("", nt)
-        if nt != t:
-            ctx.write(f, nt)
-            changed.append(f"{f.name}(-{n_load}load,-{n_enc}enc)")
-    return (bool(changed)), f"strip inputenc in {', '.join(changed)}"
-
-
-#: ``\\usepackage``/``\\RequirePackage`` 名单内的 ``physics`` 装载点
-#: (``\\b`` 界只保证不以字母续名——``{physics-tools}`` 这类命中由成员判定滤掉)。
-_PHYS_LOAD_RE = re.compile(
-    r"\\(usepackage|RequirePackage)(\s*\[[^\]\n]*\])?\s*\{([^}]*)\bphysics\b([^}]*)\}"
-)
-#: 源侧既有 ``\\input{physics}`` 裸载点 —— 裸 ``\\input`` 本就不进注册表, 不重复补。
-_PHYS_INPUT_RE = re.compile(r"\\input\s*\{?\s*physics(?:\.sty|\.tex)?(?![\w.-])")
-#: stub 内 ``\\ProvidesPackage{physics}`` —— ``\\input`` 路径下它仍置
-#: ``ver@physics.sty`` → siunitx 的 ``\\@ifpackageloaded{physics}`` 照中。
-_PHYS_PROVIDES_RE = re.compile(r"(\\Provides(?:Expl)?Package\s*\{)physics(\s*\})")
-_PHYS_GUARD_MARK = "txlatephysstub"
-_PHYS_STUB_GUARD = (
-    "% fixloop: physics stub detached (siunitx \\@ifpackageloaded evasion)\n"
-    "\\ifdefined\\txlatephysstub\\expandafter\\endinput\\fi\n"
-    "\\let\\txlatephysstub\\relax\n"
-)
-
-
-def _detach_physics_loads(t: str, *, add_input: bool) -> tuple[str, int]:
-    r"""剥 ``physics`` 装载点并原位换 ``\\input{physics.sty}`` 续载 → (新文本, 摘除数)。
-
-    独载 → 整命令换成 ``\\input`` 行; 列表成员 → 摘除元素 + 行后挂 ``\\input``。
-    ``\\input`` 不进 ``ver@`` 注册表, stub 的 ``\\abs``/``\\norm`` 等定义照常
-    生效。命中位取自 ``mask_tex`` 遮盖视图——``%`` 注释内的假装载点不动
-    (注释里拼 ``\\input`` 会把续行冲出注释)。
-    """
-    masked = mask_tex(t)
-    hits = []
-    for m in _PHYS_LOAD_RE.finditer(masked):
-        # g3+g4 是不含 physics 本体的花括号残件——回填本体再做元素级判定
-        # (``{physics-tools}`` 的 ``\b`` 误命中由此滤掉)。
-        pkgs = [
-            p.strip() for p in (m.group(3) + "physics" + m.group(4)).split(",")
-        ]
-        if "physics" in pkgs:
-            hits.append((m, [p for p in pkgs if p and p != "physics"]))
-    if not hits:
-        return t, 0
-    out = t
-    need = add_input
-    for m, keep in reversed(hits):
-        if need:
-            need = False
-            ins = "% fixloop: physics stub detached\n\\input{physics.sty}"
-            repl = (
-                f"\\{m.group(1)}{m.group(2) or ''}{{{','.join(keep)}}}\n{ins}"
-                if keep
-                else ins
-            )
-        elif keep:
-            repl = f"\\{m.group(1)}{m.group(2) or ''}{{{','.join(keep)}}}"
-        else:
-            ls = t.rfind("\n", 0, m.start()) + 1
-            repl = (
-                ""
-                if t[ls : m.start()].strip()
-                else "% fixloop: stripped " + m.group(0).strip()
-            )
-        out = out[: m.start()] + repl + out[m.end() :]
-    return out, len(hits)
-
-
-def _detach_in_tex_files(
-    ctx: LoopCtx, stub: Path, exts: tuple[str, ...], *, need_input: bool
-) -> list[str]:
-    r"""逐 tex 文件剥 physics 装载点 (首个文件补 ``\\input`` 续载) → 改动文件名。"""
-    changed: list[str] = []
-    for f in ctx.tex_files(exts):
-        if f == stub:
-            continue
-        t = ctx.read(f)
-        if t is None or "physics" not in t:
-            continue
-        nt, n = _detach_physics_loads(t, add_input=need_input)
-        if not n or nt == t:
-            continue
-        ctx.write(f, nt)
-        changed.append(f.name)
-        need_input = False
-    return changed
-
-
-def physics_stub_detach(
-    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
-) -> tuple[bool, str]:
-    r"""Bundled ``physics.sty`` stub 撞 siunitx ``\\@ifpackageloaded{physics}`` → 脱注册续载。
-
-    实证 (1706.00240 wall-3, fixer-apjbbx verification.txt): e-print 捆绑
-    2012 手写 mini-physics (``\\dbar\\ord\\bra\\ket`` 族), siunitx v3
-    ``\\AtBeginDocument`` 对 ``\\@ifpackageloaded{physics}`` 硬报错 →
-    ``\\begin{document}`` 处 undefined_cs。三步: ``\\usepackage`` 名单剥
-    physics 原位改 ``\\input{physics.sty}`` (``\\input`` 不进 ``ver@`` 注册)
-    + stub ``\\ProvidesPackage{physics}`` 更名 ``physics-stub`` + 双载守卫。
-    真 CTAN physics (xparse ``\\DeclareDocumentCommand`` 形) 弃权——那与
-    siunitx 是 ``\\qty`` 语义真冲突, 归 LLM。
-    """
-    del eng, payload
-    stub = ctx.wdir / "physics.sty"
-    st = ctx.read(stub) if stub.is_file() else None
-    if st is None:
-        return False, "no bundled physics.sty at wdir root"
-    real_marker = str(params.get("real_marker") or r"\\DeclareDocumentCommand")
-    if re.search(real_marker, st):
-        return False, "physics.sty is xparse-form (real CTAN), not stub"
-    exts = tuple(params.get("exts") or (".tex", ".sty", ".cls"))
-    need_input = _PHYS_INPUT_RE.search(mask_tex(ctx.source_blob())) is None
-    changed = _detach_in_tex_files(ctx, stub, exts, need_input=need_input)
-    renamed = _PHYS_PROVIDES_RE.sub(r"\g<1>physics-stub\g<2>", st)
-    neut = renamed
-    if (changed or neut != st) and _PHYS_GUARD_MARK not in neut:
-        neut = _PHYS_STUB_GUARD + neut
-    if neut != st:
-        ctx.write(stub, neut)
-    if not changed and renamed == st:
-        return False, "no physics load sites to detach"
-    parts = []
-    if changed:
-        parts.append(f"\\input detach in {', '.join(changed)}")
-    if renamed != st:
-        parts.append("ProvidesPackage neutered")
-    if neut != renamed:
-        parts.append("reload guard")
-    return True, "physics stub detached: " + "; ".join(parts)
-
-
-#: 寄存器/盒型分配的裸 cs 形 (plain/cls 内码常见): ``\newbox\splitbox``。
-#: ``\newif\ifX`` 伴生 ``\Xtrue``/``\Xfalse``; ``*def`` 系 primitive 同把名
-#: 绑进寄存器槽位——``\let\X\@undefined`` 后名被后载包抢占, 原 ``\setbox``/
-#: ``\advance`` 点变 Missing number (2211.04482 aastex62 ``\splitbox`` 实证)。
-_ALLOC_CS_RE = re.compile(
-    r"\\(?:newbox|newcount|newdimen|newskip|newmuskip|newtoks|newread"
-    r"|newwrite|newif|newinsert|newmarks|newfont|newlanguage"
-    r"|chardef|mathchardef|countdef|dimendef|skipdef|muskipdef"
-    r"|toksdef|font)\s*\\([A-Za-z@]+)"
-)
-#: LaTeX 花括号形: ``\newlength{\x}``/``\newsavebox{\x}`` 直给寄存器名;
-#: ``\newcounter{c}`` 分配 ``\c@c``; ``\newboolean{b}`` 内部走 ``\newif\ifb``。
-_ALLOC_BRACE_RE = re.compile(
-    r"\\(newlength|newsavebox|newcounter|newboolean|provideboolean)"
-    r"\s*\{\s*\\?([A-Za-z@]+)\s*\}"
-)
-
-
-def _allocated_cs_names(masked_blob: str) -> frozenset[str]:
-    r"""遮盖视图上扫寄存器/盒型分配名集 (含 ``\newif``/``\newboolean`` 伴生)。"""
-    names: set[str] = set()
-    for m in _ALLOC_CS_RE.finditer(masked_blob):
-        n = m.group(1)
-        names.add(n)
-        if n.startswith("if") and n[2:]:
-            names.add(n[2:] + "true")
-            names.add(n[2:] + "false")
-    for m in _ALLOC_BRACE_RE.finditer(masked_blob):
-        kind, n = m.group(1), m.group(2)
-        if kind in ("newlength", "newsavebox"):
-            names.add(n)
-        elif kind == "newcounter":
-            names.add("c@" + n)
-        else:  # newboolean/provideboolean → \newif\ifn 同构
-            names.add("if" + n)
-            names.add(n + "true")
-            names.add(n + "false")
-    return frozenset(names)
-
-
-def undefine_for_redef(
-    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
-) -> tuple[bool, str]:
-    r"""``already_def`` → ``\let\X\@undefined`` 让位注入 (寄存器护栏版)。
-
-    原 regex_rewrite (order 113) 无脑 undefine——``\newbox\splitbox`` 被
-    undefine 后 adjustbox 抢占名位, 类内后续 ``\setbox\splitbox`` 变
-    Missing number (2211.04482 aastex62 实证)。payload cs 命中
-    ``_ALLOC_CS_RE``/``_ALLOC_BRACE_RE`` 分配集 → abstain 交给后续规则
-    /LLM; ``\newcommand``/``\def`` 形维持 ``\let\X\@undefined`` 原路径。
-    """
-    del eng, params
-    cs = (payload or "").lstrip("\\")
-    if not cs or not re.fullmatch(r"[A-Za-z@]+", cs):
-        return False, "no usable cs payload"
-    if cs in _allocated_cs_names(mask_tex(ctx.source_blob())):
-        return False, f"\\{cs} is register/box-allocated, undefine unsafe"
-    if _inject_after_docclass(
-        ctx, f"\\makeatletter\\let\\{cs}\\@undefined\\makeatother"
-    ):
-        return True, f"undefine \\{cs} after documentclass"
-    return False, "inject failed or already present"
-
-
-#: undefined_cs → 定向修复表 (cs_targeted_fix 的默认表, rules.yaml
-#: params.cs_table 可扩)。spec 键: strip_pkg / usepackage / cs_map /
-#: polyfill / engines{eng: 覆盖 spec} —— 组合语义见 cs_targeted_fix。
-_CS_FIX_TABLE: dict[str, dict[str, Any]] = {
-    # 1909.05039: breakurl 的 shipout 钩调 \headerps@out —— 该宏只在
-    # hyperref dvips/ps2pdf 驱动下有定义, xetex/tectonic 走 hdvipdfm →
-    # 未定义即炸。breakurl 对 pdf 直出引擎本就无意义, 剥装载点是根修。
-    "headerps@out": {"strip_pkg": "breakurl"},
-    # 2301.01267: \mathbbm ← bbm。xelatex/TL2026 装 bbm-macros 即可;
-    # tectonic 侧 bbm 是 MF-only 死路 (font_sub_shim 同族) → 换 dsfont\mathds。
-    "mathbbm": {
-        "usepackage": "bbm",
-        "engines": {
-            "tectonic": {
-                "strip_pkg": "bbm",
-                "usepackage": "dsfont",
-                "cs_map": {"mathbbm": "mathds"},
-            }
-        },
-    },
-}
-
-
-def _map_tex_files(
-    ctx: LoopCtx, exts: tuple[str, ...], fn: Callable[[str], tuple[str, int]]
-) -> int:
-    """逐 tex 文件应用 ``fn(t) -> (nt, n)``, n>0 且文本有变则写回 → 改动文件数。"""
-    n_files = 0
-    for f in ctx.tex_files(exts):
-        t = ctx.read(f)
-        if t is None:
-            continue
-        nt, n = fn(t)
-        if n and nt != t:
-            ctx.write(f, nt)
-            n_files += 1
-    return n_files
-
-
-def _rewrite_cs_map(t: str, cmap: dict[str, str]) -> tuple[str, int]:
-    r"""``\old``→``\new`` 逐对改写 (词边界定) → (新文本, 是否改动)。"""
-    nt = t
-    for old, new in cmap.items():
-        nt = re.sub(rf"\\{old}\b", rf"\\{new}", nt)
-    return nt, int(nt != t)
-
-
-def _inject_after_docclass(ctx: LoopCtx, snippet: str) -> bool:
-    r"""主文件每个 ``\documentclass`` 缝后注入 snippet（幂等）。
-
-    复用 inject.find_docclass_ends：分支选择形态（``\ifpdf A \else B \fi``
-    双 docclass）逐缝注入——静态不判死活，活臂生效死臂随分支跳过；
-    宏体/depth>0 命中与注释命中天然排除，跨行 ``[opt]{cls}``（revtex
-    五选一注释穿插）落在配对 ``}`` 行尾而非首行尾。无 docclass 行则
-    退文件头（``\AtBeginDocument`` 类 snippet 前定义也合法）。
-
-    缝位是行尾换行**之后** (eol+1)——docclass 行尾的 ``%`` 注释
-    (``%!TEX program`` 类编辑器 pragma 常见) 会把行内注入整段吞成
-    死文本 (1404.0346 实证: applied=True 但 snippet 在注释里)。
-    """
-    main = ctx.main_path()
-    t = ctx.read(main) if main is not None else None
-    if t is None or snippet in t:
-        return False
-    hits = find_docclass_ends(t)
-    if not hits:
-        ctx.write(main, snippet + "\n" + t)
-        return True
-    out, delta = t, 0
-    for pos, _ln, _cmd in hits:
-        at = pos + delta
-        if at < len(out) and out[at] == "\n":
-            at += 1
-            piece = snippet + "\n"
-        else:  # docclass 是末行且无尾换行 —— 先补换行再落 snippet
-            piece = "\n" + snippet + "\n"
-        out = out[:at] + piece + out[at:]
-        delta += len(piece)
-    ctx.write(main, out)
-    return True
-
-
-def _ensure_usepackage(ctx: LoopCtx, eng: Engine, pkg: str) -> list[str]:
-    r"""主文件 ``\documentclass`` 后注入 ``\usepackage{pkg}`` + 装文件 → 已做事项。"""
-    out = []
-    if not re.search(
-        rf"\\(?:usepackage|RequirePackage)\s*(?:\[[^\]]*\])?\s*\{{[^}}]*\b{re.escape(pkg)}\b",
-        mask_tex(ctx.source_blob()),  # 注释掉的 %\usepackage 不算已装载
-    ) and _inject_after_docclass(ctx, f"\\usepackage{{{pkg}}} % fixloop: cs-fix"):
-        out.append(f"inject \\usepackage{{{pkg}}}")
-    if eng.probe_file(f"{pkg}.sty") or eng.install_file(f"{pkg}.sty"):
-        out.append(f"{pkg}.sty available")
-    else:
-        out.append(f"{pkg}.sty still missing")
-    return out
-
-
-#: cs_targeted_fix 的 glue-残骸前缀拆分默认头表 —— 只收语料实证过的
-#: 粘连头 (n100 undefined_cs 24/24 均为 splice/join 合并残骸; ``in`` 头
-#: 前缀面太热 (int/indent/input/index… 真宏云集), 留在 cs_table 显式条目)。
-_SPLIT_HEADS: tuple[str, ...] = (
-    "linebreak",
-    "item",
-    "nabla",
-    "Delta",
-    "hline",
-    "frac",
-    "par",
-    "dd",
-    "bf",
-    "it",
-    "rm",
-)
-#: 与头同前缀的真宏名守卫 —— 命中即不拆 (part/parbox/parskip 是 kernel
-#: 命令; ddot/ddots 是 amsmath; itemize/fraction 同理)。残余门之外的双保险。
-_SPLIT_GUARD: frozenset[str] = frozenset(
-    {
-        "part",
-        "para",
-        "parbox",
-        "parskip",
-        "itemize",
-        "itemsep",
-        "ddot",
-        "ddots",
-        "fraction",
-    }
-)
-#: 拆分残余的长度门 (语料残余全 ≤4: FSU/Cd/i/and/r…; 更长残余的真宏名
-#: 还有 guard 兜底)。
-_SPLIT_REST_MAX = 4
-
-
-def _split_glued_cs(cs: str, heads: Iterable[str], guard: Iterable[str]) -> str | None:
-    """``cs`` = 已知粘连头 + 残余 → ``"head rest"``; 不可拆返回 None。
-
-    残余门: 大写起首或 ≤_SPLIT_REST_MAX 字符; ``@`` 含名是包内私有 cs
-    (版本偏斜类), 非粘连残骸, 不拆。
-    """
-    if "@" in cs or cs in guard:
-        return None
-    for head in sorted(heads, key=len, reverse=True):
-        if not cs.startswith(head):
-            continue
-        rest = cs[len(head) :]
-        if rest and (rest[0].isupper() or len(rest) <= _SPLIT_REST_MAX):
-            return f"{head} {rest}"
-    return None
-
-
-def cs_targeted_fix(
-    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
-) -> tuple[bool, str]:
-    r"""undefined_cs 按 cs 修复表打靶 (handoff §2.2 cs→包表项)。
-
-    spec 键组合序: ``strip_pkg`` 剥装载点 → ``usepackage`` 注入+装文件
-    → ``cs_map`` ``\old``→``\new`` 逐文件改写 → ``polyfill`` 注原始 TeX body。
-    ``engines.{eng_name}`` 子表整体覆盖顶层同名词 (引擎差异修, 如 bbm→dsfont)。
-    payload 不在表 → 试 ``split_heads`` glue-残骸前缀拆分 (合成 cs_map 项);
-    仍不中 → False 落 undefined_cs_guess。
-    """
-    table = dict(_CS_FIX_TABLE)
-    table.update(params.get("cs_table") or {})
-    cs = (payload or "").lstrip("\\")
-    base = table.get(cs)
-    if not base:
-        split = _split_glued_cs(
-            cs,
-            params.get("split_heads") or _SPLIT_HEADS,
-            params.get("split_guard") or _SPLIT_GUARD,
-        )
-        if split is None:
-            return False, f"{payload} not in cs-fix table"
-        base = {"cs_map": {cs: split}}
-    spec = {k: v for k, v in base.items() if k != "engines"}
-    spec.update((base.get("engines") or {}).get(ctx.engine_name) or {})
-    done: list[str] = []
-    if strip := spec.get("strip_pkg"):
-        n = _map_tex_files(
-            ctx,
-            (".tex", ".sty", ".cls"),
-            lambda t: _drop_pkg_loads(t, str(strip)),
-        )
-        if n:
-            done.append(f"strip \\usepackage{{{strip}}} x{n}")
-    if use := spec.get("usepackage"):
-        done.extend(_ensure_usepackage(ctx, eng, str(use)))
-    if cmap := spec.get("cs_map"):
-        n = _map_tex_files(ctx, (".tex", ".sty"), lambda t: _rewrite_cs_map(t, cmap))
-        if n:
-            done.append(f"cs_map in {n} files")
-    if spec.get("polyfill") and _inject_after_docclass(ctx, str(spec["polyfill"])):
-        done.append("polyfill injected")
-    if not done:
-        return False, f"cs-fix spec for {cs} applied nothing"
-    return True, "; ".join(done)
-
-
-def journal_cs_polyfill(
-    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
-) -> tuple[bool, str]:
-    r"""期刊缩写宏 polyfill: payload cs 命中表 → 全表 ``\providecommand`` 注入主文件。
-
-    一次注入整表而非单宏 —— ``\bibitem`` 里期刊宏成串出现, 逐宏救火要打
-    whack-a-mole 轮次; ``\providecommand`` 幂等, 重复注入无副作用。
-    payload 未命中 → False 落到 undefined_cs_guess。
-    """
-    del eng
-    table = dict(_JOURNAL_MACROS)
-    table.update(params.get("macros") or {})
-    cs = (payload or "").lstrip("\\")
-    if cs not in table:
-        return False, f"{payload} not a known journal macro"
-    main = ctx.main_path()
-    t = ctx.read(main) if main is not None else None
-    if t is None:
-        return False, "no main tex"
-    block = "% fixloop: AAS journal-macro polyfills (类文件过老缺定义)\n" + "\n".join(
-        rf"\providecommand{{\{name}}}{{{exp}}}" for name, exp in sorted(table.items())
-    )
-    m = _DOCCLASS_LINE_RE.search(mask_tex(t))  # 等长遮盖 → offset 对原文有效
-    at = m.end() if m else 0
-    ctx.write(main, t[:at] + block + "\n" + t[at:])
-    return True, f"journal-macro polyfill injected (\\{cs} 命中, 全表 {len(table)} 宏)"
-
-
-def bundled_class_shadow(
-    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
-) -> tuple[bool, str]:
-    r"""引擎 bundle 内建类太老 → wdir 注入同名 stub 遮蔽 (wdir 优先于 bundle)。
-
-    实证: tectonic 内置 aastex 5.0rc3.1 (1999) 缺 ``\actaa``/deluxetable
-    宏族 —— missing_file 永远打不到 (bundle 能解析), 只能 undefined_cs 确证后
-    遮蔽换 emulateapj。``cs_set`` 命中 + ``include_journal_table`` 并集判
-    payload; stub ``body`` 由 rules.yaml 提供 (版本串须日期开头, 见
-    legacy_pkg_shim 注)。
-    """
-    cs = (payload or "").lstrip("\\")
-    cs_set = {str(x).lstrip("\\") for x in params.get("cs_set") or []}
-    if params.get("include_journal_table"):
-        cs_set |= set(_JOURNAL_MACROS)
-    target = params.get("target")
-    body = params.get("body")
-    if not cs or cs not in cs_set or not target or not body:
-        return False, f"{payload} not in bundle-shadow set"
-    missing = []
-    for dep in params.get("needs") or []:
-        if (
-            ctx.wdir.joinpath(dep).is_file()
-            or eng.probe_file(dep)
-            or eng.install_file(dep)
-        ):
-            continue
-        missing.append(dep)
-    t = ctx.wdir / str(target)
-    t.parent.mkdir(parents=True, exist_ok=True)
-    t.write_text(body, encoding="utf-8")
-    note = f"shadow {target} injected (\\{cs} missing from bundled class)"
-    if missing:
-        note += f"; deps still missing: {', '.join(missing)}"
-    return True, note
-
-
-def shim_pkgs_in_use(ctx: LoopCtx, shim_map: dict[str, Any]) -> list[str]:
-    r"""工程源码里实际引用的 shim_map 键 (shim_known 条件实现)。
-
-    键可带扩展名 (install_file 系 map 形如 ``revtex4-1.cls``)——按 stem
-    匹 ``\\usepackage``/``\\RequirePackage``/``\\documentclass``/``\\documentstyle``
-    花括号名单, 否则 ``\\bspotcolor\\.sty\\b`` 对裸名 ``{spotcolor}`` 永不中。
-    """
-    blob = mask_tex(ctx.source_blob())  # 注释掉的假装载点不算在用
-    hits = []
-    for pkg in shim_map:
-        stem = re.sub(r"\.(?:sty|cls|clo|tex|def|cfg)$", "", str(pkg))
-        if re.search(
-            rf"\\(?:usepackage|RequirePackage|documentclass|documentstyle)"
-            rf"\s*(?:\[[^\]]*\])?\s*\{{[^}}]*\b{re.escape(stem)}\b",
-            blob,
-        ):
-            hits.append(pkg)
-    return hits
-
-
-def purge_corrupt_intermediates(
-    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
-) -> tuple[bool, str]:
-    r"""删损坏的可再生中间件 (aux 族), 下遍引擎自动重生成 (2211.13013 同族)。
-
-    XeTeX 写缓冲在 8192B 边界劈断多字节字符 → 自产 .aux/.toc 带非法
-    UTF-8 → 下遍回读 "Invalid UTF-8 byte" + ``\@newl@bel`` EOF
-    (docs/research/latex/2026-09-16-aux-cjk-truncation.md)。
-    损坏谓词 = strict utf-8 解码失败 (字节劈断) 或末行不完整
-    (边界恰好落在字符缝上时文件仍可解码但停在某宏参数中间——
-    TeX 写出的完整行必以 \n 收尾)。健康件含 xr ``\externaldocument``
-    外链 aux 一律保留; shipped 侧归 normalize 转码兜底, 本函数只管
-    引擎自产件的运行时截断。
-    """
-    del eng, payload
-    exts = {str(e).lower() for e in (params.get("exts") or INTERMEDIATE_SUFFIXES)}
-    purged = []
-    for f in sorted(ctx.wdir.rglob("*")):
-        if not f.is_file() or f.suffix.lower() not in exts:
-            continue
-        try:
-            raw = f.read_bytes()
-        except OSError:
-            continue
-        try:
-            raw.decode("utf-8")
-            corrupt = not raw.endswith(b"\n")
-        except UnicodeDecodeError:
-            corrupt = True
-        if not corrupt:
-            continue
-        f.unlink()
-        ctx.invalidate(f)
-        purged.append(str(f.relative_to(ctx.wdir)))
-    return (bool(purged)), f"purged corrupt intermediates: {', '.join(purged)}"
-
-
-# ════════════════════════════════════════════════════════════════
-# missing_char: log「Missing character」行 → 码位分级 → 按类修复 (F4)
-# ════════════════════════════════════════════════════════════════
-
-#: ``Missing character: There is no <what> (U+XXXX)? in font <font>``
-#: xetex/tectonic spec 字体带 ``(U+XXXX)``; tfm 字体带 ``("XXXX)`` 十六进制
-#: (``("8FD9)`` = U+8FD9「这」, 码位仍是 Unicode); pdftex 8-bit 给裸字符或
-#: ``^^xx`` 记法。
-_MISSING_CHAR_RE = re.compile(
-    r"Missing character:\s*There is no (?P<what>.+?)"
-    r"(?:\s*\((?P<cp>U\+[0-9A-Fa-f]+|\"[0-9A-Fa-f]+)\))?\s*in font\s+(?P<font>[^\s!;]+)"
-)
-
-#: ``^^xx``/``^^^xxxx`` TeX 记法码位提取。
-_CARET_HEX_RE = re.compile(r"\^{2,3}([0-9a-fA-F]{2,4})")
-
-#: xeCJK/ctex 支持探针 (source_contains 级) —— 有 CJK 机制才有绑定可预热。
-_CJK_MECH_RE = re.compile(
-    r"\\(?:usepackage|RequirePackage)\b[^\n%]*\{[^}]*\b(?:ctex|xeCJK|CJKutf8)\b"
-    r"|\\(?:setCJK\w*font|CJKfontspec|ctexset|xeCJKsetup|newCJKfontfamily)\b"
-)
-
-#: 判定「字体本身即 CJK 字体」的排除模式 —— CJK 码位落在 CJK 字体里
-#: 是真缺字形 (换字体的 warmup 救不了), 不属于绑定污染类。
-_CJK_FONT_RE = re.compile(
-    r"fandol|noto.*cjk|source.?han|uming|ukai|wqy|ipa(?:ex)?[mg]|"
-    r"sim(?:sun|hei|kai|fang)|ms ?(?:gothic|mincho)|cjk",
-    re.IGNORECASE,
-)
-
-
-def _mc_codepoint(what: str, cp: str | None) -> int | None:
-    """``(U+XXXX)`` / ``("XXXX)`` / ``^^xx`` / 裸字符 → 码位; 不可判定 → None。"""
-    if cp:
-        return int(cp[2:] if cp.startswith("U+") else cp[1:], 16)
-    if m := _CARET_HEX_RE.fullmatch(what.strip()):
-        return int(m.group(1), 16)
-    if len(what) == 1:
-        return ord(what)
-    return None
-
-
-def _compile_log_text(ctx: LoopCtx) -> str:
-    """定位本轮编译 log。
-
-    ``{stem}.log`` (xelatex) → ``_tect_out/{stem}.log`` (tectonic)
-    → 任一含 Missing character 的 ``*.log`` (兜底)。
-    """
-    main = ctx.main_path()
-    cands: list[Path] = []
-    if main is not None:
-        stem = main.stem
-        cands += [ctx.wdir / f"{stem}.log", ctx.wdir / "_tect_out" / f"{stem}.log"]
-    for p in cands:
-        t = ctx.read(p) if p.is_file() else None
-        if t and "Missing character" in t:
-            return t
-    for p in sorted(ctx.wdir.rglob("*.log")):
-        t = ctx.read(p)
-        if t and "Missing character" in t:
-            return t
-    return ""
-
-
-#: missing_char 修复默认表 (seeded 自 n100 缺字签名, 2026-09-16;
-#: ``params.char_table`` 同形条目按 id 覆盖/扩列 —— 首匹配生效)。
-#: 每条目: ``id``; 匹配面 ``cps:[int]`` | ``ranges:[[lo,hi],...]``,
-#: ``font``/``font_not`` 为作用在日志字体名上的正则; 动作:
-#: ``action: cjk_warmup`` (预热 xeCJK 字体绑定) 或 ``replace: "<TeX串>"``。
-_MC_TABLE: list[dict[str, Any]] = [
-    {
-        "id": "cjk_glyph",
-        # CJK 统一表意+假名+谚文+兼容/全角区 —— 落在非 CJK 字体 = xeCJK
-        # (本表是 textutil.CJK_RANGES 的语义超集: 缺字判定要罩住假名/谚文/
-        # 彝文/全角, 勿向 CJK_RANGES 单源回退)
-        # 绑定被污染 (elsart 族 \no@harm 下 \protect=\noexpand 使
-        # \fontfamily/\selectfont 失效, 首用把 xeCJK/<fam>/<ser>/<sh>/<size>
-        # 全局绑到 lmroman —— /tmp/mc-repro 实证), 预热即可。
-        "ranges": [
-            [0x2E80, 0x303F],
-            [0x3040, 0x30FF],
-            [0x3100, 0x31EF],
-            [0x3200, 0x33FF],
-            [0x3400, 0x4DBF],
-            [0x4E00, 0x9FFF],
-            [0xA000, 0xA4CF],
-            [0xAC00, 0xD7AF],
-            [0xF900, 0xFAFF],
-            [0xFE30, 0xFE4F],
-            [0xFF00, 0xFFEF],
-            [0x20000, 0x2FA1F],
-        ],
-        "font_not": _CJK_FONT_RE.pattern,
-        # 仅 spec 字体 ([lmroman10]:mapping=tex-text 形) 缺 CJK 才预热——
-        # tfm 字体 (cmr10/ec-lmss12) 缺 CJK 大头是数学模式 (xeCJK
-        # interchartoks 水平列机制不进数学, warmup 白烧到 stuck;
-        # scout-misschar 2026-09-16 实证), 数学面已由 inject 侧
-        # \Umathcode 符号字体兜底 (CJK_MATH_FALLBACK) 治。
-        "font": r"[\[:]",
-        "action": "cjk_warmup",
-    },
-    # n100: 0806.1079 ×3 ≠ in cmr7/cmr5
-    {"id": "neq", "cps": [0x2260], "replace": "\\ensuremath{\\neq}"},
-    # n100: 1608.02516 ×1 − in cmr10
-    {"id": "minus", "cps": [0x2212], "replace": "\\ensuremath{-}"},
-    # n100: 2403.15096 ×1 § in cmr10
-    {"id": "section", "cps": [0x00A7], "replace": "\\S"},
-    # n100: 1003.1464 ×1 ø in cmmi8 (math italic → \mbox 包文本字形)
-    {"id": "oslash", "cps": [0x00F8], "replace": "\\mbox{\\o}"},
-    # n100: 0707.3950 è in cmex10
-    {"id": "egrave", "cps": [0x00E8], "replace": "\\mbox{\\`{e}}"},
-]
-
-#: cjk_warmup 注入的绑定预热盒: 每 ``{尺寸/系列 中}`` 组把
-#: ``xeCJK/<fam>/<ser>/<sh>/<size>`` 在干净上下文先绑到真 CJK 字体,
-#: 之后 \no@harm 测量盒再遇同型直接复用既有绑定, 不再污染。
-_MC_WARMUP_SIZES = (
-    "\\normalsize 中",
-    "\\small 中",
-    "\\footnotesize 中",
-    "\\large 中",
-    "\\Large\\bfseries 中",
-    "\\bfseries 中",
-    "\\itshape 中",
-)
-
-
-def _mc_table(params: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    """内置表 + ``params.char_table`` 按 id 合并 (参数条目同 id 覆盖)。"""
-    table = {e["id"]: e for e in _MC_TABLE}
-    for e in params.get("char_table") or []:
-        table[e["id"]] = e
-    return table
-
-
-def _mc_hit(entry: dict[str, Any], cp: int, font: str) -> bool:
-    """码位+字体 vs 条目匹配面 (cps/ranges 与 font/font_not 正则)。"""
-    if (fno := entry.get("font_not")) and re.search(fno, font, re.IGNORECASE):
-        return False
-    if (fyes := entry.get("font")) and not re.search(fyes, font, re.IGNORECASE):
-        return False
-    if cp in (entry.get("cps") or ()):
-        return True
-    return any(lo <= cp <= hi for lo, hi in entry.get("ranges") or ())
-
-
-def missing_char_fix(
-    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
-) -> tuple[bool, str]:
-    r"""``Missing character`` 缺字 → 字符类分诊修复 (F4, 表驱动可扩)。
-
-    CJK 类码位落在非 CJK 字体 = xeCJK 逐 (family,series,shape,size) 的字体
-    绑定被 ``\no@harm`` 式上下文污染 (elsart ``\proc@elem`` 测量盒实证:
-    \protect 被重定义后 \fontfamily/\selectfont 变 no-op, 首用绑定落
-    lmroman 且 ``\cs_gset_eq`` 全局不可回) → 注入 ``\AtBeginDocument`` 预热
-    盒先在干净上下文绑好常用 size。非 CJK 缺字走 ``replace`` 字面替换
-    (≠→\neq 等)。表在 ``params.char_table`` 可按 id 覆盖扩列。
-    """
-    del eng, payload
-    log = _compile_log_text(ctx)
-    if not log:
-        return False, "no compile log with Missing character found"
-    seen = _mc_parse_log(log)
-    if not seen:
-        return False, "Missing character lines present but no codepoint parsed"
-    warm, repl, unmatched = _mc_plan(seen, _mc_table(params))
-
-    applied: list[str] = []
-    notes: list[str] = []
-    if warm:
-        ok, note = _mc_apply_warmup(ctx)
-        (applied if ok else notes).append(note)
-    if repl:
-        n = _map_tex_files(
-            ctx,
-            tuple(params.get("exts") or (".tex",)),
-            lambda t: _sub_literal_chars(t, repl),
-        )
-        if n:
-            applied.append(f"replaced {len(repl)} char kinds in {n} file(s)")
-    if not applied:
-        if unmatched:
-            notes.append(f"{unmatched} codepoint(s) unmatched by char_table")
-        return False, "; ".join(notes) or "no actionable missing chars"
-    return True, "; ".join(applied + notes)
-
-
-def _mc_parse_log(log: str) -> dict[int, tuple[str, str]]:
-    """``Missing character`` 行 → {码位: (原字面, 字体名)} 去重; nullfont 滤除。"""
-    seen: dict[int, tuple[str, str]] = {}
-    for m in _MISSING_CHAR_RE.finditer(log):
-        font = m.group("font").rstrip(".,;")
-        if font == "nullfont":
-            # 测量盒/\write 上下文的缺字按设计不可印 (scout-misschar ×5)——
-            # 签名侧经 rules.yaml missing_char pattern 排除, 这里兜底 wrap 漏网。
-            continue
-        cp = _mc_codepoint(m.group("what"), m.group("cp"))
-        if cp is not None and cp not in seen:
-            seen[cp] = (m.group("what"), font)
-    return seen
-
-
-def _mc_plan(
-    seen: dict[int, tuple[str, str]], table: dict[str, dict[str, Any]]
-) -> tuple[bool, dict[str, str], int]:
-    """逐缺字码位查表 → (是否需 CJK 预热, 字面替换映射, 未匹配数)。"""
-    warm = False
-    repl: dict[str, str] = {}
-    unmatched = 0
-    for cp, (what, font) in seen.items():
-        entry = next((e for e in table.values() if _mc_hit(e, cp, font)), None)
-        if entry is None:
-            unmatched += 1
-        elif entry.get("action") == "cjk_warmup":
-            warm = True
-        elif rep := entry.get("replace"):
-            ch = what if len(what) == 1 else _mc_chr(cp)
-            if ch:
-                repl[ch] = rep
-    return warm, repl, unmatched
-
-
-def _mc_chr(cp: int) -> str | None:
-    """码位 → 字符; 超出 Unicode 面 → None。"""
-    try:
-        return chr(cp)
-    except ValueError:
-        return None
-
-
-def _mc_apply_warmup(ctx: LoopCtx) -> tuple[bool, str]:
-    r"""``\AtBeginDocument`` 预热盒注入 —— 仅当源里有 ctex/xeCJK 机制。"""
-    box = "\\setbox0=\\hbox{" + "".join(f"{{{s}}}" for s in _MC_WARMUP_SIZES) + "}"
-    snippet = f"\\AtBeginDocument{{{box}}} % fixloop: xeCJK bind warmup"
-    if not _CJK_MECH_RE.search(mask_tex(ctx.source_blob())):
-        return False, "cjk drops but no ctex/xeCJK in source — warmup skipped"
-    if _inject_after_docclass(ctx, snippet):
-        return True, "injected CJK font-binding warmup"
-    return False, "warmup snippet already present"
-
-
-#: font_fallback 默认覆盖带 (scout-misschar 2026-09-16: 西里尔人名真损失
-#: U+0400-04FF / 组合符 U+0300-036F / 拉丁扩展 U+00C0-017F)。
-#: ``params.fallback_ranges`` 覆盖带表、``params.fallback_font`` 换字体。
-_FB_RANGES: tuple[tuple[int, int], ...] = (
-    (0x0400, 0x04FF),
-    (0x0300, 0x036F),
-    (0x00C0, 0x017F),
-)
-_FB_FONT = "Libertinus Serif"  # TL libertinus-fonts, 三带全覆盖实证
-
-
-def _fb_snippet_lines(
-    cps: Iterable[int], font: str, cs: str = "txlatefallback"
-) -> list[str]:
-    r"""``newunicodechar`` 逐字回退注入块行表 (font_fallback/accent_mark_fix 共用)。
-
-    替换体 ``{\ifmmode\mbox{\<cs> X}\else{\<cs> X}\fi}``: 活动字符在数学内
-    也展开, 但 ``\<cs>`` 只切文本族——``\mbox`` 逃回文本域才能让回退字体
-    生效 (scout-misschar math_font_chars 桶: 数学内字面量经数学族 TFM 仍
-    缺字)。头行 ``\ifdefined\<cs>`` 守卫让同一块被两条规则/两轮各注一份
-    时不炸 ``\newfontfamily`` 重定义; ``cs`` 参数支持第二回退族
-    (``txlatecjkfb`` = CJK 带 FandolSong 实例, fixer-font-fallback-8bit
-    spec §1)。
-    """
-    lines = [
-        "% fixloop: per-char font fallback via newunicodechar",
-        "\\usepackage{newunicodechar}",
-        "\\ifdefined\\newfontfamily\\else\\usepackage{fontspec}\\fi",
-        f"\\ifdefined\\{cs}\\else\\newfontfamily\\{cs}{{{font}}}\\fi",
-    ]
-    lines += (
-        f"\\newunicodechar{{{c}}}"
-        f"{{\\ifmmode\\mbox{{\\{cs} {c}}}\\else{{\\{cs} {c}}}\\fi}}"
-        for cp in cps
-        if (c := _mc_chr(cp)) is not None
-    )
-    return lines
-
-
-def _inject_fallback_lines(
-    ctx: LoopCtx, cps: Iterable[int], font: str, cs: str = "txlatefallback"
-) -> int:
-    r"""逐字 ``\\newunicodechar`` 回退行注入 (已声明字符去重) → 新注入字符数。"""
-    main = ctx.main_path()
-    t = ctx.read(main) if main is not None else None
-    if t is None:
-        return 0
-    fresh = [
-        cp
-        for cp in dict.fromkeys(cps)
-        if (c := _mc_chr(cp)) is not None and f"\\newunicodechar{{{c}}}" not in t
-    ]
-    if not fresh:
-        return 0
-    if not _inject_after_docclass(ctx, "\n".join(_fb_snippet_lines(fresh, font, cs))):
-        return 0
-    return len(fresh)
-
-
-#: 无参字母/符号 cs —— 文本域字形产出者, 在数学域无重音义 (\' \^ \~ 等
-#: 有数学义 = \acute \hat \tilde, 刻意不收)。cs 名 → 产出字符码位
-#: (scout-misschar math_font_chars 桶: ``Y$\i$lmaz``/``$\L^{\phi,p}$`` 实证)。
-_MATH_SHIM_CS: dict[str, int] = {
-    "i": 0x0131,
-    "j": 0x0237,
-    "L": 0x0141,
-    "l": 0x0142,
-    "O": 0x00D8,
-    "o": 0x00F8,
-    "AA": 0x00C5,
-    "aa": 0x00E5,
-    "AE": 0x00C6,
-    "ae": 0x00E6,
-    "OE": 0x0152,
-    "oe": 0x0153,
-    "ss": 0x00DF,
-    "S": 0x00A7,
-    "P": 0x00B6,
-    "dag": 0x2020,
-    "ddag": 0x2021,
-    "copyright": 0x00A9,
-    "pounds": 0x00A3,
-}
-
-#: ``\begin{数学env}`` 起锚 —— ``$..$``/``\(\)`` 之外的数学体 (重音 cs 改写
-#: 与 cs-shim 探测共用的数学域守卫)。tabbing 不是数学但 ``\=`` 在其内是
-#: 制表符命令非重音 —— 同列守卫。
-_MATH_GUARD_BEGIN_RE = re.compile(
-    r"\\begin\s*\{("
-    + "|".join(re.escape(e) for e in sorted(MATH_ENVS | {"tabbing"}))
-    + r")\}"
-)
-
-
-def _math_guard_spans(masked: str) -> list[tuple[int, int]]:
-    r"""遮盖视图上的数学域区间表: ``$..$``/``$$``/``\(\)``/``\[\]`` + 数学 env 体。"""
-    _css, spans = _cs_events_spans(masked)
-    for m in _MATH_GUARD_BEGIN_RE.finditer(masked):
-        end = re.compile(r"\\end\s*\{" + re.escape(m[1]) + r"\}").search(
-            masked, m.end()
-        )
-        spans.append((m.start(), end.end() if end else len(masked)))
-    return sorted(spans)
-
-
-def _in_spans(pos: int, spans: list[tuple[int, int]]) -> bool:
-    """``pos`` 是否落在任一 (start, stop) 区间内。"""
-    return any(a <= pos < b for a, b in spans)
-
-
-def _math_cs_shim_names(ctx: LoopCtx, seen: dict[int, tuple[str, str]]) -> list[str]:
-    r"""缺字码位 ∩ cs 产出集 ∧ 源内 ``\\<cs>`` 现身数学 span → 待 shim 名单。
-
-    双信号皆备才动: 码位在缺字表 (真有缺字) 且 cs 站点在数学域 (缺字确由
-    数学内展开所产)——文本域 ``\i`` 缺字是 ambient 字体真缺字形, 不归此修。
-    """
-    cands = [cs for cs, cp in _MATH_SHIM_CS.items() if cp in seen]
-    if not cands:
-        return []
-    masked = mask_tex(ctx.source_blob())
-    spans = _math_guard_spans(masked)
-    if not spans:
-        return []
-    return [
-        cs
-        for cs in cands
-        if any(
-            _in_spans(m.start(), spans)
-            for m in re.compile(rf"\\{cs}(?![a-zA-Z@])").finditer(masked)
-        )
-    ]
-
-
-def _inject_math_cs_shims(ctx: LoopCtx, cses: Iterable[str]) -> list[str]:
-    r"""``\\<cs>`` 数学逃逸 shim 注入 → 实际注到的 cs 名单 (幂等)。
-
-    ``\let\txlateold<cs>\<cs>`` 存原义 + ``\protected\def`` 数学域走
-    ``\mbox`` (文本域重放原 cs → ambient 文本字体有字形)。``\mbox`` 是
-    kernel 原语——不用 amsmath 的 ``\text``, 免包依赖。``\ifdefined``
-    守卫 ``\let``: 重复注入时 ``\txlateold<cs>`` 若重绑到 shim 后的
-    ``\<cs>`` 会自指死循环 (前一轮同 shim 或人工改写的场景)。
-    """
-    cses = list(cses)
-    if not cses:
-        return []
-    lines = ["% fixloop: math-mode escape for text letter cses"]
-    for cs in cses:
-        old = f"\\txlateold{cs}"
-        lines += [
-            rf"\ifdefined{old}\else\let{old}\{cs}\fi",
-            rf"\protected\def\{cs}{{\ifmmode\mbox{{{old}}}\else{old}\fi}}",
-        ]
-    if _inject_after_docclass(ctx, "\n".join(lines)):
-        return list(cses)
-    return []
-
-
-def font_fallback(
-    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
-) -> tuple[bool, str]:
-    r"""非 CJK 缺字 → ``newunicodechar`` 换字体兜底 + 数学域双模修 (F4b/F4d)。
-
-    ``\newunicodechar{X}`` 逐缺字声明：替换体里同字面的 X 在 ``\newunicodechar``
-    激活该字符前已按 letter catcode token 化，故无自递归 (``\protected``
-    定义也使 label/cite 键名内同字符不展开)。主字体本就缺这些带时才见
-    缺字——逐字回退不伤排版。已由 char_table ``replace`` 条目覆盖的码位
-    (ø/è 等) 让位字面替换。数学域两个子修 (scout-misschar math_font_chars):
-    字面量靠 ``\ifmmode`` 模板逃 ``\mbox`` (见 _fb_snippet_lines); 无参字母
-    cs (``\i``/``\L``/``\AA`` 族) 在数学内展开产文本字形 → ``_inject_math_cs_shims``
-    prologue shim。shim 不依赖 newunicodechar.sty, 包缺席也独立成立。
-    """
-    del payload
-    log = _compile_log_text(ctx)
-    if not log:
-        return False, "no compile log with Missing character found"
-    seen = _mc_parse_log(log)
-    done: list[str] = []
-    if shimmed := _inject_math_cs_shims(ctx, _math_cs_shim_names(ctx, seen)):
-        done.append("math cs shim: " + ", ".join(rf"\{c}" for c in shimmed))
-    bands = params.get("fallback_ranges") or _FB_RANGES
-    font_not = params.get("font_not")  # 字体名正则: 命中即跳 (CJK cp 落 CJK 字体是真缺字形)
-    fb_cs = str(params.get("fallback_cs") or "txlatefallback")
-    taken = {
-        cp
-        for cp, (what, font) in seen.items()
-        for e in _mc_table(params).values()
-        if e.get("replace") and _mc_hit(e, cp, font)
-    }
-    chars = [
-        cp
-        for cp, (_what, font) in seen.items()
-        if cp not in taken
-        and any(lo <= cp <= hi for lo, hi in bands)
-        and not (font_not and re.search(str(font_not), font))
-    ]
-    if not chars:
-        if done:
-            return True, "; ".join(done)
-        return False, "no missing chars in fallback bands"
-    if not eng.probe_file("newunicodechar.sty") and not eng.install_file(
-        "newunicodechar.sty"
-    ):
-        if done:
-            done.append("newunicodechar.sty unavailable")
-        return bool(done), "; ".join(done) or "newunicodechar.sty unavailable"
-    font = str(params.get("fallback_font") or _FB_FONT)
-    if n := _inject_fallback_lines(ctx, chars, font, fb_cs):
-        done.append(f"font_fallback: {n} char(s) -> {font}")
-    return (
-        (True, "; ".join(done)) if done else (False, "fallback snippet already present")
-    )
-
-
-def _sub_literal_chars(t: str, repl: dict[str, str]) -> tuple[str, int]:
-    r"""字面字符 → TeX 命令串逐替换 → (新文本, 替换数)。
-
-    替换域限正文: ``mask_tex`` 等长遮盖视图把 verbatim 族环境体 / comment
-    失活环境 / ``\\verb``/``\\lstinline`` / ``%`` 注释抹成空格——在遮盖
-    视图上取命中 offset 回原文回放, 代码清单与注释里的同码位字面量不被
-    腐蚀成 ``\\ensuremath{...}`` 串 (audit-2026-09-16)。
-    """
-    masked = mask_tex(t)
-    hits: list[tuple[int, str]] = []
-    for ch, to in repl.items():
-        start = 0
-        while (i := masked.find(ch, start)) >= 0:
-            if t[i] == ch:  # 同码位恰落在遮盖位 (' '/'\\n') 时守卫
-                hits.append((i, to))
-            start = i + 1
-    if not hits:
-        return t, 0
-    hits.sort()
-    out: list[str] = []
-    prev = 0
-    for i, to in hits:
-        out.append(t[prev:i])
-        out.append(to)
-        prev = i + 1
-    out.append(t[prev:])
-    return "".join(out), len(hits)
-
-
-# ════════════════════════════════════════════════════════════════
-# accent_mark_fix: accent cs 生成的组合符 → 站点级源改写 (F4c)
-# ════════════════════════════════════════════════════════════════
-
-#: 组合附加符码位 → 产生它的重音 cs (scout-misschar-coverage 2026-09-17
-#: 0327 群 ~62 pids: ``\c{t}`` 类在无预组字形基字符上产 base+combining
-#: 节点, ambient 字体无 U+0300-036F → Missing character; 附加符由 accent
-#: 机制生成非输入字符, ``\newunicodechar`` 的 active-char 绑定拦不到)。
-_ACCENT_CS: dict[int, str] = {
-    0x0327: "c",
-    0x0301: "'",
-    0x0308: '"',
-    0x0303: "~",
-    0x0302: "^",
-    0x0300: "`",
-    0x0307: ".",
-    0x0304: "=",
-    0x0306: "u",
-    0x030C: "v",
-    0x030B: "H",
-    0x0328: "k",
-    0x0323: "d",
-    0x0331: "b",
-    0x030A: "r",
-    0x0361: "t",
-}
-
-
-def _accent_site_re(cs: str) -> re.Pattern[str]:
-    r"""``\\<cs>{x}`` 站点正则; 符号 cs (``\'`` 等) 兼收 ``\\<cs>x`` 裸字母实参。
-
-    字母 cs 只认花括号实参——``\\ca`` 整体是另一个 cs 名, 裸字母形式在
-    正则层无法与长名切割, 保守不收。
-    """
-    if cs.isalpha():
-        return re.compile(rf"\\{re.escape(cs)}\s*\{{([^{{}}\\]*)\}}")
-    return re.compile(rf"\\{re.escape(cs)}\s*(?:\{{([^{{}}\\]*)\}}|([a-zA-Z]))")
-
-
-def _accent_fix_text(t: str, cs_marks: dict[str, str]) -> tuple[str, set[str], int]:
-    r"""文本域 ``\\<cs>{x}`` 站点改写 → (新文本, 预组字集, 改写站点数)。
-
-    逐站点: ``NFC(base+mark)`` 单字 → 预组字面量 (多字符实参对首字试组,
-    余部原样保留); 无预组字 → 剥 accent 留 base。遮盖视图取 offset 回原文
-    回放——verbatim/comment 体与数学域 (``\'``=\acute 族真义) 内站点不动。
-    """
-    masked = mask_tex(t)
-    spans = _math_guard_spans(masked)
-    edits: list[tuple[int, int, str]] = []
-    composed: set[str] = set()
-    for cs, mark in cs_marks.items():
-        for m in _accent_site_re(cs).finditer(masked):
-            if _in_spans(m.start(), spans):
-                continue
-            arg = m[1] if m[1] is not None else (m[2] or "")
-            fused = unicodedata.normalize("NFC", arg[0] + mark) if arg else ""
-            if len(fused) == 1:
-                edits.append((m.start(), m.end(), fused + arg[1:]))
-                composed.add(fused)
-            else:
-                edits.append((m.start(), m.end(), arg))
-    if not edits:
-        return t, set(), 0
-    edits.sort()
-    out: list[str] = []
-    prev = 0
-    for s, e, r in edits:
-        out.append(t[prev:s])
-        out.append(r)
-        prev = e
-    out.append(t[prev:])
-    return "".join(out), composed, len(edits)
-
-
-def accent_mark_fix(
-    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
-) -> tuple[bool, str]:
-    r"""组合附加符缺字 → accent cs 站点改写预组字面量, 无预组则剥 accent。
-
-    触发面: log ``Missing character`` 里 U+0300-036F 组合符码位——全部由
-    ``\c \~ \^ \' \" \u \v`` 族 accent 机制生成 (输入层无此字符,
-    newunicodechar 绑不住)。改写 ``\\<cs>{x}`` 站点 (``.tex+.bbl+.cls``,
-    遮盖视图护 verbatim/注释, 数学 span 跳过): 有预组字 → 字面量并自注
-    ``\newunicodechar`` 回退行 (``applied`` 键一次性, 不等 font_fallback
-    再触火); 无预组字 → 剥 accent 留 base。
-    """
-    del payload
-    log = _compile_log_text(ctx)
-    if not log:
-        return False, "no compile log with Missing character found"
-    seen = _mc_parse_log(log)
-    cs_marks = {cs: chr(cp) for cp, cs in _ACCENT_CS.items() if cp in seen}
-    if not cs_marks:
-        return False, "no combining-mark missing chars"
-    exts = tuple(params.get("exts") or (".tex", ".bbl", ".cls"))
-    n_sites = 0
-    n_files = 0
-    composed: set[str] = set()
-    for f in ctx.tex_files(exts):
-        t = ctx.read(f)
-        if t is None:
-            continue
-        nt, chars, n = _accent_fix_text(t, cs_marks)
-        if n and nt != t:
-            ctx.write(f, nt)
-            n_sites += n
-            n_files += 1
-            composed |= chars
-    if not n_sites:
-        return False, "combining marks missing but no accent-cs sites in source"
-    done = [f"accent sites rewritten: {n_sites} in {n_files} file(s)"]
-    if composed:
-        if not eng.probe_file("newunicodechar.sty") and not eng.install_file(
-            "newunicodechar.sty"
-        ):
-            done.append("newunicodechar.sty unavailable for composed chars")
-        else:
-            font = str(params.get("fallback_font") or _FB_FONT)
-            n = _inject_fallback_lines(ctx, sorted(map(ord, composed)), font)
-            done.append(f"self-injected newunicodechar fallback x{n}")
-    return True, "; ".join(done)
 
 
 # ════════════════════════════════════════════════════════════════
@@ -2476,85 +776,6 @@ def graphic_repair(
             f"{f.name} unreadable ({why}) but no \\includegraphics ref to stub",
         )
     return True, f"stub \\fbox for {f.name} ({why}) in {n} file(s)"
-
-
-# ════════════════════════════════════════════════════════════════
-# support 文件腐蚀兜底: 偏离 pristine baseline 且被注入 CJK → 逐字节复原
-# ════════════════════════════════════════════════════════════════
-
-#: 自有写入标记 —— ``% texlate`` (inject/normalize/latex209 注入头) 与
-#: ``% fixloop`` (本表各 transform 就地改写注记)。带标记的偏离是有意修复,
-#: 回滚会撤销 deliberate fix。
-_OWN_MARKERS = ("% texlate", "% fixloop")
-
-#: support 判定的文件名闸 —— 与 e2e._scan_tree 同表 (``.rtx.tex`` REVTeX
-#: 运行时转储 / ``.code.tex`` tikzlibrary 机制件), 命中即 support 免散文判。
-_SUPPORT_SUFFIXES = (".rtx.tex", ".code.tex")
-
-
-def _is_support_baseline(path: Path) -> bool:
-    """Baseline 件判 support: 名闸命中 ∨ 解析后无散文; 解析崩 → False (不碰)。"""
-    if path.name.lower().endswith(_SUPPORT_SUFFIXES):
-        return True
-    try:
-        res = parse_file(path, flatten=False)
-    except Exception:  # noqa: BLE001 — 无法分类即按内容件处理, 绝不回滚
-        return False
-    return not file_has_prose(res.chunks)
-
-
-def _corrupted_by_xlat(f: Path, base: Path) -> bytes | None:
-    """单件判定 → 命中返回 baseline 字节 (供 verbatim 复原), 否则 None。
-
-    条件序: 字节有偏 ∧ 无自有标记 ∧ CJK 计数超 baseline ∧ baseline 判
-    support (``parse_file`` 最贵殿后)。
-    """
-    try:
-        wb, bb = f.read_bytes(), base.read_bytes()
-    except OSError:
-        return None
-    if wb == bb:
-        return None
-    wt = wb.decode("utf-8", errors="replace")
-    if any(m in wt for m in _OWN_MARKERS):
-        return None
-    bt = bb.decode("utf-8", errors="replace")
-    if len(CJK_RX.findall(wt)) <= len(CJK_RX.findall(bt)):
-        return None
-    return bb if _is_support_baseline(base) else None
-
-
-def restore_support_from_src(
-    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
-) -> tuple[bool, str]:
-    r"""被翻译写脏的 support 文件 → 从 ``params.baseline_dir`` pristine 树逐字节复原。
-
-    prose gate (e2e._scan_tree) 只前向挡 bundled 机制件进翻译集; 本 builtin 收
-    gate 落地前已被注入 CJK 的残案 (scout-supportfiles: pstricks/epsf/
-    tikzlibrary ``*.code.tex``/宏件/gnuplot 转储)。五条件全中才动 (全
-    conjunctive, 便宜的先查, ``parse_file`` 殿后): baseline 同名件在 ∧
-    工作件字节有偏 ∧ 无 ``% texlate``/``% fixloop`` 自有标记 ∧ 工作件 CJK
-    计数超 baseline (baseline 自带 CJK 照容) ∧ baseline 判 support。
-    ``baseline_dir`` 缺失/非目录 → False fail-safe, 不抛。
-    """
-    del eng, payload
-    base_dir = params.get("baseline_dir")
-    if not base_dir:
-        return False, "no baseline_dir param"
-    base_root = Path(str(base_dir))
-    if not base_root.is_dir():
-        return False, f"baseline_dir not a directory: {base_root}"
-    restored: list[str] = []
-    for f in ctx.tex_files((".tex",)):
-        base = base_root / f.relative_to(ctx.wdir)
-        if not base.is_file() or (bb := _corrupted_by_xlat(f, base)) is None:
-            continue
-        f.write_bytes(bb)
-        ctx.invalidate(f)
-        restored.append(f.relative_to(ctx.wdir).as_posix())
-    if not restored:
-        return False, "no corrupted support files"
-    return True, f"restored: {', '.join(restored)}"
 
 
 TRANSFORM_FNS = {
