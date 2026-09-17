@@ -17,7 +17,9 @@ export const settingsStore = {
         try {
             const [s, p] = await Promise.all([
                 api.getSettings(),
-                api.providers().catch(() => [] as Provider[] | { providers: Provider[] }),
+                api
+                    .providers()
+                    .catch(() => [] as Provider[] | { providers: Provider[] }),
             ]);
             setSettings(s);
             setProviders(Array.isArray(p) ? p : (p.providers ?? []));

@@ -99,7 +99,8 @@ export interface StageEvent {
     at: number;
 }
 
-export type ChunkStatus = "ok" | "fallback_orig" | "failed" | "pending" | string;
+export type ChunkStatus =
+    "ok" | "fallback_orig" | "failed" | "pending" | string;
 
 export interface ChunkItem {
     seq: number;
@@ -245,6 +246,8 @@ export interface ReadingState {
     mode?: "original" | "translated" | "split";
     zoom?: string;
     sync?: boolean;
+    /** 双栏左右互换（reader 布局态，随阅读位置同持久化） */
+    swapped?: boolean;
     /** zh.pdf sha256——不符服务端 409（防旧版位置回灌，§2.5） */
     document_version?: string;
 }
@@ -358,10 +361,12 @@ function xhrRequest<T>(
         const xhr = new XMLHttpRequest();
         xhr.open(init.method ?? "POST", `${BASE}${path}`);
         const headers = (init.headers ?? {}) as Record<string, string>;
-        for (const [k, v] of Object.entries(headers)) xhr.setRequestHeader(k, v);
+        for (const [k, v] of Object.entries(headers))
+            xhr.setRequestHeader(k, v);
         if (onProgress) {
             xhr.upload.onprogress = (e: ProgressEvent) => {
-                if (e.lengthComputable && e.total > 0) onProgress(e.loaded, e.total);
+                if (e.lengthComputable && e.total > 0)
+                    onProgress(e.loaded, e.total);
             };
         }
         xhr.onload = () => {
@@ -434,7 +439,9 @@ function intentSettle(fp: string, key: string): void {
 
 /** 提交内容指纹——apiKey 是凭证不是意图，改 key 重试仍复用同一 idem key */
 function createFp(kind: string, payload: unknown, byok?: ByokHeaders): string {
-    const semantics = byok ? { baseUrl: byok.baseUrl, model: byok.model } : null;
+    const semantics = byok
+        ? { baseUrl: byok.baseUrl, model: byok.model }
+        : null;
     return JSON.stringify([kind, payload, semantics]);
 }
 
@@ -473,7 +480,8 @@ async function createRequest<T>(
 
 export const api = {
     health: () => request<Health>("/health"),
-    providers: () => request<Provider[] | { providers: Provider[] }>("/providers"),
+    providers: () =>
+        request<Provider[] | { providers: Provider[] }>("/providers"),
     tasks: (status?: string) =>
         request<TaskSnapshot[] | { tasks: TaskSnapshot[] }>(
             `/tasks${status ? `?status=${encodeURIComponent(status)}` : ""}`,
@@ -485,7 +493,10 @@ export const api = {
             `/arxiv/${encodeURIComponent(arxivId)}/translate`,
             {
                 method: "POST",
-                headers: { "content-type": "application/json", ...byokHeaders(byok) },
+                headers: {
+                    "content-type": "application/json",
+                    ...byokHeaders(byok),
+                },
                 body: JSON.stringify(body ?? {}),
             },
         );
@@ -493,7 +504,12 @@ export const api = {
 
     upload(
         file: File,
-        fields?: { target_lang?: string; model?: string; main?: string; options?: object },
+        fields?: {
+            target_lang?: string;
+            model?: string;
+            main?: string;
+            options?: object;
+        },
         byok?: ByokHeaders,
         onProgress?: UploadProgress,
     ) {
@@ -502,9 +518,14 @@ export const api = {
         if (fields?.target_lang) fd.append("target_lang", fields.target_lang);
         if (fields?.model) fd.append("model", fields.model);
         if (fields?.main) fd.append("main", fields.main);
-        if (fields?.options) fd.append("options", JSON.stringify(fields.options));
+        if (fields?.options)
+            fd.append("options", JSON.stringify(fields.options));
         return createRequest<TranslateResponse>(
-            createFp("upload", { file: fileFp(file), fields: fields ?? null }, byok),
+            createFp(
+                "upload",
+                { file: fileFp(file), fields: fields ?? null },
+                byok,
+            ),
             "/upload",
             { method: "POST", headers: byokHeaders(byok), body: fd },
             onProgress,
@@ -512,12 +533,21 @@ export const api = {
     },
 
     /** .share.zip 共享包导入（model/lang/arxiv_id 由包内 manifest 自描述） */
-    shareImport(file: File, options?: object, byok?: ByokHeaders, onProgress?: UploadProgress) {
+    shareImport(
+        file: File,
+        options?: object,
+        byok?: ByokHeaders,
+        onProgress?: UploadProgress,
+    ) {
         const fd = new FormData();
         fd.append("file", file);
         if (options) fd.append("options", JSON.stringify(options));
         return createRequest<TranslateResponse>(
-            createFp("shareImport", { file: fileFp(file), options: options ?? null }, byok),
+            createFp(
+                "shareImport",
+                { file: fileFp(file), options: options ?? null },
+                byok,
+            ),
             "/share/import",
             { method: "POST", headers: byokHeaders(byok), body: fd },
             onProgress,
@@ -526,22 +556,36 @@ export const api = {
 
     /** 终态任务事后打 .share.zip 入共享目录（§6；幂等——已打过直返同 share_key） */
     sharePack: (taskId: string) =>
-        request<SharePackResponse>(`/task/${taskId}/share/pack`, { method: "POST" }),
+        request<SharePackResponse>(`/task/${taskId}/share/pack`, {
+            method: "POST",
+        }),
 
     snapshot: (taskId: string) => request<TaskSnapshot>(`/task/${taskId}`),
-    cancel: (taskId: string) => request(`/task/${taskId}/cancel`, { method: "POST" }),
+    cancel: (taskId: string) =>
+        request(`/task/${taskId}/cancel`, { method: "POST" }),
     deleteTask: (taskId: string) =>
         request<void>(`/task/${taskId}`, { method: "DELETE" }),
     // needs_auth 任务重试必须重带 X-Texlate-Key（BYOK 经 headers 透传）
-    retry: (taskId: string, body?: { main?: string; options?: object }, byok?: ByokHeaders) =>
+    retry: (
+        taskId: string,
+        body?: { main?: string; options?: object },
+        byok?: ByokHeaders,
+    ) =>
         request<TranslateResponse>(`/task/${taskId}/retry`, {
             method: "POST",
-            headers: { "content-type": "application/json", ...byokHeaders(byok) },
+            headers: {
+                "content-type": "application/json",
+                ...byokHeaders(byok),
+            },
             body: JSON.stringify(body ?? {}),
         }),
 
     files: (taskId: string) => request<FileManifest>(`/files/${taskId}`),
-    fileUrl(taskId: string, kind: FileKind, opts?: { download?: boolean; version?: string }) {
+    fileUrl(
+        taskId: string,
+        kind: FileKind,
+        opts?: { download?: boolean; version?: string },
+    ) {
         const q = new URLSearchParams();
         if (opts?.download) q.set("download", "1");
         if (opts?.version) q.set("version", opts.version);
@@ -567,11 +611,14 @@ export const api = {
         }),
     // body 可带 base_url/api_key/model 覆盖——测表单现值而非已存配置
     testSettings: (s?: Settings) =>
-        request<{ ok: boolean; detail?: string; models?: string[] }>("/settings/test", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify(s ?? {}),
-        }),
+        request<{ ok: boolean; detail?: string; models?: string[] }>(
+            "/settings/test",
+            {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify(s ?? {}),
+            },
+        ),
 };
 
 export type TransportState = "live" | "reconnecting" | "closed";
@@ -611,23 +658,51 @@ export function isTerminal(status: TaskStatus): boolean {
  * 无 dual.json）——此时回 task_id 拼详情面：#/reader/:id 即任务详情页，
  * 在途出进度、终态无 reader 自动落产物下载面板，不 404 不白屏。
  */
-export function landingHash(res: Pick<TranslateResponse, "task_id" | "reader_url">): string {
+export function landingHash(
+    res: Pick<TranslateResponse, "task_id" | "reader_url">,
+): string {
     const m = res.reader_url?.match(/\/task\/([A-Za-z0-9_-]+)\/reader/);
     return `#/reader/${m?.[1] ?? res.task_id}`;
+}
+
+/**
+ * 每任务已见 seq 水位线（module 级，跨 channel 重建存活）。
+ *
+ * retry/重开订阅时新 EventSource 不带 Last-Event-ID，服务端
+ * ``events_since(task_id, 0)`` 全量重放落盘事件（retry 不清
+ * task_events）——含上一轮 done 帧，照单全收会把新 channel 当场关掉、
+ * 本轮真实事件无人监听（live 假死）。水位线丢弃 ``seq<=wm`` 的非
+ * snapshot 帧；snapshot 帧 seq=0 恒放行（每连现场合成、不落盘）。
+ * EventSource 自动重连带 Last-Event-ID 的服务端重放也被同一去重罩住。
+ * 任务删除时由 {@link forgetTaskEvents} 清——retry/unwatch 均不清。
+ */
+const seqWatermark = new Map<string, number>();
+
+/** 任务删除（remove/服务端 deleted 帧）才清其 seq 水位线 */
+export function forgetTaskEvents(taskId: string): void {
+    seqWatermark.delete(taskId);
 }
 
 /**
  * 订阅任务 SSE。浏览器 EventSource 自带断线重连 + Last-Event-ID 重放；
  * 终态（done 事件或 snapshot 已是终态）自动关闭，不再重连。
  */
-export function openTaskEvents(taskId: string, h: TaskEventHandlers): TaskChannel {
+export function openTaskEvents(
+    taskId: string,
+    h: TaskEventHandlers,
+): TaskChannel {
     const es = new EventSource(`${BASE}/task/${taskId}`);
     let closed = false;
 
     const on = <T>(type: string, fn: (data: T, seq: number) => void) =>
         es.addEventListener(type, (ev) => {
+            const msg = ev as MessageEvent;
+            const seq = Number(msg.lastEventId) || 0;
+            const wm = seqWatermark.get(taskId) ?? 0;
+            if (seq !== 0 && seq <= wm) return; // 重放/重连重复帧——丢弃
+            if (seq > wm) seqWatermark.set(taskId, seq); // 坏帧也推进，防毒化回放
             try {
-                fn(JSON.parse((ev as MessageEvent).data) as T, Number((ev as MessageEvent).lastEventId) || 0);
+                fn(JSON.parse(msg.data) as T, seq);
             } catch {
                 /* 忽略坏帧 */
             }
@@ -647,7 +722,11 @@ export function openTaskEvents(taskId: string, h: TaskEventHandlers): TaskChanne
         close();
     });
     es.onopen = () => h.transport?.("live");
-    es.onerror = () => {
+    es.onerror = (ev) => {
+        // 具名 `event: error` 帧以 type=error 的 MessageEvent 派发，会连带
+        // 触发 onerror——带 data 的是业务错误帧（已走 on("error")），真·传输
+        // 层失败是裸 Event
+        if ("data" in ev || ev instanceof MessageEvent) return;
         if (es.readyState === EventSource.CLOSED) close();
         else h.transport?.("reconnecting");
     };

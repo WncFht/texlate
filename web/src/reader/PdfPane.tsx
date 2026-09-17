@@ -79,6 +79,13 @@ export default function PdfPane(props: Props) {
     const [infoOpen, setInfoOpen] = createSignal(false);
     let findInput: HTMLInputElement | undefined;
 
+    // 页面几何缓存：滚动路径高频调 pages()，_pages[].div 的 offsetTop/Height
+    // 只在缩放/旋转/换文档时变化——eventBus 事件 + 容器 RO 失效
+    let geomCache: PageGeom[] | null = null;
+    const invalidateGeom = () => {
+        geomCache = null;
+    };
+
     const openFind = () => {
         setFindOpen(true);
         props.onActivate?.();
@@ -96,11 +103,13 @@ export default function PdfPane(props: Props) {
             return pdfSlick();
         },
         pages(): PageGeom[] {
+            if (geomCache) return geomCache;
             const views = (viewer() as unknown as { _pages?: PdfPageViewLike[] })?._pages ?? [];
             const out: PageGeom[] = [];
             views.forEach((v, i) => {
                 if (v?.div) out.push({ page: i + 1, top: v.div.offsetTop, height: v.div.offsetHeight });
             });
+            geomCache = out;
             return out;
         },
         numPages: () => pdfSlickStore.numPages ?? 0,
@@ -145,6 +154,55 @@ export default function PdfPane(props: Props) {
     });
     onCleanup(() => cancelAnimationFrame(rafId));
     onCleanup(() => props.onDispose?.(handle));
+
+    // 几何缓存失效线：pdf.js 布局变化走 eventBus，容器尺寸走 RO
+    createEffect(() => {
+        const s = pdfSlick();
+        if (!s) return;
+        const bus = s.eventBus;
+        for (const ev of ["scalechanging", "rotationchanging", "pagesinit", "pagesdestroy"]) {
+            bus.on(ev, invalidateGeom);
+        }
+        const ro =
+            typeof ResizeObserver === "function"
+                ? new ResizeObserver(invalidateGeom)
+                : null;
+        ro?.observe(s.viewer.container);
+        onCleanup(() => {
+            for (const ev of ["scalechanging", "rotationchanging", "pagesinit", "pagesdestroy"]) {
+                bus.off(ev, invalidateGeom);
+            }
+            ro?.disconnect();
+        });
+    });
+
+    // usePDFSlick 无实例清理（§5.1）——卸载时亲手拆：unbindEvents 停
+    // window/eventBus 监听，loadingTask.destroy() 杀 worker 解析态。
+    // document 未落地（在途加载）时订 store 首个 setState 补刀；
+    // 加载挂起则由超时释放订阅
+    onCleanup(() => {
+        const s = pdfSlick();
+        if (!s) return;
+        try {
+            s.unbindEvents();
+        } catch {
+            /* 半初始化实例上解绑可能抛——不挡销毁 */
+        }
+        const destroyDoc = () => {
+            const d = s.document;
+            if (d) void d.loadingTask.destroy().catch(() => undefined);
+        };
+        if (s.document) {
+            destroyDoc();
+            return;
+        }
+        const unsub = s.store.subscribe(() => {
+            if (!s.document) return;
+            unsub();
+            destroyDoc();
+        });
+        window.setTimeout(unsub, 300_000);
+    });
 
     // 页码上报（pdfjs pagechanging → store.pageNumber）
     createEffect(() => {

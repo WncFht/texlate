@@ -14,15 +14,20 @@ import TaskList from "../components/TaskList";
 import { t } from "../i18n/zh";
 
 const ARXIV_RE =
-    /^(?:\d{4}\.\d{4,5}(?:v\d+)?|[a-z-]+(?:\.[A-Z]{2})?\/\d{7}(?:v\d+)?)$/i;
+    /^(?:\d{4}\.\d{4,5}(?:v\d+)?|[a-z-]+(?:\.[A-Z][a-zA-Z]+)?\/\d{7}(?:v\d+)?)$/i;
 
 const TARGET_LANGS = ["zh-CN", "zh-TW", "en"];
 const ENGINES = ["auto", "xelatex", "tectonic"];
 
-function parseArxivId(raw: string): string | null {
-    const s = raw.trim();
-    if (ARXIV_RE.test(s)) return s;
-    const m = s.match(/arxiv\.org\/(?:abs|pdf)\/([^\s?#/]+?)(?:\.pdf)?(?:[?#].*)?$/i);
+// 服务端 normalize_arxiv_id 的轻量版：剥 arXiv: 前缀、各路径段 URL、
+// 尾部斜杠与 .pdf，再按新/旧 id 形白名单判
+export function parseArxivId(raw: string): string | null {
+    const s = raw.trim().replace(/^arxiv\s*:\s*/i, "");
+    const bare = s.replace(/\.pdf$/i, "");
+    if (ARXIV_RE.test(bare)) return bare;
+    const m = s.match(
+        /arxiv\.org\/(?:abs|pdf|html|src|e-print|format)\/+([^\s?#]+?)\/*?(?:\.pdf)?(?:[?#].*)?$/i,
+    );
     return m && ARXIV_RE.test(m[1]) ? m[1] : null;
 }
 
@@ -30,6 +35,9 @@ export default function Home(props: { nav(to: string): void }) {
     const [arxivId, setArxivId] = createSignal("");
     const [busy, setBusy] = createSignal(false);
     const [error, setError] = createSignal("");
+    // id 解析失败态：aria-invalid 只标格式错，服务端错误不占位
+    const [idBad, setIdBad] = createSignal(false);
+    const [dragOn, setDragOn] = createSignal(false);
     // 上传进度：uploading=文件提交在飞（区别于 translate 的 busy）；
     // upPct=-1 哨兵 = 尚无进度事件（lengthComputable=false 时恒如此）→ 不定态
     const [uploading, setUploading] = createSignal(false);
@@ -78,7 +86,8 @@ export default function Home(props: { nav(to: string): void }) {
     const open = (taskId: string) => props.nav(`#/reader/${taskId}`);
     // 202 落地：reader_url 仅产 dual.json 的 kind 下发，缺席（docx/epub）
     // 回 task_id——#/reader/:id 即任务详情面，终态自动落产物下载面板
-    const openRes = (res: Parameters<typeof landingHash>[0]) => props.nav(landingHash(res));
+    const openRes = (res: Parameters<typeof landingHash>[0]) =>
+        props.nav(landingHash(res));
 
     /** 非空字段收成 TranslateOptions；全空返回 undefined（不附带 body 字段） */
     const collectOptions = (): TranslateOptions | undefined => {
@@ -99,11 +108,14 @@ export default function Home(props: { nav(to: string): void }) {
         // 默认 eprint 不写字段——服务端按缺省 eprint，存量请求面零变化
         if (optSource() === "html") opts.source = "html";
         if (Object.keys(opts).length) o.options = opts;
-        return o.model || o.target_lang || o.glossary || o.options ? o : undefined;
+        return o.model || o.target_lang || o.glossary || o.options
+            ? o
+            : undefined;
     };
 
     /** 临时 key → X-Texlate-Key 头（空 → undefined，纯 per-request 透传） */
-    const byok = () => (optKey().trim() ? { apiKey: optKey().trim() } : undefined);
+    const byok = () =>
+        optKey().trim() ? { apiKey: optKey().trim() } : undefined;
 
     const submit = async () => {
         // 输入框 Enter 触发隐式提交不走 disabled 按钮——busy 门防重入
@@ -111,6 +123,7 @@ export default function Home(props: { nav(to: string): void }) {
         const id = parseArxivId(arxivId());
         if (!id) {
             setError(t.home.invalidId);
+            setIdBad(true);
             return;
         }
         setError("");
@@ -124,7 +137,8 @@ export default function Home(props: { nav(to: string): void }) {
             if (!alive) return;
             // 409：同 cache_key 已有活动任务 → 直接跳过去
             if (e instanceof ApiError && e.status === 409) {
-                const existing = e.taskId ?? e.detail.match(/t_[0-9a-f]{16}/)?.[0];
+                const existing =
+                    e.taskId ?? e.detail.match(/t_[0-9a-f]{16}/)?.[0];
                 if (existing) {
                     open(existing);
                     return;
@@ -194,8 +208,44 @@ export default function Home(props: { nav(to: string): void }) {
         return v === undefined || v === "" ? "…" : String(v);
     };
 
+    /** 整页拖放上传：仅拦截文件拖拽（文本拖入输入框不受影响） */
+    let dragDepth = 0;
+    const hasFile = (e: DragEvent) =>
+        [...(e.dataTransfer?.types ?? [])].includes("Files");
+
     return (
-        <main class="home">
+        <main
+            class="home"
+            classList={{ "drop-on": dragOn() }}
+            onDragEnter={(e) => {
+                if (!hasFile(e)) return;
+                e.preventDefault();
+                dragDepth++;
+                setDragOn(true);
+            }}
+            onDragOver={(e) => {
+                if (hasFile(e)) e.preventDefault();
+            }}
+            onDragLeave={() => {
+                if (--dragDepth <= 0) {
+                    dragDepth = 0;
+                    setDragOn(false);
+                }
+            }}
+            onDrop={(e) => {
+                if (!hasFile(e)) return;
+                e.preventDefault();
+                dragDepth = 0;
+                setDragOn(false);
+                const f = e.dataTransfer?.files?.[0];
+                if (!f) return;
+                if (busy()) {
+                    setError(t.home.dropBusy);
+                    return;
+                }
+                void upload(f);
+            }}
+        >
             <section class="hero">
                 <h1 class="wordmark">
                     {t.appName} <span class="tagline">{t.tagline}</span>
@@ -210,12 +260,24 @@ export default function Home(props: { nav(to: string): void }) {
                     <input
                         class="arxiv-input"
                         placeholder={t.home.arxivPlaceholder}
+                        aria-label={t.home.arxivLabel}
+                        aria-invalid={idBad()}
+                        autocapitalize="off"
                         value={arxivId()}
-                        onInput={(e) => setArxivId(e.currentTarget.value)}
+                        onInput={(e) => {
+                            setArxivId(e.currentTarget.value);
+                            // 格式错提示随编辑即消——用户在改，错误就不该挂着
+                            if (idBad()) {
+                                setIdBad(false);
+                                setError("");
+                            }
+                        }}
                         spellcheck={false}
                     />
                     <button type="submit" class="btn-primary" disabled={busy()}>
-                        {t.home.translate}
+                        {busy() && !uploading()
+                            ? t.home.submitting
+                            : t.home.translate}
                     </button>
                     <button
                         type="button"
@@ -237,6 +299,11 @@ export default function Home(props: { nav(to: string): void }) {
                         }}
                     />
                 </form>
+                <Show when={error()}>
+                    <p class="form-error" role="alert">
+                        {error()}
+                    </p>
+                </Show>
                 <Show when={uploading()}>
                     <div class="up-progress">
                         <div
@@ -248,16 +315,26 @@ export default function Home(props: { nav(to: string): void }) {
                             aria-valuemax={100}
                             aria-valuenow={upPct() >= 0 ? upPct() : undefined}
                         >
-                            <i style={{ width: upPct() < 0 ? "35%" : `${upPct()}%` }} />
+                            <i
+                                style={{
+                                    width: upPct() < 0 ? "35%" : `${upPct()}%`,
+                                }}
+                            />
                         </div>
                         <span class="up-label" aria-live="polite">
                             {upPct() >= 0
-                                ? t.home.uploadPct.replace("{n}", String(upPct()))
+                                ? t.home.uploadPct.replace(
+                                      "{n}",
+                                      String(upPct()),
+                                  )
                                 : t.home.uploading}
                         </span>
                     </div>
                 </Show>
-                <p class="muted upload-formats">{t.home.formats}</p>
+                <p class="muted upload-formats">
+                    {t.home.formats}
+                    <span class="drop-hint">{t.home.dropHint}</span>
+                </p>
                 <details class="task-opts">
                     <summary>{t.home.options}</summary>
                     <div class="opts-grid">
@@ -266,14 +343,18 @@ export default function Home(props: { nav(to: string): void }) {
                             <input
                                 value={optModel()}
                                 placeholder={def("model")}
-                                onInput={(e) => setOptModel(e.currentTarget.value)}
+                                onInput={(e) =>
+                                    setOptModel(e.currentTarget.value)
+                                }
                             />
                         </label>
                         <label>
                             <span>{t.home.optLang}</span>
                             <select
                                 value={optLang()}
-                                onChange={(e) => setOptLang(e.currentTarget.value)}
+                                onChange={(e) =>
+                                    setOptLang(e.currentTarget.value)
+                                }
                             >
                                 <option value="">
                                     {t.home.optDefault}（{def("target_lang")}）
@@ -287,7 +368,9 @@ export default function Home(props: { nav(to: string): void }) {
                             <span>{t.home.optEngine}</span>
                             <select
                                 value={optEngine()}
-                                onChange={(e) => setOptEngine(e.currentTarget.value)}
+                                onChange={(e) =>
+                                    setOptEngine(e.currentTarget.value)
+                                }
                             >
                                 <option value="">
                                     {t.home.optDefault}（{def("engine")}）
@@ -295,7 +378,9 @@ export default function Home(props: { nav(to: string): void }) {
                                 <For each={ENGINES}>
                                     {(en) => (
                                         <option value={en}>
-                                            {en === "auto" ? t.home.engineAuto : en}
+                                            {en === "auto"
+                                                ? t.home.engineAuto
+                                                : en}
                                         </option>
                                     )}
                                 </For>
@@ -309,14 +394,18 @@ export default function Home(props: { nav(to: string): void }) {
                                 max={16}
                                 value={optConcurrency()}
                                 placeholder={def("concurrency")}
-                                onInput={(e) => setOptConcurrency(e.currentTarget.value)}
+                                onInput={(e) =>
+                                    setOptConcurrency(e.currentTarget.value)
+                                }
                             />
                         </label>
                         <label>
                             <span>{t.home.optGuidance}</span>
                             <select
                                 value={optGuidance()}
-                                onChange={(e) => setOptGuidance(e.currentTarget.value)}
+                                onChange={(e) =>
+                                    setOptGuidance(e.currentTarget.value)
+                                }
                             >
                                 <option value="">{t.home.optDefault}</option>
                                 <option value="on">{t.home.optOn}</option>
@@ -327,20 +416,30 @@ export default function Home(props: { nav(to: string): void }) {
                             <span>{t.home.optPrefer}</span>
                             <select
                                 value={optPrefer()}
-                                onChange={(e) => setOptPrefer(e.currentTarget.value)}
+                                onChange={(e) =>
+                                    setOptPrefer(e.currentTarget.value)
+                                }
                             >
                                 <option value="">{t.home.optDefault}</option>
-                                <option value="reuse">{t.home.preferReuse}</option>
-                                <option value="fresh">{t.home.preferFresh}</option>
+                                <option value="reuse">
+                                    {t.home.preferReuse}
+                                </option>
+                                <option value="fresh">
+                                    {t.home.preferFresh}
+                                </option>
                             </select>
                         </label>
                         <label>
                             <span>{t.home.optSource}</span>
                             <select
                                 value={optSource()}
-                                onChange={(e) => setOptSource(e.currentTarget.value)}
+                                onChange={(e) =>
+                                    setOptSource(e.currentTarget.value)
+                                }
                             >
-                                <option value="eprint">{t.home.srcEprint}</option>
+                                <option value="eprint">
+                                    {t.home.srcEprint}
+                                </option>
                                 <option value="html">{t.home.srcHtml}</option>
                             </select>
                         </label>
@@ -351,7 +450,9 @@ export default function Home(props: { nav(to: string): void }) {
                             </span>
                             <select
                                 value={optShare()}
-                                onChange={(e) => setOptShare(e.currentTarget.value)}
+                                onChange={(e) =>
+                                    setOptShare(e.currentTarget.value)
+                                }
                             >
                                 <option value="">{t.home.optDefault}</option>
                                 <option value="on">{t.home.optOn}</option>
@@ -366,7 +467,9 @@ export default function Home(props: { nav(to: string): void }) {
                             <input
                                 value={optMain()}
                                 placeholder="main.tex"
-                                onInput={(e) => setOptMain(e.currentTarget.value)}
+                                onInput={(e) =>
+                                    setOptMain(e.currentTarget.value)
+                                }
                             />
                         </label>
                         <label class="span2">
@@ -377,7 +480,9 @@ export default function Home(props: { nav(to: string): void }) {
                             <textarea
                                 rows={3}
                                 value={optGlossary()}
-                                onInput={(e) => setOptGlossary(e.currentTarget.value)}
+                                onInput={(e) =>
+                                    setOptGlossary(e.currentTarget.value)
+                                }
                             />
                         </label>
                         <label class="span2">
@@ -389,19 +494,20 @@ export default function Home(props: { nav(to: string): void }) {
                                 type="password"
                                 autocomplete="off"
                                 value={optKey()}
-                                onInput={(e) => setOptKey(e.currentTarget.value)}
+                                onInput={(e) =>
+                                    setOptKey(e.currentTarget.value)
+                                }
                             />
                         </label>
                     </div>
                 </details>
-                <Show when={error()}>
-                    <p class="form-error" role="alert">
-                        {error()}
-                    </p>
-                </Show>
                 <p
                     class="health"
-                    classList={{ checking: healthPending(), bad: !healthPending() && !health()?.ok }}
+                    role="status"
+                    classList={{
+                        checking: healthPending(),
+                        bad: !healthPending() && !health()?.ok,
+                    }}
                 >
                     <i class="dot" />
                     {healthPending()
@@ -411,14 +517,27 @@ export default function Home(props: { nav(to: string): void }) {
                           : t.home.healthBad}
                     <Show when={!healthPending() && health()?.ok}>
                         <span class="muted">
-                            v{health()!.version ?? "?"} · {t.home.compilers} {compilersStat()}
+                            v{health()!.version ?? "?"} · {t.home.compilers}{" "}
+                            {compilersStat()}
                         </span>
                     </Show>
                 </p>
             </section>
 
             <section class="home-tasks">
-                <h2>{t.home.tasks}</h2>
+                <h2>
+                    {t.home.tasks}
+                    <Show
+                        when={
+                            taskStore.state.loaded &&
+                            taskStore.state.tasks.length > 0
+                        }
+                    >
+                        <span class="task-count">
+                            {taskStore.state.tasks.length}
+                        </span>
+                    </Show>
+                </h2>
                 <Show when={taskStore.state.loadError}>
                     {(err) => (
                         <p class="form-error">
@@ -433,7 +552,10 @@ export default function Home(props: { nav(to: string): void }) {
                         </p>
                     )}
                 </Show>
-                <Show when={taskStore.state.loaded} fallback={<p class="muted">…</p>}>
+                <Show
+                    when={taskStore.state.loaded}
+                    fallback={<p class="muted">…</p>}
+                >
                     <TaskList tasks={taskStore.state.tasks} onOpen={open} />
                 </Show>
             </section>

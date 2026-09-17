@@ -13,17 +13,25 @@ export default function Segmented<T extends string>(props: Props<T>) {
         const opts = props.options;
         const cur = opts.findIndex((o) => o.value === props.value);
         let next = -1;
-        if (e.key === "ArrowRight" || e.key === "ArrowDown") next = (cur + 1) % opts.length;
+        if (e.key === "ArrowRight" || e.key === "ArrowDown")
+            next = (cur + 1) % opts.length;
         else if (e.key === "ArrowLeft" || e.key === "ArrowUp")
             next = (cur - 1 + opts.length) % opts.length;
         if (next < 0 || next === cur) return;
         e.preventDefault();
         props.onChange(opts[next].value);
-        ((e.currentTarget as HTMLElement).children[next] as HTMLElement)?.focus();
+        (
+            (e.currentTarget as HTMLElement).children[next] as HTMLElement
+        )?.focus();
     };
 
     return (
-        <div class="segmented" role="radiogroup" aria-label={props.ariaLabel} onKeyDown={onKeyDown}>
+        <div
+            class="segmented"
+            role="radiogroup"
+            aria-label={props.ariaLabel}
+            onKeyDown={onKeyDown}
+        >
             <For each={props.options}>
                 {(opt) => (
                     <button

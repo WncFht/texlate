@@ -6,11 +6,15 @@ export const t = {
     nav: { tasks: "任务", settings: "设置" },
     home: {
         arxivPlaceholder: "arXiv ID 或链接，如 2501.14787 / cs/0501001",
+        arxivLabel: "arXiv ID 或链接",
         translate: "翻译",
+        submitting: "提交中…",
         upload: "上传文件",
         uploading: "上传中…",
         uploadPct: "上传中… {n}%",
         formats: "支持 .tex · .pdf · .docx · .epub · 源码包(.tar/.gz/.zip)",
+        dropHint: "——也可把文件拖进来",
+        dropBusy: "正在提交中——稍候再拖入",
         tasks: "任务列表",
         empty: "还没有任务——输入 arXiv ID 或上传文件开始",
         invalidId: "无法识别的 arXiv ID",
@@ -50,7 +54,10 @@ export const t = {
         delConfirm:
             "确定删除该任务？将一并删除其全部产物（原文/译文 PDF、工程文件、工作目录），不可恢复。",
         delFailed: "删除失败，请稍后重试",
-        dlTitle: "下载产物——文档类任务无对照阅读器",
+        delWait: "正在删除其他任务",
+        dlTitle: "下载产物",
+        dlLoading: "拉取产物清单…",
+        dlNone: "暂无已登记产物",
     },
     kind: {
         arxiv: "arXiv",
@@ -123,7 +130,8 @@ export const t = {
         filesTitle: "下载产物",
         filesHint: "该任务产出文档类译文，无在线对照视图——直接下载产物",
         shareBtn: "分享本译文",
-        shareBtnTip: "打包 .share.zip 写入服务端共享目录——供其他 TeXlate 实例导入",
+        shareBtnTip:
+            "打包 .share.zip 写入服务端共享目录——供其他 TeXlate 实例导入",
         shareBusy: "打包中…",
         shareBanner: "分享本次译文到社区缓存",
         shareOk: "已入共享目录：",
@@ -189,6 +197,7 @@ export const t = {
         tokens: "Tokens",
         elapsed: "已用时",
         reconnecting: "连接中断，正在重连…",
+        closed: "连接已关闭",
         warnings: "警告",
     },
     files: {
@@ -204,6 +213,7 @@ export const t = {
         "zh.epub": "译文 EPUB",
         "en.html": "原文 HTML",
         "zh.html": "译文 HTML",
+        "src.html": "源码 HTML",
     } as Record<string, string>,
     settings: {
         title: "设置",

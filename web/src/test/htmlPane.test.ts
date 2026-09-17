@@ -56,4 +56,26 @@ describe("HtmlPane chunk 解析失败兜底", () => {
         expect(chunks[0].textContent).toContain("good chunk");
         expect(onReady).toHaveBeenCalled();
     });
+
+    it("seq 非整型不逃逸 data-chunk 属性（share.zip 导入的 dual.json 是外部输入）", async () => {
+        dispose = render(
+            () =>
+                HtmlPane({
+                    side: "original",
+                    chunks: [
+                        { seq: 0, en: "ok" },
+                        // 外部 JSON 可塞任意类型——突破属性引号即注入
+                        { seq: '1"><img onerror="x()">' as never, en: "bad" },
+                    ],
+                }),
+            document.body,
+        );
+        await flush();
+        await flush();
+
+        const chunks = document.body.querySelectorAll("[data-chunk]");
+        expect(chunks.length).toBe(2);
+        expect(chunks[1].getAttribute("data-chunk")).toBe('1"><img onerror="x()">');
+        expect(chunks[1].querySelector("img")).toBeNull();
+    });
 });

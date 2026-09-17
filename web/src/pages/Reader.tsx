@@ -12,6 +12,7 @@ import {
     type FileKind,
     type FileManifest,
     type ReaderInfo,
+    type ReadingState,
     type SharePackResponse,
     type TaskSnapshot,
     type TaskStage,
@@ -80,10 +81,16 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
     let pendingJump: { from: DocId; pos: Pos } | null = null;
     const restoredSides = new Set<DocId>();
     let saveTimer = 0;
+    let driftRaf = 0;
+    // loadReader 一次性闸：readerGone/无 reader 数据的终态任务上，SSE
+    // effect 每次 store 更新都重入——标志位挡住（onRetry 复位后重开）
+    let readerRequested = false;
 
     // ---------- 数据装载 ----------
 
     const loadReader = async () => {
+        if (readerRequested) return;
+        readerRequested = true;
         // manifest 独立落地：doc 任务 reader 404 属预期，但下载清单必须
         // 到位——曾与 reader 同 Promise.all，reader 先拒则 manifest 永不设置
         void api
@@ -104,6 +111,8 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
                 if (rd.sync !== undefined) setSyncing(rd.sync);
                 if (rd.zoom) setZoom(rd.zoom);
                 if (rd.active) setActive(rd.active);
+                const rds = rd as typeof rd & { swapped?: boolean };
+                if (typeof rds.swapped === "boolean") setSwapped(rds.swapped);
             }
         } catch (e) {
             // 终态任务无 reader 数据 → reader 404 属预期，交给结果/产物面板；其余仍 fatal
@@ -140,6 +149,7 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
 
     onCleanup(() => {
         engine?.dispose();
+        if (driftRaf) window.cancelAnimationFrame(driftRaf);
         // 卸载冲刷：防抖窗口内离开（返回列表/切任务）不丢最后一段阅读位置
         if (saveTimer) {
             window.clearTimeout(saveTimer);
@@ -278,16 +288,17 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
         }
         // 无可写位置（窗格未挂/已卸）不发——空表会覆盖服务端已存位置
         if (Object.keys(positions).length === 0) return;
-        void api
-            .putPosition(props.taskId, {
-                positions,
-                active: active(),
-                mode: mode(),
-                zoom: zoom(),
-                sync: syncing(),
-                document_version: info()?.documents.translated?.version,
-            })
-            .catch(() => undefined);
+        // swapped 字段后于 ReadingState 落地——宽类型携带，服务端列已收
+        const state: ReadingState & { swapped?: boolean } = {
+            positions,
+            active: active(),
+            mode: mode(),
+            zoom: zoom(),
+            sync: syncing(),
+            swapped: swapped(),
+            document_version: info()?.documents.translated?.version,
+        };
+        void api.putPosition(props.taskId, state).catch(() => undefined);
     };
 
     const persistPosition = () => {
@@ -325,7 +336,12 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
 
     const onUserScroll = () => {
         persistPosition();
-        updateDrift();
+        // 双侧滚动+程序化回声每事件都进来——合帧到一次几何采样
+        if (driftRaf) return;
+        driftRaf = window.requestAnimationFrame(() => {
+            driftRaf = 0;
+            updateDrift();
+        });
     };
 
     // ---------- 缩放 / 页码 / 下载 ----------
@@ -417,6 +433,7 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
             setDual(undefined);
             setManifest(null);
             setReaderGone(false);
+            readerRequested = false;
             pendingJump = null;
             restoredSides.clear();
             setTask((cur) =>
@@ -875,7 +892,9 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
                     <h1 class="tp-title">{title()}</h1>
                     <Show when={live()?.transport && live()!.transport !== "live"}>
                         <p class="transport-badge" role="status">
-                            {t.progress.reconnecting}
+                            {live()!.transport === "closed"
+                                ? t.progress.closed
+                                : t.progress.reconnecting}
                         </p>
                     </Show>
                     <ol class="stage-stepper">
@@ -1011,6 +1030,7 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
                     swapped={swapped()}
                     downloads={downloads()}
                     canGotoPage={isPdf() || isDom()}
+                    canZoom={isPdf()}
                     onMode={planModeChange}
                     onSync={setSync}
                     onZoom={applyZoom}

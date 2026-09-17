@@ -167,11 +167,18 @@ await page.screenshot({ path: `${SHOTS}08-partial.png` });
 
 // ---------- 4.5 doc 任务：kind 徽标 + 行内下载 + files 面板 ----------
 await page.goto(`${BASE}/#/`, { waitUntil: "networkidle" });
-// doc 行：kind 徽标带 k-doc 修饰，行内有产物直链（懒拉 files manifest——
-// 等首个 chip 出现再断言，manifest 往返晚于列表渲染）
-await page.waitForSelector(".task-dl", { timeout: 5000 });
+// doc 行：kind 徽标带 k-doc 修饰；产物链折叠在 .task-dlt 抽屉里——
+// 逐行点开（懒拉 files manifest，等首个 chip 出现再断言）
+await page.waitForSelector(".task-kind.k-doc", { timeout: 5000 });
 const docBadges = await page.locator(".task-kind.k-doc").count();
 check("doc 任务 kind 徽标（k-doc）", docBadges >= 2, `${docBadges} 枚`);
+const docRows = page.locator(".task-wrap", {
+    has: page.locator(".task-kind.k-doc"),
+});
+for (let i = 0; i < (await docRows.count()); i++) {
+    await docRows.nth(i).locator(".task-dlt").click();
+}
+await page.waitForSelector(".task-dl", { timeout: 5000 });
 const docDl = page.locator('.task-dl[href*="zh.docx"]');
 check(
     "docx 行内 zh.docx 下载链",

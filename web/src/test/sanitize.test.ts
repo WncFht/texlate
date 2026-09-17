@@ -31,6 +31,15 @@ describe("sanitizeHtml（HtmlPane marked 输出消毒）", () => {
         expect(out).toContain('href="https://example.org"');
     });
 
+    it("<style> 标签与行内 style 全剥（marked 译文无正当样式需求）", () => {
+        const out = render(
+            't<style>body{display:none}</style>\n\n<p style="position:fixed;inset:0;color:red">x</p>',
+        );
+        expect(out).not.toContain("<style");
+        expect(out).not.toContain("display:none");
+        expect(out).not.toContain("style=");
+    });
+
     it("MathML 呈现标签保留（math/mi）；semantics/annotation 属 mXSS 向量被剥", () => {
         const mathml =
             '<math><semantics><mi>x</mi><annotation encoding="application/x-tex">x</annotation></semantics></math>';
@@ -84,6 +93,41 @@ describe("sanitizeDomHtml（DomPane arxiv LaTeXML 产物消毒）", () => {
         const svg = '<svg viewBox="0 0 1 1"><circle r="1"/></svg>';
         expect(sanitizeDomHtml(svg)).toContain("<svg");
         expect(sanitizeHtml(svg)).not.toContain("<svg");
+    });
+
+    it("<style> 保留但作用域到 .pane-html-body；危险声明与越权 at-规则剥除", () => {
+        const out = sanitizeDomHtml(
+            '<p class="ltx_p">x</p>' +
+                "<style>body{display:none}.ltx_p{color:blue}" +
+                "@media(min-width:1px){p{position:fixed;margin:0}}" +
+                "@import url(//evil);p:hover{color:green}</style>",
+        );
+        const host = document.createElement("div");
+        host.innerHTML = out;
+        const css = host.querySelector("style")?.textContent ?? "";
+        // body 选择器被前缀进作用域——失去对应用 chrome 的命中
+        expect(css).toContain(".pane-html-body body");
+        expect(css).not.toMatch(/(^|[}\n])\s*body\s*\{/);
+        expect(css).toContain(".pane-html-body .ltx_p");
+        // @import 丢；@media 内规则保留但 position:fixed 剥掉
+        expect(css).not.toContain("evil");
+        expect(css).toContain("@media");
+        expect(css).not.toContain("position: fixed");
+    });
+
+    it("行内 style 剥 position:fixed/pointer-events，保留无害声明", () => {
+        const out = sanitizeDomHtml(
+            '<p style="position:fixed;pointer-events:none;width:10em">x</p>' +
+                '<p style="position:relative;top:2px">y</p>',
+        );
+        const host = document.createElement("div");
+        host.innerHTML = out;
+        const ps = host.querySelectorAll("p");
+        expect(ps[0].getAttribute("style")).not.toContain("position");
+        expect(ps[0].getAttribute("style")).not.toContain("pointer-events");
+        expect(ps[0].getAttribute("style")).toContain("width");
+        // relative 不逃逸 .pane 裁剪——保留
+        expect(ps[1].getAttribute("style")).toContain("relative");
     });
 
     it("data-chunk 锚与 MathML 保留；semantics/annotation 仍剥（mXSS 向量）", () => {

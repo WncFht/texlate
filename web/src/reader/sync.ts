@@ -57,9 +57,69 @@ export function jumpTo(pane: PaneLike, pos: Pos): void {
     pane.el.scrollTop = top;
 }
 
+/** [data-chunk] 窗格的几何缓存：滚动路径每事件 3 处调 pages()，
+ *  querySelectorAll+逐元素 offsetTop 在大文档上是 O(N) 读写——缓存到
+ *  尺寸/内容变化。RO 观察 scroller+body+每个 chunk 元素（含增减相抵的
+ *  补偿变化）；MO 盯 body 直接子节点（innerHTML 整段替换 → 重绑锚集合）。
+ *  无 RO 的环境退回手动 rebind 失效。 */
+export interface ChunkGeom {
+    pages(): PageGeom[];
+    /** 内容写入/替换后调用：重绑观察目标并清缓存 */
+    rebind(): void;
+    dispose(): void;
+}
+
+export function bindChunkGeom(
+    scroller: () => HTMLElement,
+    body: () => HTMLElement,
+): ChunkGeom {
+    let els: HTMLElement[] = [];
+    let cache: PageGeom[] | null = null;
+    const invalidate = () => {
+        cache = null;
+    };
+    const ro =
+        typeof ResizeObserver === "function"
+            ? new ResizeObserver(invalidate)
+            : null;
+    const mo =
+        typeof MutationObserver === "function"
+            ? new MutationObserver(() => rebind())
+            : null;
+
+    function rebind() {
+        const b = body();
+        els = [...b.querySelectorAll<HTMLElement>("[data-chunk]")];
+        cache = null;
+        ro?.disconnect();
+        ro?.observe(scroller());
+        ro?.observe(b);
+        for (const el of els) ro?.observe(el);
+        mo?.disconnect();
+        mo?.observe(b, { childList: true });
+    }
+
+    return {
+        pages() {
+            return (cache ??= els.map((el, i) => ({
+                page: i + 1,
+                top: el.offsetTop,
+                height: el.offsetHeight,
+            })));
+        },
+        rebind,
+        dispose() {
+            ro?.disconnect();
+            mo?.disconnect();
+        },
+    };
+}
+
 export class SyncEngine {
     syncing = true;
-    private epoch = 0;
+    private dead = false;
+    private scheduled = false;
+    private pendingSrc: PaneLike | null = null;
     private ignoreTop = new WeakMap<HTMLElement, number>();
     private disposers: (() => void)[] = [];
 
@@ -76,6 +136,7 @@ export class SyncEngine {
     }
 
     dispose() {
+        this.dead = true;
         for (const d of this.disposers) d();
         this.disposers = [];
     }
@@ -103,12 +164,17 @@ export class SyncEngine {
         const it = this.ignoreTop.get(src.el);
         if (it !== undefined && Math.abs(src.el.scrollTop - it) < 1) return; // 自己程序跳转的回声
         this.ignoreTop.delete(src.el);
-        const pos = capturePos(src);
-        const e = ++this.epoch;
-        const dst = src === this.A ? this.B : this.A;
+        this.pendingSrc = src; // 同帧后到的事件覆盖——合帧后只同步最后一次
+        if (this.scheduled) return;
+        this.scheduled = true;
         raf(() => {
-            if (e !== this.epoch || !this.syncing) return; // 合帧 + epoch 丢弃过期
-            const target = this.map(pos, src.side);
+            this.scheduled = false;
+            const s = this.pendingSrc;
+            this.pendingSrc = null;
+            if (!s || this.dead || !this.syncing) return;
+            const pos = capturePos(s); // 帧时刻读最新位置——滚动突发合并为一次几何采样
+            const dst = s === this.A ? this.B : this.A;
+            const target = this.map(pos, s.side);
             const wanted = scrollTopFor(dst, target);
             if (wanted === null) return;
             if (Math.abs(dst.el.scrollTop - wanted) < 1) return; // 已就位，不制造回声

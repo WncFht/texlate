@@ -9,7 +9,14 @@ import "katex/dist/katex.min.css";
 
 import type { DocId, Pos } from "./alignment";
 import { escapeHtml, sanitizeHtml } from "./sanitize";
-import { capturePos, jumpTo, scrollTopFor, type PageGeom, type PaneLike } from "./sync";
+import {
+    bindChunkGeom,
+    capturePos,
+    jumpTo,
+    scrollTopFor,
+    type PageGeom,
+    type PaneLike,
+} from "./sync";
 import type { DualChunk } from "../api/client";
 import { t } from "../i18n/zh";
 
@@ -37,6 +44,10 @@ function chunkText(c: DualChunk, side: DocId): string {
 export default function HtmlPane(props: Props) {
     let scrollEl!: HTMLDivElement;
     let bodyEl!: HTMLDivElement;
+    const geom = bindChunkGeom(
+        () => scrollEl,
+        () => bodyEl,
+    );
 
     const handle: HtmlPaneHandle = {
         side: untrack(() => props.side),
@@ -44,11 +55,7 @@ export default function HtmlPane(props: Props) {
             return scrollEl;
         },
         pages(): PageGeom[] {
-            return [...bodyEl.querySelectorAll<HTMLElement>("[data-chunk]")].map((el, i) => ({
-                page: i + 1,
-                top: el.offsetTop,
-                height: el.offsetHeight,
-            }));
+            return geom.pages();
         },
         capture() {
             return capturePos(this);
@@ -78,7 +85,8 @@ export default function HtmlPane(props: Props) {
                 } catch {
                     inner = `<p>${escapeHtml(md)}</p>`;
                 }
-                return `<section class="chunk" data-chunk="${c.seq}">${inner}</section>`;
+                const seq = Number.isInteger(c.seq) ? c.seq : escapeHtml(String(c.seq));
+                return `<section class="chunk" data-chunk="${seq}">${inner}</section>`;
             })
             .join("");
         bodyEl.innerHTML = html || `<p class="chunk-empty">${t.reader.chunkEmpty}</p>`;
@@ -95,9 +103,13 @@ export default function HtmlPane(props: Props) {
         } catch {
             /* KaTeX 整体失败时保留纯文本 */
         }
+        geom.rebind();
         props.onReady?.(handle);
     });
-    onCleanup(() => props.onDispose?.(handle));
+    onCleanup(() => {
+        geom.dispose();
+        props.onDispose?.(handle);
+    });
 
     createEffect(() => {
         const el = scrollEl;
@@ -110,6 +122,7 @@ export default function HtmlPane(props: Props) {
         <div
             ref={(el) => (scrollEl = el)}
             class="pane pane-html"
+            tabindex="0"
             classList={{ active: !!props.active }}
             data-side={props.side}
             onPointerDown={() => props.onActivate?.()}

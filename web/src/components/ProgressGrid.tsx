@@ -48,7 +48,9 @@ export default function ProgressGrid(props: Props) {
                 aria-label={`${t.progress.chunks} ${props.done}/${props.total}`}
             >
                 <For each={cells()}>
-                    {(status) => <i class={STATUS_CLASS[status] ?? "cell-pending"} />}
+                    {(status) => (
+                        <i class={STATUS_CLASS[status] ?? "cell-pending"} />
+                    )}
                 </For>
             </div>
         </div>

@@ -109,6 +109,24 @@ describe("SyncEngine", () => {
         expect(B.fel.scrollTop).toBe(1200);
     });
 
+    it("滚动突发合帧：事件期零采样，rAF 内对最新位置采样一次", async () => {
+        const A = fakePane("original", [0, 800, 1600]);
+        const B = fakePane("translated", [0, 800, 1600]);
+        let aCalls = 0;
+        const origPages = A.pages;
+        A.pages = () => {
+            aCalls++;
+            return origPages();
+        };
+        new SyncEngine(A, B, identity);
+        A.fel.scrollTo(100);
+        A.fel.scrollTo(1200);
+        expect(aCalls).toBe(0); // 事件回调不读几何——全部推迟到 rAF
+        await flush();
+        expect(B.fel.scrollTop).toBe(1200);
+        expect(aCalls).toBe(1); // 三次事件合并成一次 capturePos
+    });
+
     it("dispose 移除监听", async () => {
         const A = fakePane("original", [0, 800]);
         const B = fakePane("translated", [0, 800]);

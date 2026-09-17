@@ -1,5 +1,5 @@
-import { createResource, createSignal, For, Show } from "solid-js";
-import type { TaskError, TaskSnapshot } from "../api/client";
+import { createSignal, For, Show } from "solid-js";
+import type { FileManifest, TaskError, TaskSnapshot } from "../api/client";
 import { api, isTerminal } from "../api/client";
 import { taskStore } from "../stores/tasks";
 import { downloadItems, isDocKind } from "../taskFiles";
@@ -27,36 +27,75 @@ function fmtRel(ts: number): string {
 }
 
 /**
- * doc 类任务（docx/epub）行内产物直链：snapshot.artifacts（SSE 在途带过）
- * 优先，无则懒拉 files manifest；无产物（fault/拉取失败/在途）不渲染。
+ * 终态任务行内产物下载：折叠钮展开直链清单。snapshot.artifacts（SSE
+ * done 帧带过）优先；列表行缺 artifacts 时懒拉 files manifest——
+ * 但只在用户意图明确后（悬停/聚焦预取，点开必然已发），避免列表
+ * 挂载即每行一请求的 N 突发。
  * 锚点必须落在 .task-row <button> 之外——button 内嵌 interactive 非法。
  */
-function DocDownloads(props: { task: TaskSnapshot }) {
-    const [manifest] = createResource(
-        () => (props.task.artifacts ? null : props.task.task_id),
-        (id) => api.files(id).catch(() => null),
-    );
+function TaskDownloads(props: { task: TaskSnapshot }) {
+    const [open, setOpen] = createSignal(false);
+    const [manifest, setManifest] = createSignal<FileManifest | null>(null);
+    const [fetching, setFetching] = createSignal(false);
+    let tried = false;
+
+    /** 幂等懒拉：首悬停/聚焦即预热，点开时多半已就绪 */
+    const ensure = () => {
+        if (tried || props.task.artifacts) return;
+        tried = true;
+        setFetching(true);
+        api.files(props.task.task_id)
+            .then(setManifest)
+            .catch(() => setManifest(null))
+            .finally(() => setFetching(false));
+    };
+
     const items = () => {
         const snap = props.task.artifacts;
         if (snap) return downloadItems(snap);
         const m = manifest();
         if (!m) return [];
         return downloadItems(
-            Object.fromEntries(Object.entries(m.artifacts).map(([k, e]) => [k, e.url])),
+            Object.fromEntries(
+                Object.entries(m.artifacts).map(([k, e]) => [k, e.url]),
+            ),
         );
     };
+
     return (
-        <Show when={items().length > 0}>
-            <span class="task-dls" title={t.home.dlTitle}>
-                <For each={items()}>
-                    {(d) => (
-                        <a class="task-dl" href={d.url} download="">
-                            {d.label}
-                        </a>
-                    )}
-                </For>
-            </span>
-        </Show>
+        <>
+            <button
+                type="button"
+                class="task-dlt"
+                aria-expanded={open()}
+                title={t.home.dlTitle}
+                aria-label={t.home.dlTitle}
+                onPointerEnter={ensure}
+                onFocus={ensure}
+                onClick={() => {
+                    ensure();
+                    setOpen((v) => !v);
+                }}
+            >
+                ⬇
+            </button>
+            <Show when={open()}>
+                <span class="task-dls">
+                    <For each={items()}>
+                        {(d) => (
+                            <a class="task-dl" href={d.url} download="">
+                                {d.label}
+                            </a>
+                        )}
+                    </For>
+                    <Show when={!items().length}>
+                        <span class="task-dl-empty">
+                            {fetching() ? t.home.dlLoading : t.home.dlNone}
+                        </span>
+                    </Show>
+                </span>
+            </Show>
+        </>
     );
 }
 
@@ -71,7 +110,7 @@ export default function TaskList(props: Props) {
     };
 
     const confirmDelete = async (task: TaskSnapshot) => {
-        if (!isTerminal(task.status) || deleting()) return;
+        if (!isTerminal(task.status) || deleting() !== null) return;
         if (!window.confirm(t.home.delConfirm)) return;
         setDeleting(task.task_id);
         setDelError("");
@@ -91,7 +130,7 @@ export default function TaskList(props: Props) {
     return (
         <div class="task-list">
             <Show when={props.tasks.length === 0}>
-                <p class="muted">{t.home.empty}</p>
+                <p class="task-empty">{t.home.empty}</p>
             </Show>
             <For each={props.tasks}>
                 {(task) => (
@@ -107,23 +146,31 @@ export default function TaskList(props: Props) {
                             <span class={`task-status st-${task.status}`}>
                                 {t.status[task.status] ?? task.status}
                             </span>
-                            <span class="task-time">{fmtRel(task.created_at)}</span>
+                            <span class="task-time">
+                                {fmtRel(task.created_at)}
+                            </span>
                             <span class="task-meta muted">
                                 <span
                                     class="task-kind"
-                                    classList={{ "k-doc": isDocKind(task.kind) }}
+                                    classList={{
+                                        "k-doc": isDocKind(task.kind),
+                                    }}
                                 >
                                     {t.kind[task.kind] ?? task.kind}
                                 </span>
                                 <Show when={!isTerminal(task.status)}>
                                     <span>
                                         {t.status[task.stage ?? task.status] ??
-                                            (task.stage ?? task.status)}
+                                            task.stage ??
+                                            task.status}
                                     </span>
                                 </Show>
                                 <Show when={errOf(task)}>
                                     {(e) => (
-                                        <span class="task-err" title={e().message}>
+                                        <span
+                                            class="task-err"
+                                            title={e().message}
+                                        >
                                             [{e().code}]
                                         </span>
                                     )}
@@ -132,7 +179,9 @@ export default function TaskList(props: Props) {
                             <span
                                 class="task-bar"
                                 role="progressbar"
-                                aria-label={task.title || task.arxiv_id || task.task_id}
+                                aria-label={
+                                    task.title || task.arxiv_id || task.task_id
+                                }
                                 aria-valuenow={task.progress}
                                 aria-valuemin={0}
                                 aria-valuemax={100}
@@ -140,19 +189,32 @@ export default function TaskList(props: Props) {
                                 <i
                                     style={{ width: `${task.progress}%` }}
                                     classList={{
-                                        done: isTerminal(task.status) && task.status === "done",
+                                        done: task.status === "done",
+                                        fail: task.status === "fault",
+                                        dead:
+                                            task.status === "cancelled" ||
+                                            task.status === "interrupted",
                                     }}
                                 />
                             </span>
                         </button>
-                        <Show when={isDocKind(task.kind) && isTerminal(task.status)}>
-                            <DocDownloads task={task} />
+                        <Show when={isTerminal(task.status)}>
+                            <TaskDownloads task={task} />
                         </Show>
                         <button
                             type="button"
                             class="task-del"
-                            disabled={!isTerminal(task.status) || deleting() === task.task_id}
-                            title={isTerminal(task.status) ? t.home.delTip : t.home.delBusy}
+                            classList={{ busy: deleting() === task.task_id }}
+                            disabled={
+                                !isTerminal(task.status) || deleting() !== null
+                            }
+                            title={
+                                !isTerminal(task.status)
+                                    ? t.home.delBusy
+                                    : deleting() !== null
+                                      ? t.home.delWait
+                                      : t.home.delTip
+                            }
                             aria-label={t.home.del}
                             onClick={() => void confirmDelete(task)}
                         >

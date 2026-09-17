@@ -1,12 +1,26 @@
 // App —— 手写 hash 路由（3 页，不引 router 依赖）：#/  #/reader/:id  #/settings
+// Reader 是重页（pdfjs+katex+marked ~1MB）——lazy 路由级分包，首屏不付解析
+// 成本；落地后空闲预取，点进任务时基本即时。
 
-import { createSignal, Match, onCleanup, onMount, Switch } from "solid-js";
+import {
+    createSignal,
+    lazy,
+    Match,
+    onCleanup,
+    onMount,
+    Suspense,
+    Switch,
+} from "solid-js";
 import Home from "./pages/Home";
-import Reader from "./pages/Reader";
 import Settings from "./pages/Settings";
 import { t } from "./i18n/zh";
 
-type Route = { page: "home" } | { page: "reader"; taskId: string } | { page: "settings" };
+const Reader = lazy(() => import("./pages/Reader"));
+
+type Route =
+    | { page: "home" }
+    | { page: "reader"; taskId: string }
+    | { page: "settings" };
 
 function parseHash(hash: string): Route {
     const m = hash.match(/^#\/reader\/([A-Za-z0-9_-]+)/);
@@ -20,9 +34,17 @@ export function nav(to: string) {
 }
 
 export default function App() {
-    const [route, setRoute] = createSignal<Route>(parseHash(window.location.hash));
+    const [route, setRoute] = createSignal<Route>(
+        parseHash(window.location.hash),
+    );
     const onHash = () => setRoute(parseHash(window.location.hash));
-    onMount(() => window.addEventListener("hashchange", onHash));
+    onMount(() => {
+        window.addEventListener("hashchange", onHash);
+        const ric =
+            window.requestIdleCallback ??
+            ((f: () => void) => window.setTimeout(f, 1500));
+        ric(() => void import("./pages/Reader"));
+    });
     onCleanup(() => window.removeEventListener("hashchange", onHash));
 
     const isReader = () => route().page === "reader";
@@ -36,25 +58,40 @@ export default function App() {
                 <a href="#/" classList={{ on: route().page === "home" }}>
                     {t.nav.tasks}
                 </a>
-                <a href="#/settings" classList={{ on: route().page === "settings" }}>
+                <a
+                    href="#/settings"
+                    classList={{ on: route().page === "settings" }}
+                >
                     {t.nav.settings}
                 </a>
             </nav>
-            <Switch>
-                {/* keyed：#/reader/A → #/reader/B 整树重挂，不残留上个任务的状态 */}
-                <Match
-                    when={route().page === "reader" && (route() as { taskId: string }).taskId}
-                    keyed
-                >
-                    {(taskId) => <Reader taskId={taskId} nav={nav} />}
-                </Match>
-                <Match when={route().page === "settings"}>
-                    <Settings />
-                </Match>
-                <Match when={true}>
-                    <Home nav={nav} />
-                </Match>
-            </Switch>
+            <Suspense
+                fallback={
+                    <div class="route-loading">
+                        <span class="spinner" />
+                        <span class="muted">{t.reader.loading}</span>
+                    </div>
+                }
+            >
+                <Switch>
+                    {/* keyed：#/reader/A → #/reader/B 整树重挂，不残留上个任务的状态 */}
+                    <Match
+                        when={
+                            route().page === "reader" &&
+                            (route() as { taskId: string }).taskId
+                        }
+                        keyed
+                    >
+                        {(taskId) => <Reader taskId={taskId} nav={nav} />}
+                    </Match>
+                    <Match when={route().page === "settings"}>
+                        <Settings />
+                    </Match>
+                    <Match when={true}>
+                        <Home nav={nav} />
+                    </Match>
+                </Switch>
+            </Suspense>
         </div>
     );
 }

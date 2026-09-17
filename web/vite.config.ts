@@ -21,7 +21,9 @@ function pdfjsAssetsPlugin(): Plugin {
         closeBundle() {
             const out = path.join(rootDir, "dist/pdfjs");
             for (const dir of ["cmaps", "standard_fonts", "wasm"]) {
-                cpSync(path.join(pdfjsDir, dir), path.join(out, dir), { recursive: true });
+                cpSync(path.join(pdfjsDir, dir), path.join(out, dir), {
+                    recursive: true,
+                });
             }
             writeFileSync(
                 path.join(rootDir, "dist/THIRD_PARTY_LICENSES.txt"),
@@ -32,20 +34,29 @@ function pdfjsAssetsPlugin(): Plugin {
 }
 
 function collectLicenses(): string {
-    const pkg = JSON.parse(readFileSync(path.join(rootDir, "package.json"), "utf8")) as {
+    const pkg = JSON.parse(
+        readFileSync(path.join(rootDir, "package.json"), "utf8"),
+    ) as {
         dependencies?: Record<string, string>;
     };
-    let out = "TeXlate Web — Third-Party Licenses\n==================================\n";
+    let out =
+        "TeXlate Web — Third-Party Licenses\n==================================\n";
     for (const name of new Set(Object.keys(pkg.dependencies ?? {}))) {
         try {
             const dir = path.dirname(require.resolve(`${name}/package.json`));
-            const meta = JSON.parse(readFileSync(path.join(dir, "package.json"), "utf8")) as {
+            const meta = JSON.parse(
+                readFileSync(path.join(dir, "package.json"), "utf8"),
+            ) as {
                 version: string;
                 license?: string;
             };
-            const licFile = readdirSync(dir).find((f) => /^licen[sc]e/i.test(f));
+            const licFile = readdirSync(dir).find((f) =>
+                /^licen[sc]e/i.test(f),
+            );
             out += `\n## ${name}@${meta.version} — ${meta.license ?? "unknown"}\n\n`;
-            if (licFile) out += readFileSync(path.join(dir, licFile), "utf8").trim() + "\n";
+            if (licFile)
+                out +=
+                    readFileSync(path.join(dir, licFile), "utf8").trim() + "\n";
         } catch {
             /* 解析不到就跳过该依赖 */
         }
@@ -63,14 +74,43 @@ function pdfjsDevAssets(): Plugin {
     };
 }
 
+/**
+ * @pdfslick/core 的 dist 在模块顶层写了
+ * `workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url)`——
+ * 指向其 vendored 副本，build 时被静态分析产出第二份 ~1.26MB worker 资产。
+ * 运行时 PdfPane 挂载即 ensurePdfjsWorker() 覆盖为顶层 pdfjs-dist 版
+ * （见 src/pdfjs.ts），vendored 引用纯死重：把该表达式改写为 ""，
+ * 切断静态引用，产物里少一份 worker。
+ */
+function pdfslickWorkerDedup(): Plugin {
+    const WORKER_URL =
+        /new URL\(['"]pdfjs-dist\/build\/pdf\.worker\.min\.mjs['"],\s*import\.meta\.url\)\.toString\(\)/;
+    return {
+        name: "texlate-pdfslick-worker-dedup",
+        transform(code, id) {
+            if (!id.includes("@pdfslick") || !WORKER_URL.test(code))
+                return null;
+            return { code: code.replace(WORKER_URL, '""'), map: null };
+        },
+    };
+}
+
 export default defineConfig({
-    plugins: [solid(), pdfjsDevAssets(), ...(useMock ? [mockApiPlugin()] : []), pdfjsAssetsPlugin()],
+    plugins: [
+        solid(),
+        pdfjsDevAssets(),
+        pdfslickWorkerDedup(),
+        ...(useMock ? [mockApiPlugin()] : []),
+        pdfjsAssetsPlugin(),
+    ],
     server: useMock
         ? { port: 5173 }
         : { port: 5173, proxy: { "/api": "http://127.0.0.1:8765" } },
     build: {
         target: "es2022",
-        chunkSizeWarningLimit: 3200, // pdfjs 单包 ~3MB，属预期
+        // Reader 分包后最大块是 reader-*.js（pdfjs 全家桶 ~1MB）——
+        // 阈值压到刚好看住它，壳层 chunk 异常膨胀会告警
+        chunkSizeWarningLimit: 1100,
     },
     test: {
         environment: "node",

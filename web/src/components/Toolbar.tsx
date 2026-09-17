@@ -1,6 +1,14 @@
 // 阅读器顶栏：三模式 Segmented + 同步开关 + 缩放 + 页码 + 下载菜单 + 重试/取消。
 
-import { createEffect, createSignal, For, onCleanup, onMount, Show, untrack } from "solid-js";
+import {
+    createEffect,
+    createSignal,
+    For,
+    onCleanup,
+    onMount,
+    Show,
+    untrack,
+} from "solid-js";
 import Segmented from "./Segmented";
 import type { FileKind, TaskStatus } from "../api/client";
 import { isTerminal } from "../api/client";
@@ -28,6 +36,8 @@ interface Props {
     downloads: DownloadItem[];
     /** false（HTML 视图）时禁用页码跳转 */
     canGotoPage?: boolean;
+    /** false 时禁用缩放选择 */
+    canZoom?: boolean;
     onMode(m: Mode): void;
     onSync(on: boolean): void;
     onZoom(z: string): void;
@@ -39,7 +49,17 @@ interface Props {
     onBack(): void;
 }
 
-const ZOOMS = ["page-fit", "page-width", "auto", "50%", "75%", "100%", "125%", "150%", "200%"];
+const ZOOMS = [
+    "page-fit",
+    "page-width",
+    "auto",
+    "50%",
+    "75%",
+    "100%",
+    "125%",
+    "150%",
+    "200%",
+];
 const ZOOM_LABEL: Record<string, string> = {
     "page-fit": t.reader.zoomFit,
     "page-width": t.reader.zoomWidth,
@@ -61,7 +81,11 @@ export default function Toolbar(props: Props) {
     // 合法值（1..numPages）才提交；非法输入回退当前页
     const commitPage = () => {
         const n = Number(draft());
-        if (Number.isInteger(n) && n >= 1 && (!props.numPages || n <= props.numPages)) {
+        if (
+            Number.isInteger(n) &&
+            n >= 1 &&
+            (!props.numPages || n <= props.numPages)
+        ) {
             if (n !== props.page) props.onGotoPage(n);
         } else {
             setDraft(String(props.page));
@@ -71,7 +95,8 @@ export default function Toolbar(props: Props) {
     // 下载菜单：外部点击 / Escape 关闭
     onMount(() => {
         const onDown = (e: PointerEvent) => {
-            if (menuOpen() && !menuWrap.contains(e.target as Node)) setMenuOpen(false);
+            if (menuOpen() && !menuWrap.contains(e.target as Node))
+                setMenuOpen(false);
         };
         const onKey = (e: KeyboardEvent) => {
             if (e.key === "Escape") setMenuOpen(false);
@@ -85,10 +110,16 @@ export default function Toolbar(props: Props) {
     });
 
     const noGoto = () => props.canGotoPage === false;
+    const noZoom = () => props.canZoom === false;
 
     return (
         <header class="reader-toolbar">
-            <button type="button" class="tb-btn" onClick={() => props.onBack()} title={t.reader.back}>
+            <button
+                type="button"
+                class="tb-btn"
+                onClick={() => props.onBack()}
+                title={t.reader.back}
+            >
                 ← {t.reader.back}
             </button>
             <span class="tb-title" title={props.title}>
@@ -116,7 +147,12 @@ export default function Toolbar(props: Props) {
                 >
                     ⇅ {t.reader.sync}
                 </button>
-                <button type="button" class="tb-btn" onClick={() => props.onSwap()} title={t.reader.swap}>
+                <button
+                    type="button"
+                    class="tb-btn"
+                    onClick={() => props.onSwap()}
+                    title={t.reader.swap}
+                >
                     ⇄ {t.reader.swap}
                 </button>
             </Show>
@@ -124,6 +160,7 @@ export default function Toolbar(props: Props) {
             <select
                 class="tb-select"
                 value={props.zoom}
+                disabled={noZoom()}
                 onChange={(e) => props.onZoom(e.currentTarget.value)}
                 aria-label={t.reader.zoom}
             >
@@ -163,12 +200,26 @@ export default function Toolbar(props: Props) {
             <span class="tb-spacer" />
 
             <Show when={props.status && !isTerminal(props.status)}>
-                <button type="button" class="tb-btn" onClick={() => props.onCancel()}>
+                <button
+                    type="button"
+                    class="tb-btn"
+                    onClick={() => props.onCancel()}
+                >
                     {t.reader.cancel}
                 </button>
             </Show>
-            <Show when={props.status && isTerminal(props.status) && props.status !== "done"}>
-                <button type="button" class="tb-btn" onClick={() => props.onRetry()}>
+            <Show
+                when={
+                    props.status &&
+                    isTerminal(props.status) &&
+                    props.status !== "done"
+                }
+            >
+                <button
+                    type="button"
+                    class="tb-btn"
+                    onClick={() => props.onRetry()}
+                >
                     {t.reader.retry}
                 </button>
             </Show>
@@ -185,7 +236,11 @@ export default function Toolbar(props: Props) {
                     ⬇ {t.reader.download}
                 </button>
                 <Show when={menuOpen()}>
-                    <div class="tb-menu" role="menu" onClick={() => setMenuOpen(false)}>
+                    <div
+                        class="tb-menu"
+                        role="menu"
+                        onClick={() => setMenuOpen(false)}
+                    >
                         <For each={props.downloads}>
                             {(d) => (
                                 <a href={d.url} download="" role="menuitem">

@@ -14,7 +14,14 @@ import { createEffect, onCleanup, onMount, untrack } from "solid-js";
 
 import type { DocId, Pos } from "./alignment";
 import { sanitizeDomHtml } from "./sanitize";
-import { capturePos, jumpTo, scrollTopFor, type PageGeom, type PaneLike } from "./sync";
+import {
+    bindChunkGeom,
+    capturePos,
+    jumpTo,
+    scrollTopFor,
+    type PageGeom,
+    type PaneLike,
+} from "./sync";
 import { t } from "../i18n/zh";
 
 export interface DomPaneHandle extends PaneLike {
@@ -50,6 +57,10 @@ function fixupRelativeUrls(root: HTMLElement): void {
 export default function DomPane(props: Props) {
     let scrollEl!: HTMLDivElement;
     let bodyEl!: HTMLDivElement;
+    const geom = bindChunkGeom(
+        () => scrollEl,
+        () => bodyEl,
+    );
 
     const handle: DomPaneHandle = {
         side: untrack(() => props.side),
@@ -57,13 +68,7 @@ export default function DomPane(props: Props) {
             return scrollEl;
         },
         pages(): PageGeom[] {
-            return [...bodyEl.querySelectorAll<HTMLElement>("[data-chunk]")].map(
-                (el, i) => ({
-                    page: i + 1,
-                    top: el.offsetTop,
-                    height: el.offsetHeight,
-                }),
-            );
+            return geom.pages();
         },
         capture() {
             return capturePos(this);
@@ -79,25 +84,36 @@ export default function DomPane(props: Props) {
         },
     };
 
+    let disposed = false;
+    const ac = new AbortController();
     onMount(async () => {
         // 产物是完整 HTML 文档——只取 <body> 内文进 pane，头壳（arxiv
         // 的 nav/meta/link）丢弃。ltx_page 主容器及以下才是论文本体。
         try {
-            const res = await fetch(props.url);
+            const res = await fetch(props.url, { signal: ac.signal });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const raw = await res.text();
             const doc = new DOMParser().parseFromString(raw, "text/html");
             const page = doc.querySelector(".ltx_page_main") ?? doc.body;
+            if (disposed) return;
             bodyEl.innerHTML = sanitizeDomHtml(page.innerHTML);
             fixupRelativeUrls(bodyEl);
+            geom.rebind();
         } catch {
+            if (disposed) return;
             // 拉取/解析失败降级空态文案——不炸整页（HtmlPane 单 chunk
             // 失败同款策略）
             bodyEl.innerHTML = `<p class="chunk-empty">${t.reader.chunkEmpty}</p>`;
+            geom.rebind();
         }
         props.onReady?.(handle);
     });
-    onCleanup(() => props.onDispose?.(handle));
+    onCleanup(() => {
+        disposed = true;
+        ac.abort();
+        geom.dispose();
+        props.onDispose?.(handle);
+    });
 
     createEffect(() => {
         const el = scrollEl;
@@ -110,6 +126,7 @@ export default function DomPane(props: Props) {
         <div
             ref={(el) => (scrollEl = el)}
             class="pane pane-html pane-dom"
+            tabindex="0"
             classList={{ active: !!props.active }}
             data-side={props.side}
             onPointerDown={() => props.onActivate?.()}

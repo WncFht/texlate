@@ -14,37 +14,47 @@ export default function Settings() {
     const [concurrency, setConcurrency] = createSignal("3");
     const [guidance, setGuidance] = createSignal("on");
     const [msg, setMsg] = createSignal("");
+    const [msgErr, setMsgErr] = createSignal(false);
     const [saving, setSaving] = createSignal(false);
     const [testing, setTesting] = createSignal(false);
     const [clearing, setClearing] = createSignal(false);
+    // store.refresh 内部吞错——settings() 仍 null 即加载失败（与"还没配置"区分）
+    const [loadErr, setLoadErr] = createSignal(false);
     let msgTimer = 0;
 
     onCleanup(() => window.clearTimeout(msgTimer));
 
-    onMount(async () => {
-        try {
-            await settingsStore.refresh();
-            const s = settingsStore.settings();
-            if (s) {
-                setBaseUrl(s.base_url ?? "");
-                setModel(s.model ?? "");
-                setTargetLang(s.target_lang ?? "zh-CN");
-                setGlossary(s.glossary ?? "");
-                setEngine(s.engine ?? "auto");
-                setConcurrency(String(s.concurrency ?? 3));
-                setGuidance(s.context_guidance === false ? "off" : "on");
-            }
-        } catch (e) {
-            // 加载失败表单仍可用，仅提示
-            setMsg(`${t.settings.loadFailed}：${e instanceof Error ? e.message : String(e)}`);
+    const load = async () => {
+        setLoadErr(false);
+        await settingsStore.refresh();
+        const s = settingsStore.settings();
+        if (!s) {
+            setLoadErr(true);
+            return;
         }
-    });
+        setBaseUrl(s.base_url ?? "");
+        setModel(s.model ?? "");
+        setTargetLang(s.target_lang ?? "zh-CN");
+        setGlossary(s.glossary ?? "");
+        setEngine(s.engine ?? "auto");
+        setConcurrency(String(s.concurrency ?? 3));
+        setGuidance(s.context_guidance === false ? "off" : "on");
+    };
+    onMount(() => void load());
 
     /** 成功提示 3s 后自动清 */
     const flash = (text: string) => {
+        setMsgErr(false);
         setMsg(text);
         window.clearTimeout(msgTimer);
         msgTimer = window.setTimeout(() => setMsg(""), 3000);
+    };
+
+    /** 失败提示常驻到下次操作——错误不该自己溜走 */
+    const fail = (text: string) => {
+        window.clearTimeout(msgTimer);
+        setMsgErr(true);
+        setMsg(text);
     };
 
     const save = async () => {
@@ -71,7 +81,9 @@ export default function Settings() {
             setApiKey("");
             flash(t.settings.saved);
         } catch (e) {
-            setMsg(`${t.settings.saveFailed}：${e instanceof Error ? e.message : String(e)}`);
+            fail(
+                `${t.settings.saveFailed}：${e instanceof Error ? e.message : String(e)}`,
+            );
         } finally {
             setSaving(false);
         }
@@ -87,7 +99,9 @@ export default function Settings() {
             setApiKey("");
             flash(t.settings.keyCleared);
         } catch (e) {
-            setMsg(`${t.settings.clearFailed}：${e instanceof Error ? e.message : String(e)}`);
+            fail(
+                `${t.settings.clearFailed}：${e instanceof Error ? e.message : String(e)}`,
+            );
         } finally {
             setClearing(false);
         }
@@ -103,9 +117,12 @@ export default function Settings() {
                 model: model(),
                 ...(apiKey() ? { api_key: apiKey() } : {}),
             });
-            setMsg(r.ok ? t.settings.testOk : `${t.settings.testFail}：${r.detail ?? ""}`);
+            if (r.ok) flash(t.settings.testOk);
+            else fail(`${t.settings.testFail}：${r.detail ?? ""}`);
         } catch (e) {
-            setMsg(`${t.settings.testFail}：${e instanceof Error ? e.message : String(e)}`);
+            fail(
+                `${t.settings.testFail}：${e instanceof Error ? e.message : String(e)}`,
+            );
         } finally {
             setTesting(false);
         }
@@ -115,7 +132,10 @@ export default function Settings() {
         // provider preset 可能是 models[] 或单数 model
         const all = settingsStore
             .providers()
-            .flatMap((p) => p.models ?? (typeof p.model === "string" ? [p.model] : []));
+            .flatMap(
+                (p) =>
+                    p.models ?? (typeof p.model === "string" ? [p.model] : []),
+            );
         return [...new Set(all)];
     };
 
@@ -129,6 +149,18 @@ export default function Settings() {
                     void save();
                 }}
             >
+                <Show when={loadErr()}>
+                    <p class="form-error" role="alert">
+                        {t.settings.loadFailed}{" "}
+                        <button
+                            type="button"
+                            class="btn-ghost"
+                            onClick={() => void load()}
+                        >
+                            {t.home.retry}
+                        </button>
+                    </p>
+                </Show>
                 <div class="key-row">
                     <label>
                         <span>
@@ -151,7 +183,9 @@ export default function Settings() {
                     <button
                         type="button"
                         class="btn-ghost"
-                        disabled={!settingsStore.settings()?.has_api_key || clearing()}
+                        disabled={
+                            !settingsStore.settings()?.has_api_key || clearing()
+                        }
                         onClick={() => void clearKey()}
                     >
                         {clearing() ? t.settings.clearing : t.settings.clearKey}
@@ -179,11 +213,17 @@ export default function Settings() {
                 </label>
                 <label>
                     <span>{t.settings.targetLang}</span>
-                    <input value={targetLang()} onInput={(e) => setTargetLang(e.currentTarget.value)} />
+                    <input
+                        value={targetLang()}
+                        onInput={(e) => setTargetLang(e.currentTarget.value)}
+                    />
                 </label>
                 <label>
                     <span>{t.settings.engine}</span>
-                    <select value={engine()} onChange={(e) => setEngine(e.currentTarget.value)}>
+                    <select
+                        value={engine()}
+                        onChange={(e) => setEngine(e.currentTarget.value)}
+                    >
                         <option value="auto">{t.home.engineAuto}</option>
                         <option value="xelatex">xelatex</option>
                         <option value="tectonic">tectonic</option>
@@ -207,7 +247,10 @@ export default function Settings() {
                         {t.settings.contextGuidance}
                         <em class="muted">{t.settings.contextGuidanceHint}</em>
                     </span>
-                    <select value={guidance()} onChange={(e) => setGuidance(e.currentTarget.value)}>
+                    <select
+                        value={guidance()}
+                        onChange={(e) => setGuidance(e.currentTarget.value)}
+                    >
                         <option value="on">{t.home.optOn}</option>
                         <option value="off">{t.home.optOff}</option>
                     </select>
@@ -224,14 +267,27 @@ export default function Settings() {
                     />
                 </label>
                 <div class="settings-actions">
-                    <button type="submit" class="btn-primary" disabled={saving()}>
+                    <button
+                        type="submit"
+                        class="btn-primary"
+                        disabled={saving()}
+                    >
                         {saving() ? t.settings.saving : t.settings.save}
                     </button>
-                    <button type="button" class="btn-ghost" disabled={testing()} onClick={() => void test()}>
+                    <button
+                        type="button"
+                        class="btn-ghost"
+                        disabled={testing()}
+                        onClick={() => void test()}
+                    >
                         {testing() ? t.settings.testing : t.settings.test}
                     </button>
                     <Show when={msg()}>
-                        <span class="form-msg" role="status">
+                        <span
+                            class="form-msg"
+                            classList={{ err: msgErr() }}
+                            role={msgErr() ? "alert" : "status"}
+                        >
                             {msg()}
                         </span>
                     </Show>

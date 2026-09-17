@@ -16,7 +16,9 @@ describe("mergeChunkItems（SSE 增量帧 → dense 累积数组）", () => {
         const next = mergeChunkItems([], [it_(3)]);
         expect(next).toHaveLength(4);
         expect(next[3]).toEqual(it_(3));
-        expect(next.slice(0, 3).every((c) => c.status === "pending")).toBe(true);
+        expect(next.slice(0, 3).every((c) => c.status === "pending")).toBe(
+            true,
+        );
         expect(next[0].seq).toBe(0);
     });
 
@@ -36,11 +38,29 @@ describe("mergeChunkItems（SSE 增量帧 → dense 累积数组）", () => {
     });
 
     it("非法 seq（负数/非整数）丢弃", () => {
-        const next = mergeChunkItems([it_(0)], [
-            { seq: -1, status: "failed" },
-            { seq: 1.5, status: "failed" },
-        ]);
+        const next = mergeChunkItems(
+            [it_(0)],
+            [
+                { seq: -1, status: "failed" },
+                { seq: 1.5, status: "failed" },
+            ],
+        );
         expect(next).toEqual([it_(0)]);
+    });
+
+    it("病态超大 seq 丢弃——防填洞 OOM", () => {
+        const next = mergeChunkItems([it_(0)], [{ seq: 1e9, status: "ok" }]);
+        expect(next).toEqual([it_(0)]);
+    });
+
+    it("limit=e.total 约束：seq>total 越界丢弃（0/1 基两约定同界）", () => {
+        expect(mergeChunkItems([], [it_(3)], 2)).toEqual([]);
+        // 1 基 doc 管线：seq==total 合法
+        const one = mergeChunkItems([], [it_(1), it_(2)], 2);
+        expect(one).toHaveLength(3);
+        expect(one[2].status).toBe("ok");
+        // 0 基管线：seq==total-1 合法
+        expect(mergeChunkItems([], [it_(2)], 3)).toHaveLength(3);
     });
 
     it("空 delta 返回等价数组", () => {

@@ -28,6 +28,7 @@ const ORDER: FileKind[] = [
     "dual.json",
     "zh.html",
     "en.html",
+    "src.html",
     "zh.docx",
     "zh.epub",
     "zh-src.zip",
@@ -36,12 +37,19 @@ const ORDER: FileKind[] = [
     "src.tar",
 ];
 
+//: t.files 缺席 kind 的兜底标签（canonical 名归 i18n，此处防裸透 key）
+const FALLBACK_LABELS: Record<string, string> = {
+    "src.html": "源码 HTML",
+};
+
 /**
  * artifacts（db kind → 下载路径——snapshot.artifacts / done.artifacts /
  * files manifest 归一成同形状后）→ 有序下载项。未知 db kind 原样透出
  * 并排尾；url 补 ?download=1 让服务端落 Content-Disposition。
  */
-export function downloadItems(artifacts: Record<string, string>): TaskDownload[] {
+export function downloadItems(
+    artifacts: Record<string, string>,
+): TaskDownload[] {
     const ord = (k: FileKind) => {
         const i = ORDER.indexOf(k);
         return i < 0 ? ORDER.length : i;
@@ -49,7 +57,8 @@ export function downloadItems(artifacts: Record<string, string>): TaskDownload[]
     return Object.entries(artifacts)
         .map(([dbKind, url]) => {
             const kind = DB_TO_URL_KIND[dbKind] ?? dbKind;
-            return { kind, label: t.files[kind] ?? kind, url: `${url}?download=1` };
+            const label = t.files[kind] ?? FALLBACK_LABELS[kind] ?? kind;
+            return { kind, label, url: `${url}?download=1` };
         })
         .sort((a, b) => ord(a.kind) - ord(b.kind));
 }
