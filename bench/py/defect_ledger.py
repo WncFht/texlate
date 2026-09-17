@@ -149,9 +149,9 @@ EXPECT = {
 
 # findings 文本缺 per-item site 时的符号级落点（运行态找 def 行，防漂移）
 GLOSSARY_SYM = {
-    "D1": ("src/texlate/repair.py", "_resolve_glossary_path"),
-    "D2": ("src/texlate/repair.py", "_resolve_glossary_path"),
-    "D9": ("src/texlate/repair.py", "_resolve_glossary_path"),
+    "D1": ("src/texlate/repair.py", "resolve_glossary_path"),
+    "D2": ("src/texlate/repair.py", "resolve_glossary_path"),
+    "D9": ("src/texlate/repair.py", "resolve_glossary_path"),
     "D3": ("src/texlate/xlat/glossary.py", "flatten_terms"),
     "D4": ("src/texlate/xlat/glossary.py", "load_index"),
     "D5": ("src/texlate/xlat/glossary.py", "load_csv"),
