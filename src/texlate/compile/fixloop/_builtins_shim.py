@@ -495,6 +495,59 @@ def _env_noop_line(env: str) -> str:
     )
 
 
+#: renew 族环境再定义站点 —— ``\renewenvironment{X}`` 对未定义 env 报同一
+#: ``Environment X undefined`` 签 (0806.0904/0806.2953 ``\renewenvironment{proof}``
+#: 于 preamble :743 实证, pre-begindoc 注入 :1069 晚 325 行救不到);
+#: 须在站点行首前置守卫 noop 让 renew 的 ``\@ifundefined`` 闸通过, renew 随
+#: 即以稿自带定义覆盖 noop —— 比批扩位多保住 renew 语义。xparse
+#: ``\RenewDocumentEnvironment`` 未定义时报 ``cmd Error`` 异签 (不产本类
+#: payload), 同名站点同面顺手覆盖。
+_RENEW_ENV_SITE_RE = re.compile(
+    r"\\(?:renewenvironment|RenewDocumentEnvironment)"
+    r"\s*\*?\s*\{\s*([A-Za-z@*]+)\s*\}"
+)
+
+
+def _prepend_env_renew_sites(ctx: LoopCtx, envs: set[str]) -> set[str]:
+    r"""``envs`` 的 live renew 站点行首前置 ``\ifcsname`` noop → 已处理 env 集。
+
+    每文件每 env 只处理**首个** live 站点 (遮盖 span 复核剔注释/verbatim
+    死区): 其后同名站点见到的 env 已被首站点 renew 定义, 无需再前置。
+    行首锚 —— 站点裹 ``\AtBeginDocument``/宏参死块时前置仍落活区且先于
+    执行点; 站点在 body 内同样覆盖 (renew 合法出现在任何位置)。
+    ``ins in nt[:pos]`` 幂等: 上轮前置或 pre-begindoc 批块行已先于站点
+    者不再重复 (批块在 preamble 站点之后, 不误伤本轮前置需求)。
+    """
+    done: set[str] = set()
+    for f in ctx.tex_files((".tex", ".sty", ".cls")):
+        t = ctx.read(f)
+        if t is None:
+            continue
+        masked = mask_tex(t)
+        sites: dict[str, int] = {}
+        for m in _RENEW_ENV_SITE_RE.finditer(masked):
+            name = m.group(1)
+            if name not in envs or name in sites:
+                continue
+            if masked[m.start() : m.end()] != t[m.start() : m.end()]:
+                continue  # 注释/verbatim 死区内站点不动
+            sites[name] = m.start()
+        if not sites:
+            continue
+        nt = t
+        # 降序插 —— 先动高偏移站点, nt[:pos] 对已处理插入免疫
+        for name, pos in sorted(sites.items(), key=lambda kv: -kv[1]):
+            ins = _env_noop_line(name)
+            if ins in nt[:pos]:
+                continue
+            at = nt.rfind("\n", 0, pos) + 1
+            nt = nt[:at] + ins + " % fixloop: pre-renew noop\n" + nt[at:]
+            done.add(name)
+        if nt != t:
+            ctx.write(f, nt)
+    return done
+
+
 def undefined_env_polyfill(
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
@@ -508,6 +561,14 @@ def undefined_env_polyfill(
     修复面: svjour/siamltex/aasms4 等老类不产现内核定理环境, 或定义躺
     ``\\ifnfssone``/``\\doit{0}`` 死条件块 (math/0104275 tcilatex 族)。
     ``params.deny`` (缺省 ``document``) 排不可 noop 化的环境名。
+
+    站点前置臂 (0806.0904/0806.2953): proven env 若带 live
+    ``\renewenvironment{X}`` 站点 (序言或正文皆可), 在站点行首前置同款
+    守卫 noop —— renew 报错点先于 pre-begindoc 位, 批扩够不到; 前置后
+    renew 闸通过并以稿自带定义覆盖 noop。站点臂处理的 env 不再占
+    ``\begin``-used 门 (renew 本身即消费点); 站点在主文件者自动出
+    fresh 批块 (``\ifcsname`` 已落盘), 在他文件者批块照注兜底
+    (站点文件可能不被 ``\input`` 抵达, 双保险不误伤)。
     """
     del eng
     proven: set[str] = set()
@@ -518,9 +579,13 @@ def undefined_env_polyfill(
     proven -= deny
     if not proven:
         return False, "no undefined env to polyfill"
+    # renew 站点前置先行 —— preamble ``\renewenvironment{X}`` 的报错点在
+    # pre-begindoc 注入位之前, 批扩永远够不到 (0806.0904/0806.2953);
+    # 站点消费点注入后 renew 以稿自带定义覆盖 noop, 语义优于批扩 noop。
+    site_envs = _prepend_env_renew_sites(ctx, proven)
     blob = mask_tex(ctx.source_blob())
     used = set(_ENV_USE_RE.findall(blob)) - deny
-    if not (proven & used):
+    if not (proven & used) and not site_envs:
         return False, f"env(s) {sorted(proven)} not \\begin-used in source"
     defined = {n for m in _ENV_DEF_RE.finditer(blob) for n in m.groups() if n}
     targets = (proven & used) | (used - defined - _KERNEL_ENVS)
@@ -529,13 +594,20 @@ def undefined_env_polyfill(
     fresh = [
         e for e in sorted(targets) if f"\\ifcsname {e}\\endcsname" not in main_masked
     ]
-    if not fresh:
+    notes: list[str] = []
+    if site_envs:
+        notes.append(f"pre-renew noop: {', '.join(sorted(site_envs))}")
+    if fresh and _inject_before_begindoc(
+        ctx,
+        "\n".join(
+            ["% fixloop: undefined env polyfill (noop env)"]
+            + [_env_noop_line(e) for e in fresh]
+        ),
+    ):
+        notes.append(f"env polyfill: {', '.join(fresh)}")
+    if not notes:
         return False, "undefined envs already polyfilled"
-    lines = ["% fixloop: undefined env polyfill (noop env)"]
-    lines += [_env_noop_line(e) for e in fresh]
-    if not _inject_before_begindoc(ctx, "\n".join(lines)):
-        return False, "env polyfill block already present"
-    return True, f"env polyfill: {', '.join(fresh)}"
+    return True, "; ".join(notes)
 
 
 #: AMS 上古字体 cs 名 ``<size><fam>`` 全词锚 —— ``\\fivmi``/``\\tenmib``

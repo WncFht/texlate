@@ -749,6 +749,159 @@ def test_env_polyfill_deny_document(tmp_path: Path) -> None:
     assert "no undefined env" in note
 
 
+# ─── undefined_env_polyfill: preamble renew 站点前置臂 ───
+
+
+def test_env_polyfill_preamble_renew_site(tmp_path: Path) -> None:
+    """0806.0904 形: ``\\renewenvironment{proof}`` 在序言报错 —— 守卫 noop
+    前置到站点行首 (pre-begindoc 注入位在站点之后, 批扩够不到);
+    renew 闸过后稿自带定义覆盖 noop, 站点行内容不动。"""
+    _write_main(
+        tmp_path,
+        "\\usepackage{amsmath}\n"
+        "\\renewenvironment{proof}{\\par\\noindent\\textbf{Pf.}}{\\par}\n"
+        "\\begin{document}\n"
+        "\\begin{proof}body\\end{proof}\n"
+        "\\end{document}\n",
+    )
+    (tmp_path / "main.log").write_text(
+        "main.tex:3: LaTeX Error: Environment proof undefined.\n"
+    )
+    ok, note = TRANSFORM_FNS["undefined_env_polyfill"](
+        _ctx(tmp_path), None, "proof", {}
+    )
+    assert ok, note
+    assert "pre-renew noop: proof" in note
+    t = (tmp_path / "main.tex").read_text()
+    guard = "\\ifcsname proof\\endcsname\\else\\newenvironment{proof}{}{}\\fi"
+    assert guard in t
+    # 守卫落在 renew 站点行首之前, 而非 pre-begindoc 批块位
+    assert t.index(guard) < t.index("\\renewenvironment{proof}")
+    # proof 已站点前置 → 不占 pre-begindoc 批块
+    assert t.count(guard) == 1
+
+
+def test_env_polyfill_renew_site_no_begin_use(tmp_path: Path) -> None:
+    """renew 站点本身即消费点 —— 无 ``\\begin{proof}`` 也修 (旧窄谓词会拒)。"""
+    _write_main(
+        tmp_path,
+        "\\renewenvironment{sidebar}{}{}\n\\begin{document}\nx\n\\end{document}\n",
+    )
+    (tmp_path / "main.log").write_text(
+        "main.tex:2: LaTeX Error: Environment sidebar undefined.\n"
+    )
+    ok, note = TRANSFORM_FNS["undefined_env_polyfill"](
+        _ctx(tmp_path), None, "sidebar", {}
+    )
+    assert ok, note
+    t = (tmp_path / "main.tex").read_text()
+    assert t.index("\\ifcsname sidebar\\endcsname") < t.index(
+        "\\renewenvironment{sidebar}"
+    )
+
+
+def test_env_polyfill_renew_site_in_other_file(tmp_path: Path) -> None:
+    """renew 站点在非主文件 → 该文件行首前置; 主文件批块照注兜底
+    (站点文件可能不被 ``\\input`` 抵达)。"""
+    _write_main(
+        tmp_path,
+        "\\input{pre}\n"
+        "\\begin{document}\n"
+        "\\begin{proof}body\\end{proof}\n"
+        "\\end{document}\n",
+    )
+    (tmp_path / "pre.tex").write_text(
+        "% preamble helpers\n\\renewenvironment{proof}{}{}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "main.log").write_text(
+        "pre.tex:2: LaTeX Error: Environment proof undefined.\n"
+    )
+    ok, note = TRANSFORM_FNS["undefined_env_polyfill"](
+        _ctx(tmp_path), None, "proof", {}
+    )
+    assert ok, note
+    pre = (tmp_path / "pre.tex").read_text()
+    assert pre.index("\\ifcsname proof\\endcsname") < pre.index(
+        "\\renewenvironment{proof}"
+    )
+    # proof 仍在 fresh → 主文件 pre-begindoc 批块同注 (双保险)
+    main = (tmp_path / "main.tex").read_text()
+    assert "\\ifcsname proof\\endcsname" in main
+    assert main.index("\\ifcsname proof\\endcsname") < main.index("\\begin{document}")
+
+
+def test_env_polyfill_renew_dead_zone_ignored(tmp_path: Path) -> None:
+    """注释掉的 ``%\\renewenvironment`` 不是站点 —— 不前置, 批块照常。"""
+    _write_main(
+        tmp_path,
+        "%\\renewenvironment{proof}{}{}\n"
+        "\\begin{document}\n"
+        "\\begin{proof}body\\end{proof}\n"
+        "\\end{document}\n",
+    )
+    (tmp_path / "main.log").write_text(
+        "main.tex:3: LaTeX Error: Environment proof undefined.\n"
+    )
+    ok, _note = TRANSFORM_FNS["undefined_env_polyfill"](
+        _ctx(tmp_path), None, "proof", {}
+    )
+    assert ok
+    t = (tmp_path / "main.tex").read_text()
+    # 守卫只来自批块, 落在 \begin{document} 行首前, 而非注释行处
+    assert t.index("\\ifcsname proof\\endcsname") < t.index("\\begin{document}")
+    assert t.index("\\ifcsname proof\\endcsname") > t.index(
+        "%\\renewenvironment{proof}"
+    )
+
+
+def test_env_polyfill_renew_inside_atbegindocument(tmp_path: Path) -> None:
+    """站点裹在 ``\\AtBeginDocument{...}`` 实参里 —— 行首锚前置落活区,
+    hook 执行时 env 已定义。"""
+    _write_main(
+        tmp_path,
+        "\\AtBeginDocument{\\renewenvironment{proof}{}{}}\n"
+        "\\begin{document}\nx\n\\end{document}\n",
+    )
+    (tmp_path / "main.log").write_text(
+        "main.tex:2: LaTeX Error: Environment proof undefined.\n"
+    )
+    ok, _note = TRANSFORM_FNS["undefined_env_polyfill"](
+        _ctx(tmp_path), None, "proof", {}
+    )
+    assert ok
+    t = (tmp_path / "main.tex").read_text()
+    assert t.index("\\ifcsname proof\\endcsname") < t.index("\\AtBeginDocument")
+
+
+def test_env_polyfill_renew_site_no_double_prepend(tmp_path: Path) -> None:
+    """再点火幂等: 首轮站点前置+批扩已全覆盖 (lemma 在批扩面),
+    二轮拒修且 proof 站点守卫不重复前置。"""
+    _write_main(
+        tmp_path,
+        "\\renewenvironment{proof}{}{}\n"
+        "\\begin{document}\n"
+        "\\begin{proof}p\\end{proof}\n"
+        "\\begin{lemma}l\\end{lemma}\n"
+        "\\end{document}\n",
+    )
+    (tmp_path / "main.log").write_text(
+        "main.tex:2: LaTeX Error: Environment proof undefined.\n"
+    )
+    ctx = _ctx(tmp_path)
+    ok, _ = TRANSFORM_FNS["undefined_env_polyfill"](ctx, None, "proof", {})
+    assert ok
+    (tmp_path / "main.log").write_text(
+        "main.tex:4: LaTeX Error: Environment lemma undefined.\n"
+    )
+    ctx.invalidate(tmp_path / "main.log")
+    ok, note = TRANSFORM_FNS["undefined_env_polyfill"](ctx, None, "lemma", {})
+    assert not ok
+    assert "already polyfilled" in note
+    t = (tmp_path / "main.tex").read_text()
+    assert t.count("\\ifcsname proof\\endcsname") == 1
+
+
 # ─── undefine_for_redef: 批量 + 站点前置 + other 签 ───
 
 
