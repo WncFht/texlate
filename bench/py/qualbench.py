@@ -451,6 +451,7 @@ def pair_signals(src: str, zh: str) -> dict:
         "ph_missing": sum(missing.values()),
         "ph_invented": sum(invented.values()),
         "en_residue": len(EN_WORD_RX.findall(zh_clean)),
+        "src_bib": "[[BIB_" in src,
         "src_chars": len(src),
         "zh_chars": len(zh),
     }
@@ -544,8 +545,10 @@ def contest_reasons(parsed: dict, sig: dict) -> list[str]:
         "convention-placeholder" not in cats
     ):
         reasons.append("l0_ph_unreported")
-    if sig["en_residue"] >= EN_RESIDUE_CONTEST and not (
-        {"accuracy-omission", "non-translation"} & cats
+    if (
+        sig["en_residue"] >= EN_RESIDUE_CONTEST
+        and not ({"accuracy-omission", "non-translation"} & cats)
+        and not sig["src_bib"]
     ):
         reasons.append("l0_en_unreported")
     return reasons
