@@ -713,3 +713,11 @@
 - **chineseconf 核销→#93 chineseclear**（已派）：`\chinese already defined`=dhucs→xetexko `\let\chinese\Schinese`（cls 内载）× 注入 ctex `\cs_new:Npn \chinese` 冲突；cls 仅字符串比 "chinese" 于 \author 选项未调 cs → undefine 安全。荐=75-syntax ~110.8 `Control sequence` 签→`\let\X\@undefined` 于 docclass 后 ctex 前；警勿扩 _ALREADY_DEF_CS_RE（`\c__fontspec_*` 会劫 fontspec_double_merge 110.5<110.7）。
 - **peer 重构事故闭环**：bench/py 中途 staged 改名曾致 stage_compile `import quality_proxies` 断 → flipcheck7 fixloop 阶段零产出；peer 落定后 import 复原 → **fixloop-only 重放已起**（28 非净格 jobs4，compile 记录复用）→ tmp/lane-flipcheck7/run-fixloop.log。
 - roster 3：xbbpregen(#92)/chineseclear(#93) 跑、citerule 交付已收待尸清；auxeof/pipecensus/chineseconf/envpoly/expl3fix 尸清。
+
+## 2026-09-19 ~07:1x — flipcheck7 收割：15/17 目标改善 + clean 16/16 守衡 + ifclose 缺口确诊入诊
+
+- **fixloop 重放完成**（28 非净格, ~63s）：17 目标格 —— **13 clean**（envpoly 0806.0904/2953 双双翻净、expl3fix 0905.4874 acceptable_pdf、ifclose 1803.00054/1803.00181/1907.00121/2003.03535/2105.00120 翻净 + 1706.00175/1907.00207/1907.03758/hep-ph 双格 compile 阶段即净=早波机制已愈）、**2 partial**（0905.0193 best_effort_pdf、1907.00128 acceptable_pdf，均较 fail 改善）、**2 stuck**（1206.0701:288、1306.0364:275）。
+- **ifclose fired-but-unfixed 缺口**：两格 unclosed_if_close 均 applied 但同签同行号残存 → #98 ifclosegap 诊断车道（注入错位/抽象 edef 捕获中和交互/def 体冻结 token 计数假设待查）。
+- **clean 池 16/16 守衡**（gate-⑤ ✓）：fixloop-clean 11 + acceptable_pdf 5，零回归。
+- **新派研道**：xlinkobj(#94 xdvipdfmx fatal 根车道普查)、bblmath(#95 .bbl 数学域字切族普查)、failmine2(#96 次波目标普查)、bibhang(#97 延搁项)。
+- roster 7：xbbpregen/chineseclear 实施 + xlinkobj/bblmath/failmine2/bibhang/ifclosegap 普查；flipcheck7 批完。
