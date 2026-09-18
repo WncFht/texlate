@@ -12,7 +12,8 @@
   a) 逐页良性形任意长度不越阈（含 500 页长文档）；
   b) 空转/页洪越阈且 ``reason`` 臂名正确；
   c) ``sentry_reason`` 链：run_process timed_out 槽 str →
-     ``_collect_compile_outputs`` 归位 → judge category=runaway_output；
+     ``_collect_compile_outputs`` 归位 → judge category=runaway_output →
+     fixloop ``_round_cat`` 同优先录因；
   d) 无字段兜底：tail/全文密度判据新语义仍工作。
 """
 
@@ -25,7 +26,9 @@ from typing import TYPE_CHECKING
 import pytest
 
 from texlate.compile.engine import CompRes, _collect_compile_outputs
-from texlate.compile.fixloop.logparse import _is_runaway_output
+from texlate.compile.fixloop.engine import _round_cat
+from texlate.compile.fixloop.logparse import ErrReport, _is_runaway_output
+from texlate.compile.fixloop.ruleset import Ruleset
 from texlate.compile.judge import judge
 from texlate.compile.loginfo import LogInfo
 from texlate.compile.sandbox import _RunawaySentry, child_env, run_process
@@ -155,6 +158,74 @@ def test_judge_str_timed_out_reason() -> None:
     v = judge(res)
     assert v.category == "runaway_output"
     assert "sentry:vbox_flood" in v.notes
+
+
+# ---------------------------------------------------------------- 归因链：→ fixloop _round_cat
+def _mini_ruleset() -> Ruleset:
+    """空 taxonomy 的最小 ruleset——``_round_cat`` 只消费 ``rs.taxonomy``。"""
+    return Ruleset({"version": 1, "taxonomy": [], "rules": []})
+
+
+def test_roundcat_sentry_reason_runaway() -> None:
+    """pin c-fixloop：sentry_reason 置位 → runaway_output，sentry:<arm> 挂 payload。"""
+    res = CompRes(engine="xelatex", timed_out=True, sentry_reason="page_flood")
+    rep = ErrReport(raw="partial\n", tail="partial\n")
+    cat, pay = _round_cat(_mini_ruleset(), rep, res)
+    assert cat == "runaway_output"
+    assert pay == "sentry:page_flood"
+
+
+def test_roundcat_str_timed_out_reason() -> None:
+    """未经归位的 str 形 timed_out（引擎→res 途中形态）同样命中记录原因。"""
+    res = CompRes(
+        engine="xelatex",
+        timed_out="vbox_flood",  # type: ignore[arg-type]  # 引擎→res 的途中形态
+    )
+    cat, pay = _round_cat(_mini_ruleset(), ErrReport(), res)
+    assert cat == "runaway_output"
+    assert pay == "sentry:vbox_flood"
+
+
+def test_roundcat_sentry_preempts_error_rep() -> None:
+    """录因优先于文本重扫——rep 携真错也直归 runaway_output（与 judge 同语义）。"""
+    res = CompRes(engine="xelatex", timed_out=True, sentry_reason="vbox_flood")
+    rep = ErrReport(
+        first="! Undefined control sequence.",
+        n_bang=1,
+        raw="! Undefined control sequence.\n",
+    )
+    cat, pay = _round_cat(_mini_ruleset(), rep, res)
+    assert cat == "runaway_output"
+    assert pay == "sentry:vbox_flood"
+
+
+def test_roundcat_no_reason_plain_timeout() -> None:
+    """无字段兜底：良性 rep + bool 超时 → 泛 timeout（录因缺席不改旧路）。"""
+    benign = "".join(f"{_VBOX}\n[{i}]\n" for i in range(46))
+    res = CompRes(engine="xelatex", timed_out=True)
+    rep = ErrReport(raw=benign, tail=benign)
+    cat, pay = _round_cat(_mini_ruleset(), rep, res)
+    assert (cat, pay) == ("timeout", None)
+
+
+def test_roundcat_no_reason_stdout_tail_runaway() -> None:
+    """无字段兜底：rep 良性但 stdout_tail 密签名 → runaway_output（旧补查保留）。"""
+    benign = "".join(f"{_VBOX}\n[{i}]\n" for i in range(46))
+    res = CompRes(
+        engine="xelatex",
+        timed_out=True,
+        stdout_tail="\n".join([_VBOX] * 40),
+    )
+    rep = ErrReport(raw=benign, tail=benign)
+    cat, pay = _round_cat(_mini_ruleset(), rep, res)
+    assert (cat, pay) == ("runaway_output", None)
+
+
+def test_roundcat_killed_signal_unchanged() -> None:
+    """非超时信号死：裸分类 clean → killed（sentry 臂不干扰既有通道）。"""
+    res = CompRes(engine="xelatex", killed_signal=13)
+    cat, pay = _round_cat(_mini_ruleset(), ErrReport(), res)
+    assert (cat, pay) == ("killed", None)
 
 
 # ---------------------------------------------------------------- 兜底：无字段文本重扫

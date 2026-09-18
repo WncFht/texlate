@@ -156,7 +156,7 @@ class Engine(Protocol):
         ...
 
 
-RunFn = Callable[..., tuple[int | None, str, float, bool]]
+RunFn = Callable[..., tuple[int | None, str, float, bool | str]]
 LlmHook = Callable[["LoopCtx", "ErrReport"], tuple[bool, str]]
 
 
@@ -189,22 +189,33 @@ def _round_cat(
 ) -> tuple[str | None, str | None]:
     r"""轮内 ``(category, payload)`` —— 死编译否决 clean 类。
 
-    超时由 ``Taxonomy.classify`` 直出 ``timeout``/``runaway_output``;
+    活哨截杀留有行程内原因 (``sentry_reason`` 显式字段, 或未经归位的
+    str 形 ``timed_out``) —— 记录值优先于文本重扫, 直归 ``runaway_output``,
+    ``sentry:<arm>`` 挂 payload 槽回吐 (镜像 judge ``_timeout_verdict``
+    的 notes 形; 轮内无 notes 面, payload 即轮次归因载体, 落
+    ``entry["payload"]``/事件行 ``pay=`` 可查)。无记录原因的超时由
+    ``Taxonomy.classify`` 直出 ``timeout``/``runaway_output`` —— 内部已扫
+    ``rep.raw`` (= ``_report_of`` 喂入的 .log 全文, 与 judge
+    ``_full_log_text`` 同源), 判泛 ``timeout`` 再补查 ``stdout_tail``;
     信号死 (非超时——外部截杀/驱动 SIGPIPE) 只在裸分类给 clean/None
     时改写: log 被 ``\\output`` 期 Overfull ``\\vbox`` 刷屏归
     ``runaway_output``, 否则 ``killed``。真错类照常走修复规则——
     信号死是非定败, 轮内重编即续趟通道 (2211.13013 实证可救)。
     """
-    cat, pay = rs.taxonomy.classify(
-        rep, timed_out=bool(getattr(res, "timed_out", False))
-    )
+    timed_out = getattr(res, "timed_out", False)
+    sentry_reason = getattr(res, "sentry_reason", None)
+    if sentry_reason is None and isinstance(timed_out, str):
+        sentry_reason = timed_out
+    if sentry_reason is not None:
+        return "runaway_output", f"sentry:{sentry_reason}"
+    cat, pay = rs.taxonomy.classify(rep, timed_out=bool(timed_out))
     if cat == "timeout" and _is_runaway_output(getattr(res, "stdout_tail", "") or ""):
         # 活哨早杀的编译 .log 截断在签名刷屏之前——证据在 stdout_tail
         # （哨件正是凭它越阈），补查使归因仍是 runaway_output 而非泛 timeout。
         cat, pay = "runaway_output", None
     if (
         cat in (None, "clean")
-        and not getattr(res, "timed_out", False)
+        and not timed_out
         and getattr(res, "killed_signal", None) is not None
     ):
         if _is_runaway_output(rep.raw or rep.tail):
@@ -515,7 +526,7 @@ class LoopCtx:
 
     def run_tool(
         self, argv: list[str], timeout: int = 120
-    ) -> tuple[int | None, str, bool]:
+    ) -> tuple[int | None, str, bool | str]:
         """跑外部工具; 默认 subprocess (测试注入 runner)。"""
         if self.deps.runner:
             _rc, out, _sec, to = self.deps.runner(argv, timeout, self.io.wdir)
