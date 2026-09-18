@@ -1,0 +1,144 @@
+"""chunks 聚合 repo：解析产物块行（web-layer.md §3.4.1 断点恢复物证）。
+
+``flush_chunk_batch`` 是跨聚合事务（chunks + translation_cache + tasks
+计数器），留在 ``__init__`` 门面编排；这里只出块级件。
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
+from texlate.server.store._common import CHUNKS_PAGE_MAX
+
+if TYPE_CHECKING:
+    import sqlite3
+
+    from texlate.server.store import Store
+
+
+class ChunkRepo:
+    """chunks 表聚合。构造只存门面回指——连接在 ``open()`` 后才可用。"""
+
+    def __init__(self, store: Store) -> None:
+        """回指门面（conn 惰性经 ``store.conn`` 取，断言即未 open 契约）。"""
+        self._s = store
+
+    @property
+    def conn(self) -> sqlite3.Connection:
+        """门面共享连接——repo 不持有独立连接（单写者纪律由 Store 持有）。"""
+        return self._s.conn
+
+    def insert_chunks(self, task_id: str, rows: list[dict[str, Any]]) -> None:
+        """批量插 chunks（parsing 完成物证，§3.4.1）。
+
+        executemany 中途失败会留下未提交的隐式事务——下一个无关
+        ``commit()`` 会把半成品 chunks 静默落库（``has_chunks`` 误判
+        parsing 完成、resume 拿残缺块集跑翻译）。显式事务 + 失败
+        rollback，与 ``flush_chunk_batch`` 同口径。
+        """
+        conn = self.conn
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            conn.executemany(
+                "INSERT INTO chunks (task_id, seq, chunk_id, src_file,"
+                " byte_start, byte_end, kind, src_text)"
+                " VALUES (?,?,?,?,?,?,?,?)",
+                [
+                    (
+                        task_id,
+                        r["seq"],
+                        r["chunk_id"],
+                        r["src_file"],
+                        r["byte_start"],
+                        r["byte_end"],
+                        r["kind"],
+                        r["src_text"],
+                    )
+                    for r in rows
+                ],
+            )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+
+    def has_chunks(self, task_id: str) -> bool:
+        """Chunks 有行 = parsing 已完成（断点跳过判据）。"""
+        row = self.conn.execute(
+            "SELECT 1 FROM chunks WHERE task_id = ? LIMIT 1", (task_id,)
+        ).fetchone()
+        return row is not None
+
+    def chunk_exists(self, task_id: str, seq: int) -> bool:
+        """``(task_id, seq)`` chunk 存在性——单块重译端点的合法块闸。"""
+        row = self.conn.execute(
+            "SELECT 1 FROM chunks WHERE task_id = ? AND seq = ? LIMIT 1",
+            (task_id, seq),
+        ).fetchone()
+        return row is not None
+
+    def all_chunks(self, task_id: str) -> list[dict[str, Any]]:
+        """全量 chunks 按 seq 序（重建 done_map / splice 用）。"""
+        rows = self.conn.execute(
+            "SELECT * FROM chunks WHERE task_id = ? ORDER BY seq", (task_id,)
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def delete_chunks(self, task_id: str) -> int:
+        """清任务全部 chunks（retry 换 main 等解析产物作废面）→ 删行数。"""
+        cur = self.conn.execute("DELETE FROM chunks WHERE task_id = ?", (task_id,))
+        self.conn.commit()
+        return cur.rowcount
+
+    def chunks_page(
+        self, task_id: str, *, offset: int = 0, limit: int = 100
+    ) -> tuple[list[dict[str, Any]], int]:
+        """Chunks 窄列分页（流式预览端点 U1 供）→ ``(rows, total)``，seq 升序。
+
+        只选预览消费列（``seq/chunk_id/kind/status/src_text/translation``）；
+        ``src_text``/``translation`` 是全文列，``limit`` 钳
+        ``[0, CHUNKS_PAGE_MAX]``、``offset`` 钳 ``≥0``——负值/超限按边界
+        收，不炸调用方。
+        """
+        lim = max(0, min(int(limit), CHUNKS_PAGE_MAX))
+        off = max(0, int(offset))
+        rows = self.conn.execute(
+            "SELECT seq, chunk_id, kind, status, src_text, translation"
+            " FROM chunks WHERE task_id = ? ORDER BY seq LIMIT ? OFFSET ?",
+            (task_id, lim, off),
+        ).fetchall()
+        total = int(
+            self.conn.execute(
+                "SELECT COUNT(*) AS c FROM chunks WHERE task_id = ?", (task_id,)
+            ).fetchone()["c"]
+        )
+        return [dict(r) for r in rows], total
+
+    def update_chunk(self, task_id: str, chunk_id: str, fields: dict[str, Any]) -> None:
+        """单块状态更新（由批量 flush 事务调用，不单独 commit）。"""
+        sets = ", ".join(f"{k} = ?" for k in fields)
+        self.conn.execute(
+            f"UPDATE chunks SET {sets} WHERE task_id = ? AND chunk_id = ?",  # noqa: S608 -- 键名全为内部白名单
+            (*fields.values(), task_id, chunk_id),
+        )
+
+    def chunk_counts(self, task_id: str) -> dict[str, int]:
+        """Counters 聚合：total/done(已处理含失败)/failed(回退+失败)。
+
+        缓存命中数不在 chunks 表粒度——真值见 ``tasks.cached_chunks``
+        （``flush_chunk_batch`` 计数落列 → snapshot.counters.cached）。
+        """
+        row = self.conn.execute(
+            "SELECT COUNT(*) AS total,"
+            " SUM(CASE WHEN status IN ('ok','fallback_orig','failed')"
+            "   THEN 1 ELSE 0 END) AS done,"
+            " SUM(CASE WHEN status IN ('fallback_orig','failed') THEN 1 ELSE 0 END)"
+            "   AS failed"
+            " FROM chunks WHERE task_id = ?",
+            (task_id,),
+        ).fetchone()
+        return {
+            "total": int(row["total"] or 0),
+            "done": int(row["done"] or 0),
+            "failed": int(row["failed"] or 0),
+        }
