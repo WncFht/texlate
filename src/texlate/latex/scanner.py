@@ -503,8 +503,14 @@ class Scanner:
             if e >= 0:
                 self._ph_into_run(PhType.MATH, tex[i : e + 2], i, e + 2)
                 return e + 2
-            self._rappend("$", i)
-            return i + 1
+            # 孤 ``$$`` → [[CMD]] 单项保真（v2 同规）——旧路两枚 ``$`` 逐字
+            # 进 run 裸落可译 chunk，是 dollar-leak 残留源；体 ``$$`` 计偶数
+            # 未转义 ``$`` 不触 math_debt。
+            self._ph_into_run(PhType.CMD, tex[i : i + 2], i, i + 2)
+            self.state.warnings.append(
+                ScanWarning("unpaired_dollar", self.base + i, tex[i : i + 20])
+            )
+            return i + 2
         j = i + 1
         ok = False
         while j < n:
@@ -535,7 +541,9 @@ class Scanner:
         if ok and not has_par_break(tex[i : j + 1]):
             self._ph_into_run(PhType.MATH, tex[i : j + 1], i, j + 1)
             return j + 1
-        self._rappend("$", i)
+        # 孤 ``$`` → [[CMD]] 单项保真（v2 同规），warning 照旧——逐字进 run
+        # 裸 ``$`` 落可译 chunk = dollar-leak 主族残留。
+        self._ph_into_run(PhType.CMD, tex[i : i + 1], i, i + 1)
         self.state.warnings.append(
             ScanWarning("unpaired_dollar", self.base + i, tex[i : i + 20])
         )
@@ -1001,7 +1009,14 @@ class Scanner:
             or name in FONT_SWITCHES
             or (len(name) == 1 and (name in ACCENT_CHARS or not name.isalpha()))
         ):
-            self._rappend(tex[i:j], i)
+            if name == "$":
+                # ``\$`` 单项 [[CMD]]（v2 row17 同规）：转义美元号是 corpus
+                # 第一大裸 ``$`` 源（``\$25``/``\$AAPL``），逐字进 run 把
+                # ``$`` 漏进可译 chunk；ph 化顺带防译文丢反斜杠变真
+                # mathshift。体 ``\$`` 计 0 个未转义 ``$`` 不触 math_debt。
+                self._ph_into_run(PhType.CMD, tex[i:j], i, j)
+            else:
+                self._rappend(tex[i:j], i)
             return j
 
         # 18. 宏表命中

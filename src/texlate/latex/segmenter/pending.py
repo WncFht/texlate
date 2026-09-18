@@ -1066,7 +1066,11 @@ class _Pending:
                 # 行内字面（主流 row19 对价）：符号/品牌/字体开关/单字符
                 # 非字母命令零参逐字——``\5``/``\_`` 不得被下游 argspec
                 # 假条目/探针吃参（参留 surface = 主流可见同义）
-                self._cat_surf(out, self._tok_surface(t))
+                if name == "$":
+                    # ``\$`` 组内同规：surface ph 化防裸 ``$`` 漏进可译面
+                    self._cat_surf(out, self._grp_ph(PhType.CMD, self._tok_surface(t)))
+                else:
+                    self._cat_surf(out, self._tok_surface(t))
                 i += 1
                 continue
             e2 = _seg.argspec_lookup(name, self.state.pkgs)

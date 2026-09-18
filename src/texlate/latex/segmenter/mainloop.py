@@ -618,8 +618,20 @@ class _MainLoop:
             if _accent_cs(name):
                 self._handle_accent(t, src)
                 return
-            # 17. 行内字面（符号/品牌/旧式字体开关/无参单字符命令）
+            # 17. 行内字面（符号/品牌/旧式字体开关/无参单字符命令）——
+            #     ``\$`` 单独立项 [[CMD]]：转义美元号是 corpus 第一大裸
+            #     ``$`` 源（``\$25``/``\$AAPL``），逐字进 run 会把 ``$``
+            #     漏进可译 chunk（leak 口径字面命中）；ph 化顺带防译文丢
+            #     反斜杠变真 mathshift。
             if _inline_lit_cs(name):
+                if name == "$":
+                    self._cover_gap(fid, t.pos[1])
+                    vspan = self._cover_to(fid, b)
+                    self._rappend_ph(
+                        self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
+                        vspan,
+                    )
+                    return
                 self._rappend_tok(t)
                 return
             # 18. gullet 宏表命中：env_begin/env_end 宏端点走 \begin/\end
@@ -725,6 +737,12 @@ class _MainLoop:
         # 面（1306.6030）里 ``\)/\]`` 是普通定界符不是 ``$`` 闭符——配深
         # 吃掉，否则混排闭符启发式提前关 MATH、``$`` 奇偶翻转串行吞噬。
         inner = 0
+        # ``\begin/\end`` 内层环境深度：``$$\begin{array}`` 区空行是语料
+        # 实态（1907.10351/2410.17903/math-0605790 array 格间空行）——
+        # env 内 eol_par 不吃断段权，否则 ``$$`` 永不配对、双定界符裸落
+        # 散文成 dollar leak；env 外 eol_par 语义不变。``\text`` 族正文
+        # 参由 ``_math_skip_textarg`` 整收不经本环——其内 begin/end 不计。
+        inner_env = 0
         while True:
             x = src.read()
             if x is None:
@@ -733,8 +751,12 @@ class _MainLoop:
                 pictex_open = True
             elif x.kind == "cs" and x.text == "endpicture":
                 pictex_open = False
+            if x.kind == "cs" and x.text == "begin":
+                inner_env += 1
+            elif x.kind == "cs" and x.text == "end" and inner_env:
+                inner_env -= 1
             if x.kind == "eol_par":
-                if pictex_open:
+                if pictex_open or inner_env:
                     body.append(x)
                     continue
                 src.unread([x])  # 段落边界不吞——回吐由主流断段
@@ -782,16 +804,15 @@ class _MainLoop:
                 continue
             body.append(x)
         if end_tok is None:
-            cons0 = self._cons(fid)
             # disp 时 ``nxt``（``$$`` 第二枚 ``$``）已 read 出流——一并盖掉，
             # 否则丢 token：surface 剩单 ``$``、源字节成孤儿（0806.3472 的
             # ``Missing $``/``Display math should end with $$`` 错因）。
+            # 孤定界符不再逐字进 run（``$`` 裸落可译 chunk = dollar leak
+            # 主族残留）——[[CMD]] 单项保真：字节全保、chunk 只见占位符。
+            self._cover_gap(fid, t.pos[1])
             vspan = self._cover_to(fid, nxt.pos[2] if disp else b)
-            self._rappend(
-                self._gap_surface(fid, cons0, t.pos[1])
-                + t.text
-                + (nxt.text if disp else ""),
-                self.vt.slice(vspan.start, vspan.end),
+            self._rappend_ph(
+                self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
                 vspan,
             )
             self.state.warnings.append(ScanWarning("unpaired_dollar", vspan.start, "$"))

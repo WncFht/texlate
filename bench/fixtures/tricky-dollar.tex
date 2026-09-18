@@ -1,0 +1,58 @@
+% D-series dollar-family fixture — corpus_v3 leak 归因 $ 亚型钉。
+% Each case marked % @Dnn — parser benchmark asserts per marker.
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,hyperref}
+
+\begin{document}
+
+% @D01 散文内 \$ 转义美元号（corpus 主族：\$25/\$AAPL/US\$240B）
+Soifer's ``Problem 6.6'' is also a \$25 Erd\H os problem worth \$500 more.
+Cashtags (e.g., `\$AAPL') enable feeds; the market nears US\$240B yearly.
+
+% @D02 \section{} 组参内 \$（group surface 落面点）
+\section{The \$5 problem and its \$10 variants}
+Body paragraph after the section title keeps going on.
+
+% @D03 \textit/\emph 组参内 \$（corpus \textit{\$KEEP} 形）
+The edit tags \textit{\$KEEP} and \textit{\$DELETE} encode operations here.
+
+% @D04 \item 文本内 \$（corpus 2009.10990 pmpm 形）
+\begin{itemize}
+\item each member is enrolled for 10 months --- the pmpm cost equals \$1 million
+\item while the rest of the members cost \$100,000 total during the year
+\end{itemize}
+
+% @D05 footnote 内 \href 文本参 \$（corpus 2211.04509 形）
+Depression cost figures.\footnote{\href{http://example.com}{Depression Cost the US \$326 Billion Per Year Pre-Pandemic} reported earlier.}
+
+% @D06 $$\begin{array} 区内空行 → 照常配对 MATH（1907.10351/2410.17903/math-0605790）
+We obtain
+$$
+   M =
+      \left(\begin{array}{ccc}
+
+            0   &-1 &0  \\
+
+      \end{array}   \right)\\
+$$
+as well as the Hamiltonian below.
+
+% @D07 $$..<未展开宏闭符>+\par → 孤 $$ → CMD ph（hep-th/9910028 \ek 形）
+Weaker condition
+$$
+\nabla^{(+)}_{(i} I^k{}_{j)} =0
+\ek
+
+Next paragraph continues after the stranded display.
+
+% @D08 散文裸单 $ 不配对（eol_par 中止 → CMD ph）
+The price is 25 $ per unit or so they claimed in the annual report.
+
+% @D09 散文裸 $$ 不配对（同上）
+Head text before. $$ broken math\nabla x tail follows.
+
+% @D10 \$ 与 $x$ 同行混排 → CMD + MATH 两路并行
+Paid \$5 for $x+y$ tokens and \$10 more at the register.
+
+Tail paragraph before end.
+\end{document}

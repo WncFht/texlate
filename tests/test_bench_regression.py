@@ -16,11 +16,15 @@ r"""B2 fixtures 陷阱断言回归（docs/10 §B2）——spike ``miniscanner_te
 - ``tricky-wenc.tex``：W72 混合编码字节件（合法 UTF-8 序列 + 孤立 latin1 字节共存），
   走 ``decode_tex`` 单码选定路径——identity 基准同源改用 ``decode_tex`` 而非
   ``errors="replace"``，断言只锁 latin1 侧 ``café``（单码不可救的 utf8 侧形态留给
-  normalize 分档层演进）。
+  normalize 分档层演进）；
+- ``tricky-dollar.tex``：D 系列 dollar 族 10 条（``@Dnn`` ↔ corpus_v3 ``$``-leak
+  归因亚型——散文 ``\$`` 转义、``\section``/``\textit``/``\item``/footnote 组参内 ``\$``、
+  ``$$..env..`` 区内空行照常配对、孤 ``$$``/孤 ``$`` → CMD ph + ``unpaired_dollar``、
+  ``\$`` 与 ``$x$`` 同行混排 CMD+MATH 双路）。
 
 断言函数 ``assert_tricky`` / ``assert_209`` / ``assert_multi`` / ``assert_xlat``
 与 bench 跑分器 ``bench/py/fixture_assert.py`` 共享（该脚本直接 import 本模块）。
-门槛（docs/10 §B2）：37 条 dict 断言全 ``pass``——``partial`` 在 spike 里是容忍档，
+门槛（docs/10 §B2）：61 条 dict 断言全 ``pass``——``partial`` 在 spike 里是容忍档，
 但产品现状全 pass，退化到 partial 即回归，这里按 ``== "pass"`` 严判。
 """
 
@@ -37,6 +41,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from texlate.latex import flatten_inputs, parse_file, reconstruct, validate_result
+from texlate.latex.api import parse_file_v1
 from texlate.latex.placeholder import CHUNK_RX, PH_RX
 from texlate.textutil import decode_tex
 
@@ -55,6 +60,7 @@ FIXTURE_FILES = [
     ("tricky-w.tex", FIXTURES / "tricky-w.tex"),
     ("tricky-w73/main/main.tex", FIXTURES / "tricky-w73" / "main" / "main.tex"),
     ("tricky-wenc.tex", FIXTURES / "tricky-wenc.tex"),
+    ("tricky-dollar.tex", FIXTURES / "tricky-dollar.tex"),
 ]
 
 # 泄漏扫描口径（spike 同表）：可译 chunk 内不得出现这些构造
@@ -637,6 +643,127 @@ def assert_wenc(res: ScanResult | None) -> dict[str, dict[str, str]]:
     }
 
 
+def assert_dollar(
+    res: ScanResult | None, recon: str, recon_fake: str, *, v1: bool = False
+) -> dict[str, dict[str, str]]:
+    """tricky-dollar.tex D 系列逐条断言（corpus_v3 ``$``-leak 归因亚型钉）。
+
+    ``v1=True`` 走 ``parse_file_v1`` 臂：亚型断言同规，唯 D06 发散——v1
+    ``$$`` 扫描无 env 内空行容忍，两枚 ``$$`` 各落 ``[[CMD]]``、``array``
+    env 独立成 ``[[MATH]]``（v2 是单条 ``$$..$$`` MATH ph），且告警数
+    随之是 5× ``unpaired_dollar``（v2 为 3）。
+    """
+    if res is None:
+        return {"_meta": {"status": "info", "detail": "parse failed"}}
+    chunks = chunks_blob(res)
+    out: dict[str, dict[str, str]] = {}
+
+    def all_re(tid: str, rxs: tuple[str, ...], note: str) -> None:
+        missing = [rx for rx in rxs if not re.search(rx, chunks)]
+        out[tid] = {
+            "status": "fail" if missing else "pass",
+            "detail": f"missing {missing} in chunks" if missing else note,
+        }
+
+    def ph_roundtrip(tid: str, rx: str, needle: str, note: str) -> None:
+        ok = re.search(rx, chunks) and needle in recon
+        out[tid] = {
+            "status": "pass" if ok else "fail",
+            "detail": note
+            if ok
+            else f"rx={rx!r} in chunks / {needle!r} in recon: false",
+        }
+
+    # D01 散文内 \$ → CMD ph（corpus 主族：\$25 / `\$AAPL' / US\$240B）
+    all_re(
+        "D01",
+        (
+            r"\[\[CMD_\d+\]\]25 ",
+            r"`\[\[CMD_\d+\]\]AAPL'",
+            r"US\[\[CMD_\d+\]\]240B",
+        ),
+        "prose \\$ escapes -> [[CMD_n]]",
+    )
+    # D02 \section{} 组参内 \$ → group surface CMD ph
+    all_re(
+        "D02",
+        (r"The \[\[CMD_\d+\]\]5 problem and its \[\[CMD_\d+\]\]10 variants",),
+        "section-arg \\$ -> CMD ph",
+    )
+    # D03 \textit 组参内 \$（corpus \textit{\$KEEP} 形）
+    all_re(
+        "D03",
+        (r"\\textit\{\[\[CMD_\d+\]\]KEEP\}", r"\\textit\{\[\[CMD_\d+\]\]DELETE\}"),
+        "textit-arg \\$ -> CMD ph",
+    )
+    # D04 \item 文本内 \$（corpus 2009.10990 pmpm 形）
+    all_re(
+        "D04",
+        (r"equals \[\[CMD_\d+\]\]1 million", r"cost \[\[CMD_\d+\]\]100,000"),
+        "item-text \\$ -> CMD ph",
+    )
+    # D05 footnote 内 \href 文本参 \$（corpus 2211.04509 形）
+    all_re(
+        "D05",
+        (r"the US \[\[CMD_\d+\]\]326 Billion",),
+        "footnote href-arg \\$ -> CMD ph",
+    )
+    # D06 $$..\begin{array} 区内空行..$$：v2 env 容忍 → 单条 MATH ph 照常
+    # 配对；v1 无容忍 → 两枚 $$ 各 [[CMD]]，array env 独立 [[MATH]]
+    if v1:
+        ph_roundtrip(
+            "D06",
+            r"We obtain\n\[\[CMD_\d+\]\]",
+            "$$\n   M =",
+            "v1: stranded $$ -> CMD ph x2, array env -> MATH",
+        )
+    else:
+        ph_roundtrip(
+            "D06",
+            r"We obtain \[\[MATH_\d+\]\] as well as",
+            "$$\n   M =",
+            "$$..array(blank-lines)..$$ paired -> [[MATH_n]]",
+        )
+    # D07 $$..<未展开宏闭符 \ek>+\par → 孤 $$ -> CMD ph + unpaired_dollar
+    ph_roundtrip(
+        "D07",
+        r"Weaker condition\n?\s*\[\[CMD_\d+\]\]",
+        "$$\n\\nabla",
+        "stranded $$ -> CMD ph, $$ survives in recon",
+    )
+    # D08 散文裸单 $ 不配对 → CMD ph
+    ph_roundtrip(
+        "D08",
+        r"25 \[\[CMD_\d+\]\] per unit",
+        "25 $ per unit",
+        "bare $ -> CMD ph, literal $ in recon",
+    )
+    # D09 散文裸 $$ 不配对 → CMD ph
+    ph_roundtrip(
+        "D09",
+        r"before\. \[\[CMD_\d+\]\] broken",
+        "$$ broken math",
+        "bare $$ -> CMD ph, literal $$ in recon",
+    )
+    # D10 \$ 与 $x$ 同行混排 → CMD + MATH 两路并行
+    all_re(
+        "D10",
+        (
+            r"Paid \[\[CMD_\d+\]\]5 for \[\[MATH_\d+\]\] tokens and \[\[CMD_\d+\]\]10 more",
+        ),
+        "mixed \\$ + $x$ -> CMD+MATH dual track",
+    )
+
+    res_chunk = len(CHUNK_RX.findall(recon_fake))
+    res_prot = len(PH_RX.findall(recon_fake))
+    out["_meta"] = {
+        "status": "info",
+        "detail": f"chunks={len(res.chunks)} ph={len(res.ph_map)} "
+        f"residue_chunk={res_chunk} residue_prot={res_prot}",
+    }
+    return out
+
+
 # ---------------------------------------------------------------- 模块级测量（7 个小文件，ms 级）
 
 #: 需要非缺省 ``top_dir`` 的 fixture（w73：paper 根 = tricky-w73/，``../shared``
@@ -656,6 +783,19 @@ _x = _PARSED["xlat-traps.tex"]
 _w = _PARSED["tricky-w.tex"]
 _w73 = _PARSED["tricky-w73/main/main.tex"]
 _wenc = _PARSED["tricky-wenc.tex"]
+_d = _PARSED["tricky-dollar.tex"]
+# tricky-dollar 的 v1 臂对照（scanner.py 同规修复的断言面——D06 形发散
+# 已在 assert_dollar(v1=True) 内分臂处理）
+_d1_path = FIXTURES / "tricky-dollar.tex"
+_d1_res = parse_file_v1(_d1_path)
+_d1_flat = flatten_inputs(
+    decode_tex(_d1_path.read_bytes()), str(_d1_path.parent), str(_d1_path.parent)
+)
+_d1_recon = reconstruct(_d1_res)
+_d1_recon_fake = reconstruct(
+    _d1_res,
+    {c.id: fake_translation(c, i) for i, c in enumerate(_d1_res.chunks)},
+)
 
 TRICKY_ASSERTS = assert_tricky(_t.res, _t.recon, _t.recon_fake) if _t.res else {}
 ASSERTS_209 = assert_209(_209.res, _209.recon)
@@ -664,6 +804,8 @@ XLAT_ASSERTS = assert_xlat(_x.res)
 W_ASSERTS = assert_w(_w.res, _w.recon, _w.recon_fake) if _w.res else {}
 W73_ASSERTS = assert_w73(_w73.res) if _w73.res else {}
 WENC_ASSERTS = assert_wenc(_wenc.res) if _wenc.res else {}
+DOLLAR_ASSERTS = assert_dollar(_d.res, _d.recon, _d.recon_fake) if _d.res else {}
+DOLLAR_V1_ASSERTS = assert_dollar(_d1_res, _d1_recon, _d1_recon_fake, v1=True)
 
 # tricky.tex 的断言全集（docs/10：新增断言只增不减——T14 在 multi，T15/T28 不存在）
 TRICKY_IDS = [
@@ -729,6 +871,8 @@ W73_IDS = [
     "W73_beyond_root_escape",
 ]
 WENC_IDS = ["W72_mixed_decoded"]
+# tricky-dollar.tex 的断言全集（@Dnn ↔ corpus_v3 $-leak 归因亚型钉）
+D_IDS = [f"D{n:02d}" for n in range(1, 11)]
 ALL_FIXTURE_NAMES = [n for n, _ in FIXTURE_FILES]
 
 
@@ -776,8 +920,15 @@ def test_validate_result_clean(name: str) -> None:
 
 #: 各 fixture 期望的 warning kind 集（缺省 = 零 warning）。w73 的
 #: ``missing_input`` 是 C1 闸拒根外逃逸的断言面本身，由 ``test_w73`` 两向锁定。
-_EXPECTED_WARN_KINDS: dict[str, set[str]] = {
+#: 多重集口径（sorted 精确比对）——tricky-dollar 的 D07/D08/D09 三个孤 ``$$``/``$``
+#: 各产一条 ``unpaired_dollar``，期望值必须列足 3 条。
+_EXPECTED_WARN_KINDS: dict[str, set[str] | list[str]] = {
     "tricky-w73/main/main.tex": {"missing_input"},
+    "tricky-dollar.tex": [
+        "unpaired_dollar",
+        "unpaired_dollar",
+        "unpaired_dollar",
+    ],
 }
 
 
@@ -888,3 +1039,37 @@ def test_wenc(aid: str) -> None:
     a = WENC_ASSERTS.get(aid)
     assert a is not None, f"missing assertion {aid} (parse failed?)"
     assert a["status"] == "pass", f"{aid} {a['status']}: {a['detail']}"
+
+
+# ---------------------------------------------------------------- tricky-dollar 逐条
+
+
+@pytest.mark.parametrize("aid", D_IDS)
+def test_dollar(aid: str) -> None:
+    """tricky-dollar.tex D 系列 ``$``-leak 亚型逐条断言（断言体在 ``assert_dollar``）。"""
+    a = DOLLAR_ASSERTS.get(aid)
+    assert a is not None, f"missing assertion {aid} (parse failed?)"
+    assert a["status"] == "pass", f"{aid} {a['status']}: {a['detail']}"
+
+
+def test_dollar_matrix_complete() -> None:
+    """``@Dnn`` 断言与 ``D_IDS`` 登记一致（只增不减口径同 tricky/w）。"""
+    assert set(DOLLAR_ASSERTS) == set(D_IDS) | {"_meta"}
+
+
+@pytest.mark.parametrize("aid", D_IDS)
+def test_dollar_v1arm(aid: str) -> None:
+    """tricky-dollar.tex v1 臂（``parse_file_v1``）同亚型断言——D06 发散形
+    已在断言体内分臂（两枚 ``$$`` 各 ``[[CMD]]`` 而非单条 MATH）。"""
+    a = DOLLAR_V1_ASSERTS.get(aid)
+    assert a is not None, f"missing assertion {aid} (parse failed?)"
+    assert a["status"] == "pass", f"{aid} {a['status']}: {a['detail']}"
+
+
+def test_dollar_v1arm_invariants() -> None:
+    """v1 臂整件门：identity 逐字节 + 零 ``$`` 泄漏 + 5× ``unpaired_dollar``
+    （D06 两枚 ``$$`` 各一 + D07/D08/D09 各一——比 v2 多两条属预期发散）。"""
+    assert _d1_recon == _d1_flat
+    assert not any("$" in c.content for c in _d1_res.chunks)
+    kinds = [w.kind for w in _d1_res.warnings]
+    assert sorted(kinds) == sorted(["unpaired_dollar"] * 5)
