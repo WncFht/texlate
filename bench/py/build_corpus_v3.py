@@ -44,6 +44,7 @@ import tarfile
 import time
 import urllib.error
 import urllib.request
+from collections import Counter
 from pathlib import Path
 
 import benchlib
@@ -427,7 +428,10 @@ INPUT_RX = re.compile(
 )
 FLAG_RX = {
     "minted": re.compile(
-        r"\\begin\{minted\}|\\inputminted|\\mint(?:inline)?\b|"
+        # \mint 定界（W108）：必须是 minted 调用形（[opts]{lang}）——作者常以
+        # \def\mint{\int..} 表多重积分，\b 裸匹配会把定义体/积分用法误作 flag
+        r"\\begin\{minted\}|\\inputminted|"
+        r"\\mint(?:inline)?(?:\[[^\]]*\])?\{[a-zA-Z0-9_+.-]+\}|"
         r"\\(?:usepackage|RequirePackage)(?:\[[^\]]*\])?\{[^}]*minted"
     ),
     "pstricks": re.compile(
@@ -457,6 +461,203 @@ FLAG_RX = {
     ),
 }
 AUTOIGNORE = b"%auto-ignore"
+
+# ---- EVAL 良性形态签名（mechanisms.jsonl EVAL 族；blob_features 簿记进 signatures）----
+USEP_RX = re.compile(r"\\(?:usepackage|RequirePackage)(?:\[[^\]]*\])?\{([^}]*)\}")
+# W35 期刊样式以 \usepackage 加载的已知样式包（jheppub 类——2.09 docstyle 选项系同款）
+JOURNAL_STY_PKGS = {
+    "jheppub",
+    "jinstpub",
+    "aasms4",
+    "aaspp4",
+    "sprocl",
+    "espcrc2",
+    "moriond",
+    "aipmod",
+    "eqsecnum",
+    "emulateapj",
+}
+# W62 kitchen-sink 异质 DSL 包（证据谱：CJKutf8+skak+xypic+tikz-cd+commath+faktor+nccmath）
+DSL_PKGS = {
+    "skak",
+    "xypic",
+    "tikz-cd",
+    "commath",
+    "faktor",
+    "nccmath",
+    "chess",
+    "amscd",
+    "pb-diagram",
+    "forest",
+    "qtree",
+    "xy",
+}
+# W64 \documentclass 非常规 option 位期刊样式（证据 ecta；同谱补 jhep/jcap/mnras/aastex
+# + revtex 期刊/学会位 pra..prx/aps/aip——实测 docclass_opts 谱见 1502.06414）
+JOURNAL_OPTS = {
+    "ecta",
+    "jhep",
+    "jcap",
+    "mnras",
+    "aastex",
+    "aps",
+    "aip",
+    "pra",
+    "prb",
+    "prc",
+    "prd",
+    "pre",
+    "prl",
+    "prx",
+    "rmp",
+}
+# W70 选项错拼判定基线：LaTeX 内核 + 主流类选项白名单（编辑距 ≤1 即疑 typo）
+KERNEL_OPTS = {
+    "8pt",
+    "9pt",
+    "10pt",
+    "11pt",
+    "12pt",
+    "14pt",
+    "17pt",
+    "20pt",
+    "a4paper",
+    "a5paper",
+    "b5paper",
+    "letterpaper",
+    "legalpaper",
+    "executivepaper",
+    "landscape",
+    "twocolumn",
+    "onecolumn",
+    "twoside",
+    "oneside",
+    "draft",
+    "final",
+    "fleqn",
+    "leqno",
+    "titlepage",
+    "notitlepage",
+    "openright",
+    "openany",
+    "openbib",
+    "preprint",
+    "preprintnumbers",
+    "superscriptaddress",
+    "amsmath",
+    "amssymb",
+    "amsfonts",
+    "floatfix",
+    "nofootinbib",
+    "showkeys",
+    "showpacs",
+    "longbibliography",
+    "reprint",
+    "conference",
+    "journal",
+    "technote",
+    "compsoc",
+    "peerreview",
+    "review",
+    "manuscript",
+    "screen",
+    "referee",
+    "english",
+    "proc",
+    "overfull",
+    "numbered",
+    "authoryear",
+    # 实测语料补录（避免标准类选项误作 typo 候选）:
+    # amsart 系 eqno/tags/limits 位
+    "reqno",
+    "tbtags",
+    "centertags",
+    "intlimits",
+    "nointlimits",
+    "sumlimits",
+    "nosumlimits",
+    "namelimits",
+    "nonamelimits",
+    # IEEEtran 学会位
+    "comsoc",
+    "transmag",
+    # svjour/aip 系参考文献样式位
+    "author-year",
+}
+ORG_LABEL_RX = re.compile(r"\\label\{sec:org[0-9a-f]{5,9}\}")
+EDITOR_LEFT_RX = re.compile(r"\\label\{[a-z]+:enter-label\}|\\textbf\{\}")
+PLAIN_OUT_RX = re.compile(
+    r"\\(?:headline|footline|output|shipout)\s*(?=[={\\])|\\shipout\b"
+)
+MANUAL_BF_RX = re.compile(r"\{\\bf[a-z]*\b")
+CENTERLINE_RX = re.compile(r"\\centerline\b")
+SECTION_RX = re.compile(r"\\(?:sub)*section\*?\s*[{\[]")
+XREF_RX = re.compile(r"\\jobname\.xref|\.xref\b")
+
+
+def _dist1(a: str, b: str) -> bool:
+    """a 与 b 编辑距离恰为 1（W70 选项错拼：12pi↔12pt）。"""
+    la, lb = len(a), len(b)
+    if abs(la - lb) > 1:
+        return False
+    if la == lb:
+        return sum(x != y for x, y in zip(a, b, strict=True)) == 1
+    if la > lb:
+        a, b = b, a
+    i = 0
+    while i < len(a) and a[i] == b[i]:
+        i += 1
+    return a[i:] == b[i + 1 :]
+
+
+def eval_signatures(blob_txt: str) -> dict[str, object]:
+    """良性形态签名簿记 → {mech_id: 命中明细}；只在 paper 自身 tex（剥注释后）上看。
+
+    每条对应 mechanisms.jsonl EVAL 族一行——把「长得像故障的良性形态」注记进
+    features，供归因/狩猎区分真缺陷与形态签名（W48 协作残留、W88 手排、W70 typo 等）。
+    """
+    sig: dict[str, object] = {}
+    pkgs = Counter(
+        p.strip()
+        for m in USEP_RX.finditer(blob_txt)
+        for p in m.group(1).split(",")
+        if p.strip()
+    )
+    if dups := sorted(p for p, c in pkgs.items() if c >= 2):
+        sig["W48"] = dups
+    if jsty := sorted(pkgs.keys() & JOURNAL_STY_PKGS):
+        sig["W35"] = jsty
+    if ORG_LABEL_RX.search(blob_txt):
+        sig["W39"] = True
+    if n := len(EDITOR_LEFT_RX.findall(blob_txt)):
+        sig["W60"] = n
+    if (dsl := sorted(pkgs.keys() & DSL_PKGS)) and len(dsl) >= 2:
+        sig["W62"] = dsl
+    dcls_opts = {
+        o.strip()
+        for m in DOCCLASS_RX.finditer(blob_txt)
+        if m.group(1) == "documentclass" and m.group(2)
+        for o in m.group(2).split(",")
+        if o.strip()
+    }
+    if jopt := sorted(dcls_opts & JOURNAL_OPTS):
+        sig["W64"] = jopt
+    if typos := sorted(
+        o
+        for o in dcls_opts - JOURNAL_OPTS - KERNEL_OPTS
+        if any(_dist1(o, k) for k in KERNEL_OPTS)
+    ):
+        sig["W70"] = typos
+    if not SECTION_RX.search(blob_txt) and (
+        len(MANUAL_BF_RX.findall(blob_txt)) >= 3
+        or len(CENTERLINE_RX.findall(blob_txt)) >= 2
+    ):
+        sig["W88"] = True
+    if outs := sorted({o.strip() for o in PLAIN_OUT_RX.findall(blob_txt)}):
+        sig["W93"] = outs
+    if XREF_RX.search(blob_txt):
+        sig["W106"] = True
+    return sig
 
 
 def strip_comments(tex: str) -> str:
@@ -546,7 +747,11 @@ def member_id(name: str) -> str:
 
 
 def blob_features(name: str, blob: bytes) -> dict:
-    """单个 e-print blob → 特征 dict (scan_tar 版 + sha256/stub/staging texts)."""
+    """单个 e-print blob → 特征 dict (scan_tar 版 + sha256/stub/staging texts).
+
+    特征口径见 _texts_features: flags=tex 通道 / flags_vendored=sty·cls·bbl 通道
+    / flags_commented=剥注释差集 / signatures=EVAL 良性形态簿记。
+    """
     rec: dict = {
         "member": name,
         "id": member_id(name),
@@ -616,24 +821,87 @@ def blob_features(name: str, blob: bytes) -> dict:
             tex_texts[p] = s
     rec["non_utf8"] = non_utf8
     rec["_texts"] = texts  # staging 用, 不落 jsonl
+    rec.update(_texts_features(tex_texts, texts))
+    return rec
 
-    blob_txt = "\n".join(strip_comments(t) for t in tex_texts.values())
-    sty_txt = "\n".join(
-        strip_comments(b.decode("utf-8", "replace"))
+
+def _texts_features(tex_texts: dict[str, str], texts: dict[str, bytes]) -> dict:
+    """tex_texts(剥注释前 tex 文本)+texts(全部文本件)→ 形态特征字段。
+
+    blob_features(scan_tar) 与 fetch-ids extracted 树共用同一计算——特征口径
+    单点维护, 避免两通道漂移。
+    """
+    rec: dict = {}
+    tex_raw = "\n".join(tex_texts.values())
+    sty_raw = "\n".join(
+        b.decode("utf-8", "replace")
         for p, b in texts.items()
         if Path(p).suffix.lower() in {".sty", ".cls", ".bbl"}
     )
-    rec["docclasses"] = sorted(
-        {m.group(3).strip() for m in DOCCLASS_RX.finditer(blob_txt)}
+    blob_txt = strip_comments(tex_raw)
+    sty_txt = strip_comments(sty_raw)
+    dcls_ms = list(DOCCLASS_RX.finditer(blob_txt))
+    rec["docclasses"] = sorted({m.group(3).strip() for m in dcls_ms})
+    rec["docstyle"] = any(m.group(1) == "documentstyle" for m in dcls_ms)
+    # W80-feat: 2.09 \documentstyle[jheppub,12pt]{article} 的期刊样式本体在 option 位
+    rec["docstyle_opts"] = sorted(
+        {
+            o.strip()
+            for m in dcls_ms
+            if m.group(1) == "documentstyle" and m.group(2)
+            for o in m.group(2).split(",")
+            if o.strip()
+        }
     )
-    rec["docstyle"] = any(
-        m.group(1) == "documentstyle" for m in DOCCLASS_RX.finditer(blob_txt)
+    rec["docclass_opts"] = sorted(
+        {
+            o.strip()
+            for m in dcls_ms
+            if m.group(1) == "documentclass" and m.group(2)
+            for o in m.group(2).split(",")
+            if o.strip()
+        }
     )
     roots = [p for p, t in tex_texts.items() if DOCCLASS_RX.search(strip_comments(t))]
     rec["tex_roots"] = sorted(roots)
     rec["input_depth"] = input_depth(tex_texts, roots)
-    scan = blob_txt + "\n" + sty_txt
-    rec["flags"] = sorted(k for k, rx in FLAG_RX.items() if rx.search(scan))
+    # W101: flags 拆 tex/vendored 双通道——sty/cls/bbl 是发行资产, 合并扫描会把
+    # 宏包自带形态(如样式文件内嵌 pstricks 钩)误记为论文自身 flag
+    rec["flags"] = sorted(k for k, rx in FLAG_RX.items() if rx.search(blob_txt))
+    rec["flags_vendored"] = sorted(k for k, rx in FLAG_RX.items() if rx.search(sty_txt))
+    # W109: hunter rg 命中剥注释复核——只活在注释里的命中单列(raw 有 stripped 无)
+    raw_scan = tex_raw + "\n" + sty_raw
+    stripped_hits = set(rec["flags"]) | set(rec["flags_vendored"])
+    rec["flags_commented"] = sorted(
+        {k for k, rx in FLAG_RX.items() if rx.search(raw_scan)} - stripped_hits
+    )
+    if sig := eval_signatures(blob_txt):
+        rec["signatures"] = sig
+    return rec
+
+
+def extracted_features(extract_dir: Path) -> dict:
+    """已解压 extracted/ 树 → 同口径特征 dict(fetch-ids 通道的补齐件)。"""
+    texts: dict[str, bytes] = {}
+    for fp in sorted(extract_dir.rglob("*")):
+        if (
+            fp.is_file()
+            and fp.suffix.lower() in TEXT_EXT
+            and fp.stat().st_size < 8 << 20
+        ):
+            texts[str(fp.relative_to(extract_dir))] = fp.read_bytes()
+    tex_texts: dict[str, str] = {}
+    non_utf8 = False
+    for p, b in texts.items():
+        try:
+            s = b.decode("utf-8")
+        except UnicodeDecodeError:
+            non_utf8 = True
+            s = b.decode("utf-8", "replace")
+        if Path(p).suffix.lower() == ".tex":
+            tex_texts[p] = s
+    rec = _texts_features(tex_texts, texts)
+    rec["non_utf8"] = non_utf8
     return rec
 
 
@@ -1127,9 +1395,14 @@ def cmd_extract() -> None:
                         for k in (
                             "docclasses",
                             "docstyle",
+                            "docstyle_opts",
+                            "docclass_opts",
                             "input_depth",
                             "non_utf8",
                             "flags",
+                            "flags_vendored",
+                            "flags_commented",
+                            "signatures",
                             "tex_roots",
                         )
                         if k in feat
@@ -1173,8 +1446,6 @@ def cmd_extract() -> None:
 
 
 def write_manifest_md(manifest: list[dict]) -> None:
-    from collections import Counter
-
     n = len(manifest)
     fmt_c = Counter(r["format"] for r in manifest)
     era_c = Counter(r["era"] for r in manifest)
@@ -1320,9 +1591,14 @@ def cmd_extract_booster() -> None:
                         for k in (
                             "docclasses",
                             "docstyle",
+                            "docstyle_opts",
+                            "docclass_opts",
                             "input_depth",
                             "non_utf8",
                             "flags",
+                            "flags_vendored",
+                            "flags_commented",
+                            "signatures",
                             "tex_roots",
                         )
                         if k in f

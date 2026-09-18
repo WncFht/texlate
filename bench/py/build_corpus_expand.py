@@ -727,18 +727,9 @@ def materialize(rec: dict, blob: bytes, sha: str) -> dict:
         "tex_files": rec.get("n_tex_files"),
         "bytes": len(blob),
         "uncompressed_bytes": rec.get("uncompressed_bytes"),
-        "features": {
-            k: rec[k]
-            for k in (
-                "docclasses",
-                "docstyle",
-                "input_depth",
-                "non_utf8",
-                "flags",
-                "tex_roots",
-            )
-            if k in rec
-        },
+        # 特征以 extracted 树重算为准(expand scan 记录仍是旧合并口径——
+        # 无 staging 无法回填; extracted_features 与 blob_features 同一生成码)
+        "features": b3.extracted_features(dest / "extracted"),
         "pick_reason": f"expand_quota:{rec['_cell']}",
         "pool": rec["_pool"],
         "warnings": warns,
@@ -1064,6 +1055,9 @@ def cmd_fetch_ids(args: argparse.Namespace) -> None:
             main_sha = None
             if locate_main and (ext / locate_main).exists():
                 main_sha = hashlib.sha256((ext / locate_main).read_bytes()).hexdigest()
+            feats = b3.extracted_features(ext)
+            if not feats.get("tex_roots") and roots:
+                feats["tex_roots"] = roots
             mechs = "+".join(cand["mechs"]) or "manual"
             meta.update(
                 {
@@ -1079,7 +1073,7 @@ def cmd_fetch_ids(args: argparse.Namespace) -> None:
                     "channel": "arxiv_eprint",
                     "item": None,
                     "member": None,
-                    "features": {"tex_roots": roots} if roots else {},
+                    "features": feats,
                     "main_tex_sha256": main_sha,
                     "pick_reason": f"expand_orphan:{mechs}",
                     "pool": "eprint",

@@ -1,7 +1,7 @@
 # Corpus v3 Manifest — arXiv 月度簇分层抽样源码语料
 
 渠道钉版批量语料：a–d 带 IA `arxiv-bulk` 月 chunk / e 带 HF `TIGER-Lab/arxiv-latex-5T`（成员四元组 `(channel,item,member,blob_sha256)` 钉版，`resolved_version=null`）。
-数据在本目录 `{id}/` 子目录（gitignored），入库的有此清单、`manifest.jsonl`（核心 1000）、`manifest_booster.jsonl`（补强 200）、`manifest_expand.jsonl`（扩展 3866）、`manifest_hot.jsonl`（热层 166，OpenAlex 高引近期 e-print 渠道）、`mechanisms.jsonl`、`booster_selection.jsonl`、`select_booster.py`、`selection_report.md`、`nominations/`（提名审计轨迹，见补强层节），管线脚本在 `bench/py/build_corpus_v3.py`（core/booster）+ `build_corpus_expand.py`（expand）+ `build_hot_layer.py`（hot）。
+数据在本目录 `{id}/` 子目录（gitignored），入库的有此清单、`manifest.jsonl`（核心 1000）、`manifest_booster.jsonl`（补强 200）、`manifest_expand.jsonl`（扩展 3866）、`manifest_hot.jsonl`（热层 166，OpenAlex 高引近期 e-print 渠道）、`mechanisms.jsonl`、`booster_selection.jsonl`、`select_booster.py`、`selection_report.md`、`eval_coverage.json`（B04/B06 宇宙×语料覆盖簿记，L12 EVAL）、`nominations/`（提名审计轨迹，见补强层节），管线脚本在 `bench/py/build_corpus_v3.py`（core/booster）+ `build_corpus_expand.py`（expand）+ `build_hot_layer.py`（hot）。
 抽样管线见 `docs/09-benchmark-corpus.md` S0–S5；旧式 ID 按 `archive/name` 嵌套。
 
 > 追记（2026-09-17）：四层合计 **5232 篇**。expand 层（3866）与 hot 层（166）为增补层——expand 明细见 `manifest_expand.jsonl` + QC `bench/results/corpus-expand-qc-2026-09-16/`；hot 层口径见 `docs/09` §4.3 增补注记与 `docs/research/product/2026-09-16-e2e-pipefix-hotlayer.md`。（勘误 2026-09-18：hot 层当日收官为 166 篇、expand 新批后 3866、合计 5232；本注记原写 133/合计 5133 系时点旧值。）
@@ -1018,7 +1018,7 @@
 
 与核心层同目录共存（`{id}/`，meta.json `layer="booster"` 区分，两层 id 不相交）。
 入库清单 `manifest_booster.jsonl`；选择器 `select_booster.py`（`booster_selection.jsonl` +
-`selection_report.md` 为产出）；机制台账 `mechanisms.jsonl`（2026-09-18 时点 248 条：B01–07 配额 +
+`selection_report.md` 为产出）；机制台账 `mechanisms.jsonl`（2026-09-18 时点 255 条：B01–07 配额 +
 T 系 fixture 34 条 + W 系野例 205 条，W 池至 W156 含复数例证——expand 新批续增中，条目数以文件实数为准）；提名审计轨迹 `nominations/{agent}.jsonl`（558 条 +
 `{agent}.mechs.jsonl` 113 条，5 curator 分带阅读 + 3 hunter 定向狩猎）。
 
