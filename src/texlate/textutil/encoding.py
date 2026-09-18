@@ -187,6 +187,7 @@ _BOXDRAW_PENALTY: Final = -4.0
 _RARE_CYRILLIC_PENALTY: Final = -3.0
 _ADJACENT_ASCII_PENALTY: Final = -6.0
 _MOJIBAKE_PENALTY: Final = -8.0
+_MIDWORD_UPPER_ACC_PENALTY: Final = -6.0
 _NONLATIN_MASS_MIN: Final = 12  # 非拉丁脚本成规模阈值
 _NONLATIN_MASS_SCORE: Final = 3.0
 #: C1 控制区（cp1252 把 0x80-0x9F 解成印刷符号、latin-1 解成控制符）。
@@ -198,6 +199,15 @@ _MATH_PUNCT: Final = frozenset("≤≥≠±×÷·∂∇∫∮∑∏√∞∈∉�
 _MOJIBAKE_RX: Final = re.compile(r"[ÃÂ][\u0080-\u00bf]|â€.")
 #: blob 内存在真 UTF-8 多字节序列（2+ 字节 lead+continuation）才算混合文件。
 _UTF8_SEQ_RX: Final = re.compile(rb"[\xc2-\xf4][\x80-\xbf]")
+#: 大写重音拉丁符面（À–Þ，``×`` 除外——``a×b`` 是合法数学用法）。
+#: 小写字母紧邻其后是自然语言不可能事件：mac_roman 把 latin-1
+#: ``é``/``è``/``ê``/``ë``(0xE8–0xEB) 吃成 ``È``/``Ë``/``Î``/``Ï`` 时产出
+#: ``UniversitÈ``/``prÈsentÈ`` 式词中大写重音——正确解码在任何候选
+#: 编码下此位均小写（法文 ``l'É`` 型前位是 ``'`` 不误伤）。
+_TIMES_SIGN_CP: Final = 0xD7
+_UPPER_ACCENTED: Final = frozenset(
+    chr(cp) for cp in range(0xC0, 0xDF) if cp != _TIMES_SIGN_CP
+)
 
 
 #: 常用西里尔字母（俄语+乌克兰语扩展）。cp866/gb 字节被 cp1251 误吃时会
@@ -207,12 +217,13 @@ _COMMON_CYRILLIC: Final = frozenset(
 )
 
 
-def _score_text(text: str) -> float:  # noqa: C901 — 逐字计分，分支即签名清单
+def _score_text(text: str) -> float:  # noqa: C901, PLR0912 — 逐字计分，分支即签名清单
     r"""解码结果的自然文本评分：脚本连排加分、控制符/乱码签名扣分。
 
     签名：``Ã``/``Â``+高字节 = UTF-8 被单字节解码（mojibake）；U+2500 块
     画符 = cp866 误吃拉丁；CJK/西里尔紧邻 ASCII 字母 = 多字节误吃 latin
-    对；非拉丁脚本成规模（≥12 字）才是真实使用——稀疏重音是 latin 常态。
+    对；小写字母紧邻大写重音拉丁符 = mac_roman 误吃 latin-1 重音；非拉丁
+    脚本成规模（≥12 字）才是真实使用——稀疏重音是 latin 常态。
     """
     score = 0.0
     run_class = ""
@@ -262,6 +273,8 @@ def _score_text(text: str) -> float:  # noqa: C901 — 逐字计分，分支即�
             score += _RARE_CYRILLIC_PENALTY
         if cls in ("cjk", "cyrillic", "greek") and prev.isascii() and prev.isalnum():
             score += _ADJACENT_ASCII_PENALTY
+        if ch in _UPPER_ACCENTED and prev.islower():
+            score += _MIDWORD_UPPER_ACC_PENALTY
         prev = ch
     flush()
     score += _MOJIBAKE_PENALTY * len(_MOJIBAKE_RX.findall(text))
