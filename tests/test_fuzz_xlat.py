@@ -156,6 +156,7 @@ _SENTINELS = [
 #: 发生器概率（字面量提名喂 PLR2004）
 _P_MARKER = 0.35
 _P_PURE = 0.12
+_P_BIB = 0.08
 _P_LONG = 0.1
 _FUZZ_ITERS = 3000
 _FUZZ_ITERS_MED = 1500
@@ -445,7 +446,11 @@ def _gen_doc(rng: random.Random, base: int) -> list[ChunkIn]:
                 rng.choice(["[[MATH_1]]", "[[CITE_2]]", "[[SL]]"])
                 for _ in range(rng.randint(1, 3))
             )
-        elif r < _P_PURE + _P_LONG:
+        elif r < _P_PURE + _P_BIB:
+            content = f"[[BIB_{rng.randint(1, 9)}]] " + _gen_soup_text(
+                rng, _TEXT_SOUP, 2, 8
+            )
+        elif r < _P_PURE + _P_BIB + _P_LONG:
             body = _gen_soup_text(rng, _TEXT_SOUP, 20, 60) + " tail."
             content = body * (600 // max(1, len(body)) + 1)
         else:
@@ -521,6 +526,9 @@ def _simulate(  # noqa: C901, PLR0912 -- oracle 复刻编排路由，分支即�
         if c.chunk_id in done:
             continue
         if ph.is_placeholder_only(c.content.strip()):
+            exp[c.chunk_id] = _Exp("ok", translation=c.content, attempts=0)
+            continue
+        if "[[BIB_" in c.content:
             exp[c.chunk_id] = _Exp("ok", translation=c.content, attempts=0)
             continue
         pieces = xb.split_long_chunk(c.content, max_chars=cfg.hard_limit)
@@ -627,10 +635,13 @@ def test_fuzz_pipeline_no_lost_no_reorder() -> None:
         assert [r.chunk_id for r in results] == [c.chunk_id for c in chunks]
         for c, r in zip(chunks, results, strict=True):
             _check_result(c, r, exp[c.chunk_id])
-        # 每个非纯块的 tag 确实进过请求载荷（零静默丢失——含被连坐的）
+        # 每个非纯块的 tag 确实进过请求载荷（零静默丢失——含被连坐的；
+        # [[BIB_ 直通块按设计零请求，豁免此钉）
         requested = "\n".join(t.calls)
         for c in chunks:
-            if not ph.is_placeholder_only(c.content.strip()):
+            if not ph.is_placeholder_only(c.content.strip()) and (
+                "[[BIB_" not in c.content
+            ):
                 assert f"\x01T{c.chunk_id}\x01" in requested, c.chunk_id
 
 

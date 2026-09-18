@@ -76,6 +76,35 @@ class TestEndToEnd:
         assert "[[CITE_2]]" in out[1].translation
         assert "[[REF_3]]" in out[2].translation
 
+    def test_bib_passthrough(self) -> None:
+        """``[[BIB_`` 块=文献域——直通留英不送翻（裁决①），占位符下游还原。"""
+        t = pl.MockTranslator()
+        bib = "[[BIB_1]] P.D. BATISTA, Some title, Phys. Rev. 1999"
+        chunks = [
+            mk_chunk(bib, "b1"),
+            mk_chunk("Real prose [[MATH_1]]", "p1"),
+        ]
+        out = run_pipeline(chunks, translator=t)
+        assert out[0].translation == bib
+        assert out[0].status == "ok"
+        assert "bib_passthrough" in out[0].warnings
+        assert not out[0].batched
+        # 直通块零请求——只有 p1 进了模型载荷
+        assert len(t.calls) == 1
+        assert "[[BIB_" not in t.calls[0]["user"]
+
+    def test_bib_passthrough_oversize_no_split(self) -> None:
+        """bib 直通先于切分判定——超长 bib 块不切、整段原样。"""
+        t = pl.MockTranslator()
+        bib = "[[BIB_1]] " + "Author Title Journal " * 80
+        chunks = [mk_chunk(bib, "big")]
+        out = run_pipeline(
+            chunks, translator=t, config=pl.PipelineConfig(hard_limit=200)
+        )
+        assert len(out) == 1
+        assert out[0].translation == bib
+        assert not t.calls
+
     def test_batch_degrade_to_singles(self) -> None:
         t = _BadBatchTranslator()
         chunks = [mk_chunk("A [[MATH_1]]", "a"), mk_chunk("B [[CITE_2]]", "b")]

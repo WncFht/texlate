@@ -1179,6 +1179,28 @@ class XlatPipeline:
                 self._ledger_call(fatal, r, "auth_gate.record", self.auth_gate.record)
                 self._ledger_call(fatal, r, "emit", self._emit)
                 continue
+            if "[[BIB_" in c.content:
+                # 用户裁决①：[[BIB_]]（\bibitem/bibliography 占位）块=文献域，
+                # 约定留英不送翻——直通 zh=src，占位符链下游照常还原。
+                # zh≡src 使三网 diff 恒空，intercept 形同虚设但账本调用与
+                # placeholder_only 路保持同构（计量/auth 闸口径一致）。
+                r = ChunkResult(
+                    chunk_id=cid,
+                    source=c.content,
+                    translation=c.content,
+                    kind=c.kind,
+                    status="ok",
+                    warnings=["bib_passthrough"],
+                )
+                done_map[cid] = r
+                self._ledger_call(
+                    fatal, r, "leftover_ph intercept", _intercept_leftover_ph
+                )
+                self._ledger_call(fatal, r, "ph_in_cs intercept", _intercept_ph_in_cs)
+                self._ledger_call(fatal, r, "bare_cs intercept", _intercept_bare_cs)
+                self._ledger_call(fatal, r, "auth_gate.record", self.auth_gate.record)
+                self._ledger_call(fatal, r, "emit", self._emit)
+                continue
             pieces = split_long_chunk(c.content, max_chars=self.cfg.hard_limit)
             if len(pieces) > 1:
                 subs = [
