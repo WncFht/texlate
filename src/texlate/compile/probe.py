@@ -23,6 +23,7 @@ from texlate.textutil import (
     DECL_TAIL,
     INPUT_BARE_RX,
     INPUT_BRACED_RX,
+    _tar_disguised,
     clean_decl_name,
     decode_tex,
     safe_is_file,
@@ -267,6 +268,11 @@ def _scan_file(ctx: _ScanCtx, tex: Path, rel: str, queue: list[Path]) -> None:
     except OSError:
         # 单件不可读不拖垮整针——跳过该文件扫描，其余情报保留
         ctx.rep.notes.append(f"{rel} 读取失败——跳过声明扫描")
+        return
+    if _tar_disguised(blob):
+        # tar 伪装 .tex——成员字节不是声明面（decode_tex 永不抛会把成员文本
+        # 当 tex 扫出假声明污染 census）；normalize._tex_sources 同闸
+        ctx.rep.notes.append(f"{rel} 是 tar 伪装件——跳过声明扫描")
         return
     raw_text = decode_tex(blob)
     if not ctx.swp and _SWP_RE.search(raw_text):
