@@ -325,6 +325,70 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "pstadd-lane 2026-09-19: tmp/lane-multistrand/report.md + flipcheck3 work/0707.4206 实读"
 
+  # 2026-09-19 mnras-retire lane (1206.0291, geomreverify #57 实证): 病件
+  # 是上游 mnras v3.2 本体 —— `\def\ds@usegraphicx{\@usegraphicxtrue
+  # \usepackage{graphicx}}` 把 inline \usepackage 写进选项声明体, kernel
+  # 在 \ProcessOptions 执行该选项 → `\RequirePackage or \LoadClass in
+  # Options Section` 硬错 (:114, cat=other)。装机通路: mn2e stub
+  # needs:["mnras.cls"] → eng.install_file → tlmgr --usermode install
+  # mnras → 上游病件落 _texmf/home/tex/latex/mnras/ (stagerun 兄弟式
+  # _texmf 在 wdir 邻树, 生产 _texmf 内嵌 wdir —— find . + ../_texmf/home
+  # 双根盖两式); 宿主 ~/texmf 常驻副本同病 —— TEXMFHOME 链尾保持可见故
+  # 同样可达 (宿主件只读不动, 靠平铺遮蔽而非退役)。退役段指纹闸: 剥注
+  # 释后 \ds@usegraphicx 行内联 \usepackage|\RequirePackage 才 mv
+  # .fixloop-iso; texlate patch (vendor 补丁标) / texlate-fixloop-injected
+  # (本引擎注入标) 双标跳过防自拆。平铺段: missing → vendored_fetch(11.5)
+  # 名义链不可达 —— missing_file 先被 install_file(10) 截 (宿主探得
+  # "already-present" 或 tlmgr 重装同病上游件), 故 vendor 补丁件必须本
+  # 规则自给: python 桥取 _vendor_root 钉件落 ./mnras.cls, kpathsea cwd
+  # 序压过一切 texmf 树件 (usertree+宿主同遮); python 缺席 → `|| true`
+  # 退化为纯退役语义不阻塞。
+  - id: mnras_texmf_shadow_retire
+    mechanisms: [B05]
+    description: "texmf 驻留 mnras.cls 选项段内联 \\usepackage 病 → mv .fixloop-iso 退役 + vendor 补丁件平铺 cwd 遮蔽递补"
+    phase: loop
+    order: 11.91 # pstricks_add_pair_retire(11.9) 后, abstract_edef_capture_neutralize(11.95) 前 —— texmf 驻留退役同族
+    when:
+      any: # 签名散格: 本格 other; 连锁 Missing\begin{document}→syntax / undef cs 变体同闸收
+        - { category: syntax }
+        - { category: undefined_cs }
+        - { category: other }
+    condition:
+      ctx_suggests: "Options Section|mnras\\.cls"
+      any: # 病件在场证: wdir 内全层 (含生产内嵌 _texmf) ∨ stagerun 兄弟 usertree
+        - { cache_dir_glob: "**/mnras.cls" }
+        - { cache_dir_glob: "../_texmf/home/**/mnras.cls" }
+      tool_available: sh
+    action:
+      kind: run_tool
+      params:
+        argv:
+          - sh
+          - -c
+          - |
+            find . ../_texmf/home -name mnras.cls -type f 2>/dev/null | while IFS= read -r f; do
+              grep -qE 'texlate-fixloop-injected|texlate patch' "$f" && continue
+              grep -vE '^[[:space:]]*%' "$f" | grep 'ds@usegraphicx' | grep -qE '\\usepackage|\\RequirePackage' || continue
+              mv -f "$f" "$f.fixloop-iso"
+            done
+            if [ ! -f ./mnras.cls ]; then
+              python -c "import shutil; from texlate.compile.fixloop._builtins_vendored import _vendor_root; shutil.copyfile(str(_vendor_root({})/'files'/'mnras.cls'), 'mnras.cls')" 2>/dev/null || python3 -c "import shutil; from texlate.compile.fixloop._builtins_vendored import _vendor_root; shutil.copyfile(str(_vendor_root({})/'files'/'mnras.cls'), 'mnras.cls')" 2>/dev/null || true
+            fi
+            exit 0
+        timeout: 30
+    risk: low # 退役仅动 wdir 可达病件 (宿主 ~/texmf 不碰); 平铺件是 vendor 钉版补丁副本, cwd 遮蔽可逆
+    known_gap: "宿主 ~/texmf 病件不退役 (wdir 外不越权) —— 靠 ./mnras.cls 平铺遮蔽而非移除; python 缺席时平铺缺省 → 宿主病件仍可遮蔽胜场, 纯退役臂不保证收敛 (install_file 会重装同病上游件)"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "corpus_v3 1206.0291 (geomreverify #57 stagerun 残格)",
+          error: "_texmf/home/tex/latex/mnras/mnras.cls:114: LaTeX Error: \\RequirePackage or \\LoadClass in Options Section (上游 v3.2 \\ds@usegraphicx 内联 \\usepackage{graphicx})",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-geomverify/report.md (residual 1 通路裁定) + run/records/fixloop.jsonl r1 实读; 补丁件 = mnras-optpatch #51 vendor/files/mnras.cls"
+
   # 2026-09-19 draftsty-patch lane: 稿自带 .sty 内 abstract 体捕获花括号
   # hack —— `\protected@edef\@tempa{\ifnum`}=\z@\fi...` 的 `` `} `` 被
   # \ifnum 当字符码操作数吞掉 (125≠0 假值整段空), 使 edef 的 `{` 失去配对
