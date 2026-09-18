@@ -459,12 +459,13 @@ def test_find_main_tex_commented_input_not_followed(tmp_path: Path) -> None:
     assert find_main_tex(tmp_path) is None
 
 
-def test_find_main_tex_seki_cover_still_rejected(tmp_path: Path) -> None:
-    r"""SEKI 双子形态（0905.2435/0905.4369）：dc 只在封面件内，闭包无 bd → None。
+def test_find_main_tex_seki_cover_admitted_via_closure(tmp_path: Path) -> None:
+    r"""SEKI 双子形态（0905.2435/0905.4369）W99 二遍：闭包供 dc → 收录。
 
-    收录方向的判别力所在：封面 ``seki-deckblatt-3.tex`` 有 dc 但不 ``\input``
-    正文；``pdf.tex`` 拉 ``body``（含 bd）却自己没有 dc——dc 门槛保持本体
-    判定，闭包放宽救不了它。
+    封面 ``seki-deckblatt-3.tex`` 有 dc 但不 ``\input`` 正文；``pdf.tex``
+    拉 ``body``（含 bd）却自己没有 dc——W99 起 dc 判据放宽到 ``\input``
+    闭包（helper 宏参类名形态），``body.tex`` 本体 bd + 闭包 dc 双准入池；
+    同为候选时 ``body`` 体量更大压过 ``pdf`` 壳当选。
     """
     (tmp_path / "seki-deckblatt-3.tex").write_text(
         "\\newcommand\\makecover{%\n\\documentclass[twoside,12pt]{\\whatSEKI}\n}\n"
@@ -476,7 +477,7 @@ def test_find_main_tex_seki_cover_still_rejected(tmp_path: Path) -> None:
     (tmp_path / "pdf.tex").write_text(
         "%&latex\n\\newcommand\\SEKImasterusepackages{}\n\\input body\n"
     )
-    assert find_main_tex(tmp_path) is None
+    assert find_main_tex(tmp_path) == tmp_path / "body.tex"
 
 
 def test_inject_float_sizing_uppercase_ext(tmp_path: Path) -> None:

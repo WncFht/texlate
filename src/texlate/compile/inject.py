@@ -35,6 +35,7 @@ from texlate.textutil import (
     clean_decl_name,
     decode_tex,
     iter_depth0,
+    mask_tex,
     safe_is_file,
     safe_resolve,
 )
@@ -44,9 +45,12 @@ from .mask import group_end, visible_tex
 from .normalize import inject_preamble
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Iterator, Mapping
 
-CTEX_LINE = r"\usepackage[fontset=fandol,UTF8]{ctex}"
+#: zihao=false 必须钉死：ctex 默认 scheme=chinese 在未收到显式字号选项时
+#: 强启 zihao=5（ctex-scheme-chinese.def），把 \normalsize..\tiny 全体重映射到
+#: 中文字号 bp 尺寸（10pt→10.53937pt +5.4%），版式几何全面膨胀。
+CTEX_LINE = r"\usepackage[fontset=fandol,UTF8,zihao=false]{ctex}"
 
 #: xeCJK 降级块：ctex 与模板冲突时（fixloop/探针编译切换）换这条路径。
 XECJK_BLOCK = r"""
@@ -142,10 +146,15 @@ CJK_MATH_FALLBACK = r"""
 \DeclareFontShape{TU}{texlatecjk}{b}{it}{<->ssub*texlatecjk/b/n}{}
 \DeclareFontShape{TU}{texlatecjk}{bx}{it}{<->ssub*texlatecjk/b/n}{}
 \DeclareFontShape{TU}{texlatecjk}{bx}{sl}{<->ssub*texlatecjk/b/n}{}
-\DeclareSymbolFont{texlatecjk}{TU}{texlatecjk}{m}{n}
-\SetSymbolFont{texlatecjk}{bold}{TU}{texlatecjk}{b}{n}
 \def\TeXlate@mathmap#1#2-#3;{\count@="#2\relax
   \@whilenum\count@<"#3 \do{\Umathcode\count@="0 #1 \count@\advance\count@\@ne}}
+% \count18 = LaTeX2e 内核 mathgroup 分配计数器（实证：每 \DeclareSymbolFont +1,
+% \SetSymbolFont 不占新号）——16 上限打满前降级：宁可缺 fb/cjk 兜底,
+% 不让整条注入把文档编译炸成 "Too many symbol fonts declared"（b2 归因：
+% txfonts 14 族文档只剩 1 空位）。
+\ifnum\count18<16\relax
+\DeclareSymbolFont{texlatecjk}{TU}{texlatecjk}{m}{n}
+\SetSymbolFont{texlatecjk}{bold}{TU}{texlatecjk}{b}{n}
 \TeXlate@mathmap\symtexlatecjk 4E00-9FFF;
 \TeXlate@mathmap\symtexlatecjk 3400-4DBF;
 \TeXlate@mathmap\symtexlatecjk 3000-303F;
@@ -155,6 +164,7 @@ CJK_MATH_FALLBACK = r"""
 \TeXlate@mathmap\symtexlatecjk 2E80-2FDF;
 \TeXlate@mathmap\symtexlatecjk 20000-2A6DF;
 \TeXlate@mathmap\symtexlatecjk 2A700-2EBEF;
+\fi
 % 非 CJK 带（西里尔人名 Ш/Д/Л、组合符、拉丁扩展）走 Libertinus Serif;
 % \IfFileExists 门——otf 缺席则整段不挂, 免把缺字升级成字体加载错误。
 % 00D7 ×/00F7 ÷ 是 binop 语义, 普通 ordinary 化会改距, 故带内挖掉。
@@ -168,6 +178,7 @@ CJK_MATH_FALLBACK = r"""
 \DeclareFontShape{TU}{texlatefb}{b}{it}{<->ssub*texlatefb/b/n}{}
 \DeclareFontShape{TU}{texlatefb}{bx}{it}{<->ssub*texlatefb/b/n}{}
 \DeclareFontShape{TU}{texlatefb}{bx}{sl}{<->ssub*texlatefb/b/n}{}
+\ifnum\count18<16\relax
 \DeclareSymbolFont{texlatefb}{TU}{texlatefb}{m}{n}
 \SetSymbolFont{texlatefb}{bold}{TU}{texlatefb}{b}{n}
 \TeXlate@mathmap\symtexlatefb 0400-04FF;
@@ -175,9 +186,18 @@ CJK_MATH_FALLBACK = r"""
 \TeXlate@mathmap\symtexlatefb 00C0-00D6;
 \TeXlate@mathmap\symtexlatefb 00D8-00F6;
 \TeXlate@mathmap\symtexlatefb 00F8-017F;
-}{}
+\fi}{}
 \makeatother
 \fi
+"""
+
+#: 段落级溢出缓解：CJK 散文里夹长 inline math/不可断串（hash、URL）时,
+#: 前两遍断行失败 → emergencystretch 给第三遍虚拟伸缩量换断点。只救本来
+#: 就要炸的段，不动能排好的段（实证 16 重灾篇 overfull −24%）。
+#: \AtBeginDocument 包裹——类若在 begin-document 钩子里自设此值, 我们后到赢。
+OVERFLOW_MITIGATION = r"""
+% texlate: emergencystretch for unbreakable zh+math paragraphs
+\AtBeginDocument{\emergencystretch=1.5em\relax}%
 """
 
 #: elsart 类「首用即弃」症状的兜底：xeCJK 的 `__xeCJK_select_font:` 初值是
@@ -305,6 +325,78 @@ _DOCCLASS_SCAN_LIMIT = 4000
 #: 病态工程（数千 .tex）不拖死选取。
 _MASS_FILE_CAP = 1024
 
+#: ``filecontents`` 环境成员抽取：``\begin{filecontents[*]}{name}`` 写的文件
+#: 物理不在包内，但编译时 TeX 会把它落到工作目录再 ``\input``——自解包形态
+#: （1502.06414 index_preprint.tex：50+ 成员包真 doc，外层尾行 ``\input{index}``）。
+#: 遮盖视图把环境连 begin 行整体抹平，抽取必须在 ``keep_verbatim`` 视图做：
+#: 注释内的伪 ``\begin{filecontents}`` 已被抹掉，成员体原样保留。
+_FILECONTENTS_BEGIN_RX = re.compile(
+    r"\\begin\s*\{(filecontents[^}\s]*)\}\s*(?:\[[^\]]*\])?\s*\{([^{}]+)\}"
+)
+
+#: 虚拟成员表上界——自解包包体可含数十成员（sty/cls/def），tex 族成员
+#: 才有闭包意义；超界即病态输入，成员表截断。
+_VIRTUAL_MEMBER_CAP = 256
+
+
+def _norm_virtual_key(name: str) -> str | None:
+    r"""``filecontents`` 名 → 规范包内相对路径；逃逸/绝对/噪声 → ``None``。"""
+    name = name.strip().strip('"').strip()
+    if not name or name.startswith(("/", "~")) or re.match(r"^[A-Za-z]:", name):
+        return None
+    parts = [p for p in name.split("/") if p not in ("", ".")]
+    if not parts or any(p == ".." for p in parts):
+        return None
+    return "/".join(parts)
+
+
+def _filecontents_bodies(kept: str) -> dict[str, str]:
+    r"""``keep_verbatim`` 视图上的 filecontents 成员表：名 → 体文本。
+
+    ``kept`` 是 ``mask_tex(raw, keep_verbatim=True)`` 产物——注释已抹、
+    逐字族环境（含 filecontents 体）原样。重复写同名成员先写者胜
+    （filecontents 不覆盖已存在文件，TeX 语义同款）。
+    """
+    out: dict[str, str] = {}
+    for m in _FILECONTENTS_BEGIN_RX.finditer(kept):
+        end = re.compile(r"\\end\{" + re.escape(m.group(1)) + r"\}").search(
+            kept, m.end()
+        )
+        key = _norm_virtual_key(m.group(2))
+        if key is not None and key not in out:
+            out[key] = kept[m.end() : end.start() if end else len(kept)]
+        if len(out) >= _VIRTUAL_MEMBER_CAP:
+            break
+    return out
+
+
+def _resolve_virtual(
+    root: Path, decl_dir: Path, name: str, virtual: Mapping[str, str]
+) -> tuple[Path, str] | None:
+    r"""``\input`` 目标 → filecontents 虚拟成员 ``(pseudo_path, body)``。
+
+    磁盘解析缺席后的二探（``_resolve_input`` 同口径：无扩展名补 ``.tex``
+    /``.ltx``，声明目录→工程根两跳）。pseudo_path 是该文件编译时会被
+    filecontents 落盘的合成位（root 下成员名）——``seen`` 键与嵌套
+    ``\input`` 基准目录沿用真路径语义，不落盘。
+    """
+    names = [name] if Path(name).suffix else [name + ext for ext in _MAIN_TEX_SUFFIXES]
+    try:
+        decl_rel = decl_dir.relative_to(root).as_posix()
+    except ValueError:
+        decl_rel = ""
+    if decl_rel == ".":
+        decl_rel = ""
+    for fname in names:
+        if Path(fname).suffix.lower() not in _MAIN_TEX_SUFFIXES:
+            continue
+        for base in (decl_rel, ""):
+            key = f"{base}/{fname}" if base else fname
+            body = virtual.get(key)
+            if body is not None:
+                return root / key, body
+    return None
+
 #: FLOAT_SIZING 仅在有 figure/table 时注入（docs/08 §3.3）。
 FLOAT_SIZING = r"""% texlate: fit complete oversized float boxes v1
 \usepackage{graphicx}
@@ -392,15 +484,19 @@ def _resolve_input(root: Path, decl_dir: Path, name: str) -> Path | None:
 
 
 def _walk_inputs(
-    root: Path, seeds: list[tuple[Path, str]]
+    root: Path,
+    seeds: list[tuple[Path, str]],
+    virtual: Mapping[str, str] | None = None,
 ) -> Iterator[tuple[Path, str]]:
     r"""``\input``/``\include`` 传递闭包遍历：产出 ``(resolved_path, visible_text)``。
 
     从 ``(decl_file, visible_text)`` 种子出发，在遮盖视图上扫描 input 族
     目标（注释/verbatim 内的 ``\input`` 不参与），逐文件解析可存在的本地
     .tex（``_resolve_input`` 口径：声明目录→工程根两跳、越出工程根不计）。
+    ``virtual`` 非空时磁盘缺席再探 filecontents 虚拟成员（自解包形态）。
     环引由 visited 集收，规模上界 ``_MASS_FILE_CAP``。
     """
+    vmap: Mapping[str, str] = virtual if virtual is not None else {}
     seen = {src for src, _vis in seeds}
     queue = list(seeds)
     while queue and len(seen) <= _MASS_FILE_CAP:
@@ -413,6 +509,15 @@ def _walk_inputs(
             if name is None:
                 continue
             tgt = _resolve_input(root, src.parent, name)
+            if tgt is None and vmap:
+                hit = _resolve_virtual(root, src.parent, name, vmap)
+                if hit is not None and hit[0] not in seen:
+                    tgt, body = hit
+                    seen.add(tgt)
+                    sub = visible_tex(body)
+                    queue.append((tgt, sub))
+                    yield tgt, sub
+                    continue
             if tgt is None or tgt in seen:
                 continue
             seen.add(tgt)
@@ -424,22 +529,55 @@ def _walk_inputs(
             yield tgt, sub
 
 
-def _closure_has_document(root: Path, main: Path, text: str) -> bool:
+def _closure_has_document(
+    root: Path,
+    main: Path,
+    text: str,
+    virtual: Mapping[str, str] | None = None,
+) -> bool:
     r"""``\begin{document}`` 在本体或 ``\input`` 传递闭包任一文件中可见。
 
     编排壳 main（``\documentclass`` + ``\input{body}``，bd 落在被拉入的
     子文件——cs/0408015 ``main.tex→body.tex``、2105.00092
     ``main.tex→begin.tex`` 形态）按本谓词收为候选；闭包文件与本体同在
-    遮盖视图判定，注释掉的 bd/``\input`` 不计。
+    遮盖视图判定，注释掉的 bd/``\input`` 不计。``virtual`` 提供
+    filecontents 虚拟成员表（自解包形态）时磁盘缺席再探虚拟文件。
     """
     if BEGIN_DOC_RX.search(text):
         return True
     return any(
-        BEGIN_DOC_RX.search(sub) for _tgt, sub in _walk_inputs(root, [(main, text)])
+        BEGIN_DOC_RX.search(sub)
+        for _tgt, sub in _walk_inputs(root, [(main, text)], virtual)
     )
 
 
-def _body_mass(root: Path, main: Path, body: str) -> int:
+def _closure_has_docclass(
+    root: Path,
+    main: Path,
+    text: str,
+    virtual: Mapping[str, str] | None = None,
+) -> bool:
+    r"""``\documentclass``/``\documentstyle`` 在本体或 ``\input`` 闭包可见。
+
+    W99 形态：docclass 写在被 ``\input`` 拉入的 helper 里（0905.2435
+    ``body.tex`` ``\input seki-deckblatt-3`` → helper 内
+    ``\documentclass[twoside,12pt]{\whatSEKIDOCUMENTCLASS}`` 宏参类名），
+    主文件本体零声明但 TeX 编译照常——候选识别与 bd 同口径走闭包。
+    """
+    if DOCCLASS_RX.search(text):
+        return True
+    return any(
+        DOCCLASS_RX.search(sub)
+        for _tgt, sub in _walk_inputs(root, [(main, text)], virtual)
+    )
+
+
+def _body_mass(
+    root: Path,
+    main: Path,
+    body: str,
+    virtual: Mapping[str, str] | None = None,
+) -> int:
     r"""``\begin{document}`` 后实质 body 量：可见非空白字符数 + ``\input`` 闭包。
 
     standalone 图档也能凑齐 ``document`` 环境但 body 与正文章节脱节——
@@ -451,7 +589,7 @@ def _body_mass(root: Path, main: Path, body: str) -> int:
     ``_MASS_FILE_CAP``。
     """
     mass = len(re.sub(r"\s", "", body))
-    for _tgt, sub in _walk_inputs(root, [(main, body)]):
+    for _tgt, sub in _walk_inputs(root, [(main, body)], virtual):
         mass += len(re.sub(r"\s", "", sub))
     return mass
 
@@ -475,21 +613,28 @@ def find_main_tex(root: Path) -> Path | None:
     这类版本目录副本被几个百分点翻盘）→ 文件大小。
     """
     resolved = root.resolve()
-    candidates = []
-    bodies = {}
-    tpl: dict[str, bool] = {}
+    scanned: list[tuple[Path, str, str]] = []
+    kept_views: list[str] = []
     for p in sorted(
         p for p in root.rglob("*") if p.suffix.lower() in _MAIN_TEX_SUFFIXES
     ):
         try:
-            text = visible_tex(decode_tex(p.read_bytes()))
+            raw = decode_tex(p.read_bytes())
         except OSError:
             continue
-        if not DOCCLASS_RX.search(text):
-            continue
-        rel = p.relative_to(root).as_posix()
-        if not _closure_has_document(resolved, p.resolve(), text):
-            continue
+        scanned.append((p.resolve(), p.relative_to(root).as_posix(), visible_tex(raw)))
+        if "filecontents" in raw:
+            kept_views.append(mask_tex(raw, keep_verbatim=True))
+    virtual: dict[str, str] = {}
+    for kept in kept_views:
+        for key, body in _filecontents_bodies(kept).items():
+            virtual.setdefault(key, body)
+
+    candidates = []
+    bodies = {}
+    tpl: dict[str, bool] = {}
+
+    def _admit(rel: str, text: str) -> None:
         candidates.append(rel)
         # 与 _closure_has_document 的 ``\\begin\s*\{document\}`` 同口径——
         # ``\begin {document}``（空白合法）字面 split 切不到，body 量被
@@ -497,6 +642,29 @@ def find_main_tex(root: Path) -> Path | None:
         bodies[rel] = BEGIN_DOC_RX.split(text, maxsplit=1)[-1]
         dc = DOCCLASS_DECL_RX.search(text)
         tpl[rel] = bool(dc and dc.group(2) and "\\" in dc.group(2))
+
+    for p, rel, text in scanned:
+        if not DOCCLASS_RX.search(text):
+            continue
+        if not _closure_has_document(resolved, p, text):
+            continue
+        _admit(rel, text)
+    if not candidates:
+        # W99 二遍（纯增量——只把 ``<none>`` 翻成 main，不搅动已有池序）：
+        # docclass 可经 ``\input`` 闭包供给（helper 文件/W99 宏参类名，
+        # 或 filecontents 虚拟成员）——本体无声明但 bd+dc 双闭包齐者入池。
+        for p, rel, text in scanned:
+            if not (
+                BEGIN_DOC_RX.search(text)
+                or INPUT_BRACED_RX.search(text)
+                or INPUT_BARE_RX.search(text)
+            ):
+                continue  # 无 bd 也无 input 边 → 闭包双判定必空
+            if not _closure_has_document(resolved, p, text, virtual):
+                continue
+            if not _closure_has_docclass(resolved, p, text, virtual):
+                continue
+            _admit(rel, text)
     if not candidates:
         return None
 
@@ -713,13 +881,43 @@ def _splice_after_seams(tex: str, hits: list[tuple[int, int, str]], block: str) 
     return out
 
 
+def _splice_before_document(tex: str, block: str, *, after: int = 0) -> str:
+    r"""``\begin{document}`` 前逐点 ``\n``+block 回填——preamble 尾锚。
+
+    多 bd 形态（条件双 bd/坏档）逐点注入 + 幂等哨兵（与 docclass 多缝
+    同款：活臂执行立哨，余点整块跳过）；右向左回填免 offset 簿记。
+    只认 ``after``（首个 docclass 缝位）之后的 bd——先于缝位的 bd 不是
+    preamble 尾，锚在那里会把声明放到 ``\documentclass`` 行之前。
+    无合格 bd 则原样返回（调用方负责退化路径）。
+    """
+    positions = sorted(
+        {
+            m.start()
+            for m in BEGIN_DOC_RX.finditer(visible_tex(tex))
+            if m.start() > after
+        }
+    )
+    if not positions:
+        return tex
+    if len(positions) > 1:
+        block = (
+            "% texlate: math fallback (multi-bd idempotent)\n"
+            "\\ifdefined\\TeXlateMathFB\\else\n"
+            "\\def\\TeXlateMathFB{1}%\n" + block + "\\fi\n"
+        )
+    for pos in reversed(positions):
+        tex = tex[:pos] + "\n" + block + tex[pos:]
+    return tex
+
+
 def inject_cjk(
     tex: str, *, mode: str = "ctex", root: Path | None = None
 ) -> tuple[str, dict]:
     r"""在主文件文本上注入中文支持。返回 `(new_text, info)`。
 
-    mode `"ctex"`：`\documentclass` 行后插 `\usepackage[fontset=fandol,UTF8]{ctex}`
-    （hjfy 同款、双引擎实测 0% 破坏、白拿节名汉化）。
+    mode `"ctex"`：`\documentclass` 行后插 `\usepackage[fontset=fandol,UTF8,zihao=false]{ctex}`
+    （hjfy 同款、双引擎实测 0% 破坏、白拿节名汉化；`zihao=false` 钉住防
+    scheme=chinese 默认强启 zihao=5 把全文版式撑大 5.4%）。
     mode `"xecjk"`：同缝插 xeCJK+Fandol 块（ctex 冲突签名→fixloop/探针切换用）。
 
     `\documentstyle` → 先经 latex209.upgrade_209 升级转换（209 兼容模式内核层
@@ -743,10 +941,21 @@ def inject_cjk(
         lineno = hits[0][1]
     block = CTEX_LINE + "  % [texlate injected]" if mode == "ctex" else XECJK_BLOCK
     block += THEOREM_ANCHOR_SHIM
-    block += CJK_MATH_FALLBACK
     block += CJK_FIRST_USE_WARMUP
     block += TIE_ACCENT_FIX
     block += TEXT_8BIT_FALLBACK
+    block += OVERFLOW_MITIGATION
+    # 符号字体声明下沉 preamble 尾（b2 界外需求 W157-W161）：
+    # \DeclareSymbolFont 占 mathgroup 全局序号——docclass 缝位在用户字体包
+    # 之前抢号会把文档族号全体后移（1706.00183 硬编码 \mathchar 位移 ×271）
+    # 或打满 16 上限（2308.04246 txfonts 溢出）。bd 在档时挪到 bd 前——
+    # 用户字体包先行声明，注入字体取余号；bd 不在档（编排壳）维持缝位。
+    # 合格锚 = 首个缝位之后的 bd；bd 全在缝位之前视同无 bd（回落缝位）。
+    bd_in_main = any(
+        m.start() > hits[0][0] for m in BEGIN_DOC_RX.finditer(visible_tex(tex))
+    )
+    if not bd_in_main:
+        block += CJK_MATH_FALLBACK
     if len(hits) > 1:
         # 幂等哨兵：分支选择形态（\ifpdf A \else B \fi）逐缝注入，活臂的块
         # 执行后立哨；万一第二缝也执行（顺序双 \documentclass 坏档）整块
@@ -757,6 +966,8 @@ def inject_cjk(
             "\\def\\TeXlateCJKloaded{1}%\n" + block + "\\fi\n"
         )
     out = _splice_after_seams(tex, hits, block)
+    if bd_in_main:
+        out = _splice_before_document(out, CJK_MATH_FALLBACK, after=hits[0][0])
     info: dict = {"status": "injected", "mode": mode, "line": lineno}
     if conv is not None:
         info["upgrade209"] = conv

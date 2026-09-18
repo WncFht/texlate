@@ -77,11 +77,15 @@ import pytest
 if TYPE_CHECKING:
     from pathlib import Path
 
+from texlate.compile.mask import visible_tex
+from texlate.textutil import BEGIN_DOC_RX
+
 from texlate.compile.inject import (
     CJK_FIRST_USE_WARMUP,
     CJK_MATH_FALLBACK,
     CJK_PRESENT_RE,
     CTEX_LINE,
+    OVERFLOW_MITIGATION,
     TABLE_FITTING,
     TEXT_8BIT_FALLBACK,
     THEOREM_ANCHOR_SHIM,
@@ -101,16 +105,18 @@ from texlate.compile.inject import (
 # ---------------------------------------------------------------- oracle
 
 
-def _block(mode: str, nseams: int) -> str:
-    """``inject_cjk`` 块组装的独立重演（docs/08 §3.3 注入缝规格）。"""
+def _block(mode: str, nseams: int, bd_tail: bool = False) -> str:
+    """``inject_cjk`` 块组装的独立重演（docs/08 §3.3 注入缝规格 + W157 尾锚）。"""
     blk = CTEX_LINE + "  % [texlate injected]" if mode == "ctex" else XECJK_BLOCK
     blk += (
         THEOREM_ANCHOR_SHIM
-        + CJK_MATH_FALLBACK
         + CJK_FIRST_USE_WARMUP
         + TIE_ACCENT_FIX
         + TEXT_8BIT_FALLBACK
+        + OVERFLOW_MITIGATION
     )
+    if not bd_tail:
+        blk += CJK_MATH_FALLBACK
     if nseams > 1:
         blk = (
             "% texlate: CJK support (multi-seam idempotent)\n"
@@ -120,13 +126,33 @@ def _block(mode: str, nseams: int) -> str:
     return blk
 
 
-def _splice(tex: str, seams: list[tuple[int, int, str]], block: str) -> str:
-    """逐缝 ``\\n``+block 规格化重放。"""
+def _splice(
+    tex: str, seams: list[tuple[int, int, str]], block: str, *, bd_tail: bool = False
+) -> str:
+    """逐缝 ``\\n``+block 规格化重放；``bd_tail`` 时重演 bd 前 MATHFB 尾锚。"""
     out = tex
     delta = 0
     for pos, _lineno, _cmd in seams:
         out = out[: pos + delta] + "\n" + block + out[pos + delta :]
         delta += len(block) + 1
+    if not bd_tail:
+        return out
+    positions = sorted(
+        {
+            m.start()
+            for m in BEGIN_DOC_RX.finditer(visible_tex(out))
+            if m.start() > seams[0][0]
+        }
+    )
+    fb = CJK_MATH_FALLBACK
+    if len(positions) > 1:
+        fb = (
+            "% texlate: math fallback (multi-bd idempotent)\n"
+            "\\ifdefined\\TeXlateMathFB\\else\n"
+            "\\def\\TeXlateMathFB{1}%\n" + fb + "\\fi\n"
+        )
+    for pos in reversed(positions):
+        out = out[:pos] + "\n" + fb + out[pos:]
     return out
 
 
@@ -263,7 +289,7 @@ def test_seam_multi_decl_and_dedup() -> None:
     out, info = inject_cjk(trailing)
     assert info["status"] == "injected"
     assert info["seams"] == 2  # noqa: PLR2004
-    assert out == _splice(trailing, hits, _block("ctex", 2))
+    assert out == _splice(trailing, hits, _block("ctex", 2, bd_tail=True), bd_tail=True)
     # 无 ``{..}`` 裸声明——命令行尾缝。
     assert find_docclass_ends("\\documentclass\nrest\n") == [(14, 1, "documentclass")]
 
@@ -288,7 +314,9 @@ def test_inject_byte_exact_oracle() -> None:
         hits = _assert_seam_invariants(tex)
         out, info = inject_cjk(tex, mode=mode)
         assert info["status"] == "injected"
-        assert out == _splice(tex, hits, _block(mode, len(hits)))
+        assert out == _splice(
+            tex, hits, _block(mode, len(hits), bd_tail=True), bd_tail=True
+        )
         assert len(out) > len(tex)
         # 每缝一份块标记。
         marker = "fontset=fandol,UTF8" if mode == "ctex" else "\\usepackage{xeCJK}"
@@ -916,10 +944,15 @@ def test_fuzz_random_inputs() -> None:
             continue
         assert len(out) > len(tex)
         if "\\documentstyle" not in tex:
-            # 字节守恒：首缝前前缀 + 末缝后后缀原样（升级路径除外——
-            # documentstyle 片段会被改写）。
-            assert out[: hits[0][0]] == tex[: hits[0][0]]
-            assert out.endswith(tex[hits[-1][0] :])
+            # 字节守恒：双相注入重放逐字节一致（升级路径除外——
+            # documentstyle 片段会被改写；bd 尾锚打破旧的末缝后缀守恒）。
+            bd_tail = any(
+                m.start() > hits[0][0]
+                for m in BEGIN_DOC_RX.finditer(visible_tex(tex))
+            )
+            assert out == _splice(
+                tex, hits, _block("ctex", len(hits), bd_tail), bd_tail=bd_tail
+            )
         out2, info2 = inject_cjk(out)
         assert info2["status"] == "already"
         assert out2 == out
