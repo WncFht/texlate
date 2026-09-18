@@ -176,13 +176,18 @@ def normalize_arxiv_id(raw: str) -> tuple[str, int | None]:
     return s, None
 
 
-def _valid_id(base: str) -> bool:
+def valid_id(base: str) -> bool:
     """校验 base 为合法 arXiv id 形（新 ``YYMM.NNNNN`` / 旧 ``archive/NNNNNNN``）。
 
     ``a/../b`` 之类经 URL 归一化仍能拿到远端 200，但会把另一篇的内容写进
     错误的缓存键（碰撞污染），甚至借 ``..`` 逃逸出缓存根——取源前必须拒。
     """
     return bool(_NEW_ID_RE.match(base) or _OLD_ID_RE.match(base))
+
+
+# TODO(refactor-sweep): drop alias after cli/app split lands——cli.py/cli.thin/  # noqa: TD003, FIX002
+# worker.html 仍 import 私名旧称。
+_valid_id = valid_id
 
 
 def _cd_filename(headers: httpx.Headers) -> str:
@@ -382,7 +387,7 @@ class Fetcher:
         """HEAD 预检（一次请求 = hasSrc + 版本 + 三态格式预检）。"""
         base, pin = normalize_arxiv_id(arxiv_id)
         ver = version if version is not None else pin
-        if not _valid_id(base) or (ver is not None and ver < 1):
+        if not valid_id(base) or (ver is not None and ver < 1):
             msg = f"bad arxiv id: {arxiv_id!r}"
             raise ValueError(msg)
         resp = self._across_hosts(
@@ -420,7 +425,7 @@ class Fetcher:
         """GET e-print：先 HEAD（可复用传入的），再带条件头 GET，魔数判别。"""
         base, pin = normalize_arxiv_id(arxiv_id)
         ver = version if version is not None else pin
-        if not _valid_id(base) or (ver is not None and ver < 1):
+        if not valid_id(base) or (ver is not None and ver < 1):
             msg = f"bad arxiv id: {arxiv_id!r}"
             raise ValueError(msg)
         if head is None:
@@ -783,7 +788,7 @@ def acquire_source(
     ver_req = version if version is not None else pin
     bad = (
         f"bad_id:{base!r}"
-        if not _valid_id(base)
+        if not valid_id(base)
         else f"bad_version:{ver_req}"
         if ver_req is not None and ver_req < 1
         else None

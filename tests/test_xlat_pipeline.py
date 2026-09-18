@@ -308,7 +308,6 @@ def _auth_rec(cid: str) -> pl.ChunkResult:
         translation="s",
         kind="para",
         status="skipped",
-        skipped=True,
         error_kind="auth",
     )
 

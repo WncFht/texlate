@@ -185,7 +185,7 @@ def test_fixloop_runs_on_fail_and_recovers(
     work = _project(tmp_path / "p")
     engines["xelatex"] = ScriptedEngine("xelatex", [_fail_unattributable, _clean])
 
-    report = e2e.mock_pipeline_run(work, "xelatex", timeout=30.0)
+    report = e2e.pipeline_run(work, "xelatex", timeout=30.0)
 
     assert report["status"] == "clean"
     assert report["l2"]["note"] == "no chunk-level attribution"
@@ -213,7 +213,7 @@ def test_fixloop_disabled_by_env(
     engines["xelatex"] = ScriptedEngine("xelatex", [_fail_unattributable])
     monkeypatch.setenv("TEXLATE_NO_FIXLOOP", "1")
 
-    report = e2e.mock_pipeline_run(work, "xelatex", timeout=30.0)
+    report = e2e.pipeline_run(work, "xelatex", timeout=30.0)
 
     assert report["status"] == "fail"
     assert report["fixloop"] == {"enabled": False, "reason": "TEXLATE_NO_FIXLOOP"}
@@ -232,7 +232,7 @@ def test_fixloop_crash_does_not_atexit(
         raise RuntimeError(msg)
 
     monkeypatch.setattr("texlate.repair.fixloop", boom)
-    report = e2e.mock_pipeline_run(work, "xelatex", timeout=30.0)
+    report = e2e.pipeline_run(work, "xelatex", timeout=30.0)
 
     assert report["status"] == "fail"
     assert "RuntimeError" in report["fixloop"]["error"]
@@ -249,7 +249,7 @@ def test_l2_retranslate_then_recompile(
     engines["xelatex"] = ScriptedEngine("xelatex", [_fail_at_last_zh, _clean])
     tr = MockTranslator()
 
-    report = e2e.mock_pipeline_run(work, "xelatex", timeout=30.0, translator=tr)
+    report = e2e.pipeline_run(work, "xelatex", timeout=30.0, translator=tr)
 
     assert report["status"] == "clean"
     l2 = report["l2"]
@@ -290,7 +290,7 @@ def test_l2_fallback_to_source(
 
     work = _project(tmp_path / "p")
     engines["xelatex"] = ScriptedEngine("xelatex", [_fail_at_last_zh, _clean])
-    report = e2e.mock_pipeline_run(work, "xelatex", timeout=30.0, translator=BadFix())
+    report = e2e.pipeline_run(work, "xelatex", timeout=30.0, translator=BadFix())
 
     l2 = report["l2"]
     assert l2["reverted_l0"], "L0 仍败的块应回落原文"
@@ -315,7 +315,7 @@ def test_l2_fallback_verified_fixloop_off(
     )
     monkeypatch.setenv("TEXLATE_NO_FIXLOOP", "1")
 
-    report = e2e.mock_pipeline_run(work, "xelatex", timeout=30.0)
+    report = e2e.pipeline_run(work, "xelatex", timeout=30.0)
 
     l2 = report["l2"]
     assert l2["fallback_src"], "重译态仍被点名的块应回落原文"
@@ -335,7 +335,7 @@ def test_l2_cap_limits_retranslate(
     engines["xelatex"] = ScriptedEngine("xelatex", [_fail_at_last_zh, _clean])
     tr = MockTranslator()
 
-    report = e2e.mock_pipeline_run(
+    report = e2e.pipeline_run(
         work, "xelatex", timeout=30.0, translator=tr, l2_max_chunks=1
     )
     l2 = report["l2"]
@@ -382,7 +382,7 @@ def test_engine_flags_cross_engine_consumed(
         }
 
     monkeypatch.setattr("texlate.repair.fixloop", fake_fixloop)
-    report = e2e.mock_pipeline_run(work, "auto", timeout=30.0)
+    report = e2e.pipeline_run(work, "auto", timeout=30.0)
 
     fl = report["fixloop"]
     assert fl["engine_flags"] == ["-shell-escape"]
@@ -424,7 +424,7 @@ def test_route_engines_narrowed_by_explicit_engine(
         }
 
     monkeypatch.setattr("texlate.repair.fixloop", fake_fixloop)
-    report = e2e.mock_pipeline_run(work, engine_opt, timeout=30.0)
+    report = e2e.pipeline_run(work, engine_opt, timeout=30.0)
 
     fl = report["fixloop"]
     assert fl["engine_flags_dropped"] == ["-shell-escape"]
@@ -466,7 +466,7 @@ def test_reject_route_cross_engine_consumed(
         }
 
     monkeypatch.setattr("texlate.repair.fixloop", fake_fixloop)
-    report = e2e.mock_pipeline_run(work, engine_opt, timeout=30.0)
+    report = e2e.pipeline_run(work, engine_opt, timeout=30.0)
 
     fl = report["fixloop"]
     if expect_cross:
@@ -490,7 +490,7 @@ def test_reject_verdict_without_route_no_cross(
         return {"verdict": "reject:latex209_reject", "engine_flags_dropped": []}
 
     monkeypatch.setattr("texlate.repair.fixloop", fake_fixloop)
-    report = e2e.mock_pipeline_run(work, "auto", timeout=30.0)
+    report = e2e.pipeline_run(work, "auto", timeout=30.0)
 
     assert "cross_engine" not in report["fixloop"]
     assert engines["xelatex"].calls == []
@@ -521,7 +521,7 @@ def test_fixloop_ruleset_receives_presplice_baseline(
         return {"verdict": "unfixable:probe"}
 
     monkeypatch.setattr("texlate.repair.fixloop", fake_fixloop)
-    report = e2e.mock_pipeline_run(work, "xelatex", timeout=30.0)
+    report = e2e.pipeline_run(work, "xelatex", timeout=30.0)
 
     assert report["fixloop"]["verdict"] == "unfixable:probe"
     out = (work / "main.tex").read_text(encoding="utf-8")
@@ -560,7 +560,7 @@ class _JudgeVeto(MockTranslator):
 def test_env_judge_default_off(tmp_path: Path) -> None:
     """默认不开：未知 env 照常翻，stats 里 enabled=False。"""
     work = _project(tmp_path / "p", main=_UNK_ENV_TEX)
-    stats = e2e.mock_translate_tree(work)
+    stats = e2e.translate_tree(work)
     assert stats["env_judge"]["enabled"] is False
     out = (work / "main.tex").read_text(encoding="utf-8")
     assert "这是译文" in out
@@ -569,7 +569,7 @@ def test_env_judge_default_off(tmp_path: Path) -> None:
 def test_env_judge_reverts_false(tmp_path: Path) -> None:
     """开启后 judge=False 的未知 env 块回落原文，不进 splice。"""
     work = _project(tmp_path / "p", main=_UNK_ENV_TEX)
-    stats = e2e.mock_translate_tree(work, translator=_JudgeVeto(), env_judge=True)
+    stats = e2e.translate_tree(work, translator=_JudgeVeto(), env_judge=True)
     ej = stats["env_judge"]
     assert ej["enabled"] is True
     assert ej["asked"] >= 1
@@ -660,7 +660,7 @@ def test_tounicode_embed_after_clean(
         return 2
 
     monkeypatch.setattr(e2e, "embed_cjk_mappings", spy)
-    report = e2e.mock_pipeline_run(work, "xelatex", timeout=30.0)
+    report = e2e.pipeline_run(work, "xelatex", timeout=30.0)
 
     assert report["status"] == "clean"
     assert calls == [work / "main.pdf"]
@@ -678,7 +678,7 @@ def test_tounicode_embed_once_after_fixloop(
     calls: list[Path] = []
     monkeypatch.setattr(e2e, "embed_cjk_mappings", lambda pdf: calls.append(pdf) or 1)
 
-    report = e2e.mock_pipeline_run(work, "xelatex", timeout=30.0)
+    report = e2e.pipeline_run(work, "xelatex", timeout=30.0)
 
     assert report["status"] == "clean"
     assert len(engines["xelatex"].calls) == 3  # noqa: PLR2004 -- 首编 + fixloop r1 (p1 探 + 全遍终编)
@@ -697,7 +697,7 @@ def test_tounicode_skipped_without_pdf(
     calls: list[Path] = []
     monkeypatch.setattr(e2e, "embed_cjk_mappings", lambda pdf: calls.append(pdf) or 1)
 
-    report = e2e.mock_pipeline_run(work, "xelatex", timeout=30.0)
+    report = e2e.pipeline_run(work, "xelatex", timeout=30.0)
 
     assert calls == []
     assert "tounicode_fonts" not in report
@@ -710,7 +710,7 @@ def test_tounicode_embed_best_effort(
     work = _project(tmp_path / "p")
     engines["xelatex"] = ScriptedEngine("xelatex", [_clean])
 
-    report = e2e.mock_pipeline_run(work, "xelatex", timeout=30.0)
+    report = e2e.pipeline_run(work, "xelatex", timeout=30.0)
 
     assert report["status"] == "clean"
     assert report["tounicode_fonts"] == 0

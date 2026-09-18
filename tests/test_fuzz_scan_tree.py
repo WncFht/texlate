@@ -291,12 +291,12 @@ def test_bench_runners_bind_same_scan_tree() -> None:
 def test_e2e_translate_tree_gate_keys(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """产品臂 ``mock_translate_tree``：闸键齐 + 记名与直扫一致 + 真调 _scan_tree。"""
+    """产品臂 ``translate_tree``：闸键齐 + 记名与直扫一致 + 真调 _scan_tree。"""
     exp = _gate_tree(tmp_path)
     _crash_on(monkeypatch, {"broken.tex"})
     calls = _scan_spy(monkeypatch, e2e, e2e._scan_tree)  # noqa: SLF001
 
-    stats = e2e.mock_translate_tree(tmp_path)
+    stats = e2e.translate_tree(tmp_path)
 
     assert calls == [tmp_path]  # 模块全局名查找——补丁生效即证明走 _scan_tree
     for k in _GATE_KEYS:

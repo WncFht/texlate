@@ -12,10 +12,13 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
+# 签发侧词法单源下沉 textutil（arxiv 降级链同消费——跨层宿主件），本模块
+# 保持 ``latex.placeholder.PH_RX`` canonical 转口面。
+from texlate.textutil import PH_RX  # noqa: F401
+
 if TYPE_CHECKING:
     from texlate.latex.model import PhType
 
-PH_RX = re.compile(r"\[\[[A-Z_]+_\d+\]\]")  # 无分组：findall 直接出整 token
 CHUNK_RX = re.compile(r"\[\[CHUNK_(\d+)\]\]")
 
 

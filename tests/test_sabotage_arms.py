@@ -179,7 +179,7 @@ class TestFinalizeLedger:
         tr = self._b_tr_with_event()
         results = [
             _mk("0:0", _SRC, _CLEAN_ZH, "ok"),
-            _mk("0:1", _SRC, _SRC, "fault", skipped=True),
+            _mk("0:1", _SRC, _SRC, "fault", skip_reason="ladder"),
             _mk("0:2", _SRC, _CORRUPT_ZH, "ok"),
             _mk("0:3", _SRC, _CLEAN_ZH, "partial"),
         ]
@@ -212,7 +212,7 @@ class TestFinalizeLedger:
             [
                 _mk("0:0", _SRC, _CLEAN_ZH, "ok"),
                 _mk("0:1", _SRC, _CLEAN_ZH, "partial"),
-                _mk("0:2", _SRC, _SRC, "fault", skipped=True),
+                _mk("0:2", _SRC, _SRC, "fault", skip_reason="ladder"),
             ]
         )
         assert led["spliced"] == 2  # noqa: PLR2004
@@ -318,7 +318,7 @@ class TestResumeRecheck:
         """靶向恢复行未交付（fault 回退原文）→ caught——交付谓词同事件口径。"""
         seg = _seg_of_kind("drop_ph", "Fault probe")
         tr = tb.make_translator("sabotage-b")
-        led = tr.finalize([_mk("0:0", seg, seg, "fault", skipped=True)])
+        led = tr.finalize([_mk("0:0", seg, seg, "fault", skip_reason="ladder")])
         assert led["sabotaged"] == 1
         assert led["caught"] == 1
         assert led["escaped"] == 0

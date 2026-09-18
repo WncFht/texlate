@@ -66,9 +66,9 @@ from texlate.arxiv.fetch import (
     HeadInfo,
     _parse_head,
     _retry_delay,
-    _valid_id,
     acquire_source,
     normalize_arxiv_id,
+    valid_id,
 )
 from texlate.arxiv.html import (
     TRANSLATE_CTX,
@@ -314,16 +314,16 @@ def test_normalize_unicode_digit_id_rejected() -> None:
     """全角/阿拉伯-印度数字 id 不应通过合法性校验（fetch.py:148-149 ``\\d``）。"""
     for s in ["２００１.００００１", "٢٠٠١.٠٠٠٠١", "１２３４.５６７８"]:
         base, _ver = normalize_arxiv_id(s)
-        assert not _valid_id(base), s
+        assert not valid_id(base), s
     base, ver = normalize_arxiv_id("２００１.００００１v３")
-    assert not (_valid_id(base) and ver is not None)
+    assert not (valid_id(base) and ver is not None)
 
 
 def test_normalize_unicode_digit_offline_blindness(tmp_path: Path) -> None:
     """unicode 数字 id 可 commit（entry_dir 放行）但 find_versions 全拒 →
     离线未钉版 lookup 对已存在缓存失明。
 
-    上游 ``_valid_id`` 已按 ASCII 拒 unicode 数字 id，此不对称仅存在于缓存层
+    上游 ``valid_id`` 已按 ASCII 拒 unicode 数字 id，此不对称仅存在于缓存层
     接口面——commit 不校验 id 合法性（合法形状由上游保证），这里记录该事实。
     """
     uid = "２００１.００００１"

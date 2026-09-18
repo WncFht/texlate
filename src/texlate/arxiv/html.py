@@ -36,11 +36,10 @@ from typing import TYPE_CHECKING, Final
 from bs4 import BeautifulSoup, NavigableString, Tag
 from bs4.element import Comment, Declaration, Doctype, ProcessingInstruction
 
-from texlate.latex.placeholder import PH_RX
-from texlate.xlat.pipeline import ChunkIn
-from texlate.xlat.prompts import normalize_kind
+from texlate.chunk import ChunkIn, normalize_kind
+from texlate.textutil import PH_RX
 
-from .fetch import Fetcher, _valid_id, normalize_arxiv_id
+from .fetch import Fetcher, normalize_arxiv_id, valid_id
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping
@@ -585,7 +584,7 @@ def fetch_html(
     """
     base, pin = normalize_arxiv_id(arxiv_id)
     ver = version if version is not None else pin
-    if not _valid_id(base) or (ver is not None and ver < 1):
+    if not valid_id(base) or (ver is not None and ver < 1):
         msg = f"bad arxiv id: {arxiv_id!r}"
         raise ValueError(msg)
     own = fetcher is None

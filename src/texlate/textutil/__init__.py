@@ -98,6 +98,7 @@ __all__ = [
     "LOADER_CMDS",
     "MATH_CS",
     "PH_FUZZY_RX",
+    "PH_RX",
     "VERBATIM_ENVS",
     "EncodingVerdict",
     "bare_cs_net",
@@ -137,6 +138,12 @@ JSON_FENCE_RX: Final = re.compile(
     r"^\s*```[A-Za-z]*\s*\n(?P<body>.*?)\n?\s*```\s*$", re.DOTALL
 )
 
+
+#: 带号占位符 ``[[TYPE_n]]`` 整 token 形（无分组：findall 直接出整 token）。
+#: 签发侧词法唯一定义——canonical 面 ``latex.placeholder.PH_RX`` 转口本件；
+#: 消费方含 arxiv html 降级链（最底层）与 xlat.placeholders，跨层宿主同
+#: ``PH_FUZZY_RX`` 例。
+PH_RX: Final = re.compile(r"\[\[[A-Z_]+_\d+\]\]")
 
 #: 模糊占位符候选（zh 侧变体）：完整 ``[[..]]`` / 缺右括号 / 单层 ``[X_n]``
 #: / 全角 ``【..】``。各臂 lookahead 要求内部至少一枚 ASCII 字母——纯数字/

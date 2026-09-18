@@ -17,6 +17,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+# kind 归一契约下沉 ``texlate.chunk``（arxiv 降级链共用——跨层宿主件）；
+# 本模块经转口保持 ``xlat.prompts.normalize_kind`` 面守恒。
+from texlate.chunk import normalize_kind
+
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
@@ -27,40 +31,6 @@ if TYPE_CHECKING:
 PROMPT_VERSION = "xlat-prompt-v4"
 
 _KINDS = ("para", "caption", "section_title", "abstract", "table_text", "env_text")
-
-#: 上游 scanner context → xlat kind 归一表（docs/07 Chunk.context → docs/08 六 kind）
-KIND_ALIASES: dict[str, str] = {
-    "para": "para",
-    "item": "para",
-    "caption": "caption",
-    "subcaption": "caption",
-    "captionof": "caption",
-    "title": "caption",
-    "subtitle": "caption",
-    "keywords": "caption",
-    "section": "section_title",
-    "subsection": "section_title",
-    "subsubsection": "section_title",
-    "chapter": "section_title",
-    "section_title": "section_title",
-    # 以下均为 CHUNK_ARG_NAMES 里的节题命令——\paragraph{} 的 arg 是 run-in
-    # 标题，不是正文段（context="paragraph" 消歧后专指该命令，不再兼作正文 context）
-    "paragraph": "section_title",
-    "subparagraph": "section_title",
-    "part": "section_title",
-    "sect": "section_title",
-    "subsect": "section_title",
-    "abstract": "abstract",
-    "abst": "abstract",
-    "table_text": "table_text",
-    "table": "table_text",
-    "env_text": "env_text",
-}
-
-
-def normalize_kind(context: str) -> str:
-    """Scanner context → 六 kind 之一；未知一律归 `para`（最宽条款兜底）。"""
-    return KIND_ALIASES.get(context.strip().lower(), "para")
 
 
 def _fill(template: str, src_lang: str, tgt_lang: str) -> str:

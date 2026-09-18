@@ -23,6 +23,10 @@ import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol
 
+# ``ChunkIn`` 契约下沉 ``texlate.chunk``（arxiv 降级链同消费——底层不能
+# 向上 import 本包）；转口保持 ``from texlate.xlat.pipeline import ChunkIn``
+# 钉点面守恒（repair_l2/e2e/worker/tests）。
+from texlate.chunk import ChunkIn
 from texlate.textutil import JSON_FENCE_RX, bare_cs_net, ph_in_cs_net
 
 from . import placeholders, prompts
@@ -82,18 +86,6 @@ PAPER_CTX_MAX_CHARS = 6000
 # ---------------------------------------------------------------- 输入/输出
 
 
-@dataclass
-class ChunkIn:
-    """xlat 输入块（scanner Chunk 的轻量映射：`context` → `kind` 归一）。"""
-
-    chunk_id: str
-    content: str
-    kind: str = "para"
-    #: ``{ph_token: 原文 fragment}``——recover_copied_tokens 的判定底账；
-    #: 给了才启用阶梯的抄回修复臂（None = 不武装，行为同旧版）。
-    ph_fragments: dict[str, str] | None = None
-
-
 def chunk_to_in(
     c: Chunk, *, chunk_id: str | None = None, ph_map: dict[str, str] | None = None
 ) -> ChunkIn:
@@ -126,13 +118,27 @@ class ChunkResult:
     status: str = "ok"
     batched: bool = False
     batch_id: str = ""
-    skipped: bool = False
     skip_reason: str = ""
     attempts: int = 0
     warnings: list[str] = field(default_factory=list)
     #: 失败成因分类（打标处在异常现场赋值）："" | auth | provider | crash |
     #: validate——auth 闸计数与 error_code 归一的共同输入。
     error_kind: str = ""
+
+    @property
+    def skipped(self) -> bool:
+        """zh≡src 有意回退簿记（单源派生）。
+
+        ``status == "skipped"``，或 ``fault`` + 回退原文 + 记有 ``skip_reason``。
+        ``retranslate_chunk`` 仍败的 fault 形同形回退但无簿记（O1 留档
+        异形）——区分键正是 ``skip_reason`` 缺位；写方只落 status/
+        translation/skip_reason 三件事实，本标记读其逻辑后果。
+        """
+        return self.status == "skipped" or (
+            self.status == "fault"
+            and self.translation == self.source
+            and bool(self.skip_reason)
+        )
 
     @classmethod
     def from_record(cls, rec: ChunkRecord) -> ChunkResult:
@@ -145,7 +151,6 @@ class ChunkResult:
             status=rec.status,
             batched=rec.batched,
             batch_id=rec.batch_id or "",
-            skipped=rec.skipped,
             skip_reason=rec.skip_reason,
             attempts=rec.attempts,
             warnings=[*rec.warnings],
@@ -296,7 +301,7 @@ def _interceptable(src: str, zh: str) -> bool:
 
 def _intercept_guard(r: ChunkResult) -> bool:
     """升格拦截三网共用守门——只扫 ok/partial（skipped/fault 的 translation 已是 source）。"""
-    return not r.skipped and r.status in ("ok", "partial")
+    return r.status in ("ok", "partial")
 
 
 def _intercept_apply(r: ChunkResult, *, warn: str, reason: str) -> None:
@@ -307,7 +312,6 @@ def _intercept_apply(r: ChunkResult, *, warn: str, reason: str) -> None:
     """
     r.warnings.append(warn)
     r.status = "fault"
-    r.skipped = True
     r.translation = r.source
     r.skip_reason = reason
     if r.attempts > 0:
@@ -748,7 +752,6 @@ class XlatPipeline:
             kind=c.kind,
             status=status,
             batch_id=batch_id,
-            skipped=(res.status == "fallback_orig"),
             skip_reason=(
                 "; ".join(res.warnings) if res.status == "fallback_orig" else ""
             ),
@@ -937,7 +940,6 @@ class XlatPipeline:
             kind=c.kind,
             status="skipped",
             batch_id=batch_id,
-            skipped=True,
             skip_reason=reason,
             error_kind=kind,
         )
@@ -1017,7 +1019,6 @@ class XlatPipeline:
                     translation=parent.content if status == "fault" else merged,
                     kind=parent.kind,
                     status=status,
-                    skipped=(status == "fault"),
                     skip_reason="split piece(s) failed" if status == "fault" else "",
                     attempts=attempts,
                     warnings=warnings,

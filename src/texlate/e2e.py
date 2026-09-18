@@ -42,7 +42,6 @@ from texlate.compile.judge import Verdict, judge
 from texlate.compile.normalize import normalize_project
 from texlate.compile.probe import target_probe
 from texlate.latex.api import scan_tex_tree
-from texlate.latex.placeholder import PH_RX
 from texlate.latex.reconstruct import reconstruct
 from texlate.repair import (
     ENV_FIXLOOP_LLM,
@@ -65,11 +64,10 @@ from texlate.repair_l2 import (
     split_cid,
     unknown_env_of,
 )
-from texlate.textutil import env_flag
+from texlate.textutil import PH_RX, env_flag
 from texlate.validate.l0 import validate_pair
 from texlate.xlat.glossary import Glossary
 from texlate.xlat.pipeline import (
-    ChunkIn,
     MockTranslator,
     PipelineConfig,
     XlatPipeline,
@@ -80,6 +78,7 @@ from texlate.xlat.placeholders import collect_doc_placeholders
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Iterator
 
+    from texlate.chunk import ChunkIn
     from texlate.compile.engine import CompRes
     from texlate.compile.fixloop.engine import LlmHook
     from texlate.latex.model import Chunk, ScanResult
@@ -258,20 +257,21 @@ def _translate_tree(
     return stats, run
 
 
-def mock_translate_tree(
+def translate_tree(
     root: Path,
     *,
     translator: Translator | None = None,
     env_judge: bool | None = None,
     auto_glossary: bool | None = None,
 ) -> dict:
-    """目录树内全部 .tex 走 XlatPipeline(MockTranslator) → splice 写回。
+    """目录树内全部 .tex 走 XlatPipeline → splice 写回。
 
     单 pipeline 跨文件编排（chunk_id = ``{file_idx}:{chunk.id}``），
     校验器注入 L0 ``validate_pair``。返回 per-tree 汇总统计。
-    ``translator`` 可注入真网关 Translator；``env_judge`` 缺省读
-    ``TEXLATE_ENV_JUDGE``（默认关——静态表外 env 的可译性 LLM 判定）；
-    ``auto_glossary`` 缺省读 ``TEXLATE_AUTO_GLOSSARY``（默认关）。
+    ``translator`` 缺省 ``MockTranslator``（链路自检臂），可注入真网关
+    Translator；``env_judge`` 缺省读 ``TEXLATE_ENV_JUDGE``（默认关——
+    静态表外 env 的可译性 LLM 判定）；``auto_glossary`` 缺省读
+    ``TEXLATE_AUTO_GLOSSARY``（默认关）。
     """
     ej = env_flag(ENV_ENV_JUDGE, default=False) if env_judge is None else env_judge
     ag = (
@@ -283,6 +283,11 @@ def mock_translate_tree(
         root, translator=translator, env_judge=ej, auto_glossary=ag
     )
     return stats
+
+
+# TODO(refactor-sweep): drop alias after cli/app split lands——cli/thin 与  # noqa: TD003, FIX002
+# bench/py 仍 import/打桩私名旧称。
+mock_translate_tree = translate_tree
 
 
 # ---------------------------------------------------------------- 编译尾段
@@ -691,7 +696,7 @@ def base_condition(work: Path, eng_name: str, main_rel: str, timeout: float) -> 
     return rec
 
 
-def mock_pipeline_run(  # noqa: PLR0913 -- 同上：开关面穿透到 pipe_condition
+def pipeline_run(  # noqa: PLR0913 -- 同上：开关面穿透到 pipe_condition
     work: Path,
     engine_opt: str,
     timeout: float,
@@ -702,7 +707,7 @@ def mock_pipeline_run(  # noqa: PLR0913 -- 同上：开关面穿透到 pipe_cond
     fixloop_on: bool | None = None,
     l2_max_chunks: int = L2_MAX_CHUNKS,
 ) -> dict:
-    """工程目录上的 mock 全链（对齐 e2e_mock_bench 的 pipe 条件语义）。
+    """工程目录上的端到端全链（对齐 e2e_mock_bench 的 pipe 条件语义）。
 
     ``engine_opt``：``auto`` 取路由首选，或显式引擎名。返回结构化报告 dict
     （route/normalize/translate/inject/compile/verdict + 修复链 + 终态）。
@@ -752,3 +757,8 @@ def mock_pipeline_run(  # noqa: PLR0913 -- 同上：开关面穿透到 pipe_cond
         )
     )
     return report
+
+
+# TODO(refactor-sweep): drop alias after cli/app split lands——cli.py/cli.run  # noqa: TD003, FIX002
+# 经 ``_cli.mock_pipeline_run`` 运行期解析、bench/py 直 import 旧名。
+mock_pipeline_run = pipeline_run

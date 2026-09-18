@@ -33,7 +33,7 @@ import httpx
 from defusedxml import ElementTree
 from defusedxml.common import DefusedXmlException
 
-from texlate.arxiv.fetch import Fetcher, _valid_id, normalize_arxiv_id
+from texlate.arxiv.fetch import Fetcher, normalize_arxiv_id, valid_id
 from texlate.arxiv.ratelimit import BudgetExhaustedError, ParkedError
 
 #: Atom API 端点（export 桶；arxiv.org/api 302 到此，直接打 canonical）
@@ -141,7 +141,7 @@ def _parse_atom(body: bytes) -> PaperMeta | None:
     root = ElementTree.fromstring(body)
     for entry in root.findall(f"{{{_ATOM_NS}}}entry"):
         eid, ver = normalize_arxiv_id(_text(entry, f"{{{_ATOM_NS}}}id"))
-        if not _valid_id(eid):
+        if not valid_id(eid):
             continue
         if _text(entry, f"{{{_ATOM_NS}}}title").lower() == "error":
             continue
@@ -284,7 +284,7 @@ def fetch_metadata(arxiv_id: str, *, fetcher: Fetcher) -> PaperMeta | None:
     OAI 也挂时 Atom 残值（无版本号的 meta）仍比 ``None`` 有用。
     """
     base, pin = normalize_arxiv_id(arxiv_id)
-    if not _valid_id(base):
+    if not valid_id(base):
         msg = f"bad arxiv id: {arxiv_id!r}"
         raise ValueError(msg)
     meta = _atom_meta(fetcher, base, pin)
@@ -302,7 +302,7 @@ def resolve_version(
     主源 Atom、兜底 OAI arXivRaw 版本史，全挂 → None。
     """
     base, pin = normalize_arxiv_id(arxiv_id)
-    if not _valid_id(base):
+    if not valid_id(base):
         msg = f"bad arxiv id: {arxiv_id!r}"
         raise ValueError(msg)
     want = want if want is not None else pin
@@ -434,7 +434,7 @@ def degrade(
     """
     base, pin = normalize_arxiv_id(arxiv_id)
     ver_req = version if version is not None else pin
-    if not _valid_id(base) or (ver_req is not None and ver_req < 1):
+    if not valid_id(base) or (ver_req is not None and ver_req < 1):
         msg = f"bad arxiv id: {arxiv_id!r}"
         raise ValueError(msg)
     first, second = (

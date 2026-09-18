@@ -2,9 +2,9 @@ r"""``texlate.e2e`` 产品编排层直测——不经 bench harness、不复制�
 
 覆盖：
 
-- ``mock_translate_tree``：per-tree 汇总（files/chunks/fault_chunks/
+- ``translate_tree``：per-tree 汇总（files/chunks/fault_chunks/
   fault_files/leftover_ph）、单文件解析崩不拖垮整树、译文写回原地；
-- ``mock_pipeline_run``：route → find_main_tex → pipe_condition 全链
+- ``pipeline_run``：route → find_main_tex → pipe_condition 全链
   结构化报告（engine_for 换记录型假引擎，judge 的 pdftotext 侧效果
   monkeypatch 成确定值）；
 - reject 分流：``reject_at == "route"``（route_project 拒绝）与
@@ -57,7 +57,7 @@ def _project(root: Path, main: str = _MAIN) -> Path:
     return root
 
 
-# ---------------------------------------------------------------- mock_translate_tree
+# ---------------------------------------------------------------- translate_tree
 
 
 def test_translate_tree_two_files(tmp_path: Path) -> None:
@@ -67,7 +67,7 @@ def test_translate_tree_two_files(tmp_path: Path) -> None:
         "A third paragraph in a second file that should also be translated here.\n",
         encoding="utf-8",
     )
-    stats = e2e.mock_translate_tree(tmp_path)
+    stats = e2e.translate_tree(tmp_path)
 
     assert stats["fault_files"] == []
     assert stats["fault_chunks"] == 0
@@ -91,7 +91,7 @@ def test_translate_tree_glossary_ph_injection(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     tr = MockTranslator()
-    stats = e2e.mock_translate_tree(tmp_path, translator=tr)
+    stats = e2e.translate_tree(tmp_path, translator=tr)
 
     assert stats["chunks"] > 0
     systems = [str(c["system"]) for c in tr.calls]
@@ -115,7 +115,7 @@ def test_translate_tree_parse_fault_isolated(
 
     # scan_tex_tree（e2e._scan_tree 的委托正源）模块全局查找点
     monkeypatch.setattr(latex_api, "parse_file", flaky_parse)
-    stats = e2e.mock_translate_tree(tmp_path)
+    stats = e2e.translate_tree(tmp_path)
 
     assert stats["fault_files"] == ["broken.tex"]
     assert stats["files"] == 1  # main.tex 仍写回
@@ -133,7 +133,7 @@ def test_translate_tree_validator_fault_keeps_source(
             return "always fails"
 
     monkeypatch.setattr(e2e, "validate_pair", lambda _s, _z: AlwaysBad())
-    stats = e2e.mock_translate_tree(tmp_path)
+    stats = e2e.translate_tree(tmp_path)
 
     assert stats["fault_chunks"] == stats["chunks"] > 0
     assert stats["files"] == 0
@@ -143,7 +143,7 @@ def test_translate_tree_validator_fault_keeps_source(
 def test_translate_tree_uppercase_ext(tmp_path: Path) -> None:
     """``.TEX`` 主文件进翻译集——不再被 rglob 大小写盲点跳过。"""
     (tmp_path / "PAPER.TEX").write_text(_MAIN, encoding="utf-8")
-    stats = e2e.mock_translate_tree(tmp_path)
+    stats = e2e.translate_tree(tmp_path)
 
     assert stats["fault_files"] == []
     assert stats["files"] == 1
@@ -154,7 +154,7 @@ def test_translate_tree_rtx_dump_uppercase_still_excluded(tmp_path: Path) -> Non
     """``.RTX.TEX`` 运行时转储依旧排除——枚举变宽不放大排除例外。"""
     (tmp_path / "main.tex").write_text(_MAIN, encoding="utf-8")
     (tmp_path / "paper.RTX.TEX").write_text("runtime dump\n", encoding="utf-8")
-    stats = e2e.mock_translate_tree(tmp_path)
+    stats = e2e.translate_tree(tmp_path)
 
     assert stats["files"] == 1
     assert (tmp_path / "paper.RTX.TEX").read_text(encoding="utf-8") == "runtime dump\n"
@@ -180,7 +180,7 @@ def test_delivered_requires_nonempty_translation() -> None:
     assert not e2e._delivered(mk("skipped", "src"))  # noqa: SLF001
 
 
-# ---------------------------------------------------------------- mock_pipeline_run
+# ---------------------------------------------------------------- pipeline_run
 
 
 def test_pipeline_run_happy(
@@ -188,7 +188,7 @@ def test_pipeline_run_happy(
 ) -> None:
     """全链：route → normalize → mock 翻译 → ctex 注入 → fake 编译 → clean。"""
     work = _project(tmp_path / "p")
-    report = e2e.mock_pipeline_run(work, "auto", timeout=60.0)
+    report = e2e.pipeline_run(work, "auto", timeout=60.0)
 
     assert report["status"] == "clean"
     assert report["main"] == "main.tex"
@@ -214,7 +214,7 @@ def test_pipeline_run_xelatex_halt_flag(
 ) -> None:
     """engine_opt='xelatex'：构造 kwargs 带 halt_on_error=False（best-effort 语义）。"""
     work = _project(tmp_path / "p")
-    report = e2e.mock_pipeline_run(work, "xelatex", timeout=30.0)
+    report = e2e.pipeline_run(work, "xelatex", timeout=30.0)
 
     assert report["engine"] == "xelatex"
     assert fake_engine["xelatex"].ctor_kwargs == {"halt_on_error": False}
@@ -230,7 +230,7 @@ def test_pipeline_run_route_reject(
         "route_project",
         lambda _w: RouteDecision(engines=["xelatex"], reject="gate", reasons=["r"]),
     )
-    report = e2e.mock_pipeline_run(work, "auto", timeout=10.0)
+    report = e2e.pipeline_run(work, "auto", timeout=10.0)
 
     assert report["status"] == "partial"  # F3: 策略拒绝 → partial, reject_at 审计
     assert report["reject_at"] == "route"
@@ -244,7 +244,7 @@ def test_pipeline_run_no_main_tex(tmp_path: Path) -> None:
     work.mkdir()
     (work / "frag.tex").write_text("just a fragment\n", encoding="utf-8")
 
-    report = e2e.mock_pipeline_run(work, "auto", timeout=10.0)
+    report = e2e.pipeline_run(work, "auto", timeout=10.0)
 
     assert report["status"] == "partial"
     assert report["reject_at"] == "route"
@@ -257,7 +257,7 @@ def test_pipeline_run_inject_reject_documentstyle(
 ) -> None:
     r"""``\documentstyle`` → route 只打 suspect、inject 层真拒（分流可审计）。"""
     work = _project(tmp_path / "p", main=_DOCSTYLE)
-    report = e2e.mock_pipeline_run(work, "auto", timeout=10.0)
+    report = e2e.pipeline_run(work, "auto", timeout=10.0)
 
     assert report["status"] == "partial"  # F3: inject 拒绝合成 partial
     assert report["reject_at"] == "inject"
@@ -302,7 +302,7 @@ def test_pipeline_run_repair_chain_fail(
     monkeypatch.setattr(e2e, "engine_for", factory)
     for key in ("TEXLATE_ENV_JUDGE", "TEXLATE_NO_L2", "TEXLATE_NO_FIXLOOP"):
         monkeypatch.delenv(key, raising=False)
-    report = e2e.mock_pipeline_run(work, "auto", timeout=10.0)
+    report = e2e.pipeline_run(work, "auto", timeout=10.0)
 
     assert report["status"] == "fail"
     l2 = report["l2"]

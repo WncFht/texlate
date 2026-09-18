@@ -31,7 +31,8 @@ from texlate.arxiv.fetch import HeadInfo, SrcResult
 from texlate.server.store import new_task_id
 from texlate.server.worker import chunk_db_id, chunk_error_code
 from texlate.xlat.client import AuthError, ChatClient, ChatError
-from texlate.xlat.pipeline import ChunkResult, GatewayTranslator, MockTranslator
+from texlate.xlat.pipeline import GatewayTranslator, MockTranslator
+from texlate.xlat.state import ChunkRecord
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -427,7 +428,7 @@ class TestStageErrorCodes:
 class TestChunkErrorCode:
     """T3：SSE item 与 chunks 行共用 ``chunk_error_code``——单写点单图。"""
 
-    def _rec(self, **kw: object) -> ChunkResult:
+    def _rec(self, **kw: object) -> ChunkRecord:
         base: dict[str, object] = {
             "chunk_id": "c",
             "source": "s",
@@ -435,7 +436,7 @@ class TestChunkErrorCode:
             "kind": "para",
         }
         base.update(kw)
-        return ChunkResult(**base)  # type: ignore[arg-type]
+        return ChunkRecord(**base)  # type: ignore[arg-type]
 
     def test_mapping_table(self) -> None:
         assert chunk_error_code(self._rec()) is None  # ok
