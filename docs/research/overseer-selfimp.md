@@ -770,3 +770,13 @@
 - **newblockpf**：`Command \X undefined` (renewcommand-on-undefined 内核签, natbib.sty:1070 \newblock) → 新 undefined_cs taxonomy 头签 + cs_table canonical hskip polyfill (order 165 表内键非新规)。13 目标格。blast radius 核查： 仅 newblock×4 + 单字符杂项 (miss-table 兜底, 无回归)。
 - **事故二发**：taxonomy 头签 hunk 在 diff↔commit 间隙被 bticktax 提交 (0db4133) 整文件卷走——与 001094d builtins.py 同型; 本例自含无悬空, 归因已注。规则化对策：taxonomy/facade 共享面提交前立即重 diff。
 - roster 9：arraypream/pdfsanitize (engine+graphics+45-yaml 在写)/begindoccen/dsatcensus/drvverdict/bticktax(verifymiss)/bblmath/ifclosegap(ifprot 实施)。
+
+## 2026-09-19 ~10:0x — 收割潮二：pdfsanitize/ifprot/bblmath 入库 + 三次卷扫事故 (pathspec 变种)
+
+- **pdfsanitize (df72ac8)**：`pdf_asset_sanitize` order 18.5——内嵌 .pdf 对象结构残缺 → xdvipdfmx `pdf_link_obj` fatal → SIGPIPE；签名只走 stderr (.log 干净) → `_report_of` 归一 `*:fatal:`→`!` 抬入 taxonomy 面 (2403.05523 实证)。fatal 不携文件名 → 全量嵌入 pdf gs pdfwrite 重序列化 (内容不动, .fixloop-rd 备份兼幂等标记)。16 测试+1324 回归绿。预期翻 5 格。
+- **ifprot (22a1cfd)**：`if_phantom_protect` order 197.5——同签复发=phantom 判别 (196 字面扫描 noop 烧 dedup 位)；\protected let-wrap 重定义 footnote/thanks+\bf\it\rm\sf\tt\sc\sl @\AtBeginDocument, 逐 \ifdefined 闸 + ledger ifclose: 判词闸 (扫描器缺席保守不收)。双实格救回, 10 测试。
+- **bblmath (86f6ac6)**：emit-site 修复非规则——`\bibliography{x}`→`\input{bbl}` 丢 revtex `\auto@bib@empty` 解除 → end-doc `\test@bbl@sw` 在 \vbox 排印 cite key (_/&/$ → Missing$ 级联+三读)。`\input` 前补 `\@ifundefined{auto@bib}{}{\let\auto@bib\@empty}` 双 emit 点 (normalize.py:695 + bbl_stub_rewrite), \@ifundefined 使非 revtex 零操作。1003.1717 实测 364 错→0；202 测试绿。预期翻 5 格。
+- **事故三发 (最重)**：`git commit -- <pathspec>` 不走 index——工作区内容整体提交, `git apply --cached` hunk 过滤被架空。df72ac8 卷入 ifprot 注册行 (impl 未落→悬空, 22a1cfd 补平) + drvverdict engine.py 48 行 (texlog driver_fatal_line 未落→悬空, 8527fa7 index-restore+重敷本方 patch 修复, 工作区在飞稿无损)。规则化：交织文件只能 apply --cached+裸 commit; 单主文件 pathspec 无妨。memory 三更。
+- **普查核销 ×4**：begindoccen (2 tar 格已被 tar_blob_extract+letter_wrap 覆盖→flipcheck 验证, ~20 异质残件→shipclscen)；dsatcensus (96→实 14-16 格, 推 Option A style-as-class 仿真 1-2 天工——**裁决点累积**)；verifymiss (2 可行动: 2.09-arm input_sty + out-of-fileset prim 宽化→primofw/inputsty209)；inputstack (无 \input 环, 2 格上游 base-arm 缺→capverd 诚实标)；glossleak (2 格已愈, 但 ~13 格 CJK-in-key 族 6 形未盖→kvleak2)。
+- roster 10：drvverdict/arraypream + primofw/inputsty209/shipclscen/kvleak2/runawayscan/capverd/renewdocenv 在飞 + bticktax flipcheck8 批 (58 格含 32 clean, ~35min)。pdfsanitize/ifclosegap/bblmath/inputstack/glossleak 尸清。新翻格全转 flipcheck9。
+- 裁决队列: #10 acceptable_pdf + ds@ Option A (证据齐: 14 格/1-2 天/机制明) + acmart error-in-clean ×16 注记。
