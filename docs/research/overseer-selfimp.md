@@ -721,3 +721,9 @@
 - **clean 池 16/16 守衡**（gate-⑤ ✓）：fixloop-clean 11 + acceptable_pdf 5，零回归。
 - **新派研道**：xlinkobj(#94 xdvipdfmx fatal 根车道普查)、bblmath(#95 .bbl 数学域字切族普查)、failmine2(#96 次波目标普查)、bibhang(#97 延搁项)。
 - roster 7：xbbpregen/chineseclear 实施 + xlinkobj/bblmath/failmine2/bibhang/ifclosegap 普查；flipcheck7 批完。
+
+## 2026-09-19 ~07:2x — 巡tick：L0 钉群 997 绿 + sabotage-b r3 逃逸闸刷新起批
+
+- **L0 点闸**：test_fixloop* 全量 998 项——997 绿 + 1 挂 = xbbpregen 在飞测试文件 (test_fixloop_xbbpregen.py 未提交, 代理自伤不算回归); 已提交面全绿。
+- **sabotage-b r3 脱管批起**：wave-4 触碰 segmenter (inputleak 占位符面) + fixloop 5 规则 → 逃逸面在 blast radius; 40 格沿用 r2 池 (1663 注入事件/0 逃逸基线), ingest→parse→xlat(sabotage-b) → bench/results/stagerun-sab-r3, gate-④ 刷新。
+- roster 7 不变 (xbbpregen/chineseclear 实施 + xlinkobj/bblmath/failmine2/bibhang/ifclosegap 普查)；xbbpregen 已开写 _builtins_graphics。
