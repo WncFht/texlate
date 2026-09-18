@@ -464,7 +464,7 @@ rules:
             for f in *.sty *.cls; do
               [ -f "$f" ] || continue
               grep -q 'texlate-fixloop-injected' "$f" && continue
-              grep -vE '^[[:space:]]*%' "$f" | grep -qE 'protected@edef.*ifnum.*}=.z@|ifnum`[{}]=.z@' || continue
+              grep -vE '^[[:space:]]*%' "$f" | grep -qE 'protected@edef.*ifnum.*}=.z@|edef.*ifnum`[{}]=.z@' || continue
               ln=$(grep -n '\\endinput' "$f" | head -1 | cut -d: -f1)
               {
                 if [ -n "$ln" ]; then head -n $((ln - 1)) "$f"; else cat "$f"; fi
