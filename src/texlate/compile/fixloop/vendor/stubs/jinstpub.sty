@@ -12,6 +12,19 @@
 \DeclareOption*{}
 \ProcessOptions\relax
 
+% 真件 (corpus_v3/2112.00146) 装载面: amsthm/amsmath/amssymb/graphicx/
+% natbib[numbers,sort&compress]/hyperref/wrapfig —— JINST 稿 natbib
+% 引文面与图件由包提供, 缺则 undefined_cs 级联; hyperref 素装
+% (真件 colorlinks 版式选项属 SISSA 版式, 略); newtx 字体族真件
+% 本就注释停用, 不补。
+\RequirePackage{amsthm}
+\RequirePackage{amsmath}
+\RequirePackage{amssymb}
+\RequirePackage{graphicx}
+\RequirePackage[numbers,sort&compress]{natbib}
+\RequirePackage{hyperref}
+\RequirePackage{wrapfig}
+
 % —— frontmatter 存值面（preamble 期调用，\maketitle 时释放） ——
 \def\@subheader{}\def\@keywords{}\def\@abstract{}\def\@dedicated{}
 \def\@arxivnumber{}\def\@collaboration{}\def\@proceeding{}

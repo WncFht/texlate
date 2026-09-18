@@ -94,8 +94,10 @@
 \bgroup\parindent=\z@\parskip=\itemsep
 \def\refpar{\par\hangindent=3em\hangafter=1}}
 \def\endreferences{\refpar\egroup}
-\def\markcite{}
-\def\reference{\refpar}
+% \markcite/\reference 真身均单参 {key} (同 aaspp4, 9910310 实证):
+% 0-arg 版把 {key} 漏进正文流 —— 收 key noop。
+\def\markcite#1{}
+\def\reference#1{\refpar}
 % ── epsf 系图片件 ──
 \def\eps@scaling{.95}
 \def\epsscale#1{\def\eps@scaling{#1}}

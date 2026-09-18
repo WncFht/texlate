@@ -15,6 +15,17 @@
 \ProcessOptions\relax
 
 \RequirePackage{amsmath}
+% 真件 (corpus_v3/1803.00136 r448) 装载面: amssymb/epsfig/graphicx/
+% natbib[numbers,sort&compress]/color/hyperref —— JHEP 稿 natbib 引文面
+% (\citep/\citet) 与 graphicx 图件由包提供, 缺则 undefined_cs 级联;
+% hyperref 真件带 colorlinks 版式选项, stub 素装即可 (pdfa 属 SISSA
+% 内部要求, 略)。
+\RequirePackage{amssymb}
+\RequirePackage{epsfig}
+\RequirePackage{graphicx}
+\RequirePackage[numbers,sort&compress]{natbib}
+\RequirePackage{color}
+\RequirePackage{hyperref}
 
 % —— frontmatter 存值面（preamble 期调用，\maketitle 时释放） ——
 \def\@subheader{}\def\@keywords{}\def\@abstract{}\def\@dedicated{}

@@ -10,6 +10,13 @@
 \ClassWarningNoLine{texlate-stub}{aipproc.cls is a compatibility shim -> article + AIP polyfills}
 \LoadClassWithOptions{article}
 \RequirePackage{keyval}
+% 真件装载面 (1109.2354 随稿抄值): calc/ifthen/graphicx[final]/url —
+% AIP 稿 \includegraphics/\url 由类提供, 缺则 undefined_cs; aipxfm/
+% mathtime 字体件属 AIP 私有字体 (不在 TL), 不补。
+\RequirePackage{calc}
+\RequirePackage{ifthen}
+\RequirePackage[final]{graphicx}
+\RequirePackage{url}
 \providecommand{\layoutstyle}[1]{}
 \providecommand{\classification}[1]{}
 \providecommand{\keywords}[1]{\par\noindent\textbf{Keywords:} #1\par}

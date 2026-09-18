@@ -20,6 +20,10 @@
     \else\edef\mn@clean{\mn@clean,\mn@o}\fi
   \fi}
 \let\@classoptionslist\mn@clean
-\LoadClass{mnras}
+% \LoadClass{mnras} 不传参——裸调用视 option list 为空, usenatbib/
+% useAMS/referee 等全丢 (0707.4614/1206.0597/1206.5819 undefined_cs:
+% citealt×142 实证); WithOptions 按 \@classoptionslist 转发, mnras 老
+% \ds@ 系 option 照常点火。
+\LoadClassWithOptions{mnras}
 \ifmn@graphicx\RequirePackage{graphicx}\fi
 \endinput
