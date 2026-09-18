@@ -247,3 +247,11 @@
 - ~00:0x **othcensus 全图收割**（tmp/lane-othcensus/*.json 簇→格映射留存）：残池真口径=fixloop 段 fail+partial（首扫混 compile 段虚胖 10×）——undefined_cs×50 真长尾；brace/math 级联~38 未定（最大单则候选，若是 splice 折brace 则我方）派 bracecasc-lane 定 base 臂；Missing\begin{document}×17 含已修 4 格+13 未检格（tar 泛化规则可能同收，入 flipcheck 验）；conditional imbalance~14 比 ifdiag 原派 3 格宽（Extra \fi/\else/\endcsname 族）；Parameters-consecutively×11=f3f013d 已修格（replay 证清）；**新我方实证 2105.00041**：keyval key 位进 `这是译文`（lstinputlisting 选项列被挖——restatable 同族 opacity 缺口）已 SendMessage 续派 restatable-lane。**ifdiag 收割**：iffalse×3 全 paper-authentic（脆弱 frontmatter 族，\author 块 \\ 进 footnote/半注释宏→\maketitle 未闭 \if，paper 手术级超安全界不派规则）；capacity×6 分两半——1404.0037/1706.00076 paper-authentic，1803.03248/2105.03753/2403.05529 全 \cref@resetstack@\end{restatable}=我方（3ecbfe3 已修，入 flipcheck 验证）。**裁决点上浮**：acceptable_pdf 语义——3 格中段 capacity 炸 TeX 展开补全但 env 内容静默丢失，verdict 记 acceptable 属宽判；lane 建议按错位（epilogue vs mid-body）或页数对 base 闸 acceptable→partial——更严=诚实方向但破单调性，留用户裁决（task #10）。**gate-③ 启动**：flipcheck 34 格重放批脱管在跑（stagerun-flipcheck，mock xlat 零网关——params×11+begindoc×17+crefstack×4+natbib×1+pdfstring×1 全覆盖验证目标格翻转）。
 
 - ~00:2x 巡逻：flipcheck compile 33/34 将尽——多格速败 missing_file(~0.6s, 2.09 老稿缺包面, fixloop 段接手才是修复真章)；1706.00240 转 fontspec_missing(4.75s——原 Missing\begindoc 签名已消=letter_wrap 正向信号)。autogloss arm-on 判分 312/300 达标尾部收尾中（等 rc→qualfreeze×3 门）。restatable-lane 续道(keyval opacity)在飞未落树件；bracecasc 诊断道在飞。**归因警示**：树内 model.py+args.py(+105 `delim_toks`/'u'/'g' 新参型)是 peer texlate-48 的 lane-delimargs 交付（彼台账自记 scope 内）——非我方 lane 件不碰；彼 xlat pipeline/prompts 簇已离 status=已自 commit。
+
+## 2026-09-18 23:25 — lane-delimargs 收割（aa8882f）
+
+- 交付：ArgSpec `delim_toks` + kind 'u'/'g'；gspec 映射 delim→u/until_group→g；滑窗 `_tok_eq` + lbrace 组屏蔽；eol_par/EOF runaway 全回吐。9 钉测——复跑核实 635/-k + 9/9 一致。
+- 归因：207+/-1 行全对 BRIEF+声明偏差（brace 屏蔽、g 空参显式分支、`\bbra` 引证纠错 0806.3247→1003.1242）；peer 在 args.py 异区的在飞编辑未被触碰、未夹带。
+- 设计确认：'g' 首枚 lbrace 即止=TeX `#{` 语义正确（delim 即 `{`，无嵌套屏蔽问题）；'u' 的组屏蔽=TeX 平衡组语义。'u'/'g' inner 天然豁免散文挖掘（_prose_args_of 只认 m 族 + cs>fs 门双保险）。
+- 一个可注意后续：`\par` 定界永不命中（eol_par 上游拦截→恒 runaway）——0806.2361 实证恰是保护定理散文的正确行为，但意味着 `#1\par` 形定界参宏仍按 b 零宽语义走，属有意保守。
+- skeleton `delim-param-args` adopted。
