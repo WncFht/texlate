@@ -2,8 +2,9 @@
 r"""parsebench v2 — ``texlate.latex`` 产品管线评测器 (docs/10 §B1).
 
 逐 .tex: parse ok/error/ms (30s SIGALRM)、chunk 数与字符中位/p90、泄漏率
-($ \cite \ref \begin{ \if \input 六组正则, 与 v1 同口径)、round-trip
-strict/normalized/diverged+首差异位、fake-translation 死占位符/孤儿 chunk、
+($ \cite \ref \begin{ \if \input 六组正则, docs/09 §7.1 口径)、round-trip
+(vtex vs recon) strict/normalized/diverged+首差异位、flat→vtex 展开足迹、
+fake-translation 死占位符/孤儿 chunk、
 scan/validate warnings 计数、flatten 覆盖 (是否被主文件 \input 图触及).
 
 逐论文: 主文件定位 (剥注释→documentclass/documentstyle, 多根标 multi_doc)、
@@ -33,13 +34,14 @@ manifest 默认 <corpus>/manifest.jsonl; 每行 {"id": ..., "stratum_cell": ...,
 
 files.jsonl 逐文件契约字段: file / paper_id / ok / wall_ms / identity
 (strict|normalized|diverged) / n_chunks / leak_hits[]; 另带 role / leak /
-recon / fake / warn_kinds / unresolved_inputs / bug1_ph_tail 等明细;
-_lens (逐 chunk 字符数原始表) 随行保留——续跑重载后聚合仍保真.
+recon / fake / warn_kinds / unresolved_inputs / bug1_ph_tail / vtex_len /
+vtex_vs_src 等明细; _lens (逐 chunk 字符数原始表) 随行保留——续跑重载后
+聚合仍保真. vtex_len 兼作同代 schema 戳（旧代行无此键, 续跑自动重测）.
 
 判定逻辑: 解析/展平/重建全部走 ``texlate.latex`` (api.parse_file +
 flatten.flatten_inputs + reconstruct.reconstruct + validate_result);
 flatten 覆盖经 ``texlate.latex.flatten._read_file`` 接缝记录实际读取集
-(该接缝即为此用途预留). 与 v1 (miniscanner) 输出同构, 可对拍.
+(该接缝即为此用途预留).
 """
 
 from __future__ import annotations
@@ -215,33 +217,11 @@ def ph_tail_risk(res: ScanResult) -> int:
     return n
 
 
-# ---------------------------------------------------------------- 判定 (v1 miniscanner_test 同口径, 产品 API 版)
+# ---------------------------------------------------------------- 判定 (docs/09 §7.1 口径, 产品 API 版)
 
 
-def parse_one(path: Path, timeout_s: int, *, flatten: bool = True) -> dict:
-    """api.parse_file_v1 + SIGALRM 超时; 返回 {ok,res,ms}|{ok,error,ms}."""
-    t0 = time.perf_counter()
-    signal.signal(signal.SIGALRM, _alarm)
-    signal.alarm(timeout_s)
-    try:
-        from texlate.latex.api import (
-            parse_file_v1,  # v1 臂退役期惰性导入——被删后落 except 桶，不毁模块导入
-        )
-
-        res = parse_file_v1(str(path), flatten=flatten)
-        ms_ = (time.perf_counter() - t0) * 1000
-        return {"ok": True, "res": res, "ms": round(ms_, 1)}
-    except ParseTimeout:
-        return {"ok": False, "error": f"Timeout(>{timeout_s}s)", "ms": timeout_s * 1000}
-    except Exception as e:
-        ms_ = (time.perf_counter() - t0) * 1000
-        return {"ok": False, "error": f"{type(e).__name__}: {e}", "ms": round(ms_, 1)}
-    finally:
-        signal.alarm(0)
-
-
-def parse_one_v2(path: Path, timeout_s: int) -> dict:
-    """api.parse_file（v2 产品路径）+ 同超时.
+def parse_one(path: Path, timeout_s: int) -> dict:
+    """api.parse_file（产品路径）+ SIGALRM 超时.
 
     gullet 自解析 \\input 内联——vtex = 展开机产出；``flat`` 仍由
     flatten_inputs 算出供 vtex_vs_src 对照（展开足迹 = vtex 与 flatten
@@ -263,55 +243,6 @@ def parse_one_v2(path: Path, timeout_s: int) -> dict:
         return {"ok": False, "error": f"{type(e).__name__}: {e}", "ms": round(ms_, 1)}
     finally:
         signal.alarm(0)
-
-
-def file_metrics_v2(path: Path, timeout_s: int) -> dict:
-    """v2 逐文件判定——字段与 v1 同形, identity 对 ``res.vtex``.
-
-    额外 ``vtex_vs_src``: vtex vs 展平源的三档——展开足迹 (strict =
-    展开机对本文件无净改动).
-    """
-    out: dict = {}
-    r = parse_one_v2(path, timeout_s)
-    out["ok"] = r["ok"]
-    out["wall_ms"] = r["ms"]
-    if not r["ok"]:
-        out["error"] = r["error"]
-        return out
-    res: ScanResult = r["res"]
-    try:
-        out["n_chunks"] = len(res.chunks)
-        out["n_placeholders"] = len(res.ph_map)
-        out["vtex_len"] = len(res.vtex)
-        wk: dict[str, int] = {}
-        for w in res.warnings:
-            wk[w.kind] = wk.get(w.kind, 0) + 1
-        for w in validate_result(res):
-            wk[w.kind] = wk.get(w.kind, 0) + 1
-        out["warn_kinds"] = wk
-        lk = scan_chunks(res)
-        out["leak"] = {
-            "n_translatable": lk["n_translatable_chunks"],
-            "n_leaked": lk["n_leaked"],
-            "hits": {k: v for k, v in lk["hits"].items() if v},
-        }
-        rb = rebuild_metrics(res)
-        status, ratio, first_diff = classify_recon(res.vtex, rb["recon_identity"])
-        out["identity"] = status
-        out["recon"] = {"quick_ratio": ratio, "first_diff_at": first_diff}
-        out["vtex_vs_src"] = classify_recon(r["flat"], res.vtex)[0]
-        out["fake"] = {
-            "residue_chunk_ph": rb["residue_chunk_ph"],
-            "residue_protect_ph": rb["residue_protect_ph"],
-            "n_orphan_chunks": rb["n_orphan_chunks"],
-        }
-        # v2 inputs 混合语义：resolved 记 abs path, 漏网记原始名——按 isabs 过滤
-        out["unresolved_inputs"] = [
-            name for _pos, name in res.inputs if not os.path.isabs(name)
-        ]
-    except Exception as exc:
-        out["measure_error"] = f"{type(exc).__name__}: {exc}"
-    return out
 
 
 LEAK_PATTERNS = {
@@ -387,7 +318,7 @@ def fake_translation(chunk, idx: int) -> str:
 
 
 def rebuild_metrics(res: ScanResult) -> dict:
-    """identity 重建 + fake-translation splice 残留 + 孤儿 chunk (v1 同口径)."""
+    """identity 重建 + fake-translation splice 残留 + 孤儿 chunk (docs/09 §7.1)."""
     recon_identity = reconstruct(res)
     translated = {c.id: fake_translation(c, i) for i, c in enumerate(res.chunks)}
     recon_fake = reconstruct(res, translated)
@@ -443,8 +374,6 @@ def file_metrics(
     role: str,
     non_utf8: bool,
     timeout_s: int,
-    *,
-    v2: bool = False,
 ) -> dict:
     entry = {
         "file": rel,
@@ -453,19 +382,18 @@ def file_metrics(
         "size": path.stat().st_size,
         "non_utf8": non_utf8,
     }
-    r = parse_one(path, timeout_s, flatten=True)
+    r = parse_one(path, timeout_s)
     entry["ok"] = r["ok"]
     entry["wall_ms"] = r["ms"]
-    if v2:
-        # S5 双跑门: v2 独立于 v1 结果, v1 挂掉的文件照样量 v2
-        entry["v2"] = file_metrics_v2(path, timeout_s)
     if not r["ok"]:
         entry["error"] = r["error"]
+        entry["vtex_len"] = None  # schema 戳: 续跑认此键判同代口径行
         return entry
 
     res: ScanResult = r["res"]
     entry["n_chunks"] = len(res.chunks)
     entry["n_placeholders"] = len(res.ph_map)
+    entry["vtex_len"] = len(res.vtex)
 
     try:
         lens = sorted(len(c.content) for c in res.chunks)
@@ -481,10 +409,12 @@ def file_metrics(
         for w in validate_result(res):
             wk[w.kind] = wk.get(w.kind, 0) + 1
         entry["warn_kinds"] = wk
-        # flatten 后仍未解析的 \input 族 (missing_input / 超深 / 断环残留)
-        entry["unresolved_inputs"] = [name for _pos, name in res.inputs]
+        # res.inputs 混合语义: resolved 记 abs path, 漏网记原始名——isabs 过滤
+        entry["unresolved_inputs"] = [
+            name for _pos, name in res.inputs if not os.path.isabs(name)
+        ]
 
-        lk = scan_chunks(res)  # 同 v1: 6 组正则, chunk 命中任一即泄漏
+        lk = scan_chunks(res)  # 6 组正则 (docs/09 §7.1), chunk 命中任一即泄漏
         entry["leak"] = {
             "n_translatable": lk["n_translatable_chunks"],
             "n_leaked": lk["n_leaked"],
@@ -494,21 +424,21 @@ def file_metrics(
                 else None
             ),
             "hits": {k: v for k, v in lk["hits"].items() if v},
-            # 逐条归因素材 (≤5/file, 同 v1 口径): context/hits/snippet
+            # 逐条归因素材 (≤5/file): context/hits/snippet
             "examples": lk["examples"],
         }
         entry["leak_hits"] = sorted(entry["leak"]["hits"])
 
-        rb = rebuild_metrics(res)  # identity + fake-translation 重建 (同 v1)
-        orig = decode_tex(path.read_bytes())
-        # flatten 在 parse 前已展开 \input → recon 的对比基准是展平文本
-        orig_flat = flatten_inputs(orig, str(path.parent), str(path.parent))
-        status, ratio, first_diff = classify_recon(orig_flat, rb["recon_identity"])
+        rb = rebuild_metrics(res)  # identity + fake-translation 重建
+        # recon 重建的是 res.vtex（展开后虚拟文本）→ 对比基准同侧
+        status, ratio, first_diff = classify_recon(res.vtex, rb["recon_identity"])
         entry["identity"] = status
         entry["recon"] = {
             "quick_ratio": ratio,
             "first_diff_at": first_diff,
         }
+        # 展开足迹: vtex vs 展平源 (strict = 展开机对本文件无净改动)
+        entry["vtex_vs_src"] = classify_recon(r["flat"], res.vtex)[0]
         entry["fake"] = {
             "residue_chunk_ph": rb["residue_chunk_ph"],
             "residue_protect_ph": rb["residue_protect_ph"],
@@ -919,121 +849,6 @@ def _ci_str(ci: tuple[float | None, float | None] | None, nd: int = 2) -> str:
     return f"[{_pct(ci[0], nd)}, {_pct(ci[1], nd)}]"
 
 
-def _v2_section(lines: list[str], files: list[dict]) -> None:
-    """``--v2`` 双跑并排: 聚合对照表 + 逐文件差异表 (S5 验收门素材).
-
-    v1 列 = entry 顶层字段; v2 列 = entry["v2"]. identity 口径不同:
-    v1 对展平源, v2 对 ``res.vtex`` (expand 后虚拟文本)——vtex_vs_src
-    单列展开足迹, strict 即展开机对本文件无净改动.
-    """
-    rows = [(f, f["v2"]) for f in files if isinstance(f.get("v2"), dict)]
-    if not rows:
-        return
-    n = len(rows)
-
-    def _side(f: dict, v: dict, side: str) -> dict:
-        return f if side == "v1" else v
-
-    def _tally(side: str, key: str) -> dict[str, int]:
-        t: dict[str, int] = {}
-        for f, v in rows:
-            val = _side(f, v, side).get(key)
-            if val:
-                t[val] = t.get(val, 0) + 1
-        return t
-
-    def _sum(side: str, *ks: str) -> int:
-        tot = 0
-        for f, v in rows:
-            cur = _side(f, v, side)
-            for k in ks:
-                cur = cur.get(k) if isinstance(cur, dict) else None
-            if isinstance(cur, int):
-                tot += cur
-        return tot
-
-    def _ms(side: str, q: float) -> str:
-        vals = sorted(_side(f, v, side).get("wall_ms", 0) for f, v in rows)
-        p = percentile(vals, q)
-        return f"{p:.0f}" if p is not None else "—"
-
-    id1, id2 = _tally("v1", "identity"), _tally("v2", "identity")
-    vs = _tally("v2", "vtex_vs_src")
-    wk2: dict[str, int] = {}
-    for _f, v in rows:
-        for k, c in (v.get("warn_kinds") or {}).items():
-            wk2[k] = wk2.get(k, 0) + c
-
-    lines.append("## v1 vs v2 — segmenter.parse_tex_v2\n")
-    lines.append("| 指标 | v1 (scanner) | v2 (segmenter) |")
-    lines.append("|---|---|---|")
-    lines.append(f"| parse ok | {_sum('v1', 'ok')}/{n} | {_sum('v2', 'ok')}/{n} |")
-    lines.append(
-        f"| identity strict/normalized/diverged | "
-        f"{id1.get('strict', 0)}/{id1.get('normalized', 0)}/{id1.get('diverged', 0)} | "
-        f"{id2.get('strict', 0)}/{id2.get('normalized', 0)}/{id2.get('diverged', 0)} |"
-    )
-    lines.append(
-        f"| translatable chunks | {_sum('v1', 'leak', 'n_translatable')} | "
-        f"{_sum('v2', 'leak', 'n_translatable')} |"
-    )
-    lines.append(
-        f"| leaked chunks | {_sum('v1', 'leak', 'n_leaked')} | "
-        f"{_sum('v2', 'leak', 'n_leaked')} |"
-    )
-    lines.append(f"| Σ chunks | {_sum('v1', 'n_chunks')} | {_sum('v2', 'n_chunks')} |")
-    lines.append(
-        f"| Σ placeholders | {_sum('v1', 'n_placeholders')} | "
-        f"{_sum('v2', 'n_placeholders')} |"
-    )
-    lines.append(
-        f"| wall ms p50 / p95 | {_ms('v1', 0.5)} / {_ms('v1', 0.95)} | "
-        f"{_ms('v2', 0.5)} / {_ms('v2', 0.95)} |"
-    )
-    lines.append(
-        f"| vtex_vs_src 展开足迹 | — | strict {vs.get('strict', 0)} / "
-        f"normalized {vs.get('normalized', 0)} / diverged {vs.get('diverged', 0)} |"
-    )
-    if wk2:
-        lines.append(f"| v2 warn_kinds | — | {wk2} |")
-    lines.append("")
-
-    diff = []
-    for f, v in rows:
-        flags = []
-        if f.get("ok") != v.get("ok"):
-            flags.append("ok-flip")
-        if f.get("identity") != v.get("identity"):
-            flags.append("identity")
-        if f.get("n_chunks") != v.get("n_chunks"):
-            flags.append("chunks")
-        if (f.get("leak") or {}).get("n_leaked") != (v.get("leak") or {}).get(
-            "n_leaked"
-        ):
-            flags.append("leak")
-        if flags:
-            diff.append((f, v, flags))
-    lines.append(f"### v1↔v2 差异文件 ({len(diff)}/{n})\n")
-    if diff:
-        lines.append(
-            "| file | v1 id | v2 id | chunks | leaked | ms | vtex_vs_src | flags |"
-        )
-        lines.append("|---|---|---|---|---|---|---|---|")
-        for f, v, flags in diff[:60]:
-            lines.append(
-                f"| {f['file']} | {f.get('identity') or f.get('error', '—')} | "
-                f"{v.get('identity') or v.get('error', '—')} | "
-                f"{f.get('n_chunks', '—')}→{v.get('n_chunks', '—')} | "
-                f"{(f.get('leak') or {}).get('n_leaked', '—')}→"
-                f"{(v.get('leak') or {}).get('n_leaked', '—')} | "
-                f"{f.get('wall_ms', '—')}→{v.get('wall_ms', '—')} | "
-                f"{v.get('vtex_vs_src', '—')} | {','.join(flags)} |"
-            )
-        if len(diff) > 60:
-            lines.append(f"| … | +{len(diff) - 60} more | | | | | | |")
-    lines.append("")
-
-
 def write_summary(
     out_md: Path,
     corpus: Path,
@@ -1066,6 +881,16 @@ def write_summary(
         f"{tot['normalized']} / diverged {tot['diverged']} "
         f"(strict-rate {_pct(tot['identity_rate'])}%)"
     )
+    vs_src = {"strict": 0, "normalized": 0, "diverged": 0}
+    for f in files:
+        v = f.get("vtex_vs_src")
+        if v in vs_src:
+            vs_src[v] += 1
+    if any(vs_src.values()):
+        lines.append(
+            f"- expand 足迹 (flat→vtex): strict {vs_src['strict']} / "
+            f"normalized {vs_src['normalized']} / diverged {vs_src['diverged']}"
+        )
     lines.append(
         f"- leak: **{tot['leaked_chunks']}/{tot['chunks']}** chunks "
         f"= {_pct(tot['leak_rate'], 2)}%   hits={tot['hits']}"
@@ -1180,9 +1005,6 @@ def write_summary(
         "\\input 触及的随附 tex (preamble/poster 件), 属语料真实属性而非实现漏跟; "
         "v3 实测 ~93%.\n"
     )
-
-    # ---- --v2 双跑并排 (S5 验收门; 无 v2 数据时跳过)
-    _v2_section(lines, files)
 
     # ---- docs/09 §7.2 三口径 + CI
     wr = weighted_rates(files, weights)
@@ -1348,12 +1170,6 @@ def main() -> None:
         action="store_true",
         help="无视 files.jsonl 续跑行全部重测（默认行在=done 跳过）",
     )
-    ap.add_argument(
-        "--v2",
-        action="store_true",
-        help="双跑 segmenter.parse_tex_v2 (S5 验收门): 逐文件 entry[v2] "
-        "+ summary v1/v2 并排 diff 表",
-    )
     args = ap.parse_args()
 
     corpus = args.corpus
@@ -1426,9 +1242,9 @@ def main() -> None:
         n_prior_all = 0
         for e in benchlib.iter_jsonl(f_jsonl):
             n_prior_all += 1
-            # 选样缩圈（--only/--limit/manifest frame）或 --v2 模式切换的
-            # 存量行不算 done——重测保 schema/口径一致
-            if e.get("paper_id") in sel and ("v2" in e) == args.v2:
+            # 选样缩圈（--only/--limit/manifest frame）或旧代 schema
+            # （v1 臂时代行无 vtex_len 键）的存量行不算 done——重测保口径一致
+            if e.get("paper_id") in sel and "vtex_len" in e:
                 file_entries.append(e)
                 done_files.add(e["file"])
         if n_prior_all:
@@ -1466,7 +1282,6 @@ def main() -> None:
                 role,
                 apath in (prec["_non_utf8"] if prec else set()),
                 args.timeout,
-                v2=args.v2,
             )
             file_entries.append(e)
             benchlib.write_jsonl(fh, e)  # _lens 随行落盘：续跑聚合保真
