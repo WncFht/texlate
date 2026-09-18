@@ -11,7 +11,7 @@
 % 吐 title/authors/addresses 块（真件 frontmatter 尾隐含排版，稿多无
 % \maketitle 显调）。
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesClass{imsart}[texlate stub — original not redistributable]
+\ProvidesClass{imsart}[2026/09/19 texlate stub — original not redistributable]
 \ClassWarningNoLine{texlate-stub}{imsart.cls is a compatibility shim}
 
 \DeclareOption*{\PassOptionsToClass{\CurrentOption}{article}}

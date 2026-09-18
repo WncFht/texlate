@@ -24,6 +24,25 @@
 - ``sw20lart.sty``/``BoxedEPS.tex``: 新 stub 顶掉 shim_map noop 条
   (vendored 预检先落件)——SW20 tag 机同套; BoxedEPS OzTeX 期图件
   实证面 + \BoxedEPSF→\includegraphics (cond-mat/0408520 ×16)。
+- ``svglov3.clo``: catcode 免疫改写 (1608.06693 实证)——旧 stub 尾置
+  ``\makeatother``, svjour3.cls class-load 语境 ``\input`` 返回后 @ 失
+  字母位, cls:159 ``15\p@`` 断读 → 全 cls 级联。现全件零 @-cs,
+  ``\PackageWarningNoLine`` 两语境皆可解析。
+- shim_map body 升级 (round-2, 随稿签名挖掘): cimento ``\from/\inst/
+  \instlist/\PACSes/\PACSit`` (0905.4620), pasj00 ``\DeclareAbbreviation``
+  2 参 + ``\SetRunningHead/\Received/\Accepted/\KeyWords/\email/\draft``
+  preamble 存值 ``\AtBeginDocument`` 释放 (1003.0945), PoS ``\ShortTitle/
+  \speaker/\email`` + 命令形 ``\abstract`` (1306.5919), imsart += ``\arxiv/
+  \thanksref`` (1003.1513), aa501 ``{loads:"aa", needs:["aa.cls"]}`` 桥
+  (0104346 实证面), flushrt ``\AtBeginDocument{\raggedleft}`` (9910310:
+  升级稿 ``\\usepackage{aaspp4,flushrt}`` 合行, 2.09 option→pkg 链)。
+- shim_map geom.sty body 深件 (round-3, 0806.0904/0806.2953 实证 +
+  CTAN latex209/contrib/geomsty 取件核实): ``\ifstarredcontents`` 补
+  ``\newif`` (稿 ``\@ssect`` 直读未声明 → ``\section*`` ``\@tempb``
+  错位 → illegal_unit); ``\presection`` 正 ``\newskip`` 非宏;
+  ``\newtheorem`` ``[{i}{}]{n}`` 派工系 + ``proof``/``Figure`` env
+  基座 + ``\provedbox``/``\captionskip``/``\@caption*`` 寄存器;
+  ``\prooftag`` 0 参; @-cs 段 ``\catcode 64`` save/restore 免疫。
 
 实证基线: bench/results/stagerun-loop2-2026-09-18/records/fixloop.jsonl,
 stagerun-tarrecheck/, stagerun-flipcheck/ 同名 records。
@@ -390,3 +409,425 @@ text.
     )
     assert _n_err(log) == 0, f"仍 {_n_err(log)} 个 '!' 错"
     assert (tmp_path / "main.pdf").is_file()
+
+
+# ------------------------------------------------------- round-2: catcode 钉 + shim body 钉
+
+
+def test_svglov3_clo_catcode_immune() -> None:
+    r"""svglov3.clo catcode 存复 pin（1608.06693 实证）：
+    禁裸 ``\makeatletter``/``\makeatother``——class-load 语境 ``\input``
+    返回后 @ 字母位不得被改写；``\catcode 64`` 存复对 + ``size10.clo``
+    字体段 (真件内联同件) + ``\validfor``/``\if@runhead`` cls 校验点。"""
+    code = _code_lines((STUBS / "svglov3.clo").read_text(encoding="utf-8"))
+    assert "\\makeatletter" not in code
+    assert "\\makeatother" not in code
+    assert "\\catcode 64" in code
+    assert "\\svglovrestore" in code
+    assert "\\input{size10.clo}" in code
+    assert "\\def\\validfor{svjour3}" in code
+
+
+def _shim_map() -> dict[str, dict]:
+    from texlate.compile.fixloop import load_ruleset
+
+    rules = {r.id: r for r in load_ruleset().rules}
+    return rules["legacy_pkg_shim"].action["params"]["shim_map"]
+
+
+def _shim_body(name: str) -> str:
+    spec = _shim_map()[name]
+    assert "body" in spec, f"{name} 无 body 键"
+    return spec["body"]
+
+
+def test_cimento_frontmatter_kit() -> None:
+    r"""cimento body pin（0905.4620 随稿签名 ``\author{..\from{ins:x}}`` +
+    ``\instlist{\inst{ins:x} ..}`` + ``\PACSes{..\PACSit{c}{d}..}``）。
+    ``\instlist``/``\PACSes`` preamble 期调用 → 存值 + ``\AtBeginDocument``。"""
+    body = _shim_body("cimento.cls")
+    for frag in (
+        "\\providecommand{\\from}[1]",
+        "\\providecommand{\\inst}[1]",
+        "\\providecommand{\\instlist}[1]",
+        "\\providecommand{\\PACSes}[1]",
+        "\\providecommand{\\PACSit}[2]",
+        "\\AtBeginDocument",
+    ):
+        assert frag in body, f"cimento 缺 {frag}"
+
+
+def test_pasj00_kit() -> None:
+    r"""pasj00 body pin（1003.0945 随稿签名）：
+    ``\DeclareAbbreviation`` 2 参定义件 + frontmatter 面 + natbib/amssymb/
+    graphicx 装载面 + 期刊缩写内建集 + ``\FigureFile`` + AAS 式 ``\altaffil*``
+    + ``\rm`` 2.09 字件。"""
+    body = _shim_body("pasj00.cls")
+    for frag in (
+        "\\providecommand{\\DeclareAbbreviation}[2]",
+        "\\providecommand{\\SetRunningHead}[2]",
+        "\\providecommand{\\Received}[1]",
+        "\\providecommand{\\Accepted}[1]",
+        "\\providecommand{\\KeyWords}[1]",
+        "\\providecommand{\\email}[1]",
+        "\\providecommand{\\draft}{}",
+        "\\providecommand{\\altaffilmark}[1]",
+        "\\providecommand{\\altaffiltext}[2]",
+        "\\def\\FigureFile(",
+        "\\DeclareOldFontCommand{\\rm}",
+        "\\providecommand{\\mnras}",
+        "\\providecommand{\\pasj}",
+        "\\providecommand{\\apj}",
+        "\\providecommand{\\iaucirc}",
+        "\\RequirePackage[numbers]{natbib}",
+        "\\RequirePackage{amssymb}",
+        "\\RequirePackage{graphicx}",
+        "\\AtBeginDocument",
+    ):
+        assert frag in body, f"pasj00 缺 {frag}"
+
+
+def test_pos_kit() -> None:
+    r"""PoS body pin（1306.5919 随稿签名）：``\ShortTitle/\speaker/\email``
+    + 命令形 ``\abstract{}`` + ``\FullConference`` + ``acknowledgments``
+    env + graphicx 装载面（PoS 无 env 形, JINST 条同形先例）。"""
+    body = _shim_body("PoS.cls")
+    for frag in (
+        "\\providecommand{\\ShortTitle}[1]",
+        "\\providecommand{\\speaker}[1]",
+        "\\providecommand{\\email}[1]",
+        "\\providecommand{\\FullConference}[1]",
+        "\\renewcommand{\\abstract}[1]",
+        "\\newenvironment{acknowledgments}",
+        "\\RequirePackage{graphicx}",
+        "\\AtBeginDocument",
+    ):
+        assert frag in body, f"PoS 缺 {frag}"
+
+
+def test_imsart_arxiv_thanksref() -> None:
+    r"""imsart body 增量 pin（1003.1513 随稿签名 ``\arxiv{math.PR/0000512}``
+    + ``\thanksref{t2}`` + 结构 env 面 + ``\kwd/\ead/\printead`` +
+    单参 ``\address``）。"""
+    body = _shim_body("imsart.cls")
+    for frag in (
+        "\\providecommand{\\arxiv}[1]",
+        "\\providecommand{\\thanksref}[1]",
+        "\\providecommand{\\kwd}[1]",
+        "\\providecommand{\\ead}[2][]",
+        "\\providecommand{\\printead}[1]",
+        "\\providecommand{\\address}[1]",
+        "\\newenvironment{frontmatter}",
+        "\\newenvironment{aug}",
+        "\\newenvironment{keyword}",
+        "\\maketitle",
+    ):
+        assert frag in body, f"imsart 缺 {frag}"
+    # \address 单参实证 (1003.1513 :29)——旧 2 参形吞后随 token 回潮禁。
+    assert "\\providecommand{\\address}[2]" not in body
+
+
+def test_aa501_loads_aa_needs_aa() -> None:
+    r"""aa501 桥 pin（0104346 实证面）：``loads`` 桥 + ``needs`` 依赖
+    aa.cls 同仓 shim——leader 核准形。"""
+    spec = _shim_map()["aa501.cls"]
+    assert spec.get("loads") == "aa"
+    assert spec.get("needs") == ["aa.cls"]
+    assert "body" not in spec
+
+
+def test_flushrt_shim_present() -> None:
+    r"""flushrt shim pin（9910310 ``\usepackage{aaspp4,flushrt}`` 升级稿
+    实证）：noop+``\raggedleft`` 语义即可——缺失态 2.09 option 链断点。"""
+    body = _shim_body("flushrt.sty")
+    assert "\\raggedleft" in body
+
+
+# ------------------------------------------------------- round-2: shim body 真编译钉
+
+
+def _write_shim(wdir: Path, name: str) -> None:
+    r"""把 shim_map body (或 loads 模板) 物化成 wdir/<name>——复刻
+    ``_builtins_shim`` 的 emit 面, 编译钉直打真实生成物。"""
+    spec = _shim_map()[name]
+    body = spec.get("body")
+    if body is None:
+        loads = spec["loads"]
+        stem = name.rsplit(".", 1)[0]
+        body = (
+            "\\NeedsTeXFormat{LaTeX2e}\n"
+            f"\\ProvidesClass{{{stem}}}[2026/09/19 fixloop legacy shim -> {loads}]\n"
+            f"\\LoadClassWithOptions{{{loads}}}\n"
+            "\\endinput\n"
+        )
+    (wdir / name).write_text(body, encoding="utf-8")
+
+
+@_COMPILE
+def test_svglov3_clo_input_mid_class_load(tmp_path: Path) -> None:
+    r"""class-load 语境 ``\input svglov3.clo`` 后 ``\@``-cs/``\p@`` 仍可解析
+    ——catcode 泄漏实测（1608.06693 ``15\p@`` 断读签名复现位）。"""
+    shutil.copy(STUBS / "svglov3.clo", tmp_path / "svglov3.clo")
+    (tmp_path / "minicls.cls").write_text(
+        "\\NeedsTeXFormat{LaTeX2e}\n"
+        "\\ProvidesClass{minicls}\n"
+        "\\input{svglov3.clo}\n"
+        "\\newlength{\\mylen}\\setlength{\\mylen}{15\\p@}\n"
+        "\\LoadClass{article}\n",
+        encoding="utf-8",
+    )
+    log = _run(
+        tmp_path,
+        r"""\documentclass{minicls}
+\begin{document}
+len ok
+\end{document}
+""",
+    )
+    assert _n_err(log) == 0, f"仍 {_n_err(log)} 个 '!' 错 (catcode 泄漏回潮)"
+    assert (tmp_path / "main.pdf").is_file()
+
+
+@_COMPILE
+def test_cimento_polyfills_compile(tmp_path: Path) -> None:
+    r"""cimento shim body 编译钉：0905.4620 签名面——``\instlist``/``\PACSes``
+    preamble 期调用（:14/:16, ``\begin{document}``:25）0 错无泄漏。"""
+    _write_shim(tmp_path, "cimento.cls")
+    log = _run(
+        tmp_path,
+        r"""\documentclass{cimento}
+\title{T}
+\author{C. Giunti\from{ins:x}}
+\instlist{\inst{ins:x} INFN, Sezione di Torino, Italy}
+\PACSes{\PACSit{14.60.Pq}{Neutrino oscillations}\PACSit{26.65}{Solar}}
+\begin{document}
+\maketitle
+text.
+\end{document}
+""",
+    )
+    assert _n_err(log) == 0, f"仍 {_n_err(log)} 个 '!' 错"
+    assert "Missing \\begin{document}" not in log
+    assert (tmp_path / "main.pdf").is_file()
+
+
+@_COMPILE
+def test_pasj00_polyfills_compile(tmp_path: Path) -> None:
+    r"""pasj00 shim body 编译钉：1003.0945 签名面——``\DeclareAbbreviation``
+    preamble 定义件 + frontmatter in-doc 调用（:77-114 实位）+ ``\citet``
+    natbib 面 + ``\altaffil*`` AAS 件，0 错。"""
+    _write_shim(tmp_path, "pasj00.cls")
+    log = _run(
+        tmp_path,
+        r"""\documentclass{pasj00}
+\DeclareAbbreviation\apj{Astrophys. J.}
+\DeclareAbbreviation\mnras{Mon. Not. R. Astron. Soc.}
+\draft
+\begin{document}
+\SetRunningHead{M. Uemura, et al.}{WZ Sge stars}
+\Received{2010/01/04}
+\Accepted{2010/03/03}
+\title{T}
+\author{M. \textsc{Uemura}\altaffilmark{1}}
+\altaffiltext{1}{Hiroshima University \email{u@h.jp}}
+\KeyWords{stars: novae}
+\maketitle
+ref \apj\ and \mnras; \citet{key} said.
+\begin{thebibliography}{9}
+\bibitem{key} X 2010
+\end{thebibliography}
+\end{document}
+""",
+    )
+    assert _n_err(log) == 0, f"仍 {_n_err(log)} 个 '!' 错"
+    assert "Missing \\begin{document}" not in log
+    assert (tmp_path / "main.pdf").is_file()
+
+
+@_COMPILE
+def test_pos_polyfills_compile(tmp_path: Path) -> None:
+    r"""PoS shim body 编译钉：1306.5919 签名面——``\ShortTitle``/``\author``
+    /命令形 ``\abstract``/``\FullConference`` 全在 preamble（:8-37,
+    ``\begin{document}``:41）+ ``acknowledgments`` env，0 错无泄漏。"""
+    _write_shim(tmp_path, "PoS.cls")
+    log = _run(
+        tmp_path,
+        r"""\documentclass{PoS}
+\ShortTitle{From p+p to Pb+Pb}
+\title{T}
+\author{\speaker{M. Gazdzicki} E-mail: \email{m@cern.ch}}
+\abstract{This is the abstract text.}
+\FullConference{8th International Workshop}
+\begin{document}
+\maketitle
+text.
+\begin{acknowledgments}
+Thanks.
+\end{acknowledgments}
+\end{document}
+""",
+    )
+    assert _n_err(log) == 0, f"仍 {_n_err(log)} 个 '!' 错"
+    assert "Missing \\begin{document}" not in log
+    assert (tmp_path / "main.pdf").is_file()
+
+
+@_COMPILE
+def test_imsart_arxiv_compile(tmp_path: Path) -> None:
+    r"""imsart 编译钉（1003.1513 签名面）：``\arxiv`` preamble 期 +``frontmatter``/``aug``/``keyword`` 结构 env + ``\kwd/\ead/\thanksref``。
+    稿内无 ``\maketitle``——frontmatter env 尾触之。"""
+    _write_shim(tmp_path, "imsart.cls")
+    log = _run(
+        tmp_path,
+        r"""\documentclass{imsart}
+\arxiv{math.PR/0000512}
+\begin{document}
+\begin{frontmatter}
+\title{T}
+\runtitle{T short}
+\begin{aug}
+\author{Y. Ritov\thanksref{t2}\ead[label=e1]{y@x.edu}}
+\thankstext{t2}{Supported.}
+\affiliation{Hebrew University}
+\address{Dept of Statistics \printead{e1}}
+\end{aug}
+\begin{abstract}
+Abs text.
+\end{abstract}
+\begin{keyword}
+\kwd{Foundations}
+\kwd{Time series}
+\end{keyword}
+\end{frontmatter}
+text.
+\end{document}
+""",
+    )
+    assert _n_err(log) == 0, f"仍 {_n_err(log)} 个 '!' 错"
+    assert "Missing \\begin{document}" not in log
+    assert (tmp_path / "main.pdf").is_file()
+
+
+@_COMPILE
+def test_aa501_bridges_aa_shim(tmp_path: Path) -> None:
+    r"""aa501→aa 链编译钉：``loads`` 桥 emit + aa.cls body 双件物化,
+    A&A polyfill 面 (``\offprints/\inst/\keywords``) 可用。"""
+    _write_shim(tmp_path, "aa501.cls")
+    _write_shim(tmp_path, "aa.cls")
+    log = _run(
+        tmp_path,
+        r"""\documentclass{aa501}
+\offprints{A. Author}
+\begin{document}
+\title{T}
+\author{A\inst{1}}
+\institute{Inst 1}
+\maketitle
+\keywords{stars: test}
+text.
+\end{document}
+""",
+    )
+    assert _n_err(log) == 0, f"仍 {_n_err(log)} 个 '!' 错"
+    assert (tmp_path / "main.pdf").is_file()
+
+
+# ------------------------------------------------------- round-3: geom.sty 深件
+
+
+def test_geom_kit() -> None:
+    r"""geom body pin（0806.0904/0806.2953 实证，CTAN geomsty 取件核实面）：
+    三 ``\if`` 真身默认 true + ``\presection`` ``\newskip``（稿
+    ``\@startsection`` ``\advance\@tempskipa by\presection`` 直读）+
+    ``\newtheorem`` ``[{i}{}]{n}`` 派工系（``\@nnthm``→``\@xnnthm``|``\@ynnthm``
+    计数创建 → ``\@nnnthm`` runner，``\@enva``|``\@envb`` env 桥）+
+    ``proof``/``Figure`` env 基座（稿仅 ``\renewenvironment``）+
+    ``\provedbox``/``\captionskip``/``\@captionmargin``/``\@captionwidth``
+    + ``\prooftag`` 0 参（``\pro@f[\prooftag]`` 当值用）+ catcode 免疫段。"""
+    body = _shim_body("geom.sty")
+    for frag in (
+        "\\newif\\ifproofing \\proofingtrue",
+        "\\newif\\ifautolabel \\autolabeltrue",
+        "\\newif\\ifstarredcontents \\starredcontentstrue",
+        "\\newskip\\presection \\presection 0pt plus 10ex",
+        "\\newskip\\captionskip \\captionskip=10pt",
+        "\\newbox\\provedbox",
+        "\\newenvironment{proof}",
+        "\\newenvironment{Figure}",
+        "\\providecommand{\\prooftag}{}",
+        "\\providecommand{\\raggedcenter}{\\centering}",
+        "\\providecommand{\\Bbb}{\\mathbb}",
+        "\\RequirePackage{amssymb}",
+        "\\RequirePackage{amsmath}",
+        "\\catcode 64=",
+        "\\def\\newtheorem{\\@ifnextchar[",
+        "\\long\\def\\@newtheorem[#1]{\\@@newtheorem#1}",
+        "\\def\\@nnthm#1#2{\\@ifnextchar[",
+        "\\def\\@xnnthm#1#2[#3]{\\@definecounter{#1}\\@addtoreset{#1}{#3}",
+        "\\def\\@ynnthm#1#2{\\@definecounter{#1}",
+        "\\def\\@enva#1#2[#3]{\\begin{#1@}[#3]#2}",
+        "\\def\\@envb#1#2{\\begin{#1@}#2}",
+        "\\@namedef{#1@}{\\@nnnthm{#1}{#2}}",
+        "\\newdimen\\@captionmargin",
+        "\\newdimen\\@captionwidth",
+        "\\geomrestore",
+    ):
+        assert frag in body, f"geom 缺 {frag}"
+    # \presection 宏版回潮禁（真身是 skip 寄存器）。
+    assert "\\providecommand{\\presection}" not in body
+    # \prooftag [1] 版回潮禁（吞 \pro@f 后随 token）。
+    assert "\\providecommand{\\prooftag}[" not in body
+
+
+@_COMPILE
+def test_geom_polyfills_compile(tmp_path: Path) -> None:
+    r"""geom shim 编译钉（0806.0904 装载形复刻）：稿 ``\makeatletter`` 区内
+    ``\input{geom.sty}``（@=11 装载）→ ``\newtheorem`` 双形态派工 +
+    ``\renewenvironment{proof}``/``{Figure}`` 基座 + ``\ifstarredcontents``
+    直读 + ``\prooftag`` 值位 + ``\Bbb`` + ``\margins`` preamble 期，0 错。"""
+    _write_shim(tmp_path, "geom.sty")
+    log = _run(
+        tmp_path,
+        r"""\documentclass{article}
+\makeatletter
+\def\usepackage#1{\input{#1.sty}}
+\input{geom.sty}
+\makeatother
+\newtheorem{lemma}{Lemma}
+\newtheorem{nlemma}{NLemma}[section]
+\newtheorem[{\ns}{}]{remark}[nlemma]{Remark}
+\margins{3cm}{2cm}
+\renewenvironment{proof}[1][pf]{\trivlist\item[{\bf #1}.]}{\endtrivlist}
+\renewenvironment{Figure}{\begin{figure}}{\end{figure}}
+\begin{document}
+\section*{Starred}
+\begin{lemma}body\end{lemma}
+\begin{remark}rk\end{remark}
+\begin{proof}done\end{proof}
+$\Bbb R^2$ \prooftag {\raggedcenter x}
+\end{document}
+""",
+    )
+    assert _n_err(log) == 0, f"仍 {_n_err(log)} 个 '!' 错"
+    assert "Missing \\begin{document}" not in log
+    assert (tmp_path / "main.pdf").is_file()
+
+
+def test_vendor_stubs_provides_optional_arg_dated() -> None:
+    r"""vendor/stubs 全件 ``\Provides{Package,Class,File,ExplPackage}{n}[o]``
+    可选参必须 ``YYYY/MM/DD`` 前缀——裸文本经 ``\@parse@version@`` 把版本串
+    漏进排版流 → ``Missing \begin{document}``（slashlane 实证, slashbox
+    de1ba13 同工钉）。"""
+    rx = re.compile(
+        r"\\Provides(?:Package|Class|File|ExplPackage)\{[^}]*\}\s*\[([^\]]*)\]"
+    )
+    bad = []
+    for f in sorted(STUBS.iterdir()):
+        if not f.is_file():
+            continue
+        for line in f.read_text(encoding="latin-1").splitlines():
+            code = re.sub(r"(?<!\\)%.*", "", line)
+            for m in rx.finditer(code):
+                if not re.match(r"\s*\d{4}/\d{2}/\d{2}", m.group(1)):
+                    bad.append(f"{f.name}: {m.group(0)}")
+    assert not bad, "undated \\Provides* optional args: " + "; ".join(bad)

@@ -4,7 +4,7 @@
 % （svglov3.clo 等 journal-option 件）由 \journalopt 路由全吞，防二级
 % missing_file；旁落 svglov3.clo no-op 同档防直 \input。
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesClass{svjour3}[texlate stub — original not redistributable]
+\ProvidesClass{svjour3}[2026/09/19 texlate stub — original not redistributable]
 \ClassWarningNoLine{texlate-stub}{svjour3.cls is a compatibility shim}
 
 % 真件 natbib 类选项面 (corpus_v3/1811.03539 实证 svjour3.cls:67-74):

@@ -6,7 +6,7 @@
 % 本 stub 在场则 shim_map aipproc.cls 条成死配置（vendored 预检先于 missing_file 落件，
 % 同 jinstpub/tcilatex/axodraw 先例）。
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesClass{aipproc}[texlate stub — original not redistributable]
+\ProvidesClass{aipproc}[2026/09/19 texlate stub — original not redistributable]
 \ClassWarningNoLine{texlate-stub}{aipproc.cls is a compatibility shim -> article + AIP polyfills}
 \LoadClassWithOptions{article}
 \RequirePackage{keyval}

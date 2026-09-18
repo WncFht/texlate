@@ -1367,39 +1367,84 @@ rules:
               \RequirePackage{diagbox}
               \endinput
           # geom.sty (S. Levy 1992, LaTeX2.09 巨型样式; 不在 TL) —— geometry
-          # 桥接 + 宏面 polyfill (0806.0904 \input{geom.sty} 实证)。经 \input
-          # 装载 → @ catcode=12, 本 stub 全禁 @-cs。原包宏面 (CTAN 取件核实):
-          # \fullref/\Fullref/\reftype/\Reftype/\label*/\setlabeltype/\preref/
-          # \ifproofing/\ifautolabel/\presection/\marginparstyle/\markbothsame/
-          # \unnumbered(=\the<cnt>置\relax); \margins 非原包 API (稿自定义)
-          # → providecommand 不覆盖; \ns 原包亦未解析 → no-op。
+          # 桥接 + 宏面 polyfill (0806.0904 \input{geom.sty} 实证)。原包 =
+          # CTAN latex209/contrib/geomsty (Silvio Levy 1995, geom.sty +
+          # geomenv/geomfig/geomart 分件) —— 已取件核实宏面。稿经
+          # \makeatletter 区内 \input 装载 (0806.0904:114-121) → @=11;
+          # 为兜 @=12 装载者, @-cs 段裹 \catcode64 save/restore (同
+          # svglov3.clo 手法)。@ catcode 对稿侧无影响: 稿自备 makeatletter。
+          # 真身默认值: \ifproofing/\ifautolabel/\ifstarredcontents 均 true
+          # (稿各自再 toggle 覆盖)。\presection 真身是 \newskip 不是宏
+          # (稿 \@startsection 重定义 \advance\@tempskipa by\presection
+          # 直读 → 宏版致 missing-number/illegal-unit 洪泛)。\prooftag
+          # 真身 0 参 (\pro@f[\prooftag] 当值用, [1] 版吞后续 token)。
+          # \newtheorem 真身取 [{intro}{}]{name} 首可选参 → \@@newtheorem
+          # 派工 (稿 0806.0904:661 重定义 @@newtheorem, 靠 geom 供
+          # \newtheorem/\@nnthm→\@xnnthm|\@ynnthm 计数创建器/\@enva|b;
+          # 稿版 \@nothm/\@nnnthm 3n 系自备, 缺 \@nnnthm 时 \let 兜底
+          # \@thm)。proof/Figure env 稿仅 \renewenvironment → 需基座存在;
+          # \provedbox/\captionskip/\@captionmargin/\@captionwidth 同补。
           geom.sty:
-            needs: ["geometry.sty"]
+            needs: ["geometry.sty", "amssymb.sty", "amsmath.sty"]
             body: |
               \typeout{fixloop legacy shim: geom.sty -> geometry + polyfills}
               \RequirePackage{geometry}
-              \newif\ifproofing \proofingfalse
-              \newif\ifautolabel \autolabelfalse
-              \providecommand{\prooftag}[1]{}
-              \providecommand{\theoremintro}[1]{}
+              \RequirePackage{amssymb}
+              \RequirePackage{amsmath}
+              \newif\ifproofing \proofingtrue
+              \newif\ifautolabel \autolabeltrue
+              \newif\ifstarredcontents \starredcontentstrue
+              \providecommand{\prooftag}{}
+              \providecommand{\theoremintro}[1]{{\normalfont\bfseries#1. }}
               \providecommand{\ns}{}
               \providecommand{\marginparstyle}[1]{}
               \providecommand{\mediumseries}{\mdseries}
               \providecommand{\normalshape}{\normalfont}
-              \providecommand{\presection}[1]{\vspace{#1}}
+              \providecommand{\raggedcenter}{\centering}
+              \providecommand{\Bbb}{\mathbb}
               \providecommand{\markbothsame}[1]{\markboth{#1}{#1}}
               \providecommand{\unnumbered}[1]{\expandafter\let\csname the#1\endcsname\relax}
-              \providecommand{\margins}[3][0pt]{\newgeometry{hmargin=#2,vmargin=#3}}
               \providecommand{\fullref}[1]{\ref{#1}}
               \providecommand{\Fullref}[1]{\ref{#1}}
               \providecommand{\reftype}[1]{}
               \providecommand{\Reftype}[1]{}
               \providecommand{\setlabeltype}[2]{}
               \providecommand{\preref}{}
+              \newskip\presection \presection 0pt plus 10ex\relax
+              \newskip\captionskip \captionskip=10pt
+              \newbox\provedbox
+              \newenvironment{proof}[1][Proof]{\trivlist\item[\textbf{#1}.]}{\endtrivlist}
+              \newenvironment{Figure}[2][htbp]{\begin{figure}[#1]}{\end{figure}}
               \let\geomoriglabel\label
               \def\label{\futurelet\geomnext\geomlabelx}
               \def\geomlabelx{\ifx\geomnext*\expandafter\geomlabelstar\else\expandafter\geomoriglabel\fi}
               \def\geomlabelstar*#1{\geomoriglabel{#1}}
+              \edef\geomrestore{\catcode 64=\the\catcode 64\relax}
+              \catcode 64=11\relax
+              \def\newtheorem{\@ifnextchar[{\@newtheorem}{\@newtheorem[{}{}]}}%]
+              \long\def\@newtheorem[#1]{\@@newtheorem#1}
+              \def\@nnthm#1#2{\@ifnextchar[{\@xnnthm{#1}{#2}}{\@ynnthm{#1}{#2}}}
+              \def\@xnnthm#1#2[#3]{\@definecounter{#1}\@addtoreset{#1}{#3}%
+                \expandafter\xdef\csname the#1\endcsname{\expandafter\noexpand
+                  \csname the#3\endcsname\@thmcountersep\@thmcounter{#1}}%
+                \global\@namedef{#1@}{\@nnnthm{#1}{#2}}\global\@namedef{end#1@}{\@endtheorem}}
+              \def\@ynnthm#1#2{\@definecounter{#1}%
+                \expandafter\xdef\csname the#1\endcsname{\@thmcounter{#1}}%
+                \global\@namedef{#1@}{\@nnnthm{#1}{#2}}\global\@namedef{end#1@}{\@endtheorem}}
+              \def\@enva#1#2[#3]{\begin{#1@}[#3]#2}
+              \def\@envb#1#2{\begin{#1@}#2}
+              \long\def\@@newtheorem#1#2#3{%
+                \newenvironment{#3}%
+                  {\def\object@type{#3}#1\@ifnextchar[{\@enva{#3}{#2}}{\@envb{#3}{#2}}}%]
+                  {\end{#3@}}%
+                \@ifnextchar[{\@othm{#3@}}{\@nnthm{#3}}%]
+              }
+              \@ifundefined{@nnnthm}{\let\@nnnthm\@thm}{}
+              \def\setprooftag{\xdef\prooftag{\@currentlabel}}
+              \newdimen\@captionmargin\@captionmargin=\parindent
+              \newdimen\@captionwidth\@captionwidth=\hsize
+              \providecommand{\margins}[3][0pt]{\ifx\geometry\@notprerr\newgeometry{hmargin=#2,vmargin=#3}\else\geometry{hmargin=#2,vmargin=#3}\fi}
+              \geomrestore
               \endinput
           # (tcilatex.tex 槽已删: vendor/stubs/tcilatex.tex 真 stub 在且更全
           #  ——含 \proof/\endproof 对与 remark env; scan_install vendored
@@ -1570,7 +1615,14 @@ rules:
               \def\epl@and{\unskip\ and\ }
               \let\And\and
               \endinput
-          # IMS imsart.cls (TL 无): article 底 + frontmatter 常用件。
+          # IMS imsart.cls (TL 无): article 底 + frontmatter 常用件 +
+          # 结构 env 面 (1003.1513 随稿签名 :10-52): frontmatter 包裹
+          # \title/aug/abstract/keyword 整块, env 尾触 \maketitle (稿内
+          # 无 \maketitle 调用); aug=author-group noop; keyword env noop
+          # + \kwd 并入 \imsart@keywords 存值 frontmatter 尾释放;
+          # \address 单参 (稿 :29 实证) 非旧稿 2 参形; \printead{e1,u1}
+          # 是 \email 标签引用件, noop。排印件 \AtBeginDocument 包裹
+          # 双路安全 (\arxiv preamble :6 调用实证)。
           imsart.cls:
             body: |
               \NeedsTeXFormat{LaTeX2e}
@@ -1578,9 +1630,21 @@ rules:
               \LoadClassWithOptions{article}
               \providecommand{\thankstext}[2]{}
               \providecommand{\affiliation}[1]{}
-              \providecommand{\address}[2]{{\footnotesize #2\par}}
+              \providecommand{\address}[1]{{\footnotesize #1\par}}
               \providecommand{\runtitle}[1]{}
               \providecommand{\runauthor}[1]{}
+              \providecommand{\printead}[1]{}
+              % \ead[label=k]{addr} imsart 键标 email 件 (\author 内 :20-21 实证)。
+              \providecommand{\ead}[2][]{\texttt{#2}}
+              \providecommand{\arxiv}[1]{\AtBeginDocument{\par\noindent{\footnotesize arXiv:#1}\par}}
+              \providecommand{\thanksref}[1]{\textsuperscript{#1}}
+              \def\imsart@keywords{}
+              \providecommand{\kwd}[1]{\g@addto@macro\imsart@keywords{#1;\space}}
+              \newenvironment{frontmatter}{}{%
+                \maketitle
+                \ifx\imsart@keywords\@empty\else\par\noindent\textbf{Keywords:} \imsart@keywords\par\fi}
+              \newenvironment{aug}{}{}
+              \newenvironment{keyword}{}{}
               \endinput
           # ACM conm-p-l.cls (90s 会议 preprint 版式) → acmart 官方继任。
           # 1003.0067 实证: acmart→unicode-math 装载后 \Psi 类希腊字母变
@@ -1630,7 +1694,25 @@ rules:
           # (SISSA), appolb, pasj00, aa501 (A&A), kapproc —— 逐格实证名见
           # REPORT 补记7 delta 残盘表。
           svmult.cls: { loads: "article" }
-          cimento.cls: { loads: "article" }
+          # cimento.cls (Nuovo Cimento, TL 无): article + 实证 frontmatter
+          # 面 (0905.4620 随稿签名)——\from{key} \inst{key} \instlist{...}
+          # \PACSes{...\PACSit{code}{desc}...}。
+          cimento.cls:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesClass{cimento}[2026/09/19 fixloop legacy shim -> article + cimento polyfills]
+              \LoadClassWithOptions{article}
+              \providecommand{\from}[1]{\textsuperscript{#1}}
+              \providecommand{\inst}[1]{\textsuperscript{#1}~}
+              % \instlist 在 preamble 期调用 (0905.4620 :14, \begin{document}
+              % :25); \PACSes 同族 frontmatter 位 (稿内注释态 :16)——排印件
+              % 一律 \AtBeginDocument 包裹: preamble 调用延后至 begindoc
+              % 合法排印, in-doc 调用 (1003.0945 系 pasj00 签名实证另一路)
+              % 在现代 one-time hook 语义下立即执行——两路皆安全, 免存值件。
+              \providecommand{\instlist}[1]{\AtBeginDocument{\par\medskip\noindent #1\par}}
+              \providecommand{\PACSes}[1]{\AtBeginDocument{\par\noindent\textbf{PACS:} #1\par}}
+              \providecommand{\PACSit}[2]{#1\quad #2\par}
+              \endinput
           eptcs.cls: { loads: "article" }
           # JINST 升级版 (1e scout-modec-resid 实测 1306.0302 xelatex
           # 16pp/0err/0miss): JINST 语义 = \begin{document} 自动出标题块
@@ -1659,10 +1741,81 @@ rules:
                 \ifx\JINST@abstract\@empty\else\begin{quotation}\noindent\textbf{Abstract.} \JINST@abstract\end{quotation}\fi
                 \ifx\JINST@keywords\@empty\else\par\noindent\textbf{Keywords:} \JINST@keywords\par\fi}
               \endinput
-          PoS.cls: { loads: "article" }
+          # PoS.cls (SISSA Proceedings of Science, TL 无): article + 实证
+          # frontmatter 面 (1306.5919 随稿签名)——\ShortTitle \speaker
+          # \email + \abstract{} 命令形 (PoS 无 env 形, SISSA 惯例; JINST
+          # 条已立同形先例)。\abstract 在 preamble 期调用 (:22,
+          # \begin{document}:41)——排印件 \AtBeginDocument 包裹双路安全
+          # (imsart \arxiv / pasj00 \Received 同构)。
+          PoS.cls:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesClass{PoS}[2026/09/19 fixloop legacy shim -> article + PoS polyfills]
+              \LoadClassWithOptions{article}
+              \RequirePackage{graphicx}
+              \providecommand{\ShortTitle}[1]{\gdef\@shorttitle{#1}}
+              \providecommand{\speaker}[1]{#1}
+              \providecommand{\email}[1]{\texttt{#1}}
+              % \FullConference{...} 会议信息块 (:37 preamble 实证)。
+              \providecommand{\FullConference}[1]{\AtBeginDocument{\par\noindent{\footnotesize #1}\par}}
+              \newenvironment{acknowledgments}{\section*{Acknowledgments}}{\par}
+              \providecommand{\abstract}{}
+              \renewcommand{\abstract}[1]{\AtBeginDocument{\par\medskip\noindent\textbf{Abstract.}\space #1\par}}
+              \endinput
           appolb.cls: { loads: "article" }
-          pasj00.cls: { loads: "article" }
-          aa501.cls: { loads: "article" }
+          # pasj00.cls (PASJ 老版, TL 无): article + natbib/amssymb/graphicx
+          # + 实证 frontmatter 面 (1003.0945 随稿签名)——\DeclareAbbreviation
+          # \CS{text} 2 参定义件 (稿 30+ 散调) + 真件内建期刊缩写集
+          # (\mnras×11/\apj×8/\pasj×8/\aap×8/\aj/\pasp/\aaps/\qjras/\iaucirc,
+          # providecommand 让稿内 \DeclareAbbreviation 可覆盖) +
+          # \SetRunningHead/\Received/\Accepted/\KeyWords/\email/\draft +
+          # AAS 式 \altaffilmark/\altaffiltext (稿 :86-96) + \FigureFile
+          # (w,h){eps} 图件 (:274×5) + \lesssim/\gtrsim (amssymb) + \rm
+          # 2.09 字件。排印件一律 \AtBeginDocument 包裹: in-doc 调用立即
+          # 执行 (1003.0945 :77-114 全在 \begin{document} 后), preamble
+          # 调用延后——双路皆安全。
+          pasj00.cls:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesClass{pasj00}[2026/09/19 fixloop legacy shim -> article + pasj00 polyfills]
+              \LoadClassWithOptions{article}
+              % numbers 模式对 author-year 形与裸形 bibitem 通吃 (aa.cls
+              % 同案: 裸 \bibitem{} 回读炸 "not compatible with author-year")。
+              \RequirePackage[numbers]{natbib}
+              \RequirePackage{amssymb}
+              \RequirePackage{graphicx}
+              \providecommand{\DeclareAbbreviation}[2]{\providecommand{#1}{#2}}
+              \providecommand{\SetRunningHead}[2]{\gdef\@oddhead{\hfil#2\hfil}\gdef\@evenhead{\hfil#1\hfil}}
+              \providecommand{\Received}[1]{\AtBeginDocument{\par\noindent{\footnotesize Received #1}\par}}
+              \providecommand{\Accepted}[1]{\AtBeginDocument{\par\noindent{\footnotesize accepted #1}\par}}
+              \providecommand{\KeyWords}[1]{\AtBeginDocument{\par\noindent\textbf{Key Words:} #1\par}}
+              \providecommand{\email}[1]{\texttt{#1}}
+              \providecommand{\draft}{}
+              \providecommand{\altaffilmark}[1]{\textsuperscript{#1}}
+              \providecommand{\altaffiltext}[2]{\AtBeginDocument{\par\textsuperscript{#1}{\footnotesize #2}\par}}
+              \def\FigureFile(#1,#2)#3{\includegraphics[width=#1,height=#2]{#3}}
+              \DeclareOldFontCommand{\rm}{\normalfont\rmfamily}{\mathrm}
+              \providecommand{\aj}{AJ}
+              \providecommand{\apj}{ApJ}
+              \providecommand{\apjl}{ApJ}
+              \providecommand{\apjs}{ApJS}
+              \providecommand{\aap}{A\&A}
+              \providecommand{\aaps}{A\&AS}
+              \providecommand{\mnras}{MNRAS}
+              \providecommand{\pasj}{PASJ}
+              \providecommand{\pasp}{PASP}
+              \providecommand{\qjras}{QJRAS}
+              \providecommand{\iaucirc}{IAU~Circ.}
+              \providecommand{\nat}{Nature}
+              \providecommand{\araa}{ARA\&A}
+              \providecommand{\physrep}{Phys.~Rep.}
+              \providecommand{\ssr}{Space~Sci.~Rev.}
+              \endinput
+          # aa501.cls (老 A&A 类名) → aa.cls 桥: aa shim 同仓 shim_map
+          # 在条 (TL/AA 均无), needs 预装不成则下轮 missing_file 兜 shim。
+          # astro-ph/0104346 实证: article 底缺 \offprints 等 A&A 面;
+          # 0104007 同构仿真 0err/18pp。
+          aa501.cls: { loads: "aa", needs: ["aa.cls"] }
           kapproc.cls: { loads: "article" }
           # multind 两参 \index{name}{entry} —— noop 必须吞双参, 否则第二参
           # 泄进正文 (0806.3028 实证用法)。

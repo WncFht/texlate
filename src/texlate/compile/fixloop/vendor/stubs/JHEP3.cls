@@ -7,7 +7,7 @@
 % 本 stub 在场则 shim_map JHEP3.cls 条成死配置（vendored 预检先于 missing_file 落件，
 % 同 jinstpub/tcilatex/axodraw 先例）。
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesClass{JHEP3}[texlate stub — original not redistributable]
+\ProvidesClass{JHEP3}[2026/09/19 texlate stub — original not redistributable]
 \ClassWarningNoLine{texlate-stub}{JHEP3.cls is a compatibility shim -> article + SISSA polyfills}
 \LoadClassWithOptions{article}
 \RequirePackage{amssymb}

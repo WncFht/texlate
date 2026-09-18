@@ -8,7 +8,7 @@
 % 本 stub 在场则 shim_map svjour.cls 条成死配置（vendored 预检先于 missing_file 落件，
 % 同 jinstpub/tcilatex/axodraw 先例）。
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesClass{svjour}[texlate stub — original not redistributable]
+\ProvidesClass{svjour}[2026/09/19 texlate stub — original not redistributable]
 \ClassWarningNoLine{texlate-stub}{svjour.cls is a compatibility shim -> article + svjour polyfills}
 \LoadClassWithOptions{article}
 \RequirePackage{amssymb}

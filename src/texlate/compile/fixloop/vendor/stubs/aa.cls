@@ -6,7 +6,7 @@
 % 本 stub 在场则 shim_map aa.cls 条成死配置（vendored 预检先于 missing_file 落件，
 % 同 jinstpub/tcilatex/axodraw 先例）。
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesClass{aa}[texlate stub — original not redistributable]
+\ProvidesClass{aa}[2026/09/19 texlate stub — original not redistributable]
 \ClassWarningNoLine{texlate-stub}{aa.cls is a compatibility shim -> article + A&A polyfills}
 \LoadClassWithOptions{article}
 % 真身 aa.cls 内置 natbib (\citep/\citeyear 面, 2401.17274 实证)。

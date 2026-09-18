@@ -1,11 +1,21 @@
 % texlate vendored stub — 原许可禁分发，最小兼容面
-% svglov3.clo no-op 伴生件：svjour3.cls 真件按 journalopt \input 的
-% global option 文件。stub class 自身不再 \input 它；此件仅防
-% 论文源直 \input{svglov3.clo} 或旧 svjour 件路径命中。
-\ProvidesFile{svglov3.clo}[texlate stub — no-op global option]
-\makeatletter
-\@ifundefined{texlatestub}{%
-  \GenericWarning{texlate-stub}{svglov3.clo is a no-op shim}%
-}{}
-\makeatother
+% svglov3.clo 伴生件：svjour3.cls 真件在 journalopt 空时 \input 的
+% "global" 期刊式样文件。真件内含 \validfor/\if@runhead + size10.clo
+% 字体段复刻 + 版心尺寸——stub 镜像最小必需面：
+%   \def\validfor{svjour3}      — cls option-clash 校验点
+%   \global\let\if@runhead\iftrue — running-heads 模式位
+%   \input{size10.clo}          — 内核 10pt 字体/列表段 (真件内联同款)
+% catcode 纪律 (1608.06693 实证)：旧 stub 尾置 \makeatother, class-load
+% 语境 \input 返回后 @ 失字母位 → svjour3.cls:159 `15\p@` 断读级联。
+% 此处不用 \makeatletter/\makeatother 而用 \catcode 64 存复: @=letter
+% (class-load) 与 @=other (doc \input) 两语境皆精确回原位, 且无 @-cs
+% 名面 (\svglovrestore 纯字母)。
+\ProvidesFile{svglov3.clo}[2026/09/19 texlate stub — svglov3 size/layout shim]
+\edef\svglovrestore{\catcode 64=\the\catcode 64\relax}
+\catcode 64=11\relax
+\def\validfor{svjour3}
+\global\let\if@runhead\iftrue
+\input{size10.clo}
+\svglovrestore
+\PackageWarningNoLine{texlate-stub}{svglov3.clo is a size/layout shim}
 \endinput
