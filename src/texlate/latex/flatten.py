@@ -13,7 +13,11 @@ r"""``\input/\include`` 展平（docs/07 §7）。
 - 防护：``MAX_INPUTS=8`` 深度 + ``_seen`` 祖先栈断环
   （W12 已修：栈内命中断真环，兄弟位合法重包含照常内联；
   主文件路径在 ``parse_file`` 预种——``\input{self}`` 直接断）。
-  ``\includeonly`` 忽略。
+  ``openin_any`` 等价闸（W73）：候选 real path 必须落在已解析
+  根集（file_dir/root_dir/top_dir）内——``..``/绝对路径/根内
+  symlink 指出界的候选按 miss 处理，永不进 ``read_bytes``
+  （不可信 e-print 经 ``\input`` 读本机文件 = 外泄面；与 v2
+  ``gullet/input.py`` ``_resolve_input`` 同闸）。``\includeonly`` 忽略。
 """
 
 from __future__ import annotations
@@ -56,39 +60,73 @@ def strip_doc_shell(tex: str) -> str:
     return body[: e.start()] if e else body
 
 
-def _resolve(
+def _resolve(  # noqa: C901 — 根集装配 + 三段候选循环平铺即查找序规格
     fname: str, file_dir: str, root_dir: str, *, top_dir: str | None = None
 ) -> str | None:
     r"""查找序：including 目录 → 项目根 → paper topdir → basename 补 .tex → 裸名。
 
     ``top_dir`` 是论文顶层目录兜底（深位 root 文件按 e-print 根的相对路径
     ``\input``，hep-ex/0307068 ``./LaTeX/zeus/…`` 实例）；缺省即旧两级行为。
+
+    ``openin_any`` 等价闸（W73，与 v2 ``_resolve_input`` 同口径）：候选的
+    **real path** 必须落在已解析根集内——``..``/绝对路径逃逸出界、根内
+    symlink 指出界一律按 miss，永不进 ``read_bytes``（敌意 e-print 经
+    ``\input`` 读本机文件 = 外泄面）。空串 dir 不作根（``Path("")`` 会按
+    cwd 解析，同为泄漏面）。
     """
+    dirs = tuple(
+        dict.fromkeys(
+            d
+            for d in (
+                (file_dir, root_dir)
+                if top_dir is None
+                else (file_dir, root_dir, top_dir)
+            )
+            if d  # 空串 dir 出局——Path("")/c 按 cwd 解析
+        )
+    )  # file_dir==root_dir 常见——去重免重复 stat
+    roots: list[Path] = []
+    for d in dirs:
+        try:
+            r = Path(d).resolve()
+        except (OSError, RuntimeError, ValueError):  # symlink 环/NUL → 该根出局
+            continue
+        if r not in roots:
+            roots.append(r)
+
+    def _hit(p: Path) -> str | None:
+        """``p`` OS 级存在且 real path 落在任一根内 → 命中（返回原形态串）。
+
+        存在性走 ``p.exists()`` 而非 resolved 路径——``resolve`` 对不存在
+        的中间目录做词法 ``..`` 消解（``sub/../x`` 里 sub 缺席时也归并出
+        ``x``），与 OS 遍历语义不符（symlink 环/NUL 按 miss）。
+        """
+        if not p.exists():
+            return None
+        try:
+            rp = p.resolve()
+        except (OSError, RuntimeError, ValueError):
+            return None
+        if any(rp.is_relative_to(r) for r in roots):
+            return str(p)
+        return None
+
     cands = (
         [fname]
         if fname.lower().endswith(".tex")
         else [fname, fname + ".tex", fname + ".TEX"]  # 野存在大写扩展名（corpus_v3）
     )
-    dirs = tuple(
-        dict.fromkeys(
-            (file_dir, root_dir) if top_dir is None else (file_dir, root_dir, top_dir)
-        )
-    )  # file_dir==root_dir 常见——去重免重复 stat
     for d in dirs:
         for c in cands:
-            p = Path(d) / c
-            if p.exists():
-                return str(p)
+            hit = _hit(Path(d) / c)
+            if hit is not None:
+                return hit
     stem = Path(fname).name
     for d in dirs:
         for ext in (".tex", ".TEX"):
-            p = Path(d) / (stem + ext)
-            if p.exists():
-                return str(p)
-    for d in dirs:
-        p = Path(d) / fname
-        if p.exists():
-            return str(p)
+            hit = _hit(Path(d) / (stem + ext))
+            if hit is not None:
+                return hit
     return None
 
 
@@ -304,7 +342,10 @@ def _try_input(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915, PLR0917 — �
     else:
         return None
 
-    if not fname:
+    if not fname or "\\" in fname:
+        # 含 cs 的文件名是计算式（\@journal\substyle@ext）——无法按字面
+        # 解析，非输入尝试：回吐走普通逐字面，不计 missing_input
+        # （与 v2 ``_do_input`` 同点滤除，W104 诚实降级口径）
         return None
     hit = _resolve(fname, file_dir, root_dir, top_dir=top_dir)
     if hit is None:
