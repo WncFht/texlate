@@ -555,3 +555,11 @@
 - **22e94be draftsty 收**（#60）：`abstract_edef_capture_neutralize` order 11.95——1706.00240 draft.sty `\protected@edef\@tempa{\ifnum`}=\z@` 吞 `}` 致 edef 不闭吞全文→`Incomplete \iffalse`。**设计 delta 采纳**：agent 改 inject-override 代 spec 原拟 comment-out——①注释面只需签名行不需 hack 块界（多层嵌套括号 regex 脆）②`\def` 无存在性前提优于 `\renewenvironment` ③`\ifdefined\maketitle` 保题名块（hack 本意即 env 触发题名，1706.00240 从不自调）——理由成立收。comment-strip 后签名确证（:62-64 注释载件不动），`\endinput` 前注入良性覆写。18 钉+858 fixloop 绿+真 xelatex A/B 实证（repro2 题名+abstract 全渲染）。
 - **c68dc86 roundcat 收**：`_round_cat` 录因优先臂——`sentry_reason`/str timed_out→`runaway_output`+`sentry:<arm>` 挂 payload 槽（轮内无 notes 面，payload 落 entry/events pay=）；rep.raw=全 log 同源判明未造第三扫；RunFn+run_tool 注记 `bool|str`。判例披露皆核：录因权威于 timed_out 真值、runaway_output 无规则 dispatch 故 unfixable/salvage 排除语义反而修正（旧可误判 unfixable:timeout）。+6 钉（24）+888 邻域绿。
 - roster 5 在飞：pendspec(#59)/mnrasretire(#61 yaml 已放)/flipcheck5(#62)/texmfshadow/pairediff；draftsty/roundcat 尸清。
+
+## 2026-09-19 ~05:2x — flipcheck5 收官：双目标格全翻 + 36/36 零逃逸
+
+- **gate ②③ 兑现**（stagerun-flipcheck5，42 格）：compile 臂 36/36 clean 零回归（sabotage escaped=0）；fixloop 臂 6/6 全出——**0707.4206→clean**（pstadd 目标格，`pstricks_add_pair_retire` 实测触发：retire→xcolor_override_opt_strip→vendored_sty_shadow 链 6 轮，post clean 0 错 322KB PDF 35.7K CJK——12 错残格病灶全除）；**astro-ph/9910310→clean**（math-switch 目标）；**gr-qc/9901082→acceptable_pdf**（math-switch 目标部分翻，revtex209_surface_polyfill 同烧）；2112.00045→clean（csvsimple_l3_kernel_retire+pkg_version_skew_vendored=providesdate 投资兑现）；2105.03852/0806.4130→best_effort_pdf。
+- **pendspec 落笔**（#59，在飞）：pending.py +467/-59——`_grp_spec_walk` 真 spec walker 成形：`_PendRem` NamedTuple 跨界余量（spec/cont/ka_slots/ka_cont/ka 五槽），`_slots_walk_toks` 槽字母平铺，`("opaque",None)` 行入 _PEND_SPEC_FAMS——待收割，texlate-13 segmirror 仍候场。
+- **draftsty 迟到报告核对**：注入覆写设计 delta 理由三条成立（签名行免块界/\def 免存在性/\ifdefined\maketitle 保题名），与已 commit 22e94be 一致——无追加动作。
+- roster 5：pendspec(#59 落笔中)/mnrasretire(#61 yaml 放笔)/flipcheck5(#62 完待报)/texmfshadow/pairediff。
+- 门巡：本轮 commit 22e94be/c68dc86/57db761+dbf3996 全我署；零 git 违例；L0 域 18+24+888 绿。
