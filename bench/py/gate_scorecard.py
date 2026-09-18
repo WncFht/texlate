@@ -523,6 +523,8 @@ def _report(
     population: dict[str, dict],
     window: dict,
     now: datetime,
+    arm: str = ARM,
+    upstream: str = UPSTREAM,
 ) -> dict:
     """tally → --json 机读文档（与文本输出同口径同数）。"""
 
@@ -539,8 +541,8 @@ def _report(
         # 口径名实钉——union=阶段并集 best-of(compile∪fixloop)/cell，
         # zh 臂 mock 上游单人口径，非 zh+base 臂并集（M2 门=zh 条件编译）。
         "scope": {
-            "arm": ARM,
-            "upstream": UPSTREAM,
+            "arm": arm,
+            "upstream": upstream,
             "end_state": "末段胜：新鲜 fixloop 终态接管，否则 compile 终态",
             "union": "best-of(compile,fixloop) per cell by STATUS_RANK",
             "union_not": "zh+base 臂并集——base 是归因基线不入本口径",
@@ -706,15 +708,19 @@ def main(argv: list[str] | None = None) -> int:
         default=ACTIVE_WRITE_WINDOW_S,
         help="records 文件 mtime 判定在飞写入的秒数窗（默认 120）",
     )
+    p.add_argument("--arm", default=ARM, help="compile 记录臂过滤（默认 zh）")
+    p.add_argument(
+        "--upstream", default=UPSTREAM, help="records upstream 过滤（默认 mock）"
+    )
     args = p.parse_args(argv)
     rec_dir = Path(args.records_dir)
 
     now = datetime.now(UTC)
     comp, comp_st, comp_fi = _scan_file(
-        rec_dir / "compile.jsonl", arm=ARM, upstream=UPSTREAM, now=now
+        rec_dir / "compile.jsonl", arm=args.arm, upstream=args.upstream, now=now
     )
     fix, fix_st, fix_fi = _scan_file(
-        rec_dir / "fixloop.jsonl", arm=None, upstream=UPSTREAM, now=now
+        rec_dir / "fixloop.jsonl", arm=None, upstream=args.upstream, now=now
     )
     meta = benchlib.load_run_meta(rec_dir.parent, strict=False, default=None)
     meta_state = (
@@ -741,7 +747,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"freeze: PARTIAL ({'; '.join(freeze['reasons'])})")
             print("records 在飞/半截嫌疑——--require-frozen 拒绝记分")
         return 3
-    suspects = window_suspects(meta, set(comp) & set(fix), upstream=UPSTREAM)
+    suspects = window_suspects(meta, set(comp) & set(fix), upstream=args.upstream)
     t = _tally(comp, fix, suspects)
     window = {
         "run_meta": meta_state,
@@ -761,6 +767,8 @@ def main(argv: list[str] | None = None) -> int:
         population=population,
         window=window,
         now=now,
+        arm=args.arm,
+        upstream=args.upstream,
     )
     if args.as_json:
         print(json.dumps(rep, ensure_ascii=False, indent=1))

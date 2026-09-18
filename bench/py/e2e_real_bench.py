@@ -27,6 +27,13 @@ pipe 条件因翻译是 async 在本文件内联同款流程）。
 重跑同 id 自动续翻已完成 chunk；records.jsonl 逐篇 append（行在=done、
 末行胜），results.json 逐篇整格替换快照（原子写）兼容旧消费方。
 
+LEGACY（wave2-findings #2 + refactor-audit ★6 定调）：批式真网关跑批已归
+``stagerun`` 分阶段管线（stage_xlat --arm real → stage_compile →
+stage_fixloop，同 judge+flb 配方、判分同义）；本文件保留 lib 面
+（``preflight``/``pick_sample``/``load_manifest`` 均为 benchlib 薄委托）
+与单篇全链冒烟位（``--ids`` 一把梭仍是最短路径），新批量测量一律走
+stagerun。
+
 用法:
   uv run python bench/py/e2e_real_bench.py --ids 0707.1206     # 单篇 smoke
   uv run python bench/py/e2e_real_bench.py --n 40 --seed 42    # 首轮样本

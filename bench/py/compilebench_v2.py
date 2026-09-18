@@ -2,6 +2,11 @@
 r"""
 compilebench_v2.py — B3 compilebench 扩展基线: corpus_v2 分层样本 × baseline × 双引擎.
 
+LEGACY（refactor-audit F12 定调）：v3（``compilebench_v3.py`` + ``fixloop_bench.py``
+corpus_v3 口径）已代——新测量一律走 v3；本文件留存仅作 corpus_v2 时代
+基线报告的复算入口（--report），其残值（分层抽样名单/tectonic base 口径）
+已并入 v3。另注意 ``ROOT`` 为硬编路径，异地运行静默指错树。
+
 底材: bench/corpus_v2/{id}/extracted/(== raw.* 解包树, 图/.bbl/.bst/.cls 全在;
 meta.json warnings 已核无编译相关丢失). baseline 条件 = 原文直编, 不注入不修复.
 
