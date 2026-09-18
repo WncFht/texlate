@@ -764,3 +764,9 @@
 
 - **#98 verdict**：1206.0701/1306.0364 零字面 \if 缺口——纯展开时幻影 (unclosed_if_close 正确 no-op, 零注入标实证)。机制：amsproc \maketitle edef→\footnote 链 / myectaart \xdef\@argi→\bf→\selectfont 链, 均终止于 `\let\if@X\iffalse` 在展开上下文执行 → 跳至 EOF。原英文稿即复现 = 上游 cls 撞 TL2026, 非 texlate 产物。
 - **修法**：非 \fi 注入 (edef arg 内 \fi 不可达) —— preamble 注 eTeX `\protected` 重定义脆件 (footnote/thanks+\bf\it\rm\sf\tt\sc\sl), \protected 属性在 \let\protect\relax 剥脱下存活。两格实测救回。→ ifprot (#112) 派 ifclosegap 实施。
+
+## 2026-09-19 ~09:0x — newblockpf 入库 (343f6b3) + 二次中写卷扫记录
+
+- **newblockpf**：`Command \X undefined` (renewcommand-on-undefined 内核签, natbib.sty:1070 \newblock) → 新 undefined_cs taxonomy 头签 + cs_table canonical hskip polyfill (order 165 表内键非新规)。13 目标格。blast radius 核查： 仅 newblock×4 + 单字符杂项 (miss-table 兜底, 无回归)。
+- **事故二发**：taxonomy 头签 hunk 在 diff↔commit 间隙被 bticktax 提交 (0db4133) 整文件卷走——与 001094d builtins.py 同型; 本例自含无悬空, 归因已注。规则化对策：taxonomy/facade 共享面提交前立即重 diff。
+- roster 9：arraypream/pdfsanitize (engine+graphics+45-yaml 在写)/begindoccen/dsatcensus/drvverdict/bticktax(verifymiss)/bblmath/ifclosegap(ifprot 实施)。
