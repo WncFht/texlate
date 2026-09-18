@@ -207,6 +207,47 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "nicematrix-lane 2026-09-18: vendor/files/nicematrix.sty v7.11c→v7.11a 钉档"
 
+  # 2026-09-19 csvsub-lane: 反向版本错位 —— 稿自带过旧 csvsimple-l3.sty
+  # v2.2.0 (2021) 撞新 kernel expl3 收紧: `\bool_const:Nn { 1 }` 裸数字
+  # 字面量不再被收 (2112.00045: csvsimple-l3.sty:36 Missing number,
+  # treated as zero → Missing \begin{document} 级联)。两个既有机制都
+  # 够不到: `_provides_date` 只认 `\ProvidesX{n}[date]` bracket 面,
+  # `\ProvidesExplPackage{n}{d}{v}` brace 面读不出 → vendored_shadow_
+  # isolate 的 ld<sd 确证闸拿不到日期; `_inject_write` 指纹闸拒覆外来
+  # 件 → vendored_fetch 也不能原位替换。故走退役通路: err_head 点名
+  # csvsimple-l3.sty (file-line 形) 或泄 `\c__csvsim_package_expl_bool`
+  # ('!' 形 l.N 源码回显) ∧ wdir 在场 → mv .fixloop-iso; 下轮 kpsewhich
+  # 落系统 2.7.0, 系统缺件则 missing_file → vendored_fetch(11.5) 递
+  # vendor/files 钉版 (2.7.0, 本机逐字节同 texmf-dist 实证可编译)。
+  - id: csvsimple_l3_kernel_retire
+    mechanisms: [B05]
+    description: "稿自带过旧 csvsimple-l3.sty kernel 不兼容 → mv .fixloop-iso 退役, 系统/vendor 新件递补"
+    phase: loop
+    order: 11.8 # pkg_version_skew_vendored(11.7) 后, legacy_pkg_shim(12) 前
+    when:
+      any: # 本格签名是 syntax; 他版旧件别种炸法 (undefined_cs 等) 同闸收
+        - { category: syntax }
+        - { category: undefined_cs }
+        - { category: other }
+    condition:
+      ctx_suggests: "csvsimple-l3\\.sty|csvsim_package_expl"
+      cache_dir_glob: csvsimple-l3.sty
+    action:
+      kind: run_tool
+      params:
+        argv: ["mv", "csvsimple-l3.sty", "csvsimple-l3.sty.fixloop-iso"]
+        timeout: 30
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "corpus_v3 2112.00045 (stagerun-loop2 best_effort_pdf 残格)",
+          error: "csvsimple-l3.sty:36: Missing number, treated as zero (v2.2.0 \\bool_const:Nn{1} vs expl3 收紧)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "csvsub-lane 2026-09-19: tmp/lane-csvsub 三臂实证 (orig 炸 / patch 过 / 2.7.0 过)"
+
   # fixable-data 裁定 (1003.2165): polutonikogreek 是弃名, greek.polutoniko
   # 亦走 locale/invalid/ 弃名桩必炸。现行 ini 正形是 `greek.polytonic`
   # (locale/el/babel-polytonicgreek.tex 自证 "Provided: greek.polytonic";
