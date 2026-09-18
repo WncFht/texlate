@@ -33,7 +33,7 @@ src/texlate/latex/
   api.py             # parse_tex / parse_file（preamble 判定、入口装配）
 ```
 
-（勘误 2026-09-17：v2 落地后布局实为 13 件——另 `mouth.py`（字符→token 三态折叠）、`gullet.py`（回压式展开 + \input 展平原语）、`segmenter.py`（token 流→pieces/chunks/占位符）、`prose.py`（`file_has_prose` 散文闸——support 件判据，e2e/worker/builtins 三处消费）；v2 为默认产品路径，`TEXLATE_NO_EXPAND=1` 回退 v1。勘误同日：`TEXLATE_NO_EXPAND` 曾为非空即真直读（`=0`/`=false` 也触发回退），已收敛 `textutil.env_flag` 标准真值集（`api.py:103/122`）。锚点更新 2026-09-18：`gullet.py`/`segmenter.py` 已拆包——`gullet/`（args/classify/cond/core/decls/defcmd/entries/expand/input/tables/tokutil 十一叶）、`segmenter/`（args/\_common/core/env/group/mainloop/pending/tables 八叶——tables 系 B6 单源化收编的 scanner↔segmenter 七常量表）。）
+（勘误 2026-09-17：v2 落地后布局实为 13 件——另 `mouth.py`（字符→token 三态折叠）、`gullet.py`（回压式展开 + \input 展平原语）、`segmenter.py`（token 流→pieces/chunks/占位符）、`prose.py`（`file_has_prose` 散文闸——support 件判据，e2e/worker/builtins 三处消费）；v2 为默认产品路径，`TEXLATE_NO_EXPAND=1` 回退 v1。勘误同日：`TEXLATE_NO_EXPAND` 曾为非空即真直读（`=0`/`=false` 也触发回退），已收敛 `textutil.env_flag` 标准真值集（`api.py:103/122`）。锚点更新 2026-09-18：`gullet.py`/`segmenter.py` 已拆包——`gullet/`（args/classify/cond/core/decls/defcmd/entries/expand/input/tables/tokutil 十一叶）、`segmenter/`（args/\_common/core/env/group/mainloop/pending/tables 八叶——tables 系 B6 单源化收编的 scanner↔segmenter 七常量表）。勘误 2026-09-19：v1 臂退役——`scanner.py` 删除、`TEXLATE_NO_EXPAND` 回退开关移除（v2 为唯一解析路径，`parse_tex`/`parse_file` 直走 `parse_tex_v2`）；`macro_table.py` 瘦身为共享 helper 叶（`parse_argspec`→segmenter/tables、`body_has_text`/`classify_body`/`protected_param_positions`→gullet/classify）；`MacroTable` 平表删除、`ScanState` 瘦至 8 字段。上文 v1 布局清单与 `scanner.py` 锚点仅作历史参照。）
 
 依赖方向：`model/placeholder` 为纯数据层不反向依赖；`scanner` 只依赖 model/placeholder/macro_table/tables；`reconstruct` 只依赖 model/placeholder；`api`/`flatten` 是唯一可碰文件系统处。
 
@@ -541,7 +541,7 @@ warn_kinds 对照（v2 vs v1）：`stray_end` 63/33、`unclosed_env` 31/53、`de
 
 ### 12.3 遗留
 
-- ~~`res.macros` 消费点未适配~~ **已收敛**：`ScanResult.macros` 单型 `ScopeMacroTable`（v1 平表经 `export_flat_macros` 转换）；臂内 `ScanState.macros` 保留 `MacroTable | ScopeMacroTable` union。
+- ~~`res.macros` 消费点未适配~~ **已收敛**：`ScanResult.macros` 单型 `ScopeMacroTable`（v1 平表经 `export_flat_macros` 转换）；臂内 `ScanState.macros` 保留 `MacroTable | ScopeMacroTable` union。（2026-09-19：`MacroTable` 随 v1 臂删除，`ScanState.macros` 单型 `ScopeMacroTable`。）
 - ~~性能尾：85 文件 >500ms（最坏 2403.15096 8.4s）~~ **两波 perf 已落**（`0278602`/`55db9bc`，201 文件复测口径）：长尾总和 51476→26723ms（-48%）、>500ms 文件 20→11、identity 201/201 全等；`_collect_group`/env 体扫描残余 11 文件仍是已知热点。
 - e2e_mock 编译侧 fail 均为环境性（缺 pstricks/revtex4 系统包），管线三段干净。
 - `chunk` 数口径：v2 124772 vs v1 135170——v2 把含 ph 的 run 整段单 chunk（v1 会在 ph 边界再切），leak 持平证明可译覆盖等价，仅分块粒度不同。

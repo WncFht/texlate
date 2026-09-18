@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from texlate.latex.gullet import ScopeMacroTable
-    from texlate.latex.macro_table import MacroTable
     from texlate.latex.mouth import Tok
     from texlate.latex.placeholder import PlaceholderIssuer
 
@@ -182,12 +181,12 @@ class ScanResult:
     protected_tex: str
     chunks: list[Chunk]
     ph_map: dict[str, str]  # "[[TYPE_n]]" → 原文段（可内嵌占位符）
-    macros: ScopeMacroTable  # scope 链单一表示（v1 结果经 flat 表导出转换）
+    macros: ScopeMacroTable  # scope 链单一表示
     pieces: list[Piece] = field(default_factory=list)
     inputs: list[tuple[int, str]] = field(default_factory=list)
     warnings: list[ScanWarning] = field(default_factory=list)
     # 叙事序虚拟文本（segmenter 版恒 == 单文件入参；多文件 = flatten 同构）。
-    # pieces/chunk.span 的坐标系；v1 字节 scanner 下留空（坐标即原 tex）。
+    # pieces/chunk.span 的坐标系。
     vtex: str = ""
     # 源文自带 ``[[X_n]]`` 形字面集（签发避让的另一半）：字面原样过 pieces
     # 进 protected_tex——validate_result 据此豁免 dangling_ph/chunk_ref
@@ -206,30 +205,24 @@ class ScanMode(Enum):
 class ScanState:
     r"""一切可变状态的共享容器（spawn 只共享这一个引用，W7 扶正）。
 
-    ``ifflags`` 是 ``\\newif`` 旗标表（\\\\if 两档求值用，docs/07 §8.2/§8.6）。
-    ``steps`` 是展开步数回压计数（BUDGET，docs/07 §8.2/§8.3）。
-    臂归属：``ifflags``/``steps`` 仅 v1 scanner 读写；``pkgs`` 仅 v2
-    segmenter 读写（v1 无 argspec 门控）。
+    ``pkgs`` 由 v2 segmenter 读写（``\usepackage``/``\RequirePackage``/
+    ``\documentclass`` 已加载包名 → argspec 门控）。
     """
 
     issuer: PlaceholderIssuer
     ph_map: dict[str, str]
     chunks: list[Chunk]
-    macros: MacroTable | ScopeMacroTable  # v1 平表 / v2 scope 链（臂内状态）
+    macros: ScopeMacroTable
     inputs: list[tuple[int, str]]
     warnings: list[ScanWarning]
-    ifflags: dict[str, bool] = field(default_factory=dict)  # v1 臂字段
-    steps: int = 0  # v1 臂字段
     ph_reserved: set[str] = field(
         default_factory=set
     )  # 源文自带 [[X_n]] 形字面 → 签发避让
-    pkgs: set[str] = field(
-        default_factory=set
-    )  # v2 臂字段：\usepackage/\RequirePackage/\documentclass 已加载包名 → argspec 门控
+    pkgs: set[str] = field(default_factory=set)
 
 
 # ---------------------------------------------------------------- 字符级原语
-# 单遍逐字符扫描的共享低层工具（macro_table / scanner / flatten 三方消费）。
+# 单遍逐字符扫描的共享低层工具（macro_table / flatten / segmenter / gullet 消费）。
 
 _WS = " \t\n\r"
 _PAR_BREAK_RX = re.compile(r"\n[ \t\r]*\n")

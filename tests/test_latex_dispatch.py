@@ -1,8 +1,8 @@
-r"""scanner._dispatch_cmd 19 行分派表逐行覆盖（docs/07 §3.2 顺序即语义）。"""
+r"""分派表逐行覆盖（docs/07 §3.2 顺序即语义）。"""
 
 from conftest import DOC, scan_doc
 
-from texlate.latex import parse_tex, parse_tex_v1, reconstruct
+from texlate.latex import parse_tex, reconstruct
 from texlate.latex.gullet import IfSetter
 from texlate.latex.model import ScanResult
 from texlate.latex.placeholder import PH_RX
@@ -44,18 +44,6 @@ def test_row2_newcommand_registered() -> None:
         reconstruct(res)
         == DOC % "\\newcommand{\\dR}{\\mathrm{d}R}\nBody uses \\dR here."
     )
-
-
-def test_row2_def_delimited_degrades() -> None:
-    r"""``\def\f(#1){}`` 定界参 → 不登记 + ``def_parse_fail``（v1 刻意降级）。
-
-    v2 gullet 原生支持定界参（``f`` 登记为 literal_match+delim spec）——
-    本断言钉 ``parse_tex_v1``，守卫并存期 v1 腿行为不变。
-    """
-    res = parse_tex_v1(DOC % "\\def\\f(#1){x#1}\nAfter \\f(y).")
-    assert res.macros.lookup("f") is None
-    assert any(w.kind == "def_parse_fail" for w in res.warnings)
-    assert reconstruct(res) == DOC % "\\def\\f(#1){x#1}\nAfter \\f(y)."
 
 
 def test_row2_param_beyond_spec_no_crash() -> None:

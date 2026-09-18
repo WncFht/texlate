@@ -35,12 +35,6 @@ PSTRICKS = CORPUS_V3 / "0707.4206" / "extracted" / "pstricks.tex"
 _CHOPPED_CS_RX = re.compile(r"\\[pt]\s")
 
 
-@pytest.fixture(autouse=True)
-def _pin_v2(monkeypatch: pytest.MonkeyPatch) -> None:
-    """钉死 v2（Gullet+Segmenter）路径——外部 ``TEXLATE_NO_EXPAND`` 不串扰。"""
-    monkeypatch.delenv("TEXLATE_NO_EXPAND", raising=False)
-
-
 def scan(body: str, preamble: str = "") -> ScanResult:
     tex = (
         DOC % body

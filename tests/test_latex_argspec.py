@@ -1,4 +1,4 @@
-r"""argspec.json 表 + 分段器接线：签名分派 / env 体路由 / v1 导出。
+r"""argspec.json 表 + 分段器接线：签名分派 / env 体路由。
 
 数据资产 ``src/texlate/latex/data/argspec.json``（CTAN 签名合成，
 ``tmp/exp/ctan/build_argspec.py`` 生成）。装载走
@@ -12,8 +12,7 @@ r"""argspec.json 表 + 分段器接线：签名分派 / env 体路由 / v1 导�
 
 from conftest import ART
 
-from texlate.latex import parse_tex, parse_tex_v1, reconstruct
-from texlate.latex.gullet import IfSetter, MacroDef, ScopeMacroTable
+from texlate.latex import parse_tex, reconstruct
 from texlate.latex.model import ScanResult
 from texlate.latex.tables import (
     argspec_lookup,
@@ -208,24 +207,6 @@ def test_unknown_cs_still_probe() -> None:
     r"""表外未知命令维持探针档：``\\foo{a}{b}`` → ``[[CMD]]``。"""
     res = scan("Text \\foo{a}{b} more.")
     assert any(v.startswith("\\foo{a}{b}") for v in res.ph_map.values())
-
-
-def test_v1_result_macros_converged() -> None:
-    r"""``ScanResult.macros`` 单型：v1 平表经 ``export_flat_macros`` 导出。
-
-    ``\\newcommand`` → ``MacroDef``；``\\newif`` 派生 ``\\dbgtrue`` →
-    ``IfSetter``（LITERAL 旗标同态）。
-    """
-    res = parse_tex_v1(
-        "\\documentclass{article}\n\\begin{document}\n"
-        "\\newcommand{\\xx}[1]{#1!}\n\\newif\\ifdbg\nText \\xx{a}.\n"
-        "\\end{document}\n"
-    )
-    assert isinstance(res.macros, ScopeMacroTable)
-    assert isinstance(res.macros.resolve(res.macros.lookup("xx")), MacroDef)
-    setter = res.macros.resolve(res.macros.lookup("dbgtrue"))
-    assert isinstance(setter, IfSetter)
-    assert setter.value is True
 
 
 def test_argspec_identity_battery() -> None:

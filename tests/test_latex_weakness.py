@@ -5,10 +5,7 @@ from pathlib import Path
 from conftest import DOC, scan_doc
 
 from texlate.latex import parse_file, parse_tex, reconstruct
-from texlate.latex.api import new_state
 from texlate.latex.flatten import flatten_inputs
-from texlate.latex.scanner import Scanner
-from texlate.latex.tables import BUDGET, MAX_GEN
 
 # ---------------------------------------------------------------- W11
 
@@ -113,32 +110,6 @@ def test_math_debt_repair() -> None:
     assert reconstruct(res) == DOC % body
     assert any(v == "$x$" for v in res.ph_map.values())
     assert not any(w.kind == "unpaired_dollar" for w in res.warnings)
-
-
-# ---------------------------------------------------------------- 回压
-
-
-def test_budget_backpressure() -> None:
-    r"""``state.steps`` 超 BUDGET → 宏不再分流，整调用 ``[[MACRO]]`` + warning。"""
-    # state 不可经 parse_tex 外取——直接构造超支场景：steps 灌到 BUDGET
-    _ = scan_doc("\\newcommand{\\m}{\\ensuremath{x}}\n" + "\\m " * 50)
-
-    state = new_state()
-    state.steps = BUDGET  # 下一次宏调用 → BUDGET+1 → 恰触发一次性 warning
-    sc = Scanner(state)
-    tex = "\\newcommand{\\m}{\\ensuremath{x}}\nuse \\m here"
-    sc.scan(tex)
-    assert any(w.kind == "expansion_overflow" for w in state.warnings)
-
-
-def test_max_gen_guard() -> None:
-    r"""``gen >= MAX_GEN`` → 子扫描不再递归挖（直接原样入 run）。"""
-    state = new_state()
-    sc = Scanner(state, gen=MAX_GEN)
-    tex = "\\caption{Cap text with enough words to chunk}"
-    out = sc.scan(tex)
-    # 超代数 → _handle_chunk_arg 不子扫：整段原文进 run，只有 paragraph chunk
-    assert all(c.context != "caption" for c in out.chunks)
 
 
 # ---------------------------------------------------------------- 体内 \def

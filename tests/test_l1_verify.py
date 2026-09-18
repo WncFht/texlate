@@ -41,7 +41,7 @@ from texlate.compile.fixloop._builtins_misc import (
 from texlate.compile.fixloop._builtins_shim import generated_stub
 from texlate.compile.fixloop.builtins import includepdf_missing_stub, svg_prepare
 from texlate.compile.fixloop.engine import LoopCtx, Rule, _cond_ok
-from texlate.latex.api import parse_tex, parse_tex_v1
+from texlate.latex.api import parse_tex
 from texlate.latex.flatten import flatten_inputs
 from texlate.textutil import BEGIN_DOC_RX, END_DOC_RX
 
@@ -447,10 +447,9 @@ def test_w67_spaced_doc_markers_parse() -> None:
         "\\end {document}\n"
         "TRAILING_SECRET_AFTER_END must be cut and this is long too.\n"
     )
-    for fn in (parse_tex_v1, parse_tex):
-        texts = " ".join(c.content for c in fn(src).chunks)
-        assert "Body paragraph" in texts
-        assert "TRAILING_SECRET_AFTER_END" not in texts
+    texts = " ".join(c.content for c in parse_tex(src).chunks)
+    assert "Body paragraph" in texts
+    assert "TRAILING_SECRET_AFTER_END" not in texts
 
 
 def test_w67_regex_tolerates_space() -> None:
@@ -544,10 +543,9 @@ def test_w01_caption_arg_comment_masked() -> None:
         "\\begin{figure}\n\\caption{First part % trailing comment\n"
         "second part}\n\\end{figure}\n\\end{document}\n"
     )
-    for fn in (parse_tex_v1, parse_tex):
-        texts = " ".join(c.content for c in fn(src).chunks)
-        assert "second part" in texts
-        assert "trailing comment" not in texts
+    texts = " ".join(c.content for c in parse_tex(src).chunks)
+    assert "second part" in texts
+    assert "trailing comment" not in texts
 
 
 # ═══════════════════════════════════════════════════════════════

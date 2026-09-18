@@ -17,17 +17,9 @@ r"""latex-audit-2026-09-17 波次 segmenter 发现回归（F1/F2/S2/S4/F4/F11/F7
 
 from pathlib import Path
 
-import pytest
 from conftest import DOC, check_invariants, chunk_text
 
 from texlate.latex import parse_file, parse_tex, reconstruct
-
-
-@pytest.fixture(autouse=True)
-def _pin_v2(monkeypatch: pytest.MonkeyPatch) -> None:
-    """钉死 v2（Gullet+Segmenter）路径——外部 ``TEXLATE_NO_EXPAND`` 不串扰。"""
-    monkeypatch.delenv("TEXLATE_NO_EXPAND", raising=False)
-
 
 # ------------------------------------------------------------------ F1
 

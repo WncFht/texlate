@@ -4,15 +4,13 @@ C1 ``_resolve_input`` 任意路径读（SECURITY：``\input`` 出界 = 本机文
 经 token 流 → chunk → LLM 网关的外泄面）、F8 无扩展名 ``\input`` 候选序、
 F5 ``process_if`` 把 IfSetter/未注册 ``if*`` 宏计入嵌套、C4
 ``_read_grouping`` 定界符不看 ``{…}`` 屏蔽、F9b ``\protected``/``\global\let``
-前缀链。v2 默认路径（``TEXLATE_NO_EXPAND`` 未设）。
+前缀链。v2 默认路径。
 """
 
 from __future__ import annotations
 
-import os
 from typing import TYPE_CHECKING
 
-import pytest
 from conftest import DOC, scan_doc
 
 from texlate.latex import parse_file, reconstruct
@@ -21,11 +19,6 @@ from texlate.latex.mouth import Tok
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-pytestmark = pytest.mark.skipif(
-    bool(os.environ.get("TEXLATE_NO_EXPAND")),
-    reason="v2-only audit pins (TEXLATE_NO_EXPAND set)",
-)
 
 
 def surface(ts: list[Tok]) -> str:

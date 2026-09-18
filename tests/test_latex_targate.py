@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from texlate.latex.api import parse_file, parse_file_v1, scan_tex_tree
+from texlate.latex.api import parse_file, scan_tex_tree
 from texlate.latex.flatten import flatten_inputs
 
 if TYPE_CHECKING:
@@ -67,14 +67,11 @@ def test_scan_tex_tree_only_tar(tmp_path: Path) -> None:
 
 
 def test_parse_file_rejects_tar(tmp_path: Path) -> None:
-    """直读入口（v2 默认 + v1 回退臂）对 tar main 按 OSError 拒——写回面堵死。"""
+    """直读入口对 tar main 按 OSError 拒——写回面堵死。"""
     (tmp_path / "blob.tex").write_bytes(_tar_blob())
     with pytest.raises(OSError, match="tar archive") as excinfo:
         parse_file(tmp_path / "blob.tex")
     assert excinfo.value.errno == errno.EINVAL
-    with pytest.raises(OSError, match="tar archive") as excinfo_v1:
-        parse_file_v1(tmp_path / "blob.tex")
-    assert excinfo_v1.value.errno == errno.EINVAL
 
 
 def test_flatten_inputs_skips_tar(tmp_path: Path) -> None:

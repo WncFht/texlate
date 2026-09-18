@@ -27,8 +27,6 @@ r"""0806.3472 回归：展开组 surface 三缺陷。
 
 import re
 
-import pytest
-
 from texlate.latex import parse_tex, reconstruct
 from texlate.latex.model import ScanResult
 
@@ -55,12 +53,6 @@ _PICTURE_DD = (
     "Since $\\omega$ sends circles to zero, done.\n"
     "\\end{document}\n"
 )
-
-
-@pytest.fixture(autouse=True)
-def _pin_v2(monkeypatch: pytest.MonkeyPatch) -> None:
-    """钉死 v2（Gullet+Segmenter）路径。"""
-    monkeypatch.delenv("TEXLATE_NO_EXPAND", raising=False)
 
 
 def _raw_surface(res: ScanResult) -> str:

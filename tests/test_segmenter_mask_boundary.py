@@ -13,16 +13,9 @@ r"""xlat-mask 桶回归（wontfix-scout 裁决 §2，2026-09-18）。
   仅在无 pending 内层开符时作 outer 闭符。
 """
 
-import pytest
 from conftest import DOC, check_invariants, chunk_text
 
 from texlate.latex import parse_tex
-
-
-@pytest.fixture(autouse=True)
-def _pin_v2(monkeypatch: pytest.MonkeyPatch) -> None:
-    """钉死 v2（Gullet+Segmenter）路径。"""
-    monkeypatch.delenv("TEXLATE_NO_EXPAND", raising=False)
 
 
 def _phs(res: object, prefix: str) -> list[str]:

@@ -1,4 +1,4 @@
-"""LaTeX 半解析管线：scanner / pieces / macros / flatten / splice（规格 docs/07）。
+"""LaTeX 半解析管线：pieces / macros / flatten / splice（规格 docs/07）。
 
 典型用法::
 
@@ -10,7 +10,7 @@
     out = reconstruct(res, translations)    # splice 回重建
 """
 
-from texlate.latex.api import parse_file, parse_tex, parse_tex_v1
+from texlate.latex.api import parse_file, parse_tex
 from texlate.latex.flatten import flatten_inputs
 from texlate.latex.reconstruct import (
     reconstruct,
@@ -22,7 +22,6 @@ __all__ = [
     "flatten_inputs",
     "parse_file",
     "parse_tex",
-    "parse_tex_v1",
     "reconstruct",
     "validate_result",
     "validate_translation",

@@ -41,11 +41,9 @@ r"""``\input`` 多文件闭包 fuzz——``_resolve_input`` 候选序/出界闸 
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import pytest
 from _fuzzkit import (
     assert_deterministic,
     fuzz_rng,
@@ -62,11 +60,6 @@ if TYPE_CHECKING:
     import random
 
     from texlate.latex.mouth import Tok
-
-pytestmark = pytest.mark.skipif(
-    bool(os.environ.get("TEXLATE_NO_EXPAND")),
-    reason="v2-only gullet pins (TEXLATE_NO_EXPAND set)",
-)
 
 # ---------------------------------------------------------------- 常量与 soup
 

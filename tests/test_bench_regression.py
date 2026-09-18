@@ -44,7 +44,6 @@ from typing import TYPE_CHECKING
 import pytest
 
 from texlate.latex import flatten_inputs, parse_file, reconstruct, validate_result
-from texlate.latex.api import parse_file_v1
 from texlate.latex.placeholder import CHUNK_RX, PH_RX
 from texlate.textutil import DOCCLASS_DECL_RX, decode_tex, mask_tex
 
@@ -648,15 +647,9 @@ def assert_wenc(res: ScanResult | None) -> dict[str, dict[str, str]]:
 
 
 def assert_dollar(
-    res: ScanResult | None, recon: str, recon_fake: str, *, v1: bool = False
+    res: ScanResult | None, recon: str, recon_fake: str
 ) -> dict[str, dict[str, str]]:
-    """tricky-dollar.tex D 系列逐条断言（corpus_v3 ``$``-leak 归因亚型钉）。
-
-    ``v1=True`` 走 ``parse_file_v1`` 臂：亚型断言同规，唯 D06 发散——v1
-    ``$$`` 扫描无 env 内空行容忍，两枚 ``$$`` 各落 ``[[CMD]]``、``array``
-    env 独立成 ``[[MATH]]``（v2 是单条 ``$$..$$`` MATH ph），且告警数
-    随之是 5× ``unpaired_dollar``（v2 为 3）。
-    """
+    """tricky-dollar.tex D 系列逐条断言（corpus_v3 ``$``-leak 归因亚型钉）。"""
     if res is None:
         return {"_meta": {"status": "info", "detail": "parse failed"}}
     chunks = chunks_blob(res)
@@ -712,22 +705,13 @@ def assert_dollar(
         (r"the US \[\[CMD_\d+\]\]326 Billion",),
         "footnote href-arg \\$ -> CMD ph",
     )
-    # D06 $$..\begin{array} 区内空行..$$：v2 env 容忍 → 单条 MATH ph 照常
-    # 配对；v1 无容忍 → 两枚 $$ 各 [[CMD]]，array env 独立 [[MATH]]
-    if v1:
-        ph_roundtrip(
-            "D06",
-            r"We obtain\n\[\[CMD_\d+\]\]",
-            "$$\n   M =",
-            "v1: stranded $$ -> CMD ph x2, array env -> MATH",
-        )
-    else:
-        ph_roundtrip(
-            "D06",
-            r"We obtain \[\[MATH_\d+\]\] as well as",
-            "$$\n   M =",
-            "$$..array(blank-lines)..$$ paired -> [[MATH_n]]",
-        )
+    # D06 $$..\begin{array} 区内空行..$$：env 容忍 → 单条 MATH ph 照常配对
+    ph_roundtrip(
+        "D06",
+        r"We obtain \[\[MATH_\d+\]\] as well as",
+        "$$\n   M =",
+        "$$..array(blank-lines)..$$ paired -> [[MATH_n]]",
+    )
     # D07 $$..<未展开宏闭符 \ek>+\par → 孤 $$ -> CMD ph + unpaired_dollar
     ph_roundtrip(
         "D07",
@@ -769,15 +753,9 @@ def assert_dollar(
 
 
 def assert_mask(
-    res: ScanResult | None, recon: str, recon_fake: str, *, v1: bool = False
+    res: ScanResult | None, recon: str, recon_fake: str
 ) -> dict[str, dict[str, str]]:
-    """tricky-mask.tex M 系列逐条断言（W07/W11/W84/W92 机制钉）。
-
-    ``v1=True`` 走 ``parse_file_v1`` 臂：亚型断言同规，M05 形异神同——
-    两臂都 ``\\textbf{..}`` 参数一体单 chunk，但 v1 组内 ``%`` 按
-    in_arg 规发 ``[[COMMENT_n]]`` ph（brace-depth 门，scanner.py
-    主循环分支 2/5），v2 Mouth 直接吃注释 → ``grouped  word``。
-    """
+    """tricky-mask.tex M 系列逐条断言（W07/W11/W84/W92 机制钉）。"""
     if res is None:
         return {"_meta": {"status": "info", "detail": "parse failed"}}
     chunks = chunks_blob(res)
@@ -831,22 +809,12 @@ def assert_mask(
         "$\\overline{%\n\\chi }$",
         "\\overline{%<NL>\\chi} arg-intact MATH",
     )
-    # M05 W84 文本组内注释拼接：两臂参数一体单 chunk——v1 组内 % 发
-    # [[COMMENT]] ph（brace-depth 门），v2 Mouth 吃注释
-    if v1:
-        all_re(
-            "M05",
-            (
-                r"A braced \\textbf\{grouped \[\[COMMENT_\d+\]\]\nword\} stays one argument\.",
-            ),
-            "v1: group-internal % -> COMMENT ph into run, arg intact",
-        )
-    else:
-        all_re(
-            "M05",
-            (r"A braced \\textbf\{grouped  word\} stays one argument\.",),
-            "v2: comment-joined textbf arg stays one chunk",
-        )
+    # M05 W84 文本组内注释拼接：Mouth 吃注释 → 参数一体单 chunk
+    all_re(
+        "M05",
+        (r"A braced \\textbf\{grouped  word\} stays one argument\.",),
+        "comment-joined textbf arg stays one chunk",
+    )
     # M06 W07 comment env 死块——死块内 section/math 不进 chunk
     ok = re.search(r"Live paragraph resumes here\.", chunks) and not re.search(
         r"Dead Section|Dead body", chunks
@@ -943,31 +911,7 @@ _w = _PARSED["tricky-w.tex"]
 _w73 = _PARSED["tricky-w73/main/main.tex"]
 _wenc = _PARSED["tricky-wenc.tex"]
 _d = _PARSED["tricky-dollar.tex"]
-# tricky-dollar 的 v1 臂对照（scanner.py 同规修复的断言面——D06 形发散
-# 已在 assert_dollar(v1=True) 内分臂处理）
-_d1_path = FIXTURES / "tricky-dollar.tex"
-_d1_res = parse_file_v1(_d1_path)
-_d1_flat = flatten_inputs(
-    decode_tex(_d1_path.read_bytes()), str(_d1_path.parent), str(_d1_path.parent)
-)
-_d1_recon = reconstruct(_d1_res)
-_d1_recon_fake = reconstruct(
-    _d1_res,
-    {c.id: fake_translation(c, i) for i, c in enumerate(_d1_res.chunks)},
-)
 _mk = _PARSED["tricky-mask.tex"]
-# tricky-mask 的 v1 臂对照（scanner.py 主循环 ``%`` 断片发散——M05 形分臂
-# 处理；其余 10 条两臂同规）
-_mk1_path = FIXTURES / "tricky-mask.tex"
-_mk1_res = parse_file_v1(_mk1_path)
-_mk1_flat = flatten_inputs(
-    decode_tex(_mk1_path.read_bytes()), str(_mk1_path.parent), str(_mk1_path.parent)
-)
-_mk1_recon = reconstruct(_mk1_res)
-_mk1_recon_fake = reconstruct(
-    _mk1_res,
-    {c.id: fake_translation(c, i) for i, c in enumerate(_mk1_res.chunks)},
-)
 
 TRICKY_ASSERTS = assert_tricky(_t.res, _t.recon, _t.recon_fake) if _t.res else {}
 ASSERTS_209 = assert_209(_209.res, _209.recon)
@@ -977,9 +921,7 @@ W_ASSERTS = assert_w(_w.res, _w.recon, _w.recon_fake) if _w.res else {}
 W73_ASSERTS = assert_w73(_w73.res) if _w73.res else {}
 WENC_ASSERTS = assert_wenc(_wenc.res) if _wenc.res else {}
 DOLLAR_ASSERTS = assert_dollar(_d.res, _d.recon, _d.recon_fake) if _d.res else {}
-DOLLAR_V1_ASSERTS = assert_dollar(_d1_res, _d1_recon, _d1_recon_fake, v1=True)
 MASK_ASSERTS = assert_mask(_mk.res, _mk.recon, _mk.recon_fake) if _mk.res else {}
-MASK_V1_ASSERTS = assert_mask(_mk1_res, _mk1_recon, _mk1_recon_fake, v1=True)
 
 # tricky.tex 的断言全集（docs/10：新增断言只增不减——T14 在 multi，T15/T28 不存在）
 TRICKY_IDS = [
@@ -1233,24 +1175,6 @@ def test_dollar_matrix_complete() -> None:
     assert set(DOLLAR_ASSERTS) == set(D_IDS) | {"_meta"}
 
 
-@pytest.mark.parametrize("aid", D_IDS)
-def test_dollar_v1arm(aid: str) -> None:
-    """tricky-dollar.tex v1 臂（``parse_file_v1``）同亚型断言——D06 发散形
-    已在断言体内分臂（两枚 ``$$`` 各 ``[[CMD]]`` 而非单条 MATH）。"""
-    a = DOLLAR_V1_ASSERTS.get(aid)
-    assert a is not None, f"missing assertion {aid} (parse failed?)"
-    assert a["status"] == "pass", f"{aid} {a['status']}: {a['detail']}"
-
-
-def test_dollar_v1arm_invariants() -> None:
-    """v1 臂整件门：identity 逐字节 + 零 ``$`` 泄漏 + 5× ``unpaired_dollar``
-    （D06 两枚 ``$$`` 各一 + D07/D08/D09 各一——比 v2 多两条属预期发散）。"""
-    assert _d1_recon == _d1_flat
-    assert not any("$" in c.content for c in _d1_res.chunks)
-    kinds = [w.kind for w in _d1_res.warnings]
-    assert sorted(kinds) == sorted(["unpaired_dollar"] * 5)
-
-
 # ---------------------------------------------------------------- tricky-mask 逐条
 
 
@@ -1265,20 +1189,3 @@ def test_mask(aid: str) -> None:
 def test_mask_matrix_complete() -> None:
     """``@Mnn`` 断言与 ``M_IDS`` 登记一致（只增不减口径同 tricky/w/dollar）。"""
     assert set(MASK_ASSERTS) == set(M_IDS) | {"_meta"}
-
-
-@pytest.mark.parametrize("aid", M_IDS)
-def test_mask_v1arm(aid: str) -> None:
-    """tricky-mask.tex v1 臂（``parse_file_v1``）同亚型断言——M05 形异
-    （组内 ``%`` 发 ``[[COMMENT]]`` ph）已在断言体内分臂。"""
-    a = MASK_V1_ASSERTS.get(aid)
-    assert a is not None, f"missing assertion {aid} (parse failed?)"
-    assert a["status"] == "pass", f"{aid} {a['status']}: {a['detail']}"
-
-
-def test_mask_v1arm_invariants() -> None:
-    """v1 臂整件门：identity 逐字节 + 零 ``$`` 泄漏 + 零 warn
-    （注释内 ``$`` 不入债判、死块零警告——两臂同规）。"""
-    assert _mk1_recon == _mk1_flat
-    assert not any("$" in c.content for c in _mk1_res.chunks)
-    assert [w.kind for w in _mk1_res.warnings] == []

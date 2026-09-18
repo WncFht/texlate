@@ -7,17 +7,9 @@ r"""cs 对界 DSL 块钉（W29 pinlabel ``\labellist…\endlabellist``）。
 
 from __future__ import annotations
 
-import pytest
 from conftest import DOC
 
 from texlate.latex import parse_tex
-
-
-@pytest.fixture(autouse=True)
-def _pin_v2(monkeypatch: pytest.MonkeyPatch) -> None:
-    """钉死 v2（Gullet+Segmenter）路径——外部 ``TEXLATE_NO_EXPAND`` 不串扰。"""
-    monkeypatch.delenv("TEXLATE_NO_EXPAND", raising=False)
-
 
 _LABELLIST_DOC = DOC % (
     "\\labellist\n"
@@ -61,7 +53,8 @@ def test_labellist_env_body_carries_scaffolding() -> None:
 def test_labellist_env_form_begin_end() -> None:
     """``\\begin{labellist}`` env 形同样整块保护（PROTECTED_ENVS 登记）。"""
     res = parse_tex(
-        DOC % (
+        DOC
+        % (
             "\\begin{labellist}\n"
             "\\pinlabel {env form label} at 1 2\n"
             "\\end{labellist}\n"
@@ -76,7 +69,8 @@ def test_labellist_env_form_begin_end() -> None:
 def test_labellist_mixed_close() -> None:
     """``\\labellist…\\end{labellist}`` 混搭闭形（``\\end{X}``→``\\endX`` 对价）。"""
     res = parse_tex(
-        DOC % (
+        DOC
+        % (
             "\\labellist\n"
             "\\pinlabel {mixed close label} at 3 4\n"
             "\\end{labellist}\n"
@@ -91,7 +85,8 @@ def test_labellist_mixed_close() -> None:
 def test_labellist_unclosed_falls_back() -> None:
     """无 ``\\endlabellist``：``unclosed_env`` 告警 + unknown-cs 保守路径。"""
     res = parse_tex(
-        DOC % (
+        DOC
+        % (
             "\\labellist\n"
             "\\pinlabel {dangling} at 5 6\n"
             "Paragraph continues without a block closer here."
@@ -103,7 +98,8 @@ def test_labellist_unclosed_falls_back() -> None:
 def test_endlabellist_stray_is_cmd() -> None:
     """孤 ``\\endlabellist`` → ``[[CMD]]`` 进 run，不裸进可译面。"""
     res = parse_tex(
-        DOC % (
+        DOC
+        % (
             "Prose before the stray closer. \\endlabellist "
             "More prose after it continues the same run here."
         )
@@ -115,7 +111,8 @@ def test_endlabellist_stray_is_cmd() -> None:
 def test_labellist_inside_group() -> None:
     """组内 ``\\labellist…\\endlabellist`` → 整段 ENV ph（B 臂对价）。"""
     res = parse_tex(
-        DOC % (
+        DOC
+        % (
             "\\newcommand{\\vv}{\\labellist \\pinlabel {x} at 1 1 \\endlabellist}\n"
             "A long enough prose paragraph to carry the expansion chunk "
             "well past the threshold for sure \\vv and trailing words."
@@ -128,7 +125,8 @@ def test_labellist_inside_group() -> None:
 def test_tablenotetext_note_mined() -> None:
     """``\\tablenotetext{a}{note}``：mark 参保护、note 文可译（W86 挖掘面）。"""
     res = parse_tex(
-        DOC % (
+        DOC
+        % (
             "\\begin{deluxetable}{lcc}\n"
             "\\tablecaption{Cap text}\n"
             "\\tablenotetext{a}{Measured with interferometry methods.}\n"
@@ -143,7 +141,8 @@ def test_tablenotetext_note_mined() -> None:
 def test_tablecomments_mined() -> None:
     """``\\tablecomments{text}`` 表尾注可译参挖掘。"""
     res = parse_tex(
-        DOC % (
+        DOC
+        % (
             "\\tablecomments{All magnitudes are on the AB system here.}\n"
             "Following prose stays in the translation flow."
         )

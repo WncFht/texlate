@@ -22,7 +22,6 @@ r"""Opaque 宏散文参挖掘钉版 —— ``_handle_opaque_macro`` 逐参散文
 
 import re
 
-import pytest
 from conftest import ART, blob, check_invariants
 
 from texlate.latex import parse_tex
@@ -40,12 +39,6 @@ DEFS = (
     "\\def\\keyonly#1{\\@store{#1}}\n"
     "\\makeatother\n"
 )
-
-
-@pytest.fixture(autouse=True)
-def _pin_v2(monkeypatch: pytest.MonkeyPatch) -> None:
-    """钉死 v2（Gullet+Segmenter）路径——外部 ``TEXLATE_NO_EXPAND`` 不串扰。"""
-    monkeypatch.delenv("TEXLATE_NO_EXPAND", raising=False)
 
 
 def scan(body: str, defs: str = DEFS) -> ScanResult:

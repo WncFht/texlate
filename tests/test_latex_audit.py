@@ -12,14 +12,11 @@ from pathlib import Path
 import pytest
 from conftest import DOC, blob, scan_doc
 
-from texlate.latex import parse_file, parse_tex, parse_tex_v1, reconstruct
-from texlate.latex.api import new_state
+from texlate.latex import parse_file, parse_tex, reconstruct
 from texlate.latex.flatten import flatten_inputs
 from texlate.latex.macro_table import parse_argspec
 from texlate.latex.placeholder import PH_RX
 from texlate.latex.reconstruct import validate_result
-from texlate.latex.scanner import Scanner
-from texlate.latex.tables import MAX_GEN
 
 # ---------------------------------------------------------------- 数学段边界
 
@@ -140,19 +137,10 @@ def test_audit_def_params_span_newline() -> None:
 
 
 def test_audit_def_bodyless_warns() -> None:
-    r"""纯 ``#n`` 序列后无 ``{body}``（EOF/参数被 ``\par`` 截断）→ ``def_parse_fail``。
-
-    ``\\par`` 截断半：v2 gullet 把 ``\\n\\n`` 后文本当定界符照常登记
-    （TeX 报 "Paragraph ended" 错误但 gullet 无 \\long 检查）——该断言
-    钉 ``parse_tex_v1`` 守卫 v1 腿；EOF 截断两腿行为一致仍走默认 v2。
-    """
+    r"""纯 ``#n`` 序列后无 ``{body}``（EOF 截断）→ ``def_parse_fail``。"""
     res = parse_tex("\\def\\c#1")
     assert res.macros.lookup("c") is None
     assert any(w.kind == "def_parse_fail" for w in res.warnings)
-    res = parse_tex_v1("\\def\\d#1\n\nNext para {grp} more")
-    assert res.macros.lookup("d") is None
-    assert any(w.kind == "def_parse_fail" for w in res.warnings)
-    assert reconstruct(res) == "\\def\\d#1\n\nNext para {grp} more"
 
 
 def test_audit_unknown_cmd_arg_not_across_parbreak() -> None:
@@ -246,16 +234,6 @@ def test_audit_stray_end_empty_stack_warns() -> None:
     r"""裸 ``\\end{env}``（栈空）也发 ``stray_end``——静默降级是本项目大忌。"""
     res = scan_doc("para text here \\end{itemize} more text")
     assert any(w.kind == "stray_end" for w in res.warnings)
-
-
-def test_audit_gen_cap_emits_warning() -> None:
-    r"""``gen >= MAX_GEN`` 降级必须留信号（此前三处静默）。"""
-    state = new_state()
-    sc = Scanner(state, gen=MAX_GEN)
-    out = sc.scan(
-        "\\begin{figure}\\caption{Deep cap text enough to chunk}\\end{figure}"
-    )
-    assert any(w.kind == "gen_overflow" for w in out.warnings)
 
 
 def test_audit_find_env_end_skips_verb() -> None:
@@ -628,16 +606,6 @@ def test_audit_f12_unclosed_env_nested_surplus() -> None:
     assert [w.kind for w in res.warnings] == ["unclosed_env", "unclosed_env"]
     assert "\\begin{equation} x+y \\end{equation}" in res.ph_map.values()
     assert reconstruct(res) == tex
-    # 墓标直答 vs 全新扫描逐字符扫——逐点等价（含非 None 命中）。
-    sc = Scanner(new_state())
-    sc._tex = tex  # noqa: SLF001 — 机制钉需触内部态
-    sc.scan(tex)
-    inner_j = tex.index("}", tex.index("\\begin{equation}", 20)) + 1
-    sc2 = Scanner(new_state())
-    sc2._tex = tex  # noqa: SLF001
-    assert sc._find_env_end(inner_j, "equation") == sc2._find_env_end(  # noqa: SLF001
-        inner_j, "equation"
-    )
 
 
 def test_audit_f12_unclosed_env_perf_gate() -> None:

@@ -20,18 +20,10 @@ chunk（或反方向——该 literal 的结构件被展开物质化）。每条
   认不出无 ``[``/``{`` 起头的路径形）。
 """
 
-import pytest
 from conftest import ART, check_invariants, chunk_text
 
 from texlate.latex import parse_tex, reconstruct
 from texlate.latex.tables import looks_like_colspec
-
-
-@pytest.fixture(autouse=True)
-def _pin_v2(monkeypatch: pytest.MonkeyPatch) -> None:
-    """钉死 v2（Gullet+Segmenter）路径——外部 ``TEXLATE_NO_EXPAND`` 不串扰。"""
-    monkeypatch.delenv("TEXLATE_NO_EXPAND", raising=False)
-
 
 # ------------------------------------------------------------------ R1
 

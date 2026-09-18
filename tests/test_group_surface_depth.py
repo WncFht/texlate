@@ -22,17 +22,10 @@ r"""``_close_group`` 展开组 eol_par 尾段「全或无」发射回归（Optio
 - ≥MIN → chunk 化（必要时 ``_split_bounds`` 切 part，每 part 全量落盘）。
 """
 
-import pytest
 from conftest import ART, check_invariants
 
 from texlate.latex import parse_tex, reconstruct
 from texlate.latex.model import ScanResult
-
-
-@pytest.fixture(autouse=True)
-def _pin_v2(monkeypatch: pytest.MonkeyPatch) -> None:
-    """钉死 v2（Gullet+Segmenter）路径——外部 ``TEXLATE_NO_EXPAND`` 不串扰。"""
-    monkeypatch.delenv("TEXLATE_NO_EXPAND", raising=False)
 
 
 def translated(res: ScanResult) -> str:

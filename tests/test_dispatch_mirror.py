@@ -19,7 +19,6 @@ r"""双分派表镜像钉 —— ``_dispatch`` ↔ ``_group_surface``/``_pend_sp
 import re
 import string
 
-import pytest
 from conftest import DOC
 
 from texlate.latex import parse_tex
@@ -43,13 +42,6 @@ from texlate.latex.tables import (
     TRANSPARENT_HEAD_SPEC,
     TRANSPARENT_NAMES,
 )
-
-
-@pytest.fixture(autouse=True)
-def _pin_v2(monkeypatch: pytest.MonkeyPatch) -> None:
-    """钉死 v2（Gullet+Segmenter）路径——外部 ``TEXLATE_NO_EXPAND`` 不串扰。"""
-    monkeypatch.delenv("TEXLATE_NO_EXPAND", raising=False)
-
 
 _UNIVERSE = frozenset(
     PROTECT_NAMES

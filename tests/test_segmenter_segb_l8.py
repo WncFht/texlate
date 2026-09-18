@@ -17,25 +17,18 @@ r"""L8 SEGB 道钉版 —— args.py 散文挖掘收尾面 + ``_protect_cs`` 键
   同款双臂 parity。
 
 每条用例过公共不变式：``reconstruct(res) == tex`` + ``validate_result``
-零告警 + pieces 无缝平铺（v1 臂例外——v1 只钉告警与 ph_map 面）。
+零告警 + pieces 无缝平铺。
 """
 
 import re
 
-import pytest
 from conftest import ART, blob, check_invariants
 
-from texlate.latex import parse_tex, parse_tex_v1, reconstruct
+from texlate.latex import parse_tex
 from texlate.latex.model import ScanResult
 
 PROSE = "We consider a two form antisymmetric tensor field theory in detail"
 KEY = "dalianis2020"
-
-
-@pytest.fixture(autouse=True)
-def _pin_v2(monkeypatch: pytest.MonkeyPatch) -> None:
-    """钉死 v2（Gullet+Segmenter）路径——外部 ``TEXLATE_NO_EXPAND`` 不串扰。"""
-    monkeypatch.delenv("TEXLATE_NO_EXPAND", raising=False)
 
 
 def scan(body: str, defs: str = "", art: str = ART) -> ScanResult:
@@ -315,30 +308,6 @@ def test_cite_range_in_list_warns() -> None:
 def test_cite_normal_key_no_warn() -> None:
     r"""``\cite{smith-2020,key-a}`` 合法键（含连字符非纯数字区间）：无告警。"""
     res = scan("See \\cite{smith-2020, key-a} for the background material.")
-    assert not any(w.kind == "cite_range_key" for w in res.warnings)
-
-
-def test_v1_bibitem_paren_warns() -> None:
-    r"""v1 臂同款：``\bibitem(13)`` → ``bibitem_paren`` 告警。"""
-    tex = ART % ("", "\\bibitem(13) V.D.Korepin et al, Some reference text.")
-    res = parse_tex_v1(tex)
-    assert reconstruct(res) == tex
-    assert any(w.kind == "bibitem_paren" for w in res.warnings)
-
-
-def test_v1_cite_range_key_warns() -> None:
-    r"""v1 臂同款：``\cite{15-20}`` → ``cite_range_key`` 告警。"""
-    tex = ART % ("", "See \\cite{15-20} for the background material here.")
-    res = parse_tex_v1(tex)
-    assert reconstruct(res) == tex
-    assert any(w.kind == "cite_range_key" for w in res.warnings)
-
-
-def test_v1_cite_normal_key_no_warn() -> None:
-    r"""v1 臂负向：合法键无 ``cite_range_key``。"""
-    tex = ART % ("", "See \\cite{smith-2020} for the background material.")
-    res = parse_tex_v1(tex)
-    assert reconstruct(res) == tex
     assert not any(w.kind == "cite_range_key" for w in res.warnings)
 
 

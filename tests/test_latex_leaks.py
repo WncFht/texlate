@@ -8,10 +8,7 @@ import re
 
 from conftest import DOC, blob, scan_doc
 
-from texlate.latex import parse_tex, parse_tex_v1, reconstruct
-from texlate.latex.api import new_state
-from texlate.latex.model import PhType
-from texlate.latex.scanner import Scanner
+from texlate.latex import parse_tex, reconstruct
 
 LEAK_DOLLAR = re.compile(r"\$")
 LEAK_COND = re.compile(r"\\(?:if[a-zA-Z]+|else|fi)(?![a-zA-Z])")
@@ -35,15 +32,6 @@ def test_leak_a_single_token_stops_at_backslash() -> None:
     # \foo 未知无参 → 逐字；\barbaz 完整保留不被切断
     assert reconstruct(res) == DOC % "Text \\foo \\barbaz continues."
     assert not any(w.kind == "letters_cut" for w in res.warnings)
-
-
-def test_leak_a_letters_cut_detection() -> None:
-    r"""BUG1 断言本体：ph 体以 ``\\letters`` 结尾且后继是字母 → ``letters_cut``。"""
-    state = new_state()
-    sc = Scanner(state)
-    sc._tex = "\\abcdef"  # noqa: SLF001 — 断言机制单测
-    sc._ph(PhType.CMD, "\\ab", cut_end=3)  # noqa: SLF001 — 体尾 \ab 后继 'd' 字母
-    assert any(w.kind == "letters_cut" for w in state.warnings)
 
 
 def test_leak_a_empty_spec_no_ws_swallow() -> None:
@@ -340,23 +328,6 @@ def test_user_env_math_role_eqnarray_tail() -> None:
     assert reconstruct(res) == DOC % body
 
 
-def test_user_env_math_role_v1_arm() -> None:
-    r"""v1 字节 scanner 臂同洞对称：字面 ``\\begin{subeqnarray}`` 体也归 MATH。"""
-    body = (
-        "\\newenvironment{subeqnarray}{\\arraycolsep1pt\\eqnarray}{\\endeqnarray}\n"
-        "Lead prose sentence with enough letters here.\n\n"
-        "\\begin{subeqnarray}\n"
-        "\\varphi^U_\\Omega = \\int d\\omega region_{\\Omega, omega} \\varphi_{region}^{U}\n"
-        "\\end{subeqnarray}\n\n"
-        "Tail prose sentence with enough letters here."
-    )
-    res = parse_tex_v1(DOC % body)
-    maths = [v for k, v in res.ph_map.items() if k.startswith("[[MATH_")]
-    assert any("\\varphi^U_\\Omega" in v for v in maths)
-    assert not any("region" in c.content or "\\varphi" in c.content for c in res.chunks)
-    assert reconstruct(res) == DOC % body
-
-
 def test_user_env_math_role_in_arg() -> None:
     r"""in_arg 路：用户 math env 嵌 ``\section`` 参数里也整段 ``[[MATH]]``。"""
     body = (
@@ -409,27 +380,6 @@ def test_at_cs_body_macro_stays_opaque() -> None:
     assert "\\section{引言译文}" in post  # 调用点保留 + 标题照常可翻
 
 
-def test_at_cs_body_macro_v1_arm() -> None:
-    r"""v1 字节 scanner 臂对称：平表 ``register_macro`` 同判 opaque。"""
-    tex = (
-        "\\documentclass{article}\n"
-        "\\makeatletter\n"
-        "\\def\\section{\\@startsection{section}{1}{\\z@}{-3.5ex}{2.3ex}{\\large\\bf}}\n"
-        "\\makeatother\n"
-        "\\begin{document}\n"
-        "\\section{Introduction to the topic}\n"
-        "Body text with enough words here.\n"
-        "\\end{document}\n"
-    )
-    res = parse_tex_v1(tex)
-    entry = res.macros.resolve(res.macros.lookup("section"))
-    assert getattr(entry, "kind", "") == "opaque"
-    zh = reconstruct(res, {c.id: "引言译文" for c in res.chunks})
-    post = zh.split("\\begin{document}", 1)[1]
-    assert "\\@startsection" not in post
-    assert "\\z@" not in post
-
-
 def test_at_cs_alias_body_stays_opaque() -> None:
     r"""裸 ``\\@foo`` 别名体同判 opaque——``_bare_cs`` 通道不得放行展开。"""
     body = (
@@ -464,19 +414,3 @@ def test_at_csname_synth_body_stays_opaque() -> None:
     out = reconstruct(res, {c.id: "译文" for c in res.chunks})
     post = out.split("\\begin{document}", 1)[1]
     assert "\\@" not in post
-
-
-def test_at_csname_synth_body_v1_arm() -> None:
-    r"""v1 字符串臂：``\csname..@..`` 体同判 opaque。"""
-    tex = (
-        "\\documentclass{article}\n"
-        "\\makeatletter\n"
-        "\\def\\foo{\\csname a@b\\endcsname}\n"
-        "\\makeatother\n"
-        "\\begin{document}\n"
-        "Text \\foo more words in this sentence.\n"
-        "\\end{document}\n"
-    )
-    res = parse_tex_v1(tex)
-    entry = res.macros.resolve(res.macros.lookup("foo"))
-    assert getattr(entry, "kind", "") == "opaque"

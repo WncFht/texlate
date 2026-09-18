@@ -21,7 +21,6 @@ opaque 宏臂 4bca3a1 + 主流探针臂 22df2e5）。
 
 import re
 
-import pytest
 from conftest import ART, blob, check_invariants
 
 from texlate.latex import parse_tex
@@ -32,12 +31,6 @@ PROSE2 = "Another independent sentence of English prose sits right here"
 KEY = "dalianis2020"
 #: 组 surface 须过 CHUNK_MIN 才成 chunk——统一垫词，别让样本落 literal 路
 PAD = "pad words here to push the surface past the minimum chunk limit"
-
-
-@pytest.fixture(autouse=True)
-def _pin_v2(monkeypatch: pytest.MonkeyPatch) -> None:
-    """钉死 v2（Gullet+Segmenter）路径——外部 ``TEXLATE_NO_EXPAND`` 不串扰。"""
-    monkeypatch.delenv("TEXLATE_NO_EXPAND", raising=False)
 
 
 def scan_grp(call: str, defs: str = "") -> ScanResult:

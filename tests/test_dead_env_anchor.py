@@ -2,8 +2,8 @@ r"""comment 族（``DEAD_ENVS``）行锚终结——``_env_stop`` dead 臂的 sc
 
 comment.sty 排除环境按**行**吞体：``\end{env}`` 须列 0 起、行内独占
 （``}`` 后仅空格到行尾/EOF）才终结。mask 视图已按此判死；本文件钉住
-三个 scan 视图同判——v2 segmenter（raw find + token 级 ``_find_env_end``/
-``_skip_verbatim_env_toks``）、v1 scanner、``flatten_inputs``：
+两个 scan 视图同判——v2 segmenter（raw find + token 级 ``_find_env_end``/
+``_skip_verbatim_env_toks``）、``flatten_inputs``：
 
 - 行中 ``x\end{comment}`` 不终结（列非 0）；
 - ``\end {comment}``/``\end{ comment }`` 断序列不终结；
@@ -14,22 +14,13 @@ comment.sty 排除环境按**行**吞体：``\end{env}`` 须列 0 起、行内�
 
 from pathlib import Path
 
-import pytest
 from conftest import DOC, blob
 
 from texlate.latex import parse_tex, reconstruct
-from texlate.latex.api import new_state
 from texlate.latex.flatten import flatten_inputs
 from texlate.latex.model import ScanResult
 from texlate.latex.reconstruct import validate_result
-from texlate.latex.scanner import Scanner
 from texlate.textutil import dead_end_anchored, dead_env_end
-
-
-@pytest.fixture(autouse=True)
-def _pin_v2(monkeypatch: pytest.MonkeyPatch) -> None:
-    """钉死 v2 路径——外部 ``TEXLATE_NO_EXPAND`` 不串扰。"""
-    monkeypatch.delenv("TEXLATE_NO_EXPAND", raising=False)
 
 
 def scan_v2(body: str) -> ScanResult:
@@ -37,12 +28,6 @@ def scan_v2(body: str) -> ScanResult:
     res = parse_tex(tex)
     assert reconstruct(res) == tex
     assert validate_result(res) == []
-    return res
-
-
-def scan_v1(body: str) -> ScanResult:
-    res = Scanner(new_state()).scan(DOC % body)
-    assert reconstruct(res) == DOC % body
     return res
 
 
@@ -152,39 +137,6 @@ def test_v2_no_nesting_begin_inside() -> None:
     res = scan_v2(body)
     chunked = blob(res)
     assert "Beta live words here." in chunked
-
-
-def test_v1_midline_end_does_not_terminate() -> None:
-    r"""v1 scanner 同判：行中 ``\\end{comment}`` 不终结。"""
-    body = (
-        "Alpha words here.\n"
-        "\\begin{comment}\n"
-        "dead line x\\end{comment} still dead words\n"
-        "\\end{comment}\n"
-        "Beta live words here."
-    )
-    res = scan_v1(body)
-    chunked = blob(res)
-    assert "Beta live words here." in chunked
-    assert "still dead words" not in chunked
-
-
-def test_v1_nested_dead_env_skip_anchored() -> None:
-    r"""v1 ``_find_env_end`` 嵌套跳读：``\\begin{frame}`` 体内 ``\\begin{comment}``
-    的死区只认行锚 ``\\end{comment}``——行中端点后 ``\\end{frame}`` 仍属死区。"""
-    body = (
-        "\\begin{frame}\n"
-        "frame words\n"
-        "\\begin{comment}\n"
-        "dead x\\end{comment} still dead \\end{frame}\n"
-        "\\end{comment}\n"
-        "\\end{frame}\n"
-        "Beta live words here."
-    )
-    res = scan_v1(body)
-    chunked = blob(res)
-    assert "Beta live words here." in chunked
-    assert "still dead" not in chunked
 
 
 # ---------------------------------------------------------------- flatten 面

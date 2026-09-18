@@ -11,17 +11,9 @@ stagerun/realn200 实证形：``\titlespacing*{\section}{0pt}{4pt}{4pt}``
 chunk、文本参仍进 chunk）。
 """
 
-import pytest
 from conftest import ART, check_invariants, chunk_text
 
 from texlate.latex import parse_tex
-
-
-@pytest.fixture(autouse=True)
-def _pin_v2(monkeypatch: pytest.MonkeyPatch) -> None:
-    """钉死 v2（Gullet+Segmenter）路径——外部 ``TEXLATE_NO_EXPAND`` 不串扰。"""
-    monkeypatch.delenv("TEXLATE_NO_EXPAND", raising=False)
-
 
 # ------------------------------------------------------------- titlesec 族
 

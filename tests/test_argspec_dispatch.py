@@ -44,12 +44,6 @@ from texlate.latex.tables import (
 BEAMER = "\\documentclass{beamer}\n\\begin{document}\n%s\n\\end{document}\n"
 
 
-@pytest.fixture(autouse=True)
-def _pin_v2(monkeypatch: pytest.MonkeyPatch) -> None:
-    """钉死 v2（Gullet+Segmenter）路径——外部 ``TEXLATE_NO_EXPAND`` 不串扰。"""
-    monkeypatch.delenv("TEXLATE_NO_EXPAND", raising=False)
-
-
 def scan(body: str, preamble: str = "", doc: str = ART) -> ScanResult:
     tex = doc % (preamble, body) if doc is ART else doc % body
     res = parse_tex(tex)

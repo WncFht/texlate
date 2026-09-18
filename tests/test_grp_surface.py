@@ -10,7 +10,6 @@ r"""``_group_surface`` 组内分派三族修复的行为钉（签名面裁决见
   ``\5``/``\_`` 无参字面不再被 argspec 假条目/探针吃掉随行参。
 """
 
-import pytest
 from conftest import ART, check_invariants
 
 from texlate.latex import parse_tex
@@ -18,12 +17,6 @@ from texlate.latex.model import ScanResult
 
 # 组 surface 须过 CHUNK_MIN 才成 chunk——统一垫词，别让样本落 literal 路
 PAD = "pad words here to push past the minimum limit"
-
-
-@pytest.fixture(autouse=True)
-def _pin_v2(monkeypatch: pytest.MonkeyPatch) -> None:
-    """钉死 v2（Gullet+Segmenter）路径——外部 ``TEXLATE_NO_EXPAND`` 不串扰。"""
-    monkeypatch.delenv("TEXLATE_NO_EXPAND", raising=False)
 
 
 def ph_body(res: ScanResult, typ: str) -> list[str]:

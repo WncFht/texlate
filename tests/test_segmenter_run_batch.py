@@ -34,12 +34,6 @@ from texlate.latex.segmenter.core import _Core
 from texlate.latex.segmenter.mainloop import _MainLoop
 
 
-@pytest.fixture(autouse=True)
-def _pin_v2(monkeypatch: pytest.MonkeyPatch) -> None:
-    """钉死 v2（Gullet+Segmenter）路径——外部 ``TEXLATE_NO_EXPAND`` 不串扰。"""
-    monkeypatch.delenv("TEXLATE_NO_EXPAND", raising=False)
-
-
 def _digest(res: ScanResult) -> tuple:
     """等价口径五元组。"""
     return (

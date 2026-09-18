@@ -29,7 +29,6 @@ token 参），任一参消费即整调用折进单个 ``[[CMD_n]]``——花括
 
 import re
 
-import pytest
 from conftest import ART, blob, check_invariants
 
 from texlate.latex import parse_tex
@@ -41,12 +40,6 @@ KEY = "dalianis2020"
 #: beamer 包条目（``\only``/``\onslide``）——argspec 表不按包门控后
 #: docclass 不再 load-bearing：同名 cs 在 article 下也走 argspec 臂。
 BEAMER = "\\documentclass{beamer}\n%s\\begin{document}\n%s\n\\end{document}\n"
-
-
-@pytest.fixture(autouse=True)
-def _pin_v2(monkeypatch: pytest.MonkeyPatch) -> None:
-    """钉死 v2（Gullet+Segmenter）路径——外部 ``TEXLATE_NO_EXPAND`` 不串扰。"""
-    monkeypatch.delenv("TEXLATE_NO_EXPAND", raising=False)
 
 
 def scan(body: str, defs: str = "", art: str = ART) -> ScanResult:

@@ -14,21 +14,11 @@ r"""segmenter 机制波回归（fixer-machinery，illegal_unit 机制半场）�
 文本参仍进 chunk）。
 """
 
-import pytest
 from conftest import ART, check_invariants, chunk_text
 
 from texlate.latex import parse_tex
-from texlate.latex.api import new_state
 from texlate.latex.macro_table import parse_argspec
 from texlate.latex.model import ArgSpec, PieceKind
-from texlate.latex.scanner import Scanner
-
-
-@pytest.fixture(autouse=True)
-def _pin_v2(monkeypatch: pytest.MonkeyPatch) -> None:
-    """钉死 v2（Gullet+Segmenter）路径——外部 ``TEXLATE_NO_EXPAND`` 不串扰。"""
-    monkeypatch.delenv("TEXLATE_NO_EXPAND", raising=False)
-
 
 # ------------------------------------------------------------- M1 in_arg lit 段
 
@@ -231,28 +221,6 @@ def test_parse_argspec_n_letter() -> None:
     （迁前无 ``n`` 臂静默跳过 → ``arg_roles`` 位序错位隐患）。"""
     assert parse_argspec("n m") == [ArgSpec("n"), ArgSpec("m")]
     assert parse_argspec("s n") == [ArgSpec("s"), ArgSpec("n")]
-
-
-def test_v1_setlength_bare_cs_whole_literal() -> None:
-    r"""M2 v1 对价：``BOUNDARY_TAIL`` 直载 ``[n, m]`` 后 v1 ``_args`` ``n``
-    臂收裸名——``\setlength\parskip{4pt}`` 整段单 LITERAL（迁前 v1
-    ``m`` 臂遇 ``\`` 即停 → ``\parskip{4pt}`` 走未知探针碎罩）。"""
-    tex = ART % (
-        "",
-        (
-            "\\setlength\\parskip{4pt}\n"
-            "\\settowidth\\mylen{xx}\n"
-            "Body text here to fill the paragraph out nicely and more.\n"
-        ),
-    )
-    res = Scanner(new_state()).scan(tex)
-    lits = [p.text for p in res.pieces if p.kind is PieceKind.LITERAL]
-    assert "\\setlength\\parskip{4pt}" in lits
-    assert "\\settowidth\\mylen{xx}" in lits
-    body = chunk_text(res)
-    assert "4pt" not in body
-    assert "parskip" not in body
-    assert "Body text" in body
 
 
 # ------------------------------------------------------------- M3 \\[dim] 尾参
