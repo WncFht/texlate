@@ -503,3 +503,12 @@
 - roster 6 在飞：grpOpaque(#42 逾 1h 在跑)/providesdate(#54)/sentryfix(#56)/geomreverify(#57)/slotaudit(#58)；iffalse/mnras/skiprole/pstadd 四尸已清。
 - 门巡：域内自验 53/53 绿 ruff 净；peer interleave f5677a66/6a3d538d/c9c3e3da（server app 拆+latex TokenSource+worker seams）互不干；22 commit 全我署零违例。
 - 残口入册更新：draftsty-abstract-hack 规则（候选 micro-lane，待第二命中或富余）；ASCII↔ASCII env-arg mangling 仍盲区；90-shim:2216 BoxedEPS 死条目（无害）；grpOpaque `_pend_spec_of` 过吸收 adjudication 待其交付；sentryfix 交付后需转 texlate-13 接线（彼域 proc.py/_base.py 已由彼派回我队——**纠正**：sentryfix 是我队 lane，交付即我收）。
+
+## 2026-09-19 ~04:0x — 夜巡：grpOpaque 落地 + parsebench 断链抢修 + pendspec 续派
+
+- **e9757c0 parsebench 断链抢修（leader 自改）**：peer api.py v1 臂退役删 `parse_file_v1` → `bench/py/parsebench.py:75` 模块级 import 炸穿全链（parsebench→quality_proxies→stage_compile→stagerun，geomreverify replay 即死于此）。修法=惰性导入进 `parse_one` try 内——v1 臂被调时 ImportError 落 per-file 桶而非毁模块导入；ruff 净，import 链复通。geomverify 已解锁通知。
+- **45fab85 grpOpaque 收**（#42）：`_grp_scan` 组内缺 opaque/math 宏行——登记宏落探针 `[o]+{m}×6` 兜底 spec 越界过吸尾参组（主流 row18 `_handle_opaque_macro` 对价缺失）。+228：`_grp_opaque_args` 全 `Arg` 类 toks-walk（m/o/star/e/delim 滑窗/until_group/零宽 + `_pend_call_slots` keyarg 尾），`("opaque",None)` 行插 inline-literal↔pair-block 间镜像主流行序，m2 决议前提，PhType.CMD+散文抠参+gen_overflow 警。**forced 变更裁定**：`test_pend_spec_reg_gate` `[1]`→`[2]`——钉的是调用点覆盖行为非旧过吸机制，合法收。**附带披露**：`_pin_v2` fixture 删除=peer v1 臂退役未提交件被本 commit 扫入（commit body 已注明非我件）。
+- **#59 pendspec 派出**（grpOpaque 残口兑现）：`_pend_spec_of` 边界臂同款 `_PEND_PROBE` 过吸——槽字母表不出 spec 保真（m 吃 `[`+单 token、无 delim/e/until_group 槽），需流侧 spec walker 非槽映射；owns pending.py+slots 测试，已预警 texlate-13 同文件撞区（彼镜像表合并排期在先，指示我队绕飞不回退）。
+- **texlate-13 双 ping**：①grpOpaque 落地通报（彼三镜像表合并解锁）②pendspec 同文件撞区预警（彼排期在先可串行）。parsebench 修复亦已互报。
+- roster 5 在飞：providesdate(#54)/sentryfix(#56)/geomreverify(#57)/slotaudit(#58)/pendspec(#59)；grpOpaque 尸已清（self-terminated）。
+- 门巡：本 tick 域内 49+139 绿 ruff 净；parsebench 断链属 peer 瞬态非回归；commit 全我署。L1 口径提示：l1-gate 结果系 post-W84 树（昨日 21:43 完），peer v1 退役落地后现行树 L1 需重跑——记档待彼 refactor 收敛。
