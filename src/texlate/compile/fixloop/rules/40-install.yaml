@@ -179,6 +179,34 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "wave-4 落地: bench/results/cbucket-vendored-inventory/ dispositions"
 
+  # 2026-09-18 nicematrix-lane: 装上件自检版本闸炸 (expl3 msg_critical
+  # file-line 形) —— tlmgr/tlnet 只有最新版, 对运行期 format/L3 过新
+  # (2308.12712: _texmf/home/.../nicematrix v7.11c 要 format ≥2026-06-01,
+  #  runtime LaTeX2e 2025-11-01; xelatex tlmgr 通路无 version_guard)。
+  # wdir 平铺 vendor 兼容钉版 → kpathsea cwd 序遮蔽 texmfhome 过新件,
+  # 下轮自检过闸正常载入。稿自带过新版: _inject_write 指纹闸拒覆外来
+  # 件 → 自动 decline; vendor 查无该件同样 decline → unfixable 归因清晰。
+  - id: pkg_version_skew_vendored
+    mechanisms: [B05]
+    description: "版本自检炸 (release too old) → vendor 兼容版平铺遮蔽过新安装件"
+    phase: loop
+    order: 11.7 # vendored_fetch(11.5)/greek_fontenc_install(11.6) 后, babel_opt(13) 前
+    when: { category: pkg_version_skew, payload_required: true }
+    action:
+      kind: builtin_transform
+      function: vendored_fetch
+      params: {} # dir 缺省 = 包内 vendor/; nicematrix 钉 v7.11a (floor format 2025-06-01)
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "e2ereal 2308.12712 (+ corpus_v3 nicematrix 用稿同族)",
+          error: "nicematrix.sty:39: Critical Package nicematrix Error: Your LaTeX release is too old",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "nicematrix-lane 2026-09-18: vendor/files/nicematrix.sty v7.11c→v7.11a 钉档"
+
   # fixable-data 裁定 (1003.2165): polutonikogreek 是弃名, greek.polutoniko
   # 亦走 locale/invalid/ 弃名桩必炸。现行 ini 正形是 `greek.polytonic`
   # (locale/el/babel-polytonicgreek.tex 自证 "Provided: greek.polytonic";

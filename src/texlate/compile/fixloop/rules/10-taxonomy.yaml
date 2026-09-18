@@ -280,6 +280,21 @@ taxonomy:
       scope: head,
       pattern: "Backend request inconsistent with engine",
     }
+  # ── 2026-09-18 nicematrix-lane ──
+  # 装上件自检版本闸: expl3 ``\msg_critical`` 以 file-line 形落在刚装上的
+  # 包文件 ("Critical Package X Error: Your LaTeX release is too old") ——
+  # tlmgr/tlnet 只发最新版, 对运行期 format/L3 过新 (2308.12712 实证:
+  # _texmf nicematrix v7.11c 要 format ≥2026-06-01, runtime LaTeX2e
+  # 2025-11-01; ctan_fetch version_guard 只兜 tectonic 臂, xelatex tlmgr
+  # 通路无闸)。payload=file-line 前缀 basename → pkg_version_skew_vendored
+  # 规则以 vendor 兼容钉版平铺遮蔽。Class 与 msg_error 级同签并收;
+  # ``too old`` 限定把版本闸与其他 critical 错分开 (错路由风险零化)。
+  - {
+      id: pkg_version_skew,
+      scope: head,
+      payload_group: 1,
+      pattern: "([^()\\s:/]+\\.[A-Za-z0-9_-]{1,10}):\\d+: (?:Critical )?(?:Package|Class) [\\w@*+-]+ Error[\\s\\S]{0,600}?too old",
+    }
   # 2026-09-16 扩 syntax 族: Extra }/\\endgroup/\\right/\\middle/\\else/\\fi/\\or
   # 与 Forgotten \\endgroup —— 组/定界/条件多 token 错误归 syntax
   # (astro-ph/0306068 "Extra }, or forgotten $." 原是 other 兜底;
