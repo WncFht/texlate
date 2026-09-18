@@ -1,0 +1,69 @@
+% M-series mask-family fixture — MASK 族 4 机制钉（W07/W11/W84/W92）。
+% Each case marked % @Mnn — parser benchmark asserts per marker.
+% @M09 W11 docclass/usepackage 跨行夹注释参（1306.6187/1502.06070 形）
+\documentclass[%
+ a4paper, % paper size
+ %preprint,
+ 12pt]{article}
+\usepackage{amsmath, % math tools
+ comment}
+
+\begin{document}
+
+% @M01 W92 注释尾孤立 $ 不参配对（hep-ph/9910434 \footnote{..$^{\dag}$..}.%$ 形）
+Marker note.\footnote{Published version.$^{\dag}$}.%$
+Body after the footnote keeps $y$ inline math alive.
+
+% @M02 W92+W84 数学体内注释 $ 不计债——同段后续 $c$ 不被 debt_repair 偷
+Before $a%$
+b$ middle After $c$ tail.
+
+% @M03 W84 $%$ 跨行拼接（nucl-th/9703052 shell $%<NL>(N) $ 高频形）
+The shell $%
+(N) $ orbitals fill pairwise here.
+
+% @M04 W84 \overline{%<NL>\chi} 参内注释拼接（nucl-th/9703052 同文）
+We write $\overline{%
+\chi }$ for the averaged field.
+
+% @M05 W84 文本组内注释拼接 {a%<NL>b} —— 参数一体不断裂
+A braced \textbf{grouped %
+word} stays one argument.
+
+% @M06 W07 comment env 死块（1206.2111 整块注释掉 \subsection+math+theorem）
+\begin{comment}
+\subsection{Dead Section}
+Dead body $x$ and \begin{theorem}fake\end{theorem} all gone.
+\end{comment}
+Live paragraph resumes here.
+
+% @M07 W07 行内 x\end{comment} 不终结——comment.sty 行锚整行比对
+\begin{comment}
+dead alpha x\end{comment}
+dead beta stays dead
+\end{comment}
+Live after the dead block.
+
+% @M08 W07 \end{comment}% 尾随不终结——行内容必须恰为 \end{comment}
+\begin{comment}
+dead one
+\end{comment} % not a close
+dead two
+\end{comment}
+Live after the tricky close.
+
+% @M10 W11 泛化——\begin{%<NL>comment} 注释名→comment（env_name_at 剔除注释段）
+\begin{%
+comment}
+dead gamma
+\end{%
+comment}
+still dead delta
+\end{comment}
+Live after commented env name.
+
+% @M11 W92 整行注释内的孤立 $ 全程不参配对
+% a stray $ sign lives in this comment only
+Live tail $z$ closes the file body.
+
+\end{document}

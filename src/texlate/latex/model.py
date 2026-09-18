@@ -373,24 +373,53 @@ def env_name_at(tex: str, i: int) -> tuple[str | None, int]:
     r"""``{name}`` 读取：ws 后 ``{env}`` → (名, ``}`` 后一位)；否则 (None, i)。
 
     ``\\begin/\\end`` 的参数读取同样不跨段落边界（ws_skip_arg）。
+    名内 ``%`` 注释段按 tokenize 语义整段剔除（含其换行）——
+    ``\\begin{%\\ncomment}`` 的名字是 ``comment``（W11 泛化）；注释段
+    原样留在名里会让 DEAD_ENVS 等查表全数失手、环境走字面退化路。
     """
     pos = ws_skip_arg(tex, i)
     if pos < len(tex) and tex[pos] == "{":
         e = match_brace(tex, pos)
         if e:
-            return tex[pos + 1 : e - 1].strip(), e
+            raw = tex[pos + 1 : e - 1]
+            if "%" in raw:
+                out: list[str] = []
+                k = 0
+                while k < len(raw):
+                    c = raw[k]
+                    if c == "\\":
+                        out.append(raw[k : k + 2])
+                        k += 2
+                        continue
+                    if c == "%":
+                        nl = raw.find("\n", k)
+                        k = len(raw) if nl < 0 else nl + 1
+                        continue
+                    out.append(c)
+                    k += 1
+                raw = "".join(out)
+            return raw.strip(), e
     return None, i
 
 
 def unescaped_dollar_odd(body: str) -> bool:
-    """``body`` 内未转义 ``$`` 计数为奇 → True（math-debt 判据）。"""
+    r"""``body`` 内未转义 ``$`` 计数为奇 → True（math-debt 判据）。
+
+    ``%`` 到行尾跳过——注释内 ``$`` 在 TeX 配对域外（编辑器平衡伪注释），
+    计入会把闭合完好的数学体误判为奇、给下一枚 ``$`` 发假债（W92）。
+    """
     odd = False
     i, n = 0, len(body)
     while i < n:
-        if body[i] == "\\":
+        c = body[i]
+        if c == "\\":
             i += 2
             continue
-        if body[i] == "$":
+        if c == "%":
+            k = body.find("\n", i)
+            i = n if k < 0 else k + 1
+            continue
+        if c == "$":
             odd = not odd
         i += 1
     return odd

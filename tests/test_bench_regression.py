@@ -20,11 +20,14 @@ r"""B2 fixtures 陷阱断言回归（docs/10 §B2）——spike ``miniscanner_te
 - ``tricky-dollar.tex``：D 系列 dollar 族 10 条（``@Dnn`` ↔ corpus_v3 ``$``-leak
   归因亚型——散文 ``\$`` 转义、``\section``/``\textit``/``\item``/footnote 组参内 ``\$``、
   ``$$..env..`` 区内空行照常配对、孤 ``$$``/孤 ``$`` → CMD ph + ``unpaired_dollar``、
-  ``\$`` 与 ``$x$`` 同行混排 CMD+MATH 双路）。
+  ``\$`` 与 ``$x$`` 同行混排 CMD+MATH 双路）；
+- ``tricky-mask.tex``：M 系列 MASK 族 11 条（``@Mnn`` ↔ W07/W11/W84/W92 机制钉——
+  comment env 死块三态行锚、docclass/usepackage 跨行夹注释参、行尾 ``%`` 拼接、
+  注释内孤立 ``$`` 不参配对；``env_name_at``/``unescaped_dollar_odd`` 修复面）。
 
 断言函数 ``assert_tricky`` / ``assert_209`` / ``assert_multi`` / ``assert_xlat``
 与 bench 跑分器 ``bench/py/fixture_assert.py`` 共享（该脚本直接 import 本模块）。
-门槛（docs/10 §B2）：61 条 dict 断言全 ``pass``——``partial`` 在 spike 里是容忍档，
+门槛（docs/10 §B2）：72 条 dict 断言全 ``pass``——``partial`` 在 spike 里是容忍档，
 但产品现状全 pass，退化到 partial 即回归，这里按 ``== "pass"`` 严判。
 """
 
@@ -43,7 +46,7 @@ import pytest
 from texlate.latex import flatten_inputs, parse_file, reconstruct, validate_result
 from texlate.latex.api import parse_file_v1
 from texlate.latex.placeholder import CHUNK_RX, PH_RX
-from texlate.textutil import decode_tex
+from texlate.textutil import DOCCLASS_DECL_RX, decode_tex, mask_tex
 
 if TYPE_CHECKING:
     from types import FrameType
@@ -61,6 +64,7 @@ FIXTURE_FILES = [
     ("tricky-w73/main/main.tex", FIXTURES / "tricky-w73" / "main" / "main.tex"),
     ("tricky-wenc.tex", FIXTURES / "tricky-wenc.tex"),
     ("tricky-dollar.tex", FIXTURES / "tricky-dollar.tex"),
+    ("tricky-mask.tex", FIXTURES / "tricky-mask.tex"),
 ]
 
 # 泄漏扫描口径（spike 同表）：可译 chunk 内不得出现这些构造
@@ -764,6 +768,163 @@ def assert_dollar(
     return out
 
 
+def assert_mask(
+    res: ScanResult | None, recon: str, recon_fake: str, *, v1: bool = False
+) -> dict[str, dict[str, str]]:
+    """tricky-mask.tex M 系列逐条断言（W07/W11/W84/W92 机制钉）。
+
+    ``v1=True`` 走 ``parse_file_v1`` 臂：亚型断言同规，唯 M05 发散——v1
+    主流程 ``%`` 处 flush run + 逐字 emit 注释（scanner.py 设计点），
+    ``\\textbf{grouped %<NL>word}`` 在 ``%`` 断片、``word}`` 落独立
+    chunk；v2 是单 chunk ``\\textbf{grouped  word}``（Mouth 吃注释
+    参数一体）。发散已留档为界外需求，断言按两臂实测形分写。
+    """
+    if res is None:
+        return {"_meta": {"status": "info", "detail": "parse failed"}}
+    chunks = chunks_blob(res)
+    out: dict[str, dict[str, str]] = {}
+
+    def all_re(tid: str, rxs: tuple[str, ...], note: str) -> None:
+        missing = [rx for rx in rxs if not re.search(rx, chunks)]
+        out[tid] = {
+            "status": "fail" if missing else "pass",
+            "detail": f"missing {missing} in chunks" if missing else note,
+        }
+
+    def ph_roundtrip(tid: str, rx: str, needle: str, note: str) -> None:
+        ok = re.search(rx, chunks) and needle in recon
+        out[tid] = {
+            "status": "pass" if ok else "fail",
+            "detail": note
+            if ok
+            else f"rx={rx!r} in chunks / {needle!r} in recon: false",
+        }
+
+    # M01 W92 注释尾孤立 $ 不参配对（hep-ph/9910434 %$ 形）——footnote 参内
+    # $^{\dag}$ 正常配对，尾随 %$ 的 $ 不抢不泄
+    ph_roundtrip(
+        "M01",
+        r"Published version\.\[\[MATH_\d+\]\]",
+        r"$^{\dag}$",
+        "comment-trailing isolated $ ignored, dagger math paired",
+    )
+    # M02 W92+W84 数学体内注释 $ 不计债——两枚 MATH 各自配对、零 debt_repair
+    ok = re.search(
+        r"Before \[\[MATH_\d+\]\] middle After \[\[MATH_\d+\]\] tail\.", chunks
+    ) and not any(w.kind == "debt_repair" for w in res.warnings)
+    out["M02"] = {
+        "status": "pass" if ok else "fail",
+        "detail": "math-body comment $ excluded from debt (unescaped_dollar_odd)"
+        if ok
+        else "debt_repair fired or math pairing broken",
+    }
+    # M03 W84 $%$ 跨行拼接（nucl-th/9703052）——单条 MATH 跨注释闭合
+    ph_roundtrip(
+        "M03",
+        r"The shell \[\[MATH_\d+\]\] orbitals",
+        "$%\n(N) $",
+        "$..%<NL>..$ joined into one MATH",
+    )
+    # M04 W84 \overline{%<NL>\chi} 参内注释拼接——arg 边界跳注释
+    ph_roundtrip(
+        "M04",
+        r"We write \[\[MATH_\d+\]\] for the averaged",
+        "$\\overline{%\n\\chi }$",
+        "\\overline{%<NL>\\chi} arg-intact MATH",
+    )
+    # M05 W84 文本组内注释拼接：v2 单 chunk 参数一体；v1 % 处断片（界外需求留档）
+    if v1:
+        ok = re.search(r"word\} stays one argument\.", chunks) and re.search(
+            r"\\textbf\{grouped %", res.protected_tex
+        )
+        out["M05"] = {
+            "status": "pass" if ok else "fail",
+            "detail": "v1: top-level % flushes run — \\textbf{grouped literal + word} chunk"
+            if ok
+            else "v1 divergent shape changed",
+        }
+    else:
+        all_re(
+            "M05",
+            (r"A braced \\textbf\{grouped  word\} stays one argument\.",),
+            "v2: comment-joined textbf arg stays one chunk",
+        )
+    # M06 W07 comment env 死块——死块内 section/math 不进 chunk
+    ok = re.search(r"Live paragraph resumes here\.", chunks) and not re.search(
+        r"Dead Section|Dead body", chunks
+    )
+    out["M06"] = {
+        "status": "pass" if ok else "fail",
+        "detail": "comment env body fully dead"
+        if ok
+        else "dead body leaked into chunks",
+    }
+    # M07 W07 行内 x\end{comment} 不终结（comment.sty 行锚比对）
+    ok = re.search(r"Live after the dead block\.", chunks) and not re.search(
+        r"dead alpha|dead beta", chunks
+    )
+    out["M07"] = {
+        "status": "pass" if ok else "fail",
+        "detail": "mid-line \\end{comment} rejected"
+        if ok
+        else "mid-line end closed env",
+    }
+    # M08 W07 \end{comment}% 尾随不终结
+    ok = re.search(r"Live after the tricky close\.", chunks) and not re.search(
+        r"dead one|dead two", chunks
+    )
+    out["M08"] = {
+        "status": "pass" if ok else "fail",
+        "detail": "trailing-comment \\end{comment} rejected"
+        if ok
+        else "trailing-comment end closed env",
+    }
+    # M09 W11 docclass/usepackage 跨行夹注释参——DECL_TAIL 在遮盖视图整表
+    # 捕获（recon == 原文字节，mask 后 %preprint 成空白项被 clean_decl_name 拒）
+    dc = DOCCLASS_DECL_RX.search(mask_tex(recon))
+    opts = (dc.group(2) or "") if dc else ""
+    opt_names = [o.strip() for o in opts.split(",") if o.strip()]
+    ok = (
+        dc is not None
+        and dc.group(3).strip() == "article"
+        and {"a4paper", "12pt"} <= set(opt_names)
+        and "preprint" not in opt_names
+        and "\\usepackage{amsmath, % math tools\n comment}" in recon
+    )
+    out["M09"] = {
+        "status": "pass" if ok else "fail",
+        "detail": f"decl tail captures multi-line opts {opt_names}"
+        if ok
+        else f"dc={dc and dc.groups()} opts={opt_names}",
+    }
+    # M10 W11 泛化 \begin{%<NL>comment}——env_name_at 剔注释得名 comment
+    # → 死块 [[VERB]] 整段保护，两臂收敛同形
+    ok = re.search(r"Live after commented env name\.", chunks) and not re.search(
+        r"dead gamma|still dead delta", chunks
+    )
+    out["M10"] = {
+        "status": "pass" if ok else "fail",
+        "detail": "commented env name -> DEAD_ENVS hit, body protected"
+        if ok
+        else "dead body leaked or live tail lost",
+    }
+    # M11 W92 整行注释内孤立 $ 不参配对——$z$ 正常配对
+    all_re(
+        "M11",
+        (r"Live tail \[\[MATH_\d+\]\] closes the file body\.",),
+        "full-line comment $ ignored",
+    )
+
+    res_chunk = len(CHUNK_RX.findall(recon_fake))
+    res_prot = len(PH_RX.findall(recon_fake))
+    out["_meta"] = {
+        "status": "info",
+        "detail": f"chunks={len(res.chunks)} ph={len(res.ph_map)} "
+        f"residue_chunk={res_chunk} residue_prot={res_prot}",
+    }
+    return out
+
+
 # ---------------------------------------------------------------- 模块级测量（7 个小文件，ms 级）
 
 #: 需要非缺省 ``top_dir`` 的 fixture（w73：paper 根 = tricky-w73/，``../shared``
@@ -796,6 +957,19 @@ _d1_recon_fake = reconstruct(
     _d1_res,
     {c.id: fake_translation(c, i) for i, c in enumerate(_d1_res.chunks)},
 )
+_mk = _PARSED["tricky-mask.tex"]
+# tricky-mask 的 v1 臂对照（scanner.py 主循环 ``%`` 断片发散——M05 形分臂
+# 处理；其余 10 条两臂同规）
+_mk1_path = FIXTURES / "tricky-mask.tex"
+_mk1_res = parse_file_v1(_mk1_path)
+_mk1_flat = flatten_inputs(
+    decode_tex(_mk1_path.read_bytes()), str(_mk1_path.parent), str(_mk1_path.parent)
+)
+_mk1_recon = reconstruct(_mk1_res)
+_mk1_recon_fake = reconstruct(
+    _mk1_res,
+    {c.id: fake_translation(c, i) for i, c in enumerate(_mk1_res.chunks)},
+)
 
 TRICKY_ASSERTS = assert_tricky(_t.res, _t.recon, _t.recon_fake) if _t.res else {}
 ASSERTS_209 = assert_209(_209.res, _209.recon)
@@ -806,6 +980,8 @@ W73_ASSERTS = assert_w73(_w73.res) if _w73.res else {}
 WENC_ASSERTS = assert_wenc(_wenc.res) if _wenc.res else {}
 DOLLAR_ASSERTS = assert_dollar(_d.res, _d.recon, _d.recon_fake) if _d.res else {}
 DOLLAR_V1_ASSERTS = assert_dollar(_d1_res, _d1_recon, _d1_recon_fake, v1=True)
+MASK_ASSERTS = assert_mask(_mk.res, _mk.recon, _mk.recon_fake) if _mk.res else {}
+MASK_V1_ASSERTS = assert_mask(_mk1_res, _mk1_recon, _mk1_recon_fake, v1=True)
 
 # tricky.tex 的断言全集（docs/10：新增断言只增不减——T14 在 multi，T15/T28 不存在）
 TRICKY_IDS = [
@@ -873,6 +1049,8 @@ W73_IDS = [
 WENC_IDS = ["W72_mixed_decoded"]
 # tricky-dollar.tex 的断言全集（@Dnn ↔ corpus_v3 $-leak 归因亚型钉）
 D_IDS = [f"D{n:02d}" for n in range(1, 11)]
+# tricky-mask.tex 的断言全集（@Mnn ↔ W07/W11/W84/W92 机制钉）
+M_IDS = [f"M{n:02d}" for n in range(1, 12)]
 ALL_FIXTURE_NAMES = [n for n, _ in FIXTURE_FILES]
 
 
@@ -1073,3 +1251,36 @@ def test_dollar_v1arm_invariants() -> None:
     assert not any("$" in c.content for c in _d1_res.chunks)
     kinds = [w.kind for w in _d1_res.warnings]
     assert sorted(kinds) == sorted(["unpaired_dollar"] * 5)
+
+
+# ---------------------------------------------------------------- tricky-mask 逐条
+
+
+@pytest.mark.parametrize("aid", M_IDS)
+def test_mask(aid: str) -> None:
+    """tricky-mask.tex M 系列 MASK 族逐条断言（断言体在 ``assert_mask``）。"""
+    a = MASK_ASSERTS.get(aid)
+    assert a is not None, f"missing assertion {aid} (parse failed?)"
+    assert a["status"] == "pass", f"{aid} {a['status']}: {a['detail']}"
+
+
+def test_mask_matrix_complete() -> None:
+    """``@Mnn`` 断言与 ``M_IDS`` 登记一致（只增不减口径同 tricky/w/dollar）。"""
+    assert set(MASK_ASSERTS) == set(M_IDS) | {"_meta"}
+
+
+@pytest.mark.parametrize("aid", M_IDS)
+def test_mask_v1arm(aid: str) -> None:
+    """tricky-mask.tex v1 臂（``parse_file_v1``）同亚型断言——M05 发散形
+    已在断言体内分臂（主循环 ``%`` 断片 → ``word}`` 独立 chunk）。"""
+    a = MASK_V1_ASSERTS.get(aid)
+    assert a is not None, f"missing assertion {aid} (parse failed?)"
+    assert a["status"] == "pass", f"{aid} {a['status']}: {a['detail']}"
+
+
+def test_mask_v1arm_invariants() -> None:
+    """v1 臂整件门：identity 逐字节 + 零 ``$`` 泄漏 + 零 warn
+    （注释内 ``$`` 不入债判、死块零警告——两臂同规）。"""
+    assert _mk1_recon == _mk1_flat
+    assert not any("$" in c.content for c in _mk1_res.chunks)
+    assert [w.kind for w in _mk1_res.warnings] == []
