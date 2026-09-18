@@ -310,6 +310,54 @@ def test_grp_item_label_flows() -> None:
     assert res.ph_map["[[CMD_2]]"] == "\\item"
 
 
+# ------------------------------------------------------------- argspec 登记闸
+# 主流 ``_handle_unknown_cs`` 约定：宏表登记名（``m is not None``）不吃
+# argspec——签名表只对未登记未知名生效（``argspec_lookup`` docstring 明记
+# "调用方先短路"）。组内 argspec 行与 ``_pend_spec_of`` 待绑槽形行同规。
+
+
+def test_grp_argspec_reg_gate() -> None:
+    r"""组内登记名不吃 argspec：``\And``（math-literal ``literal`` 策）被
+    ``\renewcommand`` 登记成 opaque 宏后不再按签名逐字渲 surface——
+    ``\And{aa}`` 整调用 ``[[CMD]]``（登记名落探针与主流 ``m is not None``
+    同规）；无闸则命令名+参组裸进 chunk 被译。"""
+    res = scan(
+        "\\renewcommand{\\And}[1]{\\textbf{#1}}\n"
+        "\\newcommand{\\vv}{pre \\And{aa} post words here}\n"
+        "Text \\vv tail words here enough."
+    )
+    assert res.ph_map["[[CMD_1]]"] == "\\And{aa}"
+    assert "\\And" not in blob(res)
+    assert "aa" not in blob(res)
+
+
+def test_grp_argspec_unregistered_unchanged() -> None:
+    r"""保守面：未登记 ``\Alph``（latex2e ``key``/``m`` 签名）组内仍走
+    argspec——``{aa1}`` 随 ``[[CMD]]``、``{bb2}`` 留 surface（闸只挡
+    登记名，不扩大打击面）。"""
+    res = scan(
+        "\\newcommand{\\vv}{pre \\Alph{aa1}{bb2} post words here}\n"
+        "Text \\vv tail words here."
+    )
+    assert res.ph_map["[[CMD_1]]"] == "\\Alph{aa1}"
+    assert "{bb2}" in blob(res)
+
+
+def test_pend_spec_reg_gate() -> None:
+    r"""组尾待绑判同闸：``\Alph`` 被 ``\renewcommand`` 登记后不再按签名
+    ``s o o o m`` 只吸首组——``m is not None`` → keyarg/探针 ``o m×6``
+    把 ``{aa1}{bb2}`` 全吸进组尾，``[[EXPAND]]`` 体覆盖 ``\\vv{aa1}{bb2}``
+    整调用点（无闸时 ``{bb2}`` 漏出组界裸进 chunk）。"""
+    res = scan(
+        "\\renewcommand{\\Alph}[1]{\\textbf{#1}}\n"
+        "\\newcommand{\\vv}{pre \\Alph}\n"
+        "Text \\vv{aa1}{bb2} tail words here."
+    )
+    assert res.ph_map["[[CMD_1]]"] == "\\Alph{aa1}{bb2}"
+    assert res.ph_map["[[EXPAND_2]]"] == "\\vv{aa1}{bb2}"
+    assert "bb2" not in blob(res)
+
+
 # ------------------------------------------------------------- 类6 混排数学闭符
 
 

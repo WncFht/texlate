@@ -12,7 +12,6 @@ from texlate.latex.mouth import (
     Tok,
 )
 from texlate.latex.tables import (
-    ACCENT_CHARS,
     BOUNDARY_NAMES,
     BOUNDARY_TAIL,
     CHUNK_ARG_NAMES,
@@ -20,8 +19,6 @@ from texlate.latex.tables import (
     COND_RX,
     DIMEN_TAIL_KIND,
     FILENAME_CHARS,
-    FONT_SWITCHES,
-    INLINE_LITERAL_CMDS,
     INPUT_SCAN_CMDS,
     MAX_GEN,
     PAIR_BLOCK_ALL,
@@ -44,9 +41,11 @@ from ._common import (
     _SLOT_TEST_LEN,
     _TAIL_RX,
     TokenSource,
+    _accent_cs,
     _chunk_spec_cached,
     _cite_ref_type,
     _env_ph_type,
+    _inline_lit_cs,
     _pend_call_slots,
     _pend_slot_of,
 )
@@ -58,20 +57,6 @@ _ENV_CS = ("begin", "end")
 _MATH_DELIM_CS = ("[", "(", "]", ")")
 _MATH_OPEN_CS = ("[", "(")
 _IMPORT2 = ("import", "subimport")
-
-
-def _accent_cs(name: str) -> bool:
-    r"""Accent 族行谓词（``_dispatch``/``_pend_spec_of``/``_group_surface`` 同判据）。"""
-    return len(name) == 1 and name in ACCENT_CHARS
-
-
-def _inline_lit_cs(name: str) -> bool:
-    r"""行内字面行谓词（``mainloop._inline_lit_cs`` 同判据——符号/品牌/字体开关/单字符非字母）。"""
-    return (
-        name in INLINE_LITERAL_CMDS
-        or name in FONT_SWITCHES
-        or (len(name) == 1 and not name.isalpha())
-    )
 
 
 # ``_group_surface`` 行序的名级投影——``mainloop._DISPATCH_FAMS`` 的镜像钉
@@ -542,7 +527,9 @@ class _Pending:
             # 对界块开/闭 cs 无槽形——``\pinlabel{tex}`` 等体 token
             # 留主流（探针槽会误吸界外 pinlabel 参进组）
             return None, ""
-        e = _seg.argspec_lookup(name, self.state.pkgs)
+        # 宏表登记名不吃 argspec（主流 ``_handle_unknown_cs`` ``m is None``
+        # 闸同规——登记名走下方 keyarg/探针，包签名不得领槽）
+        e = _seg.argspec_lookup(name, self.state.pkgs) if m is None else None
         if e is not None:
             if e.policy in ("literal", "transparent"):
                 return None, ""
@@ -1113,7 +1100,10 @@ class _Pending:
                     )
                     i = e3
                     continue
-            e2 = _seg.argspec_lookup(name, self.state.pkgs)
+            # 宏表登记名不吃 argspec（主流 ``m is None`` 闸的组内对价——
+            # env-macro 行只截 env_begin/env_end，其余登记名落探针同规）
+            m2 = self.state.macros.resolve(self.state.macros.lookup(name))
+            e2 = _seg.argspec_lookup(name, self.state.pkgs) if m2 is None else None
             if e2 is not None:
                 policy = e2.policy
                 if policy in ("literal", "transparent"):
