@@ -664,6 +664,19 @@ def cmd_extract(args: argparse.Namespace) -> None:
     log(f"select[{layer}]: {len(sel)} picks")
     man = manifest_path(layer)
     done = {r["id"] for r in benchlib.read_jsonl(man)} if man.exists() else set()
+    if args.topup:
+        have = Counter(r.get("stratum_cell") for r in benchlib.read_jsonl(man))
+        need = {c: s.get("quota", 0) - have.get(c, 0) for c, s in stats.items()}
+        deficit = {c: n for c, n in need.items() if n > 0}
+        sel = [r for r in sel if r["id"] not in done]
+        keep: list[dict] = []
+        for rec in sel:
+            cell = rec["_cell"]
+            if need.get(cell, 0) > 0:
+                need[cell] -= 1
+                keep.append(rec)
+        log(f"topup[{layer}]: deficit={deficit} -> {len(keep)} fresh picks")
+        sel = keep
     for rec in sel:
         if rec["id"] in done or not (CORPUS / rec["id"] / "meta.json").exists():
             continue
@@ -923,6 +936,11 @@ def main() -> None:
     )
     ap.add_argument("--jobs", type=int, default=4)
     ap.add_argument("--limit", type=int, default=0, help="冒烟/日预算护栏")
+    ap.add_argument(
+        "--topup",
+        action="store_true",
+        help="extract: 只补 deficit cell（quota − manifest 实收），不动足额 cell",
+    )
     a = ap.parse_args()
     if a.cmd == "recent" and not a.ids_file:
         ap.error("recent 需要 --ids-file")
