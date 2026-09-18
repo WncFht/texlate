@@ -124,3 +124,40 @@ rules:
         }
     stats: { fires: 1, status: verified } # 全量 _fixloop_one r1 实证
     source_ref: "fixer-apjbbx-2026-09-17; apj.bbx L192-197 双点归因 + r1 rewrite in 1 files"
+
+  # 2026-09-18 task t_c9249919e8d7a13f: tectonic bundle 钉 biblatex 3.17
+  # (bcf 3.8) 但外调 biber 走系统 PATH (2.22 要 bcf 3.11) —— bundle 内
+  # 无解的工具链错配, 一切 biblatex 稿在 tectonic 下必死。log 形态:
+  # "! the external tool exited ..." 后 biber stdout dump 含
+  # "Found biblatex control file version 3.8, expected version 3.11." —
+  # head 窗盖到则类 toolchain_skew, 盖不到落 other; builtin 两级复核
+  # (err_head 快径 → _fixloop_log 全文) 同收, 不中 False 让位后续 other
+  # 规则。REJECT route=xelatex 令牌由 repair 跨引擎臂换编 (本地 TeXLive
+  # biber/biblatex 成对)。order 8 殿前: 硬墙先路由, 不陪跑可修类。
+  - id: biber_biblatex_skew_route
+    mechanisms: [B05]
+    description: "tectonic bundle biblatex ↔ 系统 biber bcf 版本错配 → REJECT route=xelatex 换引擎 (不改源)"
+    phase: loop
+    order: 8 # toolchain_skew/other 族首评: 硬墙先路由
+    when:
+      {
+        any:
+          [ { category: toolchain_skew }, { category: other } ],
+      }
+    condition:
+      engine_in: [tectonic]
+    action:
+      kind: builtin_transform
+      function: biber_biblatex_skew_route
+      params: { route: xelatex }
+    risk: low # 不改源只发路由令牌; 签名自验不中即 False
+    engines:
+      tectonic: { mode: native }
+      xelatex: { mode: skip } # xelatex 侧 biber/biblatex 同源自 TeXLive, 无此错配
+    provenance:
+      - {
+          corpus: "task t_c9249919e8d7a13f (arXiv 2609.18207v1, 2026-09-18)",
+          error: "! the external tool exited / biber: Found biblatex control file version 3.8, expected version 3.11",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "_builtins_bib.py biber_biblatex_skew_route; repair.py cross_engine_retry reject_route 臂"

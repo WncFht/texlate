@@ -251,20 +251,28 @@ def cross_engine_retry(  # noqa: PLR0913 -- 开关面穿透两臂同一契约
     dropped: Sequence[str],
     expect_cjk: bool,
     make_engine: Callable[[], Engine],
+    reject_route: str | None = None,
     should_cancel: Callable[[], bool] | None = None,
 ) -> CrossRetry | None:
-    """消费 dropped ``engine_flags``：tectonic→xelatex 重试 → ``CrossRetry``/None。
+    """消费 dropped ``engine_flags``/``reject_route``：tectonic→xelatex 重试 → ``CrossRetry``/None。
 
-    触发条件（两臂同一契约）：有 dropped flag ∧ 当前引擎是 tectonic ∧
-    ``xelatex`` 在 route 候选 ∧ 当前判定低于 clean。dropped 多为
-    shell-escape 需求——tectonic 沙箱不收 → 换 xelatex 带全量请求 flag
-    经 ``compile(flags=…)`` seam 重编，复判严格更优才 ``adopted``。
+    触发条件（两臂同一契约）：有 dropped flag ∨ fixloop 显式路由
+    xelatex（``reject_route`` 令牌，biber/biblatex 版本错配、pstricks
+    等 tectonic 死路签名）∧ 当前引擎是 tectonic ∧ ``xelatex`` 在
+    route 候选 ∧ 当前判定低于 clean。dropped 多为 shell-escape
+    需求——tectonic 沙箱不收 → 换 xelatex 带全量请求 flag 经
+    ``compile(flags=…)`` seam 重编，复判严格更优才 ``adopted``。
 
     ``make_engine`` 由调用侧注入（构造旋钮曾两臂分歧，2026-09-17 裁决
     统一为 best-effort ``halt_on_error=False``——retry 是交付路径终末
     重编非轮内分类编译；测试面仍可经 ``engine_factory`` 注入）。
     """
-    if not dropped or engine_name != "tectonic" or "xelatex" not in route_engines:
+    routed = reject_route == "xelatex"
+    if (
+        not (dropped or routed)
+        or engine_name != "tectonic"
+        or "xelatex" not in route_engines
+    ):
         return None
     if VERDICT_RANK.get(current_status, 0) >= VERDICT_RANK["clean"]:
         return None
@@ -277,10 +285,16 @@ def cross_engine_retry(  # noqa: PLR0913 -- 开关面穿透两臂同一契约
         should_cancel=should_cancel,
     )
     xv = judge(xres, expect_cjk=expect_cjk, log_text=log_text_of(xres))
+    why = (
+        f"engine_flags {dropped} tectonic 不支持"
+        if dropped
+        else f"fixloop route {reject_route}"
+    )
     info = {
         "engine": "xelatex",
         "status": xv.status,
-        "reason": f"engine_flags {dropped} tectonic 不支持 → 换 xelatex",
+        "reason": f"{why} → 换 xelatex",
+        "adopted": VERDICT_RANK.get(xv.status, 0) > VERDICT_RANK.get(current_status, 0),
     }
     return CrossRetry(
         res=xres,
@@ -303,19 +317,22 @@ def consume_engine_flags(  # noqa: PLR0913 -- 开关面穿透两臂同一契约
     dropped: Sequence[str],
     expect_cjk: bool,
     make_engine: Callable[[], Engine],
+    reject_route: str | None = None,
     should_cancel: Callable[[], bool] | None = None,
 ) -> tuple[CrossRetry | None, str | None]:
-    """Fixloop ``engine_flags`` 消费尾：dropped→跨引擎重试，applied→note。
+    """Fixloop ``engine_flags``/``reject_route`` 消费尾：跨引擎重试或审计 note。
 
-    dropped 多为 shell-escape 需求——tectonic 沙箱不收 → 换 xelatex 带
-    ``probe_flags``+``flags`` 合并去重后的全量请求经 ``compile(flags=…)``
+    dropped 多为 shell-escape 需求、``reject_route`` 是 fixloop 的显式
+    路由令牌（REJECT note 的 ``route=`` 提出，biber/biblatex 错配等
+    tectonic 死路签名）——两臂合一：tectonic 收不起的诉求由 xelatex
+    带 ``probe_flags``+``flags`` 合并去重后的全量请求经 ``compile(flags=…)``
     seam 重编取优（机械在 ``cross_engine_retry``）。``status_of`` 惰性取
-    incumbent 判据——worker 臂仅 dropped 路径需要，flags-only 不白费一轮
-    judge。返回 ``(CrossRetry 或 None, 审计 note 或 None)``——两臂各接
-    自家报告形态（e2e ``tail["verdict"]["notes"]`` / worker summary+log
-    行）；note 一律贴换编后的终态上，换臂不丢审计痕迹。
+    incumbent 判据——仅换编路径需要，flags-only 不白费一轮 judge。
+    返回 ``(CrossRetry 或 None, 审计 note 或 None)``——两臂各接自家报告
+    形态（e2e ``tail["verdict"]["notes"]`` / worker summary+log 行）；
+    note 一律贴换编后的终态上，换臂不丢审计痕迹。
     """
-    if dropped:
+    if dropped or reject_route == "xelatex":
         xr = cross_engine_retry(
             engine_name=engine_name,
             route_engines=route_engines,
@@ -327,9 +344,15 @@ def consume_engine_flags(  # noqa: PLR0913 -- 开关面穿透两臂同一契约
             dropped=dropped,
             expect_cjk=expect_cjk,
             make_engine=make_engine,
+            reject_route=reject_route,
             should_cancel=should_cancel,
         )
-        return xr, f"engine_flags unsupported on {engine_name}: {dropped}"
+        note = (
+            f"engine_flags unsupported on {engine_name}: {dropped}"
+            if dropped
+            else f"fixloop reject_route={reject_route} on {engine_name}"
+        )
+        return xr, note
     if flags:
         return None, f"engine_flags applied via CLI seam: {flags}"
     return None, None

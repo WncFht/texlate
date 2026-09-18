@@ -103,6 +103,7 @@ def _fixloop_summary(cell: dict[str, Any]) -> dict[str, Any]:
     trace, setup = fixloop_cell_parts(cell)
     return {
         "verdict": cell.get("verdict"),
+        "reject_route": cell.get("reject_route"),
         "main": cell.get("main"),
         "engine": cell.get("engine"),
         "log_excerpt": cell.get("log_excerpt"),
@@ -179,9 +180,12 @@ class _Compile:
         if self._current_status(ctx) in TERMINAL_STATUSES:
             return  # cancel 竞态：终态已写，不再覆盖
         # fixloop 策略拒绝（verdict reject:<rid>）与 e2e 同案归
-        # partial + reject_at=fixloop——拒绝是降级交付不是故障
+        # partial + reject_at=fixloop——拒绝是降级交付不是故障。
+        # 例外：reject_route→xelatex 换编被采用（cross_engine.adopted）时
+        # 终态已按 xelatex 复判取优——策略拒绝让位给实际产物判定。
         verdict = str((ctx.fixloop or {}).get("verdict") or "")
-        if verdict.startswith("reject:"):
+        cross_adopted = bool((ctx.fixloop or {}).get("cross_engine", {}).get("adopted"))
+        if verdict.startswith("reject:") and not cross_adopted:
             await self._to_thread(ctx, self._build_md_zip)
             detail: dict[str, Any] = {}
             if ctx.l2:
@@ -562,6 +566,7 @@ class _Compile:
             probe_flags=ctx.probe_flags,
             flags=flags,
             dropped=dropped,
+            reject_route=cell.get("reject_route"),
             expect_cjk=ctx.expect_cjk,
             # halt_on_error=False：与主编译/salvage 同口径 best-effort——
             # retry 是交付路径终末重编（非轮内分类编译），nonstopmode

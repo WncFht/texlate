@@ -375,6 +375,7 @@ def _slim_cell(cell: dict[str, Any]) -> dict[str, Any]:
         "installed": cell.get("installed") or [],
         "engine_flags": cell.get("engine_flags") or [],
         "engine_flags_dropped": cell.get("engine_flags_dropped") or [],
+        "reject_route": cell.get("reject_route"),
         "log_excerpt": cell.get("log_excerpt"),
     }
 
@@ -476,6 +477,7 @@ def _run_fixloop(  # noqa: PLR0913 -- 开关面穿透同 pipe_condition
         probe_flags=job.probe_flags,
         flags=flags,
         dropped=dropped,
+        reject_route=cell.get("reject_route"),
         expect_cjk=expect_cjk,
         make_engine=lambda: engine_for("xelatex", halt_on_error=False),
     )

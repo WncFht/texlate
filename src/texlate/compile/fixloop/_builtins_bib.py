@@ -16,6 +16,8 @@ if TYPE_CHECKING:
 
     from texlate.compile.fixloop.engine import Engine, LoopCtx
 
+from texlate.compile.fixloop._builtins_csfix import _fixloop_log
+
 
 def bbl_stub_rewrite(
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
@@ -191,3 +193,37 @@ def citekey_sanitize(
     if not changed:
         return False, "no unsafe cite keys"
     return True, f"sanitize cite keys &->A/_->-: {', '.join(changed)}"
+
+
+#: biber/biblatex bcf 版本错配签名——biber stdout 被 tectonic 以
+#: ``! the external tool exited`` 形态 dump 进 xetex log:
+#: ``Found biblatex control file version 3.8, expected version 3.11.``
+_BIBER_SKEW_RE = re.compile(
+    r"biblatex control file version ([\d.]+), expected version ([\d.]+)"
+)
+
+
+def biber_biblatex_skew_route(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    """biber/biblatex 版本错配 → ``REJECT: route=<route>`` 路由令牌 (不改源)。
+
+    实证根因 (task t_c9249919e8d7a13f, 2026-09-18): tectonic bundle 钉
+    biblatex 3.17 (bcf 3.8) 但外部 biber 走系统 PATH (2.22 要 bcf 3.11)
+    ——bundle 内无解；路由令牌由 repair 跨引擎臂换 xelatex (本地
+    TeXLive biber/biblatex 成对)。签名复核两级: 本轮 ``err_head`` 快径
+    → ``_fixloop_log`` 全文兜底 (外部工具 stdout dump 在 log 内位置
+    不钉死——taxonomy head 窗未必盖到, 落 ``other`` 时同规接住)。
+    不中 → False 让位后续 ``other`` 规则。
+    """
+    del eng, payload
+    route = str(params.get("route") or "xelatex")
+    m = _BIBER_SKEW_RE.search(ctx.err_head or "")
+    if m is None:
+        m = _BIBER_SKEW_RE.search(_fixloop_log(ctx))
+    if m is None:
+        return False, "no biber/biblatex skew signature"
+    return True, (
+        f"REJECT: route={route} biber/biblatex version skew "
+        f"(bcf {m.group(1)} vs tool wants {m.group(2)})"
+    )

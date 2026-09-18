@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING, Any
 from texlate.compile.fixloop._builtins_bib import (
     bbl_regen,
     bbl_stub_rewrite,
+    biber_biblatex_skew_route,
     citekey_sanitize,
 )
 from texlate.compile.fixloop._builtins_common import (
@@ -136,6 +137,7 @@ __all__ = [
     "accent_mark_fix",
     "bbl_regen",
     "bbl_stub_rewrite",
+    "biber_biblatex_skew_route",
     "bundled_class_shadow",
     "citekey_sanitize",
     "cs_rebind",
@@ -914,6 +916,7 @@ TRANSFORM_FNS = {
     "non_utf8_recode": non_utf8_recode,
     "bbl_stub_rewrite": bbl_stub_rewrite,
     "bbl_regen": bbl_regen,
+    "biber_biblatex_skew_route": biber_biblatex_skew_route,
     "svjour_clo_stub": svjour_clo_stub,
     "font_sub_shim": font_sub_shim,
     "pstricks_dvips_preflight": pstricks_dvips_preflight,

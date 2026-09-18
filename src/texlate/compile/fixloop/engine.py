@@ -230,6 +230,18 @@ def _sweep_bad_aux(wdir: Path) -> list[str]:
     return dropped
 
 
+#: REJECT note 里的 ``route=<name>`` 令牌——``reject_route``/route 语义型
+#: builtin (plain_format_detect/biber_biblatex_skew_route) 同一拼写约定；
+#: 提出后落 ``cell["reject_route"]`` 供跨引擎臂消费（repair.consume_engine_flags）。
+_REJECT_ROUTE_RE = re.compile(r"\broute=(\S+)")
+
+
+def _note_route(note: str) -> str | None:
+    """REJECT note → 目标路由名；无 route 令牌 → None。"""
+    m = _REJECT_ROUTE_RE.search(note)
+    return m.group(1) if m else None
+
+
 def _report_of(res: CompResLike, warn_patterns: list[dict[str, Any]]) -> ErrReport:
     """CompRes → ErrReport: 优先 .log 文件; 缺席/空错误时 stdout_tail 兜底。
 
@@ -284,6 +296,9 @@ class LoopCtx:
     err_cat: str | None = None
     err_pay: str | None = None
     err_head: str = ""  # 本轮错误 blob (ctx_suggests 条件用)
+    #: gate 评估只回 verdict 串——REJECT note 的 route= 令牌经此桥回 cell
+    #: (precheck/loop 两 site 有 note 在手直接写 cell["reject_route"])。
+    reject_route: str | None = None
     _texts: dict[Path, str | None] = field(default_factory=dict, repr=False)
 
     def tex_files(self, exts: Iterable[str] = (".tex", ".sty", ".cls")) -> list[Path]:
@@ -412,6 +427,7 @@ def _gate_eval(  # noqa: PLR0913, PLR0917  # 与 _match_apply 同签名面
         except Exception as e:  # noqa: BLE001
             applied, note = False, f"gate crashed: {type(e).__name__}: {e}"
         if applied and note.startswith(_REJECT_PREFIX):
+            ctx.reject_route = _note_route(note)
             return f"reject:{rule.id}"
         if applied:
             ctx.applied.add(key)
@@ -584,6 +600,8 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
         )
         if applied and note.startswith(_REJECT_PREFIX):
             cell["verdict"] = f"reject:{rule.id}"
+            if r := _note_route(note):
+                cell["reject_route"] = r
             _record_case(
                 case_sink, cell, corpus_id=corpus_id, cond=cond, engine_name=engine_name
             )
@@ -689,6 +707,8 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
         v = _gate_eval(rs, ctx, eng, cat, pay, rep)
         if v:
             cell["verdict"] = v
+            if ctx.reject_route:
+                cell["reject_route"] = ctx.reject_route
             break
         sig = f"{cat}:{pay}"
         sig_n = sig_n + 1 if sig == prev_sig else 1
@@ -703,6 +723,8 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
             break
         if note.startswith(_REJECT_PREFIX):
             cell["verdict"] = f"reject:{rule.id}"
+            if r := _note_route(note):
+                cell["reject_route"] = r
             break
         cell["actions"].append({"round": rnd, "rule": rule.id, "detail": note})
         ctx.events.append(f"apply {rule.id}: {note}")

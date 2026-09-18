@@ -259,6 +259,15 @@ taxonomy:
       payload_group: 1,
       pattern: "Cannot patch (?:bibliography|citation) macro ([\\w@:+-]+)",
     }
+  # 2026-09-18 t_c9249919e8d7a13f: tectonic 外调 biber 版本错配——
+  # ``! the external tool exited`` 后 stdout dump 的 ERROR 行是锚
+  # (bundle biblatex 3.17/bcf3.8 ↔ 系统 biber 2.22/bcf3.11); 超出
+  # head 窗时落 ``other``, biber_biblatex_skew_route builtin 全文复核同收。
+  - {
+      id: toolchain_skew,
+      scope: head,
+      pattern: "biblatex control file version [\\d.]+, expected version [\\d.]+",
+    }
   - {
       id: invalid_char,
       scope: head,
