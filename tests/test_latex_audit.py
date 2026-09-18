@@ -361,6 +361,7 @@ def _corpus_mains() -> list[Path]:
     return mains
 
 
+@pytest.mark.slow
 @pytest.mark.skipif(
     not any(_CORPUS.rglob("meta.json")),
     reason="bench/corpus_v3 数据不在本地（gitignored 数据层）",

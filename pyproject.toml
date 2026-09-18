@@ -60,6 +60,11 @@ norecursedirs = [
   "venv",
   "{arch}",
 ]
+markers = [
+  # 快环 -m "not slow and not integration"：重构迭代期只跑纯单元面
+  "slow: 走 corpus/重产物数据的全量扫描用例（gitignored 数据层在场才跑）",
+  "integration: 依赖外部工具/网络/真进程的用例（xelatex/kpsewhich/sh/网关/sidecar）",
+]
 
 [build-system]
 requires = ["hatchling"]

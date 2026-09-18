@@ -233,6 +233,7 @@ def test_kind_mapping_covers_six() -> None:
 # ---------------------------------------------------------------- corpus 用例（本机）
 
 
+@pytest.mark.slow
 @needs_corpus
 @pytest.mark.parametrize(("paper", "main"), _CORPUS_PAPERS)
 def test_corpus_paper_full_chain(paper: str, main: str) -> None:

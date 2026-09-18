@@ -284,6 +284,7 @@ def test_is_runaway_output_new_semantics() -> None:
 
 
 # ---------------------------------------------------------------- 真子进程端到端
+@pytest.mark.integration
 @requires_posix
 def test_run_process_benign_survives(tmp_path: Path) -> None:
     """200 页各一告警 + 正常退出 → 不杀不标（1003.2165 复归路径）。"""
@@ -299,6 +300,7 @@ def test_run_process_benign_survives(tmp_path: Path) -> None:
     assert "Overfull" in out
 
 
+@pytest.mark.integration
 @requires_posix
 def test_run_process_vbox_flood_reason(tmp_path: Path) -> None:
     """空转签名 + 挂死 → killpg 秒级收树，timed_out 槽回吐 vbox_flood。"""
@@ -314,6 +316,7 @@ def test_run_process_vbox_flood_reason(tmp_path: Path) -> None:
     assert "Overfull" in out
 
 
+@pytest.mark.integration
 @requires_posix
 def test_run_process_page_flood_reason(tmp_path: Path) -> None:
     """页标洪片 + 挂死 → timed_out 槽回吐 page_flood。"""
@@ -329,6 +332,7 @@ def test_run_process_page_flood_reason(tmp_path: Path) -> None:
     assert sec < 30  # noqa: PLR2004 - 越阈即杀，远早于 60s 墙钟
 
 
+@pytest.mark.integration
 @requires_posix
 def test_run_process_wallclock_still_bool(tmp_path: Path) -> None:
     """真墙钟超时 timed_out 仍是 bool True——str 槽只载活哨原因。"""

@@ -16,10 +16,13 @@ GATEWAY_URL = os.environ.get("TEXLATE_GATEWAY_URL", "http://127.0.0.1:3003")
 GATEWAY_KEY = os.environ.get("TEXLATE_GATEWAY_KEY", "")
 
 _LIVE = os.environ.get("TEXLATE_LIVE") == "1"
-pytestmark = pytest.mark.skipif(
-    not (_LIVE and GATEWAY_KEY),
-    reason="network test — set TEXLATE_LIVE=1 + TEXLATE_GATEWAY_KEY to run",
-)
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(
+        not (_LIVE and GATEWAY_KEY),
+        reason="network test — set TEXLATE_LIVE=1 + TEXLATE_GATEWAY_KEY to run",
+    ),
+]
 
 
 @pytest.mark.asyncio

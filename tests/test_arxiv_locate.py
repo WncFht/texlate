@@ -25,6 +25,7 @@ def _write_tree(root: Path, files: dict[str, str]) -> None:
         p.write_text(text, encoding="utf-8")
 
 
+@pytest.mark.slow
 @pytest.mark.skipif(not _HAS_V2, reason="corpus_v2 数据不在场（gitignored）")
 def test_locate_corpus_v2_all() -> None:
     """139 包全量定位：全部 kind=latex 且有 main，order 首元素即 main。"""

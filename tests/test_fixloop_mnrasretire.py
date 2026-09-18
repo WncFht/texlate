@@ -232,6 +232,7 @@ def test_cond_pass_bang_form(tmp_path: Path) -> None:
     assert ok, why
 
 
+@pytest.mark.integration
 @pytest.mark.skipif(not _KPSEWHICH, reason="kpsewhich 缺席 → 宿主面臂不评")
 def test_cond_pass_kpsewhich_arm_host_only(tmp_path: Path) -> None:
     """本地零 mnras.cls (病件只在宿主树) → kpsewhich 工具臂放行脚本自裁。"""
@@ -353,6 +354,7 @@ def test_apply_no_clobber_safe_root(tmp_path: Path) -> None:
     assert cls.read_text(encoding="utf-8") == _BUGGY_CLS
 
 
+@pytest.mark.integration
 @pytest.mark.skipif(not _KPSEWHICH, reason="kpsewhich 缺席 → 宿主面探测跳过")
 def test_apply_drops_when_only_host_buggy(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -513,6 +515,7 @@ def test_e2e_drop_sibling_layout(tmp_path: Path) -> None:
     assert (splice / "mnras.cls").read_text(encoding="utf-8") == _VENDOR_BYTES
 
 
+@pytest.mark.integration
 @pytest.mark.skipif(not _KPSEWHICH, reason="kpsewhich 缺席 → 宿主面臂不评")
 def test_e2e_drop_host_only_buggy(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch

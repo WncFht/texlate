@@ -57,6 +57,7 @@ def test_shim_no_hardcoded_env_names() -> None:
         assert not re.search(rf"\b{name}\b", THEOREM_ANCHOR_SHIM)
 
 
+@pytest.mark.integration
 @pytest.mark.skipif(shutil.which("xelatex") is None, reason="xelatex not installed")
 def test_shim_emits_twin_dests(tmp_path: Path) -> None:
     """真编译验证：共享计数器 env 同时得到 env 名与计数器名两个 dest。

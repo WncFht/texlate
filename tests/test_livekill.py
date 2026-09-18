@@ -92,6 +92,7 @@ def test_sentry_tripped_is_sticky() -> None:
 
 
 # ---------------------------------------------------------------- 真子进程端到端
+@pytest.mark.integration
 @requires_posix
 def test_run_process_livekill_vbox_flood(tmp_path: Path) -> None:
     """40 行 vbox 签名 + 挂死 → 秒级 killpg（非等满 timeout）+ 输出留证。
@@ -113,6 +114,7 @@ def test_run_process_livekill_vbox_flood(tmp_path: Path) -> None:
     assert _is_runaway_output(out)  # 签名随已读片带出 → runaway_output 归因可命中
 
 
+@pytest.mark.integration
 @requires_posix
 def test_run_process_livekill_page_flood(tmp_path: Path) -> None:
     """11K ``[N]`` 页标洪片 → 页标闸提前收树。"""
@@ -125,6 +127,7 @@ def test_run_process_livekill_page_flood(tmp_path: Path) -> None:
     assert sec < 30  # noqa: PLR2004 - 越阈即杀，远早于 60s 墙钟
 
 
+@pytest.mark.integration
 @requires_posix
 def test_run_process_under_threshold_unaffected(tmp_path: Path) -> None:
     """阈值内签名/页标 + 正常退出 → 不误杀（健康编译的偶发告警档）。"""

@@ -189,6 +189,7 @@ def test_aipproc_author_dual_signature_and_references() -> None:
 # ------------------------------------------------------- 真编译钉
 
 
+@pytest.mark.integration
 @_COMPILE
 def test_mn2e_usenatbib_loads_natbib(tmp_path: Path) -> None:
     """mn2e stub + usenatbib → mnras \\ds@usenatbib 点火 → \\citealt 定义。"""
@@ -207,6 +208,7 @@ text \citealt{key}
     assert (tmp_path / "main.pdf").is_file()
 
 
+@pytest.mark.integration
 @_COMPILE
 def test_mn_usenatbib_loads_natbib(tmp_path: Path) -> None:
     """mn stub 同体转发 (mn.cls→mnras 同路径)。"""
@@ -224,6 +226,7 @@ text \citet{key}
     assert _n_err(log) == 0
 
 
+@pytest.mark.integration
 @_COMPILE
 @pytest.mark.parametrize("sty", ["aaspp4", "aasms4"])
 def test_aas4_markcite_reference_consume_key(tmp_path: Path, sty: str) -> None:
@@ -245,6 +248,7 @@ text \markcite{{Na_95}}Nakajima et al. 1995
     assert (tmp_path / "main.pdf").is_file()
 
 
+@pytest.mark.integration
 @_COMPILE
 @pytest.mark.parametrize("sty", ["jheppub", "jinstpub"])
 def test_sissa_stub_provides_natbib(tmp_path: Path, sty: str) -> None:
@@ -264,6 +268,7 @@ text \citep{{key}}
     assert _n_err(log) == 0, f"{sty} 仍 {_n_err(log)} 个 '!' 错"
 
 
+@pytest.mark.integration
 @_COMPILE
 def test_svjour3_natbib_option(tmp_path: Path) -> None:
     """\\documentclass[natbib]{svjour3} → natbib 装载 (真件选项面)。"""
@@ -280,6 +285,7 @@ text \citep{key}
     assert _n_err(log) == 0
 
 
+@pytest.mark.integration
 @_COMPILE
 def test_aipproc_provides_graphicx_url(tmp_path: Path) -> None:
     """aipproc stub 镜像真件装载面: graphicx/url 由类提供。"""
@@ -297,6 +303,7 @@ see \url{https://example.org}
     assert _n_err(log) == 0
 
 
+@pytest.mark.integration
 @_COMPILE
 def test_tcilatex_qqq_defines_name_and_no_preamble_leak(tmp_path: Path) -> None:
     r"""\QQQ{Language}{American English} → \Language 定义（真件元数据机），
@@ -317,6 +324,7 @@ lang=\Language.
     assert (tmp_path / "main.pdf").is_file()
 
 
+@pytest.mark.integration
 @_COMPILE
 @pytest.mark.parametrize("kit", ["tcilatex", "sw20lart"])
 def test_sw20_tag_in_equation_and_eqnarray(tmp_path: Path, kit: str) -> None:
@@ -343,6 +351,7 @@ def test_sw20_tag_in_equation_and_eqnarray(tmp_path: Path, kit: str) -> None:
     assert (tmp_path / "main.pdf").is_file()
 
 
+@pytest.mark.integration
 @_COMPILE
 def test_boxedeps_iface_degrades_to_includegraphics(tmp_path: Path) -> None:
     r"""\input BoxedEPS + 全实证面调用面 0 错；\BoxedEPSF→\includegraphics。"""
@@ -367,6 +376,7 @@ fig2: \BoxedEPSF{fig2.eps}
     assert (tmp_path / "main.pdf").is_file()
 
 
+@pytest.mark.integration
 @_COMPILE
 def test_aipproc_one_arg_author_and_references(tmp_path: Path) -> None:
     r"""REVTeX3 式 \author{names} + \address{} + references env
@@ -391,6 +401,7 @@ text \cite{Moore00}.
     assert (tmp_path / "main.pdf").is_file()
 
 
+@pytest.mark.integration
 @_COMPILE
 def test_aipproc_two_arg_author_kept(tmp_path: Path) -> None:
     r"""新 keyval 双参 \author{Name}{address={..}} 不回潮（1306.2177 面）。"""
@@ -563,6 +574,7 @@ def _write_shim(wdir: Path, name: str) -> None:
     (wdir / name).write_text(body, encoding="utf-8")
 
 
+@pytest.mark.integration
 @_COMPILE
 def test_svglov3_clo_input_mid_class_load(tmp_path: Path) -> None:
     r"""class-load 语境 ``\input svglov3.clo`` 后 ``\@``-cs/``\p@`` 仍可解析
@@ -588,6 +600,7 @@ len ok
     assert (tmp_path / "main.pdf").is_file()
 
 
+@pytest.mark.integration
 @_COMPILE
 def test_cimento_polyfills_compile(tmp_path: Path) -> None:
     r"""cimento shim body 编译钉：0905.4620 签名面——``\instlist``/``\PACSes``
@@ -611,6 +624,7 @@ text.
     assert (tmp_path / "main.pdf").is_file()
 
 
+@pytest.mark.integration
 @_COMPILE
 def test_pasj00_polyfills_compile(tmp_path: Path) -> None:
     r"""pasj00 shim body 编译钉：1003.0945 签名面——``\DeclareAbbreviation``
@@ -644,6 +658,7 @@ ref \apj\ and \mnras; \citet{key} said.
     assert (tmp_path / "main.pdf").is_file()
 
 
+@pytest.mark.integration
 @_COMPILE
 def test_pos_polyfills_compile(tmp_path: Path) -> None:
     r"""PoS shim body 编译钉：1306.5919 签名面——``\ShortTitle``/``\author``
@@ -672,6 +687,7 @@ Thanks.
     assert (tmp_path / "main.pdf").is_file()
 
 
+@pytest.mark.integration
 @_COMPILE
 def test_imsart_arxiv_compile(tmp_path: Path) -> None:
     r"""imsart 编译钉（1003.1513 签名面）：``\arxiv`` preamble 期 +``frontmatter``/``aug``/``keyword`` 结构 env + ``\kwd/\ead/\thanksref``。
@@ -708,6 +724,7 @@ text.
     assert (tmp_path / "main.pdf").is_file()
 
 
+@pytest.mark.integration
 @_COMPILE
 def test_aa501_bridges_aa_shim(tmp_path: Path) -> None:
     r"""aa501→aa 链编译钉：``loads`` 桥 emit + aa.cls body 双件物化,
@@ -779,6 +796,7 @@ def test_geom_kit() -> None:
     assert "\\providecommand{\\prooftag}[" not in body
 
 
+@pytest.mark.integration
 @_COMPILE
 def test_geom_polyfills_compile(tmp_path: Path) -> None:
     r"""geom shim 编译钉（0806.0904 装载形复刻）：稿 ``\makeatletter`` 区内

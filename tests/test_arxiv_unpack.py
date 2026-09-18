@@ -26,6 +26,7 @@ def _warn_kinds(warnings: list[str]) -> set[str]:
     return {w.split(":", 1)[0] for w in warnings}
 
 
+@pytest.mark.slow
 @pytest.mark.skipif(not BLOBS, reason="corpus_v2 not present")
 @pytest.mark.parametrize("blob", BLOBS, ids=[b.parent.name for b in BLOBS])
 def test_unpack_corpus(blob: Path, tmp_path: Path) -> None:

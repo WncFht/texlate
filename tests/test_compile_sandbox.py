@@ -240,6 +240,7 @@ requires_xelatex = pytest.mark.skipif(
 )
 
 
+@pytest.mark.integration
 @requires_xelatex
 def test_write18_disabled_under_sandbox(tmp_path: Path) -> None:
     """\\immediate\\write18 mini tex：sandbox 下不执行命令（文件不得落盘）。"""
@@ -261,6 +262,7 @@ def test_write18_disabled_under_sandbox(tmp_path: Path) -> None:
         target.unlink(missing_ok=True)
 
 
+@pytest.mark.integration
 @requires_xelatex
 def test_minimal_doc_compiles_under_sandbox(tmp_path: Path) -> None:
     """沙箱包裹不破坏正常编译（挂载面完备性回归——fmt/字体/缓存都在）。"""
@@ -273,6 +275,7 @@ def test_minimal_doc_compiles_under_sandbox(tmp_path: Path) -> None:
     assert res.has_pdf, res.stdout_tail[-500:]
 
 
+@pytest.mark.integration
 @requires_xelatex
 def test_write18_ran_but_contained_by_bwrap(tmp_path: Path) -> None:
     """-shell-escape flag 穿透（fixloop minted 同款）时 bwrap 仍兜住写面。

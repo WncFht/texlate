@@ -1481,6 +1481,7 @@ def _mutate(rec: dict, rng: random.Random) -> dict:  # noqa: C901 -- 变异点�
     return r
 
 
+@pytest.mark.slow
 @pytest.mark.skipif(
     not any(_RESULTS.glob("*/records/*.jsonl")),
     reason="bench/results/*/records/ 不在本机（gitignored 重产物）",
@@ -1501,6 +1502,7 @@ def test_real_records_mutated_triage(tmp_path: Path) -> None:
     assert total_sum == len(mutated)
 
 
+@pytest.mark.slow
 @pytest.mark.skipif(
     not (_RESULTS / "stagerun-loop1-2026-09-16" / "records").is_dir(),
     reason="stagerun-loop1 records 不在本机（gitignored 重产物）",
@@ -1547,6 +1549,7 @@ def test_real_records_mutated_gate(
     assert clean <= pdf <= cells
 
 
+@pytest.mark.slow
 @pytest.mark.skipif(
     not any(_RESULTS.glob("*/results.json")),
     reason="bench/results/*/results.json 不在本机（gitignored 重产物）",

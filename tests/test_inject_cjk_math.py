@@ -121,6 +121,7 @@ def test_tie_accent_fix_injected_both_modes() -> None:
         assert "\\DeclareUnicodeAccent{\\t}" in out
 
 
+@pytest.mark.integration
 @pytest.mark.skipif(shutil.which("xelatex") is None, reason="xelatex not installed")
 def test_math_fallback_real_compile(tmp_path: Path) -> None:
     """真编译验证：注入产物里数学内 CJK 零缺字；剥掉兜底块的对照则缺字。

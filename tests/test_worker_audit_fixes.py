@@ -1602,6 +1602,7 @@ def _pty_dev_fds() -> list[str]:
     return pts
 
 
+@pytest.mark.integration
 @pytest.mark.skipif(babeldoc_mod.pty is None, reason="POSIX pty only")
 class TestSpawnPtyFdCleanup:
     """``_spawn`` openpty 成功后 ioctl 翻车：master/slave 两 fd 必须显式关。"""

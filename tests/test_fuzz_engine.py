@@ -1997,6 +1997,7 @@ def _shim(tmp_path: Path, name: str, body: str) -> str:
     return str(p)
 
 
+@pytest.mark.integration
 @requires_sh
 def test_shim_xelatex_end_to_end(tmp_path: Path) -> None:
     """真子进程：2 pass 门控 + fls→deps + log 解析全链。"""
@@ -2014,6 +2015,7 @@ def test_shim_xelatex_end_to_end(tmp_path: Path) -> None:
     assert res.rc == 0 and res.killed_signal is None  # noqa: PT018
 
 
+@pytest.mark.integration
 @requires_sh
 def test_shim_xelatex_rc3_ok_and_nopdf_gate(tmp_path: Path) -> None:
     """rc=3 → ok=True（跑完语义）；无 pdf → 第二趟门控不跑。"""
@@ -2032,6 +2034,7 @@ def test_shim_xelatex_rc3_ok_and_nopdf_gate(tmp_path: Path) -> None:
     assert mark.read_text().strip() == "1"  # 无 pdf → pass2 未跑
 
 
+@pytest.mark.integration
 @requires_sh
 def test_shim_xelatex_segv_signal(tmp_path: Path) -> None:
     """真 SIGSEGV → rc=-11 → killed_signal=11，ok=False。"""
@@ -2044,6 +2047,7 @@ def test_shim_xelatex_segv_signal(tmp_path: Path) -> None:
     assert res.ok is False and res.killed_signal == 11  # noqa: PLR2004, PT018
 
 
+@pytest.mark.integration
 @requires_sh
 def test_shim_xelatex_env_isolation(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -2070,6 +2074,7 @@ def test_shim_xelatex_env_isolation(
     assert dumped["FAKE_BEHAVIOR"] == "envdump"  # env_extra 到达子进程
 
 
+@pytest.mark.integration
 @requires_sh
 def test_shim_tectonic_end_to_end(tmp_path: Path) -> None:
     """真子进程：--outdir 解出 + deps.mk → deps + passes 恒 1。"""
@@ -2085,6 +2090,7 @@ def test_shim_tectonic_end_to_end(tmp_path: Path) -> None:
     assert res.pdf == work / "_tect_out" / "main.pdf"
 
 
+@pytest.mark.integration
 @requires_sh
 def test_shim_tectonic_timeout_then_retry(tmp_path: Path) -> None:
     """真超时杀进程 + 缓存热身重试：第 1 趟睡到被杀，第 2 趟成功。"""
@@ -2109,6 +2115,7 @@ def test_shim_tectonic_timeout_then_retry(tmp_path: Path) -> None:
     assert res.timed_out is False and res.ok is True  # noqa: PT018
 
 
+@pytest.mark.integration
 @requires_sh
 def test_shim_tectonic_all_attempts_timeout(tmp_path: Path) -> None:
     """两趟全超时 → timed_out=True、rc 取末趟、ok=False。"""

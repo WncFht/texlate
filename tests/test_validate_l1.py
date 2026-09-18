@@ -40,6 +40,7 @@ ZH_CLEAN = "我们提出 [[MATH_1]] 于 \\begin{equation}\nE=mc^2\n\\end{equatio
 ZH_BROKEN = "我们提出 于 \\begin{equation}\nE=mc^2\n\\end{equationx}。\n"  # 丢占位符 + \end 改名
 
 
+@pytest.mark.integration
 @need_l1
 def test_batch_clean_and_broken(v: TsValidator) -> None:
     res = v.validate_batch(
@@ -57,6 +58,7 @@ def test_batch_clean_and_broken(v: TsValidator) -> None:
     assert "MATH_1" in bad_r.placeholders["missing"]
 
 
+@pytest.mark.integration
 @need_l1
 def test_baseline_relative_mode(v: TsValidator) -> None:
     """相对判定：baseline 带 ERROR 的源签名不拖累译文判定。"""
@@ -67,6 +69,7 @@ def test_baseline_relative_mode(v: TsValidator) -> None:
     assert res.ok_relative is True
 
 
+@pytest.mark.integration
 @need_l1
 def test_resident_mode() -> None:
     with TsValidator(
@@ -79,6 +82,7 @@ def test_resident_mode() -> None:
         assert res2.ok_relative is True
 
 
+@pytest.mark.integration
 @need_l1
 def test_sign_returns_baseline(v: TsValidator) -> None:
     base = v.sign(SRC)

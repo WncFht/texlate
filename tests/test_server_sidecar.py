@@ -54,6 +54,7 @@ def _job(tmp_path: Path, timeout: float = 1.0) -> bd.BabeldocJob:
     )
 
 
+@pytest.mark.integration
 class TestKillTree:
     """``_kill_tree`` + ``start_new_session``：孙进程随组灭，泵立即 EOF。"""
 

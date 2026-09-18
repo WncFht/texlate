@@ -76,6 +76,7 @@ def test_fixture_logs_classify() -> None:
         assert got_pay == pay
 
 
+@pytest.mark.slow
 @NEED_WORK
 def test_all_main_logs_parseable() -> None:
     logs = _main_logs()

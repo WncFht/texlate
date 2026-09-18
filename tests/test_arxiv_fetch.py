@@ -638,6 +638,7 @@ LIVE = pytest.mark.skipif(
 )
 
 
+@pytest.mark.integration
 @LIVE
 def test_live_fetch_diverse(tmp_path: Path) -> None:
     """3 个真实 ID（tar / 单文件 gz / pdf-wrapper），真限速真 pacing。"""

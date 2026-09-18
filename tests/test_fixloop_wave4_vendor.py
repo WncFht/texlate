@@ -285,6 +285,7 @@ def test_scan_install_vendored_dep_fanout(tmp_path: Path) -> None:
 # ------------------------------------------------------- diagrams stub 富化 (M1-B)
 
 
+@pytest.mark.integration
 @pytest.mark.skipif(shutil.which("xelatex") is None, reason="xelatex not installed")
 def test_diagrams_stub_enriched_surface(tmp_path: Path) -> None:
     """stub 富化面真编译钉：options 吞掉 / &-\\-\\cr 分隔降级 / \\newarrow
