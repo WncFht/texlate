@@ -20,14 +20,38 @@ from texlate.xlat import pipeline as pl
 from texlate.xlat.state import ChunkRecord, StateStore
 
 
+_NUM_RX = re.compile(r"^\s*\[(\d+)\]", re.MULTILINE)
+
+
+def _member_of(user: str, marker: str) -> int | None:
+    """批编码输入里含 ``marker`` 的成员号；单发/非编号输入 → ``None``。"""
+    for ln in user.split("\n"):
+        m = _NUM_RX.match(ln)
+        if m is not None and marker in ln:
+            return int(m.group(1))
+    return None
+
+
+def _splice_member(raw: str, k: int, payload: str) -> str:
+    """``payload`` 拼进编号响应第 ``k`` 段段尾（成员缺失退化整响应尾注）。"""
+    ms = list(_NUM_RX.finditer(raw))
+    for i, m in enumerate(ms):
+        if int(m.group(1)) == k:
+            end = ms[i + 1].start() if i + 1 < len(ms) else len(raw)
+            return f"{raw[:end]}{payload}\n{raw[end:]}"
+    return f"{raw}{payload}"
+
+
 class _Injector(pl.MockTranslator):
     r"""mock 译文尾部追加 ``payload``——``\alpha 发射体``/``$\alpha$``/注释形按需注入。
 
-    ``marker`` 给了就只污染含该字样的输入（净块对照用）。
+    ``marker`` 给了就只污染含该字样的输入（净块对照用）。批协议下注入点
+    定位到 marker 所在成员段内——整响应尾注会落进最后成员段（73ffa4c
+    全量入批后 marker 与尾注脱钩，曾把污染错配到净块成员上）。
     """
 
     def __init__(self, payload: str, marker: str | None = None) -> None:
-        """``payload``：追加串；``marker``：只污染 ``user`` 含此字样的调用。"""
+        """``payload``：追加串；``marker``：只污染 ``user`` 含此字样的调用/成员。"""
         super().__init__()
         self.payload = payload
         self.marker = marker
@@ -41,7 +65,7 @@ class _Injector(pl.MockTranslator):
         max_tokens: int,
         response_format: dict[str, str] | None = None,
     ) -> str:
-        """mock 译文 + 尾部注入。"""
+        """mock 译文 + 注入（批输入定位 marker 成员，单发尾注）。"""
         raw = await super().translate(
             system=system,
             user=user,
@@ -49,8 +73,12 @@ class _Injector(pl.MockTranslator):
             max_tokens=max_tokens,
             response_format=response_format,
         )
-        if self.marker is not None and self.marker not in user:
-            return raw
+        if self.marker is not None:
+            if self.marker not in user:
+                return raw
+            k = _member_of(user, self.marker)
+            if k is not None:
+                return _splice_member(raw, k, self.payload)
         return f"{raw}{self.payload}"
 
 
