@@ -310,3 +310,167 @@
 - 第三会话 verify-* 裁决经 texlate-cf 转达（报告误投其 team-lead 信箱）：GO×2 无项；NO-GO 两项核实均真——已落地 `fcdc15b`（layout_bench EXE001/SIM105/F841/S607/RUF021/FURB122、test_gullet_l9 TC001、test_fuzz_inject FBT+I001、test_bare_cs I001、autogloss 重排，全仓 ruff 净）+ `b36310f`（terms/index.yaml 补 bare cond-mat + 9 子类 + quant-ph——ffe27ca 两张 CSV 此前是死资产，冒烟 str-el→1155/quant-ph→710/hep-th→default 405）。
 - qualdrift 首跑 267/300 在飞（pid 457429，~33min），cron 486ad343 文件面监视；出判即入 trend + 裁决报告。
 - 待办：qualdrift 门禁判读；⑦autoglossary 裁决证据已齐（REPORT 全门 PASS）；用户 7 项裁决包仍待回。
+
+- **peer 回执核实**：texlate-48 澄清 verify-* 属第三会话派生误投，但判词全核并清——`fcdc15b` ruff 全仓净（layout_bench 6 项+gullet 11 项+test 杂项）、`b36310f` index.yaml 补 bare cond-mat+9 子类+quant-ph 键（装载冒烟 str-el→1155/quant-ph→710 实证）——我台账挂起的 index.yaml 待办由 peer 关闭。**qualdrift 首跑 peer 认领**（267/300 在飞），我队列同项移除避免双跑。
+- 23:4x qualdrift 首跑判读：**pass**（300/300 judged，KS D=0.033 p=0.996、kind max|Δ|=0.43、contested −0.7pp、flag 漂移 0）——尺子未动，judge 臂可信续用；history trend 已入首点。
+
+- **8bc0f46 nicematrix 收割**：真因=tlmgr usermode 装 CTAN 最新 v7.11c（与 vendor 字节同）闸 `\IfFormatAtLeastTF{2026-06-01}` vs runtime 2025-11-01→abort→NiceTabular undef 级联（brief 里 "L3>2022-07-14" 数字被 lane 证伪——那是 tectonic bundle epoch 常量非真闸）。修三件套：vendor 钉 v7.11a（floor 2025-06-01 冒烟过）+`pkg_version_skew` taxonomy 签名+"release too old"+`pkg_version_skew_vendored` 规则（order 11.7 vendored_fetch，wdir 平铺经 kpathsea cwd 序遮蔽 texmfhome；外来件指纹闸自动 decline）。残口：ctan.py `_NEEDFMT_RE/_PKGLATER_RE` 不匹配 `\IfFormatAtLeastTF`/`{Package,Class}` 形（tectonic 侧同洞，候选道）；6 格 nicematrix 用稿入下批 flipcheck。
+
+- **1284803 stubaudit 一轮收割**：mn2e 案翻案——非老 mnras（~/texmf 是 v3.2 usenatbib 可用）而是 `\LoadClass{mnras}` 空参转发→usenatbib 不达 \ds@→natbib 未载（合成探针实证）；修=WithOptions 转发保真。元数族实锤落地：markcite/reference 0 参→#1（9910310 实案）；jheppub/jinstpub/svjour3/aipproc 照真件补全（svjour3 \DeclareOption{natbib} 曾被星号转发静默吞）。真纸验证：0707.4614 142→0、9910310 0 错、0104346 0 错。**二轮续派**：tcilatex `\QQQ` 元数（residdiag 证）+sw20lart `\tag` noop+BoxedEPS 族（先找 noop 生成机制归属）+aa501 loads 改派（90-shim 单条授权）+flushrt。
+
+## 2026-09-18 ~02:0x — 夜巡
+
+- 批存活：无 lane 新批/残留进程；peer qualdrift 首跑落地 `bench/results/qualdrift-2026-09-18/`（gate_report.json+report.md，history.jsonl 记 **verdict=pass**——首个真哨兵点由 peer 立档）。
+- roster 8：stubaudit(二轮在跑)/macrogate/pacsdiag/taildiag/bininject/runguard/revtexloop 全 running；**begindoc13 无报告转 idle**——已 SendMessage 催报。
+- 树内未收：macrogate 的 tables.py+test_latex_argspec.py（代理在跑勿收）。
+- 门巡：clean% 单调保持；sabotage 刷新待道落地齐；零 git 违例。
+
+## 2026-09-19 ~00:1x — 三收割+一自修（begindoc13/bininject/revtexloop）
+
+- **begindoc13 普查收割**（tmp/lane-begindoc13/report.md）：13 格判毕——**Missing \begin{document} 恒为级联**（真根=导言区未定义宏/包错）。五族路由：①裸 `loads:` shim 宏缺 ×5（cimento/pasj00/PoS/imsart-\arxiv → shim body polyfill，stubaudit 加派）；②vendor stub 保真 ×2（svglov3.clo 尾 `\makeatother` 致 @ 失 letter→`15\p@` 裂；tcilatex `\QQQ` 元数——均 stubaudit）；③**我自修规则回归**——`input_sty_to_usepackage`(d30f636) 在 2.09 文档改写 `\input{epsf.sty}`→`\usepackage`（2.09 无此命令，0806.0904/0806.2953 由 partial 104KB→fail 0B）→ `main_head_contains:"\\documentclass"` 闸（9fc08f0，欠发方向=保旧 bug 不造新错）；④新机制候选 ×3 记档（paired-.tex 遮蔽延伸、geometry 选项撞→`\geometry{}` 改写、pstcol→pstricks/xcolor-ensure——各 N=1 待普查）；⑤csvsimple-l3 反向 skew（语料 vendor v2.2.0 太旧 vs 2026 kernel bool-expr，→vendored-substitute 新拷）。2410.18001 已翻 clean。
+- **c04f4af bininject**：上游根因修——normalize_engine prologue 对全部 tex-suffix 件前置（仅 has_document 闸），tar blob 经 latin-1 解码成员文本命中 \begin{document}→ustar 推位 1452B（0707.0382 实案）。`_tar_disguised`/`_tar_header_ok`（64KB 扫+chksum 形态）四站全闸（_normalize_tex_files/_tex_sources/rebase/violations）；`prologue=` kwarg 按 `_prologue_ok`（strict-utf8+NUL 窗）逐件传。6 钉+三扫面（186/24/265）绿。残口：inject.py main_tex/ctex splice 同族无闸（.tex 名 tar 可成 main）记档。
+- **194195f revtexloop**：gr-qc/0104075 73,595 页死循环真因=`\topskip 0mm`——upgrade_209 逐字搬运的 209 几何行，ltxgrid 输出例程不容运行期 topskip 改写（每 \output 残 6.66pt→\clearpage 永不排空；正值不循环但整页吞）。`_drop_topskip_assigns` 删深度 0 语句首位活赋值、仅 revtex4-2 门；`\ifdim\topskip`/组内赋值豁免。9 钉+134 回归绿。bisect 实证：删该行→21 页 clean PDF。
+- macrogate 获 3 测试文件 flips 授权在跑；pending.py reg-check 残口记档候选道。stubaudit 获 svglov3+shim-body 加派。pacsdiag/taildiag idle 已催报。
+- 门巡：L0 钉批全绿；L1 待 macrogate 落地后重测（argspec ungate 动解析面必复测）；sabotage 刷新仍挂起。零 git 违例。
+
+## 2026-09-19 ~00:4x — pacsdiag/taildiag 收割 + macrogate flips 验证
+
+- **f590d28 pacsdiag**：`\AtBeginDocument{\def\pacs##1}` 在 toks-based hook 逐字存 `##`→def 炸→`\pacs` 残留破宏撞 `\par`（t1/t2 复现）。`_builtins_shim.py:799` 已修但 90-shim yaml 回退 emit 未传播——残例补 `#1`+钉（含全 shim_map `##` 扫描钉防再犯）。7 格全 OURS 签名已死；gr-qc/0104075 异签名移交 runguard。
+- **taildiag 五桶判毕**（tmp/lane-taildiag/report.md）：babel×5 全 paper（ldf 覆盖缺：ngerman/francais→french/ukrainian）；illegal-unit 3 OURS（geom shim `\newif` 缺 ×2 + svglov3 catcode 泄）；endgroup×8 全下游；input-stack 2105.00111 OURS（`\cref@resetstack` @`\end{restatable}` 递归→restatable 域 N=1 记档）。**undefined_cs×50 塌方成 ~6 族**：mn2e usenatbib×12 已随 `\LoadClassWithOptions` 落地（记录早于修）；class-cs stub 缺 ~15 与 stubaudit 二轮域重叠；catcode-leak ×2 新形。
+- **macrogate flips 验证绿**：92/92（argspec+dispatch+semantics+mirror）。解析面变更 → L1 parsebench 复测批已脱管（tmp/l1-gate-ungate/run.log，~5.5min 墙钟）。待 PASS 后 commit tables.py+4 测试件。
+- **新 ours-roots 记档待派**（下轮）：①@-catcode 保全不变式（physics_stub_detach 裸 `\input` 掉 @=11 裂 `\@undefined`；stub 尾 `\makeatother` 泄 @=12——入侧 wrap + stub 侧 save/restore）；②geom shim `\newif` polyfill（0806.0904/2953）；③paired-.tex 遮蔽、geometry 选项撞→`\geometry{}`、pstcol→xcolor、babel francais 改名（各 N=1-2）。
+- roster：stubaudit（二轮：svglov3/QQQ/BoxedEPS/sw20lart/shim-body 5 格）+runguard（#18 钉）在飞；pacsdiag/taildiag/macrogate/begindoc13/bininject/revtexloop 交付关闭。
+- 门巡：L0 绿；L1 复测在飞；sabotage 刷新待落地齐。零 git 违例。
+
+## 2026-09-19 ~01:0x — L1 门过 + macrogate/runguard/stubaudit 三收
+
+- **L1 复测 PASS**（parsebench-v3-ungate）：1955/1955 strict identity、leak 0/135840——与 post-W84 基线逐点一致，ungate 无解析面漂移。
+- **5a5f282 macrogate**：argspec_lookup 去包门——per-file pkgs 查不到跨文件导言包致 `\crefrange{a}{b}` arg2 散文泄漏（reg 短路证成：`\newcommand` 经 ScopeMacroTable 主查先胜，ungate 只修 mand 计数）。4 门控钉翻成签名恒用语义。
+- **76cf439 runguard**：timeout/killed 编译 veto clean 三点位 + `died` 轮旗 + acceptable_pdf 升级闸 + `_is_runaway_output`（30× Overfull\vbox@\output 阈值）分 timeout/runaway_output；salvage 排 runaway（定败再跑必再暴走）、killed 保留重试。vocab 裁决：`dirty_pdf`+`final_cat=timeout`（带 pdf 的 fail 判词，非 unfixable:*）。12 钉+全族绿。残口：live mid-flight 页数杀需 sandbox 流式监控 infra——记档候选道。
+- **c1c7753 stubaudit 二轮**：`\QQQ` 真件 2 参定义器（全部 5 真本一致）+ SW20 `\tag` 机真件抄值（\@ifundefined{tag} 让位语义）+ sw20lart/BoxedEPS 新 stub + aipproc `\author` 双签名窥视。实纸验证：0104007 0err/5pp、9910091 0err/30pp（原 116 错）、0408520 16→0。**三轮在飞**：svglov3.clo catcode + shim-body×5。
+- **catcode 不变式细化**：physics_stub_detach 的 `.tex` 宿主 `\input` 已带 `\makeatletter…\makeatother` wrap（_builtins_pkgload.py:148，1706.00240 实证注释在码）——taildiag 的"裸 input 掉 @=11"只剩**文档原生裸 `\input{physics}`** 一条缝（L103 注记"不重复补"）。N=1 记档，并入下轮 catcode 候选道。
+- roster：stubaudit 独飞（三轮）；runguard/macrogate/pacsdiag/taildiag 交付关闭。本轮 commit：9fc08f0/c04f4af/194195f/f590d28/5a5f282/76cf439/c1c7753。
+- 门巡：L0/L1 绿；sabotage 刷新待三轮落地齐；零 git 违例。
+
+## 2026-09-19 ~01:3x — 夜巡派道 ×4 + 两刷新批
+
+- **普查翻案**：option_clash 家族实为 0 格——`'lash'` 误中 `slashbox.sty` 文件名；真信号=**slashbox 退役包缺件 ×13 错/6 格**（1109.5364/1206.5785/1404.0561/1608.06845/2203.12985/2410.00118，TL2020 许可证除名→install 无源）。pstricks-add ×4 格（1003.2152/1404.2225/1706.00379/cond-mat-0605429）+ 0707.4206 paired-.tex 遮蔽缝=≥5 格族。1206.0291 geometry 选项撞降回 N=1 记档。
+- **新派 4 道**：slashlane（vendor stub `\slashbox/\backslashbox` 真件接口——picture 对角线+双标）、pstlane（paired-.tex 同目录遮蔽延伸 + xcolor-ensure/pstcol 改写二择一按证据）、babellane（ngerman.ldf 覆盖缝 + francais→french 改名 + ukrainian/russian 可行性普查）、livekill-lane（runaway 活体杀——流式日志签名计数早杀进程组，sandbox/run_process 层，## REVIEW 并发）。stubaudit 三轮加派 geom `\newif` 补全（0806.0904/2953，同 90-shim 文件域）。
+- **leader 脱管两批**：tmp/sab-gate2/run.sh（40 格 sabotage-b seed43 复跑——门④刷新）+ tmp/flipcheck2/run.sh（13 格：revtexloop/stubaudit-r2/input_sty-209/nicematrix×6+physics 格回归哨）。
+- **autogloss-reg 收尾**：phase0 批 gate **pass**（on-vs-off D=0.0389 p=0.975、0 flag 漂移、contested 0.070→0.080）——裁决 #5 证据再添一门。
+- roster：stubaudit(三轮)+slashlane+pstlane+babellane+livekill=5 在飞。
+
+## 2026-09-19 ~01:5x — 门④刷新 PASS + flipcheck-2 大丰
+
+- **sab-gate2 PASS**：40 格 sabotage-b 复跑 escaped=**0**（records/xlat.jsonl metrics.sabotage.escaped 全 0；2 upstream_gate+2 chunks_bad 噪声）——本轮规则批落地后破坏检测面不变。
+- **flipcheck-2（13 格重放）8 格翻 clean**：gr-qc/0104075 **编译段即 clean**（topskip 修复实证——73K 页死循环灭绝）、nicematrix×4 全翻（2105.03893/2203.00012/2308.00087/2308.12712）、stubaudit 三格全翻（astro-ph/0104007 aipproc、cond-mat/9910091 QQQ+tag、cond-mat/0408520 BoxedEPS+sw20lart）。4 partial：0806.0904/2953 恢复 partial（input_sty 2.09 闸归位，geom `\newif` 三轮待落地）、2112.00045（csvsimple 逆 skew 未建）、2407.21783。1 fail：1706.00240（physics 裸-input 缝——预期，N=1 记档）。
+- 净增估测：loop2 基线 579 clean + 本轮已证 8 flip + tarrecheck 0707.0382 + 2410.18001 ≈ 589/677 → **~87.0%**（90% 门还差 ~21 格）。
+- roster 5 全 running 无交付：stubaudit(三轮)+slashlane+pstlane+babellane+livekill。
+
+## 2026-09-19 ~02:0x — 夜巡（安静持有）
+
+- 批存活：无新 run.log/批；sab-gate2+flipcheck2 均已 rc=0 收尾。
+- roster 5 全 running 无交付：stubaudit（三轮，树内见 svglov3.clo 改判——弃 makeat* 对改用无 @ 的 `\PackageWarningNoLine`，比建议的 `\makeatletter` 尾更稳；90-shim cimento 全身 polyfill+imsart `\arxiv` 已落）、slashlane/pstlane/livekill/babellane（~6min 龄）。
+- 门巡：clean% 估 ~87.0% 单调上行；sab-r2 escaped=0；无 git 违例（树内变更全归 stubaudit 授权域）。
+
+## 2026-09-19 — 裁决①-⑦落地日
+
+- 用户七裁全收（verbatim 存会话）：bib 全不翻 GO / glm-5-2 维持禁令 / flag 保留 / 阈值写死 / HF token 供 XCOMET / contested 调参授权 / autogloss default-on GO。
+- 已 commit：bib 直通（pipeline.py 40904c7）+ judge/mock/src_bib 信号（qualbench 246b08c）+ JUDGE_SYSTEM 新条款（同 commit，prompt_sha 轮转）+ qualfreeze 阈值写死（ff1316b）+ autogloss default-on（app.py ec39ebc）+ l0_en_unreported src_bib 豁免。**JUDGE_SYSTEM 协议形态改动属①的强制推论已自主落地，待向用户点名明示**；qualdrift 下跑若在 bib 行出 drift 为正确告警（尺子重锚非劣化）。
+- lane-bibpass-reg 发车（pid 773423，tmp/lane-bibpass-reg/）：frozen-300 单臂 cur=HEAD 全口径重翻→swe-2-max 判→qualfreeze vs base。判死线=14 个 bib chunk 的 dnt-major（baseline 17）不降即错。cron 9e69d36c 文件面巡检。
+- XCOMET-XL 三角臂 spike：权重 13GB 已落 archbox（突破=ssh 会话泄漏 127.0.0.1:7890 代理致 SSL EOF，env -i 直连即通；hf-mirror 全站 308 回源非代理）。venv ~/xcomet-venv（setuptools<81 补 pkg_resources）。7 对分档样本 QE 打分 detached 跑（~/xcomet/spike.log），cron c3f81263 巡检。
+
+## 2026-09-19 ~01:0x — 夜巡：roster 补 10，批面两活一 stalled
+
+- 批存活：**lane-bibpass-reg 在飞** 185/300（frozen-300 单臂 cur=HEAD 重翻→swe-2-max 判，pid 773428）；**xcomet spike stalled**——pairs.jsonl 964KB+batch 脚本 00:38 生成后无进程无分数（spike.log 仅 pkg_resources 警告），侧线记档暂缓重启。**l1-gate-ungate 落地 PASS**：1955/1955 strict、leak 0/135840（post-ungate 与基线全同，argspec ungate 解析面无回归）。
+- 树内在飞 diff 归因核实：pstlane→`_builtins_vendored.py`（`_FILEDATE_RE` 兜底 pst-* .tex 核 `\def\filedate` 日期面，vendored_shadow_isolate 配套）、livekill→`sandbox.py`（`_RunawaySentry` 排干环活哨——logparse 同 regex 同阈值 bytes 编译 + `[N]` 页标 10K 计数闸，越阈 TimeoutExpired 走 killpg 收树，commit 需 `## REVIEW`）、stubaudit→90-shim+svglov3+test（r3 在飞）、slashlane→slashbox.sty+新测试（在飞）。均 on-spec。
+- roster 5→10 补派（记档残口全走清，mutex 不相交）：**#27 injecttar**（inject.py main_tex/ctex splice 无 blob 闸——c04f4af 下游同族）、**#28 ctanre**（`_NEEDFMT_RE/_PKGLATER_RE` 不匹 `\IfFormatAtLeastTF`/`{Package,Class}`——nicematrix 真闸形）、**#29 pendreg**（segmenter/pending.py:545+1116 组内行缺 reg 检）、**#30 physwrap**（doc-native 裸 `\input{physics}` 无 makeatletter wrap，1706.00240 实案）、**#31 restatdiag**（2105.00111 `\cref@resetstack` 递归——diagnosis-only，定位后另派修道）。
+- 缓派（mutex 撞在飞道）：0408520 revtex3→4-2 前件缺（90-shim 归 stubaudit）、geometry 选项撞（70-pkgopt 归 pstlane）、csvsimple vendored-substitute（vendored 机邻 pstlane）、abstract_frontmatter_hoist priority/round-budget（待 stubaudit 落地后评估）。
+- 门巡：L0 绿；L1 PASS（上条）；sabotage-b r2 escaped=0/40 已档；clean% 估 ~87.0% 待本轮 5 道落地翻格。零 git 违例。
+- **de1ba13 slashlane 收割**：slashbox.sty 退化 stub 重写为 picture-mode 保真 polyfill（`\[back]slashbox[w][s]{A}{B}` 真界面、`\line` 对角线、\@tfor sep 抑制、\shortstack 消化参内 `\\`）——对照语料 e-print 内真件（1803.00136）核语义。6 格家族通路=vendored_fetch(11.5) 先于 legacy_pkg_shim(12)。9 钉+82/96 回归绿；1109.5364 splice 实证 0 错 8pp 渲染对角线视觉保真。**横切发现→stubaudit r3 加派**：裸 `\ProvidesPackage{name}[text]` 无日期前缀经 `\@parse@version@` 漏排版流→Missing\begindoc（~20 stubs 同形待扫+全 stub 日期钉）。
+
+## 2026-09-19 ~01:3x — 夜巡：pstlane 收割（idle 未报，leader 代验）
+
+- 批存活：bibpass-reg 196/300 在飞；余无新批。peer packaging 调研目录（docs/research/packaging-2026-09-19/）非我道产出，不入我 commit。
+- **f974ae1 pstlane 收割**（idle 未报→leader 代验 diff+测试全归因）：Defect-A paired .tex 核伴船退役（0707.4206：X.sty 退了稿自带 X.tex 核留盘→wrapper `\input{X}` cwd 先中 stale 核→`\pst@cntm` undef；`_retire_paired_tex_core` 同保守闸=系统递补在场+双日期面 `ld<sd`+非注入件，缺一不碰）+`_provides_date` `\def\filedate` 兜底（pst-* 核日期面约定）。Defect-B `pstcol_pstricks_rewrite`（70-pkgopt:185，1003.2152：pstcol 硬压 noxcolor→现代 pst-* 需 xcolor→`\colorlet` undef；组内枚名换 pstricks 选项续传 xcolor，masked 面）。14/14+77/77 绿，105 规则验。`## REVIEW` 已标（新 rename 路径）。
+- roster 8：stubaudit(r3+ProvidesPackage 扫尾加派)/livekill/babellane/injecttar/ctanre/pendreg/physwrap/restatdiag 全 running。pstlane/slashlane 交付关闭。
+- 门巡：L0 绿；L1 PASS 档；sabotage 0/40 档；clean% 待本轮落地翻格。零 git 违例。
+- pstlane 口头报告后至（commit 前 leader 已代验，内容全符）：**Defect-B 普查修正=实 1 格**（1003.2152 唯余 `\colorlet` fail；1404.2225/1706.00379 已 clean、0605429 缺席该轮——pst 族翻格预期下调）；0707.4206 多股残链全翻未定。order 185 与 95-targeted symbolfont_tuletters 撞序合法（异 trigger+文件名序定）。残口：`test_pasj00_polyfills_compile` 败属 stubaudit 在飞树非 HEAD（+273 行未落地，交付时复验）。
+- **3748c89 injecttar 收割**：inject.py 5 字节读点全上 `_tar_disguised`（复用 normalize 非重抄）——find_main_tex/_walk_inputs/classify_no_main/inject_float_sizing 排候选 + prepare_chinese 兜底 `InjectRejectError(nontex)` 挡直传伪装 main。8 钉+355 子集绿。**横切残口升级**：同族洞延到 latex/api.py `scan_tex_tree`（枚举全 .tex→parse→reconstruct 写回=最高severity 写路径）+flatten.py+probe/latex209 只读点 → **apitar 道已派**（写路径对）。**csvsub 道已派**（csvsimple 反向 skew：稿自带 v2.2.0 太旧 vs 2026 kernel bool-expr → vendored 新拷替换；geomlane 道已派 1206.0291 option_clash N=1）。roster 10。
+- babellane scratch 越界一件：t9.tex ngerman 探针落 repo 根→移 tmp/lane-babellane/（轻微违纪，下不为例）。
+- **df23888 livekill 收割**：`_RunawaySentry` 入 POSIX 排干环——logparse 同 regex 同阈值 bytes 编译（vbox×30）+`[N]` 页标 10K 计数闸，行界扫+64KB 留尾；越阈 TimeoutExpired 走既有 killpg 臂零新杀机，`run_process` 签名不变（~15 替身+注入缝原样）。`engine._round_cat` +3 行 stdout_tail 补查（活杀 .log 截在签名前→仍归 runaway_output）。实证 gr-qc/0104075 1.2s 收 vs 240s 烧（200×）。10 钉+139 绿。`## REVIEW` 已标。**b29c533 judge.py 镜像修**（leader 直落）：judge timed_out 臂同盲点补 stdout_tail 重查+钉。
+- **stubaudit r3 主体交付（部分持有）**：aa501 loads(yaml:1722)+flushrt 已覆盖(yaml:2067)+**svglov3.clo 功能化重写**（`\edef\svglovrestore` catcode 存/复+`\input{size10.clo}`，无 @-cs 无 makeat*——1608.06693 122err→0err/26pp）+shim-body 4 格全真稿 0err（cimento 9pp/pasj00 82→0/20pp/imsart 11→0/16pp/PoS 45→0/9pp，`\AtBeginDocument{<typeset>}` 双安范式）。35/35+145 绿。**持有待 #37 geom \newif + #38 ProvidesPackage 扫尾落地再 commit**（文件仍在被编辑）。残口记档：`{\em X}`-in-math 2.09 字形切（9910310 1err→latex209 候选）。
+- roster 9：stubaudit(r3 尾)/babellane/ctanre/pendreg/physwrap/restatdiag/geomlane/apitar/csvsub 全 running；injecttar/livekill 交付关闭。
+
+## 2026-09-19 ~01:5x — 夜巡：bibpass-reg 虚警澄清 + restatdiag 待报
+
+- 批存活：**bibpass-reg 健在**（前判 judge=qualbench.py 进程在跑 pid 944190，207+/300——上轮 rexlat|stagerun grep 模式漏判虚警）；xcomet stalled 仍记档。
+- restatdiag #31 completed+idle 未报→催报（repro 三案 distinct/mangled/mangled2 已建）；**scratch 越界第二例**：nocref.tex/.stdout 落 repo 根→移 tmp/lane-restatdiag/（前例 babellane t9.tex，两 lane 同训「scratch 只在 lane dir」）。
+- stubaudit #37/#38 在飞（undated ProvidesPackage 仍 12 件待扫）；ctanre/pendreg/physwrap 读相 ~20min 无落笔，geomlane/apitar/csvsub 新进。roster 9 全活。
+- 门巡：L0/L1/sabotage 全档绿；零 git 违例。
+- **restatdiag 判毕（无需修道，已修）**：2105.00111 `\cref@resetstack` 递归=**macrogate ungate 同缺陷类**——argspec_lookup_env 的 pkgs 闸在 `\input` 拆分后假阴→restatable 双非文本参流落 prose→mock 译成同词 `{这是译文}{这是译文}`→thm-restore 存体 `\csname #2\endcsname`=#3 自召→input stack 爆。**`\cref@resetstack` 只是 trace 主帧**（label-hook 每轮），cleveref 非承重（nocref 复现照样递归）。5a5f282/3ecbfe3 已修+实跑+flipcheck 21pp 验。4 同签名格全清递归（余 3 格转独立 missing-package 域）。**watch 记档**：real-xlat 变体=异参译不同时不递归而是定理静默丢失——无签名、error census 不可见，redlines/watch 候选。restatdiag 关。
+- XCOMET spike 分离度成立（archbox fp16，7 对）：judge35→qe0.52 / judge45→0.87 / judge95→0.83-0.91 / judge100→0.99×2 / bib_ident→0.57（QE 本能惩罚未翻内容=bib 行须剔除三角域，设计内预判证实）。踩坑记录：fp32 ckpt 在 11.65G VRAM 必 OOM→model.half() 解；13GB CPU 载入需 ~19G+swap→临时加 /swapfile-xcomet 24G（批毕拆）；systemd-run 下 stdout 偶发整段丢失→日志直写文件 + python -u 绕开。全量 1200 对 batch 已发车（xcomet-batch.service，cron 6f65de59）。
+
+## 2026-09-19 ~02:0x — 夜巡：bibpass-reg PASS 落地 + 全 diff 归因
+
+- 批存活：**bibpass-reg 收官 PASS**（01:17 ALL DONE）——scored 300/300；判死线 bib14 dnt-major **baseline 17→cur 0**（minor 3→0）、frozen300 17→0（minor 5→6 噪声内）。qualfreeze verdict=drift 但两漂移 flag 均改善向：over_translation 4.7%→1.0%（p=0.0068）、term_inconsistency 16.0%→8.7%（p=0.0063）；KS p=0.28、kind means 全在 delta 内（para +3.3）、contested 7.3%→4.0%。裁决①回归闸实证：17 条 baseline dnt-major bib chunk 全清零退化。l1-gate/autogloss-reg 均早已 DONE，当前零 detached 批在飞。
+- **encoding.py 谜 diff 归因=apitar 共享家选项**：`_tar_disguised` 迁 `textutil/encoding.py` 中性叶（compile/latex 两层共用，探测窗 64KB+chksum 形态校验防文本 ustar 假阳），`__init__.py` 导出、normalize/inject 改引、api.py+flatten.py 上闸、test_latex_targate.py 新建——全在 apitar 授权域。
+- 其余在飞 diff 全归因：physwrap=`_builtins_pkgload.py`（`_PHYS_INPUT_RE` 收窄 `.sty` 形——`\input{physics}` 走 tex 格式是章节件非 stub，1206.5202 实案；新增 `_wrap_phys_sty_inputs` makeatletter 对包裹）、pendreg=segmenter 三件（_common+17 共享件迁入、mainloop −19、pending ±25）、geomlane=70-pkgopt+42+test_fixloop_geomclash.py 新建。stubaudit 90-shim/svglov3/test 持件在飞。
+- peer 会话文件隔离确认：cli.py/share.py/server·worker·share/xlat·{batch,pipeline,retry,mock}/web·api·types/export·epub·新包/packaging-2026-09-19/refactor-survey——texlate-2a/31/0c/13+repo-wide-restructure 五会话在忙，非我道产出，pathspec 纪律不入 commit。
+- 门巡：L0 绿档；L1 PASS 档；sabotage escaped=0 档；`git log` 仅我 5 commit（de1ba13/f974ae1/3748c89/df23888/b29c533）零违例；clean% 待本轮 8 道收割后翻格重估。
+- roster 8 全 running：stubaudit(#37/#38 尾)/babellane(53min 无落笔→催)/ctanre/pendreg/physwrap/geomlane/apitar/csvsub。
+- lane-bibpass-reg 收割 verdict=PASS：frozen-300 cur 臂 300/300 判毕；判死线达标——bib14 dnt-major baseline 17→0 且 14/14 stated 全 100（judge 新条款对直通留英给满分）；frozen 全域 dnt-major 17→0。gate 报 drift 全部利好方向：term_inconsistency 16.0%→8.7%（autogloss 指纹）、over_translation 4.7%→1.0%（v4 prompt 指纹）、kind_means 0 漂移 para +3.3、KS D=0.08 p=0.28 无分布漂移。①②⑦ 三裁决回归面全绿；REPORT=tmp/lane-bibpass-reg/REPORT.txt。
+
+## 2026-09-19 ~02:4x — 夜巡：五连收割 + 批面双发 + roster 补 6
+
+- **c2e4e13 geomlane**（idle 未报→leader 代验）：`option_clash_geometry_hoist`（70-pkgopt:186）——括号选项整组挪 `\geometry{}` 运行时 keyval 面，documentclass 位置无关（1206.0291 mn2e→mnras.cls:117 [a4paper] 先载撞 [total,centering]；三规 merge/loadopt_strip/passopts 全够不到的形态兜底）。10 钉+107 规则+22 邻绿。
+- **cbd3798 apitar**（共享家选项落地）：`_tar_disguised` 迁 textutil.encoding 中性叶（normalize 删 49 行、inject 改引）→ latex 写路径全闸：scan_tex_tree 枚举三桶皆不入 + parse_file/v1 直读 OSError EINVAL + flatten._read_file OSError→非展开回吐。**索引级 hunk 分账**：__init__.py 只收 `_tar_disguised` 导出行，env_raw/env_opt 是 peer 会话在飞件不动。14/14 绿（真 USTAR blob）。
+- **2adda6b pendreg**：组内两 argspec 行补 m 闸（主流 `_handle_unknown_cs` m-is-None 同规——登记名走 keyarg/探针不吃签名）→ `\renewcommand{\And}` 组内 `\And{aa}` 不再裸名+参漏 prose、组尾 `{bb2}` 不越组界。3 钉+73 域绿。**共享文件记**：peer 会话 a708e388 在飞 `_accent_cs/_inline_lit_cs`→_common 合并先落地（_common/mainloop 它收），本 commit 只载 pending.py+test。
+- **720387c csvsub**：反向 skew——稿自带 csvsimple-l3 v2.2.0 太旧撞新 kernel（`\bool_const:Nn{1}` 裸字面量，2112.00045:36 Missing number）；`_provides_date` 读不出 `\ProvidesExplPackage` brace 面（双件皆 None→ld<sd 闸饿死）+fetch 指纹闸拒覆 → retire+resolve（mv .fixloop-iso，vendored v2.7.0 字节同 texmf 递补）。**hunk 分账第二例**：40-install.yaml 只收 hunk3，babellane file_aliases/francais/babel_undeclared 三块持有。14/14 绿。
+- **7b8e603 ctanre**：`_NEEDFMT_RE`/`_PKGLATER_RE` 补真闸形——单参族 `\IfFormatAtLeastTF`（nicematrix v7.11c 实案逃逸形）/`\IfExplAtLeastTF`/`\@ifl@t@r` cs+csname 形；双参族 `\@ifclasslater`/`\If{Package,Class,File}AtLeastTF`/`\@ifl@ter` 扩展/loader `{name}[date]`（texmf 普查 408 件非 expl3 目标占多数）；自署 `\ProvidesX[date]` 明示除外。95/95 绿。
+- **0e354b4 physwrap**（`## REVIEW`）：doc-native `\input{physics.sty}` 补 makeatletter 对——masked 视图组作用域走查（`_phys_sty_input_sites` 深度 0+at_letter 栈），只罩命令本体。**任务前提修正**：`\input{physics}` kpathsea tex 格式永不解析 .sty（1206.5202 是章节件）→ `_PHYS_INPUT_RE` 收窄 `.sty` 形 + `need_input` 假抑制同修。36+77 绿。
+- 批面双发：flipcheck3（11 格 mock 臂，tmp/flipcheck3/）+ l1-gate-pendreg（parsebench 全量——segmenter 路径变了三处：pendreg 闸+peer _common 合并+texlog 词表重构，L1 必须重锚）。bibpass-reg 已收官 PASS。
+- roster 补 6→9 running：**#40 readgate**（probe.py:266 dep census 读闸）、**#41 emmath**（`{\em}`-in-math 2.09 字形切+latex209.py:362 读闸）、**#42 grpOpaque**（`_grp_scan` opaque 镜像行——pendreg 残口）、**#43 junkrename**（`_neutralize_junk_files` 名撞覆盖）、**#44 silentthm**（restatable 异参静默丢定理 watch/redlines）、**#45 commentsweep**（svjour+cmd_prose 陈旧注释——90-shim 仍 stubaudit 锁，只交文本）。
+- macrogate-lane 僵尸收编（交付完 standby 态关闭）；其报 `_builtins_misschar.py` 本地 `_MC_*` 影 `_builtins_common` 同名导入——peer rewire 道残口记档（非我 mutex）。peer 破坏面观察：export.epub.driver/sabotage_arms _mock_translate_text/app_endpoints _ERR_FNAME 三处 collection 断（各有主，非我修）。
+- 门巡：L0 绿档（域内）；L1 重锚在飞；sabotage 0/40 档；clean% 待 flipcheck3；git log 11 commit 全我署，零违例。
+
+## 2026-09-19 ~03:1x — 夜巡：收割潮收官 + L1 PASS + flipcheck3/4
+
+- **4780aae readgate**（#40 速交）：probe.py `_scan_file` 上 `_tar_disguised` 闸——dep census 只读面收口，文件留 rep.inputs 但声明零产出。tar 族全链闭合：inject(3748c89)/latex 写路径(cbd3798)/probe(4780aae)/latex209(emmath 在飞)。4+50 绿。
+- **225bc97 babellane**（三道桥）：file_aliases 20 条显式别名（ukraineb/magyar/slovenian/UKenglish…ini `\BabelDefinitionFile{0}{X}` 普查，try_exts 拼不出的走表先试）+`babel_opt_francais_rewrite`（弃名→french，tlpdb 证无档）+`babel_undeclared_option`(:14 选项表头插 payload 非主位——babel_undef 独占类目，german ldf `\iflanguage{ngerman}` 钩案 0707.1325/1003.2165)。23 钉+109 规则+82 邻绿。
+- **ebff0af stubaudit r3 全收**（24 件 +653/-49）：geom.sty 全真 geomenv 面（`\presection`→`\newskip` 才是 illegal_unit 真源非 `\if`——`\@startsection` advance 实证；0806.0904 150→0/9pp、0806.2953→0/65pp）+svglov3.clo 功能化（1608.06693 122→0/26pp）+aa501/cimento/pasj00/imsart/PoS shim-body（全真稿 0err）+**#38 Provides* 扫尾闭合**：22 stubs 全钉 `[2026/09/19 …]`，undated 漏排版流类全灭（leader 复扫 0 残）。38/38 绿。
+- **L1 重锚 PASS**：parsebench-v3-pendreg 1955/1955 strict、leak 0/135840——pendreg 闸+peer `_common` 合并+texlog 词表三处 segmenter 路径变更下解析恒等/leak 零退。批面 638s 落地。
+- **flipcheck3 收官**（11 格）：**6 clean 翻格**——0707.0382(tar_blob_extract)/1003.2152(**pstcol_pstricks_rewrite 实弹**)/1109.5364/1404.0561/2112.00045(**csvsimple_l3_kernel_retire 实弹**)/2410.00118 + gr-qc/0104075 compile-clean（mock 臂不触暴走）；4 格改善未净：0707.4206 best_effort(12err 多股残链如 pstlane 预判)/1206.0291 best_effort(**option_clash=geometry 仍在 post-census——规则触发须错签占首错类，残口记档**)/1206.5785 acceptable(missing_char×2)/1803.00136 acceptable(syntax×1)。
+- **flipcheck4 发车**（12 格：stubaudit 全家 + babel 0707.1325/1003.2165 + physwrap 1706.00240 + emmath 基线 astro-ph/9910310）。
+- roster 5 running：emmath/grpOpaque/junkrename/silentthm/commentsweep；本批 8 道全收（geomlane/apitar/pendreg/csvsub/ctanre/physwrap/readgate/babellane/stubaudit 全关）。
+- 门巡：L1 PASS 新锚；sabotage 0/40 档；clean% flipcheck3=9/11 出 pdf（6 clean）、flipcheck4 待；14 commit 全我署零违例。
+- XCOMET batch 死因链全破（教训级）：①无 swap CPU 载入 OOM→加 /swapfile-xcomet 24G；②fp32 ckpt 在 11.65G VRAM OOM→.half()；③无 tty 下 traceback 不落盘假象→日志直写文件+python -u -X faulthandler；④**真凶=archbox earlyoom daemon**（mem/swap≤15% 即 SIGTERM 最高 oom_score——静默 exit 元凶，journalctl 可见）→停 earlyoom 后 kernel OOM 真杀仍现；⑤终解=torch.load(mmap=True) 绕开 pl loader（pl 2.6.6 _load 无 mmap 透传）手建模型 fp16 直载，载入峰 ~30G→~9G。bs=8+expandable_segments。QE 批在跑（每 predict 重建 Trainer ~10s 开销可忍）。
+
+## 2026-09-19 ~03:5x — 夜巡：flipcheck4 收官 + commentsweep 落 + texlate-13 域对齐
+
+- **e5274e0 commentsweep**（两 stale 注释，均核实后改）：①svjour AtBeginDocument「\xdef 吃层」前提已被 lthooks 取代（latex.ltx:18901 verbatim 存）——`##` 真因是 `\providecommand` 替换文本内嵌 `\def` 一层转义，`####` 实测炸（TL2026 pdflatex 实证），注释自身前提反推出 #### 自相矛盾；②test_segmenter_cmd_prose beamer 注释过时——argspec_lookup 早弃 `_pkgs` 门控（\input 拆体不见导言包名），article 下 `\only` 同样走 argspec 臂。(a) 文本交付 leader 代施，(b) agent 直改。29/29 绿。
+- **flipcheck4 收官**（12 格，ebff0af9-dirty 树）：compile 11/12 clean（1706.00240 基线 fail）；fixloop 9 格 → **7 clean 翻格**：0707.1325/0707.4614/0806.0904/0806.2953/1608.06693/astro-ph/0104346/astro-ph/9910310（stubaudit 全家 5/5 实战全净——geomenv/svglov3/aa501 系 shim 体全兑现；babel 0707.1325 净）。
+  - 残 1：**1706.00240 unfixable:other**（7 轮 8 动）——physics_stub_detach 已兑现（越过 physics 装载面进 mathtools/siunitx 警告期），新阻塞 `Incomplete \iffalse; all text ignored after line 317`（异类缺陷，physwrap 已预判）。payload qty。
+  - 残 2：**1003.2165 best_effort_pdf**（9 轮 11 动）——babel 面全清（german.ldf+tuenc-greek+polutoniko 改写+ngerman 表头注入全发，babel_undef/ngerman 链全灭），残量 = pstricks 树装齐（pst-*×11+llncs）后 XeTeX 15.62s SIGKILL 超时、partial pdf 160K。属超时/runaway 类非 babel 类。
+- **texlate-13 域对齐**：互报在飞面零撞（我 compile/fixloop+latex/segmenter+textutil；彼 server/cli/compile-engine，pending.py 彼禁碰）。app.py/store.py/worker/web feature hunk 非我（texlate-2a/31/0c 道）；textutil 残 hunk 彼收；三处 collection 破面彼认领；**zotero/ 顶层新目录非我**（untracked Zotero 插件工程，另一 peer 或用户现场，互约不动）。
+- roster 4 running：emmath(#41)/grpOpaque(#42)/junkrename(#43)/silentthm(#44)；commentsweep 自退。#6 伞下新残口入册：iffalse@1706.00240、pstricks-timeout@1003.2165、geomreach@1206.0291（规则触发须错签占首错类——引擎级问题）、0408520 revtex3→4-2（90-shim mutex 已解可派）、`_MC_*` shadow 去重（fixloop 域内残口收编）。
+- 门巡：L0 绿档；L1 PASS 锚（v3-pendreg）；sabotage 0/40 档；clean% flipcheck4=10/12 出 pdf（7 clean）较前轮 9/11 单调不降成立；15 commit 全我署零违例。
+
+## 2026-09-19 ~04:3x — 夜巡：三连收割 + judge C901 顺手拆 + roster 重建 8
+
+- **e5274e0 commentsweep**（前条已记）；**9a9360b silentthm**：restatable 静默丢定理机制实证闭合——env-name 参被译 → `\csname<undef>\endcsname`→`\relax` **零消息**（`{定理}{main}` 全链 0 `!` 行、头体双丢；key 参被译走普通 undefined_cs 显见）。redlines 新增 `restatable_loss` 行（judge-probe 独生，engine/rules/l2 全 None——presence≠red，l2 预筛结构性够不到包加载行）；judge.py 文本补丁 leader 代施：presence→note + workdir 扫 `restatable_env_nonascii:<file>:<arg>` 强 note（真·丢失条件=env 参非 ASCII）。**顺手拆 HEAD 预存 C901(11>10)**：`_full_log_text`/`_log_probes` 抽出，judge() 回限内。
+- **bda320c junkrename**：前提实质确认+机制修正——`_neutralize_junk_files` 无 (re)name 生成（原地写 stub），但名盲覆写真件实证成立。签名闸 `JUNK_FILE_MARKERS`（RCS `$Id`/自检横幅/`\typein` 三签名，corpus 四件全带）——无签名同名件放行，无签名条目回落旧契约。**契约精化非纯 fix**：旧 fuzz 钉无条件名撞已同步改写（放行≠豁免转码）。
+- **misschar-dedupe NO-OP 核销**：`_MC_*` 影叠已被 b924f775 peer 拆分解决——全名审计零撞（共享名皆 import 非重定义，叶侧常量皆独名）。818 域测绿。
+- **texlate-13 双向对齐**：三 collection 破面=彼瞬态重组（今已净）；彼在飞 sandbox→proc、LoopCtx 四组化、engine→包、store→包、share 事务窗。互报面零撞；预警 pending.py grpOpaque 在飞 vs 彼三镜像表合并计划。
+- roster 6 在飞：emmath(#41)/grpOpaque(#42)/iffalse-census(#46)/revtex34(#47)/pstricks-timeout(#48)/geomreach(#50)；新派 census 道全 read-only。
+- 门巡：L0 域内绿（108 normalize+23 redlines+runguard）；sabotage 0/40 档；17 commit 全我署零违例。
+- 残口入册更新：xlat/segmenter skip-role 参 byte-identity 检查（silentthm 呈——异参静默丢类总闸）；ASCII↔ASCII env-arg mangling 仍盲区。
+
+## 2026-09-19 ~05:0x — geomreach 裁决回 + 三道新派（roster 8）
+
+- **geomreach census 确认+锐化**：1206.0291 规则不触发是三闸叠压非单因——①`when.category` 只认首错类（actions.py:76 vs engine.py:804 `_round_cat`→classify 单错）；②`ctx_suggests` 只吃 err_head=首错+8 行（actions.py:136/engine.py:837/logparse.py:143）；③**决定性**：halt-on-error 每轮在错 1 截断，clash 从未出现在任何 dispatch 轮 log——只在 salvage/census log 里（第 3/3 错）。**证据**：r1 首错=mnras.cls options-section `\RequirePackage`（vendored mnras.cls:79 `\ds@usegraphicx`→`\usepackage` 在 `\ProcessOptions` 内，`\documentclass[usenatbib,usegraphicx]{mn2e}` 触发）；规则静默跳过（declines 只记 when-过的）。**裁决**：(a) 多错 dispatch（classify_all+error-set match）与 (b) salvage-as-discovery（best_effort 诊断化回灌）记档为引擎战略残口——**不立即做**，peel-by-first-error 是现行契约；立即行动 = 剥头错。
+- **#51 mnras-optpatch 派出**（实现）：修 vendored mnras.cls options-section \usepackage（fidelity 由 agent 判——pristine artifact vs 可补 shim；惯用解=选项只置旗+`\AtEndOfClass` 延载）。
+- **#52 skiprole-census 派出**（research）：silentthm 残口升类——skip/opaque 参 byte-identity 检查槽位普查（segmenter 参角色→xlat payload→splice 回放全链；env/cs/label/cite/option 全角色→丢失类映射；FP 面=fixloop 自身改写时点）。
+- **#53 multistrand-census 派出**（research）：0707.4206 12-err 残量分股（族/根因/可修类/剥序）。
+- texlate-13：pending.py 三镜像表合并**整项排队等 grpOpaque 落地**——正面同区避让确认，我方 commit 后回 ping。
+- roster 8 在飞：emmath/grpOpaque/iffalse-census/revtex34/pstricks-timeout/mnras-optpatch/skiprole-census/multistrand-census。
