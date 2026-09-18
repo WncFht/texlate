@@ -759,3 +759,8 @@
 
 - **flushendopt**：`flushend_keeplastbox_opt_strip` order 197——sttools 3.x 删 keeplastbox → 成员级剥除 (括号三位+PassOptions 首参, 近名/嵌套不沾), 语义零损失 (上游删项本意)。13 测试; 预期翻 1706.02725/1803.09012/2105.00097/2105.03814/2111.00082。
 - roster 9：newblockpf (95-targeted+csmap 在写)/arraypream/pdfsanitize/begindoccen/dsatcensus/drvverdict/bticktax(verifymiss)/bblmath/ifclosegap。
+
+## 2026-09-19 ~08:5x — ifclosegap 确诊：幻影失衡 (tracingifs 实证) → ifprot 车道
+
+- **#98 verdict**：1206.0701/1306.0364 零字面 \if 缺口——纯展开时幻影 (unclosed_if_close 正确 no-op, 零注入标实证)。机制：amsproc \maketitle edef→\footnote 链 / myectaart \xdef\@argi→\bf→\selectfont 链, 均终止于 `\let\if@X\iffalse` 在展开上下文执行 → 跳至 EOF。原英文稿即复现 = 上游 cls 撞 TL2026, 非 texlate 产物。
+- **修法**：非 \fi 注入 (edef arg 内 \fi 不可达) —— preamble 注 eTeX `\protected` 重定义脆件 (footnote/thanks+\bf\it\rm\sf\tt\sc\sl), \protected 属性在 \let\protect\relax 剥脱下存活。两格实测救回。→ ifprot (#112) 派 ifclosegap 实施。
