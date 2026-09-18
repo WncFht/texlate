@@ -33,10 +33,10 @@ B 重采样统一 ``random.Random(seed)`` 确定性（默认 B=1000 seed=42）�
 依赖: 纯 stdlib；只读，不 import texlate.*。
 
 用法:
-  uv run python bench/py/qualstats.py ci tmp/qual-esa-smoke
-  uv run python bench/py/qualstats.py pairacc judge.jsonl human.jsonl \
+  uv run python bench/py/report/qualstats.py ci tmp/qual-esa-smoke
+  uv run python bench/py/report/qualstats.py pairacc judge.jsonl human.jsonl \
       --key-mode paper_chunk
-  uv run python bench/py/qualstats.py report bench/results/qualbench-XXX
+  uv run python bench/py/report/qualstats.py report bench/results/qualbench-XXX
 """
 
 from __future__ import annotations

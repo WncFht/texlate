@@ -53,11 +53,11 @@ bootstrap CI（paper 簇 block bootstrap、pairacc）归
 回答「两次跑分布漂没漂」。
 
 用法:
-  uv run python bench/py/qualfreeze.py freeze \
+  uv run python bench/py/report/qualfreeze.py freeze \
       --records bench/results/qualbase-2026-09-18/records.jsonl \
       --out bench/results/qualbase-2026-09-18/frozen300.jsonl \
       --sample bench/results/qualbase-2026-09-18/sample.jsonl
-  uv run python bench/py/qualfreeze.py check \
+  uv run python bench/py/report/qualfreeze.py check \
       --baseline bench/results/qualbase-2026-09-18/records.jsonl \
       --new bench/results/qualrerun-XXXX/records.jsonl \
       --frozen bench/results/qualbase-2026-09-18/frozen300.jsonl \
@@ -76,9 +76,13 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+sys.path.insert(
+    0, str(Path(__file__).resolve().parents[1])
+)  # bench/py lib 层（subdir 化）
+
 import benchlib
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 
 # ---------------------------------------------------------------- 常量
 

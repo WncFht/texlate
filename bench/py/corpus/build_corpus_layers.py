@@ -25,11 +25,11 @@ id 由 build_sw_layer.py 的 assign 阶段从 scholarweave 2501+ 池随机切出
   qc      分层自检 → work_v3/{layer}/qc.md
 
 用法:
-  python3 bench/py/build_corpus_layers.py plan --layer holdout
-  python3 bench/py/build_corpus_layers.py scan --layer holdout [--jobs 4]
-  python3 bench/py/build_corpus_layers.py extract --layer holdout [--jobs 8]
-  python3 bench/py/build_corpus_layers.py qc --layer holdout
-  uv run python bench/py/build_corpus_layers.py recent --layer holdout \
+  python3 bench/py/corpus/build_corpus_layers.py plan --layer holdout
+  python3 bench/py/corpus/build_corpus_layers.py scan --layer holdout [--jobs 4]
+  python3 bench/py/corpus/build_corpus_layers.py extract --layer holdout [--jobs 8]
+  python3 bench/py/corpus/build_corpus_layers.py qc --layer holdout
+  uv run python bench/py/corpus/build_corpus_layers.py recent --layer holdout \
       --ids-file bench/work_v3/sw/assign_holdout.jsonl [--limit 85]
 Deps: 标准库 + benchlib + build_corpus_v3/expand 件；recent 臂需 uv venv。
 """
@@ -44,17 +44,22 @@ import math
 import random
 import re
 import shutil
+import sys
 import tarfile
 import time
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
+sys.path.insert(
+    0, str(Path(__file__).resolve().parents[1])
+)  # bench/py lib 层（subdir 化）
+
 import benchlib
 import build_corpus_expand as bx
 import build_corpus_v3 as b3
 
-REPO = Path(__file__).resolve().parents[2]
+REPO = Path(__file__).resolve().parents[3]
 CORPUS = REPO / "bench" / "corpus_v3"
 WORK = REPO / "bench" / "work_v3"
 IA_INDEX = b3.FRAME / "item-index.csv"

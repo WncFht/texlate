@@ -1,6 +1,6 @@
 """L2 真 log fixture 回归 —— tests/fixtures/logs/ 入库件 + manifest.json 逐行断言。
 
-fixture 由 ``bench/py/extract_l2_fixture.py`` 从 gitignored work 目录抽取
+fixture 由 ``bench/py/report/extract_l2_fixture.py`` 从 gitignored work 目录抽取
 （strip 私路径前缀 → 无括弧行裁切 → 重放栈对拍），干净 clone 必跑、不得加
 skip 门。manifest.json 每行即该件的断言面——字段由 extractor 对**裁后件**
 实算生成，不落手写漂移。

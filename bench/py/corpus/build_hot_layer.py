@@ -20,9 +20,9 @@ TIGER ≤2412），长尾覆盖正确但与真实用户负载分布不匹配—�
   bench/work_v3/hot/candidates.jsonl                  （候选审计轨迹，gitignored）
 
 用法:
-  uv run python bench/py/build_hot_layer.py candidates [--n-cite 120] [--n-recent 40]
-  uv run python bench/py/build_hot_layer.py fetch [--limit 85]
-  uv run python bench/py/build_hot_layer.py report
+  uv run python bench/py/corpus/build_hot_layer.py candidates [--n-cite 120] [--n-recent 40]
+  uv run python bench/py/corpus/build_hot_layer.py fetch [--limit 85]
+  uv run python bench/py/corpus/build_hot_layer.py report
 Deps: uv venv（httpx/typer 产品代码 + urllib OpenAlex）。
 """
 
@@ -40,8 +40,12 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "src"))
+
+sys.path.insert(
+    0, str(Path(__file__).resolve().parents[1])
+)  # bench/py lib 层（subdir 化）
 
 import benchlib
 

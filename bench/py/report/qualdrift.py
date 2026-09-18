@@ -25,11 +25,11 @@ manifest 里，复判只过 judge 不重翻，任何分布漂移只能来自 jud
            contested Δ/flag 漂移清单）。
 
 用法:
-  uv run python bench/py/qualdrift.py run \
+  uv run python bench/py/report/qualdrift.py run \
       --baseline bench/results/qualbase-2026-09-18/records.jsonl \
       --frozen bench/results/qualbase-2026-09-18/frozen300.jsonl \
       --concurrency 4
-  uv run python bench/py/qualdrift.py history
+  uv run python bench/py/report/qualdrift.py history
 依赖: 纯 stdlib + benchlib；qualbench/qualfreeze 以子进程方式调用
 （``sys.executable`` 继承 uv venv）。
 """
@@ -43,8 +43,8 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-QUALBENCH = Path(__file__).with_name("qualbench.py")
+ROOT = Path(__file__).resolve().parents[3]
+QUALBENCH = Path(__file__).resolve().parents[1] / "qualbench.py"  # 顶层 lib
 QUALFREEZE = Path(__file__).with_name("qualfreeze.py")
 DEFAULT_HISTORY = ROOT / "bench/results/qualdrift-history.jsonl"
 

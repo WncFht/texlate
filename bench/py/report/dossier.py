@@ -19,7 +19,7 @@ M1 聚合桶细分）。**只读**：不改任何 records/work。
   dossier.py --selftest                    # 合成假 run 自检
 
 读侧 import：``texlate.compile.fixloop``（taxonomy/ruleset）可用时启用
-（``uv run python bench/py/dossier.py``），不可用时降级为 sig 级口径并在
+（``uv run python bench/py/report/dossier.py``），不可用时降级为 sig 级口径并在
 报告标注——系统 python3 保底可跑。
 """
 
@@ -31,9 +31,13 @@ import json
 import sys
 from pathlib import Path
 
+sys.path.insert(
+    0, str(Path(__file__).resolve().parents[1])
+)  # bench/py lib 层（subdir 化）
+
 import benchlib
 
-BENCH = Path(__file__).resolve().parents[1]
+BENCH = Path(__file__).resolve().parents[2]
 RESULTS = BENCH / "results"
 CORPUS_V3 = BENCH / "corpus_v3"
 VENDORED_INV = RESULTS / "cbucket-vendored-inventory" / "inventory.jsonl"

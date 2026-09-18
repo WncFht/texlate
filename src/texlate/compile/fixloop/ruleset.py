@@ -127,7 +127,7 @@ _ACTION_KINDS = {
 _PHASES = {"gate", "precheck", "loop"}
 _MODES = {"native", "same", "degrade", "unsupported", "skip"}
 #: 可选声明字段 ``mechanisms:`` 的 mech_id 形 (corpus_v3 注册表值域
-#: B/T/W 族; 注册表成员核验在 bench/py/mech_ids.py --validate)。
+#: B/T/W 族; 注册表成员核验在 bench/py/report/mech_ids.py --validate)。
 _MECH_ID_RX = re.compile(r"^[BTW]\d+$")
 #: ``when:`` 段合法键 (顶层) / ``any:`` 子项键 —— 键名 typo (``categry:``)
 #: 旧行为是对全 category 点火 (fail-open), 白名单 load 期拦 + _when_ok

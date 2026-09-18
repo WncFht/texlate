@@ -14,10 +14,10 @@
 
 用法::
 
-    uv run python bench/py/v2_diff.py                  # --n 200 --seed 20260915
-    uv run python bench/py/v2_diff.py --n 40           # 冒烟
-    uv run python bench/py/v2_diff.py --v1-only        # v2 中途不可用时降级
-    uv run python bench/py/v2_diff.py --out-prefix bench/results/v2-diff-X
+    uv run python bench/py/report/v2_diff.py                  # --n 200 --seed 20260915
+    uv run python bench/py/report/v2_diff.py --n 40           # 冒烟
+    uv run python bench/py/report/v2_diff.py --v1-only        # v2 中途不可用时降级
+    uv run python bench/py/report/v2_diff.py --out-prefix bench/results/v2-diff-X
 
 产出：``<out-prefix>.md``（汇总）+ ``<out-prefix>.jsonl``（逐文件行）。
 import 级 v2 故障自动降级 v1-only 并在报告注明；逐文件 v2 异常落 err 字段。
@@ -36,7 +36,7 @@ import time
 from collections import Counter
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[2]
+REPO = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO / "src"))  # uv venv 外直跑兼容
 
 from texlate.latex.api import parse_tex

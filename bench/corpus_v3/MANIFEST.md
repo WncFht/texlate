@@ -1,7 +1,7 @@
 # Corpus v3 Manifest — arXiv 月度簇分层抽样源码语料
 
 渠道钉版批量语料：a–d 带 IA `arxiv-bulk` 月 chunk / e 带 HF `TIGER-Lab/arxiv-latex-5T`（成员四元组 `(channel,item,member,blob_sha256)` 钉版，`resolved_version=null`）。
-数据在本目录 `{id}/` 子目录（gitignored），入库的有此清单、`manifest.jsonl`（核心 1000）、`manifest_booster.jsonl`（补强 200）、`manifest_expand.jsonl`（扩展 3866）、`manifest_hot.jsonl`（热层 166，OpenAlex 高引近期 e-print 渠道）、`manifest_dev_failmine.jsonl`（机制挖掘 1500）、`manifest_dev_vol.jsonl`（体量层 2000）、`manifest_dev_recent.jsonl`（近期 dev 层，scholarweave+eprint 双通道）、`manifest_holdout.jsonl`（留出评测层，EVAL_ONLY 治理见末节）、`mechanisms.jsonl`、`booster_selection.jsonl`、`select_booster.py`、`selection_report.md`、`eval_coverage.json`（B04/B06 宇宙×语料覆盖簿记，L12 EVAL）、`nominations/`（提名审计轨迹，见补强层节），管线脚本在 `bench/py/build_corpus_v3.py`（core/booster）+ `build_corpus_expand.py`（expand）+ `build_hot_layer.py`（hot）+ `build_corpus_layers.py`（holdout/dev_vol/dev_failmine bulk + 各层 recent eprint 臂）+ `build_sw_layer.py`（scholarweave 脱水通道 → dev_recent）。
+数据在本目录 `{id}/` 子目录（gitignored），入库的有此清单、`manifest.jsonl`（核心 1000）、`manifest_booster.jsonl`（补强 200）、`manifest_expand.jsonl`（扩展 3866）、`manifest_hot.jsonl`（热层 166，OpenAlex 高引近期 e-print 渠道）、`manifest_dev_failmine.jsonl`（机制挖掘 1500）、`manifest_dev_vol.jsonl`（体量层 2000）、`manifest_dev_recent.jsonl`（近期 dev 层，scholarweave+eprint 双通道）、`manifest_holdout.jsonl`（留出评测层，EVAL_ONLY 治理见末节）、`mechanisms.jsonl`、`booster_selection.jsonl`、`select_booster.py`、`selection_report.md`、`eval_coverage.json`（B04/B06 宇宙×语料覆盖簿记，L12 EVAL）、`nominations/`（提名审计轨迹，见补强层节），管线脚本在 `bench/py/corpus/build_corpus_v3.py`（core/booster）+ `build_corpus_expand.py`（expand）+ `build_hot_layer.py`（hot）+ `build_corpus_layers.py`（holdout/dev_vol/dev_failmine bulk + 各层 recent eprint 臂）+ `build_sw_layer.py`（scholarweave 脱水通道 → dev_recent）。
 抽样管线见 `docs/09-benchmark-corpus.md` S0–S5；旧式 ID 按 `archive/name` 嵌套。
 
 > 追记（2026-09-17）：四层合计 **5232 篇**。expand 层（3866）与 hot 层（166）为增补层——expand 明细见 `manifest_expand.jsonl` + QC `bench/results/corpus-expand-qc-2026-09-16/`；hot 层口径见 `docs/09` §4.3 增补注记与 `docs/research/product/2026-09-16-e2e-pipefix-hotlayer.md`。（勘误 2026-09-18：hot 层当日收官为 166 篇、expand 新批后 3866、合计 5232；本注记原写 133/合计 5133 系时点旧值。再勘误 2026-09-19：评测/开发分轨扩层收官后八层合计 **13,266 篇**，见末节。）
@@ -1033,7 +1033,7 @@ T 系 fixture 34 条 + W 系野例 205 条，W 池至 W156 含复数例证——
 核心层是三十年均匀抽样（IA 月块 ≤2020-10 + TIGER ≤2412），长尾覆盖正确但与真实
 用户负载分布不匹配——hjfy 类产品压倒性服务近期高热度论文。hot 层补这条轴，
 **扩展而非替换**：均匀层/booster 层原样保留。入库清单 `manifest_hot.jsonl`，
-管线脚本 `bench/py/build_hot_layer.py`（candidates → fetch → report 三子命令，
+管线脚本 `bench/py/corpus/build_hot_layer.py`（candidates → fetch → report 三子命令，
 fetch 可重入续跑）。
 
 两个子层（meta.json `stratum_cell` = `hot|hot-cite` / `hot|hot-recent`，
@@ -1084,9 +1084,9 @@ gitignored）留作后备，再扩须重立项。
 M2/M3 推进把语料用途分岔为「评测」与「dev 训练/调试」两轴——核心均匀层继续独任
 池化估计来源，本批四层各管一段。**加层不删层**不变；入库清单
 `manifest_{holdout,dev_failmine,dev_vol,dev_recent}.jsonl`，管线
-`bench/py/build_corpus_layers.py`（plan/scan/extract/qc/recent 五子命令，bulk 臂走
+`bench/py/corpus/build_corpus_layers.py`（plan/scan/extract/qc/recent 五子命令，bulk 臂走
 IA/TIGER 月块 measure-then-sample 同核心层，recent 臂走 arxiv e-print
-`acquire_source` 同 hot 层）+ `bench/py/build_sw_layer.py`（scholarweave 脱水通道）。
+`acquire_source` 同 hot 层）+ `bench/py/corpus/build_sw_layer.py`（scholarweave 脱水通道）。
 QC 明细 `bench/work_v3/{layer}/qc.md`（id 唯一/跨层零撞/meta 齐/extracted 非空
 全绿）。八层时点合计 **13,266 篇 · 46GB**。
 

@@ -1,6 +1,6 @@
 """真书 EPUB 双语插译回归（export-formats 补验，2026-09-16）。
 
-用法: uv run python bench/py/export_realbook.py <epub...> [--outdir DIR]
+用法: uv run python bench/py/report/export_realbook.py <epub...> [--outdir DIR]
 
 对手工下载的公版 EPUB 跑 translate_epub(MockTranslator) 全链并断言:
 - 出包 zipfile 可开、mimetype 首条且 ZIP_STORED（OCF 硬约束）
@@ -27,7 +27,7 @@ from texlate.export.rights import check_epub
 from texlate.xlat.pipeline import MockTranslator
 
 OUTDIR = (
-    Path(__file__).resolve().parents[2] / "bench/results/export-realbook-2026-09-16"
+    Path(__file__).resolve().parents[3] / "bench/results/export-realbook-2026-09-16"
 )
 
 

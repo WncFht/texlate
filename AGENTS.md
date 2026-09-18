@@ -10,12 +10,12 @@
 - `tests/` — pytest（corpus/网关/node 依赖用例均有 skipif/env 守卫，干净 clone 全绿）
 - `docs/` — `README.md` 总索引；决策史 01–05 + 最终技术规格 06–10 + `docs/research/` 调研档案（arxiv/latex/corpus/product/audit-* 子目录，`lit/` 文献原件与 `gateway/` 网关调研 gitignored）
 - `bench/` — 解析/编译库 benchmark 现场（`bench/PROTOCOL.md` 是评测协议：每库测解析鲁棒性/陷阱断言/round-trip/输出物 4 项）
-    - `bench/py/` — python 侧 bench（pylatexenc/TexSoup/plasTeX/fixloop/compile/parsebench 等；miniscanner spike 已退役，断言矩阵移植 `tests/test_bench_regression.py`），`scratch/` 是一次性探针
+    - `bench/py/` — python 侧 bench（pylatexenc/TexSoup/plasTeX/fixloop/compile/parsebench 等；miniscanner spike 已退役，断言矩阵移植 `tests/test_bench_regression.py`），`report/`=一次性审计/横评/归因、`corpus/`=语料管线、`scratch/`=一次性探针
     - `bench/py/.venv_babeldoc/` — babeldoc 对照实验专用 venv（gitignored）
     - `bench/ts/` — js 侧 bench（latex-utensils/unified-latex/tree-sitter-latex），独立 package.json，CommonJS
     - `bench/corpus/` — 39 篇手挑陷阱语料（子目录 gitignored，`MANIFEST.md` 入库）
     - `bench/corpus_v2/` — 139 篇分层随机语料（同上惯例；`MANIFEST.md`+`build_corpus.py` 入库）
-    - `bench/corpus_v3/` — 核心随机层 + 策展补强层 + 热层（OpenAlex 高引近期）+ expand 扩展层，最新分层口径以 `MANIFEST.md` 为准（`manifest*.jsonl`/`mechanisms.jsonl`/`select_booster.py` 等入库、数据 gitignored；管线 `bench/py/build_corpus_v3.py` + `build_hot_layer.py` + `build_corpus_expand.py`）
+    - `bench/corpus_v3/` — 核心随机层 + 策展补强层 + 热层（OpenAlex 高引近期）+ expand 扩展层，最新分层口径以 `MANIFEST.md` 为准（`manifest*.jsonl`/`mechanisms.jsonl`/`select_booster.py` 等入库、数据 gitignored；管线 `bench/py/corpus/build_corpus_v3.py` + `build_hot_layer.py` + `build_corpus_expand.py`）
     - `bench/fixtures/` — 陷阱构造 `.tex`（`% @Tnn` 标记；**逐字节即语义——不要格式化/润色这些文件**）
     - `bench/results/` — bench 产出目录（report/walkthrough/json 均由脚本重写；**全链划出**——改写型 formatter 与 check 类链都不覆盖：prettier/gfs/eslint/autocorrect 经 ignore/exclude，markdownlint 经 cli2 ignores，ruff 经 extend-exclude，shfmt/shellcheck/taplo 无对应文件类型属 vacuous）
     - `bench/work_*/` — 编译/fixloop 工作区（gitignored 重产物）

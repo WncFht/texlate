@@ -1,14 +1,14 @@
 """mech_ids.py — mechanism 标签 ↔ id 集双向索引（spec: bench/results/mechanism-subset-selection-2026-09-17.md）。
 
 用法：
-  python3 bench/py/mech_ids.py B01 W45              # 多 tag 并集 → stdout id 表
-  python3 bench/py/mech_ids.py W45 --out /tmp/ids.txt
-  python3 bench/py/mech_ids.py --rule <rule-name>   # rules/ 分片 mechanisms: 反查
-  python3 bench/py/mech_ids.py W45 --plus-random 10 --seed 42   # 加对照随机格
-  python3 bench/py/mech_ids.py W45 --validate       # 校验 id 在 corpus manifest 内
-  python3 bench/py/mech_ids.py --coverage           # 全台账覆盖表 + orphan 名单
-  python3 bench/py/mech_ids.py --paper <id>         # cell→mechs 反查
-  python3 bench/py/mech_ids.py B01 --verified-only  # 只用人工核源（剔 feature 推标签）
+  python3 bench/py/report/mech_ids.py B01 W45              # 多 tag 并集 → stdout id 表
+  python3 bench/py/report/mech_ids.py W45 --out /tmp/ids.txt
+  python3 bench/py/report/mech_ids.py --rule <rule-name>   # rules/ 分片 mechanisms: 反查
+  python3 bench/py/report/mech_ids.py W45 --plus-random 10 --seed 42   # 加对照随机格
+  python3 bench/py/report/mech_ids.py W45 --validate       # 校验 id 在 corpus manifest 内
+  python3 bench/py/report/mech_ids.py --coverage           # 全台账覆盖表 + orphan 名单
+  python3 bench/py/report/mech_ids.py --paper <id>         # cell→mechs 反查
+  python3 bench/py/report/mech_ids.py B01 --verified-only  # 只用人工核源（剔 feature 推标签）
 
 标签源（默认全并集，mech_tags 已回填 manifest*.jsonl——mech_backfill.py）：
   verified  booster_selection.jsonl ∪ nominations/*.jsonl(verified=true)
@@ -28,7 +28,7 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent.parent
+ROOT = Path(__file__).resolve().parent.parent.parent.parent
 CORPUS = ROOT / "bench" / "corpus_v3"
 RULES_DIR = ROOT / "src" / "texlate" / "compile" / "fixloop" / "rules"
 

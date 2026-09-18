@@ -30,7 +30,9 @@ from TexSoup.data import (
 from TexSoup.tokens import MATH_ENV_NAMES, SKIP_ENV_NAMES
 from TexSoup.utils import TC
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # bench/
+ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)  # bench/
 CORPUS = os.path.join(ROOT, "corpus")
 FIXTURES = os.path.join(ROOT, "fixtures")
 RESULTS = os.path.join(ROOT, "results")

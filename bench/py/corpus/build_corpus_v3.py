@@ -23,7 +23,7 @@ docs/09 S1–S5 实现. 30 月簇 (cluster_pick.json): a–d 带走 IA arxiv-bul
                 corpus_v3/{id}/ + manifest_booster.jsonl
   qc            S5 自检: 配额达成/去重/stub/pdf_only/账目
 
-用法: bench/work_v3/.venv/bin/python bench/py/build_corpus_v3.py <cmd> [args]
+用法: bench/work_v3/.venv/bin/python bench/py/corpus/build_corpus_v3.py <cmd> [args]
 依赖: stdlib; frame-lookup 另需 pyarrow; extract 走产品 unpack
       (texlate.arxiv) → 用 `uv run python` 跑 (work_v3/.venv 无 texlate).
 特征提取代码改编自 tmp/exp/ia-pilot/scan_tar.py (⟦A1⟧ pilot 产物).
@@ -47,9 +47,13 @@ import urllib.request
 from collections import Counter
 from pathlib import Path
 
+sys.path.insert(
+    0, str(Path(__file__).resolve().parents[1])
+)  # bench/py lib 层（subdir 化）
+
 import benchlib
 
-REPO = Path(__file__).resolve().parents[2]
+REPO = Path(__file__).resolve().parents[3]
 WORK = REPO / "bench" / "work_v3"
 TARS = WORK / "tars"
 CORPUS = REPO / "bench" / "corpus_v3"
@@ -427,7 +431,7 @@ INPUT_RX = re.compile(
     r"\\(?:input|include|InputIfFileExists)\s*(?:\[[^\]]*\])?\s*\{([^}]+)\}"
 )
 # deadpkg 名单：净室 stub 族（禁再分发→missing_file 必中）+ vendored 真件族
-#（pkg_version_skew/接口漂移高发）+ 残差签名实测族。小写归一，匹配 IGNORECASE。
+# （pkg_version_skew/接口漂移高发）+ 残差签名实测族。小写归一，匹配 IGNORECASE。
 # revtex 只钉裸名——revtex4/revtex4-2 是 CTAN 现役，\b 边界天然排除。
 DEAD_PKGS = {
     "aa",

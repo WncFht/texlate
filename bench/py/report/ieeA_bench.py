@@ -20,7 +20,7 @@ import time
 import warnings
 from pathlib import Path
 
-BENCH = Path(__file__).resolve().parents[1]
+BENCH = Path(__file__).resolve().parents[2]
 CORPUS = BENCH / "corpus"
 FIXTURES = BENCH / "fixtures"
 RESULTS = BENCH / "results"

@@ -21,7 +21,7 @@ eprint 臂落盘走 build_corpus_layers.py recent（acquire_source 同 hot 层�
 
 用法（HF 须 env -i 净环境——代理泄漏会 SSL EOF）:
   env -i PATH=$PATH HOME=$HOME uv run --with pyarrow --with "fsspec[http]" \
-      python bench/py/build_sw_layer.py footers|pool|assign|rehydrate
+      python bench/py/corpus/build_sw_layer.py footers|pool|assign|rehydrate
 """
 
 from __future__ import annotations
@@ -33,15 +33,20 @@ import json
 import random
 import re
 import shutil
+import sys
 import tarfile
 import time
 from collections import Counter, defaultdict
 from pathlib import Path
 
+sys.path.insert(
+    0, str(Path(__file__).resolve().parents[1])
+)  # bench/py lib 层（subdir 化）
+
 import benchlib
 import build_corpus_v3 as b3
 
-REPO = Path(__file__).resolve().parents[2]
+REPO = Path(__file__).resolve().parents[3]
 CORPUS = REPO / "bench" / "corpus_v3"
 WORK = REPO / "bench" / "work_v3"
 SW = WORK / "sw"
@@ -147,7 +152,9 @@ def cmd_footers(_args: argparse.Namespace) -> None:
         benchlib.atomic_write_text(out, json.dumps(cat[n]))
         log(f"footer {n:04d}: {md.num_rows} rows {len(rgs)} rgs")
     benchlib.atomic_write_text(SW / "footers.json", json.dumps(cat, indent=1) + "\n")
-    recent = sum(1 for s in cat.values() for r in s["rgs"] if yymm_recent(r.get("ymax")))
+    recent = sum(
+        1 for s in cat.values() for r in s["rgs"] if yymm_recent(r.get("ymax"))
+    )
     log(f"footers: {len(cat)} shards; {recent} rgs 含 {MIN_YYMM}+")
 
 

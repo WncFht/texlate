@@ -24,7 +24,7 @@ e-band (2021+) IA 索引无覆盖 → 走 tiger channel（HF LFS, Range GET 同�
 旧池复用理由：已扫未选的 ~41.5k 合格成员本地零成本；默认每 cell 三成取自
 旧池、七成摊到新月份，兼顾带宽与月份多样性。
 
-用法: python3 bench/py/build_corpus_expand.py <cmd> [--flags]
+用法: python3 bench/py/corpus/build_corpus_expand.py <cmd> [--flags]
 依赖: 纯 stdlib + 同目录 build_corpus_v3/benchlib（bench 脚本纪律: 系统 python3）；
       extract 例外——materialize 走 b3.unpack_blob → texlate.arxiv（eager httpx），
       用 `uv run python` 跑（与 build_corpus_v3 extract 同例）。
@@ -41,16 +41,21 @@ import math
 import random
 import re
 import shutil
+import sys
 import tarfile
 import time
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
+sys.path.insert(
+    0, str(Path(__file__).resolve().parents[1])
+)  # bench/py lib 层（subdir 化）
+
 import benchlib
 import build_corpus_v3 as b3
 
-REPO = Path(__file__).resolve().parents[2]
+REPO = Path(__file__).resolve().parents[3]
 CORPUS = REPO / "bench" / "corpus_v3"
 WORK = REPO / "bench" / "work_v3"
 EXP = WORK / "expand"  # 扩库工作区（features/members/tars/记录全在这下）

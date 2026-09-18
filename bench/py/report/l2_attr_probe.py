@@ -20,7 +20,7 @@
 （snapshot 期 segmenter/normalize 漂移侦测）；漂移超阈值的案例标
 `drift` 不进准确率统计。
 
-跑法：`uv run python bench/py/l2_attr_probe.py`
+跑法：`uv run python bench/py/report/l2_attr_probe.py`
 产出：`bench/results/l2-attr-probe-2026-09-16/{probe.jsonl,cases.jsonl,summary.md}`
 """
 
@@ -33,6 +33,10 @@ from collections import Counter
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+sys.path.insert(
+    0, str(Path(__file__).resolve().parents[1])
+)  # bench/py lib 层（subdir 化）
+
 import benchlib
 
 from texlate import repair_l2
@@ -42,7 +46,7 @@ from texlate.latex.api import parse_file
 if TYPE_CHECKING:
     from texlate.validate import l2 as l2_mod
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 WORK = ROOT / "bench/work_e2ereal/pipe-xel"
 STATE = ROOT / "bench/work_e2ereal/_xlat_state"
 SRC = ROOT / "bench/corpus_v3"

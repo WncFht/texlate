@@ -19,7 +19,7 @@ import re
 import sys
 import time
 
-BENCH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BENCH = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 CORPUS = os.path.join(BENCH, "corpus")
 FIXTURES = os.path.join(BENCH, "fixtures")
 RESULTS = os.path.join(BENCH, "results")

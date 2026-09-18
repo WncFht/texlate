@@ -6,7 +6,7 @@ from contextlib import suppress
 
 import TexSoup
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 rows = json.load(open(os.path.join(ROOT, "results/texsoup-parse.json")))
 
 

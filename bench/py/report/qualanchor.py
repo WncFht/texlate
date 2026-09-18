@@ -44,9 +44,9 @@ index 有分 → score_source="index" 照收）。
 锚定人判，毁掉校准价值；这两列只进 index.tsv 供协调者查。
 
 用法:
-  uv run python bench/py/qualanchor.py sample RECORDS.jsonl \
+  uv run python bench/py/report/qualanchor.py sample RECORDS.jsonl \
       --fulltext sample.jsonl --n 200 --seed 20260918 --out DIR
-  uv run python bench/py/qualanchor.py harvest DIR [--out PATH]
+  uv run python bench/py/report/qualanchor.py harvest DIR [--out PATH]
 依赖: 纯 stdlib + benchlib（system python3 即可跑）。
 """
 
@@ -57,6 +57,10 @@ import json
 import random
 import sys
 from pathlib import Path
+
+sys.path.insert(
+    0, str(Path(__file__).resolve().parents[1])
+)  # bench/py lib 层（subdir 化）
 
 import benchlib
 

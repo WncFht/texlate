@@ -18,7 +18,7 @@ r"""extract_l2_fixture — gitignored work 目录真 .log → tests/fixtures/log
 5. ``--verify`` 对拍：逐错误重放文件栈 + last-pop 与 strip 后源件一致，
    且 L2 verdict 关键字段全等（first-error-only 模式豁免 n_errors/errors）。
 
-跑法：``uv run python bench/py/extract_l2_fixture.py SRC --name NAME \
+跑法：``uv run python bench/py/report/extract_l2_fixture.py SRC --name NAME \
     [--strip-prefix PFX[=REPL]]... [--no-cut|--first-error-only] \
     [--verify] [--manifest PATH] [--notes TEXT] [--project-root-for-attribution DIR]``
 """
@@ -31,7 +31,7 @@ import re
 import sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[2]
+REPO = Path(__file__).resolve().parents[3]
 
 from texlate.compile.fixloop import load_ruleset
 from texlate.compile.fixloop.logparse import parse_text as fl_parse_text

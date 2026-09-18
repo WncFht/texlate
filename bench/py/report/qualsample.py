@@ -30,8 +30,8 @@ len_tertile}``——``len_tertile`` 仅 para 标 0/1/2，其他 kind 为 null。
 跨篇轮转序（qualbench collect_manifest_pairs 同款），--n 截前缀仍是多样本。
 
 用法:
-  uv run python bench/py/qualsample.py --dry-run          # 分层统计不写盘
-  uv run python bench/py/qualsample.py --seed 20260918 --papers 350 \
+  uv run python bench/py/report/qualsample.py --dry-run          # 分层统计不写盘
+  uv run python bench/py/report/qualsample.py --seed 20260918 --papers 350 \
       --out bench/results/qualbase-2026-09-18/
 依赖: 纯 stdlib + benchlib/qualbench（``_state_files``/``Pair`` 复用）。
 """
@@ -42,13 +42,18 @@ import argparse
 import collections
 import json
 import random
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
+
+sys.path.insert(
+    0, str(Path(__file__).resolve().parents[1])
+)  # bench/py lib 层（subdir 化）
 
 import benchlib
 import qualbench
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 
 #: 池登记——(root, pool 标签, arm 语义)。序即优先级：rt1 主池先行。
 POOLS = (

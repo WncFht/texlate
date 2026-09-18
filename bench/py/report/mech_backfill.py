@@ -1,10 +1,10 @@
 """mech_backfill.py — mech_tags 回填器：机制台账/提名/feature 谓词 → manifest 行内嵌标签。
 
 用法：
-  python3 bench/py/mech_backfill.py manifest.jsonl [--dry-run] [--report out.json]
-  python3 bench/py/mech_backfill.py manifest_hot.jsonl \
+  python3 bench/py/report/mech_backfill.py manifest.jsonl [--dry-run] [--report out.json]
+  python3 bench/py/report/mech_backfill.py manifest_hot.jsonl \
       --compute-missing-features tmp/feat_hot.jsonl
-  python3 bench/py/mech_backfill.py manifest_expand.jsonl \
+  python3 bench/py/report/mech_backfill.py manifest_expand.jsonl \
       --compute-missing-features tmp/feat_expand.jsonl   # c10 复用同一入口
 
 标签来源（并集，manifest 行序稳定、只加/更新 mech_tags 字段）：
@@ -46,10 +46,10 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent.parent
+ROOT = Path(__file__).resolve().parent.parent.parent.parent
 CORPUS = ROOT / "bench" / "corpus_v3"
 FEATS_DIR = ROOT / "bench" / "work_v3" / "features"
-sys.path.insert(0, str(ROOT / "bench" / "py"))
+sys.path.insert(0, str(ROOT / "bench" / "py" / "corpus"))
 
 ARXIV_ID_RX = re.compile(
     r"(?:\d{4}\.\d{4,5}|(?:cond-mat|hep-\w+|math|cs|astro-ph|nucl-\w+|quant-ph"

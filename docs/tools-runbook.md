@@ -53,18 +53,18 @@ BYOK 环境直配（免 settings.json）：`TEXLATE_BASE_URL` / `TEXLATE_API_KEY
 | `alignbench.py`                                                                                                        | B7     | named-dest 锚点保留率（en/zh PDF 对）                                                                                            |
 | `stagerun.py`                                                                                                          | —      | 分阶段批量驱动：`ingest/parse/xlat/compile/fixloop` 五子命令，append records jsonl，(id,arm,upstream) resume，`--sem` 网关信号量 |
 | `triage.py`                                                                                                            | —      | records→tickets.jsonl 聚类 + metrics.jsonl 趋势 + report merge                                                                   |
-| `wave.py` / `rundiff.py` / `dossier.py` / `gate_scorecard.py` / `mech_ids.py` / `defect_ledger.py`                     | —      | 修复波编排（选样/快照/scorecard/postmortem）+ records 迁移矩阵 + per-id 跨阶段失败链 + GATE 记分 + 机制/规则→id 反查 + 缺陷台账  |
+| `wave.py` / `rundiff.py` / `report/dossier.py` / `gate_scorecard.py` / `report/mech_ids.py` / `report/defect_ledger.py`                     | —      | 修复波编排（选样/快照/scorecard/postmortem）+ records 迁移矩阵 + per-id 跨阶段失败链 + GATE 记分 + 机制/规则→id 反查 + 缺陷台账  |
 | `status_panel.py` / `task_ping.py`                                                                                     | —      | 批跑看板（`bench/results/status-panel/`）：任务态注册/心跳/聚合面板                                                              |
 | `gwpilot.py`（+`gwpilot.md`）                                                                                          | —      | 见缝插针批跑驱动：断点续跑队列 + 无分级网关场景的自适应并发闸兜底；`bench/queue/*.jsonl` 队列，`bench/work_gwpilot/` 状态        |
 | `translators_bench.py`                                                                                                 | —      | xlat 臂工厂：mock/sabotage-b/sabotage-c/perturb + ledger                                                                         |
 | `preflight_batch.py`                                                                                                   | —      | 批前一票闸（import walk+mock 链 + 磁盘+manifest+PATH+ 网关认证），`--no-net` 离线                                                |
 | `runbook_loop.md`                                                                                                      | —      | loop 批 12 步操作单（排序约束：zh/ 是臂间共享演化树）                                                                            |
-| `build_corpus_v3.py` / `build_corpus_expand.py` / `build_hot_layer.py`                                                 | —      | 语料三层管线：core/booster→expand(+3800)→hot(OpenAlex 高引近期，日预算 85/轮）                                                   |
+| `corpus/build_corpus_v3.py` / `corpus/build_corpus_expand.py` / `corpus/build_hot_layer.py`                                                 | —      | 语料三层管线：core/booster→expand(+3800)→hot(OpenAlex 高引近期，日预算 85/轮）                                                   |
 | `benchlib.py`                                                                                                          | —      | 共享件：records jsonl/manifest/编译常量（纯 stdlib 零 IO）                                                                       |
-| `v2_diff.py` / `gullet_bench.py` / `l2_attr_probe.py` / `export_realbook.py` / `macro_scan.py` / `rerun_xelatex.py` 等 | —      | 专项探针                                                                                                                         |
-| `scratch/`                                                                                                             | —      | 一次性探针（不复用承诺）                                                                                                         |
+| `report/v2_diff.py` / `gullet_bench.py` / `report/l2_attr_probe.py` / `report/export_realbook.py` / `macro_scan.py` / `rerun_xelatex.py` 等 | —      | 专项探针                                                                                                                         |
+| `report/` / `corpus/` / `scratch/`                                                                                                             | —      | `report/`=一次性审计/横评/归因脚本、`corpus/`=语料管线（均含 `sys.path` shim 引顶层 lib）、`scratch/`=一次性探针（不复用承诺）                                                                                                         |
 
-外部库横评（选型期已结案）：`bench_pylatexenc.py` `texsoup_bench.py` `plastex_bench.py` `ieeA_bench.py` + `bench/ts/`。
+外部库横评（选型期已结案）：`report/bench_pylatexenc.py` `report/texsoup_bench.py` `report/plastex_bench.py` `report/ieeA_bench.py` + `bench/ts/`。
 
 **执行纪律**：import `texlate.*` 的脚本必须 `uv run python bench/py/…`；纯 stdlib 工具系统 python3 即可。
 

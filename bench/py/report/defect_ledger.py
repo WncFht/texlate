@@ -29,11 +29,11 @@ pin_kind：xfail-strict=红钉、assert=绿钉（钉现行缺陷行为）、regr
 修后回归守卫引用、doc=仅 docstring 台账、none=无引用。
 
 用法：
-  python3 bench/py/defect_ledger.py --json           # 全量条目 jsonl → stdout
-  python3 bench/py/defect_ledger.py --md             # markdown 表 → stdout（可贴回总账）
-  python3 bench/py/defect_ledger.py --check          # 对账报告（条数/无钉 CONFIRMED）
-  python3 bench/py/defect_ledger.py --write          # jsonl 落 tmp/defect-ledger/ledger.jsonl
-  python3 bench/py/defect_ledger.py --json --out P   # 另写一份到 P
+  python3 bench/py/report/defect_ledger.py --json           # 全量条目 jsonl → stdout
+  python3 bench/py/report/defect_ledger.py --md             # markdown 表 → stdout（可贴回总账）
+  python3 bench/py/report/defect_ledger.py --check          # 对账报告（条数/无钉 CONFIRMED）
+  python3 bench/py/report/defect_ledger.py --write          # jsonl 落 tmp/defect-ledger/ledger.jsonl
+  python3 bench/py/report/defect_ledger.py --json --out P   # 另写一份到 P
 
 纯 stdlib，系统 python3 直跑（不 import texlate.*）。
 status_panel 接入提案（status_panel.py 非本 lane owned，未实装）：
@@ -50,7 +50,7 @@ import re
 import sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[2]
+REPO = Path(__file__).resolve().parents[3]
 LEDGER_MD = REPO / "docs/research/roadmap-2026-09-17/inputs/defect-ledger.md"
 DEFAULT_OUT = REPO / "tmp" / "defect-ledger" / "ledger.jsonl"
 DATE = "2026-09-17"
@@ -857,7 +857,7 @@ def render_md(entries: list[dict]) -> str:
         n[e["status"]] = n.get(e["status"], 0) + 1
     lines = [
         (
-            f"> generated：`python3 bench/py/defect_ledger.py --md`（{DATE}；"
+            f"> generated：`python3 bench/py/report/defect_ledger.py --md`（{DATE}；"
             f"源=老四波 findings.txt + 新四波 findings.jsonl + 本文件 §1–§4 + tests/ 活钉扫描）"
         ),
         (
