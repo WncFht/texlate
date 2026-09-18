@@ -634,3 +634,13 @@
 - **追派 2 普查**：gcensus(#77，\g 主导展开→cs_map 可判否)、capcensus(#78，capacity 爆型逐格归因)；\bibhang 串行候 ifclose 让文件；aux_scan_eof|newl@bel 或已覆 aux_purge_regen 待 nataux 域顺手核。
 - roster 10 在飞：secdispatch/citembox/failmine/csmap/nataux/ifclose/vendordiag/floatopt/gcensus/capcensus。
 - 门巡：零活批；树 4 改全 peer 域（selfimp-skeleton/repair/stubaudit/packaging）；L1/L0 绿保持。
+
+## 2026-09-19 ~08:5x — 报文潮核销 + draftsty 签名收紧 + #10 决定性证据
+
+- **mnrasretire 报文核销**：所述=v1 混合（deviation 声明=retire→missing→vendored_fetch 全场景不可达，自植 vendor 件理由）——树已演至 v2 纯 drop（e9b6583），报文与已收内容一致无追加。
+- **acceptpdf #10 决定性证据（升级用户裁决面）**：verdict 路径=dirty_pdf 晋升（engine.py:1031-1037，仅需 final_pdf∧err≤3∧!died，**零内容核验**；scorecard 映 clean~ 档入 GOOD 集 fixloop_bench.py:372,381）。loop1 1131 格分层：**T1 灾损 30**（capacity abort×4=cref@resetstack 递归 1803.03248/1907.10516/2105.03753/2403.05529 loop2 仍炸——restatdiag #31 残口复现；EOF-trunc×5；`这是译文` input 整丢×2；begin→enddoc 吞×2；**cjk_invisible 17=译文零中文渲染**）；T2 env 丢 46；**T3 不稳 422**（≤3 误差条测的是 warm pass，新编 >3 者 444——0806.2110: 1→404）；**T4 glyph 丢 495**；T6 真妆面仅 92（8%）。**~57% acceptable_pdf 携内容丢失**；agent 荐：结构类 cat+cjk_chars<20+missing_chars>0 拒晋升、≤3 条改测 fresh recompile。
+- **slotdiff 报文+4 接线 patch 已转 texlate-13**：Site A 迁 pipecore（peer refactor 中飞移位）、Site D=第4个 _resplice 调用点（retranslate 臂，brief 未列）、EOF 放置零撞、cap `>`语义诚实。paired_slot_diff b1b46b3 已落。
+- **citemath 荐 (b)**：yaml 反应式规则（bfseries/itshape-invalid-in-math 签名→cite 族 mbox 包，kernel 无 amsmath 依赖）优于我派的 latex209 (a)——(a) 仅覆 209 域，(b) 全类反应即 fixloop 本职；citembox 续跑作 209 域预防补。#79 citerule 立档串行候 ifclose 让 75-syntax（同签名 literal {\bfseries X} 无 cite token 须 noop 声明）。
+- **draftgap 副产**：S0 精确网 `edef..{..ifnum`[{}]` 全库仅 1706.00240——draftsty 内 grep 第二臂 `ifnum`[{}]=.z@` 松匹配良性花招习语（amsmath \@ifnextchar 支撑/ulem 尾花招/tabls 共 9 格）——**4ce9ae3 leader 直修**：两臂皆须 `edef` 在行，18/18 钉绿。
+- **failmine 报文核销**（与 rule_targets.txt 一致）：verdict 分布 clean 2557/acceptable 3019/best_effort 2220/unfixable 各类~600+。
+- roster 9：secdispatch/citembox/csmap/nataux/ifclose/vendordiag/floatopt/gcensus/capcensus；failmine 尸清。
