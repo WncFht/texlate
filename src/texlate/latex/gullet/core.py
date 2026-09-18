@@ -403,8 +403,12 @@ class _Core:
                 t2.xprotect = True
                 self.unread([t2])
             return None
-        if name in ("ifundefined", "@ifundefined"):
+        if name in ("ifundefined", "@ifundefined", "@ifxundefined"):
             return self._do_ifundefined(t)
+        if name == "romannumeral":
+            return self._do_romannumeral(t)
+        if name in ("uppercase", "lowercase"):
+            return self._do_case(t, upper=name == "uppercase")
         if name == "par":
             return Tok("eol_par", "par", t.pos, t.gen, t.origin)
         if name.startswith("if"):

@@ -19,6 +19,8 @@ from .entries import (
     MacroDef,
 )
 from .tables import (
+    _BUILTINS,
+    _MATH_CS,
     _MATH_OPEN_CS,
     _PRIMS,
 )
@@ -398,8 +400,15 @@ class _Decls:
             e = self.macros.lookup(src.text)
             if e is not None:
                 tgt = self.macros.resolve(e)
-            elif src.text in _PRIMS or src.text.startswith("if"):
-                tgt = src.text  # 原语名引用
+            elif (
+                src.text in _PRIMS
+                or src.text.startswith("if")
+                or src.text in _BUILTINS
+                or src.text in _MATH_CS
+            ):
+                # 原语/内建/数学命令名引用：\let\mycite\cite、\let\ra\rangle
+                # 换名后调用点按绑定名出流（W46——下游按名分派拿到真身）
+                tgt = src.text
             else:
                 tgt = None
             self.macros.set(nt.text, Alias(tgt), scope)
