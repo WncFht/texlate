@@ -31,6 +31,7 @@ from texlate.textutil import DOCCLASS_NAMES
 
 from ._common import (
     _GRP_FLOW_TAGS,
+    _MATH_CLOSE_CS,
     _MATH_TEXTARG,
     _MATH_TEXTARG_OPT_CAP,
     _PKG_ARG_SPEC,
@@ -39,10 +40,12 @@ from ._common import (
     _TAIL_CAP,
     _TAIL_RX,
     _TEXT_RUN_HEADS,
+    _VERB_LIKE,
     TokenSource,
     _accent_cs,
     _ArgTok,
     _cite_ref_type,
+    _fams,
     _inline_lit_cs,
 )
 
@@ -53,37 +56,33 @@ if TYPE_CHECKING:
 
 r"""``Segmenter`` 主循环/preamble/分派/math/verb。"""
 
-_VERB_LIKE = ("verb", "verb*", "lstinline")
-_MATH_CLOSE_CS = ("]", ")")
 
-
-# ``_dispatch`` 行序的名级投影——``pending._GRP_SURFACE_FAMS``/``_PEND_SPEC_FAMS``
-# 的镜像钉（``tests/test_dispatch_mirror.py`` 逐名裁决两表族序）。行 =
-# ``(族 tag, 名集 | 谓词 | None)``；``None`` = 宏表/argspec/探针动态行，
-# 名级不可静态判定。行序即 ``_dispatch`` 分派序，改动须同步投影。
-_DISPATCH_FAMS: tuple[tuple[str, object], ...] = (
-    ("verb", _VERB_LIKE),
-    ("env", ("begin", "end")),
-    ("cite-ref", _cite_ref_type),
-    ("protect", PROTECT_NAMES),
-    ("href", "href"),
-    ("input-scan", INPUT_SCAN_CMDS),
-    ("chunk-arg", CHUNK_ARG_NAMES),
-    ("protect-block", PROTECT_BLOCK_NAMES),
-    ("transparent-head", TRANSPARENT_HEAD_SPEC),
-    ("box-tail", BOX_TAIL_NAMES),
-    ("transparent", TRANSPARENT_NAMES),
-    ("boundary", BOUNDARY_NAMES),
-    ("endinput", "endinput"),
-    ("cond", COND_RX.match),
-    ("math-open", ("[", "(")),
-    ("math-close", _MATH_CLOSE_CS),
-    ("bsbs", "\\"),
-    ("accent", _accent_cs),
-    ("inline-literal", _inline_lit_cs),
-    ("macro", None),  # row18：gullet 宏表 env_begin/env_end/opaque/math
-    ("pair-block", PAIR_BLOCK_ALL),  # row18b：cs 对界 DSL 块（W29 pinlabel）
-    ("unknown", None),  # row19：尾参扫→keyarg→argspec→探针→逐字
+# ``_dispatch`` 行序投影——名→判据绑定单源 ``_common._FAM_BIND``，
+# 本表只携行序（``tests/test_dispatch_mirror.py`` 逐名裁决三面族序）。
+# 行序即 ``_dispatch`` 分派序，改序须同步下方 ``_fams`` 名列表。
+_DISPATCH_FAMS: tuple[tuple[str, object], ...] = _fams(
+    "verb",
+    "env",
+    "cite-ref",
+    "protect",
+    "href",
+    "input-scan",
+    "chunk-arg",
+    "protect-block",
+    "transparent-head",
+    "box-tail",
+    "transparent",
+    "boundary",
+    "endinput",
+    "cond",
+    "math-open",
+    "math-close",
+    "bsbs",
+    "accent",
+    "inline-literal",
+    "macro",  # row18：gullet 宏表 env_begin/env_end/opaque/math
+    "pair-block",  # row18b：cs 对界 DSL 块（W29 pinlabel）
+    "unknown",  # row19：尾参扫→keyarg→argspec→探针→逐字
 )
 
 

@@ -21,7 +21,7 @@ r"""argspec policy 分派黑盒测试——每条 policy 取真实宏端到端�
 import pytest
 from conftest import ART
 
-import texlate.latex.segmenter as seg
+import texlate.latex.tables as tables_mod
 from texlate.latex import parse_tex, reconstruct
 from texlate.latex.model import ArgspecEntry, PieceKind, ScanResult
 from texlate.latex.reconstruct import validate_result
@@ -411,7 +411,7 @@ def test_argspec_dead_path_reach_warns(
 ) -> None:
     r"""``transparent``/``boundary`` 分支今日不可达；一旦漂移使其可达，
     记 ``argspec_shadowed`` 告警且语义照旧——用假条目强制走通验证。"""
-    real = seg.argspec_lookup
+    real = tables_mod.argspec_lookup
 
     def fake_lookup(name: str, pkgs: set[str]) -> ArgspecEntry | None:
         if name == "zztrans":
@@ -426,7 +426,7 @@ def test_argspec_dead_path_reach_warns(
             return ArgspecEntry(name="zzbreak", package="zzz", policy="boundary")
         return real(name, pkgs)
 
-    monkeypatch.setattr(seg, "argspec_lookup", fake_lookup)
+    monkeypatch.setattr(tables_mod, "argspec_lookup", fake_lookup)
 
     res = scan("Text \\zztrans{kk} more words here.")
     assert any(

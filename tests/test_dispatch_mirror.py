@@ -1,9 +1,12 @@
 r"""双分派表镜像钉 —— ``_dispatch`` ↔ ``_group_surface``/``_pend_spec_of``。
 
-三份命令名→族分类表历史上只靠注释对齐，单侧漂移静默。两表都是平铺分支序，
-本文件钉三份模块级行序投影 ``_DISPATCH_FAMS``/``_GRP_SURFACE_FAMS``/
-``_PEND_SPEC_FAMS``（行 = ``(族 tag, 名集 | 谓词 | None 动态行)``）：
+三面分派表历史上的 (族 tag → 判据) 绑定曾逐表复写、单侧漂移静默；今
+``_common._FAM_BIND`` 单源携带绑定，三面行序投影
+``_DISPATCH_FAMS``/``_GRP_SURFACE_FAMS``/``_PEND_SPEC_FAMS``（行 =
+``(族 tag, 名集 | 谓词 | None 动态行)``）经 ``_fams`` 派生：
 
+- 投影纯度：三面每行判据即 ``_FAM_BIND[tag]`` 本体、tag 在表内唯一——
+  绕过 ``_fams`` 手写发散绑定在此爆炸；
 - 名级族等值：全集每个命令名在三臂各解析一个族 tag，B/pend 臂须命中
   ``_expected_*`` 规则——规则表即审计裁定的分歧清单，新分歧在此爆炸；
 - 行序：对每个名取两臂静态命中行 tag 列，公共 tag 相对序须一致
@@ -23,6 +26,7 @@ from conftest import DOC
 
 from texlate.latex import parse_tex
 from texlate.latex.model import PieceKind
+from texlate.latex.segmenter._common import _FAM_BIND
 from texlate.latex.segmenter.mainloop import _DISPATCH_FAMS
 from texlate.latex.segmenter.pending import _GRP_SURFACE_FAMS, _PEND_SPEC_FAMS
 from texlate.latex.tables import (
@@ -194,6 +198,17 @@ def _expected_pend(a_tag: str, name: str) -> str:
     if a_tag in _PEND_EQUIV:
         return a_tag
     return "probe"
+
+
+def test_fam_bind_identity() -> None:
+    """三面每行判据必须是 ``_FAM_BIND[tag]`` 本体且 tag 表内唯一——
+    绕过 ``_fams`` 手写的发散绑定（同名异判据行）在此爆炸。"""
+    for rows in (_DISPATCH_FAMS, _GRP_SURFACE_FAMS, _PEND_SPEC_FAMS):
+        tags = [tag for tag, _ in rows]
+        assert len(tags) == len(set(tags)), f"tag 重复: {tags}"
+        for tag, m in rows:
+            assert tag in _FAM_BIND, f"未登记 tag: {tag}"
+            assert m is _FAM_BIND[tag], f"{tag} 绑定发散: {m!r} vs {_FAM_BIND[tag]!r}"
 
 
 def test_name_family_mirror() -> None:

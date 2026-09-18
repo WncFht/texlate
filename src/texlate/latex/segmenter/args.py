@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
-import texlate.latex.segmenter as _seg
+import texlate.latex.tables as _tables
 from texlate.latex.gullet import (
     MacroDef,
     _tok_eq,
@@ -1556,7 +1556,7 @@ class _Args:
                 )
                 return
         if m is None:
-            e = _seg.argspec_lookup(name or t.text, self.state.pkgs)
+            e = _tables.argspec_lookup(name or t.text, self.state.pkgs)
             if e is not None:
                 self._handle_argspec_cs(t, src, e)
                 return

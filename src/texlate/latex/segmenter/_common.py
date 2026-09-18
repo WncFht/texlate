@@ -32,13 +32,23 @@ from texlate.latex.placeholder import (
 )
 from texlate.latex.tables import (
     ACCENT_CHARS,
+    BOUNDARY_NAMES,
+    BOX_TAIL_NAMES,
+    CHUNK_ARG_NAMES,
     CHUNK_MAX,
     CITE_NAMES,
+    COND_RX,
+    DIMEN_TAIL_KIND,
     FONT_SWITCHES,
     INLINE_LITERAL_CMDS,
+    INPUT_SCAN_CMDS,
     MATH_ENVS,
+    PAIR_BLOCK_ALL,
+    PROTECT_BLOCK_NAMES,
+    PROTECT_NAMES,
     PROTECTED_ENVS,
     REF_NAMES,
+    TRANSPARENT_HEAD_SPEC,
     TRANSPARENT_NAMES,
     VERBATIM_ENVS,
 )
@@ -356,6 +366,60 @@ def _inline_lit_cs(name: str) -> bool:
         or name in FONT_SWITCHES
         or (len(name) == 1 and not name.isalpha())
     )
+
+
+# ------------------------------------------------------------------ 分派族表
+
+# 行匹配判据小常量——三面投影共享（原 mainloop/pending 各自本地定义重份）。
+_VERB_LIKE = ("verb", "verb*", "lstinline")
+_ENV_CS = ("begin", "end")
+_MATH_OPEN_CS = ("[", "(")
+_MATH_CLOSE_CS = ("]", ")")
+_MATH_DELIM_CS = ("[", "(", "]", ")")
+
+#: 族 tag → 行判据单源：名集 | ``str`` 单名 | 谓词 | ``None`` 动态行
+#: （宏表/argspec/探针裁决——名级不可静态判定）。三面分派表
+#: ``mainloop._DISPATCH_FAMS``/``pending._GRP_SURFACE_FAMS``/
+#: ``pending._PEND_SPEC_FAMS`` 共享本绑定——各面**行序**是分派语义
+#: 不可约（主流 ``math-open`` 殿后而组面抢先），绑定才是共享数据；
+#: 新族只在本表登记一次，各面 ``_fams`` 序列表自行取舍。
+_FAM_BIND: dict[str, object] = {
+    "verb": _VERB_LIKE,
+    "env": _ENV_CS,
+    "cite-ref": _cite_ref_type,
+    "protect": PROTECT_NAMES,
+    "href": "href",
+    "hyperref": "hyperref",
+    "input-scan": INPUT_SCAN_CMDS,
+    "chunk-arg": CHUNK_ARG_NAMES,
+    "protect-block": PROTECT_BLOCK_NAMES,
+    "transparent-head": TRANSPARENT_HEAD_SPEC,
+    "box-tail": BOX_TAIL_NAMES,
+    "transparent": TRANSPARENT_NAMES,
+    "boundary": BOUNDARY_NAMES,
+    "endinput": "endinput",
+    "cond": COND_RX.match,
+    "math-open": _MATH_OPEN_CS,
+    "math-close": _MATH_CLOSE_CS,
+    "math-delim": _MATH_DELIM_CS,
+    "bsbs": "\\",
+    "accent": _accent_cs,
+    "inline-literal": _inline_lit_cs,
+    "macro": None,  # 主流 row18：gullet 宏表 env_begin/env_end/opaque/math
+    "env-macro": None,  # 组内对价：env_begin/env_end 宏端点
+    "opaque": None,  # 组内对价：opaque/math 宏 spec 走参（_grp_spec_walk 余量臂）
+    "pair-block": PAIR_BLOCK_ALL,  # cs 对界 DSL 块（W29 pinlabel）
+    "argspec": None,
+    "keyarg": None,  # _keyarg_tail 宏体尾 key-arg（pend 面独有）
+    "tail": DIMEN_TAIL_KIND,  # 非 BOUNDARY 的 dimen/assign 尾参（组面独有）
+    "unknown": None,  # 主流 row19：尾参扫→keyarg→argspec→探针→逐字
+    "probe": None,  # 组面终端：_grp_probe_end → CMD/逐字
+}
+
+
+def _fams(*order: str) -> tuple[tuple[str, object], ...]:
+    """族序列表 → 行投影：``(tag, _FAM_BIND[tag])``——未登记 tag 即 KeyError。"""
+    return tuple((tag, _FAM_BIND[tag]) for tag in order)
 
 
 def _pend_call_slots(name: str) -> list[str]:

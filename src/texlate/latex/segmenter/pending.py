@@ -6,7 +6,7 @@ from typing import (
     NamedTuple,
 )
 
-import texlate.latex.segmenter as _seg
+import texlate.latex.tables as _tables
 from texlate.latex.gullet import (
     Arg,
     MacroDef,
@@ -38,10 +38,13 @@ from texlate.latex.tables import (
 )
 
 from ._common import (
+    _ENV_CS,
     _GRP_BSBS_CONTENT_RX,
     _GRP_SCAN_CAP,
     _KEYARG_TAIL_DEPTH,
     _KEYARG_TAIL_RX,
+    _MATH_DELIM_CS,
+    _MATH_OPEN_CS,
     _PEND_CALL1,
     _PEND_CALL2,
     _PEND_PROBE,
@@ -49,11 +52,13 @@ from ._common import (
     _SLOT_PAIR_LEN,
     _SLOT_TEST_LEN,
     _TAIL_RX,
+    _VERB_LIKE,
     TokenSource,
     _accent_cs,
     _chunk_spec_cached,
     _cite_ref_type,
     _env_ph_type,
+    _fams,
     _inline_lit_cs,
     _ListSource,
     _pend_call_slots,
@@ -69,66 +74,61 @@ from .args import (
 
 r"""``Segmenter`` 跨边界待绑参与组 surface 收拢。"""
 
-_VERB_LIKE = ("verb", "verb*", "lstinline")
-_ENV_CS = ("begin", "end")
-_MATH_DELIM_CS = ("[", "(", "]", ")")
-_MATH_OPEN_CS = ("[", "(")
 _IMPORT2 = ("import", "subimport")
 
 
-# ``_group_surface`` 行序的名级投影——``mainloop._DISPATCH_FAMS`` 的镜像钉
-# （``tests/test_dispatch_mirror.py`` 逐名裁决两表族序）。行 =
-# ``(族 tag, 名集 | 谓词 | None)``；``None`` = env 宏/opaque 宏/argspec/探针
-# 动态行。行序即 ``_group_surface`` 分派序，改动须同步投影。
-_GRP_SURFACE_FAMS: tuple[tuple[str, object], ...] = (
-    ("verb", _VERB_LIKE),
-    ("env", _ENV_CS),
-    ("math-open", _MATH_OPEN_CS),
-    ("cite-ref", _cite_ref_type),
-    ("protect", PROTECT_NAMES),
-    ("href", "href"),
-    ("hyperref", "hyperref"),
-    ("cond", COND_RX.match),
-    ("input-scan", INPUT_SCAN_CMDS),
-    ("env-macro", None),  # _grp_env_macro：env_begin/env_end 宏端点
-    ("chunk-arg", CHUNK_ARG_NAMES),  # 头参进 CMD、可译 {arg} 留 surface
-    ("protect-block", PROTECT_BLOCK_NAMES),  # \author 族整块 → AUTHOR
-    ("boundary", BOUNDARY_NAMES),  # BOUNDARY_TAIL/DIMEN_TAIL 尾参内嵌本行
-    ("bsbs", "\\"),
-    ("transparent-head", TRANSPARENT_HEAD_SPEC),
-    ("tail", DIMEN_TAIL_KIND),  # 非 BOUNDARY 的 dimen/assign 尾参兜收
-    ("accent", _accent_cs),
-    ("inline-literal", _inline_lit_cs),  # 无参行内字面——argspec/探针前截
-    ("opaque", None),  # opaque/math 宏 spec 走参（主流 row18 对价）
-    ("pair-block", PAIR_BLOCK_ALL),  # cs 对界块组内整段 ENV ph（W29）
-    ("argspec", None),
-    ("probe", None),  # _grp_probe_end → CMD（散文参挖掘）/逐字
+# ``_group_surface`` 行序投影——名→判据绑定单源 ``_common._FAM_BIND``
+# （``tests/test_dispatch_mirror.py`` 逐名裁决三面族序）；``None`` 动态行 =
+# env 宏/opaque 宏/argspec/探针。行序即 ``_group_surface`` 分派序。
+_GRP_SURFACE_FAMS: tuple[tuple[str, object], ...] = _fams(
+    "verb",
+    "env",
+    "math-open",
+    "cite-ref",
+    "protect",
+    "href",
+    "hyperref",
+    "cond",
+    "input-scan",
+    "env-macro",  # _grp_env_macro：env_begin/env_end 宏端点
+    "chunk-arg",  # 头参进 CMD、可译 {arg} 留 surface
+    "protect-block",  # \author 族整块 → AUTHOR
+    "boundary",  # BOUNDARY_TAIL/DIMEN_TAIL 尾参内嵌本行
+    "bsbs",
+    "transparent-head",
+    "tail",  # 非 BOUNDARY 的 dimen/assign 尾参兜收
+    "accent",
+    "inline-literal",  # 无参行内字面——argspec/探针前截
+    "opaque",  # opaque/math 宏 spec 走参（主流 row18 对价）
+    "pair-block",  # cs 对界块组内整段 ENV ph（W29）
+    "argspec",
+    "probe",  # _grp_probe_end → CMD（散文参挖掘）/逐字
 )
 
-# ``_pend_spec_of`` 行序投影（同表第三镜像——跨界待绑参槽形分派）。
-_PEND_SPEC_FAMS: tuple[tuple[str, object], ...] = (
-    ("verb", _VERB_LIKE),
-    ("env", _ENV_CS),
-    ("math-delim", _MATH_DELIM_CS),
-    ("cite-ref", _cite_ref_type),
-    ("protect", PROTECT_NAMES),
-    ("href", "href"),
-    ("hyperref", "hyperref"),
-    ("cond", COND_RX.match),
-    ("input-scan", INPUT_SCAN_CMDS),
-    ("env-macro", None),
-    ("chunk-arg", CHUNK_ARG_NAMES),  # 头参槽（*?+[opt] 等非文本位）
-    ("protect-block", PROTECT_BLOCK_NAMES),  # [opt]{m} 槽
-    ("boundary", BOUNDARY_NAMES),  # BOUNDARY_TAIL 位序槽内嵌本行
-    ("bsbs", "\\"),
-    ("transparent-head", TRANSPARENT_HEAD_SPEC),
-    ("accent", _accent_cs),
-    ("inline-literal", _inline_lit_cs),  # 无参——不吸界外 token
-    ("opaque", None),  # opaque/math 宏 spec 走参（_grp_spec_walk 余量臂）
-    ("pair-block", PAIR_BLOCK_ALL),  # 对界 cs 无槽形——不吸界外 token
-    ("argspec", None),
-    ("keyarg", None),  # _keyarg_tail 宏体尾 key-arg
-    ("probe", None),  # _PEND_PROBE 槽
+# ``_pend_spec_of`` 行序投影（第三面——跨界待绑参槽形分派）。
+_PEND_SPEC_FAMS: tuple[tuple[str, object], ...] = _fams(
+    "verb",
+    "env",
+    "math-delim",
+    "cite-ref",
+    "protect",
+    "href",
+    "hyperref",
+    "cond",
+    "input-scan",
+    "env-macro",
+    "chunk-arg",  # 头参槽（*?+[opt] 等非文本位）
+    "protect-block",  # [opt]{m} 槽
+    "boundary",  # BOUNDARY_TAIL 位序槽内嵌本行
+    "bsbs",
+    "transparent-head",
+    "accent",
+    "inline-literal",  # 无参——不吸界外 token
+    "opaque",  # opaque/math 宏 spec 走参（_grp_spec_walk 余量臂）
+    "pair-block",  # 对界 cs 无槽形——不吸界外 token
+    "argspec",
+    "keyarg",  # _keyarg_tail 宏体尾 key-arg
+    "probe",  # _PEND_PROBE 槽
 )
 
 
@@ -529,9 +529,7 @@ class _Pending:
             kind = a.kind
             if kind in ("m", "o"):
                 if ai == 0 and cont is not None and cont[0] == "grp":
-                    hit0 = self._absorb_grp_tail(
-                        src, fid, brace=cont[1], depth=cont[2]
-                    )
+                    hit0 = self._absorb_grp_tail(src, fid, brace=cont[1], depth=cont[2])
                     if hit0 is None:
                         unpull()
                         break
@@ -632,12 +630,7 @@ class _Pending:
                         matched = True
                         continue
                     y = src.read()
-                    if (
-                        y is None
-                        or y.kind == "eol_par"
-                        or y.gen > 0
-                        or y.pos[0] != fid
-                    ):
+                    if y is None or y.kind == "eol_par" or y.gen > 0 or y.pos[0] != fid:
                         if y is not None:
                             src.unread([y])
                         runaway = True
@@ -670,12 +663,7 @@ class _Pending:
                 found = False
                 while True:
                     y = src.read()
-                    if (
-                        y is None
-                        or y.kind == "eol_par"
-                        or y.gen > 0
-                        or y.pos[0] != fid
-                    ):
+                    if y is None or y.kind == "eol_par" or y.gen > 0 or y.pos[0] != fid:
                         if y is not None:
                             src.unread([y])
                         break
@@ -740,7 +728,7 @@ class _Pending:
         里 ``m``/``v``/``n`` 位计数目即真参目（``o``/``s`` 由 ``_protect_cs``
         自身的星/可选步覆盖）。``\cite`` ``o m`` → 1，行为不变。
         """
-        e = _seg.argspec_lookup(name, self.state.pkgs)
+        e = _tables.argspec_lookup(name, self.state.pkgs)
         if e is None or not e.signature:
             return 1
         spec = _chunk_spec_cached(e.signature)
@@ -829,7 +817,7 @@ class _Pending:
             return None, ""
         # 宏表登记名不吃 argspec（主流 ``_handle_unknown_cs`` ``m is None``
         # 闸同规——登记名走下方 keyarg/探针，包签名不得领槽）
-        e = _seg.argspec_lookup(name, self.state.pkgs) if m is None else None
+        e = _tables.argspec_lookup(name, self.state.pkgs) if m is None else None
         if e is not None:
             if e.policy in ("literal", "transparent"):
                 return None, ""
@@ -924,7 +912,8 @@ class _Pending:
             got = self._absorb_slots(src, o[0], pend)
             warn_pool = got
         if ka and not any(
-            x.kind == "lbrace" or (x.kind == "other" and x.text == "[") for x in warn_pool
+            x.kind == "lbrace" or (x.kind == "other" and x.text == "[")
+            for x in warn_pool
         ):
             # key-arg 参没绑到（``*``/``[opt]`` 不算 key 本体；空 got =
             # 紧邻 token 全非参——收组走 cs-only 保护）——告警留痕
@@ -1735,7 +1724,7 @@ class _Pending:
             # 宏表登记名不吃 argspec（主流 ``m is None`` 闸的组内对价——
             # env-macro 行只截 env_begin/env_end，opaque/math 宏上行已兜，
             # 其余登记名落探针同规）
-            e2 = _seg.argspec_lookup(name, self.state.pkgs) if m2 is None else None
+            e2 = _tables.argspec_lookup(name, self.state.pkgs) if m2 is None else None
             if e2 is not None:
                 policy = e2.policy
                 if policy in ("literal", "transparent"):

@@ -7,7 +7,7 @@ from bisect import (
 )
 from typing import TYPE_CHECKING
 
-import texlate.latex.segmenter as _seg
+import texlate.latex.tables as _tables
 from texlate.latex.model import (
     ArgSpec,
     PhType,
@@ -552,7 +552,7 @@ class _Group:
             or env in ENV_MANDATORY_ARG
         ):
             return None
-        return _seg.argspec_lookup_env(env, self.state.pkgs)
+        return _tables.argspec_lookup_env(env, self.state.pkgs)
 
     def _grp_env_args_end(  # noqa: C901, PLR0912 — opt/mand/colspec 三段参数尾扫平铺即行序
         self,

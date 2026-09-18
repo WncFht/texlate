@@ -37,10 +37,6 @@ from texlate.latex.model import (
 from texlate.latex.placeholder import (
     PlaceholderIssuer,
 )
-from texlate.latex.tables import (  # noqa: F401  # test monkeypatch 面
-    argspec_lookup,
-    argspec_lookup_env,
-)
 
 from ._common import (
     _doc_begin_of,
