@@ -145,11 +145,14 @@ def update_file_stack(
             j += 1
 
 
-#: ``(x.eps`` 类 graphic 打开帧的 PS 族扩展名面——与 fixloop builtins 的
-#: 全图形族 ``_GRAPHIC_EXTS``（含 pdf/png/jpg）**同名不同物**，故名加
-#: ``_PS_`` 前缀区分。形状判定拒收的 graphic token（逗号/截断形，如
-#: ``fig,1.eps``）入 ``None`` 配对帧；engine/l2/fixloop 三处栈消费都把
-#: 行尾未配对 ``(`` 的 graphic token 补回栈顶真名。
+#: ``(x.eps`` 类 graphic 打开帧的 PS 族扩展名面。同一 5 件 PS 集现存三处
+#: 三名：本件 / ``normalize.PS_GRAPHIC_SUFFIXES`` / fixloop builtins
+#: ``_EPS_EXTS``——手工同步（builtins 冻结窗内不可外引，单源化待其解冻）。
+#: 另注意 builtins ``_GRAPHIC_EXTS`` 是**同名不同物**的 9 件全图形族
+#: （含 pdf/png/jpg）——本件名加 ``_PS_`` 前缀即为消撞。形状判定拒收的
+#: graphic token（逗号/截断形，如 ``fig,1.eps``）入 ``None`` 配对帧；
+#: engine/l2/fixloop 三处栈消费都把行尾未配对 ``(`` 的 graphic token
+#: 补回栈顶真名。
 _PS_GRAPHIC_EXTS: Final = frozenset({".eps", ".epsf", ".epsi", ".ps", ".mps"})
 
 

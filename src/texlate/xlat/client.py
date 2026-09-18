@@ -208,18 +208,22 @@ def _body_retry_after(body: str) -> float | None:
     return None
 
 
-def classify_status(status: int, body: str, headers: httpx.Headers) -> ChatError:
+def classify_status(
+    status: int, redacted_body: str, headers: httpx.Headers
+) -> ChatError:
     """HTTP 状态码 → 异常类型（docs/08 §1.6 状态码分类表 + B4a 429 body 修订）。
 
     429 的 retry_after 解析序：body `error.retry_after` → header `Retry-After`
     → 无（退 `3^attempt` 下限 5s）。429 是多租户共享流量触发（healthz 常驻他户
     22~26 active），与本地并发宽度无关——不为它缩 Semaphore。
 
-    ``body`` 进异常消息前函数内过 ``redact``（模式级、幂等——调用侧已按
-    api_key 预脱敏者二次过不变；新调用点忘脱敏也不再漏 secret 形态进
-    异常文本）。``_body_retry_after`` 仍吃原文——脱敏串不保证 JSON 可解析。
+    ``redacted_body`` 契约=调用侧已按自家 api_key 脱敏的响应体（字面 key
+    只有调用侧知道，函数内模式级 ``redact`` 管不了它）；进异常消息前再
+    过一次 ``redact``（幂等——pattern 级 secret 形态的防御兜底，预脱敏
+    文本二次过不变）。``_body_retry_after`` 吃同一脱敏串——脱敏可能把
+    JSON 搅坏致 retry_after 解析不到，属可接受降级（回退 header/默认）。
     """
-    msg = f"HTTP {status}: {redact(body)[:300]}"
+    msg = f"HTTP {status}: {redact(redacted_body)[:300]}"
     if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
         return AuthError(msg, status=status)
     if status == HTTP_PAYMENT_REQUIRED:
@@ -233,7 +237,7 @@ def classify_status(status: int, body: str, headers: httpx.Headers) -> ChatError
     ):
         retry_after = _retry_after(headers)
         if status == HTTP_TOO_MANY_REQUESTS:
-            retry_after = _body_retry_after(body) or retry_after
+            retry_after = _body_retry_after(redacted_body) or retry_after
         return RetryableHTTPError(
             msg, status=status, retryable=True, retry_after=retry_after
         )
