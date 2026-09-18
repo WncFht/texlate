@@ -367,7 +367,7 @@ def test_w31_svg_prepare_flag_arm(tmp_path: Path) -> None:
         tmp_path,
         {"m.tex": "\\usepackage{svg}\n\\begin{document}\n\\includesvg{d}\n"},
     )
-    bi = "texlate.compile.fixloop.builtins.shutil.which"
+    bi = "texlate.compile.fixloop._builtins_graphics.shutil.which"
     with patch(bi, side_effect=lambda n: "/fake/inkscape" if n == "inkscape" else None):
         applied, _ = svg_prepare(ctx, _Eng(), None, {})
     assert applied
@@ -395,7 +395,7 @@ def test_w31_svg_prepare_convert_arm(tmp_path: Path) -> None:
         },
     )
     ctx.runner = fake_runner
-    bi = "texlate.compile.fixloop.builtins.shutil.which"
+    bi = "texlate.compile.fixloop._builtins_graphics.shutil.which"
 
     def fake_which(name: str) -> str | None:
         return "/fake/rsvg-convert" if name == "rsvg-convert" else None

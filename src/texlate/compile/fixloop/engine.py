@@ -129,7 +129,7 @@ class Engine(Protocol):
         """沙箱编译 ``main`` (相对 wdir), ≤``passes`` 轮 → CompResLike。
 
         ``timeout`` = 单格编译预算秒 (fixloop 传 ``meta.loop.timeout_sec``
-        或调用方覆盖); ``flags`` = ``ctx.engine_flags`` 累计的引擎 CLI
+        或调用方覆盖); ``flags`` = ``ctx.ledger.engine_flags`` 累计的引擎 CLI
         flag —— 经 impl 侧 seam 落 argv；引擎不收的项进
         ``CompResLike.flags_dropped`` (getattr 容错读取)。
         """
@@ -214,11 +214,13 @@ def _round_cat(
 
 
 def _note_dropped_flags(ctx: LoopCtx, res: CompResLike) -> None:
-    """引擎经 ``flags`` seam 丢回的项 → ctx.flags_dropped + advisory (每 flag 一次)。"""
+    """引擎经 ``flags`` seam 丢回的项 → ctx.ledger.flags_dropped + advisory (每 flag 一次)。"""
     for fl in getattr(res, "flags_dropped", None) or []:
-        if fl not in ctx.flags_dropped:
-            ctx.flags_dropped.append(fl)
-            ctx.advisories.append(f"engine flag unsupported on {ctx.engine_name}: {fl}")
+        if fl not in ctx.ledger.flags_dropped:
+            ctx.ledger.flags_dropped.append(fl)
+            ctx.ledger.advisories.append(
+                f"engine flag unsupported on {ctx.deps.engine_name}: {fl}"
+            )
 
 
 #: TeX 每轮重写的读回辅助件 —— 被杀/超时编译留下截断形 (``\citation{``
@@ -313,16 +315,50 @@ def _report_of(res: CompResLike, warn_patterns: list[dict[str, Any]]) -> ErrRepo
 
 # ════════════════════════════════════════════════════════════════
 # LoopCtx —— 每格运行上下文 (spike Ctx, L133-143)
+#
+# C4 分组: 平铺 grab-bag 拆为四个子 dataclass —— ``io`` 工程 io 面 /
+# ``deps`` 注入依赖 / ``round`` 本轮分类态 / ``ledger`` 跨轮账簿。
+# 旧平铺字段名经 ``__getattr__``/``__setattr__`` 全量转落分组存储:
+# builtins/actions/llm_hook 与各测试的 ``ctx.<field>`` 读写面零迁移。
 # ════════════════════════════════════════════════════════════════
 
 
 @dataclass
-class LoopCtx:
-    """单格 fixloop 的运行上下文: 工程目录/主文件/已应用规则/安装记录。"""
+class _CtxIO:
+    """工程 io 面: 工作目录 + 主文件相对路径 + 进程内文本缓存。"""
 
     wdir: Path
-    engine_name: str
     main_rel: str | None = None
+    _texts: dict[Path, str | None] = field(default_factory=dict, repr=False)
+
+
+@dataclass
+class _CtxDeps:
+    """注入依赖: 引擎名 + 外部工具 runner (测试注入点) + LLM 修复钩子。"""
+
+    engine_name: str
+    runner: RunFn | None = None
+    llm_hook: LlmHook | None = None
+
+
+@dataclass
+class _CtxRound:
+    """本轮分类/裁决态 —— 主循环每轮重写, 轮间不累计。"""
+
+    #: 本轮 taxonomy 分类结果 —— llm_hook 的 prompt 装配读这两个字段
+    #: (LlmHook 签名固定 (ctx, rep), cat/pay 经 ctx 传递)。
+    err_cat: str | None = None
+    err_pay: str | None = None
+    err_head: str = ""  # 本轮错误 blob (ctx_suggests 条件用)
+    #: gate 评估只回 verdict 串——REJECT note 的 route= 令牌经此桥回 cell
+    #: (precheck/loop 两 site 有 note 在手直接写 cell["reject_route"])。
+    reject_route: str | None = None
+
+
+@dataclass
+class _CtxLedger:
+    """跨轮累计账簿: 规则应用/动作/装包/事件/引擎 flag/拒修与建议记录。"""
+
     applied: set[str] = field(default_factory=set)  # "{rule_id}:{payload}"
     #: "看见但拒修" 记录面: when 命中后 cond-skip/applied=False 的 ``{id}: {why}``
     #: ——events 有但 cases.jsonl 不落, 这里单收一份供 records 物化。
@@ -335,24 +371,112 @@ class LoopCtx:
     #: 每 flag 记一次 advisory，cell 落 ``engine_flags_dropped``。
     flags_dropped: list[str] = field(default_factory=list)
     advisories: list[str] = field(default_factory=list)
-    runner: RunFn | None = None
-    llm_hook: LlmHook | None = None
-    #: 本轮 taxonomy 分类结果 —— llm_hook 的 prompt 装配读这两个字段
-    #: (LlmHook 签名固定 (ctx, rep), cat/pay 经 ctx 传递)。
-    err_cat: str | None = None
-    err_pay: str | None = None
-    err_head: str = ""  # 本轮错误 blob (ctx_suggests 条件用)
-    #: gate 评估只回 verdict 串——REJECT note 的 route= 令牌经此桥回 cell
-    #: (precheck/loop 两 site 有 note 在手直接写 cell["reject_route"])。
-    reject_route: str | None = None
-    _texts: dict[Path, str | None] = field(default_factory=dict, repr=False)
+
+
+#: 平铺字段名 → 所属分组: LoopCtx facade 经此表把 ``ctx.<field>`` 读写
+#: 转落 ``ctx.<group>.<field>`` —— 兼容面整体保留, 新代码直用分组路径。
+_CTX_FIELD_GROUP = {
+    "wdir": "io",
+    "main_rel": "io",
+    "_texts": "io",
+    "engine_name": "deps",
+    "runner": "deps",
+    "llm_hook": "deps",
+    "err_cat": "round",
+    "err_pay": "round",
+    "err_head": "round",
+    "reject_route": "round",
+    "applied": "ledger",
+    "declined": "ledger",
+    "actions": "ledger",
+    "installed": "ledger",
+    "events": "ledger",
+    "engine_flags": "ledger",
+    "flags_dropped": "ledger",
+    "advisories": "ledger",
+}
+
+
+@dataclass(init=False)
+class LoopCtx:
+    """单格 fixloop 的运行上下文: io/deps/round/ledger 四组状态。
+
+    构造签名逐参复刻旧平铺 dataclass 生成面; 旧字段名全量保留为
+    facade —— 读 ``ctx.<field>`` = ``ctx.<group>.<field>``, 写同理转落
+    (field→group 归属见 ``_CTX_FIELD_GROUP``)。
+    """
+
+    io: _CtxIO
+    deps: _CtxDeps
+    round: _CtxRound
+    ledger: _CtxLedger
+
+    def __init__(  # noqa: PLR0913, PLR0917  # 签名逐参复刻旧 dataclass 生成面
+        self,
+        wdir: Path,
+        engine_name: str,
+        main_rel: str | None = None,
+        applied: set[str] | None = None,
+        declined: list[str] | None = None,
+        actions: list[dict[str, Any]] | None = None,
+        installed: list[str] | None = None,
+        events: list[str] | None = None,
+        engine_flags: list[str] | None = None,
+        flags_dropped: list[str] | None = None,
+        advisories: list[str] | None = None,
+        runner: RunFn | None = None,
+        llm_hook: LlmHook | None = None,
+        err_cat: str | None = None,
+        err_pay: str | None = None,
+        err_head: str = "",
+        reject_route: str | None = None,
+        _texts: dict[Path, str | None] | None = None,
+    ) -> None:
+        """平铺 kwargs → 四组子对象; ``None`` = 该组字段取默认值。"""
+        self.io = _CtxIO(
+            wdir=wdir,
+            main_rel=main_rel,
+            _texts=_texts if _texts is not None else {},
+        )
+        self.deps = _CtxDeps(engine_name=engine_name, runner=runner, llm_hook=llm_hook)
+        self.round = _CtxRound(
+            err_cat=err_cat,
+            err_pay=err_pay,
+            err_head=err_head,
+            reject_route=reject_route,
+        )
+        self.ledger = _CtxLedger(
+            applied=applied if applied is not None else set(),
+            declined=declined if declined is not None else [],
+            actions=actions if actions is not None else [],
+            installed=installed if installed is not None else [],
+            events=events if events is not None else [],
+            engine_flags=engine_flags if engine_flags is not None else [],
+            flags_dropped=flags_dropped if flags_dropped is not None else [],
+            advisories=advisories if advisories is not None else [],
+        )
+
+    def __getattr__(self, name: str) -> Any:  # noqa: ANN401 -- 平铺转发面天然 Any
+        """平铺字段名 → 分组存储转读 (facade; 只兜真实属性查找失败的名)。"""
+        group = _CTX_FIELD_GROUP.get(name)
+        if group is None:
+            raise AttributeError(name)
+        return getattr(getattr(self, group), name)
+
+    def __setattr__(self, name: str, value: Any) -> None:  # noqa: ANN401
+        """平铺字段名赋值 → 分组存储转写 (facade; 组名自身直挂实例)。"""
+        group = _CTX_FIELD_GROUP.get(name)
+        if group is None:
+            object.__setattr__(self, name, value)
+        else:
+            setattr(getattr(self, group), name, value)
 
     def tex_files(self, exts: Iterable[str] = (".tex", ".sty", ".cls")) -> list[Path]:
         """工程内指定扩展名文件 (排序稳定)。"""
         exts_t = tuple(e.lower() for e in exts)
         return [
             p
-            for p in sorted(self.wdir.rglob("*"))
+            for p in sorted(self.io.wdir.rglob("*"))
             if p.suffix.lower() in exts_t and p.is_file()
         ]
 
@@ -376,7 +500,7 @@ class LoopCtx:
 
     def main_path(self) -> Path | None:
         """主文件绝对路径 (main_rel 未定 → None)。"""
-        return self.wdir / self.main_rel if self.main_rel else None
+        return self.io.wdir / self.io.main_rel if self.io.main_rel else None
 
     def main_head(self, n: int = 3000) -> str:
         r"""主文件前 n 字符 (spike L515 用 3000 判 \documentstyle)。"""
@@ -393,13 +517,13 @@ class LoopCtx:
         self, argv: list[str], timeout: int = 120
     ) -> tuple[int | None, str, bool]:
         """跑外部工具; 默认 subprocess (测试注入 runner)。"""
-        if self.runner:
-            _rc, out, _sec, to = self.runner(argv, timeout, self.wdir)
+        if self.deps.runner:
+            _rc, out, _sec, to = self.deps.runner(argv, timeout, self.io.wdir)
             return _rc, out, to
         try:
             p = subprocess.run(  # noqa: S603  # argv 列表无 shell; fixloop 动作原语
                 argv,
-                cwd=str(self.wdir),
+                cwd=str(self.io.wdir),
                 timeout=timeout,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
@@ -457,27 +581,27 @@ def _gate_eval(  # noqa: PLR0913, PLR0917  # 与 _match_apply 同签名面
     """Gate phase 规则逐条评估; REJECT note → verdict ``reject:<rid>``。"""
     for rule in rs.phase("gate"):
         key = f"{rule.id}:{pay}"
-        if key in ctx.applied:  # 非 REJECT 型 gate 已应用过 → 不重发不重记账
+        if key in ctx.ledger.applied:  # 非 REJECT 型 gate 已应用过 → 不重发不重记账
             continue
         if not _when_ok(rule.when, cat, pay, ctx):
             continue
-        spec = rule.engine_spec(ctx.engine_name)
+        spec = rule.engine_spec(ctx.deps.engine_name)
         if spec.get("mode") == "skip":
             continue
         ok, why = _cond_ok(rule.condition, rule, ctx, eng, pay)
         if not ok:
-            ctx.events.append(f"gate {rule.id}: cond skip ({why})")
+            ctx.ledger.events.append(f"gate {rule.id}: cond skip ({why})")
             continue
         try:
             applied, note = _apply(rule, ctx, eng, pay, rep)
         except Exception as e:  # noqa: BLE001
             applied, note = False, f"gate crashed: {type(e).__name__}: {e}"
         if applied and note.startswith(_REJECT_PREFIX):
-            ctx.reject_route = _note_route(note)
+            ctx.round.reject_route = _note_route(note)
             return f"reject:{rule.id}"
         if applied:
-            ctx.applied.add(key)
-            ctx.actions.append({"round": -1, "rule": rule.id, "detail": note})
+            ctx.ledger.applied.add(key)
+            ctx.ledger.actions.append({"round": -1, "rule": rule.id, "detail": note})
     return None
 
 
@@ -506,9 +630,11 @@ def _wire_filemap_overrides(
     try:
         eng.filemap = filemap  # type: ignore[method-assign]  # 实例遮蔽协议方法
     except Exception as e:  # noqa: BLE001  # 遮蔽失败不阻塞: 退化为原生 filemap
-        ctx.advisories.append(f"filemap overrides wire failed: {type(e).__name__}: {e}")
+        ctx.ledger.advisories.append(
+            f"filemap overrides wire failed: {type(e).__name__}: {e}"
+        )
     else:
-        ctx.events.append("wire filemap overrides")
+        ctx.ledger.events.append("wire filemap overrides")
 
 
 def _wire_engine(eng: Engine, rs: Ruleset, wdir: Path, ctx: LoopCtx) -> None:
@@ -525,8 +651,8 @@ def _wire_engine(eng: Engine, rs: Ruleset, wdir: Path, ctx: LoopCtx) -> None:
     # ~/texmf 后 1306.1931 base 臂 fail→clean 假象）。装包隔离到任务树内。
     if getattr(eng, "texmfhome", "unset") is None:
         eng.texmfhome = wdir / "_texmf"  # type: ignore[attr-defined]
-        ctx.events.append("wire texmfhome -> workdir _texmf")
-    if ctx.engine_name != "tectonic":
+        ctx.ledger.events.append("wire texmfhome -> workdir _texmf")
+    if ctx.deps.engine_name != "tectonic":
         return
     if getattr(eng, "ctan_fetch", None) is not None or not hasattr(eng, "ctan_fetch"):
         return
@@ -537,9 +663,9 @@ def _wire_engine(eng: Engine, rs: Ruleset, wdir: Path, ctx: LoopCtx) -> None:
             overrides=rs.filemap_cfg.get("overrides") or {},
             epoch=(str(vg["texlive_format_epoch"]) if vg.get("enabled") else None),
         )
-        ctx.events.append("wire ctan_fetch (lazy tlpdb index)")
+        ctx.ledger.events.append("wire ctan_fetch (lazy tlpdb index)")
     except Exception as e:  # noqa: BLE001  # 注入失败不阻塞: install_* 走 advisory
-        ctx.advisories.append(f"ctan_fetch wire failed: {type(e).__name__}: {e}")
+        ctx.ledger.advisories.append(f"ctan_fetch wire failed: {type(e).__name__}: {e}")
 
 
 def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spike 状态机
@@ -555,12 +681,17 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
     case_sink: CaseSink | None = None,
     compile_timeout: float | None = None,
     should_cancel: Callable[[], bool] | None = None,
+    on_round: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
     """跑一格修复循环 → cell dict (字段与 spike fixloop-results.json 兼容)。
 
     verdict ∈ clean / acceptable_pdf / dirty_pdf / best_effort_pdf /
     unfixable:<cat> / stuck / max_rounds / reject:<rid> /
     no_errors_no_pdf / no_main_tex[:<sub>]（``classify_no_main`` 细分）
+
+    ``on_round`` 可选逐轮回调：每轮 ``cell["rounds"]`` 落新 entry 即同步
+    调用（含 salvage 兜底轮），entry 与 cell 内同对象——server worker
+    借此发 SSE 实况帧；None 时零开销，e2e/bench 直调臂行为不变。
     """
     rs = ruleset or Ruleset.load()
     engine_name = engine_name or getattr(
@@ -603,15 +734,15 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
             case_sink, cell, corpus_id=corpus_id, cond=cond, engine_name=engine_name
         )
         return cell
-    ctx.main_rel = str(main.relative_to(wdir))
-    cell["main"] = ctx.main_rel
-    cell["actions"] = ctx.actions  # 同一 list: precheck/gate/loop 动作汇入一处
+    ctx.io.main_rel = str(main.relative_to(wdir))
+    cell["main"] = ctx.io.main_rel
+    cell["actions"] = ctx.ledger.actions  # 同一 list: precheck/gate/loop 动作汇入一处
     _wire_engine(eng, rs, wdir, ctx)
 
     # —— 不退化底板: 快照入口态 PDF ——
     # 先于 precheck/loop 一切编辑: 规则若把能出 pdf 的树打死, finalize 拷回
     # 入口产物兜底 (loop1 实证 partial→fail 真退化 4 格)。reject:* 不救。
-    main_pdf = wdir / Path(ctx.main_rel).with_suffix(".pdf")
+    main_pdf = wdir / Path(ctx.io.main_rel).with_suffix(".pdf")
     floor_snap: Path | None = None
     if main_pdf.is_file() and main_pdf.stat().st_size > 0:
         snap = wdir / ".fixloop-entry.pdf"
@@ -619,7 +750,7 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
             shutil.copy2(main_pdf, snap)
             floor_snap = snap
         except OSError as e:  # 快照失败仅失底板, 不阻塞修复
-            ctx.advisories.append(f"floor snapshot: {e}")
+            ctx.ledger.advisories.append(f"floor snapshot: {e}")
 
     # —— precheck phase (第 0 招; 静态路由也在这里) ——
     dummy_rep = parse_log(None, rs.warn_patterns)
@@ -631,11 +762,11 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
         if mode in ("skip", "unsupported") or (
             mode == "degrade" and spec.get("degrade") == "skip"
         ):
-            ctx.events.append(f"precheck {rule.id}: {mode} on {engine_name}")
+            ctx.ledger.events.append(f"precheck {rule.id}: {mode} on {engine_name}")
             continue
         ok, why = _cond_ok(rule.condition, rule, ctx, eng, None)
         if not ok:
-            ctx.events.append(f"precheck {rule.id}: cond skip ({why})")
+            ctx.ledger.events.append(f"precheck {rule.id}: cond skip ({why})")
             continue
         try:
             applied, note = _apply(rule, ctx, eng, None, dummy_rep)
@@ -660,12 +791,12 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
             raise asyncio.CancelledError
         swept = _sweep_bad_aux(wdir)
         if swept:
-            ctx.events.append(f"r{rnd} aux-sweep: {', '.join(swept)}")
+            ctx.ledger.events.append(f"r{rnd} aux-sweep: {', '.join(swept)}")
         res = eng.compile(
             wdir,
-            ctx.main_rel,
+            ctx.io.main_rel,
             passes=1,  # 分类轮只读 pass-1 log——第二遍不产新分类信号
-            flags=list(ctx.engine_flags),
+            flags=list(ctx.ledger.engine_flags),
             **compile_kw,
         )
         _note_dropped_flags(ctx, res)
@@ -685,25 +816,25 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
         ):
             res = eng.compile(
                 wdir,
-                ctx.main_rel,
+                ctx.io.main_rel,
                 # yaml ``compile_passes`` 权威依旧: >1 才进本臂; 值 ≤2 时传
                 # ``None`` 走引擎自适应门 (rerun-hint 才升遍, MAX_PASSES=2
                 # 同值), >2 是超自适应上限的显式诉求, 原样透传无条件执行。
                 passes=None if passes <= 2 else passes,  # noqa: PLR2004 - 2 = compile/engine.py MAX_PASSES 自适应上限
-                flags=list(ctx.engine_flags),
+                flags=list(ctx.ledger.engine_flags),
                 **compile_kw,
             )
             _note_dropped_flags(ctx, res)
             rep = _report_of(res, rs.warn_patterns)
             cat, pay = _round_cat(rs, rep, res)
             round_sec += float(getattr(res, "seconds", getattr(res, "sec", 0.0)))
-            ctx.events.append(
+            ctx.ledger.events.append(
                 f"r{rnd} finalize: pass-1 clean → {passes}-pass "
                 f"(pdf={_res_has_pdf(res)} err={rep.n_bang} cat={cat})"
             )
         last_rep = rep
-        ctx.err_cat, ctx.err_pay = cat, pay
-        ctx.err_head = (rep.first or "") + "\n" + (rep.ctx or "")
+        ctx.round.err_cat, ctx.round.err_pay = cat, pay
+        ctx.round.err_head = (rep.first or "") + "\n" + (rep.ctx or "")
         pdf = _res_has_pdf(res)
         pdf_bytes = getattr(res, "pdf_bytes", None)
         if pdf and pdf_bytes is None:
@@ -727,9 +858,11 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
             "sec": round(round_sec, 1),
         }
         cell["rounds"].append(entry)
-        ctx.events.append(
+        ctx.ledger.events.append(
             f"r{rnd}: pdf={pdf} err={rep.n_bang} cat={cat} pay={pay} ({entry['sec']}s)"
         )
+        if on_round is not None:
+            on_round(entry)
         if floor_snap is None and pdf:  # 入口无现存产物 → 快照首轮 pdf
             src = getattr(res, "pdf", None)
             if isinstance(src, Path):
@@ -738,7 +871,7 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
                     shutil.copy2(src, snap)
                     floor_snap = snap
                 except OSError as e:
-                    ctx.advisories.append(f"floor snapshot: {e}")
+                    ctx.ledger.advisories.append(f"floor snapshot: {e}")
         # —— 终止判据 (spike L742-761 + docs/08:312) ——
         if (
             pdf
@@ -756,8 +889,8 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
         v = _gate_eval(rs, ctx, eng, cat, pay, rep)
         if v:
             cell["verdict"] = v
-            if ctx.reject_route:
-                cell["reject_route"] = ctx.reject_route
+            if ctx.round.reject_route:
+                cell["reject_route"] = ctx.round.reject_route
             break
         sig = f"{cat}:{pay}"
         sig_n = sig_n + 1 if sig == prev_sig else 1
@@ -776,7 +909,7 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
                 cell["reject_route"] = r
             break
         cell["actions"].append({"round": rnd, "rule": rule.id, "detail": note})
-        ctx.events.append(f"apply {rule.id}: {note}")
+        ctx.ledger.events.append(f"apply {rule.id}: {note}")
     else:
         cell["verdict"] = "max_rounds"
 
@@ -801,34 +934,35 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
     ):
         swept = _sweep_bad_aux(wdir)
         if swept:
-            ctx.events.append(f"salvage aux-sweep: {', '.join(swept)}")
+            ctx.ledger.events.append(f"salvage aux-sweep: {', '.join(swept)}")
         sres = eng.compile(
             wdir,
-            ctx.main_rel,
+            ctx.io.main_rel,
             passes=1,
             best_effort=True,
-            flags=list(ctx.engine_flags),
+            flags=list(ctx.ledger.engine_flags),
             **compile_kw,
         )
         _note_dropped_flags(ctx, sres)
         srep = _report_of(sres, rs.warn_patterns)
         spdf = _res_has_pdf(sres)
-        cell["rounds"].append(
-            {
-                "round": len(cell["rounds"]) + 1,
-                "salvage": True,
-                "pdf": spdf,
-                "pdf_bytes": int(getattr(sres, "pdf_bytes", 0) or 0),
-                "died": _res_died(sres),
-                "n_errors": srep.n_bang,
-                "category": None,
-                "payload": None,
-                "warnings": list(srep.warnings),
-                "line_no": srep.line_no,
-                "file_stack": srep.file_stack,
-                "sec": round(float(getattr(sres, "seconds", 0.0)), 1),
-            }
-        )
+        sentry = {
+            "round": len(cell["rounds"]) + 1,
+            "salvage": True,
+            "pdf": spdf,
+            "pdf_bytes": int(getattr(sres, "pdf_bytes", 0) or 0),
+            "died": _res_died(sres),
+            "n_errors": srep.n_bang,
+            "category": None,
+            "payload": None,
+            "warnings": list(srep.warnings),
+            "line_no": srep.line_no,
+            "file_stack": srep.file_stack,
+            "sec": round(float(getattr(sres, "seconds", 0.0)), 1),
+        }
+        cell["rounds"].append(sentry)
+        if on_round is not None:
+            on_round(sentry)
         cell["actions"].append(
             {
                 "round": "salvage",
@@ -836,7 +970,7 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
                 "detail": f"nonstopmode 兜底: pdf={spdf} err={srep.n_bang}",
             }
         )
-        ctx.events.append(f"salvage best_effort: pdf={spdf} err={srep.n_bang}")
+        ctx.ledger.events.append(f"salvage best_effort: pdf={spdf} err={srep.n_bang}")
         if spdf:
             cell["verdict"] = "best_effort_pdf"
 
@@ -858,20 +992,20 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
         cell["floor_restored"] = True
         cell["final_pdf"] = True
         cell["verdict"] = None
-        ctx.events.append(f"floor: entry pdf restored (was {v_end or 'none'})")
+        ctx.ledger.events.append(f"floor: entry pdf restored (was {v_end or 'none'})")
     cell["final_errors"] = last.get("n_errors")
     cell["final_cat"] = last.get("category")
-    cell["installed"] = ctx.installed
+    cell["installed"] = ctx.ledger.installed
     # 「看见/拒修」物化: rules_fired (actions 列) 的互补面 —— when 命中
     # 但 cond/applied 败阵的规则 id 去重列 + 带因注记 (去重同条目)。
     cell["rules_declined"] = list(
-        dict.fromkeys(d.split(":", 1)[0] for d in ctx.declined)
+        dict.fromkeys(d.split(":", 1)[0] for d in ctx.ledger.declined)
     )
-    cell["decline_notes"] = ctx.declined
-    cell["advisories"] = ctx.advisories
-    cell["engine_flags"] = ctx.engine_flags
-    cell["engine_flags_dropped"] = ctx.flags_dropped
-    cell["log"] = ctx.events
+    cell["decline_notes"] = ctx.ledger.declined
+    cell["advisories"] = ctx.ledger.advisories
+    cell["engine_flags"] = ctx.ledger.engine_flags
+    cell["engine_flags_dropped"] = ctx.ledger.flags_dropped
+    cell["log"] = ctx.ledger.events
     if last_rep is not None:  # triage 原料: 终态错误上下文 (docs/08:318 log_excerpt)
         head = "\n".join(x for x in (last_rep.first, last_rep.ctx) if x)
         cell["log_excerpt"] = (head or last_rep.tail)[:2000]
@@ -893,8 +1027,8 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
     # 末态清场: 末轮/兜底被杀的截断 aux 不驻留毒化格后 post 复判
     swept = _sweep_bad_aux(wdir)
     if swept:
-        ctx.events.append(f"final aux-sweep: {', '.join(swept)}")
-        cell["log"] = ctx.events  # 上方已赋值的同一 list 引用, 显式重挂防漂移
+        ctx.ledger.events.append(f"final aux-sweep: {', '.join(swept)}")
+        cell["log"] = ctx.ledger.events  # 上方已赋值的同一 list 引用, 显式重挂防漂移
     _record_case(
         case_sink, cell, corpus_id=corpus_id, cond=cond, engine_name=engine_name
     )
