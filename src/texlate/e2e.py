@@ -71,13 +71,14 @@ from texlate.xlat.glossary import Glossary
 from texlate.xlat.pipeline import (
     ChunkIn,
     MockTranslator,
+    PipelineConfig,
     XlatPipeline,
     chunk_to_in,
 )
 from texlate.xlat.placeholders import collect_doc_placeholders
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Awaitable, Callable, Iterator
 
     from texlate.compile.engine import CompRes
     from texlate.compile.fixloop.engine import LlmHook
@@ -86,8 +87,39 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
+#: 逐篇 LLM 术语抽取臂开关（``TEXLATE_AUTO_GLOSSARY``，默认关——frozen-300
+#: 回归裁决⑦未定前不开产线；开时抽取臂与翻译同模）
+ENV_AUTO_GLOSSARY = "TEXLATE_AUTO_GLOSSARY"
+
 
 # ---------------------------------------------------------------- 翻译树
+
+
+def _auto_glossary_fn(
+    translator: Translator | None,
+) -> Callable[[list[str]], Awaitable[dict[str, str]]] | None:
+    """为带 ``client`` 的 translator（GatewayTranslator）接 ``autogloss.extract_terms``。
+
+    MockTranslator/无 client 注入件 → ``None``（mock/bench 路径不打网关）。
+    抽取臂沿用翻译同模（BYOK 端点模型名网关私有，硬编公网名会 404）。
+    备忘防 ``pipe.run`` 二次调用重抽。
+    """
+    client = getattr(translator, "client", None)
+    if client is None:
+        return None
+    model = str(getattr(translator, "model", "") or "swe-2-medium")
+    memo: dict[str, dict[str, str]] = {}
+
+    async def _fn(texts: list[str]) -> dict[str, str]:
+        from texlate.xlat.autogloss import (  # noqa: PLC0415 -- 可选件惰载
+            extract_terms,
+        )
+
+        if "terms" not in memo:
+            memo["terms"] = await extract_terms(texts, client, model=model)
+        return memo["terms"]
+
+    return _fn
 
 
 def _delivered(r: ChunkResult) -> bool:
@@ -156,16 +188,21 @@ def _translate_tree(
     *,
     translator: Translator | None = None,
     env_judge: bool = False,
+    auto_glossary: bool = False,
 ) -> tuple[dict, TreeRun]:
     """目录树翻译 + splice 写回；返回 (stats, 运行态)。
 
     ``env_judge=True`` 时对静态表外的未知 env 块问 LLM 可译性——
-    False 的块回落原文不进 splice。
+    False 的块回落原文不进 splice。``auto_glossary=True`` 时开逐篇
+    LLM 术语抽取臂（仅对带 ``client`` 的真网关 translator 生效）。
     """
     scans, chunks, fault_files, support_files = _scan_tree(root)
 
     pipe = XlatPipeline(
         translator or MockTranslator(),
+        config=PipelineConfig(
+            auto_glossary_fn=_auto_glossary_fn(translator) if auto_glossary else None
+        ),
         glossary=Glossary.load(
             placeholders=collect_doc_placeholders(c.content for c in chunks)
         ),
@@ -226,16 +263,25 @@ def mock_translate_tree(
     *,
     translator: Translator | None = None,
     env_judge: bool | None = None,
+    auto_glossary: bool | None = None,
 ) -> dict:
     """目录树内全部 .tex 走 XlatPipeline(MockTranslator) → splice 写回。
 
     单 pipeline 跨文件编排（chunk_id = ``{file_idx}:{chunk.id}``），
     校验器注入 L0 ``validate_pair``。返回 per-tree 汇总统计。
     ``translator`` 可注入真网关 Translator；``env_judge`` 缺省读
-    ``TEXLATE_ENV_JUDGE``（默认关——静态表外 env 的可译性 LLM 判定）。
+    ``TEXLATE_ENV_JUDGE``（默认关——静态表外 env 的可译性 LLM 判定）；
+    ``auto_glossary`` 缺省读 ``TEXLATE_AUTO_GLOSSARY``（默认关）。
     """
     ej = env_flag(ENV_ENV_JUDGE, default=False) if env_judge is None else env_judge
-    stats, _run = _translate_tree(root, translator=translator, env_judge=ej)
+    ag = (
+        env_flag(ENV_AUTO_GLOSSARY, default=False)
+        if auto_glossary is None
+        else auto_glossary
+    )
+    stats, _run = _translate_tree(
+        root, translator=translator, env_judge=ej, auto_glossary=ag
+    )
     return stats
 
 
@@ -557,14 +603,16 @@ def pipe_condition(  # noqa: PLR0913 -- 修复链开关面（env 缺省，显式
     env_judge: bool | None = None,
     l2_on: bool | None = None,
     fixloop_on: bool | None = None,
+    auto_glossary: bool | None = None,
     l2_max_chunks: int = L2_MAX_CHUNKS,
     route_engines: list[str] | None = None,
 ) -> dict:
     """跑 pipe 条件：normalize → 翻译 → ctex 注入 → 编译 → 判定 → 修复链。
 
     非 clean 时先 L2 回灌（译文归因重译）再 fixloop（规则修源）。开关：
-    ``TEXLATE_ENV_JUDGE`` / ``TEXLATE_NO_L2`` / ``TEXLATE_NO_FIXLOOP``
-    （显式参数优先于 env）。``route_engines`` 供 engine_flags 跨引擎消费，
+    ``TEXLATE_ENV_JUDGE`` / ``TEXLATE_NO_L2`` / ``TEXLATE_NO_FIXLOOP`` /
+    ``TEXLATE_AUTO_GLOSSARY``（显式参数优先于 env）。``route_engines`` 供
+    engine_flags 跨引擎消费，
     缺省 ``[eng_name]``（bench 直调不跨界）。fixloop 启用时翻译前先抓
     baseline 快照（worker ``ctx.base_dir`` 同位——e2e 原地翻译，snapshot
     即 pristine 源），供 restore_support_from_src 复原被写脏的 support 件。
@@ -577,8 +625,15 @@ def pipe_condition(  # noqa: PLR0913 -- 修复链开关面（env 缺省，显式
         if fixloop_on is None
         else fixloop_on
     )
+    ag = (
+        env_flag(ENV_AUTO_GLOSSARY, default=False)
+        if auto_glossary is None
+        else auto_glossary
+    )
     with _baseline_snapshot(work, enabled=fl) as baseline_dir:
-        stats, run = _translate_tree(work, translator=translator, env_judge=ej)
+        stats, run = _translate_tree(
+            work, translator=translator, env_judge=ej, auto_glossary=ag
+        )
         rec["translate"] = stats
         try:
             rec["inject"] = prepare_chinese(work, main_rel)
