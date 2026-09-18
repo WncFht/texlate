@@ -754,3 +754,8 @@
 - **bticktax**：already_def taxonomy 引导类 `'?`→`[`']`——`` `\Bbbk' `` 反引号签 (amssymb \@ifdefinable) 曾落 other 无 payload, 23 格已通 already_def_* 门。实 log 钉 + e2e 路由钉 + 65 测试。
 - **verifymiss (#110) 派 bticktax**：failmine2 covered-but-verify 7 签组 dispatch-miss 普查 (input_sty_to_usepackage/acmart_resnap/natbib-author-year/aux_purge-dirty_pdf/hyperref_driver-timeout/ngerman/杂项)。
 - roster 10：bblmath/ifclosegap 长龄 + newblockpf/flushendopt/arraypream/pdfsanitize/begindoccen/dsatcensus/drvverdict/bticktax 在飞；flushendopt 已见 70-pkgopt 大块在写。
+
+## 2026-09-19 ~08:4x — flushendopt 入库 (acf6600)
+
+- **flushendopt**：`flushend_keeplastbox_opt_strip` order 197——sttools 3.x 删 keeplastbox → 成员级剥除 (括号三位+PassOptions 首参, 近名/嵌套不沾), 语义零损失 (上游删项本意)。13 测试; 预期翻 1706.02725/1803.09012/2105.00097/2105.03814/2111.00082。
+- roster 9：newblockpf (95-targeted+csmap 在写)/arraypream/pdfsanitize/begindoccen/dsatcensus/drvverdict/bticktax(verifymiss)/bblmath/ifclosegap。
