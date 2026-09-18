@@ -11,6 +11,7 @@
  */
 import {
   ApiError,
+  isRetryableStatus,
   NetworkError,
   TimeoutError,
   type AcceptedResponse,
@@ -119,9 +120,24 @@ export function createClient(prefs: TexlatePrefs): TexlateClient {
           e.status === 409 &&
           typeof e.payload?.task_id === "string"
         ) {
+          const taskId = e.payload.task_id;
+          // The dedup-active set counts `interrupted` (and other retryable
+          // terminals can surface the same way) — adopting one dead-ends
+          // polling an empty-artifacts corpse. Resurrect via /retry first.
+          const snap = await request<TaskSnapshot>(
+            "GET",
+            `/api/task/${taskId}`,
+          );
+          if (isRetryableStatus(snap.status)) {
+            return await request<AcceptedResponse>(
+              "POST",
+              `/api/task/${taskId}/retry`,
+              { body: "{}" },
+            );
+          }
           return {
-            task_id: e.payload.task_id,
-            status: "queued",
+            task_id: taskId,
+            status: snap.status,
             events_url: "",
             reused: true,
           };

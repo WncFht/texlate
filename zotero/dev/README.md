@@ -58,7 +58,7 @@ dev-profile                 dev-server                     dev-zotero
 - **适用条件** — zotero + xvfb-run + node/npx；`zotero/node_modules` 已装。
 - **变换方法** — `npm run build` 产出 `.scaffold/build/addon` → 写 `<profile>/extensions/<addonID>` 指针文件 → seed `user.js`（**`xpinstall.signatures.required=false` 是硬需求**，缺它无签名代理包被静默拒载）→ setsid 起 xvfb 实例。
 - **资源约束** — profile 必须落在 `TEXLATE_DEV_ROOT` 下（guard 断言）；启动断言 RDP 端口空闲；绝不裸起 zotero（`--profile` 写死命令行，裸起会开用户真实库）；stop 只杀 pidfile 进程组。
-- **验证证据** — wait 死线内 rdp eval `Zotero.version` + 三层插件探针（`getAllPluginIDs` 注册态 × `Zotero.texlate.data.initialized` 运行态）；未加载自动附 extensions 目录清单 + extensions.json + 日志 addon 行归因。
+- **验证证据** — wait 死线内 rdp eval `Zotero.version` + 三层插件探针（`getAllPluginIDs` 注册态 × `Zotero.texlate.data.initialized` 运行态）；探针 ~8s 不绿自动 `installTemporaryAddon` 热装兜底一次（冷扫描漏注册的实测恢复路径）；未加载自动附 extensions 目录清单 + extensions.json + 日志 addon 行归因。
 - **用法** — `dev-zotero [run|build|install|start|stop|restart|status|wait|verify]`（缺省 run：build+install+start+wait 全链）。
 
 ### rdp / rdp.mjs
@@ -71,11 +71,11 @@ dev-profile                 dev-server                     dev-zotero
 
 ### dev-verify
 
-- **适用条件** — dev-server + dev-zotero 均在跑（或按其前置检查拉起）。
-- **变换方法** — 经 rdp 调 `Zotero.texlate.selftest(itemID)` / `selftestNonArxiv` / `api.computeMenuState(items)`，对照 fixture 逐断言出 PASS/FAIL 矩阵。
-- **资源约束** — full 跑完整 e2e 矩阵（真建任务真编译，分钟级）；quick 只跑廉价探针（health/extract/menu-state/负例）；sabotage 人为破坏一环后要求报告给出可归因 FAIL。
-- **验证证据** — 逐 fixture × 逐 selftest 步的 PASS/FAIL 表；`taskId` 回传可与服务端 `dev-server check` 交叉核对。
-- **用法** — `dev-verify [full|quick|sabotage]`；sabotage 模式 `kill-server` / `wrong-port` / `delete-artifact`。
+- **适用条件** — dev-server/dev-zotero/rdp 三件套就位；fixture 由 dev-profile 注入（脚本按 `[texlate-fixture]` 标题重发现并分类，不信固定 id）；`uv sync --extra server` + tectonic 同 dev-server。
+- **变换方法** — dev-server run 起 mock 服 → dev-zotero verify 断言插件 loaded → rdp 写 serverUrl/pollInterval/pollTimeout prefs（global 位——裸 set 只写 profile 支，默认值 8765 仍生效）→ reset 清 fixture 的 `texlate:` 标记与 TeXlate 附件（幂等前提）→ 逐 fixture `api.selftest(id)` 断言 extract 源与 ID 形态 → 负例 `selftestNonArxiv` → `computeMenuState` 三态 → xpi 解包校验 manifest strict_min/max → 幂等重跑。sabotage 档见下节。
+- **资源约束** — scratch 全在 `TEXLATE_DEV_ROOT`（`selftest-*.json` 原始证据、`.sabotaged` 暂挪文件）；reset 只碰 `[texlate-fixture]` 条目；selftest 死线 `TEXLATE_DEV_SELFTEST_TIMEOUT`（默认 420s）；full 档 ~5–15min（真实 arXiv+tectonic，prefer=reuse 使已译 id 秒回）。
+- **验证证据** — 每条 PASS 行带 taskId/sha256 前缀/bytes/itemID/source=；原始 SelftestResult JSON 落 `tmp/zotero-dev/selftest-*.json`；入库 transcript 在 `zotero/dev/dev-verify-report.txt`（tmp/ 下同名是最近工作副本）。
+- **用法** — `dev-verify [full|quick|sabotage]`（缺省 full，无其他 flag）。full=全矩阵（协议 e2e + 插件加载 + 6 fixture + 负例 + 菜单态 + xpi + 幂等重跑）；quick=协议 e2e + 插件加载 + 1 fixture + 负例 + 菜单态 + xpi；sabotage=三例破坏测验。退出码只计真失败——sabotage 的期望 FAIL 不影响 exit。
 
 ## 一次完整验证会话
 
@@ -86,13 +86,15 @@ zotero/dev/dev-zotero run          # build→install→start→wait 全链（插
 zotero/dev/dev-verify full         # selftest 矩阵终验
 ```
 
+`dev-verify` 自身会拉起/复用 dev-server 与 dev-zotero——上面前三步是手动分解（排障时逐层环回用），只想拿结论时 `dev-verify full` 一条命令即可。
+
 收尾：`dev-zotero stop` + `dev-server stop`（各只杀自己 pidfile 记的进程组）；`dev-profile clean` 连 profile/datadir 一起清。
 
 单独环回：`dev-server check`（服务协议面）、`dev-profile verify`（fixture 面）、`dev-zotero verify`（插件装载面）——三层各自可归因，不必全链重跑。
 
 ## 破坏测试
 
-`dev-verify sabotage <kill-server|wrong-port|delete-artifact>` 验证的是验证链本身：人为破坏一环后，报告必须给出可归因 FAIL（如 `health: connection failed` / `wrong server on port` / `download: sha256 mismatch`），而非笼统「e2e 挂了」。三性质里「局部可归因」由此得到受控对照证据。
+`dev-verify sabotage` 验证的是验证链本身：三例人为破坏各要求失败落在预期步且 detail 可归因——(a) 停 dev-server → selftest 必须 FAIL 于 `health`（unreachable/connection）；(b) serverUrl 改指死端口 127.0.0.1:19999 → FAIL 于 `health`；(c) 挪走 `tasks/<id>/zh.pdf` → FAIL 于 `download+attach` 且点名 kind `zh.pdf`。每例后自动恢复并复验转绿；期望 FAIL 原样打印但不计入退出码——exit 非零只意味着「破坏没生效」或「恢复失败」。失败位置不对即视为 sabotage 无效——三性质里「局部可归因」由此得到受控对照证据。
 
 ## 端口 / 路径
 

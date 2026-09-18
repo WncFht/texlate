@@ -29,6 +29,19 @@ export const TERMINAL_STATUSES = [
   "needs_auth",
 ] as const;
 
+/**
+ * Server RETRYABLE_FROM (store/_common.py): terminal states POST
+ * /api/task/{id}/retry accepts. Matters because `interrupted` still counts
+ * as active for translate dedup — a 409 can hand back a dead task_id.
+ */
+export const RETRYABLE_STATUSES = [
+  "fault",
+  "partial",
+  "cancelled",
+  "interrupted",
+  "needs_auth",
+] as const;
+
 export type ActiveStatus = (typeof ACTIVE_STATUSES)[number];
 export type TerminalStatus = (typeof TERMINAL_STATUSES)[number];
 export type TaskStatus = ActiveStatus | TerminalStatus;
@@ -38,6 +51,9 @@ export function isActiveStatus(s: string): s is ActiveStatus {
 }
 export function isTerminalStatus(s: string): s is TerminalStatus {
   return (TERMINAL_STATUSES as readonly string[]).includes(s);
+}
+export function isRetryableStatus(s: string): boolean {
+  return (RETRYABLE_STATUSES as readonly string[]).includes(s);
 }
 
 /** Stage order for phase-label mapping (snapshot.stage ∈ STAGES). */

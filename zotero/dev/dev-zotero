@@ -29,6 +29,7 @@
 #     在命令行，无代码路径省略（裸起会开用户真实库）；
 #   验证证据 — wait 死线内 rdp eval Zotero.version + 三层插件探针
 #     （getAllPluginIDs 注册态 × Zotero.texlate.data.initialized 运行态）；
+#     探针 ~8s 不绿自动 installTemporaryAddon 热装兜底一次再探；
 #     stop 只杀 pidfile 记的进程组。
 #
 # 安装路径抉择（research/scaffold-mechanics.md §1，dist 行号证据）：
@@ -259,6 +260,25 @@ except Exception:
   loaded) echo "loaded $ver" ;;
   *) echo "$st" ;;
   esac
+}
+
+#: 冷扫描兜底热装（wait 内一次性）：rdp installTemporaryAddon(PLUGIN_DIR)。
+#: 指针文件就位但启动扫描偶发丢注册（extensions.json 写入竞态，实测
+#: restart 后 getAllPluginIDs 漏 id）；热装对已注册 id 无害——AddonManager
+#: 返回既有 addon，注册与否仍由下一轮 plugin_probe 判定归因。
+hot_install() { # $1=port → 0=installTemporaryAddon 调用成功
+  local js
+  js='(async()=>{
+    const {AddonManager} = ChromeUtils.importESModule("resource://gre/modules/AddonManager.sys.mjs");
+    const a = await AddonManager.installTemporaryAddon(Zotero.File.pathToFile("__PDIR__"));
+    return {id: a && a.id || null};
+  })()'
+  js="${js//__PDIR__/$PLUGIN_DIR}"
+  rdp_eval "$1" "$js" | python3 -c 'import json,sys
+try:
+    sys.exit(0 if json.load(sys.stdin).get("ok") else 1)
+except Exception:
+    sys.exit(1)'
 }
 
 #: 启动前 seed user.js——xpinstall.signatures.required=false 是硬需求：
@@ -500,6 +520,7 @@ cmd_start() {
 
 cmd_wait() {
   local deadline=$((SECONDS + WAIT_DEADLINE)) port="$PORT" existing saw_rdp=0 st="?" ver
+  local rdp_ticks=0 hot=0
   if existing=$(running_on_profile); then
     read -r _ep port <<<"$existing"
     [[ $port == "?" ]] && port="$PORT"
@@ -507,6 +528,7 @@ cmd_wait() {
   while ((SECONDS < deadline)); do
     if rdp_alive "$port"; then
       saw_rdp=1
+      rdp_ticks=$((rdp_ticks + 1))
       st=$(plugin_probe "$port")
       if [[ $st == loaded* ]]; then
         ver=$(rdp_eval "$port" 'Zotero.version' | python3 -c 'import json,sys
@@ -516,6 +538,16 @@ except Exception:
     print("?")')
         log "PASS wait: rdp ok (Zotero $ver, port $port) — plugin $st"
         return 0
+      fi
+      # rdp 活 ~8s 仍未 loaded → 冷扫描漏注册，热装一次兜底（正常冷扫描
+      # 在 rdp 起来后 2-3s 内完成注册——8s 阈值避开与在途扫描竞态）。
+      if ((hot == 0 && rdp_ticks >= 8)) && [[ -f $PLUGIN_DIR/manifest.json ]]; then
+        hot=1
+        if hot_install "$port"; then
+          log "wait: cold-scan missed plugin (last: $st) — installTemporaryAddon injected, re-probing"
+        else
+          warn "wait: installTemporaryAddon fallback failed (last: $st)"
+        fi
       fi
     fi
     sleep 1
