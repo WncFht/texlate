@@ -145,6 +145,27 @@ def test_judge_timeout_categories() -> None:
     v = judge(res)
     assert v.status == "fail"
     assert v.category == "runaway_output"
+
+
+def test_judge_livekill_stdout_tail_fallback() -> None:
+    """活哨早杀形: .log 截在签名刷屏前, stdout_tail 携签名 → 仍 runaway_output。"""
+    res = CompRes(
+        engine="xelatex",
+        timed_out=True,
+        log=LogInfo(tail="partial output\n"),
+        stdout_tail="\n".join([_VBOX] * 35),
+    )
+    v = judge(res)
+    assert v.status == "fail"
+    assert v.category == "runaway_output"
+    # stdout_tail 也无签名 → 泛 timeout 不变
+    res2 = CompRes(
+        engine="xelatex",
+        timed_out=True,
+        log=LogInfo(tail="partial output\n"),
+        stdout_tail="some normal lines\n",
+    )
+    assert judge(res2).category == "timeout"
     assert "timeout" in v.reasons
 
     res2 = CompRes(engine="xelatex", timed_out=True, log=LogInfo(tail="partial\n"))

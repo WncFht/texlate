@@ -200,6 +200,15 @@ def judge(res: CompRes, *, expect_cjk: bool = False, log_text: str = "") -> Verd
             res.log.tail,
             timed_out=True,
         )
+        if cat == "timeout":
+            # 活哨早杀的 .log 截在签名刷屏前——证据在 stdout_tail
+            # （哨件凭它越阈），补查使归因仍是 runaway_output。
+            from texlate.compile.fixloop.logparse import (  # noqa: PLC0415  # 延迟: fixloop/__init__ 链重
+                _is_runaway_output,
+            )
+
+            if _is_runaway_output(res.stdout_tail):
+                cat = "runaway_output"
         v.category = cat
         return v
     # 引擎被信号杀死：死进程产出不可信，有 pdf 也判 dirty，
