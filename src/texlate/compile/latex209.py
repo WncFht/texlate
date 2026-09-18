@@ -332,6 +332,45 @@ _MATH_SWITCH_RE: Final = re.compile(
     + CMD_BOUNDARY
 )
 
+#: 数学域内 cite 族命令 ``\mbox`` 包裹清单——revtex4-2+natbib 链路
+#: ``\cite`` → ``\rtx@citex`` → ``\NAT@citex``/``\@citex`` 的未定义引用标记是
+#: ``{\reset@font\bfseries ?}`` **无盒**直排（natbib.sty:385/518；alias 路径
+#: :607 同形 ``(alias?)``），``\bfseries`` 在数学域触发 ``\not@math@alphabet``
+#: 硬报 ``Command \bfseries invalid in math mode``（gr-qc/9901082
+#: ``$\phi^i_{\pm}=0 \cite{HawMos}.$`` 实证，tmp/lane-citemath/EVIDENCE.md）。
+#: fixloop halt_on_error 让编译死在 thebibliography 之前、``\bibcite`` 永不
+#: 写回 aux → 引用每轮保持未定义 → 同错自续；``\mbox{\cite{..}}`` 把标记
+#: 放回文本域（min6 实证首遍净过），已定义引用盒内外渲染一致（min7）——
+#: 命中即裹、不判定义与否。清单取 natbib.sty ``\DeclareRobustCommand`` 全
+#: 引用面（含 ``\citeyearpar``/``\citefullauthor``/``\citetalias``/``\citepalias``
+#: 与大写句首形 ``\Citet`` 系，同走 ``\@citex``/alias 标记路径）；内核
+#: ``\@citex`` 的 ``\hbox`` 包壳路径（plain article）与 ``\ref``/``\eqref``
+#: 的 ``\nfss@text`` 本就安全不收；``\citetext`` 是字面文本实参、无引用
+#: 标记路径不收。长名先列，``CMD_BOUNDARY`` 兜底整词。
+_MATH_CITE_CS_209: Final = (
+    "citefullauthor",
+    "citeyearpar",
+    "citeauthor",
+    "Citeauthor",
+    "citetalias",
+    "citepalias",
+    "citeyear",
+    "citealt",
+    "citealp",
+    "citenum",
+    "Citealt",
+    "Citealp",
+    "citep",
+    "citet",
+    "Citep",
+    "Citet",
+    "cite",
+)
+
+_MATH_CITE_RE: Final = re.compile(
+    r"\\(" + "|".join(_MATH_CITE_CS_209) + r")" + CMD_BOUNDARY
+)
+
 #: ``$`` 系定界之外的数学环境（209 内建 + amsmath/amstex/IEEE/breqn 族）——
 #: 环境体整段按数学域处理。同名 begin/end 栈式配对；未闭合 begin 不成域
 #: （编译本即死，域内修复无意义，保守弃）。
@@ -642,33 +681,92 @@ def _innermost(
     return best
 
 
-def _fix_math_fontswitch(tex: str) -> tuple[str, int]:
-    r"""数学域 ``{\em/\it/\bf X}`` switch 组 → ``\mathit{...}``/``\mathbf{...}``。
+def _cite_call_end(vis: str, pos: int) -> int:
+    r"""``pos`` 起 cite 调用尾端的后一 offset：``*`` + ≤2 ``[..]`` + ``{key}``。
+
+    缺 ``{key}`` 实参返回 ``-1``——裸 ``\cite`` token 裹 ``\mbox{}`` 会让
+    ``\@citex`` 把 ``}`` 读成 key 实参，保守不动。``[..]``/``{..}`` 配对
+    走 ``group_end``（转义/嵌套/行间注释形态同 ``_textarg_spans`` 口径）。
+    """
+    i = pos
+    n = len(vis)
+    for _ in range(3):  # ``*`` 槽 + 两个 ``[..]`` 槽——槽序由实见字符自证
+        while i < n and vis[i] in " \t\r\n":
+            i += 1
+        if i < n and vis[i] == "*":
+            i += 1
+            continue
+        if i < n and vis[i] == "[":
+            e = group_end(vis, i)
+            if e <= i:
+                return -1
+            i = e
+            continue
+        break
+    while i < n and vis[i] in " \t\r\n":
+        i += 1
+    if i >= n or vis[i] != "{":
+        return -1
+    e = group_end(vis, i)
+    return e if e > i else -1
+
+
+def _fix_math_209(tex: str) -> tuple[str, int, int]:
+    r"""数学域两族受限转写（共用一次模态域走查）→ ``(new_tex, n_switch, n_cite)``。
+
+    switch 组 ``{\em/\it/\bf X}`` → ``\mathit{...}``/``\mathbf{...}``（209 时代
+    switch 在 2e 数学域硬报 ``\not@math@alphabet``）；裸 cite 族调用
+    ``\cite[..]{k}`` → ``\mbox{\cite[..]{k}}``（未定义引用标记 ``\bfseries``
+    同签名硬报且 fixloop 自续，见 ``_MATH_CITE_CS_209`` 注）。
 
     模态判定：``cs_events_spans`` 配对 ``$..$``/``$$..$$``/``\(..\)``/``\[..]``
     + ``_math_env_spans`` 配对数学环境体为数学域；``_TEXTARG_CS_209`` 命令
-    实参为文本域——嵌套域按 :func:`_innermost` 最内层判。组整体须含于同一
-    数学域内（越界即残缺组不动）。定位全在 ``visible_tex`` 遮盖视图——
-    注释/逐字内容里的同形不参与；回填 ``apply_edits`` 保行号。
+    实参为文本域——嵌套域按 :func:`_innermost` 最内层判。组/调用整体须含于
+    同一数学域内（越界即残缺形态不动）。定位全在 ``visible_tex`` 遮盖视图——
+    注释/逐字内容里的同形不参与；回填 ``apply_edits`` 保行号。cite 包裹是
+    两端零宽插入（``\mbox{``/``}``），与 switch 的段替换不争 span——逆序
+    回放下 ``$\cite{{\em x}}$`` 这类两族命中互不覆盖。
     """
     vis = visible_tex(tex)
     _, dollar_spans = cs_events_spans(vis)
     spans = dollar_spans + _math_env_spans(vis)
     if not spans:
-        return tex, 0
+        return tex, 0, 0
     regions: list[tuple[int, int, str]] = [(a, b, "m") for a, b in spans]
     for m in _TEXTARG_CS_RE.finditer(vis):
         regions.extend((a, b, "t") for a, b in _textarg_spans(vis, m.end(), m.group(1)))
-    edits = [
-        (m.start(), m.end(), "\\" + _MATH_SWITCH_209[m.group(1)] + "{")
-        for m in _MATH_SWITCH_RE.finditer(vis)
-        if (inner := _innermost(regions, m.start())) is not None
-        and inner[2] == "m"
-        and group_end(vis, m.start()) <= inner[1]
-    ]
+    edits: list[tuple[int, int, str]] = []
+    n_switch = 0
+    for m in _MATH_SWITCH_RE.finditer(vis):
+        inner = _innermost(regions, m.start())
+        if (
+            inner is not None
+            and inner[2] == "m"
+            and group_end(vis, m.start()) <= inner[1]
+        ):
+            edits.append(
+                (m.start(), m.end(), "\\" + _MATH_SWITCH_209[m.group(1)] + "{")
+            )
+            n_switch += 1
+    n_cite = 0
+    inserts: dict[int, list[str]] = {}
+    for m in _MATH_CITE_RE.finditer(vis):
+        inner = _innermost(regions, m.start())
+        if inner is None or inner[2] != "m":
+            continue
+        end = _cite_call_end(vis, m.end())
+        if end < 0 or end > inner[1]:
+            continue
+        # 同位插入按生成序拼接——相邻调用 ``\cite{a}\cite{b}`` 的左闭 ``}``
+        # 与右开 ``\mbox{`` 落在同一 offset，``apply_edits`` 同位只按 repl
+        # 字典序排，须预先拼好（finditer 升序命中保证先闭后开）。
+        inserts.setdefault(m.start(), []).append("\\mbox{")
+        inserts.setdefault(end, []).append("}")
+        n_cite += 1
+    edits.extend((pos, pos, "".join(strs)) for pos, strs in inserts.items())
     if not edits:
-        return tex, 0
-    return apply_edits(tex, edits), len(edits)
+        return tex, 0, 0
+    return apply_edits(tex, edits), n_switch, n_cite
 
 
 def _primary_docstyle(vis: str) -> re.Match[str] | None:
@@ -750,10 +848,11 @@ def upgrade_209(tex: str, *, root: Path | None = None) -> tuple[str, dict]:
         # \topskip 0mm → enddoc \clearpage 7 万页死循环）——209 preamble
         # 的裸 topskip 赋值升上来即毒根，逐语句首位活赋值删除。
         new_tex, dropped_topskip = _drop_topskip_assigns(new_tex)
-    # 209 数学域字体开关组转写——``{\em X}`` 升上来在数学域必报
+    # 209 数学域两族转写——``{\em X}`` 升上来在数学域必报
     # ``Command \itshape invalid in math mode``（\em 是 switch 非参数形），
-    # ``\it``/``\bf`` 同形态归一消歧。
-    new_tex, math_switch_fixed = _fix_math_fontswitch(new_tex)
+    # ``\it``/``\bf`` 同形态归一消歧；裸 ``\cite{..}`` 的 natbib 未定义标记
+    # ``{\reset@font\bfseries ?}`` 同签名硬报且 fixloop 自续，裹 ``\mbox{}``。
+    new_tex, math_switch_fixed, math_cite_wrapped = _fix_math_209(new_tex)
     return new_tex, {
         "status": "converted",
         "orig": tex[m.start() : m.end()],
@@ -765,4 +864,5 @@ def upgrade_209(tex: str, *, root: Path | None = None) -> tuple[str, dict]:
         "stripped": stripped,
         "topskip_dropped": dropped_topskip,
         "math_switch_fixed": math_switch_fixed,
+        "math_cite_wrapped": math_cite_wrapped,
     }
