@@ -31,7 +31,7 @@ from typing import TYPE_CHECKING
 from texlate.redlines import REDLINES_BY_ID, name_pattern
 from texlate.textutil import CJK_RX, CMD_BOUNDARY, mask_tex
 
-from .engine import CompRes, classify_error
+from .engine import CompRes, _driver_fatal, classify_error
 from .sandbox import find_tool, run_process
 
 if TYPE_CHECKING:
@@ -395,6 +395,13 @@ def judge(res: CompRes, *, expect_cjk: bool = False, log_text: str = "") -> Verd
     if sig is not None:
         v.notes.append(f"engine_killed:SIG{sig}")
         v.reasons.append(f"killed_by_signal:{sig}")
+    # 下游驱动 fatal = killed 否决够不到的第二形态：``*: fatal:`` 只走
+    # 合并 stdout 不进 .log，xelatex rc=1 非信号退出 → .log 零 `!` 错
+    # 照出残 pdf（1907.00277 xdvipdfmx ``pdf_link_obj`` fatal + 908KB
+    # 残 pdf 曾判 clean）。驱动死产出未证，与信号杀同一否决语义。
+    fatal = _driver_fatal(res)
+    if fatal is not None:
+        v.reasons.append(f"driver_fatal:{fatal}")
     if not res.has_pdf:
         v.reasons.append("no_pdf")
         cat, pay = classify_error(
@@ -404,8 +411,11 @@ def judge(res: CompRes, *, expect_cjk: bool = False, log_text: str = "") -> Verd
             timed_out=res.timed_out,
         )
         # 无 log 可分类（引擎缺席/启动失败）时 classify 返回 "clean"——
-        # 与 status=fail 矛盾，账本归 "other"。
+        # 与 status=fail 矛盾，账本归 "other"；驱动 fatal 在场时它是
+        # 无 pdf 的近因，归因优先于笼统 other。
         v.category, v.payload = ("other", None) if cat == "clean" else (cat, pay)
+        if fatal is not None and v.category in (None, "other"):
+            v.category = "driver_fatal"
         _error_composition(v, res, v.category, v.payload)
         return v
 
@@ -417,6 +427,8 @@ def judge(res: CompRes, *, expect_cjk: bool = False, log_text: str = "") -> Verd
         timed_out=res.timed_out,
     )
     v.category, v.payload = cat, pay
+    if fatal is not None and cat in (None, "clean", "other"):
+        v.category = "driver_fatal"
     _error_composition(v, res, cat, pay)
 
     if res.log.n_errors > CLEAN_ERR_MAX:

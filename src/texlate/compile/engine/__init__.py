@@ -66,6 +66,7 @@ from ._base import (
     Engine,
     _checked_main,
     _collect_compile_outputs,
+    _driver_fatal,
     _salvage_driver_fatal,
 )
 from ._cache import load_search_cache, save_search_cache, tlmgr_search_cache_path
@@ -140,6 +141,7 @@ __all__ = [
     "_apply_sandbox",
     "_checked_main",
     "_collect_compile_outputs",
+    "_driver_fatal",
     "_mirror_source_dirs",
     "_rc_to_signal",
     "_route_sigs",

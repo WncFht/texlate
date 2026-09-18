@@ -107,6 +107,107 @@ def test_normal_clean_still_clean(tmp_path: Path) -> None:
     assert cell["rounds"][0]["died"] is False
 
 
+# ------------------------------------------------------- driver fatal (1907.00277)
+XFATAL_TAIL = (
+    "shipout progress\n"
+    "xdvipdfmx:fatal: pdf_link_obj(): passed invalid object\n"
+    "No output PDF file written.\n"
+)
+
+
+def test_driver_fatal_pdf_not_clean(tmp_path: Path) -> None:
+    """1907.00277 形: rc=1 非信号退出 + 残 pdf + fatal 只走 stdout_tail。
+
+    xdvipdfmx fatal 不进 .log——``_report_of`` 把 ``*: fatal:`` 归一成
+    ``!`` 行使签名对 dispatch 可见 (category 押 ``other`` 是
+    pdf_asset_sanitize ``when: category: other`` 的派发面), 精确归因
+    载 ``driver_fatal`` 字段; 驱动死与被杀同属产出未证 → died 置位。
+    """
+    eng = MockEngine([{"log": CLEAN_LOG, "pdf": True, "tail": XFATAL_TAIL, "rc": 1}])
+    cell = fixloop(make_proj(tmp_path), eng)
+    assert cell["verdict"] == "dirty_pdf"
+    assert cell["final_cat"] == "other"
+    assert cell["rounds"][0]["category"] == "other"
+    assert cell["rounds"][0]["died"] is True
+    assert "pdf_link_obj" in cell["rounds"][0]["driver_fatal"]
+    assert cell["verdict"] != "acceptable_pdf"  # died 末轮禁升
+
+
+def test_driver_fatal_no_pdf_unfixable(tmp_path: Path) -> None:
+    """驱动 fatal + 无 pdf → unfixable:other + driver_fatal 归因; 定败不烧 salvage 轮。"""
+    eng = MockEngine([{"log": CLEAN_LOG, "tail": XFATAL_TAIL, "rc": 1}])
+    cell = fixloop(make_proj(tmp_path), eng)
+    assert cell["verdict"] == "unfixable:other"
+    assert cell["final_cat"] == "other"
+    assert "pdf_link_obj" in cell["rounds"][0]["driver_fatal"]
+    assert eng.rounds == 1
+    assert all(not r.get("salvage") for r in cell["rounds"])
+
+
+def test_driver_fatal_rc0_noise_acceptable(tmp_path: Path) -> None:
+    """阴性钉: rc=0 出 pdf 的 ``fatal:`` 字面行——非驱动死, died 不置位。
+
+    bang 化 (_report_of 归一) 保守压 clean → dirty_pdf, 但 died=False
+    使 acceptable_pdf 升级不封——孙件噪声不伪报驱动死。
+    """
+    eng = MockEngine([{"log": CLEAN_LOG, "pdf": True, "tail": XFATAL_TAIL, "rc": 0}])
+    cell = fixloop(make_proj(tmp_path), eng)
+    assert cell["verdict"] == "acceptable_pdf"
+    assert cell["rounds"][0]["died"] is False
+    assert cell["rounds"][0]["driver_fatal"] is None
+
+
+def test_driver_warning_not_fatal_still_clean(tmp_path: Path) -> None:
+    """``: fatal:`` 字面锚——``xdvipdfmx:warning:`` 非致命行不误否。"""
+    eng = MockEngine(
+        [{"log": CLEAN_LOG, "pdf": True, "tail": "xdvipdfmx:warning: stray\n", "rc": 0}]
+    )
+    cell = fixloop(make_proj(tmp_path), eng)
+    assert cell["verdict"] == "clean"
+
+
+def test_judge_driver_fatal_pdf_partial(tmp_path: Path) -> None:
+    """judge 面: rc=1 + fatal tail + 残 pdf → partial (非 clean), cat 归因。"""
+    pdf = tmp_path / "main.pdf"
+    pdf.write_bytes(b"%PDF-partial")
+    res = CompRes(
+        engine="xelatex",
+        rc=1,
+        pdf=pdf,
+        pdf_bytes=pdf.stat().st_size,
+        log=LogInfo(),
+        stdout_tail=XFATAL_TAIL,
+    )
+    v = judge(res)
+    assert v.status == "partial"
+    assert v.category == "driver_fatal"
+    assert any(r.startswith("driver_fatal:xdvipdfmx") for r in v.reasons)
+
+
+def test_judge_driver_fatal_no_pdf() -> None:
+    """judge 面: fatal + 无 pdf → fail, driver_fatal 为近因类别。"""
+    res = CompRes(engine="xelatex", rc=1, log=LogInfo(), stdout_tail=XFATAL_TAIL)
+    v = judge(res)
+    assert v.status == "fail"
+    assert v.category == "driver_fatal"
+    assert "no_pdf" in v.reasons
+
+
+def test_judge_driver_fatal_rc0_clean(tmp_path: Path) -> None:
+    """judge 阴性钉: rc=0 + pdf + fatal 字面行 → clean (孙件噪声不采)。"""
+    pdf = tmp_path / "main.pdf"
+    pdf.write_bytes(b"%PDF-ok")
+    res = CompRes(
+        engine="xelatex",
+        rc=0,
+        pdf=pdf,
+        pdf_bytes=pdf.stat().st_size,
+        log=LogInfo(),
+        stdout_tail=XFATAL_TAIL,
+    )
+    assert judge(res).status == "clean"
+
+
 # ---------------------------------------------------------------- 单元面
 def test_is_runaway_output_threshold() -> None:
     """阈值 30: 健康档偶发告警不判, 病态刷屏成串即判。"""

@@ -57,6 +57,7 @@ from texlate.compile.fixloop.ruleset import (
 )
 from texlate.compile.inject import classify_no_main as _classify_no_main
 from texlate.compile.inject import find_main_tex as _inject_find_main_tex
+from texlate.texlog import driver_fatal_line
 from texlate.textutil import DOCCLASS_RX, decode_tex
 
 if TYPE_CHECKING:
@@ -172,15 +173,41 @@ def _res_has_pdf(res: CompResLike) -> bool:
     return bool(getattr(res, "pdf", False))
 
 
+def _res_driver_fatal(res: CompResLike) -> str | None:
+    r"""``res`` 的下游驱动 fatal 证据行（无则 None）——``_driver_fatal`` 鸭形对版。
+
+    证据 = ``stdout_tail`` 有 ``*: fatal:`` 签名行 ∧ 编译呈失败相
+    （``killed_signal`` 置位 / ``rc`` 非零 / 无 pdf）——``fatal:`` 字面
+    行单有不足采：``\\write18`` 类孙件 fatal 可被主进程恢复，rc=0 且
+    出 pdf 按 impl 侧同一契约不算驱动死。
+    """
+    line = driver_fatal_line(getattr(res, "stdout_tail", "") or "")
+    if line is None:
+        return None
+    if getattr(res, "killed_signal", None) is not None:
+        return line
+    rc = getattr(res, "rc", None)
+    if rc is not None and rc != 0:
+        return line
+    if not _res_has_pdf(res):
+        return line
+    return None
+
+
 def _res_died(res: CompResLike) -> bool:
-    r"""编译非正常跑完 (超时 killpg / 信号截杀) —— 死进程产出不证 clean。
+    r"""编译非正常跑完 (超时 killpg / 信号截杀 / 驱动 fatal) —— 死产出不证 clean。
 
     gr-qc/0104075 实证: ``\\output`` 死循环烧满 240s SIGKILL 留下 0 错
     log + 残 pdf, 裸 ``pdf and nerr==0`` 门把它判成 clean 又让后续臂
     白烧一轮满超时——被杀编译对正确性零证明, clean 判定必须否决。
+    1907.00277 第二形态: xdvipdfmx ``pdf_link_obj`` fatal → xelatex
+    rc=1 非信号退出, ``killed_signal`` 全程空, .log 零 ``!`` 错照出
+    908KB 残 pdf——驱动死与被杀同属产出未证, 并否 clean。
     """
-    return bool(getattr(res, "timed_out", False)) or (
-        getattr(res, "killed_signal", None) is not None
+    return (
+        bool(getattr(res, "timed_out", False))
+        or getattr(res, "killed_signal", None) is not None
+        or _res_driver_fatal(res) is not None
     )
 
 
@@ -199,8 +226,15 @@ def _round_cat(
     ``_full_log_text`` 同源), 判泛 ``timeout`` 再补查 ``stdout_tail``;
     信号死 (非超时——外部截杀/驱动 SIGPIPE) 只在裸分类给 clean/None
     时改写: log 被 ``\\output`` 期 Overfull ``\\vbox`` 刷屏归
-    ``runaway_output``, 否则 ``killed``。真错类照常走修复规则——
-    信号死是非定败, 轮内重编即续趟通道 (2211.13013 实证可救)。
+    ``runaway_output``, 否则 ``killed``。驱动 fatal 同位再一层:
+    ``*: fatal:`` 签名 + 失败相 (rc 非零/无 pdf) 时归 ``driver_fatal``
+    (1907.00277 rc=1 + 残 pdf 形——非信号死, killed 臂够不到)。
+    注意主面不进本臂: ``_report_of`` 已把 fatal 行归一成 ``!`` →
+    classify 出 ``other`` 供 ``when: category: other`` 修复规则
+    (pdf_asset_sanitize) 派发; 本臂只兜 taxonomy 漏给 clean/None
+    的残余边, 防驱动死判 clean。
+    真错类照常走修复规则——信号死是非定败, 轮内重编即续趟通道
+    (2211.13013 实证可救)。
     """
     timed_out = getattr(res, "timed_out", False)
     sentry_reason = getattr(res, "sentry_reason", None)
@@ -213,14 +247,14 @@ def _round_cat(
         # 活哨早杀的编译 .log 截断在签名刷屏之前——证据在 stdout_tail
         # （哨件正是凭它越阈），补查使归因仍是 runaway_output 而非泛 timeout。
         cat, pay = "runaway_output", None
-    if (
-        cat in (None, "clean")
-        and not timed_out
-        and getattr(res, "killed_signal", None) is not None
-    ):
-        if _is_runaway_output(rep.raw or rep.tail):
-            return "runaway_output", None
-        return "killed", None
+    if cat in (None, "clean") and not timed_out:
+        if getattr(res, "killed_signal", None) is not None:
+            if _is_runaway_output(rep.raw or rep.tail):
+                return "runaway_output", None
+            return "killed", None
+        fatal = _res_driver_fatal(res)
+        if fatal is not None:
+            return "driver_fatal", fatal
     return cat, pay
 
 
@@ -883,6 +917,10 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
             "pdf_bytes": int(pdf_bytes or 0),
             # 超时/被杀轮——死编译产出未证，汇总段 clean/acceptable 判据须查。
             "died": _res_died(res),
+            # 驱动 fatal 证据行（无则 None）——category 仍押 classify 的
+            # "other" 面（pdf_asset_sanitize 等 ``when: category: other``
+            # 规则靠它派发），本字段载精确归因 + salvage 定败排除闸。
+            "driver_fatal": _res_driver_fatal(res),
             "n_errors": rep.n_bang,
             "category": cat,
             "payload": pay,
@@ -1019,7 +1057,11 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
     # TeX 错误恢复跑到底救残页 (astro-ph/0306068 型真回归: 首错即停 vs
     # nonstopmode 续跑出 partial pdf)。reject:* 是语义拒绝不救; clean/
     # dirty/acceptable 已有 pdf 不救; timeout 重跑大概率再超时, 不救;
-    # runaway_output 是 \output 死循环暴走, 非定败重跑必然再暴走, 不救。
+    # runaway_output 是 \output 死循环暴走, 非定败重跑必然再暴走, 不救;
+    # 驱动 fatal 是驱动层确定败 (同输入同 fatal), nonstopmode 改不了
+    # shipout 后管道, 不救——主面走末轮 ``driver_fatal`` 证据字段
+    # (category 借 "other" 面供修复规则派发, verdict 词看不出驱动死),
+    # ``unfixable:driver_fatal`` 兜 _round_cat clean/None 边路径。
     v_now = str(cell["verdict"] or "")
     if (
         v_now
@@ -1031,8 +1073,10 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
             "dirty_pdf",
             "unfixable:timeout",
             "unfixable:runaway_output",
+            "unfixable:driver_fatal",
         )
         and not (cell["rounds"] and cell["rounds"][-1]["pdf"])
+        and not (cell["rounds"] and cell["rounds"][-1].get("driver_fatal"))
     ):
         swept = _sweep_bad_aux(wdir)
         if swept:
@@ -1064,6 +1108,7 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
             "pdf": spdf,
             "pdf_bytes": int(getattr(sres, "pdf_bytes", 0) or 0),
             "died": _res_died(sres),
+            "driver_fatal": _res_driver_fatal(sres),
             "n_errors": srep.n_bang,
             "category": None,
             "payload": None,

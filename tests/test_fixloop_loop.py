@@ -46,6 +46,8 @@ class MockRes:
         self.timed_out = bool(spec.get("timed_out"))
         #: 镜像 CompRes.killed_signal (任一 pass 被信号杀死记信号号)。
         self.killed_signal = spec.get("killed_signal")
+        #: 镜像 CompRes.rc (末 pass 退出码; 驱动 fatal 形 = rc>0 非信号)。
+        self.rc = spec.get("rc")
         self.seconds = 0.05
         self.stdout_tail = spec.get("tail", "")
         #: 镜像 CompRes.log_text (编译期已读 .log 原文)——缺省 "" 走文件读。

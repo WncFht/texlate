@@ -302,6 +302,19 @@ NONERR_MSG_RE = re.compile(r"^" + _NONERR_MSG_SRC)
 #: 整行锚定形（loginfo 整行判定）。
 NONERR_FILELINE_RE = re.compile(r"^" + ERR_FNAME + r":\d+:\s*" + _NONERR_MSG_SRC)
 ERR_BANG_RE = re.compile(r"^!")
+#: 下游驱动 ``*: fatal:`` 行签名——xdvipdfmx/extractbb 等驱动 fatal 只走
+#: stderr→STDOUT 合并面、不进 ``.log``（xetex 侧 ``!`` 计数全程为零）。
+#: ``_salvage_driver_fatal`` 打捞与 judge/fixloop clean 否决共用单源；
+#: ``: fatal:`` 字面锚使 ``*: warning:`` 等非致命行天然不命中。
+DRIVER_FATAL_RE = re.compile(r"(?m)^\s*(\w+:\s*fatal:[^\n]*)$")
+
+
+def driver_fatal_line(text: str) -> str | None:
+    """``text`` 里首个驱动 fatal 行（strip + ≤300 字符）；无则 ``None``。"""
+    m = DRIVER_FATAL_RE.search(text)
+    return m.group(1).strip()[:300] if m else None
+
+
 #: ``l.N`` 源码行号词素——严格行首形（消费端 strip 后用）；``*_SRC`` 片段
 #: 供 logparse ctx blob 的 (?m)/空白宽容变体。
 L_NUM_SRC = r"l\.(\d+)"

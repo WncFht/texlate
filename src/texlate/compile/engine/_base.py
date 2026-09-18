@@ -7,7 +7,6 @@
 from __future__ import annotations
 
 import os
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
@@ -16,6 +15,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
 
 from texlate.compile.loginfo import LogInfo
+from texlate.texlog import DRIVER_FATAL_RE, driver_fatal_line
 from texlate.textutil import safe_resolve
 
 DEFAULT_TIMEOUT = 240.0  # docs/08 §4.1
@@ -157,17 +157,39 @@ def _collect_compile_outputs(res: CompRes, outputs: list[str]) -> None:
         res.timed_out = True
 
 
+def _driver_fatal(res: CompRes) -> str | None:
+    r"""CompRes 的下游驱动 fatal 证据行（无则 ``None``）——clean 否决/归因单源。
+
+    证据 = ``stdout_tail`` 有 ``*: fatal:`` 签名行 ∧ 编译呈失败相
+    （``killed_signal`` 置位 / ``rc`` 非零 / 无 pdf）——``fatal:``
+    字面行单有不足采：``\\write18`` 类孙件 fatal 可被主进程恢复，
+    rc=0 且出 pdf 的编译按既有契约不算驱动死（salvage 阴性钉）。
+    """
+    line = driver_fatal_line(getattr(res, "stdout_tail", "") or "")
+    if line is None:
+        return None
+    if getattr(res, "killed_signal", None) is not None:
+        return line
+    rc = getattr(res, "rc", None)
+    if rc is not None and rc != 0:
+        return line
+    if not res.has_pdf:
+        return line
+    return None
+
+
 def _salvage_driver_fatal(info: LogInfo, res: CompRes) -> None:
-    """信号死时从 stdout_tail 捞下游驱动 fatal 行补进 info 归因。
+    """编译呈失败相时从 stdout_tail 捞下游驱动 fatal 行补进 info 归因。
 
     xdvipdfmx 等下游 fatal 只走 stdout（stderr→STDOUT 合并）、不进
-    .log——xelatex 被 SIGPIPE 带走时 .log 已截断，不捞则 first_error
-    空缺（1404.6041: ``xdvipdfmx:fatal: Image inclusion failed`` →
-    xelatex 写 xdv 管道收 SIGPIPE）。
+    .log——两形态不捞则 first_error 空缺：xelatex 被 SIGPIPE 带走时
+    .log 截断（1404.6041 ``Image inclusion failed``）；rc=1 非信号
+    退出时 .log 完好零 ``!`` 错（1907.00277 ``pdf_link_obj`` fatal
+    + 908KB 残 pdf——judge/fixloop 另经 ``_driver_fatal`` 否决 clean）。
     """
-    if not res.killed_signal or not res.stdout_tail:
+    if _driver_fatal(res) is None:
         return
-    for m in re.finditer(r"(?m)^\s*(\w+:\s*fatal:[^\n]*)$", res.stdout_tail):
+    for m in DRIVER_FATAL_RE.finditer(res.stdout_tail):
         line = m.group(1).strip()[:300]
         if line not in info.errors:
             info.errors.append(line)

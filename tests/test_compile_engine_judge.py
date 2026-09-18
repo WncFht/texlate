@@ -525,9 +525,7 @@ def test_machine_slot_no_workdir_no_crash(tmp_path: Path) -> None:
 def test_machine_slot_includegraphics_required_arg(tmp_path: Path) -> None:
     """``\\includegraphics{中文.png}`` 必填路径中招（可选位排除不误伤）。"""
     v = judge(_slot_res(tmp_path, "\\includegraphics[width=2cm]{中文.png}\n"))
-    assert any(
-        n == "machine_slot_nonascii:path:main.tex:'中文.png'" for n in v.notes
-    )
+    assert any(n == "machine_slot_nonascii:path:main.tex:'中文.png'" for n in v.notes)
 
 
 def test_machine_slot_note_cap(tmp_path: Path) -> None:
@@ -958,6 +956,21 @@ def test_salvage_driver_fatal_on_sigpipe(tmp_path: Path) -> None:
     eng_mod._salvage_driver_fatal(info2, res2)  # noqa: SLF001
     assert info2.first_error is None
     assert info2.n_errors == 0
+
+
+def test_salvage_driver_fatal_on_rc1(tmp_path: Path) -> None:
+    """rc=1 非信号退出 (1907.00277 形) 同样打捞 fatal 行——killed 闸第二形态。"""
+    res = _res(tmp_path, rc=1)
+    res.stdout_tail = (
+        "progress\n"
+        "xdvipdfmx:fatal: pdf_link_obj(): passed invalid object\n"
+        "No output PDF file written.\n"
+    )
+    info = parse_log("(./main.tex\n)", project_root=tmp_path)
+    eng_mod._salvage_driver_fatal(info, res)  # noqa: SLF001
+    assert info.first_error is not None
+    assert info.first_error.startswith("xdvipdfmx:fatal:")
+    assert info.n_errors == 1
 
 
 def test_parse_log_utf8_bare_name_tectonic(tmp_path: Path) -> None:
