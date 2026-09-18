@@ -213,3 +213,5 @@
 - 定位：回归批前置「尺子校验」——钉集 zh 冻结，分布漂移只能来自 judge 侧（模型静默换版/口径漂移），把「翻译变化」与「判分变化」解耦。每次 frozen-300 回归前先跑哨兵。
 - 首个真实数据点安排：autogloss-reg 批收尾后空窗跑（现 arm-off 判分 297/300 收尾，避免网关并发争抢）；之后随每次回归批前置。
 - 周期哨兵的持久化（systemd timer/crontab）属 heavier 持久层，暂不启用——session cron 随会话死；台账留重启后 re-arm 协议。
+
+- 23:30 巡逻+派道：autogloss-reg 批发现死批——judge arm=off 295/300 处进程蒸发（run.log 22:30 断尾无 rc 行，看门狗式死亡），run.sh 末行胜 resume 设计在但无拉起者→leader setsid 重启（pid 125559，resume at 295/300 接续 judging→arm-on→qualfreeze×3）。新派 2 诊断道（报告件零树编）：ifdiag-lane=iffalse×3(1206.0701/1306.0364 unfixable:other+2308.12633 clean 对照)+input_stack×6 簇——1404.0037/1706.00076 unfixable:capacity vs 1803.03248/2105.03753/2403.05529 acceptable_pdf 三格顺带取「clean 但 capacity 错记档」verdict 语义证据（instack 留的裁决点，报非判）；othcensus-lane=残池两大桶 other×117/syntax×105 内簇普查——log_excerpt 首错 signature 归一化聚类，≥3 格子簇定名+ours-vs-paper 快判+单则可修性 flag（已裁簇全跳过：env/tar/epsfig/pdfstring/symfont/restatable）。**门巡**：⑤ clean% 本轮 4 规则全向 fail→clean 方向非降；④ sabotage 0/1698 已钉；teammate 零 git 令无违例（树内未签件全归 peer texlate-48 prompt-bundle/delimargs 道）。roster：restatable/natbib/ifdiag/othcensus 4 道在飞+autogloss 批续航。
