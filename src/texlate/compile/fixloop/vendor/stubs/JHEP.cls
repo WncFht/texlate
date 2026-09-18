@@ -1,0 +1,143 @@
+% texlate vendored stub — 原许可禁分发，最小兼容面
+% JHEP.cls 替身：SISSA 高能类（© SISSA/IOP，不在 TL）→ article +
+% 真 JHEP3.cls 面（corpus_v3/0806.2278 随稿件抄值）。自 shim_map JHEP.cls
+% 条迁移（sissa_body：导言区全收集制 \AtBeginDocument 自动 emit；
+% \FIGURE/\EPSFIGURE floatflt 速记降级；\npb/\plb 三参期刊宏族，
+% 1404.0033/hep-th--0408134 实证）。与 JHEP3.cls stub 同体。
+% 本 stub 在场则 shim_map JHEP.cls 条成死配置（vendored 预检先于 missing_file 落件，
+% 同 jinstpub/tcilatex/axodraw 先例）。
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesClass{JHEP}[texlate stub — original not redistributable]
+\ClassWarningNoLine{texlate-stub}{JHEP.cls is a compatibility shim -> article + SISSA polyfills}
+\LoadClassWithOptions{article}
+\RequirePackage{amssymb}
+% 存值位: \let 初始化保证 \ifx\@empty 判定真 (\gdef 短参 store
+% 同款; \renewcommand 产出 \long 宏永远 \ifx-不等 \@empty)
+\let\sissa@abstract\@empty
+\let\sissa@keywords\@empty
+\let\sissa@preprint\@empty
+\let\sissa@received\@empty
+\let\sissa@revised\@empty
+\let\sissa@accepted\@empty
+\let\sissa@dedicated\@empty
+\let\sissa@subheader\@empty
+\let\sissa@collaboration\@empty
+\let\sissa@proceeding\@empty
+\let\sissa@arxivnumber\@empty
+\def\sissa@affils{}
+\providecommand{\abstract}{}
+\renewcommand{\abstract}[1]{\gdef\sissa@abstract{#1}}
+\providecommand{\keywords}[1]{\gdef\sissa@keywords{#1}}
+\providecommand{\preprint}[1]{\gdef\sissa@preprint{#1}}
+\providecommand{\received}[1]{\gdef\sissa@received{#1}}
+\providecommand{\revised}[1]{\gdef\sissa@revised{#1}}
+\providecommand{\accepted}[1]{\gdef\sissa@accepted{#1}}
+\providecommand{\dedicated}[1]{\gdef\sissa@dedicated{#1}}
+\providecommand{\subheader}[1]{\gdef\sissa@subheader{#1}}
+\providecommand{\collaboration}[1]{\gdef\sissa@collaboration{#1}}
+\providecommand{\collaborationImg}[2][]{\gdef\sissa@collaboration{#2}}
+\providecommand{\proceeding}[1]{\gdef\sissa@proceeding{#1}}
+\providecommand{\arxivnumber}[1]{\gdef\sissa@arxivnumber{#1}}
+\providecommand{\affiliation}[2][]{\g@addto@macro\sissa@affils{\par#2}}
+\providecommand{\JHEPspecialurl}[1]{}
+\providecommand{\JHEP}[1]{}
+\providecommand{\hepth}[1]{hep-th/#1}
+\providecommand{\email}[1]{\texttt{#1}}
+\providecommand{\emailAdd}[1]{\g@addto@macro\sissa@affils{\par\texttt{#1}}}
+\providecommand{\note}[2][]{\thanks{#2}}
+\providecommand{\speaker}[1]{}
+\providecommand{\conference}[1]{}
+\providecommand{\acknowledgments}{\section*{Acknowledgments}}
+\providecommand{\acknowledgements}{\section*{Acknowledgements}}
+\providecommand{\xtumfont}[1]{\textsc{#1}}
+\providecommand{\notoc}{}
+\providecommand{\compress}{}
+\providecommand{\toccontinuous}{}
+\providecommand{\beforetochook}{}
+\providecommand{\afterLogoSpace}{}\providecommand{\afterSubheaderSpace}{}
+\providecommand{\afterProceedingsSpace}{}\providecommand{\afterTitleSpace}{}
+\providecommand{\afterRuleSpace}{}\providecommand{\afterCollaborationSpace}{}
+\providecommand{\afterCollaborationImgSpace}{}
+\providecommand{\afterAuthorSpace}{}\providecommand{\afterAffiliationSpace}{}
+\providecommand{\afterEmailSpace}{}\providecommand{\afterXtumSpace}{}
+\providecommand{\afterAbstractSpace}{}\providecommand{\afterKeywordsSpace}{}
+\providecommand{\afterArxivSpace}{}\providecommand{\afterDedicatedSpace}{}
+\providecommand{\afterTocSpace}{}\providecommand{\afterTocRuleSpace}{}
+\providecommand{\correctionref}[3]{\gdef\sissa@dedicated{Erratum #1 #3}}
+\providecommand{\erratum}[4][ibid.~]{Erratum #1{\bfseries#2} (#3) #4}
+\providecommand{\addendum}[4][ibid.~]{Addendum #1{\bfseries#2} (#3) #4}
+\providecommand{\ibid}[3]{ibid.~{\bfseries#1} (#2) #3}
+% \author 单参多调用累积: 块内含 \\ + \email/\thanks/\it 全保留,
+% article maketitle tabular 内逐块换行输出
+\newif\if@sissaauth\@sissaauthfalse
+\renewcommand{\author}[1]{%
+  \if@sissaauth\g@addto@macro\@author{\\#1}%
+  \else\gdef\@author{#1}\@sissaauthtrue\fi}
+% JHEP3 floatflt 系 float 速记 → 标准 env 降级 (可选参数是
+% 版式词非 placement, 一律 [htbp])
+\providecommand{\FIGURE}[2][]{\begin{figure}[htbp]\centering#2\end{figure}}
+\providecommand{\TABLE}[2][]{\begin{table}[htbp]\centering#2\end{table}}
+\providecommand{\EPSFIGURE}[3][]{\begin{figure}[htbp]\centering
+  \@ifundefined{includegraphics}{}{\includegraphics{#2}}\caption{#3}\end{figure}}
+\providecommand{\DOUBLEFIGURE}[5][]{\begin{figure}[htbp]\centering
+  \@ifundefined{includegraphics}{}{\includegraphics{#2}\hfil\includegraphics{#3}}%
+  \caption{#4}\par{\small#5}\end{figure}}
+\providecommand{\TABULAR}[4][]{\begin{table}[htbp]\centering\begin{tabular}{#2}#3\end{tabular}\caption{#4}\end{table}}
+\providecommand{\DOUBLETABLE}[5][]{\begin{table}[htbp]\centering#2\caption{#4}\end{table}%
+  \begin{table}[htbp]\centering#3\caption{#5}\end{table}}
+% \auto@maketitle: emit 在 AtBeginDocument (真件同款), 随后冻结
+% \maketitle —— 稿显式调用成 no-op, 不调也不丢 frontmatter
+\let\sissa@mk\maketitle
+\AtBeginDocument{%
+  \ifx\sissa@preprint\@empty\else\noindent{\footnotesize\sissa@preprint}\par\fi
+  \sissa@mk
+  \ifx\sissa@collaboration\@empty\else\par\noindent{\itshape\sissa@collaboration}\par\fi
+  \ifx\sissa@affils\@empty\else\par\noindent{\small\sissa@affils}\par\fi
+  \ifx\sissa@dedicated\@empty\else\par\noindent{\itshape\sissa@dedicated}\par\fi
+  \ifx\sissa@proceeding\@empty\else\par\noindent{\small\itshape\sissa@proceeding}\par\fi
+  \ifx\sissa@abstract\@empty\else\begin{quote}\textbf{\abstractname.}\enspace\sissa@abstract\end{quote}\fi
+  \ifx\sissa@keywords\@empty\else\par\noindent\textbf{Keywords:} \sissa@keywords\par\fi
+  \ifx\sissa@arxivnumber\@empty\else\par\noindent{\small arXiv:\sissa@arxivnumber}\par\fi
+  \ifx\sissa@subheader\@empty\else\par\noindent{\small\sissa@subheader}\par\fi
+  \begingroup
+    \def\sissa@dline{}\def\sissa@sep{}%
+    \ifx\sissa@received\@empty\else\gdef\sissa@sep{~}\fi
+    \ifx\sissa@revised\@empty\else\ifx\sissa@received\@empty\else\def\sissa@sep{; }\fi\fi
+    \ifx\sissa@received\@empty\else Received \sissa@received\sissa@sep\fi
+    \ifx\sissa@revised\@empty\else revised \sissa@revised;\space\fi
+    \ifx\sissa@accepted\@empty\else accepted \sissa@accepted\fi
+  \endgroup\par
+  \let\maketitle\relax}
+\providecommand{\ps@myplain}{\let\@mkboth\@gobbletwo
+  \let\@oddhead\@empty\def\@oddfoot{\hfil-- \thepage\ --\hfil}%
+  \let\@evenhead\@oddhead\let\@evenfoot\@oddfoot}
+% JHEP3 三参期刊宏族 (hep-th/0408134 实证 \bibitem 五连):
+% \npb{76}{1974}{310} → "Nucl.~Phys.~B 76 (1974) 310"。
+% \@ifnextchar\bgroup 双态分派: 带 brace = 全引文排版,
+% 裸调 = 缩写直印——与 aas4_body 式 0 参缩写面同形兼容,
+% 不撞 (本 body 原无期刊缩写定义, 0408134 全三参形)。
+\def\sissa@jrnl#1{\@ifnextchar\bgroup{\sissa@jrnl@x{#1}}{#1}}
+\def\sissa@jrnl@x#1#2#3#4{#1 {\bfseries#2} (#3) #4}
+\providecommand{\npb}{\sissa@jrnl{Nucl.~Phys.~B}}
+\providecommand{\plb}{\sissa@jrnl{Phys.~Lett.~B}}
+\providecommand{\prl}{\sissa@jrnl{Phys.~Rev.~Lett.}}
+\providecommand{\prd}{\sissa@jrnl{Phys.~Rev.~D}}
+\providecommand{\pre}{\sissa@jrnl{Phys.~Rev.~E}}
+\providecommand{\pra}{\sissa@jrnl{Phys.~Rev.~A}}
+\providecommand{\prb}{\sissa@jrnl{Phys.~Rev.~B}}
+\providecommand{\prc}{\sissa@jrnl{Phys.~Rev.~C}}
+\providecommand{\pr}{\sissa@jrnl{Phys.~Rev.}}
+\providecommand{\epjc}{\sissa@jrnl{Eur.~Phys.~J.~C}}
+\providecommand{\zpc}{\sissa@jrnl{Z.~Phys.~C}}
+\providecommand{\jphg}{\sissa@jrnl{J.~Phys.~G}}
+\providecommand{\tmp}{\sissa@jrnl{Theor.~Math.~Phys.}}
+\providecommand{\ijmpa}{\sissa@jrnl{Int.~J.~Mod.~Phys.~A}}
+\providecommand{\mpla}{\sissa@jrnl{Mod.~Phys.~Lett.~A}}
+\providecommand{\cqg}{\sissa@jrnl{Class.~Quant.~Grav.}}
+\providecommand{\physrep}{\sissa@jrnl{Phys.~Rep.}}
+\providecommand{\rmp}{\sissa@jrnl{Rev.~Mod.~Phys.}}
+\providecommand{\cmp}{\sissa@jrnl{Commun.~Math.~Phys.}}
+\providecommand{\ncim}{\sissa@jrnl{Nuovo~Cim.}}
+\providecommand{\jhep}{\sissa@jrnl{JHEP}}
+\providecommand{\jcap}{\sissa@jrnl{JCAP}}
+\endinput
