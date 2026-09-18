@@ -295,6 +295,26 @@ def _safe_cut(text: str, cut: int, lo: int) -> int:
     return cut
 
 
+#: 切点前尾词——``Fig.``/``e.g.``/``et al.``/``Sec.`` 缩写位识别用
+_ABBREV_TAIL_RX = re.compile(r"([A-Za-z][A-Za-z.]*)$")
+#: 无点尾词的缩写长度上界（texglot llm.py:85-90 同款：``Fig``/``Sec``/``Dr``）
+_ABBREV_MAX_WORD = 3
+
+
+def _abbrev_cut(text: str, i: int) -> bool:
+    """``text[i]``（``.!?`` 位）是缩写尾点则不切——劈开产碎头 + 语义半截块。
+
+    texglot llm.py:85-90 同款：尾词含 ``.``（``e.g.``/``al.``）或 ≤3 字母
+    （``Fig``/``Sec``/``Eq``/``Dr``）→ 缩写位。保守向偏欠切——``is.``/``wow!``
+    这类真句尾小词也被放过，欠切只让块偏大，过切才毁句。
+    """
+    m = _ABBREV_TAIL_RX.search(text[:i])
+    if m is None:
+        return False
+    w = m.group(1)
+    return "." in w or len(w) <= _ABBREV_MAX_WORD
+
+
 def _best_split(text: str, limit: int) -> int:
     """在 [limit//2, limit] 窗口里找最右闭合-scope 句号切点；找不到退化到 limit。"""
     depth = 0
@@ -310,7 +330,13 @@ def _best_split(text: str, limit: int) -> int:
             depth += 1
         elif c == "}":
             depth = max(0, depth - 1)
-        elif c in ".!?" and depth == 0 and i + 1 < n and text[i + 1] in " \n":
+        elif (
+            c in ".!?"
+            and depth == 0
+            and i + 1 < n
+            and text[i + 1] in " \n"
+            and not _abbrev_cut(text, i)
+        ):
             best = i + 1  # 句号后切（含句号）
         i += 1
     if best >= lo:

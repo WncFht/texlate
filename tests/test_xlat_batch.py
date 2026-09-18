@@ -36,8 +36,8 @@ class TestPackBatches:
         out = batch.pack_batches(
             ["x" * 1000] * 8, max_chars=20000, min_chars=2000, workers=10
         )
-        assert len(out) == 4  # total 8064//2000=4 批、每批 ~2 块
-        assert all(len(g) == 2 for g in out)
+        assert len(out) == 4  # noqa: PLR2004 -- total 8064//2000=4 批、每批 ~2 块
+        assert all(len(g) == 2 for g in out)  # noqa: PLR2004 -- 每批 2 块即断言义
 
     def test_workers_k_quantized(self) -> None:
         # n_req>workers 时向上取 workers 倍数：40×3758 total≈150K、cap→13 批、
@@ -45,8 +45,8 @@ class TestPackBatches:
         out = batch.pack_batches(
             ["x" * 3750] * 40, max_chars=12000, min_chars=2500, workers=10
         )
-        assert len(out) == 20
-        assert all(len(g) == 2 for g in out)
+        assert len(out) == 20  # noqa: PLR2004 -- K=10 取 20 批等大即断言义
+        assert all(len(g) == 2 for g in out)  # noqa: PLR2004 -- 每批 2 块即断言义
 
     def test_tiny_group_stays_one_batch(self) -> None:
         # total<min_chars 不硬凑 workers——一个小批胜过 N 个微型请求
@@ -140,6 +140,26 @@ class TestSplitLongChunk:
         # 每片以句号结尾（除末片）
         for p in parts[:-1]:
             assert p.rstrip().endswith(".")
+
+    def test_abbrev_guard_keeps_fig_2(self) -> None:
+        """``Fig.`` 缩写尾点不切（E24 sentence-split-abbrev）——碎头/半截句进批。"""
+        src = "aaaa Fig. 2 bbbb. cccc " * 40
+        parts = batch.split_long_chunk(src, max_chars=100)
+        assert "".join(parts) == src
+        for p in parts:
+            assert not p.rstrip().endswith("Fig.")
+            if "Fig." in p:
+                assert "Fig. 2" in p
+
+    def test_abbrev_guard_eg_al(self) -> None:
+        """``e.g.``/``et al.`` 含点尾词同款不切；真句尾照常断。"""
+        src = "results e.g. these hold. " * 30 + "et al. found results. " * 10
+        parts = batch.split_long_chunk(src, max_chars=80)
+        assert "".join(parts) == src
+        for p in parts[:-1]:
+            tail = p.rstrip()
+            assert not tail.endswith("e.g.")
+            assert not tail.endswith("al.")
 
     def test_no_split_inside_braces(self) -> None:
         # 句号在 {} 内不切

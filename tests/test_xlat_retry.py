@@ -372,3 +372,14 @@ def test_make_slots_short_prose_single_slot() -> None:
     slots, seq = rt._make_slots("short prose [[MATH_1]] tail")  # noqa: SLF001
     assert len(slots) == 2  # noqa: PLR2004
     assert [k for k, _ in seq] == ["slot", "ph", "slot"]
+
+
+def test_split_lines_abbrev_guard() -> None:
+    """``_split_lines_scoped`` 缩写守卫（E24）——``Fig.``/``e.g.`` 尾点不切，
+    真句尾照常断。"""
+    parts = rt._split_lines_scoped("see Fig. 2 now. e.g. that holds. done now.")  # noqa: SLF001
+    assert "".join(parts) == "see Fig. 2 now. e.g. that holds. done now."
+    assert any("Fig. 2" in p for p in parts)
+    assert not any(p.rstrip().endswith(("Fig.", "e.g.")) for p in parts)
+    # 真句尾仍切："holds. done" 处断开
+    assert any(p.rstrip().endswith("holds.") for p in parts)

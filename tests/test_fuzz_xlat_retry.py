@@ -223,9 +223,9 @@ class TestSplitLinesScoped:
         """``\\t``/``\\xa0`` 不在分隔符后随空白消费集（``" \\n"``）——
         切点后残留的纯空白尾片并入前片而非独立成项（独立项过不了非空判定
         会被丢：``join(parts)`` 丢尾部字节——已修为并入语义，平铺恒等）。"""
-        assert _split_lines("a. \t") == ["a. \t"]
-        assert _split_lines("a. \xa0") == ["a. \xa0"]
-        assert _split_lines("a. b. \t") == ["a. ", "b. \t"]
+        assert _split_lines("aaaa. \t") == ["aaaa. \t"]
+        assert _split_lines("aaaa. \xa0") == ["aaaa. \xa0"]
+        assert _split_lines("aaaa. bbbb. \t") == ["aaaa. ", "bbbb. \t"]
         assert "".join(_split_lines("a. \t b. ")) == "a. \t b. "
         # " "/"\\n" 尾随照旧被切点消费进前片
         assert "".join(_split_lines("a.   ")) == "a.   "
@@ -246,8 +246,8 @@ class TestSplitLinesScoped:
     def test_delimiter_boundary_shapes(self) -> None:
         """observed: 切点 = 深度 0 的 ``.!?`` + 紧随 `` ``/``\\n``；分隔符
         与其后空白并入前片（除尾片外各片以 ``[.!?]\\s*$`` 收尾）。"""
-        parts = _split_lines("One. Two! Three? Four")
-        assert parts == ["One. ", "Two! ", "Three? ", "Four"]
+        parts = _split_lines("Onex. Twox! Three? Four")
+        assert parts == ["Onex. ", "Twox! ", "Three? ", "Four"]
         for p in parts[:-1]:
             assert p[-1] == " "
             assert p[-2] in ".!?"
@@ -260,15 +260,15 @@ class TestSplitLinesScoped:
     def test_escaped_delimiter_never_splits(self) -> None:
         """observed: ``\\.`` 被 ``\\`` 双跳吞掉——转义句号不产生切点；
         尾置反斜杠 ``i+=2`` 越界自然终止不炸。"""
-        assert _split_lines("esc\\. mid. tail") == ["esc\\. mid. ", "tail"]
+        assert _split_lines("esc\\. midd. tail") == ["esc\\. midd. ", "tail"]
         assert _split_lines("end with bs\\") == ["end with bs\\"]
 
     def test_brace_depth_suppresses_splits(self) -> None:
         """observed: ``{`` 内 ``.`` 不切；``}`` 深度钳 0——游离 ``}`` 不抑制
         后续切分；未闭合 ``{`` 之后深度永 >0，残余文本成一整片。"""
-        assert _split_lines("{a. b} c. d") == ["{a. b} c. ", "d"]
-        assert _split_lines("a } b. c") == ["a } b. ", "c"]
-        assert _split_lines("x {y. z. w") == ["x {y. z. w"]
+        assert _split_lines("{aaaa. b} cccc. d") == ["{aaaa. b} cccc. ", "d"]
+        assert _split_lines("aaaa } bbbb. c") == ["aaaa } bbbb. ", "c"]
+        assert _split_lines("xxxx {yyyy. zzzz. w") == ["xxxx {yyyy. zzzz. w"]
 
 
 # ---------------------------------------------------------------- _make_slots 对抗面
