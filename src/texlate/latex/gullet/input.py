@@ -19,6 +19,7 @@ from texlate.latex.tables import (
     strip_fname_quotes,
 )
 from texlate.textutil import (
+    _tar_disguised,
     decode_tex,
 )
 
@@ -108,7 +109,10 @@ class _Input:
             self.unread(trace)
             return trig
         try:
-            sub = decode_tex(Path(hit).read_bytes())
+            blob = Path(hit).read_bytes()
+            if _tar_disguised(blob):
+                raise OSError("tar-disguised .tex")
+            sub = decode_tex(blob)
         except OSError:
             self._warn("missing_input", trig, f"{name}:{fname}")
             self.unread(trace)
