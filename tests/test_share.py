@@ -489,6 +489,58 @@ def test_unpack_replaces_and_cleans_tmp(tmp_path: Path) -> None:
     assert {p.name for p in dest.iterdir()} == set(ARTIFACT_NAMES)
 
 
+def test_unpack_publish_mid_failure_rolls_back(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """发布段第二件 rename 注入失败 → 回滚：新件撤出、备份还原，dest 原样。"""
+    work = _make_work(tmp_path)
+    bundle = pack_share(work, _PARTS, out_dir=tmp_path / "out")
+    dest = tmp_path / "d"
+    dest.mkdir()
+    for name in ARTIFACT_NAMES:
+        (dest / name).write_bytes(f"STALE-{name}".encode())
+    real_replace = Path.replace
+    published: list[str] = []
+    armed = True
+    msg = "simulated mid-publish failure"
+
+    def flaky(self: Path, target: Path) -> Path:
+        nonlocal armed
+        # 只拦「落进 dest」的发布移动；撤备份/还原移动放行，炸一次即卸引信
+        if Path(target).parent == dest:
+            published.append(self.name)
+            if armed and self.name == "zh.pdf":
+                armed = False
+                raise OSError(msg)
+        return real_replace(self, target)
+
+    monkeypatch.setattr(Path, "replace", flaky)
+    with pytest.raises(OSError, match="mid-publish"):
+        unpack_share(bundle, dest)
+    # 前两位 = 发布失败点；后续条目是回滚还原移动（同落 dest 被计数）
+    assert published[:2] == ["zh-src.zip", "zh.pdf"]
+    for name in ARTIFACT_NAMES:
+        assert (dest / name).read_bytes() == f"STALE-{name}".encode()
+    assert {p.name for p in dest.iterdir()} == set(ARTIFACT_NAMES)
+
+
+def test_pack_mid_failure_no_residue(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """构建中途失败 → 临时 zip 收走，out_dir 零残留。"""
+    work = _make_work(tmp_path)
+    out_dir = tmp_path / "out"
+
+    def boom(*_a: object) -> None:
+        msg = "simulated mid-pack failure"
+        raise OSError(msg)
+
+    monkeypatch.setattr("texlate.share._pack_member", boom)
+    with pytest.raises(OSError, match="mid-pack"):
+        pack_share(work, _PARTS, out_dir=out_dir)
+    assert not list(out_dir.iterdir())
+
+
 # ---------------------------------------------------------------- share_key
 
 

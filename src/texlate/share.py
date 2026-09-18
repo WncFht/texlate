@@ -310,7 +310,9 @@ def pack_share(
 
     写体流式：产物边读边算 sha256 边进 zip（``ZipFile.open`` 成员流），
     不整载进 RAM——单读同时消灭「哈希到写入之间文件被改 → 包自矛盾」
-    的 TOCTOU 窗口（manifest 记的是真实写入的字节流指纹）。
+    的 TOCTOU 窗口（manifest 记的是真实写入的字节流指纹）。发布前整
+    包经 ``unpack_share`` 全量回验（manifest 结构 + 逐成员 size/sha256
+    对账）——自拒包弃于临时位不发布。
     """
     parts = _key_parts(manifest)
     key = _derive_key(parts)
@@ -368,6 +370,13 @@ def pack_share(
                 msg = f"manifest too large: {len(manifest_blob)}B > {_MANIFEST_MAX}B"
                 raise ShareError(msg)
             zf.writestr(MANIFEST_NAME, manifest_blob)
+        # 「pack 不产出自拒包」实做闸：发布前走自家 unpack 路径全量回验，
+        # 失败即弃——tmp 与 verify 现场均由清理路径收走，out 不被触碰
+        scratch = Path(tempfile.mkdtemp(prefix=f".{out.name}.verify.", dir=out.parent))
+        try:
+            unpack_share(tmp, scratch)
+        finally:
+            shutil.rmtree(scratch, ignore_errors=True)
         tmp.replace(out)
     finally:
         tmp.unlink(missing_ok=True)
@@ -538,6 +547,50 @@ def _extract_verified(
     (dest / name).write_bytes(blob)
 
 
+def _publish_artifacts(
+    artifacts: dict[str, ShareArtifact], tmp: Path, dest: Path
+) -> None:
+    """校验过的产物从事务位 ``tmp`` 落进 ``dest``——旧件撤 backup → 逐件 rename → 失败回滚。
+
+    先预检全部目标位：被同名目录占据时 rename 必败，整体先拒（不确定
+    性冲突收敛在前）。既有同名产物（含断链——``is_symlink`` 并查，
+    ``exists()`` 对断链为 False，漏撤会被静默吞掉）撤入 ``dest`` 内
+    backup 目录后逐件 rename 就位；任一步失败即回滚——已就位新件撤
+    出、备份还原，``dest`` 回到发布前状态。回滚路径自身失败按
+    best-effort 吞掉（原异常优先传播）。进程被杀/掉电等不经 Python
+    的中断仍可能留半成品与 ``.bak`` 现场——多文件真原子不可达，
+    残余均为隐藏点目录可手工清。
+    """
+    # 发布预检：目标位被同名目录占据时 rename 必败——整体先拒，
+    # 避免逐件 rename 中段失败留下部分发布
+    for name in artifacts:
+        if (dest / name).is_dir():
+            msg = f"publish target is a directory: {dest / name}"
+            raise IsADirectoryError(msg)
+    backup = Path(tempfile.mkdtemp(prefix=f".{dest.name}.bak.", dir=dest))
+    published: list[str] = []
+    try:
+        for name in artifacts:
+            target = dest / name
+            if target.is_symlink() or target.exists():
+                target.replace(backup / name)
+        for name in artifacts:
+            (tmp / name).replace(dest / name)
+            published.append(name)
+    except BaseException:
+        for name in published:
+            with contextlib.suppress(OSError):
+                (dest / name).unlink()
+        for name in artifacts:
+            rescued = backup / name
+            if rescued.is_symlink() or rescued.exists():
+                with contextlib.suppress(OSError):
+                    rescued.replace(dest / name)
+        raise
+    finally:
+        shutil.rmtree(backup, ignore_errors=True)
+
+
 def unpack_share(path: Path, dest: Path) -> ShareManifest:
     """解包 + 全量校验 → ShareManifest。
 
@@ -547,11 +600,10 @@ def unpack_share(path: Path, dest: Path) -> ShareManifest:
     format/key_parts/share_key 重算 → artifacts 表（条数 ≤
     ``_ARTIFACT_MAX``、声明合计 ≤ ``_INFLATED_MAX``）→ 逐成员 size+sha256
     对账（读取按声明尺寸 +1 截断，目录 size 谎报不放大内存）。只抽取 manifest 登记成员（白名单），包内多余成员忽略——天然免
-    zip-slip。产物先落 ``dest`` 内临时目录、全部对账过才逐件 rename 进
-    ``dest``——校验中途失败 ``dest`` 零残留（既有同名文件也不被覆写）。
-    发布段先预检全部目标位（同名目录冲突整体先拒），再逐件 rename——
-    多文件真原子不可达，预检收敛确定性冲突后，环境级中段故障理论上
-    仍可能部分发布（rename 不可逆，无回滚承诺）。
+    zip-slip。产物先落 ``dest`` 内临时目录、全部对账过才发布——校验
+    中途失败 ``dest`` 零残留（既有同名文件也不被覆写）。发布段由
+    ``_publish_artifacts`` 事务化执行——``dest`` 要么完整就位要么回到
+    发布前状态。
     """
     try:
         zf = zipfile.ZipFile(path)
@@ -570,14 +622,7 @@ def unpack_share(path: Path, dest: Path) -> ShareManifest:
         try:
             for name, art in mf.artifacts.items():
                 _extract_verified(zf, name, art, tmp)
-            # 发布预检：目标位被同名目录占据时 rename 必败——整体先拒，
-            # 避免逐件 rename 中段失败留下部分发布
-            for name in mf.artifacts:
-                if (dest / name).is_dir():
-                    msg = f"publish target is a directory: {dest / name}"
-                    raise IsADirectoryError(msg)
-            for name in mf.artifacts:
-                (tmp / name).replace(dest / name)
+            _publish_artifacts(mf.artifacts, tmp, dest)
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
             if fresh:
