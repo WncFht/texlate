@@ -338,10 +338,10 @@ def test_grp_argspec_unregistered_unchanged() -> None:
 
 def test_pend_spec_reg_gate() -> None:
     r"""组尾待绑判同闸：``\Alph`` 被 ``\renewcommand`` 登记成 opaque 宏后
-    不再按签名 ``m`` 只吸首组——``m is not None`` → 探针 ``o m×6`` 吸
-    ``{aa1}{bb2}`` 进组尾、opaque spec ``m m`` 走参罩面，
-    ``[[EXPAND]]`` 体覆盖 ``\\vv{aa1}{bb2}`` 整调用点（无闸按签名
-    ``m`` 时 ``{bb2}`` 漏出组界裸进 chunk）。"""
+    不再按签名 ``m`` 只吸首组——``m is not None`` → spec ``m m`` 走参
+    吸 ``{aa1}{bb2}`` 进组尾罩面，``[[EXPAND]]`` 体覆盖
+    ``\\vv{aa1}{bb2}`` 整调用点（无闸按签名 ``m`` 时 ``{bb2}`` 漏出
+    组界裸进 chunk）。"""
     res = scan(
         "\\renewcommand{\\Alph}[2]{\\textbf{#1#2}}\n"
         "\\newcommand{\\vv}{pre \\Alph}\n"
@@ -509,3 +509,138 @@ def test_grp_opaque_math_kind() -> None:
     )
     assert res.ph_map["[[CMD_1]]"] == "\\foo{x}"
     assert "{bb}" in blob(res)
+
+
+# ------------------------------------------------------------- 组尾待绑 spec 臂
+# ``_pend_spec_of`` opaque/math 行 + ``_grp_spec_walk`` 余量：登记宏参扫
+# 吃到组末未竟 → ``_absorb_spec`` 按真实 ``m.spec`` 从流续吸——探针
+# ``o m×6`` 槽形曾把 spec 外 ``{..}`` 误吸进组尾（登记宏 nargs 越界过吸，
+# 组内 surface 臂与跨界待绑臂分叉）。未登记名保探针回落。
+
+
+def test_pend_opaque_spec_arity() -> None:
+    r"""组尾待绑 opaque 宏按 spec 吸参：``\foo{aa}{bb}``（spec ``m``）只吸
+    ``{aa}``——``{bb}`` 留主流可译（探针 ``o m×6`` 曾双吸蒸发）。"""
+    res = scan(
+        "\\def\\foo#1{\\textbf{#1}}\n"
+        "\\newcommand{\\vv}{pre \\foo}\n"
+        "Text \\vv{aa}{bb} tail words here."
+    )
+    assert res.ph_map["[[CMD_1]]"] == "\\foo{aa}"
+    assert "{bb}" in blob(res)
+
+
+def test_pend_opaque_opt_mand() -> None:
+    r"""``o m`` 签名组尾待绑：``[ww]{aa}`` 全随 ``[[CMD]]``/``[[EXPAND]]`` 罩住。"""
+    res = scan(
+        "\\newcommand{\\bar}[2][zz]{\\textbf{#1#2}}\n"
+        "\\newcommand{\\vv}{pre \\bar}\n"
+        "Text \\vv[ww]{aa} tail words here."
+    )
+    assert res.ph_map["[[CMD_1]]"] == "\\bar[ww]{aa}"
+    assert res.ph_map["[[EXPAND_2]]"] == "\\vv[ww]{aa}"
+
+
+def test_pend_opaque_no_arg() -> None:
+    r"""零参 opaque 宏组尾不待绑：``\foo`` 调用即完结——后随 ``{bb}``
+    非参不吸（探针曾当 ``{m}`` 吞掉蒸发）。"""
+    res = scan(
+        "\\def\\foo{\\textbf{}}\n"
+        "\\newcommand{\\vv}{pre \\foo}\n"
+        "Text \\vv{bb} tail words here."
+    )
+    assert res.ph_map["[[CMD_1]]"] == "\\foo"
+    assert "{bb}" in blob(res)
+
+
+def test_pend_opaque_keyarg_tail() -> None:
+    r"""opaque 宏体尾 key-arg 跨界：``\def\foo{\relax\ref}`` 调用点
+    ``{k1}`` 经 keyarg 槽列续吸罩住（spec 尽余量仍带 ``ka_slots``）。"""
+    res = scan(
+        "\\def\\foo{\\relax\\ref}\n"
+        "\\newcommand{\\vv}{pre \\foo}\n"
+        "Text \\vv{k1} tail words here."
+    )
+    assert res.ph_map["[[CMD_1]]"] == "\\foo{k1}"
+    assert "k1" not in blob(res)
+
+
+def test_pend_opaque_math_kind() -> None:
+    r"""``math`` 族宏同行兜住：``\def\foo#1{\alpha#1}`` 组尾待绑同样
+    只吸 spec 首参。"""
+    res = scan(
+        "\\def\\foo#1{\\alpha#1}\n"
+        "\\newcommand{\\vv}{pre \\foo}\n"
+        "Text \\vv{x}{bb} tail words here."
+    )
+    assert res.ph_map["[[CMD_1]]"] == "\\foo{x}"
+    assert "{bb}" in blob(res)
+
+
+def test_pend_opaque_single_token_arg() -> None:
+    r"""spec ``m`` 单 token 参跨界：``\foo a`` 的 ``a`` 吸入罩面——槽字母
+    ``m`` 只认 ``{..}``，真实 spec 的 fidelity 位。"""
+    res = scan(
+        "\\def\\foo#1{\\textbf{#1}}\n"
+        "\\newcommand{\\vv}{pre \\foo}\n"
+        "Text \\vv a tail words here."
+    )
+    assert res.ph_map["[[CMD_1]]"] == "\\foo a"
+
+
+def test_pend_opaque_open_bracket_cont() -> None:
+    r"""``[..]`` 组跨界续收：``\vv`` 体 ``pre \foo[ww``（``[`` 在 def 体内
+    不需配平）→ spec ``m`` 参续拉 ``]`` 落位，``{aa}`` 非参留主流。"""
+    res = scan(
+        "\\def\\foo#1{\\textbf{#1}}\n"
+        "\\newcommand{\\vv}{pre \\foo[ww}\n"
+        "Text \\vv]{aa} tail words here."
+    )
+    assert res.ph_map["[[CMD_1]]"] == "\\foo[ww]"
+    assert "{aa}" in blob(res)
+
+
+def test_pend_opaque_keyarg_bracket_cont() -> None:
+    r"""key-arg ``o`` 槽 ``[`` 组跨界续收：``[opt`` 越组末 → ``]`` 落位后
+    余槽续走 ``{k1}``——``ka_cont``/``ka_slots`` 双余量同吸。"""
+    res = scan(
+        "\\def\\foo{\\relax\\ref}\n"
+        "\\newcommand{\\vv}{pre \\foo[opt}\n"
+        "Text \\vv]{k1} tail words here."
+    )
+    assert res.ph_map["[[CMD_1]]"] == "\\foo[opt]{k1}"
+    assert "k1" not in blob(res)
+
+
+def test_pend_opaque_delim_arg() -> None:
+    r"""``delim`` 定界参跨界：``\def\foo#1.``——``{aa}`` 组整收后 ``.``
+    定界命中，``{bb}`` 非参留主流（槽字母无 delim 对应物）。"""
+    res = scan(
+        "\\def\\foo#1.{\\textbf{#1}}\n"
+        "\\newcommand{\\vv}{pre \\foo}\n"
+        "Text \\vv{aa}.{bb} tail words here."
+    )
+    assert res.ph_map["[[CMD_1]]"] == "\\foo{aa}."
+    assert "{bb}" in blob(res)
+
+
+def test_pend_opaque_e_arg_tail() -> None:
+    r"""``e`` 修饰参尾位续决：体尾 ``^`` 已吃、``{arg}`` 跨界待绑——
+    ``cont=("e-arg",)`` 续收 ``{x}`` 后续吃 ``_2``（``e{^_}`` 符残件同臂）。"""
+    res = scan(
+        "\\NewDocumentCommand{\\foo}{e{^_}}{\\textbf{#1}}\n"
+        "\\newcommand{\\vv}{pre \\foo^}\n"
+        "Text \\vv{x}_2 tail words here."
+    )
+    assert res.ph_map["[[CMD_1]]"] == "\\foo^{x}_2"
+
+
+def test_pend_opaque_unregistered_probe() -> None:
+    r"""保守面：未登记 ``\foo`` 仍走探针回落——``{aa}{bb}`` 双吸罩住
+    （real-spec 行只兜 ``opaque``/``math`` 登记名，不扩大打击面）。"""
+    res = scan(
+        "\\newcommand{\\vv}{pre \\foo}\n"
+        "Text \\vv{aa}{bb} tail words here."
+    )
+    assert res.ph_map["[[CMD_1]]"] == "\\foo{aa}{bb}"
+    assert "bb" not in blob(res)
