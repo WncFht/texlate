@@ -38,8 +38,8 @@ from texlate.latex.model import ScanResult
 PROSE = "We consider a two form antisymmetric tensor field theory in detail"
 KEY = "dalianis2020"
 
-#: beamer 包条目（``\only``/``\onslide``）须 docclass 命中 ``state.pkgs``
-#: 才进 argspec 表——article 下同名 cs 走探针臂。
+#: beamer 包条目（``\only``/``\onslide``）——argspec 表不按包门控后
+#: docclass 不再 load-bearing：同名 cs 在 article 下也走 argspec 臂。
 BEAMER = "\\documentclass{beamer}\n%s\\begin{document}\n%s\n\\end{document}\n"
 
 

@@ -1322,8 +1322,10 @@ rules:
               % (bibinitdelim/bibnamedelim*/bibrangedash/revsdnamepunct,
               %  1706.00221 实证 already_def×6); \begin{document} 期 biblatex
               % 已就位 → provide 自动 no-op, 未装时 polyfill 兜底 (bbl 总在
-              % 正文 \printbibliography 才读)。注意 AtBeginDocument 存储链
-              % (\xdef 经由) 吃掉一层 # —— 组内 \def 用 ## 而非 #### (实测)。
+              % 正文 \printbibliography 才读)。组内 \def 用 ## 而非 #### ——
+              % lthooks 后 AtBeginDocument=\AddToHook, hook 码原样存不吃
+              % # 层 (\xdef 吃层系 pre-2020 \g@addto@macro 旧制); ## 仅是
+              % \providecommand 替换文本内嵌 \def 的一层转义, #### 实测炸。
               \AtBeginDocument{%
                 \providecommand{\bibinitperiod}{.}%
                 \providecommand{\bibinitdelim}{}%
