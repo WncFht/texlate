@@ -549,3 +549,9 @@
 - **peer 续流**：parsebench.py v1 臂 parse_one 整删（我 e9757c0 惰性导入件同去——v1 退役收尾，docs/09 §7.1 口径）；judge.py `machine_slot_audit` 公共化重构+repair.py/docs 改动仍彼在飞。
 - roster 7 在飞全活：pendspec(#59 未落笔——设计期)/draftsty(#60 yaml 成品+test 件在飞)/mnrasretire(#61 yaml 候场)/flipcheck5(#62 6th 格在跑)/roundcat(engine.py WIP)/texmfshadow(census 件产)/pairediff(proto.py 产)。
 - 门巡：compile 臂 36/36 clean 零逃逸（半程口径）；无 git 违例（工作树改动全可归属：engine.py=roundcat、40-install=draftsty、test_fixloop_draftsty.py=draftsty、parsebench/judge/repair/docs=peer）。
+
+## 2026-09-19 ~05:0x — 收割：draftsty+roundcat 双落
+
+- **22e94be draftsty 收**（#60）：`abstract_edef_capture_neutralize` order 11.95——1706.00240 draft.sty `\protected@edef\@tempa{\ifnum`}=\z@` 吞 `}` 致 edef 不闭吞全文→`Incomplete \iffalse`。**设计 delta 采纳**：agent 改 inject-override 代 spec 原拟 comment-out——①注释面只需签名行不需 hack 块界（多层嵌套括号 regex 脆）②`\def` 无存在性前提优于 `\renewenvironment` ③`\ifdefined\maketitle` 保题名块（hack 本意即 env 触发题名，1706.00240 从不自调）——理由成立收。comment-strip 后签名确证（:62-64 注释载件不动），`\endinput` 前注入良性覆写。18 钉+858 fixloop 绿+真 xelatex A/B 实证（repro2 题名+abstract 全渲染）。
+- **c68dc86 roundcat 收**：`_round_cat` 录因优先臂——`sentry_reason`/str timed_out→`runaway_output`+`sentry:<arm>` 挂 payload 槽（轮内无 notes 面，payload 落 entry/events pay=）；rep.raw=全 log 同源判明未造第三扫；RunFn+run_tool 注记 `bool|str`。判例披露皆核：录因权威于 timed_out 真值、runaway_output 无规则 dispatch 故 unfixable/salvage 排除语义反而修正（旧可误判 unfixable:timeout）。+6 钉（24）+888 邻域绿。
+- roster 5 在飞：pendspec(#59)/mnrasretire(#61 yaml 已放)/flipcheck5(#62)/texmfshadow/pairediff；draftsty/roundcat 尸清。
