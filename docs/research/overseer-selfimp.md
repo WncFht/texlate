@@ -474,3 +474,32 @@
 - **#53 multistrand-census 派出**（research）：0707.4206 12-err 残量分股（族/根因/可修类/剥序）。
 - texlate-13：pending.py 三镜像表合并**整项排队等 grpOpaque 落地**——正面同区避让确认，我方 commit 后回 ping。
 - roster 8 在飞：emmath/grpOpaque/iffalse-census/revtex34/pstricks-timeout/mnras-optpatch/skiprole-census/multistrand-census。
+
+## 2026-09-19 ~05:4x — 夜巡：psttimeout 伪阳判明 + 残口分流 + providesdate 派
+
+- **ff85de9 revtex34 NO-OP 钉收**：cond-mat/0408520 现行树已净（任务源自 flipcheck1 陈旧证据）——全链 replay 实证 r1 twocolumn→polyfill、r2 abstract→hoist、r3 15 页净出；11 钉冻链零 shim 增改。
+- **pstricks-timeout census 判明**（#48）：1003.2165 超时 = **sentry 假阳**非暴走非真超时——复跑 36s 净出 46 页；`_RunawaySentry`（proc.py:110）累计 vbox 计数 `_RUNAWAY_VBOX_MIN=30`（logparse.py:39）被每页一条慢性 2.7pt 警告喂满（46 页 46 条），第 29 页 ≈15.6s 杀。真暴走签名=密度/无进展非累计阈值；配套归因洞=post-hoc 只扫 4KB 尾窗累计不可重建 → CompRes 需 `sentry_reason`。**两触点全在 texlate-13 在飞件**（proc.py/engine/_base.py）→ 实证+修法已转交彼批。
+- **残口分流 texlate-13×2**：①gullet/input.py:128 `decode_tex(read_bytes)` 裸读=tar 族最后洞（apitar 残口，彼 \input_expand 在飞批内）→ 5 行补丁文本已交；②sentry 签名+CompRes 字段如上。我域 tar 族剩 latex209.py:362（emmath 在飞）。
+- **ctanre Provides 裁决=DECLINED**：`\ProvidesX[date]` 自署日期不接 check_version_compat——自署≠floor，era-gating 会把 epoch 后所有维护包全拒=fetch 路死；且 expl3 `{\ExplFileDate}`/GetIdInfo 间接署名字面覆盖不可靠。floor-only 出货维持。
+- **#54 providesdate 派出**：`_provides_date` 补两真形——`\ProvidesExplPackage{n}{date}{v}` 花括号三参（csvsimple 实证饿闸）+ `\ExplFileDate`/`\GetIdInfo $Id` 间接署名（ctex.sty 实证）；保守原则=不可解归 None 不猜。_builtins_vendored.py 干净可锁。
+- roster 8 在飞：emmath(#41)/grpOpaque(#42)/iffalse-census(#46)/mnras-optpatch(#51)/skiprole-census(#52)/multistrand-census(#53)/providesdate(#54)；psttimeout/revtex34/misschar/geomreach 已收。
+- 门巡：L0 域 349 绿（test_segmenter_cmd_prose 一过性 NameError=peer 瞬态，单测复跑净）；19 commit 全我署；peer 973b2a06 web i18n 落地互不干。
+- drain 说明：teammate 消息大批为已收割道回声/idle 通知（apitar/geomlane/ctanre/pendreg/csvsub/physwrap/babellane/stubaudit 全部早收早落），增量仅上述三项+providesdate 残口。
+
+## 2026-09-19 ~03:3x — XCOMET batch 内核 OOM 死而复起
+
+- attempt2 = CUDA OOM：peer 进程 1842126 占 4.0GiB GPU（11.65G 卡仅余 ~7.6G 模型位）——非我方 leak。attempt3 = **kernel global_oom**（constraint=NONE，peer claude 进程触发全局挤压），unit 连壳被杀（peak 10.2G mem + 13.5G swap；zram 18.7/31G 已吃紧=真实 RAM 压）。
+- 处置：GPU 已全空 + swap 余 33G 窗口期 → 同脚本重启 `systemd-run -p Restart=on-failure -p RestartSec=30`（壳死自动拉起，bash 6 次重试环内层兜底），断点 312/1200 续跑。cron f5d9540f 续巡。
+
+## 2026-09-19 ~03:3x — 收割潮：emmath/babel-mnras/pstadd 三落 + 两道新派（roster 6）
+
+- **d80792f emmath 收**：latex209.py 数学域字体开关转写（`{\em/\it/\bf X}`→`\mathit/\mathbf`，`_math_env_spans`+`_textarg_spans`+`_innermost` 区域机制，upgrade_209 converted 路接线）+ `_uses_ds_at` tar 闸——**tar 伪装族正式闭环**（inject/latex-api/flatten/probe/gullet 1a04780/latex209 六面全闸）。19 新钉+155 域绿；e2e 9910310 `\mathit{ fields}` 实证。
+- **452bc9b 双件收**：(a) vendored mnras.cls 上游 bug 修——v3.2 pristine 实证 `\ds@usegraphicx` 内联 `\usepackage` 违 options-section（同文件 `\ds@usenatbib`:1335 已是正确旗+延载范），置旗+`\ProcessOptions\relax` 后延载；(b) **补齐半提交 babel 特性**——babellane 滞留 hunks：00-base filemap +24 ldf 别名 + 10-taxonomy `babel_undef` 类（"You haven't defined the language"），无此类则 babel_undeclared_option 消费端无格可中。
+- **fe62cff pstadd-retire 收**：0707.4206 12 错单根=稿自带 pstricks-add v2.32/2005 对遮蔽（multistrand census 判明非多股）；`find_vendored_shadows` 系统-probe 盲区同型 csvsimple——40-install.yaml `pstricks_add_pair_retire`（order 11.9）sh 循环 mv 成对 .fixloop-iso，**指纹防环升级**（texlate-fixloop-injected 件跳过，否则 v3.94 `\colorlet` 错→退役→重投死循环）；链=退役→missing_file→vendored_fetch v3.94，xcolor 前置已由 pstcol rewrite 兜。18 钉+805 fixloop 绿。
+- **dbd964a emmath 残口兑现（leader 自改）**：2e 声明形 `{\bfseries/\itshape/\rmfamily/\sffamily/\ttfamily X}` 同踩 `\not@math@alphabet` 硬报（gr-qc/9901082）并入映射表；`\slshape/\scshape/\upshape/\mdseries/\normalfont` 无单义数学字母保守不收。+3 钉，53/53 绿。
+- **iffalse-census 判明**（#46）：1706.00240 `Incomplete \iffalse`=**纸自带** draft.sty:77-85 摘要捕获花括号 hack（`\protected@edef\@tempa{\ifnum`}=\z@` 吞 `}` 令 edef 组永不闭，吞全文至 EOF 推展开 `\iffalse`）；bt7.tex 零 texlate 件复现同签名——TL2026 内核回归区外，unfixable:other 裁定正确。agent 供可选规则（doc-shipped .sty 签名→换良性 abstract env）**leader 裁定缓**——单格签名+改稿语义+需新 action 形（档内 .sty 内容改写非现行面），入册候选。
+- **skiprole-census 判明**（#52）：byte-identity **构造上即成立**（ph→ph_map 存原始字节，唯 `[[CHUNK_n]]` 受 zh）；活漏类=未标参数混进 chunk 面（restatable 前 argspec 先例）。option-b 槽审在 post-reconstruct 四点（e2e/worker-compile/repair_l2/retranslate，三点 peer 域）——probe 落我域 judge.py，接线补丁文本交 peer。
+- **新派两道**：#57 geomreverify（replay 1206.0291 post-452bc9b——头错已剥，geometry clash 是否进 dispatch 轮触发 option_clash_geometry_hoist，验 mnras 投资）；#58 slotaudit-impl（`_thm_restate_probe` 泛化 doc-level 机槽 CJK 探针：env 名/label/ref/cite/csname/input 五面，note-level 封顶 20，o/O/d/D+文本参 FP 硬约）。
+- roster 6 在飞：grpOpaque(#42 逾 1h 在跑)/providesdate(#54)/sentryfix(#56)/geomreverify(#57)/slotaudit(#58)；iffalse/mnras/skiprole/pstadd 四尸已清。
+- 门巡：域内自验 53/53 绿 ruff 净；peer interleave f5677a66/6a3d538d/c9c3e3da（server app 拆+latex TokenSource+worker seams）互不干；22 commit 全我署零违例。
+- 残口入册更新：draftsty-abstract-hack 规则（候选 micro-lane，待第二命中或富余）；ASCII↔ASCII env-arg mangling 仍盲区；90-shim:2216 BoxedEPS 死条目（无害）；grpOpaque `_pend_spec_of` 过吸收 adjudication 待其交付；sentryfix 交付后需转 texlate-13 接线（彼域 proc.py/_base.py 已由彼派回我队——**纠正**：sentryfix 是我队 lane，交付即我收）。
