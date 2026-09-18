@@ -76,7 +76,9 @@
 
 % usegraphicx option
 \newif\if@usegraphicx
-\def\ds@usegraphicx{\@usegraphicxtrue\usepackage{graphicx}}
+% texlate patch: \usepackage deferred past \ProcessOptions -- the kernel
+% errors `\RequirePackage or \LoadClass in Options Section' otherwise.
+\def\ds@usegraphicx{\@usegraphicxtrue}
 
 % referee option
 %
@@ -112,6 +114,11 @@
 \DeclareOption*{\PackageWarning{mnras}{Unknown option `\CurrentOption'}}
 
 \ProcessOptions\relax
+
+% texlate patch (paired with \ds@usegraphicx): honour usegraphicx here.
+\if@usegraphicx
+  \usepackage{graphicx}
+\fi
 
 % Before we do anything else with layout, ensure that the paper is A4
 \usepackage[a4paper]{geometry}

@@ -141,7 +141,40 @@ filemap:
     "polish.ldf": "babel-polish"
     "czech.ldf": "babel-czech"
     "ukraineb.ldf": "babel-ukrainian" # 实档名; 选项 ukrainian 查询名
-    # (ukrainian[b].ldf) 永不落此 —— 该格残留, 归选项改写类后续规则
+    # (ukrainian[b].ldf) 永不落此 —— 经 babel_lang_ldf_install 的
+    # file_aliases 桥指名本档 (2026-09-19 babel-lane 接通)
+    # ── file_aliases 目标钉组: ini \BabelDefinitionFile{0}{X} 指名实档,
+    #    选项名拼不出 → 别名候选的查询落点 (tlpdb 逐名核实 2026-09-19) ──
+    "magyar.ldf": "babel-hungarian"
+    "lsorbian.ldf": "babel-sorbian"
+    "usorbian.ldf": "babel-sorbian"
+    "slovenian.ldf": "babel-slovenian"
+    "slovene.ldf": "babel-slovenian"
+    "UKenglish.ldf": "babel-english"
+    "USenglish.ldf": "babel-english"
+    "friulan.ldf": "babel-friulan"
+    "classicallatin.ldf": "babel-latin"
+    "ecclesiasticallatin.ldf": "babel-latin"
+    "brazilian.ldf": "babel-portuges"
+    "indonesian.ldf": "babel-indonesian"
+    "bahasa.ldf": "babel-indonesian"
+    "indon.ldf": "babel-indonesian"
+    "malay.ldf": "babel-malay"
+    "melayu.ldf": "babel-malay"
+    "german-at.ldf": "babel-german"
+    "german-at-1901.ldf": "babel-german"
+    "german-switzerland-1901.ldf": "babel-german"
+    "nswissgerman.ldf": "babel-german"
+    # ── 直名实档常用族钉: 选项名=ldf 名但 .ldf 不入索引 → 离线确定性 ──
+    "english.ldf": "babel-english"
+    "american.ldf": "babel-english"
+    "australian.ldf": "babel-english"
+    "british.ldf": "babel-english"
+    "canadian.ldf": "babel-english"
+    "newzealand.ldf": "babel-english"
+    "austrian.ldf": "babel-german"
+    "naustrian.ldf": "babel-german"
+    "swissgerman.ldf": "babel-german"
   version_guard: # docs/08 §5.2 第9条: ctan_fetch 版本前置检查
     enabled: true # tlnet 只发最新; 新版对 bundle 的 expl3/LaTeX2e 太旧会拒载
     texlive_format_epoch: "2022-07-14" # tectonic bundle 快照年代 (ctanfetch-probe §3.4)

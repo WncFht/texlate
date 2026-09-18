@@ -216,6 +216,17 @@ taxonomy:
       payload_group: 1,
       pattern: "Package babel Error: Unknown (?:option|language) [`']([^`']+)'",
     }
+  # 2026-09-19 babel-lane: 语言本体未声明错 (区别于选项不认识的 babel_opt)
+  # —— \selectlanguage/\iflanguage/ldf AtBeginDocument 钩引用了选项表外的
+  # 语言名 (babel-german.def:739 \iflanguage{ngerman} 无条件钩实证: [german]
+  # 装好 ldf 后格式无 \l@ngerman → 本签)。payload=语言名, 消费规则=
+  # babel_undeclared_option 向选项表头补名 (非主语言位)。
+  - {
+      id: babel_undef,
+      scope: head,
+      payload_group: 1,
+      pattern: "You haven't defined the language [`']([^`']+)'",
+    }
   - {
       id: hyperref_driver,
       scope: head,
