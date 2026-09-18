@@ -738,3 +738,13 @@
 - **xbbpregen 交付**：`xbb_pregen` 规则 (45-graphics.yaml order 15.5) + `_builtins_graphics.py` builtin —— dvipdfmx.def `"|extractbb` pipe 沙箱死 → 全量图形 `extractbb -x` 预生成 .xbb 旁缓存, pipe 臂整体跳过; 零源改。实证订正 4 项 (extractbb -O=stdout/-x=写盘、批式只写末件、openout_any=p 拒绝对径、败残留空 .xbb 是毒件需清)。14 测试 + 1031 回归绿; `## REVIEW` 标 (新 run_tool builtin)。归因单主已核 (csfix.py 同改=chineseclear 在飞, 剔出)。
 - **bibhang 普查核销** (#97)：4 格 mn2e+usenatbib —— 根因=mn2e stub 裸 `\LoadClass{mnras}` 丢选项 (今日已修 `\LoadClassWithOptions`), 残链由 already_def_undefine order-113 兜底; 无新规则。
 - roster 5：chineseclear 实施中 (csfix.py+75-syntax.yaml 在写) + xlinkobj/bblmath/failmine2/ifclosegap 普查中; xbbpregen/bibhang 尸清。#99 flipcheck8 排队 (等 #93/#94 落地同批重放)。
+
+## 2026-09-19 ~08:0x — 收割潮：chineseclear/babelpins/inputquote 入库 + failmine2 次波发散
+
+- **inputquote (46dba25)**：in_arg 引号裸名 ``\input"a b.tex"`` 保护——闭引号收 span, 无配对全回放只护 cs (不吞散文)。44 leaks+473 segmenter 绿, parsebench spot 9/9 strict。
+- **chineseclear (10fcec1)**：`ctlseq_already_def_undefine` order 110.8——expl3 `Control sequence \X already defined` 签 (Command 形够不到) → 文件门 (注入 CJK 装载树) + seam 标记 + docclass 缝三闸 → 缝顶 `\let\X\@undefined`。实格验证：2403.00013 patched copy rc=0/3.45MB PDF/零错行, \let 落 75 行 (docclass 72↔ctex 77)。
+- **babelpins (dc426dd)**：`polytonicgreek`→`greek.polytonic` 双形补源 (51-ldf pin 表实证已全在 00-base:178-231, no-op)；+8 测试。
+- **事故记录**：xbb 提交 (001094d) pathspec 整文件把 chineseclear diff↔commit 间隙新写的 builtins.py 注册行卷走 → 该提交独立 import-broken, 10fcec1 立即补平。教训已入 memory (gfs-stash-race 门面时序变种)。
+- **failmine2 普查核销** (tmp/lane-failmine2/CENSUS.md)：481clean/90be/86acc/22hard/91unrun。发散 7 车道：bticktax(`` `\X' `` 反引号 taxonomy 缝, \Bbbk 23格)、newblockpf(~11)、flushendopt(10)、arraypream(~7)、pdfsanitize(gs-pdfwrite 资产消毒, 5格/9腿——xlinkobj 普查转换)、begindoccen(普查)、dsatcensus(96格 ds@ 拒收面普查→裁决输入)、drvverdict(driver-fatal+no-PDF 误判 clean 缝)。
+- **xlinkobj 核销** (#94)：pdf_link_obj fatal=嵌入图 pdf 畸形 (missing endobj/裸CR/token-per-line), 非 drvdef 族; gs 重写全 5 格实证。
+- roster ~10：bblmath/ifclosegap + bticktax/newblockpf/flushendopt/arraypream/pdfsanitize/begindoccen/dsatcensus/drvverdict 在飞；chineseclear/babelpins/inputquote/xlinkobj/failmine2 尸清。#10 + ds@ 待裁决点累积。
