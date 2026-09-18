@@ -2065,7 +2065,7 @@ rules:
               % fixloop stub (hep-th/9703071: \input{FEYNMAN} pre-feynmf kit, not in TL)
               \endinput
           # kapjrnls.tex: KAP/crckapb 刊名缩写表 (astro-ph/9901364 实证
-          # \apj/\mnras/\apjs/\aj) —— 抄 builtins._JOURNAL_MACROS 全表值,
+          # \apj/\mnras/\apjs/\aj) —— 抄 _builtins_shim._JOURNAL_MACROS 全表值,
           # providecommand 不抢宿主类已定义者。
           kapjrnls.tex:
             body: |
@@ -2177,3 +2177,39 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/c-bucket-residual/routing.md :29/:41/:119 (o2-revtex-209 车道); 注入面与本文件 shim_map.revtex.cls 条同义"
+
+  # 2026-09-18 C3 (stats 驱动, loop1 dedup 面): missing_file 真缺口只剩
+  # hangcaption.sty —— LaTeX2.09 时代 caption 版式样式, CTAN/TL 均无档,
+  # 大表 shim_map/vendor/overrides 三路皆未收。nucl-th/0104064
+  # \usepackage{hangcaption,psfig} 而正文只用标准 \caption —— 最小 stub
+  # 过编译即可; 原包的悬挂 caption 版式不复制。
+  # 复用 legacy_pkg_shim builtin: params.shim_map 按条直读 (不与大表合并),
+  # 撞名由大表先行 (order 12 在前) —— 本表只收大表未收的新缺口。
+  ## REVIEW(c3): noop stub —— 不还原 \hangcaption/\@makecaption 悬挂版式,
+  ## 仅保 \usepackage 装载面; caption 版式近似按 best_effort 口径计。
+  - id: legacy_pkg_shim_c3
+    description: "hangcaption.sty (2.09 退役样式, 无 CTAN/TL 档) → 最小 stub"
+    phase: loop
+    order: 12.9 # legacy_pkg_shim(12) 后: 大表先行, 本表只收未收缺口
+    when: { category: missing_file, payload_required: true }
+    action:
+      kind: builtin_transform
+      function: legacy_pkg_shim
+      params:
+        shim_map:
+          hangcaption.sty:
+            body: |
+              % fixloop stub: hangcaption (LaTeX2.09 caption style, not in TL)
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{hangcaption}[2026/09/18 fixloop stub: caption layout noop]
+              \endinput
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "loop1-dedup nucl-th/0104064 (fires×2)",
+          error: "File `hangcaption.sty' not found",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-c3-fixloop/ — C3 stats 驱动; qgpeosnew.tex:135 用面"

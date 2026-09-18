@@ -28,7 +28,7 @@ rules:
       kind: builtin_transform
       function: cs_targeted_fix
       params:
-        # 默认表 = builtins._CS_FIX_TABLE; 此 cs_table 叠加在其上。
+        # 默认表 = _builtins_csfix._CS_FIX_TABLE; 此 cs_table 叠加在其上。
         # n100 undefined_cs 逐签名归因: 全部 24 个 payload 均为 splice/join
         # 合并残骸 (cs+后 token 粘连), 非缺包 —— cs_map 拆回原形
         # (\\old\b 词边界定, 不碰更长 cs)。笔误类 llm_hook 候选本批为零。
@@ -802,3 +802,46 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/rtarget/ — um_accent 修复后残面实跑发现; acmart.cls:3627"
+
+  # 2026-09-18 C3 (stats 驱动, loop1 dedup 面): undefined_cs 残留签名
+  # 第二表 —— 复用 cs_targeted_fix builtin, params.cs_table 叠加在
+  # _builtins_csfix._CS_FIX_TABLE 之上 (builtin 内 dict.update 合并);
+  # 主表(165)已收条目主表先中, 本表只收新增 payload, id/order 不撞。
+  - id: cs_targeted_fix_c3
+    description: "undefined_cs 新批: variorefoptionifavailable (AIP 模板自造cs) / firstfigfalse+firsttabfalse (\\newif 对未建)"
+    phase: loop
+    order: 166 # cs_targeted_fix(165) 后, undefined_cs_guess(900) 前
+    when: { category: undefined_cs, payload_required: true }
+    action:
+      kind: builtin_transform
+      function: cs_targeted_fix
+      params:
+        cs_table:
+          # 1206.0565 aipguide.tex:56 裸调用 —— AIP 官方 guide 模板自造
+          # 标记 cs ("either varioref or" 注释自述), 无包提供; noop 即可。
+          variorefoptionifavailable:
+            { polyfill: "\n\\providecommand\\variorefoptionifavailable{}" }
+          # hep-ph/0104121 fixes.sty:41-42 \global\firstfigfalse +
+          # \global\firsttabfalse 双闸连发 —— 宿主类未建 \newif 对
+          # (preprintsty 死区分支), 一注补齐两对。
+          firstfigfalse:
+            { polyfill: "\n\\newif\\iffirstfig\\newif\\iffirsttab" }
+          firsttabfalse:
+            { polyfill: "\n\\newif\\iffirstfig\\newif\\iffirsttab" }
+    ## REVIEW(c3): firstfig/firsttab 若宿主类后载 \newif 会转 already_def
+    ## (already_def_newcmd_renew/already_def_undefine 规则链接住);
+    ## \providecommand/\newif 注于 \documentclass 后, 先于 \usepackage{fixes}。
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "loop1-dedup 1206.0565",
+          error: "Undefined control sequence \\variorefoptionifavailable @ aipguide.tex:56",
+        }
+      - {
+          corpus: "loop1-dedup hep-ph/0104121",
+          error: "Undefined control sequence \\firstfigfalse @ fixes.sty:41",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-c3-fixloop/ — C3 stats 驱动"

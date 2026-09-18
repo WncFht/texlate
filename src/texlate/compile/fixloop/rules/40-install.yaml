@@ -253,3 +253,47 @@ rules:
       - { corpus: "1906.08237/*", error: "rsfs10 → rsfs" }
     stats: { fires: 13, rescued_cells: 13 }
     source_ref: "fixloop.py L314-321"
+
+  # 2026-09-18 C3 (stats 驱动, loop1 (id,arm) dedup 面): babel-greek 走 ldf
+  # 路时 XeTeX 下 ldf 还要 greek-fontenc 的 tuenc-greek.def —— greek.ldf:118
+  # \@ifl@aded{def}{tuenc-greek} 落空即 \bbl@error+\@@end 硬死 (ldf 注释
+  # 明写 "Install the greek-fontenc package or use polyglossia")。实态:
+  # babel_lang_ldf_install(11) 装好 greek.ldf 而 def 缺 → 次轮 syntax
+  # (err ctx 含 greek.ldf 路径); babel_opt:'greek' 轮报错文本本身亦含
+  # "language definition file greek.ldf" —— 两类 err_head 同闸。
+  # filemap: tuenc-greek.def→greek-fontenc (lgrenc.def 同包, 8-bit 引擎并落)。
+  ## REVIEW(c3): 触发面仅限 err ctx 提到 greek.ldf/'greek' 选项的格;
+  ## 对非 babel-greek 语境的 greek 提及不误伤 (pattern 含 .ldf/引号形)。
+  - id: greek_fontenc_install
+    description: "babel greek ldf 路缺 greek-fontenc → xelatex 下 ldf \\@@end 硬死 → 装 tuenc-greek.def"
+    phase: loop
+    order: 11.6 # babel_lang_ldf_install(11)/vendored_fetch(11.5) 后; def 先装无害
+    when:
+      any:
+        - { category: babel_opt, payload_required: false }
+        - { category: syntax, payload_required: false }
+        - { category: other, payload_required: false }
+    condition:
+      ctx_suggests: "greek\\.ldf|'greek'|'polutonikogreek'"
+    action:
+      kind: install_file
+      params: { file: tuenc-greek.def }
+    engines:
+      xelatex:
+        {
+          mode: native,
+          via: "filemap tuenc-greek.def→greek-fontenc → usermode install",
+        }
+      tectonic:
+        mode: same
+    provenance:
+      - {
+          corpus: "loop1-dedup 1306.0504 (greek.polytonic→greek.ldf→tuenc-greek.def 缺)",
+          error: "greek.ldf:130 Missing \\endcsname inserted → \\@@end",
+        }
+      - {
+          corpus: "loop1-dedup 2105.00102 ([english,greek] babel)",
+          error: "greek.ldf:130 Missing \\endcsname inserted",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-c3-fixloop/ — C3 stats 驱动; greek.ldf:113-131 引擎分支实读"

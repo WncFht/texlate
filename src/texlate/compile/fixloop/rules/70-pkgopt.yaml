@@ -307,3 +307,43 @@ rules:
         }
     stats: { fires: 0 }
     source_ref: "1206.2111 zh l.41 孤儿 [12pt] 在 inject 块后 preamble 内; src 原形 \\documentclass{article}[12pt] 同行后置"
+
+  # 2026-09-18 C3 (stats 驱动, loop1 dedup 面): 老 pstricks.sty (稿自带,
+  # elsart 时代捆绑) \PassOptionsToPackage{override}{xcolor} —— 'override'
+  # 选项现代 xcolor 已删 (2004 起并入 dvipsnames 语义: dvips 色名覆盖
+  # 标准集)。err 落 early_eof 桶 (0707.4206 实读: xcolor.sty:265
+  # \ProcessKeyOptions "Unknown option 'override' for package xcolor")。
+  ## REVIEW(c3): ctx+source 双闸 AND —— 仅当错误面与源码面同证此机理
+  ## 才改; override→dvipsnames 是语义等效映射非裸删。
+  - id: xcolor_override_opt_strip
+    description: "老 pstricks 传 'override' 给现代 xcolor → 等效改 dvipsnames"
+    phase: loop
+    order: 184 # docclass_post_option_normalize(183) 后
+    when:
+      any:
+        - { category: early_eof, payload_required: false }
+        - { category: other, payload_required: false }
+        - { category: syntax, payload_required: false }
+    condition:
+      ctx_suggests: "Unknown option 'override'"
+      source_contains: "PassOptionsToPackage\\s*\\{override\\}\\s*\\{xcolor\\}"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.sty, .cls, .tex]
+        rewrites:
+          - {
+              pattern: "(\\\\PassOptionsToPackage\\s*)\\{override\\}(\\s*\\{xcolor\\})",
+              repl: "\\g<1>{dvipsnames}\\g<2>",
+            }
+    risk: low # 选项名等效映射; 双闸限定只在此机理命中时动
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "loop1-dedup 0707.4206 (elsart.cls 工程, vendored_fetch 后残面)",
+          error: "xcolor.sty:265 LaTeX Error: Unknown option 'override' for package xcolor",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-c3-fixloop/ — C3 stats 驱动; splice pstricks.sty:47 实读"
