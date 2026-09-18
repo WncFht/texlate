@@ -53,7 +53,7 @@ REPO = Path(__file__).resolve().parents[2]
 WORK = REPO / "bench" / "work_v3"
 TARS = WORK / "tars"
 CORPUS = REPO / "bench" / "corpus_v3"
-EXP = REPO / "tmp" / "exp"
+FRAME = REPO / "bench" / "frame"  # 规划资产固化区（原 tmp/exp/frame，tmp 可清故迁出）
 CHUNKS_JSON = WORK / "chunks.json"
 SEED = 42
 UA = {"User-Agent": "texlate-corpus-v3/1.0 (research benchmark build)"}
@@ -76,7 +76,7 @@ def log(msg: str) -> None:
 
 
 def load_allocation() -> list[dict]:
-    with (EXP / "frame" / "allocation-core.csv").open(newline="") as fh:
+    with (FRAME / "allocation-core.csv").open(newline="") as fh:
         rows = list(csv.DictReader(fh))
     for r in rows:
         r["quota_core"] = int(r["quota_core"])
@@ -113,14 +113,14 @@ def pick_chunk_ids(n: int) -> list[int]:
 def cmd_plan() -> None:
     alloc = load_allocation()
     ia_idx: dict[str, dict[int, dict]] = {}
-    with (EXP / "ia-pilot" / "item-index.csv").open(newline="") as fh:
+    with (FRAME / "item-index.csv").open(newline="") as fh:
         for r in csv.DictReader(fh):
             ia_idx.setdefault(r["yymm"], {})[int(r["chunk"])] = {
                 "item": r["identifier"],
                 "size": int(r["size"]),
             }
     tiger_idx: dict[str, dict[int, dict]] = {}
-    with (EXP / "post2020" / "tiger-files.csv").open(newline="") as fh:
+    with (FRAME / "tiger-files.csv").open(newline="") as fh:
         for r in csv.DictReader(fh):
             m = re.match(r"arXiv_src_(\d{4})_(\d{3})\.tar$", r["path"])
             if not m:
@@ -426,6 +426,65 @@ DOCCLASS_RX = re.compile(
 INPUT_RX = re.compile(
     r"\\(?:input|include|InputIfFileExists)\s*(?:\[[^\]]*\])?\s*\{([^}]+)\}"
 )
+# deadpkg 名单：净室 stub 族（禁再分发→missing_file 必中）+ vendored 真件族
+#（pkg_version_skew/接口漂移高发）+ 残差签名实测族。小写归一，匹配 IGNORECASE。
+# revtex 只钉裸名——revtex4/revtex4-2 是 CTAN 现役，\b 边界天然排除。
+DEAD_PKGS = {
+    "aa",
+    "aasms4",
+    "aaspp4",
+    "aastex",
+    "aipproc",
+    "aipmod",
+    "apjfonts",
+    "axodraw",
+    "boxedeps",
+    "citesort",
+    "complexity",
+    "diagrams",
+    "elsart",
+    "emulateapj",
+    "epsf",
+    "epsfx",
+    "eqsecnum",
+    "espcrc1",
+    "espcrc2",
+    "iopart",
+    "imsart",
+    "jhep3",
+    "jheppub",
+    "jinstpub",
+    "mn2e",
+    "moriond",
+    "psfig",
+    "pst-node",
+    "revtex",
+    "slashbox",
+    "sprocl",
+    "svglov3",
+    "svjour",
+    "svjour3",
+    "sw20lart",
+    "tcilatex",
+    "texsort",
+}
+DEADPKG_ALT = "|".join(sorted(DEAD_PKGS, key=len, reverse=True)).replace("-", "[-]")
+DEADPKG_RX = re.compile(
+    r"\\(?:usepackage|RequirePackage)(?:\[[^\]]*\])?\{[^}]*?(?:"
+    + DEADPKG_ALT
+    + r")\b|"
+    + r"\\document(?:class|style)\s*(?:\[[^\]]*\])?\s*\{[^}]*?(?:"
+    + DEADPKG_ALT
+    + r")\b|"
+    + r"\\documentstyle\[[^\]]*(?:"
+    + DEADPKG_ALT
+    + r")\b|"
+    + r"\\input\s*\{?[^{}\s]*(?:"
+    + DEADPKG_ALT
+    + r")\b",
+    re.IGNORECASE,
+)
+
 FLAG_RX = {
     "minted": re.compile(
         # \mint 定界（W108）：必须是 minted 调用形（[opts]{lang}）——作者常以
@@ -458,6 +517,24 @@ FLAG_RX = {
         r"\\epsfig\{|\\(?:usepackage|RequirePackage)(?:\[[^\]]*\])?\{epsfig|"
         r"\\includegraphics(?:\[[^\]]*\])?\{[^}]*\.e?ps\}?",
         re.IGNORECASE,
+    ),
+    # failmine 矿类旗（2026-09-19 扩库）：命中即"现代引擎大概率 missing_file /
+    # 走 vendor stub"的论文——名单对齐 fixloop/vendor/{stubs,files} 绝版族 +
+    # loop1 残差签名族（aasms4/psfig/pst-node/JHEP3/epsf）。三种命中形态：
+    # \usepackage{}/\RequirePackage{}、\documentstyle 选项位、\input X.sty。
+    "deadpkg": DEADPKG_RX,
+    # 旧式 pdftex 原语直写（unfixable:pdftex_prim:* 族）：现代引擎不认的
+    # 原语赋值——只钉赋值形（=\d），读位（\ifnum\pdfoutput）不算病灶。
+    "pdftex_prim": re.compile(
+        r"\\pdf(?:compresslevel|objcompresslevel|decimaldigits|"
+        r"optionalwaysusepdfpagebox|omitcharset|suppressptexinfo)\s*=?|"
+        r"\\pdfoutput\s*=\s*\d"
+    ),
+    # babel 非英语选项族（残差签名 babel_opt:german）：选项位命中即记——
+    # 只钉 babel 包，其他包的 german 同名选项不捞。
+    "babel_german": re.compile(
+        r"\\(?:usepackage|RequirePackage)\[[^\]]*german[^\]]*\]\{babel\}|"
+        r"\\usepackage\{babel\}[^\n]*german"
     ),
 }
 AUTOIGNORE = b"%auto-ignore"
@@ -991,7 +1068,7 @@ def cmd_frame_lookup() -> None:
     import pyarrow.parquet as pq  # 仅此子命令需要
 
     t = pq.read_table(
-        EXP / "frame" / "frame.parquet",
+        FRAME / "frame.parquet",
         columns=[
             "id",
             "tar_yymm",
@@ -1049,7 +1126,7 @@ def cmd_sample() -> None:
     rng = random.Random(SEED)
     alloc = {r["cluster_id"]: r for r in load_allocation()}
     mix: dict[str, dict[str, float]] = {}
-    with (EXP / "frame" / "cluster-cat-mix.csv").open(newline="") as fh:
+    with (FRAME / "cluster-cat-mix.csv").open(newline="") as fh:
         for r in csv.DictReader(fh):
             mix.setdefault(r["yymm"], {})[r["cat_group"]] = float(r["share"])
     lut = load_frame_lookup()
@@ -1669,12 +1746,7 @@ def cmd_qc() -> None:
     total = sum(r["members_scanned"] for r in report)
     # 盘 vs manifest 对账: 有 meta.json 的目录不在任一 manifest = 孤儿;
     # id 目录存在但缺 meta.json = 半截落盘（nominations/__pycache__ 非语料目录）
-    all_ids = {
-        r["id"]
-        for r in benchlib.load_manifest_rows(
-            CORPUS, ["core", "booster", "hot", "expand"]
-        )
-    }
+    all_ids = benchlib.corpus_ids(CORPUS)
     disk_ids: set[str] = set()
     incomplete: list[str] = []
     for top in sorted(CORPUS.iterdir()):

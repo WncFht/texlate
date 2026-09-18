@@ -13,7 +13,7 @@ cluster_id/权重 (供 docs/09 §7.2 统计与事后分层).
 
 统计口径 (docs/09 §7.2, §8 门槛): 加权池化率 (事后分层权重 w_cell =
 frame_cell/sample_cell, stratum_cell 来自 corpus_v3 manifest, frame 宇宙计数
-来自 tmp/exp/frame/strata-era-cat.csv) + 宏平均 (逐篇等权, olmOCR 式) +
+来自 bench/frame/strata-era-cat.csv) + 宏平均 (逐篇等权, olmOCR 式) +
 raw pooled 三口径并列; Wilson 95% CI (iid 近似) + 月簇稳健 bootstrap CI
 (cluster_id‖yymm 重抽样, 无簇键时退化为逐篇 iid bootstrap). 无 stratum_cell
 的语料 (corpus39/corpus_v2) 加权列退化为等权 = raw pooled, 报告中注明.
@@ -80,7 +80,7 @@ if TYPE_CHECKING:
 
 TIMEOUT_S = 30
 GROUP_KEYS = ["era", "archive", "year_band", "stratum_cell", "cluster_id", "layer"]
-DEFAULT_FRAME_COUNTS = ROOT / "tmp" / "exp" / "frame" / "strata-era-cat.csv"
+DEFAULT_FRAME_COUNTS = ROOT / "bench" / "frame" / "strata-era-cat.csv"
 BOOTSTRAP_B = 2000
 BOOTSTRAP_SEED = 20260915
 

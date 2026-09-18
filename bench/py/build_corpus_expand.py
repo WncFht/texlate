@@ -63,8 +63,8 @@ MANIFEST_OUT = CORPUS / "manifest_expand.jsonl"
 N100 = (
     REPO / "bench" / "results" / "e2e-real-n100-postcutover-2026-09-16" / "results.json"
 )
-IA_INDEX = b3.EXP / "ia-pilot" / "item-index.csv"
-TIGER_INDEX = b3.EXP / "post2020" / "tiger-files.csv"
+IA_INDEX = b3.FRAME / "item-index.csv"
+TIGER_INDEX = b3.FRAME / "tiger-files.csv"
 
 SEED = 42
 TARGET = 3740
@@ -120,11 +120,8 @@ def save_plan(plan: dict) -> None:
 
 
 def existing_ids() -> set[str]:
-    rows = benchlib.load_manifest_rows(CORPUS, ["core", "booster", "hot"])
-    ids = {r["id"] for r in rows}
-    if MANIFEST_OUT.exists():
-        ids |= {r["id"] for r in benchlib.iter_jsonl(MANIFEST_OUT)}
-    return ids
+    """全层在册 id（含本层在写 manifest）——benchlib.corpus_ids 单源。"""
+    return benchlib.corpus_ids(CORPUS)
 
 
 def scanned_items() -> set[str]:
@@ -157,7 +154,7 @@ def frame_filter(pool_ids: set[str]) -> dict[str, dict]:
 
 
 def yymm2cluster() -> dict[str, str]:
-    with (b3.EXP / "frame" / "allocation-core.csv").open(newline="") as fh:
+    with (b3.FRAME / "allocation-core.csv").open(newline="") as fh:
         return {r["yymm"]: r["cluster_id"] for r in csv.DictReader(fh)}
 
 
@@ -171,7 +168,7 @@ def n100_rates(manifest_rows: list[dict]) -> tuple[dict, dict, float]:
         log(f"n100 结果为空 ({N100.name}) — band/cat/global 故障率报 0")
         return {}, {}, 0.0
     by_id = {r["id"]: r for r in manifest_rows}
-    with (b3.EXP / "frame" / "allocation-core.csv").open(newline="") as fh:
+    with (b3.FRAME / "allocation-core.csv").open(newline="") as fh:
         c2b = {r["cluster_id"]: r["year_band"] for r in csv.DictReader(fh)}
     band_stat: dict[str, Counter] = defaultdict(Counter)
     cat_stat: dict[str, Counter] = defaultdict(Counter)
@@ -216,7 +213,7 @@ def largest_remainder(weights: dict[str, float], total: int) -> dict[str, int]:
 def band_cat_share() -> dict[str, dict[str, float]]:
     """cluster-cat-mix → {band: {cat: share}}（带内聚合, 估算 item 产出用）."""
     agg: dict[str, Counter] = defaultdict(Counter)
-    with (b3.EXP / "frame" / "cluster-cat-mix.csv").open(newline="") as fh:
+    with (b3.FRAME / "cluster-cat-mix.csv").open(newline="") as fh:
         for r in csv.DictReader(fh):
             agg[r["year_band"]][r["cat_group"]] += int(r["n"])
     return {

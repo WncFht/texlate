@@ -313,6 +313,32 @@ def load_manifest_rows(corpus: Path, layers) -> list[dict]:
     return rows
 
 
+def manifest_layers(corpus: Path) -> list[str]:
+    """磁盘在册的全部层名：manifest.jsonl→core、manifest_X.jsonl→X。"""
+    out = []
+    for fp in sorted(corpus.glob("manifest*.jsonl")):
+        if fp.name == "manifest.jsonl":
+            out.append("core")
+        elif fp.name.startswith("manifest_"):
+            out.append(fp.stem.removeprefix("manifest_"))
+    return out
+
+
+def corpus_ids(corpus: Path) -> set[str]:
+    """全层 id 并集——去重/qc 单源；新层入库即自动入集，勿再硬编码层清单。"""
+    return {r["id"] for r in load_manifest_rows(corpus, manifest_layers(corpus))}
+
+
+# 仅评测层（held-out）：在册但不得进 dev bench 默认枚举——dev==eval 隔离闸。
+# 评测走显式 ``--layers holdout``；去重仍走 corpus_ids（含 holdout）。
+EVAL_ONLY_LAYERS = frozenset({"holdout"})
+
+
+def dev_layers(corpus: Path) -> list[str]:
+    """dev 可枚举层 = 在盘层 − EVAL_ONLY_LAYERS。"""
+    return [la for la in manifest_layers(corpus) if la not in EVAL_ONLY_LAYERS]
+
+
 # ---------------------------------------------------------------- compile
 def judge_dict(res, *, expect_cjk: bool) -> dict:
     """CompileResult → {compile, verdict, status, l2_attr, taxonomy}——

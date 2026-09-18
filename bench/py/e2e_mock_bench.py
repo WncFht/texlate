@@ -567,11 +567,9 @@ def run_condition(
 
 
 def _v3_layers(corpus: Path) -> list[str]:
-    """corpus_v3 在盘 manifest 层名：manifest.jsonl→core，manifest_X.jsonl→X。"""
-    return [
-        "core" if fp.name == "manifest.jsonl" else fp.stem.removeprefix("manifest_")
-        for fp in sorted(corpus.glob("manifest*.jsonl"))
-    ]
+    """corpus_v3 dev 可枚举层——benchlib.dev_layers 单源（holdout 仅评测层排除，
+    评测走显式 --layers）。"""
+    return benchlib.dev_layers(corpus)
 
 
 def list_projects(
