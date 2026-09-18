@@ -22,39 +22,119 @@ from texlate.textutil import safe_is_file
 if TYPE_CHECKING:
     from texlate.compile.fixloop.engine import Engine, LoopCtx
 
+#: ``\ProvidesX`` 变元间分隔符——空白 + ``%`` 注释到行尾 (TeX 词法同语义:
+#: ``{n} %^^A comment\n{d}`` docstrip 续行实证, clistmap/lambdax)。
+_SEP = r"(?:\s|%[^\n]*)*"
 _DATE_RE = re.compile(
-    r"\\Provides(?:Package|Class|ExplPackage|ExplClass)\s*\{[^}]*\}\s*\[(\d{4})[/.-](\d{2})[/.-](\d{2})"
+    r"\\Provides(?:Package|Class|File|ExplPackage|ExplClass|ExplFile)"
+    + _SEP
+    + r"\{[^}]*\}"
+    + _SEP
+    + r"\[(\d{4})[/.-](\d{2})[/.-](\d{2})"
+)
+#: expl3 自署约定——``\ProvidesExplX{n}{YYYY-MM-DD}{v}`` 日期在花括号第二槽
+#: (texmf 237 处字面实证; csvsimple-l3.sty ``{2024/09/27}{2.7.0}``)。
+_BRACED_DATE_RE = re.compile(
+    r"\\ProvidesExpl(?:Package|Class|File)"
+    + _SEP
+    + r"\{[^}]*\}"
+    + _SEP
+    + r"\{"
+    + _SEP
+    + r"(\d{4})[/.-](\d{2})[/.-](\d{2})"
 )
 #: 日期面宏间址——``\ProvidesPackage{x}[\abx@date\space v...]`` 形（biblatex
 #: v3.12 实证：字面日期不在 bracket 而在同文件 ``\def\abx@date{2018/11/02}``）。
+#: ``[%`` 注释续行形亦收 (expl3.sty ``[%\n \ExplFileDate`` —— texmf 61 处)。
 _DATE_INDIRECT_RE = re.compile(
-    r"\\Provides(?:Package|Class|ExplPackage|ExplClass)\s*\{[^}]*\}\s*\[\s*\\([a-zA-Z@]+)"
+    r"\\Provides(?:Package|Class|File|ExplPackage|ExplClass|ExplFile)"
+    + _SEP
+    + r"\{[^}]*\}"
+    + _SEP
+    + r"\["
+    + _SEP
+    + r"\\([a-zA-Z@_:]+)"
+)
+#: expl3 brace 槽位间址——``\ProvidesExplX{n}{\cs}{v}`` (texmf 52 处:
+#: \ExplFileDate/\ltlab*date/\g@*@date@tl 等, 皆 \def/\tl_* 族赋值或
+#: \GetIdInfo 设定, ctex.sty 实证)。
+_BRACED_INDIRECT_RE = re.compile(
+    r"\\ProvidesExpl(?:Package|Class|File)"
+    + _SEP
+    + r"\{[^}]*\}"
+    + _SEP
+    + r"\{"
+    + _SEP
+    + r"\\([a-zA-Z@_:]+)"
 )
 #: pst-* 族 .tex 核的日期面约定——``\def\filedate{YYYY/MM/DD}`` (pstricks.tex
 #: v1.15 实证)。\ProvidesX 两径全空时兜底, 同 ``_provides_date`` 口径。
 _FILEDATE_RE = re.compile(r"\\def\\filedate\s*\{(\d{4})[/.-](\d{2})[/.-](\d{2})\}")
+#: ``\GetIdInfo $Id: name.ext ver YYYY-MM-DD ...$`` → ``\ExplFileDate``
+#: (expl3-code.tex auxii/auxiii 实证语义; ctex.sty:31 实证形)。ver==-1 时
+#: expl3 置 ``0000/00/00`` 不可用伪日期 → 不取, 保守 None。
+_GETIDINFO_RE = re.compile(
+    r"\\GetIdInfo\s*\$Id:\s*\S+\s+(\S+)\s+(\d{4})[/.-](\d{2})[/.-](\d{2})"
+)
+
+
+def _cs_date(text: str, csname: str) -> tuple[int, int, int] | None:
+    r"""宏间址取日期: ``\def``/``\tl_*``/``\*command`` 字面赋值 → ``\GetIdInfo`` (仅 ``ExplFileDate``)。
+
+    保守口径: 查不到字面日期即 None, 绝不猜——错日期会静默毒化 ld<sd
+    遮蔽比对。
+    """
+    date = r"\s*\{\s*(\d{4})[/.-](\d{2})[/.-](\d{2})"
+    m = re.search(r"\\[egx]?def\s*\\" + re.escape(csname) + date, text)
+    if m is None:
+        # expl3 tl 赋值面: \tl_const:Nn/\tl_(g)set:Nn \c_*_date_tl {d}
+        # (acro/exsheets/xsim 族实证)。
+        m = re.search(
+            r"\\tl_(?:const|g?set):N[a-zA-Z]\s*\\" + re.escape(csname) + date,
+            text,
+        )
+    if m is None:
+        # LaTeX2e 面: \newcommand*\pgfmxfpDate{YYYY-MM-DD} (pgfmath-xfp 实证)。
+        m = re.search(
+            r"\\(?:new|renew|provide)command\*?\s*\{?\\"
+            + re.escape(csname)
+            + r"\}?"
+            + date,
+            text,
+        )
+    if m is not None:
+        return (int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    if csname == "ExplFileDate":
+        m = _GETIDINFO_RE.search(text)
+        if m is not None and m.group(1) != "-1":
+            return (int(m.group(2)), int(m.group(3)), int(m.group(4)))
+    return None
 
 
 def _provides_date(text: str) -> tuple[int, int, int] | None:
-    r"""``\ProvidesX{..}[YYYY/MM/DD]`` 字面日期 → ``(y, m, d)``。
+    r"""``\ProvidesX`` 自署日期 → ``(y, m, d)``, 无证 → ``None``。
 
-    字面缺时 bracket 首 cs 走同文件 ``\def\<cs>{YYYY/MM/DD}`` 宏间址兜底
-    （biblatex v3.12 ``[\abx@date ...]`` 实证；vendored/系统两侧同法，
-    比较仍成立）。两径全空再落 ``\def\filedate{YYYY/MM/DD}`` 兜底——
-    pst-* 族 .tex 核 (wrapper 一体件) 的日期面约定 (pstricks.tex v1.15)。
+    抽取径 (先字面后间址, 与既有口径一致——字面日期面即确证):
+    ``{n}[YYYY/MM/DD]`` bracket 字面 (六变体含 ``File``) → expl3
+    ``{n}{YYYY-MM-DD}`` brace 第二槽 → bracket/brace 首 cs 宏间址
+    (``_cs_date``: ``\def``/``\tl_*``/``\*command`` 字面赋值 +
+    ``\GetIdInfo``→``\ExplFileDate``; 两形谁文本在前解谁) →
+    ``\def\filedate`` 兜底 (pst-* 核约定, pstricks.tex v1.15)。
     """
-    m = _DATE_RE.search(text)
-    if m is None:
-        ind = _DATE_INDIRECT_RE.search(text)
-        if ind is not None:
-            m = re.search(
-                r"\\def\\"
-                + re.escape(ind.group(1))
-                + r"\s*\{(\d{4})[/.-](\d{2})[/.-](\d{2})\}",
-                text,
-            )
-    if m is None:
-        m = _FILEDATE_RE.search(text)
+    m = _DATE_RE.search(text) or _BRACED_DATE_RE.search(text)
+    if m is not None:
+        return (int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    ind = _DATE_INDIRECT_RE.search(text)
+    br = _BRACED_INDIRECT_RE.search(text)
+    if ind is not None and (br is None or ind.start() <= br.start()):
+        target = ind
+    else:
+        target = br
+    if target is not None:
+        d = _cs_date(text, target.group(1))
+        if d is not None:
+            return d
+    m = _FILEDATE_RE.search(text)
     return (int(m.group(1)), int(m.group(2)), int(m.group(3))) if m else None
 
 
