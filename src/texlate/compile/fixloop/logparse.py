@@ -116,6 +116,11 @@ def _is_err_line(ln: str) -> bool:
     )
 
 
+#: ``ErrReport.errs`` 收集上限——全错误面逐条 (err_line, ctx blob) 供次级
+#: 错误派发 (twinhead); 病态刷屏 log 的 '!' 行可上千, 截尾保内存。
+_ERRS_MAX = 32
+
+
 @dataclass(slots=True)
 class ErrReport:
     """一次编译的 log 摘要 (首个错误 + 计数 + tail + 结构定位 + warnings)。"""
@@ -133,6 +138,11 @@ class ErrReport:
     popped_files: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)  # 命中的 warning id
     raw: str = ""  # log 全文 (供 escalate_llm context / cases log_excerpt)
+    #: 每条错误行 (strip 后 err_line, 其起 ≤CTX_LINES 行 ctx blob), 上限
+    #: ``_ERRS_MAX``——次级错误派发 (twinhead) 的全错误面: 首错遮蔽可修
+    #: 孪生时 ``classify_errs``/``err_candidates`` 在此表上逐条分类。
+    #: 首条恒 = ``(first, ctx)``。
+    errs: list[tuple[str, str]] = field(default_factory=list)
 
 
 def parse_log(
@@ -162,6 +172,8 @@ def parse_text(
     for i, ln in enumerate(lines):
         if _is_err_line(ln):
             rep.n_bang += 1
+            if len(rep.errs) < _ERRS_MAX:
+                rep.errs.append((ln.strip(), "\n".join(lines[i : i + CTX_LINES])))
             if first_i is None:
                 first_i = i
                 rep.first = ln.strip()
@@ -238,7 +250,7 @@ class Taxonomy:
                 self.warn.append(e)
         self.warn_cats = {e["id"] for e in self.warn}
 
-    def classify(  # noqa: C901, PLR0912  # scope 三段+抢占评估序即分支
+    def classify(  # scope 三段+抢占评估序即分支
         self, rep: ErrReport, *, timed_out: bool = False
     ) -> tuple[str | None, str | None]:
         """→ (category, payload)。payload 供规则定位 (文件名/字体名/cs 名)。"""
@@ -249,35 +261,7 @@ class Taxonomy:
             if _is_runaway_output(rep.raw or rep.tail):
                 return "runaway_output", None
             return "timeout", None
-        head_hit: tuple[str | None, str | None] | None = None
-        if rep.first:
-            head = rep.first + ("\n" + rep.ctx if rep.ctx else "")
-            for entry, pat in self.head:
-                m = pat.search(head)
-                if not m:
-                    continue
-                pay = _payload(entry, m)
-                sub = entry.get("subclassify")
-                if sub:
-                    # 冒犯域收窄 (audit-2026-09-16): 细分命中须==主 payload
-                    # 或 l.N 行末 cs——ctx8 回显里混入的同名 token (如
-                    # \pdfoutput 环境引用) 不再把真 undefined_cs 抢路由成
-                    # pdftex_prim。
-                    allowed = {pay} if pay else set()
-                    allowed.update(_ctx_tail_css(rep.ctx))
-                    grp = sub.get("payload_group")
-                    for sm in re.finditer(sub["pattern"], head):
-                        spay = (
-                            sm.group(grp)
-                            if grp
-                            else next((g for g in sm.groups() if g), None)
-                        )
-                        if spay is not None and spay in allowed:
-                            head_hit = (sub["into"], spay)
-                            break
-                if head_hit is None:
-                    head_hit = (entry["id"], pay)
-                break
+        head_hit = self.classify_head(rep.first, rep.ctx)
         if head_hit is not None:
             return self._tail_preempt(head_hit, rep)
         # —— 无 '!' 行: tail 段回溯 (交互式缺文件/Emergency) ——
@@ -291,6 +275,70 @@ class Taxonomy:
             if entry.get("warn_id") in rep.warnings:
                 return entry["id"], None
         return ("other" if rep.first else "clean"), None
+
+    def classify_head(
+        self, first: str | None, ctx: str | None
+    ) -> tuple[str | None, str | None] | None:
+        """单条错误 (err 行 + ctx blob) 的 head-scope 分类 → (cat, pay); 无命中 → None。
+
+        ``classify`` 首错分类块原样抽出 (评估序/subclassify 收窄不变)——
+        ``classify_errs``/``err_candidates`` 对 ``rep.errs`` 每条错误行
+        独立分类时无 tail/warn 回溯面, 调用方决定落空兜底。
+        """
+        if not first:
+            return None
+        head = first + ("\n" + ctx if ctx else "")
+        for entry, pat in self.head:
+            m = pat.search(head)
+            if not m:
+                continue
+            pay = _payload(entry, m)
+            sub = entry.get("subclassify")
+            if sub:
+                # 冒犯域收窄 (audit-2026-09-16): 细分命中须==主 payload
+                # 或 l.N 行末 cs——ctx8 回显里混入的同名 token (如
+                # \pdfoutput 环境引用) 不再把真 undefined_cs 抢路由成
+                # pdftex_prim。
+                allowed = {pay} if pay else set()
+                allowed.update(_ctx_tail_css(ctx))
+                grp = sub.get("payload_group")
+                for sm in re.finditer(sub["pattern"], head):
+                    spay = (
+                        sm.group(grp)
+                        if grp
+                        else next((g for g in sm.groups() if g), None)
+                    )
+                    if spay is not None and spay in allowed:
+                        return sub["into"], spay
+            return entry["id"], pay
+        return None
+
+    def err_candidates(
+        self, rep: ErrReport
+    ) -> list[tuple[str | None, str | None, str, str]]:
+        """``rep.errs`` 逐条 head 分类 → (cat, pay, err_line, ctx_blob) 去重保错误序。
+
+        次级错误派发 (twinhead) 的候选面: 携源位供 ``ctx.round`` 重指与
+        dispatch ErrReport 构造。无 head 命中的真实错误行归
+        ``("other", None)``——它确实出现在编译 log, 只是 taxonomy 未收录。
+        """
+        out: list[tuple[str | None, str | None, str, str]] = []
+        seen: set[tuple[str | None, str | None]] = set()
+        for line, blob in rep.errs:
+            cat, pay = self.classify_head(line, blob) or ("other", None)
+            if (cat, pay) in seen:
+                continue
+            seen.add((cat, pay))
+            out.append((cat, pay, line, blob))
+        return out
+
+    def classify_errs(self, rep: ErrReport) -> list[tuple[str | None, str | None]]:
+        """``rep.errs`` 全错误面逐条 head 分类 → (cat, pay) 去重保错误序。
+
+        ``err_candidates`` 的源位投影面——只关心类别构成的消费侧
+        (次级派发决策/judge 型归因) 用这个就够。
+        """
+        return [(cat, pay) for cat, pay, _line, _blob in self.err_candidates(rep)]
 
     def _tail_preempt(
         self, head_hit: tuple[str | None, str | None], rep: ErrReport

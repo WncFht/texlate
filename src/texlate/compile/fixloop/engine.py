@@ -556,6 +556,13 @@ class LoopCtx:
 # 主循环 (spike run_cell L691-792 + docs/08:295-310 伪码)
 # ════════════════════════════════════════════════════════════════
 
+#: 次级错误派发 (twinhead) 每格 best_effort 探针编译上限——xelatex
+#: halt_on_error 单错 log 看不见孪生错, 规则 miss 时跑一发 nonstop
+#: 探针取全错误面 (与 salvage 同参, 结果直接留给兜底复用, 净零编译)。
+_SEC_PROBE_MAX = 2
+#: 单次 miss 最多尝试的次级候选数——dedupe 后保错误序截前 4。
+_SEC_CAND_MAX = 4
+
 
 def find_main_tex(proj: Path) -> Path | None:
     r"""主文件定位：先严格档后宽松档。
@@ -797,6 +804,13 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
 
     prev_sig, sig_n = "", 0
     last_rep: ErrReport | None = None
+    sec_probes = 0  # 次级派发探针计数 (≤_SEC_PROBE_MAX/格)
+    #: 上次探针时的 actions 计数——树无 apply 变化不重探 (重探=同 log 同候选)
+    sec_probe_mark = -1
+    #: 探针编译留给 salvage 兜底复用的槽——只在「探针同轮、无 apply、走向
+    #: 裁决」时填入 (miss 块内探针→候选全灭→break 是原子序, 天然新鲜)。
+    salvage_res: CompResLike | None = None
+    salvage_rep: ErrReport | None = None
     for rnd in range(1, max_rounds + 1):
         if should_cancel is not None and should_cancel():
             raise asyncio.CancelledError
@@ -911,15 +925,83 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
             break
         # —— loop 规则匹配 + 应用 ——
         rule, note = _match_apply(rs, ctx, eng, cat, pay, rep)
+        sec_via: str | None = None
         if rule is None:
-            cell["verdict"] = f"unfixable:{cat}" if not pdf else "dirty_pdf"
-            break
+            # 次级错误派发 (twinhead): 首错无规则可修时, 同 log 后续错误行
+            # 可能才载可修根因 (1206.0291: syntax 首错遮蔽 option_clash 孪生,
+            # geometry_hoist 永远够不到)。候选源 ``rep.errs`` 全错误表
+            # (n_bang≥2, tectonic continue_on_errors 下免费); xelatex
+            # halt_on_error 单错 log 无孪生——未产 pdf 且探针预算未尽时
+            # 跑一发 best_effort 探针编译 (与 salvage 同参), 在其全错误
+            # 面上取候选; 探针结果留给下方兜底 pass 复用, 净零编译。
+            probe_res: CompResLike | None = None
+            probe_rep: ErrReport | None = None
+            cand_rep = rep
+            if (
+                rep.n_bang < 2  # noqa: PLR2004 - 2=单错→多错阈; log 已有全错误面 → 免费候选, 不烧探针
+                and getattr(eng, "halt_on_error", False)
+                and not pdf  # dirty-pdf miss 只给免费候选 (探针闸)
+                and sec_probes < _SEC_PROBE_MAX
+                and len(ctx.ledger.actions) != sec_probe_mark
+            ):
+                probe_res = eng.compile(
+                    wdir,
+                    ctx.io.main_rel,
+                    passes=1,
+                    best_effort=True,
+                    flags=list(ctx.ledger.engine_flags),
+                    **compile_kw,
+                )
+                sec_probes += 1
+                sec_probe_mark = len(ctx.ledger.actions)
+                _note_dropped_flags(ctx, probe_res)
+                probe_rep = _report_of(probe_res, rs.warn_patterns)
+                cand_rep = probe_rep
+                ctx.ledger.events.append(
+                    f"r{rnd} secondary probe: err={probe_rep.n_bang}"
+                )
+            n_sec = 0
+            for c2, p2, eline, eblob in rs.taxonomy.err_candidates(cand_rep):
+                if (c2, p2) == (cat, pay):
+                    continue  # 主错刚 miss 过, 不再重扫
+                if n_sec >= _SEC_CAND_MAX:
+                    break
+                n_sec += 1
+                # ctx.round 重指孪生 (when/ctx_suggests/llm_hook 均见此面),
+                # dispatch rep 携孪生行位 (requester 锚/cases excerpt 用)。
+                ctx.round.err_cat, ctx.round.err_pay = c2, p2
+                ctx.round.err_head = eline + "\n" + eblob
+                rule, note = _match_apply(
+                    rs,
+                    ctx,
+                    eng,
+                    c2,
+                    p2,
+                    ErrReport(first=eline, ctx=eblob, raw=cand_rep.raw),
+                )
+                if rule is not None:
+                    sec_via = f"secondary:{c2}"
+                    ctx.ledger.events.append(
+                        f"r{rnd} secondary dispatch -> {c2}:{p2} ({rule.id})"
+                    )
+                    break
+            if rule is None:
+                # 候选耗尽仍未命中——ctx.round 回指主错, 走原裁决路径;
+                # 探针结果入兜底槽 (同轮无 apply, 状态未变, 复用安全)。
+                ctx.round.err_cat, ctx.round.err_pay = cat, pay
+                ctx.round.err_head = (rep.first or "") + "\n" + (rep.ctx or "")
+                salvage_res, salvage_rep = probe_res, probe_rep
+                cell["verdict"] = f"unfixable:{cat}" if not pdf else "dirty_pdf"
+                break
         if note.startswith(_REJECT_PREFIX):
             cell["verdict"] = f"reject:{rule.id}"
             if r := _note_route(note):
                 cell["reject_route"] = r
             break
-        cell["actions"].append({"round": rnd, "rule": rule.id, "detail": note})
+        action_entry: dict[str, Any] = {"round": rnd, "rule": rule.id, "detail": note}
+        if sec_via is not None:
+            action_entry["via"] = sec_via
+        cell["actions"].append(action_entry)
         ctx.ledger.events.append(f"apply {rule.id}: {note}")
     else:
         cell["verdict"] = "max_rounds"
@@ -946,16 +1028,26 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
         swept = _sweep_bad_aux(wdir)
         if swept:
             ctx.ledger.events.append(f"salvage aux-sweep: {', '.join(swept)}")
-        sres = eng.compile(
-            wdir,
-            ctx.io.main_rel,
-            passes=1,
-            best_effort=True,
-            flags=list(ctx.ledger.engine_flags),
-            **compile_kw,
+        # 次级派发探针复用: miss 轮已跑过同参 best_effort 编译且其间无
+        # apply (状态未变)——直接取回, 不二次烧编译 (twinhead 净零成本)。
+        sres = (
+            salvage_res
+            if salvage_res is not None
+            else eng.compile(
+                wdir,
+                ctx.io.main_rel,
+                passes=1,
+                best_effort=True,
+                flags=list(ctx.ledger.engine_flags),
+                **compile_kw,
+            )
         )
-        _note_dropped_flags(ctx, sres)
-        srep = _report_of(sres, rs.warn_patterns)
+        _note_dropped_flags(ctx, sres)  # 复用探针已记录过——flags_dropped 去重幂等
+        srep = (
+            salvage_rep
+            if salvage_rep is not None
+            else _report_of(sres, rs.warn_patterns)
+        )
         spdf = _res_has_pdf(sres)
         sentry = {
             "round": len(cell["rounds"]) + 1,
