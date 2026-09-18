@@ -555,6 +555,7 @@ rules:
           - {
               pattern: "(\\\\begin\\{document\\})",
               repl: "\\\\makeatletter\\\\ifdefined\\\\NAT@numberstrue\\\\NAT@numberstrue\\\\fi\\\\makeatother\n\\g<0>",
+              match_surface: masked,
             }
     risk: low
     engines:
@@ -590,6 +591,7 @@ rules:
           - {
               pattern: "(\\\\begin\\{document\\})",
               repl: "\\\\ifdefined\\\\pdfstringdefDisableCommands\\\\pdfstringdefDisableCommands{\\\\def\\\\pdo{PDO}}\\\\fi\n\\g<0>",
+              match_surface: masked,
             }
     risk: low
     engines:

@@ -136,6 +136,10 @@ _WHEN_KEYS = frozenset(
     {"always", "any", "category", "payload_required", "main_head_contains"}
 )
 _WHEN_ITEM_KEYS = frozenset({"category", "payload_required", "main_head_contains"})
+#: rewrite 条目 ``match_surface`` 合法值——``masked`` = ``mask_tex`` 等长
+#: 遮盖面匹配 (注释/逐字/失活区不命中)。typo 值若静默退 raw 属 fail-open
+#: (与 ``categry:`` 同类), 装载期拦。
+_MATCH_SURFACES = frozenset({"masked"})
 #: ``condition:`` 段合法键 —— 与 _cond_ok 分派表一一对应。
 _COND_KEYS = frozenset(
     {
@@ -301,6 +305,11 @@ class Ruleset:
                 f"rule {tag}: 未知 rewrite function {rw['function']!r}"
                 for rw in rewrites
                 if "function" in rw and rw["function"] not in builtins.REWRITE_FNS
+            )
+            probs.extend(
+                f"rule {tag}: match_surface 非法 {rw['match_surface']!r}"
+                for rw in rewrites
+                if "match_surface" in rw and rw["match_surface"] not in _MATCH_SURFACES
             )
             mechs = r.get("mechanisms")
             if mechs is not None and not (
