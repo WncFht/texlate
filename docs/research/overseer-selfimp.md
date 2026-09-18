@@ -225,3 +225,12 @@
 - glossimpl stale 交付通知到达（20:29 旧件）——产物早已落 ffe27ca，无僵尸代理，不动作。
 
 - 23:45 巡逻：autogloss-reg 复活后续航正常——arm=off judge rc=0(304 scored)，arm=on 93+/300 判分中。树内两道交付已见未收（lanes 仍跑）：**natbib 道又一自伤实锤**——natbib_numbers_pass(186) 的 `(\begin{document})` 重写无注释遮盖，注释行内 \begin{document} 被 \n 切成两半脱注释成活行（astro-ph/0307344 ms.tex:172/198），首活行先于 \NAT@numberstrue 注入位(:285) 触发 aux 读→compat 炸+preamble-only 103 错级联；修=`begindoc_tail_recomment`(194) 行首带尾文+下游另有行首 begin 者重注释（lookahead 门保合法单 begin{document}Hello 稿）。**restatable 道拆门而非修门**：argspec_lookup_env 去 pkgs 门控——per-file 包扫看不见跨文件导言包名（\input 拆分后体文件无 \usepackage 行）门必假阴→env-name/key 参漏成散文送译（{这是译文}→cleveref 递归炸栈 2105.00111）；\begin{X} 在场即工程级加载证据，\newenvironment 撞名由调用方 reg 先短路，最坏=未收录 env 按签名多吞组（有界少译无腐蚀）。门巡：teammate 零 git 令无违例；4 道在飞。
+
+### 22:55 续 — 孤儿 judge 二次清理
+
+- 杀 352563 的时机落在它 spawn arm-on judge（22:37:02 pid 368850）之后——bash 死了子进程被 reparent 成 PPID=1 孤儿继续跑，与正主 356906 并发写同一 records.jsonl ~5min。已补杀 368850/368879。
+- 完整性：arm-on 167 行全 parse 0 bad——追加写未撕行（judge 记录行或 <4KB PIPE_BUF 内）。代价=孤儿多判 ~60 重复 chunk（同型 judge 同配置，末行胜下对门禁无害，烧少量 token）。收割 REPORT 需注明此双判区间。
+- 时序全还原：run.sh#2 22:31:15 启动 → arm-off 补判 22:31:15→22:36:33 → sleep30 → 22:37:02 spawn arm-on judge → ~22:37:0x 被杀 → 368850 孤儿化跑到 22:55 被清。正主线：22:12 arm-off 判 → 22:32:34 rc=0 → 22:33:03 arm-on judge 356906 起（唯一合法）。
+- 教训补记：kill 父进程不等于灭门——setsid 下子进程不随父死，清理双开必须 `kill 父+子` 同发或先子后父。
+
+- 23:55 **natbib+restatable 收割**：`62b9235` begindoc_tail_recomment（natbib 道 e2e 实证真件 0 错 12 页 PDF；**残口记档**——源规则 natbib_numbers_pass 仍无注释遮盖，_patch_files 级 mask 修法留债，修复道收任意来源裂伤故可立）；`3ecbfe3` env argspec 拆门（restatable 道真纸验证 intro.tex chunk6 不再漏 {theorem}/{main}，重构恒等保持；**残口记档**——宏侧 argspec_lookup 同病 \cref{key} 体文件可漏，lane 故意留门：宏名撞名率高于 env 名，拆门前须先验 reg 短路对 \newcommand 的覆盖）；`26e89d4` 顺带 ruff-format 两叶。891 latex 面绿。roster：ifdiag/othcensus 诊断道在飞；autogloss arm=on 184/300 判分中。本轮 session 累计 23 commit。
