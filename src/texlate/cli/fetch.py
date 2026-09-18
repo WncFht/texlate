@@ -1,7 +1,7 @@
 """``fetch`` 命令 + ``_acquire``/``_echo_acquire`` 取源收口件。
 
 ``Fetcher`` 经 ``_cli.Fetcher`` 调用期解析——测试 monkeypatch ``cli.Fetcher``
-面守恒（``import texlate.server.worker as _w`` 同款缝）。
+面守恒（``worker.seams.X`` 同款缝）。
 """
 
 from __future__ import annotations

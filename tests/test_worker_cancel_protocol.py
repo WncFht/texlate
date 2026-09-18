@@ -29,7 +29,7 @@ pytest.importorskip("starlette.testclient", reason="server extra 未装")
 
 from test_worker_audit_fixes import _mk
 
-import texlate.server.worker.events as worker_events
+import texlate.server.worker.emit as worker_emit
 from texlate.server.events import EventBus
 from texlate.server.store import Store, new_task_id
 from texlate.server.worker import (
@@ -98,7 +98,7 @@ class TestToThreadProtocol:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         ctx, worker, _store = _mk(tmp_path)
-        monkeypatch.setattr(worker_events, "_DRAIN_S", 0.2)
+        monkeypatch.setattr(worker_emit, "_DRAIN_S", 0.2)
         gate = threading.Event()
 
         def hang(_c: TaskCtx) -> None:
@@ -514,7 +514,7 @@ class TestLogBatching:
 
     def test_n_lines_single_event(self, tmp_path: Path) -> None:
         ctx, worker, store = _mk(tmp_path)
-        n = worker_events._LOG_FLUSH_N  # noqa: SLF001
+        n = worker_emit._LOG_FLUSH_N  # noqa: SLF001
         for i in range(n):
             worker._log(ctx, f"l{i}")  # noqa: SLF001
         evs = self._logs(store, ctx.task_id)
@@ -526,7 +526,7 @@ class TestLogBatching:
         ctx, worker, store = _mk(tmp_path)
         worker._log(ctx, "a")  # noqa: SLF001
         assert ctx.log_buf == ["a"], "首行缓冲不立即发"
-        ctx.log_last -= worker_events._LOG_FLUSH_S + 0.01  # noqa: SLF001 -- 推过计时闸
+        ctx.log_last -= worker_emit._LOG_FLUSH_S + 0.01  # noqa: SLF001 -- 推过计时闸
         worker._log(ctx, "b")  # noqa: SLF001
         evs = self._logs(store, ctx.task_id)
         assert len(evs) == 1

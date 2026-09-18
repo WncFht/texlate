@@ -42,7 +42,7 @@ if TYPE_CHECKING:
         ChunkResult,
     )
 
-import texlate.server.worker as _w
+from texlate.server.worker import seams
 
 log = logging.getLogger(__name__)
 
@@ -324,7 +324,7 @@ class _Pdf:
             # finally 内自关），此处 clients 空跳过
             if clients:
                 try:
-                    await _w._aclose_clients(clients)  # noqa: SLF001 -- _w 包 attr 缝
+                    await seams._aclose_clients(clients)  # noqa: SLF001 -- seams 缝
                 except Exception:
                     log.debug("doc client aclose failed", exc_info=True)
         self._check_cancelled(ctx)

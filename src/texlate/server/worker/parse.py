@@ -25,7 +25,7 @@ from ._common import (
 if TYPE_CHECKING:
     from texlate.latex.model import ScanResult
 
-import texlate.server.worker as _w
+from texlate.server.worker import seams
 
 
 class _Parse:
@@ -63,7 +63,7 @@ class _Parse:
         if ctx.base_dir.exists():
             shutil.rmtree(ctx.base_dir)
         shutil.copytree(ctx.src_dir, ctx.base_dir)
-        route = _w.route_project(ctx.base_dir)
+        route = seams.route_project(ctx.base_dir)
         for r in route.reasons:
             self._log(ctx, f"route: {r}")
         if route.reject:

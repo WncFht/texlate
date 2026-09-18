@@ -237,7 +237,7 @@ class TestCompileZhProbe:
             msg = "probe exploded"
             raise RuntimeError(msg)
 
-        monkeypatch.setattr(worker_mod, "target_probe", _boom)
+        monkeypatch.setattr(worker_mod.seams, "target_probe", _boom)
         eng = _ProbeEngine()
         ctx, worker, store = _ctx(tmp_path, engine=eng)
         _zh_tree(ctx, _TEX_MINTED)

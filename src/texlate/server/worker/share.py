@@ -38,7 +38,7 @@ if TYPE_CHECKING:
 
     from texlate.share import ShareManifest
 
-import texlate.server.worker as _w
+from texlate.server.worker import seams
 
 #: 包内 dual.json 落盘后的载入闸——成员上限 _MEMBER_MAX=256MB 只管解压
 #: 对账，loads 前必须再收口：JSON 内存放大 ~10x，32MB 对真包（百级 chunk
@@ -293,7 +293,7 @@ class _Share:
             return False  # 零块任务对账必零命中——让自译面正常收尾
         out_dir = share_dir(self.data_dir)
         try:
-            hit = _w.index_lookup(out_dir / "index.jsonl", key)
+            hit = seams.index_lookup(out_dir / "index.jsonl", key)
         except (OSError, UnicodeDecodeError) as e:
             # 索引是缓存——读挂一律降级 miss，不为查询面 fault 任务
             # （index_lookup 真实异常面只有 OSError/UnicodeDecodeError：
@@ -401,7 +401,7 @@ class _Share:
         return glossary_content_hash(
             user_layer=gfile,
             local_layer=local,
-            fallback_user=_w.USER_GLOSSARY_PATH,
+            fallback_user=seams.USER_GLOSSARY_PATH,
             strict_layers=frozenset(f for f in (gfile, local) if f is not None),
         )
 
@@ -485,7 +485,7 @@ class _Share:
             )
             return
         out_dir = share_dir(self.data_dir)
-        bundle, _mf = _w.share_pack_publish(ctx.root, manifest, out_dir)
+        bundle, _mf = seams.share_pack_publish(ctx.root, manifest, out_dir)
         self._log(
             ctx,
             f"share pack: {bundle.name} → {out_dir}（index.jsonl 已落行）",

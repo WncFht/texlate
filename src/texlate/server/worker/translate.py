@@ -65,7 +65,7 @@ if TYPE_CHECKING:
 
     from texlate.latex.model import Chunk
 
-import texlate.server.worker as _w
+from texlate.server.worker import seams
 
 log = logging.getLogger(__name__)
 
@@ -232,7 +232,7 @@ class _Translate:
                 tail_exc = e
             log.warning("teardown flush failed: %s: %s", type(e).__name__, e)
         self._invalidate_splice(ctx, pre_rows)
-        await _w._aclose_clients(clients)  # noqa: SLF001 -- _w 包 attr 缝
+        await seams._aclose_clients(clients)  # noqa: SLF001 -- seams 缝
         # 无在飞异常才把收尾失败上浮——有则保原异常（AuthTripped 不得错标 internal）
         if tail_exc is not None and not in_flight:
             raise tail_exc
@@ -436,7 +436,7 @@ class _Translate:
                 # client 的用/关收进同一 ephemeral loop——拆两次 asyncio.run
                 # 会在已关 loop 上 aclose（RuntimeError 吞掉 → 连接 FD 泄漏）；
                 # 关完清空清单让外层 finally 不对已关 client 二次 aclose
-                await _w._aclose_clients(clients)  # noqa: SLF001 -- _w 包 attr 缝
+                await seams._aclose_clients(clients)  # noqa: SLF001 -- seams 缝
                 clients.clear()
 
         try:
@@ -451,7 +451,7 @@ class _Translate:
                 # 未走到 _judged 就早退（aclose 内部未跑）——未用 client 在
                 # 新 loop 上关是平凡路径，兜底不敞口
                 try:
-                    asyncio.run(_w._aclose_clients(clients))  # noqa: SLF001 -- _w 包 attr 缝
+                    asyncio.run(seams._aclose_clients(clients))  # noqa: SLF001 -- seams 缝
                 except Exception:
                     log.debug("env_judge client aclose failed", exc_info=True)
         reverted = sorted(cid for cid, keep in verdicts.items() if not keep)
@@ -742,8 +742,8 @@ class _Translate:
             if glossary
             else None
         )
-        if gfile is None and _w.USER_GLOSSARY_PATH.is_file():
-            gfile = _w.USER_GLOSSARY_PATH
+        if gfile is None and seams.USER_GLOSSARY_PATH.is_file():
+            gfile = seams.USER_GLOSSARY_PATH
         user_sig = ""
         if gfile is not None:
             try:

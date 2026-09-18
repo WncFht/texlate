@@ -18,7 +18,6 @@ from bs4 import BeautifulSoup
 if TYPE_CHECKING:
     from bs4.element import Tag
 
-import texlate.server.worker as _w
 from texlate.arxiv.cache import SourceCache
 from texlate.arxiv.fetch import _valid_id, normalize_arxiv_id
 from texlate.arxiv.html import (
@@ -30,6 +29,7 @@ from texlate.arxiv.html import (
 )
 from texlate.arxiv.ratelimit import RateLimiter
 from texlate.server.store import TERMINAL_STATUSES
+from texlate.server.worker import seams
 from texlate.xlat.state import atomic_json
 
 from ._common import (
@@ -121,12 +121,12 @@ class _Html:
             raise _StageError(code="arxiv_fetch", message=f"bad arxiv id: {arxiv_id!r}")
         cache = self._src_cache or SourceCache(self.data_dir / "src-cache")
         own = self._fetcher is None
-        fetcher = self._fetcher or _w.Fetcher(
+        fetcher = self._fetcher or seams.Fetcher(
             RateLimiter(cache.root / "ratelimit.json")
         )
         try:
             try:
-                html = _w.fetch_html(base, version=pin, fetcher=fetcher)
+                html = seams.fetch_html(base, version=pin, fetcher=fetcher)
             except HtmlNotAvailableError as e:
                 # 404/stub——无 HTML 是终态事实，重试无意义
                 raise _StageError(
@@ -136,7 +136,7 @@ class _Html:
                 raise _StageError(
                     code="arxiv_fetch", message=str(e), retryable=True
                 ) from e
-            doc = _w.parse_arxiv_html(html, arxiv_id=base)
+            doc = seams.parse_arxiv_html(html, arxiv_id=base)
             ctx.html_doc = doc
             ver = pin or _resolved_version(html, base)
             fields: dict[str, Any] = {
@@ -145,7 +145,7 @@ class _Html:
             }
             # categories 喂 glossary category 层——eprint 臂同口径 best-effort
             try:
-                meta = _w.fetch_metadata(arxiv_id, fetcher=fetcher)
+                meta = seams.fetch_metadata(arxiv_id, fetcher=fetcher)
             except Exception as e:  # noqa: BLE001 -- 元数据臂不拦主链
                 self._log(ctx, f"arxiv meta: {type(e).__name__}: {e}")
                 meta = None
@@ -177,7 +177,9 @@ class _Html:
         self._abort_if_cancelled(ctx)
         if ctx.html_doc is None:
             html = (ctx.src_dir / "index.html").read_text(encoding="utf-8")
-            ctx.html_doc = _w.parse_arxiv_html(html, arxiv_id=str(ctx.row["arxiv_id"]))
+            ctx.html_doc = seams.parse_arxiv_html(
+                html, arxiv_id=str(ctx.row["arxiv_id"])
+            )
         return ctx.html_doc
 
     def _parse_html(self, ctx: TaskCtx) -> list[dict[str, Any]]:
@@ -302,11 +304,11 @@ class _Html:
         """
         self._abort_if_cancelled(ctx)
         html = (ctx.src_dir / "index.html").read_text(encoding="utf-8")
-        marked = _w.marked_html(html)
+        marked = seams.marked_html(html)
         # ph 片段取自 marked 文档再解析——note 等被标记元素进片段时自带
         # data-chunk：宿主块回插还原的 note 副本仍带锚，footnote 译文
         # 换子树才找得到（用 parse 期 ph_map 则还原件无锚，note 行全 missed）
-        ph_map = _w.parse_arxiv_html(marked).ph_map
+        ph_map = seams.parse_arxiv_html(marked).ph_map
         base_url = f"https://arxiv.org/html/{ctx.row['arxiv_id']}/"
         # 单树两用：sanitize 后先序列化出 en.html，再原地 reinsert 出 zh——
         # 双侧 sanitize 输入同一份 marked，独立解析第二棵纯属浪费

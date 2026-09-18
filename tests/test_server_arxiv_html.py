@@ -32,8 +32,10 @@ def html_client(
     tmp_path: Path,
     clean_env: pytest.MonkeyPatch,
 ) -> Iterator[TestClient]:
-    """arxiv_html 路 e2e：``_w.fetch_html`` 缝回 FIXTURE，Mock 翻译。"""
-    clean_env.setattr("texlate.server.worker.fetch_html", lambda *_a, **_k: FIXTURE)
+    """arxiv_html 路 e2e：``seams.fetch_html`` 缝回 FIXTURE，Mock 翻译。"""
+    clean_env.setattr(
+        "texlate.server.worker.seams.fetch_html", lambda *_a, **_k: FIXTURE
+    )
     app = make_app(
         tmp_path,
         start_worker=True,
@@ -125,7 +127,7 @@ class TestArxivHtmlE2E:
             aid = "2401.00010"
             raise HtmlNotAvailableError(aid, status=HTTPStatus.NOT_FOUND)
 
-        clean_env.setattr("texlate.server.worker.fetch_html", _na)
+        clean_env.setattr("texlate.server.worker.seams.fetch_html", _na)
         tid = _post_html(html_client, "2401.00010")
         snap = wait_terminal(html_client, tid)
         assert snap["status"] == "fault"

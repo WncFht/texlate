@@ -60,7 +60,7 @@ class TestF3RejectPartial:
         from texlate.compile.engine import RouteDecision  # noqa: PLC0415
 
         monkeypatch.setattr(
-            worker_mod,
+            worker_mod.seams,
             "route_project",
             lambda _root: RouteDecision(
                 engines=[], reject="policy_deny", reasons=["deny"]
@@ -436,8 +436,7 @@ class TestCrossTenantReuse:
         tid_b = r.json()["task_id"]
         assert tid_b != tid
         assert (
-            client.get(f"/api/task/{tid_b}", headers=hdr_b).status_code
-            == HTTPStatus.OK
+            client.get(f"/api/task/{tid_b}", headers=hdr_b).status_code == HTTPStatus.OK
         )
         row_a = client.portal.call(partial(store.get, tid))
         row_b = client.portal.call(partial(store.get, tid_b))

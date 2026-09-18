@@ -39,7 +39,7 @@ if TYPE_CHECKING:
     from texlate.repair_l2 import TreeRun
     from texlate.xlat.pipeline import ChunkResult
 
-import texlate.server.worker as _w
+from texlate.server.worker import seams
 
 log = logging.getLogger(__name__)
 
@@ -135,7 +135,7 @@ class _Retranslate:
             # 与本 job 同 loop，直 await 关
             with contextlib.suppress(Exception):
                 self._persist_usage(ctx, usage)
-            await _w._aclose_clients(clients)  # noqa: SLF001 -- _w 包 attr 缝
+            await seams._aclose_clients(clients)  # noqa: SLF001 -- seams 缝
         db_cid = str(target["chunk_id"])
         if r is None:
             self._retr_mark(ctx, db_cid, "provider_error", seq, str(target["status"]))

@@ -14,32 +14,14 @@
 
 ``PipelineWorker`` 在本模块装配——方法集按 stage 拆在同包 mixin 模块里
 （``_Fetch``/``_Parse``/``_Translate``/``_Share``/``_Compile``/``_Pdf``
-等），多继承保持单类语义与 ``type(self)`` spawn 不变。子模块对下列
-monkeypatch 缝一律经 ``import texlate.server.worker as _w`` 在调用时
-查名——``_w.engine_for`` 等——使 ``monkeypatch.setattr(worker_mod, …)``
-继续生效。
+等），多继承保持单类语义与 ``type(self)`` spawn 不变。monkeypatch 缝
+集中在 ``seams`` 子模块——子模块调用点 ``seams.X`` 查名；本模块
+``__getattr__`` 把缝名转指 seams，``worker.X`` 直读解析到同一对象
+（patch 打 ``worker.seams.X`` 即拦截全部消费点）。
 """
 
 from __future__ import annotations
 
-import hashlib  # noqa: F401 -- worker_mod.hashlib 缝（测试 patch sha256）
-
-from texlate.align import build_alignment  # noqa: F401 -- test monkeypatch 面
-from texlate.arxiv.fetch import (  # noqa: F401 -- test monkeypatch 面
-    Fetcher,
-    acquire_source,
-)
-from texlate.arxiv.html import (  # noqa: F401 -- test monkeypatch 面
-    fetch_html,
-    marked_html,
-    parse_arxiv_html,
-)
-from texlate.arxiv.meta import fetch_metadata  # noqa: F401 -- test monkeypatch 面
-from texlate.compile.engine import (  # noqa: F401 -- test monkeypatch 面
-    engine_for,
-    route_project,
-)
-from texlate.compile.probe import target_probe  # noqa: F401 -- test monkeypatch 面
 from texlate.repair import resolve_glossary_path, ruleset_with_baseline
 from texlate.server.upload import (
     _md_member,
@@ -47,11 +29,8 @@ from texlate.server.upload import (
     sniff_upload,
     unpack_zip,
 )
-from texlate.share import index_lookup  # noqa: F401 -- test monkeypatch 面
-from texlate.xlat.glossary import (
-    USER_GLOSSARY_PATH,  # noqa: F401 -- test monkeypatch 面
-)
 
+from . import seams
 from ._common import (
     _DB_TO_PIPE,
     _ENV_TIMEOUT_MAX_S,
@@ -97,11 +76,12 @@ from .compile import (
     _sync_fixed_sources,
 )
 from .core import _Core
-from .events import _Events
+from .emit import _Events
 from .fetch import _Fetch
 from .html import _Html
 from .parse import _Parse
 from .pdf import _Pdf
+from .retranslate import _Retranslate
 from .runner import TaskRunner
 from .share import (
     _Share,
@@ -112,18 +92,36 @@ from .share import (
 )
 from .translate import _Translate
 
-#: 心跳间隔（updated_at 供 SSE/列表页判活）——定义在包顶层是 patch 缝
-_HEARTBEAT_S = 5.0
-
 
 class PipelineWorker(
-    _Core, _Events, _Fetch, _Html, _Parse, _Translate, _Share, _Compile, _Pdf
+    _Core,
+    _Events,
+    _Fetch,
+    _Html,
+    _Parse,
+    _Translate,
+    _Share,
+    _Compile,
+    _Pdf,
+    _Retranslate,
 ):
     """单任务管线驱动。注入面：translator_factory / fetcher / engine_factory。
 
     ``translator_factory(ctx) -> Translator``——缺省按凭证有无分流
     GatewayTranslator / MockTranslator（``TEXLATE_TRANSLATOR`` env 可强制）。
     """
+
+
+def __getattr__(name: str) -> object:
+    # 缝名转指 seams 子模块——patch 打 seams 后 `worker.X` 直读拿到同一替身
+    if name in seams.__all__:
+        return getattr(seams, name)
+    msg = f"module {__name__!r} has no attribute {name!r}"
+    raise AttributeError(msg)
+
+
+def __dir__() -> list[str]:
+    return sorted(set(__all__) | set(seams.__all__))
 
 
 __all__ = [

@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from texlate.server.store import Store
     from texlate.server.worker import PipelineWorker
 
-import texlate.server.worker as _w
+from texlate.server.worker import seams
 
 log = logging.getLogger(__name__)
 
@@ -351,7 +351,7 @@ class TaskRunner:
     async def _heartbeat_loop(self) -> None:
         """每 ``_HEARTBEAT_S`` 秒 bump 当前任务 updated_at。"""
         while True:
-            await asyncio.sleep(_w._HEARTBEAT_S)  # noqa: SLF001 -- _w 包 attr 缝
+            await asyncio.sleep(seams._HEARTBEAT_S)  # noqa: SLF001 -- seams 缝
             # 快照防竞态：dispatch finally 可把 _current 清 None，分开读
             # check/use 会 TypeError 杀死 ticker
             cur = self._current

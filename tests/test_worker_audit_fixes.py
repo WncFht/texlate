@@ -187,7 +187,7 @@ class TestGlossaryLayers:
             },
         )
         monkeypatch.setattr(
-            "texlate.server.worker.fetch_metadata",
+            "texlate.server.worker.seams.fetch_metadata",
             lambda arxiv_id, *, fetcher: PaperMeta(  # noqa: ARG005
                 arxiv_id=arxiv_id,
                 resolved_version=1,
@@ -216,7 +216,7 @@ class TestGlossaryLayers:
             },
         )
         monkeypatch.setattr(
-            "texlate.server.worker.fetch_metadata",
+            "texlate.server.worker.seams.fetch_metadata",
             lambda _id, *, fetcher: None,  # noqa: ARG005
         )
         ctx.root.mkdir(parents=True, exist_ok=True)
@@ -407,7 +407,6 @@ class TestFixloopFix:
         （tmp/b8-e2e/halt-on-error-ruling.md）。无 ``engine_factory``
         时经 ``engine_for`` 真路径构造，钉住旋钮方向。
         """
-        import texlate.server.worker as worker_mod  # noqa: PLC0415
 
         ctx, worker, _store = _mk(
             tmp_path,
@@ -438,7 +437,7 @@ class TestFixloopFix:
             "actions": [],
         }
         monkeypatch.setattr("texlate.repair.fixloop", lambda *_a, **_kw: cell)
-        monkeypatch.setattr(worker_mod, "engine_for", fake_engine_for)
+        monkeypatch.setattr("texlate.server.worker.seams.engine_for", fake_engine_for)
         first = CompRes(engine="tectonic", ok=True, pdf=None, log=LogInfo(n_errors=2))
         res = worker._run_fixloop(  # noqa: SLF001
             ctx, work, RecordingEngine("tectonic"), first
@@ -549,7 +548,7 @@ class TestBuildDualThread:
             seen_tid.append(threading.get_ident())
             return real_align(en, zh)
 
-        monkeypatch.setattr(worker_mod, "build_alignment", spy_align)
+        monkeypatch.setattr(worker_mod.seams, "build_alignment", spy_align)
 
         async def drive() -> int:
             worker._loop = asyncio.get_running_loop()  # noqa: SLF001
@@ -750,7 +749,7 @@ class TestPostResolveDedup:
             },
         )
         monkeypatch.setattr(
-            "texlate.server.worker.fetch_metadata",
+            "texlate.server.worker.seams.fetch_metadata",
             lambda _id, *, fetcher: None,  # noqa: ARG005
         )
         if kind != "arxiv":
@@ -1106,7 +1105,7 @@ class TestHeartbeatLoop:
                 raise StoreError(msg)
 
             monkeypatch.setattr(store, "heartbeat", _boom)
-            monkeypatch.setattr("texlate.server.worker._HEARTBEAT_S", 0.01)
+            monkeypatch.setattr("texlate.server.worker.seams._HEARTBEAT_S", 0.01)
 
             async def drive() -> None:
                 dummy = asyncio.create_task(asyncio.sleep(60))
@@ -1335,7 +1334,7 @@ class TestAcloseTolerated:
             msg = "aclose boom"
             raise RuntimeError(msg)
 
-        monkeypatch.setattr(worker_mod, "_aclose_clients", boom)
+        monkeypatch.setattr(worker_mod.seams, "_aclose_clients", boom)
         client = ChatClient("http://127.0.0.1:9", "k")
         worker._teardown_llm_hook(ctx, None, [client])  # noqa: SLF001 -- 不抛即过
 
@@ -1461,8 +1460,6 @@ class TestRegisterPrecomputed:
         """worker 线程调 ``_register``：读盘+sha256 在调用线程，put_file 仍在 loop。"""
         import hashlib  # noqa: PLC0415
 
-        import texlate.server.worker as worker_mod  # noqa: PLC0415
-
         ctx, worker, store = _mk(tmp_path)
         ctx.root.mkdir(parents=True, exist_ok=True)
         (ctx.root / "big.bin").write_bytes(b"x" * 64)
@@ -1479,7 +1476,7 @@ class TestRegisterPrecomputed:
             put_tids.append(threading.get_ident())
             return real_put(*a, **kw)
 
-        monkeypatch.setattr(worker_mod.hashlib, "sha256", spy_sha)
+        monkeypatch.setattr(hashlib, "sha256", spy_sha)
         monkeypatch.setattr(store, "put_file", spy_put)
 
         async def drive() -> int:
@@ -1822,7 +1819,7 @@ class TestCacheUserGlossarySig:
         udir.mkdir()
         ufile = udir / "glossary.yaml"
         ufile.write_text("x: 一\n", encoding="utf-8")
-        monkeypatch.setattr(worker_mod, "USER_GLOSSARY_PATH", ufile)
+        monkeypatch.setattr(worker_mod.seams, "USER_GLOSSARY_PATH", ufile)
         ctx, worker, _store = _mk(tmp_path)
         p1 = worker._make_cache(ctx)._prefix  # noqa: SLF001
         ufile.write_text("x: 二\n", encoding="utf-8")
@@ -1904,7 +1901,7 @@ class TestRunFixloopWiring:
             captured["eng"] = eng
             return {"verdict": "clean", "rounds": [], "actions": []}
 
-        monkeypatch.setattr(worker_mod, "engine_for", fake_engine_for)
+        monkeypatch.setattr(worker_mod.seams, "engine_for", fake_engine_for)
         monkeypatch.setattr("texlate.repair.fixloop", fake_fixloop)
         work = tmp_path / "build-zh"
         work.mkdir()
@@ -1932,7 +1929,7 @@ class TestRunFixloopWiring:
             raise AssertionError
 
         monkeypatch.setattr("texlate.repair.fixloop", fake_fixloop)
-        monkeypatch.setattr(worker_mod, "engine_for", forbidden)
+        monkeypatch.setattr(worker_mod.seams, "engine_for", forbidden)
         work = tmp_path / "build-zh"
         work.mkdir()
         main_eng = RecordingEngine("tectonic")
@@ -1967,7 +1964,7 @@ class TestRunFixloopWiring:
             raise AssertionError
 
         monkeypatch.setattr("texlate.repair.fixloop", fake_fixloop)
-        monkeypatch.setattr(worker_mod, "engine_for", forbidden)
+        monkeypatch.setattr(worker_mod.seams, "engine_for", forbidden)
         work = tmp_path / "build-zh"
         work.mkdir()
         worker._run_fixloop(ctx, work, RecordingEngine("xelatex"), object())  # noqa: SLF001
@@ -2005,12 +2002,12 @@ class TestFetcherOwnership:
                 closed.append(True)
 
         monkeypatch.setattr(
-            worker_mod,
+            worker_mod.seams,
             "Fetcher",
             lambda *_a, **_kw: _RecFetcher(make_targz({"main.tex": MINI_TEX})),
         )
         monkeypatch.setattr(
-            worker_mod,
+            worker_mod.seams,
             "fetch_metadata",
             lambda _id, *, fetcher: None,  # noqa: ARG005
         )
@@ -2033,12 +2030,12 @@ class TestFetcherOwnership:
                 closed.append(True)
 
         monkeypatch.setattr(
-            worker_mod,
+            worker_mod.seams,
             "Fetcher",
             lambda *_a, **_kw: _RecFetcher(make_targz({"main.tex": MINI_TEX})),
         )
         monkeypatch.setattr(
-            worker_mod,
+            worker_mod.seams,
             "acquire_source",
             lambda *_a, **_kw: (_ for _ in ()).throw(OSError("boom")),
         )
@@ -2267,7 +2264,7 @@ class TestShareLookupExceptSurface:
         def boom(*_a: object, **_kw: object) -> None:
             raise ShareError
 
-        monkeypatch.setattr(worker_mod, "index_lookup", boom)
+        monkeypatch.setattr(worker_mod.seams, "index_lookup", boom)
         with pytest.raises(ShareError):
             worker._share_lookup(ctx)  # noqa: SLF001
 
@@ -2361,7 +2358,7 @@ class TestResidAuditLoops:
                 raise sqlite3.OperationalError(msg)
 
         monkeypatch.setattr(store, "heartbeat", flaky)
-        monkeypatch.setattr("texlate.server.worker._HEARTBEAT_S", 0.01)
+        monkeypatch.setattr("texlate.server.worker.seams._HEARTBEAT_S", 0.01)
 
         async def drive() -> None:
             runner.start()
@@ -2430,14 +2427,14 @@ class TestResidAuditSharePackGate:
 
         import texlate.server.worker as worker_mod  # noqa: PLC0415
 
-        orig_publish = worker_mod.share_pack_publish
+        orig_publish = worker_mod.seams.share_pack_publish
         orig_manifest = PipelineWorker.share_pack_manifest
-        worker_mod.share_pack_publish = fake_publish
+        worker_mod.seams.share_pack_publish = fake_publish
         PipelineWorker.share_pack_manifest = lambda _s, _c, _r: object()  # type: ignore[method-assign]
         try:
             worker._share_pack_try(ctx)  # noqa: SLF001 -- 主线程直调（_loop 未钉）
         finally:
-            worker_mod.share_pack_publish = orig_publish
+            worker_mod.seams.share_pack_publish = orig_publish
             PipelineWorker.share_pack_manifest = orig_manifest  # type: ignore[method-assign]
         return calls
 

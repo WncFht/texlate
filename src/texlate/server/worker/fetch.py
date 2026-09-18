@@ -8,7 +8,6 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-import texlate.server.worker as _w
 from texlate.arxiv.cache import (
     SourceCache,
 )
@@ -28,6 +27,7 @@ from texlate.server.upload import (
     _safe_name,
     unpack_zip,
 )
+from texlate.server.worker import seams
 
 from ._common import (
     _FETCH_NO_RETRY,
@@ -89,11 +89,11 @@ class _Fetch:
         arxiv_id = str(ctx.row["arxiv_id"])
         cache = self._src_cache or SourceCache(self.data_dir / "src-cache")
         own_fetcher = self._fetcher is None
-        fetcher = self._fetcher or _w.Fetcher(
+        fetcher = self._fetcher or seams.Fetcher(
             RateLimiter(cache.root / "ratelimit.json")
         )
         try:
-            res = _w.acquire_source(arxiv_id, fetcher=fetcher, cache=cache)
+            res = seams.acquire_source(arxiv_id, fetcher=fetcher, cache=cache)
             self._abort_if_cancelled(ctx)  # 网络段跑完先收敛——拷贝/登记是白费
             if res.status not in (AcquireStatus.OK, AcquireStatus.HIT):
                 code = (
@@ -116,7 +116,7 @@ class _Fetch:
             # cache meta.json 无 categories——单独 Atom/OAI 拉一次喂
             # glossary category 层；best-effort，挂了只丢该层术语
             try:
-                meta = _w.fetch_metadata(arxiv_id, fetcher=fetcher)
+                meta = seams.fetch_metadata(arxiv_id, fetcher=fetcher)
             except Exception as e:  # noqa: BLE001 -- 元数据臂不拦主链
                 self._log(ctx, f"arxiv meta: {type(e).__name__}: {e}")
                 meta = None

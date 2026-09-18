@@ -97,16 +97,16 @@ def _no_user_glossary(tmp_path: Path) -> Iterator[None]:
     missing = tmp_path / "no-user-glossary.yaml"
     orig = glossary_mod.USER_GLOSSARY_PATH
     glossary_mod.USER_GLOSSARY_PATH = missing
-    worker_mod = sys.modules.get("texlate.server.worker")
-    worker_orig = getattr(worker_mod, "USER_GLOSSARY_PATH", None)
-    if worker_mod is not None:
-        worker_mod.USER_GLOSSARY_PATH = missing
+    seams_mod = sys.modules.get("texlate.server.worker.seams")
+    seams_orig = getattr(seams_mod, "USER_GLOSSARY_PATH", None)
+    if seams_mod is not None:
+        seams_mod.USER_GLOSSARY_PATH = missing
     try:
         yield
     finally:
         glossary_mod.USER_GLOSSARY_PATH = orig
-        if worker_mod is not None:
-            worker_mod.USER_GLOSSARY_PATH = worker_orig
+        if seams_mod is not None:
+            seams_mod.USER_GLOSSARY_PATH = seams_orig
 
 
 @pytest.fixture(autouse=True)

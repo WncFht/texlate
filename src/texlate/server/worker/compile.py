@@ -88,7 +88,7 @@ if TYPE_CHECKING:
     from texlate.compile.probe import ProbeReport
     from texlate.xlat.client import ChatClient
 
-import texlate.server.worker as _w
+from texlate.server.worker import seams
 
 log = logging.getLogger(__name__)
 
@@ -351,7 +351,7 @@ class _Compile:
         if self._engine_factory is not None:
             return self._engine_factory(eng)
         kw: dict[str, Any] = {"halt_on_error": False} if eng == "xelatex" else {}
-        return _w.engine_for(eng, **kw)
+        return seams.engine_for(eng, **kw)
 
     def _probe_target(self, ctx: TaskCtx, work: Path) -> ProbeReport | None:
         r"""``target_probe`` best-effort 壳：编译前声明依赖预扫 + 信号播报。
@@ -364,7 +364,7 @@ class _Compile:
         探针崩溃只记行返回 ``None``，绝不阻塞编译。
         """
         try:
-            rep = _w.target_probe(work, ctx.main_rel, deps_index=self._deps_index)
+            rep = seams.target_probe(work, ctx.main_rel, deps_index=self._deps_index)
         except Exception as e:  # noqa: BLE001 -- 探针是旁路诊断，崩不拖编译
             self._log(ctx, f"probe crashed: {type(e).__name__}: {e}")
             return None
@@ -503,7 +503,7 @@ class _Compile:
             return eng
         if self._engine_factory is not None:
             return self._engine_factory("xelatex")
-        return _w.engine_for("xelatex", halt_on_error=True)
+        return seams.engine_for("xelatex", halt_on_error=True)
 
     def _repair_event(self, ctx: TaskCtx, etype: str, payload: dict[str, Any]) -> None:
         """修复链实况帧发布：``bus.publish`` 经 ``_on_loop`` 回弹 + BYOK 秘钥 scrub。
@@ -602,7 +602,7 @@ class _Compile:
             make_engine=lambda: (
                 self._engine_factory("xelatex")
                 if self._engine_factory is not None
-                else _w.engine_for("xelatex", halt_on_error=False)
+                else seams.engine_for("xelatex", halt_on_error=False)
             ),
             should_cancel=ctx.cancel_flag.is_set,
         )
@@ -693,7 +693,7 @@ class _Compile:
                 log.debug("llm_hook usage persist failed", exc_info=True)
         if clients:
             try:
-                asyncio.run(_w._aclose_clients(clients))  # noqa: SLF001 -- _w 包 attr 缝
+                asyncio.run(seams._aclose_clients(clients))  # noqa: SLF001 -- seams 缝
             except Exception:
                 log.debug("llm_hook client aclose failed", exc_info=True)
 
@@ -779,7 +779,7 @@ class _Compile:
                 # client 用/关收进同一 ephemeral loop——拆两次 asyncio.run
                 # 会在已关 loop 上 aclose（RuntimeError 吞掉 → FD 泄漏）；
                 # 清空清单让外层 finally 不对已关 client 二次 aclose
-                await _w._aclose_clients(clients)  # noqa: SLF001 -- _w 包 attr 缝
+                await seams._aclose_clients(clients)  # noqa: SLF001 -- seams 缝
                 clients.clear()
 
         def _recompile() -> tuple[CompRes, Verdict]:
@@ -819,7 +819,7 @@ class _Compile:
                 # 未走到 _retr 的早退（localize 即崩）——未用 client 在新
                 # loop 上关是平凡路径；_retr 跑过的已自清清单跳过
                 try:
-                    asyncio.run(_w._aclose_clients(clients))  # noqa: SLF001 -- _w 包 attr 缝
+                    asyncio.run(seams._aclose_clients(clients))  # noqa: SLF001 -- seams 缝
                 except Exception:
                     log.debug("l2 client aclose failed", exc_info=True)
         if v2 is not None:
@@ -1042,7 +1042,7 @@ class _Compile:
             }
         # named-dest 单调链锚点同步（texlate.align）；缺侧/无公共锚 → 同页映射
         doc["alignment"] = (
-            _w.build_alignment(ctx.root / en["path"], ctx.root / zh["path"])
+            seams.build_alignment(ctx.root / en["path"], ctx.root / zh["path"])
             if en and zh
             else {"kind": "pages"}
         )
