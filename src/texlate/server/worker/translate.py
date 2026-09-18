@@ -516,12 +516,45 @@ class _Translate:
 
     # ------------------------------------------------------------ translator
 
-    def _make_translator(self, ctx: TaskCtx) -> Translator:
-        """默认工厂：key 或 ``TEXLATE_TRANSLATOR=gateway`` → 网关，否则 Mock。
+    def _retry_model_of(self, ctx: TaskCtx, model: str) -> str:
+        """``options.retry_model`` → 备选模型名；缺省/同 primary/非法 → ``""``。
 
-        ``options.retry_model`` 仅在默认网关路径生效——备选模型与 primary
-        同 client（同 endpoint+key），``translator_factory``/Mock 注入路径
-        由调用方自担语义不包。
+        非法值记 ``retry_model`` warning 后按无备选处理——不挡主链翻译。
+        """
+        retry_model = str(ctx.options().get("retry_model") or "").strip()
+        if retry_model and retry_model != model:
+            try:
+                return validate_model(retry_model)
+            except ValueError:
+                self._warning(
+                    ctx,
+                    "retry_model",
+                    f"options.retry_model {retry_model!r} 非法，忽略",
+                )
+        return ""
+
+    def _resolve_translator(
+        self,
+        ctx: TaskCtx,
+        *,
+        sink: Callable[[UsageRecord], None] | None = None,
+        retry: bool = True,
+    ) -> Translator:
+        """统一 ``Translator`` 构造决策链（``_make/_doc/_llm_hook_pack`` 同源）。
+
+        序即优先级：``translator_factory`` 注入 → ``TEXLATE_TRANSLATOR=mock``
+        → 网关臂（``force=gateway`` 或有 ``api_key``）→ 无 key 回退 Mock。
+
+        网关臂两形态：``sink`` 给定 = ephemeral-loop 消费面（doc 路/llm_hook
+        的 ``asyncio.run`` 临时 loop——共享 client 跨 loop 复用会炸、aclose
+        回不去已关 loop）→ ``_PerCallTranslator`` 即开即关；``sink=None`` =
+        主链共享 client ``GatewayTranslator``，``retry_model`` 经
+        ``_FallbackTranslator`` 接备选。``retry=False`` 给不接
+        ``retry_model`` 的旁路臂（llm_hook——备选模型烧 token 的语义不擅自
+        加）用。
+
+        无 key 且未显式 mock/gateway 时静默假译文是生产事故面，必须留痕：
+        ``_mock_warned`` 按 task_id 去重记 ``mock_translator`` warning。
         """
         if self._translator_factory is not None:
             return self._translator_factory(ctx)
@@ -529,24 +562,23 @@ class _Translate:
         if force == "mock":
             return MockTranslator()
         if force == "gateway" or ctx.secrets.api_key:
+            model = ctx.secrets.model or "swe-2-medium"
+            retry_model = self._retry_model_of(ctx, model) if retry else ""
+            if sink is not None:
+                return _PerCallTranslator(
+                    ctx.secrets.base_url,
+                    ctx.secrets.api_key,
+                    model,
+                    sink,
+                    retry_model=retry_model,
+                )
             client = ChatClient(ctx.secrets.base_url, ctx.secrets.api_key)
-            primary = GatewayTranslator(client, ctx.secrets.model or "swe-2-medium")
-            retry_model = str(ctx.options().get("retry_model") or "").strip()
-            if retry_model and retry_model != primary.model:
-                try:
-                    retry_model = validate_model(retry_model)
-                except ValueError:
-                    self._warning(
-                        ctx,
-                        "retry_model",
-                        f"options.retry_model {retry_model!r} 非法，忽略",
-                    )
-                else:
-                    return _FallbackTranslator(
-                        primary, GatewayTranslator(client, retry_model)
-                    )
+            primary = GatewayTranslator(client, model)
+            if retry_model:
+                return _FallbackTranslator(
+                    primary, GatewayTranslator(client, retry_model)
+                )
             return primary
-        # 无 key 且未显式 mock/gateway——静默假译文是生产事故面，必须留痕
         if ctx.task_id not in self._mock_warned:
             self._mock_warned.add(ctx.task_id)
             self._warning(
@@ -556,46 +588,27 @@ class _Translate:
             )
         return MockTranslator()
 
+    def _make_translator(self, ctx: TaskCtx) -> Translator:
+        """默认工厂：key 或 ``TEXLATE_TRANSLATOR=gateway`` → 网关，否则 Mock。
+
+        ``options.retry_model`` 仅在默认网关路径生效——备选模型与 primary
+        同 client（同 endpoint+key），``translator_factory``/Mock 注入路径
+        由调用方自担语义不包。决策链本体在 ``_resolve_translator``。
+        """
+        return self._resolve_translator(ctx)
+
     def _doc_translator(
         self, ctx: TaskCtx, sink: Callable[[UsageRecord], None]
     ) -> Translator:
-        """``_run_doc`` 专用 translator——决策序与 ``_make_translator`` 同口径。
+        """``_run_doc`` 专用 translator——``_resolve_translator`` 的 per-call 臂。
 
-        差异在网关臂：``export_document`` 内嵌管线在 to_thread 的
-        ephemeral ``asyncio.run`` loop 里消费 client——共享 client 的
-        aclose 回不去该 loop（已关），跨 loop 关连接炸 RuntimeError
-        被吞成 FD 泄漏。换 per-call 形态（``_PerCallTranslator``）即开
-        即关；``retry_model`` 经其内建备选臂保持 option 面等价。
-        factory/Mock 注入路径原样（测试桩语义调用方担）。
+        ``export_document`` 内嵌管线在 to_thread 的 ephemeral ``asyncio.run``
+        loop 里消费 client——共享 client 的 aclose 回不去该 loop（已关），
+        跨 loop 关连接炸 RuntimeError 被吞成 FD 泄漏。``sink`` 给定即开
+        ``_PerCallTranslator``；``retry_model`` 经其内建备选臂保持 option
+        面等价。factory/Mock 注入路径原样（测试桩语义调用方担）。
         """
-        if self._translator_factory is not None:
-            return self._translator_factory(ctx)
-        force = env_str("TEXLATE_TRANSLATOR")
-        if force == "mock":
-            return MockTranslator()
-        if force == "gateway" or ctx.secrets.api_key:
-            model = ctx.secrets.model or "swe-2-medium"
-            retry_model = str(ctx.options().get("retry_model") or "").strip()
-            if retry_model and retry_model != model:
-                try:
-                    retry_model = validate_model(retry_model)
-                except ValueError:
-                    self._warning(
-                        ctx,
-                        "retry_model",
-                        f"options.retry_model {retry_model!r} 非法，忽略",
-                    )
-                    retry_model = ""
-            else:
-                retry_model = ""
-            return _PerCallTranslator(
-                ctx.secrets.base_url,
-                ctx.secrets.api_key,
-                model,
-                sink,
-                retry_model=retry_model,
-            )
-        return self._make_translator(ctx)  # 无 key → mock 警告链同源
+        return self._resolve_translator(ctx, sink=sink)
 
     def _glossary_path(
         self, ctx: TaskCtx, gpath: str, glossary_dir: str

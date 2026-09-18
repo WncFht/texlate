@@ -66,7 +66,6 @@ from ._common import (
     SegmentCache,
     TaskCtx,
     _new_usage_meter,
-    _PerCallTranslator,
     _scrub_deep,
     _tgt_lang,
     _translator_clients,
@@ -646,7 +645,7 @@ class _Compile:
             return None, None, []
         usage, sink = _new_usage_meter()
         model = ctx.secrets.model or "swe-2-medium"
-        tr = _PerCallTranslator(ctx.secrets.base_url, ctx.secrets.api_key, model, sink)
+        tr = self._resolve_translator(ctx, sink=sink, retry=False)
         return make_llm_hook(translator=tr, model=model), usage, []
 
     def _teardown_llm_hook(
