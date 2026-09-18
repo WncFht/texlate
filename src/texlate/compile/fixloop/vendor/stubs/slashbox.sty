@@ -1,13 +1,89 @@
-% texlate vendored stub — 原许可禁分发，最小兼容面
-% slashbox.sty S1 替身：无许可声明（TL 除名件）→ 不可 vendored。
-% \slashbox/\backslashbox 退化为单元格内上下堆叠文本（tabular 安全）。
-% \makebox 受限横态下参内 \\ 变 tabular 行尾炸 Missing/Extra }
-% （1109.5364 \backslashbox{\\climate\\ variable}{zone} 实证）——
-% \shortstack 把 \\ 当栈内换行消化，渲染降级但不再硬死。
+% texlate vendored stub — slashbox.sty 替身
+% 原件 (K. Yasuoka 1993) 无许可声明、TL2020 除名 → 真件不可随包 vendored,
+% 本件按公开界面同义重写 (picture-mode 对角线 + 双标签)。
+% 真件面: \slashbox[w][s]{A}{B} / \backslashbox[w][s]{A}{B}
+%   w = 请求宽 (默认 0pt → 自然宽); s ∈ {l,r,lr} 抑制该侧 \tabcolsep 外探
+%   \slashbox:    A 左上, B 右下, / 对角线
+%   \backslashbox: A 左下, B 右上, \ 对角线
+% 参内 \\ 由 \shortstack 消化 (1109.5364 \backslashbox{\\climate\\ variable}{zone}
+% 实证) —— 不得换成 \makebox/\hbox 直排: 受限横态下 \\ 变 tabular 行尾,
+% 炸 Missing/Extra }。单元格内用: picture 件 \line 斜率取 ceil(w/h) 钳 [1,6]。
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesPackage{slashbox}[texlate stub — original not redistributable]
+\ProvidesPackage{slashbox}[2026/09/19 texlate stub — picture-mode polyfill]
 \PackageWarningNoLine{texlate-stub}{slashbox.sty is a compatibility shim}
 
-\providecommand{\slashbox}[3][60mm]{\shortstack[l]{#2\\#3}}
-\providecommand{\backslashbox}[3][60mm]{\shortstack[l]{#3\\#2}}
+\newbox\txsb@boxa
+\newbox\txsb@boxb
+\newbox\txsb@boxc
+\newcount\txsb@pwd
+\newcount\txsb@pht
+\newdimen\txsb@sepl
+\newdimen\txsb@sepr
+
+\providecommand{\slashbox}{%
+  \def\txsb@pic##1{%
+    \put(0,0){\line(##1,1){\txsb@pwd}}%
+    \put(0,\txsb@pht){\makebox(0,0)[tl]{\box\txsb@boxa}}%
+    \put(\txsb@pwd,0){\makebox(0,0)[br]{\box\txsb@boxb}}%
+  }%
+  \txsb@scan
+}
+\providecommand{\backslashbox}{%
+  \def\txsb@pic##1{%
+    \put(0,\txsb@pht){\line(##1,-1){\txsb@pwd}}%
+    \put(0,0){\makebox(0,0)[bl]{\box\txsb@boxa}}%
+    \put(\txsb@pwd,\txsb@pht){\makebox(0,0)[tr]{\box\txsb@boxb}}%
+  }%
+  \txsb@scan
+}
+
+\def\txsb@scan{\@ifnextchar[{\txsb@wd}{\txsb@wd[0pt]}}
+\def\txsb@wd[#1]{\@ifnextchar[{\txsb@sep[#1]}{\txsb@sep[#1][c]}}
+\def\txsb@sep[#1][#2]#3#4{%
+  \txsb@sepl=\tabcolsep
+  \txsb@sepr=\tabcolsep
+  \@tfor\txsb@c:=#2\do{\expandafter\let\csname txsb@sep\txsb@c\endcsname=\z@}%
+  \setbox\txsb@boxa=\hbox{\strut\hskip\tabcolsep\shortstack[l]{#3}}%
+  \setbox\txsb@boxb=\hbox{\shortstack[r]{#4}\hskip\tabcolsep\strut}%
+  \setbox\txsb@boxa=\hbox{\raise\dp\txsb@boxa\box\txsb@boxa}%
+  \setbox\txsb@boxb=\hbox{\raise\dp\txsb@boxb\box\txsb@boxb}%
+  \setbox\txsb@boxc=\hbox{%
+    \@tempdima=\wd\txsb@boxa
+    \advance\@tempdima by \wd\txsb@boxb
+    \advance\@tempdima by \txsb@sepl
+    \advance\@tempdima by \txsb@sepr
+    \@tempdimb=#1\relax
+    \ifdim\@tempdimb>\@tempdima \@tempdima=\@tempdimb\fi
+    \@tempdimb=\ht\txsb@boxa
+    \advance\@tempdimb by \dp\txsb@boxa
+    \advance\@tempdimb by \ht\txsb@boxb
+    \advance\@tempdimb by \dp\txsb@boxb
+    \@tempcnta=\@tempdima
+    \@tempcntb=\@tempdimb
+    \advance\@tempcnta by \@tempcntb
+    \advance\@tempcnta by -1
+    \divide\@tempcnta by \@tempcntb
+    \ifnum\@tempcnta>6
+      \@tempcnta=6
+      \@tempdimb=0.166666666\@tempdima
+    \else
+      \ifnum\@tempcnta<1 \@tempcnta=1 \fi
+      \@tempdima=\@tempdimb
+      \multiply\@tempdima by \@tempcnta
+    \fi
+    \advance\@tempdima by -\txsb@sepl
+    \advance\@tempdima by -\txsb@sepr
+    \txsb@pwd=\@tempdima
+    \txsb@pht=\@tempdimb
+    \@tempcntb=\txsb@sepl
+    \setlength{\unitlength}{1sp}%
+    \begin{picture}(\txsb@pwd,\txsb@pht)(\@tempcntb,0)%
+    \advance\@tempdima by \txsb@sepl
+    \advance\@tempdima by \txsb@sepr
+    \txsb@pwd=\@tempdima
+    \txsb@pic{\@tempcnta}%
+    \end{picture}%
+  }%
+  $\vcenter{\box\txsb@boxc}$%
+}
 \endinput
