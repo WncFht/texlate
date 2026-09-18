@@ -14,9 +14,11 @@ token 参），任一参消费即整调用折进单个 ``[[CMD_n]]``——花括
 - 消费参逐参过 scout 散文判据（剔注释+cs 后 ≥4 连词、非全大写）——
   命中即抠出 ``[[CMD]]`` 覆盖、内容子扫渲进 run surface；命令名段与
   非散文参、散文参两侧花括号所在结构段仍 opaque 原文。
-- 非 ``{``-open 参（``[o]``/``d<>``/单 token——探针本不收后者）、跨 fid
-  组、未消费占位不挖；``gen >= MAX_GEN`` 回压维持整调用 opaque +
-  ``gen_overflow`` 告警。
+- 非 ``{``/``[``-open 参（``d<>``/``e``/``r()``/``t``/单 token——探针本
+  不收后者）、跨 fid 组、未消费占位不挖；``[``-open 可选参散文同挖
+  （``\subfigure[长 caption]{..}`` 面，L8 SEGB 放开——``[width=2cm]``/
+  ``[see]`` 由 keyval/词链门挡住）；``gen >= MAX_GEN`` 回压维持整调用
+  opaque + ``gen_overflow`` 告警。
 - ``key=`` 起头的 keyval 组不挖——``{pdftitle={长标题}}`` 值内散文会连
   键位一起抬进译文面（``\setkeys`` 炸面，``_keyval_tail_end`` 同款形状门）。
 - 零消费照旧回吐逐字（``\foo x`` 的 ``x`` 是正文不是参——泄漏机制 A）。
@@ -79,16 +81,31 @@ def test_probe_key_arg_stays_opaque() -> None:
     assert KEY not in blob(res)
 
 
-def test_probe_opt_arg_not_lifted() -> None:
-    r"""``[o]`` 参即使形似散文也不挖（``[``-open 非散文槽位）——整调用 opaque。"""
+def test_probe_opt_arg_prose_lifted() -> None:
+    r"""``[``-open 可选参散文同挖（L8 SEGB 放开）：opt 散文出 surface，
+    ``\\unknowncmd[``/``]{key}`` 结构段留 CMD——``{key}`` 参仍不外流。"""
     res = scan(
         "\\unknowncmd[optional words with several terms here]"
         f"{{{KEY}}} Tail prose keeps flowing."
     )
+    text = blob(res)
+    assert "optional words with several terms" in text
+    assert KEY not in text
     bodies = cmd_bodies(res)
-    whole = f"\\unknowncmd[optional words with several terms here]{{{KEY}}}"
+    assert "\\unknowncmd[" in bodies
+    assert all("optional" not in b for b in bodies)
+
+
+def test_probe_opt_arg_keyval_not_lifted() -> None:
+    r"""``[o]`` 参装 keyval（``[width=2cm]``）不过形状门——整调用 opaque。"""
+    res = scan(
+        "\\unknowncmd[width=2cm and height=3cm]"
+        f"{{{KEY}}} Tail prose keeps flowing here."
+    )
+    bodies = cmd_bodies(res)
+    whole = f"\\unknowncmd[width=2cm and height=3cm]{{{KEY}}}"
     assert whole in bodies
-    assert "optional" not in blob(res)
+    assert "height" not in blob(res)
 
 
 def test_probe_second_arg_prose_first_key() -> None:

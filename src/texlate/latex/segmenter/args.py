@@ -65,6 +65,16 @@ _KEYVAL_GROUP_RX = re.compile(r"\s*(?:[\w@*.\-]+[ \t]*,[ \t]*)*[\w@*.\-]+[ \t]*=
 # 不译名单）。
 _COMMA_LIST_RX = re.compile(r"\s*[\w@*.\-/]+\s*(?:,\s*[\w@*.\-/]+\s*)*,?\s*")
 
+# 参内零宽命令整调用剥除——``\index``/``\label`` 不产生可见文本，但其
+# ``{..}`` 组在词链判据里当隔墙（``{inflation \index{x} and the epoch}``
+# 左右各不到 4 词被误判非散文，W85 实形）。判形前整段剔走让词链连通；
+# 抠出后 ``_subscan_render`` 仍照常把 ``\index`` 折 ``[[CMD]]`` 保真。
+_ZERO_WIDTH_ARG_RX = re.compile(r"\\(?:index|label)\s*(?:\[[^\]\n]*\]\s*)?\{[^{}]*\}")
+
+# ``\cite{15-20}`` 把区间当键写（W90）——逗号项中纯数字-数字形即误植，
+# ``smith-2020``/``key-a`` 合法键不中。
+_CITE_RANGE_KEY_RX = re.compile(r"\s*\d+\s*-+\s*\d+\s*")
+
 # opaque 宏 ``{..}`` 参的调用点散文判据（gullet-at scout 口径）：检测文本先
 # 剔 ``%`` 注释与 cs（``\emph`` 类名不计词），再要 ≥4 个 ``[A-Za-z]{2,}``
 # 连词（容标点分隔）、非全大写缩写列——``\sortbibitem{KEY}``/``\bibinfo{f}``
@@ -81,6 +91,35 @@ _OPAQUE_ARG_WORD_RX = re.compile(r"[A-Za-z]{2,}")
 #: ``todo``/``fixme``/``note`` 不收——todonotes/fixme 包默认内联渲染参数，
 #: 误收会把真可见文本藏起来；``comment`` 是唯一不歧义的吞块约定名。
 _SWALLOW_ARG_NAMES = frozenset({"comment"})
+
+#: 死文本参名闸（changes 族 W27）：``\deleted``/``\removed`` 参是被删
+#: 文本——抠出翻译会把终稿不显示的删改内容印进译文面。与吞块闸不同：
+#: 吞块是源文本就隐藏，死文本是修订标记语义下的非终稿内容。
+_DEAD_ARG_NAMES = frozenset({"deleted", "removed"})
+
+#: 尾参死文本名闸：``\replaced{新}{旧}`` 首参（新文本）可见可译、
+#: 次参起（``{旧}``）是被替换的死文本不译——只放首个实参。
+_DEAD_TAIL_NAMES = frozenset({"replaced"})
+
+#: protect-block 散文白名单：``\markright``/``\markboth`` 运行头与
+#: ``\address``/``\institute``/``\affiliation`` 机构隶属段装的是真散文
+#: （界外项「protect-block 第三臂同型蒸发」核销）。``\author`` 不入——
+#: ``\and`` 连名过 4 词门会把人名抬进译文面（专名翻译有害 + W56 内嵌
+#: 图面）；``\date``/``\email``/``\orcid``/``\recdate``/``\publishedin``
+#: 等是日期/标识元数据非散文槽位，词链门天然不中也无需挖。
+_PROSE_BLOCK_NAMES = frozenset(
+    {"markright", "markboth", "address", "institute", "affiliation"}
+)
+
+#: 白名单名的实参位上限——``\markboth{l}{r}`` 双参，其余单参；超限的
+#: ``{..}`` 组不是实参，不收（防 ``\markright{h} {散文段落}`` 误吞正文组）。
+_PROSE_BLOCK_ARITY = {
+    "markright": 1,
+    "markboth": 2,
+    "address": 1,
+    "institute": 1,
+    "affiliation": 1,
+}
 
 
 class _Args:
@@ -484,6 +523,7 @@ class _Args:
             src.unread([*pulled, *([x] if x is not None else [])])
             pulled.clear()
             break
+        key_span: tuple[int, int] | None = None  # 末个 ``{..}`` 内容位（告警判形）
         for _ in range(mand):
             x = self._peek_nonspace(src, pulled)
             if x is not None and x.kind == "lbrace":
@@ -504,15 +544,49 @@ class _Args:
                     src.unread(pulled)  # 组 token 已回吐
                     pulled.clear()
                     break
+                key_span = (x.pos[2], hit[1].pos[1])
                 end = hit[1].pos[2]
                 pulled.clear()
                 continue
             src.unread([*pulled, *([x] if x is not None else [])])
             pulled.clear()
             break
+        self._protect_key_warns(t, fid, end, typ, key_span)
         self._cover_gap(fid, t.pos[1])
         vspan = self._cover_to(fid, end)
         self._rappend_ph(self._ph(typ, self.vt.slice(vspan.start, vspan.end)), vspan)
+
+    def _protect_key_warns(
+        self,
+        t: Tok,
+        fid: int,
+        end: int,
+        typ: PhType,
+        key_span: tuple[int, int] | None,
+    ) -> None:
+        r"""``_protect_cs`` 尾哨兵：``\bibitem(n)``/``\cite{n-m}`` 键形态告警。
+
+        ``\bibitem(13)`` 圆括号标号形（W89）——``(`` 直贴消费尾即签名，
+        标号漏进 chunk 面但整调用仍原样保真；``\cite{15-20}`` 把区间当
+        键写（W90）——逗号项中纯数字-数字形即误植（``smith-2020``/
+        ``key-a`` 合法键不中），保护照旧记哨兵供归因。v1 同款判形在
+        ``scanner._protect_warns``。
+        """
+        if t.text == "bibitem" and self.file_texts[fid][end : end + 1] == "(":
+            self.state.warnings.append(
+                ScanWarning("bibitem_paren", len(self.vt), "\\bibitem(n) 形")
+            )
+        if (
+            typ is PhType.CITE
+            and key_span is not None
+            and any(
+                _CITE_RANGE_KEY_RX.fullmatch(item)
+                for item in self.file_texts[fid][key_span[0] : key_span[1]].split(",")
+            )
+        ):
+            self.state.warnings.append(
+                ScanWarning("cite_range_key", len(self.vt), "\\cite{n-m} 区间键")
+            )
 
     # ------------------------------------------------------------ 各行 handler
 
@@ -743,9 +817,13 @@ class _Args:
         ``{arg}`` 未跟随时 abort：``end`` 恒停在 ``b``（只护 ``\author``
         本体，v1 :885 同规）——``[opt]`` 段回放主流重扫。若把 ``[opt]``
         盖进 ph 体而 token 又回放，同段字节既受保护又进 run surface →
-        译文双份（S2）。
+        译文双份（S2）。``_PROSE_BLOCK_NAMES`` 白名单名先走
+        ``_mine_prose_block`` 散文挖掘——命中即返，无命中全参回放走
+        本路径零行为变化。
         """
         fid, _a, b = t.pos
+        if t.text in _PROSE_BLOCK_NAMES and self._mine_prose_block(t, src, fid, b):
+            return
         end = b
         pulled: list[Tok] = []
         opt_toks: list[Tok] = []  # 已吃 ``[opt]``——``{`` 未中时随 abort 回放
@@ -781,6 +859,47 @@ class _Args:
             return
         self._flush_run(vspan.start)
         self._emit_ph(PhType.AUTHOR, vspan.start, vspan.end, body)
+
+    def _mine_prose_block(self, t: Tok, src: TokenSource, fid: int, b: int) -> bool:
+        r"""``_PROSE_BLOCK_NAMES`` 白名单名的散文参挖掘（第三臂，界外项核销）。
+
+        ``\markright``/``\markboth`` 运行头与 ``\address``/``\institute``/
+        ``\affiliation`` 隶属段的实参装的是真散文——整调用折 ``[[AUTHOR]]``
+        会蒸发译文面（``_handle_protect_block`` 与 opaque 蒸发同型）。
+        实参逐参过共享判据（``_prose_args_of`` → ``_opaque_arg_prose``，
+        位上限 ``_PROSE_BLOCK_ARITY`` 防尾随正文组误吞）：命中即探针臂同款
+        发射——``[[CMD]]`` 分段护结构 + 子扫渲进 run surface；无命中 /
+        ``gen`` 触底 → 全参回放返 False，调用方走 ``[[AUTHOR]]`` 原路径。
+        ``\author`` 不入白名单：``\and`` 连名过词链门会把人名抬进译文面。
+        """
+        args, end = self._args_tok(
+            src, fid, _PROSE_BLOCK_ARITY[t.text], b, allow_single_token=False
+        )
+        prose_args = self._prose_args_of(t.text, fid, args)
+        if prose_args and self.gen >= MAX_GEN:
+            self.state.warnings.append(
+                ScanWarning("gen_overflow", len(self.vt), f"block:{t.text}")
+            )
+            prose_args = []
+        if not prose_args:
+            self._unread_args(src, args)
+            return False
+        self._cover_gap(fid, t.pos[1])
+        for a in prose_args:
+            vspan = self._cover_to(fid, a.cs)
+            self._rappend_ph(
+                self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
+                vspan,
+            )
+            vmark = len(self.vt)
+            rendered = self._subscan_render(a)
+            self._rappend(rendered, rendered, Span(vmark, len(self.vt)))
+        vspan = self._cover_to(fid, end)
+        self._rappend_ph(
+            self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
+            vspan,
+        )
+        return True
 
     def _keyval_tail_end(self, src: TokenSource, end: int) -> int:
         r"""PROTECT_BLOCK 首个 ``{arg}`` 之后续吃 keyval 形 ``{..}`` 组 → 新 end。
@@ -1141,11 +1260,7 @@ class _Args:
                 self.state.warnings.append(
                     ScanWarning("keyarg_unbound", len(self.vt), f"\\{ka} 尾参缺席")
                 )
-        prose_args = (
-            []
-            if t.text in _SWALLOW_ARG_NAMES
-            else [a for a in args if self._opaque_arg_prose(fid, a)]
-        )
+        prose_args = self._prose_args_of(t.text, fid, args)
         if prose_args and self.gen >= MAX_GEN:
             # 子扫代数触底——散文参不挖，整调用维持 opaque（``_handle_chunk_arg``
             # 同款回压：宁可不译也不超代数）。
@@ -1174,27 +1289,31 @@ class _Args:
     def _opaque_arg_prose(  # noqa: PLR0911 — 形状门逐条早退，平铺即判据表
         self, fid: int, a: _ArgTok
     ) -> bool:
-        r"""Opaque 宏 ``{..}`` 组参的调用点散文门（gullet-at scout 口径）。
+        r"""Opaque 宏 ``{..}``/``[..]`` 组参的调用点散文门（gullet-at scout 口径）。
 
-        只认本 fid 实消费的 ``{``-open 组参：跨 fid 组字节切片判不了形
-        （``_keyval_tail_end`` 同款守门）、``[``-open/``e``/定界/单 token
-        参不是散文槽位。``key=`` 起头的 keyval 组不挖——``{pdftitle={长标题}}``
-        值内散文会连 ``key=`` 键位一起抬进译文面（``_keyval_tail_end``
-        同款形状门，``\setkeys`` 炸面）；逗号分隔机读名单同罩——
-        ``{arrows, automata, backgrounds, calendar}`` 类库/包/文件列抠出
-        翻译即断链（1907.03868 实遇）。内容剔注释+cs 后 ≥4 连词即散文。
+        只认本 fid 实消费的 ``{``/``[``-open 组参：跨 fid 组字节切片判不了形
+        （``_keyval_tail_end`` 同款守门）、``d<>``/``e``/``r()``/``t``/单 token
+        参不是散文槽位。``[``-open 可选参同挖——``\subfigure[长 caption]{..}``
+        的 opt 散文是真翻译料，``[width=2cm]``/``[see]`` 由形状门/词链挡住。
+        ``key=`` 起头的 keyval 组不挖——``{pdftitle={长标题}}`` 值内散文会连
+        ``key=`` 键位一起抬进译文面（``_keyval_tail_end`` 同款形状门，
+        ``\setkeys`` 炸面）；逗号分隔机读名单同罩——``{arrows, automata,
+        backgrounds, calendar}`` 类库/包/文件列抠出翻译即断链（1907.03868
+        实遇）。``\index``/``\label`` 整调用判形前剥除——零宽标记不当隔墙
+        （W85 参内嵌句面）。内容剔注释+cs 后 ≥4 连词即散文。
         """
         if a.fe <= a.fs or a.cs <= a.fs:
             return False  # 未消费占位 / 单 token 参
         if any(x.pos[0] != fid for x in a.all_toks):
             return False  # 跨 fid 组——``file_texts[fid]`` 切片错位，保持 opaque
-        if self.file_texts[fid][a.fs] != "{":
-            return False  # ``[``-open 组——可选/非散文槽位不挖
+        if self.file_texts[fid][a.fs] not in "{[":
+            return False  # ``d<>``/``e``/``r()``/``t`` 定界参非散文槽位
         if _KEYVAL_GROUP_RX.match(self.file_texts[fid], a.cs, a.ce) is not None:
             return False  # ``{key=..}`` 组——键位非散文，整参保持 opaque
         if _COMMA_LIST_RX.fullmatch(self.file_texts[fid][a.cs : a.ce]):
             return False  # 逗号名单（库/包/文件列）——机读槽位不挖
-        text = _OPAQUE_ARG_STRIP_RX.sub(" ", self.file_texts[fid][a.cs : a.ce])
+        text = _ZERO_WIDTH_ARG_RX.sub(" ", self.file_texts[fid][a.cs : a.ce])
+        text = _OPAQUE_ARG_STRIP_RX.sub(" ", text)
         for mm in _OPAQUE_ARG_PROSE_RX.finditer(text):
             words = _OPAQUE_ARG_WORD_RX.findall(mm.group(0))
             if len(words) >= 4 and not all(  # noqa: PLR2004 - 4 = scout 散文判据连词下限
@@ -1202,6 +1321,27 @@ class _Args:
             ):
                 return True
         return False
+
+    def _prose_args_of(self, name: str, fid: int, args: list[_ArgTok]) -> list[_ArgTok]:
+        r"""调用点名闸 + 逐参散文门——三臂（opaque/探针/argspec）抠出判定单源。
+
+        ``_SWALLOW_ARG_NAMES``（吞块）/``_DEAD_ARG_NAMES``（被删死文本）
+        整调用不挖；``_DEAD_TAIL_NAMES`` 只放首个实参——``\replaced{新}{旧}``
+        的 ``{旧}`` 是被替换死文本不译。序数按实消费参计（``[o]`` 占位
+        不计位——``\replaced`` 无 ``[o]`` 签名，参序即实序）。
+        """
+        if name in _SWALLOW_ARG_NAMES or name in _DEAD_ARG_NAMES:
+            return []
+        tail_dead = name in _DEAD_TAIL_NAMES
+        out: list[_ArgTok] = []
+        nth = 0
+        for a in args:
+            if a.fe <= a.fs:
+                continue  # 未消费占位不占实参序
+            if (not tail_dead or nth == 0) and self._opaque_arg_prose(fid, a):
+                out.append(a)
+            nth += 1
+        return out
 
     def _handle_unknown_cs(
         self, t: Tok, src: TokenSource, name: str = "", m: object | None = None
@@ -1299,11 +1439,7 @@ class _Args:
             # 抠出 [[CMD]] 覆盖子扫渲进 run surface——``\@maketitle{…prose…}``
             # 类调用块不再整块蒸发（1803.00127 实测）。宏名/非散文参/散文参
             # 花括号所在结构段仍 [[CMD]] 原文。
-            prose_args = (
-                []
-                if (name or t.text) in _SWALLOW_ARG_NAMES
-                else [a for a in args if self._opaque_arg_prose(fid, a)]
-            )
+            prose_args = self._prose_args_of(name or t.text, fid, args)
             if prose_args and self.gen >= MAX_GEN:
                 self.state.warnings.append(
                     ScanWarning("gen_overflow", len(self.vt), f"probe:{t.text}")
@@ -1410,11 +1546,7 @@ class _Args:
         # ——``\marginpar{prose}``/``\only<1>{prose}``/``\frame{prose}`` 面。
         # 逐参 ``_opaque_arg_prose`` 调用点判定（key/良性参天然不命中，
         # keyval 组由判据内形状门挡住），花括号所在结构段仍 ``[[CMD]]`` 原文。
-        prose_args = (
-            []
-            if e.name in _SWALLOW_ARG_NAMES
-            else [a for a in args if self._opaque_arg_prose(fid, a)]
-        )
+        prose_args = self._prose_args_of(e.name, fid, args)
         if prose_args and self.gen >= MAX_GEN:
             self.state.warnings.append(
                 ScanWarning("gen_overflow", len(self.vt), f"argspec:{t.text}")

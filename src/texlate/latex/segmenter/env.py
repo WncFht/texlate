@@ -24,6 +24,7 @@ from texlate.latex.tables import (
     ENV_MANDATORY_ARG,
     INPUT_CMDS,
     MAX_GEN,
+    PAIR_BLOCK_CMDS,
     VERBATIM_ENVS,
     looks_like_colspec,
 )
@@ -322,6 +323,96 @@ class _Env:
             return len(popped) + 1
         self.state.warnings.append(ScanWarning("stray_end", vpos, f"\\end{{{env}}}"))
         return 0
+
+    def _handle_pair_block(
+        self, t: Tok, src: TokenSource, name: str, m: object | None
+    ) -> None:
+        r"""``cs`` 对界 DSL 块（``\labellist…\endlabellist`` pinlabel 形，W29）。
+
+        体走 ``_env_with_mined`` 同款 mined 子扫：``\pinlabel {tex}``
+        等 CHUNK_ARG 体命令照产 chunk，``at x y`` 坐标脚手架随 ENV 体
+        保护不裸进可译面。闭名 cs 孤现 → ``[[CMD]]`` 进 run；开 cs 无
+        配对 → ``unclosed_env`` 告警后落 ``_handle_unknown_cs``（探针
+        吃 ``{arg}`` 进 CMD——保守不译也不裸漏）。
+        """
+        fid = t.pos[0]
+        close = PAIR_BLOCK_CMDS.get(name)
+        if close is None:
+            # 孤 \end<block> 闭合 cs——CMD 保护（不吞参）
+            self._cover_gap(fid, t.pos[1])
+            vspan = self._cover_to(fid, t.pos[2])
+            self._rappend_ph(
+                self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
+                vspan,
+            )
+            return
+        # 先扫后盖——``_find_pair_end`` 未命中时 cs 字节须未盖，否则落
+        # unknown-cs 的 CMD 体缺名（覆盖账单调，已盖区间不回卷）
+        hit = self._find_pair_end(src, name, close)
+        if hit is None:
+            self.state.warnings.append(
+                ScanWarning("unclosed_env", t.pos[1], name)
+            )
+            self._handle_unknown_cs(t, src, name, m)
+            return
+        self._cover_gap(fid, t.pos[1])
+        v_begin = self._cover_to(fid, t.pos[2])
+        tag, last, body_toks = hit
+        body, vend = self._env_with_mined(
+            env=name, vbegin=v_begin, tag=tag, last=last, body_toks=body_toks
+        )
+        if self.in_arg:
+            self._rappend_ph(self._ph(PhType.ENV, body), Span(v_begin.start, vend))
+            return
+        self._flush_run(v_begin.start)
+        self._emit_ph(PhType.ENV, v_begin.start, vend, body)
+
+    def _find_pair_end(  # noqa: C901 — ``_find_env_end`` 配对 cs 版同款单遍扫描
+        self, src: TokenSource, open_: str, close: str
+    ) -> tuple[Tok, Tok, list[Tok]] | None:
+        r"""``cs`` 对界块收尾扫描（``_find_env_end`` 的配对 cs 版）。
+
+        ``read()`` 原始流前瞻找闭名 cs 或 ``\end{open}`` env 闭形——
+        块不嵌套、首命中即闭合（``\end{labellist}`` 混搭形是 TeX 合法
+        ``\end{X}``→``\endX`` 展开的对价）。``\verb`` 定界体/``\input``
+        前瞻展开两分支与 ``_find_env_end`` 同规。未命中回吐全部已收
+        token 返回 ``None``（调用方落 unknown-cs 保守路径）。
+        """
+        collected: list[Tok] = []
+        while True:
+            x = src.read()
+            if x is None:
+                src.unread(collected)
+                return None
+            collected.append(x)
+            if x.kind != "cs":
+                continue
+            if x.text == close:
+                return x, x, collected[:-1]
+            if x.text in ("verb", "verb*", "lstinline"):
+                self._skip_verb_toks(src, collected)
+                continue
+            if x.text == "end":
+                n2, c2, grp = self._env_name(src)
+                if n2 is None:
+                    src.unread(grp)
+                    continue
+                collected.extend(grp)
+                if n2 == open_:
+                    return x, c2, collected[: -(1 + len(grp))]
+                continue
+            if isinstance(src, Gullet) and x.text in INPUT_CMDS:
+                # 前瞻不触发展开——\input 族交回 gullet 正常内联（
+                # _find_env_end 同臂；否则子文件 token 随 _ListSource
+                # 重放漏网成 literal）
+                try:
+                    hit = src._do_input(x, x.text)  # noqa: SLF001 — §4 契约面：前瞻展开经 gullet 内部入口
+                except ArgMismatch:
+                    src.unread(src._trace)  # noqa: SLF001 — ArgMismatch 回吐协议（§3.5）
+                    hit = None
+                if hit is not None and hit is not x:
+                    collected[-1] = hit
+                continue
 
     def _eat_env_args(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915, PLR0917 — opt/mand/colspec 三段判定平铺即 v1 行序
         self,

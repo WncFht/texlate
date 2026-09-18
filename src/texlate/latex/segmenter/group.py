@@ -205,6 +205,31 @@ class _Group:
             j += 1
         return None
 
+    def _grp_pair_end(
+        self, toks: list[Tok], i: int, open_: str, close: str
+    ) -> int | None:
+        r"""``cs`` 对界块组内配对（``_find_pair_end`` 的 toks 版）→ j_end（含）。
+
+        闭名 cs 或 ``\end{open}`` env 闭形首命中即闭合（块不嵌套——
+        ``\end{labellist}`` 混搭形是 ``\end{X}``→``\endX`` 的对价）。
+        未中 ``None``（调用方续走 argspec/探针保守路径）。
+        """
+        n = len(toks)
+        j = i
+        while j < n and j - i < _GRP_SCAN_CAP:
+            x = toks[j]
+            if x.kind == "cs" and x.text == close:
+                return j + 1
+            if x.kind == "cs" and x.text == "end":
+                hit = self._grp_envtag(toks, j)
+                if hit is not None:
+                    if hit[0] == open_:
+                        return hit[1]
+                    j = hit[1]
+                    continue
+            j += 1
+        return None
+
     @staticmethod
     def _grp_bal(  # noqa: C901 — 两定界族各一段，平铺即规则
         toks: list[Tok], i: int, *, brace: bool

@@ -127,6 +127,11 @@ _IF_PRIM_NAMES = (
     | IF_CONST_FALSE
 )
 
+# ``\cite{15-20}`` 把区间当键写（W90）——逗号项中纯数字-数字形即误植，
+# ``smith-2020``/``key-a`` 合法键不中。v2 ``segmenter/args.py`` 同款判形
+# 的 v1 本地拷贝（v1 不反向依赖 v2 模块）。
+_CITE_RANGE_KEY_RX = re.compile(r"\s*\d+\s*-+\s*\d+\s*")
+
 
 class _EnvDead(NamedTuple):
     r"""``_find_env_end`` 失败墓标（F12）：同 target 后续查询免重扫。
@@ -173,6 +178,7 @@ class Scanner:
         self._tex = ""
         self._run: list[str] = []
         self._run_start: int | None = None  # run 覆盖字节区间起点（局部坐标）
+        self._brace_depth = 0  # run 内裸 ``{`` 深度（组内 ``%`` → COMMENT ph 判据）
         self._env_dead: dict[str, _EnvDead] = {}  # F12 未闭合 env 墓标（scan 起清零）
 
     def spawn(
@@ -388,12 +394,15 @@ class Scanner:
 
     # ------------------------------------------------------------ 主循环
 
-    def scan(self, tex: str, preamble_end: int = 0) -> ScanResult:
+    def scan(  # noqa: C901 — §3.1 主循环五分支单遍平铺即规则序
+        self, tex: str, preamble_end: int = 0
+    ) -> ScanResult:
         r"""扫 tex → pieces。``preamble_end``：``\begin{document}`` 的后一位。"""
         self._tex = tex
         self._run = []
         self._run_start = None
         self._env_dead = {}
+        self._brace_depth = 0
         n = len(tex)
         i = preamble_end
         if preamble_end:
@@ -408,11 +417,14 @@ class Scanner:
                 i = self._dispatch_cmd(i, name, j)
                 continue
 
-            # 2. 注释（能到这里必是真注释）
+            # 2. 注释（能到这里必是真注释）。``{`` 组内同 in_arg 规——
+            # 括号已入 run 是 chunk 内成分，组内 ``%`` 若 flush+emit 会把
+            # ``\textbf{a %<NL>b}`` 拦腰断两片、前缀留 untranslated LITERAL
+            # （W84 主循环面）。
             if c == "%":
                 k = tex.find("\n", i)
                 kend = n if k < 0 else k
-                if self.in_arg:
+                if self.in_arg or self._brace_depth:
                     self._ph_into_run(PhType.COMMENT, tex[i:kend], i)
                 else:
                     self._flush_run(i)
@@ -439,7 +451,14 @@ class Scanner:
                 i += 1
                 continue
 
-            # 5. 普通字符（含 { } ~ 等，逐字入 run）
+            # 5. 普通字符（含 { } ~ 等，逐字入 run）。``{``/``}`` 计数：
+            # 能到这层的括号全是已承诺进 run 的组界（宏参/组名经各自
+            # handler 消费、``\{``/``\}`` 走分支 1、数学/verbatim 体整段
+            # 保护）——组内 ``%`` 判据见分支 2。
+            if c == "{":
+                self._brace_depth += 1
+            elif c == "}":
+                self._brace_depth = max(0, self._brace_depth - 1)
             self._rappend(c, i)
             i += 1
 
@@ -1732,14 +1751,49 @@ class Scanner:
                     continue
             break
         end = pos
+        key_span: tuple[int, int] | None = None  # 末个 ``{..}`` 内容位（告警判形）
         for _ in range(mand):
             p2 = ws_skip_arg(tex, end)
             if p2 < n and tex[p2] == "{":
                 e = match_brace(tex, p2, verbatim=verbatim)
                 if e is None:
                     break
+                key_span = (p2 + 1, e - 1)
                 end = e
             else:
                 break
+        self._protect_warns(i, j, end, typ, key_span)
         self._ph_into_run(typ, tex[i:end], i, end)
         return end
+
+    def _protect_warns(
+        self,
+        i: int,
+        j: int,
+        end: int,
+        typ: PhType,
+        key_span: tuple[int, int] | None,
+    ) -> None:
+        r"""``_protect_call`` 尾哨兵：``\bibitem(n)``/``\cite{n-m}`` 键形态告警。
+
+        ``\bibitem(13)`` 圆括号标号形（W89）——``(`` 直贴消费尾即签名；
+        ``\cite{15-20}`` 把区间当键写（W90）——逗号项中纯数字-数字形
+        即误植（``smith-2020``/``key-a`` 合法键不中）。保护照旧记哨兵
+        供归因；v2 同款判形在 ``segmenter/args._protect_key_warns``。
+        """
+        tex = self._tex
+        if tex[i + 1 : j] == "bibitem" and end < len(tex) and tex[end] == "(":
+            self.state.warnings.append(
+                ScanWarning("bibitem_paren", self.base + i, "\\bibitem(n) 形")
+            )
+        if (
+            typ is PhType.CITE
+            and key_span is not None
+            and any(
+                _CITE_RANGE_KEY_RX.fullmatch(item)
+                for item in tex[key_span[0] : key_span[1]].split(",")
+            )
+        ):
+            self.state.warnings.append(
+                ScanWarning("cite_range_key", self.base + i, "\\cite{n-m} 区间键")
+            )

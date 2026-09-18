@@ -36,6 +36,7 @@ from texlate.latex.tables import (
     FONT_SWITCHES,
     INLINE_LITERAL_CMDS,
     INPUT_SCAN_CMDS,
+    PAIR_BLOCK_ALL,
     PROTECT_BLOCK_NAMES,
     PROTECT_NAMES,
     REF_NAMES,
@@ -64,6 +65,7 @@ _UNIVERSE = frozenset(
     | ACCENT_CHARS
     | CITE_NAMES
     | REF_NAMES
+    | PAIR_BLOCK_ALL
     | set(DIMEN_TAIL_KIND)
     | {
         "verb",
@@ -152,6 +154,7 @@ _B_EQUIV = {
     "transparent-head",
     "accent",
     "inline-literal",
+    "pair-block",
 }
 
 
@@ -421,6 +424,7 @@ _SIG_DIFFS: dict[tuple[str, str], tuple[frozenset[str], str, frozenset[str], str
     ("keywords", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "vis"),
     ("paragraph", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "vis"),
     ("part", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "vis"),
+    ("pinlabel", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "vis"),
     ("sect", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "vis"),
     ("section", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "vis"),
     ("subcaption", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "vis"),
@@ -435,6 +439,12 @@ _SIG_DIFFS: dict[tuple[str, str], tuple[frozenset[str], str, frozenset[str], str
     ),
     ("subtitle", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "vis"),
     ("tablecaption", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "vis"),
+    ("tablecomments", "{zzq}"): (
+        frozenset({"piece"}),
+        "vis",
+        frozenset({"CMD"}),
+        "vis",
+    ),
     ("thanks", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "vis"),
     ("title", "{zzq}"): (frozenset({"piece"}), "vis", frozenset({"CMD"}), "vis"),
     # ---- 等价：同上 carrier 差——``{zzq}`` 未被消费 → 两侧参都裸进可译文本 ----

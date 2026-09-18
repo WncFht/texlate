@@ -85,6 +85,7 @@ PROTECTED_ENVS = {
     "pspicture",
     "epic",
     "eepic",
+    "labellist",  # pinlabel ``\begin{labellist}`` env 形（cs 对形见 PAIR_BLOCK_CMDS）
 }
 
 # in_arg 下的透明容器环境白名单（纯容器 → begin/end 行 [[ENVTAG]]，
@@ -140,6 +141,10 @@ CHUNK_ARG_NAMES = {
     "subcaption",
     "captionof",
     "tablecaption",  # aastex deluxetable/planotable 标题（保护环境内挖掘面）
+    "tablenotetext",  # aastex 表注 ``{mark}{text}``——note 文可译
+    "tablecomments",  # aastex 表尾注 ``{text}``
+    "pinlabel",  # pinlabel ``\pinlabel {tex} [pos] at x y`` 标签文
+
     "title",
     "subtitle",
     "thanks",
@@ -165,6 +170,13 @@ CHUNK_ARG_SPEC: dict[str, tuple[str, int]] = {
     "footnotetext": ("om", 1),
     "caption": ("om", 1),
     "subcaption": ("om", 1),
+    # ``\tablenotetext{a}{note}``：mark 参随前缀进字面段，{note} 可译
+    "tablenotetext": ("mm", 1),
+    # ``\pinlabel {tex} [pos] at x y``：只拉 ``{tex}``——``[pos]``/``at x y``
+    # 留流内（labellist 块内随 ENV 体保护；``mo`` 会拉出 ``[ ]`` 却不覆盖
+    # 成 identity 洞——可译参必须是消费位序的最后一个参）
+    "pinlabel": ("m", 0),
+    "tablecomments": ("m", 0),
 }
 
 # 整块保护命令（\author{..} 等 → [[AUTHOR_n]]）
@@ -504,6 +516,15 @@ INPUT_SCAN_CMDS = {
 FILENAME_CHARS = frozenset(
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._/-"
 )
+
+# cs 对界 DSL 块（非 ``\begin/\end`` 形）：开 cs 名 → 闭 cs 名。
+# ``\labellist…\endlabellist``（pinlabel，W29）——体按保护环境走
+# ``_env_with_mined`` mined 子扫：``\pinlabel {tex}`` 标签文照挖、
+# ``at x y`` 坐标脚手架不外泄进 chunk。闭名 cs 孤现 → ``[[CMD]]``。
+PAIR_BLOCK_CMDS: dict[str, str] = {
+    "labellist": "endlabellist",
+}
+PAIR_BLOCK_ALL = frozenset(PAIR_BLOCK_CMDS) | frozenset(PAIR_BLOCK_CMDS.values())
 
 OPT_FMT_CHARS = frozenset("=*\\#|!~,()<>:;")  # 版式参特征（kv/装饰/分组）
 OPT_POS_LETTERS = frozenset("htbpHTBPclrmb")  # 浮动位 htbp + 列型 lcrmpb

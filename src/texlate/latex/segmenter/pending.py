@@ -24,6 +24,8 @@ from texlate.latex.tables import (
     INLINE_LITERAL_CMDS,
     INPUT_SCAN_CMDS,
     MAX_GEN,
+    PAIR_BLOCK_ALL,
+    PAIR_BLOCK_CMDS,
     PROTECT_BLOCK_NAMES,
     PROTECT_NAMES,
     TRANSPARENT_HEAD_SPEC,
@@ -95,6 +97,7 @@ _GRP_SURFACE_FAMS: tuple[tuple[str, object], ...] = (
     ("tail", DIMEN_TAIL_KIND),  # 非 BOUNDARY 的 dimen/assign 尾参兜收
     ("accent", _accent_cs),
     ("inline-literal", _inline_lit_cs),  # 无参行内字面——argspec/探针前截
+    ("pair-block", PAIR_BLOCK_ALL),  # cs 对界块组内整段 ENV ph（W29）
     ("argspec", None),
     ("probe", None),  # _grp_probe_end → CMD（散文参挖掘）/逐字
 )
@@ -118,6 +121,7 @@ _PEND_SPEC_FAMS: tuple[tuple[str, object], ...] = (
     ("transparent-head", TRANSPARENT_HEAD_SPEC),
     ("accent", _accent_cs),
     ("inline-literal", _inline_lit_cs),  # 无参——不吸界外 token
+    ("pair-block", PAIR_BLOCK_ALL),  # 对界 cs 无槽形——不吸界外 token
     ("argspec", None),
     ("keyarg", None),  # _keyarg_tail 宏体尾 key-arg
     ("probe", None),  # _PEND_PROBE 槽
@@ -533,6 +537,10 @@ class _Pending:
         if _inline_lit_cs(name):
             # 行内字面无参——零槽形防误吸（``\5``/``\_``/字体开关名下
             # argspec 假条目不得领槽把界外散文拉进组）
+            return None, ""
+        if name in PAIR_BLOCK_ALL:
+            # 对界块开/闭 cs 无槽形——``\pinlabel{tex}`` 等体 token
+            # 留主流（探针槽会误吸界外 pinlabel 参进组）
             return None, ""
         e = _seg.argspec_lookup(name, self.state.pkgs)
         if e is not None:
@@ -1073,6 +1081,26 @@ class _Pending:
                     self._cat_surf(out, self._tok_surface(t))
                 i += 1
                 continue
+            if name in PAIR_BLOCK_ALL:
+                # cs 对界块（主流 row18b 对价）：组内有配对闭 cs → 整段
+                # [[ENV]]（B 臂无独立 chunk piece——体表面随 ph 保护即同
+                # 义）；孤闭 cs → [[CMD]]；开 cs 组内无配对 → 不落本行、
+                # 续走 argspec/探针（未闭合按未知 cs 保守处理，主流
+                # unclosed→unknown 同规）
+                if name not in PAIR_BLOCK_CMDS:
+                    self._cat_surf(
+                        out, self._grp_ph(PhType.CMD, self._tok_surface(t))
+                    )
+                    i += 1
+                    continue
+                e3 = self._grp_pair_end(toks, i + 1, name, PAIR_BLOCK_CMDS[name])
+                if e3 is not None:
+                    self._cat_surf(
+                        out,
+                        self._grp_ph(PhType.ENV, self._grp_surfs(toks[i:e3])),
+                    )
+                    i = e3
+                    continue
             e2 = _seg.argspec_lookup(name, self.state.pkgs)
             if e2 is not None:
                 policy = e2.policy

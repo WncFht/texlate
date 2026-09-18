@@ -35,6 +35,7 @@ from texlate.latex.tables import (
     FONT_SWITCHES,
     INLINE_LITERAL_CMDS,
     INPUT_SCAN_CMDS,
+    PAIR_BLOCK_ALL,
     PROTECT_BLOCK_NAMES,
     PROTECT_NAMES,
     TRANSPARENT_HEAD_SPEC,
@@ -108,6 +109,7 @@ _DISPATCH_FAMS: tuple[tuple[str, object], ...] = (
     ("accent", _accent_cs),
     ("inline-literal", _inline_lit_cs),
     ("macro", None),  # row18：gullet 宏表 env_begin/env_end/opaque/math
+    ("pair-block", PAIR_BLOCK_ALL),  # row18b：cs 对界 DSL 块（W29 pinlabel）
     ("unknown", None),  # row19：尾参扫→keyarg→argspec→探针→逐字
 )
 
@@ -647,6 +649,13 @@ class _MainLoop:
                 return
             if kind in ("opaque", "math"):
                 self._handle_opaque_macro(t, src, m)
+                return
+            # 18b. cs 对界 DSL 块（``\labellist…\endlabellist`` pinlabel
+            #      形，W29）——宏行之后：同名 env_begin/opaque 宏登记
+            #      优先；体走 mined 子扫（\pinlabel 标签文照挖、
+            #      ``at x y`` 脚手架不外泄），孤闭 cs → [[CMD]]
+            if name in PAIR_BLOCK_ALL:
+                self._handle_pair_block(t, src, name, m)
                 return
             # 19. 未知命令：宏表未命中先查 argspec 表（包签名驱动分派），
             #     表外再走 {/[ 探针 → [[CMD]]；否则逐字进 run

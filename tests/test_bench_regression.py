@@ -773,11 +773,10 @@ def assert_mask(
 ) -> dict[str, dict[str, str]]:
     """tricky-mask.tex M 系列逐条断言（W07/W11/W84/W92 机制钉）。
 
-    ``v1=True`` 走 ``parse_file_v1`` 臂：亚型断言同规，唯 M05 发散——v1
-    主流程 ``%`` 处 flush run + 逐字 emit 注释（scanner.py 设计点），
-    ``\\textbf{grouped %<NL>word}`` 在 ``%`` 断片、``word}`` 落独立
-    chunk；v2 是单 chunk ``\\textbf{grouped  word}``（Mouth 吃注释
-    参数一体）。发散已留档为界外需求，断言按两臂实测形分写。
+    ``v1=True`` 走 ``parse_file_v1`` 臂：亚型断言同规，M05 形异神同——
+    两臂都 ``\\textbf{..}`` 参数一体单 chunk，但 v1 组内 ``%`` 按
+    in_arg 规发 ``[[COMMENT_n]]`` ph（brace-depth 门，scanner.py
+    主循环分支 2/5），v2 Mouth 直接吃注释 → ``grouped  word``。
     """
     if res is None:
         return {"_meta": {"status": "info", "detail": "parse failed"}}
@@ -832,17 +831,16 @@ def assert_mask(
         "$\\overline{%\n\\chi }$",
         "\\overline{%<NL>\\chi} arg-intact MATH",
     )
-    # M05 W84 文本组内注释拼接：v2 单 chunk 参数一体；v1 % 处断片（界外需求留档）
+    # M05 W84 文本组内注释拼接：两臂参数一体单 chunk——v1 组内 % 发
+    # [[COMMENT]] ph（brace-depth 门），v2 Mouth 吃注释
     if v1:
-        ok = re.search(r"word\} stays one argument\.", chunks) and re.search(
-            r"\\textbf\{grouped %", res.protected_tex
+        all_re(
+            "M05",
+            (
+                r"A braced \\textbf\{grouped \[\[COMMENT_\d+\]\]\nword\} stays one argument\.",
+            ),
+            "v1: group-internal % -> COMMENT ph into run, arg intact",
         )
-        out["M05"] = {
-            "status": "pass" if ok else "fail",
-            "detail": "v1: top-level % flushes run — \\textbf{grouped literal + word} chunk"
-            if ok
-            else "v1 divergent shape changed",
-        }
     else:
         all_re(
             "M05",
@@ -1271,8 +1269,8 @@ def test_mask_matrix_complete() -> None:
 
 @pytest.mark.parametrize("aid", M_IDS)
 def test_mask_v1arm(aid: str) -> None:
-    """tricky-mask.tex v1 臂（``parse_file_v1``）同亚型断言——M05 发散形
-    已在断言体内分臂（主循环 ``%`` 断片 → ``word}`` 独立 chunk）。"""
+    """tricky-mask.tex v1 臂（``parse_file_v1``）同亚型断言——M05 形异
+    （组内 ``%`` 发 ``[[COMMENT]]`` ph）已在断言体内分臂。"""
     a = MASK_V1_ASSERTS.get(aid)
     assert a is not None, f"missing assertion {aid} (parse failed?)"
     assert a["status"] == "pass", f"{aid} {a['status']}: {a['detail']}"
