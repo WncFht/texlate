@@ -89,6 +89,12 @@ def main() -> None:
         if td.ok
         else {"_parse": {"status": "fail", "detail": td.error}}
     )
+    tmk = parsed["tricky-mask.tex"]
+    asserts["tricky-mask.tex"] = (
+        tbr.assert_mask(tmk.res, tmk.recon, tmk.recon_fake)
+        if tmk.ok
+        else {"_parse": {"status": "fail", "detail": tmk.error}}
+    )
 
     for name, p in parsed.items():
         if p.ok:
