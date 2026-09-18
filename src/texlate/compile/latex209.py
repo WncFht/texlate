@@ -32,17 +32,19 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
-from typing import TYPE_CHECKING, NamedTuple
+from typing import TYPE_CHECKING, Final, NamedTuple
 
 from texlate.textutil import (
     CMD_BOUNDARY,
     DOCSTYLE_DECL_RX,
     DOCSTYLE_RX,
+    _tar_disguised,
+    cs_events_spans,
     decode_tex,
     iter_depth0,
 )
 
-from .mask import visible_tex
+from .mask import apply_edits, group_end, visible_tex
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -296,6 +298,122 @@ _TOPSKIP_ASSIGN_RE = re.compile(
 #: 的 ``ds@`` 字样（``% uses ds@ dispatch``）不计。
 _DS_AT_RE = re.compile(r"\bds@")
 
+#: 数学域 209 字体开关组 ``{\em/\it/\bf X}`` → 2e 数学字母命令映射。
+#: 209 时代 ``\em``/``\it``/``\bf`` 是 switch（组内余生全换体）；2e 下
+#: ``\em`` 经 ``\@nomath`` 警告后落到 ``\itshape``——``\not@math@alphabet``
+#: 硬报 ``Command \itshape invalid in math mode``（astro-ph/9910310
+#: ``\sum_{{\em fields}\,i}`` 实证签名）。``\it``/``\bf`` 经
+#: ``\@fontswitch``+``\math@bgroup`` 在数学域本就退化出组 switch 语义
+#: 不报错，仍一并归一为参数形消歧。``\rm/\sf/\tt/\cal/\mit`` 同机制
+#: 本就正确不动；``\sl/\sc`` 数学域仅 ``\@nomath`` 警告丢字形（无标准
+#: 数学字母对应，改写即改语义）不动。
+_MATH_SWITCH_209: Final = {"em": "mathit", "it": "mathit", "bf": "mathbf"}
+
+#: 候选组定位：``{`` 后仅横向空白接 ``\em/\it/\bf``——switch 须为组首
+#: token 才可整组转写（``{\xyz\em X}`` 前段不在开关作用域，保守不动）；
+#: ``(?<![\\])`` 挡 ``\{`` 转义花括号误中；横向空白口径挡行间注释
+#: ``{%c\n\em X}`` 被静默吞进参数形。
+_MATH_SWITCH_RE: Final = re.compile(r"(?<!\\)\{[^\S\n]*\\(em|it|bf)" + CMD_BOUNDARY)
+
+#: ``$`` 系定界之外的数学环境（209 内建 + amsmath/amstex/IEEE/breqn 族）——
+#: 环境体整段按数学域处理。同名 begin/end 栈式配对；未闭合 begin 不成域
+#: （编译本即死，域内修复无意义，保守弃）。
+_MATH_ENVS_209: Final = frozenset(
+    {
+        "math",
+        "displaymath",
+        "mathdisplay",
+        "equation",
+        "equation*",
+        "eqnarray",
+        "eqnarray*",
+        "gather",
+        "gather*",
+        "align",
+        "align*",
+        "flalign",
+        "flalign*",
+        "multline",
+        "multline*",
+        "alignat",
+        "alignat*",
+        "xalignat",
+        "xalignat*",
+        "xxalignat",
+        "gathered",
+        "aligned",
+        "alignedat",
+        "split",
+        "multlined",
+        "IEEEeqnarray",
+        "IEEEeqnarray*",
+        "dmath",
+        "dmath*",
+        "dgroup",
+        "dgroup*",
+    }
+)
+
+_MATH_ENV_RE: Final = re.compile(
+    r"\\(begin|end)\{("
+    + "|".join(re.escape(n) for n in sorted(_MATH_ENVS_209, key=len, reverse=True))
+    + r")\}"
+)
+
+#: 数学域内实参为文本域的命令及其 ``{...}`` 实参数——``\mbox{...}`` 内是
+#: hbox 文本域，``{\em}`` 合法；转 ``\mathit`` 反而报错，作排除域。实参数
+#: 逐个消耗防 ``\textbf{A} {\em B}$`` 后组被误吞成命令实参；``[..]``
+#: 可选参跳过不计数。
+_TEXTARG_CS_209: Final = {
+    "mbox": 1,
+    "fbox": 1,
+    "makebox": 1,
+    "framebox": 1,
+    "raisebox": 2,
+    "parbox": 2,
+    "sbox": 1,
+    "savebox": 1,
+    "hbox": 1,
+    "vbox": 1,
+    "vtop": 1,
+    "text": 1,
+    "textrm": 1,
+    "textsf": 1,
+    "texttt": 1,
+    "textmd": 1,
+    "textbf": 1,
+    "textup": 1,
+    "textit": 1,
+    "textsl": 1,
+    "textsc": 1,
+    "textnormal": 1,
+    "emph": 1,
+    "intertext": 1,
+    "shortintertext": 1,
+}
+
+_TEXTARG_CS_RE: Final = re.compile(
+    r"\\("
+    + "|".join(sorted(_TEXTARG_CS_209, key=len, reverse=True))
+    + r")"
+    + CMD_BOUNDARY
+)
+
+#: ``\sbox``/``\savebox`` 首参是盒子寄存器 ``\cs``——非 ``{...}`` 实参，
+#: 消耗一 token 不计实参数。
+_BOXREG_CS_209: Final = frozenset({"sbox", "savebox"})
+
+_BOXREG_RE: Final = re.compile(r"\s*\\[a-zA-Z@]+\*?")
+
+#: ``\hbox``/``\vbox``/``\vtop`` 可带 ``to <dim>``/``spread <dim>`` 盒规格
+#: ——消耗规格词（dimen 可裸值或 ``\cs``）再认 ``{...}`` 实参。
+_BOXSPEC_CS_209: Final = frozenset({"hbox", "vbox", "vtop"})
+
+_BOXSPEC_RE: Final = re.compile(
+    r"\s*(?:to|spread)(?![a-zA-Z])\s*"
+    r"(?:\\[a-zA-Z@]+\*?|[-+]?(?:\d+\.?\d*|\.\d+)\s*[a-zA-Z]{1,3})"
+)
+
 #: 209 内建残留的 compat 块——随转换产物注入，全部幂等/守护式定义。
 COMPAT_SHIM = r"""% texlate: LaTeX 2.09 compatibility shim
 \usepackage{latexsym}
@@ -359,10 +477,12 @@ def _uses_ds_at(root: Path | None, cls: str) -> bool:
         if cand.suffix not in {".sty", ".cls"}:
             continue
         try:
-            text = decode_tex(cand.read_bytes())
+            blob = cand.read_bytes()
         except OSError:
             continue
-        if _DS_AT_RE.search(visible_tex(text)):
+        if _tar_disguised(blob):
+            continue  # tar 伪装件——成员文本可含 ds@ 字样（inject._iter_tex 同闸）
+        if _DS_AT_RE.search(visible_tex(decode_tex(blob))):
             return True
     return False
 
@@ -441,6 +561,97 @@ def _drop_topskip_assigns(tex: str) -> tuple[str, int]:
     for m in reversed(hits):
         tex = tex[: m.start()] + tex[m.end() :]
     return tex, len(hits)
+
+
+def _math_env_spans(vis: str) -> list[tuple[int, int]]:
+    r"""``\begin{<数学env>}...\end{<同名>}`` 区间——同名栈式配对。
+
+    未闭合 begin 弃（编译本即死）；异名交错由栈深度自然兜底——同名
+    env 合法不可嵌套，交错末配对段保守不收。
+    """
+    stack: dict[str, list[int]] = {}
+    spans: list[tuple[int, int]] = []
+    for m in _MATH_ENV_RE.finditer(vis):
+        kind, name = m.group(1), m.group(2)
+        if kind == "begin":
+            stack.setdefault(name, []).append(m.start())
+        elif stack.get(name):
+            spans.append((stack[name].pop(), m.end()))
+    return spans
+
+
+def _textarg_spans(vis: str, pos: int, name: str) -> list[tuple[int, int]]:
+    r"""``<name>`` 命令自 ``pos`` 起的 ``{...}`` 实参区间表（文本域排除用）。
+
+    ``[..]`` 可选参跳过不计数；``\sbox`` 系先消耗 ``\cs`` 寄存器参、
+    ``\hbox`` 系先消耗 ``to/spread <dim>`` 规格再数 ``{...}``。
+    """
+    i = pos
+    if name in _BOXREG_CS_209:
+        m = _BOXREG_RE.match(vis, i)
+        if m is not None:
+            i = m.end()
+    if name in _BOXSPEC_CS_209:
+        m = _BOXSPEC_RE.match(vis, i)
+        if m is not None:
+            i = m.end()
+    spans: list[tuple[int, int]] = []
+    while len(spans) < _TEXTARG_CS_209[name]:
+        while i < len(vis) and vis[i] in " \t\r\n":
+            i += 1
+        if i >= len(vis) or vis[i] not in "[{":
+            break
+        e = group_end(vis, i)
+        if e <= i:
+            break
+        if vis[i] == "{":
+            spans.append((i, e))
+        i = e
+    return spans
+
+
+def _innermost(
+    regions: list[tuple[int, int, str]], pos: int
+) -> tuple[int, int, str] | None:
+    r"""包含 ``pos`` 的最小区间——嵌套域按最内层模态判。
+
+    ``\mbox{${\em}$}`` 内层 ``$`` 域小于 mbox 实参域 → 数学；
+    ``$\mbox{{\em}}$`` 反之 → 文本。
+    """
+    best: tuple[int, int, str] | None = None
+    for a, b, mode in regions:
+        if a <= pos < b and (best is None or b - a < best[1] - best[0]):
+            best = (a, b, mode)
+    return best
+
+
+def _fix_math_fontswitch(tex: str) -> tuple[str, int]:
+    r"""数学域 ``{\em/\it/\bf X}`` switch 组 → ``\mathit{...}``/``\mathbf{...}``。
+
+    模态判定：``cs_events_spans`` 配对 ``$..$``/``$$..$$``/``\(..\)``/``\[..]``
+    + ``_math_env_spans`` 配对数学环境体为数学域；``_TEXTARG_CS_209`` 命令
+    实参为文本域——嵌套域按 :func:`_innermost` 最内层判。组整体须含于同一
+    数学域内（越界即残缺组不动）。定位全在 ``visible_tex`` 遮盖视图——
+    注释/逐字内容里的同形不参与；回填 ``apply_edits`` 保行号。
+    """
+    vis = visible_tex(tex)
+    _, dollar_spans = cs_events_spans(vis)
+    spans = dollar_spans + _math_env_spans(vis)
+    if not spans:
+        return tex, 0
+    regions: list[tuple[int, int, str]] = [(a, b, "m") for a, b in spans]
+    for m in _TEXTARG_CS_RE.finditer(vis):
+        regions.extend((a, b, "t") for a, b in _textarg_spans(vis, m.end(), m.group(1)))
+    edits = [
+        (m.start(), m.end(), "\\" + _MATH_SWITCH_209[m.group(1)] + "{")
+        for m in _MATH_SWITCH_RE.finditer(vis)
+        if (inner := _innermost(regions, m.start())) is not None
+        and inner[2] == "m"
+        and group_end(vis, m.start()) <= inner[1]
+    ]
+    if not edits:
+        return tex, 0
+    return apply_edits(tex, edits), len(edits)
 
 
 def _primary_docstyle(vis: str) -> re.Match[str] | None:
@@ -522,6 +733,10 @@ def upgrade_209(tex: str, *, root: Path | None = None) -> tuple[str, dict]:
         # \topskip 0mm → enddoc \clearpage 7 万页死循环）——209 preamble
         # 的裸 topskip 赋值升上来即毒根，逐语句首位活赋值删除。
         new_tex, dropped_topskip = _drop_topskip_assigns(new_tex)
+    # 209 数学域字体开关组转写——``{\em X}`` 升上来在数学域必报
+    # ``Command \itshape invalid in math mode``（\em 是 switch 非参数形），
+    # ``\it``/``\bf`` 同形态归一消歧。
+    new_tex, math_switch_fixed = _fix_math_fontswitch(new_tex)
     return new_tex, {
         "status": "converted",
         "orig": tex[m.start() : m.end()],
@@ -532,4 +747,5 @@ def upgrade_209(tex: str, *, root: Path | None = None) -> tuple[str, dict]:
         "shipped": shipped,
         "stripped": stripped,
         "topskip_dropped": dropped_topskip,
+        "math_switch_fixed": math_switch_fixed,
     }
