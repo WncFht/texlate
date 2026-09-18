@@ -26,6 +26,7 @@ import logging
 import os
 import platform
 import re
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -36,8 +37,6 @@ from pathlib import Path
 import httpx
 
 from texlate.textutil import data_root, env_flag
-
-from .sandbox import find_tool
 
 log = logging.getLogger(__name__)
 
@@ -187,6 +186,23 @@ def install_tectonic(
     target = dest / binary_name
     tmp.replace(target)
     return target
+
+
+def find_tool(name: str) -> str | None:
+    """``shutil.which`` + macOS TeX 常见落点（/Library/TeX/texbin、brew 前缀）。
+
+    工具发现的唯一位——``resolve_tool`` 的系统件腿与 ``sandbox``/``judge``/
+    ``cli`` 的裸工具定位同喝这一份（``sandbox.find_tool`` 仅为再出口别名）。
+    """
+    found = shutil.which(name)
+    if found:
+        return found
+    if sys.platform == "darwin":
+        for base in ("/Library/TeX/texbin", "/opt/homebrew/bin", "/usr/local/bin"):
+            p = Path(base) / name
+            if p.is_file() and os.access(p, os.X_OK):
+                return str(p)
+    return None
 
 
 def find_managed(name: str = "tectonic") -> str | None:

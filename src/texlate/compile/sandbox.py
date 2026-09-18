@@ -28,7 +28,6 @@ import json
 import os
 import re
 import selectors
-import shutil
 import signal
 import subprocess
 import sys
@@ -39,6 +38,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
 from texlate.textutil import env_flag
+
+from .toolchain import find_tool
 
 if sys.platform != "win32":
     import resource
@@ -561,19 +562,6 @@ def _kill_tree(proc: subprocess.Popen[bytes]) -> None:
     except (ProcessLookupError, PermissionError, OSError):
         with contextlib.suppress(ProcessLookupError, OSError):
             proc.kill()
-
-
-def find_tool(name: str) -> str | None:
-    """`shutil.which` + macOS TeX 常见落点（/Library/TeX/texbin、brew 前缀）。"""
-    found = shutil.which(name)
-    if found:
-        return found
-    if sys.platform == "darwin":
-        for base in ("/Library/TeX/texbin", "/opt/homebrew/bin", "/usr/local/bin"):
-            p = Path(base) / name
-            if p.is_file() and os.access(p, os.X_OK):
-                return str(p)
-    return None
 
 
 # ================================================================ Linux bwrap 兜底

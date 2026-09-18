@@ -50,8 +50,7 @@ except ModuleNotFoundError:  # pragma: no cover -- 旧式包名回落（同 star
 
 from texlate import __version__
 from texlate.arxiv.fetch import _valid_id, normalize_arxiv_id
-from texlate.compile.sandbox import find_tool
-from texlate.compile.toolchain import resolve_tool
+from texlate.compile.toolchain import find_tool, resolve_tool
 from texlate.server.events import EventBus, sse_frame
 from texlate.server.settings import (
     TARGET_LANGS,
