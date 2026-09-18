@@ -350,9 +350,7 @@ class _Env:
         # unknown-cs 的 CMD 体缺名（覆盖账单调，已盖区间不回卷）
         hit = self._find_pair_end(src, name, close)
         if hit is None:
-            self.state.warnings.append(
-                ScanWarning("unclosed_env", t.pos[1], name)
-            )
+            self.state.warnings.append(ScanWarning("unclosed_env", t.pos[1], name))
             self._handle_unknown_cs(t, src, name, m)
             return
         self._cover_gap(fid, t.pos[1])

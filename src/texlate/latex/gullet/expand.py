@@ -173,17 +173,14 @@ class _Expand:
         lr = self._last_read
         end = (
             lr.pos[2]
-            if lr is not None
-            and lr.pos[0] == trig.pos[0]
-            and lr.pos[2] > trig.pos[2]
+            if lr is not None and lr.pos[0] == trig.pos[0] and lr.pos[2] > trig.pos[2]
             else trig.pos[2]
         )
         call = (trig.pos[0], trig.pos[1], end)
         if n is None or not 0 < int(n) <= _ROMAN_MAX:
             return [Tok("consumed", "romannumeral", call, trig.gen, trig.origin)]
         return [
-            Tok("letter", ch, trig.pos, trig.gen + 1, call)
-            for ch in _to_roman(int(n))
+            Tok("letter", ch, trig.pos, trig.gen + 1, call) for ch in _to_roman(int(n))
         ]
 
     def _do_case(self, trig: Tok, *, upper: bool) -> Tok | None:
