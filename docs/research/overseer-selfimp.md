@@ -727,3 +727,8 @@
 - **L0 点闸**：test_fixloop* 全量 998 项——997 绿 + 1 挂 = xbbpregen 在飞测试文件 (test_fixloop_xbbpregen.py 未提交, 代理自伤不算回归); 已提交面全绿。
 - **sabotage-b r3 脱管批起**：wave-4 触碰 segmenter (inputleak 占位符面) + fixloop 5 规则 → 逃逸面在 blast radius; 40 格沿用 r2 池 (1663 注入事件/0 逃逸基线), ingest→parse→xlat(sabotage-b) → bench/results/stagerun-sab-r3, gate-④ 刷新。
 - roster 7 不变 (xbbpregen/chineseclear 实施 + xlinkobj/bblmath/failmine2/bibhang/ifclosegap 普查)；xbbpregen 已开写 _builtins_graphics。
+
+## 2026-09-19 ~07:3x — gate-④ 核销：sab-r3 逃逸 0（1622 注入/1620 回/2 捉）
+
+- **sabotage-b r3 落地**（39 格, ~90s）：1622 注入事件——1620 recovered + 2 caught + **escaped=0**。wave-4 面 (inputleak 占位符 + 5 fixloop 规则) 未开逃逸路, gate-④ 过。
+- roster 7 全在飞 (xbbpregen 已见 _builtins_graphics 在写)；零交付待收。
