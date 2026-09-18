@@ -711,6 +711,67 @@ def _cite_call_end(vis: str, pos: int) -> int:
     return e if e > i else -1
 
 
+def _math_regions(vis: str) -> list[tuple[int, int, str]]:
+    r"""模态域区间表: ``$`` 系定界 + 数学环境体为 ``"m"``, 文本实参域为 ``"t"``。
+
+    ``cs_events_spans`` 配对 ``$..$``/``$$..$$``/``\(..\)``/``\[..]``，
+    ``_math_env_spans`` 配对数学环境体；``_TEXTARG_CS_209`` 命令实参为
+    文本域——嵌套域由 :func:`_innermost` 按最内层判。无数学域直接返回
+    空表（textarg 域无独立意义）。``_fix_math_209`` 与 fixloop
+    ``wrap_math_cites`` 共用的模态判定单源。
+    """
+    _, dollar_spans = cs_events_spans(vis)
+    spans = dollar_spans + _math_env_spans(vis)
+    if not spans:
+        return []
+    regions: list[tuple[int, int, str]] = [(a, b, "m") for a, b in spans]
+    for m in _TEXTARG_CS_RE.finditer(vis):
+        regions.extend((a, b, "t") for a, b in _textarg_spans(vis, m.end(), m.group(1)))
+    return regions
+
+
+def _cite_mbox_edits(
+    vis: str, regions: list[tuple[int, int, str]]
+) -> tuple[list[tuple[int, int, str]], int]:
+    r"""数学域内裸 cite 族调用的两端零宽插入 edits → ``(edits, n_calls)``。
+
+    命中判据与 ``_MATH_CITE_CS_209`` 注同：最内域须数学域、完整调用
+    （``_cite_call_end`` 配出 ``{key}``）须含于同一域内。同位插入按
+    生成序拼接——相邻调用 ``\cite{a}\cite{b}`` 的左闭 ``}`` 与右开
+    ``\mbox{`` 落在同一 offset，``apply_edits`` 同位只按 repl 字典序
+    排，须预先拼好（finditer 升序命中保证先闭后开）。
+    """
+    inserts: dict[int, list[str]] = {}
+    n = 0
+    for m in _MATH_CITE_RE.finditer(vis):
+        inner = _innermost(regions, m.start())
+        if inner is None or inner[2] != "m":
+            continue
+        end = _cite_call_end(vis, m.end())
+        if end < 0 or end > inner[1]:
+            continue
+        inserts.setdefault(m.start(), []).append("\\mbox{")
+        inserts.setdefault(end, []).append("}")
+        n += 1
+    return [(pos, pos, "".join(strs)) for pos, strs in inserts.items()], n
+
+
+def wrap_math_cites(tex: str) -> tuple[str, int]:
+    r"""数学域内裸 cite 族调用 ``\cite[..]{k}`` → ``\mbox{\cite[..]{k}}``；返回 ``(new_tex, n)``。
+
+    ``_fix_math_209`` cite 臂的独立出口——非 209 时代稿 (fixloop
+    ``cite_in_math_mbox`` 规则, invalid_in_math 签名) 复用同一模态域
+    走查；机制/清单论证见 ``_MATH_CITE_CS_209`` 注。``visible_tex``
+    遮盖面定位 + ``apply_edits`` 回填保行号。幂等——已裹调用居
+    ``\mbox`` 文本域不再命中。
+    """
+    vis = visible_tex(tex)
+    edits, n = _cite_mbox_edits(vis, _math_regions(vis))
+    if not edits:
+        return tex, 0
+    return apply_edits(tex, edits), n
+
+
 def _fix_math_209(tex: str) -> tuple[str, int, int]:
     r"""数学域两族受限转写（共用一次模态域走查）→ ``(new_tex, n_switch, n_cite)``。
 
@@ -719,22 +780,18 @@ def _fix_math_209(tex: str) -> tuple[str, int, int]:
     ``\cite[..]{k}`` → ``\mbox{\cite[..]{k}}``（未定义引用标记 ``\bfseries``
     同签名硬报且 fixloop 自续，见 ``_MATH_CITE_CS_209`` 注）。
 
-    模态判定：``cs_events_spans`` 配对 ``$..$``/``$$..$$``/``\(..\)``/``\[..]``
-    + ``_math_env_spans`` 配对数学环境体为数学域；``_TEXTARG_CS_209`` 命令
-    实参为文本域——嵌套域按 :func:`_innermost` 最内层判。组/调用整体须含于
-    同一数学域内（越界即残缺形态不动）。定位全在 ``visible_tex`` 遮盖视图——
-    注释/逐字内容里的同形不参与；回填 ``apply_edits`` 保行号。cite 包裹是
-    两端零宽插入（``\mbox{``/``}``），与 switch 的段替换不争 span——逆序
-    回放下 ``$\cite{{\em x}}$`` 这类两族命中互不覆盖。
+    模态判定：``_math_regions`` 单源——``$`` 系定界 + 数学环境体为数学域、
+    ``_TEXTARG_CS_209`` 命令实参为文本域，嵌套域按 :func:`_innermost` 最内层
+    判。组/调用整体须含于同一数学域内（越界即残缺形态不动）。定位全在
+    ``visible_tex`` 遮盖视图——注释/逐字内容里的同形不参与；回填
+    ``apply_edits`` 保行号。cite 包裹是两端零宽插入（``\mbox{``/``}``），
+    与 switch 的段替换不争 span——逆序回放下 ``$\cite{{\em x}}$`` 这类
+    两族命中互不覆盖。
     """
     vis = visible_tex(tex)
-    _, dollar_spans = cs_events_spans(vis)
-    spans = dollar_spans + _math_env_spans(vis)
-    if not spans:
+    regions = _math_regions(vis)
+    if not regions:
         return tex, 0, 0
-    regions: list[tuple[int, int, str]] = [(a, b, "m") for a, b in spans]
-    for m in _TEXTARG_CS_RE.finditer(vis):
-        regions.extend((a, b, "t") for a, b in _textarg_spans(vis, m.end(), m.group(1)))
     edits: list[tuple[int, int, str]] = []
     n_switch = 0
     for m in _MATH_SWITCH_RE.finditer(vis):
@@ -748,22 +805,8 @@ def _fix_math_209(tex: str) -> tuple[str, int, int]:
                 (m.start(), m.end(), "\\" + _MATH_SWITCH_209[m.group(1)] + "{")
             )
             n_switch += 1
-    n_cite = 0
-    inserts: dict[int, list[str]] = {}
-    for m in _MATH_CITE_RE.finditer(vis):
-        inner = _innermost(regions, m.start())
-        if inner is None or inner[2] != "m":
-            continue
-        end = _cite_call_end(vis, m.end())
-        if end < 0 or end > inner[1]:
-            continue
-        # 同位插入按生成序拼接——相邻调用 ``\cite{a}\cite{b}`` 的左闭 ``}``
-        # 与右开 ``\mbox{`` 落在同一 offset，``apply_edits`` 同位只按 repl
-        # 字典序排，须预先拼好（finditer 升序命中保证先闭后开）。
-        inserts.setdefault(m.start(), []).append("\\mbox{")
-        inserts.setdefault(end, []).append("}")
-        n_cite += 1
-    edits.extend((pos, pos, "".join(strs)) for pos, strs in inserts.items())
+    cite_edits, n_cite = _cite_mbox_edits(vis, regions)
+    edits.extend(cite_edits)
     if not edits:
         return tex, 0, 0
     return apply_edits(tex, edits), n_switch, n_cite

@@ -103,6 +103,38 @@ rules:
     stats: { fires: 0, note: "唯一触发格 0 命中 → 已知覆盖缺口" }
     source_ref: "fixloop.py L429-445"
 
+  # ── 2026-09-19 citemath 匝道 (task #79; lane-citemath EVIDENCE) ──
+  # natbib ``\@citex`` 未定义引用标记 ``{\reset@font\bfseries ?}`` 无盒
+  # 裸置 → 数学域内 ``\cite`` 展开炸 "Command \bfseries invalid in math
+  # mode" (\not@math@alphabet); halt_on_error 死在 thebibliography 前 →
+  # ``\bibcite`` 不落 .aux → 每轮同错自续。修 = latex209.wrap_math_cites
+  # 走查面 ($ 系定界 + 数学 env 域, \mbox/\text 文本实参除外), 数学域内
+  # 裸 cite 族调用裹 ``\mbox{..}`` 把标记带回文本域。同签可由字面
+  # ``{\bfseries X}`` 数学域误用触发——无 cite token 命中即 decline
+  # (applied=False), 不烧轮次。
+  - id: cite_in_math_mbox
+    description: "数学域内裸 cite 族调用 (natbib 未定义标记 \\bfseries 炸点) → \\mbox{} 包裹"
+    phase: loop
+    order: 105 # soul_cjk_mbox(100) 与 thm_sibling_strip(110) 之间
+    when: { category: invalid_in_math }
+    action:
+      kind: builtin_transform
+      function: cite_in_math_mbox
+      params:
+        exts: [.tex]
+    risk: low # \mbox 是 kernel 原语无包依赖; 已裹调用居 \mbox 文本域不重复命中 (幂等); 注释/逐字面由 visible_tex 遮蔽
+    known_gap: "同签名字面 {\\bfseries X} 误用无 cite token → applied=False 交下轮; 跨域残缺调用 (\\cite 与 {key} 分居两侧定界) 不裹; \\cite 无 {key} 的残缺形不收"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "gr-qc/9901082 (citemath-census-2026-09-18; min6/mbox 实证)",
+          error: "Command \\bfseries invalid in math mode — revtex4-2 \\rtx@citex→natbib \\@citex {\\reset@font\\bfseries ?} 无盒标记",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-citemath/EVIDENCE.md; latex209.wrap_math_cites (209 cite 臂独立出口, _MATH_CITE_CS_209 17 命令清单)"
+
   - id: thm_sibling_strip
     description: "thmtools sibling= 定理计数器冲突 (already defined) → 剥 sibling 选项, 各定理独立编号"
     phase: loop

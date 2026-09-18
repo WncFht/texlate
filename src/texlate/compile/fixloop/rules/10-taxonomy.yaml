@@ -315,6 +315,25 @@ taxonomy:
       payload_group: 1,
       pattern: "([^()\\s:/]+\\.[A-Za-z0-9_-]{1,10}):\\d+: (?:Critical )?(?:Package|Class) [\\w@*+-]+ Error[\\s\\S]{0,600}?too old",
     }
+  # ── 2026-09-19 citemath 匝道 ──
+  # ``Command \X invalid in math mode`` —— \not@math@alphabet 签名。
+  # 主战场: natbib ``\@citex`` 未定义引用标记 ``{\reset@font\bfseries ?}``
+  # 无盒裸置, 数学域内裸 ``\cite`` 展开即炸 (gr-qc/9901082; lane-citemath
+  # EVIDENCE: halt_on_error 死在 thebibliography 前 → \bibcite 不落 .aux
+  # → 自续)。同签亦由字面 ``{\bfseries X}`` 数学域误用触发——路由到此
+  # 类即可, cite_in_math_mbox 规则对无 cite token 面自然 decline。
+  # 须在 syntax 前: syntax 交替含 ``improper``/``allowed only in math``
+  # 但不盖本句式, 占位顺序只是为 head 段确定性求早评。
+  # ``LaTeX Error:`` 前缀必带: ``\@latex@error`` 恒产此前缀, 而
+  # ``LaTeX (Font )?Warning: Command \X invalid in math mode`` 是同句式
+  # 软警告 (\r/\small/\sc 族, 非 \not@math@alphabet 硬报)——不锚前缀
+  # 会被首错后 ctx8 窗内的警告行抢签误路由 (loop1 多格带此警告)。
+  - {
+      id: invalid_in_math,
+      scope: head,
+      payload_group: 1,
+      pattern: "LaTeX Error: Command \\\\([a-zA-Z@]+) invalid in math mode",
+    }
   # 2026-09-16 扩 syntax 族: Extra }/\\endgroup/\\right/\\middle/\\else/\\fi/\\or
   # 与 Forgotten \\endgroup —— 组/定界/条件多 token 错误归 syntax
   # (astro-ph/0306068 "Extra }, or forgotten $." 原是 other 兜底;

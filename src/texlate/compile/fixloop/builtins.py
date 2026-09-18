@@ -27,6 +27,7 @@ from texlate.compile.fixloop._builtins_bib import (
     bbl_regen,
     bbl_stub_rewrite,
     biber_biblatex_skew_route,
+    cite_in_math_mbox,
     citekey_sanitize,
 )
 from texlate.compile.fixloop._builtins_common import (
@@ -167,6 +168,7 @@ __all__ = [
     "bbl_stub_rewrite",
     "biber_biblatex_skew_route",
     "bundled_class_shadow",
+    "cite_in_math_mbox",
     "citekey_sanitize",
     "cs_rebind",
     "cs_targeted_fix",
@@ -237,6 +239,7 @@ TRANSFORM_FNS = {
     "bbl_stub_rewrite": bbl_stub_rewrite,
     "bbl_regen": bbl_regen,
     "biber_biblatex_skew_route": biber_biblatex_skew_route,
+    "cite_in_math_mbox": cite_in_math_mbox,
     "svjour_clo_stub": svjour_clo_stub,
     "font_sub_shim": font_sub_shim,
     "pstricks_dvips_preflight": pstricks_dvips_preflight,

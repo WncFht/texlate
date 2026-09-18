@@ -1,7 +1,8 @@
-"""_builtins_bib — .bbl/.bib 族修复原语 (C3 拆分)。
+r"""_builtins_bib — .bbl/.bib 族修复原语 (C3 拆分)。
 
 tectonic stub bbl 断链改写 / 捆绑旧版 .bbl biber 重生成 /
-ADS 时代 cite-key 裸 ``&``/``_`` 双侧一致消毒。
+ADS 时代 cite-key 裸 ``&``/``_`` 双侧一致消毒 /
+数学域裸 cite 族 ``\\mbox`` 包裹 (invalid_in_math 签名臂)。
 """
 
 from __future__ import annotations
@@ -9,6 +10,7 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Any
 
+from texlate.compile.latex209 import wrap_math_cites
 from texlate.textutil import mask_tex
 
 if TYPE_CHECKING:
@@ -227,3 +229,33 @@ def biber_biblatex_skew_route(
         f"REJECT: route={route} biber/biblatex version skew "
         f"(bcf {m.group(1)} vs tool wants {m.group(2)})"
     )
+
+
+def cite_in_math_mbox(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""数学域内裸 cite 族调用 → ``\mbox{\cite[..]{k}}`` 包裹 (kernel, 无 amsmath 依赖)。
+
+    实证根因 (lane-citemath EVIDENCE, gr-qc/9901082): natbib ``\@citex``
+    未定义引用标记 ``{\reset@font\bfseries ?}`` 不带盒子, 数学域内展开
+    撞 ``\not@math@alphabet`` → ``Command \bfseries invalid in math mode``
+    硬错; halt_on_error 在 thebibliography 之前死掉 → ``\bibcite`` 永不
+    落 .aux → 错误自续。``\mbox`` 把标记带回文本域即断链。走查面 =
+    ``latex209.wrap_math_cites`` (209 修复臂 cite 侧的独立出口, 同
+    ``_MATH_CITE_CS_209`` 17 命令清单)。同签名可由字面 ``{\bfseries X}``
+    触发——无 cite token 时本变换 0 改写自然 decline, 不误伤。
+    """
+    del eng, payload
+    exts = tuple(params.get("exts") or (".tex",))
+    changed: list[str] = []
+    for f in ctx.tex_files(exts):
+        t = ctx.read(f)
+        if t is None:
+            continue
+        nt, n = wrap_math_cites(t)
+        if n:
+            ctx.write(f, nt)
+            changed.append(f"{f.name}({n})")
+    if not changed:
+        return False, "no bare cite-family calls in math regions"
+    return True, f"wrap cite-in-math in \\mbox: {', '.join(changed)}"
