@@ -776,20 +776,23 @@ def cmd_recent(args: argparse.Namespace) -> None:
             if n_new >= args.limit:
                 log(f"limit {args.limit} reached — 明日续跑（预算护栏）")
                 break
-            if (CORPUS / pid / "extracted").is_dir():
+            cell_meta = CORPUS / pid / "meta.json"
+            if (CORPUS / pid / "extracted").is_dir() and cell_meta.exists():
                 try:
-                    meta = json.loads(
-                        (CORPUS / pid / "meta.json").read_text(encoding="utf-8")
-                    )
-                    mf.write(
-                        json.dumps(
-                            bx.manifest_row_from_meta(CORPUS / pid),
-                            ensure_ascii=False,
+                    meta = json.loads(cell_meta.read_text(encoding="utf-8"))
+                    if meta.get("layer") == layer:
+                        mf.write(
+                            json.dumps(
+                                bx.manifest_row_from_meta(CORPUS / pid),
+                                ensure_ascii=False,
+                            )
+                            + "\n"
                         )
-                        + "\n"
-                    )
-                    mf.flush()
-                    done_ids.add(pid)
+                        mf.flush()
+                        done_ids.add(pid)
+                    else:
+                        # 并发异层臂已落此 cell——认账会跨层重复计数
+                        log(f"  skip {pid}: 他层在册 (layer={meta.get('layer')})")
                     continue
                 except (OSError, json.JSONDecodeError):
                     pass
@@ -810,6 +813,10 @@ def cmd_recent(args: argparse.Namespace) -> None:
             assert res.entry is not None
             entry = res.entry.dir
             dest = CORPUS / pid
+            if (dest / "meta.json").exists():
+                # 抓取期间并发他臂落完同 id——snapshot 过期拦不住, 弃取防跨层重账
+                log(f"  skip {pid}: 并发先落")
+                continue
             dest.mkdir(parents=True, exist_ok=True)
             stale = dest / "extracted"
             if stale.exists():
