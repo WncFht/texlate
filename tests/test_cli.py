@@ -531,6 +531,34 @@ class TestThinRun:
         assert (out / "zh.pdf").is_file()
         assert not any(c.endswith((" /..", "/..")) for c in calls)
 
+    def test_empty_artifacts_no_dir_residue(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """产物清单为空 → 不建默认 ``texlate-{id}-{task}`` 目录（cwd 零残渣）。"""
+        ok = self._handler_ok(b"%PDF-zh", "f" * 64)
+
+        def handler(req: httpx.Request) -> httpx.Response:
+            if req.url.path == f"/api/files/{self._TASK}":
+                return httpx.Response(200, json={"artifacts": {}})
+            return ok(req)
+
+        _patch_httpx(monkeypatch, handler)
+        monkeypatch.chdir(tmp_path)
+        result = self._invoke()
+        assert result.exit_code == 0, result.output
+        assert not list(tmp_path.iterdir())
+
+    def test_all_fetches_fail_removes_new_dir(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """产物全下载失败 → 本调用新建的空壳目录回收，不留空 dir。"""
+        _patch_httpx(monkeypatch, self._handler_ok(b"%PDF-zh", "f" * 64))
+        monkeypatch.chdir(tmp_path)
+        result = self._invoke()
+        assert result.exit_code == 0, result.output
+        assert json.loads(result.stdout)["artifacts"] == {}
+        assert not list(tmp_path.iterdir())
+
 
 def _mk_task_dir(data: Path, task_id: str = "t_thincli01") -> Path:
     """合成 ``<data>/tasks/<id>`` 产物 + ``texlate.db`` 任务行（share pack 前置）。"""

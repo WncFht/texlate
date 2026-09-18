@@ -9,6 +9,7 @@ server API、轮询快照到终态、拉取产物。
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import json
 import math
@@ -640,18 +641,26 @@ def _thin_download(
         if out is not None
         else Path.cwd() / f"texlate-{pinned}-{task_id[:8]}"
     )
-    try:
-        dest.mkdir(parents=True, exist_ok=True)
-    except OSError as e:
-        typer.echo(f"产物目录不可写 {dest}: {e}", err=True)
-        return {}
     got: dict[str, str] = {}
+    ensured = False
+    dest_new = False  # 本调用新建的目录——零产物/全失败时回收空壳
     for kind, rec in artifacts.items():
         if not isinstance(rec, dict):
             continue
+        if not ensured:
+            dest_new = not dest.exists()
+            try:
+                dest.mkdir(parents=True, exist_ok=True)
+            except OSError as e:
+                typer.echo(f"产物目录不可写 {dest}: {e}", err=True)
+                return got
+            ensured = True
         path = _thin_fetch_one(client, dest, str(kind), rec)
         if path is not None:
             got[str(kind)] = path
+    if dest_new and not got:
+        with contextlib.suppress(OSError):
+            dest.rmdir()
     return got
 
 

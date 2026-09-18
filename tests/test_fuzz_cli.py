@@ -653,6 +653,11 @@ class TestThinClient:
 
     _TASK = "t_thinfuzz"
 
+    @pytest.fixture(autouse=True)
+    def _cwd(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """默认 ``--out`` 落 ``Path.cwd()``——钉进 tmp 防仓库根目录残渣。"""
+        monkeypatch.chdir(tmp_path)
+
     def _handler_terminal(self, req: httpx.Request) -> httpx.Response:
         p = req.url.path
         if p.endswith("/translate"):
