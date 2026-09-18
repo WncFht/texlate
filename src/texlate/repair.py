@@ -192,7 +192,7 @@ def run_fixloop(  # noqa: PLR0913 -- 开关面穿透两臂同一契约
     """``ResProxy`` 包装 + ``fixloop()`` 调用 + 末次 ``CompRes`` 取回。
 
     ``**kw`` 透传 fixloop 的其余开关面（``ruleset``/``corpus_id``/
-    ``cond``/``case_sink`` 等，worker 臂使用）。异常不吞——两臂各自
+    ``cond``/``case_sink``/``on_round`` 等，worker 臂使用）。异常不吞——两臂各自
     决定兜底形态（e2e 产 error dict、worker 记日志返回原 res）。
     ``should_cancel`` 双落：``fixloop`` 轮顶轮询 + ``ResProxy.compile``
     注入引擎进程级杀树。

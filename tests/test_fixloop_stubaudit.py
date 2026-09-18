@@ -16,33 +16,33 @@
   stub 星号转发把 ``natbib`` 当未知 option 丢给 article 静默吞。
 - ``aipproc.cls``: 真件装载面 calc/ifthen/graphicx[final]/url;
   ``\author`` 双签名 (新 keyval 双参 | 老 REVTeX3 单参+散调 ``\address``,
-  2 参硬吃后随 cs 炸 \csname/keyval) + ``references`` env
-  (astro-ph/0104007 env_undefined→\@listctr×12 级联)。
-- ``tcilatex.tex``: ``\QQQ`` 真件 2 参元数据机 (全部存本一致;
+  2 参硬吃后随 cs 炸 \\csname/keyval) + ``references`` env
+  (astro-ph/0104007 env_undefined→\\@listctr×12 级联)。
+- ``tcilatex.tex``: ``\\QQQ`` 真件 2 参元数据机 (全部存本一致;
   1 参 sink 漏 {val} 进 preamble → Missing\begin{document},
   cond-mat/9910091 实证) + SW20 tag 机全套 (\tag×115 undefined_cs)。
 - ``sw20lart.sty``/``BoxedEPS.tex``: 新 stub 顶掉 shim_map noop 条
   (vendored 预检先落件)——SW20 tag 机同套; BoxedEPS OzTeX 期图件
-  实证面 + \BoxedEPSF→\includegraphics (cond-mat/0408520 ×16)。
+  实证面 + \\BoxedEPSF→\\includegraphics (cond-mat/0408520 ×16)。
 - ``svglov3.clo``: catcode 免疫改写 (1608.06693 实证)——旧 stub 尾置
-  ``\makeatother``, svjour3.cls class-load 语境 ``\input`` 返回后 @ 失
-  字母位, cls:159 ``15\p@`` 断读 → 全 cls 级联。现全件零 @-cs,
-  ``\PackageWarningNoLine`` 两语境皆可解析。
-- shim_map body 升级 (round-2, 随稿签名挖掘): cimento ``\from/\inst/
-  \instlist/\PACSes/\PACSit`` (0905.4620), pasj00 ``\DeclareAbbreviation``
-  2 参 + ``\SetRunningHead/\Received/\Accepted/\KeyWords/\email/\draft``
-  preamble 存值 ``\AtBeginDocument`` 释放 (1003.0945), PoS ``\ShortTitle/
-  \speaker/\email`` + 命令形 ``\abstract`` (1306.5919), imsart += ``\arxiv/
+  ``\\makeatother``, svjour3.cls class-load 语境 ``\\input`` 返回后 @ 失
+  字母位, cls:159 ``15\\p@`` 断读 → 全 cls 级联。现全件零 @-cs,
+  ``\\PackageWarningNoLine`` 两语境皆可解析。
+- shim_map body 升级 (round-2, 随稿签名挖掘): cimento ``\from/\\inst/
+  \\instlist/\\PACSes/\\PACSit`` (0905.4620), pasj00 ``\\DeclareAbbreviation``
+  2 参 + ``\\SetRunningHead/\\Received/\\Accepted/\\KeyWords/\\email/\\draft``
+  preamble 存值 ``\\AtBeginDocument`` 释放 (1003.0945), PoS ``\\ShortTitle/
+  \\speaker/\\email`` + 命令形 ``\abstract`` (1306.5919), imsart += ``\arxiv/
   \thanksref`` (1003.1513), aa501 ``{loads:"aa", needs:["aa.cls"]}`` 桥
-  (0104346 实证面), flushrt ``\AtBeginDocument{\raggedleft}`` (9910310:
+  (0104346 实证面), flushrt ``\\AtBeginDocument{\raggedleft}`` (9910310:
   升级稿 ``\\usepackage{aaspp4,flushrt}`` 合行, 2.09 option→pkg 链)。
 - shim_map geom.sty body 深件 (round-3, 0806.0904/0806.2953 实证 +
-  CTAN latex209/contrib/geomsty 取件核实): ``\ifstarredcontents`` 补
-  ``\newif`` (稿 ``\@ssect`` 直读未声明 → ``\section*`` ``\@tempb``
-  错位 → illegal_unit); ``\presection`` 正 ``\newskip`` 非宏;
+  CTAN latex209/contrib/geomsty 取件核实): ``\\ifstarredcontents`` 补
+  ``\newif`` (稿 ``\\@ssect`` 直读未声明 → ``\\section*`` ``\\@tempb``
+  错位 → illegal_unit); ``\\presection`` 正 ``\newskip`` 非宏;
   ``\newtheorem`` ``[{i}{}]{n}`` 派工系 + ``proof``/``Figure`` env
-  基座 + ``\provedbox``/``\captionskip``/``\@caption*`` 寄存器;
-  ``\prooftag`` 0 参; @-cs 段 ``\catcode 64`` save/restore 免疫。
+  基座 + ``\\provedbox``/``\\captionskip``/``\\@caption*`` 寄存器;
+  ``\\prooftag`` 0 参; @-cs 段 ``\\catcode 64`` save/restore 免疫。
 
 实证基线: bench/results/stagerun-loop2-2026-09-18/records/fixloop.jsonl,
 stagerun-tarrecheck/, stagerun-flipcheck/ 同名 records。
