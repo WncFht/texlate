@@ -1,10 +1,10 @@
 # Corpus v3 Manifest — arXiv 月度簇分层抽样源码语料
 
 渠道钉版批量语料：a–d 带 IA `arxiv-bulk` 月 chunk / e 带 HF `TIGER-Lab/arxiv-latex-5T`（成员四元组 `(channel,item,member,blob_sha256)` 钉版，`resolved_version=null`）。
-数据在本目录 `{id}/` 子目录（gitignored），入库的有此清单、`manifest.jsonl`（核心 1000）、`manifest_booster.jsonl`（补强 200）、`manifest_expand.jsonl`（扩展 3866）、`manifest_hot.jsonl`（热层 166，OpenAlex 高引近期 e-print 渠道）、`mechanisms.jsonl`、`booster_selection.jsonl`、`select_booster.py`、`selection_report.md`、`eval_coverage.json`（B04/B06 宇宙×语料覆盖簿记，L12 EVAL）、`nominations/`（提名审计轨迹，见补强层节），管线脚本在 `bench/py/build_corpus_v3.py`（core/booster）+ `build_corpus_expand.py`（expand）+ `build_hot_layer.py`（hot）。
+数据在本目录 `{id}/` 子目录（gitignored），入库的有此清单、`manifest.jsonl`（核心 1000）、`manifest_booster.jsonl`（补强 200）、`manifest_expand.jsonl`（扩展 3866）、`manifest_hot.jsonl`（热层 166，OpenAlex 高引近期 e-print 渠道）、`manifest_dev_failmine.jsonl`（机制挖掘 1500）、`manifest_dev_vol.jsonl`（体量层 2000）、`manifest_dev_recent.jsonl`（近期 dev 层，scholarweave+eprint 双通道）、`manifest_holdout.jsonl`（留出评测层，EVAL_ONLY 治理见末节）、`mechanisms.jsonl`、`booster_selection.jsonl`、`select_booster.py`、`selection_report.md`、`eval_coverage.json`（B04/B06 宇宙×语料覆盖簿记，L12 EVAL）、`nominations/`（提名审计轨迹，见补强层节），管线脚本在 `bench/py/build_corpus_v3.py`（core/booster）+ `build_corpus_expand.py`（expand）+ `build_hot_layer.py`（hot）+ `build_corpus_layers.py`（holdout/dev_vol/dev_failmine bulk + 各层 recent eprint 臂）+ `build_sw_layer.py`（scholarweave 脱水通道 → dev_recent）。
 抽样管线见 `docs/09-benchmark-corpus.md` S0–S5；旧式 ID 按 `archive/name` 嵌套。
 
-> 追记（2026-09-17）：四层合计 **5232 篇**。expand 层（3866）与 hot 层（166）为增补层——expand 明细见 `manifest_expand.jsonl` + QC `bench/results/corpus-expand-qc-2026-09-16/`；hot 层口径见 `docs/09` §4.3 增补注记与 `docs/research/product/2026-09-16-e2e-pipefix-hotlayer.md`。（勘误 2026-09-18：hot 层当日收官为 166 篇、expand 新批后 3866、合计 5232；本注记原写 133/合计 5133 系时点旧值。）
+> 追记（2026-09-17）：四层合计 **5232 篇**。expand 层（3866）与 hot 层（166）为增补层——expand 明细见 `manifest_expand.jsonl` + QC `bench/results/corpus-expand-qc-2026-09-16/`；hot 层口径见 `docs/09` §4.3 增补注记与 `docs/research/product/2026-09-16-e2e-pipefix-hotlayer.md`。（勘误 2026-09-18：hot 层当日收官为 166 篇、expand 新批后 3866、合计 5232；本注记原写 133/合计 5133 系时点旧值。再勘误 2026-09-19：评测/开发分轨扩层收官后八层合计 **13,266 篇**，见末节。）
 
 - 入库 **1000** 篇（核心层）· 1955 个 .tex · 原始包共 1603M
 - 打包形式：{'tar': 831, 'gz': 169}
@@ -1078,3 +1078,56 @@ yymm {15:3, 16:3, 17:2, 20:1, 21:1, 23:7, 24:89, 25:32, 26:28}；
 `fetch_fail.jsonl` 116 条全 pdf_only）。两子层均越设计配额（120/40），层收官
 不再排续跑；新池余 ~134 未取候选（`bench/work_v3/hot/candidates.jsonl`，
 gitignored）留作后备，再扩须重立项。
+
+## 2026-09-19 评测/开发分轨扩层 —— holdout + dev 三层（+8,034）
+
+M2/M3 推进把语料用途分岔为「评测」与「dev 训练/调试」两轴——核心均匀层继续独任
+池化估计来源，本批四层各管一段。**加层不删层**不变；入库清单
+`manifest_{holdout,dev_failmine,dev_vol,dev_recent}.jsonl`，管线
+`bench/py/build_corpus_layers.py`（plan/scan/extract/qc/recent 五子命令，bulk 臂走
+IA/TIGER 月块 measure-then-sample 同核心层，recent 臂走 arxiv e-print
+`acquire_source` 同 hot 层）+ `bench/py/build_sw_layer.py`（scholarweave 脱水通道）。
+QC 明细 `bench/work_v3/{layer}/qc.md`（id 唯一/跨层零撞/meta 齐/extracted 非空
+全绿）。八层时点合计 **13,266 篇 · 46GB**。
+
+### holdout —— 留出评测层（EVAL_ONLY，3,020 篇）
+
+治理：`benchlib.EVAL_ONLY_LAYERS={"holdout"}`——`dev_layers()` 枚举自动排除、dev
+侧管线摸不到；评测侧须显式 `--layers holdout`。`corpus_ids()` 仍含全层供跨层去重。
+
+- **bulk 2,699**：frame `year_band×cat_group` 38 cell **flat 配额**（核心口径 ×2.7），
+  `exclude_cluster_months` 剔除核心 30 簇月 → 评测/开发月间零泄漏；`cluster_id` 前缀
+  `HO`；渠道 ia 2,159 + tiger 540。e 带曾饿 186（候选池被排除规则吃薄）→ 追投 8 个
+  ≤2412 e 带 item + `extract --topup`（quota−实收 差额补位，不动足额 cell）补满，
+  残 deficit 6（d|eess 1 + d|hep-phys 5，池内真空）。
+- **recent 321**：sw 池余量切 eprint id 清单（2501+ 月分层均匀），`stratum_cell`
+  =`holdout|recent`；pdf_only/not_found 记 `recent_fail.jsonl`（33 条）。
+
+### dev_vol —— 体量 dev 层（2,000 篇）
+
+`fbias` 配额：cell 权重 = flat × 该 cell 历史 parse 失败率偏置（bias=1.0）——训练
+样本往「爱挂的底材」倾斜；不排除核心簇月（dev 层允许分布重叠），`cluster_id` 前缀
+`DV`。ia 1,627 + tiger 373；3,671 tex · 2.76GB；38 cell 残 deficit 39。
+
+### dev_failmine —— 机制挖掘 dev 层（1,500 篇）
+
+`flags` 配额：FLAG_RX 机制旗标定向挖旧时代陷阱（全 IA 94–15 年档）——deadpkg 600 /
+docstyle209 300 / epsfig 150 / pdftex_prim 103 / pstricks 52 / babel_german 6 +
+failmine_fill 289 兜底（minted 0、babel/pstricks/pdftex_prim 欠配 = 池内真空非 bug，
+fill 即设计回补路径）；`cluster_id` 前缀 `DF`；1,901 tex · 342MB。
+
+### dev_recent —— 近期 dev 层（1,514 篇）
+
+2501+ 盲区（TIGER 2412 截止后）双通道：
+
+- **scholarweave 脱水 1,065**：`build_sw_layer.py` footers→pool→assign→rehydrate——
+  47 parquet 分片行组级 range-read 只拉 latex 列，`==== FILE:` 拆包重打 raw.tar.gz；
+  `channel=hf_scholarweave`、`stratum_cell=sw|{yymm}`、`figures_stripped:true`
+  （有损源只进 dev 层，不进评测/池化——docs/09 §0.3 口径延续）。HF CDN 三次重试
+  后弃 3 行组（thrift 页截断）→ 比计划 1,200 少 135。
+- **eprint 449**：sw 池余量切 id 清单走 `acquire_source` 钉版，
+  `stratum_cell=dev_recent|recent`。
+
+并发事故留痕：两份 supp 清单生成时互没去重（380/400 重叠）+ `cmd_recent`
+cell-adoption 路径不分 layer → 5 id 跨层双落；已按 cell meta 归属清账（ho 删 3 /
+dr 删 2），管线修 `e7dc8f96`（异层 cell 只 skip 不克隆 + fetch 后 meta 复查）。
