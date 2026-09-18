@@ -3,7 +3,7 @@ r"""qualbench — 翻译质量评测臂：LLM-judge 给 (src_en, zh) chunk 对�
 
 现有 bench 全是结构指标（identity/leak/编译成功率/锚点保持），没有译文质量
 度量——本脚本补这条臂：对管线真实产出的 chunk 对跑 LLM-judge，输出
-1–5 分 + hjfy 反馈通道同款六类 flag，按 paper/model/kind 聚合出报告。
+ESA 协议 errors[]+stated100 + 派生六类 flag，按 paper/model/kind 聚合出报告。
 judge 模型与被评模型解耦（--judge-model），支持离线 mock judge 全链自检。
 
 chunk 对来源（--source）：
@@ -17,30 +17,40 @@ chunk 对来源（--source）：
           内置确定性 mock 翻译（占位符/控制序列原位保留，散文 run →
           固定中文串），不 import texlate.* 也能把全链跑通。
 
-judge 协议（hjfy 反馈类目同款 flag 集）：
-  system prompt 声明六类 flag：untranslated_spans（漏翻）/
-  placeholder_broken（[[TYPE_n]] 丢/造/改）/term_inconsistency（术语不一致）/
-  over_translation（不该翻的翻了：math/命令/引文/人名）/
-  hallucinated_content（增译）/grammar（中文不通）。输出严格 JSON
-  ``{"score": 1-5, "flags": [...], "note": "<=60ch>"}``；``` 围栏剥皮 +
-  首个 {...} 兜底抽取，解析失败补问一次，再败记 judge_error。
-  judge 调用直接 httpx 打 OpenAI /v1/chat/completions——不 import
-  texlate.xlat（bench 脚本独立轻依赖惯例；--judge-temperature 默认 0.1
-  ——3003 网关对 swe-2-medium 把 temperature=0 直接 502
-  ``stage=response_event``（2026-09-16 实测，0.01 起正常），
-  --judge-max-tokens 默认 4096 给 reasoning 模型留思考预算）。
+judge 协议（ESA 两步单发，``protocol_v=esa2``；规格见
+docs/research/xlat-quality-eval-2026-09-18 §7）：
+  judge 先标错误 span（须为译文逐字子串）再赋 0-100 分——gemba_esa 同款
+  形态（WMT24 prompt 系最强 reference-free 指标）。输出严格 JSON
+  ``{"errors":[{span,category,severity,note}], "score":0-100}``；``` 围栏
+  剥皮 + 首个 {...} 兜底，解析失败补问一次，再败记 judge_error。
+  类目表 = 六 flag 的 MQM 化：accuracy-omission/mistranslation/addition、
+  non-translation、terminology、convention-do_not_translate（窄枚举防
+  GEMBA-MQM locale 滥用）、convention-placeholder、fluency-grammar、
+  fluency-register（report-only 不入罚分）。severity minor/major/critical，
+  critical 收窄到枚举致命类目（整段未翻/占位符结构报废/增译翻转含义）。
+  主分取 stated100；derived100=100-Σ(minor1/major5/critical25，权重最高
+  5 条）只作自洽校验——|Δ| 超阈进 contested。
+  judge 路由：主 swe-2-max；二裁 swe-2-high，触发 |Δ|>15、stated≤55、
+  任一 critical、L0 信号矛盾（ph 缺失/en_residue≥8 但 judge 未报对应
+  类目）。judge≠translator 按 chunk 级 meta.model 强制；swe-2-medium
+  永不任 judge。judge 调用直接 httpx 打 OpenAI /v1/chat/completions
+  ——不 import texlate.xlat（--judge-temperature 默认 0.1：3003 网关
+  temperature=0 直接 502；--judge-max-tokens 默认 8192 给 reasoning
+  留预算；--judge-timeout 默认 300s）。
 
-续跑：records.jsonl 逐块 append，key=``{model}|{paper}|{chunk}|{judge}``
-——同 judged chunk 换 judge 模型重评互不覆盖；已有该 key 且带 score 的行
+续跑：records.jsonl 逐块 append，key=``{model}|{paper}|{chunk}|{judge}|{protocol_v}``
+——协议切换后旧协议记录不再截留新协议产出；已有该 key 且带 score 的行
 跳过（error 行重跑）。抽样：``--papers``  seed 抽篇 + ``--per-paper`` 按
 kind 轮转取块保类型多样，``--n`` 全局封顶（跨篇轮转序取前 n，小样本天然
-跨篇分散）。
+跨篇分散）；``--source manifest`` 直接吃 qualsample 冻结的 sample.jsonl。
 
 用法:
   uv run python bench/py/qualbench.py pairs  [--source state] [--papers 5]
   uv run python bench/py/qualbench.py run --mock-judge --papers 5 --per-paper 6
-  uv run python bench/py/qualbench.py run --judge-model swe-2-medium \
+  uv run python bench/py/qualbench.py run --judge-model swe-2-max \
       --n 3 --out bench/results/qualbench-2026-09-16/smoke
+  uv run python bench/py/qualbench.py run --source manifest \
+      --manifest bench/results/qualbase/sample.jsonl --concurrency 4
   uv run python bench/py/qualbench.py report DIR
 产出: DIR/{records.jsonl,report.md,run_meta.json}
 依赖: uv venv（仅 httpx）；state 源要 e2e_real/stagerun 已跑的 state.json。
@@ -81,19 +91,68 @@ JSON_FENCE_RX = re.compile(
 #: 首个平衡 JSON 对象兜底抽取（fence 剥不掉时扫 {...}）
 JSON_OBJ_RX = re.compile(r"\{.*\}", re.DOTALL)
 
-#: judge flag 全集（hjfy 反馈通道同款类目；未知 flag 归 flags_extra 留痕）
-KNOWN_FLAGS = (
-    "untranslated_spans",
-    "placeholder_broken",
-    "term_inconsistency",
-    "over_translation",
-    "hallucinated_content",
-    "grammar",
+#: 协议版本——进 resume key，协议切换不静默截留旧记录
+PROTOCOL_V = "esa2"
+
+#: ESA/MQM 化类目表（六 flag 的 MQM 化 + fluency-register report-only +
+#: accuracy-mistranslation 补「在译但错」收容位 + non-translation 整段未翻）
+KNOWN_CATEGORIES = (
+    "accuracy-omission",
+    "accuracy-mistranslation",
+    "accuracy-addition",
+    "non-translation",
+    "terminology",
+    "convention-do_not_translate",
+    "convention-placeholder",
+    "fluency-grammar",
+    "fluency-register",
 )
 
+#: report-only：不入 derived 罚分、不进 critical 触发
+REPORT_ONLY_CATS = frozenset({"fluency-register"})
+
+#: critical 收窄到枚举致命类目（整段未翻/占位符结构报废/增译翻转含义）——
+#: 越界 critical 解析侧钳回 major 并计 sev_clamped
+CRITICAL_CATS = frozenset(
+    {"non-translation", "convention-placeholder", "accuracy-addition"}
+)
+
+SEV_WEIGHT = {"minor": 1, "major": 5, "critical": 25}
+#: ESA/Freitag 惯例：每段最多记 5 错（derived 取权重最高 5 条）
+MAX_ERRORS = 5
+#: record 侧最多保留的错误条数（防 judge 超发撑爆 jsonl 行）
+MAX_ERRORS_KEPT = 10
+
+#: MQM 类目 → flag 词表（下游 repair/M8 消费口径；保序去重）
+CATEGORY_TO_FLAG = {
+    "accuracy-omission": "untranslated_spans",
+    "non-translation": "untranslated_spans",
+    "accuracy-addition": "hallucinated_content",
+    "accuracy-mistranslation": "mistranslation",
+    "terminology": "term_inconsistency",
+    "convention-do_not_translate": "over_translation",
+    "convention-placeholder": "placeholder_broken",
+    "fluency-grammar": "grammar",
+    "fluency-register": "fluency_register",
+}
+
+#: judge flag 全集（六 flag + mistranslation/fluency_register 派生值；
+#: 未知类目 verbatim 落 cats_extra 留痕）
+KNOWN_FLAGS = tuple(dict.fromkeys(CATEGORY_TO_FLAG.values()))
+
+#: judge 池顺位（swe-2-medium 与被评同型自评病灶，永不任 judge）
+JUDGE_POOL = ("swe-2-max", "swe-2-high")
+JUDGE_BANNED = "swe-2-medium"
+
+#: contested 触发阈值（xlat-quality-eval §7 冻结值）
+DELTA_CONTEST = 15
+STATED_CONTEST = 55
+EN_RESIDUE_CONTEST = 8
+
 JUDGE_SYSTEM = """\
-You are a meticulous bilingual (English to Chinese) translation-quality judge
-for academic LaTeX texts. You will receive:
+You are a meticulous bilingual (English to Chinese) translation-quality
+annotator for academic LaTeX texts, following the ESA error-annotation
+protocol. You will receive:
 - Kind: the fragment's role (para | caption | section_title | abstract |
   table_text | env_text).
 - Source: the original English LaTeX fragment. [[TYPE_n]] tokens (e.g.
@@ -102,39 +161,50 @@ for academic LaTeX texts. You will receive:
   the translation.
 - Translation: the Chinese translation produced by a machine translator.
 
-Evaluate ONLY translation quality (faithfulness + fluency), not LaTeX
-compilability. Judge against the Kind's expectations (e.g. a section_title
-should be a concise heading, a caption a compact legend).
+Step 1 — identify EVERY error span in the TRANSLATION (at most 5: report
+the 5 most severe). For each error report:
+- "span": the exact substring of the Translation where the error occurs
+  (copy it verbatim; for whole-segment errors repeat the full translation).
+- "category": exactly one of
+  "accuracy-omission" (source content dropped or left untranslated),
+  "accuracy-mistranslation" (meaning distorted vs the source),
+  "accuracy-addition" (content invented, absent from the source),
+  "non-translation" (the whole segment left untranslated),
+  "terminology" (technical term mistranslated or used inconsistently),
+  "convention-do_not_translate" (content that must stay unchanged was
+    translated: person names, citation/bibliography entries, math or LaTeX
+    commands),
+  "convention-placeholder" (a [[TYPE_n]] placeholder missing, invented,
+    renamed, or its immediate surroundings garbled),
+  "fluency-grammar" (ungrammatical or garbled Chinese),
+  "fluency-register" (register/style mismatch for academic prose, e.g.
+    machine-translation flavor — report only, does not affect the score).
+- "severity": "minor" (doesn't change meaning; slight awkwardness),
+  "major" (changes or obscures meaning, breaks readability, or violates a
+  hard convention such as a lost placeholder),
+  "critical" (ONLY for: non-translation of the whole segment; broken
+    placeholders leaving the text structurally unusable; added content
+    that inverts the source meaning).
+- "note": <=40 chars describing the error.
 
-Score (integer 1-5):
-5 = accurate, fluent, publication-ready; consistent terminology; nothing
-    missed, added, or mistranslated.
-4 = good; at most one minor issue (slight awkwardness, one terminology wobble).
-3 = understandable but with noticeable problems (a dropped clause, several
-    awkward phrases, or one clear terminology inconsistency).
-2 = poor; major semantic errors, significant untranslated prose, or broken
-    placeholder handling.
-1 = unusable; mostly untranslated, hallucinated, or garbled.
+Rules:
+- Judge ONLY translation quality (faithfulness + fluency), not LaTeX
+  compilability. Judge against the Kind's expectations (a section_title is
+  a concise heading, a caption a compact legend).
+- Do NOT mark an error for content correctly left in English (person
+  names, citation/bibliography entries, math placeholders).
+- If the translation is fully correct, return an empty error list.
 
-Flags — emit EVERY category that applies (empty list if none):
-- "untranslated_spans": source prose left in English that should be Chinese.
-- "placeholder_broken": a [[TYPE_n]] token missing, invented, renamed, or its
-  immediate surroundings garbled by the translation.
-- "term_inconsistency": the same technical term translated inconsistently, or
-  a standard term clearly mistranslated.
-- "over_translation": content that must stay unchanged was translated —
-  math, LaTeX commands, citation/reference args, or person names.
-- "hallucinated_content": the translation adds claims, entities, or sentences
-  absent from the source.
-- "grammar": Chinese so ungrammatical or machine-garbled it hinders reading.
+Step 2 — after the error list, give "score": your overall 0-100 quality
+score for the translation (100 = perfect; use the full scale).
 
 Output STRICT JSON only — no markdown fence, no commentary:
-{"score": <int>, "flags": [<flag>, ...], "note": "<=60 chars; the single most
-important issue, or 'ok'>"}"""
+{"errors": [{"span": "...", "category": "...", "severity": "...", "note": "..."}], "score": <int 0-100>}"""
 
 JUDGE_RETRY_SUFFIX = (
     "\n\nYour previous reply was not parseable JSON. Reply with ONLY the JSON "
-    'object: {"score": <int 1-5>, "flags": [...], "note": "..."}'
+    'object: {"errors": [{"span": "...", "category": "...", "severity": '
+    '"...", "note": "..."}], "score": <int 0-100>}'
 )
 
 
@@ -387,32 +457,158 @@ def pair_signals(src: str, zh: str) -> dict:
 
 
 # ---------------------------------------------------------------- judge
-def mock_judge(pair: Pair) -> dict:
-    """确定性 mock judge：按确定性信号出分/flag——离线全链自检用。"""
-    sig = pair_signals(pair.src, pair.zh)
-    flags: list[str] = []
-    score = 5
-    if pair.zh.strip() == pair.src.strip() or not pair.zh.strip():
-        return {"score": 1, "flags": ["untranslated_spans"], "note": "zh==src"}
-    if sig["ph_missing"] or sig["ph_invented"]:
-        flags.append("placeholder_broken")
-        score = min(score, 2)
-    if sig["en_residue"] >= 8:
-        flags.append("untranslated_spans")
-        score = min(score, 2)
-    elif sig["en_residue"] >= 3:
-        flags.append("untranslated_spans")
-        score = min(score, 3)
-    if not flags:
-        # sha 奇偶给 4/5 的确定性分布——聚合面能被真实走到
-        score = (
-            4 if int(hashlib.sha256(pair.key.encode()).hexdigest(), 16) % 3 == 0 else 5
+def _norm_parsed(errs_raw: object, score: int) -> dict:
+    """errors 列表规范化 + 衍生字段（parse_esa_json 与 mock 路径共用）。
+
+    - 类目不在 KNOWN_CATEGORIES → verbatim 保留 + 计 cats_extra
+    - severity 不在三档 → 钳 minor 计 sev_clamped；critical 落在
+      CRITICAL_CATS 外 → 钳 major 计 sev_clamped
+    - derived100 = 100 − Σ 权重最高 MAX_ERRORS 条（report-only 类豁免）
+    """
+    errors: list[dict] = []
+    cats_extra: list[str] = []
+    sev_clamped = 0
+    for e in (errs_raw if isinstance(errs_raw, list) else [])[:MAX_ERRORS_KEPT]:
+        if not isinstance(e, dict):
+            continue
+        cat = str(e.get("category") or "?")
+        sev = str(e.get("severity") or "minor").lower()
+        if sev not in SEV_WEIGHT:
+            sev = "minor"
+            sev_clamped += 1
+        elif sev == "critical" and cat not in CRITICAL_CATS:
+            sev = "major"
+            sev_clamped += 1
+        if cat not in KNOWN_CATEGORIES:
+            cats_extra.append(cat)
+        errors.append(
+            {
+                "span": str(e.get("span") or ""),
+                "category": cat,
+                "severity": sev,
+                "note": str(e.get("note") or "")[:80],
+            }
         )
-    return {"score": score, "flags": flags, "note": "mock-judge"}
+    derived = derived100(errors)
+    return {
+        "errors": errors,
+        "stated100": score,
+        "derived100": derived,
+        "score_delta": score - derived,
+        "cats_extra": sorted(set(cats_extra)),
+        "sev_clamped": sev_clamped,
+    }
 
 
-def parse_judge_json(raw: str) -> dict | None:
-    """judge 输出 → dict；fence 剥皮 + {...} 兜底；不合格返回 None。"""
+def derived100(errors: list[dict]) -> int:
+    """规则聚合：100 − Σ severity 权重（权重最高 MAX_ERRORS 条，report-only 豁免）。"""
+    pen = sorted(
+        (
+            SEV_WEIGHT[e["severity"]]
+            for e in errors
+            if e["category"] not in REPORT_ONLY_CATS
+        ),
+        reverse=True,
+    )[:MAX_ERRORS]
+    return max(0, 100 - sum(pen))
+
+
+def flags_of(errors: list[dict]) -> list[str]:
+    """errors 类目 → flag 词表（下游消费口径；保序去重）。"""
+    out: list[str] = []
+    for e in errors:
+        f = CATEGORY_TO_FLAG.get(e["category"])
+        if f and f not in out:
+            out.append(f)
+    return out
+
+
+def verify_spans(errors: list[dict], zh: str) -> list[dict]:
+    """就地写 span_verified——span 须为译文逐字子串。"""
+    for e in errors:
+        e["span_verified"] = bool(e["span"]) and e["span"] in zh
+    return errors
+
+
+def contest_reasons(parsed: dict, sig: dict) -> list[str]:
+    """contested 触发：|Δ|>15 / stated≤55 / 任一 critical / L0 信号矛盾。"""
+    reasons: list[str] = []
+    if abs(parsed["score_delta"]) > DELTA_CONTEST:
+        reasons.append("delta_gt15")
+    if parsed["stated100"] <= STATED_CONTEST:
+        reasons.append("stated_le55")
+    if any(e["severity"] == "critical" for e in parsed["errors"]):
+        reasons.append("critical_present")
+    cats = {e["category"] for e in parsed["errors"]}
+    if (sig["ph_missing"] or sig["ph_invented"]) and (
+        "convention-placeholder" not in cats
+    ):
+        reasons.append("l0_ph_unreported")
+    if sig["en_residue"] >= EN_RESIDUE_CONTEST and not (
+        {"accuracy-omission", "non-translation"} & cats
+    ):
+        reasons.append("l0_en_unreported")
+    return reasons
+
+
+def mock_judge(pair: Pair) -> dict:
+    """确定性 mock judge（ESA 形态）：按确定性信号出 errors+stated100。"""
+    sig = pair_signals(pair.src, pair.zh)
+    raw_errors: list[dict] = []
+    if pair.zh.strip() == pair.src.strip() or not pair.zh.strip():
+        raw_errors.append(
+            {
+                "span": pair.zh[:80] or " ",
+                "category": "non-translation",
+                "severity": "critical",
+                "note": "zh==src",
+            }
+        )
+        return _norm_parsed(raw_errors, 5)
+    if sig["ph_missing"] or sig["ph_invented"]:
+        raw_errors.append(
+            {
+                "span": "[[",
+                "category": "convention-placeholder",
+                "severity": "major",
+                "note": "placeholder mismatch",
+            }
+        )
+    if sig["en_residue"] >= 8:
+        w = EN_WORD_RX.search(CS_RX.sub(" ", PH_TOKEN_RX.sub(" ", pair.zh)))
+        raw_errors.append(
+            {
+                "span": w.group(0) if w else pair.zh[:40],
+                "category": "accuracy-omission",
+                "severity": "major",
+                "note": f"en_residue={sig['en_residue']}",
+            }
+        )
+    elif sig["en_residue"] >= 3:
+        raw_errors.append(
+            {
+                "span": pair.zh[:40],
+                "category": "accuracy-omission",
+                "severity": "minor",
+                "note": f"en_residue={sig['en_residue']}",
+            }
+        )
+    if not raw_errors:
+        # sha 奇偶给 90/97 的确定性分布——聚合面能被真实走到
+        stated = (
+            90
+            if int(hashlib.sha256(pair.key.encode()).hexdigest(), 16) % 3 == 0
+            else 97
+        )
+    else:
+        stated = 100 - 10 * len(raw_errors) - (
+            15 if sig["ph_missing"] or sig["ph_invented"] else 0
+        )
+    return _norm_parsed(raw_errors, max(0, stated))
+
+
+def parse_esa_json(raw: str) -> dict | None:
+    """judge ESA 输出 → parsed dict；fence 剥皮 + {...} 兜底；不合格 None。"""
     m = JSON_FENCE_RX.match(raw)
     body = m.group("body") if m else raw
     try:
@@ -427,18 +623,27 @@ def parse_judge_json(raw: str) -> dict | None:
             return None
     if not isinstance(data, dict):
         return None
+    if not isinstance(data.get("errors"), list):
+        return None
     score = data.get("score")
     if isinstance(score, float) and score.is_integer():
         score = int(score)
-    if not isinstance(score, int) or isinstance(score, bool) or not 1 <= score <= 5:
+    if isinstance(score, str) and score.strip().isdigit():
+        score = int(score.strip())
+    if not isinstance(score, int) or isinstance(score, bool) or not 0 <= score <= 100:
         return None
-    flags = [str(f) for f in data.get("flags") or []]
-    return {
-        "score": score,
-        "flags": [f for f in flags if f in KNOWN_FLAGS],
-        "flags_extra": [f for f in flags if f not in KNOWN_FLAGS],
-        "note": str(data.get("note") or "")[:80],
-    }
+    return _norm_parsed(data["errors"], score)
+
+
+def route_judge(pair: Pair, preferred: str) -> str | None:
+    """judge 路由：preferred 非 banned（与被评同型/swe-2-medium）即用，否则池内顺位。"""
+    banned = {pair.model, JUDGE_BANNED}
+    if preferred and preferred not in banned:
+        return preferred
+    for m in JUDGE_POOL:
+        if m not in banned:
+            return m
+    return None
 
 
 def judge_user_prompt(pair: Pair) -> str:
@@ -490,10 +695,12 @@ async def call_judge(
             ch = choices[0] if isinstance(choices, list) and choices else {}
             if not isinstance(ch, dict):
                 ch = {}
-            content = (ch.get("message") or {}).get("content") or ""
+            msg = ch.get("message") or {}
+            content = msg.get("content") or ""
             usage = payload.get("usage") or {}
             return {
                 "content": content,
+                "reasoning_chars": len(msg.get("reasoning_content") or ""),
                 "finish": ch.get("finish_reason") or "",
                 "seconds": dt,
                 "tok_in": usage.get("prompt_tokens"),
@@ -507,61 +714,163 @@ async def call_judge(
     return {"error": last_err or "unknown"}
 
 
+def shape_judged(parsed: dict, pair: Pair, sig: dict) -> dict:
+    """parsed ESA + pair/确定性信号 → record 判定字段块（span 校验 + contested）。"""
+    verify_spans(parsed["errors"], pair.zh)
+    reasons = contest_reasons(parsed, sig)
+    return {
+        "stated100": parsed["stated100"],
+        "score": parsed["stated100"],
+        "derived100": parsed["derived100"],
+        "score_delta": parsed["score_delta"],
+        "errors": parsed["errors"],
+        "n_errors": len(parsed["errors"]),
+        "n_span_unverified": sum(
+            1 for e in parsed["errors"] if not e["span_verified"]
+        ),
+        "sev_counts": {
+            s: sum(1 for e in parsed["errors"] if e["severity"] == s)
+            for s in SEV_WEIGHT
+        },
+        "sev_clamped": parsed.get("sev_clamped", 0),
+        "cats_extra": parsed.get("cats_extra", []),
+        "flags": flags_of(parsed["errors"]),
+        "contested": bool(reasons),
+        "contest_reasons": reasons,
+    }
+
+
 async def judge_pair(http, pair: Pair, args: argparse.Namespace) -> dict:
-    """judge 一对 → record 字段；解析失败补问一次，再败记 judge_error。"""
-    r = await call_judge(http, pair, args.judge_model, max_tokens=args.judge_max_tokens)
-    if "content" in r:
-        parsed = parse_judge_json(r["content"])
-        if parsed is None:
-            # 补问一次：user 带严格 JSON 提醒后缀
-            r2 = await call_judge(
-                http,
-                pair,
-                args.judge_model,
-                max_tokens=args.judge_max_tokens,
-                user_suffix=JUDGE_RETRY_SUFFIX,
+    """ESA 流程：主裁一次调用 → parse/verify/contest → 触规则 swe-2-high 二裁。"""
+    jm = route_judge(pair, args.judge_model)
+    if jm is None:
+        return {"judge_error": f"no_eligible_judge(translator={pair.model})"}
+    r = await call_judge(http, pair, jm, max_tokens=args.judge_max_tokens)
+    if "content" not in r:
+        return {**r, "judge_model_used": jm}
+    parsed = parse_esa_json(r["content"])
+    if parsed is None:
+        # 补问一次：user 带严格 JSON 提醒后缀
+        r2 = await call_judge(
+            http,
+            pair,
+            jm,
+            max_tokens=args.judge_max_tokens,
+            user_suffix=JUDGE_RETRY_SUFFIX,
+        )
+        if "content" in r2:
+            parsed = parse_esa_json(r2["content"])
+            r = {**r2, "reparsed": True, "raw_first": r["content"][:200]}
+    if parsed is None:
+        return {
+            **r,
+            "judge_model_used": jm,
+            "judge_error": "unparseable",
+            "raw": r.get("content", "")[:300],
+        }
+    out = {
+        "judge_model_used": jm,
+        **shape_judged(parsed, pair, pair_signals(pair.src, pair.zh)),
+        "seconds": r.get("seconds"),
+        "tok_in": r.get("tok_in"),
+        "tok_out": r.get("tok_out"),
+        "reasoning_chars": r.get("reasoning_chars"),
+        "finish": r.get("finish"),
+        "reparsed": r.get("reparsed"),
+        "raw": r.get("content", "")[:500],
+    }
+    # contested → 二裁（judge2 块落 record 备查，主分仍取主裁 stated）
+    if out["contested"] and not args.no_second:
+        jm2 = route_judge(pair, args.second_model)
+        if jm2 is None or jm2 == jm:
+            out["judge2"] = {"judge2_error": "no_eligible_second"}
+        else:
+            r2nd = await call_judge(
+                http, pair, jm2, max_tokens=args.judge_max_tokens
             )
-            if "content" in r2:
-                parsed = parse_judge_json(r2["content"])
-                r = {**r2, "reparsed": True, "raw_first": r["content"][:200]}
-        if parsed is not None:
-            return {**r, **parsed}
-        return {**r, "judge_error": "unparseable", "raw": r.get("content", "")[:300]}
-    return r
+            if "content" in r2nd:
+                p2 = parse_esa_json(r2nd["content"])
+                if p2 is not None:
+                    verify_spans(p2["errors"], pair.zh)
+                    out["judge2"] = {
+                        "judge_model": jm2,
+                        "stated100": p2["stated100"],
+                        "derived100": p2["derived100"],
+                        "score_delta": p2["score_delta"],
+                        "n_errors": len(p2["errors"]),
+                        "errors": p2["errors"],
+                        "flags": flags_of(p2["errors"]),
+                        "seconds": r2nd.get("seconds"),
+                        "tok_in": r2nd.get("tok_in"),
+                        "tok_out": r2nd.get("tok_out"),
+                    }
+                else:
+                    out["judge2"] = {
+                        "judge_model": jm2,
+                        "judge2_error": "unparseable",
+                    }
+            else:
+                out["judge2"] = {
+                    "judge_model": jm2,
+                    "judge2_error": r2nd.get("error", "call_failed"),
+                }
+    return out
 
 
 # ---------------------------------------------------------------- 聚合/报告
+_SCORE_BANDS = ((90, "90-100"), (75, "75-89"), (55, "55-74"), (0, "0-54"))
+
+
 def _dist(scores: list[int]) -> str:
-    c = {s: scores.count(s) for s in range(1, 6)}
-    return " ".join(f"{s}:{c[s]}" for s in range(5, 0, -1))
+    """0-100 分带分布（≥90 / 75-89 / 55-74 / <55）。"""
+    c = {label: 0 for _, label in _SCORE_BANDS}
+    for s in scores:
+        for lo, label in _SCORE_BANDS:
+            if s >= lo:
+                c[label] += 1
+                break
+    return " ".join(f"{label}:{c[label]}" for _, label in _SCORE_BANDS)
 
 
 def aggregate(recs: list[dict]) -> dict:
-    """records → {by_group, by_paper, by_kind, worst, n_error}。"""
+    """records → {by_group, by_paper, by_kind, cat_sev, worst, contested, n_error}。"""
     groups: dict[str, list[dict]] = {}
-    for r in recs:
-        if r.get("score") is None:
-            continue
+    judged = [r for r in recs if r.get("score") is not None]
+    for r in judged:
         groups.setdefault(
             f"{r.get('model', '?')} × judge={r.get('judge_model', '?')}", []
         ).append(r)
     by_paper: dict[str, list[dict]] = {}
     by_kind: dict[str, list[dict]] = {}
-    for r in recs:
-        if r.get("score") is None:
-            continue
+    cat_sev: dict[str, dict[str, int]] = {}
+    for r in judged:
         by_paper.setdefault(str(r.get("paper")), []).append(r)
         by_kind.setdefault(str(r.get("kind") or "?"), []).append(r)
+        for e in r.get("errors") or []:
+            row = cat_sev.setdefault(
+                e.get("category") or "?", {"minor": 0, "major": 0, "critical": 0}
+            )
+            row[e.get("severity") or "minor"] = (
+                row.get(e.get("severity") or "minor", 0) + 1
+            )
+        for c in r.get("cats_extra") or []:
+            row = cat_sev.setdefault(
+                f"?(extra:{c})", {"minor": 0, "major": 0, "critical": 0}
+            )
+    contested = [r for r in judged if r.get("contested")]
     worst = sorted(
-        (r for r in recs if r.get("score") is not None),
-        key=lambda r: (r["score"], -len(r.get("flags") or [])),
+        judged,
+        key=lambda r: (r["score"], -(r.get("n_errors") or 0)),
     )[:30]
     return {
         "groups": groups,
         "by_paper": by_paper,
         "by_kind": by_kind,
+        "cat_sev": cat_sev,
+        "contested": contested,
         "worst": worst,
         "n_error": sum(1 for r in recs if r.get("score") is None),
+        "n_judged": len(judged),
     }
 
 
@@ -575,66 +884,84 @@ def _flag_tally(recs: list[dict]) -> dict[str, int]:
 
 def _score_row(recs: list[dict]) -> str:
     scores = [int(r["score"]) for r in recs]
+    deltas = [int(r["score_delta"]) for r in recs if r.get("score_delta") is not None]
     return (
-        f"{len(recs)} | {statistics.mean(scores):.2f} | "
+        f"{len(recs)} | {statistics.mean(scores):.1f} | "
         f"{statistics.median(scores):.0f} | {_dist(scores)}"
+        + (f" | {statistics.mean(deltas):+.1f}" if deltas else " | —")
     )
 
 
 def write_report(recs: list[dict], meta: dict, out_dir: Path) -> None:
-    """records + run_meta → report.md（聚合惯例照 xlatbench）。"""
+    """records + run_meta → report.md（ESA 口径：stated100 分布 + cat×sev 表 + contested 率）。"""
     agg = aggregate(recs)
+    n_contested = len(agg["contested"])
     lines = [
-        "# qualbench — 译文质量 LLM-judge",
+        "# qualbench — 译文质量 LLM-judge（ESA）",
         "",
-        f"- judge_model: `{meta.get('judge_model')}`（mock={meta.get('mock_judge')}）",
+        (
+            f"- protocol_v: `{meta.get('protocol_v', '?')}` · "
+            f"judge: `{meta.get('judge_model')}`"
+            f"（mock={meta.get('mock_judge')}）· 二裁: `{meta.get('second_model')}`"
+        ),
         f"- source: {meta.get('source')} · seed={meta.get('seed')} · "
-        f"papers={len(meta.get('papers') or [])} · judged={sum(len(v) for v in agg['groups'].values())} chunks"
-        + (f" · judge_error={agg['n_error']}" if agg["n_error"] else ""),
+        f"papers={len(meta.get('papers') or [])} · judged={agg['n_judged']} chunks"
+        + (f" · judge_error={agg['n_error']}" if agg["n_error"] else "")
+        + (
+            f" · contested={n_contested} ({n_contested / agg['n_judged'] * 100:.1f}%)"
+            if agg["n_judged"]
+            else ""
+        ),
         f"- started: {meta.get('started_at')}",
         "",
-        "## 总分（model × judge）",
+        "## 总分 stated100（model × judge）",
         "",
-        "| model × judge | n | mean | median | 分布 5→1 |",
-        "| --- | --- | --- | --- | --- |",
+        "| model × judge | n | mean | median | 分布 ≥90/75+/55+/<55 | Δmean |",
+        "| --- | --- | --- | --- | --- | --- |",
     ]
     lines.extend(
         f"| {name} | {_score_row(agg['groups'][name])} |"
         for name in sorted(agg["groups"])
     )
 
-    lines += ["", "## flag 频率（全体 judged chunk）", ""]
+    lines += ["", "## 错误分类 × severity（全体 judged chunk）", ""]
+    if agg["cat_sev"]:
+        lines += [
+            "| category | minor | major | critical | total |",
+            "| --- | --- | --- | --- | --- |",
+        ]
+        for cat, row in sorted(
+            agg["cat_sev"].items(), key=lambda kv: -sum(kv[1].values())
+        ):
+            tot = sum(row.values())
+            lines.append(
+                f"| `{cat}` | {row['minor']} | {row['major']} | {row['critical']} | {tot} |"
+            )
+    else:
+        lines.append("- （无错误标注）")
+
+    lines += ["", "## flag 频率（类目派生）", ""]
     tally = _flag_tally([r for v in agg["groups"].values() for r in v])
     if tally:
         for f, c in sorted(tally.items(), key=lambda kv: -kv[1]):
             lines.append(f"- `{f}`: {c}")
     else:
         lines.append("- （无 flag）")
-    extra = _flag_tally(
-        [
-            {**r, "flags": r.get("flags_extra") or []}
-            for v in agg["groups"].values()
-            for r in v
-        ]
-    )
-    if extra:
-        lines.append(
-            "- flags_extra（judge 自造名）: "
-            + ", ".join(f"{k}×{v}" for k, v in sorted(extra.items()))
-        )
 
     lines += [
         "",
         "## per-kind",
         "",
-        "| kind | n | mean | median | 分布 5→1 | flags |",
+        "| kind | n | mean | median | 分布 ≥90/75+/55+/<55 | flags |",
         "| --- | --- | --- | --- | --- | --- |",
     ]
     for k in sorted(agg["by_kind"]):
         rs = agg["by_kind"][k]
         ft = _flag_tally(rs)
+        scores = [int(r["score"]) for r in rs]
         lines.append(
-            f"| {k} | {_score_row(rs)} | "
+            f"| {k} | {len(rs)} | {statistics.mean(scores):.1f} | "
+            f"{statistics.median(scores):.0f} | {_dist(scores)} | "
             + (
                 ", ".join(
                     f"{f}×{c}" for f, c in sorted(ft.items(), key=lambda kv: -kv[1])
@@ -648,7 +975,7 @@ def write_report(recs: list[dict], meta: dict, out_dir: Path) -> None:
         "",
         "## per-paper",
         "",
-        "| paper | model | n | mean | 分布 5→1 | flags |",
+        "| paper | model | n | mean | 分布 ≥90/75+/55+/<55 | flags |",
         "| --- | --- | --- | --- | --- | --- |",
     ]
     for p in sorted(agg["by_paper"]):
@@ -657,7 +984,7 @@ def write_report(recs: list[dict], meta: dict, out_dir: Path) -> None:
         scores = [int(r["score"]) for r in rs]
         lines.append(
             f"| {p} | {rs[0].get('model', '?')} | {len(rs)} | "
-            f"{statistics.mean(scores):.2f} | {_dist(scores)} | "
+            f"{statistics.mean(scores):.1f} | {_dist(scores)} | "
             + (
                 ", ".join(
                     f"{f}×{c}" for f, c in sorted(ft.items(), key=lambda kv: -kv[1])
@@ -667,23 +994,70 @@ def write_report(recs: list[dict], meta: dict, out_dir: Path) -> None:
             + " |"
         )
 
+    if agg["contested"]:
+        lines += [
+            "",
+            "## contested chunk（触发二裁）",
+            "",
+            "| paper | chunk | reasons | stated | derived | judge2.stated |",
+            "| --- | --- | --- | --- | --- | --- |",
+        ]
+        for r in agg["contested"][:30]:
+            j2 = r.get("judge2") or {}
+            lines.append(
+                f"| {r.get('paper')} | {r.get('chunk_id')} "
+                f"| {','.join(r.get('contest_reasons') or [])} "
+                f"| {r.get('stated100')} | {r.get('derived100')} "
+                f"| {j2.get('stated100', j2.get('judge2_error', '—'))} |"
+            )
+
     if agg["worst"]:
         lines += [
             "",
-            "## 最差 chunk（score 升序前 30）",
+            "## 最差 chunk（stated100 升序前 30）",
             "",
-            "| paper | chunk | kind | score | flags | note |",
-            "| --- | --- | --- | --- | --- | --- |",
+            "| paper | chunk | kind | stated | Δ | flags | span✗ | note |",
+            "| --- | --- | --- | --- | --- | --- | --- | --- |",
         ]
         for r in agg["worst"]:
-            if r["score"] >= 4 and not r.get("flags"):
+            if r["score"] >= 85 and not r.get("flags"):
                 continue
+            note = ""
+            if r.get("errors"):
+                note = str(r["errors"][0].get("note") or "")[:40]
             lines.append(
                 f"| {r.get('paper')} | {r.get('chunk_id')} | {r.get('kind', '?')} "
-                f"| {r['score']} | {','.join(r.get('flags') or []) or '—'} "
-                f"| {str(r.get('note') or '')[:60]} |"
+                f"| {r['score']} | {r.get('score_delta', '—')} "
+                f"| {','.join(r.get('flags') or []) or '—'} "
+                f"| {r.get('n_span_unverified') or 0} | {note} |"
             )
     (out_dir / "report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+# ---------------------------------------------------------------- manifest 源
+def collect_manifest_pairs(args: argparse.Namespace) -> tuple[list[Pair], dict]:
+    """qualsample 冻结 sample.jsonl → 待评对（基线批直接喂 judge）。"""
+    rows = benchlib.read_jsonl(Path(args.manifest))
+    pairs = [
+        Pair(
+            paper=str(r["paper"]),
+            chunk_id=str(r["chunk_id"]),
+            kind=str(r.get("kind") or "para"),
+            model=str(r.get("model") or "?"),
+            src=str(r.get("src") or r.get("source") or ""),
+            zh=str(r.get("zh") or r.get("translation") or ""),
+            arm=str(r.get("arm") or ""),
+            status=str(r.get("status") or "ok"),
+        )
+        for r in rows
+    ]
+    if args.n:
+        pairs = pairs[: args.n]
+    papers: dict[str, dict] = {}
+    for p in pairs:
+        e = papers.setdefault(p.paper, {"id": p.paper, "model": p.model, "n_pairs": 0})
+        e["n_pairs"] += 1
+    return pairs, {"papers": list(papers.values()), "manifest": args.manifest}
 
 
 # ---------------------------------------------------------------- 命令
@@ -698,18 +1072,23 @@ async def cmd_run(args: argparse.Namespace) -> None:
 
     if args.source == "state":
         pairs, meta_src = collect_state_pairs(args)
+    elif args.source == "manifest":
+        pairs, meta_src = collect_manifest_pairs(args)
     else:
         pairs, meta_src = collect_corpus_pairs(args)
     done = {
-        k
-        for k, r in ((r["key"], r) for r in benchlib.read_jsonl(rec_path) if "key" in r)
-        if r.get("score") is not None
+        r["key"]
+        for r in benchlib.read_jsonl(rec_path)
+        if "key" in r and r.get("score") is not None
     }
     judge_label = "mock-judge" if args.mock_judge else args.judge_model
-    todo = [p for p in pairs if f"{p.key}|{judge_label}" not in done]
+    todo = [
+        p for p in pairs if f"{p.key}|{judge_label}|{PROTOCOL_V}" not in done
+    ]
     print(
         f"pairs={len(pairs)} done={len(done)} todo={len(todo)} "
-        f"judge={judge_label} source={args.source}",
+        f"judge={judge_label} second={args.second_model} "
+        f"protocol={PROTOCOL_V} source={args.source}",
         flush=True,
     )
 
@@ -717,7 +1096,11 @@ async def cmd_run(args: argparse.Namespace) -> None:
         "source": args.source,
         "seed": args.seed,
         "papers": meta_src.get("papers"),
+        "manifest": meta_src.get("manifest"),
         "judge_model": judge_label,
+        "second_model": None if args.no_second else args.second_model,
+        "no_second": args.no_second,
+        "protocol_v": PROTOCOL_V,
         "mock_judge": args.mock_judge,
         "base_url": None if args.mock_judge else args.base_url,
         "per_paper": args.per_paper,
@@ -734,7 +1117,8 @@ async def cmd_run(args: argparse.Namespace) -> None:
     if args.mock_judge:
         recs = []
         for p in todo:
-            j = mock_judge(p)
+            parsed = mock_judge(p)
+            j = shape_judged(parsed, p, pair_signals(p.src, p.zh))
             recs.append(_mk_rec(p, judge_label, j))
             benchlib.append_jsonl(rec_path, recs[-1])
     else:
@@ -757,7 +1141,8 @@ async def cmd_run(args: argparse.Namespace) -> None:
             benchlib.append_jsonl(rec_path, rec)
             print(
                 f"  {p.paper} {p.chunk_id} kind={p.kind} -> "
-                f"score={rec.get('score')} flags={rec.get('flags')} "
+                f"stated={rec.get('stated100')} Δ={rec.get('score_delta')} "
+                f"flags={rec.get('flags')} contested={rec.get('contested')} "
                 f"err={rec.get('error') or rec.get('judge_error') or ''}",
                 flush=True,
             )
@@ -776,9 +1161,12 @@ async def cmd_run(args: argparse.Namespace) -> None:
 
 
 def _mk_rec(pair: Pair, judge_label: str, j: dict) -> dict:
-    """Pair + judge 输出 → record 行（确定性信号 + 摘要一并落账）。"""
+    """Pair + judge 输出 → record 行（确定性信号 + 摘要一并落账）。
+
+    key 并入 protocol_v——协议切换后旧协议记录不再截留新产出。
+    """
     rec = {
-        "key": f"{pair.key}|{judge_label}",
+        "key": f"{pair.key}|{judge_label}|{PROTOCOL_V}",
         "paper": pair.paper,
         "chunk_id": pair.chunk_id,
         "kind": pair.kind,
@@ -786,6 +1174,7 @@ def _mk_rec(pair: Pair, judge_label: str, j: dict) -> dict:
         "arm": pair.arm or None,
         "status": pair.status,
         "judge_model": judge_label,
+        "protocol_v": PROTOCOL_V,
         **pair_signals(pair.src, pair.zh),
         "src_excerpt": pair.src[:160],
         "zh_excerpt": pair.zh[:160],
@@ -798,6 +1187,8 @@ def cmd_pairs(args: argparse.Namespace) -> None:
     """离线预览抽样（不调 judge）。"""
     if args.source == "state":
         pairs, meta = collect_state_pairs(args)
+    elif args.source == "manifest":
+        pairs, meta = collect_manifest_pairs(args)
     else:
         pairs, meta = collect_corpus_pairs(args)
     for p in pairs:
@@ -821,7 +1212,14 @@ def cmd_report(args: argparse.Namespace) -> None:
 
 
 def _add_sampling_args(p: argparse.ArgumentParser) -> None:
-    p.add_argument("--source", choices=["state", "corpus"], default="state")
+    p.add_argument(
+        "--source", choices=["state", "corpus", "manifest"], default="state"
+    )
+    p.add_argument(
+        "--manifest",
+        default=None,
+        help="--source manifest 时：qualsample 冻结的 sample.jsonl",
+    )
     p.add_argument(
         "--state-root",
         action="append",
@@ -847,7 +1245,19 @@ def main() -> None:
 
     p_run = sub.add_parser("run", help="抽样 + judge + records/report")
     _add_sampling_args(p_run)
-    p_run.add_argument("--judge-model", default="swe-2-medium")
+    p_run.add_argument(
+        "--judge-model",
+        default="swe-2-max",
+        help="主裁模型（swe-2-medium 永不任 judge；与被评同型自动改路由）",
+    )
+    p_run.add_argument(
+        "--second-model",
+        default="swe-2-high",
+        help="contested 二裁模型",
+    )
+    p_run.add_argument(
+        "--no-second", action="store_true", help="关掉 contested 二裁"
+    )
     p_run.add_argument(
         "--base-url",
         default=os.environ.get("TEXLATE_BASE_URL", "http://127.0.0.1:3003"),
@@ -858,9 +1268,9 @@ def main() -> None:
         "--concurrency",
         type=int,
         default=2,
-        help="judge 并发——swe-2-medium 全局闸 4（多会话共享），本臂自限 ≤2",
+        help="judge 并发——网关全局 decode 吞吐 ~550 tok/s 多会话共享，本臂自限 ≤4",
     )
-    p_run.add_argument("--judge-timeout", type=float, default=180.0)
+    p_run.add_argument("--judge-timeout", type=float, default=300.0)
     p_run.add_argument(
         "--judge-temperature",
         type=float,
@@ -870,7 +1280,7 @@ def main() -> None:
     p_run.add_argument(
         "--judge-max-tokens",
         type=int,
-        default=4096,
+        default=8192,
         help="judge 输出预算（reasoning 模型需思考余量）",
     )
     p_run.add_argument("--out", default=None, help="显式产出目录")
@@ -889,6 +1299,10 @@ def main() -> None:
     args = ap.parse_args()
     if getattr(args, "state_root", None) is None:
         args.state_root = [str(DEFAULT_STATE_ROOT)]
+    if getattr(args, "source", None) == "manifest" and not getattr(
+        args, "manifest", None
+    ):
+        ap.error("--source manifest 需要 --manifest PATH")
     args.fn(args)
 
 
