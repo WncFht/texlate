@@ -42,6 +42,7 @@ from texlate.compile.fixloop._builtins_common import (
 from texlate.compile.fixloop._builtins_csfix import (
     _allocated_cs_names,
     cs_targeted_fix,
+    ctlseq_undefine,
     pdfstring_cs_disarm,
     undefine_for_redef,
 )
@@ -78,6 +79,7 @@ from texlate.compile.fixloop._builtins_graphics import (
     includepdf_missing_stub,
     pstricks_dvips_preflight,
     svg_prepare,
+    xbb_pregen,
 )
 from texlate.compile.fixloop._builtins_misc import (
     docstrip_generate,
@@ -172,6 +174,7 @@ __all__ = [
     "citekey_sanitize",
     "cs_rebind",
     "cs_targeted_fix",
+    "ctlseq_undefine",
     "docstrip_generate",
     "eps_to_pdf",
     "extract_tar_blobs",
@@ -207,6 +210,7 @@ __all__ = [
     "undefined_env_polyfill",
     "vendored_fetch",
     "vendored_shadow_isolate",
+    "xbb_pregen",
 ]
 
 
@@ -251,6 +255,7 @@ TRANSFORM_FNS = {
     "physics_stub_detach": physics_stub_detach,
     "undefine_for_redef": undefine_for_redef,
     "cs_targeted_fix": cs_targeted_fix,
+    "ctlseq_undefine": ctlseq_undefine,
     "purge_corrupt_intermediates": purge_corrupt_intermediates,
     "missing_char_fix": missing_char_fix,
     "accent_mark_fix": accent_mark_fix,
@@ -272,4 +277,5 @@ TRANSFORM_FNS = {
     "cs_rebind": cs_rebind,
     "revtex209_surface_polyfill": revtex209_surface_polyfill,
     "pdfstring_cs_disarm": pdfstring_cs_disarm,
+    "xbb_pregen": xbb_pregen,
 }

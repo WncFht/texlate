@@ -109,6 +109,39 @@ rules:
     stats: { fires: 11, rescued_cells: 11, status: validated } # fixloop-v2-rules-2026-09-15 实测
     source_ref: "fixloop-v2 整改; texglot app/graphics.py 同思路"
 
+  # 2105.00151 (pipecensus; IEICE 模板 ``\usepackage[dvipdfmx]{graphicx,xcolor}``
+  # 字面方括号驱动) 实证: doc 强指 dvipdfmx → dvipdfmx.def
+  # ``\Gread@extractbb@aux`` 对 pdf/png 族先 ``\openin <stem>.xbb``, miss 退
+  # ``"|extractbb -O <file>"`` pipe → 沙箱 ``shell_escape=f`` (受限白名单
+  # 也关) → pipe 死 → 每图一对 ``Cannot run pipe command`` +
+  # ``<stem>.xbb (no BoundingBox)`` 双错 (13 图 26 错, PDF 出但图全丢)。
+  # xetex.def 走 ``\XeTeXpdffile`` 原生量尺寸无此链。修复 = 全量 extractbb
+  # 可图形 ``extractbb -x`` 预生成 ``<stem>.xbb`` 旁文件 —— 缓存在盘非空
+  # 即被直读, pipe 臂整体跳过。签名只产生于 dvipdfmx.def, 无 source 闸。
+  - id: xbb_pregen
+    description: "dvipdfmx pipe/xbb 双错 → 全量图形 extractbb -x 预生成 .xbb bbox 缓存"
+    phase: loop
+    order: 15.5 # eps_to_pdf(15) 后, eps_route(16) 前 —— other 类目同区
+    when: { category: other }
+    condition:
+      ctx_suggests: "\\.xbb \\(no BoundingBox\\)|Cannot run pipe command"
+      tool_available: extractbb
+    action:
+      kind: builtin_transform
+      function: xbb_pregen
+      params: {}
+    risk: low # 只写 .xbb bbox 缓存旁文件, 不改源不改引用
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # xdvipdfmx 内嵌同链, doc 强指 dvipdfmx 时同法可救
+    provenance:
+      - {
+          corpus: "2105.00151 (pipecensus pipe/xbb 26 错格, 13 图全丢)",
+          error: "Cannot run pipe command + Cannot determine size of graphic in X.xbb",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-pipecensus/cells.jsonl; graphics-def dvipdfmx.def:104-131"
+
   # 兜底拒: 转换工具缺席或全数失败时才拒 —— 替代原 precheck fileset 版,
   # 后者实证把 baseline pdf~ 格也 0 轮拒掉 (0812.4521/nucl-th/0104042 回归)。
   - id: eps_route

@@ -725,3 +725,101 @@ def svg_prepare(
         ctx.engine_flags.append(flag)
         return True, f"inkscape on PATH -> engine_flags +{flag}"
     return _svg_convert_arm(ctx)
+
+
+# ═══ dvipdfmx pipe/xbb 域 (pipecensus 2026-09-19): extractbb 缓存预生成 ═══
+
+#: ``\Gread@extractbb@aux`` 经 ``<stem>.xbb`` 读的图形扩展名面 ——
+#: dvipdfmx.def ``Gin@rule@<ext>`` 表第二元为 ``.xbb`` 的族
+#: (pdf/ai/jp2/jpf/png/jpg/jpeg/bmp); eps/ps/mps 走 eps 读法不进本面。
+_XBB_EXTS = (".pdf", ".ai", ".png", ".jpg", ".jpeg", ".jp2", ".jpf", ".bmp")
+
+#: err_head 内 ``graphic in <stem>.xbb (no BoundingBox)`` 抽取 —— 裸 stem
+#: 回映同 stem 图形件兜底 (glob 全量已覆盖, 防御非标准扩展名残留)。
+_XBB_ERR_RE = re.compile(r"graphic in (\S+?)\.xbb \(no BoundingBox\)")
+
+
+def _xbb_targets(ctx: LoopCtx) -> dict[Path, None]:
+    """全量图形 glob + err_head 裸 stem 回映 → 保序去重目标表 (值占空)。"""
+    targets: dict[Path, None] = {}
+    for p in sorted(ctx.wdir.rglob("*")):
+        if p.is_file() and p.suffix.lower() in _XBB_EXTS:
+            targets[p] = None
+    for stem in _XBB_ERR_RE.findall(ctx.err_head or ""):
+        rel = PurePosixPath(_norm_graphic_name(stem))
+        if rel.is_absolute() or ".." in rel.parts:
+            continue
+        base = ctx.wdir / Path(*rel.parts)
+        if base.is_file():
+            targets.setdefault(base)
+            continue
+        for e in _XBB_EXTS:
+            g = base.with_suffix(e)
+            if g.is_file():
+                targets.setdefault(g)
+                break
+    return targets
+
+
+def _xbb_fresh(xbb: Path, src: Path) -> bool:
+    """``.xbb`` 非空且不旧于源图 → 免重转 (stat 败一律按不鲜)。"""
+    try:
+        return bool(
+            xbb.is_file()
+            and xbb.stat().st_size
+            and xbb.stat().st_mtime >= src.stat().st_mtime
+        )
+    except OSError:
+        return False
+
+
+def xbb_pregen(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""Dvipdfmx pipe/xbb 双错: 全量图形 ``extractbb -x`` 预生成 ``.xbb`` bbox 缓存。
+
+    机制 (graphics-def ``dvipdfmx.def:104-131``): doc 强指 ``[dvipdfmx]``
+    驱动时 pdf/png 族图形先 ``\openin <stem>.xbb`` —— miss 退
+    ``"|extractbb -O <file>"`` pipe → 沙箱 ``shell_escape=f`` 下 pipe 死 →
+    ``Cannot run pipe command`` + ``<stem>.xbb (no BoundingBox)`` 每图一对
+    (2105.00151 IEICE 模板 13 图 26 错格)。``.xbb`` 在盘非空即被直读、
+    pipe 臂整体跳过 —— 全量预生成单轮尽数解掉 (err_head 只露首错 stem,
+    逐 stem 修要烧轮次; extractbb 批式只写末件故逐件调用)。
+    幂等: ``.xbb`` 非空且不旧于源图 → 跳过; extractbb 败残留的空 ``.xbb``
+    (``\ifeof`` 为真照样走 pipe 的毒件) 就地清掉。
+    """
+    del eng, payload
+    extractbb = shutil.which("extractbb")
+    if not extractbb:
+        return False, "no extractbb on PATH"
+    targets = _xbb_targets(ctx)
+    if not targets:
+        return False, "no extractbb-capable graphic in project"
+    timeout = int(params.get("timeout", 60))
+    gen = fresh = 0
+    failed: list[str] = []
+    for src in targets:
+        xbb = src.with_suffix(".xbb")
+        if _xbb_fresh(xbb, src):
+            fresh += 1
+            continue
+        # openout_any=p 下 extractbb 拒写绝对径产物 —— argv 给 wdir 相对径
+        # (run_tool cwd=wdir), 同名 .xbb 落源图旁。
+        rc, _out, to = ctx.run_tool(
+            [extractbb, "-x", src.relative_to(ctx.wdir).as_posix()], timeout=timeout
+        )
+        if rc == 0 and not to and xbb.is_file() and xbb.stat().st_size:
+            gen += 1
+        else:
+            xbb.unlink(missing_ok=True)  # 失败空 .xbb 是毒件 —— \ifeof 仍走 pipe
+            failed.append(f"{src.name}(rc={rc}{'/to' if to else ''})")
+    if not gen:
+        if fresh and not failed:
+            return False, f"all {fresh} .xbb already fresh"
+        return False, f"0 generated ({'; '.join(failed) or 'nothing to do'})"
+    note = f"xbb pregen {gen} new/{len(targets)} targets"
+    if fresh:
+        note += f", {fresh} fresh"
+    if failed:
+        note += f"; failed: {'; '.join(failed)}"
+    return True, note
