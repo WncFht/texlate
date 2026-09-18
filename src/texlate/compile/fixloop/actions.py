@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import re
 import shutil
+import threading
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
@@ -19,7 +20,7 @@ from texlate.compile.fixloop import builtins
 from texlate.compile.fixloop.ruleset import _WHEN_ITEM_KEYS
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator
+    from collections.abc import Callable, Iterable, Iterator
 
     from texlate.compile.fixloop.engine import Engine, LoopCtx
     from texlate.compile.fixloop.logparse import ErrReport
@@ -167,8 +168,38 @@ def _cond_ok(  # noqa: C901, PLR0911, PLR0912  # 条件原语分派表, 每键�
 # ════════════════════════════════════════════════════════════════
 
 
+#: 单次 ``pat.sub`` 硬顶（秒）——病态回溯超此即弃守该条替换。
+_SUB_TIMEOUT_S = 20.0
+
+
+def _bounded_sub(
+    pat: re.Pattern[str],
+    repl: str | Callable[[re.Match[str]], str],
+    text: str,
+) -> str | None:
+    """``pat.sub`` 时限包裹：超时返 ``None``（spinner 线程泄漏续跑）。
+
+    stdlib ``re`` 的回溯在 C 层不可中断——病态 pattern 遇特定文本退化
+    指数回溯（loop2 实证单格 utime 4.2h 纯 CPU）。Python 杀不了线程，
+    超时只能弃守：daemon 线程继续烧（GIL 分时降级、不拖死全局），本格
+    按未改动续走——「整格挂死」换成「一条替换跳过 + 事件归因」。
+    """
+    box: list[str] = []
+
+    def _run() -> None:
+        box.append(pat.sub(repl, text))
+
+    th = threading.Thread(target=_run, daemon=True)
+    th.start()
+    th.join(_SUB_TIMEOUT_S)
+    return None if th.is_alive() else box[0]
+
+
 def _patch_files(
-    ctx: LoopCtx, exts: Iterable[str], subs: list[tuple[re.Pattern[str], Any]]
+    ctx: LoopCtx,
+    exts: Iterable[str],
+    subs: list[tuple[re.Pattern[str], Any]],
+    rule_id: str = "",
 ) -> int:
     """对全部匹配文件做 ``pattern→repl|function`` 替换; 返回改动文件数 (spike L245-261)。"""
     n = 0
@@ -178,7 +209,13 @@ def _patch_files(
             continue
         nt = t
         for pat, repl in subs:
-            nt = pat.sub(repl, nt)
+            nxt = _bounded_sub(pat, repl, nt)
+            if nxt is None:
+                ctx.events.append(
+                    f"rewrite_timeout {rule_id}: {pat.pattern[:80]!r} on {f}"
+                )
+                continue
+            nt = nxt
         if nt != t:
             ctx.write(f, nt)
             n += 1
@@ -519,7 +556,7 @@ def _apply(  # noqa: C901, PLR0911  # action.kind 分派表, 每种一处
         return True, f"rc={rc}{' TIMEOUT' if to else ''} {out[-200:].strip()}"
     if kind == "regex_rewrite":
         subs = _compile_rewrites(params.get("rewrites") or [])
-        n = _patch_files(ctx, params.get("exts") or (".tex", ".sty"), subs)
+        n = _patch_files(ctx, params.get("exts") or (".tex", ".sty"), subs, rule.id)
         if n > 0:  # 0 命中不落 engine_flags——空转规则不该给后续编译注 flag
             for fl in params.get("engine_flags") or []:
                 if fl not in ctx.engine_flags:
