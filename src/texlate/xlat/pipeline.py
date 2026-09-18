@@ -70,6 +70,8 @@ TRANSLATE_MAX_TOKENS = 8192
 LENGTH_RETRY_MAX_TOKENS = 32768
 #: 默认并发（provider 限额 10~50 可调）
 DEFAULT_CONCURRENCY = 10
+#: paper-context 锚定块的 abstract 截断上限（texglot ``limit_context`` 同族）
+PAPER_CTX_MAX_CHARS = 6000
 
 
 # ---------------------------------------------------------------- 输入/输出
@@ -285,7 +287,11 @@ class MockTranslator:
                 )
             except (json.JSONDecodeError, AttributeError):
                 return "{}"
-        lines = user.split("\n")
+        # user 尾挂的 [placeholder_values] 参考块（及其后 [compile_error] 等
+        # 反馈段）不是待译内容——剥掉再回显，否则块内 token 二次出现触发
+        # extra-placeholder 校验失败、批回显路径也走不到（整批退单翻）。
+        body = user.partition("\n\n" + prompts.VALUE_CONTEXT_HEADER)[0]
+        lines = body.split("\n")
         if lines and all(_MOCK_NUM_RX.match(ln) for ln in lines if ln.strip()):
             return "\n".join(
                 f"{m.group(1)} {_mock_translate_text(m.group(2), self.zh)}"
@@ -293,7 +299,7 @@ class MockTranslator:
                 else _mock_translate_text(ln, self.zh)
                 for ln in lines
             )
-        return _mock_translate_text(user, self.zh)
+        return _mock_translate_text(body, self.zh)
 
 
 #: mock 译文密度：每 ~8 个英文字符折一倍 ``MOCK_ZH``——E24 token 比带
@@ -318,7 +324,9 @@ def _mock_translate_text(text: str, zh: str) -> str:
     pos = 0
     for m in _MOCK_TOKEN_RX.finditer(text):
         out.append(
-            _PROSE_RUN_RX.sub(lambda m2: _mock_zh(m2.group(0), zh), text[pos : m.start()])
+            _PROSE_RUN_RX.sub(
+                lambda m2: _mock_zh(m2.group(0), zh), text[pos : m.start()]
+            )
         )
         out.append(m.group(0))
         pos = m.end()
@@ -500,6 +508,47 @@ def _item_chunks(item: tuple[str, Any]) -> list[ChunkIn]:
     return [payload]
 
 
+def _slots_user_obj(
+    c: ChunkIn,
+    slots_map: dict[str, str],
+    failures_json: str,
+    *,
+    cfg: PipelineConfig,
+) -> dict[str, Any]:
+    """Slots 调用 user JSON：slots + instructions + 可选字段。
+
+    ``placeholder_values``（占位符值参考，截断口径同 user 后缀块）与
+    ``slot_validation_failures`` 各自有才挂——字段缺席即"无此信息"，
+    比空值少一层解析歧义。
+    """
+    user_obj: dict[str, Any] = {
+        "slots": slots_map,
+        "instructions": (
+            f"Translate each slot value from {cfg.src_lang} to "
+            f"{cfg.tgt_lang}. Return a JSON object mapping each "
+            "slot id to its translation. Keep ids unchanged."
+        ),
+    }
+    if c.ph_fragments:
+        user_obj["placeholder_values"] = prompts.truncate_value_frags(c.ph_fragments)
+    if failures_json:
+        user_obj["slot_validation_failures"] = failures_json
+    return user_obj
+
+
+def _merged_value_frags(members: list[ChunkIn]) -> dict[str, str]:
+    """批成员 ``ph_fragments`` 合并——token 文档内唯一，同 key 后写赢。
+
+    同 token 跨成员指向同实体，冲突本不该出现；合并块随批 user 尾挂，
+    给模型读着消歧（texglot ``value_tokens`` 同族）。
+    """
+    merged: dict[str, str] = {}
+    for c in members:
+        if c.ph_fragments:
+            merged.update(c.ph_fragments)
+    return merged
+
+
 @dataclass
 class PipelineConfig:
     """编排参数（docs/08 §1.6 定案默认值）。"""
@@ -557,12 +606,15 @@ class XlatPipeline:
         #: auth 熔断闸（``run()`` 每次开头重置；跨论文熔断靠调用方读它累计）
         self.auth_gate = AuthGate(self.cfg.auth_fail_threshold)
         self._doc_glossary: dict[str, str] = {}
-        self._prompts: dict[tuple[str, bool], str] = {}
+        self._paper_ctx = ""
+        self._prompts: dict[tuple[str, bool, bool], str] = {}
 
     # ------------------------------------------------------------ 物化
 
-    def _system_prompt(self, kind: str, *, batch: bool = False) -> str:
-        key = (kind, batch)
+    def _system_prompt(
+        self, kind: str, *, batch: bool = False, paper_ctx: bool = True
+    ) -> str:
+        key = (kind, batch, paper_ctx)
         if key not in self._prompts:
             self._prompts[key] = prompts.build_system_prompt(
                 kind,
@@ -570,6 +622,7 @@ class XlatPipeline:
                 tgt_lang=self.cfg.tgt_lang,
                 glossary_terms=self._doc_glossary,
                 batch=batch,
+                paper_context=self._paper_ctx if paper_ctx else None,
             )
         return self._prompts[key]
 
@@ -603,6 +656,14 @@ class XlatPipeline:
             self._doc_glossary.update(
                 self.glossary.doc_filter(c.content for c in pending)
             )
+        # 首个 abstract 块 masked 原文截断做 paper-context 锚定块（texglot
+        # ``paper_context`` 同族）；[[X_n]] 保留无妨——值由 user 侧
+        # placeholder_values 块供读。全量 chunks 扫描（含已完成块）——
+        # 续跑口径与全新跑逐字节一致。
+        self._paper_ctx = next(
+            (c.content[:PAPER_CTX_MAX_CHARS] for c in pending if c.kind == "abstract"),
+            "",
+        )
         # 同实例二次 run 换了文档 → 术语块变了，prompt memo 必须失效重渲染
         self._prompts.clear()
 
@@ -677,9 +738,9 @@ class XlatPipeline:
         system = self._system_prompt(c.kind)
 
         async def translate_fn(src_text: str, feedback: str) -> str:
-            user = src_text
+            user = src_text + prompts.render_value_context(c.ph_fragments or {})
             if feedback:
-                user = f"{src_text}\n\n[previous_validation_error]\n{feedback}"
+                user = f"{user}\n\n[previous_validation_error]\n{feedback}"
             return await self.translator.translate(
                 system=system,
                 user=user,
@@ -700,20 +761,11 @@ class XlatPipeline:
         async def slots_fn(
             slots_map: dict[str, str], failures_json: str
         ) -> dict[str, str]:
-            user_obj: dict[str, Any] = {
-                "slots": slots_map,
-                "instructions": (
-                    f"Translate each slot value from {self.cfg.src_lang} to "
-                    f"{self.cfg.tgt_lang}. Return a JSON object mapping each "
-                    "slot id to its translation. Keep ids unchanged."
-                ),
-            }
-            if failures_json:
-                user_obj["slot_validation_failures"] = failures_json
+            user_obj = _slots_user_obj(c, slots_map, failures_json, cfg=self.cfg)
             # response_format 在 3003 网关被静默忽略（B4a 实测三变体同输出）——
             # 只是 prompt 增强；真正约束在阶梯侧的槽位合法性校验+失败重问。
             raw = await self.translator.translate(
-                system=system,
+                system=self._system_prompt(c.kind, paper_ctx=False),
                 user=json.dumps(user_obj, ensure_ascii=False),
                 temperature=self.cfg.temperature,
                 max_tokens=self.cfg.max_tokens,
@@ -778,7 +830,11 @@ class XlatPipeline:
         try:
             raw = await self.translator.translate(
                 system=system,
-                user=f"{c.content}\n\n[compile_error]\n{compile_feedback}",
+                user=(
+                    f"{c.content}"
+                    f"{prompts.render_value_context(c.ph_fragments or {})}"
+                    f"\n\n[compile_error]\n{compile_feedback}"
+                ),
                 temperature=self.cfg.temperature,
                 max_tokens=self.cfg.max_tokens,
             )
@@ -854,7 +910,10 @@ class XlatPipeline:
         """
         members = [c for _i, c in send]
         system = self._system_prompt(members[0].kind, batch=True)
-        user = encode_batch([c.content for c in members])
+        # 各成员 ph_fragments 合并成批级 value-context 随 user 尾挂
+        user = encode_batch([c.content for c in members]) + (
+            prompts.render_value_context(_merged_value_frags(members))
+        )
 
         raw: str | None = None
         try:

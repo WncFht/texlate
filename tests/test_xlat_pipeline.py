@@ -3,11 +3,13 @@
 import asyncio
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 from conftest import mk_chunk, run_pipeline
 
 from texlate.xlat import pipeline as pl
+from texlate.xlat import prompts
 from texlate.xlat.client import AuthError
 from texlate.xlat.glossary import Glossary, TermEntry
 from texlate.xlat.state import StateStore
@@ -460,3 +462,197 @@ class TestCachePoisonGuard:
         assert cache == {}
         pipe._cache_store(c, "干净译文 [[MATH_1]]")  # noqa: SLF001
         assert len(cache) == 1
+
+
+class TestValueContextInjection:
+    """v4-C：ph_fragments → user 侧 placeholder_values 块 / slots JSON 字段。"""
+
+    def test_single_chunk_appends_block(self) -> None:
+        t = pl.MockTranslator()
+        c = pl.ChunkIn(
+            "c1",
+            "Prose " + "x" * 400 + " [[MATH_1]]",
+            "para",
+            ph_fragments={"[[MATH_1]]": "$E=mc^2$"},
+        )
+        out = run_pipeline([c], translator=t)
+        assert out[0].status == "ok"
+        user = t.calls[0]["user"]
+        assert prompts.VALUE_CONTEXT_HEADER in user
+        assert "- [[MATH_1]]: $E=mc^2$" in user
+        # 块挂正文之后
+        assert user.index("Prose") < user.index(prompts.VALUE_CONTEXT_HEADER)
+
+    def test_no_frags_no_block(self) -> None:
+        t = pl.MockTranslator()
+        run_pipeline([mk_chunk("Prose " + "x" * 400, "c1")], translator=t)
+        assert prompts.VALUE_CONTEXT_HEADER not in t.calls[0]["user"]
+
+    def test_frag_truncated_in_user(self) -> None:
+        t = pl.MockTranslator()
+        c = pl.ChunkIn(
+            "c1",
+            "Prose " + "x" * 400 + " [[MATH_1]]",
+            "para",
+            ph_fragments={"[[MATH_1]]": "v" * 300},
+        )
+        run_pipeline([c], translator=t)
+        user = t.calls[0]["user"]
+        assert "v" * 200 + "…" in user
+        assert "v" * 201 not in user
+
+    def test_batch_merges_frags(self) -> None:
+        """批 user = 编号行 + 合并 value 块；mock 批回显不受尾挂块影响。"""
+        t = pl.MockTranslator()
+        chunks = [
+            pl.ChunkIn(
+                "a",
+                "Alpha " + "x" * 400 + " [[MATH_1]]",
+                "para",
+                ph_fragments={"[[MATH_1]]": "$x$"},
+            ),
+            pl.ChunkIn(
+                "b",
+                "Beta " + "y" * 400 + " [[CITE_2]]",
+                "para",
+                ph_fragments={"[[CITE_2]]": "\\cite{z}"},
+            ),
+        ]
+        out = run_pipeline(chunks, translator=t)
+        assert all(r.batched for r in out)  # 批协议真走到（非退单翻）
+        batch_user = t.calls[0]["user"]
+        assert batch_user.startswith("[1]")
+        assert prompts.VALUE_CONTEXT_HEADER in batch_user
+        assert "- [[MATH_1]]: $x$" in batch_user
+        assert "- [[CITE_2]]: \\cite{z}" in batch_user
+        assert batch_user.index("[2]") < batch_user.index(prompts.VALUE_CONTEXT_HEADER)
+
+    def test_retranslate_block_before_error_tag(self) -> None:
+        """L2 回灌 user：content → value 块 → [compile_error]。"""
+        t = pl.MockTranslator()
+        pipe = pl.XlatPipeline(translator=t)
+        c = pl.ChunkIn(
+            "c",
+            "Body [[MATH_1]] text",
+            "para",
+            ph_fragments={"[[MATH_1]]": "$x$"},
+        )
+        r = asyncio.run(pipe.retranslate_chunk(c, "Missing $"))
+        assert r is not None
+        user = t.calls[0]["user"]
+        assert "- [[MATH_1]]: $x$" in user
+        assert user.index(prompts.VALUE_CONTEXT_HEADER) < user.index("[compile_error]")
+
+
+class _SlotsOnlyTranslator:
+    """非 JSON 调用恒答缺 token 废文逼 ladder 走 slots 臂；JSON 调用正常。"""
+
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+
+    async def translate(
+        self,
+        *,
+        system: str,
+        user: str,
+        temperature: float,  # noqa: ARG002 -- Translator 协议签名固定
+        max_tokens: int,  # noqa: ARG002 -- Translator 协议签名固定
+        response_format: dict[str, str] | None = None,
+    ) -> str:
+        self.calls.append(
+            {"system": system, "user": user, "response_format": response_format}
+        )
+        if response_format and response_format.get("type") == "json_object":
+            payload = json.loads(user)
+            return json.dumps(
+                dict.fromkeys(payload["slots"], "译文"), ensure_ascii=False
+            )
+        return "missing every token"  # 占位符 diff 恒败 → whole/lines 全灭
+
+
+class TestSlotsValueContext:
+    def test_slots_placeholder_values_field(self) -> None:
+        """slots JSON user 带截断口径一致的 placeholder_values 字段。"""
+        t = _SlotsOnlyTranslator()
+        chunks = [
+            pl.ChunkIn(
+                "p1",
+                "Alpha prose [[MATH_1]] omega.",
+                "para",
+                ph_fragments={"[[MATH_1]]": "$x$"},
+            ),
+        ]
+        run_pipeline(chunks, translator=t)
+        slots_calls = [c for c in t.calls if c["response_format"]]
+        assert slots_calls  # 确实走到 slots 臂
+        payloads = [json.loads(c["user"]) for c in slots_calls]
+        assert all(p["placeholder_values"] == {"[[MATH_1]]": "$x$"} for p in payloads)
+
+    def test_slots_system_has_no_paper_ctx(self) -> None:
+        """slots system 不挂 paper-context 锚定块（主路径同 kind prompt 带）。"""
+        t = _SlotsOnlyTranslator()
+        chunks = [
+            mk_chunk("Anchoring abstract text.", "abs", kind="abstract"),
+            pl.ChunkIn(
+                "p1",
+                "Alpha prose [[MATH_1]] omega.",
+                "para",
+                ph_fragments={"[[MATH_1]]": "$x$"},
+            ),
+        ]
+        run_pipeline(chunks, translator=t)
+        slots_calls = [c for c in t.calls if c["response_format"]]
+        assert slots_calls
+        assert all("Paper context" not in c["system"] for c in slots_calls)
+        # 对照：主路径 kind system 带锚定块（corrector 专用 prompt 不挂，剔出）
+        main_calls = [
+            c
+            for c in t.calls
+            if not c["response_format"] and not c["user"].startswith("[Original]")
+        ]
+        assert main_calls
+        assert all("Paper context" in c["system"] for c in main_calls)
+
+
+class TestPaperContext:
+    """v4-D：首个 abstract 块 masked 原文 → 全 kind system 锚定块。"""
+
+    def test_abstract_anchors_all_kinds(self) -> None:
+        t = pl.MockTranslator()
+        abstract = "We present a masked study of [[MATH_1]] dynamics."
+        chunks = [
+            mk_chunk(abstract, "abs", kind="abstract"),
+            mk_chunk("Body prose " + "x" * 400, "p1"),
+            mk_chunk("Caption " + "y" * 60, "cap", kind="caption"),
+        ]
+        run_pipeline(chunks, translator=t)
+        assert len(t.calls) == 3  # noqa: PLR2004 -- 三 kind 各一单发
+        for call in t.calls:
+            assert "Paper context" in call["system"]
+            assert "never translate, append, or summarize it" in call["system"]
+            assert abstract in call["system"]
+
+    def test_no_abstract_no_block(self) -> None:
+        t = pl.MockTranslator()
+        run_pipeline([mk_chunk("Prose " + "x" * 400, "c1")], translator=t)
+        assert "Paper context" not in t.calls[0]["system"]
+
+    def test_abstract_truncated_at_6000(self) -> None:
+        t = pl.MockTranslator()
+        chunks = [
+            mk_chunk("A" * 7000, "abs", kind="abstract"),
+            mk_chunk("Body " + "x" * 400, "p1"),
+        ]
+        run_pipeline(chunks, translator=t)
+        for call in t.calls:
+            assert "A" * pl.PAPER_CTX_MAX_CHARS in call["system"]
+            assert "A" * (pl.PAPER_CTX_MAX_CHARS + 1) not in call["system"]
+
+    def test_second_run_without_abstract_clears_ctx(self) -> None:
+        """同实例二次 run 换无 abstract 文档 → 锚定块不残留。"""
+        t = pl.MockTranslator()
+        pipe = pl.XlatPipeline(translator=t)
+        asyncio.run(pipe.run([mk_chunk("Abstract here.", "a1", kind="abstract")]))
+        assert "Paper context" in t.calls[0]["system"]
+        asyncio.run(pipe.run([mk_chunk("Plain prose " + "x" * 400, "p1")]))
+        assert "Paper context" not in t.calls[-1]["system"]

@@ -84,6 +84,79 @@ class TestKindPrompts:
             assert "C8a." in p
             assert p.index("C8a.") < p.index("C9.")
 
+    def test_untrusted_clause_all_kinds(self) -> None:
+        """C8b untrusted 条款：全 kind 有、在 C8a 之后 C9 之前。"""
+        for kind in prompts.all_kinds():
+            p = prompts.build_system_prompt(kind)
+            assert "C8b." in p
+            assert "untrusted document content" in p
+            assert p.index("C8a.") < p.index("C8b.") < p.index("C9.")
+
+    def test_c9_movable_license(self) -> None:
+        """C9 v4 改写：删 reorder 禁令 + movable/fixed 二分授权句。"""
+        clause = prompts.PLACEHOLDER_CLAUSE
+        assert "reorder" not in clause
+        assert "may and should change" in clause
+        assert "target-language grammar requires it" in clause
+        assert "Chinese word" in clause  # 写死 zh——无 _fill 逐字串不变量
+        assert "All other tokens must keep their original positions" in clause
+        for kind in prompts.all_kinds():
+            assert clause in prompts.build_system_prompt(kind)
+
+    def test_paper_context_block(self) -> None:
+        """paper_context 非空 → task 句后插 abstract 锚定块；空/缺省不插。"""
+        ctx = "We study translational [[MATH_1]] in masked form."
+        p = prompts.build_system_prompt("para", paper_context=ctx)
+        assert "Paper context" in p
+        assert "never translate, append, or summarize it" in p
+        assert ctx in p
+        # 插在 task 句与 C1 公共块之间
+        assert p.index("Your task") < p.index("Paper context") < p.index("C1.")
+        # 缺席两态：None 与 "" 同效
+        bare = prompts.build_system_prompt("para")
+        assert "Paper context" not in bare
+        assert prompts.build_system_prompt("para", paper_context="") == bare
+        assert prompts.build_system_prompt("para", paper_context=None) == bare
+
+    def test_paper_context_glossary_still_last(self) -> None:
+        """paper_context 与 glossary 并存——glossary 仍压最末。"""
+        g = {"attention": "注意力"}
+        p = prompts.build_system_prompt(
+            "para", glossary_terms=g, paper_context="ctx text"
+        )
+        assert p.rstrip().endswith("- attention: 注意力")
+        assert p.index("Paper context") < p.index("<Glossary>:")
+
+
+class TestRenderValueContext:
+    """user 侧 placeholder_values 后缀块（texglot value_tokens 同族）。"""
+
+    def test_empty_returns_empty(self) -> None:
+        assert prompts.render_value_context({}) == ""
+
+    def test_block_shape(self) -> None:
+        block = prompts.render_value_context(
+            {"[[MATH_1]]": "$E=mc^2$", "[[CITE_2]]": "\\cite{foo}"}
+        )
+        assert block.startswith("\n\n" + prompts.VALUE_CONTEXT_HEADER)
+        assert "- [[MATH_1]]: $E=mc^2$" in block
+        assert "- [[CITE_2]]: \\cite{foo}" in block
+
+    def test_frag_truncated_at_200(self) -> None:
+        block = prompts.render_value_context({"[[MATH_1]]": "x" * 300})
+        assert "x" * 200 + "…" in block
+        assert "x" * 201 not in block
+
+    def test_block_capped_at_2000(self) -> None:
+        frags = {f"[[MATH_{i}]]": "y" * 190 for i in range(20)}
+        block = prompts.render_value_context(frags)
+        assert len(block) <= 2 + 2000
+
+    def test_truncate_value_frags(self) -> None:
+        """slots JSON 字段与 user 块共用同一截断口径。"""
+        out = prompts.truncate_value_frags({"a": "x" * 300, "b": "short"})
+        assert out == {"a": "x" * 200 + "…", "b": "short"}
+
 
 _EXPECTED_FEWSHOT_N = 6
 _EXPECTED_JUDGE_MAX_TOKENS = 16
