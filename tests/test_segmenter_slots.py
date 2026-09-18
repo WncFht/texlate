@@ -26,17 +26,10 @@ r"""非文本槽位保护回归 —— loop1 stagerun 五类腐蚀形态钉版�
 + pieces 无缝平铺 ``[0, len(vtex))``。
 """
 
-import pytest
 from conftest import DOC, blob, check_invariants
 
 from texlate.latex import parse_tex
 from texlate.latex.model import PieceKind, ScanResult
-
-
-@pytest.fixture(autouse=True)
-def _pin_v2(monkeypatch: pytest.MonkeyPatch) -> None:
-    """钉死 v2（Gullet+Segmenter）路径——外部 ``TEXLATE_NO_EXPAND`` 不串扰。"""
-    monkeypatch.delenv("TEXLATE_NO_EXPAND", raising=False)
 
 
 def scan(body: str) -> ScanResult:
@@ -344,12 +337,13 @@ def test_grp_argspec_unregistered_unchanged() -> None:
 
 
 def test_pend_spec_reg_gate() -> None:
-    r"""组尾待绑判同闸：``\Alph`` 被 ``\renewcommand`` 登记后不再按签名
-    ``s o o o m`` 只吸首组——``m is not None`` → keyarg/探针 ``o m×6``
-    把 ``{aa1}{bb2}`` 全吸进组尾，``[[EXPAND]]`` 体覆盖 ``\\vv{aa1}{bb2}``
-    整调用点（无闸时 ``{bb2}`` 漏出组界裸进 chunk）。"""
+    r"""组尾待绑判同闸：``\Alph`` 被 ``\renewcommand`` 登记成 opaque 宏后
+    不再按签名 ``m`` 只吸首组——``m is not None`` → 探针 ``o m×6`` 吸
+    ``{aa1}{bb2}`` 进组尾、opaque spec ``m m`` 走参罩面，
+    ``[[EXPAND]]`` 体覆盖 ``\\vv{aa1}{bb2}`` 整调用点（无闸按签名
+    ``m`` 时 ``{bb2}`` 漏出组界裸进 chunk）。"""
     res = scan(
-        "\\renewcommand{\\Alph}[1]{\\textbf{#1}}\n"
+        "\\renewcommand{\\Alph}[2]{\\textbf{#1#2}}\n"
         "\\newcommand{\\vv}{pre \\Alph}\n"
         "Text \\vv{aa1}{bb2} tail words here."
     )
@@ -437,3 +431,81 @@ def test_grp_accent_bare_arg() -> None:
     assert res.ph_map["[[CMD_1]]"] == "\\~n"
     [c] = res.chunks
     assert "[[CMD_1]]" in c.content
+
+
+# ------------------------------------------------------------- opaque 宏镜像
+# 主流 row18 ``_handle_opaque_macro`` 的组内对价：宏表 ``opaque``/``math``
+# 登记名按自身 ``spec`` 位序走参整调用罩 ``[[CMD]]``——探针 ``[o]+{m}×6``
+# 形曾把 spec 外 ``{..}`` 组误吸进保护面（登记宏 nargs 越界过吸，组内
+# surface 与主流 ``_args_tok`` 位序分叉）。``{``/``[``-open 组参过散文门
+# 抠出子扫渲 surface；体尾 key-arg cs 调用点 ``{key}`` 同罩。
+
+
+def test_grp_opaque_macro_spec_arity() -> None:
+    r"""``\def\foo#1{\textbf{#1}}``（opaque ``m``）：``\foo{aa}{bb}`` 只罩
+    首参——``{bb}`` 非参组留 surface 可译（探针曾按 ``{m}×6`` 双吸蒸发）。"""
+    res = scan(
+        "\\def\\foo#1{\\textbf{#1}}\n"
+        "\\newcommand{\\vv}{pre \\foo{aa}{bb} post words here}\n"
+        "Text \\vv tail words here."
+    )
+    assert res.ph_map["[[CMD_1]]"] == "\\foo{aa}"
+    assert "{bb}" in blob(res)
+
+
+def test_grp_opaque_macro_opt_mand() -> None:
+    r"""``o m`` 签名 opaque 宏：``[ww]{aa}`` 全随 ``[[CMD]]`` 罩住。"""
+    res = scan(
+        "\\newcommand{\\bar}[2][zz]{\\textbf{#1#2}}\n"
+        "\\newcommand{\\vv}{pre \\bar[ww]{aa} post words here}\n"
+        "Text \\vv tail words here."
+    )
+    assert res.ph_map["[[CMD_1]]"] == "\\bar[ww]{aa}"
+
+
+def test_grp_opaque_macro_no_arg() -> None:
+    r"""零参 opaque 宏：``\foo`` 本体 ``[[CMD]]``——后随 ``{bb}`` 非参
+    不吸（探针会把 ``{bb}`` 当 ``{m}`` 吞掉蒸发）。"""
+    res = scan(
+        "\\def\\foo{\\textbf{}}\n"
+        "\\newcommand{\\vv}{pre \\foo{bb} post words here}\n"
+        "Text \\vv tail words here."
+    )
+    assert res.ph_map["[[CMD_1]]"] == "\\foo"
+    assert "{bb}" in blob(res)
+
+
+def test_grp_opaque_macro_prose_arg() -> None:
+    r"""opaque 宏散文参挖掘：``{长散文}`` 参抠出 ``[[CMD]]`` 覆盖、子扫
+    渲 surface——主流 ``_handle_opaque_macro`` 散文面同型。"""
+    res = scan(
+        "\\def\\foo#1{\\textbf{#1}}\n"
+        "\\newcommand{\\vv}{pre \\foo{some long english prose argument} post}\n"
+        "Text \\vv tail words here."
+    )
+    assert res.ph_map["[[CMD_1]]"] == "\\foo{"
+    assert "some long english prose argument" in blob(res)
+
+
+def test_grp_opaque_macro_keyarg_tail() -> None:
+    r"""opaque 宏体尾 key-arg：``\def\foo{\relax\ref}`` 调用点 ``{k1}``
+    随 ``[[CMD]]`` 罩住不译（主流 ``_handle_opaque_macro`` keyarg 吸参同位）。"""
+    res = scan(
+        "\\def\\foo{\\relax\\ref}\n"
+        "\\newcommand{\\vv}{pre \\foo{k1} post words here}\n"
+        "Text \\vv tail words here."
+    )
+    assert res.ph_map["[[CMD_1]]"] == "\\foo{k1}"
+    assert "k1" not in blob(res)
+
+
+def test_grp_opaque_math_kind() -> None:
+    r"""``math`` 族宏同行兜住：``\def\foo#1{\alpha#1}`` 体含 ``\alpha``
+    → ``math`` 档——``\foo{x}{bb}`` 同样只罩首参。"""
+    res = scan(
+        "\\def\\foo#1{\\alpha#1}\n"
+        "\\newcommand{\\vv}{pre \\foo{x}{bb} post words here}\n"
+        "Text \\vv tail words here."
+    )
+    assert res.ph_map["[[CMD_1]]"] == "\\foo{x}"
+    assert "{bb}" in blob(res)
