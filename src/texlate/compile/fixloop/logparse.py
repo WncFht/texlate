@@ -37,28 +37,49 @@ __all__ = ["ErrReport", "Taxonomy", "parse_log", "parse_text"]
 #: 阈值内正常档过量告警永远够不着，病态档轻松过线几个量级。
 _RUNAWAY_VBOX_RX = re.compile(r"Overfull \\vbox[^\n]*while \\output is active")
 _RUNAWAY_VBOX_MIN = 30
+#: ``[N]`` shipout 页标——输出例程页产率签名（str 形供事后判据；活哨侧
+#: bytes 编译形 ``compile.proc._PAGE_MARK_RX`` 同词素两介质）。
+_RUNAWAY_PAGE_RX = re.compile(r"\[\d+\]")
+#: 页产率硬顶——健康论文页数百级以下，病态输出例程 ~400 页/秒
+#: （gr-qc/0104075 ~97K 页/240s 实证）。计数制非 max 值：文本偶发的
+#: ``[12345]`` 引用/编号单发不误伤。
+_RUNAWAY_PAGE_MAX = 10_000
+#: vbox 密度闸——签名数须 > DENSITY × 页标数才判暴走：「逐页一条」的
+#: 慢性告警是良性排版溢出（1003.2165 实证：46 签名/46 页、36s 干净编译，
+#: 旧累计≥30 闸在 ~15.6s 误杀）；签名远超页产才是无进展空转。K=4 容忍
+#: 单页多次 ``\output`` 调用（插页/footnote 冲刷、告警先于 ``[N]`` 落行）。
+_RUNAWAY_VBOX_DENSITY = 4
 
 
 def _is_runaway_output(text: str) -> bool:
-    r"""Log 被 ``\output`` 期 Overfull ``\vbox`` 刷屏 → 输出例程死循环判据。
+    r"""Log 输出例程暴走判据——与 ``proc._RunawaySentry`` 活哨同语义双臂。
 
-    早退计数：命中 ``_RUNAWAY_VBOX_MIN`` 即返，对 73K 行病态 log 不整扫。
+    - ``[N]`` 页标计数 ≥ ``_RUNAWAY_PAGE_MAX``：病态页产率（单调计数越阈
+      即返，不等全扫）；
+    - vbox 签名 ≥ ``_RUNAWAY_VBOX_MIN`` ∧ 签名数 > ``_RUNAWAY_VBOX_DENSITY``
+      × 页标数：无 shipout 空转签名。密度按**全文终值**评估——中途的高
+      密度前奏（告警先于页标落行）不抢判，逐页慢性告警文档永不误伤。
     """
-    for hits, _m in enumerate(_RUNAWAY_VBOX_RX.finditer(text), 1):
-        if hits >= _RUNAWAY_VBOX_MIN:
+    page_marks = 0
+    for page_marks, _m in enumerate(_RUNAWAY_PAGE_RX.finditer(text), 1):
+        if page_marks >= _RUNAWAY_PAGE_MAX:
             return True
-    return False
+    vbox_hits = sum(1 for _m in _RUNAWAY_VBOX_RX.finditer(text))
+    return (
+        vbox_hits >= _RUNAWAY_VBOX_MIN
+        and vbox_hits > _RUNAWAY_VBOX_DENSITY * page_marks
+    )
 
 
-#: ctx 内 ``l.N`` 行号——词素单源 = ``texlog._L_NUM_SRC``; 本侧变体加
-#: (?m)/``[ \t]*`` 宽容在 ctx blob 内检索 (texlog ``_L_NUM_RE`` 是
+#: ctx 内 ``l.N`` 行号——词素单源 = ``texlog.L_NUM_SRC``; 本侧变体加
+#: (?m)/``[ \t]*`` 宽容在 ctx blob 内检索 (texlog ``L_NUM_RE`` 是
 #: strip 后严格行首形)。非行首的 ``l.5`` 字样 (如 ``file:5:`` 残片/正文)
 #: 不误中。
-_LINE_NO_RE = re.compile(r"(?m)^[ \t]*" + _L_NUM_SRC)
+_LINE_NO_RE = re.compile(r"(?m)^[ \t]*" + L_NUM_SRC)
 #: subclassify 收窄的冒犯 cs 判定域: ctx 首个 ``l.N`` 行 + cs 名抽取。
-#: 行词素单源 = ``texlog._L_NUM_ROW_SRC`` (本侧刻意不加空白宽容——
+#: 行词素单源 = ``texlog.L_NUM_ROW_SRC`` (本侧刻意不加空白宽容——
 #: 与上面 blob 检索的宽容形是有意分歧, 行判定走严格 ``^l.``)。
-_LN_ROW_RE = re.compile(r"(?m)^" + _L_NUM_ROW_SRC + r"[^\n]*")
+_LN_ROW_RE = re.compile(r"(?m)^" + L_NUM_ROW_SRC + r"[^\n]*")
 _CS_NAME_RE = re.compile(r"\\([a-zA-Z@]+)")
 #: ctx 头行 ``<name>`` —— TeX 错误上下文对伪输入层 (``<recently read>``
 #: 最近 \input/\read、``<argument>`` 宏参展开、``<write>`` 等) 的标记。

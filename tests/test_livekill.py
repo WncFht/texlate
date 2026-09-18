@@ -3,9 +3,12 @@
 
 签名/阈值与 ``fixloop.logparse`` 事后判据单源（``_RUNAWAY_VBOX_RX`` ×
 30；``[N]`` shipout 页标 10K 第二闸）。越阈排干环抛 ``TimeoutExpired``
-→ ``run_process`` 既有 killpg 收树臂 → ``timed_out=True`` + SIGKILL——
-``_res_died``/``runaway_output`` 归因原样命中，病态编译不再烧满墙钟
-（gr-qc/0104075：96K+ 签名行 / ~97K 页烧 240s 实证）。
+→ ``run_process`` 既有 killpg 收树臂 → ``timed_out`` 槽回吐截杀臂名
+（``vbox_flood``/``page_flood`` str）+ SIGKILL——``_res_died``/
+``runaway_output`` 归因凭记录臂名命中，病态编译不再烧满墙钟
+（gr-qc/0104075：96K+ 签名行 / ~97K 页烧 240s 实证）；逐页一条的慢性
+vbox 告警（1003.2165：46签名/46页）密度判据放行不杀，密度语义钉见
+``test_sentry_rate.py``。
 哨件只活在 POSIX 排干环——win32 分片 communicate 与无 stdout 替身
 （测试注入面）不装哨，runner 注入缝原样。
 """
@@ -104,7 +107,7 @@ def test_run_process_livekill_vbox_flood(tmp_path: Path) -> None:
     rc, out, sec, to = run_process(
         _emit_then_sleep(payload), cwd=tmp_path, env=child_env(), timeout=60
     )
-    assert to is True
+    assert to == "vbox_flood"  # timed_out 槽回吐截杀臂名 → sentry_reason 归因
     assert rc == -signal.SIGKILL
     assert sec < 30  # noqa: PLR2004 - 越阈即杀；慢机余量下仍远早于 60s 墙钟
     assert _is_runaway_output(out)  # 签名随已读片带出 → runaway_output 归因可命中
@@ -117,7 +120,7 @@ def test_run_process_livekill_page_flood(tmp_path: Path) -> None:
     rc, _out, sec, to = run_process(
         _emit_then_sleep(payload), cwd=tmp_path, env=child_env(), timeout=60
     )
-    assert to is True
+    assert to == "page_flood"  # 页洪臂名回吐
     assert rc == -signal.SIGKILL
     assert sec < 30  # noqa: PLR2004 - 越阈即杀，远早于 60s 墙钟
 

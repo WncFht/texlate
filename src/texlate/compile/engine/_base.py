@@ -41,6 +41,11 @@ class CompRes:
     #: 同一文本不再重复开文件（B14 fix#10 格内 ~4× 文件读 → 1×）。
     log_text: str = ""
     timed_out: bool = False
+    #: 活哨截杀原因（``vbox_flood``/``page_flood``）——``run_process``
+    #: 经 ``timed_out`` 槽回吐 str，``_collect_compile_outputs`` 归位到
+    #: 本字段并复归 bool。事后归因读记录值，不再凭 4KB stdout_tail 重数
+    #: 全程签名密度（1003.2165 实证旧判据误归泛 timeout）。
+    sentry_reason: str | None = None
     seconds: float = 0.0
     passes: int = 0
     rc: int | None = None  # 最后一个 pass 的 rc（逐 pass 覆写）
@@ -140,8 +145,16 @@ class Engine(Protocol):
 
 
 def _collect_compile_outputs(res: CompRes, outputs: list[str]) -> None:
-    """汇总各 pass 的 stdout 尾巴进 CompRes。"""
+    """汇总各 pass 的 stdout 尾巴进 CompRes + 活哨原因归位。
+
+    ``run_process`` 把活哨截杀臂名写进 ``timed_out`` 槽以 str 回吐，引擎
+    逐 pass 原样落 ``res.timed_out``——此处归位显式字段并复归纯 bool，
+    下游（``_res_died``/e2e JSON/judge truthiness）只吃 bool 语义。
+    """
     res.stdout_tail = outputs[-1][-4000:] if outputs else ""
+    if isinstance(res.timed_out, str):
+        res.sentry_reason = res.timed_out
+        res.timed_out = True
 
 
 def _salvage_driver_fatal(info: LogInfo, res: CompRes) -> None:
