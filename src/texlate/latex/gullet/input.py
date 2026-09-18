@@ -2,6 +2,7 @@ r"""``latex/gullet`` 子模块——god-class 机械拆分（行为零变）：\
 
 from __future__ import annotations
 
+import errno
 import re
 from pathlib import (
     Path,
@@ -34,6 +35,14 @@ if TYPE_CHECKING:
     from texlate.latex.mouth import (
         Tok,
     )
+
+
+def _read_input_blob(path: str) -> bytes:
+    blob = Path(path).read_bytes()
+    if _tar_disguised(blob):
+        # 同 flatten._read_file：tar 伪装件按 OSError 走 missing_input 回吐
+        raise OSError(errno.EINVAL, "tar archive disguised as tex", path)
+    return blob
 
 
 class _Input:
@@ -126,10 +135,7 @@ class _Input:
             self.unread(trace)
             return trig
         try:
-            blob = Path(hit).read_bytes()
-            if _tar_disguised(blob):
-                raise OSError("tar-disguised .tex")
-            sub = decode_tex(blob)
+            sub = decode_tex(_read_input_blob(hit))
         except OSError:
             self._warn("missing_input", trig, f"{name}:{fname}")
             self.unread(trace)
