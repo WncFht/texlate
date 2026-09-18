@@ -48,6 +48,12 @@
 - 11:10 **里程碑**：c2 `31c432e` dollar 族收口——孤 \$\$/孤 \$/\\\$ 三形归 [[CMD]] 单项保真（v2 row17 同规），parsebench-v3-c2dollar **leak 0/136049（0.040%→0.000%）identity 1955/1955**；tricky-dollar.tex D01-D10 钉 + bench_regression 37→61 断言 | C2 目标达成，门②leak 读数归零
 - 11:10 归因澄清：scanner.py=c2 在飞件（已收）；engine/builtins/10-taxonomy/80-bib/repair/e2e/server-worker-compile=texlate-02 跨引擎簇（其主动按约定知会，128 测绿实证）；四孤儿件全销账
 - 11:10 解封派单：L2→c1（route-shadowed 专长续道）/ L3→ra（earmarked）/ L5→c2（dollar 邻面续道）/ L8→c12（args.py 同文件续道）/ L10→c3（rules 引擎续道+b3 工单汇流）/ L7+L9 新发车
+
+## selfimp-qual 环（texlate-d9，2026-09-18 午启动）
+
+- 启动：用户 /goal 派本环做翻译质量「评估→改进」闭环。与 compile 侧 selfimp（texlate-5d）互补；已照会 texlate-80（其 09:11 qualbench 协议面由本环接管）与 texlate-5d。
+- **文件归属登记**（lane → 互斥文件）：leader → `bench/py/qualbench.py`（ESA 改造 proto-core/prompt/route/records 四合一）；sample → `bench/py/qualsample.py`；stats → `bench/py/qualstats.py`；anchor → `bench/py/qualanchor.py`；freeze → `bench/py/qualfreeze.py`；proto-test → `tests/test_qualbench_esa.py`；proto-probe → `tmp/exp/esa_probe*`；skel-curate → `docs/research/selfimp-skeleton.md`；triangulate → `tmp/lane-triangulate/`。qualbench.py 协议规格 = xlat-quality-eval-2026-09-18 §7（ESA 两步单发 stated100 主分 + derived100 自洽校验 + swe-2-max 主裁/swe-2-high 二裁）。
+- 协议内一处补全：类目表加 `accuracy-mistranslation`（eval §7 映射漏列——六 flag 无「在译但错」收容位，probe 的 MQM_SYSTEM 本有；不补则错译被迫塞 omission/addition 扭曲类目表）。flags 派生新增 mistranslation/fluency_register 两值。
 - 11:35 收割波-3 落账（4 commit）：c14 `cf582ff`（v1 flatten `_resolve` openin_any 等价闸——real path 根集约束，`..`/绝对/根内 symlink 出界按 miss 永不进 read_bytes，与 v2 `_resolve_input` 同口径；W104 cs 文件名滤除同臂）+ `db3d4a1`（test_flatten_boundary.py 293 行五机制契约钉，28 绿）| texlate-02 `8672d22`（biber skew 测试件补收，属其 3fa3bd1 簇漏网）| c13 `498ae9e`（vendor 157 files + mn.cls stub，records 去重频次序——pstricks 全家桶/revtex4-2/llncs/kluwer/quantumarticle/siunitx 等）
 - 11:35 b3a 终局：verify-replay 74/74 格零 dirty——66 clean + 8 partial（7×best_effort_pdf revtex209/natbib 点火后 best-effort 出 PDF + 1×fixloop:clean 但 compile 臂 partial）| 工单残留移交 L10/L2 | 关代理（b3 三族归因簇全闭）
 - 11:35 关代理×4：b3a-undefcs / a3-mechtags / c14-flatten / c13-vendor / c7-server——交付物全落盘或入账，roster 16
@@ -56,3 +62,5 @@
 - 11:35 c7 裁决备忘三问挂用户队列：TTL 默认/conc ceiling/SSE 聚合/settings.concurrency 死键接线——备忘在 tmp/lane-c7-server/decision-memo.md
 - 11:40 c8-normalize | `0092fe4`+`5d396c5` | L6 ENC 落地：W91 `\-` 折行连字符还原（双 lookbehind + tabbing 豁免，normalize_engine 全引擎段）+ 顺手真 bug `_score_text` 大写重音罚分（mac_roman ‡ 彩票压 latin-1 à mojibake）+ 13 钉新文件 | scoped 406 + 全量 6381 绿；hep-th/9910234 17 处实证零误伤 | 界外：W72→ROUTE/vendor、W42 har2nat 已随 c13 落地、mixed 彩票记账不追 | 关代理
 - 11:40 跨会话：texlate-d9 新环 selfimp-qual（翻译质量 ESA 评估→改进）照会——车道 bench/py/qualbench.py+qual{sample,stats,anchor,freeze}.py+test_qualbench_esa.py+tmp/exp/esa_probe*，台账共用 overseer-selfimp.md append-only | 已复：与 texlate-80 qualbench judge 协议面归属重合建议互通；a2 旧 judge 批已结产出可对照
+- 11:45 a2-qualbench 交付：qualbench-selfimp 基线 **600 chunks/60 papers mean 4.84/5**（5:531 4:52 3:9 2:5 1:3）| **头号缺陷 untranslated_spans×21**（占全 flag 半，caption kind 最密 11/21）| 产出 bench/results/qualbench-selfimp-2026-09-18/{records.jsonl 462KB, report.md 最差30格, layers.md} | 关代理
+- 11:45 派单回 18：q1-untranslated（头号缺陷机制猎捕——xlat skip 路径/模型回英文/opaque 吞噬/caption 特异，只读归因+mechanisms 立账）+ r2-residual（b3 孤儿三件：texlog nonletter payload 边界/stale-stub 指纹面/math_env_alias_cs 立账，全只读）
