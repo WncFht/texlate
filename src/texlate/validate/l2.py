@@ -28,12 +28,12 @@ from typing import Final
 
 from texlate.redlines import L2_REDLINE_CLASSES, L2_WARNING_RULES
 from texlate.texlog import (
-    _CTX_LINES,
-    _ERR_BANG_RE,
-    _ERR_FILELINE_ROW_RE,
-    _L_NUM_RE,
-    _NONERR_MSG_RE,
-    _TAIL_LINES,
+    CTX_LINES,
+    ERR_BANG_RE,
+    ERR_FILELINE_ROW_RE,
+    L_NUM_RE,
+    NONERR_MSG_RE,
+    TAIL_LINES,
     is_dos_eps,
     is_project_file,
     patch_graphic_top,
@@ -57,13 +57,13 @@ __all__ = [
 #: ``.tikz``/``.end``/``.lof``/``.fgx`` 实测全为真错误，loop1 语料 7814
 #: log 全扫、扩展名白名单漏 586 行真错含 3 例整体 ok=True 假干净）。
 #: 行首 ``(``/``!`` 与 ``:``/空白内嵌仍排除（避免误吃普通行）。
-#: 词法单源 = ``texlog._ERR_FILELINE_ROW_RE``（msg 原样进组 3 不做 ``!``
+#: 词法单源 = ``texlog.ERR_FILELINE_ROW_RE``（msg 原样进组 3 不做 ``!``
 #: 剥离，``! LaTeX Warning`` 伪豁免面随之封死）；非错误形态行排除走
-#: ``texlog._NONERR_MSG_RE`` 消息面锚定（Warning/``==>`` 双腿单源）。
+#: ``texlog.NONERR_MSG_RE`` 消息面锚定（Warning/``==>`` 双腿单源）。
 
 #: 经典错误行 / ctx 内 ``l.NNN`` / 非错误消息面 / ctx·tail 窗宽——
-#: 全部词法单源 = ``texlog``（``_ERR_BANG_RE``/``_L_NUM_RE``/
-#: ``_NONERR_MSG_RE``/``_CTX_LINES``/``_TAIL_LINES``）。
+#: 全部词法单源 = ``texlog``（``ERR_BANG_RE``/``L_NUM_RE``/
+#: ``NONERR_MSG_RE``/``CTX_LINES``/``TAIL_LINES``）。
 
 #: log 首行引擎签名 ``This is XeTeX, Version ...``。
 _ENGINE_RX: Final = re.compile(r"^This is (\w+)")
@@ -417,7 +417,7 @@ def _classify_warning(  # noqa: PLR0913 - 归因参数组与 _mark_redline 同�
 
 def _tex_line_from_ctx(ctx: list[str]) -> int | None:
     for ln in ctx:
-        m = _L_NUM_RE.match(ln.strip())
+        m = L_NUM_RE.match(ln.strip())
         if m:
             return int(m.group(1))
     return None
@@ -425,10 +425,10 @@ def _tex_line_from_ctx(ctx: list[str]) -> int | None:
 
 def _match_error_line(ln: str) -> tuple[str, str | None] | None:
     """``(head, file:line: 给的 tex_file)``；非错误行返回 None。"""
-    if _ERR_BANG_RE.match(ln):
+    if ERR_BANG_RE.match(ln):
         return ln.strip(), None
-    mf = _ERR_FILELINE_ROW_RE.match(ln)
-    if mf is not None and not _NONERR_MSG_RE.search(mf.group(3)):
+    mf = ERR_FILELINE_ROW_RE.match(ln)
+    if mf is not None and not NONERR_MSG_RE.search(mf.group(3)):
         return ln.strip(), mf.group(1)
     return None
 
@@ -443,12 +443,12 @@ def _eof_culprit(head: str, last_pop: tuple[int, str] | None, i: int) -> str | N
 
 
 def _error_ctx(lines: list[str], i: int) -> list[str]:
-    """错误行后 ≤``_CTX_LINES`` 行上下文——截断于下一错误行。
+    """错误行后 ≤``CTX_LINES`` 行上下文——截断于下一错误行。
 
     窗内 ``l.NNN`` 是**该**错的源码定位；不截断会让无自带行号的错
     （``! Emergency stop`` 类）借用邻错行号误归因。
     """
-    ctx = lines[i + 1 : i + 1 + _CTX_LINES]
+    ctx = lines[i + 1 : i + 1 + CTX_LINES]
     for k, cln in enumerate(ctx):
         if _match_error_line(cln) is not None:
             return ctx[:k]
@@ -513,7 +513,7 @@ def parse_log_text(text: str, *, project_root: Path | None = None) -> L2Verdict:
             head, tex_file = hit
             v.n_errors += 1
             ctx = _error_ctx(lines, i)
-            mf = _ERR_FILELINE_ROW_RE.match(ln)
+            mf = ERR_FILELINE_ROW_RE.match(ln)
             tex_line = int(mf.group(2)) if mf else None
             if tex_line is None:
                 tex_line = _tex_line_from_ctx(ctx)
@@ -543,7 +543,7 @@ def parse_log_text(text: str, *, project_root: Path | None = None) -> L2Verdict:
             next_ln=_misschar_next_ln(lines, i),
         )
 
-    v.tail = tuple(lines[-_TAIL_LINES:])
+    v.tail = tuple(lines[-TAIL_LINES:])
     return v
 
 

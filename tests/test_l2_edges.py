@@ -1,6 +1,6 @@
 """L2 warning 分类侧合成边界钉 —— l2edges-scout-2026-09-17 可补清单 11 项。
 
-全部经 ``parse_log_text`` 内联合成（无需真 log）：``_NONERR_MSG_RE``
+全部经 ``parse_log_text`` 内联合成（无需真 log）：``NONERR_MSG_RE``
 豁免（生产引擎按 docs/08 §4.1 带 ``-file-line-error``，``./x.tex:N:
 LaTeX/Package/Class … Warning:`` 行每编译必走，回归即 n_errors 膨胀全判
 dirty）、``file_not_found``/``rerun`` 零正向类、error ctx 帮助文本预筛
@@ -21,7 +21,7 @@ FNF_LINES = 3  # file_not_found 变体合成条数
 
 def test_file_line_warning_lines_exempt() -> None:
     """scout#1　``file:line:`` 前缀 Warning 豁免——生产 ``-file-line-error``
-    log 海量存在此形态；``_NONERR_MSG_RE``（texlog 单源、fixloop 层同词素）
+    log 海量存在此形态；``NONERR_MSG_RE``（texlog 单源、fixloop 层同词素）
     锚定消息起点，豁免行照走 warning 归类、不计错。"""
     text = (
         "./main.tex:12: LaTeX Warning: Reference `r' undefined on input line 12.\n"

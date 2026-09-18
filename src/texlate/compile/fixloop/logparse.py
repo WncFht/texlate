@@ -18,14 +18,14 @@ from pathlib import Path
 from typing import Any
 
 from texlate.texlog import (
-    _CTX_LINES,
-    _ERR_FILELINE_RE,
-    _ERR_FNAME,
-    _FATAL_TRAILER_SRC,
-    _L_NUM_ROW_SRC,
-    _L_NUM_SRC,
-    _TAIL_LINES,
-    _WARN_MSG_SRC,
+    CTX_LINES,
+    ERR_FILELINE_RE,
+    ERR_FNAME,
+    FATAL_TRAILER_SRC,
+    L_NUM_ROW_SRC,
+    L_NUM_SRC,
+    TAIL_LINES,
+    WARN_MSG_SRC,
     file_stack_at,
 )
 
@@ -71,17 +71,17 @@ _CTX_HEAD_RE = re.compile(r"^[ \t]*<[a-zA-Z ]+>")
 # `-file-line-error` 模式下错误行是 `path:line: msg` (无 '!' 前缀) ——
 # impl-compile 的 xelatex 命令行带此旗标, 只数 '!' 会漏全部错误。
 # Warning 行 (`./f.tex:5: LaTeX Warning: ...`) 同格式但非错误, 须排除,
-# 否则 `n_bang==0 → clean` 门永远不通。``_ERR_FILELINE_RE`` 单源 =
+# 否则 `n_bang==0 → clean` 门永远不通。``ERR_FILELINE_RE`` 单源 =
 # ``texlate.texlog``（叶子层——fixloop→compile.engine 环边已掐）。
-#: 非错误双腿与 texlog ``_NONERR_*`` 同词素（``_WARN_MSG_SRC``/
-#: ``_FATAL_TRAILER_SRC``）但分隔符刻意更严：本侧 Warning 腿锁 ``: ``
+#: 非错误双腿与 texlog ``_NONERR_*`` 同词素（``WARN_MSG_SRC``/
+#: ``FATAL_TRAILER_SRC``）但分隔符刻意更严：本侧 Warning 腿锁 ``: ``
 #: 字面单空格（texlog 整行形是 ``:\s*`` 宽松前导）。本对仅在
-#: ``_ERR_FILELINE_RE`` 闸内咨询（其 ``:\d+: \S`` 已钉死空格+非空白界），
+#: ``ERR_FILELINE_RE`` 闸内咨询（其 ``:\d+: \S`` 已钉死空格+非空白界），
 #: 闸内两形等价——保留更严形态防豁免面无意扩到闸外非错误形态行。
-_WARN_FILELINE_RE = re.compile(r"^" + _ERR_FNAME + r":\d+: " + _WARN_MSG_SRC)
+_WARN_FILELINE_RE = re.compile(r"^" + ERR_FNAME + r":\d+: " + WARN_MSG_SRC)
 #: ``==> Fatal error occurred`` 汇总尾行也是 ``file:line:`` 形态——
 #: 同一失败的复述（单空格变体存在），计入会多报一个错误。
-_FATAL_TRAILER_RE = re.compile(r"^" + _ERR_FNAME + r":\d+:\s*" + _FATAL_TRAILER_SRC)
+_FATAL_TRAILER_RE = re.compile(r"^" + ERR_FNAME + r":\d+:\s*" + FATAL_TRAILER_SRC)
 
 
 def _is_err_line(ln: str) -> bool:
@@ -89,7 +89,7 @@ def _is_err_line(ln: str) -> bool:
     if ln.startswith("!"):
         return True
     return (
-        bool(_ERR_FILELINE_RE.match(ln))
+        bool(ERR_FILELINE_RE.match(ln))
         and not _WARN_FILELINE_RE.match(ln)
         and not _FATAL_TRAILER_RE.match(ln)
     )
@@ -144,8 +144,8 @@ def parse_text(
             if first_i is None:
                 first_i = i
                 rep.first = ln.strip()
-                rep.ctx = "\n".join(lines[i : i + _CTX_LINES])
-    rep.tail = "\n".join(lines[-_TAIL_LINES:])
+                rep.ctx = "\n".join(lines[i : i + CTX_LINES])
+    rep.tail = "\n".join(lines[-TAIL_LINES:])
     if rep.ctx:
         m = _LINE_NO_RE.search(rep.ctx)
         if m:

@@ -2274,7 +2274,7 @@ def _check_l2(text: str) -> L2Verdict:
         assert e.tex_line == (oline if oline is not None else _o_lnum_ctx(lines, i)), (
             short(text)
         )
-        assert len(e.ctx) <= 8  # noqa: PLR2004 -- _CTX_LINES 窗口上限
+        assert len(e.ctx) <= 8  # noqa: PLR2004 -- CTX_LINES 窗口上限
         assert e.ctx == tuple(_o_err_ctx(lines, i))
         assert all(isinstance(s, str) and s for s in e.file_stack)
         if e.eof_file is not None:

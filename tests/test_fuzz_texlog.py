@@ -251,10 +251,10 @@ def test_file_stack_at_bounds() -> None:
 
 _GRAPHIC_EXTS = texlog_mod._PS_GRAPHIC_EXTS  # noqa: SLF001 -- patch 补名合法性判定
 _ERR_RES = (
-    texlog_mod._ERR_FILELINE_RE,  # noqa: SLF001 -- 错误行原语面,logparse/loginfo 单源
-    texlog_mod._NONERR_FILELINE_RE,  # noqa: SLF001
-    texlog_mod._ERR_BANG_RE,  # noqa: SLF001
-    texlog_mod._L_NUM_RE,  # noqa: SLF001
+    texlog_mod.ERR_FILELINE_RE,
+    texlog_mod.NONERR_FILELINE_RE,
+    texlog_mod.ERR_BANG_RE,
+    texlog_mod.L_NUM_RE,
 )
 
 #: 归因原语 token 汤——绝对/相对/裸名/texmf 标记/逃逸/dot 段/NUL/超长/非文件形。
@@ -430,18 +430,18 @@ def test_fuzz_err_res_never_raise() -> None:
 
 def test_err_res_semantics() -> None:
     """语义钉：file:line: 口径（ext 必带/数字行号）与 Warning/==> 排除。"""
-    assert texlog_mod._ERR_FILELINE_RE.match("./main.tex:12: x")  # noqa: SLF001
-    assert not texlog_mod._ERR_FILELINE_RE.match("Makefile:5: x")  # noqa: SLF001 -- 无扩展名
-    assert not texlog_mod._ERR_FILELINE_RE.match("./x.tex:abc: x")  # noqa: SLF001 -- 非数字行号
-    assert texlog_mod._NONERR_FILELINE_RE.match("./x.tex:9: Package f Warning: b")  # noqa: SLF001
-    assert texlog_mod._NONERR_FILELINE_RE.match("./x.tex:9: ==> Fatal error")  # noqa: SLF001
-    assert not texlog_mod._NONERR_FILELINE_RE.match("./x.tex:9: Undefined")  # noqa: SLF001
-    m = texlog_mod._L_NUM_RE.match("l.42 \\foo")  # noqa: SLF001
+    assert texlog_mod.ERR_FILELINE_RE.match("./main.tex:12: x")
+    assert not texlog_mod.ERR_FILELINE_RE.match("Makefile:5: x")
+    assert not texlog_mod.ERR_FILELINE_RE.match("./x.tex:abc: x")
+    assert texlog_mod.NONERR_FILELINE_RE.match("./x.tex:9: Package f Warning: b")
+    assert texlog_mod.NONERR_FILELINE_RE.match("./x.tex:9: ==> Fatal error")
+    assert not texlog_mod.NONERR_FILELINE_RE.match("./x.tex:9: Undefined")
+    m = texlog_mod.L_NUM_RE.match("l.42 \\foo")
     assert m is not None
     assert m.group(1) == "42"
-    assert not texlog_mod._L_NUM_RE.match("l.x")  # noqa: SLF001
-    assert texlog_mod._ERR_BANG_RE.match("! boom")  # noqa: SLF001
-    assert not texlog_mod._ERR_BANG_RE.match(" ! boom")  # noqa: SLF001 -- 行首锚
+    assert not texlog_mod.L_NUM_RE.match("l.x")
+    assert texlog_mod.ERR_BANG_RE.match("! boom")
+    assert not texlog_mod.ERR_BANG_RE.match(" ! boom")  # 行首锚
 
 
 # ---------------------------------------------------------------- 归因原语

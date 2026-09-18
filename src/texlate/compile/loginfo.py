@@ -19,10 +19,10 @@ from typing import TYPE_CHECKING
 
 from texlate.redlines import ENGINE_RED_LINES, REDLINES_BY_ID, name_pattern
 from texlate.texlog import (
-    _ERR_BANG_RE,
-    _ERR_FILELINE_RE,
-    _L_NUM_RE,
-    _NONERR_FILELINE_RE,
+    ERR_BANG_RE,
+    ERR_FILELINE_RE,
+    L_NUM_RE,
+    NONERR_FILELINE_RE,
     is_dos_eps,
     is_project_file,
     patch_graphic_top,
@@ -103,8 +103,8 @@ def _scan_error_lines(
                 utf8_proj = True
             else:
                 utf8_sys.add(Path(inner).name if inner else "?")
-        if _ERR_BANG_RE.match(ln) or (
-            _ERR_FILELINE_RE.match(ln) and not _NONERR_FILELINE_RE.match(ln)
+        if ERR_BANG_RE.match(ln) or (
+            ERR_FILELINE_RE.match(ln) and not NONERR_FILELINE_RE.match(ln)
         ):
             info.n_errors += 1
             info.errors.append(ln.strip()[:300])
@@ -138,7 +138,7 @@ def parse_log(log_text: str, *, project_root: Path | None = None) -> LogInfo:
         for j in range(ctx_start, min(ctx_start + 9, len(lines))):
             ctx_lines.append(lines[j])
             if info.error_line is None:
-                m = _L_NUM_RE.match(lines[j].strip())
+                m = L_NUM_RE.match(lines[j].strip())
                 if m:
                     info.error_line = int(m.group(1))
         info.error_ctx = "\n".join(ctx_lines)

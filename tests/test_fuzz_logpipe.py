@@ -19,8 +19,8 @@ r"""跨层一致性 fuzz —— ``texlog.update_file_stack`` → ``loginfo.parse
 
 历史钉账（均已拆钉——保留作修复史脚注）：
 
-- ``engine._ERR_FILELINE_RE`` 文件名面曾过宽（``^\S+?`` 收无扩展名/带冒号/
-  带括号文件名）——已收紧为 ``_ERR_FNAME`` 严侧（``name.ext`` 必带扩展名、
+- ``engine.ERR_FILELINE_RE`` 文件名面曾过宽（``^\S+?`` 收无扩展名/带冒号/
+  带括号文件名）——已收紧为 ``ERR_FNAME`` 严侧（``name.ext`` 必带扩展名、
   禁 ``()``/空白/``:``），fixloop logparse 经借用同轨三层合。
 """
 
@@ -312,7 +312,7 @@ def test_fuzz_l2_structural_invariants() -> None:
             assert v.first_error is v.errors[0]
             assert [e.line_no for e in v.errors] == sorted(e.line_no for e in v.errors)
             for e in v.errors:
-                assert len(e.ctx) <= 8  # noqa: PLR2004 -- _CTX_LINES 契约
+                assert len(e.ctx) <= 8  # noqa: PLR2004 -- CTX_LINES 契约
                 assert all(isinstance(s, str) for s in e.file_stack)
         assert v.tail == tuple(text.splitlines()[-30:])
         assert v.engine == "XeTeX"
@@ -434,8 +434,8 @@ def test_misschar_window_no_swallow_real() -> None:
 
 
 #: 三层错误行口径一致集——l2/logparse 的错误行与 Warning 排除词法现
-#: 全量单源于 texlog（_ERR_FILELINE_ROW_RE/_NONERR_MSG_RE/_WARN_MSG_SRC
-#: /_FATAL_TRAILER_SRC，logparse Warning 腿锁 ``: `` 严侧变体）；
+#: 全量单源于 texlog（ERR_FILELINE_ROW_RE/NONERR_MSG_RE/WARN_MSG_SRC
+#: /FATAL_TRAILER_SRC，logparse Warning 腿锁 ``: `` 严侧变体）；
 #: 真实语料 1504 log 零分歧——分叉全是畸形形。
 _ERRLINES_AGREED = [
     "./main.tex:5:",  # 空消息——三层均不收
@@ -454,7 +454,7 @@ def test_error_line_three_layer_agree(line: str) -> None:
     assert e == lv == f, f"{line!r}: eng={e} l2={lv} fx={f}"
 
 
-#: 文件名面三层已对齐严侧（原 strict-xfail——engine `_ERR_FNAME` 单源化后
+#: 文件名面三层已对齐严侧（原 strict-xfail——engine `ERR_FNAME` 单源化后
 #: 无扩展名/含冒号/含开括弧名齐拒，fixloop 经借用同轨）。
 _ERRLINES_BAD_FNAME = [
     "Makefile:5: boom",  # 无扩展名
