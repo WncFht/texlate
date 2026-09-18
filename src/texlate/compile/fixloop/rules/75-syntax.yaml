@@ -167,10 +167,10 @@ rules:
   # 内全部"名必须未定义"族站点前置 \let\@undefined (未撞名站点前置是
   # 语义无操作: undefine+define≡define; 1206.0299 实证 12 名单轮清,
   # verdict 由 best_effort 升 clean) + 证实撞名 docclass 块双修。孤站
-  # 单撞名格仍让位 renew(111)/undefine(113) 已验证路径。other 臂接反
-  # 引号签 ``Command `\X' already defined`` (ltcmd/老 \@ifdefinable 形,
-  # taxonomy 落 other 无 payload —— builtin 侧 min_batch 恒按 1, 该面
-  # 无下家)。
+  # 单撞名格仍让位 renew(111)/undefine(113) 已验证路径。other 臂兜底
+  # Command 前缀缺位的 already defined 签 (taxonomy 无下家 —— builtin
+  # 侧 min_batch 恒按 1); 反引号签 ``Command `\X'`` 自 2026-09-19
+  # taxonomy 扩引号形后落 already_def 主臂带 payload。
   - id: already_def_batch_undefine
     mechanisms: [W45, W49]
     description: "already_def 撞名∪同文件站点簇 ≥2 (或反引号 other 签) → 一轮批清 \\let\\X\\@undefined (站点前置+docclass 块双修)"
@@ -179,7 +179,7 @@ rules:
     when:
       any:
         - { category: already_def, payload_required: true }
-        - { category: other } # 反引号签 `` `X' already defined`` 无 payload
+        - { category: other } # Command 前缀缺位的 already defined 签兜底 (反引号签已归 already_def 臂)
     condition:
       ctx_suggests: "already defined"
     action:
@@ -246,6 +246,41 @@ rules:
         }
     stats: { fires: 4, status: proven } # 6638b4c 修复后 4-cell 回放实证 (tmp/fontspec-reprobe)
     source_ref: "tmp/wontfix-scout/verdict.md 裁决1 + work/fixprobe.tex 实测 0 错"
+
+  # ─── chineseclear (2403.00013 residual): expl3 ``Control sequence \X
+  # already defined`` 签名 —— kaist-ucs.cls:71 \RequirePackage[nonfrench]
+  # {dhucs} → xetexko.sty:364 \let\chinese\Schinese (\documentclass 内 cls
+  # 链先定义), 注入 ctex 行 ctex.sty:500 \cs_new:Npn \chinese 恒拒。签名
+  # 无 Command 关键字 → 落 other 无 payload, already_def_* 三家够不到。
+  # cls 从不调 \chinese 本体 (只 \author opt-arg 串比较 "chinese") →
+  # 清位 doc-safe。修 = docclass 缝顶 (注入 ctex 行之前)
+  # \makeatletter\let\X\@undefined\makeatother —— 同 undefine_for_redef
+  # "清先定义位让后定义者赢" 教义; 缝顶序保证 cls 先定义已跑、注入块
+  # 后定义未跑。builtin 内文件门只收注入 CJK 块装载树 (ctex/xeCJK/
+  # fontspec/zhnumber 族) 错误 —— 非缝位第二定义者一律不碰。
+  - id: ctlseq_already_def_undefine
+    mechanisms: [W49]
+    description: "cls 链预定义名撞注入 CJK 块 expl3 \\cs_new → docclass 缝顶 \\let\\X\\@undefined 清位 (ctex 行前)"
+    phase: loop
+    order: 110.8 # fontspec_double_merge(110.7) 姊妹签名面 —— 其 \c__* 名天然不过本格文件门+字母名闸
+    when: { category: other } # "Control sequence" 签不落 already_def taxonomy, payload=None
+    condition:
+      ctx_suggests: "Control sequence \\\\[A-Za-z]+ already defined"
+    action:
+      kind: builtin_transform
+      function: ctlseq_undefine
+    risk: medium # 同 already_def_undefine(113): 清 cls 先定义让注入块后定义赢; 文件门+texlate 注入标记双闸压误伤
+    known_gap: "非 file-line-error 形 log 无文件前缀不定界 → decline; 用户自备 ctex/xeCJK (无注入标记) 的撞名不在 provenance 面 → decline; 无 docclass 缝退文件头会错序 (cls 前清位) → decline"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "2403.00013 (chineseclear; tmp/lane-chineseconf/census2.txt + stagerun-drvdef/loop2 fixloop.jsonl)",
+          error: "ctex.sty:500 LaTeX Error: Control sequence \\chinese already defined (kaist-ucs.cls→dhucs→xetexko.sty:364 \\let\\chinese\\Schinese 先定义)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "task #93; drvdef fixloop.jsonl 2403.00013 best_effort_pdf 残 n_errors=1"
 
   # 2026-09-16 wave-2: already_def 泛化 (1003.0344/cond-mat-0501638) ——
   # 稿自带 \newcommand{\Ref}[1]{(\ref{#1})} 撞包先定义 (varioref 系),
