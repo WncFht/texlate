@@ -748,3 +748,9 @@
 - **failmine2 普查核销** (tmp/lane-failmine2/CENSUS.md)：481clean/90be/86acc/22hard/91unrun。发散 7 车道：bticktax(`` `\X' `` 反引号 taxonomy 缝, \Bbbk 23格)、newblockpf(~11)、flushendopt(10)、arraypream(~7)、pdfsanitize(gs-pdfwrite 资产消毒, 5格/9腿——xlinkobj 普查转换)、begindoccen(普查)、dsatcensus(96格 ds@ 拒收面普查→裁决输入)、drvverdict(driver-fatal+no-PDF 误判 clean 缝)。
 - **xlinkobj 核销** (#94)：pdf_link_obj fatal=嵌入图 pdf 畸形 (missing endobj/裸CR/token-per-line), 非 drvdef 族; gs 重写全 5 格实证。
 - roster ~10：bblmath/ifclosegap + bticktax/newblockpf/flushendopt/arraypream/pdfsanitize/begindoccen/dsatcensus/drvverdict 在飞；chineseclear/babelpins/inputquote/xlinkobj/failmine2 尸清。#10 + ds@ 待裁决点累积。
+
+## 2026-09-19 ~08:2x — bticktax 入库 (0db4133) + verifymiss 车道再派
+
+- **bticktax**：already_def taxonomy 引导类 `'?`→`[`']`——`` `\Bbbk' `` 反引号签 (amssymb \@ifdefinable) 曾落 other 无 payload, 23 格已通 already_def_* 门。实 log 钉 + e2e 路由钉 + 65 测试。
+- **verifymiss (#110) 派 bticktax**：failmine2 covered-but-verify 7 签组 dispatch-miss 普查 (input_sty_to_usepackage/acmart_resnap/natbib-author-year/aux_purge-dirty_pdf/hyperref_driver-timeout/ngerman/杂项)。
+- roster 10：bblmath/ifclosegap 长龄 + newblockpf/flushendopt/arraypream/pdfsanitize/begindoccen/dsatcensus/drvverdict/bticktax 在飞；flushendopt 已见 70-pkgopt 大块在写。
