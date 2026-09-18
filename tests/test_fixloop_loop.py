@@ -1194,6 +1194,42 @@ def test_tar_blob_retires_when_all_members_exist(tmp_path: Path) -> None:
     assert (tmp_path / "iaus.cls").read_bytes() == b"\\ProvidesClass{iaus}\n"
 
 
+def test_tar_blob_detects_prologue_displaced_magic(tmp_path: Path) -> None:
+    """0707.0382 实案二阶: 我方 prologue 前置注入把魔数推离 257 → 扫窗检测。
+
+    splice/zh 构建对 ``.sty`` 一律前置 ``\\PassOptionsToPackage`` 注入块
+    (~600B), ``ustar`` 落 ~偏移 870——定点 257 探测漏检, blob 原地毒化。
+    扫窗检出后从头起点切片抽取, 成员照常补缺, blob 退役。
+    """
+    import io  # noqa: PLC0415
+    import tarfile  # noqa: PLC0415
+
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w", format=tarfile.USTAR_FORMAT) as tf:
+        info = tarfile.TarInfo("./missing.sty")
+        payload = b"\\ProvidesPackage{missing}\n"
+        info.size = len(payload)
+        tf.addfile(info, io.BytesIO(payload))
+    prologue = b"\\PassOptionsToPackage{no-math}{fontspec}\n% injected\n"
+    (tmp_path / "AMSbsy.sty").write_bytes(prologue + buf.getvalue())
+    ok, note = _extract(tmp_path)
+    assert ok, note
+    assert "1 members" in note
+    assert (tmp_path / "missing.sty").read_bytes() == payload
+    assert not (tmp_path / "AMSbsy.sty").exists()
+    assert (tmp_path / "AMSbsy.sty.tarblob").is_file()
+
+
+def test_tar_blob_ustar_word_in_text_not_false_positive(tmp_path: Path) -> None:
+    """文本/注释里的 ``ustar`` 字样不误中——回推 257 处 name 字段须非 NUL。"""
+    (tmp_path / "doc.tex").write_bytes(
+        b"\\documentclass{article}\n% this file mentions ustar format\n"
+    )
+    ok, _ = _extract(tmp_path)
+    assert not ok
+    assert (tmp_path / "doc.tex").is_file()
+
+
 # ------------------------------------------------------- physics detach @catcode
 def test_detach_input_letter_wrap_per_host() -> None:
     r"""``\\input{physics.sty}`` 在 .tex 宿主带 ``\\makeatletter`` 包裹——

@@ -336,6 +336,12 @@ def docstrip_generate(
 _TAR_MAGIC_OFF = 257
 _TAR_MAGIC = b"ustar"
 
+#: 魔数探测窗——我方 splice/zh 对 ``.sty`` 一律前置 prologue 注入
+#: (``\PassOptionsToPackage``/``\providecommand`` 块), tar 魔数被推离 257
+#: (0707.0382 实案: 注入 ~600B 后 ``ustar`` 落 ~偏移 870, 定点探测漏检);
+#: 前 64KB 扫描兼容原生与变异 blob。
+_TAR_SCAN_WINDOW = 65536
+
 #: 伪装判定扩展名集——tar blob 只在文本类名下才有害 (二进制件 .eps/.pdf
 #: 不查；``.tarblob`` 是本方改名件, 重扫须免再命中)。
 _TARBLOB_EXTS = frozenset(
@@ -357,14 +363,25 @@ _TARBLOB_EXTS = frozenset(
 )
 
 
-def _is_tar_blob(f: Path) -> bool:
-    """Tar 魔数探针——读 262B 判 POSIX tar (ustar) 伪装件。"""
+def _tar_header_start(f: Path) -> int | None:
+    """Tar 头起点探测——前 ``_TAR_SCAN_WINDOW`` 内找 ``ustar``, 回推 257 得头起点。
+
+    None = 非 tar; 0 = 原生 tar; >0 = 被前置注入推位的变异 tar
+    (注入件仍以 tar 为主体, 同须退役)。轻校验: 头起点 name 字段首字节
+    非 NUL, 免注释/文本里 ``ustar`` 字样误中。
+    """
     try:
         with f.open("rb") as fh:
-            fh.seek(_TAR_MAGIC_OFF)
-            return fh.read(len(_TAR_MAGIC)) == _TAR_MAGIC
+            head = fh.read(_TAR_SCAN_WINDOW)
     except OSError:
-        return False
+        return None
+    p = head.find(_TAR_MAGIC)
+    while p != -1:
+        hdr = p - _TAR_MAGIC_OFF
+        if hdr >= 0 and head[hdr] != 0:
+            return hdr
+        p = head.find(_TAR_MAGIC, p + 1)
+    return None
 
 
 def _safe_member_name(name: str) -> PurePosixPath | None:
@@ -380,14 +397,20 @@ def _safe_member_name(name: str) -> PurePosixPath | None:
     return rel
 
 
-def _extract_members(ctx: LoopCtx, f: Path) -> int:
-    """抽 tar ``f`` 的 regular-file 成员补缺落 ``f.parent`` → 落地数 (0=无缺可补)。"""
-    import tarfile  # noqa: PLC0415 — 冷路径: 命中伪装件才用, 不污染常规启动
+def _extract_members(ctx: LoopCtx, f: Path, hdr_start: int) -> int:
+    """抽 tar ``f`` (头起点 ``hdr_start``) 的 regular-file 成员补缺 → 落地数。
+
+    顺序迭代 (非 getmembers 全扫)——变异 tar 内层被 recode 改写可能中段
+    损坏, 顺序读让头部完好成员先落地, 遇坏头即收。
+    """
+    import io  # noqa: PLC0415 — 冷路径: 命中伪装件才用, 不污染常规启动
+    import tarfile  # noqa: PLC0415
 
     extracted = 0
     try:
-        with tarfile.open(f) as tf:
-            for m in tf.getmembers():
+        stream = io.BytesIO(f.read_bytes()[hdr_start:])
+        with tarfile.open(fileobj=stream) as tf:
+            for m in tf:
                 if not m.isreg():
                     continue
                 rel = _safe_member_name(m.name)
@@ -404,7 +427,7 @@ def _extract_members(ctx: LoopCtx, f: Path) -> int:
                 ctx.invalidate(dest)
                 extracted += 1
     except (tarfile.TarError, OSError):
-        return 0
+        pass
     return extracted
 
 
@@ -424,7 +447,9 @@ def extract_tar_blobs(
     **no-clobber**——目标已存在跳过 (真件优先, tar 只补缺); blob 本体
     命中 tar 魔数即改名 ``{name}.tarblob`` 退役 (移出 TeX 解析路径、
     留现场可审计)——tar 归档在 ``.sty``/``.cls`` 名下绝不是合法 TeX,
-    0 新成员 (=语料已带全部成员, 0707.0382 实案) 也必须退役。
+    0 新成员 (=语料已带全部成员, 0707.0382 实案) 或魔数被前置注入推位
+    的变异件也必须退役。抽取按头起点切片喂 tarfile, 顺序迭代容忍
+    变异件中段损坏 (头段完好成员照补)。
     """
     del eng, payload
     exts = {str(e).lower() for e in (params.get("exts") or _TARBLOB_EXTS)}
@@ -432,9 +457,10 @@ def extract_tar_blobs(
     for f in sorted(ctx.wdir.rglob("*")):
         if not f.is_file() or f.suffix.lower() not in exts:
             continue
-        if not _is_tar_blob(f):
+        hdr = _tar_header_start(f)
+        if hdr is None:
             continue
-        extracted = _extract_members(ctx, f)
+        extracted = _extract_members(ctx, f, hdr)
         blob_name = f.name + ".tarblob"
         f.rename(f.with_name(blob_name))
         ctx.invalidate(f)
