@@ -182,6 +182,11 @@ class ChunkRecord:
             "error_kind": self.error_kind,
         }
 
+    @property
+    def fell_back(self) -> bool:
+        """``skipped`` 读别名——与 ``ChunkResult.fell_back`` 同词，``ChunkResult | ChunkRecord`` 联合消费面读单名。"""
+        return self.skipped
+
 
 class StateStore:
     """`output/{paper}/` 五表 + state.json + 段级缓存的统一落盘口。

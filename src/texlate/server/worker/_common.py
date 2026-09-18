@@ -532,7 +532,7 @@ def chunk_error_code(rec: ChunkResult | ChunkRecord) -> str | None:
             "provider": "provider_error",
             "crash": "internal",
         }[rec.error_kind]
-    if rec.skipped:
+    if rec.fell_back:
         if "placeholder" in rec.skip_reason:
             return "placeholder_mismatch"
         return "validate"
