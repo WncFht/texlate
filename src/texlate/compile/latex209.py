@@ -35,6 +35,7 @@ import subprocess
 from typing import TYPE_CHECKING, NamedTuple
 
 from texlate.textutil import (
+    CMD_BOUNDARY,
     DOCSTYLE_DECL_RX,
     DOCSTYLE_RX,
     decode_tex,
@@ -273,6 +274,21 @@ _INCOMPAT_PKGS: dict[str, frozenset[str]] = {
 #: 选项；2e 无此机制，ias.cls 也不存在——无树可调时按名硬拒）。
 _DS_AT_CLASSES = frozenset({"ias", "jaa", "julie"})
 
+#: revtex4-2/ltxgrid 毒根：209 时代 preamble 的裸 ``\topskip <dim>`` 赋值。
+#: ltxgrid 输出例程以类载入时的 topskip 为分页网格基准，声明后任何改写都
+#: 让页盒丈量失同步——``\topskip 0mm`` 实证 ``\end{document}`` ``\clearpage``
+#: 死循环（每页 6.66pt overfull 残量重排不尽，7 万页 SIGKILL）；正值不循环
+#: 但整页被吞 "No pages of output"（tmp/lane-revtexloop 双侧实证）。只删
+#: 语句首位的活赋值（行首/``}``/``;`` 之后），``\ifdim\topskip``、
+#: ``\dimen=\topskip`` 这类读用形态不动；花括号内局部赋值作用域自动回滚，
+#: ``iter_depth0`` 口径天然豁免。
+_TOPSKIP_ASSIGN_RE = re.compile(
+    r"\\topskip"
+    + CMD_BOUNDARY
+    + r"\s*=?\s*[-+]?(?:\d+\.?\d*|\.\d+)\s*(?:true\s*)?"
+    + r"(?:pt|mm|cm|in|pc|bp|dd|cc|sp|em|ex|mu)(?![a-zA-Z@])"
+)
+
 #: ``ds@`` 选项分发记号——词首边界锚：``\ds@<opt>`` 命令形态与
 #: ``\@namedef{ds@<opt>}``/``\csname ds@<opt>`` 调用形态全收（``\``/``{``/空白
 #: 均为非字字符、``d`` 处成界）；``\mids@foo``/``\ods@x`` 这类内嵌子串
@@ -409,6 +425,24 @@ def _route_opts(
     return cls_opts, pkg_opts, shipped, stripped
 
 
+def _drop_topskip_assigns(tex: str) -> tuple[str, int]:
+    r"""删全文深度 0、语句首位的活 ``\topskip`` 赋值；返回 ``(new_tex, count)``。
+
+    语句首位判定：遮盖视图前缀去空白后尾字符 ∈ ``\n``/``}``/``;``（或文首）。
+    该口径挡掉 ``= \topskip``/``\ifdim\topskip``/``\advance\topskip`` 等读用
+    位——它们前一位是 ``=`` 或字母，不在白名单。
+    """
+    vis = visible_tex(tex)
+    hits = [
+        m
+        for m in iter_depth0(_TOPSKIP_ASSIGN_RE, vis)
+        if not (prefix := vis[: m.start()].rstrip(" \t")) or prefix[-1] in "\n};"
+    ]
+    for m in reversed(hits):
+        tex = tex[: m.start()] + tex[m.end() :]
+    return tex, len(hits)
+
+
 def _primary_docstyle(vis: str) -> re.Match[str] | None:
     r"""首个 brace 深度 0 的 ``\documentstyle``——真声明点。
 
@@ -482,6 +516,12 @@ def upgrade_209(tex: str, *, root: Path | None = None) -> tuple[str, dict]:
     vis2 = visible_tex(new_tex)
     for dm in reversed([*DOCSTYLE_RX.finditer(vis2)]):
         new_tex = new_tex[: dm.start()] + "\\documentclass" + new_tex[dm.end() :]
+    dropped_topskip = 0
+    if target == "revtex4-2":
+        # ltxgrid 输出例程不容运行期 topskip 改写（gr-qc/0104075 实证
+        # \topskip 0mm → enddoc \clearpage 7 万页死循环）——209 preamble
+        # 的裸 topskip 赋值升上来即毒根，逐语句首位活赋值删除。
+        new_tex, dropped_topskip = _drop_topskip_assigns(new_tex)
     return new_tex, {
         "status": "converted",
         "orig": tex[m.start() : m.end()],
@@ -491,4 +531,5 @@ def upgrade_209(tex: str, *, root: Path | None = None) -> tuple[str, dict]:
         "pkg_opts": pkg_opts,
         "shipped": shipped,
         "stripped": stripped,
+        "topskip_dropped": dropped_topskip,
     }
