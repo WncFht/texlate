@@ -347,3 +347,42 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-c3-fixloop/ — C3 stats 驱动; splice pstricks.sty:47 实读"
+
+  # 2026-09-19 pstlane (stagerun-loop2 1003.2152 实读): pstcol 是 deprecated
+  # 兼容壳——pstcol.sty 体内 \\PassOptionsToPackage{noxcolor}{pstricks} 硬
+  # 压 color 路径 (自警告 "use pstricks directly"), 现代 pst-* 核
+  # (pstricks-add.tex v3.94 :742 \\colorlet) 需 xcolor 必炸 undefined_cs。
+  # 枚名换等价现代件: usepackage/RequirePackage 组内 pstcol→pstricks,
+  # pstricks 默认 \\RequirePackage{xcolor} 且 \\DeclareOption* 把选项续传
+  # xcolor——pstcol 时代传 color 的选项 (usenames/dvipsnames) 恰是 xcolor
+  # 原生面, 语义严格不缩。masked 面只改活码 (注释内假装载不动)。
+  - id: pstcol_pstricks_rewrite
+    description: "pstcol 强压 noxcolor/color 路径 → 组内 pstcol 枚名换 pstricks (xcolor 自动续载)"
+    phase: loop
+    order: 185 # xcolor_override_opt_strip(184) 同族 option 病理位
+    when:
+      any:
+        - { category: undefined_cs }
+    condition:
+      source_contains: "\\\\(?:usepackage|RequirePackage)\\s*(\\[[^\\]]*\\])?\\s*\\{[^}]*\\bpstcol\\b"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          - {
+              pattern: "(\\\\(?:usepackage|RequirePackage)\\s*(?:\\[[^\\]]*\\])?\\s*\\{[^{}]*?)(?<=[{,\\s])pstcol(?=\\s*[,}])",
+              repl: "\\g<1>pstricks",
+              match_surface: "masked",
+            }
+    risk: low # deprecated 壳换正主; pstricks 选项续传 xcolor 比 pstcol→color 更贴原意
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1003.2152 (stagerun-loop2-2026-09-18)",
+          error: "pstricks-add.tex:742 Undefined control sequence \\psset@pstricks-add@startColor->\\colorlet (pstcol→noxcolor→color-only)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "pstlane defect-B; pstcol.sty:22 noxcolor 实读 + splice main.log:605"

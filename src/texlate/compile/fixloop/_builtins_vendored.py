@@ -12,7 +12,11 @@ import re
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
-from texlate.compile.fixloop._builtins_common import _inject_write
+from texlate.compile.fixloop._builtins_common import (
+    _FINGERPRINT_RE,
+    _LEGACY_INJECTED_HEADS,
+    _inject_write,
+)
 from texlate.textutil import safe_is_file
 
 if TYPE_CHECKING:
@@ -26,6 +30,9 @@ _DATE_RE = re.compile(
 _DATE_INDIRECT_RE = re.compile(
     r"\\Provides(?:Package|Class|ExplPackage|ExplClass)\s*\{[^}]*\}\s*\[\s*\\([a-zA-Z@]+)"
 )
+#: pst-* 族 .tex 核的日期面约定——``\def\filedate{YYYY/MM/DD}`` (pstricks.tex
+#: v1.15 实证)。\ProvidesX 两径全空时兜底, 同 ``_provides_date`` 口径。
+_FILEDATE_RE = re.compile(r"\\def\\filedate\s*\{(\d{4})[/.-](\d{2})[/.-](\d{2})\}")
 
 
 def _provides_date(text: str) -> tuple[int, int, int] | None:
@@ -33,19 +40,21 @@ def _provides_date(text: str) -> tuple[int, int, int] | None:
 
     字面缺时 bracket 首 cs 走同文件 ``\def\<cs>{YYYY/MM/DD}`` 宏间址兜底
     （biblatex v3.12 ``[\abx@date ...]`` 实证；vendored/系统两侧同法，
-    比较仍成立）。
+    比较仍成立）。两径全空再落 ``\def\filedate{YYYY/MM/DD}`` 兜底——
+    pst-* 族 .tex 核 (wrapper 一体件) 的日期面约定 (pstricks.tex v1.15)。
     """
     m = _DATE_RE.search(text)
     if m is None:
         ind = _DATE_INDIRECT_RE.search(text)
-        if ind is None:
-            return None
-        m = re.search(
-            r"\\def\\"
-            + re.escape(ind.group(1))
-            + r"\s*\{(\d{4})[/.-](\d{2})[/.-](\d{2})\}",
-            text,
-        )
+        if ind is not None:
+            m = re.search(
+                r"\\def\\"
+                + re.escape(ind.group(1))
+                + r"\s*\{(\d{4})[/.-](\d{2})[/.-](\d{2})\}",
+                text,
+            )
+    if m is None:
+        m = _FILEDATE_RE.search(text)
     return (int(m.group(1)), int(m.group(2)), int(m.group(3))) if m else None
 
 
@@ -112,6 +121,47 @@ def find_vendored_shadows(
     return cands
 
 
+def _retire_paired_tex_core(  # noqa: PLR0911  # 保守闸逐条一处, 缺一不碰
+    ctx: LoopCtx, eng: Engine, f: Path, suffix: str
+) -> str | None:
+    r"""退役 wrapper 同名 .tex 核 (pst-* 族 wrapper+core 一体件) → 隔离 note。
+
+    X.sty 确证更旧退役后, 同目录稿自带 X.tex 若留盘, wrapper 的
+    ``\input{X}`` 搜 cwd 先中 stale 核 (0707.4206: vendored pstricks.tex
+    v1.15/2006 配系统 pstricks.sty v0.75 → ``\pst@cntm`` undefined)。
+    与 .sty 同道保守闸: 系统 probe 命中 wdir 外现行副本 ∧ 双侧日期面
+    ``ld < sd`` 确证 ∧ 非本引擎注入件 (指纹/旧代头认亲) —— 缺一不碰。
+    """
+    core = f.with_suffix(".tex")
+    if core == f or not safe_is_file(core):
+        return None
+    resolved = eng.probe_file(core.name)
+    if not resolved:
+        return None  # 系统无核可递补——rename 即造 missing_file, 不动
+    rp = Path(resolved) if isinstance(resolved, str) else resolved
+    try:
+        rpv = rp.resolve()
+        if rpv == core.resolve() or rpv.is_relative_to(ctx.wdir.resolve()):
+            return None  # probe 命中工程自身 (kpsewhich cwd 毒化) → 非遮蔽
+    except (OSError, RuntimeError, ValueError):
+        return None
+    local_txt = ctx.read(core)
+    if local_txt is None:
+        return None
+    head = local_txt.lstrip()[:200]
+    if _FINGERPRINT_RE.search(local_txt) or head.startswith(_LEGACY_INJECTED_HEADS):
+        return None  # 本引擎注入件非稿自带——退役即自拆台
+    try:
+        sys_txt = rp.read_text(encoding="utf-8", errors="replace")
+    except (OSError, ValueError):
+        return None
+    ld, sd = _provides_date(local_txt), _provides_date(sys_txt)
+    if ld is None or sd is None or ld >= sd:
+        return None  # 无日期面确证新旧——盲删必死, 保留
+    core.rename(core.with_name(core.name + suffix))
+    return f"{core.name} (paired core {ld} < {sd})"
+
+
 def vendored_shadow_isolate(
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
@@ -124,6 +174,9 @@ def vendored_shadow_isolate(
     vendored 伴船件（.def/.bbx/.cbx/.lbx 等）一并隔离，否则留下旧伴船与
     系统新主件混栈（1907.00257 半栈 biblatex/2003.10727 全栈实证——只隔
     biblatex.sty 会留 vendored *.def 继续遮蔽系统件）。
+
+    wrapper+core 一体件 (pst-* 族 X.sty/X.tex): 退役 wrapper 后同 stem
+    稿自带 .tex 核同道闸确证一并退役 (``_retire_paired_tex_core``)。
     """
     del payload
     exts = tuple(params.get("exts") or (".sty", ".cls"))
@@ -138,6 +191,9 @@ def vendored_shadow_isolate(
             continue
         f.rename(f.with_name(f.name + suffix))
         moved.append(f"{f.name} ({ld} < {sd})")
+        paired = _retire_paired_tex_core(ctx, eng, f, suffix)
+        if paired:
+            moved.append(paired)
         for pat in cohort_map.get(f.name, ()):
             for sib in ctx.wdir.rglob(str(pat)):
                 if not sib.is_file() or sib.name.endswith(suffix) or sib == f:
