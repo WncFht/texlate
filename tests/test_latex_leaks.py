@@ -414,3 +414,77 @@ def test_at_csname_synth_body_stays_opaque() -> None:
     out = reconstruct(res, {c.id: "译文" for c in res.chunks})
     post = out.split("\\begin{document}", 1)[1]
     assert "\\@" not in post
+
+
+# ---------------------------------------------------------------- 机制 F：in_arg 裸 ``\input`` 文件名
+
+
+def test_input_bare_name_in_arg_protected() -> None:
+    r"""``\caption{see \input foo_bar.tex end}``：裸文件名并入 ``[[CMD]]``——
+    zhfile 普查实漏：文件名曾留 arg 文本被译，splice 出 ``\input 这是译文``
+    炸 ``I can't find file``。"""
+    body = "\\caption{see \\input foo_bar.tex end}"
+    res = scan_doc(body)
+    assert "see [[CMD_1]] end" in blob(res)
+    assert res.ph_map["[[CMD_1]]"] == "\\input foo_bar.tex"
+    zh = reconstruct(res, {c.id: c.content.replace("end", "尾") for c in res.chunks})
+    assert "\\input foo_bar.tex" in zh
+    assert reconstruct(res) == DOC % body
+
+
+def test_input_bare_name_in_arg_path_charset() -> None:
+    r"""FILENAME_CHARS 全谱：``/``、``-``、``_``、``.``、数字连吃到名尾。"""
+    res = scan_doc("\\caption{see \\input path/to-file_2.v3.tex end}")
+    assert res.ph_map["[[CMD_1]]"] == "\\input path/to-file_2.v3.tex"
+    assert "to-file" not in blob(res)
+
+
+def test_input_braced_in_arg_unchanged() -> None:
+    r"""``\input{file}`` in_arg 本就安全：整调用单 CMD，行为不动。"""
+    res = scan_doc("\\caption{see \\input{foo_bar.tex} end}")
+    assert res.ph_map["[[CMD_1]]"] == "\\input{foo_bar.tex}"
+    assert "see [[CMD_1]] end" in blob(res)
+
+
+def test_input_bare_name_arg_end() -> None:
+    r"""文件名在参数尾：``\input f.tex`` 收到组尾，无越界消费。"""
+    res = scan_doc("\\caption{see \\input foo_bar.tex}")
+    assert res.ph_map["[[CMD_1]]"] == "\\input foo_bar.tex"
+    assert "foo_bar" not in blob(res)
+
+
+def test_input_bare_name_stops_at_group() -> None:
+    r"""``\input foo{rest}``：文件名收到 ``{`` 前——组参留 surface 续扫。"""
+    res = scan_doc("\\caption{see \\input foo{rest} end}")
+    assert res.ph_map["[[CMD_1]]"] == "\\input foo"
+    assert "rest" in blob(res)
+
+
+def test_input_bare_name_stops_at_cs() -> None:
+    r"""``\input \myfile`` 动态名：``\\`` 非文件名字符——只吃 ``\input``。"""
+    res = scan_doc("\\caption{see \\input \\myfile end}")
+    assert res.ph_map["[[CMD_1]]"] == "\\input"
+
+
+def test_input_bare_name_par_boundary() -> None:
+    r"""``\input\n\nfoo``：``eol_par`` 边界停——``foo`` 是段后正文非文件名。"""
+    res = scan_doc("\\caption{see \\input\n\nfoo end}")
+    assert res.ph_map["[[CMD_1]]"] == "\\input"
+    assert "foo end" in blob(res)
+
+
+def test_input_alone_in_arg() -> None:
+    r"""裸 ``\input`` 参数尾零跟随：只护 cs 本体，不过度消费。"""
+    res = scan_doc("\\caption{see \\input}")
+    assert res.ph_map["[[CMD_1]]"] == "\\input"
+    assert "see [[CMD_1]]" in blob(res)
+
+
+def test_input_bare_name_family_wide() -> None:
+    r"""``\include``/``\subfile`` 同族裸名形一并收（INPUT_SCAN_CMDS 全谱）。"""
+    res = scan_doc("\\caption{a \\include foo_bar b \\subfile baz-qux c}")
+    bodies = list(res.ph_map.values())
+    assert "\\include foo_bar" in bodies
+    assert "\\subfile baz-qux" in bodies
+    assert "foo_bar" not in blob(res)
+    assert "baz-qux" not in blob(res)

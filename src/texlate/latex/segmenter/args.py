@@ -738,10 +738,43 @@ class _Args:
         r"""``\input`` 族漏网（gullet 未解析成功）：literal + ``inputs[]``。
 
         in_arg → ``[[CMD]]`` 进 run（v1 row10）。``{file}``/``import`` 双参/
-        裸文件名三形。
+        裸文件名三形；in_arg 裸名形文件名并入 CMD 保护段（不在则留 arg
+        文本被译、splice 出 ``\input 译文`` 炸 missing_file）。
         """
         fid, _a, b = t.pos
         if self.in_arg:
+            # 裸文件名形（``\input foo.tex``）：连吃 FILENAME_CHARS token 并入
+            # 保护段——否则文件名留 arg 文本被翻译，splice 出 ``\input 译文``
+            # 炸 missing_file（zhfile 普查 ``\caption{…\input f.tex…}`` 实漏）。
+            # ``{file}``/``\cs``/其他形照旧 ``_protect_cs`` 逐参。
+            pulled: list[Tok] = []
+            x = self._peek_nonspace(src, pulled)
+            if (
+                x is not None
+                and x.kind in ("letter", "other")
+                and all(c in FILENAME_CHARS for c in x.text)
+            ):
+                end = x.pos[2]
+                while True:
+                    y = src.read()
+                    if (
+                        y is not None
+                        and y.kind in ("letter", "other")
+                        and all(c in FILENAME_CHARS for c in y.text)
+                    ):
+                        end = y.pos[2]
+                    else:
+                        if y is not None:
+                            src.unread([y])
+                        break
+                self._cover_gap(fid, t.pos[1])
+                vspan = self._cover_to(fid, end)
+                self._rappend_ph(
+                    self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
+                    vspan,
+                )
+                return
+            src.unread([*pulled, *([x] if x is not None else [])])
             self._protect_cs(t, src, PhType.CMD)
             return
         end = b
