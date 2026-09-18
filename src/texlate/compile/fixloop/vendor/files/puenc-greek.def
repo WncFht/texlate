@@ -1,0 +1,513 @@
+% +++++++++++++++
+% puenc-greek.def
+% +++++++++++++++
+%
+% Greek LICR definitions for PDF strings
+% **************************************
+%
+% :Copyright: © 2020, 2023 Günter Milde
+%
+% :Licence:   This work may be distributed and/or modified under the
+%             conditions of the `LaTeX Project Public License`_, either
+%             version 1.3 of this license or any later version.
+%
+% :Abstract:
+%   Support for Greek LICR macros in PDF bookmarks. Extends ``puenc.def``
+%   and supersedes ``puenc-greekbasic.def`` from the hyperref_ package.
+%   Used by babel-greek_ and textalpha_.
+%
+% **Changelog**:
+%   .. class:: borderless
+%
+%   ====== =========== =======================================================
+%   2.0    2020-10-18  Initial version.
+%   2.2    2023-02-28  Add compatibility definitions for hyperref.
+%   2.2.1  2023-03-08  Documentation update.
+%   2.4    2023-08-15  Print σ, not ς with ``textautosigma`` dummy definition.
+%   2.5    2023-09-12  Composite definitions for "capital" diacritics to fix
+%                      ``\MakeUppercase`` in PDF strings.
+%   ====== =========== =======================================================
+%
+% .. contents::
+%
+%
+% Identification
+% ==============
+% ::
+
+\ProvidesFile{puenc-greek.def}
+  [2023-09-12 2.5 Greek LICRs for PDF strings]
+
+
+% Diacritics
+% ==========
+%
+% Greek alias names for standard accents (without tabacckludge)::
+
+\DeclareTextCommand{\acctonos}{PU}{\'}
+\DeclareTextCommand{\accvaria}{PU}{\`}
+\DeclareTextCommand{\accdialytika}{PU}{\"}
+
+% Use combining characters when no pre-composed character is available:
+%
+% Breathings and perispomeni::
+
+\DeclareTextCommand{\accpsili}{PU}[1]{#1\83\023} % ψιλή spiritus lenis (smooth breathing)
+\DeclareTextCommand{\accdasia}{PU}[1]{#1\83\024} % δασεῖα spiritus asper (rough breathing)
+\DeclareTextCommand{\accperispomeni}{PU}[1]{#1\83\102} % COMBINING GREEK PERISPOMENI
+
+% Sub-iota (``\ypogegrammeni``) is a postfix accent (ligature in LGR) ::
+
+\DeclareTextCommand{\ypogegrammeni}{PU}{\83\105} % COMBINING GREEK YPOGEGRAMMENI
+
+% Combined diacritics::
+
+\DeclareTextCommand{\accdialytikavaria}{PU}[1]{#1\83\010\83\000}
+\DeclareTextCommand{\accdialytikatonos}{PU}[1]{#1\83\010\83\001}
+\DeclareTextCommand{\accdialytikaperispomeni}{PU}[1]{#1\83\102\83\010}
+
+\DeclareTextCommand{\accdasiavaria}{PU}[1]{#1\83\024\83\000}
+\DeclareTextCommand{\accdasiaoxia}{PU}[1]{#1\83\024\83\001}
+\DeclareTextCommand{\accdasiaperispomeni}{PU}[1]{#1\83\024\83\102}
+
+\DeclareTextCommand{\accpsilivaria}{PU}[1]{#1\83\000\83\023}
+\DeclareTextCommand{\accpsilioxia}{PU}[1]{#1\83\001\83\023}
+\DeclareTextCommand{\accpsiliperispomeni}{PU}[1]{#1\83\102\83\023}
+
+
+% Common Definitions
+% ==================
+%
+% Use the common `Greek font encoding definitions`.
+%
+% Set the ``\LastDeclaredEncoding`` to PU and read definitions
+% from greek-fontenc.def_::
+
+\renewcommand*{\LastDeclaredEncoding}{PU}
+\input{greek-fontenc.def}
+
+
+% Character Definitions
+% =====================
+%
+% Compatibility defs with LGR
+% ---------------------------
+%
+% Basic Latin::
+
+\DeclareTextCommand{\textsemicolon}{PU}{;} % "003B
+
+% Latin 1 Supplement:
+% Distinguish MICRO SIGN from letter mu::
+
+\DeclareTextCommand{\textmicro}{PU}{\83\274} % "00B5 MICRO SIGN
+
+
+% Greek and Coptic
+% ----------------
+%
+% Without coptic and archaic letters (except the ones used in Greek numerals).
+% ::
+
+% NR    Unicode Name                               %   legacy PU name (alias in greek-fontenc.def)
+\DeclareTextCommand{\textdexiakeraia}{PU}{\83\164} % ʹ  \textnumeralsigngreek
+\DeclareTextCommand{\textaristerikeraia}{PU}{\83\165} % ͵ \textnumeralsignlowergreek
+
+% 037A  GREEK YPOGEGRAMMENI (use \textcompwordmark\ypogegrammeni) % ͺ
+% Erotimatiko: use 003B SEMICOLON, not 037E GREEK QUESTION MARK; dont use the
+% literal char, as it is active with textalpha's "keep-semicolon" option::
+
+\DeclareTextCommand{\texterotimatiko}{PU}{\80\073}
+
+\DeclareTextCompositeCommand{\'}{PU}{\@empty}{\83\204} % ΄ 0384 GREEK TONOS
+\DeclareTextCompositeCommand{\'}{PU}{\ }{\83\204} % ΄ 0384 GREEK TONOS
+\DeclareTextCompositeCommand{\accdialytikatonos}{PU}{\@empty}{\83\205}
+\DeclareTextCompositeCommand{\accdialytikatonos}{PU}{\ }{\83\205}
+\DeclareTextCompositeCommand{\'}{PU}{\textAlpha}{\83\206} % Ά
+\DeclareTextCommand{\textanoteleia}{PU}{\80\267} % use 00B7 MIDDLE DOT, not 0387 GREEK ANO TELEIA
+\DeclareTextCompositeCommand{\'}{PU}{\textEpsilon}{\83\210} % Έ
+\DeclareTextCompositeCommand{\'}{PU}{\textEta}{\83\211} % Ή
+\DeclareTextCompositeCommand{\'}{PU}{\textIota}{\83\212} % Ί
+\DeclareTextCompositeCommand{\'}{PU}{\textOmicron}{\83\214} % Ό
+\DeclareTextCompositeCommand{\'}{PU}{\textUpsilon}{\83\216} % Ύ
+\DeclareTextCompositeCommand{\'}{PU}{\textOmega}{\83\217} % Ώ
+\DeclareTextCompositeCommand{\accdialytikatonos}{PU}{\textiota}{\83\220} % ΐ
+\DeclareTextCommand{\textAlpha}{PU}{\83\221} % Α "0391
+\DeclareTextCommand{\textBeta}{PU}{\83\222} % Β "0392
+\DeclareTextCommand{\textGamma}{PU}{\83\223} % Γ "0393
+\DeclareTextCommand{\textDelta}{PU}{\83\224} % Δ "0394
+\DeclareTextCommand{\textEpsilon}{PU}{\83\225} % Ε "0395
+\DeclareTextCommand{\textZeta}{PU}{\83\226} % Ζ "0396
+\DeclareTextCommand{\textEta}{PU}{\83\227} % Η "0397
+\DeclareTextCommand{\textTheta}{PU}{\83\230} % Θ "0398
+\DeclareTextCommand{\textIota}{PU}{\83\231} % Ι "0399
+\DeclareTextCommand{\textKappa}{PU}{\83\232} % Κ "039A
+\DeclareTextCommand{\textLambda}{PU}{\83\233} % Λ "039B
+\DeclareTextCommand{\textMu}{PU}{\83\234} % Μ "039C
+\DeclareTextCommand{\textNu}{PU}{\83\235} % Ν "039D
+\DeclareTextCommand{\textXi}{PU}{\83\236} % Ξ "039E
+\DeclareTextCommand{\textOmicron}{PU}{\83\237} % Ο "039F
+\DeclareTextCommand{\textPi}{PU}{\83\240} % Π "03A0
+\DeclareTextCommand{\textRho}{PU}{\83\241} % Ρ "03A1
+\DeclareTextCommand{\textSigma}{PU}{\83\243} % Σ "03A3
+\DeclareTextCommand{\textTau}{PU}{\83\244} % Τ "03A4
+\DeclareTextCommand{\textUpsilon}{PU}{\83\245} % Υ "03A5
+\DeclareTextCommand{\textPhi}{PU}{\83\246} % Φ "03A6
+\DeclareTextCommand{\textChi}{PU}{\83\247} % Χ "03A7
+\DeclareTextCommand{\textPsi}{PU}{\83\250} % Ψ "03A8
+\DeclareTextCommand{\textOmega}{PU}{\83\251} % Ω "03A9
+\DeclareTextCompositeCommand{\"}{PU}{\textIota}{\83\252} % Ϊ "03AA
+\DeclareTextCommand{\textIotadieresis}{PU}{\83\252}% U+03AA
+\DeclareTextCompositeCommand{\"}{PU}{\textUpsilon}{\83\253} % Ϋ "03AB
+\DeclareTextCompositeCommand{\'}{PU}{\textalpha}{\83\254} % ά "03AC
+\DeclareTextCompositeCommand{\'}{PU}{\textepsilon}{\83\255} % έ "03AD
+\DeclareTextCompositeCommand{\'}{PU}{\texteta}{\83\256} % ή "03AE
+\DeclareTextCompositeCommand{\'}{PU}{\textiota}{\83\257} % ί "03AF
+\DeclareTextCompositeCommand{\accdialytikatonos}{PU}{\textupsilon}{\83\260} % ΰ "03B0
+\DeclareTextCompositeCommand{\"}{PU}{\textupsilonacute}{\83\260}% U+03B0
+\DeclareTextCommand{\textalpha}{PU}{\83\261} % α "03B1
+\DeclareTextCommand{\textbeta}{PU}{\83\262} % β "03B2
+\DeclareTextCommand{\textgamma}{PU}{\83\263} % γ "03B3
+\DeclareTextCommand{\textdelta}{PU}{\83\264} % δ "03B4
+\DeclareTextCommand{\textepsilon}{PU}{\83\265} % ε "03B5
+\DeclareTextCommand{\textzeta}{PU}{\83\266} % ζ "03B6
+\DeclareTextCommand{\texteta}{PU}{\83\267} % η "03B7
+\DeclareTextCommand{\texttheta}{PU}{\83\270} % θ "03B8
+\DeclareTextCommand{\textiota}{PU}{\83\271} % ι "03B9
+\DeclareTextCommand{\textkappa}{PU}{\83\272} % κ "03BA
+\DeclareTextCommand{\textlambda}{PU}{\83\273} % λ "03BB
+\DeclareTextCommand{\textmu}{PU}{\83\274} % μ "03BC \textmugreek
+\DeclareTextCommand{\textnu}{PU}{\83\275} % ν "03BD
+\DeclareTextCommand{\textxi}{PU}{\83\276} % ξ "03BE
+\DeclareTextCommand{\textomicron}{PU}{\83\277} % ο "03BF
+\DeclareTextCommand{\textpi}{PU}{\83\300} % π "03C0
+\DeclareTextCommand{\textrho}{PU}{\83\301} % ρ "03C1
+\DeclareTextCommand{\textfinalsigma}{PU}{\83\302} % ς "03C2 \textvarsigma
+\DeclareTextCommand{\textsigma}{PU}{\83\303} % σ "03C3
+\DeclareTextCommand{\texttau}{PU}{\83\304} % τ "03C4
+\DeclareTextCommand{\textupsilon}{PU}{\83\305} % υ "03C5
+\DeclareTextCommand{\textphi}{PU}{\83\306} % φ "03C6
+\DeclareTextCommand{\textchi}{PU}{\83\307} % χ "03C7
+\DeclareTextCommand{\textpsi}{PU}{\83\310} % ψ "03C8
+\DeclareTextCommand{\textomega}{PU}{\83\311} % ω "03C9
+\DeclareTextCompositeCommand{\"}{PU}{\textiota}{\83\312}% ϊ "03CA
+\DeclareTextCompositeCommand{\"}{PU}{\textupsilon}{\83\313}% ϋ "03CB
+\DeclareTextCompositeCommand{\'}{PU}{\textomicron}{\83\314}% ό "03CC
+\DeclareTextCompositeCommand{\'}{PU}{\textupsilon}{\83\315}% ύ "03CD
+\DeclareTextCommand{\textupsilonacute}{PU}{\83\315}% U+03CD
+\DeclareTextCompositeCommand{\'}{PU}{\textomega}{\83\316}% ώ "03CE
+
+% Archaic letters (still used in Greek numerals)
+% and symbol variants::
+
+\DeclareTextCommand{\textbetasymbol}{PU}{\83\320} % ϐ "03D0
+\DeclareTextCommand{\textthetasymbol}{PU}{\83\321} % ϑ "03D1
+
+\DeclareTextCommand{\textphisymbol}{PU}{\83\325} % ϕ "03D5
+\DeclareTextCommand{\textpisymbol}{PU}{\83\326} % ϖ "03D6
+
+\DeclareTextCommand{\textQoppa}{PU}{\83\330} % Ϙ "03D8
+\DeclareTextCommand{\textqoppa}{PU}{\83\331} % ϙ "03D9
+\DeclareTextCommand{\textStigma}{PU}{\83\332} % Ϛ "03DA  \textStigmagreek
+\DeclareTextCommand{\textstigma}{PU}{\83\333} % ϛ "03DB  \textstigmagreek
+\DeclareTextCommand{\textDigamma}{PU}{\83\334} % Ϝ "03DC \textDigammagreek
+\DeclareTextCommand{\textdigamma}{PU}{\83\335} % ϝ "03DD \textdigammagreek
+\DeclareTextCommand{\textKoppa}{PU}{\83\336} % Ϟ "03DE   \textKoppagreek  in LGR identic to \textkoppa
+\DeclareTextCommand{\textkoppa}{PU}{\83\337} % ϟ "03DF   \textkoppagreek
+\DeclareTextCommand{\textSampi}{PU}{\83\340} % Ϡ "03E0   \textSampigreek
+\DeclareTextCommand{\textsampi}{PU}{\83\341} % ϡ "03E1   \textsampigreek
+
+\DeclareTextCommand{\textkappasymbol}{PU}{\83\360} % ϰ "03F0
+\DeclareTextCommand{\textrhosymbol}{PU}{\83\361} % ϱ "03F1
+
+\DeclareTextCommand{\textThetasymbol}{PU}{\83\364} % ϴ "03F4
+\DeclareTextCommand{\textepsilonsymbol}{PU}{\83\365} % ϵ "03F5
+\DeclareTextCommand{\textbackepsilon}{PU}{\83\366} % ϶ "03F6 # not in LGR
+
+% Dummy definition (\textautosigma is lowercase of \textSigma)
+% TODO: Fix implementation of \autosigma ::
+
+\ProvideTextCommand{\textautosigma}{PU}{\textsigma} % σ
+
+
+% Greek Extended
+% --------------
+%
+% We skip definitions for characters "... WITH OXIA", because they would
+% overwrite the defintions for "... WITH TONOS" in the `Greek and Coptic`
+% block.
+%
+% ::
+
+\DeclareTextCompositeCommand{\accpsili}{PU}{\textalpha}{\9037\000} % ἀ
+\DeclareTextCompositeCommand{\accdasia}{PU}{\textalpha}{\9037\001} % ἁ
+\DeclareTextCompositeCommand{\accpsilivaria}{PU}{\textalpha}{\9037\002} % ἂ
+\DeclareTextCompositeCommand{\accdasiavaria}{PU}{\textalpha}{\9037\003} % ἃ
+\DeclareTextCompositeCommand{\accpsilioxia}{PU}{\textalpha}{\9037\004} % ἄ
+\DeclareTextCompositeCommand{\accdasiaoxia}{PU}{\textalpha}{\9037\005} % ἅ
+\DeclareTextCompositeCommand{\accpsiliperispomeni}{PU}{\textalpha}{\9037\006} % ἆ
+\DeclareTextCompositeCommand{\accdasiaperispomeni}{PU}{\textalpha}{\9037\007} % ἇ
+\DeclareTextCompositeCommand{\accpsili}{PU}{\textAlpha}{\9037\010} % Ἀ
+\DeclareTextCompositeCommand{\accdasia}{PU}{\textAlpha}{\9037\011} % Ἁ
+\DeclareTextCompositeCommand{\accpsilivaria}{PU}{\textAlpha}{\9037\012} % Ἂ
+\DeclareTextCompositeCommand{\accdasiavaria}{PU}{\textAlpha}{\9037\013} % Ἃ
+\DeclareTextCompositeCommand{\accpsilioxia}{PU}{\textAlpha}{\9037\014} % Ἄ
+\DeclareTextCompositeCommand{\accdasiaoxia}{PU}{\textAlpha}{\9037\015} % Ἅ
+\DeclareTextCompositeCommand{\accpsiliperispomeni}{PU}{\textAlpha}{\9037\016} % Ἆ
+\DeclareTextCompositeCommand{\accdasiaperispomeni}{PU}{\textAlpha}{\9037\017} % Ἇ
+
+\DeclareTextCompositeCommand{\accpsili}{PU}{\textepsilon}{\9037\020} % ἐ
+\DeclareTextCompositeCommand{\accdasia}{PU}{\textepsilon}{\9037\021} % ἑ
+\DeclareTextCompositeCommand{\accpsilivaria}{PU}{\textepsilon}{\9037\022} % ἒ
+\DeclareTextCompositeCommand{\accdasiavaria}{PU}{\textepsilon}{\9037\023} % ἓ
+\DeclareTextCompositeCommand{\accpsilioxia}{PU}{\textepsilon}{\9037\024} % ἔ
+\DeclareTextCompositeCommand{\accdasiaoxia}{PU}{\textepsilon}{\9037\025} % ἕ
+\DeclareTextCompositeCommand{\accpsili}{PU}{\textEpsilon}{\9037\030} % Ἐ
+\DeclareTextCompositeCommand{\accdasia}{PU}{\textEpsilon}{\9037\031} % Ἑ
+\DeclareTextCompositeCommand{\accpsilivaria}{PU}{\textEpsilon}{\9037\032} % Ἒ
+\DeclareTextCompositeCommand{\accdasiavaria}{PU}{\textEpsilon}{\9037\033} % Ἓ
+\DeclareTextCompositeCommand{\accpsilioxia}{PU}{\textEpsilon}{\9037\034} % Ἔ
+\DeclareTextCompositeCommand{\accdasiaoxia}{PU}{\textEpsilon}{\9037\035} % Ἕ
+
+\DeclareTextCompositeCommand{\accpsili}{PU}{\texteta}{\9037\040} % ἠ
+\DeclareTextCompositeCommand{\accdasia}{PU}{\texteta}{\9037\041} % ἡ
+\DeclareTextCompositeCommand{\accpsilivaria}{PU}{\texteta}{\9037\042} % ἢ
+\DeclareTextCompositeCommand{\accdasiavaria}{PU}{\texteta}{\9037\043} % ἣ
+\DeclareTextCompositeCommand{\accpsilioxia}{PU}{\texteta}{\9037\044} % ἤ
+\DeclareTextCompositeCommand{\accdasiaoxia}{PU}{\texteta}{\9037\045} % ἥ
+\DeclareTextCompositeCommand{\accpsiliperispomeni}{PU}{\texteta}{\9037\046} % ἦ
+\DeclareTextCompositeCommand{\accdasiaperispomeni}{PU}{\texteta}{\9037\047} % ἧ
+\DeclareTextCompositeCommand{\accpsili}{PU}{\textEta}{\9037\050} % Ἠ
+\DeclareTextCompositeCommand{\accdasia}{PU}{\textEta}{\9037\051} % Ἡ
+\DeclareTextCompositeCommand{\accpsilivaria}{PU}{\textEta}{\9037\052} % Ἢ
+\DeclareTextCompositeCommand{\accdasiavaria}{PU}{\textEta}{\9037\053} % Ἣ
+\DeclareTextCompositeCommand{\accpsilioxia}{PU}{\textEta}{\9037\054} % Ἤ
+\DeclareTextCompositeCommand{\accdasiaoxia}{PU}{\textEta}{\9037\055} % Ἥ
+\DeclareTextCompositeCommand{\accpsiliperispomeni}{PU}{\textEta}{\9037\056} % Ἦ
+\DeclareTextCompositeCommand{\accdasiaperispomeni}{PU}{\textEta}{\9037\057} % Ἧ
+
+\DeclareTextCompositeCommand{\accpsili}{PU}{\textiota}{\9037\060} % ἰ
+\DeclareTextCompositeCommand{\accdasia}{PU}{\textiota}{\9037\061} % ἱ
+\DeclareTextCompositeCommand{\accpsilivaria}{PU}{\textiota}{\9037\062} % ἲ
+\DeclareTextCompositeCommand{\accdasiavaria}{PU}{\textiota}{\9037\063} % ἳ
+\DeclareTextCompositeCommand{\accpsilioxia}{PU}{\textiota}{\9037\064} % ἴ
+\DeclareTextCompositeCommand{\accdasiaoxia}{PU}{\textiota}{\9037\065} % ἵ
+\DeclareTextCompositeCommand{\accpsiliperispomeni}{PU}{\textiota}{\9037\066} % ἶ
+\DeclareTextCompositeCommand{\accdasiaperispomeni}{PU}{\textiota}{\9037\067} % ἷ
+\DeclareTextCompositeCommand{\accpsili}{PU}{\textIota}{\9037\070} % Ἰ
+\DeclareTextCompositeCommand{\accdasia}{PU}{\textIota}{\9037\071} % Ἱ
+\DeclareTextCompositeCommand{\accpsilivaria}{PU}{\textIota}{\9037\072} % Ἲ
+\DeclareTextCompositeCommand{\accdasiavaria}{PU}{\textIota}{\9037\073} % Ἳ
+\DeclareTextCompositeCommand{\accpsilioxia}{PU}{\textIota}{\9037\074} % Ἴ
+\DeclareTextCompositeCommand{\accdasiaoxia}{PU}{\textIota}{\9037\075} % Ἵ
+\DeclareTextCompositeCommand{\accpsiliperispomeni}{PU}{\textIota}{\9037\076} % Ἶ
+\DeclareTextCompositeCommand{\accdasiaperispomeni}{PU}{\textIota}{\9037\077} % Ἷ
+
+\DeclareTextCompositeCommand{\accpsili}{PU}{\textomicron}{\9037\100} % ὀ
+\DeclareTextCompositeCommand{\accdasia}{PU}{\textomicron}{\9037\101} % ὁ
+\DeclareTextCompositeCommand{\accpsilivaria}{PU}{\textomicron}{\9037\102} % ὂ
+\DeclareTextCompositeCommand{\accdasiavaria}{PU}{\textomicron}{\9037\103} % ὃ
+\DeclareTextCompositeCommand{\accpsilioxia}{PU}{\textomicron}{\9037\104} % ὄ
+\DeclareTextCompositeCommand{\accdasiaoxia}{PU}{\textomicron}{\9037\105} % ὅ
+\DeclareTextCompositeCommand{\accpsili}{PU}{\textOmicron}{\9037\110} % Ὀ
+\DeclareTextCompositeCommand{\accdasia}{PU}{\textOmicron}{\9037\111} % Ὁ
+\DeclareTextCompositeCommand{\accpsilivaria}{PU}{\textOmicron}{\9037\112} % Ὂ
+\DeclareTextCompositeCommand{\accdasiavaria}{PU}{\textOmicron}{\9037\113} % Ὃ
+\DeclareTextCompositeCommand{\accpsilioxia}{PU}{\textOmicron}{\9037\114} % Ὄ
+\DeclareTextCompositeCommand{\accdasiaoxia}{PU}{\textOmicron}{\9037\115} % Ὅ
+
+\DeclareTextCompositeCommand{\accpsili}{PU}{\textupsilon}{\9037\120} % ὐ
+\DeclareTextCompositeCommand{\accdasia}{PU}{\textupsilon}{\9037\121} % ὑ
+\DeclareTextCompositeCommand{\accpsilivaria}{PU}{\textupsilon}{\9037\122} % ὒ
+\DeclareTextCompositeCommand{\accdasiavaria}{PU}{\textupsilon}{\9037\123} % ὓ
+\DeclareTextCompositeCommand{\accpsilioxia}{PU}{\textupsilon}{\9037\124} % ὔ
+\DeclareTextCompositeCommand{\accdasiaoxia}{PU}{\textupsilon}{\9037\125} % ὕ
+\DeclareTextCompositeCommand{\accpsiliperispomeni}{PU}{\textupsilon}{\9037\126} % ὖ
+\DeclareTextCompositeCommand{\accdasiaperispomeni}{PU}{\textupsilon}{\9037\127} % ὗ
+\DeclareTextCompositeCommand{\accdasia}{PU}{\textUpsilon}{\9037\131} % Ὑ
+\DeclareTextCompositeCommand{\accdasiavaria}{PU}{\textUpsilon}{\9037\133} % Ὓ
+\DeclareTextCompositeCommand{\accdasiaoxia}{PU}{\textUpsilon}{\9037\135} % Ὕ
+\DeclareTextCompositeCommand{\accdasiaperispomeni}{PU}{\textUpsilon}{\9037\137} % Ὗ
+
+\DeclareTextCompositeCommand{\accpsili}{PU}{\textomega}{\9037\140} % ὠ
+\DeclareTextCompositeCommand{\accdasia}{PU}{\textomega}{\9037\141} % ὡ
+\DeclareTextCompositeCommand{\accpsilivaria}{PU}{\textomega}{\9037\142} % ὢ
+\DeclareTextCompositeCommand{\accdasiavaria}{PU}{\textomega}{\9037\143} % ὣ
+\DeclareTextCompositeCommand{\accpsilioxia}{PU}{\textomega}{\9037\144} % ὤ
+\DeclareTextCompositeCommand{\accdasiaoxia}{PU}{\textomega}{\9037\145} % ὥ
+\DeclareTextCompositeCommand{\accpsiliperispomeni}{PU}{\textomega}{\9037\146} % ὦ
+\DeclareTextCompositeCommand{\accdasiaperispomeni}{PU}{\textomega}{\9037\147} % ὧ
+\DeclareTextCompositeCommand{\accpsili}{PU}{\textOmega}{\9037\150} % Ὠ
+\DeclareTextCompositeCommand{\accdasia}{PU}{\textOmega}{\9037\151} % Ὡ
+\DeclareTextCompositeCommand{\accpsilivaria}{PU}{\textOmega}{\9037\152} % Ὢ
+\DeclareTextCompositeCommand{\accdasiavaria}{PU}{\textOmega}{\9037\153} % Ὣ
+\DeclareTextCompositeCommand{\accpsilioxia}{PU}{\textOmega}{\9037\154} % Ὤ
+\DeclareTextCompositeCommand{\accdasiaoxia}{PU}{\textOmega}{\9037\155} % Ὥ
+\DeclareTextCompositeCommand{\accpsiliperispomeni}{PU}{\textOmega}{\9037\156} % Ὦ
+\DeclareTextCompositeCommand{\accdasiaperispomeni}{PU}{\textOmega}{\9037\157} % Ὧ
+
+\DeclareTextCompositeCommand{\`}{PU}{\textalpha}{\9037\160} % ὰ
+\DeclareTextCompositeCommand{\`}{PU}{\textepsilon}{\9037\162} % ὲ
+\DeclareTextCompositeCommand{\`}{PU}{\texteta}{\9037\164} % ὴ
+\DeclareTextCompositeCommand{\`}{PU}{\textiota}{\9037\166} % ὶ
+\DeclareTextCompositeCommand{\`}{PU}{\textomicron}{\9037\170} % ὸ
+\DeclareTextCompositeCommand{\`}{PU}{\textupsilon}{\9037\172} % ὺ
+\DeclareTextCompositeCommand{\`}{PU}{\textomega}{\9037\174} % ὼ
+
+\DeclareTextCompositeCommand{\u}{PU}{\textalpha}{\9037\260} % ᾰ
+\DeclareTextCompositeCommand{\=}{PU}{\textalpha}{\9037\261} % ᾱ
+% ᾲ
+% ᾳ
+% ᾴ
+\DeclareTextCompositeCommand{\~}{PU}{\textalpha}{\9037\266} % ᾶ
+\DeclareTextCompositeCommand{\accperispomeni}{PU}{\textalpha}{\9037\267} % ᾶ
+% ᾷ
+\DeclareTextCompositeCommand{\u}{PU}{\textAlpha}{\9037\270} % Ᾰ
+\DeclareTextCompositeCommand{\=}{PU}{\textAlpha}{\9037\271} % Ᾱ
+\DeclareTextCompositeCommand{\`}{PU}{\textAlpha}{\9037\272} % Ὰ
+% Ά
+% ᾼ
+\DeclareTextCompositeCommand{\accpsili}{PU}{\@empty}{\9037\275} % ᾽
+\DeclareTextCompositeCommand{\accpsili}{PU}{\ }{\9037\275} % ᾽
+\DeclareTextCommand{\prosgegrammeni}{PU}{\9037\276} % ι
+\DeclareTextCompositeCommand{\accpsili}{PU}{\@empty}{\9037\277} % ᾿
+\DeclareTextCompositeCommand{\accpsili}{PU}{\ }{\9037\277} % ᾿
+
+\DeclareTextCompositeCommand{\accperispomeni}{PU}{\@empty}{\9037\300} % ῀
+\DeclareTextCompositeCommand{\accperispomeni}{PU}{\ }{\9037\300} % ῀
+\DeclareTextCompositeCommand{\accdialytikaperispomeni}{PU}{\@empty}{\9037\301} % ῁
+\DeclareTextCompositeCommand{\accdialytikaperispomeni}{PU}{\ }{\9037\301} % ῁
+% ῂ
+% ῃ
+% ῄ
+\DeclareTextCompositeCommand{\~}{PU}{\texteta}{\9037\307} % ῆ
+\DeclareTextCompositeCommand{\accperispomeni}{PU}{\texteta}{\9037\307} % ῆ
+% ῇ
+\DeclareTextCompositeCommand{\`}{PU}{\textEpsilon}{\9037\310} % Ὲ
+\DeclareTextCompositeCommand{\`}{PU}{\textEta}{\9037\312} % Ὴ
+% ῌ
+\DeclareTextCompositeCommand{\accpsilivaria}{PU}{\@empty}{\9037\315} % ῍
+\DeclareTextCompositeCommand{\accpsilivaria}{PU}{\ }{\9037\315} % ῍
+\DeclareTextCompositeCommand{\accpsilioxia}{PU}{\@empty}{\9037\316} % ῎
+\DeclareTextCompositeCommand{\accpsilioxia}{PU}{\ }{\9037\316} % ῎
+\DeclareTextCompositeCommand{\accpsiliperispomeni}{PU}{\@empty}{\9037\317} % ῏
+\DeclareTextCompositeCommand{\accpsiliperispomeni}{PU}{\ }{\9037\317} % ῏
+
+\DeclareTextCompositeCommand{\u}{PU}{\textiota}{\9037\320} % ῐ
+\DeclareTextCompositeCommand{\=}{PU}{\textiota}{\9037\321} % ῑ
+\DeclareTextCompositeCommand{\accdialytikavaria}{PU}{\textiota}{\9037\322} % ῒ
+\DeclareTextCompositeCommand{\accdialytikaoxia}{PU}{\textiota}{\9037\323} % ΐ
+\DeclareTextCompositeCommand{\~}{PU}{\textiota}{\9037\326} % ῖ
+\DeclareTextCompositeCommand{\accperispomeni}{PU}{\textiota}{\9037\326} % ῖ
+\DeclareTextCompositeCommand{\accdialytikaperispomeni}{PU}{\textiota}{\9037\327} % ῗ
+\DeclareTextCompositeCommand{\u}{PU}{\textIota}{\9037\330} % Ῐ
+\DeclareTextCompositeCommand{\=}{PU}{\textIota}{\9037\331} % Ῑ
+\DeclareTextCompositeCommand{\`}{PU}{\textIota}{\9037\332} % Ὶ
+\DeclareTextCompositeCommand{\accdasiavaria}{PU}{\@empty}{\9037\335} % ῝
+\DeclareTextCompositeCommand{\accdasiavaria}{PU}{\ }{\9037\335} % ῝
+\DeclareTextCompositeCommand{\accdasiaoxia}{PU}{\@empty}{\9037\336} % ῞
+\DeclareTextCompositeCommand{\accdasiaoxia}{PU}{\ }{\9037\336} % ῞
+\DeclareTextCompositeCommand{\accdasiaperispomeni}{PU}{\@empty}{\9037\337} % ῟
+\DeclareTextCompositeCommand{\accdasiaperispomeni}{PU}{\ }{\9037\337} % ῟
+
+\DeclareTextCompositeCommand{\u}{PU}{\textupsilon}{\9037\340} % ῠ
+\DeclareTextCompositeCommand{\=}{PU}{\textupsilon}{\9037\341} % ῡ
+\DeclareTextCompositeCommand{\accdialytikavaria}{PU}{\textupsilon}{\9037\342} % ῢ
+\DeclareTextCompositeCommand{\accdialytikaoxia}{PU}{\textupsilon}{\9037\343} % ΰ
+\DeclareTextCompositeCommand{\accpsili}{PU}{\textrho}{\9037\344} % ῤ
+\DeclareTextCompositeCommand{\accdasia}{PU}{\textrho}{\9037\345} % ῥ
+\DeclareTextCompositeCommand{\~}{PU}{\textupsilon}{\9037\346} % ῦ
+\DeclareTextCompositeCommand{\accperispomeni}{PU}{\textupsilon}{\9037\346} % ῦ
+\DeclareTextCompositeCommand{\accdialytikaperispomeni}{PU}{\textupsilon}{\9037\347} % ῧ
+\DeclareTextCompositeCommand{\u}{PU}{\textUpsilon}{\9037\350} % Ῠ
+\DeclareTextCompositeCommand{\=}{PU}{\textUpsilon}{\9037\351} % Ῡ
+\DeclareTextCompositeCommand{\`}{PU}{\textUpsilon}{\9037\352} % Ὺ
+\DeclareTextCompositeCommand{\accdasia}{PU}{\textRho}{\9037\354} % Ῥ
+\DeclareTextCompositeCommand{\accdialytikavaria}{PU}{\@empty}{\9037\355} % ῭
+\DeclareTextCompositeCommand{\accdialytikavaria}{PU}{\ }{\9037\355} % ῭
+\DeclareTextCompositeCommand{\accdialytikaoxia}{PU}{\@empty}{\9037\356} % ΅
+\DeclareTextCompositeCommand{\accdialytikaoxia}{PU}{\ }{\9037\356} % ΅
+% `
+
+% ῲ
+% ῳ
+% ῴ
+\DeclareTextCompositeCommand{\~}{PU}{\textomega}{\9037\366} % ῶ
+\DeclareTextCompositeCommand{\accperispomeni}{PU}{\textomega}{\9037\366} % ῶ
+% ῷ
+\DeclareTextCompositeCommand{\`}{PU}{\textOmicron}{\9037\370} % Ὸ
+\DeclareTextCompositeCommand{\`}{PU}{\textOmega}{\9037\372} % Ὼ
+% ῼ
+\DeclareTextCompositeCommand{\accoxia}{PU}{\@empty}{\9037\375} % ´
+\DeclareTextCompositeCommand{\accoxia}{PU}{\ }{\9037\375} % ´
+\DeclareTextCompositeCommand{\accdasia}{PU}{\@empty}{\9037\376} % ῾
+\DeclareTextCompositeCommand{\accdasia}{PU}{\ }{\9037\376} % ῾
+
+
+% Letterlike Symbols
+% ------------------
+% ::
+
+\DeclareTextCommand{\textohm}{PU}{\83\251} % "03A9 OHM SIGN, use 03A9 Omega
+
+
+% Ancient Greek Numbers
+% ---------------------
+% TODO: map other chars to corresponding Greek letters.
+% See also the grnumalt_ package.
+%
+% Definition with literal Unicode characters, because the code-point has 5
+% hexadecimal digits:
+%
+% ::
+
+\DeclareTextCommand{\textpentedeka}{PU}{𐅄}    % "10144 GREEK ACROPHONIC ATTIC FIFTY
+\DeclareTextCommand{\textpentehekaton}{PU}{𐅅} % "10145 GREEK ACROPHONIC ATTIC FIVE HUNDRED
+\DeclareTextCommand{\textpenteqilioi}{PU}{𐅆}  % "10146 GREEK ACROPHONIC ATTIC FIVE THOUSAND
+\DeclareTextCommand{\textpentemuria}{PU}{𐅇}   % "10147 GREEK ACROPHONIC ATTIC FIFTY THOUSAND
+
+
+% UPPERCASE
+% ---------
+%
+% Greek letters drop diacritics (eccept dialytika and sub-iota) in UPPERCASE.
+%
+% Babel-Greek introduces macros for "capital accents" in release 1.13.3.
+% Here, we add definitions to drop diacritics in uppercase::
+
+\DeclareTextCompositeCommand{\accACUTE}{PU}{\textAlpha  }{\textAlpha}
+\DeclareTextCompositeCommand{\accACUTE}{PU}{\textEpsilon}{\textEpsilon}
+\DeclareTextCompositeCommand{\accACUTE}{PU}{\textEta    }{\textEta}
+\DeclareTextCompositeCommand{\accACUTE}{PU}{\textIota   }{\textIota}
+\DeclareTextCompositeCommand{\accACUTE}{PU}{\textOmicron}{\textOmicron}
+\DeclareTextCompositeCommand{\accACUTE}{PU}{\textUpsilon}{\textUpsilon}
+\DeclareTextCompositeCommand{\accACUTE}{PU}{\textOmega  }{\textOmega}
+
+\DeclareTextCompositeCommand{\accGRAVE}{PU}{\textAlpha  }{\textAlpha}
+\DeclareTextCompositeCommand{\accGRAVE}{PU}{\textEpsilon}{\textEpsilon}
+\DeclareTextCompositeCommand{\accGRAVE}{PU}{\textEta    }{\textEta}
+\DeclareTextCompositeCommand{\accGRAVE}{PU}{\textIota   }{\textIota}
+\DeclareTextCompositeCommand{\accGRAVE}{PU}{\textOmicron}{\textOmicron}
+\DeclareTextCompositeCommand{\accGRAVE}{PU}{\textUpsilon}{\textUpsilon}
+\DeclareTextCompositeCommand{\accGRAVE}{PU}{\textOmega  }{\textOmega}
+
+\DeclareTextCompositeCommand{\accTILDE}{PU}{\textAlpha  }{\textAlpha}
+\DeclareTextCompositeCommand{\accTILDE}{PU}{\textEta    }{\textEta}
+\DeclareTextCompositeCommand{\accTILDE}{PU}{\textIota   }{\textIota}
+\DeclareTextCompositeCommand{\accTILDE}{PU}{\textUpsilon}{\textUpsilon}
+\DeclareTextCompositeCommand{\accTILDE}{PU}{\textOmega  }{\textOmega}
+
+% The "hiatus" feature does not work with PU (Alpha/Epsilon is dropped!)::
+
+\DeclareTextCompositeCommand{\LGR@hiatus}{PU}{\textAlpha  }{\textAlpha}
+\DeclareTextCompositeCommand{\LGR@hiatus}{PU}{\textEpsilon}{\textEpsilon}
+
+
+% .. References
+%
+% .. _LaTeX Project Public License: http://www.latex-project.org/lppl.txt
+% .. _babel-greek: https://ctan.org/pkg/babel-greek
+% .. _greek-fontenc.def: greek-fontenc.def.html
+% .. _grnumalt: https://ctan.org/pkg/grnumalt
+% .. _hyperref: https://ctan.org/pkg/hyperref
+% .. _textalpha: textalpha.sty.html

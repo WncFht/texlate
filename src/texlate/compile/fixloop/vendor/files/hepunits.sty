@@ -1,0 +1,137 @@
+%% hepunits
+%%   High energy physics (HEP) extensions to the SIunits package
+%% Author: Andy Buckley <andy@insectnation.org>
+%%
+%% This material is subject to the LaTeX Project Public License.
+%% See http://www.ctan.org/tex-archive/help/Catalogue/licenses.lppl.html
+%% or the details of that license.
+%%
+%% Please let me know if you use hepunits and what you think of it.
+%% I'll try to implement any suggested options that seem sensible!
+
+\def\fileversion{2.0.0}
+\def\filedate{2020/04/10}
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{hepunits}[\filedate\space High-energy physics units by Andy Buckley (v\fileversion)]
+
+
+%% Option handling
+\def\@yes{yes}
+\def\@HEPopt@noprefixcmds{}
+\def\@HEPopt@sicmds{}
+\def\@HEPopt@freestanding{}
+\DeclareOption{sicmds}{\def\@HEPopt@sicmds{yes}}
+\DeclareOption{noprefixcmds}{\def\@HEPopt@noprefixcmds{yes}}
+\DeclareOption{freestanding}{\def\@HEPopt@freestanding{yes}}
+\ProcessOptions
+\ifx\@HEPopt@noprefixcmds\@yes\def\@HEPopt@sicmds\@empty\fi
+
+
+%% Get the dependency packages
+\RequirePackage{amsmath}
+\RequirePackage{ifthen}
+\RequirePackage{siunitx}
+
+%% Pass default config to siunitx
+\sisetup{detect-all, detect-display-math, mode=text}
+\ifx\@HEPopt@freestanding\@yes
+\sisetup{free-standing-units=true}
+\fi
+
+
+%% -------------------------------------------------
+%% Units defined below here
+%% -------------------------------------------------
+
+\DeclareSIUnit{\Hz}{\hertz}
+
+\ifx\@HEPopt@sicmds\@yes
+%% Lengths
+\DeclareSIUnit{\fermi}{\femto\metre}
+\DeclareSIUnit{\nm}{\nano\metre}
+\DeclareSIUnit{\micron}{\micro\metre}
+\DeclareSIUnit{\um}{\micro\metre}
+\DeclareSIUnit{\mm}{\milli\metre}
+\DeclareSIUnit{\cm}{\centi\metre}
+
+%% Angles
+\DeclareSIUnit{\mrad}{\milli\radian}
+
+%% Times
+\DeclareSIUnit{\as}{\atto\second}
+\DeclareSIUnit{\fs}{\femto\second}
+\DeclareSIUnit{\ps}{\pico\second}
+\DeclareSIUnit{\ns}{\nano\second}
+
+%% Rates
+\DeclareSIUnit{\mHz}{\milli\hertz}
+\DeclareSIUnit{\kHz}{\kilo\hertz}
+\DeclareSIUnit{\MHz}{\mega\hertz}
+\DeclareSIUnit{\GHz}{\giga\hertz}
+\DeclareSIUnit{\THz}{\tera\hertz}
+\fi
+
+
+%% Fields
+\DeclareSIUnit{\gauss}{G}
+
+%% Luminosity
+\DeclareSIUnit{\invcmsq}{\centi\metre\tothe{-2}}
+\DeclareSIUnit{\invcmsqpersecond}{\invcmsq\second\tothe{-1}}
+\DeclareSIUnit{\invcmsqpersec}{\invcmsqpersecond}
+
+%% (Inverse) cross-sections
+\DeclareSIUnit{\invbarn}{\barn\tothe{-1}}
+\ifx\@HEPopt@noprefixcmds\@empty
+\DeclareSIUnit{\millibarn}{\milli\barn}
+\DeclareSIUnit{\microbarn}{\micro\barn}
+\DeclareSIUnit{\nanobarn}{\nano\barn}
+\DeclareSIUnit{\picobarn}{\pico\barn}
+\DeclareSIUnit{\femtobarn}{\femto\barn}
+\DeclareSIUnit{\attobarn}{\atto\barn}
+\DeclareSIUnit{\zeptobarn}{\zepto\barn}
+\DeclareSIUnit{\yoctobarn}{\yocto\barn}
+\DeclareSIUnit{\invnanobarn}{\nano\invbarn}
+\DeclareSIUnit{\invpicobarn}{\pico\invbarn}
+\DeclareSIUnit{\invfemtobarn}{\femto\invbarn}
+\DeclareSIUnit{\invattobarn}{\atto\invbarn}
+\DeclareSIUnit{\invzeptobarn}{\zepto\invbarn}
+\DeclareSIUnit{\invyoctobarn}{\yocto\invbarn}
+\DeclareSIUnit{\invnb}{\invnanobarn}
+\DeclareSIUnit{\invpb}{\invpicobarn}
+\DeclareSIUnit{\invfb}{\invfemtobarn}
+\DeclareSIUnit{\invab}{\invattobarn}
+\DeclareSIUnit{\invzb}{\invzeptobarn}
+\DeclareSIUnit{\invyb}{\invyoctobarn}
+\fi
+
+%% HEP energy, momentum and mass units
+% \DeclareSIUnit{\electronvolt}{\text{e\kern-1.2\scriptspace V}}
+\DeclareSIUnit{\electronvolt}{\text{e\kern-0.15ex V}}
+\DeclareSIUnit{\eV}{\electronvolt}
+\newcommand{\@eVoverc}[1][]{\ensuremath{
+    \eV
+    \ifthenelse{\equal{\f@series}{\bfdefault}}{/}{\mkern-\medmuskip/\mkern-\thinmuskip}
+    \text{\ensuremath{c#1}}
+  }}
+\DeclareSIUnit{\electronvoltc}{\@eVoverc}
+\DeclareSIUnit{\electronvoltcsq}{\@eVoverc[^2]}
+\DeclareSIUnit{\eVc}{\@eVoverc}
+\DeclareSIUnit{\eVcsq}{\@eVoverc[^2]}
+\ifx\@HEPopt@noprefixcmds\@empty
+\DeclareSIUnit{\meV}{\milli\eV}
+\DeclareSIUnit{\keV}{\kilo\eV}
+\DeclareSIUnit{\MeV}{\mega\eV}
+\DeclareSIUnit{\GeV}{\giga\eV}
+\DeclareSIUnit{\TeV}{\tera\eV}
+\DeclareSIUnit{\meVc}{\milli\eVc}
+\DeclareSIUnit{\keVc}{\kilo\eVc}
+\DeclareSIUnit{\MeVc}{\mega\eVc}
+\DeclareSIUnit{\GeVc}{\giga\eVc}
+\DeclareSIUnit{\TeVc}{\tera\eVc}
+\DeclareSIUnit{\meVcsq}{\milli\eVcsq}
+\DeclareSIUnit{\keVcsq}{\kilo\eVcsq}
+\DeclareSIUnit{\MeVcsq}{\mega\eVcsq}
+\DeclareSIUnit{\GeVcsq}{\giga\eVcsq}
+\DeclareSIUnit{\TeVcsq}{\tera\eVcsq}
+\fi

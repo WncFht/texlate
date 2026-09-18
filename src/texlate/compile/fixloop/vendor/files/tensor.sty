@@ -1,0 +1,210 @@
+%%
+%% This is file `tensor.sty',
+%% generated with the docstrip utility.
+%%
+%% The original source files were:
+%%
+%% tensor.dtx  (with options: `package')
+%% 
+%% Copyright (C) 2023 Philip G. Ratcliffe <philip.ratcliffe@uninsubria.it>
+%% 
+%% It may be distributed and/or modified under the conditions of the
+%% LaTeX Project Public License (LPPL), either version 1.3c of this
+%% license or (at your option) any later version.  The latest version
+%% of this license is in the file
+%% 
+%%    http://www.latex-project.org/lppl.txt
+%% 
+%% This file is part of the "tensor package" (the Work in LPPL)
+%% and all files in that package must be distributed together.
+%% 
+%% The released version of this package is available from CTAN.
+%% 
+%% File: tensor.dtx
+%%
+\NeedsTeXFormat{LaTeX2e}[1995/12/01]
+\ProvidesPackage{tensor}
+   [2023/07/18 v2.2 tensor indices package (PGR)]
+\newif\iftnsr@Aln
+\DeclareOption{align}{\tnsr@Alntrue}
+\newif\iftnsr@Txt
+\DeclareOption{text}{\tnsr@Txttrue}
+\newif\iftnsr@Sma \tnsr@Smatrue
+\DeclareOption{nosmash}{\tnsr@Smafalse}
+\newif\iftnsr@Str \tnsr@Strtrue
+\DeclareOption{nostrut}{\tnsr@Strfalse}
+\ProcessOptions
+\DeclareRobustCommand\tensor{%
+  \tnsr@Prp
+  \@ifstar{\tnsr@Spcfalse\tnsr@Aux}{\tnsr@Spctrue\tnsr@Aux}%
+}
+\DeclareRobustCommand\indices{%
+  \tnsr@Prp
+  \@ifstar{\tnsr@Spcfalse\ndcs@Aux}{\tnsr@Spctrue\ndcs@Aux}%
+}
+\DeclareRobustCommand\nuclide[1][]{%
+  \ncld@Mno{#1}%
+  \ncld@Aux
+}
+\newcommand\nuclideFont{\mathrm}
+\newcommand\massnumFont{\nuclideFont}
+\newtoks\tnsr@Sps
+\newtoks\tnsr@Sbs
+\newtoks\tnsr@Spe
+\newtoks\tnsr@Sbe
+\newtoks\ncld@Mno
+\newif\iftnsr@Spc
+\newcommand\tnsr@Wrn{}
+\newcommand\tnsr@Prp{%
+  \tnsr@Sps{}%
+  \tnsr@Sbs{}%
+  \def\tnsr@Wrn{}
+}
+\newcommand\ndcs@Aux[1]{%
+  \tnsr@Erx
+  \def\tnsr@Obj{}%
+  \tnsr@Set{#1}%
+  \tnsr@Fin
+  \tnsr@Wrn
+}
+\newcommand\tnsr@Aux[3][]{%
+  \tnsr@Erx
+  \mathpalette{\tnsr@Plt{#1}{#3}}{#2}%
+  \tnsr@Wrn
+}
+\newcommand\tnsr@Plt[4]{%
+  \def\tnsr@Obj{#3#4}%
+  \def\tnsr@Tmp{#1}%
+  \ifx\tnsr@Tmp\@empty\else
+    \tnsr@Set{#1}%
+    \hphantom{{}\tnsr@Fin}%
+    \tnsr@Sps\expandafter{%
+      \expandafter\tnsr@Krn\expandafter{\the\tnsr@Sps}%
+    }%
+    \tnsr@Sbs\expandafter{%
+      \expandafter\tnsr@Krn\expandafter{\the\tnsr@Sbs}%
+    }%
+  \fi
+  \tnsr@Set{#2}%
+  #4\tnsr@Fin
+}
+\newcommand\tnsr@Set[1]{%
+  \let\tnsr@Swx\relax
+  \tnsr@Pro#1\tnsr@Err
+}
+\newcommand\tnsr@Krn[1]{%
+  \settowidth\@tempdima{$\m@th\tnsr@Obj^{#1}\mkern-1mu$}%
+  \kern-\@tempdima
+  #1
+  \settowidth\@tempdima{$\m@th\tnsr@Obj$}%
+  \kern\@tempdima
+}
+\newcommand\tnsr@Pro[1]{%
+  \ifx#1\tnsr@Err
+    \let\tnsr@Nxt\relax
+  \else
+    \if#1*
+      \iftnsr@Spc
+        \gdef\tnsr@Wrn{%
+          \PackageWarning{tensor}{%
+            '*' not allowed in argument here; I shall ignore it.%
+            \MessageBreak Either remove it or use '\string\tensor*'%
+          }%
+        }%
+      \else
+        \let\tnsr@Swx\tnsr@Swa
+      \fi
+      \let\tnsr@Nxt\tnsr@Pro
+    \else
+      \if#1^
+        \def\tnsr@Nxt{\tnsr@Add{\tnsr@Sps}{\tnsr@Sbs}{\tnsr@Spe}}%
+      \else
+        \if#1_
+          \def\tnsr@Nxt{\tnsr@Add{\tnsr@Sbs}{\tnsr@Sps}{\tnsr@Sbe}}%
+        \else
+          \tnsr@Err
+          \let\tnsr@Nxt\tnsr@Pro
+        \fi
+      \fi
+    \fi
+  \fi
+  \tnsr@Nxt
+}
+\newcommand\tnsr@Swa{\let\tnsr@Swx\tnsr@Swb}
+\newcommand\tnsr@Swb{%
+  \let\tnsr@Swx\tnsr@Swa
+  \settowidth\@tempdima{$\m@th\tnsr@Obj{}^{\the\tnsr@Spe}$}%
+  \settowidth\@tempdimb{$\m@th\tnsr@Obj{}_{\the\tnsr@Sbe}$}%
+  \addtolength\@tempdima{-\@tempdimb}%
+  \ifdim\@tempdima=\z@\else
+    \ifdim\@tempdima>\z@
+      \tnsr@Sbs\expandafter\expandafter\expandafter{%
+        \expandafter\the\expandafter\tnsr@Sbs
+        \expandafter\kern\the\@tempdima
+      }%
+    \else
+      \@tempdima=-\@tempdima
+      \tnsr@Sps\expandafter\expandafter\expandafter{%
+        \expandafter\the\expandafter\tnsr@Sps
+        \expandafter\kern\the\@tempdima
+      }%
+    \fi
+  \fi
+}
+\newcommand\tnsr@Add[4]{%
+  #1\expandafter{\the#1\leavevmode{#4}}%
+  \iftnsr@Spc
+    #2\expandafter{\the#2\tnsr@Hph{#4}}%
+  \fi
+  #3{\leavevmode{#4}}%
+  \tnsr@Swx
+  \tnsr@Pro
+}
+\newcommand\tnsr@Hph{\expandafter\mathpalette\expandafter\tnsr@Mph}
+\newcommand\tnsr@Mph[2]{%
+  \settowidth\@tempdima{$\m@th#1{#2}$}%
+  \makebox[\@tempdima][c]{$\m@th#1\indexmarker$}%
+}
+\newcommand\indexmarker{}
+\newcommand\tnsr@Fin{%
+  ^{\tensorSmash{\the\tnsr@Sps}\tnsr@Str}%
+  _{\tensorSmash{\the\tnsr@Sbs}\tnsr@Str}%
+}
+\let\tensorSmash\relax
+\iftnsr@Aln
+  \iftnsr@Sma
+    \let\tensorSmash\smash
+  \fi
+\fi
+\newcommand\tensorStrut{}
+\let\tnsr@Str\relax
+\iftnsr@Aln
+  \iftnsr@Str
+    \renewcommand\tensorStrut{\vphantom{jl}}
+    \iftnsr@Txt
+      \def\tnsr@Str{\tensorStrut}
+    \else
+      \everydisplay\expandafter{\the\everydisplay\let\tnsr@Str\tensorStrut}
+    \fi
+  \fi
+\fi
+\newcommand\ncld@Aux[2][]{%
+  \ensuremath{%
+    \tensor*[^{\massnumFont{\the\ncld@Mno}}_{\massnumFont{#1}}]%
+      {\mkern1mu{\mathit{\nuclideFont{#2}}{}}}{}%
+  }%
+}
+\newcommand\tnsr@Err{}
+\newcommand\tnsr@Erx{%
+  \def\tnsr@Err{%
+    \global\let\tnsr@Err\relax
+    \PackageError{tensor}{%
+      Misordered sub/superscript items\on@line;
+      \MessageBreak index tokens may have been lost.
+      \MessageBreak Press <return> and I shall try to continue%
+    }{Index string probably has extra/missing '^' or '_'.}%
+  }%
+}
+\endinput
+%%
+%% End of file `tensor.sty'.

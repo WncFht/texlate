@@ -1,0 +1,3293 @@
+%%
+%% This is file `pxrubrica.sty',
+%% generated with the docstrip utility.
+%%
+%% The original source files were:
+%%
+%% pxrubrica.dtx 
+%% 
+%% IMPORTANT NOTICE:
+%% 
+%% For the copyright see the source file.
+%% 
+%% Any modified versions of this file must be renamed
+%% with new filenames distinct from pxrubrica.sty.
+%% 
+%% For distribution of the original source see the terms
+%% for copying and modification in the file pxrubrica.dtx.
+%% 
+%% This generated file may be distributed as long as the
+%% original source files, as listed above, are part of the
+%% same distribution. (The sources need not necessarily be
+%% in the same archive or directory.)
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{pxrubrica}
+  [2023/03/01 v1.3e PX Japanese-style ruby]
+\RequirePackage{keyval}
+\def\pxrr@pkgname{pxrubrica}
+\def\pxrr@error{%
+  \PackageError\pxrr@pkgname
+}
+\def\pxrr@warn{%
+  \PackageWarning\pxrr@pkgname
+}
+\newif\ifpxrr@fatal@error
+\def\pxrr@fatal@error{%
+  \pxrr@fatal@errortrue
+  \pxrr@error
+}
+\def\pxrr@eh@fatal{%
+  The whole ruby input was ignored.\MessageBreak
+  \@ehc
+}
+\def\pxrr@fatal@not@supported#1{%
+  \pxrr@fatal@error{Not yet supported: #1}%
+  \pxrr@eh@fatal
+}
+\def\pxrr@err@inv@value#1{%
+  \pxrr@error{Invalud value (#1)}%
+  \@ehc
+}
+\def\pxrr@fatal@unx@letter#1{%
+  \pxrr@fatal@error{Unexpected letter '#1' found}%
+  \pxrr@eh@fatal
+}
+\def\pxrr@warn@bad@athead{%
+  \pxrr@warn{Position 'h' not allowed here}%
+}
+\def\pxrr@warn@must@group{%
+  \pxrr@warn{Only group ruby is allowed here}%
+}
+\def\pxrr@warn@bad@jukugo{%
+  \pxrr@warn{Jukugo ruby is not allowed here}%
+}
+\def\pxrr@fatal@bad@intr{%
+  \pxrr@fatal@error{%
+    Intrusion disallowed when ghost is enabled%
+  }\pxrr@eh@fatal
+}
+\def\pxrr@fatal@bad@no@protr{%
+  \pxrr@fatal@error{%
+    Protrusion must be allowed for either end%
+  }\pxrr@eh@fatal
+}
+\def\pxrr@fatal@bad@length#1#2{%
+  \pxrr@fatal@error{%
+    Group count mismatch between the ruby and\MessageBreak
+    the body (#1 <> #2)%
+  }\pxrr@eh@fatal
+}
+\def\pxrr@fatal@bad@mono{%
+  \pxrr@fatal@error{%
+    Mono-ruby body must have a single group%
+  }\pxrr@eh@fatal
+}
+\def\pxrr@fatal@bad@switching{%
+  \pxrr@fatal@error{%
+    The body of Switching-ruby (M/J) must\MessageBreak
+    have a single group%
+  }\pxrr@eh@fatal
+}
+\def\pxrr@fatal@bad@movable{%
+  \pxrr@fatal@error{%
+    Movable group ruby is not allowed here%
+  }\pxrr@eh@fatal
+}
+\def\pxrr@fatal@na@movable{%
+  \pxrr@fatal@error{%
+    Feature of movable group ruby is disabled%
+  }\pxrr@eh@fatal
+}
+\def\pxrr@warn@load@order#1{%
+  \pxrr@warn{%
+    This package should be loaded after '#1'%
+  }%
+}
+\def\pxrr@interror#1{%
+  \pxrr@fatal@error{INTERNAL ERROR (#1)}%
+  \pxrr@eh@fatal
+}
+\newif\ifpxrrDebug
+\let\pxrr@ruby@font\@empty
+\def\pxrr@big@intr{1}
+\def\pxrr@small@intr{0.5}
+
+\def\pxrr@size@ratio{0.5}
+\def\pxrr@sprop@x{1}
+\def\pxrr@sprop@y{2}
+\def\pxrr@sprop@z{1}
+\def\pxrr@sprop@hy{1}
+\def\pxrr@sprop@hz{1}
+\def\pxrr@sprop@ex{1}
+\def\pxrr@sprop@ey{1}
+\def\pxrr@maxmargin{0.75}
+\def\pxrr@yhtratio{0.88}
+\def\pxrr@thtratio{0.5}
+\chardef\pxrr@extra=0
+\newif\ifpxrr@jghost \pxrr@jghostfalse
+\newif\ifpxrr@aghost \pxrr@aghostfalse
+\def\pxrr@inter@gap{0}
+\newif\ifpxrr@edge@adjust \pxrr@edge@adjustfalse
+\newif\ifpxrr@break@jukugo \pxrr@break@jukugofalse
+\newif\ifpxrr@safe@mode \pxrr@safe@modefalse
+\newif\ifpxrr@d@bprotr \pxrr@d@bprotrtrue
+\newif\ifpxrr@d@aprotr \pxrr@d@aprotrtrue
+\def\pxrr@d@bintr{}
+\def\pxrr@d@aintr{}
+\chardef\pxrr@d@athead=0
+\let\pxrr@d@mode=j
+\chardef\pxrr@d@side=0
+\chardef\pxrr@d@evensp=1
+\chardef\pxrr@d@fullsize=0
+\newif\ifpxrr@bprotr \pxrr@bprotrfalse
+\newif\ifpxrr@aprotr \pxrr@aprotrfalse
+\def\pxrr@bintr{}
+\def\pxrr@aintr{}
+\let\pxrr@bscomp\relax
+\let\pxrr@ascomp\relax
+\newif\ifpxrr@bnobr \pxrr@bnobrfalse
+\newif\ifpxrr@anobr \pxrr@anobrfalse
+\newif\ifpxrr@bfintr \pxrr@bfintrfalse
+\newif\ifpxrr@afintr \pxrr@afintrfalse
+\chardef\pxrr@athead=0
+\newif\ifpxrr@athead@given \pxrr@athead@givenfalse
+\let\pxrr@mode=\@undefined
+\newif\ifpxrr@mode@given \pxrr@mode@givenfalse
+\newif\ifpxrr@afintr \pxrr@afintrfalse
+\newif\ifpxrr@abody
+\chardef\pxrr@side=0
+\chardef\pxrr@evensp=1
+\chardef\pxrr@revensp=1
+\chardef\pxrr@fullsize=1
+\let\pxrr@c@ruby@font\@undefined
+\let\pxrr@c@size@ratio\@undefined
+\let\pxrr@c@inter@gap\@undefined
+\let\pxrr@body@list\@undefined
+\let\pxrr@body@count\@undefined
+\let\pxrr@ruby@list\@undefined
+\let\pxrr@ruby@count\@undefined
+\let\pxrr@sruby@list\@undefined
+\let\pxrr@sruby@count\@undefined
+\let\pxrr@whole@list\@undefined
+\let\pxrr@bspace\@undefined
+\let\pxrr@aspace\@undefined
+\let\pxrr@natwd\@undefined
+\let\pxrr@all@input\@undefined
+\newif\ifpxrr@ok
+\newcount\pxrr@cnta
+\newcount\pxrr@cntr
+\newdimen\pxrr@dima
+\newbox\pxrr@boxa
+\newbox\pxrr@boxb
+\newbox\pxrr@boxr
+\let\pxrr@token\relax
+\chardef\pxrr@zero=0
+\def\pxrr@zeropt{0pt}
+\def\pxrr@hfilx#1{%
+  \hskip\z@\@plus #1fil\relax
+}
+\let\pxrr@res\@empty
+\def\pxrr@ifx#1{%
+  \ifx#1\expandafter\@firstoftwo
+  \else\expandafter\@secondoftwo
+  \fi
+}
+\@gobbletwo\if\if \def\pxrr@cond#1\fi{%
+  #1\expandafter\@firstoftwo
+  \else\expandafter\@secondoftwo
+  \fi
+}
+\def\pxrr@cslet#1{%
+  \expandafter\let\csname#1\endcsname
+}
+\def\pxrr@letcs#1#2{%
+  \expandafter\let\expandafter#1\csname#2\endcsname
+}
+\def\pxrr@csletcs#1#2{%
+  \expandafter\let\csname#1\expandafter\endcsname
+   \csname#2\endcsname
+}
+\def\pxrr@setok#1{%
+  #1{\pxrr@oktrue}{\pxrr@okfalse}%
+}
+\def\pxrr@appto#1#2{%
+  \expandafter\def\expandafter#1\expandafter{#1#2}%
+}
+\def\pxrr@nil{\noexpand\pxrr@nil}
+\def\pxrr@end{\noexpand\pxrr@end}
+\def\pxrr@without@macro@trace#1{%
+  \chardef\pxrr@tracingmacros@save=\tracingmacros
+  \tracingmacros\z@
+  #1%
+  \tracingmacros\pxrr@tracingmacros@save
+}
+\chardef\pxrr@tracingmacros@save=0
+\def\pxrr@hbox#1{%
+  \hbox{%
+    \color@begingroup
+      #1%
+    \color@endgroup
+  }%
+}
+\def\pxrr@hbox@to#1#{%
+  \pxrr@hbox@to@a{#1}%
+}
+\def\pxrr@hbox@to@a#1#2{%
+  \hbox to#1{%
+    \color@begingroup
+      #2%
+    \color@endgroup
+  }%
+}
+\AtBeginDocument{%
+  \ifx\color@begingroup\relax
+    \ifx\color@endgroup\relax
+      \let\pxrr@hbox\hbox
+      \let\pxrr@hbox@to\hb@xt@
+      \let\pxrr@takeout@any@protr\pxrr@takeout@any@protr@nocolor
+    \fi
+  \fi
+}
+\mathchardef\pxrr@invscale@ca=259
+\def\pxrr@invscale#1#2{%
+  \begingroup
+    \@tempdima=#1\relax
+    \@tempdimb#2\p@\relax
+    \@tempcnta\@tempdima
+    \multiply\@tempcnta\@cclvi
+    \divide\@tempcnta\@tempdimb
+    \multiply\@tempcnta\@cclvi
+    \@tempcntb\p@
+    \divide\@tempcntb\@tempdimb
+    \advance\@tempcnta-\@tempcntb
+    \advance\@tempcnta-\tw@
+    \@tempdimb\@tempcnta\@ne
+    \advance\@tempcnta\@tempcntb
+    \advance\@tempcnta\@tempcntb
+    \advance\@tempcnta\pxrr@invscale@ca
+    \@tempdimc\@tempcnta\@ne
+    \@whiledim\@tempdimb<\@tempdimc\do{%
+      \@tempcntb\@tempdimb
+      \advance\@tempcntb\@tempdimc
+      \advance\@tempcntb\@ne
+      \divide\@tempcntb\tw@
+      \ifdim #2\@tempcntb>\@tempdima
+        \advance\@tempcntb\m@ne
+        \@tempdimc=\@tempcntb\@ne
+      \else
+        \@tempdimb=\@tempcntb\@ne
+      \fi}%
+    \xdef\pxrr@gtempa{\the\@tempdimb}%
+  \endgroup
+  #1=\pxrr@gtempa\relax
+}
+\def\pxrr@interpolate#1#2#3#4#5{%
+  \edef\pxrr@tempa{#1}%
+  \edef\pxrr@tempb{#2}%
+  \def\pxrr@tempd{#3}%
+  \setlength{\@tempdima}{#4}%
+  \edef\pxrr@tempc{(0,0)#5(*,*)}%
+  \expandafter\pxrr@interpolate@a\pxrr@tempc\@nil
+}
+\def\pxrr@interpolate@a(#1,#2)(#3,#4)(#5,#6){%
+  \if*#5%
+    \def\pxrr@tempc{\pxrr@interpolate@b{#1}{#2}{#3}{#4}}%
+  \else\ifdim\@tempdima<#3\pxrr@tempa
+    \def\pxrr@tempc{\pxrr@interpolate@b{#1}{#2}{#3}{#4}}%
+  \else
+    \def\pxrr@tempc{\pxrr@interpolate@a(#3,#4)(#5,#6)}%
+  \fi\fi
+  \pxrr@tempc
+}
+\def\pxrr@interpolate@b#1#2#3#4#5\@nil{%
+  \@tempdimb=-#1\pxrr@tempa
+  \advance\@tempdima\@tempdimb
+  \advance\@tempdimb#3\pxrr@tempa
+  \edef\pxrr@tempc{\strip@pt\@tempdimb}%
+  \pxrr@invscale\@tempdima\pxrr@tempc
+  \edef\pxrr@tempc{\strip@pt\@tempdima}%
+  \@tempdima=#4\pxrr@tempb
+  \@tempdimb=#2\pxrr@tempb
+  \advance\@tempdima-\@tempdimb
+  \@tempdima=\pxrr@tempc\@tempdima
+  \advance\@tempdima\@tempdimb
+  \pxrr@tempd=\@tempdima
+}
+\def\pxrr@decompose#1{%
+  \let\pxrr@res\@empty
+  \pxrr@cntr=\z@
+  \pxrr@decompose@loopa#1\pxrr@end
+}
+\def\pxrr@decompose@loopa{%
+  \futurelet\pxrr@token\pxrr@decompose@loopb
+}
+\def\pxrr@decompose@loopb{%
+  \pxrr@ifx{\pxrr@token\pxrr@end}{%
+    \pxrr@appto\pxrr@res{\pxrr@post}%
+  }{%
+    \pxrr@setok{\pxrr@ifx{\pxrr@token\bgroup}}%
+    \pxrr@decompose@loopc
+  }%
+}
+\def\pxrr@decompose@loopc#1{%
+  \ifx\pxrr@res\@empty
+    \def\pxrr@res{\pxrr@pre}%
+  \else
+    \pxrr@appto\pxrr@res{\pxrr@inter}%
+  \fi
+  \ifpxrr@ok
+    \pxrr@appto\pxrr@res{{{#1}}}%
+  \else
+    \pxrr@appto\pxrr@res{{#1}}%
+  \fi
+  \advance\pxrr@cntr\@ne
+  \pxrr@decompose@loopa
+}
+\def\pxrr@decompbar#1{%
+  \let\pxrr@res\@empty
+  \pxrr@cntr=\z@
+  \pxrr@decompbar@loopa\pxrr@nil#1|\pxrr@end|%
+}
+\def\pxrr@decompbar@loopa#1|{%
+  \expandafter\pxrr@decompbar@loopb\expandafter{\@gobble#1}%
+}
+\def\pxrr@decompbar@loopb#1{%
+  \pxrr@decompbar@loopc#1\relax\pxrr@nil{#1}%
+}
+\def\pxrr@decompbar@loopc#1#2\pxrr@nil#3{%
+  \pxrr@ifx{#1\pxrr@end}{%
+    \pxrr@appto\pxrr@res{\pxrr@post}%
+  }{%
+    \ifx\pxrr@res\@empty
+      \def\pxrr@res{\pxrr@pre}%
+    \else
+      \pxrr@appto\pxrr@res{\pxrr@inter}%
+    \fi
+    \pxrr@appto\pxrr@res{{#3}}%
+    \advance\pxrr@cntr\@ne
+    \pxrr@decompbar@loopa\pxrr@nil
+  }%
+}
+\def\pxrr@zip@list#1#2{%
+  \let\pxrr@res\@empty
+  \let\pxrr@post\relax
+  \let\pxrr@tempa#1\pxrr@appto\pxrr@tempa{{}}%
+  \let\pxrr@tempb#2\pxrr@appto\pxrr@tempb{{}}%
+  \pxrr@zip@list@loopa
+}
+\def\pxrr@zip@list@loopa{%
+  \expandafter\pxrr@zip@list@loopb\pxrr@tempa\pxrr@end
+}
+\def\pxrr@zip@list@loopb#1#2#3\pxrr@end{%
+  \pxrr@ifx{#1\relax}{%
+    \pxrr@zip@list@exit
+  }{%
+    \pxrr@appto\pxrr@res{#1{#2}}%
+    \def\pxrr@tempa{#3}%
+    \expandafter\pxrr@zip@list@loopc\pxrr@tempb\pxrr@end
+  }%
+}
+\def\pxrr@zip@list@loopc#1#2#3\pxrr@end{%
+  \pxrr@ifx{#1\relax}{%
+    \pxrr@interror{zip}%
+    \pxrr@appto\pxrr@res{{}}%
+    \pxrr@zip@list@exit
+  }{%
+    \pxrr@appto\pxrr@res{{#2}}%
+    \def\pxrr@tempb{#3}%
+    \pxrr@zip@list@loopa
+  }%
+}
+\def\pxrr@zip@list@exit{%
+  \pxrr@appto\pxrr@res{\pxrr@post}%
+}
+\def\pxrr@tzip@list#1#2#3{%
+  \let\pxrr@res\@empty
+  \let\pxrr@post\relax
+  \let\pxrr@tempa#1\pxrr@appto\pxrr@tempa{{}}%
+  \let\pxrr@tempb#2\pxrr@appto\pxrr@tempb{{}}%
+  \let\pxrr@tempc#3\pxrr@appto\pxrr@tempc{{}}%
+  \pxrr@tzip@list@loopa
+}
+\def\pxrr@tzip@list@loopa{%
+  \expandafter\pxrr@tzip@list@loopb\pxrr@tempa\pxrr@end
+}
+\def\pxrr@tzip@list@loopb#1#2#3\pxrr@end{%
+  \pxrr@ifx{#1\relax}{%
+    \pxrr@tzip@list@exit
+  }{%
+    \pxrr@appto\pxrr@res{#1{#2}}%
+    \def\pxrr@tempa{#3}%
+    \expandafter\pxrr@tzip@list@loopc\pxrr@tempb\pxrr@end
+  }%
+}
+\def\pxrr@tzip@list@loopc#1#2#3\pxrr@end{%
+  \pxrr@ifx{#1\relax}{%
+    \pxrr@interror{tzip}%
+    \pxrr@appto\pxrr@res{{}}%
+    \pxrr@tzip@list@exit
+  }{%
+    \pxrr@appto\pxrr@res{{#2}}%
+    \def\pxrr@tempb{#3}%
+    \expandafter\pxrr@tzip@list@loopd\pxrr@tempc\pxrr@end
+  }%
+}
+\def\pxrr@tzip@list@loopd#1#2#3\pxrr@end{%
+  \pxrr@ifx{#1\relax}{%
+    \pxrr@interror{tzip}%
+    \pxrr@appto\pxrr@res{{}}%
+    \pxrr@tzip@list@exit
+  }{%
+    \pxrr@appto\pxrr@res{{#2}}%
+    \def\pxrr@tempc{#3}%
+    \pxrr@tzip@list@loopa
+  }%
+}
+\def\pxrr@tzip@list@exit{%
+  \pxrr@appto\pxrr@res{\pxrr@post}%
+}
+\def\pxrr@concat@list#1{%
+  \let\pxrr@res\@empty
+  \def\pxrr@pre##1{%
+    \pxrr@appto\pxrr@res{##1}%
+  }%
+  \let\pxrr@inter\pxrr@pre
+  \let\pxrr@post\relax
+  #1%
+}
+\def\pxrr@unite@group#1{%
+  \expandafter\pxrr@concat@list\expandafter{#1}%
+  \expandafter\pxrr@unite@group@a\pxrr@res\pxrr@end#1%
+}
+\def\pxrr@unite@group@a#1\pxrr@end#2{%
+  \def#2{\pxrr@pre{#1}\pxrr@post}%
+}
+\def\pxrr@zip@single#1#2{%
+  \expandafter\pxrr@zip@single@a\expandafter#1\expandafter{#2}%
+}
+\def\pxrr@zip@single@a#1{%
+  \expandafter\pxrr@zip@single@b\expandafter{#1}%
+}
+\def\pxrr@zip@single@b#1#2{%
+  \def\pxrr@res{\pxrr@pre{#1}{#2}\pxrr@post}%
+}
+\def\pxrr@tzip@single#1#2#3{%
+  \expandafter\pxrr@tzip@single@a\expandafter#1\expandafter#2%
+   \expandafter{#3}%
+}
+\def\pxrr@tzip@single@a#1#2{%
+  \expandafter\pxrr@tzip@single@b\expandafter#1\expandafter{#2}%
+}
+\def\pxrr@tzip@single@b#1{%
+  \expandafter\pxrr@tzip@single@c\expandafter{#1}%
+}
+\def\pxrr@tzip@single@c#1#2#3{%
+  \def\pxrr@res{\pxrr@pre{#1}{#2}{#3}\pxrr@post}%
+}
+\let\pxrr@x@tempa\@empty
+\let\pxrr@x@tempb\@empty
+\let\pxrr@x@gtempa\@empty
+\newif\ifpxrr@x@swa
+\def\pxrr@ifprimitive#1{%
+  \edef\pxrr@x@tempa{\string#1}%
+  \edef\pxrr@x@tempb{\meaning#1}%
+  \ifx\pxrr@x@tempa\pxrr@x@tempb \expandafter\@firstoftwo
+  \else \expandafter\@secondoftwo
+  \fi
+}
+\pxrr@ifprimitive\kansuji{%
+  \pxrr@csletcs{ifpxrr@in@ptex}{iftrue}%
+}{%
+  \pxrr@csletcs{ifpxrr@in@ptex}{iffalse}%
+}
+\pxrr@ifprimitive\kchardef{%
+  \ifnum\ucs"3000="3000
+    \pxrr@csletcs{ifpxrr@in@uptex}{iftrue}%
+  \else
+    \pxrr@csletcs{ifpxrr@in@uptex}{iffalse}%
+  \fi
+}{%
+  \pxrr@csletcs{ifpxrr@in@uptex}{iffalse}%
+}
+\pxrr@ifprimitive\XeTeXrevision{%
+  \pxrr@csletcs{ifpxrr@in@xetex}{iftrue}%
+}{%
+  \pxrr@csletcs{ifpxrr@in@xetex}{iffalse}%
+}
+\@ifpackageloaded{xeCJK}{%
+  \pxrr@csletcs{ifpxrr@in@xecjk}{iftrue}%
+}{%
+  \pxrr@csletcs{ifpxrr@in@xecjk}{iffalse}%
+  \AtBeginDocument{%
+    \@ifpackageloaded{xeCJK}{%
+      \pxrr@warn@load@order{xeCJK}%
+    }{}%
+  }%
+}
+\pxrr@ifprimitive\luatexrevision{%
+  \pxrr@csletcs{ifpxrr@in@luatex}{iftrue}%
+}{%
+  \pxrr@csletcs{ifpxrr@in@luatex}{iffalse}%
+}
+\ifpxrr@in@luatex
+  \directlua{ pxrubrica = {} }
+\fi
+\@ifpackageloaded{luatexja-core}{%
+  \pxrr@csletcs{ifpxrr@in@luatexja}{iftrue}%
+}{%
+  \pxrr@csletcs{ifpxrr@in@luatexja}{iffalse}%
+  \AtBeginDocument{%
+    \@ifpackageloaded{luatexja-core}{%
+      \pxrr@warn@load@order{LuaTeX-ja}%
+    }{}%
+  }%
+}
+\ifpxrr@in@xetex
+\else\ifpxrr@in@luatex
+\else\ifpxrr@in@ptex
+\else
+  \pxrr@ifprimitive\pdftexrevision{%
+    \pxrr@warn{%
+      The engine in use seems to be pdfTeX,\MessageBreak
+      so safe mode is turned on%
+    }%
+    \AtEndOfPackage{%
+      \rubysafemode
+    }%
+  }
+\fi\fi\fi
+\ifpxrr@in@xetex
+  \pxrr@csletcs{ifpxrr@in@unicode}{iftrue}%
+\else\ifpxrr@in@luatex
+  \pxrr@csletcs{ifpxrr@in@unicode}{iftrue}%
+\else\ifpxrr@in@uptex
+  \pxrr@csletcs{ifpxrr@in@unicode}{iftrue}%
+\else
+  \pxrr@csletcs{ifpxrr@in@unicode}{iffalse}%
+\fi\fi\fi
+\def\pxrr@jc#1{%
+  \pxrr@jc@a#1\pxrr@nil
+}
+\ifpxrr@in@unicode
+  \def\pxrr@jc@a#1:#2\pxrr@nil{%
+    "#2\space
+  }
+\else\ifpxrr@in@ptex
+  \def\pxrr@jc@a#1:#2\pxrr@nil{%
+    \jis"#1\space\space
+  }
+\else
+  \def\pxrr@jc@a#1:#2\pxrr@nil{%
+    `?\space
+  }
+\fi\fi
+\ifpxrr@in@uptex
+  \let\pxrr@jchardef\kchardef
+\else
+  \let\pxrr@jchardef\chardef
+\fi
+\ifpxrr@in@ptex
+  \begingroup \catcode`\|=0
+    \gdef\pxrr@if@in@tate{%
+      \pxrr@cond{\if
+          |iftdir|ifmdir F|else T|fi|else F|fi
+          T}\fi
+    }
+  \endgroup
+\else\ifpxrr@in@luatexja
+  \ifx\ltj@curtfnt\@undefined
+    \let\pxrr@if@in@tate\@secondoftwo
+  \else
+    \def\pxrr@if@in@tate{%
+      \pxrr@cond\ifnum\ltjgetparameter{direction}=\thr@@\fi
+    }
+  \fi
+\else
+  \let\pxrr@if@in@tate\@secondoftwo
+\fi\fi
+\ifpxrr@in@ptex
+  \def\pxrr@get@jchar@token#1#2{%
+    \begingroup
+      \kansujichar\@ne=#2\relax
+      \xdef\pxrr@x@gtempa{\kansuji\@ne}%
+    \endgroup
+    \let#1\pxrr@x@gtempa
+  }
+\else\ifpxrr@in@unicode
+  \def\pxrr@get@jchar@token#1#2{%
+    \begingroup
+      \lccode`\?=#2\relax
+      \lowercase{\xdef\pxrr@x@gtempa{?}}%
+    \endgroup
+    \let#1\pxrr@x@gtempa
+  }
+\else
+  \def\pxrr@get@jchar@token#1#2{%
+    \def#1{?}%
+  }
+\fi\fi
+\pxrr@jchardef\pxrr@zspace=\pxrr@jc{2121:3000}
+\ifpxrr@in@uptex
+  \kchardef\pxrr@jghost@char="113000
+\else\ifpxrr@in@luatexja
+  \let\pxrr@jghost@char\pxrr@zspace
+  \def\pxrr@jghost@check{%
+    \begingroup
+      \setbox\z@\hbox{\char"3001\char"3000}%
+      \setbox\tw@\hbox{\char"3001\inhibitglue\char"3000}%
+      \ifdim\wd\tw@=\wd\z@
+        \global\chardef\pxrr@jghost@char@="00A0
+        \gdef\pxrr@jghost@char{\ltjjachar\pxrr@jghost@char@}%
+      \fi
+    \endgroup
+  }
+  \AtBeginDocument{%
+    \pxrr@jghost@check
+  }
+\else
+  \let\pxrr@jghost@char\pxrr@zspace
+\fi\fi
+\pxrr@jchardef\pxrr@x@K=\pxrr@jc{306C:4E00}
+\ifpxrr@in@ptex
+  \def\pxrr@get@iiskip#1{%
+    \pxrr@x@swafalse
+    \begingroup
+      \inhibitxspcode\pxrr@x@K\thr@@
+      \kanjiskip\p@
+      \setbox\z@\hbox{\noautospacing\pxrr@x@K\pxrr@x@K}%
+      \setbox\tw@\hbox{\pxrr@x@K\pxrr@x@K}%
+      \ifdim\wd\tw@>\wd\z@
+        \aftergroup\pxrr@x@swatrue
+      \fi
+    \endgroup
+    \edef#1{%
+      \ifpxrr@x@swa \the\kanjiskip
+      \else \pxrr@zeropt
+      \fi
+    }%
+  }
+\else\ifpxrr@in@luatexja
+  \def\pxrr@get@iiskip#1{%
+    \ifnum\ltjgetparameter{autospacing}=\@ne
+      \xdef\pxrr@x@gtempa{\ltjgetparameter{kanjiskip}}%
+      \ifdim\glueexpr\pxrr@x@gtempa=\maxdimen
+        \pxrr@get@interchar@glue{\pxrr@x@K\pxrr@x@K}%
+        \ifdim\glueexpr\pxrr@x@gtempa=\maxdimen
+          \pxrr@warn@unknown@iiskip
+          \global\let\pxrr@x@gtempa\pxrr@zeropt
+        \fi
+      \fi
+      \let#1\pxrr@x@gtempa
+    \else
+      \let#1\pxrr@zeropt
+    \fi
+  }
+  \def\pxrr@warn@unknown@iiskip{%
+    \global\let\pxrr@warn@unknown@iiskip\relax
+    \pxrr@warn{Cannot find the kanjiskip value}%
+  }
+  \def\pxrr@get@interchar@glue#1{%
+    \begingroup
+      \setbox\z@\hbox{#1}%
+      \skip\z@\maxdimen\relax
+      \directlua{%
+        pcall(pxrubrica._get_interchar_glue)
+      }%
+      \xdef\pxrr@x@gtempa{\the\skip\z@}%
+    \endgroup
+  }
+  \begingroup
+    \endlinechar=10 \directlua{%
+      local node, tex = node, tex
+      local id_glyph, id_glue = node.id("glyph"), node.id("glue")
+      local id_hlist = node.id("hlist")
+      function pxrubrica._get_interchar_glue()
+        local c, n = false, tex.box[0].head
+        while n do
+          if n.id == id_glyph or n.id == id_hlist then
+            c = true
+          elseif c and n.id == id_glue then
+            if n.width then
+              tex.setglue(0, n.width, n.stretch, n.shrink,
+                  n.stretch_order, n.shrink_order)
+            elseif n.spec then
+              tex.setskip(0, node.copy(n.spec))
+            end
+            break
+          end
+          n = n.next
+        end
+      end
+    }%
+  \endgroup%
+\else
+  \def\pxrr@get@iiskip#1{%
+    \let#1\pxrr@zeropt
+  }
+\fi\fi
+\ifpxrr@in@ptex
+  \def\pxrr@get@iaiskip#1{%
+    \pxrr@x@swafalse
+    \begingroup
+      \inhibitxspcode\pxrr@x@K\thr@@ \xspcode`X=\thr@@
+      \xkanjiskip\p@
+      \setbox\z@\hbox{\noautoxspacing\pxrr@x@K X}%
+      \setbox\tw@\hbox{\pxrr@x@K X}%
+      \ifdim\wd\tw@>\wd\z@
+        \aftergroup\pxrr@x@swatrue
+      \fi
+    \endgroup
+    \edef#1{%
+      \ifpxrr@x@swa \the\xkanjiskip
+      \else \pxrr@zeropt
+      \fi
+    }%
+  }
+\else\ifpxrr@in@luatexja
+  \def\pxrr@get@iaiskip#1{%
+    \ifnum\ltjgetparameter{autoxspacing}=\@ne
+      \xdef\pxrr@x@gtempa{\ltjgetparameter{xkanjiskip}}%
+      \ifdim\glueexpr\pxrr@x@gtempa=\maxdimen
+        \pxrr@get@interchar@glue{A\pxrr@x@K}%
+        \ifdim\glueexpr\pxrr@x@gtempa=\maxdimen
+          \pxrr@warn@unknown@iaiskip
+          \global\let\pxrr@x@gtempa\pxrr@zeropt
+        \fi
+      \fi
+      \let#1\pxrr@x@gtempa
+    \else
+      \let#1\pxrr@zeropt
+    \fi
+  }
+  \def\pxrr@warn@unknown@iaiskip{%
+    \global\let\pxrr@warn@unknown@iaiskip\relax
+    \pxrr@warn{Cannot find the xkanjiskip value}%
+  }
+\else
+  \def\pxrr@get@iaiskip#1{%
+    \begingroup
+      \setbox\z@\hbox{M\pxrr@x@K}%
+      \setbox\tw@\hbox{M\vrule\@width\z@\relax\pxrr@x@K}%
+      \@tempdima\wd\z@ \advance\@tempdima-\wd\tw@
+      \@tempdimb\@tempdima \divide\@tempdimb\thr@@
+      \xdef\pxrr@x@gtempa{\the\@tempdima\space minus \the\@tempdimb}%
+    \endgroup
+    \let#1=\pxrr@x@gtempa
+  }%
+\fi\fi
+\ifpxrr@in@ptex
+  \def\pxrr@get@zwidth#1{%
+    \@tempdima=1zw\relax
+    \edef#1{\the\@tempdima}%
+  }
+\else\if\ifx\zw\@undefined T\else F\fi F% if defined
+  \def\pxrr@get@zwidth#1{%
+    \@tempdima=1\zw\relax
+    \edef#1{\the\@tempdima}%
+  }
+\else\if\ifx\jsZw\@undefined T\else F\fi F% if defined
+  \def\pxrr@get@zwidth#1{%
+    \@tempdima=1\jsZw\relax
+    \edef#1{\the\@tempdima}%
+  }
+\else\ifnum\pxrr@x@K>\@cclv
+  \def\pxrr@get@zwidth#1{%
+    \setbox\tw@\hbox{\pxrr@x@K}%
+    \@tempdima\wd\tw@
+    \ifdim\@tempdima>\z@\else \@tempdima\f@size\p@ \fi
+    \edef#1{\the\@tempdima}%
+  }
+\else
+  \def\pxrr@get@zwidth#1{%
+    \@tempdima\f@size\p@\relax
+    \edef#1{\the\@tempdima}%
+  }
+\fi\fi\fi\fi
+\ifpxrr@in@ptex
+  \def\pxrr@get@prebreakpenalty#1#2{%
+    #1=\prebreakpenalty#2\relax
+  }
+\else\ifpxrr@in@luatexja
+  \def\pxrr@get@prebreakpenalty#1#2{%
+    #1=\ltjgetparameter{prebreakpenalty}{#2}\relax
+  }
+\else
+  \def\pxrr@get@prebreakpenalty#1#2{%
+    #1=\z@
+  }
+\fi\fi
+\ifpxrr@in@ptex
+  \def\pxrr@get@postbreakpenalty#1#2{%
+    #1=\postbreakpenalty#2\relax
+  }
+\else\ifpxrr@in@luatexja
+  \def\pxrr@get@postbreakpenalty#1#2{%
+    #1=\ltjgetparameter{postbreakpenalty}{#2}\relax
+  }
+\else
+  \def\pxrr@get@postbreakpenalty#1#2{%
+    #1=\z@
+  }
+\fi\fi
+\ifpxrr@in@ptex
+  \def\pxrr@check@punct@char#1#2{%
+    \pxrr@okfalse
+    \ifcase#2\relax
+      \ifnum\xspcode#1=\thr@@\else
+        \pxrr@oktrue
+      \fi
+    \else
+      \ifnum\inhibitxspcode#1=\thr@@\else
+        \pxrr@oktrue
+      \fi
+    \fi
+  }
+\else\ifpxrr@in@luatexja
+  \def\pxrr@check@punct@char#1#2{%
+    \ifnum\ltjgetparameter{jaxspmode}{#1}=\thr@@
+      \pxrr@okfalse
+    \else
+      \pxrr@oktrue
+    \fi
+  }
+\else
+  \def\pxrr@check@punct@char#1#2{%
+    \pxrr@okfalse
+  }
+\fi\fi
+\ifpxrr@in@ptex
+  \def\pxrr@force@nonpunct@achar#1{%
+    \global\xspcode#1=\thr@@
+  }
+\else\ifpxrr@in@luatexja
+  \def\pxrr@force@nonpunct@achar#1{%
+    \ltjglobalsetparameter{jaxspmode={#1,3}}%
+  }
+\else
+  \def\pxrr@force@nonpunct@achar#1{}
+\fi\fi
+\ifx\inhibitglue\@undefined
+  \let\pxrr@inhibitglue\relax
+\else
+  \let\pxrr@inhibitglue\inhibitglue
+\fi
+\newif\ifpxrr@in@setup \pxrr@in@setupfalse
+\newcommand*\rubysetup[1]{%
+  \pxrr@in@setuptrue
+  \pxrr@fatal@errorfalse
+  \pxrr@parse@option{#1}%
+  \ifpxrr@fatal@error\else
+    \pxrr@csletcs{ifpxrr@d@bprotr}{ifpxrr@bprotr}%
+    \pxrr@csletcs{ifpxrr@d@aprotr}{ifpxrr@aprotr}%
+    \let\pxrr@d@bintr\pxrr@bintr@
+    \let\pxrr@d@aintr\pxrr@aintr@
+    \let\pxrr@d@athead\pxrr@athead
+    \let\pxrr@d@mode\pxrr@mode
+    \let\pxrr@d@side\pxrr@side
+    \let\pxrr@d@evensp\pxrr@evensp
+    \let\pxrr@d@fullsize\pxrr@fullsize
+  \fi
+  \pxrr@in@setupfalse
+}
+\newcommand*\rubyfontsetup{}
+\def\rubyfontsetup#{%
+  \def\pxrr@ruby@font
+}
+\newcommand*\rubybigintrusion[1]{%
+  \edef\pxrr@big@intr{#1}%
+}
+\newcommand*\rubysmallintrusion[1]{%
+  \edef\pxrr@small@intr{#1}%
+}
+\newcommand*\rubymaxmargin[1]{%
+  \edef\pxrr@maxmargin{#1}%
+}
+\newcommand*\rubyintergap[1]{%
+  \edef\pxrr@inter@gap{#1}%
+}
+\newcommand*\rubysizeratio[1]{%
+  \edef\pxrr@size@ratio{#1}%
+}
+\newcommand*\rubyusejghost{%
+  \pxrr@jghosttrue
+}
+\newcommand*\rubynousejghost{%
+  \pxrr@jghostfalse
+}
+\newcommand*\rubyuseaghost{%
+  \pxrr@aghosttrue
+  \pxrr@setup@aghost
+}
+\newcommand*\rubynouseaghost{%
+  \pxrr@aghostfalse
+}
+\newcommand*\rubyadjustatlineedge{%
+  \pxrr@edge@adjusttrue
+}
+\newcommand*\rubynoadjustatlineedge{%
+  \pxrr@edge@adjustfalse
+}
+\newcommand*\rubybreakjukugo{%
+  \pxrr@break@jukugotrue
+}
+\newcommand*\rubynobreakjukugo{%
+  \pxrr@break@jukugofalse
+}
+\newcommand*\rubysafemode{%
+  \pxrr@safe@modetrue
+}
+\newcommand*\rubynosafemode{%
+  \pxrr@safe@modefalse
+}
+\newcommand*\rubystretchprop[3]{%
+  \edef\pxrr@sprop@x{#1}%
+  \edef\pxrr@sprop@y{#2}%
+  \edef\pxrr@sprop@z{#3}%
+}
+\newcommand*\rubystretchprophead[2]{%
+  \edef\pxrr@sprop@hy{#1}%
+  \edef\pxrr@sprop@hz{#2}%
+}
+\newcommand*\rubystretchpropend[2]{%
+  \edef\pxrr@sprop@ex{#1}%
+  \edef\pxrr@sprop@ey{#2}%
+}
+\newcommand*\rubyuseextra[1]{%
+  \pxrr@cnta=#1\relax
+  \ifnum\pxrr@cnta=\z@
+    \chardef\pxrr@extra\pxrr@cnta
+  \else
+    \pxrr@err@inv@value{\the\pxrr@cnta}%
+  \fi
+}
+\let\pxrr@bintr@\@empty
+\let\pxrr@aintr@\@empty
+\def\pxrr@doublebar{||}
+\def\pxrr@parse@option#1{%
+  \edef\pxrr@tempa{#1}%
+  \ifx\pxrr@tempa\pxrr@doublebar
+    \def\pxrr@tempa{|-|}%
+  \fi
+  \pxrr@csletcs{ifpxrr@bprotr}{ifpxrr@d@bprotr}%
+  \pxrr@csletcs{ifpxrr@aprotr}{ifpxrr@d@aprotr}%
+  \let\pxrr@bintr@\pxrr@d@bintr
+  \let\pxrr@aintr@\pxrr@d@aintr
+  \let\pxrr@athead\pxrr@d@athead
+  \let\pxrr@mode\pxrr@d@mode
+  \let\pxrr@side\pxrr@d@side
+  \let\pxrr@evensp\pxrr@d@evensp
+  \let\pxrr@fullsize\pxrr@d@fullsize
+  \let\pxrr@bscomp\relax
+  \let\pxrr@ascomp\relax
+  \pxrr@bnobrfalse
+  \pxrr@anobrfalse
+  \pxrr@bfintrfalse
+  \pxrr@afintrfalse
+  \pxrr@mode@givenfalse
+  \pxrr@athead@givenfalse
+  \ifpxrr@truby
+    \let\pxrr@mode=M%
+  \fi
+  \def\pxrr@po@FS{bi}%
+  \expandafter\pxrr@parse@option@loop\pxrr@tempa @\pxrr@end
+}
+\def\pxrr@parse@option@loop#1{%
+\ifpxrrDebug
+\typeout{\pxrr@po@FS/#1[\@nameuse{pxrr@po@C@#1}]}%
+\fi
+  \csname pxrr@po@PR@#1\endcsname
+  \expandafter\ifx\csname pxrr@po@C@#1\endcsname\relax
+    \let\pxrr@po@FS\relax
+  \else
+    \pxrr@letcs\pxrr@po@FS
+     {pxrr@po@TR@\pxrr@po@FS @\@nameuse{pxrr@po@C@#1}}%
+  \fi
+\ifpxrrDebug
+\typeout{->\pxrr@po@FS}%
+\fi
+  \pxrr@ifx{\pxrr@po@FS\relax}{%
+    \pxrr@fatal@unx@letter{#1}%
+    \pxrr@parse@option@exit
+  }{%
+    \pxrr@parse@option@loop
+  }%
+}
+\def\pxrr@parse@option@exit#1\pxrr@end{%
+  \ifpxrr@in@setup\else
+    \ifpxrr@truby
+      \chardef\pxrr@side\tw@
+    \fi
+    \pxrr@check@option
+    \@tempdima=\pxrr@ruby@zw\relax
+    \@tempdimb=\pxrr@or@zero\pxrr@bintr@\@tempdima
+    \edef\pxrr@bintr{\the\@tempdimb}%
+    \@tempdimb=\pxrr@or@zero\pxrr@aintr@\@tempdima
+    \edef\pxrr@aintr{\the\@tempdimb}%
+  \fi
+}
+\def\pxrr@or@zero#1{%
+  \ifx#1\@empty \pxrr@zero
+  \else #1%
+  \fi
+}
+\def\pxrr@po@C@@{F}
+\@namedef{pxrr@po@C@|}{V}
+\@namedef{pxrr@po@C@:}{S}
+\@namedef{pxrr@po@C@.}{S}
+\@namedef{pxrr@po@C@*}{S}
+\@namedef{pxrr@po@C@!}{S}
+\@namedef{pxrr@po@C@<}{B}
+\@namedef{pxrr@po@C@(}{B}
+\@namedef{pxrr@po@C@>}{A}
+\@namedef{pxrr@po@C@)}{A}
+\@namedef{pxrr@po@C@-}{M}
+\def\pxrr@po@C@c{M}
+\def\pxrr@po@C@h{M}
+\def\pxrr@po@C@H{M}
+\def\pxrr@po@C@m{M}
+\def\pxrr@po@C@g{M}
+\def\pxrr@po@C@j{M}
+\def\pxrr@po@C@M{M}
+\def\pxrr@po@C@J{M}
+\def\pxrr@po@C@P{M}
+\def\pxrr@po@C@S{M}
+\def\pxrr@po@C@e{M}
+\def\pxrr@po@C@E{M}
+\def\pxrr@po@C@f{M}
+\def\pxrr@po@C@F{M}
+\def\pxrr@po@PR@@{%
+  \pxrr@parse@option@exit
+}
+\@namedef{pxrr@po@PR@|}{%
+  \csname pxrr@po@PRbar@\pxrr@po@FS\endcsname
+}
+\def\pxrr@po@PRbar@bi{%
+  \def\pxrr@bintr@{}\pxrr@bprotrtrue
+}
+\def\pxrr@po@PRbar@bb{%
+  \pxrr@bprotrfalse
+}
+\def\pxrr@po@PRbar@bs{%
+  \def\pxrr@aintr@{}\pxrr@aprotrtrue
+}
+\let\pxrr@po@PRbar@mi\pxrr@po@PRbar@bs
+\let\pxrr@po@PRbar@as\pxrr@po@PRbar@bs
+\let\pxrr@po@PRbar@ai\pxrr@po@PRbar@bs
+\def\pxrr@po@PRbar@ab{%
+  \pxrr@aprotrfalse
+}
+\@namedef{pxrr@po@PR@:}{%
+  \csname pxrr@po@PRcolon@\pxrr@po@FS\endcsname
+}
+\def\pxrr@po@PRcolon@bi{%
+  \let\pxrr@bscomp=:\relax
+}
+\let\pxrr@po@PRcolon@bb\pxrr@po@PRcolon@bi
+\let\pxrr@po@PRcolon@bs\pxrr@po@PRcolon@bi
+\def\pxrr@po@PRcolon@mi{%
+  \let\pxrr@ascomp=:\relax
+}
+\let\pxrr@po@PRcolon@as\pxrr@po@PRcolon@mi
+\@namedef{pxrr@po@PR@.}{%
+  \csname pxrr@po@PRdot@\pxrr@po@FS\endcsname
+}
+\def\pxrr@po@PRdot@bi{%
+  \let\pxrr@bscomp=.\relax
+}
+\let\pxrr@po@PRdot@bb\pxrr@po@PRdot@bi
+\let\pxrr@po@PRdot@bs\pxrr@po@PRdot@bi
+\def\pxrr@po@PRdot@mi{%
+  \let\pxrr@ascomp=.\relax
+}
+\let\pxrr@po@PRdot@as\pxrr@po@PRdot@mi
+\@namedef{pxrr@po@PR@*}{%
+  \csname pxrr@po@PRstar@\pxrr@po@FS\endcsname
+}
+\def\pxrr@po@PRstar@bi{%
+  \pxrr@bnobrtrue
+}
+\let\pxrr@po@PRstar@bb\pxrr@po@PRstar@bi
+\let\pxrr@po@PRstar@bs\pxrr@po@PRstar@bi
+\def\pxrr@po@PRstar@mi{%
+  \pxrr@anobrtrue
+}
+\let\pxrr@po@PRstar@as\pxrr@po@PRstar@mi
+\@namedef{pxrr@po@PR@!}{%
+  \csname pxrr@po@PRbang@\pxrr@po@FS\endcsname
+}
+\def\pxrr@po@PRbang@bi{%
+  \pxrr@bfintrtrue
+}
+\let\pxrr@po@PRbang@bb\pxrr@po@PRbang@bi
+\let\pxrr@po@PRbang@bs\pxrr@po@PRbang@bi
+\def\pxrr@po@PRbang@mi{%
+  \pxrr@afintrtrue
+}
+\let\pxrr@po@PRbang@as\pxrr@po@PRbang@mi
+\@namedef{pxrr@po@PR@<}{%
+  \def\pxrr@bintr@{\pxrr@big@intr}\pxrr@bprotrtrue
+}
+\@namedef{pxrr@po@PR@(}{%
+  \def\pxrr@bintr@{\pxrr@small@intr}\pxrr@bprotrtrue
+}
+\@namedef{pxrr@po@PR@>}{%
+  \def\pxrr@aintr@{\pxrr@big@intr}\pxrr@aprotrtrue
+}
+\@namedef{pxrr@po@PR@)}{%
+  \def\pxrr@aintr@{\pxrr@small@intr}\pxrr@aprotrtrue
+}
+\def\pxrr@po@PR@c{%
+  \chardef\pxrr@athead\z@
+  \pxrr@athead@giventrue
+}
+\def\pxrr@po@PR@h{%
+  \chardef\pxrr@athead\@ne
+  \pxrr@athead@giventrue
+}
+\def\pxrr@po@PR@H{%
+  \chardef\pxrr@athead\tw@
+  \pxrr@athead@giventrue
+}
+\def\pxrr@po@PR@m{%
+  \let\pxrr@mode=m%
+  \pxrr@mode@giventrue
+}
+\def\pxrr@po@PR@g{%
+  \let\pxrr@mode=g%
+  \pxrr@mode@giventrue
+}
+\def\pxrr@po@PR@j{%
+  \let\pxrr@mode=j%
+  \pxrr@mode@giventrue
+}
+\def\pxrr@po@PR@M{%
+  \let\pxrr@mode=M%
+  \pxrr@mode@giventrue
+}
+\def\pxrr@po@PR@J{%
+  \let\pxrr@mode=J%
+  \pxrr@mode@giventrue
+}
+\def\pxrr@po@PR@P{%
+  \chardef\pxrr@side\z@
+}
+\def\pxrr@po@PR@S{%
+  \chardef\pxrr@side\@ne
+}
+\def\pxrr@po@PR@E{%
+  \chardef\pxrr@evensp\z@
+}
+\def\pxrr@po@PR@e{%
+  \chardef\pxrr@evensp\@ne
+}
+\def\pxrr@po@PR@F{%
+  \chardef\pxrr@fullsize\z@
+}
+\def\pxrr@po@PR@f{%
+  \chardef\pxrr@fullsize\@ne
+}
+\def\pxrr@po@TR@bi@F{fi}
+\def\pxrr@po@TR@bb@F{fi}
+\def\pxrr@po@TR@bs@F{fi}
+\def\pxrr@po@TR@mi@F{fi}
+\def\pxrr@po@TR@as@F{fi}
+\def\pxrr@po@TR@ai@F{fi}
+\def\pxrr@po@TR@ab@F{fi}
+\def\pxrr@po@TR@fi@F{fi}
+\def\pxrr@po@TR@bi@V{bb}
+\def\pxrr@po@TR@bb@V{bs}
+\def\pxrr@po@TR@bs@V{ab}
+\def\pxrr@po@TR@mi@V{ab}
+\def\pxrr@po@TR@as@V{ab}
+\def\pxrr@po@TR@ai@V{ab}
+\def\pxrr@po@TR@ab@V{fi}
+\def\pxrr@po@TR@bi@S{bs}
+\def\pxrr@po@TR@bb@S{bs}
+\def\pxrr@po@TR@bs@S{bs}
+\def\pxrr@po@TR@mi@S{as}
+\def\pxrr@po@TR@as@S{as}
+\def\pxrr@po@TR@bi@B{bs}
+\def\pxrr@po@TR@bi@M{mi}
+\def\pxrr@po@TR@bb@M{mi}
+\def\pxrr@po@TR@bs@M{mi}
+\def\pxrr@po@TR@mi@M{mi}
+\def\pxrr@po@TR@bi@A{fi}
+\def\pxrr@po@TR@bb@A{fi}
+\def\pxrr@po@TR@bs@A{fi}
+\def\pxrr@po@TR@mi@A{fi}
+\def\pxrr@po@TR@as@A{fi}
+\def\pxrr@po@TR@ai@A{fi}
+\def\pxrr@mode@grand{%
+  \if      m\pxrr@mode m%
+  \else\if M\pxrr@mode m%
+  \else\if j\pxrr@mode j%
+  \else\if J\pxrr@mode j%
+  \else\if g\pxrr@mode g%
+  \else ?%
+  \fi\fi\fi\fi\fi
+}
+\def\pxrr@check@option{%
+  \ifpxrr@bprotr\else
+    \ifpxrr@aprotr\else
+      \pxrr@fatal@bad@no@protr
+    \fi
+  \fi
+  \pxrr@oktrue
+  \ifx\pxrr@bintr@\@empty\else
+    \pxrr@okfalse
+  \fi
+  \ifx\pxrr@aintr@\@empty\else
+    \pxrr@okfalse
+  \fi
+  \ifpxrr@ghost\else
+    \pxrr@oktrue
+  \fi
+  \ifpxrr@ok\else
+    \pxrr@fatal@bad@intr
+  \fi
+  \if g\pxrr@mode\else
+    \ifpxrr@abody
+      \let\pxrr@mode=g\relax
+      \ifpxrr@mode@given
+        \pxrr@warn@must@group
+      \fi
+    \fi
+  \fi
+  \if \pxrr@mode@grand j%
+    \ifnum\pxrr@side=\tw@
+      \let\pxrr@mode=g\relax
+      \ifpxrr@mode@given
+        \pxrr@warn@bad@jukugo
+      \fi
+    \fi
+  \fi
+  \ifnum\pxrr@athead>\z@
+    \pxrr@if@in@tate{}{%else
+      \chardef\pxrr@athead\z@
+    }%
+    \if g\pxrr@mode
+      \chardef\pxrr@athead\z@
+    \fi
+    \ifnum\pxrr@athead=\z@
+      \ifpxrr@athead@given
+        \pxrr@warn@bad@athead
+      \fi
+    \fi
+  \fi
+  \ifpxrr@abody
+    \chardef\pxrr@evensp\z@
+  \fi
+  \if g\pxrr@mode\else
+    \chardef\pxrr@evensp\@ne
+  \fi
+    \ifpxrr@combo
+      \pxrr@ck@check@option
+    \fi
+}
+\let\pxrr@ruby@fsize\pxrr@zeropt
+\let\pxrr@body@zw\pxrr@zeropt
+\let\pxrr@ruby@zw\pxrr@zeropt
+\let\pxrr@ruby@raise\pxrr@zeropt
+\let\pxrr@ruby@lower\pxrr@zeropt
+\def\pxrr@htratio{0}
+\let\pxrr@iiskip\pxrr@zeropt
+\let\pxrr@iaiskip\pxrr@zeropt
+\def\pxrr@assign@fsize{%
+  \@tempdima=\f@size\p@
+  \@tempdima\pxrr@c@size@ratio\@tempdima
+  \edef\pxrr@ruby@fsize{\the\@tempdima}%
+  \pxrr@get@zwidth\pxrr@body@zw
+  \begingroup
+    \pxrr@use@ruby@font
+    \pxrr@get@zwidth\pxrr@ruby@zw
+    \global\let\pxrr@gtempa\pxrr@ruby@zw
+  \endgroup
+  \let\pxrr@ruby@zw\pxrr@gtempa
+  \pxrr@get@iiskip\pxrr@iiskip
+  \pxrr@get@iaiskip\pxrr@iaiskip
+  \pxrr@if@in@tate{%
+    \let\pxrr@htratio\pxrr@thtratio
+  }{%
+    \let\pxrr@htratio\pxrr@yhtratio
+  }%
+  \@tempdima\pxrr@body@zw\relax
+  \@tempdima\pxrr@htratio\@tempdima
+  \@tempdimb\pxrr@ruby@zw\relax
+  \advance\@tempdimb-\pxrr@htratio\@tempdimb
+  \advance\@tempdima\@tempdimb
+  \@tempdimb\pxrr@body@zw\relax
+  \advance\@tempdima\pxrr@c@inter@gap\@tempdimb
+  \edef\pxrr@ruby@raise{\the\@tempdima}%
+  \@tempdima\pxrr@body@zw\relax
+  \advance\@tempdima-\pxrr@htratio\@tempdima
+  \@tempdimb\pxrr@ruby@zw\relax
+  \@tempdimb\pxrr@htratio\@tempdimb
+  \advance\@tempdima\@tempdimb
+  \@tempdimb\pxrr@body@zw\relax
+  \advance\@tempdima\pxrr@c@inter@gap\@tempdimb
+  \edef\pxrr@ruby@lower{\the\@tempdima}%
+  \ifpxrr@combo
+    \pxrr@ck@assign@fsize
+  \fi
+}
+\def\pxrr@use@ruby@font{%
+  \pxrr@without@macro@trace{%
+    \let\rubyfontsize\pxrr@ruby@fsize
+    \fontsize{\pxrr@ruby@fsize}{\z@}\selectfont
+    \pxrr@c@ruby@font
+  }%
+}
+\chardef\pxrr@locate@inner=1
+\chardef\pxrr@locate@head=0
+\chardef\pxrr@locate@end=2
+\def\pxrr@evenspace#1#2#3#4#5{%
+  \setbox#2\pxrr@hbox{#5}\@tempdima\wd#2%
+  \edef\pxrr@natwd{\the\@tempdima}%
+  \pxrr@decompose{#5}%
+  \pxrr@evenspace@int{#1}{#2}{#3}{#4}%
+}
+\def\pxrr@evenspace@int#1#2#3#4{%
+  \pxrr@save@listproc
+  \ifcase#1%
+    \pxrr@evenspace@param\pxrr@zero\pxrr@sprop@hy\pxrr@sprop@hz
+  \or
+    \pxrr@evenspace@param\pxrr@sprop@x\pxrr@sprop@y\pxrr@sprop@z
+  \or
+    \pxrr@evenspace@param\pxrr@sprop@ex\pxrr@sprop@ey\pxrr@zero
+  \fi
+  \pxrr@dima=\pxrr@cntr\p@
+  \advance\pxrr@dima-\p@
+  \pxrr@dima=\pxrr@sprop@y@\pxrr@dima
+  \advance\pxrr@dima\pxrr@sprop@x@\p@
+  \advance\pxrr@dima\pxrr@sprop@z@\p@
+  \ifdim\pxrr@dima>\z@\else
+    \ifnum#1>\z@
+      \let\pxrr@sprop@x@\@ne
+      \advance\pxrr@dima\p@
+    \fi
+    \ifnum#1<\tw@
+      \let\pxrr@sprop@z@\@ne
+      \advance\pxrr@dima\p@
+    \fi
+  \fi
+  \edef\pxrr@tempa{\strip@pt\pxrr@dima}%
+\ifpxrrDebug
+\typeout{\number\pxrr@sprop@x@:\number\pxrr@sprop@z@:\pxrr@tempa}%
+\fi
+  \def\pxrr@pre##1{\pxrr@hfilx\pxrr@sprop@x@ ##1}%
+  \def\pxrr@inter##1{\pxrr@hfilx\pxrr@sprop@y@ ##1}%
+  \def\pxrr@post{\pxrr@hfilx\pxrr@sprop@z@}%
+  \def\pxrr@makebox@res{%
+    \setbox#2=\pxrr@hbox@to#4{#3\pxrr@res}%
+  }%
+  \pxrr@makebox@res
+  \pxrr@dima\wd#2%
+  \advance\pxrr@dima-\pxrr@natwd\relax
+  \pxrr@invscale\pxrr@dima\pxrr@tempa
+  \@tempdima\pxrr@sprop@x@\pxrr@dima
+  \edef\pxrr@bspace{\the\@tempdima}%
+  \@tempdima\pxrr@sprop@z@\pxrr@dima
+  \edef\pxrr@aspace{\the\@tempdima}%
+  \pxrr@restore@listproc
+\ifpxrrDebug
+\typeout{\pxrr@bspace:\pxrr@aspace}%
+\fi
+}
+\def\pxrr@evenspace@param#1#2#3{%
+  \let\pxrr@sprop@x@#1%
+  \let\pxrr@sprop@y@#2%
+  \let\pxrr@sprop@z@#3%
+}
+\let\pxrr@makebox@res\@undefined
+\def\pxrr@adjust@margin{%
+  \pxrr@save@listproc
+  \@tempdima\pxrr@body@zw\relax
+  \@tempdima\pxrr@maxmargin\@tempdima
+  \@tempswafalse
+  \def\pxrr@pre##1{\pxrr@hfilx\pxrr@sprop@x@ ##1}%
+  \def\pxrr@inter##1{\pxrr@hfilx\pxrr@sprop@y@ ##1}%
+  \def\pxrr@post{\pxrr@hfilx\pxrr@sprop@z@}%
+  \ifnum\pxrr@cntr>\@ne
+    \ifdim\pxrr@bspace>\@tempdima
+      \edef\pxrr@bspace{\the\@tempdima}%
+      \def\pxrr@pre##1{\hskip\pxrr@bspace\relax ##1}%
+      \@tempswatrue
+    \fi
+    \ifdim\pxrr@aspace>\@tempdima
+      \edef\pxrr@aspace{\the\@tempdima}%
+      \def\pxrr@post{\hskip\pxrr@aspace\relax}%
+      \@tempswatrue
+    \fi
+  \fi
+  \if@tempswa
+    \pxrr@makebox@res
+  \fi
+  \pxrr@restore@listproc
+\ifpxrrDebug
+\typeout{\pxrr@bspace:\pxrr@aspace}%
+\fi
+}
+\def\pxrr@save@listproc{%
+  \let\pxrr@pre@save\pxrr@pre
+  \let\pxrr@inter@save\pxrr@inter
+  \let\pxrr@post@save\pxrr@post
+}
+\let\pxrr@pre@save\@undefined
+\let\pxrr@inter@save\@undefined
+\let\pxrr@post@save\@undefined
+\def\pxrr@restore@listproc{%
+  \let\pxrr@pre\pxrr@pre@save
+  \let\pxrr@inter\pxrr@inter@save
+  \let\pxrr@post\pxrr@post@save
+}
+\let\pxrr@trans@res\@empty
+\def\pxrr@transform@kana#1{%
+  \let\pxrr@trans@res\@empty
+  \def\pxrr@transform@kana@end\pxrr@end{%
+    \let#1\pxrr@trans@res
+  }%
+  \expandafter\pxrr@transform@kana@loop@a#1\pxrr@end
+}
+\def\pxrr@transform@kana@loop@a{%
+  \futurelet\pxrr@token\pxrr@transform@kana@loop@b
+}
+\def\pxrr@transform@kana@loop@b{%
+  \ifx\pxrr@token\pxrr@end
+    \let\pxrr@tempb\pxrr@transform@kana@end
+  \else\ifx\pxrr@token\bgroup
+    \let\pxrr@tempb\pxrr@transform@kana@loop@c
+  \else\ifx\pxrr@token\@sptoken
+    \let\pxrr@tempb\pxrr@transform@kana@loop@d
+  \else
+    \let\pxrr@tempb\pxrr@transform@kana@loop@e
+  \fi\fi\fi
+  \pxrr@tempb
+}
+\def\pxrr@transform@kana@loop@c#1{%
+  \pxrr@appto\pxrr@trans@res{{#1}}%
+  \pxrr@transform@kana@loop@a
+}
+\expandafter\def\expandafter\pxrr@transform@kana@loop@d\space{%
+  \pxrr@appto\pxrr@trans@res{ }%
+  \pxrr@transform@kana@loop@a
+}
+\def\pxrr@transform@kana@loop@e#1{%
+  \expandafter\pxrr@transform@kana@loop@f\string#1\pxrr@nil#1%
+}
+\def\pxrr@transform@kana@loop@f#1#2\pxrr@nil#3{%
+  \@tempswafalse
+  \ifnum`#1>\@cclv
+    \begingroup\expandafter\expandafter\expandafter\endgroup
+    \expandafter\ifx\csname pxrr@nonsmall/#3\endcsname\relax\else
+      \@tempswatrue
+    \fi
+  \fi
+  \if@tempswa
+    \edef\pxrr@tempa{%
+      \noexpand\pxrr@appto\noexpand\pxrr@trans@res
+       {\csname pxrr@nonsmall/#3\endcsname}%
+    }%
+    \pxrr@tempa
+  \else
+    \pxrr@appto\pxrr@trans@res{#3}%
+  \fi
+  \pxrr@transform@kana@loop@a
+}
+\def\pxrr@assign@nonsmall#1/#2\pxrr@nil{%
+  \pxrr@get@jchar@token\pxrr@tempa{\pxrr@jc{#1}}%
+  \pxrr@get@jchar@token\pxrr@tempb{\pxrr@jc{#2}}%
+  \expandafter\edef\csname pxrr@nonsmall/\pxrr@tempa\endcsname
+   {\pxrr@tempb}%
+}
+\@tfor\pxrr@tempc:=%
+    {2421:3041/2422:3042}{2423:3043/2424:3044}%
+    {2425:3045/2426:3046}{2427:3047/2428:3048}%
+    {2429:3049/242A:304A}{2443:3063/2444:3064}%
+    {2463:3083/2464:3084}{2465:3085/2466:3086}%
+    {2467:3087/2468:3088}{246E:308E/246F:308F}%
+    {2521:30A1/2522:30A2}{2523:30A3/2524:30A4}%
+    {2525:30A5/2526:30A6}{2527:30A7/2528:30A8}%
+    {2529:30A9/252A:30AA}{2543:30C3/2544:30C4}%
+    {2563:30E3/2564:30E4}{2565:30E5/2566:30E6}%
+    {2567:30E7/2568:30E8}{256E:30EE/256F:30EF}%
+  \do{%
+  \expandafter\pxrr@assign@nonsmall\pxrr@tempc\pxrr@nil
+}
+\newif\ifpxrr@protr
+\newif\ifpxrr@any@protr
+\let\pxrr@locate@temp\relax
+\def\pxrr@epsilon{0.01pt}
+\def\pxrr@compose@block#1#2#3{%
+  \let\pxrr@compose@block@do\pxrr@compose@oneside@block@do
+  \pxrr@compose@block@pre{#1}{#2}{#3}{}%
+}
+\def\pxrr@compose@oneside@block@do#1#2#3#4{%
+  \setbox\pxrr@boxa\pxrr@hbox{#2}%
+  \edef\pxrr@ck@body@natwd{\the\wd\pxrr@boxa}%
+  \let\pxrr@ck@locate\pxrr@locate@inner
+  \setbox\pxrr@boxr\pxrr@hbox{%
+    \pxrr@use@ruby@font
+    #3%
+  }%
+  \@tempdima\wd\pxrr@boxr
+  \advance\@tempdima-\wd\pxrr@boxa
+  \ifdim\pxrr@epsilon<\@tempdima
+    \pxrr@protrtrue
+    \let\pxrr@locate@temp#1%
+    \ifnum\pxrr@athead>\@ne
+      \ifnum\pxrr@locate@temp=\pxrr@locate@inner
+        \let\pxrr@locate@temp\pxrr@locate@head
+      \fi
+    \fi
+    \let\pxrr@ck@locate\pxrr@locate@temp
+    \pxrr@decompose{#2}%
+    \edef\pxrr@natwd{\the\wd\pxrr@boxa}%
+    \pxrr@evenspace@int\pxrr@locate@temp\pxrr@boxa\relax
+     {\wd\pxrr@boxr}%
+  \else\ifdim-\pxrr@epsilon>\@tempdima
+    \pxrr@protrfalse
+    \ifnum\pxrr@athead=\z@
+      \pxrr@decompose{#3}%
+      \edef\pxrr@natwd{\the\wd\pxrr@boxr}%
+      \pxrr@evenspace@int{#1}\pxrr@boxr
+       \pxrr@use@ruby@font{\wd\pxrr@boxa}%
+      \pxrr@adjust@margin
+    \fi
+    \let\pxrr@bspace\pxrr@zeropt
+    \let\pxrr@aspace\pxrr@zeropt
+  \else
+    \pxrr@protrfalse
+    \let\pxrr@bspace\pxrr@zeropt
+    \let\pxrr@aspace\pxrr@zeropt
+  \fi\fi
+  \setbox\z@\hbox{%
+    \ifnum\pxrr@side=\z@
+      \raise\pxrr@ruby@raise\box\pxrr@boxr
+    \else
+      \lower\pxrr@ruby@lower\box\pxrr@boxr
+    \fi
+  }%
+  \ifnum \ifpxrr@combo\pxrr@ck@ruby@combo\else\z@\fi >\z@
+    \pxrr@ck@compose{#2}%
+  \fi
+  \ht\z@\z@ \dp\z@\z@
+  \@tempdima\wd\z@
+  \setbox\pxrr@boxr\hbox{%
+    \box\z@
+    \kern-\@tempdima
+    \box\pxrr@boxa
+  }%
+  \ifpxrr@protr
+    \pxrr@any@protrtrue
+  \fi
+}
+\def\pxrr@compose@twoside@block{%
+  \let\pxrr@compose@block@do\pxrr@compose@twoside@block@do
+  \pxrr@compose@block@pre
+}
+\def\pxrr@compose@twoside@block@do#1#2#3#4{%
+  \setbox\pxrr@boxa\pxrr@hbox{#2}%
+  \edef\pxrr@ck@body@natwd{\the\wd\pxrr@boxa}%
+  \let\pxrr@ck@locate\pxrr@locate@inner
+  \setbox\pxrr@boxr\pxrr@hbox{%
+    \pxrr@use@ruby@font
+    #3%
+  }%
+  \setbox\pxrr@boxb\pxrr@hbox{%
+    \pxrr@use@ruby@font
+    #4%
+  }%
+  \@tempswafalse
+  \@tempdima\wd\pxrr@boxr
+  \advance\@tempdima-\wd\pxrr@boxa
+  \ifdim\pxrr@epsilon<\@tempdima \@tempswatrue \fi
+  \@tempdima\wd\pxrr@boxb
+  \advance\@tempdima-\wd\pxrr@boxa
+  \ifdim\pxrr@epsilon<\@tempdima \@tempswatrue \fi
+  \if@tempswa
+    \pxrr@protrtrue
+    \let\pxrr@locate@temp#1%
+    \ifnum\pxrr@athead>\@ne
+      \ifnum\pxrr@locate@temp=\pxrr@locate@inner
+        \let\pxrr@locate@temp\pxrr@locate@head
+      \fi
+    \fi
+    \let\pxrr@ck@locate\pxrr@locate@temp
+    \ifdim\wd\pxrr@boxr<\wd\pxrr@boxb
+      \pxrr@compose@twoside@block@sub{#2}{#3}%
+       \pxrr@boxr\pxrr@boxb
+    \else
+      \pxrr@compose@twoside@block@sub{#2}{#4}%
+       \pxrr@boxb\pxrr@boxr
+    \fi
+  \else
+    \pxrr@protrfalse
+    \ifnum\pxrr@athead=\z@
+      \@tempdima\wd\pxrr@boxa
+      \advance\@tempdima-\wd\pxrr@boxr
+      \ifdim\pxrr@epsilon<\@tempdima
+        \pxrr@decompose{#3}%
+        \edef\pxrr@natwd{\the\wd\pxrr@boxr}%
+        \pxrr@evenspace@int{#1}\pxrr@boxr
+         \pxrr@use@ruby@font{\wd\pxrr@boxa}%
+        \pxrr@adjust@margin
+      \fi
+      \@tempdima\wd\pxrr@boxa
+      \advance\@tempdima-\wd\pxrr@boxb
+      \ifdim\pxrr@epsilon<\@tempdima
+        \pxrr@decompose{#4}%
+        \edef\pxrr@natwd{\the\wd\pxrr@boxb}%
+        \pxrr@evenspace@int{#1}\pxrr@boxb
+         \pxrr@use@ruby@font{\wd\pxrr@boxa}%
+        \pxrr@adjust@margin
+      \fi
+    \fi
+    \let\pxrr@bspace\pxrr@zeropt
+    \let\pxrr@aspace\pxrr@zeropt
+  \fi
+  \setbox\z@\hbox{%
+    \@tempdima\wd\pxrr@boxr
+    \raise\pxrr@ruby@raise\box\pxrr@boxr
+    \kern-\@tempdima
+    \lower\pxrr@ruby@lower\box\pxrr@boxb
+  }%
+  \ifnum \ifpxrr@combo\pxrr@ck@ruby@combo\else\z@\fi >\z@
+    \pxrr@ck@compose{#2}%
+  \fi
+  \ht\z@\z@ \dp\z@\z@
+  \@tempdima\wd\z@
+  \setbox\pxrr@boxr\hbox{%
+    \box\z@
+    \kern-\@tempdima
+    \box\pxrr@boxa
+  }%
+}
+\let\pxrr@body@wd\relax
+\let\pxrr@restore@margin@values\relax
+\def\pxrr@compose@twoside@block@sub#1#2#3#4{%
+  \pxrr@decompose{#1}%
+  \edef\pxrr@natwd{\the\wd\pxrr@boxa}%
+  \pxrr@evenspace@int\pxrr@locate@temp\pxrr@boxa\relax{\wd#4}%
+  \@tempdima\wd#4%
+  \advance\@tempdima-\pxrr@bspace\relax
+  \advance\@tempdima-\pxrr@aspace\relax
+  \edef\pxrr@body@wd{\the\@tempdima}%
+  \advance\@tempdima-\wd#3%
+  \ifdim\pxrr@epsilon<\@tempdima
+    \edef\pxrr@restore@margin@values{%
+      \edef\noexpand\pxrr@bspace{\pxrr@bspace}%
+      \edef\noexpand\pxrr@aspace{\pxrr@aspace}%
+    }%
+    \pxrr@decompose{#2}%
+    \edef\pxrr@natwd{\the\wd#3}%
+    \pxrr@evenspace@int\pxrr@locate@temp#3%
+     \pxrr@use@ruby@font{\pxrr@body@wd}%
+    \pxrr@adjust@margin
+    \pxrr@restore@margin@values
+    \setbox#3\hbox{%
+      \kern\pxrr@bspace\relax
+      \box#3%
+    }%
+  \else
+    \ifnum\pxrr@locate@temp=\pxrr@locate@head
+      \@tempdima\z@
+    \else\ifnum\pxrr@locate@temp=\pxrr@locate@inner
+      \@tempdima.5\@tempdima
+    \fi\fi
+    \advance\@tempdima\pxrr@bspace\relax
+    \setbox#3\hbox{%
+      \kern\@tempdima
+      \box#3%
+    }%
+  \fi
+}
+\def\pxrr@compose@block@pre{%
+  \pxrr@cond\ifnum\pxrr@fullsize>\z@\fi{%
+    \pxrr@compose@block@pre@a
+  }{%
+    \pxrr@compose@block@pre@d
+  }%
+}
+\def\pxrr@compose@block@pre@a#1#2#3#4{%
+  \def\pxrr@compose@block@tempa{#4}%
+  \pxrr@transform@kana\pxrr@compose@block@tempa
+  \expandafter\pxrr@compose@block@pre@b
+   \expandafter{\pxrr@compose@block@tempa}{#1}{#2}{#3}%
+}
+\def\pxrr@compose@block@pre@b#1#2#3#4{%
+  \def\pxrr@compose@block@tempa{#4}%
+  \pxrr@transform@kana\pxrr@compose@block@tempa
+  \expandafter\pxrr@compose@block@pre@c
+   \expandafter{\pxrr@compose@block@tempa}{#1}{#2}{#3}%
+}
+\def\pxrr@compose@block@pre@c#1#2#3#4{%
+  \pxrr@compose@block@pre@d{#3}{#4}{#1}{#2}%
+}
+\def\pxrr@compose@block@pre@d{%
+  \pxrr@cond\ifnum\pxrr@evensp=\z@\fi{%
+    \pxrr@compose@block@pre@e
+  }{%
+    \pxrr@compose@block@pre@f
+  }%
+}
+\def\pxrr@compose@block@pre@e#1#2{%
+  \pxrr@compose@block@pre@f{#1}{{#2}}%
+}
+\def\pxrr@compose@block@pre@f{%
+  \pxrr@cond\ifnum\pxrr@revensp=\z@\fi{%
+    \pxrr@compose@block@pre@g
+  }{%
+    \pxrr@compose@block@do
+  }%
+}
+\def\pxrr@compose@block@pre@g#1#2#3#4{%
+  \pxrr@compose@block@do{#1}{#2}{{#3}}{{#4}}%
+}
+\let\pxrr@compose@block@tempa\@undefined
+\def\pxrr@add@protect#1{%
+  \expandafter\pxrr@add@protect@a
+    \csname\expandafter\@gobble\string#1\space\endcsname#1%
+}
+\def\pxrr@add@protect@a#1#2{%
+  \let#1=#2%
+  \def#2{\pxrr@check@protect\protect#1}%
+}
+\def\pxrr@check@protect{%
+  \ifx\protect\@typeset@protect
+    \expandafter\@gobble
+  \fi
+}
+\let\pxrr@body@input\@empty
+\def\pxrr@prepare@fallback#1{%
+  \pxrr@fatal@errorfalse
+  \def\pxrr@body@input{#1}%
+}
+\def\pxrr@fallback{%
+  \pxrr@body@input
+}
+\def\pxrr@if@alive{%
+  \ifpxrr@fatal@error \expandafter\@gobble
+  \else \expandafter\@firstofone
+  \fi
+}
+\def\pxrr@end@kinsoku{0}
+\def\pxrr@ruby@scan#1#2{%
+  \def\pxrr@tempc{%
+    \edef\pxrr@end@kinsoku{\the\pxrr@cntr}%
+    \pxrr@do@proc{#1}{#2}%
+  }%
+  \pxrr@check@kinsoku\pxrr@tempc
+}
+\def\pxrr@truby@scan#1#2#3{%
+  \def\pxrr@tempc{%
+    \edef\pxrr@end@kinsoku{\the\pxrr@cntr}%
+    \pxrr@do@proc{#1}{#2}{#3}%
+  }%
+  \pxrr@check@kinsoku\pxrr@tempc
+}
+\def\pxrr@check@kinsoku#1{%
+  \let\pxrr@tempb#1%
+  \futurelet\pxrr@token\pxrr@check@kinsoku@a
+}
+\def\pxrr@check@kinsoku@a{%
+  \pxrr@check@char\pxrr@token
+  \ifpxrr@abody\else
+    \ifnum\pxrr@cntr=\@ne
+      \pxrr@cntr\tw@
+    \fi
+  \fi
+  \ifcase\pxrr@cntr
+    \pxrr@cntr\z@
+    \expandafter\pxrr@tempb
+  \or
+    \pxrr@cntr\@MM
+    \expandafter\pxrr@tempb
+  \else
+    \expandafter\pxrr@check@kinsoku@b
+  \fi
+}
+\def\pxrr@check@kinsoku@b#1{%
+  \pxrr@check@kinsoku@c#1#1%
+}
+\def\pxrr@check@kinsoku@c#1{%
+  \pxrr@get@prebreakpenalty\pxrr@cntr{`#1}%
+  \pxrr@tempb
+}
+\def\pxrr@tempa#1#2\pxrr@nil{%
+  \def\pxrr@check@char##1{%
+    \ifcat\noexpand##1\relax
+      \pxrr@cntr\z@
+    \else\ifcat\noexpand##1\noexpand~%
+      \pxrr@cntr\z@
+    \else\ifcat\noexpand##1A%
+      \pxrr@cntr\@ne
+    \else\ifcat\noexpand##10%
+      \pxrr@cntr\@ne
+    \else
+      \pxrr@cntr\z@
+      \expandafter\pxrr@check@char@a\meaning##1#2\pxrr@nil
+    \fi\fi\fi\fi
+  }%
+  \def\pxrr@check@char@a##1#2##2\pxrr@nil{%
+    \ifcat @##1@%
+      \pxrr@cntr\tw@
+    \fi
+  }%
+}
+\expandafter\pxrr@tempa\string\kanji\pxrr@nil
+\let\pxrr@auto@penalty\z@
+\let\pxrr@auto@icspace\pxrr@zeropt
+\let\pxrr@intr@amount\pxrr@zeropt
+\def\pxrr@intrude@setauto@j{%
+  \ifpxrr@bnobr
+    \let\pxrr@auto@penalty\@MM
+    \let\pxrr@auto@icspace\pxrr@zeropt
+  \else
+    \let\pxrr@auto@penalty\z@
+    \if :\pxrr@bscomp
+      \let\pxrr@auto@icspace\pxrr@iaiskip
+    \else\if .\pxrr@bscomp
+      \let\pxrr@auto@icspace\pxrr@zeropt
+    \else
+      \let\pxrr@auto@icspace\pxrr@iiskip
+    \fi\fi
+  \fi
+}
+\def\pxrr@intrude@setauto@a{%
+  \if :\pxrr@bscomp\else
+    \pxrr@bnobrtrue
+  \fi
+  \ifpxrr@bnobr
+    \let\pxrr@auto@penalty\@MM
+    \let\pxrr@auto@icspace\pxrr@zeropt
+  \else
+    \let\pxrr@auto@penalty\z@
+    \let\pxrr@auto@icspace\pxrr@iaiskip
+  \fi
+}
+\def\pxrr@intrude@head{%
+  \ifpxrr@ghost\else
+    \let\pxrr@intr@amount\pxrr@bspace
+    \ifdim\pxrr@bintr<\pxrr@intr@amount\relax
+      \let\pxrr@intr@amount\pxrr@bintr
+    \fi
+    \ifpxrr@abody
+      \pxrr@intrude@setauto@a
+    \else
+      \pxrr@intrude@setauto@j
+    \fi
+    \ifpxrr@par@head
+      \ifpxrr@bfintr
+        \hskip-\pxrr@intr@amount\relax
+      \fi
+    \else
+      \hskip-\pxrr@intr@amount\relax
+      \hskip\pxrr@auto@icspace\relax
+    \fi
+  \fi
+}
+\def\pxrr@put@head@penalty{%
+  \ifpxrr@ghost\else \ifpxrr@par@head\else
+    \ifpxrr@abody
+      \pxrr@intrude@setauto@a
+    \else
+      \pxrr@intrude@setauto@j
+    \fi
+    \ifnum\pxrr@auto@penalty=\z@\else
+      \pxrr@cnta\lastpenalty \unpenalty
+      \advance\pxrr@cnta\pxrr@auto@penalty\relax
+      \penalty\pxrr@cnta
+    \fi
+  \fi\fi
+}
+\def\pxrr@intrude@end{%
+  \ifpxrr@ghost\else
+    \let\pxrr@intr@amount\pxrr@aspace
+    \ifdim\pxrr@aintr<\pxrr@intr@amount\relax
+      \let\pxrr@intr@amount\pxrr@aintr
+    \fi
+    \pxrr@csletcs{ifpxrr@bnobr}{ifpxrr@anobr}%
+    \let\pxrr@bscomp\pxrr@ascomp
+    \ifpxrr@abody
+      \pxrr@intrude@setauto@a
+    \else
+      \pxrr@intrude@setauto@j
+    \fi
+    \ifnum\pxrr@auto@penalty=\z@
+      \let\pxrr@auto@penalty\pxrr@end@kinsoku
+    \fi
+    \ifpxrr@afintr
+      \ifnum\pxrr@auto@penalty=\z@\else
+        \penalty\pxrr@auto@penalty\relax
+      \fi
+      \kern-\pxrr@intr@amount\relax
+      \hskip\pxrr@auto@icspace\relax
+      \ifnum\pxrr@auto@penalty=\z@\else
+        \penalty\@MM
+      \fi
+    \else
+      \@tempskipa-\pxrr@intr@amount\relax
+      \advance\@tempskipa\pxrr@auto@icspace\relax
+      \ifnum\pxrr@auto@penalty=\z@\else
+        \penalty\pxrr@auto@penalty\relax
+      \fi
+      \hskip\@tempskipa
+      \ifnum\pxrr@auto@penalty=\z@\else
+        \penalty\@MM
+      \fi
+    \fi
+  \fi
+}
+\AtBeginDocument{%
+  \providecommand*{\ruby}{\jruby}%
+}
+\newcommand*{\jruby}{%
+  \pxrr@jprologue
+  \pxrr@trubyfalse
+  \pxrr@ruby
+}
+\pxrr@add@protect\jruby
+\newcommand*{\aruby}{%
+  \pxrr@aprologue
+  \pxrr@trubyfalse
+  \pxrr@ruby
+}
+\pxrr@add@protect\aruby
+\newcommand*{\truby}{%
+  \pxrr@jprologue
+  \pxrr@trubytrue
+  \pxrr@ruby
+}
+\pxrr@add@protect\truby
+\newcommand*{\atruby}{%
+  \pxrr@aprologue
+  \pxrr@trubytrue
+  \pxrr@ruby
+}
+\pxrr@add@protect\atruby
+\newif\ifpxrr@truby
+\let\pxrr@option\@empty
+\let\pxrr@exoption\@empty
+\let\pxrr@do@proc\@empty
+\let\pxrr@do@scan\@empty
+\def\pxrr@ruby{%
+  \@testopt\pxrr@ruby@a{}%
+}
+\def\pxrr@ruby@a[#1]{%
+  \def\pxrr@option{#1}%
+  \@testopt\pxrr@ruby@b{}%
+}
+\def\pxrr@ruby@b[#1]{%
+  \def\pxrr@exoption{#1}%
+  \ifpxrr@truby
+    \let\pxrr@do@proc\pxrr@truby@proc
+    \let\pxrr@do@scan\pxrr@truby@scan
+  \else
+    \let\pxrr@do@proc\pxrr@ruby@proc
+    \let\pxrr@do@scan\pxrr@ruby@scan
+  \fi
+  \pxrr@ruby@c
+}
+\def\pxrr@ruby@c{%
+  \ifpxrr@ghost
+    \expandafter\pxrr@do@proc
+  \else
+    \expandafter\pxrr@do@scan
+  \fi
+}
+\def\pxrr@mode@is@switching{%
+  \if      M\pxrr@mode T%
+  \else\if J\pxrr@mode T%
+  \else F%
+  \fi\fi T%
+}
+\def\pxrr@bind@param{%
+  \ifpxrr@apply@combo
+    \pxrr@apply@combofalse
+    \pxrr@combotrue
+    \pxrr@ck@bind@param
+  \else
+    \pxrr@combofalse
+  \fi
+  \let\pxrr@c@ruby@font\pxrr@ruby@font
+  \let\pxrr@c@size@ratio\pxrr@size@ratio
+  \let\pxrr@c@inter@gap\pxrr@inter@gap
+}
+\def\pxrr@ruby@proc#1#2{%
+  \pxrr@prepare@fallback{#1}%
+  \pxrr@bind@param
+  \pxrr@assign@fsize
+  \pxrr@parse@option\pxrr@option
+  \pxrr@decompbar{#2}%
+  \let\pxrr@ruby@list\pxrr@res
+  \edef\pxrr@ruby@count{\the\pxrr@cntr}%
+  \let\pxrr@sruby@list\relax
+  \pxrr@decompbar{#1}%
+  \let\pxrr@body@list\pxrr@res
+  \edef\pxrr@body@count{\the\pxrr@cntr}%
+  \ifpxrr@safe@mode
+    \pxrr@setup@safe@mode
+  \fi
+  \if\pxrr@mode@is@switching
+    \pxrr@resolve@mode
+  \fi
+\ifpxrrDebug
+  \pxrr@debug@show@input
+\fi
+  \pxrr@if@alive{%
+    \if g\pxrr@mode
+      \pxrr@ruby@check@g
+      \pxrr@if@alive{%
+        \ifnum\pxrr@body@count>\@ne
+          \pxrr@ruby@main@mg
+        \else
+          \pxrr@ruby@main@g
+        \fi
+      }%
+    \else
+      \pxrr@ruby@check@m
+      \pxrr@if@alive{\pxrr@ruby@main@m}%
+    \fi
+  }%
+  \pxrr@ruby@exit
+}
+\def\pxrr@truby@proc#1#2#3{%
+  \pxrr@prepare@fallback{#1}%
+  \pxrr@bind@param
+  \pxrr@assign@fsize
+  \pxrr@parse@option\pxrr@option
+  \def\pxrr@all@input{{#1}{#2}{#3}}%
+  \pxrr@decompbar{#3}%
+  \let\pxrr@sruby@list\pxrr@res
+  \edef\pxrr@sruby@count{\the\pxrr@cntr}%
+  \pxrr@decompbar{#2}%
+  \let\pxrr@ruby@list\pxrr@res
+  \edef\pxrr@ruby@count{\the\pxrr@cntr}%
+  \pxrr@decompbar{#1}%
+  \let\pxrr@body@list\pxrr@res
+  \edef\pxrr@body@count{\the\pxrr@cntr}%
+  \ifpxrr@safe@mode
+    \pxrr@setup@safe@mode
+  \fi
+  \if\pxrr@mode@is@switching
+    \pxrr@resolve@mode
+  \fi
+\ifpxrrDebug
+  \pxrr@debug@show@input
+\fi
+  \pxrr@if@alive{%
+    \if g\pxrr@mode
+      \pxrr@ruby@check@tg
+      \pxrr@if@alive{\pxrr@ruby@main@tg}%
+    \else
+      \pxrr@ruby@check@tm
+      \pxrr@if@alive{\pxrr@ruby@main@tm}%
+    \fi
+  }%
+  \pxrr@ruby@exit
+}
+\def\pxrr@setup@safe@mode{%
+  \let\pxrr@mode=g\relax
+  \pxrr@unite@group\pxrr@body@list
+  \def\pxrr@body@count{1}%
+  \pxrr@unite@group\pxrr@ruby@list
+  \def\pxrr@ruby@count{1}%
+  \ifx\pxrr@sruby@list\relax\else
+    \pxrr@unite@group\pxrr@sruby@list
+    \def\pxrr@sruby@count{1}%
+  \fi
+  \chardef\pxrr@evensp\z@
+  \chardef\pxrr@revensp\z@
+  \chardef\pxrr@fullsize\z@
+}
+\def\pxrr@resolve@mode{%
+  \ifnum\pxrr@body@count=\@ne
+    \ifnum\pxrr@ruby@count=\@ne
+      \let\pxrr@pre\pxrr@decompose
+      \let\pxrr@post\relax
+      \pxrr@body@list
+      \ifnum\pxrr@cntr=\@ne\else
+        \let\pxrr@mode=g%
+      \fi
+    \fi
+    \if M\pxrr@mode \let\pxrr@mode=m\fi
+    \if J\pxrr@mode \let\pxrr@mode=j\fi
+\ifpxrrDebug
+  \pxrr@debug@show@resolve@mode
+\fi
+    \if g\pxrr@mode
+      \chardef\pxrr@athead\z@
+    \fi
+    \if g\pxrr@mode\else
+      \chardef\pxrr@evensp\@ne
+    \fi
+  \else
+    \pxrr@fatal@bad@switching
+  \fi
+}
+\def\pxrr@ruby@check@g{%
+  \ifnum\pxrr@body@count=\pxrr@ruby@count\relax
+    \ifnum\pxrr@body@count=\@ne\else
+      \ifpxrr@abody
+        \pxrr@fatal@bad@movable
+      \else\ifnum\pxrr@extra=\z@
+        \pxrr@fatal@na@movable
+      \fi\fi
+    \fi
+  \else
+    \pxrr@fatal@bad@length\pxrr@body@count\pxrr@ruby@count
+  \fi
+}
+\def\pxrr@ruby@check@m{%
+  \ifnum\pxrr@body@count=\@ne
+    \let\pxrr@pre\pxrr@decompose
+    \let\pxrr@post\relax
+    \pxrr@body@list
+    \let\pxrr@body@list\pxrr@res
+    \edef\pxrr@body@count{\the\pxrr@cntr}%
+    \ifnum\pxrr@body@count=\pxrr@ruby@count\relax\else
+      \pxrr@fatal@bad@length\pxrr@body@count\pxrr@ruby@count
+    \fi
+  \else
+    \pxrr@fatal@bad@mono
+  \fi
+}
+\def\pxrr@ruby@check@tg{%
+  \ifnum\pxrr@body@count=\pxrr@ruby@count\relax\else
+    \pxrr@fatal@bad@length\pxrr@body@count\pxrr@ruby@count
+  \fi
+  \ifnum\pxrr@body@count=\pxrr@sruby@count\relax\else
+    \pxrr@fatal@bad@length\pxrr@body@count\pxrr@sruby@count
+  \fi
+  \pxrr@if@alive{%
+    \ifnum\pxrr@body@count=\@ne\else
+      \ifpxrr@abody
+        \pxrr@fatal@bad@movable
+      \else\ifnum\pxrr@extra=\z@
+        \pxrr@fatal@na@movable
+      \fi\fi
+    \fi
+  }%
+}
+\def\pxrr@ruby@check@tm{%
+  \ifnum\pxrr@body@count=\@ne
+    \let\pxrr@pre\pxrr@decompose
+    \let\pxrr@post\relax
+    \pxrr@body@list
+    \let\pxrr@body@list\pxrr@res
+    \edef\pxrr@body@count{\the\pxrr@cntr}%
+    \ifnum\pxrr@body@count=\pxrr@ruby@count\relax\else
+      \pxrr@fatal@bad@length\pxrr@body@count\pxrr@ruby@count
+    \fi
+    \ifnum\pxrr@body@count=\pxrr@sruby@count\relax\else
+      \pxrr@fatal@bad@length\pxrr@body@count\pxrr@sruby@count
+    \fi
+  \else
+    \pxrr@fatal@bad@mono
+  \fi
+}
+\newif\ifpxrr@par@head
+\def\pxrr@check@par@head{%
+  \ifvmode
+    \pxrr@par@headtrue
+  \else
+    \pxrr@par@headfalse
+  \fi
+}
+\def\pxrr@if@last#1#2#3{%
+  \ifx#3\pxrr@post #1%
+  \else #2%
+  \fi
+  #3%
+}
+\def\pxrr@inter@mono{%
+  \hskip\pxrr@iiskip\relax
+}
+\def\pxrr@takeout@any@protr@nocolor{%
+  \ifpxrr@any@protr
+    \aftergroup\pxrr@any@protrtrue
+  \fi
+}
+\def\pxrr@takeout@any@protr{%
+  \ifpxrr@any@protr
+    \aftergroup\pxrr@takeout@any@protr@a
+  \fi
+}
+\def\pxrr@takeout@any@protr@a{%
+  \aftergroup\pxrr@any@protrtrue
+}
+\def\pxrr@ruby@main@m{%
+  \pxrr@zip@list\pxrr@body@list\pxrr@ruby@list
+  \let\pxrr@whole@list\pxrr@res
+  \pxrr@check@par@head
+  \pxrr@put@head@penalty
+  \pxrr@any@protrfalse
+\ifpxrrDebug
+\pxrr@debug@show@recomp
+\fi
+  \let\pxrr@locate@head@\pxrr@locate@inner
+  \let\pxrr@locate@end@\pxrr@locate@inner
+  \let\pxrr@locate@sing@\pxrr@locate@inner
+  \ifpxrr@aprotr\else
+    \let\pxrr@locate@end@\pxrr@locate@end
+    \let\pxrr@locate@sing@\pxrr@locate@end
+  \fi
+  \ifpxrr@bprotr\else
+    \let\pxrr@locate@head@\pxrr@locate@head
+    \let\pxrr@locate@sing@\pxrr@locate@head
+  \fi
+  \def\pxrr@pre##1##2{%
+    \pxrr@if@last{%
+      \pxrr@compose@block\pxrr@locate@sing@{##1}{##2}%
+      \pxrr@intrude@head
+      \unhbox\pxrr@boxr
+      \pxrr@intrude@end
+      \pxrr@takeout@any@protr
+    }{%
+      \pxrr@compose@block\pxrr@locate@head@{##1}{##2}%
+      \pxrr@intrude@head
+      \unhbox\pxrr@boxr
+    }%
+  }%
+  \def\pxrr@inter##1##2{%
+    \pxrr@if@last{%
+      \pxrr@compose@block\pxrr@locate@end@{##1}{##2}%
+      \pxrr@inter@mono
+      \unhbox\pxrr@boxr
+      \pxrr@intrude@end
+      \pxrr@takeout@any@protr
+    }{%
+      \pxrr@compose@block\pxrr@locate@inner{##1}{##2}%
+      \pxrr@inter@mono
+      \unhbox\pxrr@boxr
+    }%
+  }%
+  \let\pxrr@post\@empty
+  \setbox\pxrr@boxr\pxrr@hbox{\pxrr@whole@list}%
+  \if j\pxrr@mode
+    \ifpxrr@any@protr
+      \pxrr@ruby@redo@j
+    \fi
+  \fi
+  \unhbox\pxrr@boxr
+}
+\def\pxrr@ruby@redo@j{%
+  \pxrr@concat@list\pxrr@body@list
+  \let\pxrr@body@list\pxrr@res
+  \pxrr@concat@list\pxrr@ruby@list
+  \let\pxrr@ruby@list\pxrr@res
+  \pxrr@zip@single\pxrr@body@list\pxrr@ruby@list
+  \let\pxrr@whole@list\pxrr@res
+\ifpxrrDebug
+\pxrr@debug@show@concat
+\fi
+  \let\pxrr@locate@sing@\pxrr@locate@inner
+  \ifpxrr@aprotr\else
+    \let\pxrr@locate@sing@\pxrr@locate@end
+  \fi
+  \ifpxrr@bprotr\else
+    \let\pxrr@locate@sing@\pxrr@locate@head
+  \fi
+  \def\pxrr@pre##1##2{%
+    \pxrr@compose@block\pxrr@locate@sing@{##1}{##2}%
+    \pxrr@intrude@head
+    \unhbox\pxrr@boxr
+    \pxrr@intrude@end
+  }%
+  \let\pxrr@inter\@undefined
+  \let\pxrr@post\@empty
+  \setbox\pxrr@boxr\pxrr@hbox{\pxrr@whole@list}%
+}
+\def\pxrr@ruby@main@g{%
+  \pxrr@zip@list\pxrr@body@list\pxrr@ruby@list
+  \let\pxrr@whole@list\pxrr@res
+  \pxrr@check@par@head
+  \pxrr@put@head@penalty
+\ifpxrrDebug
+\pxrr@debug@show@recomp
+\fi
+  \let\pxrr@locate@sing@\pxrr@locate@inner
+  \ifpxrr@aprotr\else
+    \let\pxrr@locate@sing@\pxrr@locate@end
+  \fi
+  \ifpxrr@bprotr\else
+    \let\pxrr@locate@sing@\pxrr@locate@head
+  \fi
+  \def\pxrr@pre##1##2{%
+    \pxrr@compose@block\pxrr@locate@sing@{##1}{##2}%
+    \pxrr@intrude@head
+    \unhbox\pxrr@boxr
+    \pxrr@intrude@end
+  }%
+  \let\pxrr@inter\@undefined
+  \let\pxrr@post\@empty
+  \pxrr@whole@list
+}
+\def\pxrr@ruby@main@tm{%
+  \pxrr@tzip@list\pxrr@body@list\pxrr@ruby@list\pxrr@sruby@list
+  \let\pxrr@whole@list\pxrr@res
+  \pxrr@check@par@head
+  \pxrr@any@protrfalse
+\ifpxrrDebug
+\pxrr@debug@show@recomp
+\fi
+  \let\pxrr@locate@head@\pxrr@locate@inner
+  \let\pxrr@locate@end@\pxrr@locate@inner
+  \let\pxrr@locate@sing@\pxrr@locate@inner
+  \ifpxrr@aprotr\else
+    \let\pxrr@locate@end@\pxrr@locate@end
+    \let\pxrr@locate@sing@\pxrr@locate@end
+  \fi
+  \ifpxrr@bprotr\else
+    \let\pxrr@locate@head@\pxrr@locate@head
+    \let\pxrr@locate@sing@\pxrr@locate@head
+  \fi
+  \def\pxrr@pre##1##2##3{%
+    \pxrr@if@last{%
+      \pxrr@compose@twoside@block\pxrr@locate@sing@
+       {##1}{##2}{##3}%
+      \pxrr@intrude@head
+      \unhbox\pxrr@boxr
+      \pxrr@intrude@end
+      \pxrr@takeout@any@protr
+    }{%
+      \pxrr@compose@twoside@block\pxrr@locate@head@
+       {##1}{##2}{##3}%
+      \pxrr@intrude@head
+      \unhbox\pxrr@boxr
+    }%
+  }%
+  \def\pxrr@inter##1##2##3{%
+    \pxrr@if@last{%
+      \pxrr@compose@twoside@block\pxrr@locate@end@
+       {##1}{##2}{##3}%
+      \pxrr@inter@mono
+      \unhbox\pxrr@boxr
+      \pxrr@intrude@end
+      \pxrr@takeout@any@protr
+    }{%
+      \pxrr@compose@twoside@block\pxrr@locate@inner
+       {##1}{##2}{##3}%
+      \pxrr@inter@mono
+      \unhbox\pxrr@boxr
+    }%
+  }%
+  \let\pxrr@post\@empty
+  \setbox\pxrr@boxr\pxrr@hbox{\pxrr@whole@list}%
+  \unhbox\pxrr@boxr
+}
+\def\pxrr@ruby@main@tg{%
+  \pxrr@check@par@head
+  \pxrr@put@head@penalty
+  \let\pxrr@locate@sing@\pxrr@locate@inner
+  \ifpxrr@aprotr\else
+    \let\pxrr@locate@sing@\pxrr@locate@end
+  \fi
+  \ifpxrr@bprotr\else
+    \let\pxrr@locate@sing@\pxrr@locate@head
+  \fi
+  \expandafter\pxrr@compose@twoside@block\expandafter\pxrr@locate@sing@
+   \pxrr@all@input
+  \pxrr@intrude@head
+  \unhbox\pxrr@boxr
+  \pxrr@intrude@end
+}
+\let\pxrr@ruby@main@mg\@undefined
+\newif\ifpxrr@ghost
+\def\pxrr@jprologue{%
+  \ifpxrr@jghost
+    \pxrr@jghost@char
+    \pxrr@inhibitglue
+  \fi
+  \begingroup
+    \pxrr@abodyfalse
+    \pxrr@csletcs{ifpxrr@ghost}{ifpxrr@jghost}%
+    \ifpxrr@jghost
+      \setbox\pxrr@boxa\hbox{\pxrr@jghost@char}%
+      \kern-\wd\pxrr@boxa
+    \fi
+}
+\chardef\pxrr@aghostchar=23 % compwordmark
+\let\pxrr@aghost\relax
+\let\pxrr@aghostfont\relax
+\def\pxrr@setup@aghost{%
+  \global\let\pxrr@setup@aghost\relax
+  \IfFileExists{t1lmr.fd}{%
+    \begingroup
+      \fontsize{2.5}{0}\usefont{T1}{lmr}{m}{n}%
+    \endgroup
+    \global\pxrr@letcs\pxrr@aghostfont{T1/lmr/m/n/2.5}%
+    \gdef\pxrr@aghost{{\pxrr@aghostfont\pxrr@aghostchar}}%
+    \pxrr@force@nonpunct@achar{\pxrr@aghostchar}%
+  }{%else
+    \pxrr@warn{Ghost embedding for \string\aruby\space
+      is disabled,\MessageBreak
+      since package lmodern is missing}%
+    \global\pxrr@aghostfalse
+    \global\let\pxrr@aghosttrue\relax
+  }%
+}
+\def\pxrr@aprologue{%
+  \ifpxrr@aghost
+    \pxrr@aghost
+  \fi
+  \begingroup
+    \pxrr@abodytrue
+    \pxrr@csletcs{ifpxrr@ghost}{ifpxrr@aghost}%
+}
+\def\pxrr@ruby@exit{%
+  \ifpxrr@fatal@error
+    \pxrr@fallback
+  \fi
+  \ifpxrr@abody
+    \expandafter\pxrr@aepilogue
+  \else
+    \expandafter\pxrr@jepilogue
+  \fi
+}
+\def\pxrr@jepilogue{%
+    \ifpxrr@jghost
+      \setbox\pxrr@boxa\hbox{\pxrr@jghost@char}%
+      \kern-\wd\pxrr@boxa
+    \fi
+  \endgroup
+  \ifpxrr@jghost
+    \pxrr@inhibitglue
+    \pxrr@jghost@char
+  \fi
+}
+\def\pxrr@aepilogue{%
+  \endgroup
+  \ifpxrr@aghost
+    \pxrr@aghost
+  \fi
+}
+\def\pxrr@debug@show@input{%
+  \typeout{----\pxrr@pkgname\space input:^^J%
+    ifpxrr@abody = \meaning\ifpxrr@abody^^J%
+    ifpxrr@truby = \meaning\ifpxrr@truby^^J%
+    pxrr@ruby@fsize = \pxrr@ruby@fsize^^J%
+    pxrr@body@zw = \pxrr@body@zw^^J%
+    pxrr@ruby@zw = \pxrr@ruby@zw^^J%
+    pxrr@iiskip = \pxrr@iiskip^^J%
+    pxrr@iaiskip = \pxrr@iaiskip^^J%
+    pxrr@htratio = \pxrr@htratio^^J%
+    pxrr@ruby@raise = \pxrr@ruby@raise^^J%
+    pxrr@ruby@lower = \pxrr@ruby@lower^^J%
+    ifpxrr@bprotr = \meaning\ifpxrr@bprotr^^J%
+    ifpxrr@aprotr = \meaning\ifpxrr@aprotr^^J%
+    pxrr@side = \the\pxrr@side^^J%
+    pxrr@evensp = \the\pxrr@evensp^^J%
+    pxrr@fullsize = \the\pxrr@fullsize^^J%
+    pxrr@bscomp = \meaning\pxrr@bscomp^^J%
+    pxrr@ascomp = \meaning\pxrr@ascomp^^J%
+    ifpxrr@bnobr = \meaning\ifpxrr@bnobr^^J%
+    ifpxrr@anobr = \meaning\ifpxrr@anobr^^J%
+    ifpxrr@bfintr = \meaning\ifpxrr@bfintr^^J%
+    ifpxrr@afintr = \meaning\ifpxrr@afintr^^J%
+    pxrr@bintr = \pxrr@bintr^^J%
+    pxrr@aintr = \pxrr@aintr^^J%
+    pxrr@athead = \the\pxrr@athead^^J%
+    pxrr@mode = \meaning\pxrr@mode^^J%
+    ifpxrr@athead@given = \meaning\ifpxrr@athead@given^^J%
+    ifpxrr@mode@given = \meaning\ifpxrr@mode@given^^J%
+    pxrr@body@list = \meaning\pxrr@body@list^^J%
+    pxrr@body@count = \@nameuse{pxrr@body@count}^^J%
+    pxrr@ruby@list = \meaning\pxrr@ruby@list^^J%
+    pxrr@ruby@count = \@nameuse{pxrr@ruby@count}^^J%
+    pxrr@end@kinsoku = \pxrr@end@kinsoku^^J%
+    ----
+  }%
+}
+\def\pxrr@debug@show@recomp{%
+  \typeout{----\pxrr@pkgname\space recomp:^^J%
+    pxrr@body@list = \meaning\pxrr@body@list^^J%
+    pxrr@body@count = \pxrr@body@count^^J%
+    pxrr@ruby@list = \meaning\pxrr@ruby@list^^J%
+    pxrr@ruby@count = \pxrr@ruby@count^^J%
+    pxrr@res = \meaning\pxrr@res^^J%
+    ----
+  }%
+}
+\def\pxrr@debug@show@concat{%
+  \typeout{----\pxrr@pkgname\space concat:^^J%
+    pxrr@body@list = \meaning\pxrr@body@list^^J%
+    pxrr@ruby@list = \meaning\pxrr@ruby@list^^J%
+    pxrr@whole@list = \meaning\pxrr@whole@list^^J%
+    ----
+  }%
+}
+\def\pxrr@debug@show@resolve@mode{%
+  \typeout{----\pxrr@pkgname\space resolve-mode:
+    \meaning\pxrr@mode}%
+}
+\def\pxrr@warn@na@kmark#1{%
+  \pxrr@warn{Unavailable kenten mark '#1'}%
+}
+\def\pxrr@err@invalid@value#1{%
+  \pxrr@error{Invalid value '#1'}%
+      {\@eha}%
+}
+\let\pxrr@k@ymark\@undefined
+\let\pxrr@k@ysmark\@undefined
+\let\pxrr@k@tmark\@undefined
+\let\pxrr@k@tsmark\@undefined
+\AtEndOfPackage{%
+  \pxrr@k@get@mark\pxrr@k@ymark{bullet*}%
+  \pxrr@k@get@mark\pxrr@k@ysmark{sesame*}%
+  \pxrr@k@get@mark\pxrr@k@tmark{sesame*}%
+  \pxrr@k@get@mark\pxrr@k@tsmark{bullet*}%
+}
+\let\pxrr@k@ruby@font\@empty
+\def\pxrr@k@size@ratio{0.5}
+\newif\ifpxrr@k@ghost \pxrr@k@ghosttrue
+\def\pxrr@k@inter@gap{0}
+\def\pxrr@k@ruby@inter@gap{0}
+\chardef\pxrr@k@d@side=0
+\chardef\pxrr@k@d@mark=0
+\chardef\pxrr@k@ruby@combo=1
+\chardef\pxrr@k@d@full=0
+\chardef\pxrr@k@mark=0
+\chardef\pxrr@k@full=0
+\let\pxrr@k@the@mark\relax
+\newif\ifpxrr@avail@UTF
+\def\pxrr@decide@avail@UTF{%
+  \global\let\pxrr@decide@avail@UTF\relax
+  \ifx\UTF\@undefined \global\pxrr@avail@UTFfalse
+  \else \global\pxrr@avail@UTFtrue
+  \fi
+}
+\def\pxrr@k@decompose#1{%
+  \let\pxrr@res\@empty
+  \pxrr@cntr=\z@
+  \pxrr@k@decompose@loopa#1\pxrr@end
+}
+\def\pxrr@k@decompose@loopa{%
+  \futurelet\pxrr@token\pxrr@k@decompose@loopb
+}
+\def\pxrr@k@decompose@loopb{%
+  \pxrr@cond\ifx\pxrr@token\pxrr@end\fi{%
+    \pxrr@appto\pxrr@res{\pxrr@post}%
+  }{\pxrr@if@kspan@cmd\pxrr@token{%
+    \pxrr@k@decompose@special\pxrr@k@decompose@kspan
+  }{\pxrr@if@ruby@cmd\pxrr@token{%
+    \pxrr@k@decompose@special\pxrr@k@decompose@ruby
+  }{\pxrr@if@truby@cmd\pxrr@token{%
+    \pxrr@k@decompose@special\pxrr@k@decompose@truby
+  }{\pxrr@if@kenten@cmd\pxrr@token{%
+    \pxrr@k@decompose@special\pxrr@k@decompose@kenten
+  }{\pxrr@cond\ifx\pxrr@token\@sptoken\fi{%
+    \pxrr@k@decompose@loope
+  }{%
+    \pxrr@setok{\pxrr@ifx{\pxrr@token\bgroup}}%
+    \pxrr@k@decompose@loopc
+  }}}}}}%
+}
+\def\pxrr@k@decompose@loopc#1{%
+  \pxrr@appto\pxrr@res{\pxrr@entry}%
+  \ifpxrr@ok
+    \pxrr@appto\pxrr@res{{{#1}}}%
+  \else
+    \pxrr@appto\pxrr@res{{#1}}%
+  \fi
+  \pxrr@k@decompose@loopd
+}
+\def\pxrr@k@decompose@loopd{%
+  \advance\pxrr@cntr\@ne
+  \pxrr@k@decompose@loopa
+}
+\expandafter\def\expandafter\pxrr@k@decompose@loope\space{%
+  \pxrr@okfalse
+  \pxrr@k@decompose@loopc{ }%
+}
+\def\pxrr@k@decompose@special#1#2#{%
+  #1{#2}%
+}
+\def\pxrr@k@decompose@kspan#1#2{%
+  \pxrr@appto\pxrr@res{\pxrr@entry@kspan{#1{#2}}}%
+  \pxrr@k@decompose@loopd
+}
+\def\pxrr@k@decompose@ruby#1#2#3{%
+  \pxrr@appto\pxrr@res{\pxrr@entry@ruby{#1{#2}{#3}}}%
+  \pxrr@k@decompose@loopd
+}
+\def\pxrr@k@decompose@truby#1#2#3#4{%
+  \pxrr@appto\pxrr@res{\pxrr@entry@ruby{#1{#2}{#3}{#4}}}%
+  \pxrr@k@decompose@loopd
+}
+\def\pxrr@k@decompose@kenten#1#2{%
+  \pxrr@appto\pxrr@res{\pxrr@entry@kenten{#1{#2}}}%
+  \pxrr@k@decompose@loopd
+}
+\def\pxrr@cmd@ruby{\jruby}
+\def\pxrr@cmd@kenten{\jkenten}
+\def\pxrr@if@ruby@cmd#1{%
+  \if \ifcat\noexpand#1\relax
+        \ifx#1\pxrr@cmd@ruby T%
+        \else\ifx#1\jruby T%
+        \else\ifx#1\aruby T%
+        \else F%
+        \fi\fi\fi
+      \else F%
+      \fi T\expandafter\@firstoftwo
+  \else \expandafter\@secondoftwo
+  \fi
+}
+\def\pxrr@if@truby@cmd#1{%
+  \if \ifcat\noexpand#1\relax
+        \ifx#1\truby T%
+        \else\ifx#1\atruby T%
+        \else F%
+        \fi\fi
+      \else F%
+      \fi T\expandafter\@firstoftwo
+  \else \expandafter\@secondoftwo
+  \fi
+}
+\def\pxrr@if@kspan@cmd#1{%
+  \pxrr@cond\ifx#1\kspan\fi
+}
+\def\pxrr@if@kenten@cmd#1{%
+  \if \ifcat\noexpand#1\relax
+        \ifx#1\pxrr@cmd@kenten T%
+        \else\ifx#1\jkenten T%
+        \else F%
+        \fi\fi
+      \else F%
+      \fi T\expandafter\@firstoftwo
+  \else \expandafter\@secondoftwo
+  \fi
+}
+\newcommand*\kentensetup[1]{%
+  \pxrr@in@setuptrue
+  \pxrr@fatal@errorfalse
+  \pxrr@k@parse@option{#1}%
+  \ifpxrr@fatal@error\else
+    \let\pxrr@k@d@side\pxrr@side
+    \let\pxrr@k@d@mark\pxrr@k@mark
+    \let\pxrr@k@d@full\pxrr@k@full
+  \fi
+  \pxrr@in@setupfalse
+}
+\newcommand*\kentenfontsetup{}
+\def\kentenfontsetup#{%
+  \def\pxrr@k@ruby@font
+}
+\newcommand*\kentensizeratio[1]{%
+  \edef\pxrr@k@size@ratio{#1}%
+}
+\newcommand*\kentenintergap[1]{%
+  \edef\pxrr@k@inter@gap{#1}%
+}
+\newcommand*\kentenrubyintergap[1]{%
+  \edef\pxrr@k@ruby@inter@gap{#1}%
+}
+\newcommand*\kentenmarkinyoko[1]{%
+  \pxrr@k@get@mark\pxrr@k@ymark{#1}%
+}
+\newcommand*\kentensubmarkinyoko[1]{%
+  \pxrr@k@get@mark\pxrr@k@ysmark{#1}%
+}
+\newcommand*\kentenmarkintate[1]{%
+  \pxrr@k@get@mark\pxrr@k@tmark{#1}%
+}
+\newcommand*\kentensubmarkintate[1]{%
+  \pxrr@k@get@mark\pxrr@k@tsmark{#1}%
+}
+\chardef\pxrr@k@ruby@combo@ruby=0
+\chardef\pxrr@k@ruby@combo@both=1
+\newcommand*\kentenrubycombination[1]{%
+  \pxrr@letcs\pxrr@tempa{pxrr@k@ruby@combo@#1}%
+  \ifx\pxrr@tempa\relax
+    \pxrr@err@invalid@value{#1}%
+  \else
+    \let\pxrr@k@ruby@combo\pxrr@tempa
+  \fi
+}
+\def\pxrr@k@declare@mark#1{%
+  \global\@namedef{pxrr@k@mark@@#1}%
+}
+\def\pxrr@k@let@mark#1{%
+  \global\pxrr@cslet{pxrr@k@mark@@#1}%
+}
+\def\pxrr@k@get@mark#1#2{%
+  \futurelet\pxrr@token\pxrr@k@get@mark@a#2\pxrr@nil#1%
+}
+\def\pxrr@k@get@mark@a{%
+  \pxrr@cond\ifcat A\noexpand\pxrr@token\fi{%
+    \pxrr@k@get@mark@c
+  }{%else
+    \pxrr@k@get@mark@b
+  }%
+}
+\def\pxrr@k@get@mark@b#1\pxrr@nil#2{%
+  \def#2{#1}%
+}
+\def\pxrr@k@get@mark@c#1#2\pxrr@nil#3{%
+  \ifnum`#1<128
+    \pxrr@letcs\pxrr@tempa{pxrr@k@mark@@#1#2}%
+    \ifx\pxrr@tempa\relax
+      \pxrr@warn@na@kmark{#1#2}%
+    \else
+      \let#3\pxrr@tempa
+    \fi
+  \else
+    \pxrr@k@get@mark@b#1#2\pxrr@nil#3%
+  \fi
+}
+\def\pxrr@k@declare@mark@char#1#2{%
+  \pxrr@k@declare@mark@char@a{#1}#2\pxrr@end
+}
+\def\pxrr@k@declare@mark@char@a#1#2:#3\pxrr@end{%
+  \pxrr@jchardef\pxrr@tempa\pxrr@jc{#2:#3}%
+  \ifnum\pxrr@tempa=\pxrr@zspace
+    \pxrr@k@declare@mark{#1}{\pxrr@k@char@UTF{#1}{#3}}%
+  \else
+    \pxrr@k@let@mark{#1}\pxrr@tempa
+  \fi
+}
+\def\pxrr@k@char@UTF#1#2{%
+  \pxrr@decide@avail@UTF
+  \ifpxrr@avail@UTF
+    \pxrr@k@declare@mark{#1}{\UTF{#2}}%
+    \UTF{#2}%
+  \else
+    \pxrr@k@let@mark{#1}\@empty
+    \pxrr@warn@na@kmark{#1}%
+  \fi
+}
+\pxrr@k@declare@mark@char{bullet}  {2121:2022}
+\pxrr@k@declare@mark@char{triangle}{2225:25B2}
+\pxrr@k@declare@mark@char{Triangle}{2224:25B3}
+\pxrr@k@declare@mark@char{fisheye} {2121:25C9}
+\pxrr@k@declare@mark@char{Circle}  {217B:25CB}
+\pxrr@k@declare@mark@char{bullseye}{217D:25CE}
+\pxrr@k@declare@mark@char{circle}  {217C:25CF}
+\pxrr@k@declare@mark@char{Bullet}  {2121:25E6}
+\pxrr@k@declare@mark@char{sesame}  {2121:FE45}
+\pxrr@k@declare@mark@char{Sesame}  {2121:FE46}
+\pxrr@jchardef\pxrr@ja@dot=\pxrr@jc{2126:30FB}
+\pxrr@jchardef\pxrr@ja@comma=\pxrr@jc{2122:3001}
+\pxrr@k@declare@mark{bullet*}{%
+  \pxrr@dima=\pxrr@ruby@zw\relax
+  \hb@xt@\pxrr@dima{%
+    \kern-.5\pxrr@dima
+    \pxrr@if@in@tate{}{\lower.38\pxrr@dima}%
+    \hb@xt@2\pxrr@dima{%
+      \pxrr@dima=\f@size\p@
+      \fontsize{2\pxrr@dima}{\z@}\selectfont
+      \hss
+      \pxrr@ja@dot
+      \hss
+    }%
+    \hss
+  }%
+}
+\pxrr@k@declare@mark{sesame*}{%
+  \pxrr@dima=\pxrr@ruby@zw\relax
+  \hb@xt@\pxrr@dima{%
+    \pxrr@if@in@tate{\kern.1\pxrr@dima}{\kern.05\pxrr@dima}%
+    \pxrr@if@in@tate{\lower.85\pxrr@dima}{\raise.3\pxrr@dima}%
+    \hbox{%
+      \pxrr@dima=\f@size\p@
+      \fontsize{2.4\pxrr@dima}{\z@}\selectfont
+      \pxrr@ja@comma
+    }%
+    \hss
+  }%
+}
+\def\pxrr@k@parse@option#1{%
+  \edef\pxrr@tempa{#1}%
+  \let\pxrr@side\pxrr@k@d@side
+  \let\pxrr@k@mark\pxrr@k@d@mark
+  \let\pxrr@k@full\pxrr@k@d@full
+  \expandafter\pxrr@k@parse@option@loop\pxrr@tempa @\pxrr@end
+}
+\def\pxrr@k@parse@option@loop#1{%
+  \pxrr@letcs\pxrr@tempa{pxrr@k@po@PR@#1}%
+  \pxrr@cond\ifx\pxrr@tempa\relax\fi{%
+    \pxrr@fatal@knx@letter{#1}%
+    \pxrr@k@parse@option@exit
+  }{%
+    \pxrr@tempa
+    \pxrr@k@parse@option@loop
+  }%
+}
+\def\pxrr@k@parse@option@exit#1\pxrr@end{%
+  \ifpxrr@in@setup\else
+    \pxrr@k@check@option
+    \pxrr@if@in@tate{%
+      \ifcase\pxrr@k@mark \let\pxrr@k@the@mark\pxrr@k@tmark
+      \or \let\pxrr@k@the@mark\pxrr@k@tsmark
+      \fi
+    }{%
+      \ifcase\pxrr@k@mark \let\pxrr@k@the@mark\pxrr@k@ymark
+      \or \let\pxrr@k@the@mark\pxrr@k@ysmark
+      \fi
+    }%
+  \fi
+}
+\def\pxrr@k@po@PR@@{%
+  \pxrr@k@parse@option@exit
+}
+\def\pxrr@k@po@PR@P{%
+  \chardef\pxrr@side\z@
+}
+\def\pxrr@k@po@PR@S{%
+  \chardef\pxrr@side\@ne
+}
+\def\pxrr@k@po@PR@p{%
+  \chardef\pxrr@k@mark\z@
+}
+\def\pxrr@k@po@PR@s{%
+  \chardef\pxrr@k@mark\@ne
+}
+\def\pxrr@k@po@PR@F{%
+  \chardef\pxrr@k@full\z@
+}
+\def\pxrr@k@po@PR@f{%
+  \chardef\pxrr@k@full\@ne
+}
+\def\pxrr@k@check@option{%
+}
+\def\pxrr@k@compose@block#1#2{%
+  \setbox\pxrr@boxa\pxrr@hbox{#1}%
+  \pxrr@k@make@rep@list{\copy\pxrr@boxb}{#2}%
+  \let\pxrr@natwd\pxrr@zeropt
+  \pxrr@evenspace@int\pxrr@locate@inner\pxrr@boxr
+       \relax{\wd\pxrr@boxa}%
+  \setbox\z@\hbox{%
+    \ifnum\pxrr@side=\z@
+      \raise\pxrr@ruby@raise\box\pxrr@boxr
+    \else
+      \lower\pxrr@ruby@lower\box\pxrr@boxr
+    \fi
+  }%
+  \ht\z@\z@ \dp\z@\z@
+  \@tempdima\wd\z@
+  \setbox\pxrr@boxr\hbox{%
+    \box\z@
+    \kern-\@tempdima
+    \box\pxrr@boxa
+  }%
+}
+\def\pxrr@k@make@rep@list#1#2{%
+  \def\pxrr@res{\pxrr@pre{#1}}%
+  \pxrr@cntr=#2\relax
+  \ifnum\pxrr@cntr>\@ne
+    \@tempcnta\pxrr@cntr \advance\@tempcnta\m@ne
+    \@whilenum{\@tempcnta>\z@}\do{%
+      \pxrr@appto\pxrr@res{\pxrr@inter{#1}}%
+      \advance\@tempcnta\m@ne
+    }%
+  \fi
+  \pxrr@appto\pxrr@res{\pxrr@post}%
+}
+\newif\ifpxrr@k@first@entry
+\newif\ifpxrr@k@last@entry
+\newif\ifpxrr@k@prev@is@block
+\let\pxrr@k@accum@res\relax
+\mathchardef\pxrr@k@prebreakpenalty\z@
+\mathchardef\pxrr@k@postbreakpenalty\z@
+\chardef\pxrr@k@entry@res@type\z@
+\def\pxrr@k@list@pre{%
+  \pxrr@k@first@entrytrue
+  \pxrr@k@last@entryfalse
+  \pxrr@k@prev@is@blockfalse
+  \let\pxrr@k@accum@res\@empty
+  \chardef\pxrr@k@block@seq@state\z@
+}
+\def\pxrr@k@entry@with#1#2{%
+  \pxrr@if@last{%
+    \pxrr@k@last@entrytrue
+    \pxrr@k@entry@with@a#1{#2}%
+  }{%
+    \pxrr@k@entry@with@a#1{#2}%
+  }%
+}
+\def\pxrr@k@entry@with@a#1#2{%
+  \mathchardef\pxrr@k@prebreakpenalty\z@
+  \mathchardef\pxrr@k@postbreakpenalty\z@
+  #1{#2}%
+  \ifnum\pxrr@k@entry@res@type=\z@
+    \expandafter\pxrr@appto\expandafter\pxrr@k@accum@res
+        \expandafter{\pxrr@res}%
+  \else
+    \pxrr@k@accum@res
+    \let\pxrr@k@accum@res\@empty
+  \fi
+  \ifnum\pxrr@k@prebreakpenalty>\z@
+    \@tempcntb\lastpenalty \unpenalty
+    \advance\@tempcntb\pxrr@k@prebreakpenalty
+    \penalty\@tempcntb
+  \fi
+  \ifnum\pxrr@k@entry@res@type=\tw@
+    \ifpxrr@k@prev@is@block
+      \pxrr@inter@mono
+    \fi
+    \pxrr@k@prev@is@blocktrue
+  \else
+    \pxrr@k@prev@is@blockfalse
+  \fi
+  \ifnum\pxrr@k@entry@res@type>\z@
+    \unhbox\pxrr@boxr
+  \fi
+  \ifnum\pxrr@k@postbreakpenalty>\z@
+    \penalty\pxrr@k@postbreakpenalty
+  \fi
+  \pxrr@k@first@entryfalse
+}
+\def\pxrr@k@list@post{%
+  \pxrr@k@accum@res
+  \let\pxrr@k@accum@res\@empty
+}
+\def\pxrr@kenten@entry{%
+  \pxrr@k@entry@with\pxrr@kenten@entry@
+}
+\def\pxrr@kenten@entry@#1{%
+  \pxrr@k@check@char{#1}%
+  \ifpxrr@ok
+    \pxrr@k@compose@block{#1}\@ne
+    \chardef\pxrr@k@entry@res@type=\tw@
+  \else
+    \def\pxrr@res{#1}%
+    \chardef\pxrr@k@entry@res@type=\z@
+  \fi
+}
+\def\pxrr@kenten@entry@kspan{%
+  \pxrr@k@entry@with\pxrr@kenten@entry@kspan@
+}
+\def\pxrr@kenten@entry@kspan@#1{%
+  \pxrr@kenten@entry@kspan@a#1%
+}
+\def\pxrr@kenten@entry@kspan@a#1{%
+  \@ifstar{%
+    \@testopt\pxrr@kenten@entry@kspan@c{}%
+  }{%
+    \@testopt\pxrr@kenten@entry@kspan@b{}%
+  }%
+}
+\def\pxrr@kenten@entry@kspan@b[#1]#2{%
+  \setbox\z@\pxrr@hbox{#2}%
+  \@tempdima\pxrr@body@zw\relax
+  \@tempdimb\wd\z@ \advance\@tempdimb.25\@tempdima
+  \divide\@tempdimb\@tempdima
+  \edef\pxrr@kenten@entry@tempa{\number\@tempdimb}%
+  \pxrr@k@compose@block{#2}\pxrr@kenten@entry@tempa
+  \chardef\pxrr@k@entry@res@type=\tw@
+}
+\def\pxrr@kenten@entry@kspan@c[#1]#2{%
+  \def\pxrr@res{#2}%
+  \chardef\pxrr@k@entry@res@type=\z@
+}
+\def\pxrr@kenten@entry@kenten{%
+  \pxrr@k@entry@with\pxrr@kenten@entry@kenten@
+}
+\def\pxrr@kenten@entry@kenten@#1{%
+  \setbox\pxrr@boxr\hbox{#1}%
+  \chardef\pxrr@k@entry@res@type=\@ne
+}
+\def\pxrr@kenten@entry@ruby{%
+  \pxrr@k@entry@with\pxrr@kenten@entry@ruby@
+}
+\def\pxrr@kenten@entry@ruby@#1{%
+  \pxrr@apply@combotrue
+  \setbox\pxrr@boxr\hbox{#1}%
+  \chardef\pxrr@k@entry@res@type=\@ne
+}
+\newcommand*\kspan{%
+  \@ifstar{%
+    \@testopt\pxrr@kspan@a{}%
+  }{%
+    \@testopt\pxrr@kspan@a{}%
+  }%
+}
+\pxrr@add@protect\kspan
+\def\pxrr@kspan@a[#1]#2{%
+  \begingroup
+    #2%
+  \endgroup
+}
+\def\pxrr@k@check@char#1{%
+  \futurelet\pxrr@token\pxrr@k@check@char@a#1\pxrr@end
+}
+\def\pxrr@k@check@char@a#1\pxrr@end{%
+  \pxrr@cond\ifx\pxrr@token\bgroup\fi{%
+    \pxrr@oktrue
+  }{\pxrr@cond\ifx\pxrr@token\@sptoken\fi{%
+    \pxrr@okfalse
+  }{%
+    \pxrr@check@char\pxrr@token
+    \ifcase\pxrr@cntr
+      \pxrr@okfalse
+    \or
+      \pxrr@oktrue
+      \chardef\pxrr@check@char@temp\z@
+    \or
+      \pxrr@oktrue
+      \chardef\pxrr@check@char@temp\@ne
+    \fi
+    \ifnum\pxrr@k@full=\z@\ifpxrr@ok
+      \pxrr@check@punct@char{`#1}\pxrr@check@char@temp
+      \ifpxrr@ok \pxrr@okfalse
+      \else \pxrr@oktrue
+      \fi
+    \fi\fi
+    \ifpxrr@ok
+      \pxrr@get@prebreakpenalty\@tempcnta{`#1}%
+      \mathchardef\pxrr@k@prebreakpenalty\@tempcnta
+      \pxrr@get@postbreakpenalty\@tempcnta{`#1}%
+      \mathchardef\pxrr@k@postbreakpenalty\@tempcnta
+    \fi
+  }}%
+}
+\AtBeginDocument{%
+  \providecommand*{\kenten}{\jkenten}%
+}
+\newcommand*{\jkenten}{%
+  \pxrr@k@prologue
+  \pxrr@kenten
+}
+\pxrr@add@protect\jkenten
+\def\pxrr@kenten{%
+  \@testopt\pxrr@kenten@a{}%
+}
+\def\pxrr@kenten@a[#1]{%
+  \def\pxrr@option{#1}%
+  \ifpxrr@safe@mode
+    \expandafter\@firstofone
+  \else
+    \expandafter\pxrr@kenten@proc
+  \fi
+}
+\def\pxrr@k@bind@param{%
+  \let\pxrr@c@ruby@font\pxrr@k@ruby@font
+  \let\pxrr@c@size@ratio\pxrr@k@size@ratio
+  \let\pxrr@c@inter@gap\pxrr@k@inter@gap
+}
+\def\pxrr@kenten@proc#1{%
+  \pxrr@prepare@fallback{#1}%
+  \pxrr@k@bind@param
+  \pxrr@assign@fsize
+  \pxrr@k@parse@option\pxrr@option
+  \pxrr@if@alive{%
+    \pxrr@k@decompose{#1}%
+    \let\pxrr@body@list\pxrr@res
+    \pxrr@kenten@main
+  }%
+  \pxrr@kenten@exit
+}
+\def\pxrr@kenten@main{%
+  \setbox\pxrr@boxb\pxrr@hbox@to\z@{%
+    \pxrr@use@ruby@font
+    \hss\pxrr@k@the@mark\hss
+  }%
+  \let\pxrr@entry\pxrr@kenten@entry
+  \let\pxrr@entry@kspan\pxrr@kenten@entry@kspan
+  \let\pxrr@entry@ruby\pxrr@kenten@entry@ruby
+  \let\pxrr@entry@kenten\pxrr@kenten@entry@kenten
+  \let\pxrr@post\pxrr@k@list@post
+  \pxrr@k@list@pre
+  \pxrr@body@list
+}
+\def\pxrr@k@prologue{%
+  \ifpxrr@k@ghost
+    \pxrr@jghost@char
+    \pxrr@inhibitglue
+  \fi
+  \begingroup
+    \ifpxrr@k@ghost
+      \setbox\pxrr@boxa\hbox{\pxrr@jghost@char}%
+      \kern-\wd\pxrr@boxa
+    \fi
+}
+\def\pxrr@kenten@exit{%
+  \ifpxrr@fatal@error
+    \pxrr@fallback
+  \fi
+  \pxrr@k@epilogue
+}
+\def\pxrr@k@epilogue{%
+    \ifpxrr@k@ghost
+      \setbox\pxrr@boxa\hbox{\pxrr@jghost@char}%
+      \kern-\wd\pxrr@boxa
+    \fi
+  \endgroup
+  \ifpxrr@k@ghost
+    \pxrr@inhibitglue
+    \pxrr@jghost@char
+  \fi
+}
+\def\pxrr@debug@show@kenten@input{%
+  \typeout{%
+pxrr@k@the@mark=\meaning\pxrr@k@the@mark^^J%
+pxrr@side=\meaning\pxrr@side^^J%
+pxrr@body@list=\meaning\pxrr@body@list^^J%
+  }%
+}
+\newif\ifpxrr@apply@combo
+\newif\ifpxrr@combo
+\let\pxrr@ck@ruby@font\relax
+\let\pxrr@ck@size@ratio\relax
+\let\pxrr@ck@inter@gap\relax
+\let\pxrr@ck@ruby@inter@gap\relax
+\let\pxrr@ck@side\relax
+\let\pxrr@ck@the@mark\relax
+\let\pxrr@ck@ruby@combo\relax
+\newif\ifpxrr@ck@kenten@head
+\newif\ifpxrr@ck@kenten@end
+\def\pxrr@ck@bind@param{%
+  \let\pxrr@ck@ruby@font\pxrr@c@ruby@font
+  \let\pxrr@ck@size@ratio\pxrr@c@size@ratio
+  \let\pxrr@ck@inter@gap\pxrr@c@inter@gap
+  \let\pxrr@ck@ruby@inter@gap\pxrr@k@ruby@inter@gap
+  \let\pxrr@ck@side\pxrr@side
+  \let\pxrr@ck@the@mark\pxrr@k@the@mark
+  \let\pxrr@ck@ruby@combo\pxrr@k@ruby@combo
+  \pxrr@csletcs{ifpxrr@ck@kenten@head}{ifpxrr@k@first@entry}%
+  \pxrr@csletcs{ifpxrr@ck@kenten@end}{ifpxrr@k@last@entry}%
+}
+
+\let\pxrr@ck@zw\relax
+\let\pxrr@ck@raise@P\relax
+\let\pxrr@ck@raise@S\relax
+\let\pxrr@ck@raise@t\relax
+\def\pxrr@ck@check@option{%
+  \ifpxrr@ck@kenten@head
+    \let\pxrr@bintr@\@empty
+    \let\pxrr@bscomp=.\relax
+    \pxrr@bnobrtrue
+  \fi
+  \ifpxrr@ck@kenten@end
+    \let\pxrr@aintr@\@empty
+    \let\pxrr@ascomp=.\relax
+    \pxrr@anobrtrue
+  \fi
+}
+\def\pxrr@ck@assign@fsize{%
+  \begingroup
+    \@tempdima=\f@size\p@
+    \@tempdima\pxrr@ck@size@ratio\@tempdima
+    \edef\pxrr@ruby@fsize{\the\@tempdima}%
+    \let\pxrr@c@ruby@font\pxrr@ck@ruby@font
+    \pxrr@use@ruby@font
+    \pxrr@get@zwidth\pxrr@ck@zw
+    \global\let\pxrr@gtempa\pxrr@ck@zw
+  \endgroup
+  \let\pxrr@ck@zw\pxrr@gtempa
+  \ifcase\pxrr@ck@side
+    \@tempdimc\pxrr@ck@zw
+    \advance\@tempdimc-\pxrr@htratio\@tempdimc
+    \@tempdima\pxrr@ruby@raise\relax
+    \@tempdimb\pxrr@ruby@zw\relax
+    \advance\@tempdima\pxrr@htratio\@tempdimb
+    \@tempdimb\pxrr@body@zw\relax
+    \advance\@tempdima\pxrr@ck@ruby@inter@gap\@tempdimb
+    \advance\@tempdima\@tempdimc
+    \edef\pxrr@ck@raise@P{\the\@tempdima}%
+    \@tempdima\pxrr@body@zw\relax
+    \@tempdima\pxrr@htratio\@tempdima
+    \@tempdimb\pxrr@body@zw\relax
+    \advance\@tempdima\pxrr@ck@inter@gap\@tempdimb
+    \advance\@tempdima\@tempdimc
+    \edef\pxrr@ck@raise@S{\the\@tempdima}%
+    \let\pxrr@ck@raise@t\pxrr@ck@raise@P
+  \or
+    \@tempdimc\pxrr@ck@zw
+    \@tempdimc\pxrr@htratio\@tempdimc
+    \@tempdima-\pxrr@ruby@lower\relax
+    \@tempdimb\pxrr@ruby@zw\relax
+    \advance\@tempdimb-\pxrr@htratio\@tempdimb
+    \advance\@tempdima-\@tempdimb
+    \@tempdimb\pxrr@body@zw\relax
+    \advance\@tempdima-\pxrr@ck@ruby@inter@gap\@tempdimb
+    \advance\@tempdima-\@tempdimc
+    \edef\pxrr@ck@raise@S{\the\@tempdima}%
+    \@tempdima-\pxrr@body@zw\relax
+    \advance\@tempdima-\pxrr@htratio\@tempdima
+    \@tempdimb\pxrr@body@zw\relax
+    \advance\@tempdima-\pxrr@ck@inter@gap\@tempdimb
+    \advance\@tempdima-\@tempdimc
+    \edef\pxrr@ck@raise@P{\the\@tempdima}%
+    \let\pxrr@ck@raise@t\pxrr@ck@raise@S
+  \fi
+}
+\let\pxrr@ck@body@natwd\relax
+\let\pxrr@ck@locate\relax
+\let\pxrr@ck@kenten@list\relax
+\def\pxrr@ck@compose#1{%
+  \setbox\tw@\pxrr@hbox@to\z@{%
+    \@tempdima=\f@size\p@
+    \@tempdima\pxrr@ck@size@ratio\@tempdima
+    \edef\pxrr@ruby@fsize{\the\@tempdima}%
+    \let\pxrr@c@ruby@font\pxrr@ck@ruby@font
+    \pxrr@use@ruby@font
+    \hss\pxrr@ck@the@mark\hss
+  }%
+  \pxrr@save@listproc
+  \pxrr@decompose{#1}%
+  \def\pxrr@pre{%
+    \let\pxrr@res\@empty
+    \pxrr@ck@compose@entry\pxrr@pre
+  }%
+  \def\pxrr@inter{%
+    \pxrr@ck@compose@entry\pxrr@inter
+  }%
+  \def\pxrr@post{%
+    \pxrr@appto\pxrr@res{\pxrr@post}%
+  }%
+  \pxrr@res
+  \pxrr@restore@listproc
+  \let\pxrr@natwd\pxrr@ck@body@natwd
+  \pxrr@evenspace@int\pxrr@ck@locate\pxrr@boxb\relax
+      {\wd\pxrr@boxa}%
+  \setbox\z@\hbox{%
+    \unhcopy\z@
+    \kern-\wd\z@
+    \ifcase\pxrr@side
+      \raise\pxrr@ck@raise@P
+    \or
+      \raise\pxrr@ck@raise@S
+    \or
+      \raise\pxrr@ck@raise@t
+    \fi
+    \hb@xt@\wd\pxrr@boxa{\hss\copy\pxrr@boxb\hss}%
+  }%
+}
+\def\pxrr@ck@compose@entry#1#2{%
+  \setbox\pxrr@boxb\pxrr@hbox{#2}%
+  \edef\pxrr@tempa{%
+    \noexpand\pxrr@appto\noexpand\pxrr@res{\noexpand#1{%
+        \hb@xt@\the\wd\pxrr@boxb{\hss\copy\tw@\hss}}}%
+  }\pxrr@tempa
+}
+\def\pxrr@dumb@sub#1#2#{#1}
+\def\pxrr@dumb@ruby{%
+  \pxrr@dumb@sub\pxrr@dumb@ruby@
+}
+\def\pxrr@dumb@ruby@#1#2{#1}
+\def\pxrr@dumb@truby{%
+  \pxrr@dumb@sub\pxrr@dumb@truby@
+}
+\def\pxrr@dumb@truby@#1#2#3{#1}
+\def\pxrr@dumb@kenten{%
+  \pxrr@dumb@sub\pxrr@dumb@kenten@
+}
+\def\pxrr@dumb@kenten@#1{#1}
+\providecommand*\pdfstringdefPreHook{}
+\g@addto@macro\pdfstringdefPreHook{%
+  \ifx\pxrr@cmd@ruby\ruby
+    \let\ruby\pxrr@dumb@ruby
+  \fi
+  \let\jruby\pxrr@dumb@ruby
+  \let\aruby\pxrr@dumb@ruby
+  \let\truby\pxrr@dumb@truby
+  \let\atruby\pxrr@dumb@truby
+  \ifx\pxrr@cmd@kenten\kenten
+    \let\kenten\pxrr@dumb@kenten
+  \fi
+  \let\kspan\pxrr@dumb@kenten
+}
+\endinput
+%%
+%% End of file `pxrubrica.sty'.

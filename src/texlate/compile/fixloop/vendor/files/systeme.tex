@@ -1,0 +1,1596 @@
+% !TeX encoding = UTF-8
+% Ce fichier contient le code de l'extension "systeme"
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                                                                    %
+\def\SYSname                   {systeme}                             %
+\def\SYSver                      {0.51}                              %
+%                                                                    %
+\def\SYSdate                  {2025/12/19}                           %
+%                                                                    %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                                                                    %
+% Author     : Christian Tellechea                                   %
+% Status     : Maintained                                            %
+% Email      : unbonpetit@netc.fr                                    %
+% Package URL: https://www.ctan.org/pkg/systeme                      %
+% Copyright  : Christian Tellechea 2011-2025                         %
+% Licence    : Released under the LaTeX Project Public License v1.3c %
+%              or later, see http://www.latex-project.org/lppl.txt   %
+% Files      : 1) systeme.tex                                        %
+%              2) systeme.sty                                        %
+%              3) systeme-fr.tex                                     %
+%              4) systeme-fr.pdf                                     %
+%              5) README                                             %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%---------------------------------------------------------------------
+%---------------- Annonce package et autres pré-requis ---------------
+%---------------------------------------------------------------------
+\csname SYS_load_once\endcsname
+\expandafter\let\csname SYS_load_once\endcsname\endinput
+
+\ifdefined\SYSstyfile
+	\expandafter\def\csname SYS_error\endcsname#1{\PackageError\SYSname{#1}{Lire le manuel de \SYSname}}% pour LaTeX
+\else
+	\immediate\write-1 {Package: \SYSname\space\SYSdate\space\space v\SYSver\space\space Saisie naturelle de systèmes d'équations (CT)}%
+	\expandafter\def\csname SYS_error\endcsname#1{\errmessage{Package \SYSname\space Error: #1^^J}}% pour TeX
+\fi
+
+\expandafter\edef\csname SYS_restore_catcode\endcsname{\catcode\number`\_=\number\catcode`\_\relax}
+\catcode`\_11
+
+\def\SYS_antefi#1\fi{\fi#1}
+
+\unless\ifdefined\xstringversion
+	\SYS_antefi\input xstring.tex\relax% TODO : mettre un loadonce dans xstring, c'est insupportable
+\fi
+\input simplekv.tex
+
+%---------------------------------------------------------------------
+%---------------------------- Allocations ----------------------------
+%---------------------------------------------------------------------
+\newtoks\SYS_tab_toks      % contient le code du corps du \halign
+\newtoks\SYS_preamble_toks % contient le préamlule du \halign
+
+\newif\ifSYS_first_term
+\newif\ifSYS_align_terms
+\newif\ifSYS_extra_col
+\newif\ifSYS_autonum
+\newif\ifSYS_left_member
+\newif\ifSYS_align_const_sign
+\newif\ifSYS_current_term_const
+
+\newcount\SYSeqnum % compteur d'éqution principal
+
+%---------------------------------------------------------------------
+%------------------------- Macros auxiliaires ------------------------
+%---------------------------------------------------------------------
+\begingroup
+	\catcode`\_8
+	\expandafter\gdef\csname SYS\string_underscore\endcsname{_}
+\endgroup
+\def\SYS_star{*}
+\def\SYS_quark{\SYS_quark}
+\def\SYS_def_tok#1#2{\let#1= #2\relax}
+\SYS_def_tok\SYS_sp_token{ }
+\begingroup
+	\catcode`\^^M 12\relax%
+	\gdef\SYS_cr_other{^^M}%
+\endgroup%
+\def\SYS_ifnxttok#1#2#3{%
+	\SYS_def_tok\SYS_toksmatch{#1}%
+	\def\SYS__truecode{#2}%
+	\def\SYS__falsecode{#3}%
+	\SYS_ifnxttok_a
+}
+\def\SYS_ifnxttok_a{\futurelet\SYS__futurtok\SYS_ifnxttok_b}
+\def\SYS_ifnxttok_b{%
+	\SYS_ifx{\SYS__futurtok\SYS_sp_token}
+		{%
+		\afterassignment\SYS_ifnxttok_a
+		\let\SYS__futurtok=
+		}
+		{%
+		\SYS_ifx{\SYS__futurtok\SYS_toksmatch}
+			\SYS__truecode
+			\SYS__falsecode
+		}%
+}
+\def\SYS_test_opt#1#2{\SYS_ifnxttok[{#1}{#1[{#2}]}}
+\def\SYS_exec_first\fi\SYS_exec_second#1#2{\fi#1}
+\def\SYS_exec_second#1#2{#2}
+\def\SYS_id_to_nil#1\_nil{#1}
+\def\SYS_first#1#2{#1}
+\def\SYS_id#1{#1}
+\def\SYS_gob_one#1{}
+\def\SYS_gob_two#1#2{}
+\def\SYS_gob_to_nil#1\_nil{}
+\def\SYS_e_second#1#2{\expandafter\SYS_e_second_a\expandafter{#2}{#1}}%
+\def\SYS_e_second_a#1#2{#2{#1}}
+\def\SYS_ee_second#1#2{\SYS_e_second{\SYS_e_second{#1}}{#2}}
+\def\SYS_add_to_tok#1#2{#1\expandafter{\the#1#2}}
+\def\SYS_x_add_to_tok#1#2{\SYS_e_add_to_tok#1{\expanded{#2}}}
+\def\SYS_e_add_to_tok#1#2{\SYS_e_second{\SYS_add_to_tok#1}{#2}}
+\def\SYS_add_to_tab{\SYS_add_to_tok\SYS_tab_toks}
+\def\SYS_add_to_macro#1#2{\SYS_e_second{\def#1}{#1#2}}
+\def\SYS_e_add_to_macro#1#2{\SYS_e_second{\SYS_add_to_macro#1}{#2}}
+\def\SYS_ee_add_to_macro#1#2{\SYS_e_second{\SYS_e_add_to_macro#1}{#2}}
+\def\SYS_csdef#1{\expandafter\def\csname#1\endcsname}
+\def\SYS_cslet#1{\expandafter\let\csname#1\endcsname}
+\def\SYS_letcs#1#2{\expandafter\let\expandafter#1\csname#2\endcsname}
+\def\SYS_first_in_list#1,#2\_nil{#1}
+\def\SYS_remove_first_in_list#1,{}
+\def\SYS_if#1{\if#1\SYS_exec_first\fi\SYS_exec_second}
+\def\SYS_ifcat#1{\ifcat#1\SYS_exec_first\fi\SYS_exec_second}
+\def\SYS_ifx#1{\ifx#1\SYS_exec_first\fi\SYS_exec_second}
+\def\SYS_ifnum#1{\ifnum#1\SYS_exec_first\fi\SYS_exec_second}
+\def\SYS_ifempty#1{\SYS_if{\relax\detokenize{#1}\relax}}
+\def\SYS_ifcsname#1{\ifcsname#1\endcsname\SYS_exec_first\fi\SYS_exec_second}
+\def\SYS_ifinstr#1#2{% #1 contient-il #2 ?
+	\def\SYS_ifinstr_a##1#2##2\_nil{\SYS_ifempty{##2}\SYS_exec_second\SYS_first}%
+	\SYS_ifinstr_a#1\SYS__nil#2\_nil
+}
+\def\SYS_ifplus#1{\SYS_if{+#1}}
+\def\SYS_stripsp#1{%
+	\def\SYS_stripsp##1##2{\expanded{\SYS_stripsp_a\_marksp##2\SYS__nil\_marksp#1\_marksp\_nil{##1}}}%
+	\def\SYS_stripsp_a##1\_marksp#1##2\_marksp##3\_nil{\SYS_stripsp_b##3##1##2\SYS__nil#1\SYS__nil\_nil}%
+	\def\SYS_stripsp_b##1#1\SYS__nil##2\_nil{\SYS_stripsp_c##1##2\_nil}%
+	\def\SYS_stripsp_c##1##2\SYS__nil##3\_nil##4{\unexpanded{##4{##2}}}%
+}
+\SYS_stripsp{ }
+\def\SYS_remove_item_in_list#1#2{% enlève l'item #2 de la sc #1 qui contient une liste
+	\saveexpandmode\expandarg
+	\IfSubStr{\expandafter,#1,}{,#2,}
+		{%
+		\StrSubstitute{\expandafter\_nil\expandafter,#1,\_nil}{,#2,},[#1]%
+		\StrDel#1{\noexpand\_nil,}[#1]%
+		\StrDel#1{,\_nil}[#1]%
+		}%
+		{}%
+	\restoreexpandmode
+}
+\def\SYS_first_to_nil#1#2\_nil{#1}
+\def\SYS_if_first_letter#1#2{\SYS_stripsp{\SYS_if_first_letter_a{#1}}{#2}}
+\def\SYS_if_first_letter_a#1#2{\SYS_if{\string#1\expandafter\SYS_first_to_nil\detokenize{#2.}\_nil}}
+\def\SYS_def_exec_once#1#2{% définit la macro #1 qui fait #2 la 1re fois qu'elle est exécutée et rien ensuite
+	\def#1{#2\let#1\empty}%
+	\SYS_cslet{\string#1_saved}#1%
+}
+\def\SYS_reset_to_exec_once#1{\SYS_letcs#1{\string#1_saved}}%
+\def\SYS_enter_math#1{$\relax#1$}
+
+%---------------------------------------------------------------------
+%-------------- Pattern des noms des macros de stockages -------------
+%---------------------------------------------------------------------
+\def\SYS_set_member#1{\edef\SYS_member_index{\SYS_format_member_number{#1}}}
+\def\SYS_format_member_number#1{[#1]}
+\def\SYS_format_term_name#1#2#3{(#1)#2_\detokenize\expandafter{#3}}% #1=n° equation #2=membre \SYS_member_index  #3=inconnue
+\def\SYS_format_const_name#1#2{\SYS_format_term_name{#1}{#2}{0_{-1}}}% #1=n° equation #2=membre \SYS_member_index
+\def\SYS_format_membersep_name#1{(#1)}
+
+%---------------------------------------------------------------------
+%------------------ Macros exécutant les réglages --------------------
+%---------------------------------------------------------------------
+%## setalign
+\def\SYS_set_align#1{%
+	\SYS_ifempty{#1}
+		{%
+		\SYS_set_align_a r%
+		}
+		{%
+		\SYS_set_align_a#1%
+		},l,\_nil
+}
+
+\def\SYS_set_align_a#1,#2,#3\_nil{%
+	\SYS_csdef{SYS_column_\SYS_format_member_number{1}_right}{\hfil}%
+	\SYS_if_first_letter c{#1}%
+		{%
+		\SYS_csdef{SYS_column_\SYS_format_member_number{1}_left}{\hfil}%
+		}
+		{%
+		\SYS_if_first_letter l{#1}%
+			{%
+			\SYS_cslet{SYS_column_\SYS_format_member_number{1}_left}\empty
+			}
+			{%
+			\SYS_csdef{SYS_column_\SYS_format_member_number{1}_left}{\hfil}%
+			\SYS_cslet{SYS_column_\SYS_format_member_number{1}_right}\empty
+			}%
+		}%
+	\SYS_csdef{SYS_column_\SYS_format_member_number{2}_left}{\hfil}%
+	\SYS_if_first_letter c{#2}%
+		{%
+		\SYS_csdef{SYS_column_\SYS_format_member_number{2}_right}{\hfil}%
+		}
+		{%
+		\SYS_if_first_letter r{#2}%
+			{%
+			\SYS_cslet{SYS_column_\SYS_format_member_number{2}_right}\empty
+			}
+			{%
+			\SYS_cslet{SYS_column_\SYS_format_member_number{2}_left}\empty
+			\SYS_csdef{SYS_column_\SYS_format_member_number{2}_right}{\hfil}%
+			}%
+		}%
+}
+%## add_membersep_subst
+\def\SYS_membersep_subst_list{}
+\def\SYS_add_membersep_susbt#1{%
+	\SYS_add_membersep_susbt_a#1\_nil
+}
+
+\def\SYS_add_membersep_susbt_a#1,#2\_nil{%
+	\SYS_stripsp{\SYS_stripsp\SYS_add_membersep_susbt_b{#1}}{#2}%
+}
+
+\def\SYS_add_membersep_susbt_b#1#2{%
+	\IfSubStr\SYS_membersep_subst_list{\noexpand#1,}
+		{}
+		{%
+		\SYS_add_to_macro\SYS_membersep_subst_list{#1,}%
+		}%
+	\SYS_csdef{SYS_membersep_subst__\detokenize{#1}}{#2}%
+}
+
+%## set_sign_space
+\def\SYS_set_sign_space#1{%
+	\edef\SYS_sign_space{%
+		\ifdim#1>0pt \hskip\the\dimexpr#1\relax\relax\fi
+	}%
+}
+
+%## set_membresep_space
+\def\SYS_set_membersep_space#1{%
+	\edef\SYS_membersep_space{%
+		\ifdim#1>0pt \hskip\the\dimexpr#1\relax\relax\fi
+	}%
+}
+
+%## set_delim
+\def\SYS_set_delim#1{%
+	\SYS_set_delim_a#1\_nil
+}
+
+\def\SYS_set_delim_a#1,#2\_nil{%
+	\edef\SYS_delim_left {%
+		\left
+			\SYS_ifempty{#1}
+				{\noexpand\{}
+				{\noexpand#1}%
+	}%
+	\edef\SYS_delim_right{%
+		\right
+			\SYS_ifempty{#2}
+				{.}
+				{\noexpand#2}%
+	}%
+}
+
+%## add_membersep_sign
+\def\SYS_add_membersep_sign#1{%
+	\saveexpandmode\expandarg
+	\IfSubStr{\expandafter,\SYS_membersep_list,}{,#1,}
+		{}
+		{%
+		\SYS_e_second{\def\SYS_membersep_list}{\SYS_membersep_list,#1}%
+		}%
+	\restoreexpandmode
+}
+
+%## remove_membersep
+\def\SYS_remove_membersep#1{%
+	\SYS_remove_item_in_list\SYS_membersep_list{#1}%
+	\SYS_remove_item_in_list\SYS_membersep_subst_list{#1}%
+}
+
+\def\SYS_set_extra_col_sign#1{
+	\expandafter\SYS_set_extra_col_sign_a\detokenize{#1@}\relax
+}
+
+\def\SYS_set_extra_col_sign_a#1#2\relax{%
+	\def\SYS_extra_col_sign{#1}%
+}
+
+%## set_autonum
+\def\SYS_set_autonum#1{%
+	\SYS_ifempty{#1}
+		{%
+		\SYS_extra_colfalse
+		\SYS_autonumfalse
+		}
+		{%
+		\SYS_extra_coltrue
+		\SYS_autonumtrue
+		\def\SYS_autonum_arg{#1}%
+		}%
+}
+
+%## set_sort
+\def\SYS_set_sort#1{%
+	\saveexpandmode\saveexploremode
+	\expandarg\noexploregroups
+	\StrDel{\noexpand#1}{ }[\SYS_sort_directives]%
+	\IfSubStr\SYS_sort_directives=
+		{%
+		\expandafter\SYS_set_sort_split_members\SYS_sort_directives\_nil\SYS_sort_left\SYS_sort_right
+		\SYS_set_sort_a\SYS_sort_left
+		\SYS_set_sort_a\SYS_sort_right
+		}
+		{%
+		\SYS_set_sort_a\SYS_sort_directives
+		\let\SYS_sort_left\SYS_sort_directives
+		\let\SYS_sort_right\SYS_sort_directives
+		}%
+	\restoreexpandmode\restoreexploremode
+}
+
+\def\SYS_set_sort_split_members#1=#2\_nil#3#4{%
+	\def#3{#1}%
+	\def#4{#2}%
+}
+
+\def\SYS_set_sort_a#1{% vérifie si la sc contenant la consigne de tri est valide
+	\IfSubStr#1*
+		{%
+		\StrLen#1[\SYS_sort_len]%
+		\SYS_ifnum{\SYS_sort_len>1 }
+			{%
+			\SYS_error{Consigne de tri '\detokenize\expandafter{#1}' illégale ignorée}%
+			\let#1\empty
+			}
+			{}%
+		}
+		{%
+		\IfSubStr{\expandafter,#1,}{,0,}
+			{}
+			{%
+			\SYS_ifx{\empty#1}
+				{%
+				\def#1{0}%
+				}
+				{%
+				\SYS_add_to_macro#1{,0}%
+				}%
+			}%
+		}%
+}
+
+%## coeff_space
+\def\SYS_set_term_coeff_space#1{%
+	\let\SYS_term_coeff_space\empty
+	\SYS_ifempty{#1}
+		{}
+		{%
+		\begingroup
+			\setbox0\hbox{$\mkern#1$}%
+			\expandafter\SYS_set_term_coeff_space_a\the\wd0\relax{#1}% bugfix 0.43
+		}%
+}
+\def\SYS_set_term_coeff_space_a#1\relax#2{%
+		\endgroup
+	\ifdim#1<0pt
+		\SYS_error{La valeur "coeff spac" doit être positive, 0mu retenu}%
+	\fi
+	\edef\SYS_term_coeff_space{\ifdim#1>0pt \mkern#2\relax\fi}%
+}
+
+%## post subst
+\def\SYS_set_post_subst#1{%
+	\let\SYS_post_subst_list\empty
+	\SYS_ifempty{#1}
+		{}
+		{%
+		\SYS_set_post_subst_a#1\SYS_set_post_subst\SYS_set_post_subst
+		}%
+}
+
+\def\SYS_set_post_subst_a#1#2{% #1->#2 par substitution
+	\SYS_ifx{#1\SYS_set_post_subst}
+		{}%
+		{%
+		\SYS_ifx{#2\SYS_set_post_subst}
+			{%
+			\SYS_error{'post subst' requiert un nombre pair^^Jd'arguments, consigne ignorée}%
+			\let\SYS_post_subst_list\empty
+			\SYS_gob_one
+			}%
+			{%
+			\SYS_add_to_macro\SYS_post_subst_list{\StrSubstitute\SYS_system_code{\noexpand#1}{\noexpand#2}[\SYS_system_code]}%
+			\SYS_set_post_subst_a
+			}%
+		}%
+}
+
+%## set store
+\def\SYS_set_store#1{%
+	\saveexpandmode
+	\saveexploremode
+	\exploregroups
+	\expandarg
+	\StrRemoveBraces{\noexpand#1}[\SYS_store_directive]%
+	\StrDel\SYS_store_directive{ }[\SYS_store_directive]%
+	\restoreexpandmode
+	\restoreexploremode
+	\SYS_e_second\SYS_ifempty{\SYS_store_directive}
+		{}
+		{%
+		\SYS_ee_second\SYS_ifempty{\expandafter\SYS_gob_one\SYS_store_directive}
+			{%
+			\SYS_ifcat{\relax\expandafter\noexpand\SYS_store_directive}
+				{}
+				{%
+				\SYS_error{La consigne 'store' doit contenir une macro}%
+				}%
+			}
+			{%
+			\SYS_error{La consigne 'store' doit contenir une macro}%
+			}%
+		}%
+}
+
+%---------------------------------------------------------------------
+%------------------------------ Réglages -----------------------------
+%---------------------------------------------------------------------
+\defKV[systeme]{%
+	eq sep            = \SYS_stripsp{\def\SYS_eqsep}{#1},
+	delim             = \SYS_set_delim{#1},
+	align             = \SYS_set_align{#1},
+	sign space        = \SYS_set_sign_space{#1},
+	member sep space  = \SYS_set_membersep_space{#1},
+	line skip coeff   = \def\SYS_lineskip_coeff{#1},
+	member sep subst  = \SYS_add_membersep_susbt{#1},
+	add member sep    = \SYS_add_membersep_sign{#1},
+	remove member sep = \SYS_remove_membersep{#1},
+	extra col sign    = \SYS_set_extra_col_sign{#1},
+	extra col pre     = \def\SYS_extra_col_start{#1},
+	extra col post    = \def\SYS_extra_col_end{#1},
+	autonum code      = \SYS_set_autonum{#1},
+	sort              = \SYS_set_sort{#1},
+	align terms       = \testboolKV{#1}\SYS_align_termstrue\SYS_align_termsfalse,
+	main eq count     = \global\SYSeqnum\numexpr#1\relax,
+	extra height      = \edef\SYS_dim_extrastrut{\the\dimexpr#1\relax}%
+	                    \ifdim\SYS_dim_extrastrut<0pt
+	                        \def\SYS_dim_extrastrut{0pt}%
+	                    \fi,
+	member sep list   = \saveexpandmode
+	                    \noexpandarg
+	                    \StrDel{#1}{ }[\SYS_membersep_list]%
+	                    \restoreexpandmode,
+	coeff space       = \SYS_set_term_coeff_space{#1},
+	post subst        = \SYS_set_post_subst{#1},
+	store             = \SYS_set_store{#1},
+	align const sign  = \testboolKV{#1}\SYS_align_const_signtrue\SYS_align_const_signfalse,
+}
+
+\setKVdefault[systeme]{
+	eq sep            = { , },
+	delim             = { \{ , . },
+	align             = { r , l },
+	member sep list   = { <= , >= , = , < , > , \leq , \geq , \leqslant , \geqslant },
+	member sep subst  = { <= , \leq },
+	member sep subst  = { >= , \geq },
+	sign space        = 0pt,
+	member sep space  = 0pt,
+	line skip coeff   = 1.25,
+	coeff space       = 0mu,
+	sort              = {*=*},
+	extra col sign    = @,
+	extra col pre     = \kern1.5em$,
+	extra col post    = $,
+	autonum code      = {},
+	autonum continue  = false,
+	align terms       = true,
+	extra height      = 1.5pt,
+	post subst        = {},
+	store             = {},
+	align const sign  = true,
+	code before       = \mathcode`\, "013B,
+	cr eq sep         = false,
+	ignore empty eq   = true,
+}
+
+\setKV[systeme]{
+	main eq count     = 0
+}
+
+\def\setsysteme#{\setKV[systeme]}
+\def\resetsysteme{\restoreKV[systeme]}
+
+%---------------------------------------------------------------------
+%------ Analyse des équations, séparation en membres et termes -------
+%---------------------------------------------------------------------
+\def\SYS_split_equation_in_members#1#2#3#4{% #1=équation #2=sc membre gauche #3=sc signe égal #4=sc membre droite
+	\def#2{#1}%
+	\let#3\empty
+	\let#4\empty
+	\expandafter\SYS_split_equation_in_members_a\SYS_membersep_list,\_nil#2#3#4%
+}
+
+\def\SYS_split_equation_in_members_a#1,#2\_nil#3#4#5{%
+	\IfSubStr#3{\noexpand#1}% si l'équation contient un des signes
+		{%
+		\SYS_left_membertrue
+		\StrCut#3{\noexpand#1}#3#5% procède à la séparation en deux membres
+		\IfSubStr{\expandafter,\SYS_membersep_subst_list}{,#1,}% si le signe est dans la liste des substitutions
+			{%
+			\SYS_letcs#4{SYS_membersep_subst__\detokenize{#1}}% le remplacer
+			}
+			{%
+			\def#4{#1}% ou sauveagrder le signe tel quel
+			}%
+		}%
+		{%
+		\SYS_ifempty{#2}
+			{}% aucun séparateur de membre trouvé
+			{%
+			\SYS_split_equation_in_members_a#2\_nil#3#4#5% sinon, recommencer en enlevant le 1er signe
+			}%
+		}%
+}
+
+\def\SYS_split_equation_in_terms#1{%
+	\IfSubStr{\noexpand#1}\SYS_extra_col_sign% y a t-il un signe de colonne supplémentaire ?
+		{%
+		\StrCut{\noexpand#1}\SYS_extra_col_sign\SYS_true_eq\SYS__tmp
+		\SYS_cslet{SYS_extra_col_\SYS_eqnumber}\SYS__tmp
+		\SYS_extra_coltrue
+		}%
+		{%
+		\def\SYS_true_eq{#1}%
+		}%
+	\SYS_e_second\SYS_split_equation_in_members{\SYS_true_eq}\SYS_left_member\SYS_current_membersep\SYS_right_member% trouver les membres de gauche et droite et le signe qui les sépare
+	\SYS_split_member_in_terms1\SYS_left_member% membre de gauche
+	\SYS_ifx{\SYS_current_membersep\empty}%
+		{}%
+		{%
+		\SYS_cslet{SYS_membersep_\SYS_format_membersep_name\SYS_eqnumber}\SYS_current_membersep% stocker ce signe s'il existe
+		\SYS_split_member_in_terms2\SYS_right_member% membre de droite
+		}%
+}
+
+\def\SYS_split_member_in_terms#1#2{% #1=1 ou 2  #2=\SYS_left_member || \SYS_right_member
+	\SYS_set_member{#1}%
+	\expandafter\StrDel\csname SYS_sort_directive_list\SYS_member_index\endcsname{[0,-1]}[\SYS_current_sort_directive_only_var]% consigne de tri sans terme constant
+	\IfBeginWith#2\space
+		{%
+		\StrGobbleLeft#21[#2]%
+		}
+		{}% pas d'espace pour commencer le membre de gauche
+	\IfBeginWith#2+% amputer le membre de gauche du premier signe et le stocker temporairement s'il existe et sinon...
+		{%
+		\StrSplit#21\SYS_current_sign#2%
+		}%
+		{%
+		\IfBeginWith#2-%
+			{%
+			\StrSplit#21\SYS_current_sign#2%
+			}
+			{%
+			\def\SYS_current_sign{+}% ce signe est "+"
+			}%
+		}%
+	\SYS_e_second\SYS_split_member_in_terms_b{#2}%
+}
+
+\def\SYS_split_member_in_terms_b#1{% #1=membre courant
+	\def\SYS_current_member{#1}%
+	\SYS_split_member_in_terms_c
+}
+
+\def\SYS_split_member_in_terms_c{%
+	\StrPosition\SYS_current_member+[\SYS_plus_position]%
+	\StrPosition\SYS_current_member-[\SYS_minus_position]%
+	\SYS_ifnum{\numexpr\SYS_plus_position+\SYS_minus_position=0 }% il n'y a ni "+" ni "-"
+		{%
+		\SYS_e_second{\SYS_stripsp\SYS_store_term}{\SYS_current_member}% et assigner ce dernier terme avec le dernier signe trouvé
+		}
+		{%
+		\edef\SYS_next_sign{% décider de ce qu'est le prochain signe
+			\ifnum\SYS_plus_position=0
+				-%
+			\else
+				\ifnum\SYS_minus_position=0
+					+%
+				\else
+					\ifnum\SYS_plus_position<\SYS_minus_position\space
+						+%
+					\else
+						-%
+					\fi
+				\fi
+			\fi
+			}%
+		\StrCut\SYS_current_member\SYS_next_sign\SYS_current_term\SYS_current_member
+		\SYS_e_second{\SYS_stripsp\SYS_store_term}{\SYS_current_term}% assigner ce qu'il y a avant avec le dernier signe trouvé
+		\let\SYS_current_sign\SYS_next_sign% on continue, le prochain signe devient le signe courant
+		\SYS_split_member_in_terms_c
+		}%
+}
+
+%---------------------------------------------------------------------
+%---------------- Stockage des termes dans des macros ----------------
+%---------------------------------------------------------------------
+\def\SYS_store_term#1{% #1=terme en cours
+	\SYS_find_variable{#1}% trouver le nom de la variable, et si trouvée, la sc \SYS_current_variable contient "<var>_{<ind>}"
+	\SYS_ifx{\SYS_current_variable\empty}
+		{%
+		\SYS_csdef{SYS_const_term\SYS_member_index}{1}%
+		\SYS_ifcsname{SYS_term\SYS_format_const_name{\SYS_eqnumber}{\SYS_member_index}}% si terme constant déjà rencontré, l'ajouter à celui qui existe
+			{%
+			\expandafter\SYS_e_add_to_macro\csname SYS_term\SYS_format_const_name{\SYS_eqnumber}{\SYS_member_index}\endcsname{\SYS_current_sign#1}%
+			}
+			{%
+			\SYS_cslet{SYS_sign\SYS_format_const_name{\SYS_eqnumber}{\SYS_member_index}}\SYS_current_sign% sinon procéder aux assignations
+			\SYS_csdef{SYS_term\SYS_format_const_name{\SYS_eqnumber}{\SYS_member_index}}{#1}%
+			}%
+		}
+		{%
+		\SYS_ifcsname{SYS_term\SYS_format_term_name{\SYS_eqnumber}{\SYS_member_index}{\SYS_current_variable}}
+			{%
+			\SYS_error{l'inconnue "\detokenize\expandafter{\SYS_current_variable}" a déjà été trouvée dans l'équation !}%
+			}
+			{}%
+		\SYS_ifnum{\csname SYS_auto_sort\SYS_member_index\endcsname=1 }
+			{%
+			\expandafter\SYS_insert_variable_in_list
+			}
+			{%
+			\expandafter\SYS_add_uservar_to_varlist
+			}%
+		\expandafter\SYS_current_variable\csname SYS_variable_list\SYS_member_index\endcsname
+		\SYS_cslet{SYS_sign\SYS_format_term_name{\SYS_eqnumber}{\SYS_member_index}{\SYS_current_variable}}\SYS_current_sign% procéder aux assignations
+		\SYS_ifx{\empty\SYS_term_coeff_space}
+			{%
+			\SYS_csdef{SYS_term\SYS_format_term_name{\SYS_eqnumber}{\SYS_member_index}{\SYS_current_variable}}{#1}%
+			}
+			{%
+			\expandafter\SYS_store_term_a\SYS_current_variable\_nil{#1}%
+			}%
+		}%
+}
+
+\def\SYS_store_term_a#1#2\_nil#3{% #1=letter #2=indice  #3=terme en cours
+	\def\SYS_store_term_b##1#1##2\_nil{% ##1=coeff #1=variable courante ##2=après variable
+		\expandafter\edef\csname SYS_term\SYS_format_term_name{\SYS_eqnumber}{\SYS_member_index}{\SYS_current_variable}\endcsname{%
+			\SYS_ifempty{##1}
+				{}
+				{%
+				\unexpanded{##1}%
+				\SYS_term_coeff_space
+				}%
+			\unexpanded{#1##2}}%
+	}%
+	\SYS_store_term_b#3\_nil
+}
+
+% cherche la première lettre minuscule dans le terme #1
+\def\SYS_find_variable#1{% TODO : si #1 est un chiffre 0-9 -> renvoyer aucune variable ???
+	\def\SYS_current_term{#1}%
+	\let\SYS_current_variable\empty
+	\SYS_ifx{\SYS_current_term\SYS_zero_char}
+		{}% si #1=0 -> renvoyer \SYS_current_variable vide
+		{%
+		\SYS_ifnum{\csname SYS_auto_sort\SYS_member_index\endcsname=1 }% si le tri auto est activé
+			{%
+			\saveexploremode\exploregroups
+			\SYS_find_variable_a
+			\restoreexploremode
+			}
+			{%
+			\let\SYS_previous_current_variable\empty
+			\SYS_ifx{\SYS_current_sort_directive_only_var\empty}
+				{}
+				{% renvoie "var_{ind}" ou <vide> dans \SYS_current_variable
+				\SYS_find_sorted_variable
+				}%
+			}%
+		}%
+}
+
+\def\SYS_find_sorted_variable{%
+	\def\SYS_previous_nb_occurs{0}%
+	\SYS_def_exec_once\SYS_save_current_term{\let\SYS_previous_current_term\SYS_current_term}%
+	\SYS_find_sorted_variable_a
+	\SYS_ifx{\SYS_current_variable\empty}
+		{}
+		{%
+		\IfSubStr\SYS_current_variable\SYS_underscore
+			{}
+			{%
+			\SYS_e_add_to_macro\SYS_current_variable{\SYS_underscore{-1}}%
+			}%
+		}%
+}
+
+\def\SYS_find_sorted_variable_a{%
+	\SYS_ifx{\SYS_current_term\empty}
+		{% si fin du terme avant "_"
+		\SYS_ifnum{\SYS_previous_nb_occurs>0 }
+			{% et 1 seul match précédemment
+			\IfSubStr\SYS_current_sort_directive_only_var{\expandafter[\SYS_current_variable,-1]}
+				{}% si match variable non indicée -> ok
+				{%
+				\IfSubStr\SYS_current_sort_directive_only_var{\expandafter[\SYS_current_variable,*]}
+					{}% si match wildcard -> ok
+					{%
+					\let\SYS_current_variable\empty
+					}%
+				}%
+			}
+			{%
+			\let\SYS_current_variable\empty
+			}%
+		}
+		{%
+		\let\SYS_previous_current_variable\SYS_current_variable
+		\StrSplit*\SYS_current_term1\SYS_current_char\SYS_current_term
+		\SYS_save_current_term% sauvegarde \SYS_current_term au 1er passage seulement
+		\SYS_e_add_to_macro\SYS_current_variable\SYS_current_char
+		\StrCount\SYS_current_sort_directive_only_var{\expandafter[\SYS_current_variable}[\SYS_nb_occurs]%
+		\SYS_ifnum{\SYS_nb_occurs=0 }
+			{% si aucune occurence trouvée
+			\SYS_ifnum{\SYS_previous_nb_occurs>0 }
+				{% et des occurrences précédemment, le début correspondait
+				\IfSubStr\SYS_current_sort_directive_only_var{\expandafter[\SYS_previous_current_variable,}
+					{% si ça matche précédemment, on a trouvé une variable
+					\let\SYS_current_variable\SYS_previous_current_variable
+					\SYS_ifx{\SYS_current_char\SYS_underscore}% le caractère en cours est "_" ?
+						{%
+						\SYS_ee_second{\def\SYS_current_indice}{\expandafter\SYS_first_to_nil\SYS_current_term\_nil}%
+						%\let\SYS_previous_current_term\SYS_current_term% mettre dans previous_term ce qu'il y a après "_" (plus rapide...) TODO commenter ou pas au risque de créer un bug ?
+						\SYS_e_second{\def\SYS_current_variable_directive_wildcard}{\expandafter[\SYS_current_variable,*]}%
+						\SYS_ee_add_to_macro\SYS_current_variable{\expandafter\SYS_underscore\expandafter{\SYS_current_indice}}
+						\SYS_uservar_to_var\SYS_current_variable\SYS_current_variable_directive
+						\IfSubStr\SYS_current_sort_directive_only_var\SYS_current_variable_directive
+							{}% [var,ind] est dans la consigne de tri : ok
+							{%
+							\IfSubStr\SYS_current_sort_directive_only_var\SYS_current_variable_directive_wildcard
+								{}% [var,*] est dans la consigne de tri : ok
+								{% sinon continuer : peut-être autre variable plus loin
+								\SYS_find_sorted_variable_b
+								}%
+							}%
+						}
+						{}%
+					}
+					{% match non complet, on avance d'un caractère
+					\SYS_find_sorted_variable_b
+					}%
+				}
+				{% match non complet, on avance d'un caractère
+				\SYS_find_sorted_variable_b
+				}%
+			}
+			{% occurrence trouvée
+			\let\SYS_previous_nb_occurs\SYS_nb_occurs
+			\SYS_find_sorted_variable_a
+			}%
+		}%
+}
+
+\def\SYS_find_sorted_variable_b{% avance dans le terme de 1 car et réinitialise
+	\let\SYS_current_variable\empty
+	\SYS_ifx{SYS_current_term\empty}
+		{}
+		{%
+		\def\SYS_previous_nb_occurs{0}%
+		\let\SYS_current_term\SYS_previous_current_term
+		\SYS_reset_to_exec_once\SYS_save_current_term
+		\SYS_find_sorted_variable_a
+		}%
+}
+
+\def\SYS_find_variable_a{%
+	\StrSplit*\SYS_current_term1\SYS_current_char\SYS_current_term% version étoilée (bugfix 0.44)
+	\edef\SYS_current_char{\unexpanded\expandafter\expandafter\expandafter{\expandafter\SYS_id_to_nil\SYS_current_char\_nil}}% si entre accolades -> les enlever (bugfix 0.44)
+	\SYS_ifcat{\relax\expandafter\noexpand\SYS_current_char}
+		{%
+		\SYS_find_variable_c% faux si c'est une sc
+		}
+		{%
+		\SYS_ifnum{\numexpr(\expandafter`\SYS_current_char-`a)*(\expandafter`\SYS_current_char-`z)>0 }
+			{%
+			\SYS_find_variable_c%  hors de l'intervalle -> pas une lettre minuscule
+			}
+			{%
+			\SYS_find_variable_b
+			}%
+		}%
+}
+
+\def\SYS_find_variable_b{% une variable est trouvée
+	\SYS_next_indice_to_macro\SYS_current_term\SYS_current_char\SYS_current_indice% prendre en plus l'éventuel indice
+	\let\SYS_current_variable\SYS_current_char
+	\IfSubStr\SYS_current_variable\SYS_underscore
+		{}
+		{%
+		\SYS_e_add_to_macro\SYS_current_variable{\SYS_underscore{-1}}%
+		}%
+}
+
+\def\SYS_find_variable_c{% pas de variable trouvée
+	\SYS_ifx{\SYS_current_term\empty}
+		{}
+		{%
+		\SYS_find_variable_a
+		}%
+}
+%---------------------------------------------------------------------
+%----------------- Gestion de la liste des variables -----------------
+%---------------------------------------------------------------------
+\def\SYS_next_indice_to_macro#1#2#3{% teste si la sc #1 commence par "_" et si oui, rajoute _ + argument suivant à #2 et les enlève à #1
+	\noexploregroups
+	\IfBeginWith#1\SYS_underscore
+		{%
+		\expandafter\SYS_next_int_indice_to_macro#1\_nil#1#2#3%
+		}
+		{}%
+	\exploregroups
+}
+
+\def\SYS_next_int_indice_to_macro#1#2#3\_nil#4#5#6{% #1='_' #2=indice  #3(bugfix 0.41)=ce qui reste après l'indice
+	\IfInteger{#2}
+		{}
+		{%
+		\errmessage{L'indice non entier '\detokenize{#2}' est pris égal à  '\integerpart'.}%
+		}%
+	\def#4{#3}%
+	\SYS_ee_add_to_macro#5{\expandafter\SYS_underscore\expandafter{\integerpart}}%
+	\def#6{#2}%
+}
+
+\def\SYS_next_any_indice_to_macro#1#2#3\_nil#4#5#6{% #1='_' #2=indice  #3(bugfix 0.41)=ce qui reste après l'indice
+	\def#4{#3}%
+	\SYS_e_add_to_macro#5{\SYS_underscore{#2}}%
+	\def#6{#2}%
+}
+
+\def\SYS_add_uservar_to_varlist#1{% #1=sc contenant variable "<var>_{<ind>}"   #2=liste "[v,i][v,i][v,i]..."
+	\expandafter\SYS_add_uservar_to_varlist_a#1\_nil
+}
+\expandafter\def\expandafter\SYS_add_uservar_to_varlist_a\expandafter#\expandafter1\SYS_underscore#2\_nil#3{%
+	\SYS_e_second\SYS_ifinstr{#3}{[#1,#2]}
+		{}
+		{%
+		\SYS_add_to_macro#3{[#1,#2]}%
+		}%
+}%
+\def\SYS_first_var_in_varlist_to_macro#1#2{% #1=sc contenant la liste  #2=sc recevant [var,ind]
+	\expandafter\SYS_first_var_in_varlist_to_macro_a#1\_nil#1#2%
+}
+\def\SYS_first_var_in_varlist_to_macro_a[#1]#2\_nil#3#4{%&²
+	\def#3{#2}%
+	\def#4{[#1]}%
+}
+\def\SYS_uservar_to_var#1{% #1=var_{ind}  #2=macro recevant [var,ind]
+	\expandafter\SYS_uservar_to_var_a#1\_nil
+}
+\expandafter\def\expandafter\SYS_uservar_to_var_a\expandafter#\expandafter1\SYS_underscore#2\_nil#3{%
+	\def#3{[#1,#2]}%
+}
+\def\SYS_var_to_uservar#1{% #1=sc forme [var,ind] reçoit var_{ind}
+	\expandafter\SYS_var_to_uservar_a#1\_nil#1%
+}
+\def\SYS_var_to_uservar_a[#1,#2]\_nil#3{%
+	\edef#3{\unexpanded{#1}\SYS_underscore{\unexpanded{#2}}}%
+}
+\def\SYS_if_uservar_in_varlist#1{% #1=sc <var>_<ind>  #2=sc list de "[var,ind]"
+	\expandafter\SYS_if_uservar_in_varlist_a#1\_nil
+}
+\expandafter\def\expandafter\SYS_if_uservar_in_varlist_a\expandafter#\expandafter1\SYS_underscore#2\_nil#3{%
+	\IfSubStr#3{[#1,#2]}%
+}
+\def\SYS_insert_variable_in_list#1#2{% #1=sc contenant l'inconnue <var>_{ind}    #2=sc contenant la liste dans laquelle insérer [v,i]
+	\SYS_if_uservar_in_varlist#1#2
+		{}
+		{%
+		\SYS_uservar_to_var#1\SYS_current_uservar
+		\expandafter\expandafter\expandafter\SYS_insert_variable_in_list_a\expandafter\SYS_current_uservar\expandafter\_nil#2[\relax,\relax]\_nil\_nil#2%
+		}%
+}
+\def\SYS_insert_variable_in_list_a[#1,#2]\_nil[#3,#4]#5\_nil#6\_nil#7{% #1,#2=var à insérer  #3,#4=var suivante dans liste  #6=liste triée déjà passée  #7=macro recevant le résultat
+	\SYS_ifx{#3\relax}
+		{%
+		\def#7{#6[#1,#2]}% fin atteinte : mettre la var en dernier
+		}
+		{%
+		\SYS_ifnum{`#1 >`#3 }
+			{% on n'est pas à la bonne place, recommencer
+			\SYS_insert_variable_in_list_a[#1,#2]\_nil#5\_nil#6[#3,#4]\_nil#7%
+			}
+			{%
+			\SYS_ifnum{`#1=`#3 }
+				{% si égalité, trier les indices
+				\SYS_insert_variable_in_list_b[#1,#2]\_nil[#3,#4]#5\_nil#6\_nil#7%
+				}
+				{% si #1<#3 bonne place, assigner
+				\SYS_assign_to_relax#7#6[#1,#2][#3,#4]#5% aller manger les \relax
+				}%
+			}%
+		}%
+}
+\def\SYS_insert_variable_in_list_b[#1,#2]\_nil[#3,#4]#5\_nil#6\_nil#7{% #1,#2=var à insérer  #3,#4=var suivante dans liste
+	\SYS_ifnum{0\ifx\relax#31\else \ifnum`#3>`#1 1\else \ifnum#2<#4 1\fi\fi\fi=1 }
+		{% si fin atteinte ou sinon lettre suivante atteinte ou sinon indice à la bonne place : insérer [#1,#2] avant [#3,#4]#5
+		\SYS_assign_to_relax#7#6[#1,#2][#3,#4]#5% aller manger les \relax
+		}
+		{%
+		\SYS_insert_variable_in_list_b[#1,#2]\_nil#5\_nil#6[#3,#4]\_nil#7%
+		}%
+}
+\def\SYS_assign_to_relax#1#2[\relax,\relax]{%
+	\def#1{#2}%
+}
+
+%---------------------------------------------------------------------
+%---------------------- Construction d'un membre ---------------------
+%---------------------------------------------------------------------
+\def\SYS_build_member{%
+	\SYS_letcs\SYS_variable_list_tmp{SYS_variable_list\SYS_member_index}%
+	\edef\SYS_number_of_variable{%
+		\the\numexpr
+			\csname SYS_number_of_variable\SYS_member_index\endcsname+
+			\csname SYS_const_term\SYS_member_index\endcsname\relax% ajout 1 si terme constant rencontré. 0 sinon.
+		}%
+	\SYS_ifnum{\csname SYS_const_term\SYS_member_index\endcsname=1 }
+		{%
+		\SYS_add_to_macro\SYS_variable_list_tmp{[0,-1]}%
+		}
+		{}%
+	\SYS_ifnum{\csname SYS_auto_sort\SYS_member_index\endcsname=1 }
+		{}
+		{%
+		\expandafter\SYS_sort_variable_list\expandafter\SYS_variable_list_tmp\csname SYS_sort_directive_list\SYS_member_index\endcsname
+		}%
+	\SYS_first_termtrue
+	\SYS_build_member_a
+}
+
+\def\SYS_build_member_a#1#2{% #1=no ligne, #2=no inconnue
+	\SYS_ifnum{#2>\SYS_number_of_variable\relax}
+		{}%
+		{%
+		\SYS_first_var_in_varlist_to_macro\SYS_variable_list_tmp\SYS_currentvariable% \SYS_currentvariable = [var,ind]
+		\SYS_ifnum{0\ifSYS_align_const_sign\else1\fi \ifx\SYS_const_variable\SYS_currentvariable1\fi=11 }
+			{% si pas d'alignement du signe terme constant ET terme courant est terme constant
+			\SYS_current_term_consttrue
+			}
+			{%
+			\SYS_current_term_constfalse
+			}%
+		\SYS_var_to_uservar\SYS_currentvariable% \SYS_currentvariable = var_{ind}
+		\SYS_ifcsname{SYS_sign\SYS_format_term_name{#1}{\SYS_member_index}{\SYS_currentvariable}}
+			{%
+			\SYS_ifnum{#2=1 }% première variable ?
+				{%
+				\SYS_ifplus{\csname SYS_sign\SYS_format_term_name{#1}{\SYS_member_index}{\SYS_currentvariable}\endcsname}% signe + ?
+					{}
+					{% terme := signe + terme
+					\expandafter\edef\csname SYS_term\SYS_format_term_name{#1}{\SYS_member_index}{\SYS_currentvariable}\endcsname{%
+						\unexpanded\expandafter\expandafter\expandafter{%
+							\csname SYS_sign\SYS_format_term_name{#1}{\SYS_member_index}{\SYS_currentvariable}\endcsname
+							}%
+						\unexpanded\expandafter\expandafter\expandafter{%
+							\csname SYS_term\SYS_format_term_name{#1}{\SYS_member_index}{\SYS_currentvariable}\endcsname
+							}%
+						}%
+					}%
+				}
+				{%
+				\SYS_ifnum{%
+					\SYS_ifplus{\csname SYS_sign\SYS_format_term_name{#1}{\SYS_member_index}{\SYS_currentvariable}\endcsname}10%
+					\ifSYS_first_term1\else0\fi=11 % si 1er terme et signe +
+						}
+					{}
+					{%
+					\ifSYS_current_term_const
+						\SYS_add_to_tab{\omit\span{}}% {} pour espacement correct entre signe et terme
+					\fi
+					\SYS_ee_second\SYS_add_to_tab{\csname SYS_sign\SYS_format_term_name{#1}{\SYS_member_index}{\SYS_currentvariable}\endcsname}% ajout signe
+					}%
+				}%
+			\SYS_first_termfalse
+			}
+			{}%
+		\SYS_ifnum{#2=1 }
+			{}
+			{%
+			\ifSYS_align_terms
+				\ifSYS_current_term_const\else
+					\SYS_add_to_tab&% saut colonne sauf si signe avec terme constant
+				\fi
+			\fi
+			}%
+		\SYS_ifcsname{SYS_term\SYS_format_term_name{#1}{\SYS_member_index}{\SYS_currentvariable}}
+			{%
+			\SYS_ee_second\SYS_add_to_tab{\csname SYS_term\SYS_format_term_name{#1}{\SYS_member_index}{\SYS_currentvariable}\endcsname}% ajout terme
+			}
+			{}%
+		\SYS_ifnum{#2<\SYS_number_of_variable\relax}
+			{%
+			\ifSYS_align_terms
+				\ifSYS_current_term_const
+					\SYS_add_to_tab{\omit\span}%
+				\fi
+				\SYS_add_to_tab&%
+			\fi
+			}
+			{}%
+		\SYS_e_second{\SYS_build_member_a{#1}}{\number\numexpr#2+1}%
+		}%
+}
+
+\def\SYS_sort_variable_list#1#2{% #1=cs contenant la liste non triée  #2=cs contenant l'ordre demandé
+	\def\SYS_sort_variable_list_a##1\_nil[##2,##3]{% ##1=éléments traités et triés, [##2,##3] variable en cours
+		\SYS_ifx{\relax##2}
+			{%
+			\def#1{##1}%
+			}
+			{%
+			\IfSubStr#1{[##2,##3]}
+				{%
+				\SYS_sort_variable_list_a##1[##2,##3]\_nil
+				}
+				{%
+				\def\SYS_current_indice{##3}%
+				\SYS_ifx{\SYS_current_indice\SYS_star}
+					{% tri demandé avec "<var>_{*}"
+					\def\SYS_sort_result{##1}%
+					\let\SYS_temp_list#1%
+					\loop
+						\SYS_e_second\SYS_ifinstr\SYS_temp_list{[##2,}
+							{%
+							\def\SYS_directive_found{1}%
+							\SYS_return_full_directive\SYS_temp_list{##2}\SYS_temp
+							\SYS_e_add_to_macro\SYS_sort_result\SYS_temp% l'ajouter aux éléments triés
+							}
+							{%
+							\def\SYS_directive_found{0}%
+							}%
+						\ifnum\SYS_directive_found=1
+					\repeat
+					\expandafter\SYS_sort_variable_list_a\SYS_sort_result\_nil
+					}
+					{%
+					\SYS_sort_variable_list_a##1\_nil
+					}%
+				}%
+			}%
+	}%
+	\expandafter\SYS_sort_variable_list_a\expandafter\_nil#2[\relax,\relax]%
+}
+\def\SYS_return_full_directive#1#2#3{% #1=sc liste des directives  #2=varname   #3=sc recevant [varname,indice]
+	\def\SYS_return_full_directive_a##1[#2,##2]##3\_nil{%
+		\def#3{[#2,##2]}%
+		\def#1{##1##3}% enlever la variable à la liste des directives
+	}%
+	\expandafter\SYS_return_full_directive_a#1\_nil
+}
+%---------------------------------------------------------------------
+%--------------- Construction du préambule du \halign ----------------
+%---------------------------------------------------------------------
+\def\SYS_buid_preamble{%
+	\SYS_preamble_toks{}%
+	\begingroup
+		\setbox0\hbox{${}+{}$}%
+		\expanded{%
+	\endgroup
+	\def\noexpand\SYS_signcolumn{\hbox to\the\wd0{\hss$####$\hss}}}% colonne de largeur imposée
+	\expandafter\StrCount\csname SYS_variable_list\SYS_format_member_number{1}\endcsname,[\SYS_number_of_variable]%
+	\SYS_buid_preamble_a11%
+	\ifSYS_left_member
+		\SYS_x_add_to_tok\SYS_preamble_toks{&\hfil\SYS_membersep_space$##$\SYS_membersep_space\hfil&}% ajouter 1 colonne pour le signe =
+		\expandafter\StrCount\csname SYS_variable_list\SYS_format_member_number{2}\endcsname,[\SYS_number_of_variable]%
+		\SYS_buid_preamble_a12%
+	\fi
+	\ifSYS_extra_col
+		\SYS_x_add_to_tok\SYS_preamble_toks{&\SYS_extra_col_start##\SYS_extra_col_end\hfil}% la colonne supplémentaire (pas de mode math)
+	\fi
+	\SYS_x_add_to_tok\SYS_preamble_toks{\cr\SYS_strutup}% ajouter la fin du préambule et le strut de première ligne
+}
+
+\def\SYS_buid_preamble_a#1#2{% #1=n°inconnue  #2=n°membre
+	\SYS_ifnum{\SYS_number_of_variable=0 }% bugfix 0.41
+		{% si aucune inconnue, on rajoute la colonne pour le terme constant
+		\SYS_x_add_to_tok\SYS_preamble_toks{%
+			\csname SYS_column_\SYS_format_member_number{#2}_left\endcsname
+			$##$%
+			\csname SYS_column_\SYS_format_member_number{#2}_right\endcsname
+			}%
+		}
+		{%
+		\SYS_buid_preamble_b{#1}{#2}%
+		}%
+}
+
+\def\SYS_buid_preamble_b#1#2{% #1=n°inconnue  #2=n°membre
+	\SYS_ifnum{#1>\SYS_number_of_variable\relax}
+		{% toutes les inconnues épuisées
+		\ifSYS_align_terms
+			\SYS_ifnum{\csname SYS_const_term\SYS_format_member_number{#2}\endcsname=1 }
+				{% si terme constant
+				\SYS_ifnum{\SYS_number_of_variable>0 }
+					{%
+					\SYS_x_add_to_tok\SYS_preamble_toks{%
+						&% ajouter saut colonne si des colonnes pour variable existent
+						\SYS_sign_space\SYS_signcolumn\SYS_sign_space
+						&%
+						}%
+					}
+					{}%
+					\SYS_x_add_to_tok\SYS_preamble_toks{%
+						\csname SYS_column_\SYS_format_member_number{#2}_left\endcsname
+						$##$%
+						\csname SYS_column_\SYS_format_member_number{#2}_right\endcsname
+						}% colonne terme_addtotok
+				}
+				{}%
+		\fi
+		}
+		{% on n'a pas épuisé les inconnues
+		\SYS_ifnum{\ifSYS_align_terms1\else#1\fi=1 }
+			{%
+			\SYS_x_add_to_tok\SYS_preamble_toks{%
+				\csname SYS_column_\SYS_format_member_number{#2}_left\endcsname
+				$##$%
+				\csname SYS_column_\SYS_format_member_number{#2}_right\endcsname
+				}% une colonne pour le terme
+			}%
+			{}%
+		\SYS_ifnum{#1<\SYS_number_of_variable\relax}
+			{% si ce n'est pas la dernière inconnue
+			\ifSYS_align_terms
+				\SYS_x_add_to_tok\SYS_preamble_toks{%
+					&%
+					\SYS_sign_space\SYS_signcolumn\SYS_sign_space
+					&%
+					}%
+			\fi
+			}
+			{}%
+		\SYS_e_second\SYS_buid_preamble_b{\number\numexpr#1+1}{#2}%
+		}%
+}%
+
+%---------------------------------------------------------------------
+%---------------------- Construction du tableau ----------------------
+%---------------------------------------------------------------------
+\def\SYS_build_system{%
+	\SYS_tab_toks{}%
+	\SYS_build_system_a1%
+}
+
+\def\SYS_build_system_a#1{% #1=no ligne
+	\SYS_set_member{1}%
+	\expandafter\StrCount\csname SYS_variable_list\SYS_member_index\endcsname,[\SYS__tmp]%
+	\SYS_cslet{SYS_number_of_variable\SYS_member_index}\SYS__tmp
+	\SYS_build_member{#1}{1}%
+	\ifSYS_left_member
+		\SYS_add_to_tab{&{}}%
+		\SYS_ee_second\SYS_add_to_tab{\csname SYS_membersep_\SYS_format_membersep_name{#1}\endcsname{}&}%
+		\SYS_set_member{2}%
+		\expandafter\StrCount\csname SYS_variable_list\SYS_member_index\endcsname,[\SYS__tmp]%
+		\SYS_cslet{SYS_number_of_variable\SYS_member_index}\SYS__tmp
+		\SYS_build_member{#1}{1}%
+	\fi
+	\saveexploremode\exploregroups
+	\SYS_ifcsname{SYS_extra_col_#1}
+		{%
+		\SYS_add_to_tab&%
+		\expandafter\IfSubStr\csname SYS_extra_col_#1\endcsname{**}% le contenu de l'extra col contient-il "**" ?
+			{%
+			\SYS_letcs\SYS_autonum_arg{SYS_extra_col_#1}%
+			\StrSubstitute\SYS_autonum_arg{**}{\number\numexpr\SYSeqnum+#1-\SYS_eqnumber}[\SYS_current_autonum]%
+			\SYS_cslet{SYS_extra_col_#1}\SYS_current_autonum
+			\SYS_autonumtrue
+			}%
+			{%
+			\expandafter\IfSubStr\csname SYS_extra_col_#1\endcsname*% le contenu de l'extra col contient-il "*" ?
+				{%
+				\SYS_letcs\SYS_autonum_arg{SYS_extra_col_#1}%
+				\StrSubstitute\SYS_autonum_arg*{\noexpand#1}[\SYS_current_autonum]%
+				\SYS_cslet{SYS_extra_col_#1}\SYS_current_autonum
+				\SYS_autonumtrue
+				}%
+				{%
+				\ifSYS_autonum
+					\IfSubStr\SYS_autonum_arg{**}%
+						{%
+						\StrSubstitute\SYS_autonum_arg{**}{\number\numexpr\SYSeqnum+#1-\SYS_eqnumber}[\SYS_current_autonum]%
+						}%
+						{%
+						\StrSubstitute\SYS_autonum_arg*{\noexpand#1}[\SYS_current_autonum]%
+						}%
+					\SYS_e_second\SYS_add_to_tab\SYS_current_autonum
+				\fi
+				}%
+			}%
+		\SYS_ee_second\SYS_add_to_tab{\csname SYS_extra_col_#1\endcsname}%
+		}%
+		{% pas d'extra colonne pour cette ligne ?
+		\ifSYS_autonum% mais si il y un autonum
+			\SYS_add_to_tab&%
+			\IfSubStr\SYS_autonum_arg{**}%
+				{%
+				\StrSubstitute\SYS_autonum_arg{**}{\number\numexpr\SYSeqnum+#1-\SYS_eqnumber}[\SYS_current_autonum]%
+				}%
+				{%
+				\StrSubstitute\SYS_autonum_arg*{\noexpand#1}[\SYS_current_autonum]%
+				}%
+			\SYS_e_second\SYS_add_to_tab\SYS_current_autonum
+		\fi
+		}%
+	\restoreexploremode
+	\SYS_ifnum{#1<\SYS_eqnumber\relax}
+		{%
+		\SYS_add_to_tab\cr
+		\SYS_first_termtrue
+		\SYS_e_second\SYS_build_system_a{\number\numexpr#1+1}%
+		}
+		{% fin de l'alignement
+		\SYS_e_second\SYS_add_to_tab{\SYS_strutdown\cr}%
+		}%
+}
+
+%---------------------------------------------------------------------
+%-------------- Construction de la liste des inconnues ---------------
+%---------------------------------------------------------------------
+\def\SYS_scan_sort_directive_list#1#2{% #1=sc contenant la liste variables ; #2= sortie dans sc (inconnues indicées à -1 si besoin)
+	\def\SYS_scan_sort_directive_list_a##1,{% ##1=variable en cours
+		\SYS_ifx{\SYS_quark##1}
+			{}
+			{%
+			\IfSubStr{\noexpand##1}{\SYS_underscore}
+				{%
+				\StrCut{\noexpand##1}{\SYS_underscore}\SYS_currentvariable\SYS_current_indice
+				\StrRemoveBraces\SYS_current_indice[\SYS_current_indice]%
+				\SYS_ifx{\SYS_current_indice\empty}
+					{%
+					\SYS_error{Indice vide invalide compris comme -1}%
+					\def\SYS_current_indice{-1}%
+					}
+					{}%
+				\SYS_e_add_to_macro#2{\expandafter[\SYS_currentvariable,}%
+				\SYS_ee_add_to_macro#2{\SYS_current_indice]}%
+				}
+				{%
+				\SYS_add_to_macro#2{[##1,-1]}%
+				}%
+			\SYS_scan_sort_directive_list_a
+			}%
+	}%
+	\let#2\empty
+	\expandafter\SYS_scan_sort_directive_list_a#1,\SYS_quark,%
+}
+
+%---------------------------------------------------------------------
+%---------------------- Macro publique \systeme ----------------------
+%---------------------------------------------------------------------
+\def\systeme{%
+	\relax\iffalse{\fi\ifnum0=`}\fi
+	\begingroup
+		\catcode`\^ 7
+		\catcode`\_ 8
+		\SYS_test_opt\SYS_systeme_a{}%
+}
+
+\def\SYS_systeme_a[#1]{%
+		\setKV[systeme]{#1}%
+		\SYS_cslet{SYS_variable_list\SYS_format_member_number{1}}\empty
+		\IfSubStr{\SYS_sort_left}*
+			{% tri auto
+			\SYS_csdef{SYS_auto_sort\SYS_format_member_number{1}}{1}%
+			}
+			{%
+			\expandafter\SYS_scan_sort_directive_list\expandafter\SYS_sort_left\csname SYS_sort_directive_list\SYS_format_member_number{1}\endcsname% ajoute des _{-1} si besoin
+			\SYS_csdef{SYS_auto_sort\SYS_format_member_number{1}}{0}%
+			}%
+		\SYS_cslet{SYS_variable_list\SYS_format_member_number{2}}\empty
+		\IfSubStr{\SYS_sort_right}*
+			{% tri auto
+			\SYS_csdef{SYS_auto_sort\SYS_format_member_number{2}}{1}%
+			}
+			{%
+			\expandafter\SYS_scan_sort_directive_list\expandafter\SYS_sort_right\csname SYS_sort_directive_list\SYS_format_member_number{2}\endcsname% ajoute des _{-1} si besoin
+			\SYS_csdef{SYS_auto_sort\SYS_format_member_number{2}}{0}%
+			}%
+		\expandarg\noexploregroups
+		\begingroup
+			\setbox0 \hbox{$($}%
+			\expandafter
+		\endgroup
+		\expanded{%
+			\edef\noexpand\SYS_strutup  {\vrule depth0pt width0pt height\the\dimexpr\ht0 +\SYS_dim_extrastrut\relax}%
+			\edef\noexpand\SYS_strutdown{\vrule height0pt width0pt depth\the\dimexpr\dp0 +\SYS_dim_extrastrut\relax}%
+		}%
+		\SYS_cslet++%
+		\SYS_cslet--%
+		\SYS_set_member{1}%
+		\SYS_csdef{SYS_const_term\SYS_format_member_number{1}}{0}%
+		\SYS_csdef{SYS_const_term\SYS_format_member_number{2}}{0}%
+		\def\SYS_const_variable{[0,-1]}%
+		\def\SYS_zero_char{0}%
+		\ifboolKV[systeme]{cr eq sep}
+			{%
+			\setKV[systeme]{ignore empty eq = true}%
+			\let\SYS_eqsep\SYS_cr_other
+			\begingroup
+				\catcode`\^^M 12
+				\expandafter\expandafter\expandafter
+			\endgroup
+			}
+			{}%
+		\expandafter\SYS_systeme_b\expandafter{\SYS_eqsep}%
+}
+\def\SYS_systeme_b#1#2{%
+		\def\SYS_systeme_d##1#1{%
+			\SYS_ifx{\SYS_quark##1}
+				{}
+				{%
+				\SYS_stripsp\SYS_ifempty{##1}
+					{%
+					\ifboolKV[systeme]{ignore empty eq}
+						{}
+						{%
+						\edef\SYS_eqnumber{\number\numexpr\SYS_eqnumber+1}% augmenter de 1 leur nombre
+						\global\advance\SYSeqnum1
+						\SYS_add_to_tab\cr% on a une ligne vide
+						}%
+					}%
+					{%
+					\edef\SYS_eqnumber{\number\numexpr\SYS_eqnumber+1}% augmenter de 1 leur nombre
+					\global\advance\SYSeqnum1
+					\SYS_split_equation_in_terms{##1}% analyser l'éq courante
+					}%
+				\SYS_systeme_d
+				}%
+		}%
+		\def\SYS_eqnumber{0}%
+		\ifdefined\SYS_autonum_arg
+			\SYS_ifx{\SYS_autonum_arg\empty}% on initialise que si \SYS_autonum_arg est vide
+				{%
+				\SYS_extra_colfalse
+				\SYS_autonumfalse
+				}
+				{}%
+		\else
+			\SYS_extra_colfalse
+			\SYS_autonumfalse
+		\fi
+		\SYS_left_memberfalse% à priori, pas de signe = ni de second membre
+		\SYS_systeme_d#2#1\SYS_quark#1%\_nil% analyser toutes les équations et en faire des termes et des signes
+		\SYS_buid_preamble
+		\SYS_build_system% construire le système...
+		\SYS_ifx{\SYS_post_subst_list\empty}
+			{}
+			{%
+			\edef\SYS_system_code{\the\SYS_tab_toks}%
+			\SYS_post_subst_list
+			\SYS_tab_toks\expandafter{\SYS_system_code}%
+			}%
+		\SYS_ifx{\empty\SYS_store_directive}
+			{% ...l'afficher en mode math
+			\csname SYS_\ifmmode id\else enter_math\fi\endcsname
+				{%
+				\SYS_delim_left
+				\vcenter
+					{%
+					\lineskiplimit=0pt
+					\lineskip=0pt
+					\baselineskip\SYS_lineskip_coeff\normalbaselineskip
+					\useKV[systeme]{code before}%
+					\halign
+						{%
+						\span\expanded
+							{%
+							\the\SYS_preamble_toks
+							\the\SYS_tab_toks
+							}
+						}%
+					}%
+				\SYS_delim_right
+				}%
+			}
+			{%
+			\expandafter\xdef\SYS_store_directive{% assignation globale
+				\unexpanded{\csname SYS_\ifmmode id\else enter_math\fi\endcsname}%
+					{%
+					\unexpanded\expandafter{\SYS_delim_left}%
+					\vcenter{%
+						\lineskiplimit=0pt
+						\lineskip=0pt
+						\baselineskip\SYS_lineskip_coeff\normalbaselineskip
+						\unexpanded\expandafter\expandafter\expandafter{\useKV[systeme]{code before}}%
+						\halign
+							{%
+							\the\SYS_preamble_toks
+							\the\SYS_tab_toks
+							}%
+						}%
+					\unexpanded\expandafter{\SYS_delim_right}%
+						}%
+				}%
+			}%
+	\endgroup
+	\ifboolKV[systeme]{autonum continue}
+		{}
+		{%
+		\ifdefined\SYS_autonum_arg
+			\let\SYS_autonum_arg\empty% annule la numérotation auto
+		\fi
+		}%
+	\setKV[systeme]{store={}}%
+	\ifnum0=`{\fi\iffalse}\fi
+}
+
+\def\SYSmakecrother{%
+	\edef\SYSrestorecr{\catcode\number`\^^M=\number\catcode`\^^M\relax}%
+	\catcode`\^^M 12
+}
+
+\def\SYSallowcr#1{% #1=macro avec ou sans arg optionnels
+	\begingroup
+		\catcode`\^^M 12\relax%
+		\SYSallowcr_a{#1}%
+}%
+\def\SYSallowcr_a#1#2{%
+	\endgroup
+	#1{#2}%
+}
+
+\SYS_restore_catcode
+
+\def\aligncalc{%
+	\systeme[%
+		delim={.,.},
+		align terms=false,
+		align={r,l},
+		sort={{}={}},
+		extra col pre=\kern1.5em,
+		extra col post={}
+	]%
+}
+\endinput
+
+---------------------------------------------------------------------
+----------------------------  Historique ----------------------------
+---------------------------------------------------------------------
+
+v0.1        27/02/2011
+    - Première version publique sur le CTAN.
+----------------------------------------------------------------------
+v0.2        08/03/2011
+    - Le premier argument optionnel met en place de nouvelles
+      fonctionnalités.
+    - Possibilité d'avoir des inconnues indicées.
+    - Mise en place d'une colonne supplémentaire et d'une
+      numérotation automatique.
+    - La commande étoilée \systeme* dégrade l'alignement pour ne
+      plus prendre en compte que les signes d'égalité.
+    - Une substitution est possible en fin de traitement, juste
+      avant d'afficher le système.
+----------------------------------------------------------------------
+v0.2a       15/05/2011
+    - Bug corrigé lorsque les termes comportent des accolades.
+----------------------------------------------------------------------
+v0.2b       23/06/2011
+    - La commande \setdelim permet de modifier les délimiteurs
+      extensibles placés de part et d'autre du système.
+----------------------------------------------------------------------
+v0.3        21/12/2013
+    - Un terme constant est permis dans le membre de gauche.
+----------------------------------------------------------------------
+v0.31       01/01/2018
+    - Il manquait un "&" après le terme constant, merci à Thomas Soll
+      de l'avoir signalé.
+----------------------------------------------------------------------
+v0.32       13/01/2019
+    - Correction d'un bug : les espaces étaient pris en compte dans
+      les noms des termes.
+    - Correction d'un bug : si version étoilée et terme constant dans
+      membre de gauche, défaut d'alignement.
+    - Nettoyage du code.
+----------------------------------------------------------------------
+v0.33       13/04/2020
+    - possibilité de choisir un espacement avant et après les signes
+      + et - avec \SYS_set_sign_space{<skip>}. De même pour = avec
+      \SYS_set_membersep_space{<skip>}
+    - possibilité de choisir l'alignement des colonnes des termes à
+      gauche du signe = et celle à droite avec \SYS_set_align{x,y} où
+      x et y sont "c", "r", ou "l"
+----------------------------------------------------------------------
+v0.34       3/05/2020
+    - bugfix : la largeur des colonnes contenant les signes est
+      désormais imposée (évite une incohérence à l'affichage en cas
+      de colonne vide)
+----------------------------------------------------------------------
+v0.35       16/02/2025
+    - bugfix : ce qui est après un indice est correctement pris en
+      compte
+----------------------------------------------------------------------
+v0.4        13/05/2025
+    - utilisation de simplekv pour effectuer les réglages via
+      clés/valeurs ; mise à disposition de la macro \setsysteme et de
+      l'argument optionnel de la macro \systeme pour y spécifier les
+      clés/valeurs -> rupture de compatibilité
+    - macros abandonnées : \sysdelim, \syseqsep, \sysalign,
+      \syssignspace, \syseqspace, \syslineskipcoeff, \sysequivsign,
+      \sysaddeqsign, \sysremoveeqsign, \sysextracolsign,
+      \syscodeextracol, \sysautonum, \syssubstitute et 
+      \sysnosubstitute
+    - inconnues acceptées, triées et alignées dans le membre de droite
+    - mise en place de la clé 'coeff code' pour insérer une espace
+      entre le coefficient (si présent) et l'inconnue
+    - possibilité de stocker le code produit dans une macro spécifiée
+      avec la clé 'store'
+    - suppression des macros privées de xstring
+    - réécriture des 3/4 du code, mise en ordre, assainissement et
+      donc création de bugs. Forcément !
+----------------------------------------------------------------------
+v0.41       21/05/2025
+    - bugfix dans \SYS_next_int_indice_to_macro, l'indice doit être
+      limité au 1er argument après "_" et non pas tout
+    - bugfix dans \SYS_find_variable_a, si tri manu, il faut tester si
+      ce qui reste après la variable comlmence par "_"
+    - bugfix dans \SYS_buid_preamble : mauvais membre si tri forcé
+    - bugfix dans \SYS_buid_preamble_a : envisager à part le cas où
+      il n'y a aucune inconnue
+    - bugfix : mise en ordre (partielle sûrement vu l'incroyable
+      bordel) dans les noms des listes de variables (alors qu'en fait
+      dans l'algorithme, je m'aperçois qu'il n'y a qu'une seule liste)
+    - nouvelle consigne de tri : a_{*} pour prendre en compte tous les
+      indices de l'inconnue a
+    - contrôle de la validité des consignes de tri
+    - possibilité de spécifier des indices non numériques dans une
+      consigne de tri manuelle
+    - nouvelle clé 'align const sign' pour contrôler si le signe du
+      terme constant est dans une colonne dédiée ou pas
+    - typo : c'est \aligncalc et non pas \aligncal !
+----------------------------------------------------------------------
+v0.42       29/05/2025
+    - nouvelle clé 'code before'
+----------------------------------------------------------------------
+v0.43       16/06/2025
+    - bugfix dans \SYS_set_term_coeff_space
+    - nouvelle clé booléenne 'ignore empty eq'
+    - nouvelle clé booléenne 'cr eq sep' pour faire de ^^M (retour
+      charriot) le séparateur entre équations
+----------------------------------------------------------------------
+v0.44       27/08/2025
+    - les macros "environnement" \SYSmakecrother...\SYSrestorecr sont
+      mieux documentées.
+    - ajout de \SYSallowcr :
+                  \SYSallowcr<\macro>{<argument>}
+       qui est la version macro de l'environnement sans les
+       inconvénients
+    - bugfix : le terme \sqrt{2}x est correctement traité, l'accolade
+      ne provoque plus l'invisibilité de la variable 'x' par la macro
+      \SYS_find_variable_a
+----------------------------------------------------------------------
+v0.45       27/09/2025
+    - bugfix dans \SYS_scan_sort_directive_list_a : des variables de
+      type "_{}" sont crées par erreur
+    - bugfix : le tri forcé n'est pas fait lorsqu'il est demandé. La
+      macro \SYS_sort_variable_list effectue désormais cette tâche
+----------------------------------------------------------------------
+v0.46       15/11/2025
+    - pas mal de modifications internes : la liste des variables est
+      maintenant sous la forme
+                  [<var>,<indice>][<var>,<indice>]etc
+    - ajout de la consigne de tri "0" pour spécifier la place du
+      terme constant
+    - bugfix : \SYSeqnum était incrémenté une fois de trop à chaque
+      appel de \systeme
+----------------------------------------------------------------------
+v0.5        30/11/2025
+    - les inconnues peuvent comporter plusieurs tokens dans une
+      consigne de tri
+    - quelques bugs corrigés
+----------------------------------------------------------------------
+v0.51       19/12/2025
+    - bugfix : le token "_" a un catcode correct lorsque l'argument
+      optionnel est lu
+    - \normalbaselineskip n'est plus créé
+    - manuel composé avec opTeX
