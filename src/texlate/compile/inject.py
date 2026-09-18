@@ -42,7 +42,7 @@ from texlate.textutil import (
 
 from .latex209 import upgrade_209
 from .mask import group_end, visible_tex
-from .normalize import inject_preamble
+from .normalize import _tar_disguised, inject_preamble
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping
@@ -524,9 +524,12 @@ def _walk_inputs(
                 continue
             seen.add(tgt)
             try:
-                sub = visible_tex(decode_tex(tgt.read_bytes()))
+                blob = tgt.read_bytes()
             except OSError:
                 continue
+            if _tar_disguised(blob):
+                continue  # tar 伪装件——成员字节不是闭包面（normalize._tex_sources 同闸）
+            sub = visible_tex(decode_tex(blob))
             queue.append((tgt, sub))
             yield tgt, sub
 
@@ -621,9 +624,12 @@ def find_main_tex(root: Path) -> Path | None:  # noqa: C901, PLR0912 — 候选�
         p for p in root.rglob("*") if p.suffix.lower() in _MAIN_TEX_SUFFIXES
     ):
         try:
-            raw = decode_tex(p.read_bytes())
+            blob = p.read_bytes()
         except OSError:
             continue
+        if _tar_disguised(blob):
+            continue  # tar 伪装件——成员文本可含 bd/dc 假信号且改写即腐蚀 blob
+        raw = decode_tex(blob)
         scanned.append((p.resolve(), p.relative_to(root).as_posix(), visible_tex(raw)))
         if "filecontents" in raw:
             kept_views.append(mask_tex(raw, keep_verbatim=True))
@@ -729,9 +735,12 @@ def classify_no_main(root: Path) -> str | None:
         if not p.is_file() or p.suffix.lower() not in _MAIN_TEX_SUFFIXES:
             continue
         try:
-            vis = visible_tex(decode_tex(p.read_bytes()))
+            blob = p.read_bytes()
         except OSError:
             continue
+        if _tar_disguised(blob):
+            continue  # tar 伪装件——成员文本不供 dc/ds/bd/指纹判据
+        vis = visible_tex(decode_tex(blob))
         if DOCCLASS_ONLY_RX.search(vis):
             return None
         has_ds |= DOCSTYLE_RX.search(vis) is not None
@@ -988,9 +997,12 @@ def inject_float_sizing(root: Path) -> int:
     for path in root.rglob("*"):
         if path.is_file() and path.suffix.lower() in _MAIN_TEX_SUFFIXES:
             try:
-                sources[path] = decode_tex(path.read_bytes())
+                blob = path.read_bytes()
             except OSError:
                 continue  # chmod-0 等不可读档跳过（consistency-audit）
+            if _tar_disguised(blob):
+                continue  # tar 伪装件——成员字节非手术面，写回即腐蚀 blob
+            sources[path] = decode_tex(blob)
     if not any(
         re.search(r"\\begin\s*\{(?:figure|table)\*?\}", visible_tex(text))
         for text in sources.values()
@@ -1051,7 +1063,12 @@ def prepare_chinese(
     （与 route reject 分流），而非编译失败。
     """
     main_path = root / main if isinstance(main, str) else main
-    text = decode_tex(main_path.read_bytes())
+    blob = main_path.read_bytes()
+    if _tar_disguised(blob):
+        # 兜底闸：find_main_tex 已排除 tar 候选，本层挡绕开检出直传的
+        # 伪装 main——latin-1 解出的成员文本可含 dc 缝，注入写回即腐蚀。
+        raise InjectRejectError(reason="nontex")
+    text = decode_tex(blob)
     new_text, info = inject_cjk(text, mode=mode, root=root)
     if "threeparttable" in visible_tex(new_text):
         # 已带 CJK 的工程（status=already）同样要 threeparttable 溢宽钩子。
