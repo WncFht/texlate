@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
     from texlate.compile.fixloop.engine import Engine, LoopCtx
 
-from texlate.compile.fixloop._builtins_csfix import _fixloop_log
+from texlate.compile.fixloop._builtins_common import _fixloop_log
 
 
 def bbl_stub_rewrite(

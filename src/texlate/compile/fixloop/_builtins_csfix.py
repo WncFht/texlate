@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 from texlate.compile.fixloop._builtins_common import (
     _drop_pkg_loads,
+    _fixloop_log,
     _inject_after_docclass,
     _map_tex_files,
 )
@@ -21,28 +22,6 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
 
     from texlate.compile.fixloop.engine import Engine, LoopCtx
-
-
-def _fixloop_log(ctx: LoopCtx) -> str:
-    """本轮编译 log 定位 (通用版, 无内容过滤)。
-
-    ``{stem}.log`` (xelatex) → ``_tect_out/{stem}.log`` (tectonic)
-    → 兜底首个非空 ``*.log``。misschar 域的 ``_compile_log_text`` 有
-    Missing character 内容门, 非缺字扫描不可复用。
-    """
-    main = ctx.main_path()
-    if main is not None:
-        stem = main.stem
-        for p in (
-            ctx.wdir / f"{stem}.log",
-            ctx.wdir / "_tect_out" / f"{stem}.log",
-        ):
-            if p.is_file() and (t := ctx.read(p)):
-                return t
-    for p in sorted(ctx.wdir.rglob("*.log")):
-        if t := ctx.read(p):
-            return t
-    return ""
 
 
 #: undefined_cs → 定向修复表 (cs_targeted_fix 的默认表, rules/

@@ -17,6 +17,7 @@ from texlate.textutil import mask_tex
 if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
+    from typing import Any
 
     from texlate.compile.fixloop.engine import LoopCtx
 
@@ -265,3 +266,209 @@ def _inject_after_docclass(ctx: LoopCtx, snippet: str) -> bool:
         delta += len(piece)
     ctx.write(main, out)
     return True
+
+
+# ════════════════════════════════════════════════════════════════
+# 编译 log 定位 (C3 收尾归位: csfix/bib/shim 三叶共用的通用版)
+# ════════════════════════════════════════════════════════════════
+
+
+def _fixloop_log(ctx: LoopCtx) -> str:
+    """本轮编译 log 定位 (通用版, 无内容过滤)。
+
+    ``{stem}.log`` (xelatex) → ``_tect_out/{stem}.log`` (tectonic)
+    → 兜底首个非空 ``*.log``。misschar 域的 ``_compile_log_text`` 有
+    Missing character 内容门, 非缺字扫描不可复用。
+    """
+    main = ctx.main_path()
+    if main is not None:
+        stem = main.stem
+        for p in (
+            ctx.wdir / f"{stem}.log",
+            ctx.wdir / "_tect_out" / f"{stem}.log",
+        ):
+            if p.is_file() and (t := ctx.read(p)):
+                return t
+    for p in sorted(ctx.wdir.rglob("*.log")):
+        if t := ctx.read(p):
+            return t
+    return ""
+
+
+# ════════════════════════════════════════════════════════════════
+# missing_char 读侧/规划侧机制 (C3 收尾归位: shim 叶同消费)
+# 「Missing character」行解析 → 码位 → 表匹配 → 修复规划;
+# 修复动作本体 (warmup/字面替换/逐字回退/accent 站点) 留在
+# _builtins_misschar。
+# ════════════════════════════════════════════════════════════════
+
+#: ``Missing character: There is no <what> (U+XXXX)? in font <font>``
+#: xetex/tectonic spec 字体带 ``(U+XXXX)``; tfm 字体带 ``("XXXX)`` 十六进制
+#: (``("8FD9)`` = U+8FD9「这」, 码位仍是 Unicode); pdftex 8-bit 给裸字符或
+#: ``^^xx`` 记法。
+_MISSING_CHAR_RE = re.compile(
+    r"Missing character:\s*There is no (?P<what>.+?)"
+    r"(?:\s*\((?P<cp>U\+[0-9A-Fa-f]+|\"[0-9A-Fa-f]+)\))?\s*in font\s+(?P<font>[^\s!;]+)"
+)
+
+#: ``^^xx``/``^^^xxxx`` TeX 记法码位提取。
+_CARET_HEX_RE = re.compile(r"\^{2,3}([0-9a-fA-F]{2,4})")
+
+#: 判定「字体本身即 CJK 字体」的排除模式 —— CJK 码位落在 CJK 字体里
+#: 是真缺字形 (换字体的 warmup 救不了), 不属于绑定污染类。
+_CJK_FONT_RE = re.compile(
+    r"fandol|noto.*cjk|source.?han|uming|ukai|wqy|ipa(?:ex)?[mg]|"
+    r"sim(?:sun|hei|kai|fang)|ms ?(?:gothic|mincho)|cjk",
+    re.IGNORECASE,
+)
+
+
+def _mc_codepoint(what: str, cp: str | None) -> int | None:
+    """``(U+XXXX)`` / ``("XXXX)`` / ``^^xx`` / 裸字符 → 码位; 不可判定 → None。"""
+    if cp:
+        return int(cp[2:] if cp.startswith("U+") else cp[1:], 16)
+    if m := _CARET_HEX_RE.fullmatch(what.strip()):
+        return int(m.group(1), 16)
+    if len(what) == 1:
+        return ord(what)
+    return None
+
+
+#: missing_char 修复默认表 (seeded 自 n100 缺字签名, 2026-09-16;
+#: ``params.char_table`` 同形条目按 id 覆盖/扩列 —— 首匹配生效)。
+#: 每条目: ``id``; 匹配面 ``cps:[int]`` | ``ranges:[[lo,hi],...]``,
+#: ``font``/``font_not`` 为作用在日志字体名上的正则; 动作:
+#: ``action: cjk_warmup`` (预热 xeCJK 字体绑定) 或 ``replace: "<TeX串>"``。
+_MC_TABLE: list[dict[str, Any]] = [
+    {
+        "id": "cjk_glyph",
+        # CJK 统一表意+假名+谚文+兼容/全角区 —— 落在非 CJK 字体 = xeCJK
+        # (本表是 textutil.CJK_RANGES 的语义超集: 缺字判定要罩住假名/谚文/
+        # 彝文/全角, 勿向 CJK_RANGES 单源回退)
+        # 绑定被污染 (elsart 族 \no@harm 下 \protect=\noexpand 使
+        # \fontfamily/\selectfont 失效, 首用把 xeCJK/<fam>/<ser>/<sh>/<size>
+        # 全局绑到 lmroman —— /tmp/mc-repro 实证), 预热即可。
+        "ranges": [
+            [0x2E80, 0x303F],
+            [0x3040, 0x30FF],
+            [0x3100, 0x31EF],
+            [0x3200, 0x33FF],
+            [0x3400, 0x4DBF],
+            [0x4E00, 0x9FFF],
+            [0xA000, 0xA4CF],
+            [0xAC00, 0xD7AF],
+            [0xF900, 0xFAFF],
+            [0xFE30, 0xFE4F],
+            [0xFF00, 0xFFEF],
+            [0x20000, 0x2FA1F],
+        ],
+        "font_not": _CJK_FONT_RE.pattern,
+        # 仅 spec 字体 ([lmroman10]:mapping=tex-text 形) 缺 CJK 才预热——
+        # tfm 字体 (cmr10/ec-lmss12) 缺 CJK 大头是数学模式 (xeCJK
+        # interchartoks 水平列机制不进数学, warmup 白烧到 stuck;
+        # scout-misschar 2026-09-16 实证), 数学面已由 inject 侧
+        # \Umathcode 符号字体兜底 (CJK_MATH_FALLBACK) 治。
+        "font": r"[\[:]",
+        "action": "cjk_warmup",
+    },
+    # n100: 0806.1079 ×3 ≠ in cmr7/cmr5
+    {"id": "neq", "cps": [0x2260], "replace": "\\ensuremath{\\neq}"},
+    # n100: 1608.02516 ×1 − in cmr10
+    {"id": "minus", "cps": [0x2212], "replace": "\\ensuremath{-}"},
+    # n100: 2403.15096 ×1 § in cmr10
+    {"id": "section", "cps": [0x00A7], "replace": "\\S"},
+    # n100: 1003.1464 ×1 ø in cmmi8 (math italic → \mbox 包文本字形)
+    {"id": "oslash", "cps": [0x00F8], "replace": "\\mbox{\\o}"},
+    # n100: 0707.3950 è in cmex10
+    {"id": "egrave", "cps": [0x00E8], "replace": "\\mbox{\\`{e}}"},
+]
+
+
+def _mc_table(params: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """内置表 + ``params.char_table`` 按 id 合并 (参数条目同 id 覆盖)。"""
+    table = {e["id"]: e for e in _MC_TABLE}
+    for e in params.get("char_table") or []:
+        table[e["id"]] = e
+    return table
+
+
+def _mc_hit(entry: dict[str, Any], cp: int, font: str) -> bool:
+    """码位+字体 vs 条目匹配面 (cps/ranges 与 font/font_not 正则)。"""
+    if (fno := entry.get("font_not")) and re.search(fno, font, re.IGNORECASE):
+        return False
+    if (fyes := entry.get("font")) and not re.search(fyes, font, re.IGNORECASE):
+        return False
+    if cp in (entry.get("cps") or ()):
+        return True
+    return any(lo <= cp <= hi for lo, hi in entry.get("ranges") or ())
+
+
+def _mc_parse_log(log: str) -> dict[int, tuple[str, str]]:
+    """``Missing character`` 行 → {码位: (原字面, 字体名)} 去重; nullfont 滤除。"""
+    seen: dict[int, tuple[str, str]] = {}
+    for m in _MISSING_CHAR_RE.finditer(log):
+        font = m.group("font").rstrip(".,;")
+        if font == "nullfont":
+            # 测量盒/\write 上下文的缺字按设计不可印 (scout-misschar ×5)——
+            # 签名侧经 rules/ missing_char pattern 排除, 这里兜底 wrap 漏网。
+            continue
+        cp = _mc_codepoint(m.group("what"), m.group("cp"))
+        if cp is not None and cp not in seen:
+            seen[cp] = (m.group("what"), font)
+    return seen
+
+
+def _mc_plan(
+    seen: dict[int, tuple[str, str]], table: dict[str, dict[str, Any]]
+) -> tuple[bool, dict[str, str], int]:
+    """逐缺字码位查表 → (是否需 CJK 预热, 字面替换映射, 未匹配数)。"""
+    warm = False
+    repl: dict[str, str] = {}
+    unmatched = 0
+    for cp, (what, font) in seen.items():
+        entry = next((e for e in table.values() if _mc_hit(e, cp, font)), None)
+        if entry is None:
+            unmatched += 1
+        elif entry.get("action") == "cjk_warmup":
+            warm = True
+        elif rep := entry.get("replace"):
+            ch = what if len(what) == 1 else _mc_chr(cp)
+            if ch:
+                repl[ch] = rep
+    return warm, repl, unmatched
+
+
+def _mc_chr(cp: int) -> str | None:
+    """码位 → 字符; 超出 Unicode 面 → None。"""
+    try:
+        return chr(cp)
+    except ValueError:
+        return None
+
+
+_FB_FONT = "Libertinus Serif"  # TL libertinus-fonts, 三带全覆盖实证
+
+#: 无参字母/符号 cs —— 文本域字形产出者, 在数学域无重音义 (\' \^ \~ 等
+#: 有数学义 = \acute \hat \tilde, 刻意不收)。cs 名 → 产出字符码位
+#: (scout-misschar math_font_chars 桶: ``Y$\i$lmaz``/``$\L^{\phi,p}$`` 实证)。
+_MATH_SHIM_CS: dict[str, int] = {
+    "i": 0x0131,
+    "j": 0x0237,
+    "L": 0x0141,
+    "l": 0x0142,
+    "O": 0x00D8,
+    "o": 0x00F8,
+    "AA": 0x00C5,
+    "aa": 0x00E5,
+    "AE": 0x00C6,
+    "ae": 0x00E6,
+    "OE": 0x0152,
+    "oe": 0x0153,
+    "ss": 0x00DF,
+    "S": 0x00A7,
+    "P": 0x00B6,
+    "dag": 0x2020,
+    "ddag": 0x2021,
+    "copyright": 0x00A9,
+    "pounds": 0x00A3,
+}

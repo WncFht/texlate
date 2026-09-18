@@ -13,15 +13,13 @@ from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
 from texlate.compile.fixloop._builtins_common import (
+    _FB_FONT,
+    _MATH_SHIM_CS,
     PDFTEX_PRIMS,
+    _fixloop_log,
     _inject_after_docclass,
     _inject_write,
     _live_matches,
-)
-from texlate.compile.fixloop._builtins_csfix import _fixloop_log
-from texlate.compile.fixloop._builtins_misschar import (
-    _FB_FONT,
-    _MATH_SHIM_CS,
     _mc_chr,
     _mc_parse_log,
     _mc_table,
@@ -116,9 +114,7 @@ def legacy_pkg_shim(
     done, state = _inject_write(ctx, ctx.wdir / fname, stub, f"stub {fname}")
     if done is not None:
         return done
-    note = (
-        f"stub {fname} {'refreshed (stale injected)' if state == 'stale' else 'injected'}"
-    )
+    note = f"stub {fname} {'refreshed (stale injected)' if state == 'stale' else 'injected'}"
     if loads:
         note += f" (\\LoadClassWithOptions{{{loads}}})"
     if missing:
