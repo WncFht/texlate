@@ -689,3 +689,16 @@
 - **thehalgo**：kernel 原生 `\theH<ctr>`（latex.ltx:10145, ≥2024-11）× ICML 模板 `\newcommand{\theHalgorithm}` 搭车 shim 冲突——`already_def_newcmd_renew`(111) 已覆盖全家，3/4 新档实证。**零新规则**；provenance 附注延后（75-syntax 被 ifclose 占用）。
 - **zhfile**：这是译文=MOCK_ZH 经 bare `\input <file>` 于 resizebox body-arg in_arg 泄漏（fig2dev .pdf_t 叠层形）；格已愈（TRANSPARENT_HEAD_SPEC+8b87318 文件名span 硬化）。**活残口实证**：`\caption{see \input foo_bar.tex end}` 任意 in_arg 文本位裸 \input 仍漏 →#89 inputleak（args.py:744-746 吞裸文件名入保护段）。
 - roster：ifclose/auxeof/cappayload/dvipdfmiss + babelinv/gcensus(交付在途) + inputleak/envpoly/expl3fix = 10。
+
+## 2026-09-19 ~10:5x — 研究潮3核销 + 收割潮3六连 commit + flipcheck7 起批
+
+- **gcensus 裁定**（NOTES.md 核销）：`undefined_cs:g` 是 loop1 时代死签名——全源零 `\g`、现行码重放零命中（1706.00033 残为 russianb.ldf 缺=babel 畴）、loop2 4/9 重跑皆无；\g 语义异质（\gamma vs grams），盲 polyfill 必错。处置=残表哨戒，**零新规则**。
+- **babelinv 交付**：tmp/lane-babelinv/ldf_pins.yaml ~52 名 tlpdb/tarball 逐名核实（含 babel-{ukrainian,bulgarian,catalan,greek} 实物档）。**.ldf 不入 INDEX_EXTS → filemap.overrides 是唯一确定落点**。
+- **dvipdfmiss 裁定**：2403.00013 的 `hyperref_driver|dvipdfmx` 派发脱靶根因=kaist-ucs.cls `\ifpdf/\if@dvips` 条件 `\def\@drivername{drv}` 间接指派+`\RequirePackage[\@drivername]`——括号面零字面驱动词，旧闸够不着（known_gap 早已预言）。
+- **六连 commit**：a4e5c8f drvdef 臂（`\def\<cs>driver<cs>{drv}`→xetex 全支覆写+闸扩第三交替+13 钉）、28a64eb ldf 钉表 52 枚（含 afrikaans→babel-dutch/northernsami→babel-samin/turkmen→turkmen 异名档+german-traditional 已知噪声 null）、ffd4bf3 envpoly renew 站点前置臂（masked 活区扫描+首站点行首锚+降序插+幂等）、aeda23f ifclose 双臂（unclosed_if_close other:196+eof:196.5，内嵌 ~250 行遮盖栈平衡扫描器——def 体冻结 token 只计不注、跨件借用对全局闸、MARK 幂等，25 钉）、a227ee6 expl3fix 逗号粘连拆分（全表/表首/表内尾/,]洞 四态如 hyperref 形，12 钉）、86d30ea cappayload（taxonomy `payload_scan:` 原语注册表+capacity 提取器 bracket名归一 tag×ctx 首层 pending cs→`<tag>|<cs>`，classify_head 内接线=次派发同享，12 钉）。
+- **drvdef 单格实证**（stagerun-drvdef）：hyperref_driver_neutralize 点火（前轮缺席）→ dvipdfmx 错消，**52→1 错**（xbb/pipe 群=驱动错下游级联同灭）；残 `\chinese already defined`（ctex 注入×dhucs 稿自定义，→chineseconf 普查）。
+- **flipcheck7 脱管批**：33 格=17 目标（ifclose 12+envpoly 2+expl3fix 3 独享）+16 clean 回归（flipcheck6 clean 池抽）→ bench/results/stagerun-flipcheck7，gate-③⑤。
+- **inputleak 交付在库待闸**：args.py in_arg 裸 `\input` 文件名吞入 CMD 保护段（镜 :789-809 非 in_arg 形）+7 钉；其 35 件抽样 parsebench 全绿——全量 L1 闸 (parsebench-v3-inputleak) 脱管在跑，过后 commit。
+- **envpoly 追单在飞**：_ENV_COMPANIONS 对偶件表（proof→\QED 开口盒 stub，0707.1588 转办）+95-targeted.yaml citerule 编辑中（#79）。
+- **新派研道**：pipecensus（Cannot run pipe command/.xbb 家族普查）、chineseconf（\chinese already defined 注入冲突普查）。
+- roster：citerule(#79)/auxeof(#84) + envpoly 追单 + pipecensus/chineseconf = 5 活；脱管批 3（L1 闸、drvdef 已完、flipcheck7）。
