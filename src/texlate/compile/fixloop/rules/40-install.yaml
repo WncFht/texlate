@@ -277,6 +277,54 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "csvsub-lane 2026-09-19: tmp/lane-csvsub 三臂实证 (orig 炸 / patch 过 / 2.7.0 过)"
 
+  # 2026-09-19 pstadd-lane: 稿自带 pstricks-add 过旧对 (v2.32/2005-01-16)
+  # 撞现代 pst-* 核 —— dx/dy 键自 pst-node v1.45 移除 (:51-52 xkeyval
+  # `dx' undefined in families), \define@key[psset]{}{trueAngle} 空族 vs
+  # pst-xkey v1.6 × xkeyval v2.10 的 \define@boolkey (:1170 → Missing
+  # \begin{document} 级联), \psset@@tickstyle/\psk@tickstyle 自现代核
+  # 消失 (:1544 Undefined×4 + Missing number×2)。pst-all.sty
+  # \RequirePackage{pstricks-add} 走 kpathsea cwd 序中稿自带对;
+  # find_vendored_shadows 要系统 probe 证 ld<sd —— 本机 texlive 无
+  # pstricks-add → sd=None 盲区 (csvsimple 同型)。err_head 点名
+  # pstricks-add.tex:N (file-line 形) 或泄 \psset@@tickstyle/\psk@tickstyle
+  # 签名 cs ('!' 形展开栈回显) ∧ wdir 在场 → sh 循环 mv 成对 .fixloop-iso;
+  # 指纹件 (本引擎注入的 v3.94) 跳过不自拆 —— 否则 :742 \colorlet 错会把
+  # vendor 件退役→missing_file→重投→死循环。下轮 missing_file →
+  # vendored_fetch(11.5) 递 vendor/files v3.94 对; \colorlet 需 xcolor
+  # 前置已由 pstcol_pstricks_rewrite (70-pkgopt.yaml:359, order 185) 兜住。
+  - id: pstricks_add_pair_retire
+    mechanisms: [B05]
+    description: "稿自带过旧 pstricks-add.tex/.sty 对遮蔽 → mv 双双 .fixloop-iso 退役, 系统/vendor v3.94 递补"
+    phase: loop
+    order: 11.9 # csvsimple_l3_kernel_retire(11.8) 后, legacy_pkg_shim(12) 前
+    when:
+      any: # 签名散三格: xkeyval→other / Undefined cs→undefined_cs / Missing→syntax
+        - { category: syntax }
+        - { category: undefined_cs }
+        - { category: other }
+    condition:
+      ctx_suggests: "pstricks-add\\.tex:\\d+|\\\\psset@@tickstyle|\\\\psk@tickstyle"
+      cache_dir_glob: pstricks-add.tex
+      tool_available: sh
+    action:
+      kind: run_tool
+      params:
+        argv:
+          - sh
+          - -c
+          - 'for f in pstricks-add.tex pstricks-add.sty; do if [ -f "$f" ] && ! grep -q ''texlate-fixloop-injected'' "$f"; then mv -f "$f" "$f.fixloop-iso"; fi; done; exit 0'
+        timeout: 30
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "corpus_v3 0707.4206 (stagerun flipcheck3 best_effort 残格, 12 错同根)",
+          error: "pstricks-add.tex:1544: Undefined control sequence \\psset@@tickstyle (v2.32/2005 vs pst-node v1.45)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "pstadd-lane 2026-09-19: tmp/lane-multistrand/report.md + flipcheck3 work/0707.4206 实读"
+
   # fixable-data 裁定 (1003.2165): polutonikogreek 是弃名, greek.polutoniko
   # 亦走 locale/invalid/ 弃名桩必炸。现行 ini 正形是 `greek.polytonic`
   # (locale/el/babel-polytonicgreek.tex 自证 "Provided: greek.polytonic";
