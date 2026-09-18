@@ -969,7 +969,9 @@ class XlatPipeline:
         except Exception as e:  # noqa: BLE001 -- 同上
             return [self._skip(c, f"chunk crash: {e}", kind=_kind_of(e))]
 
-    def _load_resumed(self) -> tuple[set[str], dict[str, ChunkResult]]:
+    def _load_resumed(
+        self, fatal: list[BaseException]
+    ) -> tuple[set[str], dict[str, ChunkResult]]:
         """续跑装载：state → (completed 集合, chunk_id→ChunkResult)。"""
         if self.state is None:
             return set(), {}
@@ -996,9 +998,11 @@ class XlatPipeline:
             )
             # warning 时代落盘的 ok 残留（zh 带源外占位符）→ 就地降 fault，
             # 不进 completed → 本轮重翻自愈；否则旧档会把字面 [[X_n]] 带进 splice。
-            _intercept_leftover_ph(res)
-            _intercept_ph_in_cs(res)
-            _intercept_bare_cs(res)
+            self._ledger_call(
+                fatal, res, "leftover_ph intercept", _intercept_leftover_ph
+            )
+            self._ledger_call(fatal, res, "ph_in_cs intercept", _intercept_ph_in_cs)
+            self._ledger_call(fatal, res, "bare_cs intercept", _intercept_bare_cs)
             done_map[cid] = res
         completed = {
             cid
@@ -1012,6 +1016,7 @@ class XlatPipeline:
         chunks: list[ChunkIn],
         completed: set[str],
         done_map: dict[str, ChunkResult],
+        fatal: list[BaseException],
     ) -> tuple[list[ChunkIn], list[tuple[str, Any]]]:
         """路由输入块 → (pending, split_items)。
 
@@ -1045,14 +1050,15 @@ class XlatPipeline:
                     status="ok",
                 )
                 done_map[cid] = r
-                _intercept_leftover_ph(r)  # 升格语义下保持与 _collect 同构的后处理
-                _intercept_ph_in_cs(r)
-                _intercept_bare_cs(r)
-                self.auth_gate.record(r)
-                try:
-                    self._emit(r)
-                except Exception:
-                    log.exception("emit failed for %s", r.chunk_id)
+                # 与 _collect 同构的五点账本调用——BaseException 收 fatal
+                # 由 run() 序章尾统一重抛，Exception 档行为不变。
+                self._ledger_call(
+                    fatal, r, "leftover_ph intercept", _intercept_leftover_ph
+                )
+                self._ledger_call(fatal, r, "ph_in_cs intercept", _intercept_ph_in_cs)
+                self._ledger_call(fatal, r, "bare_cs intercept", _intercept_bare_cs)
+                self._ledger_call(fatal, r, "auth_gate.record", self.auth_gate.record)
+                self._ledger_call(fatal, r, "emit", self._emit)
                 continue
             pieces = split_long_chunk(c.content, max_chars=self.cfg.hard_limit)
             if len(pieces) > 1:
@@ -1239,8 +1245,14 @@ class XlatPipeline:
         fallback 原文（T2：n100 里 401 逐块吞成 skipped→任务假 done）。
         """
         self.auth_gate = AuthGate(self.cfg.auth_fail_threshold)
-        completed, done_map = self._load_resumed()
-        pending, split_items = self._route_chunks(chunks, completed, done_map)
+        # 序章账本：_load_resumed/_route_chunks 的 interceptor/auth_gate/_emit
+        # 调用点与 _collect 同款收账——BaseException 在此统一重抛，先于
+        # state.start()/队列编排，免得上半段收账下半段无人抛。
+        fatal: list[BaseException] = []
+        completed, done_map = self._load_resumed(fatal)
+        pending, split_items = self._route_chunks(chunks, completed, done_map, fatal)
+        if fatal:
+            raise fatal[0]
 
         if self.state is not None:
             self.state.start(len(chunks))
