@@ -158,7 +158,7 @@ def test_floatopt_cond_declines_comma_payload(tmp_path: Path) -> None:
 
 
 def test_floatopt_cond_declines_209_documentstyle(tmp_path: Path) -> None:
-    """\\documentstyle 稿无 \\usepackage——main_head_contains 闸拒。"""
+    """\\documentstyle 稿无 \\usepackage——source_contains docclass 断言拒。"""
     (tmp_path / "main.tex").write_text(
         "\\documentstyle[12pt]{article}\n\\begin{figure}[H]\nx\\end{figure}\n",
         encoding="utf-8",

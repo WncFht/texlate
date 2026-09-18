@@ -447,9 +447,10 @@ rules:
     when: { category: float_opt, payload_required: true }
     condition:
       ctx_suggests: "Unknown float option [`']H'"
-      # 2.09 (\documentstyle) 无 \\usepackage——注入即非法 (input_sty_to_usepackage 同闸)
-      main_head_contains: "\\documentclass"
-      source_contains: "\\A(?![\\s\\S]*(?:\\\\(?:usepackage|RequirePackage)\\s*(\\[[^\\]\\n]*\\])?\\s*\\{[^}]*\\bfloat\\b|\\\\input(?:\\s*\\{\\s*|\\s+)float\\.sty))(?=[\\s\\S]*\\\\begin\\{[A-Za-z]+\\*?\\}\\s*\\[[^\\]\\n]*H)"
+      # 2.09 (\documentstyle) 无 \\usepackage——注入即非法; docclass 断言并入
+      # source_contains (main_head 仅 3k 窗, 0408234 注释堆 70 行 docclass@3280
+      # 漏窗实证——fixloop6 replay 未点火)
+      source_contains: "\\A(?![\\s\\S]*(?:\\\\(?:usepackage|RequirePackage)\\s*(\\[[^\\]\\n]*\\])?\\s*\\{[^}]*\\bfloat\\b|\\\\input(?:\\s*\\{\\s*|\\s+)float\\.sty))(?=[\\s\\S]*\\\\documentclass)(?=[\\s\\S]*\\\\begin\\{[A-Za-z]+\\*?\\}\\s*\\[[^\\]\\n]*H)"
     action:
       kind: regex_rewrite
       params:
