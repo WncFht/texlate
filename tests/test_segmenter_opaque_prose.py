@@ -149,3 +149,106 @@ def test_prose_arg_all_caps_rejected() -> None:
     res = scan("\\keyonly{NASA ESA SOHO MISSION LIST}")
     assert any("NASA" in b for b in macro_bodies(res))
     assert "NASA" not in blob(res)
+
+
+# --------------------------------------------------------- 定界参消费（u/g）
+
+
+def test_delim_cs_arg_consumed() -> None:
+    r"""``\def\formula#1\stop{..}`` 调 ``\formula x^2 \stop``：``u`` 定界参
+    滑窗命中 ``\stop``——delim 消费、整调用进 ``[[MACRO]]``，``x^2 \stop``
+    不裸落 chunk（delim-param-args 修复前的泄漏形）。"""
+    res = scan(
+        "Before \\formula x^2+y^2 \\stop after words here.",
+        "\\def\\formula#1\\stop{$#1$}\n",
+    )
+    assert res.ph_map["[[MACRO_1]]"] == "\\formula x^2+y^2 \\stop"
+    assert "x^2" not in blob(res)
+    assert "\\stop" not in blob(res)
+
+
+def test_delim_comma_args_all_consumed() -> None:
+    r"""``\def\bbra#1,#2,#3{..}`` + ``\bbra a,b,c``（corpus 实形）：
+    三枚逗号界定界参逐参消费，整调用 ``[[MACRO]]``。"""
+    res = scan(
+        "Before \\bbra a,b,c after words here.",
+        "\\def\\bbra#1,#2,#3{\\left(#1,#2,#3\\right)}\n",
+    )
+    assert res.ph_map["[[MACRO_1]]"] == "\\bbra a,b,c"
+    assert "a,b,c" not in blob(res)
+
+
+def test_delim_paren_and_cs_seq() -> None:
+    r"""``\def\fl#1(#2)#3\\{..}``（0707.2151 ``\FetchLabel@`` 同形）：
+    括号界 + cs 界混合序列逐参消费。"""
+    res = scan(
+        "Before \\fl foo(bar)baz\\\\ after words here.",
+        "\\def\\fl#1(#2)#3\\\\{}\n",
+    )
+    assert res.ph_map["[[MACRO_1]]"] == "\\fl foo(bar)baz\\\\"
+    assert "baz" not in blob(res)
+
+
+def test_delim_empty_arg_adjacent() -> None:
+    r"""delim 紧邻（``\formula\stop`` 空参）：delim 序列立即命中——
+    inner 空、内容位零宽，调用照常整收。"""
+    res = scan(
+        "Before \\formula\\stop after words here.",
+        "\\def\\formula#1\\stop{$#1$}\n",
+    )
+    assert res.ph_map["[[MACRO_1]]"] == "\\formula\\stop"
+
+
+def test_delim_missing_delim_abandons() -> None:
+    r"""delim 缺席（``\formula x^2`` 无 ``\stop``）→ 放弃：``\formula``
+    单独 ``[[MACRO]]``，已拉 token 全量回放——余文主流重扫描不被吞。"""
+    res = scan(
+        "Before \\formula x^2+y^2 after words keep flowing.",
+        "\\def\\formula#1\\stop{$#1$}\n",
+    )
+    assert res.ph_map["[[MACRO_1]]"] == "\\formula"
+    assert "x^2+y^2 after words" in blob(res)
+
+
+def test_delim_eol_par_boundary_abandons() -> None:
+    r"""delim 不跨 ``\n\n`` 段界：``\stop`` 在段界后出现 → runaway 放弃
+    （``_find_math_close_tok``/``d/r`` closer-miss 同款防护），参数文回流。"""
+    res = scan(
+        "Before \\formula x^2+y^2\n\nafter \\stop words keep flowing here.",
+        "\\def\\formula#1\\stop{$#1$}\n",
+    )
+    assert res.ph_map["[[MACRO_1]]"] == "\\formula"
+    assert "x^2+y^2" in res.protected_tex  # 已拉 token 回放主流——不吞文
+    assert "\\stop" in blob(res)  # 放弃后 \stop 按未知 cs 主流处理
+
+
+def test_delim_brace_group_shields_inner_delim() -> None:
+    r"""``\formula {x \stop y} more \stop``：``{`` 起平衡组整收——组内
+    ``\stop`` 不当 delim（gullet ``_read_delimited`` 同款屏蔽），外位
+    ``\stop`` 才终结参数。"""
+    res = scan(
+        "Before \\formula {x \\stop y} more \\stop after words here.",
+        "\\def\\formula#1\\stop{$#1$}\n",
+    )
+    assert res.ph_map["[[MACRO_1]]"] == "\\formula {x \\stop y} more \\stop"
+
+
+def test_until_group_arg_lbrace_pushed_back() -> None:
+    r"""``\def\g#1#{..}``（``until_group``→``g``）：``#1`` 读到 ``{`` 止——
+    ``{`` 回吐不消费、不计入 inner，尾随 ``{def}`` 组留主流照常进 chunk。"""
+    res = scan(
+        "Before \\g abc{def group words inside} after words here.",
+        "\\def\\g#1#{\\textbf{#1}}\n",
+    )
+    assert res.ph_map["[[MACRO_1]]"] == "\\g abc"
+    assert "def group words inside" in blob(res)
+
+
+def test_until_group_empty_arg_immediate_lbrace() -> None:
+    r"""``\g{def}``：``{`` 立即回吐——``#1`` 空参，``{def}`` 组整体留主流。"""
+    res = scan(
+        "Before \\g{def group words inside} after words here.",
+        "\\def\\g#1#{\\textbf{#1}}\n",
+    )
+    assert res.ph_map["[[MACRO_1]]"] == "\\g"
+    assert "def group words inside" in blob(res)

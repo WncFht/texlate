@@ -9,6 +9,7 @@ import texlate.latex.segmenter as _seg
 from texlate.latex.gullet import (
     Gullet,
     MacroDef,
+    _tok_eq,
 )
 from texlate.latex.model import (
     ArgSpec,
@@ -65,6 +66,20 @@ _KEYVAL_GROUP_RX = re.compile(r"\s*(?:[\w@*.\-]+[ \t]*,[ \t]*)*[\w@*.\-]+[ \t]*=
 # 才收——真散文词间缺逗号即不中（``{word, word, word}`` 散文罕见，宁漏
 # 不译名单）。
 _COMMA_LIST_RX = re.compile(r"\s*[\w@*.\-/]+\s*(?:,\s*[\w@*.\-/]+\s*)*,?\s*")
+
+# ``{..}`` 组判形前的 ``%`` 注释剥离——keyval/名单组常以注释行起头
+# （``\lstdefinelanguage{lean}{\n% c\nmathescape=false,..}``），裸套
+# ``_KEYVAL_GROUP_RX``/``_COMMA_LIST_RX`` 在 ``%`` 处即断 → 组判成散文
+# → 键位译成 ``这是译文`` → ``Package keyval Error``（2105.00041
+# lstlean.tex 实证）。``\%`` 转义不剥。
+_KV_COMMENT_RX = re.compile(r"(?<!\\)%[^\n\r]*")
+
+
+def _keyval_shaped(ftext: str, cs: int, ce: int) -> bool:
+    r"""``ftext[cs:ce]`` 剥注释后是否 ``key=``/``flag,key=`` 起头的 keyval 组。"""
+    return (
+        _KEYVAL_GROUP_RX.match(_KV_COMMENT_RX.sub(" ", ftext[cs:ce])) is not None
+    )
 
 # 参内零宽命令整调用剥除——``\index``/``\label`` 不产生可见文本，但其
 # ``{..}`` 组在词链判据里当隔墙（``{inflation \index{x} and the epoch}``
@@ -458,6 +473,101 @@ class _Args:
                         else:
                             src.unread([*jp, *([z] if z is not None else [])])
                 out.append(_ArgTok(fid, es, end, es, end, inner, etoks, s))
+            elif s.kind == "u" and s.delim_toks:
+                # ``#1<seq>`` 定界参：滑窗 ``_tok_eq`` 逐枚比对 delim 序列——
+                # delim 消费、不计入 inner；``lbrace`` 起平衡组整收（组内
+                # 定界符不参与滑窗，gullet ``_read_delimited`` 同款屏蔽）。
+                # ``eol_par``/EOF 先至 → 全回吐 ``break``——不跨段界追 delim
+                # （``_find_math_close_tok`` 与 ``d/r`` closer-miss 同款
+                # runaway 防护）。
+                k = len(s.delim_toks)
+                dtoks: list[Tok] = []
+                runaway = False
+                if x.kind == "lbrace":
+                    grp = self._collect_group(src, x, brace=True)
+                    if grp is None:
+                        runaway = True  # 组 token 已由 _collect_group 回吐
+                    else:
+                        g_inner, g_close = grp
+                        dtoks.extend([x, *g_inner, g_close])
+                else:
+                    dtoks.append(x)
+                while not runaway:
+                    if len(dtoks) >= k and all(
+                        _tok_eq(dtoks[-k + j], s.delim_toks[j]) for j in range(k)
+                    ):
+                        break
+                    y = src.read()
+                    if y is None or y.kind == "eol_par":
+                        if y is not None:
+                            dtoks.append(y)
+                        runaway = True
+                        break
+                    if y.kind == "lbrace":
+                        grp = self._collect_group(src, y, brace=True)
+                        if grp is None:
+                            runaway = True  # 同上——已拉 token 全回吐
+                            break
+                        g_inner, g_close = grp
+                        dtoks.extend([y, *g_inner, g_close])
+                        continue
+                    dtoks.append(y)
+                if runaway:
+                    src.unread([*pulled, *dtoks])
+                    break
+                inner = dtoks[:-k]
+                closer = dtoks[-1]
+                out.append(
+                    _ArgTok(
+                        fid,
+                        inner[0].pos[1] if inner else closer.pos[1],
+                        inner[-1].pos[2] if inner else closer.pos[1],
+                        dtoks[0].pos[1],
+                        closer.pos[2],
+                        inner,
+                        [*pulled, *dtoks],
+                        s,
+                    )
+                )
+                end = closer.pos[2]
+            elif s.kind == "g":
+                # ``#1{`` 形：读到 ``lbrace`` 回吐——``{`` 不消费、不计入
+                # inner（TeX ``#{`` 语义：组留主流自行分流）。``eol_par``/
+                # EOF 先至 → 全回吐 ``break``（runaway 防护同 'u'）。
+                gtoks: list[Tok] = []
+                hit = x.kind == "lbrace"
+                if hit:
+                    src.unread([x])
+                else:
+                    gtoks.append(x)
+                while not hit:
+                    y = src.read()
+                    if y is None or y.kind == "eol_par":
+                        if y is not None:
+                            gtoks.append(y)
+                        break
+                    if y.kind == "lbrace":
+                        src.unread([y])
+                        hit = True
+                        break
+                    gtoks.append(y)
+                if not hit:
+                    src.unread([*pulled, *gtoks])
+                    break
+                out.append(
+                    _ArgTok(
+                        fid,
+                        gtoks[0].pos[1] if gtoks else x.pos[1],
+                        gtoks[-1].pos[2] if gtoks else x.pos[1],
+                        gtoks[0].pos[1] if gtoks else x.pos[1],
+                        gtoks[-1].pos[2] if gtoks else x.pos[1],
+                        gtoks,
+                        [*pulled, *gtoks],
+                        s,
+                    )
+                )
+                if gtoks:
+                    end = gtoks[-1].pos[2]
             else:
                 # 'b'/无 delim 的 dDrRt/未知：不消费但占零宽位
                 src.unread([*pulled, x])
@@ -1239,7 +1349,10 @@ class _Args:
         r"""Opaque 宏（gullet 判定体无文本不展开）：按 spec 读参 → ``[[MACRO]]``。
 
         gullet ``Arg`` → ``ArgSpec`` 映射：``m``→m、``o``→o、``star``→s、
-        ``e``→e（delim toks → 字符表），其余（delim/until_group 等）→ 零宽占位。
+        ``e``→e（delim toks → 字符表）、``delim``→u（``delim_toks`` 原样携带
+        目标序列——滑窗命中止、delim 消费）、``until_group``→g（读到
+        ``lbrace`` 回吐不消费）；``brace_after`` 不传递——gullet 侧也只是
+        读一枚随即回吐，净效应零。其余（literal_match/eq 等）→ 零宽占位。
 
         散文参挖掘（cat9 @-cs 面 + 全 opaque 散文面共享本点）：``{..}`` 组参
         命中散文判据时抠出 ``[[MACRO]]`` 覆盖、子扫渲进 run surface——
@@ -1257,6 +1370,10 @@ class _Args:
             if a.kind == "star"
             else ArgSpec("e", delim="".join(x.text for x in a.delim))
             if a.kind == "e"
+            else ArgSpec("u", delim_toks=tuple(a.delim))
+            if a.kind == "delim" and a.delim
+            else ArgSpec("g")
+            if a.kind == "until_group"
             else ArgSpec("b")
             for a in getattr(m, "spec", [])
         ]
