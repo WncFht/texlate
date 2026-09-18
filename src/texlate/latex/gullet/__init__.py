@@ -25,9 +25,8 @@ from __future__ import annotations
 
 # ------------------------------------------------------------------ 兼容面
 # 旧单文件模块属性面的在役子集：``BUDGET``（core._can_expand 经 ``_g.BUDGET``
-# 取包属性——tests monkeypatch 面）、``export_flat_macros``（scanner v1 臂
-# 消费）、``_tok_eq``（bench gullet_bench 消费）。其余泄漏导入名零消费
-# 已修剪；``__all__`` 即公共面。
+# 取包属性——tests monkeypatch 面）、``_tok_eq``（bench gullet_bench 消费）。
+# 其余泄漏导入名零消费已修剪；``__all__`` 即公共面。
 from texlate.latex.tables import (
     BUDGET as BUDGET,
 )
@@ -59,9 +58,6 @@ from .entries import (
     IfSetter,
     MacroDef,
     ScopeMacroTable,
-)
-from .entries import (
-    export_flat_macros as export_flat_macros,
 )
 from .expand import (
     _Expand,
