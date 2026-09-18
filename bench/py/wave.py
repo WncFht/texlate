@@ -647,6 +647,8 @@ _SC_PATHS = [
     ("union lift clean", ("lift", "clean")),
     ("orphan_fix", ("orphan_fix",)),
     ("floor_restored", ("floor_restored",)),
+    ("freeze", ("freeze", "status")),
+    ("window suspects", ("freshness_window", "suspect_cells")),
 ]
 
 
@@ -748,7 +750,24 @@ def cmd_scorecard(args) -> int:
         print(f"!! 无 records/：{rec_dir}", file=sys.stderr)
         return 2
 
-    cur = _json_run([sys.executable, str(SCORECARD), str(rec_dir), "--json"])
+    sc_cmd = [sys.executable, str(SCORECARD), str(rec_dir), "--json"]
+    if args.require_frozen:
+        # 冻结门透传：exit 3 是设计出口（非错误）——freeze 块在子进程
+        # stdout，透出原因后以同码上抛，脚本面契约不变。
+        sc_cmd.append("--require-frozen")
+        r = _run(sc_cmd, capture_output=True, text=True)
+        if r.returncode != 0:
+            sys.stderr.write(r.stderr)
+            if r.stdout.strip():
+                print(r.stdout, file=sys.stderr, end="")
+            print(
+                f"!! gate_scorecard 拒记分 rc={r.returncode}（records 非 frozen）",
+                file=sys.stderr,
+            )
+            return r.returncode
+        cur = json.loads(r.stdout)
+    else:
+        cur = _json_run(sc_cmd)
     hist_dir = (
         Path(args.history_dir) if args.history_dir else run_dir / "scorecard-history"
     )
@@ -864,6 +883,11 @@ def main(argv: list[str] | None = None) -> int:
     p_sc.add_argument("--prev", default=None, help="显式前次快照路径")
     p_sc.add_argument("--history-dir", default=None, help="快照目录覆盖")
     p_sc.add_argument("--json", action="store_true", dest="as_json", help="机读输出")
+    p_sc.add_argument(
+        "--require-frozen",
+        action="store_true",
+        help="gate_scorecard 冻结门透传：records 非 frozen 时拒记分（exit 3）",
+    )
 
     args = ap.parse_args(argv)
     if args.cmd == "run":
