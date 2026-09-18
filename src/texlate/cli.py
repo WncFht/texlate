@@ -49,8 +49,14 @@ from texlate.compile import toolchain
 from texlate.compile.sandbox import find_tool
 from texlate.e2e import mock_pipeline_run
 from texlate.latex.api import parse_file
-from texlate.share import KEY_PART_FIELDS, ShareError, pack_share, unpack_share
-from texlate.textutil import data_root, env_flag, env_str
+from texlate.share import (
+    KEY_PART_FIELDS,
+    ShareError,
+    glossary_content_hash,
+    pack_share,
+    unpack_share,
+)
+from texlate.textutil import data_root, env_flag, env_raw, env_str
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -908,7 +914,7 @@ def _export_translator(model: str | None, *, mock: bool) -> Translator:
     )
 
     force = env_str("TEXLATE_TRANSLATOR")
-    api_key = os.environ.get("TEXLATE_API_KEY", "")
+    api_key = env_raw("TEXLATE_API_KEY")
     if mock or force == "mock":
         return MockTranslator()  # 显式干跑优先于 env 矛盾检查
     if force not in ("", "gateway"):
@@ -936,8 +942,8 @@ def _export_translator(model: str | None, *, mock: bool) -> Translator:
     from texlate.xlat.client import ChatClient  # noqa: PLC0415
 
     return GatewayTranslator(
-        ChatClient(os.environ.get("TEXLATE_BASE_URL") or DEFAULT_BASE_URL, api_key),
-        model or os.environ.get("TEXLATE_MODEL", "") or DEFAULT_MODEL,
+        ChatClient(env_raw("TEXLATE_BASE_URL") or DEFAULT_BASE_URL, api_key),
+        model or env_raw("TEXLATE_MODEL") or DEFAULT_MODEL,
     )
 
 

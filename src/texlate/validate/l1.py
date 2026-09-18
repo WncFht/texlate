@@ -49,6 +49,8 @@ from importlib import resources
 from pathlib import Path
 from typing import Any, Self
 
+from texlate.textutil import env_raw
+
 __all__ = [
     "L1Error",
     "TsBaseline",
@@ -261,9 +263,9 @@ class TsValidator:
         timeout: float = _BATCH_TIMEOUT_S,
     ) -> None:
         """解析 node/worker/依赖三方位置；env 覆盖优先于参数默认值。"""
-        env_worker = os.environ.get("TEXLATE_TS_WORKER")
-        env_node_path = os.environ.get("TEXLATE_TS_NODE_PATH")
-        self._node = node or os.environ.get("TEXLATE_NODE") or shutil.which("node")
+        env_worker = env_raw("TEXLATE_TS_WORKER")
+        env_node_path = env_raw("TEXLATE_TS_NODE_PATH")
+        self._node = node or env_raw("TEXLATE_NODE") or shutil.which("node")
         self._worker_dir = (
             Path(worker_dir or env_worker)
             if (worker_dir or env_worker)

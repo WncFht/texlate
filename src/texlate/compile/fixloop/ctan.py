@@ -23,7 +23,6 @@ import contextlib
 import io
 import json
 import lzma
-import os
 import re
 import tarfile
 from collections.abc import Callable
@@ -31,7 +30,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Final
 
-from texlate.textutil import data_root
+from texlate.textutil import data_root, env_raw
 
 __all__ = [
     "CtanFetchError",
@@ -122,7 +121,7 @@ DEFAULT_CAPS: Final = FetchCaps()
 
 def default_cache_dir() -> Path:
     """``$TEXLATE_CACHE`` > ``data_root()/cache`` (``TEXLATE_DATA_DIR`` > ``~/.texlate``)。"""
-    raw = os.environ.get("TEXLATE_CACHE")
+    raw = env_raw("TEXLATE_CACHE")
     return Path(raw).expanduser() if raw else data_root() / "cache"
 
 

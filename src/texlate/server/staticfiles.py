@@ -16,6 +16,8 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from texlate.textutil import env_raw
+
 if TYPE_CHECKING:
     from fastapi import FastAPI
     from starlette.responses import Response
@@ -32,7 +34,7 @@ def spa_dir() -> Path | None:
 
     目录下无 ``index.html`` 视为未构建，返回 ``None``。
     """
-    override = os.environ.get(SPA_DIR_ENV)
+    override = env_raw(SPA_DIR_ENV)
     if override:
         cand = Path(override).expanduser()
         if (cand / "index.html").is_file():

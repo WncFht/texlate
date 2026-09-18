@@ -110,6 +110,8 @@ __all__ = [
     "decode_tex_with",
     "env_flag",
     "env_float",
+    "env_opt",
+    "env_raw",
     "env_str",
     "is_cjk_cp",
     "iter_depth0",
@@ -410,6 +412,25 @@ def env_float(name: str, default: float) -> float:
 def env_str(name: str) -> str:
     """读字符串 env：strip+lower 归一返回；未设置返 ``""``（选择器类旗标同口径）。"""
     return os.environ.get(name, "").strip().lower()
+
+
+def env_raw(name: str) -> str:
+    """读字符串 env：strip 归一但**不** lower；未设置返 ``""``。
+
+    路径/URL/model/key 等值敏感场用（选择器类旗标用 ``env_str``）。set-empty
+    与未设置同归 ``""``——需要区分两者时用 ``env_opt``。
+    """
+    return os.environ.get(name, "").strip()
+
+
+def env_opt(name: str) -> str | None:
+    """读字符串 env：未设置 → ``None``；已设置 → strip 后原样（空串保留）。
+
+    「置空串」带独立语义的场用（如 ``TEXLATE_TEX_BUNDLE=""`` 表引擎自带
+    默认 bundle）——``env_raw`` 会把 set-empty 与未设置混同。
+    """
+    raw = os.environ.get(name)
+    return raw.strip() if raw is not None else None
 
 
 def data_root() -> Path:

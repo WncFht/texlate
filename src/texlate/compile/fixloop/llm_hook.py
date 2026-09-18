@@ -27,14 +27,13 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import re
 import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from texlate.textutil import JSON_FENCE_RX, safe_resolve
+from texlate.textutil import JSON_FENCE_RX, env_raw, safe_resolve
 from texlate.xlat.client import DEFAULT_BASE_URL, DEFAULT_MODEL
 
 if TYPE_CHECKING:
@@ -346,11 +345,9 @@ class LlmFixer:
     ) -> None:
         """组装配置; ``translator=None`` 时 env 解析网关三件套。"""
         self.translator = translator
-        self.base_url = base_url or os.environ.get("TEXLATE_BASE_URL", DEFAULT_BASE_URL)
-        self.api_key = (
-            api_key if api_key is not None else os.environ.get("TEXLATE_API_KEY", "")
-        )
-        self.model = model or os.environ.get("TEXLATE_MODEL") or DEFAULT_MODEL
+        self.base_url = base_url or env_raw("TEXLATE_BASE_URL") or DEFAULT_BASE_URL
+        self.api_key = api_key if api_key is not None else env_raw("TEXLATE_API_KEY")
+        self.model = model or env_raw("TEXLATE_MODEL") or DEFAULT_MODEL
         self.timeout_s = timeout_s
         self.temperature = temperature
         self.max_tokens = max_tokens

@@ -30,7 +30,7 @@ from urllib.parse import urlsplit
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
 
-from texlate.textutil import data_root, env_flag, env_str
+from texlate.textutil import data_root, env_flag, env_raw, env_str
 from texlate.xlat.client import (
     _LOOPBACK_HOSTS,
     _TAILNET_V4,
@@ -117,7 +117,7 @@ def cache_scope() -> str:
     译过某论文」的存在性 oracle，代价是缓存命中按 key 碎片化。
     旧名 ``tenant`` 同义 ``per_key``；非法值回落 ``shared``。
     """
-    v = os.environ.get("TEXLATE_CACHE_SCOPE", "shared").strip().lower()
+    v = env_str("TEXLATE_CACHE_SCOPE") or "shared"
     if v in ("per_key", "tenant"):
         return "per_key"
     if v != "shared":
@@ -132,7 +132,7 @@ def share_dir(root: Path | None = None) -> Path:
     落此——指向静态托管/对象存储挂载点即完成发布（shared-cache.md §7
     文件级服务端形态）。惰性建目录（pack/index_append 各自 mkdir parents）。
     """
-    raw = os.environ.get("TEXLATE_SHARE_DIR", "").strip()
+    raw = env_raw("TEXLATE_SHARE_DIR")
     if raw:
         return Path(raw).expanduser()
     return (root if root is not None else data_dir()) / "share"
@@ -631,16 +631,16 @@ class SettingsStore:
 
 def env_key_for(base_url: str) -> str:
     """按 provider 映射读 env key：``TEXLATE_API_KEY`` 优先，然后按 host 兜底。"""
-    direct = os.environ.get("TEXLATE_API_KEY", "")
+    direct = env_raw("TEXLATE_API_KEY")
     if direct:
         return direct
     env_name = PROVIDER_KEY_ENV.get(provider_for_url(base_url), "TEXLATE_API_KEY")
-    return os.environ.get(env_name, "")
+    return env_raw(env_name)
 
 
 def env_base_url() -> str:
     """``TEXLATE_BASE_URL`` env 兜底（未配置返回空）。。"""
-    return os.environ.get("TEXLATE_BASE_URL", "").strip()
+    return env_raw("TEXLATE_BASE_URL")
 
 
 def env_model() -> str:
@@ -649,7 +649,7 @@ def env_model() -> str:
     与 ``header_model`` 臂同闸：控制字符（``\n`` 等）原样透传会进
     任务行/事件载荷构成日志注入面，env 是操作员配置面，错配即早炸。
     """
-    v = os.environ.get("TEXLATE_MODEL", "").strip()
+    v = env_raw("TEXLATE_MODEL")
     return validate_model(v) if v else ""
 
 
@@ -1034,5 +1034,5 @@ def provider_presets(settings: dict[str, Any]) -> list[dict[str, Any]]:
     current_provider = provider_for_url(conns_url) if conns_url else ""
     for p in presets:
         p["active"] = p["id"] == current_provider
-        p["has_env_key"] = bool(os.environ.get(p["key_env"], ""))
+        p["has_env_key"] = bool(env_raw(p["key_env"]))
     return presets

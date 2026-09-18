@@ -41,6 +41,8 @@ if TYPE_CHECKING:
 from texlate.textutil import (
     DOCSTYLE_RX,
     decode_tex,
+    env_opt,
+    env_raw,
     safe_is_file,
     safe_resolve,
 )
@@ -323,7 +325,7 @@ class XelatexEngine:
         # best-effort（halt_on_error=False，对齐 compile_bench 方法论）。
         self.halt_on_error = halt_on_error
         self.texmfhome = texmfhome
-        self.repository = repository or os.environ.get("TEXLATE_TLNET") or None
+        self.repository = repository or env_raw("TEXLATE_TLNET") or None
         self._search_cache: dict[str, list[str]] | None = None
         self._usertree_inited = False
         #: ``probe_file`` 树探测 memo——键 ``(fname, texmfhome, 宿主
@@ -354,7 +356,7 @@ class XelatexEngine:
             # 否则宿主 ~/texmf 里的 shim/老包在 fixloop 冷树视角下凭空消失
             # （regress4 假退化根因）。tlmgr/updmap 不认链，走 _usertree_env。
             home_tree = str(self.texmfhome / "home")
-            tail = os.environ.get("TEXMFHOME") or str(Path.home() / "texmf")
+            tail = env_raw("TEXMFHOME") or str(Path.home() / "texmf")
             homes = [home_tree] + [e for e in tail.split(":") if e and e != home_tree]
             add.update(
                 {
@@ -604,7 +606,7 @@ class XelatexEngine:
         base = cwd if cwd is not None else Path.cwd()
         if safe_is_file(cand := base / fname):
             return str(cand)
-        key = (fname, str(self.texmfhome), os.environ.get("TEXMFHOME") or "")
+        key = (fname, str(self.texmfhome), env_raw("TEXMFHOME"))
         if key in self._probe_cache:
             return self._probe_cache[key]
         hit = self._probe_tree(fname)
@@ -901,10 +903,11 @@ class TectonicEngine:
         self.binary = binary
         # 默认走 pin（docs/08 §4.1）；env TEXLATE_TEX_BUNDLE 覆盖，
         # 置空串 = 引擎自带默认 bundle。
+        env_bundle = env_opt("TEXLATE_TEX_BUNDLE")
         self.bundle = (
             bundle
             if bundle is not None
-            else os.environ.get("TEXLATE_TEX_BUNDLE", TECTONIC_BUNDLE_PIN)
+            else (env_bundle if env_bundle is not None else TECTONIC_BUNDLE_PIN)
         )
         # 对齐 nonstopmode 语义（tectonic 默认 halt-on-error）。
         self.continue_on_errors = continue_on_errors
@@ -1333,10 +1336,8 @@ def engine_for(name: str, **kwargs: object) -> Engine:
 def tlmgr_search_cache_path() -> Path:
     """定位 tlmgr file→pkg 搜索的跨进程落盘缓存位（fixloop 共用约定）。"""
     return Path(
-        os.environ.get(
-            "TEXLATE_TLMGR_CACHE",
-            str(Path.home() / ".cache" / "texlate" / "tlmgr-search-cache.json"),
-        )
+        env_raw("TEXLATE_TLMGR_CACHE")
+        or str(Path.home() / ".cache" / "texlate" / "tlmgr-search-cache.json")
     )
 
 
