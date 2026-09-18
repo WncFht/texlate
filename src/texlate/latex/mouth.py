@@ -18,7 +18,9 @@ r"""Mouth：字符 → token（plasTeX ``Tokenizer.py:333-483`` 的移植）。
 
 from __future__ import annotations
 
+import re
 import string
+import weakref
 from collections import deque
 from dataclasses import dataclass
 
@@ -175,6 +177,43 @@ class CatTable:
                 self._m.pop(ch, None)
             else:
                 self._m[ch] = old
+
+
+# ---- 文本 run 批量化（fix#9 cut-2） ------------------------------------------
+# 可批 catcode 集：这些猫码逐字符产「surface=原字符」文本 token——排除
+# ESCAPE/BGROUP/EGROUP/MATHSHIFT/EOL/SPACE/COMMENT/IGNORED/INVALID（折叠
+# 空白/注释/结构字节无法字节再生），``CC_ACTIVE``（``~``）亦剔出买保险
+# （未来可展开化风险）。未登记字符恒 ``CC_OTHER`` → 天然在 run 集。
+_RUN_CATCODES = frozenset(
+    {CC_LETTER, CC_OTHER, CC_SUPER, CC_SUB, CC_ALIGNMENT, CC_PARAMETER}
+)
+# 猫码表 → 派生 run 正则缓存：``CatTable._v`` 版本钟在 set/pop 改表时递增。
+_RUN_RX_CACHE: weakref.WeakKeyDictionary[CatTable, tuple[int, re.Pattern[str]]] = (
+    weakref.WeakKeyDictionary()
+)
+
+
+def _text_run_rx(cats: CatTable) -> re.Pattern[str]:
+    r"""当前猫码表的 run 正则：``T+(␣T+)*``——内部只许字面 ``" "`` 夹心。
+
+    ``T`` = run 集字符类的补（``SPACE``/``EOL`` 猫码字符本就不在 run 集，
+    无须另排）；夹心空格取字面 ``" "``——space token surface 恒 ``" "``，
+    仅当原字节就是它时合并才不偏 surface。``cats._v`` 失配即重建——
+    ``\catcode``/``\makeatletter`` 改表后沿用旧正则会静默错切（proto 实证）。
+    """
+    ent = _RUN_RX_CACHE.get(cats)
+    if ent is not None and ent[0] == cats._v:  # noqa: SLF001 — 版本钟即缓存契约面
+        return ent[1]
+    dead = "".join(
+        sorted(
+            ch
+            for ch, c in cats._m.items()  # noqa: SLF001 — 同库内部表
+            if c not in _RUN_CATCODES
+        )
+    )
+    rx = re.compile("[^" + re.escape(dead) + "]+(?: [^" + re.escape(dead) + "]+)*")
+    _RUN_RX_CACHE[cats] = (cats._v, rx)  # noqa: SLF001
+    return rx
 
 
 class Mouth:

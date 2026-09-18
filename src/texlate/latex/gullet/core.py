@@ -19,6 +19,7 @@ from texlate.latex.mouth import (
     CatTable,
     Mouth,
     Tok,
+    _text_run_rx,
 )
 from texlate.latex.tables import (
     INPUT_CMDS,
@@ -32,7 +33,7 @@ from .entries import (
     MacroDef,
     ScopeMacroTable,
 )
-from .tables import (
+from .names import (
     _EXPAND_KINDS,
     _PRIMS,
 )
@@ -76,8 +77,12 @@ class _Core:
         self._trace: list[Tok] = []  # 当前 invoke 已消费 token（回吐用）
         # 栈成员变更事件钟：read() 弹栈 / push_source / unread 合成源——
         # 分段器尾字节补盖的 live 快照按此重建（免每 token 全量 diff）。
-        self._pop_seq = 0
-        self._push_seq = 0
+        # ``TokenSource`` 契约成员（分段器事件门直读）。
+        self.pop_seq = 0
+        self.push_seq = 0
+        # ``_collect_group`` 无配对 memo 槽：展开流无界不可 memo，恒 None
+        # （``TokenSource`` 契约——``_ListSource`` 持真集）。
+        self.unmatched_open: set[tuple[tuple[int, int, int], int]] | None = None
         if text:
             self.push_source(text, "")
 
@@ -89,7 +94,7 @@ class _Core:
         self.file_texts.append(text)
         self.file_paths.append(path)
         self.inputs.append(Mouth(text, fid, self.cats))
-        self._push_seq += 1
+        self.push_seq += 1
         if path:
             r = str(Path(path).resolve())
             self._seen.add(r)
@@ -104,7 +109,7 @@ class _Core:
                 self._last_read = t
                 return t
             m = self.inputs.pop()
-            self._pop_seq += 1
+            self.pop_seq += 1
             r = self._seen_fid.pop(m.file_id, None)
             if r is not None:
                 self._seen.discard(r)  # 祖先栈回撤：兄弟位合法重包含不断
@@ -116,7 +121,7 @@ class _Core:
             return
         if not self.inputs:
             self.inputs.append(Mouth.from_tokens(list(toks), self.cats))
-            self._push_seq += 1
+            self.push_seq += 1
         else:
             self.inputs[-1].push_tokens(list(toks))
 
@@ -177,6 +182,52 @@ class _Core:
         if not hit:
             self._warn("verb_resync_failed", None, f"fid {fid} not on inputs")
         return hit
+
+    # ------------------------------------------------- TokenSource 能力面（§4 契约）
+
+    #: ``TokenSource.eof_pops``——``read()`` 耗尽即栈弹（``unread`` 将建
+    #: file_id<0 合成源）——分段器 EOF 守护读此。
+    eof_pops = True
+
+    def live_inputs(self) -> list[Mouth]:
+        """Live 输入栈（``TokenSource`` 契约：弹栈尾盖/ph 懒采样快照）。"""
+        return self.inputs
+
+    def scope_push(self) -> None:
+        """组开回报（§4）：宏表 + catcode 对称推帧。"""
+        self.macros.push_scope()
+        self.cats.push()
+
+    def scope_pop(self) -> None:
+        """组闭回报：宏表/catcode 对称弹（底帧不弹由两侧各自兜底）。"""
+        self.macros.pop_scope()
+        self.cats.pop()
+
+    def env_sig(self, target: str) -> frozenset:
+        """Target env 端点宏签名（墓标作废键）——宏表快照委托。"""
+        return self.macros.env_sig(target)
+
+    def text_run_end(self, t: Tok, files: list[str]) -> int | None:
+        r"""栈顶 ``Mouth`` 刚产 gen=0 文本 token 的批扫快进 → run 末位。
+
+        ``t`` 须是栈顶刚产的 token——``file_id`` 同、``tokbuf`` 空、
+        ``i==t.pos[2]`` 三守卫缺一即落回逐 token（探针回放/``unread``/
+        拉参缓冲必经 fallback）。守卫过则猫码派生正则把 ``m.i`` 直推
+        run 尾——run 内字符永不物化 token。``files`` 未用（走 ``m.buf``
+        直读），契约签名同 ``_ListSource``。
+        """
+        del files
+        if not self.inputs:
+            return None
+        fid, _a, b = t.pos
+        m = self.inputs[-1]
+        if m.file_id != fid or m.tokbuf or m.i != b:
+            return None
+        mm = _text_run_rx(self.cats).match(m.buf, b)
+        if mm is None:
+            return None
+        m.skip_text(mm.end())
+        return mm.end()
 
     # ------------------------------------------------------------ 主循环
 
@@ -376,17 +427,15 @@ class _Core:
             # 原语组开：宏表+cats 同推。scope 事件唯一属主在此（分段器只
             # 回报 lbrace/\begin——cs 形不另报，免双推）；token 本体照交
             # 分段器（vtex 覆盖 = reconstruct identity 的硬理由）。
-            self.macros.push_scope()
-            self.cats.push()
+            self.scope_push()
             return t
         if name in ("endgroup", "egroup"):
-            self.macros.pop_scope()
-            self.cats.pop()
+            self.scope_pop()
             return t
         if name == "endinput":
             if self.inputs:
                 m = self.inputs.pop()  # 当前文件余下字节丢弃（flatten 同语义）
-                self._pop_seq += 1
+                self.pop_seq += 1
                 r = self._seen_fid.pop(m.file_id, None)
                 if r is not None:
                     self._seen.discard(r)  # 祖先栈回撤——同 read() 弹栈账

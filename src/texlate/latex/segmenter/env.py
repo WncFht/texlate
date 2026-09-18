@@ -8,11 +8,6 @@ from bisect import (
 )
 from typing import TYPE_CHECKING
 
-from texlate.latex.gullet import (
-    ArgMismatch,
-    Gullet,
-    MacroDef,
-)
 from texlate.latex.model import (
     PhType,
     ScanWarning,
@@ -43,6 +38,9 @@ from ._common import (
 )
 
 if TYPE_CHECKING:
+    from texlate.latex.gullet import (
+        MacroDef,
+    )
     from texlate.latex.model import ArgspecEntry
     from texlate.latex.mouth import (
         Tok,
@@ -234,7 +232,7 @@ class _Env:
                     Span(v_begin.start, vspan.end),
                 )
                 self.env_stack.append(env)
-                self._scope_push(src)
+                src.scope_push()
                 return
             # in_arg 未知/结构环境 → 整段 [[ENV]] 进 run（v1 泄漏 C2 修复）
             hit = self._find_env_end(src, env, t.pos)
@@ -261,7 +259,7 @@ class _Env:
         vrow = self._cover_to(fid, end)
         self._emit(v_begin.start, vrow.end)  # \begin 行（含吃掉的环境参）literal
         self.env_stack.append(env)
-        self._scope_push(src)
+        src.scope_push()
 
     def _handle_env_end(
         self, t: Tok, src: TokenSource, m: MacroDef | None = None
@@ -288,7 +286,7 @@ class _Env:
                 vspan,
             )
             for _ in range(self._env_pop(env, vspan.start)):
-                self._scope_pop(src)
+                src.scope_pop()
             return
         self._flush_run(vspan.start)
         self._emit(vspan.start, vspan.end)
@@ -299,7 +297,7 @@ class _Env:
             self._stop = True
             return
         for _ in range(self._env_pop(env, vspan.start)):
-            self._scope_pop(src)
+            src.scope_pop()
 
     def _env_pop(self, env: str, vpos: int) -> int:
         r"""v1 ``_env_pop`` 移植：弹 env 栈，返回弹出数（= scope_pop 次数）。
@@ -399,18 +397,16 @@ class _Env:
                 if n2 == open_:
                     return x, c2, collected[: -(1 + len(grp))]
                 continue
-            if isinstance(src, Gullet) and x.text in INPUT_CMDS:
-                # 前瞻不触发展开——\input 族交回 gullet 正常内联（
-                # _find_env_end 同臂；否则子文件 token 随 _ListSource
-                # 重放漏网成 literal）
-                try:
-                    hit = src._do_input(x, x.text)  # noqa: SLF001 — §4 契约面：前瞻展开经 gullet 内部入口
-                except ArgMismatch:
-                    src.unread(src._trace)  # noqa: SLF001 — ArgMismatch 回吐协议（§3.5）
-                    hit = None
-                if hit is not None and hit is not x:
-                    collected[-1] = hit
-                continue
+            if x.text in INPUT_CMDS:
+                # 前瞻不触发展开——\input 族交回源内联（_find_env_end
+                # 同臂；否则子文件 token 随 _ListSource 重放漏网成
+                # literal）。_ListSource input_expand 恒 (False,None)
+                # 落回后续分派。
+                handled, hit = src.input_expand(x)
+                if handled:
+                    if hit is not None and hit is not x:
+                        collected[-1] = hit
+                    continue
 
     def _eat_env_args(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915, PLR0917 — opt/mand/colspec 三段判定平铺即 v1 行序
         self,
@@ -586,31 +582,8 @@ class _Env:
         （in_arg/env 体里的 ``\\beq`` 端点宏也命中）。时点近似：表
         反映的是子扫启动位的 scope 态，体内迟定义不回看。
         """
-        tab = src.macros if isinstance(src, Gullet) else self.state.macros
+        tab = src.macros or self.state.macros
         return tab.resolve(tab.lookup(name))
-
-    @staticmethod
-    def _env_sig_tok(src: TokenSource, target: str) -> frozenset:
-        r"""Target env 端点宏签名（v1 ``_env_sig`` token 版）。
-
-        gullet scope 链全量快照 ``(name, kind, scope_depth)``——迟到
-        ``\def`` 登记/改义/scope 弹出使墓标事件面失真即作废。
-        ``_ListSource`` → 空集：子扫 token 列固定、宏表在重放内不突变，
-        单次扫描内墓标自洽（墓标本体也不跨子扫共享）。
-        """
-        if not isinstance(src, Gullet):
-            return frozenset()
-        out = set()
-        for depth_i, scope in enumerate(src.macros.scopes):
-            for name, entry in scope.items():
-                m = src.macros.resolve(entry)
-                kind = getattr(m, "kind", "")
-                if (
-                    kind in ("env_begin", "env_end")
-                    and getattr(m, "target_env", "").rstrip("*") == target
-                ):
-                    out.add((name, kind, depth_i))
-        return frozenset(out)
 
     def _replay_dead(
         self, src: TokenSource, tag_span: tuple[int, int, int]
@@ -667,7 +640,7 @@ class _Env:
         ``qpos`` = 本次 ``\begin`` tag 首 token 的 pos。
         """
         target = env.rstrip("*")
-        sig = self._env_sig_tok(src, target)
+        sig = src.env_sig(target)
         # comment 族终结是纯字面行锚——墓标键用未剥 * 的 env 本名
         # （comment/comment* 终结子串不同，共享 target 键会交叉误命中）
         dkey = env if env in DEAD_ENVS else target
@@ -714,20 +687,17 @@ class _Env:
             if x.text in ("verb", "verb*", "lstinline"):
                 self._skip_verb_toks(src, collected)
                 continue
-            if isinstance(src, Gullet) and x.text in INPUT_CMDS:
+            if x.text in INPUT_CMDS:
                 # 前瞻 read() 不触发展开——\input 族收进 body_toks 会随
                 # _ListSource 子扫漏网成 literal（v1 flatten 先内联）。
-                # 交回 gullet 正常展开：marker 顶替已入列的 cs（pos 覆盖
-                # 整调用）、新源 token 由后续 read() 照常进 collected。
-                try:
-                    hit = src._do_input(x, x.text)  # noqa: SLF001 — §4 契约面：前瞻展开经 gullet 内部入口
-                except ArgMismatch:
-                    # 流尽（\input{ 未闭合）——残参回放走漏网路，cs 留 literal
-                    src.unread(src._trace)  # noqa: SLF001 — ArgMismatch 回吐协议（§3.5）
-                    hit = None
-                if hit is not None and hit is not x:
-                    collected[-1] = hit
-                continue
+                # 交回源正常展开（input_expand 契约）：marker 顶替已入列
+                # 的 cs（pos 覆盖整调用）、新源 token 由后续 read() 照常
+                # 进 collected；_ListSource 恒 (False,None) 落原分派。
+                handled, hit = src.input_expand(x)
+                if handled:
+                    if hit is not None and hit is not x:
+                        collected[-1] = hit
+                    continue
             if x.text in ("begin", "end"):
                 n, c, grp = self._env_name(src)
                 if n is None:

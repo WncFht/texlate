@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING
 
 import texlate.latex.segmenter as _seg
 from texlate.latex.gullet import (
-    Gullet,
     MacroDef,
     _tok_eq,
 )
@@ -193,11 +192,12 @@ class _Args:
         不判段界），继续收集。组内对价：``_grp_bal``（展开组 token 列
         版——``eol_par`` 即停返 None，规则不同步过对端须双查）。
 
-        ``_unmatched_open``（源侧可选挂载，``_ListSource`` 有）：扫到流尽
-        仍未归零时，深度栈上残留的 open 全是「整流无配对」——配对关系按
-        栈唯一，记入 memo；同 open 再探直返（回吐 open_t 与实扫失败同态）。
+        ``unmatched_open``（``TokenSource`` 契约成员——``_ListSource`` 持
+        真集，Gullet 恒 None）：扫到流尽仍未归零时，深度栈上残留的 open
+        全是「整流无配对」——配对关系按栈唯一，记入 memo；同 open 再探
+        直返（回吐 open_t 与实扫失败同态）。
         """
-        dead = getattr(src, "_unmatched_open", None)
+        dead = src.unmatched_open
         if dead is not None and (open_t.pos, open_t.gen) in dead:
             src.unread([open_t])
             return None
@@ -1230,7 +1230,7 @@ class _Args:
                 end = x.pos[2]
             break
         if end < 0:
-            if hit_eof and isinstance(src, Gullet):
+            if hit_eof and src.eof_pops:
                 # _on_math 同款 EOF 守护：unread 只建 file_id<0 合成源——
                 # cs 本体落 run，余下字节整盖 LITERAL 保真
                 self._rappend_tok(t)

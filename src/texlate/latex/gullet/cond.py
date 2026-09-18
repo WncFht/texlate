@@ -9,7 +9,7 @@ from texlate.latex.mouth import (
 from .entries import (
     IfCond,
 )
-from .tables import (
+from .names import (
     _BUILTINS,
     _DIGITS,
     _PRIMS,

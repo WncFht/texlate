@@ -176,6 +176,24 @@ class ScopeMacroTable:
         """``Alias`` 解引用一层（快照语义）；其余原样返回。"""
         return entry.target if isinstance(entry, Alias) else entry
 
+    def env_sig(self, target: str) -> frozenset:
+        r"""Target env 端点宏签名（v1 ``_env_sig`` scope 版）：全链快照。
+
+        ``(name, kind, scope_depth)`` 三元组集——迟到 ``\def`` 登记/改义/
+        scope 弹出使墓标事件面失真即作废（分段器 ``_EnvDeadTok.sig`` 键）。
+        """
+        out = set()
+        for depth_i, scope in enumerate(self.scopes):
+            for name, entry in scope.items():
+                m = self.resolve(entry)
+                kind = getattr(m, "kind", "")
+                if (
+                    kind in ("env_begin", "env_end")
+                    and getattr(m, "target_env", "").rstrip("*") == target
+                ):
+                    out.add((name, kind, depth_i))
+        return frozenset(out)
+
 
 def _spec_to_args(spec: list[ArgSpec]) -> list[Arg]:
     """``ArgSpec``（v1 字节层签名）→ ``Arg``（gullet 读参槽）映射。

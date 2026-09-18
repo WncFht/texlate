@@ -15,7 +15,7 @@ from texlate.latex.model import (
     MacroKind,
 )
 
-from .tables import (
+from .names import (
     _MATH_CS,
 )
 from .tokutil import (

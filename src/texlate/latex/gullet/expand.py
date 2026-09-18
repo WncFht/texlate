@@ -10,7 +10,7 @@ from .entries import (
     ArgMismatch,
     MacroDef,
 )
-from .tables import (
+from .names import (
     _BUILTINS,
     _EXPAND_KINDS,
     _PRIMS,

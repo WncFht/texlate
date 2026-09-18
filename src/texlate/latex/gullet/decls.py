@@ -18,7 +18,7 @@ from .entries import (
     IfSetter,
     MacroDef,
 )
-from .tables import (
+from .names import (
     _BUILTINS,
     _MATH_CS,
     _MATH_OPEN_CS,

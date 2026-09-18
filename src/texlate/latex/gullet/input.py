@@ -23,6 +23,9 @@ from texlate.textutil import (
     decode_tex,
 )
 
+from .entries import (
+    ArgMismatch,
+)
 from .tokutil import (
     _surface,
 )
@@ -35,6 +38,20 @@ if TYPE_CHECKING:
 
 class _Input:
     # ------------------------------------------------------------ \input 族
+
+    def input_expand(self, trig: Tok) -> tuple[bool, Tok | None]:
+        r"""前瞻臂 ``\input`` 族展开（``TokenSource`` 契约）→ ``(True, hit)``。
+
+        分段器 env/verbatim 体配对用 ``read()`` 原始前瞻、不触发展开——
+        ``\input`` 族 cs 交回此口正常内联（marker 顶顶替已入列的 cs，
+        新源 token 由后续 ``read()`` 照常进收集）。``ArgMismatch``（流尽
+        残参）→ ``_trace`` 回吐 + ``hit=None``（cs 留 literal）。
+        """
+        try:
+            return True, self._do_input(trig, trig.text)
+        except ArgMismatch:
+            self.unread(self._trace)  # ArgMismatch 回吐协议（§3.5）
+            return True, None
 
     def _do_input(self, trig: Tok, name: str) -> Tok | None:  # noqa: C901, PLR0911, PLR0912, PLR0915 — 八形态参数语法平铺即 §7 触发面
         r"""``\input`` 族：解析文件名 → 压新 Mouth 进 ``inputs``（§10）。
