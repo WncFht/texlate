@@ -673,3 +673,10 @@
 - 早波报文全数对账核销：csmap(bcf7de9)/nataux(4b1b7e5)/citembox(6eaeb31)/secdispatch(7dae23d)/floatopt(0e989a0)/vendordiag(N=2 否决)——所述与已收一致，零追加。
 - flipcheck6 在跑（19/53 处全 clean 含 kwd 目标格 1012.2012 翻转实证）。
 - roster 10：ifclose/gcensus + babelinv/zhfile/proofdiag/thehalgo/auxeof/expl3diag(交付待收) + cappayload/dvipdfmiss。
+
+## 2026-09-19 ~10:0x — flipcheck6 收割 + floatopt 3k 窗缺口修复
+
+- **flipcheck6 裁决**（bench/results/stagerun-flipcheck6, 53 rec）：目标 25 格——22 fixloop-clean + 2 compile-clean（astro-ph/0307059、1003.5014 compile 阶段即净）+ 1 partial；clean 30/30 守衡（gate-⑤ ✓）。
+- **0408234 未点火根因**：`main_head_contains` 走 `main_head(n=3000)` 3k 字符窗，稿首 70 行注释堆把 \documentclass 推到 char 3280 → 闸拒。**acdfc0b 修复**：docclass 断言并入 source_contains lookahead（全源拼接无窗限，2.09 拒义不变），复跑 float_opt_h_pkgload 点火→first_error:null、pdf 61KB→851KB（[H] 浮体全渲）。残余 U+0327 combining cedilla 缺字形×1（benign warn）。
+- 教训刻痕：window 类条件（main_head 3k）对注释厚重稿不可靠——断言应优先走 source_contains 全源面。
+- gate-③④⑤ 本波全过：目标格全翻/净、30 clean 零回归、sabotage 沿用既有覆盖。
