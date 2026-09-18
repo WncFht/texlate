@@ -255,3 +255,11 @@
 - 设计确认：'g' 首枚 lbrace 即止=TeX `#{` 语义正确（delim 即 `{`，无嵌套屏蔽问题）；'u' 的组屏蔽=TeX 平衡组语义。'u'/'g' inner 天然豁免散文挖掘（_prose_args_of 只认 m 族 + cs>fs 门双保险）。
 - 一个可注意后续：`\par` 定界永不命中（eol_par 上游拦截→恒 runaway）——0806.2361 实证恰是保护定理散文的正确行为，但意味着 `#1\par` 形定界参宏仍按 b 零宽语义走，属有意保守。
 - skeleton `delim-param-args` adopted。
+
+## 2026-09-18 23:35 — autogloss-reg 收割完毕（任务#3 结）
+
+- 三门禁全 PASS：off-vs-base D=0.026 / on-vs-base D=0.050 / on-vs-off D=0.039，flags/kinds/contested 零漂移——auto 臂分布面无回归。
+- 方向性信号（非门禁）：term_inconsistency 0.161→0.117（-27% 相对，p=0.12 欠功率但方向复现 L2 探针）；grammar +6pp p=0.03（8 重比较噪声域，列 default-on 后观察项）；contested 7.0→8.0%。
+- 裁决⑦证据包：可进 default-on 候选——无分布回归 + 机制收益方向复现 + 代价=非术语块零增益、每篇 +1 抽取调用。REPORT=tmp/lane-autogloss-reg/REPORT.txt。
+- 事故尾账：双 orchestrator 致 arm-off 1 例 unparseable 末行（299/300 已接受——resume 视 error done，记录留存）；arm-on ~60 重复判分同配 judge 无害。
+- cron 641bf83b 已删。下一步：空窗跑首个真 qualdrift 哨兵点（网关闲）。
