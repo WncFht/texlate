@@ -124,7 +124,11 @@ rules:
   # 包未装; Arch 侧 tlpdb 注册装了但 runfiles 缺席 → 系统树假在场)。
   # payload=语言名 → try_exts 拼 {lang}.ldf / {lang}b.ldf 双候选
   # (russian→russianb.ldf 实证命名) → filemap → babel-<lang> 真包。
-  # 覆盖 31/33; ukrainian(ukraineb)/polutonikogreek(TL 无此 ldf) 残留。
+  # 2026-09-19 babel-lane: 选项名≠实档名桥 file_aliases 落地 —— ini 按
+  # \BabelDefinitionFile{0}{X} 指名实档 (locale/*/babel-*.tex 全量扫出
+  # flag-0 异形名表), ukrainian→ukraineb 型 try_exts 拼不出的走显式别名。
+  # greek 系 (monotonic/polytonic/polutonikogreek→greek.ldf) 不入表 ——
+  # XeTeX 下 ldf 硬拒 (见 polutoniko 规则注), russian 已由 b.ldf 扩展盖。
   - id: babel_lang_ldf_install
     description: "babel 语言选项缺 ldf → filemap 装 babel-<lang> 包"
     phase: loop
@@ -135,6 +139,31 @@ rules:
       params:
         file: "{payload}"
         try_exts: [".ldf", "b.ldf"]
+        # 别名候选序在 try_exts 扩展之前 (actions.py _apply_install_file);
+        # 同包内诱饵档 (bahasa/indon/melayu/brazil/portuges/slovene 的
+        # 直名 .ldf) 无害 —— 装包全体落盘, probe 任一候选命中即收口。
+        file_aliases:
+          ukrainian: [ukraineb.ldf]
+          hungarian: [magyar.ldf]
+          lowersorbian: [lsorbian.ldf]
+          uppersorbian: [usorbian.ldf]
+          slovene: [slovenian.ldf]
+          ukenglish: [UKenglish.ldf]
+          usenglish: [USenglish.ldf]
+          friulian: [friulan.ldf]
+          classiclatin: [classicallatin.ldf]
+          ecclesiasticlatin: [ecclesiasticallatin.ldf]
+          brazil: [brazilian.ldf]
+          portuges: [portuguese.ldf]
+          indon: [indonesian.ldf]
+          bahasa: [indonesian.ldf]
+          bahasai: [indonesian.ldf]
+          melayu: [malay.ldf]
+          bahasam: [malay.ldf]
+          austriangerman: [german-at.ldf]
+          german-austria-traditional: [german-at-1901.ldf]
+          german-switzerland-traditional: [german-switzerland-1901.ldf]
+          swisshighgerman: [nswissgerman.ldf]
     engines:
       xelatex:
         {
@@ -296,7 +325,114 @@ rules:
           error: "Package babel Error: Unknown option 'polutonikogreek' (src 写 greek.polutoniko, ini 弃名桩报错)",
         }
     stats: { fires: 0 }
-    source_ref: "scout-fail59 fixable-data 杂项; babel_lang_ldf_install 残留格"
+    source_ref: "scout-fail59 fixloop 杂项; babel_lang_ldf_install 残留格"
+
+  # 2026-09-19 babel-lane (1206.0213): francais/frenchb 是 babel-french
+  # 弃名 —— 现行 ini/ldf 双侧皆无名 (babel-francais.tex/francais.ldf/
+  # frenchb.ldf 皆不在 TL, tlpdb 逐名核实), install 路必 decline; 正名
+  # french 才是真档 (ini babel-french.tex → \BabelDefinitionFile{0}{french}
+  # → french.ldf, filemap 钉在位, babel_lang_ldf_install 装好收口)。
+  # 改名要盖全语言名位: 选项括号 + PassOptions 首参 + 正文 \selectlanguage
+  # /\foreignlanguage/\iflanguage + otherlanguage/hyphenrules 环境参 ——
+  # 漏正文引用会留 'francais' 未声明残错 (babel_undef 注入路会把弃名
+  # 再灌回选项表 → 死循环尾巴, 故同一条规则一次改净)。
+  - id: babel_opt_francais_rewrite
+    description: "babel 弃名 francais/frenchb → french (选项表 + 正文语言引用全位改写)"
+    phase: loop
+    order: 13.5 # install(11)/polutoniko(13) 后: install decline 同轮即补
+    when: { category: babel_opt, payload_required: false }
+    condition: { source_contains: "\\bfrancais\\b|\\bfrenchb\\b" }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          # 选项括号位 (docclass/usepackage/RequirePackage/LoadClass 系锚定)
+          - {
+              pattern: "(\\\\(?:documentclass|usepackage|RequirePackage|LoadClass|LoadClassWithOptions|RequirePackageWithOptions)\\s*\\[[^\\]]*)\\b(?:francais|frenchb)\\b",
+              repl: "\\g<1>french",
+            }
+          # \PassOptionsTo{Package,Class}{..} 首参
+          - {
+              pattern: "(\\\\PassOptionsTo(?:Package|Class)\\s*\\{[^}]*)\\b(?:francais|frenchb)\\b",
+              repl: "\\g<1>french",
+            }
+          # 正文语言选择命令直参
+          - {
+              pattern: "(\\\\(?:selectlanguage|foreignlanguage|iflanguage)\\s*\\{)\\s*(?:francais|frenchb)\\s*(\\})",
+              repl: "\\g<1>french\\g<2>",
+            }
+          # otherlanguage/otherlanguage*/hyphenrules 环境参
+          - {
+              pattern: "(\\\\begin\\{(?:otherlanguage\\*?|hyphenrules)\\}\\s*\\{)\\s*(?:francais|frenchb)\\s*(\\})",
+              repl: "\\g<1>french\\g<2>",
+            }
+    risk: low # francais 在现代 babel 双侧皆无名, 改写无歧义; french 正形
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "corpus_v3 1206.0213 ([english,francais] + \\selectlanguage{francais}:123)",
+          error: "Package babel Error: Unknown option 'francais'",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-babel/ 2026-09-19: babel-francais.tex/francais.ldf 皆 NOT-IN-TL (tlpdb 核实)"
+
+  # 2026-09-19 babel-lane: babel_undef (语言本体未声明) 消费规则 —— 稿面
+  # \selectlanguage/\iflanguage 引用选项表外语言, 或 ldf 自带 AtBeginDocument
+  # 钩引姊妹名 (babel-german.def:739 \iflanguage{ngerman} —— Arch xelatex
+  # 格式零非英 \l@* → [german] 装好 ldf 后仍炸此签)。修法=把 payload 语言
+  # 名补进 babel 选项表头: babel 主语言=选项表末项, 头插永不夺主位; 语言
+  # 本体经 ini/ldf 路由自解析, 缺档下轮回 babel_opt → install 链接手。
+  # 自限: 每 payload 只火一次 (applied 键去重), 伪名注入变 Unknown option
+  # 后 install decline → unfixable 归因不变 (稿本来就炸)。
+  - id: babel_undeclared_option
+    description: "babel 'language X undefined' → 选项表头补 X (非主语言位; ldf 缺链 install 接)"
+    phase: loop
+    order: 14 # 改写系末位; babel_undef 独占类目无竞序
+    when: { category: babel_undef, payload_required: true }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          # \usepackage/\RequirePackage 带表 → 表头插 (lookahead 锚 ]{..babel..})
+          - {
+              pattern: "(\\\\(?:usepackage|RequirePackage)\\s*\\[)(?=[^\\]]*\\]\\s*\\{[^}]*\\bbabel\\b[^}]*\\})",
+              repl: "\\g<1>{payload},",
+            }
+          # \usepackage{babel}/\{..babel..\} 无表 → 新生选项表
+          - {
+              pattern: "(\\\\(?:usepackage|RequirePackage))(\\s*\\{[^}]*\\bbabel\\b[^}]*\\})",
+              repl: "\\g<1>[{payload}]\\g<2>",
+            }
+          # docclass/LoadClass 全局选项表 → 选项流及 babel (cls 内载也盖)
+          - {
+              pattern: "(\\\\(?:documentclass|LoadClass|LoadClassWithOptions)\\s*\\[)",
+              repl: "\\g<1>{payload},",
+            }
+          - {
+              pattern: "(\\\\documentclass)(\\s*\\{)",
+              repl: "\\g<1>[{payload}]\\g<2>",
+            }
+          # \PassOptionsTo{Package,Class}{..}{babel} 首参表头
+          - {
+              pattern: "(\\\\PassOptionsTo(?:Package|Class)\\s*\\{)(?=[^}]*\\}\\s*\\{babel\\})",
+              repl: "\\g<1>{payload},",
+            }
+    risk: low # 头插不夺主位; 伪名注入下一轮即被 install decline 截回
+    known_gap: "语言名若仅经 \\babelprovide/ini-only 声明且永不进选项表 (罕见) 不盖; 注入 docclass 全局项可能带 'Unused global option' info"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "corpus_v3 0707.1325/1003.2165 ([german] ldf 装好后炸 \\iflanguage{ngerman} 钩)",
+          error: "Package babel Error: You haven't defined the language 'ngerman' yet",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-babel/ 2026-09-19: babel.sty \\@nolanerr :942 + babel-german.def:739-740 实证"
 
   - id: install_tfm
     mechanisms: [W95]

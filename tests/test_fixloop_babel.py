@@ -1,0 +1,362 @@
+r"""babel-lane (2026-09-19): babel 语言选项系修复钉。
+
+格面: corpus_v3 0707.1325/1003.2165 ([german] → ldf 装好后炸
+``\iflanguage{ngerman}`` AtBeginDocument 钩, Arch 格式零非英 \l@*)、
+1206.0213 ([english,francais] 弃名)、1306.0435 ([ukrainian,russian] 选项名
+≠实档名)。机制三件: ``file_aliases`` 候选桥 (ini
+``\BabelDefinitionFile{0}{X}`` 指名实档, try_exts 拼不出) /
+``babel_opt_francais_rewrite`` 弃名全位改写 / ``babel_undef`` 类目 +
+``babel_undeclared_option`` 选项表头补名 (主语言=末项, 头插不夺主位)。
+"""
+
+from functools import lru_cache
+from pathlib import Path
+
+from texlate.compile.fixloop import Ruleset, actions, load_ruleset
+from texlate.compile.fixloop.engine import LoopCtx, Rule
+from texlate.compile.fixloop.logparse import ErrReport, parse_text
+
+
+@lru_cache(maxsize=1)
+def _rs() -> Ruleset:
+    return load_ruleset()
+
+
+def _rule(rid: str) -> Rule:
+    return next(r for r in _rs().rules if r.id == rid)
+
+
+def _ctx(tmp_path: Path, err_head: str = "") -> LoopCtx:
+    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
+    ctx.err_head = err_head
+    return ctx
+
+
+def _classify(text: str) -> tuple[str | None, str | None]:
+    return _rs().taxonomy.classify(parse_text(text, _rs().warn_patterns))
+
+
+class _Eng:
+    """regex_rewrite/condition 路径的最小引擎替身 (不触 probe/install)。"""
+
+    name = "xelatex"
+
+    def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
+        del fname, cwd
+        return None
+
+    def filemap(self, fname: str) -> list[str]:
+        del fname
+        return []
+
+
+class _EngInstall(_Eng):
+    """_Eng + install_file: installable 集合内名落 fake texmf, probe 复核命中。"""
+
+    def __init__(self, texmf: Path, installable: set[str]) -> None:
+        self.texmf = texmf
+        self.texmf.mkdir(parents=True, exist_ok=True)
+        self.installable = set(installable)
+        self.install_calls: list[str] = []
+
+    def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
+        if cwd is not None and (Path(cwd) / fname).is_file():
+            return str(Path(cwd) / fname)
+        hit = self.texmf / fname
+        return str(hit) if hit.is_file() else None
+
+    def install_file(self, fname: str, *, font_related: bool = False) -> bool:
+        del font_related
+        self.install_calls.append(fname)
+        if fname not in self.installable:
+            return False
+        (self.texmf / fname).write_text("", encoding="utf-8")
+        return True
+
+    def rebuild_fontmaps(self) -> bool:
+        return True
+
+
+def _apply(
+    rule: Rule, tmp_path: Path, pay: str, eng: _Eng | None = None
+) -> tuple[bool, str]:
+    return actions._apply(  # noqa: SLF001 - 钉规则动作直驱
+        rule, _ctx(tmp_path), eng or _Eng(), pay, ErrReport()
+    )
+
+
+# ──────────────────────────── taxonomy: babel_undef ────────────────────────────
+def test_taxonomy_babel_undef_signature() -> None:
+    """'You haven't defined the language X' → babel_undef, payload=X。"""
+    cat, pay = _classify(
+        "! Package babel Error: You haven't defined the language `ngerman' yet.\n"
+        "l.740 \\iflanguage{ngerman}\n"
+    )
+    assert (cat, pay) == ("babel_undef", "ngerman")
+
+
+def test_taxonomy_babel_opt_not_shadowed() -> None:
+    """新增 babel_undef 签不抢 babel_opt 老签 (Unknown option/language)。"""
+    cat, pay = _classify(
+        "! Package babel Error: Unknown option `francais'.\nl.5 \\ProcessOptions"
+    )
+    assert (cat, pay) == ("babel_opt", "francais")
+    cat, pay = _classify("! Package babel Error: Unknown language `german'.")
+    assert (cat, pay) == ("babel_opt", "german")
+
+
+# ───────────────────── babel_lang_ldf_install: file_aliases ────────────────────
+def test_ldf_install_aliases_registered() -> None:
+    """file_aliases 表装载: ukrainian→ukraineb + 抽查全表项。"""
+    rule = _rule("babel_lang_ldf_install")
+    assert rule.order == 11  # noqa: PLR2004 - schema 断言值
+    assert rule.when["category"] == "babel_opt"
+    aliases = rule.action["params"]["file_aliases"]
+    assert aliases["ukrainian"] == ["ukraineb.ldf"]
+    assert aliases["hungarian"] == ["magyar.ldf"]
+    assert aliases["ukenglish"] == ["UKenglish.ldf"]
+    # greek 系不入表 —— XeTeX 下 ldf 硬拒, polutoniko 走 ini 改写
+    assert "polutonikogreek" not in aliases
+    assert "monotonicgreek" not in aliases
+
+
+def test_filemap_pins_cover_alias_targets() -> None:
+    """别名目标档全数钉进 filemap overrides (.ldf 不入索引 → 钉才确定)。"""
+    overrides = _rs().filemap_cfg["overrides"]
+    for fname, pkg in {
+        "ukraineb.ldf": "babel-ukrainian",
+        "magyar.ldf": "babel-hungarian",
+        "slovenian.ldf": "babel-slovenian",
+        "UKenglish.ldf": "babel-english",
+        "indonesian.ldf": "babel-indonesian",
+        "malay.ldf": "babel-malay",
+        "brazilian.ldf": "babel-portuges",
+        "classicallatin.ldf": "babel-latin",
+        "german-at.ldf": "babel-german",
+        "nswissgerman.ldf": "babel-german",
+        "friulan.ldf": "babel-friulan",
+        "lsorbian.ldf": "babel-sorbian",
+        "usorbian.ldf": "babel-sorbian",
+    }.items():
+        assert overrides.get(fname) == pkg, fname
+
+
+def test_ldf_install_ukrainian_alias_first(tmp_path: Path) -> None:
+    """ukrainian payload: 别名 ukraineb.ldf 为首个试装候选 (1306.0435 实档名)。"""
+    eng = _EngInstall(tmp_path / "texmf", {"ukraineb.ldf"})
+    ok, note = _apply(_rule("babel_lang_ldf_install"), tmp_path, "ukrainian", eng)
+    assert ok, note
+    assert eng.install_calls == ["ukraineb.ldf"]
+    assert "ukraineb.ldf" in note
+
+
+def test_ldf_install_alias_falls_through_to_exts(tmp_path: Path) -> None:
+    """别名装不上 → 续试本名 try_exts 扩展 (别名失败不吞后续候选)。"""
+    eng = _EngInstall(tmp_path / "texmf", {"ukrainian.ldf"})
+    ok, _note = _apply(_rule("babel_lang_ldf_install"), tmp_path, "ukrainian", eng)
+    assert ok
+    assert eng.install_calls == ["ukraineb.ldf", "ukrainian.ldf"]
+
+
+def test_ldf_install_russian_b_ext(tmp_path: Path) -> None:
+    """russian 无别名 → try_exts 双候选 [russian.ldf, russianb.ldf] 顺试。"""
+    eng = _EngInstall(tmp_path / "texmf", {"russianb.ldf"})
+    ok, _note = _apply(_rule("babel_lang_ldf_install"), tmp_path, "russian", eng)
+    assert ok
+    assert eng.install_calls == ["russian.ldf", "russianb.ldf"]
+
+
+def test_ldf_install_no_alias_no_match_declines(tmp_path: Path) -> None:
+    """francais (弃名, TL 无档): 全候选失败 → applied=False 落改写规则。"""
+    eng = _EngInstall(tmp_path / "texmf", set())
+    ok, _note = _apply(_rule("babel_lang_ldf_install"), tmp_path, "francais", eng)
+    assert not ok
+    assert eng.install_calls == ["francais.ldf", "francaisb.ldf"]
+
+
+# ─────────────────────── babel_opt_francais_rewrite ────────────────────────────
+def test_francais_rule_registered() -> None:
+    rule = _rule("babel_opt_francais_rewrite")
+    assert rule.order == 13.5  # noqa: PLR2004 - schema 断言值
+    assert rule.when["category"] == "babel_opt"
+    assert rule.action["kind"] == "regex_rewrite"
+    assert "francais" in rule.condition["source_contains"]
+
+
+def test_francais_option_brackets_renamed(tmp_path: Path) -> None:
+    """1206.0213 形: usepackage + docclass 选项表内 francais→french。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass[a4paper,francais]{article}\n"
+        "\\usepackage[english,francais]{babel}\n",
+        encoding="utf-8",
+    )
+    ok, note = _apply(_rule("babel_opt_francais_rewrite"), tmp_path, "francais")
+    assert ok, note
+    t = (tmp_path / "main.tex").read_text()
+    assert "\\documentclass[a4paper,french]{article}" in t
+    assert "\\usepackage[english,french]{babel}" in t
+    assert "francais" not in t
+
+
+def test_francais_body_selectors_renamed(tmp_path: Path) -> None:
+    """正文语言引用同改净 —— 漏改会留 'francais' 未声明残错喂 babel_undef。"""
+    (tmp_path / "main.tex").write_text(
+        "\\usepackage[english,francais]{babel}\n"
+        "\\selectlanguage{francais}\n"
+        "\\foreignlanguage{francais}{salut}\n"
+        "\\iflanguage{francais}{oui}{non}\n"
+        "\\begin{otherlanguage}{francais}x\\end{otherlanguage}\n",
+        encoding="utf-8",
+    )
+    ok, _ = _apply(_rule("babel_opt_francais_rewrite"), tmp_path, "francais")
+    assert ok
+    t = (tmp_path / "main.tex").read_text()
+    assert "francais" not in t
+    assert "\\selectlanguage{french}" in t
+    assert "\\begin{otherlanguage}{french}" in t
+
+
+def test_francais_word_boundary_respected(tmp_path: Path) -> None:
+    """\\b 词界: francais2/xfrancais 非弃名不命中; 无 francais → applied=False。"""
+    src = "\\usepackage[franc]{babel}\n\\selectlanguage{xfrancais}\n"
+    (tmp_path / "main.tex").write_text(src, encoding="utf-8")
+    ok, _ = _apply(_rule("babel_opt_francais_rewrite"), tmp_path, "francais")
+    assert not ok
+    assert (tmp_path / "main.tex").read_text() == src
+
+
+def test_francais_condition_gate(tmp_path: Path) -> None:
+    """source_contains 闸: 工程无 francais 字样 → condition 拒, 不空转。"""
+    rule = _rule("babel_opt_francais_rewrite")
+    (tmp_path / "main.tex").write_text("\\usepackage[french]{babel}\n")
+    ok, why = actions._cond_ok(  # noqa: SLF001
+        rule.condition, rule, _ctx(tmp_path), _Eng(), "francais"
+    )
+    assert not ok, why
+
+
+def test_francais_match_apply_fallthrough(tmp_path: Path) -> None:
+    """整链: babel_opt/francais → install 候选全败 decline → 同轮改写规则接住。"""
+    (tmp_path / "main.tex").write_text(
+        "\\usepackage[english,francais]{babel}\n", encoding="utf-8"
+    )
+    eng = _EngInstall(tmp_path / "texmf", set())  # francais.ldf 类全装不上
+    ctx = _ctx(tmp_path, "! Package babel Error: Unknown option `francais'.")
+    rule, note = actions._match_apply(  # noqa: SLF001
+        _rs(), ctx, eng, "babel_opt", "francais", ErrReport()
+    )
+    assert rule is not None, note
+    assert rule.id == "babel_opt_francais_rewrite"
+    assert "\\usepackage[english,french]{babel}" in (tmp_path / "main.tex").read_text()
+
+
+# ─────────────────────── babel_undeclared_option ───────────────────────────────
+def test_undeclared_rule_registered() -> None:
+    rule = _rule("babel_undeclared_option")
+    assert rule.order == 14  # noqa: PLR2004 - schema 断言值
+    assert rule.when["category"] == "babel_undef"
+    assert rule.when["payload_required"] is True
+
+
+def test_undeclared_usepackage_head_insert(tmp_path: Path) -> None:
+    """[german]{babel} + payload ngerman → [ngerman,german] (末项主位不动)。"""
+    (tmp_path / "main.tex").write_text(
+        "\\usepackage[german]{babel}\n", encoding="utf-8"
+    )
+    ok, note = _apply(_rule("babel_undeclared_option"), tmp_path, "ngerman")
+    assert ok, note
+    assert "\\usepackage[ngerman,german]{babel}" in (tmp_path / "main.tex").read_text()
+
+
+def test_undeclared_main_position_preserved(tmp_path: Path) -> None:
+    """多语言表头插不夺主位: [english,german] → [ngerman,english,german]。"""
+    (tmp_path / "main.tex").write_text(
+        "\\usepackage[english,german]{babel}\n", encoding="utf-8"
+    )
+    ok, _ = _apply(_rule("babel_undeclared_option"), tmp_path, "ngerman")
+    assert ok
+    assert (
+        "\\usepackage[ngerman,english,german]{babel}"
+        in (tmp_path / "main.tex").read_text()
+    )
+
+
+def test_undeclared_bare_and_group_usepackage(tmp_path: Path) -> None:
+    """无表形 \\usepackage{babel} → [X]{babel}; 组载 {graphicx,babel} 同盖。"""
+    (tmp_path / "main.tex").write_text(
+        "\\usepackage{babel}\n\\usepackage{graphicx,babel}\n", encoding="utf-8"
+    )
+    ok, _ = _apply(_rule("babel_undeclared_option"), tmp_path, "french")
+    assert ok
+    t = (tmp_path / "main.tex").read_text()
+    assert "\\usepackage[french]{babel}" in t
+    assert "\\usepackage[french]{graphicx,babel}" in t
+
+
+def test_undeclared_docclass_global_options(tmp_path: Path) -> None:
+    """docclass 全局选项表头插 (cls 内载 babel 也吃得到); 裸 docclass 新生表。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass[12pt]{article}\n\\usepackage[english]{babel}\n",
+        encoding="utf-8",
+    )
+    ok, _ = _apply(_rule("babel_undeclared_option"), tmp_path, "ngerman")
+    assert ok
+    t = (tmp_path / "main.tex").read_text()
+    assert "\\documentclass[ngerman,12pt]{article}" in t
+    assert "\\usepackage[ngerman,english]{babel}" in t
+
+
+def test_undeclared_passoptions_babel_only(tmp_path: Path) -> None:
+    """PassOptionsTo{..}{babel} 首参补名; 非 babel 目标不动。"""
+    (tmp_path / "main.tex").write_text(
+        "\\PassOptionsToPackage{english}{babel}\n"
+        "\\PassOptionsToPackage{dvips}{graphicx}\n"
+        "\\usepackage{babel}\n",
+        encoding="utf-8",
+    )
+    ok, _ = _apply(_rule("babel_undeclared_option"), tmp_path, "french")
+    assert ok
+    t = (tmp_path / "main.tex").read_text()
+    assert "\\PassOptionsToPackage{french,english}{babel}" in t
+    assert "\\PassOptionsToPackage{dvips}{graphicx}" in t
+
+
+def test_undeclared_no_surface_declines(tmp_path: Path) -> None:
+    """无 babel 载点且无 docclass 选项面 → applied=False (不硬改无关文件)。"""
+    src = "\\usepackage[dvips]{graphicx}\nhello\n"
+    (tmp_path / "main.tex").write_text(src, encoding="utf-8")
+    ok, _ = _apply(_rule("babel_undeclared_option"), tmp_path, "ngerman")
+    assert not ok
+    assert (tmp_path / "main.tex").read_text() == src
+
+
+def test_undeclared_payload_substituted(tmp_path: Path) -> None:
+    """{payload} 占位替换实证: pay=french 注入 french 而非字面串。"""
+    (tmp_path / "main.tex").write_text(
+        "\\usepackage[english]{babel}\n", encoding="utf-8"
+    )
+    ok, _ = _apply(_rule("babel_undeclared_option"), tmp_path, "french")
+    assert ok
+    assert "\\usepackage[french,english]{babel}" in (tmp_path / "main.tex").read_text()
+
+
+def test_undeclared_match_apply_routes(tmp_path: Path) -> None:
+    """整链: babel_undef/ngerman → 规则点火注入 (0707.1325 残签的消费路径)。"""
+    (tmp_path / "main.tex").write_text(
+        "\\usepackage[german]{babel}\n", encoding="utf-8"
+    )
+    ctx = _ctx(
+        tmp_path,
+        "! Package babel Error: You haven't defined the language `ngerman' yet.",
+    )
+    rule, note = actions._match_apply(  # noqa: SLF001
+        _rs(),
+        ctx,
+        _EngInstall(tmp_path / "texmf", set()),
+        "babel_undef",
+        "ngerman",
+        ErrReport(),
+    )
+    assert rule is not None, note
+    assert rule.id == "babel_undeclared_option"
+    assert "\\usepackage[ngerman,german]{babel}" in (tmp_path / "main.tex").read_text()

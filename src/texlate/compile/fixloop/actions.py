@@ -531,12 +531,15 @@ def _apply_install_file(
     else:
         fanout_note = ""
     font_exts = tuple(params.get("font_related_exts") or ())
-    candidates = []
+    # file_aliases: 查询名≠实档名桥 —— babel ini 按 \BabelDefinitionFile{0}{X}
+    # 指名实档 (选项 ukrainian → ukraineb.ldf 型), try_exts 拼不出来的异形名
+    # 走显式别名表先试 (序=别名先, 本名扩展后)。
+    candidates = list((params.get("file_aliases") or {}).get(params["file"], []))
     if params.get("try_exts"):
-        candidates = [params["file"] + e for e in params["try_exts"]]
+        candidates += [params["file"] + e for e in params["try_exts"]]
     else:
-        candidates = [params["file"]]
-        if not Path(candidates[0]).suffix:
+        candidates.append(params["file"])
+        if not Path(candidates[-1]).suffix:
             # `I can't find file `X'` 裸 payload (\input/openin 系报错) ——
             # TeX 语义实际找 X.tex; 裸名照试后补 .tex 变体 (epsf 实证:
             # filemap/shim_map 键全带扩展名, 裸名恒 miss)。
