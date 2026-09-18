@@ -459,3 +459,57 @@ class TestRedactExtra:
 
     def test_empty_api_key_no_crash(self) -> None:
         assert cl.redact("plain text") == "plain text"
+
+
+# --------------------------------------------------- 外部 JSON 超深嵌套防御
+
+#: ~100KB 即撞 json C 扫描器递归上限（实测阈值 ~20000 层，此处 50000 留足余量）。
+_DEEP_JSON = "[" * 50000 + "]" * 50000
+
+
+def test_body_retry_after_deep_json_returns_none() -> None:
+    """429 body 超深嵌套 → ``_body_retry_after`` 归 None，RecursionError 不逃逸。"""
+    assert cl._body_retry_after(_DEEP_JSON) is None  # noqa: SLF001
+
+
+def test_classify_429_deep_json_body() -> None:
+    """``classify_status`` 端到端：深 body 仍归 retryable 429、retry_after=None。"""
+    err = cl.classify_status(429, _DEEP_JSON, httpx.Headers())
+    assert isinstance(err, cl.RetryableHTTPError)
+    assert err.retry_after is None
+
+
+def test_sse_events_deep_json_line_skipped() -> None:
+    """SSE ``data:`` 行超深嵌套 → 按坏行跳过（同坏 JSON 口径），不杀流。"""
+    events, done = cl.ChatClient._sse_events(f"data: {_DEEP_JSON}")  # noqa: SLF001
+    assert events == []
+    assert done is False
+
+
+@pytest.mark.parametrize("call", ["chat", "list_models", "panel_models"])
+def test_client_deep_json_success_body_is_malformed(call: str) -> None:
+    """200 成功体超深嵌套 → ``MalformedResponseError``（原 RecursionError 裸逃）。
+
+    ``chat``/``list_models``/``panel_models`` 三处 ``resp.json()`` 同型修复。
+    """
+
+    def handler(_req: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=_DEEP_JSON.encode())
+
+    async def go() -> None:
+        c = cl.ChatClient(
+            "http://gw.test",
+            "k",
+            http=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+        )
+        if call == "chat":
+            coro = c.chat("m", [{"role": "user", "content": "hi"}])
+        elif call == "list_models":
+            coro = c.list_models()
+        else:
+            coro = c.panel_models()
+        with pytest.raises(cl.MalformedResponseError):
+            await coro
+        await c.aclose()
+
+    asyncio.run(go())

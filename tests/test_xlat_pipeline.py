@@ -12,6 +12,7 @@ from texlate.xlat import pipeline as pl
 from texlate.xlat import prompts
 from texlate.xlat.client import AuthError
 from texlate.xlat.glossary import Glossary, TermEntry
+from texlate.xlat.retry import SLOTS_MAX_ROUNDS
 from texlate.xlat.state import StateStore
 
 
@@ -684,3 +685,44 @@ class TestPaperContext:
         assert "Paper context" in t.calls[0]["system"]
         asyncio.run(pipe.run([mk_chunk("Plain prose " + "x" * 400, "p1")]))
         assert "Paper context" not in t.calls[-1]["system"]
+
+
+# ----------------------------------------------------- slots 超深 JSON 防御
+
+#: ~100KB 即撞 json C 扫描器递归上限（实测阈值 ~20000 层，此处 50000 留足余量）。
+_DEEP_JSON = "[" * 50000 + "]" * 50000
+
+
+def test_slots_fn_deep_model_output_counts_as_bad_json() -> None:
+    """slots 阶段模型吐超深 JSON → 同坏 JSON 计：``{}`` → 槽全败带反馈重问。
+
+    修复前 ``RecursionError`` 逃逸到阶梯兜底 catch——``failures`` 不记录、
+    次轮 ``slot_validation_failures`` 反馈字段缺失（钉：次轮 payload 带该字段）。
+    """
+
+    class DeepSlots(pl.MockTranslator):
+        def __init__(self) -> None:
+            super().__init__()
+            self.slot_payloads: list[str] = []
+
+        async def translate(
+            self,
+            *,
+            user: str,
+            response_format: dict[str, str] | None = None,
+            **_kw: object,
+        ) -> str:
+            if response_format and response_format.get("type") == "json_object":
+                self.slot_payloads.append(user)
+                return _DEEP_JSON
+            return "whatever"  # whole/lines 译文——validator 恒败照样进 slots
+
+    spy = DeepSlots()
+    out = run_pipeline(
+        [mk_chunk("Long prose " + "x" * 400, "deep")],
+        translator=spy,
+        validator=lambda _s, _z: "always fails",
+    )
+    assert out[0].status == "fault"
+    assert len(spy.slot_payloads) == SLOTS_MAX_ROUNDS  # 单批槽：每轮一次调用
+    assert "slot_validation_failures" in spy.slot_payloads[1]

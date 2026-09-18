@@ -259,3 +259,56 @@ def test_5xx_neither_strikes_nor_resets() -> None:
     rl.report(src, HTTPStatus.TOO_MANY_REQUESTS)  # 第 2 strike → park
     with pytest.raises(ParkedError):
         rl.acquire(src)
+
+
+def test_load_nonfinite_and_out_of_range_state(tmp_path: Path) -> None:
+    """inf/1e30/巨 park_step 状态 → 逐字段钳回：不睡爆、不炸、park 有界。"""
+    state = tmp_path / "rl.json"
+    state.write_text(
+        json.dumps(
+            {
+                "day": "2020-01-01",
+                "requests_today": -5,
+                "buckets": {
+                    "arxiv.org|content": {
+                        "last_ts": float("inf"),
+                        "consec_429": -3,
+                        "park_until": 1e30,
+                        "park_step": 2000,
+                    },
+                    "export.arxiv.org|api": {
+                        "last_ts": 1e18,
+                        "consec_429": 0,
+                        "park_until": float("nan"),
+                        "park_step": 0,
+                    },
+                },
+            }
+        )
+    )
+    clk = _Clock()
+    rl = RateLimiter(state, clock=clk.now, sleep=clk.sleep)
+    assert rl.requests_today == 0  # -5 → 0
+    # park_until=1e30 → 钳到有界 horizon（仍视为在 park——保守不锤被罚路径）
+    until = rl.parked_until("https://arxiv.org/src/x")
+    assert 0 < until <= clk.t + rl.policy.park_max * 1.25
+    with pytest.raises(ParkedError):
+        rl.acquire("https://arxiv.org/src/x")
+    assert not clk.slept  # ParkedError 先于 pacing——没有 inf 睡眠
+    # export/api 桶：last_ts 1e18→钳 now、park_until NaN→0 —— 正常放行
+    rl.acquire("https://export.arxiv.org/api/query")
+    assert clk.slept == pytest.approx([3.05])  # 只睡一个 gap
+
+
+def test_report_high_park_step_no_overflow() -> None:
+    """``2**park_step`` 读侧钳 ``_PARK_STEP_MAX``——巨 step 不再 int→float 炸。"""
+    clk = _Clock()
+    rl = RateLimiter(clock=clk.now, sleep=clk.sleep)
+    url = "https://arxiv.org/src/x"
+    rl.acquire(url)
+    rl._buckets["arxiv.org|content"].park_step = 5000  # noqa: SLF001 -- 构造损坏中间态
+    clk.t += 4
+    rl.acquire(url)
+    for _ in range(2):
+        rl.report(url, HTTPStatus.TOO_MANY_REQUESTS)
+    assert rl.parked_until(url) > 0  # 封顶 park_max*jitter——不炸即证

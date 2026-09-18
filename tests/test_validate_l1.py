@@ -406,3 +406,20 @@ def test_report_l1_uses_to_dict() -> None:
     l1 = TsResult(id="x", ok=True, parse_ms=0.5)
     rep = aggregate("c", l1=l1)
     assert rep.to_dict()["l1"] == l1.to_dict()
+
+
+def test_ts_result_from_dict_inf_fields() -> None:
+    """worker 输出 ``1e999``（JSON→inf float）→ int() OverflowError 归 L1Error。"""
+    with pytest.raises(L1Error):
+        TsResult.from_dict({"unclosed_math": 1e999})
+    with pytest.raises(L1Error):
+        TsResult.from_dict({"brace_balance": float("-inf")})
+
+
+def test_ts_baseline_from_dict_inf_fields() -> None:
+    """baseline 反序列化同契约硬化：inf/类型违例 → L1Error。"""
+    with pytest.raises(L1Error):
+        TsBaseline.from_dict({"parse_errors": 1e999})
+    with pytest.raises(L1Error):
+        TsBaseline.from_dict({"env_mismatches": "abc"})
+    assert TsBaseline.from_dict({}) == TsBaseline()  # 正常路径不受影响

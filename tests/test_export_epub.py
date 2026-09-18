@@ -16,6 +16,7 @@ import pytest
 from bs4 import BeautifulSoup
 from lxml import etree
 
+from texlate.export import epub as epub_mod
 from texlate.export import sniff_format
 from texlate.export.common import DrmError, FixedLayoutError, MalformedEpubError
 from texlate.export.epub import iter_units, load_epub, translate_epub
@@ -679,3 +680,49 @@ def test_sniff_unsupported_compression_method(tmp_path: Path) -> None:
     src = tmp_path / "weird.epub"
     src.write_bytes(bytes(blob))
     assert sniff_format(src) is None
+
+
+# ------------------------------------------------- _sanitize_dom raw-text 转义
+
+
+@pytest.mark.parametrize("tag", ["script", "style"])
+def test_sanitize_dom_raw_text_entity_idempotent(tag: str) -> None:
+    """``&amp;`` 过 ``_sanitize_dom`` 不再翻倍；二次净化输出逐字节不变。"""
+    src = f'<html><body><{tag}>a = "&amp;" && b < c;</{tag}></body></html>'
+    soup = BeautifulSoup(src, "html.parser")
+    epub_mod._sanitize_dom(soup)  # noqa: SLF001 -- 白盒钉净化契约
+    out = str(soup.find(tag))
+    assert 'a = "&amp;"' in out  # 源实体不翻倍
+    assert "&amp;amp;" not in out
+    assert "&amp;&amp;" in out  # 裸 & 仍转义
+    assert "&lt; c;" in out  # < 防提前终结
+    # texlate 产出重进管线：逐字节幂等（不再累积 amp;）
+    soup2 = BeautifulSoup(out, "html.parser")
+    epub_mod._sanitize_dom(soup2)  # noqa: SLF001
+    assert str(soup2.find(tag)) == out
+
+
+def test_sanitize_dom_script_xml_semantics() -> None:
+    """合法 XHTML ``&amp;`` 净化后 XML 解析仍得 ``&``——语义不变。"""
+    soup = BeautifulSoup(
+        '<html><body><script>a = "&amp;";</script></body></html>',
+        "html.parser",
+    )
+    epub_mod._sanitize_dom(soup)  # noqa: SLF001
+    root = etree.fromstring(str(soup).encode())
+    script = root.find(".//script")
+    assert script is not None
+    assert script.text == 'a = "&";'
+
+
+def test_sanitize_dom_raw_text_bogus_entity_literal() -> None:
+    """非预定义实体转字面量：``&bogus;``/``&nbsp;`` 输出仍是良构 XML。"""
+    soup = BeautifulSoup(
+        "<html><body><script>a = '&bogus;' + '&nbsp;';</script></body></html>",
+        "html.parser",
+    )
+    epub_mod._sanitize_dom(soup)  # noqa: SLF001
+    root = etree.fromstring(str(soup).encode())
+    text = root.find(".//script").text
+    assert "&bogus;" in text
+    assert "&nbsp;" in text

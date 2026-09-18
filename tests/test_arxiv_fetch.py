@@ -1,12 +1,15 @@
 import json
+import math
 import os
 import time
+from http import HTTPStatus
 from pathlib import Path
 
 import httpx
 import pytest
 from conftest import make_targz
 
+from texlate.arxiv import fetch as fetch_mod
 from texlate.arxiv.cache import CacheError, SourceCache
 from texlate.arxiv.fetch import (
     AcquireStatus,
@@ -23,11 +26,13 @@ class _Clock:
 
     def __init__(self) -> None:
         self.t = 1_700_000_000.0
+        self.slept: list[float] = []
 
     def now(self) -> float:
         return self.t
 
     def sleep(self, d: float) -> None:
+        self.slept.append(d)
         self.t += d
 
 
@@ -654,3 +659,39 @@ def test_live_fetch_diverse(tmp_path: Path) -> None:
     wrapper = cache.get_latest("1412.6980")
     assert wrapper is not None
     assert wrapper.meta.get("locate", {}).get("pdf_wrapper") is True
+
+
+# ----------------------------------------------------- Retry-After 上限
+
+
+def test_retry_delay_huge_finite_retry_after_terminal() -> None:
+    """``Retry-After: 1000000``（≈11.5 天）视同不可兑现 → 归 inf 终态不真睡。
+
+    ≤``MAX_RETRY_AFTER_S`` 仍从其值；nan 沿用 ``max(delay, nan)=delay`` 回落。
+    """
+    huge = httpx.Response(429, headers={"retry-after": "1000000"})
+    assert math.isinf(fetch_mod._retry_delay("https://arxiv.org/src/x", 1, huge))  # noqa: SLF001
+    ok = httpx.Response(429, headers={"retry-after": "60"})
+    d_ok = fetch_mod._retry_delay("https://arxiv.org/src/x", 1, ok)  # noqa: SLF001
+    assert d_ok == pytest.approx(60.0)
+    nan = httpx.Response(429, headers={"retry-after": "nan"})
+    d = fetch_mod._retry_delay("https://arxiv.org/src/x", 1, nan)  # noqa: SLF001
+    assert d == pytest.approx(10.0, rel=0.2)  # 回落 10s±20% jitter 区间
+
+
+def test_request_huge_retry_after_sleeps_nothing() -> None:
+    """端面实证：429+``Retry-After: 1e6`` → 不睡巨值、429 原样上交终态。"""
+    clk = _Clock()
+
+    def handler(_req: httpx.Request) -> httpx.Response:
+        return httpx.Response(429, headers={"retry-after": "1000000"})
+
+    f = Fetcher(
+        RateLimiter(clock=clk.now, sleep=clk.sleep),
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+        hosts=("arxiv.org",),
+        sleep=clk.sleep,
+    )
+    resp = f._request("GET", "https://arxiv.org/src/x", {})  # noqa: SLF001
+    assert resp.status_code == HTTPStatus.TOO_MANY_REQUESTS
+    assert clk.slept == []  # 首请求无 pacing 等待、inf 退避 break——零睡眠
