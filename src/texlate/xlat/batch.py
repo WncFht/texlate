@@ -301,7 +301,7 @@ _ABBREV_TAIL_RX = re.compile(r"([A-Za-z][A-Za-z.]*)$")
 _ABBREV_MAX_WORD = 3
 
 
-def _abbrev_cut(text: str, i: int) -> bool:
+def abbrev_cut(text: str, i: int) -> bool:
     """``text[i]``（``.!?`` 位）是缩写尾点则不切——劈开产碎头 + 语义半截块。
 
     texglot llm.py:85-90 同款：尾词含 ``.``（``e.g.``/``al.``）或 ≤3 字母
@@ -335,7 +335,7 @@ def _best_split(text: str, limit: int) -> int:
             and depth == 0
             and i + 1 < n
             and text[i + 1] in " \n"
-            and not _abbrev_cut(text, i)
+            and not abbrev_cut(text, i)
         ):
             best = i + 1  # 句号后切（含句号）
         i += 1

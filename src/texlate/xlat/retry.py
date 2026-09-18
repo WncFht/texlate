@@ -29,7 +29,7 @@ import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from .batch import _abbrev_cut, split_long_chunk
+from .batch import abbrev_cut, split_long_chunk
 from .client import HTTP_TOO_MANY_REQUESTS, ChatError
 from .placeholders import (
     ANY_PH_RX,
@@ -236,7 +236,7 @@ def _split_lines_scoped(text: str) -> list[str]:
             and depth == 0
             and i + 1 < n
             and text[i + 1] in " \n"
-            and not _abbrev_cut(text, i)
+            and not abbrev_cut(text, i)
         ):
             j = i + 1
             while j < n and text[j] in " \n":

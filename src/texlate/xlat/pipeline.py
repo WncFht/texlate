@@ -45,6 +45,11 @@ from .client import (
     ChatOptions,
     LengthTruncatedError,
 )
+
+# 转口——``from texlate.xlat.pipeline import MockTranslator/MOCK_ZH`` 钉点
+# （src/tests/bench ~40 处）在 MockTranslator 出叶 ``.mock`` 后口径不变；
+# 私名 ``_mock_translate_text`` 同钉（translators_bench/test_sabotage_arms）。
+from .mock import MOCK_ZH, MockTranslator, _mock_translate_text  # noqa: F401
 from .retry import (
     RetryPolicy,
     bare_token_audit,
@@ -128,6 +133,41 @@ class ChunkResult:
     #: 失败成因分类（打标处在异常现场赋值）："" | auth | provider | crash |
     #: validate——auth 闸计数与 error_code 归一的共同输入。
     error_kind: str = ""
+
+    @classmethod
+    def from_record(cls, rec: ChunkRecord) -> ChunkResult:
+        """``ChunkRecord`` → ``ChunkResult`` 唯一适配点（``batch_id`` None→""、warnings 拷份）。"""
+        return cls(
+            chunk_id=rec.chunk_id,
+            source=rec.source,
+            translation=rec.translation,
+            kind=rec.kind,
+            status=rec.status,
+            batched=rec.batched,
+            batch_id=rec.batch_id or "",
+            skipped=rec.skipped,
+            skip_reason=rec.skip_reason,
+            attempts=rec.attempts,
+            warnings=[*rec.warnings],
+            error_kind=rec.error_kind,
+        )
+
+    def to_record(self) -> ChunkRecord:
+        """→ ``ChunkRecord``（``batch_id`` ""→None；warnings 沿用同列——record 落盘口径）。"""
+        return ChunkRecord(
+            chunk_id=self.chunk_id,
+            source=self.source,
+            translation=self.translation,
+            status=self.status,
+            kind=self.kind,
+            batched=self.batched,
+            batch_id=self.batch_id or None,
+            skipped=self.skipped,
+            skip_reason=self.skip_reason,
+            attempts=self.attempts,
+            warnings=self.warnings,
+            error_kind=self.error_kind,
+        )
 
 
 # ---------------------------------------------------------------- Translator 协议
@@ -223,115 +263,10 @@ class GatewayTranslator:
         return await call_with_backoff(_go, policy=self.policy)
 
 
-#: mock 译文固定串（e2e mock_a 同款：散文段 → 固定中文，token 原位不动）
-MOCK_ZH = "这是译文"
-
-
 def _strip_json_fence(raw: str) -> str:
     """剥掉整段 ``` 围栏；非围栏原文原样返回。"""
     m = JSON_FENCE_RX.match(raw)
     return m.group("body") if m else raw
-
-
-#: token 集 = 占位符 + 控制序列 + 括号 + L0 脆弱字符（``~`` 活动字符、``$``/``&``
-#: 结构符——丢了会触发 cs_dropped/数学计数差，mock 与 L0 同口径才构成有效 E2E）
-_MOCK_TOKEN_RX = re.compile(
-    r"\[\[[A-Z_]+_\d+\]\]|\[\[[A-Z][A-Z_]*\]\]|\\[a-zA-Z@]+\*?|\\(?!\[\[).|[][(){}|~$&]"
-)
-#: 行内字母 run（mock 译文替换单位；``[^\n]`` 不跨行——保住换行布局）
-#: 勘误 2026-09-17（登记不修）：ASCII 盲区——西里尔/希腊文等非 ASCII 散文
-#: 原样回显不进译文（scout-triage-2026-09-17 F-echo 1 格，low；
-#: ``bench/py/qualbench.py`` 同源副本同盲区）。
-_PROSE_RUN_RX = re.compile(r"[a-zA-Z][^\n]*[a-zA-Z]|[a-zA-Z]")
-#: 批行 `[n]` 前缀识别（mock 回显编号用）
-_MOCK_NUM_RX = re.compile(r"^(\[\d+\])\s?(.*)$", re.DOTALL)
-
-
-class MockTranslator:
-    """占位译文：占位符/控制字/括号原位保留，非空散文段 → 固定中文串。
-
-    供 E2E 与 bench 用——不触网、确定性、占位符契约天然成立。
-    批输入（每行 `[n]` 开头）回显编号，保证批量解析路径被真实走到。
-    """
-
-    def __init__(self, zh: str = MOCK_ZH) -> None:
-        """`zh` = 散文段替换成的固定中文串。"""
-        self.zh = zh
-        self.calls: list[dict[str, Any]] = []  # 测试可断言调用次数/内容
-
-    async def translate(
-        self,
-        *,
-        system: str,
-        user: str,
-        temperature: float,
-        max_tokens: int,
-        response_format: dict[str, str] | None = None,
-    ) -> str:
-        """返回 mock 译文。"""
-        self.calls.append(
-            {
-                "system": system,
-                "user": user,
-                "temperature": temperature,
-                "max_tokens": max_tokens,
-            }
-        )
-        if response_format is not None and response_format.get("type") == "json_object":
-            try:
-                payload = json.loads(user)
-                slots = payload.get("slots") or {}
-                return json.dumps(
-                    {k: _mock_zh(str(v), self.zh) for k, v in slots.items()},
-                    ensure_ascii=False,
-                )
-            except (json.JSONDecodeError, AttributeError):
-                return "{}"
-        # user 尾挂的 [placeholder_values] 参考块（及其后 [compile_error] 等
-        # 反馈段）不是待译内容——剥掉再回显，否则块内 token 二次出现触发
-        # extra-placeholder 校验失败、批回显路径也走不到（整批退单翻）。
-        body = user.partition("\n\n" + prompts.VALUE_CONTEXT_HEADER)[0]
-        lines = body.split("\n")
-        if lines and all(_MOCK_NUM_RX.match(ln) for ln in lines if ln.strip()):
-            return "\n".join(
-                f"{m.group(1)} {_mock_translate_text(m.group(2), self.zh)}"
-                if (m := _MOCK_NUM_RX.match(ln))
-                else _mock_translate_text(ln, self.zh)
-                for ln in lines
-            )
-        return _mock_translate_text(body, self.zh)
-
-
-#: mock 译文密度：每 ~8 个英文字符折一倍 ``MOCK_ZH``——E24 token 比带
-#: [0.3,3.0] 下 mock 输出须贴近真实 CJK 密度（4 字固定桩对任何
-#: est≥10 的 src 都是坍缩比，会触发 length error 假 fault）。
-_MOCK_ZH_PER_CHARS = 8
-
-
-def _mock_zh(text: str, zh: str) -> str:
-    """``zh`` 按 ``text`` 长度折倍——产出 CJK≈拉丁/2 的拟真密度。"""
-    return zh * max(1, len(text) // _MOCK_ZH_PER_CHARS)
-
-
-def _mock_translate_text(text: str, zh: str) -> str:
-    r"""e2e mock_a 同款：token 原位保留，字母散文 run → 按比例中文串。
-
-    护栏对齐 L0/C8a 口径：只替换行内字母 run（``\eg, Caffe`` →
-    ``\eg, 这是译文``），标点/空白/换行原样——否则 ``\cs``+CJK 熔合成
-    未定义控制序列（macro 融合 cs/cs_dropped 是 error 级判据）。
-    """
-    out: list[str] = []
-    pos = 0
-    for m in _MOCK_TOKEN_RX.finditer(text):
-        out.append(
-            _PROSE_RUN_RX.sub(
-                lambda m2: _mock_zh(m2.group(0), zh), text[pos : m.start()]
-            )
-        )
-        out.append(m.group(0))
-        pos = m.end()
-    out.append(_PROSE_RUN_RX.sub(lambda m2: _mock_zh(m2.group(0), zh), text[pos:]))
-    return "".join(out)
 
 
 # ---------------------------------------------------------------- Pipeline
@@ -359,31 +294,45 @@ def _interceptable(src: str, zh: str) -> bool:
     )
 
 
+def _intercept_guard(r: ChunkResult) -> bool:
+    """升格拦截三网共用守门——只扫 ok/partial（skipped/fault 的 translation 已是 source）。"""
+    return not r.skipped and r.status in ("ok", "partial")
+
+
+def _intercept_apply(r: ChunkResult, *, warn: str, reason: str) -> None:
+    """升格拦截三网共用落形：fallback_orig 同形（fault + skipped + 回退原文）。
+
+    ``attempts>0`` 才记 ``error_kind=validate``——缓存命中没发请求，
+    不充当 auth 闸的非-auth 证据。warning 仍按族名落 ``<net>:N`` 供计量。
+    """
+    r.warnings.append(warn)
+    r.status = "fault"
+    r.skipped = True
+    r.translation = r.source
+    r.skip_reason = reason
+    if r.attempts > 0:
+        r.error_kind = r.error_kind or "validate"
+
+
 def _intercept_leftover_ph(r: ChunkResult) -> None:
     """``leftover_ph`` 升格拦截：zh 带 splice 不可解析 token → fault + 回退原文。
 
     B7 归因：模型幻觉 ``[[MATH_n]]`` 穿透 ladder/校验留字面，splice 后
     ``[[MATH_966]]`` 进文档是用户可见污染（sabotage 1012.5411 实测）——
-    回退英文原文是更体面的降级。命中即落 fallback_orig 同形
-    （``fault`` + ``skipped`` + ``translation=source``）：不再 splice、
+    回退英文原文是更体面的降级。命中即落 fallback_orig 同形：不再 splice、
     续跑重试、落库 ``failed`` → 论文级 ``partial`` 而非静默 ok。
-    ``attempts>0`` 才记 ``error_kind=validate``——缓存命中没发请求，
-    不充当 auth 闸的非-auth 证据。warning 仍落 ``leftover_ph:N`` 供计量。
-    只扫 ok/partial——skipped/fault 的 translation 已是 source。
     """
-    if r.skipped or r.status not in ("ok", "partial"):
+    if not _intercept_guard(r):
         return
     leftover = _leftover_ph_tokens(r.source, r.translation)
     if not leftover:
         return
-    r.warnings.append(f"leftover_ph:{len(leftover)}")
-    r.status = "fault"
-    r.skipped = True
-    r.translation = r.source
     shown = ", ".join(sorted(set(leftover))[:8])
-    r.skip_reason = f"leftover placeholder(s) unresolvable in splice: {shown}"
-    if r.attempts > 0:
-        r.error_kind = r.error_kind or "validate"
+    _intercept_apply(
+        r,
+        warn=f"leftover_ph:{len(leftover)}",
+        reason=f"leftover placeholder(s) unresolvable in splice: {shown}",
+    )
 
 
 def _intercept_ph_in_cs(r: ChunkResult) -> None:
@@ -394,22 +343,19 @@ def _intercept_ph_in_cs(r: ChunkResult) -> None:
     缓存旁路姊妹，判定口径 = ``textutil.ph_in_cs_net`` 逐字节一致）。
     splice ``expand`` 逐字节替换后 ``\\fo[[PH]]o`` → ``\\fo<payload>o``
     断名成未定义 cs 且载荷不可复原（scout-spliceguard 14/14 实证）。
-    命中落 fallback_orig 同形；``attempts>0`` 才记 ``error_kind=validate``。
     """
-    if r.skipped or r.status not in ("ok", "partial"):
+    if not _intercept_guard(r):
         return
     extra = ph_in_cs_net(r.source, r.translation)
     if not extra:
         return
     n = sum(extra.values())
-    r.warnings.append(f"ph_in_cs:{n}")
-    r.status = "fault"
-    r.skipped = True
-    r.translation = r.source
     shown = ", ".join(sorted(extra)[:8])
-    r.skip_reason = f"placeholder fused into cs name x{n}: {shown}"
-    if r.attempts > 0:
-        r.error_kind = r.error_kind or "validate"
+    _intercept_apply(
+        r,
+        warn=f"ph_in_cs:{n}",
+        reason=f"placeholder fused into cs name x{n}: {shown}",
+    )
 
 
 def _intercept_bare_cs(r: ChunkResult) -> None:
@@ -420,22 +366,19 @@ def _intercept_bare_cs(r: ChunkResult) -> None:
     时此层是唯一闸。两类编译炸弹：数学域外 ``MATH_CS`` 表名
     （``\alpha 发射体`` → ``Missing $``，realpostfix2 0905.4907 实证）
     与粘合 cs（``\itemOC``/``\csnamebibitemNoStop`` → undefined cs）。
-    命中落 fallback_orig 同形；``attempts>0`` 才记 ``error_kind=validate``。
     """
-    if r.skipped or r.status not in ("ok", "partial"):
+    if not _intercept_guard(r):
         return
     extra = bare_cs_net(r.source, r.translation)
     if not extra:
         return
     n = sum(extra.values())
-    r.warnings.append(f"bare_cs:{n}")
-    r.status = "fault"
-    r.skipped = True
-    r.translation = r.source
     shown = ", ".join(sorted(extra)[:8])
-    r.skip_reason = f"bare cs injected x{n}: {shown}"
-    if r.attempts > 0:
-        r.error_kind = r.error_kind or "validate"
+    _intercept_apply(
+        r,
+        warn=f"bare_cs:{n}",
+        reason=f"bare cs injected x{n}: {shown}",
+    )
 
 
 def _is_auth_error(e: BaseException) -> bool:
@@ -999,23 +942,24 @@ class XlatPipeline:
             error_kind=kind,
         )
 
+    @staticmethod
+    def _passthrough_result(
+        c: ChunkIn, *, warnings: list[str] | None = None
+    ) -> ChunkResult:
+        """zh≡src 直通结果——placeholder_only 与 ``[[BIB_`` 文献域共用落形。"""
+        return ChunkResult(
+            chunk_id=c.chunk_id,
+            source=c.content,
+            translation=c.content,
+            kind=c.kind,
+            status="ok",
+            warnings=warnings or [],
+        )
+
     def _emit(self, r: ChunkResult) -> None:
         if self.state is not None:
             self.state.record(
-                ChunkRecord(
-                    chunk_id=r.chunk_id,
-                    source=r.source,
-                    translation=r.translation,
-                    status=r.status,
-                    kind=r.kind,
-                    batched=r.batched,
-                    batch_id=r.batch_id or None,
-                    skipped=r.skipped,
-                    skip_reason=r.skip_reason,
-                    attempts=r.attempts,
-                    warnings=r.warnings,
-                    error_kind=r.error_kind,
-                ),
+                r.to_record(),
                 error=({"error": r.skip_reason} if r.skipped else None),
             )
         if self.on_result is not None:
@@ -1101,27 +1045,10 @@ class XlatPipeline:
         # 编排侧生效；重试结果经 record() 追加覆盖 done_map。
         done_map: dict[str, ChunkResult] = {}
         for cid, rec in recs.items():
-            res = ChunkResult(
-                chunk_id=rec.chunk_id,
-                source=rec.source,
-                translation=rec.translation,
-                kind=rec.kind,
-                status=rec.status,
-                batched=rec.batched,
-                batch_id=rec.batch_id or "",
-                skipped=rec.skipped,
-                skip_reason=rec.skip_reason,
-                attempts=rec.attempts,
-                warnings=[*rec.warnings],
-                error_kind=rec.error_kind,
-            )
+            res = ChunkResult.from_record(rec)
             # warning 时代落盘的 ok 残留（zh 带源外占位符）→ 就地降 fault，
             # 不进 completed → 本轮重翻自愈；否则旧档会把字面 [[X_n]] 带进 splice。
-            self._ledger_call(
-                fatal, res, "leftover_ph intercept", _intercept_leftover_ph
-            )
-            self._ledger_call(fatal, res, "ph_in_cs intercept", _intercept_ph_in_cs)
-            self._ledger_call(fatal, res, "bare_cs intercept", _intercept_bare_cs)
+            self._ledger_intercepts(fatal, res)
             done_map[cid] = res
         completed = {
             cid
@@ -1161,45 +1088,20 @@ class XlatPipeline:
                 )
                 del done_map[cid]
             if placeholders.is_placeholder_only(c.content.strip()):
-                r = ChunkResult(
-                    chunk_id=cid,
-                    source=c.content,
-                    translation=c.content,
-                    kind=c.kind,
-                    status="ok",
-                )
+                r = self._passthrough_result(c)
                 done_map[cid] = r
                 # 与 _collect 同构的五点账本调用——BaseException 收 fatal
                 # 由 run() 序章尾统一重抛，Exception 档行为不变。
-                self._ledger_call(
-                    fatal, r, "leftover_ph intercept", _intercept_leftover_ph
-                )
-                self._ledger_call(fatal, r, "ph_in_cs intercept", _intercept_ph_in_cs)
-                self._ledger_call(fatal, r, "bare_cs intercept", _intercept_bare_cs)
-                self._ledger_call(fatal, r, "auth_gate.record", self.auth_gate.record)
-                self._ledger_call(fatal, r, "emit", self._emit)
+                self._ledger_outcome(fatal, r)
                 continue
             if "[[BIB_" in c.content:
                 # 用户裁决①：[[BIB_]]（\bibitem/bibliography 占位）块=文献域，
                 # 约定留英不送翻——直通 zh=src，占位符链下游照常还原。
                 # zh≡src 使三网 diff 恒空，intercept 形同虚设但账本调用与
                 # placeholder_only 路保持同构（计量/auth 闸口径一致）。
-                r = ChunkResult(
-                    chunk_id=cid,
-                    source=c.content,
-                    translation=c.content,
-                    kind=c.kind,
-                    status="ok",
-                    warnings=["bib_passthrough"],
-                )
+                r = self._passthrough_result(c, warnings=["bib_passthrough"])
                 done_map[cid] = r
-                self._ledger_call(
-                    fatal, r, "leftover_ph intercept", _intercept_leftover_ph
-                )
-                self._ledger_call(fatal, r, "ph_in_cs intercept", _intercept_ph_in_cs)
-                self._ledger_call(fatal, r, "bare_cs intercept", _intercept_bare_cs)
-                self._ledger_call(fatal, r, "auth_gate.record", self.auth_gate.record)
-                self._ledger_call(fatal, r, "emit", self._emit)
+                self._ledger_outcome(fatal, r)
                 continue
             pieces = split_long_chunk(c.content, max_chars=self.cfg.hard_limit)
             if len(pieces) > 1:
@@ -1319,6 +1221,18 @@ class XlatPipeline:
             log.exception("%s crashed fatally for %s", name, r.chunk_id)
             fatal.append(e)
 
+    def _ledger_intercepts(self, fatal: list[BaseException], r: ChunkResult) -> None:
+        """升格拦截三网的统一账本序列（``_load_resumed`` 与 ``_ledger_outcome`` 共用）。"""
+        self._ledger_call(fatal, r, "leftover_ph intercept", _intercept_leftover_ph)
+        self._ledger_call(fatal, r, "ph_in_cs intercept", _intercept_ph_in_cs)
+        self._ledger_call(fatal, r, "bare_cs intercept", _intercept_bare_cs)
+
+    def _ledger_outcome(self, fatal: list[BaseException], r: ChunkResult) -> None:
+        """拦截 + auth 闸 + emit 的五点账本序列（``_route_chunks`` 与 ``_collect`` 共用）。"""
+        self._ledger_intercepts(fatal, r)
+        self._ledger_call(fatal, r, "auth_gate.record", self.auth_gate.record)
+        self._ledger_call(fatal, r, "emit", self._emit)
+
     def _collect(
         self,
         results: list[ChunkResult],
@@ -1334,11 +1248,7 @@ class XlatPipeline:
         """
         for r in results:
             done_map[r.chunk_id] = r
-            self._ledger_call(fatal, r, "leftover_ph intercept", _intercept_leftover_ph)
-            self._ledger_call(fatal, r, "ph_in_cs intercept", _intercept_ph_in_cs)
-            self._ledger_call(fatal, r, "bare_cs intercept", _intercept_bare_cs)
-            self._ledger_call(fatal, r, "auth_gate record", self.auth_gate.record)
-            self._ledger_call(fatal, r, "emit", self._emit)
+            self._ledger_outcome(fatal, r)
 
     async def _drain(
         self,

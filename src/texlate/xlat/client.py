@@ -486,6 +486,13 @@ def _usage_int(value: object) -> int:
         raise MalformedResponseError(msg) from e
 
 
+def _transport_error(e: Exception) -> ChatError:
+    """HTTP 传输族异常 → ChatError 分类：``httpx.InvalidURL``→``ChatError``（非重试），其余→``RetryableHTTPError``。"""
+    if isinstance(e, httpx.InvalidURL):
+        return ChatError(f"invalid request URL: {e}")
+    return RetryableHTTPError(f"transport error: {e}", retryable=True)
+
+
 def _safe_int(value: object) -> int:
     """面板元数据字段 → int；coerce 失败退化 0——展示元数据非合同字段，单字段畸形不挡成员入集。"""
     try:
@@ -789,12 +796,13 @@ class ChatClient:
                     headers=self._openai_headers(),
                     json=self._openai_body(model, messages, opts, stream=False),
                 )
-        except httpx.InvalidURL as e:
-            msg = f"invalid request URL: {e}"
-            raise ChatError(msg) from e
-        except (httpx.TransportError, httpx.DecodingError, ssl.SSLError) as e:
-            msg = f"transport error: {e}"
-            raise RetryableHTTPError(msg, retryable=True) from e
+        except (
+            httpx.InvalidURL,
+            httpx.TransportError,
+            httpx.DecodingError,
+            ssl.SSLError,
+        ) as e:
+            raise _transport_error(e) from e
         latency = time.monotonic() - t0
 
         if resp.status_code != HTTP_OK:
@@ -900,72 +908,63 @@ class ChatClient:
                         yield ev
                     if done:
                         return
-        except httpx.InvalidURL as e:
-            msg = f"invalid request URL: {e}"
-            raise ChatError(msg) from e
-        except (httpx.TransportError, httpx.DecodingError, ssl.SSLError) as e:
-            msg = f"transport error: {e}"
-            raise RetryableHTTPError(msg, retryable=True) from e
+        except (
+            httpx.InvalidURL,
+            httpx.TransportError,
+            httpx.DecodingError,
+            ssl.SSLError,
+        ) as e:
+            raise _transport_error(e) from e
 
-    async def list_models(self) -> list[str]:
-        """`GET /v1/models` → 模型 id 列表。"""
+    async def _get_json(self, path: str) -> tuple[Any, str]:
+        """``GET {base_url}{path}`` → (parsed JSON, 脱敏 body 摘要)。
+
+        传输/HTTP 状态/JSON 解析错误按 ``_chat_once`` 同口径分类抛出；
+        返回的 ``snippet``（响应体前 200 字符脱敏）留给调用方拼形状错误消息。
+        """
         try:
             resp = await self._http.get(
-                f"{self.base_url}/v1/models", headers=self._openai_headers()
+                f"{self.base_url}{path}", headers=self._openai_headers()
             )
-        except httpx.InvalidURL as e:
-            msg = f"invalid request URL: {e}"
-            raise ChatError(msg) from e
-        except (httpx.TransportError, httpx.DecodingError, ssl.SSLError) as e:
-            msg = f"transport error: {e}"
-            raise RetryableHTTPError(msg, retryable=True) from e
+        except (
+            httpx.InvalidURL,
+            httpx.TransportError,
+            httpx.DecodingError,
+            ssl.SSLError,
+        ) as e:
+            raise _transport_error(e) from e
         if resp.status_code != HTTP_OK:
             raise classify_status(
                 resp.status_code, redact(resp.text, self.api_key), resp.headers
             )
+        snippet = redact(resp.text[:200], self.api_key)
         try:
-            data = resp.json()
+            return resp.json(), snippet
         except (json.JSONDecodeError, RecursionError) as e:
-            msg = f"non-JSON response: {redact(resp.text[:200], self.api_key)}"
+            msg = f"non-JSON response: {snippet}"
             raise MalformedResponseError(msg) from e
+
+    async def list_models(self) -> list[str]:
+        """`GET /v1/models` → 模型 id 列表。"""
+        data, snippet = await self._get_json("/v1/models")
         if not isinstance(data, dict):
-            msg = f"non-object JSON response: {redact(resp.text[:200], self.api_key)}"
+            msg = f"non-object JSON response: {snippet}"
             raise MalformedResponseError(msg)
         items = data.get("data") or []
         if not isinstance(items, list):
-            msg = f"unexpected data field: {redact(resp.text[:200], self.api_key)}"
+            msg = f"unexpected data field: {snippet}"
             raise MalformedResponseError(msg)
         return [str(m["id"]) for m in items if isinstance(m, dict) and "id" in m]
 
     async def panel_models(self) -> list[dict[str, Any]]:
         """`GET /panel/api/models` → 面板模型表（含 cost_tier/promo/disabled）。"""
-        try:
-            resp = await self._http.get(
-                f"{self.base_url}/panel/api/models", headers=self._openai_headers()
-            )
-        except httpx.InvalidURL as e:
-            msg = f"invalid request URL: {e}"
-            raise ChatError(msg) from e
-        except (httpx.TransportError, httpx.DecodingError, ssl.SSLError) as e:
-            msg = f"transport error: {e}"
-            raise RetryableHTTPError(msg, retryable=True) from e
-        if resp.status_code != HTTP_OK:
-            raise classify_status(
-                resp.status_code, redact(resp.text, self.api_key), resp.headers
-            )
-        try:
-            data = resp.json()
-        except (json.JSONDecodeError, RecursionError) as e:
-            msg = f"non-JSON response: {redact(resp.text[:200], self.api_key)}"
-            raise MalformedResponseError(msg) from e
+        data, snippet = await self._get_json("/panel/api/models")
         if isinstance(data, dict):
             models = data.get("models") or []
             # 可迭代但非 list（str/dict）走逐成员过滤回 []；不可迭代标量
             # （int/bool/float）与 list_models 的 data 字段同口径报畸形
             if not isinstance(models, Iterable):
-                msg = (
-                    f"unexpected models field: {redact(resp.text[:200], self.api_key)}"
-                )
+                msg = f"unexpected models field: {snippet}"
                 raise MalformedResponseError(msg)
             return [m for m in models if isinstance(m, dict)]
         if isinstance(data, list):

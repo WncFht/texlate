@@ -32,11 +32,11 @@ _SUBMODULE_EXPORTS: dict[str, tuple[str, ...]] = {
         "redact",
     ),
     "glossary": ("Glossary", "TermEntry"),
+    "mock": ("MOCK_ZH", "MockTranslator"),
     "pipeline": (
         "ChunkIn",
         "ChunkResult",
         "GatewayTranslator",
-        "MockTranslator",
         "PipelineConfig",
         "Translator",
         "XlatPipeline",

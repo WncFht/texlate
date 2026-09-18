@@ -144,6 +144,44 @@ class ChunkRecord:
     #: 失败成因（""|auth|provider|crash|validate）——error_code 归一输入
     error_kind: str = ""
 
+    @classmethod
+    def from_dict(cls, r: dict[str, Any]) -> ChunkRecord:
+        """state.json ``results[]`` 一条 → ``ChunkRecord``（字段级容错解析的唯一入口）。
+
+        坏字段抛 ``KeyError``/``TypeError``/``ValueError``——调用方逐条隔离跳记。
+        """
+        return cls(
+            chunk_id=str(r["chunk_id"]),
+            source=str(r.get("source", "")),
+            translation=str(r.get("translation", "")),
+            status=str(r.get("status", "ok")),
+            kind=str(r.get("kind", "para")),
+            batched=bool(r.get("batched", False)),
+            batch_id=r.get("batch_id"),
+            skipped=bool(r.get("skipped", False)),
+            skip_reason=str(r.get("skip_reason", "")),
+            attempts=int(r.get("attempts", 0)),
+            warnings=list(r.get("warnings") or []),
+            error_kind=str(r.get("error_kind") or ""),
+        )
+
+    def as_dict(self) -> dict[str, Any]:
+        """→ state.json ``results[]`` 条目 dict（``record()`` 落盘形态的唯一出处）。"""
+        return {
+            "chunk_id": self.chunk_id,
+            "source": self.source,
+            "translation": self.translation,
+            "status": self.status,
+            "kind": self.kind,
+            "batched": self.batched,
+            "batch_id": self.batch_id,
+            "skipped": self.skipped,
+            "skip_reason": self.skip_reason,
+            "attempts": self.attempts,
+            "warnings": self.warnings,
+            "error_kind": self.error_kind,
+        }
+
 
 class StateStore:
     """`output/{paper}/` 五表 + state.json + 段级缓存的统一落盘口。
@@ -230,20 +268,7 @@ class StateStore:
             results: dict[str, ChunkRecord] = {}
             for r in data.get("results") or []:
                 try:
-                    rec = ChunkRecord(
-                        chunk_id=str(r["chunk_id"]),
-                        source=str(r.get("source", "")),
-                        translation=str(r.get("translation", "")),
-                        status=str(r.get("status", "ok")),
-                        kind=str(r.get("kind", "para")),
-                        batched=bool(r.get("batched", False)),
-                        batch_id=r.get("batch_id"),
-                        skipped=bool(r.get("skipped", False)),
-                        skip_reason=str(r.get("skip_reason", "")),
-                        attempts=int(r.get("attempts", 0)),
-                        warnings=list(r.get("warnings") or []),
-                        error_kind=str(r.get("error_kind") or ""),
-                    )
+                    rec = ChunkRecord.from_dict(r)
                 except (KeyError, TypeError, ValueError) as e:
                     log.warning("state record skipped: %s", e)
                     continue
@@ -285,22 +310,7 @@ class StateStore:
         （results 仍各记一条，留重试审计痕迹，load() 后者覆盖前者）。
         """
         self._completed[rec.chunk_id] = None
-        self._results.append(
-            {
-                "chunk_id": rec.chunk_id,
-                "source": rec.source,
-                "translation": rec.translation,
-                "status": rec.status,
-                "kind": rec.kind,
-                "batched": rec.batched,
-                "batch_id": rec.batch_id,
-                "skipped": rec.skipped,
-                "skip_reason": rec.skip_reason,
-                "attempts": rec.attempts,
-                "warnings": rec.warnings,
-                "error_kind": rec.error_kind,
-            }
-        )
+        self._results.append(rec.as_dict())
         if error is not None:
             self._errors.append({"chunk_id": rec.chunk_id, **error})
         self._dirty += 1
