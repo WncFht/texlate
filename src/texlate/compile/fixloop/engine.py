@@ -831,10 +831,13 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
         if (  # pass-1 判收敛 → 同轮全遍终编定稿: rungen_stub 类机制靠
             # 第二遍 \write 填实成品; 复编重分类回流下方同一决策面,
             # pass-2-emergent 错照常进 gate/修复路径。tectonic 自定遍数
-            # (impl del passes)、超时轮 (重跑大概率再超时) 不升遍。
+            # (impl del passes)、死编译轮不升遍——超时重跑大概率再超时;
+            # 信号死 (xdvipdfmx SIGPIPE 截杀等) 产出未证且 aux 可正被截
+            # 在半行, 同轮重编即吃毒件造 aux_scan_eof 幻影 (2403.05523
+            # 实证, 与 :905 clean 门同一 _res_died 否决语义)。
             passes > 1
             and engine_name != "tectonic"
-            and not getattr(res, "timed_out", False)
+            and not _res_died(res)
             and _res_has_pdf(res)
             and rep.n_bang == 0
             and cat not in rs.taxonomy.warn_cats
