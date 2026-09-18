@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Report task progress to the status-panel task board.
 
 Writes bench/results/status-panel/tasks.d/<slug>.json atomically;
@@ -26,7 +25,10 @@ from pathlib import Path
 
 TASKS_DIR = (
     Path(__file__).resolve().parents[2]
-    / "bench" / "results" / "status-panel" / "tasks.d"
+    / "bench"
+    / "results"
+    / "status-panel"
+    / "tasks.d"
 )
 STATUSES = ("starting", "running", "blocked", "done", "failed")
 

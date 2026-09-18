@@ -1,46 +1,115 @@
-# TeXlate
+# texlate (open-hjfy)
 
-> 开源版「幻觉翻译」(hjfy.top): arXiv LaTeX 源码 → LLM 段落级翻译 → ctex 重编译中文 PDF, 双语对照阅读。
+> 「幻觉翻译」[hjfy.top](https://hjfy.top/) 的开源复现：arXiv LaTeX 源码 → LLM 段落级翻译 → ctex 重编译中文 PDF，双语对照阅读。
+>
+> _Open-source reimplementation of hjfy.top: fetches arXiv LaTeX sources, translates paragraph-level text with any OpenAI-compatible LLM (BYOK), and recompiles to a bilingual Chinese-English PDF — preserving formulas, references, macros and layout by translating only prose and shielding everything else behind placeholders._
 
-## 安装与运行
+管线：`fetch`(arXiv e-print 钉版缓存) → `parse`(LaTeX 半解析 + 受限宏展开) → `xlat`(LLM 段落翻译，公式/引用/宏全占位符化) → `inject`(ctex 中文环境注入) → `compile`(tectonic/xelatex + fixloop 规则引擎自动修复) → `judge`(编译日志与 CJK 字数核验)。
+
+## 安装
+
+需要 Python 3.12+ 与 [uv](https://docs.astral.sh/uv/)（或 Docker，见下）。
 
 ```bash
-uv tool install 'texlate[server]'   # web 形态（含 SPA）；纯 CLI 可去 [server]
-texlate web                          # http://127.0.0.1:8765，BYOK 在 Settings 页配网关
-texlate run 1706.03762               # 或 CLI 直跑整链 → 双语 PDF
+git clone <repo-url> && cd texlate
+uv sync --extra server        # server extra 提供 web/API 形态；纯 CLI 可省略
 ```
 
-`uv tool install git+…` 是 CLI-only 路径（`server/static/` 为构建产物未入库，SPA 缺席时 API 仍可用）。容器形态见 `Dockerfile`（`docker build -t texlate .` 需 buildx；代理宿主加 `--network=host`）。开发形态：`uv sync && uv run pytest tests/`。
+再装一个 TeX 引擎（二选一；`texlate doctor` 可逐项自检环境）：
 
-## 状态：M0 已验收，M1–M3 推进中
+```bash
+uv run texlate tools install-tectonic   # 便携引擎，sha256 钉版（推荐，单文件 ~30MB）
+# 或系统包装 TeX Live：apt/pacman 安装 texlive-xetex + texlive-lang-chinese
+```
 
-- [ADR-001 技术栈决策](docs/01-tech-stack-decision.md) — **Python 核心 + TS 前端 + tectonic 编译层**
-- [架构设计](docs/02-architecture.md) — 半解析器 (区间替换) + 宏展开层 + 编译修复循环
-- [路线图](docs/03-roadmap.md) — M0 基线 → M1 展开 + 翻译 → M2 编译攻坚 → M3 产品化（里程碑口径以 `docs/05` §6 为准）
-- [全仓目标达成审计](docs/research/audit-2026-09-16/README.md) — 13 维度 verdict：M0 达成 / M1 实质达成 / M2 字面未达 / M3 约半程
+## 快速开始
 
-已落 `src/texlate/`（uv 管理，`uv sync` 后 `uv run pytest tests/` 全绿）：
+```bash
+uv run texlate run 1706.03762     # mock 端到端：真实编译，但译文是占位假译（链路自检用）
+```
 
-| 包                 | 内容                                                                                                                                               | 验证                                                                                      |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `arxiv/`           | e-print 获取/解包/主文件定位/限速                                                                                                                  | `tests/test_arxiv_*` 族 + corpus39/实网 gated 用例                                        |
-| `latex/`           | 半解析 + 展开机（**v2 Gullet+Segmenter 默认路径**，`TEXLATE_NO_EXPAND=1` 回退 v1）                                                                 | corpus_v3 核心层 identity 100%、leak 0.040%（parsebench 实测）+ fixtures 断言集全绿（`tests/test_bench_regression.py`） |
-| `xlat/`            | 编排层 + 3003 网关客户端（动态免费模型发现/重试/状态续翻/术语表）                                                                                  | xlat 测试族 + MockTranslator E2E；e2e-real n100 chunk ok 99.97%                           |
-| `validate/`        | L0 规则校验（`_check_*` 检查族，见 `validate/l0.py`）/ L1 tree-sitter / L2 编译日志                                                                 | validbench corpus_v2 7867 用例：破坏 100% 检出 / 0 error-FP                               |
-| `compile/`         | Engine 协议 (xelatex+tectonic) / ctex 注入 / normalize / 沙箱                                                                                      | compilebench-v4+fixloop 联合 pdf 154/172=89.5%（`bench/results/compilebench-v4-*/` 归因） |
-| `compile/fixloop/` | yaml 规则修复引擎（规则库 = `rules/` 分片目录，自 rules.yaml 拆出；条目数以生成源为准 + cases.jsonl 沉淀）                                                                                   | fixloop-cbv4 臂 344 格实证（tlmgr 真装包 89 格）                                          |
-| `server/`+`web/`   | FastAPI+SSE+SQLite(WAL)+BYOK worker 管线；SolidJS+pdfslick 阅读器（SPA 已接打包链：`scripts/build-web.sh` → `server/static/` 入 wheel/Dockerfile） | server/align 测试族 + web vitest                                                          |
-| `export/`          | EPUB/DOCX 双语插译（`texlate export <file>`）：bbm 蓝图照抄——DRM 预检 + run 制 unit + `[[TAG_n]]` marker + StateStore 断点续跑                     | export 测试族 + 真书回归（`bench/results/export-realbook-2026-09-16/`：2 本 Gutenberg 全链绿） |
-| `e2e.py`/`cli.py`  | `texlate run <arxiv-id>` 整链驱动（fetch→parse→xlat→inject→compile→judge）                                                                         | 实测出双语 PDF（audit-2026-09-16/e2e-func.md）                                            |
+**注意：`texlate run` 默认是 mock 翻译臂**——产出 PDF 的英文段被替换成占位文本，用于零成本验证 fetch→parse→compile 全链。真翻译需 BYOK（下节）。
 
-Benchmark 底材：corpus39（陷阱）+ corpus_v2（139 篇）+ corpus_v3（core + booster + hot + expand 四层，最新分层口径以 `bench/corpus_v3/MANIFEST.md` 为准；机制台账 `mechanisms.jsonl`，选择器 `select_booster.py`，管线 `bench/py/build_corpus_v3.py` + `build_hot_layer.py` + `build_corpus_expand.py` 可重建）。评测器已扶正：parsebench（B1）/ fixtures 断言（B2，tests/test_bench_regression.py）/ compilebench（B3）/ xlatbench（B4）/ e2e_mock+e2e_real（B5）/ validbench（B6）/ alignbench（B7）。规格见 `docs/06–10`。
+真翻译（任意 OpenAI 兼容端点 / Anthropic messages 方言均可）：
 
-## 关键设计共识 (来自 hjfy 逆向 + ieeA 走读)
+```bash
+export TEXLATE_BASE_URL="https://your-gateway/v1"   # 或 http://127.0.0.1:3003 本地网关
+export TEXLATE_API_KEY="sk-..."
+export TEXLATE_MODEL="your-model"
+uv run texlate run 1706.03762                       # 真译文 + ctex 重编译 → 双语 PDF
+```
 
-1. **LaTeX 是脚本语言** — 必须建宏表做受限展开，按名匹配的保护不可靠
-2. **宁粗勿断** — 翻译管线要容错分割+byte-range splice, 不要严格 AST 重建
-3. **LLM 看不到就不会错** — 公式/引用/宏全部占位符化，只翻段落级文本
-4. **编译修复是壁垒** — log 解析→规则表→修复→重试循环，规则库社区众包
-5. **译文缓存是产品壁垒** — arXiv ID 命中秒回
+三 env 等价于 Web Settings 页配置；本地 `http://127.0.0.1:*` 与 tailnet 主机（`100.64.0.0/10`、`*.ts.net`）放行明文 HTTP，远程端点强制 HTTPS。
 
-参考实现：`~/src/ieeA` (zcyisiee/ieeA), 只借鉴模式不搬代码。
+## Web 形态
+
+```bash
+scripts/build-web.sh            # 构建 SPA → src/texlate/server/static/（需 node/npm）
+uv run texlate web              # http://127.0.0.1:8765 —— 提交 arXiv ID → SSE 进度 → 对照阅读器
+uv run texlate doctor           # 环境自检：引擎/字体/网关连通/数据目录逐项 ok/warn/fail
+```
+
+SPA 是构建产物不入库；未构建时 `texlate web` 只服务 API。BYOK 也可在 Settings 页配置（`TEXLATE_*` env 等价直配）。部署态置 `TEXLATE_MODE=server`（跳过 local-only CSRF 中间件，正式部署请前置反代做 CORS allowlist）。
+
+## Docker
+
+```bash
+docker build -t texlate .                                   # 需 BuildKit（COPY --from=外部镜像）
+docker run -p 8765:8765 -v texlate-data:/data texlate       # web 形态
+docker run --rm texlate fetch 1706.03762                    # 其他子命令同理
+```
+
+镜像内置 tectonic + Noto CJK；高成功率编译档（TeX Live xelatex，~4GB）追加步骤见 Dockerfile 头部注释。BabelDOC sidecar（PDF 上传通路）因 AGPL 边界不随镜像分发。
+
+## CLI 一览
+
+| 命令                                                    | 用途                                               |
+| ------------------------------------------------------- | -------------------------------------------------- |
+| `texlate fetch <id> [--offline]`                        | e-print 获取 + 钉版缓存（`~/.cache/texlate/src/`） |
+| `texlate parse <main.tex>`                              | 半解析分块 → chunks.jsonl                          |
+| `texlate run <id\|dir>`                                 | 端到端（mock 臂默认；配 BYOK 即真译）              |
+| `texlate web`                                           | FastAPI+SSE+SQLite 服务 + SPA                      |
+| `texlate export <docx/epub>`                            | 双语插译导出                                       |
+| `texlate share pack/unpack`                             | 任务产物社区共享包（sha256 全量回验）              |
+| `texlate doctor` / `version` / `tools install-tectonic` | 自检 / 版本 / 引擎安装                             |
+
+离线总闸：`TEXLATE_OFFLINE=1`（等效 `--offline`，取源只查本地缓存）。
+
+## 架构要点
+
+- **LaTeX 是脚本语言**——必须建宏表做受限展开（v2 `gullet/`+`segmenter/` 为默认路径，`TEXLATE_NO_EXPAND=1` 回退 v1）；按名匹配的保护不可靠。
+- **LLM 看不到就不会错**——公式/引用/宏/verbatim 全部占位符化，模型只翻段落级文本；L0 校验器对 src↔zh 做占位符多重集 diff + brace/env/cite-key 相对判定，L1 tree-sitter 校验为可选增强。
+- **编译修复是壁垒**——fixloop：日志解析 → taxonomy 分类 → yaml 规则（`compile/fixloop/rules/` 分片）逐条修复重试；`vendor/` 收 off-CTAN 绝版宏包的真件（许可允许者）与净室 stub（禁分发者，见 NOTICE）。
+- **译文缓存**——SQLite 按 arXiv ID+ 版本 + 模型指纹命中秒回；`texlate share` 互通。
+
+实测底数（详见 `docs/`）：corpus_v3 核心层 identity 100%、占位符泄漏 0.040%（parsebench）；validbench 7867 用例破坏 100% 检出零误报；编译+fixloop 联合臂 pdf 率 ~89.5%。
+
+## 仓库布局
+
+- `src/texlate/` — 产品代码：`arxiv/` 获取层、`latex/` 半解析管线、`xlat/` 翻译编排、`validate/` L0/L1/L2、`compile/` 引擎+fixloop、`server/` Web 后端、`export/`、`cli.py`
+- `web/` — SolidJS+Vite+pdfslick 阅读器（独立 package.json；`npx tsc --noEmit && npx eslint . && npx vitest run`）
+- `tests/` — pytest（corpus/网关/node 依赖用例均有守卫，干净 clone 全绿）
+- `docs/` — [`docs/README.md`](docs/README.md) 总索引：决策史 01–05 + 现行技术规格 06–10 + `research/` 调研档案 + `tools-runbook.md` 工具手册
+- `bench/` — 评测 harness（`PROTOCOL.md` 协议；`py/` 评测器 B1–B7 + stagerun 批量驱动；`corpus*/` 语料与 `results/` 产物 gitignored，可经 `bench/py/build_corpus_*.py` 重建）
+- `Dockerfile` / `.github/workflows/` — 容器形态与 CI（pre-commit 同源）
+
+## 开发
+
+```bash
+uv sync --extra server        # 含 dev group（pytest）
+uv run pytest tests/ -q       # 测试
+ruff format --check . && ruff check .   # python 门（select=ALL 严格集）
+npm ci && npm run format:check          # md/js/yaml/toml 门（pre-commit 同源）
+pre-commit install            # 提交钩子：formatter 走 git-format-staged，check 类拦截
+```
+
+pre-commit 前置工具：`npm install` + `autocorrect ruff shfmt shellcheck actionlint taplo`（macOS 走 brew；Linux 各发行版包名同名或 `cargo install`/`go install` 等价）。CI 与本地链同源——本地不过 CI 必挂。
+
+## License
+
+Apache-2.0（见 LICENSE）。`compile/fixloop/vendor/files/` 内第三方期刊宏包各随其原许可、`vendor/stubs/` 为本项目净室实现——逐件说明见 NOTICE。
+
+## 致谢
+
+- [hjfy.top](https://hjfy.top/)（吴多益）——产品原型与全部关键设计共识（实现自述：[知乎原文](https://zhuanlan.zhihu.com/p/1905569596599169419)，存档说明 `docs/original.md`）
+- [ieeA](https://github.com/zcyisiee/ieeA)——参考实现，借鉴模式

@@ -52,6 +52,7 @@ import argparse
 import asyncio
 import hashlib
 import json
+import os
 import random
 import re
 import statistics
@@ -847,8 +848,11 @@ def main() -> None:
     p_run = sub.add_parser("run", help="抽样 + judge + records/report")
     _add_sampling_args(p_run)
     p_run.add_argument("--judge-model", default="swe-2-medium")
-    p_run.add_argument("--base-url", default="http://100.105.212.52:3003")
-    p_run.add_argument("--api-key", default="240127")
+    p_run.add_argument(
+        "--base-url",
+        default=os.environ.get("TEXLATE_BASE_URL", "http://127.0.0.1:3003"),
+    )
+    p_run.add_argument("--api-key", default=os.environ.get("TEXLATE_API_KEY", ""))
     p_run.add_argument("--mock-judge", action="store_true", help="离线确定性 judge")
     p_run.add_argument(
         "--concurrency",

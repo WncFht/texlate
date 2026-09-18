@@ -2,7 +2,7 @@
 
 `bench/py/gwpilot.py`：纯 stdlib 单文件。主件是断点续跑队列驱动（`run`），另留一个自适应并发闸代理（`serve`）作兜底。
 
-**2026-09-18 起网关侧 fg/bg 分级准入已上线**（需求规格 `docs/research/gateway/2026-09-17-devin2api-fg-bg-admission.md`）：批跑拿 `class=bg` 令牌直连 `http://100.105.212.52:3003`，fg 动态预留、bg 闸内排队（~120s 预算）、快败 `429+Retry-After+X-Gate-Reason` 全由网关做——客户端**不需要**任何本地调速，`serve` 仅留给无分级网关的场景。
+**2026-09-18 起网关侧 fg/bg 分级准入已上线**（需求规格 内部网关准入设计文档）：批跑拿 `class=bg` 令牌直连 网关 base-url，fg 动态预留、bg 闸内排队（~120s 预算）、快败 `429+Retry-After+X-Gate-Reason` 全由网关做——客户端**不需要**任何本地调速，`serve` 仅留给无分级网关的场景。
 
 bg 令牌存放：`bench/work_gwpilot/bg.token`（gitignored）或 env `GWPILOT_BG_KEY`。队列里 `{BGKEY}` 占位符自动展开；`run` 注入 `TEXLATE_API_KEY`/`TEXLATE_GATEWAY_KEY`/`TEXLATE_BASE_URL` 默认值覆盖 env 驱动的入口（llm_hook 等）。
 
@@ -13,7 +13,7 @@ bg 令牌存放：`bench/work_gwpilot/bg.token`（gitignored）或 env `GWPILOT_
 - 每响应带 `X-Gate-Class/Lane/Window-Used/Window-Quota/Window-Reset/Wait-Ms`——排障与节奏校准用，正常跑批不依赖。
 - 观测可选：`/admin/runtime-metrics` 的 `window_used_fg/bg`、`waiters_fg/bg`、`reject_bg_reserve_count`；`/admin/active-requests` 每行带 class。
 
-## 上游限流语义（archbox devin-2api `internal/adapter/devin/rategate.go` 实读）
+## 上游限流语义（网关 rategate 实现实读）
 
 - 上游按自然分钟桶限约 80rpm/lane（**被拒的尝试也计数**——硬闯会把 1 分钟小限流续成十几分钟自封）。网关把发送对齐到同一套分钟桶（桶界约 :59–:00，两端各 2s 死区）。
 - fg/bg 分级：`fg_rate` EMA × 桶剩余秒 + `waiters_fg` + margin(4) = fg 预留量；bg 只用预留外槽位，fg waiter 永远先于 bg waiter 出队。fg 排队上限 15s 快败，bg 120s。
@@ -86,12 +86,12 @@ touch bench/work_gwpilot/PAUSE   # 或 --pause-file 指定哨兵：存在即全�
 
 ## 现成的大活（按网关消耗排序）
 
-| 任务                               | 量级                        | 备注                               |
-| ---------------------------------- | --------------------------- | ---------------------------------- |
-| `stagerun xlat --arm real` 全层    | ~1335 篇 × ~50块 ≈ 6 万请求 | 最大池；`--dir` 钉死防跨零点拆批   |
-| `e2e_real_bench --n N`             | 每篇≈块数+fixloop           | 全链基线；records 续跑             |
-| `qualbench run --source state`     | 每 chunk 1 次 judge         | judge/被评模型解耦 `--judge-model` |
-| `stagerun fixloop --llm` / wave.py | 每难格数次                  | `llm_hook` 走 env                  |
-| `xlatbench run --models ...`       | docs×per-kind×runs          | 多模型横评                         |
+| 任务                               | 量级                         | 备注                               |
+| ---------------------------------- | ---------------------------- | ---------------------------------- |
+| `stagerun xlat --arm real` 全层    | ~1335 篇 × ~50 块 ≈ 6 万请求 | 最大池；`--dir` 钉死防跨零点拆批   |
+| `e2e_real_bench --n N`             | 每篇≈块数+fixloop            | 全链基线；records 续跑             |
+| `qualbench run --source state`     | 每 chunk 1 次 judge          | judge/被评模型解耦 `--judge-model` |
+| `stagerun fixloop --llm` / wave.py | 每难格数次                   | `llm_hook` 走 env                  |
+| `xlatbench run --models ...`       | docs×per-kind×runs           | 多模型横评                         |
 
 CPU 侧不占网关的阶段（ingest/parse/compile/fixloop/mock xlat）可同队列混排，夜批一条线跑完。

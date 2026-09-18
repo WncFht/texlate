@@ -1,1 +1,0 @@
-babeldoc-smoke-report.md

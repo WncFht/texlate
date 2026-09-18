@@ -1,5 +1,0 @@
-{"id": "selftest/keep", "kind": "selftest", "verdict": "ok", "retention": 1.0, "pages_a": 6, "pages_b": 6, "dests_a": 7, "dests_b": 7, "common": 7, "only_a": 0, "cat_lost_a": {}}
-{"id": "selftest/shift", "kind": "selftest", "verdict": "ok", "retention": 1.0, "pages_a": 7, "pages_b": 7, "dests_a": 7, "dests_b": 7, "common": 7, "only_a": 0, "cat_lost_a": {}}
-{"id": "selftest/drop", "kind": "selftest", "verdict": "low", "retention": 0.7142857142857143, "blame": "unknown", "pages_a": 7, "pages_b": 7, "dests_a": 7, "dests_b": 5, "common": 5, "only_a": 2, "cat_lost_a": {"section": 2}}
-{"id": "selftest/degraded", "kind": "selftest", "verdict": "degraded", "retention": null, "pages_a": 4, "pages_b": 4, "dests_a": 0, "dests_b": 0, "common": 0, "only_a": 0, "cat_lost_a": {}}
-{"id": "selftest/corrupt", "kind": "selftest", "verdict": "invalid_pdf", "invalid_side": "b", "detail": "PdfStreamError: Stream has ended unexpectedly"}

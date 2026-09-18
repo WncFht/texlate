@@ -43,7 +43,7 @@
 - 启用方式（README 给的软链法，本机路径换算）：
 
     ```bash
-    PIPKG=/Users/fanghaotian/.local/lib/node_modules/@earendil-works/pi-coding-agent
+    PIPKG=~/.local/lib/node_modules/@earendil-works/pi-coding-agent
     mkdir -p ~/.pi/agent/extensions/subagent ~/.pi/agent/agents ~/.pi/agent/prompts
     ln -sf $PIPKG/examples/extensions/subagent/index.ts ~/.pi/agent/extensions/subagent/index.ts
     ln -sf $PIPKG/examples/extensions/subagent/agents.ts ~/.pi/agent/extensions/subagent/agents.ts

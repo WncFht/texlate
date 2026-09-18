@@ -6,12 +6,12 @@
 
 ### 1.1 语料四层结构（corpus_v3，合计 5,133 篇）
 
-| 层 | 量 | 清单 | 抽样框 / 渠道 | 回答的问题 |
-|---|---|---|---|---|
-| core | 1,000 | `manifest.jsonl` | frame.parquet 30 月簇 × cat_group 最大余数法配额（build_corpus_v3.py:892-917）；IA `arxiv-bulk` + HF `TIGER-Lab/arxiv-latex-5T` 双通道（build_corpus_v3.py:61-66），零 arxiv.org 请求 | 「全 arXiv 均匀成功率多少」 |
-| booster | 200 | `manifest_booster.jsonl` + `booster_selection.jsonl` | agent 策展机制配额（B01-07 锚 + T/W 族拾遗），逐文件 `mech_tags` 多标签 | 「已知坑处理了吗」 |
-| expand | 3,800 | `manifest_expand.jsonl` | 故障率加权（LAMBDA=1.0，build_corpus_expand.py:65）+ 30% 旧池复用（REUSE_FRAC=0.3，:66）；成员级 Range-GET 不落整 tar；QC 3800/3800 sha 全过（corpus-expand-qc-2026-09-16/QC.md） | 「故障密度高的区域摸透了吗」 |
-| hot | 133 | `manifest_hot.jsonl` | OpenAlex `S4306400194`（build_hot_layer.py:61）：hot-cite 2024-01-01+ 按 cited_by_count 降序（:133-134）+ hot-recent 2025-06-01+ sample=（:170）；走产品 e-print 通道取源 | 「真实用户负载（近期高引）表现如何」 |
+| 层      | 量    | 清单                                                 | 抽样框 / 渠道                                                                                                                                                                         | 回答的问题                           |
+| ------- | ----- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| core    | 1,000 | `manifest.jsonl`                                     | frame.parquet 30 月簇 × cat_group 最大余数法配额（build_corpus_v3.py:892-917）；IA `arxiv-bulk` + HF `TIGER-Lab/arxiv-latex-5T` 双通道（build_corpus_v3.py:61-66），零 arxiv.org 请求 | 「全 arXiv 均匀成功率多少」          |
+| booster | 200   | `manifest_booster.jsonl` + `booster_selection.jsonl` | agent 策展机制配额（B01-07 锚 + T/W 族拾遗），逐文件 `mech_tags` 多标签                                                                                                               | 「已知坑处理了吗」                   |
+| expand  | 3,800 | `manifest_expand.jsonl`                              | 故障率加权（LAMBDA=1.0，build_corpus_expand.py:65）+ 30% 旧池复用（REUSE_FRAC=0.3，:66）；成员级 Range-GET 不落整 tar；QC 3800/3800 sha 全过（corpus-expand-qc-2026-09-16/QC.md）     | 「故障密度高的区域摸透了吗」         |
+| hot     | 133   | `manifest_hot.jsonl`                                 | OpenAlex `S4306400194`（build_hot_layer.py:61）：hot-cite 2024-01-01+ 按 cited_by_count 降序（:133-134）+ hot-recent 2025-06-01+ sample=（:170）；走产品 e-print 通道取源             | 「真实用户负载（近期高引）表现如何」 |
 
 总账见 `bench/corpus_v3/MANIFEST.md:4`（清单文件列）与 :7（5133 合计追记）；docs/09:29 同日勘误确认四层 1000+200+133+3800。上游另有 `bench/corpus/`（39 篇手挑陷阱，PROTOCOL.md:11）与 `bench/corpus_v2/`（139 篇分层随机）两个历史层，均保留不入新框。
 
@@ -38,20 +38,20 @@ core/expand 走 IA tar + TIGER-5T，**不触 arxiv.org**（build_corpus_v3.py:61
 ### 2.2 real 臂网关：真正的规模瓶颈，且有死线
 
 - 实测吞吐：realn200 conc20 墙钟 **90.0 s/格 ≈ 40-72 格/h**（realn200-2026-09-17/report.md:11）；小格 chunk 数填不满 20 worker 是非线性主因。
-- 死线：devin-2api swe-2-medium 免费 promo **2026-10-16 到期**（gateway 调研结论，`docs/research/gateway/2026-09-16-free-tokens.md`）；到期后免费池须重测。
-- 独立限流面：Devin 账号级 429 drip 与本地并发闸是两个面，降并发无用、retry 阶梯空转是正确姿势（网关逆向文档实证）。
-- 备用路径：archbox 本机第二网关 127.0.0.1:3033（独立 devin-2api 实例、max_rpm 80）；免注册 keyless 源（llm7/pollinations）不稳定只配当 fallback；高 ROI 付费/注册源（ModelScope 2000req/日、glm-4.7-flash、SiliconFlow Hunyuan-MT-7B 等）均需用户一次性注册。
+- 死线：swe-2-medium 免费 promo **2026-10-16 到期**（gateway 调研结论，`docs/research/gateway/2026-09-16-free-tokens.md`，本机存档未入库）；到期后免费池须重测。
+- 独立限流面：上游账号级 429 drip 与本地并发闸是两个面，降并发无用、retry 阶梯空转是正确姿势（网关逆向文档实证）。
+- 备用路径：本机第二网关 127.0.0.1:3033（独立实例、max_rpm 80）；免注册 keyless 源（llm7/pollinations）不稳定只配当 fallback；高 ROI 付费/注册源（ModelScope 2000req/日、glm-4.7-flash、SiliconFlow Hunyuan-MT-7B 等）均需用户一次性注册。
 - 账本：10k 全 real ≈ 140-250h 连续 conc20；50k ≈ 700-1250h——单一 promo 窗口（剩 ~29 天）内跑不完。**全量 real 不可行也不必要**：realn200 实证 mock/real 两臂 union pdf 同为 98.5%、零净回归（report.md:21,75），「mock 全量 + real 滚动探针」设计已被数据支持。
 
 ### 2.3 算力与磁盘
 
-- stagerun 5k 规模估时（runbook_loop.md:50）：parse ~30min、xlat mock <1h、**compile zh+base ~7h、fixloop ~2500 格 ~7h**——逐段线性外推 50k 是 ~70h+70h 量级，archbox 12C 单机可扛但需波次切分；>30min 批一律 setsid 脱管（runbook_loop.md:72，harness 看门狗三连杀实证）。
+- stagerun 5k 规模估时（runbook_loop.md:50）：parse ~30min、xlat mock <1h、**compile zh+base ~7h、fixloop ~2500 格 ~7h**——逐段线性外推 50k 是 ~70h+70h 量级，12C 单机可扛但需波次切分；>30min 批一律 setsid 脱管（runbook_loop.md:72，harness 看门狗三连杀实证）。
 - 磁盘现状：corpus_v3 20G + work_v3 28G + results 45G，卷余 363G/917G。按 core+expand 均重 ~4MB/篇估，50k 原始 blob ~185G；work/{id}/ 树（src/zh/splice/build-base/_texmf 五件套）与 results records/cases 同阶放大——**50k 需先定 work 树剪枝/归档纪律**（splice 现场留 fail 格、clean 格只留 records），否则 363G 不够。
 - scorecard/triage 本身纯扫 records，O(分钟) 非瓶颈。
 
 ### 2.4 规模结论
 
-到 10k：取源、mock 链、compile/fixloop 都是小时-天级，无结构障碍；real 臂只能探针化。到 50k：磁盘治理与 real 臂预算要提前设计，bulk 取源仍不构成瓶颈。
+到 10k：取源、mock 链、compile/fixloop 都是小时 - 天级，无结构障碍；real 臂只能探针化。到 50k：磁盘治理与 real 臂预算要提前设计，bulk 取源仍不构成瓶颈。
 
 ## 3. 度量改进
 
@@ -67,12 +67,12 @@ verdict.category 取首错类别独占归因：quant-ph/9703040 的 110 错里 1
 
 verdict-proxy-spec-2026-09-17.md 已定三候选口径与接线点，全部可先纯后算校准阈值再谈进 verdict：
 
-| 指标 | 输入 | 全量后算成本 | 现状缺口 |
-|---|---|---|---|
-| `leak_*`（送译前展开残留，六族正则） | state.json `results[].source` | <5min/5117 格（spec:47-49） | 无——随时可跑 |
-| `term_hit_rate`（术语表一致，real 臂限定） | state.json source+translation + glossary | <10min（spec:50） | `term_dict.json` 未接线，pipeline 未落盘（spec:31） |
-| `landmark_density`（zh pdf 锚点存活） | zh pdf + 源树计数 | ~1-1.5h 串行 / jobs8 ~10min（spec:51） | 无条件，可直接常态开 |
-| `alignment_pairs`（en↔zh 名级配对） | base pdf + zh pdf | 依赖 base 覆盖（spec:52） | **loop1 build-base 覆盖=0**（spec:17），须先补 base 臂 |
+| 指标                                       | 输入                                     | 全量后算成本                           | 现状缺口                                               |
+| ------------------------------------------ | ---------------------------------------- | -------------------------------------- | ------------------------------------------------------ |
+| `leak_*`（送译前展开残留，六族正则）       | state.json `results[].source`            | <5min/5117 格（spec:47-49）            | 无——随时可跑                                           |
+| `term_hit_rate`（术语表一致，real 臂限定） | state.json source+translation + glossary | <10min（spec:50）                      | `term_dict.json` 未接线，pipeline 未落盘（spec:31）    |
+| `landmark_density`（zh pdf 锚点存活）      | zh pdf + 源树计数                        | ~1-1.5h 串行 / jobs8 ~10min（spec:51） | 无条件，可直接常态开                                   |
+| `alignment_pairs`（en↔zh 名级配对）        | base pdf + zh pdf                        | 依赖 base 覆盖（spec:52）              | **loop1 build-base 覆盖=0**（spec:17），须先补 base 臂 |
 
 风险纪律（spec:56-60）：先 metrics 观测字段不进 status/reasons；mock 臂 term 恒 null、leak 两臂同义，聚合按臂过滤。
 
@@ -82,12 +82,12 @@ verdict-proxy-spec-2026-09-17.md 已定三候选口径与接线点，全部可�
 
 ## 4. 排序建议（按信息增益/工作量比）
 
-| # | 项 | 工作量 | 预期信息增益 |
-|---|---|---|---|
-| 1 | **error_cats 组成签名 + first_error→taxonomy 物化进 records**：复用 fixloop 分类器，records errors[] 增厚+dossier evidence 上提（still-manual-audit M1/M2） | ~0.5-1d（分类器已存在，差导出） | 待人工归因面塌大半（syntax 166+errors>3 140+other 131）；消除首错遮 bulk 的归因错配（9703040 实证） |
-| 2 | **质量面代理指标全量后算校准**（leak/term/landmark_density 三件套，纯读 state.json+现有 pdf，零改码） | <1d 脚本 + ~1.5h 算 | 打开 M3 静默伤探测面（309 格 clean+warning 无签名可挂）；为「干净翻译」提供编译之外的第二轴证据；顺手补 term_dict.json 一行接线 |
-| 3 | **base 臂补跑（compile --arm base 全量）** | ~1.5h/5k 算 + 半条 runbook 命令 | build-base 覆盖 0→全：解锁 alignment_pairs；给出源健康基线，区分「源烂」与「管线引入」两类 fail |
-| 4 | **机制标签全层回填**：features.jsonl staging 沉淀 + evidence 规则改写为可执行检测器 → core/hot/expand 逐文件 mech_tags | ~1-2d（检测器重写为主） | 机制子集选样从 booster-200 闭环扩到全 5133；「改规则→跑覆盖机制格」在 expand 高密度区生效；partial 119 条机制的覆盖缺口变可测 |
-| 5 | **real 臂滚动探针 + promo 死线前排产**：固定每波分层抽 n≈200-300（hot/expand 加权——realn200 里 hot 仅 2 格），10-16 前优先把 real 覆盖缺口层跑完；post-promo 切 127.0.0.1:3033 或注册源 | ~0.5d 设计 + 窗口期排产 | 保住唯一的真模型回归面；在免费额度内把「近期高引」这个最贴产品的层拿到 real 证据 |
+| #   | 项                                                                                                                                                                                      | 工作量                          | 预期信息增益                                                                                                                    |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **error_cats 组成签名 + first_error→taxonomy 物化进 records**：复用 fixloop 分类器，records errors[] 增厚+dossier evidence 上提（still-manual-audit M1/M2）                             | ~0.5-1d（分类器已存在，差导出） | 待人工归因面塌大半（syntax 166+errors>3 140+other 131）；消除首错遮 bulk 的归因错配（9703040 实证）                             |
+| 2   | **质量面代理指标全量后算校准**（leak/term/landmark_density 三件套，纯读 state.json+ 现有 pdf，零改码）                                                                                  | <1d 脚本 + ~1.5h 算             | 打开 M3 静默伤探测面（309 格 clean+warning 无签名可挂）；为「干净翻译」提供编译之外的第二轴证据；顺手补 term_dict.json 一行接线 |
+| 3   | **base 臂补跑（compile --arm base 全量）**                                                                                                                                              | ~1.5h/5k 算 + 半条 runbook 命令 | build-base 覆盖 0→全：解锁 alignment_pairs；给出源健康基线，区分「源烂」与「管线引入」两类 fail                                 |
+| 4   | **机制标签全层回填**：features.jsonl staging 沉淀 + evidence 规则改写为可执行检测器 → core/hot/expand 逐文件 mech_tags                                                                  | ~1-2d（检测器重写为主）         | 机制子集选样从 booster-200 闭环扩到全 5133；「改规则→跑覆盖机制格」在 expand 高密度区生效；partial 119 条机制的覆盖缺口变可测   |
+| 5   | **real 臂滚动探针 + promo 死线前排产**：固定每波分层抽 n≈200-300（hot/expand 加权——realn200 里 hot 仅 2 格），10-16 前优先把 real 覆盖缺口层跑完；post-promo 切 127.0.0.1:3033 或注册源 | ~0.5d 设计 + 窗口期排产         | 保住唯一的真模型回归面；在免费额度内把「近期高引」这个最贴产品的层拿到 real 证据                                                |
 
 另：50k 扩展落地前需要先定 work 树剪枝纪律（§2.3），属排产纪律而非独立项，并入对应波次 runbook 即可。

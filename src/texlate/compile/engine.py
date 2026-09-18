@@ -130,7 +130,7 @@ _SHELL_ESCAPE_FLAGS: Final = frozenset(
 #: ``-X compile`` 撤 ``--web-bundle`` 的分界版本：0.17.0 起 URL 并入
 #: ``--bundle``（0.17.0 help 实测 ``--bundle <BUNDLE>  Use this URL or
 #: path``；老版 ``--bundle`` 只认本地路径，URL 必须 ``--web-bundle``，
-#: 否则 URL 被当文件打开 → os error 2，archbox 全灭根因）。
+#: 否则 URL 被当文件打开 → os error 2）。
 _TECTONIC_BUNDLE_URL_MIN: Final = (0, 17, 0)
 
 

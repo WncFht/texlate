@@ -1,22 +1,22 @@
 # 工具与运维手册
 
-> 2026-09-16 起维护。汇总本仓全部可复用工具：产品 CLI、`scripts/`、`bench/py/` 评测器、web 冒烟，以及从历史会话沉淀的运维手法。证据出处：各会话挖掘报告 `tmp/transcript-mining/`（gitignored scratch；以下条目均已核实）。
+> 2026-09-16 起维护。汇总本仓全部可复用工具：产品 CLI、`scripts/`、`bench/py/` 评测器、web 冒烟，以及从开发过程沉淀的运维手法。
 
 ## 1. 产品 CLI（`uv run texlate …`）
 
-| 命令                                                        | 用途                                                                                                    |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `texlate fetch <arxiv_id> [--offline]`                      | HEAD→GET→sniff→unpack→locate→钉版缓存（`~/.cache/texlate/src/{id}v{ver}/`）；`--offline` 零网络只查本地缓存（无缓存报 `offline_no_cache` 退出 1） |
-| `texlate parse <main.tex> [-o chunks.jsonl] [--no-flatten]` | v2 Gullet+Segmenter 半解析分块；`--no-flatten` 不展平 `\input`                                          |
+| 命令                                                        | 用途                                                                                                                                                                                       |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `texlate fetch <arxiv_id> [--offline]`                      | HEAD→GET→sniff→unpack→locate→钉版缓存（`~/.cache/texlate/src/{id}v{ver}/`）；`--offline` 零网络只查本地缓存（无缓存报 `offline_no_cache` 退出 1）                                          |
+| `texlate parse <main.tex> [-o chunks.jsonl] [--no-flatten]` | v2 Gullet+Segmenter 半解析分块；`--no-flatten` 不展平 `\input`                                                                                                                             |
 | `texlate run <id\|dir> [--keep -w DIR] [--offline]`         | mock 端到端（normalize→mock 翻译→ctex 注入→编译→judge）；`--offline`/`TEXLATE_OFFLINE=1` 取源零网络（本地目录源无影响，`--server` 不生效）；退出码 0 clean/partial、1 编译失败、2 路由拒绝 |
-| `texlate run <id> --server URL`                             | 瘦客户端模式：提交到 FastAPI 任务队列，`--wait` 轮询快照；`--model/--api-key/--base-url/--out`（BYOK 走 `x-texlate-*` 头） |
-| `texlate web [--host --port --data-dir]`                    | 起 FastAPI+SSE 服务（缺省 127.0.0.1:8765），SPA 需先 `scripts/build-web.sh`                             |
-| `texlate export <docx/epub>`                                | 双语插译导出                                                                                            |
-| `texlate share pack <task_id>`                              | 任务产物打社区共享包 `{share_key}.share.zip`（七组分键，见 shared-cache.md）                            |
-| `texlate share unpack <bundle>`                             | 共享包解包 + manifest/产物 sha256 全量回验（manifest ≤1MB、artifacts ≤64 条、声明合计 ≤300MB、成员按声明 size+1 有界读对账，违例 ShareError→`share_invalid`） |
-| `texlate doctor`                                            | 环境自检：python/tectonic/xelatex/cjk 字体（ctex/fandol/sys-zh）/pdftotext/网关连通/data-dir/server-extra/babeldoc 逐项 ok/warn/fail/n/a |
-| `texlate version`                                           | 打版本号                                                                                                |
-| `texlate tools install-tectonic`                            | tectonic 便携引擎安装（sha256 钉版矩阵）                                                                |
+| `texlate run <id> --server URL`                             | 瘦客户端模式：提交到 FastAPI 任务队列，`--wait` 轮询快照；`--model/--api-key/--base-url/--out`（BYOK 走 `x-texlate-*` 头）                                                                 |
+| `texlate web [--host --port --data-dir]`                    | 起 FastAPI+SSE 服务（缺省 127.0.0.1:8765），SPA 需先 `scripts/build-web.sh`                                                                                                                |
+| `texlate export <docx/epub>`                                | 双语插译导出                                                                                                                                                                               |
+| `texlate share pack <task_id>`                              | 任务产物打社区共享包 `{share_key}.share.zip`（七组分键，见 shared-cache.md）                                                                                                               |
+| `texlate share unpack <bundle>`                             | 共享包解包 + manifest/产物 sha256 全量回验（manifest ≤1MB、artifacts ≤64 条、声明合计 ≤300MB、成员按声明 size+1 有界读对账，违例 ShareError→`share_invalid`）                              |
+| `texlate doctor`                                            | 环境自检：python/tectonic/xelatex/cjk 字体（ctex/fandol/sys-zh）/pdftotext/网关连通/data-dir/server-extra/babeldoc 逐项 ok/warn/fail/n/a                                                   |
+| `texlate version`                                           | 打版本号                                                                                                                                                                                   |
+| `texlate tools install-tectonic`                            | tectonic 便携引擎安装（sha256 钉版矩阵）                                                                                                                                                   |
 
 BYOK 环境直配（免 settings.json）：`TEXLATE_BASE_URL` / `TEXLATE_API_KEY` / `TEXLATE_MODEL`。
 
@@ -24,23 +24,18 @@ BYOK 环境直配（免 settings.json）：`TEXLATE_BASE_URL` / `TEXLATE_API_KEY
 
 ## 2. scripts/ — 运维脚本
 
-| 脚本                                    | 用途                                                                                                                                                                                          |
-| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `agent-links.sh`                        | 重建 CLAUDE.md→AGENTS.md 与 .claude/skills 软链层（clone 后跑一次）                                                                                                                           |
-| `build-web.sh [--no-install]`           | web SPA 构建并拷入 `src/texlate/server/static/`（gitignored 产物）                                                                                                                            |
-| `crossnote-links.sh`                    | MPE 预览 .crossnote 链接层重建                                                                                                                                                                |
-| `fmt-shell.sh`                          | gfs stdin→stdout formatter（zsh 透传，其余 shfmt -i 2）                                                                                                                                       |
-| `gw-health.sh`                          | 网关三探单行报告：gwcap(3399)/direct(tailscale)/tunnel(ssh)；任一 FAIL exit 1；`GW_HEALTH_SKIP_GWCAP=1`/`GW_HEALTH_SKIP_TUNNEL=1` 旁路                                                       |
-| `gw-tunnel.sh {start,stop,status,logs}` | **devin2api 网关常驻 SSH 隧道**：setsid 脱离会话 + while 重连（抗 tailscaled 重启 exit 144）；远端必须 dial tailscale IP 100.105.212.52（127.0.0.1 撞 Mac VS Code Code H 占口——能连永不响应） |
-| `gwcap/`                                | 出向 3003 限流硬闸：nft REDIRECT→:3399 stdlib 代理，model 前缀 swe-2-medium 过全局 Semaphore(4)；`install.sh {install,uninstall,status}`；healthz `127.0.0.1:3399/__gwcap/healthz`            |
-| `find-gateway-hog.sh [port]`            | 「谁在打网关」归因链：ss→ps→/proc cwd→transcript mtime→指纹 grep→fleet 名                                                                                                                     |
-| `demo.sh [id] [--real]`                 | 端到端冒烟演示：fetch→parse→mock run→pdftotext 验 CJK（`--real` 追加网关真翻译）；默认样例 2105.11479                                                                                         |
-| `dev-smoke.sh [--keep]`                 | web e2e 一条龙：起 vite→日志解析实际端口（漂移安全）→mock 鉴别→`web/scripts/smoke.mjs`→只杀自己 PID                                                                                           |
-| `server-smoke.sh [port] [dir]`          | texlate web 全链 curl 冒烟：起服→health→SPA→openapi→upload→SSE→artifact sha256→收尾                                                                                                           |
-| `git-stash-export.sh [stash@{N}] [dir]` | stash 事故无损取证：tracked + `^3` untracked 两树导出 scratch（只读 stash，不动工作区/索引）                                                                                                  |
-| `tcp-relay.py <lport> <rhost> <rport>`  | 56 行 asyncio TCP 转发：tailnet 服务映射到 loopback（比 ssh -L 轻、纯 stdlib）                                                                                                                |
-| `loc.sh [--cloc]`                       | 代码量统计：ls-files 圈定 + 剔数据快照 + 分桶 + 未跟踪档（bench/results 有 170 万行生成 JSON，裸 cloc 会把数据当代码）                                                                        |
-| `pyspy-triage.sh <PID> [-n -i -o]`      | py-spy 钉栈 triage：N 次 dump 栈签名逐项比对 + utime/stime 增量——签名全同+CPU 前进=STUCK(疑似 ReDoS/死循环,exit 1)、全同+CPU 平=IDLE(exit 3)、变动=MOVING(exit 0)；`PYSPY_BIN` 覆盖            |
+| 脚本                                    | 用途                                                                                                                                                                                |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agent-links.sh`                        | 重建 CLAUDE.md→AGENTS.md 与 .claude/skills 软链层（clone 后跑一次）                                                                                                                 |
+| `build-web.sh [--no-install]`           | web SPA 构建并拷入 `src/texlate/server/static/`（gitignored 产物）                                                                                                                  |
+| `crossnote-links.sh`                    | MPE 预览 .crossnote 链接层重建                                                                                                                                                      |
+| `fmt-shell.sh`                          | gfs stdin→stdout formatter（zsh 透传，其余 shfmt -i 2）                                                                                                                             |
+| `demo.sh [id] [--real]`                 | 端到端冒烟演示：fetch→parse→mock run→pdftotext 验 CJK（`--real` 追加网关真翻译）；默认样例 2105.11479                                                                               |
+| `dev-smoke.sh [--keep]`                 | web e2e 一条龙：起 vite→日志解析实际端口（漂移安全）→mock 鉴别→`web/scripts/smoke.mjs`→只杀自己 PID                                                                                 |
+| `server-smoke.sh [port] [dir]`          | texlate web 全链 curl 冒烟：起服→health→SPA→openapi→upload→SSE→artifact sha256→收尾                                                                                                 |
+| `git-stash-export.sh [stash@{N}] [dir]` | stash 事故无损取证：tracked + `^3` untracked 两树导出 scratch（只读 stash，不动工作区/索引）                                                                                        |
+| `loc.sh [--cloc]`                       | 代码量统计：ls-files 圈定 + 剔数据快照 + 分桶 + 未跟踪档（bench/results 有 170 万行生成 JSON，裸 cloc 会把数据当代码）                                                              |
+| `pyspy-triage.sh <PID> [-n -i -o]`      | py-spy 钉栈 triage：N 次 dump 栈签名逐项比对 + utime/stime 增量——签名全同+CPU 前进=STUCK(疑似 ReDoS/死循环,exit 1)、全同+CPU 平=IDLE(exit 3)、变动=MOVING(exit 0)；`PYSPY_BIN` 覆盖 |
 
 ## 3. bench/py/ — 评测器与批跑（B1–B7 对应 docs/10）
 
@@ -58,8 +53,11 @@ BYOK 环境直配（免 settings.json）：`TEXLATE_BASE_URL` / `TEXLATE_API_KEY
 | `alignbench.py`                                                                                                        | B7     | named-dest 锚点保留率（en/zh PDF 对）                                                                                            |
 | `stagerun.py`                                                                                                          | —      | 分阶段批量驱动：`ingest/parse/xlat/compile/fixloop` 五子命令，append records jsonl，(id,arm,upstream) resume，`--sem` 网关信号量 |
 | `triage.py`                                                                                                            | —      | records→tickets.jsonl 聚类 + metrics.jsonl 趋势 + report merge                                                                   |
+| `wave.py` / `rundiff.py` / `dossier.py` / `gate_scorecard.py` / `mech_ids.py` / `defect_ledger.py`                     | —      | 修复波编排（选样/快照/scorecard/postmortem）+ records 迁移矩阵 + per-id 跨阶段失败链 + GATE 记分 + 机制/规则→id 反查 + 缺陷台账  |
+| `status_panel.py` / `task_ping.py`                                                                                     | —      | 批跑看板（`bench/results/status-panel/`）：任务态注册/心跳/聚合面板                                                              |
+| `gwpilot.py`（+`gwpilot.md`）                                                                                          | —      | 见缝插针批跑驱动：断点续跑队列 + 无分级网关场景的自适应并发闸兜底；`bench/queue/*.jsonl` 队列，`bench/work_gwpilot/` 状态        |
 | `translators_bench.py`                                                                                                 | —      | xlat 臂工厂：mock/sabotage-b/sabotage-c/perturb + ledger                                                                         |
-| `preflight_batch.py`                                                                                                   | —      | 批前一票闸（import walk+mock 链 + 磁盘+manifest+PATH+ 网关认证+gwcap），`--no-net` 离线                                          |
+| `preflight_batch.py`                                                                                                   | —      | 批前一票闸（import walk+mock 链 + 磁盘+manifest+PATH+ 网关认证），`--no-net` 离线                                                |
 | `runbook_loop.md`                                                                                                      | —      | loop 批 12 步操作单（排序约束：zh/ 是臂间共享演化树）                                                                            |
 | `build_corpus_v3.py` / `build_corpus_expand.py` / `build_hot_layer.py`                                                 | —      | 语料三层管线：core/booster→expand(+3800)→hot(OpenAlex 高引近期，日预算 85/轮）                                                   |
 | `benchlib.py`                                                                                                          | —      | 共享件：records jsonl/manifest/编译常量（纯 stdlib 零 IO）                                                                       |
@@ -80,10 +78,8 @@ BYOK 环境直配（免 settings.json）：`TEXLATE_BASE_URL` / `TEXLATE_API_KEY
 
 ### 5.1 网关接入
 
-- **接法只两条**：tailscale 直连 `http://100.105.212.52:3003`（bench/脚本/curl 默认）或 `gw-tunnel.sh` ssh 隧道（产品链 validate_base_url 需要非 localhost https 时）。**禁止经 VS Code 端口透传访问 :3003**（remote 自动转发的 3003 是黑洞：能连永不响应；用户 2026-09-16 明令）。
-- **隧道三坑**：远端 `127.0.0.1` 撞 VS Code Code H（TCP 能连永不响应）→ `[::1]` 绕 → 终态远端 dial tailscale IP；tailscaled 重启杀裸 ssh（exit 144）→ `gw-tunnel.sh` 常驻化。
-- **gwcap 硬闸 4**：swe-2-medium real 翻译 ~56 篇/h 上限；批量烧配额前 `gw-health.sh` + `preflight_batch.py`。
-- **429 是瞬时限流**：先换端点（tailscale↔tunnel）再判死。
+- **接法**：默认本地 `http://127.0.0.1:3003`（`TEXLATE_BASE_URL` / Settings 页覆盖任意 OpenAI 兼容端点）；bench/脚本/curl 一律走 env。
+- **429 是瞬时限流**：先换端点/降并发再判死；批量烧配额前跑 `preflight_batch.py`。
 - **arXiv 日预算 ~180 req**：取源 `--limit 85`/轮 + durable cron 续跑（CronCreate 默认 session-only，要 `durable:true`）。
 - 网关探活最小集：`/healthz` 版本串、`/v1/models` 无 auth 401=活、带 auth 列模型、真 chat probe。
 
@@ -93,7 +89,7 @@ BYOK 环境直配（免 settings.json）：`TEXLATE_BASE_URL` / `TEXLATE_API_KEY
 - **xelatex ~100 error 上限**：nonstopmode 不豁免——错误洪水 → mid-document abort → 截断 partial pdf（bibliography 在文末最先死，B7 归因实测）。锚点保留率异常先查这个。
 - **ruff --fix 会删出 bug**：F841 autofix 把 `except Exception as e` 的 `as e` 删掉，payload repr 变错对象——autofix 后必须人工复核 diff。
 - **`command grep` 反 alias**：本机 grep=ugrep 吃 .gitignore——查 gitignore'd 文件（bench/results 等）必须 `command grep`，否则静默漏报。
-- **进程→会话归因**（`find-gateway-hog.sh` 固化）：ss -tnp→ps cmdline 指纹→/proc cwd→transcript mtime→grep 指纹→`This session is` fleet 名→SendMessage 处置。
+- **进程→会话归因**：ss -tnp→ps cmdline 指纹→/proc cwd→transcript mtime→grep 指纹→`This session is` fleet 名→SendMessage 处置。
 - **nft 调试四件套**：nftrace（`meta nftrace set 1` + `nft monitor trace`）、counter 规则定位断包层、`nstat -az` 前后 diff、按 handle 删规则；`ss -K` 杀单条连接逼重握手；回滚=`nft delete table`。
 - **ts-input 反欺骗**：tailscaled 的 `ip saddr 100.64.0.0/10 iifname != tailscale0 drop` 会杀 lo 上的 un-NAT 回包；tailscaled 重启重插 jump → bypass 规则要 systemd drop-in 兜底。
 - **sqlite3 CLI 管道不可靠**：译文含 `|` 会把分列打歪——精确比对走 python sqlite3 API。
@@ -103,11 +99,11 @@ BYOK 环境直配（免 settings.json）：`TEXLATE_BASE_URL` / `TEXLATE_API_KEY
 
 ### 5.3 bench/批跑语义
 
-- **`--layers` 默认只 core**：stagerun/e2e_real_bench 要全量必须显式 `--layers core,booster,hot`；`--sem 4`/`--concurrency 4` 对齐 gwcap 硬闸。
+- **`--layers` 默认只 core**：stagerun/e2e_real_bench 要全量必须显式 `--layers core,booster,hot`；`--sem 4`/`--concurrency 4` 对齐网关并发闸。
 - **stagerun 五子命令序**：`ingest→parse→xlat --arm mock→compile --arm zh --xlat-arm mock→compile --arm base→fixloop --on nonclean`；同结果目录只许一个 stagerun 进程（records 单写者 append）；跨天续跑钉 `--dir`。records 速览：per-file `wc -l` + `command grep -c '"status": "ok"\|"clean"\|"partial"'`。
 - **triage.py**：`--selftest` 合成自检；`all DIR` 三件套；无 records 旧目录自动降级 `tickets-legacy.jsonl`；**冒烟跑必带 `--no-global`**（metrics.jsonl 是 git 跟踪文件，会污染）。
 - **zh/ 是臂间共享就地演化树**：compile zh(mock) 必先于 real/sabotage；sabotage 两臂放全批最后（污染 zh/）；续跑靠同 `--n/--seed/--layers` 确定性选样 + `--xlat-arm` 钉 provenance。
-- **fixloop 只在 fail 上跑**：partial 已有 PDF，halt_on_error+ 树改写会弄丢它（实测回退 2/3）。（勘误 2026-09-17：floor 机制落地后 fixloop 亦收 misschar/error 类 partial——`_want_fix` 改判 fail+特定 partial，floor_snap 保入场 PDF 回退；见 docs/10 L120 勘误。）
+- **fixloop 只在 fail 上跑**：partial 已有 PDF，halt_on_error+ 树改写会弄丢它（实测回退 2/3）。（勘误 2026-09-17：floor 机制落地后 fixloop 亦收 misschar/error 类 partial——`_want_fix` 改判 fail+ 特定 partial，floor_snap 保入场 PDF 回退；见 docs/10 L120 勘误。）
 - **records.jsonl append = 行在即 done**；results.json 整体重写崩一次全丢。SIGTERM 后同参重启即无损续跑（`_paper_done` 秒跳）；**但运行中改 bench 脚本本身**会新旧逻辑混用（进程持旧内存映像，resume 按新代码跑）。
 - **tectonic 版本岔路**：0.15 裸 CLI 用 `--bundle`，0.17 `-X compile` 要 `--web-bundle`；`-vv` 放 `-X` 后 `compile` 前；bundle 不可达时**静默卡**——先 `curl -sI` 探活 + `XDG_CACHE_HOME` 隔离复现。
 - **uv.lock churn**：UV_DEFAULT_INDEX 抖动让每个 commit 前都得 `git checkout uv.lock`——约 15 次/会话，入链前先看 diff 是不是纯 index churn。

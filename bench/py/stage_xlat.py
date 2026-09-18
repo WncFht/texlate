@@ -1,6 +1,6 @@
 r"""stage_xlat.py — stagerun ``xlat`` stage：XlatPipeline → zh/ 就地翻译。
 
-asyncio 编排：``--sem`` 全局信号量压网关 in-flight（默认 4=gwcap 硬闸），
+asyncio 编排：``--sem`` 全局信号量压网关 in-flight（默认 4，对齐网关并发闸），
 ``--jobs`` 控制同时在翻的论文数。产物：zh/（暂存翻译完工换名）+
 xlat-{arm}.jsonl 逐块明细 + zh/.xlat-arm.json provenance marker。
 
@@ -48,7 +48,7 @@ if TYPE_CHECKING:
 
 
 class _SemTranslator:
-    """全局网关信号量包裹：run 内全部 paper/pipeline 共享同一 sem（gwcap 硬闸）。
+    """全局网关信号量包裹：run 内全部 paper/pipeline 共享同一 sem（网关并发闸）。
 
     per-paper PipelineConfig.concurrency 管论文内部排队；本层管跨论文的
     真实在途请求数——``--sem 4`` 即全局 in-flight ≤4。

@@ -20,14 +20,24 @@ bench/corpus_v2/progress.json
 bench/corpus_v2/build.log
 bench/corpus_v3/*/
 bench/work_*/
-bench/results/*/work/
-bench/results/babeldoc/
+# bench 运行产物与内部台账——不入发布仓（本地保留，可重建）
+bench/results/
+bench/queue/
+bench/py/scratch/
 !bench/corpus/MANIFEST.md
 !bench/corpus_v2/MANIFEST.md
 
-# status-panel 运行时状态 (pidfile+速率状态; run.log 由 *.log 覆盖, tasks.d 台账照入库)
-bench/results/status-panel/panel.pid
-bench/results/status-panel/rate-state.json
+# 内部过程文档（transcript 采矿/网关运维/交接台账）——本机保留，不入发布仓
+docs/research/preclean-2026-09-16/
+docs/research/gateway/
+docs/HANDOFF-*.md
+
+# 个人 tailscale 网关运维件（公开仓无意义）
+scripts/gwcap/
+scripts/gw-tunnel.sh
+scripts/gw-health.sh
+scripts/tcp-relay.py
+scripts/find-gateway-hog.sh
 
 # tex 编译中间产物
 *.aux

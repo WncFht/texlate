@@ -500,7 +500,7 @@ def rescue_en_baselines(
 ) -> list[dict]:
     """b 侧有 PDF 而 base-xel 无 PDF → 用 fixloop usertree 重编译 en 基线。
 
-    归因结论（b7-attribution-2026-09-16）：archbox texlive 缺老包时 en 基线
+    归因结论（b7-attribution-2026-09-16）：宿主机 texlive 缺老包时 en 基线
     先死，pipe-fix 的 usertree 装包后 zh 反而 clean——en 侧借同一 usertree
     补编译补齐对子。产物落 ``work/base-rescue/{sid}/``（gitignored 重产物），
     verdict 行落 ``out/rescue.jsonl``。幂等：main pdf 已存在即跳过。

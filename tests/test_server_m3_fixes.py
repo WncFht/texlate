@@ -131,8 +131,8 @@ class TestB1FaultRootCause:
         "key",
         [
             # 不命中任何 _SECRET_PATTERNS 的短数字 key——只有 job.api_key
-            # 显式抹除通道能拦住，该通道断则本臂红（真实网关 key 形态）
-            pytest.param("240127", id="explicit-only"),
+            # 显式抹除通道能拦住，该通道断则本臂红（通用短数字形态）
+            pytest.param("012345", id="explicit-only"),
             # sk- 形态命中通用正则——显式通道断掉也照过，保通用通道覆盖
             pytest.param("sk-super-secret-b123", id="generic-pattern"),
         ],

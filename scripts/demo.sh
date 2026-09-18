@@ -4,7 +4,7 @@
 # 全程走产品面（texlate CLI / e2e_real_bench），每步产出让用户看得见。
 # 默认样例 2105.11479：21KB article 小品，mock 全链 ~25s、真翻 ~25s。
 # 用法: scripts/demo.sh [arxiv_id] [--real]（--real 追加网关真翻译段）
-# 前置: uv sync；真翻需网关可达（100.105.212.52:3003 或本地隧道 127.0.0.1:3003）
+# 前置: uv sync；真翻需网关可达（TEXLATE_BASE_URL，默认 127.0.0.1:3003）
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

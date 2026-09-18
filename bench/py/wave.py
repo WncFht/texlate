@@ -27,7 +27,7 @@ r"""wave.py — 修复波一体化编排壳（runbook_loop.md §1-§5 的波次�
   - 脱管：估时 >30min 必须 setsid 脱离任务系统（harness 看门狗专杀后台
     批）。本壳 dry-run 打印现成 setsid 命令行，**不替用户点火**；--go
     是前台跑，等价 rerun-wave.sh --go。
-  - runbook §0 前置（gw-health.sh / preflight_batch.py / src 快照）属
+  - runbook §0 前置（网关探活 / preflight_batch.py / src 快照）属
     人工确认，本壳不代跑；stagerun 自带 import+mock 链 preflight 在每条
     命令起跑时仍生效。
 
@@ -303,8 +303,7 @@ def cmd_run(args) -> int:
     )
 
     print(
-        "== runbook §0 前置自查（本壳不代跑）：gw-health.sh / "
-        "preflight_batch.py / src 快照按需先行",
+        "== runbook §0 前置自查（本壳不代跑）：preflight_batch.py / src 快照按需先行",
         flush=True,
     )
     go_cmd = [*cmd, "--go"]

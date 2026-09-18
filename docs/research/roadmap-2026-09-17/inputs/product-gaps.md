@@ -24,7 +24,7 @@
 - **匿名已译浏览（hjfy 核心体验）结构性缺席**：server 形态 mutation 无 `X-Texlate-Key` 一律 401（`app.py:589-594`），读面全部 tenant 过滤（`_get_task` `app.py:676`）；匿名者 tenant = 空 key 指纹，看不到任何人的任务。hjfy「已译论文匿名随便看」（`hjfy-site.md:7`）在 texlate 无对应物——reuse 命中虽跨租户（`store.py:377` 无 tenant 谓词），但匿名者连创建任务的资格都没有，命中无从谈起。
 - **Redis 队列后端**：`REDIS_URL` 规格留位（`web-layer.md:275,589`、Dockerfile:84-85 注释自认「尚未实现」），代码零命中——单进程 asyncio.Queue（`worker/runner.py:51`）。
 - **`POST /retry{model}` 升级重翻**：规格写的 retry 换模型被实装显式否决（`app.py` retry 注释口径：model/target_lang 是 cache_key 成员、换值须新建——m3gap-scout G3 同判）。功能等价（新任务+dedup）但无「换更强模型重翻」产品化入口（hjfy 的「翻译可读性差→换 DeepSeek 重翻」`hjfy-site.md:35,118`）。
-- **用户系统/登录**：hjfy 微信+手机号双登录（`hjfy-site.md:25`）——texlate 有意不走账号体系（BYOK 本地优先 + key 指纹租户），这不是缺陷而是形态差异，但意味着「托管公开实例 + 配额收费」的 hjfy 商业形态不在当前产品面内（配额只有总量闸 `quota_max_tasks/bytes`，`app.py:719-747`——无 hjfy 式「每日 100 篇」时间窗限速）。
+- **用户系统/登录**：hjfy 微信 + 手机号双登录（`hjfy-site.md:25`）——texlate 有意不走账号体系（BYOK 本地优先 + key 指纹租户），这不是缺陷而是形态差异，但意味着「托管公开实例 + 配额收费」的 hjfy 商业形态不在当前产品面内（配额只有总量闸 `quota_max_tasks/bytes`，`app.py:719-747`——无 hjfy 式「每日 100 篇」时间窗限速）。
 - **反馈通道**：hjfy `errorFeedback` + 错误类型下拉（`hjfy-site.md:35`）——texlate 无任何 feedback 端点/UI；失败样例回流 fixloop 规则库靠本机沉淀（docs/08 §5.5），用户侧「翻译有问题？」入口缺失。
 - **上传→arXiv 去重**：hjfy 上传命中已译论文 302 直跳（`hjfy-site.md:95`）——texlate upload 路恒 `prefer=fresh`（`Home.tsx:149` 注释），无 PDF→arxiv 匹配。
 - **失败任务定期重修**：hjfy 承诺「定期检查失败任务并修复」（`hjfy-site.md:79`）——texlate 只有手动 retry（`RETRYABLE_FROM` `store.py:161`），无调度器。
@@ -35,7 +35,7 @@
 ## 2. 可靠性 / 运维面差距
 
 - **管线全局串行**：`TaskRunner._dispatch_loop` 单 `_current` 槽逐任务消费（`runner.py:131-175`）——同时只有 1 个任务在跑（任务内 chunk 并发 `concurrency` 1–16 `app.py:425`）。本地单机合理，但「所有 arXiv」批量预译口径下是吞吐天花板；`GET /api/tasks` 全表返回无分页（`store.py:350-365` 无 LIMIT，`app.py:1339`），队列/列表规模上去后前后端双殁。
-- **默认网关是私有 tailnet 地址**：`DEFAULT_BASE_URL = "http://100.105.212.52:3003"`（`xlat/client.py:51`）硬编码进包——对作者 tailnet 外任何人等于开箱即死；对作者自身也是单点（无 failover 链、无多网关轮询，故障只有 `gw-health.sh` 外部脚本）。providers 预设（`settings.py:856-893`）有 gateway/deepseek/openai/anthropic/qwen/custom 六档，但**首启没有任何引导**——新用户第一反应是任务全挂。
+- **默认网关是私有 tailnet 地址**：`DEFAULT_BASE_URL = "http://127.0.0.1:3003"`（`xlat/client.py:51`）硬编码进包——对作者 tailnet 外任何人等于开箱即死；对作者自身也是单点（无 failover 链、无多网关轮询，故障只有 `gw-health.sh` 外部脚本）。providers 预设（`settings.py:856-893`）有 gateway/deepseek/openai/anthropic/qwen/custom 六档，但**首启没有任何引导**——新用户第一反应是任务全挂。
 - **存储无治理**：`tasks/{id}/`（src 树 + build-en/build-zh + 产物）、`src-cache/`、`share/`、`translation_cache`、`task_events`（每任务 cap 2000 但任务数无界）全部只增不减；唯一回收是手动 `DELETE /api/task/{id}`（`app.py:1470`，行级联 + rmtree）；CLI 无 gc/prune/clean 子命令，settings 无 retention/TTL 字段。「跑过即永存」对单机 hoarder 尚可，对批量预译是磁盘炸弹。
 - **部署件薄**：有 Dockerfile + release.yml 推 ghcr（单架 amd64，`release.yml:74-75` 注释自认 multi-arch 未做）；**无 docker-compose、无 systemd unit、无反代样例**——`TEXLATE_MODE=server` 的正式部署全靠用户自己拼（`web-layer.md:589` 只写了环境变量面）。`texlate:full` xelatex 变体只是 Dockerfile:11-16 的注释段落，不是发布 tag——容器默认只有 tectonic，xelatex 高成功率档要用户自己改镜像。
 - **babeldoc 不进镜像**：AGPL 进程边界 + 2GB（Dockerfile:75-76 注释）——容器形态 PDF 上传通路直接缺席，`health` 的 compilers.babeldoc 恒不可用，需手动挂宿主二进制。
@@ -49,7 +49,7 @@
 2. **批量承载底板（M，~2–4 天）**：a) `tasks` 列表分页 + `?status=` 已有半拉子；b) `GET /api/tasks` SSE 聚合流或前端收敛（frontend.md 建议 1 同向）；c) 任务 TTL/GC：`settings.retention_days` + `texlate gc` + 启动期懒清理（tasks/{id}/ 与 files 行两层）；d) translation_cache 上限/LRU。没有这层，预译灌进几百篇后列表、磁盘、SSE 三面同时塌方。
 3. **首启可用性 + 公网分发收口（S–M，~1–3 天）**：a) 默认 base_url 指向私有 tailnet 地址必须改——首个 `translate` 409/未配置 → UI 引导 Settings（或 `texlate web` 首启检测无 key 弹配置页）；b) providers 预设加「自带 OpenAI 兼容端点」外的免费档说明；c) 补 systemd unit + compose 样例 + `texlate:full` 真发 tag（Dockerfile 注释段转正）。不修这条，开源发布 = 只发布给作者自己。
 4. **质量反馈/升级闭环（S–M，~1–2 天）**：`POST /api/task/{id}/feedback`（错误类型枚举 + 文本，落 `task_events`/新表）+ Reader「换模型重翻」按钮（= 新建任务预填 model，dedup 语义天然兼容）——hjfy isDeepSeek 双轨的产品化等效件，且反馈数据是 fixloop 规则与 prompt 迭代的取数口。
-5. **领域术语表扩面（S，~1 天 + 内容活）**：`terms/index.yaml` 从 cs-only 扩到 math.*/physics/hep-*/cond-mat/q-bio 高频 category——LaTeXTrans 种子之外的表需要新源（可社区贡献），对「所有 arXiv」的译文质量是广谱收益。
+5. **领域术语表扩面（S，~1 天 + 内容活）**：`terms/index.yaml` 从 cs-only 扩到 math._/physics/hep-_/cond-mat/q-bio 高频 category——LaTeXTrans 种子之外的表需要新源（可社区贡献），对「所有 arXiv」的译文质量是广谱收益。
 
 次优先（已被 frontend.md/其他轴覆盖，不重复立项）：SSE 扇出收敛、列表「继续」钮、暗色主题、Reader 拆分（frontend.md §6 三条）；Redis 队列（m3gap G2，裁决先行）；`run` 本地真翻入口（CLI 补 `--live` 走 settings 决议，~0.5 天，可与建议 3 捆绑）。
 

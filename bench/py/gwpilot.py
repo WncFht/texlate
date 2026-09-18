@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 r"""gwpilot — 见缝插针批跑驱动：断点续跑队列（主）+ 自适应并发闸代理（兜底）。
 
-2026-09-18 起 devin-2api 网关已上线 fg/bg 分级准入：批跑用 bg 令牌直连即被
+2026-09-18 起上游网关已上线 fg/bg 分级准入：批跑用 bg 令牌直连即被
 闸内调度（fg 动态预留、bg 闸内排队 ~120s、快败 429 带 Retry-After +
 X-Gate-Reason: quota|latch|hold，每响应附 X-Gate-* 窗口遥测）——run 默认
-直连，调速职能上交网关。serve 代理留作无分级网关的兜底；需求规格与语义
-见 docs/research/gateway/2026-09-17-devin2api-fg-bg-admission.md 与
+直连，调速职能上交网关。serve 代理留作无分级网关的兜底；语义详见
 gwpilot.md。
 
 用法：
@@ -64,9 +63,11 @@ WORK_DIR = ROOT / "bench" / "work_gwpilot"  # 命中 bench/work_*/ gitignore
 RESULTS_DIR = ROOT / "bench" / "results" / "gwpilot"
 TASK_PING = PY_DIR / "task_ping.py"
 
-DEFAULT_UPSTREAM = "http://100.105.212.52:3003"
+DEFAULT_UPSTREAM = os.environ.get("TEXLATE_BASE_URL", "http://127.0.0.1:3003")
 DEFAULT_PORT = 3398
-DEFAULT_KEY = "240127"  # 与 qualbench/e2e_real_bench 的默认 --api-key 同源（fg）
+DEFAULT_KEY = os.environ.get(
+    "TEXLATE_API_KEY", ""
+)  # 与 qualbench/e2e_real_bench 的默认 --api-key 同源（fg）
 BG_TOKEN_FILE = WORK_DIR / "bg.token"  # bg 令牌存放点（bench/work_* gitignored）
 
 _HOP_BY_HOP = frozenset(

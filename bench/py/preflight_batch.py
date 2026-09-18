@@ -2,11 +2,11 @@
 r"""preflight_batch.py — loop 批前置自检（stagerun 大批量前一票闸）。
 
 仿 e2e_real_bench.preflight 的「src 全量 import walk + 无网 mock 链」，
-加批量特有的资源面：磁盘余量 / corpus_v3 manifest / TeX 工具链 / 网关认证
-/ gwcap 闸面。stagerun 启动时自带的 preflight 只含前两项，本脚本是其超集。
+加批量特有的资源面：磁盘余量 / corpus_v3 manifest / TeX 工具链 / 网关认证。
+stagerun 启动时自带的 preflight 只含前两项，本脚本是其超集。
 
     uv run python bench/py/preflight_batch.py                 # 全项（含网关）
-    uv run python bench/py/preflight_batch.py --no-net        # 离线（跳网关/gwcap）
+    uv run python bench/py/preflight_batch.py --no-net        # 离线（跳网关）
     uv run python bench/py/preflight_batch.py --min-free-gb 80
 
 退出码：任一 FAIL → 1；全 ok/warn/skip → 0。
@@ -32,8 +32,7 @@ sys.path.insert(0, os.environ.get("TEXLATE_SRC", str(ROOT / "src")))
 
 BENCH = ROOT / "bench"
 CORPUS = BENCH / "corpus_v3"
-GATEWAY_DEFAULT = "http://100.105.212.52:3003"
-GWCAP_HEALTHZ = "http://127.0.0.1:3399/__gwcap/healthz"
+GATEWAY_DEFAULT = os.environ.get("TEXLATE_BASE_URL", "http://127.0.0.1:3003")
 TOOLS = ("xelatex", "tectonic", "pdftotext")
 
 FAILS: list[str] = []
@@ -185,26 +184,6 @@ def check_gateway(base: str, key: str, model: str) -> None:
         rep("warn", "gateway-auth", f"{len(ids)} models，{model} 不在列——real 臂不可跑")
 
 
-def check_gwcap() -> None:
-    """软检查：非 gwcap 主机上跑 preflight 属正常；批量机上是 real 臂命脉。"""
-    try:
-        d = _get_json(GWCAP_HEALTHZ, timeout=3.0)
-    except Exception:
-        rep(
-            "warn",
-            "gwcap",
-            "127.0.0.1:3399 不可达（非 gwcap 主机或未运行）"
-            "——在批量机上跑 real 臂前先 scripts/gw-health.sh",
-        )
-        return
-    rep(
-        "ok",
-        "gwcap",
-        f"inflight={d.get('inflight', '?')} queued={d.get('queued', '?')}"
-        f" limit={d.get('limit', '?')} prefix={d.get('model_prefix', '?')}",
-    )
-
-
 def main() -> None:
     ap = argparse.ArgumentParser(
         prog="preflight_batch.py", description=__doc__.splitlines()[0]
@@ -216,11 +195,11 @@ def main() -> None:
         default=50.0,
         help="bench/ 所在盘最小余量（loop ~20G / gate ~80G）",
     )
-    ap.add_argument("--no-net", action="store_true", help="跳过网关与 gwcap 网络项")
+    ap.add_argument("--no-net", action="store_true", help="跳过网关网络项")
     ap.add_argument(
         "--base-url", default=GATEWAY_DEFAULT, help="直连网关（禁 loopback）"
     )
-    ap.add_argument("--api-key", default="240127")
+    ap.add_argument("--api-key", default=os.environ.get("TEXLATE_API_KEY", ""))
     ap.add_argument("--model", default="swe-2-medium")
     args = ap.parse_args()
 
@@ -235,10 +214,8 @@ def main() -> None:
     check_tools()
     if args.no_net:
         rep("skip", "gateway-auth", "--no-net")
-        rep("skip", "gwcap", "--no-net")
     else:
         check_gateway(args.base_url, args.api_key, args.model)
-        check_gwcap()
     print(f"== {'FAIL x' + str(len(FAILS)) if FAILS else 'all pass'}", flush=True)
     sys.exit(1 if FAILS else 0)
 

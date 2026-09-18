@@ -60,13 +60,13 @@ manifest (1272 存量 + IA 扩库 →5000；channel=ia + item + member 自带 bu
 
 ## 4. 错误检测面（每层有什么、缺什么）
 
-| stage   | 已有检测                                                                | 缺口（工单）                                                                  |
-| ------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| parse   | `res.warnings` kind、unresolved_inputs、parsebench leak/identity        | bench 只收 warn_kinds 计数，丢 warning 详情（pos/detail）——records 要带全量   |
-| xlat    | L0 `validate_pair` 7 规则 inline、chunk status、leftover_ph 硬门        | **error_code 两写不一致**；**warnings 不落库**；**partial→ok 抹掉 recovered** |
+| stage   | 已有检测                                                                                     | 缺口（工单）                                                                  |
+| ------- | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| parse   | `res.warnings` kind、unresolved_inputs、parsebench leak/identity                             | bench 只收 warn_kinds 计数，丢 warning 详情（pos/detail）——records 要带全量   |
+| xlat    | L0 `validate_pair` 7 规则 inline、chunk status、leftover_ph 硬门                             | **error_code 两写不一致**；**warnings 不落库**；**partial→ok 抹掉 recovered** |
 | compile | judge verdict{status,category,payload,n_errors,error_cats,error_pay,missing_chars,cjk_chars} | judge 只看末次 log——fixloop per-round category 要并进 compile record          |
-| fixloop | taxonomy 22 类 + per-round rule trace                                   | `unfixable:*`/`stuck`/`max_rounds` 即工单来源                                 |
-| 归因    | `compile --arm base` 对照                                               | 已有                                                                          |
+| fixloop | taxonomy 22 类 + per-round rule trace                                                        | `unfixable:*`/`stuck`/`max_rounds` 即工单来源                                 |
+| 归因    | `compile --arm base` 对照                                                                    | 已有                                                                          |
 
 **横切洞（先于大批量修）**：
 
@@ -153,7 +153,7 @@ rescue 率这样的头条指标在全集上过强（SE 0.8-1.7pp），**绑定�
 | xlat（mock 等） | 无         | 与 parse 同池             | 零外部资源                                                              |
 | compile/fixloop | subprocess | 4-8 线程（archbox 12-16） | 每 job 独立 workdir（compile 删同 outdir stale 产物）；tlmgr flock 安全 |
 
-**网关并发硬约束（2026-09-16 起）**：archbox 全部出向 tcp/3003 被 nftables `inet gwcap` REDIRECT 到 `gw-cap-proxy`（127.0.0.1:3399），`model` 以 `swe-2-medium` 开头的请求过**全局信号量 4**——任何会话、任何隧道共享。故 real 臂 sem=4；其他模型先查网关侧限流再定。观测 `curl 127.0.0.1:3399/__gwcap/healthz`（inflight/queued）。另：所有脚本/bench 直连 `http://100.105.212.52:3003`（tailscale，禁 loopback）；ssh 隧道仅为 texlate server 产品链保留。
+**网关并发硬约束（2026-09-16 起）**：archbox 全部出向 tcp/3003 被 nftables `inet gwcap` REDIRECT 到 `gw-cap-proxy`（127.0.0.1:3399），`model` 以 `swe-2-medium` 开头的请求过**全局信号量 4**——任何会话、任何隧道共享。故 real 臂 sem=4；其他模型先查网关侧限流再定。观测 `curl 127.0.0.1:3399/__gwcap/healthz`（inflight/queued）。另：所有脚本/bench 直连 `http://127.0.0.1:3003`（tailscale，禁 loopback）；ssh 隧道仅为 texlate server 产品链保留。
 
 **成本估算（扩库后一轮 loop 批，5000 篇）**：ingest 扩库 ~1-3h 一次性 + copytree 分钟级；parse ~30min；xlat mock <1h；compile zh+base ~7h；fixloop ~2500 格 ~7h；real xlat 300 篇 @sem4 ≈ **5-7h**（不变，gwcap 限死）（~3s/req × ~85 chunks/篇 ÷4 ≈ 64s/篇网关时，流水化后 ~56 篇/h）——real 臂放隔夜跑。Linux 无 FS 沙箱：批量跑第三方 tex 加 `-no-shell-escape` + env 白名单。
 

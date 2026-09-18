@@ -6,14 +6,12 @@ from texlate.server.settings import validate_base_url
 
 
 def test_http_tailnet_cgnat_allowed() -> None:
-    assert (
-        validate_base_url("http://100.105.212.52:3003") == "http://100.105.212.52:3003"
-    )
+    assert validate_base_url("http://100.64.0.1:3003") == "http://100.64.0.1:3003"
 
 
 def test_http_ts_net_name_allowed() -> None:
-    out = validate_base_url("http://fht-mba.tail109937.ts.net:3003")
-    assert out == "http://fht-mba.tail109937.ts.net:3003"
+    out = validate_base_url("http://myhost.tail1234.ts.net:3003")
+    assert out == "http://myhost.tail1234.ts.net:3003"
 
 
 def test_http_localhost_still_allowed() -> None:
@@ -36,7 +34,7 @@ def test_http_cgnat_upper_edge_rejected() -> None:
 
 
 def test_https_tailnet_cgnat_allowed() -> None:
-    assert validate_base_url("https://100.105.212.52") == "https://100.105.212.52"
+    assert validate_base_url("https://100.64.0.1") == "https://100.64.0.1"
 
 
 def test_http_lookalike_suffix_rejected() -> None:

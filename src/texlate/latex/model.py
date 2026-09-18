@@ -354,7 +354,7 @@ def read_cmd_name(tex: str, i: int) -> tuple[str, int]:
     n = len(tex)
     if j < n and tex[j] == "@" and j + 1 < n and tex[j + 1].isalpha():
         # `\@input` 类 @-宏整名读取——字节层无 catcode 概念，按 makeatletter
-        # 语义收（orphan 修复见 HANDOFF-2026-09-15 §2.4）
+        # 语义收（\@ 后紧跟字母串时整体视作宏名一部分，否则 orphan）
         k = j + 1
         while k < n and (tex[k].isalpha() or tex[k] == "@"):
             k += 1

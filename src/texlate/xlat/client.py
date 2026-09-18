@@ -1,8 +1,8 @@
 """LLM 客户端：OpenAI 兼容 + Anthropic messages 方言、免费集动态发现、错误分类。
 
-规格 docs/08 §1.6–1.7 + docs/research/gateway/{probe-3003,free-model-ranking,xlat}：
+规格 docs/08 §1.6–1.7：
 
-- 默认后端 `http://127.0.0.1:3003`（Devin 系网关，OpenAI Chat 协议）；
+- 默认后端 `http://127.0.0.1:3003`（本地 OpenAI 兼容网关，Chat 协议）；
   **免费集运行时动态筛**——`/panel/api/models` 按 `cost_tier=="free"` ∧
   `promo.active` ∧ `not disabled` 过滤，∩ `/v1/models`，再逐模型探活，
   **不得硬编码免费集**（promo 到期自动降级，如 glm-5-2 2026-09-16）。
@@ -50,12 +50,14 @@ PROBE_TIMEOUT = httpx.Timeout(60.0, connect=10.0)
 
 #: 网关默认端点/模型——server.settings 与 fixloop.llm_hook 的兜底共同
 #: 引这里，防两处字面量漂移（settings 侧是 UX 缺省，hook 侧是 env 兜底，
-#: 指向同一网关事实）
-DEFAULT_BASE_URL = "http://100.105.212.52:3003"
-#: 免费集偏好序（动态发现后按此排序——不是免费集本身，命中才选）
+#: 指向同一网关事实）。默认本地网关；任意 OpenAI 兼容端点可经
+#: TEXLATE_BASE_URL / server Settings 页覆盖
+DEFAULT_BASE_URL = "http://127.0.0.1:3003"
+#: 免费集偏好序（动态发现后按此排序——不是免费集本身，命中才选；
+#: 自有网关按实际模型集调整或经 TEXLATE_MODEL 指定）
 DEFAULT_MODEL_PREFERENCE = ("swe-2-medium", "swe-2-high", "swe-2-max", "glm-5-2")
 DEFAULT_MODEL = DEFAULT_MODEL_PREFERENCE[0]
-#: 免费集禁用名单（契约事故史/不可预算，docs/research/gateway/free-model-ranking §5）
+#: 免费集禁用名单（契约事故史/不可预算）
 DEFAULT_MODEL_DENYLIST = frozenset({"swe-1-7", "swe-1-7-medium"})
 #: 单次 chat 降级臂最多补发候选数（对齐 §1.7 备选链深度 medium→high→max，
 #: 防半死网关上一次调用放大成十数发——外层 ``call_with_backoff`` 还会整体重试）
@@ -449,8 +451,8 @@ class ChatClient:
 
     用法::
 
-        async with ChatClient("http://127.0.0.1:3003", "240127") as c:
-            r = await c.chat("swe-2-medium", messages, temperature=0.2, max_tokens=8192)
+        async with ChatClient("http://127.0.0.1:3003", "sk-your-key") as c:
+            r = await c.chat("your-model", messages, temperature=0.2, max_tokens=8192)
     """
 
     def __init__(  # noqa: PLR0913 -- endpoint/key + provider/timeout/http + usage_sink 全是独立旋钮

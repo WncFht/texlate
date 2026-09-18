@@ -10,13 +10,12 @@
 ```bash
 cd ~/src/texlate
 
-# 1) 网关/闸面探活——单行三探，任一 FAIL exit 1
-bash scripts/gw-health.sh
-#   tunnel 格探的是产品链 ssh 隧道，bench 批量不需要——未起隧道属预期，
-#   只要 gwcap+direct 两格 ok 即可；想全绿就 GW_HEALTH_SKIP_TUNNEL=1。
-#   gwcap 格 queued 持续积压时别发 real 臂（sem=4 全局共享，排队=别人的活在跑）。
+# 1) 网关探活最小集——/v1/models 带 auth 应 200
+curl -sf -H "Authorization: Bearer $TEXLATE_API_KEY" "$TEXLATE_BASE_URL/v1/models" | head -c 200
+#   401/403 = key 失效（整批会变假数据）；网关并发闸 queued 持续积压时
+#   别发 real 臂（--sem 全局共享，排队=别人的活在跑）。
 
-# 2) 批量自检——import walk + mock 链 + 磁盘 + manifest + 工具链 + 网关认证 + gwcap
+# 2) 批量自检——import walk + mock 链 + 磁盘 + manifest + 工具链 + 网关认证
 uv run python bench/py/preflight_batch.py
 #   磁盘门默认 50G（存量批 work 树 ~20G；gate 批 5000 篇前调 --min-free-gb 80）。
 #   离线自检用 --no-net（跳网关两项）。
@@ -32,7 +31,7 @@ export TEXLATE_SRC=$PWD/tmp/src-snap-loop1   # 之后所有 stagerun/preflight �
 
 固定：`SR="uv run python bench/py/stagerun.py"`、`LAYERS="core,booster,hot"`（**`--layers` 默认只 core——全存量必须显式三层**）、`--seed 42`。每步先跑一次 stagerun 自带 preflight（import+mock 链，不过关 exit 2 拒绝跑）。
 
-| 序  | 命令                                                                                 | 产物                                                                     | 估时（1259 篇，archbox 12C）              |
+| 序  | 命令                                                                                 | 产物                                                                     | 估时（1259 篇，12C 单机）                 |
 | --- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ | ----------------------------------------- |
 | 1   | `$SR ingest --layers $LAYERS --tag loop1`                                            | `work/{id}/src/`、`records/ingest.jsonl`                                 | 分钟级（已物化=copytree；stub 记 reject） |
 | 2   | `$SR parse --layers $LAYERS --tag loop1 --jobs 6`                                    | `records/parse.jsonl`、`work/{id}/zh/`（归一英文树）、`parse.json`       | ~10-30min                                 |
@@ -41,13 +40,13 @@ export TEXLATE_SRC=$PWD/tmp/src-snap-loop1   # 之后所有 stagerun/preflight �
 | 5   | `$SR compile --arm base --layers $LAYERS --tag loop1 --jobs 6`                       | compile.jsonl(arm=base)、`build-base/`——首轮全集=**源健康基线**          | ~1.5h                                     |
 | 6   | `$SR fixloop --on fail --layers $LAYERS --tag loop1 --jobs 6`                        | `records/fixloop.jsonl`、`cases.jsonl`、splice/ 修复                     | ~2h（n100 推 ~600 格）                    |
 | 7   | `$SR fixloop --on clean --n 350 --seed 42 --layers $LAYERS --tag loop1`              | 幂等探针 ~100 clean 格（clean 率 ~28% 估），门：post 全 clean、零 dirty  | ~30min                                    |
-| 8   | `$SR xlat --arm real --n 50 --seed 42 --layers $LAYERS --tag loop1`                  | xlat.jsonl(arm=real)、50 篇 zh/ 覆写为真译文                             | ~1-1.5h（sem=4 gwcap 硬闸）               |
+| 8   | `$SR xlat --arm real --n 50 --seed 42 --layers $LAYERS --tag loop1`                  | xlat.jsonl(arm=real)、50 篇 zh/ 覆写为真译文                             | ~1-1.5h（sem=4 对齐网关并发闸）           |
 | 9   | `$SR compile --arm zh --xlat-arm real --n 50 --seed 42 --layers $LAYERS --tag loop1` | compile.jsonl(upstream=real)                                             | ~25min                                    |
 | 10  | `$SR fixloop --on fail --n 50 --seed 42 --layers $LAYERS --tag loop1`                | 补 real-upstream 新 fail 格                                              | 按量                                      |
 | 11  | `$SR xlat --arm sabotage-b --layers $LAYERS --tag loop1 --jobs 6`                    | xlat 台账 caught/recovered/escaped——**escaped>0 即 fail 硬门**           | 分钟级                                    |
 | 12  | `$SR xlat --arm sabotage-c --layers $LAYERS --tag loop1 --jobs 6`                    | 同上（spliced/dropped 台账）                                             | 分钟级                                    |
 
-扩库后 ~5000 篇的对应量级（设计 §7.3）：parse ~30min、xlat mock <1h、compile zh+base ~7h、fixloop ~2500 格 ~7h、real 臂按子集不变（n=300 ≈ 5-7h，n=50 ≈ 1-1.5h，gwcap sem=4 限死）。
+扩库后 ~5000 篇的对应量级（设计 §7.3）：parse ~30min、xlat mock <1h、compile zh+base ~7h、fixloop ~2500 格 ~7h、real 臂按子集不变（n=300 ≈ 5-7h，n=50 ≈ 1-1.5h，网关并发 sem=4 限死）。
 
 ### 排序约束（重要，zh/ 是臂间共享演化树）
 
@@ -100,10 +99,10 @@ bench/results/stagerun-loop1-<date>/
 
 ## 4. 失败排查顺序
 
-1. **整批零进展/全 fault** → `bash scripts/gw-health.sh` + `preflight_batch.py`。auth 静默全败是设计 §4 点名头号洞（401 逐 chunk 吞成 skipped）；records 里看 `sig` 是否 auth/* 聚类，网关直测 `curl -H 'Authorization: Bearer 240127' http://100.105.212.52:3003/v1/models` 应 200。
+1. **整批零进展/全 fault** → `preflight_batch.py` + 网关直测 `curl -H "Authorization: Bearer $TEXLATE_API_KEY" "$TEXLATE_BASE_URL/v1/models"` 应 200。auth 静默全败是设计 §4 点名头号洞（401 逐 chunk 吞成 skipped）；records 里看 `sig` 是否 auth/* 聚类。
 2. **大片 upstream_gate skip** → 回溯上游 stage records：`no_src`（ingest 没收）/`no_parse_tree`/`not_translated`/`arm_mismatch`（zh/ 被后臂覆写，按 §1 排序约束重排）。
 3. **parse 大片 reject** → `records/parse.jsonl` 按 sig 聚类（route_reject/no_main_tex/parse_fail）。
-4. **xlat real 故障** → gwcap queued 积压（`gw-health.sh`）/模型 probe 失败（stagerun 起臂时自测，不过直接 abort）/`oversize` reject（>250k chars 闸）。
+4. **xlat real 故障** → 网关排队积压/模型 probe 失败（stagerun 起臂时自测，不过直接 abort）/`oversize` reject（>250k chars 闸）。
 5. **status=error 散点** → `errors[0].code=harness:*` 是 harness 崩而非论文问题，安全重跑。
 6. **compile/fixloop 异常签名** → 不逐篇看，直接进 §5 triage 聚类出工单。
 

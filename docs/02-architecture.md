@@ -88,6 +88,8 @@ Scanner 单遍产出:
 
 ## 目录结构 (uv workspace 预留)
 
+> **勘误（2026-09-18）**：本树是设计期草案，已落后实现——现行准确布局以 `AGENTS.md`「仓库布局」节为准（`compile/fixrules/` 实为 `fixloop/` 包、`validate/` 为 l0/l1/l2/ts/、新增 `export/`、`share.py`、`e2e.py`、`server/worker/` 包等）。
+
 ```
 texlate/
   src/texlate/

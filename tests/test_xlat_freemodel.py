@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
 
 GATEWAY = "http://127.0.0.1:3003"
-TAILNET_GW = "http://100.105.212.52:3003"  # settings.DEFAULT_BASE_URL 同款
+TAILNET_GW = "http://100.64.0.1:3003"  # settings.DEFAULT_BASE_URL 同款
 BYOK = "https://api.deepseek.com"
 CUSTOM_PUBLIC = "https://relay.example.com"
 KEY = "k"

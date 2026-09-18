@@ -1,1 +1,0 @@
-{"name": "panel-rate-eta", "status": "done", "note": "rate-state.json 滑窗采样(30min窗口/2min最小跨度)；面板实测 65.9篇/时(近窗) vs 旧140虚高；并发20已显示；未commit留工作区", "owner": "e8", "ts": 1789627270.7096293}

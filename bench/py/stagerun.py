@@ -56,7 +56,7 @@ flat 存量账按规范形命中 resume。同 wid 任务去重（``dedup_wids``�
     成员级单抽）——本文件只保 records/work/{id}/src/ 契约。
 
 executor：ingest ThreadPool(IO) / parse ProcessPool(CPU，pickle 边界=路径)
-/ xlat asyncio（--sem 全局信号量压网关 in-flight，默认 4=gwcap 硬闸；--jobs
+/ xlat asyncio（--sem 全局信号量压网关 in-flight，默认 4，对齐网关并发闸；--jobs
 控制同时在翻的论文数）/ compile+fixloop ThreadPool(subprocess)。
 
 模块布局（★6 拆包）：本文件只留 CLI——kernel 归 ``stagerun_lib``
@@ -77,6 +77,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import os
 import sys
 from datetime import UTC, datetime
 
@@ -172,13 +173,18 @@ def main() -> None:
         required=True,
         choices=["mock", "real", "sabotage-b", "sabotage-c", "perturb"],
     )
-    p_xl.add_argument("--sem", type=int, default=4, help="全局网关信号量（gwcap 硬闸）")
+    p_xl.add_argument(
+        "--sem", type=int, default=4, help="全局网关信号量（对齐网关并发闸）"
+    )
     p_xl.add_argument(
         "--concurrency", type=int, default=10, help="单篇 pipeline 内部 worker 数"
     )
     p_xl.add_argument("--model", default="swe-2-medium")
-    p_xl.add_argument("--base-url", default="http://100.105.212.52:3003")
-    p_xl.add_argument("--api-key", default="240127")
+    p_xl.add_argument(
+        "--base-url",
+        default=os.environ.get("TEXLATE_BASE_URL", "http://127.0.0.1:3003"),
+    )
+    p_xl.add_argument("--api-key", default=os.environ.get("TEXLATE_API_KEY", ""))
     p_xl.add_argument("--no-probe", action="store_true")
 
     p_cp = sub.add_parser("compile", help="splice+inject+compile+judge（zh|base）")

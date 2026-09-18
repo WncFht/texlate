@@ -759,7 +759,7 @@ def sec_sessions() -> str:
                         if s.get("updatedAt")
                         else "-"
                     ),
-                    f"<code>{esc(s.get('cwd', '?').replace('/home/fanghaotian/', '~/'))}</code>",
+                    f"<code>{esc(s.get('cwd', '?').replace(os.path.expanduser('~') + '/', '~/'))}</code>",
                 ],
             )
         )

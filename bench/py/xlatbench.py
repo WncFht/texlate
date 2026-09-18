@@ -11,7 +11,7 @@ context-kind 分桶, 每桶等距取 ``--per-kind`` 个; 尾部挂 S1–S4 合�
 (与 bench/fixtures/xlat-traps.tex @Xn 遮蔽输出逐字一致, test_bench_regression
 assert_xlat 钉住产品口径).
 
-判定口径 (E22 定案, docs/research/gateway/free-model-ranking.md §6):
+判定口径 (E22 定案, docs/05 §E22):
   hard_ok = validator.ok ∧ 无丢占位符 ∧ 无造占位符 ∧ 无丢脆弱命令
   ph_order 降为软信号 (合法中文换序占违例 ~95%), 单独记录不计硬失败.
   cs_dropped = src 中脆弱命令 (\ /\,/\;/\:/\!/~) 在 zh 计数变少 —— 升硬
@@ -36,6 +36,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import random
 import re
 import statistics
@@ -54,8 +55,8 @@ from texlate.validate.l0 import validate_pair
 
 REPO = Path(__file__).resolve().parents[2]
 
-BASE = "http://100.105.212.52:3003"
-KEY = "240127"
+BASE = os.environ.get("TEXLATE_BASE_URL", "http://127.0.0.1:3003")
+KEY = os.environ.get("TEXLATE_API_KEY", "")
 TIMEOUT = 240
 GAP_S = 1.0
 MAX_TOKENS = 8192

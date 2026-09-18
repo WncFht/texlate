@@ -43,36 +43,26 @@ TeXlate（hjfy.top 开源复刻）全部调研报告。**裁决与方案以 `doc
 
 ## corpus/ — 语料与 benchmark（当前主线）
 
-| 文件                            | 内容                                                                                    |
-| ------------------------------- | --------------------------------------------------------------------------------------- |
-| `v3-plan.md`                    | **corpus_v3 数据管线定稿**：1,200 篇 = 1,000 核心 + 200 补强，30 簇 measure-then-sample |
-| `parsebench-v1.md`              | parsebench 首轮报告：137 篇无偏语料 223/223 ok、identity 100%、泄漏 0.086%              |
-| `parse-metrics-literature.md`   | 解析评估指标文献：unarXive 漏斗/GROBID 三档/Wilson/UTB                                  |
-| `bench-construction-methods.md` | benchmark 语料构建方法学：20 个先例对比 + 抽样统计引证                                  |
-| `ia-pilot.md`                   | IA bulk 管线 pilot：成员三态/特征提取速率/zipsum 索引/成本实测                          |
-| `post2020-sourcing.md`          | post-2020 渠道裁决：TIGER-5T byte-exact 实证、scholarweave 有损定量                     |
-| `frame-and-allocation.md`       | 抽样 frame：3.16M 行分层表、30 簇清单、配额分配                                         |
-| `hf-latex-datasets.md`          | HF 上 LaTeX 语料数据集普查                                                              |
-| `datasets.md`                   | arXiv 开放数据集与批量渠道普查                                                          |
-| `labels.md`                     | 分层键与真值标签源（HF 快照/OpenAlex/license）                                          |
-| `corpus39-profile.md`           | bench/corpus 39 篇机器级统计画像                                                        |
-| `arxmliv-unarxive.md`           | arXMLiv/ar5iv/unarXive 学术发行物调研（结论：无源码不入料）                             |
-| `2026-09-15-parsebench-icc.md`  | parsebench 月间 ICC 信度分析（§7.2 统计口径行动项）                                     |
-| `2026-09-16-expand-layer.md`    | corpus_v3 expand 层 +3800（当时总 5072；现四层合计 5135，hot 层 135）：故障率加权配额、新旧池选样、QC 全过 +60 良性超收  |
+| 文件                            | 内容                                                                                                                    |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `v3-plan.md`                    | **corpus_v3 数据管线定稿**：1,200 篇 = 1,000 核心 + 200 补强，30 簇 measure-then-sample                                 |
+| `parsebench-v1.md`              | parsebench 首轮报告：137 篇无偏语料 223/223 ok、identity 100%、泄漏 0.086%                                              |
+| `parse-metrics-literature.md`   | 解析评估指标文献：unarXive 漏斗/GROBID 三档/Wilson/UTB                                                                  |
+| `bench-construction-methods.md` | benchmark 语料构建方法学：20 个先例对比 + 抽样统计引证                                                                  |
+| `ia-pilot.md`                   | IA bulk 管线 pilot：成员三态/特征提取速率/zipsum 索引/成本实测                                                          |
+| `post2020-sourcing.md`          | post-2020 渠道裁决：TIGER-5T byte-exact 实证、scholarweave 有损定量                                                     |
+| `frame-and-allocation.md`       | 抽样 frame：3.16M 行分层表、30 簇清单、配额分配                                                                         |
+| `hf-latex-datasets.md`          | HF 上 LaTeX 语料数据集普查                                                                                              |
+| `datasets.md`                   | arXiv 开放数据集与批量渠道普查                                                                                          |
+| `labels.md`                     | 分层键与真值标签源（HF 快照/OpenAlex/license）                                                                          |
+| `corpus39-profile.md`           | bench/corpus 39 篇机器级统计画像                                                                                        |
+| `arxmliv-unarxive.md`           | arXMLiv/ar5iv/unarXive 学术发行物调研（结论：无源码不入料）                                                             |
+| `2026-09-15-parsebench-icc.md`  | parsebench 月间 ICC 信度分析（§7.2 统计口径行动项）                                                                     |
+| `2026-09-16-expand-layer.md`    | corpus_v3 expand 层 +3800（当时总 5072；现四层合计 5135，hot 层 135）：故障率加权配额、新旧池选样、QC 全过 +60 良性超收 |
 
-## gateway/ — LLM 网关与模型选型
+## gateway/ — LLM 网关与模型选型（本机存档，不入库）
 
-| 文件                    | 内容                                                            |
-| ----------------------- | --------------------------------------------------------------- |
-| `probe-3003.md`         | 3003 网关首探：模型清单、协议契约                               |
-| `free-model-ranking.md` | **免费模型排序方法论**（338 次真实调用定案：swe-2-medium 默认） |
-| `free-glm.md`           | glm-5-2 免费档契约测试                                          |
-| `free-swe.md`           | swe-2 系免费档契约测试                                          |
-| `xlat.md`               | 翻译任务横评（xlat 组）                                         |
-| `gwbench-group-c.md`    | 网关横评 C 组实验                                               |
-| `cost-model.md`         | 翻译成本模型：chunk 统计 → token 估算（p50 91K/篇）             |
-| `2026-09-16-free-tokens.md` | 免费 token 额度全景：四源实测契约 + 保险库审计 + 官方免费档/公益站普查 |
-| `2026-09-17-devin2api-fg-bg-admission.md` | devin-2api fg/bg 分级准入需求规格（texlate bench 批跑流量提出方） |
+网关探针/免费模型横评/成本模型/fg-bg 分级准入规格一组（probe-3003、free-model-ranking、cost-model、free-tokens、fg-bg-admission 等）属开发机存档、未入库——结论已沉淀进 `docs/05-reproduction-plan.md` §E20–E22 与 `docs/08` BYOK/模型层裁决。
 
 ## product/ — 产品/E2E/工程生态
 
@@ -92,23 +82,22 @@ TeXlate（hjfy.top 开源复刻）全部调研报告。**裁决与方案以 `doc
 
 ## 日期化快照目录 — 审计/保全/评审/排期
 
-| 目录                         | 内容                                                                                                          |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `audit-2026-09-16/`          | 全仓目标达成审计 13 维度（M0–M3 × spec 06–10 覆盖 × 实测/测试/安全/证据/文档）；总索引与判定见其 README          |
-| `preclean-2026-09-16/`       | 磁盘 99% 触发的清理前知识保全包：决策史浓缩/产物→证据映射/会话挖掘报告（见其 README）                            |
-| `refactor-audit-2026-09-17/` | 全仓重构/优化/清理向审查：Top6 结构债（repair.py 单源化、segmenter/worker 拆包、records 读层收敛的决策出处）     |
-| `review-web-2026-09-17/`     | Web 前后端三方审查一轮：API 层/worker 编排/前端 30+ 发现（一轮已修毕）                                          |
-| `review2-web-2026-09-17/`    | Web 前后端二轮审查：一轮修复落地后新状态的优化/升级/重构机会面                                                  |
-| `roadmap-2026-09-17/`        | 现状报告与未来发展排期：`ROADMAP.md`（四档排期 + 决策点）+ `inputs/` 八轴只读侦察件                              |
+| 目录                         | 内容                                                                                                         |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `audit-2026-09-16/`          | 全仓目标达成审计 13 维度（M0–M3 × spec 06–10 覆盖 × 实测/测试/安全/证据/文档）；总索引与判定见其 README      |
+| `refactor-audit-2026-09-17/` | 全仓重构/优化/清理向审查：Top6 结构债（repair.py 单源化、segmenter/worker 拆包、records 读层收敛的决策出处） |
+| `review-web-2026-09-17/`     | Web 前后端三方审查一轮：API 层/worker 编排/前端 30+ 发现（一轮已修毕）                                       |
+| `review2-web-2026-09-17/`    | Web 前后端二轮审查：一轮修复落地后新状态的优化/升级/重构机会面                                               |
+| `roadmap-2026-09-17/`        | 现状报告与未来发展排期：`ROADMAP.md`（四档排期 + 决策点）+ `inputs/` 八轴只读侦察件                          |
 
 ## 根目录散件
 
-| 文件                                   | 内容                                                                          |
-| -------------------------------------- | ----------------------------------------------------------------------------- |
-| `overseer-2026-09-16.md`               | 车队作战台账：多会话协调的决策与落地逐条记录（2026-09-16 夜间冲刺起续记）       |
-| `2026-09-16-loop1-status-and-next.md`  | loop1 复盘 + 三方分派收敛（stagerun-loop1 n=5059 数字总账与在飞清单）           |
-| `report-2026-09-17-final.md`           | 2026-09-17 全天作战终报：一页结论/波次总账/关键数字/缺陷账/排期摘要/决策点      |
-| `reaudit-2026-09-18.md`                | 重构波后全仓重读审计：A 17 真 bug/安全 + B 13 单源债 + C 10 结构 + D 4 测试 + E 10 文档 + F 归属外表 |
+| 文件                                  | 内容                                                                                                 |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `overseer-2026-09-16.md`              | 车队作战台账：多会话协调的决策与落地逐条记录（2026-09-16 夜间冲刺起续记）                            |
+| `2026-09-16-loop1-status-and-next.md` | loop1 复盘 + 三方分派收敛（stagerun-loop1 n=5059 数字总账与在飞清单）                                |
+| `report-2026-09-17-final.md`          | 2026-09-17 全天作战终报：一页结论/波次总账/关键数字/缺陷账/排期摘要/决策点                           |
+| `reaudit-2026-09-18.md`               | 重构波后全仓重读审计：A 17 真 bug/安全 + B 13 单源债 + C 10 结构 + D 4 测试 + E 10 文档 + F 归属外表 |
 
 ## lit/ — 文献原件
 
@@ -128,7 +117,7 @@ unarXive 2020/2022a/2022b、Nougat ×3、BabelDOC、S2ORC、pdfmathtranslate 等
 | `e2e/`                                                                  | product/e2e-mock-pipeline.md   | mock 管线代码 + 结果（work 目录已清）                     |
 | `engine/` `pstricks-probe/` `ctan/` `ctanfetch/`                        | latex/ 对应报告                | 编译路由实测                                              |
 | `align-probe/`                                                          | latex/alignment-probe.md       | dest 探针脚本 + 结果                                      |
-| `gwbench/` `costmodel/` `modelbench/`                                   | gateway/ 对应报告              | 网关横评与成本                                            |
+| `gwbench/` `costmodel/` `modelbench/`                                   | gateway/ 对应报告（本机存档）  | 网关横评与成本                                            |
 | `atp-src/` `atp-runs/`                                                  | arxiv/arxiv-to-prompt.md       | skill 逆向现场                                            |
 | `html-dom/` `pdf-fidelity/`                                             | arxiv/ 对应报告                | 渲染保真实验                                              |
 | `oracle/` `selfcheck/` `fixrules/` `rule-validator/` `ts-validator/`    | latex/ 校验器系                | L0/L1 校验实验                                            |

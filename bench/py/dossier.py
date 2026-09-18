@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 r"""dossier.py — per-id 跨阶段案卷：签名→证据→历史→规则链 一键出卷。
 
 把 scout-*/工单派单的手工归因固化成读侧工具（still-manual-audit-2026-09-17
@@ -27,6 +26,7 @@ M1 聚合桶细分）。**只读**：不改任何 records/work。
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import sys
 from pathlib import Path
@@ -43,12 +43,12 @@ try:  # 读侧 taxonomy 复用——uv run 下可用；系统 python 降级
     from texlate.compile.fixloop.logparse import parse_log, parse_text
 
     _TAX_OK = True
-except Exception:  # noqa: BLE001 -- 任何 import 失败都走降级面
+except Exception:
     _TAX_OK = False
 
 try:  # triage.bucket_sig/classify/retired_names 复用（同目录，stdlib 级）
     import triage
-except Exception:  # noqa: BLE001
+except Exception:
     triage = None
 
 STAGES = ("ingest", "parse", "xlat", "compile", "fixloop")
@@ -60,20 +60,19 @@ _WONTFIX_CATS = {"early_eof", "capacity", "latex209", "inject"}
 _BANG_TAIL = 3
 _EXCERPT_HEAD = 600
 
-_RULESET = None
+_RULESET: list = [None]  # 懒装格：[None]=未装 [False]=装败（免 global）
 
 
 def _ruleset():
     """rules.yaml 懒装（taxonomy + rules + warn_patterns）；不可用 → None。"""
-    global _RULESET
     if not _TAX_OK:
         return None
-    if _RULESET is None:
+    if _RULESET[0] is None:
         try:
-            _RULESET = load_ruleset()
-        except Exception:  # noqa: BLE001 -- rules.yaml 缺/坏不拖读侧
-            _RULESET = False
-    return _RULESET or None
+            _RULESET[0] = load_ruleset()
+        except Exception:
+            _RULESET[0] = False
+    return _RULESET[0] or None
 
 
 # ---------------------------------------------------------------- id 归一
@@ -97,7 +96,9 @@ def _workdir_names(pid: str) -> list[str]:
 
 
 def _runs_with_records(results: Path = RESULTS) -> list[Path]:
-    return sorted(d.parent for d in results.glob("*/records")) if results.exists() else []
+    return (
+        sorted(d.parent for d in results.glob("*/records")) if results.exists() else []
+    )
 
 
 def load_stage_records(run_dir: Path, pid: str) -> dict[str, list[dict]]:
@@ -142,14 +143,13 @@ def load_cases(run_dir: Path, pid: str) -> list[dict]:
 def load_tickets(run_dir: Path, pid: str) -> list[str]:
     """tickets.jsonl 中 example_ids 含此 id 的工单 sig_id。"""
     cands = set(_id_candidates(pid))
-    out = []
-    for f in sorted(run_dir.glob("tickets*.jsonl")):
-        for r in benchlib.iter_jsonl(f):
-            if isinstance(r, dict) and cands & {
-                str(x) for x in (r.get("example_ids") or [])
-            }:
-                out.append(str(r.get("sig_id") or r.get("signature") or "?"))
-    return out
+    return [
+        str(r.get("sig_id") or r.get("signature") or "?")
+        for f in sorted(run_dir.glob("tickets*.jsonl"))
+        for r in benchlib.iter_jsonl(f)
+        if isinstance(r, dict)
+        and cands & {str(x) for x in (r.get("example_ids") or [])}
+    ]
 
 
 def _id_in_run(run_dir: Path, pid: str) -> bool:
@@ -174,10 +174,8 @@ def _tree_stats(d: Path) -> dict:
     for p in d.rglob("*"):
         if p.is_file():
             n += 1
-            try:
+            with contextlib.suppress(OSError):
                 size += p.stat().st_size
-            except OSError:
-                pass
     return {"files": n, "bytes": size}
 
 
@@ -220,11 +218,16 @@ def _classify_log(log_path: Path | None, *, timed_out: bool = False) -> dict | N
     try:
         rep = parse_log(log_path, warn_patterns=rs.warn_patterns)
         cat, pay = rs.taxonomy.classify(rep, timed_out=timed_out)
-    except Exception:  # noqa: BLE001 -- 单 log 坏不拖案卷
+    except Exception:
         return None
-    return {"category": cat, "payload": pay, "n_bang": rep.n_bang,
-            "warnings": rep.warnings, "line_no": rep.line_no,
-            "file_stack": rep.file_stack[-3:]}
+    return {
+        "category": cat,
+        "payload": pay,
+        "n_bang": rep.n_bang,
+        "warnings": rep.warnings,
+        "line_no": rep.line_no,
+        "file_stack": rep.file_stack[-3:],
+    }
 
 
 def _classify_text(text: str) -> dict | None:
@@ -235,7 +238,7 @@ def _classify_text(text: str) -> dict | None:
     try:
         rep = parse_text(text, warn_patterns=rs.warn_patterns)
         cat, pay = rs.taxonomy.classify(rep)
-    except Exception:  # noqa: BLE001
+    except Exception:
         return None
     return {"category": cat, "payload": pay}
 
@@ -280,10 +283,8 @@ def work_inventory(wdir: Path) -> dict:
             inv["parse"] = {"status": "unreadable"}
     arm_f = wdir / "zh" / ".xlat-arm.json"
     if arm_f.is_file():
-        try:
+        with contextlib.suppress(OSError, json.JSONDecodeError):
             inv["xlat_arm"] = json.loads(arm_f.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            pass
     inv["xlat_arms"] = {
         f.name: _xlat_chunk_stats(f) for f in sorted(wdir.glob("xlat-*.jsonl"))
     }
@@ -319,7 +320,9 @@ def _is_fail(status: str) -> bool:
     return status in _FAIL_WORDS
 
 
-def _latest_of(recs: dict[str, list[dict]], stage: str, arm: str | None = None) -> dict | None:
+def _latest_of(
+    recs: dict[str, list[dict]], stage: str, arm: str | None = None
+) -> dict | None:
     rows = _latest(recs).get(stage) or []
     if arm is not None:
         rows = [r for r in rows if str(r.get("arm")) == arm]
@@ -358,8 +361,10 @@ def _identity(pid: str, recs: dict[str, list[dict]]) -> dict:
         "layer": m.get("layer"),
         "era": m.get("era"),
         "channel": m.get("channel"),
-        "main_rel": cm.get("main_rel") or ((par or {}).get("metrics") or {}).get("main_rel"),
-        "engine": cm.get("engine") or ((par or {}).get("metrics") or {}).get("engine_resolved"),
+        "main_rel": cm.get("main_rel")
+        or ((par or {}).get("metrics") or {}).get("main_rel"),
+        "engine": cm.get("engine")
+        or ((par or {}).get("metrics") or {}).get("engine_resolved"),
         "uncompressed_bytes": m.get("bytes"),
     }
 
@@ -370,10 +375,8 @@ def _signature(recs: dict[str, list[dict]]) -> dict:
     sig_raw = str(comp.get("sig") or "")
     bucketed = None
     if triage is not None and sig_raw:
-        try:
+        with contextlib.suppress(Exception):
             bucketed = triage.bucket_sig(sig_raw, comp)
-        except Exception:  # noqa: BLE001
-            pass
     return {
         "sig_raw": sig_raw or None,
         "sig_bucketed": bucketed,
@@ -387,13 +390,14 @@ def _fix_class_hint(sig: str, rec: dict) -> str | None:
         return None
     try:
         cls, note = triage.classify(sig, rec)
-    except Exception:  # noqa: BLE001
+    except Exception:
         return None
     return f"{cls}: {note}"
 
 
-def _evidence(run_dir: Path, pid: str, recs: dict[str, list[dict]],
-              cases: list[dict], inv: dict) -> dict:
+def _evidence(
+    run_dir: Path, pid: str, recs: dict[str, list[dict]], cases: list[dict], inv: dict
+) -> dict:
     comp = _primary_compile(recs) or {}
     cm = comp.get("metrics") or {}
     first_err = (cm.get("compile") or {}).get("first_error")
@@ -415,20 +419,19 @@ def _evidence(run_dir: Path, pid: str, recs: dict[str, list[dict]],
 
 
 def _history(pid: str, run_dir: Path, recs: dict[str, list[dict]]) -> dict:
-    timeline = []
-    for st in STAGES:
-        for r in recs.get(st) or []:
-            timeline.append(
-                {
-                    "stage": st,
-                    "arm": r.get("arm"),
-                    "upstream": r.get("upstream") or "",
-                    "status": r.get("status"),
-                    "dur_s": r.get("dur_s"),
-                    "sig": r.get("sig") or "",
-                    "code": r.get("code"),
-                }
-            )
+    timeline = [
+        {
+            "stage": st,
+            "arm": r.get("arm"),
+            "upstream": r.get("upstream") or "",
+            "status": r.get("status"),
+            "dur_s": r.get("dur_s"),
+            "sig": r.get("sig") or "",
+            "code": r.get("code"),
+        }
+        for st in STAGES
+        for r in recs.get(st) or []
+    ]
     # csb 链：fixloop.compile_status_before vs compile 末条 status
     comp = _primary_compile(recs)
     comp_status = (comp or {}).get("status")
@@ -485,14 +488,13 @@ def _rules_section(recs: dict[str, list[dict]], cases: list[dict], inv: dict) ->
     cat, pay = v.get("category"), v.get("payload")
     retired = None
     if triage is not None and cat == "missing_file" and pay:
-        try:
+        with contextlib.suppress(Exception):
             retired = Path(str(pay)).name in triage.retired_names()
-        except Exception:  # noqa: BLE001
-            pass
-    hits = []
-    for c in cases:
-        for a in c.get("actions") or []:
-            hits.append(f"r{a.get('round')}:{a.get('rule')} → {a.get('result')}")
+    hits = [
+        f"r{a.get('round')}:{a.get('rule')} → {a.get('result')}"
+        for c in cases
+        for a in c.get("actions") or []
+    ]
     # taxonomy_class：records 物化面优先（post.taxonomy=fixloop 后判残墙，
     # metrics.taxonomy=compile 判），退 splice 全 log 自算，再退 first_error 行
     fl = _latest_of(recs, "fixloop")
@@ -530,7 +532,9 @@ def _gap_flags(recs: dict[str, list[dict]], inv: dict) -> dict:
     st = str(comp.get("status") or "")
     needs_subclass = bucket in _SUBCLASS_SIGS or cat in _SUBCLASS_SIGS
     needs_probe = st == "clean" and bool(v.get("warnings_hit") or sig)
-    unrunnable = st in {"reject", "skip", "error"} or (comp == {} and not recs.get("compile"))
+    unrunnable = st in {"reject", "skip", "error"} or (
+        comp == {} and not recs.get("compile")
+    )
     wontfix = cat in _WONTFIX_CATS or bucket in _WONTFIX_CATS
     return {
         "needs_subclass": bool(needs_subclass),
@@ -561,7 +565,7 @@ def _cross_run(pid: str) -> list[dict]:
             {
                 "run": run_dir.name,
                 "stages": {
-                    st: [f"{r.get('status')}/{r.get('arm','-')}" for r in rs]
+                    st: [f"{r.get('status')}/{r.get('arm', '-')}" for r in rs]
                     for st, rs in _latest(recs).items()
                 },
                 "workdir": any(
@@ -693,7 +697,7 @@ def _end_state(run_dir: Path, pid: str) -> dict:
     st: dict[str, str] = {}
     for stage, rows in latest.items():
         for r in rows:
-            st[f"{stage}/{r.get('arm','-')}"] = str(r.get("status"))
+            st[f"{stage}/{r.get('arm', '-')}"] = str(r.get("status"))
     comp = _primary_compile(recs)
     fl = _latest_of(latest, "fixloop")
     v = ((comp or {}).get("metrics") or {}).get("verdict") or {}
@@ -728,7 +732,7 @@ def _diff(a: dict, b: dict, name_a: str, name_b: str) -> list[str]:
         va, vb = a.get(label), b.get(label)
         if va != vb:
             lines.append(f"→ {label}: {va} → {vb}")
-    if not any(l.startswith("→") for l in lines):
+    if not any(ln.startswith("→") for ln in lines):
         lines.append(f"（{name_a} ≡ {name_b}：无迁移）")
     return lines
 
@@ -782,172 +786,179 @@ def build_dossier(
 
 
 def render_md(d: dict) -> str:
-    L: list[str] = []
+    lines: list[str] = []
     idn = d["identity"]
-    L.append(f"# dossier: {d['id']}")
-    L.append("")
-    L.append(
+    lines.append(f"# dossier: {d['id']}")
+    lines.append("")
+    lines.append(
         f"- run: `{d['run']}` ｜ layer={idn.get('layer')} era={idn.get('era')} "
         f"channel={idn.get('channel')}"
     )
-    L.append(
+    lines.append(
         f"- main={idn.get('main_rel')} engine={idn.get('engine')} "
         f"bytes={idn.get('uncompressed_bytes')}"
     )
     sig = d["signature"]
     v = sig.get("verdict") or {}
-    L.append(
+    lines.append(
         f"- sig=`{sig.get('sig_raw')}` bucket=`{sig.get('sig_bucketed')}` "
         f"verdict={v.get('status')}/{v.get('category')}:{v.get('payload')} "
         f"errs={v.get('n_errors')} cjk={v.get('cjk_chars')} warn_hit={v.get('warnings_hit')}"
     )
     if sig.get("fix_class_hint"):
-        L.append(f"- fix_class_hint: {sig['fix_class_hint']}")
+        lines.append(f"- fix_class_hint: {sig['fix_class_hint']}")
     gf = d["gap_flags"]
     flags = [k for k, on in gf.items() if on]
-    L.append(f"- gap_flags: {', '.join(flags) or '无'}")
-    L.append(f"- taxonomy_engine: {d['taxonomy_engine']}")
-    L.append("")
+    lines.append(f"- gap_flags: {', '.join(flags) or '无'}")
+    lines.append(f"- taxonomy_engine: {d['taxonomy_engine']}")
+    lines.append("")
     # 证据
     ev = d["evidence"]
-    L.append("## 证据")
-    L.append("")
+    lines.append("## 证据")
+    lines.append("")
     if ev.get("first_error_line"):
-        L.append(f"- first_error: `{ev['first_error_line']}`")
+        lines.append(f"- first_error: `{ev['first_error_line']}`")
     if ev.get("first_error_taxonomy"):
         t = ev["first_error_taxonomy"]
-        L.append(f"- first_error→taxonomy: `{t.get('category')}:{t.get('payload')}`")
-    L.append(
+        lines.append(
+            f"- first_error→taxonomy: `{t.get('category')}:{t.get('payload')}`"
+        )
+    lines.append(
         f"- repro: `{ev.get('repro_path')}` splice={'✓' if ev.get('splice_dir') else '—'} "
         f"_texmf={'✓' if ev.get('texmf_tree') else '—'}"
     )
     if ev.get("log_excerpt"):
-        L.append(f"- log_excerpt: `{ev['log_excerpt']}`")
-    L.append("")
+        lines.append(f"- log_excerpt: `{ev['log_excerpt']}`")
+    lines.append("")
     # 时间线
-    L.append("## 阶段链时间线（append 序全量）")
-    L.append("")
-    L.append("| stage | arm | upstream | status | dur_s | sig |")
-    L.append("|---|---|---|---|---|---|")
-    for r in d["history"]["timeline"]:
-        L.append(
-            f"| {r['stage']} | {r.get('arm') or '-'} | {r.get('upstream') or '-'} "
-            f"| **{r.get('status')}** | {r.get('dur_s')} | `{r.get('sig') or '-'}` |"
-        )
-    L.append("")
+    lines.append("## 阶段链时间线（append 序全量）")
+    lines.append("")
+    lines.append("| stage | arm | upstream | status | dur_s | sig |")
+    lines.append("|---|---|---|---|---|---|")
+    lines.extend(
+        f"| {r['stage']} | {r.get('arm') or '-'} | {r.get('upstream') or '-'} "
+        f"| **{r.get('status')}** | {r.get('dur_s')} | `{r.get('sig') or '-'}` |"
+        for r in d["history"]["timeline"]
+    )
+    lines.append("")
     for c in d["history"]["csb_chain"]:
         mark = " ⚠stale" if c["stale"] else ""
-        L.append(f"- csb={c['csb']} vs compile_now={c['compile_now']}{mark}")
+        lines.append(f"- csb={c['csb']} vs compile_now={c['compile_now']}{mark}")
     if d["history"]["prior_tickets"]:
-        L.append(f"- prior_tickets: {d['history']['prior_tickets']}")
+        lines.append(f"- prior_tickets: {d['history']['prior_tickets']}")
     if d["history"]["prior_waves"]:
-        L.append(f"- prior_waves: {d['history']['prior_waves']}")
-    L.append("")
+        lines.append(f"- prior_waves: {d['history']['prior_waves']}")
+    lines.append("")
     # 规则面
     ru = d["rules"]
-    L.append("## 规则面")
-    L.append("")
+    lines.append("## 规则面")
+    lines.append("")
     if ru.get("taxonomy_class"):
         t = ru["taxonomy_class"]
-        L.append(
+        lines.append(
             f"- taxonomy_class: `{t.get('category')}:{t.get('payload')}`"
             f"（{t.get('source')}）"
         )
     elif d["taxonomy_engine"] == "unavailable":
-        L.append("- taxonomy_class: —（texlate.* 不可达——`uv run` 重跑可得）")
+        lines.append("- taxonomy_class: —（texlate.* 不可达——`uv run` 重跑可得）")
     if ru.get("retired_name") is not None:
-        L.append(f"- retired_name: {ru['retired_name']}")
+        lines.append(f"- retired_name: {ru['retired_name']}")
     if ru.get("candidate_rules"):
-        L.append(f"- candidate_rules: {ru['candidate_rules']}")
-    for h in ru.get("rule_hit_history") or []:
-        L.append(f"- hit: {h}")
-    L.append("")
+        lines.append(f"- candidate_rules: {ru['candidate_rules']}")
+    lines.extend(f"- hit: {h}" for h in ru.get("rule_hit_history") or [])
+    lines.append("")
     # 归因
-    L.append("## 归因")
-    L.append("")
-    for line in d["attribution"]:
-        L.append(f"- {line}")
-    L.append("")
+    lines.append("## 归因")
+    lines.append("")
+    lines.extend(f"- {line}" for line in d["attribution"])
+    lines.append("")
     # fixloop 案卷
     if d["cases"]:
-        L.append("## fixloop 案卷（cases.jsonl）")
-        L.append("")
+        lines.append("## fixloop 案卷（cases.jsonl）")
+        lines.append("")
         for c in d["cases"]:
-            L.append(
+            lines.append(
                 f"- cond={c.get('cond')} verdict=**{c.get('verdict')}** "
                 f"final_pdf={c.get('final_pdf')} started_fail={c.get('started_fail')}"
             )
-            for rd in c.get("rounds") or []:
-                L.append(
-                    f"  - r{rd.get('round')}: cat={rd.get('cat')} pay={rd.get('pay')} "
-                    f"pdf={rd.get('pdf')} errs={rd.get('n_errors')}"
-                )
-            for a in c.get("actions") or []:
-                L.append(f"  - action[{a.get('rule')}]: {a.get('result')}")
+            lines.extend(
+                f"  - r{rd.get('round')}: cat={rd.get('cat')} pay={rd.get('pay')} "
+                f"pdf={rd.get('pdf')} errs={rd.get('n_errors')}"
+                for rd in c.get("rounds") or []
+            )
+            lines.extend(
+                f"  - action[{a.get('rule')}]: {a.get('result')}"
+                for a in c.get("actions") or []
+            )
             if c.get("installed"):
-                L.append(f"  - installed: {c['installed']}")
+                lines.append(f"  - installed: {c['installed']}")
             if c.get("advisories"):
-                L.append(f"  - advisories: {c['advisories']}")
-        L.append("")
+                lines.append(f"  - advisories: {c['advisories']}")
+        lines.append("")
     # 产物树
     inv = d["work"]
-    L.append("## 产物树")
-    L.append("")
+    lines.append("## 产物树")
+    lines.append("")
     if not inv.get("present"):
-        L.append("work/{id}/ 不在场。")
+        lines.append("work/{id}/ 不在场。")
     else:
         for sub in ("src", "zh", "splice", "build-base", "_texmf", "xlat-state"):
             s = inv.get(sub)
             if s:
-                L.append(f"- `{sub}/` {s['files']} 文件 {s['bytes']}B")
+                lines.append(f"- `{sub}/` {s['files']} 文件 {s['bytes']}B")
         pj = inv.get("parse")
         if pj:
-            L.append(
+            lines.append(
                 f"- parse.json: status={pj.get('status')} main={pj.get('main_rel')} "
                 f"eng={pj.get('engine_resolved')} reject={pj.get('route_reject')} "
                 f"totals={pj.get('totals')} parse_fail={pj.get('parse_fail')}"
             )
         xa = inv.get("xlat_arm")
         if xa:
-            L.append(
+            lines.append(
                 f"- zh/.xlat-arm.json: arm={xa.get('arm')} model={xa.get('model')} ts={xa.get('ts')}"
             )
         for name, xs in (inv.get("xlat_arms") or {}).items():
-            L.append(f"- `{name}`: {xs['counts']}（共 {xs['total']} 块）")
-            for b in xs["bad"]:
-                L.append(f"  - ✗ {b['chunk_id']} {b['status']} {b['error_kind']}")
+            lines.append(f"- `{name}`: {xs['counts']}（共 {xs['total']} 块）")
+            lines.extend(
+                f"  - ✗ {b['chunk_id']} {b['status']} {b['error_kind']}"
+                for b in xs["bad"]
+            )
         for sub in ("splice", "build-base"):
             c = inv.get(f"{sub}_compile")
             if not c:
                 continue
-            L.append(f"- {sub} 编译面: pdf={c['pdf'] or '无'} log={c['log_name']}")
+            lines.append(f"- {sub} 编译面: pdf={c['pdf'] or '无'} log={c['log_name']}")
             t = c.get("taxonomy")
             if t:
-                L.append(
+                lines.append(
                     f"  - taxonomy=`{t['category']}:{t['payload']}` bang×{t['n_bang']} "
                     f"line={t.get('line_no')} stack={t.get('file_stack')} warn={t.get('warnings')}"
                 )
         if inv.get("texmf_installed"):
-            L.append(f"- _texmf 装落: {inv['texmf_installed']}")
-    L.append("")
+            lines.append(f"- _texmf 装落: {inv['texmf_installed']}")
+    lines.append("")
     # diff
     if d.get("diff"):
         dd = d["diff"]
-        L.append(f"## 波前后 diff（{dd['a_name']} → {dd['b_name']}）")
-        L.append("")
-        for ln in _diff(dd["a"], dd["b"], dd["a_name"], dd["b_name"]):
-            L.append(f"- {ln}")
-        L.append("")
+        lines.append(f"## 波前后 diff（{dd['a_name']} → {dd['b_name']}）")
+        lines.append("")
+        lines.extend(
+            f"- {ln}" for ln in _diff(dd["a"], dd["b"], dd["a_name"], dd["b_name"])
+        )
+        lines.append("")
     if d.get("all_runs"):
-        L.append("## 跨 run 出现史")
-        L.append("")
-        L.append("| run | workdir | stages |")
-        L.append("|---|---|---|")
+        lines.append("## 跨 run 出现史")
+        lines.append("")
+        lines.append("| run | workdir | stages |")
+        lines.append("|---|---|---|")
         for r in d["all_runs"]:
             stages = " ".join(f"{k}={','.join(v)}" for k, v in r["stages"].items())
-            L.append(f"| {r['run']} | {'✓' if r['workdir'] else '—'} | {stages or '—'} |")
-        L.append("")
-    return "\n".join(L)
+            lines.append(
+                f"| {r['run']} | {'✓' if r['workdir'] else '—'} | {stages or '—'} |"
+            )
+        lines.append("")
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------- selftest
@@ -986,11 +997,94 @@ def selftest() -> int:
             encoding="utf-8",
         )
         recs = {
-            "ingest": [{"id": "9999.0001", "stage": "ingest", "arm": "-", "status": "ok", "dur_s": 0.1, "metrics": {}, "errors": [], "sig": ""}],
-            "parse": [{"id": "9999.0001", "stage": "parse", "arm": "-", "status": "ok", "dur_s": 0.2, "metrics": {"main_rel": "m.tex", "engine_resolved": "xelatex", "route": {}, "totals": {"chunks": 3}}, "errors": [], "sig": ""}],
-            "xlat": [{"id": "9999.0001", "stage": "xlat", "arm": "mock", "status": "ok", "dur_s": 1.0, "metrics": {"translate": {"chunks": 2, "ok": 1, "fault": 1}}, "errors": [], "sig": ""}],
-            "compile": [{"id": "9999.0001", "stage": "compile", "arm": "zh", "status": "fail", "dur_s": 1.0, "metrics": {"engine": "xelatex", "verdict": {"status": "fail", "category": "missing_file", "payload": "foo.sty", "cjk_chars": -1}, "compile": {"pdf_bytes": 0, "first_error": "! LaTeX Error: File `foo.sty' not found."}, "inject": {"status": "injected", "mode": "ctex"}}, "errors": [{"code": "missing_file", "cat": "missing_file", "payload": "foo.sty"}], "sig": "missing_file:foo.sty"}],
-            "fixloop": [{"id": "9999.0001", "stage": "fixloop", "arm": "fix", "status": "clean", "dur_s": 2.0, "metrics": {"compile_status_before": "fail", "fixloop_verdict": "clean", "rounds": 1}, "errors": [], "sig": "clean"}],
+            "ingest": [
+                {
+                    "id": "9999.0001",
+                    "stage": "ingest",
+                    "arm": "-",
+                    "status": "ok",
+                    "dur_s": 0.1,
+                    "metrics": {},
+                    "errors": [],
+                    "sig": "",
+                }
+            ],
+            "parse": [
+                {
+                    "id": "9999.0001",
+                    "stage": "parse",
+                    "arm": "-",
+                    "status": "ok",
+                    "dur_s": 0.2,
+                    "metrics": {
+                        "main_rel": "m.tex",
+                        "engine_resolved": "xelatex",
+                        "route": {},
+                        "totals": {"chunks": 3},
+                    },
+                    "errors": [],
+                    "sig": "",
+                }
+            ],
+            "xlat": [
+                {
+                    "id": "9999.0001",
+                    "stage": "xlat",
+                    "arm": "mock",
+                    "status": "ok",
+                    "dur_s": 1.0,
+                    "metrics": {"translate": {"chunks": 2, "ok": 1, "fault": 1}},
+                    "errors": [],
+                    "sig": "",
+                }
+            ],
+            "compile": [
+                {
+                    "id": "9999.0001",
+                    "stage": "compile",
+                    "arm": "zh",
+                    "status": "fail",
+                    "dur_s": 1.0,
+                    "metrics": {
+                        "engine": "xelatex",
+                        "verdict": {
+                            "status": "fail",
+                            "category": "missing_file",
+                            "payload": "foo.sty",
+                            "cjk_chars": -1,
+                        },
+                        "compile": {
+                            "pdf_bytes": 0,
+                            "first_error": "! LaTeX Error: File `foo.sty' not found.",
+                        },
+                        "inject": {"status": "injected", "mode": "ctex"},
+                    },
+                    "errors": [
+                        {
+                            "code": "missing_file",
+                            "cat": "missing_file",
+                            "payload": "foo.sty",
+                        }
+                    ],
+                    "sig": "missing_file:foo.sty",
+                }
+            ],
+            "fixloop": [
+                {
+                    "id": "9999.0001",
+                    "stage": "fixloop",
+                    "arm": "fix",
+                    "status": "clean",
+                    "dur_s": 2.0,
+                    "metrics": {
+                        "compile_status_before": "fail",
+                        "fixloop_verdict": "clean",
+                        "rounds": 1,
+                    },
+                    "errors": [],
+                    "sig": "clean",
+                }
+            ],
         }
         for st, rows in recs.items():
             (run / "records" / f"{st}.jsonl").write_text(
@@ -1019,8 +1113,15 @@ def selftest() -> int:
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("id", nargs="?", help="arxiv id（astro-ph/0111038 或 0707.0128）")
-    p.add_argument("--run", type=Path, help="stagerun run 目录（缺省自动选最新含此 id 者）")
-    p.add_argument("--diff", type=Path, metavar="DIR", help="与另一 run 做 end-state 对账（M5 波前后）")
+    p.add_argument(
+        "--run", type=Path, help="stagerun run 目录（缺省自动选最新含此 id 者）"
+    )
+    p.add_argument(
+        "--diff",
+        type=Path,
+        metavar="DIR",
+        help="与另一 run 做 end-state 对账（M5 波前后）",
+    )
     p.add_argument("--all-runs", action="store_true", help="附跨 run 出现史")
     p.add_argument("--json", action="store_true", help="机读 dossier dict 输出")
     p.add_argument("-o", "--out", type=Path, help="写文件（缺省 stdout）")

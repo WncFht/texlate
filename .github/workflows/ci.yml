@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    branches: [master, main]
   pull_request:
 
 # 全部 job 只读——显式收窄 GITHUB_TOKEN，防后续加步骤时吃到默认写权限

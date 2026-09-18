@@ -1005,10 +1005,13 @@ def main() -> None:
     ap.add_argument("--ids", default=None, help="explicit comma-separated ids (smoke)")
     ap.add_argument("--only", default=None, help="substring filter on sampled ids")
     ap.add_argument("--model", default="swe-2-medium")
-    ap.add_argument("--base-url", default="http://100.105.212.52:3003")
+    ap.add_argument(
+        "--base-url",
+        default=os.environ.get("TEXLATE_BASE_URL", "http://127.0.0.1:3003"),
+    )
     ap.add_argument(
         "--api-key",
-        default="240127",
+        default=os.environ.get("TEXLATE_API_KEY", ""),
         help="gateway bearer key（默认本机 3003 开发 key）",
     )
     ap.add_argument("--concurrency", type=int, default=10)

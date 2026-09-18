@@ -1,0 +1,31 @@
+texlate — third-party bundled assets
+====================================
+
+`src/texlate/compile/fixloop/vendor/` ships two kinds of assets used by the
+compile-fix loop to rescue papers whose sources reference off-CTAN or
+legacy journal macro packages:
+
+vendor/files/ — unmodified third-party journal styles, each distributed
+under its own license as published on CTAN / by the journal:
+
+  - aastex.cls, aastex62.cls      AAS Journals author kit (AAS / LPPL-style terms)
+  - emulateapj.sty, emulateapj5.sty  ApJ-look style (derived from AAS preprint styles)
+  - elsart.cls                    Elsevier article class
+  - iopart.cls, iopart10.clo, iopart12.clo, iopams.sty  IOP Publishing author kit
+  - psfig.sty                     © 1993 Trevor J. Darrell
+
+These are bundled solely as fallbacks for compiling third-party arXiv
+sources that already target these classes. They are not modified by
+texlate and are not part of texlate's own code.
+
+vendor/stubs/ — clean-room minimal compatibility shims written by the
+texlate project (Apache-2.0). The upstream packages they stand in for
+(JHEP/JINST author kits, Springer svjour3, imsart, espcrc, tcilatex,
+binhex, slashbox, diagrams, axodraw, texsort, citesort, eqsecnum,
+apjfonts, svglov3) have licenses that do NOT permit redistribution;
+only the minimal macro surface needed to compile affected papers is
+reimplemented here. See the header comment in each stub file.
+
+Web bundle — the built SPA (`web/dist`, produced by `npm run build`)
+includes pdf.js viewer assets (Apache-2.0) and other npm dependencies;
+its own `THIRD_PARTY_LICENSES.txt` is generated alongside the bundle.

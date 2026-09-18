@@ -102,8 +102,8 @@ class TestProviderAndUrl:
 
 class TestRedact:
     def test_api_key_and_bearer(self) -> None:
-        out = cl.redact("Bearer 240127 failed", api_key="240127")
-        assert "240127" not in out
+        out = cl.redact("Bearer s3cr3t-t3st failed", api_key="s3cr3t-t3st")
+        assert "s3cr3t-t3st" not in out
         assert "***" in out
 
     def test_sk_patterns(self) -> None:
