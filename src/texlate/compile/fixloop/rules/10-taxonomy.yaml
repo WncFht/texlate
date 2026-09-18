@@ -142,9 +142,11 @@ taxonomy:
   # head 内错误行重复两次 (first + ctx[0]), 必有后行; 顶行无 \cs 时本行
   # 不命中, 由下行裸短语兜底 payload=None。尾部非可选——可选组会在行0
   # 命中空串、永不锚到行1。旧"空 l.N 行"变体被顶行抓取完全吞并。
+  # cs 名分两支: [a-zA-Z@]+ 字母串 | 单字符 nonletter cs (\+/\~/\% 等,
+  # TeX 规定 nonletter cs 恰一字符)——b3a texlog 实证 \+ payload=None。
   - id: undefined_cs
     scope: head
-    pattern: "Undefined control sequence[^\\n]*\\n[^\\n]*\\\\([a-zA-Z@]+)[^\\\\\\n]*(?:\\n|$)"
+    pattern: "Undefined control sequence[^\\n]*\\n[^\\n]*\\\\([a-zA-Z@]+|[^\\s\\\\{}])[^\\\\\\n]*(?:\\n|$)"
     payload_group: 1
     subclassify:
       { pattern: "\\\\(pdf[a-zA-Z@]+)", into: pdftex_prim, payload_group: 1 }

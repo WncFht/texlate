@@ -1,0 +1,195 @@
+% texlate vendored stub — 原许可禁分发，最小兼容面
+% aaspp4.sty 替身：AAS preprint substyle（© AAS，不在 TL）→ AAS v4
+% family 超集面。自 shim_map aaspp4.sty 条迁移（aas4_body：9703134 实证
+% 0 err/31pg；deluxetable/references/mathletters/epsf 图件/物理记号/期刊
+% 缩写全表）。aasms4/aas2pp4 同体——\aasfour@done 守卫防同稿双载撞
+% \newenvironment/\newcounter（0111197/9901091/9910131 同载实证）。
+% 本 stub 在场则 shim_map aaspp4.sty 条成死配置（vendored 预检先于 missing_file 落件，
+% 同 jinstpub/tcilatex/axodraw 先例）。
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{aaspp4}[texlate stub — original not redistributable]
+\PackageWarningNoLine{texlate-stub}{aaspp4.sty is a compatibility shim -> article + AAS v4 surface}
+\@ifundefined{aasfour@done}{}{\endinput}
+\def\aasfour@done{1}
+\RequirePackage{amssymb}
+\@ifundefined{epsfbox}{\RequirePackage{epsf}}{}
+% ── 导言区 meta: noop 或存值 ──
+\def\received#1{}
+\def\accepted#1{}
+\def\journalid#1#2{}
+\def\articleid#1#2{}
+\def\notetoeditor#1{}
+\def\subjectheadings#1{}
+\def\lefthead#1{\markboth{#1}{}}
+\def\righthead#1{\markboth{}{#1}}
+\def\aas@slug{}
+\def\aas@email{}
+\def\slugcomment#1{\gdef\aas@slug{#1}}
+\def\authoremail#1{\gdef\aas@email{#1}}
+\AtBeginDocument{\ifx\aas@slug\@empty\else\noindent{\footnotesize\aas@slug}\par\fi
+  \ifx\aas@email\@empty\else\noindent{\footnotesize\aas@email}\par\fi}
+% ── 正文区 frontmatter: doc2sty 即时排版 ──
+\def\title#1{\begin{center}\large\bfseries#1\end{center}}
+\def\author#1{\begin{center}\normalsize#1\end{center}}
+\def\affil#1{\begin{center}\small#1\end{center}}
+\def\and{\begin{center}and\end{center}}
+\let\authoraddr=\@gobble
+\def\altaffilmark#1{\textsuperscript{#1}}
+\def\altaffiltext#1#2{\par\medskip\noindent\textsuperscript{#1}\,#2\par}
+\def\keywords#1{\par\noindent\textbf{Keywords:} #1\par}
+\def\acknowledgments{\section*{Acknowledgments}}
+\let\acknowledgements=\acknowledgments
+\def\tighten{\def\baselinestretch{1.0}}
+\let\tightenlines=\tighten
+\def\singlespace{\def\baselinestretch{1.0}\normalsize}
+\def\doublespace{\def\baselinestretch{1.6}\normalsize}
+\def\eqsecnum{\@addtoreset{equation}{section}%
+\def\theequation{\thesection-\arabic{equation}}}
+% ── deluxetable 复合面 (aaspp4 实证模型): \@delspec 延迟开张 ──
+\newenvironment{deluxetable}[1]{\begin{table}[htbp]\centering\def\@delspec{#1}}{\end{table}}
+\newenvironment{deluxetable*}[1]{\begin{table}[htbp]\centering\def\@delspec{#1}}{\end{table}}
+\let\planotable=\deluxetable
+\let\endplanotable=\enddeluxetable
+\def\tablewidth#1{}
+\def\tablecolumns#1{}
+\def\tablecaption#1{\caption{#1}}
+\def\tablehead#1{\tabular{\@delspec}#1\\\hline}
+\def\tabletail#1{}
+\def\tableheadfrac#1{}
+\def\startdata{}
+\def\enddata{\endtabular}
+\def\nl{\\}
+\let\nextline=\nl
+\def\tableline{\hline}
+\def\colhead#1{#1}
+\def\tablevspace#1{\noalign{\vskip#1}}
+\def\tablebreak{\\}
+\def\cutinhead#1{\hline#1\\\hline}
+\def\sidehead#1{\noalign{\vskip1.5ex}#1\\\noalign{\vskip.5ex}}
+\def\tablenum#1{\def\thetable{#1}\let\@currentlabel\thetable\addtocounter{table}{\m@ne}}
+\def\figurenum#1{\def\thefigure{#1}\let\@currentlabel\thefigure\addtocounter{figure}{\m@ne}}
+\let\placetable=\@gobble
+\let\placefigure=\@gobble
+\let\placeplate=\@gobble
+\def\phs{\phantom{0}}
+\def\phn{\phantom{0}}
+\def\phd{\phantom{.}}
+\def\phm#1{\phantom{#1}}
+\def\tablenotetext#1#2{\par\smallskip\noindent\textsuperscript{#1}\,#2\par}
+\def\tablenotemark#1{\textsuperscript{#1}}
+\def\tablerefs#1{\par\medskip\noindent References. --- #1\par}
+\def\tablecomments#1{\par\medskip\noindent Note. --- #1\par}
+\newcommand{\figcaption}[2][]{\par\medskip\noindent\textbf{Figure.} #2\par}
+\newcounter{cureqno}
+\newenvironment{mathletters}{\refstepcounter{equation}%
+\setcounter{cureqno}{\value{equation}}%
+\let\@curtheeqn\theequation%
+\edef\cur@eqn{\theequation}%
+\def\theequation{\cur@eqn\alph{equation}}%
+\setcounter{equation}{0}}%
+{\let\theequation\@curtheeqn%
+\setcounter{equation}{\value{cureqno}}}
+\def\eqnum#1{\def\theequation{#1}\let\@currentlabel\theequation\addtocounter{equation}{\m@ne}}
+% ── references 环境 + \reference→\refpar (9910131×47 实证大户) ──
+\def\references{\subsection*{References}%
+\bgroup\parindent=\z@\parskip=\itemsep
+\def\refpar{\par\hangindent=3em\hangafter=1}}
+\def\endreferences{\refpar\egroup}
+\def\markcite{}
+\def\reference{\refpar}
+% ── epsf 系图片件 ──
+\def\eps@scaling{.95}
+\def\epsscale#1{\def\eps@scaling{#1}}
+\def\plotone#1{\par\medskip\centering\leavevmode
+\epsfxsize=\eps@scaling\columnwidth\epsfbox{#1}\par\medskip}
+\def\plottwo#1#2{\par\medskip\centering\leavevmode
+\epsfxsize=.45\columnwidth\epsfbox{#1}\hfil
+\epsfxsize=.45\columnwidth\epsfbox{#2}\par\medskip}
+% \plotfiddle{file}{voff}{rot}{hsf}{vsf}{htrans}{vtrans} (aastex
+% 7参变换形, 9901236 实证 28 调) → 降级吃 file+忽略变换
+\def\plotfiddle#1#2#3#4#5#6#7{\par\medskip\centering\leavevmode
+\epsfxsize=\eps@scaling\columnwidth\epsfbox{#1}\par\medskip}
+% ── 物理记号/单位件 ──
+\def\sun{\hbox{$\odot$}}
+\def\earth{\hbox{$\oplus$}}
+\def\sq{\hbox{\rlap{$\sqcap$}$\sqcup$}}
+\let\la=\lesssim
+\let\ga=\gtrsim
+\def\arcdeg{\hbox{$^\circ$}}
+\def\arcmin{\hbox{$^\prime$}}
+\def\arcsec{\hbox{$^{\prime\prime}$}}
+\def\fd{\hbox{$.\!\!^{\rm d}$}}
+\def\fh{\hbox{$.\!\!^{\rm h}$}}
+\def\fm{\hbox{$.\!\!^{\rm m}$}}
+\def\fs{\hbox{$.\!\!^{\rm s}$}}
+\def\fdg{\hbox{$.\!\!^\circ$}}
+\def\farcm{\hbox{$.\mkern-4mu^\prime$}}
+\def\farcs{\hbox{$.\!\!^{\prime\prime}$}}
+\def\fp{\hbox{$.\!\!^{\scriptscriptstyle\rm p}$}}
+\def\micron{\hbox{$\mu$m}}
+\def\case#1#2{\hbox{$\frac{#1}{#2}$}}
+\def\slantfrac#1#2{\hbox{$\,^#1\!/_#2$}}
+\def\onehalf{\slantfrac{1}{2}}
+\def\onethird{\slantfrac{1}{3}}
+\def\twothirds{\slantfrac{2}{3}}
+\def\onequarter{\slantfrac{1}{4}}
+\def\threequarters{\slantfrac{3}{4}}
+\def\ubvr{\hbox{$U\!BV\!R$}}
+\def\ub{\hbox{$U\!-\!B$}}
+\def\bv{\hbox{$B\!-\!V$}}
+\def\vr{\hbox{$V\!-\!R$}}
+\def\ur{\hbox{$U\!-\!R$}}
+\def\ion#1#2{#1$\;${\small\rm\@Roman{#2}}\relax}
+\def\nodata{ ~$\cdots$~ }
+% ── 期刊缩写全表 (emulateapj/apjprepr 同表) ──
+\def\aj{AJ}
+\def\araa{ARA\&A}
+\def\apj{ApJ}
+\def\apjl{ApJ}
+\def\apjs{ApJS}
+\def\ao{Appl.~Opt.}
+\def\apss{Ap\&SS}
+\def\aap{A\&A}
+\def\aapr{A\&A~Rev.}
+\def\aaps{A\&AS}
+\def\azh{AZh}
+\def\baas{BAAS}
+\def\jrasc{JRASC}
+\def\memras{MmRAS}
+\def\mnras{MNRAS}
+\def\pra{Phys.~Rev.~A}
+\def\prb{Phys.~Rev.~B}
+\def\prc{Phys.~Rev.~C}
+\def\prd{Phys.~Rev.~D}
+\def\pre{Phys.~Rev.~E}
+\def\prl{Phys.~Rev.~Lett.}
+\def\pasp{PASP}
+\def\pasj{PASJ}
+\def\qjras{QJRAS}
+\def\skytel{S\&T}
+\def\solphys{Sol.~Phys.}
+\def\sovast{Soviet~Ast.}
+\def\ssr{Space~Sci.~Rev.}
+\def\zap{ZAp}
+\def\nat{Nature}
+\def\iaucirc{IAU~Circ.}
+\def\aplett{Astrophys.~Lett.}
+\def\apspr{Astrophys.~Space~Phys.~Res.}
+\def\bain{Bull.~Astron.~Inst.~Netherlands}
+\def\fcp{Fund.~Cosmic~Phys.}
+\def\gca{Geochim.~Cosmochim.~Acta}
+\def\grl{Geophys.~Res.~Lett.}
+\def\jcp{J.~Chem.~Phys.}
+\def\jgr{J.~Geophys.~Res.}
+\def\jqsrt{J.~Quant.~Spec.~Radiat.~Transf.}
+\def\memsai{Mem.~Soc.~Astron.~Italiana}
+\def\nphysa{Nucl.~Phys.~A}
+\def\physrep{Phys.~Rep.}
+\def\physscr{Phys.~Scr}
+\def\planss{Planet.~Space~Sci.}
+\def\procspie{Proc.~SPIE}
+\let\astap=\aap
+\let\apjlett=\apjl
+\let\apjsupp=\apjs
+\let\applopt=\ao
+\endinput

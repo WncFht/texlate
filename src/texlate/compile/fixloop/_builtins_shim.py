@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 from texlate.compile.fixloop._builtins_common import (
     PDFTEX_PRIMS,
     _inject_after_docclass,
+    _inject_write,
     _live_matches,
 )
 from texlate.compile.fixloop._builtins_csfix import _fixloop_log
@@ -58,6 +59,20 @@ def pdftex_prim_polyfill(
     return True, f"polyfill \\{prim} at file head"
 
 
+def _shim_spec(
+    shim_map: dict[str, Any], payload: str | None
+) -> tuple[str, dict[str, Any] | None]:
+    """``payload`` → ``(归一文件名, spec)``。裸名 payload 补 ``.tex`` 再查。"""
+    fname = payload or ""
+    spec = shim_map.get(fname)
+    if spec is None and not Path(fname).suffix:
+        # `I can't find file `X'` 裸 payload (\input 系): 实体是 X.tex ——
+        # shim 键与 stub 落点都用归一名 (epsf→epsf.tex 实证)。
+        fname = f"{fname}.tex"
+        spec = shim_map.get(fname)
+    return fname, spec
+
+
 def legacy_pkg_shim(
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
@@ -72,14 +87,7 @@ def legacy_pkg_shim(
     ``\\altaffilmark`` 族, 非 drop-in; emulateapj 为 arXiv 投稿仿 aastex 接口);
     psfig→epsfig 桥可用因 epsfig 的 Gin key 同收 ``figure=``/``file=``。
     """
-    shim_map = params.get("shim_map") or {}
-    fname = payload or ""
-    spec = shim_map.get(fname)
-    if spec is None and not Path(fname).suffix:
-        # `I can't find file `X'` 裸 payload (\input 系): 实体是 X.tex ——
-        # shim 键与 stub 落点都用归一名 (epsf→epsf.tex 实证)。
-        fname = f"{fname}.tex"
-        spec = shim_map.get(fname)
+    fname, spec = _shim_spec(params.get("shim_map") or {}, payload)
     if not spec:
         return False, f"no legacy shim for {payload}"
     stub = spec.get("body")
@@ -105,10 +113,12 @@ def legacy_pkg_shim(
         if eng.probe_file(dep) or eng.install_file(dep):
             continue
         missing.append(dep)
-    target = ctx.wdir / fname
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(stub, encoding="utf-8")
-    note = f"stub {fname} injected"
+    done, state = _inject_write(ctx, ctx.wdir / fname, stub, f"stub {fname}")
+    if done is not None:
+        return done
+    note = (
+        f"stub {fname} {'refreshed (stale injected)' if state == 'stale' else 'injected'}"
+    )
     if loads:
         note += f" (\\LoadClassWithOptions{{{loads}}})"
     if missing:
@@ -152,13 +162,15 @@ def svjour_clo_stub(
     if not opts:
         return False, "no documentclass options"
     written = []
+    body = "% fixloop: svjour option stub (noop)\n\\endinput\n"
     for opt in dict.fromkeys(opts):
         if "/" in opt or "\\" in opt:
             continue  # 防选项里的路径分隔符穿出 wdir / write_text 炸 OSError
         target = ctx.wdir / f"sv{opt}.clo"
-        if target.exists():
-            continue  # 盘上真 .clo 优先, 不覆盖
-        ctx.write(target, "% fixloop: svjour option stub (noop)\n\\endinput\n")
+        # 指纹闸: 外来 .clo (稿自带) 永不覆写; 旧代注入件覆写刷新。
+        done, _state = _inject_write(ctx, target, body, target.name)
+        if done is not None:
+            continue
         written.append(target.name)
     if not written:
         return False, "all sv*.clo already present, nothing written"
@@ -286,9 +298,14 @@ def bundled_class_shadow(
             continue
         missing.append(dep)
     t = ctx.wdir / str(target)
-    t.parent.mkdir(parents=True, exist_ok=True)
-    t.write_text(body, encoding="utf-8")
-    note = f"shadow {target} injected (\\{cs} missing from bundled class)"
+    # 指纹闸: 稿自带同名件不覆写; 旧代注入件覆写刷新。
+    done, state = _inject_write(ctx, t, str(body), f"shadow {target}")
+    if done is not None:
+        return done
+    note = (
+        f"shadow {target} {'refreshed (stale injected)' if state == 'stale' else 'injected'}"
+        f" (\\{cs} missing from bundled class)"
+    )
     if missing:
         note += f"; deps still missing: {', '.join(missing)}"
     return True, note
@@ -355,10 +372,12 @@ def generated_stub(
     if hit is None:
         return False, f"{fname} not a generated/overlay target"
     target = ctx.wdir / Path(*rel.parts)
-    if target.exists():
-        return False, f"{fname} already on disk"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    ctx.write(target, f"% fixloop: stub for runtime-generated {rel.name}\n")
+    body = f"% fixloop: stub for runtime-generated {rel.name}\n"
+    # 指纹闸: 外来生成件/稿自带覆盖层永不覆写; 旧代注入 stub 覆写刷新。
+    done, _state = _inject_write(ctx, target, body, fname)
+    if done is not None:
+        # current/foreign/写败 —— 盘上已有(或写不进)则不占位, 交后续规则
+        return False, done[1] if not done[0] else f"{fname} already on disk"
     return True, f"{hit}-stub {fname}"
 
 

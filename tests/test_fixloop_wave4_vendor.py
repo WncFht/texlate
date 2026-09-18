@@ -75,7 +75,8 @@ def test_vendored_fetch_files_tier(tmp_path: Path) -> None:
     ok, note = _fetch(ctx, "aastex.cls", root)
     assert ok, note
     assert "vendored[files]" in note
-    assert (ctx.wdir / "aastex.cls").read_text() == "% real aastex\n"
+    # 落盘件携指纹行头 (L10 注入件指纹闸) —— 本体在末位
+    assert (ctx.wdir / "aastex.cls").read_text().endswith("% real aastex\n")
 
 
 def test_vendored_fetch_stubs_fallback(tmp_path: Path) -> None:
@@ -99,7 +100,7 @@ def test_vendored_fetch_files_precedence(tmp_path: Path) -> None:
     ctx.wdir.mkdir()
     ok, _ = _fetch(ctx, "x.sty", root)
     assert ok
-    assert (ctx.wdir / "x.sty").read_text() == "real\n"
+    assert (ctx.wdir / "x.sty").read_text().endswith("real\n")
 
 
 def test_vendored_fetch_preserves_payload_relpath(tmp_path: Path) -> None:

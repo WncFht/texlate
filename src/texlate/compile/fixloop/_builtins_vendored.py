@@ -9,10 +9,10 @@ r"""_builtins_vendored — 工程内遮蔽探测/隔离 + 随包 vendored 件取
 from __future__ import annotations
 
 import re
-import shutil
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
+from texlate.compile.fixloop._builtins_common import _inject_write
 from texlate.textutil import safe_is_file
 
 if TYPE_CHECKING:
@@ -191,10 +191,15 @@ def vendored_fetch(
     if src is None:
         return False, f"{fname} not vendored"
     dst = ctx.wdir / Path(*rel.parts)
-    try:
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(src, dst)
-    except OSError as e:
-        return False, f"vendored copy {src.name} failed: {e}"
     tier = "files" if src.parent.name == "files" else "stubs"
-    return True, f"vendored[{tier}] {src.name} -> {dst.relative_to(ctx.wdir)}"
+    body = src.read_text(encoding="utf-8", errors="replace")
+    # 指纹闸 (b3a): 同名片四分判——外来件(稿自带/真包)永不覆写; 旧代
+    # 注入件 (无指纹但带 vendored/fixloop 行头标记) 覆写刷新。
+    done, state = _inject_write(ctx, dst, body, fname)
+    if done is not None:
+        return done
+    tag = "refreshed (stale injected)" if state == "stale" else "->"
+    return (
+        True,
+        f"vendored[{tier}] {src.name} {tag} {dst.relative_to(ctx.wdir)}",
+    )

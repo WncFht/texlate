@@ -63,10 +63,12 @@ def test_phase_ordering() -> None:
         "build_directive_harvest",
     ]
     loop = [r.id for r in _rs().phase("loop")]
-    # C5: order:9 自产件窄谓词四件先于 install_file(10) —— rungen(W79)/
-    # overlay(W18)/docstrip(W102) 在 40-install, svg_prepare(W31) 在 45-graphics,
-    # 同 order 稳定序按分片文件名序拼接
-    assert loop[:5] == [
+    # biber_biblatex_skew_route (order:8) 殿前: 工具链硬墙先路由, 不陪跑
+    # 可修类; C5: order:9 自产件窄谓词四件先于 install_file(10) ——
+    # rungen(W79)/overlay(W18)/docstrip(W102) 在 40-install,
+    # svg_prepare(W31) 在 45-graphics, 同 order 稳定序按分片文件名序拼接
+    assert loop[:6] == [
+        "biber_biblatex_skew_route",
         "rungen_stub",
         "nonctan_input_stub",
         "docstrip_generate",

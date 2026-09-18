@@ -21,7 +21,7 @@ from texlate.compile.fixloop.engine import LoopCtx
 
 CTEX_MAIN = (
     "\\documentclass{elsart3}\n"
-    "\\usepackage[fontset=fandol,UTF8]{ctex}  % [texlate injected]\n"
+    "\\usepackage[fontset=fandol,UTF8,zihao=false]{ctex}  % [texlate injected]\n"
     "\\begin{document}\n"
     "\\begin{frontmatter}\n\\title{欠掺杂铜氧化物}\n\\end{frontmatter}\n"
     "在过去的几年中。\n"

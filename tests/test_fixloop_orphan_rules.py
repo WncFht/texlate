@@ -105,14 +105,14 @@ def test_generated_stub_unsafe_payload(tmp_path: Path) -> None:
 
 
 def test_rungen_stub_existing_not_overwritten(tmp_path: Path) -> None:
-    """盘上已有真件 → False 不覆盖。"""
+    """盘上已有真件 → False 不覆盖 (L10 指纹闸: 无指纹无名分=外来件)。"""
     (tmp_path / "main.tex").write_text("\\openout\\w=foots.tmp\n")
     (tmp_path / "foots.tmp").write_text("real content\n")
     ok, note = TRANSFORM_FNS["generated_stub"](
         _ctx(tmp_path), None, "foots.tmp", {"faces": ["openout"]}
     )
     assert not ok
-    assert "already on disk" in note
+    assert "foreign" in note or "already on disk" in note
     assert (tmp_path / "foots.tmp").read_text() == "real content\n"
 
 
