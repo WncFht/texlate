@@ -75,9 +75,19 @@ rules:
           rmROSAT: { cs_map: { rmROSAT: "rm ROSAT" } }
           rmSRG: { cs_map: { rmSRG: "rm SRG" } }
           rmand: { cs_map: { rmand: "rm and" } }
-          # natbib 引用宏 —— 类内 natbib 缺席 (shim 顶替后) 或作者漏装包
+          # natbib 引用宏 —— 类内 natbib 缺席 (shim 顶替后) 或作者漏装包;
+          # 2026-09-19 failmine 残面全家族同修 (citet: 0905.0154/1109.2284/
+          # 1206.5819/1404.0559/1404.2241/astro-ph/0605325+0605512,
+          # citealt: 0707.4614/1003.0340/1206.0597/1206.5620)
           citep: { usepackage: natbib }
           citeyear: { usepackage: natbib }
+          citet: { usepackage: natbib }
+          citealt: { usepackage: natbib }
+          citealp: { usepackage: natbib }
+          citeauthor: { usepackage: natbib }
+          citeyearpar: { usepackage: natbib }
+          citetext: { usepackage: natbib }
+          citenum: { usepackage: natbib }
           # 2501.14787 (repro-2501-2026-09-16): \DeclareUnicodeCharacter 是
           # inputenc 私有 cs, XeTeX 内核恒未定义 (en/zh 两臂同炸) → lccode
           # 惯用法 polyfill。normalize.XETEX_COMPATIBILITY 同源 shim
@@ -158,6 +168,11 @@ rules:
             {
               polyfill: "\n\\providecommand{\\startlocaldefs}{}\n\\ifdefined\\endlocaldefs\\else\\def\\endlocaldefs{}\\fi",
             }
+          # imsart/EJS keyword 收集宏 —— 与 localdefs 同格 (1012.2012/
+          # 1206.1960/1811.10292): shim 未触面裸调直达; noop 吞参保编译
+          # (shim 收集体用 \g@addto@macro, docclass 缝注入 @ 非 letter
+          # 不可用 → 取 noop 形; 真身收集进 keyword env, 丢渲染不丢结构)
+          kwd: { polyfill: "\n\\providecommand{\\kwd}[1]{}" }
           # 老 AMS/期刊 running-head 对 (1012.1584, astro-ph/9901236/9901311)
           lefthead:
             { polyfill: "\n\\providecommand{\\lefthead}[1]{\\markboth{#1}{}}" }
