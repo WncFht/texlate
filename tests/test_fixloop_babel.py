@@ -7,13 +7,20 @@ r"""babel-lane (2026-09-19): babel 语言选项系修复钉。
 ``\BabelDefinitionFile{0}{X}`` 指名实档, try_exts 拼不出) /
 ``babel_opt_francais_rewrite`` 弃名全位改写 / ``babel_undef`` 类目 +
 ``babel_undeclared_option`` 选项表头补名 (主语言=末项, 头插不夺主位)。
+babelinv 普查钉组 (2026-09-19): 51 枚 ``.ldf`` 显式钉入
+``filemap.overrides`` (``.ldf`` 不入索引, 钉是唯一离线确定通路) +
+``polytonicgreek`` 裸选项收进 ``babel_opt_polutoniko_rewrite`` 源面。
 """
 
 from functools import lru_cache
 from pathlib import Path
 
 from texlate.compile.fixloop import Ruleset, actions, load_ruleset
-from texlate.compile.fixloop.engine import LoopCtx, Rule
+from texlate.compile.fixloop.engine import (
+    LoopCtx,
+    Rule,
+    _wire_filemap_overrides,
+)
 from texlate.compile.fixloop.logparse import ErrReport, parse_text
 
 
@@ -360,3 +367,110 @@ def test_undeclared_match_apply_routes(tmp_path: Path) -> None:
     assert rule is not None, note
     assert rule.id == "babel_undeclared_option"
     assert "\\usepackage[ngerman,german]{babel}" in (tmp_path / "main.tex").read_text()
+
+
+# ─────────────── babelinv 普查钉组 (tmp/lane-babelinv/ldf_pins.yaml) ───────────
+def test_census_pins_registered() -> None:
+    """51 钉全量入 overrides —— 抽查代表项 + 包名异形格 (samin/turkmen)。"""
+    overrides = _rs().filemap_cfg["overrides"]
+    for fname, pkg in {
+        "bulgarian.ldf": "babel-bulgarian",
+        "catalan.ldf": "babel-catalan",
+        "danish.ldf": "babel-danish",
+        "finnish.ldf": "babel-finnish",
+        "swedish.ldf": "babel-swedish",
+        "japanese.ldf": "babel-japanese",
+        "norsk.ldf": "babel-norsk",
+        "northernsami.ldf": "babel-samin",  # TL 包名 samin 无 babel- 前缀
+        "turkmen.ldf": "turkmen",  # TL 包名即 turkmen
+        "afrikaans.ldf": "babel-dutch",  # 实档在 babel-dutch 包
+    }.items():
+        assert overrides.get(fname) == pkg, fname
+    # tlpdb 无档 → 显式 null 已知噪声, 不落 install 往返
+    assert overrides["german-traditional.ldf"] is None
+
+
+def test_census_pins_wire_filemap(tmp_path: Path) -> None:
+    """overrides 接线后 eng.filemap 先答钉表: 钉中 → [pkg], null → []。"""
+    eng = _Eng()
+    _wire_filemap_overrides(eng, _rs().filemap_cfg["overrides"], _ctx(tmp_path))
+    assert eng.filemap("bulgarian.ldf") == ["babel-bulgarian"]
+    assert eng.filemap("catalan.ldf") == ["babel-catalan"]
+    assert eng.filemap("german-traditional.ldf") == []
+    assert eng.filemap("unpinned.ldf") == []  # 未钉 → 委派原查询 (空表)
+
+
+def test_ldf_install_census_pins(tmp_path: Path) -> None:
+    """bulgarian/catalan 直名 .ldf 经 try_exts 首候选装上收口 (live repro 形)。"""
+    eng = _EngInstall(tmp_path / "texmf", {"bulgarian.ldf", "catalan.ldf"})
+    ok, note = _apply(_rule("babel_lang_ldf_install"), tmp_path, "bulgarian", eng)
+    assert ok, note
+    ok, note = _apply(_rule("babel_lang_ldf_install"), tmp_path, "catalan", eng)
+    assert ok, note
+    assert eng.install_calls == ["bulgarian.ldf", "catalan.ldf"]
+
+
+def test_ldf_install_unpinned_declines(tmp_path: Path) -> None:
+    """无钉无档语言 (klingon): try_exts 双候选全败 → applied=False。"""
+    eng = _EngInstall(tmp_path / "texmf", set())
+    ok, _note = _apply(_rule("babel_lang_ldf_install"), tmp_path, "klingon", eng)
+    assert not ok
+    assert eng.install_calls == ["klingon.ldf", "klingonb.ldf"]
+
+
+# ─────────────── babel_opt_polutoniko_rewrite: polytonicgreek 源 ───────────────
+def test_taxonomy_polytonicgreek_payload() -> None:
+    """Unknown option 'polytonicgreek' → babel_opt, payload=polytonicgreek。"""
+    cat, pay = _classify(
+        "! Package babel Error: Unknown option 'polytonicgreek'.\nl.3 \\ProcessOptions"
+    )
+    assert (cat, pay) == ("babel_opt", "polytonicgreek")
+
+
+def test_polytonicgreek_condition_gate(tmp_path: Path) -> None:
+    """condition any 第三 disjunct: 源含裸 polytonicgreek → 放行。"""
+    rule = _rule("babel_opt_polutoniko_rewrite")
+    (tmp_path / "main.tex").write_text("\\usepackage[polytonicgreek]{babel}\n")
+    ok, why = actions._cond_ok(  # noqa: SLF001
+        rule.condition, rule, _ctx(tmp_path), _Eng(), "polytonicgreek"
+    )
+    assert ok, why
+
+
+def test_polytonicgreek_option_brackets_rewritten(tmp_path: Path) -> None:
+    """babelinv live repro 形: 选项表内 polytonicgreek → greek.polytonic。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass[polytonicgreek]{article}\n"
+        "\\usepackage[english,polytonicgreek]{babel}\n",
+        encoding="utf-8",
+    )
+    ok, note = _apply(_rule("babel_opt_polutoniko_rewrite"), tmp_path, "polytonicgreek")
+    assert ok, note
+    t = (tmp_path / "main.tex").read_text()
+    assert "\\documentclass[greek.polytonic]{article}" in t
+    assert "\\usepackage[english,greek.polytonic]{babel}" in t
+    assert "polytonicgreek" not in t
+
+
+def test_polytonicgreek_passoptions_rewritten(tmp_path: Path) -> None:
+    """PassOptionsTo{Package,Class} 首参 polytonicgreek → greek.polytonic。"""
+    (tmp_path / "main.tex").write_text(
+        "\\PassOptionsToPackage{polytonicgreek}{babel}\n"
+        "\\PassOptionsToClass{polytonicgreek}{article}\n",
+        encoding="utf-8",
+    )
+    ok, note = _apply(_rule("babel_opt_polutoniko_rewrite"), tmp_path, "polytonicgreek")
+    assert ok, note
+    t = (tmp_path / "main.tex").read_text()
+    assert "\\PassOptionsToPackage{greek.polytonic}{babel}" in t
+    assert "\\PassOptionsToClass{greek.polytonic}{article}" in t
+    assert "polytonicgreek" not in t
+
+
+def test_polytonicgreek_no_surface_declines(tmp_path: Path) -> None:
+    """无选项位命中 (polytonicgreek 仅在正文) → applied=False, 源不动。"""
+    src = "\\usepackage[english]{babel}\n% polytonicgreek mentioned\n"
+    (tmp_path / "main.tex").write_text(src, encoding="utf-8")
+    ok, _ = _apply(_rule("babel_opt_polutoniko_rewrite"), tmp_path, "polytonicgreek")
+    assert not ok
+    assert (tmp_path / "main.tex").read_text() == src

@@ -495,8 +495,12 @@ rules:
   # 裸 `polytonicgreek` 选项反而炸 —— \languageattribute{greek} 要求 greek
   # 语言本体已载)。装 babel-greek 的 greek.ldf 更糟: XeTeX 下 ldf 硬拒。
   # 只改选项位 (方括号列表 + PassOptionsToPackage/Class 首参)。
+  # 2026-09-19 babelinv 补源: 裸 `polytonicgreek` 同收为源 —— babel-greek
+  # 缺位时报 Unknown option 'polytonicgreek' (live repro 实证), 改写后
+  # greek.ldf 由 babel_lang_ldf_install 装、tuenc-greek.def 由
+  # greek_fontenc_install 补, 链收口净编译。
   - id: babel_opt_polutoniko_rewrite
-    description: "babel 弃名 polutonikogreek / greek.polutoniko → greek.polytonic (ini 机制)"
+    description: "babel 弃名 polutonikogreek / greek.polutoniko / polytonicgreek → greek.polytonic (ini 机制)"
     phase: loop
     order: 13 # babel_lang_ldf_install(11) 之后: 装得上真 ldf 的先装, 此条兜无档语言
     when: { category: babel_opt, payload_required: false }
@@ -504,6 +508,7 @@ rules:
       any:
         - { source_contains: "polutonikogreek" }
         - { source_contains: "greek\\.polutoniko" }
+        - { source_contains: "polytonicgreek" }
     action:
       kind: regex_rewrite
       params:
@@ -519,11 +524,19 @@ rules:
               repl: "[\\g<1>greek.polytonic",
             }
           - {
+              pattern: "\\[([^\\]]*)\\bpolytonicgreek\\b",
+              repl: "[\\g<1>greek.polytonic",
+            }
+          - {
               pattern: "(\\\\PassOptionsTo(?:Package|Class)\\s*\\{[^}]*)\\bgreek\\.polutoniko\\b",
               repl: "\\g<1>greek.polytonic",
             }
           - {
               pattern: "(\\\\PassOptionsTo(?:Package|Class)\\s*\\{[^}]*)\\bpolutonikogreek\\b",
+              repl: "\\g<1>greek.polytonic",
+            }
+          - {
+              pattern: "(\\\\PassOptionsTo(?:Package|Class)\\s*\\{[^}]*)\\bpolytonicgreek\\b",
               repl: "\\g<1>greek.polytonic",
             }
     risk: low # 同语言现行属性形; ini 路由 XeTeX 原生支持
