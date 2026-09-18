@@ -39,7 +39,10 @@ def main() -> None:
     cells: dict[str, dict] = {}
 
     # 逐 fixture 现跑 (拿 wall_ms); 断言函数与 pytest 侧共享同一份
-    parsed = {name: tbr.run_fixture(name, path) for name, path in tbr.FIXTURE_FILES}
+    parsed = {
+        name: tbr.run_fixture(name, path, top_dir=tbr._FIXTURE_TOPDIR.get(name))
+        for name, path in tbr.FIXTURE_FILES
+    }
 
     asserts: dict[str, dict] = {}
     t = parsed["tricky.tex"]
@@ -61,6 +64,30 @@ def main() -> None:
         tbr.assert_xlat(tx.res)
         if tx.ok
         else {"_parse": {"status": "fail", "detail": tx.error}}
+    )
+    tw = parsed["tricky-w.tex"]
+    asserts["tricky-w.tex"] = (
+        tbr.assert_w(tw.res, tw.recon, tw.recon_fake)
+        if tw.ok
+        else {"_parse": {"status": "fail", "detail": tw.error}}
+    )
+    t73 = parsed["tricky-w73/main/main.tex"]
+    asserts["tricky-w73/main/main.tex"] = (
+        tbr.assert_w73(t73.res)
+        if t73.ok
+        else {"_parse": {"status": "fail", "detail": t73.error}}
+    )
+    te = parsed["tricky-wenc.tex"]
+    asserts["tricky-wenc.tex"] = (
+        tbr.assert_wenc(te.res)
+        if te.ok
+        else {"_parse": {"status": "fail", "detail": te.error}}
+    )
+    td = parsed["tricky-dollar.tex"]
+    asserts["tricky-dollar.tex"] = (
+        tbr.assert_dollar(td.res, td.recon, td.recon_fake)
+        if td.ok
+        else {"_parse": {"status": "fail", "detail": td.error}}
     )
 
     for name, p in parsed.items():
@@ -84,7 +111,7 @@ def main() -> None:
             "fail": 0,
             "info": 0,
         }
-        for aid, v in asserts[name].items():
+        for aid, v in asserts.get(name, {}).items():
             if isinstance(v, dict):
                 status, detail = v.get("status", "?"), v.get("detail", "")
             else:  # assert_209 的 parse_ok 是 bool
