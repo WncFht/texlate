@@ -660,3 +660,9 @@
 - **7dae23d secdispatch**：ErrReport.errs(≤32)+classify_head 抽出+err_candidates 去重保序；miss 路径候选逐条重指 ctx.round 派发，xelatex 单错 log 探针 ≤2/格（apply 变才重探）、结果留 salvage 复用净零编译；via:"secondary:<cat>" 落 actions；sig/stuck 保主错。零 yaml 改动——geometry_hoist 对孪生真身 (option_clash,geometry) 原样点火。16+1230 域钉绿。
 - 旁见：peer 测试件改名 test_server_fixes{,2}.py→test_server_audit_fixes.py 在树（非本队车道，留主）。
 - roster：ifclose/floatopt/gcensus/capcensus + babelinv/zhfile/proofdiag/thehalgo/auxeof/expl3diag = 9 研；csmap/nataux/citembox/secdispatch/vendordiag 尸清。
+
+## 2026-09-19 ~09:3x — floatopt 落地 + flipcheck6 脱管批起
+
+- **0e989a0 floatopt**：`float_opt_h_pkgload` order 187——[H] 系锚是 float 宏包专属 (kernel \@xfloat 只认 htbp!)，根修 \begin{document} 前注 \usepackage{float} 非降级；双闸 (ctx_suggests+source_contains 无装载点∧有 H 用)+main_head_contains 挡 2.09；与 comma_strip(184) 零重叠。5 格 (0806.4088/1003.5014/1608.02624/astro-ph/0307059/cond-mat/0408234)。12 钉绿。
+- **flipcheck6 脱管批**：55 格=25 目标 (csmap14/nataux4/floatopt5/secdispatch:1206.0291/citembox:gr-qc/9901082)+30 clean 回归 (loop2 clean 池 577 抽 seed42)，stagerun 全链 mock-xlat → bench/results/stagerun-flipcheck6，gate-③⑤。
+- roster 9：ifclose/gcensus/capcensus + babelinv/zhfile/proofdiag/thehalgo/auxeof/expl3diag；secdispatch/floatopt 尸清。
