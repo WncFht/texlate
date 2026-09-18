@@ -59,8 +59,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))  # bench/py 同目录 i
 
 import e2e_mock_bench as _emb  # Mode B/C 注入实现唯一事实源
 
-from texlate.e2e import _delivered
 from texlate.latex.placeholder import PH_RX
+from texlate.pipecore import delivered as _delivered
 from texlate.xlat.batch import split_long_chunk
 from texlate.xlat.pipeline import (
     MOCK_ZH,

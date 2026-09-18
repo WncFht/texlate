@@ -76,9 +76,10 @@ from texlate.compile.inject import (
     prepare_chinese,
 )
 from texlate.compile.normalize import normalize_project
-from texlate.e2e import _scan_tree, base_condition
+from texlate.e2e import base_condition
 from texlate.latex.placeholder import PH_RX
 from texlate.latex.reconstruct import reconstruct
+from texlate.pipecore import scan_tree as _scan_tree
 from texlate.validate.l0 import validate_pair
 from texlate.xlat.client import ChatClient
 from texlate.xlat.pipeline import (
@@ -146,7 +147,7 @@ async def translate_tree(
     reconstruct 回写、PH_RX 数残留），差异：async + StateStore 续跑 +
     per-status 统计 + 调用量/耗时计量。
 
-    扫描段单源 ``e2e._scan_tree``——文件名四门（dotfile 跳、``.rtx.tex`` 跳、
+    扫描段单源 ``pipecore.scan_tree``——文件名四门（dotfile 跳、``.rtx.tex`` 跳、
     ``.code.tex``/无散文记 support_files）与 ``is_file``/suffix 小写口径同
     e2e/mock 臂不漂移（★3 收敛 2026-09-17：此前零闸送译 support 件，新旧 run
     体积类指标口径断点见 report.md §4）。

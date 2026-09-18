@@ -12,6 +12,12 @@ from typing import TYPE_CHECKING, Any
 
 from texlate import __version__
 from texlate.arxiv.fetch import AcquireStatus
+from texlate.pipecore import (
+    DB_TO_PIPE as _DB_TO_PIPE,
+)
+from texlate.pipecore import (
+    PIPE_TO_DB as _PIPE_TO_DB,  # noqa: F401 -- 包内再出口（pdf.py/translate.py 经此取）
+)
 from texlate.server.settings import (
     cache_scope,
     scrub,
@@ -508,14 +514,8 @@ class SegmentCache:
 
 # ---------------------------------------------------------------- 断点 state 桥
 
-_DB_TO_PIPE = {"ok": "ok", "fallback_orig": "skipped", "failed": "fault"}
-
-_PIPE_TO_DB = {
-    "ok": "ok",
-    "partial": "ok",
-    "skipped": "fallback_orig",
-    "fault": "failed",
-}
+# _DB_TO_PIPE/_PIPE_TO_DB 状态空间图单源在 texlate.pipecore——顶部别名导入，
+# 本包消费面（pdf.py/translate.py/__init__.py）不改名。
 
 
 def chunk_error_code(rec: ChunkResult | ChunkRecord) -> str | None:
@@ -913,3 +913,30 @@ def _translate_progress(done: int, total: int) -> int:
 def _tgt_lang(target_lang: str) -> str:
     """``zh-CN/zh-TW/en`` → prompt 语言名。"""
     return {"zh-TW": "Traditional Chinese", "en": "English"}.get(target_lang, "Chinese")
+
+
+class _Sink:
+    """``pipecore.ReportSink`` 的 worker 适配——绑 ``_log``/``_repair_event`` 闭包。
+
+    修复链实况/日志出口单口：pipecore 各 ``sink.log``/``sink.event``
+    调用经此分发到任务日志行与 ``bus.publish``（scrub 在
+    ``_repair_event`` 内）。e2e/bench 臂走 ``NULL_SINK`` 不构造本类。
+    """
+
+    __slots__ = ("_event_fn", "_log_fn")
+
+    def __init__(
+        self,
+        log_fn: Callable[[str], None],
+        event_fn: Callable[[str, dict[str, Any]], None],
+    ) -> None:
+        self._log_fn = log_fn
+        self._event_fn = event_fn
+
+    def log(self, msg: str) -> None:
+        """一行修复日志 → 任务日志。"""
+        self._log_fn(msg)
+
+    def event(self, etype: str, payload: dict[str, Any]) -> None:
+        """一帧修复实况 → ``_repair_event``（scrub+发布）。"""
+        self._event_fn(etype, payload)

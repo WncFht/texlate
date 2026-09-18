@@ -38,7 +38,6 @@ manifest*.jsonl + {id}/extracted/（有 manifest 即走 v3 枚举，只收 extra
 from __future__ import annotations
 
 import argparse
-import asyncio
 import hashlib
 import json
 import os
@@ -57,19 +56,28 @@ sys.path.insert(0, os.environ.get("TEXLATE_SRC", str(ROOT / "src")))
 
 import benchlib
 
-from texlate import e2e as e2e_mod
 from texlate import repair_l2 as repair_mod
 from texlate.compile.engine import route_project
 from texlate.compile.inject import InjectRejectError, find_main_tex, prepare_chinese
 from texlate.compile.normalize import normalize_project
 from texlate.e2e import base_condition, pipe_condition
 from texlate.latex.placeholder import PH_RX
-from texlate.latex.reconstruct import reconstruct
+from texlate.pipecore import (
+    PipeJob,
+    compile_judge_tail,
+    delivered,
+    fixloop_job,
+    l2_repair_job,
+    translate_tree_run,
+)
+from texlate.pipecore import (
+    scan_tree as _scan_tree,
+)
+from texlate.repair import ENV_NO_FIXLOOP, embed_tounicode_quiet
+from texlate.textutil import env_flag
 from texlate.validate.l0 import validate_pair
-from texlate.xlat.glossary import Glossary
-from texlate.xlat.pipeline import MockTranslator, XlatPipeline
+from texlate.xlat.pipeline import MockTranslator
 from texlate.xlat.placeholders import (
-    collect_doc_placeholders,
     decode_newlines,
     is_placeholder_only,
 )
@@ -289,72 +297,22 @@ def _seg_of(r_source: str, seg: str) -> bool:
 def translate_tree(
     root: Path, translator: MockTranslator, *, env_judge: bool = False
 ) -> tuple[dict, repair_mod.TreeRun, list]:
-    """``e2e._translate_tree`` 同构 + 带出逐块 results（Mode B/C 归因账本用）。
+    """``pipecore.translate_tree_run`` 薄壳 + 带出逐块 results（Mode B/C 归因账本用）。
 
-    扫描段直接调 ``e2e._scan_tree`` 原件——文件名四门（dotfile 跳、``.rtx.tex``
-    跳、``.code.tex``/无散文记 support_files）与 ``is_file``/suffix 小写口径
-    单源不漂移；翻译段镜像 ``e2e._translate_tree``（``Glossary.load(
-    placeholders=…)`` + ``cache={}`` + L0 validator + ``_env_judge_pass`` +
-    ``reconstruct`` splice 写回），唯一分叉 = 多返回 ``list[ChunkResult]``
-    与 ``TreeRun`` 供归因账本/L2 回灌复用（与 pipe 臂同一运行态形状）。
+    扫描段经 ``scan_fn`` 透传本模块 ``_scan_tree`` 绑定——文件名四门
+    （dotfile/``.rtx.tex``/``.code.tex``/无散文 support）单源在
+    ``pipecore.scan_tree``，fuzz spy 打 ``emb._scan_tree`` 即中；
+    validator 同产品臂 L0 ``validate_pair`` 全量规则。返回
+    ``(stats, TreeRun, 逐块 ChunkResult)``——TreeRun 与 pipe 臂同一
+    运行态形状供归因账本/L2 回灌复用。
     """
-    scans, chunks, fault_files, support_files = e2e_mod._scan_tree(root)
-
-    pipe = XlatPipeline(
-        translator,
-        glossary=Glossary.load(
-            placeholders=collect_doc_placeholders(c.content for c in chunks)
-        ),
+    return translate_tree_run(
+        root,
+        translator=translator,
+        env_judge=env_judge,
+        scan_fn=_scan_tree,
         validator=lambda s, z: validate_pair(s, z).feedback(),
-        cache={},
     )
-    results = asyncio.run(pipe.run(chunks))
-    by_file: dict[int, dict[int, str]] = {}
-    n_fault = 0
-    n_partial = 0
-    for r in results:
-        fidx, cid = repair_mod.split_cid(r.chunk_id)
-        if e2e_mod._delivered(r):
-            by_file.setdefault(fidx, {})[cid] = r.translation
-            if r.status == "partial":
-                n_partial += 1
-        else:
-            n_fault += 1
-
-    env_stats: dict = (
-        e2e_mod._env_judge_pass(pipe, scans, results, by_file)
-        if env_judge
-        else {"enabled": False}
-    )
-
-    n_files = 0
-    n_leftover = 0
-    for idx, (f, res) in enumerate(scans):
-        trans = by_file.get(idx)
-        if not trans:
-            continue
-        zh = reconstruct(res, trans)
-        f.write_text(zh, encoding="utf-8")
-        n_files += 1
-        n_leftover += len(PH_RX.findall(zh))
-    stats = {
-        "files": n_files,
-        "chunks": len(chunks),
-        "partial_chunks": n_partial,
-        "fault_chunks": n_fault,
-        "fault_files": fault_files,
-        "support_files": support_files,
-        "support_skipped": len(support_files),
-        "leftover_ph": n_leftover,
-        "env_judge": env_stats,
-    }
-    run = repair_mod.TreeRun(
-        scans=scans,
-        trans=by_file,
-        chunk_ins={c.chunk_id: c for c in chunks},
-        pipe=pipe,
-    )
-    return stats, run, results
 
 
 def pipe_mode_condition(
@@ -391,7 +349,7 @@ def pipe_mode_condition(
     rec["normalize"] = normalize_project(work, eng_name, main_rel)
     tr = SabotageTranslator() if mode == "B" else PerturbTranslator()
     ej = (
-        e2e_mod.env_flag(repair_mod.ENV_ENV_JUDGE, default=False)
+        env_flag(repair_mod.ENV_ENV_JUDGE, default=False)
         if env_judge is None
         else env_judge
     )
@@ -422,15 +380,15 @@ def pipe_mode_condition(
     else:
         ledger.update({"spliced": 0, "dropped": 0})
     for r in results:
-        # 交付谓词与 splice 同口径：``_delivered`` 放行 partial（旧 spliced_ok
+        # 交付谓词与 splice 同口径：``delivered`` 放行 partial（旧 spliced_ok
         # 严卡 ok 把脏 partial 记成 caught——连 escaped 都不进的反向漏账）。
-        delivered = e2e_mod._delivered(r) and r.chunk_id not in reverted
+        is_delivered = delivered(r) and r.chunk_id not in reverted
         if mode == "B":
             # 内容通道度量按全 delivered 块记账（非仅 sabotaged）：armed =
             # src 自带签名 → 同形 echo 裸包含不可判定；dirty = zh 命中中
             # src 解释不了的签名（判定性 echo）。
-            zh_hits = _dirty_hits(r.translation) if delivered else []
-            src_legit = _dirty_hits(r.source) if delivered else []
+            zh_hits = _dirty_hits(r.translation) if is_delivered else []
+            src_legit = _dirty_hits(r.source) if is_delivered else []
             ambig = [s for s in zh_hits if s in src_legit]
             hits = [s for s in zh_hits if s not in src_legit]
             if src_legit:
@@ -457,11 +415,11 @@ def pipe_mode_condition(
                 kinds,
                 {"caught": 0, "recovered": 0, "escaped": 0, "dirty": 0, "armed": 0},
             )
-            if delivered and src_legit:
+            if is_delivered and src_legit:
                 bk["armed"] += 1
-            if delivered and hits:
+            if is_delivered and hits:
                 bk["dirty"] += 1
-            if not delivered:
+            if not is_delivered:
                 ledger["caught"] += 1  # fault/skipped/env回落 → 原文回退
                 bk["caught"] += 1
             elif src_ph(r.translation) != src_ph(r.source):
@@ -481,7 +439,7 @@ def pipe_mode_condition(
             else:
                 ledger["recovered"] += 1
                 bk["recovered"] += 1
-        elif delivered:
+        elif is_delivered:
             ledger["spliced"] += 1  # 挪位译文进了文档 → 编译判存活
         else:
             ledger["dropped"] += 1
@@ -494,20 +452,20 @@ def pipe_mode_condition(
         rec["reject_at"] = "inject"
         rec["verdict"] = {"status": "partial", "reasons": [e.reason]}
         return rec
-    job = e2e_mod._Job(work, main_rel, eng_name, timeout)
+    job = PipeJob(work, main_rel, eng_name, timeout)
     # 0-chunk 主文档不期待 CJK (与 pipe_condition 同口径, F 桶假阳修)
     expect_cjk = stats.get("chunks") != 0
-    tail, res = e2e_mod._compile_judge(job, expect_cjk=expect_cjk)
+    tail, res = compile_judge_tail(job, expect_cjk=expect_cjk)
     rec.update(tail)
 
     if rec["status"] != "clean":
         l2 = (
-            (not e2e_mod.env_flag(repair_mod.ENV_NO_L2, default=False))
+            (not env_flag(repair_mod.ENV_NO_L2, default=False))
             if l2_on is None
             else l2_on
         )
         if l2:
-            l2_rep, res, tail2 = e2e_mod._l2_repair(job, run, res, l2_max_chunks)
+            l2_rep, res, tail2 = l2_repair_job(job, run, res, l2_max_chunks)
             rec["l2"] = l2_rep
             if tail2 is not None:
                 rec.update(tail2)
@@ -515,7 +473,7 @@ def pipe_mode_condition(
             rec["l2"] = {"enabled": False, "reason": repair_mod.ENV_NO_L2}
 
         fl = (
-            (not e2e_mod.env_flag(e2e_mod.ENV_NO_FIXLOOP, default=False))
+            (not env_flag(ENV_NO_FIXLOOP, default=False))
             if fixloop_on is None
             else fixloop_on
         )
@@ -523,7 +481,7 @@ def pipe_mode_condition(
             # timeout=job.timeout: 重编预算吃 --timeout (bench/worker 同口径
             # compile_timeout=作业超时) 而非 rules.yaml meta.loop.timeout_sec;
             # expect_cjk 透传——0-chunk 工程终判 tail 不该期待 CJK
-            fl_rep, tail3, res = e2e_mod._run_fixloop(
+            fl_rep, tail3, res = fixloop_job(
                 job,
                 route_engines or [eng_name],
                 res,
@@ -534,10 +492,10 @@ def pipe_mode_condition(
             if tail3 is not None:
                 rec.update(tail3)
         elif rec["status"] != "clean":
-            rec["fixloop"] = {"enabled": False, "reason": e2e_mod.ENV_NO_FIXLOOP}
+            rec["fixloop"] = {"enabled": False, "reason": ENV_NO_FIXLOOP}
     # ToUnicode 注入在修复链收敛之后 (pipe_condition 同位, worker 同口径)
     if res.has_pdf and res.pdf is not None:
-        rec["tounicode_fonts"] = e2e_mod._embed_tounicode(res.pdf)
+        rec["tounicode_fonts"] = embed_tounicode_quiet(res.pdf)
     return rec
 
 

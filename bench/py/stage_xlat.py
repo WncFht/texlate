@@ -28,9 +28,9 @@ import quality_proxies as qp  # S5 质量代理件（leak/term 指标 + TERM_ARM
 import stagerun_lib as sl
 import translators_bench as tb  # xlat 臂工厂 + sabotage 台账（e2e_mock 注入逻辑由此封装）
 
-from texlate.e2e import _scan_tree
 from texlate.latex.placeholder import PH_RX
 from texlate.latex.reconstruct import reconstruct
+from texlate.pipecore import scan_tree as _scan_tree
 from texlate.validate.l0 import validate_pair
 from texlate.xlat.client import ChatClient
 from texlate.xlat.glossary import LOCAL_GLOSSARY_NAME, Glossary
@@ -148,7 +148,7 @@ async def _translate_tree(
 ) -> tuple[dict, list]:
     """e2e_real.translate_tree 同构 + 返回逐块结果（chunk 明细/sabotage 归因用）。
 
-    扫描段单源 ``e2e._scan_tree``——文件名四门（dotfile 跳、``.rtx.tex`` 跳、
+    扫描段单源 ``pipecore.scan_tree``——文件名四门（dotfile 跳、``.rtx.tex`` 跳、
     ``.code.tex``/无散文记 support_files）与 ``is_file``/suffix 小写口径同
     e2e/mock/real 臂不漂移（★3 收敛：旧内联件漏 ``.TEX``/``.RTX.TEX`` 大写形，
     support 只记 basename 丢子目录路径）。

@@ -285,7 +285,7 @@ def test_bench_runners_bind_same_scan_tree() -> None:
 
     assert erb._scan_tree is e2e._scan_tree  # noqa: SLF001
     assert sx._scan_tree is e2e._scan_tree  # noqa: SLF001
-    assert emb.e2e_mod._scan_tree is e2e._scan_tree  # noqa: SLF001
+    assert emb._scan_tree is e2e._scan_tree  # noqa: SLF001
 
 
 def test_e2e_translate_tree_gate_keys(
@@ -309,12 +309,12 @@ def test_e2e_translate_tree_gate_keys(
 def test_e2e_mock_bench_translate_tree_gate_keys(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """bench mock 臂同契约：stats 三键 + ``e2e_mod._scan_tree`` 属性查找可钩。"""
+    """bench mock 臂同契约：stats 三键 + ``emb._scan_tree`` 属性查找可钩。"""
     emb = pytest.importorskip("e2e_mock_bench")
     work = tmp_path / "w"
     exp = _gate_tree(work)
     _crash_on(monkeypatch, {"broken.tex"})
-    calls = _scan_spy(monkeypatch, e2e, e2e._scan_tree)  # noqa: SLF001
+    calls = _scan_spy(monkeypatch, emb, emb._scan_tree)  # noqa: SLF001
 
     stats, _run, _results = emb.translate_tree(work, MockTranslator())
 

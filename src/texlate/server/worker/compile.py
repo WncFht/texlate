@@ -15,28 +15,32 @@ from texlate.compile.inject import (
     InjectRejectError,
     prepare_chinese,
 )
-from texlate.compile.judge import judge
 from texlate.compile.probe import (
     dep_seen,
     deps_diff,
 )
 from texlate.latex.placeholder import PH_RX
 from texlate.latex.reconstruct import reconstruct
+from texlate.pipecore import (
+    compile_judge,
+    delivered_db,
+    fixloop_flags_tail,
+    fixloop_round,
+    judge_res,
+    l2_repair,
+    probe_report,
+)
 from texlate.repair import (
     ENV_FIXLOOP_LLM,
     ENV_NO_FIXLOOP,
-    consume_engine_flags,
     embed_tounicode_quiet,
     fixloop_cell_parts,
     log_text_of,
-    ruleset_with_baseline,
-    run_fixloop,
 )
 from texlate.repair_l2 import (
     ENV_NO_L2,
     L2_MAX_CHUNKS,
     TreeRun,
-    l2_repair_round,
     retranslate_hits,
     split_cid,
 )
@@ -67,6 +71,7 @@ from ._common import (
     TaskCtx,
     _new_usage_meter,
     _scrub_deep,
+    _Sink,
     _tgt_lang,
     _translator_clients,
     chunk_db_id,
@@ -302,7 +307,7 @@ class _Compile:
         trans = {
             r["chunk_id"]: r["translation"]
             for r in rows
-            if r["status"] == "ok" and r["translation"]
+            if delivered_db(r["status"], r["translation"])
         }
         trans = self._env_judge_filter(ctx, trans, rows)
         n_files = 0
@@ -363,10 +368,16 @@ class _Compile:
         ``route_project`` 决策不一致时多记一行——只播报不重复决策。
         探针崩溃只记行返回 ``None``，绝不阻塞编译。
         """
-        try:
-            rep = seams.target_probe(work, ctx.main_rel, deps_index=self._deps_index)
-        except Exception as e:  # noqa: BLE001 -- 探针是旁路诊断，崩不拖编译
-            self._log(ctx, f"probe crashed: {type(e).__name__}: {e}")
+        rep = probe_report(
+            work,
+            ctx.main_rel,
+            deps_index=self._deps_index,
+            probe_fn=seams.target_probe,
+            on_error=lambda e: self._log(
+                ctx, f"probe crashed: {type(e).__name__}: {e}"
+            ),
+        )
+        if rep is None:
             return None
         parts = [
             f"deps={len(rep.deps)}",
@@ -532,22 +543,27 @@ class _Compile:
         编译。返回末次 ``CompRes``（fixloop 崩溃/未编译则原样回传）。
         """
         hook, hook_usage, hook_clients = self._llm_hook_pack(ctx)
+        sink = _Sink(
+            lambda m: self._log(ctx, m),
+            lambda t, p: self._repair_event(ctx, t, p),
+        )
         try:
             self._abort_if_cancelled(ctx)
-            cell, fix_last = run_fixloop(
+            # 轮实况/done 帧/cell log/主文件分歧行随 fixloop_round 出口
+            # （sink 绑 _log/_repair_event——原臂后段同键集前置到环尾）
+            cell, fix_last = fixloop_round(
                 work,
                 self._fixloop_engine(ctx, eng),
-                ruleset=ruleset_with_baseline(ctx.base_dir),
                 engine_name=ctx.engine_name,
-                corpus_id=ctx.task_id,
-                cond="zh",
+                baseline_dir=ctx.base_dir,
+                main_rel=ctx.main_rel,
                 llm_hook=hook,
-                case_sink=CaseSink(self.data_dir / "fixloop-cases.jsonl"),
                 compile_timeout=self._compile_timeout,
                 should_cancel=ctx.cancel_flag.is_set,
-                on_round=lambda r: self._repair_event(
-                    ctx, "fixloop", {"phase": "round", "round": r}
-                ),
+                sink=sink,
+                corpus_id=ctx.task_id,
+                cond="zh",
+                case_sink=CaseSink(self.data_dir / "fixloop-cases.jsonl"),
             )
         except Exception as e:  # noqa: BLE001 -- fixloop 崩不拖垮编译段
             self._log(ctx, f"fixloop crashed: {type(e).__name__}: {e}")
@@ -567,33 +583,23 @@ class _Compile:
         self._abort_if_cancelled(ctx)
         summary = _fixloop_summary(cell)
         res = fix_last or first
-        flags = [str(f) for f in cell.get("engine_flags") or []]
-        dropped = [str(f) for f in cell.get("engine_flags_dropped") or []]
-        summary["engine_flags"] = flags
-        summary["engine_flags_dropped"] = dropped
-        adopted_cross = False
-        if dropped:
-            summary["flags_unapplied"] = True
-        # 跨引擎消费 + 审计 note 的共享尾在 repair.consume_engine_flags
-        # （e2e _run_fixloop 同臂）——dropped 多为 shell-escape 需求，
+        # 跨引擎消费 + 审计 note 的共享尾在 pipecore.fixloop_flags_tail
+        # （e2e fixloop_job 同臂）——dropped 多为 shell-escape 需求，
         # tectonic 丢的 flag 由 route 候选里的 xelatex 带全量 flag 重编
         # 取优。``route_engines`` 是 _build_base 持久化的生效候选列表——
         # 显式 engine= 覆盖时只剩用户指定那台，臂自熄（尊重显式选型）。
         # status_of 惰性——dropped 路径才需 incumbent 判据，flags-only
         # 不白费一轮 judge。
-        xr, note = consume_engine_flags(
+        xr, note = fixloop_flags_tail(
+            summary,
+            cell,
             engine_name=ctx.engine_name,
             route_engines=[str(e) for e in ctx.options().get("route_engines") or []],
-            status_of=lambda: (
-                judge(res, expect_cjk=ctx.expect_cjk, log_text=log_text_of(res)).status
-            ),
+            status_of=lambda: judge_res(res, expect_cjk=ctx.expect_cjk).status,
             work=work,
             main_rel=ctx.main_rel,
             timeout=self._compile_timeout,
             probe_flags=ctx.probe_flags,
-            flags=flags,
-            dropped=dropped,
-            reject_route=cell.get("reject_route"),
             expect_cjk=ctx.expect_cjk,
             # halt_on_error=False：与主编译/salvage 同口径 best-effort——
             # retry 是交付路径终末重编（非轮内分类编译），nonstopmode
@@ -606,21 +612,13 @@ class _Compile:
             ),
             should_cancel=ctx.cancel_flag.is_set,
         )
-        if xr is not None:
-            summary["cross_engine"] = xr.info
-            if xr.adopted:
-                res = xr.res
-                adopted_cross = True
+        adopted_cross = False
+        if xr is not None and xr.adopted:
+            res = xr.res
+            adopted_cross = True
         if note is not None:
             self._log(ctx, f"fixloop: {note}")
         ctx.fixloop = _scrub_deep(summary, ctx.secrets.api_key)
-        # done 帧带完整引擎 cell（rounds/actions/verdict 全量，实况回放原料）；
-        # ctx.fixloop 仍是压缩摘要形——error_json/stats 消费面不变
-        self._repair_event(ctx, "fixloop", {"phase": "done", "cell": cell})
-        for ln in cell.get("log") or []:
-            self._log(ctx, f"fixloop: {ln}")
-        if cell.get("main") and cell["main"] != ctx.main_rel:
-            self._log(ctx, f"fixloop: 主文件判定 {cell['main']} ≠ {ctx.main_rel}")
         if cell.get("final_pdf") or adopted_cross:
             n = _sync_fixed_sources(work, ctx.zh_dir)
             if n:
@@ -707,7 +705,7 @@ class _Compile:
         ok = {
             r["chunk_id"]: r["translation"]
             for r in self._on_loop(self._all_chunks, ctx)
-            if r["status"] == "ok" and r["translation"]
+            if delivered_db(r["status"], r["translation"])
         }
         rels = sorted(ctx.scans)
         trans: dict[int, dict[int, str]] = {}
@@ -752,7 +750,7 @@ class _Compile:
     def _l2_repair_zh(
         self, ctx: TaskCtx, work: Path, eng: Engine, res: CompRes
     ) -> tuple[dict[str, Any], CompRes, Verdict | None]:
-        """L2 回灌一轮：阶梯骨架在 ``repair_l2.l2_repair_round``（e2e ``_l2_repair`` 同件）。
+        """L2 回灌一轮：阶梯骨架在 ``pipecore.l2_repair``（e2e ``l2_repair_job`` 同件）。
 
         resplice 只重写 ``build-zh``——DB 回写 + ``_sync_fixed_sources``
         灌回 ``zh/`` + 重打 zh-src.zip 由本层补齐（worker 的成品树是
@@ -786,20 +784,21 @@ class _Compile:
             self._repair_event(
                 ctx, "l2", {"phase": "progress", "message": "L2 回灌重编"}
             )
-            r = eng.compile(
+            # compile 原子段跑完即收敛——judge 前查取消省一轮白费判分
+            # （after_compile 插桩 = 原 compile→abort→judge 序）
+            return compile_judge(
+                eng,
                 work,
                 ctx.main_rel,
                 timeout=self._compile_timeout,
-                sandbox=True,
                 flags=ctx.probe_flags or None,
+                expect_cjk=ctx.expect_cjk,
                 should_cancel=ctx.cancel_flag.is_set,
+                after_compile=lambda _r: self._abort_if_cancelled(ctx),
             )
-            # compile 原子段跑完即收敛——judge 前查取消省一轮白费判分
-            self._abort_if_cancelled(ctx)
-            return r, judge(r, expect_cjk=ctx.expect_cjk, log_text=self._log_text_of(r))
 
         try:
-            rep, res2, v2 = l2_repair_round(
+            rep, res2, v2 = l2_repair(
                 run,
                 work,
                 ctx.main_rel,
@@ -808,6 +807,10 @@ class _Compile:
                 retranslate=lambda r, h, c: asyncio.run(_retr(r, h, c)),
                 recompile=_recompile,
                 checkpoint=lambda: self._abort_if_cancelled(ctx),
+                sink=_Sink(
+                    lambda m: self._log(ctx, m),
+                    lambda t, p: self._repair_event(ctx, t, p),
+                ),
             )
         finally:
             # L2 重译也烧 token——不入账就从 task_usage 里蒸发
@@ -935,20 +938,8 @@ class _Compile:
             )
             return res, v
         ctx.l2 = _scrub_deep(rep, ctx.secrets.api_key)
-        # done 帧平铺统计键（enabled/errors/retranslated/fallback 计数）+
-        # report 全量（ctx.l2 已 scrub）——前端卡片读平铺键，调试看 report
-        self._repair_event(
-            ctx,
-            "l2",
-            {
-                "phase": "done",
-                "enabled": rep.get("enabled"),
-                "errors": rep.get("errors"),
-                "retranslated": len(rep.get("retranslated") or []),
-                "fallback": len(rep.get("fallback_src") or []),
-                "report": ctx.l2,
-            },
-        )
+        # done 帧（平铺统计键 + report 全量）已随 pipecore.l2_repair 的
+        # sink 出口发布——scrub 在 _repair_event 内，键集不变
         for key in ("retranslated", "reverted_l0", "fallback_src", "unresolved"):
             if rep.get(key):
                 self._log(ctx, f"l2 {key}: {rep[key]}")
@@ -973,24 +964,28 @@ class _Compile:
         eng = self._engine(ctx)
         rep = self._probe_target(ctx, work)
         ctx.probe_flags = [str(f) for f in (rep.flags if rep else [])]
-        res = eng.compile(
+
+        def _post(r: CompRes) -> None:
+            # eng.compile 原子段跑完即收敛——L2/fixloop/登记是后续白费
+            self._abort_if_cancelled(ctx)
+            self._probe_diff(ctx, rep, r)
+
+        res, v = compile_judge(
+            eng,
             work,
             ctx.main_rel,
             timeout=self._compile_timeout,
-            sandbox=True,
             flags=rep.flags if rep else None,
+            expect_cjk=ctx.expect_cjk,
             should_cancel=ctx.cancel_flag.is_set,
+            after_compile=_post,
         )
-        # eng.compile 原子段跑完即收敛——L2/fixloop/登记是后续白费
-        self._abort_if_cancelled(ctx)
-        self._probe_diff(ctx, rep, res)
-        v = judge(res, expect_cjk=ctx.expect_cjk, log_text=self._log_text_of(res))
         if v.status != "clean":
             res, v = self._l2_attempt(ctx, work, eng, res, v)
             self._abort_if_cancelled(ctx)
         if v.status != "clean" and self._fixloop_enabled(ctx):
             res = self._run_fixloop(ctx, work, eng, res)
-            v = judge(res, expect_cjk=ctx.expect_cjk, log_text=self._log_text_of(res))
+            v = judge_res(res, expect_cjk=ctx.expect_cjk)
         if res.has_pdf and res.pdf is not None:
             shutil.copyfile(res.pdf, ctx.root / "zh.pdf")
             self._embed_tounicode(ctx, ctx.root / "zh.pdf")
@@ -1078,7 +1073,9 @@ class _Compile:
         rows = self._on_loop(self._all_chunks, ctx)
         # 同 dual.json zh 位口径——非 ok 行（fallback_orig/failed 装 en
         # 原文回写）不算译文载荷，全非 ok 即「零译文不产」
-        if not rows or not any(r["status"] == "ok" and r["translation"] for r in rows):
+        if not rows or not any(
+            delivered_db(r["status"], r["translation"]) for r in rows
+        ):
             return
         by_file: dict[str, list[dict[str, Any]]] = {}
         for r in rows:
