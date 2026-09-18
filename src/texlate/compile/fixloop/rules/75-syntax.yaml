@@ -244,6 +244,10 @@ rules:
           corpus: "loop2-delta already_def×2 (1003.0344, cond-mat/0501638)",
           error: "Command \\Ref already defined",
         }
+      - {
+          corpus: "thehalgo census 2026-09-19 (already_def|theHalgorithm ×4)",
+          error: "kernel ≥2024-11 \\@definecounter 自产 \\theH<ctr> (latex.ltx:10145) 撞 ICML 模板 \\newcommand{\\theHalgorithm} 搭车 shim——本规则全家覆盖, 3/4 新档实证",
+        }
     stats: { fires: 0 }
     source_ref: "wave-2: already_def 类目首个泛化消费规则"
 
