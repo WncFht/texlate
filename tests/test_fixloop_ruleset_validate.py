@@ -92,6 +92,21 @@ def test_dep_input_braced_no_space_form(tmp_path: Path) -> None:
     assert _dep_stems(f) == ["realdep", "sub/fig.tex", "spaced", "baredep"]
 
 
+def test_rules_yaml_load_hook_pattern_covers_shards() -> None:
+    r"""A4 钉: pre-commit rules-yaml-load 的 ``files`` 正则须命中 rules/
+    分片——曾锁 ``rules\.yaml$`` (分片落地后永不触发的 vacuous check)。"""
+    repo = Path(__file__).resolve().parents[1]
+    cfg = (repo / ".pre-commit-config.yaml").read_text(encoding="utf-8")
+    m = re.search(r"id:\s*rules-yaml-load\b.*?files:\s*'([^']+)'", cfg, re.DOTALL)
+    assert m, "rules-yaml-load hook 缺 files 模式"
+    rx = re.compile(m.group(1))
+    shards = sorted((repo / "src/texlate/compile/fixloop/rules").glob("*.yaml"))
+    assert shards, "rules/ 分片目录为空"
+    for s in shards:
+        rel = s.relative_to(repo).as_posix()
+        assert rx.search(rel), f"hook files 模式不命中 {rel}"
+
+
 # ------------------------------------------------------------ Ruleset.load 缓存
 def test_load_cache_hit_returns_independent_object(tmp_path: Path) -> None:
     """同路径二次 load 命中缓存: 内容一致但深拷贝隔离——非同一对象。"""

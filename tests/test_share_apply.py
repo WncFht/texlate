@@ -337,6 +337,39 @@ class TestShareImport:
             assert err["reject_at"] == "share_verify"
             assert "零命中" in err["message"]
 
+    def test_import_dual_json_over_cap_reject(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
+    ) -> None:
+        """A9 钉：落地后的 dual.json 超 ``_DUAL_JSON_MAX`` → stat 闸先拒 →
+        partial + share_verify。manifest 闸管包内声明大小，解压落成文件
+        才是实数——``json.loads`` 内存放大面不进不可信包。"""
+        monkeypatch.setattr("texlate.server.worker.share._DUAL_JSON_MAX", 8)
+        _prod, imp, _ddir = _apps(tmp_path)
+        with TestClient(imp) as pb:
+            blob = _synth_bundle(
+                tmp_path,
+                [
+                    {
+                        "seq": 0,
+                        "src_file": "main.tex",
+                        "en": "source text that does not exist locally",
+                        "zh": "与本源无关的译文",
+                        "kind": "text",
+                    }
+                ],
+            )
+            r = _import(pb, blob)
+            assert r.status_code == HTTPStatus.ACCEPTED, r.text
+            snap = wait_terminal(pb, r.json()["task_id"])
+            assert snap["status"] == "partial"
+            err = snap["error"]
+            assert err["code"] == "share_verify"
+            assert err["reject_at"] == "share_verify"
+            assert "too large" in err["message"]
+
     def test_import_compile_fail_reject(
         self, tmp_path: Path, clean_env: pytest.MonkeyPatch
     ) -> None:

@@ -445,6 +445,22 @@ class TestRedactMounted:
         assert n == 1
         assert root.filters[-1] is f2
 
+    def test_secrets_repr_hides_api_key(self, tmp_path: Path) -> None:
+        """A16 钉：Secrets/TaskCtx dataclass repr 不带 api_key——log/崩溃
+        转储面 BYOK 不外泄（``field(repr=False)`` 回归位）。"""
+        s = Secrets(api_key="sk-repr-leak", base_url="http://b", model="m")
+        assert "sk-repr-leak" not in repr(s)
+        store = Store(tmp_path / "t.db")
+        ctx = TaskCtx(
+            store=store,
+            bus=EventBus(store),
+            task_id="t_repr",
+            row={},
+            secrets=s,
+            root=tmp_path,
+        )
+        assert "sk-repr-leak" not in repr(ctx)
+
 
 class TestCacheScope:
     """cache_scope：shared 默认（hjfy 对等共享）| per_key 按 key 指纹分桶。"""

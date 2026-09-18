@@ -428,6 +428,39 @@ def test_regions_malformed_ops_lose_only_themselves(tmp_path: Path) -> None:
     assert regions[0]["start"] == pytest.approx(0.1162, abs=1e-3)
 
 
+def _spy_reader(closed: list[PdfReader]) -> type[PdfReader]:
+    """close 计数间谍——钉 PdfReader finally 收口（A10 fd 泄漏回归位）。"""
+
+    class _SpyReader(PdfReader):
+        def close(self) -> None:
+            closed.append(self)
+            super().close()
+
+    return _SpyReader
+
+
+def test_build_alignment_closes_readers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """双侧 reader 必走 finally close——worker 长驻进程不显式收即 fd 泄漏。"""
+    closed: list[PdfReader] = []
+    monkeypatch.setattr("pypdf.PdfReader", _spy_reader(closed))
+    en = _mk_pdf(tmp_path / "en.pdf", [("a", 0)])
+    zh = _mk_pdf(tmp_path / "zh.pdf", [("a", 0)])
+    build_alignment(en, zh)
+    assert len(closed) == 2  # noqa: PLR2004 -- 双侧各一
+
+
+def test_extract_landmarks_closes_reader(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """单侧抽取同口径——reader 用后必收（含坏 PDF 早退臂的登记先收序）。"""
+    closed: list[PdfReader] = []
+    monkeypatch.setattr("pypdf.PdfReader", _spy_reader(closed))
+    extract_landmarks(_mk_pdf(tmp_path / "src.pdf", [("a", 0)]))
+    assert len(closed) == 1
+
+
 def test_chain_keeps_duplicate_positions(tmp_path: Path) -> None:
     """同页同 ``/Top`` 的锚点（key 完全相等）不构成乱序——``<=`` 链全收。"""
     dests = [("figure.1", 0, 600.0), ("figure.2", 0, 600.0), ("section.1", 1, 700.0)]
