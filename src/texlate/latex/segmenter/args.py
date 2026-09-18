@@ -27,6 +27,7 @@ from texlate.latex.tables import (
     FILENAME_CHARS,
     MAX_GEN,
     TRANSPARENT_HEAD_SPEC,
+    strip_fname_quotes,
 )
 
 from ._common import (
@@ -663,6 +664,19 @@ class _Args:
                     fname = self.file_texts[fid][x.pos[2] : closer.pos[1]].strip()
             else:
                 src.unread(pulled)  # 组已回吐；ws 回放（v1 end=j 重扫）
+        elif x is not None and x.kind in ("letter", "other") and x.text == '"':
+            # 引号裸名 ``\input"a b.tex"``（web2c 带空格名）——连同双引号
+            # 收至闭引号 token，缺席收到流尾；span 须整吞否则文件名漏成散文
+            fname_toks = [x]
+            while True:
+                y = src.read()
+                if y is None:
+                    break
+                fname_toks.append(y)
+                if y.kind in ("letter", "other") and y.text == '"':
+                    break
+            fname = "".join(t2.text for t2 in fname_toks)
+            end = fname_toks[-1].pos[2]
         elif (
             x is not None
             and x.kind in ("letter", "other")
@@ -696,8 +710,9 @@ class _Args:
         self._emit(vspan.start, vspan.end)
         if fname and "\\" not in fname:
             # 含 cs 的动态文件名（\@journal\substyle@ext）非字面路径，
-            # 非输入尝试——不记 inputs[]（gullet 侧同款过滤）
-            self.state.inputs.append((vspan.start, fname))
+            # 非输入尝试——不记 inputs[]（gullet 侧同款过滤）；
+            # 引号壳统一剥除——``"a b.tex"`` 与 ``a b.tex`` 同档记
+            self.state.inputs.append((vspan.start, strip_fname_quotes(fname)))
 
     def _handle_chunk_arg(self, t: Tok, src: TokenSource, name: str) -> None:
         r"""``\section[opt]{arg}`` token 版：前缀 LITERAL，arg → 独立 chunk。

@@ -16,6 +16,7 @@ from texlate.latex.flatten import (
 from texlate.latex.tables import (
     FILENAME_CHARS,
     MAX_INPUTS,
+    strip_fname_quotes,
 )
 from texlate.textutil import (
     decode_tex,
@@ -88,6 +89,8 @@ class _Input:
                 self.unread(trace)
                 return trig
             fname, tag = _surface(g1).strip(), _surface(g2).strip()
+        if fname is not None:
+            fname = strip_fname_quotes(fname)
         if not fname or "\\" in fname:
             # 含 cs 的文件名是计算式（\@journal\substyle@ext）——无法按
             # 字面解析，非输入尝试：回吐走普通 token 流，不计 missing_input
@@ -125,8 +128,23 @@ class _Input:
         return self._consumed(tag_text, trig, trace)
 
     def _read_bare_filename(self, trace: list[Tok]) -> str | None:
-        r"""``\input file`` 裸名形：``[A-Za-z0-9._/-]+`` 至空白/反斜杠。"""
-        chars: list[str] = []
+        r"""``\input file`` 裸名形：``[A-Za-z0-9._/-]+`` 至空白/反斜杠。
+
+        引号形 ``\input"a b.tex"``（web2c 带空格文件名约定）——开引号起
+        字面收至闭引号，闭引号缺席则收到流尾。
+        """
+        t = self._rt(trace)
+        if t is not None and t.kind in ("letter", "other") and t.text == '"':
+            chars: list[str] = []
+            while True:
+                t = self._rt(trace)
+                if t is None or (t.kind in ("letter", "other") and t.text == '"'):
+                    break
+                chars.append(t.text)
+            return "".join(chars) or None
+        if t is not None:
+            self._pushback(trace, t)
+        chars = []
         while True:
             t = self._rt(trace)
             if t is None:

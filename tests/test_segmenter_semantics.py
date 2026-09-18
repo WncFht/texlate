@@ -490,6 +490,34 @@ def test_parse_file_flatten_false(tmp_path: Path) -> None:
     assert any(w.kind == "missing_input" for w in res.warnings)
 
 
+def test_parse_file_input_quoted(tmp_path: Path) -> None:
+    r"""``\input{"a b.tex"}``/``\input"a b.tex"`` 引号文件名（web2c 带空格
+    名约定）——剥壳照常内联，内容进 chunk。"""
+    (tmp_path / "a b.tex").write_text(
+        "Quoted sub file paragraph words here.", encoding="utf-8"
+    )
+    (tmp_path / "a b2.tex").write_text("Bare quoted sub words here.", encoding="utf-8")
+    main = tmp_path / "main.tex"
+    main.write_text(
+        ART
+        % (
+            "",
+            (
+                "Intro words go here with a longer sentence.\n"
+                '\\input{"a b.tex"}\n'
+                '\\input"a b2.tex"\n'
+                "Outro words here."
+            ),
+        ),
+        encoding="utf-8",
+    )
+    res = parse_file(main)
+    check_invariants(res, res.vtex)
+    contents = [c.content for c in res.chunks]
+    assert any("Quoted sub file paragraph words here." in c for c in contents)
+    assert any("Bare quoted sub words here." in c for c in contents)
+
+
 # ------------------------------------------------------- 弹栈尾盖闸
 
 

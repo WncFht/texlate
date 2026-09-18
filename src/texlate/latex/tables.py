@@ -144,7 +144,6 @@ CHUNK_ARG_NAMES = {
     "tablenotetext",  # aastex 表注 ``{mark}{text}``——note 文可译
     "tablecomments",  # aastex 表尾注 ``{text}``
     "pinlabel",  # pinlabel ``\pinlabel {tex} [pos] at x y`` 标签文
-
     "title",
     "subtitle",
     "thanks",
@@ -516,6 +515,18 @@ INPUT_SCAN_CMDS = {
 FILENAME_CHARS = frozenset(
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._/-"
 )
+
+
+def strip_fname_quotes(fname: str) -> str:
+    r"""剥一层成对双引号——``"a b.tex"`` → ``a b.tex``。
+
+    web2c 引号文件名约定（``\input{"a b.tex"}``/``\input"a b.tex"``，带空格
+    文件名）；latexpand ``$ARGQUOTED`` 同款。不成对的引号按字面名处理。
+    """
+    if fname.startswith('"') and fname.endswith('"') and len(fname) > 1:
+        return fname[1:-1]
+    return fname
+
 
 # cs 对界 DSL 块（非 ``\begin/\end`` 形）：开 cs 名 → 闭 cs 名。
 # ``\labellist…\endlabellist``（pinlabel，W29）——体按保护环境走

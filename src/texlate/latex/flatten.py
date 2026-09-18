@@ -33,7 +33,12 @@ from texlate.latex.model import (
     skip_verb_at,
     ws_skip,
 )
-from texlate.latex.tables import FILENAME_CHARS, MAX_INPUTS, VERBATIM_ENVS
+from texlate.latex.tables import (
+    FILENAME_CHARS,
+    MAX_INPUTS,
+    VERBATIM_ENVS,
+    strip_fname_quotes,
+)
 from texlate.textutil import (
     BEGIN_DOC_RX,
     DEAD_ENVS,
@@ -277,6 +282,13 @@ def _try_input(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915, PLR0917 — �
             if not e:
                 return None
             fname, end = tex[pos + 1 : e - 1].strip(), e
+        elif name in ("input", "@input") and pos < n and tex[pos] == '"':
+            # 引号裸名 \input"a b.tex"（web2c 带空格名）——收到闭引号，
+            # 缺席按非输入尝试回吐（同未配对花括号）
+            k = tex.find('"', pos + 1)
+            if k < 0:
+                return None
+            fname, end = tex[pos + 1 : k], k + 1
         elif name in ("input", "@input") and pos < n and tex[pos] in FILENAME_CHARS:
             k = pos
             while k < n and tex[k] in FILENAME_CHARS:
@@ -342,6 +354,7 @@ def _try_input(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915, PLR0917 — �
     else:
         return None
 
+    fname = strip_fname_quotes(fname)
     if not fname or "\\" in fname:
         # 含 cs 的文件名是计算式（\@journal\substyle@ext）——无法按字面
         # 解析，非输入尝试：回吐走普通逐字面，不计 missing_input

@@ -891,6 +891,20 @@ class _Pending:
                         and all(c in FILENAME_CHARS for c in toks[j].text)
                     ):
                         j += 1
+                elif (
+                    k < n
+                    and toks[k].kind in ("letter", "other")
+                    and toks[k].text == '"'
+                ):
+                    # 引号裸名 \input"a b.tex" —— 含闭引号整吞进 [[CMD]]，
+                    # 缺席吞到流尾（否则文件名漏成散文）
+                    j = k + 1
+                    while j < n and not (
+                        toks[j].kind in ("letter", "other") and toks[j].text == '"'
+                    ):
+                        j += 1
+                    if j < n:
+                        j += 1
                 elif k < n and toks[k].kind == "cs":
                     # ``\input \cs`` 动态文件名——cs 随命令进 [[CMD]]
                     # （主流 else 臂同规，R4）
@@ -1088,9 +1102,7 @@ class _Pending:
                 # 续走 argspec/探针（未闭合按未知 cs 保守处理，主流
                 # unclosed→unknown 同规）
                 if name not in PAIR_BLOCK_CMDS:
-                    self._cat_surf(
-                        out, self._grp_ph(PhType.CMD, self._tok_surface(t))
-                    )
+                    self._cat_surf(out, self._grp_ph(PhType.CMD, self._tok_surface(t)))
                     i += 1
                     continue
                 e3 = self._grp_pair_end(toks, i + 1, name, PAIR_BLOCK_CMDS[name])

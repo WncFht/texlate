@@ -29,6 +29,28 @@ def test_input_bare_filename(tmp_path: Path) -> None:
     assert "BARE CONTENT" in out
 
 
+def test_input_quoted_brace(tmp_path: Path) -> None:
+    r"""``\input{"a b.tex"}`` 引号壳剥除照常解析（web2c 带空格文件名约定）。"""
+    _w(tmp_path, "a b.tex", "QUOTED CONTENT")
+    out = flatten_inputs('A\n\\input{"a b.tex"}\nB', str(tmp_path))
+    assert "QUOTED CONTENT" in out
+
+
+def test_input_quoted_bare(tmp_path: Path) -> None:
+    r"""``\input"a b.tex"`` 裸引号形同规——开引号收至闭引号。"""
+    _w(tmp_path, "a b2.tex", "QUOTED BARE")
+    out = flatten_inputs('A\n\\input"a b2.tex"\nB', str(tmp_path))
+    assert "QUOTED BARE" in out
+
+
+def test_input_quoted_missing_warns(tmp_path: Path) -> None:
+    r"""引号名 miss → ``missing_input`` 登记 + 原文保留（剥壳名查找）。"""
+    warns: list[ScanWarning] = []
+    out = flatten_inputs('\\input{"no such.tex"}', str(tmp_path), warnings=warns)
+    assert '\\input{"no such.tex"}' in out
+    assert any(w.kind == "missing_input" for w in warns)
+
+
 def test_at_input(tmp_path: Path) -> None:
     r"""``\@input`` 整名触发（2308.12597：``\makeatletter\@input{xx}\makeatother``）。"""
     _w(tmp_path, "xx.tex", "AT INPUT CONTENT")
