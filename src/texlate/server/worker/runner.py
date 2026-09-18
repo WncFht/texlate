@@ -6,6 +6,7 @@ import asyncio
 import logging
 import secrets as secrets_mod
 import time
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from texlate.server.settings import (
@@ -26,6 +27,18 @@ if TYPE_CHECKING:
 import texlate.server.worker as _w
 
 log = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True, slots=True)
+class _RetranslateJob:
+    """单块重译队列项——``secrets`` 随 job 走，不进共享 ``runner.secrets``。
+
+    该 registry 键位属主任务行：重译覆写会污染紧随其后的 retry 凭证。
+    """
+
+    task_id: str
+    seq: int
+    secrets: Secrets | None = None
 
 
 class TaskRunner:
@@ -49,11 +62,14 @@ class TaskRunner:
         self.worker = worker
         self.worker_id = worker_id or f"w-{secrets_mod.token_hex(6)}"
         self.secrets: dict[str, Secrets] = {}
-        self._queue: asyncio.Queue[str] | None = None
+        self._queue: asyncio.Queue[str | _RetranslateJob] | None = None
         #: ``_queue`` 未建（``start()`` 前）的入队暂存——此刻 enqueue
         #: 登记 secrets 却排不进队，header-BYOK 行会成 replay 不捞的
         #: 僵尸；暂存后 ``start()`` 建队即补灌
-        self._pending_enqueue: list[str] = []
+        self._pending_enqueue: list[str | _RetranslateJob] = []
+        #: 在队未派的 ``(task_id, seq)`` 重译去重集——job 开跑即摘
+        #: （跑中再点是合法的第二次排队，不吞）
+        self._retr_pending: set[tuple[str, int]] = set()
         self._dispatcher: asyncio.Task[None] | None = None
         self._ticker: asyncio.Task[None] | None = None
         #: ``(task_id, ctx, task)``——ctx 在组里是为 cancel/stop 置
@@ -66,8 +82,8 @@ class TaskRunner:
         """起 dispatcher + 心跳 ticker（必须在 loop 线程调）。"""
         self._queue = asyncio.Queue()
         pending, self._pending_enqueue = self._pending_enqueue, []
-        for task_id in pending:
-            self._queue.put_nowait(task_id)
+        for item in pending:
+            self._queue.put_nowait(item)
         self._replay_queued()
         self._dispatcher = asyncio.create_task(
             self._dispatch_loop(), name="texlate-dispatch"
@@ -142,6 +158,38 @@ class TaskRunner:
         else:
             self._pending_enqueue.append(task_id)
 
+    def enqueue_retranslate(
+        self, task_id: str, seq: int, secrets: Secrets | None = None
+    ) -> None:
+        """终态任务单块重译入队——与主队列同一串行域（重译碰 ``tasks/{id}/``）。
+
+        闸与 ``app.py`` 路由同口径：未知任务 ``KeyError``；非 done/partial、
+        zh 工程未 splice、seq 无对应 chunk 均 ``ValueError``。同块在队去重。
+        """
+        row = self.store.get(task_id)
+        if row is None:
+            msg = f"unknown task {task_id}"
+            raise KeyError(msg)
+        if row["status"] not in ("done", "partial"):
+            msg = f"task {task_id} status {row['status']} not retranslatable"
+            raise ValueError(msg)
+        zh = self.worker.data_dir / "tasks" / task_id / "zh"
+        if not (zh / ".splice-done").is_file():
+            msg = f"task {task_id} has no spliced zh tree"
+            raise ValueError(msg)
+        if not self.store.chunk_exists(task_id, seq):
+            msg = f"task {task_id} has no chunk seq={seq}"
+            raise ValueError(msg)
+        key = (task_id, seq)
+        if key in self._retr_pending:
+            return
+        self._retr_pending.add(key)
+        job = _RetranslateJob(task_id=task_id, seq=seq, secrets=secrets)
+        if self._queue is not None:
+            self._queue.put_nowait(job)
+        else:
+            self._pending_enqueue.append(job)
+
     def cancel_running(self, task_id: str) -> bool:
         """取消正在跑的任务；未在跑（还在队列）返回 False。
 
@@ -160,8 +208,12 @@ class TaskRunner:
         """串行消费：dequeue → 状态复核 → 建 ctx → worker.run。"""
         assert self._queue is not None  # noqa: S101 -- start() 后必有
         while True:
-            task_id = await self._queue.get()
+            item = await self._queue.get()
             try:
+                if isinstance(item, _RetranslateJob):
+                    await self._retranslate_job(item)
+                    continue
+                task_id = item
                 row = self.store.get(task_id)
                 if row is None or row["status"] != "queued":
                     self.secrets.pop(task_id, None)
@@ -199,10 +251,13 @@ class TaskRunner:
                 # 原口径只丢队列项留行 queued（重启 replay 才兜底）——行永
                 # 显示「排队中」同进程内不可见不可 retry；能写库就落 fault
                 # 让行立即可见可 retry，DB 级故障（transition 同挂）则内层
-                # 吞掉仍回 replay 兜底。
-                log.exception("dispatch setup failed for %s", task_id)
-                self.secrets.pop(task_id, None)
-                self._dispatch_fault(task_id)
+                # 吞掉仍回 replay 兜底。job 项泄漏到此按 task_id 走同一
+                # fault 闸——其行已终态，``_dispatch_fault`` 的 queued 检查
+                # 早退不覆写。
+                log.exception("dispatch setup failed for %s", item)
+                tid = item.task_id if isinstance(item, _RetranslateJob) else item
+                self.secrets.pop(tid, None)
+                self._dispatch_fault(tid)
             finally:
                 self._queue.task_done()
 
@@ -250,6 +305,48 @@ class TaskRunner:
             )
         except Exception:
             log.exception("dispatch fault transition failed for %s", task_id)
+
+    async def _retranslate_job(self, job: _RetranslateJob) -> None:
+        """终态任务单块重译——占同一串行槽 + ``_current`` 心跳/取消面。
+
+        行在入队闸到此间可能已变（retry/删除）——非 done/partial 直接丢。
+        job 自包含：异常全内吞（任务行已终态，``_dispatch_fault`` 语义
+        不适用）；dispatcher 自身 cancel 照常传播。
+        """
+        task_id = job.task_id
+        try:
+            # 开跑即摘去重键——跑中再点是合法的第二次排队
+            self._retr_pending.discard((task_id, job.seq))
+            row = self.store.get(task_id)
+            if row is None or row["status"] not in ("done", "partial"):
+                return
+            ctx = TaskCtx(
+                store=self.store,
+                bus=self.bus,
+                task_id=task_id,
+                row=row,
+                secrets=job.secrets or Secrets(model=str(row["model"])),
+                root=self.worker.data_dir / "tasks" / task_id,
+            )
+            task = asyncio.create_task(
+                self.worker.run_retranslate(ctx, job.seq),
+                name=f"texlate-retr-{task_id}-{job.seq}",
+            )
+            self._current = (task_id, ctx, task)
+            try:
+                await task
+            except asyncio.CancelledError:
+                # 与主任务支同口径：子任务 cancel 吞，自身 cancel 重抛
+                if asyncio.current_task().cancelling() > 0:
+                    raise
+            except Exception:
+                log.exception("retranslate escaped for %s", task_id)
+            finally:
+                self._current = None
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.exception("retranslate dispatch failed for %s", task_id)
 
     async def _heartbeat_loop(self) -> None:
         """每 ``_HEARTBEAT_S`` 秒 bump 当前任务 updated_at。"""
