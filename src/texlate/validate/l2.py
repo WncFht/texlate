@@ -28,7 +28,12 @@ from typing import Final
 
 from texlate.redlines import L2_REDLINE_CLASSES, L2_WARNING_RULES
 from texlate.texlog import (
-    _ERR_FNAME,
+    _CTX_LINES,
+    _ERR_BANG_RE,
+    _ERR_FILELINE_ROW_RE,
+    _L_NUM_RE,
+    _NONERR_MSG_RE,
+    _TAIL_LINES,
     is_dos_eps,
     is_project_file,
     patch_graphic_top,
@@ -52,27 +57,13 @@ __all__ = [
 #: ``.tikz``/``.end``/``.lof``/``.fgx`` 实测全为真错误，loop1 语料 7814
 #: log 全扫、扩展名白名单漏 586 行真错含 3 例整体 ok=True 假干净）。
 #: 行首 ``(``/``!`` 与 ``:``/空白内嵌仍排除（避免误吃普通行）。
-#: 文件名字符集单源 = texlog ``_ERR_FNAME``（组 1）；消息面与 texlog
-#: ``_ERR_FILELINE_RE`` 同口径——``: `` 单空格后须非空白
-#: 消息（空消息/``:!msg``/tab 分隔等畸形形不收，msg 原样进组 3 不做
-#: ``!`` 剥离，``! LaTeX Warning`` 伪豁免面随之封死）。
-_FILE_LINE_RX: Final = re.compile(r"^(" + _ERR_FNAME + r"):(\d+): (\S[^\n]*)$")
+#: 词法单源 = ``texlog._ERR_FILELINE_ROW_RE``（msg 原样进组 3 不做 ``!``
+#: 剥离，``! LaTeX Warning`` 伪豁免面随之封死）；非错误形态行排除走
+#: ``texlog._NONERR_MSG_RE`` 消息面锚定（Warning/``==>`` 双腿单源）。
 
-#: ``file:line:`` 形态的非错误行（与 fixloop/logparse 同口径）：
-#: Warning 行（部分引擎/包给 warning 也打 file:line: 前缀——fixloop 实测坑，
-#: 不排会让 ``n_errors==0`` 干净门永不通）与 ``==> Fatal error`` 汇总尾行
-#: （同一失败的复述，多计一次——bench/corpus_v2/2002.05660 colt2020.log 实测）。
-#: 锚定消息起点（组 3 即 ``: `` 后全文）——``See LaTeX Warning:`` 中段
-#: 命中不误豁免真错（texlog ``_NONERR_FILELINE_RE`` 同口径）。
-_NONERR_FILELINE_RX: Final = re.compile(
-    r"^(?:(?:LaTeX|Package|Class)\b[^\n]*?\bWarning\b|==>)"
-)
-
-#: 经典错误行。
-_BANG_RX: Final = re.compile(r"^!\s*(.*)$")
-
-#: ctx 内 ``l.NNN`` 源码行号。
-_LNUM_RX: Final = re.compile(r"^l\.(\d+)\s*(.*)$")
+#: 经典错误行 / ctx 内 ``l.NNN`` / 非错误消息面 / ctx·tail 窗宽——
+#: 全部词法单源 = ``texlog``（``_ERR_BANG_RE``/``_L_NUM_RE``/
+#: ``_NONERR_MSG_RE``/``_CTX_LINES``/``_TAIL_LINES``）。
 
 #: log 首行引擎签名 ``This is XeTeX, Version ...``。
 _ENGINE_RX: Final = re.compile(r"^This is (\w+)")
@@ -130,8 +121,6 @@ _MARKERLESS_WARN_RX: Final = re.compile(
     re.IGNORECASE,
 )
 
-_CTX_LINES: Final = 8  # 错误行后抓取的上下文行数（docs/08 §2.3）
-_TAIL_LINES: Final = 30  # log 尾部留存行数
 _MAX_STORED_ERRORS: Final = 200  # 存储上限（n_errors 仍精确计数）
 _MAX_WARN_SAMPLES: Final = 5  # 每类 warning 样例/hits 留存上限
 #: ``attribution_dict`` 错误命中条数上限——级联错长尾同形，前 50 条
@@ -428,7 +417,7 @@ def _classify_warning(  # noqa: PLR0913 - 归因参数组与 _mark_redline 同�
 
 def _tex_line_from_ctx(ctx: list[str]) -> int | None:
     for ln in ctx:
-        m = _LNUM_RX.match(ln.strip())
+        m = _L_NUM_RE.match(ln.strip())
         if m:
             return int(m.group(1))
     return None
@@ -436,10 +425,10 @@ def _tex_line_from_ctx(ctx: list[str]) -> int | None:
 
 def _match_error_line(ln: str) -> tuple[str, str | None] | None:
     """``(head, file:line: 给的 tex_file)``；非错误行返回 None。"""
-    if _BANG_RX.match(ln):
+    if _ERR_BANG_RE.match(ln):
         return ln.strip(), None
-    mf = _FILE_LINE_RX.match(ln)
-    if mf is not None and not _NONERR_FILELINE_RX.search(mf.group(3)):
+    mf = _ERR_FILELINE_ROW_RE.match(ln)
+    if mf is not None and not _NONERR_MSG_RE.search(mf.group(3)):
         return ln.strip(), mf.group(1)
     return None
 
@@ -524,7 +513,7 @@ def parse_log_text(text: str, *, project_root: Path | None = None) -> L2Verdict:
             head, tex_file = hit
             v.n_errors += 1
             ctx = _error_ctx(lines, i)
-            mf = _FILE_LINE_RX.match(ln)
+            mf = _ERR_FILELINE_ROW_RE.match(ln)
             tex_line = int(mf.group(2)) if mf else None
             if tex_line is None:
                 tex_line = _tex_line_from_ctx(ctx)

@@ -433,8 +433,9 @@ def test_misschar_window_no_swallow_real() -> None:
     assert "missing_chars" in eng_parse_log(text).warnings_hit
 
 
-#: 三层错误行口径一致集——l2._FILE_LINE_RX 消息面与 Warning 排除锚定已
-#: 对齐 texlog._ERR_FILELINE_RE/_NONERR_FILELINE_RE（严侧）；
+#: 三层错误行口径一致集——l2/logparse 的错误行与 Warning 排除词法现
+#: 全量单源于 texlog（_ERR_FILELINE_ROW_RE/_NONERR_MSG_RE/_WARN_MSG_SRC
+#: /_FATAL_TRAILER_SRC，logparse Warning 腿锁 ``: `` 严侧变体）；
 #: 真实语料 1504 log 零分歧——分叉全是畸形形。
 _ERRLINES_AGREED = [
     "./main.tex:5:",  # 空消息——三层均不收

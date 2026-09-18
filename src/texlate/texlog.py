@@ -1,8 +1,8 @@
 r"""TeX ``.log`` 词法原语 —— engine/l2/fixloop 三处文件栈收敛的单源实现。
 
-错误行 regex（``_ERR_FNAME``/``_ERR_FILELINE_RE``/``_NONERR_FILELINE_RE``
-等）亦居此层——``compile/loginfo`` 与 ``fixloop/logparse`` 的共同单源，
-叶子层定位使 fixloop→compile 模块级环边不再存在。
+错误行 regex（``_ERR_FNAME``/``_ERR_FILELINE_RE``/``_NONERR_*``/``_L_NUM_*``
+等）亦居此层——l2/``compile/loginfo``/``fixloop/logparse`` 三消费面的共同
+单源，叶子层定位使 fixloop→compile 模块级环边不再存在。
 
 ``(``/``)`` 开闭配对追踪：TeX log 用圆括号标记打开/关闭文件，行内可能混
 非文件括号（``.log`` 折行、参数转储），非文件 ``(`` 入栈 ``None`` 占位以
@@ -262,21 +262,38 @@ def is_dos_eps(token: str | None, root: Path | None, cache: dict[str, bool]) -> 
     return ok
 
 
-# ================================================================ 错误行原语
-#: ``file:line:`` 文件名面（``compile/loginfo`` 与 ``fixloop/logparse`` 的
-#: 单源；l2 ``_FILE_LINE_RX`` 同口径副本）：``name.ext`` 必带扩展名、禁
-#: ``()``/空白/``:`` 内嵌——``Makefile:5:``/``C:\foo.tex:5:``/``(x.tex:5:``
-#: 畸形形齐拒；扩展名不限 tex 系（``.eps``/``.pdf_t``/``.end`` 等皆真错，
-#: l2 侧 7814 log 实证）。
+# ================================================================ 错误行词法
+#: 日志行级词法单源——l2/loginfo/logparse 三消费面的共同低层件。锚定/分组
+#: 变体按消费面并列登记；有真分歧的形态（logparse Warning 腿锁 ``: `` 字面
+#: 单空格 vs 本层 ``:\s*`` 宽松前导）经 ``*_SRC`` 片段各取所需，不强行统一。
+#: ``file:line:`` 文件名面：``name.ext`` 必带扩展名、禁 ``()``/空白/``:``
+#: 内嵌——``Makefile:5:``/``C:\foo.tex:5:``/``(x.tex:5:`` 畸形形齐拒；
+#: 扩展名不限 tex 系（``.eps``/``.pdf_t``/``.end`` 等皆真错，l2 侧 7814
+#: log 实证）。
 _ERR_FNAME = r"[^()\s:]+\.[A-Za-z0-9_-]{1,10}"
 _ERR_FILELINE_RE = re.compile(
     r"^" + _ERR_FNAME + r":\d+: \S"
-)  # -file-line-error 引擎级错误
-#: ``file:line:`` 形态的非错误行（loginfo/logparse 同口径）：Warning 行
-#: （警告也带 file:line: 前缀时不能计入错误）与 ``==> Fatal error occurred``
-#: 汇总尾行（同一失败的复述，多计一次）。
-_NONERR_FILELINE_RE = re.compile(
-    r"^" + _ERR_FNAME + r":\d+:\s*(?:(?:LaTeX|Package|Class)\b[^\n]*?\bWarning\b|==>)"
-)
+)  # -file-line-error 引擎级错误（detection 面）
+#: 分组整行变体——l2 需捕获 ``(file, line, msg)`` 三元组；detection 语义与
+#: 上行同口（``: `` 单空格后须非空白消息头，空消息/``: !`` 畸形不收）。
+_ERR_FILELINE_ROW_RE = re.compile(r"^(" + _ERR_FNAME + r"):(\d+): (\S[^\n]*)$")
+#: ``file:line:`` 形态的非错误行两条腿：Warning 行也带 file:line: 前缀
+#: （部分引擎/包给 warning 打同格式——不排会让 ``n_errors==0`` 干净门永
+#: 不通）与 ``==> Fatal error occurred`` 汇总尾行（同一失败的复述）。
+_WARN_MSG_SRC = r"(?:LaTeX|Package|Class)\b[^\n]*?\bWarning\b"
+_FATAL_TRAILER_SRC = r"==>"
+_NONERR_MSG_SRC = r"(?:" + _WARN_MSG_SRC + r"|" + _FATAL_TRAILER_SRC + r")"
+#: 消息面锚定形——作用于已取出的 file:line: 消息段（l2 对组 3 判定）。
+_NONERR_MSG_RE = re.compile(r"^" + _NONERR_MSG_SRC)
+#: 整行锚定形（loginfo 整行判定）。
+_NONERR_FILELINE_RE = re.compile(r"^" + _ERR_FNAME + r":\d+:\s*" + _NONERR_MSG_SRC)
 _ERR_BANG_RE = re.compile(r"^!")
-_L_NUM_RE = re.compile(r"^l\.(\d+)")
+#: ``l.N`` 源码行号词素——严格行首形（消费端 strip 后用）；``*_SRC`` 片段
+#: 供 logparse ctx blob 的 (?m)/空白宽容变体。
+_L_NUM_SRC = r"l\.(\d+)"
+_L_NUM_ROW_SRC = r"l\.\d+"
+_L_NUM_RE = re.compile(r"^" + _L_NUM_SRC)
+#: 首错上下文窗 / 尾部留存行数（spike L62/L63 规格——l2 与 logparse 同一
+#: knob，独改一侧即分歧）。
+_CTX_LINES: Final = 8
+_TAIL_LINES: Final = 30

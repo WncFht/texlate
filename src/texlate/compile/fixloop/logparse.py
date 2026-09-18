@@ -17,12 +17,20 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from texlate.texlog import _ERR_FILELINE_RE, _ERR_FNAME, file_stack_at
+from texlate.texlog import (
+    _CTX_LINES,
+    _ERR_FILELINE_RE,
+    _ERR_FNAME,
+    _FATAL_TRAILER_SRC,
+    _L_NUM_ROW_SRC,
+    _L_NUM_SRC,
+    _TAIL_LINES,
+    _WARN_MSG_SRC,
+    file_stack_at,
+)
 
 __all__ = ["ErrReport", "Taxonomy", "parse_log", "parse_text"]
 
-_CTX_LINES = 8  # spike L62: 首错行后取 8 行上下文
-_TAIL_LINES = 30  # spike L63: tail 30 行
 #: ``Overfull \vbox ... while \output is active`` —— ``\clearpage`` 输出例程
 #: 死循环签名（gr-qc/0104075 实证：``\end{document}`` 期暴走 73,595 页烧满
 #: 240s SIGKILL）。健康编译也偶发少量同形告警，成串才判 runaway——
@@ -42,12 +50,15 @@ def _is_runaway_output(text: str) -> bool:
     return False
 
 
-#: ctx 内 ``l.N`` 行号——行首锚对齐 impl-compile ``_L_NUM_RE`` (剥空白后
-#: ``^l\.\d+``) 语义; 非行首的 ``l.5`` 字样 (如 ``file:5:`` 残片/正文)
+#: ctx 内 ``l.N`` 行号——词素单源 = ``texlog._L_NUM_SRC``; 本侧变体加
+#: (?m)/``[ \t]*`` 宽容在 ctx blob 内检索 (texlog ``_L_NUM_RE`` 是
+#: strip 后严格行首形)。非行首的 ``l.5`` 字样 (如 ``file:5:`` 残片/正文)
 #: 不误中。
-_LINE_NO_RE = re.compile(r"(?m)^[ \t]*l\.(\d+)")
+_LINE_NO_RE = re.compile(r"(?m)^[ \t]*" + _L_NUM_SRC)
 #: subclassify 收窄的冒犯 cs 判定域: ctx 首个 ``l.N`` 行 + cs 名抽取。
-_LN_ROW_RE = re.compile(r"(?m)^l\.\d+[^\n]*")
+#: 行词素单源 = ``texlog._L_NUM_ROW_SRC`` (本侧刻意不加空白宽容——
+#: 与上面 blob 检索的宽容形是有意分歧, 行判定走严格 ``^l.``)。
+_LN_ROW_RE = re.compile(r"(?m)^" + _L_NUM_ROW_SRC + r"[^\n]*")
 _CS_NAME_RE = re.compile(r"\\([a-zA-Z@]+)")
 #: ctx 头行 ``<name>`` —— TeX 错误上下文对伪输入层 (``<recently read>``
 #: 最近 \input/\read、``<argument>`` 宏参展开、``<write>`` 等) 的标记。
@@ -62,18 +73,15 @@ _CTX_HEAD_RE = re.compile(r"^[ \t]*<[a-zA-Z ]+>")
 # Warning 行 (`./f.tex:5: LaTeX Warning: ...`) 同格式但非错误, 须排除,
 # 否则 `n_bang==0 → clean` 门永远不通。``_ERR_FILELINE_RE`` 单源 =
 # ``texlate.texlog``（叶子层——fixloop→compile.engine 环边已掐）。
-#: 与 texlog ``_NONERR_FILELINE_RE``（Warning|``==>`` 并集单源）逐字节
-#: 分歧：该源 ``:\s*`` 宽松前导，本侧 Warning 腿锁 ``: `` 字面单空格
-#: 更严形态。本对仅在 ``_ERR_FILELINE_RE`` 闸内咨询（其 ``:\d+: \S``
-#: 已钉死空格+非空白界），闸内两形等价——保留更严形态防豁免面无意
-#: 扩到闸外非错误形态行。
-_WARN_FILELINE_RE = re.compile(
-    r"^" + _ERR_FNAME + r":\d+: (?:LaTeX|Package|Class)\b[^\n]*?\bWarning\b"
-)
+#: 非错误双腿与 texlog ``_NONERR_*`` 同词素（``_WARN_MSG_SRC``/
+#: ``_FATAL_TRAILER_SRC``）但分隔符刻意更严：本侧 Warning 腿锁 ``: ``
+#: 字面单空格（texlog 整行形是 ``:\s*`` 宽松前导）。本对仅在
+#: ``_ERR_FILELINE_RE`` 闸内咨询（其 ``:\d+: \S`` 已钉死空格+非空白界），
+#: 闸内两形等价——保留更严形态防豁免面无意扩到闸外非错误形态行。
+_WARN_FILELINE_RE = re.compile(r"^" + _ERR_FNAME + r":\d+: " + _WARN_MSG_SRC)
 #: ``==> Fatal error occurred`` 汇总尾行也是 ``file:line:`` 形态——
 #: 同一失败的复述（单空格变体存在），计入会多报一个错误。
-#: 本腿与 texlog ``_NONERR_FILELINE_RE`` 的 ``==>`` 支同形（``:\s*``）。
-_FATAL_TRAILER_RE = re.compile(r"^" + _ERR_FNAME + r":\d+:\s*==>")
+_FATAL_TRAILER_RE = re.compile(r"^" + _ERR_FNAME + r":\d+:\s*" + _FATAL_TRAILER_SRC)
 
 
 def _is_err_line(ln: str) -> bool:

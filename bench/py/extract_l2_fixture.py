@@ -35,11 +35,17 @@ REPO = Path(__file__).resolve().parents[2]
 
 from texlate.compile.fixloop import load_ruleset
 from texlate.compile.fixloop.logparse import parse_text as fl_parse_text
-from texlate.texlog import file_stack_at
+from texlate.texlog import (
+    _CTX_LINES,
+    _ERR_BANG_RE,
+    _ERR_FILELINE_ROW_RE,
+    _TAIL_LINES,
+    file_stack_at,
+)
 from texlate.validate import l2
 
-_CTX = 8  # 错误锚行两侧保留行数（与 l2._CTX_LINES 同值口径）
-_TAIL = 30  # 尾部保留行数（l2._TAIL_LINES）
+_CTX = _CTX_LINES  # 错误锚行两侧保留行数
+_TAIL = _TAIL_LINES  # 尾部保留行数
 
 _FATAL_BARE_RX = re.compile(r"^\s*==>")
 
@@ -47,7 +53,7 @@ _FATAL_BARE_RX = re.compile(r"^\s*==>")
 def _err_anchor(ln: str) -> bool:
     """错误锚行：``^!`` 或 ``file:line:`` 形态（含 ``==>``/Warning 非错行——
     裁切保真口径宽于计数口径，剔除证据行本身也必须留下）。"""
-    return bool(l2._BANG_RX.match(ln) or l2._FILE_LINE_RX.match(ln))
+    return bool(_ERR_BANG_RE.match(ln) or _ERR_FILELINE_ROW_RE.match(ln))
 
 
 def _keep_set(lines: list[str], *, first_error_only: bool) -> set[int]:
