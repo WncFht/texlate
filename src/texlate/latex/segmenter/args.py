@@ -749,6 +749,32 @@ class _Args:
             # ``{file}``/``\cs``/其他形照旧 ``_protect_cs`` 逐参。
             pulled: list[Tok] = []
             x = self._peek_nonspace(src, pulled)
+            if x is not None and x.kind in ("letter", "other") and x.text == '"':
+                # 引号裸名 ``\input"a b.tex"``：收至闭引号并入保护段（同
+                # 非 in_arg 臂）。子扫源界即 arg 界——无闭引号时「缺席」
+                # 只说明本 arg 内无配对，不吞尾（否则引号后散文全进
+                # CMD），全量回放退 ``_protect_cs`` 只护 ``\input``。
+                qtail: list[Tok] = []
+                qend: int | None = None
+                while True:
+                    y = src.read()
+                    if y is None:
+                        break
+                    qtail.append(y)
+                    if y.kind in ("letter", "other") and y.text == '"':
+                        qend = y.pos[2]
+                        break
+                if qend is None:
+                    src.unread([*pulled, x, *qtail])
+                    self._protect_cs(t, src, PhType.CMD)
+                    return
+                self._cover_gap(fid, t.pos[1])
+                vspan = self._cover_to(fid, qend)
+                self._rappend_ph(
+                    self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
+                    vspan,
+                )
+                return
             if (
                 x is not None
                 and x.kind in ("letter", "other")

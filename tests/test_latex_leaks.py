@@ -488,3 +488,54 @@ def test_input_bare_name_family_wide() -> None:
     assert "\\subfile baz-qux" in bodies
     assert "foo_bar" not in blob(res)
     assert "baz-qux" not in blob(res)
+
+
+def test_input_quoted_name_in_arg_protected() -> None:
+    r"""``\input"a b.tex"`` in_arg：引号裸名连同闭引号并入 ``[[CMD]]``——
+    曾只护 ``\input``，``"a b.tex"`` 留 arg 文本漏译。"""
+    body = '\\caption{see \\input"a b.tex" end}'
+    res = scan_doc(body)
+    assert "see [[CMD_1]] end" in blob(res)
+    assert res.ph_map["[[CMD_1]]"] == '\\input"a b.tex"'
+    zh = reconstruct(res, {c.id: c.content.replace("end", "尾") for c in res.chunks})
+    assert '\\input"a b.tex"' in zh
+    assert reconstruct(res) == DOC % body
+
+
+def test_input_quoted_name_spaced() -> None:
+    r"""``\input "a b.tex"`` 引号前空白：空白在覆盖区间内一并收。"""
+    res = scan_doc('\\caption{see \\input "a b.tex" end}')
+    assert res.ph_map["[[CMD_1]]"] == '\\input "a b.tex"'
+    assert "a b.tex" not in blob(res)
+
+
+def test_input_quoted_name_unclosed_no_swallow() -> None:
+    r"""``\input"a b`` 无闭引号：不吞 arg 散文——只护 ``\input``，
+    ``"a b`` 照常 surface（子扫源界即 arg 界，缺席 = 本 arg 内无配对）。"""
+    body = '\\caption{see \\input"a b end}'
+    res = scan_doc(body)
+    assert res.ph_map["[[CMD_1]]"] == "\\input"
+    assert '"a b end' in blob(res)
+    assert reconstruct(res) == DOC % body
+
+
+def test_input_quoted_name_arg_end() -> None:
+    r"""闭引号正在参数尾：``\input"a b"`` 收至组尾，无越界消费。"""
+    res = scan_doc('\\caption{see \\input"a b"}')
+    assert res.ph_map["[[CMD_1]]"] == '\\input"a b"'
+
+
+def test_input_quoted_name_stops_at_group() -> None:
+    r"""``\input"a b"{rest}``：闭引号后即停——``{rest}`` 留 surface 续扫。"""
+    res = scan_doc('\\caption{see \\input"a b"{rest} end}')
+    assert res.ph_map["[[CMD_1]]"] == '\\input"a b"'
+    assert "rest" in blob(res)
+
+
+def test_input_quoted_name_lone_quote_arg_end() -> None:
+    r"""孤引号在参数尾零配对：``\input"`` 只护 cs 本体，引号留文本。"""
+    body = '\\caption{see \\input"}'
+    res = scan_doc(body)
+    assert res.ph_map["[[CMD_1]]"] == "\\input"
+    assert '"' in blob(res)
+    assert reconstruct(res) == DOC % body
