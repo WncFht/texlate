@@ -644,3 +644,13 @@
 - **draftgap 副产**：S0 精确网 `edef..{..ifnum`[{}]` 全库仅 1706.00240——draftsty 内 grep 第二臂 `ifnum`[{}]=.z@` 松匹配良性花招习语（amsmath \@ifnextchar 支撑/ulem 尾花招/tabls 共 9 格）——**4ce9ae3 leader 直修**：两臂皆须 `edef` 在行，18/18 钉绿。
 - **failmine 报文核销**（与 rule_targets.txt 一致）：verdict 分布 clean 2557/acceptable 3019/best_effort 2220/unfixable 各类~600+。
 - roster 9：secdispatch/citembox/csmap/nataux/ifclose/vendordiag/floatopt/gcensus/capcensus；failmine 尸清。
+
+## 2026-09-19 ~09:1x — 收割潮 2：csmap/nataux/citembox 落地 + vendordiag N=2 否决
+
+- **bcf7de9 csmap**：natbib cite 宏族 cs_map 补齐（citet/citealt/citealp/citeauthor/citeyearpar/citetext/citenum→{usepackage:natbib}）+ \kwd noop polyfill；16 钉绿，failmine ①③合单车道。
+- **4b1b7e5 nataux**：`natbib_aux_force_purge` order 195——numbers_pass 只挡未来写，陈旧 .aux 残留 \NAT@force@numbers 行致同签复炸（applied 不再点火）；整行剥除，aux 可再生 low risk。failmine ②。
+- **6eaeb31 citembox**：latex209 `_fix_math_fontswitch`→`_fix_math_209` 合并走查 + `math_cite_wrapped` 统计——裸 `\cite[..]{k}` 在数学域裹 `\mbox{}`（natbib 未定义标记 `{\reset@font\bfseries ?}` 无盒直排→\not@math@alphabet 自续）；裸 \cite 无 {key} 保守不裹。57+16 钉绿。
+- **texlate-13 确认** slotdiff 四址接线 3787d29：A→pipecore.translate_tree_run、B→_build_zh、C→repair_l2._slot_diffs helper、D→_retr_resplice；deviation=Site D 去 paired_slot_diff import（F401），合理。
+- **vendordiag N=2 否决**（notes.md 核销）：pst-arrow 5 格 loop2/rt1/guardsmoke 全 clean——loop1 是 extension-less vendor 件+dep fanout 覆盖前的纯缺席，非 mnras shadow（主机零 texlive 实体可遮，stale tlpdb≠可达件）；setstack noop stub 够用；conm-p-l→acmart shim 正解。mnras shadow 维持 N=1，不触发泛化扫描。
+- **bib-passthrough 裁决落地**（edc2dec skeleton）：用户 GO→40904c7 直通臂+246b08c judge 条款；bib14 回归 dnt-major 17→0、stated 14/14=100。
+- roster：secdispatch/ifclose/floatopt/gcensus/capcensus + babelinv/zhfile/proofdiag + 新派 thehalgo/auxeof/expl3diag = 11。
