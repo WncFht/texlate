@@ -43,6 +43,37 @@ def test_math_switch_it_bf() -> None:
     assert "\\mathbf{ y}" in out
 
 
+def test_math_switch_2e_decl_forms() -> None:
+    r"""过渡期稿 2e 声明形同踩 ``\not@math@alphabet``——gr-qc/9901082 实证。"""
+    out, info = _convert(
+        "$a + {\\bfseries x} + {\\itshape y} + {\\rmfamily z}"
+        " + {\\sffamily w} + {\\ttfamily v}$"
+    )
+    assert info["math_switch_fixed"] == 5  # noqa: PLR2004
+    assert "\\mathbf{ x}" in out
+    assert "\\mathit{ y}" in out
+    assert "\\mathrm{ z}" in out
+    assert "\\mathsf{ w}" in out
+    assert "\\mathtt{ v}" in out
+
+
+def test_math_switch_2e_decl_exclusions() -> None:
+    r"""``\slshape/\scshape/\upshape/\mdseries/\normalfont`` 无单义数学字母——保守不动。"""
+    _out, info = _convert(
+        "${\\slshape a}$ ${\\scshape b}$ ${\\upshape c}$"
+        " ${\\mdseries d}$ ${\\normalfont e}$"
+    )
+    assert info["math_switch_fixed"] == 0
+
+
+def test_math_switch_bf_not_prefix_of_bfseries() -> None:
+    r"""``{\bfseries X}`` 不吃 ``bf`` 前缀截——长名整词命中。"""
+    out, info = _convert("${\\bfseries X}$")
+    assert info["math_switch_fixed"] == 1
+    assert "\\mathbf{ X}" in out
+    assert "bfseries" not in out
+
+
 def test_math_switch_delimiters() -> None:
     """``$..$``/``\\(..\\)``/``\\[..\\]`` 各定界都覆盖。"""
     out, info = _convert("$a {\\em x}$\n\\(b {\\em y}\\)\n\\[c {\\em z}\\]")

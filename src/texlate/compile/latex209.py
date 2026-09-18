@@ -307,13 +307,30 @@ _DS_AT_RE = re.compile(r"\bds@")
 #: 不报错，仍一并归一为参数形消歧。``\rm/\sf/\tt/\cal/\mit`` 同机制
 #: 本就正确不动；``\sl/\sc`` 数学域仅 ``\@nomath`` 警告丢字形（无标准
 #: 数学字母对应，改写即改语义）不动。
-_MATH_SWITCH_209: Final = {"em": "mathit", "it": "mathit", "bf": "mathbf"}
+#: 过渡期稿混用 2e 声明形 ``{\bfseries/\itshape/\rmfamily/\sffamily/\ttfamily
+#: X}`` 同踩 ``\not@math@alphabet`` 硬报（gr-qc/9901082 实证）——并入映射；
+#: ``\slshape/\scshape/\upshape/\mdseries/\normalfont`` 无单义数学字母
+#: 对应（sl→mathit 属语义改写）保守不收。
+_MATH_SWITCH_209: Final = {
+    "em": "mathit",
+    "it": "mathit",
+    "bf": "mathbf",
+    "bfseries": "mathbf",
+    "itshape": "mathit",
+    "rmfamily": "mathrm",
+    "sffamily": "mathsf",
+    "ttfamily": "mathtt",
+}
 
-#: 候选组定位：``{`` 后仅横向空白接 ``\em/\it/\bf``——switch 须为组首
+#: 候选组定位：``{`` 后仅横向空白接开关系 cs——switch 须为组首
 #: token 才可整组转写（``{\xyz\em X}`` 前段不在开关作用域，保守不动）；
 #: ``(?<![\\])`` 挡 ``\{`` 转义花括号误中；横向空白口径挡行间注释
-#: ``{%c\n\em X}`` 被静默吞进参数形。
-_MATH_SWITCH_RE: Final = re.compile(r"(?<!\\)\{[^\S\n]*\\(em|it|bf)" + CMD_BOUNDARY)
+#: ``{%c\n\em X}`` 被静默吞进参数形；长名先列防 ``bf`` 前缀截
+#: ``bfseries``（``CMD_BOUNDARY`` 本可兜住，显式排序双保险）。
+_MATH_SWITCH_RE: Final = re.compile(
+    r"(?<!\\)\{[^\S\n]*\\(bfseries|itshape|rmfamily|sffamily|ttfamily|em|it|bf)"
+    + CMD_BOUNDARY
+)
 
 #: ``$`` 系定界之外的数学环境（209 内建 + amsmath/amstex/IEEE/breqn 族）——
 #: 环境体整段按数学域处理。同名 begin/end 栈式配对；未闭合 begin 不成域
