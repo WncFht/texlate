@@ -524,6 +524,8 @@ def _clean_task_options(
                 },
             )
         options["source"] = source
+    if inject_defaults:
+        options.setdefault("auto_glossary", True)
     if "concurrency" in options:
         try:
             options["concurrency"] = max(1, min(16, int(options["concurrency"])))

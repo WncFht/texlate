@@ -183,7 +183,12 @@ class TestRetryMergedOptionsCap:
         assert r.status_code == HTTPStatus.ACCEPTED, r.text
         row = client.portal.call(partial(client.app.state.store.get, tid))
         opts = json.loads(row["options_json"])
-        assert opts == {"note_a": "x", "note_b": "y", "source": "eprint"}
+        assert opts == {
+            "note_a": "x",
+            "note_b": "y",
+            "source": "eprint",
+            "auto_glossary": True,
+        }
 
     def test_create_side_cap_enforced(self, client: TestClient) -> None:
         """创建侧闸在位（对照——帽只对增量/直输生效，正是 D1 的不对称）。"""
@@ -489,7 +494,7 @@ class TestCleanTaskOptions:
                 "keep": 1,
             }
         )
-        assert out == {"keep": 1, "source": "eprint"}
+        assert out == {"keep": 1, "source": "eprint", "auto_glossary": True}
 
     def test_engine_whitelist(self) -> None:
         for eng in ("auto", "xelatex", "tectonic"):
